@@ -21,6 +21,8 @@ Platforms/*/Intermediate/
 
 # File progetto Visual Studio generati
 *.sln
+*.slnx
+.vsconfig
 *.suo
 *.opensdf
 *.sdf
