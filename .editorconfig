@@ -1,0 +1,21 @@
+# EditorConfig — https://editorconfig.org
+# Impone UTF-8 così il .uproject e i file di progetto non vengono salvati in UTF-16
+# (UnrealBuildTool fallisce il parse del .uproject se trova un BOM UTF-16).
+root = true
+
+[*]
+charset = utf-8
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Codice C++/C# Unreal: tab (stile Epic)
+[*.{cpp,h,inl,cs}]
+indent_style = tab
+
+# File di progetto/config: spazi
+[*.{uproject,uplugin,json,ini}]
+indent_style = space
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
