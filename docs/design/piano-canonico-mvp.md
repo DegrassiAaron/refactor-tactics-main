@@ -168,6 +168,27 @@ Esplicitamente **fuori** dall'MVP, in ordine di priorità indicativa (P0 → P3)
 - **P2**: loadout/moduli, **migrazione a GAS**, tutorial interattivo, accessibilità, localizzazione, controller, Steam/EOS, mappa multilivello.
 - **P3**: console, cosmetici, anti-cheat, **modding** (Blueprint sandbox *vs* Lua/UnLua — **decisione aperta** nei PRD).
 
+### 8.1 Riferimento dettagliato (north-star)
+
+Il documento più completo per il post-MVP è **`docs/RefactorTactics_ Product Requirements Document e piano
+completo di sviluppo.pdf`** (45 pagine). Rispetto ai 3 PRD aggiunge decisioni/specifiche non altrove presenti,
+da usare come riferimento quando le relative feature entrano in scope:
+
+- **Modalità "Relay Control"**: relay da controllare a fine round, ruota ogni 2 round, vittoria a punteggio, knockout con rientro, max 12 round.
+- **Economia del round + 7 intent label**: Focus, Protezione, Scout, Controllo, Fuga, Trappola, Attesa (1 movimento + 1 azione + 0-1 reazione + 0-1 interazione, 1 label).
+- **Config build competitiva**: chassis fisso, 1 spec su 3, 2 modificatori abilità, 2 gadget, 2 tratti a budget, 1 ultimate su 2-3 + tabella varianti.
+- **Formule**: costo traversal, euristica A* multilivello, utility IA (nel PDF).
+- **Modello dati ricco**: 12 struct (`FRTGridCellId`, `FRTCellStaticData/RuntimeState`, `FRTTraversalEdge/Profile`, `FRTPlannedAction/Turn`, `FRTTeamIntentView`, `FRTResolvedEvent`, `FRTModManifest`, `FRTRunState`) + 12 moduli `RTCore…RTEditor`.
+- **Roguelike cooperativo**: 1-4 giocatori, 3 atti, deck 8-12, energia, reliquie, save versionati, "stanze curate + validator".
+- **Modding**: 4 livelli (Data/Content/Game Feature/Native), 3 schemi JSON, 16 operazioni autorizzate, handshake su hash del manifest.
+- **Analytics/Test/Rilascio**: 15 eventi analytics, test plan (unit/deterministico con golden hash/rete/funzionale) + log per-round, 13 gate di release, risk register (15 rischi).
+- **Toolchain/hardware** e tabella migrazione C#→Unreal.
+
+**Conflitti col MVP** (restano distinzioni north-star, NON cambiano l'MVP): il PDF è **4v4**, mette **GAS** nello
+stack, vittoria **a punteggio**, pianificazione **40-60s**. L'MVP resta 2v2, no-GAS, vittoria per eliminazione,
+timer 30s. Nota naming: il PDF usa `FRTGridCellId` (modello ricco); l'MVP usa `FRTGridCoord{X,Y}` (semplice) —
+da riconciliare se in futuro si adotta il modello a chunk multilivello.
+
 ---
 
 ## 9. Decisioni ancora aperte (business & prodotto)
