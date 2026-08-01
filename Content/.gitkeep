@@ -1,0 +1,2 @@
+# Segnaposto: mantiene la cartella Content/ nel repository.
+# Gli asset UE (.uasset/.umap) verranno aggiunti qui e tracciati da Git LFS.

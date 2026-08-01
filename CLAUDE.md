@@ -9,8 +9,9 @@ sviluppato come **percorso didattico per imparare Unreal Engine 5.8** partendo d
 Il loop di turno è: **pianificazione simultanea** → risoluzione a fasi **Prep → Dash → Blast → Move**
 (calcolate simultaneamente, applicate in ordine deterministico).
 
-> ⚠️ Il progetto UE **non esiste ancora**: al momento il repo contiene solo la documentazione
-> (`docs/`). Il codice si costruirà seguendo il piano canonico.
+> ⚠️ È presente solo lo **scheletro C++** del progetto (`.uproject`, modulo, `Config/`): va aperto
+> in UE 5.8.1 per rigenerare la soluzione e compilare. Le classi di gioco si creano per milestone,
+> non in anticipo. Segui il piano canonico e la roadmap in `docs/design/`.
 
 ## Fonte di verità
 

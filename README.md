@@ -6,8 +6,10 @@ Gioco tattico PvP a **turni simultanei** ispirato ad *Atlas Reactor*, sviluppato
 Ogni turno: **pianificazione simultanea** delle mosse → risoluzione a fasi
 **Prep → Dash → Blast → Move**, calcolate simultaneamente e applicate in ordine deterministico.
 
-> **Stato attuale**: fase di *design & documentazione*. Il progetto Unreal Engine non è ancora
-> stato creato: si costruirà seguendo il [piano canonico MVP](docs/design/piano-canonico-mvp.md).
+> **Stato attuale**: scaffolding. È presente lo **scheletro C++** del progetto (`.uproject`, modulo,
+> `Config/`); va aperto in **UE 5.8.1** per rigenerare i file di soluzione e compilare, poi si prosegue
+> col [piano canonico MVP](docs/design/piano-canonico-mvp.md) e la
+> [roadmap/checkpoint](docs/design/roadmap-checkpoint.md).
 
 ---
 
@@ -32,13 +34,14 @@ Windows. Il multiplayer, il 4v4 e il resto della visione competitiva sono
 ## Struttura del repository
 
 ```
-RefactorTactics.uproject   # (da creare) progetto Unreal
-Source/                    # (da creare) codice C++
-Content/                   # (da creare) asset UE
-Config/                    # (da creare) configurazione UE
+RefactorTactics.uproject   # descrittore progetto Unreal
+Source/                    # modulo C++ (scheletro; le classi di gioco arrivano per milestone)
+Config/                    # configurazione UE (Engine/Game/Input)
+Content/                   # asset UE (vuoto; tracciato da Git LFS)
 docs/                      # documentazione
   ├─ design/
-  │   └─ piano-canonico-mvp.md   # ⭐ fonte di verità per l'MVP
+  │   ├─ piano-canonico-mvp.md   # ⭐ fonte di verità per l'MVP
+  │   └─ roadmap-checkpoint.md   # milestone, checkpoint e Definition of Done
   ├─ 00-Intro.pdf                # brief iniziale
   ├─ 01-StrutturaTutorial.pdf    # curriculum didattico
   ├─ 02-Tutorial.pdf             # corso: MVP multiplayer 1v1
