@@ -1,10 +1,35 @@
-# OS
+# ---- Sistema operativo ----
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Editor / IDE
+# ---- Editor / IDE ----
 .vscode/
 .idea/
+.vs/
 *.swp
 *~
+
+# ---- Unreal Engine (generati, da non versionare) ----
+Binaries/
+Build/
+DerivedDataCache/
+Intermediate/
+Saved/
+Platforms/*/Binaries/
+Platforms/*/Intermediate/
+
+# File progetto Visual Studio generati
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+
+# Cache/pref locali dell'utente
+*.xcodeproj
+*.xcworkspace
+
+# ---- Eccezioni: questi vanno versionati ----
+!Content/**/Binaries/
