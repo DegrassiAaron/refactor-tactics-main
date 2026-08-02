@@ -1,5 +1,7 @@
 #include "UI/RTHUD.h"
 #include "Unit/RTUnit.h"
+#include "Ability/RTAbilityData.h"
+#include "Player/RTPlayerController.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnRules.h"
 #include "Core/RTGameplayTags.h"
@@ -82,6 +84,38 @@ void ARTHUD::DrawHUD()
 		{
 			DrawText(Line, FLinearColor(0.85f, 0.85f, 0.85f, 1.f), 16.f, Y, nullptr, 1.f);
 			Y += LineH;
+		}
+	}
+
+	// Barra abilita' dell'unita' selezionata (in basso al centro).
+	if (const ARTPlayerController* RTPC = Cast<ARTPlayerController>(GetOwningPlayerController()))
+	{
+		if (const ARTUnit* Sel = RTPC->GetSelectedUnit())
+		{
+			const float LineH = 18.f;
+			float Y = Canvas->SizeY - 24.f - LineH * (Sel->NumAbilities() - 1);
+			const float X = Canvas->SizeX * 0.45f;
+			for (int32 A = 0; A < Sel->NumAbilities(); ++A)
+			{
+				const URTAbilityData* Ability = Sel->GetAbility(A);
+				if (!Ability)
+				{
+					continue;
+				}
+				const bool bActive = (A == Sel->SelectedAbilityIndex);
+				const bool bUsable = Sel->CanUseAbility(A);
+				const int32 CD = Sel->GetAbilityCooldown(A);
+
+				FString Line = FString::Printf(TEXT("%d. %s"), A + 1, *Ability->DisplayName.ToString());
+				if (CD > 0) { Line += FString::Printf(TEXT("  (ricarica %d)"), CD); }
+				else if (Ability->EnergyCost > 0 && Sel->Energy < Ability->EnergyCost) { Line += TEXT("  (energia)"); }
+				if (bActive) { Line = TEXT("> ") + Line; }
+
+				const FLinearColor Color = bActive ? FLinearColor::White
+					: (bUsable ? FLinearColor(0.8f, 0.8f, 0.8f, 1.f) : FLinearColor(0.45f, 0.45f, 0.45f, 1.f));
+				DrawText(Line, Color, X, Y, nullptr, 1.f);
+				Y += LineH;
+			}
 		}
 	}
 

@@ -86,4 +86,17 @@ bool FRTEffectiveMoveRangeTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityUsableTest,
+	"RefactorTactics.Combat.AbilityUsableByCooldownAndEnergy",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityUsableTest::RunTest(const FString&)
+{
+	TestTrue(TEXT("pronta e senza costo"), URTCombatLibrary::IsAbilityUsable(0, 50, 0));
+	TestFalse(TEXT("in ricarica"), URTCombatLibrary::IsAbilityUsable(2, 50, 0));
+	TestTrue(TEXT("energia sufficiente"), URTCombatLibrary::IsAbilityUsable(0, 100, 100));
+	TestFalse(TEXT("energia insufficiente"), URTCombatLibrary::IsAbilityUsable(0, 99, 100));
+	TestFalse(TEXT("in ricarica anche con energia"), URTCombatLibrary::IsAbilityUsable(1, 100, 100));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

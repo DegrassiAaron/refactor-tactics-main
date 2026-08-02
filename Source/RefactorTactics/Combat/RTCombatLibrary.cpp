@@ -31,3 +31,8 @@ int32 URTCombatLibrary::EffectiveMoveRange(int32 BaseRange, bool bRooted, bool b
 	}
 	return bSlowed ? BaseRange / 2 : BaseRange;
 }
+
+bool URTCombatLibrary::IsAbilityUsable(int32 CooldownRemaining, int32 Energy, int32 EnergyCost)
+{
+	return CooldownRemaining <= 0 && Energy >= EnergyCost;
+}

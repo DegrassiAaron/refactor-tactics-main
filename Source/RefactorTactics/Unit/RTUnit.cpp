@@ -35,6 +35,8 @@ void ARTUnit::BeginPlay()
 {
 	Super::BeginPlay();
 	Health = MaxHealth;
+	EnsureDefaultAbilities();
+	AbilityCooldowns.Init(0, Abilities.Num());
 	ApplyTeamColor();
 }
 
@@ -129,32 +131,88 @@ int32 ARTUnit::GetEffectiveMoveRange() const
 	return URTCombatLibrary::EffectiveMoveRange(MoveRange, HasStatus(TAG_Status_Root), HasStatus(TAG_Status_Slow));
 }
 
-int32 ARTUnit::GetAttackRange() const
+void ARTUnit::EnsureDefaultAbilities()
 {
-	return BasicAttackAbility ? BasicAttackAbility->RangeCells : AttackRange;
+	if (Abilities.Num() > 0)
+	{
+		return;
+	}
+
+	// Attacco base: bersaglio singolo, nessun costo/cooldown; accumula energia.
+	URTAbilityData* Attack = NewObject<URTAbilityData>(this, TEXT("Ability_Attack"));
+	Attack->DisplayName = FText::FromString(TEXT("Attacco"));
+	Attack->RangeCells = AttackRange;
+	Attack->Power = AttackPower;
+	Abilities.Add(Attack);
+
+	// Colpo pesante: piu' danno, con ricarica di 2 turni.
+	URTAbilityData* Heavy = NewObject<URTAbilityData>(this, TEXT("Ability_Heavy"));
+	Heavy->DisplayName = FText::FromString(TEXT("Colpo pesante"));
+	Heavy->RangeCells = FMath::Max(1, AttackRange - 1);
+	Heavy->Power = AttackPower + 20;
+	Heavy->CooldownTurns = 2;
+	Abilities.Add(Heavy);
+
+	// Ultimate: area + Slow, richiede energia piena e la consuma.
+	URTAbilityData* Ult = NewObject<URTAbilityData>(this, TEXT("Ability_Ultimate"));
+	Ult->DisplayName = FText::FromString(TEXT("Ultimate"));
+	Ult->RangeCells = AttackRange;
+	Ult->Power = AttackPower * UltimateMultiplier;
+	Ult->AreaRadius = UltimateRadius;
+	Ult->StatusToApply = TAG_Status_Slow;
+	Ult->StatusDuration = 2;
+	Ult->EnergyCost = MaxEnergy;
+	Abilities.Add(Ult);
 }
 
-int32 ARTUnit::GetAttackPower() const
+URTAbilityData* ARTUnit::GetAbility(int32 Index) const
 {
-	return BasicAttackAbility ? BasicAttackAbility->Power : AttackPower;
+	return Abilities.IsValidIndex(Index) ? Abilities[Index] : nullptr;
 }
 
-int32 ARTUnit::GetUltimatePower() const
+int32 ARTUnit::GetAbilityCooldown(int32 Index) const
 {
-	return UltimateAbility ? UltimateAbility->Power : AttackPower * UltimateMultiplier;
+	return AbilityCooldowns.IsValidIndex(Index) ? AbilityCooldowns[Index] : 0;
 }
 
-int32 ARTUnit::GetUltimateRadius() const
+bool ARTUnit::CanUseAbility(int32 Index) const
 {
-	return UltimateAbility ? UltimateAbility->AreaRadius : UltimateRadius;
+	const URTAbilityData* Ability = GetAbility(Index);
+	return Ability && URTCombatLibrary::IsAbilityUsable(GetAbilityCooldown(Index), Energy, Ability->EnergyCost);
 }
 
-FGameplayTag ARTUnit::GetUltimateStatusTag() const
+void ARTUnit::SelectAbility(int32 Index)
 {
-	return UltimateAbility ? UltimateAbility->StatusToApply : TAG_Status_Slow;
+	if (Abilities.IsValidIndex(Index))
+	{
+		SelectedAbilityIndex = Index;
+	}
 }
 
-int32 ARTUnit::GetUltimateStatusDuration() const
+void ARTUnit::ConsumeAbility(int32 Index)
 {
-	return UltimateAbility ? UltimateAbility->StatusDuration : 2;
+	const URTAbilityData* Ability = GetAbility(Index);
+	if (!Ability)
+	{
+		return;
+	}
+	if (Ability->EnergyCost > 0)
+	{
+		Energy = FMath::Max(0, Energy - Ability->EnergyCost);
+	}
+	if (Ability->CooldownTurns > 0 && AbilityCooldowns.IsValidIndex(Index))
+	{
+		AbilityCooldowns[Index] = Ability->CooldownTurns;
+	}
+}
+
+void ARTUnit::TickCooldowns()
+{
+	for (int32& CD : AbilityCooldowns)
+	{
+		if (CD > 0)
+		{
+			--CD;
+		}
+	}
 }

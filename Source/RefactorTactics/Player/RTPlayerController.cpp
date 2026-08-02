@@ -4,6 +4,7 @@
 #include "Grid/RTGridActor.h"
 #include "Grid/RTGridLibrary.h"
 #include "Unit/RTUnit.h"
+#include "Ability/RTAbilityData.h"
 #include "Turn/RTTurnManager.h"
 #include "Core/RTTypes.h"
 #include "RefactorTactics.h"
@@ -36,6 +37,13 @@ void ARTPlayerController::BuildInputMappings()
 
 	RestartAction = NewObject<UInputAction>(this, TEXT("IA_Restart"));
 	RestartAction->ValueType = EInputActionValueType::Boolean;
+
+	Ability1Action = NewObject<UInputAction>(this, TEXT("IA_Ability1"));
+	Ability1Action->ValueType = EInputActionValueType::Boolean;
+	Ability2Action = NewObject<UInputAction>(this, TEXT("IA_Ability2"));
+	Ability2Action->ValueType = EInputActionValueType::Boolean;
+	Ability3Action = NewObject<UInputAction>(this, TEXT("IA_Ability3"));
+	Ability3Action->ValueType = EInputActionValueType::Boolean;
 
 	MappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_Tactical"));
 
@@ -70,6 +78,11 @@ void ARTPlayerController::BuildInputMappings()
 
 	// Riavvio partita (Boolean): tasto R (attivo solo a match concluso).
 	MappingContext->MapKey(RestartAction, EKeys::R);
+
+	// Selezione abilita' (Boolean): tasti 1/2/3.
+	MappingContext->MapKey(Ability1Action, EKeys::One);
+	MappingContext->MapKey(Ability2Action, EKeys::Two);
+	MappingContext->MapKey(Ability3Action, EKeys::Three);
 }
 
 void ARTPlayerController::BeginPlay()
@@ -99,6 +112,9 @@ void ARTPlayerController::SetupInputComponent()
 		EIC->BindAction(SelectAction, ETriggerEvent::Started, this, &ARTPlayerController::OnSelect);
 		EIC->BindAction(LockInAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLockIn);
 		EIC->BindAction(RestartAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRestart);
+		EIC->BindAction(Ability1Action, ETriggerEvent::Started, this, &ARTPlayerController::OnAbility1);
+		EIC->BindAction(Ability2Action, ETriggerEvent::Started, this, &ARTPlayerController::OnAbility2);
+		EIC->BindAction(Ability3Action, ETriggerEvent::Started, this, &ARTPlayerController::OnAbility3);
 	}
 	else
 	{
@@ -134,17 +150,28 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	ARTUnit* ClickedUnit = Cast<ARTUnit>(HitActor);
 	ARTUnit* SelectedUnit = Cast<ARTUnit>(SelectedActor);
 
-	// Click su un'unita' nemica, con una nostra unita' selezionata -> pianifica un attacco.
+	// Click su un'unita' nemica, con una nostra unita' selezionata -> pianifica l'abilita' attiva.
 	if (ClickedUnit && SelectedUnit && ClickedUnit != SelectedUnit && ClickedUnit->TeamId != SelectedUnit->TeamId)
 	{
-		const ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
-		const int32 AttackRange = SelectedUnit->GetAttackRange();
-		const bool bInRange = URTGridLibrary::IsWithinRange(SelectedUnit->GridCell, ClickedUnit->GridCell, AttackRange);
-		const bool bHasLOS = !Grid || URTGridLibrary::HasLineOfSight(SelectedUnit->GridCell, ClickedUnit->GridCell, Grid->BlockedCells);
-		if (bInRange && bHasLOS)
+		const int32 AbilityIndex = SelectedUnit->SelectedAbilityIndex;
+		const URTAbilityData* Ability = SelectedUnit->GetAbility(AbilityIndex);
+		if (!Ability)
 		{
+			return;
+		}
+		const ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
+		const bool bReady = SelectedUnit->CanUseAbility(AbilityIndex);
+		const bool bInRange = URTGridLibrary::IsWithinRange(SelectedUnit->GridCell, ClickedUnit->GridCell, Ability->RangeCells);
+		const bool bHasLOS = !Grid || URTGridLibrary::HasLineOfSight(SelectedUnit->GridCell, ClickedUnit->GridCell, Grid->BlockedCells);
+		if (bReady && bInRange && bHasLOS)
+		{
+			SelectedUnit->PlannedAbilityIndex = AbilityIndex;
 			SelectedUnit->PlannedAttackTarget = ClickedUnit;
-			UE_LOG(LogRT, Log, TEXT("[RT] Piano attacco: %s -> %s"), *SelectedUnit->GetName(), *ClickedUnit->GetName());
+			UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s usa %s su %s"), *SelectedUnit->GetName(), *Ability->DisplayName.ToString(), *ClickedUnit->GetName());
+		}
+		else if (!bReady)
+		{
+			UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica/energia)"), *Ability->DisplayName.ToString());
 		}
 		else if (!bHasLOS)
 		{
@@ -152,7 +179,7 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		}
 		else
 		{
-			UE_LOG(LogRT, Log, TEXT("[RT] %s fuori portata attacco (max %d)"), *ClickedUnit->GetName(), AttackRange);
+			UE_LOG(LogRT, Log, TEXT("[RT] %s fuori portata (max %d)"), *ClickedUnit->GetName(), Ability->RangeCells);
 		}
 		return;
 	}
@@ -219,3 +246,24 @@ void ARTPlayerController::OnRestart(const FInputActionValue& Value)
 		UGameplayStatics::OpenLevel(this, FName(*UGameplayStatics::GetCurrentLevelName(this, true)));
 	}
 }
+
+ARTUnit* ARTPlayerController::GetSelectedUnit() const
+{
+	return Cast<ARTUnit>(SelectedActor);
+}
+
+void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
+{
+	if (ARTUnit* Unit = GetSelectedUnit())
+	{
+		Unit->SelectAbility(Index);
+		if (const URTAbilityData* Ability = Unit->GetAbility(Index))
+		{
+			UE_LOG(LogRT, Log, TEXT("[RT] %s: abilita' attiva -> %s"), *Unit->GetName(), *Ability->DisplayName.ToString());
+		}
+	}
+}
+
+void ARTPlayerController::OnAbility1(const FInputActionValue& Value) { SelectAbilityForCurrent(0); }
+void ARTPlayerController::OnAbility2(const FInputActionValue& Value) { SelectAbilityForCurrent(1); }
+void ARTPlayerController::OnAbility3(const FInputActionValue& Value) { SelectAbilityForCurrent(2); }

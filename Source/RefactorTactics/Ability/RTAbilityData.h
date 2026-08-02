@@ -38,4 +38,12 @@ public:
 	/** Durata in turni dello status inflitto. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
 	int32 StatusDuration = 0;
+
+	/** Turni di ricarica dopo l'uso (0 = nessuna ricarica). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
+	int32 CooldownTurns = 0;
+
+	/** Energia richiesta e consumata dall'uso (0 = nessun costo; >0 = abilita' "ultimate"). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
+	int32 EnergyCost = 0;
 };

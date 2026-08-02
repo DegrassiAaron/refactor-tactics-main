@@ -2,6 +2,7 @@
 #include "Turn/RTMovementResolver.h"
 #include "Combat/RTCombatResolver.h"
 #include "Combat/RTCombatLibrary.h"
+#include "Ability/RTAbilityData.h"
 #include "Bot/RTBotLibrary.h"
 #include "Core/RTGameplayTags.h"
 #include "Grid/RTGridActor.h"
@@ -35,6 +36,10 @@ void ARTTurnManager::AddLogEvent(const FString& Message)
 
 void ARTTurnManager::PlanBots()
 {
+	static const TArray<FRTGridCoord> NoBlockers;
+	const ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
+	const TArray<FRTGridCoord>& Blockers = Grid ? Grid->BlockedCells : NoBlockers;
+
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
 
@@ -73,13 +78,36 @@ void ARTTurnManager::PlanBots()
 
 		Bot->PlannedCell = Bot->GridCell;   // default: fermo
 		Bot->PlannedAttackTarget = nullptr;
+		Bot->PlannedAbilityIndex = INDEX_NONE;
 		if (!Nearest)
 		{
 			continue;
 		}
 
-		if (URTGridLibrary::IsWithinRange(Bot->GridCell, Nearest->GridCell, Bot->GetAttackRange()))
+		// Abilita' utilizzabile con piu' danno che raggiunge il nemico (in portata e con LOS).
+		int32 BestAbility = INDEX_NONE;
+		int32 BestPower = -1;
+		int32 LongestRange = 0;
+		for (int32 A = 0; A < Bot->NumAbilities(); ++A)
 		{
+			const URTAbilityData* Ability = Bot->GetAbility(A);
+			if (!Ability || !Bot->CanUseAbility(A))
+			{
+				continue;
+			}
+			LongestRange = FMath::Max(LongestRange, Ability->RangeCells);
+			if (URTGridLibrary::IsWithinRange(Bot->GridCell, Nearest->GridCell, Ability->RangeCells)
+				&& URTGridLibrary::HasLineOfSight(Bot->GridCell, Nearest->GridCell, Blockers)
+				&& Ability->Power > BestPower)
+			{
+				BestPower = Ability->Power;
+				BestAbility = A;
+			}
+		}
+
+		if (BestAbility != INDEX_NONE)
+		{
+			Bot->PlannedAbilityIndex = BestAbility;
 			Bot->PlannedAttackTarget = Nearest; // in portata: attacca, resta fermo
 		}
 		else
@@ -163,6 +191,7 @@ void ARTTurnManager::LockInAndResolve()
 				{
 					Unit->Energy = URTCombatLibrary::GainEnergy(Unit->Energy, Unit->EnergyPerTurn, Unit->MaxEnergy);
 					Unit->TickStatuses();
+					Unit->TickCooldowns();
 					(Unit->TeamId == 0 ? Team0Alive : Team1Alive)++;
 				}
 			}
@@ -212,54 +241,61 @@ void ARTTurnManager::ResolveCombat()
 		}
 	}
 
-	// Raccogli gli attacchi validi: bersaglio nemico, vivo, entro la portata (posizione attuale).
-	// A energia piena l'attacco e' un'ultimate: danno potenziato, poi l'energia si azzera.
+	// Raccogli gli attacchi validi in base all'abilita' pianificata: bersaglio nemico, vivo,
+	// entro la portata dell'abilita', con linea di tiro; l'abilita' deve essere utilizzabile.
 	TArray<FRTAttack> Attacks;
 	TArray<ARTUnit*> Attackers;
-	TArray<bool> UsedUltimate;
-	// Status inflitti dalle ultimate (bersaglio + tag + durata, in array paralleli).
+	TArray<int32> UsedAbilityIndex;
+	// Status inflitti dalle abilita' (bersaglio + tag + durata, in array paralleli).
 	TArray<ARTUnit*> StatusTargets;
 	TArray<FGameplayTag> StatusTags;
 	TArray<int32> StatusDurations;
 	for (ARTUnit* Unit : Units)
 	{
 		ARTUnit* Target = Unit->PlannedAttackTarget;
-		Unit->PlannedAttackTarget = nullptr; // consumato nel turno
-		if (Target && IndexOf.Contains(Target) && Target->TeamId != Unit->TeamId
-			&& URTGridLibrary::IsWithinRange(Unit->GridCell, Target->GridCell, Unit->GetAttackRange())
-			&& URTGridLibrary::HasLineOfSight(Unit->GridCell, Target->GridCell, Blockers))
-		{
-			const bool bUlt = URTCombatLibrary::IsUltimateReady(Unit->Energy, Unit->MaxEnergy);
-			const int32 Power = bUlt ? Unit->GetUltimatePower() : Unit->GetAttackPower();
+		const int32 AbilityIndex = Unit->PlannedAbilityIndex;
+		Unit->PlannedAttackTarget = nullptr; // consumati nel turno
+		Unit->PlannedAbilityIndex = INDEX_NONE;
 
-			if (bUlt && Unit->GetUltimateRadius() > 0)
+		const URTAbilityData* Ability = Unit->GetAbility(AbilityIndex);
+		if (!Ability || !Target || !IndexOf.Contains(Target) || Target->TeamId == Unit->TeamId
+			|| !Unit->CanUseAbility(AbilityIndex)
+			|| !URTGridLibrary::IsWithinRange(Unit->GridCell, Target->GridCell, Ability->RangeCells)
+			|| !URTGridLibrary::HasLineOfSight(Unit->GridCell, Target->GridCell, Blockers))
+		{
+			continue;
+		}
+
+		auto AddStatus = [&](ARTUnit* Victim)
+		{
+			if (Ability->StatusToApply.IsValid() && Ability->StatusDuration > 0)
 			{
-				// Ultimate ad area: colpisce ogni nemico entro il raggio attorno al bersaglio,
-				// applicando lo status dell'ultimate (data-driven).
-				const TArray<FRTGridCoord> Area = URTGridLibrary::CellsInRadius(Target->GridCell, Unit->GetUltimateRadius());
-				const FGameplayTag UltTag = Unit->GetUltimateStatusTag();
-				const int32 UltDuration = Unit->GetUltimateStatusDuration();
-				for (ARTUnit* Other : Units)
+				StatusTargets.Add(Victim);
+				StatusTags.Add(Ability->StatusToApply);
+				StatusDurations.Add(Ability->StatusDuration);
+			}
+		};
+
+		if (Ability->AreaRadius > 0)
+		{
+			// Abilita' ad area: colpisce ogni nemico entro il raggio attorno al bersaglio.
+			const TArray<FRTGridCoord> Area = URTGridLibrary::CellsInRadius(Target->GridCell, Ability->AreaRadius);
+			for (ARTUnit* Other : Units)
+			{
+				if (Other->TeamId != Unit->TeamId && Area.Contains(Other->GridCell))
 				{
-					if (Other->TeamId != Unit->TeamId && Area.Contains(Other->GridCell))
-					{
-						Attacks.Add(FRTAttack(IndexOf[Other], Power));
-						if (UltTag.IsValid() && UltDuration > 0)
-						{
-							StatusTargets.Add(Other);
-							StatusTags.Add(UltTag);
-							StatusDurations.Add(UltDuration);
-						}
-					}
+					Attacks.Add(FRTAttack(IndexOf[Other], Ability->Power));
+					AddStatus(Other);
 				}
 			}
-			else
-			{
-				Attacks.Add(FRTAttack(IndexOf[Target], Power));
-			}
-			Attackers.Add(Unit);
-			UsedUltimate.Add(bUlt);
 		}
+		else
+		{
+			Attacks.Add(FRTAttack(IndexOf[Target], Ability->Power));
+			AddStatus(Target);
+		}
+		Attackers.Add(Unit);
+		UsedAbilityIndex.Add(AbilityIndex);
 	}
 
 	if (Attacks.Num() == 0)
@@ -278,7 +314,7 @@ void ARTTurnManager::ResolveCombat()
 		Units[i]->ApplyCombatState(Resolved[i].Health, Resolved[i].Shield); // puo' distruggere l'unita'
 	}
 
-	// Energia degli attaccanti sopravvissuti: ultimate azzera, attacco normale accumula.
+	// Attaccanti sopravvissuti: consuma l'abilita' (energia+cooldown); se gratuita, accumula energia.
 	for (int32 i = 0; i < Attackers.Num(); ++i)
 	{
 		ARTUnit* Attacker = Attackers[i];
@@ -286,9 +322,10 @@ void ARTTurnManager::ResolveCombat()
 		{
 			continue;
 		}
-		if (UsedUltimate[i])
+		const URTAbilityData* Ability = Attacker->GetAbility(UsedAbilityIndex[i]);
+		Attacker->ConsumeAbility(UsedAbilityIndex[i]);
+		if (Ability && Ability->EnergyCost > 0)
 		{
-			Attacker->Energy = 0;
 			AddLogEvent(FString::Printf(TEXT("Ultimate! %s"), *Attacker->GetName()));
 		}
 		else

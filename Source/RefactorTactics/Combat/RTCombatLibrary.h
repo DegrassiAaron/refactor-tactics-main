@@ -42,4 +42,8 @@ public:
 	/** Range di movimento effettivo con gli status: Root azzera, Slow dimezza (arrotondato per difetto). */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static int32 EffectiveMoveRange(int32 BaseRange, bool bRooted, bool bSlowed);
+
+	/** Vero se un'abilita' e' utilizzabile: non in ricarica e con energia sufficiente. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static bool IsAbilityUsable(int32 CooldownRemaining, int32 Energy, int32 EnergyCost);
 };

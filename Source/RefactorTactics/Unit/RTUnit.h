@@ -81,25 +81,39 @@ public:
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Combat")
 	int32 UltimateRadius = 1;
 
-	/** Abilita' d'attacco data-driven (opzionale): se assegnata, sovrascrive i valori base. */
+	/** Abilita' data-driven dell'unita' (se vuota, popolata con default in codice all'avvio). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
-	TObjectPtr<URTAbilityData> BasicAttackAbility = nullptr;
+	TArray<TObjectPtr<URTAbilityData>> Abilities;
 
-	/** Abilita' ultimate data-driven (opzionale): se assegnata, sovrascrive i valori base dell'ultimate. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
-	TObjectPtr<URTAbilityData> UltimateAbility = nullptr;
+	/** Abilita' selezionata dal giocatore per la pianificazione. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Ability")
+	int32 SelectedAbilityIndex = 0;
 
-	// Valori effettivi: dall'abilita' data-driven se assegnata, altrimenti dai campi base.
-	int32 GetAttackRange() const;
-	int32 GetAttackPower() const;
-	int32 GetUltimatePower() const;
-	int32 GetUltimateRadius() const;
-	FGameplayTag GetUltimateStatusTag() const;
-	int32 GetUltimateStatusDuration() const;
+	/** Abilita' pianificata per il turno (INDEX_NONE = nessun attacco). */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Ability")
+	int32 PlannedAbilityIndex = INDEX_NONE;
 
 	/** Bersaglio dell'attacco pianificato per il turno (nullo = nessun attacco). */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Combat")
 	TObjectPtr<ARTUnit> PlannedAttackTarget = nullptr;
+
+	int32 NumAbilities() const { return Abilities.Num(); }
+	URTAbilityData* GetAbility(int32 Index) const;
+
+	/** Vero se l'abilita' e' pronta (non in ricarica) e c'e' energia sufficiente. */
+	bool CanUseAbility(int32 Index) const;
+
+	/** Cooldown residuo (turni) di un'abilita'. */
+	int32 GetAbilityCooldown(int32 Index) const;
+
+	/** Seleziona l'abilita' attiva del giocatore (se l'indice e' valido). */
+	void SelectAbility(int32 Index);
+
+	/** Avvia la ricarica dell'abilita' e ne consuma l'energia. */
+	void ConsumeAbility(int32 Index);
+
+	/** Decrementa i cooldown di tutte le abilita'. */
+	void TickCooldowns();
 
 	/** Applica lo stato di combattimento risolto; se HP<=0 avvia l'eliminazione. */
 	void ApplyCombatState(int32 NewHealth, int32 NewShield);
@@ -122,6 +136,13 @@ private:
 	/** Status attivi: tag -> turni residui. */
 	UPROPERTY()
 	TMap<FGameplayTag, int32> StatusTurns;
+
+	/** Cooldown residuo per abilita' (parallelo a Abilities). */
+	UPROPERTY()
+	TArray<int32> AbilityCooldowns;
+
+	/** Popola Abilities con un set di default (attacco, colpo pesante, ultimate) se vuota. */
+	void EnsureDefaultAbilities();
 
 public:
 

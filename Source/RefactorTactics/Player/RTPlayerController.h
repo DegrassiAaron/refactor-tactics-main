@@ -42,6 +42,15 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> RestartAction;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> Ability1Action;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> Ability2Action;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> Ability3Action;
+
 	/** Attore attualmente selezionato (se implementa IRTSelectable). */
 	UPROPERTY()
 	TObjectPtr<AActor> SelectedActor;
@@ -51,4 +60,13 @@ protected:
 	void OnSelect(const FInputActionValue& Value);
 	void OnLockIn(const FInputActionValue& Value);
 	void OnRestart(const FInputActionValue& Value);
+	void OnAbility1(const FInputActionValue& Value);
+	void OnAbility2(const FInputActionValue& Value);
+	void OnAbility3(const FInputActionValue& Value);
+
+	void SelectAbilityForCurrent(int32 Index);
+
+public:
+	/** Unita' attualmente selezionata dal giocatore (nullo se nessuna). */
+	class ARTUnit* GetSelectedUnit() const;
 };
