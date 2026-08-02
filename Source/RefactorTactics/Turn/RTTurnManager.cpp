@@ -133,11 +133,12 @@ void ARTTurnManager::PlanBots()
 		{
 			// Nessun tiro disponibile: un kiter (Ranger) arretra se la minaccia e' troppo vicina,
 			// altrimenti si avvicina per rientrare a distanza di tiro; la mischia (Guardian) chiude sempre.
+			// In ogni caso si evitano le celle-copertura (routing a un turno attorno agli ostacoli).
 			const int32 MoveBudget = Bot->GetEffectiveMoveRange();
+			const int32 GridW = Grid ? Grid->Width : 10;
+			const int32 GridH = Grid ? Grid->Height : 10;
 			if (Bot->KiteStandoff > 0 && NearestDistance < Bot->KiteStandoff)
 			{
-				const int32 GridW = Grid ? Grid->Width : 10;
-				const int32 GridH = Grid ? Grid->Height : 10;
 				const FRTGridCoord Retreat = URTBotLibrary::StepAway(Bot->GridCell, Nearest->GridCell, MoveBudget, GridW, GridH);
 				if (!Blockers.Contains(Retreat)) // non ritirarsi su una copertura
 				{
@@ -146,7 +147,7 @@ void ARTTurnManager::PlanBots()
 			}
 			else
 			{
-				Bot->PlannedCell = URTBotLibrary::StepToward(Bot->GridCell, Nearest->GridCell, MoveBudget);
+				Bot->PlannedCell = URTBotLibrary::BestApproachCell(Bot->GridCell, Nearest->GridCell, MoveBudget, Blockers, GridW, GridH);
 			}
 		}
 	}
@@ -430,6 +431,8 @@ void ARTTurnManager::ResolveMovement()
 	ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
 	const FVector Origin = Grid ? Grid->GetActorLocation() : FVector::ZeroVector;
 	const float CellSize = Grid ? Grid->CellSize : 200.f;
+	static const TArray<FRTGridCoord> NoBlockers;
+	const TArray<FRTGridCoord>& Blockers = Grid ? Grid->BlockedCells : NoBlockers;
 
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
@@ -445,11 +448,11 @@ void ARTTurnManager::ResolveMovement()
 			Units.Add(Unit);
 
 			// Difesa autorevole: un piano fuori portata (range effettivo, considerati gli status)
-			// viene ignorato, a prescindere da cosa ha inviato il client.
-			const FRTGridCoord Target =
-				URTGridLibrary::IsWithinRange(Unit->GridCell, Unit->PlannedCell, Unit->GetEffectiveMoveRange())
-					? Unit->PlannedCell
-					: Unit->GridCell;
+			// oppure su una copertura viene ignorato, a prescindere da cosa ha inviato il client
+			// (invariante: nessun movimento su cella-copertura).
+			const bool bInRange = URTGridLibrary::IsWithinRange(Unit->GridCell, Unit->PlannedCell, Unit->GetEffectiveMoveRange());
+			const bool bOnCover = Blockers.Contains(Unit->PlannedCell);
+			const FRTGridCoord Target = (bInRange && !bOnCover) ? Unit->PlannedCell : Unit->GridCell;
 			Requests.Add(FRTMoveRequest(Unit->GridCell, Target));
 		}
 	}

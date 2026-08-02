@@ -60,6 +60,39 @@ FRTGridCoord URTBotLibrary::StepAway(const FRTGridCoord& From, const FRTGridCoor
 	return Result;
 }
 
+FRTGridCoord URTBotLibrary::BestApproachCell(const FRTGridCoord& From, const FRTGridCoord& Target, int32 MoveRange,
+	const TArray<FRTGridCoord>& Blockers, int32 Width, int32 Height)
+{
+	const int32 Budget = FMath::Max(0, MoveRange);
+
+	FRTGridCoord Best = From; // fermarsi e' sempre un'opzione valida
+	int32 BestToTarget = FMath::Abs(Target.X - From.X) + FMath::Abs(Target.Y - From.Y);
+	int32 BestFromOrigin = 0;
+
+	// Scansione deterministica del rombo raggiungibile (X poi Y crescenti).
+	for (int32 X = 0; X < Width; ++X)
+	{
+		for (int32 Y = 0; Y < Height; ++Y)
+		{
+			const FRTGridCoord Cell(X, Y);
+			const int32 FromOrigin = FMath::Abs(X - From.X) + FMath::Abs(Y - From.Y);
+			if (FromOrigin > Budget || Cell == Target || Blockers.Contains(Cell))
+			{
+				continue; // fuori portata, sul bersaglio, o su una copertura
+			}
+			const int32 ToTarget = FMath::Abs(Target.X - X) + FMath::Abs(Target.Y - Y);
+			// Piu' vicino al bersaglio; a parita', mossa piu' corta.
+			if (ToTarget < BestToTarget || (ToTarget == BestToTarget && FromOrigin < BestFromOrigin))
+			{
+				BestToTarget = ToTarget;
+				BestFromOrigin = FromOrigin;
+				Best = Cell;
+			}
+		}
+	}
+	return Best;
+}
+
 int32 URTBotLibrary::AttackScore(int32 Damage, int32 TargetHealth)
 {
 	if (Damage >= TargetHealth)

@@ -29,6 +29,15 @@ public:
 	static FRTGridCoord StepAway(const FRTGridCoord& From, const FRTGridCoord& Threat, int32 MoveRange, int32 Width, int32 Height);
 
 	/**
+	 * Cella di avvicinamento a Target raggiungibile entro MoveRange passi, dentro la griglia e
+	 * NON su una copertura (Blockers): sceglie quella piu' vicina al bersaglio (a parita', la mossa
+	 * minima). Evita in un solo turno gli ostacoli; non si sovrappone al bersaglio. Deterministica.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Bot")
+	static FRTGridCoord BestApproachCell(const FRTGridCoord& From, const FRTGridCoord& Target, int32 MoveRange,
+		const TArray<FRTGridCoord>& Blockers, int32 Width, int32 Height);
+
+	/**
 	 * Priorità di un attacco per la scelta del bersaglio del bot.
 	 * Un colpo che uccide (Damage >= TargetHealth) ha priorità massima, e tra i kill si preferisce
 	 * il bersaglio più debole; tra i non-kill si preferisce il danno maggiore.

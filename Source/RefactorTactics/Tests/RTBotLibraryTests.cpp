@@ -105,4 +105,30 @@ bool FRTBotStepAwayTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotApproachTest,
+	"RefactorTactics.Bot.BestApproachCellAvoidsBlockersAndApproaches",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotApproachTest::RunTest(const FString&)
+{
+	const TArray<FRTGridCoord> NoBlockers;
+	// Percorso libero: (0,0) -> (0,9), range 3 -> cella piu' vicina raggiungibile (0,3), distanza 6.
+	{
+		const FRTGridCoord Dest = URTBotLibrary::BestApproachCell(FRTGridCoord(0, 0), FRTGridCoord(0, 9), 3, NoBlockers, 10, 10);
+		TestEqual(TEXT("distanza al bersaglio 6"), URTGridLibrary::ManhattanDistance(Dest, FRTGridCoord(0, 9)), 6);
+	}
+	// Ostacolo 2x2 centrale: il bot non deve MAI finire su una copertura, e deve avvicinarsi.
+	{
+		const TArray<FRTGridCoord> Blockers = { FRTGridCoord(4,4), FRTGridCoord(5,4), FRTGridCoord(4,5), FRTGridCoord(5,5) };
+		const FRTGridCoord From(7, 5), Target(2, 4);
+		const FRTGridCoord Dest = URTBotLibrary::BestApproachCell(From, Target, 3, Blockers, 10, 10);
+		TestFalse(TEXT("non su una copertura"), Blockers.Contains(Dest));
+		TestTrue(TEXT("dentro la griglia"), URTGridLibrary::IsInsideGrid(Dest, 10, 10));
+		TestTrue(TEXT("entro la portata"), URTGridLibrary::ManhattanDistance(From, Dest) <= 3);
+		TestTrue(TEXT("si e' avvicinato"),
+			URTGridLibrary::ManhattanDistance(Dest, Target) < URTGridLibrary::ManhattanDistance(From, Target));
+		TestTrue(TEXT("non sul bersaglio"), Dest != Target);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
