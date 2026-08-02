@@ -1,0 +1,33 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Kismet/BlueprintFunctionLibrary.h"
+#include "RTCombatLibrary.generated.h"
+
+/** Esito dell'applicazione del danno: HP e scudo risultanti. */
+USTRUCT(BlueprintType)
+struct FRTDamageResult
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	int32 Health = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	int32 Shield = 0;
+
+	FRTDamageResult() = default;
+	FRTDamageResult(int32 InHealth, int32 InShield) : Health(InHealth), Shield(InShield) {}
+};
+
+/** Calcoli puri di combattimento (indipendenti dagli Actor, testabili). */
+UCLASS()
+class REFACTORTACTICS_API URTCombatLibrary : public UBlueprintFunctionLibrary
+{
+	GENERATED_BODY()
+
+public:
+	/** Applica il danno: lo scudo assorbe per primo, poi gli HP. Nessun valore scende sotto 0. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static FRTDamageResult ApplyDamage(int32 Damage, int32 Shield, int32 Health);
+};
