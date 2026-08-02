@@ -187,6 +187,11 @@ void ARTTurnManager::LockInAndResolve()
 
 void ARTTurnManager::ResolveCombat()
 {
+	// Ostacoli (celle-copertura) che bloccano la linea di tiro.
+	static const TArray<FRTGridCoord> NoBlockers;
+	const ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
+	const TArray<FRTGridCoord>& Blockers = Grid ? Grid->BlockedCells : NoBlockers;
+
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
 
@@ -215,7 +220,8 @@ void ARTTurnManager::ResolveCombat()
 		ARTUnit* Target = Unit->PlannedAttackTarget;
 		Unit->PlannedAttackTarget = nullptr; // consumato nel turno
 		if (Target && IndexOf.Contains(Target) && Target->TeamId != Unit->TeamId
-			&& URTGridLibrary::IsWithinRange(Unit->GridCell, Target->GridCell, Unit->AttackRange))
+			&& URTGridLibrary::IsWithinRange(Unit->GridCell, Target->GridCell, Unit->AttackRange)
+			&& URTGridLibrary::HasLineOfSight(Unit->GridCell, Target->GridCell, Blockers))
 		{
 			const bool bUlt = URTCombatLibrary::IsUltimateReady(Unit->Energy, Unit->MaxEnergy);
 			const int32 Power = bUlt ? Unit->AttackPower * Unit->UltimateMultiplier : Unit->AttackPower;

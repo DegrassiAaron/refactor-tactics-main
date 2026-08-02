@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Core/RTTypes.h"
 #include "RTGridActor.generated.h"
 
 class UInstancedStaticMeshComponent;
@@ -27,12 +28,20 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Grid")
 	float CellSize = 200.f;
 
+	/** Celle-ostacolo: bloccano la linea di tiro e non sono calpestabili. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Grid")
+	TArray<FRTGridCoord> BlockedCells;
+
 protected:
 	virtual void BeginPlay() override;
 
-	/** Ricostruisce tutte le istanze delle celle. */
+	/** Ricostruisce le istanze di celle e ostacoli. */
 	void BuildGrid();
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Grid")
 	TObjectPtr<UInstancedStaticMeshComponent> Cells;
+
+	/** Mesh alte sulle celle-ostacolo (copertura visibile). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Grid")
+	TObjectPtr<UInstancedStaticMeshComponent> Obstacles;
 };

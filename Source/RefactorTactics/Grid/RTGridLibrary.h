@@ -34,4 +34,11 @@ public:
 	/** Vero se To e' raggiungibile da From entro Range passi (distanza di Manhattan <= Range). */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Grid")
 	static bool IsWithinRange(const FRTGridCoord& From, const FRTGridCoord& To, int32 Range);
+
+	/**
+	 * Vero se la linea di tiro tra From e To non attraversa alcuna cella bloccante.
+	 * From e To non bloccano mai (l'attaccante e il bersaglio non si coprono da soli).
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Grid")
+	static bool HasLineOfSight(const FRTGridCoord& From, const FRTGridCoord& To, const TArray<FRTGridCoord>& Blockers);
 };

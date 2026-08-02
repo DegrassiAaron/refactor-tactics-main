@@ -20,6 +20,19 @@ ARTGridActor::ARTGridActor()
 	{
 		Cells->SetStaticMesh(PlaneMesh.Object);
 	}
+
+	Obstacles = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Obstacles"));
+	Obstacles->SetupAttachment(Cells);
+	Obstacles->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	Obstacles->SetCollisionResponseToAllChannels(ECR_Block);
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
+	if (CubeMesh.Succeeded())
+	{
+		Obstacles->SetStaticMesh(CubeMesh.Object);
+	}
+
+	// Coperture centrali di default per il demo (bloccano la linea di tiro).
+	BlockedCells = { FRTGridCoord(4, 4), FRTGridCoord(5, 4), FRTGridCoord(4, 5), FRTGridCoord(5, 5) };
 }
 
 void ARTGridActor::BeginPlay()
@@ -57,5 +70,24 @@ void ARTGridActor::BuildGrid()
 		}
 	}
 
-	UE_LOG(LogRT, Log, TEXT("[RT] GridActor: %d celle (%dx%d, cella %.0f uu)"), Count, Width, Height, CellSize);
+	// Ostacoli: un cubo su ogni cella-copertura, alto abbastanza da bloccare la vista.
+	if (Obstacles)
+	{
+		Obstacles->ClearInstances();
+		constexpr float CubeBaseSize = 100.f; // dimensione del Cube base in uu
+		const float XYScale = (CellSize * 0.9f) / CubeBaseSize;
+		const float ZScale = 250.f / CubeBaseSize; // ~250 uu di altezza
+		for (const FRTGridCoord& Blocked : BlockedCells)
+		{
+			FVector World = URTGridLibrary::CellToWorld(Blocked, Origin, CellSize);
+			World.Z += GridZOffset + (250.f * 0.5f); // base appoggiata sopra la griglia
+			FTransform T;
+			T.SetLocation(World);
+			T.SetScale3D(FVector(XYScale, XYScale, ZScale));
+			Obstacles->AddInstance(T, /*bWorldSpace=*/ true);
+		}
+	}
+
+	UE_LOG(LogRT, Log, TEXT("[RT] GridActor: %d celle, %d ostacoli (%dx%d, cella %.0f uu)"),
+		Count, BlockedCells.Num(), Width, Height, CellSize);
 }

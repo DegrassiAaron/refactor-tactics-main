@@ -137,10 +137,17 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	// Click su un'unita' nemica, con una nostra unita' selezionata -> pianifica un attacco.
 	if (ClickedUnit && SelectedUnit && ClickedUnit != SelectedUnit && ClickedUnit->TeamId != SelectedUnit->TeamId)
 	{
-		if (URTGridLibrary::IsWithinRange(SelectedUnit->GridCell, ClickedUnit->GridCell, SelectedUnit->AttackRange))
+		const ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
+		const bool bInRange = URTGridLibrary::IsWithinRange(SelectedUnit->GridCell, ClickedUnit->GridCell, SelectedUnit->AttackRange);
+		const bool bHasLOS = !Grid || URTGridLibrary::HasLineOfSight(SelectedUnit->GridCell, ClickedUnit->GridCell, Grid->BlockedCells);
+		if (bInRange && bHasLOS)
 		{
 			SelectedUnit->PlannedAttackTarget = ClickedUnit;
 			UE_LOG(LogRT, Log, TEXT("[RT] Piano attacco: %s -> %s"), *SelectedUnit->GetName(), *ClickedUnit->GetName());
+		}
+		else if (!bHasLOS)
+		{
+			UE_LOG(LogRT, Log, TEXT("[RT] %s coperto (nessuna linea di tiro)"), *ClickedUnit->GetName());
 		}
 		else
 		{
@@ -173,6 +180,11 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 			const FRTGridCoord Cell = URTGridLibrary::WorldToCell(Hit.Location, Grid->GetActorLocation(), Grid->CellSize);
 			if (!URTGridLibrary::IsInsideGrid(Cell, Grid->Width, Grid->Height))
 			{
+				return;
+			}
+			if (Grid->BlockedCells.Contains(Cell))
+			{
+				UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d) occupata da una copertura"), Cell.X, Cell.Y);
 				return;
 			}
 			if (!URTGridLibrary::IsWithinRange(SelectedUnit->GridCell, Cell, SelectedUnit->MoveRange))

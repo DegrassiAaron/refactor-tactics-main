@@ -31,3 +31,31 @@ bool URTGridLibrary::IsWithinRange(const FRTGridCoord& From, const FRTGridCoord&
 {
 	return ManhattanDistance(From, To) <= Range;
 }
+
+bool URTGridLibrary::HasLineOfSight(const FRTGridCoord& From, const FRTGridCoord& To, const TArray<FRTGridCoord>& Blockers)
+{
+	if (Blockers.Num() == 0 || From == To)
+	{
+		return true;
+	}
+
+	// Campiona il segmento tra i centri delle due celle e controlla ogni cella attraversata.
+	// From e To non contano come ostacoli.
+	const int32 DX = To.X - From.X;
+	const int32 DY = To.Y - From.Y;
+	const int32 Steps = FMath::Max(FMath::Abs(DX), FMath::Abs(DY)) * 4; // risoluzione sufficiente per la griglia
+
+	for (int32 i = 1; i < Steps; ++i)
+	{
+		const double T = static_cast<double>(i) / Steps;
+		const FRTGridCoord Cell(
+			FMath::RoundToInt32(From.X + DX * T),
+			FMath::RoundToInt32(From.Y + DY * T));
+
+		if (Cell != From && Cell != To && Blockers.Contains(Cell))
+		{
+			return false;
+		}
+	}
+	return true;
+}

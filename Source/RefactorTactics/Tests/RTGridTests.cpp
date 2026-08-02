@@ -91,4 +91,31 @@ bool FRTGridWithinRangeTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGridLineOfSightTest,
+	"RefactorTactics.Grid.LineOfSightBlockedByObstacles",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGridLineOfSightTest::RunTest(const FString&)
+{
+	// Linea verticale (0,0)->(0,4): un ostacolo a (0,2) blocca; uno a (1,2) no.
+	TestFalse(TEXT("ostacolo sulla linea verticale blocca"),
+		URTGridLibrary::HasLineOfSight(FRTGridCoord(0, 0), FRTGridCoord(0, 4), { FRTGridCoord(0, 2) }));
+	TestTrue(TEXT("ostacolo fuori linea non blocca"),
+		URTGridLibrary::HasLineOfSight(FRTGridCoord(0, 0), FRTGridCoord(0, 4), { FRTGridCoord(1, 2) }));
+
+	// Linea orizzontale (0,0)->(4,0): ostacolo a (2,0) blocca.
+	TestFalse(TEXT("ostacolo sulla linea orizzontale blocca"),
+		URTGridLibrary::HasLineOfSight(FRTGridCoord(0, 0), FRTGridCoord(4, 0), { FRTGridCoord(2, 0) }));
+
+	// Diagonale (0,0)->(4,4): ostacolo a (2,2) blocca.
+	TestFalse(TEXT("ostacolo sulla diagonale blocca"),
+		URTGridLibrary::HasLineOfSight(FRTGridCoord(0, 0), FRTGridCoord(4, 4), { FRTGridCoord(2, 2) }));
+
+	// Nessun ostacolo -> libera; From/To non bloccano.
+	TestTrue(TEXT("nessun ostacolo -> libera"),
+		URTGridLibrary::HasLineOfSight(FRTGridCoord(0, 0), FRTGridCoord(4, 0), {}));
+	TestTrue(TEXT("ostacolo su From/To non conta"),
+		URTGridLibrary::HasLineOfSight(FRTGridCoord(0, 0), FRTGridCoord(0, 4), { FRTGridCoord(0, 0), FRTGridCoord(0, 4) }));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
