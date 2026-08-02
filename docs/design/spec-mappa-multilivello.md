@@ -72,18 +72,20 @@ quota del layer. **Rischio**: la priorità di collisione tra `Cells0`/`Cells1` v
 - **`GraphRevision`/`SchemaVersion`**: solo con archi **dinamici** (crolli/portali da skill) → north-star. Nel
   ponte l'MVP è **statico** nello snapshot → non serve.
 
-## 9. Piano d'implementazione (wiring minimo prima — DECISO)
+## 9. Piano d'implementazione (stato 2026-08-02)
 
-- **MP.1 — Ponte minimo (una rampa)**: dati (celle-ponte + 1 rampa) · `BuildCostMap` multilivello · `Cells1`
-  ISM a quota + marker rampa · `WorldToCell → (X,Y,Layer)` via ISM-hit · movimento `FindPathByGraph` ·
-  `PlaceOnCell` con quota. **PIE**: un'unità sale la rampa e cammina sul ponte.
-- **MP.2 — LOS di elevazione**: `HasLineOfSight` col layer del tiratore (blocca solo `layer ≥ tiratore`).
-  *TDD* (a terra il ponte non blocca; dal ponte le coperture basse non bloccano).
-- **MP.3 — Seconda rampa + bot + HUD**: 2ª rampa (ponte contendibile) · `BuildBotCostMap` multilivello +
-  scoring · preview/traccia path su più layer.
-- **MP.4 — Verifica end-to-end (PIE)** + tuning (quota, colori, priorità collisione, bilanciamento).
+- **MP.1 — Ponte + movimento cross-layer** ✅ *(codice completo, 53 test; salita interattiva non ancora
+  PIE-verificata dall'utente)*: `SpawnBridge` (celle layer 1 (3,4,1)..(7,4,1) + 2 rampe) · `BuildCostMap`
+  multilivello (celle-ponte calpestabili, resto di layer 1 impassabile) · `BridgeCells` ISM a quota ·
+  `LayerFromHitComponent` (click→layer) · pipeline movimento graph-aware (`FindPathByGraph`, `PathCost`/
+  `BuildCompositePath` con archi) · `PlaceOnCell(..., LayerHeight)`. Fix: ponte non sopra lo spawn del Guardian.
+- **MP.2 — LOS di elevazione** ✅ TDD: un blocker blocca solo se allo **stesso layer** del tiratore (dal ponte
+  si spara sopra le coperture basse; a terra si spara sotto il ponte). Retro-compatibile col 2D.
+- **MP.3 — HUD path elevato** ✅: linea, pallini, destinazione e traccia post-lock seguono la quota del layer.
+- **MP.4 — verifica PIE end-to-end + tuning** ⏳; **bot-sul-ponte** ⏳ (il bot resta a terra: enhancement).
 
-Ogni passo: build + test (dove pura) verde prima del successivo, commit per passo, PIE quando serve.
+> **Nota di verifica**: la logica cross-layer è coperta da test (`FindPathByGraph`, `PathCost` via arco,
+> LOS di elevazione). Il solo pezzo non verificabile senza gioco manuale è il **click→layer** a schermo.
 
 ## 10. Rischi
 
