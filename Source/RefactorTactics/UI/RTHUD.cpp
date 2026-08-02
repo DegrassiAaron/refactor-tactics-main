@@ -74,6 +74,27 @@ void ARTHUD::DrawHUD()
 	const ARTTurnManager* TurnManager =
 		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
 
+	// Barra di stato in alto: turno, fase e timer di pianificazione.
+	if (TurnManager)
+	{
+		const TCHAR* PhaseName = TEXT("");
+		switch (TurnManager->GetPhase())
+		{
+		case ERTMatchPhase::Planning:   PhaseName = TEXT("Pianificazione"); break;
+		case ERTMatchPhase::MatchEnded: PhaseName = TEXT("Fine"); break;
+		default:                        PhaseName = TEXT("Risoluzione"); break;
+		}
+		FString Status = FString::Printf(TEXT("Turno %d  -  %s"), TurnManager->GetTurnNumber(), PhaseName);
+		const float Remaining = TurnManager->GetPlanningTimeRemaining();
+		if (TurnManager->GetPhase() == ERTMatchPhase::Planning && Remaining > 0.f)
+		{
+			Status += FString::Printf(TEXT("  -  %.0fs"), FMath::CeilToFloat(Remaining));
+		}
+		float TW = 0.f, TH = 0.f;
+		GetTextSize(Status, TW, TH, nullptr, 1.2f);
+		DrawText(Status, FLinearColor::White, (Canvas->SizeX - TW) * 0.5f, 16.f, nullptr, 1.2f);
+	}
+
 	// Combat log in basso a sinistra (dal piu' vecchio in alto al piu' recente in basso).
 	if (TurnManager)
 	{

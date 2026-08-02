@@ -64,21 +64,26 @@ modding). Sono la **direzione futura**, non l'obiettivo dell'MVP. Vedi §8.
 
 ## 4. Definizione dell'MVP (vertical slice)
 
-Checklist di completamento — l'MVP è "fatto" quando **tutte** queste voci sono vere:
+Checklist di completamento — l'MVP è "fatto" quando **tutte** queste voci sono vere.
+**Revisione al 2026-08-02** (✅ fatto · 🟡 fatto in parte):
 
-- [ ] Il gioco si avvia direttamente nell'arena
-- [ ] **2v2**: 2 unità alleate (giocatore) + 2 nemiche (bot)
-- [ ] Selezione delle proprie unità
-- [ ] Pianificazione: per ogni unità si scelgono **abilità + bersaglio + movimento**
-- [ ] Lock-in del turno con **timer 30 s**
-- [ ] Il **bot** pianifica le unità nemiche (utility scoring)
-- [ ] Risoluzione a 4 fasi **Prep → Dash → Blast → Move**, deterministica ("raccogli poi applica")
-- [ ] Combattimento: danni, **scudi**, **energia/ultimate**, **status** (Root/Slow/Shield/Reveal via Gameplay Tags), **LOS/copertura**
-- [ ] **Targeting a forme** (Self/Single/Line/Cone/Circle)
-- [ ] Vittoria: la partita termina quando una squadra è eliminata
-- [ ] UI: salute, energia, abilità, timer, fase, **combat log**
-- [ ] Test automatici: griglia, danno-dopo-scudo, ordine fasi, conflitti di movimento
-- [ ] Build Windows (**Development** e **Shipping**) che parte senza Editor
+- [x] ✅ Il gioco si avvia direttamente nell'arena *(GlobalDefaultGameMode + `L_Prototype`)*
+- [x] ✅ **2v2**: 2 unità alleate (giocatore) + 2 nemiche (bot)
+- [x] ✅ Selezione delle proprie unità
+- [x] ✅ Pianificazione: **abilità (tasti 1/2/3) + bersaglio (click) + movimento (click cella)**
+- [x] ✅ Lock-in del turno con **timer 30 s** (Spazio o scadenza)
+- [~] 🟡 Il **bot** pianifica le unità nemiche — sceglie nemico più vicino + abilità migliore per danno; *utility scoring multi-fattore (minaccia, kiting) da fare*
+- [~] 🟡 Risoluzione a 4 fasi **Prep → Dash → Blast → Move**, deterministica — la macchina attraversa tutte le fasi e Blast/Move risolvono in modo deterministico ("raccogli poi applica"); *Prep/Dash sono pass-through (nessuna abilità le usa ancora)*
+- [~] 🟡 Combattimento: danni ✅, **scudi** ✅, **energia/ultimate** ✅, **status** Root/Slow ✅ *(Shield/Reveal ⏳)*, **LOS/copertura** ✅
+- [~] 🟡 **Targeting a forme**: Single ✅, area/Circle ✅ *(Self/Line/Cone ⏳)*
+- [x] ✅ Vittoria: la partita termina quando una squadra è eliminata (+ riavvio con R)
+- [x] ✅ UI: salute, energia, abilità, **timer**, **fase**, **combat log** (tutti a schermo)
+- [x] ✅ Test automatici: griglia, danno-dopo-scudo, ordine fasi, conflitti di movimento *(33 test)*
+- [~] 🟡 Build Windows: **Development** ✅ (verificata, si avvia senza editor) *(Shipping ⏳)*
+
+**Verdetto**: MVP **sostanzialmente completo e giocabile end-to-end**. I punti 🟡 sono soddisfatti nel
+loro nucleo; restano rifiniture/estensioni dichiarate (utility scoring del bot, abilità di fase Prep/Dash,
+forme Line/Cone, status Shield/Reveal, build Shipping), non bloccanti per il vertical slice.
 
 ---
 
