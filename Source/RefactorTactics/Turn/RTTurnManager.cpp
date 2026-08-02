@@ -331,6 +331,9 @@ void ARTTurnManager::ResolveCombat()
 		case ERTAbilityShape::Line:
 			HitCells = URTGridLibrary::CellsInLine(Unit->GridCell, Target->GridCell);
 			break;
+		case ERTAbilityShape::Cone:
+			HitCells = URTGridLibrary::CellsInCone(Unit->GridCell, Target->GridCell, Ability->RangeCells);
+			break;
 		case ERTAbilityShape::Area:
 			HitCells = URTGridLibrary::CellsInRadius(Target->GridCell, Ability->AreaRadius);
 			break;

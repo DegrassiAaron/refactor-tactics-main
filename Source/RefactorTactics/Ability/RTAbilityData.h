@@ -11,7 +11,8 @@ enum class ERTAbilityShape : uint8
 {
 	Single, // solo il bersaglio
 	Area,   // diamante di raggio AreaRadius attorno al bersaglio
-	Line    // celle sulla traiettoria dall'attaccante al bersaglio
+	Line,   // celle sulla traiettoria dall'attaccante al bersaglio
+	Cone    // ventaglio dall'attaccante nella direzione del bersaglio
 };
 
 /**

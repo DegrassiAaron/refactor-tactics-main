@@ -172,4 +172,28 @@ bool FRTGridCellsInLineTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGridCellsInConeTest,
+	"RefactorTactics.Grid.CellsInConeExpandsTowardTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGridCellsInConeTest::RunTest(const FString&)
+{
+	// Cono verso +X, range 3: si allarga d celle per lato -> 3 + 5 + 7 = 15 celle.
+	const FRTGridCoord O(0, 0);
+	const TArray<FRTGridCoord> East = URTGridLibrary::CellsInCone(O, FRTGridCoord(5, 0), 3);
+	TestEqual(TEXT("cono est: 15 celle"), East.Num(), 15);
+	TestFalse(TEXT("origine esclusa"), East.Contains(O));
+	TestTrue(TEXT("punta (1,0)"), East.Contains(FRTGridCoord(1, 0)));
+	TestTrue(TEXT("bordo (3,3)"), East.Contains(FRTGridCoord(3, 3)));
+	TestTrue(TEXT("bordo (3,-3)"), East.Contains(FRTGridCoord(3, -3)));
+	TestFalse(TEXT("fuori apertura (1,2)"), East.Contains(FRTGridCoord(1, 2)));
+	TestFalse(TEXT("oltre il range (4,0)"), East.Contains(FRTGridCoord(4, 0)));
+
+	// Cono verso +Y (asse dominante Y), range 2: 3 + 5 = 8 celle.
+	const TArray<FRTGridCoord> North = URTGridLibrary::CellsInCone(O, FRTGridCoord(0, 3), 2);
+	TestEqual(TEXT("cono nord: 8 celle"), North.Num(), 8);
+	TestTrue(TEXT("punta (0,1)"), North.Contains(FRTGridCoord(0, 1)));
+	TestTrue(TEXT("bordo (2,2)"), North.Contains(FRTGridCoord(2, 2)));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -49,4 +49,11 @@ public:
 	/** Celle attraversate dalla linea From->To (From escluso, To incluso). Usata per gli attacchi lineari. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Grid")
 	static TArray<FRTGridCoord> CellsInLine(const FRTGridCoord& From, const FRTGridCoord& To);
+
+	/**
+	 * Cono (a 45°, allineato agli assi) da From nella direzione di Target, lungo Range celle:
+	 * a distanza d dall'origine il cono si allarga di d celle per lato. Usato per gli attacchi a ventaglio.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Grid")
+	static TArray<FRTGridCoord> CellsInCone(const FRTGridCoord& From, const FRTGridCoord& Target, int32 Range);
 };

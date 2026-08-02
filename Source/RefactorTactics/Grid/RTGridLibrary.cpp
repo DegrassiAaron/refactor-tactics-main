@@ -103,3 +103,30 @@ TArray<FRTGridCoord> URTGridLibrary::CellsInLine(const FRTGridCoord& From, const
 	}
 	return Result;
 }
+
+TArray<FRTGridCoord> URTGridLibrary::CellsInCone(const FRTGridCoord& From, const FRTGridCoord& Target, int32 Range)
+{
+	TArray<FRTGridCoord> Result;
+
+	const int32 DX = Target.X - From.X;
+	const int32 DY = Target.Y - From.Y;
+	const bool bAxisX = FMath::Abs(DX) >= FMath::Abs(DY);
+	const int32 Dir = bAxisX ? FMath::Sign(DX) : FMath::Sign(DY);
+	if (Dir == 0)
+	{
+		return Result; // bersaglio sull'origine: nessuna direzione
+	}
+
+	// A profondità d lungo l'asse dominante, il cono si allarga di d celle per lato.
+	for (int32 D = 1; D <= Range; ++D)
+	{
+		for (int32 Lateral = -D; Lateral <= D; ++Lateral)
+		{
+			const FRTGridCoord Cell = bAxisX
+				? FRTGridCoord(From.X + Dir * D, From.Y + Lateral)
+				: FRTGridCoord(From.X + Lateral, From.Y + Dir * D);
+			Result.Add(Cell);
+		}
+	}
+	return Result;
+}
