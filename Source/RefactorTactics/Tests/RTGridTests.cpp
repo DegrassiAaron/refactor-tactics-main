@@ -372,6 +372,13 @@ bool FRTGridPathCostTest::RunTest(const FString&)
 		const TArray<FRTGridCoord> P = { FRTGridCoord(1,0), FRTGridCoord(2,0) };
 		TestEqual(TEXT("muro -> invalido"), URTGridLibrary::PathCost(P, Cost), -1);
 	}
+	// Passo via ARCO (rampa cross-layer): valido col relativo edge (costo dell'arco), invalido senza.
+	{
+		const TArray<FRTGridCoord> Ramp = { FRTGridCoord(2,4,0), FRTGridCoord(3,4,1) };
+		const TArray<FRTTraversalEdge> Edges = { FRTTraversalEdge(FRTGridCoord(2,4,0), FRTGridCoord(3,4,1), 2) };
+		TestEqual(TEXT("arco: costo 2"), URTGridLibrary::PathCost(Ramp, Cost, Edges), 2);
+		TestEqual(TEXT("senza arco: invalido"), URTGridLibrary::PathCost(Ramp, Cost), -1);
+	}
 	return true;
 }
 
