@@ -75,7 +75,7 @@ Scelte che divergono dai DoD originali (equivalenti o migliori, documentate qui)
 
 | CP | Stato | Obiettivo | Note |
 |---|---|---|---|
-| 3.1 | ✅ | Abilità data-driven | `URTAbilityData : UPrimaryDataAsset`; `ARTUnit` legge attacco/ultimate da abilità opzionali (fallback ai valori base) → personalizzabile senza C++. Barra abilità selezionabile ⏳ |
+| 3.1 | ✅ | Abilità data-driven | `URTAbilityData` (range/power/area/status/cooldown/costo); ogni unità ha una **lista di abilità** (default: Attacco, Colpo pesante cd2, Ultimate); **barra abilità** nell'HUD, selezione con tasti 1/2/3, `IsAbilityUsable` (test); il bot sceglie l'abilità migliore |
 | 3.2 | ✅ | Danno/scudo/morte | `URTCombatLibrary::ApplyDamage` + `URTCombatResolver::ResolveAttacks` (raccogli-poi-applica, focus-fire, ordine-indipendente) · eliminazione a HP 0 (test) |
 | 3.3 | ✅ | Energia + ultimate | `GainEnergy`/`IsUltimateReady` (test) · energia per turno + on-hit; attacco a energia piena = ultimate (danno x2); barra energia nell'HUD |
 | 3.4 | 🟡 | Status + Gameplay Tags | Tag nativi `Status.Root`/`Status.Slow`; durata a turni; `EffectiveMoveRange` (test); l'ultimate applica Slow; marker HUD · Shield/Reveal ⏳ |
