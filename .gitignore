@@ -23,6 +23,7 @@ Platforms/*/Intermediate/
 *.sln
 *.slnx
 .vsconfig
+shadertoolsconfig.json
 *.suo
 *.opensdf
 *.sdf
