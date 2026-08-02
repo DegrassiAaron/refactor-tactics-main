@@ -2,6 +2,7 @@
 #include "Unit/RTUnit.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnRules.h"
+#include "Core/RTGameplayTags.h"
 #include "Engine/Canvas.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -56,6 +57,15 @@ void ARTHUD::DrawHUD()
 			const bool bReady = Unit->Energy >= Unit->MaxEnergy;
 			const FLinearColor EColor = bReady ? FLinearColor(1.f, 0.85f, 0.1f, 1.f) : FLinearColor(0.5f, 0.45f, 0.1f, 1.f);
 			DrawRect(EColor, X, Y + BarHeight + 1.f, BarWidth * EnergyFrac, 3.f);
+		}
+
+		// Marker di status sopra la barra HP.
+		FString StatusStr;
+		if (Unit->HasStatus(TAG_Status_Root)) { StatusStr = TEXT("ROOT"); }
+		else if (Unit->HasStatus(TAG_Status_Slow)) { StatusStr = TEXT("SLOW"); }
+		if (!StatusStr.IsEmpty())
+		{
+			DrawText(StatusStr, FLinearColor(1.f, 0.6f, 0.2f, 1.f), X, Y - 20.f, nullptr, 0.8f);
 		}
 	}
 

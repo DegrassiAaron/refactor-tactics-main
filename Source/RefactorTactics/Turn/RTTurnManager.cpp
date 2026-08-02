@@ -3,6 +3,7 @@
 #include "Combat/RTCombatResolver.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Bot/RTBotLibrary.h"
+#include "Core/RTGameplayTags.h"
 #include "Grid/RTGridActor.h"
 #include "Grid/RTGridLibrary.h"
 #include "Unit/RTUnit.h"
@@ -83,7 +84,7 @@ void ARTTurnManager::PlanBots()
 		}
 		else
 		{
-			Bot->PlannedCell = URTBotLibrary::StepToward(Bot->GridCell, Nearest->GridCell, Bot->MoveRange);
+			Bot->PlannedCell = URTBotLibrary::StepToward(Bot->GridCell, Nearest->GridCell, Bot->GetEffectiveMoveRange());
 		}
 	}
 }
@@ -161,6 +162,7 @@ void ARTTurnManager::LockInAndResolve()
 				if (Unit->IsAlive())
 				{
 					Unit->Energy = URTCombatLibrary::GainEnergy(Unit->Energy, Unit->EnergyPerTurn, Unit->MaxEnergy);
+					Unit->TickStatuses();
 					(Unit->TeamId == 0 ? Team0Alive : Team1Alive)++;
 				}
 			}
@@ -215,6 +217,7 @@ void ARTTurnManager::ResolveCombat()
 	TArray<FRTAttack> Attacks;
 	TArray<ARTUnit*> Attackers;
 	TArray<bool> UsedUltimate;
+	TArray<ARTUnit*> ToSlow; // nemici colpiti da un'ultimate: verranno rallentati
 	for (ARTUnit* Unit : Units)
 	{
 		ARTUnit* Target = Unit->PlannedAttackTarget;
@@ -235,6 +238,7 @@ void ARTTurnManager::ResolveCombat()
 					if (Other->TeamId != Unit->TeamId && Area.Contains(Other->GridCell))
 					{
 						Attacks.Add(FRTAttack(IndexOf[Other], Power));
+						ToSlow.AddUnique(Other);
 					}
 				}
 			}
@@ -281,6 +285,16 @@ void ARTTurnManager::ResolveCombat()
 			Attacker->Energy = URTCombatLibrary::GainEnergy(Attacker->Energy, Attacker->EnergyOnHit, Attacker->MaxEnergy);
 		}
 	}
+
+	// L'ultimate rallenta i bersagli sopravvissuti.
+	for (ARTUnit* Slowed : ToSlow)
+	{
+		if (IsValid(Slowed) && Slowed->IsAlive())
+		{
+			Slowed->ApplyStatus(TAG_Status_Slow, 2);
+			AddLogEvent(FString::Printf(TEXT("Slow: %s"), *Slowed->GetName()));
+		}
+	}
 }
 
 void ARTTurnManager::ResolveMovement()
@@ -308,10 +322,10 @@ void ARTTurnManager::ResolveMovement()
 		{
 			Units.Add(Unit);
 
-			// Difesa autorevole: un piano fuori portata viene ignorato (l'unita' resta ferma),
-			// a prescindere da cosa ha inviato il client.
+			// Difesa autorevole: un piano fuori portata (range effettivo, considerati gli status)
+			// viene ignorato, a prescindere da cosa ha inviato il client.
 			const FRTGridCoord Target =
-				URTGridLibrary::IsWithinRange(Unit->GridCell, Unit->PlannedCell, Unit->MoveRange)
+				URTGridLibrary::IsWithinRange(Unit->GridCell, Unit->PlannedCell, Unit->GetEffectiveMoveRange())
 					? Unit->PlannedCell
 					: Unit->GridCell;
 			Requests.Add(FRTMoveRequest(Unit->GridCell, Target));

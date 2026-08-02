@@ -1,5 +1,7 @@
 #include "Unit/RTUnit.h"
 #include "Grid/RTGridLibrary.h"
+#include "Combat/RTCombatLibrary.h"
+#include "Core/RTGameplayTags.h"
 #include "RefactorTactics.h"
 #include "Components/StaticMeshComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -92,4 +94,36 @@ void ARTUnit::OnDeselected()
 	{
 		Mesh->SetRelativeScale3D(BaseMeshScale);
 	}
+}
+
+void ARTUnit::ApplyStatus(FGameplayTag Tag, int32 Turns)
+{
+	if (Turns <= 0)
+	{
+		return;
+	}
+	int32& Current = StatusTurns.FindOrAdd(Tag);
+	Current = FMath::Max(Current, Turns); // riapplicare non accorcia una durata piu' lunga
+}
+
+bool ARTUnit::HasStatus(FGameplayTag Tag) const
+{
+	const int32* Turns = StatusTurns.Find(Tag);
+	return Turns && *Turns > 0;
+}
+
+void ARTUnit::TickStatuses()
+{
+	for (auto It = StatusTurns.CreateIterator(); It; ++It)
+	{
+		if (--It.Value() <= 0)
+		{
+			It.RemoveCurrent();
+		}
+	}
+}
+
+int32 ARTUnit::GetEffectiveMoveRange() const
+{
+	return URTCombatLibrary::EffectiveMoveRange(MoveRange, HasStatus(TAG_Status_Root), HasStatus(TAG_Status_Slow));
 }

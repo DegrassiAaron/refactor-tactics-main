@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "GameplayTagContainer.h"
 #include "Core/RTTypes.h"
 #include "Selection/RTSelectable.h"
 #include "RTUnit.generated.h"
@@ -87,6 +88,25 @@ public:
 	void ApplyCombatState(int32 NewHealth, int32 NewShield);
 
 	bool IsAlive() const { return Health > 0; }
+
+	/** Applica uno status per Turns turni (non accorcia una durata gia' piu' lunga). */
+	void ApplyStatus(FGameplayTag Tag, int32 Turns);
+
+	/** Vero se lo status e' attivo (durata residua > 0). */
+	bool HasStatus(FGameplayTag Tag) const;
+
+	/** Decrementa la durata di tutti gli status; rimuove quelli scaduti. */
+	void TickStatuses();
+
+	/** Range di movimento tenendo conto degli status (Root/Slow). */
+	int32 GetEffectiveMoveRange() const;
+
+private:
+	/** Status attivi: tag -> turni residui. */
+	UPROPERTY()
+	TMap<FGameplayTag, int32> StatusTurns;
+
+public:
 
 	/** Posiziona l'unita' al centro-mondo della cella, con la base appoggiata al piano. */
 	void PlaceOnCell(const FRTGridCoord& Cell, const FVector& GridOrigin, float CellSize);

@@ -73,4 +73,17 @@ bool FRTUltimateReadyTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEffectiveMoveRangeTest,
+	"RefactorTactics.Combat.EffectiveMoveRangeWithStatus",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEffectiveMoveRangeTest::RunTest(const FString&)
+{
+	TestEqual(TEXT("nessuno status -> base"), URTCombatLibrary::EffectiveMoveRange(4, false, false), 4);
+	TestEqual(TEXT("root -> 0"), URTCombatLibrary::EffectiveMoveRange(4, true, false), 0);
+	TestEqual(TEXT("slow -> meta'"), URTCombatLibrary::EffectiveMoveRange(4, false, true), 2);
+	TestEqual(TEXT("slow su dispari arrotonda per difetto"), URTCombatLibrary::EffectiveMoveRange(5, false, true), 2);
+	TestEqual(TEXT("root prevale su slow"), URTCombatLibrary::EffectiveMoveRange(4, true, true), 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

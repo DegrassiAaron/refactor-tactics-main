@@ -187,10 +187,11 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 				UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d) occupata da una copertura"), Cell.X, Cell.Y);
 				return;
 			}
-			if (!URTGridLibrary::IsWithinRange(SelectedUnit->GridCell, Cell, SelectedUnit->MoveRange))
+			const int32 MoveRange = SelectedUnit->GetEffectiveMoveRange();
+			if (!URTGridLibrary::IsWithinRange(SelectedUnit->GridCell, Cell, MoveRange))
 			{
 				UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d) fuori portata (max %d) per %s"),
-					Cell.X, Cell.Y, SelectedUnit->MoveRange, *SelectedUnit->GetName());
+					Cell.X, Cell.Y, MoveRange, *SelectedUnit->GetName());
 				return;
 			}
 			SelectedUnit->PlannedCell = Cell;

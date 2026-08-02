@@ -38,4 +38,8 @@ public:
 	/** Vero se l'ultimate e' disponibile (energia al massimo). */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static bool IsUltimateReady(int32 Energy, int32 Max);
+
+	/** Range di movimento effettivo con gli status: Root azzera, Slow dimezza (arrotondato per difetto). */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static int32 EffectiveMoveRange(int32 BaseRange, bool bRooted, bool bSlowed);
 };
