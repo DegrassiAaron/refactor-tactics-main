@@ -73,38 +73,6 @@ bool FRTBotAttackScoreTest::RunTest(const FString&)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotStepAwayTest,
-	"RefactorTactics.Bot.StepAwayRetreatsFromThreatWithinGrid",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTBotStepAwayTest::RunTest(const FString&)
-{
-	// Minaccia sopra (stessa colonna): si ritira lungo -Y aumentando la distanza di MoveRange.
-	{
-		const FRTGridCoord From(5, 5), Threat(5, 9);
-		const FRTGridCoord Dest = URTBotLibrary::StepAway(From, Threat, 3, 10, 10);
-		TestEqual(TEXT("distanza aumentata di 3"),
-			URTGridLibrary::ManhattanDistance(Dest, Threat),
-			URTGridLibrary::ManhattanDistance(From, Threat) + 3);
-		TestTrue(TEXT("dentro la griglia"), URTGridLibrary::IsInsideGrid(Dest, 10, 10));
-	}
-	// Minaccia in diagonale: ritirata diagonale, distanza aumentata di MoveRange.
-	{
-		const FRTGridCoord From(5, 5), Threat(8, 8);
-		const FRTGridCoord Dest = URTBotLibrary::StepAway(From, Threat, 2, 10, 10);
-		TestEqual(TEXT("diagonale: +2 distanza"),
-			URTGridLibrary::ManhattanDistance(Dest, Threat),
-			URTGridLibrary::ManhattanDistance(From, Threat) + 2);
-		TestTrue(TEXT("dentro la griglia"), URTGridLibrary::IsInsideGrid(Dest, 10, 10));
-	}
-	// Contro il bordo: la ritirata viene limitata alla griglia (nessuna cella negativa).
-	{
-		const FRTGridCoord From(1, 5), Threat(9, 5);
-		const FRTGridCoord Dest = URTBotLibrary::StepAway(From, Threat, 3, 10, 10);
-		TestTrue(TEXT("clamp al bordo -> (0,5)"), Dest == FRTGridCoord(0, 5));
-	}
-	return true;
-}
-
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotApproachTest,
 	"RefactorTactics.Bot.BestApproachCellAvoidsBlockersAndApproaches",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -127,6 +95,39 @@ bool FRTBotApproachTest::RunTest(const FString&)
 		TestTrue(TEXT("si e' avvicinato"),
 			URTGridLibrary::ManhattanDistance(Dest, Target) < URTGridLibrary::ManhattanDistance(From, Target));
 		TestTrue(TEXT("non sul bersaglio"), Dest != Target);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotKiteTest,
+	"RefactorTactics.Bot.BestKiteCellMaximizesDistanceAvoidingWallsAndCover",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotKiteTest::RunTest(const FString&)
+{
+	const TArray<FRTGridCoord> NoBlockers;
+	// Spazio aperto: massimizza la distanza -> la aumenta esattamente di MoveRange.
+	{
+		const FRTGridCoord From(5, 5), Threat(5, 6);
+		const FRTGridCoord Dest = URTBotLibrary::BestKiteCell(From, Threat, 3, NoBlockers, 10, 10);
+		TestEqual(TEXT("distanza massimizzata (+3)"),
+			URTGridLibrary::ManhattanDistance(Dest, Threat),
+			URTGridLibrary::ManhattanDistance(From, Threat) + 3);
+	}
+	// All'angolo: non puo' allontanarsi in linea retta -> fuga laterale che AUMENTA comunque la distanza.
+	{
+		const FRTGridCoord From(0, 0), Threat(1, 1);
+		const FRTGridCoord Dest = URTBotLibrary::BestKiteCell(From, Threat, 3, NoBlockers, 10, 10);
+		TestTrue(TEXT("dentro la griglia"), URTGridLibrary::IsInsideGrid(Dest, 10, 10));
+		TestTrue(TEXT("si e' allontanato dall'angolo"),
+			URTGridLibrary::ManhattanDistance(Dest, Threat) > URTGridLibrary::ManhattanDistance(From, Threat));
+	}
+	// Non fugge mai su una copertura.
+	{
+		const TArray<FRTGridCoord> Blockers = { FRTGridCoord(4,4), FRTGridCoord(5,4), FRTGridCoord(4,5), FRTGridCoord(5,5) };
+		const FRTGridCoord From(3, 4), Threat(1, 4);
+		const FRTGridCoord Dest = URTBotLibrary::BestKiteCell(From, Threat, 3, Blockers, 10, 10);
+		TestFalse(TEXT("non su copertura"), Blockers.Contains(Dest));
+		TestTrue(TEXT("entro la portata"), URTGridLibrary::ManhattanDistance(From, Dest) <= 3);
 	}
 	return true;
 }

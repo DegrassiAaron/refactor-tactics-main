@@ -124,26 +124,32 @@ void ARTTurnManager::PlanBots()
 			}
 		}
 
-		if (BestTarget)
+		const int32 MoveBudget = Bot->GetEffectiveMoveRange();
+		const int32 GridW = Grid ? Grid->Width : 10;
+		const int32 GridH = Grid ? Grid->Height : 10;
+		const bool bKiter = Bot->KiteStandoff > 0;
+		// Priorita' ritirata: se un nemico e' molto vicino (meta' dello standoff), il kiter fugge
+		// SUBITO, rinunciando al tiro (comportamento da kiter: non farsi raggiungere dalla mischia).
+		const bool bPanic = bKiter && Nearest && NearestDistance <= Bot->KiteStandoff / 2;
+
+		if (bPanic)
+		{
+			// Fuga che massimizza la distanza (aggira bordi/ostacoli); tiro e bersaglio restano azzerati.
+			Bot->PlannedCell = URTBotLibrary::BestKiteCell(Bot->GridCell, Nearest->GridCell, MoveBudget, Blockers, GridW, GridH);
+		}
+		else if (BestTarget)
 		{
 			Bot->PlannedAbilityIndex = BestAbility;
 			Bot->PlannedAttackTarget = BestTarget;
 		}
 		else if (Nearest)
 		{
-			// Nessun tiro disponibile: un kiter (Ranger) arretra se la minaccia e' troppo vicina,
-			// altrimenti si avvicina per rientrare a distanza di tiro; la mischia (Guardian) chiude sempre.
+			// Nessun tiro disponibile: un kiter arretra se la minaccia e' entro lo standoff, altrimenti
+			// si avvicina per rientrare a distanza di tiro; la mischia (Guardian) chiude sempre.
 			// In ogni caso si evitano le celle-copertura (routing a un turno attorno agli ostacoli).
-			const int32 MoveBudget = Bot->GetEffectiveMoveRange();
-			const int32 GridW = Grid ? Grid->Width : 10;
-			const int32 GridH = Grid ? Grid->Height : 10;
-			if (Bot->KiteStandoff > 0 && NearestDistance < Bot->KiteStandoff)
+			if (bKiter && NearestDistance < Bot->KiteStandoff)
 			{
-				const FRTGridCoord Retreat = URTBotLibrary::StepAway(Bot->GridCell, Nearest->GridCell, MoveBudget, GridW, GridH);
-				if (!Blockers.Contains(Retreat)) // non ritirarsi su una copertura
-				{
-					Bot->PlannedCell = Retreat;
-				}
+				Bot->PlannedCell = URTBotLibrary::BestKiteCell(Bot->GridCell, Nearest->GridCell, MoveBudget, Blockers, GridW, GridH);
 			}
 			else
 			{
