@@ -4,7 +4,10 @@
 #include "Player/RTPlayerController.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnRules.h"
+#include "Combat/RTCombatLibrary.h"
 #include "Core/RTGameplayTags.h"
+#include "Grid/RTGridActor.h"
+#include "Grid/RTGridLibrary.h"
 #include "Engine/Canvas.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -73,6 +76,69 @@ void ARTHUD::DrawHUD()
 
 	const ARTTurnManager* TurnManager =
 		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
+
+	// Intento nemico RIVELATO (status Reveal): durante la pianificazione mostra il piano
+	// dell'avversario. La visibilita' rispetta l'invariante #6 (privacy dell'intento).
+	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::Planning)
+	{
+		const int32 PlayerTeam = 0; // il giocatore controlla il team 0 (blu)
+		const ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
+		const FVector Origin = Grid ? Grid->GetActorLocation() : FVector::ZeroVector;
+		const float CellSize = Grid ? Grid->CellSize : 200.f;
+
+		for (AActor* Actor : Actors)
+		{
+			const ARTUnit* Unit = Cast<ARTUnit>(Actor);
+			if (!Unit || !Unit->IsAlive() || Unit->TeamId == PlayerTeam)
+			{
+				continue; // il piano degli alleati non fa parte di questa vista
+			}
+			if (!URTCombatLibrary::IsIntentVisibleTo(PlayerTeam, Unit->TeamId, Unit->HasStatus(TAG_Status_Reveal)))
+			{
+				continue; // nemico non rivelato: intento privato
+			}
+
+			// Descrizione dell'intento pianificato.
+			FString Intent;
+			const URTAbilityData* Planned = Unit->GetAbility(Unit->PlannedAbilityIndex);
+			if (Planned && Unit->PlannedAttackTarget)
+			{
+				Intent = FString::Printf(TEXT("%s -> %s"), *Planned->DisplayName.ToString(), *Unit->PlannedAttackTarget->GetName());
+			}
+			else if (Planned && Planned->bSelfTarget)
+			{
+				Intent = Planned->DisplayName.ToString();
+			}
+			else if (Unit->PlannedCell != Unit->GridCell)
+			{
+				Intent = TEXT("si muove");
+			}
+			else
+			{
+				Intent = TEXT("fermo");
+			}
+
+			// Etichetta sopra la testa del nemico rivelato.
+			const FVector Head = Unit->GetActorLocation() + FVector(0.f, 0.f, WorldHeadOffset);
+			const FVector Screen = Project(Head);
+			if (Screen.Z > 0.f)
+			{
+				DrawText(FString::Printf(TEXT("[REVEAL] %s"), *Intent),
+					FLinearColor(1.f, 0.9f, 0.2f, 1.f), Screen.X - BarWidth * 0.5f, Screen.Y - 36.f, nullptr, 0.85f);
+			}
+
+			// Se si muove, evidenzia la cella di destinazione pianificata.
+			if (Unit->PlannedCell != Unit->GridCell)
+			{
+				const FVector Dest = URTGridLibrary::CellToWorld(Unit->PlannedCell, Origin, CellSize);
+				const FVector DestScreen = Project(Dest);
+				if (DestScreen.Z > 0.f)
+				{
+					DrawRect(FLinearColor(1.f, 0.9f, 0.2f, 0.35f), DestScreen.X - 12.f, DestScreen.Y - 12.f, 24.f, 24.f);
+				}
+			}
+		}
+	}
 
 	// Barra di stato in alto: turno, fase e timer di pianificazione.
 	if (TurnManager)

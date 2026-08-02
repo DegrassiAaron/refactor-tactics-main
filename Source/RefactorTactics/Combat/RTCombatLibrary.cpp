@@ -36,3 +36,9 @@ bool URTCombatLibrary::IsAbilityUsable(int32 CooldownRemaining, int32 Energy, in
 {
 	return CooldownRemaining <= 0 && Energy >= EnergyCost;
 }
+
+bool URTCombatLibrary::IsIntentVisibleTo(int32 ObserverTeamId, int32 OwnerTeamId, bool bOwnerRevealed)
+{
+	// Alleati: sempre. Avversari: solo se il proprietario e' rivelato.
+	return ObserverTeamId == OwnerTeamId || bOwnerRevealed;
+}

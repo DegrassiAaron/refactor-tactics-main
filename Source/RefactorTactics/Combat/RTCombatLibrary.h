@@ -46,4 +46,11 @@ public:
 	/** Vero se un'abilita' e' utilizzabile: non in ricarica e con energia sufficiente. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static bool IsAbilityUsable(int32 CooldownRemaining, int32 Energy, int32 EnergyCost);
+
+	/**
+	 * Invariante #6 (privacy dell'intento): il piano di un'unita' e' visibile agli alleati
+	 * (stessa squadra) sempre, agli avversari solo se l'unita' e' "rivelata" (status Reveal).
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static bool IsIntentVisibleTo(int32 ObserverTeamId, int32 OwnerTeamId, bool bOwnerRevealed);
 };
