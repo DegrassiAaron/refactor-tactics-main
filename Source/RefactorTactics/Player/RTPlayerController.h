@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
+#include "Core/RTTypes.h"
 #include "RTPlayerController.generated.h"
 
 class UInputMappingContext;
@@ -51,9 +52,15 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> Ability3Action;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> UndoAction;
+
 	/** Attore attualmente selezionato (se implementa IRTSelectable). */
 	UPROPERTY()
 	TObjectPtr<AActor> SelectedActor;
+
+	/** Waypoint della path composita in editing per l'unita' selezionata (esclusa la cella di partenza). */
+	TArray<FRTGridCoord> PathWaypoints;
 
 	void OnPan(const FInputActionValue& Value);
 	void OnZoom(const FInputActionValue& Value);
@@ -63,6 +70,10 @@ protected:
 	void OnAbility1(const FInputActionValue& Value);
 	void OnAbility2(const FInputActionValue& Value);
 	void OnAbility3(const FInputActionValue& Value);
+	void OnUndoWaypoint(const FInputActionValue& Value);
+
+	/** Ricostruisce PlannedPath dell'unita' dai PathWaypoints correnti (o lo azzera se vuoti). */
+	void RebuildPlannedPath();
 
 	void SelectAbilityForCurrent(int32 Index);
 

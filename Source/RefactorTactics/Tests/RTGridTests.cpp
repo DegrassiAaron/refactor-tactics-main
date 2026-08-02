@@ -375,4 +375,44 @@ bool FRTGridPathCostTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGridCompositePathTest,
+	"RefactorTactics.Grid.BuildCompositePathThroughWaypoints",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGridCompositePathTest::RunTest(const FString&)
+{
+	const TMap<FRTGridCoord, int32> NoCost;
+	// Nessun waypoint -> solo Start.
+	{
+		const TArray<FRTGridCoord> P = URTGridLibrary::BuildCompositePath(FRTGridCoord(0, 0), {}, NoCost, 10, 10);
+		TestEqual(TEXT("nessun waypoint -> [Start]"), P.Num(), 1);
+	}
+	// Un waypoint -> auto-route a quello.
+	{
+		const TArray<FRTGridCoord> P = URTGridLibrary::BuildCompositePath(FRTGridCoord(0, 0), { FRTGridCoord(0, 3) }, NoCost, 10, 10);
+		TestEqual(TEXT("un waypoint: 4 celle"), P.Num(), 4);
+		TestTrue(TEXT("parte da Start"), P[0] == FRTGridCoord(0, 0));
+		TestTrue(TEXT("arriva al waypoint"), P.Last() == FRTGridCoord(0, 3));
+	}
+	// Due waypoint: forza il passaggio per (3,0) prima di (3,3) -> contiene (3,0), contiguo, no duplicati alla giunzione.
+	{
+		const TArray<FRTGridCoord> P = URTGridLibrary::BuildCompositePath(FRTGridCoord(0, 0),
+			{ FRTGridCoord(3, 0), FRTGridCoord(3, 3) }, NoCost, 10, 10);
+		TestTrue(TEXT("parte da Start"), P[0] == FRTGridCoord(0, 0));
+		TestTrue(TEXT("passa per il waypoint (3,0)"), P.Contains(FRTGridCoord(3, 0)));
+		TestTrue(TEXT("arriva a (3,3)"), P.Last() == FRTGridCoord(3, 3));
+		bool bContig = true;
+		for (int32 i = 1; i < P.Num(); ++i) { if (URTGridLibrary::ManhattanDistance(P[i - 1], P[i]) != 1) { bContig = false; break; } }
+		TestTrue(TEXT("contiguo (no duplicati alla giunzione)"), bContig);
+		TestEqual(TEXT("lunghezza 7 celle (3+3 passi)"), P.Num(), 7);
+	}
+	// Waypoint irraggiungibile (muro sigillante) -> vuoto.
+	{
+		TMap<FRTGridCoord, int32> Wall;
+		for (int32 Y = 0; Y < 10; ++Y) { Wall.Add(FRTGridCoord(2, Y), RT_BLOCKED_COST); }
+		const TArray<FRTGridCoord> P = URTGridLibrary::BuildCompositePath(FRTGridCoord(0, 0), { FRTGridCoord(5, 5) }, Wall, 10, 10);
+		TestEqual(TEXT("irraggiungibile -> vuoto"), P.Num(), 0);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

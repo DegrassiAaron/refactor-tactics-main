@@ -101,4 +101,12 @@ public:
 	 * composito lato server (FR-PATH-09/10). Path vuoto o di 1 cella = costo 0 (fermo).
 	 */
 	static int32 PathCost(const TArray<FRTGridCoord>& Path, const TMap<FRTGridCoord, int32>& CellCost);
+
+	/**
+	 * Percorso composito: concatena gli auto-route (FindPathByCost) da Start attraverso i Waypoints in
+	 * ordine. Ritorna Start..ultimoWaypoint; vuoto se un tratto e' irraggiungibile. Base della path
+	 * composita a waypoint (FR-PATH-09). Nessun waypoint = solo [Start].
+	 */
+	static TArray<FRTGridCoord> BuildCompositePath(const FRTGridCoord& Start,
+		const TArray<FRTGridCoord>& Waypoints, const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height);
 };

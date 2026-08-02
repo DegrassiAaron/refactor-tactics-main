@@ -45,6 +45,9 @@ void ARTPlayerController::BuildInputMappings()
 	Ability3Action = NewObject<UInputAction>(this, TEXT("IA_Ability3"));
 	Ability3Action->ValueType = EInputActionValueType::Boolean;
 
+	UndoAction = NewObject<UInputAction>(this, TEXT("IA_UndoWaypoint"));
+	UndoAction->ValueType = EInputActionValueType::Boolean;
+
 	MappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_Tactical"));
 
 	// Pan (Axis2D): D=+X, A=-X, W=+Y (Swizzle YXZ), S=-Y (Swizzle YXZ + Negate).
@@ -83,6 +86,9 @@ void ARTPlayerController::BuildInputMappings()
 	MappingContext->MapKey(Ability1Action, EKeys::One);
 	MappingContext->MapKey(Ability2Action, EKeys::Two);
 	MappingContext->MapKey(Ability3Action, EKeys::Three);
+
+	// Annulla l'ultimo waypoint della path composita (Backspace).
+	MappingContext->MapKey(UndoAction, EKeys::BackSpace);
 }
 
 void ARTPlayerController::BeginPlay()
@@ -115,6 +121,7 @@ void ARTPlayerController::SetupInputComponent()
 		EIC->BindAction(Ability1Action, ETriggerEvent::Started, this, &ARTPlayerController::OnAbility1);
 		EIC->BindAction(Ability2Action, ETriggerEvent::Started, this, &ARTPlayerController::OnAbility2);
 		EIC->BindAction(Ability3Action, ETriggerEvent::Started, this, &ARTPlayerController::OnAbility3);
+		EIC->BindAction(UndoAction, ETriggerEvent::Started, this, &ARTPlayerController::OnUndoWaypoint);
 	}
 	else
 	{
@@ -195,6 +202,7 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 			}
 			Selectable->OnSelected();
 			SelectedActor = HitActor;
+			PathWaypoints.Reset(); // nuova unita': editing path da capo
 			UE_LOG(LogRT, Log, TEXT("[RT] Selezionata: %s"), *HitActor->GetName());
 		}
 		return;
@@ -224,8 +232,19 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 					Cell.X, Cell.Y, *SelectedUnit->GetName());
 				return;
 			}
-			SelectedUnit->PlannedCell = Cell;
-			UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s -> cella (%d,%d)"), *SelectedUnit->GetName(), Cell.X, Cell.Y);
+			PathWaypoints.Add(Cell);
+				const TArray<FRTGridCoord> WPath = URTGridLibrary::BuildCompositePath(SelectedUnit->GridCell, PathWaypoints, CostMap, Grid->Width, Grid->Height);
+				const int32 WCost = URTGridLibrary::PathCost(WPath, CostMap);
+				if (WPath.Num() < 2 || WCost < 0 || WCost > MoveRange)
+				{
+					PathWaypoints.Pop(); // waypoint oltre budget o irraggiungibile: rifiutato
+					UE_LOG(LogRT, Log, TEXT("[RT] Waypoint (%d,%d) rifiutato (costo %d, budget %d) per %s"),
+						Cell.X, Cell.Y, WCost, MoveRange, *SelectedUnit->GetName());
+					return;
+				}
+				SelectedUnit->PlannedPath = WPath;
+				SelectedUnit->PlannedCell = WPath.Last();
+			UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s -> %d waypoint (costo %d)"), *SelectedUnit->GetName(), PathWaypoints.Num(), WCost);
 		}
 	}
 }
@@ -291,3 +310,41 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 void ARTPlayerController::OnAbility1(const FInputActionValue& Value) { SelectAbilityForCurrent(0); }
 void ARTPlayerController::OnAbility2(const FInputActionValue& Value) { SelectAbilityForCurrent(1); }
 void ARTPlayerController::OnAbility3(const FInputActionValue& Value) { SelectAbilityForCurrent(2); }
+
+void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
+{
+	if (PathWaypoints.Num() == 0)
+	{
+		return;
+	}
+	PathWaypoints.Pop(); // rimuove l'ultimo waypoint
+	RebuildPlannedPath();
+}
+
+void ARTPlayerController::RebuildPlannedPath()
+{
+	ARTUnit* Unit = GetSelectedUnit();
+	if (!Unit)
+	{
+		return;
+	}
+	ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
+	if (!Grid)
+	{
+		return;
+	}
+	TMap<FRTGridCoord, int32> CostMap;
+	Grid->BuildCostMap(CostMap);
+	const TArray<FRTGridCoord> Path = URTGridLibrary::BuildCompositePath(Unit->GridCell, PathWaypoints, CostMap, Grid->Width, Grid->Height);
+	const int32 Cost = URTGridLibrary::PathCost(Path, CostMap);
+	if (PathWaypoints.Num() > 0 && Path.Num() >= 2 && Cost >= 0 && Cost <= Unit->GetEffectiveMoveRange())
+	{
+		Unit->PlannedPath = Path;
+		Unit->PlannedCell = Path.Last();
+	}
+	else
+	{
+		Unit->PlannedPath.Reset();
+		Unit->PlannedCell = Unit->GridCell;
+	}
+}

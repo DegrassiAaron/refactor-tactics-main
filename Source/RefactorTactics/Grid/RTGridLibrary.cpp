@@ -328,6 +328,32 @@ TArray<FRTGridCoord> URTGridLibrary::FindPathByCost(const FRTGridCoord& From, co
 	return Path;
 }
 
+TArray<FRTGridCoord> URTGridLibrary::BuildCompositePath(const FRTGridCoord& Start,
+	const TArray<FRTGridCoord>& Waypoints, const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height)
+{
+	TArray<FRTGridCoord> Path;
+	Path.Add(Start);
+	FRTGridCoord Cur = Start;
+	for (const FRTGridCoord& WP : Waypoints)
+	{
+		if (WP == Cur)
+		{
+			continue; // waypoint sulla cella corrente: nessun tratto
+		}
+		const TArray<FRTGridCoord> Seg = FindPathByCost(Cur, WP, CellCost, Width, Height);
+		if (Seg.Num() < 2 || Seg[0] != Cur)
+		{
+			return TArray<FRTGridCoord>(); // tratto irraggiungibile -> percorso invalido
+		}
+		for (int32 i = 1; i < Seg.Num(); ++i)
+		{
+			Path.Add(Seg[i]); // salta Seg[0] (= Cur, giunzione gia' presente)
+		}
+		Cur = WP;
+	}
+	return Path;
+}
+
 int32 URTGridLibrary::PathCost(const TArray<FRTGridCoord>& Path, const TMap<FRTGridCoord, int32>& CellCost)
 {
 	if (Path.Num() <= 1)
