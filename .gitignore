@@ -40,5 +40,20 @@ Plugins/VisualStudioTools/
 # Artefatto spurio da redirect /dev/null su Git Bash (Windows)
 /dev/
 
+# ---- Asset UE binari: NON versionati (niente Git LFS, evita costi/repo pesante) ----
+# I due asset gia' committati (Content/Materials/M_Unit, Content/Maps/L_Prototype) restano
+# tracciati perche' servono all'avvio; da qui in poi i nuovi asset binari sono ignorati.
+Content/**/*.uasset
+Content/**/*.umap
+Content/**/*.fbx
+Content/**/*.png
+Content/**/*.tga
+Content/**/*.jpg
+Content/**/*.wav
+Content/**/*.mp3
+Content/**/*.ogg
+
 # ---- Eccezioni: questi vanno versionati ----
 !Content/**/Binaries/
+!Content/Materials/M_Unit.uasset
+!Content/Maps/L_Prototype.umap
