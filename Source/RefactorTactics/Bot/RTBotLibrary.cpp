@@ -25,3 +25,14 @@ FRTGridCoord URTBotLibrary::StepToward(const FRTGridCoord& From, const FRTGridCo
 
 	return Result;
 }
+
+int32 URTBotLibrary::AttackScore(int32 Damage, int32 TargetHealth)
+{
+	if (Damage >= TargetHealth)
+	{
+		// Kill: priorità massima; tra i kill si preferisce il bersaglio più debole.
+		return 100000 - TargetHealth;
+	}
+	// Non-kill: si preferisce il danno maggiore.
+	return Damage;
+}

@@ -53,4 +53,24 @@ bool FRTBotDiagonalTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotAttackScoreTest,
+	"RefactorTactics.Bot.AttackScorePrefersKillsThenDamage",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotAttackScoreTest::RunTest(const FString&)
+{
+	// Un kill batte sempre un non-kill.
+	TestTrue(TEXT("kill > non-kill"),
+		URTBotLibrary::AttackScore(50, 40) > URTBotLibrary::AttackScore(50, 100));
+	// Tra i kill, si preferisce il bersaglio più debole.
+	TestTrue(TEXT("kill sul più debole"),
+		URTBotLibrary::AttackScore(50, 30) > URTBotLibrary::AttackScore(50, 40));
+	// Tra i non-kill, si preferisce più danno.
+	TestTrue(TEXT("non-kill: più danno"),
+		URTBotLibrary::AttackScore(50, 100) > URTBotLibrary::AttackScore(30, 100));
+	// Danno esattamente pari agli HP è un kill.
+	TestTrue(TEXT("danno == HP è kill"),
+		URTBotLibrary::AttackScore(40, 40) > URTBotLibrary::AttackScore(39, 40));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

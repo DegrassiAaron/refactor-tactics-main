@@ -60,57 +60,59 @@ void ARTTurnManager::PlanBots()
 			continue;
 		}
 
-		// Nemico vivo piu' vicino.
+		Bot->PlannedCell = Bot->GridCell;   // default: fermo
+		Bot->PlannedAttackTarget = nullptr;
+		Bot->PlannedAbilityIndex = INDEX_NONE;
+
+		// Miglior (abilità, bersaglio) attaccabile — focus fire: preferisce chi può uccidere/indebolire.
+		// In parallelo tiene traccia del nemico più vicino (fallback per l'avvicinamento).
+		int32 BestScore = TNumericLimits<int32>::Lowest();
+		int32 BestAbility = INDEX_NONE;
+		ARTUnit* BestTarget = nullptr;
 		ARTUnit* Nearest = nullptr;
-		int32 BestDistance = MAX_int32;
+		int32 NearestDistance = MAX_int32;
+
 		for (ARTUnit* Other : Units)
 		{
-			if (Other->IsAlive() && Other->TeamId != Bot->TeamId)
+			if (!Other->IsAlive() || Other->TeamId == Bot->TeamId)
 			{
-				const int32 D = URTGridLibrary::ManhattanDistance(Bot->GridCell, Other->GridCell);
-				if (D < BestDistance)
+				continue;
+			}
+			const int32 Distance = URTGridLibrary::ManhattanDistance(Bot->GridCell, Other->GridCell);
+			if (Distance < NearestDistance)
+			{
+				NearestDistance = Distance;
+				Nearest = Other;
+			}
+			if (!URTGridLibrary::HasLineOfSight(Bot->GridCell, Other->GridCell, Blockers))
+			{
+				continue;
+			}
+			const int32 TargetHP = Other->Health + Other->Shield;
+			for (int32 A = 0; A < Bot->NumAbilities(); ++A)
+			{
+				const URTAbilityData* Ability = Bot->GetAbility(A);
+				if (!Ability || !Bot->CanUseAbility(A)
+					|| !URTGridLibrary::IsWithinRange(Bot->GridCell, Other->GridCell, Ability->RangeCells))
 				{
-					BestDistance = D;
-					Nearest = Other;
+					continue;
+				}
+				const int32 Score = URTBotLibrary::AttackScore(Ability->Power, TargetHP);
+				if (Score > BestScore)
+				{
+					BestScore = Score;
+					BestAbility = A;
+					BestTarget = Other;
 				}
 			}
 		}
 
-		Bot->PlannedCell = Bot->GridCell;   // default: fermo
-		Bot->PlannedAttackTarget = nullptr;
-		Bot->PlannedAbilityIndex = INDEX_NONE;
-		if (!Nearest)
-		{
-			continue;
-		}
-
-		// Abilita' utilizzabile con piu' danno che raggiunge il nemico (in portata e con LOS).
-		int32 BestAbility = INDEX_NONE;
-		int32 BestPower = -1;
-		int32 LongestRange = 0;
-		for (int32 A = 0; A < Bot->NumAbilities(); ++A)
-		{
-			const URTAbilityData* Ability = Bot->GetAbility(A);
-			if (!Ability || !Bot->CanUseAbility(A))
-			{
-				continue;
-			}
-			LongestRange = FMath::Max(LongestRange, Ability->RangeCells);
-			if (URTGridLibrary::IsWithinRange(Bot->GridCell, Nearest->GridCell, Ability->RangeCells)
-				&& URTGridLibrary::HasLineOfSight(Bot->GridCell, Nearest->GridCell, Blockers)
-				&& Ability->Power > BestPower)
-			{
-				BestPower = Ability->Power;
-				BestAbility = A;
-			}
-		}
-
-		if (BestAbility != INDEX_NONE)
+		if (BestTarget)
 		{
 			Bot->PlannedAbilityIndex = BestAbility;
-			Bot->PlannedAttackTarget = Nearest; // in portata: attacca, resta fermo
+			Bot->PlannedAttackTarget = BestTarget;
 		}
-		else
+		else if (Nearest)
 		{
 			Bot->PlannedCell = URTBotLibrary::StepToward(Bot->GridCell, Nearest->GridCell, Bot->GetEffectiveMoveRange());
 		}

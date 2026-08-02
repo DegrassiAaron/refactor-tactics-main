@@ -19,4 +19,12 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Bot")
 	static FRTGridCoord StepToward(const FRTGridCoord& From, const FRTGridCoord& Target, int32 MoveRange);
+
+	/**
+	 * Priorità di un attacco per la scelta del bersaglio del bot.
+	 * Un colpo che uccide (Damage >= TargetHealth) ha priorità massima, e tra i kill si preferisce
+	 * il bersaglio più debole; tra i non-kill si preferisce il danno maggiore.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Bot")
+	static int32 AttackScore(int32 Damage, int32 TargetHealth);
 };
