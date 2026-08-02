@@ -54,4 +54,8 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Unit")
 	FLinearColor Team1Color = FLinearColor(1.00f, 0.20f, 0.15f);
+
+	/** Scala base della mesh; l'evidenziazione di selezione la moltiplica, non la sostituisce. */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Unit")
+	FVector BaseMeshScale = FVector(1.2f, 1.2f, 1.8f);
 };

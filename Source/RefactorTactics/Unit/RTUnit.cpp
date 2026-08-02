@@ -19,7 +19,7 @@ ARTUnit::ARTUnit()
 	SetRootComponent(Mesh);
 	Mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	Mesh->SetCollisionResponseToAllChannels(ECR_Block);
-	Mesh->SetRelativeScale3D(FVector(1.2f, 1.2f, 1.8f));
+	Mesh->SetRelativeScale3D(BaseMeshScale);
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 	if (CylinderMesh.Succeeded())
@@ -58,10 +58,16 @@ void ARTUnit::PlaceOnCell(const FRTGridCoord& Cell, const FVector& GridOrigin, f
 void ARTUnit::OnSelected()
 {
 	UE_LOG(LogRT, Log, TEXT("[RT] Unit selezionata: team %d, cella (%d,%d)"), TeamId, GridCell.X, GridCell.Y);
-	SetActorScale3D(FVector(1.15f)); // feedback visivo minimale
+	if (Mesh)
+	{
+		Mesh->SetRelativeScale3D(BaseMeshScale * 1.15f); // ingrandisce del 15% rispetto alla base
+	}
 }
 
 void ARTUnit::OnDeselected()
 {
-	SetActorScale3D(FVector(1.0f));
+	if (Mesh)
+	{
+		Mesh->SetRelativeScale3D(BaseMeshScale);
+	}
 }
