@@ -114,4 +114,15 @@ bool FRTIntentVisibilityTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEffectiveAttackPowerTest,
+	"RefactorTactics.Combat.EffectiveAttackPowerWithTerrainBonus",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEffectiveAttackPowerTest::RunTest(const FString&)
+{
+	TestEqual(TEXT("altura +10 -> 40"), URTCombatLibrary::EffectiveAttackPower(30, 10), 40);
+	TestEqual(TEXT("nessun bonus -> base"), URTCombatLibrary::EffectiveAttackPower(30, 0), 30);
+	TestEqual(TEXT("malus enorme -> clamp 0"), URTCombatLibrary::EffectiveAttackPower(10, -30), 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

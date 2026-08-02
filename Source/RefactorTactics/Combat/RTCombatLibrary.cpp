@@ -42,3 +42,8 @@ bool URTCombatLibrary::IsIntentVisibleTo(int32 ObserverTeamId, int32 OwnerTeamId
 	// Alleati: sempre. Avversari: solo se il proprietario e' rivelato.
 	return ObserverTeamId == OwnerTeamId || bOwnerRevealed;
 }
+
+int32 URTCombatLibrary::EffectiveAttackPower(int32 BasePower, int32 OccupantDamageBonus)
+{
+	return FMath::Max(0, BasePower + OccupantDamageBonus);
+}

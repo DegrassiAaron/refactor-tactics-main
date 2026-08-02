@@ -53,4 +53,11 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static bool IsIntentVisibleTo(int32 ObserverTeamId, int32 OwnerTeamId, bool bOwnerRevealed);
+
+	/**
+	 * Danno effettivo di un attacco dato il bonus della cella occupata dall'attaccante
+	 * (es. Altura +danno). Risultato con clamp >= 0.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static int32 EffectiveAttackPower(int32 BasePower, int32 OccupantDamageBonus);
 };

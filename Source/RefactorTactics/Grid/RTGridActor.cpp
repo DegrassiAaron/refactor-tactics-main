@@ -115,6 +115,16 @@ void ARTGridActor::SpawnDemoTerrain()
 		TerrainCells.Add(C, Cespuglio);
 	}
 
+	// Altura: chi ci sta sopra infligge +10 danno (buff, valutato pre-movimento).
+	URTTerrainData* Altura = NewObject<URTTerrainData>(this);
+	Altura->DisplayName = FText::FromString(TEXT("Altura"));
+	Altura->DisplayColor = FLinearColor(0.60f, 0.60f, 0.72f, 1.f);
+	Altura->Props.OccupantDamageBonus = 10;
+	for (const FRTGridCoord& C : { FRTGridCoord(4, 2), FRTGridCoord(5, 2) })
+	{
+		TerrainCells.Add(C, Altura);
+	}
+
 	UE_LOG(LogRT, Log, TEXT("[RT] GridActor: terreno demo (%d celle)"), TerrainCells.Num());
 }
 

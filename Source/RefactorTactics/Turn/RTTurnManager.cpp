@@ -366,12 +366,17 @@ void ARTTurnManager::ResolveCombat()
 			break;
 		}
 
-		// Colpisce ogni nemico su una cella bersaglio.
+		// Buff della cella dell'attaccante (es. Altura +danno), valutato in Blast = posizione pre-movimento.
+			const URTTerrainData* AttackerTerrain = Grid ? Grid->GetTerrainAt(Unit->GridCell) : nullptr;
+			const int32 AttackerDmgBonus = AttackerTerrain ? AttackerTerrain->GetProps().OccupantDamageBonus : 0;
+			const int32 EffPower = URTCombatLibrary::EffectiveAttackPower(Ability->Power, AttackerDmgBonus);
+
+			// Colpisce ogni nemico su una cella bersaglio.
 		for (ARTUnit* Other : Units)
 		{
 			if (Other->TeamId != Unit->TeamId && HitCells.Contains(Other->GridCell))
 			{
-				Attacks.Add(FRTAttack(IndexOf[Other], Ability->Power));
+				Attacks.Add(FRTAttack(IndexOf[Other], EffPower));
 				AddStatus(Other);
 			}
 		}
