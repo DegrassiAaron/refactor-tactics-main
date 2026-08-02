@@ -278,23 +278,29 @@ void ARTTurnManager::ResolveCombat()
 			}
 		};
 
-		if (Ability->AreaRadius > 0)
+		// Celle colpite in base alla forma dell'abilita'.
+		TArray<FRTGridCoord> HitCells;
+		switch (Ability->Shape)
 		{
-			// Abilita' ad area: colpisce ogni nemico entro il raggio attorno al bersaglio.
-			const TArray<FRTGridCoord> Area = URTGridLibrary::CellsInRadius(Target->GridCell, Ability->AreaRadius);
-			for (ARTUnit* Other : Units)
-			{
-				if (Other->TeamId != Unit->TeamId && Area.Contains(Other->GridCell))
-				{
-					Attacks.Add(FRTAttack(IndexOf[Other], Ability->Power));
-					AddStatus(Other);
-				}
-			}
+		case ERTAbilityShape::Line:
+			HitCells = URTGridLibrary::CellsInLine(Unit->GridCell, Target->GridCell);
+			break;
+		case ERTAbilityShape::Area:
+			HitCells = URTGridLibrary::CellsInRadius(Target->GridCell, Ability->AreaRadius);
+			break;
+		default:
+			HitCells.Add(Target->GridCell);
+			break;
 		}
-		else
+
+		// Colpisce ogni nemico su una cella bersaglio.
+		for (ARTUnit* Other : Units)
 		{
-			Attacks.Add(FRTAttack(IndexOf[Target], Ability->Power));
-			AddStatus(Target);
+			if (Other->TeamId != Unit->TeamId && HitCells.Contains(Other->GridCell))
+			{
+				Attacks.Add(FRTAttack(IndexOf[Other], Ability->Power));
+				AddStatus(Other);
+			}
 		}
 		Attackers.Add(Unit);
 		UsedAbilityIndex.Add(AbilityIndex);

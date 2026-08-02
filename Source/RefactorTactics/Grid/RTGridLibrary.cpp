@@ -76,3 +76,30 @@ TArray<FRTGridCoord> URTGridLibrary::CellsInRadius(const FRTGridCoord& Center, i
 	}
 	return Result;
 }
+
+TArray<FRTGridCoord> URTGridLibrary::CellsInLine(const FRTGridCoord& From, const FRTGridCoord& To)
+{
+	TArray<FRTGridCoord> Result;
+	if (From == To)
+	{
+		Result.Add(To);
+		return Result;
+	}
+
+	// Campiona il segmento From->To; raccoglie le celle attraversate (From escluso), senza duplicati.
+	const int32 DX = To.X - From.X;
+	const int32 DY = To.Y - From.Y;
+	const int32 Steps = FMath::Max(FMath::Abs(DX), FMath::Abs(DY)) * 4;
+	for (int32 i = 1; i <= Steps; ++i)
+	{
+		const double T = static_cast<double>(i) / Steps;
+		const FRTGridCoord Cell(
+			FMath::RoundToInt32(From.X + DX * T),
+			FMath::RoundToInt32(From.Y + DY * T));
+		if (Cell != From)
+		{
+			Result.AddUnique(Cell);
+		}
+	}
+	return Result;
+}

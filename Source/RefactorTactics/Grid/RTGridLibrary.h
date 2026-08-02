@@ -45,4 +45,8 @@ public:
 	/** Tutte le celle entro Radius passi (Manhattan) da Center, incluso Center. Radius 0 = solo Center. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Grid")
 	static TArray<FRTGridCoord> CellsInRadius(const FRTGridCoord& Center, int32 Radius);
+
+	/** Celle attraversate dalla linea From->To (From escluso, To incluso). Usata per gli attacchi lineari. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Grid")
+	static TArray<FRTGridCoord> CellsInLine(const FRTGridCoord& From, const FRTGridCoord& To);
 };

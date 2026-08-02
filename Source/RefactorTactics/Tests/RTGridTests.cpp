@@ -143,4 +143,33 @@ bool FRTGridCellsInRadiusTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGridCellsInLineTest,
+	"RefactorTactics.Grid.CellsInLineCoversTrajectory",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGridCellsInLineTest::RunTest(const FString&)
+{
+	// Verticale (0,0)->(0,3): {(0,1),(0,2),(0,3)}, From escluso.
+	const TArray<FRTGridCoord> V = URTGridLibrary::CellsInLine(FRTGridCoord(0, 0), FRTGridCoord(0, 3));
+	TestEqual(TEXT("verticale: 3 celle"), V.Num(), 3);
+	TestFalse(TEXT("From escluso"), V.Contains(FRTGridCoord(0, 0)));
+	TestTrue(TEXT("include (0,1)"), V.Contains(FRTGridCoord(0, 1)));
+	TestTrue(TEXT("include (0,2)"), V.Contains(FRTGridCoord(0, 2)));
+	TestTrue(TEXT("include To (0,3)"), V.Contains(FRTGridCoord(0, 3)));
+
+	// Orizzontale (0,0)->(3,0).
+	const TArray<FRTGridCoord> H = URTGridLibrary::CellsInLine(FRTGridCoord(0, 0), FRTGridCoord(3, 0));
+	TestEqual(TEXT("orizzontale: 3 celle"), H.Num(), 3);
+	TestTrue(TEXT("include (2,0)"), H.Contains(FRTGridCoord(2, 0)));
+
+	// Adiacente: solo il bersaglio.
+	const TArray<FRTGridCoord> A = URTGridLibrary::CellsInLine(FRTGridCoord(0, 0), FRTGridCoord(0, 1));
+	TestEqual(TEXT("adiacente: 1 cella"), A.Num(), 1);
+	TestTrue(TEXT("è il bersaglio"), A.Contains(FRTGridCoord(0, 1)));
+
+	// Diagonale: include il bersaglio.
+	TestTrue(TEXT("diagonale include To"),
+		URTGridLibrary::CellsInLine(FRTGridCoord(0, 0), FRTGridCoord(3, 3)).Contains(FRTGridCoord(3, 3)));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

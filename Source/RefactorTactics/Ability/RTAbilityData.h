@@ -5,6 +5,15 @@
 #include "GameplayTagContainer.h"
 #include "RTAbilityData.generated.h"
 
+/** Forma dell'area colpita da un'abilita'. */
+UENUM(BlueprintType)
+enum class ERTAbilityShape : uint8
+{
+	Single, // solo il bersaglio
+	Area,   // diamante di raggio AreaRadius attorno al bersaglio
+	Line    // celle sulla traiettoria dall'attaccante al bersaglio
+};
+
 /**
  * Definizione data-driven di un'abilita' (Primary Data Asset).
  * Consente di creare varianti (eroi/attacchi diversi) come contenuto, senza toccare il C++.
@@ -27,7 +36,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
 	int32 Power = 30;
 
-	/** Raggio dell'area colpita attorno al bersaglio (0 = bersaglio singolo). */
+	/** Forma dell'area colpita. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
+	ERTAbilityShape Shape = ERTAbilityShape::Single;
+
+	/** Raggio dell'area colpita attorno al bersaglio (usato con Shape = Area). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
 	int32 AreaRadius = 0;
 

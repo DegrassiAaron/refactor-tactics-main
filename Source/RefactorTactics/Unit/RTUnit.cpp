@@ -139,6 +139,7 @@ URTAbilityData* ARTUnit::MakeAbility(const FString& Name, int32 Range, int32 Pow
 	Ability->RangeCells = Range;
 	Ability->Power = Power;
 	Ability->AreaRadius = Area;
+	Ability->Shape = (Area > 0) ? ERTAbilityShape::Area : ERTAbilityShape::Single;
 	Ability->CooldownTurns = Cooldown;
 	Ability->EnergyCost = EnergyCost;
 	Ability->StatusToApply = Status;
@@ -167,7 +168,9 @@ void ARTUnit::ConfigureAsArchetype(ERTArchetype InArchetype)
 		MaxHealth = 80;  Shield = 0;   MoveRange = 5;  AttackRange = 6;  AttackPower = 25;
 		BaseMeshScale = FVector(1.0f, 1.0f, 2.0f); // snello e alto
 		Abilities.Add(MakeAbility(TEXT("Tiro"), 6, 25, 0, 0, 0, FGameplayTag(), 0));
-		Abilities.Add(MakeAbility(TEXT("Colpo preciso"), 7, 40, 0, 2, 0, FGameplayTag(), 0));
+		URTAbilityData* Precise = MakeAbility(TEXT("Colpo preciso"), 7, 40, 0, 2, 0, FGameplayTag(), 0);
+		Precise->Shape = ERTAbilityShape::Line; // raggio che perfora la traiettoria
+		Abilities.Add(Precise);
 		Abilities.Add(MakeAbility(TEXT("Raffica"), 6, 50, 1, 0, MaxEnergy, TAG_Status_Slow, 2)); // AoE + Slow
 	}
 	else // Guardian
