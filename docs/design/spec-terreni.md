@@ -136,10 +136,14 @@ costo consuma il budget di movimento; effetti deterministici).
 6. ✅ Rendering celle colorate (`RefreshTerrainVisuals`, M_Unit MID) + bot cost/hazard-aware (`BuildBotCostMap`).
 7. ✅ Verifica PIE: terreno a schermo corretto; log confermano costo Fango attivo + loop combattimento intatto.
 
-### Movimento v2 (successivo)
-8. `URTMovementResolver::ResolvePaths` (microstep, ordine-indipendente) — *TDD* (permutazione ordine · troncamento · celle-attraversate).
-9. `PlannedPath` waypoint (add/remove, budget, auto-route) + `CrossDamage` + double-dip — *TDD/wiring*.
-10. Le 3 viz (auto-route, editing, risolto post-lock).
+### Movimento v2 — ✅ COMPLETO (2026-08-02, 50 test verdi)
+8. ✅ `URTMovementResolver::ResolvePaths` (microstep, ordine-indipendente) — TDD (6 comportamenti + permutazione).
+9. ✅ `PlannedPath` + `PathCost` (validazione) + `ResolveMovement` path-aware + `CrossDamage` + double-dip — TDD/wiring.
+   `BuildCompositePath` (waypoint) — TDD; UX click aggiunge / Backspace toglie / rifiuto oltre budget.
+10. 🟡 Viz: auto-route ✅, editing composito ✅ (preview mostra PlannedPath); risolto post-lock ⏳ (polish).
+
+**Verifica PIE (log)**: 7 waypoint costruiti, rifiuti oltre budget, `20 danno attraversando` + `20 danno da Lava`
+(double-dip), resolver risolve ogni turno senza crash.
 
 ## 11. Aperte / da bilanciare
 Valori esatti (costi/danni/bonus) tunabili dopo playtest · Altura +danno vs +portata · migrazione copertura→"Muro"
