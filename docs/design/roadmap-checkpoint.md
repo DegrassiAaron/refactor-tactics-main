@@ -21,7 +21,7 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in forma ridotta (vedi nota) · �
 | M2 Turn loop | ✅ | Fasi, resolver movimento (conflitti), pianificazione, timer 30s, range 4 |
 | M3 Combat loop | ✅* | Danno/scudo, attacco, eliminazione, energia+ultimate (AoE), LOS/copertura, **abilità data-driven** ✅ · status Root/Slow, forme-area 🟡 (estensioni: Shield/Reveal, Line/Cone, barra abilità) |
 | M4 Vertical slice | ✅ | Bot, HUD (barre HP + combat log), vittoria + riavvio |
-| M5 Release interna | 🟡 | 27 test verdi ✅ · packaging ⏳ (bloccato da toolchain UAT engine, non dal codice) |
+| M5 Release interna | 🟡 | **33 test** ✅ · **packaging Windows** (Development) ✅ · DoD MVP formale ⏳ · Shipping ⏳ |
 
 **Sviluppo in corso sul branch `feature/m1-sandbox`** (M1→M4 in un unico branch, non uno per milestone come da regola: scelta pratica di questa fase iniziale). **27 test automatici verdi.**
 
@@ -105,9 +105,13 @@ Scelte che divergono dai DoD originali (equivalenti o migliori, documentate qui)
 
 | CP | Stato | Obiettivo | Note |
 |---|---|---|---|
-| 5.1 | ✅ | Suite test verde | 27 test da CLI (`Automation RunTests RefactorTactics`) tutti verdi |
-| 5.2 | ⏳ | Packaging Windows | **Bloccato**: toolchain UAT dell'engine da ripristinare (Epic Launcher → UE 5.8 → Verifica). Non è un problema del progetto |
+| 5.1 | ✅ | Suite test verde | **33 test** da CLI (`Automation RunTests RefactorTactics`) tutti verdi |
+| 5.2 | ✅ | Packaging Windows | `RunUAT BuildCookRun` (Development) → `Saved/Packaged/Windows/RefactorTactics.exe` **verificato: si avvia e si gioca senza editor**. Shipping ⏳ |
 | 5.3 | ⏳ | Definition of Done MVP | Da rivedere voce per voce col piano canonico §4 |
+
+> ⚠️ Nota packaging: il primo tentativo falliva per la cache `ScriptModules` corrotta della toolchain UAT
+> (post-hotfix 5.8.0→5.8.1). Risolto con **Epic Launcher → UE 5.8 → Verifica**. NON eliminare a mano
+> l'intera cartella `Engine/Intermediate/ScriptModules` (peggiora: "Found no script module records").
 
 ---
 
