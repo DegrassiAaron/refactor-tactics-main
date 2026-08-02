@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Core/RTTypes.h"
 #include "Turn/RTTurnRules.h"
 #include "RTTurnManager.generated.h"
 
@@ -34,6 +35,9 @@ public:
 	/** Ultimi eventi (combat log) per la HUD, dal piu' vecchio al piu' recente. */
 	const TArray<FString>& GetRecentEvents() const { return RecentEvents; }
 
+	/** Rotte effettivamente percorse nell'ultima risoluzione (viz post-lock del percorso eseguito). */
+	const TArray<TArray<FRTGridCoord>>& GetLastMoveRoutes() const { return LastMoveRoutes; }
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -49,6 +53,9 @@ protected:
 
 	UPROPERTY()
 	TArray<FString> RecentEvents;
+
+	/** Rotte (celle) percorse da ogni unita' che si e' mossa nell'ultima risoluzione. */
+	TArray<TArray<FRTGridCoord>> LastMoveRoutes;
 
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Turn")
 	int32 MaxLogLines = 6;

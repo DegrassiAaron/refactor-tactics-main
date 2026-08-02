@@ -77,6 +77,27 @@ void ARTHUD::DrawHUD()
 	const ARTTurnManager* TurnManager =
 		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
 
+	// Traccia post-lock: il percorso realmente eseguito nell'ultima risoluzione (grigio, sotto le preview).
+	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::Planning)
+	{
+		const ARTGridActor* TrailGrid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
+		const FVector TOrigin = TrailGrid ? TrailGrid->GetActorLocation() : FVector::ZeroVector;
+		const float TCell = TrailGrid ? TrailGrid->CellSize : 200.f;
+		const FLinearColor TrailColor(0.6f, 0.6f, 0.6f, 0.5f);
+		for (const TArray<FRTGridCoord>& Route : TurnManager->GetLastMoveRoutes())
+		{
+			for (int32 i = 1; i < Route.Num(); ++i)
+			{
+				const FVector A = Project(URTGridLibrary::CellToWorld(Route[i - 1], TOrigin, TCell));
+				const FVector B = Project(URTGridLibrary::CellToWorld(Route[i], TOrigin, TCell));
+				if (A.Z > 0.f && B.Z > 0.f)
+				{
+					DrawLine(A.X, A.Y, B.X, B.Y, TrailColor, 1.5f);
+				}
+			}
+		}
+	}
+
 	// Visualizzazione degli INTENTI di pianificazione (fase Planning).
 	// Invariante #6 (privacy dell'intento): il piano di un'unita' e' visibile agli alleati sempre,
 	// ai nemici solo se rivelati (status Reveal). Unita' proprie in ciano, nemici rivelati in giallo.

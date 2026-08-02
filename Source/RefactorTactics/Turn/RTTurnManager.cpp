@@ -526,6 +526,20 @@ void ARTTurnManager::ResolveMovement()
 
 	const TArray<FRTPathResult> Resolved = URTMovementResolver::ResolvePaths(Paths);
 
+	// Traccia post-lock: rotte effettivamente percorse (viz del percorso risolto). Catturate PRIMA
+	// del placement, cosi' includono la cella di partenza reale.
+	LastMoveRoutes.Reset();
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		if (Resolved[i].Entered.Num() > 0)
+		{
+			TArray<FRTGridCoord> Route;
+			Route.Add(Units[i]->GridCell);
+			Route.Append(Resolved[i].Entered);
+			LastMoveRoutes.Add(Route);
+		}
+	}
+
 	// Applica le posizioni finali.
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
