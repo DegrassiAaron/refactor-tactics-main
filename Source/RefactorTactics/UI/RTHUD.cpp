@@ -11,6 +11,17 @@
 #include "Engine/Canvas.h"
 #include "Kismet/GameplayStatics.h"
 
+namespace
+{
+	// Centro-mondo di una cella con l'elevazione del suo layer (per disegnare i path sul ponte).
+	FVector CellWorldElevated(const FRTGridCoord& Cell, const FVector& Origin, float CellSize, float LayerHeight)
+	{
+		FVector W = URTGridLibrary::CellToWorld(Cell, Origin, CellSize);
+		W.Z += Cell.Layer * LayerHeight;
+		return W;
+	}
+}
+
 void ARTHUD::DrawHUD()
 {
 	Super::DrawHUD();
@@ -83,13 +94,14 @@ void ARTHUD::DrawHUD()
 		const ARTGridActor* TrailGrid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
 		const FVector TOrigin = TrailGrid ? TrailGrid->GetActorLocation() : FVector::ZeroVector;
 		const float TCell = TrailGrid ? TrailGrid->CellSize : 200.f;
+		const float TLayerH = TrailGrid ? TrailGrid->LayerHeight : 0.f;
 		const FLinearColor TrailColor(0.6f, 0.6f, 0.6f, 0.5f);
 		for (const TArray<FRTGridCoord>& Route : TurnManager->GetLastMoveRoutes())
 		{
 			for (int32 i = 1; i < Route.Num(); ++i)
 			{
-				const FVector A = Project(URTGridLibrary::CellToWorld(Route[i - 1], TOrigin, TCell));
-				const FVector B = Project(URTGridLibrary::CellToWorld(Route[i], TOrigin, TCell));
+				const FVector A = Project(CellWorldElevated(Route[i - 1], TOrigin, TCell, TLayerH));
+				const FVector B = Project(CellWorldElevated(Route[i], TOrigin, TCell, TLayerH));
 				if (A.Z > 0.f && B.Z > 0.f)
 				{
 					DrawLine(A.X, A.Y, B.X, B.Y, TrailColor, 1.5f);
@@ -107,6 +119,7 @@ void ARTHUD::DrawHUD()
 		const ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
 		const FVector Origin = Grid ? Grid->GetActorLocation() : FVector::ZeroVector;
 		const float CellSize = Grid ? Grid->CellSize : 200.f;
+		const float LayerH = Grid ? Grid->LayerHeight : 0.f;
 
 		for (AActor* Actor : Actors)
 		{
@@ -177,15 +190,15 @@ void ARTHUD::DrawHUD()
 				// Polilinea lungo i centri-cella (a terra): mostra la deviazione attorno alle coperture.
 				for (int32 i = 1; i < PathCells.Num(); ++i)
 				{
-					const FVector A = Project(URTGridLibrary::CellToWorld(PathCells[i - 1], Origin, CellSize));
-					const FVector B = Project(URTGridLibrary::CellToWorld(PathCells[i], Origin, CellSize));
+					const FVector A = Project(CellWorldElevated(PathCells[i - 1], Origin, CellSize, LayerH));
+					const FVector B = Project(CellWorldElevated(PathCells[i], Origin, CellSize, LayerH));
 					if (A.Z > 0.f && B.Z > 0.f)
 					{
 						DrawLine(A.X, A.Y, B.X, B.Y, Color, 2.f);
 					}
 				}
 
-				const FVector DestScreen = Project(URTGridLibrary::CellToWorld(Unit->PlannedCell, Origin, CellSize));
+				const FVector DestScreen = Project(CellWorldElevated(Unit->PlannedCell, Origin, CellSize, LayerH));
 				if (DestScreen.Z > 0.f)
 				{
 					DrawRect(FLinearColor(Color.R, Color.G, Color.B, 0.35f), DestScreen.X - 12.f, DestScreen.Y - 12.f, 24.f, 24.f);
@@ -195,7 +208,7 @@ void ARTHUD::DrawHUD()
 			// Marker sui waypoint cliccati: i "punti" del percorso (nel colore dell'unita').
 			for (const FRTGridCoord& WP : Unit->PlannedWaypoints)
 			{
-				const FVector WPScreen = Project(URTGridLibrary::CellToWorld(WP, Origin, CellSize));
+				const FVector WPScreen = Project(CellWorldElevated(WP, Origin, CellSize, LayerH));
 				if (WPScreen.Z > 0.f)
 				{
 					DrawRect(Color, WPScreen.X - 5.f, WPScreen.Y - 5.f, 10.f, 10.f);
