@@ -7,23 +7,51 @@
 #include "InputMappingContext.h"
 #include "InputAction.h"
 #include "InputActionValue.h"
-#include "UObject/ConstructorHelpers.h"
+#include "InputModifiers.h"
 
-ARTPlayerController::ARTPlayerController()
+void ARTPlayerController::BuildInputMappings()
 {
-	// Caricamento degli asset di input dalle path convenzionali (crea gli asset in /Game/Input/).
-	// Finche' non esistono vedrai dei warning "failed to find object": e' atteso.
-	static ConstructorHelpers::FObjectFinder<UInputMappingContext> IMC(TEXT("/Game/Input/IMC_Tactical.IMC_Tactical"));
-	if (IMC.Succeeded()) { MappingContext = IMC.Object; }
+	if (MappingContext)
+	{
+		return; // gia' costruito
+	}
 
-	static ConstructorHelpers::FObjectFinder<UInputAction> Pan(TEXT("/Game/Input/IA_Pan.IA_Pan"));
-	if (Pan.Succeeded()) { PanAction = Pan.Object; }
+	PanAction = NewObject<UInputAction>(this, TEXT("IA_Pan"));
+	PanAction->ValueType = EInputActionValueType::Axis2D;
 
-	static ConstructorHelpers::FObjectFinder<UInputAction> Zoom(TEXT("/Game/Input/IA_Zoom.IA_Zoom"));
-	if (Zoom.Succeeded()) { ZoomAction = Zoom.Object; }
+	ZoomAction = NewObject<UInputAction>(this, TEXT("IA_Zoom"));
+	ZoomAction->ValueType = EInputActionValueType::Axis1D;
 
-	static ConstructorHelpers::FObjectFinder<UInputAction> Select(TEXT("/Game/Input/IA_Select.IA_Select"));
-	if (Select.Succeeded()) { SelectAction = Select.Object; }
+	SelectAction = NewObject<UInputAction>(this, TEXT("IA_Select"));
+	SelectAction->ValueType = EInputActionValueType::Boolean;
+
+	MappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_Tactical"));
+
+	// Pan (Axis2D): D=+X, A=-X, W=+Y (Swizzle YXZ), S=-Y (Swizzle YXZ + Negate).
+	MappingContext->MapKey(PanAction, EKeys::D);
+	{
+		FEnhancedActionKeyMapping& M = MappingContext->MapKey(PanAction, EKeys::A);
+		M.Modifiers.Add(NewObject<UInputModifierNegate>(this));
+	}
+	{
+		FEnhancedActionKeyMapping& M = MappingContext->MapKey(PanAction, EKeys::W);
+		UInputModifierSwizzleAxis* Swizzle = NewObject<UInputModifierSwizzleAxis>(this);
+		Swizzle->Order = EInputAxisSwizzle::YXZ;
+		M.Modifiers.Add(Swizzle);
+	}
+	{
+		FEnhancedActionKeyMapping& M = MappingContext->MapKey(PanAction, EKeys::S);
+		UInputModifierSwizzleAxis* Swizzle = NewObject<UInputModifierSwizzleAxis>(this);
+		Swizzle->Order = EInputAxisSwizzle::YXZ;
+		M.Modifiers.Add(Swizzle);
+		M.Modifiers.Add(NewObject<UInputModifierNegate>(this));
+	}
+
+	// Zoom (Axis1D): rotellina del mouse.
+	MappingContext->MapKey(ZoomAction, EKeys::MouseWheelAxis);
+
+	// Select (Boolean): tasto sinistro del mouse.
+	MappingContext->MapKey(SelectAction, EKeys::LeftMouseButton);
 }
 
 void ARTPlayerController::BeginPlay()
@@ -31,17 +59,12 @@ void ARTPlayerController::BeginPlay()
 	Super::BeginPlay();
 	bShowMouseCursor = true;
 
+	BuildInputMappings();
+
 	if (UEnhancedInputLocalPlayerSubsystem* Subsystem =
 			ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
 	{
-		if (MappingContext)
-		{
-			Subsystem->AddMappingContext(MappingContext, 0);
-		}
-		else
-		{
-			UE_LOG(LogRT, Warning, TEXT("[RT] IMC_Tactical non trovato: crea gli asset di input in /Game/Input/"));
-		}
+		Subsystem->AddMappingContext(MappingContext, 0);
 	}
 }
 
@@ -49,11 +72,13 @@ void ARTPlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
 
+	BuildInputMappings();
+
 	if (UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(InputComponent))
 	{
-		if (PanAction)    { EIC->BindAction(PanAction, ETriggerEvent::Triggered, this, &ARTPlayerController::OnPan); }
-		if (ZoomAction)   { EIC->BindAction(ZoomAction, ETriggerEvent::Triggered, this, &ARTPlayerController::OnZoom); }
-		if (SelectAction) { EIC->BindAction(SelectAction, ETriggerEvent::Started, this, &ARTPlayerController::OnSelect); }
+		EIC->BindAction(PanAction, ETriggerEvent::Triggered, this, &ARTPlayerController::OnPan);
+		EIC->BindAction(ZoomAction, ETriggerEvent::Triggered, this, &ARTPlayerController::OnZoom);
+		EIC->BindAction(SelectAction, ETriggerEvent::Started, this, &ARTPlayerController::OnSelect);
 	}
 	else
 	{
@@ -93,13 +118,11 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		return;
 	}
 
-	// Deseleziona il precedente (Cast gestisce SelectedActor nullo).
 	if (IRTSelectable* Previous = Cast<IRTSelectable>(SelectedActor))
 	{
 		Previous->OnDeselected();
 	}
 
-	// Seleziona il nuovo, se selezionabile.
 	if (IRTSelectable* NewSelection = Cast<IRTSelectable>(HitActor))
 	{
 		NewSelection->OnSelected();
