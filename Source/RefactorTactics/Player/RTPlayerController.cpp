@@ -254,13 +254,35 @@ ARTUnit* ARTPlayerController::GetSelectedUnit() const
 
 void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 {
-	if (ARTUnit* Unit = GetSelectedUnit())
+	ARTUnit* Unit = GetSelectedUnit();
+	if (!Unit)
 	{
-		Unit->SelectAbility(Index);
-		if (const URTAbilityData* Ability = Unit->GetAbility(Index))
+		return;
+	}
+	Unit->SelectAbility(Index);
+	const URTAbilityData* Ability = Unit->GetAbility(Index);
+	if (!Ability)
+	{
+		return;
+	}
+
+	if (Ability->bSelfTarget)
+	{
+		// Supporto: si pianifica immediatamente su se stessi (nessun bersaglio da cliccare).
+		if (Unit->CanUseAbility(Index))
 		{
-			UE_LOG(LogRT, Log, TEXT("[RT] %s: abilita' attiva -> %s"), *Unit->GetName(), *Ability->DisplayName.ToString());
+			Unit->PlannedAbilityIndex = Index;
+			Unit->PlannedAttackTarget = nullptr;
+			UE_LOG(LogRT, Log, TEXT("[RT] %s pianifica %s (supporto)"), *Unit->GetName(), *Ability->DisplayName.ToString());
 		}
+		else
+		{
+			UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta"), *Ability->DisplayName.ToString());
+		}
+	}
+	else
+	{
+		UE_LOG(LogRT, Log, TEXT("[RT] %s: abilita' attiva -> %s"), *Unit->GetName(), *Ability->DisplayName.ToString());
 	}
 }
 

@@ -178,7 +178,9 @@ void ARTUnit::ConfigureAsArchetype(ERTArchetype InArchetype)
 		MaxHealth = 140; Shield = 20;  MoveRange = 3;  AttackRange = 3;  AttackPower = 30;
 		BaseMeshScale = FVector(1.5f, 1.5f, 1.6f); // tozzo e largo
 		Abilities.Add(MakeAbility(TEXT("Fendente"), 3, 30, 0, 0, 0, FGameplayTag(), 0));
-		Abilities.Add(MakeAbility(TEXT("Sfondamento"), 3, 50, 0, 2, 0, FGameplayTag(), 0));
+		URTAbilityData* Barrier = MakeAbility(TEXT("Barriera"), 0, 40, 0, 3, 0, FGameplayTag(), 0);
+		Barrier->bSelfTarget = true; // supporto: +40 scudo su se stessi (fase Prep)
+		Abilities.Add(Barrier);
 		Abilities.Add(MakeAbility(TEXT("Terremoto"), 3, 40, 2, 0, MaxEnergy, TAG_Status_Root, 2)); // AoE ampio + Root
 	}
 

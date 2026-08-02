@@ -38,6 +38,7 @@ protected:
 	virtual void BeginPlay() override;
 
 	void PlanBots();
+	void ResolvePrep();
 	void ResolveCombat();
 	void ResolveMovement();
 	void StartPlanningTimer();

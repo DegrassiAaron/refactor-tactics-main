@@ -52,6 +52,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
 	int32 StatusDuration = 0;
 
+	/**
+	 * Abilita' di supporto su se stessi (fase Prep): non fa danno, aggiunge scudo pari a Power.
+	 * Se false, e' un attacco su un nemico (fase Blast).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
+	bool bSelfTarget = false;
+
 	/** Turni di ricarica dopo l'uso (0 = nessuna ricarica). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
 	int32 CooldownTurns = 0;

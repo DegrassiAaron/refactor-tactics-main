@@ -64,6 +64,23 @@ void ARTTurnManager::PlanBots()
 		Bot->PlannedAttackTarget = nullptr;
 		Bot->PlannedAbilityIndex = INDEX_NONE;
 
+		// Difesa: se ferito (sotto meta' HP) e ha un'abilita' di supporto pronta, la usa e salta il turno.
+		bool bUsedSupport = false;
+		for (int32 A = 0; A < Bot->NumAbilities(); ++A)
+		{
+			const URTAbilityData* Ab = Bot->GetAbility(A);
+			if (Ab && Ab->bSelfTarget && Bot->CanUseAbility(A) && Bot->Health * 2 < Bot->MaxHealth)
+			{
+				Bot->PlannedAbilityIndex = A;
+				bUsedSupport = true;
+				break;
+			}
+		}
+		if (bUsedSupport)
+		{
+			continue;
+		}
+
 		// Miglior (abilità, bersaglio) attaccabile — focus fire: preferisce chi può uccidere/indebolire.
 		// In parallelo tiene traccia del nemico più vicino (fallback per l'avvicinamento).
 		int32 BestScore = TNumericLimits<int32>::Lowest();
@@ -170,7 +187,11 @@ void ARTTurnManager::LockInAndResolve()
 	do
 	{
 		Phase = URTTurnRules::NextPhase(Phase);
-		if (Phase == ERTMatchPhase::Blast)
+		if (Phase == ERTMatchPhase::Prep)
+		{
+			ResolvePrep(); // abilita' di supporto (buff su se stessi)
+		}
+		else if (Phase == ERTMatchPhase::Blast)
 		{
 			ResolveCombat(); // gli attacchi usano la posizione PRIMA del movimento
 		}
@@ -216,6 +237,31 @@ void ARTTurnManager::LockInAndResolve()
 
 	// Riavvia la pianificazione del nuovo turno.
 	StartPlanningTimer();
+}
+
+void ARTTurnManager::ResolvePrep()
+{
+	// Abilita' di supporto su se stessi: aggiungono scudo pari a Power.
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+	for (AActor* Actor : Actors)
+	{
+		ARTUnit* Unit = Cast<ARTUnit>(Actor);
+		if (!Unit || !Unit->IsAlive())
+		{
+			continue;
+		}
+		const int32 Index = Unit->PlannedAbilityIndex;
+		const URTAbilityData* Ability = Unit->GetAbility(Index);
+		if (Ability && Ability->bSelfTarget && Unit->CanUseAbility(Index))
+		{
+			Unit->Shield += Ability->Power;
+			Unit->ConsumeAbility(Index);
+			AddLogEvent(FString::Printf(TEXT("%s: %s (+%d scudo)"), *Unit->GetName(), *Ability->DisplayName.ToString(), Ability->Power));
+			Unit->PlannedAbilityIndex = INDEX_NONE; // consumato in Prep
+			Unit->PlannedAttackTarget = nullptr;
+		}
+	}
 }
 
 void ARTTurnManager::ResolveCombat()
