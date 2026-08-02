@@ -415,4 +415,26 @@ bool FRTGridCompositePathTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGridCoordLayerTest,
+	"RefactorTactics.Grid.GridCoordDistinguishesLayer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGridCoordLayerTest::RunTest(const FString&)
+{
+	// Retro-compatibilita': il costruttore 2-arg ha Layer 0.
+	TestEqual(TEXT("2-arg -> Layer 0"), FRTGridCoord(3, 4).Layer, 0);
+	// Stesse X,Y ma Layer diverso: NON sono la stessa cella.
+	TestTrue(TEXT("layer diverso -> diverso"), FRTGridCoord(3, 4, 0) != FRTGridCoord(3, 4, 1));
+	// Stesse X,Y,Layer: uguali.
+	TestTrue(TEXT("stesso layer -> uguale"), FRTGridCoord(3, 4, 1) == FRTGridCoord(3, 4, 1));
+	// Chiavi distinte in una TMap (hash consapevole del layer).
+	{
+		TMap<FRTGridCoord, int32> M;
+		M.Add(FRTGridCoord(3, 4, 0), 10);
+		M.Add(FRTGridCoord(3, 4, 1), 20);
+		TestEqual(TEXT("due chiavi distinte"), M.Num(), 2);
+		TestEqual(TEXT("layer 1 -> 20"), M.FindRef(FRTGridCoord(3, 4, 1)), 20);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
