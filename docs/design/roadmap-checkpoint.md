@@ -19,9 +19,9 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in forma ridotta (vedi nota) · �
 | M0 Fondamenta | ✅ | Progetto UE 5.8.1 compila (Game + Editor), repo + LFS |
 | M1 Sandbox | ✅ | Camera, input (C++), griglia + test, selezione, demo 2v2 |
 | M2 Turn loop | ✅ | Fasi, resolver movimento (conflitti), pianificazione, timer 30s, range 4 |
-| M3 Combat loop | ✅ | Danno/scudo, attacco, eliminazione, energia+ultimate (AoE), LOS/copertura, **abilità data-driven** ✅ · status Root/Slow · **forme targeting complete** (Single/Area/Line/Cone) ✅ · barra abilità (estensione aperta: status Reveal, Shield già presente) |
+| M3 Combat loop | ✅ | Danno/scudo, attacco, eliminazione, energia+ultimate (AoE), LOS/copertura, **abilità data-driven** ✅ · status Root/Slow/**Reveal** (intento nemico, invariante #6) ✅ · **forme targeting complete** (Single/Area/Line/Cone) ✅ · barra abilità |
 | M4 Vertical slice | ✅ | Bot, HUD (barre HP + combat log), vittoria + riavvio |
-| M5 Release interna | 🟡 | **36 test** ✅ · **packaging Windows** (Development) ✅ · DoD MVP formale ✅ · Shipping ⏳ |
+| M5 Release interna | 🟡 | **37 test** ✅ · **packaging Windows** (Development) ✅ · DoD MVP formale ✅ · Shipping ⏳ |
 
 **Sviluppo in corso sul branch `feature/m1-sandbox`** (M1→M4 in un unico branch, non uno per milestone come da regola: scelta pratica di questa fase iniziale). **27 test automatici verdi.**
 
@@ -78,7 +78,7 @@ Scelte che divergono dai DoD originali (equivalenti o migliori, documentate qui)
 | 3.1 | ✅ | Abilità data-driven | `URTAbilityData` (range/power/area/status/cooldown/costo); ogni unità ha una **lista di abilità** (default: Attacco, Colpo pesante cd2, Ultimate); **barra abilità** nell'HUD, selezione con tasti 1/2/3, `IsAbilityUsable` (test); il bot sceglie l'abilità migliore |
 | 3.2 | ✅ | Danno/scudo/morte | `URTCombatLibrary::ApplyDamage` + `URTCombatResolver::ResolveAttacks` (raccogli-poi-applica, focus-fire, ordine-indipendente) · eliminazione a HP 0 (test) |
 | 3.3 | ✅ | Energia + ultimate | `GainEnergy`/`IsUltimateReady` (test) · energia per turno + on-hit; attacco a energia piena = ultimate (danno x2); barra energia nell'HUD |
-| 3.4 | 🟡 | Status + Gameplay Tags | Tag nativi `Status.Root`/`Status.Slow`; durata a turni; `EffectiveMoveRange` (test); l'ultimate applica Slow; marker HUD · Shield/Reveal ⏳ |
+| 3.4 | ✅ | Status + Gameplay Tags | Tag nativi `Status.Root`/`Status.Slow`/`Status.Reveal`; durata a turni; `EffectiveMoveRange` (test); l'ultimate applica Slow, "Colpo preciso" applica Reveal; `IsIntentVisibleTo` (test, invariante #6); marker HUD + intento nemico rivelato · Shield = "Barriera" (già presente) |
 | 3.5 | ✅ | Targeting a forme | `CellsInRadius`/`CellsInLine`/`CellsInCone` (test) → forme **Single · Area · Line · Cone** guidate da `ERTAbilityShape`; Ranger "Colpo preciso" (Line), Guardian "Spazzata" (Cone), ultimate AoE (Area) |
 | 3.6 | ✅ | LOS / copertura | `HasLineOfSight` (test) · ostacoli centrali visibili (`ARTGridActor::BlockedCells`); un attacco richiede LOS libera; movimento su copertura rifiutato |
 
