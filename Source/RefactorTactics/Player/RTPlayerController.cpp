@@ -147,11 +147,18 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		if (ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass())))
 		{
 			const FRTGridCoord Cell = URTGridLibrary::WorldToCell(Hit.Location, Grid->GetActorLocation(), Grid->CellSize);
-			if (URTGridLibrary::IsInsideGrid(Cell, Grid->Width, Grid->Height))
+			if (!URTGridLibrary::IsInsideGrid(Cell, Grid->Width, Grid->Height))
 			{
-				SelectedUnit->PlannedCell = Cell;
-				UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s -> cella (%d,%d)"), *SelectedUnit->GetName(), Cell.X, Cell.Y);
+				return;
 			}
+			if (!URTGridLibrary::IsWithinRange(SelectedUnit->GridCell, Cell, SelectedUnit->MoveRange))
+			{
+				UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d) fuori portata (max %d) per %s"),
+					Cell.X, Cell.Y, SelectedUnit->MoveRange, *SelectedUnit->GetName());
+				return;
+			}
+			SelectedUnit->PlannedCell = Cell;
+			UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s -> cella (%d,%d)"), *SelectedUnit->GetName(), Cell.X, Cell.Y);
 		}
 	}
 }

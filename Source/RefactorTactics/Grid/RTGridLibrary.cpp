@@ -26,3 +26,8 @@ int32 URTGridLibrary::ManhattanDistance(const FRTGridCoord& A, const FRTGridCoor
 {
 	return FMath::Abs(A.X - B.X) + FMath::Abs(A.Y - B.Y);
 }
+
+bool URTGridLibrary::IsWithinRange(const FRTGridCoord& From, const FRTGridCoord& To, int32 Range)
+{
+	return ManhattanDistance(From, To) <= Range;
+}

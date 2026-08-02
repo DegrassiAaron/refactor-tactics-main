@@ -1,6 +1,7 @@
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTMovementResolver.h"
 #include "Grid/RTGridActor.h"
+#include "Grid/RTGridLibrary.h"
 #include "Unit/RTUnit.h"
 #include "Core/RTTypes.h"
 #include "RefactorTactics.h"
@@ -104,7 +105,14 @@ void ARTTurnManager::ResolveMovement()
 		if (ARTUnit* Unit = Cast<ARTUnit>(Actor))
 		{
 			Units.Add(Unit);
-			Requests.Add(FRTMoveRequest(Unit->GridCell, Unit->PlannedCell));
+
+			// Difesa autorevole: un piano fuori portata viene ignorato (l'unita' resta ferma),
+			// a prescindere da cosa ha inviato il client.
+			const FRTGridCoord Target =
+				URTGridLibrary::IsWithinRange(Unit->GridCell, Unit->PlannedCell, Unit->MoveRange)
+					? Unit->PlannedCell
+					: Unit->GridCell;
+			Requests.Add(FRTMoveRequest(Unit->GridCell, Target));
 		}
 	}
 

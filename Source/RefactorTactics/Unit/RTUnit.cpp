@@ -57,7 +57,6 @@ void ARTUnit::PlaceOnCell(const FRTGridCoord& Cell, const FVector& GridOrigin, f
 
 void ARTUnit::OnSelected()
 {
-	UE_LOG(LogRT, Log, TEXT("[RT] Unit selezionata: team %d, cella (%d,%d)"), TeamId, GridCell.X, GridCell.Y);
 	if (Mesh)
 	{
 		Mesh->SetRelativeScale3D(BaseMeshScale * 1.15f); // ingrandisce del 15% rispetto alla base

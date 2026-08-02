@@ -30,4 +30,8 @@ public:
 	/** Distanza di Manhattan tra due celle. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Grid")
 	static int32 ManhattanDistance(const FRTGridCoord& A, const FRTGridCoord& B);
+
+	/** Vero se To e' raggiungibile da From entro Range passi (distanza di Manhattan <= Range). */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Grid")
+	static bool IsWithinRange(const FRTGridCoord& From, const FRTGridCoord& To, int32 Range);
 };

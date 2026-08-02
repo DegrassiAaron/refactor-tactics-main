@@ -77,4 +77,18 @@ bool FRTGridManhattanTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGridWithinRangeTest,
+	"RefactorTactics.Grid.IsWithinRangeChecksManhattan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGridWithinRangeTest::RunTest(const FString&)
+{
+	const FRTGridCoord From(2, 2);
+	TestTrue(TEXT("stessa cella entro range 4"), URTGridLibrary::IsWithinRange(From, FRTGridCoord(2, 2), 4));
+	TestTrue(TEXT("distanza 4 entro range 4"), URTGridLibrary::IsWithinRange(From, FRTGridCoord(2, 6), 4));
+	TestTrue(TEXT("distanza 3 (diagonale) entro range 4"), URTGridLibrary::IsWithinRange(From, FRTGridCoord(4, 3), 4));
+	TestFalse(TEXT("distanza 5 fuori range 4"), URTGridLibrary::IsWithinRange(From, FRTGridCoord(2, 7), 4));
+	TestFalse(TEXT("distanza 8 fuori range 4"), URTGridLibrary::IsWithinRange(From, FRTGridCoord(6, 6), 4));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
