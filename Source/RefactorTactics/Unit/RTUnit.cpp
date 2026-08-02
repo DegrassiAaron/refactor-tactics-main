@@ -49,14 +49,24 @@ void ARTUnit::ApplyCombatState(int32 NewHealth, int32 NewShield)
 
 void ARTUnit::ApplyTeamColor()
 {
-	if (Mesh && Mesh->GetStaticMesh())
+	if (!Mesh || !Mesh->GetStaticMesh())
 	{
-		DynMaterial = Mesh->CreateDynamicMaterialInstance(0);
-		if (DynMaterial)
-		{
-			// Il materiale base delle BasicShapes espone il parametro "Color".
-			DynMaterial->SetVectorParameterValue(TEXT("Color"), TeamId == 0 ? Team0Color : Team1Color);
-		}
+		return;
+	}
+
+	const FLinearColor TeamColor = (TeamId == 0) ? Team0Color : Team1Color;
+
+	// Preferisci il materiale dedicato (con parametro "Color"); il materiale base
+	// dell'engine non espone parametri, quindi senza M_Unit l'unita' resta grigia.
+	if (UMaterialInterface* Base = UnitMaterial.LoadSynchronous())
+	{
+		DynMaterial = UMaterialInstanceDynamic::Create(Base, this);
+		Mesh->SetMaterial(0, DynMaterial);
+		DynMaterial->SetVectorParameterValue(TEXT("Color"), TeamColor);
+	}
+	else
+	{
+		UE_LOG(LogRT, Warning, TEXT("[RT] Materiale M_Unit assente: unita' senza colore-team (crea /Game/Materials/M_Unit)"));
 	}
 }
 

@@ -8,6 +8,7 @@
 
 class UStaticMeshComponent;
 class UMaterialInstanceDynamic;
+class UMaterialInterface;
 
 /**
  * Unita' segnaposto per il demo: una mesh su una cella, colorata per team e selezionabile.
@@ -88,4 +89,12 @@ protected:
 	/** Scala base della mesh; l'evidenziazione di selezione la moltiplica, non la sostituisce. */
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Unit")
 	FVector BaseMeshScale = FVector(1.2f, 1.2f, 1.8f);
+
+	/**
+	 * Materiale con un parametro vettoriale "Color" usato per il colore-team.
+	 * Default: /Game/Materials/M_Unit (da creare nell'editor). Se assente, l'unita' resta grigia.
+	 */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Unit")
+	TSoftObjectPtr<UMaterialInterface> UnitMaterial =
+		TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Materials/M_Unit.M_Unit")));
 };
