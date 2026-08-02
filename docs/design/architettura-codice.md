@@ -37,7 +37,7 @@ vedi [roadmap](roadmap-checkpoint.md).
 | `Bot/RTBotLibrary` | Function Library | `StepToward` (avvicinamento greedy entro il range) |
 | `UI/RTHUD` | `AHUD` | Barre HP/scudo sopra le unità + "PARTITA FINITA" (disegno C++, no UMG) |
 | `RTGameMode` | `AGameModeBase` | Allestisce il demo (griglia, luce, 2v2, turn manager); imposta pawn/controller/HUD; marca team 1 come bot |
-| `Tests/` | Automation | `RTGridTests`, `RTMovementResolverTests`, `RTTurnRulesTests`, `RTCombatLibraryTests`, `RTCombatResolverTests`, `RTBotLibraryTests` — **27 test** |
+| `Tests/` | Automation | `RTGridTests`, `RTMovementResolverTests`, `RTTurnRulesTests`, `RTCombatLibraryTests`, `RTCombatResolverTests`, `RTBotLibraryTests`, `RTTerrainTests` — **50 test** |
 
 ## Flusso di un turno
 

@@ -95,7 +95,7 @@ Checklist di completamento — l'MVP è "fatto" quando **tutte** queste voci son
 - [~] 🟡 **Targeting a forme**: Single ✅, area/Circle ✅ *(Self/Line/Cone ⏳)*
 - [x] ✅ Vittoria: la partita termina quando una squadra è eliminata (+ riavvio con R)
 - [x] ✅ UI: salute, energia, abilità, **timer**, **fase**, **combat log** (tutti a schermo)
-- [x] ✅ Test automatici: griglia, danno-dopo-scudo, ordine fasi, conflitti di movimento *(33 test)*
+- [x] ✅ Test automatici: griglia, danno-dopo-scudo, ordine fasi, conflitti di movimento *(50 test)*
 - [~] 🟡 Build Windows: **Development** ✅ (verificata, si avvia senza editor) *(Shipping ⏳)*
 
 **Verdetto**: MVP **sostanzialmente completo e giocabile end-to-end**. I punti 🟡 sono soddisfatti nel
