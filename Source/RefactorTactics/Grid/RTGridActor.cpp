@@ -61,8 +61,9 @@ void ARTGridActor::SpawnBridge()
 	Layer1Cells.Reset();
 	Edges.Reset();
 
-	// Passerella (layer 1) lungo y=4, da x=2 a x=7: passa sopra le coperture centrali.
-	for (int32 X = 2; X <= 7; ++X)
+	// Passerella (layer 1) lungo y=4, da x=3 a x=7: passa sopra le coperture centrali.
+	// NB: non parte da x=2 per non stare sopra lo spawn del Guardian (2,4), che resterebbe non cliccabile.
+	for (int32 X = 3; X <= 7; ++X)
 	{
 		Layer1Cells.Add(FRTGridCoord(X, 4, 1));
 	}
@@ -73,7 +74,7 @@ void ARTGridActor::SpawnBridge()
 		Edges.Add(FRTTraversalEdge(Ground, Bridge, 2));
 		Edges.Add(FRTTraversalEdge(Bridge, Ground, 2));
 	};
-	AddRamp(FRTGridCoord(1, 4, 0), FRTGridCoord(2, 4, 1));
+	AddRamp(FRTGridCoord(2, 4, 0), FRTGridCoord(3, 4, 1)); // base sotto/accanto al Guardian di team 0
 	AddRamp(FRTGridCoord(8, 4, 0), FRTGridCoord(7, 4, 1));
 
 	UE_LOG(LogRT, Log, TEXT("[RT] GridActor: ponte (%d celle layer 1, %d archi)"), Layer1Cells.Num(), Edges.Num());
