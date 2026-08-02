@@ -6,10 +6,11 @@ Gioco tattico PvP a **turni simultanei** ispirato ad *Atlas Reactor*, sviluppato
 Ogni turno: **pianificazione simultanea** delle mosse → risoluzione a fasi
 **Prep → Dash → Blast → Move**, calcolate simultaneamente e applicate in ordine deterministico.
 
-> **Stato attuale**: scaffolding. È presente lo **scheletro C++** del progetto (`.uproject`, modulo,
-> `Config/`); va aperto in **UE 5.8.1** per rigenerare i file di soluzione e compilare, poi si prosegue
-> col [piano canonico MVP](docs/design/piano-canonico-mvp.md) e la
-> [roadmap/checkpoint](docs/design/roadmap-checkpoint.md).
+> **Stato attuale**: **MVP giocabile in editor**. Un 2v2 offline contro bot con pianificazione a turni,
+> movimento con conflitti, combattimento (danno/scudo/eliminazioni), bot, HUD e condizione di vittoria —
+> **27 test automatici verdi**. Restano da fare le feature di combat avanzate (abilità data-driven,
+> energia, status, targeting a forme, LOS) e il packaging Windows (bloccato da un problema della toolchain
+> dell'engine, non del codice). Dettaglio nella [roadmap/checkpoint](docs/design/roadmap-checkpoint.md).
 
 ---
 
@@ -35,13 +36,16 @@ Windows. Il multiplayer, il 4v4 e il resto della visione competitiva sono
 
 ```
 RefactorTactics.uproject   # descrittore progetto Unreal
-Source/                    # modulo C++ (scheletro; le classi di gioco arrivano per milestone)
+Source/RefactorTactics/    # modulo C++ (Core, Grid, Unit, Turn, Combat, Bot, Camera, Player, UI, Tests)
 Config/                    # configurazione UE (Engine/Game/Input)
-Content/                   # asset UE (vuoto; tracciato da Git LFS)
+Content/                   # asset UE (M_Unit, L_Prototype; tracciati da Git LFS)
 docs/                      # documentazione
   ├─ design/
   │   ├─ piano-canonico-mvp.md   # ⭐ fonte di verità per l'MVP
-  │   └─ roadmap-checkpoint.md   # milestone, checkpoint e Definition of Done
+  │   ├─ roadmap-checkpoint.md   # milestone, checkpoint e stato
+  │   └─ architettura-codice.md  # mappa delle classi C++
+  ├─ guides/
+  │   └─ debug-vs-unreal.md      # debug con Visual Studio + Unreal
   ├─ 00-Intro.pdf                # brief iniziale
   ├─ 01-StrutturaTutorial.pdf    # curriculum didattico
   ├─ 02-Tutorial.pdf             # corso: MVP multiplayer 1v1
@@ -55,26 +59,30 @@ CLAUDE.md                  # guida per l'assistente Claude Code
 > effettive sono state riconciliate in [`docs/design/piano-canonico-mvp.md`](docs/design/piano-canonico-mvp.md),
 > che ha la precedenza.
 
-## Roadmap MVP (~14 settimane)
+## Roadmap MVP
 
-| Milestone | Contenuto |
-|---|---|
-| M0 Fondamenta | Toolchain, progetto C++, Git LFS, classi base |
-| M1 Sandbox | Camera tattica, input, selezione, griglia |
-| M2 Turn loop | Pianificazione, fasi, timer, risoluzione movimento |
-| M3 Combat loop | Abilità, danni, scudi, energia, status, targeting, LOS |
-| M4 Vertical slice | Bot, HUD, combat log, condizione di vittoria |
-| M5 Release interna | Test, packaging Windows, Definition of Done |
+| Milestone | Contenuto | Stato |
+|---|---|---|
+| M0 Fondamenta | Toolchain, progetto C++, Git LFS | ✅ |
+| M1 Sandbox | Camera tattica, input, selezione, griglia | ✅ |
+| M2 Turn loop | Pianificazione, fasi, timer, risoluzione movimento | ✅ |
+| M3 Combat loop | Danno/scudo, attacco, eliminazione ✅ · abilità/energia/status/forme/LOS ⏳ | 🟡 |
+| M4 Vertical slice | Bot, HUD, condizione di vittoria | ✅ |
+| M5 Release interna | Test verdi ✅ · packaging Windows ⏳ | 🟡 |
 
-Dettaglio completo nel [piano canonico](docs/design/piano-canonico-mvp.md).
+Dettaglio e stato per checkpoint nella [roadmap/checkpoint](docs/design/roadmap-checkpoint.md).
 
-## Come iniziare (quando si crea il progetto UE)
+## Come compilare ed eseguire
 
-1. Installare **Unreal Engine 5.8.1** (Epic Games Launcher) e **Visual Studio 2022** con il
-   workload *Game development with C++* + *Visual Studio Tools for Unreal Engine*.
-2. Installare **Git LFS**: `git lfs install`.
-3. Creare il progetto **Blank C++** `RefactorTactics` nella radice del repo (Ray Tracing off,
-   Starter Content on) e seguire il piano canonico, milestone per milestone.
+1. Installare **Unreal Engine 5.8.1** (Epic Games Launcher) e **Visual Studio 2022** (workload
+   *Game development with C++*). Installare **Git LFS** (`git lfs install`) e clonare il repo.
+2. Aprire **`RefactorTactics.uproject`** (o generare i file di soluzione: tasto destro sul `.uproject`
+   → *Generate Visual Studio project files*). Compilare il target **Development Editor**.
+3. Aprire il livello **`Content/Maps/L_Prototype`** e premere **Play**: parte un 2v2 contro il bot.
+   - **WASD** pan camera · **rotellina** zoom · **click** su unità = selezione · **click** su cella = movimento ·
+     **click** su nemico = attacco · **Spazio** = risolvi il turno (o attendi il timer di 30s).
+4. Test: **Tools → Session Frontend → Automation** → `RefactorTactics` → *Start Tests* (27 verdi).
+   Guida al debug in [`docs/guides/debug-vs-unreal.md`](docs/guides/debug-vs-unreal.md).
 
 ## Note
 
