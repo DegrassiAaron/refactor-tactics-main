@@ -20,7 +20,7 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in forma ridotta (vedi nota) · �
 | M1 Sandbox | ✅ | Camera, input (C++), griglia + test, selezione, demo 2v2 |
 | M2 Turn loop | ✅ | Fasi, resolver movimento (conflitti), pianificazione, timer 30s, range 4 |
 | M3 Combat loop | 🟡 | Danno/scudo, attacco base, eliminazione ✅ · abilità data-driven/energia/status/forme/LOS ⏳ |
-| M4 Vertical slice | ✅ | Bot, HUD (barre HP), vittoria |
+| M4 Vertical slice | ✅ | Bot, HUD (barre HP + combat log), vittoria + riavvio |
 | M5 Release interna | 🟡 | 27 test verdi ✅ · packaging ⏳ (bloccato da toolchain UAT engine, non dal codice) |
 
 **Sviluppo in corso sul branch `feature/m1-sandbox`** (M1→M4 in un unico branch, non uno per milestone come da regola: scelta pratica di questa fase iniziale). **27 test automatici verdi.**
@@ -94,10 +94,10 @@ Scelte che divergono dai DoD originali (equivalenti o migliori, documentate qui)
 | CP | Stato | Obiettivo | Note |
 |---|---|---|---|
 | 4.1 | ✅ | Bot | `URTBotLibrary::StepToward` + `PlanBots`: team 1 si avvicina e attacca (test) |
-| 4.2 | 🟡 | HUD | Barre HP/scudo sopra le unità + "PARTITA FINITA" (C++, `ARTHUD`) ✅ · combat log a schermo ⏳ (solo log console) |
-| 4.3 | 🟡 | Vittoria | Squadra eliminata → `MatchEnded`, turni fermi (test) ✅ · riavvio partita ⏳ |
+| 4.2 | ✅ | HUD | Barre HP/scudo sopra le unità (`ARTHUD`, C++) + **combat log a schermo** (ultimi eventi in basso a sinistra) |
+| 4.3 | ✅ | Vittoria | Squadra eliminata → `MatchEnded`, turni fermi (test) + **riavvio con tasto R** ("premi R per rigiocare") |
 
-**Uscita M4**: ✅ MVP giocabile 2v2 contro bot, dall'avvio alla vittoria (verificato in PIE).
+**Uscita M4**: ✅ **completo** — MVP giocabile 2v2 contro bot, dall'avvio alla vittoria e ripetibile (verificato in PIE).
 
 ---
 
