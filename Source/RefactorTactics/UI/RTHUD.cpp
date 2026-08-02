@@ -192,6 +192,16 @@ void ARTHUD::DrawHUD()
 				}
 			}
 
+			// Marker sui waypoint cliccati: i "punti" del percorso (nel colore dell'unita').
+			for (const FRTGridCoord& WP : Unit->PlannedWaypoints)
+			{
+				const FVector WPScreen = Project(URTGridLibrary::CellToWorld(WP, Origin, CellSize));
+				if (WPScreen.Z > 0.f)
+				{
+					DrawRect(Color, WPScreen.X - 5.f, WPScreen.Y - 5.f, 10.f, 10.f);
+				}
+			}
+
 			// Linea verso il bersaglio d'attacco pianificato.
 			if (Unit->PlannedAttackTarget && Unit->PlannedAttackTarget->IsAlive() && HeadScreen.Z > 0.f)
 			{

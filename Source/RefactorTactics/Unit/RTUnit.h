@@ -112,6 +112,13 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
 	TArray<FRTGridCoord> PlannedPath;
 
+	/**
+	 * Waypoint cliccati dal giocatore (esclusa la cella di partenza), da cui deriva PlannedPath.
+	 * Vive sull'unita' cosi' la riselezione ne preserva l'editing (aggiungi/annulla step).
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
+	TArray<FRTGridCoord> PlannedWaypoints;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	ERTArchetype Archetype = ERTArchetype::Ranger;
 

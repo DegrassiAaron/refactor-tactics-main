@@ -59,9 +59,6 @@ protected:
 	UPROPERTY()
 	TObjectPtr<AActor> SelectedActor;
 
-	/** Waypoint della path composita in editing per l'unita' selezionata (esclusa la cella di partenza). */
-	TArray<FRTGridCoord> PathWaypoints;
-
 	void OnPan(const FInputActionValue& Value);
 	void OnZoom(const FInputActionValue& Value);
 	void OnSelect(const FInputActionValue& Value);

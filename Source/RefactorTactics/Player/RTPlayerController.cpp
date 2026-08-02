@@ -87,7 +87,8 @@ void ARTPlayerController::BuildInputMappings()
 	MappingContext->MapKey(Ability2Action, EKeys::Two);
 	MappingContext->MapKey(Ability3Action, EKeys::Three);
 
-	// Annulla l'ultimo waypoint della path composita (Backspace).
+	// Annulla l'ultimo waypoint della path composita (tasto destro del mouse o Backspace).
+	MappingContext->MapKey(UndoAction, EKeys::RightMouseButton);
 	MappingContext->MapKey(UndoAction, EKeys::BackSpace);
 }
 
@@ -202,7 +203,6 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 			}
 			Selectable->OnSelected();
 			SelectedActor = HitActor;
-			PathWaypoints.Reset(); // nuova unita': editing path da capo
 			UE_LOG(LogRT, Log, TEXT("[RT] Selezionata: %s"), *HitActor->GetName());
 		}
 		return;
@@ -232,19 +232,19 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 					Cell.X, Cell.Y, *SelectedUnit->GetName());
 				return;
 			}
-			PathWaypoints.Add(Cell);
-				const TArray<FRTGridCoord> WPath = URTGridLibrary::BuildCompositePath(SelectedUnit->GridCell, PathWaypoints, CostMap, Grid->Width, Grid->Height);
+			SelectedUnit->PlannedWaypoints.Add(Cell);
+				const TArray<FRTGridCoord> WPath = URTGridLibrary::BuildCompositePath(SelectedUnit->GridCell, SelectedUnit->PlannedWaypoints, CostMap, Grid->Width, Grid->Height);
 				const int32 WCost = URTGridLibrary::PathCost(WPath, CostMap);
 				if (WPath.Num() < 2 || WCost < 0 || WCost > MoveRange)
 				{
-					PathWaypoints.Pop(); // waypoint oltre budget o irraggiungibile: rifiutato
+					SelectedUnit->PlannedWaypoints.Pop(); // waypoint oltre budget o irraggiungibile: rifiutato
 					UE_LOG(LogRT, Log, TEXT("[RT] Waypoint (%d,%d) rifiutato (costo %d, budget %d) per %s"),
 						Cell.X, Cell.Y, WCost, MoveRange, *SelectedUnit->GetName());
 					return;
 				}
 				SelectedUnit->PlannedPath = WPath;
 				SelectedUnit->PlannedCell = WPath.Last();
-			UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s -> %d waypoint (costo %d)"), *SelectedUnit->GetName(), PathWaypoints.Num(), WCost);
+			UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s -> %d waypoint (costo %d)"), *SelectedUnit->GetName(), SelectedUnit->PlannedWaypoints.Num(), WCost);
 		}
 	}
 }
@@ -313,12 +313,14 @@ void ARTPlayerController::OnAbility3(const FInputActionValue& Value) { SelectAbi
 
 void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 {
-	if (PathWaypoints.Num() == 0)
+	ARTUnit* Unit = GetSelectedUnit();
+	if (!Unit || Unit->PlannedWaypoints.Num() == 0)
 	{
 		return;
 	}
-	PathWaypoints.Pop(); // rimuove l'ultimo waypoint
+	Unit->PlannedWaypoints.Pop(); // rimuove l'ultimo waypoint
 	RebuildPlannedPath();
+	UE_LOG(LogRT, Log, TEXT("[RT] Annullato waypoint: %s -> %d waypoint"), *Unit->GetName(), Unit->PlannedWaypoints.Num());
 }
 
 void ARTPlayerController::RebuildPlannedPath()
@@ -335,9 +337,9 @@ void ARTPlayerController::RebuildPlannedPath()
 	}
 	TMap<FRTGridCoord, int32> CostMap;
 	Grid->BuildCostMap(CostMap);
-	const TArray<FRTGridCoord> Path = URTGridLibrary::BuildCompositePath(Unit->GridCell, PathWaypoints, CostMap, Grid->Width, Grid->Height);
+	const TArray<FRTGridCoord> Path = URTGridLibrary::BuildCompositePath(Unit->GridCell, Unit->PlannedWaypoints, CostMap, Grid->Width, Grid->Height);
 	const int32 Cost = URTGridLibrary::PathCost(Path, CostMap);
-	if (PathWaypoints.Num() > 0 && Path.Num() >= 2 && Cost >= 0 && Cost <= Unit->GetEffectiveMoveRange())
+	if (Unit->PlannedWaypoints.Num() > 0 && Path.Num() >= 2 && Cost >= 0 && Cost <= Unit->GetEffectiveMoveRange())
 	{
 		Unit->PlannedPath = Path;
 		Unit->PlannedCell = Path.Last();
