@@ -216,10 +216,10 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 				return;
 			}
 			const int32 MoveRange = SelectedUnit->GetEffectiveMoveRange();
-			if (!URTGridLibrary::IsWithinRange(SelectedUnit->GridCell, Cell, MoveRange))
+			if (!URTGridLibrary::ReachableCells(SelectedUnit->GridCell, MoveRange, Grid->BlockedCells, Grid->Width, Grid->Height).Contains(Cell))
 			{
-				UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d) fuori portata (max %d) per %s"),
-					Cell.X, Cell.Y, MoveRange, *SelectedUnit->GetName());
+				UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d) non raggiungibile (percorso bloccato o fuori portata) per %s"),
+					Cell.X, Cell.Y, *SelectedUnit->GetName());
 				return;
 			}
 			SelectedUnit->PlannedCell = Cell;

@@ -132,4 +132,25 @@ bool FRTBotKiteTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotApproachReachableTest,
+	"RefactorTactics.Bot.BestApproachCellPicksOnlyReachableCells",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotApproachReachableTest::RunTest(const FString&)
+{
+	// Muro verticale x=5 (y 0..8), varco solo in (5,9). Bot a (4,4), bersaglio (6,4) oltre il muro.
+	// In Manhattan (6,3)/(6,5) sono "vicini" al bersaglio (dist 1) ma NON raggiungibili in 3 passi
+	// (il muro va aggirato dal varco): la cella scelta dal bot deve restare nell'insieme raggiungibile.
+	TArray<FRTGridCoord> Wall;
+	for (int32 Y = 0; Y <= 8; ++Y) { Wall.Add(FRTGridCoord(5, Y)); }
+	const FRTGridCoord From(4, 4), Target(6, 4);
+	const int32 Range = 3;
+
+	const FRTGridCoord Dest = URTBotLibrary::BestApproachCell(From, Target, Range, Wall, 10, 10);
+	const TArray<FRTGridCoord> Reachable = URTGridLibrary::ReachableCells(From, Range, Wall, 10, 10);
+
+	TestTrue(TEXT("la cella scelta e' realmente raggiungibile"), Reachable.Contains(Dest));
+	TestFalse(TEXT("non sceglie una cella oltre il muro"), Dest.X > 4);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

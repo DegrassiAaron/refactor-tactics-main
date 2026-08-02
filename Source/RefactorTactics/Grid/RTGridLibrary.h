@@ -56,4 +56,23 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Grid")
 	static TArray<FRTGridCoord> CellsInCone(const FRTGridCoord& From, const FRTGridCoord& Target, int32 Range);
+
+	/**
+	 * Celle raggiungibili da From entro MoveRange passi ortogonali (BFS, costo 1/passo, niente diagonali),
+	 * senza attraversare celle bloccanti (Blockers) e restando dentro la griglia. Include From.
+	 * A differenza di IsWithinRange (Manhattan), rispetta gli ostacoli: una cella "vicina" ma dietro un
+	 * muro non è raggiungibile. Ordine celle stabile (deterministico). Base del path finding (FR-PATH-01).
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Grid")
+	static TArray<FRTGridCoord> ReachableCells(const FRTGridCoord& From, int32 MoveRange,
+		const TArray<FRTGridCoord>& Blockers, int32 Width, int32 Height);
+
+	/**
+	 * Percorso ortogonale minimo da From a To (BFS, costo uniforme), aggirando i Blockers e restando
+	 * dentro la griglia. Ritorna la sequenza di celle da From a To inclusi; vuoto se To è irraggiungibile,
+	 * bloccato o fuori griglia. Deterministico. Usato per la preview del movimento (FR-PATH-05).
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Grid")
+	static TArray<FRTGridCoord> FindPath(const FRTGridCoord& From, const FRTGridCoord& To,
+		const TArray<FRTGridCoord>& Blockers, int32 Width, int32 Height);
 };

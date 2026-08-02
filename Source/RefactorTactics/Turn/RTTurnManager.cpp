@@ -453,12 +453,15 @@ void ARTTurnManager::ResolveMovement()
 		{
 			Units.Add(Unit);
 
-			// Difesa autorevole: un piano fuori portata (range effettivo, considerati gli status)
-			// oppure su una copertura viene ignorato, a prescindere da cosa ha inviato il client
-			// (invariante: nessun movimento su cella-copertura).
-			const bool bInRange = URTGridLibrary::IsWithinRange(Unit->GridCell, Unit->PlannedCell, Unit->GetEffectiveMoveRange());
-			const bool bOnCover = Blockers.Contains(Unit->PlannedCell);
-			const FRTGridCoord Target = (bInRange && !bOnCover) ? Unit->PlannedCell : Unit->GridCell;
+			// Difesa autorevole: la destinazione e' accettata solo se REALMENTE raggiungibile
+			// (percorso ortogonale libero entro il range effettivo, ostacoli aggirati), a prescindere
+			// da cosa ha inviato il client. Subsume range e blocco-copertura (invariante: niente
+			// movimento su/attraverso copertura). Se non raggiungibile, l'unita' resta ferma.
+			const int32 GridW = Grid ? Grid->Width : 10;
+			const int32 GridH = Grid ? Grid->Height : 10;
+			const TArray<FRTGridCoord> Reachable =
+				URTGridLibrary::ReachableCells(Unit->GridCell, Unit->GetEffectiveMoveRange(), Blockers, GridW, GridH);
+			const FRTGridCoord Target = Reachable.Contains(Unit->PlannedCell) ? Unit->PlannedCell : Unit->GridCell;
 			Requests.Add(FRTMoveRequest(Unit->GridCell, Target));
 		}
 	}

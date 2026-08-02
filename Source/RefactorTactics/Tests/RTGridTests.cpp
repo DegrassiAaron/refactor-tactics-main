@@ -196,4 +196,90 @@ bool FRTGridCellsInConeTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGridReachableCellsTest,
+	"RefactorTactics.Grid.ReachableCellsRespectsObstacles",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGridReachableCellsTest::RunTest(const FString&)
+{
+	const TArray<FRTGridCoord> NoBlockers;
+	// (a) Percorso libero al centro: coincide con il rombo di Manhattan (raggio 2 -> 13 celle).
+	{
+		const TArray<FRTGridCoord> R = URTGridLibrary::ReachableCells(FRTGridCoord(5, 5), 2, NoBlockers, 10, 10);
+		TestEqual(TEXT("rombo raggio 2 = 13 celle"), R.Num(), 13);
+		TestTrue(TEXT("include se stessa"), R.Contains(FRTGridCoord(5, 5)));
+		TestTrue(TEXT("(7,5) raggiungibile"), R.Contains(FRTGridCoord(7, 5)));
+		TestFalse(TEXT("(5,8) oltre il raggio"), R.Contains(FRTGridCoord(5, 8)));
+	}
+	// (b) Ostacolo 2x2: una cella "vicina" (Manhattan 3) ma dietro l'ostacolo NON e' raggiungibile.
+	{
+		const TArray<FRTGridCoord> L = { FRTGridCoord(4,4), FRTGridCoord(5,4), FRTGridCoord(4,5), FRTGridCoord(5,5) };
+		const TArray<FRTGridCoord> R = URTGridLibrary::ReachableCells(FRTGridCoord(3, 4), 3, L, 10, 10);
+		TestFalse(TEXT("(6,4) dietro l'ostacolo: path reale > 3"), R.Contains(FRTGridCoord(6, 4)));
+		TestTrue(TEXT("(3,7) libero: raggiungibile"), R.Contains(FRTGridCoord(3, 7)));
+		TestFalse(TEXT("mai su una cella bloccante"), R.Contains(FRTGridCoord(4, 4)));
+	}
+	// (c) Muro che sigilla: colonna x=2 su tutta l'altezza -> x>=3 irraggiungibile a qualunque range.
+	{
+		TArray<FRTGridCoord> Wall;
+		for (int32 Y = 0; Y < 10; ++Y) { Wall.Add(FRTGridCoord(2, Y)); }
+		const TArray<FRTGridCoord> R = URTGridLibrary::ReachableCells(FRTGridCoord(0, 0), 20, Wall, 10, 10);
+		TestTrue(TEXT("(1,9) di qua dal muro"), R.Contains(FRTGridCoord(1, 9)));
+		TestFalse(TEXT("(5,5) oltre il muro sigillato"), R.Contains(FRTGridCoord(5, 5)));
+	}
+	// (d) Determinismo: due chiamate producono lo stesso insieme.
+	{
+		const TArray<FRTGridCoord> L = { FRTGridCoord(4,4), FRTGridCoord(5,4), FRTGridCoord(4,5), FRTGridCoord(5,5) };
+		const TArray<FRTGridCoord> R1 = URTGridLibrary::ReachableCells(FRTGridCoord(3, 4), 3, L, 10, 10);
+		const TArray<FRTGridCoord> R2 = URTGridLibrary::ReachableCells(FRTGridCoord(3, 4), 3, L, 10, 10);
+		TestEqual(TEXT("stessa cardinalita'"), R1.Num(), R2.Num());
+		bool bSame = true;
+		for (const FRTGridCoord& C : R1) { if (!R2.Contains(C)) { bSame = false; break; } }
+		TestTrue(TEXT("stesso insieme"), bSame);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGridFindPathTest,
+	"RefactorTactics.Grid.FindPathMinimalAroundObstacles",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGridFindPathTest::RunTest(const FString&)
+{
+	// (f) Percorso minimo che aggira l'ostacolo 2x2: 5 passi (6 celle) verso nord.
+	{
+		const TArray<FRTGridCoord> L = { FRTGridCoord(4,4), FRTGridCoord(5,4), FRTGridCoord(4,5), FRTGridCoord(5,5) };
+		const TArray<FRTGridCoord> P = URTGridLibrary::FindPath(FRTGridCoord(3, 4), FRTGridCoord(6, 4), L, 10, 10);
+		TestEqual(TEXT("6 celle (5 passi minimi)"), P.Num(), 6);
+		if (P.Num() > 0)
+		{
+			TestTrue(TEXT("parte da From"), P[0] == FRTGridCoord(3, 4));
+			TestTrue(TEXT("arriva a To"), P.Last() == FRTGridCoord(6, 4));
+		}
+		for (const FRTGridCoord& C : P)
+		{
+			TestFalse(TEXT("nessuna cella bloccante nel path"), L.Contains(C));
+		}
+		// Celle consecutive adiacenti (un solo passo ortogonale).
+		bool bContiguous = true;
+		for (int32 i = 1; i < P.Num(); ++i)
+		{
+			if (URTGridLibrary::ManhattanDistance(P[i - 1], P[i]) != 1) { bContiguous = false; break; }
+		}
+		TestTrue(TEXT("percorso contiguo"), bContiguous);
+	}
+	// (g) Irraggiungibile: muro sigillante -> percorso vuoto.
+	{
+		TArray<FRTGridCoord> Wall;
+		for (int32 Y = 0; Y < 10; ++Y) { Wall.Add(FRTGridCoord(2, Y)); }
+		const TArray<FRTGridCoord> P = URTGridLibrary::FindPath(FRTGridCoord(0, 0), FRTGridCoord(5, 5), Wall, 10, 10);
+		TestEqual(TEXT("nessun percorso -> vuoto"), P.Num(), 0);
+	}
+	// (trivial) From == To -> solo la cella di partenza.
+	{
+		const TArray<FRTGridCoord> None;
+		const TArray<FRTGridCoord> P = URTGridLibrary::FindPath(FRTGridCoord(5, 5), FRTGridCoord(5, 5), None, 10, 10);
+		TestEqual(TEXT("From==To -> 1 cella"), P.Num(), 1);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

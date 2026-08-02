@@ -1,4 +1,5 @@
 #include "Grid/RTGridLibrary.h"
+#include "Algo/Reverse.h"
 
 FVector URTGridLibrary::CellToWorld(const FRTGridCoord& Cell, const FVector& Origin, float CellSize)
 {
@@ -102,6 +103,112 @@ TArray<FRTGridCoord> URTGridLibrary::CellsInLine(const FRTGridCoord& From, const
 		}
 	}
 	return Result;
+}
+
+namespace
+{
+	// Vicini ortogonali in ordine fisso (E, W, S, N) -> espansione BFS deterministica.
+	constexpr int32 GStepDX[4] = { 1, -1, 0, 0 };
+	constexpr int32 GStepDY[4] = { 0, 0, 1, -1 };
+
+	FORCEINLINE bool IsTraversable(const FRTGridCoord& Cell, const TArray<FRTGridCoord>& Blockers, int32 Width, int32 Height)
+	{
+		return URTGridLibrary::IsInsideGrid(Cell, Width, Height) && !Blockers.Contains(Cell);
+	}
+}
+
+TArray<FRTGridCoord> URTGridLibrary::ReachableCells(const FRTGridCoord& From, int32 MoveRange,
+	const TArray<FRTGridCoord>& Blockers, int32 Width, int32 Height)
+{
+	TArray<FRTGridCoord> Result;
+	if (!IsTraversable(From, Blockers, Width, Height))
+	{
+		return Result; // origine fuori griglia o bloccata: nessuna cella
+	}
+
+	// BFS a costo uniforme: la distanza in passi = numero minimo di mosse ortogonali.
+	TMap<FRTGridCoord, int32> Distance;
+	TArray<FRTGridCoord> Frontier;
+	Distance.Add(From, 0);
+	Frontier.Add(From);
+	Result.Add(From); // From è sempre "raggiungibile" (fermarsi è lecito)
+
+	const int32 Budget = FMath::Max(0, MoveRange);
+	int32 Head = 0;
+	while (Head < Frontier.Num())
+	{
+		const FRTGridCoord Current = Frontier[Head++];
+		const int32 Dist = Distance[Current];
+		if (Dist >= Budget)
+		{
+			continue; // esaurito il budget di passi da questa cella
+		}
+		for (int32 Dir = 0; Dir < 4; ++Dir)
+		{
+			const FRTGridCoord Next(Current.X + GStepDX[Dir], Current.Y + GStepDY[Dir]);
+			if (Distance.Contains(Next) || !IsTraversable(Next, Blockers, Width, Height))
+			{
+				continue;
+			}
+			Distance.Add(Next, Dist + 1);
+			Frontier.Add(Next);
+			Result.Add(Next);
+		}
+	}
+	return Result;
+}
+
+TArray<FRTGridCoord> URTGridLibrary::FindPath(const FRTGridCoord& From, const FRTGridCoord& To,
+	const TArray<FRTGridCoord>& Blockers, int32 Width, int32 Height)
+{
+	TArray<FRTGridCoord> Path;
+	if (!IsTraversable(From, Blockers, Width, Height) || !IsTraversable(To, Blockers, Width, Height))
+	{
+		return Path; // estremi non validi
+	}
+	if (From == To)
+	{
+		Path.Add(From);
+		return Path;
+	}
+
+	// BFS con tracciamento del predecessore; costo uniforme -> il primo raggiungimento è minimo.
+	TMap<FRTGridCoord, FRTGridCoord> Parent;
+	TArray<FRTGridCoord> Frontier;
+	Parent.Add(From, From); // il predecessore di From è se stesso (sentinella)
+	Frontier.Add(From);
+
+	int32 Head = 0;
+	bool bFound = false;
+	while (Head < Frontier.Num() && !bFound)
+	{
+		const FRTGridCoord Current = Frontier[Head++];
+		for (int32 Dir = 0; Dir < 4; ++Dir)
+		{
+			const FRTGridCoord Next(Current.X + GStepDX[Dir], Current.Y + GStepDY[Dir]);
+			if (Parent.Contains(Next) || !IsTraversable(Next, Blockers, Width, Height))
+			{
+				continue;
+			}
+			Parent.Add(Next, Current);
+			if (Next == To) { bFound = true; break; }
+			Frontier.Add(Next);
+		}
+	}
+
+	if (!bFound)
+	{
+		return Path; // To irraggiungibile
+	}
+
+	// Ricostruzione From..To risalendo i predecessori, poi inversione.
+	for (FRTGridCoord Cell = To; ; Cell = Parent[Cell])
+	{
+		Path.Add(Cell);
+		if (Cell == From) { break; }
+	}
+	Algo::Reverse(Path);
+	return Path;
 }
 
 TArray<FRTGridCoord> URTGridLibrary::CellsInCone(const FRTGridCoord& From, const FRTGridCoord& Target, int32 Range)

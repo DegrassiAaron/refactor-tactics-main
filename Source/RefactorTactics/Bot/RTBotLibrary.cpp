@@ -1,4 +1,5 @@
 #include "Bot/RTBotLibrary.h"
+#include "Grid/RTGridLibrary.h"
 
 FRTGridCoord URTBotLibrary::StepToward(const FRTGridCoord& From, const FRTGridCoord& Target, int32 MoveRange)
 {
@@ -29,31 +30,27 @@ FRTGridCoord URTBotLibrary::StepToward(const FRTGridCoord& From, const FRTGridCo
 FRTGridCoord URTBotLibrary::BestApproachCell(const FRTGridCoord& From, const FRTGridCoord& Target, int32 MoveRange,
 	const TArray<FRTGridCoord>& Blockers, int32 Width, int32 Height)
 {
-	const int32 Budget = FMath::Max(0, MoveRange);
+	// Considera solo celle DAVVERO raggiungibili (BFS che aggira gli ostacoli), non solo vicine in Manhattan.
+	const TArray<FRTGridCoord> Reachable = URTGridLibrary::ReachableCells(From, MoveRange, Blockers, Width, Height);
 
 	FRTGridCoord Best = From; // fermarsi e' sempre un'opzione valida
 	int32 BestToTarget = FMath::Abs(Target.X - From.X) + FMath::Abs(Target.Y - From.Y);
 	int32 BestFromOrigin = 0;
 
-	// Scansione deterministica del rombo raggiungibile (X poi Y crescenti).
-	for (int32 X = 0; X < Width; ++X)
+	for (const FRTGridCoord& Cell : Reachable)
 	{
-		for (int32 Y = 0; Y < Height; ++Y)
+		if (Cell == Target)
 		{
-			const FRTGridCoord Cell(X, Y);
-			const int32 FromOrigin = FMath::Abs(X - From.X) + FMath::Abs(Y - From.Y);
-			if (FromOrigin > Budget || Cell == Target || Blockers.Contains(Cell))
-			{
-				continue; // fuori portata, sul bersaglio, o su una copertura
-			}
-			const int32 ToTarget = FMath::Abs(Target.X - X) + FMath::Abs(Target.Y - Y);
-			// Piu' vicino al bersaglio; a parita', mossa piu' corta.
-			if (ToTarget < BestToTarget || (ToTarget == BestToTarget && FromOrigin < BestFromOrigin))
-			{
-				BestToTarget = ToTarget;
-				BestFromOrigin = FromOrigin;
-				Best = Cell;
-			}
+			continue; // non sovrapporsi al bersaglio
+		}
+		const int32 ToTarget = FMath::Abs(Target.X - Cell.X) + FMath::Abs(Target.Y - Cell.Y);
+		const int32 FromOrigin = FMath::Abs(Cell.X - From.X) + FMath::Abs(Cell.Y - From.Y);
+		// Piu' vicino al bersaglio; a parita', mossa piu' corta.
+		if (ToTarget < BestToTarget || (ToTarget == BestToTarget && FromOrigin < BestFromOrigin))
+		{
+			BestToTarget = ToTarget;
+			BestFromOrigin = FromOrigin;
+			Best = Cell;
 		}
 	}
 	return Best;
@@ -62,30 +59,23 @@ FRTGridCoord URTBotLibrary::BestApproachCell(const FRTGridCoord& From, const FRT
 FRTGridCoord URTBotLibrary::BestKiteCell(const FRTGridCoord& From, const FRTGridCoord& Threat, int32 MoveRange,
 	const TArray<FRTGridCoord>& Blockers, int32 Width, int32 Height)
 {
-	const int32 Budget = FMath::Max(0, MoveRange);
+	// Solo celle raggiungibili (aggirando gli ostacoli): niente fughe verso celle sconnesse.
+	const TArray<FRTGridCoord> Reachable = URTGridLibrary::ReachableCells(From, MoveRange, Blockers, Width, Height);
 
 	FRTGridCoord Best = From;
 	int32 BestToThreat = FMath::Abs(Threat.X - From.X) + FMath::Abs(Threat.Y - From.Y);
 	int32 BestFromOrigin = 0;
 
-	for (int32 X = 0; X < Width; ++X)
+	for (const FRTGridCoord& Cell : Reachable)
 	{
-		for (int32 Y = 0; Y < Height; ++Y)
+		const int32 ToThreat = FMath::Abs(Threat.X - Cell.X) + FMath::Abs(Threat.Y - Cell.Y);
+		const int32 FromOrigin = FMath::Abs(Cell.X - From.X) + FMath::Abs(Cell.Y - From.Y);
+		// Massimizza la distanza dalla minaccia; a parita', mossa piu' corta.
+		if (ToThreat > BestToThreat || (ToThreat == BestToThreat && FromOrigin < BestFromOrigin))
 		{
-			const FRTGridCoord Cell(X, Y);
-			const int32 FromOrigin = FMath::Abs(X - From.X) + FMath::Abs(Y - From.Y);
-			if (FromOrigin > Budget || Blockers.Contains(Cell))
-			{
-				continue; // fuori portata o su una copertura
-			}
-			const int32 ToThreat = FMath::Abs(Threat.X - X) + FMath::Abs(Threat.Y - Y);
-			// Massimizza la distanza dalla minaccia; a parita', mossa piu' corta.
-			if (ToThreat > BestToThreat || (ToThreat == BestToThreat && FromOrigin < BestFromOrigin))
-			{
-				BestToThreat = ToThreat;
-				BestFromOrigin = FromOrigin;
-				Best = Cell;
-			}
+			BestToThreat = ToThreat;
+			BestFromOrigin = FromOrigin;
+			Best = Cell;
 		}
 	}
 	return Best;
