@@ -1,0 +1,41 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/DataAsset.h"
+#include "GameplayTagContainer.h"
+#include "RTAbilityData.generated.h"
+
+/**
+ * Definizione data-driven di un'abilita' (Primary Data Asset).
+ * Consente di creare varianti (eroi/attacchi diversi) come contenuto, senza toccare il C++.
+ */
+UCLASS(BlueprintType)
+class REFACTORTACTICS_API URTAbilityData : public UPrimaryDataAsset
+{
+	GENERATED_BODY()
+
+public:
+	/** Nome mostrato (UI/log). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
+	FText DisplayName;
+
+	/** Portata in celle (distanza di Manhattan). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
+	int32 RangeCells = 5;
+
+	/** Danno inflitto. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
+	int32 Power = 30;
+
+	/** Raggio dell'area colpita attorno al bersaglio (0 = bersaglio singolo). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
+	int32 AreaRadius = 0;
+
+	/** Status inflitto ai bersagli (nessuno se il tag e' vuoto). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
+	FGameplayTag StatusToApply;
+
+	/** Durata in turni dello status inflitto. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
+	int32 StatusDuration = 0;
+};

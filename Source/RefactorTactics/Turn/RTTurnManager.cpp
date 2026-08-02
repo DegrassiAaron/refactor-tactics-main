@@ -78,7 +78,7 @@ void ARTTurnManager::PlanBots()
 			continue;
 		}
 
-		if (URTGridLibrary::IsWithinRange(Bot->GridCell, Nearest->GridCell, Bot->AttackRange))
+		if (URTGridLibrary::IsWithinRange(Bot->GridCell, Nearest->GridCell, Bot->GetAttackRange()))
 		{
 			Bot->PlannedAttackTarget = Nearest; // in portata: attacca, resta fermo
 		}
@@ -217,28 +217,39 @@ void ARTTurnManager::ResolveCombat()
 	TArray<FRTAttack> Attacks;
 	TArray<ARTUnit*> Attackers;
 	TArray<bool> UsedUltimate;
-	TArray<ARTUnit*> ToSlow; // nemici colpiti da un'ultimate: verranno rallentati
+	// Status inflitti dalle ultimate (bersaglio + tag + durata, in array paralleli).
+	TArray<ARTUnit*> StatusTargets;
+	TArray<FGameplayTag> StatusTags;
+	TArray<int32> StatusDurations;
 	for (ARTUnit* Unit : Units)
 	{
 		ARTUnit* Target = Unit->PlannedAttackTarget;
 		Unit->PlannedAttackTarget = nullptr; // consumato nel turno
 		if (Target && IndexOf.Contains(Target) && Target->TeamId != Unit->TeamId
-			&& URTGridLibrary::IsWithinRange(Unit->GridCell, Target->GridCell, Unit->AttackRange)
+			&& URTGridLibrary::IsWithinRange(Unit->GridCell, Target->GridCell, Unit->GetAttackRange())
 			&& URTGridLibrary::HasLineOfSight(Unit->GridCell, Target->GridCell, Blockers))
 		{
 			const bool bUlt = URTCombatLibrary::IsUltimateReady(Unit->Energy, Unit->MaxEnergy);
-			const int32 Power = bUlt ? Unit->AttackPower * Unit->UltimateMultiplier : Unit->AttackPower;
+			const int32 Power = bUlt ? Unit->GetUltimatePower() : Unit->GetAttackPower();
 
-			if (bUlt && Unit->UltimateRadius > 0)
+			if (bUlt && Unit->GetUltimateRadius() > 0)
 			{
-				// Ultimate ad area: colpisce ogni nemico entro il raggio attorno al bersaglio.
-				const TArray<FRTGridCoord> Area = URTGridLibrary::CellsInRadius(Target->GridCell, Unit->UltimateRadius);
+				// Ultimate ad area: colpisce ogni nemico entro il raggio attorno al bersaglio,
+				// applicando lo status dell'ultimate (data-driven).
+				const TArray<FRTGridCoord> Area = URTGridLibrary::CellsInRadius(Target->GridCell, Unit->GetUltimateRadius());
+				const FGameplayTag UltTag = Unit->GetUltimateStatusTag();
+				const int32 UltDuration = Unit->GetUltimateStatusDuration();
 				for (ARTUnit* Other : Units)
 				{
 					if (Other->TeamId != Unit->TeamId && Area.Contains(Other->GridCell))
 					{
 						Attacks.Add(FRTAttack(IndexOf[Other], Power));
-						ToSlow.AddUnique(Other);
+						if (UltTag.IsValid() && UltDuration > 0)
+						{
+							StatusTargets.Add(Other);
+							StatusTags.Add(UltTag);
+							StatusDurations.Add(UltDuration);
+						}
 					}
 				}
 			}
@@ -286,13 +297,14 @@ void ARTTurnManager::ResolveCombat()
 		}
 	}
 
-	// L'ultimate rallenta i bersagli sopravvissuti.
-	for (ARTUnit* Slowed : ToSlow)
+	// L'ultimate applica il proprio status ai bersagli sopravvissuti.
+	for (int32 i = 0; i < StatusTargets.Num(); ++i)
 	{
+		ARTUnit* Slowed = StatusTargets[i];
 		if (IsValid(Slowed) && Slowed->IsAlive())
 		{
-			Slowed->ApplyStatus(TAG_Status_Slow, 2);
-			AddLogEvent(FString::Printf(TEXT("Slow: %s"), *Slowed->GetName()));
+			Slowed->ApplyStatus(StatusTags[i], StatusDurations[i]);
+			AddLogEvent(FString::Printf(TEXT("Status: %s"), *Slowed->GetName()));
 		}
 	}
 }

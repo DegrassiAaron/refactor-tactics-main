@@ -138,7 +138,8 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	if (ClickedUnit && SelectedUnit && ClickedUnit != SelectedUnit && ClickedUnit->TeamId != SelectedUnit->TeamId)
 	{
 		const ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
-		const bool bInRange = URTGridLibrary::IsWithinRange(SelectedUnit->GridCell, ClickedUnit->GridCell, SelectedUnit->AttackRange);
+		const int32 AttackRange = SelectedUnit->GetAttackRange();
+		const bool bInRange = URTGridLibrary::IsWithinRange(SelectedUnit->GridCell, ClickedUnit->GridCell, AttackRange);
 		const bool bHasLOS = !Grid || URTGridLibrary::HasLineOfSight(SelectedUnit->GridCell, ClickedUnit->GridCell, Grid->BlockedCells);
 		if (bInRange && bHasLOS)
 		{
@@ -151,7 +152,7 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		}
 		else
 		{
-			UE_LOG(LogRT, Log, TEXT("[RT] %s fuori portata attacco (max %d)"), *ClickedUnit->GetName(), SelectedUnit->AttackRange);
+			UE_LOG(LogRT, Log, TEXT("[RT] %s fuori portata attacco (max %d)"), *ClickedUnit->GetName(), AttackRange);
 		}
 		return;
 	}

@@ -1,6 +1,7 @@
 #include "Unit/RTUnit.h"
 #include "Grid/RTGridLibrary.h"
 #include "Combat/RTCombatLibrary.h"
+#include "Ability/RTAbilityData.h"
 #include "Core/RTGameplayTags.h"
 #include "RefactorTactics.h"
 #include "Components/StaticMeshComponent.h"
@@ -126,4 +127,34 @@ void ARTUnit::TickStatuses()
 int32 ARTUnit::GetEffectiveMoveRange() const
 {
 	return URTCombatLibrary::EffectiveMoveRange(MoveRange, HasStatus(TAG_Status_Root), HasStatus(TAG_Status_Slow));
+}
+
+int32 ARTUnit::GetAttackRange() const
+{
+	return BasicAttackAbility ? BasicAttackAbility->RangeCells : AttackRange;
+}
+
+int32 ARTUnit::GetAttackPower() const
+{
+	return BasicAttackAbility ? BasicAttackAbility->Power : AttackPower;
+}
+
+int32 ARTUnit::GetUltimatePower() const
+{
+	return UltimateAbility ? UltimateAbility->Power : AttackPower * UltimateMultiplier;
+}
+
+int32 ARTUnit::GetUltimateRadius() const
+{
+	return UltimateAbility ? UltimateAbility->AreaRadius : UltimateRadius;
+}
+
+FGameplayTag ARTUnit::GetUltimateStatusTag() const
+{
+	return UltimateAbility ? UltimateAbility->StatusToApply : TAG_Status_Slow;
+}
+
+int32 ARTUnit::GetUltimateStatusDuration() const
+{
+	return UltimateAbility ? UltimateAbility->StatusDuration : 2;
 }

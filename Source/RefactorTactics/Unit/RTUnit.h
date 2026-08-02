@@ -10,6 +10,7 @@
 class UStaticMeshComponent;
 class UMaterialInstanceDynamic;
 class UMaterialInterface;
+class URTAbilityData;
 
 /**
  * Unita' segnaposto per il demo: una mesh su una cella, colorata per team e selezionabile.
@@ -79,6 +80,22 @@ public:
 	/** Raggio dell'area colpita dall'ultimate attorno al bersaglio (0 = singolo bersaglio). */
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Combat")
 	int32 UltimateRadius = 1;
+
+	/** Abilita' d'attacco data-driven (opzionale): se assegnata, sovrascrive i valori base. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
+	TObjectPtr<URTAbilityData> BasicAttackAbility = nullptr;
+
+	/** Abilita' ultimate data-driven (opzionale): se assegnata, sovrascrive i valori base dell'ultimate. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
+	TObjectPtr<URTAbilityData> UltimateAbility = nullptr;
+
+	// Valori effettivi: dall'abilita' data-driven se assegnata, altrimenti dai campi base.
+	int32 GetAttackRange() const;
+	int32 GetAttackPower() const;
+	int32 GetUltimatePower() const;
+	int32 GetUltimateRadius() const;
+	FGameplayTag GetUltimateStatusTag() const;
+	int32 GetUltimateStatusDuration() const;
 
 	/** Bersaglio dell'attacco pianificato per il turno (nullo = nessun attacco). */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Combat")
