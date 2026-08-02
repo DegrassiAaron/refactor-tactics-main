@@ -48,6 +48,15 @@ void ARTHUD::DrawHUD()
 			const float ShieldFrac = FMath::Clamp((float)Unit->Shield / Unit->MaxHealth, 0.f, 1.f);
 			DrawRect(FLinearColor(0.2f, 0.8f, 1.f, 1.f), X, Y - 4.f, BarWidth * ShieldFrac, 3.f);
 		}
+
+		// Energia: barretta sotto la barra HP (oro se ultimate pronta, giallo scuro se in carica).
+		if (Unit->MaxEnergy > 0)
+		{
+			const float EnergyFrac = FMath::Clamp((float)Unit->Energy / Unit->MaxEnergy, 0.f, 1.f);
+			const bool bReady = Unit->Energy >= Unit->MaxEnergy;
+			const FLinearColor EColor = bReady ? FLinearColor(1.f, 0.85f, 0.1f, 1.f) : FLinearColor(0.5f, 0.45f, 0.1f, 1.f);
+			DrawRect(EColor, X, Y + BarHeight + 1.f, BarWidth * EnergyFrac, 3.f);
+		}
 	}
 
 	const ARTTurnManager* TurnManager =

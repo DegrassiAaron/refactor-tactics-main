@@ -12,3 +12,13 @@ FRTDamageResult URTCombatLibrary::ApplyDamage(int32 Damage, int32 Shield, int32 
 
 	return FRTDamageResult(NewHealth, NewShield);
 }
+
+int32 URTCombatLibrary::GainEnergy(int32 Current, int32 Gain, int32 Max)
+{
+	return FMath::Clamp(Current + Gain, 0, Max);
+}
+
+bool URTCombatLibrary::IsUltimateReady(int32 Energy, int32 Max)
+{
+	return Max > 0 && Energy >= Max;
+}

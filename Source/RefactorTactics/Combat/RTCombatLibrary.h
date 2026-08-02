@@ -30,4 +30,12 @@ public:
 	/** Applica il danno: lo scudo assorbe per primo, poi gli HP. Nessun valore scende sotto 0. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static FRTDamageResult ApplyDamage(int32 Damage, int32 Shield, int32 Health);
+
+	/** Accumula energia con clamp in [0, Max]. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static int32 GainEnergy(int32 Current, int32 Gain, int32 Max);
+
+	/** Vero se l'ultimate e' disponibile (energia al massimo). */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static bool IsUltimateReady(int32 Energy, int32 Max);
 };

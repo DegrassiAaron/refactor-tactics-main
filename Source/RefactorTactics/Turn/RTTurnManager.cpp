@@ -1,6 +1,7 @@
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTMovementResolver.h"
 #include "Combat/RTCombatResolver.h"
+#include "Combat/RTCombatLibrary.h"
 #include "Bot/RTBotLibrary.h"
 #include "Grid/RTGridActor.h"
 #include "Grid/RTGridLibrary.h"
@@ -148,17 +149,18 @@ void ARTTurnManager::LockInAndResolve()
 		}
 	} while (Phase != ERTMatchPhase::Planning);
 
-	// Fine partita? Conta le unita' vive per squadra e valuta l'esito.
+	// Fine turno: energia per turno + conteggio unita' vive per squadra.
 	int32 Team0Alive = 0, Team1Alive = 0;
 	{
 		TArray<AActor*> Actors;
 		UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
 		for (AActor* Actor : Actors)
 		{
-			if (const ARTUnit* Unit = Cast<ARTUnit>(Actor))
+			if (ARTUnit* Unit = Cast<ARTUnit>(Actor))
 			{
 				if (Unit->IsAlive())
 				{
+					Unit->Energy = URTCombatLibrary::GainEnergy(Unit->Energy, Unit->EnergyPerTurn, Unit->MaxEnergy);
 					(Unit->TeamId == 0 ? Team0Alive : Team1Alive)++;
 				}
 			}
@@ -204,16 +206,23 @@ void ARTTurnManager::ResolveCombat()
 	}
 
 	// Raccogli gli attacchi validi: bersaglio nemico, vivo, entro la portata (posizione attuale).
+	// A energia piena l'attacco e' un'ultimate: danno potenziato, poi l'energia si azzera.
 	TArray<FRTAttack> Attacks;
+	TArray<ARTUnit*> Attackers;
+	TArray<bool> UsedUltimate;
 	for (ARTUnit* Unit : Units)
 	{
 		ARTUnit* Target = Unit->PlannedAttackTarget;
+		Unit->PlannedAttackTarget = nullptr; // consumato nel turno
 		if (Target && IndexOf.Contains(Target) && Target->TeamId != Unit->TeamId
 			&& URTGridLibrary::IsWithinRange(Unit->GridCell, Target->GridCell, Unit->AttackRange))
 		{
-			Attacks.Add(FRTAttack(IndexOf[Target], Unit->AttackPower));
+			const bool bUlt = URTCombatLibrary::IsUltimateReady(Unit->Energy, Unit->MaxEnergy);
+			const int32 Power = bUlt ? Unit->AttackPower * Unit->UltimateMultiplier : Unit->AttackPower;
+			Attacks.Add(FRTAttack(IndexOf[Target], Power));
+			Attackers.Add(Unit);
+			UsedUltimate.Add(bUlt);
 		}
-		Unit->PlannedAttackTarget = nullptr; // consumato nel turno
 	}
 
 	if (Attacks.Num() == 0)
@@ -230,6 +239,25 @@ void ARTTurnManager::ResolveCombat()
 			AddLogEvent(FString::Printf(TEXT("Eliminata: %s (team %d)"), *Units[i]->GetName(), Units[i]->TeamId));
 		}
 		Units[i]->ApplyCombatState(Resolved[i].Health, Resolved[i].Shield); // puo' distruggere l'unita'
+	}
+
+	// Energia degli attaccanti sopravvissuti: ultimate azzera, attacco normale accumula.
+	for (int32 i = 0; i < Attackers.Num(); ++i)
+	{
+		ARTUnit* Attacker = Attackers[i];
+		if (!IsValid(Attacker) || !Attacker->IsAlive())
+		{
+			continue;
+		}
+		if (UsedUltimate[i])
+		{
+			Attacker->Energy = 0;
+			AddLogEvent(FString::Printf(TEXT("Ultimate! %s"), *Attacker->GetName()));
+		}
+		else
+		{
+			Attacker->Energy = URTCombatLibrary::GainEnergy(Attacker->Energy, Attacker->EnergyOnHit, Attacker->MaxEnergy);
+		}
 	}
 }
 

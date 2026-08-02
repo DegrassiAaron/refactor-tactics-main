@@ -57,6 +57,24 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Combat")
 	int32 AttackPower = 30;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	int32 MaxEnergy = 100;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	int32 Energy = 0;
+
+	/** Energia guadagnata a ogni turno. */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Combat")
+	int32 EnergyPerTurn = 25;
+
+	/** Energia guadagnata quando si porta a segno un attacco (non ultimate). */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Combat")
+	int32 EnergyOnHit = 15;
+
+	/** Moltiplicatore di danno dell'ultimate (attacco a energia piena). */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Combat")
+	int32 UltimateMultiplier = 2;
+
 	/** Bersaglio dell'attacco pianificato per il turno (nullo = nessun attacco). */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Combat")
 	TObjectPtr<ARTUnit> PlannedAttackTarget = nullptr;
