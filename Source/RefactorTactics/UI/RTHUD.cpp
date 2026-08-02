@@ -140,17 +140,31 @@ void ARTHUD::DrawHUD()
 				DrawText(FString(Prefix) + Intent, Color, HeadScreen.X - BarWidth * 0.5f, HeadScreen.Y - 36.f, nullptr, 0.85f);
 			}
 
-			// Freccia verso la cella di destinazione pianificata + evidenziazione della cella.
+			// Percorso pianificato (PF.2): traccia la rotta reale che aggira gli ostacoli
+			// (FindPath), cella per cella, ed evidenzia la cella di destinazione.
 			if (bMoving)
 			{
-				const FVector Dest = URTGridLibrary::CellToWorld(Unit->PlannedCell, Origin, CellSize);
-				const FVector DestScreen = Project(Dest);
+				static const TArray<FRTGridCoord> EmptyBlockers;
+				const TArray<FRTGridCoord>& Cover = Grid ? Grid->BlockedCells : EmptyBlockers;
+				const int32 GW = Grid ? Grid->Width : 10;
+				const int32 GH = Grid ? Grid->Height : 10;
+				const TArray<FRTGridCoord> PathCells =
+					URTGridLibrary::FindPath(Unit->GridCell, Unit->PlannedCell, Cover, GW, GH);
+
+				// Polilinea lungo i centri-cella (a terra): mostra la deviazione attorno alle coperture.
+				for (int32 i = 1; i < PathCells.Num(); ++i)
+				{
+					const FVector A = Project(URTGridLibrary::CellToWorld(PathCells[i - 1], Origin, CellSize));
+					const FVector B = Project(URTGridLibrary::CellToWorld(PathCells[i], Origin, CellSize));
+					if (A.Z > 0.f && B.Z > 0.f)
+					{
+						DrawLine(A.X, A.Y, B.X, B.Y, Color, 2.f);
+					}
+				}
+
+				const FVector DestScreen = Project(URTGridLibrary::CellToWorld(Unit->PlannedCell, Origin, CellSize));
 				if (DestScreen.Z > 0.f)
 				{
-					if (HeadScreen.Z > 0.f)
-					{
-						DrawLine(HeadScreen.X, HeadScreen.Y, DestScreen.X, DestScreen.Y, Color, 2.f);
-					}
 					DrawRect(FLinearColor(Color.R, Color.G, Color.B, 0.35f), DestScreen.X - 12.f, DestScreen.Y - 12.f, 24.f, 24.f);
 				}
 			}

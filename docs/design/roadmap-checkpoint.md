@@ -18,10 +18,10 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in forma ridotta (vedi nota) · �
 |---|---|---|
 | M0 Fondamenta | ✅ | Progetto UE 5.8.1 compila (Game + Editor), repo + LFS |
 | M1 Sandbox | ✅ | Camera, input (C++), griglia + test, selezione, demo 2v2 |
-| M2 Turn loop | ✅ | Fasi, resolver movimento (conflitti), pianificazione, timer 30s, range 4 |
+| M2 Turn loop | ✅ | Fasi, resolver movimento (conflitti), pianificazione, timer 30s · **path finding obstacle-aware** (PF.1 reachability BFS + PF.2 preview percorso) |
 | M3 Combat loop | ✅ | Danno/scudo, attacco, eliminazione, energia+ultimate (AoE), LOS/copertura, **abilità data-driven** ✅ · status Root/Slow/**Reveal** (intento nemico, invariante #6) ✅ · **forme targeting complete** (Single/Area/Line/Cone) ✅ · barra abilità |
 | M4 Vertical slice | ✅ | Bot (focus-fire, **aggiramento ostacoli**, **kiting** del Ranger), HUD (barre HP + combat log + **anteprima piani** ciano/reveal), vittoria + riavvio |
-| M5 Release interna | ✅ | **39 test** ✅ · **packaging Windows** (Development + **Shipping**) ✅ · DoD MVP formale ✅ |
+| M5 Release interna | ✅ | **42 test** ✅ · **packaging Windows** (Development + **Shipping**) ✅ · DoD MVP formale ✅ |
 
 **Sviluppo in corso sul branch `feature/m1-sandbox`** (M1→M4 in un unico branch, non uno per milestone come da regola: scelta pratica di questa fase iniziale). **27 test automatici verdi.**
 
@@ -68,6 +68,11 @@ Scelte che divergono dai DoD originali (equivalenti o migliori, documentate qui)
 | — | ✅ | Range movimento | Validazione max 4 celle (`IsWithinRange`) — chiude un bug dei tutorial |
 
 **Uscita M2**: ✅ turno completo con movimento simultaneo deterministico (verificato in PIE).
+
+> **Incremento path finding (post-MVP, 2026-08-02)** — vedi [`spec-pathfinding.md`](spec-pathfinding.md).
+> **PF.1** ✅ `ReachableCells` (BFS obstacle-aware) + validazione autorevole nel resolver (chiude il bug
+> "movimento attraverso le colonne") + bot path-aware. **PF.2** ✅ `FindPath` + preview del percorso a
+> schermo (curva attorno agli ostacoli). PF.3 (cost provider + A\* pesato) / PF.4 (grafo multilivello) ⏳.
 
 ---
 
