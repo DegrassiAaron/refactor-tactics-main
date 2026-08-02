@@ -110,7 +110,7 @@ Principi non negoziabili (valgono anche in offline, per preparare il multiplayer
 
 1. **Autorità delle regole in C++**: il resolver decide l'esito; le animazioni/VFX non decidono nulla.
 2. **Griglia logica autoritativa**: la posizione vera è `FRTGridCoord`; il `FVector` serve solo al rendering.
-3. **Resolver "raccogli poi applica"**: snapshot a inizio fase, nessun `Delay`/timeline/montage nel resolver; l'ordine dell'array **non** deve cambiare il risultato.
+3. **Resolver "raccogli poi applica"**: snapshot a inizio fase, nessun `Delay`/timeline/montage nel resolver; l'ordine dell'array **non** deve cambiare il risultato. Quando l'esito dipende dall'ordine (scudo/buff/reazione prima del danno), l'ordine segue la regola deterministica di **§5.1** (APNAP + tie-break assoluto), non l'inserimento.
 4. **Privacy dell'intento**: nessuna mossa avversaria viene mostrata/replicata durante la pianificazione (invariante rilevante all'arrivo del multiplayer — invariante di `Intenti condivisi`).
 5. **Combat math = funzioni pure** in `URTCombatLibrary`, coperte da test.
 
@@ -144,6 +144,32 @@ Content/                        # asset (Blueprints, Maps, Characters, UI, ...)
 Config/                         # DefaultEngine.ini, DefaultGame.ini, ...
 docs/                           # documentazione (questa cartella)
 ```
+
+### 5.1 Ordinamento deterministico degli effetti simultanei (APNAP) — 2026-08-02
+
+Recepito da [`spec-sequenza-turno.md`](spec-sequenza-turno.md) §3 (panel `/sc:spec-panel`). Estende
+l'invariante #3: quando più effetti risolvono nello stesso istante e **l'ordine conta** (es. scudo/buff/reazione
+prima del danno), l'ordine è dato da una **regola totale deterministica**, mai dall'ordine di inserimento nel
+container.
+
+**Ordine di gruppo (APNAP-adattato):** 1) sistema/State (morti, scadenze) → 2) unità attiva → 3) alleati
+dell'attivo → 4) avversari → 5) terreno/oggetti → 6) globali di scenario. Intra-gruppo:
+**velocità → priorità (intera) → tie-break assoluto** (id unità / coord stabile, come lo `StableTieBreak` del
+path finding) → così due effetti pari non dipendono mai dall'ordine del container.
+
+**Requisiti vincolanti** (SMART; esempi Given/When/Then e test plan in `spec-sequenza-turno.md` §3):
+- **`FR-RESOLVE-01`** — ordine totale deterministico per effetti simultanei (gruppi APNAP + tie-break
+  assoluto). Generalizza l'attuale "danni sommati per bersaglio" ai casi ordine-dipendenti. *Verifica:
+  permutare l'array di input non cambia il log eventi.*
+- **`FR-RESOLVE-02`** — **State-Based Actions** (morte a HP≤0, scadenza status) controllate **fra un effetto e
+  il successivo**; un bersaglio morto invalida gli effetti pendenti che lo riguardano.
+- **`FR-RESOLVE-03`** — nessun **float** nell'ordinamento/hash; priorità intere (coerente con la disciplina di
+  determinismo dell'invariante #3).
+
+**Scope:** regola del *resolver puro* (offline e futuro server-authority). **Non** introduce finestre di
+reazione live né categorie di velocità/`EndOfPhase` (north-star, `spec-sequenza-turno.md` §4). Implementazione
+**gated**: si esercita quando esistono effetti ordine-dipendenti (buff/scudo/reazioni); il combat attuale a
+"danni sommati" resta un caso particolare già conforme.
 
 ---
 
@@ -210,6 +236,16 @@ da usare come riferimento quando le relative feature entrano in scope:
 stack, vittoria **a punteggio**, pianificazione **40-60s**. L'MVP resta 2v2, no-GAS, vittoria per eliminazione,
 timer 30s. Nota naming: il PDF usa `FRTGridCellId` (modello ricco); l'MVP usa `FRTGridCoord{X,Y}` (semplice) —
 da riconciliare se in futuro si adotta il modello a chunk multilivello.
+
+### 8.2 Sequenza di risoluzione ricca — reazioni/reveal/timeline (north-star)
+
+Il design esplorativo [`sequenza-turno.md`](sequenza-turno.md) (trascrizione del PDF omonimo) propone un
+modello di risoluzione molto più ricco: pianificazione segreta → **reveal progressivo** → **finestre di
+reazione** (stack LIFO stile *Magic*) → risoluzione con ordinamento **APNAP** → cleanup, con 5 categorie di
+velocità e budget di reazione. È **north-star**: **non modifica l'MVP** (che resta risoluzione deterministica
+"raccogli poi applica" a 4 fasi). Consolidamento, conflitti con gli invarianti #3/#4 e la sola parte adottabile
+a breve — **ordinamento deterministico degli effetti simultanei** (APNAP + tie-break totale) — in
+[`spec-sequenza-turno.md`](spec-sequenza-turno.md).
 
 ---
 

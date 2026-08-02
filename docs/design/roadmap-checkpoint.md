@@ -140,7 +140,7 @@ server-authoritative → P1 4v4/eroi/replay/**Intenti condivisi** → P2 GAS/acc
 multilivello → P3 console/modding/anti-cheat.
 
 > **Sequenza di risoluzione ricca** (reazioni/reveal/stack LIFO) — north-star, vedi
-> [`spec-sequenza-turno.md`](spec-sequenza-turno.md). L'unica parte adottabile a breve è l'**ordinamento
-> deterministico degli effetti simultanei** (APNAP + tie-break totale, `FR-RESOLVE-01..03`), previa modifica del
-> piano canonico. Il resto (finestre live, categorie di velocità, modello JSON) resta post-MVP per conflitto con
-> gli invarianti #3/#4.
+> [`spec-sequenza-turno.md`](spec-sequenza-turno.md). L'unica parte adottata a breve è l'**ordinamento
+> deterministico degli effetti simultanei** (APNAP + tie-break totale), **recepita nel piano canonico §5.1**
+> (`FR-RESOLVE-01..03`, 2026-08-02). Il resto (finestre live, categorie di velocità, modello JSON) resta
+> post-MVP per conflitto con gli invarianti #3/#4.
