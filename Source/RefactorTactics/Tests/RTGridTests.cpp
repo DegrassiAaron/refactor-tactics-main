@@ -1,6 +1,7 @@
 #include "Misc/AutomationTest.h"
 #include "Core/RTTypes.h"
 #include "Grid/RTGridLibrary.h"
+#include "Terrain/RTTerrainTypes.h" // RT_BLOCKED_COST
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -277,6 +278,61 @@ bool FRTGridFindPathTest::RunTest(const FString&)
 	{
 		const TArray<FRTGridCoord> None;
 		const TArray<FRTGridCoord> P = URTGridLibrary::FindPath(FRTGridCoord(5, 5), FRTGridCoord(5, 5), None, 10, 10);
+		TestEqual(TEXT("From==To -> 1 cella"), P.Num(), 1);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGridWeightedPathTest,
+	"RefactorTactics.Grid.FindPathByCostPrefersCheaperRoute",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGridWeightedPathTest::RunTest(const FString&)
+{
+	// Colonna "fango" costo 3 su (5,4)(5,5)(5,6); tutto il resto costo 1 (assente dalla mappa).
+	TMap<FRTGridCoord, int32> Cost;
+	Cost.Add(FRTGridCoord(5, 4), 3);
+	Cost.Add(FRTGridCoord(5, 5), 3);
+	Cost.Add(FRTGridCoord(5, 6), 3);
+
+	// (f) Percorso a costo minimo (5,3)->(5,7): la retta attraverso il fango costa 3+3+3+1=10;
+	//     il giro laterale costa 6 -> deve preferire il giro (evita il fango).
+	{
+		const TArray<FRTGridCoord> P = URTGridLibrary::FindPathByCost(FRTGridCoord(5, 3), FRTGridCoord(5, 7), Cost, 10, 10);
+		TestTrue(TEXT("percorso non vuoto"), P.Num() > 0);
+		if (P.Num() > 0)
+		{
+			TestTrue(TEXT("parte da From"), P[0] == FRTGridCoord(5, 3));
+			TestTrue(TEXT("arriva a To"), P.Last() == FRTGridCoord(5, 7));
+		}
+		TestFalse(TEXT("evita il fango centrale (5,5)"), P.Contains(FRTGridCoord(5, 5)));
+		// Costo totale del percorso scelto = 6 (sei celle da 1, oltre a From).
+		int32 Total = 0;
+		for (int32 i = 1; i < P.Num(); ++i) { Total += (Cost.Contains(P[i]) ? Cost[P[i]] : 1); }
+		TestEqual(TEXT("costo totale minimo 6"), Total, 6);
+	}
+	// (g) Reachability per budget di costo: da (5,3) con budget 4.
+	{
+		const TArray<FRTGridCoord> R = URTGridLibrary::ReachableCellsByCost(FRTGridCoord(5, 3), 4, Cost, 10, 10);
+		TestTrue(TEXT("include se stessa"), R.Contains(FRTGridCoord(5, 3)));
+		TestTrue(TEXT("(2,3) a costo 3 raggiungibile"), R.Contains(FRTGridCoord(2, 3)));
+		TestTrue(TEXT("(5,4) fango costo 3 raggiungibile"), R.Contains(FRTGridCoord(5, 4)));
+		TestFalse(TEXT("(5,5) costo 6 oltre budget"), R.Contains(FRTGridCoord(5, 5)));
+		TestFalse(TEXT("(5,7) troppo caro/lontano"), R.Contains(FRTGridCoord(5, 7)));
+	}
+	// (h) Celle impassabili (costo negativo): muro che sigilla la colonna x=2.
+	{
+		TMap<FRTGridCoord, int32> Wall;
+		for (int32 Y = 0; Y < 10; ++Y) { Wall.Add(FRTGridCoord(2, Y), RT_BLOCKED_COST); }
+		const TArray<FRTGridCoord> R = URTGridLibrary::ReachableCellsByCost(FRTGridCoord(0, 0), 20, Wall, 10, 10);
+		TestTrue(TEXT("(1,9) di qua dal muro"), R.Contains(FRTGridCoord(1, 9)));
+		TestFalse(TEXT("(5,5) oltre il muro"), R.Contains(FRTGridCoord(5, 5)));
+		const TArray<FRTGridCoord> P = URTGridLibrary::FindPathByCost(FRTGridCoord(0, 0), FRTGridCoord(5, 5), Wall, 10, 10);
+		TestEqual(TEXT("nessun percorso oltre il muro"), P.Num(), 0);
+	}
+	// (i) From == To -> solo la cella di partenza.
+	{
+		const TMap<FRTGridCoord, int32> None;
+		const TArray<FRTGridCoord> P = URTGridLibrary::FindPathByCost(FRTGridCoord(5, 5), FRTGridCoord(5, 5), None, 10, 10);
 		TestEqual(TEXT("From==To -> 1 cella"), P.Num(), 1);
 	}
 	return true;

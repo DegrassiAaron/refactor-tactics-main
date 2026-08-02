@@ -75,4 +75,23 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Grid")
 	static TArray<FRTGridCoord> FindPath(const FRTGridCoord& From, const FRTGridCoord& To,
 		const TArray<FRTGridCoord>& Blockers, int32 Width, int32 Height);
+
+	// --- Pathfinding pesato (PF.3): costo per cella dato da CellCost (assente = 1; RT_BLOCKED_COST = impassabile).
+	//     Il costo di un percorso e' la somma dei costi di ENTRATA delle celle (From costa 0).
+	//     Non UFUNCTION: la TMap con chiave USTRUCT non e' esposta a Blueprint; uso interno + test.
+
+	/**
+	 * Celle raggiungibili da From con costo accumulato <= CostBudget (Dijkstra), aggirando le celle
+	 * impassabili e restando dentro la griglia. Include From. Ordine celle stabile (FR-PATH-07).
+	 */
+	static TArray<FRTGridCoord> ReachableCellsByCost(const FRTGridCoord& From, int32 CostBudget,
+		const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height);
+
+	/**
+	 * Percorso a COSTO minimo da From a To (Dijkstra): fra due rotte preferisce la più economica,
+	 * anche se più lunga in celle. Ritorna From..To inclusi; vuoto se irraggiungibile/bloccato/fuori
+	 * griglia. Deterministico (FR-PATH-06). Euristica: non necessaria su griglia MVP (Dijkstra).
+	 */
+	static TArray<FRTGridCoord> FindPathByCost(const FRTGridCoord& From, const FRTGridCoord& To,
+		const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height);
 };

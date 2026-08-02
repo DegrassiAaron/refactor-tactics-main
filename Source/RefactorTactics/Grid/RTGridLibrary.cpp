@@ -211,6 +211,123 @@ TArray<FRTGridCoord> URTGridLibrary::FindPath(const FRTGridCoord& From, const FR
 	return Path;
 }
 
+namespace
+{
+	// Costo di ENTRATA in una cella: assente dalla mappa -> 1. Negativo -> impassabile.
+	FORCEINLINE int32 EnterCost(const FRTGridCoord& Cell, const TMap<FRTGridCoord, int32>& CellCost)
+	{
+		const int32* Found = CellCost.Find(Cell);
+		return Found ? *Found : 1;
+	}
+
+	// Dijkstra deterministico su griglia (tie-break per (X,Y)). Riempie Dist (costo minimo per cella
+	// raggiungibile entro Budget) e, se Parent != nullptr, i predecessori. Se Goal != nullptr, si ferma
+	// appena Goal e' definitivo. Budget < 0 = illimitato.
+	void DijkstraGrid(const FRTGridCoord& From, int32 Budget,
+		const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height,
+		TMap<FRTGridCoord, int32>& Dist, TMap<FRTGridCoord, FRTGridCoord>* Parent, const FRTGridCoord* Goal)
+	{
+		static const int32 DX[4] = { 1, -1, 0, 0 };
+		static const int32 DY[4] = { 0, 0, 1, -1 };
+
+		Dist.Add(From, 0);
+		if (Parent) { Parent->Add(From, From); }
+		TSet<FRTGridCoord> Settled;
+
+		while (true)
+		{
+			// Cella non definitiva a distanza minima; a parita', ordine (X,Y).
+			FRTGridCoord Best;
+			int32 BestDist = MAX_int32;
+			bool bFound = false;
+			for (const TPair<FRTGridCoord, int32>& It : Dist)
+			{
+				if (Settled.Contains(It.Key)) { continue; }
+				if (!bFound || It.Value < BestDist
+					|| (It.Value == BestDist && (It.Key.X < Best.X || (It.Key.X == Best.X && It.Key.Y < Best.Y))))
+				{
+					Best = It.Key; BestDist = It.Value; bFound = true;
+				}
+			}
+			if (!bFound) { break; }
+			Settled.Add(Best);
+			if (Goal && Best == *Goal) { break; }
+
+			for (int32 Dir = 0; Dir < 4; ++Dir)
+			{
+				const FRTGridCoord Next(Best.X + DX[Dir], Best.Y + DY[Dir]);
+				if (!URTGridLibrary::IsInsideGrid(Next, Width, Height) || Settled.Contains(Next)) { continue; }
+				const int32 Step = EnterCost(Next, CellCost);
+				if (Step < 0) { continue; } // impassabile
+				const int32 ND = BestDist + Step;
+				if (Budget >= 0 && ND > Budget) { continue; }
+				const int32* Cur = Dist.Find(Next);
+				if (!Cur || ND < *Cur)
+				{
+					Dist.Add(Next, ND);
+					if (Parent) { Parent->Add(Next, Best); }
+				}
+			}
+		}
+	}
+}
+
+TArray<FRTGridCoord> URTGridLibrary::ReachableCellsByCost(const FRTGridCoord& From, int32 CostBudget,
+	const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height)
+{
+	TArray<FRTGridCoord> Result;
+	if (!IsInsideGrid(From, Width, Height) || EnterCost(From, CellCost) < 0)
+	{
+		return Result;
+	}
+
+	TMap<FRTGridCoord, int32> Dist;
+	DijkstraGrid(From, FMath::Max(0, CostBudget), CellCost, Width, Height, Dist, nullptr, nullptr);
+
+	// Ordine stabile: scansione della griglia in (X,Y).
+	for (int32 X = 0; X < Width; ++X)
+	{
+		for (int32 Y = 0; Y < Height; ++Y)
+		{
+			const FRTGridCoord Cell(X, Y);
+			if (Dist.Contains(Cell)) { Result.Add(Cell); }
+		}
+	}
+	return Result;
+}
+
+TArray<FRTGridCoord> URTGridLibrary::FindPathByCost(const FRTGridCoord& From, const FRTGridCoord& To,
+	const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height)
+{
+	TArray<FRTGridCoord> Path;
+	if (!IsInsideGrid(From, Width, Height) || !IsInsideGrid(To, Width, Height)
+		|| EnterCost(From, CellCost) < 0 || EnterCost(To, CellCost) < 0)
+	{
+		return Path;
+	}
+	if (From == To)
+	{
+		Path.Add(From);
+		return Path;
+	}
+
+	TMap<FRTGridCoord, int32> Dist;
+	TMap<FRTGridCoord, FRTGridCoord> Parent;
+	DijkstraGrid(From, -1, CellCost, Width, Height, Dist, &Parent, &To);
+
+	if (!Parent.Contains(To))
+	{
+		return Path; // irraggiungibile
+	}
+	for (FRTGridCoord Cell = To; ; Cell = Parent[Cell])
+	{
+		Path.Add(Cell);
+		if (Cell == From) { break; }
+	}
+	Algo::Reverse(Path);
+	return Path;
+}
+
 TArray<FRTGridCoord> URTGridLibrary::CellsInCone(const FRTGridCoord& From, const FRTGridCoord& Target, int32 Range)
 {
 	TArray<FRTGridCoord> Result;
