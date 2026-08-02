@@ -107,4 +107,102 @@ bool FRTMoveOrderIndependentTest::RunTest(const FString&)
 	return true;
 }
 
+namespace
+{
+	// Confronto profondo di un FRTPathResult atteso.
+	bool PathResultEquals(const FRTPathResult& R, const FRTGridCoord& Final, const TArray<FRTGridCoord>& Entered)
+	{
+		if (!(R.Final == Final) || R.Entered.Num() != Entered.Num()) { return false; }
+		for (int32 i = 0; i < Entered.Num(); ++i) { if (!(R.Entered[i] == Entered[i])) { return false; } }
+		return true;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTResolvePathsBehaviorsTest,
+	"RefactorTactics.Turn.ResolvePathsMicrostepBehaviors",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTResolvePathsBehaviorsTest::RunTest(const FString&)
+{
+	// (1) Percorso libero: entra in tutte le celle.
+	{
+		const TArray<TArray<FRTGridCoord>> P = { { FRTGridCoord(0,0), FRTGridCoord(1,0), FRTGridCoord(2,0) } };
+		const TArray<FRTPathResult> R = URTMovementResolver::ResolvePaths(P);
+		TestTrue(TEXT("libero: (2,0) attraversando (1,0)(2,0)"),
+			PathResultEquals(R[0], FRTGridCoord(2,0), { FRTGridCoord(1,0), FRTGridCoord(2,0) }));
+	}
+	// (2) Destinazione contesa: entrambi fermi.
+	{
+		const TArray<TArray<FRTGridCoord>> P = {
+			{ FRTGridCoord(0,0), FRTGridCoord(1,0) },
+			{ FRTGridCoord(2,0), FRTGridCoord(1,0) } };
+		const TArray<FRTPathResult> R = URTMovementResolver::ResolvePaths(P);
+		TestTrue(TEXT("contesa: u0 fermo"), PathResultEquals(R[0], FRTGridCoord(0,0), {}));
+		TestTrue(TEXT("contesa: u1 fermo"), PathResultEquals(R[1], FRTGridCoord(2,0), {}));
+	}
+	// (3) Scambio diretto: consentito.
+	{
+		const TArray<TArray<FRTGridCoord>> P = {
+			{ FRTGridCoord(0,0), FRTGridCoord(1,0) },
+			{ FRTGridCoord(1,0), FRTGridCoord(0,0) } };
+		const TArray<FRTPathResult> R = URTMovementResolver::ResolvePaths(P);
+		TestTrue(TEXT("scambio: u0 -> (1,0)"), PathResultEquals(R[0], FRTGridCoord(1,0), { FRTGridCoord(1,0) }));
+		TestTrue(TEXT("scambio: u1 -> (0,0)"), PathResultEquals(R[1], FRTGridCoord(0,0), { FRTGridCoord(0,0) }));
+	}
+	// (4) Bloccata da unita' ferma.
+	{
+		const TArray<TArray<FRTGridCoord>> P = {
+			{ FRTGridCoord(0,0), FRTGridCoord(1,0) },
+			{ FRTGridCoord(1,0) } }; // u1 non si muove
+		const TArray<FRTPathResult> R = URTMovementResolver::ResolvePaths(P);
+		TestTrue(TEXT("bloccata: u0 fermo"), PathResultEquals(R[0], FRTGridCoord(0,0), {}));
+		TestTrue(TEXT("ferma: u1 resta"), PathResultEquals(R[1], FRTGridCoord(1,0), {}));
+	}
+	// (5) Treno: u1 libera (1,0) mentre u0 vi entra -> entrambi avanzano (correttezza sincrona).
+	{
+		const TArray<TArray<FRTGridCoord>> P = {
+			{ FRTGridCoord(0,0), FRTGridCoord(1,0) },
+			{ FRTGridCoord(1,0), FRTGridCoord(2,0) } };
+		const TArray<FRTPathResult> R = URTMovementResolver::ResolvePaths(P);
+		TestTrue(TEXT("treno: u0 -> (1,0)"), PathResultEquals(R[0], FRTGridCoord(1,0), { FRTGridCoord(1,0) }));
+		TestTrue(TEXT("treno: u1 -> (2,0)"), PathResultEquals(R[1], FRTGridCoord(2,0), { FRTGridCoord(2,0) }));
+	}
+	// (6) Troncamento: u0 avanza poi si blocca quando u1 si ferma davanti.
+	{
+		const TArray<TArray<FRTGridCoord>> P = {
+			{ FRTGridCoord(0,0), FRTGridCoord(1,0), FRTGridCoord(2,0) },
+			{ FRTGridCoord(3,0), FRTGridCoord(2,0) } };
+		const TArray<FRTPathResult> R = URTMovementResolver::ResolvePaths(P);
+		TestTrue(TEXT("troncamento: u0 si ferma a (1,0)"), PathResultEquals(R[0], FRTGridCoord(1,0), { FRTGridCoord(1,0) }));
+		TestTrue(TEXT("troncamento: u1 a (2,0)"), PathResultEquals(R[1], FRTGridCoord(2,0), { FRTGridCoord(2,0) }));
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTResolvePathsOrderIndependenceTest,
+	"RefactorTactics.Turn.ResolvePathsOrderIndependent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTResolvePathsOrderIndependenceTest::RunTest(const FString&)
+{
+	// Mix di treno + contesa; permutando l'ordine, il risultato di ogni unita' non cambia.
+	const TArray<TArray<FRTGridCoord>> P = {
+		{ FRTGridCoord(0,0), FRTGridCoord(1,0) },   // A: treno con B
+		{ FRTGridCoord(1,0), FRTGridCoord(2,0) },   // B
+		{ FRTGridCoord(4,0), FRTGridCoord(3,0) },   // C: contesa con D su (3,0)
+		{ FRTGridCoord(2,0), FRTGridCoord(3,0) } }; // D
+	TArray<TArray<FRTGridCoord>> Rev = P; Algo::Reverse(Rev);
+
+	const TArray<FRTPathResult> R = URTMovementResolver::ResolvePaths(P);
+	const TArray<FRTPathResult> RR = URTMovementResolver::ResolvePaths(Rev);
+
+	// RR e' l'esito con input invertito: RR[N-1-i] deve corrispondere a R[i].
+	const int32 N = P.Num();
+	bool bMatch = (R.Num() == N && RR.Num() == N);
+	for (int32 i = 0; i < N && bMatch; ++i)
+	{
+		bMatch = PathResultEquals(RR[N - 1 - i], R[i].Final, R[i].Entered);
+	}
+	TestTrue(TEXT("risultato indipendente dall'ordine delle richieste"), bMatch);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -31,6 +31,22 @@ struct FRTMoveRequest
  * - cella occupata da un'unita' che resta ferma -> movimento bloccato (l'unita' resta).
  * Il risultato NON dipende dall'ordine delle richieste (funzione pura, punto fisso monotono).
  */
+/**
+ * Esito del movimento di un'unita' lungo un path: cella finale + celle effettivamente attraversate
+ * (per il cross-damage del terreno). Entered esclude la cella di partenza.
+ */
+USTRUCT(BlueprintType)
+struct FRTPathResult
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Turn")
+	FRTGridCoord Final;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Turn")
+	TArray<FRTGridCoord> Entered;
+};
+
 UCLASS()
 class REFACTORTACTICS_API URTMovementResolver : public UBlueprintFunctionLibrary
 {
@@ -40,4 +56,13 @@ public:
 	/** Ritorna la cella finale di ogni richiesta, nello stesso ordine dell'input. */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
 	static TArray<FRTGridCoord> ResolveMoves(const TArray<FRTMoveRequest>& Requests);
+
+	/**
+	 * Esegue path multi-cella simultanei con algoritmo a MICROSTEP sincroni (§7 spec-terreni):
+	 * a ogni microstep tutte le unita' avanzano di 1 cella lungo il proprio path; si risolvono
+	 * le collisioni del microstep (destinazione contesa -> contendenti fermi da li'; cella occupata
+	 * da un'unita' ferma -> bloccata; scambio diretto -> consentito), si ripete finche' nessuno avanza.
+	 * Ogni path e' From..To (From = elemento 0). Il risultato NON dipende dall'ordine delle richieste.
+	 */
+	static TArray<FRTPathResult> ResolvePaths(const TArray<TArray<FRTGridCoord>>& Paths);
 };
