@@ -7,6 +7,8 @@
 #include "RTGridActor.generated.h"
 
 class UInstancedStaticMeshComponent;
+class UStaticMeshComponent;
+class UMaterialInterface;
 
 /**
  * Rappresentazione visuale della griglia: una mesh istanziata per cella,
@@ -59,6 +61,9 @@ public:
 	/** Fine turno: decrementa i terreni temporanei; a 0 tornano a RevertsTo (o si rimuovono). */
 	void TickTerrain();
 
+	/** Ricostruisce i piani colorati sopra le celle-terreno (riflette anche ignite/reversione). */
+	void RefreshTerrainVisuals();
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -74,4 +79,13 @@ protected:
 	/** Mesh alte sulle celle-ostacolo (copertura visibile). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Grid")
 	TObjectPtr<UInstancedStaticMeshComponent> Obstacles;
+
+	/** Piani colorati sopra le celle-terreno (uno per cella, materiale M_Unit con parametro Color). */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> TerrainVisuals;
+
+	/** Materiale per colorare il terreno (default M_Unit con VectorParameter "Color"). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Grid")
+	TSoftObjectPtr<UMaterialInterface> TerrainMaterial =
+		TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Materials/M_Unit.M_Unit")));
 };

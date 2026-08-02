@@ -4,6 +4,8 @@
 #include "Terrain/RTTerrainLibrary.h"
 #include "RefactorTactics.h"
 #include "Components/InstancedStaticMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
 
 ARTGridActor::ARTGridActor()
@@ -228,6 +230,52 @@ void ARTGridActor::BuildGrid()
 		}
 	}
 
+	RefreshTerrainVisuals();
+
 	UE_LOG(LogRT, Log, TEXT("[RT] GridActor: %d celle, %d ostacoli (%dx%d, cella %.0f uu)"),
 		Count, BlockedCells.Num(), Width, Height, CellSize);
+}
+
+void ARTGridActor::RefreshTerrainVisuals()
+{
+	// Rimuove i piani precedenti (il terreno puo' essere cambiato: ignite/reversione).
+	for (UStaticMeshComponent* Comp : TerrainVisuals)
+	{
+		if (Comp) { Comp->DestroyComponent(); }
+	}
+	TerrainVisuals.Reset();
+
+	if (!Cells || !Cells->GetStaticMesh())
+	{
+		return;
+	}
+	UStaticMesh* Plane = Cells->GetStaticMesh();
+	UMaterialInterface* Base = TerrainMaterial.LoadSynchronous();
+	const FVector Origin = GetActorLocation();
+	constexpr float PlaneBaseSize = 100.f;
+	const float Scale = (CellSize * 0.9f) / PlaneBaseSize;
+
+	for (const TPair<FRTGridCoord, TObjectPtr<URTTerrainData>>& Pair : TerrainCells)
+	{
+		if (!Pair.Value) { continue; }
+
+		UStaticMeshComponent* Comp = NewObject<UStaticMeshComponent>(this);
+		Comp->SetupAttachment(Cells);
+		Comp->RegisterComponent();
+		Comp->SetStaticMesh(Plane);
+		Comp->SetCollisionEnabled(ECollisionEnabled::NoCollision); // i click passano alla griglia sotto
+
+		FVector World = URTGridLibrary::CellToWorld(Pair.Key, Origin, CellSize);
+		World.Z += 4.f; // appena sopra le celle base
+		Comp->SetWorldLocation(World);
+		Comp->SetWorldScale3D(FVector(Scale, Scale, 1.f));
+
+		if (Base)
+		{
+			UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Base, this);
+			MID->SetVectorParameterValue(TEXT("Color"), Pair.Value->DisplayColor);
+			Comp->SetMaterial(0, MID);
+		}
+		TerrainVisuals.Add(Comp);
+	}
 }

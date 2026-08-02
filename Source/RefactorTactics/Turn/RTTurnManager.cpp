@@ -168,6 +168,12 @@ void ARTTurnManager::StartPlanningTimer()
 		return;
 	}
 
+	// Aggiorna i visuali del terreno (riflette ignite/reversione avvenuti nella risoluzione).
+	if (ARTGridActor* GridVis = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass())))
+	{
+		GridVis->RefreshTerrainVisuals();
+	}
+
 	PlanBots(); // il bot pianifica a inizio turno
 
 	World->GetTimerManager().ClearTimer(PlanningTimerHandle);
