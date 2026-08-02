@@ -144,12 +144,12 @@ void ARTHUD::DrawHUD()
 			// (FindPath), cella per cella, ed evidenzia la cella di destinazione.
 			if (bMoving)
 			{
-				static const TArray<FRTGridCoord> EmptyBlockers;
-				const TArray<FRTGridCoord>& Cover = Grid ? Grid->BlockedCells : EmptyBlockers;
+				TMap<FRTGridCoord, int32> CostMap;
+				if (Grid) { Grid->BuildCostMap(CostMap); }
 				const int32 GW = Grid ? Grid->Width : 10;
 				const int32 GH = Grid ? Grid->Height : 10;
 				const TArray<FRTGridCoord> PathCells =
-					URTGridLibrary::FindPath(Unit->GridCell, Unit->PlannedCell, Cover, GW, GH);
+					URTGridLibrary::FindPathByCost(Unit->GridCell, Unit->PlannedCell, CostMap, GW, GH);
 
 				// Polilinea lungo i centri-cella (a terra): mostra la deviazione attorno alle coperture.
 				for (int32 i = 1; i < PathCells.Num(); ++i)

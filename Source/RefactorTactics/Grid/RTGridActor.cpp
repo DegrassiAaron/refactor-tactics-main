@@ -1,6 +1,7 @@
 #include "Grid/RTGridActor.h"
 #include "Grid/RTGridLibrary.h"
 #include "Core/RTTypes.h"
+#include "Terrain/RTTerrainLibrary.h"
 #include "RefactorTactics.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "UObject/ConstructorHelpers.h"
@@ -38,7 +39,83 @@ ARTGridActor::ARTGridActor()
 void ARTGridActor::BeginPlay()
 {
 	Super::BeginPlay();
+	SpawnDemoTerrain();
 	BuildGrid();
+}
+
+const URTTerrainData* ARTGridActor::GetTerrainAt(const FRTGridCoord& Cell) const
+{
+	const TObjectPtr<URTTerrainData>* Found = TerrainCells.Find(Cell);
+	return Found ? Found->Get() : nullptr;
+}
+
+void ARTGridActor::BuildCostMap(TMap<FRTGridCoord, int32>& OutCost) const
+{
+	OutCost.Reset();
+	for (const FRTGridCoord& Blocked : BlockedCells)
+	{
+		OutCost.Add(Blocked, RT_BLOCKED_COST);
+	}
+	for (const TPair<FRTGridCoord, TObjectPtr<URTTerrainData>>& Pair : TerrainCells)
+	{
+		if (Pair.Value)
+		{
+			OutCost.Add(Pair.Key, URTTerrainLibrary::CellMoveCost(Pair.Value->GetProps()));
+		}
+	}
+}
+
+TArray<FRTGridCoord> ARTGridActor::GetMoveBlockers() const
+{
+	TArray<FRTGridCoord> Out = BlockedCells;
+	for (const TPair<FRTGridCoord, TObjectPtr<URTTerrainData>>& Pair : TerrainCells)
+	{
+		if (Pair.Value && URTTerrainLibrary::BlocksMovement(Pair.Value->GetProps()))
+		{
+			Out.AddUnique(Pair.Key);
+		}
+	}
+	return Out;
+}
+
+TArray<FRTGridCoord> ARTGridActor::GetVisionBlockers() const
+{
+	TArray<FRTGridCoord> Out = BlockedCells;
+	for (const TPair<FRTGridCoord, TObjectPtr<URTTerrainData>>& Pair : TerrainCells)
+	{
+		if (Pair.Value && URTTerrainLibrary::BlocksVision(Pair.Value->GetProps()))
+		{
+			Out.AddUnique(Pair.Key);
+		}
+	}
+	return Out;
+}
+
+void ARTGridActor::SpawnDemoTerrain()
+{
+	TerrainCells.Reset();
+
+	// Fango: attraversamento piu' caro (costo 2). Striscia centrale tra le due squadre.
+	URTTerrainData* Fango = NewObject<URTTerrainData>(this);
+	Fango->DisplayName = FText::FromString(TEXT("Fango"));
+	Fango->DisplayColor = FLinearColor(0.40f, 0.26f, 0.13f, 1.f);
+	Fango->Props.ExtraMoveCost = 1;
+	for (const FRTGridCoord& C : { FRTGridCoord(6, 3), FRTGridCoord(6, 4), FRTGridCoord(6, 5) })
+	{
+		TerrainCells.Add(C, Fango);
+	}
+
+	// Cespuglio: blocca la linea di tiro, non il movimento. Siepe laterale.
+	URTTerrainData* Cespuglio = NewObject<URTTerrainData>(this);
+	Cespuglio->DisplayName = FText::FromString(TEXT("Cespuglio"));
+	Cespuglio->DisplayColor = FLinearColor(0.10f, 0.50f, 0.15f, 1.f);
+	Cespuglio->Props.bBlocksVision = true;
+	for (const FRTGridCoord& C : { FRTGridCoord(3, 6), FRTGridCoord(4, 6) })
+	{
+		TerrainCells.Add(C, Cespuglio);
+	}
+
+	UE_LOG(LogRT, Log, TEXT("[RT] GridActor: terreno demo (%d celle)"), TerrainCells.Num());
 }
 
 void ARTGridActor::BuildGrid()

@@ -38,7 +38,8 @@ void ARTTurnManager::PlanBots()
 {
 	static const TArray<FRTGridCoord> NoBlockers;
 	const ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
-	const TArray<FRTGridCoord>& Blockers = Grid ? Grid->BlockedCells : NoBlockers;
+	const TArray<FRTGridCoord> VisionBlockers = Grid ? Grid->GetVisionBlockers() : NoBlockers;
+	const TArray<FRTGridCoord> MoveBlockers = Grid ? Grid->GetMoveBlockers() : NoBlockers;
 
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
@@ -101,7 +102,7 @@ void ARTTurnManager::PlanBots()
 				NearestDistance = Distance;
 				Nearest = Other;
 			}
-			if (!URTGridLibrary::HasLineOfSight(Bot->GridCell, Other->GridCell, Blockers))
+			if (!URTGridLibrary::HasLineOfSight(Bot->GridCell, Other->GridCell, VisionBlockers))
 			{
 				continue;
 			}
@@ -135,7 +136,7 @@ void ARTTurnManager::PlanBots()
 		if (bPanic)
 		{
 			// Fuga che massimizza la distanza (aggira bordi/ostacoli); tiro e bersaglio restano azzerati.
-			Bot->PlannedCell = URTBotLibrary::BestKiteCell(Bot->GridCell, Nearest->GridCell, MoveBudget, Blockers, GridW, GridH);
+			Bot->PlannedCell = URTBotLibrary::BestKiteCell(Bot->GridCell, Nearest->GridCell, MoveBudget, MoveBlockers, GridW, GridH);
 		}
 		else if (BestTarget)
 		{
@@ -149,11 +150,11 @@ void ARTTurnManager::PlanBots()
 			// In ogni caso si evitano le celle-copertura (routing a un turno attorno agli ostacoli).
 			if (bKiter && NearestDistance < Bot->KiteStandoff)
 			{
-				Bot->PlannedCell = URTBotLibrary::BestKiteCell(Bot->GridCell, Nearest->GridCell, MoveBudget, Blockers, GridW, GridH);
+				Bot->PlannedCell = URTBotLibrary::BestKiteCell(Bot->GridCell, Nearest->GridCell, MoveBudget, MoveBlockers, GridW, GridH);
 			}
 			else
 			{
-				Bot->PlannedCell = URTBotLibrary::BestApproachCell(Bot->GridCell, Nearest->GridCell, MoveBudget, Blockers, GridW, GridH);
+				Bot->PlannedCell = URTBotLibrary::BestApproachCell(Bot->GridCell, Nearest->GridCell, MoveBudget, MoveBlockers, GridW, GridH);
 			}
 		}
 	}
@@ -289,10 +290,10 @@ void ARTTurnManager::ResolvePrep()
 
 void ARTTurnManager::ResolveCombat()
 {
-	// Ostacoli (celle-copertura) che bloccano la linea di tiro.
+	// Celle che bloccano la linea di tiro (copertura + terreno, es. cespuglio).
 	static const TArray<FRTGridCoord> NoBlockers;
 	const ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
-	const TArray<FRTGridCoord>& Blockers = Grid ? Grid->BlockedCells : NoBlockers;
+	const TArray<FRTGridCoord> Blockers = Grid ? Grid->GetVisionBlockers() : NoBlockers;
 
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
@@ -437,8 +438,11 @@ void ARTTurnManager::ResolveMovement()
 	ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
 	const FVector Origin = Grid ? Grid->GetActorLocation() : FVector::ZeroVector;
 	const float CellSize = Grid ? Grid->CellSize : 200.f;
-	static const TArray<FRTGridCoord> NoBlockers;
-	const TArray<FRTGridCoord>& Blockers = Grid ? Grid->BlockedCells : NoBlockers;
+	const int32 GridW = Grid ? Grid->Width : 10;
+	const int32 GridH = Grid ? Grid->Height : 10;
+	// Costo per cella dal terreno (pesato): il budget di movimento e' un budget di COSTO.
+	TMap<FRTGridCoord, int32> CostMap;
+	if (Grid) { Grid->BuildCostMap(CostMap); }
 
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
@@ -453,14 +457,11 @@ void ARTTurnManager::ResolveMovement()
 		{
 			Units.Add(Unit);
 
-			// Difesa autorevole: la destinazione e' accettata solo se REALMENTE raggiungibile
-			// (percorso ortogonale libero entro il range effettivo, ostacoli aggirati), a prescindere
-			// da cosa ha inviato il client. Subsume range e blocco-copertura (invariante: niente
-			// movimento su/attraverso copertura). Se non raggiungibile, l'unita' resta ferma.
-			const int32 GridW = Grid ? Grid->Width : 10;
-			const int32 GridH = Grid ? Grid->Height : 10;
+			// Difesa autorevole: la destinazione e' accettata solo se REALMENTE raggiungibile col
+			// budget di costo (percorso pesato dal terreno, ostacoli aggirati), a prescindere da cosa
+			// ha inviato il client. Subsume range/blocco/costo. Se non raggiungibile, l'unita' resta ferma.
 			const TArray<FRTGridCoord> Reachable =
-				URTGridLibrary::ReachableCells(Unit->GridCell, Unit->GetEffectiveMoveRange(), Blockers, GridW, GridH);
+				URTGridLibrary::ReachableCellsByCost(Unit->GridCell, Unit->GetEffectiveMoveRange(), CostMap, GridW, GridH);
 			const FRTGridCoord Target = Reachable.Contains(Unit->PlannedCell) ? Unit->PlannedCell : Unit->GridCell;
 			Requests.Add(FRTMoveRequest(Unit->GridCell, Target));
 		}

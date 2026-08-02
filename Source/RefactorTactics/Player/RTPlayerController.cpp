@@ -162,7 +162,7 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		const ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
 		const bool bReady = SelectedUnit->CanUseAbility(AbilityIndex);
 		const bool bInRange = URTGridLibrary::IsWithinRange(SelectedUnit->GridCell, ClickedUnit->GridCell, Ability->RangeCells);
-		const bool bHasLOS = !Grid || URTGridLibrary::HasLineOfSight(SelectedUnit->GridCell, ClickedUnit->GridCell, Grid->BlockedCells);
+		const bool bHasLOS = !Grid || URTGridLibrary::HasLineOfSight(SelectedUnit->GridCell, ClickedUnit->GridCell, Grid->GetVisionBlockers());
 		if (bReady && bInRange && bHasLOS)
 		{
 			SelectedUnit->PlannedAbilityIndex = AbilityIndex;
@@ -216,7 +216,9 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 				return;
 			}
 			const int32 MoveRange = SelectedUnit->GetEffectiveMoveRange();
-			if (!URTGridLibrary::ReachableCells(SelectedUnit->GridCell, MoveRange, Grid->BlockedCells, Grid->Width, Grid->Height).Contains(Cell))
+				TMap<FRTGridCoord, int32> CostMap;
+				Grid->BuildCostMap(CostMap);
+			if (!URTGridLibrary::ReachableCellsByCost(SelectedUnit->GridCell, MoveRange, CostMap, Grid->Width, Grid->Height).Contains(Cell))
 			{
 				UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d) non raggiungibile (percorso bloccato o fuori portata) per %s"),
 					Cell.X, Cell.Y, *SelectedUnit->GetName());
