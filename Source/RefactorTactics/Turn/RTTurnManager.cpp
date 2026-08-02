@@ -225,7 +225,23 @@ void ARTTurnManager::ResolveCombat()
 		{
 			const bool bUlt = URTCombatLibrary::IsUltimateReady(Unit->Energy, Unit->MaxEnergy);
 			const int32 Power = bUlt ? Unit->AttackPower * Unit->UltimateMultiplier : Unit->AttackPower;
-			Attacks.Add(FRTAttack(IndexOf[Target], Power));
+
+			if (bUlt && Unit->UltimateRadius > 0)
+			{
+				// Ultimate ad area: colpisce ogni nemico entro il raggio attorno al bersaglio.
+				const TArray<FRTGridCoord> Area = URTGridLibrary::CellsInRadius(Target->GridCell, Unit->UltimateRadius);
+				for (ARTUnit* Other : Units)
+				{
+					if (Other->TeamId != Unit->TeamId && Area.Contains(Other->GridCell))
+					{
+						Attacks.Add(FRTAttack(IndexOf[Other], Power));
+					}
+				}
+			}
+			else
+			{
+				Attacks.Add(FRTAttack(IndexOf[Target], Power));
+			}
 			Attackers.Add(Unit);
 			UsedUltimate.Add(bUlt);
 		}

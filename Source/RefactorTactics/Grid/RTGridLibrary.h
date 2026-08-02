@@ -41,4 +41,8 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Grid")
 	static bool HasLineOfSight(const FRTGridCoord& From, const FRTGridCoord& To, const TArray<FRTGridCoord>& Blockers);
+
+	/** Tutte le celle entro Radius passi (Manhattan) da Center, incluso Center. Radius 0 = solo Center. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Grid")
+	static TArray<FRTGridCoord> CellsInRadius(const FRTGridCoord& Center, int32 Radius);
 };

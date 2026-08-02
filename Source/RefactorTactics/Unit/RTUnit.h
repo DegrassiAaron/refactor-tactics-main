@@ -75,6 +75,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Combat")
 	int32 UltimateMultiplier = 2;
 
+	/** Raggio dell'area colpita dall'ultimate attorno al bersaglio (0 = singolo bersaglio). */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Combat")
+	int32 UltimateRadius = 1;
+
 	/** Bersaglio dell'attacco pianificato per il turno (nullo = nessun attacco). */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Combat")
 	TObjectPtr<ARTUnit> PlannedAttackTarget = nullptr;

@@ -59,3 +59,20 @@ bool URTGridLibrary::HasLineOfSight(const FRTGridCoord& From, const FRTGridCoord
 	}
 	return true;
 }
+
+TArray<FRTGridCoord> URTGridLibrary::CellsInRadius(const FRTGridCoord& Center, int32 Radius)
+{
+	TArray<FRTGridCoord> Result;
+	const int32 R = FMath::Max(0, Radius);
+	for (int32 DY = -R; DY <= R; ++DY)
+	{
+		for (int32 DX = -R; DX <= R; ++DX)
+		{
+			if (FMath::Abs(DX) + FMath::Abs(DY) <= R)
+			{
+				Result.Add(FRTGridCoord(Center.X + DX, Center.Y + DY));
+			}
+		}
+	}
+	return Result;
+}

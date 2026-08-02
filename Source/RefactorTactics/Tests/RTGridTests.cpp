@@ -118,4 +118,29 @@ bool FRTGridLineOfSightTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGridCellsInRadiusTest,
+	"RefactorTactics.Grid.CellsInRadiusFormsDiamond",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGridCellsInRadiusTest::RunTest(const FString&)
+{
+	const FRTGridCoord C(5, 5);
+
+	const TArray<FRTGridCoord> R0 = URTGridLibrary::CellsInRadius(C, 0);
+	TestEqual(TEXT("radius 0 = 1 cella"), R0.Num(), 1);
+	TestTrue(TEXT("radius 0 = centro"), R0.Contains(C));
+
+	const TArray<FRTGridCoord> R1 = URTGridLibrary::CellsInRadius(C, 1);
+	TestEqual(TEXT("radius 1 = 5 celle"), R1.Num(), 5);
+	TestTrue(TEXT("include centro"), R1.Contains(C));
+	TestTrue(TEXT("include (4,5)"), R1.Contains(FRTGridCoord(4, 5)));
+	TestTrue(TEXT("include (6,5)"), R1.Contains(FRTGridCoord(6, 5)));
+	TestTrue(TEXT("include (5,4)"), R1.Contains(FRTGridCoord(5, 4)));
+	TestTrue(TEXT("include (5,6)"), R1.Contains(FRTGridCoord(5, 6)));
+	TestFalse(TEXT("esclude la diagonale (4,4)"), R1.Contains(FRTGridCoord(4, 4)));
+
+	// Radius 2: diamante di 13 celle.
+	TestEqual(TEXT("radius 2 = 13 celle"), URTGridLibrary::CellsInRadius(C, 2).Num(), 13);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
