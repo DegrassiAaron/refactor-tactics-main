@@ -35,6 +35,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Grid")
 	TArray<FRTGridCoord> BlockedCells;
 
+	/** Celle valide del layer 1 (ponte sopraelevato). Le celle di layer 1 non elencate sono impassabili. */
+	UPROPERTY()
+	TArray<FRTGridCoord> Layer1Cells;
+
+	/** Archi di traversata (rampe/scale/portali) che collegano celle non adiacenti / su layer diversi. */
+	UPROPERTY()
+	TArray<FRTTraversalEdge> Edges;
+
+	/** Quota (cm) di un layer rispetto al precedente, per il rendering e il posizionamento. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Grid")
+	float LayerHeight = 250.f;
+
+	/** Archi di traversata per il pathfinding a grafo. */
+	const TArray<FRTTraversalEdge>& GetEdges() const { return Edges; }
+
 	/** Terreno per cella (assente = normale, costo 1). Istanze create a runtime (nessun .uasset). */
 	UPROPERTY()
 	TMap<FRTGridCoord, TObjectPtr<URTTerrainData>> TerrainCells;
@@ -76,12 +91,19 @@ protected:
 	/** Popola TerrainCells con terreni demo creati a runtime (Fango, Cespuglio, ...). */
 	void SpawnDemoTerrain();
 
+	/** Popola il ponte demo (celle di layer 1 + rampe) creati a runtime. */
+	void SpawnBridge();
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Grid")
 	TObjectPtr<UInstancedStaticMeshComponent> Cells;
 
 	/** Mesh alte sulle celle-ostacolo (copertura visibile). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Grid")
 	TObjectPtr<UInstancedStaticMeshComponent> Obstacles;
+
+	/** Celle del layer 1 (ponte) renderizzate a quota; con collisione per il click->layer. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Grid")
+	TObjectPtr<UInstancedStaticMeshComponent> BridgeCells;
 
 	/** Piani colorati sopra le celle-terreno (uno per cella, materiale M_Unit con parametro Color). */
 	UPROPERTY(Transient)

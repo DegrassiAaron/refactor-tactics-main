@@ -34,6 +34,16 @@ ARTGridActor::ARTGridActor()
 		Obstacles->SetStaticMesh(CubeMesh.Object);
 	}
 
+	// Celle del ponte (layer 1): mesh calpestabile a quota, con collisione per il click->layer.
+	BridgeCells = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("BridgeCells"));
+	BridgeCells->SetupAttachment(Cells);
+	BridgeCells->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	BridgeCells->SetCollisionResponseToAllChannels(ECR_Block);
+	if (PlaneMesh.Succeeded())
+	{
+		BridgeCells->SetStaticMesh(PlaneMesh.Object);
+	}
+
 	// Coperture centrali di default per il demo (bloccano la linea di tiro).
 	BlockedCells = { FRTGridCoord(4, 4), FRTGridCoord(5, 4), FRTGridCoord(4, 5), FRTGridCoord(5, 5) };
 }
@@ -41,8 +51,32 @@ ARTGridActor::ARTGridActor()
 void ARTGridActor::BeginPlay()
 {
 	Super::BeginPlay();
+	SpawnBridge();
 	SpawnDemoTerrain();
 	BuildGrid();
+}
+
+void ARTGridActor::SpawnBridge()
+{
+	Layer1Cells.Reset();
+	Edges.Reset();
+
+	// Passerella (layer 1) lungo y=4, da x=2 a x=7: passa sopra le coperture centrali.
+	for (int32 X = 2; X <= 7; ++X)
+	{
+		Layer1Cells.Add(FRTGridCoord(X, 4, 1));
+	}
+
+	// Rampe (archi bidirezionali, costo 2) alle due estremita': terra <-> ponte.
+	auto AddRamp = [this](const FRTGridCoord& Ground, const FRTGridCoord& Bridge)
+	{
+		Edges.Add(FRTTraversalEdge(Ground, Bridge, 2));
+		Edges.Add(FRTTraversalEdge(Bridge, Ground, 2));
+	};
+	AddRamp(FRTGridCoord(1, 4, 0), FRTGridCoord(2, 4, 1));
+	AddRamp(FRTGridCoord(8, 4, 0), FRTGridCoord(7, 4, 1));
+
+	UE_LOG(LogRT, Log, TEXT("[RT] GridActor: ponte (%d celle layer 1, %d archi)"), Layer1Cells.Num(), Edges.Num());
 }
 
 const URTTerrainData* ARTGridActor::GetTerrainAt(const FRTGridCoord& Cell) const
@@ -63,6 +97,21 @@ void ARTGridActor::BuildCostMap(TMap<FRTGridCoord, int32>& OutCost) const
 		if (Pair.Value)
 		{
 			OutCost.Add(Pair.Key, URTTerrainLibrary::CellMoveCost(Pair.Value->GetProps()));
+		}
+	}
+
+	// Layer 1: solo le celle-ponte sono calpestabili; tutte le altre di layer 1 sono impassabili
+	// (altrimenti il pathfinding le tratterebbe come costo 1 e le unita' "galleggerebbero").
+	TSet<FRTGridCoord> BridgeSet(Layer1Cells);
+	for (int32 X = 0; X < Width; ++X)
+	{
+		for (int32 Y = 0; Y < Height; ++Y)
+		{
+			const FRTGridCoord Cell(X, Y, 1);
+			if (!BridgeSet.Contains(Cell))
+			{
+				OutCost.Add(Cell, RT_BLOCKED_COST);
+			}
 		}
 	}
 }
@@ -245,10 +294,25 @@ void ARTGridActor::BuildGrid()
 		}
 	}
 
+	// Ponte: celle di layer 1 renderizzate a quota (LayerHeight), calpestabili e cliccabili.
+	if (BridgeCells)
+	{
+		BridgeCells->ClearInstances();
+		for (const FRTGridCoord& Cell : Layer1Cells)
+		{
+			FVector World = URTGridLibrary::CellToWorld(Cell, Origin, CellSize);
+			World.Z += GridZOffset + Cell.Layer * LayerHeight;
+			FTransform T;
+			T.SetLocation(World);
+			T.SetScale3D(FVector(Scale, Scale, 1.f));
+			BridgeCells->AddInstance(T, /*bWorldSpace=*/ true);
+		}
+	}
+
 	RefreshTerrainVisuals();
 
-	UE_LOG(LogRT, Log, TEXT("[RT] GridActor: %d celle, %d ostacoli (%dx%d, cella %.0f uu)"),
-		Count, BlockedCells.Num(), Width, Height, CellSize);
+	UE_LOG(LogRT, Log, TEXT("[RT] GridActor: %d celle, %d ostacoli, %d ponte (%dx%d, cella %.0f uu)"),
+		Count, BlockedCells.Num(), Layer1Cells.Num(), Width, Height, CellSize);
 }
 
 void ARTGridActor::RefreshTerrainVisuals()
