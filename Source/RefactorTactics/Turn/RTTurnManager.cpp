@@ -5,10 +5,49 @@
 #include "Core/RTTypes.h"
 #include "RefactorTactics.h"
 #include "Kismet/GameplayStatics.h"
+#include "TimerManager.h"
 
 ARTTurnManager::ARTTurnManager()
 {
 	PrimaryActorTick.bCanEverTick = false;
+}
+
+void ARTTurnManager::BeginPlay()
+{
+	Super::BeginPlay();
+	StartPlanningTimer();
+}
+
+void ARTTurnManager::StartPlanningTimer()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	World->GetTimerManager().ClearTimer(PlanningTimerHandle);
+	if (PlanningSeconds > 0.f)
+	{
+		World->GetTimerManager().SetTimer(PlanningTimerHandle, this, &ARTTurnManager::OnPlanningTimeout, PlanningSeconds, false);
+	}
+	UE_LOG(LogRT, Log, TEXT("[RT] Pianificazione turno %d (%.0fs)"), TurnNumber, PlanningSeconds);
+}
+
+void ARTTurnManager::OnPlanningTimeout()
+{
+	UE_LOG(LogRT, Log, TEXT("[RT] Timer scaduto -> lock-in automatico"));
+	LockInAndResolve();
+}
+
+float ARTTurnManager::GetPlanningTimeRemaining() const
+{
+	if (const UWorld* World = GetWorld())
+	{
+		const float Remaining = World->GetTimerManager().GetTimerRemaining(PlanningTimerHandle);
+		return Remaining > 0.f ? Remaining : 0.f;
+	}
+	return 0.f;
 }
 
 void ARTTurnManager::LockInAndResolve()
@@ -16,6 +55,12 @@ void ARTTurnManager::LockInAndResolve()
 	if (Phase != ERTMatchPhase::Planning)
 	{
 		return;
+	}
+
+	// Chiude la pianificazione: ferma il timer (utile anche per il lock-in manuale).
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(PlanningTimerHandle);
 	}
 
 	// Avanza le fasi fino a tornare a Planning; il movimento si applica nella fase Move.
@@ -30,6 +75,9 @@ void ARTTurnManager::LockInAndResolve()
 
 	++TurnNumber;
 	UE_LOG(LogRT, Log, TEXT("[RT] Turno risolto, ora turno %d"), TurnNumber);
+
+	// Riavvia la pianificazione del nuovo turno.
+	StartPlanningTimer();
 }
 
 void ARTTurnManager::ResolveMovement()

@@ -27,12 +27,26 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	int32 GetTurnNumber() const { return TurnNumber; }
 
+	/** Secondi rimanenti alla pianificazione (0 se scaduto/assente). Utile per una futura HUD. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	float GetPlanningTimeRemaining() const;
+
 protected:
+	virtual void BeginPlay() override;
+
 	void ResolveMovement();
+	void StartPlanningTimer();
+	void OnPlanningTimeout();
+
+	/** Durata della fase di pianificazione; allo scadere scatta il lock-in automatico. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Turn")
+	float PlanningSeconds = 30.f;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Turn")
 	ERTMatchPhase Phase = ERTMatchPhase::Planning;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Turn")
 	int32 TurnNumber = 1;
+
+	FTimerHandle PlanningTimerHandle;
 };
