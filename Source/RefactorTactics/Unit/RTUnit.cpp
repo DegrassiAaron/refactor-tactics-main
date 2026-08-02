@@ -31,7 +31,20 @@ ARTUnit::ARTUnit()
 void ARTUnit::BeginPlay()
 {
 	Super::BeginPlay();
+	Health = MaxHealth;
 	ApplyTeamColor();
+}
+
+void ARTUnit::ApplyCombatState(int32 NewHealth, int32 NewShield)
+{
+	Health = FMath::Max(0, NewHealth);
+	Shield = FMath::Max(0, NewShield);
+
+	if (!IsAlive())
+	{
+		UE_LOG(LogRT, Log, TEXT("[RT] Unit eliminata: %s (team %d)"), *GetName(), TeamId);
+		Destroy();
+	}
 }
 
 void ARTUnit::ApplyTeamColor()

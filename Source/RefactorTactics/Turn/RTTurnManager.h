@@ -34,6 +34,7 @@ public:
 protected:
 	virtual void BeginPlay() override;
 
+	void ResolveCombat();
 	void ResolveMovement();
 	void StartPlanningTimer();
 	void OnPlanningTimeout();

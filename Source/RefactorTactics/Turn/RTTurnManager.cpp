@@ -1,5 +1,6 @@
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTMovementResolver.h"
+#include "Combat/RTCombatResolver.h"
 #include "Grid/RTGridActor.h"
 #include "Grid/RTGridLibrary.h"
 #include "Unit/RTUnit.h"
@@ -68,7 +69,11 @@ void ARTTurnManager::LockInAndResolve()
 	do
 	{
 		Phase = URTTurnRules::NextPhase(Phase);
-		if (Phase == ERTMatchPhase::Move)
+		if (Phase == ERTMatchPhase::Blast)
+		{
+			ResolveCombat(); // gli attacchi usano la posizione PRIMA del movimento
+		}
+		else if (Phase == ERTMatchPhase::Move)
 		{
 			ResolveMovement();
 		}
@@ -79,6 +84,52 @@ void ARTTurnManager::LockInAndResolve()
 
 	// Riavvia la pianificazione del nuovo turno.
 	StartPlanningTimer();
+}
+
+void ARTTurnManager::ResolveCombat()
+{
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+
+	TArray<ARTUnit*> Units;
+	TMap<ARTUnit*, int32> IndexOf;
+	TArray<FRTUnitCombatState> States;
+	Units.Reserve(Actors.Num());
+	States.Reserve(Actors.Num());
+	for (AActor* Actor : Actors)
+	{
+		if (ARTUnit* Unit = Cast<ARTUnit>(Actor))
+		{
+			IndexOf.Add(Unit, Units.Num());
+			Units.Add(Unit);
+			States.Add(FRTUnitCombatState(Unit->Health, Unit->Shield));
+		}
+	}
+
+	// Raccogli gli attacchi validi: bersaglio nemico, vivo, entro la portata (posizione attuale).
+	TArray<FRTAttack> Attacks;
+	for (ARTUnit* Unit : Units)
+	{
+		ARTUnit* Target = Unit->PlannedAttackTarget;
+		if (Target && IndexOf.Contains(Target) && Target->TeamId != Unit->TeamId
+			&& URTGridLibrary::IsWithinRange(Unit->GridCell, Target->GridCell, Unit->AttackRange))
+		{
+			Attacks.Add(FRTAttack(IndexOf[Target], Unit->AttackPower));
+		}
+		Unit->PlannedAttackTarget = nullptr; // consumato nel turno
+	}
+
+	if (Attacks.Num() == 0)
+	{
+		return;
+	}
+
+	const TArray<FRTUnitCombatState> Resolved = URTCombatResolver::ResolveAttacks(States, Attacks);
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		Units[i]->ApplyCombatState(Resolved[i].Health, Resolved[i].Shield); // puo' distruggere l'unita'
+	}
+	UE_LOG(LogRT, Log, TEXT("[RT] Fase Blast: %d attacchi risolti"), Attacks.Num());
 }
 
 void ARTTurnManager::ResolveMovement()

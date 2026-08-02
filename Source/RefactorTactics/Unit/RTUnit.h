@@ -35,6 +35,32 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Unit")
 	FRTGridCoord PlannedCell;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	int32 MaxHealth = 100;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	int32 Health = 100;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	int32 Shield = 0;
+
+	/** Portata dell'attacco base, in celle (distanza di Manhattan). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	int32 AttackRange = 5;
+
+	/** Danno dell'attacco base. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	int32 AttackPower = 30;
+
+	/** Bersaglio dell'attacco pianificato per il turno (nullo = nessun attacco). */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Combat")
+	TObjectPtr<ARTUnit> PlannedAttackTarget = nullptr;
+
+	/** Applica lo stato di combattimento risolto; se HP<=0 avvia l'eliminazione. */
+	void ApplyCombatState(int32 NewHealth, int32 NewShield);
+
+	bool IsAlive() const { return Health > 0; }
+
 	/** Posiziona l'unita' al centro-mondo della cella, con la base appoggiata al piano. */
 	void PlaceOnCell(const FRTGridCoord& Cell, const FVector& GridOrigin, float CellSize);
 

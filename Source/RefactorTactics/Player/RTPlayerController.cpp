@@ -124,6 +124,23 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	}
 
 	AActor* HitActor = Hit.GetActor();
+	ARTUnit* ClickedUnit = Cast<ARTUnit>(HitActor);
+	ARTUnit* SelectedUnit = Cast<ARTUnit>(SelectedActor);
+
+	// Click su un'unita' nemica, con una nostra unita' selezionata -> pianifica un attacco.
+	if (ClickedUnit && SelectedUnit && ClickedUnit != SelectedUnit && ClickedUnit->TeamId != SelectedUnit->TeamId)
+	{
+		if (URTGridLibrary::IsWithinRange(SelectedUnit->GridCell, ClickedUnit->GridCell, SelectedUnit->AttackRange))
+		{
+			SelectedUnit->PlannedAttackTarget = ClickedUnit;
+			UE_LOG(LogRT, Log, TEXT("[RT] Piano attacco: %s -> %s"), *SelectedUnit->GetName(), *ClickedUnit->GetName());
+		}
+		else
+		{
+			UE_LOG(LogRT, Log, TEXT("[RT] %s fuori portata attacco (max %d)"), *ClickedUnit->GetName(), SelectedUnit->AttackRange);
+		}
+		return;
+	}
 
 	// Click su un'unita' (o altro selezionabile) -> selezione.
 	if (IRTSelectable* Selectable = Cast<IRTSelectable>(HitActor))
@@ -142,7 +159,7 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	}
 
 	// Click sulla griglia con un'unita' selezionata -> pianifica il movimento su quella cella.
-	if (ARTUnit* SelectedUnit = Cast<ARTUnit>(SelectedActor))
+	if (SelectedUnit)
 	{
 		if (ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass())))
 		{
