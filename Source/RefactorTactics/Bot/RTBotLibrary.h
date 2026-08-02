@@ -26,7 +26,8 @@ public:
 	 * (a parita', la mossa minima). Aggira ostacoli e terreno costoso; non si sovrappone al bersaglio.
 	 */
 	static FRTGridCoord BestApproachCell(const FRTGridCoord& From, const FRTGridCoord& Target, int32 MoveRange,
-		const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height);
+		const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height,
+		const TArray<FRTTraversalEdge>& Edges = TArray<FRTTraversalEdge>());
 
 	/**
 	 * Cella di fuga per il kiting: fra quelle raggiungibili entro il budget di costo (CellCost), dentro
@@ -34,7 +35,8 @@ public:
 	 * Aggira bordi, ostacoli e terreno pericoloso. Deterministica.
 	 */
 	static FRTGridCoord BestKiteCell(const FRTGridCoord& From, const FRTGridCoord& Threat, int32 MoveRange,
-		const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height);
+		const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height,
+		const TArray<FRTTraversalEdge>& Edges = TArray<FRTTraversalEdge>());
 
 	/**
 	 * Priorità di un attacco per la scelta del bersaglio del bot.

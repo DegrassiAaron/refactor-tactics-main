@@ -28,10 +28,10 @@ FRTGridCoord URTBotLibrary::StepToward(const FRTGridCoord& From, const FRTGridCo
 }
 
 FRTGridCoord URTBotLibrary::BestApproachCell(const FRTGridCoord& From, const FRTGridCoord& Target, int32 MoveRange,
-	const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height)
+	const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height, const TArray<FRTTraversalEdge>& Edges)
 {
-	// Considera solo celle raggiungibili col budget di costo (aggira ostacoli e terreno costoso/hazard).
-	const TArray<FRTGridCoord> Reachable = URTGridLibrary::ReachableCellsByCost(From, MoveRange, CellCost, Width, Height);
+	// Celle raggiungibili col budget di costo, aggirando ostacoli/terreno costoso e usando gli archi (rampe).
+	const TArray<FRTGridCoord> Reachable = URTGridLibrary::ReachableCellsByGraph(From, MoveRange, CellCost, Edges, Width, Height);
 
 	FRTGridCoord Best = From; // fermarsi e' sempre un'opzione valida
 	int32 BestToTarget = FMath::Abs(Target.X - From.X) + FMath::Abs(Target.Y - From.Y);
@@ -57,10 +57,10 @@ FRTGridCoord URTBotLibrary::BestApproachCell(const FRTGridCoord& From, const FRT
 }
 
 FRTGridCoord URTBotLibrary::BestKiteCell(const FRTGridCoord& From, const FRTGridCoord& Threat, int32 MoveRange,
-	const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height)
+	const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height, const TArray<FRTTraversalEdge>& Edges)
 {
-	// Solo celle raggiungibili col budget di costo (aggira ostacoli e terreno pericoloso).
-	const TArray<FRTGridCoord> Reachable = URTGridLibrary::ReachableCellsByCost(From, MoveRange, CellCost, Width, Height);
+	// Celle raggiungibili col budget di costo (aggira ostacoli/pericoli, usa gli archi per fuggire in quota).
+	const TArray<FRTGridCoord> Reachable = URTGridLibrary::ReachableCellsByGraph(From, MoveRange, CellCost, Edges, Width, Height);
 
 	FRTGridCoord Best = From;
 	int32 BestToThreat = FMath::Abs(Threat.X - From.X) + FMath::Abs(Threat.Y - From.Y);

@@ -181,4 +181,27 @@ bool FRTBotAvoidsHazardTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotUsesRampTest,
+	"RefactorTactics.Bot.BestApproachCellUsesRampToBridge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotUsesRampTest::RunTest(const FString&)
+{
+	// Coperture a terra (4,4)(5,4) bloccano l'avvicinamento diretto; il bersaglio (5,4,1) e' sul ponte.
+	// Con la rampa (2,4,0)->(3,4,1) il bot puo' salire e avvicinarsi in quota; senza, resta a terra.
+	TMap<FRTGridCoord, int32> Cost;
+	Cost.Add(FRTGridCoord(4, 4, 0), RT_BLOCKED_COST);
+	Cost.Add(FRTGridCoord(5, 4, 0), RT_BLOCKED_COST);
+	const TArray<FRTTraversalEdge> Ramp = {
+		FRTTraversalEdge(FRTGridCoord(2, 4, 0), FRTGridCoord(3, 4, 1), 2),
+		FRTTraversalEdge(FRTGridCoord(3, 4, 1), FRTGridCoord(2, 4, 0), 2) };
+	const FRTGridCoord From(2, 4, 0), Target(5, 4, 1);
+
+	const FRTGridCoord WithRamp = URTBotLibrary::BestApproachCell(From, Target, 4, Cost, 10, 10, Ramp);
+	TestEqual(TEXT("con la rampa: sale sul ponte (layer 1)"), WithRamp.Layer, 1);
+
+	const FRTGridCoord NoRamp = URTBotLibrary::BestApproachCell(From, Target, 4, Cost, 10, 10);
+	TestEqual(TEXT("senza rampa: resta a terra (layer 0)"), NoRamp.Layer, 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
