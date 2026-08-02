@@ -127,14 +127,14 @@ costo consuma il budget di movimento; effetti deterministici).
 
 ## 10. Piano d'implementazione (TDD)
 
-### Terreno v1
-1. `URTTerrainData` + `FRTTerrainProps` + **derivazione pura** props→(costo/blocco/vista) — *TDD la derivazione*.
-2. **PF.3**: `ReachableCells`/`FindPath` pesati (Dijkstra) + reachability-per-costo — *TDD* (path economico, budget-costo). *Fango conta.*
-3. `ARTGridActor` mappa cella→terreno (+ `BlockedCells` vista derivata); wiring pathfinding/resolver a costo pesato; LOS da `bBlocksVision` — **Cespuglio**.
-4. Buff occupante in `ResolveCombat` (pos. pre-movimento) — **Altura** — *TDD*.
-5. Hazard **fine-turno** (Cleanup) + ignite stesso-turno + reversione — **Lava/Erba/Fuoco** — *TDD* (logica pura dove possibile).
-6. Rendering celle colorate + scoring bot evita costo/hazard.
-7. Verifica PIE.
+### Terreno v1 — ✅ COMPLETO (2026-08-02, 46 test verdi)
+1. ✅ `URTTerrainData` + `FRTTerrainProps` + **derivazione pura** props→(costo/blocco/vista) — TDD.
+2. ✅ **PF.3**: `ReachableCellsByCost`/`FindPathByCost` (Dijkstra) + reachability-per-costo — TDD. *Fango conta.*
+3. ✅ `ARTGridActor` mappa cella→terreno (+ `BlockedCells` vista derivata); wiring pathfinding/resolver/LOS pesati — **Cespuglio**.
+4. ✅ Buff occupante in `ResolveCombat` (pos. pre-movimento) — **Altura** — TDD (`EffectiveAttackPower`).
+5. ✅ Hazard **fine-turno** (Cleanup) + ignite stesso-turno + reversione — **Lava/Erba/Fuoco**.
+6. ✅ Rendering celle colorate (`RefreshTerrainVisuals`, M_Unit MID) + bot cost/hazard-aware (`BuildBotCostMap`).
+7. ✅ Verifica PIE: terreno a schermo corretto; log confermano costo Fango attivo + loop combattimento intatto.
 
 ### Movimento v2 (successivo)
 8. `URTMovementResolver::ResolvePaths` (microstep, ordine-indipendente) — *TDD* (permutazione ordine · troncamento · celle-attraversate).

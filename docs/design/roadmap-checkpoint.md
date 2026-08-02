@@ -21,7 +21,7 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in forma ridotta (vedi nota) · �
 | M2 Turn loop | ✅ | Fasi, resolver movimento (conflitti), pianificazione, timer 30s · **path finding obstacle-aware** (PF.1 reachability BFS + PF.2 preview percorso) |
 | M3 Combat loop | ✅ | Danno/scudo, attacco, eliminazione, energia+ultimate (AoE), LOS/copertura, **abilità data-driven** ✅ · status Root/Slow/**Reveal** (intento nemico, invariante #6) ✅ · **forme targeting complete** (Single/Area/Line/Cone) ✅ · barra abilità |
 | M4 Vertical slice | ✅ | Bot (focus-fire, **aggiramento ostacoli**, **kiting** del Ranger), HUD (barre HP + combat log + **anteprima piani** ciano/reveal), vittoria + riavvio |
-| M5 Release interna | ✅ | **42 test** ✅ · **packaging Windows** (Development + **Shipping**) ✅ · DoD MVP formale ✅ |
+| M5 Release interna | ✅ | **46 test** ✅ · **packaging Windows** (Development + **Shipping**) ✅ · DoD MVP formale ✅ |
 
 **Sviluppo in corso sul branch `feature/m1-sandbox`** (M1→M4 in un unico branch, non uno per milestone come da regola: scelta pratica di questa fase iniziale). **27 test automatici verdi.**
 
@@ -72,7 +72,14 @@ Scelte che divergono dai DoD originali (equivalenti o migliori, documentate qui)
 > **Incremento path finding (post-MVP, 2026-08-02)** — vedi [`spec-pathfinding.md`](spec-pathfinding.md).
 > **PF.1** ✅ `ReachableCells` (BFS obstacle-aware) + validazione autorevole nel resolver (chiude il bug
 > "movimento attraverso le colonne") + bot path-aware. **PF.2** ✅ `FindPath` + preview del percorso a
-> schermo (curva attorno agli ostacoli). PF.3 (cost provider + A\* pesato) / PF.4 (grafo multilivello) ⏳.
+> schermo (curva attorno agli ostacoli). **PF.3** ✅ pathfinding **pesato** (Dijkstra su costo per cella).
+> PF.4 (grafo multilivello) ⏳.
+>
+> **Incremento terreno v1 (post-MVP, 2026-08-02)** — vedi [`spec-terreni.md`](spec-terreni.md).
+> **✅ COMPLETO**: sistema data-driven `URTTerrainData` (5 tipi) — **Fango** (costo), **Cespuglio** (blocca
+> vista), **Altura** (+danno), **Lava** (hazard fine turno), **Erba secca → Fuoco** (dinamico, ignite
+> stesso turno). Rendering celle colorate; bot cost/hazard-aware. Verificato in PIE. **Movimento v2**
+> (path composita a waypoint + cross-damage + resolver path-aware) ⏳.
 
 ---
 
