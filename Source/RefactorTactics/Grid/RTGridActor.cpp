@@ -80,6 +80,19 @@ TArray<FRTGridCoord> ARTGridActor::GetMoveBlockers() const
 	return Out;
 }
 
+void ARTGridActor::BuildBotCostMap(TMap<FRTGridCoord, int32>& OutCost) const
+{
+	BuildCostMap(OutCost);
+	// Il bot evita del tutto gli hazard: li tratta come impassabili in pianificazione.
+	for (const TPair<FRTGridCoord, TObjectPtr<URTTerrainData>>& Pair : TerrainCells)
+	{
+		if (Pair.Value && Pair.Value->GetProps().EndTurnDamage > 0)
+		{
+			OutCost.Add(Pair.Key, RT_BLOCKED_COST);
+		}
+	}
+}
+
 TArray<FRTGridCoord> ARTGridActor::GetVisionBlockers() const
 {
 	TArray<FRTGridCoord> Out = BlockedCells;

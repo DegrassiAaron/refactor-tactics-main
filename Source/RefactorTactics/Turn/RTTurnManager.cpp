@@ -39,7 +39,9 @@ void ARTTurnManager::PlanBots()
 	static const TArray<FRTGridCoord> NoBlockers;
 	const ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
 	const TArray<FRTGridCoord> VisionBlockers = Grid ? Grid->GetVisionBlockers() : NoBlockers;
-	const TArray<FRTGridCoord> MoveBlockers = Grid ? Grid->GetMoveBlockers() : NoBlockers;
+	// Cost map del bot: pathfinding pesato dal terreno, con gli hazard resi impassabili (li evita).
+	TMap<FRTGridCoord, int32> BotCostMap;
+	if (Grid) { Grid->BuildBotCostMap(BotCostMap); }
 
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
@@ -136,7 +138,7 @@ void ARTTurnManager::PlanBots()
 		if (bPanic)
 		{
 			// Fuga che massimizza la distanza (aggira bordi/ostacoli); tiro e bersaglio restano azzerati.
-			Bot->PlannedCell = URTBotLibrary::BestKiteCell(Bot->GridCell, Nearest->GridCell, MoveBudget, MoveBlockers, GridW, GridH);
+			Bot->PlannedCell = URTBotLibrary::BestKiteCell(Bot->GridCell, Nearest->GridCell, MoveBudget, BotCostMap, GridW, GridH);
 		}
 		else if (BestTarget)
 		{
@@ -150,11 +152,11 @@ void ARTTurnManager::PlanBots()
 			// In ogni caso si evitano le celle-copertura (routing a un turno attorno agli ostacoli).
 			if (bKiter && NearestDistance < Bot->KiteStandoff)
 			{
-				Bot->PlannedCell = URTBotLibrary::BestKiteCell(Bot->GridCell, Nearest->GridCell, MoveBudget, MoveBlockers, GridW, GridH);
+				Bot->PlannedCell = URTBotLibrary::BestKiteCell(Bot->GridCell, Nearest->GridCell, MoveBudget, BotCostMap, GridW, GridH);
 			}
 			else
 			{
-				Bot->PlannedCell = URTBotLibrary::BestApproachCell(Bot->GridCell, Nearest->GridCell, MoveBudget, MoveBlockers, GridW, GridH);
+				Bot->PlannedCell = URTBotLibrary::BestApproachCell(Bot->GridCell, Nearest->GridCell, MoveBudget, BotCostMap, GridW, GridH);
 			}
 		}
 	}

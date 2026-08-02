@@ -21,22 +21,20 @@ public:
 	static FRTGridCoord StepToward(const FRTGridCoord& From, const FRTGridCoord& Target, int32 MoveRange);
 
 	/**
-	 * Cella di avvicinamento a Target raggiungibile entro MoveRange passi, dentro la griglia e
-	 * NON su una copertura (Blockers): sceglie quella piu' vicina al bersaglio (a parita', la mossa
-	 * minima). Evita in un solo turno gli ostacoli; non si sovrappone al bersaglio. Deterministica.
+	 * Cella di avvicinamento a Target raggiungibile entro il budget di COSTO (CellCost: pathfinding
+	 * pesato, hazard/impassabili esclusi), dentro la griglia: sceglie quella piu' vicina al bersaglio
+	 * (a parita', la mossa minima). Aggira ostacoli e terreno costoso; non si sovrappone al bersaglio.
 	 */
-	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Bot")
 	static FRTGridCoord BestApproachCell(const FRTGridCoord& From, const FRTGridCoord& Target, int32 MoveRange,
-		const TArray<FRTGridCoord>& Blockers, int32 Width, int32 Height);
+		const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height);
 
 	/**
-	 * Cella di fuga per il kiting: fra quelle raggiungibili entro MoveRange, dentro la griglia e non su
-	 * copertura, sceglie quella che MASSIMIZZA la distanza dalla minaccia (a parita', la mossa minima).
-	 * Aggira bordi e ostacoli (fuga laterale invece di incastrarsi contro il muro). Deterministica.
+	 * Cella di fuga per il kiting: fra quelle raggiungibili entro il budget di costo (CellCost), dentro
+	 * la griglia, sceglie quella che MASSIMIZZA la distanza dalla minaccia (a parita', la mossa minima).
+	 * Aggira bordi, ostacoli e terreno pericoloso. Deterministica.
 	 */
-	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Bot")
 	static FRTGridCoord BestKiteCell(const FRTGridCoord& From, const FRTGridCoord& Threat, int32 MoveRange,
-		const TArray<FRTGridCoord>& Blockers, int32 Width, int32 Height);
+		const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height);
 
 	/**
 	 * Priorità di un attacco per la scelta del bersaglio del bot.

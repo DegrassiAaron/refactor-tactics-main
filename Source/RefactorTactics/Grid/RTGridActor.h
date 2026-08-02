@@ -52,6 +52,9 @@ public:
 	/** Celle non calpestabili: BlockedCells + terreni con bBlocksMovement. */
 	TArray<FRTGridCoord> GetMoveBlockers() const;
 
+	/** Cost map per il bot: come BuildCostMap ma con gli hazard (EndTurnDamage>0) resi impassabili. */
+	void BuildBotCostMap(TMap<FRTGridCoord, int32>& OutCost) const;
+
 	/** Celle che bloccano la linea di tiro: BlockedCells + terreni con bBlocksVision. */
 	TArray<FRTGridCoord> GetVisionBlockers() const;
 
