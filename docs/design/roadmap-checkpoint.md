@@ -21,7 +21,7 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in forma ridotta (vedi nota) · �
 | M2 Turn loop | ✅ | Fasi, resolver movimento (conflitti), pianificazione, timer 30s, range 4 |
 | M3 Combat loop | ✅ | Danno/scudo, attacco, eliminazione, energia+ultimate (AoE), LOS/copertura, **abilità data-driven** ✅ · status Root/Slow/**Reveal** (intento nemico, invariante #6) ✅ · **forme targeting complete** (Single/Area/Line/Cone) ✅ · barra abilità |
 | M4 Vertical slice | ✅ | Bot (focus-fire, **aggiramento ostacoli**, **kiting** del Ranger), HUD (barre HP + combat log + **anteprima piani** ciano/reveal), vittoria + riavvio |
-| M5 Release interna | 🟡 | **39 test** ✅ · **packaging Windows** (Development) ✅ · DoD MVP formale ✅ · Shipping ⏳ |
+| M5 Release interna | ✅ | **39 test** ✅ · **packaging Windows** (Development + **Shipping**) ✅ · DoD MVP formale ✅ |
 
 **Sviluppo in corso sul branch `feature/m1-sandbox`** (M1→M4 in un unico branch, non uno per milestone come da regola: scelta pratica di questa fase iniziale). **27 test automatici verdi.**
 
@@ -105,9 +105,9 @@ Scelte che divergono dai DoD originali (equivalenti o migliori, documentate qui)
 
 | CP | Stato | Obiettivo | Note |
 |---|---|---|---|
-| 5.1 | ✅ | Suite test verde | **33 test** da CLI (`Automation RunTests RefactorTactics`) tutti verdi |
-| 5.2 | ✅ | Packaging Windows | `RunUAT BuildCookRun` (Development) → `Saved/Packaged/Windows/RefactorTactics.exe` **verificato: si avvia e si gioca senza editor**. Shipping ⏳ |
-| 5.3 | ⏳ | Definition of Done MVP | Da rivedere voce per voce col piano canonico §4 |
+| 5.1 | ✅ | Suite test verde | **39 test** da CLI (`Automation RunTests RefactorTactics`) tutti verdi |
+| 5.2 | ✅ | Packaging Windows | `RunUAT BuildCookRun` — **Development** (`Saved/Packaged/Windows/`, verificato: si avvia e si gioca senza editor) **e Shipping** (`Saved/StagedBuilds/Windows/RefactorTactics-Win64-Shipping.exe`, ~166 MB, BUILD SUCCESSFUL) |
+| 5.3 | ✅ | Definition of Done MVP | Rivista voce per voce col piano canonico §4 (vedi riga di sintesi) |
 
 > ⚠️ Nota packaging: il primo tentativo falliva per la cache `ScriptModules` corrotta della toolchain UAT
 > (post-hotfix 5.8.0→5.8.1). Risolto con **Epic Launcher → UE 5.8 → Verifica**. NON eliminare a mano
