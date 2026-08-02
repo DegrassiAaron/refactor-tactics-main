@@ -100,6 +100,10 @@ con la reachability per non pianificare oltre-muro.
 
 ## 9. ⚠️ Contraddizioni tra fonti (da riconciliare prima di PF.3/PF.4)
 
+> **Aggiornamento 2026-08-02:** le contraddizioni 1/2/3 sono state **decise** (R1 schema Atlas del codice ·
+> R2 `FRTGridCoord`+`Layer` · R3 costo additivo intero) — vedi [`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md) §0.
+> Da recepire nel piano canonico. 4/5 restano note informative (nessuna azione).
+
 1. **Tre schemi di fasi:** `Prep→Dash→Blast→Move` [adottato] vs `Preparation→Movement→Actions→…`
    [Piano completo, p.15] vs `…→Mobilità rapida→Movimento→…` [PRD, p.4]. Impatta se il path finding
    serve solo a `Move` o anche a `Dash`.

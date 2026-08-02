@@ -60,6 +60,23 @@ modding). Sono la **direzione futura**, non l'obiettivo dell'MVP. Vedi §8.
 | Networking | core (lez. 9) | roadmap P0 post-tutorial | **Rimandato post-MVP**, ma architettura *server-authority-ready* | Si mantiene la disciplina di `02` come target |
 | Percorso progetto | `C:\Dev\...` | `D:\Dev\...` | **Radice del repo** | Il progetto UE vive nel repo versionato |
 
+### 3.1 Riconciliazione fonti PDF — path finding (2026-08-02)
+
+I 4 PDF (visione north-star) divergono su elementi *load-bearing* del path finding. Decisioni canoniche
+(prevalgono sui PDF); dettaglio e gate di implementazione in
+[`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md).
+
+- **Fasi del turno** — prevale lo schema già canonico (§3, `ERTMatchPhase`):
+  `Planning → Prep → Dash → Blast → Move → Cleanup`. Gli schemi del "piano completo"
+  (`Preparation→Movement→Actions→…`) e del PRD (`…Mobilità rapida→Movimento→…`) sono elaborazioni
+  **mappabili** su questo, non sostituzioni. Il path finding serve a **Move** (movimento normale) e
+  **Dash** (mobilità rapida, `TraversalProfile` distinto).
+- **Coordinata** — `FRTGridCoord{X, Y, Layer}` (§3): il campo verticale si chiama **`Layer`** (default 0),
+  **non `Level`** (divergenza PRD scartata). Il 2D corrisponde a `Layer = 0`; `GetTypeHash` includerà `Layer`.
+- **Costo di traversata** — modello **additivo intero**: `TraversalCost = Σ costi interi dei provider`
+  (piano completo). **Niente float nel resolver/hash** (invariante determinismo #4); i `MovementMultiplier`
+  float dei Data Asset si convertono a intero al caricamento. (Scartato il modello moltiplicativo-float del PRD.)
+
 ---
 
 ## 4. Definizione dell'MVP (vertical slice)
