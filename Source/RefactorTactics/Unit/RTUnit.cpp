@@ -166,6 +166,7 @@ void ARTUnit::ConfigureAsArchetype(ERTArchetype InArchetype)
 	if (InArchetype == ERTArchetype::Ranger)
 	{
 		MaxHealth = 80;  Shield = 0;   MoveRange = 5;  AttackRange = 6;  AttackPower = 25;
+		KiteStandoff = 4; // fragile e a distanza: arretra se un nemico entro 4 celle e nessun tiro pronto
 		BaseMeshScale = FVector(1.0f, 1.0f, 2.0f); // snello e alto
 		Abilities.Add(MakeAbility(TEXT("Tiro"), 6, 25, 0, 0, 0, FGameplayTag(), 0));
 		// Colpo preciso: perfora la traiettoria e "rivela" il bersaglio (intento visibile per 1 turno).
@@ -177,6 +178,7 @@ void ARTUnit::ConfigureAsArchetype(ERTArchetype InArchetype)
 	else // Guardian
 	{
 		MaxHealth = 140; Shield = 20;  MoveRange = 3;  AttackRange = 3;  AttackPower = 30;
+		KiteStandoff = 0; // mischia: non fa kiting, punta a chiudere la distanza
 		BaseMeshScale = FVector(1.5f, 1.5f, 1.6f); // tozzo e largo
 		URTAbilityData* Sweep = MakeAbility(TEXT("Spazzata"), 3, 30, 0, 0, 0, FGameplayTag(), 0);
 		Sweep->Shape = ERTAbilityShape::Cone; // colpisce a ventaglio davanti

@@ -21,6 +21,14 @@ public:
 	static FRTGridCoord StepToward(const FRTGridCoord& From, const FRTGridCoord& Target, int32 MoveRange);
 
 	/**
+	 * Cella verso cui ritirarsi allontanandosi da Threat (kiting), restando entro MoveRange passi
+	 * e dentro la griglia [0,Width) x [0,Height). Ritirata diagonale quando possibile; se From coincide
+	 * con Threat, si ritira in una direzione deterministica (+X).
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Bot")
+	static FRTGridCoord StepAway(const FRTGridCoord& From, const FRTGridCoord& Threat, int32 MoveRange, int32 Width, int32 Height);
+
+	/**
 	 * Priorità di un attacco per la scelta del bersaglio del bot.
 	 * Un colpo che uccide (Damage >= TargetHealth) ha priorità massima, e tra i kill si preferisce
 	 * il bersaglio più debole; tra i non-kill si preferisce il danno maggiore.

@@ -26,6 +26,40 @@ FRTGridCoord URTBotLibrary::StepToward(const FRTGridCoord& From, const FRTGridCo
 	return Result;
 }
 
+FRTGridCoord URTBotLibrary::StepAway(const FRTGridCoord& From, const FRTGridCoord& Threat, int32 MoveRange, int32 Width, int32 Height)
+{
+	int32 Budget = FMath::Max(0, MoveRange);
+	int32 AwayX = FMath::Sign(From.X - Threat.X);
+	int32 AwayY = FMath::Sign(From.Y - Threat.Y);
+	if (AwayX == 0 && AwayY == 0)
+	{
+		AwayX = 1; // stessa cella: ritirata deterministica lungo +X
+	}
+
+	FRTGridCoord Result = From;
+	if (AwayX != 0 && AwayY != 0)
+	{
+		// Ritirata diagonale: divide il budget fra i due assi.
+		const int32 StepX = (Budget + 1) / 2;
+		const int32 StepY = Budget - StepX;
+		Result.X += AwayX * StepX;
+		Result.Y += AwayY * StepY;
+	}
+	else if (AwayX != 0)
+	{
+		Result.X += AwayX * Budget;
+	}
+	else
+	{
+		Result.Y += AwayY * Budget;
+	}
+
+	// Resta dentro la griglia.
+	Result.X = FMath::Clamp(Result.X, 0, FMath::Max(0, Width - 1));
+	Result.Y = FMath::Clamp(Result.Y, 0, FMath::Max(0, Height - 1));
+	return Result;
+}
+
 int32 URTBotLibrary::AttackScore(int32 Damage, int32 TargetHealth)
 {
 	if (Damage >= TargetHealth)

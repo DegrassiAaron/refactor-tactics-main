@@ -131,7 +131,23 @@ void ARTTurnManager::PlanBots()
 		}
 		else if (Nearest)
 		{
-			Bot->PlannedCell = URTBotLibrary::StepToward(Bot->GridCell, Nearest->GridCell, Bot->GetEffectiveMoveRange());
+			// Nessun tiro disponibile: un kiter (Ranger) arretra se la minaccia e' troppo vicina,
+			// altrimenti si avvicina per rientrare a distanza di tiro; la mischia (Guardian) chiude sempre.
+			const int32 MoveBudget = Bot->GetEffectiveMoveRange();
+			if (Bot->KiteStandoff > 0 && NearestDistance < Bot->KiteStandoff)
+			{
+				const int32 GridW = Grid ? Grid->Width : 10;
+				const int32 GridH = Grid ? Grid->Height : 10;
+				const FRTGridCoord Retreat = URTBotLibrary::StepAway(Bot->GridCell, Nearest->GridCell, MoveBudget, GridW, GridH);
+				if (!Blockers.Contains(Retreat)) // non ritirarsi su una copertura
+				{
+					Bot->PlannedCell = Retreat;
+				}
+			}
+			else
+			{
+				Bot->PlannedCell = URTBotLibrary::StepToward(Bot->GridCell, Nearest->GridCell, MoveBudget);
+			}
 		}
 	}
 }

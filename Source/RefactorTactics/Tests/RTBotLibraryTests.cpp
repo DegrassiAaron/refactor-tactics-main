@@ -73,4 +73,36 @@ bool FRTBotAttackScoreTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotStepAwayTest,
+	"RefactorTactics.Bot.StepAwayRetreatsFromThreatWithinGrid",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotStepAwayTest::RunTest(const FString&)
+{
+	// Minaccia sopra (stessa colonna): si ritira lungo -Y aumentando la distanza di MoveRange.
+	{
+		const FRTGridCoord From(5, 5), Threat(5, 9);
+		const FRTGridCoord Dest = URTBotLibrary::StepAway(From, Threat, 3, 10, 10);
+		TestEqual(TEXT("distanza aumentata di 3"),
+			URTGridLibrary::ManhattanDistance(Dest, Threat),
+			URTGridLibrary::ManhattanDistance(From, Threat) + 3);
+		TestTrue(TEXT("dentro la griglia"), URTGridLibrary::IsInsideGrid(Dest, 10, 10));
+	}
+	// Minaccia in diagonale: ritirata diagonale, distanza aumentata di MoveRange.
+	{
+		const FRTGridCoord From(5, 5), Threat(8, 8);
+		const FRTGridCoord Dest = URTBotLibrary::StepAway(From, Threat, 2, 10, 10);
+		TestEqual(TEXT("diagonale: +2 distanza"),
+			URTGridLibrary::ManhattanDistance(Dest, Threat),
+			URTGridLibrary::ManhattanDistance(From, Threat) + 2);
+		TestTrue(TEXT("dentro la griglia"), URTGridLibrary::IsInsideGrid(Dest, 10, 10));
+	}
+	// Contro il bordo: la ritirata viene limitata alla griglia (nessuna cella negativa).
+	{
+		const FRTGridCoord From(1, 5), Threat(9, 5);
+		const FRTGridCoord Dest = URTBotLibrary::StepAway(From, Threat, 3, 10, 10);
+		TestTrue(TEXT("clamp al bordo -> (0,5)"), Dest == FRTGridCoord(0, 5));
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -108,6 +108,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	ERTArchetype Archetype = ERTArchetype::Ranger;
 
+	/**
+	 * Distanza di sicurezza per il kiting del bot: se un nemico si avvicina sotto questa soglia
+	 * e non c'e' un attacco disponibile, il bot arretra. 0 = non fa kiting (mischia).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	int32 KiteStandoff = 0;
+
 	/** Imposta statistiche e abilita' in base all'archetipo (chiamare prima di FinishSpawning). */
 	void ConfigureAsArchetype(ERTArchetype InArchetype);
 
