@@ -19,7 +19,7 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in forma ridotta (vedi nota) · �
 | M0 Fondamenta | ✅ | Progetto UE 5.8.1 compila (Game + Editor), repo + LFS |
 | M1 Sandbox | ✅ | Camera, input (C++), griglia + test, selezione, demo 2v2 |
 | M2 Turn loop | ✅ | Fasi, resolver movimento (conflitti), pianificazione, timer 30s, range 4 |
-| M3 Combat loop | 🟡 | Danno/scudo, attacco, eliminazione, **energia+ultimate**, **LOS/copertura** ✅ · abilità data-driven/status/forme ⏳ |
+| M3 Combat loop | 🟡 | Danno/scudo, attacco, eliminazione, **energia+ultimate (AoE)**, **LOS/copertura** ✅ · status/abilità data-driven ⏳ · forme 🟡 (area sì, line/cone no) |
 | M4 Vertical slice | ✅ | Bot, HUD (barre HP + combat log), vittoria + riavvio |
 | M5 Release interna | 🟡 | 27 test verdi ✅ · packaging ⏳ (bloccato da toolchain UAT engine, non dal codice) |
 
@@ -79,7 +79,7 @@ Scelte che divergono dai DoD originali (equivalenti o migliori, documentate qui)
 | 3.2 | ✅ | Danno/scudo/morte | `URTCombatLibrary::ApplyDamage` + `URTCombatResolver::ResolveAttacks` (raccogli-poi-applica, focus-fire, ordine-indipendente) · eliminazione a HP 0 (test) |
 | 3.3 | ✅ | Energia + ultimate | `GainEnergy`/`IsUltimateReady` (test) · energia per turno + on-hit; attacco a energia piena = ultimate (danno x2); barra energia nell'HUD |
 | 3.4 | ⏳ | Status + Gameplay Tags | — |
-| 3.5 | ⏳ | Targeting a forme | — (attacco a bersaglio singolo) |
+| 3.5 | 🟡 | Targeting a forme | `CellsInRadius` (test) → **area/cerchio** usata dall'ultimate (AoE attorno al bersaglio); attacco base singolo · Line/Cone ⏳ |
 | 3.6 | ✅ | LOS / copertura | `HasLineOfSight` (test) · ostacoli centrali visibili (`ARTGridActor::BlockedCells`); un attacco richiede LOS libera; movimento su copertura rifiutato |
 
 **Uscita M3**: 🟡 combattimento base completo (attacco, danno/scudo, eliminazione). Le feature avanzate
