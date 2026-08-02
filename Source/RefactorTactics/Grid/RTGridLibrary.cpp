@@ -40,8 +40,10 @@ bool URTGridLibrary::HasLineOfSight(const FRTGridCoord& From, const FRTGridCoord
 		return true;
 	}
 
-	// Campiona il segmento tra i centri delle due celle e controlla ogni cella attraversata.
-	// From e To non contano come ostacoli.
+	// Campiona il segmento 2D tra i centri delle due celle. Regola di ELEVAZIONE: un blocker blocca
+	// la LOS solo se sta allo STESSO layer del tiratore (From.Layer). Cosi' da terra si spara "sotto"
+	// il ponte (layer 1 != 0) e dal ponte si spara "oltre" le coperture basse (layer 0 != 1).
+	// From e To non contano come ostacoli (confronto solo su X,Y).
 	const int32 DX = To.X - From.X;
 	const int32 DY = To.Y - From.Y;
 	const int32 Steps = FMath::Max(FMath::Abs(DX), FMath::Abs(DY)) * 4; // risoluzione sufficiente per la griglia
@@ -49,11 +51,11 @@ bool URTGridLibrary::HasLineOfSight(const FRTGridCoord& From, const FRTGridCoord
 	for (int32 i = 1; i < Steps; ++i)
 	{
 		const double T = static_cast<double>(i) / Steps;
-		const FRTGridCoord Cell(
-			FMath::RoundToInt32(From.X + DX * T),
-			FMath::RoundToInt32(From.Y + DY * T));
+		const int32 CX = FMath::RoundToInt32(From.X + DX * T);
+		const int32 CY = FMath::RoundToInt32(From.Y + DY * T);
 
-		if (Cell != From && Cell != To && Blockers.Contains(Cell))
+		const bool bIsEndpoint = (CX == From.X && CY == From.Y) || (CX == To.X && CY == To.Y);
+		if (!bIsEndpoint && Blockers.Contains(FRTGridCoord(CX, CY, From.Layer)))
 		{
 			return false;
 		}

@@ -472,4 +472,32 @@ bool FRTGridGraphPathTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGridElevationLOSTest,
+	"RefactorTactics.Grid.LineOfSightElevationRule",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGridElevationLOSTest::RunTest(const FString&)
+{
+	// (a) 2D (retro-compat): copertura a terra sulla linea -> blocca.
+	{
+		const TArray<FRTGridCoord> B = { FRTGridCoord(2, 0, 0) };
+		TestFalse(TEXT("2D: copertura blocca"), URTGridLibrary::HasLineOfSight(FRTGridCoord(0, 0, 0), FRTGridCoord(4, 0, 0), B));
+	}
+	// (b) Dal PONTE (layer 1) verso terra: la copertura BASSA (layer 0) NON blocca -> si spara sopra.
+	{
+		const TArray<FRTGridCoord> B = { FRTGridCoord(2, 2, 0) };
+		TestTrue(TEXT("ponte spara sopra la copertura bassa"), URTGridLibrary::HasLineOfSight(FRTGridCoord(2, 4, 1), FRTGridCoord(2, 0, 0), B));
+	}
+	// (c) Da TERRA (layer 0) verso il ponte: la copertura a terra sulla linea BLOCCA (stesso layer).
+	{
+		const TArray<FRTGridCoord> B = { FRTGridCoord(2, 2, 0) };
+		TestFalse(TEXT("terra bloccata dalla copertura a terra"), URTGridLibrary::HasLineOfSight(FRTGridCoord(2, 0, 0), FRTGridCoord(2, 4, 1), B));
+	}
+	// (d) Sul ponte: un blocker sul ponte (stesso layer) blocca.
+	{
+		const TArray<FRTGridCoord> B = { FRTGridCoord(5, 4, 1) };
+		TestFalse(TEXT("ponte: blocker sul ponte blocca"), URTGridLibrary::HasLineOfSight(FRTGridCoord(3, 4, 1), FRTGridCoord(7, 4, 1), B));
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
