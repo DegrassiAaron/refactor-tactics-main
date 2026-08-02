@@ -1,6 +1,7 @@
 #include "RTGameMode.h"
 #include "Camera/RTCameraPawn.h"
 #include "Player/RTPlayerController.h"
+#include "UI/RTHUD.h"
 #include "Grid/RTGridActor.h"
 #include "Unit/RTUnit.h"
 #include "Turn/RTTurnManager.h"
@@ -13,6 +14,7 @@ ARTGameMode::ARTGameMode()
 {
 	DefaultPawnClass = ARTCameraPawn::StaticClass();
 	PlayerControllerClass = ARTPlayerController::StaticClass();
+	HUDClass = ARTHUD::StaticClass();
 }
 
 void ARTGameMode::BeginPlay()
