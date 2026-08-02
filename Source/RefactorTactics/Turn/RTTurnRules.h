@@ -17,6 +17,16 @@ enum class ERTMatchPhase : uint8
 	MatchEnded
 };
 
+/** Esito della partita in base alle unita' vive per squadra. */
+UENUM(BlueprintType)
+enum class ERTMatchOutcome : uint8
+{
+	InProgress,
+	Team0Wins,
+	Team1Wins,
+	Draw
+};
+
 UCLASS()
 class REFACTORTACTICS_API URTTurnRules : public UBlueprintFunctionLibrary
 {
@@ -29,4 +39,11 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	static ERTMatchPhase NextPhase(ERTMatchPhase Phase);
+
+	/**
+	 * Esito dato il numero di unita' vive per squadra.
+	 * Una squadra senza unita' vive perde; se entrambe sono a zero e' pareggio.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	static ERTMatchOutcome EvaluateOutcome(int32 Team0Alive, int32 Team1Alive);
 };

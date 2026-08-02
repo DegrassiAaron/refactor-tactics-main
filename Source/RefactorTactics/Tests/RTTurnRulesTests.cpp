@@ -28,4 +28,17 @@ bool FRTPhaseEndedAbsorbingTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOutcomeTest,
+	"RefactorTactics.Turn.EvaluateOutcomeByAliveCounts",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOutcomeTest::RunTest(const FString&)
+{
+	TestTrue(TEXT("2v2 in corso"), URTTurnRules::EvaluateOutcome(2, 2) == ERTMatchOutcome::InProgress);
+	TestTrue(TEXT("1v2 in corso"), URTTurnRules::EvaluateOutcome(1, 2) == ERTMatchOutcome::InProgress);
+	TestTrue(TEXT("team1 azzerato -> vince team0"), URTTurnRules::EvaluateOutcome(1, 0) == ERTMatchOutcome::Team0Wins);
+	TestTrue(TEXT("team0 azzerato -> vince team1"), URTTurnRules::EvaluateOutcome(0, 2) == ERTMatchOutcome::Team1Wins);
+	TestTrue(TEXT("entrambi azzerati -> pareggio"), URTTurnRules::EvaluateOutcome(0, 0) == ERTMatchOutcome::Draw);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

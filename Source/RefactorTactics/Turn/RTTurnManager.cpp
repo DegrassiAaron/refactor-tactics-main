@@ -138,6 +138,35 @@ void ARTTurnManager::LockInAndResolve()
 		}
 	} while (Phase != ERTMatchPhase::Planning);
 
+	// Fine partita? Conta le unita' vive per squadra e valuta l'esito.
+	int32 Team0Alive = 0, Team1Alive = 0;
+	{
+		TArray<AActor*> Actors;
+		UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+		for (AActor* Actor : Actors)
+		{
+			if (const ARTUnit* Unit = Cast<ARTUnit>(Actor))
+			{
+				if (Unit->IsAlive())
+				{
+					(Unit->TeamId == 0 ? Team0Alive : Team1Alive)++;
+				}
+			}
+		}
+	}
+
+	const ERTMatchOutcome Outcome = URTTurnRules::EvaluateOutcome(Team0Alive, Team1Alive);
+	if (Outcome != ERTMatchOutcome::InProgress)
+	{
+		Phase = ERTMatchPhase::MatchEnded;
+		const TCHAR* Msg =
+			Outcome == ERTMatchOutcome::Team0Wins ? TEXT("Vince il team 0 (blu)") :
+			Outcome == ERTMatchOutcome::Team1Wins ? TEXT("Vince il team 1 (rosso)") :
+			TEXT("Pareggio");
+		UE_LOG(LogRT, Log, TEXT("[RT] Partita finita: %s"), Msg);
+		return; // niente nuovo turno
+	}
+
 	++TurnNumber;
 	UE_LOG(LogRT, Log, TEXT("[RT] Turno risolto, ora turno %d"), TurnNumber);
 
