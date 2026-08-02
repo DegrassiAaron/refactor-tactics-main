@@ -39,6 +39,9 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> LockInAction;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> RestartAction;
+
 	/** Attore attualmente selezionato (se implementa IRTSelectable). */
 	UPROPERTY()
 	TObjectPtr<AActor> SelectedActor;
@@ -47,4 +50,5 @@ protected:
 	void OnZoom(const FInputActionValue& Value);
 	void OnSelect(const FInputActionValue& Value);
 	void OnLockIn(const FInputActionValue& Value);
+	void OnRestart(const FInputActionValue& Value);
 };

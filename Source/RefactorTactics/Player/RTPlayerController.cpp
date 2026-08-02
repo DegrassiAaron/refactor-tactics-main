@@ -34,6 +34,9 @@ void ARTPlayerController::BuildInputMappings()
 	LockInAction = NewObject<UInputAction>(this, TEXT("IA_LockIn"));
 	LockInAction->ValueType = EInputActionValueType::Boolean;
 
+	RestartAction = NewObject<UInputAction>(this, TEXT("IA_Restart"));
+	RestartAction->ValueType = EInputActionValueType::Boolean;
+
 	MappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_Tactical"));
 
 	// Pan (Axis2D): D=+X, A=-X, W=+Y (Swizzle YXZ), S=-Y (Swizzle YXZ + Negate).
@@ -64,6 +67,9 @@ void ARTPlayerController::BuildInputMappings()
 
 	// Lock-in (Boolean): barra spaziatrice.
 	MappingContext->MapKey(LockInAction, EKeys::SpaceBar);
+
+	// Riavvio partita (Boolean): tasto R (attivo solo a match concluso).
+	MappingContext->MapKey(RestartAction, EKeys::R);
 }
 
 void ARTPlayerController::BeginPlay()
@@ -92,6 +98,7 @@ void ARTPlayerController::SetupInputComponent()
 		EIC->BindAction(ZoomAction, ETriggerEvent::Triggered, this, &ARTPlayerController::OnZoom);
 		EIC->BindAction(SelectAction, ETriggerEvent::Started, this, &ARTPlayerController::OnSelect);
 		EIC->BindAction(LockInAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLockIn);
+		EIC->BindAction(RestartAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRestart);
 	}
 	else
 	{
@@ -185,5 +192,16 @@ void ARTPlayerController::OnLockIn(const FInputActionValue& Value)
 	if (ARTTurnManager* TurnManager = Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass())))
 	{
 		TurnManager->LockInAndResolve();
+	}
+}
+
+void ARTPlayerController::OnRestart(const FInputActionValue& Value)
+{
+	// Riavvia la partita solo quando è conclusa: ricarica il livello corrente.
+	const ARTTurnManager* TurnManager =
+		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
+	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::MatchEnded)
+	{
+		UGameplayStatics::OpenLevel(this, FName(*UGameplayStatics::GetCurrentLevelName(this, true)));
 	}
 }

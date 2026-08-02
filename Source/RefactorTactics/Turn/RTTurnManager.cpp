@@ -21,6 +21,16 @@ void ARTTurnManager::BeginPlay()
 	StartPlanningTimer();
 }
 
+void ARTTurnManager::AddLogEvent(const FString& Message)
+{
+	UE_LOG(LogRT, Log, TEXT("[RT] %s"), *Message);
+	RecentEvents.Add(Message);
+	while (RecentEvents.Num() > MaxLogLines)
+	{
+		RecentEvents.RemoveAt(0);
+	}
+}
+
 void ARTTurnManager::PlanBots()
 {
 	TArray<AActor*> Actors;
@@ -92,7 +102,7 @@ void ARTTurnManager::StartPlanningTimer()
 	{
 		World->GetTimerManager().SetTimer(PlanningTimerHandle, this, &ARTTurnManager::OnPlanningTimeout, PlanningSeconds, false);
 	}
-	UE_LOG(LogRT, Log, TEXT("[RT] Pianificazione turno %d (%.0fs)"), TurnNumber, PlanningSeconds);
+	AddLogEvent(FString::Printf(TEXT("Turno %d - pianificazione"), TurnNumber));
 }
 
 void ARTTurnManager::OnPlanningTimeout()
@@ -163,12 +173,11 @@ void ARTTurnManager::LockInAndResolve()
 			Outcome == ERTMatchOutcome::Team0Wins ? TEXT("Vince il team 0 (blu)") :
 			Outcome == ERTMatchOutcome::Team1Wins ? TEXT("Vince il team 1 (rosso)") :
 			TEXT("Pareggio");
-		UE_LOG(LogRT, Log, TEXT("[RT] Partita finita: %s"), Msg);
+		AddLogEvent(FString::Printf(TEXT("Partita finita: %s"), Msg));
 		return; // niente nuovo turno
 	}
 
 	++TurnNumber;
-	UE_LOG(LogRT, Log, TEXT("[RT] Turno risolto, ora turno %d"), TurnNumber);
 
 	// Riavvia la pianificazione del nuovo turno.
 	StartPlanningTimer();
@@ -213,11 +222,15 @@ void ARTTurnManager::ResolveCombat()
 	}
 
 	const TArray<FRTUnitCombatState> Resolved = URTCombatResolver::ResolveAttacks(States, Attacks);
+	AddLogEvent(FString::Printf(TEXT("Blast: %d attacchi"), Attacks.Num()));
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
+		if (Resolved[i].Health <= 0 && Units[i]->IsAlive())
+		{
+			AddLogEvent(FString::Printf(TEXT("Eliminata: %s (team %d)"), *Units[i]->GetName(), Units[i]->TeamId));
+		}
 		Units[i]->ApplyCombatState(Resolved[i].Health, Resolved[i].Shield); // puo' distruggere l'unita'
 	}
-	UE_LOG(LogRT, Log, TEXT("[RT] Fase Blast: %d attacchi risolti"), Attacks.Num());
 }
 
 void ARTTurnManager::ResolveMovement()

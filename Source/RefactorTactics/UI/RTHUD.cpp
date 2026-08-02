@@ -50,16 +50,28 @@ void ARTHUD::DrawHUD()
 		}
 	}
 
-	// Messaggio di esito a partita conclusa.
-	if (const ARTTurnManager* TurnManager =
-			Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass())))
+	const ARTTurnManager* TurnManager =
+		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
+
+	// Combat log in basso a sinistra (dal piu' vecchio in alto al piu' recente in basso).
+	if (TurnManager)
 	{
-		if (TurnManager->GetPhase() == ERTMatchPhase::MatchEnded && Canvas)
+		const TArray<FString>& Events = TurnManager->GetRecentEvents();
+		const float LineH = 16.f;
+		float Y = Canvas->SizeY - 24.f - LineH * (Events.Num() - 1);
+		for (const FString& Line : Events)
 		{
-			const FString Text = TEXT("PARTITA FINITA");
-			float TW = 0.f, TH = 0.f;
-			GetTextSize(Text, TW, TH, nullptr, 2.f);
-			DrawText(Text, FLinearColor::White, (Canvas->SizeX - TW) * 0.5f, Canvas->SizeY * 0.4f, nullptr, 2.f);
+			DrawText(Line, FLinearColor(0.85f, 0.85f, 0.85f, 1.f), 16.f, Y, nullptr, 1.f);
+			Y += LineH;
 		}
+	}
+
+	// Esito + istruzione di riavvio a partita conclusa.
+	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::MatchEnded)
+	{
+		const FString Text = TEXT("PARTITA FINITA - premi R per rigiocare");
+		float TW = 0.f, TH = 0.f;
+		GetTextSize(Text, TW, TH, nullptr, 2.f);
+		DrawText(Text, FLinearColor::White, (Canvas->SizeX - TW) * 0.5f, Canvas->SizeY * 0.4f, nullptr, 2.f);
 	}
 }
