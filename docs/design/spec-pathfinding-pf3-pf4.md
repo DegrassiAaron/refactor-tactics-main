@@ -60,7 +60,15 @@ mid-turno nell'MVP; `CostRevision` è north-star [Piano completo, p.14]); path a
 euristica (A\* trova l'ottimo su griglia nota); (3) determinismo con costi pari; (4) reachability-per-costo;
 (5) provider aggiuntivo non cambia i risultati dell'algoritmo (FR-PATH-02).
 
-## 3. PF.4 — Grafo multilivello (north-star, gated da design mappa)
+## 3. PF.4 — Grafo multilivello (motore ✅ 2026-08-02 · mappa gated da design)
+
+> **Motore consegnato (TDD, 52 test):** `FRTGridCoord{X,Y,Layer}` (retro-compatibile, Layer 0 = 2D);
+> `FRTTraversalEdge{From,To,Cost}`; `URTGridLibrary::ReachableCellsByGraph`/`FindPathByGraph` (Dijkstra
+> che espande i 4 vicini ortogonali same-layer **+** gli archi uscenti, tie-break `(X,Y,Layer)`).
+> Verificato: portale che accorcia, scala tra layer, reachability cross-layer per costo.
+> **Ancora ⏳** (gated da un design di mappa multilivello): rendering del 2° layer, scale/portali come
+> oggetti di gioco, wiring del graph-pathfinding nel controller/resolver, camera e bot multilivello,
+> `GraphRevision`/`SchemaVersion`. Sotto il design originario.
 
 **Cambio di paradigma:** da griglia implicita (4 vicini) a **grafo esplicito** con archi. Il pathfinder itera
 sugli **archi uscenti** invece che sui vicini ortogonali.
