@@ -50,6 +50,9 @@ public:
 	/** Archi di traversata per il pathfinding a grafo. */
 	const TArray<FRTTraversalEdge>& GetEdges() const { return Edges; }
 
+	/** Layer del click in base al componente ISM colpito (BridgeCells -> 1, altrimenti 0). */
+	int32 LayerFromHitComponent(const class UPrimitiveComponent* Comp) const;
+
 	/** Terreno per cella (assente = normale, costo 1). Istanze create a runtime (nessun .uasset). */
 	UPROPERTY()
 	TMap<FRTGridCoord, TObjectPtr<URTTerrainData>> TerrainCells;

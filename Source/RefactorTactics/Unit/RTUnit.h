@@ -186,7 +186,7 @@ private:
 public:
 
 	/** Posiziona l'unita' al centro-mondo della cella, con la base appoggiata al piano. */
-	void PlaceOnCell(const FRTGridCoord& Cell, const FVector& GridOrigin, float CellSize);
+	void PlaceOnCell(const FRTGridCoord& Cell, const FVector& GridOrigin, float CellSize, float LayerHeight = 0.f);
 
 	// IRTSelectable
 	virtual void OnSelected() override;

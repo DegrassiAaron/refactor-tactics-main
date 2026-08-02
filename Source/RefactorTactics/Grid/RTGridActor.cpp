@@ -85,6 +85,11 @@ const URTTerrainData* ARTGridActor::GetTerrainAt(const FRTGridCoord& Cell) const
 	return Found ? Found->Get() : nullptr;
 }
 
+int32 ARTGridActor::LayerFromHitComponent(const UPrimitiveComponent* Comp) const
+{
+	return (Comp && Comp == BridgeCells) ? 1 : 0;
+}
+
 void ARTGridActor::BuildCostMap(TMap<FRTGridCoord, int32>& OutCost) const
 {
 	OutCost.Reset();

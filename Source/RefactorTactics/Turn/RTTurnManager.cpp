@@ -488,6 +488,10 @@ void ARTTurnManager::ResolveMovement()
 	// Costo per cella dal terreno (pesato): il budget di movimento e' un budget di COSTO.
 	TMap<FRTGridCoord, int32> CostMap;
 	if (Grid) { Grid->BuildCostMap(CostMap); }
+	// Archi di traversata (rampe/scale) per il pathfinding a grafo multilivello.
+	static const TArray<FRTTraversalEdge> NoEdges;
+	const TArray<FRTTraversalEdge>& Edges = Grid ? Grid->GetEdges() : NoEdges;
+	const float LayerH = Grid ? Grid->LayerHeight : 0.f;
 
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
@@ -512,10 +516,10 @@ void ARTTurnManager::ResolveMovement()
 			}
 			else if (Unit->PlannedCell != Unit->GridCell)
 			{
-				Path = URTGridLibrary::FindPathByCost(Unit->GridCell, Unit->PlannedCell, CostMap, GridW, GridH);
+				Path = URTGridLibrary::FindPathByGraph(Unit->GridCell, Unit->PlannedCell, CostMap, Edges, GridW, GridH);
 			}
 
-			const int32 Cost = URTGridLibrary::PathCost(Path, CostMap);
+			const int32 Cost = URTGridLibrary::PathCost(Path, CostMap, Edges);
 			if (Path.Num() < 2 || Cost < 0 || Cost > Unit->GetEffectiveMoveRange())
 			{
 				Path = { Unit->GridCell }; // fermo
@@ -543,7 +547,7 @@ void ARTTurnManager::ResolveMovement()
 	// Applica le posizioni finali.
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
-		Units[i]->PlaceOnCell(Resolved[i].Final, Origin, CellSize);
+		Units[i]->PlaceOnCell(Resolved[i].Final, Origin, CellSize, LayerH);
 	}
 
 	// Cross-damage: danno per ogni cella pericolosa ATTRAVERSATA (dipende solo dalle celle della

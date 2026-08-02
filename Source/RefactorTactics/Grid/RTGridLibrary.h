@@ -96,11 +96,13 @@ public:
 		const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height);
 
 	/**
-	 * Costo totale di un percorso (somma dei costi di ENTRATA, From escluso), o -1 se NON valido:
-	 * celle non adiacenti (Manhattan != 1) o una cella impassabile. Validazione autorevole del path
-	 * composito lato server (FR-PATH-09/10). Path vuoto o di 1 cella = costo 0 (fermo).
+	 * Costo totale di un percorso (somma dei costi di ENTRATA, From escluso), o -1 se NON valido.
+	 * Uno step e' valido se: celle ortogonalmente adiacenti (costo = costo della cella), OPPURE esiste
+	 * un arco From->To in Edges (costo = costo dell'arco). Nessuna delle due -> invalido. Cella
+	 * impassabile -> invalido. Path vuoto o di 1 cella = costo 0 (fermo). Edges vuoti = validazione 2D.
 	 */
-	static int32 PathCost(const TArray<FRTGridCoord>& Path, const TMap<FRTGridCoord, int32>& CellCost);
+	static int32 PathCost(const TArray<FRTGridCoord>& Path, const TMap<FRTGridCoord, int32>& CellCost,
+		const TArray<FRTTraversalEdge>& Edges = TArray<FRTTraversalEdge>());
 
 	/**
 	 * Percorso composito: concatena gli auto-route (FindPathByCost) da Start attraverso i Waypoints in
@@ -108,7 +110,8 @@ public:
 	 * composita a waypoint (FR-PATH-09). Nessun waypoint = solo [Start].
 	 */
 	static TArray<FRTGridCoord> BuildCompositePath(const FRTGridCoord& Start,
-		const TArray<FRTGridCoord>& Waypoints, const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height);
+		const TArray<FRTGridCoord>& Waypoints, const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height,
+		const TArray<FRTTraversalEdge>& Edges = TArray<FRTTraversalEdge>());
 
 	// --- Pathfinding a GRAFO (PF.4): oltre ai 4 vicini ortogonali (stesso layer), attraversa gli archi
 	//     espliciti (Edges: scale/portali/cross-layer). Generalizza le versioni ByCost al multilivello.

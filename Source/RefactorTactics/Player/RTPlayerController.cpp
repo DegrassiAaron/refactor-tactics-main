@@ -213,8 +213,9 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	{
 		if (ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass())))
 		{
-			const FRTGridCoord Cell = URTGridLibrary::WorldToCell(Hit.Location, Grid->GetActorLocation(), Grid->CellSize);
-			if (!URTGridLibrary::IsInsideGrid(Cell, Grid->Width, Grid->Height))
+			FRTGridCoord Cell = URTGridLibrary::WorldToCell(Hit.Location, Grid->GetActorLocation(), Grid->CellSize);
+				Cell.Layer = Grid->LayerFromHitComponent(Hit.GetComponent()); // click->layer (ponte = 1)
+				if (!URTGridLibrary::IsInsideGrid(Cell, Grid->Width, Grid->Height))
 			{
 				return;
 			}
@@ -226,15 +227,15 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 			const int32 MoveRange = SelectedUnit->GetEffectiveMoveRange();
 				TMap<FRTGridCoord, int32> CostMap;
 				Grid->BuildCostMap(CostMap);
-			if (!URTGridLibrary::ReachableCellsByCost(SelectedUnit->GridCell, MoveRange, CostMap, Grid->Width, Grid->Height).Contains(Cell))
+			if (!URTGridLibrary::ReachableCellsByGraph(SelectedUnit->GridCell, MoveRange, CostMap, Grid->GetEdges(), Grid->Width, Grid->Height).Contains(Cell))
 			{
 				UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d) non raggiungibile (percorso bloccato o fuori portata) per %s"),
 					Cell.X, Cell.Y, *SelectedUnit->GetName());
 				return;
 			}
 			SelectedUnit->PlannedWaypoints.Add(Cell);
-				const TArray<FRTGridCoord> WPath = URTGridLibrary::BuildCompositePath(SelectedUnit->GridCell, SelectedUnit->PlannedWaypoints, CostMap, Grid->Width, Grid->Height);
-				const int32 WCost = URTGridLibrary::PathCost(WPath, CostMap);
+				const TArray<FRTGridCoord> WPath = URTGridLibrary::BuildCompositePath(SelectedUnit->GridCell, SelectedUnit->PlannedWaypoints, CostMap, Grid->Width, Grid->Height, Grid->GetEdges());
+				const int32 WCost = URTGridLibrary::PathCost(WPath, CostMap, Grid->GetEdges());
 				if (WPath.Num() < 2 || WCost < 0 || WCost > MoveRange)
 				{
 					SelectedUnit->PlannedWaypoints.Pop(); // waypoint oltre budget o irraggiungibile: rifiutato
@@ -337,8 +338,8 @@ void ARTPlayerController::RebuildPlannedPath()
 	}
 	TMap<FRTGridCoord, int32> CostMap;
 	Grid->BuildCostMap(CostMap);
-	const TArray<FRTGridCoord> Path = URTGridLibrary::BuildCompositePath(Unit->GridCell, Unit->PlannedWaypoints, CostMap, Grid->Width, Grid->Height);
-	const int32 Cost = URTGridLibrary::PathCost(Path, CostMap);
+	const TArray<FRTGridCoord> Path = URTGridLibrary::BuildCompositePath(Unit->GridCell, Unit->PlannedWaypoints, CostMap, Grid->Width, Grid->Height, Grid->GetEdges());
+	const int32 Cost = URTGridLibrary::PathCost(Path, CostMap, Grid->GetEdges());
 	if (Unit->PlannedWaypoints.Num() > 0 && Path.Num() >= 2 && Cost >= 0 && Cost <= Unit->GetEffectiveMoveRange())
 	{
 		Unit->PlannedPath = Path;

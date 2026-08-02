@@ -75,14 +75,14 @@ void ARTUnit::ApplyTeamColor()
 	}
 }
 
-void ARTUnit::PlaceOnCell(const FRTGridCoord& Cell, const FVector& GridOrigin, float CellSize)
+void ARTUnit::PlaceOnCell(const FRTGridCoord& Cell, const FVector& GridOrigin, float CellSize, float LayerHeight)
 {
 	GridCell = Cell;
 	PlannedCell = Cell; // dopo un movimento, il piano riparte dalla cella attuale
 	PlannedPath.Reset();      // il percorso composito e' consumato
 	PlannedWaypoints.Reset(); // e i suoi waypoint
 	const FVector Center = URTGridLibrary::CellToWorld(Cell, GridOrigin, CellSize);
-	SetActorLocation(Center + FVector(0.f, 0.f, UnitHalfHeight));
+	SetActorLocation(Center + FVector(0.f, 0.f, UnitHalfHeight + Cell.Layer * LayerHeight));
 }
 
 void ARTUnit::OnSelected()

@@ -423,7 +423,8 @@ TArray<FRTGridCoord> URTGridLibrary::FindPathByGraph(const FRTGridCoord& From, c
 }
 
 TArray<FRTGridCoord> URTGridLibrary::BuildCompositePath(const FRTGridCoord& Start,
-	const TArray<FRTGridCoord>& Waypoints, const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height)
+	const TArray<FRTGridCoord>& Waypoints, const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height,
+	const TArray<FRTTraversalEdge>& Edges)
 {
 	TArray<FRTGridCoord> Path;
 	Path.Add(Start);
@@ -434,7 +435,7 @@ TArray<FRTGridCoord> URTGridLibrary::BuildCompositePath(const FRTGridCoord& Star
 		{
 			continue; // waypoint sulla cella corrente: nessun tratto
 		}
-		const TArray<FRTGridCoord> Seg = FindPathByCost(Cur, WP, CellCost, Width, Height);
+		const TArray<FRTGridCoord> Seg = FindPathByGraph(Cur, WP, CellCost, Edges, Width, Height);
 		if (Seg.Num() < 2 || Seg[0] != Cur)
 		{
 			return TArray<FRTGridCoord>(); // tratto irraggiungibile -> percorso invalido
@@ -448,7 +449,8 @@ TArray<FRTGridCoord> URTGridLibrary::BuildCompositePath(const FRTGridCoord& Star
 	return Path;
 }
 
-int32 URTGridLibrary::PathCost(const TArray<FRTGridCoord>& Path, const TMap<FRTGridCoord, int32>& CellCost)
+int32 URTGridLibrary::PathCost(const TArray<FRTGridCoord>& Path, const TMap<FRTGridCoord, int32>& CellCost,
+	const TArray<FRTTraversalEdge>& Edges)
 {
 	if (Path.Num() <= 1)
 	{
@@ -457,17 +459,31 @@ int32 URTGridLibrary::PathCost(const TArray<FRTGridCoord>& Path, const TMap<FRTG
 	int32 Total = 0;
 	for (int32 i = 1; i < Path.Num(); ++i)
 	{
-		if (ManhattanDistance(Path[i - 1], Path[i]) != 1)
+		const FRTGridCoord& Prev = Path[i - 1];
+		const FRTGridCoord& Cur = Path[i];
+
+		// Passo ortogonale (stesso layer): costo = costo della cella.
+		if (Prev.Layer == Cur.Layer && ManhattanDistance(Prev, Cur) == 1)
 		{
-			return -1; // celle non adiacenti
+			const int32* Found = CellCost.Find(Cur);
+			const int32 Enter = Found ? *Found : 1;
+			if (Enter < 0) { return -1; } // cella impassabile
+			Total += Enter;
+			continue;
 		}
-		const int32* Found = CellCost.Find(Path[i]);
-		const int32 Enter = Found ? *Found : 1;
-		if (Enter < 0)
+
+		// Altrimenti dev'essere un arco Prev->Cur.
+		bool bEdge = false;
+		for (const FRTTraversalEdge& E : Edges)
 		{
-			return -1; // cella impassabile
+			if (E.From == Prev && E.To == Cur)
+			{
+				Total += FMath::Max(0, E.Cost);
+				bEdge = true;
+				break;
+			}
 		}
-		Total += Enter;
+		if (!bEdge) { return -1; } // ne' adiacente ne' collegato da un arco
 	}
 	return Total;
 }
