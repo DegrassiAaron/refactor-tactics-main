@@ -338,4 +338,41 @@ bool FRTGridWeightedPathTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGridPathCostTest,
+	"RefactorTactics.Grid.PathCostValidatesAndSums",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGridPathCostTest::RunTest(const FString&)
+{
+	TMap<FRTGridCoord, int32> Cost;
+	Cost.Add(FRTGridCoord(1, 0), 3); // fango
+	Cost.Add(FRTGridCoord(2, 0), RT_BLOCKED_COST); // muro
+
+	// Fermo (0/1 cella) -> costo 0.
+	{
+		TestEqual(TEXT("vuoto -> 0"), URTGridLibrary::PathCost({}, Cost), 0);
+		TestEqual(TEXT("una cella -> 0"), URTGridLibrary::PathCost({ FRTGridCoord(0,0) }, Cost), 0);
+	}
+	// Percorso libero: 3 celle da 1 -> costo 3 (From escluso: 3 entrate).
+	{
+		const TArray<FRTGridCoord> P = { FRTGridCoord(0,1), FRTGridCoord(0,2), FRTGridCoord(0,3), FRTGridCoord(0,4) };
+		TestEqual(TEXT("libero: costo 3"), URTGridLibrary::PathCost(P, Cost), 3);
+	}
+	// Attraverso il fango: (0,0)->(1,0) entra nel fango (costo 3).
+	{
+		const TArray<FRTGridCoord> P = { FRTGridCoord(0,0), FRTGridCoord(1,0) };
+		TestEqual(TEXT("fango: costo 3"), URTGridLibrary::PathCost(P, Cost), 3);
+	}
+	// Non contiguo (salto) -> -1.
+	{
+		const TArray<FRTGridCoord> P = { FRTGridCoord(0,0), FRTGridCoord(0,2) };
+		TestEqual(TEXT("salto -> invalido"), URTGridLibrary::PathCost(P, Cost), -1);
+	}
+	// Attraversa un muro -> -1.
+	{
+		const TArray<FRTGridCoord> P = { FRTGridCoord(1,0), FRTGridCoord(2,0) };
+		TestEqual(TEXT("muro -> invalido"), URTGridLibrary::PathCost(P, Cost), -1);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

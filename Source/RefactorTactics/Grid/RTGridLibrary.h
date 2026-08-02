@@ -94,4 +94,11 @@ public:
 	 */
 	static TArray<FRTGridCoord> FindPathByCost(const FRTGridCoord& From, const FRTGridCoord& To,
 		const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height);
+
+	/**
+	 * Costo totale di un percorso (somma dei costi di ENTRATA, From escluso), o -1 se NON valido:
+	 * celle non adiacenti (Manhattan != 1) o una cella impassabile. Validazione autorevole del path
+	 * composito lato server (FR-PATH-09/10). Path vuoto o di 1 cella = costo 0 (fermo).
+	 */
+	static int32 PathCost(const TArray<FRTGridCoord>& Path, const TMap<FRTGridCoord, int32>& CellCost);
 };

@@ -168,7 +168,8 @@ void ARTGridActor::SpawnDemoTerrain()
 	URTTerrainData* Lava = NewObject<URTTerrainData>(this);
 	Lava->DisplayName = FText::FromString(TEXT("Lava"));
 	Lava->DisplayColor = FLinearColor(0.85f, 0.20f, 0.05f, 1.f);
-	Lava->Props.EndTurnDamage = 20;
+	Lava->Props.CrossDamage = 10;   // danno ad attraversarla
+	Lava->Props.EndTurnDamage = 20; // + danno a terminarci sopra (double-dip)
 	for (const FRTGridCoord& C : { FRTGridCoord(1, 4), FRTGridCoord(1, 5) })
 	{
 		TerrainCells.Add(C, Lava);
@@ -178,6 +179,7 @@ void ARTGridActor::SpawnDemoTerrain()
 	URTTerrainData* Fuoco = NewObject<URTTerrainData>(this);
 	Fuoco->DisplayName = FText::FromString(TEXT("Fuoco"));
 	Fuoco->DisplayColor = FLinearColor(1.0f, 0.45f, 0.05f, 1.f);
+	Fuoco->Props.CrossDamage = 8;
 	Fuoco->Props.EndTurnDamage = 15;
 	Fuoco->Props.TransientDuration = 2;
 	Fuoco->RevertsTo = nullptr; // brucia -> terreno normale

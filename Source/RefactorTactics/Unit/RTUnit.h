@@ -105,6 +105,13 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Combat")
 	TObjectPtr<ARTUnit> PlannedAttackTarget = nullptr;
 
+	/**
+	 * Percorso composito pianificato (waypoint risolti in celle, From = GridCell incluso).
+	 * Vuoto o < 2 celle = nessun movimento composito (si usa PlannedCell come destinazione singola).
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
+	TArray<FRTGridCoord> PlannedPath;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	ERTArchetype Archetype = ERTArchetype::Ranger;
 

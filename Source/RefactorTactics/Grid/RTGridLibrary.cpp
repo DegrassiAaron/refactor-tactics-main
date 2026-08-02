@@ -328,6 +328,30 @@ TArray<FRTGridCoord> URTGridLibrary::FindPathByCost(const FRTGridCoord& From, co
 	return Path;
 }
 
+int32 URTGridLibrary::PathCost(const TArray<FRTGridCoord>& Path, const TMap<FRTGridCoord, int32>& CellCost)
+{
+	if (Path.Num() <= 1)
+	{
+		return 0; // fermo
+	}
+	int32 Total = 0;
+	for (int32 i = 1; i < Path.Num(); ++i)
+	{
+		if (ManhattanDistance(Path[i - 1], Path[i]) != 1)
+		{
+			return -1; // celle non adiacenti
+		}
+		const int32* Found = CellCost.Find(Path[i]);
+		const int32 Enter = Found ? *Found : 1;
+		if (Enter < 0)
+		{
+			return -1; // cella impassabile
+		}
+		Total += Enter;
+	}
+	return Total;
+}
+
 TArray<FRTGridCoord> URTGridLibrary::CellsInCone(const FRTGridCoord& From, const FRTGridCoord& Target, int32 Range)
 {
 	TArray<FRTGridCoord> Result;

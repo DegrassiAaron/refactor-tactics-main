@@ -493,29 +493,63 @@ void ARTTurnManager::ResolveMovement()
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
 
 	TArray<ARTUnit*> Units;
-	TArray<FRTMoveRequest> Requests;
+	TArray<TArray<FRTGridCoord>> Paths;
 	Units.Reserve(Actors.Num());
-	Requests.Reserve(Actors.Num());
+	Paths.Reserve(Actors.Num());
 	for (AActor* Actor : Actors)
 	{
 		if (ARTUnit* Unit = Cast<ARTUnit>(Actor))
 		{
 			Units.Add(Unit);
 
-			// Difesa autorevole: la destinazione e' accettata solo se REALMENTE raggiungibile col
-			// budget di costo (percorso pesato dal terreno, ostacoli aggirati), a prescindere da cosa
-			// ha inviato il client. Subsume range/blocco/costo. Se non raggiungibile, l'unita' resta ferma.
-			const TArray<FRTGridCoord> Reachable =
-				URTGridLibrary::ReachableCellsByCost(Unit->GridCell, Unit->GetEffectiveMoveRange(), CostMap, GridW, GridH);
-			const FRTGridCoord Target = Reachable.Contains(Unit->PlannedCell) ? Unit->PlannedCell : Unit->GridCell;
-			Requests.Add(FRTMoveRequest(Unit->GridCell, Target));
+			// Path del turno: percorso composito (waypoint) se presente e coerente, altrimenti auto-route
+			// dalla destinazione singola (PlannedCell). Validazione autorevole: contiguo, entro il budget
+			// di COSTO; altrimenti l'unita' resta ferma (a prescindere da cosa ha inviato il client).
+			TArray<FRTGridCoord> Path;
+			if (Unit->PlannedPath.Num() >= 2 && Unit->PlannedPath[0] == Unit->GridCell)
+			{
+				Path = Unit->PlannedPath;
+			}
+			else if (Unit->PlannedCell != Unit->GridCell)
+			{
+				Path = URTGridLibrary::FindPathByCost(Unit->GridCell, Unit->PlannedCell, CostMap, GridW, GridH);
+			}
+
+			const int32 Cost = URTGridLibrary::PathCost(Path, CostMap);
+			if (Path.Num() < 2 || Cost < 0 || Cost > Unit->GetEffectiveMoveRange())
+			{
+				Path = { Unit->GridCell }; // fermo
+			}
+			Paths.Add(Path);
 		}
 	}
 
-	const TArray<FRTGridCoord> Resolved = URTMovementResolver::ResolveMoves(Requests);
+	const TArray<FRTPathResult> Resolved = URTMovementResolver::ResolvePaths(Paths);
+
+	// Applica le posizioni finali.
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
-		Units[i]->PlaceOnCell(Resolved[i], Origin, CellSize);
+		Units[i]->PlaceOnCell(Resolved[i].Final, Origin, CellSize);
+	}
+
+	// Cross-damage: danno per ogni cella pericolosa ATTRAVERSATA (dipende solo dalle celle della
+	// singola unita' -> ordine-indipendente). Il danno di FINE turno resta a carico della fase Cleanup.
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		ARTUnit* Unit = Units[i];
+		if (!IsValid(Unit) || !Unit->IsAlive()) { continue; }
+		int32 CrossDmg = 0;
+		for (const FRTGridCoord& Cell : Resolved[i].Entered)
+		{
+			const URTTerrainData* Terrain = Grid ? Grid->GetTerrainAt(Cell) : nullptr;
+			if (Terrain) { CrossDmg += Terrain->GetProps().CrossDamage; }
+		}
+		if (CrossDmg > 0)
+		{
+			const FRTDamageResult R = URTCombatLibrary::ApplyDamage(CrossDmg, Unit->Shield, Unit->Health);
+			AddLogEvent(FString::Printf(TEXT("%s: %d danno attraversando"), *Unit->GetName(), CrossDmg));
+			Unit->ApplyCombatState(R.Health, R.Shield);
+		}
 	}
 
 	UE_LOG(LogRT, Log, TEXT("[RT] Fase Move: risolte %d unita'"), Units.Num());
