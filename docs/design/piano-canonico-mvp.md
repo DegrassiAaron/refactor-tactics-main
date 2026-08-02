@@ -106,13 +106,15 @@ forme Line/Cone, status Shield/Reveal, build Shipping), non bloccanti per il ver
 
 ## 5. Architettura & invarianti
 
-Principi non negoziabili (valgono anche in offline, per preparare il multiplayer futuro):
+Principi non negoziabili (valgono anche in offline, per preparare il multiplayer futuro) — numerazione allineata a `CLAUDE.md` § *Invarianti architetturali* (7 voci):
 
 1. **Autorità delle regole in C++**: il resolver decide l'esito; le animazioni/VFX non decidono nulla.
 2. **Griglia logica autoritativa**: la posizione vera è `FRTGridCoord`; il `FVector` serve solo al rendering.
 3. **Resolver "raccogli poi applica"**: snapshot a inizio fase, nessun `Delay`/timeline/montage nel resolver; l'ordine dell'array **non** deve cambiare il risultato. Quando l'esito dipende dall'ordine (scudo/buff/reazione prima del danno), l'ordine segue la regola deterministica di **§5.1** (APNAP + tie-break assoluto), non l'inserimento.
-4. **Privacy dell'intento**: nessuna mossa avversaria viene mostrata/replicata durante la pianificazione (invariante rilevante all'arrivo del multiplayer — invariante di `Intenti condivisi`).
-5. **Combat math = funzioni pure** in `URTCombatLibrary`, coperte da test.
+4. **Determinismo**: niente `DeltaTime` non controllato nella logica dei turni; niente dipendenza dall'ordine di container non ordinati; ogni RNG usa seed/stream espliciti; ogni formato serializzato è versionato.
+5. **Server autoritativo** per ogni decisione di gameplay; il client calcola solo preview. Nell'MVP offline l'autorità è già isolata in `ARTTurnManager` (predisposizione al multiplayer).
+6. **Privacy dell'intento**: le intenzioni di pianificazione non raggiungono i client avversari — stato server + replica filtrata per squadra + autorizzazione server-side (invariante di `Intenti condivisi`). Nell'MVP offline: nessuna mossa avversaria mostrata/replicata durante la pianificazione.
+7. **Combat math = funzioni pure** in `URTCombatLibrary`, coperte da test.
 
 ### Classi principali (prefissi `RT`/`URT`)
 
@@ -163,8 +165,7 @@ path finding) → così due effetti pari non dipendono mai dall'ordine del conta
   permutare l'array di input non cambia il log eventi.*
 - **`FR-RESOLVE-02`** — **State-Based Actions** (morte a HP≤0, scadenza status) controllate **fra un effetto e
   il successivo**; un bersaglio morto invalida gli effetti pendenti che lo riguardano.
-- **`FR-RESOLVE-03`** — nessun **float** nell'ordinamento/hash; priorità intere (coerente con la disciplina di
-  determinismo dell'invariante #3).
+- **`FR-RESOLVE-03`** — nessun **float** nell'ordinamento/hash; priorità intere (coerente con l'invariante #4, **Determinismo**).
 
 **Scope:** regola del *resolver puro* (offline e futuro server-authority). **Non** introduce finestre di
 reazione live né categorie di velocità/`EndOfPhase` (north-star, `spec-sequenza-turno.md` §4). Implementazione
