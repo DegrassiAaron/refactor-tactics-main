@@ -37,6 +37,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Input")
 	TObjectPtr<UInputAction> SelectAction;
 
+	/** Attore attualmente selezionato (se implementa IRTSelectable). */
+	UPROPERTY()
+	TObjectPtr<AActor> SelectedActor;
+
 	void OnPan(const FInputActionValue& Value);
 	void OnZoom(const FInputActionValue& Value);
 	void OnSelect(const FInputActionValue& Value);

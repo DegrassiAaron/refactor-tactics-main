@@ -80,13 +80,29 @@ void ARTPlayerController::OnZoom(const FInputActionValue& Value)
 void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 {
 	FHitResult Hit;
-	if (GetHitResultUnderCursor(ECC_Visibility, /*bTraceComplex=*/ false, Hit) && Hit.GetActor())
+	if (!GetHitResultUnderCursor(ECC_Visibility, /*bTraceComplex=*/ false, Hit) || !Hit.GetActor())
 	{
-		UE_LOG(LogRT, Log, TEXT("[RT] Select: %s @ %s"), *Hit.GetActor()->GetName(), *Hit.Location.ToCompactString());
+		return;
+	}
 
-		if (IRTSelectable* Selectable = Cast<IRTSelectable>(Hit.GetActor()))
-		{
-			Selectable->OnSelected();
-		}
+	AActor* HitActor = Hit.GetActor();
+	UE_LOG(LogRT, Log, TEXT("[RT] Click: %s @ %s"), *HitActor->GetName(), *Hit.Location.ToCompactString());
+
+	if (HitActor == SelectedActor)
+	{
+		return;
+	}
+
+	// Deseleziona il precedente (Cast gestisce SelectedActor nullo).
+	if (IRTSelectable* Previous = Cast<IRTSelectable>(SelectedActor))
+	{
+		Previous->OnDeselected();
+	}
+
+	// Seleziona il nuovo, se selezionabile.
+	if (IRTSelectable* NewSelection = Cast<IRTSelectable>(HitActor))
+	{
+		NewSelection->OnSelected();
+		SelectedActor = HitActor;
 	}
 }
