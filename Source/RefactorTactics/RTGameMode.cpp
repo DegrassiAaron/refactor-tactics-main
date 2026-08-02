@@ -53,11 +53,12 @@ void ARTGameMode::BeginPlay()
 	{
 		const FVector Origin = Grid->GetActorLocation();
 		const float CellSize = Grid->CellSize;
-		SpawnUnit(0, FRTGridCoord(2, 2), Origin, CellSize);
-		SpawnUnit(0, FRTGridCoord(2, 4), Origin, CellSize);
-		SpawnUnit(1, FRTGridCoord(7, 5), Origin, CellSize);
-		SpawnUnit(1, FRTGridCoord(7, 7), Origin, CellSize);
-		UE_LOG(LogRT, Log, TEXT("[RT] Demo barebone 2v2 avviata"));
+		// Ogni squadra: un Ranger (fragile, lunga gittata) e un Guardian (tanky, corta gittata).
+		SpawnUnit(0, FRTGridCoord(2, 2), /*bGuardian=*/ false, Origin, CellSize);
+		SpawnUnit(0, FRTGridCoord(2, 4), /*bGuardian=*/ true,  Origin, CellSize);
+		SpawnUnit(1, FRTGridCoord(7, 7), /*bGuardian=*/ false, Origin, CellSize);
+		SpawnUnit(1, FRTGridCoord(7, 5), /*bGuardian=*/ true,  Origin, CellSize);
+		UE_LOG(LogRT, Log, TEXT("[RT] Board 2v2 (Ranger + Guardian per squadra) avviata"));
 	}
 
 	// Orchestratore del turno.
@@ -67,7 +68,7 @@ void ARTGameMode::BeginPlay()
 	}
 }
 
-ARTUnit* ARTGameMode::SpawnUnit(int32 TeamId, const FRTGridCoord& Cell, const FVector& GridOrigin, float CellSize)
+ARTUnit* ARTGameMode::SpawnUnit(int32 TeamId, const FRTGridCoord& Cell, bool bGuardian, const FVector& GridOrigin, float CellSize)
 {
 	UWorld* World = GetWorld();
 	if (!World)
@@ -75,12 +76,13 @@ ARTUnit* ARTGameMode::SpawnUnit(int32 TeamId, const FRTGridCoord& Cell, const FV
 		return nullptr;
 	}
 
-	// Deferred: imposto TeamId prima di BeginPlay, cosi' il colore-team viene applicato correttamente.
+	// Deferred: imposto team e archetipo prima di BeginPlay, cosi' colore e statistiche sono corretti.
 	ARTUnit* Unit = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
 	if (Unit)
 	{
 		Unit->TeamId = TeamId;
 		Unit->bIsBotControlled = (TeamId == 1); // team 1 giocato dal bot
+		Unit->ConfigureAsArchetype(bGuardian ? ERTArchetype::Guardian : ERTArchetype::Ranger);
 		UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);
 		Unit->PlaceOnCell(Cell, GridOrigin, CellSize);
 	}

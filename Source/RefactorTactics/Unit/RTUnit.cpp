@@ -131,38 +131,59 @@ int32 ARTUnit::GetEffectiveMoveRange() const
 	return URTCombatLibrary::EffectiveMoveRange(MoveRange, HasStatus(TAG_Status_Root), HasStatus(TAG_Status_Slow));
 }
 
+URTAbilityData* ARTUnit::MakeAbility(const FString& Name, int32 Range, int32 Power, int32 Area,
+	int32 Cooldown, int32 EnergyCost, FGameplayTag Status, int32 StatusDur)
+{
+	URTAbilityData* Ability = NewObject<URTAbilityData>(this);
+	Ability->DisplayName = FText::FromString(Name);
+	Ability->RangeCells = Range;
+	Ability->Power = Power;
+	Ability->AreaRadius = Area;
+	Ability->CooldownTurns = Cooldown;
+	Ability->EnergyCost = EnergyCost;
+	Ability->StatusToApply = Status;
+	Ability->StatusDuration = StatusDur;
+	return Ability;
+}
+
 void ARTUnit::EnsureDefaultAbilities()
 {
 	if (Abilities.Num() > 0)
 	{
 		return;
 	}
+	Abilities.Add(MakeAbility(TEXT("Attacco"), AttackRange, AttackPower, 0, 0, 0, FGameplayTag(), 0));
+	Abilities.Add(MakeAbility(TEXT("Colpo pesante"), FMath::Max(1, AttackRange - 1), AttackPower + 20, 0, 2, 0, FGameplayTag(), 0));
+	Abilities.Add(MakeAbility(TEXT("Ultimate"), AttackRange, AttackPower * UltimateMultiplier, UltimateRadius, 0, MaxEnergy, TAG_Status_Slow, 2));
+}
 
-	// Attacco base: bersaglio singolo, nessun costo/cooldown; accumula energia.
-	URTAbilityData* Attack = NewObject<URTAbilityData>(this, TEXT("Ability_Attack"));
-	Attack->DisplayName = FText::FromString(TEXT("Attacco"));
-	Attack->RangeCells = AttackRange;
-	Attack->Power = AttackPower;
-	Abilities.Add(Attack);
+void ARTUnit::ConfigureAsArchetype(ERTArchetype InArchetype)
+{
+	Archetype = InArchetype;
+	Abilities.Reset();
 
-	// Colpo pesante: piu' danno, con ricarica di 2 turni.
-	URTAbilityData* Heavy = NewObject<URTAbilityData>(this, TEXT("Ability_Heavy"));
-	Heavy->DisplayName = FText::FromString(TEXT("Colpo pesante"));
-	Heavy->RangeCells = FMath::Max(1, AttackRange - 1);
-	Heavy->Power = AttackPower + 20;
-	Heavy->CooldownTurns = 2;
-	Abilities.Add(Heavy);
+	if (InArchetype == ERTArchetype::Ranger)
+	{
+		MaxHealth = 80;  Shield = 0;   MoveRange = 5;  AttackRange = 6;  AttackPower = 25;
+		BaseMeshScale = FVector(1.0f, 1.0f, 2.0f); // snello e alto
+		Abilities.Add(MakeAbility(TEXT("Tiro"), 6, 25, 0, 0, 0, FGameplayTag(), 0));
+		Abilities.Add(MakeAbility(TEXT("Colpo preciso"), 7, 40, 0, 2, 0, FGameplayTag(), 0));
+		Abilities.Add(MakeAbility(TEXT("Raffica"), 6, 50, 1, 0, MaxEnergy, TAG_Status_Slow, 2)); // AoE + Slow
+	}
+	else // Guardian
+	{
+		MaxHealth = 140; Shield = 20;  MoveRange = 3;  AttackRange = 3;  AttackPower = 30;
+		BaseMeshScale = FVector(1.5f, 1.5f, 1.6f); // tozzo e largo
+		Abilities.Add(MakeAbility(TEXT("Fendente"), 3, 30, 0, 0, 0, FGameplayTag(), 0));
+		Abilities.Add(MakeAbility(TEXT("Sfondamento"), 3, 50, 0, 2, 0, FGameplayTag(), 0));
+		Abilities.Add(MakeAbility(TEXT("Terremoto"), 3, 40, 2, 0, MaxEnergy, TAG_Status_Root, 2)); // AoE ampio + Root
+	}
 
-	// Ultimate: area + Slow, richiede energia piena e la consuma.
-	URTAbilityData* Ult = NewObject<URTAbilityData>(this, TEXT("Ability_Ultimate"));
-	Ult->DisplayName = FText::FromString(TEXT("Ultimate"));
-	Ult->RangeCells = AttackRange;
-	Ult->Power = AttackPower * UltimateMultiplier;
-	Ult->AreaRadius = UltimateRadius;
-	Ult->StatusToApply = TAG_Status_Slow;
-	Ult->StatusDuration = 2;
-	Ult->EnergyCost = MaxEnergy;
-	Abilities.Add(Ult);
+	Health = MaxHealth;
+	if (Mesh)
+	{
+		Mesh->SetRelativeScale3D(BaseMeshScale);
+	}
 }
 
 URTAbilityData* ARTUnit::GetAbility(int32 Index) const

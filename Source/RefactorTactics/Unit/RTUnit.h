@@ -12,6 +12,14 @@ class UMaterialInstanceDynamic;
 class UMaterialInterface;
 class URTAbilityData;
 
+/** Archetipi dell'unita' con statistiche e abilita' distinte. */
+UENUM(BlueprintType)
+enum class ERTArchetype : uint8
+{
+	Ranger,   // fragile, lunga gittata, mobile
+	Guardian  // resistente, corta gittata, lento
+};
+
 /**
  * Unita' segnaposto per il demo: una mesh su una cella, colorata per team e selezionabile.
  * E' un marker minimale (niente statistiche/abilita' qui): quelle arrivano in M2/M3.
@@ -97,6 +105,12 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Combat")
 	TObjectPtr<ARTUnit> PlannedAttackTarget = nullptr;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	ERTArchetype Archetype = ERTArchetype::Ranger;
+
+	/** Imposta statistiche e abilita' in base all'archetipo (chiamare prima di FinishSpawning). */
+	void ConfigureAsArchetype(ERTArchetype InArchetype);
+
 	int32 NumAbilities() const { return Abilities.Num(); }
 	URTAbilityData* GetAbility(int32 Index) const;
 
@@ -143,6 +157,10 @@ private:
 
 	/** Popola Abilities con un set di default (attacco, colpo pesante, ultimate) se vuota. */
 	void EnsureDefaultAbilities();
+
+	/** Crea un'abilita' data-driven in codice. */
+	URTAbilityData* MakeAbility(const FString& Name, int32 Range, int32 Power, int32 Area,
+		int32 Cooldown, int32 EnergyCost, FGameplayTag Status, int32 StatusDur);
 
 public:
 

@@ -23,5 +23,5 @@ protected:
 	virtual void BeginPlay() override;
 
 private:
-	ARTUnit* SpawnUnit(int32 TeamId, const FRTGridCoord& Cell, const FVector& GridOrigin, float CellSize);
+	ARTUnit* SpawnUnit(int32 TeamId, const FRTGridCoord& Cell, bool bGuardian, const FVector& GridOrigin, float CellSize);
 };
