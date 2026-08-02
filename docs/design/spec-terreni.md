@@ -1,139 +1,146 @@
-# Brief / Spec — Terreni (data-driven) + terreno dinamico + path composita
+# Spec — Terreni (data-driven) + terreno dinamico + path composita
 
-> Discovery `/sc:brainstorm` del **2026-08-02**. Fonti: scelte utente + `IdeeBase.pdf` (idee terreno) +
-> canone ([`piano-canonico-mvp.md`](piano-canonico-mvp.md)) + spec pathfinding
+> Discovery `/sc:brainstorm` + review `/sc:spec-panel` del **2026-08-02**. Fonti: scelte utente +
+> `IdeeBase.pdf` (idee) + canone ([`piano-canonico-mvp.md`](piano-canonico-mvp.md)) + spec pathfinding
 > ([`spec-pathfinding.md`](spec-pathfinding.md), [`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md)).
-> Autorità: subordinato al piano canonico. `IdeeBase.pdf` = ispirazione north-star (vedi conflitti §8).
+> Autorità: subordinato al piano canonico. `IdeeBase.pdf` = north-star (conflitti §9).
 
-## 1. Obiettivo e scope
+## 1. Re-slicing (raccomandazione del panel, accettata)
 
-Sistema di terreno **data-driven** (`URTTerrainData`) su quattro assi (**costo · hazard · bloccante/vista ·
-buff**) + **terreno dinamico** (campo infiammabile → Fuoco via skill) + **path composita a waypoint** con tre
-visualizzazioni. Include **PF.3** (A\* pesato) perché il terreno a **costo** lo richiede. Scelta utente:
-**tutto insieme** (è un'epica; sotto un ordine interno incrementale e verificabile).
+L'epica accoppia due blocchi di rischio diverso. Si consegnano **in sequenza**:
 
-Realizza il pilastro **"mappa come sistema di gioco"** e apre `FR-TERRAIN-01`.
+| Slice | Contenuto | Rischio | Poggia su |
+|---|---|---|---|
+| **Terreno v1** | `URTTerrainData` data-driven · **PF.3** (A\* pesato) · Fango (costo) · Cespuglio (vista) · Altura (buff) · Lava/Fuoco hazard **solo fine-turno** · ignite stesso-turno · celle colorate · **movimento a destinazione singola con auto-route** (resolver attuale, invariato) | medio | PF.1/PF.2 già in produzione |
+| **Movimento v2** | **path composita** (waypoint) · **cross-damage** · **resolver path-aware** (microstep, troncamento ordine-indipendente) · le 3 viz complete | **alto** | Terreno v1 |
 
-## 2. Timeline canonica del turno — dove scatta ogni cosa (determinismo)
+Perché regge: il `CrossDamage` **richiede** il resolver path-aware (deve conoscere le celle attraversate) → è inscindibile da v2. Tenendo l'hazard **solo a fine turno** in v1, il terreno gira sul resolver-a-destinazione **già validato** (PF.1). v2 aggiunge il pezzo difficile su fondamenta stabili, con la sua prova di determinismo.
 
-In turni **simultanei**, "prima/dopo" **non è ambiguo**: ogni effetto ha uno **slot fisso** nella sequenza di
-fasi. È la risposta deterministica alla domanda "il trigger della zona va prima o dopo attacco/movimento".
+## 2. Timeline canonica del turno (determinismo dei trigger)
+
+In turni **simultanei**, "prima/dopo" non è ambiguo: ogni effetto ha uno **slot fisso**.
 
 ```
 Lock-in
  → Prep    : buff su sé (Barriera)                                   [già presente]
  → Dash    : mobilità rapida                                         [futuro]
- → Blast   : attacchi  +  IGNITE terreno (le skill mutano la mappa QUI; simultanei da snapshot)
- → Move    : esecuzione dei path compositi  +  danno hazard "da ATTRAVERSAMENTO" (per cella entrata)
- → Cleanup : danno hazard "di FINE TURNO" (su chi OCCUPA)  +  tick durate (Fuoco/status)  +  reversione terreno
+ → Blast   : attacchi  +  IGNITE terreno (mutazione mappa; simultaneo da snapshot)
+ → Move    : movimento (v1: a destinazione; v2: path + CrossDamage per cella attraversata)
+ → Cleanup : EndTurnDamage (su chi OCCUPA)  +  tick durate (Fuoco/status)  +  reversione terreno
 ```
 
-**Decisioni fissate:**
-- **Hazard = ENTRAMBI**: danno per ogni cella pericolosa **attraversata** (in Move) **e** danno a chi vi
-  **termina** il turno (in Cleanup). L'attraversamento e la sosta fanno male.
-- **Ignite = STESSO TURNO**: la skill incendia in *Blast*; il Fuoco affligge già il *Move* di questo turno
-  (Blast precede Move). Combo letali; il nemico ha pianificato "alla cieca" (natura del gioco simultaneo).
-- **Attacco + ignite** nello stesso *Blast* sono **simultanei** ("raccogli-poi-applica" da snapshot,
-  ordine-indipendente — invariante #3).
+Decisioni: **ignite = stesso turno** (Blast precede Move); **attacco+ignite simultanei** (snapshot,
+ordine-indipendente, invariante #3); **hazard** = fine-turno (v1) e anche attraversamento (v2).
 
-## 3. Path planning (composita + tre visualizzazioni)
+## 3. Architettura — la logica dura resta PURA (rilievo panel)
 
-Il piano di movimento passa da *cella-destinazione* a **`PlannedPath` (lista ordinata di celle)**.
+Nessuna regola di gioco nuova nasce dentro un Actor: tutto in **librerie/USTRUCT puri**, testabili senza mondo.
 
-| Feature | Comportamento |
-|---|---|
-| **Path automatico (viz)** | click su una cella → auto-route A\* pesato (`FindPath`); la rotta è mostrata in pianificazione (estende PF.2 al costo). |
-| **Path composita (waypoint ibrido)** | click aggiuntivi = **aggiungi waypoint** (forza il passaggio, l'A\* raccorda i tratti); undo / tasto = **togli l'ultimo** step. Vincolo: **costo totale del path ≤ MoveRange**. |
-| **Path da eseguire (viz)** | dopo il lock-in, la rotta che verrà percorsa; può **troncarsi** in risoluzione per conflitti → la viz mostra fin dove si arriva davvero. Privacy #6: solo la propria pre-lock (nemica solo se rivelata). |
+- `FRTTerrainProps` (USTRUCT plain): specchio *gameplay* del terreno (MoveCost, bBlocksMove, bBlocksVision,
+  CrossDamage, EndTurnDamage, buff…). Le funzioni pure lavorano su questo, **non** su `UObject*`.
+- Pathfinding pesato: `URTGridLibrary` riceve il **costo per cella** come dati (mappa/array), non asset.
+- **v2** — `URTMovementResolver` (già puro) esteso a `ResolvePaths(...)`: dato per unità un `PlannedPath`,
+  ritorna *(cella finale, celle attraversate)* con troncamento **ordine-indipendente** (vedi §7). Il
+  `CrossDamage` deriva dalle celle attraversate ritornate. L'Actor solo orchestra.
 
 ## 4. I terreni (valori proposti, tunable)
 
-| Terreno | Asse | Effetto | Valori proposti |
-|---|---|---|---|
-| **Fango** | costo | attraversamento più caro | `ExtraMoveCost +1` (cella costa 2) |
-| **Lava** | hazard | danno **attraversando** e a **fine turno** | `CrossDamage 10`, `EndTurnDamage 20` |
-| **Altura** | buff | bonus a chi ci sta | `OccupantDamageBonus +10` (alt: `+1 AttackRange`) |
-| **Cespuglio** | bloccante-vista | blocca LOS, non il movimento | `bBlocksVision=true` |
-| **Erba secca** | dinamico | infiammabile → Fuoco via skill | `bFlammable=true`, `IgnitesTo=Fuoco` |
-| *Fuoco* (stato) | hazard temp. | come Lava, a tempo, poi Erba bruciata | `CrossDamage 8`, `EndTurnDamage 15`, `Duration 2` |
-
-La **copertura** attuale diventa un terreno "Muro" (`bBlocksMovement + bBlocksVision`) nello stesso sistema.
+| Terreno | Asse | Effetto | Valori | Slice |
+|---|---|---|---|---|
+| **Fango** | costo | attraversamento più caro | `MoveCost 2` (=1+`ExtraMoveCost 1`) | v1 |
+| **Cespuglio** | vista | blocca LOS, non il movimento | `bBlocksVision=true` | v1 |
+| **Altura** | buff | +danno a chi ci sta (pos. **pre-movimento**, §6) | `OccupantDamageBonus +10` | v1 |
+| **Lava** | hazard | danno a chi **termina** (v1); anche attraversando (v2) | `EndTurnDamage 20`; `CrossDamage 10` (v2) | v1/v2 |
+| **Erba secca** | dinamico | infiammabile → Fuoco via skill | `bFlammable`, `IgnitesTo=Fuoco` | v1 |
+| *Fuoco* (stato) | hazard temp. | come Lava, `Duration 2`, poi Erba bruciata | `EndTurnDamage 15` (+`CrossDamage 8` in v2) | v1 |
+| **Muro** (= copertura attuale) | bloccante | blocca movimento+vista | `bBlocksMovement + bBlocksVision` | v1 |
 
 ## 5. Modello dati
 
 ```
 UCLASS URTTerrainData : UPrimaryDataAsset
   FText DisplayName;  FLinearColor DisplayColor;
-  int32 ExtraMoveCost = 0;            // COSTO (additivo intero — R3); costo cella = 1 + ExtraMoveCost
-  bool  bBlocksMovement = false;      bool bBlocksVision = false;   // BLOCCANTE / vista
-  int32 CrossDamage = 0;             // HAZARD: danno per cella attraversata (Move)
-  int32 EndTurnDamage = 0;           // HAZARD: danno a chi occupa a fine turno (Cleanup)
-  FGameplayTag StatusOnEnter; int32 StatusDuration = 0;  // HAZARD alternativo (es. Slow)
-  int32 OccupantDamageBonus = 0; int32 OccupantRangeBonus = 0; int32 OccupantDefenseBonus = 0; // BUFF
-  bool  bFlammable = false;  URTTerrainData* IgnitesTo = nullptr;   // DINAMICO
-  int32 TransientDuration = 0;  URTTerrainData* RevertsTo = nullptr;// terreno temporaneo → reversione
+  int32 ExtraMoveCost = 0;   bool bBlocksMovement=false;  bool bBlocksVision=false;
+  int32 CrossDamage=0; int32 EndTurnDamage=0;  FGameplayTag StatusOnEnter; int32 StatusDuration=0;
+  int32 OccupantDamageBonus=0; int32 OccupantRangeBonus=0; int32 OccupantDefenseBonus=0;
+  bool  bFlammable=false; URTTerrainData* IgnitesTo=nullptr;
+  int32 TransientDuration=0; URTTerrainData* RevertsTo=nullptr;
+// FRTTerrainProps: stesso set gameplay in USTRUCT plain, per le funzioni pure.
+```
+`ARTGridActor`: `TMap<FRTGridCoord, TObjectPtr<URTTerrainData>>` (assente = normale, costo 1).
+`BlockedCells` resta **vista derivata** (celle con `bBlocksMovement`) → i chiamanti attuali non si rompono.
+
+## 6. Regole chiuse (erano sotto-specificate — rilievi panel)
+
+- **Precedenza**: `bBlocksMovement` **vince** su `ExtraMoveCost` (una cella bloccante non ha costo, è
+  non-attraversabile). `bBlocksVision` è indipendente dal movimento.
+- **Double-dip hazard** (v2): entrare in una cella = `CrossDamage`; restarci a fine turno = `EndTurnDamage`.
+  La **cella finale li prende entrambi** (ci entri *e* ci resti). In v1 esiste solo `EndTurnDamage`.
+- **Timing buff Altura**: valutato in *Blast* → usa la posizione **pre-movimento**. Chi sale sull'altura in
+  questo turno ne beneficia **dal prossimo**. (Conseguenza della timeline; esplicitata.)
+- **`StatusOnEnter`**: applicato quando l'unità **occupa** la cella a fine turno (Cleanup), coerente con
+  `EndTurnDamage` (in v1; in v2 anche all'attraversamento se si deciderà).
+- **Re-ignite**: incendiare una cella già in Fuoco **rinnova** `TransientDuration` (refresh, come gli status).
+- **Waypoint oltre budget** (v2): un waypoint che porta il costo totale **> MoveRange** viene **rifiutato**
+  (feedback UI), non troncato. L'auto-route a destinazione singola resta sempre valido entro budget.
+- **Viz "path da eseguire" vs privacy #6**: pre-lock si mostra il path **inteso** (proprio); il path
+  **risolto** (eventualmente troncato dalle mosse altrui) si mostra **solo dopo** il lock/risoluzione.
+
+## 7. Determinismo (v2 — la parte difficile, requisito esplicito)
+
+`ResolvePaths` deve essere **ordine-indipendente**. Algoritmo previsto: **microstep sincroni** — tutte le
+unità avanzano di **1 cella** lungo il proprio `PlannedPath`; si risolvono le collisioni del microstep
+(cella contesa → contendenti fermi da lì in poi; cella occupata da unità ferma → bloccata; scambio →
+consentito), si ripete finché nessuno avanza. Le celle *effettivamente entrate* da ciascuna unità sono
+l'output per il `CrossDamage`. **Requisito testabile**: permutare l'ordine delle richieste non cambia
+(finale, celle-attraversate) di nessuna unità. Costo intero (R3) → hash deterministico (invariante #4).
+
+## 8. Requisiti (SMART)
+
+- `FR-TERRAIN-01..06` — terreno data-driven; costo (Fango); vista (Cespuglio); buff (Altura); hazard
+  fine-turno (Lava, v1); ignite→Fuoco stesso-turno + reversione (v1).
+- `FR-PATH-06..08` — A\* a costo minimo; reachability per **budget di costo**; euristica ammissibile
+  (`Manhattan × minCost`).
+- **(v2)** `FR-PATH-09` — `PlannedPath` waypoint: costo totale ≤ MoveRange; add/remove step; auto-route fra waypoint.
+- **(v2)** `FR-PATH-10` — `ResolvePaths` esegue/tronca i path, ordine-indipendente (§7); celle attraversate → `CrossDamage`.
+- **(v2)** `FR-VIZ-01` — 3 viz: auto-route, path in editing, path risolto (post-lock).
+
+### Esempi (Given/When/Then)
+```
+[Costo] Given Fango (costo 2) su (5,4)(5,5); resto 1; unita' (5,3) budget-costo 4
+        When  ReachableCellsByCost
+        Then  (5,6) [costo 2+2=4 sul Fango... ] valutato per costo, non per passi
+
+[Buff]  Given Altura (+10 danno) su (3,3); unita' A attacca da (3,3) in Blast
+        When  A si trova su (3,3) PRIMA del movimento
+        Then  il danno di A e' +10 (se A ci sale questo turno, niente bonus fino al prossimo)
+
+[Ignite]Given Erba secca su (4,4); abilita' Area colpisce (4,4) in Blast
+        When  risoluzione Blast
+        Then  (4,4) diventa Fuoco per 2 turni; in Cleanup chi vi termina subisce EndTurnDamage
 ```
 
-**Griglia:** `ARTGridActor` passa da `TArray<FRTGridCoord> BlockedCells` a `TMap<FRTGridCoord,
-TObjectPtr<URTTerrainData>>` (assente = normale, costo 1). `BlockedCells` resta come **vista derivata**
-(celle con `bBlocksMovement`) per non rompere i chiamanti in un colpo solo.
+## 9. ⚠️ Conflitti IdeeBase vs canone (segnalati)
+`IdeeBase.pdf`: turni **alternati**, **GAS**, **Punti Azione** → divergono dal canone (simultanei, no-GAS,
+movimento a range). **Prevale il canone**; si adottano solo le idee di terreno, rimappate (niente PA; il
+costo consuma il budget di movimento; effetti deterministici).
 
-## 6. Cambi ai sistemi
+## 10. Piano d'implementazione (TDD)
 
-- **Pathfinding (PF.3):** `ReachableCells`/`FindPath` → **A\* pesato** su costo per-cella (seam pronta);
-  reachability per **budget di costo**; euristica ammissibile. Funzioni pure: ricevono costo/blocchi come
-  **dati** (TMap/lambda), non `UObject*` → restano testabili.
-- **Movimento path-aware (⚠️ pezzo più delicato):** il resolver segue `PlannedPath` cella-per-cella; sui
-  **conflitti** (cella contesa/occupata da unità ferma) **tronca** il path all'ultima cella valida
-  (deterministico, ordine-indipendente — punto fisso come oggi ma su path). Le celle *effettivamente
-  attraversate* determinano il `CrossDamage`.
-- **LOS:** `HasLineOfSight` usa i vision-blocker derivati dal terreno (`bBlocksVision`).
-- **Hazard:** `CrossDamage` in Move (per cella entrata), `EndTurnDamage` in Cleanup (`ApplyDamage`,
-  raccogli-poi-applica).
-- **Buff occupante:** in `ResolveCombat`, danno/portata/difesa leggono i bonus della cella occupata.
-- **Terreno dinamico (ignite):** un'abilità con `IgniteEffect` muta le celle **infiammabili** nella sua
-  `Shape` in `IgnitesTo` per `TransientDuration` turni (in Blast), poi `RevertsTo` (Cleanup). Deterministico.
-- **Abilità → terreno:** `URTAbilityData` guadagna il campo effetto-terreno (ignite).
-- **Rendering:** celle colorate per `DisplayColor`; le tre viz di path (§3).
-- **Bot:** path-aware; con PF.3 evita il Fango (costo) e **Lava/Fuoco** (hazard) — estensione scoring.
+### Terreno v1
+1. `URTTerrainData` + `FRTTerrainProps` + **derivazione pura** props→(costo/blocco/vista) — *TDD la derivazione*.
+2. **PF.3**: `ReachableCells`/`FindPath` pesati (Dijkstra) + reachability-per-costo — *TDD* (path economico, budget-costo). *Fango conta.*
+3. `ARTGridActor` mappa cella→terreno (+ `BlockedCells` vista derivata); wiring pathfinding/resolver a costo pesato; LOS da `bBlocksVision` — **Cespuglio**.
+4. Buff occupante in `ResolveCombat` (pos. pre-movimento) — **Altura** — *TDD*.
+5. Hazard **fine-turno** (Cleanup) + ignite stesso-turno + reversione — **Lava/Erba/Fuoco** — *TDD* (logica pura dove possibile).
+6. Rendering celle colorate + scoring bot evita costo/hazard.
+7. Verifica PIE.
 
-## 7. Determinismo & invarianti
-
-- Costo **intero** (R3) → path/hash deterministici (**invariante #4**).
-- Terreno mutato (Fuoco) e path fanno parte dello **snapshot** del turno; mutazione, attraversamento, danni e
-  tick seguono "raccogli-poi-applica"; nessuna dipendenza dall'ordine dei container. Versione MVP del concetto
-  north-star `CostRevision` [Piano completo, p.14], senza cache (100 celle).
-- Il **troncamento** del path su conflitto deve convergere a un punto fisso indipendente dall'ordine (come
-  l'attuale `ResolveMoves`, esteso ai path) — da provare con test dedicati.
-
-## 8. ⚠️ Conflitti IdeeBase vs canone (segnalati)
-
-`IdeeBase.pdf` propone **turni alternati**, **GAS**, **Punti Azione** — divergono dal canone (turni
-**simultanei**, **no-GAS**, movimento **a range**). **Prevale il canone**; si adottano solo le idee di
-terreno, rimappate (niente PA; il costo consuma il budget di movimento; effetti deterministici).
-
-## 9. Requisiti (SMART, sintesi)
-
-- `FR-TERRAIN-01..06` (terreno data-driven, hazard cross+end, vista, buff, ignite) — vedi §4/§6.
-- `FR-PATH-06..08` (A\* costo minimo, reachability per costo, euristica ammissibile).
-- `FR-PATH-09` — `PlannedPath` (waypoint): costo totale ≤ MoveRange; add/remove step; auto-route fra waypoint.
-- `FR-PATH-10` — il resolver esegue `PlannedPath`, tronca sui conflitti; le celle attraversate guidano `CrossDamage`.
-- `FR-VIZ-01` — tre viz: auto-route, path composita in editing, path da eseguire (post-lock, troncabile).
-
-## 10. Piano d'implementazione (TDD, ordine a rischio crescente)
-
-Ogni passo build+test verde prima del successivo:
-1. `URTTerrainData` + `ARTGridActor` mappa cella→terreno (+ `BlockedCells` vista derivata).
-2. **PF.3**: A\* pesato in `ReachableCells`/`FindPath` (Dijkstra), reachability per costo — TDD. *(Fango conta)*
-3. LOS da terreno (`bBlocksVision`) — **Cespuglio** — TDD.
-4. Buff occupante in `ResolveCombat` — **Altura** — TDD.
-5. **Movimento path-aware**: `PlannedPath` + resolver che segue/tronca — TDD (il pezzo delicato).
-6. Hazard: `CrossDamage` (Move) + `EndTurnDamage` (Cleanup) — **Lava** — TDD.
-7. Terreno dinamico: ability→ignite, Fuoco temporaneo + reversione (stesso turno) — **Erba/Fuoco** — TDD.
-8. UI: path composita (waypoint ibrido) + tre viz + celle colorate; scoring bot evita costo/hazard.
-9. Verifica PIE end-to-end.
+### Movimento v2 (successivo)
+8. `URTMovementResolver::ResolvePaths` (microstep, ordine-indipendente) — *TDD* (permutazione ordine · troncamento · celle-attraversate).
+9. `PlannedPath` waypoint (add/remove, budget, auto-route) + `CrossDamage` + double-dip — *TDD/wiring*.
+10. Le 3 viz (auto-route, editing, risolto post-lock).
 
 ## 11. Aperte / da bilanciare
-
-Valori esatti (costi, danni, bonus) tunabili dopo playtest · Altura +danno vs +portata · migrazione copertura→"Muro"
-(proposto: vista derivata) · comportamento del path composito quando un waypoint diventa irraggiungibile in editing.
+Valori esatti (costi/danni/bonus) tunabili dopo playtest · Altura +danno vs +portata · migrazione copertura→"Muro"
+(proposto: vista derivata).
