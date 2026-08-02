@@ -78,6 +78,7 @@ ARTUnit* ARTGameMode::SpawnUnit(int32 TeamId, const FRTGridCoord& Cell, const FV
 	if (Unit)
 	{
 		Unit->TeamId = TeamId;
+		Unit->bIsBotControlled = (TeamId == 1); // team 1 giocato dal bot
 		UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);
 		Unit->PlaceOnCell(Cell, GridOrigin, CellSize);
 	}

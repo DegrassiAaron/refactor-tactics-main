@@ -1,6 +1,7 @@
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTMovementResolver.h"
 #include "Combat/RTCombatResolver.h"
+#include "Bot/RTBotLibrary.h"
 #include "Grid/RTGridActor.h"
 #include "Grid/RTGridLibrary.h"
 #include "Unit/RTUnit.h"
@@ -20,6 +21,62 @@ void ARTTurnManager::BeginPlay()
 	StartPlanningTimer();
 }
 
+void ARTTurnManager::PlanBots()
+{
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+
+	TArray<ARTUnit*> Units;
+	Units.Reserve(Actors.Num());
+	for (AActor* Actor : Actors)
+	{
+		if (ARTUnit* Unit = Cast<ARTUnit>(Actor))
+		{
+			Units.Add(Unit);
+		}
+	}
+
+	for (ARTUnit* Bot : Units)
+	{
+		if (!Bot->bIsBotControlled || !Bot->IsAlive())
+		{
+			continue;
+		}
+
+		// Nemico vivo piu' vicino.
+		ARTUnit* Nearest = nullptr;
+		int32 BestDistance = MAX_int32;
+		for (ARTUnit* Other : Units)
+		{
+			if (Other->IsAlive() && Other->TeamId != Bot->TeamId)
+			{
+				const int32 D = URTGridLibrary::ManhattanDistance(Bot->GridCell, Other->GridCell);
+				if (D < BestDistance)
+				{
+					BestDistance = D;
+					Nearest = Other;
+				}
+			}
+		}
+
+		Bot->PlannedCell = Bot->GridCell;   // default: fermo
+		Bot->PlannedAttackTarget = nullptr;
+		if (!Nearest)
+		{
+			continue;
+		}
+
+		if (URTGridLibrary::IsWithinRange(Bot->GridCell, Nearest->GridCell, Bot->AttackRange))
+		{
+			Bot->PlannedAttackTarget = Nearest; // in portata: attacca, resta fermo
+		}
+		else
+		{
+			Bot->PlannedCell = URTBotLibrary::StepToward(Bot->GridCell, Nearest->GridCell, Bot->MoveRange);
+		}
+	}
+}
+
 void ARTTurnManager::StartPlanningTimer()
 {
 	UWorld* World = GetWorld();
@@ -27,6 +84,8 @@ void ARTTurnManager::StartPlanningTimer()
 	{
 		return;
 	}
+
+	PlanBots(); // il bot pianifica a inizio turno
 
 	World->GetTimerManager().ClearTimer(PlanningTimerHandle);
 	if (PlanningSeconds > 0.f)

@@ -29,6 +29,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	int32 MoveRange = 4;
 
+	/** Se vero, l'unita' e' pianificata automaticamente dal bot. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Unit")
+	bool bIsBotControlled = false;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	FRTGridCoord GridCell;
 
