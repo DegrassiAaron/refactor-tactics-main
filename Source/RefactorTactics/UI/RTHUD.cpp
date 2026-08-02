@@ -77,8 +77,9 @@ void ARTHUD::DrawHUD()
 	const ARTTurnManager* TurnManager =
 		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
 
-	// Intento nemico RIVELATO (status Reveal): durante la pianificazione mostra il piano
-	// dell'avversario. La visibilita' rispetta l'invariante #6 (privacy dell'intento).
+	// Visualizzazione degli INTENTI di pianificazione (fase Planning).
+	// Invariante #6 (privacy dell'intento): il piano di un'unita' e' visibile agli alleati sempre,
+	// ai nemici solo se rivelati (status Reveal). Unita' proprie in ciano, nemici rivelati in giallo.
 	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::Planning)
 	{
 		const int32 PlayerTeam = 0; // il giocatore controlla il team 0 (blu)
@@ -89,18 +90,30 @@ void ARTHUD::DrawHUD()
 		for (AActor* Actor : Actors)
 		{
 			const ARTUnit* Unit = Cast<ARTUnit>(Actor);
-			if (!Unit || !Unit->IsAlive() || Unit->TeamId == PlayerTeam)
+			if (!Unit || !Unit->IsAlive())
 			{
-				continue; // il piano degli alleati non fa parte di questa vista
+				continue;
 			}
 			if (!URTCombatLibrary::IsIntentVisibleTo(PlayerTeam, Unit->TeamId, Unit->HasStatus(TAG_Status_Reveal)))
 			{
 				continue; // nemico non rivelato: intento privato
 			}
 
-			// Descrizione dell'intento pianificato.
-			FString Intent;
+			const bool bOwn = (Unit->TeamId == PlayerTeam);
 			const URTAbilityData* Planned = Unit->GetAbility(Unit->PlannedAbilityIndex);
+			const bool bMoving = (Unit->PlannedCell != Unit->GridCell);
+			const bool bHasPlan = bMoving || Unit->PlannedAttackTarget != nullptr || Planned != nullptr;
+			if (bOwn && !bHasPlan)
+			{
+				continue; // unita' propria senza ordine: niente da mostrare
+			}
+
+			const FLinearColor Color = bOwn
+				? FLinearColor(0.2f, 0.9f, 1.f, 1.f)   // ciano: le tue unita'
+				: FLinearColor(1.f, 0.9f, 0.2f, 1.f);  // giallo: nemico rivelato
+
+			// Descrizione testuale dell'intento.
+			FString Intent;
 			if (Planned && Unit->PlannedAttackTarget)
 			{
 				Intent = FString::Printf(TEXT("%s -> %s"), *Planned->DisplayName.ToString(), *Unit->PlannedAttackTarget->GetName());
@@ -109,32 +122,46 @@ void ARTHUD::DrawHUD()
 			{
 				Intent = Planned->DisplayName.ToString();
 			}
-			else if (Unit->PlannedCell != Unit->GridCell)
+			else if (bMoving)
 			{
-				Intent = TEXT("si muove");
+				Intent = FString::Printf(TEXT("-> (%d,%d)"), Unit->PlannedCell.X, Unit->PlannedCell.Y);
 			}
 			else
 			{
 				Intent = TEXT("fermo");
 			}
 
-			// Etichetta sopra la testa del nemico rivelato.
+			// Etichetta sopra la testa.
 			const FVector Head = Unit->GetActorLocation() + FVector(0.f, 0.f, WorldHeadOffset);
-			const FVector Screen = Project(Head);
-			if (Screen.Z > 0.f)
+			const FVector HeadScreen = Project(Head);
+			if (HeadScreen.Z > 0.f)
 			{
-				DrawText(FString::Printf(TEXT("[REVEAL] %s"), *Intent),
-					FLinearColor(1.f, 0.9f, 0.2f, 1.f), Screen.X - BarWidth * 0.5f, Screen.Y - 36.f, nullptr, 0.85f);
+				const TCHAR* Prefix = bOwn ? TEXT("[PIANO] ") : TEXT("[REVEAL] ");
+				DrawText(FString(Prefix) + Intent, Color, HeadScreen.X - BarWidth * 0.5f, HeadScreen.Y - 36.f, nullptr, 0.85f);
 			}
 
-			// Se si muove, evidenzia la cella di destinazione pianificata.
-			if (Unit->PlannedCell != Unit->GridCell)
+			// Freccia verso la cella di destinazione pianificata + evidenziazione della cella.
+			if (bMoving)
 			{
 				const FVector Dest = URTGridLibrary::CellToWorld(Unit->PlannedCell, Origin, CellSize);
 				const FVector DestScreen = Project(Dest);
 				if (DestScreen.Z > 0.f)
 				{
-					DrawRect(FLinearColor(1.f, 0.9f, 0.2f, 0.35f), DestScreen.X - 12.f, DestScreen.Y - 12.f, 24.f, 24.f);
+					if (HeadScreen.Z > 0.f)
+					{
+						DrawLine(HeadScreen.X, HeadScreen.Y, DestScreen.X, DestScreen.Y, Color, 2.f);
+					}
+					DrawRect(FLinearColor(Color.R, Color.G, Color.B, 0.35f), DestScreen.X - 12.f, DestScreen.Y - 12.f, 24.f, 24.f);
+				}
+			}
+
+			// Linea verso il bersaglio d'attacco pianificato.
+			if (Unit->PlannedAttackTarget && Unit->PlannedAttackTarget->IsAlive() && HeadScreen.Z > 0.f)
+			{
+				const FVector TgtScreen = Project(Unit->PlannedAttackTarget->GetActorLocation() + FVector(0.f, 0.f, WorldHeadOffset));
+				if (TgtScreen.Z > 0.f)
+				{
+					DrawLine(HeadScreen.X, HeadScreen.Y, TgtScreen.X, TgtScreen.Y, Color, 2.f);
 				}
 			}
 		}
