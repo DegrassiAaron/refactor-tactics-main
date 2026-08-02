@@ -91,9 +91,33 @@ TArray<FRTGridCoord> ARTGridActor::GetVisionBlockers() const
 	return Out;
 }
 
+void ARTGridActor::SetTerrainAt(const FRTGridCoord& Cell, URTTerrainData* Terrain, int32 TurnsLeft)
+{
+	if (Terrain) { TerrainCells.Add(Cell, Terrain); }
+	else { TerrainCells.Remove(Cell); }
+	if (TurnsLeft > 0) { TerrainTurnsLeft.Add(Cell, TurnsLeft); }
+	else { TerrainTurnsLeft.Remove(Cell); }
+}
+
+void ARTGridActor::TickTerrain()
+{
+	TArray<FRTGridCoord> Expired;
+	for (TPair<FRTGridCoord, int32>& It : TerrainTurnsLeft)
+	{
+		if (--It.Value <= 0) { Expired.Add(It.Key); }
+	}
+	for (const FRTGridCoord& Cell : Expired)
+	{
+		const URTTerrainData* Cur = GetTerrainAt(Cell);
+		URTTerrainData* Revert = Cur ? Cur->RevertsTo.Get() : nullptr;
+		SetTerrainAt(Cell, Revert, Revert ? Revert->Props.TransientDuration : 0);
+	}
+}
+
 void ARTGridActor::SpawnDemoTerrain()
 {
 	TerrainCells.Reset();
+	TerrainTurnsLeft.Reset();
 
 	// Fango: attraversamento piu' caro (costo 2). Striscia centrale tra le due squadre.
 	URTTerrainData* Fango = NewObject<URTTerrainData>(this);
@@ -123,6 +147,35 @@ void ARTGridActor::SpawnDemoTerrain()
 	for (const FRTGridCoord& C : { FRTGridCoord(4, 2), FRTGridCoord(5, 2) })
 	{
 		TerrainCells.Add(C, Altura);
+	}
+
+	// Lava: hazard permanente - danno a chi vi termina il turno.
+	URTTerrainData* Lava = NewObject<URTTerrainData>(this);
+	Lava->DisplayName = FText::FromString(TEXT("Lava"));
+	Lava->DisplayColor = FLinearColor(0.85f, 0.20f, 0.05f, 1.f);
+	Lava->Props.EndTurnDamage = 20;
+	for (const FRTGridCoord& C : { FRTGridCoord(1, 4), FRTGridCoord(1, 5) })
+	{
+		TerrainCells.Add(C, Lava);
+	}
+
+	// Fuoco: hazard temporaneo (2 turni), generato incendiando l'Erba; poi la cella torna normale.
+	URTTerrainData* Fuoco = NewObject<URTTerrainData>(this);
+	Fuoco->DisplayName = FText::FromString(TEXT("Fuoco"));
+	Fuoco->DisplayColor = FLinearColor(1.0f, 0.45f, 0.05f, 1.f);
+	Fuoco->Props.EndTurnDamage = 15;
+	Fuoco->Props.TransientDuration = 2;
+	Fuoco->RevertsTo = nullptr; // brucia -> terreno normale
+
+	// Erba secca: infiammabile -> diventa Fuoco se colpita da un'abilita' che incendia.
+	URTTerrainData* Erba = NewObject<URTTerrainData>(this);
+	Erba->DisplayName = FText::FromString(TEXT("Erba secca"));
+	Erba->DisplayColor = FLinearColor(0.55f, 0.65f, 0.15f, 1.f);
+	Erba->Props.bFlammable = true;
+	Erba->IgnitesTo = Fuoco;
+	for (const FRTGridCoord& C : { FRTGridCoord(6, 6), FRTGridCoord(7, 6) })
+	{
+		TerrainCells.Add(C, Erba);
 	}
 
 	UE_LOG(LogRT, Log, TEXT("[RT] GridActor: terreno demo (%d celle)"), TerrainCells.Num());

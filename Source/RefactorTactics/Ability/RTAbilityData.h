@@ -67,4 +67,8 @@ public:
 	/** Energia richiesta e consumata dall'uso (0 = nessun costo; >0 = abilita' "ultimate"). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
 	int32 EnergyCost = 0;
+
+	/** Se vero, incendia le celle infiammabili nell'area colpita (terreno dinamico). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
+	bool bIgnites = false;
 };

@@ -173,7 +173,9 @@ void ARTUnit::ConfigureAsArchetype(ERTArchetype InArchetype)
 		URTAbilityData* Precise = MakeAbility(TEXT("Colpo preciso"), 7, 40, 0, 2, 0, TAG_Status_Reveal, 2);
 		Precise->Shape = ERTAbilityShape::Line;
 		Abilities.Add(Precise);
-		Abilities.Add(MakeAbility(TEXT("Raffica"), 6, 50, 1, 0, MaxEnergy, TAG_Status_Slow, 2)); // AoE + Slow
+		URTAbilityData* Raffica = MakeAbility(TEXT("Raffica"), 6, 50, 1, 0, MaxEnergy, TAG_Status_Slow, 2); // AoE + Slow
+		Raffica->bIgnites = true; // raffica infuocata: incendia il terreno infiammabile nell'area
+		Abilities.Add(Raffica);
 	}
 	else // Guardian
 	{

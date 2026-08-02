@@ -225,25 +225,42 @@ void ARTTurnManager::LockInAndResolve()
 		}
 	} while (Phase != ERTMatchPhase::Planning);
 
-	// Fine turno: energia per turno + conteggio unita' vive per squadra.
+	// Fase Cleanup: danno hazard di fine turno (Lava/Fuoco) su chi occupa, tick durate,
+	// reversione del terreno temporaneo; poi conteggio unita' vive per squadra.
+	ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
 	int32 Team0Alive = 0, Team1Alive = 0;
 	{
 		TArray<AActor*> Actors;
 		UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
 		for (AActor* Actor : Actors)
 		{
-			if (ARTUnit* Unit = Cast<ARTUnit>(Actor))
+			ARTUnit* Unit = Cast<ARTUnit>(Actor);
+			if (!Unit || !Unit->IsAlive())
 			{
-				if (Unit->IsAlive())
+				continue;
+			}
+
+			// Hazard di fine turno: dipende solo dalla cella dell'unita' -> ordine-indipendente.
+			const URTTerrainData* Terrain = Grid ? Grid->GetTerrainAt(Unit->GridCell) : nullptr;
+			const int32 Hazard = Terrain ? Terrain->GetProps().EndTurnDamage : 0;
+			if (Hazard > 0)
+			{
+				const FRTDamageResult R = URTCombatLibrary::ApplyDamage(Hazard, Unit->Shield, Unit->Health);
+				AddLogEvent(FString::Printf(TEXT("%s: %d danno da %s"), *Unit->GetName(), Hazard, *Terrain->DisplayName.ToString()));
+				Unit->ApplyCombatState(R.Health, R.Shield); // puo' distruggere l'unita'
+				if (!IsValid(Unit) || !Unit->IsAlive())
 				{
-					Unit->Energy = URTCombatLibrary::GainEnergy(Unit->Energy, Unit->EnergyPerTurn, Unit->MaxEnergy);
-					Unit->TickStatuses();
-					Unit->TickCooldowns();
-					(Unit->TeamId == 0 ? Team0Alive : Team1Alive)++;
+					continue;
 				}
 			}
+
+			Unit->Energy = URTCombatLibrary::GainEnergy(Unit->Energy, Unit->EnergyPerTurn, Unit->MaxEnergy);
+			Unit->TickStatuses();
+			Unit->TickCooldowns();
+			(Unit->TeamId == 0 ? Team0Alive : Team1Alive)++;
 		}
 	}
+	if (Grid) { Grid->TickTerrain(); } // Fuoco -> normale allo scadere della durata
 
 	const ERTMatchOutcome Outcome = URTTurnRules::EvaluateOutcome(Team0Alive, Team1Alive);
 	if (Outcome != ERTMatchOutcome::InProgress)
@@ -292,7 +309,7 @@ void ARTTurnManager::ResolveCombat()
 {
 	// Celle che bloccano la linea di tiro (copertura + terreno, es. cespuglio).
 	static const TArray<FRTGridCoord> NoBlockers;
-	const ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
+	ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
 	const TArray<FRTGridCoord> Blockers = Grid ? Grid->GetVisionBlockers() : NoBlockers;
 
 	TArray<AActor*> Actors;
@@ -366,7 +383,22 @@ void ARTTurnManager::ResolveCombat()
 			break;
 		}
 
-		// Buff della cella dell'attaccante (es. Altura +danno), valutato in Blast = posizione pre-movimento.
+		// Ignite (terreno dinamico): un'abilita' che incendia converte le celle infiammabili nell'area
+			// in Fuoco (stesso turno: la mutazione avviene in Blast, prima del Move).
+			if (Ability->bIgnites && Grid)
+			{
+				for (const FRTGridCoord& HC : HitCells)
+				{
+					const URTTerrainData* Terr = Grid->GetTerrainAt(HC);
+					if (Terr && Terr->GetProps().bFlammable && Terr->IgnitesTo)
+					{
+						Grid->SetTerrainAt(HC, Terr->IgnitesTo, Terr->IgnitesTo->GetProps().TransientDuration);
+						AddLogEvent(FString::Printf(TEXT("Incendio a (%d,%d)"), HC.X, HC.Y));
+					}
+				}
+			}
+
+			// Buff della cella dell'attaccante (es. Altura +danno), valutato in Blast = posizione pre-movimento.
 			const URTTerrainData* AttackerTerrain = Grid ? Grid->GetTerrainAt(Unit->GridCell) : nullptr;
 			const int32 AttackerDmgBonus = AttackerTerrain ? AttackerTerrain->GetProps().OccupantDamageBonus : 0;
 			const int32 EffPower = URTCombatLibrary::EffectiveAttackPower(Ability->Power, AttackerDmgBonus);

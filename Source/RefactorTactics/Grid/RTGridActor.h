@@ -37,6 +37,10 @@ public:
 	UPROPERTY()
 	TMap<FRTGridCoord, TObjectPtr<URTTerrainData>> TerrainCells;
 
+	/** Turni residui dei terreni temporanei (es. Fuoco); assente = permanente. */
+	UPROPERTY()
+	TMap<FRTGridCoord, int32> TerrainTurnsLeft;
+
 	/** Terreno di una cella (nullo se normale). */
 	const URTTerrainData* GetTerrainAt(const FRTGridCoord& Cell) const;
 
@@ -48,6 +52,12 @@ public:
 
 	/** Celle che bloccano la linea di tiro: BlockedCells + terreni con bBlocksVision. */
 	TArray<FRTGridCoord> GetVisionBlockers() const;
+
+	/** Imposta il terreno di una cella (nullo = normale); TurnsLeft > 0 lo rende temporaneo. */
+	void SetTerrainAt(const FRTGridCoord& Cell, URTTerrainData* Terrain, int32 TurnsLeft);
+
+	/** Fine turno: decrementa i terreni temporanei; a 0 tornano a RevertsTo (o si rimuovono). */
+	void TickTerrain();
 
 protected:
 	virtual void BeginPlay() override;
