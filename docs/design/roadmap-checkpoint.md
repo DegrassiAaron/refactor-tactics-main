@@ -18,12 +18,12 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in forma ridotta (vedi nota) · �
 |---|---|---|
 | M0 Fondamenta | ✅ | Progetto UE 5.8.1 compila (Game + Editor), repo + LFS |
 | M1 Sandbox | ✅ | Camera, input (C++), griglia + test, selezione, demo 2v2 |
-| M2 Turn loop | ✅ | Fasi, resolver movimento (conflitti), pianificazione, timer 30s · **path finding obstacle-aware** (PF.1 reachability BFS + PF.2 preview percorso) |
+| M2 Turn loop | ✅ | Fasi, resolver movimento (conflitti), pianificazione, timer 30s · **incrementi post-MVP**: path finding PF.1–PF.3, terreno v1, movimento v2 (→ sezione dedicata) |
 | M3 Combat loop | ✅ | Danno/scudo, attacco, eliminazione, energia+ultimate (AoE), LOS/copertura, **abilità data-driven** ✅ · status Root/Slow/**Reveal** (intento nemico, invariante #6) ✅ · **forme targeting complete** (Single/Area/Line/Cone) ✅ · barra abilità |
 | M4 Vertical slice | ✅ | Bot (focus-fire, **aggiramento ostacoli**, **kiting** del Ranger), HUD (barre HP + combat log + **anteprima piani** ciano/reveal), vittoria + riavvio |
 | M5 Release interna | ✅ | **50 test** ✅ · **packaging Windows** (Development + **Shipping**) ✅ · DoD MVP formale ✅ |
 
-**Sviluppo in corso sul branch `feature/m1-sandbox`** (M1→M4 in un unico branch, non uno per milestone come da regola: scelta pratica di questa fase iniziale). **27 test automatici verdi.**
+**Sviluppo consolidato su `main`**: l'MVP (M0–M5) è stato sviluppato in un unico branch di fase e poi mergiato; gli incrementi post-MVP usano feature branch dedicati. **50 test automatici verdi** (7 file in `Source/RefactorTactics/Tests/`; conteggio autorevole del repo).
 
 Scelte che divergono dai DoD originali (equivalenti o migliori, documentate qui):
 - **Input in C++** (nessun asset `IA_*`/`IMC_*`): il controller costruisce Enhanced Input via codice.
@@ -69,23 +69,8 @@ Scelte che divergono dai DoD originali (equivalenti o migliori, documentate qui)
 
 **Uscita M2**: ✅ turno completo con movimento simultaneo deterministico (verificato in PIE).
 
-> **Incremento path finding (post-MVP, 2026-08-02)** — vedi [`spec-pathfinding.md`](spec-pathfinding.md).
-> **PF.1** ✅ `ReachableCells` (BFS obstacle-aware) + validazione autorevole nel resolver (chiude il bug
-> "movimento attraverso le colonne") + bot path-aware. **PF.2** ✅ `FindPath` + preview del percorso a
-> schermo (curva attorno agli ostacoli). **PF.3** ✅ pathfinding **pesato** (Dijkstra su costo per cella).
-> PF.4 (grafo multilivello) ⏳.
->
-> **Incremento terreno v1 (post-MVP, 2026-08-02)** — vedi [`spec-terreni.md`](spec-terreni.md).
-> **✅ COMPLETO**: sistema data-driven `URTTerrainData` (5 tipi) — **Fango** (costo), **Cespuglio** (blocca
-> vista), **Altura** (+danno), **Lava** (hazard fine turno), **Erba secca → Fuoco** (dinamico, ignite
-> stesso turno). Rendering celle colorate; bot cost/hazard-aware. Verificato in PIE.
->
-> **Incremento Movimento v2 (post-MVP, 2026-08-02)** — vedi [`spec-terreni.md`](spec-terreni.md) §7/§10.
-> **✅ COMPLETO**: `URTMovementResolver::ResolvePaths` (microstep sincroni, **ordine-indipendente**);
-> **path composita a waypoint** (aggiungi con click, togli con Backspace, rifiuto oltre budget);
-> **cross-damage** all'attraversamento + **double-dip** con l'hazard di fine turno. Verificato in PIE
-> (log: 7 waypoint, rifiuti oltre budget, 20 attraversando + 20 da Lava). Viz percorso *risolto* post-lock ⏳ (polish).
-> PF.4 (grafo multilivello) resta north-star.
+> **Incrementi post-MVP innestati su M2** (path finding PF.1–PF.3, terreno v1, movimento v2) → consolidati nella
+> sezione **«Incrementi post-MVP consegnati»** in fondo al documento.
 
 ---
 
@@ -100,10 +85,10 @@ Scelte che divergono dai DoD originali (equivalenti o migliori, documentate qui)
 | 3.5 | ✅ | Targeting a forme | `CellsInRadius`/`CellsInLine`/`CellsInCone` (test) → forme **Single · Area · Line · Cone** guidate da `ERTAbilityShape`; Ranger "Colpo preciso" (Line), Guardian "Spazzata" (Cone), ultimate AoE (Area) |
 | 3.6 | ✅ | LOS / copertura | `HasLineOfSight` (test) · ostacoli centrali visibili (`ARTGridActor::BlockedCells`); un attacco richiede LOS libera; movimento su copertura rifiutato |
 
-**Uscita M3**: 🟡 combattimento base completo (attacco, danno/scudo, eliminazione). Le feature avanzate
-(abilità data-driven, energia, status, forme, LOS/copertura) restano da fare.
+**Uscita M3**: ✅ combattimento completo — abilità data-driven, danno/scudo/eliminazione, energia/ultimate,
+status (Root/Slow/Reveal), forme (Single/Area/Line/Cone), LOS/copertura. Tutti i CP 3.1–3.6 verdi (verificato in PIE).
 
-> ⚠️ Bug dei tutorial: il "range movimento 4" **è stato chiuso** (validato). LOS non ancora introdotta.
+> ⚠️ Bug dei tutorial: il "range movimento 4" **è stato chiuso** (validato); **LOS/copertura** ora implementata (CP 3.6).
 
 ---
 
@@ -123,13 +108,31 @@ Scelte che divergono dai DoD originali (equivalenti o migliori, documentate qui)
 
 | CP | Stato | Obiettivo | Note |
 |---|---|---|---|
-| 5.1 | ✅ | Suite test verde | **39 test** da CLI (`Automation RunTests RefactorTactics`) tutti verdi |
+| 5.1 | ✅ | Suite test verde | **50 test** da CLI (`Automation RunTests RefactorTactics`) tutti verdi — conteggio autorevole del repo |
 | 5.2 | ✅ | Packaging Windows | `RunUAT BuildCookRun` — **Development** (`Saved/Packaged/Windows/`, verificato: si avvia e si gioca senza editor) **e Shipping** (`Saved/StagedBuilds/Windows/RefactorTactics-Win64-Shipping.exe`, ~166 MB, BUILD SUCCESSFUL) |
 | 5.3 | ✅ | Definition of Done MVP | Rivista voce per voce col piano canonico §4 (vedi riga di sintesi) |
 
 > ⚠️ Nota packaging: il primo tentativo falliva per la cache `ScriptModules` corrotta della toolchain UAT
 > (post-hotfix 5.8.0→5.8.1). Risolto con **Epic Launcher → UE 5.8 → Verifica**. NON eliminare a mano
 > l'intera cartella `Engine/Intermediate/ScriptModules` (peggiora: "Found no script module records").
+
+---
+
+## Incrementi post-MVP consegnati (2026-08-02)
+
+Oltre all'MVP (M0–M5) sono stati consegnati incrementi **post-MVP**, tutti verificati in PIE e coperti dalla
+suite (50 test). Le voci ⏳ restano north-star.
+
+| Incremento | Stato | Sintesi | Spec |
+|---|---|---|---|
+| **PF.1–PF.2** · path finding obstacle-aware | ✅ | `ReachableCells` (BFS) + validazione nel resolver (chiude "movimento attraverso le colonne"); `FindPath` + preview a schermo; bot path-aware | [`spec-pathfinding.md`](spec-pathfinding.md) |
+| **PF.3** · path finding pesato | ✅ | Dijkstra su costo per cella (cost provider); percorso a costo minimo | [`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md) |
+| **PF.4** · grafo multilivello | ⏳ | north-star, gated da un design di mappa multilivello | idem §3 |
+| **Terreno v1** | ✅ | `URTTerrainData` (5 tipi): Fango (costo), Cespuglio (blocca vista), Altura (+danno), Lava (hazard fine turno), Erba secca → Fuoco (dinamico); rendering celle colorate; bot cost/hazard-aware | [`spec-terreni.md`](spec-terreni.md) |
+| **Movimento v2** | ✅ | `URTMovementResolver::ResolvePaths` (microstep sincroni, ordine-indipendente); path composita a waypoint (**pallini visibili** · click aggiunge · **tasto destro** toglie · editing per-unità · rifiuto oltre budget); cross-damage + double-dip con l'hazard; **traccia grigia** del percorso risolto post-lock | [`spec-terreni.md`](spec-terreni.md) §7/§10 |
+| **Consolidamento «Sequenza di Risoluzione del Turno»** | ✅ *(doc)* | spec-panel: classificazione north-star + recepimento `FR-RESOLVE-01..03` (ordinamento deterministico APNAP) nel canone §5.1 | [`spec-sequenza-turno.md`](spec-sequenza-turno.md) |
+
+**Polish**: viz del percorso *risolto* post-lock (traccia grigia) + pallini sui waypoint + undo col tasto destro ✅ (2026-08-02).
 
 ---
 
