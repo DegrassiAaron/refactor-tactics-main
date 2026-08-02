@@ -1,112 +1,104 @@
-# Design — Mappa multilivello (vertical slice PF.4)
+# Design — Mappa multilivello: ponte sopraelevato (vertical slice PF.4)
 
-> `/sc:design` del **2026-08-02**. Ancorato al motore a grafo **PF.4.2** già consegnato
-> ([`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md)), al terreno ([`spec-terreni.md`](spec-terreni.md))
-> e al canone ([`piano-canonico-mvp.md`](piano-canonico-mvp.md)). Documentale: nessuna modifica al codice.
-> Sblocca la parte *visiva/gameplay* di PF.4, finora gated proprio da questo design.
+> `/sc:design` del **2026-08-02**. Decisioni prese: **layout = ponte sopraelevato · LOS = regole di
+> elevazione · scope = wiring minimo prima**. Ancorato al motore a grafo **PF.4.2**
+> ([`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md)), al terreno ([`spec-terreni.md`](spec-terreni.md)),
+> al canone ([`piano-canonico-mvp.md`](piano-canonico-mvp.md)). Documentale: nessuna modifica al codice.
 
-## 1. Obiettivo e scope
+## 1. Obiettivo
 
-**Vertical slice a 2 layer** (allineato a [Piano completo p.32]: 2 layer, scale + jump pad): introdurre
-**verticalità tattica** riusando il motore a grafo e i sistemi esistenti, con la modifica **minima** al mondo
-di gioco. Non è la mappa multilivello north-star completa (N layer, distruttibilità, meteo): è il primo
-incremento *giocabile e giustificato*.
+Vertical slice a **2 layer** con un **ponte sopraelevato** che attraversa la mappa: verticalità tattica con
+**vantaggio di elevazione** reale sulla linea di tiro, riusando il motore a grafo e i sistemi esistenti.
 
-## 2. Concept di gioco — "alta quota contesa"
+## 2. Concept — il ponte
 
-Le **4 celle-copertura centrali** attuali (`ARTGridActor::BlockedCells` = (4,4)(5,4)(4,5)(5,5)) diventano una
-**piattaforma rialzata**:
-- **Layer 0** (terra): quelle 4 celle restano **bloccate** (la base della piattaforma = la copertura di oggi;
-  continua a bloccare movimento e LOS a terra).
-- **Layer 1** (tetto): le stesse 4 celle sono **calpestabili** e portano il buff **Altura** (già esistente:
-  `OccupantDamageBonus`, "alta quota"). Chi sale colpisce più forte ma è **esposto**.
-- **Accesso**: 2 **scale** su lati opposti (archi bidirezionali, costo 2) → l'alta quota è *contesa*, non di una
-  sola squadra. Es. scala A: `(3,4,0) ↔ (4,4,1)`; scala B: `(6,5,0) ↔ (5,5,1)`.
-
-Perché regge: verticalità con **una ragione di gioco** (rischio/ricompensa dell'alta quota), riuso di **Altura**
-e delle **coperture** esistenti, modifica minima al mondo. Realizza il pilastro "mappa come sistema di gioco".
+- **Layer 0** (terra): la 10×10 attuale, incluse le 4 coperture centrali (restano ostacoli a terra).
+- **Layer 1** (ponte): una **passerella larga 1 cella** lungo la riga `y=4`, dai bordi al centro, che passa
+  **sopra** le coperture centrali. Celle-ponte: `(2,4,1) … (7,4,1)` (6 celle).
+- **Rampe** (archi bidirezionali, costo 2) alle due estremità: `(1,4,0) ↔ (2,4,1)` e `(8,4,0) ↔ (7,4,1)`.
+- Il ponte è **alta quota**: chi ci sta vede e spara **oltre** le coperture basse (elevazione, §5), ma è
+  **esposto** su una passerella stretta. Rischio/ricompensa; contendibile da entrambe le squadre (2 rampe).
+- Buff opzionale: le celle-ponte possono portare **Altura** (`OccupantDamageBonus`) per rimarcare l'alta quota.
 
 ## 3. Modello dati
 
-Riusa i tipi PF.4 (`FRTGridCoord{X,Y,Layer}`, `FRTTraversalEdge`). L'`ARTGridActor` diventa la fonte del grafo:
-
-- **Celle valide per layer**: layer 0 = intera 10×10; layer 1 = **insieme esplicito** di celle-piattaforma
-  (le 4 centrali). Le celle *non presenti* su un layer sono **impassabili** (costo `RT_BLOCKED_COST` nella
-  cost map per quel layer). → un solo meccanismo (la cost map), nessun nuovo concetto di "cella inesistente".
-- **Archi**: `TArray<FRTTraversalEdge> Edges` sull'`ARTGridActor` (scale/portali), creati **a runtime in C++**
-  (come terreno e abilità, nessun `.uasset`). Bidirezionale = 2 archi.
-- **Terreno per cella**: `TerrainCells` già mappa `FRTGridCoord → URTTerrainData`; ora la chiave include il
-  Layer → si può mettere Altura sulle celle `(…,1)` del tetto.
-- **Costo autorevole**: `ARTGridActor::BuildCostMap` va esteso a includere i layer: per ogni cella valida di
-  ogni layer, il costo del terreno; per le celle non-valide di layer 1, `RT_BLOCKED_COST`.
+Riusa i tipi PF.4 (`FRTGridCoord{X,Y,Layer}`, `FRTTraversalEdge`). L'`ARTGridActor` è la fonte del grafo:
+- **Celle valide per layer**: layer 0 = intera 10×10; layer 1 = **insieme esplicito** delle celle-ponte. Le
+  celle non presenti su un layer sono impassabili (`RT_BLOCKED_COST` nella cost map di quel layer) — un solo
+  meccanismo, nessun concetto nuovo di "cella inesistente".
+- **Archi**: `TArray<FRTTraversalEdge> Edges` sull'`ARTGridActor` (le rampe), creati a runtime in C++
+  (come terreno/abilità, nessun `.uasset`). `GetEdges()` per i chiamanti.
+- **`BuildCostMap`/`BuildBotCostMap`** estesi ai layer (costo terreno per cella valida; bloccate le non-valide).
 
 ## 4. Rendering
 
-- **Due componenti ISM** per le celle: `Cells0` (layer 0, quota Z base) e `Cells1` (layer 1, quota
-  Z + `LayerHeight` ≈ 250 cm, solo le celle-piattaforma). La copertura di layer 0 (cubo) resta come base.
-- **Scale**: una mesh-rampa (o un semplice marker inclinato) tra le celle collegate dagli archi.
-- **Colore/terreno**: il tetto usa il colore Altura (già `DisplayColor`); `RefreshTerrainVisuals` esteso ai layer.
-- **Camera**: la top-down attuale gestisce le altezze (le celle alte appaiono sopra); nessun cambio richiesto
-  nell'MVP. Eventuale leggero aumento del pitch se serve leggibilità (tunabile).
+- **Due ISM**: `Cells0` (esistente, quota base) e `Cells1` (nuovo, celle-ponte a quota `Z + LayerHeight`,
+  ≈ 250 cm). Le coperture centrali (cubi) restano a terra, il ponte passa sopra.
+- **Rampe**: una mesh inclinata (o marker) tra le celle collegate dagli archi.
+- **Camera**: la top-down attuale gestisce le altezze; nessun cambio nell'MVP (eventuale pitch da tarare).
+- `CellToWorld` estesa con la quota del layer; `RefreshTerrainVisuals` per-layer.
 
-## 5. Interazione (il pezzo nuovo più delicato)
+## 5. LOS con regole di elevazione (DECISO)
 
-Il problema: un click deve risolvere `(X, Y, Layer)`, non solo `(X, Y)`.
-- **Soluzione**: ogni layer ha il proprio ISM con collisione; `GetHitResultUnderCursor` ritorna il **componente
-  colpito** e l'indice-istanza → si deriva il Layer (Cells0 → 0, Cells1 → 1) e da lì la cella. Le celle di
-  layer 1 stanno più in alto e "coprono" quelle di layer 0 sotto: cliccando la piattaforma si seleziona il tetto,
-  cliccando il pavimento intorno si seleziona il terra. Deterministico e senza ambiguità.
-- **Unità su layer 1**: `PlaceOnCell` posiziona l'attore alla quota del layer (`Z + Layer*LayerHeight`).
-- **Movimento**: il controller costruisce la path con `FindPathByGraph` (celle + archi) → salire/scendere è
-  un waypoint che attraversa una scala. Il resolver `ResolvePaths` è già layer-agnostico (opera su celle).
+**Regola**: lungo la linea 2D tiratore→bersaglio, una cella blocca la LOS **solo se il suo blocker sta a un
+layer ≥ quello del tiratore**. Modello: ogni blocker occupa l'altezza `[layer, layer+1)`; l'occhio del tiratore
+è al suo layer.
+- **Tiratore a terra (layer 0)**: bloccato dalle coperture di layer 0 (come oggi); il **ponte (layer 1) è sopra
+  l'occhio → non blocca** (si spara *sotto* il ponte). ✓
+- **Tiratore sul ponte (layer 1)**: le coperture di layer 0 sono **sotto l'occhio → non bloccano** (si spara
+  *oltre* le coperture basse = **vantaggio di elevazione**). ✓
+- Deterministica, riusa il campionamento 2D di `HasLineOfSight`; generalizzazione: la funzione prende il
+  **layer del tiratore** e considera solo i vision-blocker con `layer ≥ tiratore`. *TDD-abile.*
 
 ## 6. Regole di gioco (MVP)
 
-- **Movimento cross-layer**: via scale (archi), costo 2. Il budget di movimento resta un budget di **costo**.
-- **Buff alta quota**: le celle-tetto sono Altura → `+OccupantDamageBonus` (valutato pre-movimento, come già è).
-- **LOS**: **MVP = proiezione 2D** — la linea di tiro si calcola su `(X,Y)` ignorando il layer (chi è in alta
-  quota può ingaggiare a terra e viceversa se la linea 2D è libera). *Semplice, prevedibile*; la LOS 3D reale
-  (l'alta quota vede oltre le coperture basse) è un raffinamento successivo. **Da confermare** (§9).
-- **Caduta/spinta**: nessuna meccanica di push nell'MVP → nessuna caduta. Rimandata.
-- **Occupazione**: 1 unità per cella *per layer* (celle `(x,y,0)` e `(x,y,1)` sono distinte).
+- **Movimento cross-layer** via rampe (archi, costo 2); budget = budget di costo; `FindPathByGraph`.
+- **Occupazione** 1 unità per cella *per layer* (`(x,y,0)` e `(x,y,1)` distinte).
+- **Alta quota**: elevazione (§5) + eventuale buff Altura sulle celle-ponte.
+- **Caduta/spinta**: nessun push nell'MVP → nessuna caduta. Rimandata.
 
-## 7. Wiring (per la futura `/sc:implement`)
+## 7. Interazione (il pezzo nuovo più delicato)
 
-1. `ARTGridActor`: insieme celle-piattaforma layer 1 + `Edges` (scale) + `BuildCostMap` multilivello +
-   `GetEdges()`; `Cells1` ISM + rendering scale; `RefreshTerrainVisuals` per-layer.
-2. `RTPlayerController`: `WorldToCell` → `(X,Y,Layer)` dal componente ISM colpito; movimento/validazione con
-   `ReachableCellsByGraph`/`FindPathByGraph` + `Edges`; preview path su più layer.
-3. `RTTurnManager::ResolveMovement`: usa `ReachableCellsByGraph`/`FindPathByGraph` (già ordine-indipendente via
-   `ResolvePaths`); `PlaceOnCell` con quota del layer.
-4. **Bot**: `BuildBotCostMap` multilivello; `BestApproachCell`/`BestKiteCell` su reachability a grafo (per salire
-   in alta quota o evitare l'esposizione — estensione scoring).
-5. **HUD**: la preview e la traccia già disegnano celle → estendere `CellToWorld` con la quota del layer.
+Un click deve risolvere `(X, Y, Layer)`. **Soluzione**: ogni layer ha il suo ISM con collisione;
+`GetHitResultUnderCursor` ritorna il **componente colpito** + indice-istanza → si deriva il Layer
+(`Cells0`→0, `Cells1`→1) e la cella. Il ponte (più in alto) "copre" le celle sotto: cliccando la passerella
+si mira al ponte, cliccando il pavimento si mira a terra. Deterministico. `PlaceOnCell` posiziona l'unità alla
+quota del layer. **Rischio**: la priorità di collisione tra `Cells0`/`Cells1` va provata in PIE presto.
 
 ## 8. Determinismo & invarianti
 
-- Il pathfinding a grafo è **deterministico** (tie-break `X,Y,Layer`); costo intero (R3) → hash stabile.
-- Autorità server: reachability/path validati col grafo (come già in 2D).
-- **`GraphRevision`/`SchemaVersion`**: servono solo con archi **dinamici** (ponte che crolla, portale creato da
-  skill). Nell'MVP il grafo è **statico** nello snapshot del turno → non serve ancora (north-star, coerente con
-  §8 dello spec PF.3/PF.4).
+- Pathfinding a grafo **deterministico** (tie-break `X,Y,Layer`); costo intero (R3) → hash stabile.
+- Autorità server: reachability/path validati col grafo.
+- **`GraphRevision`/`SchemaVersion`**: solo con archi **dinamici** (crolli/portali da skill) → north-star. Nel
+  ponte l'MVP è **statico** nello snapshot → non serve.
 
-## 9. Decisioni aperte (da confermare)
+## 9. Piano d'implementazione (wiring minimo prima — DECISO)
 
-1. **Layout**: piattaforma centrale (riusa le coperture) *vs* torri agli angoli *vs* ponte sopraelevato.
-2. **LOS**: proiezione 2D (semplice) *vs* regole di elevazione (l'alta quota ignora le coperture basse).
-3. **Scope del primo giro**: mappa giocabile completa *vs* prima il wiring minimo (una piattaforma + una scala)
-   verificabile in PIE, poi rifinire.
+- **MP.1 — Ponte minimo (una rampa)**: dati (celle-ponte + 1 rampa) · `BuildCostMap` multilivello · `Cells1`
+  ISM a quota + marker rampa · `WorldToCell → (X,Y,Layer)` via ISM-hit · movimento `FindPathByGraph` ·
+  `PlaceOnCell` con quota. **PIE**: un'unità sale la rampa e cammina sul ponte.
+- **MP.2 — LOS di elevazione**: `HasLineOfSight` col layer del tiratore (blocca solo `layer ≥ tiratore`).
+  *TDD* (a terra il ponte non blocca; dal ponte le coperture basse non bloccano).
+- **MP.3 — Seconda rampa + bot + HUD**: 2ª rampa (ponte contendibile) · `BuildBotCostMap` multilivello +
+  scoring · preview/traccia path su più layer.
+- **MP.4 — Verifica end-to-end (PIE)** + tuning (quota, colori, priorità collisione, bilanciamento).
+
+Ogni passo: build + test (dove pura) verde prima del successivo, commit per passo, PIE quando serve.
 
 ## 10. Rischi
 
-- **Interazione click→layer**: il pezzo più nuovo; va provato in PIE presto (l'ISM-hit potrebbe richiedere
-  tuning di collisione/priorità tra Cells0 e Cells1).
-- **Leggibilità**: due layer sovrapposti in top-down possono confondere → colori/quota da tarare.
-- **Bot**: la reachability a grafo cambia lo spazio di scelta; scoring da estendere per non fare mosse strane.
-- **Scope**: è comunque un'epica; conviene affettarla (una piattaforma + una scala prima di tutto).
+- **Click→layer** (ISM-hit priority): il più nuovo → PIE presto (MP.1).
+- **Leggibilità** due layer in top-down → colori/quota da tarare.
+- **Bot** su reachability a grafo: scoring da estendere (salire/evitare esposizione).
+- **Epica**: affettata (MP.1 minimo prima).
 
 ## 11. Conflitti segnalati (regola CLAUDE.md)
 
-- **Semantica delle coperture centrali**: cambiano da "ostacolo pieno" a "base di piattaforma + tetto
-  calpestabile". Va recepito dove il canone/roadmap descrive le 4 celle centrali come sola copertura.
-- Coerente con le decisioni canoniche **R1/R2/R3** (§3.1 piano canonico) e col motore PF.4 già consegnato.
+- Il ponte **non** cambia la semantica delle coperture centrali (restano ostacoli a terra); aggiunge un layer
+  sopra. Nessun conflitto col canone attuale, salvo aggiornare roadmap/mappa quando il ponte sarà a schermo.
+- Coerente con R1/R2/R3 (§3.1 canone) e col motore PF.4 già consegnato.
+
+## 12. Prossimo passo
+
+`/sc:design` è documentale: qui ci si ferma. L'implementazione parte da **MP.1** con `/sc:implement` (o via
+richiesta esplicita) — TDD dove la logica è pura (LOS di elevazione), wiring + PIE per rendering/interazione.
