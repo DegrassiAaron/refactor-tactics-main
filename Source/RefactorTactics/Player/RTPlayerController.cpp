@@ -1,6 +1,11 @@
 #include "Player/RTPlayerController.h"
 #include "Camera/RTCameraPawn.h"
 #include "Selection/RTSelectable.h"
+#include "Grid/RTGridActor.h"
+#include "Grid/RTGridLibrary.h"
+#include "Unit/RTUnit.h"
+#include "Turn/RTTurnManager.h"
+#include "Core/RTTypes.h"
 #include "RefactorTactics.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
@@ -8,6 +13,7 @@
 #include "InputAction.h"
 #include "InputActionValue.h"
 #include "InputModifiers.h"
+#include "Kismet/GameplayStatics.h"
 
 void ARTPlayerController::BuildInputMappings()
 {
@@ -24,6 +30,9 @@ void ARTPlayerController::BuildInputMappings()
 
 	SelectAction = NewObject<UInputAction>(this, TEXT("IA_Select"));
 	SelectAction->ValueType = EInputActionValueType::Boolean;
+
+	LockInAction = NewObject<UInputAction>(this, TEXT("IA_LockIn"));
+	LockInAction->ValueType = EInputActionValueType::Boolean;
 
 	MappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_Tactical"));
 
@@ -52,6 +61,9 @@ void ARTPlayerController::BuildInputMappings()
 
 	// Select (Boolean): tasto sinistro del mouse.
 	MappingContext->MapKey(SelectAction, EKeys::LeftMouseButton);
+
+	// Lock-in (Boolean): barra spaziatrice.
+	MappingContext->MapKey(LockInAction, EKeys::SpaceBar);
 }
 
 void ARTPlayerController::BeginPlay()
@@ -79,6 +91,7 @@ void ARTPlayerController::SetupInputComponent()
 		EIC->BindAction(PanAction, ETriggerEvent::Triggered, this, &ARTPlayerController::OnPan);
 		EIC->BindAction(ZoomAction, ETriggerEvent::Triggered, this, &ARTPlayerController::OnZoom);
 		EIC->BindAction(SelectAction, ETriggerEvent::Started, this, &ARTPlayerController::OnSelect);
+		EIC->BindAction(LockInAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLockIn);
 	}
 	else
 	{
@@ -111,21 +124,42 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	}
 
 	AActor* HitActor = Hit.GetActor();
-	UE_LOG(LogRT, Log, TEXT("[RT] Click: %s @ %s"), *HitActor->GetName(), *Hit.Location.ToCompactString());
 
-	if (HitActor == SelectedActor)
+	// Click su un'unita' (o altro selezionabile) -> selezione.
+	if (IRTSelectable* Selectable = Cast<IRTSelectable>(HitActor))
 	{
+		if (HitActor != SelectedActor)
+		{
+			if (IRTSelectable* Previous = Cast<IRTSelectable>(SelectedActor))
+			{
+				Previous->OnDeselected();
+			}
+			Selectable->OnSelected();
+			SelectedActor = HitActor;
+			UE_LOG(LogRT, Log, TEXT("[RT] Selezionata: %s"), *HitActor->GetName());
+		}
 		return;
 	}
 
-	if (IRTSelectable* Previous = Cast<IRTSelectable>(SelectedActor))
+	// Click sulla griglia con un'unita' selezionata -> pianifica il movimento su quella cella.
+	if (ARTUnit* SelectedUnit = Cast<ARTUnit>(SelectedActor))
 	{
-		Previous->OnDeselected();
+		if (ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass())))
+		{
+			const FRTGridCoord Cell = URTGridLibrary::WorldToCell(Hit.Location, Grid->GetActorLocation(), Grid->CellSize);
+			if (URTGridLibrary::IsInsideGrid(Cell, Grid->Width, Grid->Height))
+			{
+				SelectedUnit->PlannedCell = Cell;
+				UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s -> cella (%d,%d)"), *SelectedUnit->GetName(), Cell.X, Cell.Y);
+			}
+		}
 	}
+}
 
-	if (IRTSelectable* NewSelection = Cast<IRTSelectable>(HitActor))
+void ARTPlayerController::OnLockIn(const FInputActionValue& Value)
+{
+	if (ARTTurnManager* TurnManager = Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass())))
 	{
-		NewSelection->OnSelected();
-		SelectedActor = HitActor;
+		TurnManager->LockInAndResolve();
 	}
 }

@@ -3,6 +3,7 @@
 #include "Player/RTPlayerController.h"
 #include "Grid/RTGridActor.h"
 #include "Unit/RTUnit.h"
+#include "Turn/RTTurnManager.h"
 #include "RefactorTactics.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/DirectionalLight.h"
@@ -55,6 +56,12 @@ void ARTGameMode::BeginPlay()
 		SpawnUnit(1, FRTGridCoord(7, 5), Origin, CellSize);
 		SpawnUnit(1, FRTGridCoord(7, 7), Origin, CellSize);
 		UE_LOG(LogRT, Log, TEXT("[RT] Demo barebone 2v2 avviata"));
+	}
+
+	// Orchestratore del turno.
+	if (!UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()))
+	{
+		World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass(), FTransform::Identity);
 	}
 }
 

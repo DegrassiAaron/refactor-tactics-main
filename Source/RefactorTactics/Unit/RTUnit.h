@@ -27,6 +27,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	FRTGridCoord GridCell;
 
+	/** Cella di destinazione pianificata per il turno corrente (default = cella attuale). */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Unit")
+	FRTGridCoord PlannedCell;
+
 	/** Posiziona l'unita' al centro-mondo della cella, con la base appoggiata al piano. */
 	void PlaceOnCell(const FRTGridCoord& Cell, const FVector& GridOrigin, float CellSize);
 

@@ -50,6 +50,7 @@ void ARTUnit::ApplyTeamColor()
 void ARTUnit::PlaceOnCell(const FRTGridCoord& Cell, const FVector& GridOrigin, float CellSize)
 {
 	GridCell = Cell;
+	PlannedCell = Cell; // dopo un movimento, il piano riparte dalla cella attuale
 	const FVector Center = URTGridLibrary::CellToWorld(Cell, GridOrigin, CellSize);
 	SetActorLocation(Center + FVector(0.f, 0.f, UnitHalfHeight));
 }
