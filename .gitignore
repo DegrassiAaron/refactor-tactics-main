@@ -34,5 +34,11 @@ shadertoolsconfig.json
 *.xcodeproj
 *.xcworkspace
 
+# Plugin reinstallato automaticamente da Visual Studio (disabilitato nel .uproject)
+Plugins/VisualStudioTools/
+
+# Artefatto spurio da redirect /dev/null su Git Bash (Windows)
+/dev/
+
 # ---- Eccezioni: questi vanno versionati ----
 !Content/**/Binaries/
