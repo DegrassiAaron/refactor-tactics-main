@@ -437,4 +437,39 @@ bool FRTGridCoordLayerTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGridGraphPathTest,
+	"RefactorTactics.Grid.FindPathByGraphUsesEdgesAndLayers",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGridGraphPathTest::RunTest(const FString&)
+{
+	const TMap<FRTGridCoord, int32> NoCost;
+
+	// (a) Portale sullo stesso layer: (0,0)->(9,9) a costo 1 -> il percorso lo usa (2 celle, non 19).
+	{
+		const TArray<FRTTraversalEdge> Edges = { FRTTraversalEdge(FRTGridCoord(0, 0, 0), FRTGridCoord(9, 9, 0), 1) };
+		const TArray<FRTGridCoord> P = URTGridLibrary::FindPathByGraph(FRTGridCoord(0, 0, 0), FRTGridCoord(9, 9, 0), NoCost, Edges, 10, 10);
+		TestEqual(TEXT("portale: 2 celle"), P.Num(), 2);
+		if (P.Num() == 2)
+		{
+			TestTrue(TEXT("arriva via portale"), P.Last() == FRTGridCoord(9, 9, 0));
+		}
+	}
+	// (b) Scala tra layer 0 e 1: (5,5,0)->(5,5,1) costo 2. Path (5,4,0)->(5,5,0)->[scala]->(5,5,1).
+	{
+		const TArray<FRTTraversalEdge> Edges = { FRTTraversalEdge(FRTGridCoord(5, 5, 0), FRTGridCoord(5, 5, 1), 2) };
+		const TArray<FRTGridCoord> P = URTGridLibrary::FindPathByGraph(FRTGridCoord(5, 4, 0), FRTGridCoord(5, 5, 1), NoCost, Edges, 10, 10);
+		TestTrue(TEXT("arriva al layer 1"), P.Num() > 0 && P.Last() == FRTGridCoord(5, 5, 1));
+		TestTrue(TEXT("passa dalla scala"), P.Contains(FRTGridCoord(5, 5, 0)) && P.Contains(FRTGridCoord(5, 5, 1)));
+	}
+	// (c) Reachability cross-layer entro budget di costo: 1 passo + 2 scala = 3.
+	{
+		const TArray<FRTTraversalEdge> Edges = { FRTTraversalEdge(FRTGridCoord(5, 5, 0), FRTGridCoord(5, 5, 1), 2) };
+		const TArray<FRTGridCoord> R3 = URTGridLibrary::ReachableCellsByGraph(FRTGridCoord(5, 4, 0), 3, NoCost, Edges, 10, 10);
+		TestTrue(TEXT("(5,5,1) raggiungibile con budget 3"), R3.Contains(FRTGridCoord(5, 5, 1)));
+		const TArray<FRTGridCoord> R2 = URTGridLibrary::ReachableCellsByGraph(FRTGridCoord(5, 4, 0), 2, NoCost, Edges, 10, 10);
+		TestFalse(TEXT("(5,5,1) NON raggiungibile con budget 2"), R2.Contains(FRTGridCoord(5, 5, 1)));
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

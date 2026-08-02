@@ -225,7 +225,8 @@ namespace
 	// appena Goal e' definitivo. Budget < 0 = illimitato.
 	void DijkstraGrid(const FRTGridCoord& From, int32 Budget,
 		const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height,
-		TMap<FRTGridCoord, int32>& Dist, TMap<FRTGridCoord, FRTGridCoord>* Parent, const FRTGridCoord* Goal)
+		TMap<FRTGridCoord, int32>& Dist, TMap<FRTGridCoord, FRTGridCoord>* Parent, const FRTGridCoord* Goal,
+		const TMap<FRTGridCoord, TArray<TPair<FRTGridCoord, int32>>>* EdgeAdj = nullptr)
 	{
 		static const int32 DX[4] = { 1, -1, 0, 0 };
 		static const int32 DY[4] = { 0, 0, 1, -1 };
@@ -236,15 +237,18 @@ namespace
 
 		while (true)
 		{
-			// Cella non definitiva a distanza minima; a parita', ordine (X,Y).
+			// Cella non definitiva a distanza minima; a parita', ordine (X, Y, Layer) -> deterministico.
 			FRTGridCoord Best;
 			int32 BestDist = MAX_int32;
 			bool bFound = false;
 			for (const TPair<FRTGridCoord, int32>& It : Dist)
 			{
 				if (Settled.Contains(It.Key)) { continue; }
-				if (!bFound || It.Value < BestDist
-					|| (It.Value == BestDist && (It.Key.X < Best.X || (It.Key.X == Best.X && It.Key.Y < Best.Y))))
+				const bool bLess = It.Value < BestDist
+					|| (It.Value == BestDist && (It.Key.X < Best.X
+						|| (It.Key.X == Best.X && (It.Key.Y < Best.Y
+							|| (It.Key.Y == Best.Y && It.Key.Layer < Best.Layer)))));
+				if (!bFound || bLess)
 				{
 					Best = It.Key; BestDist = It.Value; bFound = true;
 				}
@@ -253,19 +257,39 @@ namespace
 			Settled.Add(Best);
 			if (Goal && Best == *Goal) { break; }
 
-			for (int32 Dir = 0; Dir < 4; ++Dir)
+			// Rilassa un vicino raggiunto con un dato costo (ortogonale o via arco).
+			auto Relax = [&](const FRTGridCoord& Next, int32 Step)
 			{
-				const FRTGridCoord Next(Best.X + DX[Dir], Best.Y + DY[Dir]);
-				if (!URTGridLibrary::IsInsideGrid(Next, Width, Height) || Settled.Contains(Next)) { continue; }
-				const int32 Step = EnterCost(Next, CellCost);
-				if (Step < 0) { continue; } // impassabile
+				if (Step < 0 || Settled.Contains(Next)) { return; }
 				const int32 ND = BestDist + Step;
-				if (Budget >= 0 && ND > Budget) { continue; }
+				if (Budget >= 0 && ND > Budget) { return; }
 				const int32* Cur = Dist.Find(Next);
 				if (!Cur || ND < *Cur)
 				{
 					Dist.Add(Next, ND);
 					if (Parent) { Parent->Add(Next, Best); }
+				}
+			};
+
+			// Vicini ortogonali (stesso layer).
+			for (int32 Dir = 0; Dir < 4; ++Dir)
+			{
+				const FRTGridCoord Next(Best.X + DX[Dir], Best.Y + DY[Dir], Best.Layer);
+				if (URTGridLibrary::IsInsideGrid(Next, Width, Height))
+				{
+					Relax(Next, EnterCost(Next, CellCost));
+				}
+			}
+
+			// Archi di traversata uscenti (scale/portali/cross-layer).
+			if (EdgeAdj)
+			{
+				if (const TArray<TPair<FRTGridCoord, int32>>* Out = EdgeAdj->Find(Best))
+				{
+					for (const TPair<FRTGridCoord, int32>& E : *Out)
+					{
+						Relax(E.Key, FMath::Max(0, E.Value));
+					}
 				}
 			}
 		}
@@ -314,6 +338,76 @@ TArray<FRTGridCoord> URTGridLibrary::FindPathByCost(const FRTGridCoord& From, co
 	TMap<FRTGridCoord, int32> Dist;
 	TMap<FRTGridCoord, FRTGridCoord> Parent;
 	DijkstraGrid(From, -1, CellCost, Width, Height, Dist, &Parent, &To);
+
+	if (!Parent.Contains(To))
+	{
+		return Path; // irraggiungibile
+	}
+	for (FRTGridCoord Cell = To; ; Cell = Parent[Cell])
+	{
+		Path.Add(Cell);
+		if (Cell == From) { break; }
+	}
+	Algo::Reverse(Path);
+	return Path;
+}
+
+namespace
+{
+	// Adiacenza degli archi: From -> lista di (To, Costo).
+	TMap<FRTGridCoord, TArray<TPair<FRTGridCoord, int32>>> BuildEdgeAdj(const TArray<FRTTraversalEdge>& Edges)
+	{
+		TMap<FRTGridCoord, TArray<TPair<FRTGridCoord, int32>>> Adj;
+		for (const FRTTraversalEdge& E : Edges)
+		{
+			Adj.FindOrAdd(E.From).Add(TPair<FRTGridCoord, int32>(E.To, E.Cost));
+		}
+		return Adj;
+	}
+}
+
+TArray<FRTGridCoord> URTGridLibrary::ReachableCellsByGraph(const FRTGridCoord& From, int32 CostBudget,
+	const TMap<FRTGridCoord, int32>& CellCost, const TArray<FRTTraversalEdge>& Edges, int32 Width, int32 Height)
+{
+	TArray<FRTGridCoord> Result;
+	if (!IsInsideGrid(From, Width, Height) || EnterCost(From, CellCost) < 0)
+	{
+		return Result;
+	}
+	const TMap<FRTGridCoord, TArray<TPair<FRTGridCoord, int32>>> EdgeAdj = BuildEdgeAdj(Edges);
+
+	TMap<FRTGridCoord, int32> Dist;
+	DijkstraGrid(From, FMath::Max(0, CostBudget), CellCost, Width, Height, Dist, nullptr, nullptr, &EdgeAdj);
+
+	// Ordine stabile su (Layer, X, Y): include le celle su qualsiasi layer.
+	Dist.GetKeys(Result);
+	Result.Sort([](const FRTGridCoord& A, const FRTGridCoord& B)
+	{
+		if (A.Layer != B.Layer) { return A.Layer < B.Layer; }
+		if (A.X != B.X) { return A.X < B.X; }
+		return A.Y < B.Y;
+	});
+	return Result;
+}
+
+TArray<FRTGridCoord> URTGridLibrary::FindPathByGraph(const FRTGridCoord& From, const FRTGridCoord& To,
+	const TMap<FRTGridCoord, int32>& CellCost, const TArray<FRTTraversalEdge>& Edges, int32 Width, int32 Height)
+{
+	TArray<FRTGridCoord> Path;
+	if (EnterCost(From, CellCost) < 0 || EnterCost(To, CellCost) < 0)
+	{
+		return Path;
+	}
+	if (From == To)
+	{
+		Path.Add(From);
+		return Path;
+	}
+	const TMap<FRTGridCoord, TArray<TPair<FRTGridCoord, int32>>> EdgeAdj = BuildEdgeAdj(Edges);
+
+	TMap<FRTGridCoord, int32> Dist;
+	TMap<FRTGridCoord, FRTGridCoord> Parent;
+	DijkstraGrid(From, -1, CellCost, Width, Height, Dist, &Parent, &To, &EdgeAdj);
 
 	if (!Parent.Contains(To))
 	{

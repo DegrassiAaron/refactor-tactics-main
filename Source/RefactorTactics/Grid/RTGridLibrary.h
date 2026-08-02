@@ -109,4 +109,15 @@ public:
 	 */
 	static TArray<FRTGridCoord> BuildCompositePath(const FRTGridCoord& Start,
 		const TArray<FRTGridCoord>& Waypoints, const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height);
+
+	// --- Pathfinding a GRAFO (PF.4): oltre ai 4 vicini ortogonali (stesso layer), attraversa gli archi
+	//     espliciti (Edges: scale/portali/cross-layer). Generalizza le versioni ByCost al multilivello.
+
+	/** Come ReachableCellsByCost ma includendo gli archi di traversata (multilivello). */
+	static TArray<FRTGridCoord> ReachableCellsByGraph(const FRTGridCoord& From, int32 CostBudget,
+		const TMap<FRTGridCoord, int32>& CellCost, const TArray<FRTTraversalEdge>& Edges, int32 Width, int32 Height);
+
+	/** Come FindPathByCost ma includendo gli archi di traversata (percorso a costo minimo su grafo). */
+	static TArray<FRTGridCoord> FindPathByGraph(const FRTGridCoord& From, const FRTGridCoord& To,
+		const TMap<FRTGridCoord, int32>& CellCost, const TArray<FRTTraversalEdge>& Edges, int32 Width, int32 Height);
 };

@@ -35,3 +35,28 @@ FORCEINLINE uint32 GetTypeHash(const FRTGridCoord& Coord)
 {
 	return HashCombine(HashCombine(GetTypeHash(Coord.X), GetTypeHash(Coord.Y)), GetTypeHash(Coord.Layer));
 }
+
+/**
+ * Arco di traversata esplicito tra due celle (anche non adiacenti / su layer diversi):
+ * scale, rampe, portali, ascensori, salti. Direzionale (per il bidirezionale servono due archi).
+ * Rende la mappa un grafo (north-star, PF.4).
+ */
+USTRUCT(BlueprintType)
+struct FRTTraversalEdge
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Grid")
+	FRTGridCoord From;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Grid")
+	FRTGridCoord To;
+
+	/** Costo di attraversamento dell'arco (>= 0). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Grid")
+	int32 Cost = 1;
+
+	FRTTraversalEdge() = default;
+	FRTTraversalEdge(const FRTGridCoord& InFrom, const FRTGridCoord& InTo, int32 InCost)
+		: From(InFrom), To(InTo), Cost(InCost) {}
+};
