@@ -24,7 +24,7 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in forma ridotta (vedi nota) · �
 | M4 Vertical slice | ✅ | Bot (focus-fire, **aggiramento ostacoli**, **kiting** del Ranger), HUD (barre HP + combat log + **anteprima piani** ciano/reveal), vittoria + riavvio |
 | M5 Release interna | ✅ | **63 test** ✅ · **packaging Windows** (Development + **Shipping**) ✅ · DoD MVP formale ✅ |
 
-**Sviluppo consolidato su `main`**: l'MVP (M0–M5) è stato sviluppato in un unico branch di fase e poi mergiato; gli incrementi post-MVP usano feature branch dedicati. **63 test automatici verdi** (`Source/RefactorTactics/Tests/`; conteggio autorevole del repo, 2026-08-03).
+**Sviluppo consolidato su `main`**: l'MVP (M0–M5) è stato sviluppato in un unico branch di fase e poi mergiato; gli incrementi post-MVP usano feature branch dedicati. **70 test automatici verdi** (`Source/RefactorTactics/Tests/`; conteggio autorevole del repo, 2026-08-03; include TurnLog P3).
 
 Scelte che divergono dai DoD originali (equivalenti o migliori, documentate qui):
 - **Input in C++** (nessun asset `IA_*`/`IMC_*`): il controller costruisce Enhanced Input via codice.
@@ -122,7 +122,7 @@ status (Root/Slow/Reveal), forme (Single/Area/Line/Cone), LOS/copertura. Tutti i
 ## Incrementi post-MVP consegnati (aggiornato 2026-08-03)
 
 Oltre all'MVP (M0–M5) sono stati consegnati incrementi **post-MVP**, tutti verificati in PIE (o via log) e
-coperti dalla suite (**63 test**). Le voci ⏳ restano north-star / richiedono verifica interattiva dell'utente.
+coperti dalla suite (**70 test**). Le voci ⏳ restano north-star / richiedono verifica interattiva dell'utente.
 
 | Incremento | Stato | Sintesi | Spec |
 |---|---|---|---|
@@ -135,6 +135,7 @@ coperti dalla suite (**63 test**). Le voci ⏳ restano north-star / richiedono v
 | **Animazione della risoluzione (AN.1–AN.6)** | ✅ | Il round è **osservabile**: i cilindri si **muovono** animati per fase (Prep→Dash→Blast→Move), **senso di durata** configurabile (`UPROPERTY`), **skip** (Spazio), HUD fase/%, **morte visiva differita** (il colpo mortale si vede prima della sparizione, `NewlyDefeated`). Playback = presentazione, non decide (invariante #1); 60/60→ test invariati | [`spec-anima-risoluzione.md`](spec-anima-risoluzione.md) |
 | **Dash come fase attiva** | ✅ | Fase **Dash** ora attiva: abilità di scatto (`bDash`) risolta **prima del Blast** (riposizionarsi/schivare prima degli attacchi). Bot (offensivo + **difensivo/schiva**) e **giocatore** (tasto 4 + click, preview magenta). **Dash + Move** consentiti. Status: Root blocca, Slow dimezza (`GetEffectiveDashRange`) | [`spec-dash.md`](spec-dash.md) |
 | **Knockback (spinta)** | ✅ | Un attacco **respinge** i colpiti (fase Blast): fuori copertura, giù dal ponte, nella lava (cross-damage). `KnockbackDestination` (pura, 8 test, TDD); Guardian "Spazzata" spinge 2 celle; deterministico (2+ spinte si annullano; conteso→resta); **animato** (scivolamento nel Blast) | [`spec-knockback.md`](spec-knockback.md) |
+| **TurnLog + reason codes (P3, TL.1–TL.3)** | ✅ | Osservabilità autoritativa separata dal playback: `FRTTurnLogEntry` con reason codes interi — Movimento `ERTMoveOutcome{Stayed,Moved,BlockedContested,BlockedByUnit}` esposto da `ResolvePaths`; Combat `ERTCombatOutcome{Hit,ShieldAbsorbed,Lethal,NoLineOfSight,TerrainBonus}` via `ClassifyCombatOutcome` (pura). Chiave = cella di partenza (**permutazione-invariante**); log ordinato deterministicamente; combat log HUD arricchito. TDD (3 test nuovi, 70/70 verdi). Reason allineati al codice reale (no CoverReduced: la copertura blocca la LOS). ⏳ hash di replay | [`spec-turnlog.md`](spec-turnlog.md) · [`plan-turnlog.md`](plan-turnlog.md) |
 
 **Polish**: viz del percorso *risolto* post-lock (traccia grigia) + pallini sui waypoint + undo col tasto destro ✅ (2026-08-02); **animazione della risoluzione** (cilindri in movimento, morte differita, spinta) ✅ (2026-08-03).
 
@@ -176,7 +177,7 @@ decisioni consolidate — vedi [`piano-canonico-mvp.md`](piano-canonico-mvp.md).
 
 | Livello | Frequenza | Stato |
 |---|---|---|
-| Core automation (logica pura: resolver, combat, path, dash, knockback) | ogni commit | ✅ **63 test** (CLI + Session Frontend) |
+| Core automation (logica pura: resolver, combat, path, dash, knockback, turnlog) | ogni commit | ✅ **70 test** (CLI + Session Frontend) |
 | Feature tests (comportamenti integrati) | PR/CI | 🟡 via PIE + log |
 | Network tests (privacy/leak canary) | PR critiche/nightly | ⏳ (con F1) |
 | Functional maps | nightly | ⏳ |
@@ -192,14 +193,14 @@ decisioni consolidate — vedi [`piano-canonico-mvp.md`](piano-canonico-mvp.md).
 | Preview completa | **< 50 ms** | ⏳ (offline: preview locale immediata) |
 | Resolver server | **< 100 ms/match** | ⏳ non misurato (risoluzione sincrona rapida) |
 | Intent updates | 8–12 Hz | ⏳ (con rete) |
-| **Replay divergence** | **0** | 🟡 determinismo by-design + test ordine-indip.; TurnLog/replay a hash ⏳ |
+| **Replay divergence** | **0** | 🟡 determinismo by-design + test ordine-indip.; **TurnLog ✅** (permutazione-invariante); replay a hash ⏳ |
 | **Intent leak** | **0** | ⏳ canary (con F1) — privacy già invariante #6 |
 
 ### Risk register (PDR-10 §7) — con stato mitigazione
 
 | Rischio | P/I | Mitigazione | Stato |
 |---|---|---|---|
-| Resolver difficile da spiegare | H/H | TurnLog reason codes + UI certainty | 🟡 combat log a schermo ✅; reason codes/TurnLog ⏳ |
+| Resolver difficile da spiegare | H/H | TurnLog reason codes + UI certainty | ✅ combat log a schermo ✅; **reason codes/TurnLog ✅** (Movimento+Combat, TDD); UI certainty ⏳ |
 | Leak di planning | M/H | DTO team-only, canary, no global replication | 🟡 privacy #6 (offline); canary ⏳ |
 | GAS invade l'autorità | M/H | resolver **puro prima** di GAS | ✅ resolver puro consolidato; GAS non introdotto |
 | Mappa Actor-heavy | M/H | dati compatti + instancing/chunk | ✅ griglia/terreno/ponte via ISM |
