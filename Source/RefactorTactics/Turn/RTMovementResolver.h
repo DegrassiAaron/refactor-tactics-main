@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Core/RTTypes.h"
+#include "Turn/RTTurnLog.h"
 #include "RTMovementResolver.generated.h"
 
 /**
@@ -45,6 +46,10 @@ struct FRTPathResult
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Turn")
 	TArray<FRTGridCoord> Entered;
+
+	/** Perche' il movimento e' finito cosi' (default: nessun movimento pianificato). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Turn")
+	ERTMoveOutcome Outcome = ERTMoveOutcome::Stayed;
 };
 
 UCLASS()

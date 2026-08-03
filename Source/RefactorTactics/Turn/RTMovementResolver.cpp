@@ -17,6 +17,9 @@ TArray<FRTPathResult> URTMovementResolver::ResolvePaths(const TArray<TArray<FRTG
 		Results[i].Final = Pos[i];
 	}
 
+	// Motivo dell'ultimo congelamento per unita' (per l'outcome del TurnLog).
+	TArray<ERTMoveOutcome> BlockReason; BlockReason.Init(ERTMoveOutcome::BlockedByUnit, N);
+
 	// Microstep sincroni: tutti avanzano di 1 cella, si risolvono le collisioni, si ripete.
 	while (true)
 	{
@@ -54,7 +57,11 @@ TArray<FRTPathResult> URTMovementResolver::ResolvePaths(const TArray<TArray<FRTG
 						if (j != i && !Moving[j] && Pos[j] == Target[i]) { bBlocked = true; break; }
 					}
 				}
-				if (bBlocked) { ToFreeze.Add(i); }
+				if (bBlocked)
+				{
+					ToFreeze.Add(i);
+					BlockReason[i] = (Contenders >= 2) ? ERTMoveOutcome::BlockedContested : ERTMoveOutcome::BlockedByUnit;
+				}
 			}
 			for (int32 Idx : ToFreeze) { Moving[Idx] = false; bChanged = true; }
 		}
@@ -72,6 +79,14 @@ TArray<FRTPathResult> URTMovementResolver::ResolvePaths(const TArray<TArray<FRTG
 			bAnyMoved = true;
 		}
 		if (!bAnyMoved) { break; }
+	}
+
+	// Classifica l'esito di ogni unita' per il TurnLog (dipende solo da Final/Paths: ordine-indipendente).
+	for (int32 i = 0; i < N; ++i)
+	{
+		if (Paths[i].Num() <= 1) { Results[i].Outcome = ERTMoveOutcome::Stayed; }
+		else if (Results[i].Final == Paths[i].Last()) { Results[i].Outcome = ERTMoveOutcome::Moved; }
+		else { Results[i].Outcome = BlockReason[i]; }
 	}
 
 	return Results;
