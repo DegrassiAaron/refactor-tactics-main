@@ -88,11 +88,40 @@ avanti) è credibile in ogni direzione. Solo presentazione: non tocca la logica.
 
 ---
 
-## Ripetere per il Ranger
-Quando **Sparrow** è scaricato: `ABP_Sparrow` (skeleton `Sparrow_Skeleton`), stesse clip (Idle/Jog_Fwd/attacco/HitReact/Death),
-`BP_Unit_Ranger` con Sparrow + `Anim Class = ABP_Sparrow`, e `RangerUnitClass = BP_Unit_Ranger` nel `BP_GameMode`.
+## Ripetere per il Ranger (Sparrow) — via duplicato
+
+Sparrow ha uno **skeleton diverso** (`Sparrow_Skeleton`) → serve un nuovo AnimBP, ma si riusa il BP unità:
+
+1. **Duplica** `BP_Unit_Guardian` → **`BP_Unit_Ranger`** (eredita cilindro nascosto, `VisualZOffset=0`, `Face Movement Direction` e il wiring dei delegati).
+   - Skeletal Mesh Component ▸ **Skeletal Mesh Asset = `Sparrow`** (`/Game/ParagonSparrow/Characters/Heroes/Sparrow/Meshes/Sparrow`).
+2. **`ABP_Sparrow`** (Animation Blueprint, skeleton `Sparrow_Skeleton`): State Machine Idle/Run come ABP_Gideon —
+   Idle = `Travel_Mode_Idle_BowDown` (o `Idle_FrontEnd`), Run = `Jog_Fwd`, transizioni su `bIsMoving`.
+3. `BP_Unit_Ranger` ▸ Skeletal Mesh Component ▸ **Anim Class = `ABP_Sparrow`**.
+4. ⚠️ Nell'**Event Graph** del `BP_Unit_Ranger` (ereditato) i due nodi **Cast To ABP_Gideon** vanno cambiati in
+   **Cast To ABP_Sparrow** (altrimenti il set `bIsMoving` non scatta su Sparrow). Ricollega exec + Set `bIsMoving`.
+5. `BP_GameMode` ▸ **Ranger Unit Class = `BP_Unit_Ranger`** ▸ Compile ▸ Save.
+6. PIE: i Ranger diventano Sparrow e corrono nel Move.
 
 ## Nota — fix ordine-spawn (applicato)
 `ARTGameMode::BeginPlay` ora spawna il `TurnManager` **prima** delle unità: in `BP_Unit` puoi agganciarti ai
 delegate direttamente in BeginPlay **senza Delay**. Verificato sicuro (il TurnManager non usa le unità al proprio
 BeginPlay, fa solo `StartPlanningTimer`) e ricompilato (70 test verdi).
+
+---
+
+## AS.5 — Identità di team: crea `M_TeamRing` (anello a terra)
+
+Il C++ è pronto (`TeamRing` + `TeamColorFor`, 71 test verdi): sotto ogni unità c'è un anello che si colora per
+squadra **se** trova il materiale `M_TeamRing`; senza, resta nascosto (fallback → cilindro colorato come prima).
+Serve creare **un solo materiale** in editor.
+
+1. **Content Browser ▸ `Materials`** ▸ tasto destro ▸ **Material** ▸ nome **`M_TeamRing`**.
+2. Aprilo ▸ **Details ▸ Material ▸ Shading Model = `Unlit`** (colore pieno e brillante dall'alto).
+3. Nel grafo: tasto destro ▸ **Parameter ▸ VectorParameter** ▸ nome **`Color`** (esattamente `Color`: è il parametro che il C++ imposta).
+4. Collega **`Color` → Emissive Color**.
+5. *(Opzionale, anello vero col buco centrale)* **Blend Mode = `Masked`** + una maschera radiale sull'**Opacity Mask**.
+6. **Compile ▸ Save**.
+7. Assegnalo: su ogni **`BP_Unit`** ▸ **Class Defaults ▸ `Team Ring Material` = `M_TeamRing`**.
+
+**Verifica (PIE-AS5)**: sotto ogni unità un anello **blu** (team 0) / **rosso** (team 1), visibile dall'alto.
+Se il disco è troppo grande/piccolo è il `RelativeScale3D` del `TeamRing` (ora `1.6` ≈ raggio 80 cm): chiedi la taratura.
