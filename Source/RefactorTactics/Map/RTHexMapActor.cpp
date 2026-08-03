@@ -5,6 +5,11 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "UObject/ConstructorHelpers.h"
 #include "RefactorTactics.h"
+#if WITH_EDITOR
+#include "ScopedTransaction.h"
+#endif
+
+#define LOCTEXT_NAMESPACE "RTHexMap"
 
 ARTHexMapActor::ARTHexMapActor()
 {
@@ -93,6 +98,9 @@ void ARTHexMapActor::GenerateIntoAsset()
 		UE_LOG(LogRT, Warning, TEXT("[HexMap] Nessun MapAsset assegnato: assegnalo prima di generare."));
 		return;
 	}
+#if WITH_EDITOR
+	const FScopedTransaction Transaction(LOCTEXT("HexGenerate", "Hex: Generate Area"));
+#endif
 	MapAsset->Modify();
 	const TArray<FRTCellId> Ids = URTHexLibrary::HexArea(FRTCellId(0, 0, 0), FMath::Max(0, DemoRadius));
 	for (const FRTCellId& Id : Ids)
@@ -113,6 +121,9 @@ void ARTHexMapActor::ClearAsset()
 	{
 		return;
 	}
+#if WITH_EDITOR
+	const FScopedTransaction Transaction(LOCTEXT("HexClear", "Hex: Clear"));
+#endif
 	MapAsset->Modify();
 	MapAsset->Cells.Reset();
 	MapAsset->Transitions.Reset();
@@ -138,3 +149,33 @@ void ARTHexMapActor::ValidateAsset()
 		UE_LOG(LogRT, Warning, TEXT("[HexMap] %s"), *E);
 	}
 }
+
+void ARTHexMapActor::PaintTargetCell()
+{
+	if (!MapAsset)
+	{
+		UE_LOG(LogRT, Warning, TEXT("[HexMap] Nessun MapAsset assegnato."));
+		return;
+	}
+#if WITH_EDITOR
+	const FScopedTransaction Transaction(LOCTEXT("HexPaint", "Hex: Paint Cell"));
+#endif
+	MapAsset->Modify();
+	// Parte dai dati esistenti (se la cella c'e' gia'), poi applica le proprieta' del painting.
+	FRTHexCellData Cell(PaintCellTarget);
+	if (const FRTHexCellData* Existing = MapAsset->FindCell(PaintCellTarget))
+	{
+		Cell = *Existing;
+	}
+	Cell.Surface = PaintSurface;
+	Cell.MoveCost = PaintMoveCost;
+	Cell.bBlocksMovement = bPaintBlocksMovement;
+	MapAsset->AddOrUpdateCell(Cell);
+	MapAsset->SortCells();
+	MapAsset->MarkPackageDirty();
+	RebuildInstances();
+	UE_LOG(LogRT, Log, TEXT("[HexMap] Paint su %s (superficie %d, costo %d, blocca=%d)."),
+		*PaintCellTarget.ToString(), static_cast<int32>(PaintSurface), PaintMoveCost, bPaintBlocksMovement ? 1 : 0);
+}
+
+#undef LOCTEXT_NAMESPACE

@@ -59,6 +59,23 @@ public:
 	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap")
 	void ValidateAsset();
 
+	/** [Editor] Cella bersaglio del painting per-cella. */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap|Paint")
+	FRTCellId PaintCellTarget;
+
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap|Paint")
+	ERTHexSurface PaintSurface = ERTHexSurface::Normal;
+
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap|Paint")
+	int32 PaintMoveCost = 1;
+
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap|Paint")
+	bool bPaintBlocksMovement = false;
+
+	/** [Editor] Applica superficie/costo/blocco a PaintCellTarget (la crea se assente). Annullabile (Undo/Redo). */
+	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap|Paint")
+	void PaintTargetCell();
+
 	/** Ricostruisce tutte le istanze dalle celle (asset o demo). */
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "RefactorTactics|HexMap")
 	void RebuildInstances();
