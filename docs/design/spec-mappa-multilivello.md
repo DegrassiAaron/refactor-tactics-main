@@ -82,10 +82,18 @@ quota del layer. **Rischio**: la priorità di collisione tra `Cells0`/`Cells1` v
 - **MP.2 — LOS di elevazione** ✅ TDD: un blocker blocca solo se allo **stesso layer** del tiratore (dal ponte
   si spara sopra le coperture basse; a terra si spara sotto il ponte). Retro-compatibile col 2D.
 - **MP.3 — HUD path elevato** ✅: linea, pallini, destinazione e traccia post-lock seguono la quota del layer.
-- **MP.4 — verifica PIE end-to-end + tuning** ⏳; **bot-sul-ponte** ⏳ (il bot resta a terra: enhancement).
+- **MP.4 — bot-sul-ponte** ✅ *(2026-08-03)*: `URTBotLibrary::BestFiringCell` (logica pura, 2 test RED→GREEN):
+  quando il bot non ha un tiro dalla cella attuale, cerca una **posizione di tiro** raggiungibile (grafo/rampe)
+  con LOS + gittata, **preferendo l'alta quota** (elevazione: spara oltre le coperture basse); se non ce n'è si
+  avvicina come prima. Integrato in `PlanBots` (log `riposiziona per il tiro (layer N)`). Verifica PIE: i bot si
+  riposizionano in gioco (osservato `layer 0`, aggiramento a terra); la salita sul ponte (`layer 1`) è provata
+  dal test `BestFiringCellClimbsBridgeForElevatedShot` ed emerge in gioco quando il bot è vicino a una rampa e
+  le coperture bloccano il tiro a terra.
+- **MP.4 — verifica PIE del click→layer + tuning colori/quota/camera** ⏳ (richiede gioco manuale dell'utente).
 
 > **Nota di verifica**: la logica cross-layer è coperta da test (`FindPathByGraph`, `PathCost` via arco,
-> LOS di elevazione). Il solo pezzo non verificabile senza gioco manuale è il **click→layer** a schermo.
+> LOS di elevazione, `BestFiringCell`). Il solo pezzo non verificabile senza gioco manuale è il **click→layer**
+> a schermo (selezione/pianificazione su celle sul ponte).
 
 ## 10. Rischi
 
