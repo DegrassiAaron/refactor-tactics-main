@@ -1,6 +1,8 @@
 #include "RTHexEditorMode.h"
 #include "RTHexEditorModeToolkit.h"
 #include "RTHexEditorModeCommands.h"
+#include "InteractiveToolManager.h"
+#include "Tools/RTHexSelectTool.h"
 
 #define LOCTEXT_NAMESPACE "RTHexEditorMode"
 
@@ -19,7 +21,11 @@ URTHexEditorMode::URTHexEditorMode()
 void URTHexEditorMode::Enter()
 {
 	UEdMode::Enter();
-	// H5b: registrare qui i ToolBuilder con RegisterTool(...).
+
+	const FRTHexEditorModeCommands& Commands = FRTHexEditorModeCommands::Get();
+	RegisterTool(Commands.SelectTool, TEXT("RTHexSelectTool"), NewObject<URTHexSelectToolBuilder>(this));
+
+	GetToolManager()->SelectActiveToolType(EToolSide::Left, TEXT("RTHexSelectTool"));
 }
 
 void URTHexEditorMode::CreateToolkit()

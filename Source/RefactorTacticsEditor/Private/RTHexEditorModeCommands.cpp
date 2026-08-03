@@ -13,7 +13,10 @@ FRTHexEditorModeCommands::FRTHexEditorModeCommands()
 
 void FRTHexEditorModeCommands::RegisterCommands()
 {
-	// H5a: nessun tool. H5b registrera' qui il comando SelectTool.
+	TArray<TSharedPtr<FUICommandInfo>>& ToolCommands = Commands.FindOrAdd(NAME_Default);
+	UI_COMMAND(SelectTool, "Select", "Seleziona una cella cliccando nel viewport (layer attivo)",
+		EUserInterfaceActionType::ToggleButton, FInputChord());
+	ToolCommands.Add(SelectTool);
 }
 
 TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> FRTHexEditorModeCommands::GetCommands()

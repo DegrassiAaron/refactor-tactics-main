@@ -12,6 +12,9 @@ public:
 	virtual void RegisterCommands() override;
 	static TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> GetCommands();
 
+	/** Tool di selezione a click (H5b). */
+	TSharedPtr<FUICommandInfo> SelectTool;
+
 protected:
 	TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> Commands;
 };
