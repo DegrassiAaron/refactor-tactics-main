@@ -44,8 +44,48 @@ ARTGridActor::ARTGridActor()
 		BridgeCells->SetStaticMesh(PlaneMesh.Object);
 	}
 
+	// Evidenziazione hover: piano SENZA collisione (non deve intercettare il raycast del cursore), nascosto
+	// finche' SetHoveredCell non lo posiziona su una cella valida.
+	HoverHighlight = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HoverHighlight"));
+	HoverHighlight->SetupAttachment(Cells);
+	HoverHighlight->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HoverHighlight->SetVisibility(false);
+	if (PlaneMesh.Succeeded())
+	{
+		HoverHighlight->SetStaticMesh(PlaneMesh.Object);
+	}
+	const float HoverScale = CellSize / 100.f * 0.95f;
+	HoverHighlight->SetRelativeScale3D(FVector(HoverScale, HoverScale, 1.f));
+
 	// Coperture centrali di default per il demo (bloccano la linea di tiro).
 	BlockedCells = { FRTGridCoord(4, 4), FRTGridCoord(5, 4), FRTGridCoord(4, 5), FRTGridCoord(5, 5) };
+}
+
+void ARTGridActor::SetHoveredCell(const FRTGridCoord& Cell, bool bValid)
+{
+	if (!HoverHighlight)
+	{
+		return;
+	}
+	if (!bValid)
+	{
+		HoverHighlight->SetVisibility(false);
+		return;
+	}
+	// MID colorato (giallo tenue), creato pigramente una sola volta.
+	if (!HoverDynMaterial)
+	{
+		if (UMaterialInterface* Base = TerrainMaterial.LoadSynchronous())
+		{
+			HoverDynMaterial = UMaterialInstanceDynamic::Create(Base, this);
+			HoverDynMaterial->SetVectorParameterValue(TEXT("Color"), FLinearColor(1.0f, 0.9f, 0.2f));
+			HoverHighlight->SetMaterial(0, HoverDynMaterial);
+		}
+	}
+	// Leggermente sopra la cella (ZOffset 2) per evitare z-fighting con il piano-cella.
+	const FVector World = URTGridLibrary::CellToWorldElevated(Cell, GetActorLocation(), CellSize, 2.f, LayerHeight);
+	HoverHighlight->SetWorldLocation(World);
+	HoverHighlight->SetVisibility(true);
 }
 
 void ARTGridActor::BeginPlay()

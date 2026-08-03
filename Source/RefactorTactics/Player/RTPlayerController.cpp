@@ -50,6 +50,9 @@ void ARTPlayerController::BuildInputMappings()
 	UndoAction = NewObject<UInputAction>(this, TEXT("IA_UndoWaypoint"));
 	UndoAction->ValueType = EInputActionValueType::Boolean;
 
+	RecenterAction = NewObject<UInputAction>(this, TEXT("IA_Recenter"));
+	RecenterAction->ValueType = EInputActionValueType::Boolean;
+
 	MappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_Tactical"));
 
 	// Pan (Axis2D): D=+X, A=-X, W=+Y (Swizzle YXZ), S=-Y (Swizzle YXZ + Negate).
@@ -93,6 +96,9 @@ void ARTPlayerController::BuildInputMappings()
 	// Annulla l'ultimo waypoint della path composita (tasto destro del mouse o Backspace).
 	MappingContext->MapKey(UndoAction, EKeys::RightMouseButton);
 	MappingContext->MapKey(UndoAction, EKeys::BackSpace);
+
+	// Ricentra la camera sul centro griglia + reset zoom (tasto Home).
+	MappingContext->MapKey(RecenterAction, EKeys::Home);
 }
 
 void ARTPlayerController::BeginPlay()
@@ -127,10 +133,41 @@ void ARTPlayerController::SetupInputComponent()
 		EIC->BindAction(Ability3Action, ETriggerEvent::Started, this, &ARTPlayerController::OnAbility3);
 		EIC->BindAction(Ability4Action, ETriggerEvent::Started, this, &ARTPlayerController::OnAbility4);
 		EIC->BindAction(UndoAction, ETriggerEvent::Started, this, &ARTPlayerController::OnUndoWaypoint);
+		EIC->BindAction(RecenterAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRecenter);
 	}
 	else
 	{
 		UE_LOG(LogRT, Error, TEXT("[RT] InputComponent non e' un UEnhancedInputComponent"));
+	}
+}
+
+void ARTPlayerController::PlayerTick(float DeltaTime)
+{
+	Super::PlayerTick(DeltaTime);
+
+	// Evidenzia la cella sotto il cursore (solo presentazione: non tocca la logica).
+	ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
+	if (!Grid)
+	{
+		return;
+	}
+	FHitResult Hit;
+	if (GetHitResultUnderCursor(ECC_Visibility, /*bTraceComplex=*/ false, Hit) && Hit.GetActor())
+	{
+		const FRTGridCoord Cell = URTGridLibrary::WorldToCell(Hit.Location, Grid->GetActorLocation(), Grid->CellSize);
+		Grid->SetHoveredCell(Cell, URTGridLibrary::IsInBounds(Cell, Grid->Width, Grid->Height));
+	}
+	else
+	{
+		Grid->SetHoveredCell(FRTGridCoord(), false);
+	}
+}
+
+void ARTPlayerController::OnRecenter(const FInputActionValue& Value)
+{
+	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
+	{
+		Cam->RecenterView();
 	}
 }
 

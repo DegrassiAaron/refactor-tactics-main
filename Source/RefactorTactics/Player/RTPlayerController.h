@@ -21,6 +21,7 @@ class REFACTORTACTICS_API ARTPlayerController : public APlayerController
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
+	virtual void PlayerTick(float DeltaTime) override;
 
 	/** Crea (una sola volta) Input Action e Mapping Context via codice. */
 	void BuildInputMappings();
@@ -58,6 +59,9 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> UndoAction;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> RecenterAction;
+
 	/** Attore attualmente selezionato (se implementa IRTSelectable). */
 	UPROPERTY()
 	TObjectPtr<AActor> SelectedActor;
@@ -72,6 +76,7 @@ protected:
 	void OnAbility3(const FInputActionValue& Value);
 	void OnAbility4(const FInputActionValue& Value); // seleziona lo scatto (4a abilita')
 	void OnUndoWaypoint(const FInputActionValue& Value);
+	void OnRecenter(const FInputActionValue& Value);
 
 	/** Ricostruisce PlannedPath dell'unita' dai PathWaypoints correnti (o lo azzera se vuoti). */
 	void RebuildPlannedPath();

@@ -38,6 +38,11 @@ FRTGridCoord URTGridLibrary::WorldToCell(const FVector& World, const FVector& Or
 	return FRTGridCoord(FMath::FloorToInt32(LocalX), FMath::FloorToInt32(LocalY));
 }
 
+bool URTGridLibrary::IsInBounds(const FRTGridCoord& Cell, int32 Width, int32 Height)
+{
+	return Cell.X >= 0 && Cell.X < Width && Cell.Y >= 0 && Cell.Y < Height;
+}
+
 bool URTGridLibrary::IsInsideGrid(const FRTGridCoord& Cell, int32 Width, int32 Height)
 {
 	return Cell.X >= 0 && Cell.Y >= 0 && Cell.X < Width && Cell.Y < Height;

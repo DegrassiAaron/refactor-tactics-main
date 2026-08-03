@@ -507,4 +507,17 @@ bool FRTGridElevationLOSTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGridIsInBoundsTest,
+	"RefactorTactics.Grid.IsInBounds",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGridIsInBoundsTest::RunTest(const FString&)
+{
+	TestTrue(TEXT("(0,0) dentro 10x10"), URTGridLibrary::IsInBounds(FRTGridCoord(0, 0), 10, 10));
+	TestTrue(TEXT("(9,9) dentro 10x10"), URTGridLibrary::IsInBounds(FRTGridCoord(9, 9), 10, 10));
+	TestFalse(TEXT("(-1,0) fuori"), URTGridLibrary::IsInBounds(FRTGridCoord(-1, 0), 10, 10));
+	TestFalse(TEXT("(10,0) fuori (X = Width)"), URTGridLibrary::IsInBounds(FRTGridCoord(10, 0), 10, 10));
+	TestFalse(TEXT("(0,10) fuori (Y = Height)"), URTGridLibrary::IsInBounds(FRTGridCoord(0, 10), 10, 10));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -85,6 +85,9 @@ public:
 	/** Ricostruisce i piani colorati sopra le celle-terreno (riflette anche ignite/reversione). */
 	void RefreshTerrainVisuals();
 
+	/** Evidenzia la cella sotto il cursore (hover). bValid=false -> nasconde l'highlight. Solo presentazione. */
+	void SetHoveredCell(const FRTGridCoord& Cell, bool bValid);
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -116,4 +119,11 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Grid")
 	TSoftObjectPtr<UMaterialInterface> TerrainMaterial =
 		TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Materials/M_Unit.M_Unit")));
+
+	/** Evidenziazione della cella sotto il cursore (hover): un piano colorato, nascosto quando fuori griglia. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Grid")
+	TObjectPtr<UStaticMeshComponent> HoverHighlight;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> HoverDynMaterial;
 };

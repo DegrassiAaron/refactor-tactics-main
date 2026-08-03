@@ -39,6 +39,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Grid")
 	static FRTGridCoord WorldToCell(const FVector& World, const FVector& Origin, float CellSize);
 
+	/** Vero se la cella e' dentro la griglia [0,Width) x [0,Height) (ignora il Layer). Pura. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Grid")
+	static bool IsInBounds(const FRTGridCoord& Cell, int32 Width, int32 Height);
+
 	/** Vero se la cella e' dentro una griglia Width x Height con origine logica (0,0). */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Grid")
 	static bool IsInsideGrid(const FRTGridCoord& Cell, int32 Width, int32 Height);
