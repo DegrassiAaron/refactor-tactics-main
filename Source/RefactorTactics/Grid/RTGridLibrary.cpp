@@ -19,6 +19,17 @@ FVector URTGridLibrary::CellToWorldElevated(const FRTGridCoord& Cell, const FVec
 		static_cast<double>(ZOffset) + static_cast<double>(Cell.Layer) * static_cast<double>(LayerHeight));
 }
 
+float URTGridLibrary::DirectionYaw(const FVector& From, const FVector& To)
+{
+	const FVector Dir = To - From;
+	if (Dir.SizeSquared2D() <= UE_KINDA_SMALL_NUMBER)
+	{
+		return 0.f; // nessuna direzione planare -> nessun orientamento
+	}
+	// Atan2(Y,X): +X=0, +Y=90, -X=+/-180, -Y=-90 (convenzione yaw UE). Z ignorata (facing planare).
+	return FMath::RadiansToDegrees(FMath::Atan2(Dir.Y, Dir.X));
+}
+
 FRTGridCoord URTGridLibrary::WorldToCell(const FVector& World, const FVector& Origin, float CellSize)
 {
 	// Floor della posizione locale in unita' di cella: ogni punto della cella mappa allo stesso indice.

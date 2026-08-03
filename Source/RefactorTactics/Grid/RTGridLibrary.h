@@ -28,6 +28,13 @@ public:
 	static FVector CellToWorldElevated(const FRTGridCoord& Cell, const FVector& Origin, float CellSize,
 		float ZOffset, float LayerHeight);
 
+	/**
+	 * Yaw (gradi) per orientare un attore da From verso To sul piano XY (facing planare, Z ignorata).
+	 * Convenzione UE: +X = 0, +Y = 90, -X = +/-180, -Y = -90. Direzione nulla -> 0. Puro/testabile.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Grid")
+	static float DirectionYaw(const FVector& From, const FVector& To);
+
 	/** Cella che contiene la posizione mondo. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Grid")
 	static FRTGridCoord WorldToCell(const FVector& World, const FVector& Origin, float CellSize);

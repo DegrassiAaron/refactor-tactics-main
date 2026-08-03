@@ -91,6 +91,15 @@ FVector ARTUnit::WorldForCell(const FRTGridCoord& Cell, const FVector& GridOrigi
 
 void ARTUnit::SetVisualLocation(const FVector& World)
 {
+	// Facing opzionale: orienta l'unita' verso la direzione di spostamento (solo presentazione, solo yaw).
+	if (bFaceMovementDirection)
+	{
+		const FVector Current = GetActorLocation();
+		if ((World - Current).SizeSquared2D() > UE_KINDA_SMALL_NUMBER)
+		{
+			SetActorRotation(FRotator(0.f, URTGridLibrary::DirectionYaw(Current, World), 0.f));
+		}
+	}
 	SetActorLocation(World); // solo presentazione: lo stato logico (GridCell) resta invariato
 }
 

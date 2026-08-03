@@ -216,6 +216,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	float VisualZOffset = UnitHalfHeight;
 
+	/**
+	 * Se vero, durante il movimento visivo l'unita' si orienta verso la direzione di spostamento (solo yaw).
+	 * Default false = comportamento invariato (il cilindro non ruota). I BP_Unit dei personaggi lo attivano
+	 * cosi' la corsa (es. Jog_Fwd) punta dove vanno. Solo presentazione: non tocca la logica.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	bool bFaceMovementDirection = false;
+
 	/** Posiziona l'unita' al centro-mondo della cella, con la base appoggiata al piano. */
 	void PlaceOnCell(const FRTGridCoord& Cell, const FVector& GridOrigin, float CellSize, float LayerHeight = 0.f);
 
