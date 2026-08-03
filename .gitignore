@@ -52,6 +52,7 @@ Content/**/*.jpg
 Content/**/*.wav
 Content/**/*.mp3
 Content/**/*.ogg
+Content/**/*.txt
 
 # ---- Eccezioni: questi vanno versionati ----
 !Content/**/Binaries/
