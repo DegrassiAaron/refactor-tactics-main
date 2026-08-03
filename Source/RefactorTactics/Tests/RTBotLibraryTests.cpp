@@ -204,4 +204,50 @@ bool FRTBotUsesRampTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotFiringCellClimbsBridgeTest,
+	"RefactorTactics.Bot.BestFiringCellClimbsBridgeForElevatedShot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotFiringCellClimbsBridgeTest::RunTest(const FString&)
+{
+	// Bersaglio a TERRA (6,4,0). Coperture a terra (4,4,0)(5,4,0) bloccano il tiro dal suolo lungo y=4.
+	// Dal ponte (layer 1) la LOS di elevazione passa SOPRA le coperture -> il bot deve salire per sparare.
+	TMap<FRTGridCoord, int32> Cost;
+	Cost.Add(FRTGridCoord(4, 4, 0), RT_BLOCKED_COST);
+	Cost.Add(FRTGridCoord(5, 4, 0), RT_BLOCKED_COST);
+	const TArray<FRTTraversalEdge> Ramp = {
+		FRTTraversalEdge(FRTGridCoord(2, 4, 0), FRTGridCoord(3, 4, 1), 2),
+		FRTTraversalEdge(FRTGridCoord(3, 4, 1), FRTGridCoord(2, 4, 0), 2) };
+	const TArray<FRTGridCoord> Blockers = { FRTGridCoord(4, 4, 0), FRTGridCoord(5, 4, 0) };
+	const FRTGridCoord From(2, 4, 0), Target(6, 4, 0);
+	const int32 MoveRange = 4, AttackRange = 5;
+
+	// Da terra il bot NON ha LOS sul bersaglio (coperture in mezzo).
+	TestFalse(TEXT("nessun tiro dal suolo"), URTGridLibrary::HasLineOfSight(From, Target, Blockers));
+
+	// Con la rampa: sale sul ponte e trova una posizione di tiro elevata.
+	const FRTGridCoord Fire = URTBotLibrary::BestFiringCell(From, Target, MoveRange, Cost, 10, 10, Blockers, AttackRange, Ramp);
+	TestEqual(TEXT("sale sul ponte (layer 1) per il tiro"), Fire.Layer, 1);
+	TestTrue(TEXT("da lì ha davvero LOS + gittata"),
+		URTGridLibrary::IsWithinRange(Fire, Target, AttackRange) && URTGridLibrary::HasLineOfSight(Fire, Target, Blockers));
+
+	// Senza rampa: nessuna posizione di tiro elevata raggiungibile -> non sale (resta a terra).
+	const FRTGridCoord NoRamp = URTBotLibrary::BestFiringCell(From, Target, MoveRange, Cost, 10, 10, Blockers, AttackRange);
+	TestEqual(TEXT("senza rampa: non sale (layer 0)"), NoRamp.Layer, 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotFiringCellNoneReachableTest,
+	"RefactorTactics.Bot.BestFiringCellReturnsFromWhenNoShotReachable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotFiringCellNoneReachableTest::RunTest(const FString&)
+{
+	// Bersaglio lontano e fuori gittata da ogni cella raggiungibile -> ritorna From (poi si avvicina).
+	const TMap<FRTGridCoord, int32> NoCost;
+	const TArray<FRTGridCoord> NoBlockers;
+	const FRTGridCoord From(0, 0), Target(9, 9);
+	const FRTGridCoord Fire = URTBotLibrary::BestFiringCell(From, Target, 2, NoCost, 10, 10, NoBlockers, 2);
+	TestTrue(TEXT("nessun tiro raggiungibile -> resta a From"), Fire == From);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

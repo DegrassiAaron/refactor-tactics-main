@@ -119,6 +119,14 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
 	TArray<FRTGridCoord> PlannedWaypoints;
 
+	/** Abilita' di scatto pianificata per il turno (INDEX_NONE = nessuno scatto). Si risolve in fase Dash. */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
+	int32 PlannedDashAbility = INDEX_NONE;
+
+	/** Cella di destinazione dello scatto pianificato (valida solo se PlannedDashAbility e' impostata). */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
+	FRTGridCoord PlannedDashCell;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	ERTArchetype Archetype = ERTArchetype::Ranger;
 
@@ -135,6 +143,9 @@ public:
 	int32 NumAbilities() const { return Abilities.Num(); }
 	URTAbilityData* GetAbility(int32 Index) const;
 
+	/** Indice della prima abilita' di scatto (bDash), o INDEX_NONE se l'unita' non ne ha. */
+	int32 FindDashAbilityIndex() const;
+
 	/** Vero se l'abilita' e' pronta (non in ricarica) e c'e' energia sufficiente. */
 	bool CanUseAbility(int32 Index) const;
 
@@ -150,8 +161,14 @@ public:
 	/** Decrementa i cooldown di tutte le abilita'. */
 	void TickCooldowns();
 
-	/** Applica lo stato di combattimento risolto; se HP<=0 avvia l'eliminazione. */
+	/**
+	 * Applica lo stato di combattimento risolto (solo logico). Se HP<=0 l'unita' e' morta, ma NON viene
+	 * distrutta subito: la rimozione visiva/distruzione e' differita (morte visiva differita, vedi TurnManager).
+	 */
 	void ApplyCombatState(int32 NewHealth, int32 NewShield);
+
+	/** Nasconde la mesh e disabilita la collisione (morte visiva; la distruzione avviene a fine turno). */
+	void HideForDefeat();
 
 	bool IsAlive() const { return Health > 0; }
 
@@ -166,6 +183,9 @@ public:
 
 	/** Range di movimento tenendo conto degli status (Root/Slow). */
 	int32 GetEffectiveMoveRange() const;
+
+	/** Portata effettiva dello SCATTO con gli status (Root azzera -> niente scatto, Slow dimezza). */
+	int32 GetEffectiveDashRange(int32 BaseRange) const;
 
 private:
 	/** Status attivi: tag -> turni residui. */
@@ -185,8 +205,25 @@ private:
 
 public:
 
+	/** Semi-altezza della mesh (cilindro base ~100uu con scala Z 1.8 -> ~180, meta' = 90). */
+	static constexpr float UnitHalfHeight = 90.f;
+
+	/**
+	 * Offset verticale del pivot rispetto al piano della cella (SOLO presentazione).
+	 * Default = UnitHalfHeight (90) per il cilindro segnaposto col pivot al centro; impostare a 0 per
+	 * personaggi skeletali col pivot ai piedi (via BP_Unit). Non tocca la logica: la griglia resta autoritativa.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	float VisualZOffset = UnitHalfHeight;
+
 	/** Posiziona l'unita' al centro-mondo della cella, con la base appoggiata al piano. */
 	void PlaceOnCell(const FRTGridCoord& Cell, const FVector& GridOrigin, float CellSize, float LayerHeight = 0.f);
+
+	/** Posizione-mondo che PlaceOnCell userebbe per Cell, senza modificare lo stato logico (per il playback). */
+	FVector WorldForCell(const FRTGridCoord& Cell, const FVector& GridOrigin, float CellSize, float LayerHeight = 0.f) const;
+
+	/** Sposta solo la mesh (presentazione): NON cambia GridCell ne' il piano. Usato dall'animazione del turno. */
+	void SetVisualLocation(const FVector& World);
 
 	// IRTSelectable
 	virtual void OnSelected() override;

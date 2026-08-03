@@ -10,6 +10,15 @@ FVector URTGridLibrary::CellToWorld(const FRTGridCoord& Cell, const FVector& Ori
 		Origin.Z);
 }
 
+FVector URTGridLibrary::CellToWorldElevated(const FRTGridCoord& Cell, const FVector& Origin, float CellSize,
+	float ZOffset, float LayerHeight)
+{
+	// Centro-cella (X,Y a terra) piu' l'offset verticale del pivot e l'elevazione del layer.
+	const FVector Center = CellToWorld(Cell, Origin, CellSize);
+	return Center + FVector(0.0, 0.0,
+		static_cast<double>(ZOffset) + static_cast<double>(Cell.Layer) * static_cast<double>(LayerHeight));
+}
+
 FRTGridCoord URTGridLibrary::WorldToCell(const FVector& World, const FVector& Origin, float CellSize)
 {
 	// Floor della posizione locale in unita' di cella: ogni punto della cella mappa allo stesso indice.

@@ -125,4 +125,76 @@ bool FRTEffectiveAttackPowerTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNewlyDefeatedTest,
+	"RefactorTactics.Combat.NewlyDefeatedDetectsFreshDeaths",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTNewlyDefeatedTest::RunTest(const FString&)
+{
+	// Una sola unita' passa da viva a morta -> il suo indice.
+	{
+		const TArray<int32> D = URTCombatLibrary::NewlyDefeated({ 100, 100 }, { 100, 0 });
+		TestEqual(TEXT("una morte, indice 1"), D.Num(), 1);
+		TestTrue(TEXT("indice corretto"), D.Num() == 1 && D[0] == 1);
+	}
+	// Chi era gia' morto PRIMA non e' "appena eliminato".
+	{
+		const TArray<int32> D = URTCombatLibrary::NewlyDefeated({ 0, 100 }, { 0, 100 });
+		TestEqual(TEXT("gia' morta -> nessuna nuova morte"), D.Num(), 0);
+	}
+	// HP negativi contano come morte.
+	{
+		const TArray<int32> D = URTCombatLibrary::NewlyDefeated({ 100 }, { -5 });
+		TestTrue(TEXT("HP negativi -> morta"), D.Num() == 1 && D[0] == 0);
+	}
+	// Morti multiple, indici in ordine.
+	{
+		const TArray<int32> D = URTCombatLibrary::NewlyDefeated({ 50, 50, 50 }, { 0, 50, 0 });
+		TestTrue(TEXT("due morti agli indici 0 e 2"), D.Num() == 2 && D[0] == 0 && D[1] == 2);
+	}
+	// Lunghezze diverse: itera fino al minimo, senza crash.
+	{
+		const TArray<int32> D = URTCombatLibrary::NewlyDefeated({ 100, 100, 100 }, { 0 });
+		TestTrue(TEXT("solo l'indice 0 confrontabile"), D.Num() == 1 && D[0] == 0);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnockbackTest,
+	"RefactorTactics.Combat.KnockbackPushesTargetAwayBlockedByObstaclesAndEdges",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnockbackTest::RunTest(const FString&)
+{
+	const TArray<FRTGridCoord> NoBlock;
+	// Spinta in spazio aperto lungo +Y di 2 celle: (5,6) -> (5,8).
+	TestTrue(TEXT("spinta verticale libera"),
+		URTCombatLibrary::KnockbackDestination(FRTGridCoord(5, 5), FRTGridCoord(5, 6), 2, NoBlock, 10, 10) == FRTGridCoord(5, 8));
+	// Spinta orizzontale +X di 2: (6,5) -> (8,5).
+	TestTrue(TEXT("spinta orizzontale libera"),
+		URTCombatLibrary::KnockbackDestination(FRTGridCoord(5, 5), FRTGridCoord(6, 5), 2, NoBlock, 10, 10) == FRTGridCoord(8, 5));
+	// Ostacolo in (5,8): la spinta si ferma prima, a (5,7).
+	{
+		const TArray<FRTGridCoord> Block = { FRTGridCoord(5, 8) };
+		TestTrue(TEXT("si ferma prima dell'ostacolo"),
+			URTCombatLibrary::KnockbackDestination(FRTGridCoord(5, 5), FRTGridCoord(5, 6), 3, Block, 10, 10) == FRTGridCoord(5, 7));
+	}
+	// Bordo della griglia: da (0,8) spinta +Y su 10x10 si ferma a (0,9).
+	TestTrue(TEXT("si ferma al bordo"),
+		URTCombatLibrary::KnockbackDestination(FRTGridCoord(0, 7), FRTGridCoord(0, 8), 5, NoBlock, 10, 10) == FRTGridCoord(0, 9));
+	// Distanza 0 -> resta.
+	TestTrue(TEXT("distanza 0 -> fermo"),
+		URTCombatLibrary::KnockbackDestination(FRTGridCoord(5, 5), FRTGridCoord(5, 6), 0, NoBlock, 10, 10) == FRTGridCoord(5, 6));
+	// Attaccante sulla stessa cella del bersaglio -> nessuna direzione, resta.
+	TestTrue(TEXT("stessa cella -> fermo"),
+		URTCombatLibrary::KnockbackDestination(FRTGridCoord(5, 5), FRTGridCoord(5, 5), 2, NoBlock, 10, 10) == FRTGridCoord(5, 5));
+	// Direzione = asse col delta maggiore: dx=2,dy=1 -> spinta lungo +X: (7,6) -> (9,6).
+	TestTrue(TEXT("spinge lungo l'asse dominante (X)"),
+		URTCombatLibrary::KnockbackDestination(FRTGridCoord(5, 5), FRTGridCoord(7, 6), 2, NoBlock, 10, 10) == FRTGridCoord(9, 6));
+	// Preserva il layer del bersaglio (spinta orizzontale sullo stesso piano).
+	{
+		const FRTGridCoord Dest = URTCombatLibrary::KnockbackDestination(FRTGridCoord(3, 4, 1), FRTGridCoord(4, 4, 1), 1, NoBlock, 10, 10);
+		TestTrue(TEXT("mantiene il layer"), Dest == FRTGridCoord(5, 4, 1));
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

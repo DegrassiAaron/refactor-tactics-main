@@ -44,6 +44,8 @@ void ARTPlayerController::BuildInputMappings()
 	Ability2Action->ValueType = EInputActionValueType::Boolean;
 	Ability3Action = NewObject<UInputAction>(this, TEXT("IA_Ability3"));
 	Ability3Action->ValueType = EInputActionValueType::Boolean;
+	Ability4Action = NewObject<UInputAction>(this, TEXT("IA_Ability4"));
+	Ability4Action->ValueType = EInputActionValueType::Boolean;
 
 	UndoAction = NewObject<UInputAction>(this, TEXT("IA_UndoWaypoint"));
 	UndoAction->ValueType = EInputActionValueType::Boolean;
@@ -86,6 +88,7 @@ void ARTPlayerController::BuildInputMappings()
 	MappingContext->MapKey(Ability1Action, EKeys::One);
 	MappingContext->MapKey(Ability2Action, EKeys::Two);
 	MappingContext->MapKey(Ability3Action, EKeys::Three);
+	MappingContext->MapKey(Ability4Action, EKeys::Four); // scatto
 
 	// Annulla l'ultimo waypoint della path composita (tasto destro del mouse o Backspace).
 	MappingContext->MapKey(UndoAction, EKeys::RightMouseButton);
@@ -122,6 +125,7 @@ void ARTPlayerController::SetupInputComponent()
 		EIC->BindAction(Ability1Action, ETriggerEvent::Started, this, &ARTPlayerController::OnAbility1);
 		EIC->BindAction(Ability2Action, ETriggerEvent::Started, this, &ARTPlayerController::OnAbility2);
 		EIC->BindAction(Ability3Action, ETriggerEvent::Started, this, &ARTPlayerController::OnAbility3);
+		EIC->BindAction(Ability4Action, ETriggerEvent::Started, this, &ARTPlayerController::OnAbility4);
 		EIC->BindAction(UndoAction, ETriggerEvent::Started, this, &ARTPlayerController::OnUndoWaypoint);
 	}
 	else
@@ -163,6 +167,11 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	{
 		const int32 AbilityIndex = SelectedUnit->SelectedAbilityIndex;
 		const URTAbilityData* Ability = SelectedUnit->GetAbility(AbilityIndex);
+		if (Ability && Ability->bDash)
+		{
+			UE_LOG(LogRT, Log, TEXT("[RT] Lo scatto si pianifica su una CELLA, non su un nemico"));
+			return;
+		}
 		if (!Ability)
 		{
 			return;
@@ -224,7 +233,33 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 				UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d) occupata da una copertura"), Cell.X, Cell.Y);
 				return;
 			}
-			const int32 MoveRange = SelectedUnit->GetEffectiveMoveRange();
+			// Se l'abilita' selezionata e' uno SCATTO, pianifica un DASH verso questa cella (fase Dash),
+				// invece di un waypoint di movimento normale.
+				const int32 SelIdx = SelectedUnit->SelectedAbilityIndex;
+				const URTAbilityData* SelAb = SelectedUnit->GetAbility(SelIdx);
+				if (SelAb && SelAb->bDash)
+				{
+					if (!SelectedUnit->CanUseAbility(SelIdx))
+					{
+						UE_LOG(LogRT, Log, TEXT("[RT] Scatto non pronto (ricarica) per %s"), *SelectedUnit->GetName());
+						return;
+					}
+					TMap<FRTGridCoord, int32> DCostMap;
+					Grid->BuildCostMap(DCostMap);
+					const TArray<FRTGridCoord> DPath = URTGridLibrary::FindPathByGraph(SelectedUnit->GridCell, Cell, DCostMap, Grid->GetEdges(), Grid->Width, Grid->Height);
+					const int32 DCost = URTGridLibrary::PathCost(DPath, DCostMap, Grid->GetEdges());
+					if (DPath.Num() < 2 || DCost < 0 || DCost > SelectedUnit->GetEffectiveDashRange(SelAb->RangeCells))
+					{
+						UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d) fuori dalla portata dello scatto (max %d) per %s"), Cell.X, Cell.Y, SelAb->RangeCells, *SelectedUnit->GetName());
+						return;
+					}
+					SelectedUnit->PlannedDashAbility = SelIdx;
+					SelectedUnit->PlannedDashCell = Cell;
+					UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s SCATTO -> (%d,%d,L%d)"), *SelectedUnit->GetName(), Cell.X, Cell.Y, Cell.Layer);
+					return;
+				}
+
+				const int32 MoveRange = SelectedUnit->GetEffectiveMoveRange();
 				TMap<FRTGridCoord, int32> CostMap;
 				Grid->BuildCostMap(CostMap);
 			if (!URTGridLibrary::ReachableCellsByGraph(SelectedUnit->GridCell, MoveRange, CostMap, Grid->GetEdges(), Grid->Width, Grid->Height).Contains(Cell))
@@ -254,7 +289,15 @@ void ARTPlayerController::OnLockIn(const FInputActionValue& Value)
 {
 	if (ARTTurnManager* TurnManager = Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass())))
 	{
-		TurnManager->LockInAndResolve();
+		// Durante il playback lo stesso tasto (Spazio) salta la risoluzione; altrimenti chiude la pianificazione.
+		if (TurnManager->IsResolving())
+		{
+			TurnManager->SkipPlayback();
+		}
+		else
+		{
+			TurnManager->LockInAndResolve();
+		}
 	}
 }
 
@@ -311,6 +354,7 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 void ARTPlayerController::OnAbility1(const FInputActionValue& Value) { SelectAbilityForCurrent(0); }
 void ARTPlayerController::OnAbility2(const FInputActionValue& Value) { SelectAbilityForCurrent(1); }
 void ARTPlayerController::OnAbility3(const FInputActionValue& Value) { SelectAbilityForCurrent(2); }
+void ARTPlayerController::OnAbility4(const FInputActionValue& Value) { SelectAbilityForCurrent(3); } // scatto
 
 void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 {

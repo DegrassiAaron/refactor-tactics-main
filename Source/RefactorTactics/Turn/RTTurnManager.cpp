@@ -1,5 +1,6 @@
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTMovementResolver.h"
+#include "Turn/RTPlaybackLibrary.h"
 #include "Combat/RTCombatResolver.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Ability/RTAbilityData.h"
@@ -15,13 +16,24 @@
 
 ARTTurnManager::ARTTurnManager()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	// Tick abilitato solo durante il playback della risoluzione (presentazione, non logica).
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = false;
 }
 
 void ARTTurnManager::BeginPlay()
 {
 	Super::BeginPlay();
 	StartPlanningTimer();
+}
+
+void ARTTurnManager::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	if (bIsResolving)
+	{
+		TickPlayback(DeltaSeconds);
+	}
 }
 
 void ARTTurnManager::AddLogEvent(const FString& Message)
@@ -115,10 +127,10 @@ void ARTTurnManager::PlanBots()
 			for (int32 A = 0; A < Bot->NumAbilities(); ++A)
 			{
 				const URTAbilityData* Ability = Bot->GetAbility(A);
-				if (!Ability || !Bot->CanUseAbility(A)
+				if (!Ability || Ability->bDash || !Bot->CanUseAbility(A)
 					|| !URTGridLibrary::IsWithinRange(Bot->GridCell, Other->GridCell, Ability->RangeCells))
 				{
-					continue;
+					continue; // le abilita' di scatto non sono attacchi
 				}
 				const int32 Score = URTBotLibrary::AttackScore(Ability->Power, TargetHP);
 				if (Score > BestScore)
@@ -138,10 +150,26 @@ void ARTTurnManager::PlanBots()
 		// SUBITO, rinunciando al tiro (comportamento da kiter: non farsi raggiungere dalla mischia).
 		const bool bPanic = bKiter && Nearest && NearestDistance <= Bot->KiteStandoff / 2;
 
+		// Scatto DIFENSIVO: se minacciato e con lo scatto pronto, il bot SCHIVA con lo scatto (fase Dash,
+		// prima del Blast). La posizione post-scatto ri-valida gittata/LOS del bersaglio dell'attaccante:
+		// uscendo dal tiro, l'attacco previsto MANCA. Dash-only. Ritorna true se ha pianificato la fuga.
+		auto TryFleeDash = [&](const FRTGridCoord& ThreatCell) -> bool
+		{
+			const int32 DIdx = Bot->FindDashAbilityIndex();
+			const URTAbilityData* DAb = Bot->GetAbility(DIdx);
+			if (!DAb || !DAb->bDash || !Bot->CanUseAbility(DIdx)) { return false; }
+			const FRTGridCoord Dest = URTBotLibrary::BestKiteCell(Bot->GridCell, ThreatCell, Bot->GetEffectiveDashRange(DAb->RangeCells), BotCostMap, GridW, GridH, BotEdges);
+			if (Dest == Bot->GridCell) { return false; }
+			Bot->PlannedDashAbility = DIdx;
+			Bot->PlannedDashCell = Dest;
+			AddLogEvent(FString::Printf(TEXT("%s: scatto difensivo (schiva) -> (%d,%d,L%d)"), *Bot->GetName(), Dest.X, Dest.Y, Dest.Layer));
+			return true;
+		};
+
 		if (bPanic)
 		{
 			// Fuga che massimizza la distanza (aggira bordi/ostacoli); tiro e bersaglio restano azzerati.
-			Bot->PlannedCell = URTBotLibrary::BestKiteCell(Bot->GridCell, Nearest->GridCell, MoveBudget, BotCostMap, GridW, GridH, BotEdges);
+			if (!TryFleeDash(Nearest->GridCell)) { Bot->PlannedCell = URTBotLibrary::BestKiteCell(Bot->GridCell, Nearest->GridCell, MoveBudget, BotCostMap, GridW, GridH, BotEdges); }
 		}
 		else if (BestTarget)
 		{
@@ -153,13 +181,65 @@ void ARTTurnManager::PlanBots()
 			// Nessun tiro disponibile: un kiter arretra se la minaccia e' entro lo standoff, altrimenti
 			// si avvicina per rientrare a distanza di tiro; la mischia (Guardian) chiude sempre.
 			// In ogni caso si evitano le celle-copertura (routing a un turno attorno agli ostacoli).
-			if (bKiter && NearestDistance < Bot->KiteStandoff)
+			// Se lo SCATTO e' pronto, riposizionati/avvicinati IN FRETTA con lo scatto (fase Dash, prima del
+				// Blast; piu' portata del movimento). Dash-only per il bot (niente move normale quando scatta).
+				const int32 DashIdx = Bot->FindDashAbilityIndex();
+				const URTAbilityData* DashAb = Bot->GetAbility(DashIdx);
+				FRTGridCoord DashDest = Bot->GridCell;
+				if (DashAb && DashAb->bDash && Bot->CanUseAbility(DashIdx) && !(bKiter && NearestDistance < Bot->KiteStandoff))
+				{
+					int32 FireRangeD = 0;
+					for (int32 A = 0; A < Bot->NumAbilities(); ++A)
+					{
+						const URTAbilityData* Ab = Bot->GetAbility(A);
+						if (Ab && !Ab->bDash && Bot->CanUseAbility(A)) { FireRangeD = FMath::Max(FireRangeD, Ab->RangeCells); }
+					}
+					// Prima una posizione di tiro raggiungibile con lo scatto; altrimenti chiudi la distanza.
+					DashDest = URTBotLibrary::BestFiringCell(Bot->GridCell, Nearest->GridCell, Bot->GetEffectiveDashRange(DashAb->RangeCells), BotCostMap, GridW, GridH, VisionBlockers, FireRangeD, BotEdges);
+					if (DashDest == Bot->GridCell)
+					{
+						DashDest = URTBotLibrary::BestApproachCell(Bot->GridCell, Nearest->GridCell, Bot->GetEffectiveDashRange(DashAb->RangeCells), BotCostMap, GridW, GridH, BotEdges);
+					}
+				}
+				if (DashDest != Bot->GridCell)
+				{
+					Bot->PlannedDashAbility = DashIdx;
+					Bot->PlannedDashCell = DashDest;
+					AddLogEvent(FString::Printf(TEXT("%s: scatto -> (%d,%d,L%d)"), *Bot->GetName(), DashDest.X, DashDest.Y, DashDest.Layer));
+				}
+				else if (bKiter && NearestDistance < Bot->KiteStandoff)
 			{
-				Bot->PlannedCell = URTBotLibrary::BestKiteCell(Bot->GridCell, Nearest->GridCell, MoveBudget, BotCostMap, GridW, GridH, BotEdges);
+				if (!TryFleeDash(Nearest->GridCell)) { Bot->PlannedCell = URTBotLibrary::BestKiteCell(Bot->GridCell, Nearest->GridCell, MoveBudget, BotCostMap, GridW, GridH, BotEdges); }
 			}
 			else
 			{
-				Bot->PlannedCell = URTBotLibrary::BestApproachCell(Bot->GridCell, Nearest->GridCell, MoveBudget, BotCostMap, GridW, GridH, BotEdges);
+				// Prova a raggiungere una POSIZIONE DI TIRO (sfrutta l'alta quota del ponte per sparare oltre
+				// le coperture basse). Richiede un'abilita' utilizzabile con la sua gittata; se non c'e' una
+				// posizione di tiro raggiungibile, ci si avvicina come prima.
+				int32 FireRange = 0;
+				for (int32 A = 0; A < Bot->NumAbilities(); ++A)
+				{
+					const URTAbilityData* Ability = Bot->GetAbility(A);
+					if (Ability && !Ability->bDash && Bot->CanUseAbility(A))
+					{
+						FireRange = FMath::Max(FireRange, Ability->RangeCells);
+					}
+				}
+				FRTGridCoord FireCell = Bot->GridCell;
+				if (FireRange > 0)
+				{
+					FireCell = URTBotLibrary::BestFiringCell(Bot->GridCell, Nearest->GridCell, MoveBudget,
+						BotCostMap, GridW, GridH, VisionBlockers, FireRange, BotEdges);
+				}
+				if (FireCell != Bot->GridCell)
+				{
+					AddLogEvent(FString::Printf(TEXT("%s: riposiziona per il tiro (layer %d)"), *Bot->GetName(), FireCell.Layer));
+					Bot->PlannedCell = FireCell;
+				}
+				else
+				{
+					Bot->PlannedCell = URTBotLibrary::BestApproachCell(Bot->GridCell, Nearest->GridCell, MoveBudget, BotCostMap, GridW, GridH, BotEdges);
+				}
 			}
 		}
 	}
@@ -207,9 +287,9 @@ float ARTTurnManager::GetPlanningTimeRemaining() const
 
 void ARTTurnManager::LockInAndResolve()
 {
-	if (Phase != ERTMatchPhase::Planning)
+	if (Phase != ERTMatchPhase::Planning || bIsResolving)
 	{
-		return;
+		return; // gia' in risoluzione o non in pianificazione: ignora un secondo lock-in
 	}
 
 	// Chiude la pianificazione: ferma il timer (utile anche per il lock-in manuale).
@@ -218,6 +298,10 @@ void ARTTurnManager::LockInAndResolve()
 		World->GetTimerManager().ClearTimer(PlanningTimerHandle);
 	}
 
+	// Nuova risoluzione: azzera la timeline del turno (verra' popolata dalle fasi).
+	ResolvedTimeline.Reset();
+	bPrepActiveThisTurn = false;
+
 	// Avanza le fasi fino a tornare a Planning; il movimento si applica nella fase Move.
 	do
 	{
@@ -225,6 +309,10 @@ void ARTTurnManager::LockInAndResolve()
 		if (Phase == ERTMatchPhase::Prep)
 		{
 			ResolvePrep(); // abilita' di supporto (buff su se stessi)
+		}
+		else if (Phase == ERTMatchPhase::Dash)
+		{
+			ResolveDash(); // scatti: riposizionamento rapido PRIMA del Blast
 		}
 		else if (Phase == ERTMatchPhase::Blast)
 		{
@@ -258,10 +346,19 @@ void ARTTurnManager::LockInAndResolve()
 			{
 				const FRTDamageResult R = URTCombatLibrary::ApplyDamage(Hazard, Unit->Shield, Unit->Health);
 				AddLogEvent(FString::Printf(TEXT("%s: %d danno da %s"), *Unit->GetName(), Hazard, *Terrain->DisplayName.ToString()));
-				Unit->ApplyCombatState(R.Health, R.Shield); // puo' distruggere l'unita'
-				if (!IsValid(Unit) || !Unit->IsAlive())
+				if (R.Health <= 0)
 				{
-					continue;
+					AddLogEvent(FString::Printf(TEXT("Eliminata: %s (team %d)"), *Unit->GetName(), Unit->TeamId));
+					FRTResolvedEvent Ev;
+					Ev.Phase = ERTMatchPhase::Cleanup;
+					Ev.Type = ERTResolvedEventType::Defeated;
+					Ev.Source = Unit;
+					ResolvedTimeline.Add(Ev);
+				}
+				Unit->ApplyCombatState(R.Health, R.Shield); // solo logico: la rimozione visiva e' differita
+				if (!Unit->IsAlive())
+				{
+					continue; // morta: niente energia/tick per questa unita'
 				}
 			}
 
@@ -273,13 +370,30 @@ void ARTTurnManager::LockInAndResolve()
 	}
 	if (Grid) { Grid->TickTerrain(); } // Fuoco -> normale allo scadere della durata
 
-	const ERTMatchOutcome Outcome = URTTurnRules::EvaluateOutcome(Team0Alive, Team1Alive);
-	if (Outcome != ERTMatchOutcome::InProgress)
+	PendingOutcome = URTTurnRules::EvaluateOutcome(Team0Alive, Team1Alive);
+
+	// Se c'e' qualcosa da mostrare (movimenti/attacchi) e il playback e' attivo, riproduci la risoluzione
+	// nel tempo; altrimenti concludi subito il turno (comportamento istantaneo: es. headless/senza eventi).
+	if (bEnablePlayback && ResolvedTimeline.Num() > 0)
+	{
+		BeginPlayback();
+		return;
+	}
+	ConcludeTurn();
+}
+
+void ARTTurnManager::ConcludeTurn()
+{
+	// Morte visiva differita: ora che il playback ha mostrato le eliminazioni, rimuovi gli Actor morti
+	// (prima del prossimo turno, cosi' non figurano piu' come bersagli/ostacoli).
+	DestroyDefeatedUnits();
+
+	if (PendingOutcome != ERTMatchOutcome::InProgress)
 	{
 		Phase = ERTMatchPhase::MatchEnded;
 		const TCHAR* Msg =
-			Outcome == ERTMatchOutcome::Team0Wins ? TEXT("Vince il team 0 (blu)") :
-			Outcome == ERTMatchOutcome::Team1Wins ? TEXT("Vince il team 1 (rosso)") :
+			PendingOutcome == ERTMatchOutcome::Team0Wins ? TEXT("Vince il team 0 (blu)") :
+			PendingOutcome == ERTMatchOutcome::Team1Wins ? TEXT("Vince il team 1 (rosso)") :
 			TEXT("Pareggio");
 		AddLogEvent(FString::Printf(TEXT("Partita finita: %s"), Msg));
 		return; // niente nuovo turno
@@ -289,6 +403,20 @@ void ARTTurnManager::LockInAndResolve()
 
 	// Riavvia la pianificazione del nuovo turno.
 	StartPlanningTimer();
+}
+
+void ARTTurnManager::DestroyDefeatedUnits()
+{
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+	for (AActor* Actor : Actors)
+	{
+		ARTUnit* Unit = Cast<ARTUnit>(Actor);
+		if (Unit && !Unit->IsAlive())
+		{
+			Unit->Destroy();
+		}
+	}
 }
 
 void ARTTurnManager::ResolvePrep()
@@ -312,8 +440,126 @@ void ARTTurnManager::ResolvePrep()
 			AddLogEvent(FString::Printf(TEXT("%s: %s (+%d scudo)"), *Unit->GetName(), *Ability->DisplayName.ToString(), Ability->Power));
 			Unit->PlannedAbilityIndex = INDEX_NONE; // consumato in Prep
 			Unit->PlannedAttackTarget = nullptr;
+			bPrepActiveThisTurn = true; // c'e' un beat di Prep da mostrare nel playback
 		}
 	}
+}
+
+void ARTTurnManager::ResolveDash()
+{
+	UWorld* World = GetWorld();
+	if (!World) { return; }
+
+	ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
+	const FVector Origin = Grid ? Grid->GetActorLocation() : FVector::ZeroVector;
+	const float CellSize = Grid ? Grid->CellSize : 200.f;
+	const int32 GridW = Grid ? Grid->Width : 10;
+	const int32 GridH = Grid ? Grid->Height : 10;
+	TMap<FRTGridCoord, int32> CostMap;
+	if (Grid) { Grid->BuildCostMap(CostMap); }
+	static const TArray<FRTTraversalEdge> NoEdges;
+	const TArray<FRTTraversalEdge>& Edges = Grid ? Grid->GetEdges() : NoEdges;
+	const float LayerH = Grid ? Grid->LayerHeight : 0.f;
+
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+
+	// Raccogli le unita' con uno scatto pianificato VALIDO (abilita' dash utilizzabile, destinazione
+	// raggiungibile entro la portata dello scatto). Lo scatto e' consumato per il turno in ogni caso.
+	TArray<ARTUnit*> Dashers;
+	TArray<int32> DashAbilityIdx;
+	TArray<TArray<FRTGridCoord>> Paths;
+	for (AActor* Actor : Actors)
+	{
+		ARTUnit* Unit = Cast<ARTUnit>(Actor);
+		if (!Unit || !Unit->IsAlive()) { continue; }
+		const int32 DashIdx = Unit->PlannedDashAbility;
+		Unit->PlannedDashAbility = INDEX_NONE; // consumato per questo turno (valido o no)
+		const URTAbilityData* Dash = Unit->GetAbility(DashIdx);
+		if (!Dash || !Dash->bDash || !Unit->CanUseAbility(DashIdx) || Unit->PlannedDashCell == Unit->GridCell)
+		{
+			continue;
+		}
+		// Percorso di scatto: pathfinding a grafo, entro il budget di COSTO = RangeCells dello scatto.
+		TArray<FRTGridCoord> Path = URTGridLibrary::FindPathByGraph(Unit->GridCell, Unit->PlannedDashCell, CostMap, Edges, GridW, GridH);
+		const int32 Cost = URTGridLibrary::PathCost(Path, CostMap, Edges);
+		if (Path.Num() < 2 || Cost < 0 || Cost > Unit->GetEffectiveDashRange(Dash->RangeCells))
+		{
+			continue; // destinazione fuori dalla portata dello scatto
+		}
+		Dashers.Add(Unit);
+		DashAbilityIdx.Add(DashIdx);
+		Paths.Add(Path);
+	}
+
+	if (Dashers.Num() == 0) { return; }
+
+	// Scatti simultanei, ordine-indipendenti (stesso resolver del movimento).
+	const TArray<FRTPathResult> Resolved = URTMovementResolver::ResolvePaths(Paths);
+
+	// Eventi per il playback (Move-type, fase Dash) + traccia post-lock. Catturati PRIMA del placement.
+	for (int32 i = 0; i < Dashers.Num(); ++i)
+	{
+		if (Resolved[i].Entered.Num() > 0)
+		{
+			TArray<FRTGridCoord> Route;
+			Route.Add(Dashers[i]->GridCell);
+			Route.Append(Resolved[i].Entered);
+			LastMoveRoutes.Add(Route);
+
+			FRTResolvedEvent Ev;
+			Ev.Phase = ERTMatchPhase::Dash;
+			Ev.Type = ERTResolvedEventType::Move;
+			Ev.Source = Dashers[i];
+			Ev.Path = Route;
+			ResolvedTimeline.Add(Ev);
+		}
+	}
+
+	// Applica le posizioni SENZA cancellare il move normale (scatto + move) e consuma l'abilita'.
+	for (int32 i = 0; i < Dashers.Num(); ++i)
+	{
+		ARTUnit* Unit = Dashers[i];
+		const FRTGridCoord PreDash = Unit->GridCell;
+		const FRTGridCoord Final = Resolved[i].Final;
+		AddLogEvent(FString::Printf(TEXT("Scatto: %s -> (%d,%d,L%d)"), *Unit->GetName(), Final.X, Final.Y, Final.Layer));
+		Unit->ConsumeAbility(DashAbilityIdx[i]);
+		Unit->GridCell = Final;
+		Unit->SetVisualLocation(Unit->WorldForCell(Final, Origin, CellSize, LayerH));
+		Unit->PlannedPath.Reset();       // la path composita partiva da PreDash: non piu' valida
+		Unit->PlannedWaypoints.Reset();
+		if (Unit->PlannedCell == PreDash)
+		{
+			Unit->PlannedCell = Final;   // nessun move pianificato: resta dopo lo scatto (niente ritorno indietro)
+		}
+	}
+
+	// Cross-damage per le celle pericolose ATTRAVERSATE dallo scatto (dipende solo dalle celle -> ord.-indip.).
+	for (int32 i = 0; i < Dashers.Num(); ++i)
+	{
+		ARTUnit* Unit = Dashers[i];
+		if (!Unit->IsAlive()) { continue; }
+		int32 CrossDmg = 0;
+		for (const FRTGridCoord& Cell : Resolved[i].Entered)
+		{
+			const URTTerrainData* Terrain = Grid ? Grid->GetTerrainAt(Cell) : nullptr;
+			if (Terrain) { CrossDmg += Terrain->GetProps().CrossDamage; }
+		}
+		if (CrossDmg > 0)
+		{
+			const FRTDamageResult R = URTCombatLibrary::ApplyDamage(CrossDmg, Unit->Shield, Unit->Health);
+			AddLogEvent(FString::Printf(TEXT("%s: %d danno scattando"), *Unit->GetName(), CrossDmg));
+			if (R.Health <= 0)
+			{
+				AddLogEvent(FString::Printf(TEXT("Eliminata: %s (team %d)"), *Unit->GetName(), Unit->TeamId));
+				FRTResolvedEvent Ev; Ev.Phase = ERTMatchPhase::Dash; Ev.Type = ERTResolvedEventType::Defeated; Ev.Source = Unit;
+				ResolvedTimeline.Add(Ev);
+			}
+			Unit->ApplyCombatState(R.Health, R.Shield);
+		}
+	}
+
+	UE_LOG(LogRT, Log, TEXT("[RT] Fase Dash: %d scatti"), Dashers.Num());
 }
 
 void ARTTurnManager::ResolveCombat()
@@ -350,6 +596,11 @@ void ARTTurnManager::ResolveCombat()
 	TArray<ARTUnit*> StatusTargets;
 	TArray<FGameplayTag> StatusTags;
 	TArray<int32> StatusDurations;
+	// Knockback: per ogni bersaglio colpito da un'abilita' con spinta, la cella dell'attaccante, la distanza
+	// e quanti attaccanti lo spingono (2+ = forze contraddittorie -> nessuna spinta, deterministico).
+	TMap<ARTUnit*, FRTGridCoord> KnockFrom;
+	TMap<ARTUnit*, int32> KnockDist;
+	TMap<ARTUnit*, int32> KnockCount;
 	for (ARTUnit* Unit : Units)
 	{
 		ARTUnit* Target = Unit->PlannedAttackTarget;
@@ -358,7 +609,7 @@ void ARTTurnManager::ResolveCombat()
 		Unit->PlannedAbilityIndex = INDEX_NONE;
 
 		const URTAbilityData* Ability = Unit->GetAbility(AbilityIndex);
-		if (!Ability || !Target || !IndexOf.Contains(Target) || Target->TeamId == Unit->TeamId
+		if (!Ability || Ability->bDash || !Target || !IndexOf.Contains(Target) || Target->TeamId == Unit->TeamId
 			|| !Unit->CanUseAbility(AbilityIndex)
 			|| !URTGridLibrary::IsWithinRange(Unit->GridCell, Target->GridCell, Ability->RangeCells)
 			|| !URTGridLibrary::HasLineOfSight(Unit->GridCell, Target->GridCell, Blockers))
@@ -421,6 +672,23 @@ void ARTTurnManager::ResolveCombat()
 			{
 				Attacks.Add(FRTAttack(IndexOf[Other], EffPower));
 				AddStatus(Other);
+
+				// Knockback: registra l'intento di spinta (dalla cella dell'attaccante).
+				if (Ability->bKnockback && Ability->KnockbackDistance > 0)
+				{
+					KnockFrom.Add(Other, Unit->GridCell);
+					KnockDist.Add(Other, Ability->KnockbackDistance);
+					KnockCount.FindOrAdd(Other)++;
+				}
+
+				// Evento per il playback: colpo Unit -> Other (mostrato nel Blast).
+				FRTResolvedEvent Ev;
+				Ev.Phase = ERTMatchPhase::Blast;
+				Ev.Type = ERTResolvedEventType::Attack;
+				Ev.Source = Unit;
+				Ev.Target = Other;
+				Ev.Amount = EffPower;
+				ResolvedTimeline.Add(Ev);
 			}
 		}
 		Attackers.Add(Unit);
@@ -434,13 +702,111 @@ void ARTTurnManager::ResolveCombat()
 
 	const TArray<FRTUnitCombatState> Resolved = URTCombatResolver::ResolveAttacks(States, Attacks);
 	AddLogEvent(FString::Printf(TEXT("Blast: %d attacchi"), Attacks.Num()));
+
+	// Chi muore in questo Blast (viva PRIMA, morta DOPO): evento Defeated per la morte visiva differita
+	// (il playback mostra prima il colpo, poi l'eliminazione).
+	TArray<int32> BeforeHP, AfterHP;
+	BeforeHP.Reserve(Units.Num());
+	AfterHP.Reserve(Units.Num());
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
-		if (Resolved[i].Health <= 0 && Units[i]->IsAlive())
+		BeforeHP.Add(States[i].Health);
+		AfterHP.Add(Resolved[i].Health);
+	}
+	for (const int32 Idx : URTCombatLibrary::NewlyDefeated(BeforeHP, AfterHP))
+	{
+		AddLogEvent(FString::Printf(TEXT("Eliminata: %s (team %d)"), *Units[Idx]->GetName(), Units[Idx]->TeamId));
+		FRTResolvedEvent Ev;
+		Ev.Phase = ERTMatchPhase::Blast;
+		Ev.Type = ERTResolvedEventType::Defeated;
+		Ev.Source = Units[Idx];
+		ResolvedTimeline.Add(Ev);
+	}
+
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		Units[i]->ApplyCombatState(Resolved[i].Health, Resolved[i].Shield); // solo logico: rimozione visiva differita
+	}
+
+	// --- Knockback (spinta): dopo il danno, sulle posizioni snapshot del Blast -----------------------
+	if (KnockCount.Num() > 0)
+	{
+		const int32 KW = Grid ? Grid->Width : 10;
+		const int32 KH = Grid ? Grid->Height : 10;
+		const FVector KOrigin = Grid ? Grid->GetActorLocation() : FVector::ZeroVector;
+		const float KCell = Grid ? Grid->CellSize : 200.f;
+		const float KLayerH = Grid ? Grid->LayerHeight : 0.f;
+		// Bloccanti: ostacoli + celle di tutte le unita' (non si spinge dentro un'altra unita').
+		TArray<FRTGridCoord> KBlocked = Grid ? Grid->GetMoveBlockers() : TArray<FRTGridCoord>();
+		for (ARTUnit* U : Units) { KBlocked.Add(U->GridCell); }
+
+		// Destinazioni dallo snapshot: solo bersagli vivi spinti da ESATTAMENTE un attaccante.
+		TArray<ARTUnit*> KTargets;
+		TArray<FRTGridCoord> KFinal;
+		for (const TPair<ARTUnit*, int32>& P : KnockCount)
 		{
-			AddLogEvent(FString::Printf(TEXT("Eliminata: %s (team %d)"), *Units[i]->GetName(), Units[i]->TeamId));
+			ARTUnit* T = P.Key;
+			if (P.Value != 1 || !IsValid(T) || !T->IsAlive()) { continue; }
+			const FRTGridCoord Dest = URTCombatLibrary::KnockbackDestination(KnockFrom[T], T->GridCell, KnockDist[T], KBlocked, KW, KH);
+			if (Dest != T->GridCell) { KTargets.Add(T); KFinal.Add(Dest); }
 		}
-		Units[i]->ApplyCombatState(Resolved[i].Health, Resolved[i].Shield); // puo' distruggere l'unita'
+		for (int32 a = 0; a < KTargets.Num(); ++a)
+		{
+			// Destinazione contesa (2+ verso la stessa cella): quei bersagli restano (ordine-indipendente).
+			bool bContested = false;
+			for (int32 b = 0; b < KTargets.Num(); ++b)
+			{
+				if (a != b && KFinal[a] == KFinal[b]) { bContested = true; break; }
+			}
+			if (bContested) { continue; }
+
+			ARTUnit* T = KTargets[a];
+			const FRTGridCoord OldCell = T->GridCell;
+			const FRTGridCoord NewCell = KFinal[a];
+			AddLogEvent(FString::Printf(TEXT("Spinta: %s -> (%d,%d)"), *T->GetName(), NewCell.X, NewCell.Y));
+
+			// Percorso cardinale della spinta (per animazione + cross-damage): OldCell + celle attraversate.
+			const int32 SX = FMath::Clamp(NewCell.X - OldCell.X, -1, 1);
+			const int32 SY = FMath::Clamp(NewCell.Y - OldCell.Y, -1, 1);
+			TArray<FRTGridCoord> KPath;
+			KPath.Add(OldCell);
+			int32 KCross = 0;
+			for (FRTGridCoord W(OldCell.X + SX, OldCell.Y + SY, NewCell.Layer); ; W = FRTGridCoord(W.X + SX, W.Y + SY, NewCell.Layer))
+			{
+				KPath.Add(W);
+				const URTTerrainData* Terr = Grid ? Grid->GetTerrainAt(W) : nullptr;
+				if (Terr) { KCross += Terr->GetProps().CrossDamage; }
+				if (W == NewCell) { break; }
+			}
+
+			// Evento di movimento per il playback: la spinta scivola OldCell -> NewCell nella fase Blast.
+			{
+				FRTResolvedEvent Ev;
+				Ev.Phase = ERTMatchPhase::Blast;
+				Ev.Type = ERTResolvedEventType::Move;
+				Ev.Source = T;
+				Ev.Path = KPath;
+				ResolvedTimeline.Add(Ev);
+			}
+
+			T->GridCell = NewCell;
+			T->SetVisualLocation(T->WorldForCell(NewCell, KOrigin, KCell, KLayerH));
+			T->PlannedPath.Reset();      // path composita dalla vecchia cella non valida
+			T->PlannedWaypoints.Reset();
+			if (T->PlannedCell == OldCell) { T->PlannedCell = NewCell; } // niente move pianificato: resta spinto
+			if (KCross > 0)
+			{
+				const FRTDamageResult R = URTCombatLibrary::ApplyDamage(KCross, T->Shield, T->Health);
+				AddLogEvent(FString::Printf(TEXT("%s: %d danno spinto"), *T->GetName(), KCross));
+				if (R.Health <= 0)
+				{
+					AddLogEvent(FString::Printf(TEXT("Eliminata: %s (team %d)"), *T->GetName(), T->TeamId));
+					FRTResolvedEvent Ev; Ev.Phase = ERTMatchPhase::Blast; Ev.Type = ERTResolvedEventType::Defeated; Ev.Source = T;
+					ResolvedTimeline.Add(Ev);
+				}
+				T->ApplyCombatState(R.Health, R.Shield);
+			}
+		}
 	}
 
 	// Attaccanti sopravvissuti: consuma l'abilita' (energia+cooldown); se gratuita, accumula energia.
@@ -505,30 +871,32 @@ void ARTTurnManager::ResolveMovement()
 	Paths.Reserve(Actors.Num());
 	for (AActor* Actor : Actors)
 	{
-		if (ARTUnit* Unit = Cast<ARTUnit>(Actor))
+		ARTUnit* Unit = Cast<ARTUnit>(Actor);
+		if (!Unit || !Unit->IsAlive())
 		{
-			Units.Add(Unit);
-
-			// Path del turno: percorso composito (waypoint) se presente e coerente, altrimenti auto-route
-			// dalla destinazione singola (PlannedCell). Validazione autorevole: contiguo, entro il budget
-			// di COSTO; altrimenti l'unita' resta ferma (a prescindere da cosa ha inviato il client).
-			TArray<FRTGridCoord> Path;
-			if (Unit->PlannedPath.Num() >= 2 && Unit->PlannedPath[0] == Unit->GridCell)
-			{
-				Path = Unit->PlannedPath;
-			}
-			else if (Unit->PlannedCell != Unit->GridCell)
-			{
-				Path = URTGridLibrary::FindPathByGraph(Unit->GridCell, Unit->PlannedCell, CostMap, Edges, GridW, GridH);
-			}
-
-			const int32 Cost = URTGridLibrary::PathCost(Path, CostMap, Edges);
-			if (Path.Num() < 2 || Cost < 0 || Cost > Unit->GetEffectiveMoveRange())
-			{
-				Path = { Unit->GridCell }; // fermo
-			}
-			Paths.Add(Path);
+			continue; // i morti (es. nel Blast) non partecipano al movimento: non si muovono e non bloccano
 		}
+		Units.Add(Unit);
+
+		// Path del turno: percorso composito (waypoint) se presente e coerente, altrimenti auto-route
+		// dalla destinazione singola (PlannedCell). Validazione autorevole: contiguo, entro il budget
+		// di COSTO; altrimenti l'unita' resta ferma (a prescindere da cosa ha inviato il client).
+		TArray<FRTGridCoord> Path;
+		if (Unit->PlannedPath.Num() >= 2 && Unit->PlannedPath[0] == Unit->GridCell)
+		{
+			Path = Unit->PlannedPath;
+		}
+		else if (Unit->PlannedCell != Unit->GridCell)
+		{
+			Path = URTGridLibrary::FindPathByGraph(Unit->GridCell, Unit->PlannedCell, CostMap, Edges, GridW, GridH);
+		}
+
+		const int32 Cost = URTGridLibrary::PathCost(Path, CostMap, Edges);
+		if (Path.Num() < 2 || Cost < 0 || Cost > Unit->GetEffectiveMoveRange())
+		{
+			Path = { Unit->GridCell }; // fermo
+		}
+		Paths.Add(Path);
 	}
 
 	const TArray<FRTPathResult> Resolved = URTMovementResolver::ResolvePaths(Paths);
@@ -544,6 +912,14 @@ void ARTTurnManager::ResolveMovement()
 			Route.Add(Units[i]->GridCell);
 			Route.Append(Resolved[i].Entered);
 			LastMoveRoutes.Add(Route);
+
+			// Evento per il playback: rotta percorsa (start + celle attraversate) da animare.
+			FRTResolvedEvent Ev;
+			Ev.Phase = ERTMatchPhase::Move;
+			Ev.Type = ERTResolvedEventType::Move;
+			Ev.Source = Units[i];
+			Ev.Path = Route;
+			ResolvedTimeline.Add(Ev);
 		}
 	}
 
@@ -569,9 +945,304 @@ void ARTTurnManager::ResolveMovement()
 		{
 			const FRTDamageResult R = URTCombatLibrary::ApplyDamage(CrossDmg, Unit->Shield, Unit->Health);
 			AddLogEvent(FString::Printf(TEXT("%s: %d danno attraversando"), *Unit->GetName(), CrossDmg));
+			if (R.Health <= 0)
+			{
+				AddLogEvent(FString::Printf(TEXT("Eliminata: %s (team %d)"), *Unit->GetName(), Unit->TeamId));
+				FRTResolvedEvent Ev;
+				Ev.Phase = ERTMatchPhase::Move;
+				Ev.Type = ERTResolvedEventType::Defeated;
+				Ev.Source = Unit;
+				ResolvedTimeline.Add(Ev);
+			}
 			Unit->ApplyCombatState(R.Health, R.Shield);
 		}
 	}
 
 	UE_LOG(LogRT, Log, TEXT("[RT] Fase Move: risolte %d unita'"), Units.Num());
+}
+
+// ===================== Playback della risoluzione (presentazione) =============================
+
+void ARTTurnManager::BeginPlayback()
+{
+	// Cache della trasformazione griglia per convertire celle -> mondo durante il playback.
+	ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
+	PBOrigin = Grid ? Grid->GetActorLocation() : FVector::ZeroVector;
+	PBCellSize = Grid ? Grid->CellSize : 200.f;
+	PBLayerHeight = Grid ? Grid->LayerHeight : 0.f;
+
+	// Deriva le animazioni di movimento e la lista attacchi dagli eventi risolti.
+	MoveAnims.Reset();
+	PlaybackAttacks.Reset();
+	PlaybackDefeated.Reset();
+	TSet<ARTUnit*> StartPositioned; // per posizionare il cilindro all'inizio della sua PRIMA fase (Dash prima di Move)
+	for (const FRTResolvedEvent& Ev : ResolvedTimeline)
+	{
+		if (Ev.Type == ERTResolvedEventType::Move && Ev.Source.IsValid() && Ev.Path.Num() >= 2)
+		{
+			FRTMoveAnim Anim;
+			Anim.Unit = Ev.Source;
+			Anim.Phase = Ev.Phase; // Dash o Move
+			Anim.World.Reserve(Ev.Path.Num());
+			for (const FRTGridCoord& C : Ev.Path)
+			{
+				Anim.World.Add(Ev.Source->WorldForCell(C, PBOrigin, PBCellSize, PBLayerHeight));
+			}
+			// Metti il cilindro all'inizio della sua PRIMA anim (Dash precede Move nella timeline):
+			// niente flash sulla cella finale. Un'anim successiva della stessa unita' non ne sposta lo start.
+			if (!StartPositioned.Contains(Ev.Source.Get()))
+			{
+				Ev.Source->SetVisualLocation(Anim.World[0]);
+				StartPositioned.Add(Ev.Source.Get());
+			}
+			MoveAnims.Add(MoveTemp(Anim));
+		}
+		else if (Ev.Type == ERTResolvedEventType::Attack)
+		{
+			PlaybackAttacks.Add(Ev);
+		}
+		else if (Ev.Type == ERTResolvedEventType::Defeated)
+		{
+			PlaybackDefeated.Add(Ev);
+		}
+	}
+
+	// Fasi attive, in ordine canonico (Prep -> Dash -> Blast -> Move). Cleanup: gia' applicato, nessun beat.
+	bool bHasDash = false, bHasMove = false, bHasBlastMove = false;
+	for (const FRTMoveAnim& A : MoveAnims)
+	{
+		if (A.Phase == ERTMatchPhase::Dash) { bHasDash = true; }
+		else if (A.Phase == ERTMatchPhase::Blast) { bHasBlastMove = true; } // spinta (knockback)
+		else { bHasMove = true; }
+	}
+	PlaybackPhases.Reset();
+	if (bPrepActiveThisTurn) { PlaybackPhases.Add(ERTMatchPhase::Prep); }
+	if (bHasDash) { PlaybackPhases.Add(ERTMatchPhase::Dash); }
+	if (PlaybackAttacks.Num() > 0 || bHasBlastMove) { PlaybackPhases.Add(ERTMatchPhase::Blast); }
+	if (bHasMove) { PlaybackPhases.Add(ERTMatchPhase::Move); }
+
+	if (PlaybackPhases.Num() == 0)
+	{
+		ConcludeTurn(); // niente da mostrare
+		return;
+	}
+
+	// Durata reale = somma delle durate delle fasi effettivamente riprodotte (progress bar coerente).
+	// Poi accelerazione per rientrare nel tetto (SpeedMultiplierForCap, logica pura testata).
+	float RawTotal = 0.f;
+	for (const ERTMatchPhase Ph : PlaybackPhases)
+	{
+		RawTotal += DurationForPlaybackPhase(Ph);
+	}
+	PlaybackSpeed = URTPlaybackLibrary::SpeedMultiplierForCap(RawTotal, MaxPlaybackSeconds);
+	PlaybackTotalSeconds = (PlaybackSpeed > 0.f) ? (RawTotal / PlaybackSpeed) : RawTotal;
+	PlaybackElapsedTotal = 0.f;
+
+	PlaybackPhaseIdx = 0;
+	bIsResolving = true;
+	SetActorTickEnabled(true);
+	AddLogEvent(FString::Printf(TEXT("Risoluzione: %d fasi, ~%.1fs (x%.2f)"),
+		PlaybackPhases.Num(), PlaybackTotalSeconds, PlaybackSpeed));
+	EnterPlaybackPhase();
+}
+
+void ARTTurnManager::EnterPlaybackPhase()
+{
+	PlaybackPhaseElapsed = 0.f;
+	AttacksShown = 0;
+	const ERTMatchPhase Ph = PlaybackPhases[PlaybackPhaseIdx];
+	AddLogEvent(FString::Printf(TEXT("Playback fase: %s"), *GetPlaybackPhaseName()));
+	OnPhasePlaybackStarted.Broadcast(Ph);
+	if (Ph == ERTMatchPhase::Dash || Ph == ERTMatchPhase::Move || Ph == ERTMatchPhase::Blast)
+	{
+		for (const FRTMoveAnim& A : MoveAnims)
+		{
+			if (A.Phase == Ph && A.Unit.IsValid()) { OnUnitMoveStarted.Broadcast(A.Unit.Get()); }
+		}
+	}
+}
+
+void ARTTurnManager::TickPlayback(float DeltaSeconds)
+{
+	const float Dt = DeltaSeconds * PlaybackSpeed; // accelerazione per il tetto di durata
+	PlaybackPhaseElapsed += Dt;
+	PlaybackElapsedTotal += Dt;
+
+	const ERTMatchPhase Ph = PlaybackPhases[PlaybackPhaseIdx];
+	const float PhaseDur = DurationForPlaybackPhase(Ph);
+
+	if (Ph == ERTMatchPhase::Dash || Ph == ERTMatchPhase::Move || Ph == ERTMatchPhase::Blast)
+	{
+		// Movimento in PARALLELO: i cilindri di QUESTA fase (Dash o Move) scorrono con lo stesso Alpha.
+		const float Alpha = (PhaseDur > 0.f) ? FMath::Clamp(PlaybackPhaseElapsed / PhaseDur, 0.f, 1.f) : 1.f;
+		for (const FRTMoveAnim& A : MoveAnims)
+		{
+			if (A.Phase == Ph && A.Unit.IsValid())
+			{
+				A.Unit->SetVisualLocation(URTPlaybackLibrary::InterpolateAlongPath(A.World, Alpha));
+			}
+		}
+	}
+	else if (Ph == ERTMatchPhase::Blast)
+	{
+		// Rivela i colpi in serie (uno ogni AttackShowSeconds) per leggibilita' del danno.
+		const int32 ShouldShow = (AttackShowSeconds > 0.f)
+			? FMath::Min(PlaybackAttacks.Num(), 1 + FMath::FloorToInt(PlaybackPhaseElapsed / AttackShowSeconds))
+			: PlaybackAttacks.Num();
+		while (AttacksShown < ShouldShow)
+		{
+			const FRTResolvedEvent& Atk = PlaybackAttacks[AttacksShown];
+			AddLogEvent(FString::Printf(TEXT("Colpo: %s -> %s (%d)"),
+				Atk.Source.IsValid() ? *Atk.Source->GetName() : TEXT("?"),
+				Atk.Target.IsValid() ? *Atk.Target->GetName() : TEXT("(eliminato)"),
+				Atk.Amount));
+			OnAttackResolved.Broadcast(Atk.Source.Get(), Atk.Target.Get(), Atk.Amount);
+			++AttacksShown;
+		}
+	}
+
+	if (PlaybackPhaseElapsed >= PhaseDur)
+	{
+		// Finalizza la fase corrente.
+		if (Ph == ERTMatchPhase::Dash || Ph == ERTMatchPhase::Move || Ph == ERTMatchPhase::Blast)
+		{
+			for (const FRTMoveAnim& A : MoveAnims)
+			{
+				if (A.Phase == Ph && A.Unit.IsValid() && A.World.Num() > 0)
+				{
+					A.Unit->SetVisualLocation(A.World.Last());
+				}
+			}
+		}
+		if (Ph == ERTMatchPhase::Blast)
+		{
+			while (AttacksShown < PlaybackAttacks.Num())
+			{
+				const FRTResolvedEvent& Atk = PlaybackAttacks[AttacksShown];
+				OnAttackResolved.Broadcast(Atk.Source.Get(), Atk.Target.Get(), Atk.Amount);
+				++AttacksShown;
+			}
+		}
+
+		// Morte visiva differita: le unita' eliminate IN QUESTA fase spariscono ora, dopo che il colpo
+		// (Blast) o l'attraversamento (Move) e' stato mostrato. Idempotente (guardia IsHidden).
+		for (const FRTResolvedEvent& D : PlaybackDefeated)
+		{
+			if (D.Phase == Ph && D.Source.IsValid() && !D.Source->IsHidden())
+			{
+				AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *D.Source->GetName()));
+				D.Source->HideForDefeat();
+				OnUnitDefeated.Broadcast(D.Source.Get());
+			}
+		}
+
+		++PlaybackPhaseIdx;
+		if (PlaybackPhaseIdx >= PlaybackPhases.Num())
+		{
+			FinishPlayback();
+			return;
+		}
+		EnterPlaybackPhase();
+	}
+}
+
+void ARTTurnManager::FinishPlayback()
+{
+	bIsResolving = false;
+	SetActorTickEnabled(false);
+
+	// Snap di sicurezza alle posizioni finali (la cella logica e' gia' quella finale).
+	for (const FRTMoveAnim& A : MoveAnims)
+	{
+		if (A.Unit.IsValid())
+		{
+			A.Unit->SetVisualLocation(A.Unit->WorldForCell(A.Unit->GridCell, PBOrigin, PBCellSize, PBLayerHeight));
+		}
+	}
+	// Catch-all: nasconde eventuali eliminati non ancora mostrati (hazard di Cleanup, oppure skip del playback).
+	for (const FRTResolvedEvent& D : PlaybackDefeated)
+	{
+		if (D.Source.IsValid() && !D.Source->IsHidden())
+		{
+			AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *D.Source->GetName()));
+			D.Source->HideForDefeat();
+			OnUnitDefeated.Broadcast(D.Source.Get());
+		}
+	}
+
+	MoveAnims.Reset();
+	PlaybackAttacks.Reset();
+	PlaybackDefeated.Reset();
+	PlaybackPhases.Reset();
+
+	AddLogEvent(FString::Printf(TEXT("Risoluzione completata (%.1fs)"), PlaybackElapsedTotal));
+	OnResolvePlaybackFinished.Broadcast();
+	ConcludeTurn();
+}
+
+void ARTTurnManager::SkipPlayback()
+{
+	if (!bIsResolving)
+	{
+		return;
+	}
+	AddLogEvent(TEXT("Risoluzione: salto"));
+	FinishPlayback();
+}
+
+float ARTTurnManager::DurationForPlaybackPhase(ERTMatchPhase InPhase) const
+{
+	switch (InPhase)
+	{
+	case ERTMatchPhase::Dash:
+	case ERTMatchPhase::Move:
+	{
+		int32 MaxSeg = 0;
+		for (const FRTMoveAnim& A : MoveAnims)
+		{
+			if (A.Phase == InPhase) { MaxSeg = FMath::Max(MaxSeg, A.World.Num() - 1); }
+		}
+		return (PlaybackCellsPerSecond > 0.f) ? (MaxSeg / PlaybackCellsPerSecond) : 0.f;
+	}
+	case ERTMatchPhase::Blast:
+	{
+		// Il Blast dura almeno quanto i colpi mostrati E quanto lo scivolamento del knockback.
+		const float AttackTime = FMath::Max(1, PlaybackAttacks.Num()) * AttackShowSeconds;
+		int32 MaxSeg = 0;
+		for (const FRTMoveAnim& A : MoveAnims)
+		{
+			if (A.Phase == ERTMatchPhase::Blast) { MaxSeg = FMath::Max(MaxSeg, A.World.Num() - 1); }
+		}
+		const float MoveTime = (PlaybackCellsPerSecond > 0.f) ? (MaxSeg / PlaybackCellsPerSecond) : 0.f;
+		return FMath::Max(AttackTime, MoveTime);
+	}
+	default:
+		return PhaseBeatSeconds; // Prep/Cleanup: un beat
+	}
+}
+
+FString ARTTurnManager::GetPlaybackPhaseName() const
+{
+	if (!bIsResolving || !PlaybackPhases.IsValidIndex(PlaybackPhaseIdx))
+	{
+		return FString();
+	}
+	switch (PlaybackPhases[PlaybackPhaseIdx])
+	{
+	case ERTMatchPhase::Prep:    return TEXT("Prep");
+	case ERTMatchPhase::Dash:    return TEXT("Dash");
+	case ERTMatchPhase::Blast:   return TEXT("Blast");
+	case ERTMatchPhase::Move:    return TEXT("Move");
+	case ERTMatchPhase::Cleanup: return TEXT("Cleanup");
+	default:                     return TEXT("Risoluzione");
+	}
+}
+
+float ARTTurnManager::GetPlaybackProgress01() const
+{
+	if (!bIsResolving || PlaybackTotalSeconds <= 0.f)
+	{
+		return 0.f;
+	}
+	return FMath::Clamp(PlaybackElapsedTotal / PlaybackTotalSeconds, 0.f, 1.f);
 }

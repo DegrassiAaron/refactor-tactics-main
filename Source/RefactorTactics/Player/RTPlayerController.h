@@ -53,6 +53,9 @@ protected:
 	TObjectPtr<UInputAction> Ability3Action;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> Ability4Action;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> UndoAction;
 
 	/** Attore attualmente selezionato (se implementa IRTSelectable). */
@@ -67,6 +70,7 @@ protected:
 	void OnAbility1(const FInputActionValue& Value);
 	void OnAbility2(const FInputActionValue& Value);
 	void OnAbility3(const FInputActionValue& Value);
+	void OnAbility4(const FInputActionValue& Value); // seleziona lo scatto (4a abilita')
 	void OnUndoWaypoint(const FInputActionValue& Value);
 
 	/** Ricostruisce PlannedPath dell'unita' dai PathWaypoints correnti (o lo azzera se vuoti). */

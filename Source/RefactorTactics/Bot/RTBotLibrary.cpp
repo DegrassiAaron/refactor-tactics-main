@@ -91,3 +91,40 @@ int32 URTBotLibrary::AttackScore(int32 Damage, int32 TargetHealth)
 	// Non-kill: si preferisce il danno maggiore.
 	return Damage;
 }
+
+FRTGridCoord URTBotLibrary::BestFiringCell(const FRTGridCoord& From, const FRTGridCoord& Target, int32 MoveRange,
+	const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height,
+	const TArray<FRTGridCoord>& VisionBlockers, int32 AttackRange, const TArray<FRTTraversalEdge>& Edges)
+{
+	// Celle raggiungibili col budget di costo (grafo: aggira ostacoli/terreno, usa le rampe per salire).
+	const TArray<FRTGridCoord> Reachable = URTGridLibrary::ReachableCellsByGraph(From, MoveRange, CellCost, Edges, Width, Height);
+
+	FRTGridCoord Best = From; // sentinella: nessuna posizione di tiro trovata
+	bool bFound = false;
+	int32 BestLayer = TNumericLimits<int32>::Lowest();
+	int32 BestMove = MAX_int32;
+
+	for (const FRTGridCoord& Cell : Reachable)
+	{
+		if (Cell == Target)
+		{
+			continue; // non sovrapporsi al bersaglio
+		}
+		// Deve offrire un TIRO: gittata + linea di tiro (con LOS di elevazione dalla quota della cella).
+		if (!URTGridLibrary::IsWithinRange(Cell, Target, AttackRange)
+			|| !URTGridLibrary::HasLineOfSight(Cell, Target, VisionBlockers))
+		{
+			continue;
+		}
+		const int32 Move = URTGridLibrary::ManhattanDistance(From, Cell);
+		// Preferisci l'alta quota (elevazione); a parità, la mossa più corta.
+		if (!bFound || Cell.Layer > BestLayer || (Cell.Layer == BestLayer && Move < BestMove))
+		{
+			bFound = true;
+			BestLayer = Cell.Layer;
+			BestMove = Move;
+			Best = Cell;
+		}
+	}
+	return Best;
+}

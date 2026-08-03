@@ -71,4 +71,20 @@ public:
 	/** Se vero, incendia le celle infiammabili nell'area colpita (terreno dinamico). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
 	bool bIgnites = false;
+
+	/**
+	 * Abilita' di SCATTO (fase Dash): non attacca, sposta l'unita' fino a RangeCells celle (pathfinding),
+	 * risolta PRIMA del Blast — ci si riposiziona prima che gli attacchi colpiscano. Gated da CooldownTurns.
+	 * Compatibile col movimento normale del turno (scatto + move).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
+	bool bDash = false;
+
+	/** Se vero, l'attacco RESPINGE (knockback) i bersagli colpiti di KnockbackDistance celle (fase Blast). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
+	bool bKnockback = false;
+
+	/** Celle di respinta del knockback (usato con bKnockback). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
+	int32 KnockbackDistance = 0;
 };

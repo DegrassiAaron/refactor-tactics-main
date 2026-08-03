@@ -110,10 +110,10 @@ void ARTHUD::DrawHUD()
 		}
 	}
 
-	// Visualizzazione degli INTENTI di pianificazione (fase Planning).
+	// Visualizzazione degli INTENTI di pianificazione (fase Planning, non durante il playback).
 	// Invariante #6 (privacy dell'intento): il piano di un'unita' e' visibile agli alleati sempre,
 	// ai nemici solo se rivelati (status Reveal). Unita' proprie in ciano, nemici rivelati in giallo.
-	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::Planning)
+	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::Planning && !TurnManager->IsResolving())
 	{
 		const int32 PlayerTeam = 0; // il giocatore controlla il team 0 (blu)
 		const ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
@@ -136,7 +136,7 @@ void ARTHUD::DrawHUD()
 			const bool bOwn = (Unit->TeamId == PlayerTeam);
 			const URTAbilityData* Planned = Unit->GetAbility(Unit->PlannedAbilityIndex);
 			const bool bMoving = (Unit->PlannedCell != Unit->GridCell);
-			const bool bHasPlan = bMoving || Unit->PlannedAttackTarget != nullptr || Planned != nullptr;
+			const bool bHasPlan = bMoving || Unit->PlannedAttackTarget != nullptr || Planned != nullptr || Unit->PlannedDashAbility != INDEX_NONE;
 			if (bOwn && !bHasPlan)
 			{
 				continue; // unita' propria senza ordine: niente da mostrare
@@ -215,7 +215,24 @@ void ARTHUD::DrawHUD()
 				}
 			}
 
-			// Linea verso il bersaglio d'attacco pianificato.
+// Preview dello SCATTO pianificato (fase Dash): percorso e destinazione in MAGENTA, distinti dal movimento.
+				if (Unit->PlannedDashAbility != INDEX_NONE && Grid)
+				{
+					TMap<FRTGridCoord, int32> DCost;
+					Grid->BuildCostMap(DCost);
+					const TArray<FRTGridCoord> DPath = URTGridLibrary::FindPathByGraph(Unit->GridCell, Unit->PlannedDashCell, DCost, Grid->GetEdges(), Grid->Width, Grid->Height);
+					const FLinearColor DashColor(1.f, 0.2f, 0.9f, 1.f);
+					for (int32 i = 1; i < DPath.Num(); ++i)
+					{
+						const FVector DA = Project(CellWorldElevated(DPath[i - 1], Origin, CellSize, LayerH));
+						const FVector DB = Project(CellWorldElevated(DPath[i], Origin, CellSize, LayerH));
+						if (DA.Z > 0.f && DB.Z > 0.f) { DrawLine(DA.X, DA.Y, DB.X, DB.Y, DashColor, 2.5f); }
+					}
+					const FVector DDest = Project(CellWorldElevated(Unit->PlannedDashCell, Origin, CellSize, LayerH));
+					if (DDest.Z > 0.f) { DrawRect(FLinearColor(DashColor.R, DashColor.G, DashColor.B, 0.4f), DDest.X - 10.f, DDest.Y - 10.f, 20.f, 20.f); }
+				}
+
+				// Linea verso il bersaglio d'attacco pianificato.
 			if (Unit->PlannedAttackTarget && Unit->PlannedAttackTarget->IsAlive() && HeadScreen.Z > 0.f)
 			{
 				const FVector TgtScreen = Project(Unit->PlannedAttackTarget->GetActorLocation() + FVector(0.f, 0.f, WorldHeadOffset));
@@ -227,21 +244,32 @@ void ARTHUD::DrawHUD()
 		}
 	}
 
-	// Barra di stato in alto: turno, fase e timer di pianificazione.
+	// Barra di stato in alto: turno, fase e timer/avanzamento.
 	if (TurnManager)
 	{
-		const TCHAR* PhaseName = TEXT("");
-		switch (TurnManager->GetPhase())
+		FString Status;
+		if (TurnManager->IsResolving())
 		{
-		case ERTMatchPhase::Planning:   PhaseName = TEXT("Pianificazione"); break;
-		case ERTMatchPhase::MatchEnded: PhaseName = TEXT("Fine"); break;
-		default:                        PhaseName = TEXT("Risoluzione"); break;
+			// Durante il playback: fase in riproduzione + avanzamento + come saltare.
+			const int32 Pct = FMath::RoundToInt(TurnManager->GetPlaybackProgress01() * 100.f);
+			Status = FString::Printf(TEXT("Turno %d  -  Risoluzione: %s  [%d%%]  (Spazio: salta)"),
+				TurnManager->GetTurnNumber(), *TurnManager->GetPlaybackPhaseName(), Pct);
 		}
-		FString Status = FString::Printf(TEXT("Turno %d  -  %s"), TurnManager->GetTurnNumber(), PhaseName);
-		const float Remaining = TurnManager->GetPlanningTimeRemaining();
-		if (TurnManager->GetPhase() == ERTMatchPhase::Planning && Remaining > 0.f)
+		else
 		{
-			Status += FString::Printf(TEXT("  -  %.0fs"), FMath::CeilToFloat(Remaining));
+			const TCHAR* PhaseName = TEXT("");
+			switch (TurnManager->GetPhase())
+			{
+			case ERTMatchPhase::Planning:   PhaseName = TEXT("Pianificazione"); break;
+			case ERTMatchPhase::MatchEnded: PhaseName = TEXT("Fine"); break;
+			default:                        PhaseName = TEXT("Risoluzione"); break;
+			}
+			Status = FString::Printf(TEXT("Turno %d  -  %s"), TurnManager->GetTurnNumber(), PhaseName);
+			const float Remaining = TurnManager->GetPlanningTimeRemaining();
+			if (TurnManager->GetPhase() == ERTMatchPhase::Planning && Remaining > 0.f)
+			{
+				Status += FString::Printf(TEXT("  -  %.0fs"), FMath::CeilToFloat(Remaining));
+			}
 		}
 		float TW = 0.f, TH = 0.f;
 		GetTextSize(Status, TW, TH, nullptr, 1.2f);

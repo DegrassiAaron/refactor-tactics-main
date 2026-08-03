@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
+#include "Templates/SubclassOf.h"
 #include "Core/RTTypes.h"
 #include "RTGameMode.generated.h"
 
@@ -21,6 +22,14 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+
+	/** Classe da spawnare per il Ranger (es. BP_Unit con skeletal mesh). Vuota = ARTUnit cilindro (fallback). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Units")
+	TSubclassOf<ARTUnit> RangerUnitClass;
+
+	/** Classe da spawnare per il Guardian (es. BP_Unit con skeletal mesh). Vuota = ARTUnit cilindro (fallback). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Units")
+	TSubclassOf<ARTUnit> GuardianUnitClass;
 
 private:
 	ARTUnit* SpawnUnit(int32 TeamId, const FRTGridCoord& Cell, bool bGuardian, const FVector& GridOrigin, float CellSize);

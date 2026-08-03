@@ -47,3 +47,49 @@ int32 URTCombatLibrary::EffectiveAttackPower(int32 BasePower, int32 OccupantDama
 {
 	return FMath::Max(0, BasePower + OccupantDamageBonus);
 }
+
+FRTGridCoord URTCombatLibrary::KnockbackDestination(const FRTGridCoord& Attacker, const FRTGridCoord& Target,
+	int32 Distance, const TArray<FRTGridCoord>& Blocked, int32 Width, int32 Height)
+{
+	const int32 DX = Target.X - Attacker.X;
+	const int32 DY = Target.Y - Attacker.Y;
+	if (Distance <= 0 || (DX == 0 && DY == 0))
+	{
+		return Target; // nessuna spinta / nessuna direzione
+	}
+
+	// Direzione cardinale di allontanamento: l'asse col delta maggiore (a parità, l'asse X).
+	int32 StepX = 0, StepY = 0;
+	if (FMath::Abs(DX) >= FMath::Abs(DY)) { StepX = (DX > 0) ? 1 : -1; }
+	else { StepY = (DY > 0) ? 1 : -1; }
+
+	FRTGridCoord Current = Target;
+	for (int32 i = 0; i < Distance; ++i)
+	{
+		const FRTGridCoord Next(Current.X + StepX, Current.Y + StepY, Target.Layer); // stesso layer del bersaglio
+		if (Next.X < 0 || Next.X >= Width || Next.Y < 0 || Next.Y >= Height)
+		{
+			break; // bordo della griglia
+		}
+		if (Blocked.Contains(Next))
+		{
+			break; // ostacolo/occupato: si ferma sulla cella libera precedente
+		}
+		Current = Next;
+	}
+	return Current;
+}
+
+TArray<int32> URTCombatLibrary::NewlyDefeated(const TArray<int32>& HealthBefore, const TArray<int32>& HealthAfter)
+{
+	TArray<int32> Result;
+	const int32 Count = FMath::Min(HealthBefore.Num(), HealthAfter.Num());
+	for (int32 i = 0; i < Count; ++i)
+	{
+		if (HealthBefore[i] > 0 && HealthAfter[i] <= 0)
+		{
+			Result.Add(i); // viva prima, morta ora
+		}
+	}
+	return Result;
+}

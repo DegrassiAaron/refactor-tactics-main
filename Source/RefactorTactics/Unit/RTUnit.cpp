@@ -8,12 +8,6 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
 
-namespace
-{
-	// Il cilindro base dell'engine e' alto ~100 uu; con scala Z 1.8 diventa ~180 (meta' = 90).
-	constexpr float UnitHalfHeight = 90.f;
-}
-
 ARTUnit::ARTUnit()
 {
 	PrimaryActorTick.bCanEverTick = false;
@@ -42,14 +36,19 @@ void ARTUnit::BeginPlay()
 
 void ARTUnit::ApplyCombatState(int32 NewHealth, int32 NewShield)
 {
+	// Solo stato LOGICO: la morte (HP<=0) non distrugge subito l'Actor. La rimozione VISIVA e la
+	// distruzione sono differite al momento giusto del playback (morte visiva differita) e a fine turno,
+	// cosi' il colpo mortale resta osservabile. Vedi ARTTurnManager (Defeated events / HideForDefeat).
 	Health = FMath::Max(0, NewHealth);
 	Shield = FMath::Max(0, NewShield);
+}
 
-	if (!IsAlive())
-	{
-		UE_LOG(LogRT, Log, TEXT("[RT] Unit eliminata: %s (team %d)"), *GetName(), TeamId);
-		Destroy();
-	}
+void ARTUnit::HideForDefeat()
+{
+	// Morte visiva: nasconde la mesh e disabilita la collisione. Lo stato logico e' gia' HP=0;
+	// la distruzione effettiva dell'Actor avviene a fine turno (ARTTurnManager::ConcludeTurn).
+	SetActorHiddenInGame(true);
+	SetActorEnableCollision(false);
 }
 
 void ARTUnit::ApplyTeamColor()
@@ -81,8 +80,18 @@ void ARTUnit::PlaceOnCell(const FRTGridCoord& Cell, const FVector& GridOrigin, f
 	PlannedCell = Cell; // dopo un movimento, il piano riparte dalla cella attuale
 	PlannedPath.Reset();      // il percorso composito e' consumato
 	PlannedWaypoints.Reset(); // e i suoi waypoint
-	const FVector Center = URTGridLibrary::CellToWorld(Cell, GridOrigin, CellSize);
-	SetActorLocation(Center + FVector(0.f, 0.f, UnitHalfHeight + Cell.Layer * LayerHeight));
+	SetActorLocation(WorldForCell(Cell, GridOrigin, CellSize, LayerHeight));
+}
+
+FVector ARTUnit::WorldForCell(const FRTGridCoord& Cell, const FVector& GridOrigin, float CellSize, float LayerHeight) const
+{
+	// Delegato alla utility pura (testata): VisualZOffset = 90 per il cilindro, 0 per personaggi (pivot ai piedi).
+	return URTGridLibrary::CellToWorldElevated(Cell, GridOrigin, CellSize, VisualZOffset, LayerHeight);
+}
+
+void ARTUnit::SetVisualLocation(const FVector& World)
+{
+	SetActorLocation(World); // solo presentazione: lo stato logico (GridCell) resta invariato
 }
 
 void ARTUnit::OnSelected()
@@ -133,6 +142,12 @@ int32 ARTUnit::GetEffectiveMoveRange() const
 	return URTCombatLibrary::EffectiveMoveRange(MoveRange, HasStatus(TAG_Status_Root), HasStatus(TAG_Status_Slow));
 }
 
+int32 ARTUnit::GetEffectiveDashRange(int32 BaseRange) const
+{
+	// Stessa logica del movimento (Root -> 0, Slow -> meta'), applicata alla portata dello scatto.
+	return URTCombatLibrary::EffectiveMoveRange(BaseRange, HasStatus(TAG_Status_Root), HasStatus(TAG_Status_Slow));
+}
+
 URTAbilityData* ARTUnit::MakeAbility(const FString& Name, int32 Range, int32 Power, int32 Area,
 	int32 Cooldown, int32 EnergyCost, FGameplayTag Status, int32 StatusDur)
 {
@@ -158,6 +173,22 @@ void ARTUnit::EnsureDefaultAbilities()
 	Abilities.Add(MakeAbility(TEXT("Attacco"), AttackRange, AttackPower, 0, 0, 0, FGameplayTag(), 0));
 	Abilities.Add(MakeAbility(TEXT("Colpo pesante"), FMath::Max(1, AttackRange - 1), AttackPower + 20, 0, 2, 0, FGameplayTag(), 0));
 	Abilities.Add(MakeAbility(TEXT("Ultimate"), AttackRange, AttackPower * UltimateMultiplier, UltimateRadius, 0, MaxEnergy, TAG_Status_Slow, 2));
+	// Scatto generico (fase Dash): riposizionamento rapido oltre il range di movimento, ricarica 2 turni.
+	URTAbilityData* Scatto = MakeAbility(TEXT("Scatto"), MoveRange + 2, 0, 0, 2, 0, FGameplayTag(), 0);
+	Scatto->bDash = true;
+	Abilities.Add(Scatto);
+}
+
+int32 ARTUnit::FindDashAbilityIndex() const
+{
+	for (int32 i = 0; i < Abilities.Num(); ++i)
+	{
+		if (Abilities[i] && Abilities[i]->bDash)
+		{
+			return i;
+		}
+	}
+	return INDEX_NONE;
 }
 
 void ARTUnit::ConfigureAsArchetype(ERTArchetype InArchetype)
@@ -178,6 +209,10 @@ void ARTUnit::ConfigureAsArchetype(ERTArchetype InArchetype)
 		URTAbilityData* Raffica = MakeAbility(TEXT("Raffica"), 6, 50, 1, 0, MaxEnergy, TAG_Status_Slow, 2); // AoE + Slow
 		Raffica->bIgnites = true; // raffica infuocata: incendia il terreno infiammabile nell'area
 		Abilities.Add(Raffica);
+		// Scatto: riposizionamento rapido (fase Dash), 5 celle, ricarica 2 turni. Il Ranger e' mobile.
+		URTAbilityData* Scatto = MakeAbility(TEXT("Scatto"), 5, 0, 0, 2, 0, FGameplayTag(), 0);
+		Scatto->bDash = true;
+		Abilities.Add(Scatto);
 	}
 	else // Guardian
 	{
@@ -186,11 +221,17 @@ void ARTUnit::ConfigureAsArchetype(ERTArchetype InArchetype)
 		BaseMeshScale = FVector(1.5f, 1.5f, 1.6f); // tozzo e largo
 		URTAbilityData* Sweep = MakeAbility(TEXT("Spazzata"), 3, 30, 0, 0, 0, FGameplayTag(), 0);
 		Sweep->Shape = ERTAbilityShape::Cone; // colpisce a ventaglio davanti
+		Sweep->bKnockback = true;             // e RESPINGE i colpiti di 2 celle (spinge oltre il bordo/nella lava)
+		Sweep->KnockbackDistance = 2;
 		Abilities.Add(Sweep);
 		URTAbilityData* Barrier = MakeAbility(TEXT("Barriera"), 0, 40, 0, 3, 0, FGameplayTag(), 0);
 		Barrier->bSelfTarget = true; // supporto: +40 scudo su se stessi (fase Prep)
 		Abilities.Add(Barrier);
 		Abilities.Add(MakeAbility(TEXT("Terremoto"), 3, 40, 2, 0, MaxEnergy, TAG_Status_Root, 2)); // AoE ampio + Root
+		// Carica: scatto d'irruzione (fase Dash), 4 celle per chiudere la distanza, ricarica 3 turni.
+		URTAbilityData* Carica = MakeAbility(TEXT("Carica"), 4, 0, 0, 3, 0, FGameplayTag(), 0);
+		Carica->bDash = true;
+		Abilities.Add(Carica);
 	}
 
 	Health = MaxHealth;

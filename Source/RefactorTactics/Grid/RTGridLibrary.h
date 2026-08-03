@@ -19,6 +19,15 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Grid")
 	static FVector CellToWorld(const FRTGridCoord& Cell, const FVector& Origin, float CellSize);
 
+	/**
+	 * Come CellToWorld ma con offset verticale del pivot: Z = CellToWorld.Z + ZOffset + Layer*LayerHeight.
+	 * ZOffset 0 = pivot ai piedi (personaggi UE); ~90 = centro del cilindro segnaposto (retrocompat).
+	 * Puro/testabile: la posizione visiva dell'unita' non dipende dal tipo di mesh.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Grid")
+	static FVector CellToWorldElevated(const FRTGridCoord& Cell, const FVector& Origin, float CellSize,
+		float ZOffset, float LayerHeight);
+
 	/** Cella che contiene la posizione mondo. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Grid")
 	static FRTGridCoord WorldToCell(const FVector& World, const FVector& Origin, float CellSize);

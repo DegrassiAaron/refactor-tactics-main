@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "Core/RTTypes.h"
 #include "RTCombatLibrary.generated.h"
 
 /** Esito dell'applicazione del danno: HP e scudo risultanti. */
@@ -60,4 +61,22 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static int32 EffectiveAttackPower(int32 BasePower, int32 OccupantDamageBonus);
+
+	/**
+	 * Indici delle unita' "appena eliminate": vive (HP > 0) nello stato PRIMA e morte (HP <= 0) nello
+	 * stato DOPO. Serve al playback per sapere CHI muore ora (e generare l'evento Defeated) senza
+	 * ri-notificare chi era gia' morto. Confronto per indice, fino al minimo delle due lunghezze.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static TArray<int32> NewlyDefeated(const TArray<int32>& HealthBefore, const TArray<int32>& HealthAfter);
+
+	/**
+	 * Cella finale del bersaglio RESPINTO (knockback) dall'attaccante di Distance celle, nella direzione
+	 * cardinale che si allontana dall'attaccante (asse col delta maggiore; a parità, l'asse X). Si ferma
+	 * sulla cella libera prima di un ostacolo (in Blocked) o del bordo della griglia. Preserva il layer del
+	 * bersaglio. Distance <= 0 o attaccante sulla stessa cella -> il bersaglio resta. Pura, deterministica.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static FRTGridCoord KnockbackDestination(const FRTGridCoord& Attacker, const FRTGridCoord& Target,
+		int32 Distance, const TArray<FRTGridCoord>& Blocked, int32 Width, int32 Height);
 };

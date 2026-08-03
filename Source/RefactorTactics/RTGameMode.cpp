@@ -76,8 +76,13 @@ ARTUnit* ARTGameMode::SpawnUnit(int32 TeamId, const FRTGridCoord& Cell, bool bGu
 		return nullptr;
 	}
 
+	// Classe per archetipo: se assegnata (BP_Unit con skeletal) usala, altrimenti fallback al cilindro C++.
+	UClass* RangerCls = RangerUnitClass ? RangerUnitClass.Get() : ARTUnit::StaticClass();
+	UClass* GuardianCls = GuardianUnitClass ? GuardianUnitClass.Get() : ARTUnit::StaticClass();
+	UClass* UnitClass = bGuardian ? GuardianCls : RangerCls;
+
 	// Deferred: imposto team e archetipo prima di BeginPlay, cosi' colore e statistiche sono corretti.
-	ARTUnit* Unit = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
+	ARTUnit* Unit = World->SpawnActorDeferred<ARTUnit>(UnitClass, FTransform::Identity);
 	if (Unit)
 	{
 		Unit->TeamId = TeamId;

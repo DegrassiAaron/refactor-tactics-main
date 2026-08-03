@@ -45,4 +45,16 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Bot")
 	static int32 AttackScore(int32 Damage, int32 TargetHealth);
+
+	/**
+	 * Miglior POSIZIONE DI TIRO raggiungibile: fra le celle entro il budget di costo (grafo, incl.
+	 * rampe/ponte), quelle da cui il bot ha linea di tiro (LOS) e gittata sul bersaglio. Preferisce
+	 * l'ALTA QUOTA (elevazione: si spara oltre le coperture basse); a parità di quota, la mossa più corta.
+	 * Se nessuna cella raggiungibile offre un tiro, ritorna From (il chiamante ripiega sull'avvicinamento).
+	 * Non si sovrappone al bersaglio. Deterministica.
+	 */
+	static FRTGridCoord BestFiringCell(const FRTGridCoord& From, const FRTGridCoord& Target, int32 MoveRange,
+		const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height,
+		const TArray<FRTGridCoord>& VisionBlockers, int32 AttackRange,
+		const TArray<FRTTraversalEdge>& Edges = TArray<FRTTraversalEdge>());
 };
