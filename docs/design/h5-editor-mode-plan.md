@@ -347,6 +347,11 @@ Aggiunge `URTHexSelectTool : USingleClickTool`: al click nel viewport, raycast �
 attivo) → `WorldToAxial` sul layer attivo → lookup nell'asset; mostra la cella nel property set del tool e disegna un
 marker. Toglie la dipendenza dal Details per la selezione.
 
+> **Nota di scope (deviazione dichiarata dalla spec §3)**: lo «stato di editing condiviso» sul mode (selezione
+> **multipla** `TArray<FRTCellId>`, target sul mode) è rinviato a **H5c** (multi-selezione Shift/Ctrl-click è H5c per
+> §8). In H5b: selezione **singola** nel tool, target risolto per-click da `FindTargetMapActor()`, layer attivo letto
+> da `ARTHexMapActor::ActiveLayer` (fonte unica, coerente con la viz ActiveOnly di H4b).
+
 **Files:**
 - Create: `Source/RefactorTacticsEditor/Private/Tools/RTHexSelectTool.h`
 - Create: `Source/RefactorTacticsEditor/Private/Tools/RTHexSelectTool.cpp`
@@ -372,7 +377,7 @@ il tool è editor-bound e si verifica in editor (Step 6). *(Dichiarazione esplic
 #pragma once
 
 #include "BaseTools/SingleClickTool.h"
-#include "Map/RTCellId.h"
+#include "Map/RTHexCellData.h" // FRTCellId + ERTHexSurface (readout selezione)
 #include "RTHexSelectTool.generated.h"
 
 class ARTHexMapActor;
@@ -388,14 +393,15 @@ public:
 	virtual UInteractiveTool* BuildTool(const FToolBuilderState& SceneState) const override;
 };
 
-/** Proprieta' del tool: layer attivo (input) + cella selezionata (sola lettura, mostrata nel pannello). */
+/** Proprieta' del tool: readout (sola lettura) della selezione. Il layer attivo e' quello dell'ARTHexMapActor
+ *  (fonte unica: pilota anche la visualizzazione ActiveOnly), qui solo rispecchiato. */
 UCLASS(Transient)
 class URTHexSelectToolProperties : public UInteractiveToolPropertySet
 {
 	GENERATED_BODY()
 public:
-	/** Layer su cui interpretare il click (piano attivo). */
-	UPROPERTY(EditAnywhere, Category = "Hex")
+	/** Layer attivo (sola lettura: rispecchia ARTHexMapActor::ActiveLayer). */
+	UPROPERTY(VisibleAnywhere, Category = "Hex")
 	int32 ActiveLayer = 0;
 
 	/** Ultima cella selezionata (q, r, Layer). */
@@ -405,6 +411,16 @@ public:
 	/** La cella selezionata esiste nell'asset? */
 	UPROPERTY(VisibleAnywhere, Category = "Hex|Selezione")
 	bool bSelectedCellExists = false;
+
+	/** Dati della cella (validi se bSelectedCellExists) — readout richiesto dalla spec §3. */
+	UPROPERTY(VisibleAnywhere, Category = "Hex|Selezione")
+	ERTHexSurface Surface = ERTHexSurface::Normal;
+
+	UPROPERTY(VisibleAnywhere, Category = "Hex|Selezione")
+	int32 MoveCost = 0;
+
+	UPROPERTY(VisibleAnywhere, Category = "Hex|Selezione")
+	bool bBlocksMovement = false;
 };
 
 /**
@@ -443,7 +459,7 @@ protected:
 #include "Tools/RTHexSelectTool.h"
 #include "InteractiveToolManager.h"
 #include "ToolContextInterfaces.h"
-#include "SceneManagement.h"
+#include "PrimitiveDrawingUtils.h" // FPrimitiveDrawInterface / SDPG_* (come lo scaffold 5.8)
 #include "Engine/World.h"
 #include "Engine/HitResult.h"
 #include "EngineUtils.h"       // TActorIterator
@@ -451,6 +467,7 @@ protected:
 #include "Selection.h"        // USelection
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTHexCellData.h" // FRTHexCellData (readout)
 #include "Map/RTHexLibrary.h"
 
 #define LOCTEXT_NAMESPACE "URTHexSelectTool"
@@ -519,16 +536,20 @@ void URTHexSelectTool::OnClicked(const FInputDeviceRay& ClickPos)
 	const float HexSize = Map ? Map->HexSize : Actor->HexSize;
 	const float LayerH = Map ? Map->LayerHeight : Actor->LayerHeight;
 	const FVector Origin = Actor->GetActorLocation();
-	const int32 Layer = Properties->ActiveLayer;
+	// Fonte unica del layer attivo: l'actor (pilota anche la viz ActiveOnly). Lo rispecchiamo nel pannello.
+	const int32 Layer = Actor->ActiveLayer;
+	Properties->ActiveLayer = Layer;
 
-	// Punto-mondo del click: colpo sull'ISM se c'e', altrimenti intersezione col piano del layer attivo.
+	// Punto-mondo del click: colpo sull'ISM del TARGET se c'e', altrimenti intersezione col piano del layer attivo.
 	FVector HitPoint;
 	const FVector RayStart = ClickPos.WorldRay.Origin;
 	const FVector RayEnd = ClickPos.WorldRay.PointAt(999999.0);
 	FHitResult Result;
-	const bool bHitWorld = TargetWorld && TargetWorld->LineTraceSingleByObjectType(
-		Result, RayStart, RayEnd, FCollisionObjectQueryParams(FCollisionObjectQueryParams::AllObjects));
-	if (bHitWorld)
+	const bool bHitTarget = TargetWorld
+		&& TargetWorld->LineTraceSingleByObjectType(Result, RayStart, RayEnd,
+			FCollisionObjectQueryParams(FCollisionObjectQueryParams::AllObjects))
+		&& (Result.GetActor() == Actor); // solo l'ISM del target: ignora unita'/ostacoli tra camera e mappa
+	if (bHitTarget)
 	{
 		HitPoint = Result.ImpactPoint;
 	}
@@ -541,7 +562,16 @@ void URTHexSelectTool::OnClicked(const FInputDeviceRay& ClickPos)
 
 	const FRTCellId Cell = URTHexLibrary::WorldToAxial(HitPoint, Origin, HexSize, Layer);
 	Properties->SelectedCell = Cell;
-	Properties->bSelectedCellExists = (Map != nullptr) && (Map->FindCell(Cell) != nullptr);
+
+	// Readout dati cella (spec §3): superficie/costo/blocco se la cella esiste nell'asset.
+	const FRTHexCellData* Data = Map ? Map->FindCell(Cell) : nullptr;
+	Properties->bSelectedCellExists = (Data != nullptr);
+	if (Data)
+	{
+		Properties->Surface = Data->Surface;
+		Properties->MoveCost = Data->MoveCost;
+		Properties->bBlocksMovement = Data->bBlocksMovement;
+	}
 
 	// Centro-mondo della cella per il marker (usa la quota del layer, non quella del colpo).
 	SelectedWorldCenter = URTHexLibrary::AxialToWorld(Cell, Origin, HexSize, LayerH);

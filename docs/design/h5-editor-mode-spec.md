@@ -60,7 +60,7 @@ ce ne sono più di uno e nessuno è selezionato, il toolkit chiede di selezionar
   "LoadingPhase": "Default" }` (fase esatta verificata sui doc UE 5.8).
 - `Source/RefactorTacticsEditor/RefactorTacticsEditor.Build.cs`: dipendenze editor (set esatto verificato sui doc
   5.8; attese: `Core`, `CoreUObject`, `Engine`, `InputCore`, `Slate`, `SlateCore`, `UnrealEd`, `EditorFramework`,
-  `InteractiveToolsFramework`, `EditorInteractiveToolsFramework`, `ToolMenus`; + dip. sul modulo `RefactorTactics`).
+  `LevelEditor`, `InteractiveToolsFramework`, `EditorInteractiveToolsFramework`; + dip. sul modulo `RefactorTactics`).
 - `RefactorTacticsEditor.h/.cpp` (IModuleInterface), `URTHexEditorMode.{h,cpp}`, `FRTHexEditorModeToolkit.{h,cpp}`,
   tool di selezione `.{h,cpp}`.
 - Il Build.cs runtime resta invariato (mantiene la dip. `UnrealEd` solo-editor per i `CallInEditor` di H2/H4, che
