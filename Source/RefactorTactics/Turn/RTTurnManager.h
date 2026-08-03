@@ -5,6 +5,7 @@
 #include "Core/RTTypes.h"
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTResolvedEvent.h"
+#include "Turn/RTTurnLog.h"
 #include "RTTurnManager.generated.h"
 
 class ARTUnit;
@@ -62,6 +63,9 @@ public:
 
 	/** Ultimi eventi (combat log) per la HUD, dal piu' vecchio al piu' recente. */
 	const TArray<FString>& GetRecentEvents() const { return RecentEvents; }
+
+	/** Esiti autoritativi dell'ultimo turno risolto (Movimento + Combat), ordinati deterministicamente. */
+	const TArray<FRTTurnLogEntry>& GetTurnLog() const { return TurnLog; }
 
 	/** Rotte effettivamente percorse nell'ultima risoluzione (viz post-lock del percorso eseguito). */
 	const TArray<TArray<FRTGridCoord>>& GetLastMoveRoutes() const { return LastMoveRoutes; }
@@ -133,6 +137,9 @@ protected:
 
 	UPROPERTY()
 	TArray<FString> RecentEvents;
+
+	/** TurnLog dell'ultimo turno risolto (osservabilita' autoritativa; ordinato in LockInAndResolve). */
+	TArray<FRTTurnLogEntry> TurnLog;
 
 	/** Rotte (celle) percorse da ogni unita' che si e' mossa nell'ultima risoluzione. */
 	TArray<TArray<FRTGridCoord>> LastMoveRoutes;

@@ -300,6 +300,7 @@ void ARTTurnManager::LockInAndResolve()
 
 	// Nuova risoluzione: azzera la timeline del turno (verra' popolata dalle fasi).
 	ResolvedTimeline.Reset();
+	TurnLog.Reset();
 	bPrepActiveThisTurn = false;
 
 	// Avanza le fasi fino a tornare a Planning; il movimento si applica nella fase Move.
@@ -323,6 +324,18 @@ void ARTTurnManager::LockInAndResolve()
 			ResolveMovement();
 		}
 	} while (Phase != ERTMatchPhase::Planning);
+
+	// TurnLog: ordinamento deterministico (fase -> categoria -> cella di partenza); GetAllActorsOfClass
+	// non e' ordinato, quindi l'ordine di inserimento non e' affidabile (enum: confronto per valore intero).
+	TurnLog.Sort([](const FRTTurnLogEntry& A, const FRTTurnLogEntry& B)
+	{
+		if (A.Phase != B.Phase) { return static_cast<uint8>(A.Phase) < static_cast<uint8>(B.Phase); }
+		if (A.Category != B.Category) { return static_cast<uint8>(A.Category) < static_cast<uint8>(B.Category); }
+		if (A.SrcCell.X != B.SrcCell.X) { return A.SrcCell.X < B.SrcCell.X; }
+		if (A.SrcCell.Y != B.SrcCell.Y) { return A.SrcCell.Y < B.SrcCell.Y; }
+		if (A.SrcCell.Layer != B.SrcCell.Layer) { return A.SrcCell.Layer < B.SrcCell.Layer; }
+		return A.TgtCell.X < B.TgtCell.X;
+	});
 
 	// Fase Cleanup: danno hazard di fine turno (Lava/Fuoco) su chi occupa, tick durate,
 	// reversione del terreno temporaneo; poi conteggio unita' vive per squadra.
@@ -590,6 +603,8 @@ void ARTTurnManager::ResolveCombat()
 	// Raccogli gli attacchi validi in base all'abilita' pianificata: bersaglio nemico, vivo,
 	// entro la portata dell'abilita', con linea di tiro; l'abilita' deve essere utilizzabile.
 	TArray<FRTAttack> Attacks;
+	TArray<FRTGridCoord> AttackSrc;  // cella dell'attaccante per ogni FRTAttack (TurnLog)
+	TArray<int32> AttackBonus;       // bonus altura dell'attaccante per ogni FRTAttack (TurnLog)
 	TArray<ARTUnit*> Attackers;
 	TArray<int32> UsedAbilityIndex;
 	// Status inflitti dalle abilita' (bersaglio + tag + durata, in array paralleli).
@@ -609,10 +624,23 @@ void ARTTurnManager::ResolveCombat()
 		Unit->PlannedAbilityIndex = INDEX_NONE;
 
 		const URTAbilityData* Ability = Unit->GetAbility(AbilityIndex);
-		if (!Ability || Ability->bDash || !Target || !IndexOf.Contains(Target) || Target->TeamId == Unit->TeamId
-			|| !Unit->CanUseAbility(AbilityIndex)
-			|| !URTGridLibrary::IsWithinRange(Unit->GridCell, Target->GridCell, Ability->RangeCells)
-			|| !URTGridLibrary::HasLineOfSight(Unit->GridCell, Target->GridCell, Blockers))
+		// Attacco valido a meno della LOS: se solo la LOS manca, registra NoLineOfSight (attacco "a vuoto").
+		const bool bBaseValid = Ability && !Ability->bDash && Target && IndexOf.Contains(Target)
+			&& Target->TeamId != Unit->TeamId && Unit->CanUseAbility(AbilityIndex)
+			&& URTGridLibrary::IsWithinRange(Unit->GridCell, Target->GridCell, Ability->RangeCells);
+		if (bBaseValid && !URTGridLibrary::HasLineOfSight(Unit->GridCell, Target->GridCell, Blockers))
+		{
+			FRTTurnLogEntry NoLos;
+			NoLos.Phase = ERTMatchPhase::Blast;
+			NoLos.Category = ERTLogCategory::Combat;
+			NoLos.Outcome = static_cast<uint8>(ERTCombatOutcome::NoLineOfSight);
+			NoLos.SrcCell = Unit->GridCell;
+			NoLos.TgtCell = Target->GridCell;
+			NoLos.Amount = 0;
+			TurnLog.Add(NoLos);
+			AddLogEvent(FString::Printf(TEXT("%s -> %s: nessuna linea di tiro"), *Unit->GetName(), *Target->GetName()));
+		}
+		if (!bBaseValid || !URTGridLibrary::HasLineOfSight(Unit->GridCell, Target->GridCell, Blockers))
 		{
 			continue;
 		}
@@ -671,6 +699,8 @@ void ARTTurnManager::ResolveCombat()
 			if (Other->TeamId != Unit->TeamId && HitCells.Contains(Other->GridCell))
 			{
 				Attacks.Add(FRTAttack(IndexOf[Other], EffPower));
+				AttackSrc.Add(Unit->GridCell);
+				AttackBonus.Add(AttackerDmgBonus);
 				AddStatus(Other);
 
 				// Knockback: registra l'intento di spinta (dalla cella dell'attaccante).
@@ -721,6 +751,20 @@ void ARTTurnManager::ResolveCombat()
 		Ev.Type = ERTResolvedEventType::Defeated;
 		Ev.Source = Units[Idx];
 		ResolvedTimeline.Add(Ev);
+	}
+
+	// TurnLog: esito di ogni attacco applicato (classificato da stato pre/post + bonus altura).
+	for (int32 a = 0; a < Attacks.Num(); ++a)
+	{
+		const int32 Idx = Attacks[a].TargetIndex;
+		FRTTurnLogEntry E;
+		E.Phase = ERTMatchPhase::Blast;
+		E.Category = ERTLogCategory::Combat;
+		E.Outcome = static_cast<uint8>(URTCombatLibrary::ClassifyCombatOutcome(BeforeHP[Idx], AfterHP[Idx], AttackBonus[a]));
+		E.SrcCell = AttackSrc[a];
+		E.TgtCell = Units[Idx]->GridCell;
+		E.Amount = BeforeHP[Idx] - AfterHP[Idx];
+		TurnLog.Add(E);
 	}
 
 	for (int32 i = 0; i < Units.Num(); ++i)
@@ -900,6 +944,28 @@ void ARTTurnManager::ResolveMovement()
 	}
 
 	const TArray<FRTPathResult> Resolved = URTMovementResolver::ResolvePaths(Paths);
+
+	// TurnLog: esito del movimento per ogni unita' (chiave = cella di partenza = Paths[i][0], stabile
+	// perche' GridCell cambia dopo PlaceOnCell).
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		FRTTurnLogEntry E;
+		E.Phase = ERTMatchPhase::Move;
+		E.Category = ERTLogCategory::Move;
+		E.Outcome = static_cast<uint8>(Resolved[i].Outcome);
+		E.SrcCell = Paths[i].Num() > 0 ? Paths[i][0] : Units[i]->GridCell;
+		E.TgtCell = Resolved[i].Final;
+		E.Amount = Resolved[i].Entered.Num();
+		TurnLog.Add(E);
+		if (Resolved[i].Outcome == ERTMoveOutcome::BlockedContested)
+		{
+			AddLogEvent(FString::Printf(TEXT("%s: fermo (cella contesa)"), *Units[i]->GetName()));
+		}
+		else if (Resolved[i].Outcome == ERTMoveOutcome::BlockedByUnit)
+		{
+			AddLogEvent(FString::Printf(TEXT("%s: fermo (cella occupata)"), *Units[i]->GetName()));
+		}
+	}
 
 	// Traccia post-lock: rotte effettivamente percorse (viz del percorso risolto). Catturate PRIMA
 	// del placement, cosi' includono la cella di partenza reale.
