@@ -10,6 +10,14 @@ class UInstancedStaticMeshComponent;
 class UStaticMesh;
 class URTHexMapAsset;
 
+/** Modalita' di visualizzazione dei layer (H4): tutti i piani impilati, oppure solo il layer attivo. */
+UENUM(BlueprintType)
+enum class ERTLayerViewMode : uint8
+{
+	AllLayers,  // mostra tutte le celle di tutti i layer (impilate per quota)
+	ActiveOnly  // mostra solo le celle del layer attivo (isola il piano)
+};
+
 /**
  * Visualizzatore della mappa esagonale: genera un'ISTANZA per cella (ISM), NON un Actor per cella. Nessuna
  * autorita' sui dati: legge le celle da URTHexMapAsset (o genera un graybox demo se l'asset e' assente).
@@ -38,6 +46,14 @@ public:
 	/** Quota tra layer (cm) usata se MapAsset e' assente. */
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap")
 	float LayerHeight = 250.f;
+
+	/** [H4] Layer attivo: usato per il filtro di visualizzazione e come layer di generazione/painting. */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap|Layer")
+	int32 ActiveLayer = 0;
+
+	/** [H4] Come mostrare i layer: tutti impilati, o solo quello attivo (isola il piano; la viz non li confonde). */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap|Layer")
+	ERTLayerViewMode LayerView = ERTLayerViewMode::AllLayers;
 
 	/** Se MapAsset e' assente/vuoto, genera un esagono pieno di questo raggio (0 = niente demo). */
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap")
@@ -75,6 +91,32 @@ public:
 	/** [Editor] Applica superficie/costo/blocco a PaintCellTarget (la crea se assente). Annullabile (Undo/Redo). */
 	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap|Paint")
 	void PaintTargetCell();
+
+	/** [H4] Cella di partenza della transizione verticale/speciale (bridge/tunnel/scale/ascensore). */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap|Transition")
+	FRTCellId TransitionFrom;
+
+	/** [H4] Cella di arrivo della transizione (tipicamente su un altro layer). */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap|Transition")
+	FRTCellId TransitionTo;
+
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap|Transition")
+	int32 TransitionCost = 2;
+
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap|Transition")
+	ERTHexTransitionKind TransitionKind = ERTHexTransitionKind::Stair;
+
+	/** Se vero, crea/rimuove anche l'arco inverso (transizione percorribile nei due sensi). */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap|Transition")
+	bool bTransitionBidirectional = true;
+
+	/** [Editor] Aggiunge la transizione TransitionFrom->TransitionTo (e l'inversa se bidirezionale). Annullabile. */
+	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap|Transition")
+	void AddVerticalTransition();
+
+	/** [Editor] Rimuove la transizione TransitionFrom->TransitionTo (e l'inversa se bidirezionale). Annullabile. */
+	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap|Transition")
+	void RemoveVerticalTransition();
 
 	/** Ricostruisce tutte le istanze dalle celle (asset o demo). */
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "RefactorTactics|HexMap")

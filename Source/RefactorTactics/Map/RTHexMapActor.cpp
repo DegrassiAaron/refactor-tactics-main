@@ -59,6 +59,12 @@ void ARTHexMapActor::RebuildInstances()
 	const float UseHexSize = MapAsset ? MapAsset->HexSize : HexSize;
 	const float UseLayerH = MapAsset ? MapAsset->LayerHeight : LayerHeight;
 
+	// Filtro layer (H4): in ActiveOnly mostra solo il layer attivo, cosi' i piani sovrapposti non si confondono.
+	auto PassesLayerFilter = [this](int32 Layer)
+	{
+		return LayerView == ERTLayerViewMode::AllLayers || Layer == ActiveLayer;
+	};
+
 	TArray<FRTCellId> CellIds;
 	TArray<int32> Heights;
 	if (MapAsset && MapAsset->NumCells() > 0)
@@ -67,13 +73,18 @@ void ARTHexMapActor::RebuildInstances()
 		Heights.Reserve(MapAsset->NumCells());
 		for (const FRTHexCellData& C : MapAsset->Cells)
 		{
+			if (!PassesLayerFilter(C.Id.Layer))
+			{
+				continue;
+			}
 			CellIds.Add(C.Id);
 			Heights.Add(C.Height);
 		}
 	}
 	else if (DemoRadius > 0)
 	{
-		CellIds = URTHexLibrary::HexArea(FRTCellId(0, 0, 0), DemoRadius);
+		// Demo graybox sul layer attivo (visibile sia in AllLayers sia in ActiveOnly).
+		CellIds = URTHexLibrary::HexArea(FRTCellId(0, 0, ActiveLayer), DemoRadius);
 		Heights.Init(0, CellIds.Num());
 	}
 
@@ -102,7 +113,7 @@ void ARTHexMapActor::GenerateIntoAsset()
 	const FScopedTransaction Transaction(LOCTEXT("HexGenerate", "Hex: Generate Area"));
 #endif
 	MapAsset->Modify();
-	const TArray<FRTCellId> Ids = URTHexLibrary::HexArea(FRTCellId(0, 0, 0), FMath::Max(0, DemoRadius));
+	const TArray<FRTCellId> Ids = URTHexLibrary::HexArea(FRTCellId(0, 0, ActiveLayer), FMath::Max(0, DemoRadius));
 	for (const FRTCellId& Id : Ids)
 	{
 		FRTHexCellData Cell(Id);
@@ -112,7 +123,7 @@ void ARTHexMapActor::GenerateIntoAsset()
 	MapAsset->SortCells();
 	MapAsset->MarkPackageDirty();
 	RebuildInstances();
-	UE_LOG(LogRT, Log, TEXT("[HexMap] Generate: %d celle nell'asset (raggio %d)."), Ids.Num(), DemoRadius);
+	UE_LOG(LogRT, Log, TEXT("[HexMap] Generate: %d celle nell'asset (raggio %d, layer %d)."), Ids.Num(), DemoRadius, ActiveLayer);
 }
 
 void ARTHexMapActor::ClearAsset()
@@ -176,6 +187,52 @@ void ARTHexMapActor::PaintTargetCell()
 	RebuildInstances();
 	UE_LOG(LogRT, Log, TEXT("[HexMap] Paint su %s (superficie %d, costo %d, blocca=%d)."),
 		*PaintCellTarget.ToString(), static_cast<int32>(PaintSurface), PaintMoveCost, bPaintBlocksMovement ? 1 : 0);
+}
+
+void ARTHexMapActor::AddVerticalTransition()
+{
+	if (!MapAsset)
+	{
+		UE_LOG(LogRT, Warning, TEXT("[HexMap] Nessun MapAsset assegnato."));
+		return;
+	}
+	if (!MapAsset->ContainsCell(TransitionFrom) || !MapAsset->ContainsCell(TransitionTo))
+	{
+		UE_LOG(LogRT, Warning, TEXT("[HexMap] Transizione %s -> %s: una delle due celle non esiste nell'asset."),
+			*TransitionFrom.ToString(), *TransitionTo.ToString());
+		return;
+	}
+#if WITH_EDITOR
+	const FScopedTransaction Transaction(LOCTEXT("HexAddTransition", "Hex: Add Vertical Transition"));
+#endif
+	MapAsset->Modify();
+	MapAsset->AddTransition(TransitionFrom, TransitionTo, FMath::Max(0, TransitionCost), TransitionKind, bTransitionBidirectional);
+	MapAsset->MarkPackageDirty();
+	RebuildInstances();
+	UE_LOG(LogRT, Log, TEXT("[HexMap] Transizione aggiunta %s -> %s (tipo %d, costo %d, bidirezionale=%d)."),
+		*TransitionFrom.ToString(), *TransitionTo.ToString(), static_cast<int32>(TransitionKind),
+		TransitionCost, bTransitionBidirectional ? 1 : 0);
+}
+
+void ARTHexMapActor::RemoveVerticalTransition()
+{
+	if (!MapAsset)
+	{
+		UE_LOG(LogRT, Warning, TEXT("[HexMap] Nessun MapAsset assegnato."));
+		return;
+	}
+#if WITH_EDITOR
+	const FScopedTransaction Transaction(LOCTEXT("HexRemoveTransition", "Hex: Remove Vertical Transition"));
+#endif
+	MapAsset->Modify();
+	const bool bRemoved = MapAsset->RemoveTransition(TransitionFrom, TransitionTo, bTransitionBidirectional);
+	if (bRemoved)
+	{
+		MapAsset->MarkPackageDirty();
+		RebuildInstances();
+	}
+	UE_LOG(LogRT, Log, TEXT("[HexMap] Rimozione transizione %s -> %s: %s."),
+		*TransitionFrom.ToString(), *TransitionTo.ToString(), bRemoved ? TEXT("rimossa") : TEXT("non trovata"));
 }
 
 #undef LOCTEXT_NAMESPACE
