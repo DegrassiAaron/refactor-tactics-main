@@ -237,6 +237,9 @@ public:
 	virtual void OnSelected() override;
 	virtual void OnDeselected() override;
 
+	/** Colore del team (TeamId 0 -> Team0, altrimenti Team1). Pura: usata da ApplyTeamColor e testabile. */
+	static FLinearColor TeamColorFor(int32 InTeamId, const FLinearColor& Team0, const FLinearColor& Team1);
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -247,6 +250,17 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> DynMaterial;
+
+	/** Anello di team a terra: identita' di squadra visibile anche con personaggi skeletal. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	TObjectPtr<UStaticMeshComponent> TeamRing;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> RingDynMaterial;
+
+	/** Materiale dell'anello (M_TeamRing, con parametro "Color"). Assente -> anello nascosto (fallback). */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Unit")
+	TSoftObjectPtr<UMaterialInterface> TeamRingMaterial;
 
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Unit")
 	FLinearColor Team0Color = FLinearColor(0.10f, 0.40f, 1.00f);

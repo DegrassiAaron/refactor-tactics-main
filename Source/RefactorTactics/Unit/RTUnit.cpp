@@ -23,6 +23,19 @@ ARTUnit::ARTUnit()
 	{
 		Mesh->SetStaticMesh(CylinderMesh.Object);
 	}
+
+	// Anello di team a terra: figlio del root, scala ASSOLUTA (non eredita la deformazione ne' la selezione del
+	// cilindro), senza collisione. Nascosto finche' ApplyTeamColor non trova un materiale team.
+	TeamRing = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("TeamRing"));
+	TeamRing->SetupAttachment(Mesh);
+	TeamRing->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	TeamRing->SetUsingAbsoluteScale(true);
+	TeamRing->SetVisibility(false);
+	if (CylinderMesh.Succeeded())
+	{
+		TeamRing->SetStaticMesh(CylinderMesh.Object);
+	}
+	TeamRing->SetRelativeScale3D(FVector(1.6f, 1.6f, 0.02f)); // disco piatto, raggio ~80 cm
 }
 
 void ARTUnit::BeginPlay()
@@ -51,26 +64,47 @@ void ARTUnit::HideForDefeat()
 	SetActorEnableCollision(false);
 }
 
+FLinearColor ARTUnit::TeamColorFor(int32 InTeamId, const FLinearColor& Team0, const FLinearColor& Team1)
+{
+	return (InTeamId == 0) ? Team0 : Team1;
+}
+
 void ARTUnit::ApplyTeamColor()
 {
-	if (!Mesh || !Mesh->GetStaticMesh())
+	const FLinearColor TeamColor = TeamColorFor(TeamId, Team0Color, Team1Color);
+
+	// Cilindro segnaposto: MID con parametro "Color" (senza M_Unit resta grigio).
+	if (Mesh && Mesh->GetStaticMesh())
 	{
-		return;
+		if (UMaterialInterface* Base = UnitMaterial.LoadSynchronous())
+		{
+			DynMaterial = UMaterialInstanceDynamic::Create(Base, this);
+			Mesh->SetMaterial(0, DynMaterial);
+			DynMaterial->SetVectorParameterValue(TEXT("Color"), TeamColor);
+		}
+		else
+		{
+			UE_LOG(LogRT, Warning, TEXT("[RT] Materiale M_Unit assente: unita' senza colore-team (crea /Game/Materials/M_Unit)"));
+		}
 	}
 
-	const FLinearColor TeamColor = (TeamId == 0) ? Team0Color : Team1Color;
-
-	// Preferisci il materiale dedicato (con parametro "Color"); il materiale base
-	// dell'engine non espone parametri, quindi senza M_Unit l'unita' resta grigia.
-	if (UMaterialInterface* Base = UnitMaterial.LoadSynchronous())
+	// Anello di team a terra: compensa VisualZOffset e la scala Z del genitore per restare a livello cella.
+	// Colorato se M_TeamRing c'e', altrimenti nascosto (fallback: resta il colore sul cilindro).
+	if (TeamRing)
 	{
-		DynMaterial = UMaterialInstanceDynamic::Create(Base, this);
-		Mesh->SetMaterial(0, DynMaterial);
-		DynMaterial->SetVectorParameterValue(TEXT("Color"), TeamColor);
-	}
-	else
-	{
-		UE_LOG(LogRT, Warning, TEXT("[RT] Materiale M_Unit assente: unita' senza colore-team (crea /Game/Materials/M_Unit)"));
+		const float RingZ = (BaseMeshScale.Z != 0.f) ? (-VisualZOffset / BaseMeshScale.Z) + 1.f : 1.f;
+		TeamRing->SetRelativeLocation(FVector(0.f, 0.f, RingZ));
+		if (UMaterialInterface* RingBase = TeamRingMaterial.LoadSynchronous())
+		{
+			RingDynMaterial = UMaterialInstanceDynamic::Create(RingBase, this);
+			TeamRing->SetMaterial(0, RingDynMaterial);
+			RingDynMaterial->SetVectorParameterValue(TEXT("Color"), TeamColor);
+			TeamRing->SetVisibility(true);
+		}
+		else
+		{
+			TeamRing->SetVisibility(false);
+		}
 	}
 }
 
