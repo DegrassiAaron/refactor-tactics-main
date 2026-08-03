@@ -21,9 +21,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	FGuid MapId;
 
-	/** Versione del formato dati (per migrazioni future). */
+	/** Versione del formato dati (per migrazioni future). v2: le transizioni entrano nell'hash + campo Kind sugli archi. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
-	int32 FormatVersion = 1;
+	int32 FormatVersion = 2;
 
 	/** Dimensione dell'esagono (cm), usata per axial<->world. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexMap")
@@ -58,6 +58,24 @@ public:
 	bool ContainsCell(const FRTCellId& Id) const;
 
 	int32 NumCells() const { return Cells.Num(); }
+
+	/** Layer distinti presenti nelle celle, ordinati in modo crescente. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HexMap")
+	TArray<int32> GetLayers() const;
+
+	/** Id delle celle appartenenti al Layer indicato, in ordine stabile. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HexMap")
+	TArray<FRTCellId> CellsInLayer(int32 Layer) const;
+
+	/**
+	 * Aggiunge (o aggiorna, se From->To esiste gia') una transizione verticale/speciale; se bBidirectional aggiunge
+	 * anche l'arco inverso To->From. Incrementa la revisione. Nessun arco duplicato per direzione.
+	 */
+	void AddTransition(const FRTCellId& From, const FRTCellId& To, int32 Cost = 1,
+		ERTHexTransitionKind Kind = ERTHexTransitionKind::Stair, bool bBidirectional = true);
+
+	/** Rimuove la transizione From->To (e, se bBothDirections, anche To->From). Vero se ne ha rimossa almeno una. */
+	bool RemoveTransition(const FRTCellId& From, const FRTCellId& To, bool bBothDirections = true);
 
 	/** Ordina le celle in modo stabile (Layer, X, Y) e invalida la cache. */
 	void SortCells();

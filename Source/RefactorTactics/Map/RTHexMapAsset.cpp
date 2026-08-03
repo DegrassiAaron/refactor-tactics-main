@@ -61,6 +61,70 @@ bool URTHexMapAsset::ContainsCell(const FRTCellId& Id) const
 	return Lookup.Contains(Id);
 }
 
+TArray<int32> URTHexMapAsset::GetLayers() const
+{
+	TArray<int32> Out;
+	for (const FRTHexCellData& C : Cells)
+	{
+		Out.AddUnique(C.Id.Layer);
+	}
+	Out.Sort();
+	return Out;
+}
+
+TArray<FRTCellId> URTHexMapAsset::CellsInLayer(int32 Layer) const
+{
+	TArray<FRTCellId> Out;
+	for (const FRTHexCellData& C : Cells)
+	{
+		if (C.Id.Layer == Layer)
+		{
+			Out.Add(C.Id);
+		}
+	}
+	Out.Sort([](const FRTCellId& A, const FRTCellId& B) { return URTHexLibrary::StableLess(A, B); });
+	return Out;
+}
+
+void URTHexMapAsset::AddTransition(const FRTCellId& From, const FRTCellId& To, int32 Cost,
+	ERTHexTransitionKind Kind, bool bBidirectional)
+{
+	auto UpsertArc = [this](const FRTCellId& A, const FRTCellId& B, int32 InCost, ERTHexTransitionKind InKind)
+	{
+		for (FRTHexEdge& E : Transitions)
+		{
+			if (E.From == A && E.To == B)
+			{
+				E.Cost = InCost; // aggiorna in loco (nessun duplicato per direzione)
+				E.Kind = InKind;
+				return;
+			}
+		}
+		Transitions.Add(FRTHexEdge(A, B, InCost, InKind));
+	};
+
+	UpsertArc(From, To, Cost, Kind);
+	if (bBidirectional)
+	{
+		UpsertArc(To, From, Cost, Kind);
+	}
+	++Revision;
+}
+
+bool URTHexMapAsset::RemoveTransition(const FRTCellId& From, const FRTCellId& To, bool bBothDirections)
+{
+	const int32 Removed = Transitions.RemoveAll([&](const FRTHexEdge& E)
+	{
+		return (E.From == From && E.To == To) || (bBothDirections && E.From == To && E.To == From);
+	});
+	if (Removed > 0)
+	{
+		++Revision;
+		return true;
+	}
+	return false;
+}
+
 void URTHexMapAsset::SortCells()
 {
 	Cells.Sort([](const FRTHexCellData& A, const FRTHexCellData& B) { return URTHexLibrary::StableLess(A.Id, B.Id); });
@@ -83,6 +147,23 @@ uint32 URTHexMapAsset::ComputeHash() const
 		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(C.bBlocksMovement ? 1 : 0)));
 		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(C.bBlocksLineOfSight ? 1 : 0)));
 	}
+
+	// Le transizioni sono dato autorevole (i ponti/tunnel cambiano il pathing): entrano nell'hash, ordinate
+	// stabilmente (From, To, Kind) cosi' l'hash e' indipendente dall'ordine di inserimento nell'array.
+	TArray<FRTHexEdge> SortedEdges = Transitions;
+	SortedEdges.Sort([](const FRTHexEdge& A, const FRTHexEdge& B)
+	{
+		if (A.From != B.From) { return URTHexLibrary::StableLess(A.From, B.From); }
+		if (A.To != B.To) { return URTHexLibrary::StableLess(A.To, B.To); }
+		return static_cast<uint8>(A.Kind) < static_cast<uint8>(B.Kind);
+	});
+	for (const FRTHexEdge& E : SortedEdges)
+	{
+		Hash = HashCombine(Hash, GetTypeHash(E.From));
+		Hash = HashCombine(Hash, GetTypeHash(E.To));
+		Hash = HashCombine(Hash, GetTypeHash(E.Cost));
+		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(E.Kind)));
+	}
 	return Hash;
 }
 
@@ -103,8 +184,10 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 			Errors.Add(FString::Printf(TEXT("Error: costo negativo su %s"), *C.Id.ToString()));
 		}
 	}
-	for (const FRTHexEdge& E : Transitions)
+	for (int32 I = 0; I < Transitions.Num(); ++I)
 	{
+		const FRTHexEdge& E = Transitions[I];
+
 		if (!Seen.Contains(E.From) || !Seen.Contains(E.To))
 		{
 			Errors.Add(FString::Printf(TEXT("Error: transizione verso cella inesistente %s -> %s"),
@@ -113,6 +196,26 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 		if (E.Cost < 0)
 		{
 			Errors.Add(FString::Printf(TEXT("Error: costo transizione negativo %s -> %s"),
+				*E.From.ToString(), *E.To.ToString()));
+		}
+		if (E.From == E.To)
+		{
+			Errors.Add(FString::Printf(TEXT("Error: transizione self-loop su %s"), *E.From.ToString()));
+		}
+		// Duplicato: stessa coppia From->To gia' presente in un arco precedente (segnalato una sola volta).
+		for (int32 J = 0; J < I; ++J)
+		{
+			if (Transitions[J].From == E.From && Transitions[J].To == E.To)
+			{
+				Errors.Add(FString::Printf(TEXT("Error: transizione duplicata %s -> %s"),
+					*E.From.ToString(), *E.To.ToString()));
+				break;
+			}
+		}
+		// Ridondante: stesso layer e celle gia' adiacenti orizzontalmente -> l'arco esplicito e' superfluo.
+		if (E.From != E.To && E.From.Layer == E.To.Layer && URTHexLibrary::HexDistance(E.From, E.To) == 1)
+		{
+			Errors.Add(FString::Printf(TEXT("Warning: transizione ridondante tra celle gia' adiacenti %s -> %s"),
 				*E.From.ToString(), *E.To.ToString()));
 		}
 	}

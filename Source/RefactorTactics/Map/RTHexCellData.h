@@ -50,6 +50,18 @@ struct FRTHexCellData
 	explicit FRTHexCellData(const FRTCellId& InId) : Id(InId) {}
 };
 
+/** Tipo semantico di una transizione verticale/speciale (per rendering, validazione e futuri costi di profilo). */
+UENUM(BlueprintType)
+enum class ERTHexTransitionKind : uint8
+{
+	Stair,     // scala
+	Ramp,      // rampa
+	Bridge,    // ponte
+	Tunnel,    // tunnel
+	Elevator,  // ascensore
+	Jump       // salto (predisposizione; teletrasporto resta futuro)
+};
+
 /**
  * Arco di transizione ESPLICITA tra due celle esagonali (scale, rampe, ponti, tunnel, ascensori). Direzionale:
  * il bidirezionale richiede due archi. Le celle su layer diversi NON sono adiacenti senza un arco.
@@ -68,6 +80,12 @@ struct FRTHexEdge
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
 	int32 Cost = 1;
 
+	/** Tipo semantico dell'arco (informativo: non altera il pathfinding, che usa solo Cost). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	ERTHexTransitionKind Kind = ERTHexTransitionKind::Stair;
+
 	FRTHexEdge() = default;
-	FRTHexEdge(const FRTCellId& InFrom, const FRTCellId& InTo, int32 InCost) : From(InFrom), To(InTo), Cost(InCost) {}
+	FRTHexEdge(const FRTCellId& InFrom, const FRTCellId& InTo, int32 InCost,
+		ERTHexTransitionKind InKind = ERTHexTransitionKind::Stair)
+		: From(InFrom), To(InTo), Cost(InCost), Kind(InKind) {}
 };
