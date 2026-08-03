@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Map/RTCellId.h"
+#include "Map/RTHexCellData.h"
 #include "RTHexMapActor.generated.h"
 
 class UInstancedStaticMeshComponent;
@@ -41,6 +42,22 @@ public:
 	/** Se MapAsset e' assente/vuoto, genera un esagono pieno di questo raggio (0 = niente demo). */
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap")
 	int32 DemoRadius = 4;
+
+	/** Superficie assegnata dal generatore editor (GenerateIntoAsset). */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap")
+	ERTHexSurface DemoSurface = ERTHexSurface::Normal;
+
+	/** [Editor] Genera nell'asset assegnato un esagono pieno (DemoRadius, DemoSurface), marca dirty e ridisegna. */
+	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap")
+	void GenerateIntoAsset();
+
+	/** [Editor] Svuota le celle e le transizioni dell'asset, marca dirty e ridisegna. */
+	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap")
+	void ClearAsset();
+
+	/** [Editor] Esegue il validator sull'asset e logga gli errori. */
+	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap")
+	void ValidateAsset();
 
 	/** Ricostruisce tutte le istanze dalle celle (asset o demo). */
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "RefactorTactics|HexMap")

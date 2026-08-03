@@ -4,6 +4,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "UObject/ConstructorHelpers.h"
+#include "RefactorTactics.h"
 
 ARTHexMapActor::ARTHexMapActor()
 {
@@ -82,5 +83,58 @@ void ARTHexMapActor::RebuildInstances()
 		const FTransform Xf(FRotator::ZeroRotator, World, FVector(PlanarScale, PlanarScale, FlatScale));
 		Cells->AddInstance(Xf, /*bWorldSpace=*/ true);
 		InstanceCells.Add(CellIds[I]);
+	}
+}
+
+void ARTHexMapActor::GenerateIntoAsset()
+{
+	if (!MapAsset)
+	{
+		UE_LOG(LogRT, Warning, TEXT("[HexMap] Nessun MapAsset assegnato: assegnalo prima di generare."));
+		return;
+	}
+	MapAsset->Modify();
+	const TArray<FRTCellId> Ids = URTHexLibrary::HexArea(FRTCellId(0, 0, 0), FMath::Max(0, DemoRadius));
+	for (const FRTCellId& Id : Ids)
+	{
+		FRTHexCellData Cell(Id);
+		Cell.Surface = DemoSurface;
+		MapAsset->AddOrUpdateCell(Cell);
+	}
+	MapAsset->SortCells();
+	MapAsset->MarkPackageDirty();
+	RebuildInstances();
+	UE_LOG(LogRT, Log, TEXT("[HexMap] Generate: %d celle nell'asset (raggio %d)."), Ids.Num(), DemoRadius);
+}
+
+void ARTHexMapActor::ClearAsset()
+{
+	if (!MapAsset)
+	{
+		return;
+	}
+	MapAsset->Modify();
+	MapAsset->Cells.Reset();
+	MapAsset->Transitions.Reset();
+	MapAsset->MarkPackageDirty();
+	RebuildInstances();
+	UE_LOG(LogRT, Log, TEXT("[HexMap] Asset svuotato."));
+}
+
+void ARTHexMapActor::ValidateAsset()
+{
+	if (!MapAsset)
+	{
+		UE_LOG(LogRT, Warning, TEXT("[HexMap] Nessun MapAsset assegnato."));
+		return;
+	}
+	const TArray<FString> Errors = MapAsset->ValidateMap();
+	if (Errors.Num() == 0)
+	{
+		UE_LOG(LogRT, Log, TEXT("[HexMap] Validazione OK: nessun errore (%d celle)."), MapAsset->NumCells());
+	}
+	for (const FString& E : Errors)
+	{
+		UE_LOG(LogRT, Warning, TEXT("[HexMap] %s"), *E);
 	}
 }
