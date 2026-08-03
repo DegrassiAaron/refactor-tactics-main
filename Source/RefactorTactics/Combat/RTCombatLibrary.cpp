@@ -13,6 +13,14 @@ FRTDamageResult URTCombatLibrary::ApplyDamage(int32 Damage, int32 Shield, int32 
 	return FRTDamageResult(NewHealth, NewShield);
 }
 
+ERTCombatOutcome URTCombatLibrary::ClassifyCombatOutcome(int32 HealthBefore, int32 HealthAfter, int32 AttackerDmgBonus)
+{
+	if (HealthBefore > 0 && HealthAfter <= 0) { return ERTCombatOutcome::Lethal; }
+	if (HealthAfter == HealthBefore)          { return ERTCombatOutcome::ShieldAbsorbed; }
+	if (AttackerDmgBonus > 0)                 { return ERTCombatOutcome::TerrainBonus; }
+	return ERTCombatOutcome::Hit;
+}
+
 int32 URTCombatLibrary::GainEnergy(int32 Current, int32 Gain, int32 Max)
 {
 	return FMath::Clamp(Current + Gain, 0, Max);

@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "Combat/RTCombatLibrary.h"
+#include "Turn/RTTurnLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -194,6 +195,24 @@ bool FRTKnockbackTest::RunTest(const FString&)
 		const FRTGridCoord Dest = URTCombatLibrary::KnockbackDestination(FRTGridCoord(3, 4, 1), FRTGridCoord(4, 4, 1), 1, NoBlock, 10, 10);
 		TestTrue(TEXT("mantiene il layer"), Dest == FRTGridCoord(5, 4, 1));
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTClassifyCombatOutcomeTest,
+	"RefactorTactics.Combat.ClassifyCombatOutcome",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTClassifyCombatOutcomeTest::RunTest(const FString&)
+{
+	// ShieldAbsorbed: HP invariati (lo scudo ha assorbito tutto).
+	TestTrue(TEXT("shield"), URTCombatLibrary::ClassifyCombatOutcome(100, 100, 0) == ERTCombatOutcome::ShieldAbsorbed);
+	// Hit: HP calano, nessun bonus, non letale.
+	TestTrue(TEXT("hit"), URTCombatLibrary::ClassifyCombatOutcome(100, 70, 0) == ERTCombatOutcome::Hit);
+	// TerrainBonus: HP calano, bonus altura > 0, non letale.
+	TestTrue(TEXT("terrain"), URTCombatLibrary::ClassifyCombatOutcome(100, 55, 15) == ERTCombatOutcome::TerrainBonus);
+	// Lethal: HP a 0 (priorita' su tutto).
+	TestTrue(TEXT("lethal"), URTCombatLibrary::ClassifyCombatOutcome(30, 0, 0) == ERTCombatOutcome::Lethal);
+	// Lethal ha priorita' sul bonus altura.
+	TestTrue(TEXT("lethal>terrain"), URTCombatLibrary::ClassifyCombatOutcome(30, 0, 15) == ERTCombatOutcome::Lethal);
 	return true;
 }
 

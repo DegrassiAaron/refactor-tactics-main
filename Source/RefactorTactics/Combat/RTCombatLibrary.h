@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Core/RTTypes.h"
+#include "Turn/RTTurnLog.h"
 #include "RTCombatLibrary.generated.h"
 
 /** Esito dell'applicazione del danno: HP e scudo risultanti. */
@@ -79,4 +80,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static FRTGridCoord KnockbackDestination(const FRTGridCoord& Attacker, const FRTGridCoord& Target,
 		int32 Distance, const TArray<FRTGridCoord>& Blocked, int32 Width, int32 Height);
+
+	/**
+	 * Classifica l'esito di un colpo a segno secondo la priorita' Lethal > ShieldAbsorbed > TerrainBonus > Hit.
+	 * ShieldAbsorbed = HP invariati (assorbito dallo scudo). TerrainBonus = HP calati con bonus altura > 0.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static ERTCombatOutcome ClassifyCombatOutcome(int32 HealthBefore, int32 HealthAfter, int32 AttackerDmgBonus);
 };
