@@ -335,10 +335,13 @@ Branch `feat/skeletal-units`. **Parte C++ di AS.1 completata in TDD** (editor ch
   in `SpawnUnit` con **fallback** ad `ARTUnit` (cilindro) se non assegnate. Lo `SkeletalMeshComponent` **non** è in
   C++: starà in `BP_Unit` (presentazione in Blueprint, canone), creato in AS.2. Wiring non testabile in automation
   (spawn/World): verifica = build + PIE con l'asset reale (AS.2).
+- **AS.4 groundwork (facing)** ✅ — `URTGridLibrary::DirectionYaw` (pura, TDD RED→GREEN) + `ARTUnit::bFaceMovementDirection`
+  (default false) in `SetVisualLocation`: le unità dei personaggi si orientano verso il movimento. Più fix ordine-spawn
+  (`TurnManager` prima delle unità) così i `BP_Unit` si agganciano ai delegate senza Delay.
 
 **Verifica**: build `RefactorTacticsEditor` Development → *Result: Succeeded*; `Automation RunTests RefactorTactics`
-→ **66/66 verdi, 0 falliti** (63 preesistenti + 3 nuovi). Nessuna regressione (default `VisualZOffset=90` preserva
-la posa del cilindro).
+→ **70/70 verdi, 0 falliti** (4 test nuovi: 3 CellToWorldElevated + 1 DirectionYaw). Nessuna regressione (default
+`VisualZOffset=90` e `bFaceMovementDirection=false` preservano il comportamento del cilindro).
 
 **Aperto — AS.2 (editor, con guida)**: creare `BP_Unit` Ranger/Guardian con `SkeletalMeshComponent` + `ABP_Unit`,
 `VisualZOffset=0`, e assegnarli a `RangerUnitClass`/`GuardianUnitClass`; importare il primo personaggio
