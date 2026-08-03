@@ -37,6 +37,13 @@ modding). Sono la **direzione futura**, non l'obiettivo dell'MVP. Vedi §8.
 
 ## 3. Decisioni canoniche — riconciliazione `02` ↔ `03`
 
+> ⚠️ **Revisione 2026-08-03 — PIVOT A GRIGLIA ESAGONALE** ([`adr-0002-griglia-esagonale.md`](adr-0002-griglia-esagonale.md)):
+> per decisione dell'utente il progetto abbandona la griglia **quadrata** (righe "Griglia" e "Coord. cella" della
+> tabella sotto) a favore di una griglia **esagonale** (assiale/cubica, `FRTCellId`) con editor mappa data-driven.
+> Quelle righe sono **superate**; il rifacimento procede per milestone H0–H9 ([`hex-map-roadmap.md`](hex-map-roadmap.md))
+> e invalida M1–M5 (griglia/combat/LOS/bot/pathfinding). Gli **invarianti** (determinismo, no float, dati autorevoli in
+> C++) restano. Il sistema quadrato resta su `feat/skeletal-units`/`main` come base di rollback.
+
 | Tema | `02-Tutorial` | `03-TutorialToMVP` | **Canonico** | Motivazione |
 |---|---|---|---|---|
 | Nome / `.uproject` | ReactorTactics | Reactor Tactics | **RefactorTactics** | Deciso; = repo |
