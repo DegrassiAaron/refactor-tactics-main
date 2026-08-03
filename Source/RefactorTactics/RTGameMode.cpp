@@ -48,6 +48,14 @@ void ARTGameMode::BeginPlay()
 		}
 	}
 
+	// Orchestratore del turno: spawnato PRIMA delle unita' cosi' esiste gia' quando queste fanno BeginPlay
+	// (i BP_Unit possono agganciarsi ai suoi delegate di playback senza attese). Sicuro: il TurnManager non
+	// tocca le unita' al proprio BeginPlay (fa solo StartPlanningTimer); le raccoglie a ogni turno.
+	if (!UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()))
+	{
+		World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass(), FTransform::Identity);
+	}
+
 	// Board 2v2 (solo se non ci sono gia' unita' nel livello).
 	if (Grid && !UGameplayStatics::GetActorOfClass(this, ARTUnit::StaticClass()))
 	{
@@ -59,12 +67,6 @@ void ARTGameMode::BeginPlay()
 		SpawnUnit(1, FRTGridCoord(7, 7), /*bGuardian=*/ false, Origin, CellSize);
 		SpawnUnit(1, FRTGridCoord(7, 5), /*bGuardian=*/ true,  Origin, CellSize);
 		UE_LOG(LogRT, Log, TEXT("[RT] Board 2v2 (Ranger + Guardian per squadra) avviata"));
-	}
-
-	// Orchestratore del turno.
-	if (!UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()))
-	{
-		World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass(), FTransform::Identity);
 	}
 }
 
