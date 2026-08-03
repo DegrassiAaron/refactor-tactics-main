@@ -95,3 +95,23 @@ bool URTHexLibrary::StableLess(const FRTCellId& A, const FRTCellId& B)
 	if (A.X != B.X) { return A.X < B.X; }
 	return A.Y < B.Y;
 }
+
+TArray<FRTCellId> URTHexLibrary::HexArea(const FRTCellId& Center, int32 Radius)
+{
+	TArray<FRTCellId> Out;
+	if (Radius < 0)
+	{
+		return Out;
+	}
+	Out.Reserve(3 * Radius * (Radius + 1) + 1);
+	for (int32 Dq = -Radius; Dq <= Radius; ++Dq)
+	{
+		const int32 RLo = FMath::Max(-Radius, -Dq - Radius);
+		const int32 RHi = FMath::Min(Radius, -Dq + Radius);
+		for (int32 Dr = RLo; Dr <= RHi; ++Dr)
+		{
+			Out.Add(FRTCellId(Center.X + Dq, Center.Y + Dr, Center.Layer));
+		}
+	}
+	return Out;
+}

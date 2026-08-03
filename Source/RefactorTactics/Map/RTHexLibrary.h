@@ -41,4 +41,8 @@ public:
 
 	/** Ordinamento stabile deterministico: Layer, poi X, poi Y. */
 	static bool StableLess(const FRTCellId& A, const FRTCellId& B);
+
+	/** Esagono PIENO di raggio N attorno al centro (tutte le celle a distanza <= N, stesso layer). 3N(N+1)+1 celle. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static TArray<FRTCellId> HexArea(const FRTCellId& Center, int32 Radius);
 };

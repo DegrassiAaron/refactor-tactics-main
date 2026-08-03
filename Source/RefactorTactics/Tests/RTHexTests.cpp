@@ -105,4 +105,32 @@ bool FRTHexStableSortTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexAreaTest,
+	"RefactorTactics.Hex.HexAreaRadius",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexAreaTest::RunTest(const FString&)
+{
+	const FRTCellId Center(0, 0, 0);
+	// Conteggio esagono pieno = 3N(N+1)+1: N=0->1, N=1->7, N=2->19.
+	TestEqual(TEXT("raggio 0 = 1 cella"), URTHexLibrary::HexArea(Center, 0).Num(), 1);
+	TestEqual(TEXT("raggio 1 = 7 celle"), URTHexLibrary::HexArea(Center, 1).Num(), 7);
+	TestEqual(TEXT("raggio 2 = 19 celle"), URTHexLibrary::HexArea(Center, 2).Num(), 19);
+	TestEqual(TEXT("raggio negativo = vuoto"), URTHexLibrary::HexArea(Center, -1).Num(), 0);
+
+	// Tutte le celle sono entro il raggio e sul layer del centro; nessun duplicato.
+	const TArray<FRTCellId> Area = URTHexLibrary::HexArea(FRTCellId(3, -1, 2), 2);
+	TSet<FRTCellId> Unique;
+	bool bWithin = true, bSameLayer = true;
+	for (const FRTCellId& C : Area)
+	{
+		Unique.Add(C);
+		bWithin = bWithin && URTHexLibrary::HexDistance(FRTCellId(3, -1, 2), C) <= 2;
+		bSameLayer = bSameLayer && C.Layer == 2;
+	}
+	TestTrue(TEXT("tutte entro raggio"), bWithin);
+	TestTrue(TEXT("tutte sul layer del centro"), bSameLayer);
+	TestEqual(TEXT("nessun duplicato"), Unique.Num(), Area.Num());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
