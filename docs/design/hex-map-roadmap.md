@@ -14,7 +14,7 @@ interi · no float in coord/hash · no Actor-per-cella (ISM/HISM) · A* sul graf
 | ID | Contenuto | Done quando | Stato |
 |----|-----------|-------------|-------|
 | **H0** Fondazioni | Modulo/cartelle `Map/Pathfinding/Debug`; `FRTCellId` (assiale+cubica, ==/!=, hash, ordinamento, ToString, 6 vicini, distanza, axial↔world con rounding cubico); test coordinate | Compila; test coordinate verdi; runtime senza dipendenze Editor | ✅ (77/77 test, 4f822a9) |
-| **H1** Asset + rendering graybox | `FRTHexCellData`; `URTHexMapAsset` (storage stabile, lookup, ordinamento, hash); `ARTHexMapActor` (ISM); generatore base | Si crea/salva una griglia; reload Editor mantiene i dati; nessun Actor per cella | ⏳ |
+| **H1** Asset + rendering graybox | `FRTHexCellData`; `URTHexMapAsset` (storage stabile, lookup, ordinamento, hash); `ARTHexMapActor` (ISM); generatore base | Si crea/salva una griglia; reload Editor mantiene i dati; nessun Actor per cella | 🟡 logica 81/81 (8ac987a); ARTHexMapActor graybox (f2ee6b0) — PIE/save-reload da verificare |
 | **H2** Editor MVP | Selezione (raycast→axial), multi-selezione, paint superficie/costo/blocco/altezza/layer, Undo/Redo, validazione | Mappa graybox creabile senza codice; operazioni annullabili; package dirty corretto | ⏳ |
 | **H3** Grafo + A\* | Vicini/archi/profilo unità; A* deterministico; debug path; Automation Test | Path deterministico; ostacoli/costi ok; layer diversi richiedono transizione esplicita | ⏳ |
 | **H4** Multilivello | Filtri layer; bridge/tunnel/scale/ascensori; celle sovrapposte; selezione multilivello | (X,Y) uguali con Layer diversi gestiti; viz/path non confondono i livelli | ⏳ |
