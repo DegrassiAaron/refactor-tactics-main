@@ -183,7 +183,8 @@ nell'entry/ordinamento ☐ `spec`/roadmap aggiornate ☐ nessun file generato/se
 | **TL.2** | `URTCombatLibrary::ClassifyCombatOutcome` (`Hit/ShieldAbsorbed/Lethal/TerrainBonus`, priorità) | test combat (uno per enum + priorità) |
 | **TL.3** | `ARTTurnManager`: colleziona il TurnLog, aggiunge `NoLineOfSight`, arricchisce `AddLogEvent` | build + PIE: combat log mostra i reason |
 
-Slice successivo (spec separata): **serializzazione versionata + hash** (chiude `Replay divergence = 0`).
+Slice successivo — **serializzazione versionata** — ✅ **fatto** (`SR`, merge `8b6dc32`): vedi
+[`spec-turnlog-serialize.md`](spec-turnlog-serialize.md). Chiude `Replay divergence = 0`.
 
 ---
 
