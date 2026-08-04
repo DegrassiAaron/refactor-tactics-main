@@ -1,6 +1,104 @@
 #include "Bot/RTBotLibrary.h"
 #include "Grid/RTGridLibrary.h"
 
+int32 URTBotLibrary::ScorePlan(const FRTBotPlan& Plan, const FRTBotContext& Context)
+{
+	int32 Score = 0;
+
+	// Focus-fire: danno inflitto, con bonus se il colpo uccide (danno >= HP+scudo del bersaglio).
+	if (Plan.bHasAttack)
+	{
+		Score += Context.WDamage * Plan.AttackDamage;
+		if (Plan.AttackDamage >= Plan.TargetHealth)
+		{
+			Score += Context.WKill;
+		}
+	}
+
+	// Minaccia sulla cella di destinazione + posizionamento rispetto al nemico piu' vicino.
+	const int32 NumEnemies = FMath::Min(Context.Enemies.Num(), Context.EnemyRanges.Num());
+	int32 MinDist = MAX_int32;
+	for (int32 i = 0; i < NumEnemies; ++i)
+	{
+		const int32 Dist = URTGridLibrary::ManhattanDistance(Plan.DestCell, Context.Enemies[i]);
+		if (Dist <= Context.EnemyRanges[i])
+		{
+			Score -= Context.WThreat; // la cella e' sotto tiro di questo nemico
+		}
+		MinDist = FMath::Min(MinDist, Dist);
+	}
+
+	if (MinDist != MAX_int32)
+	{
+		if (Context.KiteStandoff > 0)
+		{
+			// Kiter: penalita' proporzionale a quanto si resta SOTTO la distanza di sicurezza.
+			if (MinDist < Context.KiteStandoff)
+			{
+				Score -= Context.WKiteViolation * (Context.KiteStandoff - MinDist);
+			}
+		}
+		else
+		{
+			// Mischia: penalita' proporzionale alla distanza (chiudere la distanza e' meglio).
+			Score -= Context.WApproach * MinDist;
+		}
+	}
+
+	// Elevazione: premia la quota alta della cella di destinazione (vantaggio di tiro/posizione).
+	Score += Context.WElevation * Plan.DestCell.Layer;
+
+	return Score;
+}
+
+FRTBotPlan URTBotLibrary::ChooseBestPlan(const TArray<FRTBotPlan>& Candidates, const FRTBotContext& Context)
+{
+	// Fallback: nessuna candidata -> resta a Origin (invariante: c'e' sempre un piano valido).
+	FRTBotPlan Best;
+	Best.DestCell = Context.Origin;
+	if (Candidates.Num() == 0)
+	{
+		return Best;
+	}
+
+	int32 BestScore = TNumericLimits<int32>::Lowest();
+	int32 BestMove = MAX_int32;
+	bool bHave = false;
+	for (const FRTBotPlan& Cand : Candidates)
+	{
+		const int32 CandScore = ScorePlan(Cand, Context);
+		const int32 CandMove = URTGridLibrary::ManhattanDistance(Cand.DestCell, Context.Origin);
+
+		bool bBetter = !bHave || CandScore > BestScore;
+		if (!bBetter && CandScore == BestScore)
+		{
+			// Tie-break ASSOLUTO: mossa minima da Origin, poi coord (X,Y,Layer) crescenti.
+			// Non dipende dall'ordine di enumerazione -> permutare le candidate non cambia l'esito.
+			if (CandMove < BestMove)
+			{
+				bBetter = true;
+			}
+			else if (CandMove == BestMove)
+			{
+				const FRTGridCoord& D = Cand.DestCell;
+				const FRTGridCoord& C = Best.DestCell;
+				if (D.X != C.X)      { bBetter = D.X < C.X; }
+				else if (D.Y != C.Y) { bBetter = D.Y < C.Y; }
+				else                 { bBetter = D.Layer < C.Layer; }
+			}
+		}
+
+		if (bBetter)
+		{
+			bHave = true;
+			BestScore = CandScore;
+			BestMove = CandMove;
+			Best = Cand;
+		}
+	}
+	return Best;
+}
+
 FRTGridCoord URTBotLibrary::StepToward(const FRTGridCoord& From, const FRTGridCoord& Target, int32 MoveRange)
 {
 	const int32 Distance = FMath::Abs(Target.X - From.X) + FMath::Abs(Target.Y - From.Y);
@@ -90,6 +188,21 @@ int32 URTBotLibrary::AttackScore(int32 Damage, int32 TargetHealth)
 	}
 	// Non-kill: si preferisce il danno maggiore.
 	return Damage;
+}
+
+bool URTBotLibrary::AttackIsBetter(int32 DamageA, int32 TargetHealthA, const FRTGridCoord& TargetCellA,
+	int32 DamageB, int32 TargetHealthB, const FRTGridCoord& TargetCellB)
+{
+	const int32 ScoreA = AttackScore(DamageA, TargetHealthA);
+	const int32 ScoreB = AttackScore(DamageB, TargetHealthB);
+	if (ScoreA != ScoreB)
+	{
+		return ScoreA > ScoreB;
+	}
+	// A parità di AttackScore, tie-break ASSOLUTO sulle coord del bersaglio -> deterministico (invariante #4).
+	if (TargetCellA.X != TargetCellB.X) { return TargetCellA.X < TargetCellB.X; }
+	if (TargetCellA.Y != TargetCellB.Y) { return TargetCellA.Y < TargetCellB.Y; }
+	return TargetCellA.Layer < TargetCellB.Layer;
 }
 
 FRTGridCoord URTBotLibrary::BestFiringCell(const FRTGridCoord& From, const FRTGridCoord& Target, int32 MoveRange,
