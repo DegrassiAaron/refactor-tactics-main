@@ -1,7 +1,7 @@
 # Test manuali (PIE) — verifiche interattive da eseguire
 
 > Verifiche che richiedono l'editor UE (PIE, mouse, asset) e **non** sono automatizzabili headless.
-> **Complementari** ai test Automation (branch `feat/hex-grid`: 90/90 verdi). Parte del DoD «playtest ogni incremento» (roadmap §QA).
+> **Complementari** ai test Automation (branch `feat/hex-grid`: 92/92 verdi). Parte del DoD «playtest ogni incremento» (roadmap §QA).
 > Regola: una voce è ✅ **solo dopo** verifica reale in PIE — non «dovrebbe funzionare».
 
 ## Come eseguire
@@ -31,6 +31,11 @@
 | **PIE-HEX-MODE-D** | Erase a click nel viewport (H5c) | mode Hex Map attivo, tool Paint | Con `Operation=Erase`, click su una cella esistente → esagono rosso + cella rimossa dall'ISM; Undo ripristina; cambiando `ActiveLayer` agisce sul piano giusto | ⏳ (branch `feat/hex-grid`, H5c) |
 | **PIE-HEX-MODE-F** | Render transizioni nel tool Arch (H5c.2a) | mode Hex Map, tool Arch, `ARTHexMapActor` con transizioni | Le transizioni esistenti appaiono come linee colorate (per Kind) con freccia From->To | ⏳ (branch `feat/hex-grid`, H5c.2a) |
 | **PIE-HEX-MODE-E** | Crea transizione via gizmo (H5c.2b) | mode Hex Map, tool Arch, `ARTHexMapActor` con celle su >=2 layer | Click From → gizmo → drag su To (anche altro layer, snap a cella) → Commit crea la transizione (visibile); Undo la rimuove; ClearArch annulla il pendente | ⏳ (branch `feat/hex-grid`, H5c.2b) |
+| **PIE-HEX-MODE-G** | Ciclo di vita del gizmo (smoke, H5c.2b) | mode Hex Map, tool Arch, `ARTHexMapActor` nel livello | Click su una cella → compare il gizmo di traslazione; **re-click** su un'altra cella → resta **un solo** gizmo (nessun duplicato); **cambio tool** (Select) o uscita dal mode → il gizmo **sparisce** (nessun gizmo orfano in scena) | ⏳ (branch `feat/hex-grid`, H5c.2b) |
+| **PIE-HEX-MODE-H** | Snap del gizmo cross-layer (H5c.2b) | mode Hex Map, tool Arch, celle su >=2 layer | Trascinando il gizmo, `To` si aggancia sempre al **centro di una cella**; alzando la quota di ~`LayerHeight` il target passa al **layer superiore** (`WorldToLayer`); nessun jitter/loop durante lo snap (guardia `bSnapping`) | ⏳ (branch `feat/hex-grid`, H5c.2b) |
 
 > **PIE-CP1.4** dipende da codice non ancora implementato (evidenziazione cella-cursore): resta ⏳ finché non fatta.
 > Le altre voci hanno il **codice pronto**; manca solo la verifica interattiva (e, per AS.2/AS.4/AS.5, gli asset in editor).
+> **Nota (PIE-HEX-MODE-E, undo)**: dopo Commit, verifica che ripetuti Undo/Redo rimuovano/ripristinino la transizione
+> senza lasciare gizmo/transform orfani (l'interleaving delle transazioni del gizmo con la `FScopedTransaction` del
+> Commit va osservato; l'asset resta integro perché il proxy è `Transient`).
