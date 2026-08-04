@@ -193,6 +193,11 @@ bool ARTHexMapActor::EraseCell(const FRTCellId& Id)
 		UE_LOG(LogRT, Warning, TEXT("[HexMap] Nessun MapAsset assegnato."));
 		return false;
 	}
+	if (!MapAsset->ContainsCell(Id))
+	{
+		// Niente da cancellare: nessuna transazione no-op sullo stack di Undo.
+		return false;
+	}
 #if WITH_EDITOR
 	const FScopedTransaction Transaction(LOCTEXT("HexErase", "Hex: Erase Cell"));
 #endif

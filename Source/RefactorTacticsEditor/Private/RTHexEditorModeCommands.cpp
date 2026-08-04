@@ -17,6 +17,10 @@ void FRTHexEditorModeCommands::RegisterCommands()
 	UI_COMMAND(SelectTool, "Select", "Seleziona una cella cliccando nel viewport (layer attivo)",
 		EUserInterfaceActionType::ToggleButton, FInputChord());
 	ToolCommands.Add(SelectTool);
+
+	UI_COMMAND(PaintTool, "Paint", "Dipinge o cancella una cella cliccando nel viewport (layer attivo)",
+		EUserInterfaceActionType::ToggleButton, FInputChord());
+	ToolCommands.Add(PaintTool);
 }
 
 TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> FRTHexEditorModeCommands::GetCommands()

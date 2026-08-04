@@ -3,6 +3,7 @@
 #include "RTHexEditorModeCommands.h"
 #include "InteractiveToolManager.h"
 #include "Tools/RTHexSelectTool.h"
+#include "Tools/RTHexPaintTool.h"
 
 #define LOCTEXT_NAMESPACE "RTHexEditorMode"
 
@@ -24,6 +25,7 @@ void URTHexEditorMode::Enter()
 
 	const FRTHexEditorModeCommands& Commands = FRTHexEditorModeCommands::Get();
 	RegisterTool(Commands.SelectTool, TEXT("RTHexSelectTool"), NewObject<URTHexSelectToolBuilder>(this));
+	RegisterTool(Commands.PaintTool, TEXT("RTHexPaintTool"), NewObject<URTHexPaintToolBuilder>(this));
 
 	GetToolManager()->SelectActiveToolType(EToolSide::Left, TEXT("RTHexSelectTool"));
 }

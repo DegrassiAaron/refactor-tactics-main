@@ -15,6 +15,9 @@ public:
 	/** Tool di selezione a click (H5b). */
 	TSharedPtr<FUICommandInfo> SelectTool;
 
+	/** Tool di paint/erase a click (H5c). */
+	TSharedPtr<FUICommandInfo> PaintTool;
+
 protected:
 	TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> Commands;
 };
