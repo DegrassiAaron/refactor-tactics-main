@@ -2,6 +2,8 @@
 #include "RefactorTactics.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
+#include "Grid/RTGridActor.h"
+#include "Kismet/GameplayStatics.h"
 
 ARTCameraPawn::ARTCameraPawn()
 {
@@ -12,7 +14,7 @@ ARTCameraPawn::ARTCameraPawn()
 
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
 	SpringArm->SetupAttachment(SceneRoot);
-	SpringArm->TargetArmLength = 1800.f;
+	SpringArm->TargetArmLength = DefaultArmLength; // partenza piu' vicina (tunabile via DefaultArmLength)
 	SpringArm->SetRelativeRotation(FRotator(-55.f, 0.f, 0.f)); // Pitch giu' di 55 gradi.
 	SpringArm->bDoCollisionTest = false;
 	SpringArm->bInheritPitch = false;
@@ -28,6 +30,10 @@ ARTCameraPawn::ARTCameraPawn()
 void ARTCameraPawn::BeginPlay()
 {
 	Super::BeginPlay();
+	if (SpringArm)
+	{
+		SpringArm->TargetArmLength = DefaultArmLength; // applica il default (anche se modificato in editor)
+	}
 	UE_LOG(LogRT, Log, TEXT("[RT] CameraPawn BeginPlay (arm=%.0f)"), SpringArm ? SpringArm->TargetArmLength : -1.f);
 }
 
@@ -45,4 +51,19 @@ void ARTCameraPawn::AddZoom(float AxisValue)
 		return;
 	}
 	SpringArm->TargetArmLength = FMath::Clamp(SpringArm->TargetArmLength + AxisValue * ZoomStep, MinArmLength, MaxArmLength);
+}
+
+void ARTCameraPawn::RecenterView()
+{
+	// Centra sul centro della griglia (se presente) e ripristina lo zoom di default.
+	if (const ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass())))
+	{
+		const FVector Center = Grid->GetActorLocation() +
+			FVector(Grid->Width * Grid->CellSize * 0.5f, Grid->Height * Grid->CellSize * 0.5f, 0.f);
+		SetActorLocation(Center);
+	}
+	if (SpringArm)
+	{
+		SpringArm->TargetArmLength = DefaultArmLength;
+	}
 }

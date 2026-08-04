@@ -25,6 +25,9 @@ public:
 	/** Zoom variando la lunghezza del braccio (valore positivo = allontana). */
 	void AddZoom(float AxisValue);
 
+	/** Riporta la camera al centro della griglia e ripristina lo zoom di default (DefaultArmLength). */
+	void RecenterView();
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -39,6 +42,10 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")
 	float ZoomStep = 150.f;
+
+	/** Distanza (arm length) iniziale all'avvio: piu' piccola = piu' vicino alla mappa. Tra Min e Max. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")
+	float DefaultArmLength = 1100.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")
 	float MinArmLength = 600.f;
