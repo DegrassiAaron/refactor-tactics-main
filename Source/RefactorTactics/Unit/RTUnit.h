@@ -241,12 +241,32 @@ public:
 	/** Sposta solo la mesh (presentazione): NON cambia GridCell ne' il piano. Usato dall'animazione del turno. */
 	void SetVisualLocation(const FVector& World);
 
+	// --- Eventi di presentazione del combattimento (montaggi): implementati nei BP_Unit, chiamati dal TurnManager.
+	//     Se un BP non li implementa non succede nulla (nessun crash): la logica resta invariata (invariante #1).
+	/** L'attaccante esegue il montaggio d'attacco (fase Blast). */
+	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Anim")
+	void PlayAttackMontage();
+
+	/** Il bersaglio reagisce al colpo subito. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Anim")
+	void PlayHitMontage();
+
+	/** L'unita' eliminata esegue il montaggio di morte, prima della rimozione visiva. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Anim")
+	void PlayDefeatMontage();
+
 	// IRTSelectable
 	virtual void OnSelected() override;
 	virtual void OnDeselected() override;
 
 	/** Colore del team (TeamId 0 -> Team0, altrimenti Team1). Pura: usata da ApplyTeamColor e testabile. */
 	static FLinearColor TeamColorFor(int32 InTeamId, const FLinearColor& Team0, const FLinearColor& Team1);
+
+	/**
+	 * Offset Z LOCALE per portare un anello a terra (TeamRing/SelectionRing, figlio della mesh) al piano della
+	 * cella: compensa VisualZOffset e la scala Z del genitore. Guardia: ParentScaleZ 0 -> 1 (niente divisione). Pura.
+	 */
+	static float RingLocalZ(float VisualZOffset, float ParentScaleZ);
 
 protected:
 	virtual void BeginPlay() override;
@@ -275,6 +295,21 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Unit")
 	FLinearColor Team1Color = FLinearColor(1.00f, 0.20f, 0.15f);
+
+	/** Anello di SELEZIONE a terra: riscontro visivo della selezione, visibile anche sui personaggi skeletal. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	TObjectPtr<UStaticMeshComponent> SelectionRing;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> SelectionRingDynMaterial;
+
+	/** Materiale dell'anello di selezione (parametro "Color"). Assente -> nessun anello di selezione (fallback). */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Unit")
+	TSoftObjectPtr<UMaterialInterface> SelectionRingMaterial;
+
+	/** Colore dell'anello di selezione (default giallo). */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Unit")
+	FLinearColor SelectionColor = FLinearColor(1.00f, 0.85f, 0.10f);
 
 	/** Scala base della mesh; l'evidenziazione di selezione la moltiplica, non la sostituisce. */
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Unit")

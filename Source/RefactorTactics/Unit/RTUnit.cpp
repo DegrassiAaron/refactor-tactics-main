@@ -36,6 +36,19 @@ ARTUnit::ARTUnit()
 		TeamRing->SetStaticMesh(CylinderMesh.Object);
 	}
 	TeamRing->SetRelativeScale3D(FVector(1.6f, 1.6f, 0.02f)); // disco piatto, raggio ~80 cm
+
+	// Anello di SELEZIONE: gemello del TeamRing, piu' grande (cornice esterna) per distinguersi. Nascosto
+	// finche' l'unita' non e' selezionata (e finche' ApplyTeamColor non trova un materiale di selezione).
+	SelectionRing = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SelectionRing"));
+	SelectionRing->SetupAttachment(Mesh);
+	SelectionRing->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	SelectionRing->SetUsingAbsoluteScale(true);
+	SelectionRing->SetVisibility(false);
+	if (CylinderMesh.Succeeded())
+	{
+		SelectionRing->SetStaticMesh(CylinderMesh.Object);
+	}
+	SelectionRing->SetRelativeScale3D(FVector(1.9f, 1.9f, 0.02f)); // cornice esterna al TeamRing (1.6)
 }
 
 void ARTUnit::BeginPlay()
@@ -69,6 +82,13 @@ FLinearColor ARTUnit::TeamColorFor(int32 InTeamId, const FLinearColor& Team0, co
 	return (InTeamId == 0) ? Team0 : Team1;
 }
 
+float ARTUnit::RingLocalZ(float VisualZOffset, float ParentScaleZ)
+{
+	// La posizione relativa Z del figlio e' scalata dalla scala Z del genitore: compensa VisualZOffset
+	// dividendo per quella scala, +1 per risalire dal centro-base al piano. Guardia: scala 0 -> niente divisione.
+	return (ParentScaleZ != 0.f) ? (-VisualZOffset / ParentScaleZ) + 1.f : 1.f;
+}
+
 void ARTUnit::ApplyTeamColor()
 {
 	const FLinearColor TeamColor = TeamColorFor(TeamId, Team0Color, Team1Color);
@@ -92,7 +112,7 @@ void ARTUnit::ApplyTeamColor()
 	// Colorato se M_TeamRing c'e', altrimenti nascosto (fallback: resta il colore sul cilindro).
 	if (TeamRing)
 	{
-		const float RingZ = (BaseMeshScale.Z != 0.f) ? (-VisualZOffset / BaseMeshScale.Z) + 1.f : 1.f;
+		const float RingZ = RingLocalZ(VisualZOffset, BaseMeshScale.Z);
 		TeamRing->SetRelativeLocation(FVector(0.f, 0.f, RingZ));
 		if (UMaterialInterface* RingBase = TeamRingMaterial.LoadSynchronous())
 		{
@@ -105,6 +125,20 @@ void ARTUnit::ApplyTeamColor()
 		{
 			TeamRing->SetVisibility(false);
 		}
+	}
+
+	// Anello di selezione: stessa quota-terra del TeamRing, colore di selezione. Resta NASCOSTO finche'
+	// OnSelected non lo mostra. Senza materiale di selezione non compare (fallback come il TeamRing).
+	if (SelectionRing)
+	{
+		SelectionRing->SetRelativeLocation(FVector(0.f, 0.f, RingLocalZ(VisualZOffset, BaseMeshScale.Z)));
+		if (UMaterialInterface* SelBase = SelectionRingMaterial.LoadSynchronous())
+		{
+			SelectionRingDynMaterial = UMaterialInstanceDynamic::Create(SelBase, this);
+			SelectionRing->SetMaterial(0, SelectionRingDynMaterial);
+			SelectionRingDynMaterial->SetVectorParameterValue(TEXT("Color"), SelectionColor);
+		}
+		SelectionRing->SetVisibility(false);
 	}
 }
 
@@ -141,7 +175,13 @@ void ARTUnit::OnSelected()
 {
 	if (Mesh)
 	{
-		Mesh->SetRelativeScale3D(BaseMeshScale * 1.15f); // ingrandisce del 15% rispetto alla base
+		Mesh->SetRelativeScale3D(BaseMeshScale * 1.15f); // cilindro segnaposto: ingrandisce del 15%
+	}
+	// Anello di selezione a terra: riscontro visibile anche sugli skeletal (dove il cilindro e' nascosto).
+	// Compare solo se un materiale di selezione e' stato assegnato (MID creato in ApplyTeamColor).
+	if (SelectionRing && SelectionRingDynMaterial)
+	{
+		SelectionRing->SetVisibility(true);
 	}
 }
 
@@ -150,6 +190,10 @@ void ARTUnit::OnDeselected()
 	if (Mesh)
 	{
 		Mesh->SetRelativeScale3D(BaseMeshScale);
+	}
+	if (SelectionRing)
+	{
+		SelectionRing->SetVisibility(false);
 	}
 }
 

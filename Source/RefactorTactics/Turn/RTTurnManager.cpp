@@ -48,6 +48,11 @@ void ARTTurnManager::AddLogEvent(const FString& Message)
 
 void ARTTurnManager::PlanBots()
 {
+	// Osservabilita' del tuning: i pesi correnti, una riga per turno (verifica delle modifiche in PIE).
+	// UE_LOG diretto (non AddLogEvent) per non riempire il combat log della HUD.
+	UE_LOG(LogRT, Log, TEXT("[RT] Pesi bot: WKill=%d WDamage=%d WThreat=%d WKiteViolation=%d WApproach=%d WElevation=%d"),
+		WKill, WDamage, WThreat, WKiteViolation, WApproach, WElevation);
+
 	static const TArray<FRTGridCoord> NoBlockers;
 	const ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
 	const TArray<FRTGridCoord> VisionBlockers = Grid ? Grid->GetVisionBlockers() : NoBlockers;
@@ -99,14 +104,9 @@ void ARTTurnManager::PlanBots()
 			continue;
 		}
 
-		// Miglior (abilità, bersaglio) attaccabile — focus fire: preferisce chi può uccidere/indebolire.
-		// In parallelo tiene traccia del nemico più vicino (fallback per l'avvicinamento).
-		int32 BestScore = TNumericLimits<int32>::Lowest();
-		int32 BestAbility = INDEX_NONE;
-		ARTUnit* BestTarget = nullptr;
+		// Nemico più vicino (per il panic del kiter e come riferimento delle euristiche di posizionamento).
 		ARTUnit* Nearest = nullptr;
 		int32 NearestDistance = MAX_int32;
-
 		for (ARTUnit* Other : Units)
 		{
 			if (!Other->IsAlive() || Other->TeamId == Bot->TeamId)
@@ -119,28 +119,42 @@ void ARTTurnManager::PlanBots()
 				NearestDistance = Distance;
 				Nearest = Other;
 			}
-			if (!URTGridLibrary::HasLineOfSight(Bot->GridCell, Other->GridCell, VisionBlockers))
-			{
-				continue;
-			}
-			const int32 TargetHP = Other->Health + Other->Shield;
-			for (int32 A = 0; A < Bot->NumAbilities(); ++A)
-			{
-				const URTAbilityData* Ability = Bot->GetAbility(A);
-				if (!Ability || Ability->bDash || !Bot->CanUseAbility(A)
-					|| !URTGridLibrary::IsWithinRange(Bot->GridCell, Other->GridCell, Ability->RangeCells))
-				{
-					continue; // le abilita' di scatto non sono attacchi
-				}
-				const int32 Score = URTBotLibrary::AttackScore(Ability->Power, TargetHP);
-				if (Score > BestScore)
-				{
-					BestScore = Score;
-					BestAbility = A;
-					BestTarget = Other;
-				}
-			}
 		}
+
+		// Miglior attacco eseguibile DA una cella arbitraria (LOS + gittata dalla cella): focus-fire.
+		// Ritorna l'indice dell'abilità (INDEX_NONE se nessun tiro) e popola bersaglio/danno/HP via out-param.
+		// È l'unico pezzo impuro di BU.3b (LOS/Actor); la SELEZIONE fra i piani è ChooseBestPlan (pura, testata).
+		auto BestAttackFrom = [&](const FRTGridCoord& From, ARTUnit*& OutTarget, int32& OutDamage, int32& OutTargetHP) -> int32
+		{
+			int32 BestAbility = INDEX_NONE;
+			OutTarget = nullptr; OutDamage = 0; OutTargetHP = 0;
+			for (ARTUnit* Other : Units)
+			{
+				if (!Other->IsAlive() || Other->TeamId == Bot->TeamId) { continue; }
+				if (!URTGridLibrary::HasLineOfSight(From, Other->GridCell, VisionBlockers)) { continue; }
+				const int32 TargetHP = Other->Health + Other->Shield;
+				for (int32 A = 0; A < Bot->NumAbilities(); ++A)
+				{
+					const URTAbilityData* Ability = Bot->GetAbility(A);
+					if (!Ability || Ability->bDash || !Bot->CanUseAbility(A)
+						|| !URTGridLibrary::IsWithinRange(From, Other->GridCell, Ability->RangeCells))
+					{
+						continue; // le abilità di scatto non sono attacchi
+					}
+					// Tie-break assoluto sul bersaglio (coord) -> selezione deterministica (invariante #4).
+					if (BestAbility == INDEX_NONE
+						|| URTBotLibrary::AttackIsBetter(Ability->Power, TargetHP, Other->GridCell,
+							OutDamage, OutTargetHP, OutTarget ? OutTarget->GridCell : FRTGridCoord()))
+					{
+						BestAbility = A;
+						OutTarget = Other;
+						OutDamage = Ability->Power;
+						OutTargetHP = TargetHP;
+					}
+				}
+			}
+			return BestAbility;
+		};
 
 		const int32 MoveBudget = Bot->GetEffectiveMoveRange();
 		const int32 GridW = Grid ? Grid->Width : 10;
@@ -171,34 +185,163 @@ void ARTTurnManager::PlanBots()
 			// Fuga che massimizza la distanza (aggira bordi/ostacoli); tiro e bersaglio restano azzerati.
 			if (!TryFleeDash(Nearest->GridCell)) { Bot->PlannedCell = URTBotLibrary::BestKiteCell(Bot->GridCell, Nearest->GridCell, MoveBudget, BotCostMap, GridW, GridH, BotEdges); }
 		}
-		else if (BestTarget)
+		else
 		{
-			Bot->PlannedAbilityIndex = BestAbility;
-			Bot->PlannedAttackTarget = BestTarget;
-		}
-		else if (Nearest)
-		{
-			// Nessun tiro disponibile: un kiter arretra se la minaccia e' entro lo standoff, altrimenti
-			// si avvicina per rientrare a distanza di tiro; la mischia (Guardian) chiude sempre.
-			// In ogni caso si evitano le celle-copertura (routing a un turno attorno agli ostacoli).
-			// Se lo SCATTO e' pronto, riposizionati/avvicinati IN FRETTA con lo scatto (fase Dash, prima del
-				// Blast; piu' portata del movimento). Dash-only per il bot (niente move normale quando scatta).
-				const int32 DashIdx = Bot->FindDashAbilityIndex();
-				const URTAbilityData* DashAb = Bot->GetAbility(DashIdx);
+			// BU.3b: utility UNICA che sceglie fra {resta e attacca} e {muoviti per posizionarti}. L'attacco
+			// (fase Blast) parte dalla posizione PRE-move: SOLO la candidata "resta" (cella attuale) può colpire
+			// in questo turno; le celle raggiunte col movimento normale (fase Move, DOPO il Blast) valgono come
+			// posizionamento (per il tiro nei turni successivi). Scelta deterministica (ChooseBestPlan: tie-break
+			// assoluto). Guardie preservate: support/panic sopra; dash sotto (avvicinamento rapido).
+			int32 FireRange = 0;
+			for (int32 A = 0; A < Bot->NumAbilities(); ++A)
+			{
+				const URTAbilityData* Ability = Bot->GetAbility(A);
+				if (Ability && !Ability->bDash && Bot->CanUseAbility(A)) { FireRange = FMath::Max(FireRange, Ability->RangeCells); }
+			}
+
+			// Celle candidate (euristiche, non tutta la griglia): resta + posizione di tiro + avvicinamento.
+			TArray<FRTGridCoord> MoveCands;
+			MoveCands.Add(Bot->GridCell);                                   // "resta" è sempre una candidata
+			if (Nearest)
+			{
+				if (FireRange > 0)
+				{
+					const FRTGridCoord FireCell = URTBotLibrary::BestFiringCell(Bot->GridCell, Nearest->GridCell, MoveBudget, BotCostMap, GridW, GridH, VisionBlockers, FireRange, BotEdges);
+					if (FireCell != Bot->GridCell) { MoveCands.AddUnique(FireCell); }
+				}
+				const FRTGridCoord ApproachCell = URTBotLibrary::BestApproachCell(Bot->GridCell, Nearest->GridCell, MoveBudget, BotCostMap, GridW, GridH, BotEdges);
+				if (ApproachCell != Bot->GridCell) { MoveCands.AddUnique(ApproachCell); }
+			}
+
+			// Context (ordine-invariante sui nemici) + Origin (per il tie-break) + pesi dal tuning.
+			FRTBotContext BotCtx;
+			BotCtx.Origin = Bot->GridCell;
+			BotCtx.VisionBlockers = VisionBlockers; // copertura: la minaccia considera la linea di tiro
+			BotCtx.KiteStandoff = Bot->KiteStandoff;
+			BotCtx.WKill = WKill;
+			BotCtx.WDamage = WDamage;
+			BotCtx.WThreat = WThreat;
+			BotCtx.WKiteViolation = WKiteViolation;
+			BotCtx.WApproach = WApproach;
+			BotCtx.WElevation = WElevation;
+			for (ARTUnit* Enemy : Units)
+			{
+				if (!Enemy->IsAlive() || Enemy->TeamId == Bot->TeamId) { continue; }
+				BotCtx.Enemies.Add(Enemy->GridCell);
+				int32 EnemyReach = Enemy->AttackRange;
+				for (int32 a = 0; a < Enemy->NumAbilities(); ++a)
+				{
+					const URTAbilityData* EAb = Enemy->GetAbility(a);
+					if (EAb && !EAb->bDash) { EnemyReach = FMath::Max(EnemyReach, EAb->RangeCells); }
+				}
+				BotCtx.EnemyRanges.Add(EnemyReach);
+			}
+
+			// Un piano per candidata. L'attacco è valutato SOLO dalla cella attuale ("resta"): nel Blast, che
+			// precede il Move, il bot è ancora qui. Le candidate di movimento normale restano senza attacco
+			// (indici puri, no Actor). BestAttackFrom resta generica: riusabile per un futuro dash+attacco.
+			TArray<FRTBotPlan> Plans;
+			Plans.Reserve(MoveCands.Num());
+			for (const FRTGridCoord& Cand : MoveCands)
+			{
+				FRTBotPlan P;
+				P.DestCell = Cand;
+				if (Cand == Bot->GridCell)
+				{
+					ARTUnit* AtkTarget = nullptr;
+					int32 AtkDamage = 0;
+					int32 AtkTargetHP = 0;
+					const int32 AtkAbility = BestAttackFrom(Cand, AtkTarget, AtkDamage, AtkTargetHP);
+					if (AtkAbility != INDEX_NONE && AtkTarget)
+					{
+						P.bHasAttack = true;
+						P.AttackDamage = AtkDamage;
+						P.TargetHealth = AtkTargetHP;
+						P.AbilityIndex = AtkAbility;
+						P.TargetIndex = Units.IndexOfByKey(AtkTarget);
+					}
+				}
+				Plans.Add(P);
+			}
+
+			// BU.3c: candidata DASH+ATTACCO. Lo scatto (fase Dash) precede il Blast, quindi da una cella
+			// raggiunta con lo scatto il bot PUÒ colpire nello stesso turno (a differenza del movimento normale).
+			// Disponibile se lo scatto è pronto e il bot non è un kiter costretto a fuggire dalla minaccia.
+			const int32 DashIdx = Bot->FindDashAbilityIndex();
+			const URTAbilityData* DashAb = Bot->GetAbility(DashIdx);
+			const bool bDashReady = Nearest && DashAb && DashAb->bDash && Bot->CanUseAbility(DashIdx)
+				&& !(bKiter && NearestDistance < Bot->KiteStandoff);
+			if (bDashReady && FireRange > 0)
+			{
+				const FRTGridCoord DashCell = URTBotLibrary::BestFiringCell(Bot->GridCell, Nearest->GridCell, Bot->GetEffectiveDashRange(DashAb->RangeCells), BotCostMap, GridW, GridH, VisionBlockers, FireRange, BotEdges);
+				if (DashCell != Bot->GridCell)
+				{
+					ARTUnit* AtkTarget = nullptr;
+					int32 AtkDamage = 0;
+					int32 AtkTargetHP = 0;
+					const int32 AtkAbility = BestAttackFrom(DashCell, AtkTarget, AtkDamage, AtkTargetHP);
+					if (AtkAbility != INDEX_NONE && AtkTarget)
+					{
+						FRTBotPlan P;
+						P.DestCell = DashCell;
+						P.bViaDash = true;
+						P.bHasAttack = true;
+						P.AttackDamage = AtkDamage;
+						P.TargetHealth = AtkTargetHP;
+						P.AbilityIndex = AtkAbility;
+						P.TargetIndex = Units.IndexOfByKey(AtkTarget);
+						Plans.Add(P);
+					}
+				}
+			}
+
+			const FRTBotPlan Best = URTBotLibrary::ChooseBestPlan(Plans, BotCtx);
+
+			if (Best.bViaDash && Units.IsValidIndex(Best.TargetIndex))
+			{
+				// Scatta (fase Dash) e attacca dalla cella post-scatto: nel Blast, che segue il Dash, il bot è lì.
+				Bot->PlannedDashAbility = DashIdx;
+				Bot->PlannedDashCell = Best.DestCell;
+				Bot->PlannedAbilityIndex = Best.AbilityIndex;
+				Bot->PlannedAttackTarget = Units[Best.TargetIndex];
+				AddLogEvent(FString::Printf(TEXT("%s: utility -> scatto (%d,%d,L%d) + attacca %s score=%d"),
+					*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer,
+					*Units[Best.TargetIndex]->GetName(), URTBotLibrary::ScorePlan(Best, BotCtx)));
+			}
+			else if (Best.bHasAttack && Units.IsValidIndex(Best.TargetIndex))
+			{
+				// Resta e attacca dalla cella attuale (Best.DestCell == cella d'origine).
+				Bot->PlannedCell = Best.DestCell;
+				Bot->PlannedAbilityIndex = Best.AbilityIndex;
+				Bot->PlannedAttackTarget = Units[Best.TargetIndex];
+				AddLogEvent(FString::Printf(TEXT("%s: utility -> (%d,%d,L%d) attacca %s score=%d"),
+					*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer,
+					*Units[Best.TargetIndex]->GetName(), URTBotLibrary::ScorePlan(Best, BotCtx)));
+			}
+			else if (Nearest)
+			{
+				// Nessun tiro da nessuna cella candidata: avvicìnati. Con lo scatto pronto (e non già kiter sotto
+				// standoff) riposizionati IN FRETTA con il dash (fase Dash); il kiter minacciato invece fugge.
+				// DashIdx/DashAb sono già stati calcolati sopra (per la candidata dash+attacco).
 				FRTGridCoord DashDest = Bot->GridCell;
 				if (DashAb && DashAb->bDash && Bot->CanUseAbility(DashIdx) && !(bKiter && NearestDistance < Bot->KiteStandoff))
 				{
-					int32 FireRangeD = 0;
-					for (int32 A = 0; A < Bot->NumAbilities(); ++A)
-					{
-						const URTAbilityData* Ab = Bot->GetAbility(A);
-						if (Ab && !Ab->bDash && Bot->CanUseAbility(A)) { FireRangeD = FMath::Max(FireRangeD, Ab->RangeCells); }
-					}
 					// Prima una posizione di tiro raggiungibile con lo scatto; altrimenti chiudi la distanza.
-					DashDest = URTBotLibrary::BestFiringCell(Bot->GridCell, Nearest->GridCell, Bot->GetEffectiveDashRange(DashAb->RangeCells), BotCostMap, GridW, GridH, VisionBlockers, FireRangeD, BotEdges);
+					DashDest = URTBotLibrary::BestFiringCell(Bot->GridCell, Nearest->GridCell, Bot->GetEffectiveDashRange(DashAb->RangeCells), BotCostMap, GridW, GridH, VisionBlockers, FireRange, BotEdges);
 					if (DashDest == Bot->GridCell)
 					{
 						DashDest = URTBotLibrary::BestApproachCell(Bot->GridCell, Nearest->GridCell, Bot->GetEffectiveDashRange(DashAb->RangeCells), BotCostMap, GridW, GridH, BotEdges);
+					}
+					// Pesa il dash con la minaccia: se scattare in DashDest e' piu' esposto del miglior
+					// posizionamento normale (Best), rinuncia allo scatto e usa il movimento pesato dall'utility.
+					if (DashDest != Bot->GridCell)
+					{
+						FRTBotPlan DashMovePlan;
+						DashMovePlan.DestCell = DashDest;
+						if (URTBotLibrary::ScorePlan(DashMovePlan, BotCtx) < URTBotLibrary::ScorePlan(Best, BotCtx))
+						{
+							DashDest = Bot->GridCell; // scatto troppo esposto -> rinuncia
+						}
 					}
 				}
 				if (DashDest != Bot->GridCell)
@@ -208,38 +351,23 @@ void ARTTurnManager::PlanBots()
 					AddLogEvent(FString::Printf(TEXT("%s: scatto -> (%d,%d,L%d)"), *Bot->GetName(), DashDest.X, DashDest.Y, DashDest.Layer));
 				}
 				else if (bKiter && NearestDistance < Bot->KiteStandoff)
-			{
-				if (!TryFleeDash(Nearest->GridCell)) { Bot->PlannedCell = URTBotLibrary::BestKiteCell(Bot->GridCell, Nearest->GridCell, MoveBudget, BotCostMap, GridW, GridH, BotEdges); }
-			}
-			else
-			{
-				// Prova a raggiungere una POSIZIONE DI TIRO (sfrutta l'alta quota del ponte per sparare oltre
-				// le coperture basse). Richiede un'abilita' utilizzabile con la sua gittata; se non c'e' una
-				// posizione di tiro raggiungibile, ci si avvicina come prima.
-				int32 FireRange = 0;
-				for (int32 A = 0; A < Bot->NumAbilities(); ++A)
 				{
-					const URTAbilityData* Ability = Bot->GetAbility(A);
-					if (Ability && !Ability->bDash && Bot->CanUseAbility(A))
-					{
-						FireRange = FMath::Max(FireRange, Ability->RangeCells);
-					}
-				}
-				FRTGridCoord FireCell = Bot->GridCell;
-				if (FireRange > 0)
-				{
-					FireCell = URTBotLibrary::BestFiringCell(Bot->GridCell, Nearest->GridCell, MoveBudget,
-						BotCostMap, GridW, GridH, VisionBlockers, FireRange, BotEdges);
-				}
-				if (FireCell != Bot->GridCell)
-				{
-					AddLogEvent(FString::Printf(TEXT("%s: riposiziona per il tiro (layer %d)"), *Bot->GetName(), FireCell.Layer));
-					Bot->PlannedCell = FireCell;
+					if (!TryFleeDash(Nearest->GridCell)) { Bot->PlannedCell = URTBotLibrary::BestKiteCell(Bot->GridCell, Nearest->GridCell, MoveBudget, BotCostMap, GridW, GridH, BotEdges); }
 				}
 				else
 				{
-					Bot->PlannedCell = URTBotLibrary::BestApproachCell(Bot->GridCell, Nearest->GridCell, MoveBudget, BotCostMap, GridW, GridH, BotEdges);
+					// Posizionamento: la miglior cella (avvicinamento/sicurezza) scelta dall'utility.
+					Bot->PlannedCell = Best.DestCell;
+					AddLogEvent(FString::Printf(TEXT("%s: utility -> (%d,%d,L%d) score=%d%s"),
+						*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer,
+						URTBotLibrary::ScorePlan(Best, BotCtx),
+						Best.DestCell == Bot->GridCell ? TEXT(" (resta)") : TEXT("")));
 				}
+			}
+			else
+			{
+				// Nessun nemico vivo: resta dove sei (l'utility ha già scelto la cella d'origine).
+				Bot->PlannedCell = Best.DestCell;
 			}
 		}
 	}
@@ -1162,7 +1290,7 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				Atk.Source.IsValid() ? *Atk.Source->GetName() : TEXT("?"),
 				Atk.Target.IsValid() ? *Atk.Target->GetName() : TEXT("(eliminato)"),
 				Atk.Amount));
-			OnAttackResolved.Broadcast(Atk.Source.Get(), Atk.Target.Get(), Atk.Amount);
+			if (ARTUnit* AtkSrc = Atk.Source.Get()) { AtkSrc->PlayAttackMontage(); } if (ARTUnit* AtkTgt = Atk.Target.Get()) { AtkTgt->PlayHitMontage(); } OnAttackResolved.Broadcast(Atk.Source.Get(), Atk.Target.Get(), Atk.Amount);
 			++AttacksShown;
 		}
 	}
@@ -1185,7 +1313,7 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 			while (AttacksShown < PlaybackAttacks.Num())
 			{
 				const FRTResolvedEvent& Atk = PlaybackAttacks[AttacksShown];
-				OnAttackResolved.Broadcast(Atk.Source.Get(), Atk.Target.Get(), Atk.Amount);
+				if (ARTUnit* AtkSrc = Atk.Source.Get()) { AtkSrc->PlayAttackMontage(); } if (ARTUnit* AtkTgt = Atk.Target.Get()) { AtkTgt->PlayHitMontage(); } OnAttackResolved.Broadcast(Atk.Source.Get(), Atk.Target.Get(), Atk.Amount);
 				++AttacksShown;
 			}
 		}
@@ -1198,7 +1326,7 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 			{
 				AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *D.Source->GetName()));
 				D.Source->HideForDefeat();
-				OnUnitDefeated.Broadcast(D.Source.Get());
+				if (ARTUnit* DefU = D.Source.Get()) { DefU->PlayDefeatMontage(); } OnUnitDefeated.Broadcast(D.Source.Get());
 			}
 		}
 
@@ -1232,7 +1360,7 @@ void ARTTurnManager::FinishPlayback()
 		{
 			AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *D.Source->GetName()));
 			D.Source->HideForDefeat();
-			OnUnitDefeated.Broadcast(D.Source.Get());
+			if (ARTUnit* DefU = D.Source.Get()) { DefU->PlayDefeatMontage(); } OnUnitDefeated.Broadcast(D.Source.Get());
 		}
 	}
 
