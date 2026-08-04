@@ -45,6 +45,11 @@ bool URTHexPaintTool::ApplyBrushAt(ARTHexMapActor* Actor, const FRTCellId& Cente
 	for (const FRTCellId& C : Area)
 	{
 		if (PaintedThisStroke.Contains(C)) { continue; } // dedup per-cella nella pennellata
+		// Apri la transazione/stroke LAZY solo se questa cella cambia davvero (paint cambia sempre; erase solo se esiste).
+		if (bPaint || Map->ContainsCell(C))
+		{
+			EnsureStrokeOpen();
+		}
 		const bool bApplied = bPaint
 			? Map->PaintCellInStroke(C, Properties->Surface, Properties->MoveCost, Properties->bBlocksMovement)
 			: Map->EraseCellInStroke(C);
@@ -79,10 +84,11 @@ void URTHexPaintTool::OnClickPress(const FInputDeviceRay& PressPos)
 	FVector Center;
 	if (!RTHexEditor::ResolveClickedCell(TargetWorld, Actor, PressPos, Cell, Center)) { return; }
 
-	StrokeTransaction = MakeUnique<FScopedTransaction>(LOCTEXT("HexBrushStroke", "Hex: Brush Stroke"));
+	// La transazione + BeginStroke si aprono LAZY al primo cambiamento reale (EnsureStrokeOpen): niente transazione
+	// no-op quando l'erase non tocca celle esistenti (garanzia ripristinata rispetto al click singolo di H5c.1).
 	TargetActor = Actor;
-	Actor->MapAsset->BeginStroke();
 	bStrokeActive = true;
+	bStrokeOpened = false;
 	PaintedThisStroke.Reset();
 
 	if (ApplyBrushAt(Actor, Cell, Center))
@@ -117,15 +123,27 @@ void URTHexPaintTool::OnTerminateDragSequence()
 
 void URTHexPaintTool::EndStrokeIfActive()
 {
-	if (bStrokeActive && TargetActor && TargetActor->MapAsset)
+	if (bStrokeOpened && TargetActor && TargetActor->MapAsset)
 	{
 		TargetActor->MapAsset->EndStroke();
 		TargetActor->RebuildInstances(); // riallinea InstanceCells all'ordine post-SortCells
 	}
 	StrokeTransaction.Reset(); // chiude/commit la transazione (o no-op se non aperta)
 	bStrokeActive = false;
+	bStrokeOpened = false;
 	TargetActor = nullptr;
 	PaintedThisStroke.Reset();
+}
+
+void URTHexPaintTool::EnsureStrokeOpen()
+{
+	if (bStrokeOpened) { return; }
+	StrokeTransaction = MakeUnique<FScopedTransaction>(LOCTEXT("HexBrushStroke", "Hex: Brush Stroke"));
+	if (TargetActor && TargetActor->MapAsset)
+	{
+		TargetActor->MapAsset->BeginStroke(); // Modify() dopo l'apertura della transazione: cattura lo stato pre-pennellata
+	}
+	bStrokeOpened = true;
 }
 
 void URTHexPaintTool::Shutdown(EToolShutdownType ShutdownType)

@@ -81,6 +81,8 @@ protected:
 	/** Applica il pennello (area di raggio BrushRadius) attorno a CenterCell; dedup per-cella. Ritorna se ha cambiato qualcosa. */
 	bool ApplyBrushAt(ARTHexMapActor* Actor, const FRTCellId& CenterCell, const FVector& CenterWorld);
 	void EndStrokeIfActive();
+	/** Apre lazy la transazione + MapAsset->BeginStroke() al primo cambiamento reale (una sola volta per pennellata). */
+	void EnsureStrokeOpen();
 
 	UPROPERTY()
 	TObjectPtr<URTHexPaintToolProperties> Properties;
@@ -92,6 +94,7 @@ protected:
 
 	TUniquePtr<FScopedTransaction> StrokeTransaction;
 	bool bStrokeActive = false;
+	bool bStrokeOpened = false; // transazione+BeginStroke aperti (lazy, al primo cambiamento reale)?
 	TSet<FRTCellId> PaintedThisStroke;
 
 	bool bHasMarker = false;
