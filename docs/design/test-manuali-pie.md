@@ -35,6 +35,7 @@
 | **PIE-HEX-MODE-H** | Snap del gizmo cross-layer (H5c.2b) | mode Hex Map, tool Arch, celle su >=2 layer | Trascinando il gizmo, `To` si aggancia sempre al **centro di una cella**; alzando la quota di ~`LayerHeight` il target passa al **layer superiore** (`WorldToLayer`); nessun jitter/loop durante lo snap (guardia `bSnapping`) | ⏳ (branch `feat/hex-grid`, H5c.2b) |
 | **PIE-HEX-MODE-I** | Drag-paint (H5c.3b) | mode Hex Map, tool Paint (`Operation=Paint`), `ARTHexMapActor` con `MapAsset` | Tenere premuto e trascinare dipinge più celle in una pennellata (dedup: ripassare non ridipinge); **un** Ctrl+Z annulla l'intera pennellata; click singolo = 1 cella (PIE-C invariato) | ⏳ (branch `feat/hex-grid`, H5c.3b) |
 | **PIE-HEX-MODE-J** | Drag-erase (H5c.3b) | mode Hex Map, tool Paint (`Operation=Erase`) | Trascinare cancella più celle in una pennellata; un Undo le ripristina tutte; cambiare tool a metà drag non lascia transazioni aperte | ⏳ (branch `feat/hex-grid`, H5c.3b) |
+| **PIE-HEX-MODE-K** | Pennello a raggio N (H5c.4) | mode Hex Map, tool Paint, `ARTHexMapActor` con `MapAsset` | `BrushRadius=0` → 1 cella (come prima); `BrushRadius=N>0` → un click dipinge/cancella l'esagono pieno di raggio N; drag dipinge fasce larghe (dedup); **un** Ctrl+Z annulla l'intera pennellata | ⏳ (branch `feat/hex-grid`, H5c.4) |
 
 > **PIE-CP1.4** dipende da codice non ancora implementato (evidenziazione cella-cursore): resta ⏳ finché non fatta.
 > Le altre voci hanno il **codice pronto**; manca solo la verifica interattiva (e, per AS.2/AS.4/AS.5, gli asset in editor).

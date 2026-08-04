@@ -44,6 +44,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Hex|Pennello")
 	bool bBlocksMovement = false;
 
+	/** Raggio del pennello (celle): 0 = una cella; N = esagono pieno di raggio N (HexArea). */
+	UPROPERTY(EditAnywhere, Category = "Hex|Pennello", meta = (ClampMin = "0", ClampMax = "8"))
+	int32 BrushRadius = 0;
+
 	UPROPERTY(VisibleAnywhere, Category = "Hex")
 	int32 ActiveLayer = 0;
 
@@ -74,7 +78,8 @@ public:
 	virtual void Render(IToolsContextRenderAPI* RenderAPI) override;
 
 protected:
-	void ApplyOne(ARTHexMapActor* Actor, const FRTCellId& Cell, const FVector& Center);
+	/** Applica il pennello (area di raggio BrushRadius) attorno a CenterCell; dedup per-cella. Ritorna se ha cambiato qualcosa. */
+	bool ApplyBrushAt(ARTHexMapActor* Actor, const FRTCellId& CenterCell, const FVector& CenterWorld);
 	void EndStrokeIfActive();
 
 	UPROPERTY()

@@ -5,6 +5,7 @@
 #include "InputState.h" // FInputDeviceRay / FInputRayHit
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTHexLibrary.h" // HexArea
 
 #define LOCTEXT_NAMESPACE "URTHexPaintTool"
 
@@ -33,26 +34,33 @@ FInputRayHit URTHexPaintTool::CanBeginClickDragSequence(const FInputDeviceRay& P
 	return FInputRayHit(TNumericLimits<double>::Max());
 }
 
-void URTHexPaintTool::ApplyOne(ARTHexMapActor* Actor, const FRTCellId& Cell, const FVector& Center)
+bool URTHexPaintTool::ApplyBrushAt(ARTHexMapActor* Actor, const FRTCellId& CenterCell, const FVector& CenterWorld)
 {
 	URTHexMapAsset* Map = Actor->MapAsset; // il caller garantisce Actor && Map non nulli
-	if (Properties->Operation == ERTHexPaintOp::Paint)
+	const bool bPaint = (Properties->Operation == ERTHexPaintOp::Paint);
+	const bool bCenterExistedBefore = (Map->FindCell(CenterCell) != nullptr); // per il readout, pre-mutazione
+
+	const TArray<FRTCellId> Area = URTHexLibrary::HexArea(CenterCell, FMath::Max(0, Properties->BrushRadius));
+	bool bAnyChanged = false;
+	for (const FRTCellId& C : Area)
 	{
-		Properties->bLastExisted = (Map->FindCell(Cell) != nullptr); // prima della mutazione
-		Map->PaintCellInStroke(Cell, Properties->Surface, Properties->MoveCost, Properties->bBlocksMovement);
-		MarkerColor = FColor::Green;
+		if (PaintedThisStroke.Contains(C)) { continue; } // dedup per-cella nella pennellata
+		const bool bApplied = bPaint
+			? Map->PaintCellInStroke(C, Properties->Surface, Properties->MoveCost, Properties->bBlocksMovement)
+			: Map->EraseCellInStroke(C);
+		PaintedThisStroke.Add(C);
+		bAnyChanged = bAnyChanged || bApplied;
 	}
-	else
-	{
-		Properties->bLastExisted = Map->EraseCellInStroke(Cell);
-		MarkerColor = FColor::Red;
-	}
-	PaintedThisStroke.Add(Cell);
-	Properties->LastCell = Cell;
+
+	// Readout/marker sul centro.
+	MarkerColor = bPaint ? FColor::Green : FColor::Red;
+	Properties->bLastExisted = bCenterExistedBefore;
+	Properties->LastCell = CenterCell;
 	Properties->ActiveLayer = Actor->ActiveLayer;
-	MarkerCenter = Center;
+	MarkerCenter = CenterWorld;
 	MarkerRadius = Map->HexSize * 0.9f;
 	bHasMarker = true;
+	return bAnyChanged;
 }
 
 void URTHexPaintTool::OnClickPress(const FInputDeviceRay& PressPos)
@@ -77,8 +85,10 @@ void URTHexPaintTool::OnClickPress(const FInputDeviceRay& PressPos)
 	bStrokeActive = true;
 	PaintedThisStroke.Reset();
 
-	ApplyOne(Actor, Cell, Center);
-	Actor->RebuildInstances();
+	if (ApplyBrushAt(Actor, Cell, Center))
+	{
+		Actor->RebuildInstances();
+	}
 }
 
 void URTHexPaintTool::OnClickDrag(const FInputDeviceRay& DragPos)
@@ -88,10 +98,11 @@ void URTHexPaintTool::OnClickDrag(const FInputDeviceRay& DragPos)
 	FRTCellId Cell;
 	FVector Center;
 	if (!RTHexEditor::ResolveClickedCell(TargetWorld, TargetActor, DragPos, Cell, Center)) { return; }
-	if (PaintedThisStroke.Contains(Cell)) { return; } // dedup: trascinare all'indietro non ridipinge
 
-	ApplyOne(TargetActor, Cell, Center);
-	TargetActor->RebuildInstances();
+	if (ApplyBrushAt(TargetActor, Cell, Center))
+	{
+		TargetActor->RebuildInstances();
+	}
 }
 
 void URTHexPaintTool::OnClickRelease(const FInputDeviceRay& ReleasePos)
