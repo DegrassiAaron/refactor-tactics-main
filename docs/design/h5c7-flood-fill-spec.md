@@ -12,7 +12,7 @@ celle con la **stessa superficie**, applicando il pennello corrente (Surface/cos
 | # | Decisione | Motivo |
 |---|-----------|--------|
 | D1 | **Tool dedicato** `URTHexFillTool : USingleClickTool` (non modalità del Paint) | Il flood è un'azione a click singolo; `USingleClickTool` lo modella pulito (una transazione), senza complicare il click-drag del Paint. |
-| D2 | Flood = **contigue + stessa superficie + stesso layer** | Paint-bucket classico: BFS sui vicini esistenti con la stessa superficie di partenza. Non crea celle nuove (i vicini inesistenti sono bordo). |
+| D2 | Flood = **contigue + stessa superficie + stesso layer** | Paint-bucket classico: flood-fill (frontiera a stack) sui vicini esistenti con la stessa superficie di partenza. Non crea celle nuove (i vicini inesistenti sono bordo). |
 | D3 | Applica il **pennello** (Surface/costo/blocco) alle celle della regione | Coerente col Paint; il costo/blocco possono cambiare insieme alla superficie. |
 | D4 | **`FloodRegion` puro sull'asset** (headless-testabile) | Il calcolo della regione è logica pura read-only → test Automation. |
 | D5 | **Una transazione** per flood via le primitive di stroke (H5c.3) | `BeginStroke` + N×`PaintCellInStroke` + `EndStroke` in una `FScopedTransaction` → un Undo. |
