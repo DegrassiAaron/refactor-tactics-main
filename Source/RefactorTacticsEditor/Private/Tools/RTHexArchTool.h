@@ -9,6 +9,14 @@ class IToolsContextRenderAPI;
 class UTransformProxy;
 class UCombinedTransformGizmo;
 
+/** Operazione del tool archi: crea (gizmo) o rimuove (click sull'arco). */
+UENUM()
+enum class ERTHexArchOp : uint8
+{
+	Add,
+	Remove
+};
+
 /** Factory del tool archi. */
 UCLASS()
 class URTHexArchToolBuilder : public UInteractiveToolBuilder
@@ -25,6 +33,9 @@ class URTHexArchToolProperties : public UInteractiveToolPropertySet
 {
 	GENERATED_BODY()
 public:
+	UPROPERTY(EditAnywhere, Category = "Hex|Arco")
+	ERTHexArchOp Operation = ERTHexArchOp::Add;
+
 	UPROPERTY(EditAnywhere, Category = "Hex|Arco")
 	ERTHexTransitionKind Kind = ERTHexTransitionKind::Stair;
 
@@ -78,6 +89,9 @@ public:
 protected:
 	void OnGizmoMoved(UTransformProxy* InProxy, FTransform InTransform);
 	void DestroyPendingGizmo();
+
+	/** Rimuove la transizione la cui linea From->To e' piu' vicina al ray del click, entro soglia. */
+	void RemoveNearestArch(ARTHexMapActor* Actor, const FInputDeviceRay& ClickPos);
 
 	UPROPERTY()
 	TObjectPtr<UTransformProxy> Proxy;

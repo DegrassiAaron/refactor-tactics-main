@@ -84,6 +84,11 @@ void URTHexArchTool::OnClicked(const FInputDeviceRay& ClickPos)
 		UE_LOG(LogTemp, Warning, TEXT("[HexMode] Nessun ARTHexMapActor bersaglio."));
 		return;
 	}
+	if (Properties && Properties->Operation == ERTHexArchOp::Remove)
+	{
+		RemoveNearestArch(Actor, ClickPos);
+		return;
+	}
 	FRTCellId Cell;
 	FVector Center;
 	if (!RTHexEditor::ResolveClickedCell(TargetWorld, Actor, ClickPos, Cell, Center)) { return; }
@@ -170,6 +175,48 @@ void URTHexArchTool::CommitArch()
 void URTHexArchTool::ClearPending()
 {
 	DestroyPendingGizmo();
+}
+
+void URTHexArchTool::RemoveNearestArch(ARTHexMapActor* Actor, const FInputDeviceRay& ClickPos)
+{
+	DestroyPendingGizmo(); // esci da un eventuale Add pendente
+
+	const URTHexMapAsset* Map = Actor->MapAsset;
+	if (!Map || Map->Transitions.Num() == 0)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[HexMode] Remove: nessuna transizione nell'asset."));
+		return;
+	}
+
+	const FVector Origin = Actor->GetActorLocation();
+	const float HexSize = Map->HexSize;
+	const float LayerH = Map->LayerHeight;
+	const FVector RayO = ClickPos.WorldRay.Origin;
+	const FVector RayD = ClickPos.WorldRay.Direction;
+
+	int32 BestIdx = INDEX_NONE;
+	float BestDist = TNumericLimits<float>::Max();
+	for (int32 I = 0; I < Map->Transitions.Num(); ++I)
+	{
+		const FRTHexEdge& E = Map->Transitions[I];
+		const FVector A = URTHexLibrary::AxialToWorld(E.From, Origin, HexSize, LayerH);
+		const FVector B = URTHexLibrary::AxialToWorld(E.To, Origin, HexSize, LayerH);
+		const float Dist = URTHexLibrary::DistanceRayToSegment(RayO, RayD, A, B);
+		if (Dist < BestDist) { BestDist = Dist; BestIdx = I; }
+	}
+
+	if (BestIdx != INDEX_NONE && BestDist <= HexSize * 0.6f)
+	{
+		// Copia From/To PRIMA di rimuovere (RemoveTransitionData muta l'array Transitions).
+		const FRTCellId F = Map->Transitions[BestIdx].From;
+		const FRTCellId T = Map->Transitions[BestIdx].To;
+		Actor->RemoveTransitionData(F, T, /*bBothDirections=*/true);
+		UE_LOG(LogTemp, Log, TEXT("[HexMode] Arco rimosso %s -> %s (dist %.1f)."), *F.ToString(), *T.ToString(), BestDist);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("[HexMode] Nessun arco entro soglia (min dist %.1f)."), BestDist);
+	}
 }
 
 void URTHexArchTool::Render(IToolsContextRenderAPI* RenderAPI)
