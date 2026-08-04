@@ -331,6 +331,17 @@ void ARTTurnManager::PlanBots()
 					{
 						DashDest = URTBotLibrary::BestApproachCell(Bot->GridCell, Nearest->GridCell, Bot->GetEffectiveDashRange(DashAb->RangeCells), BotCostMap, GridW, GridH, BotEdges);
 					}
+					// Pesa il dash con la minaccia: se scattare in DashDest e' piu' esposto del miglior
+					// posizionamento normale (Best), rinuncia allo scatto e usa il movimento pesato dall'utility.
+					if (DashDest != Bot->GridCell)
+					{
+						FRTBotPlan DashMovePlan;
+						DashMovePlan.DestCell = DashDest;
+						if (URTBotLibrary::ScorePlan(DashMovePlan, BotCtx) < URTBotLibrary::ScorePlan(Best, BotCtx))
+						{
+							DashDest = Bot->GridCell; // scatto troppo esposto -> rinuncia
+						}
+					}
 				}
 				if (DashDest != Bot->GridCell)
 				{

@@ -55,4 +55,4 @@
 > **test d'integrazione headless** — `Source/RefactorTactics/Tests/RTBotPlanningTests.cpp` (smoke + panic +
 > support + tuning): costruiscono un mondo 2v2, invocano `PlanBotsForTest()` e verificano le decisioni via i
 > campi `Planned*`, **senza PIE**. Quindi queste tre guardie **non richiedono più verifica manuale**.
-> *(Nota: il dash-avvicinamento non è pesato da WThreat — possibile miglioramento futuro del bot.)*
+> *(Il dash-avvicinamento ora è pesato da `WThreat`: il bot rinuncia allo scatto se la cella è troppo esposta — test `PlanningDashRespectsThreat`.)*

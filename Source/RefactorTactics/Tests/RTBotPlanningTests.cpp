@@ -194,4 +194,42 @@ bool FRTBotTuningTest::RunTest(const FString&)
 	return true;
 }
 
+// Il dash-avvicinamento deve rispettare WThreat: con la minaccia alta il bot NON scatta in una cella esposta.
+// Qui il dash resta disponibile e si verifica la posizione EFFETTIVA (cella di scatto se scatta, altrimenti move).
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotDashThreatTest,
+	"RefactorTactics.Bot.PlanningDashRespectsThreat",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotDashThreatTest::RunTest(const FString&)
+{
+	UWorld* World = MakeBotTestWorld();
+	TestNotNull(TEXT("World creato"), World);
+	if (!World) { return false; }
+
+	ARTUnit* BotGuardian = SpawnTestUnit(World, 1, ERTArchetype::Guardian, FRTGridCoord(5, 5)); // con Carica (dash)
+	SpawnTestUnit(World, 0, ERTArchetype::Guardian, FRTGridCoord(5, 1)); // nemico mischia (gittata 3)
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	TestNotNull(TEXT("TurnManager spawnato"), TM);
+	if (!TM) { DestroyBotTestWorld(World); return false; }
+
+	const FRTGridCoord Foe(5, 1);
+	// Posizione effettiva del bot: la cella di scatto se scatta, altrimenti la cella di movimento.
+	auto Effective = [](const ARTUnit* U) -> FRTGridCoord
+	{
+		return (U->PlannedDashAbility != INDEX_NONE) ? U->PlannedDashCell : U->PlannedCell;
+	};
+
+	TM->WThreat = 100000; // minaccia enorme: scattare in una cella esposta deve essere rifiutato
+	TM->PlanBotsForTest();
+	const int32 DistHigh = URTGridLibrary::ManhattanDistance(Effective(BotGuardian), Foe);
+	TM->WThreat = 0;      // minaccia ignorata: il bot chiude col dash
+	TM->PlanBotsForTest();
+	const int32 DistLow = URTGridLibrary::ManhattanDistance(Effective(BotGuardian), Foe);
+
+	TestTrue(TEXT("col dash: WThreat alto tiene il bot piu' lontano (niente scatto in cella esposta)"),
+		DistLow < DistHigh);
+
+	DestroyBotTestWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
