@@ -64,3 +64,13 @@ struct FRTTurnLogEntry
 
 	FRTTurnLogEntry() = default;
 };
+
+/**
+ * Versione del formato di serializzazione binaria del TurnLog. Ogni formato serializzato e' versionato
+ * (invariante #4): il loader rifiuta versioni sconosciute invece di interpretare byte arbitrari.
+ * Non e' UENUM (uint16 esce dai vincoli UHT del BlueprintType uint8): e' una costante di formato interna.
+ */
+enum class ERTTurnLogFormatVersion : uint16
+{
+	Initial = 1
+};
