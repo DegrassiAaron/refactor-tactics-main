@@ -65,18 +65,28 @@ scorre lungo il percorso, e tornare a **`Idle`** a fine risoluzione.
 
 ---
 
-## AS.4b — Colpi e morte (secondo giro, schema)
+## AS.4b — Colpi e morte (montaggi via eventi C++)
 
-Per le clip "una tantum" (`Cast`, `HitReact_Front`, `Death_Fwd`) serve un **Montage** + uno **Slot**:
+Il C++ è pronto (commit `feat(unit): eventi montaggio colpi/morte`): `RTUnit` espone 3 eventi —
+`PlayAttackMontage`, `PlayHitMontage`, `PlayDefeatMontage` — che il `TurnManager` chiama **da solo**
+sull'attaccante e sul bersaglio (colpi risolti) e sull'unità che muore. **Niente bind/branch/cast**: implementi
+solo i 3 eventi nel BP (uniforme per ogni personaggio; se un evento non è implementato, nessun effetto — invariante #1).
 
-1. Per ogni clip: tasto destro sull'anim ▸ **Create ▸ Create AnimMontage** (es. `AM_Gideon_Cast`, `AM_Gideon_Hit`, `AM_Gideon_Death`).
-2. In `ABP_Gideon` ▸ AnimGraph: tra la state machine `Locomotion` e l'Output Pose inserisci un nodo **Slot 'DefaultSlot'** (così i montaggi vanno in override sopra la locomozione).
-3. In `BP_Unit_Guardian` ▸ Event Graph, aggiungi i bind:
-   - **On Attack Resolved (Source, Target, Amount)**: se **Source == self** → **Play Anim Montage** `AM_Gideon_Cast`; se **Target == self** → `AM_Gideon_Hit`.
-   - **On Unit Defeated (Unit)**: se **Unit == self** → `AM_Gideon_Death`.
+1. **Montaggi** (tasto destro sull'anim ▸ **Create ▸ Create AnimMontage**):
+   - Gideon: `Cast`→`AM_Gideon_Attack`, `HitReact_Front`→`AM_Gideon_Hit`, `Death_Fwd`→`AM_Gideon_Death`.
+   - Sparrow: attacco (tiro), `HitReact`, `Death` → `AM_Sparrow_*`.
+2. **Slot** in `ABP_Gideon`/`ABP_Sparrow` ▸ AnimGraph: inserisci un nodo **Slot 'DefaultSlot'** tra la State
+   Machine `Locomotion` e l'Output Pose (i montaggi vanno in override su idle/run).
+3. **BP_Unit** (Guardian/Ranger) ▸ Event Graph: aggiungi gli eventi (tasto destro ▸ cerca il nome) e collega
+   ciascuno a un **Play Anim Montage** (target: lo Skeletal Mesh Component):
+   - **Event Play Attack Montage** → `AM_…_Attack`
+   - **Event Play Hit Montage** → `AM_…_Hit`
+   - **Event Play Defeat Montage** → `AM_…_Death`
+   - **Compile ▸ Save**.
+4. **PIE**: colpo → attacco + reazione del bersaglio; morte → caduta, sincronizzati col playback.
 
-> Sincronia col resolver: questi eventi arrivano già al momento giusto del playback (Blast per gli attacchi,
-> fine fase per la morte). L'animazione **riproduce**, non decide (invariante #1).
+> Sincronia col resolver: gli eventi arrivano già al momento giusto (Blast per i colpi, fine fase per la morte).
+> L'animazione **riproduce**, non decide (invariante #1).
 
 ---
 
