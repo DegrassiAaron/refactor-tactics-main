@@ -21,9 +21,10 @@ int32 URTBotLibrary::ScorePlan(const FRTBotPlan& Plan, const FRTBotContext& Cont
 	for (int32 i = 0; i < NumEnemies; ++i)
 	{
 		const int32 Dist = URTGridLibrary::ManhattanDistance(Plan.DestCell, Context.Enemies[i]);
-		if (Dist <= Context.EnemyRanges[i])
+		if (Dist <= Context.EnemyRanges[i]
+			&& URTGridLibrary::HasLineOfSight(Context.Enemies[i], Plan.DestCell, Context.VisionBlockers))
 		{
-			Score -= Context.WThreat; // la cella e' sotto tiro di questo nemico
+			Score -= Context.WThreat; // la cella e' sotto tiro E in linea di vista di questo nemico (copertura)
 		}
 		MinDist = FMath::Min(MinDist, Dist);
 	}

@@ -216,6 +216,7 @@ void ARTTurnManager::PlanBots()
 			// Context (ordine-invariante sui nemici) + Origin (per il tie-break) + pesi dal tuning.
 			FRTBotContext BotCtx;
 			BotCtx.Origin = Bot->GridCell;
+			BotCtx.VisionBlockers = VisionBlockers; // copertura: la minaccia considera la linea di tiro
 			BotCtx.KiteStandoff = Bot->KiteStandoff;
 			BotCtx.WKill = WKill;
 			BotCtx.WDamage = WDamage;

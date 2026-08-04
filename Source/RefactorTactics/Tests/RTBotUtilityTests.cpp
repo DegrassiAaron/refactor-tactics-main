@@ -211,4 +211,19 @@ bool FRTBotScoreElevationTest::RunTest(const FString&)
 	return true;
 }
 
+// Copertura: un nemico non minaccia una cella se un ostacolo interrompe la linea di tiro (anche se in gittata).
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotScoreCoverTest,
+	"RefactorTactics.Bot.ScoreCoverBlocksThreat",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotScoreCoverTest::RunTest(const FString&)
+{
+	FRTBotContext Ctx = BotCtx({ FRTGridCoord(0, 0) }, { 10 }, 0); // nemico gittata 10 (copre entrambe)
+	Ctx.VisionBlockers.Add(FRTGridCoord(2, 0));                    // ostacolo sulla linea (0,0)->(4,0)
+	const FRTBotPlan Covered = MovePlan(FRTGridCoord(4, 0)); // dietro l'ostacolo: LOS interrotta -> non minacciata
+	const FRTBotPlan Exposed = MovePlan(FRTGridCoord(0, 4)); // stessa distanza (4), LOS libera -> minacciata
+	TestTrue(TEXT("cella coperta > cella esposta"),
+		URTBotLibrary::ScorePlan(Covered, Ctx) > URTBotLibrary::ScorePlan(Exposed, Ctx));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

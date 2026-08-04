@@ -40,6 +40,9 @@ struct FRTBotContext
 	UPROPERTY() TArray<FRTGridCoord> Enemies;
 	/** Gittata di ciascun nemico (parallelo a Enemies): usata per la minaccia sulla cella. */
 	UPROPERTY() TArray<int32> EnemyRanges;
+
+	/** Celle che bloccano la linea di tiro (copertura): un nemico non minaccia una cella se la LOS e' interrotta. */
+	UPROPERTY() TArray<FRTGridCoord> VisionBlockers;
 	/** >0 = kiter (mantiene la distanza di sicurezza); 0 = mischia (chiude la distanza). */
 	UPROPERTY() int32 KiteStandoff = 0;
 
