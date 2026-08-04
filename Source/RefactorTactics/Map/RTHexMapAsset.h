@@ -48,6 +48,18 @@ public:
 	/** Aggiunge o aggiorna (per Id) una cella; incrementa la revisione. */
 	void AddOrUpdateCell(const FRTHexCellData& Cell);
 
+	/** Inizia una pennellata: Modify() una volta (stato pre-pennellata per l'undo). Nessuna transazione (la apre il caller). */
+	void BeginStroke();
+
+	/** Dipinge una cella dentro una pennellata: crea/aggiorna (preserva Height/LOS). Vero se applicata. Niente Sort/Dirty/refresh. */
+	bool PaintCellInStroke(const FRTCellId& Id, ERTHexSurface Surface, int32 MoveCost, bool bBlocksMovement);
+
+	/** Cancella una cella dentro una pennellata. Vero se esisteva ed è stata rimossa. Niente Sort/Dirty/refresh. */
+	bool EraseCellInStroke(const FRTCellId& Id);
+
+	/** Chiude la pennellata: SortCells + MarkPackageDirty. */
+	void EndStroke();
+
 	/**
 	 * Logica pura del 'pennello': se Existing != nullptr parte da esso (PRESERVA Height e bBlocksLineOfSight),
 	 * altrimenti da una cella nuova con l'Id dato; applica Surface/MoveCost/bBlocksMovement. Non muta l'asset.

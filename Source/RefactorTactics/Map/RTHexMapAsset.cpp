@@ -31,6 +31,32 @@ void URTHexMapAsset::AddOrUpdateCell(const FRTHexCellData& Cell)
 	++Revision;
 }
 
+void URTHexMapAsset::BeginStroke()
+{
+	Modify();
+}
+
+bool URTHexMapAsset::PaintCellInStroke(const FRTCellId& Id, ERTHexSurface Surface, int32 MoveCost, bool bBlocksMovement)
+{
+	AddOrUpdateCell(URTHexMapAsset::ApplyBrush(FindCell(Id), Id, Surface, MoveCost, bBlocksMovement));
+	return true;
+}
+
+bool URTHexMapAsset::EraseCellInStroke(const FRTCellId& Id)
+{
+	if (!ContainsCell(Id))
+	{
+		return false;
+	}
+	return RemoveCell(Id);
+}
+
+void URTHexMapAsset::EndStroke()
+{
+	SortCells();
+	MarkPackageDirty();
+}
+
 FRTHexCellData URTHexMapAsset::ApplyBrush(const FRTHexCellData* Existing, const FRTCellId& Id,
 	ERTHexSurface Surface, int32 MoveCost, bool bBlocksMovement)
 {

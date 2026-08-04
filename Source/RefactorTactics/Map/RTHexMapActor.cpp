@@ -176,11 +176,9 @@ void ARTHexMapActor::PaintCellData(const FRTCellId& Id, ERTHexSurface Surface, i
 #if WITH_EDITOR
 	const FScopedTransaction Transaction(LOCTEXT("HexPaint", "Hex: Paint Cell"));
 #endif
-	MapAsset->Modify();
-	const FRTHexCellData Cell = URTHexMapAsset::ApplyBrush(MapAsset->FindCell(Id), Id, Surface, MoveCost, bBlocksMovement);
-	MapAsset->AddOrUpdateCell(Cell);
-	MapAsset->SortCells();
-	MapAsset->MarkPackageDirty();
+	MapAsset->BeginStroke();
+	MapAsset->PaintCellInStroke(Id, Surface, MoveCost, bBlocksMovement);
+	MapAsset->EndStroke();
 	RebuildInstances();
 	UE_LOG(LogRT, Log, TEXT("[HexMap] Paint su %s (superficie %d, costo %d, blocca=%d)."),
 		*Id.ToString(), static_cast<int32>(Surface), MoveCost, bBlocksMovement ? 1 : 0);
@@ -201,13 +199,10 @@ bool ARTHexMapActor::EraseCell(const FRTCellId& Id)
 #if WITH_EDITOR
 	const FScopedTransaction Transaction(LOCTEXT("HexErase", "Hex: Erase Cell"));
 #endif
-	MapAsset->Modify();
-	const bool bRemoved = MapAsset->RemoveCell(Id);
-	if (bRemoved)
-	{
-		MapAsset->MarkPackageDirty();
-		RebuildInstances();
-	}
+	MapAsset->BeginStroke();
+	const bool bRemoved = MapAsset->EraseCellInStroke(Id);
+	MapAsset->EndStroke();
+	RebuildInstances();
 	UE_LOG(LogRT, Log, TEXT("[HexMap] Erase %s: %s."), *Id.ToString(), bRemoved ? TEXT("rimossa") : TEXT("assente"));
 	return bRemoved;
 }

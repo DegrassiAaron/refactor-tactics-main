@@ -130,4 +130,41 @@ bool FRTHexApplyBrushTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexStrokeEquivalenceTest,
+	"RefactorTactics.HexMap.StrokeEquivalence",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexStrokeEquivalenceTest::RunTest(const FString&)
+{
+	// Una pennellata di 3 celle produce lo stesso contenuto di 3 AddOrUpdateCell, e celle ordinate dopo EndStroke.
+	URTHexMapAsset* Stroke = NewObject<URTHexMapAsset>();
+	Stroke->BeginStroke();
+	TestTrue(TEXT("paint 1"), Stroke->PaintCellInStroke(FRTCellId(2, -1, 0), ERTHexSurface::Water, 3, true));
+	TestTrue(TEXT("paint 2"), Stroke->PaintCellInStroke(FRTCellId(0, 0, 0), ERTHexSurface::Normal, 1, false));
+	TestTrue(TEXT("paint 3"), Stroke->PaintCellInStroke(FRTCellId(1, 0, 1), ERTHexSurface::Mud, 2, false));
+	Stroke->EndStroke();
+
+	URTHexMapAsset* Direct = NewObject<URTHexMapAsset>();
+	FRTHexCellData C1(FRTCellId(2, -1, 0)); C1.Surface = ERTHexSurface::Water; C1.MoveCost = 3; C1.bBlocksMovement = true;
+	FRTHexCellData C2(FRTCellId(0, 0, 0)); // default: Normal, costo 1, no block
+	FRTHexCellData C3(FRTCellId(1, 0, 1)); C3.Surface = ERTHexSurface::Mud; C3.MoveCost = 2;
+	Direct->AddOrUpdateCell(C1); Direct->AddOrUpdateCell(C2); Direct->AddOrUpdateCell(C3);
+	Direct->SortCells();
+
+	TestEqual(TEXT("stesso NumCells"), Stroke->NumCells(), Direct->NumCells());
+	TestEqual(TEXT("stesso hash (contenuto)"), Stroke->ComputeHash(), Direct->ComputeHash());
+
+	bool bSorted = true;
+	for (int32 I = 1; I < Stroke->Cells.Num(); ++I)
+	{
+		bSorted = bSorted && URTHexLibrary::StableLess(Stroke->Cells[I - 1].Id, Stroke->Cells[I].Id);
+	}
+	TestTrue(TEXT("celle ordinate dopo EndStroke"), bSorted);
+
+	// EraseCellInStroke: assente -> false; presente -> true + rimossa.
+	TestFalse(TEXT("erase assente = false"), Stroke->EraseCellInStroke(FRTCellId(9, 9, 0)));
+	TestTrue(TEXT("erase presente = true"), Stroke->EraseCellInStroke(FRTCellId(0, 0, 0)));
+	TestFalse(TEXT("cella rimossa"), Stroke->ContainsCell(FRTCellId(0, 0, 0)));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
