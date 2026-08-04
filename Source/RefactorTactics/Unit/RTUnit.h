@@ -224,6 +224,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	bool bFaceMovementDirection = false;
 
+	/**
+	 * Vero mentre l'unita' e' in movimento nel playback del turno. Lo imposta il TurnManager; l'AnimBP lo legge
+	 * (un solo Cast to RTUnit, uguale per ogni personaggio) per passare da idle a corsa, senza wiring per-unita'.
+	 * Solo presentazione: non tocca la logica.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	bool bIsMovingVisually = false;
+
 	/** Posiziona l'unita' al centro-mondo della cella, con la base appoggiata al piano. */
 	void PlaceOnCell(const FRTGridCoord& Cell, const FVector& GridOrigin, float CellSize, float LayerHeight = 0.f);
 
