@@ -133,4 +133,26 @@ bool FRTHexAreaTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexWorldToLayerTest,
+	"RefactorTactics.Hex.WorldToLayer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexWorldToLayerTest::RunTest(const FString&)
+{
+	const double OriginZ = 200.0;
+	const float LayerH = 250.f;
+
+	// LayerHeight <= 0 -> 0 (nessuna divisione).
+	TestEqual(TEXT("LayerHeight 0 -> layer 0"), URTHexLibrary::WorldToLayer(9999.0, OriginZ, 0.f), 0);
+
+	// Z al centro di un layer -> quel layer.
+	TestEqual(TEXT("Z all'origine -> 0"), URTHexLibrary::WorldToLayer(OriginZ, OriginZ, LayerH), 0);
+	TestEqual(TEXT("Z = origin + 2*LayerH -> 2"), URTHexLibrary::WorldToLayer(OriginZ + 2.0 * LayerH, OriginZ, LayerH), 2);
+	TestEqual(TEXT("Z = origin - 1*LayerH -> -1"), URTHexLibrary::WorldToLayer(OriginZ - 1.0 * LayerH, OriginZ, LayerH), -1);
+
+	// Tie-break floor(x+0.5): +1.5 -> 2 ; -0.5 -> 0.
+	TestEqual(TEXT("Z = origin + 1.5*LayerH -> 2"), URTHexLibrary::WorldToLayer(OriginZ + 1.5 * LayerH, OriginZ, LayerH), 2);
+	TestEqual(TEXT("Z = origin - 0.5*LayerH -> 0"), URTHexLibrary::WorldToLayer(OriginZ - 0.5 * LayerH, OriginZ, LayerH), 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

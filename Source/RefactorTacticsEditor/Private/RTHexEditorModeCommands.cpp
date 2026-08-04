@@ -21,6 +21,10 @@ void FRTHexEditorModeCommands::RegisterCommands()
 	UI_COMMAND(PaintTool, "Paint", "Dipinge o cancella una cella cliccando nel viewport (layer attivo)",
 		EUserInterfaceActionType::ToggleButton, FInputChord());
 	ToolCommands.Add(PaintTool);
+
+	UI_COMMAND(ArchTool, "Arch", "Crea transizioni tra celle cliccando e usando il gizmo (layer attivo)",
+		EUserInterfaceActionType::ToggleButton, FInputChord());
+	ToolCommands.Add(ArchTool);
 }
 
 TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> FRTHexEditorModeCommands::GetCommands()

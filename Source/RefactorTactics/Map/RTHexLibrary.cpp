@@ -89,6 +89,15 @@ FRTCellId URTHexLibrary::WorldToAxial(const FVector& World, const FVector& Origi
 	return CubeRound(Fq, Fr, Layer);
 }
 
+int32 URTHexLibrary::WorldToLayer(double WorldZ, double OriginZ, float LayerHeight)
+{
+	if (LayerHeight <= 0.f)
+	{
+		return 0;
+	}
+	return FMath::RoundToInt((WorldZ - OriginZ) / static_cast<double>(LayerHeight));
+}
+
 bool URTHexLibrary::StableLess(const FRTCellId& A, const FRTCellId& B)
 {
 	if (A.Layer != B.Layer) { return A.Layer < B.Layer; }

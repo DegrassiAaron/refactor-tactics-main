@@ -214,27 +214,32 @@ bool ARTHexMapActor::EraseCell(const FRTCellId& Id)
 
 void ARTHexMapActor::AddVerticalTransition()
 {
+	AddTransitionData(TransitionFrom, TransitionTo, FMath::Max(0, TransitionCost), TransitionKind, bTransitionBidirectional);
+}
+
+void ARTHexMapActor::AddTransitionData(const FRTCellId& From, const FRTCellId& To, int32 Cost,
+	ERTHexTransitionKind Kind, bool bBidirectional)
+{
 	if (!MapAsset)
 	{
 		UE_LOG(LogRT, Warning, TEXT("[HexMap] Nessun MapAsset assegnato."));
 		return;
 	}
-	if (!MapAsset->ContainsCell(TransitionFrom) || !MapAsset->ContainsCell(TransitionTo))
+	if (!MapAsset->ContainsCell(From) || !MapAsset->ContainsCell(To))
 	{
 		UE_LOG(LogRT, Warning, TEXT("[HexMap] Transizione %s -> %s: una delle due celle non esiste nell'asset."),
-			*TransitionFrom.ToString(), *TransitionTo.ToString());
+			*From.ToString(), *To.ToString());
 		return;
 	}
 #if WITH_EDITOR
 	const FScopedTransaction Transaction(LOCTEXT("HexAddTransition", "Hex: Add Vertical Transition"));
 #endif
 	MapAsset->Modify();
-	MapAsset->AddTransition(TransitionFrom, TransitionTo, FMath::Max(0, TransitionCost), TransitionKind, bTransitionBidirectional);
+	MapAsset->AddTransition(From, To, FMath::Max(0, Cost), Kind, bBidirectional);
 	MapAsset->MarkPackageDirty();
 	RebuildInstances();
 	UE_LOG(LogRT, Log, TEXT("[HexMap] Transizione aggiunta %s -> %s (tipo %d, costo %d, bidirezionale=%d)."),
-		*TransitionFrom.ToString(), *TransitionTo.ToString(), static_cast<int32>(TransitionKind),
-		TransitionCost, bTransitionBidirectional ? 1 : 0);
+		*From.ToString(), *To.ToString(), static_cast<int32>(Kind), Cost, bBidirectional ? 1 : 0);
 }
 
 void ARTHexMapActor::RemoveVerticalTransition()

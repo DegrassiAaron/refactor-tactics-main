@@ -18,6 +18,9 @@ public:
 	/** Tool di paint/erase a click (H5c). */
 	TSharedPtr<FUICommandInfo> PaintTool;
 
+	/** Tool creazione transizioni con gizmo (H5c.2). */
+	TSharedPtr<FUICommandInfo> ArchTool;
+
 protected:
 	TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> Commands;
 };

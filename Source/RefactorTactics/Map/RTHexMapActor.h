@@ -120,6 +120,10 @@ public:
 	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap|Transition")
 	void AddVerticalTransition();
 
+	/** Aggiunge la transizione From->To (e l'inversa se bidirezionale) se entrambe le celle esistono. Annullabile. */
+	void AddTransitionData(const FRTCellId& From, const FRTCellId& To, int32 Cost,
+		ERTHexTransitionKind Kind, bool bBidirectional);
+
 	/** [Editor] Rimuove la transizione TransitionFrom->TransitionTo (e l'inversa se bidirezionale). Annullabile. */
 	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap|Transition")
 	void RemoveVerticalTransition();
