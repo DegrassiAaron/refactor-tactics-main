@@ -48,6 +48,11 @@ void ARTTurnManager::AddLogEvent(const FString& Message)
 
 void ARTTurnManager::PlanBots()
 {
+	// Osservabilita' del tuning: i pesi correnti, una riga per turno (verifica delle modifiche in PIE).
+	// UE_LOG diretto (non AddLogEvent) per non riempire il combat log della HUD.
+	UE_LOG(LogRT, Log, TEXT("[RT] Pesi bot: WKill=%d WDamage=%d WThreat=%d WKiteViolation=%d WApproach=%d WElevation=%d"),
+		WKill, WDamage, WThreat, WKiteViolation, WApproach, WElevation);
+
 	static const TArray<FRTGridCoord> NoBlockers;
 	const ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
 	const TArray<FRTGridCoord> VisionBlockers = Grid ? Grid->GetVisionBlockers() : NoBlockers;
