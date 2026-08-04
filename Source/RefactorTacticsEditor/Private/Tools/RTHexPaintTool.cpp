@@ -2,6 +2,7 @@
 #include "RTHexEditorClick.h"
 #include "InteractiveToolManager.h"
 #include "ToolContextInterfaces.h"
+#include "InputState.h" // FInputDeviceRay / FInputRayHit
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 
@@ -21,52 +22,105 @@ void URTHexPaintTool::SetWorld(UWorld* World)
 
 void URTHexPaintTool::Setup()
 {
-	USingleClickTool::Setup();
+	UClickDragTool::Setup();
 	Properties = NewObject<URTHexPaintToolProperties>(this);
 	AddToolPropertySource(Properties);
 }
 
-void URTHexPaintTool::OnClicked(const FInputDeviceRay& ClickPos)
+FInputRayHit URTHexPaintTool::CanBeginClickDragSequence(const FInputDeviceRay& PressPos)
+{
+	// Accetta ogni click nel viewport (la cella si risolve in OnClickPress). bHit=true via profondità.
+	return FInputRayHit(TNumericLimits<double>::Max());
+}
+
+void URTHexPaintTool::ApplyOne(ARTHexMapActor* Actor, const FRTCellId& Cell, const FVector& Center)
+{
+	URTHexMapAsset* Map = Actor->MapAsset; // il caller garantisce Actor && Map non nulli
+	if (Properties->Operation == ERTHexPaintOp::Paint)
+	{
+		Properties->bLastExisted = (Map->FindCell(Cell) != nullptr); // prima della mutazione
+		Map->PaintCellInStroke(Cell, Properties->Surface, Properties->MoveCost, Properties->bBlocksMovement);
+		MarkerColor = FColor::Green;
+	}
+	else
+	{
+		Properties->bLastExisted = Map->EraseCellInStroke(Cell);
+		MarkerColor = FColor::Red;
+	}
+	PaintedThisStroke.Add(Cell);
+	Properties->LastCell = Cell;
+	Properties->ActiveLayer = Actor->ActiveLayer;
+	MarkerCenter = Center;
+	MarkerRadius = Map->HexSize * 0.9f;
+	bHasMarker = true;
+}
+
+void URTHexPaintTool::OnClickPress(const FInputDeviceRay& PressPos)
 {
 	bHasMarker = false;
 	if (!Properties) { return; }
 
 	ARTHexMapActor* Actor = RTHexEditor::FindTargetMapActor(TargetWorld);
-	if (!Actor)
+	if (!Actor || !Actor->MapAsset)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[HexMode] Nessun ARTHexMapActor bersaglio (selezionane uno se ce ne sono piu' di uno)."));
-		return;
+		UE_LOG(LogTemp, Warning, TEXT("[HexMode] Paint: nessun ARTHexMapActor con MapAsset (nessuna pennellata)."));
+		return; // niente stroke senza asset (M3)
 	}
 
 	FRTCellId Cell;
 	FVector Center;
-	if (!RTHexEditor::ResolveClickedCell(TargetWorld, Actor, ClickPos, Cell, Center)) { return; }
+	if (!RTHexEditor::ResolveClickedCell(TargetWorld, Actor, PressPos, Cell, Center)) { return; }
 
-	const URTHexMapAsset* Map = Actor->MapAsset;
-	const bool bExisted = (Map && Map->FindCell(Cell) != nullptr);
+	StrokeTransaction = MakeUnique<FScopedTransaction>(LOCTEXT("HexBrushStroke", "Hex: Brush Stroke"));
+	TargetActor = Actor;
+	Actor->MapAsset->BeginStroke();
+	bStrokeActive = true;
+	PaintedThisStroke.Reset();
 
-	if (Properties->Operation == ERTHexPaintOp::Paint)
+	ApplyOne(Actor, Cell, Center);
+	Actor->RebuildInstances();
+}
+
+void URTHexPaintTool::OnClickDrag(const FInputDeviceRay& DragPos)
+{
+	if (!bStrokeActive || !TargetActor || !TargetActor->MapAsset) { return; }
+
+	FRTCellId Cell;
+	FVector Center;
+	if (!RTHexEditor::ResolveClickedCell(TargetWorld, TargetActor, DragPos, Cell, Center)) { return; }
+	if (PaintedThisStroke.Contains(Cell)) { return; } // dedup: trascinare all'indietro non ridipinge
+
+	ApplyOne(TargetActor, Cell, Center);
+	TargetActor->RebuildInstances();
+}
+
+void URTHexPaintTool::OnClickRelease(const FInputDeviceRay& ReleasePos)
+{
+	EndStrokeIfActive();
+}
+
+void URTHexPaintTool::OnTerminateDragSequence()
+{
+	EndStrokeIfActive();
+}
+
+void URTHexPaintTool::EndStrokeIfActive()
+{
+	if (bStrokeActive && TargetActor && TargetActor->MapAsset)
 	{
-		Actor->PaintCellData(Cell, Properties->Surface, Properties->MoveCost, Properties->bBlocksMovement);
-		MarkerColor = FColor::Green;
+		TargetActor->MapAsset->EndStroke();
+		TargetActor->RebuildInstances(); // riallinea InstanceCells all'ordine post-SortCells
 	}
-	else // Erase
-	{
-		Actor->EraseCell(Cell);
-		MarkerColor = FColor::Red;
-	}
+	StrokeTransaction.Reset(); // chiude/commit la transazione (o no-op se non aperta)
+	bStrokeActive = false;
+	TargetActor = nullptr;
+	PaintedThisStroke.Reset();
+}
 
-	Properties->ActiveLayer = Actor->ActiveLayer;
-	Properties->LastCell = Cell;
-	Properties->bLastExisted = bExisted;
-
-	MarkerCenter = Center;
-	MarkerRadius = (Map ? Map->HexSize : Actor->HexSize) * 0.9f;
-	bHasMarker = true;
-
-	UE_LOG(LogTemp, Log, TEXT("[HexMode] %s su %s (esisteva=%d) layer %d."),
-		Properties->Operation == ERTHexPaintOp::Paint ? TEXT("Paint") : TEXT("Erase"),
-		*Cell.ToString(), bExisted ? 1 : 0, Actor->ActiveLayer);
+void URTHexPaintTool::Shutdown(EToolShutdownType ShutdownType)
+{
+	EndStrokeIfActive(); // chiude uno stroke aperto a un cambio-tool/uscita mode a metà drag (S1)
+	UClickDragTool::Shutdown(ShutdownType);
 }
 
 void URTHexPaintTool::Render(IToolsContextRenderAPI* RenderAPI)
