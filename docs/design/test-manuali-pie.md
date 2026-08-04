@@ -1,7 +1,7 @@
 # Test manuali (PIE) — verifiche interattive da eseguire
 
 > Verifiche che richiedono l'editor UE (PIE, mouse, asset) e **non** sono automatizzabili headless.
-> **Complementari** ai test Automation (branch `feat/hex-grid`: 93/93 verdi). Parte del DoD «playtest ogni incremento» (roadmap §QA).
+> **Complementari** ai test Automation (branch `feat/hex-grid`: 95/95 verdi, misurati). Parte del DoD «playtest ogni incremento» (roadmap §QA).
 > Regola: una voce è ✅ **solo dopo** verifica reale in PIE — non «dovrebbe funzionare».
 
 ## Come eseguire
