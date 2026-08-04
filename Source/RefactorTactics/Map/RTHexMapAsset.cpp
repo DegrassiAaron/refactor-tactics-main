@@ -258,3 +258,39 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 	}
 	return Errors;
 }
+
+TArray<FRTCellId> URTHexMapAsset::FloodRegion(const FRTCellId& Start) const
+{
+	TArray<FRTCellId> Region;
+	const FRTHexCellData* StartData = FindCell(Start);
+	if (!StartData)
+	{
+		return Region; // start inesistente: nessuna regione
+	}
+	const ERTHexSurface Target = StartData->Surface;
+
+	TSet<FRTCellId> Visited;
+	Visited.Add(Start);
+	TArray<FRTCellId> Frontier;
+	Frontier.Add(Start);
+
+	while (Frontier.Num() > 0)
+	{
+		const FRTCellId Current = Frontier.Pop(EAllowShrinking::No);
+		Region.Add(Current);
+		for (const FRTCellId& N : URTHexLibrary::Neighbors(Current))
+		{
+			if (Visited.Contains(N))
+			{
+				continue;
+			}
+			const FRTHexCellData* NData = FindCell(N);
+			if (NData && NData->Surface == Target)
+			{
+				Visited.Add(N);
+				Frontier.Add(N);
+			}
+		}
+	}
+	return Region;
+}

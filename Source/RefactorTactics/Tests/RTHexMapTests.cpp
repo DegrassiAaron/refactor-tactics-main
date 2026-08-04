@@ -167,4 +167,42 @@ bool FRTHexStrokeEquivalenceTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapFloodRegionTest,
+	"RefactorTactics.HexMap.FloodRegion",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapFloodRegionTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+
+	// Helper locale: aggiunge una cella con superficie esplicita (Cell() di default e' Normal).
+	auto AddSurf = [Map](int32 X, int32 Y, ERTHexSurface S)
+	{
+		FRTHexCellData C = Cell(X, Y);
+		C.Surface = S;
+		Map->AddOrUpdateCell(C);
+	};
+
+	// Regione contigua di 3 celle Normal: (0,0)-(1,0)-(0,1) (entrambe adiacenti a (0,0)).
+	AddSurf(0, 0, ERTHexSurface::Normal);
+	AddSurf(1, 0, ERTHexSurface::Normal);
+	AddSurf(0, 1, ERTHexSurface::Normal);
+	// Bordo: (2,0) adiacente a (1,0) ma Water (superficie diversa -> esclusa).
+	AddSurf(2, 0, ERTHexSurface::Water);
+	// Normal ma NON contigua alla regione -> esclusa.
+	AddSurf(5, 5, ERTHexSurface::Normal);
+
+	const TArray<FRTCellId> Region = Map->FloodRegion(FRTCellId(0, 0));
+	const TSet<FRTCellId> RegionSet(Region);
+	TestEqual(TEXT("3 celle nella regione"), Region.Num(), 3);
+	TestTrue(TEXT("include (0,0)"), RegionSet.Contains(FRTCellId(0, 0)));
+	TestTrue(TEXT("include (1,0)"), RegionSet.Contains(FRTCellId(1, 0)));
+	TestTrue(TEXT("include (0,1)"), RegionSet.Contains(FRTCellId(0, 1)));
+	TestFalse(TEXT("esclude bordo Water (2,0)"), RegionSet.Contains(FRTCellId(2, 0)));
+	TestFalse(TEXT("esclude Normal non contigua (5,5)"), RegionSet.Contains(FRTCellId(5, 5)));
+
+	// Start su cella inesistente -> regione vuota.
+	TestEqual(TEXT("start inesistente -> vuoto"), Map->FloodRegion(FRTCellId(9, 9)).Num(), 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
