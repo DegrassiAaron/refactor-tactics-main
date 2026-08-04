@@ -3,6 +3,9 @@
 #include "Turn/RTTurnLog.h"
 #include "Core/RTTypes.h"
 #include "Algo/Reverse.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "HAL/FileManager.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -138,6 +141,83 @@ bool FRTTurnLogRejectsTruncatedTest::RunTest(const FString&)
 	const bool bOk = URTTurnLogLibrary::DeserializeTurnLog(Bytes, Out);
 	TestFalse(TEXT("buffer troncato -> rifiutato"), bOk);
 	TestEqual(TEXT("nessuna voce restituita"), Out.Num(), 0);
+	return true;
+}
+
+// SR.check: un bit-flip nel PAYLOAD (magic e versione restano validi) e' rilevato dal checksum del formato.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogChecksumTest,
+	"RefactorTactics.TurnLog.DeserializeDetectsPayloadCorruption",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogChecksumTest::RunTest(const FString&)
+{
+	TArray<uint8> Bytes = URTTurnLogLibrary::SerializeTurnLog(SampleLog());
+	// offset 13 = dentro la prima voce (header = 12 byte); magic (0..3) e versione (4..5) restano validi.
+	Bytes[13] ^= 0xFF;
+
+	TArray<FRTTurnLogEntry> Out;
+	const bool bOk = URTTurnLogLibrary::DeserializeTurnLog(Bytes, Out);
+	TestFalse(TEXT("corruzione del contenuto rilevata dal checksum"), bOk);
+	TestEqual(TEXT("nessuna voce restituita"), Out.Num(), 0);
+	return true;
+}
+
+// SR.file: salvare e ricaricare da file preserva il TurnLog (a livello di hash).
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogFileRoundTripTest,
+	"RefactorTactics.TurnLog.FileRoundTripPreservesHash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogFileRoundTripTest::RunTest(const FString&)
+{
+	const TArray<FRTTurnLogEntry> Log = SampleLog();
+	const uint32 ExpectedHash = URTTurnLogLibrary::HashTurnLog(Log);
+	const FString Path = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("turnlog_roundtrip.rttl"));
+
+	const bool bSaved = URTTurnLogLibrary::SaveTurnLogToFile(Path, Log);
+	TestTrue(TEXT("salvataggio su file riuscito"), bSaved);
+
+	TArray<FRTTurnLogEntry> Restored;
+	const bool bLoaded = URTTurnLogLibrary::LoadTurnLogFromFile(Path, Restored);
+	TestTrue(TEXT("caricamento da file riuscito"), bLoaded);
+	TestEqual(TEXT("hash preservato via file"), URTTurnLogLibrary::HashTurnLog(Restored), ExpectedHash);
+
+	IFileManager::Get().Delete(*Path);
+	return true;
+}
+
+// Robustezza (caratterizzazione): caricare un file inesistente fallisce senza crash, output svuotato.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogLoadMissingTest,
+	"RefactorTactics.TurnLog.LoadMissingFileFails",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogLoadMissingTest::RunTest(const FString&)
+{
+	const FString Path = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("turnlog_inesistente.rttl"));
+	IFileManager::Get().Delete(*Path); // assicura che non esista
+
+	TArray<FRTTurnLogEntry> Out;
+	Out.Add(FRTTurnLogEntry()); // sporca l'output per verificare lo svuotamento
+	const bool bLoaded = URTTurnLogLibrary::LoadTurnLogFromFile(Path, Out);
+	TestFalse(TEXT("file inesistente -> false"), bLoaded);
+	TestEqual(TEXT("output svuotato"), Out.Num(), 0);
+	return true;
+}
+
+// Robustezza (caratterizzazione): un file valido corrotto su disco e' rifiutato dal checksum al load.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogLoadCorruptedTest,
+	"RefactorTactics.TurnLog.LoadCorruptedFileFails",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogLoadCorruptedTest::RunTest(const FString&)
+{
+	const FString Path = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("turnlog_corrotto.rttl"));
+	TArray<uint8> Bytes = URTTurnLogLibrary::SerializeTurnLog(SampleLog());
+	Bytes[13] ^= 0xFF; // corrompe un byte del payload
+	const bool bWritten = FFileHelper::SaveArrayToFile(Bytes, *Path);
+	TestTrue(TEXT("file di prova scritto"), bWritten);
+
+	TArray<FRTTurnLogEntry> Out;
+	const bool bLoaded = URTTurnLogLibrary::LoadTurnLogFromFile(Path, Out);
+	TestFalse(TEXT("file corrotto -> rifiutato dal checksum"), bLoaded);
+	TestEqual(TEXT("output svuotato"), Out.Num(), 0);
+
+	IFileManager::Get().Delete(*Path);
 	return true;
 }
 

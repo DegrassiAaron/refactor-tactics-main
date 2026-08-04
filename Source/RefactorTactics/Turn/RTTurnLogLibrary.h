@@ -45,4 +45,16 @@ public:
 	 * Round-trip garantito a livello di hash: HashTurnLog(in) == HashTurnLog(out).
 	 */
 	static bool DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FRTTurnLogEntry>& OutEntries);
+
+	/**
+	 * Salva il TurnLog su file (serializzazione binaria versionata + checksum). Ritorna false se la
+	 * scrittura fallisce. Thin wrapper su SerializeTurnLog + FFileHelper.
+	 */
+	static bool SaveTurnLogToFile(const FString& Path, const TArray<FRTTurnLogEntry>& Entries);
+
+	/**
+	 * Carica il TurnLog da file. Ritorna false (fail-closed, OutEntries svuotato) se il file manca o il
+	 * contenuto e' invalido/corrotto (magic/versione/troncamento/checksum). Wrapper su FFileHelper + DeserializeTurnLog.
+	 */
+	static bool LoadTurnLogFromFile(const FString& Path, TArray<FRTTurnLogEntry>& OutEntries);
 };
