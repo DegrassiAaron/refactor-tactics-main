@@ -50,3 +50,9 @@
 > con `WThreat=18` avanza e ingaggia (`(6,5) score=-48` → `scatto (6,6) + attacca score=344`) → **PIE-BU2b ✅**.
 > Osservato anche il **panic** del kiter (`RTUnit_2: scatto difensivo (schiva)`) → **panic ✅**. Resta solo il
 > **support** (Barriera del Guardian, non ancora emerso).
+
+> **Automatizzati** (2026-08-04): **tuning** (WThreat), **panic** e **support** del bot sono ora coperti da
+> **test d'integrazione headless** — `Source/RefactorTactics/Tests/RTBotPlanningTests.cpp` (smoke + panic +
+> support + tuning): costruiscono un mondo 2v2, invocano `PlanBotsForTest()` e verificano le decisioni via i
+> campi `Planned*`, **senza PIE**. Quindi queste tre guardie **non richiedono più verifica manuale**.
+> *(Nota: il dash-avvicinamento non è pesato da WThreat — possibile miglioramento futuro del bot.)*

@@ -35,6 +35,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
 	void LockInAndResolve();
 
+	/** Hook per i test d'integrazione headless: invoca la pianificazione dei bot senza timer/playback. */
+	void PlanBotsForTest() { PlanBots(); }
+
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	ERTMatchPhase GetPhase() const { return Phase; }
 
