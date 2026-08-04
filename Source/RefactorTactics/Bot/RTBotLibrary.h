@@ -5,6 +5,43 @@
 #include "Core/RTTypes.h"
 #include "RTBotLibrary.generated.h"
 
+/** Una mossa candidata del bot, valutabile dall'utility scoring (BU.1). */
+USTRUCT()
+struct FRTBotPlan
+{
+	GENERATED_BODY()
+
+	/** Cella in cui il bot finisce (o resta). */
+	UPROPERTY() FRTGridCoord DestCell;
+	/** Se il piano include un attacco da DestCell. */
+	UPROPERTY() bool bHasAttack = false;
+	/** Danno dell'attacco pianificato. */
+	UPROPERTY() int32 AttackDamage = 0;
+	/** HP+scudo del bersaglio (per rilevare il kill). */
+	UPROPERTY() int32 TargetHealth = 0;
+};
+
+/** Contesto puro per valutare una candidata (nessun Actor: testabile in automation). */
+USTRUCT()
+struct FRTBotContext
+{
+	GENERATED_BODY()
+
+	/** Posizioni dei nemici vivi. */
+	UPROPERTY() TArray<FRTGridCoord> Enemies;
+	/** Gittata di ciascun nemico (parallelo a Enemies): usata per la minaccia sulla cella. */
+	UPROPERTY() TArray<int32> EnemyRanges;
+	/** >0 = kiter (mantiene la distanza di sicurezza); 0 = mischia (chiude la distanza). */
+	UPROPERTY() int32 KiteStandoff = 0;
+
+	// Pesi interi (bilanciabili senza toccare la logica; invariante #4: niente float). Default: il kill domina.
+	UPROPERTY() int32 WKill = 10000;
+	UPROPERTY() int32 WDamage = 10;
+	UPROPERTY() int32 WThreat = 100;
+	UPROPERTY() int32 WKiteViolation = 50;
+	UPROPERTY() int32 WApproach = 10;
+};
+
 /** Decisioni di base del bot (logica pura, indipendente dagli Actor). */
 UCLASS()
 class REFACTORTACTICS_API URTBotLibrary : public UBlueprintFunctionLibrary
@@ -45,6 +82,13 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Bot")
 	static int32 AttackScore(int32 Damage, int32 TargetHealth);
+
+	/**
+	 * Utility score (intero) di una mossa candidata: focus-fire (danno + bonus se uccide) meno la minaccia
+	 * subita nella cella di destinazione meno la penalità di posizionamento (kiter sotto standoff / mischia
+	 * lontana). Pura e deterministica (interi, invariante #4). Il bot sceglie la candidata a punteggio massimo.
+	 */
+	static int32 ScorePlan(const FRTBotPlan& Plan, const FRTBotContext& Context);
 
 	/**
 	 * Miglior POSIZIONE DI TIRO raggiungibile: fra le celle entro il budget di costo (grafo, incl.

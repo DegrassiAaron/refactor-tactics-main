@@ -1,6 +1,53 @@
 #include "Bot/RTBotLibrary.h"
 #include "Grid/RTGridLibrary.h"
 
+int32 URTBotLibrary::ScorePlan(const FRTBotPlan& Plan, const FRTBotContext& Context)
+{
+	int32 Score = 0;
+
+	// Focus-fire: danno inflitto, con bonus se il colpo uccide (danno >= HP+scudo del bersaglio).
+	if (Plan.bHasAttack)
+	{
+		Score += Context.WDamage * Plan.AttackDamage;
+		if (Plan.AttackDamage >= Plan.TargetHealth)
+		{
+			Score += Context.WKill;
+		}
+	}
+
+	// Minaccia sulla cella di destinazione + posizionamento rispetto al nemico piu' vicino.
+	const int32 NumEnemies = FMath::Min(Context.Enemies.Num(), Context.EnemyRanges.Num());
+	int32 MinDist = MAX_int32;
+	for (int32 i = 0; i < NumEnemies; ++i)
+	{
+		const int32 Dist = URTGridLibrary::ManhattanDistance(Plan.DestCell, Context.Enemies[i]);
+		if (Dist <= Context.EnemyRanges[i])
+		{
+			Score -= Context.WThreat; // la cella e' sotto tiro di questo nemico
+		}
+		MinDist = FMath::Min(MinDist, Dist);
+	}
+
+	if (MinDist != MAX_int32)
+	{
+		if (Context.KiteStandoff > 0)
+		{
+			// Kiter: penalita' proporzionale a quanto si resta SOTTO la distanza di sicurezza.
+			if (MinDist < Context.KiteStandoff)
+			{
+				Score -= Context.WKiteViolation * (Context.KiteStandoff - MinDist);
+			}
+		}
+		else
+		{
+			// Mischia: penalita' proporzionale alla distanza (chiudere la distanza e' meglio).
+			Score -= Context.WApproach * MinDist;
+		}
+	}
+
+	return Score;
+}
+
 FRTGridCoord URTBotLibrary::StepToward(const FRTGridCoord& From, const FRTGridCoord& Target, int32 MoveRange)
 {
 	const int32 Distance = FMath::Abs(Target.X - From.X) + FMath::Abs(Target.Y - From.Y);
