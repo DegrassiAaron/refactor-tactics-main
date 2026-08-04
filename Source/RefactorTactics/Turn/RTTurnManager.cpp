@@ -1162,7 +1162,7 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				Atk.Source.IsValid() ? *Atk.Source->GetName() : TEXT("?"),
 				Atk.Target.IsValid() ? *Atk.Target->GetName() : TEXT("(eliminato)"),
 				Atk.Amount));
-			OnAttackResolved.Broadcast(Atk.Source.Get(), Atk.Target.Get(), Atk.Amount);
+			if (ARTUnit* AtkSrc = Atk.Source.Get()) { AtkSrc->PlayAttackMontage(); } if (ARTUnit* AtkTgt = Atk.Target.Get()) { AtkTgt->PlayHitMontage(); } OnAttackResolved.Broadcast(Atk.Source.Get(), Atk.Target.Get(), Atk.Amount);
 			++AttacksShown;
 		}
 	}
@@ -1185,7 +1185,7 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 			while (AttacksShown < PlaybackAttacks.Num())
 			{
 				const FRTResolvedEvent& Atk = PlaybackAttacks[AttacksShown];
-				OnAttackResolved.Broadcast(Atk.Source.Get(), Atk.Target.Get(), Atk.Amount);
+				if (ARTUnit* AtkSrc = Atk.Source.Get()) { AtkSrc->PlayAttackMontage(); } if (ARTUnit* AtkTgt = Atk.Target.Get()) { AtkTgt->PlayHitMontage(); } OnAttackResolved.Broadcast(Atk.Source.Get(), Atk.Target.Get(), Atk.Amount);
 				++AttacksShown;
 			}
 		}
@@ -1198,7 +1198,7 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 			{
 				AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *D.Source->GetName()));
 				D.Source->HideForDefeat();
-				OnUnitDefeated.Broadcast(D.Source.Get());
+				if (ARTUnit* DefU = D.Source.Get()) { DefU->PlayDefeatMontage(); } OnUnitDefeated.Broadcast(D.Source.Get());
 			}
 		}
 
@@ -1232,7 +1232,7 @@ void ARTTurnManager::FinishPlayback()
 		{
 			AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *D.Source->GetName()));
 			D.Source->HideForDefeat();
-			OnUnitDefeated.Broadcast(D.Source.Get());
+			if (ARTUnit* DefU = D.Source.Get()) { DefU->PlayDefeatMontage(); } OnUnitDefeated.Broadcast(D.Source.Get());
 		}
 	}
 

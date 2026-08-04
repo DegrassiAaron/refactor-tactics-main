@@ -241,6 +241,20 @@ public:
 	/** Sposta solo la mesh (presentazione): NON cambia GridCell ne' il piano. Usato dall'animazione del turno. */
 	void SetVisualLocation(const FVector& World);
 
+	// --- Eventi di presentazione del combattimento (montaggi): implementati nei BP_Unit, chiamati dal TurnManager.
+	//     Se un BP non li implementa non succede nulla (nessun crash): la logica resta invariata (invariante #1).
+	/** L'attaccante esegue il montaggio d'attacco (fase Blast). */
+	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Anim")
+	void PlayAttackMontage();
+
+	/** Il bersaglio reagisce al colpo subito. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Anim")
+	void PlayHitMontage();
+
+	/** L'unita' eliminata esegue il montaggio di morte, prima della rimozione visiva. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Anim")
+	void PlayDefeatMontage();
+
 	// IRTSelectable
 	virtual void OnSelected() override;
 	virtual void OnDeselected() override;
