@@ -16,7 +16,8 @@
 - **Undo**: un solo Undo per flood — `BeginStroke()` fa `Modify()` una volta, dentro un'unica `FScopedTransaction`.
 - **Scope**: contigue + stessa superficie + stesso layer. Fill globale, fill-erase, tolleranza, cross-layer, overlay-nel-Fill = fuori scope.
 - **Lingua**: commenti in italiano; identificatori in inglese.
-- **Precauzione build modulo editor**: se `UnrealEditor.exe` è in esecuzione la build del modulo editor fallisce (DLL lockata). Se l'editor è aperto → **STOP/BLOCKED**, non chiuderlo di iniziativa.
+- **Toolchain**: motore installato in `D:\EpicGames\UE_5.8` (Build: `…\Engine\Build\BatchFiles\Build.bat`; headless: `…\Engine\Binaries\Win64\UnrealEditor-Cmd.exe`). NON `C:\Program Files\...`.
+- **Precauzione editor aperto**: sia la build del modulo editor sia il test headless (usa `UnrealEditor-Cmd`, che carica la DLL Editor) falliscono se `UnrealEditor.exe` è in esecuzione (DLL lockata / Live Coding). Se l'editor è aperto → **STOP/BLOCKED**, non chiuderlo di iniziativa.
 - **`.uproject`**: `EngineAssociation` deve restare `"5.8"`; se un'apertura editor lo risporca con un GUID, ripristinalo con `git checkout -- RefactorTactics.uproject` e non committarlo.
 
 ---
@@ -83,7 +84,7 @@ Build del modulo `RefactorTactics` (target Editor). Atteso: **errore di compilaz
 
 Comando (aggiusta la versione del BuildTool a quella installata):
 ```
-& "C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\Build.bat" RefactorTacticsEditor Win64 Development -Project="D:\Repositories\refactor-tactics-main\RefactorTactics.uproject" -WaitMutex
+& "D:\EpicGames\UE_5.8\Engine\Build\BatchFiles\Build.bat" RefactorTacticsEditor Win64 Development -project="D:\Repositories\refactor-tactics-main\RefactorTactics.uproject" -waitmutex
 ```
 
 - [ ] **Step 3: Dichiara `FloodRegion` nell'header**
@@ -143,11 +144,11 @@ TArray<FRTCellId> URTHexMapAsset::FloodRegion(const FRTCellId& Start) const
 
 - [ ] **Step 5: Compila e lancia il test**
 
-Build del target Editor (comando dello Step 2) → verde. Poi esegui la suite hex headless:
+Build del target Editor (comando dello Step 2) → verde. Poi esegui la suite hex headless (cattura gli esiti da stdout):
 ```
-& "C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "D:\Repositories\refactor-tactics-main\RefactorTactics.uproject" -ExecCmds="Automation RunTests RefactorTactics.HexMap; Quit" -unattended -nop4 -nosplash -log
+& "D:\EpicGames\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "D:\Repositories\refactor-tactics-main\RefactorTactics.uproject" -ExecCmds="Automation RunTests RefactorTactics.HexMap; Quit" -nullrhi -unattended -nopause -nosplash -log -stdout -FullStdOutLogOutput
 ```
-Atteso: tutti i test `RefactorTactics.HexMap.*` **Success**, incluso `RefactorTactics.HexMap.FloodRegion`.
+Atteso: ogni `RefactorTactics.HexMap.*` con `Result={Success}` e **zero** `Result={Fail}` (incluso `RefactorTactics.HexMap.FloodRegion`). Conta le occorrenze di `Result={Success}` / `Result={Fail}` nell'output. Se l'editor era stato aperto con Live Coding, la DLL può essere una patch non caricabile headless (exit 255 senza log): forza un rebuild pulito toccando gli mtime dei `.cpp` (`Get-ChildItem Source -Filter *.cpp -Recurse | %{ $_.LastWriteTime = Get-Date }`) e ri-builda (Step 2), poi rilancia.
 
 - [ ] **Step 6: Aggiorna il contatore Automation nel doc PIE**
 
@@ -379,7 +380,7 @@ In `Source/RefactorTacticsEditor/Private/RTHexEditorMode.cpp`:
 
 **Precondizione**: `UnrealEditor.exe` **NON** in esecuzione (se aperto → STOP/BLOCKED, non chiudere di iniziativa).
 ```
-& "C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\Build.bat" RefactorTacticsEditor Win64 Development -Project="D:\Repositories\refactor-tactics-main\RefactorTactics.uproject" -WaitMutex
+& "D:\EpicGames\UE_5.8\Engine\Build\BatchFiles\Build.bat" RefactorTacticsEditor Win64 Development -project="D:\Repositories\refactor-tactics-main\RefactorTactics.uproject" -waitmutex
 ```
 Atteso: build **verde**. (Il flood-fill nel viewport è editor-bound → verifica manuale PIE-HEX-MODE-N, non in questo step.)
 
