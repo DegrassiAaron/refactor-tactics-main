@@ -1,7 +1,7 @@
 # Test manuali (PIE) — verifiche interattive da eseguire
 
 > Verifiche che richiedono l'editor UE (PIE, mouse, asset) e **non** sono automatizzabili headless.
-> **Complementari** ai test Automation (71/71 verdi). Parte del DoD «playtest ogni incremento» (roadmap §QA).
+> **Complementari** ai test Automation (**77/77** verdi su `feat/bot-utility`). Parte del DoD «playtest ogni incremento» (roadmap §QA).
 > Regola: una voce è ✅ **solo dopo** verifica reale in PIE — non «dovrebbe funzionare».
 
 ## Come eseguire
@@ -22,6 +22,7 @@
 | **PIE-FACING** | Orientamento al movimento | `bFaceMovementDirection=true` sul `BP_Unit` | L'unità ruota (yaw) verso la direzione di corsa; `Jog_Fwd` credibile in ogni direzione | ⏳ |
 | **PIE-MP4** | Click → layer (multilivello) | mappa col ponte sopraelevato | Il click seleziona la cella del **layer giusto** (terra vs ponte) | ⏳ |
 | **PIE-CP1.4** | Evidenziazione cella sotto il cursore | — | La cella sotto il mouse è evidenziata (**M1 polish, codice non ancora scritto**) | ⏳ |
+| **PIE-BU2** | Bot: posizionamento via utility scoring | branch `feat/bot-utility` | In pianificazione il bot sceglie la cella pesando **minaccia/kiting** (può **restare** invece di esporsi); il combat log mostra `<Bot>: utility -> (x,y,Lz) score=N`. Il kiter (Ranger) mantiene la distanza, la mischia (Guardian) chiude, nessuno corre in celle sotto tiro. Osserva se gli score hanno senso → base per il **tuning dei pesi** (BU.3) | ⏳ |
 
 > **PIE-CP1.4** dipende da codice non ancora implementato (evidenziazione cella-cursore): resta ⏳ finché non fatta.
 > Le altre voci hanno il **codice pronto**; manca solo la verifica interattiva (e, per AS.2/AS.4/AS.5, gli asset in editor).
