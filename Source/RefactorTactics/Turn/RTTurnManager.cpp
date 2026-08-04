@@ -263,10 +263,10 @@ void ARTTurnManager::PlanBots()
 					if (CandScore > ChosenScore) { ChosenScore = CandScore; ChosenCell = Cand; } // '>' : a parita' resta
 				}
 				Bot->PlannedCell = ChosenCell;
-				if (ChosenCell != Bot->GridCell)
-				{
-					AddLogEvent(FString::Printf(TEXT("%s: posizione scelta via utility (layer %d)"), *Bot->GetName(), ChosenCell.Layer));
-				}
+				// BU.3 debug: scelta + punteggio nel combat log (aiuta il bilanciamento dei pesi in PIE).
+				AddLogEvent(FString::Printf(TEXT("%s: utility -> (%d,%d,L%d) score=%d%s"),
+					*Bot->GetName(), ChosenCell.X, ChosenCell.Y, ChosenCell.Layer, ChosenScore,
+					ChosenCell == Bot->GridCell ? TEXT(" (resta)") : TEXT("")));
 			}
 		}
 	}
