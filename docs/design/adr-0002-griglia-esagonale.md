@@ -65,3 +65,11 @@ Criteri Done H0–H9 in [`hex-map-roadmap.md`](hex-map-roadmap.md). **H0**: comp
 Se il rifacimento risulta troppo costoso/destabilizzante: (a) tenere l'hex come sottosistema isolato e rimandare la
 sostituzione; (b) rollback a quadrata (`feat/skeletal-units` resta la base). **Rivedere dopo H2** (editor MVP) con i
 costi reali misurati.
+
+### Aggiornamento 2026-08-04 — merge su `main`
+
+L'utente (dev singolo, decisore) ha deciso di **mergiare `feat/hex-grid` in `main`** dopo la prima fetta di H5c
+(tool paint-a-click), **prima** che l'hex sostituisca funzionalmente l'MVP quadrato (restano H5c.2+, H6–H9). Questo
+**supera** la guida originaria di questo ADR («niente merge finché l'hex non sostituisce l'MVP»). Conseguenze
+accettate: `main` contiene ora il pivot hex ancora in corso; la base di rollback resta **`feat/skeletal-units`** (non
+toccata). Decisione presa consapevolmente su richiesta esplicita; lo sviluppo hex prosegue su `feat/hex-grid`.
