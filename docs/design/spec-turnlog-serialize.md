@@ -1,88 +1,92 @@
-# Spec — Serializzazione TurnLog versionata (SR)
+# Spec — Serializzazione TurnLog versionata (SR + SR.file)
 
 > Slice successivo a [`spec-turnlog.md`](spec-turnlog.md) §11: chiude il ciclo determinismo/replay
 > (KPI [`roadmap-checkpoint.md`](roadmap-checkpoint.md) «Replay divergence = 0»). **Puro C++, TDD.**
-> **Stato: implementato** — branch `feat/turnlog-serialize` → `main` (merge `8b6dc32`). Suite **122/122**.
+> **Stato: implementato** — `SR` (in-memory, merge `8b6dc32`) + `SR.file` (checksum v2 + I/O su file,
+> branch `feat/turnlog-file` → `main`). Suite **126/126**.
 
 ## 1. Obiettivo & scope
 
-Serializzare/deserializzare il TurnLog in un **buffer binario versionato** e in **forma canonica**,
-con round-trip verificato dall'hash già esistente (`URTTurnLogLibrary::HashTurnLog`). Chiude
-l'invariante #4 («ogni formato serializzato è versionato») per il TurnLog e trasforma il KPI
-«Replay divergence = 0» da 🟡 (determinismo by-design + hash) a ✅ (traccia serializzabile e riconfrontabile).
+Serializzare/deserializzare il TurnLog in un **buffer binario versionato** e in **forma canonica**, con
+round-trip verificato dall'hash (`URTTurnLogLibrary::HashTurnLog`), **persistenza su file** e **checksum**
+che rileva la corruzione del contenuto. Chiude l'invariante #4 («ogni formato serializzato è versionato»)
+e porta il KPI «Replay divergence = 0» a ✅ (traccia salvabile, ricaricabile e riconfrontabile).
 
 **In scope:** serializzazione in-memory (`TArray<uint8>`), header versionato, forma canonica
-(permutazione-invariante come l'hash), fail-closed su input corrotto.
-**Fuori scope (dichiarato):** I/O su file (`Save/LoadTurnLogToFile`), checksum nell'header, reason di
-hazard/status (slice successivi).
+(permutazione-invariante come l'hash), **checksum del payload**, **save/load su file**, fail-closed su input corrotto.
+**Fuori scope (dichiarato):** reason di hazard/status nel TurnLog (slice successivo).
 
 ## 2. Stato di partenza (verificato sul codice)
 
 - `FRTTurnLogEntry` = 6 campi **interi**: `Phase`/`Category`/`Outcome` (uint8) + `SrcCell`/`TgtCell`
   (`FRTGridCoord{X,Y,Layer}` int32) + `Amount` (int32). Nessun float.
-- `URTTurnLogLibrary::{EntryLess, SortTurnLog, HashTurnLog}` (FNV-1a 32-bit, permutazione-invariante)
-  già presenti (`ff5e079`). La serializzazione mescola **gli stessi 10 interi** dell'hash → round-trip fedele al replay.
+- `URTTurnLogLibrary::{EntryLess, SortTurnLog, HashTurnLog}` (FNV-1a 32-bit, permutazione-invariante) `ff5e079`.
 
-## 3. Formato binario (versione 1)
+## 3. Formato binario (versione 2, `WithChecksum`)
 
 Little-endian **esplicito** (indipendente dall'endianness della piattaforma; non usa `FArchive`):
 
 | Offset | Campo | Tipo |
 |---|---|---|
 | 0 | magic `'RTTL'` (byte `52 54 54 4C`) | uint32 LE |
-| 4 | versione (`ERTTurnLogFormatVersion::Initial = 1`) | uint16 LE |
+| 4 | versione (`ERTTurnLogFormatVersion::WithChecksum = 2`) | uint16 LE |
 | 6 | reserved/flags (spazio per estensioni) | uint16 LE |
 | 8 | conteggio voci | uint32 LE |
-| 12.. | N voci (forma canonica) | 31 byte/voce |
+| 12.. | N voci (forma canonica), 31 byte/voce | — |
+| coda | **checksum FNV** di tutto ciò che precede (header + voci) | uint32 LE |
 
 Voce (31 byte): `Phase`(1) + `Category`(1) + `Outcome`(1) + `SrcCell.X/Y/Layer` (3×int32 LE) +
-`TgtCell.X/Y/Layer` (3×int32 LE) + `Amount` (int32 LE).
-
-Le voci sono scritte **dopo `SortTurnLog`** → byte **permutazione-invarianti** (come l'hash).
+`TgtCell.X/Y/Layer` (3×int32 LE) + `Amount` (int32 LE). Voci scritte **dopo `SortTurnLog`** → byte
+**permutazione-invarianti**. La v1 (`Initial`, senza checksum) non è mai stata persistita → il loader accetta solo v2.
 
 ## 4. API (in `URTTurnLogLibrary`)
 
-- `static TArray<uint8> SerializeTurnLog(const TArray<FRTTurnLogEntry>&)` — forma canonica.
-- `static bool DeserializeTurnLog(const TArray<uint8>&, TArray<FRTTurnLogEntry>& Out)` —
-  **fail-closed**: `false` (con `Out` svuotato) su magic/versione sconosciuti o buffer troncato;
-  nessun accesso fuori dal buffer (bounds-check in ogni lettura).
+- `static TArray<uint8> SerializeTurnLog(const TArray<FRTTurnLogEntry>&)` — forma canonica + checksum.
+- `static bool DeserializeTurnLog(const TArray<uint8>&, TArray<FRTTurnLogEntry>& Out)` — **fail-closed**
+  (`false`, `Out` svuotato) su magic/versione/troncamento/**checksum mismatch**; bounds-check in ogni lettura.
+- `static bool SaveTurnLogToFile(const FString& Path, const TArray<FRTTurnLogEntry>&)` — wrapper `FFileHelper::SaveArrayToFile`.
+- `static bool LoadTurnLogFromFile(const FString& Path, TArray<FRTTurnLogEntry>& Out)` — wrapper
+  `FFileHelper::LoadFileToArray` + `DeserializeTurnLog`; `false` se il file manca o è invalido/corrotto.
 
-Contratto: `HashTurnLog(in) == HashTurnLog(Deserialize(Serialize(in)))`.
+Contratto: `HashTurnLog(in) == HashTurnLog(Load(Save(in)))`.
 
 ## 5. Test — `Tests/RTTurnLogSerializationTests.cpp` (TDD RED→GREEN)
 
 | Test | Comportamento |
 |---|---|
-| `SerializeRoundTripPreservesHash` | il round-trip preserva l'hash |
+| `SerializeRoundTripPreservesHash` | il round-trip in-memory preserva l'hash |
 | `SerializeCanonicalPermutationInvariant` | stesse voci in ordine diverso → byte identici |
-| `DeserializeRejectsBadMagic` | magic errato → `false`, `Out` vuoto |
-| `DeserializeRejectsUnknownVersion` | versione sconosciuta → `false` |
-| `SerializeEmptyRoundTrip` | log vuoto → solo header, round-trip ok |
+| `DeserializeRejectsBadMagic` | magic errato → `false` |
+| `DeserializeRejectsUnknownVersion` | versione ≠ 2 → `false` |
+| `SerializeEmptyRoundTrip` | log vuoto → solo header+checksum, round-trip ok |
 | `DeserializeRejectsTruncated` | buffer troncato → `false`, nessun crash |
+| `DeserializeDetectsPayloadCorruption` | bit-flip nel payload (magic/versione validi) → `false` (checksum) |
+| `FileRoundTripPreservesHash` | save→load su file preserva l'hash |
+| `LoadMissingFileFails` | file inesistente → `false`, output svuotato |
+| `LoadCorruptedFileFails` | file valido corrotto su disco → `false` (checksum) |
 
-I comportamenti sostanziali (round-trip, canonicità, rifiuto magic/versione) sono stati guidati da un
-**RED reale** prima dell'implementazione; i bounds-check difensivi e il caso vuoto sono coperti come
-caratterizzazione dichiarata.
+Comportamenti sostanziali (round-trip, canonicità, rifiuto magic/versione, **checksum**, **file round-trip**)
+guidati da un **RED reale**; bounds-check, caso vuoto, file mancante/corrotto = caratterizzazione dichiarata.
 
 ## 6. Decisioni
 
-- **D-SR-1** — **forma canonica** (ordinata) nella serializzazione → byte permutazione-invarianti,
-  coerente con l'hash; i replay diventano confrontabili/deduplicabili byte-per-byte.
-- **D-SR-2** — **little-endian esplicito** (non `FArchive`) per determinismo/portabilità cross-macchina.
-- **D-SR-3** — versione come `uint16` **non-UENUM** (fuori dai vincoli UHT del `BlueprintType` uint8);
-  loader **fail-closed** su versioni ignote invece di interpretare byte arbitrari.
-- **D-SR-4** — **I/O su file** e **checksum** nell'header rimandati a uno slice successivo.
+- **D-SR-1** — **forma canonica** (ordinata) → byte permutazione-invarianti; replay confrontabili byte-per-byte.
+- **D-SR-2** — **little-endian esplicito** (non `FArchive`) per determinismo/portabilità.
+- **D-SR-3** — versione `uint16` **non-UENUM**; loader **fail-closed** su versioni ignote.
+- **D-SR-4** — **checksum FNV del payload in coda** (`WithChecksum = 2`): rileva la corruzione del contenuto
+  che magic/versione non catturano. La v1 non è mai stata persistita → il loader accetta solo v2 (nessun problema di retrocompatibilità).
+- **D-SR-5** — **file I/O = thin wrapper** su `FFileHelper` (Save/Load); l'integrità è delegata al checksum.
 
 ## 7. Definition of Done (raggiunta)
 
-☑ TDD RED→GREEN per ogni comportamento sostanziale · ☑ suite **122/122** (116 preesistenti + 6 nuovi) ·
-☑ build target Editor **Succeeded** · ☑ solo interi (invariante #4) · ☑ spec/roadmap aggiornate ·
-☑ commit isolato `dcd7ce3` → merge `8b6dc32` in `main`, nessun file generato/segreto.
+☑ TDD RED→GREEN per ogni comportamento sostanziale · ☑ suite **126/126** (116 preesistenti + 10 SR) ·
+☑ build target Editor **Succeeded** (editor chiuso; Live Coding blocca la build CLI) · ☑ solo interi
+(invariante #4) · ☑ i test file puliscono `Saved/` (nessun residuo) · ☑ spec/roadmap aggiornate.
 
-## 8. Prossimi slice possibili
+## 8. Prossimo slice possibile
 
-- **SR.file** — `Save/LoadTurnLogToFile` (`FFileHelper`) + eventuale **checksum FNV** nell'header (rileva corruzione al load).
-- **Hazard/status nel TurnLog** — reason di cella (lava/terreno) e status (Root/Slow/Reveal) con relativo outcome.
+- **Hazard/status nel TurnLog** — reason di cella (lava/terreno) e status (Root/Slow/Reveal) con relativo
+  outcome; tocca `RTTurnManager`/resolver (wiring, verifica in PIE), meno puro dei precedenti.
 
 ## 9. Riferimenti
 

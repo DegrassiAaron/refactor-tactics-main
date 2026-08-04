@@ -72,5 +72,6 @@ struct FRTTurnLogEntry
  */
 enum class ERTTurnLogFormatVersion : uint16
 {
-	Initial = 1
+	Initial      = 1, // header + voci, senza checksum (mai persistito su file)
+	WithChecksum = 2  // + checksum FNV del payload in coda: rileva la corruzione del contenuto
 };

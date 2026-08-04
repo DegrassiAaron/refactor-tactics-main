@@ -1,4 +1,5 @@
 #include "Turn/RTTurnLogLibrary.h"
+#include "Misc/FileHelper.h"
 
 bool URTTurnLogLibrary::EntryLess(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B)
 {
@@ -108,6 +109,19 @@ namespace
 		Out = static_cast<int32>(U);
 		return true;
 	}
+
+	// Checksum FNV-1a 32-bit sui byte grezzi (stesso mescolamento di HashTurnLog, ma sul buffer):
+	// rileva la corruzione del contenuto che magic/versione da soli non catturano.
+	uint32 FnvBytes(const uint8* Data, int32 Len)
+	{
+		uint32 H = 2166136261u; // offset basis
+		for (int32 i = 0; i < Len; ++i)
+		{
+			H ^= Data[i];
+			H *= 16777619u; // prime
+		}
+		return H;
+	}
 }
 
 TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>& Entries)
@@ -121,7 +135,7 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 
 	// Header: magic + versione + reserved/flags + conteggio (tutto little-endian).
 	AppendU32LE(Out, RT_TURNLOG_MAGIC);
-	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::Initial));
+	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithChecksum));
 	AppendU16LE(Out, 0); // reserved/flags (spazio per estensioni future del formato)
 	AppendU32LE(Out, static_cast<uint32>(Canonical.Num()));
 
@@ -138,6 +152,10 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 		AppendI32LE(Out, E.TgtCell.Layer);
 		AppendI32LE(Out, E.Amount);
 	}
+
+	// Checksum FNV di tutto cio' che precede (header + voci), in coda: rileva la corruzione del contenuto.
+	const uint32 Checksum = FnvBytes(Out.GetData(), Out.Num());
+	AppendU32LE(Out, Checksum);
 	return Out;
 }
 
@@ -150,7 +168,7 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	if (!ReadU32LE(Bytes, Pos, Magic) || Magic != RT_TURNLOG_MAGIC) { return false; }
 
 	uint16 Version = 0;
-	if (!ReadU16LE(Bytes, Pos, Version) || Version != static_cast<uint16>(ERTTurnLogFormatVersion::Initial)) { return false; }
+	if (!ReadU16LE(Bytes, Pos, Version) || Version != static_cast<uint16>(ERTTurnLogFormatVersion::WithChecksum)) { return false; }
 
 	uint16 Reserved = 0;
 	if (!ReadU16LE(Bytes, Pos, Reserved)) { return false; }
@@ -184,5 +202,36 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 		}
 		OutEntries.Add(E);
 	}
+
+	// Verifica il checksum in coda: ricalcola FNV su header+voci e confronta (rileva corruzione del contenuto).
+	const int32 PayloadEnd = Pos;
+	uint32 StoredChecksum = 0;
+	if (!ReadU32LE(Bytes, Pos, StoredChecksum))
+	{
+		OutEntries.Reset();
+		return false;
+	}
+	if (FnvBytes(Bytes.GetData(), PayloadEnd) != StoredChecksum)
+	{
+		OutEntries.Reset();
+		return false;
+	}
 	return true;
+}
+
+bool URTTurnLogLibrary::SaveTurnLogToFile(const FString& Path, const TArray<FRTTurnLogEntry>& Entries)
+{
+	const TArray<uint8> Bytes = SerializeTurnLog(Entries);
+	return FFileHelper::SaveArrayToFile(Bytes, *Path);
+}
+
+bool URTTurnLogLibrary::LoadTurnLogFromFile(const FString& Path, TArray<FRTTurnLogEntry>& OutEntries)
+{
+	OutEntries.Reset();
+	TArray<uint8> Bytes;
+	if (!FFileHelper::LoadFileToArray(Bytes, *Path))
+	{
+		return false; // file mancante o illeggibile
+	}
+	return DeserializeTurnLog(Bytes, OutEntries);
 }
