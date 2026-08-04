@@ -231,14 +231,41 @@ void ARTTurnManager::PlanBots()
 					FireCell = URTBotLibrary::BestFiringCell(Bot->GridCell, Nearest->GridCell, MoveBudget,
 						BotCostMap, GridW, GridH, VisionBlockers, FireRange, BotEdges);
 				}
-				if (FireCell != Bot->GridCell)
+				// BU.2: la cella di posizionamento si sceglie via utility scoring (ScorePlan) fra le candidate
+				// {restare, cella di tiro, cella d'avvicinamento}, pesando minaccia e kiting. Unifica il vecchio
+				// "riposiziona per il tiro / altrimenti avvicìnati" e puo' preferire di restare se muoversi espone.
+				FRTBotContext BotCtx;
+				BotCtx.KiteStandoff = Bot->KiteStandoff;
+				for (ARTUnit* Enemy : Units)
 				{
-					AddLogEvent(FString::Printf(TEXT("%s: riposiziona per il tiro (layer %d)"), *Bot->GetName(), FireCell.Layer));
-					Bot->PlannedCell = FireCell;
+					if (!Enemy->IsAlive() || Enemy->TeamId == Bot->TeamId) { continue; }
+					BotCtx.Enemies.Add(Enemy->GridCell);
+					int32 EnemyReach = Enemy->AttackRange;
+					for (int32 a = 0; a < Enemy->NumAbilities(); ++a)
+					{
+						const URTAbilityData* EAb = Enemy->GetAbility(a);
+						if (EAb && !EAb->bDash) { EnemyReach = FMath::Max(EnemyReach, EAb->RangeCells); }
+					}
+					BotCtx.EnemyRanges.Add(EnemyReach);
 				}
-				else
+				const FRTGridCoord ApproachCell = URTBotLibrary::BestApproachCell(Bot->GridCell, Nearest->GridCell, MoveBudget, BotCostMap, GridW, GridH, BotEdges);
+				TArray<FRTGridCoord> MoveCands;
+				MoveCands.Add(Bot->GridCell);                                  // restare e' sempre una candidata
+				if (FireCell != Bot->GridCell)    { MoveCands.AddUnique(FireCell); }
+				if (ApproachCell != Bot->GridCell){ MoveCands.AddUnique(ApproachCell); }
+				FRTGridCoord ChosenCell = Bot->GridCell;
+				int32 ChosenScore = TNumericLimits<int32>::Lowest();
+				for (const FRTGridCoord& Cand : MoveCands)                     // ordine stabile -> deterministico
 				{
-					Bot->PlannedCell = URTBotLibrary::BestApproachCell(Bot->GridCell, Nearest->GridCell, MoveBudget, BotCostMap, GridW, GridH, BotEdges);
+					FRTBotPlan MovePlan;
+					MovePlan.DestCell = Cand;
+					const int32 CandScore = URTBotLibrary::ScorePlan(MovePlan, BotCtx);
+					if (CandScore > ChosenScore) { ChosenScore = CandScore; ChosenCell = Cand; } // '>' : a parita' resta
+				}
+				Bot->PlannedCell = ChosenCell;
+				if (ChosenCell != Bot->GridCell)
+				{
+					AddLogEvent(FString::Printf(TEXT("%s: posizione scelta via utility (layer %d)"), *Bot->GetName(), ChosenCell.Layer));
 				}
 			}
 		}

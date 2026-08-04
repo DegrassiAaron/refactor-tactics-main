@@ -52,10 +52,14 @@ Interi ovunque; nessun RNG; enumerazione candidate in ordine stabile; tie-break 
 non cambia la scelta.
 
 ## 7. Slicing (TDD)
-- **BU.1** ✅ *(questo)* — `FRTBotPlan`/`FRTBotContext` + `ScorePlan` pura + **5 test** (kill, danno, minaccia,
-  kiting, avvicinamento), RED→GREEN. Nessun cambio a `PlanBots`.
-- **BU.2** — `PlanBots` genera candidate e usa `ScorePlan` (sostituisce la cascata). Test bot verdi/aggiornati + PIE.
-- **BU.3** — tuning pesi + eventuale riga di debug nel combat log.
+- **BU.1** ✅ — `FRTBotPlan`/`FRTBotContext` + `ScorePlan` pura + **5 test** (kill, danno, minaccia, kiting,
+  avvicinamento), RED→GREEN.
+- **BU.2** ✅ *(C++; comportamento da confermare in PIE)* — `PlanBots` sceglie la **cella di posizionamento** via
+  `ScorePlan` fra {restare, cella di tiro, cella d'avvicinamento}, pesando minaccia/kiting (può preferire di
+  restare se muoversi espone). Suite **77/77** verde. Il resto della cascata (attacco/support/dash/panic) è
+  invariato. Context ordine-invariante sui nemici → deterministico.
+- **BU.3** — estendere lo scoring all'intera decisione (attacco + movimento combinati, tutti i rami) + tuning
+  pesi + riga di debug nel combat log.
 
 ## 8. Decisioni aperte
 - Set/pesi finali dei fattori (bilanciamento in PIE). · Enumerare tutte le celle raggiungibili (costoso) **vs**
