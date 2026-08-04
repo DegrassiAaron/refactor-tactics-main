@@ -1,6 +1,7 @@
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTMovementResolver.h"
 #include "Turn/RTPlaybackLibrary.h"
+#include "Turn/RTTurnLogLibrary.h"
 #include "Combat/RTCombatResolver.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Ability/RTAbilityData.h"
@@ -455,15 +456,7 @@ void ARTTurnManager::LockInAndResolve()
 
 	// TurnLog: ordinamento deterministico (fase -> categoria -> cella di partenza); GetAllActorsOfClass
 	// non e' ordinato, quindi l'ordine di inserimento non e' affidabile (enum: confronto per valore intero).
-	TurnLog.Sort([](const FRTTurnLogEntry& A, const FRTTurnLogEntry& B)
-	{
-		if (A.Phase != B.Phase) { return static_cast<uint8>(A.Phase) < static_cast<uint8>(B.Phase); }
-		if (A.Category != B.Category) { return static_cast<uint8>(A.Category) < static_cast<uint8>(B.Category); }
-		if (A.SrcCell.X != B.SrcCell.X) { return A.SrcCell.X < B.SrcCell.X; }
-		if (A.SrcCell.Y != B.SrcCell.Y) { return A.SrcCell.Y < B.SrcCell.Y; }
-		if (A.SrcCell.Layer != B.SrcCell.Layer) { return A.SrcCell.Layer < B.SrcCell.Layer; }
-		return A.TgtCell.X < B.TgtCell.X;
-	});
+	URTTurnLogLibrary::SortTurnLog(TurnLog); // ordine totale deterministico (libreria pura testabile)
 
 	// Fase Cleanup: danno hazard di fine turno (Lava/Fuoco) su chi occupa, tick durate,
 	// reversione del terreno temporaneo; poi conteggio unita' vive per squadra.
