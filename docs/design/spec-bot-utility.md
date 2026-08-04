@@ -58,8 +58,23 @@ non cambia la scelta.
   `ScorePlan` fra {restare, cella di tiro, cella d'avvicinamento}, pesando minaccia/kiting (può preferire di
   restare se muoversi espone). Suite **77/77** verde. Il resto della cascata (attacco/support/dash/panic) è
   invariato. Context ordine-invariante sui nemici → deterministico.
-- **BU.3** — estendere lo scoring all'intera decisione (attacco + movimento combinati, tutti i rami) + tuning
-  pesi + riga di debug nel combat log.
+- **BU.3** ✅ *(C++; comportamento da confermare in PIE-BU3)* — `ChooseBestPlan` puro con **tie-break assoluto**
+  (permutazione-invariante; **4 test**, suite **81/81**); `PlanBots` unifica {resta+attacca} e {posizionati} in
+  un'unica utility deterministica; pesi esposti come `UPROPERTY` sul TurnManager (tuning in editor).
+  **Vincolo di fase** (emerso in impl.): il **Blast precede il Move** ⇒ l'attacco vale solo dalla cella attuale
+  (o post-dash), **non** da celle raggiunte col movimento normale. "Attacco dalla cella di destinazione via
+  move-normale" è quindi impossibile per design.
+- **BU.3c** ✅ *(C++; comportamento da confermare in PIE-BU3c)* — **dash+attacco**: il bot valuta anche candidate
+  `{scatto → cella di tiro, attacco da lì}` (il Dash precede il Blast ⇒ colpisce dalla cella post-scatto); se
+  vince l'utility, pianifica scatto+attacco. Flag puro `bViaDash` sul piano; `ChooseBestPlan` invariato.
+  *Limite*: col movimento simultaneo lo scatto può essere deviato → attacco a vuoto (gestito: `NoLineOfSight`).
+- **BU.3d** ✅ — **determinismo della scelta del bersaglio**: `AttackIsBetter` (tie-break assoluto sulle coord del
+  bersaglio a parità di `AttackScore`; **2 test**, suite **83/83**) usato in `BestAttackFrom` → la selezione non
+  dipende più dall'ordine di `GetAllActorsOfClass` (invariante #4).
+- **BU.3e** ✅ — fattore **quota** in `ScorePlan`: `+ WElevation · DestCell.Layer` (premia l'alta quota; **1 test**,
+  suite **84/84**), esposto come `UPROPERTY` sul TurnManager (tuning). Bilanciato da `WThreat` (una cella alta ma
+  esposta resta penalizzata). **Copertura/LOS** come fattori restano aperti (§8): richiedono dati per-cella
+  **impuri** (LOS bloccata per nemico) → più invasivi, rimandati.
 
 ## 8. Decisioni aperte
 - Set/pesi finali dei fattori (bilanciamento in PIE). · Enumerare tutte le celle raggiungibili (costoso) **vs**

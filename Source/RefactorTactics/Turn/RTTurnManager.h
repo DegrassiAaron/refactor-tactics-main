@@ -108,6 +108,33 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
 	float MaxPlaybackSeconds = 12.f;
 
+	// --- Tuning del bot (utility scoring, editabile in editor senza ricompilare) -----------------
+	// Pesi interi iniettati nel FRTBotContext di PlanBots (invariante #4: niente float). I default
+	// coincidono con quelli della struct: a parita' di valori il comportamento e' invariato.
+	/** Bonus se l'attacco pianificato UCCIDE il bersaglio: domina la scelta (focus-fire letale). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Bot")
+	int32 WKill = 10000;
+
+	/** Peso del danno inflitto dall'attacco (focus-fire: a parita' d'altro, piu' danno = meglio). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Bot")
+	int32 WDamage = 10;
+
+	/** Penalita' per ogni nemico che puo' colpire la cella scelta (evita di esporsi al tiro). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Bot")
+	int32 WThreat = 100;
+
+	/** Penalita' (kiter) proporzionale a quanto si sta SOTTO la distanza di sicurezza (standoff). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Bot")
+	int32 WKiteViolation = 50;
+
+	/** Penalita' (mischia) proporzionale alla distanza dal nemico: chiudere la distanza e' meglio. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Bot")
+	int32 WApproach = 10;
+
+	/** Bonus per la quota (Layer) della cella: premia l'alta quota (tiro oltre coperture basse, +danno). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Bot")
+	int32 WElevation = 20;
+
 protected:
 	virtual void BeginPlay() override;
 
