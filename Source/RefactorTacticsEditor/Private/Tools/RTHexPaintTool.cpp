@@ -154,8 +154,18 @@ void URTHexPaintTool::Shutdown(EToolShutdownType ShutdownType)
 
 void URTHexPaintTool::Render(IToolsContextRenderAPI* RenderAPI)
 {
-	if (!bHasMarker || !RenderAPI) { return; }
-	RTHexEditor::DrawHexMarker(RenderAPI->GetPrimitiveDrawInterface(), MarkerCenter, MarkerRadius, MarkerColor);
+	if (!RenderAPI) { return; }
+	FPrimitiveDrawInterface* PDI = RenderAPI->GetPrimitiveDrawInterface();
+	if (!PDI) { return; }
+
+	if (Properties && Properties->bShowOverlay)
+	{
+		RTHexEditor::DrawSurfaceOverlay(PDI, RTHexEditor::FindTargetMapActor(TargetWorld));
+	}
+	if (bHasMarker)
+	{
+		RTHexEditor::DrawHexMarker(PDI, MarkerCenter, MarkerRadius, MarkerColor);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

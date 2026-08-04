@@ -72,8 +72,18 @@ void URTHexSelectTool::OnClicked(const FInputDeviceRay& ClickPos)
 
 void URTHexSelectTool::Render(IToolsContextRenderAPI* RenderAPI)
 {
-	if (!bHasSelection || !RenderAPI) { return; }
-	RTHexEditor::DrawHexMarker(RenderAPI->GetPrimitiveDrawInterface(), SelectedWorldCenter, MarkerRadius, FColor::Yellow);
+	if (!RenderAPI) { return; }
+	FPrimitiveDrawInterface* PDI = RenderAPI->GetPrimitiveDrawInterface();
+	if (!PDI) { return; }
+
+	if (Properties && Properties->bShowOverlay)
+	{
+		RTHexEditor::DrawSurfaceOverlay(PDI, RTHexEditor::FindTargetMapActor(TargetWorld));
+	}
+	if (bHasSelection)
+	{
+		RTHexEditor::DrawHexMarker(PDI, SelectedWorldCenter, MarkerRadius, FColor::Yellow);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

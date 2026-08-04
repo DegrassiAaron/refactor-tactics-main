@@ -7,6 +7,7 @@ class UWorld;
 class ARTHexMapActor;
 class FPrimitiveDrawInterface;
 struct FInputDeviceRay;
+enum class ERTHexSurface : uint8;
 
 /** Helper condivisi tra i tool click dell'Editor Mode hex (SelectTool, PaintTool, ...). */
 namespace RTHexEditor
@@ -21,4 +22,10 @@ namespace RTHexEditor
 
 	/** Disegna un esagono pointy-top (marker) sul PDI. */
 	void DrawHexMarker(FPrimitiveDrawInterface* PDI, const FVector& Center, float Radius, const FColor& Color);
+
+	/** Colore d'overlay per una superficie cella (presentazione editor). */
+	FColor SurfaceColor(ERTHexSurface Surface);
+
+	/** Overlay debug: ogni cella dell'asset come esagono colorato per superficie; le bloccate con un esagono rosso interno. */
+	void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Actor);
 }
