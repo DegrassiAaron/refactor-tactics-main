@@ -239,23 +239,29 @@ void ARTHexMapActor::AddTransitionData(const FRTCellId& From, const FRTCellId& T
 
 void ARTHexMapActor::RemoveVerticalTransition()
 {
+	RemoveTransitionData(TransitionFrom, TransitionTo, bTransitionBidirectional);
+}
+
+bool ARTHexMapActor::RemoveTransitionData(const FRTCellId& From, const FRTCellId& To, bool bBothDirections)
+{
 	if (!MapAsset)
 	{
 		UE_LOG(LogRT, Warning, TEXT("[HexMap] Nessun MapAsset assegnato."));
-		return;
+		return false;
 	}
 #if WITH_EDITOR
 	const FScopedTransaction Transaction(LOCTEXT("HexRemoveTransition", "Hex: Remove Vertical Transition"));
 #endif
 	MapAsset->Modify();
-	const bool bRemoved = MapAsset->RemoveTransition(TransitionFrom, TransitionTo, bTransitionBidirectional);
+	const bool bRemoved = MapAsset->RemoveTransition(From, To, bBothDirections);
 	if (bRemoved)
 	{
 		MapAsset->MarkPackageDirty();
 		RebuildInstances();
 	}
 	UE_LOG(LogRT, Log, TEXT("[HexMap] Rimozione transizione %s -> %s: %s."),
-		*TransitionFrom.ToString(), *TransitionTo.ToString(), bRemoved ? TEXT("rimossa") : TEXT("non trovata"));
+		*From.ToString(), *To.ToString(), bRemoved ? TEXT("rimossa") : TEXT("non trovata"));
+	return bRemoved;
 }
 
 #undef LOCTEXT_NAMESPACE

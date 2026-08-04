@@ -128,6 +128,9 @@ public:
 	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap|Transition")
 	void RemoveVerticalTransition();
 
+	/** Rimuove la transizione From->To (e l'inversa se bBothDirections) dall'asset. Vero se ha rimosso. Annullabile. */
+	bool RemoveTransitionData(const FRTCellId& From, const FRTCellId& To, bool bBothDirections);
+
 	/** Ricostruisce tutte le istanze dalle celle (asset o demo). */
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "RefactorTactics|HexMap")
 	void RebuildInstances();

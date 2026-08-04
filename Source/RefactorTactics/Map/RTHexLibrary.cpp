@@ -98,6 +98,39 @@ int32 URTHexLibrary::WorldToLayer(double WorldZ, double OriginZ, float LayerHeig
 	return FMath::RoundToInt((WorldZ - OriginZ) / static_cast<double>(LayerHeight));
 }
 
+float URTHexLibrary::DistanceRayToSegment(const FVector& RayOrigin, const FVector& RayDir, const FVector& A, const FVector& B)
+{
+	// Closest points tra semi-retta (s>=0, dir unitaria) e segmento (t in [0,1]). Adattato da Ericson, con doppio clamp.
+	const FVector D1 = RayDir.GetSafeNormal(); // direzione ray (unitaria) -> s = distanza lungo il ray
+	const FVector D2 = B - A;                   // direzione segmento -> t in [0,1]
+	const double E = FVector::DotProduct(D2, D2);
+	const FVector R = RayOrigin - A;
+	const double B1 = FVector::DotProduct(D1, D2);
+	const double C = FVector::DotProduct(D1, R);
+	const double F = FVector::DotProduct(D2, R);
+
+	double S = 0.0; // lungo il ray (>=0)
+	double T = 0.0; // lungo il segmento ([0,1])
+	if (E <= (double)SMALL_NUMBER)
+	{
+		// Segmento degenere (A==B): T=0, S = proiezione di A sul ray (clamp>=0).
+		T = 0.0;
+		S = FMath::Max(0.0, -C);
+	}
+	else
+	{
+		const double Denom = E - B1 * B1; // = |D2|^2 - dot(D1,D2)^2 (>=0)
+		T = (Denom > (double)SMALL_NUMBER) ? ((F - C * B1) / Denom) : (F / E);
+		T = FMath::Clamp(T, 0.0, 1.0);
+		S = FMath::Max(0.0, T * B1 - C);
+		T = FMath::Clamp((F + S * B1) / E, 0.0, 1.0);
+	}
+
+	const FVector PRay = RayOrigin + static_cast<float>(S) * D1;
+	const FVector QSeg = A + static_cast<float>(T) * D2;
+	return static_cast<float>(FVector::Dist(PRay, QSeg)); // FVector::Dist ritorna double in UE5: cast esplicito (no C4244)
+}
+
 bool URTHexLibrary::StableLess(const FRTCellId& A, const FRTCellId& B)
 {
 	if (A.Layer != B.Layer) { return A.Layer < B.Layer; }

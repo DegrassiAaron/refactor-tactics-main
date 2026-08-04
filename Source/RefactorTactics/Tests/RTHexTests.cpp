@@ -155,4 +155,32 @@ bool FRTHexWorldToLayerTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexDistanceRaySegTest,
+	"RefactorTactics.Hex.DistanceRayToSegment",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexDistanceRaySegTest::RunTest(const FString&)
+{
+	// 1. Ray attraversa il segmento -> ~0.
+	{
+		const float D = URTHexLibrary::DistanceRayToSegment(FVector(1, 0, -10), FVector(0, 0, 1), FVector(0, 0, 0), FVector(2, 0, 0));
+		TestTrue(TEXT("interseca -> 0"), FMath::IsNearlyZero(D, 1e-3f));
+	}
+	// 2. Ray parallelo al segmento, offset 5 in Y -> ~5.
+	{
+		const float D = URTHexLibrary::DistanceRayToSegment(FVector(0, 5, 0), FVector(1, 0, 0), FVector(0, 0, 0), FVector(10, 0, 0));
+		TestTrue(TEXT("parallelo offset 5"), FMath::IsNearlyEqual(D, 5.f, 1e-3f));
+	}
+	// 3. Closest oltre l'estremo B -> sqrt(10^2 + 3^2) = sqrt(109).
+	{
+		const float D = URTHexLibrary::DistanceRayToSegment(FVector(20, 3, 0), FVector(0, 0, 1), FVector(0, 0, 0), FVector(10, 0, 0));
+		TestTrue(TEXT("oltre estremo"), FMath::IsNearlyEqual(D, FMath::Sqrt(109.f), 1e-2f));
+	}
+	// 4. Segmento degenere (A==B): distanza punto-ray = 5.
+	{
+		const float D = URTHexLibrary::DistanceRayToSegment(FVector(0, 0, 5), FVector(0, 1, 0), FVector(0, 0, 0), FVector(0, 0, 0));
+		TestTrue(TEXT("segmento degenere"), FMath::IsNearlyEqual(D, 5.f, 1e-3f));
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

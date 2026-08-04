@@ -43,6 +43,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static int32 WorldToLayer(double WorldZ, double OriginZ, float LayerHeight);
 
+	/** Distanza minima tra la semi-retta (RayOrigin + t*RayDir, t>=0) e il segmento A..B. Pura, per hit-test archi. */
+	static float DistanceRayToSegment(const FVector& RayOrigin, const FVector& RayDir, const FVector& A, const FVector& B);
+
 	/** Ordinamento stabile deterministico: Layer, poi X, poi Y. */
 	static bool StableLess(const FRTCellId& A, const FRTCellId& B);
 
