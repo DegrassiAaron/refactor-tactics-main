@@ -98,4 +98,36 @@ bool FRTHexMapValidateTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexApplyBrushTest,
+	"RefactorTactics.HexMap.ApplyBrushMerge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexApplyBrushTest::RunTest(const FString&)
+{
+	const FRTCellId Id(2, -1, 1);
+
+	// Cella nuova (Existing = nullptr): default Height=0, LOS=false; applica surface/cost/block.
+	const FRTHexCellData New = URTHexMapAsset::ApplyBrush(nullptr, Id, ERTHexSurface::Water, 3, true);
+	TestTrue(TEXT("Id impostato"), New.Id == Id);
+	TestTrue(TEXT("Surface applicata"), New.Surface == ERTHexSurface::Water);
+	TestEqual(TEXT("MoveCost applicato"), New.MoveCost, 3);
+	TestTrue(TEXT("bBlocksMovement applicato"), New.bBlocksMovement);
+	TestEqual(TEXT("Height default 0"), New.Height, 0);
+	TestFalse(TEXT("LOS default false"), New.bBlocksLineOfSight);
+
+	// Cella esistente con Height=3 e LOS=true: paint cambia surface/cost/block ma PRESERVA Height e LOS.
+	FRTHexCellData Existing(Id);
+	Existing.Height = 3;
+	Existing.bBlocksLineOfSight = true;
+	Existing.Surface = ERTHexSurface::Normal;
+	Existing.MoveCost = 1;
+	Existing.bBlocksMovement = false;
+	const FRTHexCellData Painted = URTHexMapAsset::ApplyBrush(&Existing, Id, ERTHexSurface::Fire, 5, true);
+	TestTrue(TEXT("Surface aggiornata"), Painted.Surface == ERTHexSurface::Fire);
+	TestEqual(TEXT("MoveCost aggiornato"), Painted.MoveCost, 5);
+	TestTrue(TEXT("bBlocksMovement aggiornato"), Painted.bBlocksMovement);
+	TestEqual(TEXT("Height preservato"), Painted.Height, 3);
+	TestTrue(TEXT("LOS preservato"), Painted.bBlocksLineOfSight);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

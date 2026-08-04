@@ -31,6 +31,17 @@ void URTHexMapAsset::AddOrUpdateCell(const FRTHexCellData& Cell)
 	++Revision;
 }
 
+FRTHexCellData URTHexMapAsset::ApplyBrush(const FRTHexCellData* Existing, const FRTCellId& Id,
+	ERTHexSurface Surface, int32 MoveCost, bool bBlocksMovement)
+{
+	FRTHexCellData Cell = Existing ? *Existing : FRTHexCellData(Id);
+	Cell.Id = Id; // garantisce l'Id (anche se Existing arrivasse con Id diverso)
+	Cell.Surface = Surface;
+	Cell.MoveCost = MoveCost;
+	Cell.bBlocksMovement = bBlocksMovement;
+	return Cell;
+}
+
 bool URTHexMapAsset::RemoveCell(const FRTCellId& Id)
 {
 	EnsureLookup();

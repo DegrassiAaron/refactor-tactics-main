@@ -48,6 +48,13 @@ public:
 	/** Aggiunge o aggiorna (per Id) una cella; incrementa la revisione. */
 	void AddOrUpdateCell(const FRTHexCellData& Cell);
 
+	/**
+	 * Logica pura del 'pennello': se Existing != nullptr parte da esso (PRESERVA Height e bBlocksLineOfSight),
+	 * altrimenti da una cella nuova con l'Id dato; applica Surface/MoveCost/bBlocksMovement. Non muta l'asset.
+	 */
+	static FRTHexCellData ApplyBrush(const FRTHexCellData* Existing, const FRTCellId& Id,
+		ERTHexSurface Surface, int32 MoveCost, bool bBlocksMovement);
+
 	/** Rimuove la cella con l'Id dato; vero se esisteva. */
 	bool RemoveCell(const FRTCellId& Id);
 

@@ -163,6 +163,11 @@ void ARTHexMapActor::ValidateAsset()
 
 void ARTHexMapActor::PaintTargetCell()
 {
+	PaintCellData(PaintCellTarget, PaintSurface, PaintMoveCost, bPaintBlocksMovement);
+}
+
+void ARTHexMapActor::PaintCellData(const FRTCellId& Id, ERTHexSurface Surface, int32 MoveCost, bool bBlocksMovement)
+{
 	if (!MapAsset)
 	{
 		UE_LOG(LogRT, Warning, TEXT("[HexMap] Nessun MapAsset assegnato."));
@@ -172,21 +177,34 @@ void ARTHexMapActor::PaintTargetCell()
 	const FScopedTransaction Transaction(LOCTEXT("HexPaint", "Hex: Paint Cell"));
 #endif
 	MapAsset->Modify();
-	// Parte dai dati esistenti (se la cella c'e' gia'), poi applica le proprieta' del painting.
-	FRTHexCellData Cell(PaintCellTarget);
-	if (const FRTHexCellData* Existing = MapAsset->FindCell(PaintCellTarget))
-	{
-		Cell = *Existing;
-	}
-	Cell.Surface = PaintSurface;
-	Cell.MoveCost = PaintMoveCost;
-	Cell.bBlocksMovement = bPaintBlocksMovement;
+	const FRTHexCellData Cell = URTHexMapAsset::ApplyBrush(MapAsset->FindCell(Id), Id, Surface, MoveCost, bBlocksMovement);
 	MapAsset->AddOrUpdateCell(Cell);
 	MapAsset->SortCells();
 	MapAsset->MarkPackageDirty();
 	RebuildInstances();
 	UE_LOG(LogRT, Log, TEXT("[HexMap] Paint su %s (superficie %d, costo %d, blocca=%d)."),
-		*PaintCellTarget.ToString(), static_cast<int32>(PaintSurface), PaintMoveCost, bPaintBlocksMovement ? 1 : 0);
+		*Id.ToString(), static_cast<int32>(Surface), MoveCost, bBlocksMovement ? 1 : 0);
+}
+
+bool ARTHexMapActor::EraseCell(const FRTCellId& Id)
+{
+	if (!MapAsset)
+	{
+		UE_LOG(LogRT, Warning, TEXT("[HexMap] Nessun MapAsset assegnato."));
+		return false;
+	}
+#if WITH_EDITOR
+	const FScopedTransaction Transaction(LOCTEXT("HexErase", "Hex: Erase Cell"));
+#endif
+	MapAsset->Modify();
+	const bool bRemoved = MapAsset->RemoveCell(Id);
+	if (bRemoved)
+	{
+		MapAsset->MarkPackageDirty();
+		RebuildInstances();
+	}
+	UE_LOG(LogRT, Log, TEXT("[HexMap] Erase %s: %s."), *Id.ToString(), bRemoved ? TEXT("rimossa") : TEXT("assente"));
+	return bRemoved;
 }
 
 void ARTHexMapActor::AddVerticalTransition()

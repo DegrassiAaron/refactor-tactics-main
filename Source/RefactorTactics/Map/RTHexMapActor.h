@@ -92,6 +92,12 @@ public:
 	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap|Paint")
 	void PaintTargetCell();
 
+	/** Scrive Surface/MoveCost/bBlocksMovement sulla cella Id (la crea se assente, preserva Height/LOS). Annullabile. */
+	void PaintCellData(const FRTCellId& Id, ERTHexSurface Surface, int32 MoveCost, bool bBlocksMovement);
+
+	/** Rimuove la cella Id dall'asset. Vero se esisteva. Annullabile. */
+	bool EraseCell(const FRTCellId& Id);
+
 	/** [H4] Cella di partenza della transizione verticale/speciale (bridge/tunnel/scale/ascensore). */
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap|Transition")
 	FRTCellId TransitionFrom;
