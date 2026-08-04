@@ -87,6 +87,13 @@ public:
 	TArray<FRTCellId> CellsInLayer(int32 Layer) const;
 
 	/**
+	 * Regione contigua (flood-fill) a partire da Start: visita i vicini dello STESSO layer che ESISTONO nell'asset
+	 * e hanno la STESSA superficie di Start (frontiera a stack; l'ordine di visita non altera l'insieme risultante).
+	 * Include Start. Se Start non esiste -> regione vuota. Pura/read-only/deterministica.
+	 */
+	TArray<FRTCellId> FloodRegion(const FRTCellId& Start) const;
+
+	/**
 	 * Aggiunge (o aggiorna, se From->To esiste gia') una transizione verticale/speciale; se bBidirectional aggiunge
 	 * anche l'arco inverso To->From. Incrementa la revisione. Nessun arco duplicato per direzione.
 	 */
