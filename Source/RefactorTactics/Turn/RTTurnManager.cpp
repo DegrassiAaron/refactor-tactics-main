@@ -1123,7 +1123,7 @@ void ARTTurnManager::EnterPlaybackPhase()
 	{
 		for (const FRTMoveAnim& A : MoveAnims)
 		{
-			if (A.Phase == Ph && A.Unit.IsValid()) { OnUnitMoveStarted.Broadcast(A.Unit.Get()); }
+			if (A.Phase == Ph && A.Unit.IsValid()) { A.Unit->bIsMovingVisually = true; OnUnitMoveStarted.Broadcast(A.Unit.Get()); }
 		}
 	}
 }
@@ -1242,6 +1242,15 @@ void ARTTurnManager::FinishPlayback()
 	PlaybackPhases.Reset();
 
 	AddLogEvent(FString::Printf(TEXT("Risoluzione completata (%.1fs)"), PlaybackElapsedTotal));
+	// Fine playback (anche via Skip, che passa di qui): nessuna unita' e' piu' in movimento -> l'AnimBP torna idle.
+	{
+		TArray<AActor*> AllUnits;
+		UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), AllUnits);
+		for (AActor* UnitActor : AllUnits)
+		{
+			if (ARTUnit* U = Cast<ARTUnit>(UnitActor)) { U->bIsMovingVisually = false; }
+		}
+	}
 	OnResolvePlaybackFinished.Broadcast();
 	ConcludeTurn();
 }
