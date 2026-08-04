@@ -6,6 +6,8 @@
 
 class ARTHexMapActor;
 class IToolsContextRenderAPI;
+class UTransformProxy;
+class UCombinedTransformGizmo;
 
 /** Factory del tool archi. */
 UCLASS()
@@ -43,6 +45,17 @@ public:
 
 	UPROPERTY(VisibleAnywhere, Category = "Hex|Arco")
 	bool bToValid = false;
+
+	/** Back-pointer al tool per i bottoni (impostato in Setup). */
+	TWeakObjectPtr<class URTHexArchTool> WeakTool;
+
+	/** Crea la transizione From->To con i parametri correnti. */
+	UFUNCTION(CallInEditor, Category = "Hex|Arco")
+	void Commit();
+
+	/** Annulla l'arco pendente (nessuna scrittura). */
+	UFUNCTION(CallInEditor, Category = "Hex|Arco")
+	void ClearArch();
 };
 
 /**
@@ -58,8 +71,32 @@ public:
 	virtual void Setup() override;
 	virtual void OnClicked(const FInputDeviceRay& ClickPos) override;
 	virtual void Render(IToolsContextRenderAPI* RenderAPI) override;
+	virtual void Shutdown(EToolShutdownType ShutdownType) override;
+	void CommitArch();
+	void ClearPending();
 
 protected:
+	void OnGizmoMoved(UTransformProxy* InProxy, FTransform InTransform);
+	void DestroyPendingGizmo();
+
+	UPROPERTY()
+	TObjectPtr<UTransformProxy> Proxy;
+
+	UPROPERTY()
+	TObjectPtr<UCombinedTransformGizmo> Gizmo;
+
+	UPROPERTY()
+	TObjectPtr<ARTHexMapActor> TargetActor = nullptr;
+
+	FRTCellId From;
+	FRTCellId To;
+	bool bHasFrom = false;
+	bool bToValid = false;
+	bool bSnapping = false;
+	FVector FromWorld = FVector::ZeroVector;
+	FVector ToWorld = FVector::ZeroVector;
+	float MarkerRadius = 90.f;
+
 	UPROPERTY()
 	TObjectPtr<URTHexArchToolProperties> Properties;
 

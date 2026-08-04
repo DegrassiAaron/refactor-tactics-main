@@ -6,6 +6,11 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexLibrary.h"
+#include "InteractiveGizmoManager.h"
+#include "BaseGizmos/TransformProxy.h"
+#include "BaseGizmos/CombinedTransformGizmo.h"
+#include "InteractiveGizmo.h" // ETransformGizmoSubElements
+#include "Map/RTHexCellData.h" // ERTHexTransitionKind
 
 #define LOCTEXT_NAMESPACE "URTHexArchTool"
 
@@ -58,11 +63,113 @@ void URTHexArchTool::Setup()
 	USingleClickTool::Setup();
 	Properties = NewObject<URTHexArchToolProperties>(this);
 	AddToolPropertySource(Properties);
+	Properties->WeakTool = this;
+}
+
+void URTHexArchToolProperties::Commit()
+{
+	if (URTHexArchTool* T = WeakTool.Get()) { T->CommitArch(); }
+}
+
+void URTHexArchToolProperties::ClearArch()
+{
+	if (URTHexArchTool* T = WeakTool.Get()) { T->ClearPending(); }
 }
 
 void URTHexArchTool::OnClicked(const FInputDeviceRay& ClickPos)
 {
-	// H5c.2a: nessuna azione al click (il gizmo arriva in H5c.2b). Placeholder no-op consapevole.
+	ARTHexMapActor* Actor = RTHexEditor::FindTargetMapActor(TargetWorld);
+	if (!Actor)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[HexMode] Nessun ARTHexMapActor bersaglio."));
+		return;
+	}
+	FRTCellId Cell;
+	FVector Center;
+	if (!RTHexEditor::ResolveClickedCell(TargetWorld, Actor, ClickPos, Cell, Center)) { return; }
+
+	DestroyPendingGizmo(); // no duplicati su re-click
+
+	TargetActor = Actor;
+	From = Cell;
+	To = Cell;
+	bHasFrom = true;
+	bToValid = false;
+	FromWorld = Center;
+	MarkerRadius = (Actor->MapAsset ? Actor->MapAsset->HexSize : Actor->HexSize) * 0.9f;
+
+	Proxy = NewObject<UTransformProxy>(this);
+	Proxy->SetTransform(FTransform(Center));
+	Gizmo = GetToolManager()->GetPairedGizmoManager()->CreateCustomTransformGizmo(
+		ETransformGizmoSubElements::TranslateAllAxes, this);
+	Gizmo->SetActiveTarget(Proxy, nullptr);
+	Proxy->OnTransformChanged.AddUObject(this, &URTHexArchTool::OnGizmoMoved);
+
+	if (Properties) { Properties->From = From; Properties->bHasFrom = true; Properties->To = To; Properties->bToValid = false; }
+	UE_LOG(LogTemp, Log, TEXT("[HexMode] Arco: From %s, gizmo spawnato."), *From.ToString());
+}
+
+void URTHexArchTool::Shutdown(EToolShutdownType ShutdownType)
+{
+	DestroyPendingGizmo();
+	USingleClickTool::Shutdown(ShutdownType);
+}
+
+void URTHexArchTool::DestroyPendingGizmo()
+{
+	if (GetToolManager() && GetToolManager()->GetPairedGizmoManager())
+	{
+		GetToolManager()->GetPairedGizmoManager()->DestroyAllGizmosByOwner(this);
+	}
+	Gizmo = nullptr;
+	Proxy = nullptr;
+	bHasFrom = false;
+	bToValid = false;
+	if (Properties) { Properties->bHasFrom = false; Properties->bToValid = false; }
+}
+
+void URTHexArchTool::OnGizmoMoved(UTransformProxy* InProxy, FTransform InTransform)
+{
+	if (bSnapping || !TargetActor || !bHasFrom || !InProxy) { return; }
+
+	const URTHexMapAsset* Map = TargetActor->MapAsset;
+	const float HexSize = Map ? Map->HexSize : TargetActor->HexSize;
+	const float LayerH = Map ? Map->LayerHeight : TargetActor->LayerHeight;
+	const FVector Origin = TargetActor->GetActorLocation();
+
+	const FVector W = InTransform.GetLocation();
+	const int32 Layer = URTHexLibrary::WorldToLayer(W.Z, Origin.Z, LayerH);
+	const FRTCellId Cell = URTHexLibrary::WorldToAxial(W, Origin, HexSize, Layer);
+	To = Cell;
+	// Valido solo se distinto da From e se ENTRAMBE le celle esistono (Commit scriverebbe altrimenti a vuoto).
+	bToValid = (Cell != From) && Map && Map->ContainsCell(Cell) && Map->ContainsCell(From);
+	ToWorld = URTHexLibrary::AxialToWorld(Cell, Origin, HexSize, LayerH);
+
+	// Ri-snap del proxy al centro della cella; SetTransform ri-emette OnTransformChanged -> guardia.
+	bSnapping = true;
+	InProxy->SetTransform(FTransform(ToWorld));
+	bSnapping = false;
+
+	if (Properties) { Properties->To = To; Properties->bToValid = bToValid; }
+}
+
+void URTHexArchTool::CommitArch()
+{
+	if (!TargetActor || !bHasFrom || !bToValid)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[HexMode] Arco: niente da committare (serve From + To valido)."));
+		return;
+	}
+	const ERTHexTransitionKind Kind = Properties ? Properties->Kind : ERTHexTransitionKind::Stair;
+	const int32 Cost = Properties ? Properties->Cost : 2;
+	const bool bBidir = Properties ? Properties->bBidirectional : true;
+	TargetActor->AddTransitionData(From, To, Cost, Kind, bBidir);
+	DestroyPendingGizmo();
+}
+
+void URTHexArchTool::ClearPending()
+{
+	DestroyPendingGizmo();
 }
 
 void URTHexArchTool::Render(IToolsContextRenderAPI* RenderAPI)
@@ -72,16 +179,30 @@ void URTHexArchTool::Render(IToolsContextRenderAPI* RenderAPI)
 	if (!PDI) { return; }
 
 	const ARTHexMapActor* Actor = RTHexEditor::FindTargetMapActor(TargetWorld);
-	if (!Actor || !Actor->MapAsset) { return; }
 
-	const FVector Origin = Actor->GetActorLocation();
-	const float HexSize = Actor->MapAsset->HexSize;
-	const float LayerH = Actor->MapAsset->LayerHeight;
-	for (const FRTHexEdge& E : Actor->MapAsset->Transitions)
+	// Transizioni esistenti (solo se l'asset e' popolato).
+	if (Actor && Actor->MapAsset)
 	{
-		const FVector A = URTHexLibrary::AxialToWorld(E.From, Origin, HexSize, LayerH);
-		const FVector B = URTHexLibrary::AxialToWorld(E.To, Origin, HexSize, LayerH);
-		RTHexArchDrawArrow(PDI, A, B, RTHexArchKindColor(E.Kind));
+		const FVector Origin = Actor->GetActorLocation();
+		const float HexSize = Actor->MapAsset->HexSize;
+		const float LayerH = Actor->MapAsset->LayerHeight;
+		for (const FRTHexEdge& E : Actor->MapAsset->Transitions)
+		{
+			const FVector A = URTHexLibrary::AxialToWorld(E.From, Origin, HexSize, LayerH);
+			const FVector B = URTHexLibrary::AxialToWorld(E.To, Origin, HexSize, LayerH);
+			RTHexArchDrawArrow(PDI, A, B, RTHexArchKindColor(E.Kind));
+		}
+	}
+
+	// Arco pendente (indipendente dall'asset).
+	if (bHasFrom)
+	{
+		RTHexEditor::DrawHexMarker(PDI, FromWorld, MarkerRadius, FColor::Green);
+		if (bToValid)
+		{
+			RTHexEditor::DrawHexMarker(PDI, ToWorld, MarkerRadius, FColor::Blue);
+			RTHexArchDrawArrow(PDI, FromWorld, ToWorld, FColor::White);
+		}
 	}
 }
 
