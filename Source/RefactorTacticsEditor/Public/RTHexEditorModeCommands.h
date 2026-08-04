@@ -21,6 +21,9 @@ public:
 	/** Tool creazione transizioni con gizmo (H5c.2). */
 	TSharedPtr<FUICommandInfo> ArchTool;
 
+	/** Tool secchiello / flood-fill (H5c.7). */
+	TSharedPtr<FUICommandInfo> FillTool;
+
 protected:
 	TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> Commands;
 };
