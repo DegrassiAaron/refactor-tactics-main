@@ -31,4 +31,18 @@ public:
 	 * prima di mescolare). Deterministico, solo interi. Uso: verifica di replay, mai logica di gioco.
 	 */
 	static uint32 HashTurnLog(const TArray<FRTTurnLogEntry>& Entries);
+
+	/**
+	 * Serializza il TurnLog in un buffer binario VERSIONATO e in forma CANONICA (ordina con SortTurnLog
+	 * prima di scrivere -> byte permutazione-invarianti, come l'hash). Header: magic + versione + conteggio;
+	 * poi ogni voce come interi little-endian espliciti (deterministico e portabile, invariante #4).
+	 */
+	static TArray<uint8> SerializeTurnLog(const TArray<FRTTurnLogEntry>& Entries);
+
+	/**
+	 * Ricostruisce il TurnLog da un buffer prodotto da SerializeTurnLog. Ritorna false (fail-closed, nessun
+	 * crash) se magic/versione non riconosciuti o buffer troncato; in tal caso OutEntries e' svuotato.
+	 * Round-trip garantito a livello di hash: HashTurnLog(in) == HashTurnLog(out).
+	 */
+	static bool DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FRTTurnLogEntry>& OutEntries);
 };
