@@ -88,11 +88,39 @@
 | **PIE-HEXPLAY-8** | Multilivello: movimento via arco | mappa con due layer collegati da una transizione | Un percorso che usa scala/ponte **cambia layer**; il playback porta l'unità alla quota giusta (`LayerHeight`); rimuovendo l'arco i due layer tornano irraggiungibili (il path fallisce, non «teletrasporta») | ⏳ |
 | **PIE-HEXPLAY-9** | HUD e anteprima piani su hex | partita hex avviata | Barre HP/scudo/energia, timer, fase e combat log invariati; l'anteprima dei piani (ciano) e la traccia post-lock seguono i **centri esagonali** e coincidono col percorso realmente eseguito | ⏳ |
 
+### Contenuto della v0.1 (catalogo azioni, eroi, ambiente, strutture)
+
+> Voci **pianificate in anticipo** per la release **v0.1** ([`roadmap-v0.1.md`](roadmap-v0.1.md)): il codice non
+> esiste ancora. Le prime dodici traducono la matrice di test manuali del catalogo di bilanciamento (§14); le
+> ultime cinque coprono roster, HUD e strumenti di debug.
+> Precondizioni comuni: partita hex avviata (sessione D verde) e catalogo v0.1 caricato dai data asset.
+> Riferimento issue in [`v0.1-issue-plan.md`](v0.1-issue-plan.md).
+
+| ID | Cosa verificare | Precondizione | Esito atteso | Stato |
+|----|-----------------|---------------|--------------|-------|
+| **PIE-V01-COLL** | Collisione sulla stessa cella | due unità pianificate verso la stessa cella, stessa priorità | Entrambe si fermano nella cella precedente; il log riporta il reason; ripetendo con una `Charge` contro un `Move`, la Charge entra e l'altra resta indietro | ⏳ |
+| **PIE-V01-ROUGH** | Costo del terreno accidentato | mappa con celle `Terrain.Rough` | Attraversare una cella accidentata consuma **2 MP** invece di 1; con 5 MP il raggio raggiungibile si accorcia di conseguenza; `Dash` e `Charge` **non** la attraversano | ⏳ |
+| **PIE-V01-DASHCOVER** | Dash contro copertura alta | copertura alta sulla traiettoria del Dash | Il Dash si ferma prima della copertura oppure è invalidato in pianificazione (nessun attraversamento, nessun crash) | ⏳ |
+| **PIE-V01-PUSH** | Push verso cella occupata | bersaglio con una cella occupata alle spalle | Nessuno spostamento illegale: la spinta si annulla e l'unità resta dov'è; il log spiega il motivo | ⏳ |
+| **PIE-V01-ELEC** | Acqua elettrificata | acqua creata da Riva/Sprinkler + `Electrify` di Flux | La propagazione segue le celle conduttive, si ferma a **3 celle**, colpisce ogni unità **una sola volta**; ripetendo la stessa configurazione l'esito è identico | ⏳ |
+| **PIE-V01-FIREWATER** | Acqua spegne il fuoco | cella in fiamme + acqua sopra | La cella di fuoco è rimossa e `Burning` cancellato dalle unità coinvolte; il fuoco non si propaga oltre | ⏳ |
+| **PIE-V01-LOWCOVER** | Copertura bassa direzionale | copertura bassa su un bordo fra attaccante e bersaglio | L'attacco dal lato protetto infligge **10 danni in meno**; girando attorno e colpendo da un altro lato il danno è pieno | ⏳ |
+| **PIE-V01-INTERCEPT** | Intercept protegge l'alleato | alleato entro 2 celle con `Intercept` preparato | L'intercettore **diventa** il bersaglio dell'attacco diretto; con un AoE o un hazard l'intercetto **non** scatta | ⏳ |
+| **PIE-V01-FF** | Friendly fire su AoE | `CircularAoE` centrato dove c'è anche un alleato | Il danno è applicato **anche** all'alleato; l'HUD/preview lo segnala prima del lock-in | ⏳ |
+| **PIE-V01-FALLBACK** | Fallback su bersaglio che si sposta | attacco diretto su un bersaglio che si muove nello stesso turno | Si applica il fallback dichiarato (`Cancel` per gli attacchi diretti): nessun colpo «inseguente», il log riporta il fallback applicato | ⏳ |
+| **PIE-V01-DOOR** | Porta chiusa durante il turno | percorso che attraversa una porta chiusa da un'azione nello stesso turno | Il grafo è ricostruito: l'unità **si ferma** davanti alla porta (`Fallback.Stop`), nessun path fantasma attraverso la porta chiusa | ⏳ |
+| **PIE-V01-REPLAY** | Replay dello stesso turno | `rt.Debug.DumpTurnLog` + `rt.Debug.VerifyReplay` | Rieseguendo lo stesso turno con lo stesso seed, TurnLog e checksum sono **identici**; il comando non segnala divergenze | ⏳ |
+| **PIE-V01-ROSTER** | Roster dei 4 eroi | `URTHeroData` per Flux, Riva, Bastion, Vektor | Le 4 unità in campo hanno statistiche distinte (90/95/120/100 HP, 5/5/4/6 MP); il bot gestisce MP diversi senza proporre mosse illegali; asset mancante = fallback al cilindro | ⏳ |
+| **PIE-V01-HUD** | HUD di partita completo | partita v0.1 avviata | Barre HP/scudo/energia, timer, fase, **turno su 12**, slot occupati (movimento/principale/reazione) e cooldown residui, tutti a schermo e coerenti col simulatore | ⏳ |
+| **PIE-V01-INTENT** | Intenti alleati e certezza | due unità alleate in pianificazione | Gli intenti alleati mostrano i tre livelli **confermato / previsto / incerto**; **nessun** intento avversario è visibile in alcuna forma | ⏳ |
+| **PIE-V01-LOG** | Combat log con reason code | un turno con un fallback e una modifica ambientale | Ogni voce riporta `ActionId`, priorità, coordinate assiali `(q,r,L)` e `ValidationResult`; i fallback e le modifiche ambientali sono espliciti | ⏳ |
+| **PIE-V01-DEBUG** | Comandi `rt.Debug.*` | build Development o PIE | Gli 8 comandi rispondono; le celle mostrano `CellId`/`TerrainId`/`TraversalCost`/`OccupantId`/`HazardTags`/`CoverEdges`/`ChunkRevision`; **`DrawIntent` non rivela gli intenti avversari** | ⏳ |
+
 ## Sessioni di verifica consigliate
 
 Le voci aperte non vanno affrontate una per una: molte condividono la stessa preparazione. Raggruppandole in
-**quattro sessioni** si apre l'editor una volta sola per gruppo. Ordine consigliato: le sessioni **A** e **B** non
-dipendono da alcun asset da creare, la **C** sì.
+**cinque sessioni** si apre l'editor una volta sola per gruppo. Ordine consigliato: le sessioni **A** e **B** non
+dipendono da alcun asset da creare, la **C** sì; la **D** attende M6 e la **E** la release v0.1.
 
 ### Sessione A — Editor Mode hex (nessun asset richiesto) → 12 voci
 `PIE-HEX-MODE-A/B/C/D/E/F/G/H/I/J/K/L/M/N` + `PIE-HEX`, `PIE-HEX-LAYER`, `PIE-HEX-TRANS`.
@@ -132,13 +160,31 @@ montaggi nel Blast (**AS4b**) → orientamento (**FACING**).
 adotta come DoD del checkpoint 6.8. La mappa di prova va però preparata prima (vedi sotto): serve comunque
 alla Sessione A.
 
-### Mappa di prova consigliata (serve alle sessioni A e D)
+### Sessione E — Contenuto della v0.1 → 17 voci
+`PIE-V01-*`. **Non ancora eseguibile**: attende la release **v0.1** ([`roadmap-v0.1.md`](roadmap-v0.1.md)), che le
+adotta come DoD del checkpoint **12.2** (issue [#82](https://github.com/DegrassiAaron/refactor-tactics-main/issues/82)).
+Le voci si aprono man mano che le epic chiudono, non tutte in fondo:
+
+1. Dopo **E6** (roster): `PIE-V01-ROSTER`.
+2. Dopo **E4** (motore azioni): `PIE-V01-COLL`, `PIE-V01-ROUGH`, `PIE-V01-DASHCOVER`, `PIE-V01-PUSH`, `PIE-V01-FALLBACK`.
+3. Dopo **E5** (reazioni): `PIE-V01-INTERCEPT`.
+4. Dopo **E8** (ambiente): `PIE-V01-ELEC`, `PIE-V01-FIREWATER`, `PIE-V01-FF`.
+5. Dopo **E9** (strutture): `PIE-V01-LOWCOVER`, `PIE-V01-DOOR`.
+6. Dopo **E11** (HUD e debug): `PIE-V01-HUD`, `PIE-V01-INTENT`, `PIE-V01-LOG`, `PIE-V01-DEBUG`, `PIE-V01-REPLAY`.
+
+La mappa di prova della sessione D basta anche qui, con due aggiunte: **una porta** su un passaggio strettoia
+(per `PIE-V01-DOOR`) e **una copertura bassa** su un bordo esposto (per `PIE-V01-LOWCOVER`).
+
+### Mappa di prova consigliata (serve alle sessioni A, D ed E)
 
 Un solo asset copre quasi tutte le verifiche: esagono pieno di **raggio 4** sul layer 0, con
 - 2–3 celle `bBlocksMovement` (ostacoli di movimento),
 - 2–3 celle `bBlocksLineOfSight` **allineate** fra le due metà del campo (per la copertura: PIE-HEXPLAY-6),
 - una superficie a costo alto (Mud/Water) per vedere il budget mordere (PIE-HEXPLAY-3),
 - una piattaforma di 3–4 celle sul layer 1 collegata da **una** transizione (PIE-HEXPLAY-8, PIE-HEX-LAYER/TRANS).
+
+Per la sessione E servono in più: una cella `Terrain.Rough`, una zona d'acqua adiacente a una superficie
+conduttiva, una **porta** su un passaggio obbligato e una **copertura bassa** su un bordo esposto.
 
 ### Cosa serve da me
 
