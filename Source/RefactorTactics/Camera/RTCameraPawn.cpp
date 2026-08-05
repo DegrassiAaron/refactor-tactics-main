@@ -14,8 +14,8 @@ ARTCameraPawn::ARTCameraPawn()
 
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
 	SpringArm->SetupAttachment(SceneRoot);
-	SpringArm->TargetArmLength = DefaultArmLength; // partenza piu' vicina (tunabile via DefaultArmLength)
-	SpringArm->SetRelativeRotation(FRotator(-55.f, 0.f, 0.f)); // Pitch giu' di 55 gradi.
+	SpringArm->TargetArmLength = DefaultArmLength;
+	SpringArm->SetRelativeRotation(FRotator(CameraPitch, 0.f, 0.f)); // inclinazione tunabile (era fissa a -55)
 	SpringArm->bDoCollisionTest = false;
 	SpringArm->bInheritPitch = false;
 	SpringArm->bInheritYaw = false;
@@ -27,15 +27,40 @@ ARTCameraPawn::ARTCameraPawn()
 	Camera->SetupAttachment(SpringArm, USpringArmComponent::SocketName);
 }
 
+void ARTCameraPawn::FocusOn(const FVector& WorldLocation)
+{
+	// Solo X/Y: la quota del pawn resta la sua (il braccio ci pensa da se'). Lo zoom corrente non si tocca,
+	// cosi' il comando inquadra senza sorprendere chi si era gia' regolato la distanza.
+	SetActorLocation(FVector(WorldLocation.X, WorldLocation.Y, GetActorLocation().Z));
+}
+
+void ARTCameraPawn::ApplyViewSettings()
+{
+	if (!SpringArm)
+	{
+		return;
+	}
+	// La distanza iniziale deve stare nello stesso intervallo che lo zoom rispetta: un default fuori range
+	// darebbe una partenza che il primo scroll "corregge" di scatto.
+	SpringArm->TargetArmLength = FMath::Clamp(DefaultArmLength, MinArmLength, MaxArmLength);
+	SpringArm->SetRelativeRotation(FRotator(CameraPitch, 0.f, 0.f));
+}
+
 void ARTCameraPawn::BeginPlay()
 {
 	Super::BeginPlay();
-	if (SpringArm)
-	{
-		SpringArm->TargetArmLength = DefaultArmLength; // applica il default (anche se modificato in editor)
-	}
-	UE_LOG(LogRT, Log, TEXT("[RT] CameraPawn BeginPlay (arm=%.0f)"), SpringArm ? SpringArm->TargetArmLength : -1.f);
+	ApplyViewSettings(); // applica i valori correnti (anche se modificati in editor)
+	UE_LOG(LogRT, Log, TEXT("[RT] CameraPawn BeginPlay (arm=%.0f, pitch=%.0f)"),
+		SpringArm ? SpringArm->TargetArmLength : -1.f, CameraPitch);
 }
+
+#if WITH_EDITOR
+void ARTCameraPawn::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+	ApplyViewSettings(); // tarare distanza/inclinazione dal Details ha effetto subito, anche in PIE
+}
+#endif
 
 void ARTCameraPawn::AddPlanarMovement(const FVector2D& Axis)
 {

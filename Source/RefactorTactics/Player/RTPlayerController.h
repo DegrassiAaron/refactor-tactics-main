@@ -62,6 +62,11 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> RecenterAction;
 
+	/** Centra la camera sull'unita' selezionata (lo zoom orbita attorno al pawn: senza spostarlo ci si
+	    avvicina al centro della mappa invece che al personaggio). */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> FocusAction;
+
 	/** Attore attualmente selezionato (se implementa IRTSelectable). */
 	UPROPERTY()
 	TObjectPtr<AActor> SelectedActor;
@@ -77,6 +82,7 @@ protected:
 	void OnAbility4(const FInputActionValue& Value); // seleziona lo scatto (4a abilita')
 	void OnUndoWaypoint(const FInputActionValue& Value);
 	void OnRecenter(const FInputActionValue& Value);
+	void OnFocusSelected(const FInputActionValue& Value);
 
 	/** Ricostruisce PlannedPath dell'unita' dai PathWaypoints correnti (o lo azzera se vuoti). */
 	void RebuildPlannedPath();
