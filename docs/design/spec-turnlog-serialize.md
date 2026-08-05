@@ -30,10 +30,15 @@ Little-endian **esplicito** (indipendente dall'endianness della piattaforma; non
 |---|---|---|
 | 0 | magic `'RTTL'` (byte `52 54 54 4C`) | uint32 LE |
 | 4 | versione (`ERTTurnLogFormatVersion::WithChecksum = 2`) | uint16 LE |
-| 6 | reserved/flags (spazio per estensioni) | uint16 LE |
+| 6 | **flags = topologia** (`ERTLogTopology`: `0` Square, `1` Hex; altri valori → rifiuto) | uint16 LE |
 | 8 | conteggio voci | uint32 LE |
 | 12.. | N voci (forma canonica), 31 byte/voce | — |
 | coda | **checksum FNV** di tutto ciò che precede (header + voci) | uint32 LE |
+
+Il campo a offset 6 era `reserved` e scritto a 0; da **H6.3** dichiara la topologia delle celle (le voci portano
+3 interi: offset `X,Y,Layer` nel quadrato, assiali `q,r,Layer` nell'esagonale). `Square = 0` mantiene i file
+esistenti leggibili e i byte del quadrato invariati. Senza il marcatore due tracce di topologia diversa sarebbero
+indistinguibili e un confronto incrociato darebbe un falso «nessuna divergenza».
 
 Voce (31 byte): `Phase`(1) + `Category`(1) + `Outcome`(1) + `SrcCell.X/Y/Layer` (3×int32 LE) +
 `TgtCell.X/Y/Layer` (3×int32 LE) + `Amount` (int32 LE). Voci scritte **dopo `SortTurnLog`** → byte
@@ -41,12 +46,15 @@ Voce (31 byte): `Phase`(1) + `Category`(1) + `Outcome`(1) + `SrcCell.X/Y/Layer` 
 
 ## 4. API (in `URTTurnLogLibrary`)
 
-- `static TArray<uint8> SerializeTurnLog(const TArray<FRTTurnLogEntry>&)` — forma canonica + checksum.
-- `static bool DeserializeTurnLog(const TArray<uint8>&, TArray<FRTTurnLogEntry>& Out)` — **fail-closed**
-  (`false`, `Out` svuotato) su magic/versione/troncamento/**checksum mismatch**; bounds-check in ogni lettura.
-- `static bool SaveTurnLogToFile(const FString& Path, const TArray<FRTTurnLogEntry>&)` — wrapper `FFileHelper::SaveArrayToFile`.
-- `static bool LoadTurnLogFromFile(const FString& Path, TArray<FRTTurnLogEntry>& Out)` — wrapper
-  `FFileHelper::LoadFileToArray` + `DeserializeTurnLog`; `false` se il file manca o è invalido/corrotto.
+- `static TArray<uint8> SerializeTurnLog(const TArray<FRTTurnLogEntry>&, ERTLogTopology = Square)` — forma
+  canonica + topologia nei flags + checksum.
+- `static bool DeserializeTurnLog(const TArray<uint8>&, TArray<FRTTurnLogEntry>& Out, ERTLogTopology* OutTopology = nullptr)`
+  — **fail-closed** (`false`, `Out` svuotato) su magic/versione/**topologia sconosciuta**/troncamento/**checksum
+  mismatch**; bounds-check in ogni lettura.
+- `static bool SaveTurnLogToFile(const FString& Path, const TArray<FRTTurnLogEntry>&, ERTLogTopology = Square)` —
+  wrapper `FFileHelper::SaveArrayToFile`.
+- `static bool LoadTurnLogFromFile(const FString& Path, TArray<FRTTurnLogEntry>& Out, ERTLogTopology* OutTopology = nullptr)`
+  — wrapper `FFileHelper::LoadFileToArray` + `DeserializeTurnLog`; `false` se il file manca o è invalido/corrotto.
 
 Contratto: `HashTurnLog(in) == HashTurnLog(Load(Save(in)))`.
 
@@ -82,6 +90,14 @@ guidati da un **RED reale**; bounds-check, caso vuoto, file mancante/corrotto = 
 ☑ TDD RED→GREEN per ogni comportamento sostanziale · ☑ suite **126/126** (116 preesistenti + 10 SR) ·
 ☑ build target Editor **Succeeded** (editor chiuso; Live Coding blocca la build CLI) · ☑ solo interi
 (invariante #4) · ☑ i test file puliscono `Saved/` (nessun residuo) · ☑ spec/roadmap aggiornate.
+
+### Estensione H6.3 (2026-08-05)
+
+Il campo flags porta ora la **topologia** (`D-SR-6`): il formato dichiara se le celle sono quadrate o esagonali,
+il loader rifiuta i valori sconosciuti (fail-closed) e restituisce la topologia letta. `SerializeTurnLog` col
+default `Square` produce **gli stessi byte di prima** (test `RefactorTactics.TurnLog.SquareBytesUnchanged`).
+La topologia **non** entra nell'hash: due esecuzioni della stessa partita condividono la topologia per
+costruzione, e così l'hash del quadrato resta invariato. Vedi [`h6-hex-sim-spec.md`](h6-hex-sim-spec.md) §H6.3.
 
 ## 8. Prossimo slice possibile
 

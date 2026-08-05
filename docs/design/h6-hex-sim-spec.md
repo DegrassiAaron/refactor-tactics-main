@@ -1,4 +1,4 @@
-# Spec H6.1–H6.2 — Simulazione su griglia esagonale (snapshot, budget, collisioni)
+# Spec H6.1–H6.3 — Simulazione su griglia esagonale (snapshot, budget, collisioni, TurnLog)
 
 > **Stato**: **Implementata** (TDD RED→GREEN; suite **140/140**, build Editor Succeeded) · **Data**: 2026-08-05 · **Branch**: `feat/hex-sim`
 > **Fonte**: milestone **H6** di [`hex-map-roadmap.md`](hex-map-roadmap.md) («Integrazione simulatore»).
@@ -89,11 +89,66 @@ architettura aggiornate.
 C2084` (ridefinizione). Finora l'*adaptive unity build* li teneva separati perché erano nel working set di git:
 il difetto era latente e sarebbe emerso in una build pulita/CI. Helper rinominata in `MakeSerEntry`.
 
+---
+
+# H6.3 — TurnLog e replay su celle esagonali
+
+> **Stato**: **Implementata** (TDD RED→GREEN; suite **146/146**, build Editor Succeeded) · **Branch**:
+> `feat/hex-turnlog` · Chiude il KPI «Replay divergence = 0» ([`roadmap-checkpoint.md`](roadmap-checkpoint.md))
+> **per la topologia esagonale**.
+
+## 3bis. Contesto
+
+`ResolveHexPaths` produce esiti autorevoli che nessuno registra: senza TurnLog non c'è replay né confronto fra
+due esecuzioni. `FRTTurnLogEntry` porta 3 interi per cella (`X,Y,Layer`), sufficienti sia per le coordinate
+offset quadrate sia per le assiali `q,r,Layer`: la struttura non cambia, cambia solo **come vanno interpretati**.
+
+## 3ter. Decisioni
+
+| # | Decisione | Motivo |
+|---|-----------|--------|
+| D8 | **Topologia dichiarata nei `reserved/flags`** dell'header (`0 = Square`, `1 = Hex`) | Il campo esiste già ed è scritto a 0: i file esistenti restano leggibili (`flags = 0` → Square) e i byte del quadrato non cambiano. Senza marcatore un log hex e uno quadrato con gli stessi numeri sarebbero indistinguibili → un confronto incrociato darebbe un falso «nessuna divergenza». Loader **fail-closed** su valori sconosciuti, come per la versione. |
+| D9 | La topologia **non entra nell'hash** | L'hash confronta due esecuzioni della *stessa* partita, che hanno per costruzione la stessa topologia; la protezione contro il file sbagliato spetta al loader. Così l'hash del quadrato resta invariato e nessun test esistente va ritoccato. |
+| D10 | `BuildMoveLog` vive in `URTHexSimLibrary`, non nel TurnLog | Il TurnLog resta agnostico rispetto alla topologia; è lo strato hex a sapere come si traducono i propri esiti in voci. |
+| D11 | `SrcCell` = cella di **partenza** del turno (chiave stabile), `Amount` = celle percorse | Stessa disciplina del quadrato (`spec-turnlog.md`): la chiave dell'unità è la cella iniziale, mai un pointer. |
+
+## 4bis. API
+
+- `ERTLogTopology : uint16 { Square = 0, Hex = 1 }` (in `RTTurnLog.h`, non `UENUM`: `uint16` esce dai vincoli
+  UHT del `BlueprintType`, come `ERTTurnLogFormatVersion`).
+- `URTTurnLogLibrary::SerializeTurnLog(Entries, Topology = Square)` — scrive la topologia nei flags.
+- `URTTurnLogLibrary::DeserializeTurnLog(Bytes, OutEntries, OutTopology = nullptr)` — restituisce la topologia
+  letta; **rifiuta** i valori sconosciuti (fail-closed).
+- `SaveTurnLogToFile(Path, Entries, Topology = Square)` · `LoadTurnLogFromFile(Path, OutEntries, OutTopology = nullptr)`.
+- `URTHexSimLibrary::ToLogCoord(const FRTCellId&)` — conversione esplicita cella hex → coordinate di log
+  (i tre interi restano `q, r, Layer`: nessuna reinterpretazione geometrica).
+- `URTHexSimLibrary::BuildMoveLog(Paths, Results)` — una voce per unità: `Phase = Move`, `Category = Move`,
+  `Outcome = ERTMoveOutcome`, `SrcCell` = partenza, `TgtCell` = cella finale, `Amount` = celle percorse.
+
+## 5bis. Test
+
+| Test | Comportamento |
+|---|---|
+| `HexSim.BuildMoveLogEntries` | mossa / bloccata / ferma → voci con src, tgt, amount e reason corretti |
+| `HexSim.MoveLogPermutationInvariant` | permutare le unità → **stesso hash** del log |
+| `HexSim.ReplayDivergenceZero` | stessa risoluzione due volte (ordini diversi) → stesso hash; salvato e ricaricato da file → stesso hash + topologia `Hex`; un intento diverso → hash diverso |
+| `TurnLog.TopologyRoundTrip` | serializzato come `Hex` → riletto come `Hex`; come `Square` → `Square` |
+| `TurnLog.SquareBytesUnchanged` | il default produce byte identici alla serializzazione esplicita `Square`, con flags a 0 (retrocompatibilità dei file esistenti) |
+| `TurnLog.RejectsUnknownTopology` | flags con un valore non previsto → `false`, output svuotato (checksum ricalcolato nel test, così a fallire è la topologia e non l'integrità) |
+
+## 7bis. Definition of Done H6.3 (raggiunta)
+
+☑ TDD RED→GREEN (RED misurato: 4 test falliti con gli stub; `MoveLogPermutationInvariant` rinforzato con
+l'asserzione sul numero di voci, altrimenti due log vuoti avrebbero lo stesso hash) · ☑ build Editor `Succeeded` ·
+☑ suite **146/146** misurata (140 + 6) · ☑ byte del quadrato invariati (retrocompatibilità verificata) ·
+☑ i test file puliscono `Saved/` (nessun residuo) · ☑ nessuna verifica PIE necessaria · ☑ spec, roadmap H6,
+KPI replay, `spec-turnlog-serialize` e architettura aggiornati.
+
 ## 6. Fuori scope (YAGNI, dichiarato)
 
-Wiring in `ARTTurnManager` e switch del turn loop su hex · TurnLog con celle hex (`FRTTurnLogEntry` resta su
-`FRTGridCoord`) · LOS/copertura esagonale · abilità/targeting su hex · rendering delle rotte · bot su hex ·
-knockback/dash · hazard di superficie.
+Wiring in `ARTTurnManager` e switch del turn loop su hex · voci di **combattimento** su hex (abilità/targeting
+esagonali non esistono ancora) · LOS/copertura esagonale · rendering delle rotte · bot su hex · knockback/dash ·
+hazard di superficie.
 
 ## 7. Rischi
 

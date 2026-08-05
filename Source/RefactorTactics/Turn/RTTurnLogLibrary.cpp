@@ -124,7 +124,7 @@ namespace
 	}
 }
 
-TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>& Entries)
+TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>& Entries, ERTLogTopology Topology)
 {
 	// Forma CANONICA: ordina con EntryLess prima di scrivere -> byte permutazione-invarianti (come l'hash).
 	TArray<FRTTurnLogEntry> Canonical = Entries;
@@ -133,10 +133,11 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 	TArray<uint8> Out;
 	Out.Reserve(12 + Canonical.Num() * 31);
 
-	// Header: magic + versione + reserved/flags + conteggio (tutto little-endian).
+	// Header: magic + versione + flags(topologia) + conteggio (tutto little-endian). Square = 0 -> i byte
+	// restano identici a quelli scritti prima che il campo flags fosse usato (retrocompatibilita').
 	AppendU32LE(Out, RT_TURNLOG_MAGIC);
 	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithChecksum));
-	AppendU16LE(Out, 0); // reserved/flags (spazio per estensioni future del formato)
+	AppendU16LE(Out, static_cast<uint16>(Topology));
 	AppendU32LE(Out, static_cast<uint32>(Canonical.Num()));
 
 	for (const FRTTurnLogEntry& E : Canonical)
@@ -159,7 +160,8 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 	return Out;
 }
 
-bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FRTTurnLogEntry>& OutEntries)
+bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FRTTurnLogEntry>& OutEntries,
+	ERTLogTopology* OutTopology)
 {
 	OutEntries.Reset();
 
@@ -170,9 +172,18 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	uint16 Version = 0;
 	if (!ReadU16LE(Bytes, Pos, Version) || Version != static_cast<uint16>(ERTTurnLogFormatVersion::WithChecksum)) { return false; }
 
-	uint16 Reserved = 0;
-	if (!ReadU16LE(Bytes, Pos, Reserved)) { return false; }
-	(void)Reserved;
+	// Flags = topologia delle celle. Fail-closed sui valori sconosciuti (come per la versione): interpretare
+	// coordinate di una topologia ignota produrrebbe un replay sbagliato in silenzio.
+	uint16 Flags = 0;
+	if (!ReadU16LE(Bytes, Pos, Flags)) { return false; }
+	if (Flags != static_cast<uint16>(ERTLogTopology::Square) && Flags != static_cast<uint16>(ERTLogTopology::Hex))
+	{
+		return false;
+	}
+	if (OutTopology)
+	{
+		*OutTopology = static_cast<ERTLogTopology>(Flags);
+	}
 
 	uint32 Count = 0;
 	if (!ReadU32LE(Bytes, Pos, Count)) { return false; }
@@ -219,13 +230,15 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	return true;
 }
 
-bool URTTurnLogLibrary::SaveTurnLogToFile(const FString& Path, const TArray<FRTTurnLogEntry>& Entries)
+bool URTTurnLogLibrary::SaveTurnLogToFile(const FString& Path, const TArray<FRTTurnLogEntry>& Entries,
+	ERTLogTopology Topology)
 {
-	const TArray<uint8> Bytes = SerializeTurnLog(Entries);
+	const TArray<uint8> Bytes = SerializeTurnLog(Entries, Topology);
 	return FFileHelper::SaveArrayToFile(Bytes, *Path);
 }
 
-bool URTTurnLogLibrary::LoadTurnLogFromFile(const FString& Path, TArray<FRTTurnLogEntry>& OutEntries)
+bool URTTurnLogLibrary::LoadTurnLogFromFile(const FString& Path, TArray<FRTTurnLogEntry>& OutEntries,
+	ERTLogTopology* OutTopology)
 {
 	OutEntries.Reset();
 	TArray<uint8> Bytes;
@@ -233,5 +246,5 @@ bool URTTurnLogLibrary::LoadTurnLogFromFile(const FString& Path, TArray<FRTTurnL
 	{
 		return false; // file mancante o illeggibile
 	}
-	return DeserializeTurnLog(Bytes, OutEntries);
+	return DeserializeTurnLog(Bytes, OutEntries, OutTopology);
 }

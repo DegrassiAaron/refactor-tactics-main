@@ -24,7 +24,7 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in forma ridotta (vedi nota) · �
 | M4 Vertical slice | ✅ | Bot (focus-fire, **aggiramento ostacoli**, **kiting** del Ranger), HUD (barre HP + combat log + **anteprima piani** ciano/reveal), vittoria + riavvio |
 | M5 Release interna | ✅ | **63 test** ✅ · **packaging Windows** (Development + **Shipping**) ✅ · DoD MVP formale ✅ |
 
-**Sviluppo consolidato su `main`**: l'MVP (M0–M5) è stato sviluppato in un unico branch di fase e poi mergiato; gli incrementi post-MVP usano feature branch dedicati. **140 test automatici verdi** (`Source/RefactorTactics/Tests/`; conteggio autorevole del repo, misurato 2026-08-05; include TurnLog P3 + hash + serializzazione versionata + checksum + I/O su file + **simulazione esagonale H6.1–H6.2**).
+**Sviluppo consolidato su `main`**: l'MVP (M0–M5) è stato sviluppato in un unico branch di fase e poi mergiato; gli incrementi post-MVP usano feature branch dedicati. **146 test automatici verdi** (`Source/RefactorTactics/Tests/`; conteggio autorevole del repo, misurato 2026-08-05; include TurnLog P3 + hash + serializzazione versionata + checksum + I/O su file + **simulazione esagonale H6.1–H6.3** con TurnLog e replay su hex).
 
 Scelte che divergono dai DoD originali (equivalenti o migliori, documentate qui):
 - **Input in C++** (nessun asset `IA_*`/`IMC_*`): il controller costruisce Enhanced Input via codice.
@@ -193,7 +193,7 @@ decisioni consolidate — vedi [`piano-canonico-mvp.md`](piano-canonico-mvp.md).
 | Preview completa | **< 50 ms** | ⏳ (offline: preview locale immediata) |
 | Resolver server | **< 100 ms/match** | ⏳ non misurato (risoluzione sincrona rapida) |
 | Intent updates | 8–12 Hz | ⏳ (con rete) |
-| **Replay divergence** | **0** | ✅ determinismo by-design + test ordine-indip.; **TurnLog ✅** (permutazione-invariante); **hash di replay ✅** (`ff5e079`); **serializzazione versionata ✅** (`SR`, [`spec-turnlog-serialize.md`](spec-turnlog-serialize.md)) |
+| **Replay divergence** | **0** | ✅ determinismo by-design + test ordine-indip.; **TurnLog ✅** (permutazione-invariante); **hash di replay ✅** (`ff5e079`); **serializzazione versionata ✅** (`SR`, [`spec-turnlog-serialize.md`](spec-turnlog-serialize.md)); **anche su griglia esagonale ✅** (H6.3: `BuildMoveLog` + topologia dichiarata nel formato, test `RefactorTactics.HexSim.ReplayDivergenceZero`) |
 | **Intent leak** | **0** | ⏳ canary (con F1) — privacy già invariante #6 |
 
 ### Risk register (PDR-10 §7) — con stato mitigazione

@@ -69,4 +69,19 @@ public:
 	 * delle richieste. Stessa semantica di URTMovementResolver::ResolvePaths sul quadrato.
 	 */
 	static TArray<FRTHexMoveResult> ResolveHexPaths(const TArray<TArray<FRTCellId>>& Paths);
+
+	/**
+	 * Cella esagonale -> coordinata del TurnLog. I tre interi restano q, r e Layer: nessuna reinterpretazione
+	 * geometrica (il formato serializzato dichiara la topologia con ERTLogTopology::Hex).
+	 */
+	static FRTGridCoord ToLogCoord(const FRTCellId& Cell);
+
+	/**
+	 * Voci di TurnLog dagli esiti del movimento simultaneo: una per unita', nell'ordine dell'input
+	 * (Phase/Category = Move, Outcome = ERTMoveOutcome, SrcCell = cella di PARTENZA del turno — chiave stabile
+	 * dell'unita', mai un pointer —, TgtCell = cella finale, Amount = celle percorse). L'invarianza per
+	 * permutazione e' garantita a valle da URTTurnLogLibrary::SortTurnLog/HashTurnLog.
+	 */
+	static TArray<FRTTurnLogEntry> BuildMoveLog(const TArray<TArray<FRTCellId>>& Paths,
+		const TArray<FRTHexMoveResult>& Results);
 };

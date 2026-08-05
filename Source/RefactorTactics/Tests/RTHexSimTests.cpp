@@ -1,10 +1,13 @@
 #include "Misc/AutomationTest.h"
+#include "HAL/FileManager.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
+#include "Misc/Paths.h"
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
+#include "Turn/RTTurnLogLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -30,6 +33,26 @@ namespace
 	bool PathContains(const FRTHexPathResult& Result, const FRTCellId& Id)
 	{
 		return Result.Path.Contains(Id);
+	}
+
+	/** Voce di log con la cella di partenza indicata (la chiave stabile dell'unita' nel turno). */
+	const FRTTurnLogEntry* EntryFromCell(const TArray<FRTTurnLogEntry>& Log, const FRTCellId& Src)
+	{
+		const FRTGridCoord Key = URTHexSimLibrary::ToLogCoord(Src);
+		return Log.FindByPredicate([&Key](const FRTTurnLogEntry& E)
+		{
+			return E.SrcCell.X == Key.X && E.SrcCell.Y == Key.Y && E.SrcCell.Layer == Key.Layer;
+		});
+	}
+
+	/** Tre intenti che coprono i tre esiti: A bloccata da B ferma, B ferma, C libera di muoversi. */
+	TArray<TArray<FRTCellId>> SamplePaths()
+	{
+		TArray<TArray<FRTCellId>> Paths;
+		Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) });
+		Paths.Add({ FRTCellId(1, 0) });
+		Paths.Add({ FRTCellId(0, 1), FRTCellId(1, 1) });
+		return Paths;
 	}
 }
 
@@ -404,6 +427,118 @@ bool FRTHexSimOrderIndependenceTest::RunTest(const FString&)
 	TestTrue(TEXT("B stesso esito"), R1.Num() == 3 && R2.Num() == 3 && R1[1].Final == R2[1].Final);
 	TestTrue(TEXT("C stesso esito"), R1.Num() == 3 && R2.Num() == 3 && R1[2].Final == R2[0].Final);
 	TestTrue(TEXT("C libera si muove"), R1.Num() == 3 && R1[2].Final == FRTCellId(1, 1));
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// TurnLog e replay (H6.3)
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimBuildMoveLogTest,
+	"RefactorTactics.HexSim.BuildMoveLogEntries",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimBuildMoveLogTest::RunTest(const FString&)
+{
+	const TArray<TArray<FRTCellId>> Paths = SamplePaths();
+	const TArray<FRTHexMoveResult> Results = URTHexSimLibrary::ResolveHexPaths(Paths);
+	const TArray<FRTTurnLogEntry> Log = URTHexSimLibrary::BuildMoveLog(Paths, Results);
+
+	TestEqual(TEXT("una voce per unita'"), Log.Num(), 3);
+
+	// La coordinata di log conserva le assiali (q, r, Layer) senza reinterpretazioni.
+	const FRTGridCoord Converted = URTHexSimLibrary::ToLogCoord(FRTCellId(3, -2, 1));
+	TestTrue(TEXT("conversione cella -> coordinata di log"),
+		Converted.X == 3 && Converted.Y == -2 && Converted.Layer == 1);
+
+	if (const FRTTurnLogEntry* Blocked = EntryFromCell(Log, FRTCellId(0, 0)))
+	{
+		TestTrue(TEXT("A: fase e categoria di movimento"),
+			Blocked->Phase == ERTMatchPhase::Move && Blocked->Category == ERTLogCategory::Move);
+		TestEqual(TEXT("A: reason = bloccata da unita'"),
+			Blocked->Outcome, static_cast<uint8>(ERTMoveOutcome::BlockedByUnit));
+		TestTrue(TEXT("A: destinazione = cella di partenza (non si e' mossa)"),
+			Blocked->TgtCell.X == 0 && Blocked->TgtCell.Y == 0);
+		TestEqual(TEXT("A: zero celle percorse"), Blocked->Amount, 0);
+	}
+	else
+	{
+		AddError(TEXT("voce mancante per l'unita' bloccata"));
+	}
+
+	if (const FRTTurnLogEntry* Still = EntryFromCell(Log, FRTCellId(1, 0)))
+	{
+		TestEqual(TEXT("B: reason = ferma"), Still->Outcome, static_cast<uint8>(ERTMoveOutcome::Stayed));
+		TestEqual(TEXT("B: zero celle percorse"), Still->Amount, 0);
+	}
+	else
+	{
+		AddError(TEXT("voce mancante per l'unita' ferma"));
+	}
+
+	if (const FRTTurnLogEntry* Moved = EntryFromCell(Log, FRTCellId(0, 1)))
+	{
+		TestEqual(TEXT("C: reason = mossa"), Moved->Outcome, static_cast<uint8>(ERTMoveOutcome::Moved));
+		TestTrue(TEXT("C: destinazione raggiunta"), Moved->TgtCell.X == 1 && Moved->TgtCell.Y == 1);
+		TestEqual(TEXT("C: una cella percorsa"), Moved->Amount, 1);
+	}
+	else
+	{
+		AddError(TEXT("voce mancante per l'unita' mossa"));
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimMoveLogPermutationTest,
+	"RefactorTactics.HexSim.MoveLogPermutationInvariant",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimMoveLogPermutationTest::RunTest(const FString&)
+{
+	const TArray<TArray<FRTCellId>> Paths = SamplePaths();
+
+	TArray<TArray<FRTCellId>> Shuffled;
+	Shuffled.Add(Paths[2]); Shuffled.Add(Paths[0]); Shuffled.Add(Paths[1]);
+
+	const TArray<FRTTurnLogEntry> LogA = URTHexSimLibrary::BuildMoveLog(Paths, URTHexSimLibrary::ResolveHexPaths(Paths));
+	const TArray<FRTTurnLogEntry> LogB = URTHexSimLibrary::BuildMoveLog(Shuffled, URTHexSimLibrary::ResolveHexPaths(Shuffled));
+
+	TestEqual(TEXT("una voce per unita'"), LogA.Num(), 3); // senza questa, due log vuoti darebbero lo stesso hash
+	TestEqual(TEXT("stesso numero di voci"), LogA.Num(), LogB.Num());
+	TestEqual(TEXT("hash indipendente dall'ordine delle unita'"),
+		URTTurnLogLibrary::HashTurnLog(LogB), URTTurnLogLibrary::HashTurnLog(LogA));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimReplayDivergenceTest,
+	"RefactorTactics.HexSim.ReplayDivergenceZero",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimReplayDivergenceTest::RunTest(const FString&)
+{
+	const TArray<TArray<FRTCellId>> Paths = SamplePaths();
+
+	// Due esecuzioni della STESSA risoluzione -> stesso log -> stesso hash.
+	const TArray<FRTTurnLogEntry> Run1 = URTHexSimLibrary::BuildMoveLog(Paths, URTHexSimLibrary::ResolveHexPaths(Paths));
+	const TArray<FRTTurnLogEntry> Run2 = URTHexSimLibrary::BuildMoveLog(Paths, URTHexSimLibrary::ResolveHexPaths(Paths));
+	const uint32 Expected = URTTurnLogLibrary::HashTurnLog(Run1);
+	TestEqual(TEXT("nessuna divergenza fra due esecuzioni"), URTTurnLogLibrary::HashTurnLog(Run2), Expected);
+
+	// Traccia persistita e ricaricata: hash preservato e topologia esagonale dichiarata nel formato.
+	const FString Path = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("turnlog_hex_replay.rttl"));
+	TestTrue(TEXT("salvataggio riuscito"),
+		URTTurnLogLibrary::SaveTurnLogToFile(Path, Run1, ERTLogTopology::Hex));
+
+	TArray<FRTTurnLogEntry> Restored;
+	ERTLogTopology Topology = ERTLogTopology::Square;
+	TestTrue(TEXT("caricamento riuscito"), URTTurnLogLibrary::LoadTurnLogFromFile(Path, Restored, &Topology));
+	TestTrue(TEXT("topologia esagonale conservata nel file"), Topology == ERTLogTopology::Hex);
+	TestEqual(TEXT("hash preservato dal round-trip su file"), URTTurnLogLibrary::HashTurnLog(Restored), Expected);
+	IFileManager::Get().Delete(*Path);
+
+	// Un intento diverso deve produrre una traccia diversa (l'hash non e' cieco ai cambiamenti).
+	TArray<TArray<FRTCellId>> Different = Paths;
+	Different[2] = { FRTCellId(0, 1), FRTCellId(0, 2) };
+	const TArray<FRTTurnLogEntry> Other =
+		URTHexSimLibrary::BuildMoveLog(Different, URTHexSimLibrary::ResolveHexPaths(Different));
+	TestNotEqual(TEXT("intento diverso -> hash diverso"), URTTurnLogLibrary::HashTurnLog(Other), Expected);
 	return true;
 }
 
