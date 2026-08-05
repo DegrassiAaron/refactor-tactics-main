@@ -460,6 +460,32 @@ selettore di versione. Non avendo `Modules`, è un progetto solo-contenuti.
 **Prima apertura del vault: è lenta.** L'asset registry indicizza 48 GB. È il costo che il vault sposta *fuori*
 dal progetto di gioco: lo si paga aprendo il magazzino quando serve migrare, non a ogni avvio di RefactorTactics.
 
+## B.2c Junction: vedere il catalogo dal progetto principale (2026-08-05)
+
+Scelta dell'utente: avere **tutti e 26 i pack visibili dal Content Browser di RefactorTactics**, senza migrarli.
+Realizzata con **junction** (link di file system) da `Content/Paragon*` alle cartelle del vault:
+
+```powershell
+New-Item -ItemType Junction -Path "<progetto>\Content\ParagonX" -Target "D:\UE_AssetVault\Content\ParagonX"
+```
+
+Perché una junction e non una copia: gli asset conservano i loro path `/Game/ParagonX/...`, quindi i riferimenti
+interni ai pack restano validi, e **non si occupa spazio** (`Content/` del progetto resta 0,00 GB di asset propri).
+
+**Due conseguenze da tenere presenti**, entrambe accettate consapevolmente:
+
+1. **Il beneficio di avvio del vault è annullato**: ciò che è linkato viene indicizzato come se fosse locale, e
+   sono di nuovo 48 GB. Il vault continua a servire come *organizzazione* (i pack non stanno nel repo, non si
+   duplicano fra progetti), non più come risparmio sul tempo di apertura.
+2. **Il progetto dipende da un percorso esterno**: se `D:\UE_AssetVault` viene spostato o rinominato, le junction
+   si rompono e con loro ogni Blueprint che referenzia quei pack — è lo stesso meccanismo che ha già fatto
+   sparire i `BP_Unit_*`. Un asset proprietario che dipende da un pack linkato **non è autosufficiente**: per
+   renderlo tale serve il Migrate del punto 2.
+
+Le junction sono ignorate da git **come directory** (`/Content/Paragon*/` in `.gitignore`): con un pattern per
+estensione git le attraverserebbe e statterebbe decine di migliaia di file a ogni `git status`. Per rimuoverle
+basta cancellare i link (`Remove-Item` sulla junction, non sul bersaglio): i file restano nel vault.
+
 Il punto 3 è una deviazione consapevole da §11 (che vuole gli spostamenti dal Content Browser): vale **solo**
 per cartelle di terze parti **prive di referenti**, che è esattamente ciò che il vault contiene. Per gli asset
 proprietari resta valida §11.
