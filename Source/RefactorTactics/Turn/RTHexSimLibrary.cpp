@@ -232,6 +232,61 @@ FRTHexPathResult URTHexSimLibrary::FindPathForUnit(const FRTHexSnapshot& Snapsho
 	return URTHexPathLibrary::FindPathAvoiding(Snapshot.Map, Unit->Cell, Goal, &Blocked, Budget);
 }
 
+FRTHexPathResult URTHexSimLibrary::BuildCompositeHexPath(const FRTHexSnapshot& Snapshot, int32 UnitId,
+	const TArray<FRTCellId>& Waypoints)
+{
+	FRTHexPathResult Result;
+
+	const FRTHexSimUnit* Unit = FindUnit(Snapshot, UnitId);
+	if (!Snapshot.Map || !Unit)
+	{
+		Result.Status = ERTHexPathStatus::StartInvalid;
+		return Result;
+	}
+
+	Result.Status = ERTHexPathStatus::Success;
+	Result.Path.Add(Unit->Cell);
+
+	const TSet<FRTCellId> Blocked = BlockedCellsFor(Snapshot, UnitId);
+	int32 Remaining = FMath::Max(0, Unit->MoveBudget);
+	FRTCellId Current = Unit->Cell;
+
+	for (const FRTCellId& Waypoint : Waypoints)
+	{
+		if (Waypoint == Current)
+		{
+			continue; // click ripetuto sulla stessa cella: tratto a costo zero, niente da accodare
+		}
+		if (Remaining <= 0)
+		{
+			// MaxCost == 0 significa "illimitato" per l'A*: senza budget residuo non si chiama.
+			FRTHexPathResult Rejected;
+			Rejected.Status = Snapshot.Map->ContainsCell(Waypoint)
+				? ERTHexPathStatus::NoPath : ERTHexPathStatus::GoalInvalid;
+			return Rejected;
+		}
+
+		const FRTHexPathResult Leg =
+			URTHexPathLibrary::FindPathAvoiding(Snapshot.Map, Current, Waypoint, &Blocked, Remaining);
+		if (Leg.Status != ERTHexPathStatus::Success)
+		{
+			return Leg; // rifiuto dell'INTERO percorso (Path vuoto): il chiamante scarta il waypoint aggiunto
+		}
+
+		// Leg.Path parte da Current, che e' gia' l'ultima cella accumulata: la giunzione non si duplica.
+		for (int32 i = 1; i < Leg.Path.Num(); ++i)
+		{
+			Result.Path.Add(Leg.Path[i]);
+		}
+		Result.TotalCost += Leg.TotalCost;
+		Result.NodesVisited += Leg.NodesVisited;
+		Remaining -= Leg.TotalCost;
+		Current = Waypoint;
+	}
+
+	return Result;
+}
+
 TArray<FRTHexMoveResult> URTHexSimLibrary::ResolveHexPaths(const TArray<TArray<FRTCellId>>& Paths)
 {
 	const int32 N = Paths.Num();

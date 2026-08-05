@@ -98,6 +98,12 @@ int32 URTHexLibrary::WorldToLayer(double WorldZ, double OriginZ, float LayerHeig
 	return FMath::RoundToInt((WorldZ - OriginZ) / static_cast<double>(LayerHeight));
 }
 
+FRTCellId URTHexLibrary::WorldToCellId(const FVector& World, const FVector& Origin, float HexSize, float LayerHeight)
+{
+	const int32 Layer = WorldToLayer(World.Z, Origin.Z, LayerHeight);
+	return WorldToAxial(World, Origin, HexSize, Layer);
+}
+
 float URTHexLibrary::DistanceRayToSegment(const FVector& RayOrigin, const FVector& RayDir, const FVector& A, const FVector& B)
 {
 	// Closest points tra semi-retta (s>=0, dir unitaria) e segmento (t in [0,1]). Adattato da Ericson, con doppio clamp.
