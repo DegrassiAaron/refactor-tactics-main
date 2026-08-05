@@ -131,6 +131,70 @@ bool FRTHexMoveRejectsOutOfBudgetTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexDashReachesCellTest,
+	"RefactorTactics.HexMove.DashReachesCellOnHex",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexDashReachesCellTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 6);
+
+	// Destinazione OBLIQUA (3,-3): distanza ESAGONALE 3, dentro la portata 5 dello scatto — ma distanza di
+	// Manhattan 6 e coordinate negative, quindi irraggiungibile per il pathfinding quadrato. E' il caso che
+	// distingue le due geometrie: se lo scatto girasse ancora sul quadrato, l'unita' resterebbe ferma.
+	ARTUnit* Runner = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Runner) { DestroyHexMoveWorld(World); return false; }
+
+	const int32 DashIdx = Runner->FindDashAbilityIndex();
+	if (!TestTrue(TEXT("il Ranger ha un'abilita' di scatto"), DashIdx != INDEX_NONE))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	const FRTCellId Goal(3, -3);
+	Runner->PlannedCell = Runner->Cell; // nessun movimento normale: si verifica solo lo scatto
+	Runner->PlannedDashAbility = DashIdx;
+	Runner->PlannedDashCell = Goal;
+
+	RunTurn(TM);
+
+	TestTrue(TEXT("lo scatto porta l'unita' sulla cella pianificata"), Runner->Cell == Goal);
+	TestTrue(TEXT("posizione visiva = cella logica"),
+		Runner->GetActorLocation().Equals(Runner->WorldForCell(Goal, FVector::ZeroVector, 100.f, 250.f), 1.0f));
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexDashRejectsOutOfBudgetTest,
+	"RefactorTactics.HexMove.DashRejectsOutOfBudget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexDashRejectsOutOfBudgetTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 8);
+
+	ARTUnit* Runner = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Runner) { DestroyHexMoveWorld(World); return false; }
+
+	const FRTCellId Start = Runner->Cell;
+	Runner->PlannedCell = Start;
+	Runner->PlannedDashAbility = Runner->FindDashAbilityIndex();
+	Runner->PlannedDashCell = FRTCellId(7, 0); // distanza 7 > portata 5 dello scatto
+
+	RunTurn(TM);
+
+	TestTrue(TEXT("scatto oltre la portata: l'unita' resta ferma"), Runner->Cell == Start);
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMoveContestedCellTest,
 	"RefactorTactics.HexMove.ContestedCellStopsBoth",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

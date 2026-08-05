@@ -1,5 +1,7 @@
 #include "Combat/RTHexCombatLibrary.h"
+#include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
+#include "Map/RTHexMapAsset.h"
 #include "Map/RTHexVisionLibrary.h"
 
 namespace
@@ -108,6 +110,46 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 	Plan.BlockedIntents.Sort();
 
 	return Plan;
+}
+
+FRTCellId URTHexCombatLibrary::HexKnockbackDestination(const FRTCellId& Attacker, const FRTCellId& Target, int32 Distance,
+	const URTHexMapAsset* Map, const TArray<FRTCellId>& Occupied)
+{
+	// FAIL-CLOSED: senza mappa autorevole non si sposta nessuno (non si sa cosa c'e' oltre il bersaglio).
+	if (Distance <= 0 || Map == nullptr)
+	{
+		return Target;
+	}
+
+	// Direzione della spinta: l'ULTIMO passo della linea attaccante -> bersaglio, cioe' una delle sei
+	// direzioni esagonali. La linea si calcola sul piano del bersaglio (il Layer non entra nella geometria).
+	const FRTCellId From(Attacker.X, Attacker.Y, Target.Layer);
+	if (From.X == Target.X && From.Y == Target.Y)
+	{
+		return Target; // stessa cella assiale: nessuna direzione da cui allontanarsi
+	}
+
+	const TArray<FRTCellId> Line = URTHexLibrary::HexLine(From, Target);
+	if (Line.Num() < 2)
+	{
+		return Target;
+	}
+	const FRTCellId& Previous = Line[Line.Num() - 2];
+	const int32 StepX = Target.X - Previous.X;
+	const int32 StepY = Target.Y - Previous.Y;
+
+	FRTCellId Current = Target;
+	for (int32 Step = 0; Step < Distance; ++Step)
+	{
+		const FRTCellId Next(Current.X + StepX, Current.Y + StepY, Target.Layer);
+		const FRTHexCellData* Data = Map->FindCell(Next);
+		if (Data == nullptr || Data->bBlocksMovement || Occupied.Contains(Next))
+		{
+			break; // bordo della mappa, ostacolo o unita': ci si ferma sulla cella libera precedente
+		}
+		Current = Next;
+	}
+	return Current;
 }
 
 TArray<FRTAttack> URTHexCombatLibrary::ToAttacks(const FRTHexBlastPlan& Plan)

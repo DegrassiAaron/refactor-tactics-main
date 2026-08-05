@@ -589,30 +589,25 @@ void ARTTurnManager::ResolveDash()
 	UWorld* World = GetWorld();
 	if (!World) { return; }
 
-	ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
-	// Geometria dalla mappa esagonale (una sola fonte di scala in tutto il TurnManager); il pathfinding del
-	// Dash usa ancora costi/limiti quadrati finche' non migra al CP 6.5.
 	FVector Origin; float CellSize; float LayerH;
 	GetHexContext(Origin, CellSize, LayerH);
-	const int32 GridW = Grid ? Grid->Width : 10;
-	const int32 GridH = Grid ? Grid->Height : 10;
-	TMap<FRTCellId, int32> CostMap;
-	if (Grid) { Grid->BuildCostMap(CostMap); }
-	static const TArray<FRTTraversalEdge> NoEdges;
-	const TArray<FRTTraversalEdge>& Edges = Grid ? Grid->GetEdges() : NoEdges;
 
-	TArray<AActor*> Actors;
-	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+	// Stesso strato puro esagonale del movimento normale (CP 6.2): lo scatto e' un movimento con un altro
+	// budget, non un secondo sistema di pathfinding. Lo snapshot congela mappa e occupazione a inizio fase.
+	TArray<ARTUnit*> Units;
+	FRTHexSnapshot Snapshot = MakeCurrentSnapshot(Units);
 
-	// Raccogli le unita' con uno scatto pianificato VALIDO (abilita' dash utilizzabile, destinazione
-	// raggiungibile entro la portata dello scatto). Lo scatto e' consumato per il turno in ogni caso.
-	TArray<ARTUnit*> Dashers;
-	TArray<int32> DashAbilityIdx;
+	// Percorsi: uno per ogni unita' (le non-scattanti restano ferme, ma occupano e bloccano come le altre).
 	TArray<TArray<FRTCellId>> Paths;
-	for (AActor* Actor : Actors)
+	TArray<int32> DashAbilityIdx; // parallelo a Units: INDEX_NONE = non scatta
+	Paths.Reserve(Units.Num());
+	DashAbilityIdx.Init(INDEX_NONE, Units.Num());
+	int32 DasherCount = 0;
+	for (int32 i = 0; i < Units.Num(); ++i)
 	{
-		ARTUnit* Unit = Cast<ARTUnit>(Actor);
-		if (!Unit || !Unit->IsAlive()) { continue; }
+		ARTUnit* Unit = Units[i];
+		Paths.Add({ Unit->Cell }); // default: fermo
+
 		const int32 DashIdx = Unit->PlannedDashAbility;
 		Unit->PlannedDashAbility = INDEX_NONE; // consumato per questo turno (valido o no)
 		const URTAbilityData* Dash = Unit->GetAbility(DashIdx);
@@ -620,49 +615,52 @@ void ARTTurnManager::ResolveDash()
 		{
 			continue;
 		}
-		// Percorso di scatto: pathfinding a grafo, entro il budget di COSTO = RangeCells dello scatto.
-		TArray<FRTCellId> Path = URTGridLibrary::FindPathByGraph(Unit->Cell, Unit->PlannedDashCell, CostMap, Edges, GridW, GridH);
-		const int32 Cost = URTGridLibrary::PathCost(Path, CostMap, Edges);
-		if (Path.Num() < 2 || Cost < 0 || Cost > Unit->GetEffectiveDashRange(Dash->RangeCells))
+
+		// Il budget della fase Dash e' la portata dello SCATTO (con gli status), non il movimento del turno.
+		Snapshot.Units[i].MoveBudget = Unit->GetEffectiveDashRange(Dash->RangeCells);
+		const TArray<FRTCellId> Path = URTHexSimLibrary::FindPathForUnit(Snapshot, /*UnitId=*/ i, Unit->PlannedDashCell).Path;
+		if (Path.Num() < 2)
 		{
-			continue; // destinazione fuori dalla portata dello scatto
+			continue; // destinazione fuori dalla portata dello scatto, bloccata o occupata
 		}
-		Dashers.Add(Unit);
-		DashAbilityIdx.Add(DashIdx);
-		Paths.Add(Path);
+		Paths[i] = Path;
+		DashAbilityIdx[i] = DashIdx;
+		++DasherCount;
 	}
 
-	if (Dashers.Num() == 0) { return; }
+	if (DasherCount == 0) { return; }
 
-	// Scatti simultanei, ordine-indipendenti (stesso resolver del movimento).
-	const TArray<FRTPathResult> Resolved = URTMovementResolver::ResolvePaths(Paths);
+	// Scatti simultanei, ordine-indipendenti (stesso resolver a microstep del movimento).
+	const TArray<FRTHexMoveResult> Resolved = URTHexSimLibrary::ResolveHexPaths(Paths);
 
 	// Eventi per il playback (Move-type, fase Dash) + traccia post-lock. Catturati PRIMA del placement.
-	for (int32 i = 0; i < Dashers.Num(); ++i)
+	for (int32 i = 0; i < Units.Num(); ++i)
 	{
-		if (Resolved[i].Entered.Num() > 0)
+		if (DashAbilityIdx[i] != INDEX_NONE && Resolved[i].Entered.Num() > 0)
 		{
 			TArray<FRTCellId> Route;
-			Route.Add(Dashers[i]->Cell);
+			Route.Add(Units[i]->Cell);
 			Route.Append(Resolved[i].Entered);
 			LastMoveRoutes.Add(Route);
 
 			FRTResolvedEvent Ev;
 			Ev.Phase = ERTMatchPhase::Dash;
 			Ev.Type = ERTResolvedEventType::Move;
-			Ev.Source = Dashers[i];
+			Ev.Source = Units[i];
 			Ev.Path = Route;
 			ResolvedTimeline.Add(Ev);
 		}
 	}
 
 	// Applica le posizioni SENZA cancellare il move normale (scatto + move) e consuma l'abilita'.
-	for (int32 i = 0; i < Dashers.Num(); ++i)
+	for (int32 i = 0; i < Units.Num(); ++i)
 	{
-		ARTUnit* Unit = Dashers[i];
+		if (DashAbilityIdx[i] == INDEX_NONE) { continue; }
+
+		ARTUnit* Unit = Units[i];
 		const FRTCellId PreDash = Unit->Cell;
 		const FRTCellId Final = Resolved[i].Final;
-		AddLogEvent(FString::Printf(TEXT("Scatto: %s -> (%d,%d,L%d)"), *Unit->GetName(), Final.X, Final.Y, Final.Layer));
+		AddLogEvent(FString::Printf(TEXT("Scatto: %s -> (q=%d,r=%d,L%d)"), *Unit->GetName(), Final.X, Final.Y, Final.Layer));
 		Unit->ConsumeAbility(DashAbilityIdx[i]);
 		Unit->Cell = Final;
 		Unit->SetVisualLocation(Unit->WorldForCell(Final, Origin, CellSize, LayerH));
@@ -674,32 +672,10 @@ void ARTTurnManager::ResolveDash()
 		}
 	}
 
-	// Cross-damage per le celle pericolose ATTRAVERSATE dallo scatto (dipende solo dalle celle -> ord.-indip.).
-	for (int32 i = 0; i < Dashers.Num(); ++i)
-	{
-		ARTUnit* Unit = Dashers[i];
-		if (!Unit->IsAlive()) { continue; }
-		int32 CrossDmg = 0;
-		for (const FRTCellId& Cell : Resolved[i].Entered)
-		{
-			const URTTerrainData* Terrain = Grid ? Grid->GetTerrainAt(Cell) : nullptr;
-			if (Terrain) { CrossDmg += Terrain->GetProps().CrossDamage; }
-		}
-		if (CrossDmg > 0)
-		{
-			const FRTDamageResult R = URTCombatLibrary::ApplyDamage(CrossDmg, Unit->Shield, Unit->Health);
-			AddLogEvent(FString::Printf(TEXT("%s: %d danno scattando"), *Unit->GetName(), CrossDmg));
-			if (R.Health <= 0)
-			{
-				AddLogEvent(FString::Printf(TEXT("Eliminata: %s (team %d)"), *Unit->GetName(), Unit->TeamId));
-				FRTResolvedEvent Ev; Ev.Phase = ERTMatchPhase::Dash; Ev.Type = ERTResolvedEventType::Defeated; Ev.Source = Unit;
-				ResolvedTimeline.Add(Ev);
-			}
-			Unit->ApplyCombatState(R.Health, R.Shield);
-		}
-	}
+	// NOTA (CP 6.5): come per il movimento normale, il danno delle celle pericolose attraversate dallo scatto
+	// non esiste nella partita esagonale (dipendeva da URTTerrainData del quadrato): torna con l'epic E8.
 
-	UE_LOG(LogRT, Log, TEXT("[RT] Fase Dash: %d scatti"), Dashers.Num());
+	UE_LOG(LogRT, Log, TEXT("[RT] Fase Dash: %d scatti"), DasherCount);
 }
 
 void ARTTurnManager::ResolveCombat()
@@ -897,29 +873,26 @@ void ARTTurnManager::ResolveCombat()
 		Units[i]->ApplyCombatState(Resolved[i].Health, Resolved[i].Shield); // solo logico: rimozione visiva differita
 	}
 
-	// --- Knockback (spinta): dopo il danno, sulle posizioni snapshot del Blast -----------------------
-	// RESIDUO QUADRATO: la direzione della spinta e' ancora cardinale (KnockbackDestination del quadrato)
-	// applicata a coordinate assiali. Sostituita dalla spinta a 6 direzioni nel CP 6.5; qui resta invariata
-	// per non mescolare due cambi di comportamento nella stessa fetta.
+	// --- Spinta (knockback): dopo il danno, sulle posizioni snapshot del Blast -----------------------
+	// Direzione ESAGONALE (una delle sei), non piu' cardinale: la spinta segue la linea attaccante->bersaglio
+	// e si ferma su bordo mappa, ostacolo o unita'. Spinte multiple sullo stesso bersaglio si annullano.
 	if (KnockCount.Num() > 0)
 	{
-		const int32 KW = 10; // limiti della vecchia griglia quadrata: nessun ARTGridActor nella partita hex
-		const int32 KH = 10;
-		const FVector& KOrigin = HexOrigin;
-		const float KCell = HexSize;
-		const float KLayerH = HexLayerH;
 		// Bloccanti: le celle di tutte le unita' (non si spinge dentro un'altra unita').
-		TArray<FRTCellId> KBlocked;
-		for (ARTUnit* U : Units) { KBlocked.Add(U->Cell); }
+		TArray<FRTCellId> KOccupied;
+		for (ARTUnit* U : Units) { KOccupied.Add(U->Cell); }
 
 		// Destinazioni dallo snapshot: solo bersagli vivi spinti da ESATTAMENTE un attaccante.
+		// Si itera su Units (ordine stabile per cella): l'ordine di iterazione di una TMap non e' garantito
+		// e da qui dipendono la sequenza del playback e quella del combat log.
 		TArray<ARTUnit*> KTargets;
 		TArray<FRTCellId> KFinal;
-		for (const TPair<ARTUnit*, int32>& P : KnockCount)
+		for (ARTUnit* T : Units)
 		{
-			ARTUnit* T = P.Key;
-			if (P.Value != 1 || !IsValid(T) || !T->IsAlive()) { continue; }
-			const FRTCellId Dest = URTCombatLibrary::KnockbackDestination(KnockFrom[T], T->Cell, KnockDist[T], KBlocked, KW, KH);
+			const int32* Pushes = KnockCount.Find(T);
+			if (!Pushes || *Pushes != 1 || !IsValid(T) || !T->IsAlive()) { continue; }
+			const FRTCellId Dest = URTHexCombatLibrary::HexKnockbackDestination(
+				KnockFrom[T], T->Cell, KnockDist[T], Map, KOccupied);
 			if (Dest != T->Cell) { KTargets.Add(T); KFinal.Add(Dest); }
 		}
 		for (int32 a = 0; a < KTargets.Num(); ++a)
@@ -935,20 +908,13 @@ void ARTTurnManager::ResolveCombat()
 			ARTUnit* T = KTargets[a];
 			const FRTCellId OldCell = T->Cell;
 			const FRTCellId NewCell = KFinal[a];
-			AddLogEvent(FString::Printf(TEXT("Spinta: %s -> (%d,%d)"), *T->GetName(), NewCell.X, NewCell.Y));
+			AddLogEvent(FString::Printf(TEXT("Spinta: %s -> (q=%d,r=%d,L%d)"),
+				*T->GetName(), NewCell.X, NewCell.Y, NewCell.Layer));
 
-			// Percorso cardinale della spinta (per animazione + cross-damage): OldCell + celle attraversate.
-			const int32 SX = FMath::Clamp(NewCell.X - OldCell.X, -1, 1);
-			const int32 SY = FMath::Clamp(NewCell.Y - OldCell.Y, -1, 1);
-			// Celle attraversate dalla spinta (per l'animazione). Il danno da attraversamento del terreno
-			// quadrato non esiste piu' nella partita esagonale: torna con l'ambiente attivo (epic E8).
-			TArray<FRTCellId> KPath;
-			KPath.Add(OldCell);
-			for (FRTCellId W(OldCell.X + SX, OldCell.Y + SY, NewCell.Layer); ; W = FRTCellId(W.X + SX, W.Y + SY, NewCell.Layer))
-			{
-				KPath.Add(W);
-				if (W == NewCell) { break; }
-			}
+			// Celle attraversate dalla spinta (per l'animazione): la linea esagonale fra le due celle, i cui
+			// passi sono adiacenti per costruzione. Il danno da attraversamento del terreno quadrato non esiste
+			// piu' nella partita esagonale: torna con l'ambiente attivo (epic E8).
+			const TArray<FRTCellId> KPath = URTHexLibrary::HexLine(OldCell, NewCell);
 
 			// Evento di movimento per il playback: la spinta scivola OldCell -> NewCell nella fase Blast.
 			{
@@ -961,7 +927,7 @@ void ARTTurnManager::ResolveCombat()
 			}
 
 			T->Cell = NewCell;
-			T->SetVisualLocation(T->WorldForCell(NewCell, KOrigin, KCell, KLayerH));
+			T->SetVisualLocation(T->WorldForCell(NewCell, HexOrigin, HexSize, HexLayerH));
 			T->PlannedPath.Reset();      // path composita dalla vecchia cella non valida
 			T->PlannedWaypoints.Reset();
 			if (T->PlannedCell == OldCell) { T->PlannedCell = NewCell; } // niente move pianificato: resta spinto
