@@ -3,6 +3,8 @@
 > Verifiche che richiedono l'editor UE (PIE, mouse, asset) e **non** sono automatizzabili headless.
 > **Complementari** ai test Automation (suite integrata **bot + hex** su `main`, tutti verdi). Parte del DoD «playtest ogni incremento» (roadmap §QA).
 > Regola: una voce è ✅ **solo dopo** verifica reale in PIE — non «dovrebbe funzionare».
+> Per lavorarci in modo efficiente vedi **«Sessioni di verifica consigliate»** in fondo: le voci aperte sono
+> raggruppate per preparazione condivisa, così l'editor si apre una volta per gruppo invece che una per voce.
 
 ## Come eseguire
 - Apri il progetto: doppio clic su `RefactorTactics.uproject` (EngineAssociation `"5.8"`; se l'editor l'ha
@@ -44,6 +46,82 @@
 | **PIE-BU2b** | Tuning pesi bot in editor | worktree `feat/bot-utility`, PIE attivo | Modificando `WKill/WThreat/WKiteViolation/WApproach/WDamage/WElevation` sul `TurnManager` (World Outliner → Details ▸ *Bot*) il comportamento cambia **dal turno successivo, senza ricompilare**: es. ↑`WThreat` = bot più prudente; ↓`WApproach` = mischia meno aggressiva; ↑`WElevation` = predilige le alte quote. Dettagli nella nota sotto | ✅ |
 | **PIE-BU3** | Bot: utility unica posizione/attacco | worktree `feat/bot-utility`, **dopo** refactor BU.3b | Un'unica utility sceglie fra **{resta e attacca}** e **{muoviti per posizionarti}** (l'attacco vale solo da fermo: il Blast precede il Move). Verifica: se attaccare da fermo espone troppo il bot preferisce ripararsi invece di sparare; se l'attacco **uccide** spara sempre; guardie **support/panic/dash** intatte; log `utility -> ... attacca X score=N` oppure `... score=N (resta)` | ✅ |
 | **PIE-BU3c** | Bot: dash+attacco (scatto poi colpisce) | worktree `feat/bot-utility`, **dopo** BU.3c | Se scattando raggiunge una cella da cui ha tiro e l'attacco conviene (utility), il bot pianifica **scatto + attacco** (log `utility -> scatto (x,y,Lz) + attacca X`): nel Blast (dopo il Dash) colpisce dalla cella post-scatto. **Nota**: se lo scatto è deviato da un conflitto di movimento simultaneo, l'attacco può mancare (log `nessuna linea di tiro`) — coerente coi turni simultanei | ✅ |
+
+### Partita su griglia esagonale (H6.6 — wiring del turn loop)
+
+> Voci **pianificate in anticipo**: il codice non esiste ancora (H6.1–H6.5 hanno costruito solo lo strato puro).
+> Servono a definire *prima* cosa dovrà dimostrare lo switch, così la verifica non viene inventata a lavoro finito.
+> Precondizioni comuni: un livello con `ARTHexMapActor` + `MapAsset` popolato (vedi «Mappa di prova» sotto) e il
+> `RTGameMode` che allestisce la partita su quella mappa.
+
+| ID | Cosa verificare | Precondizione | Esito atteso | Stato |
+|----|-----------------|---------------|--------------|-------|
+| **PIE-HEXPLAY-1** | Allestimento della partita su mappa hex | livello di prova + GameMode hex | All'avvio del PIE si vede la griglia **esagonale** con 4 unità (2v2) **centrate sui centri-cella** (nessun offset né compenetrazione); la camera inquadra l'arena; nessun residuo della griglia quadrata | ⏳ |
+| **PIE-HEXPLAY-2** | Selezione e cella sotto il cursore | partita hex avviata | Click su un'unità la seleziona; l'evidenziazione segue la cella **esagonale** sotto il mouse; su mappa multilivello si seleziona la cella del **layer giusto** (celle sovrapposte non si confondono) | ⏳ |
+| **PIE-HEXPLAY-3** | Pianificazione del movimento entro budget | unità del giocatore selezionata | Le celle proposte coincidono con `ReachableCells` (costi del terreno rispettati); una cella **oltre il budget**, **bloccata** o **occupata** viene rifiutata (nessun piano, nessun crash); una cella valida mostra l'anteprima del percorso lungo i centri esagonali | ⏳ |
+| **PIE-HEXPLAY-4** | Risoluzione e playback del movimento | piani impostati, lock-in con **Spazio** | Le unità scorrono di cella in cella lungo il percorso risolto; a fine playback ogni unità è **esattamente** sul centro della cella finale e la posizione visiva coincide con la cella logica (nessuna deriva accumulata) | ⏳ |
+| **PIE-HEXPLAY-5** | Collisione simultanea su hex | due unità pianificate verso la **stessa** cella | Entrambe restano ferme (o si fermano prima), **nessuna sovrapposizione**; il combat log riporta il reason «cella contesa»; ripetendo con lo scambio diretto A↔B lo scambio **riesce** | ⏳ |
+| **PIE-HEXPLAY-6** | Copertura: LOS esagonale | una cella con `bBlocksLineOfSight` fra attaccante e bersaglio | L'attacco pianificato attraverso il muro viene scartato con «nessuna linea di tiro»; spostandosi di una cella di lato il tiro va a segno. Con un ostacolo su un **altro layer** il tiro passa (regola di elevazione) | ⏳ |
+| **PIE-HEXPLAY-7** | Bot su hex | almeno un'unità con `bIsBotControlled` | Il bot propone **solo mosse legali** (mai celle occupate o fuori budget), preferisce le celle al riparo, il kiter mantiene la distanza e la mischia chiude; il log utility mostra celle in coordinate **assiali** `(q,r,L)` | ⏳ |
+| **PIE-HEXPLAY-8** | Multilivello: movimento via arco | mappa con due layer collegati da una transizione | Un percorso che usa scala/ponte **cambia layer**; il playback porta l'unità alla quota giusta (`LayerHeight`); rimuovendo l'arco i due layer tornano irraggiungibili (il path fallisce, non «teletrasporta») | ⏳ |
+| **PIE-HEXPLAY-9** | HUD e anteprima piani su hex | partita hex avviata | Barre HP/scudo/energia, timer, fase e combat log invariati; l'anteprima dei piani (ciano) e la traccia post-lock seguono i **centri esagonali** e coincidono col percorso realmente eseguito | ⏳ |
+
+## Sessioni di verifica consigliate
+
+Le voci aperte non vanno affrontate una per una: molte condividono la stessa preparazione. Raggruppandole in
+**quattro sessioni** si apre l'editor una volta sola per gruppo. Ordine consigliato: le sessioni **A** e **B** non
+dipendono da alcun asset da creare, la **C** sì.
+
+### Sessione A — Editor Mode hex (nessun asset richiesto) → 12 voci
+`PIE-HEX-MODE-A/B/C/D/E/F/G/H/I/J/K/L/M/N` + `PIE-HEX`, `PIE-HEX-LAYER`, `PIE-HEX-TRANS`.
+
+1. Editor **chiuso**, ricompila il target Editor, poi apri `RefactorTactics.uproject`.
+2. Crea (o apri) un livello con un `ARTHexMapActor`; assegna un `URTHexMapAsset` a `MapAsset`; `DemoRadius > 0`
+   oppure `GenerateIntoAsset` per la griglia graybox → **PIE-HEX**.
+3. Attiva il mode **Hex Map** dalla toolbar Modes → **PIE-HEX-MODE-A**.
+4. Tool **Select**: click su celle, controlla il readout; cambia `ActiveLayer` → **PIE-HEX-MODE-B**;
+   attiva `bShowOverlay` → **PIE-HEX-MODE-M**.
+5. Tool **Paint**: click singolo (**C**), `Operation=Erase` (**D**), drag (**I**/**J**), `BrushRadius>0` (**K**).
+   Dopo ogni prova un **Ctrl+Z** e verifica il ripristino.
+6. Tool **Fill**: click su una regione (**N**), poi Ctrl+Z.
+7. Tool **Arch**: gli archi esistenti si disegnano (**F**); click From + gizmo + Commit (**E**); riclicca e cambia
+   tool per il ciclo di vita del gizmo (**G**); trascina in quota per lo snap cross-layer (**H**);
+   `Operation=Remove` e click su un arco (**L**).
+8. Con celle su due layer: `LayerView=ActiveOnly` vs `AllLayers` (**PIE-HEX-LAYER**), `Add/RemoveVerticalTransition`
+   dal pannello Details (**PIE-HEX-TRANS**).
+
+### Sessione B — Turn loop quadrato, senza asset → 2 voci
+`PIE-P3`, `PIE-CP1.4`.
+
+Avvia il PIE sul livello del demo quadrato. Pianifica due unità verso la **stessa** cella e un attacco **attraverso
+un ostacolo**: il combat log deve mostrare «fermo (cella contesa)» e «nessuna linea di tiro» (**PIE-P3**). Muovi il
+mouse sulla griglia per l'evidenziazione della cella (**PIE-CP1.4**).
+
+### Sessione C — Personaggi e materiali (richiede asset creati in editor) → 6 voci
+`PIE-AS5`, `PIE-SEL`, `PIE-AS2`, `PIE-AS4a`, `PIE-AS4b`, `PIE-FACING`.
+
+Da fare **dopo** aver creato `M_TeamRing`, `M_SelectionRing`, `BP_Unit_*`, `ABP_*` e i montaggi
+(guida: [`guida-animazioni-paragon.md`](guida-animazioni-paragon.md)). Una sola partita in PIE le copre tutte:
+anello team (**AS5**) → selezione (**SEL**) → personaggio a terra (**AS2**) → corsa in fase Move (**AS4a**) →
+montaggi nel Blast (**AS4b**) → orientamento (**FACING**).
+
+### Sessione D — Partita su hex → 9 voci
+`PIE-HEXPLAY-1..9`. **Non ancora eseguibile**: attende il wiring H6.6. La mappa di prova va però preparata prima
+(vedi sotto): serve comunque alla Sessione A.
+
+### Mappa di prova consigliata (serve alle sessioni A e D)
+
+Un solo asset copre quasi tutte le verifiche: esagono pieno di **raggio 4** sul layer 0, con
+- 2–3 celle `bBlocksMovement` (ostacoli di movimento),
+- 2–3 celle `bBlocksLineOfSight` **allineate** fra le due metà del campo (per la copertura: PIE-HEXPLAY-6),
+- una superficie a costo alto (Mud/Water) per vedere il budget mordere (PIE-HEXPLAY-3),
+- una piattaforma di 3–4 celle sul layer 1 collegata da **una** transizione (PIE-HEXPLAY-8, PIE-HEX-LAYER/TRANS).
+
+### Cosa serve da me
+
+Non posso eseguire il PIE (richiede l'editor interattivo). Posso: compilare il target prima di ogni sessione,
+prepararti la sequenza esatta dei passi, e **leggere i log** dopo — incolla il percorso di `Saved/Logs/*.log`
+oppure dimmi cosa hai osservato e aggiorno le voci con l'esito (e apro un fix se emerge un difetto).
 
 > **PIE-CP1.4**: codice fatto (`c06ef51`), resta solo la verifica interattiva (evidenziazione cella-cursore).
 > Le altre voci hanno il **codice pronto**; manca solo la verifica interattiva (e, per AS.2/AS.4/AS.5, gli asset in editor).
