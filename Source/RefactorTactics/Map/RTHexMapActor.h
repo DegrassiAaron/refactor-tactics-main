@@ -138,12 +138,29 @@ public:
 	/** Cella corrispondente a un'istanza (INDEX_NONE fuori range). */
 	FRTCellId CellForInstance(int32 InstanceIndex) const;
 
+	/** Numero di celle attualmente rappresentate (istanze ISM). Diagnostica e test. */
+	int32 NumInstanceCells() const { return InstanceCells.Num(); }
+
 protected:
-	virtual void BeginPlay() override;
+	/**
+	 * Ricostruisce la vista a ogni costruzione dell'actor: apertura del livello, spostamento, undo, spawn.
+	 * Le istanze ISM sono una vista DERIVATA dall'asset (autorevole): senza questo, riaprendo il livello la
+	 * griglia non viene ridisegnata e InstanceCells resta vuoto (il click non saprebbe piu' a quale cella
+	 * corrisponde un'istanza).
+	 */
+	virtual void OnConstruction(const FTransform& Transform) override;
+
+#if WITH_EDITOR
+	/** Aggiorna la vista quando si cambia asset, layer, dimensioni o mesh dal pannello Details. */
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	TObjectPtr<UInstancedStaticMeshComponent> Cells;
 
-	/** Mapping instance index -> FRTCellId (per selezione/debug). */
+	/**
+	 * Mapping instance index -> FRTCellId (per selezione/debug). Stato DERIVATO, non serializzato:
+	 * viene rigenerato da RebuildInstances a ogni costruzione dell'actor.
+	 */
 	TArray<FRTCellId> InstanceCells;
 };

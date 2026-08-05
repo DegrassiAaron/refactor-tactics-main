@@ -30,7 +30,7 @@ stato per checkpoint vedi [roadmap](roadmap-checkpoint.md).
 | `Map/RTCellId.h`, `RTHexCellData.h` | `USTRUCT`/enum | `FRTCellId` (assiale q/r + Layer), `ERTHexDirection`, `FRTHexCellData` (superficie/costo/blocchi), `FRTHexEdge` (transizioni) |
 | `Map/RTHexLibrary` | Function Library (pure) | Matematica esagonale pointy-top: vicini, `HexDistance`, `HexArea`, `AxialToWorld`/`WorldToAxial`/`WorldToLayer`, `StableLess`, **`HexLine`** (lerp intero + arrotondamento cubico) e **`HexCone`** (ventaglio 120° = due settori a 60°) |
 | `Map/RTHexVisionLibrary` | Function Library (pure) | `HasLineOfSight` sulla mappa esagonale: linea planare sul layer del tiratore, estremi mai bloccanti, celle assenti non bloccanti ([spec](h6-4-hex-vision-spec.md)) |
-| `Map/RTHexMapAsset`, `RTHexMapActor` | `UPrimaryDataAsset` / `AActor` | Asset autorevole della mappa (celle in ordine stabile, transizioni, `ComputeHash`, `Revision`, `ValidateMap`, primitive di stroke, `FloodRegion`) e rendering ISM |
+| `Map/RTHexMapAsset`, `RTHexMapActor` | `UPrimaryDataAsset` / `AActor` | Asset autorevole della mappa (celle in ordine stabile, transizioni, `ComputeHash`, `Revision`, `ValidateMap`, primitive di stroke, `FloodRegion`) e rendering ISM. Le istanze sono una **vista derivata**: `OnConstruction` (apertura livello, spostamento, undo, spawn) e `PostEditChangeProperty` la ricostruiscono dall'asset — non va tenuta allineata a mano |
 | `Pathfinding/RTHexPathLibrary` | Function Library (pure) | Grafo tattico: `GraphNeighbors` (vicini + archi espliciti), A* deterministico `FindPath` / `FindPathAvoiding` (ostacoli dinamici) |
 | `Selection/RTSelectable.h` | `UINTERFACE` | `IRTSelectable` (`OnSelected`/`OnDeselected`) |
 | `Camera/RTCameraPawn` | `APawn` | Camera tattica: SpringArm inclinato, pan, zoom |
@@ -52,7 +52,7 @@ stato per checkpoint vedi [roadmap](roadmap-checkpoint.md).
 | `Bot/RTHexBotLibrary` | Function Library (pure) | Bot su griglia **esagonale** ([spec](h6-5-hex-bot-spec.md)): stessa politica del quadrato (`ScorePlan`/`ChooseBestPlan`) con distanza esagonale e LOS d'asset; `BuildCandidates` deriva le mosse da `ReachableCells` (budget/blocchi/occupanti/archi già applicati), `PlanUnit` sceglie |
 | `UI/RTHUD` | `AHUD` | Barre HP/scudo, energia, barra abilità, timer/fase, combat log, anteprima piani (ciano/reveal), viz percorso (waypoint + traccia risolta post-lock) |
 | `RTGameMode` | `AGameModeBase` | Allestisce il demo (griglia, luce, 2v2, terreno, turn manager); imposta pawn/controller/HUD; marca team 1 come bot |
-| `Tests/` | Automation | Griglia, resolver, fasi, combat, bot, terreno, hex (mappa/path/layer/**sim**), TurnLog (hash/serializzazione/topologia), visione hex, bot hex — **166 test** (conteggio misurato 2026-08-05). Attenzione: nella *unity build* i file di test condividono la translation unit → gli helper nei namespace anonimi devono avere **nomi distinti tra file** |
+| `Tests/` | Automation | Griglia, resolver, fasi, combat, bot, terreno, hex (mappa/path/layer/**sim**), TurnLog (hash/serializzazione/topologia), visione hex, bot hex, vista mappa — **168 test** (conteggio misurato 2026-08-05). Attenzione: nella *unity build* i file di test condividono la translation unit → gli helper nei namespace anonimi devono avere **nomi distinti tra file** |
 
 ## Flusso di un turno
 
