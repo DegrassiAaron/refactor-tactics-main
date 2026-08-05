@@ -41,8 +41,10 @@ Plugins/VisualStudioTools/
 /dev/
 
 # ---- Asset UE binari: NON versionati (niente Git LFS, evita costi/repo pesante) ----
-# I due asset gia' committati (Content/Materials/M_Unit, Content/Maps/L_Prototype) restano
-# tracciati perche' servono all'avvio; da qui in poi i nuovi asset binari sono ignorati.
+# I due asset gia' committati restano tracciati perche' servono all'avvio; da qui in poi i
+# nuovi asset binari sono ignorati. Percorsi aggiornati dalla migrazione a /Game/RT
+# (CP 6.0, vedi docs/design/convenzioni-contenuti-ue.md): M_Unit -> RT/Art/GlobalMaterials/
+# M_Global_Tint, L_Prototype -> RT/Maps/Dev/L_Prototype/.
 Content/**/*.uasset
 Content/**/*.umap
 Content/**/*.fbx
@@ -56,5 +58,5 @@ Content/**/*.txt
 
 # ---- Eccezioni: questi vanno versionati ----
 !Content/**/Binaries/
-!Content/Materials/M_Unit.uasset
-!Content/Maps/L_Prototype.umap
+!Content/RT/Art/GlobalMaterials/M_Global_Tint.uasset
+!Content/RT/Maps/Dev/L_Prototype/L_Prototype.umap

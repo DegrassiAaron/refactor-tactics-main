@@ -5,7 +5,7 @@
 > percorsi, si modificano asset esistenti, si generano script Editor Utility, si propone un refactoring o si
 > implementa una feature. **Non creare directory alternative senza una motivazione tecnica esplicita.**
 >
-> Lo **stato attuale del progetto non è ancora conforme**: il piano di allineamento è nell'**Appendice A**.
+> Lo stato del progetto è **conforme** dal 2026-08-05: registro della migrazione nell'**Appendice A**.
 
 ---
 
@@ -242,14 +242,15 @@ collaborazione e prevenzione delle dipendenze circolari.
 
 ---
 
-# Appendice A — Stato attuale e piano di migrazione
+# Appendice A — Migrazione a `/Game/RT` (eseguita il 2026-08-05)
 
-> Rilevato il **2026-08-05**. Da eseguire come **CP 6.0** di M6 (prima di creare gli asset nuovi della
-> milestone, così nascono già nella struttura corretta).
+> **Fatta** come CP 6.0: 11 asset spostati con l'API Editor in modalità headless, verifica di integrità
+> superata, suite Automation **172/172** verde. L'appendice resta come registro del *come*: le insidie
+> incontrate valgono per qualunque riorganizzazione futura di `Content/`.
 
-## A.1 Stato attuale (non conforme)
+## A.1 Stato di partenza (non conforme)
 
-10 asset proprietari, organizzati **per tipo** — l'anti-pattern di §2. Nessuno sta sotto `/Game/RT`.
+11 asset proprietari organizzati **per tipo** — l'anti-pattern di §2. Nessuno sotto `/Game/RT`.
 
 | Asset | Tracciato da Git | Note |
 |---|---|---|
@@ -263,9 +264,10 @@ collaborazione e prevenzione delle dipendenze circolari.
 | `Content/Maps/DA_HexMap_Sandbox.uasset` | no | `URTHexMapAsset` della sandbox |
 | `Content/Materials/M_Unit.uasset` | **sì** | materiale colorabile (parametro `Color`) |
 | `Content/Materials/M_TeamRing.uasset` | no | anello di team sotto le unità |
+| `Content/Materials/M_SelectionRing.uasset` | no | anello di selezione — **comparso a inventario iniziato**: ricontare gli asset subito prima di agire |
 
-Terze parti: 22 pack `Content/Paragon*` → **non si toccano** (§1). Presenti anche `Content/Developers/` e
-`Content/Collections/` (cartelle di sistema UE).
+Terze parti: 22 pack `Content/Paragon*` (~3 GB l'uno) → **non si toccano** (§1). Presenti anche
+`Content/Developers/` e `Content/Collections/` (cartelle di sistema UE).
 
 ## A.2 Mapping di migrazione
 
@@ -338,27 +340,66 @@ i due asset versionati escono silenziosamente dal controllo di versione:
 ⚠️ Con la rinomina il file **cambia nome oltre che cartella**: per Git è una cancellazione + un'aggiunta.
 Verifica dopo il commit che `git ls-files Content/` elenchi ancora **due** asset, non zero.
 
-## A.5 Procedura (ordine obbligato)
+## A.5 Procedura seguita (e perché in quest'ordine)
 
-L'ordine conta: `Fix Up Redirectors` **elimina** i redirector, e da quel momento ogni percorso hard-coded non
-aggiornato punta nel vuoto.
+Eseguita **headless** con l'API Editor via `PythonScriptPlugin` — §11 consente il Content Browser *o* l'API
+Editor. Il plugin è stato abilitato nel `.uproject` solo per la migrazione e poi rimosso.
 
-1. **Editor chiuso** → commit di partenza pulito (punto di ritorno).
-2. Editor aperto, Content Browser: crea le cartelle di A.2 e **sposta** gli asset con drag&drop
-   (*Move Here*, non *Copy Here*). Rinomina `ABP_Gideon`→`ABP_Guardian`, `ABP_Sparrow`→`ABP_Ranger`,
-   `M_Unit`→`M_Global_Tint`. **Salva tutto** (`Ctrl+Shift+S`).
-3. **Non ancora** `Fix Up`: chiudi l'editor.
-4. Applica le patch di A.4 (`.ini`, C++, `.gitignore`) e **ricompila** il target Editor.
-5. Riapri l'editor: verifica che `L_Prototype` sia la mappa di avvio e che il GameMode sia risolto.
-6. `Fix Up Redirectors in Folder` su `Content/` (o almeno sulle cartelle di origine vuote).
-7. Elimina le cartelle rimaste vuote (`Content/Blueprints`, `Content/Materials`, `Content/Maps`).
-8. **Verifica**: PIE su `L_Prototype` (unità colorate, anelli, GameMode attivo) e apertura di `L_DevSandbox`
-   con `ARTHexMapActor` che mostra la griglia; suite Automation verde; `git status` senza sparizioni impreviste.
+```
+UnrealEditor-Cmd.exe <project> -run=pythonscript -script="<script>.py" -unattended -nopause -nosplash -nullrhi
+```
 
-**Commit proposto**: `refactor(content): struttura feature-first sotto /Game/RT`
+1. **Backup** degli asset proprietari fuori dal repo (432 KB). Sono **non versionati** (§9): senza copia non
+   esiste un annulla.
+2. Editor chiuso (due processi che scrivono sugli stessi `.uasset` li corrompono).
+3. Patch di A.4 ai riferimenti testuali (`DefaultEngine.ini`, 3 punti C++) **prima** dello spostamento,
+   + **ricompilazione** del target Editor.
+4. Spostamento: `AssetTools.rename_assets` per gli asset normali, *duplicate + delete* per le mappe.
+5. Resave di `/Game/RT`, rimozione dei redirector orfani e delle cartelle vuote.
+6. **Riparazione dei soft reference** dei `BP_Unit_*` (vedi A.6).
+7. Verifica: script di integrità + suite Automation + `.gitignore` aggiornato.
 
-## A.6 Limiti dichiarati
+## A.6 Insidie incontrate (valgono per ogni migrazione futura)
 
-Gli asset `.uasset`/`.umap` sono binari e vanno spostati **dall'editor** (§11): non sono spostabili da questa
-sessione. Il passo 2 richiede l'utente; i passi 4 e le patch di A.4 sono preparabili e applicabili da qui,
-**solo dopo** che lo spostamento è avvenuto — applicarle prima lascerebbe il progetto con percorsi rotti.
+**1. Il dialogo che annulla tutto.** `EditorAssetLibrary.rename_asset` apre *«Source code, config INI, and
+text files may need Find/Replace for: X … Continue with rename?»* per gli asset citati in file di testo. Con
+`-unattended` il dialogo si chiude da solo con **Cancel** e il rename fallisce — e con `rename_assets` in
+batch **un solo Cancel annulla l'intero lotto**. Rimedio: aggiornare INI e C++ *prima*, così il controllo non
+ha più nulla da segnalare, e ricompilare (il soft reference a `M_Unit` vive nel CDO generato dal binario:
+finché non si ricompila, UE continua a vederlo).
+
+**2. Le mappe avvisano comunque.** Anche dopo la pulizia dei riferimenti, i World continuano ad aprire il
+dialogo. Per le due mappe si è usato `duplicate_asset` + `delete_asset`: legittimo *solo* perché nessun asset
+referenzia una mappa (i soli riferimenti erano negli INI, già aggiornati).
+
+**3. `delete_asset` su un World mente.** Ritorna `True` ma il `.umap` resta su disco, lasciando **due copie**
+della stessa mappa. Verificare sempre con `find`, non fidarsi del valore di ritorno. I due file residui sono
+stati rimossi dal file system — deviazione da §11 accettabile qui perché erano duplicati **senza referenti**.
+
+**4. Il resave NON aggiorna i soft reference.** `TeamRingMaterial`/`SelectionRingMaterial` dei `BP_Unit_*` sono
+`TSoftObjectPtr`: a tenerli validi era il redirector. Eliminato il redirector insieme a `/Game/Materials`, i
+due riferimenti sono diventati orfani (letti dal CDO valevano `None`: **gli anelli sarebbero spariti in
+gioco**). Riparati riassegnando i materiali sul CDO + `compile_blueprint` + save. *Prima di cancellare un
+redirector, verifica che nessun soft reference dipendesse da lui.*
+
+**5. L'asset registry mente entro la stessa sessione.** Subito dopo una modifica, `get_dependencies` e
+`get_referencers` restituiscono dati stale (una cartella risultava «assente» mentre le dipendenze la
+citavano). **Ogni verifica va rifatta in un processo nuovo**, altrimenti si insegue un fantasma.
+
+## A.7 Esito verificato
+
+| Verifica | Esito |
+|---|---|
+| 11 asset presenti nei nuovi percorsi | ✅ |
+| `Content/Blueprints`, `Content/Materials`, `Content/Maps` rimosse | ✅ |
+| GameMode dell'INI caricabile e classe risolta | ✅ |
+| `BP_Unit_*` senza dipendenze sui vecchi path | ✅ (dopo A.6 punto 4) |
+| `L_DevSandbox` punta al nuovo `DA_HexMap_Sandbox` | ✅ |
+| Nessun redirector residuo in `/Game/RT` | ✅ |
+| Suite Automation | ✅ **172/172**, 0 fail |
+| I 2 asset versionati restano tracciati nei nuovi percorsi | ✅ |
+
+**Resta da fare in editor** (non verificabile headless): un **PIE su `L_Prototype`** che confermi unità
+colorate, anello di team e anello di selezione visibili — è la prova finale del punto 4 di A.6 — e l'apertura
+di `L_DevSandbox` con la griglia esagonale. Voci `PIE-AS5`/`PIE-SEL` in
+[`test-manuali-pie.md`](test-manuali-pie.md).
