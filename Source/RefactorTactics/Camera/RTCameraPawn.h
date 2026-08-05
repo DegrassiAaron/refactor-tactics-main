@@ -53,4 +53,21 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")
 	float MaxArmLength = 4000.f;
+
+	/**
+	 * Inclinazione del braccio in gradi (negativa = guarda verso il basso). -55 e' una vista a volo d'uccello;
+	 * valori meno ripidi (-40, -35) danno un'inquadratura piu' laterale, in cui i personaggi si leggono meglio.
+	 * Era una costante nel costruttore: esposta qui per poterla tarare in editor senza ricompilare.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
+		meta = (ClampMin = "-89.0", ClampMax = "0.0"))
+	float CameraPitch = -55.f;
+
+	/** Applica distanza (clampata tra Min e Max) e inclinazione correnti al braccio. */
+	void ApplyViewSettings();
+
+#if WITH_EDITOR
+	/** Rende immediate le modifiche di distanza/inclinazione fatte nel Details, anche durante il PIE. */
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 };
