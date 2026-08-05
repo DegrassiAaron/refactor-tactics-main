@@ -71,18 +71,20 @@
 > viene inventata a lavoro finito. Precondizioni comuni: un livello con `ARTHexMapActor` + `MapAsset` popolato
 > (vedi «Mappa di prova» sotto) e il `RTGameMode` che allestisce la partita su quella mappa.
 >
-> **Eseguibili da CP 6.1** (2026-08-05): solo **PIE-HEXPLAY-1** — `ARTGameMode` allestisce dalla mappa hex e
-> `ARTUnit` sta sui centri esagonali. Le voci **2–9 restano non eseguibili**: input, movimento, combat e bot
-> girano ancora sulla matematica quadrata di `URTGridLibrary` applicata a coordinate assiali (stato intermedio
-> dichiarato in `cp6-1-hex-match-setup-plan.md`), e migrano nei CP 6.2–6.6.
+> **Eseguibili da CP 6.2** (2026-08-05): **PIE-HEXPLAY-1** (allestimento) e **PIE-HEXPLAY-4/5** (risoluzione e
+> playback del movimento, collisione simultanea) — il turno di movimento passa dallo strato puro esagonale e
+> tutta la conversione cella→mondo ha un'unica fonte di scala (`ARTTurnManager::GetHexContext`).
+> Restano non eseguibili: **2/3** (input e pianificazione, CP 6.3), **6** (combat, CP 6.4), **7** (bot, CP 6.6),
+> **8/9** (partita completa e HUD, CP 6.7–6.8) — quelle parti girano ancora sulla matematica quadrata di
+> `URTGridLibrary` applicata a coordinate assiali.
 
 | ID | Cosa verificare | Precondizione | Esito atteso | Stato |
 |----|-----------------|---------------|--------------|-------|
 | **PIE-HEXPLAY-1** | Allestimento della partita su mappa hex | livello di prova + GameMode hex | All'avvio del PIE si vede la griglia **esagonale** con 4 unità (2v2) **centrate sui centri-cella** (nessun offset né compenetrazione); la camera inquadra l'arena; nessun residuo della griglia quadrata | ⏳ **eseguibile da CP 6.1**. Attenzione a due cose: le unità sono **cilindri** (i `BP_Unit_*` non esistono più, fallback previsto), e se il livello contiene un `ARTGridActor` **posato a mano** la griglia quadrata si vede ancora — il GameMode non ne crea più, ma non rimuove quelli già nel livello |
 | **PIE-HEXPLAY-2** | Selezione e cella sotto il cursore | partita hex avviata | Click su un'unità la seleziona; l'evidenziazione segue la cella **esagonale** sotto il mouse; su mappa multilivello si seleziona la cella del **layer giusto** (celle sovrapposte non si confondono) | ⏳ |
 | **PIE-HEXPLAY-3** | Pianificazione del movimento entro budget | unità del giocatore selezionata | Le celle proposte coincidono con `ReachableCells` (costi del terreno rispettati); una cella **oltre il budget**, **bloccata** o **occupata** viene rifiutata (nessun piano, nessun crash); una cella valida mostra l'anteprima del percorso lungo i centri esagonali | ⏳ |
-| **PIE-HEXPLAY-4** | Risoluzione e playback del movimento | piani impostati, lock-in con **Spazio** | Le unità scorrono di cella in cella lungo il percorso risolto; a fine playback ogni unità è **esattamente** sul centro della cella finale e la posizione visiva coincide con la cella logica (nessuna deriva accumulata) | ⏳ |
-| **PIE-HEXPLAY-5** | Collisione simultanea su hex | due unità pianificate verso la **stessa** cella | Entrambe restano ferme (o si fermano prima), **nessuna sovrapposizione**; il combat log riporta il reason «cella contesa»; ripetendo con lo scambio diretto A↔B lo scambio **riesce** | ⏳ |
+| **PIE-HEXPLAY-4** | Risoluzione e playback del movimento | piani impostati, lock-in con **Spazio** | Le unità scorrono di cella in cella lungo il percorso risolto; a fine playback ogni unità è **esattamente** sul centro della cella finale e la posizione visiva coincide con la cella logica (nessuna deriva accumulata) | ⏳ **eseguibile da CP 6.2**. Coperto headless da `RefactorTactics.HexMove.UnitReachesPlannedCell`; il PIE aggiunge cio' che il test non vede: la fluidita' dello scorrimento |
+| **PIE-HEXPLAY-5** | Collisione simultanea su hex | due unità pianificate verso la **stessa** cella | Entrambe restano ferme (o si fermano prima), **nessuna sovrapposizione**; il combat log riporta il reason «cella contesa»; ripetendo con lo scambio diretto A↔B lo scambio **riesce** | ⏳ **eseguibile da CP 6.2**. La contesa e' coperta headless da `RefactorTactics.HexMove.ContestedCellStopsBoth` (due esiti `BlockedContested` nel TurnLog); lo **scambio diretto A↔B** non e' coperto da test: e' il caso che il PIE deve davvero esercitare |
 | **PIE-HEXPLAY-6** | Copertura: LOS esagonale | una cella con `bBlocksLineOfSight` fra attaccante e bersaglio | L'attacco pianificato attraverso il muro viene scartato con «nessuna linea di tiro»; spostandosi di una cella di lato il tiro va a segno. Con un ostacolo su un **altro layer** il tiro passa (regola di elevazione) | ⏳ |
 | **PIE-HEXPLAY-7** | Bot su hex | almeno un'unità con `bIsBotControlled` | Il bot propone **solo mosse legali** (mai celle occupate o fuori budget), preferisce le celle al riparo, il kiter mantiene la distanza e la mischia chiude; il log utility mostra celle in coordinate **assiali** `(q,r,L)` | ⏳ |
 | **PIE-HEXPLAY-8** | Multilivello: movimento via arco | mappa con due layer collegati da una transizione | Un percorso che usa scala/ponte **cambia layer**; il playback porta l'unità alla quota giusta (`LayerHeight`); rimuovendo l'arco i due layer tornano irraggiungibili (il path fallisce, non «teletrasporta») | ⏳ |
