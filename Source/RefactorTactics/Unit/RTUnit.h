@@ -232,11 +232,14 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	bool bIsMovingVisually = false;
 
-	/** Posiziona l'unita' al centro-mondo della cella, con la base appoggiata al piano. */
-	void PlaceOnCell(const FRTCellId& InCell, const FVector& GridOrigin, float CellSize, float LayerHeight = 0.f);
+	/** Posiziona l'unita' al centro-mondo della cella esagonale, con la base appoggiata al piano. */
+	void PlaceOnCell(const FRTCellId& InCell, const FVector& Origin, float HexSize, float LayerHeight);
 
-	/** Posizione-mondo che PlaceOnCell userebbe per InCell, senza modificare lo stato logico (per il playback). */
-	FVector WorldForCell(const FRTCellId& InCell, const FVector& GridOrigin, float CellSize, float LayerHeight = 0.f) const;
+	/**
+	 * Posizione-mondo che PlaceOnCell userebbe per InCell, senza modificare lo stato logico (per il playback).
+	 * LayerHeight non ha default: su mappa multilivello e' un dato reale della mappa, non un extra opzionale.
+	 */
+	FVector WorldForCell(const FRTCellId& InCell, const FVector& Origin, float HexSize, float LayerHeight) const;
 
 	/** Sposta solo la mesh (presentazione): NON cambia Cell ne' il piano. Usato dall'animazione del turno. */
 	void SetVisualLocation(const FVector& World);

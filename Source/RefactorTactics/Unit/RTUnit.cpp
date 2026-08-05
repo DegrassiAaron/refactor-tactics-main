@@ -1,5 +1,6 @@
 #include "Unit/RTUnit.h"
-#include "Grid/RTGridLibrary.h"
+#include "Grid/RTGridLibrary.h" // solo DirectionYaw: lavora su FVector, resta valida anche su hex
+#include "Map/RTHexLibrary.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Ability/RTAbilityData.h"
 #include "Core/RTGameplayTags.h"
@@ -142,19 +143,21 @@ void ARTUnit::ApplyTeamColor()
 	}
 }
 
-void ARTUnit::PlaceOnCell(const FRTCellId& InCell, const FVector& GridOrigin, float CellSize, float LayerHeight)
+void ARTUnit::PlaceOnCell(const FRTCellId& InCell, const FVector& Origin, float HexSize, float LayerHeight)
 {
-	Cell = InCell;
+	Cell = InCell;        // posizione AUTOREVOLE (invariante #2: il FVector sotto e' solo rendering)
 	PlannedCell = InCell; // dopo un movimento, il piano riparte dalla cella attuale
 	PlannedPath.Reset();      // il percorso composito e' consumato
 	PlannedWaypoints.Reset(); // e i suoi waypoint
-	SetActorLocation(WorldForCell(InCell, GridOrigin, CellSize, LayerHeight));
+	SetActorLocation(WorldForCell(InCell, Origin, HexSize, LayerHeight));
 }
 
-FVector ARTUnit::WorldForCell(const FRTCellId& InCell, const FVector& GridOrigin, float CellSize, float LayerHeight) const
+FVector ARTUnit::WorldForCell(const FRTCellId& InCell, const FVector& Origin, float HexSize, float LayerHeight) const
 {
-	// Delegato alla utility pura (testata): VisualZOffset = 90 per il cilindro, 0 per personaggi (pivot ai piedi).
-	return URTGridLibrary::CellToWorldElevated(InCell, GridOrigin, CellSize, VisualZOffset, LayerHeight);
+	// La geometria esagonale sta in URTHexLibrary (pura e testata): qui si aggiunge SOLO l'offset di
+	// presentazione (VisualZOffset = 90 per il cilindro, 0 per i personaggi col pivot ai piedi).
+	return URTHexLibrary::AxialToWorld(InCell, Origin, HexSize, LayerHeight)
+		+ FVector(0.f, 0.f, VisualZOffset);
 }
 
 void ARTUnit::SetVisualLocation(const FVector& World)

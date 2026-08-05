@@ -91,7 +91,7 @@ ARTUnit* ARTGameMode::SpawnUnit(int32 TeamId, const FRTCellId& Cell, bool bGuard
 		Unit->bIsBotControlled = (TeamId == 1); // team 1 giocato dal bot
 		Unit->ConfigureAsArchetype(bGuardian ? ERTArchetype::Guardian : ERTArchetype::Ranger);
 		UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);
-		Unit->PlaceOnCell(Cell, GridOrigin, CellSize);
+		Unit->PlaceOnCell(Cell, GridOrigin, CellSize, /*LayerHeight=*/ 0.f);
 	}
 	return Unit;
 }

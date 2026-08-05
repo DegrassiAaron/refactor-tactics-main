@@ -45,7 +45,7 @@ namespace
 		U->bIsBotControlled = false; // i piani li scriviamo noi: niente decisioni del bot in mezzo
 		U->ConfigureAsArchetype(Arch);
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
-		U->PlaceOnCell(Cell, FVector::ZeroVector, 200.f);
+		U->PlaceOnCell(Cell, FVector::ZeroVector, 200.f, /*LayerHeight=*/ 0.f);
 		return U;
 	}
 

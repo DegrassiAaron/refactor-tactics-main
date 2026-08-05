@@ -47,7 +47,7 @@ namespace
 		U->bIsBotControlled = (TeamId == 1);
 		U->ConfigureAsArchetype(Arch);
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
-		U->PlaceOnCell(Cell, FVector::ZeroVector, 200.f);
+		U->PlaceOnCell(Cell, FVector::ZeroVector, 200.f, /*LayerHeight=*/ 0.f);
 		return U;
 	}
 
