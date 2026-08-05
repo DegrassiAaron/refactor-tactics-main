@@ -33,4 +33,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Hex")
 	static FRTHexPathResult FindPath(const URTHexMapAsset* Map, const FRTCellId& Start, const FRTCellId& Goal,
 		int32 MaxCost = 0, int32 MaxNodes = 100000);
+
+	/**
+	 * Come FindPath, ma tratta le celle in Blocked come non percorribili (ostacoli DINAMICI, es. unita' occupanti:
+	 * non appartengono all'asset mappa). Blocked == nullptr equivale a FindPath. Goal bloccato -> NoPath.
+	 */
+	static FRTHexPathResult FindPathAvoiding(const URTHexMapAsset* Map, const FRTCellId& Start, const FRTCellId& Goal,
+		const TSet<FRTCellId>* Blocked, int32 MaxCost = 0, int32 MaxNodes = 100000);
 };

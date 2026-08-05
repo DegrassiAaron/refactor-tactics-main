@@ -36,14 +36,16 @@ stato per checkpoint vedi [roadmap](roadmap-checkpoint.md).
 | `Terrain/RTTerrainData` | `PrimaryDataAsset` | `URTTerrainData` — 5 tipi: Fango (costo), Cespuglio (blocca vista), Altura (+danno), Lava (hazard), Erba→Fuoco (dinamico) |
 | `Terrain/RTTerrainLibrary` | Function Library (pure) | `CellMoveCost`, `BlocksMovement`, `BlocksVision` |
 | `Turn/RTTurnRules` | Function Library (pure) | `ERTMatchPhase` + `NextPhase`; `ERTMatchOutcome` + `EvaluateOutcome` |
-| `Turn/RTMovementResolver` | Function Library | `FRTMoveRequest`/`ResolveMoves` (conflitti); `FRTPathResult`/`ResolvePaths` (microstep sincroni, cross-damage, **ordine-indipendente**) |
+| `Turn/RTMovementResolver` | Function Library | `FRTMoveRequest`/`ResolveMoves` (conflitti); `FRTPathResult`/`ResolvePaths` (microstep sincroni, cross-damage, **ordine-indipendente**) — griglia **quadrata** |
+| `Turn/RTHexSim.h` | `USTRUCT`/struct | `FRTHexSimUnit` (UnitId/cella/vivo/`MoveBudget`), `FRTHexReachableCell`, `FRTHexMoveResult`; `FRTHexSnapshot` (struct puro: mappa referenziata + hash/revisione, occupazione copiata; vive solo dentro una fase) |
+| `Turn/RTHexSimLibrary` | Function Library (pure) | Simulazione su griglia **esagonale** (strato parallelo al quadrato, [spec](h6-hex-sim-spec.md)): `MakeSnapshot`/`ValidateSnapshot`/`IsSnapshotStale`, `IsCellFree`, `ReachableCells` (Dijkstra entro `MoveBudget`), `FindPathForUnit` (A* che evita le unità), `ResolveHexPaths` (microstep simultanei) |
 | `Turn/RTTurnManager` | `AActor` | Orchestratore: fasi, timer 30s, `PlanBots`, `ResolvePrep` (scudo/self-buff), `ResolveCombat` (Blast), `ResolveMovement` (Move + hazard fine turno), combat log, `LastMoveRoutes` (viz post-lock), esito |
 | `Combat/RTCombatLibrary` | Function Library (pure) | `ApplyDamage` (scudo poi HP), `GainEnergy`, `IsUltimateReady`, `EffectiveMoveRange` (Root/Slow), `IsAbilityUsable`, `IsIntentVisibleTo` (**invariante #6**), `EffectiveAttackPower` (Altura) |
 | `Combat/RTCombatResolver` | Function Library | `FRTUnitCombatState`, `FRTAttack`; `ResolveAttacks` (raccogli-poi-applica, focus-fire) |
 | `Bot/RTBotLibrary` | Function Library | Avvicinamento (`StepToward`) + scelta bersaglio/abilità; **path/cost/hazard-aware**; kiting del Ranger |
 | `UI/RTHUD` | `AHUD` | Barre HP/scudo, energia, barra abilità, timer/fase, combat log, anteprima piani (ciano/reveal), viz percorso (waypoint + traccia risolta post-lock) |
 | `RTGameMode` | `AGameModeBase` | Allestisce il demo (griglia, luce, 2v2, terreno, turn manager); imposta pawn/controller/HUD; marca team 1 come bot |
-| `Tests/` | Automation | 7 file — `RTGridTests`, `RTMovementResolverTests`, `RTTurnRulesTests`, `RTCombatLibraryTests`, `RTCombatResolverTests`, `RTBotLibraryTests`, `RTTerrainTests` — **50 test** |
+| `Tests/` | Automation | Griglia, resolver, fasi, combat, bot, terreno, hex (mappa/path/layer/**sim**), TurnLog (hash/serializzazione) — **140 test** (conteggio misurato 2026-08-05). Attenzione: nella *unity build* i file di test condividono la translation unit → gli helper nei namespace anonimi devono avere **nomi distinti tra file** |
 
 ## Flusso di un turno
 

@@ -24,7 +24,7 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in forma ridotta (vedi nota) · �
 | M4 Vertical slice | ✅ | Bot (focus-fire, **aggiramento ostacoli**, **kiting** del Ranger), HUD (barre HP + combat log + **anteprima piani** ciano/reveal), vittoria + riavvio |
 | M5 Release interna | ✅ | **63 test** ✅ · **packaging Windows** (Development + **Shipping**) ✅ · DoD MVP formale ✅ |
 
-**Sviluppo consolidato su `main`**: l'MVP (M0–M5) è stato sviluppato in un unico branch di fase e poi mergiato; gli incrementi post-MVP usano feature branch dedicati. **126 test automatici verdi** (`Source/RefactorTactics/Tests/`; conteggio autorevole del repo, 2026-08-04; include TurnLog P3 + hash + **serializzazione versionata + checksum + I/O su file**).
+**Sviluppo consolidato su `main`**: l'MVP (M0–M5) è stato sviluppato in un unico branch di fase e poi mergiato; gli incrementi post-MVP usano feature branch dedicati. **140 test automatici verdi** (`Source/RefactorTactics/Tests/`; conteggio autorevole del repo, misurato 2026-08-05; include TurnLog P3 + hash + serializzazione versionata + checksum + I/O su file + **simulazione esagonale H6.1–H6.2**).
 
 Scelte che divergono dai DoD originali (equivalenti o migliori, documentate qui):
 - **Input in C++** (nessun asset `IA_*`/`IMC_*`): il controller costruisce Enhanced Input via codice.
