@@ -4,6 +4,8 @@
 #include "Turn/RTTurnLogLibrary.h"
 #include "Combat/RTCombatResolver.h"
 #include "Combat/RTCombatLibrary.h"
+#include "Combat/RTHexCombatLibrary.h"
+#include "Map/RTHexLibrary.h"
 #include "Ability/RTAbilityData.h"
 #include "Bot/RTBotLibrary.h"
 #include "Core/RTGameplayTags.h"
@@ -702,34 +704,99 @@ void ARTTurnManager::ResolveDash()
 
 void ARTTurnManager::ResolveCombat()
 {
-	// Celle che bloccano la linea di tiro (copertura + terreno, es. cespuglio).
-	static const TArray<FRTCellId> NoBlockers;
-	ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
-	const TArray<FRTCellId> Blockers = Grid ? Grid->GetVisionBlockers() : NoBlockers;
+	// Mappa ESAGONALE autorevole: portata (distanza esagonale) e linea di tiro si valutano qui.
+	// Il terreno quadrato (Altura, incendio) non entra piu' nel Blast: l'ambiente attivo su hex e' l'epic E8.
+	FVector HexOrigin; float HexSize; float HexLayerH;
+	const URTHexMapAsset* Map = GetHexContext(HexOrigin, HexSize, HexLayerH);
 
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
 
 	TArray<ARTUnit*> Units;
-	TMap<ARTUnit*, int32> IndexOf;
-	TArray<FRTUnitCombatState> States;
 	Units.Reserve(Actors.Num());
-	States.Reserve(Actors.Num());
 	for (AActor* Actor : Actors)
 	{
 		if (ARTUnit* Unit = Cast<ARTUnit>(Actor))
 		{
-			IndexOf.Add(Unit, Units.Num());
 			Units.Add(Unit);
-			States.Add(FRTUnitCombatState(Unit->Health, Unit->Shield));
 		}
 	}
+	// Ordine STABILE per cella: GetAllActorsOfClass non e' ordinato, e da questo ordine dipendono gli indici
+	// del piano, il TurnLog e la sequenza del playback. Una cella ospita al piu' un'unita' -> ordine totale.
+	Units.Sort([](const ARTUnit& A, const ARTUnit& B) { return URTHexLibrary::StableLess(A.Cell, B.Cell); });
 
-	// Raccogli gli attacchi validi in base all'abilita' pianificata: bersaglio nemico, vivo,
-	// entro la portata dell'abilita', con linea di tiro; l'abilita' deve essere utilizzabile.
-	TArray<FRTAttack> Attacks;
+	TMap<ARTUnit*, int32> IndexOf;
+	TArray<FRTUnitCombatState> States;
+	TArray<FRTHexCombatUnit> HexUnits;
+	States.Reserve(Units.Num());
+	HexUnits.Reserve(Units.Num());
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		ARTUnit* Unit = Units[i];
+		IndexOf.Add(Unit, i);
+		States.Add(FRTUnitCombatState(Unit->Health, Unit->Shield));
+
+		FRTHexCombatUnit HexUnit;
+		HexUnit.UnitId = i; // identita' = indice (come FRTHexSnapshot::Units)
+		HexUnit.TeamId = Unit->TeamId;
+		HexUnit.Cell = Unit->Cell;
+		HexUnit.bAlive = Unit->IsAlive();
+		HexUnits.Add(HexUnit);
+	}
+
+	// Intenti d'attacco: qui si valida l'ABILITA' (esiste, non e' uno scatto, e' utilizzabile);
+	// la GEOMETRIA (portata, linea di tiro, celle colpite) la valida URTHexCombatLibrary.
+	TArray<FRTHexAttackIntent> Intents;
+	TArray<int32> IntentAbilityIndex;
+	TArray<const URTAbilityData*> IntentAbility;
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		ARTUnit* Unit = Units[i];
+		ARTUnit* Target = Unit->PlannedAttackTarget;
+		const int32 AbilityIndex = Unit->PlannedAbilityIndex;
+		Unit->PlannedAttackTarget = nullptr; // consumati nel turno
+		Unit->PlannedAbilityIndex = INDEX_NONE;
+
+		const URTAbilityData* Ability = Unit->GetAbility(AbilityIndex);
+		if (!Ability || Ability->bDash || !Target || !IndexOf.Contains(Target) || !Unit->CanUseAbility(AbilityIndex))
+		{
+			continue;
+		}
+
+		FRTHexAttackIntent Intent;
+		Intent.AttackerId = i;
+		Intent.TargetId = IndexOf[Target];
+		Intent.Shape = Ability->Shape;
+		Intent.RangeCells = Ability->RangeCells;
+		Intent.AreaRadius = Ability->AreaRadius;
+		Intent.Power = URTCombatLibrary::EffectiveAttackPower(Ability->Power, /*OccupantDamageBonus=*/ 0);
+		Intents.Add(Intent);
+		IntentAbilityIndex.Add(AbilityIndex);
+		IntentAbility.Add(Ability);
+	}
+
+	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(HexUnits, Intents, Map);
+
+	// Intenti fermati dalla copertura: l'attacco non avviene e il TurnLog ne registra il motivo.
+	for (const int32 BlockedIdx : Plan.BlockedIntents)
+	{
+		if (!Intents.IsValidIndex(BlockedIdx)) { continue; }
+		const FRTHexAttackIntent& Blocked = Intents[BlockedIdx];
+		FRTTurnLogEntry NoLos;
+		NoLos.Phase = ERTMatchPhase::Blast;
+		NoLos.Category = ERTLogCategory::Combat;
+		NoLos.Outcome = static_cast<uint8>(ERTCombatOutcome::NoLineOfSight);
+		NoLos.SrcCell = HexUnits[Blocked.AttackerId].Cell;
+		NoLos.TgtCell = HexUnits[Blocked.TargetId].Cell;
+		NoLos.Amount = 0;
+		TurnLog.Add(NoLos);
+		AddLogEvent(FString::Printf(TEXT("%s -> %s: nessuna linea di tiro"),
+			*Units[Blocked.AttackerId]->GetName(), *Units[Blocked.TargetId]->GetName()));
+	}
+
+	// Colpi a segno -> attacchi da applicare, con gli effetti collaterali dell'abilita' che li ha prodotti.
+	const TArray<FRTAttack> Attacks = URTHexCombatLibrary::ToAttacks(Plan);
 	TArray<FRTCellId> AttackSrc;  // cella dell'attaccante per ogni FRTAttack (TurnLog)
-	TArray<int32> AttackBonus;       // bonus altura dell'attaccante per ogni FRTAttack (TurnLog)
 	TArray<ARTUnit*> Attackers;
 	TArray<int32> UsedAbilityIndex;
 	// Status inflitti dalle abilita' (bersaglio + tag + durata, in array paralleli).
@@ -741,113 +808,44 @@ void ARTTurnManager::ResolveCombat()
 	TMap<ARTUnit*, FRTCellId> KnockFrom;
 	TMap<ARTUnit*, int32> KnockDist;
 	TMap<ARTUnit*, int32> KnockCount;
-	for (ARTUnit* Unit : Units)
+	AttackSrc.Reserve(Plan.Hits.Num());
+	for (const FRTHexAttackHit& Hit : Plan.Hits)
 	{
-		ARTUnit* Target = Unit->PlannedAttackTarget;
-		const int32 AbilityIndex = Unit->PlannedAbilityIndex;
-		Unit->PlannedAttackTarget = nullptr; // consumati nel turno
-		Unit->PlannedAbilityIndex = INDEX_NONE;
+		ARTUnit* Attacker = Units[Hit.AttackerId];
+		ARTUnit* Victim = Units[Hit.TargetId];
+		const URTAbilityData* Ability = IntentAbility.IsValidIndex(Hit.IntentIndex) ? IntentAbility[Hit.IntentIndex] : nullptr;
+		AttackSrc.Add(HexUnits[Hit.AttackerId].Cell);
 
-		const URTAbilityData* Ability = Unit->GetAbility(AbilityIndex);
-		// Attacco valido a meno della LOS: se solo la LOS manca, registra NoLineOfSight (attacco "a vuoto").
-		const bool bBaseValid = Ability && !Ability->bDash && Target && IndexOf.Contains(Target)
-			&& Target->TeamId != Unit->TeamId && Unit->CanUseAbility(AbilityIndex)
-			&& URTGridLibrary::IsWithinRange(Unit->Cell, Target->Cell, Ability->RangeCells);
-		if (bBaseValid && !URTGridLibrary::HasLineOfSight(Unit->Cell, Target->Cell, Blockers))
+		if (Ability && Ability->StatusToApply.IsValid() && Ability->StatusDuration > 0)
 		{
-			FRTTurnLogEntry NoLos;
-			NoLos.Phase = ERTMatchPhase::Blast;
-			NoLos.Category = ERTLogCategory::Combat;
-			NoLos.Outcome = static_cast<uint8>(ERTCombatOutcome::NoLineOfSight);
-			NoLos.SrcCell = Unit->Cell;
-			NoLos.TgtCell = Target->Cell;
-			NoLos.Amount = 0;
-			TurnLog.Add(NoLos);
-			AddLogEvent(FString::Printf(TEXT("%s -> %s: nessuna linea di tiro"), *Unit->GetName(), *Target->GetName()));
-		}
-		if (!bBaseValid || !URTGridLibrary::HasLineOfSight(Unit->Cell, Target->Cell, Blockers))
-		{
-			continue;
+			StatusTargets.Add(Victim);
+			StatusTags.Add(Ability->StatusToApply);
+			StatusDurations.Add(Ability->StatusDuration);
 		}
 
-		auto AddStatus = [&](ARTUnit* Victim)
+		// Knockback: registra l'intento di spinta (dalla cella dell'attaccante).
+		if (Ability && Ability->bKnockback && Ability->KnockbackDistance > 0)
 		{
-			if (Ability->StatusToApply.IsValid() && Ability->StatusDuration > 0)
-			{
-				StatusTargets.Add(Victim);
-				StatusTags.Add(Ability->StatusToApply);
-				StatusDurations.Add(Ability->StatusDuration);
-			}
-		};
-
-		// Celle colpite in base alla forma dell'abilita'.
-		TArray<FRTCellId> HitCells;
-		switch (Ability->Shape)
-		{
-		case ERTAbilityShape::Line:
-			HitCells = URTGridLibrary::CellsInLine(Unit->Cell, Target->Cell);
-			break;
-		case ERTAbilityShape::Cone:
-			HitCells = URTGridLibrary::CellsInCone(Unit->Cell, Target->Cell, Ability->RangeCells);
-			break;
-		case ERTAbilityShape::Area:
-			HitCells = URTGridLibrary::CellsInRadius(Target->Cell, Ability->AreaRadius);
-			break;
-		default:
-			HitCells.Add(Target->Cell);
-			break;
+			KnockFrom.Add(Victim, HexUnits[Hit.AttackerId].Cell);
+			KnockDist.Add(Victim, Ability->KnockbackDistance);
+			KnockCount.FindOrAdd(Victim)++;
 		}
 
-		// Ignite (terreno dinamico): un'abilita' che incendia converte le celle infiammabili nell'area
-			// in Fuoco (stesso turno: la mutazione avviene in Blast, prima del Move).
-			if (Ability->bIgnites && Grid)
-			{
-				for (const FRTCellId& HC : HitCells)
-				{
-					const URTTerrainData* Terr = Grid->GetTerrainAt(HC);
-					if (Terr && Terr->GetProps().bFlammable && Terr->IgnitesTo)
-					{
-						Grid->SetTerrainAt(HC, Terr->IgnitesTo, Terr->IgnitesTo->GetProps().TransientDuration);
-						AddLogEvent(FString::Printf(TEXT("Incendio a (%d,%d)"), HC.X, HC.Y));
-					}
-				}
-			}
+		// Evento per il playback: colpo Attacker -> Victim (mostrato nel Blast).
+		FRTResolvedEvent Ev;
+		Ev.Phase = ERTMatchPhase::Blast;
+		Ev.Type = ERTResolvedEventType::Attack;
+		Ev.Source = Attacker;
+		Ev.Target = Victim;
+		Ev.Amount = Hit.Power;
+		ResolvedTimeline.Add(Ev);
 
-			// Buff della cella dell'attaccante (es. Altura +danno), valutato in Blast = posizione pre-movimento.
-			const URTTerrainData* AttackerTerrain = Grid ? Grid->GetTerrainAt(Unit->Cell) : nullptr;
-			const int32 AttackerDmgBonus = AttackerTerrain ? AttackerTerrain->GetProps().OccupantDamageBonus : 0;
-			const int32 EffPower = URTCombatLibrary::EffectiveAttackPower(Ability->Power, AttackerDmgBonus);
-
-			// Colpisce ogni nemico su una cella bersaglio.
-		for (ARTUnit* Other : Units)
+		// L'abilita' si consuma una volta per attaccante, anche se il colpo prende piu' bersagli.
+		if (!Attackers.Contains(Attacker))
 		{
-			if (Other->TeamId != Unit->TeamId && HitCells.Contains(Other->Cell))
-			{
-				Attacks.Add(FRTAttack(IndexOf[Other], EffPower));
-				AttackSrc.Add(Unit->Cell);
-				AttackBonus.Add(AttackerDmgBonus);
-				AddStatus(Other);
-
-				// Knockback: registra l'intento di spinta (dalla cella dell'attaccante).
-				if (Ability->bKnockback && Ability->KnockbackDistance > 0)
-				{
-					KnockFrom.Add(Other, Unit->Cell);
-					KnockDist.Add(Other, Ability->KnockbackDistance);
-					KnockCount.FindOrAdd(Other)++;
-				}
-
-				// Evento per il playback: colpo Unit -> Other (mostrato nel Blast).
-				FRTResolvedEvent Ev;
-				Ev.Phase = ERTMatchPhase::Blast;
-				Ev.Type = ERTResolvedEventType::Attack;
-				Ev.Source = Unit;
-				Ev.Target = Other;
-				Ev.Amount = EffPower;
-				ResolvedTimeline.Add(Ev);
-			}
+			Attackers.Add(Attacker);
+			UsedAbilityIndex.Add(IntentAbilityIndex.IsValidIndex(Hit.IntentIndex) ? IntentAbilityIndex[Hit.IntentIndex] : INDEX_NONE);
 		}
-		Attackers.Add(Unit);
-		UsedAbilityIndex.Add(AbilityIndex);
 	}
 
 	if (Attacks.Num() == 0)
@@ -878,14 +876,16 @@ void ARTTurnManager::ResolveCombat()
 		ResolvedTimeline.Add(Ev);
 	}
 
-	// TurnLog: esito di ogni attacco applicato (classificato da stato pre/post + bonus altura).
+	// TurnLog: esito di ogni attacco applicato (classificato da stato pre/post).
+	// Il bonus di elevazione e' 0 finche' l'ambiente esagonale non lo reintroduce (epic E8/E9): senza dato
+	// reale, dichiararlo 0 e' preferibile a leggerlo da un terreno quadrato che non e' piu' nella partita.
 	for (int32 a = 0; a < Attacks.Num(); ++a)
 	{
 		const int32 Idx = Attacks[a].TargetIndex;
 		FRTTurnLogEntry E;
 		E.Phase = ERTMatchPhase::Blast;
 		E.Category = ERTLogCategory::Combat;
-		E.Outcome = static_cast<uint8>(URTCombatLibrary::ClassifyCombatOutcome(BeforeHP[Idx], AfterHP[Idx], AttackBonus[a]));
+		E.Outcome = static_cast<uint8>(URTCombatLibrary::ClassifyCombatOutcome(BeforeHP[Idx], AfterHP[Idx], /*AttackerDmgBonus=*/ 0));
 		E.SrcCell = AttackSrc[a];
 		E.TgtCell = Units[Idx]->Cell;
 		E.Amount = BeforeHP[Idx] - AfterHP[Idx];
@@ -898,14 +898,18 @@ void ARTTurnManager::ResolveCombat()
 	}
 
 	// --- Knockback (spinta): dopo il danno, sulle posizioni snapshot del Blast -----------------------
+	// RESIDUO QUADRATO: la direzione della spinta e' ancora cardinale (KnockbackDestination del quadrato)
+	// applicata a coordinate assiali. Sostituita dalla spinta a 6 direzioni nel CP 6.5; qui resta invariata
+	// per non mescolare due cambi di comportamento nella stessa fetta.
 	if (KnockCount.Num() > 0)
 	{
-		const int32 KW = Grid ? Grid->Width : 10;
-		const int32 KH = Grid ? Grid->Height : 10;
-		FVector KOrigin; float KCell; float KLayerH;
-		GetHexContext(KOrigin, KCell, KLayerH); // stessa scala di risoluzione e playback
-		// Bloccanti: ostacoli + celle di tutte le unita' (non si spinge dentro un'altra unita').
-		TArray<FRTCellId> KBlocked = Grid ? Grid->GetMoveBlockers() : TArray<FRTCellId>();
+		const int32 KW = 10; // limiti della vecchia griglia quadrata: nessun ARTGridActor nella partita hex
+		const int32 KH = 10;
+		const FVector& KOrigin = HexOrigin;
+		const float KCell = HexSize;
+		const float KLayerH = HexLayerH;
+		// Bloccanti: le celle di tutte le unita' (non si spinge dentro un'altra unita').
+		TArray<FRTCellId> KBlocked;
 		for (ARTUnit* U : Units) { KBlocked.Add(U->Cell); }
 
 		// Destinazioni dallo snapshot: solo bersagli vivi spinti da ESATTAMENTE un attaccante.
@@ -936,14 +940,13 @@ void ARTTurnManager::ResolveCombat()
 			// Percorso cardinale della spinta (per animazione + cross-damage): OldCell + celle attraversate.
 			const int32 SX = FMath::Clamp(NewCell.X - OldCell.X, -1, 1);
 			const int32 SY = FMath::Clamp(NewCell.Y - OldCell.Y, -1, 1);
+			// Celle attraversate dalla spinta (per l'animazione). Il danno da attraversamento del terreno
+			// quadrato non esiste piu' nella partita esagonale: torna con l'ambiente attivo (epic E8).
 			TArray<FRTCellId> KPath;
 			KPath.Add(OldCell);
-			int32 KCross = 0;
 			for (FRTCellId W(OldCell.X + SX, OldCell.Y + SY, NewCell.Layer); ; W = FRTCellId(W.X + SX, W.Y + SY, NewCell.Layer))
 			{
 				KPath.Add(W);
-				const URTTerrainData* Terr = Grid ? Grid->GetTerrainAt(W) : nullptr;
-				if (Terr) { KCross += Terr->GetProps().CrossDamage; }
 				if (W == NewCell) { break; }
 			}
 
@@ -962,18 +965,6 @@ void ARTTurnManager::ResolveCombat()
 			T->PlannedPath.Reset();      // path composita dalla vecchia cella non valida
 			T->PlannedWaypoints.Reset();
 			if (T->PlannedCell == OldCell) { T->PlannedCell = NewCell; } // niente move pianificato: resta spinto
-			if (KCross > 0)
-			{
-				const FRTDamageResult R = URTCombatLibrary::ApplyDamage(KCross, T->Shield, T->Health);
-				AddLogEvent(FString::Printf(TEXT("%s: %d danno spinto"), *T->GetName(), KCross));
-				if (R.Health <= 0)
-				{
-					AddLogEvent(FString::Printf(TEXT("Eliminata: %s (team %d)"), *T->GetName(), T->TeamId));
-					FRTResolvedEvent Ev; Ev.Phase = ERTMatchPhase::Blast; Ev.Type = ERTResolvedEventType::Defeated; Ev.Source = T;
-					ResolvedTimeline.Add(Ev);
-				}
-				T->ApplyCombatState(R.Health, R.Shield);
-			}
 		}
 	}
 
