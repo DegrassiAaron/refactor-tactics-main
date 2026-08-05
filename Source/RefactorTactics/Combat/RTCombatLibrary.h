@@ -57,6 +57,16 @@ public:
 	static bool IsIntentVisibleTo(int32 ObserverTeamId, int32 OwnerTeamId, bool bOwnerRevealed);
 
 	/**
+	 * AUTORITA' sull'unita': un giocatore comanda solo le unita' della PROPRIA squadra — quindi puo' selezionarle
+	 * e pianificarne le azioni. Regola esplicita e testabile invece che implicita nel controller: senza, un click
+	 * su un'unita' avversaria la rende "selezionata" e da li' si finisce a pianificare i turni del nemico
+	 * (oltre a bloccare la selezione delle proprie, vedi OnSelect). Parente dell'invariante #6: quel che non e'
+	 * tuo non lo vedi e non lo comandi.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static bool CanPlayerControlUnit(int32 UnitTeamId, int32 PlayerTeamId);
+
+	/**
 	 * Danno effettivo di un attacco dato il bonus della cella occupata dall'attaccante
 	 * (es. Altura +danno). Risultato con clamp >= 0.
 	 */

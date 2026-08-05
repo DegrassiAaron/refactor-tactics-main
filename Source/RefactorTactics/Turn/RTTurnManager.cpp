@@ -1240,6 +1240,14 @@ void ARTTurnManager::EnterPlaybackPhase()
 	const ERTMatchPhase Ph = PlaybackPhases[PlaybackPhaseIdx];
 	AddLogEvent(FString::Printf(TEXT("Playback fase: %s"), *GetPlaybackPhaseName()));
 	OnPhasePlaybackStarted.Broadcast(Ph);
+	// In corsa deve risultare SOLO chi si muove in QUESTA fase. Senza l'azzeramento, un'unita' che ha scattato
+	// nel Dash resta con il flag alzato per tutto il Blast (e il Move) e l'AnimBP la tiene in corsa sul posto:
+	// il flag lo spegneva solo FinishPlayback, a risoluzione conclusa.
+	for (const FRTMoveAnim& A : MoveAnims)
+	{
+		if (A.Unit.IsValid()) { A.Unit->bIsMovingVisually = false; }
+	}
+
 	if (Ph == ERTMatchPhase::Dash || Ph == ERTMatchPhase::Move || Ph == ERTMatchPhase::Blast)
 	{
 		for (const FRTMoveAnim& A : MoveAnims)

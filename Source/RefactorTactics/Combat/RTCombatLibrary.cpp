@@ -51,6 +51,12 @@ bool URTCombatLibrary::IsIntentVisibleTo(int32 ObserverTeamId, int32 OwnerTeamId
 	return ObserverTeamId == OwnerTeamId || bOwnerRevealed;
 }
 
+bool URTCombatLibrary::CanPlayerControlUnit(int32 UnitTeamId, int32 PlayerTeamId)
+{
+	// Nessuna eccezione: si comanda solo la propria squadra (niente "possessione" di unita' avversarie).
+	return UnitTeamId == PlayerTeamId;
+}
+
 int32 URTCombatLibrary::EffectiveAttackPower(int32 BasePower, int32 OccupantDamageBonus)
 {
 	return FMath::Max(0, BasePower + OccupantDamageBonus);
