@@ -6,6 +6,11 @@
 #include "Map/RTHexCellData.h"
 #include "RTHexMapAsset.generated.h"
 
+#if WITH_EDITOR
+/** L'asset e' cambiato per una via che i chiamanti non controllano (undo/redo, editing dal suo editor). */
+DECLARE_MULTICAST_DELEGATE(FRTHexMapAssetChanged);
+#endif
+
 /**
  * Asset AUTOREVOLE e serializzato di una mappa esagonale (formato dati, non decorazione visiva).
  * Le celle sono conservate in un array con ORDINE STABILE (Layer, X, Y); una cache Id->indice velocizza l'accesso
@@ -111,6 +116,22 @@ public:
 
 	/** Validazione minimale: Id duplicati, costi negativi, transizioni verso celle inesistenti. Ritorna gli errori. */
 	TArray<FString> ValidateMap() const;
+
+	/**
+	 * Invalida la cache Id->indice. Va chiamata quando Cells viene modificato SENZA passare dalle API di questa
+	 * classe (tipicamente un undo/redo, che riscrive la property direttamente): la cache resterebbe altrimenti
+	 * allineata allo stato precedente e FindCell leggerebbe l'indice sbagliato — o fuori dall'array, se le celle
+	 * sono diminuite.
+	 */
+	void InvalidateLookup() const { bLookupDirty = true; }
+
+#if WITH_EDITOR
+	/** Notifica di cambiamento non mediato dalle API (undo/redo): chi mostra l'asset deve riallinearsi. */
+	FRTHexMapAssetChanged OnMapChanged;
+
+	/** Invalida la cache e notifica gli osservatori: dopo un undo i dati sono cambiati sotto i piedi a tutti. */
+	virtual void PostEditUndo() override;
+#endif
 
 private:
 	/** Cache Id->indice (transient, ricostruita pigramente). Non e' il formato autorevole. */
