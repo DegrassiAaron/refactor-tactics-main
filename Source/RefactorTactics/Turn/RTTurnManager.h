@@ -9,6 +9,7 @@
 #include "RTTurnManager.generated.h"
 
 class ARTUnit;
+class URTHexMapAsset;
 
 // Delegate per la presentazione in Blueprint (camera/VFX/SFX): il playback riproduce eventi gia' risolti.
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRTPhasePlaybackSignature, ERTMatchPhase, Phase);
@@ -148,6 +149,13 @@ protected:
 	void ResolveMovement();
 	void StartPlanningTimer();
 	void OnPlanningTimeout();
+
+	/**
+	 * Contesto geometrico della mappa esagonale del livello: origine dell'actor e dimensioni prese dall'asset
+	 * autorevole (o dall'actor, se l'asset manca). Unico punto da cui passano tutte le conversioni cella->mondo,
+	 * cosi' risoluzione e playback non possono divergere di scala. Ritorna l'asset (nullptr se non c'e' mappa).
+	 */
+	const URTHexMapAsset* GetHexContext(FVector& OutOrigin, float& OutHexSize, float& OutLayerHeight) const;
 
 	/** Termina il turno: se la partita e' decisa la chiude, altrimenti riapre la pianificazione. */
 	void ConcludeTurn();
