@@ -292,6 +292,113 @@ bool FRTHexCombatDeadAttackerTest::RunTest(const FString&)
 }
 
 // ---------------------------------------------------------------------------------------------------------
+// Spinta (knockback) su sei direzioni
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexKnockbackPushesAwayTest,
+	"RefactorTactics.HexCombat.KnockbackPushesAway",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexKnockbackPushesAwayTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeCombatMap(6);
+	const TArray<FRTCellId> NoOccupants;
+
+	// Spinta lungo la direzione attaccante -> bersaglio, per Distance celle adiacenti.
+	const FRTCellId Dest = URTHexCombatLibrary::HexKnockbackDestination(
+		FRTCellId(0, 0), FRTCellId(1, 0), /*Distance*/ 2, Map, NoOccupants);
+	TestTrue(TEXT("respinto di due celle lungo la direzione del colpo"), Dest == FRTCellId(3, 0));
+
+	// Direzione obliqua: la spinta segue il passo esagonale, non un asse cardinale.
+	const FRTCellId Oblique = URTHexCombatLibrary::HexKnockbackDestination(
+		FRTCellId(0, 0), FRTCellId(1, -1), /*Distance*/ 1, Map, NoOccupants);
+	TestTrue(TEXT("la spinta obliqua resta su celle adiacenti"),
+		URTHexLibrary::HexDistance(Oblique, FRTCellId(1, -1)) == 1);
+	TestTrue(TEXT("la spinta allontana dall'attaccante"),
+		URTHexLibrary::HexDistance(FRTCellId(0, 0), Oblique) == 2);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexKnockbackBlockedTest,
+	"RefactorTactics.HexCombat.KnockbackStopsBeforeObstacle",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexKnockbackBlockedTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeCombatMap(6);
+	{
+		FRTHexCellData Wall(FRTCellId(3, 0));
+		Wall.bBlocksMovement = true;
+		Map->AddOrUpdateCell(Wall);
+		Map->SortCells();
+	}
+
+	// Ostacolo a (3,0): la spinta si ferma sulla cella libera precedente.
+	const FRTCellId Dest = URTHexCombatLibrary::HexKnockbackDestination(
+		FRTCellId(0, 0), FRTCellId(1, 0), /*Distance*/ 3, Map, TArray<FRTCellId>());
+	TestTrue(TEXT("si ferma prima dell'ostacolo"), Dest == FRTCellId(2, 0));
+
+	// Unita' ferma a (2,0): non si spinge dentro un'altra unita'.
+	TArray<FRTCellId> Occupied;
+	Occupied.Add(FRTCellId(2, 0));
+	const FRTCellId Blocked = URTHexCombatLibrary::HexKnockbackDestination(
+		FRTCellId(0, 0), FRTCellId(1, 0), /*Distance*/ 2, Map, Occupied);
+	TestTrue(TEXT("cella occupata: il bersaglio resta dov'e'"), Blocked == FRTCellId(1, 0));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexKnockbackEdgeTest,
+	"RefactorTactics.HexCombat.KnockbackStopsAtMapEdge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexKnockbackEdgeTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeCombatMap(3); // il bordo della mappa e' a distanza 3 dall'origine
+	const TArray<FRTCellId> NoOccupants;
+
+	// Oltre il bordo non esistono celle: la spinta si ferma, non spinge nel vuoto.
+	const FRTCellId Dest = URTHexCombatLibrary::HexKnockbackDestination(
+		FRTCellId(1, 0), FRTCellId(3, 0), /*Distance*/ 2, Map, NoOccupants);
+	TestTrue(TEXT("il bersaglio resta sul bordo"), Dest == FRTCellId(3, 0));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexKnockbackNoPushTest,
+	"RefactorTactics.HexCombat.KnockbackNoPushCases",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexKnockbackNoPushTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeCombatMap(5);
+	const TArray<FRTCellId> NoOccupants;
+	const FRTCellId Target(2, 0);
+
+	TestTrue(TEXT("distanza 0: nessuna spinta"),
+		URTHexCombatLibrary::HexKnockbackDestination(FRTCellId(0, 0), Target, 0, Map, NoOccupants) == Target);
+	TestTrue(TEXT("attaccante sulla stessa cella: nessuna direzione, nessuna spinta"),
+		URTHexCombatLibrary::HexKnockbackDestination(Target, Target, 2, Map, NoOccupants) == Target);
+	TestTrue(TEXT("senza mappa autorevole non si spinge (fail-closed)"),
+		URTHexCombatLibrary::HexKnockbackDestination(FRTCellId(0, 0), Target, 2, nullptr, NoOccupants) == Target);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexKnockbackLayerTest,
+	"RefactorTactics.HexCombat.KnockbackPreservesLayer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexKnockbackLayerTest::RunTest(const FString&)
+{
+	// Piattaforma sul layer 1: la spinta resta sul piano del bersaglio (i layer si collegano con archi,
+	// non con la spinta).
+	URTHexMapAsset* Map = MakeCombatMap(4);
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 1), 4))
+	{
+		Map->AddOrUpdateCell(FRTHexCellData(Id));
+	}
+	Map->SortCells();
+
+	const FRTCellId Dest = URTHexCombatLibrary::HexKnockbackDestination(
+		FRTCellId(0, 0, 1), FRTCellId(1, 0, 1), /*Distance*/ 2, Map, TArray<FRTCellId>());
+	TestTrue(TEXT("la spinta resta sul layer del bersaglio"), Dest == FRTCellId(3, 0, 1));
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
 // Ordine-indipendenza: "raccogli poi applica" (invariante #3)
 // ---------------------------------------------------------------------------------------------------------
 

@@ -155,4 +155,20 @@ public:
 	/** Converte il piano nella forma attesa da URTCombatResolver::ResolveAttacks (indice bersaglio + danno). */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")
 	static TArray<FRTAttack> ToAttacks(const FRTHexBlastPlan& Plan);
+
+	/**
+	 * Cella finale del bersaglio RESPINTO di `Distance` celle, su griglia esagonale.
+	 *
+	 * La direzione e' quella dell'ULTIMO passo della linea attaccante -> bersaglio: una delle sei direzioni
+	 * esagonali, sempre una cella adiacente (il quadrato sceglieva l'asse col delta maggiore, che su esagoni
+	 * non esiste). La spinta si ferma sulla cella libera prima di: cella assente dalla mappa (bordo), cella
+	 * che blocca il movimento, cella occupata (`Occupied`). Il Layer del bersaglio e' preservato: i piani si
+	 * collegano con archi espliciti, non con la spinta.
+	 *
+	 * Nessuna spinta se `Distance <= 0`, se attaccante e bersaglio condividono la cella assiale (nessuna
+	 * direzione) o se `Map == nullptr` (**fail-closed**: senza mappa autorevole non si sposta nessuno).
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")
+	static FRTCellId HexKnockbackDestination(const FRTCellId& Attacker, const FRTCellId& Target, int32 Distance,
+		const URTHexMapAsset* Map, const TArray<FRTCellId>& Occupied);
 };

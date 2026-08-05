@@ -154,6 +154,37 @@ bool FRTHexBlastBlockedBySightTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBlastKnockbackTest,
+	"RefactorTactics.HexBlast.KnockbackOnHexGrid",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBlastKnockbackTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	// La "Spazzata" del Guardian (cono, portata 3) respinge di 2 celle. Bersaglio in direzione OBLIQUA NE:
+	// la spinta esagonale prosegue lungo (+1,-1) fino a (3,-3), mentre quella cardinale del quadrato
+	// sceglierebbe l'asse X (delta pari) e finirebbe in (3,-1). E' il caso che distingue le due geometrie.
+	ARTUnit* Bruiser = SpawnHexBlastUnit(World, 1, ERTArchetype::Guardian, FRTCellId(0, 0));
+	ARTUnit* Victim = SpawnHexBlastUnit(World, 0, ERTArchetype::Ranger, FRTCellId(1, -1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Bruiser || !Victim) { DestroyHexBlastWorld(World); return false; }
+
+	Bruiser->PlannedAbilityIndex = 0; // Spazzata
+	Bruiser->PlannedAttackTarget = Victim;
+
+	RunBlastTurn(TM);
+
+	TestTrue(TEXT("il bersaglio e' stato respinto di due celle esagonali"), Victim->Cell == FRTCellId(3, -3));
+	TestTrue(TEXT("resta su una cella esistente della mappa"), URTHexLibrary::HexDistance(Victim->Cell, FRTCellId(0, 0)) <= 6);
+	TestTrue(TEXT("posizione visiva coerente con la cella logica"),
+		Victim->GetActorLocation().Equals(Victim->WorldForCell(Victim->Cell, FVector::ZeroVector, 100.f, 250.f), 1.0f));
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBlastOutOfRangeTest,
 	"RefactorTactics.HexBlast.OutOfHexRange",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
