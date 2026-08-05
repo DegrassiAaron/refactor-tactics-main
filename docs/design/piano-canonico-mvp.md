@@ -1,10 +1,14 @@
-# RefactorTactics — Piano Canonico MVP
+# RefactorTactics — Piano Canonico
 
-> **Stato**: bozza di lavoro · **Ultimo aggiornamento**: 2026-08-01
-> **Scopo**: riconciliare i due corsi tutorial (`02-Tutorial` e `03-TutorialToMVP`) in un'unica
-> specifica operativa coerente, risolvendo le contraddizioni prima di scrivere codice.
-> Questo documento è la **fonte di verità** per l'implementazione dell'MVP. In caso di
-> conflitto con i PDF in `docs/`, prevale questo file.
+> **Stato**: canone di progetto · **Ultimo aggiornamento**: 2026-08-05
+> **Scopo**: raccogliere le decisioni operative vincolanti del gioco — invarianti, architettura, regole
+> numeriche — in un'unica specifica coerente. Questo documento è la **fonte di verità** per
+> l'implementazione. In caso di conflitto con i PDF in `docs/src/`, prevale questo file.
+>
+> ⚠️ **Fase tutorial chiusa (2026-08-05)**: nato come riconciliazione dei due corsi (`02-Tutorial`,
+> `03-TutorialToMVP`) per costruire l'MVP, questo piano è ora il canone di un progetto di **prodotto**.
+> I corsi sono storico; l'MVP quadrato M0–M5 è archiviato. Roadmap corrente:
+> [`roadmap-checkpoint.md`](roadmap-checkpoint.md).
 
 ---
 
@@ -12,13 +16,14 @@
 
 | Livello | Documenti | Ruolo |
 |---|---|---|
-| **Canonico (vincolante)** | *questo file* | Decisioni operative per l'MVP |
-| **Corsi di riferimento** | `02-Tutorial.pdf`, `03-TutorialToMVP.pdf` | Materiale didattico da cui deriva il piano |
+| **Canonico (vincolante)** | *questo file* | Decisioni operative del progetto |
+| **Esecuzione** | [`roadmap-checkpoint.md`](roadmap-checkpoint.md) | Milestone, checkpoint, DoD misurabili, stato |
+| **Requisiti di lungo periodo** | [`../PDR/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](../PDR/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) | Fasi F0–F6, QA, rischi — direzione, non scope |
 | **Visione (north-star)** | i 3 PRD + `Intenti condivisi.pdf` | Prodotto a lungo termine, **non** scope attuale |
-| **Storico / superato** | `00-Intro.pdf`, `01-StrutturaTutorial.pdf` | Brief iniziali, mantenuti per contesto |
+| **Storico / superato** | `00-Intro.pdf`, `01-StrutturaTutorial.pdf`, `02-Tutorial.pdf`, `03-TutorialToMVP.pdf` | Brief e corsi da cui è nato il progetto (fase chiusa) |
 
 I 4 PRD descrivono un prodotto molto più ambizioso (4v4 competitivo, GAS, netcode avanzato,
-modding). Sono la **direzione futura**, non l'obiettivo dell'MVP. Vedi §8.
+modding). Sono la **direzione futura**, non l'obiettivo attuale. Vedi §8.
 
 ---
 
@@ -28,8 +33,9 @@ modding). Sono la **direzione futura**, non l'obiettivo dell'MVP. Vedi §8.
   `ReactorTactics`/`Reactor Tactics` — allineati a questo nome).
 - **.uproject**: `RefactorTactics.uproject` nella **radice del repository**
   (`D:\Repositories\refactor-tactics-main`), così il progetto UE è versionato col resto.
-- **Natura**: gioco tattico PvP a **turni simultanei** ispirato ad *Atlas Reactor*, sviluppato
-  come **percorso didattico per imparare Unreal Engine 5.8** partendo da un profilo C#.
+- **Natura**: gioco tattico PvP a **turni simultanei** ispirato ad *Atlas Reactor*, sviluppato su
+  Unreal Engine 5.8 da un dev singolo. *(Fino al 2026-08-05 il progetto era anche un percorso didattico
+  UE partendo da C#: quella fase è chiusa, vedi `roadmap-checkpoint.md`.)*
 - **Nota IP**: il riferimento ad Atlas Reactor è solo meccanico. Per un'eventuale pubblicazione
   servono nomi, personaggi, lore e asset **originali** (decisione aperta, vedi §9).
 
@@ -86,10 +92,15 @@ I 4 PDF (visione north-star) divergono su elementi *load-bearing* del path findi
 
 ---
 
-## 4. Definizione dell'MVP (vertical slice)
+## 4. Definizione dell'MVP (vertical slice) — *consegnato, storico*
 
-Checklist di completamento — l'MVP è "fatto" quando **tutte** queste voci sono vere.
-**Revisione al 2026-08-02** (✅ fatto · 🟡 fatto in parte):
+> ✅ **Chiusa il 2026-08-03** con M5. La checklist resta come **definizione di «partita completa»**: è il
+> comportamento di riferimento che **M6** deve riprodurre su griglia esagonale (parità funzionale). Non è più
+> una lista di lavoro da spuntare.
+
+Checklist di completamento — l'MVP era "fatto" quando **tutte** queste voci erano vere.
+**Revisione al 2026-08-02** (✅ fatto · 🟡 fatto in parte); le voci 🟡 sono state chiuse dagli incrementi
+post-MVP (utility scoring, Dash attiva, forme Line/Cone, Reveal, build Shipping) — vedi roadmap § *Archivio*:
 
 - [x] ✅ Il gioco si avvia direttamente nell'arena *(GlobalDefaultGameMode + `L_Prototype`)*
 - [x] ✅ **2v2**: 2 unità alleate (giocatore) + 2 nemiche (bot)
@@ -140,18 +151,27 @@ Principi non negoziabili (valgono anche in offline, per preparare il multiplayer
 
 ### Convenzioni asset
 
-`BP_` Blueprint · `WBP_` Widget · `BPI_` Interface · `DA_` DataAsset · `DT_` DataTable ·
-`IA_` InputAction · `IMC_` InputMappingContext · `L_` Level · `M_`/`MI_` Material/Instance ·
-`T_` Texture · `NS_` Niagara · `S_` Sound.
+Naming `<Tipo>_<Feature>_<Nome>_<Variante>`: `BP_` Blueprint · `BPC_` Component · `WBP_` Widget ·
+`ABP_` AnimBlueprint · `DA_` DataAsset · `DT_` DataTable · `Curve_` Curve · `SM_`/`SK_` Static/Skeletal Mesh ·
+`M_`/`MI_` Material/Instance · `T_` Texture · `NS_` Niagara · `SFX_`/`MUS_` Suono/Musica · `L_` Level ·
+`IA_` InputAction · `IMC_` InputMappingContext.
+
+Gli asset proprietari vivono sotto **`/Game/RT/`** con organizzazione **feature-first** (un asset sta vicino
+alla feature che lo possiede; niente cartelle globali per tipo). Regole vincolanti — struttura, posizionamento,
+dipendenze consentite fra cartelle, procedura di spostamento e checklist —
+in **[`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md)**.
 
 ### Layout del progetto (radice repo)
 
 ```
 RefactorTactics.uproject
-Source/RefactorTactics/        # codice C++ (Core, Grid, Units, Turn, Combat, UI)
-Content/                        # asset (Blueprints, Maps, Characters, UI, ...)
+Source/RefactorTactics/        # codice C++ autorevole (Core, Map, Grid, Unit, Turn, Combat, Bot, UI)
+Source/RefactorTacticsEditor/  # modulo editor-only (Hex Editor Mode)
+Content/RT/                     # asset proprietari, feature-first (vedi convenzioni-contenuti-ue.md)
+Content/Paragon*/               # asset di terze parti (Epic), non versionati
 Config/                         # DefaultEngine.ini, DefaultGame.ini, ...
-docs/                           # documentazione (questa cartella)
+docs/                           # documentazione (design, guide, PDR, sorgenti PDF)
+SourceAssets/                   # sorgenti non importati (.blend/.psd/...) — creata alla prima necessità
 ```
 
 ### 5.1 Ordinamento deterministico degli effetti simultanei (APNAP) — 2026-08-02
@@ -202,16 +222,18 @@ reazione live né categorie di velocità/`EndOfPhase` (north-star, `spec-sequenz
 
 ---
 
-## 7. Roadmap MVP (~14 settimane, dev singolo 8–12 h/sett)
+## 7. Roadmap
 
-| Milestone | Contenuto | Fine indicativa |
-|---|---|---|
-| **M0 Fondamenta** | Toolchain, progetto Blank C++ `RefactorTactics` nel repo, Git LFS, classi base | sett. 2 |
-| **M1 Sandbox** | Camera tattica, Enhanced Input, selezione, griglia logica + visuale | sett. 5 |
-| **M2 Turn loop** | Pianificazione, state machine fasi, timer, lock-in, risoluzione movimento simultaneo | sett. 8 |
-| **M3 Combat loop** | Abilità data-driven, danni/scudi/morte, energia/ultimate, status/Tag, targeting a forme, LOS | sett. 11 |
-| **M4 Vertical slice** | Bot (utility scoring), HUD + combat log, condizione di vittoria, riavvio | sett. 13 |
-| **M5 Release interna** | Test in Automation Framework, packaging Windows, Definition of Done | sett. 14 |
+La roadmap vive in **[`roadmap-checkpoint.md`](roadmap-checkpoint.md)** (unica vista di esecuzione: milestone,
+checkpoint, DoD misurabili, stato). Sintesi:
+
+- **M0–M5** — MVP quadrato della fase tutorial: **archiviate** (consegnate, non si riaprono).
+- **H0–H6.5** — fondamenta della griglia esagonale: consegnate ([`hex-map-roadmap.md`](hex-map-roadmap.md)).
+- **M6 Parità hex** → **M7 Dismissione del quadrato** → **M8 Presentazione** → **M9 Ambienti/editor** →
+  **M10 Rete e privacy** → **M11 Production readiness**.
+
+Non si duplicano qui stati o date: se le due fonti divergono, la roadmap è quella autorevole per lo *stato*,
+questo file per le *decisioni*.
 
 ---
 

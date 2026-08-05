@@ -6,20 +6,21 @@ non tanto codice in fretta.
 
 ## Cos'è il progetto
 
-**RefactorTactics** — gioco tattico PvP a **turni simultanei** (ispirato ad *Atlas Reactor*),
-sviluppato come **percorso didattico per imparare Unreal Engine 5.8** partendo da un profilo C#.
-Loop: **pianificazione simultanea** → risoluzione a fasi **Prep → Dash → Blast → Move**
-(calcolate simultaneamente, applicate in ordine deterministico).
+**RefactorTactics** — gioco tattico PvP a **turni simultanei** (ispirato ad *Atlas Reactor*) su Unreal
+Engine 5.8, dev singolo. Loop: **pianificazione simultanea** → risoluzione a fasi
+**Prep → Dash → Blast → Move** (calcolate simultaneamente, applicate in ordine deterministico).
+Griglia **esagonale** (`FRTCellId`, assiale/cubica) con editor mappa data-driven.
 
-> ⚠️ È presente solo lo **scheletro C++** del progetto (`.uproject`, modulo, `Config/`). Le classi di
-> gioco si creano **per milestone**, non in anticipo.
+> **Fase tutorial chiusa (2026-08-05)**: il progetto è nato come percorso didattico UE partendo da C# e ha
+> prodotto l'MVP quadrato M0–M5, ora archiviato. Da qui in poi è un progetto di **prodotto**: si costruisce
+> per milestone M6+ (vedi roadmap), non per lezioni.
 
 ## Fonte di verità (in ordine di autorità)
 
-1. **`docs/design/piano-canonico-mvp.md`** — decisioni operative vincolanti dell'MVP. Prevale su tutto.
-2. **`docs/design/roadmap-checkpoint.md`** — milestone, checkpoint, Definition of Done misurabili.
+1. **`docs/design/piano-canonico-mvp.md`** — decisioni operative vincolanti (invarianti, architettura, regole). Prevale su tutto.
+2. **`docs/design/roadmap-checkpoint.md`** — milestone, checkpoint, Definition of Done misurabili, **stato**.
 3. Issue/task corrente · specifica di feature · ADR · test esistenti · implementazione corrente.
-4. I PDF in `docs/` (3 PRD + `Intenti condivisi` + `…piano completo di sviluppo`) = **visione north-star**, non scope MVP.
+4. I PDF in `docs/src/` (3 PRD + `Intenti condivisi` + `…piano completo di sviluppo`) = **visione north-star**, non scope corrente.
 5. Questo file (`CLAUDE.md`).
 
 **Se due fonti sono in conflitto**: non scegliere in silenzio → segnala il conflitto, indica l'impatto,
@@ -36,25 +37,28 @@ Materiale superato/non autorevole: `docs/archive/`.
 6. Niente commit, push, merge o operazioni remote/distruttive senza richiesta esplicita.
 7. Non eliminare codice/asset/dati senza verificare riferimenti (anche Blueprint/reflection).
 8. Preferisci modifiche piccole e revisionabili a grandi riscritture.
-9. Costruisci **solo** ciò che serve all'MVP; le feature north-star restano fuori scope finché l'MVP non è chiuso.
+9. Costruisci **solo** ciò che serve alla milestone corrente della roadmap; le feature north-star restano fuori
+   scope finché la milestone non è chiusa.
 
 ## Decisioni tecniche fissate
 
 - **Motore**: Unreal Engine **5.8.1** (bloccata; non aggiornare salvo bug bloccanti).
 - **Linguaggi**: **regole/dati/resolver/test in C++**, **presentazione/UI/VFX/camera/input in Blueprint**.
-- **C# non è il runtime**: l'utente viene da C# e impara C++. Spiega C++ con confronti mirati a C#, **non**
-  convertire il progetto in C#, **non** aggiungere UnrealCLR/UnrealSharp/runtime managed per supposizione
-  (richiederebbe un ADR esplicito).
-- **No GAS nell'MVP**: abilità via `URTAbilityData : UPrimaryDataAsset`. GAS è post-MVP.
+- **C# non è il runtime**: **non** convertire il progetto in C#, **non** aggiungere UnrealCLR/UnrealSharp o
+  runtime managed per supposizione (richiederebbe un ADR esplicito).
+- **No GAS**: abilità via `URTAbilityData : UPrimaryDataAsset`. GAS resta north-star (il PDR lo prevede in F2,
+  prevale il canone).
 - **Nome/prefissi**: progetto `RefactorTactics`; classi con prefisso **`RT`/`URT`** (non `AT`/`UAT`).
-- **Scope MVP**: **2v2 offline contro bot**. Multiplayer rimandato, ma architettura *server-authority-ready*.
+- **Scope corrente**: **2v2 offline contro bot** su griglia esagonale. Multiplayer pianificato in **M10**,
+  architettura *server-authority-ready* fin d'ora.
 - **VCS**: Git + **Git LFS** (asset binari UE via `.gitattributes`).
 - Il progetto UE vive nella **radice del repo** (`RefactorTactics.uproject`, `Source/`, `Content/`, `Config/`).
 
 ## Invarianti architetturali (non negoziabili)
 
 1. **Le regole decidono l'esito** (C++); animazioni/VFX non decidono nulla.
-2. Posizione autorevole = **griglia logica** `FRTGridCoord`; il `FVector` serve solo al rendering.
+2. Posizione autorevole = **cella logica** — `FRTCellId` (esagonale, assiale/cubica) è il target; `FRTGridCoord`
+   (quadrata) è il residuo in dismissione (M7). Il `FVector` serve solo al rendering.
 3. Resolver **"raccogli poi applica"**: snapshot a inizio fase, niente `Delay`/timeline/montage nel resolver,
    l'ordine dell'array non deve cambiare l'esito.
 4. **Determinismo**: niente `DeltaTime` non controllato nella logica dei turni; niente dipendenza dall'ordine
@@ -81,17 +85,25 @@ verificabilità · estendibilità controllata (dati/regole espandibili senza cor
 
 - **Documentazione** sempre in `docs/` (sottocartella pertinente, es. `docs/design/`). Mai a radice del progetto.
 - **Classi**: prefissi `RT`/`URT`; `PascalCase`; header minimali; `UPROPERTY`/`UFUNCTION` solo quando servono.
-- **Asset UE**: `BP_ WBP_ BPI_ DA_ DT_ IA_ IMC_ L_ M_ MI_ T_ NS_ S_` (vedi piano canonico §5).
+- **Asset UE**: tutto il proprietario sotto **`/Game/RT/`**, organizzato **feature-first** (mai cartelle globali
+  per tipo tipo `Blueprints/`, `Materials/`, `Meshes/`); naming `<Tipo>_<Feature>_<Nome>` con prefissi
+  `BP_ BPC_ WBP_ ABP_ DA_ DT_ Curve_ SM_ SK_ M_ MI_ T_ NS_ SFX_ MUS_ L_ IMC_ IA_`. Terze parti (Paragon,
+  Marketplace) restano fuori da `/Game/RT`. Regole complete, dipendenze consentite e procedura di spostamento:
+  **[`docs/design/convenzioni-contenuti-ue.md`](docs/design/convenzioni-contenuti-ue.md)** — vincolante.
+- Gli `.uasset`/`.umap` si spostano **dal Content Browser**, mai da Esplora File; dopo lo spostamento aggiorna i
+  percorsi hard-coded in `Config/*.ini` e C++, poi `Fix Up Redirectors`.
 - **Non versionare**: `Binaries/ DerivedDataCache/ Intermediate/ Saved/ .vs/`, file generati IDE, segreti.
   Non modificare a mano `.uasset`/`.umap`.
 - Quando serve l'Editor UE: descrivi i passi esatti (asset, proprietà) + una verifica finale; **non fingere**
   di aver completato una modifica su file binari.
 
-## Tutoring C++ per sviluppatore C#
+## Spiegazioni C++/UE — su richiesta
 
-Quando introduci C++: spiega lifetime/ownership, pointer/reference/validità, reflection Unreal e macro,
-differenze GC Unreal vs .NET, thread/authority. Formato: *cosa costruiamo → concetto Unreal/C++ → differenza
-da C# → file coinvolti → implementazione → come provarla → errori comuni*.
+Con la chiusura della fase tutorial il tutoring **non è più il default**: vai al punto, spiega il codice che
+scrivi, non il linguaggio. Se l'utente lo chiede («spiegami», «perché così»), usa il formato completo:
+*cosa costruiamo → concetto Unreal/C++ → differenza da C# → file coinvolti → implementazione → come provarla →
+errori comuni*, con attenzione a lifetime/ownership, validità dei puntatori, reflection Unreal, GC vs .NET,
+thread/authority.
 
 ## Test & Definition of Done
 
@@ -131,6 +143,9 @@ Rispondi e commenta **in italiano**. Termini tecnici e identificatori di codice 
 
 ## Come lavorare qui
 
-Prima di implementare, **rileggi `docs/design/piano-canonico-mvp.md`**. Costruisci per milestone
-(`docs/design/roadmap-checkpoint.md`): M0 Fondamenta → M1 Sandbox → M2 Turn loop → M3 Combat loop →
-M4 Vertical slice → M5 Release interna.
+Prima di implementare, **rileggi `docs/design/piano-canonico-mvp.md`** (decisioni) e
+**`docs/design/roadmap-checkpoint.md`** (milestone corrente e DoD).
+
+Milestone attive: **M6 Parità hex** (la partita passa sulla griglia esagonale) → **M7 Dismissione del
+quadrato** → **M8 Presentazione** → **M9 Ambienti/editor** → **M10 Rete e privacy** → **M11 Production
+readiness**. M0–M5 (MVP quadrato, fase tutorial) e H0–H6.5 (fondamenta esagonali) sono **chiuse**.
