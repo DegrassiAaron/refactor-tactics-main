@@ -36,6 +36,10 @@ void ARTHexMapActor::OnConstruction(const FTransform& Transform)
 	// (apertura del livello, spostamento dell'actor, undo, spawn in gioco) tiene le due cose allineate senza
 	// dover premere RebuildInstances a mano. Copre anche il caso del gioco: SpawnActor chiama OnConstruction.
 	RebuildInstances();
+
+#if WITH_EDITOR
+	BindToMapAsset();
+#endif
 }
 
 #if WITH_EDITOR
@@ -45,7 +49,38 @@ void ARTHexMapActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChang
 
 	// Cambiare MapAsset, ActiveLayer, LayerView, DemoRadius, HexSize/LayerHeight o CellMesh cambia cosa si deve
 	// vedere: si ricostruisce sempre (l'actor ha poche proprieta' e la ricostruzione e' idempotente).
+	BindToMapAsset(); // se e' cambiato l'asset, si seguono le notifiche di quello nuovo
 	RebuildInstances();
+}
+
+void ARTHexMapActor::BindToMapAsset()
+{
+	if (BoundAsset.Get() == MapAsset)
+	{
+		return; // gia' iscritti all'asset giusto
+	}
+	UnbindFromMapAsset();
+	if (MapAsset)
+	{
+		MapChangedHandle = MapAsset->OnMapChanged.AddUObject(this, &ARTHexMapActor::RebuildInstances);
+		BoundAsset = MapAsset;
+	}
+}
+
+void ARTHexMapActor::UnbindFromMapAsset()
+{
+	if (URTHexMapAsset* Previous = BoundAsset.Get())
+	{
+		Previous->OnMapChanged.Remove(MapChangedHandle);
+	}
+	MapChangedHandle.Reset();
+	BoundAsset = nullptr;
+}
+
+void ARTHexMapActor::BeginDestroy()
+{
+	UnbindFromMapAsset();
+	Super::BeginDestroy();
 }
 #endif
 

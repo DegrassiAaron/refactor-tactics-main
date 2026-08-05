@@ -205,4 +205,49 @@ bool FRTHexMapFloodRegionTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Contratto della cache Id->indice quando Cells viene modificato SENZA passare dalle API (e' cio' che fa
+ * l'undo/redo, che riscrive la property direttamente). Senza invalidazione la cache resta allineata allo stato
+ * precedente: FindCell leggerebbe l'indice sbagliato e, se le celle sono diminuite, FUORI dall'array.
+ * Il fallimento reale e' stato osservato in editor (undo di una pennellata + click su una cella); qui se ne fissa
+ * il contratto perche' non possa regredire.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapLookupInvalidationTest,
+	"RefactorTactics.HexMap.LookupInvalidatedAfterExternalEdit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapLookupInvalidationTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 1))
+	{
+		Map->AddOrUpdateCell(FRTHexCellData(Id));
+	}
+	Map->SortCells();
+	TestEqual(TEXT("7 celle"), Map->NumCells(), 7);
+
+	// Popola la cache interrogando l'asset.
+	TestTrue(TEXT("cella presente prima della modifica"), Map->FindCell(FRTCellId(1, 0)) != nullptr);
+
+	// Modifica ESTERNA: riscrive l'array come farebbe un undo, lasciando una sola cella.
+	const FRTCellId Survivor = Map->Cells[0].Id;
+	Map->Cells.SetNum(1);
+	Map->InvalidateLookup();
+
+	TestEqual(TEXT("una sola cella dopo la modifica"), Map->NumCells(), 1);
+	TestTrue(TEXT("la cella rimasta si trova ancora"), Map->FindCell(Survivor) != nullptr);
+
+	// Nessuna delle celle rimosse deve risultare presente: con la cache stantia avrebbero restituito un
+	// puntatore a un indice non piu' valido.
+	int32 Ghosts = 0;
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 1))
+	{
+		if (!(Id == Survivor) && Map->FindCell(Id) != nullptr)
+		{
+			++Ghosts;
+		}
+	}
+	TestEqual(TEXT("nessuna cella fantasma dalla cache"), Ghosts, 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

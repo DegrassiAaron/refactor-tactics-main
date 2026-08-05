@@ -294,3 +294,18 @@ TArray<FRTCellId> URTHexMapAsset::FloodRegion(const FRTCellId& Start) const
 	}
 	return Region;
 }
+
+#if WITH_EDITOR
+void URTHexMapAsset::PostEditUndo()
+{
+	Super::PostEditUndo();
+
+	// L'undo/redo riscrive Cells direttamente, senza passare dalle API di questa classe: la cache Id->indice
+	// resterebbe allineata allo stato precedente e FindCell leggerebbe l'indice sbagliato — o fuori dall'array,
+	// se le celle sono diminuite. Va invalidata PRIMA che qualcuno interroghi l'asset.
+	InvalidateLookup();
+
+	// Chi mostra l'asset (ARTHexMapActor) non fa parte della transazione e non saprebbe di dover ridisegnare.
+	OnMapChanged.Broadcast();
+}
+#endif

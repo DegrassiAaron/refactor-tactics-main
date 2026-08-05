@@ -153,6 +153,21 @@ protected:
 #if WITH_EDITOR
 	/** Aggiorna la vista quando si cambia asset, layer, dimensioni o mesh dal pannello Details. */
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+
+	/** Disiscrive dall'asset prima della distruzione (nessun delegate pendente su un actor morto). */
+	virtual void BeginDestroy() override;
+
+	/**
+	 * Si iscrive alle notifiche dell'asset mostrato (undo/redo): l'actor non fa parte di quelle transazioni,
+	 * quindi senza notifica continuerebbe a mostrare lo stato precedente finche' qualcos'altro non lo forza.
+	 * Idempotente: rifa' il bind solo se MapAsset e' cambiato.
+	 */
+	void BindToMapAsset();
+	void UnbindFromMapAsset();
+
+	/** Asset a cui siamo attualmente iscritti (puo' cambiare quando si riassegna MapAsset). */
+	TWeakObjectPtr<URTHexMapAsset> BoundAsset;
+	FDelegateHandle MapChangedHandle;
 #endif
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
