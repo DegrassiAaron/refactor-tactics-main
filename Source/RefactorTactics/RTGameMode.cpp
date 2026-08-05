@@ -2,9 +2,11 @@
 #include "Camera/RTCameraPawn.h"
 #include "Player/RTPlayerController.h"
 #include "UI/RTHUD.h"
-#include "Grid/RTGridActor.h"
+#include "Map/RTHexMapActor.h"
+#include "Map/RTHexMapAsset.h"
 #include "Unit/RTUnit.h"
 #include "Turn/RTTurnManager.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "RefactorTactics.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/DirectionalLight.h"
@@ -27,11 +29,12 @@ void ARTGameMode::BeginPlay()
 		return;
 	}
 
-	// Griglia: usa quella presente o ne crea una all'origine.
-	ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
-	if (!Grid)
+	// Mappa esagonale: usa quella presente nel livello o ne crea una all'origine (graybox demo).
+	ARTHexMapActor* HexMap = Cast<ARTHexMapActor>(
+		UGameplayStatics::GetActorOfClass(this, ARTHexMapActor::StaticClass()));
+	if (!HexMap)
 	{
-		Grid = World->SpawnActor<ARTGridActor>(ARTGridActor::StaticClass(), FTransform::Identity);
+		HexMap = World->SpawnActor<ARTHexMapActor>(ARTHexMapActor::StaticClass(), FTransform::Identity);
 	}
 
 	// Luce direzionale (se assente) per rendere visibile la scena anche in un livello vuoto.
@@ -56,21 +59,41 @@ void ARTGameMode::BeginPlay()
 		World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass(), FTransform::Identity);
 	}
 
-	// Board 2v2 (solo se non ci sono gia' unita' nel livello).
-	if (Grid && !UGameplayStatics::GetActorOfClass(this, ARTUnit::StaticClass()))
-	{
-		const FVector Origin = Grid->GetActorLocation();
-		const float CellSize = Grid->CellSize;
-		// Ogni squadra: un Ranger (fragile, lunga gittata) e un Guardian (tanky, corta gittata).
-		SpawnUnit(0, FRTCellId(2, 2), /*bGuardian=*/ false, Origin, CellSize);
-		SpawnUnit(0, FRTCellId(2, 4), /*bGuardian=*/ true,  Origin, CellSize);
-		SpawnUnit(1, FRTCellId(7, 7), /*bGuardian=*/ false, Origin, CellSize);
-		SpawnUnit(1, FRTCellId(7, 5), /*bGuardian=*/ true,  Origin, CellSize);
-		UE_LOG(LogRT, Log, TEXT("[RT] Board 2v2 (Ranger + Guardian per squadra) avviata"));
-	}
+	SetupHexMatch(HexMap);
 }
 
-ARTUnit* ARTGameMode::SpawnUnit(int32 TeamId, const FRTCellId& Cell, bool bGuardian, const FVector& GridOrigin, float CellSize)
+void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
+{
+	// Il livello puo' avere unita' gia' posate a mano: in quel caso l'allestimento automatico non interviene.
+	if (!HexMap || UGameplayStatics::GetActorOfClass(this, ARTUnit::StaticClass()))
+	{
+		return;
+	}
+
+	const URTHexMapAsset* Map = HexMap->MapAsset;
+	const TArray<FRTCellId> Start = URTMatchSetupLibrary::PickStartCells(Map, /*NumPerTeam=*/ 2, /*Layer=*/ 0);
+	if (Start.Num() != 4)
+	{
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] Mappa esagonale senza celle percorribili sufficienti: partita non allestita"));
+		return;
+	}
+
+	// Dimensioni dalla mappa autorevole; se manca l'asset valgono quelle dell'actor (graybox demo).
+	const FVector Origin = HexMap->GetActorLocation();
+	const float HexSize = Map ? Map->HexSize : HexMap->HexSize;
+	const float LayerHeight = Map ? Map->LayerHeight : HexMap->LayerHeight;
+
+	// Ogni squadra: un Ranger (fragile, lunga gittata) e un Guardian (tanky, corta gittata).
+	SpawnUnit(0, Start[0], /*bGuardian=*/ false, Origin, HexSize, LayerHeight);
+	SpawnUnit(0, Start[1], /*bGuardian=*/ true,  Origin, HexSize, LayerHeight);
+	SpawnUnit(1, Start[2], /*bGuardian=*/ false, Origin, HexSize, LayerHeight);
+	SpawnUnit(1, Start[3], /*bGuardian=*/ true,  Origin, HexSize, LayerHeight);
+	UE_LOG(LogRT, Log, TEXT("[RT] Board 2v2 esagonale avviata su %d celle"), Map ? Map->NumCells() : 0);
+}
+
+ARTUnit* ARTGameMode::SpawnUnit(int32 TeamId, const FRTCellId& InCell, bool bGuardian, const FVector& Origin,
+	float HexSize, float LayerHeight)
 {
 	UWorld* World = GetWorld();
 	if (!World)
@@ -91,7 +114,7 @@ ARTUnit* ARTGameMode::SpawnUnit(int32 TeamId, const FRTCellId& Cell, bool bGuard
 		Unit->bIsBotControlled = (TeamId == 1); // team 1 giocato dal bot
 		Unit->ConfigureAsArchetype(bGuardian ? ERTArchetype::Guardian : ERTArchetype::Ranger);
 		UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);
-		Unit->PlaceOnCell(Cell, GridOrigin, CellSize, /*LayerHeight=*/ 0.f);
+		Unit->PlaceOnCell(InCell, Origin, HexSize, LayerHeight);
 	}
 	return Unit;
 }
