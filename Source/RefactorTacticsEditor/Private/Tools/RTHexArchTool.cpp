@@ -137,14 +137,13 @@ void URTHexArchTool::OnGizmoMoved(UTransformProxy* InProxy, FTransform InTransfo
 {
 	if (bSnapping || !TargetActor || !bHasFrom || !InProxy) { return; }
 
-	const URTHexMapAsset* Map = TargetActor->MapAsset;
-	const float HexSize = Map ? Map->HexSize : TargetActor->HexSize;
-	const float LayerH = Map ? Map->LayerHeight : TargetActor->LayerHeight;
-	const FVector Origin = TargetActor->GetActorLocation();
+	FVector Origin = FVector::ZeroVector;
+	float HexSize = 0.f;
+	float LayerH = 0.f;
+	const URTHexMapAsset* Map = TargetActor->GetHexContext(Origin, HexSize, LayerH);
 
 	const FVector W = InTransform.GetLocation();
-	const int32 Layer = URTHexLibrary::WorldToLayer(W.Z, Origin.Z, LayerH);
-	const FRTCellId Cell = URTHexLibrary::WorldToAxial(W, Origin, HexSize, Layer);
+	const FRTCellId Cell = URTHexLibrary::WorldToCellId(W, Origin, HexSize, LayerH);
 	To = Cell;
 	// Valido solo se distinto da From e se ENTRAMBE le celle esistono (Commit scriverebbe altrimenti a vuoto).
 	bToValid = (Cell != From) && Map && Map->ContainsCell(Cell) && Map->ContainsCell(From);

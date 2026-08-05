@@ -6,6 +6,7 @@
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTResolvedEvent.h"
 #include "Turn/RTTurnLog.h"
+#include "Turn/RTHexSim.h" // FRTHexSnapshot: restituito per valore da MakeCurrentSnapshot
 #include "RTTurnManager.generated.h"
 
 class ARTUnit;
@@ -138,6 +139,15 @@ public:
 	/** Bonus per la quota (Layer) della cella: premia l'alta quota (tiro oltre coperture basse, +danno). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Bot")
 	int32 WElevation = 20;
+
+	/**
+	 * Snapshot dello stato corrente della partita (unita' VIVE del livello + mappa autorevole).
+	 * `OutUnits[i]` e' l'unita' con `UnitId == i`: e' la chiave con cui rileggere gli esiti.
+	 *
+	 * Il TurnManager e' l'autorita' (invariante #5): il controller del giocatore chiede QUESTO snapshot per
+	 * calcolare le sue anteprime, invece di ricostruirsi uno stato parallelo che potrebbe divergere.
+	 */
+	FRTHexSnapshot MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) const;
 
 protected:
 	virtual void BeginPlay() override;

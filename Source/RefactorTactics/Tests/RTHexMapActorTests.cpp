@@ -132,4 +132,56 @@ bool FRTHexMapActorLayerFilterTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * CP 6.3: il contesto geometrico deve avere UNA sola definizione, perche' resolver, playback e input non
+ * possono divergere di scala. Regola: l'ASSET e' autorevole sulla scala (HexSize/LayerHeight), l'ACTOR sulla
+ * posizione (origine); senza asset valgono i valori dell'actor (graybox demo).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorContextTest,
+	"RefactorTactics.HexMapActor.HexContextAssetIsAuthoritativeOnScale",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorContextTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	TestNotNull(TEXT("World creato"), World);
+	if (!World) { return false; }
+
+	// Asset con scala DIVERSA dai default dell'actor: cosi' si vede chi vince.
+	URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius*/ 1);
+	Asset->HexSize = 140.f;
+	Asset->LayerHeight = 300.f;
+
+	const FVector Where(1500.0, -250.0, 75.0);
+	ARTHexMapActor* Actor = World->SpawnActorDeferred<ARTHexMapActor>(
+		ARTHexMapActor::StaticClass(), FTransform(Where));
+	TestNotNull(TEXT("actor spawnato"), Actor);
+	if (!Actor) { DestroyMapActorWorld(World); return false; }
+	Actor->MapAsset = Asset;
+	Actor->HexSize = 100.f;      // valori dell'actor, che l'asset deve sovrascrivere
+	Actor->LayerHeight = 250.f;
+	Actor->FinishSpawning(FTransform(Where));
+
+	TestTrue(TEXT("la mappa del livello si trova da sola"), ARTHexMapActor::FindInWorld(World) == Actor);
+
+	FVector Origin = FVector::ZeroVector;
+	float HexSize = 0.f;
+	float LayerHeight = 0.f;
+	const URTHexMapAsset* Map = Actor->GetHexContext(Origin, HexSize, LayerHeight);
+
+	TestTrue(TEXT("ritorna l'asset autorevole"), Map == Asset);
+	TestTrue(TEXT("origine = posizione dell'actor"), Origin.Equals(Where, 0.01));
+	TestEqual(TEXT("HexSize dall'asset, non dall'actor"), HexSize, 140.f);
+	TestEqual(TEXT("LayerHeight dall'asset, non dall'actor"), LayerHeight, 300.f);
+
+	// Senza asset: la scala e' quella dell'actor e non c'e' mappa autorevole.
+	Actor->MapAsset = nullptr;
+	const URTHexMapAsset* NoMap = Actor->GetHexContext(Origin, HexSize, LayerHeight);
+	TestNull(TEXT("nessun asset -> nessuna mappa"), NoMap);
+	TestEqual(TEXT("fallback: HexSize dell'actor"), HexSize, 100.f);
+	TestEqual(TEXT("fallback: LayerHeight dell'actor"), LayerHeight, 250.f);
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

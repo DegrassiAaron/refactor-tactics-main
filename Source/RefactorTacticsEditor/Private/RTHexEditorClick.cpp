@@ -46,11 +46,12 @@ bool ResolveClickedCell(UWorld* World, ARTHexMapActor* Actor, const FInputDevice
 {
 	if (!Actor) { return false; }
 
-	const URTHexMapAsset* Map = Actor->MapAsset;
-	const float HexSize = Map ? Map->HexSize : Actor->HexSize;
-	const float LayerH = Map ? Map->LayerHeight : Actor->LayerHeight;
-	const FVector Origin = Actor->GetActorLocation();
-	const int32 Layer = Actor->ActiveLayer;
+	// Contesto geometrico dall'unica fonte condivisa col runtime (scala dall'asset, origine dall'actor).
+	FVector Origin = FVector::ZeroVector;
+	float HexSize = 0.f;
+	float LayerH = 0.f;
+	Actor->GetHexContext(Origin, HexSize, LayerH);
+	const int32 Layer = Actor->ActiveLayer; // in editor il piano lo decide il layer attivo, non la quota del click
 
 	// Punto-mondo del click: colpo sull'ISM del TARGET se c'e', altrimenti intersezione col piano del layer attivo.
 	FVector HitPoint;

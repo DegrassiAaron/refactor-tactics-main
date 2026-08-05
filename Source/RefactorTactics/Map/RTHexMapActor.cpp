@@ -3,6 +3,7 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
 #include "Components/InstancedStaticMeshComponent.h"
+#include "EngineUtils.h" // TActorIterator
 #include "UObject/ConstructorHelpers.h"
 #include "RefactorTactics.h"
 #if WITH_EDITOR
@@ -87,6 +88,29 @@ void ARTHexMapActor::BeginDestroy()
 FRTCellId ARTHexMapActor::CellForInstance(int32 InstanceIndex) const
 {
 	return InstanceCells.IsValidIndex(InstanceIndex) ? InstanceCells[InstanceIndex] : FRTCellId();
+}
+
+ARTHexMapActor* ARTHexMapActor::FindInWorld(const UWorld* World)
+{
+	if (!World)
+	{
+		return nullptr;
+	}
+	for (TActorIterator<ARTHexMapActor> It(const_cast<UWorld*>(World)); It; ++It)
+	{
+		return *It;
+	}
+	return nullptr;
+}
+
+const URTHexMapAsset* ARTHexMapActor::GetHexContext(FVector& OutOrigin, float& OutHexSize, float& OutLayerHeight) const
+{
+	// Dimensioni dall'asset AUTOREVOLE; se manca valgono quelle dell'actor (graybox demo).
+	const URTHexMapAsset* Map = MapAsset;
+	OutOrigin = GetActorLocation();
+	OutHexSize = Map ? Map->HexSize : HexSize;
+	OutLayerHeight = Map ? Map->LayerHeight : LayerHeight;
+	return Map;
 }
 
 void ARTHexMapActor::RebuildInstances()

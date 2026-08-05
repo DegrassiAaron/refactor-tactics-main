@@ -141,6 +141,18 @@ public:
 	/** Numero di celle attualmente rappresentate (istanze ISM). Diagnostica e test. */
 	int32 NumInstanceCells() const { return InstanceCells.Num(); }
 
+	/** La mappa esagonale del livello (la prima trovata), oppure nullptr se il livello non ne ha. */
+	static ARTHexMapActor* FindInWorld(const UWorld* World);
+
+	/**
+	 * Contesto geometrico della mappa: origine = posizione dell'ACTOR, scala (HexSize/LayerHeight) dall'ASSET
+	 * autorevole o, se manca, dall'actor stesso (graybox demo). Ritorna l'asset (nullptr se assente).
+	 *
+	 * UNICO punto da cui passano le conversioni cella<->mondo: risoluzione, playback e input del giocatore
+	 * devono condividere la stessa scala, altrimenti l'anteprima e l'esito divergono.
+	 */
+	const URTHexMapAsset* GetHexContext(FVector& OutOrigin, float& OutHexSize, float& OutLayerHeight) const;
+
 protected:
 	/**
 	 * Ricostruisce la vista a ogni costruzione dell'actor: apertura del livello, spostamento, undo, spawn.
