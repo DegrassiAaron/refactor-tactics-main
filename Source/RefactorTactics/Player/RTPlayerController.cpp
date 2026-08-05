@@ -1,8 +1,13 @@
 #include "Player/RTPlayerController.h"
 #include "Camera/RTCameraPawn.h"
 #include "Selection/RTSelectable.h"
-#include "Grid/RTGridActor.h"
-#include "Grid/RTGridLibrary.h"
+#include "Map/RTHexLibrary.h"
+#include "Map/RTHexMapActor.h"
+#include "Map/RTHexMapAsset.h"
+#include "Map/RTHexVisionLibrary.h"
+#include "Pathfinding/RTHexPathLibrary.h"
+#include "Turn/RTHexSim.h"
+#include "Turn/RTHexSimLibrary.h"
 #include "Unit/RTUnit.h"
 #include "Ability/RTAbilityData.h"
 #include "Combat/RTCombatLibrary.h"
@@ -16,6 +21,57 @@
 #include "InputActionValue.h"
 #include "InputModifiers.h"
 #include "Kismet/GameplayStatics.h"
+
+namespace
+{
+	/** Mappa esagonale del livello + contesto geometrico (unica fonte di scala). nullptr = livello senza mappa. */
+	ARTHexMapActor* HexMapWithContext(const UWorld* World, FVector& OutOrigin, float& OutHexSize,
+		float& OutLayerHeight, const URTHexMapAsset*& OutAsset)
+	{
+		OutAsset = nullptr;
+		ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(World);
+		if (HexMap)
+		{
+			OutAsset = HexMap->GetHexContext(OutOrigin, OutHexSize, OutLayerHeight);
+		}
+		return HexMap;
+	}
+
+	/**
+	 * Snapshot dello stato corrente chiesto all'AUTORITA' (il TurnManager) e indice dell'unita' al suo interno.
+	 * Il client non si costruisce uno stato parallelo: calcola solo la preview su quello autorevole (invariante #5).
+	 * False se manca il turn manager o l'unita' non e' nello snapshot (es. non viva).
+	 */
+	bool PlanningSnapshotFor(const UObject* WorldContext, const ARTUnit* Unit,
+		FRTHexSnapshot& OutSnapshot, int32& OutUnitId)
+	{
+		OutUnitId = INDEX_NONE;
+		ARTTurnManager* TurnManager = Cast<ARTTurnManager>(
+			UGameplayStatics::GetActorOfClass(const_cast<UObject*>(WorldContext), ARTTurnManager::StaticClass()));
+		if (!TurnManager || !Unit)
+		{
+			return false;
+		}
+		TArray<ARTUnit*> Units;
+		OutSnapshot = TurnManager->MakeCurrentSnapshot(Units);
+		// L'UnitId e' l'INDICE nell'array delle unita' vive: va ricalcolato a ogni interazione, non memorizzato.
+		OutUnitId = Units.IndexOfByKey(const_cast<ARTUnit*>(Unit));
+		return OutUnitId != INDEX_NONE;
+	}
+
+	/** Testo del motivo di rifiuto di un waypoint, dallo stato del pathfinding (per il log). */
+	const TCHAR* RejectReason(ERTHexPathStatus Status)
+	{
+		switch (Status)
+		{
+		case ERTHexPathStatus::GoalInvalid:  return TEXT("cella fuori dalla mappa");
+		case ERTHexPathStatus::StartInvalid: return TEXT("unita' non presente nello snapshot");
+		case ERTHexPathStatus::NodeLimit:    return TEXT("ricerca interrotta (limite nodi)");
+		case ERTHexPathStatus::NoPath:
+		default:                             return TEXT("oltre il budget, bloccata o occupata");
+		}
+	}
+}
 
 void ARTPlayerController::BuildInputMappings()
 {
@@ -152,20 +208,23 @@ void ARTPlayerController::PlayerTick(float DeltaTime)
 	Super::PlayerTick(DeltaTime);
 
 	// Evidenzia la cella sotto il cursore (solo presentazione: non tocca la logica).
-	ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
-	if (!Grid)
+	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
+	ARTHexMapActor* HexMap = HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
+	if (!HexMap)
 	{
 		return;
 	}
 	FHitResult Hit;
 	if (GetHitResultUnderCursor(ECC_Visibility, /*bTraceComplex=*/ false, Hit) && Hit.GetActor())
 	{
-		const FRTCellId Cell = URTGridLibrary::WorldToCell(Hit.Location, Grid->GetActorLocation(), Grid->CellSize);
-		Grid->SetHoveredCell(Cell, URTGridLibrary::IsInBounds(Cell, Grid->Width, Grid->Height));
+		// Il layer viene dalla QUOTA del punto colpito: cliccando il ponte si evidenzia la cella del ponte
+		// (in editor lo decide invece ActiveLayer, perche' li' si dipinge su un piano scelto).
+		const FRTCellId Cell = URTHexLibrary::WorldToCellId(Hit.Location, Origin, HexSize, LayerH);
+		HexMap->SetHoveredCell(Cell, Map && Map->ContainsCell(Cell));
 	}
 	else
 	{
-		Grid->SetHoveredCell(FRTCellId(), false);
+		HexMap->SetHoveredCell(FRTCellId(), false);
 	}
 }
 
@@ -246,10 +305,15 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		{
 			return;
 		}
-		const ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
+		FVector TOrigin; float THexSize; float TLayerH; const URTHexMapAsset* TMap = nullptr;
+		HexMapWithContext(GetWorld(), TOrigin, THexSize, TLayerH, TMap);
 		const bool bReady = SelectedUnit->CanUseAbility(AbilityIndex);
-		const bool bInRange = URTGridLibrary::IsWithinRange(SelectedUnit->Cell, ClickedUnit->Cell, Ability->RangeCells);
-		const bool bHasLOS = !Grid || URTGridLibrary::HasLineOfSight(SelectedUnit->Cell, ClickedUnit->Cell, Grid->GetVisionBlockers());
+		const bool bInRange =
+			URTHexLibrary::HexDistance(SelectedUnit->Cell, ClickedUnit->Cell) <= Ability->RangeCells;
+		// FAIL-CLOSED (test: Combat.HexTargetingIsFailClosed): senza mappa autorevole non si ingaggia.
+		// Prima la condizione era `!Grid || HasLineOfSight(...)` e senza griglia passava qualunque bersaglio.
+		const bool bHasLOS =
+			URTCombatLibrary::CanTargetHexCell(TMap, SelectedUnit->Cell, ClickedUnit->Cell, Ability->RangeCells);
 		if (bReady && bInRange && bHasLOS)
 		{
 			SelectedUnit->PlannedAbilityIndex = AbilityIndex;
@@ -293,76 +357,109 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 			Selectable->OnSelected();
 			SelectedActor = HitActor;
 			UE_LOG(LogRT, Log, TEXT("[RT] Selezionata: %s"), *HitActor->GetName());
+
+			// L'anteprima segue la selezione: mostra il piano dell'unita' scelta (vuoto se non ne ha).
+			FVector SOrigin; float SHexSize; float SLayerH; const URTHexMapAsset* SMap = nullptr;
+			if (ARTHexMapActor* SHexMap = HexMapWithContext(GetWorld(), SOrigin, SHexSize, SLayerH, SMap))
+			{
+				const ARTUnit* NewUnit = Cast<ARTUnit>(HitActor);
+				SHexMap->SetPreviewPath(NewUnit ? NewUnit->PlannedPath : TArray<FRTCellId>());
+			}
 		}
 		return;
 	}
 
-	// Click sulla griglia con un'unita' selezionata -> pianifica il movimento su quella cella.
-	if (SelectedUnit)
+	// Click su una cella della mappa con un'unita' selezionata -> pianifica movimento o scatto.
+	if (!SelectedUnit)
 	{
-		if (ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass())))
-		{
-			FRTCellId Cell = URTGridLibrary::WorldToCell(Hit.Location, Grid->GetActorLocation(), Grid->CellSize);
-				Cell.Layer = Grid->LayerFromHitComponent(Hit.GetComponent()); // click->layer (ponte = 1)
-				if (!URTGridLibrary::IsInsideGrid(Cell, Grid->Width, Grid->Height))
-			{
-				return;
-			}
-			if (Grid->BlockedCells.Contains(Cell))
-			{
-				UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d) occupata da una copertura"), Cell.X, Cell.Y);
-				return;
-			}
-			// Se l'abilita' selezionata e' uno SCATTO, pianifica un DASH verso questa cella (fase Dash),
-				// invece di un waypoint di movimento normale.
-				const int32 SelIdx = SelectedUnit->SelectedAbilityIndex;
-				const URTAbilityData* SelAb = SelectedUnit->GetAbility(SelIdx);
-				if (SelAb && SelAb->bDash)
-				{
-					if (!SelectedUnit->CanUseAbility(SelIdx))
-					{
-						UE_LOG(LogRT, Log, TEXT("[RT] Scatto non pronto (ricarica) per %s"), *SelectedUnit->GetName());
-						return;
-					}
-					TMap<FRTCellId, int32> DCostMap;
-					Grid->BuildCostMap(DCostMap);
-					const TArray<FRTCellId> DPath = URTGridLibrary::FindPathByGraph(SelectedUnit->Cell, Cell, DCostMap, Grid->GetEdges(), Grid->Width, Grid->Height);
-					const int32 DCost = URTGridLibrary::PathCost(DPath, DCostMap, Grid->GetEdges());
-					if (DPath.Num() < 2 || DCost < 0 || DCost > SelectedUnit->GetEffectiveDashRange(SelAb->RangeCells))
-					{
-						UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d) fuori dalla portata dello scatto (max %d) per %s"), Cell.X, Cell.Y, SelAb->RangeCells, *SelectedUnit->GetName());
-						return;
-					}
-					SelectedUnit->PlannedDashAbility = SelIdx;
-					SelectedUnit->PlannedDashCell = Cell;
-					UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s SCATTO -> (%d,%d,L%d)"), *SelectedUnit->GetName(), Cell.X, Cell.Y, Cell.Layer);
-					return;
-				}
-
-				const int32 MoveRange = SelectedUnit->GetEffectiveMoveRange();
-				TMap<FRTCellId, int32> CostMap;
-				Grid->BuildCostMap(CostMap);
-			if (!URTGridLibrary::ReachableCellsByGraph(SelectedUnit->Cell, MoveRange, CostMap, Grid->GetEdges(), Grid->Width, Grid->Height).Contains(Cell))
-			{
-				UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d) non raggiungibile (percorso bloccato o fuori portata) per %s"),
-					Cell.X, Cell.Y, *SelectedUnit->GetName());
-				return;
-			}
-			SelectedUnit->PlannedWaypoints.Add(Cell);
-				const TArray<FRTCellId> WPath = URTGridLibrary::BuildCompositePath(SelectedUnit->Cell, SelectedUnit->PlannedWaypoints, CostMap, Grid->Width, Grid->Height, Grid->GetEdges());
-				const int32 WCost = URTGridLibrary::PathCost(WPath, CostMap, Grid->GetEdges());
-				if (WPath.Num() < 2 || WCost < 0 || WCost > MoveRange)
-				{
-					SelectedUnit->PlannedWaypoints.Pop(); // waypoint oltre budget o irraggiungibile: rifiutato
-					UE_LOG(LogRT, Log, TEXT("[RT] Waypoint (%d,%d) rifiutato (costo %d, budget %d) per %s"),
-						Cell.X, Cell.Y, WCost, MoveRange, *SelectedUnit->GetName());
-					return;
-				}
-				SelectedUnit->PlannedPath = WPath;
-				SelectedUnit->PlannedCell = WPath.Last();
-			UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s -> %d waypoint (costo %d)"), *SelectedUnit->GetName(), SelectedUnit->PlannedWaypoints.Num(), WCost);
-		}
+		return;
 	}
+
+	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
+	ARTHexMapActor* HexMap = HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
+	if (!HexMap || !Map)
+	{
+		UE_LOG(LogRT, Warning, TEXT("[RT] Nessuna mappa esagonale nel livello: pianificazione non disponibile"));
+		return;
+	}
+
+	// Cella cliccata: il layer viene dalla quota del punto colpito (ponte vs terra).
+	const FRTCellId Cell = URTHexLibrary::WorldToCellId(Hit.Location, Origin, HexSize, LayerH);
+	if (!Map->ContainsCell(Cell))
+	{
+		return; // click fuori dalla mappa: nessun piano, nessun rumore nel log
+	}
+
+	// Stato autorevole per la validazione: lo fornisce il TurnManager, il client non se lo ricostruisce.
+	FRTHexSnapshot Snapshot;
+	int32 UnitId = INDEX_NONE;
+	if (!PlanningSnapshotFor(this, SelectedUnit, Snapshot, UnitId))
+	{
+		UE_LOG(LogRT, Warning, TEXT("[RT] %s non e' nello snapshot: pianificazione rifiutata"), *SelectedUnit->GetName());
+		return;
+	}
+
+	// Se l'abilita' selezionata e' uno SCATTO, si pianifica un DASH verso questa cella (fase Dash),
+	// invece di un waypoint di movimento normale.
+	const int32 SelIdx = SelectedUnit->SelectedAbilityIndex;
+	const URTAbilityData* SelAb = SelectedUnit->GetAbility(SelIdx);
+	if (SelAb && SelAb->bDash)
+	{
+		if (!SelectedUnit->CanUseAbility(SelIdx))
+		{
+			UE_LOG(LogRT, Log, TEXT("[RT] Scatto non pronto (ricarica) per %s"), *SelectedUnit->GetName());
+			return;
+		}
+		const int32 DashRange = SelectedUnit->GetEffectiveDashRange(SelAb->RangeCells);
+		if (DashRange <= 0)
+		{
+			// MaxCost == 0 significa "illimitato" per l'A*: il budget nullo va intercettato prima.
+			UE_LOG(LogRT, Log, TEXT("[RT] Scatto senza portata utile per %s"), *SelectedUnit->GetName());
+			return;
+		}
+		const TSet<FRTCellId> Occupied = [&Snapshot, UnitId]()
+		{
+			TSet<FRTCellId> Set;
+			for (const TPair<FRTCellId, int32>& Pair : Snapshot.Occupancy)
+			{
+				if (Pair.Value != UnitId) { Set.Add(Pair.Key); }
+			}
+			return Set;
+		}();
+		const FRTHexPathResult DashPath =
+			URTHexPathLibrary::FindPathAvoiding(Map, SelectedUnit->Cell, Cell, &Occupied, DashRange);
+		if (DashPath.Status != ERTHexPathStatus::Success)
+		{
+			UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d,L%d) fuori dallo scatto (%s, max %d) per %s"),
+				Cell.X, Cell.Y, Cell.Layer, RejectReason(DashPath.Status), DashRange, *SelectedUnit->GetName());
+			return;
+		}
+		SelectedUnit->PlannedDashAbility = SelIdx;
+		SelectedUnit->PlannedDashCell = Cell;
+		UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s SCATTO -> (%d,%d,L%d) costo %d"),
+			*SelectedUnit->GetName(), Cell.X, Cell.Y, Cell.Layer, DashPath.TotalCost);
+		return;
+	}
+
+	// Movimento normale: il waypoint si aggiunge IN PROVA e si tiene solo se l'intero percorso resta valido.
+	SelectedUnit->PlannedWaypoints.Add(Cell);
+	const FRTHexPathResult Composite =
+		URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, SelectedUnit->PlannedWaypoints);
+	if (Composite.Status != ERTHexPathStatus::Success || Composite.Path.Num() < 2)
+	{
+		SelectedUnit->PlannedWaypoints.Pop(); // rifiutato: si torna al piano precedente, non a uno a meta'
+		UE_LOG(LogRT, Log, TEXT("[RT] Waypoint (%d,%d,L%d) rifiutato (%s, budget %d) per %s"),
+			Cell.X, Cell.Y, Cell.Layer, RejectReason(Composite.Status),
+			SelectedUnit->GetEffectiveMoveRange(), *SelectedUnit->GetName());
+		return;
+	}
+
+	SelectedUnit->PlannedPath = Composite.Path;
+	SelectedUnit->PlannedCell = Composite.Path.Last();
+	HexMap->SetPreviewPath(Composite.Path);
+	UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s -> %d waypoint (costo %d/%d)"),
+		*SelectedUnit->GetName(), SelectedUnit->PlannedWaypoints.Num(), Composite.TotalCost,
+		SelectedUnit->GetEffectiveMoveRange());
 }
 
 void ARTPlayerController::OnLockIn(const FInputActionValue& Value)
@@ -455,23 +552,31 @@ void ARTPlayerController::RebuildPlannedPath()
 	{
 		return;
 	}
-	ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
-	if (!Grid)
+	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
+	ARTHexMapActor* HexMap = HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
+
+	FRTHexSnapshot Snapshot;
+	int32 UnitId = INDEX_NONE;
+	FRTHexPathResult Composite;
+	if (Unit->PlannedWaypoints.Num() > 0 && PlanningSnapshotFor(this, Unit, Snapshot, UnitId))
 	{
-		return;
+		Composite = URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, Unit->PlannedWaypoints);
 	}
-	TMap<FRTCellId, int32> CostMap;
-	Grid->BuildCostMap(CostMap);
-	const TArray<FRTCellId> Path = URTGridLibrary::BuildCompositePath(Unit->Cell, Unit->PlannedWaypoints, CostMap, Grid->Width, Grid->Height, Grid->GetEdges());
-	const int32 Cost = URTGridLibrary::PathCost(Path, CostMap, Grid->GetEdges());
-	if (Unit->PlannedWaypoints.Num() > 0 && Path.Num() >= 2 && Cost >= 0 && Cost <= Unit->GetEffectiveMoveRange())
+
+	if (Composite.Status == ERTHexPathStatus::Success && Composite.Path.Num() >= 2)
 	{
-		Unit->PlannedPath = Path;
-		Unit->PlannedCell = Path.Last();
+		Unit->PlannedPath = Composite.Path;
+		Unit->PlannedCell = Composite.Path.Last();
 	}
 	else
 	{
+		// Nessun waypoint (o piano non piu' valido): si torna a "resto fermo".
 		Unit->PlannedPath.Reset();
 		Unit->PlannedCell = Unit->Cell;
+	}
+
+	if (HexMap)
+	{
+		HexMap->SetPreviewPath(Unit->PlannedPath);
 	}
 }

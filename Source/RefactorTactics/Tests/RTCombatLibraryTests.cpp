@@ -1,5 +1,8 @@
 #include "Misc/AutomationTest.h"
 #include "Combat/RTCombatLibrary.h"
+#include "Map/RTHexCellData.h"
+#include "Map/RTHexLibrary.h"
+#include "Map/RTHexMapAsset.h"
 #include "Turn/RTTurnLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -233,6 +236,50 @@ bool FRTCombatControlAuthorityTest::RunTest(const FString&)
 	// Vale simmetricamente per l'altra squadra (il team del giocatore non e' cablato a 0).
 	TestTrue(TEXT("simmetrico per il team 1"), URTCombatLibrary::CanPlayerControlUnit(1, 1));
 	TestFalse(TEXT("simmetrico: il team 1 non comanda il team 0"), URTCombatLibrary::CanPlayerControlUnit(0, 1));
+	return true;
+}
+
+/**
+ * CP 6.3: la validazione del bersaglio deve essere FAIL-CLOSED. Il difetto che questo test previene esisteva
+ * davvero: il controller valutava `bHasLOS = !Grid || HasLineOfSight(...)`, quindi quando la griglia non c'era
+ * piu' (dopo CP 6.1/6.2 il GameMode non la spawna) la linea di tiro risultava sempre valida e si poteva
+ * bersagliare attraverso i muri. Senza mappa autorevole non si ingaggia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCombatHexTargetingTest,
+	"RefactorTactics.Combat.HexTargetingIsFailClosed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCombatHexTargetingTest::RunTest(const FString&)
+{
+	const FRTCellId From(0, 0, 0);
+	const FRTCellId To(3, 0, 0); // distanza 3
+
+	// Mappa piena, con un muro che blocca la vista a meta' strada (aggiunto al punto 4).
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 4))
+	{
+		Map->AddOrUpdateCell(FRTHexCellData(Id));
+	}
+	Map->SortCells();
+
+	// 1. Senza mappa: NIENTE ingaggio, mai (regressione fail-open).
+	TestFalse(TEXT("mappa assente -> non si ingaggia"),
+		URTCombatLibrary::CanTargetHexCell(nullptr, From, To, /*RangeCells=*/ 5));
+
+	// 2. In portata e con linea libera -> si ingaggia.
+	TestTrue(TEXT("in portata e vista libera -> si ingaggia"),
+		URTCombatLibrary::CanTargetHexCell(Map, From, To, /*RangeCells=*/ 5));
+
+	// 3. Fuori portata -> no (distanza ESAGONALE, non quadrata).
+	TestFalse(TEXT("oltre la portata -> no"),
+		URTCombatLibrary::CanTargetHexCell(Map, From, To, /*RangeCells=*/ 2));
+
+	// 4. Muro sulla traiettoria -> no, pur restando in portata.
+	FRTHexCellData Wall(FRTCellId(2, 0, 0));
+	Wall.bBlocksLineOfSight = true;
+	Map->AddOrUpdateCell(Wall);
+	Map->SortCells();
+	TestFalse(TEXT("muro sulla linea di tiro -> no"),
+		URTCombatLibrary::CanTargetHexCell(Map, From, To, /*RangeCells=*/ 5));
 	return true;
 }
 

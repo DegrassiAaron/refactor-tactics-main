@@ -3,6 +3,7 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
 #include "Components/InstancedStaticMeshComponent.h"
+#include "DrawDebugHelpers.h" // anteprima di pianificazione (presentazione, non logica)
 #include "EngineUtils.h" // TActorIterator
 #include "UObject/ConstructorHelpers.h"
 #include "RefactorTactics.h"
@@ -14,7 +15,10 @@
 
 ARTHexMapActor::ARTHexMapActor()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	// Tick abilitabile ma SPENTO all'avvio: si accende solo quando c'e' un'anteprima da disegnare
+	// (SetHoveredCell/SetPreviewPath), cosi' la mappa resta inerte fuori dalla pianificazione.
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = false;
 
 	Cells = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Cells"));
 	SetRootComponent(Cells);
@@ -101,6 +105,70 @@ ARTHexMapActor* ARTHexMapActor::FindInWorld(const UWorld* World)
 		return *It;
 	}
 	return nullptr;
+}
+
+void ARTHexMapActor::SetHoveredCell(const FRTCellId& Cell, bool bValid)
+{
+	HoveredCell = Cell;
+	bHoveredValid = bValid;
+	// Il tick serve solo mentre c'e' qualcosa da disegnare: fuori dalla pianificazione l'actor resta inerte.
+	SetActorTickEnabled(bHoveredValid || PreviewPath.Num() > 0);
+}
+
+void ARTHexMapActor::SetPreviewPath(const TArray<FRTCellId>& Path)
+{
+	PreviewPath = Path;
+	SetActorTickEnabled(bHoveredValid || PreviewPath.Num() > 0);
+}
+
+void ARTHexMapActor::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	DrawPlanningPreview();
+}
+
+void ARTHexMapActor::DrawPlanningPreview() const
+{
+	const UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	FVector Origin = FVector::ZeroVector;
+	float Size = 0.f;
+	float LayerH = 0.f;
+	GetHexContext(Origin, Size, LayerH);
+
+	// Contorno di una cella, dai vertici condivisi con il marker dell'editor (stesso orientamento).
+	const auto DrawCellOutline = [World, &Origin, Size, LayerH](const FRTCellId& Cell, const FColor& Color, float Scale)
+	{
+		const FVector Center = URTHexLibrary::AxialToWorld(Cell, Origin, Size, LayerH) + FVector(0, 0, 4.0);
+		const TArray<FVector> Corners = URTHexLibrary::HexCorners(Center, Size * Scale);
+		for (int32 I = 0; I < Corners.Num(); ++I)
+		{
+			DrawDebugLine(World, Corners[I], Corners[(I + 1) % Corners.Num()], Color,
+				/*bPersistentLines=*/ false, /*LifeTime=*/ -1.f, /*DepthPriority=*/ 0, /*Thickness=*/ 3.f);
+		}
+	};
+
+	// Traccia del percorso: contorno ciano su ogni cella + segmento fra i centri consecutivi.
+	for (int32 I = 0; I < PreviewPath.Num(); ++I)
+	{
+		DrawCellOutline(PreviewPath[I], FColor(40, 220, 220), 0.72f);
+		if (I > 0)
+		{
+			const FVector A = URTHexLibrary::AxialToWorld(PreviewPath[I - 1], Origin, Size, LayerH) + FVector(0, 0, 6.0);
+			const FVector B = URTHexLibrary::AxialToWorld(PreviewPath[I], Origin, Size, LayerH) + FVector(0, 0, 6.0);
+			DrawDebugLine(World, A, B, FColor(40, 220, 220), false, -1.f, 0, 4.f);
+		}
+	}
+
+	// Cella sotto il cursore: disegnata per ultima e piu' larga, cosi' resta leggibile sopra la traccia.
+	if (bHoveredValid)
+	{
+		DrawCellOutline(HoveredCell, FColor::Yellow, 0.88f);
+	}
 }
 
 const URTHexMapAsset* ARTHexMapActor::GetHexContext(FVector& OutOrigin, float& OutHexSize, float& OutLayerHeight) const

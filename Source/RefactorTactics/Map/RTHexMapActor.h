@@ -153,7 +153,37 @@ public:
 	 */
 	const URTHexMapAsset* GetHexContext(FVector& OutOrigin, float& OutHexSize, float& OutLayerHeight) const;
 
+	// --- Anteprima di pianificazione (SOLA PRESENTAZIONE) -------------------------------------------------
+	// Invariante #1: questi metodi non decidono nulla. Ricevono cio' che il simulatore ha gia' deciso e lo
+	// disegnano. Il disegno e' a debug-line: la presentazione curata (mesh + materiale) e' M8.
+
+	/** Cella sotto il cursore: `bValid` false (o cella non nella mappa) = nessuna evidenziazione. */
+	void SetHoveredCell(const FRTCellId& Cell, bool bValid);
+
+	/** Percorso pianificato da evidenziare (vuoto = nessuna traccia). Celle consecutive, partenza inclusa. */
+	void SetPreviewPath(const TArray<FRTCellId>& Path);
+
+	/** Cella attualmente evidenziata e sua validita' (diagnostica e test). */
+	FRTCellId GetHoveredCell() const { return HoveredCell; }
+	bool IsHoveredCellValid() const { return bHoveredValid; }
+
+	/** Numero di celle nella traccia di anteprima (diagnostica e test). */
+	int32 NumPreviewPathCells() const { return PreviewPath.Num(); }
+
 protected:
+	virtual void Tick(float DeltaSeconds) override;
+
+	/** Disegna evidenziazione e traccia (debug-line): nessun effetto sulla logica. */
+	void DrawPlanningPreview() const;
+
+	/** Cella sotto il cursore, impostata dal controller. */
+	FRTCellId HoveredCell;
+
+	/** Falso = niente evidenziazione (cursore fuori dalla mappa). */
+	bool bHoveredValid = false;
+
+	/** Traccia del percorso pianificato, impostata dal controller. */
+	TArray<FRTCellId> PreviewPath;
 	/**
 	 * Ricostruisce la vista a ogni costruzione dell'actor: apertura del livello, spostamento, undo, spawn.
 	 * Le istanze ISM sono una vista DERIVATA dall'asset (autorevole): senza questo, riaprendo il livello la

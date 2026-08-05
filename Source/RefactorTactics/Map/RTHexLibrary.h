@@ -54,6 +54,13 @@ public:
 	/** Distanza minima tra la semi-retta (RayOrigin + t*RayDir, t>=0) e il segmento A..B. Pura, per hit-test archi. */
 	static float DistanceRayToSegment(const FVector& RayOrigin, const FVector& RayDir, const FVector& A, const FVector& B);
 
+	/**
+	 * I 6 vertici dell'esagono attorno a Center (pointy-top, primo vertice a -30 gradi), complanari al centro.
+	 * Il chiamante chiude il contorno collegando l'ultimo al primo. Condivisa da marker dell'editor e anteprima
+	 * in gioco: un solo orientamento, cosi' i due disegni non divergono.
+	 */
+	static TArray<FVector> HexCorners(const FVector& Center, float Radius);
+
 	/** Ordinamento stabile deterministico: Layer, poi X, poi Y. */
 	static bool StableLess(const FRTCellId& A, const FRTCellId& B);
 

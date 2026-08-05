@@ -1,6 +1,6 @@
 # CP 6.3 — Input, selezione e anteprima su hex (issue #33)
 
-> **Stato**: fondamenta fatte e testate · wiring del controller e overlay visivo **da fare**
+> **Stato**: codice **completo** (fondamenta + wiring + anteprima) · ⏳ restano `PIE-HEXPLAY-2/3`
 > **Branch**: `feat/33-hex-input-planning` (padre: `main`) · **Data**: 2026-08-05
 > Roadmap: [`roadmap-checkpoint.md`](roadmap-checkpoint.md) CP 6.3 ≡ [`roadmap-v0.1.md`](roadmap-v0.1.md) CP 2.3
 
@@ -46,28 +46,35 @@ convertito a `GetHexContext`.
 Differenza voluta fra i due usi: in **editor** il piano lo decide `ActiveLayer` (si dipinge sul layer scelto);
 in **gioco** lo decide la **quota del punto colpito** (clicchi il ponte, selezioni il ponte).
 
-## Da fare
+## Fatto: wiring del controller (`Player/RTPlayerController.cpp`)
 
-### 1. Wiring del controller (`Player/RTPlayerController.cpp`)
+Nessun uso residuo di `ARTGridActor`/`URTGridLibrary` nel controller (la rimozione dei file resta CP 3.2, issue #40).
 
-- Helper privato: mappa del livello + contesto via `ARTHexMapActor::FindInWorld` + `GetHexContext`.
-- `PlayerTick`: hover con `WorldToCellId`; valido solo se `Map->ContainsCell(Cell)`.
-- Ramo movimento: `Snapshot = TurnManager->MakeCurrentSnapshot(Units)`, `UnitId = Units.IndexOfByKey(SelectedUnit)`,
-  poi `BuildCompositeHexPath` col waypoint aggiunto in prova; se lo stato non è `Success` → **pop del waypoint**
-  e log del reason (fuori budget / bloccata / occupata / fuori mappa).
-- `RebuildPlannedPath`: stessa via, senza aggiungere waypoint.
-- Ramo dash: `URTHexPathLibrary::FindPathAvoiding` con `MaxCost = GetEffectiveDashRange(...)`.
-- **Fail-closed** sul targeting: portata con `URTHexLibrary::HexDistance`, LOS con
-  `URTHexVisionLibrary::HasLineOfSight(Map, ...)`; **senza mappa si rifiuta**, non si passa.
-- Rimuovere gli ultimi usi di `ARTGridActor`/`URTGridLibrary` dal controller (la rimozione dei file resta CP 3.2, issue #40).
+- **Hover** (`PlayerTick`): `WorldToCellId` sul punto colpito; valido solo se `Map->ContainsCell(Cell)`.
+  Il layer viene dalla **quota** del punto (clicchi il ponte, evidenzi il ponte).
+- **Movimento**: snapshot dall'autorità (`TurnManager->MakeCurrentSnapshot`), `UnitId` = indice dell'unità,
+  waypoint aggiunto **in prova** e `BuildCompositeHexPath`; se non è `Success` → **pop del waypoint** e log del
+  motivo (fuori mappa / oltre budget / bloccata / occupata). Il piano precedente resta intatto.
+- **Undo** (`RebuildPlannedPath`): stessa via senza aggiungere waypoint; piano non più valido → «resto fermo».
+- **Scatto**: `FindPathAvoiding` con `MaxCost = GetEffectiveDashRange(...)`, celle occupate da altri esclusi;
+  budget nullo intercettato **prima** della chiamata (`MaxCost == 0` significa illimitato per l'A*).
+- **Targeting fail-closed**: `URTCombatLibrary::CanTargetHexCell` (distanza esagonale + LOS, `Map == nullptr`
+  → falso). Test di regressione: `RefactorTactics.Combat.HexTargetingIsFailClosed`.
 
-### 2. Anteprima visiva (`Map/RTHexMapActor`)
+## Fatto: anteprima visiva (`Map/RTHexMapActor`)
 
-Serve l'equivalente di `ARTGridActor::SetHoveredCell`, che sull'actor esagonale **non esiste**:
-`SetHoveredCell(FRTCellId, bool)` e `SetPreviewPath(TArray<FRTCellId>)`, come **presentazione** (invariante #1:
-non decidono nulla). Decisione aperta: secondo ISM di overlay (richiede mesh/materiale, coerente con M8) oppure
-debug-draw temporaneo per rendere verificabile il CP e rinviare la qualità visiva a M8. **Da decidere con
-l'utente**: la prima è più lavoro e tocca gli asset, la seconda sblocca subito `PIE-HEXPLAY-2/3`.
+`SetHoveredCell(FRTCellId, bool)` e `SetPreviewPath(TArray<FRTCellId>)` — **sola presentazione** (invariante #1).
+Disegno a **debug-line**, decisione dell'utente: sblocca subito `PIE-HEXPLAY-2/3` e lascia a **M8** la
+presentazione curata (mesh + materiale), dove sta già il resto della leggibilità tattica.
+
+- Contorno giallo sulla cella sotto il cursore, contorno ciano + segmenti fra i centri per il percorso.
+- I vertici vengono da `URTHexLibrary::HexCorners`, **condivisa** con il marker dell'editor: un solo
+  orientamento (pointy-top, primo vertice a −30°), i due disegni non possono divergere.
+  Test: `RefactorTactics.Hex.HexCornersPointyTop`.
+- Il tick dell'actor è **spento** all'avvio e si accende solo quando c'è un'anteprima da disegnare.
+- L'anteprima segue la selezione: cambiando unità mostra il piano di quella scelta.
+
+**Suite: 192 test, 0 fail.** Build Game + Editor pulita, nessun warning nuovo.
 
 ## Verifica
 
