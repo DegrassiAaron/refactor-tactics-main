@@ -317,9 +317,10 @@ protected:
 
 	/**
 	 * Materiale con un parametro vettoriale "Color" usato per il colore-team.
-	 * Default: /Game/Materials/M_Unit (da creare nell'editor). Se assente, l'unita' resta grigia.
+	 * Default: /Game/RT/Art/GlobalMaterials/M_Global_Tint (tint parametrico trasversale, usato anche
+	 * dalla griglia). Se assente, l'unita' resta grigia.
 	 */
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Unit")
 	TSoftObjectPtr<UMaterialInterface> UnitMaterial =
-		TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Materials/M_Unit.M_Unit")));
+		TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/RT/Art/GlobalMaterials/M_Global_Tint.M_Global_Tint")));
 };

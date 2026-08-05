@@ -115,10 +115,10 @@ protected:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UStaticMeshComponent>> TerrainVisuals;
 
-	/** Materiale per colorare il terreno (default M_Unit con VectorParameter "Color"). */
+	/** Materiale per colorare il terreno (default M_Global_Tint con VectorParameter "Color"). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Grid")
 	TSoftObjectPtr<UMaterialInterface> TerrainMaterial =
-		TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Materials/M_Unit.M_Unit")));
+		TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/RT/Art/GlobalMaterials/M_Global_Tint.M_Global_Tint")));
 
 	/** Evidenziazione della cella sotto il cursore (hover): un piano colorato, nascosto quando fuori griglia. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Grid")

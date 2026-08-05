@@ -104,7 +104,7 @@ void ARTUnit::ApplyTeamColor()
 		}
 		else
 		{
-			UE_LOG(LogRT, Warning, TEXT("[RT] Materiale M_Unit assente: unita' senza colore-team (crea /Game/Materials/M_Unit)"));
+			UE_LOG(LogRT, Warning, TEXT("[RT] Materiale del tint assente: unita' senza colore-team (crea /Game/RT/Art/GlobalMaterials/M_Global_Tint)"));
 		}
 	}
 
