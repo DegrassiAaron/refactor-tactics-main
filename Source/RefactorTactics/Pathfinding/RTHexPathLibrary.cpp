@@ -44,6 +44,12 @@ TArray<TPair<FRTCellId, int32>> URTHexPathLibrary::GraphNeighbors(const URTHexMa
 FRTHexPathResult URTHexPathLibrary::FindPath(const URTHexMapAsset* Map, const FRTCellId& Start, const FRTCellId& Goal,
 	int32 MaxCost, int32 MaxNodes)
 {
+	return FindPathAvoiding(Map, Start, Goal, nullptr, MaxCost, MaxNodes);
+}
+
+FRTHexPathResult URTHexPathLibrary::FindPathAvoiding(const URTHexMapAsset* Map, const FRTCellId& Start,
+	const FRTCellId& Goal, const TSet<FRTCellId>* Blocked, int32 MaxCost, int32 MaxNodes)
+{
 	FRTHexPathResult Result;
 
 	if (!Map || !Map->ContainsCell(Start))
@@ -54,6 +60,12 @@ FRTHexPathResult URTHexPathLibrary::FindPath(const URTHexMapAsset* Map, const FR
 	if (!Map->ContainsCell(Goal))
 	{
 		Result.Status = ERTHexPathStatus::GoalInvalid;
+		return Result;
+	}
+	// Ostacolo dinamico sul goal: la cella esiste ma e' occupata -> nessun percorso (non e' un goal invalido).
+	if (Blocked && Blocked->Contains(Goal) && Goal != Start)
+	{
+		Result.Status = ERTHexPathStatus::NoPath;
 		return Result;
 	}
 	if (Start == Goal)
@@ -129,6 +141,10 @@ FRTHexPathResult URTHexPathLibrary::FindPath(const URTHexMapAsset* Map, const FR
 
 		for (const TPair<FRTCellId, int32>& Step : GraphNeighbors(Map, Current))
 		{
+			if (Blocked && Blocked->Contains(Step.Key))
+			{
+				continue; // cella occupata da un'altra unita' (ostacolo dinamico)
+			}
 			const int32 Tentative = GScore[Current] + Step.Value;
 			if (MaxCost > 0 && Tentative > MaxCost)
 			{
