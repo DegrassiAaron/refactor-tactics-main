@@ -7,8 +7,17 @@
 > raggruppate per preparazione condivisa, così l'editor si apre una volta per gruppo invece che una per voce.
 
 ## Come eseguire
-- Apri il progetto: doppio clic su `RefactorTactics.uproject` (EngineAssociation `"5.8"`; se l'editor l'ha
-  risporcato a un GUID, ripristina la riga a `"5.8"`).
+- Apri il progetto: doppio clic su `RefactorTactics.uproject`. All'avvio l'editor può chiedere **quale versione
+  dell'engine** usare: scegli **5.8** (`D:\EpicGames\UE_5.8`), la versione bloccata dal progetto. Se chiede di
+  **ricompilare i moduli**, accetta — oppure compila da riga di comando (vedi `ue58-build-gotchas`).
+  - **Perché lo chiede**: su questa macchina UE 5.8 è registrato come **build custom** (chiave
+    `HKCU\Software\Epic Games\Unreal Engine\Builds`, GUID `{B20BD8AB-…}` → `D:/EpicGames/UE_5.8`), non come
+    installazione del Launcher — l'unica registrata per nome è la 5.4. Quindi `"EngineAssociation": "5.8"` non
+    risolve nulla in locale e l'editor apre il selettore.
+  - Dopo la scelta l'editor **riscrive il GUID** dentro `RefactorTactics.uproject`: è corretto e va lasciato
+    così in locale (niente più dialoghi). **Non committare quella modifica**: il GUID vale solo su questa
+    macchina, il file versionato deve restare a `"5.8"`. Se finisce nello stage per sbaglio:
+    `git checkout -- RefactorTactics.uproject`.
 - **PIE**: pulsante Play (o `Alt+P`). Il `TurnManager` ha `PlanningSeconds≈30s`: premi **Spazio** per il lock-in manuale.
 - I `LogRT: [RT] ...` nell'**Output Log** narrano il round (fasi, esiti).
 
