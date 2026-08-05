@@ -356,3 +356,37 @@ TArray<FRTHexMoveResult> URTHexSimLibrary::ResolveHexPaths(const TArray<TArray<F
 
 	return Results;
 }
+
+FRTGridCoord URTHexSimLibrary::ToLogCoord(const FRTCellId& Cell)
+{
+	// I tre interi restano q, r e Layer: la topologia e' dichiarata nel formato (ERTLogTopology::Hex), non qui.
+	FRTGridCoord Out;
+	Out.X = Cell.X;
+	Out.Y = Cell.Y;
+	Out.Layer = Cell.Layer;
+	return Out;
+}
+
+TArray<FRTTurnLogEntry> URTHexSimLibrary::BuildMoveLog(const TArray<TArray<FRTCellId>>& Paths,
+	const TArray<FRTHexMoveResult>& Results)
+{
+	TArray<FRTTurnLogEntry> Log;
+	const int32 N = FMath::Min(Paths.Num(), Results.Num());
+	Log.Reserve(N);
+
+	for (int32 i = 0; i < N; ++i)
+	{
+		// Chiave stabile dell'unita' nel turno: la sua cella di PARTENZA (max 1 unita' per cella), mai un pointer.
+		const FRTCellId Start = Paths[i].Num() > 0 ? Paths[i][0] : Results[i].Final;
+
+		FRTTurnLogEntry Entry;
+		Entry.Phase = ERTMatchPhase::Move;
+		Entry.Category = ERTLogCategory::Move;
+		Entry.Outcome = static_cast<uint8>(Results[i].Outcome);
+		Entry.SrcCell = ToLogCoord(Start);
+		Entry.TgtCell = ToLogCoord(Results[i].Final);
+		Entry.Amount = Results[i].Entered.Num(); // celle effettivamente percorse
+		Log.Add(Entry);
+	}
+	return Log;
+}

@@ -223,4 +223,76 @@ bool FRTTurnLogLoadCorruptedTest::RunTest(const FString&)
 	return true;
 }
 
+// Topologia dichiarata nei flags dell'header: un log esagonale non e' confondibile con uno quadrato.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogTopologyRoundTripTest,
+	"RefactorTactics.TurnLog.TopologyRoundTrip",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogTopologyRoundTripTest::RunTest(const FString&)
+{
+	const TArray<FRTTurnLogEntry> Log = SampleLog();
+
+	const TArray<uint8> HexBytes = URTTurnLogLibrary::SerializeTurnLog(Log, ERTLogTopology::Hex);
+	TArray<FRTTurnLogEntry> Out;
+	ERTLogTopology Topology = ERTLogTopology::Square;
+	TestTrue(TEXT("log esagonale letto"), URTTurnLogLibrary::DeserializeTurnLog(HexBytes, Out, &Topology));
+	TestTrue(TEXT("topologia = Hex"), Topology == ERTLogTopology::Hex);
+	TestEqual(TEXT("hash preservato"), URTTurnLogLibrary::HashTurnLog(Out), URTTurnLogLibrary::HashTurnLog(Log));
+
+	const TArray<uint8> SquareBytes = URTTurnLogLibrary::SerializeTurnLog(Log, ERTLogTopology::Square);
+	Topology = ERTLogTopology::Hex;
+	TestTrue(TEXT("log quadrato letto"), URTTurnLogLibrary::DeserializeTurnLog(SquareBytes, Out, &Topology));
+	TestTrue(TEXT("topologia = Square"), Topology == ERTLogTopology::Square);
+
+	TestNotEqual(TEXT("le due tracce differiscono nei byte"), HexBytes, SquareBytes);
+	return true;
+}
+
+// Retrocompatibilita': il default resta Square e i byte non cambiano rispetto ai file gia' scritti (flags = 0).
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogSquareBytesUnchangedTest,
+	"RefactorTactics.TurnLog.SquareBytesUnchanged",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogSquareBytesUnchangedTest::RunTest(const FString&)
+{
+	const TArray<FRTTurnLogEntry> Log = SampleLog();
+	const TArray<uint8> Implicit = URTTurnLogLibrary::SerializeTurnLog(Log);
+	const TArray<uint8> Explicit = URTTurnLogLibrary::SerializeTurnLog(Log, ERTLogTopology::Square);
+
+	TestEqual(TEXT("il default e' Square"), Implicit, Explicit);
+	TestTrue(TEXT("flags a zero nell'header"), Implicit.Num() > 8 && Implicit[6] == 0 && Implicit[7] == 0);
+
+	// Un buffer scritto prima di questa modifica (flags = 0) resta leggibile.
+	TArray<FRTTurnLogEntry> Out;
+	TestTrue(TEXT("file legacy leggibile"), URTTurnLogLibrary::DeserializeTurnLog(Implicit, Out));
+	TestEqual(TEXT("hash preservato"), URTTurnLogLibrary::HashTurnLog(Out), URTTurnLogLibrary::HashTurnLog(Log));
+	return true;
+}
+
+// Fail-closed: una topologia sconosciuta e' rifiutata invece di essere interpretata a caso.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogUnknownTopologyTest,
+	"RefactorTactics.TurnLog.RejectsUnknownTopology",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogUnknownTopologyTest::RunTest(const FString&)
+{
+	TArray<uint8> Bytes = URTTurnLogLibrary::SerializeTurnLog(SampleLog(), ERTLogTopology::Hex);
+	Bytes[6] = 0x7F; // topologia inesistente
+
+	// Il checksum in coda copre l'header: va ricalcolato, altrimenti si verificherebbe solo il checksum.
+	uint32 H = 2166136261u;
+	for (int32 i = 0; i < Bytes.Num() - 4; ++i)
+	{
+		H ^= Bytes[i];
+		H *= 16777619u;
+	}
+	Bytes[Bytes.Num() - 4] = static_cast<uint8>(H & 0xFF);
+	Bytes[Bytes.Num() - 3] = static_cast<uint8>((H >> 8) & 0xFF);
+	Bytes[Bytes.Num() - 2] = static_cast<uint8>((H >> 16) & 0xFF);
+	Bytes[Bytes.Num() - 1] = static_cast<uint8>((H >> 24) & 0xFF);
+
+	TArray<FRTTurnLogEntry> Out;
+	Out.Add(FRTTurnLogEntry()); // sporca l'output per verificare lo svuotamento
+	TestFalse(TEXT("topologia sconosciuta -> rifiutata"), URTTurnLogLibrary::DeserializeTurnLog(Bytes, Out));
+	TestEqual(TEXT("output svuotato"), Out.Num(), 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

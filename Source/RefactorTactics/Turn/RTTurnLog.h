@@ -75,3 +75,16 @@ enum class ERTTurnLogFormatVersion : uint16
 	Initial      = 1, // header + voci, senza checksum (mai persistito su file)
 	WithChecksum = 2  // + checksum FNV del payload in coda: rileva la corruzione del contenuto
 };
+
+/**
+ * Topologia della griglia a cui appartengono le celle del log, dichiarata nei flags dell'header.
+ * Le voci portano 3 interi per cella: nel quadrato sono offset (X,Y,Layer), nell'esagonale assiali (q,r,Layer).
+ * Senza questo marcatore le due tracce sarebbero indistinguibili e un confronto incrociato darebbe un falso
+ * "nessuna divergenza". Square = 0 -> i file scritti prima di questa estensione restano leggibili.
+ * Non e' UENUM (uint16, come ERTTurnLogFormatVersion): e' una costante di formato interna.
+ */
+enum class ERTLogTopology : uint16
+{
+	Square = 0,
+	Hex    = 1
+};
