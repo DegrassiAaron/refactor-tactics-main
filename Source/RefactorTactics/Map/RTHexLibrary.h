@@ -52,4 +52,23 @@ public:
 	/** Esagono PIENO di raggio N attorno al centro (tutte le celle a distanza <= N, stesso layer). 3N(N+1)+1 celle. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static TArray<FRTCellId> HexArea(const FRTCellId& Center, int32 Radius);
+
+	/**
+	 * Celle attraversate dalla linea A->B, ESTREMI INCLUSI, sul layer di A (linea planare: come HexDistance,
+	 * il Layer non entra nel calcolo). Lunghezza = HexDistance(A,B)+1 e celle consecutive sempre adiacenti.
+	 * Interpolazione in ARITMETICA INTERA (lerp razionale + arrotondamento cubico sui resti): niente float
+	 * nella logica di gioco (invariante #4) e nessuna oscillazione sulle linee che passano sul confine tra
+	 * due celle. Tie-break dell'arrotondamento in ordine fisso q -> r -> s (come CubeRound).
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static TArray<FRTCellId> HexLine(const FRTCellId& A, const FRTCellId& B);
+
+	/**
+	 * Ventaglio di 120 gradi da From verso Target, profondo Range celle: unione dei due settori esagonali a 60
+	 * gradi adiacenti alla direzione principale (il primo passo della linea From->Target). From e' ESCLUSO;
+	 * output ordinato con StableLess (deterministico). Target == From o Range <= 0 -> vuoto.
+	 * Copertura: 3 celle a distanza 1, 5 a distanza 2, ecc.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static TArray<FRTCellId> HexCone(const FRTCellId& From, const FRTCellId& Target, int32 Range);
 };
