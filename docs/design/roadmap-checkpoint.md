@@ -1,231 +1,248 @@
-# RefactorTactics — Roadmap & Checkpoint
+# RefactorTactics — Roadmap di prodotto
 
-> Espande le milestone del [piano canonico §7](piano-canonico-mvp.md#7-roadmap-mvp-14-settimane) in
-> **checkpoint** con Definition of Done (DoD) **misurabile** e metodo di verifica, e **integra la roadmap
-> tecnica dei PDR** (`docs/PDR/RT_PDR_10_Roadmap_QA_Rischi`) — vedi §«Allineamento con i PDR (F0–F6)».
+> **Fase corrente**: post-tutorial · **Ultimo aggiornamento**: 2026-08-05
+> Vista di **esecuzione** del progetto: milestone, checkpoint, Definition of Done (DoD) **misurabile** e metodo
+> di verifica. Il *cosa* e il *perché* stanno in [`piano-canonico-mvp.md`](piano-canonico-mvp.md); i requisiti
+> tecnici di lungo periodo in [`../PDR/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](../PDR/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md).
+>
 > Regola: un checkpoint è "fatto" solo quando il DoD è verificato col metodo indicato — non "sembra funzionare".
+
+## Chiusura della fase tutorial (2026-08-05)
+
+I due corsi (`02-Tutorial`, `03-TutorialToMVP`) e il framing «percorso per imparare UE 5.8 partendo da C#»
+sono **chiusi**. Hanno prodotto l'MVP quadrato M0–M5 e gli incrementi post-MVP; da qui in poi RefactorTactics
+è un **progetto di prodotto** e la roadmap risponde a un obiettivo di gioco, non a un programma didattico.
+
+Conseguenze operative:
+
+- I corsi passano da «materiale di riferimento» a **storico** nella gerarchia delle fonti (piano canonico §1).
+- Le milestone **M0–M5 sono archiviate** come storico (§ *Archivio*): non si riaprono, non si estendono.
+  Il codice quadrato che ne deriva ha una data di dismissione pianificata (**M7**).
+- La numerazione delle milestone **prosegue da M6**: la storia del repo resta leggibile.
+- Nessun tutoring C++/UE per default nelle risposte (resta disponibile su richiesta esplicita).
 
 ## Come tracciamo il lavoro
 
-- **1 milestone = 1 branch**, PR verso `main` a milestone completa.
+- **1 milestone = più feature branch**, PR verso il branch padre a checkpoint completo (non a milestone intera:
+  i branch lunghi hanno già causato merge onerosi).
 - **1 checkpoint = ≥1 commit** con messaggio significativo; si committa quando il DoD del checkpoint è verde.
 - Test automatici prima di chiudere un checkpoint che tocca le regole (mai saltarli).
+- Le verifiche che richiedono l'editor sono voci in [`test-manuali-pie.md`](test-manuali-pie.md), non gate impliciti.
 
-## Stato attuale (2026-08-03)
+## Stato attuale
 
-Legenda: ✅ fatto e verificato · 🟡 fatto in forma ridotta (vedi nota) · ⏳ da fare
+Legenda: ✅ fatto e verificato · 🟡 fatto in parte (vedi nota) · ⏳ da fare
 
 | Milestone | Stato | Sintesi |
 |---|---|---|
-| M0 Fondamenta | ✅ | Progetto UE 5.8.1 compila (Game + Editor), repo + LFS |
-| M1 Sandbox | ✅ | Camera, input (C++), griglia + test, selezione, demo 2v2 |
-| M2 Turn loop | ✅ | Fasi, resolver movimento (conflitti), pianificazione, timer 30s · **incrementi post-MVP**: path finding PF.1–PF.3, terreno v1, movimento v2 (→ sezione dedicata) |
-| M3 Combat loop | ✅ | Danno/scudo, attacco, eliminazione, energia+ultimate (AoE), LOS/copertura, **abilità data-driven** ✅ · status Root/Slow/**Reveal** (intento nemico, invariante #6) ✅ · **forme targeting complete** (Single/Area/Line/Cone) ✅ · barra abilità |
-| M4 Vertical slice | ✅ | Bot (focus-fire, **aggiramento ostacoli**, **kiting** del Ranger), HUD (barre HP + combat log + **anteprima piani** ciano/reveal), vittoria + riavvio |
-| M5 Release interna | ✅ | **63 test** ✅ · **packaging Windows** (Development + **Shipping**) ✅ · DoD MVP formale ✅ |
+| **M0–M5** MVP quadrato (tutorial) | ✅ **archiviata** | Vertical slice 2v2 offline giocabile, packaging Windows, suite verde — vedi § *Archivio* |
+| **H0–H6.5** Fondamenta esagonali | ✅ | Coordinate/asset/A\*/multilivello/editor mode + simulazione hex pura (snapshot, budget, collisioni, TurnLog, LOS, bot) — dettaglio in [`hex-map-roadmap.md`](hex-map-roadmap.md) |
+| **M6** Parità hex | ⏳ | Portare la **partita** su griglia esagonale: wiring, combat, bot, HUD, playtest |
+| **M7** Dismissione del quadrato | ⏳ | Rimozione pianificata del gameplay quadrato + misurazione dei budget |
+| **M8** Presentazione e identità | ⏳ | Personaggi animati, anelli team/selezione, leggibilità tattica |
+| **M9** Ambienti tattici + editor maturo | ⏳ | Hazard/cover dinamica/porte-ponti; residuo H5 dell'editor mappa |
+| **M10** Rete e privacy | ⏳ | Listen server, validazione server, planning team-only, canary intent leak |
+| **M11** Production readiness | ⏳ | Budget in CI, validator commandlet, packaged soak, replay audit |
 
-**Sviluppo consolidato su `main`**: l'MVP (M0–M5) è stato sviluppato in un unico branch di fase e poi mergiato; gli incrementi post-MVP usano feature branch dedicati. **169 test automatici verdi** (`Source/RefactorTactics/Tests/`; conteggio autorevole del repo, misurato 2026-08-05; include TurnLog P3 + hash + serializzazione versionata + checksum + I/O su file + **simulazione esagonale H6.1–H6.5**: snapshot/budget/collisioni, TurnLog e replay su hex, LOS e forme di targeting, bot con utility scoring esagonale + ricostruzione della vista mappa).
+**Suite automatica**: **169 test** dichiarati in `Source/RefactorTactics/Tests/` (conteggio statico delle macro
+`IMPLEMENT_SIMPLE_AUTOMATION_TEST`, verificato 2026-08-05) — **63 esagonali** (`RTHex*`) e **106 quadrati o
+neutri**. L'ultima esecuzione completa riportata è 169/169 verdi; **da rimisurare** all'apertura di M6.
 
-Scelte che divergono dai DoD originali (equivalenti o migliori, documentate qui):
-- **Input in C++** (nessun asset `IA_*`/`IMC_*`): il controller costruisce Enhanced Input via codice.
-- **Selezione via `IRTSelectable`** (interfaccia C++), non `BPI_Selectable` (Blueprint).
-- **Colore team** via materiale `M_Unit` (unico asset creato a mano) + parametro `Color`.
-- **Attacco base** su `ARTUnit` (AttackRange/AttackPower) invece di `URTAbilityData` data-driven (rimandato a M3 avanzato).
-
----
-
-## M0 — Fondamenta
-
-| CP | Stato | Obiettivo | Definition of Done | Verifica |
-|---|---|---|---|---|
-| 0.1 | ✅ | Toolchain | UE **5.8.1** + VS 2022 + **Git LFS** | Editor 5.8.1 si avvia; LFS attivo |
-| 0.2 | ✅ | Progetto Blank C++ | `RefactorTactics.uproject` apre e il modulo C++ **compila** | Build Game + Editor Development → Succeeded |
-| 0.3 | ✅ | Repo versionato | `.gitignore`/`.gitattributes`; `.uasset` gestiti da LFS | `git lfs ls-files` elenca `M_Unit`/`L_Prototype` |
+**Stato del gioco, in una riga**: la griglia esagonale ha fondamenta complete e testate ma **nessuna partita ci
+gira sopra** — il turn loop giocabile è ancora quello quadrato. M6 chiude esattamente questo divario.
 
 ---
 
-## M1 — Sandbox
+## M6 — Parità hex
 
-| CP | Stato | Obiettivo | Note |
+**Obiettivo**: la partita 2v2 contro bot gira **interamente** su griglia esagonale, con parità funzionale
+rispetto all'MVP quadrato. Nessuna feature nuova: è una **sostituzione del substrato**, non un'espansione.
+
+**Perché prima di tutto il resto**: oggi esistono due mondi paralleli (il gioco quadrato e la simulazione hex
+pura). Ogni giorno in più di convivenza costa doppia manutenzione e rende ambiguo dove va scritta una regola.
+
+Lo strato puro esiste già ed è testato (`URTHexSimLibrary`, `URTHexPathLibrary`, `URTHexVisionLibrary`,
+`URTHexBotLibrary`, `URTHexLibrary`): M6 **non riscrive le regole**, collega Actor/controller/HUD a quelle regole.
+
+| CP | Obiettivo | Definition of Done | Verifica |
 |---|---|---|---|
-| 1.1 | ✅ | Camera tattica | `ARTCameraPawn` (SpringArm, pitch -55°, pan/zoom) |
-| 1.2 | ✅ | Enhanced Input | Costruito **in C++** (pan WASD, zoom rotellina, select click, lock-in Spazio) — nessun asset |
-| 1.3 | ✅ | Griglia logica | `URTGridLibrary` + `FRTGridCoord` (10×10 @ 200) · test roundtrip verde |
-| 1.4 | 🟡 | Griglia visuale | `ARTGridActor` (Instanced Static Mesh) ✅ · evidenziazione cella-sotto-cursore ⏳ |
-| 1.5 | ✅ | Selezione | `IRTSelectable` + click (ingrandimento, deseleziona il precedente) |
+| **6.0** ✅ | Riordino dei contenuti | 11 asset sotto `/Game/RT` **feature-first**; percorsi hard-coded (`DefaultEngine.ini`, default `TSoftObjectPtr` in C++) e `.gitignore` aggiornati; nessun redirector residuo. Fatto **2026-08-05** via API Editor headless, suite **172/172** | Registro e insidie in [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §A. ⏳ resta il PIE degli anelli (`PIE-AS5`/`PIE-SEL`) |
+| **6.1** | Allestimento della partita su mappa hex | `ARTGameMode` allestisce la partita da un `ARTHexMapActor` + `URTHexMapAsset`; `ARTUnit` ha la posizione autorevole in `FRTCellId` (**sostituzione**, non campo parallelo: due coordinate = due verità); l'occupazione è ricostruibile dallo stato unità | Build Editor + suite verde; `PIE-HEXPLAY-1` |
+| **6.2** | Movimento end-to-end | `ARTTurnManager` costruisce `FRTHexSnapshot`, risolve con `ResolveHexPaths`, applica gli esiti e produce il TurnLog con `BuildMoveLog`; playback lungo i centri esagonali senza deriva | Test d'integrazione headless (2v2 in `UWorld`, esiti via campi `Planned*`); `PIE-HEXPLAY-4/5` |
+| **6.3** | Input, selezione, preview | Raycast → cella assiale del layer corretto (riuso della logica di `RTHexEditorClick`, non una seconda implementazione); pianificazione a waypoint con rifiuto di celle oltre budget/bloccate/occupate; anteprima del percorso | `PIE-HEXPLAY-2/3` |
+| **6.4** | Combat su hex | Attacchi, forme (Single/Area/Line/Cone via `HexLine`/`HexCone`), LOS via `URTHexVisionLibrary`, energia/ultimate, status Root/Slow/Reveal risolti su `FRTCellId`; combat resolver «raccogli poi applica» ordine-indipendente | Test unitari per ogni forma + permutazione dell'input; `PIE-HEXPLAY-6` |
+| **6.5** | Dash e knockback su hex | Fase Dash attiva con budget esagonale; `KnockbackDestination` in versione esagonale (direzione fra celle adiacenti, spinte opposte che si annullano, contesa che resta ferma) | Test unitari (TDD, il caso quadrato è il riferimento di comportamento) |
+| **6.6** | Bot su hex | `ARTTurnManager` pianifica i bot via `URTHexBotLibrary`; nessuna mossa illegale proponibile (le candidate nascono da `ReachableCells`); pesi utility restano `UPROPERTY` tunabili in PIE | Test d'integrazione (smoke/panic/support/tuning, come i quadrati); `PIE-HEXPLAY-7` |
+| **6.7** | HUD e osservabilità | Barre HP/scudo/energia, timer, fase, combat log e anteprima piani sui centri esagonali; i reason code del TurnLog compaiono nel log con coordinate assiali `(q,r,L)` | `PIE-HEXPLAY-9` |
+| **6.8** | Playtest della partita hex | Mappa di prova costruita con l'editor mode (esagono r=4, ostacoli, celle che bloccano la vista, superficie costosa, piattaforma su layer 1 con una transizione); partita completa fino alla vittoria | Sessione D: `PIE-HEXPLAY-1..9` tutte ✅ |
 
-**Uscita M1**: ✅ si naviga l'arena e si seleziona un'unità (verificato in PIE).
+**DoD di milestone**: le 9 voci `PIE-HEXPLAY` verdi · suite automatica verde con i nuovi test hex · una partita
+2v2 completa dall'avvio alla vittoria su mappa esagonale multilivello · nessun percorso di gioco che passi
+ancora da `FRTGridCoord` (il tipo può esistere, ma non nel flusso della partita) · packaging Development che
+si avvia e gioca senza editor.
 
----
-
-## M2 — Turn loop
-
-| CP | Stato | Obiettivo | Note |
-|---|---|---|---|
-| 2.1 | ✅ | State machine fasi | `ERTMatchPhase` + `URTTurnRules::NextPhase` (test) |
-| 2.2 | ✅ | Timer + lock-in | Timer **30s** + lock-in manuale (Spazio) / automatico |
-| 2.3 | ✅ | Pianificazione azioni | `PlannedCell` / `PlannedAttackTarget` per unità (click su cella/nemico) |
-| 2.4 | ✅ | Risoluzione movimento | `URTMovementResolver`: contesa/scambio/blocco · ordine-indipendente (test) |
-| — | ✅ | Range movimento | Validazione max 4 celle (`IsWithinRange`) — chiude un bug dei tutorial |
-
-**Uscita M2**: ✅ turno completo con movimento simultaneo deterministico (verificato in PIE).
-
-> **Incrementi post-MVP innestati su M2** (path finding PF.1–PF.3, terreno v1, movimento v2) → consolidati nella
-> sezione **«Incrementi post-MVP consegnati»** in fondo al documento.
+**Rischi**: (a) la sostituzione della coordinata su `ARTUnit` tocca 34 file — va fatta a fette compilabili, non
+in un commit unico; (b) il knockback esagonale non ha un equivalente 1:1 del quadrato (6 direzioni invece di 8):
+è l'unico punto dove serve una **decisione di design**, non una traduzione.
 
 ---
 
-## M3 — Combat loop
+## M7 — Dismissione del quadrato
 
-| CP | Stato | Obiettivo | Note |
+**Obiettivo**: un solo substrato in repo. Il quadrato smette di esistere nel gameplay, con un punto di ritorno
+esplicito prima della rimozione.
+
+| CP | Obiettivo | Definition of Done | Verifica |
 |---|---|---|---|
-| 3.1 | ✅ | Abilità data-driven | `URTAbilityData` (range/power/area/status/cooldown/costo); ogni unità ha una **lista di abilità** (default: Attacco, Colpo pesante cd2, Ultimate); **barra abilità** nell'HUD, selezione con tasti 1/2/3, `IsAbilityUsable` (test); il bot sceglie l'abilità migliore |
-| 3.2 | ✅ | Danno/scudo/morte | `URTCombatLibrary::ApplyDamage` + `URTCombatResolver::ResolveAttacks` (raccogli-poi-applica, focus-fire, ordine-indipendente) · eliminazione a HP 0 (test) |
-| 3.3 | ✅ | Energia + ultimate | `GainEnergy`/`IsUltimateReady` (test) · energia per turno + on-hit; attacco a energia piena = ultimate (danno x2); barra energia nell'HUD |
-| 3.4 | ✅ | Status + Gameplay Tags | Tag nativi `Status.Root`/`Status.Slow`/`Status.Reveal`; durata a turni; `EffectiveMoveRange` (test); l'ultimate applica Slow, "Colpo preciso" applica Reveal; `IsIntentVisibleTo` (test, invariante #6); marker HUD + intento nemico rivelato · Shield = "Barriera" (già presente) |
-| 3.5 | ✅ | Targeting a forme | `CellsInRadius`/`CellsInLine`/`CellsInCone` (test) → forme **Single · Area · Line · Cone** guidate da `ERTAbilityShape`; Ranger "Colpo preciso" (Line), Guardian "Spazzata" (Cone), ultimate AoE (Area) |
-| 3.6 | ✅ | LOS / copertura | `HasLineOfSight` (test) · ostacoli centrali visibili (`ARTGridActor::BlockedCells`); un attacco richiede LOS libera; movimento su copertura rifiutato |
+| **7.1** | Punto di ritorno + inventario | Tag git annotato (es. `pre-hex-only`) sull'ultimo commit con entrambi i substrati; classificazione dei 106 test non-hex in **neutri** (combat math, serializzazione TurnLog, regole di fase), **da portare**, **da rimuovere** | Tag pushato; tabella di classificazione in questo documento |
+| **7.2** | Rimozione del gameplay quadrato | Via `Grid/RTGridActor`, `Grid/RTGridLibrary`, resolver/bot/terreno quadrati e i test relativi; ciò che è neutro resta e continua a girare | Build verde; suite verde; `grep FRTGridCoord Source/` restituisce solo codice fuori dal flusso di gioco (o nulla) |
+| **7.3** | Misurazione dei budget | KPI del PDR misurati **una volta su hex** e registrati: FPS client, path mediana, tempo resolver per turno. Un numero misurato, anche fuori target, vale più di un ⏳ | Log/profiling allegato alla PR; valori riportati nella tabella KPI |
+| **7.4** | Release interna hex | Packaging Windows Development **e** Shipping dal codice solo-hex; partita completa senza editor | `RunUAT BuildCookRun` → BUILD SUCCESSFUL + avvio verificato |
 
-**Uscita M3**: ✅ combattimento completo — abilità data-driven, danno/scudo/eliminazione, energia/ultimate,
-status (Root/Slow/Reveal), forme (Single/Area/Line/Cone), LOS/copertura. Tutti i CP 3.1–3.6 verdi (verificato in PIE).
-
-> ⚠️ Bug dei tutorial: il "range movimento 4" **è stato chiuso** (validato); **LOS/copertura** ora implementata (CP 3.6).
+**DoD di milestone**: un solo substrato · suite verde · budget misurati e registrati · build packaged giocabile ·
+`hex-map-roadmap.md` e `piano-canonico-mvp.md` allineati (nessun riferimento al quadrato come sistema vivo).
 
 ---
 
-## M4 — Vertical slice
+## M8 — Presentazione e identità
 
-| CP | Stato | Obiettivo | Note |
+**Obiettivo**: il gioco smette di essere cilindri colorati. Il C++ è già in `main` (spawn `TSubclassOf` con
+fallback, facing, eventi di montaggio, anello di team); manca il lavoro **in editor**.
+
+| CP | Obiettivo | Definition of Done | Verifica |
 |---|---|---|---|
-| 4.1 | ✅ | Bot | `URTBotLibrary::StepToward` + `PlanBots`: team 1 si avvicina e attacca (test) |
-| 4.2 | ✅ | HUD | Barre HP/scudo sopra le unità (`ARTHUD`, C++) + **combat log a schermo** (ultimi eventi in basso a sinistra) |
-| 4.3 | ✅ | Vittoria | Squadra eliminata → `MatchEnded`, turni fermi (test) + **riavvio con tasto R** ("premi R per rigiocare") |
+| **8.1** | Personaggi su hex | `BP_Unit_*` (Paragon) posati sui centri esagonali, a terra, senza compenetrazione; fallback al cilindro se l'asset manca | `PIE-AS2`, `PIE-FACING` |
+| **8.2** | Animazioni | `ABP_*` con locomozione Idle↔Run in fase Move; montaggi Cast/Hit/Death nel Blast; la morte visiva resta differita (la presentazione non decide, invariante #1) | `PIE-AS4a`, `PIE-AS4b` |
+| **8.3** | Leggibilità tattica | `M_TeamRing` + `M_SelectionRing` assegnati; colori delle superfici leggibili in partita (non solo nell'overlay dell'editor); camera tarata (pitch/distanza) sulla scala esagonale | `PIE-AS5`, `PIE-SEL` + giudizio a schermo |
 
-**Uscita M4**: ✅ **completo** — MVP giocabile 2v2 contro bot, dall'avvio alla vittoria e ripetibile (verificato in PIE).
+**DoD di milestone**: sessione C di `test-manuali-pie.md` completamente verde · nessun cilindro nel gioco a
+meno di asset mancanti · una partita registrata (video/screenshot) come riferimento di stato.
 
 ---
 
-## M5 — Release interna
+## M9 — Ambienti tattici e maturità dell'editor
 
-| CP | Stato | Obiettivo | Note |
-|---|---|---|---|
-| 5.1 | ✅ | Suite test verde | **63 test** da CLI (`Automation RunTests RefactorTactics`) tutti verdi — conteggio autorevole del repo (2026-08-03) |
-| 5.2 | ✅ | Packaging Windows | `RunUAT BuildCookRun` — **Development** (`Saved/Packaged/Windows/`, verificato: si avvia e si gioca senza editor) **e Shipping** (`Saved/StagedBuilds/Windows/RefactorTactics-Win64-Shipping.exe`, ~166 MB, BUILD SUCCESSFUL) |
-| 5.3 | ✅ | Definition of Done MVP | Rivista voce per voce col piano canonico §4 (vedi riga di sintesi) |
+**Obiettivo**: la mappa diventa un sistema di gioco (pilastro di prodotto), non solo un piano da percorrere.
+Assorbe **H8** e il residuo di **H5**.
 
-> ⚠️ Nota packaging: il primo tentativo falliva per la cache `ScriptModules` corrotta della toolchain UAT
-> (post-hotfix 5.8.0→5.8.1). Risolto con **Epic Launcher → UE 5.8 → Verifica**. NON eliminare a mano
-> l'intera cartella `Engine/Intermediate/ScriptModules` (peggiora: "Found no script module records").
-
----
-
-## Incrementi post-MVP consegnati (aggiornato 2026-08-03)
-
-Oltre all'MVP (M0–M5) sono stati consegnati incrementi **post-MVP**, tutti verificati in PIE (o via log) e
-coperti dalla suite (**70 test**). Le voci ⏳ restano north-star / richiedono verifica interattiva dell'utente.
-
-| Incremento | Stato | Sintesi | Spec |
-|---|---|---|---|
-| **PF.1–PF.2** · path finding obstacle-aware | ✅ | `ReachableCells` (BFS) + validazione nel resolver (chiude "movimento attraverso le colonne"); `FindPath` + preview a schermo; bot path-aware | [`spec-pathfinding.md`](spec-pathfinding.md) |
-| **PF.3** · path finding pesato | ✅ | Dijkstra su costo per cella (cost provider); percorso a costo minimo | [`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md) |
-| **PF.4** · grafo multilivello | 🟡 | **motore ✅** (`FRTGridCoord`+`Layer`, `FRTTraversalEdge`, `ReachableCellsByGraph`/`FindPathByGraph` — TDD). **Mappa "ponte sopraelevato"**: MP.1 ponte + movimento cross-layer (rampe) + click→layer + elevazione unità ✅ · MP.2 **LOS di elevazione** ✅ TDD · MP.3 preview HUD elevata ✅ · **MP.4 bot-sul-ponte** ✅ (`BestFiringCell`: il bot sale in quota per sparare oltre le coperture — TDD + osservato in gioco). ⏳ resta solo la verifica interattiva **click→layer** (serve il mouse dell'utente) + tuning colori/quota | [`spec-mappa-multilivello.md`](spec-mappa-multilivello.md) |
-| **Terreno v1** | ✅ | `URTTerrainData` (5 tipi): Fango (costo), Cespuglio (blocca vista), Altura (+danno), Lava (hazard fine turno), Erba secca → Fuoco (dinamico); rendering celle colorate; bot cost/hazard-aware | [`spec-terreni.md`](spec-terreni.md) |
-| **Movimento v2** | ✅ | `URTMovementResolver::ResolvePaths` (microstep sincroni, ordine-indipendente); path composita a waypoint (**pallini visibili** · click aggiunge · **tasto destro** toglie · editing per-unità · rifiuto oltre budget); cross-damage + double-dip con l'hazard; **traccia grigia** del percorso risolto post-lock | [`spec-terreni.md`](spec-terreni.md) §7/§10 |
-| **Consolidamento «Sequenza di Risoluzione del Turno»** | ✅ *(doc)* | spec-panel: classificazione north-star + recepimento `FR-RESOLVE-01..03` (ordinamento deterministico APNAP) nel canone §5.1 | [`spec-sequenza-turno.md`](spec-sequenza-turno.md) |
-| **Animazione della risoluzione (AN.1–AN.6)** | ✅ | Il round è **osservabile**: i cilindri si **muovono** animati per fase (Prep→Dash→Blast→Move), **senso di durata** configurabile (`UPROPERTY`), **skip** (Spazio), HUD fase/%, **morte visiva differita** (il colpo mortale si vede prima della sparizione, `NewlyDefeated`). Playback = presentazione, non decide (invariante #1); 60/60→ test invariati | [`spec-anima-risoluzione.md`](spec-anima-risoluzione.md) |
-| **Dash come fase attiva** | ✅ | Fase **Dash** ora attiva: abilità di scatto (`bDash`) risolta **prima del Blast** (riposizionarsi/schivare prima degli attacchi). Bot (offensivo + **difensivo/schiva**) e **giocatore** (tasto 4 + click, preview magenta). **Dash + Move** consentiti. Status: Root blocca, Slow dimezza (`GetEffectiveDashRange`) | [`spec-dash.md`](spec-dash.md) |
-| **Knockback (spinta)** | ✅ | Un attacco **respinge** i colpiti (fase Blast): fuori copertura, giù dal ponte, nella lava (cross-damage). `KnockbackDestination` (pura, 8 test, TDD); Guardian "Spazzata" spinge 2 celle; deterministico (2+ spinte si annullano; conteso→resta); **animato** (scivolamento nel Blast) | [`spec-knockback.md`](spec-knockback.md) |
-| **TurnLog + reason codes (P3, TL.1–TL.3)** | ✅ | Osservabilità autoritativa separata dal playback: `FRTTurnLogEntry` con reason codes interi — Movimento `ERTMoveOutcome{Stayed,Moved,BlockedContested,BlockedByUnit}` esposto da `ResolvePaths`; Combat `ERTCombatOutcome{Hit,ShieldAbsorbed,Lethal,NoLineOfSight,TerrainBonus}` via `ClassifyCombatOutcome` (pura). Chiave = cella di partenza (**permutazione-invariante**); log ordinato deterministicamente; combat log HUD arricchito. TDD (3 test nuovi, 70/70 verdi). Reason allineati al codice reale (no CoverReduced: la copertura blocca la LOS). ⏳ hash di replay | [`spec-turnlog.md`](spec-turnlog.md) · [`plan-turnlog.md`](plan-turnlog.md) |
-
-**Polish**: viz del percorso *risolto* post-lock (traccia grigia) + pallini sui waypoint + undo col tasto destro ✅ (2026-08-02); **animazione della risoluzione** (cilindri in movimento, morte differita, spinta) ✅ (2026-08-03).
-
----
-
-## Allineamento con i PDR (roadmap tecnica F0–F6)
-
-> Integra la **roadmap tecnica dei PDR** (`docs/PDR/RT_PDR_10_Roadmap_QA_Rischi`, owner della roadmap) nel
-> tracciamento a checkpoint. **Gerarchia di prevalenza** (PDR-00 §governance): *decisioni esplicite del
-> progetto > requisiti consolidati > **proposte PDR** > ricerca*. Dove il PDR diverge dalle decisioni MVP
-> consolidate, **prevale il canone** e la divergenza è segnalata.
->
-> ⚠️ **Governance PDR-00 §6**: l'owner della roadmap è **PDR-10**; i PDF sono *snapshot di consultazione*, le
-> sorgenti testuali devono vivere in Git. **Fatto (2026-08-03)**: creata la sorgente canonica
-> [`docs/PDR/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](../PDR/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) e registrata la
-> decisione **D-009** in [`docs/PDR/RT_PDR_00_Decision_Log.md`](../PDR/RT_PDR_00_Decision_Log.md). Questo tracker
-> resta la vista di **esecuzione**; PDR-10 v0.2 è il **piano/requisiti** (una sola fonte logica per concetto).
-
-### Mappatura milestone MVP (M) ↔ fasi PDR (F)
-
-Le fasi PDR sono **ordinate per rischio** ("sequenziale per rischio, non un calendario"); gli M dell'MVP le
-coprono in ordine diverso (**offline-first**).
-
-| Fase PDR | Obiettivo | Exit gate PDR | Stato nel repo |
-|---|---|---|---|
-| **F0** Fondazioni | loop locale movimento deterministico | Golden tests + packaged demo | ✅ ≈ **M0–M2** (fasi, resolver ordine-indip., timer 30s, packaging) |
-| **F1** Rete privata | listen server, preview team-only, commit, privacy test | **Zero canary leak** | ⏳ **differito** — ⚠️ il PDR lo anticipa (F1); l'MVP è 2v2 **offline**, architettura *server-authority-ready* |
-| **F2** Abilities | 4×4 kit, **GAS mirror**, target/LOS | Golden test per ability | 🟡 abilità data-driven + targeting/LOS ✅ (**M3**, `URTAbilityData`); **GAS** ⏳ ⚠️ (canone: No-GAS nell'MVP); kit = 2 archetipi (non 4×4) |
-| **F3** Mappa multilivello | layer, porte, ponte, tunnel, acqua/elettrico | Revision/cache/LOS tests | 🟡 **ponte + LOS di elevazione** ✅ (PF.4 / MP.1–MP.4); porte/tunnel/acqua/elettrico ⏳ |
-| **F4** Vertical slice | 2v2, objective, UI completa, bot base | Playtest interno 20–30 min | 🟡 2v2 + UI + bot ✅ (**M4**) + risoluzione **animata**; **objective/modalità** ⏳ · playtest lungo ⏳ |
-| **F5** Dedicated | server target, reconnect, telemetry, replay audit | Packaged soak test | ⏳ north-star |
-| **F6** Beta systems | content pipeline, balance, accessibilità | Release checklist | ⏳ north-star |
-
-**Divergenze** (prevale il canone MVP, PDR recepito come direzione north-star non come override): **(a)** rete
-F1 anticipata dal PDR vs **differita** dall'MVP; **(b)** **GAS** F2 dal PDR vs **No-GAS** nell'MVP. Restano
-decisioni consolidate — vedi [`piano-canonico-mvp.md`](piano-canonico-mvp.md).
-
-### QA — Test pyramid (PDR-10 §5)
-
-| Livello | Frequenza | Stato |
+| CP | Obiettivo | Definition of Done |
 |---|---|---|
-| Core automation (logica pura: resolver, combat, path, dash, knockback, turnlog) | ogni commit | ✅ **70 test** (CLI + Session Frontend) |
-| Feature tests (comportamenti integrati) | PR/CI | 🟡 via PIE + log |
-| Network tests (privacy/leak canary) | PR critiche/nightly | ⏳ (con F1) |
-| Functional maps | nightly | ⏳ |
-| Packaged tests | milestone/release | 🟡 build Shipping ok; soak ⏳ |
-| Playtest (ogni incremento giocabile) | continuo | 🟡 PIE headless; playtest utente ⏳ |
+| **9.1** | Residuo editor mappa (H5) | Verifiche PIE aperte dell'editor mode chiuse (`E/F/G/H/L/N`); copia-incolla di regioni e palette Slate **solo se** l'uso reale le richiede (YAGNI: la mappa di prova di M6 è il banco di prova) |
+| **9.2** | Superfici attive | Acqua/fuoco/elettricità con effetto sul turno (costo, hazard di fine turno, propagazione deterministica); ogni modifica ambientale compare nel TurnLog |
+| **9.3** | Cover dinamica e passaggi | Coperture distruttibili/mobili e porte-ponti che cambiano la topologia: le modifiche **invalidano** cache e path (revisione dell'asset), mai path fantasma |
 
-### KPI / Performance budgets (PDR-10 §6)
+**DoD di milestone**: un incremento ambientale cambia in modo osservabile l'esito di un turno · nessuna cache
+stantia (test di invalidazione) · le regole ambientali sono coperte da test puri.
+
+---
+
+## M10 — Rete e privacy
+
+**Obiettivo**: dal 2v2 offline al 2v2 in rete, senza cedere sull'invariante #6 (privacy dell'intento).
+Corrisponde a **H7** e alla fase **F1** del PDR.
+
+| CP | Obiettivo | Definition of Done |
+|---|---|---|
+| **10.1** | Listen server + autorità | Ogni decisione di gameplay è calcolata sul server; il client produce solo preview; hash dell'asset mappa validato all'ingresso |
+| **10.2** | Piani team-only | I piani viaggiano in DTO filtrati per squadra: nessuna replica globale con occultamento grafico |
+| **10.3** | Canary anti-leak | Test automatico che fallisce se un client riceve **qualunque** byte del piano avversario prima del reveal |
+
+**DoD di milestone**: **intent leak = 0** dimostrato dal canary · il server rifiuta ogni percorso illegale
+proposto dal client (test) · una partita in rete completata senza desync (replay divergence 0).
+
+> ⚠️ **Rischio accettato**: il PDR ordina le fasi *per rischio* e metterebbe la rete subito dopo le fondamenta.
+> Posticiparla a M10 significa che M8 e M9 aggiungono superficie da rendere autoritativa. **Mitigazione**: ogni
+> PR di M8/M9 mantiene la logica decisionale in `ARTTurnManager`/librerie pure (invariante #5) — le
+> presentazioni non accedono a stato che il server non abbia già deciso.
+
+---
+
+## M11 — Production readiness
+
+**Obiettivo**: quello che serve per considerare il gioco distribuibile a persone esterne. Corrisponde a **H9**
+e alle fasi **F5–F6** del PDR.
+
+Contenuto: chunking e performance su mappe grandi · validator della mappa come **commandlet in CI** · soak test
+su build packaged · replay audit (registrazione e riesecuzione di partite reali) · checklist di rilascio ·
+accessibilità di base. **DoD**: i budget KPI rispettati (o le deviazioni registrate) su mappa grande, validator
+che blocca la CI su mappa non valida, soak test senza crash.
+
+---
+
+## KPI / Performance budget
 
 | Budget | Target | Stato |
 |---|---|---|
-| Client FPS | **60** | ⏳ non misurato |
-| Path (mediana) | **< 2 ms** | ⏳ non misurato |
-| Preview completa | **< 50 ms** | ⏳ (offline: preview locale immediata) |
-| Resolver server | **< 100 ms/match** | ⏳ non misurato (risoluzione sincrona rapida) |
-| Intent updates | 8–12 Hz | ⏳ (con rete) |
-| **Replay divergence** | **0** | ✅ determinismo by-design + test ordine-indip.; **TurnLog ✅** (permutazione-invariante); **hash di replay ✅** (`ff5e079`); **serializzazione versionata ✅** (`SR`, [`spec-turnlog-serialize.md`](spec-turnlog-serialize.md)); **anche su griglia esagonale ✅** (H6.3: `BuildMoveLog` + topologia dichiarata nel formato, test `RefactorTactics.HexSim.ReplayDivergenceZero`) |
-| **Intent leak** | **0** | ⏳ canary (con F1) — privacy già invariante #6 |
+| Client FPS | 60 | ⏳ non misurato → **CP 7.3** |
+| Path (mediana) | < 2 ms | ⏳ non misurato → **CP 7.3** |
+| Preview completa | < 50 ms | ⏳ non misurato → **CP 7.3** |
+| Resolver | < 100 ms/turno | ⏳ non misurato → **CP 7.3** |
+| Intent updates | 8–12 Hz | ⏳ con M10 |
+| **Replay divergence** | **0** | ✅ determinismo by-design; TurnLog permutazione-invariante, hash di replay, serializzazione versionata con checksum, verificato **anche su hex** (`RefactorTactics.HexSim.ReplayDivergenceZero`) |
+| **Intent leak** | **0** | ⏳ canary con M10 — privacy già invariante #6, oggi banale perché offline |
 
-### Risk register (PDR-10 §7) — con stato mitigazione
+## Rischi aperti
 
 | Rischio | P/I | Mitigazione | Stato |
 |---|---|---|---|
-| Resolver difficile da spiegare | H/H | TurnLog reason codes + UI certainty | ✅ combat log a schermo ✅; **reason codes/TurnLog ✅** (Movimento+Combat, TDD); UI certainty ⏳ |
-| Leak di planning | M/H | DTO team-only, canary, no global replication | 🟡 privacy #6 (offline); canary ⏳ |
-| GAS invade l'autorità | M/H | resolver **puro prima** di GAS | ✅ resolver puro consolidato; GAS non introdotto |
-| Mappa Actor-heavy | M/H | dati compatti + instancing/chunk | ✅ griglia/terreno/ponte via ISM |
-| Scope roster/ambienti | H/M | slice a pochi personaggi, 1 combo primaria | 🟡 2 archetipi (Ranger/Guardian) |
-| Upgrade UE in milestone | M/H | patch lock, upgrade tra milestone | ✅ UE **5.8.1 bloccata** (canone) |
-| Modding prematuro | M/M | rimandato | ✅ fuori scope |
+| La sostituzione della coordinata rompe il gioco a metà | H/H | M6 a fette compilabili, ogni CP con suite verde; tag di ritorno prima di M7 | attivo |
+| Doppia manutenzione quadrato/hex | H/M | M7 con data: la dismissione è una milestone, non un'intenzione | pianificato |
+| Rete introdotta tardi su superficie ampia | M/H | Autorità isolata come gate di PR (invariante #5) | accettato, monitorato |
+| Budget mai misurati → target mitici | M/M | CP 7.3 forza una misura reale | pianificato |
+| Verifiche PIE che si accumulano | M/M | Raggruppate in sessioni A–D; ogni milestone chiude le proprie voci | attivo |
+| Scope roster/ambienti | H/M | 2 archetipi (Ranger/Guardian) finché il loop non è chiuso | attivo |
+| Upgrade UE dentro una milestone | M/H | UE 5.8.1 bloccata (canone), upgrade solo fra milestone | ✅ |
 
-### Definition of Done (PDR-10 §8) — 7 criteri
+## Definition of Done trasversale (per ogni PR)
 
-1. Funziona **server/client** (non solo Standalone) — ⏳ con rete. 2. Non espone dati oltre la classificazione
-(privacy) — 🟡 invariante #6 offline. 3. Log/debug spiegano l'esito — ✅ `LogRT` + combat log. 4. Include
-Automation/Functional test pertinente — ✅ 63 test. 5. Rispetta i budget o registra la deviazione — ⏳ budget
-non misurati. 6. Verificata in **build packaged** — 🟡 Shipping ok. 7. Documentazione, changelog, commit
-focalizzato — ✅ `docs/design/`.
+1. Compila (Game + Editor). 2. Suite automatica verde, con test nuovi per la logica nuova. 3. Le decisioni di
+gameplay restano in C++ autoritativo (invarianti #1/#5). 4. Determinismo preservato: nessun float in
+coordinate/hash, nessuna dipendenza dall'ordine dei container. 5. Log/TurnLog spiegano l'esito. 6. Verifiche
+interattive registrate in `test-manuali-pie.md` (non dichiarate verdi senza esecuzione). 7. Documentazione
+aggiornata, commit focalizzato, nessun file generato o segreto. **Se qualcosa non è verificabile, si dichiara.**
 
 ---
 
-## Dopo l'MVP (north-star)
+## Archivio — MVP quadrato M0–M5 (fase tutorial, chiusa)
 
-Vedi [piano canonico §8](piano-canonico-mvp.md#8-north-star-post-mvp-dai-prd): P0 multiplayer
-server-authoritative → P1 4v4/eroi/replay/**Intenti condivisi** → P2 GAS/accessibilità/mappa
-multilivello → P3 console/modding/anti-cheat.
+Storico compresso. **Non si riapre**: le voci residue ⏳ sono superate dal pivot esagonale o assorbite dalle
+milestone sopra. Il dettaglio dei checkpoint originali resta nella storia git di questo file (fino a `8974e46`).
 
-> **Sequenza di risoluzione ricca** (reazioni/reveal/stack LIFO) — north-star, vedi
-> [`spec-sequenza-turno.md`](spec-sequenza-turno.md). L'unica parte adottata a breve è l'**ordinamento
-> deterministico degli effetti simultanei** (APNAP + tie-break totale), **recepita nel piano canonico §5.1**
-> (`FR-RESOLVE-01..03`, 2026-08-02). Il resto (finestre live, categorie di velocità, modello JSON) resta
-> post-MVP per conflitto con gli invarianti #3/#4.
+| Milestone | Esito |
+|---|---|
+| **M0** Fondamenta | Progetto UE 5.8.1 nella radice del repo, compila Game + Editor, Git LFS |
+| **M1** Sandbox | Camera tattica, Enhanced Input **in C++** (niente asset `IA_*`/`IMC_*`), griglia logica + ISM, selezione via `IRTSelectable` |
+| **M2** Turn loop | `ERTMatchPhase`, timer 30 s + lock-in, pianificazione, risoluzione movimento ordine-indipendente |
+| **M3** Combat loop | Abilità data-driven (`URTAbilityData`, no GAS), danno/scudo/morte, energia/ultimate, status Root/Slow/Reveal, forme Single/Area/Line/Cone, LOS/copertura |
+| **M4** Vertical slice | Bot utility scoring (focus-fire, kiting, panic, support, dash+attacco), HUD + combat log, vittoria e riavvio |
+| **M5** Release interna | Suite verde, packaging Windows Development **e** Shipping, DoD MVP rivista voce per voce |
+
+**Incrementi post-MVP consegnati** (tutti su `main`): path finding PF.1–PF.3 (BFS → Dijkstra pesato) e **PF.4**
+grafo multilivello con mappa "ponte sopraelevato" · terreno v1 (5 tipi, hazard, fuoco dinamico) · movimento v2
+(microstep sincroni, path a waypoint editabile) · animazione della risoluzione AN.1–AN.6 (round osservabile,
+morte visiva differita, skip) · Dash come fase attiva · knockback deterministico · **TurnLog + reason codes**
+con hash di replay, serializzazione versionata e I/O su file con checksum · personaggi Paragon (C++).
+
+**Decisioni che divergevano dai DoD originali** e restano valide: input in C++, selezione via interfaccia C++,
+colore team via materiale parametrico, attacco base su `ARTUnit` prima delle abilità data-driven.
+
+**Cosa resta utile del quadrato**: il comportamento di riferimento per la traduzione su hex (M6) e i test
+neutri (combat math, serializzazione, regole di fase). Il resto ha data di scadenza in **M7**.
+
+---
+
+## Rapporto con gli altri documenti
+
+| Documento | Ruolo |
+|---|---|
+| [`piano-canonico-mvp.md`](piano-canonico-mvp.md) | **Canone**: decisioni vincolanti, invarianti, regole numeriche |
+| [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) | **Normativo**: struttura di `Content/`, naming, dipendenze fra cartelle, spostamenti |
+| *questo file* | **Esecuzione**: milestone, checkpoint, DoD, stato |
+| [`hex-map-roadmap.md`](hex-map-roadmap.md) | **Dettaglio tecnico** della linea esagonale H0–H6.5 (consegnate) e del residuo editor H5 |
+| [`../PDR/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](../PDR/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) | **Requisiti** di lungo periodo (fasi F0–F6, QA, rischi) — direzione, non scope |
+| [`test-manuali-pie.md`](test-manuali-pie.md) | Verifiche interattive in editor, per sessioni |
+| ADR ([`adr-0002-griglia-esagonale.md`](adr-0002-griglia-esagonale.md)) | Decisioni architetturali con motivazione e revisione |
+
+**Mappatura con le fasi PDR**: M6+M7 ≈ **F0** consolidata su hex · M8 ≈ parte di **F4** · M9 ≈ **F3**+**F2**
+(ambienti, kit) · M10 ≈ **F1** · M11 ≈ **F5–F6**. Le divergenze consolidate restano due, e prevale il canone:
+**rete differita** (il PDR la anticipa) e **no-GAS** (il PDR prevede il mirror GAS in F2).

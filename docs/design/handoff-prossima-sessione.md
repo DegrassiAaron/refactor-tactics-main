@@ -1,45 +1,55 @@
-# Handoff — riprendere l'implementazione da sessione fresca
+# Handoff — riprendere il lavoro da sessione fresca
 
-> Contesto compatto per una **nuova sessione** che continua a implementare codice su RefactorTactics.
-> Aggiornato: 2026-08-04. Leggi anche `piano-canonico-mvp.md`, `roadmap-checkpoint.md` e la memoria di progetto
-> `ue58-build-gotchas`.
+> Contesto compatto per una **nuova sessione** che continua a implementare su RefactorTactics.
+> Aggiornato: **2026-08-05**. Leggi anche [`piano-canonico-mvp.md`](piano-canonico-mvp.md) (decisioni),
+> [`roadmap-checkpoint.md`](roadmap-checkpoint.md) (milestone e DoD) e la memoria di progetto `ue58-build-gotchas`.
 
-## ⚠️ Situazione multi-branch (leggere PRIMA di toccare git)
-Tre filoni **paralleli** sulla stessa macchina; il working tree principale (`D:\Repositories\refactor-tactics-main`)
-è su **`feat/hex-grid`** (lavoro dell'utente sulla griglia esagonale — **non toccare** senza coordinarsi).
+## Dove siamo
 
-| Branch | Contenuto | Stato |
-|---|---|---|
-| `feat/hex-grid` | griglia esagonale + editor mappa (utente, parallelo) | attivo — non toccare |
-| `feat/skeletal-units` | personaggi Paragon animati (AS.1–AS.5), camera, anim | C++ fatto; manca editor (montaggi/materiali) + PIE |
-| `feat/bot-utility` (da skeletal-units) | bot utility scoring (BU.1–BU.3) | C++ fatto; manca PIE → tuning → refactor completo |
+- **Fase tutorial chiusa** (2026-08-05): il progetto è di prodotto, milestone da **M6** in poi.
+- Tutto il lavoro dei filoni paralleli (skeletal units, bot utility, hex, editor mappa) è **mergiato su `main`**
+  via PR #1–#10. Non esistono più branch lunghi non pushati né worktree obbligatori.
+- **Fondamenta esagonali complete e testate** (H0–H6.5): coordinate, asset mappa, A\*, multilivello, editor
+  mode, e lo strato di simulazione puro (`URTHexSimLibrary`, `URTHexPathLibrary`, `URTHexVisionLibrary`,
+  `URTHexBotLibrary`).
+- **Ma nessuna partita gira su hex**: il turn loop giocabile è ancora quello quadrato. È esattamente il
+  contenuto di **M6 — Parità hex**.
 
-Tutti i branch sono **locali (non pushati)**.
+## Stato git
 
-## ⚠️ Regole operative (fondamentali)
-- **Non lavorare sul working tree principale** (è su hex, dell'utente). Per skeletal-units/bot-utility usa un
-  **worktree isolato in PATH CORTO** (es. `D:\rt-wt-bot`). **Mai nello scratchpad** (`C:\Users\...\Temp\...`):
-  il path supera 260 char e la build UE fallisce (`Filename too long`).
-  - Creare: `GIT_LFS_SKIP_SMUDGE=1 git worktree add "D:\rt-wt-XYZ" <branch>` (LFS skip = veloce; i binari non
-    servono per compilare C++). Un worktree `D:\rt-wt-bot` (feat/bot-utility) **esiste già**.
-  - Un hook di sicurezza protegge `D:\rt-wt-*` dalla **rimozione** automatica: se serve, chiedere all'utente.
-- **Build** (dal worktree, path corto): `"D:\EpicGames\UE_5.8\Engine\Build\BatchFiles\Build.bat" RefactorTacticsEditor Win64 Development -project="D:\rt-wt-bot\RefactorTactics.uproject" -waitmutex`. La GUI dell'editor dell'utente (su hex) **non** blocca questa build (dir/DLL separate).
-- **Test headless**: `"D:\EpicGames\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "D:\rt-wt-bot\RefactorTactics.uproject" "-ExecCmds=Automation RunTests RefactorTactics; Quit" -nullrhi -unattended -nopause -nosplash -log -abslog="<log>"`. Conta `Result={Success}` / `Result={Fail}` nel log.
-- **TDD**: logica pura in `URT*Library` (testabile in automation, RED→GREEN); presentazione/wiring (Actor/World/editor) → verifica build + **PIE** (vedi `test-manuali-pie.md`).
-- Niente commit/push senza richiesta esplicita. Commit trailer: `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
+- Branch di lavoro correnti creati da `main`, PR verso `main`; branch locale eliminato dopo il merge.
+- Al 2026-08-05: `feat/camera-pitch-tunable` aperto come **PR #11** (camera: pitch regolabile, tasto `F`).
+- Non committare la modifica automatica di `RefactorTactics.uproject` (l'editor ci scrive il GUID
+  dell'engine locale): `git checkout -- RefactorTactics.uproject`.
 
-## Cosa è fatto / cosa manca
+## Come compilare e testare
 
-### `feat/bot-utility` (il filone di questa sessione)
-- ✅ **BU.1** `URTBotLibrary::ScorePlan` puro + `FRTBotPlan`/`FRTBotContext` (5 test).
-- ✅ **BU.2** `PlanBots` sceglie la **cella di posizionamento** via `ScorePlan` (resta/tiro/avvicinamento), pesando minaccia/kiting.
-- ✅ **BU.3 (debug)** punteggio nel combat log (`utility -> (x,y,Lz) score=N`).
-- ⏳ **PIE del bot** (`PIE-BU2` in `test-manuali-pie.md`) → **tuning pesi** (esporre `WKill/WThreat/WKiteViolation/WApproach` come `UPROPERTY` sul `TurnManager`) → **refactor BU.3 completo** (candidate **attacco+movimento** combinate su tutti i rami, mantenendo le guardie support/dash/panic). Suite corrente: **77/77**.
+```
+# build (Editor, Development)
+"D:\EpicGames\UE_5.8\Engine\Build\BatchFiles\Build.bat" RefactorTacticsEditor Win64 Development ^
+  -project="D:\Repositories\refactor-tactics-main\RefactorTactics.uproject" -waitmutex
 
-### `feat/skeletal-units` (personaggi)
-- ✅ C++: `VisualZOffset`, spawn `TSubclassOf` con fallback cilindro, facing (`DirectionYaw`+`bFaceMovementDirection`), `bIsMovingVisually` (anim corsa), camera (`DefaultArmLength`+ricentro Home), AS.4b eventi montaggio (`PlayAttackMontage/PlayHitMontage/PlayDefeatMontage`), AS.5 `TeamRing`+`TeamColorFor`.
-- ⏳ Editor (utente): `BP_Unit_*`, `ABP_*`, montaggi AS.4b, `M_TeamRing`. Guida: `guida-animazioni-paragon.md`. PIE: `test-manuali-pie.md`.
+# test headless (conta Result={Success} / Result={Fail} nel log)
+"D:\EpicGames\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" ^
+  "D:\Repositories\refactor-tactics-main\RefactorTactics.uproject" ^
+  "-ExecCmds=Automation RunTests RefactorTactics; Quit" -nullrhi -unattended -nopause -nosplash -log -abslog="<log>"
+```
 
-## Primo passo consigliato per la sessione fresca
-Se l'utente ha già fatto il **PIE del bot**: procedere con **tuning pesi** e poi **refactor BU.3** su `feat/bot-utility`
-(worktree `D:\rt-wt-bot`). Altrimenti chiedere l'esito del PIE. Spec di riferimento: `spec-bot-utility.md`.
+- L'editor aperto dall'utente **blocca** la build del target Editor (Live Coding): chiedere di chiuderlo, oppure
+  lavorare in un **worktree a path corto** (es. `D:\rt-wt-XYZ`; **mai** nello scratchpad `C:\Users\...\Temp\...`,
+  il path supera 260 caratteri e la build fallisce con `Filename too long`).
+- **Suite**: 169 test dichiarati (`Source/RefactorTactics/Tests/`), 63 esagonali.
+
+## Metodo
+
+- **TDD** per la logica pura in `URT*Library` (RED→GREEN, testabile in automation).
+- Wiring/Actor/editor: build verde + voce in [`test-manuali-pie.md`](test-manuali-pie.md), verificata
+  dall'utente in PIE. Non dichiarare verde una voce PIE senza esecuzione reale.
+- Niente commit/push senza richiesta esplicita.
+
+## Primo passo consigliato
+
+Aprire **M6 — Parità hex** dal checkpoint **6.1** (allestimento della partita su mappa hex e posizione
+autorevole di `ARTUnit` in `FRTCellId`). Prima di scrivere: leggere `roadmap-checkpoint.md` § M6, che elenca
+i CP con DoD e le verifiche `PIE-HEXPLAY` associate. La sostituzione della coordinata tocca ~34 file: va fatta
+a fette compilabili, una PR per checkpoint.
