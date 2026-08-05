@@ -38,7 +38,7 @@
 - L'editor aperto dall'utente **blocca** la build del target Editor (Live Coding): chiedere di chiuderlo, oppure
   lavorare in un **worktree a path corto** (es. `D:\rt-wt-XYZ`; **mai** nello scratchpad `C:\Users\...\Temp\...`,
   il path supera 260 caratteri e la build fallisce con `Filename too long`).
-- **Suite**: 169 test dichiarati (`Source/RefactorTactics/Tests/`), 63 esagonali.
+- **Suite**: 172 test (`Source/RefactorTactics/Tests/`, 25 file), 63 esagonali.
 
 ## Metodo
 

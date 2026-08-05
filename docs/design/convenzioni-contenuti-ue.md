@@ -428,13 +428,63 @@ I 43 GB inutilizzati **non erano inerti**: l'asset registry li scansiona a ogni 
 che ha portato a scoprirlo è stato il **Content Browser che non mostrava le cartelle appena create** dalla
 migrazione di A.1 — l'editor stava ancora indicizzando. Ne risentono anche apertura dell'editor, DDC e cook.
 
-## B.2 Flusso
+## B.2 Struttura del vault
+
+> **Correzione 2026-08-05**: la prima stesura di questa appendice descriveva «nel vault, tasto destro sulla
+> cartella → Migrate» dando per scontato che il vault fosse apribile. Non lo era: conteneva solo `Content/`.
+> **Migrate esiste solo dentro l'editor**, e l'editor apre progetti, non cartelle — il flusso era quindi
+> ineseguibile. Risolto aggiungendo al vault un `.uproject` minimale.
+
+```
+D:\UE_AssetVault\
+  AssetVault.uproject     <- rende il magazzino apribile; nessun modulo C++, si apre senza compilare
+  Content\
+    ParagonGideon\  ParagonSparrow\  ... (26 pack)
+```
+
+Il `.uproject` dichiara `EngineAssociation` col **GUID** della build custom UE 5.8 di questa macchina
+(`{B20BD8AB-…}`, vedi `test-manuali-pie.md` § *Come eseguire*), non la stringa `"5.8"`: così si apre senza il
+selettore di versione. Non avendo `Modules`, è un progetto solo-contenuti.
+
+## B.2b Flusso
 
 1. I pack si **scaricano nel vault**, non nel progetto di gioco.
-2. Quando serve un personaggio o un set: nel vault, tasto destro sulla cartella → **Migrate** → destinazione
-   la `Content/` di RefactorTactics. UE porta l'asset **e solo le sue dipendenze**.
+2. Quando serve un personaggio o un set: si apre **`AssetVault.uproject`**, tasto destro sulla cartella del
+   pack → **Migrate** → destinazione la cartella `Content` di RefactorTactics. UE porta l'asset **e solo le
+   sue dipendenze**, non il pack intero — è il motivo per cui esiste il progetto vault invece di copiare
+   cartelle: `ParagonGideon` pesa 2,74 GB, ma di quel pack a un `BP_Unit` servono mesh, scheletro, poche
+   animazioni e i loro materiali.
 3. Per rimandare qualcosa nel vault: **editor chiuso**, si sposta la cartella a livello di file system. Con
    vault e progetto sullo **stesso disco** è un rename, quindi istantaneo anche per decine di GB.
+
+**Prima apertura del vault: è lenta.** L'asset registry indicizza 48 GB. È il costo che il vault sposta *fuori*
+dal progetto di gioco: lo si paga aprendo il magazzino quando serve migrare, non a ogni avvio di RefactorTactics.
+
+## B.2c Junction: vedere il catalogo dal progetto principale (2026-08-05)
+
+Scelta dell'utente: avere **tutti e 26 i pack visibili dal Content Browser di RefactorTactics**, senza migrarli.
+Realizzata con **junction** (link di file system) da `Content/Paragon*` alle cartelle del vault:
+
+```powershell
+New-Item -ItemType Junction -Path "<progetto>\Content\ParagonX" -Target "D:\UE_AssetVault\Content\ParagonX"
+```
+
+Perché una junction e non una copia: gli asset conservano i loro path `/Game/ParagonX/...`, quindi i riferimenti
+interni ai pack restano validi, e **non si occupa spazio** (`Content/` del progetto resta 0,00 GB di asset propri).
+
+**Due conseguenze da tenere presenti**, entrambe accettate consapevolmente:
+
+1. **Il beneficio di avvio del vault è annullato**: ciò che è linkato viene indicizzato come se fosse locale, e
+   sono di nuovo 48 GB. Il vault continua a servire come *organizzazione* (i pack non stanno nel repo, non si
+   duplicano fra progetti), non più come risparmio sul tempo di apertura.
+2. **Il progetto dipende da un percorso esterno**: se `D:\UE_AssetVault` viene spostato o rinominato, le junction
+   si rompono e con loro ogni Blueprint che referenzia quei pack — è lo stesso meccanismo che ha già fatto
+   sparire i `BP_Unit_*`. Un asset proprietario che dipende da un pack linkato **non è autosufficiente**: per
+   renderlo tale serve il Migrate del punto 2.
+
+Le junction sono ignorate da git **come directory** (`/Content/Paragon*/` in `.gitignore`): con un pattern per
+estensione git le attraverserebbe e statterebbe decine di migliaia di file a ogni `git status`. Per rimuoverle
+basta cancellare i link (`Remove-Item` sulla junction, non sul bersaglio): i file restano nel vault.
 
 Il punto 3 è una deviazione consapevole da §11 (che vuole gli spostamenti dal Content Browser): vale **solo**
 per cartelle di terze parti **prive di referenti**, che è esattamente ciò che il vault contiene. Per gli asset

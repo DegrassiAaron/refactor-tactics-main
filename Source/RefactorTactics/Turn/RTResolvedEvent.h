@@ -41,7 +41,7 @@ struct FRTResolvedEvent
 
 	/** Per Move: la rotta in celle (start incluso + celle attraversate, in ordine). */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
-	TArray<FRTGridCoord> Path;
+	TArray<FRTCellId> Path;
 
 	/** Danno/scudo/durata secondo Type. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")

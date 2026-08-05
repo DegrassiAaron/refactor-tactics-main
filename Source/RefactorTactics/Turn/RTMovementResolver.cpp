@@ -1,17 +1,17 @@
 #include "Turn/RTMovementResolver.h"
 
-TArray<FRTPathResult> URTMovementResolver::ResolvePaths(const TArray<TArray<FRTGridCoord>>& Paths)
+TArray<FRTPathResult> URTMovementResolver::ResolvePaths(const TArray<TArray<FRTCellId>>& Paths)
 {
 	const int32 N = Paths.Num();
 	TArray<FRTPathResult> Results;
 	Results.SetNum(N);
 
-	TArray<FRTGridCoord> Pos;   Pos.SetNum(N);   // posizione corrente
+	TArray<FRTCellId> Pos;   Pos.SetNum(N);   // posizione corrente
 	TArray<int32> Prog;         Prog.SetNum(N);  // indice nel path
 	TArray<bool> Done;          Done.SetNum(N);  // path esaurito / nessun movimento
 	for (int32 i = 0; i < N; ++i)
 	{
-		Pos[i] = Paths[i].Num() > 0 ? Paths[i][0] : FRTGridCoord();
+		Pos[i] = Paths[i].Num() > 0 ? Paths[i][0] : FRTCellId();
 		Prog[i] = 0;
 		Done[i] = Paths[i].Num() <= 1;
 		Results[i].Final = Pos[i];
@@ -23,7 +23,7 @@ TArray<FRTPathResult> URTMovementResolver::ResolvePaths(const TArray<TArray<FRTG
 	// Microstep sincroni: tutti avanzano di 1 cella, si risolvono le collisioni, si ripete.
 	while (true)
 	{
-		TArray<FRTGridCoord> Target; Target.SetNum(N);
+		TArray<FRTCellId> Target; Target.SetNum(N);
 		TArray<bool> Moving;         Moving.SetNum(N);
 		for (int32 i = 0; i < N; ++i)
 		{
@@ -92,12 +92,12 @@ TArray<FRTPathResult> URTMovementResolver::ResolvePaths(const TArray<TArray<FRTG
 	return Results;
 }
 
-TArray<FRTGridCoord> URTMovementResolver::ResolveMoves(const TArray<FRTMoveRequest>& Requests)
+TArray<FRTCellId> URTMovementResolver::ResolveMoves(const TArray<FRTMoveRequest>& Requests)
 {
 	const int32 Num = Requests.Num();
 
 	// Destinazione tentativa di ciascuna unita' (parte da To).
-	TArray<FRTGridCoord> Dest;
+	TArray<FRTCellId> Dest;
 	Dest.Reserve(Num);
 	for (const FRTMoveRequest& Request : Requests)
 	{
@@ -118,7 +118,7 @@ TArray<FRTGridCoord> URTMovementResolver::ResolveMoves(const TArray<FRTMoveReque
 
 		// 1) Destinazione contesa: se 2+ unita' finiscono sulla stessa cella, quelle in
 		//    movimento tornano ferme (una cella occupata da chi resta ferma blocca comunque).
-		TMap<FRTGridCoord, int32> Occupancy;
+		TMap<FRTCellId, int32> Occupancy;
 		for (int32 i = 0; i < Num; ++i)
 		{
 			Occupancy.FindOrAdd(Dest[i])++;

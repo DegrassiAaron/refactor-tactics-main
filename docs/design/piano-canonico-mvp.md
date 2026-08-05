@@ -50,6 +50,16 @@ modding). Sono la **direzione futura**, non l'obiettivo attuale. Vedi §8.
 > e invalida M1–M5 (griglia/combat/LOS/bot/pathfinding). Gli **invarianti** (determinismo, no float, dati autorevoli in
 > C++) restano. Il sistema quadrato resta su `feat/skeletal-units`/`main` come base di rollback.
 
+> ⚠️ **Revisione 2026-08-05 — MODELLO AZIONI v0.1** ([`adr-0003-modello-azioni-v01.md`](adr-0003-modello-azioni-v01.md)):
+> per la release **v0.1** ([`roadmap-v0.1.md`](roadmap-v0.1.md)) si adotta il modello del catalogo di bilanciamento —
+> ID azione stabili, **priorità intera** intra-fase, fallback dichiarati, budget **5 MP**, reazioni, 8 terreni,
+> coperture direzionali, obiettivi dinamici, limite di 12 turni. **Le macro-fasi NON cambiano**: resta
+> `ERTMatchPhase{ Planning, Prep, Dash, Blast, Move, Cleanup, MatchEnded }` di Atlas Reactor — in particolare il
+> **Move resta dopo il Blast**. I codici di fase del catalogo (0/10/20/30/40/50/60) diventano un attributo
+> dell'azione, rimappato sulle macro-fasi (ADR-0003 §3). Sono **superati**: i valori di movimento di §6 e la
+> vittoria per sola eliminazione. L'allineamento completo di questo documento è il checkpoint **CP 1.1**
+> della v0.1 (issue `#27`).
+
 | Tema | `02-Tutorial` | `03-TutorialToMVP` | **Canonico** | Motivazione |
 |---|---|---|---|---|
 | Nome / `.uproject` | ReactorTactics | Reactor Tactics | **RefactorTactics** | Deciso; = repo |
@@ -202,6 +212,13 @@ reazione live né categorie di velocità/`EndOfPhase` (north-star, `spec-sequenz
 ---
 
 ## 6. Regole di gioco numeriche (valori iniziali, da bilanciare)
+
+> ⚠️ **Superata in parte dall'[ADR-0003](adr-0003-modello-azioni-v01.md) (2026-08-05)** per la release v0.1:
+> il movimento passa da «4 celle / Dash 3» a **5 MP** con costo intero per cella (1 normale, 2 difficile,
+> 2 salita via rampa; Sprint 8 MP), la griglia è esagonale (ADR-0002) e la vittoria non è più solo per
+> eliminazione (obiettivi dinamici + limite di **12 turni**). I valori qui sotto restano il riferimento
+> **storico dell'MVP quadrato**; quelli vigenti per la v0.1 sono nei cataloghi di
+> `docs/design/balance/` (creati in CP 1.2, issue `#28`).
 
 | Parametro | Valore |
 |---|---|

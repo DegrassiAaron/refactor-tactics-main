@@ -81,8 +81,8 @@ FRTBotPlan URTBotLibrary::ChooseBestPlan(const TArray<FRTBotPlan>& Candidates, c
 			}
 			else if (CandMove == BestMove)
 			{
-				const FRTGridCoord& D = Cand.DestCell;
-				const FRTGridCoord& C = Best.DestCell;
+				const FRTCellId& D = Cand.DestCell;
+				const FRTCellId& C = Best.DestCell;
 				if (D.X != C.X)      { bBetter = D.X < C.X; }
 				else if (D.Y != C.Y) { bBetter = D.Y < C.Y; }
 				else                 { bBetter = D.Layer < C.Layer; }
@@ -100,7 +100,7 @@ FRTBotPlan URTBotLibrary::ChooseBestPlan(const TArray<FRTBotPlan>& Candidates, c
 	return Best;
 }
 
-FRTGridCoord URTBotLibrary::StepToward(const FRTGridCoord& From, const FRTGridCoord& Target, int32 MoveRange)
+FRTCellId URTBotLibrary::StepToward(const FRTCellId& From, const FRTCellId& Target, int32 MoveRange)
 {
 	const int32 Distance = FMath::Abs(Target.X - From.X) + FMath::Abs(Target.Y - From.Y);
 	if (Distance <= 1)
@@ -111,7 +111,7 @@ FRTGridCoord URTBotLibrary::StepToward(const FRTGridCoord& From, const FRTGridCo
 	// Budget di passi, lasciando almeno una cella tra bot e bersaglio (non sovrapporsi).
 	int32 Budget = FMath::Min(MoveRange, Distance - 1);
 
-	FRTGridCoord Result = From;
+	FRTCellId Result = From;
 
 	// Avvicinamento greedy: prima lungo X, poi lungo Y.
 	const int32 DX = Target.X - Result.X;
@@ -126,17 +126,17 @@ FRTGridCoord URTBotLibrary::StepToward(const FRTGridCoord& From, const FRTGridCo
 	return Result;
 }
 
-FRTGridCoord URTBotLibrary::BestApproachCell(const FRTGridCoord& From, const FRTGridCoord& Target, int32 MoveRange,
-	const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height, const TArray<FRTTraversalEdge>& Edges)
+FRTCellId URTBotLibrary::BestApproachCell(const FRTCellId& From, const FRTCellId& Target, int32 MoveRange,
+	const TMap<FRTCellId, int32>& CellCost, int32 Width, int32 Height, const TArray<FRTTraversalEdge>& Edges)
 {
 	// Celle raggiungibili col budget di costo, aggirando ostacoli/terreno costoso e usando gli archi (rampe).
-	const TArray<FRTGridCoord> Reachable = URTGridLibrary::ReachableCellsByGraph(From, MoveRange, CellCost, Edges, Width, Height);
+	const TArray<FRTCellId> Reachable = URTGridLibrary::ReachableCellsByGraph(From, MoveRange, CellCost, Edges, Width, Height);
 
-	FRTGridCoord Best = From; // fermarsi e' sempre un'opzione valida
+	FRTCellId Best = From; // fermarsi e' sempre un'opzione valida
 	int32 BestToTarget = FMath::Abs(Target.X - From.X) + FMath::Abs(Target.Y - From.Y);
 	int32 BestFromOrigin = 0;
 
-	for (const FRTGridCoord& Cell : Reachable)
+	for (const FRTCellId& Cell : Reachable)
 	{
 		if (Cell == Target)
 		{
@@ -155,17 +155,17 @@ FRTGridCoord URTBotLibrary::BestApproachCell(const FRTGridCoord& From, const FRT
 	return Best;
 }
 
-FRTGridCoord URTBotLibrary::BestKiteCell(const FRTGridCoord& From, const FRTGridCoord& Threat, int32 MoveRange,
-	const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height, const TArray<FRTTraversalEdge>& Edges)
+FRTCellId URTBotLibrary::BestKiteCell(const FRTCellId& From, const FRTCellId& Threat, int32 MoveRange,
+	const TMap<FRTCellId, int32>& CellCost, int32 Width, int32 Height, const TArray<FRTTraversalEdge>& Edges)
 {
 	// Celle raggiungibili col budget di costo (aggira ostacoli/pericoli, usa gli archi per fuggire in quota).
-	const TArray<FRTGridCoord> Reachable = URTGridLibrary::ReachableCellsByGraph(From, MoveRange, CellCost, Edges, Width, Height);
+	const TArray<FRTCellId> Reachable = URTGridLibrary::ReachableCellsByGraph(From, MoveRange, CellCost, Edges, Width, Height);
 
-	FRTGridCoord Best = From;
+	FRTCellId Best = From;
 	int32 BestToThreat = FMath::Abs(Threat.X - From.X) + FMath::Abs(Threat.Y - From.Y);
 	int32 BestFromOrigin = 0;
 
-	for (const FRTGridCoord& Cell : Reachable)
+	for (const FRTCellId& Cell : Reachable)
 	{
 		const int32 ToThreat = FMath::Abs(Threat.X - Cell.X) + FMath::Abs(Threat.Y - Cell.Y);
 		const int32 FromOrigin = FMath::Abs(Cell.X - From.X) + FMath::Abs(Cell.Y - From.Y);
@@ -191,8 +191,8 @@ int32 URTBotLibrary::AttackScore(int32 Damage, int32 TargetHealth)
 	return Damage;
 }
 
-bool URTBotLibrary::AttackIsBetter(int32 DamageA, int32 TargetHealthA, const FRTGridCoord& TargetCellA,
-	int32 DamageB, int32 TargetHealthB, const FRTGridCoord& TargetCellB)
+bool URTBotLibrary::AttackIsBetter(int32 DamageA, int32 TargetHealthA, const FRTCellId& TargetCellA,
+	int32 DamageB, int32 TargetHealthB, const FRTCellId& TargetCellB)
 {
 	const int32 ScoreA = AttackScore(DamageA, TargetHealthA);
 	const int32 ScoreB = AttackScore(DamageB, TargetHealthB);
@@ -206,19 +206,19 @@ bool URTBotLibrary::AttackIsBetter(int32 DamageA, int32 TargetHealthA, const FRT
 	return TargetCellA.Layer < TargetCellB.Layer;
 }
 
-FRTGridCoord URTBotLibrary::BestFiringCell(const FRTGridCoord& From, const FRTGridCoord& Target, int32 MoveRange,
-	const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height,
-	const TArray<FRTGridCoord>& VisionBlockers, int32 AttackRange, const TArray<FRTTraversalEdge>& Edges)
+FRTCellId URTBotLibrary::BestFiringCell(const FRTCellId& From, const FRTCellId& Target, int32 MoveRange,
+	const TMap<FRTCellId, int32>& CellCost, int32 Width, int32 Height,
+	const TArray<FRTCellId>& VisionBlockers, int32 AttackRange, const TArray<FRTTraversalEdge>& Edges)
 {
 	// Celle raggiungibili col budget di costo (grafo: aggira ostacoli/terreno, usa le rampe per salire).
-	const TArray<FRTGridCoord> Reachable = URTGridLibrary::ReachableCellsByGraph(From, MoveRange, CellCost, Edges, Width, Height);
+	const TArray<FRTCellId> Reachable = URTGridLibrary::ReachableCellsByGraph(From, MoveRange, CellCost, Edges, Width, Height);
 
-	FRTGridCoord Best = From; // sentinella: nessuna posizione di tiro trovata
+	FRTCellId Best = From; // sentinella: nessuna posizione di tiro trovata
 	bool bFound = false;
 	int32 BestLayer = TNumericLimits<int32>::Lowest();
 	int32 BestMove = MAX_int32;
 
-	for (const FRTGridCoord& Cell : Reachable)
+	for (const FRTCellId& Cell : Reachable)
 	{
 		if (Cell == Target)
 		{

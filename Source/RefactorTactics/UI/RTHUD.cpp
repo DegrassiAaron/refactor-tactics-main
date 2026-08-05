@@ -14,7 +14,7 @@
 namespace
 {
 	// Centro-mondo di una cella con l'elevazione del suo layer (per disegnare i path sul ponte).
-	FVector CellWorldElevated(const FRTGridCoord& Cell, const FVector& Origin, float CellSize, float LayerHeight)
+	FVector CellWorldElevated(const FRTCellId& Cell, const FVector& Origin, float CellSize, float LayerHeight)
 	{
 		FVector W = URTGridLibrary::CellToWorld(Cell, Origin, CellSize);
 		W.Z += Cell.Layer * LayerHeight;
@@ -96,7 +96,7 @@ void ARTHUD::DrawHUD()
 		const float TCell = TrailGrid ? TrailGrid->CellSize : 200.f;
 		const float TLayerH = TrailGrid ? TrailGrid->LayerHeight : 0.f;
 		const FLinearColor TrailColor(0.6f, 0.6f, 0.6f, 0.5f);
-		for (const TArray<FRTGridCoord>& Route : TurnManager->GetLastMoveRoutes())
+		for (const TArray<FRTCellId>& Route : TurnManager->GetLastMoveRoutes())
 		{
 			for (int32 i = 1; i < Route.Num(); ++i)
 			{
@@ -135,7 +135,7 @@ void ARTHUD::DrawHUD()
 
 			const bool bOwn = (Unit->TeamId == PlayerTeam);
 			const URTAbilityData* Planned = Unit->GetAbility(Unit->PlannedAbilityIndex);
-			const bool bMoving = (Unit->PlannedCell != Unit->GridCell);
+			const bool bMoving = (Unit->PlannedCell != Unit->Cell);
 			const bool bHasPlan = bMoving || Unit->PlannedAttackTarget != nullptr || Planned != nullptr || Unit->PlannedDashAbility != INDEX_NONE;
 			if (bOwn && !bHasPlan)
 			{
@@ -178,14 +178,14 @@ void ARTHUD::DrawHUD()
 			// (FindPath), cella per cella, ed evidenzia la cella di destinazione.
 			if (bMoving)
 			{
-				TMap<FRTGridCoord, int32> CostMap;
+				TMap<FRTCellId, int32> CostMap;
 				if (Grid) { Grid->BuildCostMap(CostMap); }
 				const int32 GW = Grid ? Grid->Width : 10;
 				const int32 GH = Grid ? Grid->Height : 10;
 				// Path composita (waypoint) se presente, altrimenti auto-route alla destinazione singola.
-				const TArray<FRTGridCoord> PathCells = (Unit->PlannedPath.Num() >= 2)
+				const TArray<FRTCellId> PathCells = (Unit->PlannedPath.Num() >= 2)
 					? Unit->PlannedPath
-					: URTGridLibrary::FindPathByCost(Unit->GridCell, Unit->PlannedCell, CostMap, GW, GH);
+					: URTGridLibrary::FindPathByCost(Unit->Cell, Unit->PlannedCell, CostMap, GW, GH);
 
 				// Polilinea lungo i centri-cella (a terra): mostra la deviazione attorno alle coperture.
 				for (int32 i = 1; i < PathCells.Num(); ++i)
@@ -206,7 +206,7 @@ void ARTHUD::DrawHUD()
 			}
 
 			// Marker sui waypoint cliccati: i "punti" del percorso (nel colore dell'unita').
-			for (const FRTGridCoord& WP : Unit->PlannedWaypoints)
+			for (const FRTCellId& WP : Unit->PlannedWaypoints)
 			{
 				const FVector WPScreen = Project(CellWorldElevated(WP, Origin, CellSize, LayerH));
 				if (WPScreen.Z > 0.f)
@@ -218,9 +218,9 @@ void ARTHUD::DrawHUD()
 // Preview dello SCATTO pianificato (fase Dash): percorso e destinazione in MAGENTA, distinti dal movimento.
 				if (Unit->PlannedDashAbility != INDEX_NONE && Grid)
 				{
-					TMap<FRTGridCoord, int32> DCost;
+					TMap<FRTCellId, int32> DCost;
 					Grid->BuildCostMap(DCost);
-					const TArray<FRTGridCoord> DPath = URTGridLibrary::FindPathByGraph(Unit->GridCell, Unit->PlannedDashCell, DCost, Grid->GetEdges(), Grid->Width, Grid->Height);
+					const TArray<FRTCellId> DPath = URTGridLibrary::FindPathByGraph(Unit->Cell, Unit->PlannedDashCell, DCost, Grid->GetEdges(), Grid->Width, Grid->Height);
 					const FLinearColor DashColor(1.f, 0.2f, 0.9f, 1.f);
 					for (int32 i = 1; i < DPath.Num(); ++i)
 					{

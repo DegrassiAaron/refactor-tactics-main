@@ -62,8 +62,8 @@ int32 URTCombatLibrary::EffectiveAttackPower(int32 BasePower, int32 OccupantDama
 	return FMath::Max(0, BasePower + OccupantDamageBonus);
 }
 
-FRTGridCoord URTCombatLibrary::KnockbackDestination(const FRTGridCoord& Attacker, const FRTGridCoord& Target,
-	int32 Distance, const TArray<FRTGridCoord>& Blocked, int32 Width, int32 Height)
+FRTCellId URTCombatLibrary::KnockbackDestination(const FRTCellId& Attacker, const FRTCellId& Target,
+	int32 Distance, const TArray<FRTCellId>& Blocked, int32 Width, int32 Height)
 {
 	const int32 DX = Target.X - Attacker.X;
 	const int32 DY = Target.Y - Attacker.Y;
@@ -77,10 +77,10 @@ FRTGridCoord URTCombatLibrary::KnockbackDestination(const FRTGridCoord& Attacker
 	if (FMath::Abs(DX) >= FMath::Abs(DY)) { StepX = (DX > 0) ? 1 : -1; }
 	else { StepY = (DY > 0) ? 1 : -1; }
 
-	FRTGridCoord Current = Target;
+	FRTCellId Current = Target;
 	for (int32 i = 0; i < Distance; ++i)
 	{
-		const FRTGridCoord Next(Current.X + StepX, Current.Y + StepY, Target.Layer); // stesso layer del bersaglio
+		const FRTCellId Next(Current.X + StepX, Current.Y + StepY, Target.Layer); // stesso layer del bersaglio
 		if (Next.X < 0 || Next.X >= Width || Next.Y < 0 || Next.Y >= Height)
 		{
 			break; // bordo della griglia

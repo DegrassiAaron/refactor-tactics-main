@@ -12,7 +12,7 @@ struct FRTBotPlan
 	GENERATED_BODY()
 
 	/** Cella in cui il bot finisce (o resta). */
-	UPROPERTY() FRTGridCoord DestCell;
+	UPROPERTY() FRTCellId DestCell;
 	/** Se il piano include un attacco da DestCell. */
 	UPROPERTY() bool bHasAttack = false;
 	/** Danno dell'attacco pianificato. */
@@ -37,17 +37,17 @@ struct FRTBotContext
 	GENERATED_BODY()
 
 	/** Posizioni dei nemici vivi. */
-	UPROPERTY() TArray<FRTGridCoord> Enemies;
+	UPROPERTY() TArray<FRTCellId> Enemies;
 	/** Gittata di ciascun nemico (parallelo a Enemies): usata per la minaccia sulla cella. */
 	UPROPERTY() TArray<int32> EnemyRanges;
 
 	/** Celle che bloccano la linea di tiro (copertura): un nemico non minaccia una cella se la LOS e' interrotta. */
-	UPROPERTY() TArray<FRTGridCoord> VisionBlockers;
+	UPROPERTY() TArray<FRTCellId> VisionBlockers;
 	/** >0 = kiter (mantiene la distanza di sicurezza); 0 = mischia (chiude la distanza). */
 	UPROPERTY() int32 KiteStandoff = 0;
 
 	/** Posizione attuale del bot: tie-break di ChooseBestPlan (a parità di score, mossa minima da qui). */
-	UPROPERTY() FRTGridCoord Origin;
+	UPROPERTY() FRTCellId Origin;
 
 	// Pesi interi (bilanciabili senza toccare la logica; invariante #4: niente float). Default: il kill domina.
 	UPROPERTY() int32 WKill = 10000;
@@ -72,15 +72,15 @@ public:
 	 * (non si sovrappone) e non si muove se e' gia' adiacente o sulla stessa cella.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Bot")
-	static FRTGridCoord StepToward(const FRTGridCoord& From, const FRTGridCoord& Target, int32 MoveRange);
+	static FRTCellId StepToward(const FRTCellId& From, const FRTCellId& Target, int32 MoveRange);
 
 	/**
 	 * Cella di avvicinamento a Target raggiungibile entro il budget di COSTO (CellCost: pathfinding
 	 * pesato, hazard/impassabili esclusi), dentro la griglia: sceglie quella piu' vicina al bersaglio
 	 * (a parita', la mossa minima). Aggira ostacoli e terreno costoso; non si sovrappone al bersaglio.
 	 */
-	static FRTGridCoord BestApproachCell(const FRTGridCoord& From, const FRTGridCoord& Target, int32 MoveRange,
-		const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height,
+	static FRTCellId BestApproachCell(const FRTCellId& From, const FRTCellId& Target, int32 MoveRange,
+		const TMap<FRTCellId, int32>& CellCost, int32 Width, int32 Height,
 		const TArray<FRTTraversalEdge>& Edges = TArray<FRTTraversalEdge>());
 
 	/**
@@ -88,8 +88,8 @@ public:
 	 * la griglia, sceglie quella che MASSIMIZZA la distanza dalla minaccia (a parita', la mossa minima).
 	 * Aggira bordi, ostacoli e terreno pericoloso. Deterministica.
 	 */
-	static FRTGridCoord BestKiteCell(const FRTGridCoord& From, const FRTGridCoord& Threat, int32 MoveRange,
-		const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height,
+	static FRTCellId BestKiteCell(const FRTCellId& From, const FRTCellId& Threat, int32 MoveRange,
+		const TMap<FRTCellId, int32>& CellCost, int32 Width, int32 Height,
 		const TArray<FRTTraversalEdge>& Edges = TArray<FRTTraversalEdge>());
 
 	/**
@@ -105,8 +105,8 @@ public:
 	 * bersaglio con coordinate (X,Y,Layer) minori (tie-break ASSOLUTO, invariante #4). Vero se A è migliore di B.
 	 * Rende la scelta del bersaglio indipendente dall'ordine di iterazione delle unità.
 	 */
-	static bool AttackIsBetter(int32 DamageA, int32 TargetHealthA, const FRTGridCoord& TargetCellA,
-		int32 DamageB, int32 TargetHealthB, const FRTGridCoord& TargetCellB);
+	static bool AttackIsBetter(int32 DamageA, int32 TargetHealthA, const FRTCellId& TargetCellA,
+		int32 DamageB, int32 TargetHealthB, const FRTCellId& TargetCellB);
 
 	/**
 	 * Utility score (intero) di una mossa candidata: focus-fire (danno + bonus se uccide) meno la minaccia
@@ -130,8 +130,8 @@ public:
 	 * Se nessuna cella raggiungibile offre un tiro, ritorna From (il chiamante ripiega sull'avvicinamento).
 	 * Non si sovrappone al bersaglio. Deterministica.
 	 */
-	static FRTGridCoord BestFiringCell(const FRTGridCoord& From, const FRTGridCoord& Target, int32 MoveRange,
-		const TMap<FRTGridCoord, int32>& CellCost, int32 Width, int32 Height,
-		const TArray<FRTGridCoord>& VisionBlockers, int32 AttackRange,
+	static FRTCellId BestFiringCell(const FRTCellId& From, const FRTCellId& Target, int32 MoveRange,
+		const TMap<FRTCellId, int32>& CellCost, int32 Width, int32 Height,
+		const TArray<FRTCellId>& VisionBlockers, int32 AttackRange,
 		const TArray<FRTTraversalEdge>& Edges = TArray<FRTTraversalEdge>());
 };

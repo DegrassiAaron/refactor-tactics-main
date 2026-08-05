@@ -52,11 +52,11 @@ struct FRTTurnLogEntry
 
 	/** Chiave stabile: cella di partenza dell'unita' nel turno. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
-	FRTGridCoord SrcCell;
+	FRTCellId SrcCell;
 
 	/** Bersaglio (Combat) o destinazione (Move); = SrcCell se non applicabile. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
-	FRTGridCoord TgtCell;
+	FRTCellId TgtCell;
 
 	/** Danno effettivo (Combat) o numero di celle percorse (Move). */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")

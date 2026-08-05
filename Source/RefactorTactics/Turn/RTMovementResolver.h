@@ -16,13 +16,13 @@ struct FRTMoveRequest
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Turn")
-	FRTGridCoord From;
+	FRTCellId From;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Turn")
-	FRTGridCoord To;
+	FRTCellId To;
 
 	FRTMoveRequest() = default;
-	FRTMoveRequest(const FRTGridCoord& InFrom, const FRTGridCoord& InTo) : From(InFrom), To(InTo) {}
+	FRTMoveRequest(const FRTCellId& InFrom, const FRTCellId& InTo) : From(InFrom), To(InTo) {}
 };
 
 /**
@@ -42,10 +42,10 @@ struct FRTPathResult
 	GENERATED_BODY()
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Turn")
-	FRTGridCoord Final;
+	FRTCellId Final;
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Turn")
-	TArray<FRTGridCoord> Entered;
+	TArray<FRTCellId> Entered;
 
 	/** Perche' il movimento e' finito cosi' (default: nessun movimento pianificato). */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Turn")
@@ -60,7 +60,7 @@ class REFACTORTACTICS_API URTMovementResolver : public UBlueprintFunctionLibrary
 public:
 	/** Ritorna la cella finale di ogni richiesta, nello stesso ordine dell'input. */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
-	static TArray<FRTGridCoord> ResolveMoves(const TArray<FRTMoveRequest>& Requests);
+	static TArray<FRTCellId> ResolveMoves(const TArray<FRTMoveRequest>& Requests);
 
 	/**
 	 * Esegue path multi-cella simultanei con algoritmo a MICROSTEP sincroni (§7 spec-terreni):
@@ -69,5 +69,5 @@ public:
 	 * da un'unita' ferma -> bloccata; scambio diretto -> consentito), si ripete finche' nessuno avanza.
 	 * Ogni path e' From..To (From = elemento 0). Il risultato NON dipende dall'ordine delle richieste.
 	 */
-	static TArray<FRTPathResult> ResolvePaths(const TArray<TArray<FRTGridCoord>>& Paths);
+	static TArray<FRTPathResult> ResolvePaths(const TArray<TArray<FRTCellId>>& Paths);
 };

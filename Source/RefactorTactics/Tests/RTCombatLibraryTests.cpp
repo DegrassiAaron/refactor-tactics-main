@@ -165,35 +165,35 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnockbackTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTKnockbackTest::RunTest(const FString&)
 {
-	const TArray<FRTGridCoord> NoBlock;
+	const TArray<FRTCellId> NoBlock;
 	// Spinta in spazio aperto lungo +Y di 2 celle: (5,6) -> (5,8).
 	TestTrue(TEXT("spinta verticale libera"),
-		URTCombatLibrary::KnockbackDestination(FRTGridCoord(5, 5), FRTGridCoord(5, 6), 2, NoBlock, 10, 10) == FRTGridCoord(5, 8));
+		URTCombatLibrary::KnockbackDestination(FRTCellId(5, 5), FRTCellId(5, 6), 2, NoBlock, 10, 10) == FRTCellId(5, 8));
 	// Spinta orizzontale +X di 2: (6,5) -> (8,5).
 	TestTrue(TEXT("spinta orizzontale libera"),
-		URTCombatLibrary::KnockbackDestination(FRTGridCoord(5, 5), FRTGridCoord(6, 5), 2, NoBlock, 10, 10) == FRTGridCoord(8, 5));
+		URTCombatLibrary::KnockbackDestination(FRTCellId(5, 5), FRTCellId(6, 5), 2, NoBlock, 10, 10) == FRTCellId(8, 5));
 	// Ostacolo in (5,8): la spinta si ferma prima, a (5,7).
 	{
-		const TArray<FRTGridCoord> Block = { FRTGridCoord(5, 8) };
+		const TArray<FRTCellId> Block = { FRTCellId(5, 8) };
 		TestTrue(TEXT("si ferma prima dell'ostacolo"),
-			URTCombatLibrary::KnockbackDestination(FRTGridCoord(5, 5), FRTGridCoord(5, 6), 3, Block, 10, 10) == FRTGridCoord(5, 7));
+			URTCombatLibrary::KnockbackDestination(FRTCellId(5, 5), FRTCellId(5, 6), 3, Block, 10, 10) == FRTCellId(5, 7));
 	}
 	// Bordo della griglia: da (0,8) spinta +Y su 10x10 si ferma a (0,9).
 	TestTrue(TEXT("si ferma al bordo"),
-		URTCombatLibrary::KnockbackDestination(FRTGridCoord(0, 7), FRTGridCoord(0, 8), 5, NoBlock, 10, 10) == FRTGridCoord(0, 9));
+		URTCombatLibrary::KnockbackDestination(FRTCellId(0, 7), FRTCellId(0, 8), 5, NoBlock, 10, 10) == FRTCellId(0, 9));
 	// Distanza 0 -> resta.
 	TestTrue(TEXT("distanza 0 -> fermo"),
-		URTCombatLibrary::KnockbackDestination(FRTGridCoord(5, 5), FRTGridCoord(5, 6), 0, NoBlock, 10, 10) == FRTGridCoord(5, 6));
+		URTCombatLibrary::KnockbackDestination(FRTCellId(5, 5), FRTCellId(5, 6), 0, NoBlock, 10, 10) == FRTCellId(5, 6));
 	// Attaccante sulla stessa cella del bersaglio -> nessuna direzione, resta.
 	TestTrue(TEXT("stessa cella -> fermo"),
-		URTCombatLibrary::KnockbackDestination(FRTGridCoord(5, 5), FRTGridCoord(5, 5), 2, NoBlock, 10, 10) == FRTGridCoord(5, 5));
+		URTCombatLibrary::KnockbackDestination(FRTCellId(5, 5), FRTCellId(5, 5), 2, NoBlock, 10, 10) == FRTCellId(5, 5));
 	// Direzione = asse col delta maggiore: dx=2,dy=1 -> spinta lungo +X: (7,6) -> (9,6).
 	TestTrue(TEXT("spinge lungo l'asse dominante (X)"),
-		URTCombatLibrary::KnockbackDestination(FRTGridCoord(5, 5), FRTGridCoord(7, 6), 2, NoBlock, 10, 10) == FRTGridCoord(9, 6));
+		URTCombatLibrary::KnockbackDestination(FRTCellId(5, 5), FRTCellId(7, 6), 2, NoBlock, 10, 10) == FRTCellId(9, 6));
 	// Preserva il layer del bersaglio (spinta orizzontale sullo stesso piano).
 	{
-		const FRTGridCoord Dest = URTCombatLibrary::KnockbackDestination(FRTGridCoord(3, 4, 1), FRTGridCoord(4, 4, 1), 1, NoBlock, 10, 10);
-		TestTrue(TEXT("mantiene il layer"), Dest == FRTGridCoord(5, 4, 1));
+		const FRTCellId Dest = URTCombatLibrary::KnockbackDestination(FRTCellId(3, 4, 1), FRTCellId(4, 4, 1), 1, NoBlock, 10, 10);
+		TestTrue(TEXT("mantiene il layer"), Dest == FRTCellId(5, 4, 1));
 	}
 	return true;
 }

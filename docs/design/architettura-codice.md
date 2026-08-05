@@ -52,7 +52,7 @@ stato per checkpoint vedi [roadmap](roadmap-checkpoint.md).
 | `Bot/RTHexBotLibrary` | Function Library (pure) | Bot su griglia **esagonale** ([spec](h6-5-hex-bot-spec.md)): stessa politica del quadrato (`ScorePlan`/`ChooseBestPlan`) con distanza esagonale e LOS d'asset; `BuildCandidates` deriva le mosse da `ReachableCells` (budget/blocchi/occupanti/archi già applicati), `PlanUnit` sceglie |
 | `UI/RTHUD` | `AHUD` | Barre HP/scudo, energia, barra abilità, timer/fase, combat log, anteprima piani (ciano/reveal), viz percorso (waypoint + traccia risolta post-lock) |
 | `RTGameMode` | `AGameModeBase` | Allestisce il demo (griglia, luce, 2v2, terreno, turn manager); imposta pawn/controller/HUD; marca team 1 come bot |
-| `Tests/` | Automation | Griglia, resolver, fasi, combat, bot, terreno, hex (mappa/path/layer/**sim**), TurnLog (hash/serializzazione/topologia), visione hex, bot hex, vista mappa — **169 test** (conteggio misurato 2026-08-05). Attenzione: nella *unity build* i file di test condividono la translation unit → gli helper nei namespace anonimi devono avere **nomi distinti tra file** |
+| `Tests/` | Automation | Griglia, resolver, fasi, combat, bot, terreno, hex (mappa/path/layer/**sim**), TurnLog (hash/serializzazione/topologia), visione hex, bot hex, vista mappa — **172 test** in 25 file (conteggio misurato 2026-08-05). Attenzione: nella *unity build* i file di test condividono la translation unit → gli helper nei namespace anonimi devono avere **nomi distinti tra file** |
 
 ## Flusso di un turno
 

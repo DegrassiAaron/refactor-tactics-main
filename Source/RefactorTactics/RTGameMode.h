@@ -7,10 +7,11 @@
 #include "RTGameMode.generated.h"
 
 class ARTUnit;
+class ARTHexMapActor;
 
 /**
- * GameMode dell'MVP: imposta camera e controller di default e, all'avvio,
- * allestisce un demo barebone (griglia + luce + board 2v2) se il livello e' vuoto.
+ * GameMode: imposta camera e controller di default e, all'avvio, allestisce la partita sulla mappa
+ * ESAGONALE presente nel livello (mappa + luce + board 2v2) se il livello non ha gia' delle unita'.
  */
 UCLASS()
 class REFACTORTACTICS_API ARTGameMode : public AGameModeBase
@@ -19,6 +20,13 @@ class REFACTORTACTICS_API ARTGameMode : public AGameModeBase
 
 public:
 	ARTGameMode();
+
+	/**
+	 * Posa la board 2v2 sulle celle di partenza della mappa esagonale. Non fa nulla se ci sono gia' unita'
+	 * nel livello o se la mappa non ha abbastanza celle percorribili (non si allestisce una partita a meta').
+	 * Pubblico e separato da BeginPlay per essere verificabile headless, senza il ciclo di vita del GameMode.
+	 */
+	void SetupHexMatch(ARTHexMapActor* HexMap);
 
 protected:
 	virtual void BeginPlay() override;
@@ -32,5 +40,6 @@ protected:
 	TSubclassOf<ARTUnit> GuardianUnitClass;
 
 private:
-	ARTUnit* SpawnUnit(int32 TeamId, const FRTGridCoord& Cell, bool bGuardian, const FVector& GridOrigin, float CellSize);
+	ARTUnit* SpawnUnit(int32 TeamId, const FRTCellId& InCell, bool bGuardian, const FVector& Origin,
+		float HexSize, float LayerHeight);
 };

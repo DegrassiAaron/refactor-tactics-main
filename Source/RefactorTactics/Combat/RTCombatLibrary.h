@@ -88,8 +88,8 @@ public:
 	 * bersaglio. Distance <= 0 o attaccante sulla stessa cella -> il bersaglio resta. Pura, deterministica.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
-	static FRTGridCoord KnockbackDestination(const FRTGridCoord& Attacker, const FRTGridCoord& Target,
-		int32 Distance, const TArray<FRTGridCoord>& Blocked, int32 Width, int32 Height);
+	static FRTCellId KnockbackDestination(const FRTCellId& Attacker, const FRTCellId& Target,
+		int32 Distance, const TArray<FRTCellId>& Blocked, int32 Width, int32 Height);
 
 	/**
 	 * Classifica l'esito di un colpo a segno secondo la priorita' Lethal > ShieldAbsorbed > TerrainBonus > Hit.

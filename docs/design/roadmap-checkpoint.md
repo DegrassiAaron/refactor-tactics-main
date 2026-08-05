@@ -44,12 +44,45 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in parte (vedi nota) · ⏳ da far
 | **M10** Rete e privacy | ⏳ | Listen server, validazione server, planning team-only, canary intent leak |
 | **M11** Production readiness | ⏳ | Budget in CI, validator commandlet, packaged soak, replay audit |
 
-**Suite automatica**: **169 test** dichiarati in `Source/RefactorTactics/Tests/` (conteggio statico delle macro
-`IMPLEMENT_SIMPLE_AUTOMATION_TEST`, verificato 2026-08-05) — **63 esagonali** (`RTHex*`) e **106 quadrati o
-neutri**. L'ultima esecuzione completa riportata è 169/169 verdi; **da rimisurare** all'apertura di M6.
+**Suite automatica**: **172 test** in `Source/RefactorTactics/Tests/` (25 file; conteggio statico delle macro
+`IMPLEMENT_SIMPLE_AUTOMATION_TEST`, rimisurato 2026-08-05) — **63 esagonali** (`RTHex*`) e **109 quadrati o
+neutri**. L'ultima esecuzione completa riportata è 172/172 verdi (CP 6.0); **da rimisurare** all'apertura di M6.
+
+> **Correzione 2026-08-05**: questo documento dichiarava «169 test» mentre il CP 6.0, poche righe sotto,
+> riportava già 172/172. Le due cifre convivevano: il conteggio reale è **172**.
 
 **Stato del gioco, in una riga**: la griglia esagonale ha fondamenta complete e testate ma **nessuna partita ci
 gira sopra** — il turn loop giocabile è ancora quello quadrato. M6 chiude esattamente questo divario.
+
+---
+
+## La release v0.1 (2026-08-05)
+
+Le milestone qui sotto restano la vista di **esecuzione**. Sopra di esse esiste ora una vista di **release**:
+[`roadmap-v0.1.md`](roadmap-v0.1.md) — **12 epic, 59 checkpoint, 72 issue** (`#14`–`#85`) — che aggrega M6–M9 e
+aggiunge il contenuto del catalogo v0.1 (4 eroi, ~35 azioni, reazioni, ambiente attivo, strutture, obiettivi
+dinamici, comandi debug). La decisione abilitante è
+[`adr-0003-modello-azioni-v01.md`](adr-0003-modello-azioni-v01.md): **le macro-fasi restano quelle di Atlas**
+(`Prep → Dash → Blast → Move`), mentre dal catalogo si adottano modello azioni, priorità intera intra-fase,
+budget **5 MP**, reazioni, terreni e obiettivi.
+
+| Epic v0.1 | Milestone | Relazione |
+|---|---|---|
+| **E1** Cataloghi e modello dati | — | nuova (il canone non prevedeva cataloghi versionati né validator) |
+| **E2** Parità hex | **M6** | **identica**: CP 2.1–2.8 ≡ CP 6.1–6.8, stesso lavoro |
+| **E3** Dismissione quadrato | **M7** | identica, meno il packaging (in E12) |
+| **E4** Motore azioni · **E5** Reazioni | — | nuove, introdotte dall'ADR-0003 |
+| **E6** Roster 4 eroi · **E11** HUD/debug | parte di **M8** | M8 copriva la presentazione; E6/E11 aggiungono regole e osservabilità |
+| **E7** Equipaggiamento · **E10** Obiettivi | — | nuove |
+| **E8** Terreni/ambiente · **E9** Strutture | **M9** | M9 con i valori del catalogo, anticipata nella v0.1 |
+| **E12** QA e release | **M7** CP 7.3/7.4 + parte di **M11** | anticipa KPI e packaging; CI e soak restano a M11 |
+| — | **M10** Rete e privacy | **fuori** dalla v0.1 |
+
+Conseguenza pratica: **chi lavora su M6 sta lavorando su E2**. Le issue `#31`–`#38` sono i checkpoint 6.1–6.8;
+si chiudono una volta, aggiornando entrambe le viste.
+
+⚠️ Il budget di movimento «4 celle / Dash 3» della tabella §6 del canone è **superato** dall'ADR-0003
+(5 MP con costi interi per cella). L'allineamento del canone è il checkpoint **CP 1.1** (issue `#27`).
 
 ---
 
@@ -67,7 +100,7 @@ Lo strato puro esiste già ed è testato (`URTHexSimLibrary`, `URTHexPathLibrary
 | CP | Obiettivo | Definition of Done | Verifica |
 |---|---|---|---|
 | **6.0** ✅ | Riordino dei contenuti | 11 asset sotto `/Game/RT` **feature-first**; percorsi hard-coded (`DefaultEngine.ini`, default `TSoftObjectPtr` in C++) e `.gitignore` aggiornati; nessun redirector residuo. Fatto **2026-08-05** via API Editor headless, suite **172/172** | Registro e insidie in [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §A. ⏳ resta il PIE degli anelli (`PIE-AS5`/`PIE-SEL`) |
-| **6.1** | Allestimento della partita su mappa hex | `ARTGameMode` allestisce la partita da un `ARTHexMapActor` + `URTHexMapAsset`; `ARTUnit` ha la posizione autorevole in `FRTCellId` (**sostituzione**, non campo parallelo: due coordinate = due verità); l'occupazione è ricostruibile dallo stato unità | Build Editor + suite verde; `PIE-HEXPLAY-1` |
+| **6.1** 🟡 | Allestimento della partita su mappa hex | `ARTGameMode` allestisce la partita da un `ARTHexMapActor` + `URTHexMapAsset`; `ARTUnit` ha la posizione autorevole in `FRTCellId` (**sostituzione**, non campo parallelo: due coordinate = due verità); l'occupazione è ricostruibile dallo stato unità | Codice **fatto** 2026-08-05: `FRTGridCoord` rimosso (35 file, tag `pre-cellid-swap`), `URTMatchSetupLibrary` pura, posizionamento via `URTHexLibrary`. Build Editor ✅, suite **180/0**. ⏳ resta `PIE-HEXPLAY-1`. Piano: [`cp6-1-hex-match-setup-plan.md`](cp6-1-hex-match-setup-plan.md) |
 | **6.2** | Movimento end-to-end | `ARTTurnManager` costruisce `FRTHexSnapshot`, risolve con `ResolveHexPaths`, applica gli esiti e produce il TurnLog con `BuildMoveLog`; playback lungo i centri esagonali senza deriva | Test d'integrazione headless (2v2 in `UWorld`, esiti via campi `Planned*`); `PIE-HEXPLAY-4/5` |
 | **6.3** | Input, selezione, preview | Raycast → cella assiale del layer corretto (riuso della logica di `RTHexEditorClick`, non una seconda implementazione); pianificazione a waypoint con rifiuto di celle oltre budget/bloccate/occupate; anteprima del percorso | `PIE-HEXPLAY-2/3` |
 | **6.4** | Combat su hex | Attacchi, forme (Single/Area/Line/Cone via `HexLine`/`HexCone`), LOS via `URTHexVisionLibrary`, energia/ultimate, status Root/Slow/Reveal risolti su `FRTCellId`; combat resolver «raccogli poi applica» ordine-indipendente | Test unitari per ogni forma + permutazione dell'input; `PIE-HEXPLAY-6` |
@@ -236,6 +269,10 @@ neutri (combat math, serializzazione, regole di fase). Il resto ha data di scade
 | Documento | Ruolo |
 |---|---|
 | [`piano-canonico-mvp.md`](piano-canonico-mvp.md) | **Canone**: decisioni vincolanti, invarianti, regole numeriche |
+| [`roadmap-v0.1.md`](roadmap-v0.1.md) | **Release v0.1**: 12 epic, 59 checkpoint, mappatura con queste milestone |
+| [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate di release `G1`–`G14`, KPI, checklist di contenuto |
+| [`v0.1-issue-plan.md`](v0.1-issue-plan.md) | Titoli e body delle 72 issue (`#14`–`#85`) e ordine di apertura dei branch |
+| [`adr-0003-modello-azioni-v01.md`](adr-0003-modello-azioni-v01.md) | Modello azioni del catalogo v0.1 sulle macro-fasi di Atlas |
 | [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) | **Normativo**: struttura di `Content/`, naming, dipendenze fra cartelle, spostamenti |
 | *questo file* | **Esecuzione**: milestone, checkpoint, DoD, stato |
 | [`hex-map-roadmap.md`](hex-map-roadmap.md) | **Dettaglio tecnico** della linea esagonale H0–H6.5 (consegnate) e del residuo editor H5 |

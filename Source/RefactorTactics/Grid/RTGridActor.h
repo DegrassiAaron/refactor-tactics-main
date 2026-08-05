@@ -33,11 +33,11 @@ public:
 
 	/** Celle-ostacolo (Muro): bloccano la linea di tiro e non sono calpestabili. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Grid")
-	TArray<FRTGridCoord> BlockedCells;
+	TArray<FRTCellId> BlockedCells;
 
 	/** Celle valide del layer 1 (ponte sopraelevato). Le celle di layer 1 non elencate sono impassabili. */
 	UPROPERTY()
-	TArray<FRTGridCoord> Layer1Cells;
+	TArray<FRTCellId> Layer1Cells;
 
 	/** Archi di traversata (rampe/scale/portali) che collegano celle non adiacenti / su layer diversi. */
 	UPROPERTY()
@@ -55,29 +55,29 @@ public:
 
 	/** Terreno per cella (assente = normale, costo 1). Istanze create a runtime (nessun .uasset). */
 	UPROPERTY()
-	TMap<FRTGridCoord, TObjectPtr<URTTerrainData>> TerrainCells;
+	TMap<FRTCellId, TObjectPtr<URTTerrainData>> TerrainCells;
 
 	/** Turni residui dei terreni temporanei (es. Fuoco); assente = permanente. */
 	UPROPERTY()
-	TMap<FRTGridCoord, int32> TerrainTurnsLeft;
+	TMap<FRTCellId, int32> TerrainTurnsLeft;
 
 	/** Terreno di una cella (nullo se normale). */
-	const URTTerrainData* GetTerrainAt(const FRTGridCoord& Cell) const;
+	const URTTerrainData* GetTerrainAt(const FRTCellId& Cell) const;
 
 	/** Mappa costo-per-cella per il pathfinding pesato: Muro/terreno-bloccante = RT_BLOCKED_COST. */
-	void BuildCostMap(TMap<FRTGridCoord, int32>& OutCost) const;
+	void BuildCostMap(TMap<FRTCellId, int32>& OutCost) const;
 
 	/** Celle non calpestabili: BlockedCells + terreni con bBlocksMovement. */
-	TArray<FRTGridCoord> GetMoveBlockers() const;
+	TArray<FRTCellId> GetMoveBlockers() const;
 
 	/** Cost map per il bot: come BuildCostMap ma con gli hazard (EndTurnDamage>0) resi impassabili. */
-	void BuildBotCostMap(TMap<FRTGridCoord, int32>& OutCost) const;
+	void BuildBotCostMap(TMap<FRTCellId, int32>& OutCost) const;
 
 	/** Celle che bloccano la linea di tiro: BlockedCells + terreni con bBlocksVision. */
-	TArray<FRTGridCoord> GetVisionBlockers() const;
+	TArray<FRTCellId> GetVisionBlockers() const;
 
 	/** Imposta il terreno di una cella (nullo = normale); TurnsLeft > 0 lo rende temporaneo. */
-	void SetTerrainAt(const FRTGridCoord& Cell, URTTerrainData* Terrain, int32 TurnsLeft);
+	void SetTerrainAt(const FRTCellId& Cell, URTTerrainData* Terrain, int32 TurnsLeft);
 
 	/** Fine turno: decrementa i terreni temporanei; a 0 tornano a RevertsTo (o si rimuovono). */
 	void TickTerrain();
@@ -86,7 +86,7 @@ public:
 	void RefreshTerrainVisuals();
 
 	/** Evidenzia la cella sotto il cursore (hover). bValid=false -> nasconde l'highlight. Solo presentazione. */
-	void SetHoveredCell(const FRTGridCoord& Cell, bool bValid);
+	void SetHoveredCell(const FRTCellId& Cell, bool bValid);
 
 protected:
 	virtual void BeginPlay() override;

@@ -36,7 +36,7 @@ namespace
 		World->DestroyWorld(false);
 	}
 
-	ARTUnit* SpawnPlaybackUnit(UWorld* World, int32 TeamId, ERTArchetype Arch, const FRTGridCoord& Cell)
+	ARTUnit* SpawnPlaybackUnit(UWorld* World, int32 TeamId, ERTArchetype Arch, const FRTCellId& Cell)
 	{
 		if (!World) { return nullptr; }
 		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
@@ -45,7 +45,7 @@ namespace
 		U->bIsBotControlled = false; // i piani li scriviamo noi: niente decisioni del bot in mezzo
 		U->ConfigureAsArchetype(Arch);
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
-		U->PlaceOnCell(Cell, FVector::ZeroVector, 200.f);
+		U->PlaceOnCell(Cell, FVector::ZeroVector, 200.f, /*LayerHeight=*/ 0.f);
 		return U;
 	}
 
@@ -88,8 +88,8 @@ bool FRTPlaybackMovingFlagPhaseTest::RunTest(const FString&)
 	if (!World) { return false; }
 
 	// Due unita' vicine: il Guardian scatta, il Ranger avversario resta fermo e fa da bersaglio.
-	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, ERTArchetype::Guardian, FRTGridCoord(2, 2));
-	ARTUnit* Target = SpawnPlaybackUnit(World, 1, ERTArchetype::Ranger, FRTGridCoord(4, 2));
+	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, ERTArchetype::Guardian, FRTCellId(2, 2));
+	ARTUnit* Target = SpawnPlaybackUnit(World, 1, ERTArchetype::Ranger, FRTCellId(4, 2));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	TestNotNull(TEXT("TurnManager spawnato"), TM);
 	if (!TM || !Dasher || !Target) { DestroyPlaybackWorld(World); return false; }
@@ -100,7 +100,7 @@ bool FRTPlaybackMovingFlagPhaseTest::RunTest(const FString&)
 	if (DashIdx == INDEX_NONE) { DestroyPlaybackWorld(World); return false; }
 
 	Dasher->PlannedDashAbility = DashIdx;
-	Dasher->PlannedDashCell = FRTGridCoord(3, 2);
+	Dasher->PlannedDashCell = FRTCellId(3, 2);
 	Dasher->PlannedAbilityIndex = 0;          // attacco base
 	Dasher->PlannedAttackTarget = Target;
 
@@ -148,13 +148,13 @@ bool FRTPlaybackStillUnitNeverRunsTest::RunTest(const FString&)
 	TestNotNull(TEXT("World creato"), World);
 	if (!World) { return false; }
 
-	ARTUnit* Mover = SpawnPlaybackUnit(World, 0, ERTArchetype::Ranger, FRTGridCoord(2, 2));
-	ARTUnit* Still = SpawnPlaybackUnit(World, 0, ERTArchetype::Guardian, FRTGridCoord(6, 6));
+	ARTUnit* Mover = SpawnPlaybackUnit(World, 0, ERTArchetype::Ranger, FRTCellId(2, 2));
+	ARTUnit* Still = SpawnPlaybackUnit(World, 0, ERTArchetype::Guardian, FRTCellId(6, 6));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Still) { DestroyPlaybackWorld(World); return false; }
 
 	// Solo Mover ha un piano di movimento; Still resta dov'e'.
-	Mover->PlannedCell = FRTGridCoord(4, 2);
+	Mover->PlannedCell = FRTCellId(4, 2);
 	TM->LockInAndResolve();
 
 	bool bStillEverRan = false;

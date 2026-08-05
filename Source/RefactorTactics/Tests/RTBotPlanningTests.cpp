@@ -38,7 +38,7 @@ namespace
 	}
 
 	// Spawna un'unita' configurata per archetipo, sulla cella data. Team 1 = bot (come in RTGameMode::SpawnUnit).
-	ARTUnit* SpawnTestUnit(UWorld* World, int32 TeamId, ERTArchetype Arch, const FRTGridCoord& Cell)
+	ARTUnit* SpawnTestUnit(UWorld* World, int32 TeamId, ERTArchetype Arch, const FRTCellId& Cell)
 	{
 		if (!World) { return nullptr; }
 		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
@@ -47,7 +47,7 @@ namespace
 		U->bIsBotControlled = (TeamId == 1);
 		U->ConfigureAsArchetype(Arch);
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
-		U->PlaceOnCell(Cell, FVector::ZeroVector, 200.f);
+		U->PlaceOnCell(Cell, FVector::ZeroVector, 200.f, /*LayerHeight=*/ 0.f);
 		return U;
 	}
 
@@ -64,10 +64,10 @@ namespace
 	FBotScenario Make2v2(UWorld* World)
 	{
 		FBotScenario S;
-		S.FoeRanger   = SpawnTestUnit(World, 0, ERTArchetype::Ranger,   FRTGridCoord(2, 2));
-		S.FoeGuardian = SpawnTestUnit(World, 0, ERTArchetype::Guardian, FRTGridCoord(2, 4));
-		S.BotRanger   = SpawnTestUnit(World, 1, ERTArchetype::Ranger,   FRTGridCoord(7, 7));
-		S.BotGuardian = SpawnTestUnit(World, 1, ERTArchetype::Guardian, FRTGridCoord(7, 5));
+		S.FoeRanger   = SpawnTestUnit(World, 0, ERTArchetype::Ranger,   FRTCellId(2, 2));
+		S.FoeGuardian = SpawnTestUnit(World, 0, ERTArchetype::Guardian, FRTCellId(2, 4));
+		S.BotRanger   = SpawnTestUnit(World, 1, ERTArchetype::Ranger,   FRTCellId(7, 7));
+		S.BotGuardian = SpawnTestUnit(World, 1, ERTArchetype::Guardian, FRTCellId(7, 5));
 		S.TM = World ? World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass()) : nullptr;
 		return S;
 	}
@@ -75,7 +75,7 @@ namespace
 	// Vero se l'unita' ha pianificato una qualsiasi azione (muoversi, attaccare o scattare).
 	bool HasPlannedAction(const ARTUnit* U)
 	{
-		return U && (U->PlannedCell != U->GridCell || U->PlannedAttackTarget != nullptr || U->PlannedDashAbility != INDEX_NONE);
+		return U && (U->PlannedCell != U->Cell || U->PlannedAttackTarget != nullptr || U->PlannedDashAbility != INDEX_NONE);
 	}
 }
 
@@ -112,17 +112,17 @@ bool FRTBotPanicTest::RunTest(const FString&)
 	TestNotNull(TEXT("World creato"), World);
 	if (!World) { return false; }
 
-	ARTUnit* BotRanger = SpawnTestUnit(World, 1, ERTArchetype::Ranger, FRTGridCoord(5, 5));
+	ARTUnit* BotRanger = SpawnTestUnit(World, 1, ERTArchetype::Ranger, FRTCellId(5, 5));
 	// Nemico mischia a distanza 1 (<= standoff/2 = 2) -> panic.
-	SpawnTestUnit(World, 0, ERTArchetype::Guardian, FRTGridCoord(5, 6));
+	SpawnTestUnit(World, 0, ERTArchetype::Guardian, FRTCellId(5, 6));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (TM) { TM->PlanBotsForTest(); }
 
-	const FRTGridCoord Threat(5, 6);
+	const FRTCellId Threat(5, 6);
 	const bool bFled =
 		BotRanger->PlannedDashAbility != INDEX_NONE // fuga con scatto difensivo
 		|| URTGridLibrary::ManhattanDistance(BotRanger->PlannedCell, Threat)
-		   > URTGridLibrary::ManhattanDistance(BotRanger->GridCell, Threat); // oppure si allontana a piedi
+		   > URTGridLibrary::ManhattanDistance(BotRanger->Cell, Threat); // oppure si allontana a piedi
 	TestTrue(TEXT("panic: il kiter fugge dalla minaccia"), bFled);
 	TestTrue(TEXT("panic: nessun attacco pianificato"), BotRanger->PlannedAttackTarget == nullptr);
 
@@ -140,8 +140,8 @@ bool FRTBotSupportTest::RunTest(const FString&)
 	TestNotNull(TEXT("World creato"), World);
 	if (!World) { return false; }
 
-	ARTUnit* BotGuardian = SpawnTestUnit(World, 1, ERTArchetype::Guardian, FRTGridCoord(5, 5));
-	SpawnTestUnit(World, 0, ERTArchetype::Ranger, FRTGridCoord(5, 7)); // un nemico in vista (contesto)
+	ARTUnit* BotGuardian = SpawnTestUnit(World, 1, ERTArchetype::Guardian, FRTCellId(5, 5));
+	SpawnTestUnit(World, 0, ERTArchetype::Ranger, FRTCellId(5, 7)); // un nemico in vista (contesto)
 	BotGuardian->ApplyCombatState(50, BotGuardian->Shield); // Health 50 < 140/2 -> ferito
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (TM) { TM->PlanBotsForTest(); }
@@ -167,8 +167,8 @@ bool FRTBotTuningTest::RunTest(const FString&)
 	TestNotNull(TEXT("World creato"), World);
 	if (!World) { return false; }
 
-	ARTUnit* BotGuardian = SpawnTestUnit(World, 1, ERTArchetype::Guardian, FRTGridCoord(5, 5));
-	SpawnTestUnit(World, 0, ERTArchetype::Guardian, FRTGridCoord(5, 1)); // nemico mischia (gittata 3)
+	ARTUnit* BotGuardian = SpawnTestUnit(World, 1, ERTArchetype::Guardian, FRTCellId(5, 5));
+	SpawnTestUnit(World, 0, ERTArchetype::Guardian, FRTCellId(5, 1)); // nemico mischia (gittata 3)
 	// Rimuove lo scatto (Carica): il dash-avvicinamento non e' pesato da WThreat e mascherebbe l'effetto.
 	// Senza dash il bot decide col MOVIMENTO normale, dove WThreat determina resta-vs-avanza.
 	const int32 DashIdx = BotGuardian->FindDashAbilityIndex();
@@ -177,7 +177,7 @@ bool FRTBotTuningTest::RunTest(const FString&)
 	TestNotNull(TEXT("TurnManager spawnato"), TM);
 	if (!TM) { DestroyBotTestWorld(World); return false; }
 
-	const FRTGridCoord Foe(5, 1);
+	const FRTCellId Foe(5, 1);
 	// WThreat enorme: avanzare espone -> resta lontano.
 	TM->WThreat = 100000;
 	TM->PlanBotsForTest();
@@ -205,15 +205,15 @@ bool FRTBotDashThreatTest::RunTest(const FString&)
 	TestNotNull(TEXT("World creato"), World);
 	if (!World) { return false; }
 
-	ARTUnit* BotGuardian = SpawnTestUnit(World, 1, ERTArchetype::Guardian, FRTGridCoord(5, 5)); // con Carica (dash)
-	SpawnTestUnit(World, 0, ERTArchetype::Guardian, FRTGridCoord(5, 1)); // nemico mischia (gittata 3)
+	ARTUnit* BotGuardian = SpawnTestUnit(World, 1, ERTArchetype::Guardian, FRTCellId(5, 5)); // con Carica (dash)
+	SpawnTestUnit(World, 0, ERTArchetype::Guardian, FRTCellId(5, 1)); // nemico mischia (gittata 3)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	TestNotNull(TEXT("TurnManager spawnato"), TM);
 	if (!TM) { DestroyBotTestWorld(World); return false; }
 
-	const FRTGridCoord Foe(5, 1);
+	const FRTCellId Foe(5, 1);
 	// Posizione effettiva del bot: la cella di scatto se scatta, altrimenti la cella di movimento.
-	auto Effective = [](const ARTUnit* U) -> FRTGridCoord
+	auto Effective = [](const ARTUnit* U) -> FRTCellId
 	{
 		return (U->PlannedDashAbility != INDEX_NONE) ? U->PlannedDashCell : U->PlannedCell;
 	};

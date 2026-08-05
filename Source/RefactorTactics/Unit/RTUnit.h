@@ -44,11 +44,11 @@ public:
 	bool bIsBotControlled = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
-	FRTGridCoord GridCell;
+	FRTCellId Cell;
 
 	/** Cella di destinazione pianificata per il turno corrente (default = cella attuale). */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Unit")
-	FRTGridCoord PlannedCell;
+	FRTCellId PlannedCell;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Combat")
 	int32 MaxHealth = 100;
@@ -106,18 +106,18 @@ public:
 	TObjectPtr<ARTUnit> PlannedAttackTarget = nullptr;
 
 	/**
-	 * Percorso composito pianificato (waypoint risolti in celle, From = GridCell incluso).
+	 * Percorso composito pianificato (waypoint risolti in celle, From = Cell incluso).
 	 * Vuoto o < 2 celle = nessun movimento composito (si usa PlannedCell come destinazione singola).
 	 */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
-	TArray<FRTGridCoord> PlannedPath;
+	TArray<FRTCellId> PlannedPath;
 
 	/**
 	 * Waypoint cliccati dal giocatore (esclusa la cella di partenza), da cui deriva PlannedPath.
 	 * Vive sull'unita' cosi' la riselezione ne preserva l'editing (aggiungi/annulla step).
 	 */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
-	TArray<FRTGridCoord> PlannedWaypoints;
+	TArray<FRTCellId> PlannedWaypoints;
 
 	/** Abilita' di scatto pianificata per il turno (INDEX_NONE = nessuno scatto). Si risolve in fase Dash. */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
@@ -125,7 +125,7 @@ public:
 
 	/** Cella di destinazione dello scatto pianificato (valida solo se PlannedDashAbility e' impostata). */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
-	FRTGridCoord PlannedDashCell;
+	FRTCellId PlannedDashCell;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	ERTArchetype Archetype = ERTArchetype::Ranger;
@@ -232,13 +232,16 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	bool bIsMovingVisually = false;
 
-	/** Posiziona l'unita' al centro-mondo della cella, con la base appoggiata al piano. */
-	void PlaceOnCell(const FRTGridCoord& Cell, const FVector& GridOrigin, float CellSize, float LayerHeight = 0.f);
+	/** Posiziona l'unita' al centro-mondo della cella esagonale, con la base appoggiata al piano. */
+	void PlaceOnCell(const FRTCellId& InCell, const FVector& Origin, float HexSize, float LayerHeight);
 
-	/** Posizione-mondo che PlaceOnCell userebbe per Cell, senza modificare lo stato logico (per il playback). */
-	FVector WorldForCell(const FRTGridCoord& Cell, const FVector& GridOrigin, float CellSize, float LayerHeight = 0.f) const;
+	/**
+	 * Posizione-mondo che PlaceOnCell userebbe per InCell, senza modificare lo stato logico (per il playback).
+	 * LayerHeight non ha default: su mappa multilivello e' un dato reale della mappa, non un extra opzionale.
+	 */
+	FVector WorldForCell(const FRTCellId& InCell, const FVector& Origin, float HexSize, float LayerHeight) const;
 
-	/** Sposta solo la mesh (presentazione): NON cambia GridCell ne' il piano. Usato dall'animazione del turno. */
+	/** Sposta solo la mesh (presentazione): NON cambia Cell ne' il piano. Usato dall'animazione del turno. */
 	void SetVisualLocation(const FVector& World);
 
 	// --- Eventi di presentazione del combattimento (montaggi): implementati nei BP_Unit, chiamati dal TurnManager.
