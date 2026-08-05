@@ -20,9 +20,11 @@ Gli asset Marketplace, Paragon, Megascans e di terze parti **restano nelle propr
 sotto `/Game/ThirdParty/`. Non spostarli dentro `/Game/RT` senza aver verificato riferimenti, licenze e
 dipendenze.
 
-> **Nel progetto**: i 22 pack `Content/Paragon*` sono asset Epic di terze parti e **restano dove sono**
-> (sono anche esclusi dal versionamento, vedi §9). Lo spostamento non porterebbe benefici e moltiplicherebbe
-> i redirector.
+> **Nel progetto**: gli asset di terze parti **non stanno nel progetto se non sono usati**. I 26 pack
+> `Content/Paragon*` sono stati spostati in un **vault esterno** il 2026-08-05 (registro in **Appendice B**):
+> `Content/` è passato da **49.255 MB a 0,1 MB**. Resta valido che un pack **non si sposta dentro `/Game/RT`**
+> (redirector, allineamento con gli aggiornamenti del pack): la scelta è fra *fuori dal progetto* e *nella sua
+> cartella di origine*, mai *dentro il nostro namespace*.
 
 ## 2. Principio organizzativo
 
@@ -403,3 +405,54 @@ citavano). **Ogni verifica va rifatta in un processo nuovo**, altrimenti si inse
 colorate, anello di team e anello di selezione visibili — è la prova finale del punto 4 di A.6 — e l'apertura
 di `L_DevSandbox` con la griglia esagonale. Voci `PIE-AS5`/`PIE-SEL` in
 [`test-manuali-pie.md`](test-manuali-pie.md).
+
+---
+
+# Appendice B — Vault degli asset di terze parti (dal 2026-08-05)
+
+> I pack scaricati **non vivono nel progetto**. Il magazzino è **`D:\UE_AssetVault\`**; nel progetto entra solo
+> ciò che si usa davvero, portato dentro con *Migrate*.
+
+## B.1 Perché: il costo non è lo spazio su disco
+
+Misurato prima della pulizia:
+
+```
+Content/ del progetto:   49.255 MB   (26 pack di personaggi Paragon)
+pack effettivamente referenziati:  2  (Gideon per il Guardian, Sparrow per il Ranger)
+Content/ dopo lo spostamento:  0,1 MB
+vault:                        48,1 GB
+```
+
+I 43 GB inutilizzati **non erano inerti**: l'asset registry li scansiona a ogni avvio dell'editor. Il sintomo
+che ha portato a scoprirlo è stato il **Content Browser che non mostrava le cartelle appena create** dalla
+migrazione di A.1 — l'editor stava ancora indicizzando. Ne risentono anche apertura dell'editor, DDC e cook.
+
+## B.2 Flusso
+
+1. I pack si **scaricano nel vault**, non nel progetto di gioco.
+2. Quando serve un personaggio o un set: nel vault, tasto destro sulla cartella → **Migrate** → destinazione
+   la `Content/` di RefactorTactics. UE porta l'asset **e solo le sue dipendenze**.
+3. Per rimandare qualcosa nel vault: **editor chiuso**, si sposta la cartella a livello di file system. Con
+   vault e progetto sullo **stesso disco** è un rename, quindi istantaneo anche per decine di GB.
+
+Il punto 3 è una deviazione consapevole da §11 (che vuole gli spostamenti dal Content Browser): vale **solo**
+per cartelle di terze parti **prive di referenti**, che è esattamente ciò che il vault contiene. Per gli asset
+proprietari resta valida §11.
+
+## B.3 Come è stato fatto (2026-08-05)
+
+Verifica delle dipendenze **prima** di toccare qualsiasi cosa: scansione dei riferimenti `Paragon*` dentro
+`Content/RT/` → risultavano usati **solo** `ParagonGideon` e `ParagonSparrow`. I `BP_Unit_*`/`ABP_*` che li
+referenziavano erano già stati rimossi, quindi sono stati spostati **tutti e 26** i pack.
+
+Controllo finale: **nessun riferimento residuo** ai pack negli asset rimasti. In `Content/RT/` restano
+`M_Global_Tint`, `M_TeamRing`, `M_SelectionRing`, `BP_GameMode`, `DA_HexMap_Sandbox` e i due livelli.
+
+**Conseguenza attesa**: senza i `BP_Unit_*` le unità usano il **cilindro segnaposto** (fallback già previsto in
+`ARTGameMode`). I personaggi tornano rimigrando i pack dal vault e ricreando i Blueprint secondo §5 e A.2.
+
+## B.4 Regola operativa
+
+Prima di aggiungere un pack al progetto, chiediti: **lo sto usando adesso?** Se la risposta è «servirà più
+avanti», il posto è il vault. Un pack inutilizzato non costa spazio: costa **tempo di editor a ogni avvio**.
