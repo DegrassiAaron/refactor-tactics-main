@@ -27,6 +27,11 @@ stato per checkpoint vedi [roadmap](roadmap-checkpoint.md).
 | `Core/RTGameplayTags.h` | Tag nativi | `Status.Root` · `Status.Slow` · `Status.Reveal` |
 | `Grid/RTGridLibrary` | Function Library (pure) | Conversioni `CellToWorld`/`WorldToCell`, `ManhattanDistance`, `IsWithinRange`, `HasLineOfSight`, forme `CellsInRadius/Line/Cone`; path finding `ReachableCells`/`FindPath` (BFS) e **pesato** `ReachableCellsByCost`/`FindPathByCost` (Dijkstra), `PathCost`, `BuildCompositePath` (waypoint) |
 | `Grid/RTGridActor` | `AActor` | Griglia visuale 10×10 (Instanced Static Mesh); `BlockedCells`; rendering celle-terreno colorate |
+| `Map/RTCellId.h`, `RTHexCellData.h` | `USTRUCT`/enum | `FRTCellId` (assiale q/r + Layer), `ERTHexDirection`, `FRTHexCellData` (superficie/costo/blocchi), `FRTHexEdge` (transizioni) |
+| `Map/RTHexLibrary` | Function Library (pure) | Matematica esagonale pointy-top: vicini, `HexDistance`, `HexArea`, `AxialToWorld`/`WorldToAxial`/`WorldToLayer`, `StableLess`, **`HexLine`** (lerp intero + arrotondamento cubico) e **`HexCone`** (ventaglio 120° = due settori a 60°) |
+| `Map/RTHexVisionLibrary` | Function Library (pure) | `HasLineOfSight` sulla mappa esagonale: linea planare sul layer del tiratore, estremi mai bloccanti, celle assenti non bloccanti ([spec](h6-4-hex-vision-spec.md)) |
+| `Map/RTHexMapAsset`, `RTHexMapActor` | `UPrimaryDataAsset` / `AActor` | Asset autorevole della mappa (celle in ordine stabile, transizioni, `ComputeHash`, `Revision`, `ValidateMap`, primitive di stroke, `FloodRegion`) e rendering ISM |
+| `Pathfinding/RTHexPathLibrary` | Function Library (pure) | Grafo tattico: `GraphNeighbors` (vicini + archi espliciti), A* deterministico `FindPath` / `FindPathAvoiding` (ostacoli dinamici) |
 | `Selection/RTSelectable.h` | `UINTERFACE` | `IRTSelectable` (`OnSelected`/`OnDeselected`) |
 | `Camera/RTCameraPawn` | `APawn` | Camera tattica: SpringArm inclinato, pan, zoom |
 | `Player/RTPlayerController` | `APlayerController` | Enhanced Input **in C++**; selezione; pianificazione abilità (1/2/3) + bersaglio + movimento (cella singola o **path a waypoint**); lock-in |
@@ -46,7 +51,7 @@ stato per checkpoint vedi [roadmap](roadmap-checkpoint.md).
 | `Bot/RTBotLibrary` | Function Library | Avvicinamento (`StepToward`) + scelta bersaglio/abilità; **path/cost/hazard-aware**; kiting del Ranger |
 | `UI/RTHUD` | `AHUD` | Barre HP/scudo, energia, barra abilità, timer/fase, combat log, anteprima piani (ciano/reveal), viz percorso (waypoint + traccia risolta post-lock) |
 | `RTGameMode` | `AGameModeBase` | Allestisce il demo (griglia, luce, 2v2, terreno, turn manager); imposta pawn/controller/HUD; marca team 1 come bot |
-| `Tests/` | Automation | Griglia, resolver, fasi, combat, bot, terreno, hex (mappa/path/layer/**sim**), TurnLog (hash/serializzazione/topologia) — **146 test** (conteggio misurato 2026-08-05). Attenzione: nella *unity build* i file di test condividono la translation unit → gli helper nei namespace anonimi devono avere **nomi distinti tra file** |
+| `Tests/` | Automation | Griglia, resolver, fasi, combat, bot, terreno, hex (mappa/path/layer/**sim**), TurnLog (hash/serializzazione/topologia), visione hex — **156 test** (conteggio misurato 2026-08-05). Attenzione: nella *unity build* i file di test condividono la translation unit → gli helper nei namespace anonimi devono avere **nomi distinti tra file** |
 
 ## Flusso di un turno
 

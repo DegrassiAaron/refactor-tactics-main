@@ -157,3 +157,127 @@ TArray<FRTCellId> URTHexLibrary::HexArea(const FRTCellId& Center, int32 Radius)
 	}
 	return Out;
 }
+
+namespace
+{
+	// Scala del "nudge" intero che rompe i pareggi dell'arrotondamento: il punto interpolato viene spostato di
+	// 1/1024 di cella in una direzione FISSA (bias 1,1,-2 -> somma nulla, l'invariante cubica regge). Sostituisce
+	// l'epsilon float della formulazione classica: una linea che passa esattamente sul confine fra due celle
+	// sceglie sempre lo stesso lato, senza oscillare. Calcoli in int64: nessun overflow con mappe grandi.
+	constexpr int64 RT_HEX_LINE_SCALE = 1024;
+
+	/** Divisione intera con arrotondamento al piu' vicino (pareggi lontano dallo zero). Den > 0. */
+	int64 RoundDivInt(int64 Num, int64 Den)
+	{
+		return (Num >= 0) ? (2 * Num + Den) / (2 * Den) : -((-2 * Num + Den) / (2 * Den));
+	}
+}
+
+TArray<FRTCellId> URTHexLibrary::HexLine(const FRTCellId& A, const FRTCellId& B)
+{
+	TArray<FRTCellId> Out;
+
+	const int32 N = HexDistance(A, B);
+	Out.Reserve(N + 1);
+	if (N == 0)
+	{
+		Out.Add(FRTCellId(A.X, A.Y, A.Layer));
+		return Out;
+	}
+
+	// Estremi in coordinate cubiche (q, r, s = -q-r).
+	const int64 Aq = A.X, Ar = A.Y, As = A.CubeZ();
+	const int64 Bq = B.X, Br = B.Y, Bs = B.CubeZ();
+	const int64 Den = RT_HEX_LINE_SCALE * N;
+
+	for (int32 i = 0; i <= N; ++i)
+	{
+		// Punto i/N sulla retta come frazione INTERA (numeratori scalati + bias di rottura dei pareggi).
+		const int64 Nq = RT_HEX_LINE_SCALE * (Aq * (N - i) + Bq * i) + 1;
+		const int64 Nr = RT_HEX_LINE_SCALE * (Ar * (N - i) + Br * i) + 1;
+		const int64 Ns = RT_HEX_LINE_SCALE * (As * (N - i) + Bs * i) - 2;
+
+		int64 Rq = RoundDivInt(Nq, Den);
+		int64 Rr = RoundDivInt(Nr, Den);
+		int64 Rs = RoundDivInt(Ns, Den);
+
+		// Resti interi (scala Den): la componente col resto maggiore si ricava dalle altre due, cosi' q+r+s = 0
+		// resta vero. Ordine di preferenza fisso q -> r -> s, come CubeRound.
+		const int64 Dq = FMath::Abs(Rq * Den - Nq);
+		const int64 Dr = FMath::Abs(Rr * Den - Nr);
+		const int64 Ds = FMath::Abs(Rs * Den - Ns);
+
+		if (Dq > Dr && Dq > Ds)
+		{
+			Rq = -Rr - Rs;
+		}
+		else if (Dr > Ds)
+		{
+			Rr = -Rq - Rs;
+		}
+		// altrimenti si aggiusta s, che non serve all'output (q e r bastano)
+
+		Out.Add(FRTCellId(static_cast<int32>(Rq), static_cast<int32>(Rr), A.Layer));
+	}
+	return Out;
+}
+
+TArray<FRTCellId> URTHexLibrary::HexCone(const FRTCellId& From, const FRTCellId& Target, int32 Range)
+{
+	TArray<FRTCellId> Out;
+	if (Range <= 0 || (From.X == Target.X && From.Y == Target.Y))
+	{
+		return Out;
+	}
+
+	// Direzione principale = primo passo della linea verso il bersaglio (sempre uno dei sei vicini).
+	const TArray<FRTCellId> Line = HexLine(From, Target);
+	if (Line.Num() < 2)
+	{
+		return Out;
+	}
+	const int32 StepX = Line[1].X - From.X;
+	const int32 StepY = Line[1].Y - From.Y;
+
+	int32 DirIdx = INDEX_NONE;
+	for (int32 I = 0; I < 6; ++I)
+	{
+		if (RT_HEX_DX[I] == StepX && RT_HEX_DY[I] == StepY)
+		{
+			DirIdx = I;
+			break;
+		}
+	}
+	if (DirIdx == INDEX_NONE)
+	{
+		return Out;
+	}
+
+	// Ventaglio di 120 gradi = due settori a 60 gradi adiacenti. Nel settore fra due direzioni contigue ogni
+	// cella e' a*D1 + b*D2 con a,b >= 0 e distanza esattamente a+b: il taglio a+b <= Range da' la profondita'.
+	TSet<FRTCellId> Unique;
+	auto AddSector = [&Unique, &From, Range](int32 D1, int32 D2)
+	{
+		for (int32 A = 0; A <= Range; ++A)
+		{
+			for (int32 B = 0; A + B <= Range; ++B)
+			{
+				if (A + B < 1)
+				{
+					continue; // l'origine non fa parte del cono
+				}
+				Unique.Add(FRTCellId(
+					From.X + A * RT_HEX_DX[D1] + B * RT_HEX_DX[D2],
+					From.Y + A * RT_HEX_DY[D1] + B * RT_HEX_DY[D2],
+					From.Layer));
+			}
+		}
+	};
+	AddSector((DirIdx + 5) % 6, DirIdx); // settore sinistro
+	AddSector(DirIdx, (DirIdx + 1) % 6); // settore destro
+
+	// TSet non ha ordine garantito: si ordina in modo stabile (determinismo).
+	Out = Unique.Array();
+	Out.Sort([](const FRTCellId& L, const FRTCellId& R) { return StableLess(L, R); });
+	return Out;
+}
