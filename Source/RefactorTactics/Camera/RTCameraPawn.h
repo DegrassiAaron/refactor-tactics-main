@@ -45,10 +45,11 @@ protected:
 
 	/** Distanza (arm length) iniziale all'avvio: piu' piccola = piu' vicino alla mappa. Tra Min e Max. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")
-	float DefaultArmLength = 1100.f;
+	float DefaultArmLength = 800.f;
 
+	/** Zoom minimo (piu' piccolo = primo piano piu' ravvicinato sui personaggi). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")
-	float MinArmLength = 600.f;
+	float MinArmLength = 100.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")
 	float MaxArmLength = 4000.f;
