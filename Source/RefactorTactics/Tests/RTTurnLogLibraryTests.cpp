@@ -8,7 +8,7 @@
 namespace
 {
 	FRTTurnLogEntry MakeEntry(ERTMatchPhase Phase, ERTLogCategory Cat, uint8 Outcome,
-		const FRTGridCoord& Src, const FRTGridCoord& Tgt, int32 Amount)
+		const FRTCellId& Src, const FRTCellId& Tgt, int32 Amount)
 	{
 		FRTTurnLogEntry E;
 		E.Phase = Phase;
@@ -27,7 +27,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogEntryLessTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTTurnLogEntryLessTest::RunTest(const FString&)
 {
-	const FRTGridCoord C(1, 1);
+	const FRTCellId C(1, 1);
 	const FRTTurnLogEntry A = MakeEntry(ERTMatchPhase::Move, ERTLogCategory::Move, 0, C, C, 5);
 	const FRTTurnLogEntry B = MakeEntry(ERTMatchPhase::Move, ERTLogCategory::Move, 0, C, C, 10); // solo Amount diverso
 	TestTrue(TEXT("A<B per Amount (ordine totale fino all'ultimo campo)"), URTTurnLogLibrary::EntryLess(A, B));
@@ -41,7 +41,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogHashTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTTurnLogHashTest::RunTest(const FString&)
 {
-	const FRTGridCoord C1(1, 1), C2(2, 2), C3(3, 3);
+	const FRTCellId C1(1, 1), C2(2, 2), C3(3, 3);
 	const FRTTurnLogEntry E1 = MakeEntry(ERTMatchPhase::Move,  ERTLogCategory::Move,   1, C1, C2, 3);
 	const FRTTurnLogEntry E2 = MakeEntry(ERTMatchPhase::Blast, ERTLogCategory::Combat, 2, C2, C3, 7);
 	const FRTTurnLogEntry E3 = MakeEntry(ERTMatchPhase::Blast, ERTLogCategory::Combat, 2, C2, C3, 8); // Amount 8 != 7

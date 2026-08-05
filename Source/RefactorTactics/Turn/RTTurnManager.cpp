@@ -54,11 +54,11 @@ void ARTTurnManager::PlanBots()
 	UE_LOG(LogRT, Log, TEXT("[RT] Pesi bot: WKill=%d WDamage=%d WThreat=%d WKiteViolation=%d WApproach=%d WElevation=%d"),
 		WKill, WDamage, WThreat, WKiteViolation, WApproach, WElevation);
 
-	static const TArray<FRTGridCoord> NoBlockers;
+	static const TArray<FRTCellId> NoBlockers;
 	const ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
-	const TArray<FRTGridCoord> VisionBlockers = Grid ? Grid->GetVisionBlockers() : NoBlockers;
+	const TArray<FRTCellId> VisionBlockers = Grid ? Grid->GetVisionBlockers() : NoBlockers;
 	// Cost map del bot: pathfinding pesato dal terreno, con gli hazard resi impassabili (li evita).
-	TMap<FRTGridCoord, int32> BotCostMap;
+	TMap<FRTCellId, int32> BotCostMap;
 	if (Grid) { Grid->BuildBotCostMap(BotCostMap); }
 	// Archi (rampe/scale) per il bot: puo' usare le rampe se avvicinano/aiutano la fuga.
 	static const TArray<FRTTraversalEdge> NoBotEdges;
@@ -84,7 +84,7 @@ void ARTTurnManager::PlanBots()
 			continue;
 		}
 
-		Bot->PlannedCell = Bot->GridCell;   // default: fermo
+		Bot->PlannedCell = Bot->Cell;   // default: fermo
 		Bot->PlannedAttackTarget = nullptr;
 		Bot->PlannedAbilityIndex = INDEX_NONE;
 
@@ -114,7 +114,7 @@ void ARTTurnManager::PlanBots()
 			{
 				continue;
 			}
-			const int32 Distance = URTGridLibrary::ManhattanDistance(Bot->GridCell, Other->GridCell);
+			const int32 Distance = URTGridLibrary::ManhattanDistance(Bot->Cell, Other->Cell);
 			if (Distance < NearestDistance)
 			{
 				NearestDistance = Distance;
@@ -125,27 +125,27 @@ void ARTTurnManager::PlanBots()
 		// Miglior attacco eseguibile DA una cella arbitraria (LOS + gittata dalla cella): focus-fire.
 		// Ritorna l'indice dell'abilità (INDEX_NONE se nessun tiro) e popola bersaglio/danno/HP via out-param.
 		// È l'unico pezzo impuro di BU.3b (LOS/Actor); la SELEZIONE fra i piani è ChooseBestPlan (pura, testata).
-		auto BestAttackFrom = [&](const FRTGridCoord& From, ARTUnit*& OutTarget, int32& OutDamage, int32& OutTargetHP) -> int32
+		auto BestAttackFrom = [&](const FRTCellId& From, ARTUnit*& OutTarget, int32& OutDamage, int32& OutTargetHP) -> int32
 		{
 			int32 BestAbility = INDEX_NONE;
 			OutTarget = nullptr; OutDamage = 0; OutTargetHP = 0;
 			for (ARTUnit* Other : Units)
 			{
 				if (!Other->IsAlive() || Other->TeamId == Bot->TeamId) { continue; }
-				if (!URTGridLibrary::HasLineOfSight(From, Other->GridCell, VisionBlockers)) { continue; }
+				if (!URTGridLibrary::HasLineOfSight(From, Other->Cell, VisionBlockers)) { continue; }
 				const int32 TargetHP = Other->Health + Other->Shield;
 				for (int32 A = 0; A < Bot->NumAbilities(); ++A)
 				{
 					const URTAbilityData* Ability = Bot->GetAbility(A);
 					if (!Ability || Ability->bDash || !Bot->CanUseAbility(A)
-						|| !URTGridLibrary::IsWithinRange(From, Other->GridCell, Ability->RangeCells))
+						|| !URTGridLibrary::IsWithinRange(From, Other->Cell, Ability->RangeCells))
 					{
 						continue; // le abilità di scatto non sono attacchi
 					}
 					// Tie-break assoluto sul bersaglio (coord) -> selezione deterministica (invariante #4).
 					if (BestAbility == INDEX_NONE
-						|| URTBotLibrary::AttackIsBetter(Ability->Power, TargetHP, Other->GridCell,
-							OutDamage, OutTargetHP, OutTarget ? OutTarget->GridCell : FRTGridCoord()))
+						|| URTBotLibrary::AttackIsBetter(Ability->Power, TargetHP, Other->Cell,
+							OutDamage, OutTargetHP, OutTarget ? OutTarget->Cell : FRTCellId()))
 					{
 						BestAbility = A;
 						OutTarget = Other;
@@ -168,13 +168,13 @@ void ARTTurnManager::PlanBots()
 		// Scatto DIFENSIVO: se minacciato e con lo scatto pronto, il bot SCHIVA con lo scatto (fase Dash,
 		// prima del Blast). La posizione post-scatto ri-valida gittata/LOS del bersaglio dell'attaccante:
 		// uscendo dal tiro, l'attacco previsto MANCA. Dash-only. Ritorna true se ha pianificato la fuga.
-		auto TryFleeDash = [&](const FRTGridCoord& ThreatCell) -> bool
+		auto TryFleeDash = [&](const FRTCellId& ThreatCell) -> bool
 		{
 			const int32 DIdx = Bot->FindDashAbilityIndex();
 			const URTAbilityData* DAb = Bot->GetAbility(DIdx);
 			if (!DAb || !DAb->bDash || !Bot->CanUseAbility(DIdx)) { return false; }
-			const FRTGridCoord Dest = URTBotLibrary::BestKiteCell(Bot->GridCell, ThreatCell, Bot->GetEffectiveDashRange(DAb->RangeCells), BotCostMap, GridW, GridH, BotEdges);
-			if (Dest == Bot->GridCell) { return false; }
+			const FRTCellId Dest = URTBotLibrary::BestKiteCell(Bot->Cell, ThreatCell, Bot->GetEffectiveDashRange(DAb->RangeCells), BotCostMap, GridW, GridH, BotEdges);
+			if (Dest == Bot->Cell) { return false; }
 			Bot->PlannedDashAbility = DIdx;
 			Bot->PlannedDashCell = Dest;
 			AddLogEvent(FString::Printf(TEXT("%s: scatto difensivo (schiva) -> (%d,%d,L%d)"), *Bot->GetName(), Dest.X, Dest.Y, Dest.Layer));
@@ -184,7 +184,7 @@ void ARTTurnManager::PlanBots()
 		if (bPanic)
 		{
 			// Fuga che massimizza la distanza (aggira bordi/ostacoli); tiro e bersaglio restano azzerati.
-			if (!TryFleeDash(Nearest->GridCell)) { Bot->PlannedCell = URTBotLibrary::BestKiteCell(Bot->GridCell, Nearest->GridCell, MoveBudget, BotCostMap, GridW, GridH, BotEdges); }
+			if (!TryFleeDash(Nearest->Cell)) { Bot->PlannedCell = URTBotLibrary::BestKiteCell(Bot->Cell, Nearest->Cell, MoveBudget, BotCostMap, GridW, GridH, BotEdges); }
 		}
 		else
 		{
@@ -201,22 +201,22 @@ void ARTTurnManager::PlanBots()
 			}
 
 			// Celle candidate (euristiche, non tutta la griglia): resta + posizione di tiro + avvicinamento.
-			TArray<FRTGridCoord> MoveCands;
-			MoveCands.Add(Bot->GridCell);                                   // "resta" è sempre una candidata
+			TArray<FRTCellId> MoveCands;
+			MoveCands.Add(Bot->Cell);                                   // "resta" è sempre una candidata
 			if (Nearest)
 			{
 				if (FireRange > 0)
 				{
-					const FRTGridCoord FireCell = URTBotLibrary::BestFiringCell(Bot->GridCell, Nearest->GridCell, MoveBudget, BotCostMap, GridW, GridH, VisionBlockers, FireRange, BotEdges);
-					if (FireCell != Bot->GridCell) { MoveCands.AddUnique(FireCell); }
+					const FRTCellId FireCell = URTBotLibrary::BestFiringCell(Bot->Cell, Nearest->Cell, MoveBudget, BotCostMap, GridW, GridH, VisionBlockers, FireRange, BotEdges);
+					if (FireCell != Bot->Cell) { MoveCands.AddUnique(FireCell); }
 				}
-				const FRTGridCoord ApproachCell = URTBotLibrary::BestApproachCell(Bot->GridCell, Nearest->GridCell, MoveBudget, BotCostMap, GridW, GridH, BotEdges);
-				if (ApproachCell != Bot->GridCell) { MoveCands.AddUnique(ApproachCell); }
+				const FRTCellId ApproachCell = URTBotLibrary::BestApproachCell(Bot->Cell, Nearest->Cell, MoveBudget, BotCostMap, GridW, GridH, BotEdges);
+				if (ApproachCell != Bot->Cell) { MoveCands.AddUnique(ApproachCell); }
 			}
 
 			// Context (ordine-invariante sui nemici) + Origin (per il tie-break) + pesi dal tuning.
 			FRTBotContext BotCtx;
-			BotCtx.Origin = Bot->GridCell;
+			BotCtx.Origin = Bot->Cell;
 			BotCtx.VisionBlockers = VisionBlockers; // copertura: la minaccia considera la linea di tiro
 			BotCtx.KiteStandoff = Bot->KiteStandoff;
 			BotCtx.WKill = WKill;
@@ -228,7 +228,7 @@ void ARTTurnManager::PlanBots()
 			for (ARTUnit* Enemy : Units)
 			{
 				if (!Enemy->IsAlive() || Enemy->TeamId == Bot->TeamId) { continue; }
-				BotCtx.Enemies.Add(Enemy->GridCell);
+				BotCtx.Enemies.Add(Enemy->Cell);
 				int32 EnemyReach = Enemy->AttackRange;
 				for (int32 a = 0; a < Enemy->NumAbilities(); ++a)
 				{
@@ -243,11 +243,11 @@ void ARTTurnManager::PlanBots()
 			// (indici puri, no Actor). BestAttackFrom resta generica: riusabile per un futuro dash+attacco.
 			TArray<FRTBotPlan> Plans;
 			Plans.Reserve(MoveCands.Num());
-			for (const FRTGridCoord& Cand : MoveCands)
+			for (const FRTCellId& Cand : MoveCands)
 			{
 				FRTBotPlan P;
 				P.DestCell = Cand;
-				if (Cand == Bot->GridCell)
+				if (Cand == Bot->Cell)
 				{
 					ARTUnit* AtkTarget = nullptr;
 					int32 AtkDamage = 0;
@@ -274,8 +274,8 @@ void ARTTurnManager::PlanBots()
 				&& !(bKiter && NearestDistance < Bot->KiteStandoff);
 			if (bDashReady && FireRange > 0)
 			{
-				const FRTGridCoord DashCell = URTBotLibrary::BestFiringCell(Bot->GridCell, Nearest->GridCell, Bot->GetEffectiveDashRange(DashAb->RangeCells), BotCostMap, GridW, GridH, VisionBlockers, FireRange, BotEdges);
-				if (DashCell != Bot->GridCell)
+				const FRTCellId DashCell = URTBotLibrary::BestFiringCell(Bot->Cell, Nearest->Cell, Bot->GetEffectiveDashRange(DashAb->RangeCells), BotCostMap, GridW, GridH, VisionBlockers, FireRange, BotEdges);
+				if (DashCell != Bot->Cell)
 				{
 					ARTUnit* AtkTarget = nullptr;
 					int32 AtkDamage = 0;
@@ -324,28 +324,28 @@ void ARTTurnManager::PlanBots()
 				// Nessun tiro da nessuna cella candidata: avvicìnati. Con lo scatto pronto (e non già kiter sotto
 				// standoff) riposizionati IN FRETTA con il dash (fase Dash); il kiter minacciato invece fugge.
 				// DashIdx/DashAb sono già stati calcolati sopra (per la candidata dash+attacco).
-				FRTGridCoord DashDest = Bot->GridCell;
+				FRTCellId DashDest = Bot->Cell;
 				if (DashAb && DashAb->bDash && Bot->CanUseAbility(DashIdx) && !(bKiter && NearestDistance < Bot->KiteStandoff))
 				{
 					// Prima una posizione di tiro raggiungibile con lo scatto; altrimenti chiudi la distanza.
-					DashDest = URTBotLibrary::BestFiringCell(Bot->GridCell, Nearest->GridCell, Bot->GetEffectiveDashRange(DashAb->RangeCells), BotCostMap, GridW, GridH, VisionBlockers, FireRange, BotEdges);
-					if (DashDest == Bot->GridCell)
+					DashDest = URTBotLibrary::BestFiringCell(Bot->Cell, Nearest->Cell, Bot->GetEffectiveDashRange(DashAb->RangeCells), BotCostMap, GridW, GridH, VisionBlockers, FireRange, BotEdges);
+					if (DashDest == Bot->Cell)
 					{
-						DashDest = URTBotLibrary::BestApproachCell(Bot->GridCell, Nearest->GridCell, Bot->GetEffectiveDashRange(DashAb->RangeCells), BotCostMap, GridW, GridH, BotEdges);
+						DashDest = URTBotLibrary::BestApproachCell(Bot->Cell, Nearest->Cell, Bot->GetEffectiveDashRange(DashAb->RangeCells), BotCostMap, GridW, GridH, BotEdges);
 					}
 					// Pesa il dash con la minaccia: se scattare in DashDest e' piu' esposto del miglior
 					// posizionamento normale (Best), rinuncia allo scatto e usa il movimento pesato dall'utility.
-					if (DashDest != Bot->GridCell)
+					if (DashDest != Bot->Cell)
 					{
 						FRTBotPlan DashMovePlan;
 						DashMovePlan.DestCell = DashDest;
 						if (URTBotLibrary::ScorePlan(DashMovePlan, BotCtx) < URTBotLibrary::ScorePlan(Best, BotCtx))
 						{
-							DashDest = Bot->GridCell; // scatto troppo esposto -> rinuncia
+							DashDest = Bot->Cell; // scatto troppo esposto -> rinuncia
 						}
 					}
 				}
-				if (DashDest != Bot->GridCell)
+				if (DashDest != Bot->Cell)
 				{
 					Bot->PlannedDashAbility = DashIdx;
 					Bot->PlannedDashCell = DashDest;
@@ -353,7 +353,7 @@ void ARTTurnManager::PlanBots()
 				}
 				else if (bKiter && NearestDistance < Bot->KiteStandoff)
 				{
-					if (!TryFleeDash(Nearest->GridCell)) { Bot->PlannedCell = URTBotLibrary::BestKiteCell(Bot->GridCell, Nearest->GridCell, MoveBudget, BotCostMap, GridW, GridH, BotEdges); }
+					if (!TryFleeDash(Nearest->Cell)) { Bot->PlannedCell = URTBotLibrary::BestKiteCell(Bot->Cell, Nearest->Cell, MoveBudget, BotCostMap, GridW, GridH, BotEdges); }
 				}
 				else
 				{
@@ -362,7 +362,7 @@ void ARTTurnManager::PlanBots()
 					AddLogEvent(FString::Printf(TEXT("%s: utility -> (%d,%d,L%d) score=%d%s"),
 						*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer,
 						URTBotLibrary::ScorePlan(Best, BotCtx),
-						Best.DestCell == Bot->GridCell ? TEXT(" (resta)") : TEXT("")));
+						Best.DestCell == Bot->Cell ? TEXT(" (resta)") : TEXT("")));
 				}
 			}
 			else
@@ -474,7 +474,7 @@ void ARTTurnManager::LockInAndResolve()
 			}
 
 			// Hazard di fine turno: dipende solo dalla cella dell'unita' -> ordine-indipendente.
-			const URTTerrainData* Terrain = Grid ? Grid->GetTerrainAt(Unit->GridCell) : nullptr;
+			const URTTerrainData* Terrain = Grid ? Grid->GetTerrainAt(Unit->Cell) : nullptr;
 			const int32 Hazard = Terrain ? Terrain->GetProps().EndTurnDamage : 0;
 			if (Hazard > 0)
 			{
@@ -589,7 +589,7 @@ void ARTTurnManager::ResolveDash()
 	const float CellSize = Grid ? Grid->CellSize : 200.f;
 	const int32 GridW = Grid ? Grid->Width : 10;
 	const int32 GridH = Grid ? Grid->Height : 10;
-	TMap<FRTGridCoord, int32> CostMap;
+	TMap<FRTCellId, int32> CostMap;
 	if (Grid) { Grid->BuildCostMap(CostMap); }
 	static const TArray<FRTTraversalEdge> NoEdges;
 	const TArray<FRTTraversalEdge>& Edges = Grid ? Grid->GetEdges() : NoEdges;
@@ -602,7 +602,7 @@ void ARTTurnManager::ResolveDash()
 	// raggiungibile entro la portata dello scatto). Lo scatto e' consumato per il turno in ogni caso.
 	TArray<ARTUnit*> Dashers;
 	TArray<int32> DashAbilityIdx;
-	TArray<TArray<FRTGridCoord>> Paths;
+	TArray<TArray<FRTCellId>> Paths;
 	for (AActor* Actor : Actors)
 	{
 		ARTUnit* Unit = Cast<ARTUnit>(Actor);
@@ -610,12 +610,12 @@ void ARTTurnManager::ResolveDash()
 		const int32 DashIdx = Unit->PlannedDashAbility;
 		Unit->PlannedDashAbility = INDEX_NONE; // consumato per questo turno (valido o no)
 		const URTAbilityData* Dash = Unit->GetAbility(DashIdx);
-		if (!Dash || !Dash->bDash || !Unit->CanUseAbility(DashIdx) || Unit->PlannedDashCell == Unit->GridCell)
+		if (!Dash || !Dash->bDash || !Unit->CanUseAbility(DashIdx) || Unit->PlannedDashCell == Unit->Cell)
 		{
 			continue;
 		}
 		// Percorso di scatto: pathfinding a grafo, entro il budget di COSTO = RangeCells dello scatto.
-		TArray<FRTGridCoord> Path = URTGridLibrary::FindPathByGraph(Unit->GridCell, Unit->PlannedDashCell, CostMap, Edges, GridW, GridH);
+		TArray<FRTCellId> Path = URTGridLibrary::FindPathByGraph(Unit->Cell, Unit->PlannedDashCell, CostMap, Edges, GridW, GridH);
 		const int32 Cost = URTGridLibrary::PathCost(Path, CostMap, Edges);
 		if (Path.Num() < 2 || Cost < 0 || Cost > Unit->GetEffectiveDashRange(Dash->RangeCells))
 		{
@@ -636,8 +636,8 @@ void ARTTurnManager::ResolveDash()
 	{
 		if (Resolved[i].Entered.Num() > 0)
 		{
-			TArray<FRTGridCoord> Route;
-			Route.Add(Dashers[i]->GridCell);
+			TArray<FRTCellId> Route;
+			Route.Add(Dashers[i]->Cell);
 			Route.Append(Resolved[i].Entered);
 			LastMoveRoutes.Add(Route);
 
@@ -654,11 +654,11 @@ void ARTTurnManager::ResolveDash()
 	for (int32 i = 0; i < Dashers.Num(); ++i)
 	{
 		ARTUnit* Unit = Dashers[i];
-		const FRTGridCoord PreDash = Unit->GridCell;
-		const FRTGridCoord Final = Resolved[i].Final;
+		const FRTCellId PreDash = Unit->Cell;
+		const FRTCellId Final = Resolved[i].Final;
 		AddLogEvent(FString::Printf(TEXT("Scatto: %s -> (%d,%d,L%d)"), *Unit->GetName(), Final.X, Final.Y, Final.Layer));
 		Unit->ConsumeAbility(DashAbilityIdx[i]);
-		Unit->GridCell = Final;
+		Unit->Cell = Final;
 		Unit->SetVisualLocation(Unit->WorldForCell(Final, Origin, CellSize, LayerH));
 		Unit->PlannedPath.Reset();       // la path composita partiva da PreDash: non piu' valida
 		Unit->PlannedWaypoints.Reset();
@@ -674,7 +674,7 @@ void ARTTurnManager::ResolveDash()
 		ARTUnit* Unit = Dashers[i];
 		if (!Unit->IsAlive()) { continue; }
 		int32 CrossDmg = 0;
-		for (const FRTGridCoord& Cell : Resolved[i].Entered)
+		for (const FRTCellId& Cell : Resolved[i].Entered)
 		{
 			const URTTerrainData* Terrain = Grid ? Grid->GetTerrainAt(Cell) : nullptr;
 			if (Terrain) { CrossDmg += Terrain->GetProps().CrossDamage; }
@@ -699,9 +699,9 @@ void ARTTurnManager::ResolveDash()
 void ARTTurnManager::ResolveCombat()
 {
 	// Celle che bloccano la linea di tiro (copertura + terreno, es. cespuglio).
-	static const TArray<FRTGridCoord> NoBlockers;
+	static const TArray<FRTCellId> NoBlockers;
 	ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
-	const TArray<FRTGridCoord> Blockers = Grid ? Grid->GetVisionBlockers() : NoBlockers;
+	const TArray<FRTCellId> Blockers = Grid ? Grid->GetVisionBlockers() : NoBlockers;
 
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
@@ -724,7 +724,7 @@ void ARTTurnManager::ResolveCombat()
 	// Raccogli gli attacchi validi in base all'abilita' pianificata: bersaglio nemico, vivo,
 	// entro la portata dell'abilita', con linea di tiro; l'abilita' deve essere utilizzabile.
 	TArray<FRTAttack> Attacks;
-	TArray<FRTGridCoord> AttackSrc;  // cella dell'attaccante per ogni FRTAttack (TurnLog)
+	TArray<FRTCellId> AttackSrc;  // cella dell'attaccante per ogni FRTAttack (TurnLog)
 	TArray<int32> AttackBonus;       // bonus altura dell'attaccante per ogni FRTAttack (TurnLog)
 	TArray<ARTUnit*> Attackers;
 	TArray<int32> UsedAbilityIndex;
@@ -734,7 +734,7 @@ void ARTTurnManager::ResolveCombat()
 	TArray<int32> StatusDurations;
 	// Knockback: per ogni bersaglio colpito da un'abilita' con spinta, la cella dell'attaccante, la distanza
 	// e quanti attaccanti lo spingono (2+ = forze contraddittorie -> nessuna spinta, deterministico).
-	TMap<ARTUnit*, FRTGridCoord> KnockFrom;
+	TMap<ARTUnit*, FRTCellId> KnockFrom;
 	TMap<ARTUnit*, int32> KnockDist;
 	TMap<ARTUnit*, int32> KnockCount;
 	for (ARTUnit* Unit : Units)
@@ -748,20 +748,20 @@ void ARTTurnManager::ResolveCombat()
 		// Attacco valido a meno della LOS: se solo la LOS manca, registra NoLineOfSight (attacco "a vuoto").
 		const bool bBaseValid = Ability && !Ability->bDash && Target && IndexOf.Contains(Target)
 			&& Target->TeamId != Unit->TeamId && Unit->CanUseAbility(AbilityIndex)
-			&& URTGridLibrary::IsWithinRange(Unit->GridCell, Target->GridCell, Ability->RangeCells);
-		if (bBaseValid && !URTGridLibrary::HasLineOfSight(Unit->GridCell, Target->GridCell, Blockers))
+			&& URTGridLibrary::IsWithinRange(Unit->Cell, Target->Cell, Ability->RangeCells);
+		if (bBaseValid && !URTGridLibrary::HasLineOfSight(Unit->Cell, Target->Cell, Blockers))
 		{
 			FRTTurnLogEntry NoLos;
 			NoLos.Phase = ERTMatchPhase::Blast;
 			NoLos.Category = ERTLogCategory::Combat;
 			NoLos.Outcome = static_cast<uint8>(ERTCombatOutcome::NoLineOfSight);
-			NoLos.SrcCell = Unit->GridCell;
-			NoLos.TgtCell = Target->GridCell;
+			NoLos.SrcCell = Unit->Cell;
+			NoLos.TgtCell = Target->Cell;
 			NoLos.Amount = 0;
 			TurnLog.Add(NoLos);
 			AddLogEvent(FString::Printf(TEXT("%s -> %s: nessuna linea di tiro"), *Unit->GetName(), *Target->GetName()));
 		}
-		if (!bBaseValid || !URTGridLibrary::HasLineOfSight(Unit->GridCell, Target->GridCell, Blockers))
+		if (!bBaseValid || !URTGridLibrary::HasLineOfSight(Unit->Cell, Target->Cell, Blockers))
 		{
 			continue;
 		}
@@ -777,20 +777,20 @@ void ARTTurnManager::ResolveCombat()
 		};
 
 		// Celle colpite in base alla forma dell'abilita'.
-		TArray<FRTGridCoord> HitCells;
+		TArray<FRTCellId> HitCells;
 		switch (Ability->Shape)
 		{
 		case ERTAbilityShape::Line:
-			HitCells = URTGridLibrary::CellsInLine(Unit->GridCell, Target->GridCell);
+			HitCells = URTGridLibrary::CellsInLine(Unit->Cell, Target->Cell);
 			break;
 		case ERTAbilityShape::Cone:
-			HitCells = URTGridLibrary::CellsInCone(Unit->GridCell, Target->GridCell, Ability->RangeCells);
+			HitCells = URTGridLibrary::CellsInCone(Unit->Cell, Target->Cell, Ability->RangeCells);
 			break;
 		case ERTAbilityShape::Area:
-			HitCells = URTGridLibrary::CellsInRadius(Target->GridCell, Ability->AreaRadius);
+			HitCells = URTGridLibrary::CellsInRadius(Target->Cell, Ability->AreaRadius);
 			break;
 		default:
-			HitCells.Add(Target->GridCell);
+			HitCells.Add(Target->Cell);
 			break;
 		}
 
@@ -798,7 +798,7 @@ void ARTTurnManager::ResolveCombat()
 			// in Fuoco (stesso turno: la mutazione avviene in Blast, prima del Move).
 			if (Ability->bIgnites && Grid)
 			{
-				for (const FRTGridCoord& HC : HitCells)
+				for (const FRTCellId& HC : HitCells)
 				{
 					const URTTerrainData* Terr = Grid->GetTerrainAt(HC);
 					if (Terr && Terr->GetProps().bFlammable && Terr->IgnitesTo)
@@ -810,24 +810,24 @@ void ARTTurnManager::ResolveCombat()
 			}
 
 			// Buff della cella dell'attaccante (es. Altura +danno), valutato in Blast = posizione pre-movimento.
-			const URTTerrainData* AttackerTerrain = Grid ? Grid->GetTerrainAt(Unit->GridCell) : nullptr;
+			const URTTerrainData* AttackerTerrain = Grid ? Grid->GetTerrainAt(Unit->Cell) : nullptr;
 			const int32 AttackerDmgBonus = AttackerTerrain ? AttackerTerrain->GetProps().OccupantDamageBonus : 0;
 			const int32 EffPower = URTCombatLibrary::EffectiveAttackPower(Ability->Power, AttackerDmgBonus);
 
 			// Colpisce ogni nemico su una cella bersaglio.
 		for (ARTUnit* Other : Units)
 		{
-			if (Other->TeamId != Unit->TeamId && HitCells.Contains(Other->GridCell))
+			if (Other->TeamId != Unit->TeamId && HitCells.Contains(Other->Cell))
 			{
 				Attacks.Add(FRTAttack(IndexOf[Other], EffPower));
-				AttackSrc.Add(Unit->GridCell);
+				AttackSrc.Add(Unit->Cell);
 				AttackBonus.Add(AttackerDmgBonus);
 				AddStatus(Other);
 
 				// Knockback: registra l'intento di spinta (dalla cella dell'attaccante).
 				if (Ability->bKnockback && Ability->KnockbackDistance > 0)
 				{
-					KnockFrom.Add(Other, Unit->GridCell);
+					KnockFrom.Add(Other, Unit->Cell);
 					KnockDist.Add(Other, Ability->KnockbackDistance);
 					KnockCount.FindOrAdd(Other)++;
 				}
@@ -883,7 +883,7 @@ void ARTTurnManager::ResolveCombat()
 		E.Category = ERTLogCategory::Combat;
 		E.Outcome = static_cast<uint8>(URTCombatLibrary::ClassifyCombatOutcome(BeforeHP[Idx], AfterHP[Idx], AttackBonus[a]));
 		E.SrcCell = AttackSrc[a];
-		E.TgtCell = Units[Idx]->GridCell;
+		E.TgtCell = Units[Idx]->Cell;
 		E.Amount = BeforeHP[Idx] - AfterHP[Idx];
 		TurnLog.Add(E);
 	}
@@ -902,18 +902,18 @@ void ARTTurnManager::ResolveCombat()
 		const float KCell = Grid ? Grid->CellSize : 200.f;
 		const float KLayerH = Grid ? Grid->LayerHeight : 0.f;
 		// Bloccanti: ostacoli + celle di tutte le unita' (non si spinge dentro un'altra unita').
-		TArray<FRTGridCoord> KBlocked = Grid ? Grid->GetMoveBlockers() : TArray<FRTGridCoord>();
-		for (ARTUnit* U : Units) { KBlocked.Add(U->GridCell); }
+		TArray<FRTCellId> KBlocked = Grid ? Grid->GetMoveBlockers() : TArray<FRTCellId>();
+		for (ARTUnit* U : Units) { KBlocked.Add(U->Cell); }
 
 		// Destinazioni dallo snapshot: solo bersagli vivi spinti da ESATTAMENTE un attaccante.
 		TArray<ARTUnit*> KTargets;
-		TArray<FRTGridCoord> KFinal;
+		TArray<FRTCellId> KFinal;
 		for (const TPair<ARTUnit*, int32>& P : KnockCount)
 		{
 			ARTUnit* T = P.Key;
 			if (P.Value != 1 || !IsValid(T) || !T->IsAlive()) { continue; }
-			const FRTGridCoord Dest = URTCombatLibrary::KnockbackDestination(KnockFrom[T], T->GridCell, KnockDist[T], KBlocked, KW, KH);
-			if (Dest != T->GridCell) { KTargets.Add(T); KFinal.Add(Dest); }
+			const FRTCellId Dest = URTCombatLibrary::KnockbackDestination(KnockFrom[T], T->Cell, KnockDist[T], KBlocked, KW, KH);
+			if (Dest != T->Cell) { KTargets.Add(T); KFinal.Add(Dest); }
 		}
 		for (int32 a = 0; a < KTargets.Num(); ++a)
 		{
@@ -926,17 +926,17 @@ void ARTTurnManager::ResolveCombat()
 			if (bContested) { continue; }
 
 			ARTUnit* T = KTargets[a];
-			const FRTGridCoord OldCell = T->GridCell;
-			const FRTGridCoord NewCell = KFinal[a];
+			const FRTCellId OldCell = T->Cell;
+			const FRTCellId NewCell = KFinal[a];
 			AddLogEvent(FString::Printf(TEXT("Spinta: %s -> (%d,%d)"), *T->GetName(), NewCell.X, NewCell.Y));
 
 			// Percorso cardinale della spinta (per animazione + cross-damage): OldCell + celle attraversate.
 			const int32 SX = FMath::Clamp(NewCell.X - OldCell.X, -1, 1);
 			const int32 SY = FMath::Clamp(NewCell.Y - OldCell.Y, -1, 1);
-			TArray<FRTGridCoord> KPath;
+			TArray<FRTCellId> KPath;
 			KPath.Add(OldCell);
 			int32 KCross = 0;
-			for (FRTGridCoord W(OldCell.X + SX, OldCell.Y + SY, NewCell.Layer); ; W = FRTGridCoord(W.X + SX, W.Y + SY, NewCell.Layer))
+			for (FRTCellId W(OldCell.X + SX, OldCell.Y + SY, NewCell.Layer); ; W = FRTCellId(W.X + SX, W.Y + SY, NewCell.Layer))
 			{
 				KPath.Add(W);
 				const URTTerrainData* Terr = Grid ? Grid->GetTerrainAt(W) : nullptr;
@@ -954,7 +954,7 @@ void ARTTurnManager::ResolveCombat()
 				ResolvedTimeline.Add(Ev);
 			}
 
-			T->GridCell = NewCell;
+			T->Cell = NewCell;
 			T->SetVisualLocation(T->WorldForCell(NewCell, KOrigin, KCell, KLayerH));
 			T->PlannedPath.Reset();      // path composita dalla vecchia cella non valida
 			T->PlannedWaypoints.Reset();
@@ -1020,7 +1020,7 @@ void ARTTurnManager::ResolveMovement()
 	const int32 GridW = Grid ? Grid->Width : 10;
 	const int32 GridH = Grid ? Grid->Height : 10;
 	// Costo per cella dal terreno (pesato): il budget di movimento e' un budget di COSTO.
-	TMap<FRTGridCoord, int32> CostMap;
+	TMap<FRTCellId, int32> CostMap;
 	if (Grid) { Grid->BuildCostMap(CostMap); }
 	// Archi di traversata (rampe/scale) per il pathfinding a grafo multilivello.
 	static const TArray<FRTTraversalEdge> NoEdges;
@@ -1031,7 +1031,7 @@ void ARTTurnManager::ResolveMovement()
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
 
 	TArray<ARTUnit*> Units;
-	TArray<TArray<FRTGridCoord>> Paths;
+	TArray<TArray<FRTCellId>> Paths;
 	Units.Reserve(Actors.Num());
 	Paths.Reserve(Actors.Num());
 	for (AActor* Actor : Actors)
@@ -1046,20 +1046,20 @@ void ARTTurnManager::ResolveMovement()
 		// Path del turno: percorso composito (waypoint) se presente e coerente, altrimenti auto-route
 		// dalla destinazione singola (PlannedCell). Validazione autorevole: contiguo, entro il budget
 		// di COSTO; altrimenti l'unita' resta ferma (a prescindere da cosa ha inviato il client).
-		TArray<FRTGridCoord> Path;
-		if (Unit->PlannedPath.Num() >= 2 && Unit->PlannedPath[0] == Unit->GridCell)
+		TArray<FRTCellId> Path;
+		if (Unit->PlannedPath.Num() >= 2 && Unit->PlannedPath[0] == Unit->Cell)
 		{
 			Path = Unit->PlannedPath;
 		}
-		else if (Unit->PlannedCell != Unit->GridCell)
+		else if (Unit->PlannedCell != Unit->Cell)
 		{
-			Path = URTGridLibrary::FindPathByGraph(Unit->GridCell, Unit->PlannedCell, CostMap, Edges, GridW, GridH);
+			Path = URTGridLibrary::FindPathByGraph(Unit->Cell, Unit->PlannedCell, CostMap, Edges, GridW, GridH);
 		}
 
 		const int32 Cost = URTGridLibrary::PathCost(Path, CostMap, Edges);
 		if (Path.Num() < 2 || Cost < 0 || Cost > Unit->GetEffectiveMoveRange())
 		{
-			Path = { Unit->GridCell }; // fermo
+			Path = { Unit->Cell }; // fermo
 		}
 		Paths.Add(Path);
 	}
@@ -1067,14 +1067,14 @@ void ARTTurnManager::ResolveMovement()
 	const TArray<FRTPathResult> Resolved = URTMovementResolver::ResolvePaths(Paths);
 
 	// TurnLog: esito del movimento per ogni unita' (chiave = cella di partenza = Paths[i][0], stabile
-	// perche' GridCell cambia dopo PlaceOnCell).
+	// perche' Cell cambia dopo PlaceOnCell).
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		FRTTurnLogEntry E;
 		E.Phase = ERTMatchPhase::Move;
 		E.Category = ERTLogCategory::Move;
 		E.Outcome = static_cast<uint8>(Resolved[i].Outcome);
-		E.SrcCell = Paths[i].Num() > 0 ? Paths[i][0] : Units[i]->GridCell;
+		E.SrcCell = Paths[i].Num() > 0 ? Paths[i][0] : Units[i]->Cell;
 		E.TgtCell = Resolved[i].Final;
 		E.Amount = Resolved[i].Entered.Num();
 		TurnLog.Add(E);
@@ -1095,8 +1095,8 @@ void ARTTurnManager::ResolveMovement()
 	{
 		if (Resolved[i].Entered.Num() > 0)
 		{
-			TArray<FRTGridCoord> Route;
-			Route.Add(Units[i]->GridCell);
+			TArray<FRTCellId> Route;
+			Route.Add(Units[i]->Cell);
 			Route.Append(Resolved[i].Entered);
 			LastMoveRoutes.Add(Route);
 
@@ -1123,7 +1123,7 @@ void ARTTurnManager::ResolveMovement()
 		ARTUnit* Unit = Units[i];
 		if (!IsValid(Unit) || !Unit->IsAlive()) { continue; }
 		int32 CrossDmg = 0;
-		for (const FRTGridCoord& Cell : Resolved[i].Entered)
+		for (const FRTCellId& Cell : Resolved[i].Entered)
 		{
 			const URTTerrainData* Terrain = Grid ? Grid->GetTerrainAt(Cell) : nullptr;
 			if (Terrain) { CrossDmg += Terrain->GetProps().CrossDamage; }
@@ -1171,7 +1171,7 @@ void ARTTurnManager::BeginPlayback()
 			Anim.Unit = Ev.Source;
 			Anim.Phase = Ev.Phase; // Dash o Move
 			Anim.World.Reserve(Ev.Path.Num());
-			for (const FRTGridCoord& C : Ev.Path)
+			for (const FRTCellId& C : Ev.Path)
 			{
 				Anim.World.Add(Ev.Source->WorldForCell(C, PBOrigin, PBCellSize, PBLayerHeight));
 			}
@@ -1351,7 +1351,7 @@ void ARTTurnManager::FinishPlayback()
 	{
 		if (A.Unit.IsValid())
 		{
-			A.Unit->SetVisualLocation(A.Unit->WorldForCell(A.Unit->GridCell, PBOrigin, PBCellSize, PBLayerHeight));
+			A.Unit->SetVisualLocation(A.Unit->WorldForCell(A.Unit->Cell, PBOrigin, PBCellSize, PBLayerHeight));
 		}
 	}
 	// Catch-all: nasconde eventuali eliminati non ancora mostrati (hazard di Cleanup, oppure skip del playback).

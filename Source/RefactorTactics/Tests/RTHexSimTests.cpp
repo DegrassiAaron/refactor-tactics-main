@@ -38,10 +38,9 @@ namespace
 	/** Voce di log con la cella di partenza indicata (la chiave stabile dell'unita' nel turno). */
 	const FRTTurnLogEntry* EntryFromCell(const TArray<FRTTurnLogEntry>& Log, const FRTCellId& Src)
 	{
-		const FRTGridCoord Key = URTHexSimLibrary::ToLogCoord(Src);
-		return Log.FindByPredicate([&Key](const FRTTurnLogEntry& E)
+		return Log.FindByPredicate([&Src](const FRTTurnLogEntry& E)
 		{
-			return E.SrcCell.X == Key.X && E.SrcCell.Y == Key.Y && E.SrcCell.Layer == Key.Layer;
+			return E.SrcCell.X == Src.X && E.SrcCell.Y == Src.Y && E.SrcCell.Layer == Src.Layer;
 		});
 	}
 
@@ -445,10 +444,12 @@ bool FRTHexSimBuildMoveLogTest::RunTest(const FString&)
 
 	TestEqual(TEXT("una voce per unita'"), Log.Num(), 3);
 
-	// La coordinata di log conserva le assiali (q, r, Layer) senza reinterpretazioni.
-	const FRTGridCoord Converted = URTHexSimLibrary::ToLogCoord(FRTCellId(3, -2, 1));
-	TestTrue(TEXT("conversione cella -> coordinata di log"),
-		Converted.X == 3 && Converted.Y == -2 && Converted.Layer == 1);
+	// La coordinata di log conserva le assiali (q, r, Layer) senza reinterpretazioni: BuildMoveLog emette
+	// una voce per unita' nell'ordine dell'input, quindi Log[0] appartiene a Paths[0].
+	if (Paths.Num() > 0 && Paths[0].Num() > 0 && Log.Num() > 0)
+	{
+		TestTrue(TEXT("la cella di partenza entra nel log invariata"), Log[0].SrcCell == Paths[0][0]);
+	}
 
 	if (const FRTTurnLogEntry* Blocked = EntryFromCell(Log, FRTCellId(0, 0)))
 	{

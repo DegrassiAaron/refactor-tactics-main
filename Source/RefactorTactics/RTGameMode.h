@@ -32,5 +32,5 @@ protected:
 	TSubclassOf<ARTUnit> GuardianUnitClass;
 
 private:
-	ARTUnit* SpawnUnit(int32 TeamId, const FRTGridCoord& Cell, bool bGuardian, const FVector& GridOrigin, float CellSize);
+	ARTUnit* SpawnUnit(int32 TeamId, const FRTCellId& Cell, bool bGuardian, const FVector& GridOrigin, float CellSize);
 };

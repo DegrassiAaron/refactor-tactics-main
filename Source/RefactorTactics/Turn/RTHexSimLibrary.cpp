@@ -357,16 +357,6 @@ TArray<FRTHexMoveResult> URTHexSimLibrary::ResolveHexPaths(const TArray<TArray<F
 	return Results;
 }
 
-FRTGridCoord URTHexSimLibrary::ToLogCoord(const FRTCellId& Cell)
-{
-	// I tre interi restano q, r e Layer: la topologia e' dichiarata nel formato (ERTLogTopology::Hex), non qui.
-	FRTGridCoord Out;
-	Out.X = Cell.X;
-	Out.Y = Cell.Y;
-	Out.Layer = Cell.Layer;
-	return Out;
-}
-
 TArray<FRTTurnLogEntry> URTHexSimLibrary::BuildMoveLog(const TArray<TArray<FRTCellId>>& Paths,
 	const TArray<FRTHexMoveResult>& Results)
 {
@@ -383,8 +373,10 @@ TArray<FRTTurnLogEntry> URTHexSimLibrary::BuildMoveLog(const TArray<TArray<FRTCe
 		Entry.Phase = ERTMatchPhase::Move;
 		Entry.Category = ERTLogCategory::Move;
 		Entry.Outcome = static_cast<uint8>(Results[i].Outcome);
-		Entry.SrcCell = ToLogCoord(Start);
-		Entry.TgtCell = ToLogCoord(Results[i].Final);
+		// La cella entra nel log com'e': i tre interi sono q, r e Layer e la topologia e' dichiarata dal
+		// formato (ERTLogTopology::Hex), non da una reinterpretazione qui.
+		Entry.SrcCell = Start;
+		Entry.TgtCell = Results[i].Final;
 		Entry.Amount = Results[i].Entered.Num(); // celle effettivamente percorse
 		Log.Add(Entry);
 	}

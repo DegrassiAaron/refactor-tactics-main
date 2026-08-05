@@ -71,7 +71,7 @@ public:
 	const TArray<FRTTurnLogEntry>& GetTurnLog() const { return TurnLog; }
 
 	/** Rotte effettivamente percorse nell'ultima risoluzione (viz post-lock del percorso eseguito). */
-	const TArray<TArray<FRTGridCoord>>& GetLastMoveRoutes() const { return LastMoveRoutes; }
+	const TArray<TArray<FRTCellId>>& GetLastMoveRoutes() const { return LastMoveRoutes; }
 
 	// --- Presentazione (Blueprint) -------------------------------------------------------------
 	UPROPERTY(BlueprintAssignable, Category = "RefactorTactics|Playback")
@@ -172,7 +172,7 @@ protected:
 	TArray<FRTTurnLogEntry> TurnLog;
 
 	/** Rotte (celle) percorse da ogni unita' che si e' mossa nell'ultima risoluzione. */
-	TArray<TArray<FRTGridCoord>> LastMoveRoutes;
+	TArray<TArray<FRTCellId>> LastMoveRoutes;
 
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Turn")
 	int32 MaxLogLines = 6;

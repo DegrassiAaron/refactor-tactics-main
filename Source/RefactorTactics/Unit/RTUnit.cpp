@@ -142,19 +142,19 @@ void ARTUnit::ApplyTeamColor()
 	}
 }
 
-void ARTUnit::PlaceOnCell(const FRTGridCoord& Cell, const FVector& GridOrigin, float CellSize, float LayerHeight)
+void ARTUnit::PlaceOnCell(const FRTCellId& InCell, const FVector& GridOrigin, float CellSize, float LayerHeight)
 {
-	GridCell = Cell;
-	PlannedCell = Cell; // dopo un movimento, il piano riparte dalla cella attuale
+	Cell = InCell;
+	PlannedCell = InCell; // dopo un movimento, il piano riparte dalla cella attuale
 	PlannedPath.Reset();      // il percorso composito e' consumato
 	PlannedWaypoints.Reset(); // e i suoi waypoint
-	SetActorLocation(WorldForCell(Cell, GridOrigin, CellSize, LayerHeight));
+	SetActorLocation(WorldForCell(InCell, GridOrigin, CellSize, LayerHeight));
 }
 
-FVector ARTUnit::WorldForCell(const FRTGridCoord& Cell, const FVector& GridOrigin, float CellSize, float LayerHeight) const
+FVector ARTUnit::WorldForCell(const FRTCellId& InCell, const FVector& GridOrigin, float CellSize, float LayerHeight) const
 {
 	// Delegato alla utility pura (testata): VisualZOffset = 90 per il cilindro, 0 per personaggi (pivot ai piedi).
-	return URTGridLibrary::CellToWorldElevated(Cell, GridOrigin, CellSize, VisualZOffset, LayerHeight);
+	return URTGridLibrary::CellToWorldElevated(InCell, GridOrigin, CellSize, VisualZOffset, LayerHeight);
 }
 
 void ARTUnit::SetVisualLocation(const FVector& World)
@@ -168,7 +168,7 @@ void ARTUnit::SetVisualLocation(const FVector& World)
 			SetActorRotation(FRotator(0.f, URTGridLibrary::DirectionYaw(Current, World), 0.f));
 		}
 	}
-	SetActorLocation(World); // solo presentazione: lo stato logico (GridCell) resta invariato
+	SetActorLocation(World); // solo presentazione: lo stato logico (Cell) resta invariato
 }
 
 void ARTUnit::OnSelected()

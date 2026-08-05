@@ -13,7 +13,7 @@ bool FRTCellToWorldElevatedOffsetTest::RunTest(const FString&)
 {
 	const FVector Origin(0.f, 0.f, 0.f);
 	const float CellSize = 200.f;
-	const FRTGridCoord Cell(2, 3); // Layer 0
+	const FRTCellId Cell(2, 3); // Layer 0
 
 	const FVector Base = URTGridLibrary::CellToWorld(Cell, Origin, CellSize);
 	const FVector Elevated = URTGridLibrary::CellToWorldElevated(Cell, Origin, CellSize, /*ZOffset=*/90.f, /*LayerHeight=*/0.f);
@@ -32,7 +32,7 @@ bool FRTCellToWorldElevatedGroundedTest::RunTest(const FString&)
 {
 	const FVector Origin(0.f, 0.f, 0.f);
 	const float CellSize = 200.f;
-	const FRTGridCoord Cell(1, 1);
+	const FRTCellId Cell(1, 1);
 
 	const FVector Base = URTGridLibrary::CellToWorld(Cell, Origin, CellSize);
 	const FVector Grounded = URTGridLibrary::CellToWorldElevated(Cell, Origin, CellSize, /*ZOffset=*/0.f, /*LayerHeight=*/0.f);
@@ -54,8 +54,8 @@ bool FRTCellToWorldElevatedLayerTest::RunTest(const FString&)
 	const FVector Origin(0.f, 0.f, 0.f);
 	const float CellSize = 200.f;
 	const float LayerHeight = 200.f;
-	FRTGridCoord Ground(4, 4); Ground.Layer = 0;
-	FRTGridCoord Upper(4, 4); Upper.Layer = 1;
+	FRTCellId Ground(4, 4); Ground.Layer = 0;
+	FRTCellId Upper(4, 4); Upper.Layer = 1;
 
 	const FVector G = URTGridLibrary::CellToWorldElevated(Ground, Origin, CellSize, /*ZOffset=*/50.f, LayerHeight);
 	const FVector U = URTGridLibrary::CellToWorldElevated(Upper, Origin, CellSize, /*ZOffset=*/50.f, LayerHeight);

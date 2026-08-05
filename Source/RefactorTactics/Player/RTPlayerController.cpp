@@ -160,12 +160,12 @@ void ARTPlayerController::PlayerTick(float DeltaTime)
 	FHitResult Hit;
 	if (GetHitResultUnderCursor(ECC_Visibility, /*bTraceComplex=*/ false, Hit) && Hit.GetActor())
 	{
-		const FRTGridCoord Cell = URTGridLibrary::WorldToCell(Hit.Location, Grid->GetActorLocation(), Grid->CellSize);
+		const FRTCellId Cell = URTGridLibrary::WorldToCell(Hit.Location, Grid->GetActorLocation(), Grid->CellSize);
 		Grid->SetHoveredCell(Cell, URTGridLibrary::IsInBounds(Cell, Grid->Width, Grid->Height));
 	}
 	else
 	{
-		Grid->SetHoveredCell(FRTGridCoord(), false);
+		Grid->SetHoveredCell(FRTCellId(), false);
 	}
 }
 
@@ -248,8 +248,8 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		}
 		const ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
 		const bool bReady = SelectedUnit->CanUseAbility(AbilityIndex);
-		const bool bInRange = URTGridLibrary::IsWithinRange(SelectedUnit->GridCell, ClickedUnit->GridCell, Ability->RangeCells);
-		const bool bHasLOS = !Grid || URTGridLibrary::HasLineOfSight(SelectedUnit->GridCell, ClickedUnit->GridCell, Grid->GetVisionBlockers());
+		const bool bInRange = URTGridLibrary::IsWithinRange(SelectedUnit->Cell, ClickedUnit->Cell, Ability->RangeCells);
+		const bool bHasLOS = !Grid || URTGridLibrary::HasLineOfSight(SelectedUnit->Cell, ClickedUnit->Cell, Grid->GetVisionBlockers());
 		if (bReady && bInRange && bHasLOS)
 		{
 			SelectedUnit->PlannedAbilityIndex = AbilityIndex;
@@ -302,7 +302,7 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	{
 		if (ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass())))
 		{
-			FRTGridCoord Cell = URTGridLibrary::WorldToCell(Hit.Location, Grid->GetActorLocation(), Grid->CellSize);
+			FRTCellId Cell = URTGridLibrary::WorldToCell(Hit.Location, Grid->GetActorLocation(), Grid->CellSize);
 				Cell.Layer = Grid->LayerFromHitComponent(Hit.GetComponent()); // click->layer (ponte = 1)
 				if (!URTGridLibrary::IsInsideGrid(Cell, Grid->Width, Grid->Height))
 			{
@@ -324,9 +324,9 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 						UE_LOG(LogRT, Log, TEXT("[RT] Scatto non pronto (ricarica) per %s"), *SelectedUnit->GetName());
 						return;
 					}
-					TMap<FRTGridCoord, int32> DCostMap;
+					TMap<FRTCellId, int32> DCostMap;
 					Grid->BuildCostMap(DCostMap);
-					const TArray<FRTGridCoord> DPath = URTGridLibrary::FindPathByGraph(SelectedUnit->GridCell, Cell, DCostMap, Grid->GetEdges(), Grid->Width, Grid->Height);
+					const TArray<FRTCellId> DPath = URTGridLibrary::FindPathByGraph(SelectedUnit->Cell, Cell, DCostMap, Grid->GetEdges(), Grid->Width, Grid->Height);
 					const int32 DCost = URTGridLibrary::PathCost(DPath, DCostMap, Grid->GetEdges());
 					if (DPath.Num() < 2 || DCost < 0 || DCost > SelectedUnit->GetEffectiveDashRange(SelAb->RangeCells))
 					{
@@ -340,16 +340,16 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 				}
 
 				const int32 MoveRange = SelectedUnit->GetEffectiveMoveRange();
-				TMap<FRTGridCoord, int32> CostMap;
+				TMap<FRTCellId, int32> CostMap;
 				Grid->BuildCostMap(CostMap);
-			if (!URTGridLibrary::ReachableCellsByGraph(SelectedUnit->GridCell, MoveRange, CostMap, Grid->GetEdges(), Grid->Width, Grid->Height).Contains(Cell))
+			if (!URTGridLibrary::ReachableCellsByGraph(SelectedUnit->Cell, MoveRange, CostMap, Grid->GetEdges(), Grid->Width, Grid->Height).Contains(Cell))
 			{
 				UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d) non raggiungibile (percorso bloccato o fuori portata) per %s"),
 					Cell.X, Cell.Y, *SelectedUnit->GetName());
 				return;
 			}
 			SelectedUnit->PlannedWaypoints.Add(Cell);
-				const TArray<FRTGridCoord> WPath = URTGridLibrary::BuildCompositePath(SelectedUnit->GridCell, SelectedUnit->PlannedWaypoints, CostMap, Grid->Width, Grid->Height, Grid->GetEdges());
+				const TArray<FRTCellId> WPath = URTGridLibrary::BuildCompositePath(SelectedUnit->Cell, SelectedUnit->PlannedWaypoints, CostMap, Grid->Width, Grid->Height, Grid->GetEdges());
 				const int32 WCost = URTGridLibrary::PathCost(WPath, CostMap, Grid->GetEdges());
 				if (WPath.Num() < 2 || WCost < 0 || WCost > MoveRange)
 				{
@@ -460,9 +460,9 @@ void ARTPlayerController::RebuildPlannedPath()
 	{
 		return;
 	}
-	TMap<FRTGridCoord, int32> CostMap;
+	TMap<FRTCellId, int32> CostMap;
 	Grid->BuildCostMap(CostMap);
-	const TArray<FRTGridCoord> Path = URTGridLibrary::BuildCompositePath(Unit->GridCell, Unit->PlannedWaypoints, CostMap, Grid->Width, Grid->Height, Grid->GetEdges());
+	const TArray<FRTCellId> Path = URTGridLibrary::BuildCompositePath(Unit->Cell, Unit->PlannedWaypoints, CostMap, Grid->Width, Grid->Height, Grid->GetEdges());
 	const int32 Cost = URTGridLibrary::PathCost(Path, CostMap, Grid->GetEdges());
 	if (Unit->PlannedWaypoints.Num() > 0 && Path.Num() >= 2 && Cost >= 0 && Cost <= Unit->GetEffectiveMoveRange())
 	{
@@ -472,6 +472,6 @@ void ARTPlayerController::RebuildPlannedPath()
 	else
 	{
 		Unit->PlannedPath.Reset();
-		Unit->PlannedCell = Unit->GridCell;
+		Unit->PlannedCell = Unit->Cell;
 	}
 }

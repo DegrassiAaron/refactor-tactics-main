@@ -14,7 +14,7 @@ namespace
 	// Nome distinto da quello di RTTurnLogLibraryTests.cpp: nella unity build i due file finiscono nella STESSA
 	// translation unit e i namespace anonimi si fondono -> due helper omonime sarebbero una ridefinizione.
 	FRTTurnLogEntry MakeSerEntry(ERTMatchPhase Phase, ERTLogCategory Cat, uint8 Outcome,
-		const FRTGridCoord& Src, const FRTGridCoord& Tgt, int32 Amount)
+		const FRTCellId& Src, const FRTCellId& Tgt, int32 Amount)
 	{
 		FRTTurnLogEntry E;
 		E.Phase = Phase;
@@ -32,11 +32,11 @@ namespace
 	{
 		TArray<FRTTurnLogEntry> L;
 		L.Add(MakeSerEntry(ERTMatchPhase::Move,  ERTLogCategory::Move,   static_cast<uint8>(ERTMoveOutcome::Moved),
-			FRTGridCoord(0, 0), FRTGridCoord(1, 0), 1));
+			FRTCellId(0, 0), FRTCellId(1, 0), 1));
 		L.Add(MakeSerEntry(ERTMatchPhase::Move,  ERTLogCategory::Move,   static_cast<uint8>(ERTMoveOutcome::BlockedContested),
-			FRTGridCoord(4, 2), FRTGridCoord(4, 2), 0));
+			FRTCellId(4, 2), FRTCellId(4, 2), 0));
 		L.Add(MakeSerEntry(ERTMatchPhase::Blast, ERTLogCategory::Combat, static_cast<uint8>(ERTCombatOutcome::Lethal),
-			FRTGridCoord(2, 2, 1), FRTGridCoord(3, 3), 45));
+			FRTCellId(2, 2, 1), FRTCellId(3, 3), 45));
 		return L;
 	}
 }

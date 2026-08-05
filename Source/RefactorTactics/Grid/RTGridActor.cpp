@@ -58,10 +58,10 @@ ARTGridActor::ARTGridActor()
 	HoverHighlight->SetRelativeScale3D(FVector(HoverScale, HoverScale, 1.f));
 
 	// Coperture centrali di default per il demo (bloccano la linea di tiro).
-	BlockedCells = { FRTGridCoord(4, 4), FRTGridCoord(5, 4), FRTGridCoord(4, 5), FRTGridCoord(5, 5) };
+	BlockedCells = { FRTCellId(4, 4), FRTCellId(5, 4), FRTCellId(4, 5), FRTCellId(5, 5) };
 }
 
-void ARTGridActor::SetHoveredCell(const FRTGridCoord& Cell, bool bValid)
+void ARTGridActor::SetHoveredCell(const FRTCellId& Cell, bool bValid)
 {
 	if (!HoverHighlight)
 	{
@@ -105,22 +105,22 @@ void ARTGridActor::SpawnBridge()
 	// NB: non parte da x=2 per non stare sopra lo spawn del Guardian (2,4), che resterebbe non cliccabile.
 	for (int32 X = 3; X <= 7; ++X)
 	{
-		Layer1Cells.Add(FRTGridCoord(X, 4, 1));
+		Layer1Cells.Add(FRTCellId(X, 4, 1));
 	}
 
 	// Rampe (archi bidirezionali, costo 2) alle due estremita': terra <-> ponte.
-	auto AddRamp = [this](const FRTGridCoord& Ground, const FRTGridCoord& Bridge)
+	auto AddRamp = [this](const FRTCellId& Ground, const FRTCellId& Bridge)
 	{
 		Edges.Add(FRTTraversalEdge(Ground, Bridge, 2));
 		Edges.Add(FRTTraversalEdge(Bridge, Ground, 2));
 	};
-	AddRamp(FRTGridCoord(2, 4, 0), FRTGridCoord(3, 4, 1)); // base sotto/accanto al Guardian di team 0
-	AddRamp(FRTGridCoord(8, 4, 0), FRTGridCoord(7, 4, 1));
+	AddRamp(FRTCellId(2, 4, 0), FRTCellId(3, 4, 1)); // base sotto/accanto al Guardian di team 0
+	AddRamp(FRTCellId(8, 4, 0), FRTCellId(7, 4, 1));
 
 	UE_LOG(LogRT, Log, TEXT("[RT] GridActor: ponte (%d celle layer 1, %d archi)"), Layer1Cells.Num(), Edges.Num());
 }
 
-const URTTerrainData* ARTGridActor::GetTerrainAt(const FRTGridCoord& Cell) const
+const URTTerrainData* ARTGridActor::GetTerrainAt(const FRTCellId& Cell) const
 {
 	const TObjectPtr<URTTerrainData>* Found = TerrainCells.Find(Cell);
 	return Found ? Found->Get() : nullptr;
@@ -131,14 +131,14 @@ int32 ARTGridActor::LayerFromHitComponent(const UPrimitiveComponent* Comp) const
 	return (Comp && Comp == BridgeCells) ? 1 : 0;
 }
 
-void ARTGridActor::BuildCostMap(TMap<FRTGridCoord, int32>& OutCost) const
+void ARTGridActor::BuildCostMap(TMap<FRTCellId, int32>& OutCost) const
 {
 	OutCost.Reset();
-	for (const FRTGridCoord& Blocked : BlockedCells)
+	for (const FRTCellId& Blocked : BlockedCells)
 	{
 		OutCost.Add(Blocked, RT_BLOCKED_COST);
 	}
-	for (const TPair<FRTGridCoord, TObjectPtr<URTTerrainData>>& Pair : TerrainCells)
+	for (const TPair<FRTCellId, TObjectPtr<URTTerrainData>>& Pair : TerrainCells)
 	{
 		if (Pair.Value)
 		{
@@ -148,12 +148,12 @@ void ARTGridActor::BuildCostMap(TMap<FRTGridCoord, int32>& OutCost) const
 
 	// Layer 1: solo le celle-ponte sono calpestabili; tutte le altre di layer 1 sono impassabili
 	// (altrimenti il pathfinding le tratterebbe come costo 1 e le unita' "galleggerebbero").
-	TSet<FRTGridCoord> BridgeSet(Layer1Cells);
+	TSet<FRTCellId> BridgeSet(Layer1Cells);
 	for (int32 X = 0; X < Width; ++X)
 	{
 		for (int32 Y = 0; Y < Height; ++Y)
 		{
-			const FRTGridCoord Cell(X, Y, 1);
+			const FRTCellId Cell(X, Y, 1);
 			if (!BridgeSet.Contains(Cell))
 			{
 				OutCost.Add(Cell, RT_BLOCKED_COST);
@@ -162,10 +162,10 @@ void ARTGridActor::BuildCostMap(TMap<FRTGridCoord, int32>& OutCost) const
 	}
 }
 
-TArray<FRTGridCoord> ARTGridActor::GetMoveBlockers() const
+TArray<FRTCellId> ARTGridActor::GetMoveBlockers() const
 {
-	TArray<FRTGridCoord> Out = BlockedCells;
-	for (const TPair<FRTGridCoord, TObjectPtr<URTTerrainData>>& Pair : TerrainCells)
+	TArray<FRTCellId> Out = BlockedCells;
+	for (const TPair<FRTCellId, TObjectPtr<URTTerrainData>>& Pair : TerrainCells)
 	{
 		if (Pair.Value && URTTerrainLibrary::BlocksMovement(Pair.Value->GetProps()))
 		{
@@ -175,11 +175,11 @@ TArray<FRTGridCoord> ARTGridActor::GetMoveBlockers() const
 	return Out;
 }
 
-void ARTGridActor::BuildBotCostMap(TMap<FRTGridCoord, int32>& OutCost) const
+void ARTGridActor::BuildBotCostMap(TMap<FRTCellId, int32>& OutCost) const
 {
 	BuildCostMap(OutCost);
 	// Il bot evita del tutto gli hazard: li tratta come impassabili in pianificazione.
-	for (const TPair<FRTGridCoord, TObjectPtr<URTTerrainData>>& Pair : TerrainCells)
+	for (const TPair<FRTCellId, TObjectPtr<URTTerrainData>>& Pair : TerrainCells)
 	{
 		if (Pair.Value && Pair.Value->GetProps().EndTurnDamage > 0)
 		{
@@ -188,10 +188,10 @@ void ARTGridActor::BuildBotCostMap(TMap<FRTGridCoord, int32>& OutCost) const
 	}
 }
 
-TArray<FRTGridCoord> ARTGridActor::GetVisionBlockers() const
+TArray<FRTCellId> ARTGridActor::GetVisionBlockers() const
 {
-	TArray<FRTGridCoord> Out = BlockedCells;
-	for (const TPair<FRTGridCoord, TObjectPtr<URTTerrainData>>& Pair : TerrainCells)
+	TArray<FRTCellId> Out = BlockedCells;
+	for (const TPair<FRTCellId, TObjectPtr<URTTerrainData>>& Pair : TerrainCells)
 	{
 		if (Pair.Value && URTTerrainLibrary::BlocksVision(Pair.Value->GetProps()))
 		{
@@ -201,7 +201,7 @@ TArray<FRTGridCoord> ARTGridActor::GetVisionBlockers() const
 	return Out;
 }
 
-void ARTGridActor::SetTerrainAt(const FRTGridCoord& Cell, URTTerrainData* Terrain, int32 TurnsLeft)
+void ARTGridActor::SetTerrainAt(const FRTCellId& Cell, URTTerrainData* Terrain, int32 TurnsLeft)
 {
 	if (Terrain) { TerrainCells.Add(Cell, Terrain); }
 	else { TerrainCells.Remove(Cell); }
@@ -211,12 +211,12 @@ void ARTGridActor::SetTerrainAt(const FRTGridCoord& Cell, URTTerrainData* Terrai
 
 void ARTGridActor::TickTerrain()
 {
-	TArray<FRTGridCoord> Expired;
-	for (TPair<FRTGridCoord, int32>& It : TerrainTurnsLeft)
+	TArray<FRTCellId> Expired;
+	for (TPair<FRTCellId, int32>& It : TerrainTurnsLeft)
 	{
 		if (--It.Value <= 0) { Expired.Add(It.Key); }
 	}
-	for (const FRTGridCoord& Cell : Expired)
+	for (const FRTCellId& Cell : Expired)
 	{
 		const URTTerrainData* Cur = GetTerrainAt(Cell);
 		URTTerrainData* Revert = Cur ? Cur->RevertsTo.Get() : nullptr;
@@ -234,7 +234,7 @@ void ARTGridActor::SpawnDemoTerrain()
 	Fango->DisplayName = FText::FromString(TEXT("Fango"));
 	Fango->DisplayColor = FLinearColor(0.40f, 0.26f, 0.13f, 1.f);
 	Fango->Props.ExtraMoveCost = 1;
-	for (const FRTGridCoord& C : { FRTGridCoord(6, 3), FRTGridCoord(6, 4), FRTGridCoord(6, 5) })
+	for (const FRTCellId& C : { FRTCellId(6, 3), FRTCellId(6, 4), FRTCellId(6, 5) })
 	{
 		TerrainCells.Add(C, Fango);
 	}
@@ -244,7 +244,7 @@ void ARTGridActor::SpawnDemoTerrain()
 	Cespuglio->DisplayName = FText::FromString(TEXT("Cespuglio"));
 	Cespuglio->DisplayColor = FLinearColor(0.10f, 0.50f, 0.15f, 1.f);
 	Cespuglio->Props.bBlocksVision = true;
-	for (const FRTGridCoord& C : { FRTGridCoord(3, 6), FRTGridCoord(4, 6) })
+	for (const FRTCellId& C : { FRTCellId(3, 6), FRTCellId(4, 6) })
 	{
 		TerrainCells.Add(C, Cespuglio);
 	}
@@ -254,7 +254,7 @@ void ARTGridActor::SpawnDemoTerrain()
 	Altura->DisplayName = FText::FromString(TEXT("Altura"));
 	Altura->DisplayColor = FLinearColor(0.60f, 0.60f, 0.72f, 1.f);
 	Altura->Props.OccupantDamageBonus = 10;
-	for (const FRTGridCoord& C : { FRTGridCoord(4, 2), FRTGridCoord(5, 2) })
+	for (const FRTCellId& C : { FRTCellId(4, 2), FRTCellId(5, 2) })
 	{
 		TerrainCells.Add(C, Altura);
 	}
@@ -265,7 +265,7 @@ void ARTGridActor::SpawnDemoTerrain()
 	Lava->DisplayColor = FLinearColor(0.85f, 0.20f, 0.05f, 1.f);
 	Lava->Props.CrossDamage = 10;   // danno ad attraversarla
 	Lava->Props.EndTurnDamage = 20; // + danno a terminarci sopra (double-dip)
-	for (const FRTGridCoord& C : { FRTGridCoord(1, 4), FRTGridCoord(1, 5) })
+	for (const FRTCellId& C : { FRTCellId(1, 4), FRTCellId(1, 5) })
 	{
 		TerrainCells.Add(C, Lava);
 	}
@@ -285,7 +285,7 @@ void ARTGridActor::SpawnDemoTerrain()
 	Erba->DisplayColor = FLinearColor(0.55f, 0.65f, 0.15f, 1.f);
 	Erba->Props.bFlammable = true;
 	Erba->IgnitesTo = Fuoco;
-	for (const FRTGridCoord& C : { FRTGridCoord(6, 6), FRTGridCoord(7, 6) })
+	for (const FRTCellId& C : { FRTCellId(6, 6), FRTCellId(7, 6) })
 	{
 		TerrainCells.Add(C, Erba);
 	}
@@ -312,7 +312,7 @@ void ARTGridActor::BuildGrid()
 	{
 		for (int32 X = 0; X < Width; ++X)
 		{
-			FVector World = URTGridLibrary::CellToWorld(FRTGridCoord(X, Y), Origin, CellSize);
+			FVector World = URTGridLibrary::CellToWorld(FRTCellId(X, Y), Origin, CellSize);
 			World.Z += GridZOffset;
 			FTransform CellTransform;
 			CellTransform.SetLocation(World);
@@ -329,7 +329,7 @@ void ARTGridActor::BuildGrid()
 		constexpr float CubeBaseSize = 100.f; // dimensione del Cube base in uu
 		const float XYScale = (CellSize * 0.9f) / CubeBaseSize;
 		const float ZScale = 250.f / CubeBaseSize; // ~250 uu di altezza
-		for (const FRTGridCoord& Blocked : BlockedCells)
+		for (const FRTCellId& Blocked : BlockedCells)
 		{
 			FVector World = URTGridLibrary::CellToWorld(Blocked, Origin, CellSize);
 			World.Z += GridZOffset + (250.f * 0.5f); // base appoggiata sopra la griglia
@@ -344,7 +344,7 @@ void ARTGridActor::BuildGrid()
 	if (BridgeCells)
 	{
 		BridgeCells->ClearInstances();
-		for (const FRTGridCoord& Cell : Layer1Cells)
+		for (const FRTCellId& Cell : Layer1Cells)
 		{
 			FVector World = URTGridLibrary::CellToWorld(Cell, Origin, CellSize);
 			World.Z += GridZOffset + Cell.Layer * LayerHeight;
@@ -380,7 +380,7 @@ void ARTGridActor::RefreshTerrainVisuals()
 	constexpr float PlaneBaseSize = 100.f;
 	const float Scale = (CellSize * 0.9f) / PlaneBaseSize;
 
-	for (const TPair<FRTGridCoord, TObjectPtr<URTTerrainData>>& Pair : TerrainCells)
+	for (const TPair<FRTCellId, TObjectPtr<URTTerrainData>>& Pair : TerrainCells)
 	{
 		if (!Pair.Value) { continue; }
 

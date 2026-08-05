@@ -62,15 +62,15 @@ void ARTGameMode::BeginPlay()
 		const FVector Origin = Grid->GetActorLocation();
 		const float CellSize = Grid->CellSize;
 		// Ogni squadra: un Ranger (fragile, lunga gittata) e un Guardian (tanky, corta gittata).
-		SpawnUnit(0, FRTGridCoord(2, 2), /*bGuardian=*/ false, Origin, CellSize);
-		SpawnUnit(0, FRTGridCoord(2, 4), /*bGuardian=*/ true,  Origin, CellSize);
-		SpawnUnit(1, FRTGridCoord(7, 7), /*bGuardian=*/ false, Origin, CellSize);
-		SpawnUnit(1, FRTGridCoord(7, 5), /*bGuardian=*/ true,  Origin, CellSize);
+		SpawnUnit(0, FRTCellId(2, 2), /*bGuardian=*/ false, Origin, CellSize);
+		SpawnUnit(0, FRTCellId(2, 4), /*bGuardian=*/ true,  Origin, CellSize);
+		SpawnUnit(1, FRTCellId(7, 7), /*bGuardian=*/ false, Origin, CellSize);
+		SpawnUnit(1, FRTCellId(7, 5), /*bGuardian=*/ true,  Origin, CellSize);
 		UE_LOG(LogRT, Log, TEXT("[RT] Board 2v2 (Ranger + Guardian per squadra) avviata"));
 	}
 }
 
-ARTUnit* ARTGameMode::SpawnUnit(int32 TeamId, const FRTGridCoord& Cell, bool bGuardian, const FVector& GridOrigin, float CellSize)
+ARTUnit* ARTGameMode::SpawnUnit(int32 TeamId, const FRTCellId& Cell, bool bGuardian, const FVector& GridOrigin, float CellSize)
 {
 	UWorld* World = GetWorld();
 	if (!World)
