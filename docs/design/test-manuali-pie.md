@@ -34,13 +34,13 @@
 
 | ID | Cosa verificare | Precondizione | Esito atteso | Stato |
 |----|-----------------|---------------|--------------|-------|
-| **PIE-AS5** | Anello di team a terra | `M_TeamRing` creato + assegnato a `TeamRingMaterial` sui `BP_Unit` | Anello **blu** (team 0) / **rosso** (team 1) sotto ogni unità, visibile dall'alto; senza `M_TeamRing` nessun anello (cilindro colorato come prima) | ⏳ |
-| **PIE-SEL** | Anello di selezione (anche su skeletal) | `M_SelectionRing` creato + assegnato a `SelectionRingMaterial` sui `BP_Unit` | Selezionando un'unità compare un **anello giallo** a terra (cornice esterna al TeamRing), visibile anche quando il cilindro è nascosto (personaggio skeletal); deselezionando sparisce. Senza `M_SelectionRing`: nessun anello (fallback: resta solo l'ingrandimento del cilindro) | ⏳ |
-| **PIE-P3** | Combat log mostra i reason (TurnLog) | — (funziona anche col cilindro) | Destinazione contesa → log «fermo (cella contesa)»; attacco senza LOS → «nessuna linea di tiro» | 🟡 2026-08-05: **contesa verificata**; il caso «nessuna linea di tiro» non è stato esercitato — da chiarire se la pianificazione lo previene a monte (in tal caso la voce va riscritta) |
-| **PIE-AS2** | Personaggio skeletal appoggiato a terra | `BP_Unit_Guardian` (Gideon, `VisualZOffset=0`) → `GuardianUnitClass` | Al posto del cilindro compare il personaggio, a terra (nessun «fluttuamento») | ⏳ |
+| **PIE-AS5** | Anello di team a terra | `M_TeamRing` creato + assegnato a `TeamRingMaterial` sui `BP_Unit` | Anello **blu** (team 0) / **rosso** (team 1) sotto ogni unità, visibile dall'alto; senza `M_TeamRing` nessun anello (cilindro colorato come prima) | ✅ 2026-08-05 |
+| **PIE-SEL** | Anello di selezione (anche su skeletal) | `M_SelectionRing` creato + assegnato a `SelectionRingMaterial` sui `BP_Unit` | Selezionando un'unità compare un **anello giallo** a terra (cornice esterna al TeamRing), visibile anche quando il cilindro è nascosto (personaggio skeletal); deselezionando sparisce. Senza `M_SelectionRing`: nessun anello (fallback: resta solo l'ingrandimento del cilindro) | ✅ 2026-08-05 — **non serve un materiale dedicato**: basta assegnare `M_TeamRing` a `SelectionRingMaterial`, il colore (giallo) lo imposta il codice sul MID via parametro `Color`; i due anelli restano distinguibili per scala (1.6 team, 1.9 selezione) |
+| **PIE-P3** | Combat log mostra i reason (TurnLog) | — (funziona anche col cilindro) | Destinazione contesa → log «fermo (cella contesa)»; attacco senza LOS → «nessuna linea di tiro» | ✅ 2026-08-05 — entrambi i reason osservati nel log: contesa in fase di risoluzione, e `BP_Unit_Ranger_C_1 coperto (nessuna linea di tiro)` **in pianificazione** (il controller valida la LOS al momento del bersagliamento, non solo al lock-in) |
+| **PIE-AS2** | Personaggio skeletal appoggiato a terra | `BP_Unit_Guardian` (Gideon, `VisualZOffset=0`) → `GuardianUnitClass` | Al posto del cilindro compare il personaggio, a terra (nessun «fluttuamento») | ✅ 2026-08-05 |
 | **PIE-AS4a** | Locomozione Idle↔Run | `ABP_Gideon` + bind dei delegate (guida-animazioni-paragon) | In fase **Move** Gideon passa a `Jog_Fwd`, torna `Idle` a fine risoluzione | ⏳ |
 | **PIE-AS4b** | Colpi e morte (montages) | `AM_Gideon_Cast/Hit/Death` + bind `OnAttackResolved`/`OnUnitDefeated` | Nel **Blast**: attaccante gioca `Cast`, bersaglio `Hit`; morte → `Death` | ⏳ |
-| **PIE-FACING** | Orientamento al movimento | `bFaceMovementDirection=true` sul `BP_Unit` | L'unità ruota (yaw) verso la direzione di corsa; `Jog_Fwd` credibile in ogni direzione | ⏳ |
+| **PIE-FACING** | Orientamento al movimento | `bFaceMovementDirection=true` sul `BP_Unit` | L'unità ruota (yaw) verso la direzione di corsa; `Jog_Fwd` credibile in ogni direzione | ✅ 2026-08-05 — corsa orientata correttamente. **Nota di design**: a fine movimento l'unità resta voltata verso l'ultima direzione percorsa (scelta confermata: non torna a un orientamento "avanti") | 
 | **PIE-MP4** | Click → layer (multilivello) | mappa col ponte sopraelevato | Il click seleziona la cella del **layer giusto** (terra vs ponte) | ⏳ |
 | **PIE-CP1.4** | Evidenziazione cella sotto il cursore | — | La cella sotto il mouse è evidenziata | ✅ 2026-08-05 |
 | **PIE-HEX** | Griglia esagonale graybox (pivot) | `ARTHexMapActor` in un livello, `DemoRadius > 0` | Griglia di celle esagonali visibile (graybox); con `MapAsset` popolato mostra quelle celle | ✅ 2026-08-05 (con `DemoRadius=0` la griglia resta: viene dall'asset) |
@@ -65,7 +65,7 @@
 | **PIE-BU3** | Bot: utility unica posizione/attacco | worktree `feat/bot-utility`, **dopo** refactor BU.3b | Un'unica utility sceglie fra **{resta e attacca}** e **{muoviti per posizionarti}** (l'attacco vale solo da fermo: il Blast precede il Move). Verifica: se attaccare da fermo espone troppo il bot preferisce ripararsi invece di sparare; se l'attacco **uccide** spara sempre; guardie **support/panic/dash** intatte; log `utility -> ... attacca X score=N` oppure `... score=N (resta)` | ✅ |
 | **PIE-BU3c** | Bot: dash+attacco (scatto poi colpisce) | worktree `feat/bot-utility`, **dopo** BU.3c | Se scattando raggiunge una cella da cui ha tiro e l'attacco conviene (utility), il bot pianifica **scatto + attacco** (log `utility -> scatto (x,y,Lz) + attacca X`): nel Blast (dopo il Dash) colpisce dalla cella post-scatto. **Nota**: se lo scatto è deviato da un conflitto di movimento simultaneo, l'attacco può mancare (log `nessuna linea di tiro`) — coerente coi turni simultanei | ✅ |
 
-### Partita su griglia esagonale (H6.6 — wiring del turn loop)
+### Partita su griglia esagonale (M6 — Parità hex)
 
 > Voci **pianificate in anticipo**: il codice non esiste ancora (H6.1–H6.5 hanno costruito solo lo strato puro).
 > Servono a definire *prima* cosa dovrà dimostrare lo switch, così la verifica non viene inventata a lavoro finito.
@@ -124,8 +124,9 @@ anello team (**AS5**) → selezione (**SEL**) → personaggio a terra (**AS2**) 
 montaggi nel Blast (**AS4b**) → orientamento (**FACING**).
 
 ### Sessione D — Partita su hex → 9 voci
-`PIE-HEXPLAY-1..9`. **Non ancora eseguibile**: attende il wiring H6.6. La mappa di prova va però preparata prima
-(vedi sotto): serve comunque alla Sessione A.
+`PIE-HEXPLAY-1..9`. **Non ancora eseguibile**: attende **M6 — Parità hex** (`roadmap-checkpoint.md`), che le
+adotta come DoD del checkpoint 6.8. La mappa di prova va però preparata prima (vedi sotto): serve comunque
+alla Sessione A.
 
 ### Mappa di prova consigliata (serve alle sessioni A e D)
 
