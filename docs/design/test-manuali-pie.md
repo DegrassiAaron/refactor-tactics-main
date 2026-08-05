@@ -5,6 +5,9 @@
 > Regola: una voce è ✅ **solo dopo** verifica reale in PIE — non «dovrebbe funzionare».
 > Per lavorarci in modo efficiente vedi **«Sessioni di verifica consigliate»** in fondo: le voci aperte sono
 > raggruppate per preparazione condivisa, così l'editor si apre una volta per gruppo invece che una per voce.
+> **Quale voce affrontare e quando** lo dice [`roadmap-editor.md`](roadmap-editor.md): questo file resta il
+> **registro** (esito atteso e stato), quello è la **sequenza** (sedute U1–U17, artefatti da creare, dipendenze
+> verso i checkpoint di codice).
 
 ## Come eseguire
 - Apri il progetto: doppio clic su `RefactorTactics.uproject`. All'avvio l'editor può chiedere **quale versione
