@@ -141,7 +141,49 @@ public:
 	/** Numero di celle attualmente rappresentate (istanze ISM). Diagnostica e test. */
 	int32 NumInstanceCells() const { return InstanceCells.Num(); }
 
+	/** La mappa esagonale del livello (la prima trovata), oppure nullptr se il livello non ne ha. */
+	static ARTHexMapActor* FindInWorld(const UWorld* World);
+
+	/**
+	 * Contesto geometrico della mappa: origine = posizione dell'ACTOR, scala (HexSize/LayerHeight) dall'ASSET
+	 * autorevole o, se manca, dall'actor stesso (graybox demo). Ritorna l'asset (nullptr se assente).
+	 *
+	 * UNICO punto da cui passano le conversioni cella<->mondo: risoluzione, playback e input del giocatore
+	 * devono condividere la stessa scala, altrimenti l'anteprima e l'esito divergono.
+	 */
+	const URTHexMapAsset* GetHexContext(FVector& OutOrigin, float& OutHexSize, float& OutLayerHeight) const;
+
+	// --- Anteprima di pianificazione (SOLA PRESENTAZIONE) -------------------------------------------------
+	// Invariante #1: questi metodi non decidono nulla. Ricevono cio' che il simulatore ha gia' deciso e lo
+	// disegnano. Il disegno e' a debug-line: la presentazione curata (mesh + materiale) e' M8.
+
+	/** Cella sotto il cursore: `bValid` false (o cella non nella mappa) = nessuna evidenziazione. */
+	void SetHoveredCell(const FRTCellId& Cell, bool bValid);
+
+	/** Percorso pianificato da evidenziare (vuoto = nessuna traccia). Celle consecutive, partenza inclusa. */
+	void SetPreviewPath(const TArray<FRTCellId>& Path);
+
+	/** Cella attualmente evidenziata e sua validita' (diagnostica e test). */
+	FRTCellId GetHoveredCell() const { return HoveredCell; }
+	bool IsHoveredCellValid() const { return bHoveredValid; }
+
+	/** Numero di celle nella traccia di anteprima (diagnostica e test). */
+	int32 NumPreviewPathCells() const { return PreviewPath.Num(); }
+
 protected:
+	virtual void Tick(float DeltaSeconds) override;
+
+	/** Disegna evidenziazione e traccia (debug-line): nessun effetto sulla logica. */
+	void DrawPlanningPreview() const;
+
+	/** Cella sotto il cursore, impostata dal controller. */
+	FRTCellId HoveredCell;
+
+	/** Falso = niente evidenziazione (cursore fuori dalla mappa). */
+	bool bHoveredValid = false;
+
+	/** Traccia del percorso pianificato, impostata dal controller. */
+	TArray<FRTCellId> PreviewPath;
 	/**
 	 * Ricostruisce la vista a ogni costruzione dell'actor: apertura del livello, spostamento, undo, spawn.
 	 * Le istanze ISM sono una vista DERIVATA dall'asset (autorevole): senza questo, riaprendo il livello la

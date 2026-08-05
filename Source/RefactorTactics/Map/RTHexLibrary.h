@@ -43,8 +43,23 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static int32 WorldToLayer(double WorldZ, double OriginZ, float LayerHeight);
 
+	/**
+	 * Cella COMPLETA che contiene il punto-mondo: ricava il Layer dalla quota e poi la coppia assiale su quel
+	 * piano. Unico punto da cui passano raycast dell'input e hit-test dell'editor, cosi' la sequenza
+	 * "layer poi assiale" non viene ricomposta a mano in ogni chiamante.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static FRTCellId WorldToCellId(const FVector& World, const FVector& Origin, float HexSize, float LayerHeight);
+
 	/** Distanza minima tra la semi-retta (RayOrigin + t*RayDir, t>=0) e il segmento A..B. Pura, per hit-test archi. */
 	static float DistanceRayToSegment(const FVector& RayOrigin, const FVector& RayDir, const FVector& A, const FVector& B);
+
+	/**
+	 * I 6 vertici dell'esagono attorno a Center (pointy-top, primo vertice a -30 gradi), complanari al centro.
+	 * Il chiamante chiude il contorno collegando l'ultimo al primo. Condivisa da marker dell'editor e anteprima
+	 * in gioco: un solo orientamento, cosi' i due disegni non divergono.
+	 */
+	static TArray<FVector> HexCorners(const FVector& Center, float Radius);
 
 	/** Ordinamento stabile deterministico: Layer, poi X, poi Y. */
 	static bool StableLess(const FRTCellId& A, const FRTCellId& B);

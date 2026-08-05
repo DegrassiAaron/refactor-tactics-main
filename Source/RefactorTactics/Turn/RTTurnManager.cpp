@@ -1011,23 +1011,46 @@ void ARTTurnManager::ResolveCombat()
 
 const URTHexMapAsset* ARTTurnManager::GetHexContext(FVector& OutOrigin, float& OutHexSize, float& OutLayerHeight) const
 {
-	const ARTHexMapActor* HexMap = Cast<ARTHexMapActor>(
-		UGameplayStatics::GetActorOfClass(const_cast<ARTTurnManager*>(this), ARTHexMapActor::StaticClass()));
-	if (!HexMap)
+	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
 	{
-		// Nessuna mappa nel livello: valori neutri. Le unita' restano dove sono, la scala non ha effetto.
-		OutOrigin = FVector::ZeroVector;
-		OutHexSize = 100.f;
-		OutLayerHeight = 250.f;
-		return nullptr;
+		return HexMap->GetHexContext(OutOrigin, OutHexSize, OutLayerHeight);
 	}
 
-	// Dimensioni dall'asset AUTOREVOLE; se manca valgono quelle dell'actor (graybox demo).
-	const URTHexMapAsset* Map = HexMap->MapAsset;
-	OutOrigin = HexMap->GetActorLocation();
-	OutHexSize = Map ? Map->HexSize : HexMap->HexSize;
-	OutLayerHeight = Map ? Map->LayerHeight : HexMap->LayerHeight;
-	return Map;
+	// Nessuna mappa nel livello: valori neutri. Le unita' restano dove sono, la scala non ha effetto.
+	OutOrigin = FVector::ZeroVector;
+	OutHexSize = 100.f;
+	OutLayerHeight = 250.f;
+	return nullptr;
+}
+
+FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) const
+{
+	OutUnits.Reset();
+
+	FVector Origin; float HexSize; float LayerH;
+	const URTHexMapAsset* Map = GetHexContext(Origin, HexSize, LayerH);
+
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(const_cast<ARTTurnManager*>(this), ARTUnit::StaticClass(), Actors);
+	OutUnits.Reserve(Actors.Num());
+	for (AActor* Actor : Actors)
+	{
+		ARTUnit* Unit = Cast<ARTUnit>(Actor);
+		if (Unit && Unit->IsAlive())
+		{
+			OutUnits.Add(Unit); // i morti (es. nel Blast) non si muovono e non bloccano
+		}
+	}
+
+	// L'identita' e' l'INDICE dell'unita' in OutUnits, un intero stabile — mai un pointer (stessa
+	// disciplina del TurnLog). Il chiamante ritrova la propria unita' con OutUnits.IndexOfByKey.
+	TArray<FRTHexSimUnit> SimUnits;
+	SimUnits.Reserve(OutUnits.Num());
+	for (int32 i = 0; i < OutUnits.Num(); ++i)
+	{
+		SimUnits.Add(FRTHexSimUnit(i, OutUnits[i]->Cell, OutUnits[i]->GetEffectiveMoveRange(), /*bAlive=*/ true));
+	}
+	return URTHexSimLibrary::MakeSnapshot(Map, SimUnits);
 }
 
 void ARTTurnManager::ResolveMovement()
@@ -1039,31 +1062,10 @@ void ARTTurnManager::ResolveMovement()
 	}
 
 	FVector Origin; float HexSize; float LayerH;
-	const URTHexMapAsset* Map = GetHexContext(Origin, HexSize, LayerH);
-
-	TArray<AActor*> Actors;
-	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+	GetHexContext(Origin, HexSize, LayerH);
 
 	TArray<ARTUnit*> Units;
-	Units.Reserve(Actors.Num());
-	for (AActor* Actor : Actors)
-	{
-		ARTUnit* Unit = Cast<ARTUnit>(Actor);
-		if (Unit && Unit->IsAlive())
-		{
-			Units.Add(Unit); // i morti (es. nel Blast) non si muovono e non bloccano
-		}
-	}
-
-	// Snapshot CONGELATO a inizio fase ("raccogli poi applica", invariante #3): l'identita' e' l'indice
-	// dell'unita' in Units, un intero stabile — mai un pointer (stessa disciplina del TurnLog).
-	TArray<FRTHexSimUnit> SimUnits;
-	SimUnits.Reserve(Units.Num());
-	for (int32 i = 0; i < Units.Num(); ++i)
-	{
-		SimUnits.Add(FRTHexSimUnit(i, Units[i]->Cell, Units[i]->GetEffectiveMoveRange(), /*bAlive=*/ true));
-	}
-	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Map, SimUnits);
+	const FRTHexSnapshot Snapshot = MakeCurrentSnapshot(Units);
 
 	TArray<TArray<FRTCellId>> Paths;
 	Paths.Reserve(Units.Num());

@@ -98,6 +98,24 @@ int32 URTHexLibrary::WorldToLayer(double WorldZ, double OriginZ, float LayerHeig
 	return FMath::RoundToInt((WorldZ - OriginZ) / static_cast<double>(LayerHeight));
 }
 
+FRTCellId URTHexLibrary::WorldToCellId(const FVector& World, const FVector& Origin, float HexSize, float LayerHeight)
+{
+	const int32 Layer = WorldToLayer(World.Z, Origin.Z, LayerHeight);
+	return WorldToAxial(World, Origin, HexSize, Layer);
+}
+
+TArray<FVector> URTHexLibrary::HexCorners(const FVector& Center, float Radius)
+{
+	TArray<FVector> Corners;
+	Corners.Reserve(6);
+	for (int32 I = 0; I < 6; ++I)
+	{
+		const double Angle = PI / 180.0 * (60.0 * I - 30.0); // pointy-top: primo vertice a -30 gradi
+		Corners.Add(Center + FVector(Radius * FMath::Cos(Angle), Radius * FMath::Sin(Angle), 0.0));
+	}
+	return Corners;
+}
+
 float URTHexLibrary::DistanceRayToSegment(const FVector& RayOrigin, const FVector& RayDir, const FVector& A, const FVector& B)
 {
 	// Closest points tra semi-retta (s>=0, dir unitaria) e segmento (t in [0,1]). Adattato da Ericson, con doppio clamp.

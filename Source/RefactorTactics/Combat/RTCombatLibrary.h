@@ -6,6 +6,8 @@
 #include "Turn/RTTurnLog.h"
 #include "RTCombatLibrary.generated.h"
 
+class URTHexMapAsset;
+
 /** Esito dell'applicazione del danno: HP e scudo risultanti. */
 USTRUCT(BlueprintType)
 struct FRTDamageResult
@@ -65,6 +67,18 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static bool CanPlayerControlUnit(int32 UnitTeamId, int32 PlayerTeamId);
+
+	/**
+	 * Vero se il bersaglio e' ingaggiabile su griglia esagonale: entro `RangeCells` (distanza esagonale) e con
+	 * linea di tiro libera sulla mappa.
+	 *
+	 * **FAIL-CLOSED**: `Map == nullptr` -> falso. Senza mappa autorevole non si valida la linea di tiro, quindi
+	 * non si pianifica l'attacco. La versione precedente nel controller faceva l'opposto (`!Grid || HasLOS`) e
+	 * lasciava passare ogni bersaglio quando la griglia non c'era.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static bool CanTargetHexCell(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To,
+		int32 RangeCells);
 
 	/**
 	 * Danno effettivo di un attacco dato il bonus della cella occupata dall'attaccante

@@ -1,4 +1,6 @@
 #include "Combat/RTCombatLibrary.h"
+#include "Map/RTHexLibrary.h"
+#include "Map/RTHexVisionLibrary.h"
 
 FRTDamageResult URTCombatLibrary::ApplyDamage(int32 Damage, int32 Shield, int32 Health)
 {
@@ -55,6 +57,20 @@ bool URTCombatLibrary::CanPlayerControlUnit(int32 UnitTeamId, int32 PlayerTeamId
 {
 	// Nessuna eccezione: si comanda solo la propria squadra (niente "possessione" di unita' avversarie).
 	return UnitTeamId == PlayerTeamId;
+}
+
+bool URTCombatLibrary::CanTargetHexCell(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To,
+	int32 RangeCells)
+{
+	if (!Map)
+	{
+		return false; // FAIL-CLOSED: senza mappa autorevole la linea di tiro non e' verificabile
+	}
+	if (URTHexLibrary::HexDistance(From, To) > FMath::Max(0, RangeCells))
+	{
+		return false;
+	}
+	return URTHexVisionLibrary::HasLineOfSight(Map, From, To);
 }
 
 int32 URTCombatLibrary::EffectiveAttackPower(int32 BasePower, int32 OccupantDamageBonus)

@@ -183,4 +183,87 @@ bool FRTHexDistanceRaySegTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * CP 6.3: un punto del mondo deve tornare la cella COMPLETA, layer incluso. Finora il layer si ricavava
+ * separatamente (WorldToLayer) e poi si chiamava WorldToAxial passandolo a mano: chi lo compone e' costretto
+ * a duplicare la sequenza (lo fa il tool Arch dell'editor, e servira' all'input di gioco).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexWorldToCellIdTest,
+	"RefactorTactics.Hex.WorldToCellIdRoundTripAcrossLayers",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexWorldToCellIdTest::RunTest(const FString&)
+{
+	const FVector Origin(1000.0, -500.0, 200.0);
+	const float HexSize = 100.f;
+	const float LayerHeight = 250.f;
+
+	// Il centro di una cella deve tornare quella cella, layer compreso, su piu' layer.
+	const TArray<FRTCellId> Cases = {
+		FRTCellId(0, 0, 0), FRTCellId(2, 1, 0), FRTCellId(-1, 3, 1),
+		FRTCellId(3, -2, 2), FRTCellId(-4, -2, -1)
+	};
+	for (const FRTCellId& C : Cases)
+	{
+		const FVector World = URTHexLibrary::AxialToWorld(C, Origin, HexSize, LayerHeight);
+		const FRTCellId Back = URTHexLibrary::WorldToCellId(World, Origin, HexSize, LayerHeight);
+		TestTrue(FString::Printf(TEXT("round-trip completo %s -> %s"), *C.ToString(), *Back.ToString()), Back == C);
+	}
+
+	// Coerente con le due funzioni che compone: stesso esito di WorldToLayer + WorldToAxial.
+	{
+		const FVector P(1234.0, -321.0, 200.0 + 1.2 * LayerHeight);
+		const int32 ExpectedLayer = URTHexLibrary::WorldToLayer(P.Z, Origin.Z, LayerHeight);
+		const FRTCellId Expected = URTHexLibrary::WorldToAxial(P, Origin, HexSize, ExpectedLayer);
+		TestTrue(TEXT("equivale a WorldToLayer + WorldToAxial"),
+			URTHexLibrary::WorldToCellId(P, Origin, HexSize, LayerHeight) == Expected);
+	}
+
+	// LayerHeight <= 0: nessuna divisione, tutto sul layer 0 (come WorldToLayer).
+	{
+		const FVector P(1000.0, -500.0, 9999.0);
+		TestEqual(TEXT("LayerHeight 0 -> layer 0"),
+			URTHexLibrary::WorldToCellId(P, Origin, HexSize, 0.f).Layer, 0);
+	}
+	return true;
+}
+
+/**
+ * CP 6.3: i vertici dell'esagono servono sia al marker dell'editor sia all'anteprima in gioco. Una sola
+ * definizione, cosi' i due disegni non divergono di orientamento (pointy-top, primo vertice a -30 gradi).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexCornersTest,
+	"RefactorTactics.Hex.HexCornersPointyTop",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexCornersTest::RunTest(const FString&)
+{
+	const FVector Center(300.0, -100.0, 50.0);
+	const float Radius = 90.f;
+	const TArray<FVector> Corners = URTHexLibrary::HexCorners(Center, Radius);
+
+	TestEqual(TEXT("sei vertici"), Corners.Num(), 6);
+	if (Corners.Num() != 6)
+	{
+		return false;
+	}
+
+	TSet<FString> Distinct;
+	for (const FVector& C : Corners)
+	{
+		// Ogni vertice a distanza Radius dal centro, sullo stesso piano orizzontale.
+		const double D = FVector2D(C.X - Center.X, C.Y - Center.Y).Size();
+		TestTrue(FString::Printf(TEXT("vertice a distanza %.1f dal centro"), D),
+			FMath::IsNearlyEqual(D, static_cast<double>(Radius), 0.01));
+		TestTrue(TEXT("vertice complanare al centro"), FMath::IsNearlyEqual(C.Z, Center.Z, 0.01));
+		Distinct.Add(FString::Printf(TEXT("%.2f,%.2f"), C.X, C.Y));
+	}
+	TestEqual(TEXT("sei vertici distinti"), Distinct.Num(), 6);
+
+	// Orientamento pointy-top come il marker dell'editor: primo vertice a -30 gradi.
+	const double Expected = -PI / 6.0;
+	TestTrue(TEXT("primo vertice a -30 gradi"),
+		FMath::IsNearlyEqual(Corners[0].X - Center.X, Radius * FMath::Cos(Expected), 0.01) &&
+		FMath::IsNearlyEqual(Corners[0].Y - Center.Y, Radius * FMath::Sin(Expected), 0.01));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

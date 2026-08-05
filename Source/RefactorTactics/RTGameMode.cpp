@@ -79,10 +79,11 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 		return;
 	}
 
-	// Dimensioni dalla mappa autorevole; se manca l'asset valgono quelle dell'actor (graybox demo).
-	const FVector Origin = HexMap->GetActorLocation();
-	const float HexSize = Map ? Map->HexSize : HexMap->HexSize;
-	const float LayerHeight = Map ? Map->LayerHeight : HexMap->LayerHeight;
+	// Contesto geometrico dall'unica fonte (scala dall'asset autorevole, origine dall'actor).
+	FVector Origin = FVector::ZeroVector;
+	float HexSize = 0.f;
+	float LayerHeight = 0.f;
+	HexMap->GetHexContext(Origin, HexSize, LayerHeight);
 
 	// Ogni squadra: un Ranger (fragile, lunga gittata) e un Guardian (tanky, corta gittata).
 	SpawnUnit(0, Start[0], /*bGuardian=*/ false, Origin, HexSize, LayerHeight);

@@ -543,4 +543,135 @@ bool FRTHexSimReplayDivergenceTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// CP 6.3 — percorso composito a waypoint (pianificazione del giocatore)
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Il giocatore clicca piu' celle: il percorso deve passare DA OGNI waypoint nell'ordine dato, non prendere la
+ * scorciatoia. Caso discriminante: (0,0) -> (2,0) -> (2,-2) costa 4, mentre la diagonale diretta
+ * (0,0) -> (2,-2) costerebbe 2. Se i waypoint venissero ignorati il costo sarebbe 2.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexCompositePathTest,
+	"RefactorTactics.HexSim.CompositePathFollowsWaypoints",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexCompositePathTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeSimMap(3);
+	const FRTCellId Start(0, 0, 0);
+	const FRTCellId Via(2, 0, 0);
+	const FRTCellId Goal(2, -2, 0);
+
+	// Premessa del test: la scorciatoia esiste ed e' piu' corta. Se cade, il caso non discrimina piu'.
+	TestEqual(TEXT("premessa: distanza diretta 2"), URTHexLibrary::HexDistance(Start, Goal), 2);
+
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(7, Start, /*MoveBudget=*/ 5) });
+	const FRTHexPathResult R = URTHexSimLibrary::BuildCompositeHexPath(Snap, 7, { Via, Goal });
+
+	TestTrue(TEXT("percorso trovato"), R.Status == ERTHexPathStatus::Success);
+	TestEqual(TEXT("costo = somma dei tratti (2+2), non la scorciatoia"), R.TotalCost, 4);
+	TestTrue(TEXT("passa dal waypoint intermedio"), PathContains(R, Via));
+	if (R.Path.Num() > 0)
+	{
+		TestTrue(TEXT("parte dalla cella dell'unita'"), R.Path[0] == Start);
+		TestTrue(TEXT("finisce sull'ultimo waypoint"), R.Path.Last() == Goal);
+	}
+	TestEqual(TEXT("celle totali = 1 + 2 + 2"), R.Path.Num(), 5);
+	return true;
+}
+
+/**
+ * Il budget si spende in modo CUMULATIVO sui tratti. Caso discriminante: budget 3, due tratti da 2 (totale 4).
+ * Ogni tratto preso da solo entrerebbe nel budget: un'implementazione che passasse il budget pieno a ogni
+ * tratto accetterebbe il percorso. Deve rifiutarlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexCompositeBudgetTest,
+	"RefactorTactics.HexSim.CompositePathBudgetIsCumulative",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexCompositeBudgetTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeSimMap(3);
+	const FRTCellId Start(0, 0, 0);
+	const FRTCellId Via(2, 0, 0);
+	const FRTCellId Goal(2, -2, 0);
+
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(7, Start, /*MoveBudget=*/ 3) });
+
+	// Premessa: ciascun tratto da solo entra in 3 (costa 2).
+	const FRTHexPathResult SingleLeg = URTHexSimLibrary::BuildCompositeHexPath(Snap, 7, { Via });
+	TestTrue(TEXT("premessa: un solo tratto entra nel budget"), SingleLeg.Status == ERTHexPathStatus::Success);
+	TestEqual(TEXT("premessa: un tratto costa 2"), SingleLeg.TotalCost, 2);
+
+	// I due tratti insieme costano 4 > 3 -> rifiuto dell'intero percorso.
+	const FRTHexPathResult Both = URTHexSimLibrary::BuildCompositeHexPath(Snap, 7, { Via, Goal });
+	TestTrue(TEXT("due tratti oltre il budget -> rifiutato"), Both.Status != ERTHexPathStatus::Success);
+	TestEqual(TEXT("percorso rifiutato -> nessuna cella"), Both.Path.Num(), 0);
+	return true;
+}
+
+/** Cella oltre il budget in un colpo solo: rifiuto, non troncamento. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexCompositeOutOfBudgetTest,
+	"RefactorTactics.HexSim.CompositePathRejectsCellOutOfBudget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexCompositeOutOfBudgetTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeSimMap(3);
+	const FRTCellId Start(0, 0, 0);
+	const FRTCellId TooFar(3, 0, 0); // distanza 3, budget 2
+
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(7, Start, /*MoveBudget=*/ 2) });
+	const FRTHexPathResult R = URTHexSimLibrary::BuildCompositeHexPath(Snap, 7, { TooFar });
+
+	TestTrue(TEXT("fuori budget -> rifiutato"), R.Status != ERTHexPathStatus::Success);
+	TestEqual(TEXT("nessun percorso parziale"), R.Path.Num(), 0);
+	return true;
+}
+
+/** Waypoint su una cella occupata da un'ALTRA unita': rifiuto (una unita' non blocca se stessa). */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexCompositeOccupiedTest,
+	"RefactorTactics.HexSim.CompositePathRejectsOccupiedCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexCompositeOccupiedTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeSimMap(3);
+	const FRTCellId Start(0, 0, 0);
+	const FRTCellId Occupied(2, 0, 0);
+
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, {
+		FRTHexSimUnit(7, Start, /*MoveBudget=*/ 5),
+		FRTHexSimUnit(8, Occupied, /*MoveBudget=*/ 0)
+	});
+
+	const FRTHexPathResult R = URTHexSimLibrary::BuildCompositeHexPath(Snap, 7, { Occupied });
+	TestTrue(TEXT("cella occupata -> rifiutata"), R.Status != ERTHexPathStatus::Success);
+
+	// La stessa cella, libera, sarebbe raggiungibile: e' l'occupazione a rifiutarla, non la geometria.
+	const FRTHexSnapshot Free = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(7, Start, /*MoveBudget=*/ 5) });
+	TestTrue(TEXT("controprova: libera e' raggiungibile"),
+		URTHexSimLibrary::BuildCompositeHexPath(Free, 7, { Occupied }).Status == ERTHexPathStatus::Success);
+	return true;
+}
+
+/** Nessun waypoint = piano "resto fermo": la sola cella di partenza, costo 0. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexCompositeEmptyTest,
+	"RefactorTactics.HexSim.CompositePathEmptyWaypointsStays",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexCompositeEmptyTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeSimMap(2);
+	const FRTCellId Start(1, 0, 0);
+
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(7, Start, /*MoveBudget=*/ 4) });
+	const FRTHexPathResult R = URTHexSimLibrary::BuildCompositeHexPath(Snap, 7, {});
+
+	TestTrue(TEXT("nessun waypoint -> Success"), R.Status == ERTHexPathStatus::Success);
+	TestEqual(TEXT("solo la cella di partenza"), R.Path.Num(), 1);
+	TestEqual(TEXT("costo 0"), R.TotalCost, 0);
+	if (R.Path.Num() == 1)
+	{
+		TestTrue(TEXT("e' la cella dell'unita'"), R.Path[0] == Start);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
