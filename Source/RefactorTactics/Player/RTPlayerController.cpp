@@ -53,6 +53,9 @@ void ARTPlayerController::BuildInputMappings()
 	RecenterAction = NewObject<UInputAction>(this, TEXT("IA_Recenter"));
 	RecenterAction->ValueType = EInputActionValueType::Boolean;
 
+	FocusAction = NewObject<UInputAction>(this, TEXT("IA_FocusSelected"));
+	FocusAction->ValueType = EInputActionValueType::Boolean;
+
 	MappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_Tactical"));
 
 	// Pan (Axis2D): D=+X, A=-X, W=+Y (Swizzle YXZ), S=-Y (Swizzle YXZ + Negate).
@@ -99,6 +102,7 @@ void ARTPlayerController::BuildInputMappings()
 
 	// Ricentra la camera sul centro griglia + reset zoom (tasto Home).
 	MappingContext->MapKey(RecenterAction, EKeys::Home);
+	MappingContext->MapKey(FocusAction, EKeys::F);
 }
 
 void ARTPlayerController::BeginPlay()
@@ -134,6 +138,7 @@ void ARTPlayerController::SetupInputComponent()
 		EIC->BindAction(Ability4Action, ETriggerEvent::Started, this, &ARTPlayerController::OnAbility4);
 		EIC->BindAction(UndoAction, ETriggerEvent::Started, this, &ARTPlayerController::OnUndoWaypoint);
 		EIC->BindAction(RecenterAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRecenter);
+		EIC->BindAction(FocusAction, ETriggerEvent::Started, this, &ARTPlayerController::OnFocusSelected);
 	}
 	else
 	{
@@ -168,6 +173,21 @@ void ARTPlayerController::OnRecenter(const FInputActionValue& Value)
 	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
 	{
 		Cam->RecenterView();
+	}
+}
+
+void ARTPlayerController::OnFocusSelected(const FInputActionValue& Value)
+{
+	ARTUnit* Unit = GetSelectedUnit();
+	if (!Unit)
+	{
+		UE_LOG(LogRT, Log, TEXT("[RT] Focus: nessuna unita' selezionata (Home ricentra sulla griglia)."));
+		return;
+	}
+	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
+	{
+		Cam->FocusOn(Unit->GetActorLocation());
+		UE_LOG(LogRT, Log, TEXT("[RT] Focus su %s"), *Unit->GetName());
 	}
 }
 

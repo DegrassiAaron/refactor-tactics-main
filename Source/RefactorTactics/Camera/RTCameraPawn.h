@@ -28,6 +28,13 @@ public:
 	/** Riporta la camera al centro della griglia e ripristina lo zoom di default (DefaultArmLength). */
 	void RecenterView();
 
+	/**
+	 * Centra la camera su un punto del mondo (tipicamente un'unita'), mantenendo la quota e lo zoom correnti:
+	 * lo zoom orbita attorno alla posizione di questo pawn, quindi senza spostarlo ci si avvicina al centro
+	 * della mappa invece che al personaggio.
+	 */
+	void FocusOn(const FVector& WorldLocation);
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -61,7 +68,7 @@ protected:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
 		meta = (ClampMin = "-89.0", ClampMax = "0.0"))
-	float CameraPitch = -55.f;
+	float CameraPitch = -40.f;
 
 	/** Applica distanza (clampata tra Min e Max) e inclinazione correnti al braccio. */
 	void ApplyViewSettings();

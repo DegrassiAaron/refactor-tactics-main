@@ -23,7 +23,10 @@
 - I livelli del demo (`L_Prototype`, `L_DevSandbox`) sono **vuoti nell'editor**: griglia, luce, unità e turn manager
   li allestisce a runtime il `RTGameMode`. Viewport nera prima del Play = normale, non un livello rotto.
   Lo **sfondo resta nero anche in gioco**: il GameMode aggiunge una luce direzionale, nessun cielo.
-- Camera: **`Home`** ricentra sulla griglia (il pawn parte dall'origine, la board 10×10 si estende per 2000 uu).
+- Camera: **`Home`** ricentra sulla griglia (il pawn parte dall'origine, la board 10×10 si estende per 2000 uu);
+  **`F`** centra sull'**unità selezionata** — lo zoom orbita attorno al pawn, quindi senza spostarlo la rotellina
+  avvicina al centro della mappa e non al personaggio. Inclinazione e distanza si tarano dal Details del
+  `RTCameraPawn` (`Camera Pitch`, `Default Arm Length`) con effetto immediato, anche a PIE avviato.
   Se la vista sembra bloccata e compaiono le **etichette degli actor** in viewport, hai fatto **Eject** (`F8`):
   stai guardando con la camera dell'editor, non con quella del gioco — `F8` di nuovo per rientrare nel pawn.
 

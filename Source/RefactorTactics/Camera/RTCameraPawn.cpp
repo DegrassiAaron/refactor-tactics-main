@@ -27,6 +27,13 @@ ARTCameraPawn::ARTCameraPawn()
 	Camera->SetupAttachment(SpringArm, USpringArmComponent::SocketName);
 }
 
+void ARTCameraPawn::FocusOn(const FVector& WorldLocation)
+{
+	// Solo X/Y: la quota del pawn resta la sua (il braccio ci pensa da se'). Lo zoom corrente non si tocca,
+	// cosi' il comando inquadra senza sorprendere chi si era gia' regolato la distanza.
+	SetActorLocation(FVector(WorldLocation.X, WorldLocation.Y, GetActorLocation().Z));
+}
+
 void ARTCameraPawn::ApplyViewSettings()
 {
 	if (!SpringArm)
