@@ -28,11 +28,26 @@ ARTHexMapActor::ARTHexMapActor()
 	}
 }
 
-void ARTHexMapActor::BeginPlay()
+void ARTHexMapActor::OnConstruction(const FTransform& Transform)
 {
-	Super::BeginPlay();
+	Super::OnConstruction(Transform);
+
+	// L'asset e' la fonte autorevole; le istanze ISM ne sono solo la VISTA. Ricostruirla a ogni costruzione
+	// (apertura del livello, spostamento dell'actor, undo, spawn in gioco) tiene le due cose allineate senza
+	// dover premere RebuildInstances a mano. Copre anche il caso del gioco: SpawnActor chiama OnConstruction.
 	RebuildInstances();
 }
+
+#if WITH_EDITOR
+void ARTHexMapActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	// Cambiare MapAsset, ActiveLayer, LayerView, DemoRadius, HexSize/LayerHeight o CellMesh cambia cosa si deve
+	// vedere: si ricostruisce sempre (l'actor ha poche proprieta' e la ricostruzione e' idempotente).
+	RebuildInstances();
+}
+#endif
 
 FRTCellId ARTHexMapActor::CellForInstance(int32 InstanceIndex) const
 {
