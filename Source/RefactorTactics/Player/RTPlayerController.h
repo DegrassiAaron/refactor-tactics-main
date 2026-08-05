@@ -18,6 +18,15 @@ class REFACTORTACTICS_API ARTPlayerController : public APlayerController
 {
 	GENERATED_BODY()
 
+public:
+	/**
+	 * Squadra comandata da questo giocatore: si selezionano e si pianificano SOLO le unita' con questo TeamId
+	 * (regola in URTCombatLibrary::CanPlayerControlUnit). Nel demo il team 1 e' del bot. In multiplayer arrivera'
+	 * dal PlayerState, ma la regola di autorita' resta la stessa.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|Player")
+	int32 PlayerTeamId = 0;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;

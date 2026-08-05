@@ -216,4 +216,24 @@ bool FRTClassifyCombatOutcomeTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Autorita' sull'unita': si comanda solo la propria squadra. Regola parente dell'invariante #6 (quel che non e'
+ * tuo non lo vedi e non lo comandi); senza, il click seleziona anche le unita' avversarie e da li' si finisce a
+ * pianificarne i turni — oltre a rendere inselezionabili le proprie (vedi ARTPlayerController::OnSelect).
+ * Il comportamento completo del click resta verificabile solo in PIE: qui si fissa la regola.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCombatControlAuthorityTest,
+	"RefactorTactics.Combat.PlayerControlsOwnUnitsOnly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCombatControlAuthorityTest::RunTest(const FString&)
+{
+	TestTrue(TEXT("il giocatore comanda le proprie unita'"), URTCombatLibrary::CanPlayerControlUnit(0, 0));
+	TestFalse(TEXT("non comanda quelle avversarie"), URTCombatLibrary::CanPlayerControlUnit(1, 0));
+
+	// Vale simmetricamente per l'altra squadra (il team del giocatore non e' cablato a 0).
+	TestTrue(TEXT("simmetrico per il team 1"), URTCombatLibrary::CanPlayerControlUnit(1, 1));
+	TestFalse(TEXT("simmetrico: il team 1 non comanda il team 0"), URTCombatLibrary::CanPlayerControlUnit(0, 1));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
