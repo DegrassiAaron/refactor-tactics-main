@@ -74,12 +74,12 @@
 > viene inventata a lavoro finito. Precondizioni comuni: un livello con `ARTHexMapActor` + `MapAsset` popolato
 > (vedi «Mappa di prova» sotto) e il `RTGameMode` che allestisce la partita su quella mappa.
 >
-> **Eseguibili da CP 6.2** (2026-08-05): **PIE-HEXPLAY-1** (allestimento) e **PIE-HEXPLAY-4/5** (risoluzione e
-> playback del movimento, collisione simultanea) — il turno di movimento passa dallo strato puro esagonale e
-> tutta la conversione cella→mondo ha un'unica fonte di scala (`ARTTurnManager::GetHexContext`).
-> Restano non eseguibili: **2/3** (input e pianificazione, CP 6.3), **6** (combat, CP 6.4), **7** (bot, CP 6.6),
-> **8/9** (partita completa e HUD, CP 6.7–6.8) — quelle parti girano ancora sulla matematica quadrata di
-> `URTGridLibrary` applicata a coordinate assiali.
+> **Eseguibili da CP 6.4** (2026-08-06): **PIE-HEXPLAY-1** (allestimento), **2/3** (input e pianificazione),
+> **4/5** (risoluzione e playback del movimento, collisione simultanea) e **6** (copertura e LOS esagonale) —
+> movimento, input e combattimento passano dallo strato puro esagonale, con un'unica fonte di scala
+> (`ARTTurnManager::GetHexContext`).
+> Restano non eseguibili: **7** (bot, CP 6.6) e **8/9** (partita completa e HUD, CP 6.7–6.8) — quelle parti
+> girano ancora sulla matematica quadrata di `URTGridLibrary` applicata a coordinate assiali.
 
 | ID | Cosa verificare | Precondizione | Esito atteso | Stato |
 |----|-----------------|---------------|--------------|-------|
@@ -88,7 +88,9 @@
 | **PIE-HEXPLAY-3** | Pianificazione del movimento entro budget | unità del giocatore selezionata | Una cella valida aggiunge un waypoint e mostra l'anteprima del percorso (esagoni **ciano** + segmenti fra i centri); una cella **oltre il budget**, **bloccata**, **occupata** o **fuori mappa** viene rifiutata: il piano precedente resta intatto e il log riporta il motivo. Più waypoint deviano il percorso (non prende la scorciatoia) e il budget si spende **cumulativamente**. **Click destro** (o `Backspace`) annulla l'ultimo waypoint e l'anteprima si accorcia | ⏳ **codice pronto** (CP 6.3) |
 | **PIE-HEXPLAY-4** | Risoluzione e playback del movimento | piani impostati, lock-in con **Spazio** | Le unità scorrono di cella in cella lungo il percorso risolto; a fine playback ogni unità è **esattamente** sul centro della cella finale e la posizione visiva coincide con la cella logica (nessuna deriva accumulata) | ⏳ **eseguibile da CP 6.2**. Coperto headless da `RefactorTactics.HexMove.UnitReachesPlannedCell`; il PIE aggiunge cio' che il test non vede: la fluidita' dello scorrimento |
 | **PIE-HEXPLAY-5** | Collisione simultanea su hex | due unità pianificate verso la **stessa** cella | Entrambe restano ferme (o si fermano prima), **nessuna sovrapposizione**; il combat log riporta il reason «cella contesa»; ripetendo con lo scambio diretto A↔B lo scambio **riesce** | ⏳ **eseguibile da CP 6.2**. La contesa e' coperta headless da `RefactorTactics.HexMove.ContestedCellStopsBoth` (due esiti `BlockedContested` nel TurnLog); lo **scambio diretto A↔B** non e' coperto da test: e' il caso che il PIE deve davvero esercitare |
-| **PIE-HEXPLAY-6** | Copertura: LOS esagonale | una cella con `bBlocksLineOfSight` fra attaccante e bersaglio | L'attacco pianificato attraverso il muro viene scartato con «nessuna linea di tiro»; spostandosi di una cella di lato il tiro va a segno. Con un ostacolo su un **altro layer** il tiro passa (regola di elevazione) | ⏳ |
+| **PIE-HEXPLAY-6** | Copertura: LOS esagonale | una cella con `bBlocksLineOfSight` fra attaccante e bersaglio | L'attacco pianificato attraverso il muro viene scartato con «nessuna linea di tiro»; spostandosi di una cella di lato il tiro va a segno. Con un ostacolo su un **altro layer** il tiro passa (regola di elevazione) | ⏳ **eseguibile da CP 6.4**. Coperto headless da `RefactorTactics.HexBlast.NoLineOfSightOnHexMap`; il PIE aggiunge ciò che il test non vede: che il giocatore **capisca** dal log perché il colpo non parte, e la prova sul multilivello |
+| **PIE-HEXPLAY-6b** | Forme d'attacco su esagoni | Guardian (Spazzata = cono) e Ranger (Colpo preciso = linea, Raffica = area) con più nemici in zona | Il **cono** colpisce il ventaglio davanti all'attaccante (3 celle a distanza 1), la **linea** colpisce anche chi sta sulla traiettoria prima del bersaglio, l'**area** colpisce il bersaglio e i suoi 6 vicini; **nessun alleato** viene colpito. Il combat log elenca un colpo per bersaglio | ⏳ **eseguibile da CP 6.4**. Forme coperte headless (`RefactorTactics.HexCombat.Shape*`): il PIE verifica che la zona colpita sia **leggibile a schermo**, non solo corretta nei dati |
+| **PIE-HEXPLAY-6c** | Spinta del Guardian su hex | Guardian che colpisce con Spazzata (knockback 2) | ⚠️ Verifica **rimandata al CP 6.5**: la direzione della spinta è ancora quella cardinale del quadrato applicata a coordinate assiali. Da eseguire quando la spinta passa alle 6 direzioni esagonali | ⏳ (CP 6.5) |
 | **PIE-HEXPLAY-7** | Bot su hex | almeno un'unità con `bIsBotControlled` | Il bot propone **solo mosse legali** (mai celle occupate o fuori budget), preferisce le celle al riparo, il kiter mantiene la distanza e la mischia chiude; il log utility mostra celle in coordinate **assiali** `(q,r,L)` | ⏳ |
 | **PIE-HEXPLAY-8** | Multilivello: movimento via arco | mappa con due layer collegati da una transizione | Un percorso che usa scala/ponte **cambia layer**; il playback porta l'unità alla quota giusta (`LayerHeight`); rimuovendo l'arco i due layer tornano irraggiungibili (il path fallisce, non «teletrasporta») | ⏳ |
 | **PIE-HEXPLAY-9** | HUD e anteprima piani su hex | partita hex avviata | Barre HP/scudo/energia, timer, fase e combat log invariati; l'anteprima dei piani (ciano) e la traccia post-lock seguono i **centri esagonali** e coincidono col percorso realmente eseguito | ⏳ |
