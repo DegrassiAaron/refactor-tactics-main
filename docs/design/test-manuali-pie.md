@@ -67,14 +67,18 @@
 
 ### Partita su griglia esagonale (M6 — Parità hex)
 
-> Voci **pianificate in anticipo**: il codice non esiste ancora (H6.1–H6.5 hanno costruito solo lo strato puro).
-> Servono a definire *prima* cosa dovrà dimostrare lo switch, così la verifica non viene inventata a lavoro finito.
-> Precondizioni comuni: un livello con `ARTHexMapActor` + `MapAsset` popolato (vedi «Mappa di prova» sotto) e il
-> `RTGameMode` che allestisce la partita su quella mappa.
+> Voci **pianificate in anticipo**, per definire *prima* cosa dovrà dimostrare lo switch, così la verifica non
+> viene inventata a lavoro finito. Precondizioni comuni: un livello con `ARTHexMapActor` + `MapAsset` popolato
+> (vedi «Mappa di prova» sotto) e il `RTGameMode` che allestisce la partita su quella mappa.
+>
+> **Eseguibili da CP 6.1** (2026-08-05): solo **PIE-HEXPLAY-1** — `ARTGameMode` allestisce dalla mappa hex e
+> `ARTUnit` sta sui centri esagonali. Le voci **2–9 restano non eseguibili**: input, movimento, combat e bot
+> girano ancora sulla matematica quadrata di `URTGridLibrary` applicata a coordinate assiali (stato intermedio
+> dichiarato in `cp6-1-hex-match-setup-plan.md`), e migrano nei CP 6.2–6.6.
 
 | ID | Cosa verificare | Precondizione | Esito atteso | Stato |
 |----|-----------------|---------------|--------------|-------|
-| **PIE-HEXPLAY-1** | Allestimento della partita su mappa hex | livello di prova + GameMode hex | All'avvio del PIE si vede la griglia **esagonale** con 4 unità (2v2) **centrate sui centri-cella** (nessun offset né compenetrazione); la camera inquadra l'arena; nessun residuo della griglia quadrata | ⏳ |
+| **PIE-HEXPLAY-1** | Allestimento della partita su mappa hex | livello di prova + GameMode hex | All'avvio del PIE si vede la griglia **esagonale** con 4 unità (2v2) **centrate sui centri-cella** (nessun offset né compenetrazione); la camera inquadra l'arena; nessun residuo della griglia quadrata | ⏳ **eseguibile da CP 6.1**. Attenzione a due cose: le unità sono **cilindri** (i `BP_Unit_*` non esistono più, fallback previsto), e se il livello contiene un `ARTGridActor` **posato a mano** la griglia quadrata si vede ancora — il GameMode non ne crea più, ma non rimuove quelli già nel livello |
 | **PIE-HEXPLAY-2** | Selezione e cella sotto il cursore | partita hex avviata | Click su un'unità la seleziona; l'evidenziazione segue la cella **esagonale** sotto il mouse; su mappa multilivello si seleziona la cella del **layer giusto** (celle sovrapposte non si confondono) | ⏳ |
 | **PIE-HEXPLAY-3** | Pianificazione del movimento entro budget | unità del giocatore selezionata | Le celle proposte coincidono con `ReachableCells` (costi del terreno rispettati); una cella **oltre il budget**, **bloccata** o **occupata** viene rifiutata (nessun piano, nessun crash); una cella valida mostra l'anteprima del percorso lungo i centri esagonali | ⏳ |
 | **PIE-HEXPLAY-4** | Risoluzione e playback del movimento | piani impostati, lock-in con **Spazio** | Le unità scorrono di cella in cella lungo il percorso risolto; a fine playback ogni unità è **esattamente** sul centro della cella finale e la posizione visiva coincide con la cella logica (nessuna deriva accumulata) | ⏳ |
