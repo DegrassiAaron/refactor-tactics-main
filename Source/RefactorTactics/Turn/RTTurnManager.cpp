@@ -9,6 +9,9 @@
 #include "Core/RTGameplayTags.h"
 #include "Grid/RTGridActor.h"
 #include "Grid/RTGridLibrary.h"
+#include "Turn/RTHexSimLibrary.h"
+#include "Map/RTHexMapActor.h"
+#include "Map/RTHexMapAsset.h"
 #include "Unit/RTUnit.h"
 #include "Core/RTTypes.h"
 #include "RefactorTactics.h"
@@ -585,15 +588,16 @@ void ARTTurnManager::ResolveDash()
 	if (!World) { return; }
 
 	ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
-	const FVector Origin = Grid ? Grid->GetActorLocation() : FVector::ZeroVector;
-	const float CellSize = Grid ? Grid->CellSize : 200.f;
+	// Geometria dalla mappa esagonale (una sola fonte di scala in tutto il TurnManager); il pathfinding del
+	// Dash usa ancora costi/limiti quadrati finche' non migra al CP 6.5.
+	FVector Origin; float CellSize; float LayerH;
+	GetHexContext(Origin, CellSize, LayerH);
 	const int32 GridW = Grid ? Grid->Width : 10;
 	const int32 GridH = Grid ? Grid->Height : 10;
 	TMap<FRTCellId, int32> CostMap;
 	if (Grid) { Grid->BuildCostMap(CostMap); }
 	static const TArray<FRTTraversalEdge> NoEdges;
 	const TArray<FRTTraversalEdge>& Edges = Grid ? Grid->GetEdges() : NoEdges;
-	const float LayerH = Grid ? Grid->LayerHeight : 0.f;
 
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
@@ -898,9 +902,8 @@ void ARTTurnManager::ResolveCombat()
 	{
 		const int32 KW = Grid ? Grid->Width : 10;
 		const int32 KH = Grid ? Grid->Height : 10;
-		const FVector KOrigin = Grid ? Grid->GetActorLocation() : FVector::ZeroVector;
-		const float KCell = Grid ? Grid->CellSize : 200.f;
-		const float KLayerH = Grid ? Grid->LayerHeight : 0.f;
+		FVector KOrigin; float KCell; float KLayerH;
+		GetHexContext(KOrigin, KCell, KLayerH); // stessa scala di risoluzione e playback
 		// Bloccanti: ostacoli + celle di tutte le unita' (non si spinge dentro un'altra unita').
 		TArray<FRTCellId> KBlocked = Grid ? Grid->GetMoveBlockers() : TArray<FRTCellId>();
 		for (ARTUnit* U : Units) { KBlocked.Add(U->Cell); }
@@ -1006,6 +1009,27 @@ void ARTTurnManager::ResolveCombat()
 	}
 }
 
+const URTHexMapAsset* ARTTurnManager::GetHexContext(FVector& OutOrigin, float& OutHexSize, float& OutLayerHeight) const
+{
+	const ARTHexMapActor* HexMap = Cast<ARTHexMapActor>(
+		UGameplayStatics::GetActorOfClass(const_cast<ARTTurnManager*>(this), ARTHexMapActor::StaticClass()));
+	if (!HexMap)
+	{
+		// Nessuna mappa nel livello: valori neutri. Le unita' restano dove sono, la scala non ha effetto.
+		OutOrigin = FVector::ZeroVector;
+		OutHexSize = 100.f;
+		OutLayerHeight = 250.f;
+		return nullptr;
+	}
+
+	// Dimensioni dall'asset AUTOREVOLE; se manca valgono quelle dell'actor (graybox demo).
+	const URTHexMapAsset* Map = HexMap->MapAsset;
+	OutOrigin = HexMap->GetActorLocation();
+	OutHexSize = Map ? Map->HexSize : HexMap->HexSize;
+	OutLayerHeight = Map ? Map->LayerHeight : HexMap->LayerHeight;
+	return Map;
+}
+
 void ARTTurnManager::ResolveMovement()
 {
 	UWorld* World = GetWorld();
@@ -1014,38 +1038,42 @@ void ARTTurnManager::ResolveMovement()
 		return;
 	}
 
-	ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
-	const FVector Origin = Grid ? Grid->GetActorLocation() : FVector::ZeroVector;
-	const float CellSize = Grid ? Grid->CellSize : 200.f;
-	const int32 GridW = Grid ? Grid->Width : 10;
-	const int32 GridH = Grid ? Grid->Height : 10;
-	// Costo per cella dal terreno (pesato): il budget di movimento e' un budget di COSTO.
-	TMap<FRTCellId, int32> CostMap;
-	if (Grid) { Grid->BuildCostMap(CostMap); }
-	// Archi di traversata (rampe/scale) per il pathfinding a grafo multilivello.
-	static const TArray<FRTTraversalEdge> NoEdges;
-	const TArray<FRTTraversalEdge>& Edges = Grid ? Grid->GetEdges() : NoEdges;
-	const float LayerH = Grid ? Grid->LayerHeight : 0.f;
+	FVector Origin; float HexSize; float LayerH;
+	const URTHexMapAsset* Map = GetHexContext(Origin, HexSize, LayerH);
 
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
 
 	TArray<ARTUnit*> Units;
-	TArray<TArray<FRTCellId>> Paths;
 	Units.Reserve(Actors.Num());
-	Paths.Reserve(Actors.Num());
 	for (AActor* Actor : Actors)
 	{
 		ARTUnit* Unit = Cast<ARTUnit>(Actor);
-		if (!Unit || !Unit->IsAlive())
+		if (Unit && Unit->IsAlive())
 		{
-			continue; // i morti (es. nel Blast) non partecipano al movimento: non si muovono e non bloccano
+			Units.Add(Unit); // i morti (es. nel Blast) non si muovono e non bloccano
 		}
-		Units.Add(Unit);
+	}
 
-		// Path del turno: percorso composito (waypoint) se presente e coerente, altrimenti auto-route
-		// dalla destinazione singola (PlannedCell). Validazione autorevole: contiguo, entro il budget
-		// di COSTO; altrimenti l'unita' resta ferma (a prescindere da cosa ha inviato il client).
+	// Snapshot CONGELATO a inizio fase ("raccogli poi applica", invariante #3): l'identita' e' l'indice
+	// dell'unita' in Units, un intero stabile — mai un pointer (stessa disciplina del TurnLog).
+	TArray<FRTHexSimUnit> SimUnits;
+	SimUnits.Reserve(Units.Num());
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		SimUnits.Add(FRTHexSimUnit(i, Units[i]->Cell, Units[i]->GetEffectiveMoveRange(), /*bAlive=*/ true));
+	}
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Map, SimUnits);
+
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Reserve(Units.Num());
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		ARTUnit* Unit = Units[i];
+
+		// Path del turno: percorso composito (waypoint) se presente e coerente, altrimenti rotta calcolata
+		// verso la destinazione singola. La validazione e' AUTOREVOLE e passa dallo strato puro esagonale:
+		// FindPathForUnit rispetta costi, blocchi, occupazione e budget, a prescindere da cosa arriva dal client.
 		TArray<FRTCellId> Path;
 		if (Unit->PlannedPath.Num() >= 2 && Unit->PlannedPath[0] == Unit->Cell)
 		{
@@ -1053,31 +1081,23 @@ void ARTTurnManager::ResolveMovement()
 		}
 		else if (Unit->PlannedCell != Unit->Cell)
 		{
-			Path = URTGridLibrary::FindPathByGraph(Unit->Cell, Unit->PlannedCell, CostMap, Edges, GridW, GridH);
+			Path = URTHexSimLibrary::FindPathForUnit(Snapshot, /*UnitId=*/ i, Unit->PlannedCell).Path;
 		}
 
-		const int32 Cost = URTGridLibrary::PathCost(Path, CostMap, Edges);
-		if (Path.Num() < 2 || Cost < 0 || Cost > Unit->GetEffectiveMoveRange())
+		if (Path.Num() < 2)
 		{
 			Path = { Unit->Cell }; // fermo
 		}
 		Paths.Add(Path);
 	}
 
-	const TArray<FRTPathResult> Resolved = URTMovementResolver::ResolvePaths(Paths);
+	const TArray<FRTHexMoveResult> Resolved = URTHexSimLibrary::ResolveHexPaths(Paths);
 
-	// TurnLog: esito del movimento per ogni unita' (chiave = cella di partenza = Paths[i][0], stabile
-	// perche' Cell cambia dopo PlaceOnCell).
+	// TurnLog dagli esiti: la chiave e' la cella di PARTENZA (Paths[i][0]), stabile perche' Cell cambia
+	// dopo PlaceOnCell. BuildMoveLog produce una voce per unita' nell'ordine dell'input.
+	TurnLog.Append(URTHexSimLibrary::BuildMoveLog(Paths, Resolved));
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
-		FRTTurnLogEntry E;
-		E.Phase = ERTMatchPhase::Move;
-		E.Category = ERTLogCategory::Move;
-		E.Outcome = static_cast<uint8>(Resolved[i].Outcome);
-		E.SrcCell = Paths[i].Num() > 0 ? Paths[i][0] : Units[i]->Cell;
-		E.TgtCell = Resolved[i].Final;
-		E.Amount = Resolved[i].Entered.Num();
-		TurnLog.Add(E);
 		if (Resolved[i].Outcome == ERTMoveOutcome::BlockedContested)
 		{
 			AddLogEvent(FString::Printf(TEXT("%s: fermo (cella contesa)"), *Units[i]->GetName()));
@@ -1113,37 +1133,14 @@ void ARTTurnManager::ResolveMovement()
 	// Applica le posizioni finali.
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
-		Units[i]->PlaceOnCell(Resolved[i].Final, Origin, CellSize, LayerH);
+		Units[i]->PlaceOnCell(Resolved[i].Final, Origin, HexSize, LayerH);
 	}
 
-	// Cross-damage: danno per ogni cella pericolosa ATTRAVERSATA (dipende solo dalle celle della
-	// singola unita' -> ordine-indipendente). Il danno di FINE turno resta a carico della fase Cleanup.
-	for (int32 i = 0; i < Units.Num(); ++i)
-	{
-		ARTUnit* Unit = Units[i];
-		if (!IsValid(Unit) || !Unit->IsAlive()) { continue; }
-		int32 CrossDmg = 0;
-		for (const FRTCellId& Cell : Resolved[i].Entered)
-		{
-			const URTTerrainData* Terrain = Grid ? Grid->GetTerrainAt(Cell) : nullptr;
-			if (Terrain) { CrossDmg += Terrain->GetProps().CrossDamage; }
-		}
-		if (CrossDmg > 0)
-		{
-			const FRTDamageResult R = URTCombatLibrary::ApplyDamage(CrossDmg, Unit->Shield, Unit->Health);
-			AddLogEvent(FString::Printf(TEXT("%s: %d danno attraversando"), *Unit->GetName(), CrossDmg));
-			if (R.Health <= 0)
-			{
-				AddLogEvent(FString::Printf(TEXT("Eliminata: %s (team %d)"), *Unit->GetName(), Unit->TeamId));
-				FRTResolvedEvent Ev;
-				Ev.Phase = ERTMatchPhase::Move;
-				Ev.Type = ERTResolvedEventType::Defeated;
-				Ev.Source = Unit;
-				ResolvedTimeline.Add(Ev);
-			}
-			Unit->ApplyCombatState(R.Health, R.Shield);
-		}
-	}
+	// NOTA (CP 6.2): il cross-damage delle celle pericolose attraversate NON e' stato portato su hex.
+	// Dipendeva da URTTerrainData del substrato quadrato; la mappa esagonale descrive le superfici con
+	// ERTHexSurface (Water/Fire/Electrified/...) ma nessun dato ne definisce ancora gli effetti. E' una
+	// perdita funzionale dichiarata rispetto al quadrato, non una dimenticanza: l'ambiente attivo con i
+	// valori del catalogo e' l'epic E8 (CP 8.x). Finche' non esiste, attraversare il fuoco non fa danno.
 
 	UE_LOG(LogRT, Log, TEXT("[RT] Fase Move: risolte %d unita'"), Units.Num());
 }
@@ -1152,11 +1149,9 @@ void ARTTurnManager::ResolveMovement()
 
 void ARTTurnManager::BeginPlayback()
 {
-	// Cache della trasformazione griglia per convertire celle -> mondo durante il playback.
-	ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
-	PBOrigin = Grid ? Grid->GetActorLocation() : FVector::ZeroVector;
-	PBCellSize = Grid ? Grid->CellSize : 200.f;
-	PBLayerHeight = Grid ? Grid->LayerHeight : 0.f;
+	// Cache della trasformazione della mappa per convertire celle -> mondo durante il playback.
+	// Stessa fonte usata da ResolveMovement: risoluzione e playback non possono divergere di scala.
+	GetHexContext(PBOrigin, PBCellSize, PBLayerHeight);
 
 	// Deriva le animazioni di movimento e la lista attacchi dagli eventi risolti.
 	MoveAnims.Reset();
