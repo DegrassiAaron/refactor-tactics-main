@@ -213,8 +213,8 @@ qualcuno sarà tentato di far leggere un tempo a una decisione.
 - **Non tocca le reazioni**: restano pre-committed, CP 5.1 e invariante #3 invariati (D1).
 - **Non aggrega più sessioni da codice**: nessun parser CSV: un foglio di calcolo lo fa, e oggi sarebbe codice
   non richiesto.
-- **Non affronta `#96`**: quello è il **numero** di turni (25 contro i 12 del catalogo, per scudo che non
-  scade e Guardian tanky); questo è il **tempo** di un turno. Confonderli farebbe tarare il pacing su una
+- **Non affronta `#96`**: quello è il **numero** di turni (misurato a 10 dopo la scadenza dello scudo nel
+  Cleanup; era 25 prima), questo è il **tempo** di un turno. Confonderli farebbe tarare il pacing su una
   partita che è lunga per un altro motivo.
 - **Non introduce finestre di risposta durante la risoluzione**: sarebbe un ADR che revisiona CP 5.1 e
   l'invariante #3, e non è ciò che questa sessione ha deciso.
