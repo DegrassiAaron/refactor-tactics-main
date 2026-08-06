@@ -32,4 +32,18 @@ public:
 	 * `URTCatalogLibrary::ValidateEquipment`), quindi resta una funzione C++ pura, non chiamabile da Blueprint.
 	 */
 	static TArray<FString> ValidateHeroes(const TArray<const URTHeroData*>& Heroes);
+
+	/**
+	 * Costruisce **Flux**, tecnico della conduzione (catalogo eroi v0.1 §1): 90 HP, 5 MP, vista 6, resistenza
+	 * push 0, affinita' elettricita', debolezza acqua (combo dichiarata con Riva, CP 6.3). Nuova istanza a
+	 * ogni chiamata — stesso idioma di `URTCatalogLibrary::GetCoreActionCatalog`: il catalogo eroi non e' un
+	 * singleton, e un chiamante che ne vuole due (es. specchio nello stesso 2v2) non condivide lo stato.
+	 *
+	 * Limiti dichiarati (nessun sistema a valle esiste ancora, quindi l'effetto non e' rappresentabile):
+	 * `ConductiveNode` non ha un modello di "cella conduttiva" (E8/E9); `Overload` non ha un modello di
+	 * "dispositivo interrompibile" (E7, gadget); `ReactiveCapacitor` non ha uno slot di reazione ne' un modo
+	 * di riferire "l'attaccante" a runtime (E5). Ogni azione esiste comunque come DATO, con la sua identita',
+	 * portata e cooldown dal catalogo — solo l'effetto aggiuntivo resta un numero non ancora consumato.
+	 */
+	static URTHeroData* MakeFlux();
 };

@@ -31,6 +31,7 @@ nel vertical slice).
 | Range visivo | 6 |
 | Resistenza Push | 0 |
 | Affinità | elettricità |
+| Debolezza | acqua (`Affinity.Water`) — decisa in CP 6.2, non nel PDF: stesso identificatore dell'affinità di Riva |
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
@@ -137,7 +138,8 @@ Nessun eroe domina in ogni parametro: Bastion compra HP e resistenza con **movim
 mobilità con l'assenza di difese; Flux ha il danno combo più alto ma la salute più bassa.
 
 **Debolezza dichiarata**: il PDF elenca «debolezza» fra gli elementi fissi di ogni eroe ma **non la esplicita**
-per nessuno dei quattro. Va fissata in E6 e scritta qui: senza, l'identità resta metà.
+per nessuno dei quattro. Va fissata in E6 e scritta qui: senza, l'identità resta metà. **Flux**: fissata in
+CP 6.2, acqua (`Affinity.Water`) — vedi §1. Riva/Bastion/Vektor restano aperte fino ai rispettivi checkpoint.
 
 ---
 
@@ -161,6 +163,7 @@ per nessuno dei quattro. Va fissata in E6 e scritta qui: senza, l'identità rest
 | 3 | 4 eroi | In codice esistono 2 archetipi (Ranger/Guardian) | Lo stato è dichiarato in testa: il documento è il bersaglio di E6, non la descrizione dell'esistente |
 | 4 | Cooldown di `Riva.PressureJet` non leggibile nella colonna | Assunto **0** (è l'attacco base per la sua colonna «Tipo: linea» a costo 0) | Coerente con gli altri attacchi base, tutti a CD 0 — assunzione **marcata** |
 
-**Non specificato nel PDF** (da fissare in E6): debolezza di ciascun eroe · range di `Flux.Overload` e
-`Riva.CircularTide` · durata di `Vektor.Feint` · se le reazioni degli eroi occupino lo stesso slot dei moduli di
-reazione dell'equipaggiamento (probabile, ma il PDF elenca entrambi senza dirlo).
+**Non specificato nel PDF** (da fissare in E6): debolezza di ciascun eroe (Flux: fissata, CP 6.2) · range di
+`Flux.Overload` (fissato in CP 6.2: **3**, coerente con `ConductiveNode`) e `Riva.CircularTide` (aperto) ·
+durata di `Vektor.Feint` (aperto) · se le reazioni degli eroi occupino lo stesso slot dei moduli di reazione
+dell'equipaggiamento (probabile, ma il PDF elenca entrambi senza dirlo).
