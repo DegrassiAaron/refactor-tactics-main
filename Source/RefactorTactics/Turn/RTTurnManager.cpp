@@ -1,6 +1,9 @@
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTPlaybackLibrary.h"
 #include "Turn/RTTurnLogLibrary.h"
+#include "Turn/RTActionQueueLibrary.h"
+#include "Turn/RTActionEffectLibrary.h"
+#include "Ability/RTCatalogLibrary.h"
 #include "Combat/RTCombatResolver.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
@@ -430,28 +433,81 @@ void ARTTurnManager::DestroyDefeatedUnits()
 
 void ARTTurnManager::ResolvePrep()
 {
-	// Abilita' di supporto su se stessi: aggiungono scudo pari a Power.
+	// Prima fase che passa dal MOTORE AZIONI (epic E4): raccogli -> ordina -> traduci in EVENTI -> applica.
+	// Questo orchestratore non sa piu' che cosa faccia un'abilita' di supporto: applica un evento `Shield`.
+	// Aggiungere un'azione di Prep con un altro effetto (una cura, uno stato) non richiede di toccarlo.
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+
+	TArray<ARTUnit*> Units;
 	for (AActor* Actor : Actors)
 	{
-		ARTUnit* Unit = Cast<ARTUnit>(Actor);
-		if (!Unit || !Unit->IsAlive())
+		if (ARTUnit* Unit = Cast<ARTUnit>(Actor))
 		{
-			continue;
+			Units.Add(Unit);
 		}
+	}
+	Units.Sort([](const ARTUnit& A, const ARTUnit& B) { return URTHexLibrary::StableLess(A.Cell, B.Cell); });
+
+	// 1. RACCOGLI: un'istanza per ogni azione di Prep pianificata e utilizzabile.
+	TArray<FRTActionInstance> Instances;
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		ARTUnit* Unit = Units[i];
+		if (!Unit->IsAlive()) { continue; }
+
 		const int32 Index = Unit->PlannedAbilityIndex;
 		const URTActionData* Ability = Unit->GetAbility(Index);
-		if (Ability && Ability->bSelfTarget && Unit->CanUseAbility(Index))
+		if (!Ability || !Unit->CanUseAbility(Index)) { continue; }
+		if (URTCatalogLibrary::MapResolutionPhase(Ability->Def.ResolutionPhase) != ERTMatchPhase::Prep) { continue; }
+
+		FRTActionInstance Instance;
+		Instance.Def = Ability->Def;
+		Instance.SourceUnitId = i;
+		Instance.TargetUnitId = i;   // le azioni di Prep del vertical slice agiscono su chi le usa
+		Instance.TargetCell = Unit->Cell;
+		Instance.EventSequence = Instances.Num();
+		Instances.Add(Instance);
+	}
+	if (Instances.Num() == 0) { return; }
+
+	// 2. ORDINA con la regola unica (priorita' intera intra-fase, tie-break assoluto).
+	URTActionQueueLibrary::SortActionInstances(Instances);
+
+	// 3. TRADUCI in eventi e 4. APPLICA: si lavora sugli EVENTI, non sulle abilita'.
+	for (const FRTActionEvent& Event : URTActionEffectLibrary::ProduceEventsForAll(Instances))
+	{
+		if (!Units.IsValidIndex(Event.TargetUnitId)) { continue; }
+		ARTUnit* Target = Units[Event.TargetUnitId];
+		switch (Event.Kind)
 		{
-			// Scudo TEMPORANEO: protegge questo turno e scade nel Cleanup (catalogo v0.1, issue #96).
-			Unit->AddTemporaryShield(Ability->Power);
-			Unit->ConsumeAbility(Index);
-			AddLogEvent(FString::Printf(TEXT("%s: %s (+%d scudo)"), *Unit->GetName(), *Ability->DisplayName.ToString(), Ability->Power));
-			Unit->PlannedAbilityIndex = INDEX_NONE; // consumato in Prep
-			Unit->PlannedAttackTarget = nullptr;
-			bPrepActiveThisTurn = true; // c'e' un beat di Prep da mostrare nel playback
+		case ERTActionEffect::Shield:
+			Target->AddTemporaryShield(Event.Amount); // temporaneo: scade nel Cleanup (issue #96)
+			AddLogEvent(FString::Printf(TEXT("%s: +%d scudo"), *Target->GetName(), Event.Amount));
+			break;
+		case ERTActionEffect::Heal:
+			Target->ApplyCombatState(FMath::Min(Target->MaxHealth, Target->Health + Event.Amount), Target->Shield);
+			AddLogEvent(FString::Printf(TEXT("%s: +%d salute"), *Target->GetName(), Event.Amount));
+			break;
+		case ERTActionEffect::Status:
+			Target->ApplyStatus(Event.StatusTag, Event.Amount);
+			AddLogEvent(FString::Printf(TEXT("%s: stato applicato"), *Target->GetName()));
+			break;
+		default:
+			// Danno e spinta non appartengono alla Prep: risolvono nel Blast, dove l'ordine conta insieme
+			// agli altri attacchi. Dichiararli qui sarebbe un errore di catalogo, non un caso da gestire.
+			break;
 		}
+		bPrepActiveThisTurn = true; // c'e' un beat di Prep da mostrare nel playback
+	}
+
+	// 5. Consuma le abilita' usate e libera i piani.
+	for (const FRTActionInstance& Instance : Instances)
+	{
+		ARTUnit* Unit = Units[Instance.SourceUnitId];
+		Unit->ConsumeAbility(Unit->PlannedAbilityIndex);
+		Unit->PlannedAbilityIndex = INDEX_NONE; // consumato in Prep
+		Unit->PlannedAttackTarget = nullptr;
 	}
 }
 
