@@ -1,6 +1,9 @@
 #include "Misc/AutomationTest.h"
 #include "Ability/RTActionDef.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Ability/RTEquipmentData.h"
+#include "Ability/RTActionData.h"
+#include "Unit/RTUnit.h"
 #include "Turn/RTTurnRules.h"
 #include "UObject/UnrealType.h"
 
@@ -139,6 +142,135 @@ bool FRTCatalogRejectsInvalidTest::RunTest(const FString&)
 		Snapshot.Add(MakeCatalogAction(TEXT("Action.Z"), ERTResolutionPhase::Snapshot, 10));
 		TestTrue(TEXT("nessuna azione puo' risolvere nello Snapshot: rifiutata"),
 			URTCatalogLibrary::ValidateActions(Snapshot).Num() > 0);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogPropagationTest,
+	"RefactorTactics.Catalog.ValidatorRejectsUnboundedPropagation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCatalogPropagationTest::RunTest(const FString&)
+{
+	// «Consentire propagazione elettrica senza limite» e' fra gli errori da evitare del catalogo: una
+	// propagazione illimitata su una mappa d'acqua colpisce tutti e rende il turno impredicibile.
+	FRTActionDef Unbounded = MakeCatalogAction(TEXT("Action.Electrify"), ERTResolutionPhase::Environment, 30);
+	Unbounded.PropagationLimit = -1; // -1 = nessun limite
+
+	TArray<FRTActionDef> Actions;
+	Actions.Add(Unbounded);
+	TestTrue(TEXT("propagazione illimitata: rifiutata"), URTCatalogLibrary::ValidateActions(Actions).Num() > 0);
+
+	Actions[0].PropagationLimit = 3; // il valore del catalogo
+	TestEqual(TEXT("propagazione limitata: accettata"), URTCatalogLibrary::ValidateActions(Actions).Num(), 0);
+
+	Actions[0].PropagationLimit = 0; // azione che non propaga affatto
+	TestEqual(TEXT("nessuna propagazione: accettata"), URTCatalogLibrary::ValidateActions(Actions).Num(), 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogEquipmentTest,
+	"RefactorTactics.Catalog.ValidatorRejectsEquipmentWithoutDrawback",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCatalogEquipmentTest::RunTest(const FString&)
+{
+	// Asset di prova VOLUTAMENTE invalido, costruito in memoria: non finisce in Content/RT di produzione.
+	URTEquipmentData* NoDrawback = NewObject<URTEquipmentData>();
+	NoDrawback->EquipmentId = TEXT("Weapon.Overcharge");
+	NoDrawback->Slot = ERTEquipmentSlot::WeaponVariant;
+	NoDrawback->Advantage = FText::FromString(TEXT("+6 danni"));
+	// Drawback lasciato vuoto: e' esattamente il caso che il catalogo vieta.
+
+	TArray<const URTEquipmentData*> Invalid;
+	Invalid.Add(NoDrawback);
+	const TArray<FString> Errors = URTCatalogLibrary::ValidateEquipment(Invalid);
+	TestTrue(TEXT("equipaggiamento senza svantaggio: rifiutato"), Errors.Num() > 0);
+	bool bNamesIt = false;
+	for (const FString& E : Errors) { bNamesIt |= E.Contains(TEXT("Weapon.Overcharge")); }
+	TestTrue(TEXT("l'errore dice quale equipaggiamento"), bNamesIt);
+
+	NoDrawback->Drawback = FText::FromString(TEXT("cooldown +1"));
+	TestEqual(TEXT("con lo svantaggio dichiarato: accettato"),
+		URTCatalogLibrary::ValidateEquipment(Invalid).Num(), 0);
+
+	// Id duplicato fra due equipaggiamenti diversi.
+	URTEquipmentData* Clone = NewObject<URTEquipmentData>();
+	Clone->EquipmentId = TEXT("Weapon.Overcharge");
+	Clone->Advantage = FText::FromString(TEXT("altro"));
+	Clone->Drawback = FText::FromString(TEXT("altro svantaggio"));
+	Invalid.Add(Clone);
+	TestTrue(TEXT("id duplicato: rifiutato"), URTCatalogLibrary::ValidateEquipment(Invalid).Num() > 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogShippedTest,
+	"RefactorTactics.Catalog.ValidatorAcceptsShippedCatalog",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCatalogShippedTest::RunTest(const FString&)
+{
+	// Il catalogo REALE del gioco: le azioni che ARTUnit crea per i due archetipi. Se una di esse perde
+	// l'ActionId, o un'azione di movimento cambia fallback, questo test diventa rosso — il documento e il
+	// codice non possono divergere in silenzio.
+	TArray<FRTActionDef> Shipped = URTCatalogLibrary::GetShippedActionCatalog();
+	TestTrue(TEXT("il catalogo spedito non e' vuoto"), Shipped.Num() > 0);
+
+	const TArray<FString> Errors = URTCatalogLibrary::ValidateActions(Shipped);
+	for (const FString& E : Errors) { AddError(E); }
+	TestEqual(TEXT("il catalogo spedito e' valido"), Errors.Num(), 0);
+
+	// Ogni azione del catalogo spedito deve avere una macro-fase sensata per il suo tipo.
+	for (const FRTActionDef& Def : Shipped)
+	{
+		const ERTMatchPhase Macro = URTCatalogLibrary::MapResolutionPhase(Def.ResolutionPhase);
+		TestTrue(FString::Printf(TEXT("%s risolve in una fase giocabile"), *Def.ActionId.ToString()),
+			Macro == ERTMatchPhase::Prep || Macro == ERTMatchPhase::Dash
+			|| Macro == ERTMatchPhase::Blast || Macro == ERTMatchPhase::Move);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogMatchesAbilitiesTest,
+	"RefactorTactics.Catalog.ShippedCatalogMatchesAbilities",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCatalogMatchesAbilitiesTest::RunTest(const FString&)
+{
+	// Il catalogo non deve poter divergere dalle abilita' che il gioco assegna davvero: qui si confronta
+	// definizione e abilita' campo per campo, sui due archetipi.
+	const ERTArchetype Archetypes[] = { ERTArchetype::Ranger, ERTArchetype::Guardian };
+	for (const ERTArchetype Archetype : Archetypes)
+	{
+		ARTUnit* Unit = NewObject<ARTUnit>();
+		if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
+		Unit->ConfigureAsArchetype(Archetype);
+
+		TestTrue(TEXT("l'archetipo ha abilita'"), Unit->NumAbilities() > 0);
+		for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+		{
+			const URTActionData* Ability = Unit->GetAbility(i);
+			if (!Ability) { continue; }
+
+			const FString Name = Ability->DisplayName.ToString();
+			TestFalse(FString::Printf(TEXT("%s ha un ActionId di catalogo"), *Name), Ability->Def.ActionId.IsNone());
+			TestEqual(FString::Printf(TEXT("%s: portata coerente col catalogo"), *Name),
+				Ability->Def.RangeCells, Ability->RangeCells);
+			TestEqual(FString::Printf(TEXT("%s: ricarica coerente col catalogo"), *Name),
+				Ability->Def.CooldownTurns, Ability->CooldownTurns);
+
+			// La fase dichiarata deve corrispondere alla natura dell'abilita': uno scatto risolve nel Dash,
+			// un supporto su se stessi nel Prep, un attacco nel Blast.
+			const ERTMatchPhase Macro = URTCatalogLibrary::MapResolutionPhase(Ability->Def.ResolutionPhase);
+			if (Ability->bDash)
+			{
+				TestEqual(FString::Printf(TEXT("%s e' uno scatto -> fase Dash"), *Name), Macro, ERTMatchPhase::Dash);
+			}
+			else if (Ability->bSelfTarget)
+			{
+				TestEqual(FString::Printf(TEXT("%s e' un supporto -> fase Prep"), *Name), Macro, ERTMatchPhase::Prep);
+			}
+			else
+			{
+				TestEqual(FString::Printf(TEXT("%s e' un attacco -> fase Blast"), *Name), Macro, ERTMatchPhase::Blast);
+			}
+		}
 	}
 	return true;
 }

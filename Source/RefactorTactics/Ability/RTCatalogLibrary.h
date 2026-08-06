@@ -4,6 +4,8 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Ability/RTActionDef.h"
 #include "Turn/RTTurnRules.h"
+
+class URTEquipmentData;
 #include "RTCatalogLibrary.generated.h"
 
 /**
@@ -44,4 +46,21 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Catalog")
 	static TArray<FString> ValidateActions(const TArray<FRTActionDef>& Actions);
+
+	/**
+	 * Errori strutturali di un insieme di equipaggiamenti (vuoto = valido). Rifiuta: id assente o duplicato ·
+	 * cooldown negativo · **svantaggio non dichiarato**. Quest'ultima e' la regola di prodotto: un
+	 * equipaggiamento senza svantaggio e' una scelta verticale, cioe' potere che si accumula.
+	 */
+	static TArray<FString> ValidateEquipment(const TArray<const URTEquipmentData*>& Equipment);
+
+	/**
+	 * Il catalogo di azioni realmente SPEDITO dal gioco: le definizioni che `ARTUnit` assegna agli archetipi.
+	 * Serve al test che tiene allineati documento e codice — se un'azione perde l'ActionId o cambia fallback,
+	 * il validator lo scopre in CI invece che in partita.
+	 */
+	static TArray<FRTActionDef> GetShippedActionCatalog();
+
+	/** Definizione spedita con l'ActionId dato, o una definizione vuota se l'ID non e' nel catalogo. */
+	static FRTActionDef FindShippedAction(const FName& ActionId);
 };

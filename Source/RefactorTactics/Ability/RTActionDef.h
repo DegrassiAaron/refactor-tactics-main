@@ -99,6 +99,15 @@ struct FRTActionDef
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	ERTActionFallback Fallback = ERTActionFallback::Cancel;
 
+	/**
+	 * Limite di propagazione ambientale in celle: **0 = non propaga**, N > 0 = si ferma a N celle.
+	 * Un valore negativo significherebbe "senza limite" ed e' rifiutato dal validator: una propagazione
+	 * illimitata su una mappa d'acqua colpisce tutti e rende il turno impredicibile (errore da evitare
+	 * elencato dal catalogo).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	int32 PropagationLimit = 0;
+
 	/** Se falso, `Action.Interrupt` non ha effetto su questa azione. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	bool bCanBeInterrupted = true;

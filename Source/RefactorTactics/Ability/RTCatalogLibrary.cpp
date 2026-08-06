@@ -1,4 +1,5 @@
 #include "Ability/RTCatalogLibrary.h"
+#include "Ability/RTEquipmentData.h"
 
 ERTMatchPhase URTCatalogLibrary::MapResolutionPhase(ERTResolutionPhase Phase)
 {
@@ -77,6 +78,12 @@ TArray<FString> URTCatalogLibrary::ValidateActions(const TArray<FRTActionDef>& A
 			Errors.Add(FString::Printf(TEXT("%s: cooldown negativo (%d)"), *Where, Action.CooldownTurns));
 		}
 
+		if (Action.PropagationLimit < 0)
+		{
+			Errors.Add(FString::Printf(
+				TEXT("%s: propagazione senza limite (usa 0 per 'non propaga', N>0 per fermarsi a N celle)"), *Where));
+		}
+
 		if (Action.ResolutionPhase == ERTResolutionPhase::Snapshot)
 		{
 			Errors.Add(FString::Printf(
@@ -94,4 +101,98 @@ TArray<FString> URTCatalogLibrary::ValidateActions(const TArray<FRTActionDef>& A
 	}
 
 	return Errors;
+}
+
+TArray<FString> URTCatalogLibrary::ValidateEquipment(const TArray<const URTEquipmentData*>& Equipment)
+{
+	TArray<FString> Errors;
+	TSet<FName> Seen;
+
+	for (int32 i = 0; i < Equipment.Num(); ++i)
+	{
+		const URTEquipmentData* Item = Equipment[i];
+		if (Item == nullptr)
+		{
+			Errors.Add(FString::Printf(TEXT("equipaggiamento #%d: riferimento nullo"), i));
+			continue;
+		}
+
+		const FString Where = Item->EquipmentId.IsNone()
+			? FString::Printf(TEXT("equipaggiamento #%d"), i)
+			: Item->EquipmentId.ToString();
+
+		if (Item->EquipmentId.IsNone())
+		{
+			Errors.Add(FString::Printf(TEXT("%s: EquipmentId mancante"), *Where));
+		}
+		else if (Seen.Contains(Item->EquipmentId))
+		{
+			Errors.Add(FString::Printf(TEXT("%s: EquipmentId duplicato"), *Where));
+		}
+		else
+		{
+			Seen.Add(Item->EquipmentId);
+		}
+
+		// Regola di prodotto: la scelta e' orizzontale. Un equipaggiamento senza svantaggio dichiarato e'
+		// potere che si accumula, cioe' esattamente cio' che il canone esclude.
+		if (Item->Drawback.IsEmpty())
+		{
+			Errors.Add(FString::Printf(TEXT("%s: nessuno svantaggio dichiarato"), *Where));
+		}
+		if (Item->CooldownTurns < 0)
+		{
+			Errors.Add(FString::Printf(TEXT("%s: cooldown negativo (%d)"), *Where, Item->CooldownTurns));
+		}
+	}
+
+	return Errors;
+}
+
+namespace
+{
+	FRTActionDef ShippedAction(const FName& Id, ERTResolutionPhase Phase, int32 Priority, int32 Range,
+		int32 Cooldown, ERTActionFallback Fallback, bool bInterruptible = true)
+	{
+		FRTActionDef Def;
+		Def.ActionId = Id;
+		Def.ResolutionPhase = Phase;
+		Def.Priority = Priority;
+		Def.RangeCells = Range;
+		Def.CooldownTurns = Cooldown;
+		Def.Fallback = Fallback;
+		Def.bCanBeInterrupted = bInterruptible;
+		return Def;
+	}
+}
+
+TArray<FRTActionDef> URTCatalogLibrary::GetShippedActionCatalog()
+{
+	// Le azioni che il gioco assegna DAVVERO agli archetipi (ARTUnit::ConfigureAsArchetype). Sono la fonte
+	// dei loro `Def`: una sola verita' fra codice e catalogo. Gli ID seguono la convenzione del catalogo v0.1
+	// per le abilita' d'eroe (`<Eroe>.<Abilita>`), non quella delle azioni generiche (`Action.*`).
+	TArray<FRTActionDef> Catalog;
+
+	// Ranger — kiter a lunga gittata.
+	Catalog.Add(ShippedAction(TEXT("Ranger.Shot"),        ERTResolutionPhase::Attack,       50, 6, 0, ERTActionFallback::Cancel));
+	Catalog.Add(ShippedAction(TEXT("Ranger.PreciseShot"), ERTResolutionPhase::Attack,       60, 7, 2, ERTActionFallback::Cancel));
+	Catalog.Add(ShippedAction(TEXT("Ranger.Burst"),       ERTResolutionPhase::Attack,       65, 6, 0, ERTActionFallback::AttackCell));
+	Catalog.Add(ShippedAction(TEXT("Ranger.Dash"),        ERTResolutionPhase::FastMovement, 30, 5, 2, ERTActionFallback::Stop));
+
+	// Guardian — mischia resistente.
+	Catalog.Add(ShippedAction(TEXT("Guardian.Sweep"),   ERTResolutionPhase::Attack,       55, 3, 0, ERTActionFallback::AttackCell));
+	Catalog.Add(ShippedAction(TEXT("Guardian.Barrier"), ERTResolutionPhase::Preparation,  35, 0, 3, ERTActionFallback::Cancel, /*bInterruptible*/ false));
+	Catalog.Add(ShippedAction(TEXT("Guardian.Quake"),   ERTResolutionPhase::Attack,       65, 3, 0, ERTActionFallback::AttackCell));
+	Catalog.Add(ShippedAction(TEXT("Guardian.Charge"),  ERTResolutionPhase::FastMovement, 35, 4, 3, ERTActionFallback::Stop));
+
+	return Catalog;
+}
+
+FRTActionDef URTCatalogLibrary::FindShippedAction(const FName& ActionId)
+{
+	for (const FRTActionDef& Def : GetShippedActionCatalog())
+	{
+		if (Def.ActionId == ActionId) { return Def; }
+	}
+	return FRTActionDef();
 }

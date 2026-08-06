@@ -3,6 +3,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Ability/RTActionData.h"
+#include "Ability/RTCatalogLibrary.h"
 #include "Core/RTGameplayTags.h"
 #include "RefactorTactics.h"
 #include "Components/StaticMeshComponent.h"
@@ -322,6 +323,26 @@ void ARTUnit::ConfigureAsArchetype(ERTArchetype InArchetype)
 		URTActionData* Carica = MakeAbility(TEXT("Carica"), 4, 0, 0, 3, 0, FGameplayTag(), 0);
 		Carica->bDash = true;
 		Abilities.Add(Carica);
+	}
+
+	// Identita' di catalogo delle azioni appena create: ActionId stabile, fase dichiarata, priorita' intera,
+	// fallback. Le definizioni vengono da URTCatalogLibrary::GetShippedActionCatalog, che e' la sola fonte —
+	// cosi' il catalogo non puo' divergere dalle abilita' che il gioco assegna davvero (test
+	// RefactorTactics.Catalog.ShippedCatalogMatchesAbilities).
+	static const FName RangerActionIds[] = {
+		TEXT("Ranger.Shot"), TEXT("Ranger.PreciseShot"), TEXT("Ranger.Burst"), TEXT("Ranger.Dash") };
+	static const FName GuardianActionIds[] = {
+		TEXT("Guardian.Sweep"), TEXT("Guardian.Barrier"), TEXT("Guardian.Quake"), TEXT("Guardian.Charge") };
+
+	const FName* ActionIds = (InArchetype == ERTArchetype::Ranger) ? RangerActionIds : GuardianActionIds;
+	const int32 NumIds = (InArchetype == ERTArchetype::Ranger)
+		? UE_ARRAY_COUNT(RangerActionIds) : UE_ARRAY_COUNT(GuardianActionIds);
+	for (int32 i = 0; i < Abilities.Num() && i < NumIds; ++i)
+	{
+		if (Abilities[i])
+		{
+			Abilities[i]->Def = URTCatalogLibrary::FindShippedAction(ActionIds[i]);
+		}
 	}
 
 	Health = MaxHealth;
