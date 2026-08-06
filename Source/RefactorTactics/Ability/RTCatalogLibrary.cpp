@@ -154,7 +154,8 @@ namespace
 {
 	FRTActionDef ShippedAction(const FName& Id, ERTResolutionPhase Phase, int32 Priority, int32 Range,
 		int32 Cooldown, ERTActionFallback Fallback, const TArray<FRTActionEffectSpec>& Effects,
-		bool bInterruptible = true, ERTActionSlot Slot = ERTActionSlot::Main)
+		bool bInterruptible = true, ERTActionSlot Slot = ERTActionSlot::Main,
+		ERTMovementStyle Movement = ERTMovementStyle::None)
 	{
 		FRTActionDef Def;
 		Def.Effects = Effects;
@@ -166,6 +167,9 @@ namespace
 		Def.Fallback = Fallback;
 		Def.bCanBeInterrupted = bInterruptible;
 		Def.Slot = Slot;
+		Def.MovementStyle = Movement;
+		// Chi corre a perdifiato non para: lo `Sprint` e' l'unica azione della v0.1 che nega la reazione.
+		Def.bAllowsReaction = (Id != FName(TEXT("Action.Sprint")));
 		return Def;
 	}
 }
@@ -215,7 +219,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.Sprint"), ERTResolutionPhase::FastMovement, /*Priority*/ 60,
 		/*Range (MP)*/ 8, /*Cooldown*/ 0, ERTActionFallback::Stop,
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Exposed, /*Turni*/ 1) },
-		/*bInterruptible*/ true, ERTActionSlot::MovementAndMain));
+		/*bInterruptible*/ true, ERTActionSlot::MovementAndMain, ERTMovementStyle::Budget));
 
 	// `Action.Wait` (catalogo v0.1 §1) — non fa nulla e risolve per ultima (priorita' 100). Serve gia' ora
 	// perche' e' cio' in cui `Fallback.Wait` trasforma un'azione: senza, il fallback dovrebbe inventarsi in
@@ -233,7 +237,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// duplicherebbe quella decisione in un secondo posto.
 	Catalog.Add(ShippedAction(TEXT("Action.Move"), ERTResolutionPhase::NormalMovement, /*Priority*/ 50,
 		/*Range (MP)*/ 5, /*Cooldown*/ 0, ERTActionFallback::Stop, {},
-		/*bInterruptible*/ true, ERTActionSlot::Movement));
+		/*bInterruptible*/ true, ERTActionSlot::Movement, ERTMovementStyle::Budget));
 
 	// `Action.BasicAttack` — identita', fase, priorita' e fallback stanno qui; DANNO e PORTATA no, perche'
 	// dipendono dall'eroe e dalla sua arma (catalogo §1, tabella delle fasce). Li applica MakeBasicAttack:
@@ -258,6 +262,37 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.Interact"), ERTResolutionPhase::Attack, /*Priority*/ 80,
 		/*Range*/ 1, /*Cooldown*/ 0, ERTActionFallback::Cancel, {},
 		/*bInterruptible*/ true, ERTActionSlot::Main));
+
+	// --- Mobilita' LINEARI (catalogo §2) ---------------------------------------------------------------
+	// Tutte in macro-fase Dash: riposizionarsi in fretta e' cio' che permette di sparare da un'altra parte
+	// nello stesso turno (ADR-0003 §3). Tutte con `Fallback.Stop`: se la traiettoria si chiude ci si ferma
+	// nell'ultima cella valida, non si annulla e non si aggira.
+
+	// `Dash` — 3 celle su una delle sei direzioni. Non consuma il percorso Move: scatto e movimento normale
+	// convivono nello stesso turno (e' lo slot Principale a essere speso, non quello di movimento).
+	Catalog.Add(ShippedAction(TEXT("Action.Dash"), ERTResolutionPhase::FastMovement, /*Priority*/ 30,
+		/*Range*/ 3, /*Cooldown*/ 1, ERTActionFallback::Stop, {},
+		/*bInterruptible*/ true, ERTActionSlot::Main, ERTMovementStyle::LinearDash));
+
+	// `Charge` — 3 celle, si ferma ADDOSSO al primo nemico e lo colpisce: 20 danni piu' una spinta di 1.
+	// Gli effetti sono dichiarati qui, ma si applicano nel Blast (codice 20/30 del catalogo): il movimento e'
+	// fase 20, l'impatto e' controllo, e il controllo risolve per priorita' dentro il Blast.
+	Catalog.Add(ShippedAction(TEXT("Action.Charge"), ERTResolutionPhase::FastMovement, /*Priority*/ 35,
+		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop,
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 20), FRTActionEffectSpec(ERTActionEffect::Push, 1) },
+		/*bInterruptible*/ true, ERTActionSlot::Main, ERTMovementStyle::LinearCharge));
+
+	// `Leap` — 3 celle scavalcando cio' che sta in mezzo (unita', coperture basse). La cella d'atterraggio
+	// invece la si subisce: dev'essere percorribile e libera.
+	Catalog.Add(ShippedAction(TEXT("Action.Leap"), ERTResolutionPhase::FastMovement, /*Priority*/ 25,
+		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop, {},
+		/*bInterruptible*/ true, ERTActionSlot::Main, ERTMovementStyle::LinearLeap));
+
+	// `Reposition` — due celle e nient'altro: nessuno stato, nessuna traversata. E' lo scatto "tattico" che si
+	// paga poco, e la differenza con `Sprint` sta tutta nei dati (2 celle in linea contro 8 MP piu' Exposed).
+	Catalog.Add(ShippedAction(TEXT("Action.Reposition"), ERTResolutionPhase::FastMovement, /*Priority*/ 40,
+		/*Range*/ 2, /*Cooldown*/ 1, ERTActionFallback::Stop, {},
+		/*bInterruptible*/ true, ERTActionSlot::Main, ERTMovementStyle::LinearDash));
 
 	return Catalog;
 }

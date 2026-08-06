@@ -392,3 +392,39 @@ bool FRTGuardResistsPushTest::RunTest(const FString&)
 	DestroyHexBlastWorld(World);
 	return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChargeImpactInBlastTest,
+	"RefactorTactics.Actions.Charge.ImpactResolvesInBlast",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChargeImpactInBlastTest::RunTest(const FString&)
+{
+	// La carica in partita: il MOVIMENTO risolve nella fase Dash, il COLPO nel Blast (codice 20/30 del
+	// catalogo). Si verifica che accadano entrambe le cose e nell'ordine giusto — l'unita' si ferma davanti al
+	// bersaglio, e il bersaglio incassa 20 danni piu' una spinta di 1.
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Charger = SpawnHexBlastUnit(World, 0, ERTArchetype::Guardian, FRTCellId(0, 0));
+	ARTUnit* Victim = SpawnHexBlastUnit(World, 1, ERTArchetype::Ranger, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Charger || !Victim) { DestroyHexBlastWorld(World); return false; }
+
+	URTActionData* Charge = NewObject<URTActionData>(Charger);
+	Charge->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge"));
+	Charge->RangeCells = Charge->Def.RangeCells;
+	Charger->Abilities.Add(Charge);
+
+	const int32 VictimHealth = Victim->Health;
+	Charger->PlannedDashAbility = Charger->Abilities.Num() - 1;
+	Charger->PlannedDashCell = FRTCellId(3, 0); // dritto: incontra il bersaglio a (2,0) per strada
+
+	RunBlastTurn(TM);
+
+	TestTrue(TEXT("la carica si ferma davanti al bersaglio, non lo attraversa"), Charger->Cell == FRTCellId(1, 0));
+	TestEqual(TEXT("l'impatto fa 20 danni, applicati nel Blast"), VictimHealth - Victim->Health, 20);
+	TestTrue(TEXT("e lo spinge di una cella"), Victim->Cell == FRTCellId(3, 0));
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
