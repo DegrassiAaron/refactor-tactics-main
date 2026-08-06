@@ -62,17 +62,41 @@ void ARTGameMode::BeginPlay()
 	SetupHexMatch(HexMap);
 }
 
-void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
+void ARTGameMode::ApplyMapSource(ARTHexMapActor* HexMap)
 {
 	if (!HexMap)
 	{
 		return;
 	}
 
-	// Quello che conta non e' avere un asset, ma avere delle CELLE: un asset assegnato ma VUOTO non allestisce
-	// nulla e premere Play mostra una schermata nera senza spiegazione (osservato in PIE su L_DevSandbox, il cui
-	// asset si e' ritrovato a 0 celle). Senza una mappa d'autore utilizzabile si gioca su un'arena di ripiego,
-	// dichiarata nel log: meglio un fondo di scena giocabile che il vuoto.
+	switch (MapSource)
+	{
+	case ERTMapSource::GeneratedTestArena:
+		// Scelta esplicita: prevale anche su una mappa d'autore presente nel livello. Va dichiarato, non subito.
+		HexMap->MapAsset = URTMatchSetupLibrary::MakeTestArena(HexMap);
+		HexMap->RebuildInstances();
+		UE_LOG(LogRT, Warning, TEXT("[RT] MapSource=GeneratedTestArena: uso la mappa di PROVA generata "
+			"(%d celle, con ostacoli, muri, terreno costoso e piattaforma). La mappa del livello e' ignorata."),
+			HexMap->MapAsset ? HexMap->MapAsset->NumCells() : 0);
+		return;
+
+	case ERTMapSource::GeneratedDemoArena:
+		HexMap->MapAsset = URTMatchSetupLibrary::MakeDemoArena(HexMap, DemoArenaRadius);
+		HexMap->RebuildInstances();
+		UE_LOG(LogRT, Warning, TEXT("[RT] MapSource=GeneratedDemoArena: uso l'arena di ripiego "
+			"(esagono r=%d, %d celle). La mappa del livello e' ignorata."),
+			DemoArenaRadius, HexMap->MapAsset ? HexMap->MapAsset->NumCells() : 0);
+		return;
+
+	case ERTMapSource::LevelAsset:
+	default:
+		break;
+	}
+
+	// Mappa del livello. Quello che conta non e' avere un asset, ma avere delle CELLE: un asset assegnato ma
+	// VUOTO non allestisce nulla e premere Play mostra una schermata nera senza spiegazione (osservato in PIE su
+	// L_DevSandbox, il cui asset si e' ritrovato a 0 celle). Senza una mappa d'autore utilizzabile si ripiega
+	// sull'arena demo: meglio un fondo di scena giocabile che il vuoto.
 	// Attenzione: qui si tratta solo il caso "nessuna cella". Una mappa d'autore con POCHE celle non viene
 	// rimpiazzata: e' un errore dell'autore e glielo si dice, invece di nascondergli la mappa sotto i piedi.
 	if ((!HexMap->MapAsset || HexMap->MapAsset->NumCells() == 0) && DemoArenaRadius > 0)
@@ -85,6 +109,16 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 				 "mappa d'autore."),
 			DemoArenaRadius, HexMap->MapAsset ? HexMap->MapAsset->NumCells() : 0);
 	}
+}
+
+void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
+{
+	if (!HexMap)
+	{
+		return;
+	}
+
+	ApplyMapSource(HexMap);
 
 	// Il livello puo' avere unita' gia' posate a mano: in quel caso l'allestimento automatico non interviene.
 	if (UGameplayStatics::GetActorOfClass(this, ARTUnit::StaticClass()))

@@ -3,6 +3,10 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
+#include "Map/RTHexVisionLibrary.h"
+#include "Pathfinding/RTHexPathLibrary.h"
+#include "Turn/RTHexSim.h"
+#include "Turn/RTHexSimLibrary.h"
 
 namespace
 {
@@ -119,5 +123,77 @@ bool FRTMatchSetupDemoArenaTest::RunTest(const FString&)
 	// Raggio non valido: nessuna arena inventata a meta'.
 	TestNull(TEXT("raggio negativo -> nessuna arena"),
 		URTMatchSetupLibrary::MakeDemoArena(GetTransientPackage(), /*Radius=*/ -1));
+	return true;
+}
+
+/**
+ * La MAPPA DI PROVA deve avere davvero le caratteristiche che promette, altrimenti i playtest che poggiano su
+ * di lei verificano meno di quanto dichiarano: e' proprio quello che e' successo con l'arena di ripiego, dove
+ * «cella bloccata» e «LOS» non erano osservabili perche' la mappa non aveva ne' ostacoli ne' muri.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTestArenaFeaturesTest,
+	"RefactorTactics.MatchSetup.TestArenaHasTheFeaturesItPromises",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTestArenaFeaturesTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(GetTransientPackage());
+	if (!TestNotNull(TEXT("arena generata"), Arena))
+	{
+		return false;
+	}
+
+	TestNull(TEXT("Outer nullo -> nessuna arena"), URTMatchSetupLibrary::MakeTestArena(nullptr));
+
+	int32 BlocksMove = 0;
+	int32 BlocksSight = 0;
+	int32 Costly = 0;
+	int32 Layer1 = 0;
+	for (const FRTHexCellData& Cell : Arena->Cells)
+	{
+		BlocksMove  += Cell.bBlocksMovement ? 1 : 0;
+		BlocksSight += Cell.bBlocksLineOfSight ? 1 : 0;
+		Costly      += (Cell.MoveCost > 1) ? 1 : 0;
+		Layer1      += (Cell.Id.Layer == 1) ? 1 : 0;
+	}
+
+	TestTrue(TEXT("ci sono ostacoli al movimento"), BlocksMove >= 3);
+	TestTrue(TEXT("ci sono celle che bloccano la vista"), BlocksSight >= 3);
+	TestTrue(TEXT("c'e' terreno costoso (MoveCost > 1)"), Costly >= 3);
+	TestTrue(TEXT("c'e' una piattaforma sul layer 1"), Layer1 >= 4);
+
+	// Una partita 2v2 ci si allestisce: e' il requisito minimo perche' la mappa sia giocabile.
+	const TArray<FRTCellId> Start = URTMatchSetupLibrary::PickStartCells(Arena, /*NumPerTeam=*/ 2, /*Layer=*/ 0);
+	TestEqual(TEXT("quattro celle di partenza sul layer 0"), Start.Num(), 4);
+
+	// I muri stanno FRA le due meta': la vista da una parte all'altra non passa (e' il caso di PIE-HEXPLAY-6).
+	if (Start.Num() == 4)
+	{
+		TestFalse(TEXT("nessuna linea di tiro fra le due meta' del campo"),
+			URTHexVisionLibrary::HasLineOfSight(Arena, Start[0], Start[3]));
+	}
+
+	// Il terreno costoso morde davvero: raggiungere una cella oltre la fascia costa piu' del suo numero di passi.
+	{
+		const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Arena,
+			{ FRTHexSimUnit(0, FRTCellId(-4, 0, 0), /*MoveBudget=*/ 4) });
+		const TArray<FRTHexReachableCell> Reach = URTHexSimLibrary::ReachableCells(Snapshot, 0);
+		const FRTHexReachableCell* Beyond = Reach.FindByPredicate(
+			[](const FRTHexReachableCell& R) { return R.Cell == FRTCellId(-1, 0, 0); });
+		// (-4,0) -> (-1,0) sono 3 passi, ma uno attraversa la fascia di fango: il costo deve superare i 3 passi.
+		TestTrue(TEXT("attraversare il fango costa piu' dei passi percorsi"),
+			Beyond == nullptr || Beyond->Cost > 3);
+	}
+
+	// La piattaforma e' raggiungibile SOLO tramite la transizione: togliendola, il percorso deve fallire.
+	{
+		const FRTCellId Ground(1, 0, 0);
+		const FRTCellId Platform(2, 0, 1);
+		TestTrue(TEXT("con la transizione la piattaforma e' raggiungibile"),
+			URTHexPathLibrary::FindPath(Arena, Ground, Platform).Status == ERTHexPathStatus::Success);
+
+		Arena->RemoveTransition(Ground, Platform);
+		TestTrue(TEXT("senza la transizione la piattaforma e' irraggiungibile (il path FALLISCE, non teletrasporta)"),
+			URTHexPathLibrary::FindPath(Arena, Ground, Platform).Status != ERTHexPathStatus::Success);
+	}
 	return true;
 }

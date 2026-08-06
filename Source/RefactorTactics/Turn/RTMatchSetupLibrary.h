@@ -37,6 +37,21 @@ public:
 	static URTHexMapAsset* MakeDemoArena(UObject* Outer, int32 Radius);
 
 	/**
+	 * **Mappa di prova** generata da codice: l'arena che serve a esercitare le regole, non un fondo di scena.
+	 * Esagono pieno di raggio 4 sul layer 0 con, in aggiunta:
+	 * - celle che **bloccano il movimento** (ostacoli),
+	 * - celle che **bloccano la vista** allineate fra le due meta' del campo (copertura/LOS),
+	 * - una fascia di terreno **costoso** (Mud, costo 3) per vedere il budget mordere,
+	 * - una **piattaforma sul layer 1** raggiungibile SOLO tramite un'unica transizione.
+	 *
+	 * Esiste in codice e non come `.uasset` per una ragione precisa: `Content/**` e' gitignorato, quindi una
+	 * mappa dipinta a mano non sopravvive a un clone e non e' riproducibile fra macchine. Questa si'.
+	 *
+	 * `Outer` nullo -> nullptr.
+	 */
+	static URTHexMapAsset* MakeTestArena(UObject* Outer);
+
+	/**
 	 * Occupazione cella -> UnitId ricostruita dallo stato delle unita': solo le vive occupano.
 	 * I tre array sono paralleli; lunghezze incoerenti -> mappa vuota (input non fidato, nessun indovinare).
 	 */
