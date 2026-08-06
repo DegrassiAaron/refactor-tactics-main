@@ -172,6 +172,23 @@ esistente (muri/coperture): è un cap aggiuntivo, indipendente.
 `bBlocksLineOfSight = false` nel catalogo (deciso: "parziale" del PDF letto come "non bloccante" finché non
 esiste un sistema di LOS graduata). Nessun nuovo meccanismo.
 
+## 6-bis. Limite scoperto in review (Task 7, 2026-08-06): `Wet`/`Obscured` sono inerti a runtime
+
+`ShallowWater.OnEnterEffects` e `Smoke.OnEnterEffects` (Task 3) dichiarano `Status.Wet`/`Status.Obscured`
+con `StatusDuration = 0` (letto come "finché sulla cella", §2.1) — ma `ARTUnit::ApplyStatus` rifiuta
+silenziosamente ogni durata `<= 0` (`if (Turns <= 0) { return; }`, nessun log, nessun crash). Con l'hook di
+applicazione ora attivo (Task 7, `ApplyTerrainOnEnterEffects`), questo significa che **entrare in acqua bassa
+o nel fumo oggi non applica davvero `Wet`/`Obscured`**: il dato è dichiarato nel catalogo, la chiamata
+avviene, ma lo stato non si materializza. Il log di risoluzione non mente più a riguardo (il Task 7 ha
+condizionato la riga di log all'effettiva applicazione), ma la funzionalità resta assente.
+
+**Non è un difetto da correggere in CP 8.1**: la semantica "dura finché sulla cella" richiede il modello di
+scadenza/durata degli stati di **CP 8.2** (`#65`), che questo CP dichiara esplicitamente fuori scope (§6). Un
+valore arbitrario tipo `StatusDuration = 1` renderebbe l'effetto tecnicamente "attivo" ma con una semantica
+sbagliata (scade dopo un turno anche restando sulla cella), quindi non è la correzione giusta. **Dichiarare
+nella PR**: `Fire`/`Burning` funziona (durata 2, valore fisso, non serve il modello "finché sulla cella");
+`Wet`/`Obscured` restano dati pronti-ma-inerti fino a CP 8.2, stesso pattern di `PushResistance` di Bastion.
+
 ## 6. Fuori scope dichiarato (CP 8.1)
 
 - Scadenza/durata degli stati (`Wet`, `Burning`, `Obscured`) in Cleanup → CP 8.2 (`#65`).
