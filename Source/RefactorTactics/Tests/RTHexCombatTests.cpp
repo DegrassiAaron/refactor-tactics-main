@@ -1,6 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "Algo/Reverse.h"
-#include "Ability/RTAbilityData.h"
+#include "Ability/RTActionData.h"
 #include "Combat/RTCombatResolver.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Map/RTCellId.h"

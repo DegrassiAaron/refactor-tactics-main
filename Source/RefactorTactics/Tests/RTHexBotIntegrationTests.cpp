@@ -1,5 +1,5 @@
 #include "Misc/AutomationTest.h"
-#include "Ability/RTAbilityData.h"
+#include "Ability/RTActionData.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
@@ -111,7 +111,7 @@ bool FRTHexBotLegalMovesTest::RunTest(const FString&)
 
 		if (Bot->PlannedDashAbility != INDEX_NONE)
 		{
-			const URTAbilityData* Dash = Bot->GetAbility(Bot->PlannedDashAbility);
+			const URTActionData* Dash = Bot->GetAbility(Bot->PlannedDashAbility);
 			TestTrue(TEXT("lo scatto pianificato e' un'abilita' di scatto"), Dash && Dash->bDash);
 			TestTrue(TEXT("la cella di scatto esiste nella mappa"), Map->ContainsCell(Bot->PlannedDashCell));
 			TestTrue(TEXT("la cella di scatto e' entro la portata dello scatto"),
@@ -124,7 +124,7 @@ bool FRTHexBotLegalMovesTest::RunTest(const FString&)
 			// L'attacco parte dalla cella in cui il bot si trovera' nel Blast: quella attuale, o quella
 			// post-scatto se ha pianificato uno scatto (il Dash precede il Blast).
 			const FRTCellId FiringCell = Bot->PlannedDashAbility != INDEX_NONE ? Bot->PlannedDashCell : Bot->Cell;
-			const URTAbilityData* Ability = Bot->GetAbility(Bot->PlannedAbilityIndex);
+			const URTActionData* Ability = Bot->GetAbility(Bot->PlannedAbilityIndex);
 			TestTrue(TEXT("il bersaglio e' entro la portata dalla cella di tiro"),
 				Ability && URTHexLibrary::HexDistance(FiringCell, Bot->PlannedAttackTarget->Cell) <= Ability->RangeCells);
 		}
@@ -179,7 +179,7 @@ bool FRTHexBotSupportTest::RunTest(const FString&)
 
 	TM->PlanBotsForTest();
 
-	const URTAbilityData* Planned = Hurt->GetAbility(Hurt->PlannedAbilityIndex);
+	const URTActionData* Planned = Hurt->GetAbility(Hurt->PlannedAbilityIndex);
 	TestTrue(TEXT("pianifica un'abilita' di supporto su se stesso"), Planned && Planned->bSelfTarget);
 	TestNull(TEXT("non pianifica un attacco nello stesso turno"), Hurt->PlannedAttackTarget.Get());
 
