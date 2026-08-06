@@ -85,6 +85,7 @@ nel vertical slice).
 | Range visivo | 5 |
 | Resistenza Push | 1 |
 | Affinità | strutture |
+| Debolezza | movimento (`Affinity.Movement`) — decisa in CP 6.4, non nel PDF: simmetrica a Vektor |
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
@@ -141,7 +142,8 @@ mobilità con l'assenza di difese; Flux ha il danno combo più alto ma la salute
 **Debolezza dichiarata**: il PDF elenca «debolezza» fra gli elementi fissi di ogni eroe ma **non la esplicita**
 per nessuno dei quattro. Va fissata in E6 e scritta qui: senza, l'identità resta metà. **Flux**: fissata in
 CP 6.2, acqua (`Affinity.Water`) — vedi §1. **Riva**: fissata in CP 6.3, elettricità (`Affinity.Electricity`),
-simmetrica a Flux — vedi §2. Bastion/Vektor restano aperte fino ai rispettivi checkpoint.
+simmetrica a Flux — vedi §2. **Bastion**: fissata in CP 6.4, movimento (`Affinity.Movement`), simmetrica a
+Vektor — vedi §3. Vektor resta aperta fino a CP 6.5.
 
 ---
 

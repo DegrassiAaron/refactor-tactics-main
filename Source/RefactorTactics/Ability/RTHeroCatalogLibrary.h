@@ -61,4 +61,18 @@ public:
 	 * vuoto, come `Flux.ReactiveCapacitor` per la sua meta' non rappresentabile.
 	 */
 	static URTHeroData* MakeRiva();
+
+	/**
+	 * Costruisce **Bastion**, architetto del campo (catalogo eroi v0.1 §3): 120 HP, 4 MP, vista 5,
+	 * **resistenza push 1** (l'unico del roster), affinita' strutture, debolezza movimento — simmetrica a
+	 * Vektor (CP 6.5), come Flux/Riva lo sono fra loro.
+	 *
+	 * ⚠️ **E' l'eroe piu' incompleto del roster, e la sua issue (#57) chiede esplicitamente di dichiararlo.**
+	 * `KineticPanel` e `Reconfigure` manipolano STRUTTURE, che non esistono nel modello dati (`FRTHexCellData`
+	 * non ha coperture: E9, issue `#69`/`#73`) — nessun effetto dichiarabile, i numeri del catalogo terreni
+	 * (`Structure.KineticPanel`: integrita' 30, protezione 10) vivono nei `Parameters` della variante finche'
+	 * qualcuno non li consuma. `Interposition` e' una reazione (E5). Solo `ImpactShot` e `Ram` sono
+	 * interamente rappresentabili oggi.
+	 */
+	static URTHeroData* MakeBastion();
 };

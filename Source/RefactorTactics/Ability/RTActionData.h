@@ -39,6 +39,22 @@ struct FRTAbilityVariant
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	TArray<FRTActionEffectSpec> Effects;
 
+	/**
+	 * Numeri di catalogo della variante che **non sono effetti** e che nessun sistema consuma ancora:
+	 * l'integrita' di una struttura (`Bastion.KineticPanel`: 45 rinforzato / 25 adattivo), la durata di una
+	 * marcatura, il numero di celle controllate.
+	 *
+	 * Esistono perche' il catalogo li DICHIARA e il compromesso fra due varianti va reso verificabile — non
+	 * perche' qualcosa li legga: le strutture sono E9, le reazioni E5. Sono una dichiarazione, non un
+	 * meccanismo, e la differenza sta tutta qui: il giorno in cui E9 costruira' le strutture, questi numeri
+	 * saranno gia' scritti nel posto giusto invece di essere stati inventati allora.
+	 *
+	 * NON e' il posto dove mettere un effetto rappresentabile: quello va in `Effects`, che il registry sa
+	 * gia' tradurre in eventi. Una `TMap` qui e' l'ultima risorsa per cio' che il modello non copre ancora.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	TMap<FName, int32> Parameters;
+
 	FRTAbilityVariant() = default;
 };
 
