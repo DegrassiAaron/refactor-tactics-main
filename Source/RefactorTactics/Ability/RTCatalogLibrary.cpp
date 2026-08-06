@@ -294,6 +294,63 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*Range*/ 2, /*Cooldown*/ 1, ERTActionFallback::Stop, {},
 		/*bInterruptible*/ true, ERTActionSlot::Main, ERTMovementStyle::LinearDash));
 
+	// --- Azioni OFFENSIVE (catalogo §3) ----------------------------------------------------------------
+	// Tutte nel Blast tranne la soppressione, che si PREPARA. La priorita' e' cio' che le distingue davvero:
+	// dentro la stessa macro-fase risolvono nell'ordine 40 (marchio) → 55 (linea) → 60 (precisione) →
+	// 65 (area) → 80 (pesante). Il marchio arriva per primo perche' il suo +6 deve poter valere sui colpi
+	// dello stesso turno; il pesante per ultimo perche' e' cio' che il catalogo compra con i suoi 35 danni.
+
+	// `PrecisionAttack` — 24 danni fissi, portata dell'arma +1 (la mette MakePrecisionAttack: qui, come per
+	// `BasicAttack`, un numero sarebbe arbitrario). Non e' usabile dopo uno Sprint, ma questo NON e' scritto
+	// qui: `Sprint` occupa gia' movimento e azione principale, e ValidateActionSlots ne fa un caso della
+	// regola generale invece di un'eccezione sull'ActionId.
+	Catalog.Add(ShippedAction(TEXT("Action.PrecisionAttack"), ERTResolutionPhase::Attack, /*Priority*/ 60,
+		/*Range*/ 0, /*Cooldown*/ 1, ERTActionFallback::Cancel,
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 24) }));
+
+	// `HeavyAttack` — 35 danni e priorita' 80: risolve tardi, ed e' il prezzo che paga per essere il colpo
+	// piu' duro. Interrompibile: se un `Action.Interrupt` la coglie prima del Blast non produce NULLA — non
+	// mezzo danno, non un effetto parziale (lo garantisce URTActionEffectLibrary::ProduceEvents).
+	Catalog.Add(ShippedAction(TEXT("Action.HeavyAttack"), ERTResolutionPhase::Attack, /*Priority*/ 80,
+		/*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel,
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 35) }));
+
+	// `LineAttack` — 22 danni al PRIMO bersaglio valido su una delle sei direzioni, portata 5. Non e' la
+	// `Shape::Line` delle abilita' d'archetipo (che colpisce tutti quelli attraversati): la risolve
+	// URTOffensiveActionLibrary::ResolveLineAttack, che si ferma sul primo che incontra.
+	// `Fallback.AttackCell`: se il bersaglio si sposta, la linea parte comunque dov'era puntata.
+	Catalog.Add(ShippedAction(TEXT("Action.LineAttack"), ERTResolutionPhase::Attack, /*Priority*/ 55,
+		/*Range*/ 5, /*Cooldown*/ 1, ERTActionFallback::AttackCell,
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 22) }));
+
+	// `CircularAoE` — 18 danni in un esagono di raggio 1, centro entro 4 celle. `RangeCells` e' la portata
+	// del CENTRO, il raggio dell'area sta nell'intento (`FRTHexAttackIntent::AreaRadius`): sono due numeri
+	// diversi e confonderli farebbe esplodere l'area a quattro celle di distanza.
+	//
+	// **Friendly fire attivo**: e' l'unica azione della v0.1 che colpisce anche i propri. Non e' una
+	// dimenticanza del filtro di squadra — e' `bFriendlyFire` sull'intento, dichiarato dall'azione.
+	Catalog.Add(ShippedAction(TEXT("Action.CircularAoE"), ERTResolutionPhase::Attack, /*Priority*/ 65,
+		/*Range (centro)*/ 4, /*Cooldown*/ 2, ERTActionFallback::AttackCell,
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 18) }));
+
+	// `SuppressiveLine` — si PREPARA (fase 10, quindi macro-fase Prep) e si attiva su un trigger: il primo
+	// nemico che entra in una cella controllata durante il Move prende 16 danni e si ferma li'. Una sola
+	// attivazione per turno. Non interrompibile: una volta preparata la linea, c'e'.
+	//
+	// E' l'unica offensiva che non risolve nel Blast, e la ragione e' che il suo effetto non ha un bersaglio
+	// al momento della pianificazione: ce l'ha chi ci cammina dentro.
+	Catalog.Add(ShippedAction(TEXT("Action.SuppressiveLine"), ERTResolutionPhase::Preparation, /*Priority*/ 30,
+		/*Range*/ 5, /*Cooldown*/ 2, ERTActionFallback::Cancel,
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 16) },
+		/*bInterruptible*/ false));
+
+	// `MarkTarget` — nessun danno proprio: applica `Status.Marked` per un turno, e il prossimo attacco
+	// alleato contro quel bersaglio infligge +6 e consuma il marchio. Priorita' 40, la piu' bassa delle
+	// offensive, perche' un marchio che arrivasse dopo i colpi non servirebbe a nulla.
+	Catalog.Add(ShippedAction(TEXT("Action.MarkTarget"), ERTResolutionPhase::Attack, /*Priority*/ 40,
+		/*Range*/ 0, /*Cooldown*/ 1, ERTActionFallback::Cancel,
+		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Marked, /*Turni*/ 1) }));
+
 	return Catalog;
 }
 
@@ -323,6 +380,74 @@ FRTActionDef URTCatalogLibrary::MakeBasicAttack(int32 WeaponRangeCells)
 	Def.Effects.Reset();
 	Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, BasicAttackDamageForRange(Range)));
 	return Def;
+}
+
+FRTActionDef URTCatalogLibrary::MakeWeaponAttack(const FName& ActionId, int32 WeaponRangeCells)
+{
+	// Il catalogo dichiara per queste azioni un targeting "bersaglio" senza numero: la portata e' quella
+	// dell'arma dell'eroe. Metterne una qui significherebbe sceglierne una arbitraria per tutti.
+	FRTActionDef Def = FindCoreAction(ActionId);
+	if (Def.ActionId.IsNone())
+	{
+		return Def; // catalogo incompleto: meglio una definizione vuota che una inventata qui
+	}
+
+	Def.RangeCells = FMath::Max(1, WeaponRangeCells);
+	return Def;
+}
+
+FRTActionDef URTCatalogLibrary::MakePrecisionAttack(int32 WeaponRangeCells)
+{
+	// Il **+1** e' l'identita' della precisione (catalogo §3): si colpisce una cella piu' lontano di quanto
+	// arrivi l'arma. Sta in una funzione che porta il nome dell'azione, non in un `if` sull'ActionId dentro
+	// MakeWeaponAttack — cosi' aggiungere un'altra azione con un bonus diverso non tocca nulla di questo.
+	return MakeWeaponAttack(TEXT("Action.PrecisionAttack"), FMath::Max(1, WeaponRangeCells) + 1);
+}
+
+TArray<FString> URTCatalogLibrary::ValidateActionSlots(const TArray<FRTActionDef>& PlannedActions)
+{
+	TArray<FString> Errors;
+
+	// Chi ha gia' preso quale slot: serve a NOMINARE il colpevole («la principale e' occupata da Sprint»),
+	// perche' un errore che dice solo "slot pieno" costringe a ricostruire il piano a mano.
+	FName MovementTakenBy;
+	FName MainTakenBy;
+
+	for (const FRTActionDef& Action : PlannedActions)
+	{
+		const bool bTakesMovement = Action.Slot == ERTActionSlot::Movement
+			|| Action.Slot == ERTActionSlot::MovementAndMain;
+		const bool bTakesMain = Action.Slot == ERTActionSlot::Main
+			|| Action.Slot == ERTActionSlot::MovementAndMain;
+
+		if (bTakesMovement)
+		{
+			if (!MovementTakenBy.IsNone())
+			{
+				Errors.Add(FString::Printf(TEXT("%s: slot movimento gia' occupato da %s"),
+					*Action.ActionId.ToString(), *MovementTakenBy.ToString()));
+			}
+			else
+			{
+				MovementTakenBy = Action.ActionId;
+			}
+		}
+
+		if (bTakesMain)
+		{
+			if (!MainTakenBy.IsNone())
+			{
+				Errors.Add(FString::Printf(TEXT("%s: azione principale gia' occupata da %s"),
+					*Action.ActionId.ToString(), *MainTakenBy.ToString()));
+			}
+			else
+			{
+				MainTakenBy = Action.ActionId;
+			}
+		}
+	}
+
+	return Errors;
 }
 
 FRTActionDef URTCatalogLibrary::FindCoreAction(const FName& ActionId)

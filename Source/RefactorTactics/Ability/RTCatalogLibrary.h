@@ -70,8 +70,8 @@ public:
 	 * a cio' che `ARTUnit::ConfigureAsArchetype` assegna davvero (test di allineamento), questa e' il
 	 * catalogo delle azioni che chiunque puo' dichiarare.
 	 *
-	 * Oggi contiene `Action.Sprint` (CP 4.2). `Wait`, `Move`, `BasicAttack`, `Guard`, `Activate`, `Interact`
-	 * arrivano con CP 4.4; le altre mobilita' rapide con CP 4.5.
+	 * Contiene le azioni fondamentali (§1), le mobilita' (§2) e le offensive (§3) del catalogo v0.1.
+	 * Controllo, supporto e ambiente arrivano con CP 4.7 e le epic E8/E9.
 	 */
 	static TArray<FRTActionDef> GetCoreActionCatalog();
 
@@ -91,4 +91,27 @@ public:
 	 * catalogo, portata e danno dalla fascia. Un solo ActionId per tutti gli eroi, non quattro varianti.
 	 */
 	static FRTActionDef MakeBasicAttack(int32 WeaponRangeCells);
+
+	/**
+	 * Un'azione a bersaglio completata per una data arma: identita', danno, fase, priorita' e fallback
+	 * vengono dal catalogo, la PORTATA dall'arma dell'eroe (il catalogo dichiara «bersaglio», non un numero).
+	 * Portate degeneri ricadono su 1: un'azione a portata zero non colpirebbe nessuno.
+	 */
+	static FRTActionDef MakeWeaponAttack(const FName& ActionId, int32 WeaponRangeCells);
+
+	/**
+	 * `Action.PrecisionAttack` per una data arma: portata dell'arma **+1** (catalogo v0.1 §3), danno 24 dal
+	 * catalogo. Il bonus e' l'identita' dell'azione, non un parametro del chiamante.
+	 */
+	static FRTActionDef MakePrecisionAttack(int32 WeaponRangeCells);
+
+	/**
+	 * Errori negli SLOT di un piano di turno di una singola unita' (vuoto = piano valido): due azioni non
+	 * possono occupare lo stesso slot, e chi consuma entrambi (`Action.Sprint`) non lascia spazio a nessuna
+	 * azione principale.
+	 *
+	 * E' qui che «PrecisionAttack non e' usabile dopo Sprint» diventa una regola generale invece di
+	 * un'eccezione sull'ActionId: lo Sprint prende la principale, e l'attacco non la trova piu'.
+	 */
+	static TArray<FString> ValidateActionSlots(const TArray<FRTActionDef>& PlannedActions);
 };

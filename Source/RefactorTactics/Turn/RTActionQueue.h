@@ -43,5 +43,16 @@ struct FRTActionInstance
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Actions")
 	int32 EventSequence = 0;
 
+	/**
+	 * L'azione e' stata INTERROTTA prima di risolvere. Un'azione interrotta non produce alcun evento: niente
+	 * mezzo danno, niente effetto parziale (catalogo §3, `HeavyAttack`).
+	 *
+	 * E' un dato dell'istanza e non della definizione perche' dipende dal turno: la stessa `HeavyAttack` e'
+	 * interrotta in questo turno e non nel prossimo. A METTERE il flag sara' `Action.Interrupt` (CP 4.7);
+	 * qui c'e' il punto in cui la conseguenza si applica, uno solo per tutte le azioni.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Actions")
+	bool bInterrupted = false;
+
 	FRTActionInstance() = default;
 };

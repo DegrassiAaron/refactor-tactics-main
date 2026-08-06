@@ -77,6 +77,17 @@ struct FRTHexAttackIntent
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
 	int32 Power = 0;
 
+	/**
+	 * L'area colpisce anche gli ALLEATI dell'attaccante, se stanno nelle celle interessate
+	 * (`Action.CircularAoE`, catalogo §3). Default falso: il fuoco amico e' l'eccezione dichiarata da
+	 * un'azione, non il comportamento di base.
+	 *
+	 * Non colpisce mai chi la usa: il catalogo non lo prevede, e un'area che uccide chi la lancia sarebbe una
+	 * regola nuova, non un caso di questa.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	bool bFriendlyFire = false;
+
 	FRTHexAttackIntent() = default;
 };
 
