@@ -3,6 +3,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Pathfinding/RTHexPathLibrary.h"
+#include "Terrain/RTTerrainLibrary.h"
 
 namespace
 {
@@ -288,7 +289,8 @@ TArray<FRTCellId> URTHexSimLibrary::LinearDashPath(const FRTHexSnapshot& Snapsho
 	{
 		Current = FRTCellId(Current.X + Step.X, Current.Y + Step.Y, Start.Layer);
 		const FRTHexCellData* Data = Snapshot.Map->FindCell(Current);
-		if (!Data || Data->bBlocksMovement || Blocked.Contains(Current))
+		if (!Data || Data->bBlocksMovement || Blocked.Contains(Current)
+			|| URTTerrainLibrary::FindTerrainDef(Data->Surface).bBlocksDashCharge)
 		{
 			return {};
 		}

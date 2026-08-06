@@ -2,6 +2,10 @@
 #include "Terrain/RTTerrainData.h"
 #include "Terrain/RTTerrainLibrary.h"
 #include "Core/RTGameplayTags.h"
+#include "Turn/RTHexSim.h"
+#include "Turn/RTHexSimLibrary.h"
+#include "Map/RTHexMapAsset.h"
+#include "Map/RTHexLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -99,6 +103,40 @@ bool FRTTerrainValidateCatalogEntriesTest::RunTest(const FString&)
 
 	const TArray<FString> Errors = URTTerrainLibrary::ValidateCatalogEntries(Broken);
 	TestTrue(TEXT("almeno 2 errori (duplicato + costo negativo)"), Errors.Num() >= 2);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTerrainRoughBlocksDashTest,
+	"RefactorTactics.Terrain.Rough.BlocksDash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTerrainRoughBlocksDashTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 3))
+	{
+		Map->AddOrUpdateCell(FRTHexCellData(Id));
+	}
+	FRTHexCellData Blocker(FRTCellId(1, 0, 0));
+	Blocker.Surface = ERTHexSurface::Rough;
+	Map->AddOrUpdateCell(Blocker);
+	Map->SortCells();
+
+	FRTHexSimUnit Unit;
+	Unit.UnitId = 0;
+	Unit.Cell = FRTCellId(0, 0, 0);
+	Unit.MoveBudget = 10;
+
+	FRTHexSnapshot Snapshot;
+	Snapshot.Map = Map;
+	Snapshot.Units.Add(Unit);
+
+	const TArray<FRTCellId> Path = URTHexSimLibrary::LinearDashPath(Snapshot, /*UnitId=*/ 0, FRTCellId(2, 0, 0));
+	TestEqual(TEXT("scatto rifiutato: Rough blocca Dash"), Path.Num(), 0);
+
+	// Il movimento NORMALE, invece, attraversa Rough (costa di piu', non e' bloccato).
+	const FRTHexPathResult Normal = URTHexSimLibrary::FindPathForUnit(Snapshot, /*UnitId=*/ 0, FRTCellId(2, 0, 0));
+	TestTrue(TEXT("il Move normale attraversa Rough"), Normal.Status == ERTHexPathStatus::Success);
+
 	return true;
 }
 
