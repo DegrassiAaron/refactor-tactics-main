@@ -73,8 +73,9 @@ struct FRTHexBotContext
 
 /**
  * Decisioni del bot su griglia ESAGONALE: logica pura, nessun Actor, solo interi (invariante #4).
- * Politica identica al bot quadrato (URTBotLibrary) — focus-fire, minaccia mitigata dalla copertura, kiting o
- * avvicinamento, bonus di elevazione — con distanza esagonale e linea di vista letta dall'asset mappa.
+ * Politica ereditata dal bot quadrato che ha sostituito (rimosso al CP 7.2) — focus-fire, minaccia mitigata
+ * dalla copertura, kiting o avvicinamento, bonus di elevazione — con distanza esagonale e linea di vista
+ * letta dall'asset mappa.
  *
  * Le mosse candidate arrivano da URTHexSimLibrary::ReachableCells, che ha gia' applicato budget di movimento,
  * celle bloccate, unita' occupanti e archi verticali: il bot non rifa' pathfinding e non puo' proporre mosse

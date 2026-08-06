@@ -96,16 +96,6 @@ public:
 	static TArray<int32> NewlyDefeated(const TArray<int32>& HealthBefore, const TArray<int32>& HealthAfter);
 
 	/**
-	 * Cella finale del bersaglio RESPINTO (knockback) dall'attaccante di Distance celle, nella direzione
-	 * cardinale che si allontana dall'attaccante (asse col delta maggiore; a parità, l'asse X). Si ferma
-	 * sulla cella libera prima di un ostacolo (in Blocked) o del bordo della griglia. Preserva il layer del
-	 * bersaglio. Distance <= 0 o attaccante sulla stessa cella -> il bersaglio resta. Pura, deterministica.
-	 */
-	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
-	static FRTCellId KnockbackDestination(const FRTCellId& Attacker, const FRTCellId& Target,
-		int32 Distance, const TArray<FRTCellId>& Blocked, int32 Width, int32 Height);
-
-	/**
 	 * Classifica l'esito di un colpo a segno secondo la priorita' Lethal > ShieldAbsorbed > TerrainBonus > Hit.
 	 * ShieldAbsorbed = HP invariati (assorbito dallo scudo). TerrainBonus = HP calati con bonus altura > 0.
 	 */

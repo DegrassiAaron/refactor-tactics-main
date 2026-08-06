@@ -1,5 +1,4 @@
 #include "Turn/RTTurnManager.h"
-#include "Turn/RTMovementResolver.h"
 #include "Turn/RTPlaybackLibrary.h"
 #include "Turn/RTTurnLogLibrary.h"
 #include "Combat/RTCombatResolver.h"
@@ -9,8 +8,6 @@
 #include "Ability/RTActionData.h"
 #include "Bot/RTHexBotLibrary.h"
 #include "Core/RTGameplayTags.h"
-#include "Grid/RTGridActor.h"
-#include "Grid/RTGridLibrary.h"
 #include "Turn/RTHexSimLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
@@ -289,12 +286,6 @@ void ARTTurnManager::StartPlanningTimer()
 		return;
 	}
 
-	// Aggiorna i visuali del terreno (riflette ignite/reversione avvenuti nella risoluzione).
-	if (ARTGridActor* GridVis = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass())))
-	{
-		GridVis->RefreshTerrainVisuals();
-	}
-
 	PlanBots(); // il bot pianifica a inizio turno
 
 	World->GetTimerManager().ClearTimer(PlanningTimerHandle);
@@ -365,9 +356,9 @@ void ARTTurnManager::LockInAndResolve()
 	// non e' ordinato, quindi l'ordine di inserimento non e' affidabile (enum: confronto per valore intero).
 	URTTurnLogLibrary::SortTurnLog(TurnLog); // ordine totale deterministico (libreria pura testabile)
 
-	// Fase Cleanup: danno hazard di fine turno (Lava/Fuoco) su chi occupa, tick durate,
-	// reversione del terreno temporaneo; poi conteggio unita' vive per squadra.
-	ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
+	// Fase Cleanup: energia, tick di status e cooldown, conteggio delle unita' vive per squadra.
+	// Gli HAZARD di fine turno non ci sono piu': dipendevano dal terreno quadrato (`URTTerrainData`), rimosso
+	// col substrato al CP 7.2. L'ambiente attivo su esagoni e' l'epic E8 e riporta qui il danno di fine turno.
 	int32 Team0Alive = 0, Team1Alive = 0;
 	{
 		TArray<AActor*> Actors;
@@ -380,36 +371,12 @@ void ARTTurnManager::LockInAndResolve()
 				continue;
 			}
 
-			// Hazard di fine turno: dipende solo dalla cella dell'unita' -> ordine-indipendente.
-			const URTTerrainData* Terrain = Grid ? Grid->GetTerrainAt(Unit->Cell) : nullptr;
-			const int32 Hazard = Terrain ? Terrain->GetProps().EndTurnDamage : 0;
-			if (Hazard > 0)
-			{
-				const FRTDamageResult R = URTCombatLibrary::ApplyDamage(Hazard, Unit->Shield, Unit->Health);
-				AddLogEvent(FString::Printf(TEXT("%s: %d danno da %s"), *Unit->GetName(), Hazard, *Terrain->DisplayName.ToString()));
-				if (R.Health <= 0)
-				{
-					AddLogEvent(FString::Printf(TEXT("Eliminata: %s (team %d)"), *Unit->GetName(), Unit->TeamId));
-					FRTResolvedEvent Ev;
-					Ev.Phase = ERTMatchPhase::Cleanup;
-					Ev.Type = ERTResolvedEventType::Defeated;
-					Ev.Source = Unit;
-					ResolvedTimeline.Add(Ev);
-				}
-				Unit->ApplyCombatState(R.Health, R.Shield); // solo logico: la rimozione visiva e' differita
-				if (!Unit->IsAlive())
-				{
-					continue; // morta: niente energia/tick per questa unita'
-				}
-			}
-
 			Unit->Energy = URTCombatLibrary::GainEnergy(Unit->Energy, Unit->EnergyPerTurn, Unit->MaxEnergy);
 			Unit->TickStatuses();
 			Unit->TickCooldowns();
 			(Unit->TeamId == 0 ? Team0Alive : Team1Alive)++;
 		}
 	}
-	if (Grid) { Grid->TickTerrain(); } // Fuoco -> normale allo scadere della durata
 
 	PendingOutcome = URTTurnRules::EvaluateOutcome(Team0Alive, Team1Alive);
 
