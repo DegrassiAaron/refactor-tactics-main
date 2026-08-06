@@ -151,6 +151,14 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
 	FRTCellId PlannedDashCell;
 
+	/**
+	 * Reazione pianificata per il turno (INDEX_NONE = nessuna reazione pronta), slot indipendente da
+	 * Movimento e Principale (CP 5.1, epic E5). Non ha una cella o un bersaglio: il trigger dichiarato
+	 * dall'abilita' (`FRTActionDef::ReactionTrigger`) e' valutato sullo snapshot del Blast, non scelto qui.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
+	int32 PlannedReactionAbility = INDEX_NONE;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	ERTArchetype Archetype = ERTArchetype::Ranger;
 

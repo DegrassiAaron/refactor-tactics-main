@@ -8,12 +8,13 @@
 /**
  * Categoria dell'esito registrato nel TurnLog.
  *
- * `Fallback` e' un valore AGGIUNTO in coda (CP 4.3): la categoria viaggia come uint8 nel formato serializzato,
- * quindi i log scritti prima restano leggibili e la versione del formato non cambia. Aggiungerlo in mezzo
- * avrebbe invece rinumerato `Combat`, cioe' riscritto il significato dei file gia' su disco.
+ * `Fallback` e' un valore AGGIUNTO in coda (CP 4.3), `Reaction` un altro (CP 5.1): la categoria viaggia come
+ * uint8 nel formato serializzato, quindi i log scritti prima restano leggibili e la versione del formato non
+ * cambia. Aggiungerli in mezzo avrebbe invece rinumerato `Combat`, cioe' riscritto il significato dei file
+ * gia' su disco.
  */
 UENUM(BlueprintType)
-enum class ERTLogCategory : uint8 { Move, Combat, Fallback };
+enum class ERTLogCategory : uint8 { Move, Combat, Fallback, Reaction };
 
 /**
  * Quale fallback e' stato applicato a un'azione che non era piu' eseguibile. Speculare a `ERTActionFallback`
@@ -73,7 +74,10 @@ struct FRTTurnLogEntry
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	ERTLogCategory Category = ERTLogCategory::Move;
 
-	/** Valore dell'enum di categoria (ERTMoveOutcome se Move, ERTCombatOutcome se Combat). Intero: no float (#4). */
+	/**
+	 * Valore dell'enum di categoria: `ERTMoveOutcome` se Move, `ERTCombatOutcome` se Combat, `ERTFallbackOutcome`
+	 * se Fallback, `ERTReactionOutcome` se Reaction. Intero: no float (#4).
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	uint8 Outcome = 0;
 

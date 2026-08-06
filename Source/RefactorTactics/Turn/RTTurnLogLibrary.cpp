@@ -1,5 +1,6 @@
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTActionFallbackLibrary.h" // ERTActionInvalidReason: il motivo del fallback, leggibile nel log
+#include "Turn/RTReactionLibrary.h" // ERTReactionOutcome: l'esito di una reazione, leggibile nel log
 #include "Misc/FileHelper.h"
 
 bool URTTurnLogLibrary::EntryLess(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B)
@@ -78,6 +79,19 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 
 		return FString::Printf(TEXT("%s -> %s: azione %s (%s)"),
 			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), What, Why);
+	}
+
+	// Reazione: attivata o no, e perche' — mai in silenzio (CP 5.1).
+	if (Entry.Category == ERTLogCategory::Reaction)
+	{
+		const TCHAR* What = TEXT("");
+		switch (static_cast<ERTReactionOutcome>(Entry.Outcome))
+		{
+		case ERTReactionOutcome::Activated:    What = TEXT("reazione attivata"); break;
+		case ERTReactionOutcome::NotTriggered: What = TEXT("reazione pronta, nessun trigger"); break;
+		default:                               What = TEXT("reazione non disponibile"); break;
+		}
+		return FString::Printf(TEXT("%s: %s"), *CellText(Entry.SrcCell), What);
 	}
 
 	// Combat: chi colpisce chi, con quale esito e quanto danno.
