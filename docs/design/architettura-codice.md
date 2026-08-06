@@ -1,16 +1,19 @@
 # RefactorTactics — Architettura del codice
 
-Mappa del modulo C++ `Source/RefactorTactics/` allo stato attuale (**MVP + incrementi post-MVP**: path finding,
-terreno v1, movimento v2). Per le decisioni vincolanti vedi [piano canonico](piano-canonico-mvp.md); per lo
-stato per checkpoint vedi [roadmap](roadmap-checkpoint.md).
+Mappa del modulo C++ `Source/RefactorTactics/` allo stato attuale. Per le decisioni vincolanti vedi
+[piano canonico](piano-canonico-mvp.md); per lo stato per checkpoint vedi [roadmap](roadmap-checkpoint.md).
+
+> **Aggiornata al 2026-08-06 (CP 7.2)**: il substrato **quadrato è stato rimosso**. Non esistono più `Grid/`,
+> `Terrain/`, `Bot/RTBotLibrary`, `Turn/RTMovementResolver` né `FRTGridCoord`: la posizione autorevole è
+> `FRTCellId` (assiale) e la mappa è un asset (`URTHexMapAsset`). Il punto di ritorno è il tag `pre-hex-only`.
 
 ## Principi applicati
 
 1. **Logica pura separata dagli Actor.** Le regole (griglia, path finding, movimento, danno, terreno, bot)
    vivono in `UBlueprintFunctionLibrary` con funzioni statiche pure → **testabili senza mondo/Actor**. Gli Actor
    (`ARTUnit`, `ARTTurnManager`, …) orchestrano ma non contengono la matematica.
-2. **Griglia logica vs rendering.** La posizione autorevole è `FRTGridCoord`; il `FVector` serve solo a
-   `ARTGridActor`/`ARTUnit` per posizionare le mesh.
+2. **Cella logica vs rendering.** La posizione autorevole è `FRTCellId` (assiale q/r + Layer); il `FVector`
+   serve solo a `ARTHexMapActor`/`ARTUnit` per posizionare le mesh.
 3. **Resolver "raccogli poi applica".** Movimento e attacchi calcolano l'esito su uno **snapshot** dello stato
    iniziale e lo applicano insieme → l'**ordine dell'input non cambia il risultato** (coperto da test). L'ordine
    deterministico degli effetti simultanei è normato in [piano §5.1](piano-canonico-mvp.md) (APNAP, `FR-RESOLVE-*`).
@@ -23,10 +26,8 @@ stato per checkpoint vedi [roadmap](roadmap-checkpoint.md).
 | Cartella / file | Tipo | Responsabilità |
 |---|---|---|
 | `RefactorTactics.{h,cpp}` | Modulo | Primary game module + categoria log `LogRT` |
-| `Core/RTTypes.h` | `USTRUCT` | `FRTGridCoord{X,Y}` (posizione logica; `Layer` riservato al multilivello) |
+| `Core/RTTypes.h` | `USTRUCT` | `FRTTraversalEdge` (arco di traversata esplicito fra due celle) |
 | `Core/RTGameplayTags.h` | Tag nativi | `Status.Root` · `Status.Slow` · `Status.Reveal` |
-| `Grid/RTGridLibrary` | Function Library (pure) | Conversioni `CellToWorld`/`WorldToCell`, `ManhattanDistance`, `IsWithinRange`, `HasLineOfSight`, forme `CellsInRadius/Line/Cone`; path finding `ReachableCells`/`FindPath` (BFS) e **pesato** `ReachableCellsByCost`/`FindPathByCost` (Dijkstra), `PathCost`, `BuildCompositePath` (waypoint) |
-| `Grid/RTGridActor` | `AActor` | Griglia visuale 10×10 (Instanced Static Mesh); `BlockedCells`; rendering celle-terreno colorate |
 | `Map/RTCellId.h`, `RTHexCellData.h` | `USTRUCT`/enum | `FRTCellId` (assiale q/r + Layer), `ERTHexDirection`, `FRTHexCellData` (superficie/costo/blocchi), `FRTHexEdge` (transizioni) |
 | `Map/RTHexLibrary` | Function Library (pure) | Matematica esagonale pointy-top: vicini, `HexDistance`, `HexArea`, `AxialToWorld`/`WorldToAxial`/`WorldToLayer`, `StableLess`, **`HexLine`** (lerp intero + arrotondamento cubico) e **`HexCone`** (ventaglio 120° = due settori a 60°) |
 | `Map/RTHexVisionLibrary` | Function Library (pure) | `HasLineOfSight` sulla mappa esagonale: linea planare sul layer del tiratore, estremi mai bloccanti, celle assenti non bloccanti ([spec](h6-4-hex-vision-spec.md)) |
@@ -37,18 +38,13 @@ stato per checkpoint vedi [roadmap](roadmap-checkpoint.md).
 | `Player/RTPlayerController` | `APlayerController` | Enhanced Input **in C++**; selezione; pianificazione abilità (1/2/3) + bersaglio + movimento (cella singola o **path a waypoint**); lock-in |
 | `Unit/RTUnit` | `AActor` + `IRTSelectable` | Archetipi (Ranger/Guardian); team, cella, HP/scudo, energia/ultimate; lista abilità (`URTAbilityData`); piani (`PlannedCell`/`PlannedPath`/`PlannedWaypoints`/`PlannedAttackTarget`/`PlannedAbilityIndex`); status (tag→turni); kiting; colore team (`M_Unit`); eliminazione |
 | `Ability/RTAbilityData` | `PrimaryDataAsset` | `URTAbilityData` (range/power/`ERTAbilityShape` Single·Area·Line·Cone/area/status/cooldown/costo energia/`bSelfTarget` Prep/`bIgnites`) |
-| `Terrain/RTTerrainTypes.h` | `USTRUCT`/enum | `FRTTerrainProps` (costo extra/blocco movimento/blocco vista/…) |
-| `Terrain/RTTerrainData` | `PrimaryDataAsset` | `URTTerrainData` — 5 tipi: Fango (costo), Cespuglio (blocca vista), Altura (+danno), Lava (hazard), Erba→Fuoco (dinamico) |
-| `Terrain/RTTerrainLibrary` | Function Library (pure) | `CellMoveCost`, `BlocksMovement`, `BlocksVision` |
 | `Turn/RTTurnRules` | Function Library (pure) | `ERTMatchPhase` + `NextPhase`; `ERTMatchOutcome` + `EvaluateOutcome` |
-| `Turn/RTMovementResolver` | Function Library | `FRTMoveRequest`/`ResolveMoves` (conflitti); `FRTPathResult`/`ResolvePaths` (microstep sincroni, cross-damage, **ordine-indipendente**) — griglia **quadrata** |
 | `Turn/RTHexSim.h` | `USTRUCT`/struct | `FRTHexSimUnit` (UnitId/cella/vivo/`MoveBudget`), `FRTHexReachableCell`, `FRTHexMoveResult`; `FRTHexSnapshot` (struct puro: mappa referenziata + hash/revisione, occupazione copiata; vive solo dentro una fase) |
 | `Turn/RTHexSimLibrary` | Function Library (pure) | Simulazione su griglia **esagonale** (strato parallelo al quadrato, [spec](h6-hex-sim-spec.md)): `MakeSnapshot`/`ValidateSnapshot`/`IsSnapshotStale`, `IsCellFree`, `ReachableCells` (Dijkstra entro `MoveBudget`), `FindPathForUnit` (A* che evita le unità), `ResolveHexPaths` (microstep simultanei), `ToLogCoord`/`BuildMoveLog` (voci di TurnLog dagli esiti → replay) |
 | `Turn/RTTurnLogLibrary` | Function Library (pure) | Ordine totale/hash permutazione-invariante del TurnLog; serializzazione binaria versionata con **topologia** (`ERTLogTopology`) nei flags dell'header, checksum FNV e I/O su file, tutto fail-closed |
 | `Turn/RTTurnManager` | `AActor` | Orchestratore: fasi, timer 30s, `PlanBots`, `ResolvePrep` (scudo/self-buff), `ResolveCombat` (Blast), `ResolveMovement` (Move + hazard fine turno), combat log, `LastMoveRoutes` (viz post-lock), esito |
 | `Combat/RTCombatLibrary` | Function Library (pure) | `ApplyDamage` (scudo poi HP), `GainEnergy`, `IsUltimateReady`, `EffectiveMoveRange` (Root/Slow), `IsAbilityUsable`, `IsIntentVisibleTo` (**invariante #6**), `EffectiveAttackPower` (Altura) |
 | `Combat/RTCombatResolver` | Function Library | `FRTUnitCombatState`, `FRTAttack`; `ResolveAttacks` (raccogli-poi-applica, focus-fire) |
-| `Bot/RTBotLibrary` | Function Library | Avvicinamento (`StepToward`) + scelta bersaglio/abilità; **path/cost/hazard-aware**; kiting del Ranger — griglia **quadrata** |
 | `Bot/RTHexBotLibrary` | Function Library (pure) | Bot su griglia **esagonale** ([spec](h6-5-hex-bot-spec.md)): stessa politica del quadrato (`ScorePlan`/`ChooseBestPlan`) con distanza esagonale e LOS d'asset; `BuildCandidates` deriva le mosse da `ReachableCells` (budget/blocchi/occupanti/archi già applicati), `PlanUnit` sceglie |
 | `UI/RTHUD` | `AHUD` | Barre HP/scudo, energia, barra abilità, timer/fase, combat log, anteprima piani (ciano/reveal), viz percorso (waypoint + traccia risolta post-lock) |
 | `RTGameMode` | `AGameModeBase` | Allestisce il demo (griglia, luce, 2v2, terreno, turn manager); imposta pawn/controller/HUD; marca team 1 come bot |
