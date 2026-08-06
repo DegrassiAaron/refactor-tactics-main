@@ -8,6 +8,7 @@
 
 class ARTUnit;
 class ARTHexMapActor;
+class URTHeroData;
 
 /**
  * Sorgente della mappa su cui allestire la partita. Le voci generate non richiedono asset: `Content/**` non e'
@@ -64,21 +65,41 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Map")
 	int32 DemoArenaRadius = 4;
 
+	/**
+	 * Eroi della squadra 0 (giocatore) e della squadra 1 (bot), per `HeroId` del catalogo eroi v0.1.
+	 *
+	 * Default: **Flux + Riva** contro **Bastion + Vektor**. Le due coppie non sono casuali — Riva bagna e
+	 * Flux fulmina (`+8` su `Status.Wet`), Bastion costruisce e Vektor sfrutta lo spazio: ogni squadra ha una
+	 * combo interna giocabile, che e' l'unico modo di vedere in partita cio' che CP 6.2/6.3 hanno costruito.
+	 *
+	 * E' un DATO e non una scelta scritta nel codice: cambiare formazione non richiede ricompilare, e quando
+	 * la selezione pre-partita esistera' (north-star) questa restera' solo il valore di partenza.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Units")
+	TArray<FName> Team0Heroes = { TEXT("Hero.Flux"), TEXT("Hero.Riva") };
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Units")
+	TArray<FName> Team1Heroes = { TEXT("Hero.Bastion"), TEXT("Hero.Vektor") };
+
+	/**
+	 * Classe visiva per `HeroId` (es. `BP_Unit_Flux` con skeletal mesh). Un eroe assente da questa mappa
+	 * ricade su `ARTUnit` — il cilindro segnaposto — che resta il comportamento di ripiego di sempre: un
+	 * personaggio senza asset si vede lo stesso e la partita si gioca.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Units")
+	TMap<FName, TSubclassOf<ARTUnit>> HeroUnitClasses;
+
 protected:
 	virtual void BeginPlay() override;
-
-	/** Classe da spawnare per il Ranger (es. BP_Unit con skeletal mesh). Vuota = ARTUnit cilindro (fallback). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Units")
-	TSubclassOf<ARTUnit> RangerUnitClass;
-
-	/** Classe da spawnare per il Guardian (es. BP_Unit con skeletal mesh). Vuota = ARTUnit cilindro (fallback). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Units")
-	TSubclassOf<ARTUnit> GuardianUnitClass;
 
 private:
 	/** Applica `MapSource` all'actor mappa: sostituisce l'asset quando la scelta lo richiede, e lo dichiara nel log. */
 	void ApplyMapSource(ARTHexMapActor* HexMap);
 
-	ARTUnit* SpawnUnit(int32 TeamId, const FRTCellId& InCell, bool bGuardian, const FVector& Origin,
+	/**
+	 * Spawna l'eroe con l'`HeroId` dato. `Hero == nullptr` non spawna nulla (fail-closed): un'unita' con
+	 * statistiche di default al posto di un eroe sarebbe piu' difficile da diagnosticare di un'unita' assente.
+	 */
+	ARTUnit* SpawnHero(int32 TeamId, const URTHeroData* Hero, const FRTCellId& InCell, const FVector& Origin,
 		float HexSize, float LayerHeight);
 };
