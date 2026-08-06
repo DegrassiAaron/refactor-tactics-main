@@ -21,6 +21,18 @@ struct FRTTerrainDef
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Terrain")
 	int32 MoveCost = 1;
 
+	/**
+	 * Celle di scivolamento involontario per chi TERMINA il movimento qui (0 = nessuno; solo `Ice` lo usa).
+	 * Sta nel catalogo e non in un `switch` perche' e' l'ultima regola di terreno che era ancora incisa
+	 * nell'enum (DoD CP 8.1: "i costi vivono nei dati, non in `switch` C++").
+	 *
+	 * **Limite dichiarato (CP 8.1)**: `URTHexSimLibrary::ApplyIceSliding` legge questo campo come un booleano
+	 * (`> 0` = scivola di UNA cella) e non srotola ancora N celle. Il valore intero e' la forma giusta del dato
+	 * per le dinamiche di CP 8.4 (ignite/disgelo), non una funzionalita' consumata oggi.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Terrain")
+	int32 SlideCells = 0;
+
 	/** Vieta Dash/Charge (mobilita' rapida) attraverso la cella; il movimento normale non e' affetto. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Terrain")
 	bool bBlocksDashCharge = false;

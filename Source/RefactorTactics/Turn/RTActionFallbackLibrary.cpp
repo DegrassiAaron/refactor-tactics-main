@@ -2,6 +2,7 @@
 #include "Ability/RTCatalogLibrary.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Map/RTHexLibrary.h"
+#include "Terrain/RTTerrainLibrary.h"
 
 ERTActionInvalidReason URTActionFallbackLibrary::ValidateInstance(const FRTActionInstance& Instance,
 	const TArray<FRTHexCombatUnit>& Units, const URTHexMapAsset* Map)
@@ -38,7 +39,13 @@ ERTActionInvalidReason URTActionFallbackLibrary::ValidateInstance(const FRTActio
 
 	// Portata PRIMA della linea di tiro: sono due difetti diversi da correggere per chi gioca, e attribuire
 	// ogni rifiuto alla copertura renderebbe il log una bugia (stessa disciplina di ClassifyHexTargeting).
-	if (URTHexLibrary::HexDistance(Source.Cell, Target.Cell) > Instance.Def.RangeCells)
+	// La portata e' quella EFFETTIVA: il terreno (Fumo) la cappa. Il controllo NON passa da ClassifyHexTargeting
+	// (qui serve distinguere anche NoMap da OutOfRange con quest'ordine), quindi la regola si chiama diretta —
+	// stessa funzione condivisa, nessuna seconda copia della logica. Con `Map == nullptr` il cap e' un no-op e
+	// l'ordine dei motivi resta quello di prima.
+	const int32 EffectiveRange = URTTerrainLibrary::EffectiveTargetingRange(Map, Source.Cell, Target.Cell,
+		Instance.Def.RangeCells);
+	if (URTHexLibrary::HexDistance(Source.Cell, Target.Cell) > EffectiveRange)
 	{
 		return ERTActionInvalidReason::OutOfRange;
 	}

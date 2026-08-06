@@ -83,25 +83,13 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 			}
 		}
 
-		// Il Fumo lungo la linea di tiro CAPPA la portata effettiva (indipendente da RangeCells): riusa
-		// HexLine, la stessa primitiva di HexHitCells per Shape::Line. Guardato da Map != nullptr perche'
-		// serve la cella; se Map e' nullo il path fail-closed a valle scarta comunque l'intento.
-		int32 EffectiveRange = Intent.RangeCells;
-		if (Map != nullptr)
-		{
-			for (const FRTCellId& LineCell : URTHexLibrary::HexLine(Attacker.Cell, AimCell))
-			{
-				const FRTHexCellData* LineCellData = Map->FindCell(LineCell);
-				if (LineCellData)
-				{
-					const FRTTerrainDef Terrain = URTTerrainLibrary::FindTerrainDef(LineCellData->Surface);
-					if (Terrain.MaxTargetingRangeThrough > 0)
-					{
-						EffectiveRange = FMath::Min(EffectiveRange, Terrain.MaxTargetingRangeThrough);
-					}
-				}
-			}
-		}
+		// Il Fumo lungo la linea di tiro CAPPA la portata effettiva (indipendente da RangeCells). La regola sta
+		// in UN SOLO posto (URTTerrainLibrary): la stessa che usano la preview del giocatore
+		// (ClassifyHexTargeting), la validazione degli ordini (ValidateInstance) e il bot (BuildCandidates) —
+		// altrimenti quelli accettano un intento che qui viene scartato in silenzio.
+		// Con `Map == nullptr` il cap e' un no-op: l'intento lo scarta comunque il fail-closed qui sotto.
+		const int32 EffectiveRange =
+			URTTerrainLibrary::EffectiveTargetingRange(Map, Attacker.Cell, AimCell, Intent.RangeCells);
 
 		if (URTHexLibrary::HexDistance(Attacker.Cell, AimCell) > EffectiveRange)
 		{

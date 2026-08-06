@@ -322,9 +322,11 @@ TArray<FRTCellId> URTHexSimLibrary::ApplyIceSliding(const FRTHexSnapshot& Snapsh
 		return Path;
 	}
 
+	// Regola dal CATALOGO, non dall'enum: e' un dato del terreno come il costo e il blocco allo scatto. Con
+	// `SlideCells <= 0` non si scivola. Oggi si estende comunque di UNA sola cella (vedi FRTTerrainDef::SlideCells).
 	const FRTCellId LastCell = Path.Last();
 	const FRTHexCellData* LastData = Snapshot.Map->FindCell(LastCell);
-	if (!LastData || LastData->Surface != ERTHexSurface::Ice)
+	if (!LastData || URTTerrainLibrary::FindTerrainDef(LastData->Surface).SlideCells <= 0)
 	{
 		return Path;
 	}

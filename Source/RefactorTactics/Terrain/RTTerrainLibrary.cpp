@@ -1,11 +1,15 @@
 #include "Terrain/RTTerrainLibrary.h"
 #include "Core/RTGameplayTags.h"
+#include "Map/RTHexCellData.h"
+#include "Map/RTHexLibrary.h"
+#include "Map/RTHexMapAsset.h"
 
 namespace
 {
+	/** `SlideCells` in coda e con default: solo `Ice` lo valorizza, e li' e' scritto per nome. */
 	FRTTerrainDef MakeTerrain(ERTHexSurface Surface, int32 MoveCost, bool bBlocksDashCharge,
 		bool bBlocksLineOfSight, bool bConductsElectricity, int32 MaxTargetingRangeThrough,
-		TArray<FRTActionEffectSpec> OnEnterEffects)
+		TArray<FRTActionEffectSpec> OnEnterEffects, int32 SlideCells = 0)
 	{
 		FRTTerrainDef Def;
 		Def.Surface = Surface;
@@ -15,6 +19,7 @@ namespace
 		Def.bConductsElectricity = bConductsElectricity;
 		Def.MaxTargetingRangeThrough = MaxTargetingRangeThrough;
 		Def.OnEnterEffects = MoveTemp(OnEnterEffects);
+		Def.SlideCells = SlideCells;
 		return Def;
 	}
 }
@@ -32,7 +37,7 @@ TArray<FRTTerrainDef> URTTerrainLibrary::GetTerrainCatalog()
 	Catalog.Add(MakeTerrain(ERTHexSurface::Conductive,   1, false, false, true,  0, {}));
 	Catalog.Add(MakeTerrain(ERTHexSurface::Smoke,        1, false, false, false, 2,
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Obscured, 0) }));
-	Catalog.Add(MakeTerrain(ERTHexSurface::Ice,          1, false, false, false, 0, {}));
+	Catalog.Add(MakeTerrain(ERTHexSurface::Ice,          1, false, false, false, 0, {}, /*SlideCells*/ 1));
 	Catalog.Add(MakeTerrain(ERTHexSurface::HighGround,   1, false, false, false, 0, {}));
 	return Catalog;
 }
@@ -44,6 +49,33 @@ FRTTerrainDef URTTerrainLibrary::FindTerrainDef(ERTHexSurface Surface)
 		if (Def.Surface == Surface) { return Def; }
 	}
 	return FRTTerrainDef();
+}
+
+int32 URTTerrainLibrary::EffectiveTargetingRange(const URTHexMapAsset* Map, const FRTCellId& From,
+	const FRTCellId& To, int32 RangeCells)
+{
+	if (Map == nullptr)
+	{
+		return RangeCells; // niente terreno da leggere: il fail-closed e' del chiamante
+	}
+
+	// `HexLine` e' la stessa primitiva usata da HexHitCells per Shape::Line: la linea che il cap misura e'
+	// quella su cui si spara davvero, non una seconda approssimazione.
+	int32 Effective = RangeCells;
+	for (const FRTCellId& LineCell : URTHexLibrary::HexLine(From, To))
+	{
+		const FRTHexCellData* CellData = Map->FindCell(LineCell);
+		if (CellData == nullptr)
+		{
+			continue;
+		}
+		const FRTTerrainDef Terrain = FindTerrainDef(CellData->Surface);
+		if (Terrain.MaxTargetingRangeThrough > 0)
+		{
+			Effective = FMath::Min(Effective, Terrain.MaxTargetingRangeThrough);
+		}
+	}
+	return Effective;
 }
 
 TArray<FString> URTTerrainLibrary::ValidateTerrainCatalog()

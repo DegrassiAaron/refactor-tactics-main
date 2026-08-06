@@ -2,6 +2,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexVisionLibrary.h"
+#include "Terrain/RTTerrainLibrary.h"
 #include "Turn/RTHexSimLibrary.h"
 
 int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan& Plan, const FRTHexBotContext& Context)
@@ -125,7 +126,10 @@ TArray<FRTHexBotPlan> URTHexBotLibrary::BuildCandidates(const FRTHexSnapshot& Sn
 		for (int32 I = 0; I < NumEnemies; ++I)
 		{
 			const FRTCellId& Enemy = Context.Enemies[I];
-			if (URTHexLibrary::HexDistance(Cell.Cell, Enemy) > Context.AttackRange)
+			// Gittata EFFETTIVA: il terreno (Fumo) la cappa. Senza, il bot propone un attacco che
+			// CollectHexAttacks poi scarta — l'invariante "il bot non propone mosse illegali" vale anche qui.
+			if (URTHexLibrary::HexDistance(Cell.Cell, Enemy)
+				> URTTerrainLibrary::EffectiveTargetingRange(Snapshot.Map, Cell.Cell, Enemy, Context.AttackRange))
 			{
 				continue; // fuori gittata da questa cella
 			}
