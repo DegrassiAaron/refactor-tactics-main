@@ -44,8 +44,8 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in parte (vedi nota) · ⏳ da far
 | **M10** Rete e privacy | ⏳ | Listen server, validazione server, planning team-only, canary intent leak |
 | **M11** Production readiness | ⏳ | Budget in CI, validator commandlet, packaged soak, replay audit |
 
-**Suite automatica**: `Source/RefactorTactics/Tests/` — ultima esecuzione completa **171/171 verdi**
-(2026-08-06, CP 7.2, headless con unity forzata; build **Editor e Game** entrambe verificate).
+**Suite automatica**: `Source/RefactorTactics/Tests/` — ultima esecuzione completa **179/179 verdi**
+(2026-08-06, CP 4.1, headless con unity forzata; build **Editor e Game** entrambe verificate).
 Storia del numero: **172** alla chiusura di CP 6.0 → **230** con M6+E1 (movimento, input, combat, scatto,
 spinta, bot, osservabilità, catalogo, partita completa, KPI) → **171** dopo la rimozione del quadrato, che ha
 portato via esattamente i **59** test previsti dall'inventario. Restano **107 esagonali** e 64 neutri.
