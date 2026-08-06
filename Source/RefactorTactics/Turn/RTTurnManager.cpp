@@ -372,6 +372,7 @@ void ARTTurnManager::LockInAndResolve()
 			}
 
 			Unit->Energy = URTCombatLibrary::GainEnergy(Unit->Energy, Unit->EnergyPerTurn, Unit->MaxEnergy);
+			Unit->ExpireTemporaryShield(); // la protezione delle abilita' di supporto vale un turno solo
 			Unit->TickStatuses();
 			Unit->TickCooldowns();
 			(Unit->TeamId == 0 ? Team0Alive : Team1Alive)++;
@@ -443,7 +444,8 @@ void ARTTurnManager::ResolvePrep()
 		const URTActionData* Ability = Unit->GetAbility(Index);
 		if (Ability && Ability->bSelfTarget && Unit->CanUseAbility(Index))
 		{
-			Unit->Shield += Ability->Power;
+			// Scudo TEMPORANEO: protegge questo turno e scade nel Cleanup (catalogo v0.1, issue #96).
+			Unit->AddTemporaryShield(Ability->Power);
 			Unit->ConsumeAbility(Index);
 			AddLogEvent(FString::Printf(TEXT("%s: %s (+%d scudo)"), *Unit->GetName(), *Ability->DisplayName.ToString(), Ability->Power));
 			Unit->PlannedAbilityIndex = INDEX_NONE; // consumato in Prep
