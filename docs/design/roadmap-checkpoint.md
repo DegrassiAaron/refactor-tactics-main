@@ -38,22 +38,24 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in parte (vedi nota) · ⏳ da far
 | **M0–M5** MVP quadrato (tutorial) | ✅ **archiviata** | Vertical slice 2v2 offline giocabile, packaging Windows, suite verde — vedi § *Archivio* |
 | **H0–H6.5** Fondamenta esagonali | ✅ | Coordinate/asset/A\*/multilivello/editor mode + simulazione hex pura (snapshot, budget, collisioni, TurnLog, LOS, bot) — dettaglio in [`hex-map-roadmap.md`](hex-map-roadmap.md) |
 | **M6** Parità hex | 🟡 | **Codice completo** (CP 6.1–6.7 mergiati): la partita gira su esagoni — wiring, movimento, input, combat, scatto/spinta, bot, HUD. Resta il **playtest** CP 6.8 (sessione PIE) |
-| **M7** Dismissione del quadrato | ⏳ | Rimozione pianificata del gameplay quadrato + misurazione dei budget |
+| **M7** Dismissione del quadrato | 🟡 | **Un solo substrato**: CP 7.1 (tag + inventario) e CP 7.2 (rimozione) fatti. Restano CP 7.3 (KPI: 2 su 4 misurati) e CP 7.4 (packaging) |
 | **M8** Presentazione e identità | ⏳ | Personaggi animati, anelli team/selezione, leggibilità tattica |
 | **M9** Ambienti tattici + editor maturo | ⏳ | Hazard/cover dinamica/porte-ponti; residuo H5 dell'editor mappa |
 | **M10** Rete e privacy | ⏳ | Listen server, validazione server, planning team-only, canary intent leak |
 | **M11** Production readiness | ⏳ | Budget in CI, validator commandlet, packaged soak, replay audit |
 
-**Suite automatica**: `Source/RefactorTactics/Tests/` — ultima esecuzione completa **227/227 verdi**
-(2026-08-06, CP 6.8 headless, headless con unity forzata; build **Editor e Game** entrambe verificate). Erano 172 alla chiusura di CP 6.0: i 58 aggiunti da
-M6/E1 coprono movimento, input, combat, scatto, spinta, bot, osservabilità e catalogo; 5 test d’integrazione del bot quadrato sono stati portati su hex.
+**Suite automatica**: `Source/RefactorTactics/Tests/` — ultima esecuzione completa **171/171 verdi**
+(2026-08-06, CP 7.2, headless con unity forzata; build **Editor e Game** entrambe verificate).
+Storia del numero: **172** alla chiusura di CP 6.0 → **230** con M6+E1 (movimento, input, combat, scatto,
+spinta, bot, osservabilità, catalogo, partita completa, KPI) → **171** dopo la rimozione del quadrato, che ha
+portato via esattamente i **59** test previsti dall'inventario. Restano **107 esagonali** e 64 neutri.
 
 > **Correzione 2026-08-05**: questo documento dichiarava «169 test» mentre il CP 6.0, poche righe sotto,
 > riportava già 172/172. Le due cifre convivevano: il conteggio reale è **172**.
 
-**Stato del gioco, in una riga** (2026-08-06): **l'intero turno gira su griglia esagonale** — allestimento,
-input, movimento, scatto, combattimento, spinta, bot e HUD. Nessun percorso di gioco passa più da
-`URTGridLibrary`. Manca la prova sul campo: la sessione di playtest **CP 6.8**, che si esegue in editor.
+**Stato del gioco, in una riga** (2026-08-06): **un solo substrato, esagonale**. Il codice quadrato non esiste
+più (`Grid/`, `Terrain/`, bot e resolver quadrati rimossi al CP 7.2; punto di ritorno: tag `pre-hex-only`).
+Manca la prova sul campo: la sessione di playtest **CP 6.8**, che si esegue in editor.
 
 ---
 
@@ -129,7 +131,7 @@ esplicito prima della rimozione.
 | CP | Obiettivo | Definition of Done | Verifica |
 |---|---|---|---|
 | **7.1** 🟡 | Punto di ritorno + inventario | Tag git annotato (es. `pre-hex-only`) sull'ultimo commit con entrambi i substrati; classificazione dei test non-hex in **neutri**, **da portare**, **da rimuovere** | Fatto **2026-08-06**: tag annotato `pre-hex-only` creato **in locale** (il push richiede richiesta esplicita, come dice la issue `#39`); classificazione dei **123** test non-hex nella tabella qui sotto |
-| **7.2** | Rimozione del gameplay quadrato | Via `Grid/RTGridActor`, `Grid/RTGridLibrary`, resolver/bot/terreno quadrati e i test relativi; ciò che è neutro resta e continua a girare | Build verde; suite verde; `grep FRTGridCoord Source/` restituisce solo codice fuori dal flusso di gioco (o nulla) |
+| **7.2** ✅ | Rimozione del gameplay quadrato | Via `Grid/RTGridActor`, `Grid/RTGridLibrary`, resolver/bot/terreno quadrati e i test relativi; ciò che è neutro resta e continua a girare | Fatto **2026-08-06**: rimosse le cartelle `Grid/` e `Terrain/`, `Bot/RTBotLibrary`, `Turn/RTMovementResolver`, `URTCombatLibrary::KnockbackDestination` e 59 test. `DirectionYaw` **portata** in `URTPlaybackLibrary` (lavora su `FVector`: è presentazione, non griglia). Suite **171/171** — esattamente il numero dichiarato al CP 7.1. Build Editor e Game verdi; il gioco avviato headless gira identico |
 | **7.3** | Misurazione dei budget | KPI del PDR misurati **una volta su hex** e registrati: FPS client, path mediana, tempo resolver per turno. Un numero misurato, anche fuori target, vale più di un ⏳ | Log/profiling allegato alla PR; valori riportati nella tabella KPI |
 | **7.4** | Release interna hex | Packaging Windows Development **e** Shipping dal codice solo-hex; partita completa senza editor | `RunUAT BuildCookRun` → BUILD SUCCESSFUL + avvio verificato |
 

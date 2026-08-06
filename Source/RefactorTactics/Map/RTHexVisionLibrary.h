@@ -23,7 +23,7 @@ public:
 	/**
 	 * Vero se la linea di tiro From->To non attraversa celle che bloccano la vista.
 	 *
-	 * Regola di ELEVAZIONE (identica al quadrato, URTGridLibrary::HasLineOfSight): un ostacolo blocca solo se
+	 * Regola di ELEVAZIONE (ereditata dalla LOS quadrata, rimossa al CP 7.2): un ostacolo blocca solo se
 	 * sta sul layer del TIRATORE -> da terra si spara sotto un ponte, da un piano superiore si spara oltre le
 	 * coperture basse. Gli ESTREMI non bloccano mai (tiratore e bersaglio non si coprono da soli). Una cella
 	 * ASSENTE dall'asset non blocca (il vuoto non e' un muro). Mappa nulla o From == To -> vero.

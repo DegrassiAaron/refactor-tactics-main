@@ -1,5 +1,5 @@
 #include "Unit/RTUnit.h"
-#include "Grid/RTGridLibrary.h" // solo DirectionYaw: lavora su FVector, resta valida anche su hex
+#include "Turn/RTPlaybackLibrary.h" // DirectionYaw: facing planare, presentazione
 #include "Map/RTHexLibrary.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Ability/RTActionData.h"
@@ -169,7 +169,7 @@ void ARTUnit::SetVisualLocation(const FVector& World)
 		const FVector Current = GetActorLocation();
 		if ((World - Current).SizeSquared2D() > UE_KINDA_SMALL_NUMBER)
 		{
-			SetActorRotation(FRotator(0.f, URTGridLibrary::DirectionYaw(Current, World), 0.f));
+			SetActorRotation(FRotator(0.f, URTPlaybackLibrary::DirectionYaw(Current, World), 0.f));
 		}
 	}
 	SetActorLocation(World); // solo presentazione: lo stato logico (Cell) resta invariato

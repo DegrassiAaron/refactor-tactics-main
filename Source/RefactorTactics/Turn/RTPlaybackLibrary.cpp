@@ -46,3 +46,14 @@ float URTPlaybackLibrary::SpeedMultiplierForCap(float EstimatedSeconds, float Ma
 	}
 	return EstimatedSeconds / MaxSeconds;
 }
+
+float URTPlaybackLibrary::DirectionYaw(const FVector& From, const FVector& To)
+{
+	const FVector Dir = To - From;
+	if (Dir.SizeSquared2D() <= UE_KINDA_SMALL_NUMBER)
+	{
+		return 0.f; // nessuna direzione planare -> nessun orientamento
+	}
+	// Atan2(Y,X): +X=0, +Y=90, -X=+/-180, -Y=-90 (convenzione yaw UE). Z ignorata (facing planare).
+	return FMath::RadiansToDegrees(FMath::Atan2(Dir.Y, Dir.X));
+}

@@ -14,8 +14,9 @@ class URTHexMapAsset;
  * movement budget e collisioni simultanee. Nessun Actor, nessun DeltaTime, nessuna dipendenza dall'ordine di
  * iterazione di TMap/TSet (i risultati sono ordinati con URTHexLibrary::StableLess).
  *
- * Strato PARALLELO al turn loop quadrato (Grid/ + URTMovementResolver + ARTTurnManager), che resta la base di
- * rollback finche' l'hex non lo sostituisce funzionalmente (ADR-0002). Vedi docs/design/h6-hex-sim-spec.md.
+ * E' l'UNICO strato di risoluzione del movimento: il turn loop quadrato (Grid/ + URTMovementResolver) e'
+ * stato rimosso al CP 7.2, dopo che M6 ha portato la partita su esagoni. Il punto di ritorno resta il tag
+ * git `pre-hex-only`. Vedi docs/design/h6-hex-sim-spec.md.
  */
 UCLASS()
 class REFACTORTACTICS_API URTHexSimLibrary : public UBlueprintFunctionLibrary
@@ -76,7 +77,7 @@ public:
 	 * con MICROSTEP sincroni: a ogni passo tutte le unita' avanzano di una cella e si risolvono le collisioni
 	 * (destinazione contesa -> contendenti fermi da li'; cella di un'unita' ferma -> bloccata; scambio diretto
 	 * -> consentito), finche' nessuno avanza. Punto fisso monotono: il risultato NON dipende dall'ordine
-	 * delle richieste. Stessa semantica di URTMovementResolver::ResolvePaths sul quadrato.
+	 * delle richieste. Eredita la semantica del resolver quadrato che ha sostituito (rimosso al CP 7.2).
 	 */
 	static TArray<FRTHexMoveResult> ResolveHexPaths(const TArray<TArray<FRTCellId>>& Paths);
 

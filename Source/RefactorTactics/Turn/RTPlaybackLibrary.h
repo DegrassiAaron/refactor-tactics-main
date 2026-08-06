@@ -17,6 +17,17 @@ class REFACTORTACTICS_API URTPlaybackLibrary : public UBlueprintFunctionLibrary
 
 public:
 	/**
+	 * Yaw (gradi) per orientare un attore da From verso To sul piano XY (facing planare, Z ignorata).
+	 * Convenzione UE: +X = 0, +Y = 90, -X = +/-180, -Y = -90. Direzione nulla -> 0.
+	 *
+	 * Vive qui, con il resto della presentazione del turno: lavora su coordinate MONDO e non sa nulla della
+	 * topologia della griglia. Stava in `URTGridLibrary` per ragioni storiche ed e' stata spostata con la
+	 * rimozione del substrato quadrato (CP 7.2).
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	static float DirectionYaw(const FVector& From, const FVector& To);
+
+	/**
 	 * Posizione lungo una polilinea di waypoint a velocita' costante per segmento.
 	 * Alpha in [0,1] copre l'intero percorso: 0 = primo waypoint, 1 = ultimo.
 	 * Ogni segmento occupa la stessa frazione di Alpha (1/(N-1)), indipendentemente dalla lunghezza
