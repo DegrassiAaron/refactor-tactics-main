@@ -59,6 +59,11 @@ int32 URTTerrainLibrary::EffectiveTargetingRange(const URTHexMapAsset* Map, cons
 		return RangeCells; // niente terreno da leggere: il fail-closed e' del chiamante
 	}
 
+	// Catalogo letto UNA volta e non per cella: FindTerrainDef ricostruisce le 8 righe a ogni chiamata (e ogni
+	// riga alloca il suo TArray di effetti), e questa funzione sta nel ciclo interno di BuildCandidates —
+	// celle raggiungibili x nemici x lunghezza della linea. Stesso risultato, senza il lavoro ripetuto.
+	const TArray<FRTTerrainDef> Catalog = GetTerrainCatalog();
+
 	// `HexLine` e' la stessa primitiva usata da HexHitCells per Shape::Line: la linea che il cap misura e'
 	// quella su cui si spara davvero, non una seconda approssimazione.
 	int32 Effective = RangeCells;
@@ -69,10 +74,13 @@ int32 URTTerrainLibrary::EffectiveTargetingRange(const URTHexMapAsset* Map, cons
 		{
 			continue;
 		}
-		const FRTTerrainDef Terrain = FindTerrainDef(CellData->Surface);
-		if (Terrain.MaxTargetingRangeThrough > 0)
+		for (const FRTTerrainDef& Def : Catalog)
 		{
-			Effective = FMath::Min(Effective, Terrain.MaxTargetingRangeThrough);
+			if (Def.Surface == CellData->Surface && Def.MaxTargetingRangeThrough > 0)
+			{
+				Effective = FMath::Min(Effective, Def.MaxTargetingRangeThrough);
+				break;
+			}
 		}
 	}
 	return Effective;
