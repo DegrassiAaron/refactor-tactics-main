@@ -201,7 +201,7 @@ RefactorTactics.uproject
 Source/RefactorTactics/        # codice C++ autorevole (Core, Map, Grid, Unit, Turn, Combat, Bot, UI)
 Source/RefactorTacticsEditor/  # modulo editor-only (Hex Editor Mode)
 Content/RT/                     # asset proprietari, feature-first (vedi convenzioni-contenuti-ue.md)
-Content/Paragon*/               # asset di terze parti (Epic), non versionati
+Content/FabAsset/Paragon/       # asset di terze parti (Fab/Epic), non versionati
 Config/                         # DefaultEngine.ini, DefaultGame.ini, ...
 docs/                           # documentazione (design, guide, PDR, sorgenti PDF)
 SourceAssets/                   # sorgenti non importati (.blend/.psd/...) — creata alla prima necessità

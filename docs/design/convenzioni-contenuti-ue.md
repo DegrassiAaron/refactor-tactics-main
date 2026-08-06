@@ -16,15 +16,13 @@ Tutti gli asset proprietari stanno sotto `/Game/RT/` (fisicamente `Content/RT/`)
 **Non** creare asset proprietari direttamente in `/Game/`, `/Game/Blueprints/`, `/Game/Materials/`,
 `/Game/Textures/`, `/Game/Maps/`.
 
-Gli asset Marketplace, Paragon, Megascans e di terze parti **restano nelle proprie directory originali** o
-sotto `/Game/ThirdParty/`. Non spostarli dentro `/Game/RT` senza aver verificato riferimenti, licenze e
-dipendenze.
+Gli asset Marketplace, Paragon, Megascans e di terze parti stanno sotto **`/Game/FabAsset/<Fornitore>/`**.
+Non spostarli dentro `/Game/RT` senza aver verificato riferimenti, licenze e dipendenze.
 
-> **Nel progetto**: gli asset di terze parti **non stanno nel progetto se non sono usati**. I 26 pack
-> `Content/Paragon*` sono stati spostati in un **vault esterno** il 2026-08-05 (registro in **Appendice B**):
-> `Content/` è passato da **49.255 MB a 0,1 MB**. Resta valido che un pack **non si sposta dentro `/Game/RT`**
-> (redirector, allineamento con gli aggiornamenti del pack): la scelta è fra *fuori dal progetto* e *nella sua
-> cartella di origine*, mai *dentro il nostro namespace*.
+> **Dove stanno**: i 26 pack Paragon sono in **`Content/FabAsset/Paragon/`** (48,1 GB), dentro il progetto ma
+> **ignorati da git** — chi clona se li riscarica da Fab (README § *Asset di terze parti*, registro e insidie
+> in **Appendice B**). Resta valido che un pack **non si sposta dentro `/Game/RT`**: quello è il namespace
+> proprietario, e mescolarci dentro un pack rompe l'allineamento con i suoi aggiornamenti.
 
 ## 2. Principio organizzativo
 
@@ -408,101 +406,116 @@ di `L_DevSandbox` con la griglia esagonale. Voci `PIE-AS5`/`PIE-SEL` in
 
 ---
 
-# Appendice B — Vault degli asset di terze parti (dal 2026-08-05)
+# Appendice B — Asset di terze parti: nel progetto, fuori dal repo (dal 2026-08-06)
 
-> I pack scaricati **non vivono nel progetto**. Il magazzino è **`D:\UE_AssetVault\`**; nel progetto entra solo
-> ciò che si usa davvero, portato dentro con *Migrate*.
+> I pack scaricati da **Fab** stanno in **`Content/FabAsset/<Fornitore>/<Pack>/`** — dentro il progetto, ma
+> **fuori dal repository**. Chi clona se li riscarica e li rimette lì; il progetto compila e parte anche senza
+> (unità col cilindro segnaposto, fallback di `ARTGameMode`).
 
-## B.1 Perché: il costo non è lo spazio su disco
-
-Misurato prima della pulizia:
-
-```
-Content/ del progetto:   49.255 MB   (26 pack di personaggi Paragon)
-pack effettivamente referenziati:  2  (Gideon per il Guardian, Sparrow per il Ranger)
-Content/ dopo lo spostamento:  0,1 MB
-vault:                        48,1 GB
-```
-
-I 43 GB inutilizzati **non erano inerti**: l'asset registry li scansiona a ogni avvio dell'editor. Il sintomo
-che ha portato a scoprirlo è stato il **Content Browser che non mostrava le cartelle appena create** dalla
-migrazione di A.1 — l'editor stava ancora indicizzando. Ne risentono anche apertura dell'editor, DDC e cook.
-
-## B.2 Struttura del vault
-
-> **Correzione 2026-08-05**: la prima stesura di questa appendice descriveva «nel vault, tasto destro sulla
-> cartella → Migrate» dando per scontato che il vault fosse apribile. Non lo era: conteneva solo `Content/`.
-> **Migrate esiste solo dentro l'editor**, e l'editor apre progetti, non cartelle — il flusso era quindi
-> ineseguibile. Risolto aggiungendo al vault un `.uproject` minimale.
+## B.1 Struttura
 
 ```
-D:\UE_AssetVault\
-  AssetVault.uproject     <- rende il magazzino apribile; nessun modulo C++, si apre senza compilare
-  Content\
-    ParagonGideon\  ParagonSparrow\  ... (26 pack)
+Content/
+  RT/                          <- asset proprietari (§1)
+  FabAsset/
+    Paragon/
+      ParagonGideon/           <- /Game/FabAsset/Paragon/ParagonGideon/...
+      ParagonSparrow/
+      ...                      (26 pack, 48,1 GB, 39.589 file)
 ```
 
-Il `.uproject` dichiara `EngineAssociation` col **GUID** della build custom UE 5.8 di questa macchina
-(`{B20BD8AB-…}`, vedi `test-manuali-pie.md` § *Come eseguire*), non la stringa `"5.8"`: così si apre senza il
-selettore di versione. Non avendo `Modules`, è un progetto solo-contenuti.
+Il livello `<Fornitore>` (`Paragon/`) tiene aperta la porta ad altri fornitori (Megascans, Marketplace) senza
+rimescolare quanto già presente. Resta valido il §1: un pack **non si sposta dentro `/Game/RT`**.
 
-## B.2b Flusso
+`.gitignore` la salta **come directory** (`/Content/FabAsset/`), non per estensione: con un pattern per file
+git attraverserebbe la cartella e statterebbe ~40.000 file a ogni `git status` (misurato dopo: **47 ms**).
 
-1. I pack si **scaricano nel vault**, non nel progetto di gioco.
-2. Quando serve un personaggio o un set: si apre **`AssetVault.uproject`**, tasto destro sulla cartella del
-   pack → **Migrate** → destinazione la cartella `Content` di RefactorTactics. UE porta l'asset **e solo le
-   sue dipendenze**, non il pack intero — è il motivo per cui esiste il progetto vault invece di copiare
-   cartelle: `ParagonGideon` pesa 2,74 GB, ma di quel pack a un `BP_Unit` servono mesh, scheletro, poche
-   animazioni e i loro materiali.
-3. Per rimandare qualcosa nel vault: **editor chiuso**, si sposta la cartella a livello di file system. Con
-   vault e progetto sullo **stesso disco** è un rename, quindi istantaneo anche per decine di GB.
+> ⚠️ **`git clean -fdx` cancella questi 48 GB** — `-x` include gli ignorati, e ora i pack sono dentro il repo
+> (nel vault esterno erano fuori portata). Usare `git clean -fd`, oppure `git clean -fdx -e Content/FabAsset`.
 
-**Prima apertura del vault: è lenta.** L'asset registry indicizza 48 GB. È il costo che il vault sposta *fuori*
-dal progetto di gioco: lo si paga aprendo il magazzino quando serve migrare, non a ogni avvio di RefactorTactics.
+## B.1b Il costo vero non è lo spazio su disco
 
-## B.2c Junction: vedere il catalogo dal progetto principale (2026-08-05)
+I pack inutilizzati **non sono inerti**: l'asset registry li scansiona a ogni avvio dell'editor, e ne
+risentono apertura, DDC e cook. Il sintomo che lo fece scoprire (2026-08-05) fu il **Content Browser che non
+mostrava le cartelle appena create** da A.1: l'editor stava ancora indicizzando 48 GB.
 
-Scelta dell'utente: avere **tutti e 26 i pack visibili dal Content Browser di RefactorTactics**, senza migrarli.
-Realizzata con **junction** (link di file system) da `Content/Paragon*` alle cartelle del vault:
+Tenerli nel progetto **accetta** quel costo. Non è però un peggioramento rispetto alle junction che c'erano
+prima: anche quelle venivano indicizzate come se fossero locali. Chi vuole recuperare il tempo di avvio deve
+**togliere i pack che non usa**, non spostarli altrove lasciando un link.
 
-```powershell
-New-Item -ItemType Junction -Path "<progetto>\Content\ParagonX" -Target "D:\UE_AssetVault\Content\ParagonX"
-```
+## B.2 Come aggiungere un pack
 
-Perché una junction e non una copia: gli asset conservano i loro path `/Game/ParagonX/...`, quindi i riferimenti
-interni ai pack restano validi, e **non si occupa spazio** (`Content/` del progetto resta 0,00 GB di asset propri).
+1. Si scarica il pack da Fab e lo si mette in `Content/FabAsset/<Fornitore>/<Pack>/`.
+2. Se l'Epic Games Launcher lo installa altrove (tipicamente in `Content/<Pack>/`), lo spostamento **non si
+   fa da Esplora File**: il path virtuale segue la posizione su disco, e gli asset citano i propri
+   riferimenti **per path assoluto** (`/Game/<Pack>/...`, verificato: 230 occorrenze in 40 asset campionati).
+   Spostando i file a mano si ottiene un pack che *sembra* a posto e ha ogni mesh senza materiali. Si usa il
+   **Content Browser** (o lo script di B.3), che riscrive i riferimenti.
+3. Se serve **solo una parte** di un pack, l'alternativa migliore è il **Migrate** da un progetto-magazzino:
+   porta l'asset e **solo le sue dipendenze**. `ParagonGideon` pesa 2,74 GB, ma a un `BP_Unit` servono mesh,
+   scheletro, poche animazioni e i relativi materiali.
 
-**Due conseguenze da tenere presenti**, entrambe accettate consapevolmente:
+## B.2b Storia: il vault esterno (2026-08-05 → 2026-08-06)
 
-1. **Il beneficio di avvio del vault è annullato**: ciò che è linkato viene indicizzato come se fosse locale, e
-   sono di nuovo 48 GB. Il vault continua a servire come *organizzazione* (i pack non stanno nel repo, non si
-   duplicano fra progetti), non più come risparmio sul tempo di apertura.
-2. **Il progetto dipende da un percorso esterno**: se `D:\UE_AssetVault` viene spostato o rinominato, le junction
-   si rompono e con loro ogni Blueprint che referenzia quei pack — è lo stesso meccanismo che ha già fatto
-   sparire i `BP_Unit_*`. Un asset proprietario che dipende da un pack linkato **non è autosufficiente**: per
-   renderlo tale serve il Migrate del punto 2.
+Per un giorno i pack hanno vissuto **fuori** dal progetto, in `D:\UE_AssetVault\` (con un `.uproject`
+minimale che rendeva il magazzino apribile, perché *Migrate* esiste solo dentro l'editor e l'editor apre
+progetti, non cartelle). Il progetto li vedeva tramite **junction** `Content/Paragon*` → vault.
 
-Le junction sono ignorate da git **come directory** (`/Content/Paragon*/` in `.gitignore`): con un pattern per
-estensione git le attraverserebbe e statterebbe decine di migliaia di file a ogni `git status`. Per rimuoverle
-basta cancellare i link (`Remove-Item` sulla junction, non sul bersaglio): i file restano nel vault.
+Perché si è tornati indietro (decisione utente, 2026-08-06):
 
-Il punto 3 è una deviazione consapevole da §11 (che vuole gli spostamenti dal Content Browser): vale **solo**
-per cartelle di terze parti **prive di referenti**, che è esattamente ciò che il vault contiene. Per gli asset
-proprietari resta valida §11.
+- il vantaggio di avvio era **già annullato dalle junction** — ciò che è linkato viene indicizzato come se
+  fosse locale, quindi si pagavano comunque 48 GB;
+- restava però lo **svantaggio**: il progetto dipendeva da un percorso esterno, e spostare o rinominare
+  `D:\UE_AssetVault` rompeva le junction e con loro ogni Blueprint che referenziasse quei pack.
 
-## B.3 Come è stato fatto (2026-08-05)
+Un pack **linkato** non rende autosufficiente l'asset proprietario che lo usa. Con i file nel progetto,
+l'unica dipendenza esterna che resta è il download da Fab, documentato nel README.
 
-Verifica delle dipendenze **prima** di toccare qualsiasi cosa: scansione dei riferimenti `Paragon*` dentro
-`Content/RT/` → risultavano usati **solo** `ParagonGideon` e `ParagonSparrow`. I `BP_Unit_*`/`ABP_*` che li
-referenziavano erano già stati rimossi, quindi sono stati spostati **tutti e 26** i pack.
+## B.3 Come è stata fatta (2026-08-06) — e cosa costa ignorarlo
 
-Controllo finale: **nessun riferimento residuo** ai pack negli asset rimasti. In `Content/RT/` restano
-`M_Global_Tint`, `M_TeamRing`, `M_SelectionRing`, `BP_GameMode`, `DA_HexMap_Sandbox` e i due livelli.
+Verifica **prima** di toccare qualsiasi cosa: nessun riferimento ai pack in `Config/`, in `Source/` e negli
+asset di `Content/RT/` (i `BP_Unit_*`/`ABP_*` che li usavano erano già stati rimossi in A.1). I 26 pack sono
+quindi **privi di referenti**: si potevano spostare tutti.
 
-**Conseguenza attesa**: senza i `BP_Unit_*` le unità usano il **cilindro segnaposto** (fallback già previsto in
-`ARTGameMode`). I personaggi tornano rimigrando i pack dal vault e ricreando i Blueprint secondo §5 e A.2.
+Poi due passaggi. Il primo è file system puro: rimozione delle junction (`rmdir` sul link, **mai**
+`Remove-Item -Recurse`, che seguirebbe il reparse point e cancellerebbe il bersaglio) e rename delle cartelle
+dal vault a `Content/` — vault e progetto sullo stesso disco, quindi istantaneo anche per 48 GB.
+
+Il secondo è il rename del path virtuale `/Game/<Pack>` → `/Game/FabAsset/Paragon/<Pack>`, headless via
+`PythonScriptPlugin` (abilitato temporaneamente nel `.uproject`) con
+`UnrealEditor-Cmd -run=pythonscript -script=… -unattended -nullrhi`. Le insidie, in ordine di quanto costano:
+
+1. **I `DialogueWave` referenziati dai `SoundCue` si perdono.** È la più costosa e non ha rimedio noto:
+   spariscono dal disco senza comparire nei log, **~15-18% dei file di un pack** (297 su ParagonZinx, 305 su
+   ParagonYin, 340 su ParagonDrongo). I `DialogueWave` *non* referenziati (`*_Effort_*`) sopravvivono; quelli
+   citati da un Cue (`*_Engage_*`) no, e il Cue resta con il riferimento irrisolto (51 su ParagonDrongo).
+   Riproducibile **sia** con `rename_directory` **sia** con `rename_assets`: è nel motore. Sono dialoghi
+   vocali dei personaggi Paragon — perdita **accettata** (decisione utente), ma va saputa prima di iniziare.
+   ⚠️ L'asset registry dichiara `destinazione=1655` mentre sul disco i file sono 1350: **il conteggio di UE
+   non è una verifica**. Contare i file prima e dopo, e confrontare gli elenchi.
+2. **`rename_directory` è atomico**: un solo asset non caricabile annulla l'**intera cartella** (`RenameDirectory
+   failed: … exists but was not able to be loaded`). In questi pack bastavano **22 asset** su 39.589 — i Rig
+   legacy UE4 (`*_Proto_Retarget`, `*_SkeletonRig`, classe `URig` rimossa in UE5) — per bloccare **21 pack su
+   26**. Rimedio: metterli in **quarantena fuori da `Content/`** prima del rename e rimetterli a posto dopo.
+   Essendo non caricabili non hanno riferimenti da aggiornare, quindi lì lo spostamento a mano è lecito.
+3. **Non usare `rename_assets` a lotti** come alternativa: UE 5.8 crasha in
+   `ObjectTools::CleanupAfterSuccessfulDelete()` (access violation), e l'asset registry interrogato subito
+   dopo l'avvio vede **una frazione** del pack (914 asset su 1911) perché sta ancora indicizzando, quindi
+   servono più giri e ogni giro può crashare. `rename_directory` vede l'intero pack e non crasha.
+4. **Non "completare" a mano sul file system.** È l'errore che è costato di più: uno script che spostava i
+   residui per far tornare i conti ha prodotto un `ParagonDekker` con **1310 asset dai riferimenti rotti**,
+   183 buoni e 110 misti — un pack che sembra migrato e non lo è.
+5. **I file lockati restano indietro**: UE non riesce a cancellare gli originali di `.umap` e `_BuiltData`
+   (`RenameDirectory: Could not delete the original directory but the assets have been renamed`). Hanno già la
+   loro controparte risalvata a destinazione — hash diverso, appunto perché riscritta — quindi si eliminano.
+6. **L'asset registry dà dati stale** entro la stessa sessione: un processo per pack, e le verifiche in un
+   processo nuovo.
+
+Verifica di correttezza, non di conteggio: un asset a destinazione deve citare **solo** `/Game/FabAsset/…`.
+Se cita ancora il path vecchio è stato spostato, non rinominato.
 
 ## B.4 Regola operativa
 
 Prima di aggiungere un pack al progetto, chiediti: **lo sto usando adesso?** Se la risposta è «servirà più
-avanti», il posto è il vault. Un pack inutilizzato non costa spazio: costa **tempo di editor a ogni avvio**.
+avanti», scaricalo quando servirà. Un pack inutilizzato non costa spazio su disco: costa **tempo di editor a
+ogni avvio** (B.1b) e 48 GB che nessun backup del repo protegge.

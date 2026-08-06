@@ -8,7 +8,7 @@
 
 I personaggi Paragon includono **le loro animazioni native sul loro scheletro** (`Gideon_Skeleton`). Non serve
 l'IK Retargeter finché non vuoi condividere animazioni tra scheletri diversi o usare Mixamo (quello resta AS.3
-"avanzato", rimandato). Clip utili di **Gideon** (in `/Game/ParagonGideon/Characters/Heroes/Gideon/Animations/`):
+"avanzato", rimandato). Clip utili di **Gideon** (in `/Game/FabAsset/Paragon/ParagonGideon/Characters/Heroes/Gideon/Animations/`):
 
 | Ruolo nel gioco | Clip Paragon | Note |
 |---|---|---|
@@ -19,7 +19,7 @@ l'IK Retargeter finché non vuoi condividere animazioni tra scheletri diversi o 
 | Morte (Defeated) | `Death_Fwd` | caduta in avanti |
 
 > Per **Sparrow** (Ranger), quando è scaricato, cerca gli equivalenti in
-> `/Game/ParagonSparrow/.../Animations/` (`Idle`, `Jog_Fwd`, un attacco tipo `Primary`/`Fire`, `HitReact_Front`, `Death_Fwd`).
+> `/Game/FabAsset/Paragon/ParagonSparrow/.../Animations/` (`Idle`, `Jog_Fwd`, un attacco tipo `Primary`/`Fire`, `HitReact_Front`, `Death_Fwd`).
 
 ---
 
@@ -103,7 +103,7 @@ avanti) è credibile in ogni direzione. Solo presentazione: non tocca la logica.
 Sparrow ha uno **skeleton diverso** (`Sparrow_Skeleton`) → serve un nuovo AnimBP, ma si riusa il BP unità:
 
 1. **Duplica** `BP_Unit_Guardian` → **`BP_Unit_Ranger`** (eredita cilindro nascosto, `VisualZOffset=0`, `Face Movement Direction` e il wiring dei delegati).
-   - Skeletal Mesh Component ▸ **Skeletal Mesh Asset = `Sparrow`** (`/Game/ParagonSparrow/Characters/Heroes/Sparrow/Meshes/Sparrow`).
+   - Skeletal Mesh Component ▸ **Skeletal Mesh Asset = `Sparrow`** (`/Game/FabAsset/Paragon/ParagonSparrow/Characters/Heroes/Sparrow/Meshes/Sparrow`).
 2. **`ABP_Sparrow`** (Animation Blueprint, skeleton `Sparrow_Skeleton`): State Machine Idle/Run come ABP_Gideon —
    Idle = `Travel_Mode_Idle_BowDown` (o `Idle_FrontEnd`), Run = `Jog_Fwd`, transizioni su `bIsMoving`.
 3. `BP_Unit_Ranger` ▸ Skeletal Mesh Component ▸ **Anim Class = `ABP_Sparrow`**.

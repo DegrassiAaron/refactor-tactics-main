@@ -56,11 +56,15 @@ Content/**/*.mp3
 Content/**/*.ogg
 Content/**/*.txt
 
-# ---- Junction verso il vault degli asset di terze parti (D:\UE_AssetVault) ----
-# Content/Paragon* NON sono cartelle vere: sono link al vault (vedi convenzioni-contenuti-ue.md, appendice B).
-# Vanno ignorate come DIRECTORY, non solo per estensione: con un pattern per file git attraverserebbe le
-# junction e statterebbe ~48 GB a ogni "git status". Con la barra finale l'intera directory viene saltata.
-/Content/Paragon*/
+# ---- Asset di terze parti scaricati da Fab (2026-08-06) ----
+# I pack stanno NEL progetto sotto Content/FabAsset/ ma NON nel repo: chi clona se li scarica da Fab
+# e li mette li' (procedura nel README e in convenzioni-contenuti-ue.md, appendice B).
+# Va ignorata come DIRECTORY, non per estensione: con un pattern per file git la attraverserebbe e
+# statterebbe ~40.000 file / 48 GB a ogni "git status". Con la barra finale l'intera directory salta.
+#
+# ATTENZIONE: ora che i pack sono dentro il repo, "git clean -fdx" li cancella (-x include gli
+# ignorati). Usare "git clean -fd", oppure "git clean -fdx -e Content/FabAsset".
+/Content/FabAsset/
 
 # ---- Eccezioni: questi vanno versionati ----
 !Content/**/Binaries/

@@ -214,8 +214,10 @@ anello di team). **Fuori percorso critico**: nessuna di queste sedute blocca la 
 **Sbloccata da**: già in `main` · **Preparazione condivisa con**: U8, U9 · **Percorso critico**: no
 **Produce**: `BP_Unit_Guardian` (Gideon) e `BP_Unit_Ranger` (Sparrow), committati
 
-**Cosa fai**: i 26 pack Paragon sono già visibili dal progetto via junction (`convenzioni-contenuti-ue.md`
-appendice B). Procedura: [`guida-animazioni-paragon.md`](guida-animazioni-paragon.md) §AS.3 e §AS.4 punto 4.
+**Cosa fai**: i 26 pack Paragon sono in `Content/FabAsset/Paragon/` — path `/Game/FabAsset/Paragon/<Pack>/…`,
+non più `/Game/<Pack>/…` (`convenzioni-contenuti-ue.md` appendice B). ⚠️ Gideon, Sparrow e altri 3 pack sono
+stati danneggiati dalla migrazione del 2026-08-06 e **vanno riscaricati da Fab** prima di usarli.
+Procedura: [`guida-animazioni-paragon.md`](guida-animazioni-paragon.md) §AS.3 e §AS.4 punto 4.
 Collocazione: `/Game/RT/Characters/<CharacterId>/Blueprints/` (§5); i pack di terze parti restano **fuori** da
 `/Game/RT`. Assegna le classi a `GuardianUnitClass` / `RangerUnitClass` e tieni `VisualZOffset=0`.
 

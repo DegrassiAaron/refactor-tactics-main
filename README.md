@@ -63,7 +63,7 @@ Source/
 Config/                        # DefaultEngine.ini, DefaultGame.ini, input
 Content/
   RT/                          # asset proprietari, organizzati feature-first
-  Paragon*/                    # asset di terze parti (non versionati)
+  FabAsset/Paragon/            # pack di terze parti da Fab (non versionati - vedi Setup)
 docs/
   design/                      # canone, roadmap, ADR, spec, verifiche PIE
   PDR/                         # requisiti di lungo periodo (fasi F0-F6)
@@ -91,8 +91,9 @@ CLAUDE.md · AGENTS.md          # guide operative per assistenti di codice
 
 ## Come compilare ed eseguire
 
-1. Installare **Unreal Engine 5.8.1** e **Visual Studio 2022** (workload *Game development with C++*).
-   Installare **Git LFS** (`git lfs install`) e clonare il repository.
+1. Installare **Unreal Engine 5.8.1** e **Visual Studio 2022** (workload *Game development with C++*),
+   poi clonare il repository. Git LFS **non** serve: gli asset binari non sono versionati (vedi
+   *Asset di terze parti* qui sotto).
 2. Aprire **`RefactorTactics.uproject`** — o generare i file di soluzione (tasto destro sul `.uproject` →
    *Generate Visual Studio project files*) — e compilare il target **Development Editor**.
 3. Aprire un livello e premere **Play**:
@@ -106,6 +107,26 @@ CLAUDE.md · AGENTS.md          # guide operative per assistenti di codice
    **Spazio** = risolvi il turno (o attendi il timer di 30 s) · **R** = riavvia la partita.
 5. Test: **Tools → Session Frontend → Automation** → `RefactorTactics` → *Start Tests* (172 test).
    Guida al debug in [`docs/guides/debug-vs-unreal.md`](docs/guides/debug-vs-unreal.md).
+
+### Asset di terze parti
+
+I pack scaricati da **Fab** stanno in **`Content/FabAsset/<Fornitore>/<Pack>/`** ma **non sono nel
+repository**: pesano ~48 GB e non si versionano. Il progetto **si compila e si avvia senza**; mancando le
+mesh dei personaggi, le unità usano il **cilindro segnaposto** (fallback previsto in `ARTGameMode`).
+
+Per averli:
+
+1. scaricare i pack da Fab (per i personaggi attuali servono i **Paragon** di Epic, gratuiti);
+2. metterli in `Content/FabAsset/Paragon/<NomePack>/` — la cartella è ignorata da git;
+3. i path virtuali diventano `/Game/FabAsset/Paragon/<NomePack>/...`, non `/Game/<NomePack>/...`: se un
+   pack è stato installato altrove e va spostato, il rename si fa **dal Content Browser** (o via script),
+   mai da Esplora File, altrimenti i riferimenti interni al pack si rompono.
+
+> ⚠️ Essendo dentro il repo, `git clean -fdx` **cancella** questi 48 GB (`-x` include i file ignorati).
+> Usare `git clean -fd`, oppure `git clean -fdx -e Content/FabAsset`.
+
+Regole complete: [`docs/design/convenzioni-contenuti-ue.md`](docs/design/convenzioni-contenuti-ue.md),
+appendice B.
 
 ## Principi di sviluppo
 
