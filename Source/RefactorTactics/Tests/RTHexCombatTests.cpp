@@ -241,7 +241,24 @@ bool FRTHexCombatNoMapFailClosedTest::RunTest(const FString&)
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, nullptr);
 
 	TestEqual(TEXT("mappa assente: nessun colpo"), Plan.Hits.Num(), 0);
-	TestEqual(TEXT("mappa assente: registrato come linea di tiro non valutabile"), Plan.BlockedIntents.Num(), 1);
+
+	// Il MOTIVO deve restare distinto: «non valutabile» non e' «coperto». Confonderli farebbe scrivere nel
+	// TurnLog un esito di gioco (NoLineOfSight) al posto di un errore di configurazione del livello — lo
+	// stesso difetto corretto nel controller con ClassifyHexTargeting.
+	TestEqual(TEXT("mappa assente: NON e' un blocco della linea di tiro"), Plan.BlockedIntents.Num(), 0);
+	TestEqual(TEXT("mappa assente: registrato come non valutabile"), Plan.UnverifiableIntents.Num(), 1);
+	TestTrue(TEXT("indica QUALE intento"),
+		Plan.UnverifiableIntents.Num() == 1 && Plan.UnverifiableIntents[0] == 0);
+
+	// Con la mappa, un muro produce invece un blocco vero della linea di tiro (e nessun «non valutabile»).
+	URTHexMapAsset* Map = MakeCombatMap(4);
+	SetCombatSightBlocker(Map, FRTCellId(1, 0));
+	TArray<FRTHexCombatUnit> Far;
+	Far.Add(CombatUnit(0, 0, FRTCellId(0, 0)));
+	Far.Add(CombatUnit(1, 1, FRTCellId(2, 0)));
+	const FRTHexBlastPlan Blocked = URTHexCombatLibrary::CollectHexAttacks(Far, Intents, Map);
+	TestEqual(TEXT("muro: e' un blocco della linea di tiro"), Blocked.BlockedIntents.Num(), 1);
+	TestEqual(TEXT("muro: nulla di 'non valutabile'"), Blocked.UnverifiableIntents.Num(), 0);
 	return true;
 }
 

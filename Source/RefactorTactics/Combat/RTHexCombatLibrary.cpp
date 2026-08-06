@@ -74,8 +74,14 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 			continue; // fuori portata: scartato in silenzio (come il quadrato)
 		}
 
-		// FAIL-CLOSED: senza mappa autorevole la linea di tiro non e' valutabile -> nessun colpo.
-		if (Map == nullptr || !URTHexVisionLibrary::HasLineOfSight(Map, Attacker.Cell, Target.Cell))
+		// FAIL-CLOSED: senza mappa autorevole non si colpisce. Il motivo resta pero' DISTINTO da una
+		// copertura: «non valutabile» e' un difetto di configurazione del livello, non un esito di gioco.
+		if (Map == nullptr)
+		{
+			Plan.UnverifiableIntents.Add(IntentIdx);
+			continue;
+		}
+		if (!URTHexVisionLibrary::HasLineOfSight(Map, Attacker.Cell, Target.Cell))
 		{
 			Plan.BlockedIntents.Add(IntentIdx);
 			continue;
@@ -108,6 +114,7 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 		return A.IntentIndex < B.IntentIndex; // ordine TOTALE: Sort non e' stabile
 	});
 	Plan.BlockedIntents.Sort();
+	Plan.UnverifiableIntents.Sort();
 
 	return Plan;
 }

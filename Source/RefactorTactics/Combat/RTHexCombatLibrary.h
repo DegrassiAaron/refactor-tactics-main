@@ -111,6 +111,14 @@ struct FRTHexBlastPlan
 	/** Indici degli intenti scartati per linea di tiro bloccata (reason code NoLineOfSight nel TurnLog). */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
 	TArray<int32> BlockedIntents;
+
+	/**
+	 * Indici degli intenti che non e' stato possibile VALUTARE (mappa autorevole assente). Tenuti separati da
+	 * `BlockedIntents` perche' non sono un esito di gioco ma un difetto di configurazione del livello: finirci
+	 * dentro farebbe scrivere «nessuna linea di tiro» nel TurnLog dove non c'e' nessuna copertura.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	TArray<int32> UnverifiableIntents;
 };
 
 /**
