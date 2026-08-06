@@ -84,4 +84,47 @@ bool FRTPacingCutoffTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPacingCsvTest,
+	"RefactorTactics.Pacing.CsvRowMatchesHeader",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPacingCsvTest::RunTest(const FString&)
+{
+	FRTPacingSample S;
+	S.TurnNumber = 7;
+	S.UnitsAliveTeam0 = 2;
+	S.UnitsAliveTeam1 = 1;
+	S.ActionsAvailable = 6;
+	S.MsToFirstInput = 1200;
+	S.SelectionCount = 3;
+	S.OrderCount = 2;
+	S.UndoCount = 1;
+	S.MsToLockIn = 18400;
+	S.MsSinceLastInput = 900;
+	S.LockInSource = ERTLockInSource::Input;
+	S.MsPlayback = 5300;
+	S.bPlaybackSkipped = false;
+
+	TArray<FString> HeaderCols;
+	TArray<FString> RowCols;
+	URTPacingLibrary::CsvHeader().ParseIntoArray(HeaderCols, TEXT(","), /*InCullEmpty=*/ false);
+	URTPacingLibrary::CsvRow(S).ParseIntoArray(RowCols, TEXT(","), /*InCullEmpty=*/ false);
+
+	TestEqual(TEXT("tredici colonne nell'intestazione"), HeaderCols.Num(), 13);
+	TestEqual(TEXT("la riga ha le stesse colonne dell'intestazione"), RowCols.Num(), HeaderCols.Num());
+
+	// Ogni colonna e' un intero: se un float si intrufolasse, con locale italiano stamperebbe una virgola
+	// e spezzerebbe la riga in 14 colonne. Il controllo qui sopra lo prende; questo dice PERCHE'.
+	for (const FString& Col : RowCols)
+	{
+		TestTrue(FString::Printf(TEXT("colonna intera: %s"), *Col), Col.IsNumeric() && !Col.Contains(TEXT(".")));
+	}
+
+	// I valori finiscono nelle colonne giuste, nell'ordine dichiarato.
+	TestEqual(TEXT("prima colonna = turno"), RowCols[0], TEXT("7"));
+	TestEqual(TEXT("nona colonna = MsToLockIn"), RowCols[8], TEXT("18400"));
+	TestEqual(TEXT("undicesima colonna = LockInSource Input = 0"), RowCols[10], TEXT("0"));
+	TestEqual(TEXT("ultima colonna = playback non saltato"), RowCols[12], TEXT("0"));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
