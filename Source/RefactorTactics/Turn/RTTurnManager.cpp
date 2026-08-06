@@ -86,7 +86,13 @@ void ARTTurnManager::ApplyTerrainOnEnterEffects(const FRTHexSnapshot& Snapshot, 
 			else if (Effect.Effect == ERTActionEffect::Status)
 			{
 				Unit->ApplyStatus(Effect.StatusTag, Effect.StatusDuration);
-				AddLogEvent(FString::Printf(TEXT("%s: %s da terreno"), *Unit->GetName(), *Effect.StatusTag.ToString()));
+				// Il log solo se qualcosa e' successo davvero: ApplyStatus scarta le durate <= 0 (no-op
+				// silenzioso), e un combat log che annuncia uno stato mai applicato e' peggio del silenzio.
+				// Oggi riguarda Wet e Obscured, dichiarati con durata 0 nel catalogo (gap tracciato per CP 8.2).
+				if (Effect.StatusDuration > 0)
+				{
+					AddLogEvent(FString::Printf(TEXT("%s: %s da terreno"), *Unit->GetName(), *Effect.StatusTag.ToString()));
+				}
 			}
 		}
 	}

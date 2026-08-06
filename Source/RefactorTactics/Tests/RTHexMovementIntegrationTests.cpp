@@ -595,6 +595,46 @@ bool FRTTerrainFireErodesTemporaryShieldTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTerrainStatusLogMatchesStateTest,
+	"RefactorTactics.Terrain.Status.LogMatchesState",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTerrainStatusLogMatchesStateTest::RunTest(const FString&)
+{
+	// Il combat log non deve raccontare cose non successe: se dice "Status.Wet da terreno", l'unita' deve
+	// avere Wet. Oggi l'acqua bassa dichiara Wet con durata 0 e ARTUnit::ApplyStatus scarta le durate <= 0,
+	// quindi non si applica nulla e non si deve loggare nulla.
+	//
+	// L'asserzione e' volutamente una COERENZA (log <-> stato), non "Wet non c'e'": quando il catalogo dara' a
+	// Wet una durata valida (CP 8.2) questo test deve continuare a passare, non diventare un falso allarme.
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnHexMap(World, /*Radius=*/ 4);
+	FRTHexCellData WaterCell(FRTCellId(1, 0, 0));
+	WaterCell.Surface = ERTHexSurface::ShallowWater;
+	WaterCell.MoveCost = 2;
+	MapActor->MapAsset->AddOrUpdateCell(WaterCell);
+	MapActor->MapAsset->SortCells();
+
+	ARTUnit* Mover = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mover) { DestroyHexMoveWorld(World); return false; }
+
+	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) };
+	Mover->PlannedCell = FRTCellId(2, 0);
+
+	RunTurn(TM);
+
+	bool bLoggedWet = false;
+	for (const FString& Line : TM->GetRecentEvents())
+	{
+		if (Line.Contains(TEXT("da terreno")) && Line.Contains(TEXT("Wet"))) { bLoggedWet = true; }
+	}
+	TestEqual(TEXT("il log dello stato da terreno dice il vero"), bLoggedWet, Mover->HasStatus(TAG_Status_Wet));
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovePathBlockedTest,
 	"RefactorTactics.Actions.Move.PathBlocked",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
