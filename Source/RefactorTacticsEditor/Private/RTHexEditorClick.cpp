@@ -92,14 +92,16 @@ FColor SurfaceColor(ERTHexSurface Surface)
 {
 	switch (Surface)
 	{
-	case ERTHexSurface::Water:       return FColor(60, 120, 255);
-	case ERTHexSurface::Mud:         return FColor(140, 100, 60);
-	case ERTHexSurface::Fire:        return FColor(255, 130, 40);
-	case ERTHexSurface::Electrified: return FColor(80, 230, 230);
-	case ERTHexSurface::Ice:         return FColor(160, 220, 255);
-	case ERTHexSurface::Void:        return FColor(150, 40, 150);
-	case ERTHexSurface::Normal:
-	default:                         return FColor(160, 160, 160);
+	case ERTHexSurface::ShallowWater: return FColor(60, 120, 255);
+	case ERTHexSurface::Rough:        return FColor(140, 100, 60);
+	case ERTHexSurface::Fire:         return FColor(255, 130, 40);
+	case ERTHexSurface::Conductive:   return FColor(80, 230, 230);
+	case ERTHexSurface::Ice:          return FColor(160, 220, 255);
+	case ERTHexSurface::Void:         return FColor(150, 40, 150);
+	case ERTHexSurface::Smoke:        return FColor(160, 160, 160);
+	case ERTHexSurface::HighGround:   return FColor(230, 200, 80);
+	case ERTHexSurface::Floor:
+	default:                          return FColor(160, 160, 160);
 	}
 }
 

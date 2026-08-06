@@ -170,7 +170,7 @@ bool FRTHexMoveBudgetCostsTest::RunTest(const FString&)
 		FRTHexCellData Data(Id);
 		if (Id.X > 0)
 		{
-			Data.Surface = ERTHexSurface::Mud;
+			Data.Surface = ERTHexSurface::Rough;
 			Data.MoveCost = 2; // terreno difficile del catalogo v0.1
 		}
 		Map->AddOrUpdateCell(Data);

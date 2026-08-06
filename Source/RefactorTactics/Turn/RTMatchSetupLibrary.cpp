@@ -116,7 +116,7 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeTestArena(UObject* Outer)
 	for (int32 R = -1; R <= 1; ++R)
 	{
 		FRTHexCellData Cell(FRTCellId(-2, R, 0));
-		Cell.Surface = ERTHexSurface::Mud;
+		Cell.Surface = ERTHexSurface::Rough;
 		Cell.MoveCost = 3;
 		Arena->AddOrUpdateCell(Cell);
 	}

@@ -36,7 +36,7 @@ public:
 	ERTHexPaintOp Operation = ERTHexPaintOp::Paint;
 
 	UPROPERTY(EditAnywhere, Category = "Hex|Pennello")
-	ERTHexSurface Surface = ERTHexSurface::Normal;
+	ERTHexSurface Surface = ERTHexSurface::Floor;
 
 	UPROPERTY(EditAnywhere, Category = "Hex|Pennello", meta = (ClampMin = "0"))
 	int32 MoveCost = 1;
