@@ -1,4 +1,6 @@
 #include "Turn/RTMatchSetupLibrary.h"
+
+#include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
 
@@ -59,4 +61,20 @@ TMap<FRTCellId, int32> URTMatchSetupLibrary::BuildOccupancy(const TArray<FRTCell
 		}
 	}
 	return Occupancy;
+}
+
+URTHexMapAsset* URTMatchSetupLibrary::MakeDemoArena(UObject* Outer, int32 Radius)
+{
+	if (Outer == nullptr || Radius < 1)
+	{
+		return nullptr; // nessuna arena a meta': il chiamante decide cosa fare senza mappa
+	}
+
+	URTHexMapAsset* Arena = NewObject<URTHexMapAsset>(Outer);
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
+	{
+		Arena->AddOrUpdateCell(FRTHexCellData(Id)); // pavimento semplice: costo 1, niente blocchi
+	}
+	Arena->SortCells();
+	return Arena;
 }

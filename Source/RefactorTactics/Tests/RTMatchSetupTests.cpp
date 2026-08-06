@@ -2,6 +2,7 @@
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexLibrary.h"
 
 namespace
 {
@@ -90,5 +91,33 @@ bool FRTMatchSetupOccupancyTest::RunTest(const FString&)
 	// Input incoerente: non si indovina, si restituisce vuoto.
 	TestEqual(TEXT("array di lunghezza diversa -> occupazione vuota"),
 		URTMatchSetupLibrary::BuildOccupancy(Cells, { 10 }, Alive).Num(), 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMatchSetupDemoArenaTest,
+	"RefactorTactics.MatchSetup.DemoArenaIsPlayable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMatchSetupDemoArenaTest::RunTest(const FString&)
+{
+	// Arena di ripiego: serve quando il livello non porta una mappa esagonale. Senza, il GameMode spawna un
+	// ARTHexMapActor con l'asset VUOTO e la partita non si allestisce — premere Play non mostra nulla.
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeDemoArena(GetTransientPackage(), /*Radius=*/ 4);
+	if (!TestNotNull(TEXT("l'arena di ripiego viene creata"), Arena)) { return false; }
+
+	// Esagono pieno di raggio 4: 3*4*(4+1)+1 = 61 celle.
+	TestEqual(TEXT("l'arena ha le celle di un esagono di raggio 4"), Arena->NumCells(), 61);
+	TestTrue(TEXT("il centro esiste"), Arena->ContainsCell(FRTCellId(0, 0, 0)));
+
+	// Deve bastare ad allestire un 2v2: e' l'unico requisito che il GameMode le chiede.
+	const TArray<FRTCellId> Start = URTMatchSetupLibrary::PickStartCells(Arena, /*NumPerTeam=*/ 2, /*Layer=*/ 0);
+	TestEqual(TEXT("l'arena permette di allestire un 2v2"), Start.Num(), 4);
+
+	// Le due squadre partono lontane: un'arena in cui si parte adiacenti non e' giocabile.
+	const int32 DistanceBetweenTeams = URTHexLibrary::HexDistance(Start[0], Start[3]);
+	TestTrue(TEXT("le squadre partono a distanza di gioco"), DistanceBetweenTeams >= 4);
+
+	// Raggio non valido: nessuna arena inventata a meta'.
+	TestNull(TEXT("raggio negativo -> nessuna arena"),
+		URTMatchSetupLibrary::MakeDemoArena(GetTransientPackage(), /*Radius=*/ -1));
 	return true;
 }
