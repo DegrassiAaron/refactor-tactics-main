@@ -893,7 +893,59 @@ void ARTTurnManager::ResolveCombat()
 	}
 	PendingChargeImpacts.Reset();
 
-	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(HexUnits, Intents, Map);
+	FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(HexUnits, Intents, Map);
+
+	// `Action.Interrupt` (CP 4.7): cancella l'INTERA azione di un'altra unita', non un effetto su un
+	// bersaglio — per questo si filtra QUI, sui colpi gia' raccolti, invece di passare dal registry
+	// (`URTActionEffectLibrary::ProduceEvents`), che sa tradurre effetti su un bersaglio ma non "annulla
+	// l'azione X". Filtrare `Plan.Hits` prima che diventino danno o eventi cancella ENTRAMBI in un colpo solo
+	// — anche per un'abilita' ad area che avrebbe prodotto piu' Hit dallo stesso attaccante.
+	//
+	// L'Interrupt stesso passa dalla normale validazione di bersaglio/portata/linea di tiro di
+	// CollectHexAttacks (e' un intento come un altro, portata 1): un Interrupt senza linea di tiro sul
+	// bersaglio non produce un Hit, quindi non cancella nulla, esattamente come un attacco bloccato dalla
+	// copertura.
+	TSet<int32> InterruptedAttackerIds;
+	for (const FRTHexAttackHit& Hit : Plan.Hits)
+	{
+		if (!IntentDefs.IsValidIndex(Hit.IntentIndex)
+			|| IntentDefs[Hit.IntentIndex].ActionId != FName(TEXT("Action.Interrupt")))
+		{
+			continue;
+		}
+		if (!Units.IsValidIndex(Hit.TargetId)) { continue; }
+
+		// L'azione pianificata dal BERSAGLIO non si legge da `Unit->PlannedAbilityIndex`: il ciclo che ha
+		// costruito `Intents`, qualche riga sopra, l'ha gia' CONSUMATA (azzerata) per ogni unita', bersaglio
+		// compreso — e' cosi' che il turno evita di rieseguire due volte la stessa azione. Va cercata fra gli
+		// `Intents` gia' catturati, nell'entrata che il bersaglio ha prodotto per SE STESSO (AttackerId ==
+		// l'indice del bersaglio dell'Interrupt): e' li' che la definizione originale sopravvive al reset.
+		int32 VictimIntentIdx = INDEX_NONE;
+		for (int32 k = 0; k < Intents.Num(); ++k)
+		{
+			if (Intents[k].AttackerId == Hit.TargetId) { VictimIntentIdx = k; break; }
+		}
+
+		// Solo se il bersaglio ha DAVVERO pianificato un'azione interrompibile: un Interrupt su chi non ha
+		// pianificato nulla (o ha pianificato Guard, non interrompibile) non ha niente da cancellare.
+		if (VictimIntentIdx != INDEX_NONE && IntentDefs.IsValidIndex(VictimIntentIdx)
+			&& IntentDefs[VictimIntentIdx].bCanBeInterrupted)
+		{
+			InterruptedAttackerIds.Add(Hit.TargetId);
+			AddLogEvent(FString::Printf(TEXT("%s: interrotto da %s"),
+				*Units[Hit.TargetId]->GetName(), *Units[Hit.AttackerId]->GetName()));
+		}
+	}
+	// Il colpo dell'Interrupt STESSO non deve mai diventare un `FRTAttack`: non fa danno (`Effects` vuoto),
+	// ma un colpo a Power 0 nell'array conterebbe comunque come "primo colpo" per `ApplyFirstHitDelta` —
+	// consumando il bonus/malus di Guard/Exposed/Marked su un colpo fantasma invece che sull'attacco vero
+	// che dovrebbe riceverlo. Si toglie insieme ai colpi degli interrotti, nello stesso filtro.
+	Plan.Hits.RemoveAll([&InterruptedAttackerIds, &IntentDefs](const FRTHexAttackHit& Hit)
+	{
+		if (InterruptedAttackerIds.Contains(Hit.AttackerId)) { return true; }
+		return IntentDefs.IsValidIndex(Hit.IntentIndex)
+			&& IntentDefs[Hit.IntentIndex].ActionId == FName(TEXT("Action.Interrupt"));
+	});
 
 	// Intenti fermati dalla copertura: l'attacco non avviene e il TurnLog ne registra il motivo.
 	for (const int32 BlockedIdx : Plan.BlockedIntents)
@@ -958,6 +1010,12 @@ void ARTTurnManager::ResolveCombat()
 	TMap<ARTUnit*, FRTCellId> KnockFrom;
 	TMap<ARTUnit*, int32> KnockDist;
 	TMap<ARTUnit*, int32> KnockCount;
+	// Trazione (`Action.Pull`, CP 4.7): stessa disciplina della spinta, array paralleli propri — una
+	// direzione INVERTITA (verso chi tira, non lontano da lui) non e' la stessa spinta con un segno cambiato
+	// nel dato che la applica.
+	TMap<ARTUnit*, FRTCellId> PullToward;
+	TMap<ARTUnit*, int32> PullDist;
+	TMap<ARTUnit*, int32> PullCount;
 	AttackSrc.Reserve(Plan.Hits.Num());
 	for (const FRTHexAttackHit& Hit : Plan.Hits)
 	{
@@ -993,6 +1051,12 @@ void ARTTurnManager::ResolveCombat()
 					KnockFrom.Add(Victim, HexUnits[Hit.AttackerId].Cell);
 					KnockDist.Add(Victim, Event.Amount);
 					KnockCount.FindOrAdd(Victim)++;
+					break;
+
+				case ERTActionEffect::Pull:
+					PullToward.Add(Victim, HexUnits[Hit.AttackerId].Cell);
+					PullDist.Add(Victim, Event.Amount);
+					PullCount.FindOrAdd(Victim)++;
 					break;
 
 				default:
@@ -1140,6 +1204,58 @@ void ARTTurnManager::ResolveCombat()
 		}
 	}
 
+	// --- Trazione (`Action.Pull`, CP 4.7): stessa disciplina della spinta, direzione opposta -------------
+	// Il catalogo v0.1 §1 riserva la resistenza di `Action.Guard` alla "spinta": una trazione non viene
+	// resistita da chi si e' messo in guardia — non e' un'estensione implicita, e' cio' che il testo dice.
+	if (PullCount.Num() > 0)
+	{
+		TArray<FRTCellId> POccupied;
+		for (ARTUnit* U : Units) { POccupied.Add(U->Cell); }
+
+		TArray<ARTUnit*> PTargets;
+		TArray<FRTCellId> PFinal;
+		for (ARTUnit* T : Units)
+		{
+			const int32* Pulls = PullCount.Find(T);
+			if (!Pulls || *Pulls != 1 || !IsValid(T) || !T->IsAlive()) { continue; }
+
+			const FRTCellId Dest = URTHexCombatLibrary::HexPullDestination(
+				PullToward[T], T->Cell, PullDist[T], Map, POccupied);
+			if (Dest != T->Cell) { PTargets.Add(T); PFinal.Add(Dest); }
+		}
+		for (int32 a = 0; a < PTargets.Num(); ++a)
+		{
+			bool bContested = false;
+			for (int32 b = 0; b < PTargets.Num(); ++b)
+			{
+				if (a != b && PFinal[a] == PFinal[b]) { bContested = true; break; }
+			}
+			if (bContested) { continue; }
+
+			ARTUnit* T = PTargets[a];
+			const FRTCellId OldCell = T->Cell;
+			const FRTCellId NewCell = PFinal[a];
+			AddLogEvent(FString::Printf(TEXT("Trazione: %s -> (q=%d,r=%d,L%d)"),
+				*T->GetName(), NewCell.X, NewCell.Y, NewCell.Layer));
+
+			const TArray<FRTCellId> PPath = URTHexLibrary::HexLine(OldCell, NewCell);
+			{
+				FRTResolvedEvent Ev;
+				Ev.Phase = ERTMatchPhase::Blast;
+				Ev.Type = ERTResolvedEventType::Move;
+				Ev.Source = T;
+				Ev.Path = PPath;
+				ResolvedTimeline.Add(Ev);
+			}
+
+			T->Cell = NewCell;
+			T->SetVisualLocation(T->WorldForCell(NewCell, HexOrigin, HexSize, HexLayerH));
+			T->PlannedPath.Reset();
+			T->PlannedWaypoints.Reset();
+			if (T->PlannedCell == OldCell) { T->PlannedCell = NewCell; }
+		}
+	}
+
 	// Attaccanti sopravvissuti: consuma l'abilita' (energia+cooldown); se gratuita, accumula energia.
 	for (int32 i = 0; i < Attackers.Num(); ++i)
 	{
@@ -1211,7 +1327,12 @@ FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) c
 	SimUnits.Reserve(OutUnits.Num());
 	for (int32 i = 0; i < OutUnits.Num(); ++i)
 	{
-		SimUnits.Add(FRTHexSimUnit(i, OutUnits[i]->Cell, OutUnits[i]->GetEffectiveMoveRange(), /*bAlive=*/ true));
+		FRTHexSimUnit SimUnit(i, OutUnits[i]->Cell, OutUnits[i]->GetEffectiveMoveRange(), /*bAlive=*/ true);
+		// `Action.Slow` (CP 4.7): +1 al costo di ogni cella, letto FRESCO a ogni snapshot — cosi' uno Slow
+		// applicato nel Blast (stesso turno) si riflette gia' sulla fase Move che segue, senza bisogno di
+		// ricordare "quando" e' stato applicato.
+		SimUnit.MoveCostModifier = OutUnits[i]->HasStatus(TAG_Status_Slow) ? 1 : 0;
+		SimUnits.Add(SimUnit);
 	}
 	return URTHexSimLibrary::MakeSnapshot(Map, SimUnits);
 }
@@ -1248,6 +1369,15 @@ void ARTTurnManager::ResolveMovement()
 		{
 			Path = URTHexSimLibrary::FindPathForUnit(Snapshot, /*UnitId=*/ i, Unit->PlannedCell).Path;
 		}
+
+		// Il percorso e' stato calcolato al momento del click (o impostato direttamente), PRIMA che il Blast
+		// di QUESTO turno potesse radicare o rallentare l'unita' (`Action.Root`/`Action.Slow`, CP 4.7). Si
+		// TRONCA qui contro il budget FRESCO — non si ricalcola da zero: un ostacolo POSIZIONALE (un'altra
+		// unita' che occupa una cella a meta' strada) resta compito di `ResolveHexPaths` sotto, che cammina il
+		// percorso passo per passo; qui si intercetta solo "il budget e' cambiato da quando il piano e' stato
+		// scritto". Se non e' cambiato, il troncamento non taglia nulla — il percorso `FindPathForUnit` gia'
+		// rispettava lo snapshot fresco, quindi qui e' un no-op per costruzione.
+		Path = URTHexSimLibrary::TruncatePathToBudget(Snapshot, /*UnitId=*/ i, Path);
 
 		if (Path.Num() < 2)
 		{

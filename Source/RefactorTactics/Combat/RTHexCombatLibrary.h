@@ -199,4 +199,18 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")
 	static FRTCellId HexKnockbackDestination(const FRTCellId& Attacker, const FRTCellId& Target, int32 Distance,
 		const URTHexMapAsset* Map, const TArray<FRTCellId>& Occupied);
+
+	/**
+	 * Cella finale del bersaglio TIRATO verso chi lo tira, di `Distance` celle (`Action.Pull`, catalogo v0.1
+	 * §5). Simmetrica a `HexKnockbackDestination`: stessa direzione (la linea Puller->Target), ma INVERTITA —
+	 * il bersaglio si avvicina invece di allontanarsi. Si ferma sulla cella libera prima di: bordo mappa,
+	 * cella che blocca il movimento, cella occupata — la cella di chi tira e' SEMPRE fra le occupate (e' li'
+	 * un'unita' viva), quindi la trazione non finisce mai addosso a lui.
+	 *
+	 * Nessuna trazione se `Distance <= 0`, se le due unita' condividono la cella assiale, o se `Map ==
+	 * nullptr` (fail-closed).
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")
+	static FRTCellId HexPullDestination(const FRTCellId& Puller, const FRTCellId& Target, int32 Distance,
+		const URTHexMapAsset* Map, const TArray<FRTCellId>& Occupied);
 };

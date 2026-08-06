@@ -175,7 +175,7 @@ TArray<FRTHexReachableCell> URTHexSimLibrary::ReachableCells(const FRTHexSnapsho
 			{
 				continue; // occupata da un'altra unita'
 			}
-			const int32 Tentative = Dist[Current] + Step.Value;
+			const int32 Tentative = Dist[Current] + Step.Value + FMath::Max(0, Unit->MoveCostModifier);
 			if (Tentative > Budget)
 			{
 				continue; // fuori dal budget di movimento
@@ -229,7 +229,8 @@ FRTHexPathResult URTHexSimLibrary::FindPathForUnit(const FRTHexSnapshot& Snapsho
 	}
 
 	const TSet<FRTCellId> Blocked = BlockedCellsFor(Snapshot, UnitId);
-	return URTHexPathLibrary::FindPathAvoiding(Snapshot.Map, Unit->Cell, Goal, &Blocked, Budget);
+	return URTHexPathLibrary::FindPathAvoiding(Snapshot.Map, Unit->Cell, Goal, &Blocked, Budget,
+		/*MaxNodes*/ 100000, FMath::Max(0, Unit->MoveCostModifier));
 }
 
 FRTHexPathResult URTHexSimLibrary::BuildCompositeHexPath(const FRTHexSnapshot& Snapshot, int32 UnitId,
@@ -266,8 +267,8 @@ FRTHexPathResult URTHexSimLibrary::BuildCompositeHexPath(const FRTHexSnapshot& S
 			return Rejected;
 		}
 
-		const FRTHexPathResult Leg =
-			URTHexPathLibrary::FindPathAvoiding(Snapshot.Map, Current, Waypoint, &Blocked, Remaining);
+		const FRTHexPathResult Leg = URTHexPathLibrary::FindPathAvoiding(Snapshot.Map, Current, Waypoint, &Blocked,
+			Remaining, /*MaxNodes*/ 100000, FMath::Max(0, Unit->MoveCostModifier));
 		if (Leg.Status != ERTHexPathStatus::Success)
 		{
 			return Leg; // rifiuto dell'INTERO percorso (Path vuoto): il chiamante scarta il waypoint aggiunto
@@ -285,6 +286,41 @@ FRTHexPathResult URTHexSimLibrary::BuildCompositeHexPath(const FRTHexSnapshot& S
 	}
 
 	return Result;
+}
+
+TArray<FRTCellId> URTHexSimLibrary::TruncatePathToBudget(const FRTHexSnapshot& Snapshot, int32 UnitId,
+	const TArray<FRTCellId>& Path)
+{
+	if (Path.Num() == 0)
+	{
+		return Path;
+	}
+
+	const FRTHexSimUnit* Unit = FindUnit(Snapshot, UnitId);
+	if (!Snapshot.Map || !Unit)
+	{
+		return Path; // dato non verificabile: si lascia il piano invariato, non lo si annulla ne' lo si taglia a caso
+	}
+
+	const int32 Budget = FMath::Max(0, Unit->MoveBudget);
+	const int32 ExtraPerCell = FMath::Max(0, Unit->MoveCostModifier);
+
+	TArray<FRTCellId> Truncated;
+	Truncated.Add(Path[0]);
+	int32 Spent = 0;
+
+	for (int32 k = 1; k < Path.Num(); ++k)
+	{
+		const FRTHexCellData* Data = Snapshot.Map->FindCell(Path[k]);
+		const int32 StepCost = (Data ? FMath::Max(0, Data->MoveCost) : 0) + ExtraPerCell;
+		if (Spent + StepCost > Budget)
+		{
+			break; // il budget finisce qui: il resto del piano non e' piu' affrontabile con lo stato attuale
+		}
+		Spent += StepCost;
+		Truncated.Add(Path[k]);
+	}
+	return Truncated;
 }
 
 TArray<FRTHexMoveResult> URTHexSimLibrary::ResolveHexPaths(const TArray<TArray<FRTCellId>>& Paths)

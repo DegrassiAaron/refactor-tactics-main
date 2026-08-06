@@ -82,11 +82,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEffectiveMoveRangeTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTEffectiveMoveRangeTest::RunTest(const FString&)
 {
-	TestEqual(TEXT("nessuno status -> base"), URTCombatLibrary::EffectiveMoveRange(4, false, false), 4);
-	TestEqual(TEXT("root -> 0"), URTCombatLibrary::EffectiveMoveRange(4, true, false), 0);
-	TestEqual(TEXT("slow -> meta'"), URTCombatLibrary::EffectiveMoveRange(4, false, true), 2);
-	TestEqual(TEXT("slow su dispari arrotonda per difetto"), URTCombatLibrary::EffectiveMoveRange(5, false, true), 2);
-	TestEqual(TEXT("root prevale su slow"), URTCombatLibrary::EffectiveMoveRange(4, true, true), 0);
+	// CP 4.7: Slow non passa piu' da qui (era un dimezzamento pre-CP4.2, sostituito dal costo per cella nel
+	// pathfinding — vedi RefactorTactics.Actions.Slow.ExtraCostPerCell). Qui resta solo Root.
+	TestEqual(TEXT("non radicato -> base"), URTCombatLibrary::EffectiveMoveRange(4, false), 4);
+	TestEqual(TEXT("radicato -> 0"), URTCombatLibrary::EffectiveMoveRange(4, true), 0);
+	TestEqual(TEXT("radicato con budget gia' zero -> 0"), URTCombatLibrary::EffectiveMoveRange(0, true), 0);
 	return true;
 }
 
