@@ -27,6 +27,7 @@ struct FRTTerrainDef
 {
     ERTHexSurface Surface = ERTHexSurface::Floor;
     int32 MoveCost = 1;
+    int32 SlideCells = 0;                    // 0 = non scivola; solo Ice lo valorizza (=1)
     bool bBlocksDashCharge = false;
     bool bBlocksLineOfSight = false;
     bool bConductsElectricity = false;
@@ -107,7 +108,10 @@ solo l'identificatore cambia):
 
 - `Tests/RTHexMapTests.cpp`, `Tests/RTHexMovementIntegrationTests.cpp` — fixture di test.
 - `Turn/RTMatchSetupLibrary.cpp` (arena demo: fascia "Mud" costo 3 → resta un valore **per-cella**
-  legittimo, diverso dal default `Rough` costo 2 del catalogo; solo il nome enum cambia).
+  legittimo, diverso dal default `Rough` costo 2 del catalogo). **Non è solo un rename**: dal Task 5 quella
+  fascia eredita anche `bBlocksDashCharge` dal catalogo, quindi nell'arena demo — usata da `RTGameMode.cpp` e
+  da 4 test d'integrazione — Scatto e Carica non la attraversano più. È un cambio di comportamento tattico
+  voluto (la fascia diventa una barriera alla mobilità rapida, non solo costosa), non un effetto collaterale.
 - `RefactorTacticsEditor/Private/RTHexEditorClick.cpp` (switch colori overlay — guadagna i casi
   `Smoke`/`HighGround`).
 - `RefactorTacticsEditor/Private/Tools/{RTHexPaintTool,RTHexSelectTool,RTHexFillTool}.h` (default
@@ -143,6 +147,13 @@ CP 8.1. `LinearDashPath` non passa dal microstep condiviso — controlla i blocc
 non avrebbe la stessa garanzia di correttezza sotto collisione simultanea del Move. Introdurlo richiederebbe
 far partecipare anche lo Scatto al resolver condiviso — fuori scope per CP 8.1, dichiarato in PR.
 
+**Regola dai dati, non dall'enum**: chi scivola lo dichiara il catalogo con `FRTTerrainDef::SlideCells`
+(`Ice = 1`, tutti gli altri `0`), non un `Surface == ERTHexSurface::Ice` inciso in `ApplyIceSliding` — era
+l'ultima regola di terreno ancora hard-coded contro l'enum, contro l'obiettivo di §1 e il DoD («non in
+`switch` C++»). **Limite dichiarato**: `ApplyIceSliding` legge il campo come booleano (`> 0` → scivola di
+**una** cella) e non srotola ancora N celle; l'intero è la forma giusta del dato per le dinamiche di CP 8.4,
+non una funzionalità consumata in CP 8.1.
+
 **Decisione confermata (2026-08-06, in review del Task 6)**: la soglia "≥2 MP residui" resta **fissa**,
 letta alla lettera dal catalogo — **non** verifica se il budget residuo copra il costo reale della cella di
 scivolamento. Su una mappa dove il ghiaccio è seguito da una cella a costo >2 (già possibile: la fascia demo
@@ -162,10 +173,24 @@ d'implementazione, non di questo spec.
 
 ### 5.4 Smoke — cap di targeting
 
-`Combat/RTHexCombatLibrary.cpp::CollectHexAttacks`: per ogni intento, se la linea attaccante→bersaglio (le
-celle già calcolate per la linea di tiro) attraversa **almeno una** cella `Smoke`, la portata effettiva per
-quell'intento diventa `min(RangeCells, 2)` invece di `RangeCells`. Non cambia la logica di blocco LOS
-esistente (muri/coperture): è un cap aggiuntivo, indipendente.
+`Terrain/RTTerrainLibrary.cpp::EffectiveTargetingRange(Map, From, To, RangeCells)`: se la linea
+attaccante→bersaglio sta **dentro o attraversa** almeno una cella `Smoke` (wording del DoD canonico,
+`v0.1-issue-plan.md` §CP 8.1), la portata effettiva diventa `min(RangeCells, 2)` invece di `RangeCells`. Non
+cambia la logica di blocco LOS esistente (muri/coperture): è un cap aggiuntivo, indipendente.
+
+**Estremi della linea inclusi**, quindi anche l'attaccante **fermo su** una cella `Smoke` si vede cappata la
+portata (non serve che la nuvola sia davanti a lui). Diverge di proposito dalla convenzione di
+`URTHexVisionLibrary::HasLineOfSight`, che gli estremi li **esclude**: là `From`/`To` sono chi guarda e cosa
+guarda, e non ha senso che si ostruiscano da soli; qui la superficie su cui si sta è esattamente ciò che il
+DoD chiama «dentro». Non è una svista.
+
+**Un solo posto per la regola**: la funzione è condivisa da tutti i cancelli che decidono «il bersaglio è a
+portata» — `URTCombatLibrary::ClassifyHexTargeting` (preview del giocatore),
+`URTActionFallbackLibrary::ValidateInstance` (validità dell'ordine al momento della risoluzione),
+`URTHexBotLibrary::BuildCandidates` (proposte del bot) e `CollectHexAttacks` (resolver). Se il cap vivesse
+solo nel resolver, gli altri tre accetterebbero un intento che poi viene scartato: slot speso, nessun effetto,
+nessuna riga di log che lo spieghi — l'opposto della disciplina di `RTTurnManager` («l'azione fallita non
+sparisce più in silenzio»).
 
 ### 5.5 Fire — LOS
 
@@ -213,11 +238,23 @@ Aggiunti per coprire il resto del DoD dichiarato:
 - `RefactorTactics.Terrain.ShallowWater.AppliesWet`
 - `RefactorTactics.Terrain.Conductive.DoesNotApplyWet`
 
+Aggiunti nella review finale di branch (2026-08-06), a chiusura dei difetti trovati:
+- `RefactorTactics.Terrain.Smoke.CapAgreesAcrossGates` — preview, validazione ordini, bot e resolver devono
+  dare la **stessa** risposta sul cap del Fumo (con controprova senza Fumo, così non passa a vuoto).
+- `RefactorTactics.Terrain.Smoke.CapsWhenAttackerStandsInIt` — il «dentro» del DoD: estremi della linea inclusi.
+- `RefactorTactics.Terrain.Ice.SlideBudgetBoundaryIsExactlyTwo` — confine esatto della soglia (2 scivola, 1 no).
+- `RefactorTactics.Terrain.Ice.SlidesInMatch` — esteso: la cella di arrivo della scivolata è `Fire` e brucia
+  (composizione Ghiaccio→Fuoco).
+- `RefactorTactics.Terrain.Status.LogMatchesState` — ancorato al fatto che l'unità abbia davvero raggiunto
+  l'acqua (prima l'asserzione di coerenza era `false == false` e passava anche a movimento mai avvenuto).
+
 ## 8. File coinvolti
 
 `Terrain/RTTerrainData.h` (nuovo), `Terrain/RTTerrainLibrary.{h,cpp}` (nuovo), `Map/RTHexCellData.h`
 (relabel enum + 2 nuovi valori), `Turn/RTHexSimLibrary.cpp` (hook Dash/Charge + sliding),
-`Turn/RTActionEffectLibrary.{h,cpp}` (funzione di traduzione spec→eventi estratta), `Combat/RTHexCombatLibrary.cpp`
-(cap targeting Smoke), `Core/RTGameplayTags.{h,cpp}` (nuovi tag Wet/Burning/Obscured), tool editor
+`Turn/RTActionEffectLibrary.{h,cpp}` (funzione di traduzione spec→eventi estratta),
+`Terrain/RTTerrainLibrary.{h,cpp}::EffectiveTargetingRange` (cap targeting Smoke, in un posto solo) letta da
+`Combat/RTHexCombatLibrary.cpp`, `Combat/RTCombatLibrary.cpp`, `Turn/RTActionFallbackLibrary.cpp` e
+`Bot/RTHexBotLibrary.cpp`, `Core/RTGameplayTags.{h,cpp}` (nuovi tag Wet/Burning/Obscured), tool editor
 (`RTHexPaintTool`, `RTHexEditorClick`, `RTHexSelectTool`, `RTHexFillTool`) per i default da catalogo e i
 nuovi colori overlay.
