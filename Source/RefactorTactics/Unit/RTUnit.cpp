@@ -67,8 +67,29 @@ void ARTUnit::ApplyCombatState(int32 NewHealth, int32 NewShield)
 	// Solo stato LOGICO: la morte (HP<=0) non distrugge subito l'Actor. La rimozione VISIVA e la
 	// distruzione sono differite al momento giusto del playback (morte visiva differita) e a fine turno,
 	// cosi' il colpo mortale resta osservabile. Vedi ARTTurnManager (Defeated events / HideForDefeat).
+	// Il danno assorbito dallo scudo erode PRIMA la parte temporanea: e' quella che sta per scadere comunque,
+	// e cosi' lo scudo base non viene consumato finche' c'e' protezione destinata a sparire.
+	const int32 ShieldLost = FMath::Max(0, Shield - FMath::Max(0, NewShield));
+	TemporaryShield = FMath::Max(0, TemporaryShield - ShieldLost);
+
 	Health = FMath::Max(0, NewHealth);
 	Shield = FMath::Max(0, NewShield);
+}
+
+void ARTUnit::AddTemporaryShield(int32 Amount)
+{
+	if (Amount <= 0)
+	{
+		return;
+	}
+	Shield += Amount;
+	TemporaryShield += Amount;
+}
+
+void ARTUnit::ExpireTemporaryShield()
+{
+	Shield = FMath::Max(0, Shield - TemporaryShield);
+	TemporaryShield = 0;
 }
 
 void ARTUnit::HideForDefeat()

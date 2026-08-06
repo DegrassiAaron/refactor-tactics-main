@@ -164,8 +164,24 @@ public:
 	/**
 	 * Applica lo stato di combattimento risolto (solo logico). Se HP<=0 l'unita' e' morta, ma NON viene
 	 * distrutta subito: la rimozione visiva/distruzione e' differita (morte visiva differita, vedi TurnManager).
+	 *
+	 * Il danno assorbito dallo scudo erode PRIMA la parte temporanea (vedi AddTemporaryShield).
 	 */
 	void ApplyCombatState(int32 NewHealth, int32 NewShield);
+
+	/**
+	 * Aggiunge scudo TEMPORANEO: protegge per il turno corrente e scade nel Cleanup (ExpireTemporaryShield).
+	 * E' la forma di protezione delle abilita' di supporto — il catalogo v0.1 dice «lo Scudo scade durante il
+	 * Cleanup del turno», e senza scadenza si accumulava turno dopo turno rendendo i duelli interminabili
+	 * (issue #96: una partita 2v2 durava 25 turni contro i 12 previsti).
+	 */
+	void AddTemporaryShield(int32 Amount);
+
+	/** Rimuove la parte temporanea dello scudo (fine turno). Lo scudo BASE dell'unita' resta. */
+	void ExpireTemporaryShield();
+
+	/** Quota dello scudo corrente che scadra' a fine turno (diagnostica/HUD). */
+	int32 GetTemporaryShield() const { return TemporaryShield; }
 
 	/** Nasconde la mesh e disabilita la collisione (morte visiva; la distruzione avviene a fine turno). */
 	void HideForDefeat();
@@ -188,6 +204,10 @@ public:
 	int32 GetEffectiveDashRange(int32 BaseRange) const;
 
 private:
+	/** Quota dello `Shield` corrente che scade nel Cleanup: il resto e' scudo base dell'unita'. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Combat", meta = (AllowPrivateAccess = "true"))
+	int32 TemporaryShield = 0;
+
 	/** Status attivi: tag -> turni residui. */
 	UPROPERTY()
 	TMap<FGameplayTag, int32> StatusTurns;
