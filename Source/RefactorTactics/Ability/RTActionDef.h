@@ -183,5 +183,16 @@ struct FRTActionDef
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	bool bCanBeInterrupted = true;
 
+	/**
+	 * L'azione colpisce anche gli ALLEATI di chi la usa (`Action.CircularAoE`, catalogo §3). Default falso:
+	 * il fuoco amico e' l'eccezione dichiarata da una singola azione, non il comportamento di base.
+	 *
+	 * Sta nei DATI e non nel codice che costruisce l'intento: altrimenti chi assegnera' l'area a un eroe (E6)
+	 * dovrebbe scrivere `if (ActionId == "Action.CircularAoE")`, cioe' l'eccezione hard-coded che il motore
+	 * azioni esiste per togliere.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	bool bFriendlyFire = false;
+
 	FRTActionDef() = default;
 };

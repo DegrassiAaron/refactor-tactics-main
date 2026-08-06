@@ -78,9 +78,9 @@ struct FRTHexAttackIntent
 	int32 Power = 0;
 
 	/**
-	 * L'area colpisce anche gli ALLEATI dell'attaccante, se stanno nelle celle interessate
-	 * (`Action.CircularAoE`, catalogo §3). Default falso: il fuoco amico e' l'eccezione dichiarata da
-	 * un'azione, non il comportamento di base.
+	 * L'area colpisce anche gli ALLEATI dell'attaccante, se stanno nelle celle interessate. Si COPIA da
+	 * `FRTActionDef::bFriendlyFire`, che e' dove l'azione lo dichiara: qui e' il parametro dell'intento, non
+	 * la sede della decisione.
 	 *
 	 * Non colpisce mai chi la usa: il catalogo non lo prevede, e un'area che uccide chi la lancia sarebbe una
 	 * regola nuova, non un caso di questa.

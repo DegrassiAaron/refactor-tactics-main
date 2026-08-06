@@ -106,6 +106,19 @@ bool FRTOffensiveActionsMatchCatalogTest::RunTest(const FString&)
 		TestTrue(FString::Printf(TEXT("%s: occupa l'azione principale"), E.Id), Def.Slot == ERTActionSlot::Main);
 	}
 
+	// Il fuoco amico e' un dato dell'AZIONE, ed e' l'eccezione di UNA sola: le altre cinque risparmiano gli
+	// alleati senza che nessuno debba ricordarsene al momento di costruire l'intento.
+	TestTrue(TEXT("solo l'area circolare colpisce i propri"),
+		OffensiveDef(TEXT("Action.CircularAoE")).bFriendlyFire);
+	for (const FRTActionDef& Def : URTCatalogLibrary::GetCoreActionCatalog())
+	{
+		if (Def.ActionId != FName(TEXT("Action.CircularAoE")))
+		{
+			TestFalse(FString::Printf(TEXT("%s non colpisce gli alleati"), *Def.ActionId.ToString()),
+				Def.bFriendlyFire);
+		}
+	}
+
 	// La priorita' e' cio' che DIFFERENZIA le offensive dentro il Blast (obiettivo della issue): il marchio
 	// prima di tutti perche' il suo +6 deve valere sui colpi dello stesso turno, il pesante per ultimo.
 	TestTrue(TEXT("il marchio risolve prima della linea"),
@@ -304,7 +317,11 @@ bool FRTAoEFriendlyFireTest::RunTest(const FString&)
 		CombatUnit(3, /*Team*/ 0, FRTCellId(0, 1)),   // alleato lontano: fuori dall'area
 	};
 
+	// Il fuoco amico arriva dai DATI dell'azione, non da una scelta di questo test: se domani il catalogo lo
+	// togliesse a `CircularAoE`, l'intento cambierebbe da solo (ed e' questo test a diventare rosso).
 	const FRTActionDef Def = OffensiveDef(TEXT("Action.CircularAoE"));
+	TestTrue(TEXT("l'area dichiara il fuoco amico nel catalogo"), Def.bFriendlyFire);
+
 	FRTHexAttackIntent Intent;
 	Intent.AttackerId = 0;
 	Intent.TargetId = 1;
@@ -312,7 +329,7 @@ bool FRTAoEFriendlyFireTest::RunTest(const FString&)
 	Intent.AreaRadius = 1;
 	Intent.RangeCells = Def.RangeCells;
 	Intent.Power = DeclaredDamage(Def);
-	Intent.bFriendlyFire = true;
+	Intent.bFriendlyFire = Def.bFriendlyFire;
 
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, { Intent }, Map);
 	TestEqual(TEXT("colpisce il nemico e l'alleato vicino"), Plan.Hits.Num(), 2);
