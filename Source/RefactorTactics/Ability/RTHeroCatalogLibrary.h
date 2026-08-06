@@ -75,4 +75,23 @@ public:
 	 * interamente rappresentabili oggi.
 	 */
 	static URTHeroData* MakeBastion();
+
+	/**
+	 * Costruisce **Vektor**, duellante predittivo (catalogo eroi v0.1 §4): 100 HP, **6 MP** (il piu' mobile),
+	 * vista 6, resistenza push 0, affinita' movimento, debolezza strutture — simmetrica a Bastion, che chiude
+	 * il roster in due coppie (Flux↔Riva, Bastion↔Vektor).
+	 *
+	 * Limiti dichiarati: **due delle quattro abilita' fondamentali sono reazioni** (`InterceptShot`,
+	 * `Deflection`) e nessuno slot Reazione esiste (E5) — e' l'eroe che l'epic E5 completera' piu' degli
+	 * altri. `Feint` marca una CELLA e concede un `Reposition`: nessuna delle due meta' e' un
+	 * `ERTActionEffect` (gli stati si applicano alle unita', il movimento passa da `ERTMovementStyle`).
+	 * `PassingBlade` e' l'unica abilita' non-base interamente rappresentabile.
+	 */
+	static URTHeroData* MakeVektor();
+
+	/**
+	 * Il roster completo della v0.1, nell'ordine del catalogo eroi: Flux, Riva, Bastion, Vektor.
+	 * Nuove istanze a ogni chiamata (stesso idioma di `URTCatalogLibrary::GetCoreActionCatalog`).
+	 */
+	static TArray<URTHeroData*> GetHeroRoster();
 };
