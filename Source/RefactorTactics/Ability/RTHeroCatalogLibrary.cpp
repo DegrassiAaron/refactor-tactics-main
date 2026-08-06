@@ -380,3 +380,92 @@ URTHeroData* URTHeroCatalogLibrary::MakeBastion()
 
 	return Bastion;
 }
+
+URTHeroData* URTHeroCatalogLibrary::MakeVektor()
+{
+	URTHeroData* Vektor = NewObject<URTHeroData>();
+	Vektor->HeroId = TEXT("Hero.Vektor");
+	Vektor->DisplayName = FText::FromString(TEXT("Vektor"));
+	Vektor->MaxHealth = 100;
+	Vektor->MovePoints = 6; // il piu' mobile del roster: e' cio' che compra con l'assenza di difese
+	Vektor->VisionRange = 6;
+	Vektor->PushResistance = 0;
+	Vektor->Affinity = TEXT("Affinity.Movement");
+	// Simmetrica a Bastion: chi si muove di mestiere e' neutralizzato da chi gli chiude le traiettorie.
+	// Il roster chiude in due coppie — Flux↔Riva sull'acqua, Bastion↔Vektor sullo spazio.
+	Vektor->Weakness = TEXT("Affinity.Structures");
+
+	// Indice 0 — PulseShot, attacco base. 21 danni / range 4: come per Riva e Bastion, non e' la fascia
+	// generica (a range 4 darebbe 22). Un punto in meno del medio raggio, pagato in mobilita'.
+	Vektor->Actions.Add(MakeHeroAction(TEXT("Vektor.PulseShot"), ERTResolutionPhase::Attack, /*Priority*/ 50,
+		/*Range*/ 4, /*Cooldown*/ 0, ERTActionFallback::Cancel,
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 21) }));
+
+	// Indice 1 — InterceptShot. REAZIONE: 16 danni + stop del movimento a chi entra nella cella controllata.
+	// Il danno e' dichiarabile, "fermare il movimento" no — non e' un `ERTActionEffect` e non esiste uno slot
+	// Reazione (E5). Il parente piu' prossimo gia' costruito e' `Action.SuppressiveLine` (CP 4.6), che fa
+	// esattamente questo con un trigger d'ingresso: quando E5 arrivera', l'aggancio e' quello.
+	// Slot None (non consuma l'azione principale), non interrompibile: e' preparata, non eseguita.
+	Vektor->Actions.Add(MakeHeroAction(TEXT("Vektor.InterceptShot"), ERTResolutionPhase::Preparation,
+		/*Priority*/ 30, /*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel,
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 16) }, ERTAbilityShape::Single, /*AreaRadius*/ 0,
+		ERTActionSlot::None, /*bInterruptible*/ false));
+
+	// Indice 2 — PassingBlade. `Dash 3` che colpisce per 20 le unita' ATTRAVERSATE: l'unica abilita'
+	// non-base di Vektor interamente rappresentabile. Stile `LinearDash` e non `LinearCharge`: la carica si
+	// FERMA sul primo nemico, questa gli passa attraverso — e' la differenza che `ERTMovementStyle` esiste
+	// per rendere un dato invece che un `if` sull'ActionId (CP 4.5).
+	Vektor->Actions.Add(MakeHeroAction(TEXT("Vektor.PassingBlade"), ERTResolutionPhase::FastMovement,
+		/*Priority*/ 30, /*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop,
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 20) }));
+	Vektor->Actions[2]->Def.MovementStyle = ERTMovementStyle::LinearDash;
+
+    // Indice 3 — Deflection. REAZIONE: riduce di 20 il danno subito. Stessa famiglia di `Action.Guard`
+	// (-15 al primo colpo, `URTCombatLibrary::GuardFirstHitReduction`), ma con un trigger invece che una
+	// stance: senza slot Reazione (E5) non e' dichiarabile come effetto, perche' una riduzione non e' uno
+	// scudo — `Effect::Shield` assorbirebbe danno invece di ridurlo, e sarebbe un numero che mente.
+	Vektor->Actions.Add(MakeHeroAction(TEXT("Vektor.Deflection"), ERTResolutionPhase::Preparation,
+		/*Priority*/ 31, /*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel, {},
+		ERTAbilityShape::Single, /*AreaRadius*/ 0, ERTActionSlot::None, /*bInterruptible*/ false));
+
+	// Indice 4 — Feint. Marca una CELLA e concede un `Reposition`: nessuna delle due meta' e' dichiarabile.
+	// `Status` si applica alle UNITA', non alle celle; il movimento passa da `ERTMovementStyle`, non da
+	// Effects. Fase Control (codice 30 del catalogo, macro-fase Blast): la finta precede il danno per
+	// priorita', com'e' giusto per un'azione che sposta e disorienta.
+	//
+	// La durata della marcatura e' **1 turno**, decisa esplicitamente perche' il PDF non la dava. Non sta nei
+	// `Parameters` perche' quelli sono della VARIANTE (dove il catalogo differenzia due configurazioni), e
+	// qui non c'e' niente da differenziare: e' un numero dell'azione base, e finche' non esiste un effetto
+	// che lo porti resta dichiarato nel catalogo eroi, non simulato in un campo che nessuno leggerebbe.
+	Vektor->Actions.Add(MakeHeroAction(TEXT("Vektor.Feint"), ERTResolutionPhase::Control, /*Priority*/ 40,
+		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
+
+	// Variante di InterceptShot (vincolo v0.1: una sola abilita' fondamentale con variante per eroe).
+	// Preciso: 20 danni ma controlla UNA cella. Esteso: 14 danni ma una LINEA di 3 celle. Il danno e' un
+	// effetto; il numero di celle controllate non lo e' (non esiste il concetto di "zona di controllo" fuori
+	// da `FRTSuppressiveZone`, che nessuno collega ancora a un eroe): sta nei `Parameters`, come l'integrita'
+	// del pannello di Bastion.
+	FRTAbilityVariant Precise;
+	Precise.VariantId = TEXT("Vektor.InterceptShot.Precise");
+	Precise.DisplayName = FText::FromString(TEXT("Intercetto preciso"));
+	Precise.Tradeoff = FText::FromString(TEXT("20 danni invece di 16, ma controlla una sola cella"));
+	Precise.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 20));
+	Precise.Parameters.Add(TEXT("ControlledCells"), 1);
+
+	FRTAbilityVariant Extended;
+	Extended.VariantId = TEXT("Vektor.InterceptShot.Extended");
+	Extended.DisplayName = FText::FromString(TEXT("Intercetto esteso"));
+	Extended.Tradeoff = FText::FromString(TEXT("controlla una linea di 3 celle, ma solo 14 danni"));
+	Extended.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 14));
+	Extended.Parameters.Add(TEXT("ControlledCells"), 3);
+
+	Vektor->Actions[1]->Variants.Add(Precise);
+	Vektor->Actions[1]->Variants.Add(Extended);
+
+	return Vektor;
+}
+
+TArray<URTHeroData*> URTHeroCatalogLibrary::GetHeroRoster()
+{
+	return { MakeFlux(), MakeRiva(), MakeBastion(), MakeVektor() };
+}
