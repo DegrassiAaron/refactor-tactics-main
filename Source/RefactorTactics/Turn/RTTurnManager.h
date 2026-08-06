@@ -7,6 +7,7 @@
 #include "Turn/RTResolvedEvent.h"
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTHexSim.h" // FRTHexSnapshot: restituito per valore da MakeCurrentSnapshot
+#include "Turn/RTPacing.h" // FRTPacingSample: telemetria, canale separato dal TurnLog
 #include "RTTurnManager.generated.h"
 
 class ARTUnit;
@@ -74,6 +75,24 @@ public:
 
 	/** Rotte effettivamente percorse nell'ultima risoluzione (viz post-lock del percorso eseguito). */
 	const TArray<TArray<FRTCellId>>& GetLastMoveRoutes() const { return LastMoveRoutes; }
+
+	// --- Sonda di pacing (TELEMETRIA: nessun ritorno verso il gameplay) --------------------------
+	/**
+	 * Registra un input di pianificazione. Chiamata dal PlayerController, che NON cronometra: tutto il
+	 * tempo vive qui, in un posto solo. Ignorata fuori dalla fase di pianificazione.
+	 */
+	void RecordPlanningInput(ERTPlanningInput Kind);
+
+	/** Campioni di pacing della sessione corrente (sola lettura; telemetria, non stato di gioco). */
+	const TArray<FRTPacingSample>& GetPacingSamples() const { return PacingSamples; }
+
+	/** Se vero, ogni turno appende una riga in Saved/RT/pacing_<sessione>.csv. L'accumulo in memoria e' sempre attivo. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Pacing")
+	bool bRecordPacing = false;
+
+	/** Squadra il cui spazio di decisione si misura in ActionsAvailable (il giocatore umano e' il team 0). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Pacing")
+	int32 PacingTeamId = 0;
 
 	// --- Presentazione (Blueprint) -------------------------------------------------------------
 	UPROPERTY(BlueprintAssignable, Category = "RefactorTactics|Playback")
@@ -179,6 +198,18 @@ protected:
 	void TickPlayback(float DeltaSeconds);
 	void FinishPlayback();
 	float DurationForPlaybackPhase(ERTMatchPhase InPhase) const;
+
+	// --- Sonda di pacing ------------------------------------------------------------------------
+	void BeginPacingSample();
+	void ClosePacingSample();
+	void AppendPacingRow(const FRTPacingSample& Sample);
+
+	TArray<FRTPacingSample> PacingSamples;
+	FRTPacingSample PacingCurrent;
+	double PacingPlanningStart = 0.0;  // FPlatformTime::Seconds() all'apertura della pianificazione
+	double PacingLastInput = 0.0;
+	bool bPacingHadInput = false;
+	FString PacingFilePath;            // vuoto finche' non si scrive la prima riga
 
 	/** Registra un evento: lo scrive nel log LogRT e lo accoda al combat log della HUD. */
 	void AddLogEvent(const FString& Message);

@@ -73,8 +73,8 @@ FRTPacingSample                     // un turno
 ├─ int32 UnitsAliveTeam1            // contesto
 ├─ int32 ActionsAvailable           // contesto: azioni selezionabili non in cooldown → cresce con E4/E6
 ├─ int32 MsToFirstInput             // composizione: quanto prima di toccare qualcosa
-├─ int32 SelectionChanges           // composizione: cambi di unità selezionata
-├─ int32 OrderChanges               // composizione: ordini riassegnati
+├─ int32 SelectionCount             // composizione: unità selezionate
+├─ int32 OrderCount                 // composizione: ordini impartiti
 ├─ int32 UndoCount                  // composizione: waypoint annullati
 ├─ int32 MsToLockIn                 // base
 ├─ int32 MsSinceLastInput           // al momento del lock-in — il campo che rende il vincolo misurabile
@@ -88,8 +88,8 @@ Definizioni che non devono restare a interpretazione:
 | Campo | Definizione esatta |
 |---|---|
 | `ActionsAvailable` | Somma delle azioni selezionabili dalle unità **vive della squadra del giocatore**, escluse quelle in cooldown |
-| `SelectionChanges` | Quante volte cambia l'unità selezionata nel turno; la prima selezione conta 0 |
-| `OrderChanges` | Quante volte un'unità riceve un ordine (abilità o destinazione) che **sostituisce** uno già dato nello stesso turno; il primo ordine per unità conta 0 |
+| `SelectionCount` | Quante volte il giocatore ha selezionato un'unità nel turno |
+| `OrderCount` | Quanti ordini (abilità o destinazione) ha impartito nel turno |
 | `MsToFirstInput` | Se il turno si chiude **senza alcun input**, vale `MsToLockIn` |
 | `MsSinceLastInput` | Se non c'è stato **nessun** input, vale `MsToLockIn` — quindi un turno passato inerte finisce fra gli `IdleTimeouts`, che è la classificazione corretta |
 
@@ -213,8 +213,8 @@ qualcuno sarà tentato di far leggere un tempo a una decisione.
 - **Non tocca le reazioni**: restano pre-committed, CP 5.1 e invariante #3 invariati (D1).
 - **Non aggrega più sessioni da codice**: nessun parser CSV: un foglio di calcolo lo fa, e oggi sarebbe codice
   non richiesto.
-- **Non affronta `#96`**: quello è il **numero** di turni (25 contro i 12 del catalogo, per scudo che non
-  scade e Guardian tanky); questo è il **tempo** di un turno. Confonderli farebbe tarare il pacing su una
+- **Non affronta `#96`**: quello è il **numero** di turni (misurato a 10 dopo la scadenza dello scudo nel
+  Cleanup; era 25 prima), questo è il **tempo** di un turno. Confonderli farebbe tarare il pacing su una
   partita che è lunga per un altro motivo.
 - **Non introduce finestre di risposta durante la risoluzione**: sarebbe un ADR che revisiona CP 5.1 e
   l'invariante #3, e non è ciò che questa sessione ha deciso.

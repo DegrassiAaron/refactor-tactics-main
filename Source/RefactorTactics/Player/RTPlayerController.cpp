@@ -267,8 +267,25 @@ void ARTPlayerController::OnZoom(const FInputActionValue& Value)
 	}
 }
 
+namespace
+{
+	/** TurnManager del livello, o nullptr. La telemetria non deve mai far crashare l'input. */
+	ARTTurnManager* PacingTurnManager(const UObject* WorldContext)
+	{
+		return Cast<ARTTurnManager>(
+			UGameplayStatics::GetActorOfClass(WorldContext, ARTTurnManager::StaticClass()));
+	}
+}
+
 void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 {
+	// Attivita' generica: aggiorna i tempi anche quando il click non produce nulla. Un click a vuoto
+	// e' comunque il giocatore che sta lavorando, e serve a non scambiarlo per un giocatore assente.
+	if (ARTTurnManager* TM = PacingTurnManager(this))
+	{
+		TM->RecordPlanningInput(ERTPlanningInput::Click);
+	}
+
 	FHitResult Hit;
 	if (!GetHitResultUnderCursor(ECC_Visibility, /*bTraceComplex=*/ false, Hit) || !Hit.GetActor())
 	{
@@ -319,6 +336,10 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		{
 			SelectedUnit->PlannedAbilityIndex = AbilityIndex;
 			SelectedUnit->PlannedAttackTarget = ClickedUnit;
+			if (ARTTurnManager* TM = PacingTurnManager(this))
+			{
+				TM->RecordPlanningInput(ERTPlanningInput::Order);
+			}
 			UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s usa %s su %s"), *SelectedUnit->GetName(), *Ability->DisplayName.ToString(), *ClickedUnit->GetName());
 		}
 		else if (!bReady)
@@ -365,6 +386,10 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 				Previous->OnDeselected();
 			}
 			Selectable->OnSelected();
+			if (ARTTurnManager* TM = PacingTurnManager(this))
+			{
+				TM->RecordPlanningInput(ERTPlanningInput::Selection);
+			}
 			SelectedActor = HitActor;
 			UE_LOG(LogRT, Log, TEXT("[RT] Selezionata: %s"), *HitActor->GetName());
 
@@ -512,6 +537,12 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 		return;
 	}
 	Unit->SelectAbility(Index);
+	// Qui e non "in fondo alla funzione": sotto ci sono due return anticipati e il ramo bSelfTarget,
+	// quindi questo e' l'unico punto attraversato da ogni pressione di tasto che produca un effetto.
+	if (ARTTurnManager* TM = PacingTurnManager(this))
+	{
+		TM->RecordPlanningInput(ERTPlanningInput::Order);
+	}
 	const URTActionData* Ability = Unit->GetAbility(Index);
 	if (!Ability)
 	{
@@ -552,6 +583,10 @@ void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 	}
 	Unit->PlannedWaypoints.Pop(); // rimuove l'ultimo waypoint
 	RebuildPlannedPath();
+	if (ARTTurnManager* TM = PacingTurnManager(this))
+	{
+		TM->RecordPlanningInput(ERTPlanningInput::Undo);
+	}
 	UE_LOG(LogRT, Log, TEXT("[RT] Annullato waypoint: %s -> %d waypoint"), *Unit->GetName(), Unit->PlannedWaypoints.Num());
 }
 
