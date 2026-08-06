@@ -307,14 +307,15 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		}
 		FVector TOrigin; float THexSize; float TLayerH; const URTHexMapAsset* TMap = nullptr;
 		HexMapWithContext(GetWorld(), TOrigin, THexSize, TLayerH, TMap);
+		// Un solo gate (FAIL-CLOSED: senza mappa autorevole non si ingaggia — test
+		// Combat.HexTargetingIsFailClosed) che dichiara anche il MOTIVO, cosi' il log non attribuisce alla
+		// copertura un bersaglio che era solo troppo lontano (test
+		// Combat.HexTargetingReasonDistinguishesRangeFromCover).
 		const bool bReady = SelectedUnit->CanUseAbility(AbilityIndex);
-		const bool bInRange =
-			URTHexLibrary::HexDistance(SelectedUnit->Cell, ClickedUnit->Cell) <= Ability->RangeCells;
-		// FAIL-CLOSED (test: Combat.HexTargetingIsFailClosed): senza mappa autorevole non si ingaggia.
-		// Prima la condizione era `!Grid || HasLineOfSight(...)` e senza griglia passava qualunque bersaglio.
-		const bool bHasLOS =
-			URTCombatLibrary::CanTargetHexCell(TMap, SelectedUnit->Cell, ClickedUnit->Cell, Ability->RangeCells);
-		if (bReady && bInRange && bHasLOS)
+		const ERTHexTargetReason Reason = URTCombatLibrary::ClassifyHexTargeting(
+			TMap, SelectedUnit->Cell, ClickedUnit->Cell, Ability->RangeCells);
+
+		if (bReady && Reason == ERTHexTargetReason::Ok)
 		{
 			SelectedUnit->PlannedAbilityIndex = AbilityIndex;
 			SelectedUnit->PlannedAttackTarget = ClickedUnit;
@@ -324,13 +325,22 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		{
 			UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica/energia)"), *Ability->DisplayName.ToString());
 		}
-		else if (!bHasLOS)
-		{
-			UE_LOG(LogRT, Log, TEXT("[RT] %s coperto (nessuna linea di tiro)"), *ClickedUnit->GetName());
-		}
 		else
 		{
-			UE_LOG(LogRT, Log, TEXT("[RT] %s fuori portata (max %d)"), *ClickedUnit->GetName(), Ability->RangeCells);
+			switch (Reason)
+			{
+			case ERTHexTargetReason::OutOfRange:
+				UE_LOG(LogRT, Log, TEXT("[RT] %s fuori portata (max %d)"), *ClickedUnit->GetName(), Ability->RangeCells);
+				break;
+			case ERTHexTargetReason::NoLineOfSight:
+				UE_LOG(LogRT, Log, TEXT("[RT] %s coperto (nessuna linea di tiro)"), *ClickedUnit->GetName());
+				break;
+			case ERTHexTargetReason::NoMap:
+			default:
+				UE_LOG(LogRT, Warning,
+					TEXT("[RT] Nessuna mappa esagonale: bersagliamento non validabile, piano rifiutato"));
+				break;
+			}
 		}
 		return;
 	}

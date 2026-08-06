@@ -8,6 +8,19 @@
 
 class URTHexMapAsset;
 
+/**
+ * Perche' un bersaglio non e' ingaggiabile. Serve a spiegare l'esito nel log con il motivo GIUSTO: "fuori
+ * portata" e "coperto" sono difetti diversi da correggere per chi gioca, e confonderli rende il log una bugia.
+ */
+UENUM(BlueprintType)
+enum class ERTHexTargetReason : uint8
+{
+	Ok,             // ingaggiabile
+	NoMap,          // nessuna mappa autorevole: non si valida (fail-closed)
+	OutOfRange,     // oltre la portata dell'abilita'
+	NoLineOfSight   // in portata, ma la traiettoria e' bloccata
+};
+
 /** Esito dell'applicazione del danno: HP e scudo risultanti. */
 USTRUCT(BlueprintType)
 struct FRTDamageResult
@@ -79,6 +92,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static bool CanTargetHexCell(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To,
 		int32 RangeCells);
+
+	/**
+	 * Come `CanTargetHexCell`, ma dice **perche'**: portata prima, poi linea di tiro. Il chiamante logga il
+	 * motivo esatto invece di attribuire ogni rifiuto alla copertura.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static ERTHexTargetReason ClassifyHexTargeting(const URTHexMapAsset* Map, const FRTCellId& From,
+		const FRTCellId& To, int32 RangeCells);
 
 	/**
 	 * Danno effettivo di un attacco dato il bonus della cella occupata dall'attaccante
