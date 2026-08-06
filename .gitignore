@@ -66,6 +66,11 @@ Content/**/*.txt
 # ignorati). Usare "git clean -fd", oppure "git clean -fdx -e Content/FabAsset".
 /Content/FabAsset/
 
+# Residui della migrazione del 2026-08-06: 88 asset di Characters/Global che UE si e' rifiutato
+# di rinominare (sono caricabili, quindi spostarli a mano li romperebbe). Restano al vecchio
+# path, dove i pack migrati li referenziano correttamente. Ignorati come directory.
+/Content/Paragon*/
+
 # ---- Eccezioni: questi vanno versionati ----
 !Content/**/Binaries/
 !Content/RT/Art/GlobalMaterials/M_Global_Tint.uasset

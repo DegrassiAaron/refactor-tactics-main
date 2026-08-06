@@ -421,8 +421,13 @@ Content/
     Paragon/
       ParagonGideon/           <- /Game/FabAsset/Paragon/ParagonGideon/...
       ParagonSparrow/
-      ...                      (26 pack, 48,1 GB, 39.589 file)
+      ...                      (26 pack, 46,4 GB, 34.017 file)
 ```
+
+> **Residui della migrazione**: 88 asset di `Characters/Global/` (parameter collection, texture condivise,
+> un `ShinbiPlayerCharacter`) sono rimasti in 11 cartelle `Content/Paragon<Nome>/`. UE si è rifiutato di
+> rinominarli e **sono caricabili**, quindi spostarli a mano li romperebbe (B.3 punto 4): restano al vecchio
+> path, dove i pack migrati li referenziano correttamente. Ignorati da git come directory.
 
 Il livello `<Fornitore>` (`Paragon/`) tiene aperta la porta ad altri fornitori (Megascans, Marketplace) senza
 rimescolare quanto già presente. Resta valido il §1: un pack **non si sposta dentro `/Game/RT`**.
