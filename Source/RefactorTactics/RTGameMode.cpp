@@ -37,6 +37,19 @@ void ARTGameMode::BeginPlay()
 		HexMap = World->SpawnActor<ARTHexMapActor>(ARTHexMapActor::StaticClass(), FTransform::Identity);
 	}
 
+	// Un actor mappa senza asset non ha CELLE: la partita non si allestirebbe e premere Play non mostrerebbe
+	// nulla (era il caso del livello di avvio). Se manca la mappa d'autore si gioca su un'arena di ripiego,
+	// dichiarata nel log: meglio un fondo di scena giocabile che una schermata vuota senza spiegazione.
+	if (HexMap && !HexMap->MapAsset)
+	{
+		HexMap->MapAsset = URTMatchSetupLibrary::MakeDemoArena(HexMap, DemoArenaRadius);
+		HexMap->RebuildInstances();
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] Nessuna mappa esagonale nel livello: uso un'arena di ripiego (esagono r=%d, %d celle). "
+				 "Posa un ARTHexMapActor con il suo MapAsset per giocare su una mappa d'autore."),
+			DemoArenaRadius, HexMap->MapAsset ? HexMap->MapAsset->NumCells() : 0);
+	}
+
 	// Luce direzionale (se assente) per rendere visibile la scena anche in un livello vuoto.
 	if (!UGameplayStatics::GetActorOfClass(this, ADirectionalLight::StaticClass()))
 	{

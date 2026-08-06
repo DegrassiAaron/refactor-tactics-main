@@ -39,6 +39,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Units")
 	TSubclassOf<ARTUnit> GuardianUnitClass;
 
+	/**
+	 * Raggio dell'arena di RIPIEGO generata quando il livello non porta una mappa esagonale (0 = nessun
+	 * ripiego: senza mappa d'autore la partita non si allestisce e il log lo dice).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Map")
+	int32 DemoArenaRadius = 4;
+
 private:
 	ARTUnit* SpawnUnit(int32 TeamId, const FRTCellId& InCell, bool bGuardian, const FVector& Origin,
 		float HexSize, float LayerHeight);

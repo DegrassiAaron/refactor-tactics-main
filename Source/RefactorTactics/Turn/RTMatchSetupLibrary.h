@@ -27,6 +27,16 @@ public:
 	static TArray<FRTCellId> PickStartCells(const URTHexMapAsset* Map, int32 NumPerTeam, int32 Layer);
 
 	/**
+	 * Arena di RIPIEGO: esagono pieno di raggio `Radius` sul layer 0, tutte le celle percorribili.
+	 *
+	 * Serve quando il livello non porta una mappa esagonale: senza, il GameMode spawnerebbe un
+	 * `ARTHexMapActor` con l'asset vuoto e la partita non si allestirebbe — premere Play non mostrerebbe
+	 * nulla. Non sostituisce una mappa d'autore: e' un fondo di scena giocabile, dichiarato nel log.
+	 * `Radius < 1` o `Outer` nullo -> nullptr (nessuna arena a meta').
+	 */
+	static URTHexMapAsset* MakeDemoArena(UObject* Outer, int32 Radius);
+
+	/**
 	 * Occupazione cella -> UnitId ricostruita dallo stato delle unita': solo le vive occupano.
 	 * I tre array sono paralleli; lunghezze incoerenti -> mappa vuota (input non fidato, nessun indovinare).
 	 */
