@@ -111,23 +111,13 @@ struct FRTActionDef
 	int32 PropagationLimit = 0;
 
 	/**
-	 * Effetto elementare prodotto dall'azione. E' il campo che il registry traduce in eventi: cambiare cosa
-	 * fa un'azione significa cambiare QUESTO, non aggiungere un ramo nell'orchestratore del turno.
+	 * Effetti prodotti dall'azione, nell'ordine in cui si applicano. E' il campo che il registry traduce in
+	 * eventi: cambiare cosa fa un'azione significa cambiare QUESTO, non aggiungere un ramo nell'orchestratore.
+	 *
+	 * E' una LISTA perche' molte azioni combinano piu' effetti (la Spazzata infligge danno **e** respinge).
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
-	ERTActionEffect Effect = ERTActionEffect::None;
-
-	/** Entita' dell'effetto: danni, cura, punti scudo, celle di spinta. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
-	int32 EffectAmount = 0;
-
-	/** Stato applicato dall'azione (nessuno se il tag e' vuoto). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
-	FGameplayTag StatusToApply;
-
-	/** Durata in turni dello stato applicato. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
-	int32 StatusDuration = 0;
+	TArray<FRTActionEffectSpec> Effects;
 
 	/** Se falso, `Action.Interrupt` non ha effetto su questa azione. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")

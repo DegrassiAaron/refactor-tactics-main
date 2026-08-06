@@ -16,10 +16,12 @@ namespace
 		FRTActionInstance Instance;
 		Instance.Def.ActionId = TEXT("Action.Test");
 		Instance.Def.ResolutionPhase = ERTResolutionPhase::Attack;
-		Instance.Def.Effect = Effect;
-		Instance.Def.EffectAmount = Amount;
-		Instance.Def.StatusToApply = Status;
-		Instance.Def.StatusDuration = StatusTurns;
+		FRTActionEffectSpec Spec;
+		Spec.Effect = Effect;
+		Spec.Amount = Amount;
+		Spec.StatusTag = Status;
+		Spec.StatusDuration = StatusTurns;
+		Instance.Def.Effects.Add(Spec);
 		Instance.SourceUnitId = Source;
 		Instance.TargetUnitId = Target;
 		return Instance;
@@ -119,6 +121,41 @@ bool FRTEffectNewOneNeedsNoOrchestratorTest::RunTest(const FString&)
 			TestTrue(TEXT("l'evento ha il tipo dell'effetto"), Events.Num() == 1 && Events[0].Kind == Effect);
 		}
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEffectMultipleTest,
+	"RefactorTactics.Actions.ActionCanDeclareSeveralEffects",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEffectMultipleTest::RunTest(const FString&)
+{
+	// La Spazzata del Guardian infligge danno E respinge: con un solo effetto per azione, la seconda meta'
+	// tornerebbe a essere un flag hard-coded (`bKnockback`) — cioe' il problema che il motore azioni toglie.
+	FRTActionInstance Sweep;
+	Sweep.Def.ActionId = TEXT("Guardian.Sweep");
+	Sweep.Def.ResolutionPhase = ERTResolutionPhase::Attack;
+	Sweep.Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 30));
+	Sweep.Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Push, 2));
+	Sweep.SourceUnitId = 0;
+	Sweep.TargetUnitId = 1;
+
+	const TArray<FRTActionEvent> Events = URTActionEffectLibrary::ProduceEvents(Sweep);
+	TestEqual(TEXT("due effetti -> due eventi"), Events.Num(), 2);
+	TestTrue(TEXT("l'ordine dichiarato e' preservato: prima il danno, poi la spinta"),
+		Events.Num() == 2 && Events[0].Kind == ERTActionEffect::Damage && Events[1].Kind == ERTActionEffect::Push);
+	TestEqual(TEXT("entita' del danno"), Events[0].Amount, 30);
+	TestEqual(TEXT("celle di spinta"), Events[1].Amount, 2);
+
+	// Un effetto degenere in mezzo non ferma gli altri: si salta solo quello.
+	FRTActionInstance Mixed;
+	Mixed.Def.ActionId = TEXT("Action.Mixed");
+	Mixed.Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 0));   // scartato
+	Mixed.Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Heal, 15));    // valido
+	Mixed.SourceUnitId = 0;
+	Mixed.TargetUnitId = 1;
+	const TArray<FRTActionEvent> MixedEvents = URTActionEffectLibrary::ProduceEvents(Mixed);
+	TestEqual(TEXT("l'effetto degenere e' saltato, gli altri restano"), MixedEvents.Num(), 1);
+	TestTrue(TEXT("resta la cura"), MixedEvents.Num() == 1 && MixedEvents[0].Kind == ERTActionEffect::Heal);
 	return true;
 }
 
