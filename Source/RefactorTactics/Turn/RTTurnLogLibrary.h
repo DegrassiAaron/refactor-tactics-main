@@ -27,6 +27,14 @@ public:
 	static void SortTurnLog(TArray<FRTTurnLogEntry>& Entries);
 
 	/**
+	 * Descrizione leggibile di una voce, con le celle in coordinate ASSIALI `(q=..,r=..,L=..)` e il reason
+	 * code tradotto in italiano. Serve al combat log: senza, l'esito di un turno resta leggibile solo nel
+	 * TurnLog binario e il giocatore non sa PERCHE' l'unita' non si e' mossa o il colpo non e' partito.
+	 * Pura (nessun Actor, nessuno stato): il chiamante decide dove mostrarla.
+	 */
+	static FString DescribeEntry(const FRTTurnLogEntry& Entry);
+
+	/**
 	 * Hash intero (FNV-1a sui campi interi) del TurnLog, PERMUTAZIONE-INVARIANTE (ordina con EntryLess
 	 * prima di mescolare). Deterministico, solo interi. Uso: verifica di replay, mai logica di gioco.
 	 */

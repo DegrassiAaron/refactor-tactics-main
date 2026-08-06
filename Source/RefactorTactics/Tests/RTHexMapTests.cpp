@@ -250,4 +250,32 @@ bool FRTHexMapLookupInvalidationTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapCenterCellTest,
+	"RefactorTactics.HexMap.CenterCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapCenterCellTest::RunTest(const FString&)
+{
+	// Serve a inquadrare la mappa (camera): il centro non e' per forza l'origine assiale, perche' una
+	// mappa costruita nell'editor puo' stare tutta lontano da (0,0).
+	URTHexMapAsset* Centered = NewObject<URTHexMapAsset>();
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 3))
+	{
+		Centered->AddOrUpdateCell(FRTHexCellData(Id));
+	}
+	Centered->SortCells();
+	TestTrue(TEXT("esagono centrato sull'origine: centro (0,0)"), Centered->GetCenterCell() == FRTCellId(0, 0, 0));
+
+	URTHexMapAsset* Offset = NewObject<URTHexMapAsset>();
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(5, -2, 0), 2))
+	{
+		Offset->AddOrUpdateCell(FRTHexCellData(Id));
+	}
+	Offset->SortCells();
+	TestTrue(TEXT("mappa spostata: il centro la segue"), Offset->GetCenterCell() == FRTCellId(5, -2, 0));
+
+	URTHexMapAsset* Empty = NewObject<URTHexMapAsset>();
+	TestTrue(TEXT("mappa vuota: centro all'origine, nessun crash"), Empty->GetCenterCell() == FRTCellId(0, 0, 0));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

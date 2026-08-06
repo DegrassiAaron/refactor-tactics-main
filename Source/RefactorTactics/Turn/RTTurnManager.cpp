@@ -668,7 +668,7 @@ void ARTTurnManager::ResolveCombat()
 		NoLos.TgtCell = HexUnits[Blocked.TargetId].Cell;
 		NoLos.Amount = 0;
 		TurnLog.Add(NoLos);
-		AddLogEvent(FString::Printf(TEXT("%s -> %s: nessuna linea di tiro"),
+		AddLogEvent(FString::Printf(TEXT("%s (%s -> %s)"), *URTTurnLogLibrary::DescribeEntry(NoLos),
 			*Units[Blocked.AttackerId]->GetName(), *Units[Blocked.TargetId]->GetName()));
 	}
 
@@ -956,16 +956,17 @@ void ARTTurnManager::ResolveMovement()
 
 	// TurnLog dagli esiti: la chiave e' la cella di PARTENZA (Paths[i][0]), stabile perche' Cell cambia
 	// dopo PlaceOnCell. BuildMoveLog produce una voce per unita' nell'ordine dell'input.
-	TurnLog.Append(URTHexSimLibrary::BuildMoveLog(Paths, Resolved));
+	const TArray<FRTTurnLogEntry> MoveLog = URTHexSimLibrary::BuildMoveLog(Paths, Resolved);
+	TurnLog.Append(MoveLog);
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
-		if (Resolved[i].Outcome == ERTMoveOutcome::BlockedContested)
+		// Il combat log mostra il REASON CODE del TurnLog, con le coordinate assiali: cosi' quel che il
+		// giocatore legge e quel che il replay registra sono la stessa cosa, non due descrizioni parallele.
+		if (MoveLog.IsValidIndex(i)
+			&& (Resolved[i].Outcome == ERTMoveOutcome::BlockedContested || Resolved[i].Outcome == ERTMoveOutcome::BlockedByUnit))
 		{
-			AddLogEvent(FString::Printf(TEXT("%s: fermo (cella contesa)"), *Units[i]->GetName()));
-		}
-		else if (Resolved[i].Outcome == ERTMoveOutcome::BlockedByUnit)
-		{
-			AddLogEvent(FString::Printf(TEXT("%s: fermo (cella occupata)"), *Units[i]->GetName()));
+			AddLogEvent(FString::Printf(TEXT("%s: %s"),
+				*Units[i]->GetName(), *URTTurnLogLibrary::DescribeEntry(MoveLog[i])));
 		}
 	}
 

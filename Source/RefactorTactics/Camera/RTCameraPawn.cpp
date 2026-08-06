@@ -2,7 +2,9 @@
 #include "RefactorTactics.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
-#include "Grid/RTGridActor.h"
+#include "Map/RTHexLibrary.h"
+#include "Map/RTHexMapActor.h"
+#include "Map/RTHexMapAsset.h"
 #include "Kismet/GameplayStatics.h"
 
 ARTCameraPawn::ARTCameraPawn()
@@ -80,12 +82,19 @@ void ARTCameraPawn::AddZoom(float AxisValue)
 
 void ARTCameraPawn::RecenterView()
 {
-	// Centra sul centro della griglia (se presente) e ripristina lo zoom di default.
-	if (const ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass())))
+	// Centra sulla mappa ESAGONALE del livello (se presente) e ripristina lo zoom di default. La mappa non e'
+	// per forza centrata sull'origine: il centro viene dal bounding box delle sue celle.
+	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
 	{
-		const FVector Center = Grid->GetActorLocation() +
-			FVector(Grid->Width * Grid->CellSize * 0.5f, Grid->Height * Grid->CellSize * 0.5f, 0.f);
-		SetActorLocation(Center);
+		FVector Origin; float HexSize; float LayerHeight;
+		if (const URTHexMapAsset* Map = HexMap->GetHexContext(Origin, HexSize, LayerHeight))
+		{
+			SetActorLocation(URTHexLibrary::AxialToWorld(Map->GetCenterCell(), Origin, HexSize, LayerHeight));
+		}
+		else
+		{
+			SetActorLocation(Origin);
+		}
 	}
 	if (SpringArm)
 	{

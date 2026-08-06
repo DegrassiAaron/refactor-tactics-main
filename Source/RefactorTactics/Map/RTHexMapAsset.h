@@ -114,6 +114,13 @@ public:
 	/** Hash deterministico del contenuto delle celle (indipendente dall'ordine di inserimento). */
 	uint32 ComputeHash() const;
 
+	/**
+	 * Cella "centrale" della mappa: mediana del bounding box assiale delle celle del layer piu' basso.
+	 * Serve a inquadrare la mappa (camera) senza assumere che sia centrata sull'origine — una mappa
+	 * disegnata nell'editor puo' stare tutta altrove. Mappa vuota -> (0,0,0). Pura e deterministica.
+	 */
+	FRTCellId GetCenterCell() const;
+
 	/** Validazione minimale: Id duplicati, costi negativi, transizioni verso celle inesistenti. Ritorna gli errori. */
 	TArray<FString> ValidateMap() const;
 

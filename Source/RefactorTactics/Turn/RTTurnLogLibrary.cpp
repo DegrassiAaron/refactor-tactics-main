@@ -22,6 +22,57 @@ void URTTurnLogLibrary::SortTurnLog(TArray<FRTTurnLogEntry>& Entries)
 	Entries.Sort([](const FRTTurnLogEntry& A, const FRTTurnLogEntry& B) { return EntryLess(A, B); });
 }
 
+FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
+{
+	auto CellText = [](const FRTCellId& Cell)
+	{
+		return FString::Printf(TEXT("(q=%d,r=%d,L=%d)"), Cell.X, Cell.Y, Cell.Layer);
+	};
+
+	if (Entry.Category == ERTLogCategory::Move)
+	{
+		const TCHAR* Reason = TEXT("");
+		switch (static_cast<ERTMoveOutcome>(Entry.Outcome))
+		{
+		case ERTMoveOutcome::Moved:            Reason = TEXT("si muove"); break;
+		case ERTMoveOutcome::BlockedContested: Reason = TEXT("fermo: cella contesa"); break;
+		case ERTMoveOutcome::BlockedByUnit:    Reason = TEXT("fermo: cella occupata"); break;
+		default:                               Reason = TEXT("resta"); break;
+		}
+
+		if (static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Moved)
+		{
+			return FString::Printf(TEXT("%s %s -> %s (%d celle)"),
+				Reason, *CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount);
+		}
+		return FString::Printf(TEXT("%s %s"), Reason, *CellText(Entry.SrcCell));
+	}
+
+	// Combat: chi colpisce chi, con quale esito e quanto danno.
+	switch (static_cast<ERTCombatOutcome>(Entry.Outcome))
+	{
+	case ERTCombatOutcome::NoLineOfSight:
+		return FString::Printf(TEXT("%s -> %s: nessuna linea di tiro"),
+			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell));
+
+	case ERTCombatOutcome::ShieldAbsorbed:
+		return FString::Printf(TEXT("%s -> %s: %d assorbiti dallo scudo"),
+			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount);
+
+	case ERTCombatOutcome::Lethal:
+		return FString::Printf(TEXT("%s -> %s: %d danni, eliminata"),
+			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount);
+
+	case ERTCombatOutcome::TerrainBonus:
+		return FString::Printf(TEXT("%s -> %s: %d danni (bonus posizione)"),
+			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount);
+
+	default:
+		return FString::Printf(TEXT("%s -> %s: %d danni"),
+			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount);
+	}
+}
+
 uint32 URTTurnLogLibrary::HashTurnLog(const TArray<FRTTurnLogEntry>& Entries)
 {
 	// Ordina prima di mescolare: stesso insieme di voci -> stessa sequenza -> stesso hash (permutazione-invariante).
