@@ -46,4 +46,19 @@ public:
 	 * portata e cooldown dal catalogo — solo l'effetto aggiuntivo resta un numero non ancora consumato.
 	 */
 	static URTHeroData* MakeFlux();
+
+	/**
+	 * Costruisce **Riva**, manipolatrice dell'acqua (catalogo eroi v0.1 §2): 95 HP, 5 MP, vista 5, resistenza
+	 * push 0, affinita' acqua, debolezza elettricita' — simmetrica a Flux (stesso `Affinity.Electricity`),
+	 * cosi' la rivalita' fra i due e' un solo identificatore condiviso, non due nomi.
+	 *
+	 * Limiti dichiarati: `CircularTide` dichiara Heal E Status.Wet nella stessa lista Effects, ma **nessun
+	 * resolver applica oggi effetti diversi ad alleati e nemici dentro la stessa area** (`bFriendlyFire`
+	 * decide solo SE un alleato viene colpito, non CON QUALE effetto) — la differenziazione arriva quando
+	 * Riva sara' davvero cablata (CP 6.6+). `FluidTrail` (acqua lungo il percorso) e `MistVeil` (fumo) non
+	 * hanno un modello di terreno dinamico (E8/E9): identita', fase, portata e cooldown sono dati veri,
+	 * l'effetto no. `FlowReaction` e' interamente non rappresentabile (nessuno slot Reazione, E5): Effects
+	 * vuoto, come `Flux.ReactiveCapacitor` per la sua meta' non rappresentabile.
+	 */
+	static URTHeroData* MakeRiva();
 };

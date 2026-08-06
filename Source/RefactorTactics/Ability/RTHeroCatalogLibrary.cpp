@@ -217,3 +217,85 @@ URTHeroData* URTHeroCatalogLibrary::MakeFlux()
 
 	return Flux;
 }
+
+URTHeroData* URTHeroCatalogLibrary::MakeRiva()
+{
+	URTHeroData* Riva = NewObject<URTHeroData>();
+	Riva->HeroId = TEXT("Hero.Riva");
+	Riva->DisplayName = FText::FromString(TEXT("Riva"));
+	Riva->MaxHealth = 95;
+	Riva->MovePoints = 5;
+	Riva->VisionRange = 5;
+	Riva->PushResistance = 0;
+	Riva->Affinity = TEXT("Affinity.Water");
+	// Simmetrica a Flux (Affinity.Water e' gia' la sua debolezza): la rivalita' fra i due eroi legati dalla
+	// combo Wet e' un solo identificatore condiviso in entrambe le direzioni, non due nomi da sincronizzare.
+	Riva->Weakness = TEXT("Affinity.Electricity");
+
+	// Indice 0 — PressureJet, attacco base. 16 danni non corrisponde a NESSUNA fascia di
+	// `BasicAttackDamageForRange` (28/25/22/20): a differenza di `Flux.ArcPulse`, l'attacco base di Riva e'
+	// TEMATICO (linea, Wet, spinta), non generico per portata. Non si forza `MakeBasicAttack` su un numero
+	// che non gli appartiene. Range 5: stessa portata di `Flux.LinearDischarge` (stessa forma, stesso riuso).
+	Riva->Actions.Add(MakeHeroAction(TEXT("Riva.PressureJet"), ERTResolutionPhase::Attack, /*Priority*/ 50,
+		/*Range*/ 5, /*Cooldown*/ 0, ERTActionFallback::AttackCell,
+		{
+			FRTActionEffectSpec(ERTActionEffect::Damage, 16),
+			FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Wet, /*Turni*/ 1),
+			FRTActionEffectSpec(ERTActionEffect::Push, 1),
+		}, ERTAbilityShape::Line));
+
+	// Indice 1 — CircularTide. Cura 18 agli alleati, Wet ai nemici: DUE effetti dichiarati nella stessa
+	// lista, ma NESSUN resolver oggi applica un effetto diverso ad alleati e nemici della stessa area
+	// (`bFriendlyFire` decide solo SE colpire un alleato, non CON QUALE effetto — vedi limiti dichiarati
+	// sulla dichiarazione della funzione). Portata 4 e raggio 1: stessi numeri di `Flux.Overload` (portata
+	// decisa con l'utente, raggio riusato da `Action.CircularAoE`).
+	Riva->Actions.Add(MakeHeroAction(TEXT("Riva.CircularTide"), ERTResolutionPhase::Attack, /*Priority*/ 60,
+		/*Range*/ 4, /*Cooldown*/ 2, ERTActionFallback::AttackCell,
+		{
+			FRTActionEffectSpec(ERTActionEffect::Heal, 18),
+			FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Wet, /*Turni*/ 1),
+		}, ERTAbilityShape::Area, /*AreaRadius*/ 1));
+
+	// Indice 2 — FluidTrail. `Dash 3` che crea acqua lungo il percorso: la mobilita' e' rappresentabile
+	// (fase Dash, stile lineare — stessa famiglia di `Action.Dash`), la creazione di terreno no (nessun
+	// effetto di cella dinamica esiste: E8/E9). Nessun Effects dichiarato: il movimento non passa da li', e
+	// l'acqua lasciata dietro non ha un modello da consumare.
+	Riva->Actions.Add(MakeHeroAction(TEXT("Riva.FluidTrail"), ERTResolutionPhase::FastMovement, /*Priority*/ 30,
+		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop, {}));
+
+	// Indice 3 — MistVeil. "Crea fumo raggio 1": nessun modello di cella (vision-blocking dinamico, E8/E9).
+	// Range 0 come `Flux.ConductiveNode`: segnaposto dichiarato, non un numero di bilanciamento, perche'
+	// l'abilita' non ha ancora un effetto da mirare davvero.
+	Riva->Actions.Add(MakeHeroAction(TEXT("Riva.MistVeil"), ERTResolutionPhase::Preparation, /*Priority*/ 35,
+		/*Range*/ 0, /*Cooldown*/ 3, ERTActionFallback::Cancel, {}, ERTAbilityShape::Area, /*AreaRadius*/ 1));
+
+	// Indice 4 — FlowReaction. `Reposition 1` dopo un attacco subito: e' una REAZIONE (E5, nessuno slot
+	// dedicato) che sposta l'unita' — e il movimento non e' nemmeno un `ERTActionEffect` rappresentabile
+	// (passa da `ERTMovementStyle`, non da Effects). Interamente senza effetto dichiarato, come la meta' non
+	// rappresentabile di `Flux.ReactiveCapacitor`. Slot None, non interrompibile (reazione preparata).
+	Riva->Actions.Add(MakeHeroAction(TEXT("Riva.FlowReaction"), ERTResolutionPhase::Preparation, /*Priority*/ 36,
+		/*Range*/ 0, /*Cooldown*/ 3, ERTActionFallback::Cancel, {}, ERTAbilityShape::Single, /*AreaRadius*/ 0,
+		ERTActionSlot::None, /*bInterruptible*/ false));
+
+	// Variante di CircularTide (vincolo v0.1: una sola abilita' fondamentale con variante per eroe).
+	// Curativa: cura 24 (invece di 18), MA non applica Wet ai nemici — rinuncia al setup della combo con
+	// Flux per curare di piu'.
+	FRTAbilityVariant Healing;
+	Healing.VariantId = TEXT("Riva.CircularTide.Healing");
+	Healing.DisplayName = FText::FromString(TEXT("Marea curativa"));
+	Healing.Tradeoff = FText::FromString(TEXT("cura 24 invece di 18, ma non applica Wet ai nemici"));
+	Healing.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Heal, 24));
+
+	// Urto: cura 10 (meno della base) MA applica Push 1 ai nemici — meno supporto, piu' controllo.
+	FRTAbilityVariant Impact;
+	Impact.VariantId = TEXT("Riva.CircularTide.Impact");
+	Impact.DisplayName = FText::FromString(TEXT("Marea d'urto"));
+	Impact.Tradeoff = FText::FromString(TEXT("cura solo 10, ma applica Push 1 ai nemici"));
+	Impact.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Heal, 10));
+	Impact.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Push, 1));
+
+	Riva->Actions[1]->Variants.Add(Healing);
+	Riva->Actions[1]->Variants.Add(Impact);
+
+	return Riva;
+}
