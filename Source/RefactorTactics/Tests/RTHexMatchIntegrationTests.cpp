@@ -8,6 +8,8 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
+#include "Map/RTHexVisionLibrary.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 
@@ -174,6 +176,104 @@ bool FRTHexMatchLogTest::RunTest(const FString&)
 	URTTurnLogLibrary::SortTurnLog(Copy);
 	TestEqual(TEXT("il TurnLog e' gia' in ordine canonico"),
 		URTTurnLogLibrary::HashTurnLog(Copy), URTTurnLogLibrary::HashTurnLog(Log));
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
+/**
+ * Un turno in cui ENTRAMBE le squadre si muovono e agiscono, sulla mappa di prova generata da codice.
+ *
+ * I test precedenti guardano una fase o una squadra per volta; qui si verifica il caso che il playtest esercita
+ * davvero: quattro unita' che nello stesso turno attaccano e si spostano, con la risoluzione simultanea a
+ * decidere l'esito. I piani sono ESPLICITI per tutte e quattro (nessun bot): un test che dipendesse dall'utility
+ * del bot verificherebbe le sue preferenze, non la tenuta del turno.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBothTeamsActTest,
+	"RefactorTactics.HexMatch.BothTeamsMoveAndActOnTestArena",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBothTeamsActTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	if (!TestNotNull(TEXT("arena di prova generata"), Arena)) { DestroyHexMatchWorld(World); return false; }
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+
+	// Tutti e quattro sullo stesso lato dei muri centrali, a portata reciproca: qui si vuole che gli attacchi
+	// siano LEGALI, non provare la copertura (quella e' HexVision/PIE-HEXPLAY-6).
+	ARTUnit* A_Shooter = SpawnHexMatchUnit(World, 0, ERTArchetype::Ranger,   FRTCellId(1, 1));
+	ARTUnit* A_Mover   = SpawnHexMatchUnit(World, 0, ERTArchetype::Guardian, FRTCellId(1, 2));
+	ARTUnit* B_Shooter = SpawnHexMatchUnit(World, 1, ERTArchetype::Ranger,   FRTCellId(3, 0));
+	ARTUnit* B_Mover   = SpawnHexMatchUnit(World, 1, ERTArchetype::Guardian, FRTCellId(4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !A_Shooter || !A_Mover || !B_Shooter || !B_Mover)
+	{
+		DestroyHexMatchWorld(World);
+		return false;
+	}
+
+	// Piani espliciti: nessuna unita' guidata dal bot in questo test.
+	for (ARTUnit* U : { A_Shooter, A_Mover, B_Shooter, B_Mover }) { U->bIsBotControlled = false; }
+
+	const FRTCellId AMoverFrom = A_Mover->Cell;
+	const FRTCellId BMoverFrom = B_Mover->Cell;
+	const FRTCellId AMoverTo(0, 3);
+	const FRTCellId BMoverTo(4, -1);
+	const int32 BShooterHealthBefore = B_Shooter->Health + B_Shooter->Shield;
+	const int32 AShooterHealthBefore = A_Shooter->Health + A_Shooter->Shield;
+
+	// Premessa: i due tiratori si vedono e sono a portata, altrimenti il test non prova quel che dice.
+	TestTrue(TEXT("premessa: i tiratori si vedono"),
+		URTHexVisionLibrary::HasLineOfSight(Arena, A_Shooter->Cell, B_Shooter->Cell));
+
+	// Squadra 0: uno attacca, l'altro si muove. Squadra 1: idem, nello stesso turno.
+	A_Shooter->PlannedAbilityIndex = 0;               // "Tiro"
+	A_Shooter->PlannedAttackTarget = B_Shooter;
+	A_Mover->PlannedCell = AMoverTo;
+	B_Shooter->PlannedAbilityIndex = 0;
+	B_Shooter->PlannedAttackTarget = A_Shooter;
+	B_Mover->PlannedCell = BMoverTo;
+
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+	{
+		TM->Tick(0.05f);
+	}
+
+	// ENTRAMBE le squadre hanno agito: ciascun tiratore ha tolto punti all'avversario.
+	TestTrue(TEXT("la squadra 0 ha colpito la squadra 1"),
+		(B_Shooter->Health + B_Shooter->Shield) < BShooterHealthBefore);
+	TestTrue(TEXT("la squadra 1 ha colpito la squadra 0"),
+		(A_Shooter->Health + A_Shooter->Shield) < AShooterHealthBefore);
+
+	// ENTRAMBE le squadre si sono mosse, ognuna sulla cella pianificata.
+	TestTrue(TEXT("la squadra 0 si e' mossa"), A_Mover->Cell != AMoverFrom);
+	TestTrue(TEXT("la squadra 1 si e' mossa"), B_Mover->Cell != BMoverFrom);
+	TestTrue(TEXT("la squadra 0 e' arrivata dove aveva pianificato"), A_Mover->Cell == AMoverTo);
+	TestTrue(TEXT("la squadra 1 e' arrivata dove aveva pianificato"), B_Mover->Cell == BMoverTo);
+
+	// Nessuno finisce dentro un ostacolo: la mappa di prova ne ha, quindi la regola e' esercitata davvero.
+	for (const ARTUnit* U : { A_Shooter, A_Mover, B_Shooter, B_Mover })
+	{
+		const FRTHexCellData* Data = Arena->FindCell(U->Cell);
+		TestTrue(TEXT("nessuna unita' finisce su una cella che blocca il movimento"),
+			Data != nullptr && !Data->bBlocksMovement);
+	}
+
+	// Il turno e' spiegato: il log contiene sia il movimento sia il combattimento.
+	const TArray<FRTTurnLogEntry>& Log = TM->GetTurnLog();
+	bool bHasMove = false;
+	bool bHasCombat = false;
+	for (const FRTTurnLogEntry& E : Log)
+	{
+		bHasMove   |= (E.Category == ERTLogCategory::Move);
+		bHasCombat |= (E.Category == ERTLogCategory::Combat);
+	}
+	TestTrue(TEXT("il TurnLog riporta il movimento"), bHasMove);
+	TestTrue(TEXT("il TurnLog riporta il combattimento"), bHasCombat);
 
 	DestroyHexMatchWorld(World);
 	return true;
