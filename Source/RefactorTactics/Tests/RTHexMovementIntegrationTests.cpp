@@ -428,6 +428,11 @@ bool FRTIceSlidesInMatchTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
 	// Due lastre di ghiaccio sullo stesso asse est: (2,0) a portata di scivolata, (4,0) al limite del budget.
+	// La cella di ARRIVO della scivolata, (3,0), e' Fuoco: la composizione fra due terreni si verifica qui,
+	// non "per costruzione". La cella scivolata finisce in `FRTHexMoveResult::Entered` come qualunque altra,
+	// quindi ApplyTerrainOnEnterEffects deve applicarle il danno del Fuoco senza sapere come ci si e' arrivati.
+	// MoveCost resta 1 (override per-cella, non il 2 del catalogo): il fuoco cambia il DANNO, non i conti del
+	// budget su cui poggiano le due controprove di soglia qui sotto.
 	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
 	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 6))
 	{
@@ -435,6 +440,10 @@ bool FRTIceSlidesInMatchTest::RunTest(const FString&)
 		if (Id == FRTCellId(2, 0) || Id == FRTCellId(4, 0))
 		{
 			Data.Surface = ERTHexSurface::Ice; // costo 1 da catalogo: e' il budget RESIDUO a decidere
+		}
+		if (Id == FRTCellId(3, 0))
+		{
+			Data.Surface = ERTHexSurface::Fire;
 		}
 		Map->AddOrUpdateCell(Data);
 	}
@@ -455,6 +464,7 @@ bool FRTIceSlidesInMatchTest::RunTest(const FString&)
 	}
 
 	// Arrivo su (2,0): costo 2, residuo 3 >= 2 -> scivola di una cella nella direzione d'ingresso (est).
+	const int32 StartHealth = Mover->Health;
 	Mover->PlannedCell = FRTCellId(2, 0);
 	Foe->PlannedCell = Foe->Cell;
 	RunTurn(TM);
@@ -463,6 +473,10 @@ bool FRTIceSlidesInMatchTest::RunTest(const FString&)
 		Mover->Cell == FRTCellId(3, 0));
 	TestTrue(TEXT("posizione visiva = cella logica anche dopo la scivolata"),
 		Mover->GetActorLocation().Equals(Mover->WorldForCell(Mover->Cell, FVector::ZeroVector, 100.f, 250.f), 1.0f));
+	// Ghiaccio -> Fuoco: la cella in cui si SCIVOLA brucia come quella in cui si entra camminando. Nessuno ha
+	// scritto la regola "ghiaccio piu' fuoco": e' la conseguenza di due terreni indipendenti sullo stesso path.
+	TestEqual(TEXT("10 danni dal Fuoco nella cella di arrivo della scivolata"), Mover->Health, StartHealth - 10);
+	TestTrue(TEXT("Burning applicato dalla cella scivolata"), Mover->HasStatus(TAG_Status_Burning));
 
 	// Controprova: stesso ghiaccio, budget residuo insufficiente. Arrivo su (4,0) costa 4 dei 5 MP: resta 1,
 	// sotto la soglia di 2 -> nessuna scivolata. E' il BUDGET a muoverla, non la superficie da sola.
@@ -623,6 +637,17 @@ bool FRTTerrainStatusLogMatchesStateTest::RunTest(const FString&)
 	Mover->PlannedCell = FRTCellId(2, 0);
 
 	RunTurn(TM);
+
+	// ANCORAGGIO: la coerenza qui sotto e' `false == false`, quindi passerebbe anche se l'unita' non fosse mai
+	// arrivata all'acqua e ApplyTerrainOnEnterEffects non fosse mai stata chiamata. Prima si verifica che il
+	// movimento sia davvero avvenuto ATTRAVERSO la cella d'acqua, altrimenti il test passa per il motivo
+	// sbagliato e smetterebbe di sorvegliare il log.
+	if (!TestTrue(TEXT("il Move e' davvero passato dall'acqua bassa e ha raggiunto la destinazione"),
+		Mover->Cell == FRTCellId(2, 0)))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
 
 	bool bLoggedWet = false;
 	for (const FString& Line : TM->GetRecentEvents())

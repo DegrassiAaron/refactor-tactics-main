@@ -98,7 +98,9 @@ FColor SurfaceColor(ERTHexSurface Surface)
 	case ERTHexSurface::Conductive:   return FColor(80, 230, 230);
 	case ERTHexSurface::Ice:          return FColor(160, 220, 255);
 	case ERTHexSurface::Void:         return FColor(150, 40, 150);
-	case ERTHexSurface::Smoke:        return FColor(160, 160, 160);
+	// Grigio-bluastro slavato, distinto dal grigio neutro del Floor: il Fumo ha una regola VERA (cap di
+	// targeting a 2 celle) e chi dipinge la mappa deve vedere dove l'ha messo.
+	case ERTHexSurface::Smoke:        return FColor(180, 190, 215);
 	case ERTHexSurface::HighGround:   return FColor(230, 200, 80);
 	case ERTHexSurface::Floor:
 	default:                          return FColor(160, 160, 160);
