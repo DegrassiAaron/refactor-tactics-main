@@ -273,6 +273,7 @@ neutri (combat math, serializzazione, regole di fase). Il resto ha data di scade
 | [`roadmap-v0.1.md`](roadmap-v0.1.md) | **Release v0.1**: 12 epic, 59 checkpoint, mappatura con queste milestone |
 | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate di release `G1`–`G14`, KPI, checklist di contenuto |
 | [`balance/`](balance/) | **Numeri vigenti v0.1**: cataloghi azioni, terreni, equipaggiamento, eroi, matrice di test |
+| [`spec-motore-azioni-e4.md`](spec-motore-azioni-e4.md) | **Proposta di design** del motore azioni (epic E4): modello, fette, rischi, domande aperte |
 | [`v0.1-issue-plan.md`](v0.1-issue-plan.md) | Titoli e body delle 72 issue (`#14`–`#85`) e ordine di apertura dei branch |
 | [`adr-0003-modello-azioni-v01.md`](adr-0003-modello-azioni-v01.md) | Modello azioni del catalogo v0.1 sulle macro-fasi di Atlas |
 | [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) | **Normativo**: struttura di `Content/`, naming, dipendenze fra cartelle, spostamenti |
