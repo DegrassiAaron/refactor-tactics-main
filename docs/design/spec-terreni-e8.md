@@ -124,16 +124,24 @@ più (`MoveCost=2`, già gestito dal costo esistente).
 
 ### 5.2 Ice — sliding (scelto: implementato ora, non rimandato)
 
-Dopo il calcolo del percorso finale di un Move/Dash che termina su `Ice`: se il budget residuo dell'unità
-è **≥ 2**, si estende il percorso di una cella nella direzione d'ingresso, usando lo stesso set di celle
-bloccate/occupate dello snapshot di fase (`BlockedCellsFor`, già usato da `LinearDashPath`). Cella
-inesistente, bloccante o occupata → nessuno scivolamento (ci si ferma sulla cella di ghiaccio).
+**Solo per il Move normale**, non per lo Scatto (vedi limite sotto). Il Move risolve con
+`URTHexSimLibrary::ResolveHexPaths(TArray<TArray<FRTCellId>>) -> TArray<FRTHexMoveResult>`
+(`RTHexSimLibrary.h:127`): microstep sincroni, collisioni simultanee **già** risolte in modo
+order-independent (destinazione contesa → contendenti fermi da lì; cella di un'unità ferma → bloccata;
+scambio diretto → consentito). Lo scivolamento si inserisce **prima** di questa chiamata: se il percorso
+troncato al budget (da `FindPathForUnit`/`BuildCompositeHexPath`) termina su `Ice` e il budget residuo
+dell'unità è **≥ 2**, si appende una cella nella direzione dell'ultimo passo (stessa direzione
+dell'ingresso), verificando solo che la cella esista e non blocchi il movimento (`bBlocksMovement`) — **non**
+serve controllare l'occupazione qui: il path esteso entra comunque nel microstep di `ResolveHexPaths`, che
+gestisce occupazione e collisioni con lo stesso meccanismo di qualunque altro passo pianificato. **Nessun
+limite da dichiarare per il Move**: due unità che scivolano verso la stessa cella libera vengono gestite dal
+resolver esistente esattamente come due unità che vi si muovono normalmente.
 
-**Limite dichiarato**: la collisione fra **due scivolamenti simultanei** verso la stessa cella libera non è
-gestita — dipende dalla risoluzione generale delle collisioni simultanee di movimento, che è **CP 4.8 /
-issue `#49`, ancora aperta**. Con lo snapshot pre-risoluzione questo caso è raro (richiede due unità su celle
-di ghiaccio diverse che scivolano nella stessa cella vuota nello stesso turno) ma possibile; va dichiarato
-nella PR, non silenziato da un test che lo ignora.
+**Limite dichiarato**: lo Scatto (`LinearDashPath`) che termina su `Ice` **non** innesca lo scivolamento in
+CP 8.1. `LinearDashPath` non passa dal microstep condiviso — controlla i bloccati contro uno snapshot
+**statico** catturato a inizio fase (`BlockedCellsFor`), quindi estendere il suo path con una cella extra
+non avrebbe la stessa garanzia di correttezza sotto collisione simultanea del Move. Introdurlo richiederebbe
+far partecipare anche lo Scatto al resolver condiviso — fuori scope per CP 8.1, dichiarato in PR.
 
 ### 5.3 Fire — danno e Burning all'ingresso
 
@@ -163,7 +171,7 @@ esiste un sistema di LOS graduata). Nessun nuovo meccanismo.
 - Spegnimento Fuoco da Wet, ignite dinamico → CP 8.4 (`#67`).
 - Bonus visuale di `HighGround` → nessun CP dichiarato lo consuma ancora; da rivalutare quando esiste un
   meccanismo di vista modificabile per quota.
-- Collisione fra scivolamenti simultanei su `Ice` → CP 4.8 (`#49`, aperta).
+- Scivolamento su `Ice` dopo uno **Scatto** (solo il Move normale lo innesca in CP 8.1, vedi §5.2).
 
 ## 7. Piano di test
 
