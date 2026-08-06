@@ -37,22 +37,23 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in parte (vedi nota) · ⏳ da far
 |---|---|---|
 | **M0–M5** MVP quadrato (tutorial) | ✅ **archiviata** | Vertical slice 2v2 offline giocabile, packaging Windows, suite verde — vedi § *Archivio* |
 | **H0–H6.5** Fondamenta esagonali | ✅ | Coordinate/asset/A\*/multilivello/editor mode + simulazione hex pura (snapshot, budget, collisioni, TurnLog, LOS, bot) — dettaglio in [`hex-map-roadmap.md`](hex-map-roadmap.md) |
-| **M6** Parità hex | ⏳ | Portare la **partita** su griglia esagonale: wiring, combat, bot, HUD, playtest |
+| **M6** Parità hex | 🟡 | **Codice completo** (CP 6.1–6.7 mergiati): la partita gira su esagoni — wiring, movimento, input, combat, scatto/spinta, bot, HUD. Resta il **playtest** CP 6.8 (sessione PIE) |
 | **M7** Dismissione del quadrato | ⏳ | Rimozione pianificata del gameplay quadrato + misurazione dei budget |
 | **M8** Presentazione e identità | ⏳ | Personaggi animati, anelli team/selezione, leggibilità tattica |
 | **M9** Ambienti tattici + editor maturo | ⏳ | Hazard/cover dinamica/porte-ponti; residuo H5 dell'editor mappa |
 | **M10** Rete e privacy | ⏳ | Listen server, validazione server, planning team-only, canary intent leak |
 | **M11** Production readiness | ⏳ | Budget in CI, validator commandlet, packaged soak, replay audit |
 
-**Suite automatica**: `Source/RefactorTactics/Tests/` — ultima esecuzione completa **217/217 verdi**
-(2026-08-06, CP 6.7, headless con unity forzata). Erano 172 alla chiusura di CP 6.0: i 50 aggiunti da
-M6 sono tutti esagonali (movimento, input, combat, scatto, spinta, bot); 5 test d’integrazione del bot quadrato sono stati portati su hex.
+**Suite automatica**: `Source/RefactorTactics/Tests/` — ultima esecuzione completa **225/225 verdi**
+(2026-08-06, CP 1.4, headless con unity forzata; build **Editor e Game** entrambe verificate). Erano 172 alla chiusura di CP 6.0: i 58 aggiunti da
+M6/E1 coprono movimento, input, combat, scatto, spinta, bot, osservabilità e catalogo; 5 test d’integrazione del bot quadrato sono stati portati su hex.
 
 > **Correzione 2026-08-05**: questo documento dichiarava «169 test» mentre il CP 6.0, poche righe sotto,
 > riportava già 172/172. Le due cifre convivevano: il conteggio reale è **172**.
 
-**Stato del gioco, in una riga**: la griglia esagonale ha fondamenta complete e testate ma **nessuna partita ci
-gira sopra** — il turn loop giocabile è ancora quello quadrato. M6 chiude esattamente questo divario.
+**Stato del gioco, in una riga** (2026-08-06): **l'intero turno gira su griglia esagonale** — allestimento,
+input, movimento, scatto, combattimento, spinta, bot e HUD. Nessun percorso di gioco passa più da
+`URTGridLibrary`. Manca la prova sul campo: la sessione di playtest **CP 6.8**, che si esegue in editor.
 
 ---
 
