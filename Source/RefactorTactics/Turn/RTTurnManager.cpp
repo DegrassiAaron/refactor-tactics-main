@@ -1,4 +1,5 @@
 #include "Turn/RTTurnManager.h"
+#include "Turn/RTPacingLibrary.h"
 #include "Turn/RTPlaybackLibrary.h"
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTActionQueueLibrary.h"
@@ -19,6 +20,10 @@
 #include "RefactorTactics.h"
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Misc/DateTime.h"
+#include "HAL/FileManager.h"
 
 ARTTurnManager::ARTTurnManager()
 {
@@ -289,6 +294,8 @@ void ARTTurnManager::StartPlanningTimer()
 		return;
 	}
 
+	BeginPacingSample(); // apre il campione: il cronometro parte quando parte la pianificazione
+
 	PlanBots(); // il bot pianifica a inizio turno
 
 	World->GetTimerManager().ClearTimer(PlanningTimerHandle);
@@ -302,6 +309,7 @@ void ARTTurnManager::StartPlanningTimer()
 void ARTTurnManager::OnPlanningTimeout()
 {
 	UE_LOG(LogRT, Log, TEXT("[RT] Timer scaduto -> lock-in automatico"));
+	PacingCurrent.LockInSource = ERTLockInSource::Timeout; // non l'ha chiusa il giocatore
 	LockInAndResolve();
 }
 
@@ -320,6 +328,21 @@ void ARTTurnManager::LockInAndResolve()
 	if (Phase != ERTMatchPhase::Planning || bIsResolving)
 	{
 		return; // gia' in risoluzione o non in pianificazione: ignora un secondo lock-in
+	}
+
+	// Sonda di pacing: chiude i tempi della pianificazione. Telemetria, nessun effetto sul turno.
+	{
+		const double Now = FPlatformTime::Seconds();
+		PacingCurrent.MsToLockIn = FMath::RoundToInt((Now - PacingPlanningStart) * 1000.0);
+		// Senza nessun input, "tempo dall'ultimo input" e' l'intera pianificazione: cosi' un turno passato
+		// inerte finisce fra le attese a vuoto e non fra i tagli, che e' la classificazione corretta.
+		PacingCurrent.MsSinceLastInput = bPacingHadInput
+			? FMath::RoundToInt((Now - PacingLastInput) * 1000.0)
+			: PacingCurrent.MsToLockIn;
+		if (!bPacingHadInput)
+		{
+			PacingCurrent.MsToFirstInput = PacingCurrent.MsToLockIn;
+		}
 	}
 
 	// Chiude la pianificazione: ferma il timer (utile anche per il lock-in manuale).
@@ -384,6 +407,10 @@ void ARTTurnManager::LockInAndResolve()
 
 	PendingOutcome = URTTurnRules::EvaluateOutcome(Team0Alive, Team1Alive);
 
+	// Il playback di QUESTO turno parte da zero anche se non verra' riprodotto: senza, il ramo senza
+	// playback lascerebbe il valore del turno precedente e la misura leggerebbe una durata mai avvenuta.
+	PlaybackElapsedTotal = 0.f;
+
 	// Se c'e' qualcosa da mostrare (movimenti/attacchi) e il playback e' attivo, riproduci la risoluzione
 	// nel tempo; altrimenti concludi subito il turno (comportamento istantaneo: es. headless/senza eventi).
 	if (bEnablePlayback && ResolvedTimeline.Num() > 0)
@@ -396,6 +423,10 @@ void ARTTurnManager::LockInAndResolve()
 
 void ARTTurnManager::ConcludeTurn()
 {
+	// PRIMA di tutto il resto: a partita finita questa funzione esce anticipatamente, e il turno che
+	// decide la partita e' proprio quello che non verrebbe mai misurato.
+	ClosePacingSample();
+
 	// Morte visiva differita: ora che il playback ha mostrato le eliminazioni, rimuovi gli Actor morti
 	// (prima del prossimo turno, cosi' non figurano piu' come bersagli/ostacoli).
 	DestroyDefeatedUnits();
@@ -1320,6 +1351,7 @@ void ARTTurnManager::SkipPlayback()
 	{
 		return;
 	}
+	PacingCurrent.bPlaybackSkipped = true;
 	AddLogEvent(TEXT("Risoluzione: salto"));
 	FinishPlayback();
 }
@@ -1379,4 +1411,95 @@ float ARTTurnManager::GetPlaybackProgress01() const
 		return 0.f;
 	}
 	return FMath::Clamp(PlaybackElapsedTotal / PlaybackTotalSeconds, 0.f, 1.f);
+}
+
+// --- Sonda di pacing --------------------------------------------------------------------------
+// TELEMETRIA. Nessun valore prodotto qui rientra in una decisione di gioco, nel TurnLog o nel suo hash:
+// e' l'unica ragione per cui questo canale puo' permettersi di non essere deterministico.
+// Spec: docs/design/spec-pacing-turno.md
+
+void ARTTurnManager::BeginPacingSample()
+{
+	PacingCurrent = FRTPacingSample();
+	PacingCurrent.TurnNumber = TurnNumber;
+
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+	for (AActor* Actor : Actors)
+	{
+		const ARTUnit* Unit = Cast<ARTUnit>(Actor);
+		if (!Unit || !Unit->IsAlive())
+		{
+			continue;
+		}
+		(Unit->TeamId == 0 ? PacingCurrent.UnitsAliveTeam0 : PacingCurrent.UnitsAliveTeam1)++;
+
+		if (Unit->TeamId != PacingTeamId)
+		{
+			continue; // ActionsAvailable misura lo spazio di decisione di CHI decide, non di tutti
+		}
+		for (int32 I = 0; I < Unit->NumAbilities(); ++I)
+		{
+			if (Unit->CanUseAbility(I))
+			{
+				++PacingCurrent.ActionsAvailable;
+			}
+		}
+	}
+
+	PacingPlanningStart = FPlatformTime::Seconds();
+	PacingLastInput = PacingPlanningStart;
+	bPacingHadInput = false;
+}
+
+void ARTTurnManager::RecordPlanningInput(ERTPlanningInput Kind)
+{
+	if (Phase != ERTMatchPhase::Planning)
+	{
+		return; // un input fuori dalla pianificazione non e' una decisione di turno
+	}
+
+	const double Now = FPlatformTime::Seconds();
+	if (!bPacingHadInput)
+	{
+		bPacingHadInput = true;
+		PacingCurrent.MsToFirstInput = FMath::RoundToInt((Now - PacingPlanningStart) * 1000.0);
+	}
+	PacingLastInput = Now;
+
+	switch (Kind)
+	{
+	case ERTPlanningInput::Selection: ++PacingCurrent.SelectionCount; break;
+	case ERTPlanningInput::Order:     ++PacingCurrent.OrderCount;     break;
+	case ERTPlanningInput::Undo:      ++PacingCurrent.UndoCount;      break;
+	case ERTPlanningInput::Click:
+	default:
+		break; // attivita' generica: aggiorna solo i tempi
+	}
+}
+
+void ARTTurnManager::ClosePacingSample()
+{
+	PacingCurrent.MsPlayback = FMath::RoundToInt(PlaybackElapsedTotal * 1000.f);
+	PacingSamples.Add(PacingCurrent);
+	if (bRecordPacing)
+	{
+		AppendPacingRow(PacingCurrent);
+	}
+	PacingCurrent = FRTPacingSample();
+}
+
+void ARTTurnManager::AppendPacingRow(const FRTPacingSample& Sample)
+{
+	if (PacingFilePath.IsEmpty())
+	{
+		// Un file per esecuzione. Si scrive UNA RIGA PER TURNO: un riavvio della partita non perde nulla.
+		const FString Dir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("RT"));
+		IFileManager::Get().MakeDirectory(*Dir, /*Tree=*/ true);
+		PacingFilePath = FPaths::Combine(Dir,
+			FString::Printf(TEXT("pacing_%s.csv"), *FDateTime::Now().ToString(TEXT("%Y%m%d-%H%M%S"))));
+		FFileHelper::SaveStringToFile(URTPacingLibrary::CsvHeader() + LINE_TERMINATOR, *PacingFilePath);
+	}
+	FFileHelper::SaveStringToFile(URTPacingLibrary::CsvRow(Sample) + LINE_TERMINATOR, *PacingFilePath,
+		FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), EFileWrite::FILEWRITE_Append);
 }
