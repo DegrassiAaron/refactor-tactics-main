@@ -78,7 +78,14 @@ namespace
 		return TM;
 	}
 
-	void PlayOneTurn(ARTTurnManager* TM)
+	/**
+	 * Nome con suffisso `Pacing` e non `PlayOneTurn`: UE compila piu' .cpp in un'unica unita' di
+	 * traduzione (unity build), quindi due helper omonimi in namespace anonimo di file diversi
+	 * collidono appena il raggruppamento li mette insieme. `RTHexMatchIntegrationTests.cpp` ha gia' un
+	 * `PlayOneTurn`, e la collisione compare o sparisce al cambiare dei file del modulo: un build verde
+	 * non e' garanzia.
+	 */
+	void PlayOnePacingTurn(ARTTurnManager* TM)
 	{
 		TM->PlanBotsForTest();
 		TM->LockInAndResolve();
@@ -108,7 +115,7 @@ bool FRTPacingSamplePerTurnTest::RunTest(const FString&)
 	int32 TurnsPlayed = 0;
 	while (TM->GetPhase() != ERTMatchPhase::MatchEnded && TurnsPlayed < 40)
 	{
-		PlayOneTurn(TM);
+		PlayOnePacingTurn(TM);
 		++TurnsPlayed;
 	}
 
@@ -150,7 +157,7 @@ bool FRTPacingCompositionTest::RunTest(const FString&)
 	TM->RecordPlanningInput(ERTPlanningInput::Undo);
 	TM->RecordPlanningInput(ERTPlanningInput::Click); // attivita' generica: non incrementa nessun contatore
 
-	PlayOneTurn(TM);
+	PlayOnePacingTurn(TM);
 
 	if (!TestTrue(TEXT("almeno un campione"), TM->GetPacingSamples().Num() >= 1))
 	{
@@ -194,7 +201,7 @@ bool FRTPacingHashInvarianceTest::RunTest(const FString&)
 		int32 TurnsPlayed = 0;
 		while (TM->GetPhase() != ERTMatchPhase::MatchEnded && TurnsPlayed < 40)
 		{
-			PlayOneTurn(TM);
+			PlayOnePacingTurn(TM);
 			++TurnsPlayed;
 			OutHashes.Add(URTTurnLogLibrary::HashTurnLog(TM->GetTurnLog()));
 		}
