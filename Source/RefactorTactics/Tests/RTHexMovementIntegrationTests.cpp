@@ -460,3 +460,45 @@ bool FRTMovePathBlockedTest::RunTest(const FString&)
 	DestroyHexMoveWorld(World);
 	return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMoveCellConflictTest,
+	"RefactorTactics.Actions.Move.CellConflict",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMoveCellConflictTest::RunTest(const FString&)
+{
+	// Nome vincolante del catalogo v0.1 (CP 4.8). Stessa cella, stessa priorita' (nessuna delle due dichiara
+	// un'azione con precedenza sull'altra): entrambe si fermano nella cella precedente, nessuna la ottiene.
+	// Equivalente per contenuto a `HexMove.ContestedCellStopsBoth` (H6), qui sotto il nome del catalogo.
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 4);
+
+	const FRTCellId Contested(0, 0);
+	ARTUnit* A = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(-2, 0));
+	ARTUnit* B = SpawnHexUnit(World, 1, ERTArchetype::Ranger, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !A || !B) { DestroyHexMoveWorld(World); return false; }
+
+	A->PlannedCell = Contested;
+	B->PlannedCell = Contested;
+
+	RunTurn(TM);
+
+	// Equidistanti (2 celle ciascuna): la contesa scatta all'ultimo passo, non al primo.
+	TestTrue(TEXT("A si ferma nella cella precedente"), A->Cell == FRTCellId(-1, 0));
+	TestTrue(TEXT("B si ferma nella cella precedente"), B->Cell == FRTCellId(1, 0));
+	TestTrue(TEXT("nessuna delle due occupa la cella contesa"), A->Cell != Contested && B->Cell != Contested);
+
+	int32 Contests = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Move && E.Outcome == static_cast<uint8>(ERTMoveOutcome::BlockedContested))
+		{
+			++Contests;
+		}
+	}
+	TestEqual(TEXT("il TurnLog registra due esiti di contesa"), Contests, 2);
+
+	DestroyHexMoveWorld(World);
+	return true;
+}

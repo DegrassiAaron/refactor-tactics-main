@@ -101,6 +101,26 @@ public:
 	static TArray<FRTHexMoveResult> ResolveHexPaths(const TArray<TArray<FRTCellId>>& Paths);
 
 	/**
+	 * Come `ResolveHexPaths`, con due dati per unita' (CP 4.8) che valgono SOLO per contendere una cella: la
+	 * precedenza dichiarata dall'azione (`FRTActionDef::Priority` del catalogo — numero PIU' BASSO vince, stessa
+	 * convenzione di `URTActionQueueLibrary`) e se la mobilita' e' LINEARE con impatto (`Action.Charge` e affini,
+	 * `URTMovementActionLibrary::IsLinear`).
+	 *
+	 * - Destinazione contesa fra priorita' diverse: la piu' bassa entra, le altre si fermano PRIMA
+	 *   (`BlockedByPriority`). A PARITA' di priorita' fra i contendenti, si torna al comportamento di base:
+	 *   tutti fermi (`BlockedContested`) — "Charge prevale su Move", non "il primo dell'array vince".
+	 * - Due mobilita' LINEARI che si scambierebbero la cella (l'una entra dove sta l'altra, e viceversa, nello
+	 *   stesso microstep) si fermano l'una davanti all'altra (`BlockedByImpact`) invece di attraversarsi: e'
+	 *   la lettura di uno scontro frontale fra due cariche opposte. Lo scambio fra mobilita' NON entrambe
+	 *   lineari resta consentito, come nella variante base.
+	 *
+	 * `Priorities`/`bLinearMovers` vuoti o piu' corti di `Paths` -> priorita' 0 (parita' con tutti) e non-lineare
+	 * per le unita' mancanti: con entrambi vuoti il risultato e' IDENTICO a `ResolveHexPaths(Paths)`.
+	 */
+	static TArray<FRTHexMoveResult> ResolveHexPaths(const TArray<TArray<FRTCellId>>& Paths,
+		const TArray<int32>& Priorities, const TArray<bool>& bLinearMovers);
+
+	/**
 	 * Voci di TurnLog dagli esiti del movimento simultaneo: una per unita', nell'ordine dell'input
 	 * (Phase/Category = Move, Outcome = ERTMoveOutcome, SrcCell = cella di PARTENZA del turno — chiave stabile
 	 * dell'unita', mai un pointer —, TgtCell = cella finale, Amount = celle percorse). L'invarianza per

@@ -35,10 +35,12 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		const TCHAR* Reason = TEXT("");
 		switch (static_cast<ERTMoveOutcome>(Entry.Outcome))
 		{
-		case ERTMoveOutcome::Moved:            Reason = TEXT("si muove"); break;
-		case ERTMoveOutcome::BlockedContested: Reason = TEXT("fermo: cella contesa"); break;
-		case ERTMoveOutcome::BlockedByUnit:    Reason = TEXT("fermo: cella occupata"); break;
-		default:                               Reason = TEXT("resta"); break;
+		case ERTMoveOutcome::Moved:             Reason = TEXT("si muove"); break;
+		case ERTMoveOutcome::BlockedContested:  Reason = TEXT("fermo: cella contesa"); break;
+		case ERTMoveOutcome::BlockedByUnit:     Reason = TEXT("fermo: cella occupata"); break;
+		case ERTMoveOutcome::BlockedByPriority: Reason = TEXT("fermo: precedenza avversa"); break;
+		case ERTMoveOutcome::BlockedByImpact:   Reason = TEXT("fermo: scontro frontale"); break;
+		default:                                Reason = TEXT("resta"); break;
 		}
 
 		if (static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Moved)
