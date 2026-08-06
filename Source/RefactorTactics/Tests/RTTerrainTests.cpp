@@ -44,6 +44,35 @@ bool FRTTerrainCostsFromCatalogTest::RunTest(const FString&)
 		TestFalse(TEXT("Conductive non applica Wet"), Effect.Effect == ERTActionEffect::Status && Effect.StatusTag == TAG_Status_Wet);
 	}
 
+	const FRTTerrainDef ShallowWater = URTTerrainLibrary::FindTerrainDef(ERTHexSurface::ShallowWater);
+	TestTrue(TEXT("ShallowWater conduce elettricita'"), ShallowWater.bConductsElectricity);
+	bool bShallowWaterAppliesWet = false;
+	for (const FRTActionEffectSpec& Effect : ShallowWater.OnEnterEffects)
+	{
+		if (Effect.Effect == ERTActionEffect::Status && Effect.StatusTag == TAG_Status_Wet)
+		{
+			bShallowWaterAppliesWet = true;
+		}
+	}
+	TestTrue(TEXT("ShallowWater applica Wet"), bShallowWaterAppliesWet);
+
+	const FRTTerrainDef Fire = URTTerrainLibrary::FindTerrainDef(ERTHexSurface::Fire);
+	bool bFireDealsDamage = false;
+	bool bFireAppliesBurning = false;
+	for (const FRTActionEffectSpec& Effect : Fire.OnEnterEffects)
+	{
+		if (Effect.Effect == ERTActionEffect::Damage && Effect.Amount == 10)
+		{
+			bFireDealsDamage = true;
+		}
+		if (Effect.Effect == ERTActionEffect::Status && Effect.StatusTag == TAG_Status_Burning && Effect.StatusDuration == 2)
+		{
+			bFireAppliesBurning = true;
+		}
+	}
+	TestTrue(TEXT("Fire infligge 10 danni all'ingresso"), bFireDealsDamage);
+	TestTrue(TEXT("Fire applica Burning per 2 turni"), bFireAppliesBurning);
+
 	return true;
 }
 
