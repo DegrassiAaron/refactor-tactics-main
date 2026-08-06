@@ -557,11 +557,21 @@ void ARTTurnManager::ResolveDash()
 	TArray<ARTUnit*> Units;
 	FRTHexSnapshot Snapshot = MakeCurrentSnapshot(Units);
 
+	// Indice (in Units) dell'attaccante per ogni impatto accodato in QUESTO scatto: serve a scartare l'impatto,
+	// dopo la risoluzione simultanea, se la collisione ha bloccato il caricatore prima del contatto (CP 4.8).
+	TArray<int32> PendingImpactAttackerIdx;
+
 	// Percorsi: uno per ogni unita' (le non-scattanti restano ferme, ma occupano e bloccano come le altre).
+	// Priorita' e stile lineare sono per la collisione simultanea (CP 4.8): due mobilita' del catalogo diverse
+	// (`Action.Charge` priorita' 35, `Action.Dash` 30, ecc.) possono coesistere nella STESSA fase Dash.
 	TArray<TArray<FRTCellId>> Paths;
 	TArray<int32> DashAbilityIdx; // parallelo a Units: INDEX_NONE = non scatta
+	TArray<int32> Priorities;     // parallelo a Units: FRTActionDef::Priority dell'azione, 0 per chi non scatta
+	TArray<bool> bLinearMovers;   // parallelo a Units: vero se la mobilita' e' lineare (URTMovementActionLibrary::IsLinear)
 	Paths.Reserve(Units.Num());
 	DashAbilityIdx.Init(INDEX_NONE, Units.Num());
+	Priorities.Init(0, Units.Num());
+	bLinearMovers.Init(false, Units.Num());
 	int32 DasherCount = 0;
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
@@ -613,6 +623,7 @@ void ARTTurnManager::ResolveDash()
 				Impact.Target = Units[Linear.ImpactUnitId];
 				Impact.Def = Dash->Def;
 				PendingChargeImpacts.Add(Impact);
+				PendingImpactAttackerIdx.Add(i);
 				bChargedIntoTarget = true;
 			}
 
@@ -636,13 +647,30 @@ void ARTTurnManager::ResolveDash()
 		}
 		Paths[i] = Path;
 		DashAbilityIdx[i] = DashIdx;
+		Priorities[i] = Dash->Def.Priority;
+		bLinearMovers[i] = URTMovementActionLibrary::IsLinear(Dash->Def.MovementStyle);
 		++DasherCount;
 	}
 
 	if (DasherCount == 0) { return; }
 
-	// Scatti simultanei, ordine-indipendenti (stesso resolver a microstep del movimento).
-	const TArray<FRTHexMoveResult> Resolved = URTHexSimLibrary::ResolveHexPaths(Paths);
+	// Scatti simultanei, ordine-indipendenti (stesso resolver a microstep del movimento, con priorita' e
+	// scontro frontale fra mobilita' lineari — CP 4.8).
+	const TArray<FRTHexMoveResult> Resolved = URTHexSimLibrary::ResolveHexPaths(Paths, Priorities, bLinearMovers);
+
+	// Un impatto era stato previsto sul percorso GIA' troncato dal solo `ResolveLinearMove` (occupazione
+	// congelata a inizio fase): non sa se la collisione simultanea fermera' il caricatore PRIMA del contatto
+	// (due cariche opposte, CP 4.8 — senza questo filtro entrambe infliggerebbero comunque danno, pur non
+	// essendosi mai davvero scontrate). Vale solo se il caricatore ha completato il percorso GIA' troncato
+	// esattamente com'era: qualunque scarto (priorita' persa o scontro frontale) invalida l'impatto previsto.
+	for (int32 k = PendingChargeImpacts.Num() - 1; k >= 0; --k)
+	{
+		const int32 AttackerIdx = PendingImpactAttackerIdx[k];
+		if (!Resolved.IsValidIndex(AttackerIdx) || Resolved[AttackerIdx].Outcome != ERTMoveOutcome::Moved)
+		{
+			PendingChargeImpacts.RemoveAt(k);
+		}
+	}
 
 	// Eventi per il playback (Move-type, fase Dash) + traccia post-lock. Catturati PRIMA del placement.
 	for (int32 i = 0; i < Units.Num(); ++i)

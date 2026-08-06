@@ -428,3 +428,53 @@ bool FRTChargeImpactInBlastTest::RunTest(const FString&)
 	DestroyHexBlastWorld(World);
 	return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChargeHeadOnStopsTest,
+	"RefactorTactics.Actions.Charge.HeadOnStops",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChargeHeadOnStopsTest::RunTest(const FString&)
+{
+	// Nome vincolante del catalogo v0.1 (CP 4.8). Due cariche OPPOSTE (nessun bersaglio e' fermo: e' l'altra
+	// carica) a distanza dispari (3 celle, la portata dichiarata): senza la protezione dallo scontro frontale,
+	// il resolver a microstep le lascerebbe scambiarsi la cella di mezzo (`scambio diretto -> consentito`, la
+	// regola di base per il Move) e ciascuna finirebbe adiacente al bersaglio DALL'ALTRO lato, infliggendo
+	// comunque danno — le due si sarebbero attraversate senza mai scontrarsi davvero. Qui devono fermarsi
+	// l'una davanti all'altra, senza completare l'impatto: nessun danno, nessuna spinta.
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	ARTUnit* A = SpawnHexBlastUnit(World, 0, ERTArchetype::Guardian, FRTCellId(0, 0));
+	ARTUnit* B = SpawnHexBlastUnit(World, 1, ERTArchetype::Guardian, FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !A || !B) { DestroyHexBlastWorld(World); return false; }
+
+	URTActionData* ChargeA = NewObject<URTActionData>(A);
+	ChargeA->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge"));
+	ChargeA->RangeCells = ChargeA->Def.RangeCells;
+	A->Abilities.Add(ChargeA);
+
+	URTActionData* ChargeB = NewObject<URTActionData>(B);
+	ChargeB->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge"));
+	ChargeB->RangeCells = ChargeB->Def.RangeCells;
+	B->Abilities.Add(ChargeB);
+
+	const int32 HealthA = A->Health;
+	const int32 HealthB = B->Health;
+	A->PlannedDashAbility = A->Abilities.Num() - 1;
+	A->PlannedDashCell = FRTCellId(3, 0); // dritto verso B, esattamente la portata (3)
+	B->PlannedDashAbility = B->Abilities.Num() - 1;
+	B->PlannedDashCell = FRTCellId(0, 0); // dritto verso A, esattamente la portata (3)
+
+	RunBlastTurn(TM);
+
+	// Ciascuna avanza di UNA cella (non tre): si fermano l'una davanti all'altra, adiacenti, senza scambiarsi
+	// i lati e senza mai completare l'impatto.
+	TestTrue(TEXT("A si ferma a meta' strada, non attraversa B"), A->Cell == FRTCellId(1, 0));
+	TestTrue(TEXT("B si ferma a meta' strada, non attraversa A"), B->Cell == FRTCellId(2, 0));
+	TestEqual(TEXT("nessun danno a A: lo scontro frontale non e' un impatto riuscito"), A->Health, HealthA);
+	TestEqual(TEXT("nessun danno a B: lo scontro frontale non e' un impatto riuscito"), B->Health, HealthB);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}

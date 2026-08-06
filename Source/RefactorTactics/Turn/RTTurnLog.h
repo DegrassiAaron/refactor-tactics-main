@@ -29,14 +29,21 @@ enum class ERTFallbackOutcome : uint8
 	Cancelled     // Fallback.Cancel: nessun effetto (ci finisce anche BasicAttack, non praticabile in v0.1)
 };
 
-/** Esito del movimento di un'unita' nel turno (dal resolver ResolvePaths). */
+/**
+ * Esito del movimento di un'unita' nel turno (dal resolver ResolvePaths).
+ *
+ * `BlockedByPriority` e `BlockedByImpact` sono valori AGGIUNTI in coda (CP 4.8, collisioni con priorita'):
+ * viaggiano come uint8 nel formato serializzato, quindi i log gia' scritti restano leggibili.
+ */
 UENUM(BlueprintType)
 enum class ERTMoveOutcome : uint8
 {
-	Stayed,           // non pianificava movimento (path < 2 celle)
-	Moved,            // raggiunta la destinazione pianificata (scambio incluso)
-	BlockedContested, // fermata (o parziale) per destinazione contesa
-	BlockedByUnit     // fermata (o parziale) per cella occupata da un'unita' ferma
+	Stayed,            // non pianificava movimento (path < 2 celle)
+	Moved,             // raggiunta la destinazione pianificata (scambio incluso)
+	BlockedContested,  // fermata (o parziale) per destinazione contesa a PARITA' di priorita'
+	BlockedByUnit,     // fermata (o parziale) per cella occupata da un'unita' ferma
+	BlockedByPriority, // fermata per destinazione contesa persa contro una mobilita' con priorita' migliore
+	BlockedByImpact    // fermata per scontro frontale con un'altra mobilita' lineare in arrivo opposto
 };
 
 /** Esito di un attacco nel turno. Priorita': Lethal > ShieldAbsorbed > TerrainBonus > Hit. */

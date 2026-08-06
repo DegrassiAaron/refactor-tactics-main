@@ -323,129 +323,200 @@ TArray<FRTCellId> URTHexSimLibrary::TruncatePathToBudget(const FRTHexSnapshot& S
 	return Truncated;
 }
 
-TArray<FRTHexMoveResult> URTHexSimLibrary::ResolveHexPaths(const TArray<TArray<FRTCellId>>& Paths)
+namespace
 {
-	const int32 N = Paths.Num();
-	TArray<FRTHexMoveResult> Results;
-	Results.SetNum(N);
-
-	TArray<FRTCellId> Pos;  Pos.SetNum(N);   // posizione corrente
-	TArray<int32> Prog;     Prog.SetNum(N);  // indice raggiunto nel path
-	TArray<bool> Done;      Done.SetNum(N);  // path esaurito / nessun movimento
-	for (int32 i = 0; i < N; ++i)
+	TArray<FRTHexMoveResult> ResolveHexPathsInternal(const TArray<TArray<FRTCellId>>& Paths,
+		const TArray<int32>& Priorities, const TArray<bool>& bLinearMovers)
 	{
-		Pos[i] = Paths[i].Num() > 0 ? Paths[i][0] : FRTCellId();
-		Prog[i] = 0;
-		Done[i] = Paths[i].Num() <= 1;
-		Results[i].Final = Pos[i];
-	}
+		const int32 N = Paths.Num();
+		TArray<FRTHexMoveResult> Results;
+		Results.SetNum(N);
 
-	// Motivo dell'ultimo congelamento per unita' (reason code del TurnLog).
-	TArray<ERTMoveOutcome> BlockReason; BlockReason.Init(ERTMoveOutcome::BlockedByUnit, N);
+		// Priorita' 0 (parita' con tutti) e non-lineare per chi non ha un valore dichiarato: con entrambi gli
+		// array vuoti l'esito e' identico alla variante senza priorita'.
+		auto PriorityOf = [&Priorities](int32 i) { return Priorities.IsValidIndex(i) ? Priorities[i] : 0; };
+		auto IsLinearMover = [&bLinearMovers](int32 i) { return bLinearMovers.IsValidIndex(i) && bLinearMovers[i]; };
 
-	// Microstep sincroni: tutti avanzano di una cella, si risolvono le collisioni, si ripete.
-	while (true)
-	{
-		TArray<FRTCellId> Target; Target.SetNum(N);
-		TArray<bool> Moving;      Moving.SetNum(N);
+		TArray<FRTCellId> Pos;  Pos.SetNum(N);   // posizione corrente
+		TArray<int32> Prog;     Prog.SetNum(N);  // indice raggiunto nel path
+		TArray<bool> Done;      Done.SetNum(N);  // path esaurito / nessun movimento
 		for (int32 i = 0; i < N; ++i)
 		{
-			Moving[i] = !Done[i];
-			Target[i] = Done[i] ? Pos[i] : Paths[i][Prog[i] + 1];
+			Pos[i] = Paths[i].Num() > 0 ? Paths[i][0] : FRTCellId();
+			Prog[i] = 0;
+			Done[i] = Paths[i].Num() <= 1;
+			Results[i].Final = Pos[i];
 		}
 
-		// Punto fisso del microstep: si puo' solo passare da "in movimento" a "fermo" (monotono) -> l'esito
-		// non dipende dall'ordine delle richieste.
-		bool bChanged = true;
-		while (bChanged)
+		// Motivo del PRIMO congelamento per unita' (reason code del TurnLog): resta quello, anche se un
+		// microstep successivo la bloccherebbe per un motivo diverso. Senza questa "memoria", una Move che
+		// perde la cella contesa contro una Charge con priorita' migliore (CP 4.8) — e la RITENTA al
+		// microstep successivo, perche' non e' mai arrivata a destinazione — la troverebbe occupata dalla
+		// Charge ormai ferma li', e il motivo diventerebbe "cella occupata" invece di "priorita' avversa":
+		// vero all'ULTIMO microstep, ma non la causa reale per cui non e' mai entrata.
+		TArray<ERTMoveOutcome> BlockReason; BlockReason.Init(ERTMoveOutcome::BlockedByUnit, N);
+		TArray<bool> ReasonLocked; ReasonLocked.Init(false, N);
+
+		// Microstep sincroni: tutti avanzano di una cella, si risolvono le collisioni, si ripete.
+		while (true)
 		{
-			bChanged = false;
-			TArray<int32> ToFreeze;
+			TArray<FRTCellId> Target; Target.SetNum(N);
+			TArray<bool> Moving;      Moving.SetNum(N);
+			for (int32 i = 0; i < N; ++i)
+			{
+				Moving[i] = !Done[i];
+				Target[i] = Done[i] ? Pos[i] : Paths[i][Prog[i] + 1];
+			}
+
+			// Punto fisso del microstep: si puo' solo passare da "in movimento" a "fermo" (monotono) -> l'esito
+			// non dipende dall'ordine delle richieste.
+			bool bChanged = true;
+			while (bChanged)
+			{
+				bChanged = false;
+				TArray<int32> ToFreeze;
+				for (int32 i = 0; i < N; ++i)
+				{
+					if (!Moving[i])
+					{
+						continue;
+					}
+
+					bool bBlocked = false;
+					ERTMoveOutcome Reason = ERTMoveOutcome::BlockedByUnit;
+
+					// Destinazione contesa: 2+ unita' in movimento verso la stessa cella. A parita' di
+					// priorita' fra i contendenti (compreso il caso senza priorita' dichiarata) tutti fermi,
+					// come nella variante base; a priorita' diverse, solo la piu' bassa fra i contendenti
+					// entra, le altre perdono la cella.
+					int32 Contenders = 0;
+					int32 MinPriority = 0;
+					for (int32 j = 0; j < N; ++j)
+					{
+						if (Moving[j] && Target[j] == Target[i])
+						{
+							MinPriority = (Contenders == 0) ? PriorityOf(j) : FMath::Min(MinPriority, PriorityOf(j));
+							++Contenders;
+						}
+					}
+					if (Contenders >= 2)
+					{
+						int32 Winners = 0;
+						for (int32 j = 0; j < N; ++j)
+						{
+							if (Moving[j] && Target[j] == Target[i] && PriorityOf(j) == MinPriority)
+							{
+								++Winners;
+							}
+						}
+						if (Winners >= 2 || PriorityOf(i) != MinPriority)
+						{
+							bBlocked = true;
+							Reason = (Winners >= 2) ? ERTMoveOutcome::BlockedContested : ERTMoveOutcome::BlockedByPriority;
+						}
+					}
+
+					// Scontro frontale: due mobilita' LINEARI (Action.Charge e affini) che si scambierebbero la
+					// cella nello stesso microstep (l'una entra dove sta l'altra, e viceversa) si fermano
+					// l'una davanti all'altra invece di attraversarsi. Lo scambio fra mobilita' non entrambe
+					// lineari resta consentito (comportamento di base, invariato).
+					if (!bBlocked && IsLinearMover(i))
+					{
+						for (int32 j = 0; j < N; ++j)
+						{
+							if (j != i && Moving[j] && IsLinearMover(j) && Target[i] == Pos[j] && Target[j] == Pos[i])
+							{
+								bBlocked = true;
+								Reason = ERTMoveOutcome::BlockedByImpact;
+								break;
+							}
+						}
+					}
+
+					// Bloccata da un'unita' che RESTA (esaurita o congelata) sulla cella di destinazione.
+					if (!bBlocked)
+					{
+						for (int32 j = 0; j < N; ++j)
+						{
+							if (j != i && !Moving[j] && Pos[j] == Target[i])
+							{
+								bBlocked = true;
+								Reason = ERTMoveOutcome::BlockedByUnit;
+								break;
+							}
+						}
+					}
+					if (bBlocked)
+					{
+						ToFreeze.Add(i);
+						if (!ReasonLocked[i])
+						{
+							BlockReason[i] = Reason;
+							ReasonLocked[i] = true;
+						}
+					}
+				}
+				for (int32 Idx : ToFreeze)
+				{
+					Moving[Idx] = false;
+					bChanged = true;
+				}
+			}
+
+			// Applica i movimenti del microstep.
+			bool bAnyMoved = false;
 			for (int32 i = 0; i < N; ++i)
 			{
 				if (!Moving[i])
 				{
 					continue;
 				}
-
-				// Destinazione contesa: 2+ unita' in movimento verso la stessa cella.
-				int32 Contenders = 0;
-				for (int32 j = 0; j < N; ++j)
+				Pos[i] = Target[i];
+				Results[i].Entered.Add(Target[i]);
+				Results[i].Final = Target[i];
+				++Prog[i];
+				if (Prog[i] >= Paths[i].Num() - 1)
 				{
-					if (Moving[j] && Target[j] == Target[i])
-					{
-						++Contenders;
-					}
+					Done[i] = true;
 				}
-				bool bBlocked = (Contenders >= 2);
-
-				// Bloccata da un'unita' che RESTA (esaurita o congelata) sulla cella di destinazione.
-				if (!bBlocked)
-				{
-					for (int32 j = 0; j < N; ++j)
-					{
-						if (j != i && !Moving[j] && Pos[j] == Target[i])
-						{
-							bBlocked = true;
-							break;
-						}
-					}
-				}
-				if (bBlocked)
-				{
-					ToFreeze.Add(i);
-					BlockReason[i] = (Contenders >= 2) ? ERTMoveOutcome::BlockedContested : ERTMoveOutcome::BlockedByUnit;
-				}
+				bAnyMoved = true;
 			}
-			for (int32 Idx : ToFreeze)
+			if (!bAnyMoved)
 			{
-				Moving[Idx] = false;
-				bChanged = true;
+				break;
 			}
 		}
 
-		// Applica i movimenti del microstep.
-		bool bAnyMoved = false;
+		// Reason code finale: dipende solo da Final/Paths -> indipendente dall'ordine.
 		for (int32 i = 0; i < N; ++i)
 		{
-			if (!Moving[i])
+			if (Paths[i].Num() <= 1)
 			{
-				continue;
+				Results[i].Outcome = ERTMoveOutcome::Stayed;
 			}
-			Pos[i] = Target[i];
-			Results[i].Entered.Add(Target[i]);
-			Results[i].Final = Target[i];
-			++Prog[i];
-			if (Prog[i] >= Paths[i].Num() - 1)
+			else if (Results[i].Final == Paths[i].Last())
 			{
-				Done[i] = true;
+				Results[i].Outcome = ERTMoveOutcome::Moved;
 			}
-			bAnyMoved = true;
+			else
+			{
+				Results[i].Outcome = BlockReason[i];
+			}
 		}
-		if (!bAnyMoved)
-		{
-			break;
-		}
-	}
 
-	// Reason code finale: dipende solo da Final/Paths -> indipendente dall'ordine.
-	for (int32 i = 0; i < N; ++i)
-	{
-		if (Paths[i].Num() <= 1)
-		{
-			Results[i].Outcome = ERTMoveOutcome::Stayed;
-		}
-		else if (Results[i].Final == Paths[i].Last())
-		{
-			Results[i].Outcome = ERTMoveOutcome::Moved;
-		}
-		else
-		{
-			Results[i].Outcome = BlockReason[i];
-		}
+		return Results;
 	}
+}
 
-	return Results;
+TArray<FRTHexMoveResult> URTHexSimLibrary::ResolveHexPaths(const TArray<TArray<FRTCellId>>& Paths)
+{
+	return ResolveHexPathsInternal(Paths, TArray<int32>(), TArray<bool>());
+}
+
+TArray<FRTHexMoveResult> URTHexSimLibrary::ResolveHexPaths(const TArray<TArray<FRTCellId>>& Paths,
+	const TArray<int32>& Priorities, const TArray<bool>& bLinearMovers)
+{
+	return ResolveHexPathsInternal(Paths, Priorities, bLinearMovers);
 }
 
 TArray<FRTTurnLogEntry> URTHexSimLibrary::BuildMoveLog(const TArray<TArray<FRTCellId>>& Paths,
