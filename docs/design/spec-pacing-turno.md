@@ -73,8 +73,8 @@ FRTPacingSample                     // un turno
 ├─ int32 UnitsAliveTeam1            // contesto
 ├─ int32 ActionsAvailable           // contesto: azioni selezionabili non in cooldown → cresce con E4/E6
 ├─ int32 MsToFirstInput             // composizione: quanto prima di toccare qualcosa
-├─ int32 SelectionChanges           // composizione: cambi di unità selezionata
-├─ int32 OrderChanges               // composizione: ordini riassegnati
+├─ int32 SelectionCount             // composizione: unità selezionate
+├─ int32 OrderCount                 // composizione: ordini impartiti
 ├─ int32 UndoCount                  // composizione: waypoint annullati
 ├─ int32 MsToLockIn                 // base
 ├─ int32 MsSinceLastInput           // al momento del lock-in — il campo che rende il vincolo misurabile
@@ -88,8 +88,8 @@ Definizioni che non devono restare a interpretazione:
 | Campo | Definizione esatta |
 |---|---|
 | `ActionsAvailable` | Somma delle azioni selezionabili dalle unità **vive della squadra del giocatore**, escluse quelle in cooldown |
-| `SelectionChanges` | Quante volte cambia l'unità selezionata nel turno; la prima selezione conta 0 |
-| `OrderChanges` | Quante volte un'unità riceve un ordine (abilità o destinazione) che **sostituisce** uno già dato nello stesso turno; il primo ordine per unità conta 0 |
+| `SelectionCount` | Quante volte il giocatore ha selezionato un'unità nel turno |
+| `OrderCount` | Quanti ordini (abilità o destinazione) ha impartito nel turno |
 | `MsToFirstInput` | Se il turno si chiude **senza alcun input**, vale `MsToLockIn` |
 | `MsSinceLastInput` | Se non c'è stato **nessun** input, vale `MsToLockIn` — quindi un turno passato inerte finisce fra gli `IdleTimeouts`, che è la classificazione corretta |
 
