@@ -43,6 +43,8 @@ call site di `MoveCost`/`bBlocksMovement` già esistenti.
 - Modify: `Source/RefactorTacticsEditor/Private/Tools/RTHexPaintTool.h:39`
 - Modify: `Source/RefactorTacticsEditor/Private/Tools/RTHexSelectTool.h:41`
 - Modify: `Source/RefactorTacticsEditor/Private/Tools/RTHexFillTool.h:28`
+- Modify: `Source/RefactorTactics/Map/RTHexMapActor.h:64,83` (aggiunto dopo la scoperta in Task 1 — mancava
+  dal file list originale: `DemoSurface`/`PaintSurface` default a `ERTHexSurface::Normal`)
 
 **Interfaces:**
 - Produce: `enum class ERTHexSurface { Floor, ShallowWater, Rough, Fire, Conductive, Ice, Void, Smoke, HighGround }`
@@ -102,6 +104,7 @@ case ERTHexSurface::HighGround:   return FColor(230, 200, 80);
 case ERTHexSurface::Floor:
 ```
 In `RTHexPaintTool.h:39`, `RTHexSelectTool.h:41`, `RTHexFillTool.h:28`: `ERTHexSurface Surface = ERTHexSurface::Floor;`
+In `RTHexMapActor.h:64` (`DemoSurface`) e `:83` (`PaintSurface`): `ERTHexSurface::Normal` → `ERTHexSurface::Floor`.
 
 - [ ] **Step 6: Ricompila e riesegui la suite del baseline**
 
