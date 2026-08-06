@@ -95,6 +95,29 @@ public:
 		const FRTCellId& Cell);
 
 	/**
+	 * Percorso di uno SCATTO: **lineare** lungo una delle sei direzioni esagonali (catalogo v0.1 §3.2), sullo
+	 * stesso layer. Non aggira ostacoli, non gira angoli, non usa transizioni verticali — a differenza del
+	 * movimento normale, che passa dall'A* sul grafo.
+	 *
+	 * Ritorna il percorso completo `From..Goal` solo se: `Goal` e' allineato con la cella dell'unita' su una
+	 * delle sei direzioni, ogni cella attraversata esiste e non blocca il movimento, la destinazione non e'
+	 * occupata da un'altra unita', e il costo totale sta nel budget dell'unita' nello snapshot (per lo scatto il
+	 * chiamante vi mette la portata dichiarata dall'azione). Altrimenti ritorna **vuoto**: o si arriva dove si e'
+	 * chiesto, o non si scatta — nessuno scatto a meta' verso una cella che nessuno ha scelto.
+	 */
+	static TArray<FRTCellId> LinearDashPath(const FRTHexSnapshot& Snapshot, int32 UnitId, const FRTCellId& Goal);
+
+	/**
+	 * Vero se `Goal` e' raggiungibile con uno SCATTO (lineare) dall'unita' indicata. La cella dell'unita' stessa
+	 * conta come raggiungibile (significa "non mi muovo"), cosi' il predicato si puo' usare per filtrare un
+	 * insieme di candidate senza scartare quella di partenza.
+	 *
+	 * Serve a chi genera candidate col GRAFO (il bot usa `ReachableCells`) per non proporre scatti che il resolver
+	 * rifiuterebbe: un'abilita' spesa senza effetto e senza spiegazione e' peggio di una mossa non fatta.
+	 */
+	static bool IsLinearDashReachable(const FRTHexSnapshot& Snapshot, int32 UnitId, const FRTCellId& Goal);
+
+	/**
 	 * Movimento simultaneo lungo path esagonali gia' troncati al budget (ogni path e' From..To, From = indice 0),
 	 * con MICROSTEP sincroni: a ogni passo tutte le unita' avanzano di una cella e si risolvono le collisioni
 	 * (destinazione contesa -> contendenti fermi da li'; cella di un'unita' ferma -> bloccata; scambio diretto

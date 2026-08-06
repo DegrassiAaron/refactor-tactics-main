@@ -751,3 +751,151 @@ bool FRTHexWaypointReasonTest::RunTest(const FString&)
 		URTHexSimLibrary::ClassifyWaypointCell(Snap, 7, FRTCellId(0, 2, 0)) == ERTHexWaypointReason::Ok);
 	return true;
 }
+
+/**
+ * CP 4.5 / issue #46 — lo scatto e' un movimento LINEARE lungo una delle sei direzioni (catalogo v0.1 §3.2):
+ * non aggira gli ostacoli e non gira gli angoli. Finora usava l'A* sul grafo, quindi faceva entrambe le cose —
+ * e in PIE si vedeva un bot "arrampicarsi" sulla piattaforma passando da una transizione.
+ *
+ * Regola scelta: o si arriva sulla cella richiesta in linea retta, o lo scatto NON avviene. Nessuno scatto a
+ * meta' verso una cella che il giocatore non ha scelto (stessa disciplina di BuildCompositeHexPath).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexLinearDashTest,
+	"RefactorTactics.HexSim.DashIsLinear",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexLinearDashTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeSimMap(3);
+
+	// Ostacolo sulla direzione +q, a un passo dalla partenza.
+	FRTHexCellData Wall(FRTCellId(1, 0, 0));
+	Wall.bBlocksMovement = true;
+	Map->AddOrUpdateCell(Wall);
+	Map->SortCells();
+
+	const FRTCellId Start(0, 0, 0);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(7, Start, /*Budget=*/ 3) });
+
+	// 1. In linea retta e libera: si scatta.
+	{
+		const TArray<FRTCellId> Path = URTHexSimLibrary::LinearDashPath(Snap, 7, FRTCellId(2, -2, 0));
+		TestTrue(TEXT("linea libera -> scatto valido"), Path.Num() >= 2);
+		if (Path.Num() >= 2)
+		{
+			TestTrue(TEXT("parte dalla cella dell'unita'"), Path[0] == Start);
+			TestTrue(TEXT("arriva sulla cella richiesta"), Path.Last() == FRTCellId(2, -2, 0));
+			TestEqual(TEXT("due passi in linea"), Path.Num(), 3);
+		}
+	}
+
+	// 2. Cella allineata ma con un ostacolo sulla traiettoria: RIFIUTATO (non lo aggira).
+	//    Sul grafo sarebbe raggiungibile girandoci attorno: e' il caso che discrimina la regola.
+	{
+		const FRTCellId Beyond(2, 0, 0);
+		TestTrue(TEXT("premessa: sul grafo la cella oltre l'ostacolo sarebbe raggiungibile"),
+			URTHexSimLibrary::FindPathForUnit(Snap, 7, Beyond).Status == ERTHexPathStatus::Success);
+		TestEqual(TEXT("ostacolo sulla linea -> nessuno scatto"),
+			URTHexSimLibrary::LinearDashPath(Snap, 7, Beyond).Num(), 0);
+	}
+
+	// 3. Cella NON allineata a nessuna delle sei direzioni: rifiutata, anche se vicina e raggiungibile.
+	{
+		const FRTCellId Offset(1, 1, 0);
+		TestTrue(TEXT("premessa: sul grafo la cella non allineata sarebbe raggiungibile"),
+			URTHexSimLibrary::FindPathForUnit(Snap, 7, Offset).Status == ERTHexPathStatus::Success);
+		TestEqual(TEXT("cella non allineata -> nessuno scatto"),
+			URTHexSimLibrary::LinearDashPath(Snap, 7, Offset).Num(), 0);
+	}
+
+	// 4. Oltre la portata: rifiutato. (Con budget 3 la stessa cella entrerebbe: 3 passi a costo 1. Il caso
+	//    discrimina il BUDGET, quindi serve un budget piu' stretto della distanza, non una cella piu' lontana —
+	//    piu' lontano finirebbe fuori mappa e verrebbe rifiutato per un altro motivo.)
+	{
+		const FRTCellId Far(0, 3, 0);
+		TestEqual(TEXT("con budget 3 la cella a 3 passi entra"),
+			URTHexSimLibrary::LinearDashPath(Snap, 7, Far).Num(), 4);
+
+		const FRTHexSnapshot Short = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(7, Start, /*Budget=*/ 2) });
+		TestEqual(TEXT("oltre la portata -> nessuno scatto"),
+			URTHexSimLibrary::LinearDashPath(Short, 7, Far).Num(), 0);
+	}
+
+	// 5. Cella occupata da un'altra unita': non ci si puo' fermare sopra.
+	{
+		const FRTHexSnapshot Two = URTHexSimLibrary::MakeSnapshot(Map, {
+			FRTHexSimUnit(7, Start, /*Budget=*/ 3),
+			FRTHexSimUnit(8, FRTCellId(0, 2, 0), /*Budget=*/ 0)
+		});
+		TestEqual(TEXT("destinazione occupata -> nessuno scatto"),
+			URTHexSimLibrary::LinearDashPath(Two, 7, FRTCellId(0, 2, 0)).Num(), 0);
+	}
+
+	// 6. Un layer diverso non e' mai "in linea": lo scatto non sale per una transizione.
+	{
+		Map->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 1, 1)));
+		Map->AddTransition(FRTCellId(0, 1, 0), FRTCellId(0, 1, 1), /*Cost=*/ 1);
+		Map->SortCells();
+		const FRTHexSnapshot WithArc = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(7, Start, 3) });
+		TestTrue(TEXT("premessa: sul grafo la transizione porta al layer 1"),
+			URTHexSimLibrary::FindPathForUnit(WithArc, 7, FRTCellId(0, 1, 1)).Status == ERTHexPathStatus::Success);
+		TestEqual(TEXT("lo scatto non cambia layer"),
+			URTHexSimLibrary::LinearDashPath(WithArc, 7, FRTCellId(0, 1, 1)).Num(), 0);
+	}
+	return true;
+}
+
+/**
+ * La prova dell'invariante "chi genera candidate col grafo non deve proporre scatti illegali": su una mappa con
+ * ostacoli esistono celle raggiungibili sul GRAFO che NON sono raggiungibili in linea, e il predicato usato per
+ * filtrare le candidate del bot le scarta tutte.
+ *
+ * Questo test e' non-vacuo per costruzione: fallisce sia se il predicato accetta una cella non lineare, sia se lo
+ * scenario non contiene piu' celle "solo di grafo" (cioe' se smettesse di discriminare).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexLinearFilterTest,
+	"RefactorTactics.HexSim.LinearFilterDropsGraphOnlyCells",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexLinearFilterTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeSimMap(3);
+	for (const FRTCellId& Id : { FRTCellId(1, 0, 0), FRTCellId(1, -1, 0), FRTCellId(0, 1, 0) })
+	{
+		FRTHexCellData Blocked(Id);
+		Blocked.bBlocksMovement = true;
+		Map->AddOrUpdateCell(Blocked);
+	}
+	Map->SortCells();
+
+	const FRTCellId Start(0, 0, 0);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(7, Start, /*Budget=*/ 4) });
+
+	int32 GraphOnly = 0;
+	for (const FRTHexReachableCell& Reach : URTHexSimLibrary::ReachableCells(Snap, 7))
+	{
+		const bool bLinear = URTHexSimLibrary::IsLinearDashReachable(Snap, 7, Reach.Cell);
+		if (!bLinear)
+		{
+			++GraphOnly; // raggiungibile camminando, non scattando: una candidata da scartare
+			continue;
+		}
+		// Se il predicato dice "in linea", il percorso lineare deve esistere davvero (coerenza interna).
+		TestTrue(*FString::Printf(TEXT("%s dichiarata in linea -> percorso lineare esistente"), *Reach.Cell.ToString()),
+			Reach.Cell == Start || URTHexSimLibrary::LinearDashPath(Snap, 7, Reach.Cell).Num() >= 2);
+	}
+
+	// Il caso deve esistere, altrimenti il filtro non sta filtrando nulla e il test non prova niente.
+	AddInfo(FString::Printf(TEXT("celle raggiungibili solo sul grafo: %d"), GraphOnly));
+	TestTrue(TEXT("lo scenario contiene celle raggiungibili sul grafo ma NON in linea"), GraphOnly > 0);
+
+	// Un caso puntuale, indipendente dall'enumerazione: oltre l'ostacolo in direzione +q. Serve un budget piu'
+	// ampio, perche' il giro attorno al gruppo di ostacoli costa 5 passi mentre in linea ne basterebbero 2.
+	{
+		const FRTHexSnapshot Wide = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(7, Start, /*Budget=*/ 6) });
+		const FRTCellId Beyond(2, 0, 0);
+		TestTrue(TEXT("premessa: (2,0) e' raggiungibile camminando (aggirando gli ostacoli)"),
+			URTHexSimLibrary::FindPathForUnit(Wide, 7, Beyond).Status == ERTHexPathStatus::Success);
+		TestFalse(TEXT("(2,0) NON e' raggiungibile scattando (ostacolo sulla linea)"),
+			URTHexSimLibrary::IsLinearDashReachable(Wide, 7, Beyond));
+	}
+	return true;
+}

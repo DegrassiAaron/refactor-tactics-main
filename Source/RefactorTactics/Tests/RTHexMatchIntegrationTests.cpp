@@ -472,3 +472,73 @@ bool FRTHexDashBlockedTest::RunTest(const FString&)
 	DestroyHexMatchWorld(World);
 	return true;
 }
+
+/**
+ * Invariante del bot: se pianifica uno scatto, quello scatto si DEVE poter eseguire. Vale da quando lo scatto e'
+ * lineare (CP 4.5): le candidate del bot nascono da `ReachableCells`, che segue il grafo, quindi senza un filtro
+ * il bot proporrebbe destinazioni che il resolver rifiuta — sprecando l'abilita' senza dirlo a nessuno.
+ *
+ * La mappa mette ostacoli attorno al bot, cosi' molte celle raggiungibili sul grafo NON sono in linea: e'
+ * proprio il caso in cui il difetto si manifesta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotDashExecutableTest,
+	"RefactorTactics.HexBotPlay.PlannedDashIsAlwaysExecutable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotDashExecutableTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	// Mappa con ostacoli sparsi: costringe i percorsi a deviare, cosi' "raggiungibile" != "in linea".
+	URTHexMapAsset* Map = SpawnHexMatchMap(World, /*Radius=*/ 4);
+	for (const FRTCellId& Id : { FRTCellId(1, 0), FRTCellId(1, -1), FRTCellId(0, 1), FRTCellId(-1, 2) })
+	{
+		FRTHexCellData Blocked(Id);
+		Blocked.bBlocksMovement = true;
+		Map->AddOrUpdateCell(Blocked);
+	}
+	Map->SortCells();
+
+	// Un kiter bot (ha lo Scatto) e un avversario che gli si avvicina: e' la situazione che innesca il dash.
+	ARTUnit* Bot   = SpawnHexMatchUnit(World, 1, ERTArchetype::Ranger,   FRTCellId(0, 0));
+	ARTUnit* Enemy = SpawnHexMatchUnit(World, 0, ERTArchetype::Guardian, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Bot || !Enemy) { DestroyHexMatchWorld(World); return false; }
+	Enemy->bIsBotControlled = false;
+
+	int32 DashesPlanned = 0;
+	for (int32 Turn = 1; Turn <= 6 && TM->GetPhase() != ERTMatchPhase::MatchEnded; ++Turn)
+	{
+		TM->PlanBotsForTest();
+
+		// Cosa ha deciso il bot, prima che la risoluzione lo consumi.
+		const bool bPlannedDash = Bot->PlannedDashAbility != INDEX_NONE;
+		const FRTCellId Wanted = Bot->PlannedDashCell;
+		const FRTCellId Before = Bot->Cell;
+
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+		if (bPlannedDash && Wanted != Before)
+		{
+			++DashesPlanned;
+			// Nessun contendente: se lo scatto era legale, l'unita' e' passata da quella cella. Se il bot avesse
+			// proposto una destinazione non in linea, qui resterebbe indietro senza alcuna spiegazione.
+			TestTrue(*FString::Printf(
+					TEXT("turno %d: lo scatto pianificato su %s si e' potuto eseguire (partiva da %s)"),
+					Turn, *Wanted.ToString(), *Before.ToString()),
+				Bot->Cell != Before);
+		}
+	}
+
+	AddInfo(FString::Printf(TEXT("scatti pianificati osservati: %d"), DashesPlanned));
+	TestTrue(TEXT("il bot ha pianificato almeno uno scatto"), DashesPlanned > 0);
+
+	// NOTA sul valore di questa verifica: e' uno SMOKE, non la prova dell'invariante. Verificato per mutazione
+	// (2026-08-06): rimuovendo il filtro lineare dalle candidate del bot questo test resta VERDE, perche' nello
+	// scenario il bot sceglie comunque una cella in linea. L'invariante e' provato da
+	// HexSim.LinearFilterDropsGraphOnlyCells, che confronta le due raggiungibilita' su TUTTE le celle.
+
+	DestroyHexMatchWorld(World);
+	return true;
+}

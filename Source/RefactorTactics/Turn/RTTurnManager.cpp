@@ -163,8 +163,11 @@ void ARTTurnManager::PlanBots()
 		{
 			if (bDashReady)
 			{
+				// Anche la fuga del kiter passa da ReachableCells (grafo): se la cella scelta non e'
+				// raggiungibile in LINEA, lo scatto verrebbe rifiutato e il panico si tradurrebbe in un turno
+				// perso. Meglio non scattare e lasciare decidere al movimento normale.
 				const FRTCellId Dest = URTHexBotLibrary::BestKiteCell(DashSnapshot, BotIdx, Nearest->Cell);
-				if (Dest != Bot->Cell)
+				if (Dest != Bot->Cell && URTHexSimLibrary::IsLinearDashReachable(DashSnapshot, BotIdx, Dest))
 				{
 					Bot->PlannedDashAbility = DashIdx;
 					Bot->PlannedDashCell = Dest;
@@ -196,6 +199,13 @@ void ARTTurnManager::PlanBots()
 			for (const FRTHexBotPlan& Candidate : URTHexBotLibrary::BuildCandidates(Snap, BotIdx, LocalCtx))
 			{
 				if (bAttacksOnly && !Candidate.bHasAttack) { continue; }
+				// Le candidate nascono da ReachableCells, che segue il GRAFO. Lo scatto invece e' lineare
+				// (CP 4.5): senza questo filtro il bot proporrebbe scatti che ResolveDash rifiuta, sprecando
+				// l'abilita' in silenzio. L'invariante "il bot non propone mosse illegali" vale anche qui.
+				if (bViaDash && !URTHexSimLibrary::IsLinearDashReachable(Snap, BotIdx, Candidate.DestCell))
+				{
+					continue;
+				}
 				Plans.Add(Candidate);
 				PlanAbility.Add(Candidate.bHasAttack ? AbilityIndex : INDEX_NONE);
 				PlanViaDash.Add(bViaDash);
@@ -585,10 +595,14 @@ void ARTTurnManager::ResolveDash()
 		// nel catalogo, non sul campo legacy dell'asset.
 		const int32 DeclaredRange = Dash->Def.ActionId.IsNone() ? Dash->RangeCells : Dash->Def.RangeCells;
 		Snapshot.Units[i].MoveBudget = Unit->GetEffectiveDashRange(DeclaredRange);
-		const TArray<FRTCellId> Path = URTHexSimLibrary::FindPathForUnit(Snapshot, /*UnitId=*/ i, Unit->PlannedDashCell).Path;
+
+		// Lo scatto e' LINEARE (catalogo v0.1 §3.2, CP 4.5): lungo una delle sei direzioni, sullo stesso layer,
+		// senza aggirare ostacoli. Non usa l'A* sul grafo come il movimento normale — con quello un'unita' si
+		// "arrampicava" sulla piattaforma passando da una transizione.
+		const TArray<FRTCellId> Path = URTHexSimLibrary::LinearDashPath(Snapshot, /*UnitId=*/ i, Unit->PlannedDashCell);
 		if (Path.Num() < 2)
 		{
-			continue; // destinazione fuori dalla portata dello scatto, bloccata o occupata
+			continue; // destinazione non allineata, fuori portata, bloccata o occupata
 		}
 		Paths[i] = Path;
 		DashAbilityIdx[i] = DashIdx;
