@@ -104,6 +104,23 @@ FRTCellId URTHexLibrary::WorldToCellId(const FVector& World, const FVector& Orig
 	return WorldToAxial(World, Origin, HexSize, Layer);
 }
 
+FVector URTHexLibrary::CellsCentroidWorld(const TArray<FRTCellId>& Cells, const FVector& Origin, float HexSize,
+	float LayerHeight)
+{
+	if (Cells.Num() == 0)
+	{
+		return Origin; // nessuna cella: si ripiega sull'origine, non su un punto arbitrario
+	}
+
+	FVector Sum = FVector::ZeroVector;
+	for (const FRTCellId& Cell : Cells)
+	{
+		Sum += AxialToWorld(Cell, Origin, HexSize, LayerHeight);
+	}
+	// Somma di centri: commutativa, quindi l'ordine dell'input non cambia il risultato.
+	return Sum / static_cast<double>(Cells.Num());
+}
+
 TArray<FVector> URTHexLibrary::HexCorners(const FVector& Center, float Radius)
 {
 	TArray<FVector> Corners;

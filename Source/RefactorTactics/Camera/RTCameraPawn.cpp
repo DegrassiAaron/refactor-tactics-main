@@ -5,6 +5,10 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Player/RTPlayerController.h" // squadra del giocatore da inquadrare all'avvio
+#include "Unit/RTUnit.h"
+#include "EngineUtils.h"               // TActorIterator
+#include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
 
 ARTCameraPawn::ARTCameraPawn()
@@ -48,10 +52,66 @@ void ARTCameraPawn::ApplyViewSettings()
 	SpringArm->SetRelativeRotation(FRotator(CameraPitch, 0.f, 0.f));
 }
 
+bool ARTCameraPawn::FrameOwnTeam()
+{
+	const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld());
+	if (!HexMap)
+	{
+		return false;
+	}
+
+	// La squadra da inquadrare e' quella del giocatore; senza controller si assume la 0 (demo).
+	int32 TeamId = 0;
+	if (const ARTPlayerController* PC = Cast<ARTPlayerController>(GetController()))
+	{
+		TeamId = PC->PlayerTeamId;
+	}
+
+	TArray<FRTCellId> Cells;
+	for (TActorIterator<ARTUnit> It(GetWorld()); It; ++It)
+	{
+		if (It->TeamId == TeamId && It->IsAlive())
+		{
+			Cells.Add(It->Cell);
+		}
+	}
+	if (Cells.Num() == 0)
+	{
+		return false; // unita' non ancora nel mondo: il chiamante riprova
+	}
+
+	FVector Origin; float HexSize; float LayerHeight;
+	HexMap->GetHexContext(Origin, HexSize, LayerHeight);
+	FocusOn(URTHexLibrary::CellsCentroidWorld(Cells, Origin, HexSize, LayerHeight));
+	if (SpringArm)
+	{
+		SpringArm->TargetArmLength = FMath::Clamp(MatchStartArmLength, MinArmLength, MaxArmLength);
+	}
+	UE_LOG(LogRT, Log, TEXT("[RT] Camera sulla squadra %d (%d unita', arm=%.0f)"),
+		TeamId, Cells.Num(), SpringArm ? SpringArm->TargetArmLength : -1.f);
+	return true;
+}
+
 void ARTCameraPawn::BeginPlay()
 {
 	Super::BeginPlay();
 	ApplyViewSettings(); // applica i valori correnti (anche se modificati in editor)
+
+	// Si parte guardando le proprie unita', non il centro della mappa. Le unita' possono non esistere ancora:
+	// l'ordine di BeginPlay fra actor non e' garantito, quindi si riprova al tick successivo — una volta sola —
+	// e solo se anche quello fallisce si ripiega sull'inquadratura d'insieme. E' presentazione: il ritardo di un
+	// frame non si vede e non tocca la simulazione.
+	if (!FrameOwnTeam())
+	{
+		GetWorldTimerManager().SetTimerForNextTick(FTimerDelegate::CreateWeakLambda(this, [this]()
+		{
+			if (!FrameOwnTeam())
+			{
+				RecenterView();
+			}
+		}));
+	}
+
 	UE_LOG(LogRT, Log, TEXT("[RT] CameraPawn BeginPlay (arm=%.0f, pitch=%.0f)"),
 		SpringArm ? SpringArm->TargetArmLength : -1.f, CameraPitch);
 }
