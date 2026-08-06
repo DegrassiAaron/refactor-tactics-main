@@ -1,5 +1,12 @@
 # Spec — Terreni (data-driven) + terreno dinamico + path composita
 
+> **Superato (2026-08-06)**: descrive `URTTerrainData`/`ARTGridActor` sul grid **quadrato**, rimossi nel
+> commit `7d8889b` insieme al resto del gameplay quadrato (CP 7.2/3.2, issue #40). Il terreno esagonale
+> riparte da zero con un'architettura diversa (catalogo dati non asset-based): vedi
+> [`spec-terreni-e8.md`](spec-terreni-e8.md). Questo file resta come riferimento storico delle regole di
+> gioco (Fango/Cespuglio/Altura/Lava/ignite) che potrebbero tornare utili per CP 8.3–8.5, non come
+> descrizione di codice esistente.
+
 > Discovery `/sc:brainstorm` + review `/sc:spec-panel` del **2026-08-02**. Fonti: scelte utente +
 > `IdeeBase.pdf` (idee) + canone ([`piano-canonico-mvp.md`](piano-canonico-mvp.md)) + spec pathfinding
 > ([`spec-pathfinding.md`](spec-pathfinding.md), [`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md)).
