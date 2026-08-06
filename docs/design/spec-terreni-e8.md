@@ -143,6 +143,14 @@ CP 8.1. `LinearDashPath` non passa dal microstep condiviso — controlla i blocc
 non avrebbe la stessa garanzia di correttezza sotto collisione simultanea del Move. Introdurlo richiederebbe
 far partecipare anche lo Scatto al resolver condiviso — fuori scope per CP 8.1, dichiarato in PR.
 
+**Decisione confermata (2026-08-06, in review del Task 6)**: la soglia "≥2 MP residui" resta **fissa**,
+letta alla lettera dal catalogo — **non** verifica se il budget residuo copra il costo reale della cella di
+scivolamento. Su una mappa dove il ghiaccio è seguito da una cella a costo >2 (già possibile: la fascia demo
+di `RTMatchSetupLibrary.cpp` usa costo 3), un'unità può quindi spendere 1-2 MP oltre il proprio budget.
+**Intenzionale**: coerente con la lettera del catalogo e con altre abilità di mobilità rapida (Sprint, Dash)
+che già concedono margine oltre le regole normali di movimento come parte della loro identità. Non è un
+difetto da correggere.
+
 ### 5.3 Fire — danno e Burning all'ingresso
 
 Quando una risoluzione di movimento (Move/Dash) termina **o attraversa** una cella `Fire`, si applicano gli
