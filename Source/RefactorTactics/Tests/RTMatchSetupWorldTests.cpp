@@ -215,3 +215,95 @@ bool FRTGameModeNoSetupOnTinyMapTest::RunTest(const FString&)
 	DestroySetupWorld(World);
 	return true;
 }
+
+/**
+ * La sorgente della mappa e' una SCELTA, non una catena di flag: `MapSource` decide da dove arriva l'arena su
+ * cui si gioca. Le voci generate valgono anche se il livello porta una mappa d'autore — sceglierle
+ * esplicitamente significa volerle, e il log lo dichiara — mentre il default resta la mappa del livello.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGameModeMapSourceTestArenaTest,
+	"RefactorTactics.MatchSetup.MapSourceTestArenaWinsOverLevelAsset",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGameModeMapSourceTestArenaTest::RunTest(const FString&)
+{
+	UWorld* World = MakeSetupWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	// Il livello porta una mappa d'autore VALIDA: la scelta esplicita deve comunque prevalere.
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	URTHexMapAsset* Authored = MakeHexMap(/*Radius=*/ 2);
+	MapActor->MapAsset = Authored;
+
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	GameMode->MapSource = ERTMapSource::GeneratedTestArena;
+	GameMode->SetupHexMatch(MapActor);
+
+	TestTrue(TEXT("la mappa d'autore e' stata sostituita"), MapActor->MapAsset != Authored);
+	if (!TestNotNull(TEXT("mappa in uso presente"), MapActor->MapAsset.Get())) { DestroySetupWorld(World); return false; }
+
+	// Le caratteristiche della mappa di prova: ostacoli e piattaforma su un secondo layer.
+	int32 BlocksMove = 0;
+	int32 Layer1 = 0;
+	for (const FRTHexCellData& Cell : MapActor->MapAsset->Cells)
+	{
+		BlocksMove += Cell.bBlocksMovement ? 1 : 0;
+		Layer1     += (Cell.Id.Layer == 1) ? 1 : 0;
+	}
+	TestTrue(TEXT("la mappa in uso ha ostacoli"), BlocksMove >= 3);
+	TestTrue(TEXT("la mappa in uso ha un secondo layer"), Layer1 >= 4);
+
+	int32 NumUnits = 0;
+	for (TActorIterator<ARTUnit> It(World); It; ++It) { ++NumUnits; }
+	TestEqual(TEXT("la partita 2v2 si allestisce sulla mappa di prova"), NumUnits, 4);
+
+	DestroySetupWorld(World);
+	return true;
+}
+
+/** Arena di ripiego scelta esplicitamente: pavimento liscio del raggio indicato, nessun ostacolo. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGameModeMapSourceDemoArenaTest,
+	"RefactorTactics.MatchSetup.MapSourceDemoArenaIsPlainFloor",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGameModeMapSourceDemoArenaTest::RunTest(const FString&)
+{
+	UWorld* World = MakeSetupWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	GameMode->MapSource = ERTMapSource::GeneratedDemoArena;
+	GameMode->DemoArenaRadius = 3;
+	GameMode->SetupHexMatch(MapActor);
+
+	if (!TestNotNull(TEXT("arena generata"), MapActor->MapAsset.Get())) { DestroySetupWorld(World); return false; }
+	int32 BlocksMove = 0;
+	for (const FRTHexCellData& Cell : MapActor->MapAsset->Cells) { BlocksMove += Cell.bBlocksMovement ? 1 : 0; }
+	TestEqual(TEXT("il ripiego e' pavimento liscio"), BlocksMove, 0);
+	TestEqual(TEXT("raggio 3 -> 37 celle"), MapActor->MapAsset->NumCells(), 37);
+
+	DestroySetupWorld(World);
+	return true;
+}
+
+/** Default: la mappa del livello si usa COM'E', senza sostituzioni silenziose. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGameModeMapSourceLevelAssetTest,
+	"RefactorTactics.MatchSetup.MapSourceLevelAssetKeepsAuthoredMap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGameModeMapSourceLevelAssetTest::RunTest(const FString&)
+{
+	UWorld* World = MakeSetupWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	URTHexMapAsset* Authored = MakeHexMap(/*Radius=*/ 2);
+	MapActor->MapAsset = Authored;
+
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	TestTrue(TEXT("il default e' la mappa del livello"), GameMode->MapSource == ERTMapSource::LevelAsset);
+	GameMode->SetupHexMatch(MapActor);
+
+	TestTrue(TEXT("la mappa d'autore NON viene sostituita"), MapActor->MapAsset == Authored);
+
+	DestroySetupWorld(World);
+	return true;
+}
