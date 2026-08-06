@@ -111,6 +111,77 @@ bool FRTGameModeSkipsSetupWithUnitsTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Un asset mappa ASSEGNATO ma VUOTO deve comportarsi come "nessuna mappa d'autore": si gioca sull'arena di
+ * ripiego. Difetto reale osservato in PIE su L_DevSandbox — il cui DA_HexMap_Sandbox si e' ritrovato a 0 celle:
+ * il ripiego guardava solo `!MapAsset` (puntatore nullo), quindi non scattava e la partita non si allestiva.
+ * Sintomo per chi gioca: viewport nera, nessuna unita', pareggio immediato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGameModeFallbackOnEmptyAssetTest,
+	"RefactorTactics.MatchSetup.GameModeFallsBackOnEmptyMapAsset",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGameModeFallbackOnEmptyAssetTest::RunTest(const FString&)
+{
+	UWorld* World = MakeSetupWorld();
+	if (!TestNotNull(TEXT("world di prova"), World))
+	{
+		return false;
+	}
+
+	// Asset presente ma senza celle: il puntatore non e' nullo, quindi il vecchio controllo lo lasciava passare.
+	URTHexMapAsset* Empty = NewObject<URTHexMapAsset>();
+	TestEqual(TEXT("premessa: l'asset e' vuoto"), Empty->NumCells(), 0);
+
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Empty;
+
+	World->SpawnActor<ARTGameMode>()->SetupHexMatch(MapActor);
+
+	int32 NumUnits = 0;
+	for (TActorIterator<ARTUnit> It(World); It; ++It)
+	{
+		++NumUnits;
+		TestTrue(TEXT("l'unita' sta su una cella della mappa in uso"),
+			MapActor->MapAsset && MapActor->MapAsset->ContainsCell(It->Cell));
+	}
+	TestEqual(TEXT("board 2v2 sull'arena di ripiego"), NumUnits, 4);
+	TestTrue(TEXT("la mappa in uso ha celle"),
+		MapActor->MapAsset && MapActor->MapAsset->NumCells() > 0);
+
+	DestroySetupWorld(World);
+	return true;
+}
+
+/** L'opt-out resta: con DemoArenaRadius = 0 non si inventa nessuna arena. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGameModeNoFallbackWhenDisabledTest,
+	"RefactorTactics.MatchSetup.GameModeNoFallbackWhenRadiusZero",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGameModeNoFallbackWhenDisabledTest::RunTest(const FString&)
+{
+	UWorld* World = MakeSetupWorld();
+	if (!TestNotNull(TEXT("world di prova"), World))
+	{
+		return false;
+	}
+
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = NewObject<URTHexMapAsset>(); // vuoto
+
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	GameMode->DemoArenaRadius = 0; // ripiego disattivato
+	GameMode->SetupHexMatch(MapActor);
+
+	int32 NumUnits = 0;
+	for (TActorIterator<ARTUnit> It(World); It; ++It)
+	{
+		++NumUnits;
+	}
+	TestEqual(TEXT("ripiego disattivato -> nessuna unita'"), NumUnits, 0);
+
+	DestroySetupWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGameModeNoSetupOnTinyMapTest,
 	"RefactorTactics.MatchSetup.GameModeSkipsWhenMapTooSmall",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
