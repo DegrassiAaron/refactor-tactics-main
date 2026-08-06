@@ -232,6 +232,31 @@ FRTHexPathResult URTHexSimLibrary::FindPathForUnit(const FRTHexSnapshot& Snapsho
 	return URTHexPathLibrary::FindPathAvoiding(Snapshot.Map, Unit->Cell, Goal, &Blocked, Budget);
 }
 
+ERTHexWaypointReason URTHexSimLibrary::ClassifyWaypointCell(const FRTHexSnapshot& Snapshot, int32 UnitId,
+	const FRTCellId& Cell)
+{
+	if (!Snapshot.Map || !Snapshot.Map->ContainsCell(Cell))
+	{
+		return ERTHexWaypointReason::NotOnMap;
+	}
+	if (const FRTHexCellData* Data = Snapshot.Map->FindCell(Cell))
+	{
+		if (Data->bBlocksMovement)
+		{
+			return ERTHexWaypointReason::BlocksMovement;
+		}
+	}
+	// Un'unita' non blocca se stessa: la propria cella e' un waypoint legittimo (annulla il movimento).
+	if (const int32* Occupant = Snapshot.Occupancy.Find(Cell))
+	{
+		if (*Occupant != UnitId)
+		{
+			return ERTHexWaypointReason::Occupied;
+		}
+	}
+	return ERTHexWaypointReason::Ok;
+}
+
 FRTHexPathResult URTHexSimLibrary::BuildCompositeHexPath(const FRTHexSnapshot& Snapshot, int32 UnitId,
 	const TArray<FRTCellId>& Waypoints)
 {

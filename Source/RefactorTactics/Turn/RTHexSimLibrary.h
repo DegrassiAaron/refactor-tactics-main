@@ -10,6 +10,20 @@
 class URTHexMapAsset;
 
 /**
+ * Perche' una cella non e' un waypoint valido. Serve a dire nel log il motivo GIUSTO: "bloccata", "occupata" e
+ * "oltre il budget" sono tre difetti diversi da correggere per chi gioca, e accorparli rende il messaggio inutile.
+ * `Ok` significa che la cella in se' va bene: se il percorso composito fallisce comunque, il motivo e' il budget.
+ */
+UENUM(BlueprintType)
+enum class ERTHexWaypointReason : uint8
+{
+	Ok,
+	NotOnMap,        // la cella non esiste nella mappa
+	BlocksMovement,  // cella non percorribile (ostacolo)
+	Occupied         // occupata da un'ALTRA unita' (la propria non blocca)
+};
+
+/**
  * Ingredienti PURI della risoluzione di un turno su griglia esagonale: snapshot di inizio fase, occupazione,
  * movement budget e collisioni simultanee. Nessun Actor, nessun DeltaTime, nessuna dipendenza dall'ordine di
  * iterazione di TMap/TSet (i risultati sono ordinati con URTHexLibrary::StableLess).
@@ -71,6 +85,14 @@ public:
 	 */
 	static FRTHexPathResult BuildCompositeHexPath(const FRTHexSnapshot& Snapshot, int32 UnitId,
 		const TArray<FRTCellId>& Waypoints);
+
+	/**
+	 * Cosa non va nella cella indicata come waypoint per l'unita': fuori mappa, ostacolo, occupata da un'altra
+	 * unita' — oppure `Ok`, e allora un eventuale rifiuto del percorso e' questione di **budget**.
+	 * Serve a spiegare il rifiuto con il motivo giusto invece di elencarne tre.
+	 */
+	static ERTHexWaypointReason ClassifyWaypointCell(const FRTHexSnapshot& Snapshot, int32 UnitId,
+		const FRTCellId& Cell);
 
 	/**
 	 * Movimento simultaneo lungo path esagonali gia' troncati al budget (ogni path e' From..To, From = indice 0),

@@ -9,6 +9,7 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexVisionLibrary.h"
+#include "Pathfinding/RTHexPathLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
@@ -274,6 +275,90 @@ bool FRTHexBothTeamsActTest::RunTest(const FString&)
 	}
 	TestTrue(TEXT("il TurnLog riporta il movimento"), bHasMove);
 	TestTrue(TEXT("il TurnLog riporta il combattimento"), bHasCombat);
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
+/**
+ * Caccia alle ANOMALIE su piu' turni della mappa di prova: non verifica un esito voluto, verifica che non
+ * accada nulla di illegale. E' il complemento del playtest — a schermo si nota che "qualcosa e' strano", qui si
+ * dice esattamente cosa, e a ogni turno.
+ *
+ * Gli invarianti sono quelli che un occhio umano non riesce a controllare turno per turno: nessuno dentro un
+ * ostacolo, nessuno fuori mappa, nessuna sovrapposizione, e — il piu' importante su una mappa multilivello —
+ * nessun cambio di layer che il grafo non consenta (cioe' nessun teletrasporto sulla piattaforma).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexArenaAnomalyTest,
+	"RefactorTactics.HexMatch.TestArenaKeepsUnitsOnLegalCells",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexArenaAnomalyTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	if (!TestNotNull(TEXT("arena di prova"), Arena)) { DestroyHexMatchWorld(World); return false; }
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+
+	// Le squadre partono agli estremi, come in partita: e' la configurazione che il playtest esercita.
+	const TArray<FRTCellId> Start = URTMatchSetupLibrary::PickStartCells(Arena, /*NumPerTeam=*/ 2, /*Layer=*/ 0);
+	if (!TestEqual(TEXT("quattro celle di partenza"), Start.Num(), 4)) { DestroyHexMatchWorld(World); return false; }
+
+	TArray<ARTUnit*> Units;
+	Units.Add(SpawnHexMatchUnit(World, 0, ERTArchetype::Ranger,   Start[0]));
+	Units.Add(SpawnHexMatchUnit(World, 0, ERTArchetype::Guardian, Start[1]));
+	Units.Add(SpawnHexMatchUnit(World, 1, ERTArchetype::Ranger,   Start[2]));
+	Units.Add(SpawnHexMatchUnit(World, 1, ERTArchetype::Guardian, Start[3]));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || Units.Contains(nullptr)) { DestroyHexMatchWorld(World); return false; }
+
+	TMap<ARTUnit*, FRTCellId> Previous;
+	for (ARTUnit* U : Units) { Previous.Add(U, U->Cell); }
+
+	int32 Turns = 0;
+	int32 LayerChanges = 0;
+	while (TM->GetPhase() != ERTMatchPhase::MatchEnded && Turns < 12)
+	{
+		PlayOneTurn(TM);
+		++Turns;
+
+		TSet<FRTCellId> Occupied;
+		for (ARTUnit* U : Units)
+		{
+			if (!U->IsAlive()) { continue; }
+
+			const FRTHexCellData* Data = Arena->FindCell(U->Cell);
+			TestNotNull(*FString::Printf(TEXT("turno %d: %s sta su una cella della mappa"), Turns, *U->GetName()),
+				Data);
+			if (Data)
+			{
+				TestFalse(*FString::Printf(TEXT("turno %d: %s non sta dentro un ostacolo"), Turns, *U->GetName()),
+					Data->bBlocksMovement);
+			}
+
+			bool bAlreadyThere = false;
+			Occupied.Add(U->Cell, &bAlreadyThere);
+			TestFalse(*FString::Printf(TEXT("turno %d: nessuna sovrapposizione su %s"), Turns, *U->Cell.ToString()),
+				bAlreadyThere);
+
+			// Cambio di layer: deve essere consentito dal GRAFO, cioe' passare da una transizione. Se il path
+			// fra la cella di prima e quella di adesso non esiste, l'unita' e' arrivata dove non poteva.
+			const FRTCellId& Before = Previous[U];
+			if (Before.Layer != U->Cell.Layer)
+			{
+				++LayerChanges;
+				TestTrue(*FString::Printf(TEXT("turno %d: %s cambia layer per una via legale (%s -> %s)"),
+						Turns, *U->GetName(), *Before.ToString(), *U->Cell.ToString()),
+					URTHexPathLibrary::FindPath(Arena, Before, U->Cell).Status == ERTHexPathStatus::Success);
+			}
+			Previous[U] = U->Cell;
+		}
+	}
+
+	TestTrue(TEXT("la partita e' andata avanti per piu' turni"), Turns > 1);
+	AddInfo(FString::Printf(TEXT("turni giocati: %d, cambi di layer osservati: %d"), Turns, LayerChanges));
 
 	DestroyHexMatchWorld(World);
 	return true;

@@ -709,3 +709,45 @@ bool FRTMoveNoGlobalRecomputeTest::RunTest(const FString&)
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS
+
+/**
+ * Il motivo per cui un waypoint viene rifiutato va DETTO, non accorpato. Il messaggio
+ * "oltre il budget, bloccata o occupata" mette tre difetti diversi nella stessa frase: chi gioca clicca una
+ * cella libera, legge "bloccata" e crede a un difetto del gioco. E' la stessa lezione di
+ * Combat.HexTargetingReasonDistinguishesRangeFromCover.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexWaypointReasonTest,
+	"RefactorTactics.HexSim.WaypointRejectionSaysWhich",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexWaypointReasonTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeSimMap(3);
+
+	// Una cella che blocca il movimento e una occupata da un'altra unita'.
+	FRTHexCellData Wall(FRTCellId(1, 0, 0));
+	Wall.bBlocksMovement = true;
+	Map->AddOrUpdateCell(Wall);
+	Map->SortCells();
+
+	const FRTCellId Mine(0, 0, 0);
+	const FRTCellId Other(2, 0, 0);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, {
+		FRTHexSimUnit(7, Mine,  /*MoveBudget=*/ 4),
+		FRTHexSimUnit(8, Other, /*MoveBudget=*/ 0)
+	});
+
+	TestTrue(TEXT("cella fuori dalla mappa -> NotOnMap"),
+		URTHexSimLibrary::ClassifyWaypointCell(Snap, 7, FRTCellId(9, 9, 0)) == ERTHexWaypointReason::NotOnMap);
+	TestTrue(TEXT("cella che blocca il movimento -> BlocksMovement"),
+		URTHexSimLibrary::ClassifyWaypointCell(Snap, 7, FRTCellId(1, 0, 0)) == ERTHexWaypointReason::BlocksMovement);
+	TestTrue(TEXT("cella occupata da un'altra unita' -> Occupied"),
+		URTHexSimLibrary::ClassifyWaypointCell(Snap, 7, Other) == ERTHexWaypointReason::Occupied);
+	TestTrue(TEXT("la propria cella non e' 'occupata'"),
+		URTHexSimLibrary::ClassifyWaypointCell(Snap, 7, Mine) == ERTHexWaypointReason::Ok);
+
+	// Cella libera e percorribile: la cella non ha nulla che non va. Se il percorso composito fallisce comunque,
+	// il motivo e' il BUDGET — ed e' cosi' che il chiamante distingue i due casi.
+	TestTrue(TEXT("cella libera -> Ok (un eventuale rifiuto e' questione di budget)"),
+		URTHexSimLibrary::ClassifyWaypointCell(Snap, 7, FRTCellId(0, 2, 0)) == ERTHexWaypointReason::Ok);
+	return true;
+}

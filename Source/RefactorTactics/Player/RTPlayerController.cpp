@@ -483,9 +483,39 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	if (Composite.Status != ERTHexPathStatus::Success || Composite.Path.Num() < 2)
 	{
 		SelectedUnit->PlannedWaypoints.Pop(); // rifiutato: si torna al piano precedente, non a uno a meta'
-		UE_LOG(LogRT, Log, TEXT("[RT] Waypoint (%d,%d,L%d) rifiutato (%s, budget %d) per %s"),
-			Cell.X, Cell.Y, Cell.Layer, RejectReason(Composite.Status),
-			SelectedUnit->GetEffectiveMoveRange(), *SelectedUnit->GetName());
+
+		// Il motivo GIUSTO, non un elenco di tre: se la cella in se' va bene, il rifiuto e' questione di budget,
+		// e allora si dice quanto era gia' speso. Test: HexSim.WaypointRejectionSaysWhich.
+		const ERTHexWaypointReason CellReason =
+			URTHexSimLibrary::ClassifyWaypointCell(Snapshot, UnitId, Cell);
+		const int32 Budget = SelectedUnit->GetEffectiveMoveRange();
+		switch (CellReason)
+		{
+		case ERTHexWaypointReason::NotOnMap:
+			UE_LOG(LogRT, Log, TEXT("[RT] Waypoint (%d,%d,L%d) rifiutato: cella fuori dalla mappa (%s)"),
+				Cell.X, Cell.Y, Cell.Layer, *SelectedUnit->GetName());
+			break;
+		case ERTHexWaypointReason::BlocksMovement:
+			UE_LOG(LogRT, Log, TEXT("[RT] Waypoint (%d,%d,L%d) rifiutato: cella bloccata (%s)"),
+				Cell.X, Cell.Y, Cell.Layer, *SelectedUnit->GetName());
+			break;
+		case ERTHexWaypointReason::Occupied:
+			UE_LOG(LogRT, Log, TEXT("[RT] Waypoint (%d,%d,L%d) rifiutato: cella occupata da un'altra unita' (%s)"),
+				Cell.X, Cell.Y, Cell.Layer, *SelectedUnit->GetName());
+			break;
+		case ERTHexWaypointReason::Ok:
+		default:
+			// La cella e' percorribile e libera: quel che manca sono punti movimento. Il percorso precedente
+			// (quello ancora valido) dice quanto e' gia' impegnato.
+			{
+				const FRTHexPathResult Kept =
+					URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, SelectedUnit->PlannedWaypoints);
+				UE_LOG(LogRT, Log,
+					TEXT("[RT] Waypoint (%d,%d,L%d) rifiutato: oltre il budget (gia' spesi %d di %d) per %s"),
+					Cell.X, Cell.Y, Cell.Layer, Kept.TotalCost, Budget, *SelectedUnit->GetName());
+			}
+			break;
+		}
 		return;
 	}
 
