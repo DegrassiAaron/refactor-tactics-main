@@ -90,17 +90,9 @@ void DrawHexMarker(FPrimitiveDrawInterface* PDI, const FVector& Center, float Ra
 }
 FColor SurfaceColor(ERTHexSurface Surface)
 {
-	switch (Surface)
-	{
-	case ERTHexSurface::Water:       return FColor(60, 120, 255);
-	case ERTHexSurface::Mud:         return FColor(140, 100, 60);
-	case ERTHexSurface::Fire:        return FColor(255, 130, 40);
-	case ERTHexSurface::Electrified: return FColor(80, 230, 230);
-	case ERTHexSurface::Ice:         return FColor(160, 220, 255);
-	case ERTHexSurface::Void:        return FColor(150, 40, 150);
-	case ERTHexSurface::Normal:
-	default:                         return FColor(160, 160, 160);
-	}
+	// Delega al runtime: una sola tavolozza per il marker dell'editor e per l'overlay in partita, altrimenti la
+	// stessa cella cambierebbe colore fra i due contesti.
+	return URTHexLibrary::SurfaceColor(Surface);
 }
 
 void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Actor)
@@ -120,7 +112,7 @@ void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Acto
 		DrawHexMarker(PDI, Center, HexSize * 0.85f, SurfaceColor(Cell.Surface));
 		if (Cell.bBlocksMovement)
 		{
-			DrawHexMarker(PDI, Center, HexSize * 0.45f, FColor::Red); // esagono interno rosso = bloccata
+			DrawHexMarker(PDI, Center, HexSize * 0.45f, URTHexLibrary::BlockedCellColor()); // esagono interno = bloccata
 		}
 	}
 }

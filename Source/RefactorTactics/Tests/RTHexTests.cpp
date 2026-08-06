@@ -305,3 +305,47 @@ bool FRTHexCentroidTest::RunTest(const FString&)
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS
+
+/**
+ * Leggibilita' tattica (pilastro di prodotto): l'overlay serve a far capire le regole della mappa, quindi due
+ * superfici diverse NON possono avere lo stesso colore, e nessuna puo' somigliare al marcatore delle celle
+ * bloccate. Sono le due condizioni che rendono l'overlay informativo invece di decorativo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSurfaceColorTest,
+	"RefactorTactics.Hex.SurfaceColorsAreDistinguishable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSurfaceColorTest::RunTest(const FString&)
+{
+	const TArray<ERTHexSurface> All = {
+		ERTHexSurface::Normal, ERTHexSurface::Water, ERTHexSurface::Mud, ERTHexSurface::Fire,
+		ERTHexSurface::Electrified, ERTHexSurface::Ice, ERTHexSurface::Void
+	};
+
+	// Distanza percettiva grossolana: somma delle differenze per canale. Due colori troppo vicini a schermo
+	// sono indistinguibili, e un overlay indistinguibile non aiuta a leggere la mappa.
+	auto Distance = [](const FColor& A, const FColor& B)
+	{
+		return FMath::Abs(A.R - B.R) + FMath::Abs(A.G - B.G) + FMath::Abs(A.B - B.B);
+	};
+
+	for (int32 I = 0; I < All.Num(); ++I)
+	{
+		for (int32 J = I + 1; J < All.Num(); ++J)
+		{
+			const FColor CI = URTHexLibrary::SurfaceColor(All[I]);
+			const FColor CJ = URTHexLibrary::SurfaceColor(All[J]);
+			TestTrue(*FString::Printf(TEXT("superfici %d e %d hanno colori distinguibili (distanza %d)"),
+					static_cast<int32>(All[I]), static_cast<int32>(All[J]), Distance(CI, CJ)),
+				Distance(CI, CJ) >= 60);
+		}
+	}
+
+	// Il rosso del marcatore "blocca il movimento" non deve confondersi con una superficie.
+	for (ERTHexSurface S : All)
+	{
+		TestTrue(*FString::Printf(TEXT("la superficie %d non si confonde col marcatore di blocco"),
+				static_cast<int32>(S)),
+			Distance(URTHexLibrary::SurfaceColor(S), URTHexLibrary::BlockedCellColor()) >= 60);
+	}
+	return true;
+}

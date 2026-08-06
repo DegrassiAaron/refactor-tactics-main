@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Map/RTCellId.h"
+#include "Map/RTHexCellData.h" // ERTHexSurface: serve ai colori dell'overlay di leggibilita'
 #include "RTHexLibrary.generated.h"
 
 /**
@@ -65,6 +66,19 @@ public:
 	 * Media dei centri-mondo delle celle indicate: il punto da inquadrare per un gruppo (es. la squadra del
 	 * giocatore all'avvio). Insieme vuoto -> `Origin`. Indipendente dall'ordine dell'input.
 	 */
+	/**
+	 * Colore con cui l'overlay di leggibilita' disegna una superficie. UNICA definizione: la usano sia il
+	 * marker dell'editor sia l'overlay in partita, cosi' la stessa cella non cambia colore fra i due.
+	 * Vincolo verificato da test: superfici diverse hanno colori distinguibili fra loro e dal marcatore di blocco.
+	 */
+	static FColor SurfaceColor(ERTHexSurface Surface);
+
+	/** Colore del marcatore delle celle che BLOCCANO il movimento (esagono interno). */
+	static FColor BlockedCellColor();
+
+	/** Colore del marcatore delle celle che bloccano la LINEA DI VISTA (esagono interno, distinto dal blocco). */
+	static FColor SightBlockerColor();
+
 	static FVector CellsCentroidWorld(const TArray<FRTCellId>& Cells, const FVector& Origin, float HexSize,
 		float LayerHeight);
 

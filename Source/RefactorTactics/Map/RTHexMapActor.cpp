@@ -112,19 +112,71 @@ void ARTHexMapActor::SetHoveredCell(const FRTCellId& Cell, bool bValid)
 	HoveredCell = Cell;
 	bHoveredValid = bValid;
 	// Il tick serve solo mentre c'e' qualcosa da disegnare: fuori dalla pianificazione l'actor resta inerte.
-	SetActorTickEnabled(bHoveredValid || PreviewPath.Num() > 0);
+	SetActorTickEnabled(bCellOverlay || bHoveredValid || PreviewPath.Num() > 0);
 }
 
 void ARTHexMapActor::SetPreviewPath(const TArray<FRTCellId>& Path)
 {
 	PreviewPath = Path;
-	SetActorTickEnabled(bHoveredValid || PreviewPath.Num() > 0);
+	SetActorTickEnabled(bCellOverlay || bHoveredValid || PreviewPath.Num() > 0);
 }
 
 void ARTHexMapActor::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	if (bCellOverlay)
+	{
+		DrawCellOverlay(); // prima: l'anteprima di pianificazione deve restare leggibile SOPRA
+	}
 	DrawPlanningPreview();
+}
+
+void ARTHexMapActor::SetCellOverlayEnabled(bool bEnabled)
+{
+	bCellOverlay = bEnabled;
+	SetActorTickEnabled(bCellOverlay || bHoveredValid || PreviewPath.Num() > 0);
+}
+
+void ARTHexMapActor::DrawCellOverlay() const
+{
+	const UWorld* World = GetWorld();
+	if (!World || !MapAsset)
+	{
+		return; // senza mappa d'autore non c'e' nulla di informativo da mostrare
+	}
+
+	FVector Origin = FVector::ZeroVector;
+	float Size = 0.f;
+	float LayerH = 0.f;
+	GetHexContext(Origin, Size, LayerH);
+
+	const auto DrawRing = [World, &Origin, Size, LayerH](const FRTCellId& Cell, const FColor& Color, float Scale,
+		float Lift, float Thickness)
+	{
+		const FVector Center = URTHexLibrary::AxialToWorld(Cell, Origin, Size, LayerH) + FVector(0, 0, Lift);
+		const TArray<FVector> Corners = URTHexLibrary::HexCorners(Center, Size * Scale);
+		for (int32 I = 0; I < Corners.Num(); ++I)
+		{
+			DrawDebugLine(World, Corners[I], Corners[(I + 1) % Corners.Num()], Color,
+				/*bPersistentLines=*/ false, /*LifeTime=*/ -1.f, /*DepthPriority=*/ 0, Thickness);
+		}
+	};
+
+	for (const FRTHexCellData& Cell : MapAsset->Cells)
+	{
+		// Contorno esterno: che superficie e'. Il costo di traversata si legge dalla superficie, non da un numero.
+		DrawRing(Cell.Id, URTHexLibrary::SurfaceColor(Cell.Surface), 0.86f, /*Lift=*/ 2.0f, /*Thickness=*/ 1.5f);
+
+		// Due marcatori DISTINTI, perche' sono due regole diverse: dove non si passa e dove non si vede.
+		if (Cell.bBlocksMovement)
+		{
+			DrawRing(Cell.Id, URTHexLibrary::BlockedCellColor(), 0.45f, 3.0f, 2.5f);
+		}
+		if (Cell.bBlocksLineOfSight)
+		{
+			DrawRing(Cell.Id, URTHexLibrary::SightBlockerColor(), 0.64f, 3.0f, 2.0f);
+		}
+	}
 }
 
 void ARTHexMapActor::DrawPlanningPreview() const

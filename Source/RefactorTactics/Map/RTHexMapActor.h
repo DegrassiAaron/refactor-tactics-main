@@ -170,8 +170,26 @@ public:
 	/** Numero di celle nella traccia di anteprima (diagnostica e test). */
 	int32 NumPreviewPathCells() const { return PreviewPath.Num(); }
 
+	/**
+	 * Overlay di LEGGIBILITA': disegna ogni cella col colore della sua superficie, con marcatori distinti per
+	 * «blocca il movimento» e «blocca la vista». Serve perche' in partita le celle sono tutte cilindri identici:
+	 * fango, ostacoli e muri sono invisibili, e una mappa che non comunica le proprie regole contraddice il
+	 * pilastro «leggibilita' tattica».
+	 *
+	 * E' uno **strumento di sviluppo** (si accende da `rt.Debug.DrawCells`), non la presentazione definitiva:
+	 * quella richiede materiali per superficie ed e' M8/M9. Sola lettura: non decide nulla (invariante #1).
+	 */
+	void SetCellOverlayEnabled(bool bEnabled);
+	bool IsCellOverlayEnabled() const { return bCellOverlay; }
+
 protected:
 	virtual void Tick(float DeltaSeconds) override;
+
+	/** Disegna l'overlay di leggibilita' (debug-line): superficie, blocco del movimento, blocco della vista. */
+	void DrawCellOverlay() const;
+
+	/** Overlay di leggibilita' attivo (acceso da console, spento per default). */
+	bool bCellOverlay = false;
 
 	/** Disegna evidenziazione e traccia (debug-line): nessun effetto sulla logica. */
 	void DrawPlanningPreview() const;

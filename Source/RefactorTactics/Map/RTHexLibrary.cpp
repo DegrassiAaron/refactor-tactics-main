@@ -121,6 +121,33 @@ FVector URTHexLibrary::CellsCentroidWorld(const TArray<FRTCellId>& Cells, const 
 	return Sum / static_cast<double>(Cells.Num());
 }
 
+FColor URTHexLibrary::SurfaceColor(ERTHexSurface Surface)
+{
+	// Tinte scelte per essere distinguibili fra loro e dal rosso del blocco (test:
+	// Hex.SurfaceColorsAreDistinguishable). Cambiandone una, quel test dice subito se si e' persa la leggibilita'.
+	switch (Surface)
+	{
+	case ERTHexSurface::Water:       return FColor(60, 120, 255);
+	case ERTHexSurface::Mud:         return FColor(140, 100, 60);
+	case ERTHexSurface::Fire:        return FColor(255, 130, 40);
+	case ERTHexSurface::Electrified: return FColor(80, 230, 230);
+	case ERTHexSurface::Ice:         return FColor(160, 220, 255);
+	case ERTHexSurface::Void:        return FColor(150, 40, 150);
+	case ERTHexSurface::Normal:
+	default:                         return FColor(160, 160, 160);
+	}
+}
+
+FColor URTHexLibrary::BlockedCellColor()
+{
+	return FColor(230, 40, 40); // rosso: non ci si passa
+}
+
+FColor URTHexLibrary::SightBlockerColor()
+{
+	return FColor(250, 240, 90); // giallo: non ci si vede attraverso, ma ci si passa
+}
+
 TArray<FVector> URTHexLibrary::HexCorners(const FVector& Center, float Radius)
 {
 	TArray<FVector> Corners;
