@@ -641,6 +641,19 @@ void ARTTurnManager::ResolveCombat()
 			*Units[Blocked.AttackerId]->GetName(), *Units[Blocked.TargetId]->GetName()));
 	}
 
+	// Intenti NON VALUTABILI (nessuna mappa autorevole): non finiscono nel TurnLog come «nessuna linea di
+	// tiro» — sarebbe un esito di gioco al posto di un difetto di configurazione del livello. Restano un
+	// warning, perche' e' il livello a dover essere corretto, non la posizione dell'unita'.
+	if (Plan.UnverifiableIntents.Num() > 0)
+	{
+		AddLogEvent(FString::Printf(
+			TEXT("Nessuna mappa esagonale: %d attacchi non validabili, nessun colpo applicato"),
+			Plan.UnverifiableIntents.Num()));
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] Blast senza mappa autorevole: %d intenti non valutabili (livello senza ARTHexMapActor con celle)"),
+			Plan.UnverifiableIntents.Num());
+	}
+
 	// Colpi a segno -> attacchi da applicare, con gli effetti collaterali dell'abilita' che li ha prodotti.
 	const TArray<FRTAttack> Attacks = URTHexCombatLibrary::ToAttacks(Plan);
 	TArray<FRTCellId> AttackSrc;  // cella dell'attaccante per ogni FRTAttack (TurnLog)
