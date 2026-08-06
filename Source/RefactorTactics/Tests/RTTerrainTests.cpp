@@ -140,4 +140,72 @@ bool FRTTerrainRoughBlocksDashTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTerrainIceSlidesWithBudgetTest,
+	"RefactorTactics.Terrain.Ice.SlidesWithSufficientBudget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTerrainIceSlidesWithBudgetTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 3))
+	{
+		Map->AddOrUpdateCell(FRTHexCellData(Id));
+	}
+	FRTHexCellData IceCell(FRTCellId(1, 0, 0));
+	IceCell.Surface = ERTHexSurface::Ice;
+	Map->AddOrUpdateCell(IceCell);
+	Map->SortCells();
+
+	FRTHexSimUnit Unit;
+	Unit.UnitId = 0;
+	Unit.Cell = FRTCellId(0, 0, 0);
+	Unit.MoveBudget = 5; // 1 per entrare sul ghiaccio (costo 1), 4 residui: >= 2, scivola
+
+	FRTHexSnapshot Snapshot;
+	Snapshot.Map = Map;
+	Snapshot.Units.Add(Unit);
+
+	const TArray<FRTCellId> Path = { FRTCellId(0, 0, 0), FRTCellId(1, 0, 0) };
+	const TArray<FRTCellId> Extended = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ 0, Path);
+
+	TestEqual(TEXT("il percorso si estende di una cella"), Extended.Num(), 3);
+	TestTrue(TEXT("la cella extra e' nella direzione d'ingresso"), Extended.Last() == FRTCellId(2, 0, 0));
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTerrainIceBlockedCellStopsSlidingTest,
+	"RefactorTactics.Terrain.Ice.BlockedCellStopsSliding",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTerrainIceBlockedCellStopsSlidingTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 3))
+	{
+		Map->AddOrUpdateCell(FRTHexCellData(Id));
+	}
+	FRTHexCellData IceCell(FRTCellId(1, 0, 0));
+	IceCell.Surface = ERTHexSurface::Ice;
+	Map->AddOrUpdateCell(IceCell);
+	FRTHexCellData Wall(FRTCellId(2, 0, 0));
+	Wall.bBlocksMovement = true;
+	Map->AddOrUpdateCell(Wall);
+	Map->SortCells();
+
+	FRTHexSimUnit Unit;
+	Unit.UnitId = 0;
+	Unit.Cell = FRTCellId(0, 0, 0);
+	Unit.MoveBudget = 5;
+
+	FRTHexSnapshot Snapshot;
+	Snapshot.Map = Map;
+	Snapshot.Units.Add(Unit);
+
+	const TArray<FRTCellId> Path = { FRTCellId(0, 0, 0), FRTCellId(1, 0, 0) };
+	const TArray<FRTCellId> Extended = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ 0, Path);
+
+	TestEqual(TEXT("nessuno scivolamento: la cella successiva blocca il movimento"), Extended.Num(), 2);
+
+	return true;
+}
+
 #endif

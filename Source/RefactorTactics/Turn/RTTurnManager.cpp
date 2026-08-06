@@ -1172,6 +1172,11 @@ void ARTTurnManager::ResolveMovement()
 		{
 			Path = { Unit->Cell }; // fermo
 		}
+		// Ghiaccio: chi finisce il Move su Ice con budget residuo scivola di una cella oltre. La cella extra
+		// e' aggiunta al PATH, non alla posizione finale: cosi' occupazione e collisioni simultanee restano
+		// affare del microstep di ResolveHexPaths, che le risolve gia' in modo indipendente dall'ordine.
+		// Solo il Move normale: lo Scatto (LinearDashPath) non passa da qui — spec-terreni-e8.md §5.2.
+		Path = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ i, Path);
 		Paths.Add(Path);
 	}
 

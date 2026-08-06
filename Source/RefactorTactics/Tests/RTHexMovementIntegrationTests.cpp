@@ -416,6 +416,67 @@ bool FRTSprintConsumesSlotsTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTIceSlidesInMatchTest,
+	"RefactorTactics.Terrain.Ice.SlidesInMatch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTIceSlidesInMatchTest::RunTest(const FString&)
+{
+	// Lo scivolamento su Ice e' verificato in isolamento da Terrain.Ice.*; qui si verifica che la PARTITA lo
+	// applichi davvero — cioe' che ResolveMovement chiami ApplyIceSliding prima del microstep, e non dopo aver
+	// gia' fissato la destinazione. Vale SOLO per il Move normale (lo Scatto non passa da qui, §5.2).
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	// Due lastre di ghiaccio sullo stesso asse est: (2,0) a portata di scivolata, (4,0) al limite del budget.
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 6))
+	{
+		FRTHexCellData Data(Id);
+		if (Id == FRTCellId(2, 0) || Id == FRTCellId(4, 0))
+		{
+			Data.Surface = ERTHexSurface::Ice; // costo 1 da catalogo: e' il budget RESIDUO a decidere
+		}
+		Map->AddOrUpdateCell(Data);
+	}
+	Map->SortCells();
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Map;
+
+	ARTUnit* Mover = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	// Un avversario fermo e lontano: senza, la squadra 1 e' gia' eliminata e il secondo lock-in non risolve.
+	ARTUnit* Foe = SpawnHexUnit(World, 1, ERTArchetype::Guardian, FRTCellId(-5, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
+
+	if (!TestEqual(TEXT("il Ranger ha il budget standard"), Mover->GetEffectiveMoveRange(), 5))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	// Arrivo su (2,0): costo 2, residuo 3 >= 2 -> scivola di una cella nella direzione d'ingresso (est).
+	Mover->PlannedCell = FRTCellId(2, 0);
+	Foe->PlannedCell = Foe->Cell;
+	RunTurn(TM);
+
+	TestTrue(TEXT("finire il Move sul ghiaccio porta una cella OLTRE la destinazione"),
+		Mover->Cell == FRTCellId(3, 0));
+	TestTrue(TEXT("posizione visiva = cella logica anche dopo la scivolata"),
+		Mover->GetActorLocation().Equals(Mover->WorldForCell(Mover->Cell, FVector::ZeroVector, 100.f, 250.f), 1.0f));
+
+	// Controprova: stesso ghiaccio, budget residuo insufficiente. Arrivo su (4,0) costa 4 dei 5 MP: resta 1,
+	// sotto la soglia di 2 -> nessuna scivolata. E' il BUDGET a muoverla, non la superficie da sola.
+	Mover->PlaceOnCell(FRTCellId(0, 0), FVector::ZeroVector, 100.f, 250.f);
+	Mover->PlannedCell = FRTCellId(4, 0);
+	Foe->PlannedCell = Foe->Cell;
+	RunTurn(TM);
+
+	TestTrue(TEXT("budget residuo < 2: si ferma sul ghiaccio senza scivolare"), Mover->Cell == FRTCellId(4, 0));
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovePathBlockedTest,
 	"RefactorTactics.Actions.Move.PathBlocked",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

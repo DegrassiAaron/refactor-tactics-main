@@ -118,6 +118,20 @@ public:
 	static bool IsLinearDashReachable(const FRTHexSnapshot& Snapshot, int32 UnitId, const FRTCellId& Goal);
 
 	/**
+	 * Se Path termina su una cella Ice e il budget residuo dell'unita' (MoveBudget - costo del percorso) e'
+	 * >= 2, estende Path di una cella nella direzione dell'ultimo passo (se esiste e non blocca il
+	 * movimento). Altrimenti ritorna Path invariato. Path.Num() < 2, o l'ultimo passo non e' un vicino
+	 * diretto sullo stesso layer (es. arrivo via transizione), -> Path invariato.
+	 *
+	 * La cella aggiunta NON e' verificata per occupazione: il path esteso entra nel microstep di
+	 * ResolveHexPaths, che gestisce occupazione/collisione come qualunque altro passo pianificato — quindi
+	 * due unita' che scivolano verso la stessa cella libera sono gestite dal resolver esistente, non da
+	 * questa funzione. Va chiamata SOLO sul path del movimento normale, MAI su LinearDashPath (lo Scatto non
+	 * passa dal microstep condiviso: vedi docs/design/spec-terreni-e8.md §5.2).
+	 */
+	static TArray<FRTCellId> ApplyIceSliding(const FRTHexSnapshot& Snapshot, int32 UnitId, const TArray<FRTCellId>& Path);
+
+	/**
 	 * Movimento simultaneo lungo path esagonali gia' troncati al budget (ogni path e' From..To, From = indice 0),
 	 * con MICROSTEP sincroni: a ogni passo tutte le unita' avanzano di una cella e si risolvono le collisioni
 	 * (destinazione contesa -> contendenti fermi da li'; cella di un'unita' ferma -> bloccata; scambio diretto
