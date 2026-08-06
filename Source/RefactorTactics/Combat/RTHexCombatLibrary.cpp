@@ -76,7 +76,10 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 		if (bTargetsUnit)
 		{
 			const FRTHexCombatUnit& Target = Units[Intent.TargetId];
-			if (!Target.bAlive || Attacker.TeamId == Target.TeamId)
+			// Un alleato e' un bersaglio legittimo SOLO per un'area a fuoco amico: e' la scelta di chi la
+			// lancia, non un errore di mira da correggere in silenzio.
+			const bool bSameTeam = Attacker.TeamId == Target.TeamId;
+			if (!Target.bAlive || (bSameTeam && !Intent.bFriendlyFire))
 			{
 				continue; // bersaglio non ingaggiabile: nessun esito da registrare
 			}
@@ -103,11 +106,13 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 		const TArray<FRTCellId> HitCells =
 			HexHitCells(Intent.Shape, Attacker.Cell, AimCell, Intent.RangeCells, Intent.AreaRadius);
 
-		// Colpisce ogni nemico VIVO su una cella dell'area (niente fuoco amico, niente colpi sui morti).
+		// Colpisce ogni unita' VIVA su una cella dell'area: i nemici sempre, gli alleati solo se l'azione
+		// dichiara il fuoco amico. Chi lancia l'area non si colpisce mai da solo.
 		for (int32 u = 0; u < Units.Num(); ++u)
 		{
 			const FRTHexCombatUnit& Other = Units[u];
-			if (!Other.bAlive || Other.TeamId == Attacker.TeamId)
+			const bool bAlly = Other.TeamId == Attacker.TeamId;
+			if (!Other.bAlive || u == Intent.AttackerId || (bAlly && !Intent.bFriendlyFire))
 			{
 				continue;
 			}

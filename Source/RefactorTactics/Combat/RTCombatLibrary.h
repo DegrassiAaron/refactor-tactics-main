@@ -61,6 +61,16 @@ public:
 	/** `Action.Guard`: spinta massima (in celle) a cui si resiste restando fermi. */
 	static constexpr int32 GuardResistedPushDistance = 1;
 
+	/**
+	 * `Status.Marked` (`Action.MarkTarget`, catalogo v0.1 §3): +6 al PROSSIMO attacco alleato contro il
+	 * bersaglio, che consuma il marchio.
+	 *
+	 * Passa dalla stessa `ApplyFirstHitDelta` di `Exposed` e `Guard` — quindi "consumato una volta sola" e'
+	 * una proprieta' del resolver, non una corsa fra gli attaccanti a chi colpisce per primo. Vale solo sui
+	 * colpi DIRETTI: il danno ambientale non passa di li' (catalogo: «non aumenta il danno ambientale»).
+	 */
+	static constexpr int32 MarkedFirstHitBonus = 6;
+
 	/** Applica il danno: lo scudo assorbe per primo, poi gli HP. Nessun valore scende sotto 0. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static FRTDamageResult ApplyDamage(int32 Damage, int32 Shield, int32 Health);
