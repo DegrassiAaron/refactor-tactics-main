@@ -83,6 +83,26 @@ enum class ERTActionSlot : uint8
 };
 
 /**
+ * COME si sposta un'azione di mobilita'. E' un dato del catalogo, non un ramo nell'orchestratore: `Dash` e
+ * `Sprint` risolvono nella stessa macro-fase ma si muovono in due modi diversi, e senza questo campo la
+ * differenza finirebbe in un `if` sull'ActionId.
+ */
+UENUM(BlueprintType)
+enum class ERTMovementStyle : uint8
+{
+	/** L'azione non sposta chi la usa (attacchi, guardia, interazioni). */
+	None,
+	/** Percorso a costi interi dentro un budget di MP, ostacoli aggirati in pianificazione (`Action.Sprint`). */
+	Budget,
+	/** Linea retta su una delle sei direzioni: si ferma davanti a muri e unita' (`Dash`, `Reposition`). */
+	LinearDash,
+	/** Come `LinearDash`, ma si ferma SUL primo nemico incontrato e lo colpisce (`Charge`). */
+	LinearCharge,
+	/** Salto: ignora unita' e celle intermedie, conta solo dove si atterra (`Leap`). */
+	LinearLeap
+};
+
+/**
  * Definizione di un'azione del catalogo v0.1: la parte di dati comune a ogni azione, indipendente dai suoi
  * effetti. Solo INTERI (invariante #4): niente float in costi, priorita', portata o cooldown — il test
  * `RefactorTactics.Catalog.NoFloatInIntegerFields` lo verifica per reflection, non a occhio.
@@ -129,6 +149,10 @@ struct FRTActionDef
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	ERTActionSlot Slot = ERTActionSlot::Main;
 
+	/** Come l'azione sposta chi la usa. `None` per tutto cio' che non e' mobilita'. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	ERTMovementStyle MovementStyle = ERTMovementStyle::None;
+
 	/**
 	 * Limite di propagazione ambientale in celle: **0 = non propaga**, N > 0 = si ferma a N celle.
 	 * Un valore negativo significherebbe "senza limite" ed e' rifiutato dal validator: una propagazione
@@ -146,6 +170,14 @@ struct FRTActionDef
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	TArray<FRTActionEffectSpec> Effects;
+
+	/**
+	 * Se falso, chi usa questa azione NON puo' tenere pronta una reazione in questo turno (`Action.Sprint`:
+	 * chi corre a perdifiato non para). Dichiarato qui perche' e' una regola dell'azione; a farla valere sara'
+	 * l'epic E5, che introduce lo slot reazione.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	bool bAllowsReaction = true;
 
 	/** Se falso, `Action.Interrupt` non ha effetto su questa azione. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")

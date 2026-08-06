@@ -6,6 +6,7 @@
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTResolvedEvent.h"
 #include "Turn/RTTurnLog.h"
+#include "Ability/RTActionDef.h" // FRTActionDef: l'impatto della carica porta con se' la definizione
 #include "Turn/RTHexSim.h" // FRTHexSnapshot: restituito per valore da MakeCurrentSnapshot
 #include "Turn/RTPacing.h" // FRTPacingSample: telemetria, canale separato dal TurnLog
 #include "RTTurnManager.generated.h"
@@ -237,6 +238,23 @@ protected:
 	int32 TurnNumber = 1;
 
 	FTimerHandle PlanningTimerHandle;
+
+protected:
+	/**
+	 * Impatto di una carica: chi ha caricato, chi ha urtato e con quale definizione d'azione.
+	 *
+	 * Il movimento della carica risolve nella fase Dash, ma il colpo NO: il catalogo le assegna il codice
+	 * 20/30, e il 30 (controllo) risolve per priorita' dentro il Blast. L'impatto aspetta qui in mezzo.
+	 */
+	struct FRTChargeImpact
+	{
+		TWeakObjectPtr<ARTUnit> Attacker;
+		TWeakObjectPtr<ARTUnit> Target;
+		FRTActionDef Def;
+	};
+
+	/** Impatti raccolti nella fase Dash del turno corrente, consumati dal Blast. */
+	TArray<FRTChargeImpact> PendingChargeImpacts;
 
 private:
 	/** Animazione di movimento di una singola unita': waypoint gia' convertiti in mondo + fase (Dash/Move). */

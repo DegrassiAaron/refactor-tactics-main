@@ -5,6 +5,7 @@
 #include "Turn/RTActionQueueLibrary.h"
 #include "Turn/RTActionEffectLibrary.h"
 #include "Turn/RTActionFallbackLibrary.h"
+#include "Turn/RTMovementActionLibrary.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Combat/RTCombatResolver.h"
 #include "Combat/RTCombatLibrary.h"
@@ -584,11 +585,54 @@ void ARTTurnManager::ResolveDash()
 		// turno. Per un'azione catalogata la verita' e' il `Def`: `Action.Sprint` vale 8 MP e quel numero sta
 		// nel catalogo, non sul campo legacy dell'asset.
 		const int32 DeclaredRange = Dash->Def.ActionId.IsNone() ? Dash->RangeCells : Dash->Def.RangeCells;
-		Snapshot.Units[i].MoveBudget = Unit->GetEffectiveDashRange(DeclaredRange);
-		const TArray<FRTCellId> Path = URTHexSimLibrary::FindPathForUnit(Snapshot, /*UnitId=*/ i, Unit->PlannedDashCell).Path;
-		if (Path.Num() < 2)
+		const int32 EffectiveRange = Unit->GetEffectiveDashRange(DeclaredRange);
+
+		TArray<FRTCellId> Path;
+		bool bChargedIntoTarget = false;
+		if (URTMovementActionLibrary::IsLinear(Dash->Def.MovementStyle))
+		{
+			// Mobilita' LINEARE (catalogo §2): una direzione fra le sei, e cio' che sta sulla traiettoria la
+			// ferma. Non e' il pathfinding del movimento normale — con quello un muro davanti non fermerebbe
+			// nulla, lo si girerebbe intorno, e `Dash.BlockedArc` non avrebbe nulla da verificare.
+			TSet<int32> Hostiles;
+			for (int32 u = 0; u < Units.Num(); ++u)
+			{
+				if (Units[u] && Units[u]->IsAlive() && Units[u]->TeamId != Unit->TeamId) { Hostiles.Add(u); }
+			}
+
+			const FRTLinearMoveResult Linear = URTMovementActionLibrary::ResolveLinearMove(
+				Snapshot.Map, Unit->Cell, Unit->PlannedDashCell, EffectiveRange,
+				Dash->Def.MovementStyle, Snapshot.Occupancy, Hostiles);
+
+			// L'impatto della carica NON si applica qui: il catalogo le da' codice 20/30, cioe' movimento in
+			// fase Dash e impatto fra i controlli, che risolvono per priorita' dentro il Blast.
+			if (Linear.Stop == ERTLinearStop::Impact && Units.IsValidIndex(Linear.ImpactUnitId))
+			{
+				FRTChargeImpact Impact;
+				Impact.Attacker = Unit;
+				Impact.Target = Units[Linear.ImpactUnitId];
+				Impact.Def = Dash->Def;
+				PendingChargeImpacts.Add(Impact);
+				bChargedIntoTarget = true;
+			}
+
+			Path.Add(Unit->Cell);
+			Path.Append(Linear.Entered);
+		}
+		else
+		{
+			Snapshot.Units[i].MoveBudget = EffectiveRange;
+			Path = URTHexSimLibrary::FindPathForUnit(Snapshot, /*UnitId=*/ i, Unit->PlannedDashCell).Path;
+		}
+
+		// Una carica che si ferma subito ha comunque colpito: l'impatto e' gia' registrato qui sopra.
+		if (Path.Num() < 2 && !bChargedIntoTarget)
 		{
 			continue; // destinazione fuori dalla portata dello scatto, bloccata o occupata
+		}
+		if (Path.Num() < 2)
+		{
+			Path = { Unit->Cell };
 		}
 		Paths[i] = Path;
 		DashAbilityIdx[i] = DashIdx;
@@ -724,6 +768,8 @@ void ARTTurnManager::ResolveCombat()
 	TArray<FRTHexAttackIntent> Intents;
 	TArray<int32> IntentAbilityIndex;
 	TArray<const URTActionData*> IntentAbility;
+	TArray<FRTActionDef> IntentDefs; // la definizione che ha prodotto l'intento: anche senza un URTActionData
+					 // dietro (l'impatto di una carica e' dati puri, non un'abilita' selezionata)
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Units[i];
@@ -813,7 +859,39 @@ void ARTTurnManager::ResolveCombat()
 		Intents.Add(Intent);
 		IntentAbilityIndex.Add(AbilityIndex);
 		IntentAbility.Add(Ability);
+		IntentDefs.Add(Instance.Def);
 	}
+
+	// Impatti delle cariche risolte nella fase Dash: entrano nel Blast come intenti a portata 1, cioe' addosso
+	// al bersaglio. E' il codice 20/30 del catalogo — il movimento e' avvenuto prima, il colpo risolve qui, con
+	// gli altri, per priorita'. Applicarlo dentro la fase Dash lo avrebbe messo fuori dall'ordine.
+	for (const FRTChargeImpact& Impact : PendingChargeImpacts)
+	{
+		ARTUnit* Attacker = Impact.Attacker.Get();
+		ARTUnit* Victim = Impact.Target.Get();
+		if (!Attacker || !Victim || !IndexOf.Contains(Attacker) || !IndexOf.Contains(Victim)) { continue; }
+
+		FRTHexAttackIntent Intent;
+		Intent.AttackerId = IndexOf[Attacker];
+		Intent.TargetId = IndexOf[Victim];
+		Intent.TargetCell = Victim->Cell;
+		Intent.Shape = ERTAbilityShape::Single;
+		Intent.RangeCells = 1; // dopo l'impatto si e' adiacenti: e' questa la portata del colpo
+		Intent.AreaRadius = 0;
+
+		int32 ImpactDamage = 0;
+		for (const FRTActionEffectSpec& Spec : Impact.Def.Effects)
+		{
+			if (Spec.Effect == ERTActionEffect::Damage) { ImpactDamage = Spec.Amount; break; }
+		}
+		Intent.Power = URTCombatLibrary::EffectiveAttackPower(ImpactDamage, /*OccupantDamageBonus=*/ 0);
+
+		Intents.Add(Intent);
+		IntentAbilityIndex.Add(INDEX_NONE); // nessuna abilita' da consumare: lo scatto l'ha gia' fatto
+		IntentAbility.Add(nullptr);
+		IntentDefs.Add(Impact.Def);
+	}
+	PendingChargeImpacts.Reset();
 
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(HexUnits, Intents, Map);
 
@@ -886,15 +964,16 @@ void ARTTurnManager::ResolveCombat()
 		ARTUnit* Attacker = Units[Hit.AttackerId];
 		ARTUnit* Victim = Units[Hit.TargetId];
 		const URTActionData* Ability = IntentAbility.IsValidIndex(Hit.IntentIndex) ? IntentAbility[Hit.IntentIndex] : nullptr;
+		const bool bHasDef = IntentDefs.IsValidIndex(Hit.IntentIndex);
 		AttackSrc.Add(HexUnits[Hit.AttackerId].Cell);
 
 		// Effetti COLLATERALI del colpo (stato, spinta) dagli EVENTI dichiarati dall'azione, non da flag
 		// letti qui: e' il motore azioni (epic E4). Il danno resta separato perche' segue una regola sua —
 		// si somma per bersaglio e si applica in blocco, cosi' l'ordine dei colpi non cambia l'esito.
-		if (Ability)
+		if (bHasDef)
 		{
 			FRTActionInstance Instance;
-			Instance.Def = Ability->Def;
+			Instance.Def = IntentDefs[Hit.IntentIndex];
 			Instance.SourceUnitId = Hit.AttackerId;
 			Instance.TargetUnitId = Hit.TargetId;
 			Instance.TargetCell = HexUnits[Hit.TargetId].Cell;
