@@ -44,6 +44,14 @@ class REFACTORTACTICS_API URTCombatLibrary : public UBlueprintFunctionLibrary
 	GENERATED_BODY()
 
 public:
+	/**
+	 * `Status.Exposed`: +5 al PRIMO danno diretto ricevuto (catalogo v0.1 §2, `Action.Sprint`).
+	 *
+	 * Costante nominata e non numero sparso nel resolver: e' un valore di catalogo, e quando gli stati
+	 * diventeranno dati (CP 8.2) sara' un campo dell'asset, non una modifica in tre punti.
+	 */
+	static constexpr int32 ExposedFirstHitBonus = 5;
+
 	/** Applica il danno: lo scudo assorbe per primo, poi gli HP. Nessun valore scende sotto 0. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static FRTDamageResult ApplyDamage(int32 Damage, int32 Shield, int32 Health);

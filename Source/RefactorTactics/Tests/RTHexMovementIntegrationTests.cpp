@@ -2,6 +2,9 @@
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnLog.h"
 #include "Unit/RTUnit.h"
+#include "Ability/RTActionData.h"
+#include "Ability/RTCatalogLibrary.h"
+#include "Core/RTGameplayTags.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
@@ -62,6 +65,23 @@ namespace
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		return U;
+	}
+
+	/**
+	 * Aggiunge `Action.Sprint` all'unita' e ne restituisce l'indice.
+	 *
+	 * L'azione arriva DAL CATALOGO e basta il `Def`: niente `bDash`, niente `RangeCells` sull'asset (che vale 5
+	 * per default). Se il resolver leggesse ancora il campo legacy invece del catalogo, gli 8 MP non ci
+	 * sarebbero e i test qui sotto fallirebbero — che e' esattamente cio' che devono sorvegliare.
+	 */
+	int32 AddSprintAbility(ARTUnit* Unit)
+	{
+		if (!Unit) { return INDEX_NONE; }
+		URTActionData* Sprint = NewObject<URTActionData>(Unit);
+		Sprint->DisplayName = FText::FromString(TEXT("Scatto lungo"));
+		Sprint->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Sprint"));
+		Unit->Abilities.Add(Sprint);
+		return Unit->Abilities.Num() - 1;
 	}
 
 	/** Porta a termine risoluzione e playback, cosi' le posizioni visive sono quelle finali. */
@@ -292,6 +312,105 @@ bool FRTHexMoveContestedCellTest::RunTest(const FString&)
 		}
 	}
 	TestEqual(TEXT("il TurnLog registra due esiti di contesa"), Contests, 2);
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSprintAppliesExposedTest,
+	"RefactorTactics.Actions.Sprint.AppliesExposed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSprintAppliesExposedTest::RunTest(const FString&)
+{
+	// Sprint (catalogo v0.1 §2): 8 MP e `Status.Exposed` fino al Cleanup, cioe' +5 al PRIMO danno diretto.
+	// Lo stato scade nel Cleanup dello stesso turno: si verifica quindi il suo EFFETTO — quanto incassa chi ha
+	// corso allo scoperto — invece del tag residuo a turno finito, che per definizione non c'e' piu'.
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 8);
+
+	// Due Ranger: il tiro (25 danni, portata 6, bersaglio singolo) non spinge e non fa area, quindi l'unica
+	// differenza misurabile fra i due turni e' lo stato. Il Ranger non ha scudo: il danno si legge sugli HP.
+	ARTUnit* Runner = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(8, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Runner || !Foe) { DestroyHexMoveWorld(World); return false; }
+
+	const int32 SprintIdx = AddSprintAbility(Runner);
+	const int32 StartHealth = Runner->Health;
+
+	// Sei celle di scatto: oltre la portata 5 dello scatto del Ranger, dentro gli 8 MP dello Sprint.
+	Runner->PlannedCell = Runner->Cell; // nessun movimento normale pianificato
+	Runner->PlannedDashAbility = SprintIdx;
+	Runner->PlannedDashCell = FRTCellId(2, 0);
+
+	// L'avversario resta fermo e tira su chi gli arriva davanti (Tiro, 25 danni, portata 6).
+	Foe->PlannedCell = Foe->Cell;
+	Foe->PlannedAbilityIndex = 0;
+	Foe->PlannedAttackTarget = Runner;
+
+	RunTurn(TM);
+
+	if (!TestTrue(TEXT("lo Sprint copre 6 celle: il budget e' quello del catalogo (8 MP)"),
+		Runner->Cell == FRTCellId(2, 0)))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("chi ha sprintato incassa 25 + 5 dal primo colpo diretto"),
+		StartHealth - Runner->Health, 30);
+
+	// Controprova: stessa unita', stessa Spazzata, ma senza Sprint -> il danno torna nominale.
+	Runner->PlaceOnCell(FRTCellId(2, 0), FVector::ZeroVector, 100.f, 250.f);
+	Runner->ApplyCombatState(StartHealth, 0);
+	Runner->PlannedCell = Runner->Cell;
+	Runner->PlannedDashAbility = INDEX_NONE;
+	Foe->PlannedCell = Foe->Cell;
+	Foe->PlannedAbilityIndex = 0;
+	Foe->PlannedAttackTarget = Runner;
+
+	RunTurn(TM);
+
+	TestEqual(TEXT("senza Sprint lo stesso colpo fa 25: il +5 viene dallo stato, non dall'attacco"),
+		StartHealth - Runner->Health, 25);
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSprintConsumesSlotsTest,
+	"RefactorTactics.Actions.Sprint.ConsumesMovementAndMain",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSprintConsumesSlotsTest::RunTest(const FString&)
+{
+	// Lo slot dichiarato dal catalogo (`Movimento + Principale`) e' una regola, non una nota: chi sprinta non
+	// spara e non prosegue col Move nello stesso turno. Qui si pianifica di fare TUTTO — sprint, attacco e
+	// movimento — e si verifica che restino solo gli 8 MP dello sprint.
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 8);
+
+	ARTUnit* Runner = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, ERTArchetype::Guardian, FRTCellId(6, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Runner || !Foe) { DestroyHexMoveWorld(World); return false; }
+
+	const int32 SprintIdx = AddSprintAbility(Runner);
+	const int32 FoeHealth = Foe->Health;
+	const int32 FoeShield = Foe->Shield;
+
+	Runner->PlannedDashAbility = SprintIdx;
+	Runner->PlannedDashCell = FRTCellId(3, 0);
+	Runner->PlannedAbilityIndex = 0;          // Tiro (portata 6): da (3,0) il Guardian sarebbe a tiro
+	Runner->PlannedAttackTarget = Foe;
+	Runner->PlannedCell = FRTCellId(5, 0);    // e dopo lo scatto vorrebbe pure avanzare di due celle
+	Foe->PlannedCell = Foe->Cell;
+
+	RunTurn(TM);
+
+	TestTrue(TEXT("il movimento e' finito con lo scatto: nessun Move oltre"), Runner->Cell == FRTCellId(3, 0));
+	TestEqual(TEXT("l'azione principale e' spesa: il Guardian non viene colpito"), Foe->Health, FoeHealth);
+	TestEqual(TEXT("nemmeno lo scudo del Guardian viene intaccato"), Foe->Shield, FoeShield);
 
 	DestroyHexMoveWorld(World);
 	return true;

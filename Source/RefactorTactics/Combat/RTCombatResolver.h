@@ -51,4 +51,18 @@ public:
 	/** Ritorna il nuovo stato di ogni unita' (stesso ordine dell'input). */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Combat")
 	static TArray<FRTUnitCombatState> ResolveAttacks(const TArray<FRTUnitCombatState>& Units, const TArray<FRTAttack>& Attacks);
+
+	/**
+	 * Applica i modificatori che valgono UNA VOLTA SOLA per bersaglio: oggi `Status.Exposed` (+5 al primo
+	 * danno diretto ricevuto), domani `Guard` (-15, CP 4.4). `DeltaByTarget[i]` e' il delta dell'unita' `i`
+	 * (0 = nessuno); un indice fuori dall'array vale 0.
+	 *
+	 * Il delta va al PRIMO colpo che quel bersaglio riceve nell'ordine dato. Poiche' `ResolveAttacks` somma i
+	 * danni per bersaglio, il totale non dipende da quale colpo se lo prenda: la regola «primo danno» resta
+	 * ordine-indipendente (invariante #3) invece di diventare una corsa fra attaccanti.
+	 *
+	 * Il danno di un colpo non scende sotto 0: un delta negativo puo' annullarlo, non curare.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static TArray<FRTAttack> ApplyFirstHitDelta(const TArray<FRTAttack>& Attacks, const TArray<int32>& DeltaByTarget);
 };

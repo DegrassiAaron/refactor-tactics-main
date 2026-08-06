@@ -62,6 +62,27 @@ enum class ERTActionFallback : uint8
 };
 
 /**
+ * Slot del turno che un'azione occupa. Il catalogo v0.1 (§«Slot per turno») ne dichiara uno per riga: senza
+ * questo dato, «Sprint consuma movimento **e** azione principale» diventerebbe un `if` sull'ActionId dentro
+ * l'orchestratore — cioe' il tipo di eccezione hard-coded che il motore azioni esiste per togliere.
+ *
+ * Lo slot Reazione non c'e': le reazioni si dichiarano in planning e hanno un trigger, non una fase. Arrivano
+ * con l'epic E5 (`#19`), che decidera' come rappresentarle.
+ */
+UENUM(BlueprintType)
+enum class ERTActionSlot : uint8
+{
+	/** Non occupa slot: resta osservabile nel TurnLog ma non toglie nulla al piano (`Action.Wait`). */
+	None,
+	/** Slot movimento (`Action.Move`). */
+	Movement,
+	/** Azione principale: attacchi, scatti, guardia, cure. E' il caso comune. */
+	Main,
+	/** Consuma ENTRAMBI gli slot: chi la usa non si muove oltre e non agisce (`Action.Sprint`). */
+	MovementAndMain
+};
+
+/**
  * Definizione di un'azione del catalogo v0.1: la parte di dati comune a ogni azione, indipendente dai suoi
  * effetti. Solo INTERI (invariante #4): niente float in costi, priorita', portata o cooldown — il test
  * `RefactorTactics.Catalog.NoFloatInIntegerFields` lo verifica per reflection, non a occhio.
@@ -100,6 +121,13 @@ struct FRTActionDef
 	/** Cosa succede se l'azione non e' piu' eseguibile come pianificata. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	ERTActionFallback Fallback = ERTActionFallback::Cancel;
+
+	/**
+	 * Slot del turno consumato dall'azione. Default `Main`: e' lo slot della maggior parte delle azioni
+	 * (attacchi, scatti, guardia) e coincide con quello delle abilita' gia' spedite.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	ERTActionSlot Slot = ERTActionSlot::Main;
 
 	/**
 	 * Limite di propagazione ambientale in celle: **0 = non propaga**, N > 0 = si ferma a N celle.

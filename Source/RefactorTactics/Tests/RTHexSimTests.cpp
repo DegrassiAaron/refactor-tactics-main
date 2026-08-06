@@ -674,4 +674,38 @@ bool FRTHexCompositeEmptyTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMoveNoGlobalRecomputeTest,
+	"RefactorTactics.Actions.Move.NoGlobalRecompute",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMoveNoGlobalRecomputeTest::RunTest(const FString&)
+{
+	// Il percorso si calcola UNA VOLTA, in pianificazione; la risoluzione lo fa solo avanzare a micro-step.
+	// Se durante la resolution ci fosse un ricalcolo globale (un A* per micro-step), un'unita' bloccata a meta'
+	// strada aggirerebbe l'ostacolo e arriverebbe comunque a destinazione: qui deve invece FERMARSI.
+	//
+	// L'aggiramento esiste eccome sulla mappa (dalla riga r=-1 si arriva a (3,0) senza toccare (2,0)): e'
+	// proprio la strada che un ricalcolo troverebbe.
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0), FRTCellId(3, 0) }); // A: dritto verso est
+	Paths.Add({ FRTCellId(2, 0) });                                                    // B: ferma, sulla strada
+
+	const TArray<FRTHexMoveResult> R = URTHexSimLibrary::ResolveHexPaths(Paths);
+	if (!TestEqual(TEXT("un esito per unita'"), R.Num(), 2)) { return false; }
+
+	TestTrue(TEXT("A si ferma davanti a chi occupa la cella"), R[0].Final == FRTCellId(1, 0));
+	TestTrue(TEXT("A NON raggiunge la destinazione aggirando l'ostacolo"), !(R[0].Final == FRTCellId(3, 0)));
+	TestTrue(TEXT("il motivo registrato e' l'unita' che blocca"), R[0].Outcome == ERTMoveOutcome::BlockedByUnit);
+	TestTrue(TEXT("B non si muove"), R[1].Final == FRTCellId(2, 0));
+
+	// Proprieta' generale, non solo questo caso: le celle attraversate sono sempre un PREFISSO del percorso
+	// dichiarato. Un ricalcolo produrrebbe celle che nel piano non c'erano.
+	bool bPrefix = R[0].Entered.Num() < Paths[0].Num();
+	for (int32 i = 0; i < R[0].Entered.Num() && bPrefix; ++i)
+	{
+		bPrefix = (R[0].Entered[i] == Paths[0][i + 1]); // Entered esclude la cella di partenza
+	}
+	TestTrue(TEXT("le celle attraversate sono un prefisso del percorso pianificato"), bPrefix);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
