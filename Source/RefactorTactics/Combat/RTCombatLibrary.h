@@ -52,6 +52,15 @@ public:
 	 */
 	static constexpr int32 ExposedFirstHitBonus = 5;
 
+	/**
+	 * `Action.Guard`: riduce di 15 il PRIMO danno diretto ricevuto (catalogo v0.1 §1). Non protegge dagli
+	 * hazard ambientali gia' presenti — quelli non passano dai colpi diretti e arrivano con l'epic E8.
+	 */
+	static constexpr int32 GuardFirstHitReduction = 15;
+
+	/** `Action.Guard`: spinta massima (in celle) a cui si resiste restando fermi. */
+	static constexpr int32 GuardResistedPushDistance = 1;
+
 	/** Applica il danno: lo scudo assorbe per primo, poi gli HP. Nessun valore scende sotto 0. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static FRTDamageResult ApplyDamage(int32 Damage, int32 Shield, int32 Health);
