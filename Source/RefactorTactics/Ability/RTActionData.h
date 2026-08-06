@@ -6,6 +6,42 @@
 #include "Ability/RTActionDef.h"
 #include "RTActionData.generated.h"
 
+/**
+ * Una CONFIGURAZIONE alternativa di un'abilita' d'eroe: stesso ActionId, effetti diversi, scelta nel loadout
+ * pre-partita (catalogo eroi v0.1 §6, "Variante di <Abilita>"). E' un compromesso ORIZZONTALE — cambia COME
+ * si usa l'abilita', non QUANTO e' forte — lo stesso principio degli equipaggiamenti
+ * (`URTEquipmentData::Drawback`), applicato qui a UNA abilita' fondamentale invece che al loadout intero.
+ *
+ * Il catalogo v0.1 vincola: **una sola** abilita' fondamentale per eroe puo' dichiarare varianti
+ * (`URTHeroCatalogLibrary::ValidateHeroes` lo fa valere).
+ */
+USTRUCT(BlueprintType)
+struct FRTAbilityVariant
+{
+	GENERATED_BODY()
+
+	/** ID stabile della variante (es. `Flux.LinearDischarge.Branched`). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	FName VariantId;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	FText DisplayName;
+
+	/** Il compromesso in una riga leggibile (UI/log): il numero vive in `Effects`, qui sta il PERCHE'. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	FText Tradeoff;
+
+	/**
+	 * Effetti di QUESTA variante, che sostituiscono per intero `URTActionData::Def.Effects` quando la
+	 * variante e' selezionata nel loadout. Stesso schema di `FRTActionDef::Effects`: un cambio di bersagli
+	 * aggiuntivi o di tipo di effetto (non solo di quantita') resta rappresentabile senza un secondo modello.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	TArray<FRTActionEffectSpec> Effects;
+
+	FRTAbilityVariant() = default;
+};
+
 /** Forma dell'area colpita da un'azione. */
 UENUM(BlueprintType)
 enum class ERTAbilityShape : uint8
@@ -96,4 +132,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
 	bool bDash = false;
 
+	/**
+	 * Configurazioni alternative di QUESTA abilita' (0, 1 o 2 secondo il catalogo eroi v0.1). Vuoto = nessuna
+	 * variante: l'abilita' esiste solo nella sua forma base. Non e' un menu di potenziamenti: due varianti si
+	 * ESCLUDONO a vicenda nel loadout, e ognuna dichiara un compromesso, mai un puro vantaggio.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
+	TArray<FRTAbilityVariant> Variants;
 };

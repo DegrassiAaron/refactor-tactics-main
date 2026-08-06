@@ -4,6 +4,7 @@
 #include "Combat/RTCombatLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 #include "Core/RTGameplayTags.h"
 #include "RefactorTactics.h"
 #include "Components/StaticMeshComponent.h"
@@ -369,6 +370,39 @@ void ARTUnit::ConfigureAsArchetype(ERTArchetype InArchetype)
 	{
 		Mesh->SetRelativeScale3D(BaseMeshScale);
 	}
+}
+
+void ARTUnit::ConfigureFromHeroData(const URTHeroData* Hero)
+{
+	// Fail-closed: senza dati non si configura nulla. Un numero a caso sarebbe peggio di un'unita' che
+	// mantiene lo stato precedente e lascia capire, dal comportamento, che qualcosa non e' stato passato.
+	if (Hero == nullptr)
+	{
+		return;
+	}
+
+	HeroId = Hero->HeroId;
+	MaxHealth = Hero->MaxHealth;
+	MoveRange = Hero->MovePoints;
+	VisionRange = Hero->VisionRange;
+	PushResistance = Hero->PushResistance;
+	Affinity = Hero->Affinity;
+	Weakness = Hero->Weakness;
+
+	// Le azioni sono gia' URTActionData*: si copiano cosi' come sono, non si ricostruiscono con MakeAbility
+	// (quella e' la via delle abilita' legacy inventate in codice, non dei dati del catalogo eroi).
+	Abilities = Hero->Actions;
+	AbilityCooldowns.Init(0, Abilities.Num());
+
+	// L'attacco base e' SEMPRE l'indice 0 (catalogo v0.1 §"Struttura di un eroe"): AttackRange/AttackPower
+	// restano campi dell'unita' perche' bot e TurnManager li leggono ancora da li', ma il NUMERO viene da qui.
+	if (Abilities.IsValidIndex(0) && Abilities[0])
+	{
+		AttackRange = Abilities[0]->RangeCells;
+		AttackPower = Abilities[0]->Power;
+	}
+
+	Health = MaxHealth;
 }
 
 URTActionData* ARTUnit::GetAbility(int32 Index) const

@@ -11,6 +11,7 @@ class UStaticMeshComponent;
 class UMaterialInstanceDynamic;
 class UMaterialInterface;
 class URTActionData;
+class URTHeroData;
 
 /** Archetipi dell'unita' con statistiche e abilita' distinte. */
 UENUM(BlueprintType)
@@ -66,6 +67,29 @@ public:
 	/** Danno dell'attacco base. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Combat")
 	int32 AttackPower = 30;
+
+	/**
+	 * Statistiche del catalogo eroi v0.1 senza ancora un consumatore in partita: la vista è LOS/FoW (non
+	 * costruito), la resistenza push base è distinta da quella temporanea di `Status.Guarded`
+	 * (`URTCombatLibrary::GuardResistedPushDistance`, l'unica oggi applicata). Esistono qui perché il DoD di
+	 * CP 6.1 le vuole DATI sull'unità, non perché qualcosa le legga già.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	int32 VisionRange = 5;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	int32 PushResistance = 0;
+
+	/** Affinità e debolezza ambientale dell'eroe (identità per le combo fra eroi, es. Flux su bersaglio Wet). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	FName Affinity;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	FName Weakness;
+
+	/** Eroe configurato via `ConfigureFromHeroData` (`NAME_None` = unità legacy configurata via archetipo). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	FName HeroId;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Combat")
 	int32 MaxEnergy = 100;
@@ -139,6 +163,14 @@ public:
 
 	/** Imposta statistiche e abilita' in base all'archetipo (chiamare prima di FinishSpawning). */
 	void ConfigureAsArchetype(ERTArchetype InArchetype);
+
+	/**
+	 * Imposta statistiche e azioni interamente da `URTHeroData` (CP 6.1, epic E6): nessun numero scritto qui,
+	 * a differenza di `ConfigureAsArchetype` che resta il percorso dei due archetipi legacy finche' CP 6.6 non
+	 * sposta lo spawn sui quattro eroi. `Hero == nullptr` non configura nulla (fail-closed, come il resto del
+	 * motore azioni: un'unita' senza dati non e' un'unita' con numeri a caso).
+	 */
+	void ConfigureFromHeroData(const URTHeroData* Hero);
 
 	int32 NumAbilities() const { return Abilities.Num(); }
 	URTActionData* GetAbility(int32 Index) const;

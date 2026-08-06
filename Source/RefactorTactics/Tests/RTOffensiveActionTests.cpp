@@ -55,7 +55,7 @@ namespace
 		Map->SortCells();
 	}
 
-	FRTHexCombatUnit CombatUnit(int32 UnitId, int32 TeamId, const FRTCellId& Cell)
+	FRTHexCombatUnit OffensiveCombatUnit(int32 UnitId, int32 TeamId, const FRTCellId& Cell)
 	{
 		FRTHexCombatUnit U;
 		U.UnitId = UnitId;
@@ -311,10 +311,10 @@ bool FRTAoEFriendlyFireTest::RunTest(const FString&)
 	URTHexMapAsset* Map = MakeOffensiveMap();
 
 	const TArray<FRTHexCombatUnit> Units = {
-		CombatUnit(0, /*Team*/ 0, FRTCellId(0, 0)),   // chi lancia
-		CombatUnit(1, /*Team*/ 1, FRTCellId(3, 0)),   // nemico al centro
-		CombatUnit(2, /*Team*/ 0, FRTCellId(2, 0)),   // ALLEATO, adiacente al centro: dentro il raggio 1
-		CombatUnit(3, /*Team*/ 0, FRTCellId(0, 1)),   // alleato lontano: fuori dall'area
+		OffensiveCombatUnit(0, /*Team*/ 0, FRTCellId(0, 0)),   // chi lancia
+		OffensiveCombatUnit(1, /*Team*/ 1, FRTCellId(3, 0)),   // nemico al centro
+		OffensiveCombatUnit(2, /*Team*/ 0, FRTCellId(2, 0)),   // ALLEATO, adiacente al centro: dentro il raggio 1
+		OffensiveCombatUnit(3, /*Team*/ 0, FRTCellId(0, 1)),   // alleato lontano: fuori dall'area
 	};
 
 	// Il fuoco amico arriva dai DATI dell'azione, non da una scelta di questo test: se domani il catalogo lo
