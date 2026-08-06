@@ -6,10 +6,15 @@
 
 ## Stato dell'implementazione (2026-08-06)
 
-Il gioco ha oggi **due archetipi** in codice (`ERTArchetype::Ranger` / `Guardian`, statistiche e abilità in
-`ARTUnit::ConfigureAsArchetype`), non quattro eroi. Questo documento è il riferimento verso cui E6 deve
-convergere. La sostituzione dei due archetipi con i quattro eroi è la parte del roster che il canone teneva
-volutamente piccola «finché il loop non è chiuso»: ora il loop esagonale è chiuso (M6).
+**Aggiornato al 2026-08-06 (epic E6 completata)**: i quattro eroi esistono come dati
+(`URTHeroCatalogLibrary::MakeFlux/MakeRiva/MakeBastion/MakeVektor`) e `ARTGameMode` allestisce il 2v2 con loro
+— formazione di default **Flux + Riva** contro **Bastion + Vektor**. I due archetipi (`ERTArchetype`) non
+partecipano più allo spawn di partita; restano come helper nei test d'integrazione.
+
+Molte abilità esistono come identità/fase/cooldown ma **senza l'effetto** che questo documento descrive,
+perché il sistema che dovrebbe consumarlo non è ancora costruito: coperture e strutture (E9), terreni dinamici
+(E8), reazioni (E5), gadget (E7). Ogni caso è dichiarato nella PR del rispettivo checkpoint e nei commenti del
+codice, mai nascosto dietro un effetto segnaposto.
 
 ## Struttura di un eroe
 
@@ -175,8 +180,8 @@ spazio/movimento. La debolezza di ogni eroe è l'affinità di un altro — verif
 | # | PDF | Qui | Motivo |
 |---|---|---|---|
 | 1 | Tabelle delle abilità con nomi, effetti e cooldown sfalsati nell'estrazione | Ricostruite accoppiando `AbilityId` → effetto per posizione e per coerenza semantica (es. `Riva.MistVeil` → fumo, non «cura alleati») | L'accoppiamento letterale produceva abilità incoerenti col nome e col ruolo |
-| 2 | «Debolezza» dichiarata fra gli elementi fissi | **Assente** per tutti e quattro | Non si inventa: va decisa in E6 |
-| 3 | 4 eroi | In codice esistono 2 archetipi (Ranger/Guardian) | Lo stato è dichiarato in testa: il documento è il bersaglio di E6, non la descrizione dell'esistente |
+| 2 | «Debolezza» dichiarata fra gli elementi fissi | ~~Assente~~ → **fissata in E6** per tutti e quattro (CP 6.2–6.5), in due coppie simmetriche | Non è stata inventata: decisa esplicitamente eroe per eroe |
+| 3 | 4 eroi | ~~In codice esistono 2 archetipi~~ → **risolto in E6**: i quattro eroi sono in codice e in partita | Lo stato aggiornato è dichiarato in testa |
 | 4 | Cooldown di `Riva.PressureJet` non leggibile nella colonna | Assunto **0** (è l'attacco base per la sua colonna «Tipo: linea» a costo 0) | Coerente con gli altri attacchi base, tutti a CD 0 — assunzione **marcata** |
 
 **Non specificato nel PDF** (da fissare in E6): debolezza di ciascun eroe (**tutte fissate**: Flux CP 6.2, Riva

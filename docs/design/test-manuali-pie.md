@@ -240,3 +240,14 @@ oppure dimmi cosa hai osservato e aggiorno le voci con l'esito (e apro un fix se
 > `Saved/RT/pacing_*.csv` esista, abbia l'intestazione e **una riga per turno giocato**.
 > *(I contatori in sé sono già coperti headless da `RefactorTactics.Pacing.RecordsDecisionComposition`:
 > qui si verifica solo che il controller li alimenti davvero.)*
+
+> **PIE-V01-ROSTER — il roster a quattro eroi in partita** ⏳: in PIE su una mappa con almeno quattro celle
+> percorribili, verificare che entrino in campo **quattro unità distinte** e non più due Ranger e due Guardian.
+> Nel log di avvio deve comparire `[RT] Board 2v2 esagonale avviata su N celle con 4 eroi`.
+> Attese: **team 0** = Flux (90 HP, 5 MP) + Riva (95 HP, 5 MP); **team 1** = Bastion (120 HP, **4 MP**) +
+> Vektor (100 HP, **6 MP**). Selezionando le unità del giocatore, il **raggio di movimento mostrato deve
+> differire** fra eroi con MP diversi — è la parte che i test headless non possono mostrare (verificano i dati
+> sull'Actor, non l'anteprima a schermo).
+> *(Le statistiche in sé sono già coperte da `RefactorTactics.Heroes.SpawnFromData`, che invoca
+> `ARTGameMode::SetupHexMatch` in un `UWorld` vero: qui si verifica solo ciò che si vede — mesh, anteprima
+> del movimento, e che il fallback al cilindro non sia regredito quando `HeroUnitClasses` è vuota.)*

@@ -5,6 +5,8 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Unit/RTUnit.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "RefactorTactics.h"
@@ -141,35 +143,80 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 	float LayerHeight = 0.f;
 	HexMap->GetHexContext(Origin, HexSize, LayerHeight);
 
-	// Ogni squadra: un Ranger (fragile, lunga gittata) e un Guardian (tanky, corta gittata).
-	SpawnUnit(0, Start[0], /*bGuardian=*/ false, Origin, HexSize, LayerHeight);
-	SpawnUnit(0, Start[1], /*bGuardian=*/ true,  Origin, HexSize, LayerHeight);
-	SpawnUnit(1, Start[2], /*bGuardian=*/ false, Origin, HexSize, LayerHeight);
-	SpawnUnit(1, Start[3], /*bGuardian=*/ true,  Origin, HexSize, LayerHeight);
-	UE_LOG(LogRT, Log, TEXT("[RT] Board 2v2 esagonale avviata su %d celle"), Map ? Map->NumCells() : 0);
-}
-
-ARTUnit* ARTGameMode::SpawnUnit(int32 TeamId, const FRTCellId& InCell, bool bGuardian, const FVector& Origin,
-	float HexSize, float LayerHeight)
-{
-	UWorld* World = GetWorld();
-	if (!World)
+	// Il roster del catalogo eroi (CP 6.2-6.5), non piu' i due archetipi hard-coded. Le formazioni sono un
+	// dato (`Team0Heroes`/`Team1Heroes`): qui si legge chi gioca, non si decide.
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+	auto FindHero = [&Roster](const FName& HeroId) -> const URTHeroData*
 	{
+		for (const URTHeroData* Hero : Roster)
+		{
+			if (Hero && Hero->HeroId == HeroId) { return Hero; }
+		}
 		return nullptr;
+	};
+
+	// Un eroe non puo' stare in due posti: la stessa istanza spawnata due volte condividerebbe le azioni
+	// (`Abilities` e' un array di puntatori), e due unita' finirebbero per ricaricare la stessa abilita'.
+	TSet<FName> Spawned;
+	int32 CellIndex = 0;
+	const TArray<const TArray<FName>*> Formations = { &Team0Heroes, &Team1Heroes };
+
+	for (int32 TeamId = 0; TeamId < Formations.Num(); ++TeamId)
+	{
+		for (const FName& HeroId : *Formations[TeamId])
+		{
+			if (CellIndex >= Start.Num())
+			{
+				UE_LOG(LogRT, Warning, TEXT("[RT] Celle di partenza insufficienti: %s non entra in campo"),
+					*HeroId.ToString());
+				continue;
+			}
+			if (Spawned.Contains(HeroId))
+			{
+				UE_LOG(LogRT, Warning, TEXT("[RT] %s e' schierato due volte: la seconda copia e' ignorata"),
+					*HeroId.ToString());
+				continue;
+			}
+
+			const URTHeroData* Hero = FindHero(HeroId);
+			if (Hero == nullptr)
+			{
+				UE_LOG(LogRT, Warning, TEXT("[RT] %s non e' nel catalogo eroi: nessuna unita' spawnata"),
+					*HeroId.ToString());
+				continue;
+			}
+
+			SpawnHero(TeamId, Hero, Start[CellIndex], Origin, HexSize, LayerHeight);
+			Spawned.Add(HeroId);
+			++CellIndex;
+		}
 	}
 
-	// Classe per archetipo: se assegnata (BP_Unit con skeletal) usala, altrimenti fallback al cilindro C++.
-	UClass* RangerCls = RangerUnitClass ? RangerUnitClass.Get() : ARTUnit::StaticClass();
-	UClass* GuardianCls = GuardianUnitClass ? GuardianUnitClass.Get() : ARTUnit::StaticClass();
-	UClass* UnitClass = bGuardian ? GuardianCls : RangerCls;
+	UE_LOG(LogRT, Log, TEXT("[RT] Board 2v2 esagonale avviata su %d celle con %d eroi"),
+		Map ? Map->NumCells() : 0, Spawned.Num());
+}
 
-	// Deferred: imposto team e archetipo prima di BeginPlay, cosi' colore e statistiche sono corretti.
+ARTUnit* ARTGameMode::SpawnHero(int32 TeamId, const URTHeroData* Hero, const FRTCellId& InCell,
+	const FVector& Origin, float HexSize, float LayerHeight)
+{
+	UWorld* World = GetWorld();
+	if (!World || Hero == nullptr)
+	{
+		return nullptr; // fail-closed: senza dati non si spawna un'unita' con statistiche inventate
+	}
+
+	// Classe visiva per eroe: se assegnata (BP_Unit con skeletal) usala, altrimenti fallback al cilindro C++.
+	// E' il comportamento di ripiego di sempre, ora per HeroId invece che per archetipo.
+	const TSubclassOf<ARTUnit>* Configured = HeroUnitClasses.Find(Hero->HeroId);
+	UClass* UnitClass = (Configured && *Configured) ? Configured->Get() : ARTUnit::StaticClass();
+
+	// Deferred: team e statistiche PRIMA di BeginPlay, cosi' colore e dati sono corretti al primo frame.
 	ARTUnit* Unit = World->SpawnActorDeferred<ARTUnit>(UnitClass, FTransform::Identity);
 	if (Unit)
 	{
 		Unit->TeamId = TeamId;
 		Unit->bIsBotControlled = (TeamId == 1); // team 1 giocato dal bot
-		Unit->ConfigureAsArchetype(bGuardian ? ERTArchetype::Guardian : ERTArchetype::Ranger);
+		Unit->ConfigureFromHeroData(Hero);
 		UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);
 		Unit->PlaceOnCell(InCell, Origin, HexSize, LayerHeight);
 	}
