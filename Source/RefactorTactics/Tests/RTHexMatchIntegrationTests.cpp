@@ -8,6 +8,7 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
+#include "Ability/RTActionData.h"
 #include "Map/RTHexVisionLibrary.h"
 #include "Pathfinding/RTHexPathLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
@@ -359,6 +360,114 @@ bool FRTHexArenaAnomalyTest::RunTest(const FString&)
 
 	TestTrue(TEXT("la partita e' andata avanti per piu' turni"), Turns > 1);
 	AddInfo(FString::Printf(TEXT("turni giocati: %d, cambi di layer osservati: %d"), Turns, LayerChanges));
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
+/**
+ * Movimento fra layer: l'unica via per la piattaforma e' la transizione, e togliendola non si "sale" comunque.
+ * Copre headless PIE-HEXPLAY-8; al PIE resta da guardare che il playback porti l'unita' alla quota giusta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexClimbViaTransitionTest,
+	"RefactorTactics.HexMove.ClimbsOnlyThroughTransition",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexClimbViaTransitionTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	if (!TestNotNull(TEXT("arena di prova"), Arena)) { DestroyHexMatchWorld(World); return false; }
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+
+	const FRTCellId Ground(1, 0, 0);    // il piede della transizione
+	const FRTCellId Platform(2, 0, 1);  // la piattaforma, un layer sopra
+
+	// Uno scalatore e un avversario lontano (serve solo a non far finire la partita al primo turno).
+	ARTUnit* Climber = SpawnHexMatchUnit(World, 0, ERTArchetype::Ranger, Ground);
+	ARTUnit* Idle    = SpawnHexMatchUnit(World, 1, ERTArchetype::Guardian, FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Climber || !Idle) { DestroyHexMatchWorld(World); return false; }
+	Climber->bIsBotControlled = false;
+	Idle->bIsBotControlled = false;
+
+	// Premessa: la piattaforma e' su un altro layer e il grafo la collega.
+	TestEqual(TEXT("premessa: partenza sul layer 0"), Climber->Cell.Layer, 0);
+	TestTrue(TEXT("premessa: il grafo collega terra e piattaforma"),
+		URTHexPathLibrary::FindPath(Arena, Ground, Platform).Status == ERTHexPathStatus::Success);
+
+	Climber->PlannedCell = Platform;
+	PlayOneTurn(TM);
+
+	TestTrue(TEXT("l'unita' e' salita sulla piattaforma"), Climber->Cell == Platform);
+	TestEqual(TEXT("ora sta sul layer 1"), Climber->Cell.Layer, 1);
+
+	// Togliamo l'arco e riproviamo dalla stessa posizione: senza transizione non si sale.
+	Arena->RemoveTransition(Ground, Platform);
+	Climber->PlaceOnCell(Ground, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+	Climber->PlannedWaypoints.Reset();
+	Climber->PlannedPath.Reset();
+	Climber->PlannedCell = Platform;
+	PlayOneTurn(TM);
+
+	TestEqual(TEXT("senza la transizione l'unita' resta sul layer 0"), Climber->Cell.Layer, 0);
+	TestTrue(TEXT("e non e' finita sulla piattaforma"), Climber->Cell != Platform);
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
+/**
+ * Lo scatto non entra in una cella che blocca il movimento: la destinazione viene rifiutata e l'unita' resta.
+ * Copre headless la parte verificabile di PIE-V01-DASHCOVER.
+ *
+ * Nota di scope: qui si verifica il comportamento ATTUALE (lo scatto usa l'A* sul grafo, quindi aggira gli
+ * ostacoli). Il catalogo v0.1 vuole uno scatto LINEARE che non attraversa muri: e' la migrazione di CP 4.5
+ * (issue #46) e va verificata quando c'e', non asserita qui in anticipo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexDashBlockedTest,
+	"RefactorTactics.HexMove.DashRefusesBlockedDestination",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexDashBlockedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	if (!TestNotNull(TEXT("arena di prova"), Arena)) { DestroyHexMatchWorld(World); return false; }
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+
+	// (2,1) e' uno degli ostacoli della mappa di prova.
+	const FRTCellId Blocked(2, 1, 0);
+	const FRTHexCellData* BlockedData = Arena->FindCell(Blocked);
+	TestTrue(TEXT("premessa: la cella di prova blocca il movimento"),
+		BlockedData != nullptr && BlockedData->bBlocksMovement);
+
+	const FRTCellId From(2, 3, 0);
+	ARTUnit* Dasher = SpawnHexMatchUnit(World, 0, ERTArchetype::Ranger, From);
+	ARTUnit* Idle   = SpawnHexMatchUnit(World, 1, ERTArchetype::Guardian, FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Dasher || !Idle) { DestroyHexMatchWorld(World); return false; }
+	Dasher->bIsBotControlled = false;
+	Idle->bIsBotControlled = false;
+
+	// Lo Scatto del Ranger e' la quarta abilita' (indice 3): portata 5, ricarica 2.
+	const int32 DashIdx = 3;
+	const URTActionData* Dash = Dasher->GetAbility(DashIdx);
+	if (!TestNotNull(TEXT("premessa: il Ranger ha lo scatto"), (void*)Dash)) { DestroyHexMatchWorld(World); return false; }
+	TestTrue(TEXT("premessa: e' un'abilita' di mobilita' rapida"), Dash->bDash);
+	TestTrue(TEXT("premessa: la cella bloccata e' entro la portata dello scatto"),
+		URTHexLibrary::HexDistance(From, Blocked) <= Dash->RangeCells);
+
+	Dasher->PlannedDashAbility = DashIdx;
+	Dasher->PlannedDashCell = Blocked;
+	PlayOneTurn(TM);
+
+	TestTrue(TEXT("lo scatto non entra nella cella bloccata"), Dasher->Cell != Blocked);
+	TestEqual(TEXT("l'unita' resta dov'era"), Dasher->Cell.ToString(), From.ToString());
 
 	DestroyHexMatchWorld(World);
 	return true;
