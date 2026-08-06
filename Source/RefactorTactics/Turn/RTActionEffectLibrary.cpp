@@ -4,41 +4,46 @@ TArray<FRTActionEvent> URTActionEffectLibrary::ProduceEvents(const FRTActionInst
 {
 	TArray<FRTActionEvent> Events;
 
-	FRTActionEvent Event;
-	Event.Kind = Instance.Def.Effect;
-	Event.SourceUnitId = Instance.SourceUnitId;
-	Event.TargetUnitId = Instance.TargetUnitId;
-	Event.Cell = Instance.TargetCell;
-
-	// Un caso per ogni effetto: niente `default`, cosi' aggiungerne uno senza tradurlo non compila.
-	switch (Instance.Def.Effect)
+	// Un'azione puo' dichiarare piu' effetti: si traducono nell'ordine dichiarato, che e' anche l'ordine in
+	// cui il chiamante li applichera' (il danno prima della spinta, se l'azione li elenca cosi').
+	for (const FRTActionEffectSpec& Spec : Instance.Def.Effects)
 	{
-	case ERTActionEffect::None:
-		return Events; // l'azione occupa lo slot e basta (es. attesa)
+		FRTActionEvent Event;
+		Event.Kind = Spec.Effect;
+		Event.SourceUnitId = Instance.SourceUnitId;
+		Event.TargetUnitId = Instance.TargetUnitId;
+		Event.Cell = Instance.TargetCell;
 
-	case ERTActionEffect::Damage:
-	case ERTActionEffect::Heal:
-	case ERTActionEffect::Shield:
-	case ERTActionEffect::Push:
-		if (Instance.Def.EffectAmount <= 0 || Instance.TargetUnitId == INDEX_NONE)
+		// Un caso per ogni effetto: niente `default`, cosi' aggiungerne uno senza tradurlo non compila.
+		switch (Spec.Effect)
 		{
-			return Events; // entita' non positiva o nessun bersaglio: nessun evento da applicare
-		}
-		Event.Amount = Instance.Def.EffectAmount;
-		break;
+		case ERTActionEffect::None:
+			continue; // dichiarato ma vuoto: l'azione occupa lo slot e basta
 
-	case ERTActionEffect::Status:
-		if (!Instance.Def.StatusToApply.IsValid() || Instance.Def.StatusDuration <= 0
-			|| Instance.TargetUnitId == INDEX_NONE)
-		{
-			return Events; // uno stato senza tag o senza durata applicherebbe "qualcosa" di indefinito
+		case ERTActionEffect::Damage:
+		case ERTActionEffect::Heal:
+		case ERTActionEffect::Shield:
+		case ERTActionEffect::Push:
+			if (Spec.Amount <= 0 || Instance.TargetUnitId == INDEX_NONE)
+			{
+				continue; // entita' non positiva o nessun bersaglio: nessun evento da applicare
+			}
+			Event.Amount = Spec.Amount;
+			break;
+
+		case ERTActionEffect::Status:
+			if (!Spec.StatusTag.IsValid() || Spec.StatusDuration <= 0 || Instance.TargetUnitId == INDEX_NONE)
+			{
+				continue; // uno stato senza tag o senza durata applicherebbe "qualcosa" di indefinito
+			}
+			Event.StatusTag = Spec.StatusTag;
+			Event.Amount = Spec.StatusDuration; // la durata viaggia in Amount: interi soltanto
+			break;
 		}
-		Event.StatusTag = Instance.Def.StatusToApply;
-		Event.Amount = Instance.Def.StatusDuration; // la durata viaggia in Amount: interi soltanto
-		break;
+
+		Events.Add(Event);
 	}
 
-	Events.Add(Event);
 	return Events;
 }
 

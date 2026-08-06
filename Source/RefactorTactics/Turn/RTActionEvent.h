@@ -31,6 +31,41 @@ enum class ERTActionEffect : uint8
 };
 
 /**
+ * Un effetto DICHIARATO da un'azione del catalogo: cosa fa e quanto.
+ *
+ * Un'azione ne dichiara una LISTA, perche' molte ne combinano piu' d'uno: la Spazzata del Guardian infligge
+ * danno **e** respinge; `Riva.PressureJet` del catalogo v0.1 fa danno, bagna e spinge. Con un solo effetto per
+ * azione, la seconda meta' finirebbe di nuovo in un flag hard-coded — cioe' il problema che il motore azioni
+ * esiste per togliere.
+ */
+USTRUCT(BlueprintType)
+struct FRTActionEffectSpec
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Actions")
+	ERTActionEffect Effect = ERTActionEffect::None;
+
+	/** Entita': danni, cura, punti scudo, celle di spinta. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Actions")
+	int32 Amount = 0;
+
+	/** Stato applicato (solo con `Effect == Status`). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Actions")
+	FGameplayTag StatusTag;
+
+	/** Durata in turni dello stato (solo con `Effect == Status`). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Actions")
+	int32 StatusDuration = 0;
+
+	FRTActionEffectSpec() = default;
+	FRTActionEffectSpec(ERTActionEffect InEffect, int32 InAmount)
+		: Effect(InEffect), Amount(InAmount) {}
+	FRTActionEffectSpec(ERTActionEffect InEffect, FGameplayTag InTag, int32 InTurns)
+		: Effect(InEffect), StatusTag(InTag), StatusDuration(InTurns) {}
+};
+
+/**
  * Un effetto GIA' RISOLTO, pronto da applicare. Le azioni non mutano lo stato: **producono eventi**, che
  * vengono applicati insieme sullo snapshot iniziale della fase (invariante #3, "raccogli poi applica").
  *
