@@ -101,9 +101,8 @@ bool FRTHexFullMatchTest::RunTest(const FString&)
 	if (!TM || !A1 || !A2 || !B1 || !B2) { DestroyHexMatchWorld(World); return false; }
 
 	// Tetto di sicurezza, non una regola di gioco: serve a fallire invece di girare all'infinito.
-	// MISURATO (2026-08-06): con gli archetipi attuali questa partita si decide al **turno 25**. Il catalogo
-	// v0.1 prevede un limite di 12 turni: o il bilanciamento si accorcia (E6), o la fine partita a tre vie
-	// (CP 10.3) deve decidere chi vince allo scadere — vedi issue di bilanciamento aperta al CP 6.8.
+	// MISURATO (2026-08-06): la partita si decide al **turno 10**, dentro il limite di 12 del catalogo v0.1.
+	// Era 25 finche' lo scudo delle abilita' di supporto non scadeva e si accumulava (issue #96).
 	const int32 MaxTurns = 40;
 	int32 TurnsPlayed = 0;
 	while (TM->GetPhase() != ERTMatchPhase::MatchEnded && TurnsPlayed < MaxTurns)
