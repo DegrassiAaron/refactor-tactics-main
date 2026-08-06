@@ -231,3 +231,11 @@ oppure dimmi cosa hai osservato e aggiorno le voci con l'esito (e apro un fix se
 > support + tuning): costruiscono un mondo 2v2, invocano `PlanBotsForTest()` e verificano le decisioni via i
 > campi `Planned*`, **senza PIE**. Quindi queste tre guardie **non richiedono più verifica manuale**.
 > *(Il dash-avvicinamento ora è pesato da `WThreat`: il bot rinuncia allo scatto se la cella è troppo esposta — test `PlanningDashRespectsThreat`.)*
+
+> **PIE-PACING-1 — il cablaggio degli input** ⏳: in PIE, con `bRecordPacing = true` sul `RT Turn Manager`,
+> giocare un turno selezionando due volte un'unità, impartendo un ordine, annullando un waypoint e chiudendo
+> con Spazio. Poi `rt.Debug.Pacing`: il sommario deve riportare **1 turno**, `SelectionCount` ≥ 2,
+> `OrderCount` ≥ 1, `UndoCount` = 1 e **nessun taglio** (il lock-in è stato manuale). Verificare che
+> `Saved/RT/pacing_*.csv` esista, abbia l'intestazione e **una riga per turno giocato**.
+> *(I contatori in sé sono già coperti headless da `RefactorTactics.Pacing.RecordsDecisionComposition`:
+> qui si verifica solo che il controller li alimenti davvero.)*
