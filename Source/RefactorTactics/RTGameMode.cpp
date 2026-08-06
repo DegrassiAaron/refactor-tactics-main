@@ -37,19 +37,6 @@ void ARTGameMode::BeginPlay()
 		HexMap = World->SpawnActor<ARTHexMapActor>(ARTHexMapActor::StaticClass(), FTransform::Identity);
 	}
 
-	// Un actor mappa senza asset non ha CELLE: la partita non si allestirebbe e premere Play non mostrerebbe
-	// nulla (era il caso del livello di avvio). Se manca la mappa d'autore si gioca su un'arena di ripiego,
-	// dichiarata nel log: meglio un fondo di scena giocabile che una schermata vuota senza spiegazione.
-	if (HexMap && !HexMap->MapAsset)
-	{
-		HexMap->MapAsset = URTMatchSetupLibrary::MakeDemoArena(HexMap, DemoArenaRadius);
-		HexMap->RebuildInstances();
-		UE_LOG(LogRT, Warning,
-			TEXT("[RT] Nessuna mappa esagonale nel livello: uso un'arena di ripiego (esagono r=%d, %d celle). "
-				 "Posa un ARTHexMapActor con il suo MapAsset per giocare su una mappa d'autore."),
-			DemoArenaRadius, HexMap->MapAsset ? HexMap->MapAsset->NumCells() : 0);
-	}
-
 	// Luce direzionale (se assente) per rendere visibile la scena anche in un livello vuoto.
 	if (!UGameplayStatics::GetActorOfClass(this, ADirectionalLight::StaticClass()))
 	{
@@ -77,8 +64,30 @@ void ARTGameMode::BeginPlay()
 
 void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 {
+	if (!HexMap)
+	{
+		return;
+	}
+
+	// Quello che conta non e' avere un asset, ma avere delle CELLE: un asset assegnato ma VUOTO non allestisce
+	// nulla e premere Play mostra una schermata nera senza spiegazione (osservato in PIE su L_DevSandbox, il cui
+	// asset si e' ritrovato a 0 celle). Senza una mappa d'autore utilizzabile si gioca su un'arena di ripiego,
+	// dichiarata nel log: meglio un fondo di scena giocabile che il vuoto.
+	// Attenzione: qui si tratta solo il caso "nessuna cella". Una mappa d'autore con POCHE celle non viene
+	// rimpiazzata: e' un errore dell'autore e glielo si dice, invece di nascondergli la mappa sotto i piedi.
+	if ((!HexMap->MapAsset || HexMap->MapAsset->NumCells() == 0) && DemoArenaRadius > 0)
+	{
+		HexMap->MapAsset = URTMatchSetupLibrary::MakeDemoArena(HexMap, DemoArenaRadius);
+		HexMap->RebuildInstances();
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] Mappa esagonale del livello assente o senza celle: uso un'arena di ripiego "
+				 "(esagono r=%d, %d celle). Posa un ARTHexMapActor con un MapAsset popolato per giocare su una "
+				 "mappa d'autore."),
+			DemoArenaRadius, HexMap->MapAsset ? HexMap->MapAsset->NumCells() : 0);
+	}
+
 	// Il livello puo' avere unita' gia' posate a mano: in quel caso l'allestimento automatico non interviene.
-	if (!HexMap || UGameplayStatics::GetActorOfClass(this, ARTUnit::StaticClass()))
+	if (UGameplayStatics::GetActorOfClass(this, ARTUnit::StaticClass()))
 	{
 		return;
 	}

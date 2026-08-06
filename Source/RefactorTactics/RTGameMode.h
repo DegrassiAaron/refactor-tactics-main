@@ -28,6 +28,14 @@ public:
 	 */
 	void SetupHexMatch(ARTHexMapActor* HexMap);
 
+	/**
+	 * Raggio dell'arena di RIPIEGO, usata quando il livello non porta una mappa esagonale **con celle**
+	 * (asset assente oppure presente ma vuoto). 0 = nessun ripiego: la partita non si allestisce e il log lo dice.
+	 * Pubblico come `SetupHexMatch`: serve ai test dell'allestimento headless.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Map")
+	int32 DemoArenaRadius = 4;
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -38,13 +46,6 @@ protected:
 	/** Classe da spawnare per il Guardian (es. BP_Unit con skeletal mesh). Vuota = ARTUnit cilindro (fallback). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Units")
 	TSubclassOf<ARTUnit> GuardianUnitClass;
-
-	/**
-	 * Raggio dell'arena di RIPIEGO generata quando il livello non porta una mappa esagonale (0 = nessun
-	 * ripiego: senza mappa d'autore la partita non si allestisce e il log lo dice).
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Map")
-	int32 DemoArenaRadius = 4;
 
 private:
 	ARTUnit* SpawnUnit(int32 TeamId, const FRTCellId& InCell, bool bGuardian, const FVector& Origin,
