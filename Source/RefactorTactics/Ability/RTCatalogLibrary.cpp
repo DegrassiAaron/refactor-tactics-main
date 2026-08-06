@@ -228,7 +228,66 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*Range*/ 0, /*Cooldown*/ 0, ERTActionFallback::Stop, {},
 		/*bInterruptible*/ false, ERTActionSlot::None));
 
+	// `Action.Move` — il percorso normale, dopo il Blast (ADR-0003 §3). Nessun effetto dichiarato: a muovere
+	// l'unita' e' il resolver dei percorsi, che avanza a micro-step sullo snapshot. Un effetto "MoveTo" qui
+	// duplicherebbe quella decisione in un secondo posto.
+	Catalog.Add(ShippedAction(TEXT("Action.Move"), ERTResolutionPhase::NormalMovement, /*Priority*/ 50,
+		/*Range (MP)*/ 5, /*Cooldown*/ 0, ERTActionFallback::Stop, {},
+		/*bInterruptible*/ true, ERTActionSlot::Movement));
+
+	// `Action.BasicAttack` — identita', fase, priorita' e fallback stanno qui; DANNO e PORTATA no, perche'
+	// dipendono dall'eroe e dalla sua arma (catalogo §1, tabella delle fasce). Li applica MakeBasicAttack:
+	// mettere qui un numero significherebbe sceglierne uno arbitrario per tutti.
+	Catalog.Add(ShippedAction(TEXT("Action.BasicAttack"), ERTResolutionPhase::Attack, /*Priority*/ 50,
+		/*Range*/ 0, /*Cooldown*/ 0, ERTActionFallback::Cancel, {},
+		/*bInterruptible*/ true, ERTActionSlot::Main));
+
+	// `Action.Guard` — si prepara nel Prep e vale per il turno: -15 al primo danno diretto, resiste a una
+	// spinta di 1 cella, scade nel Cleanup. Non interrompibile (catalogo §1).
+	Catalog.Add(ShippedAction(TEXT("Action.Guard"), ERTResolutionPhase::Preparation, /*Priority*/ 40,
+		/*Range (self)*/ 0, /*Cooldown*/ 0, ERTActionFallback::Cancel,
+		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Guarded, /*Turni*/ 1) },
+		/*bInterruptible*/ false, ERTActionSlot::Main));
+
+	// `Action.Activate` e `Action.Interact` — portata 1: solo oggetti ADIACENTI. Nessun effetto dichiarato
+	// finche' non esistono oggetti da attivare (porte, consolle, ponti, obiettivi): quelli sono E9/E10. Qui
+	// entrano identita', fase, priorita' e il vincolo di adiacenza, che e' gia' una regola verificabile.
+	Catalog.Add(ShippedAction(TEXT("Action.Activate"), ERTResolutionPhase::Attack, /*Priority*/ 70,
+		/*Range*/ 1, /*Cooldown*/ 0, ERTActionFallback::Cancel, {},
+		/*bInterruptible*/ true, ERTActionSlot::Main));
+	Catalog.Add(ShippedAction(TEXT("Action.Interact"), ERTResolutionPhase::Attack, /*Priority*/ 80,
+		/*Range*/ 1, /*Cooldown*/ 0, ERTActionFallback::Cancel, {},
+		/*bInterruptible*/ true, ERTActionSlot::Main));
+
 	return Catalog;
+}
+
+int32 URTCatalogLibrary::BasicAttackDamageForRange(int32 WeaponRangeCells)
+{
+	// Tabella delle fasce (catalogo v0.1 §1): corpo a corpo 28/r1 · corto 25/r3 · medio 22/r4 · lungo 20/r6.
+	// Piu' lontano si colpisce, meno si fa male: e' la scelta orizzontale del catalogo, non una scala di potenza.
+	// Le portate intermedie ricadono nella fascia il cui limite le contiene (r2 -> corto, r5 -> lungo).
+	if (WeaponRangeCells <= 1) { return 28; }
+	if (WeaponRangeCells <= 3) { return 25; }
+	if (WeaponRangeCells <= 4) { return 22; }
+	return 20;
+}
+
+FRTActionDef URTCatalogLibrary::MakeBasicAttack(int32 WeaponRangeCells)
+{
+	// L'attacco base di UN eroe: l'identita' viene dal catalogo, i due numeri che dipendono dall'arma li mette
+	// la fascia. Cosi' `Action.BasicAttack` resta una sola azione con un solo ID, invece di quattro varianti.
+	FRTActionDef Def = FindCoreAction(TEXT("Action.BasicAttack"));
+	if (Def.ActionId.IsNone())
+	{
+		return Def; // catalogo incompleto: meglio una definizione vuota che una inventata qui
+	}
+
+	const int32 Range = FMath::Max(1, WeaponRangeCells);
+	Def.RangeCells = Range;
+	Def.Effects.Reset();
+	Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, BasicAttackDamageForRange(Range)));
+	return Def;
 }
 
 FRTActionDef URTCatalogLibrary::FindCoreAction(const FName& ActionId)

@@ -77,4 +77,18 @@ public:
 
 	/** Azione generica con l'ActionId dato, o una definizione vuota se l'ID non e' nel catalogo. */
 	static FRTActionDef FindCoreAction(const FName& ActionId);
+
+	/**
+	 * Danno dell'attacco base per FASCIA di portata (catalogo v0.1 §1): corpo a corpo 28/r1 · corto 25/r3 ·
+	 * medio 22/r4 · lungo 20/r6. Piu' lontano si colpisce, meno si fa male — e' la scelta orizzontale del
+	 * catalogo, non una scala di potenza.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Catalog")
+	static int32 BasicAttackDamageForRange(int32 WeaponRangeCells);
+
+	/**
+	 * `Action.BasicAttack` completata per una data arma: identita', fase, priorita' e fallback vengono dal
+	 * catalogo, portata e danno dalla fascia. Un solo ActionId per tutti gli eroi, non quattro varianti.
+	 */
+	static FRTActionDef MakeBasicAttack(int32 WeaponRangeCells);
 };

@@ -848,19 +848,26 @@ void ARTTurnManager::ResolveCombat()
 	}
 
 	// Colpi a segno -> attacchi da applicare, con gli effetti collaterali dell'abilita' che li ha prodotti.
-	// `Status.Exposed` (chi ha scattato allo scoperto) aggiunge +5 al PRIMO danno diretto che riceve: il delta
-	// vale una volta sola per bersaglio, quindi il totale non dipende da quale colpo se lo prenda.
-	TArray<int32> ExposedDelta;
-	ExposedDelta.Init(0, Units.Num());
+	// Gli stati che valgono sul PRIMO danno diretto entrano qui come un delta per bersaglio: `Status.Exposed`
+	// (chi ha scattato allo scoperto) somma +5, `Status.Guarded` (chi si e' messo in guardia) sottrae 15.
+	// Valgono una volta sola, quindi il totale non dipende da quale colpo se li prenda; chi e' esposto E in
+	// guardia li cumula, che e' l'esito prevedibile di aver fatto entrambe le cose.
+	TArray<int32> FirstHitDelta;
+	FirstHitDelta.Init(0, Units.Num());
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
-		if (Units[i] && Units[i]->HasStatus(TAG_Status_Exposed))
+		if (!Units[i]) { continue; }
+		if (Units[i]->HasStatus(TAG_Status_Exposed))
 		{
-			ExposedDelta[i] = URTCombatLibrary::ExposedFirstHitBonus;
+			FirstHitDelta[i] += URTCombatLibrary::ExposedFirstHitBonus;
+		}
+		if (Units[i]->HasStatus(TAG_Status_Guarded))
+		{
+			FirstHitDelta[i] -= URTCombatLibrary::GuardFirstHitReduction;
 		}
 	}
 	const TArray<FRTAttack> Attacks =
-		URTCombatResolver::ApplyFirstHitDelta(URTHexCombatLibrary::ToAttacks(Plan), ExposedDelta);
+		URTCombatResolver::ApplyFirstHitDelta(URTHexCombatLibrary::ToAttacks(Plan), FirstHitDelta);
 	TArray<FRTCellId> AttackSrc;  // cella dell'attaccante per ogni FRTAttack (TurnLog)
 	TArray<ARTUnit*> Attackers;
 	TArray<int32> UsedAbilityIndex;
@@ -1002,6 +1009,15 @@ void ARTTurnManager::ResolveCombat()
 		{
 			const int32* Pushes = KnockCount.Find(T);
 			if (!Pushes || *Pushes != 1 || !IsValid(T) || !T->IsAlive()) { continue; }
+
+			// `Action.Guard` regge una spinta di UNA cella: chi si e' piantato non arretra di un passo, ma una
+			// spinta piu' forte lo sposta comunque (la guardia non e' un'ancora, catalogo v0.1 §1).
+			if (T->HasStatus(TAG_Status_Guarded) && KnockDist[T] <= URTCombatLibrary::GuardResistedPushDistance)
+			{
+				AddLogEvent(FString::Printf(TEXT("%s: in guardia, resiste alla spinta"), *T->GetName()));
+				continue;
+			}
+
 			const FRTCellId Dest = URTHexCombatLibrary::HexKnockbackDestination(
 				KnockFrom[T], T->Cell, KnockDist[T], Map, KOccupied);
 			if (Dest != T->Cell) { KTargets.Add(T); KFinal.Add(Dest); }
