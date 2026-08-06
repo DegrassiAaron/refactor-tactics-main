@@ -69,14 +69,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
 	int32 AreaRadius = 0;
 
-	/** Status inflitto ai bersagli (nessuno se il tag e' vuoto). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
-	FGameplayTag StatusToApply;
-
-	/** Durata in turni dello status inflitto. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
-	int32 StatusDuration = 0;
-
 	/**
 	 * Abilita' di supporto su se stessi (fase Prep): non fa danno, aggiunge scudo pari a Power.
 	 * Se false, e' un attacco su un nemico (fase Blast).
@@ -104,11 +96,4 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
 	bool bDash = false;
 
-	/** Se vero, l'attacco RESPINGE (knockback) i bersagli colpiti di KnockbackDistance celle (fase Blast). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
-	bool bKnockback = false;
-
-	/** Celle di respinta del knockback (usato con bKnockback). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
-	int32 KnockbackDistance = 0;
 };
