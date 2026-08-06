@@ -4,3 +4,6 @@ UE_DEFINE_GAMEPLAY_TAG(TAG_Status_Root, "Status.Root");
 UE_DEFINE_GAMEPLAY_TAG(TAG_Status_Slow, "Status.Slow");
 UE_DEFINE_GAMEPLAY_TAG(TAG_Status_Reveal, "Status.Reveal");
 UE_DEFINE_GAMEPLAY_TAG(TAG_Status_Exposed, "Status.Exposed");
+UE_DEFINE_GAMEPLAY_TAG(TAG_Status_Wet, "Status.Wet");
+UE_DEFINE_GAMEPLAY_TAG(TAG_Status_Burning, "Status.Burning");
+UE_DEFINE_GAMEPLAY_TAG(TAG_Status_Obscured, "Status.Obscured");
