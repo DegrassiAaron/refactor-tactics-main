@@ -24,6 +24,10 @@ Reactor e dà senso alla fase + profondità alla pianificazione (il Blast usa le
   scatto per il turno. `ARTUnit::FindDashAbilityIndex()` trova l'abilità di scatto dell'unità.
 - Abilità di scatto di default: **Ranger → "Scatto"** (5 celle, ricarica 2); **Guardian → "Carica"** (4 celle,
   ricarica 3); fallback generico "Scatto" (`MoveRange+2`, ricarica 2). Sono la **4ª abilità** (indice 3).
+  > Questi sono i valori **oggi nel codice** (`ARTUnit::ConfigureAsArchetype`), non i valori vigenti della
+  > v0.1: con il budget a **5 MP** dell'[ADR-0003](adr-0003-modello-azioni-v01.md) le mobilità rapide passano a
+  > distanza fissa dichiarata dall'azione (`Dash 3`, `Charge 4`, `Leap 3`, `Sprint 8 MP`) — riparametrizzazione
+  > al **CP 4.2** (issue `#43`), con la suite del bot come gate.
 
 ## 3. Risoluzione (`ARTTurnManager::ResolveDash`, fase Dash)
 
