@@ -6,6 +6,7 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
+#include "Turn/RTActionFallbackLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 
@@ -209,6 +210,63 @@ bool FRTHexBlastOutOfRangeTest::RunTest(const FString&)
 	TestEqual(TEXT("fuori portata: nessun danno"), Foe->Health, HealthBefore);
 	TestEqual(TEXT("fuori portata non e' un problema di linea di tiro"),
 		CountCombatOutcome(TM, ERTCombatOutcome::NoLineOfSight), 0);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBlastFallbackLoggedTest,
+	"RefactorTactics.Actions.Fallback.CancelIsLoggedInMatch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBlastFallbackLoggedTest::RunTest(const FString&)
+{
+	// Il caso vero di un turno simultaneo: si punta un bersaglio in pianificazione, e quando l'attacco risolve
+	// il bersaglio se n'e' andato con uno scatto (fase Dash, PRIMA del Blast). Prima di CP 4.3 l'azione
+	// spariva in silenzio; ora applica il fallback dichiarato (`Cancel`) e lo REGISTRA col motivo.
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 9);
+
+	ARTUnit* Attacker = SpawnHexBlastUnit(World, 0, ERTArchetype::Guardian, FRTCellId(0, 0)); // Spazzata, portata 3
+	ARTUnit* Runner = SpawnHexBlastUnit(World, 1, ERTArchetype::Ranger, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Attacker || !Runner) { DestroyHexBlastWorld(World); return false; }
+
+	const int32 HealthBefore = Runner->Health;
+	Attacker->PlannedAbilityIndex = 0;
+	Attacker->PlannedAttackTarget = Runner;
+
+	// Il bersaglio scatta a distanza 7: fuori dalla portata 3 della Spazzata quando il Blast risolve.
+	Runner->PlannedDashAbility = Runner->FindDashAbilityIndex();
+	Runner->PlannedDashCell = FRTCellId(7, 0);
+
+	RunBlastTurn(TM);
+
+	TestTrue(TEXT("il bersaglio si e' spostato prima del Blast"), Runner->Cell == FRTCellId(7, 0));
+	TestEqual(TEXT("l'attacco non lo raggiunge"), Runner->Health, HealthBefore);
+
+	int32 Fallbacks = 0;
+	int32 OutOfRangeReasons = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category != ERTLogCategory::Fallback) { continue; }
+		++Fallbacks;
+		if (E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::OutOfRange))
+		{
+			++OutOfRangeReasons;
+		}
+	}
+	TestEqual(TEXT("il TurnLog registra un fallback"), Fallbacks, 1);
+	TestEqual(TEXT("annullata perche' fuori portata: l'esito dice anche il motivo"), OutOfRangeReasons, 1);
+
+	// E lo dice anche il combat log della HUD, non solo il log autoritativo.
+	bool bInCombatLog = false;
+	for (const FString& Line : TM->GetRecentEvents())
+	{
+		if (Line.Contains(TEXT("annullata")) && Line.Contains(TEXT("fuori portata"))) { bInCombatLog = true; }
+	}
+	TestTrue(TEXT("il combat log lo mostra a chi gioca"), bInCombatLog);
 
 	DestroyHexBlastWorld(World);
 	return true;

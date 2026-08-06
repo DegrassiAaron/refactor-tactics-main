@@ -217,6 +217,17 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Exposed, /*Turni*/ 1) },
 		/*bInterruptible*/ true, ERTActionSlot::MovementAndMain));
 
+	// `Action.Wait` (catalogo v0.1 §1) — non fa nulla e risolve per ultima (priorita' 100). Serve gia' ora
+	// perche' e' cio' in cui `Fallback.Wait` trasforma un'azione: senza, il fallback dovrebbe inventarsi in
+	// codice un'azione vuota, cioe' una seconda definizione della stessa cosa.
+	//
+	// Il catalogo le da' fallback «—»: l'enum non ha un valore "nessuno", e per un'azione che non muove e non
+	// colpisce `Stop` e `Cancel` sono lo stesso comportamento osservabile (niente). Si usa `Stop` perche' e'
+	// quello che il validator richiede alle azioni di fase Move — un'eccezione in meno, non una regola nuova.
+	Catalog.Add(ShippedAction(TEXT("Action.Wait"), ERTResolutionPhase::NormalMovement, /*Priority*/ 100,
+		/*Range*/ 0, /*Cooldown*/ 0, ERTActionFallback::Stop, {},
+		/*bInterruptible*/ false, ERTActionSlot::None));
+
 	return Catalog;
 }
 

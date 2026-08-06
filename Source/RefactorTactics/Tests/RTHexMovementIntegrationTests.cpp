@@ -415,3 +415,48 @@ bool FRTSprintConsumesSlotsTest::RunTest(const FString&)
 	DestroyHexMoveWorld(World);
 	return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovePathBlockedTest,
+	"RefactorTactics.Actions.Move.PathBlocked",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovePathBlockedTest::RunTest(const FString&)
+{
+	// Nome vincolante del catalogo v0.1 §15. `Fallback.Stop` in partita: il percorso si chiude a meta' strada
+	// e l'unita' si ferma nell'ultima cella valida — non annulla il movimento, non aggira, non teletrasporta.
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Mover = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTUnit* Blocker = SpawnHexUnit(World, 1, ERTArchetype::Guardian, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mover || !Blocker) { DestroyHexMoveWorld(World); return false; }
+
+	// Il percorso si scrive a mano, dritto attraverso la cella del blocker. Non e' un caso di laboratorio: e'
+	// cio' che succede quando la strada era libera al momento di pianificarla e si chiude durante il turno.
+	// Passando invece per `PlannedCell`, l'A* di pianificazione aggirerebbe l'ostacolo e non ci sarebbe alcun
+	// percorso bloccato da verificare.
+	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0), FRTCellId(3, 0) };
+	Mover->PlannedCell = FRTCellId(3, 0);
+	Blocker->PlannedCell = Blocker->Cell;  // fermo: e' l'ostacolo
+
+	RunTurn(TM);
+
+	TestTrue(TEXT("si ferma prima dell'ostacolo, all'ultima cella valida"), Mover->Cell == FRTCellId(1, 0));
+	TestTrue(TEXT("il movimento non viene annullato: qualche cella la percorre"), !(Mover->Cell == FRTCellId(0, 0)));
+	TestTrue(TEXT("e non arriva a destinazione aggirando"), !(Mover->Cell == FRTCellId(3, 0)));
+
+	// L'esito e' registrato col suo motivo: e' la forma che `Fallback.Stop` prende nel TurnLog del movimento.
+	int32 Stopped = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Move && E.Outcome == static_cast<uint8>(ERTMoveOutcome::BlockedByUnit))
+		{
+			++Stopped;
+		}
+	}
+	TestEqual(TEXT("il TurnLog dice che si e' fermata per una cella occupata"), Stopped, 1);
+
+	DestroyHexMoveWorld(World);
+	return true;
+}

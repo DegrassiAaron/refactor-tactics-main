@@ -5,9 +5,29 @@
 #include "Turn/RTTurnRules.h"
 #include "RTTurnLog.generated.h"
 
-/** Categoria dell'esito registrato nel TurnLog. */
+/**
+ * Categoria dell'esito registrato nel TurnLog.
+ *
+ * `Fallback` e' un valore AGGIUNTO in coda (CP 4.3): la categoria viaggia come uint8 nel formato serializzato,
+ * quindi i log scritti prima restano leggibili e la versione del formato non cambia. Aggiungerlo in mezzo
+ * avrebbe invece rinumerato `Combat`, cioe' riscritto il significato dei file gia' su disco.
+ */
 UENUM(BlueprintType)
-enum class ERTLogCategory : uint8 { Move, Combat };
+enum class ERTLogCategory : uint8 { Move, Combat, Fallback };
+
+/**
+ * Quale fallback e' stato applicato a un'azione che non era piu' eseguibile. Speculare a `ERTActionFallback`
+ * (catalogo §7), ma e' un tipo separato: questo e' cio' che il turno ha REGISTRATO, quello e' cio' che
+ * l'azione DICHIARA — e i due possono differire (`BasicAttack` degrada a `Cancel` in v0.1).
+ */
+UENUM(BlueprintType)
+enum class ERTFallbackOutcome : uint8
+{
+	Stopped,      // Fallback.Stop: fermata all'ultima posizione valida
+	Waited,       // Fallback.Wait: azione sostituita con l'attesa
+	AttackedCell, // Fallback.AttackCell: persa l'unita' bersaglio, colpita la cella pianificata
+	Cancelled     // Fallback.Cancel: nessun effetto (ci finisce anche BasicAttack, non praticabile in v0.1)
+};
 
 /** Esito del movimento di un'unita' nel turno (dal resolver ResolvePaths). */
 UENUM(BlueprintType)

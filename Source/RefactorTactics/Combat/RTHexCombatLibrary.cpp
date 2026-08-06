@@ -57,19 +57,32 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 	for (int32 IntentIdx = 0; IntentIdx < Intents.Num(); ++IntentIdx)
 	{
 		const FRTHexAttackIntent& Intent = Intents[IntentIdx];
-		if (!Units.IsValidIndex(Intent.AttackerId) || !Units.IsValidIndex(Intent.TargetId))
+		if (!Units.IsValidIndex(Intent.AttackerId))
 		{
 			continue;
 		}
 
 		const FRTHexCombatUnit& Attacker = Units[Intent.AttackerId];
-		const FRTHexCombatUnit& Target = Units[Intent.TargetId];
-		if (!Attacker.bAlive || !Target.bAlive || Attacker.TeamId == Target.TeamId)
+		if (!Attacker.bAlive)
 		{
-			continue; // bersaglio non ingaggiabile: nessun esito da registrare
+			continue;
 		}
 
-		if (URTHexLibrary::HexDistance(Attacker.Cell, Target.Cell) > Intent.RangeCells)
+		// Il bersaglio puo' essere un'unita' oppure una CELLA (`Fallback.AttackCell`: il bersaglio e' sparito,
+		// l'area parte comunque dove era stata puntata). Da qui in poi conta solo dove si mira.
+		const bool bTargetsUnit = Units.IsValidIndex(Intent.TargetId);
+		const FRTCellId AimCell = bTargetsUnit ? Units[Intent.TargetId].Cell : Intent.TargetCell;
+
+		if (bTargetsUnit)
+		{
+			const FRTHexCombatUnit& Target = Units[Intent.TargetId];
+			if (!Target.bAlive || Attacker.TeamId == Target.TeamId)
+			{
+				continue; // bersaglio non ingaggiabile: nessun esito da registrare
+			}
+		}
+
+		if (URTHexLibrary::HexDistance(Attacker.Cell, AimCell) > Intent.RangeCells)
 		{
 			continue; // fuori portata: scartato in silenzio (come il quadrato)
 		}
@@ -81,14 +94,14 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 			Plan.UnverifiableIntents.Add(IntentIdx);
 			continue;
 		}
-		if (!URTHexVisionLibrary::HasLineOfSight(Map, Attacker.Cell, Target.Cell))
+		if (!URTHexVisionLibrary::HasLineOfSight(Map, Attacker.Cell, AimCell))
 		{
 			Plan.BlockedIntents.Add(IntentIdx);
 			continue;
 		}
 
 		const TArray<FRTCellId> HitCells =
-			HexHitCells(Intent.Shape, Attacker.Cell, Target.Cell, Intent.RangeCells, Intent.AreaRadius);
+			HexHitCells(Intent.Shape, Attacker.Cell, AimCell, Intent.RangeCells, Intent.AreaRadius);
 
 		// Colpisce ogni nemico VIVO su una cella dell'area (niente fuoco amico, niente colpi sui morti).
 		for (int32 u = 0; u < Units.Num(); ++u)

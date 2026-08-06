@@ -1,4 +1,5 @@
 #include "Turn/RTTurnLogLibrary.h"
+#include "Turn/RTActionFallbackLibrary.h" // ERTActionInvalidReason: il motivo del fallback, leggibile nel log
 #include "Misc/FileHelper.h"
 
 bool URTTurnLogLibrary::EntryLess(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B)
@@ -46,6 +47,35 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 				Reason, *CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount);
 		}
 		return FString::Printf(TEXT("%s %s"), Reason, *CellText(Entry.SrcCell));
+	}
+
+	// Fallback: cosa e' successo all'azione che non era piu' eseguibile. Il motivo per cui non lo era viaggia
+	// in `Amount` (ERTActionInvalidReason): una riga che dice «annullata» senza dire da cosa non insegna nulla.
+	if (Entry.Category == ERTLogCategory::Fallback)
+	{
+		const TCHAR* What = TEXT("");
+		switch (static_cast<ERTFallbackOutcome>(Entry.Outcome))
+		{
+		case ERTFallbackOutcome::Stopped:      What = TEXT("fermata"); break;
+		case ERTFallbackOutcome::Waited:       What = TEXT("sostituita con l'attesa"); break;
+		case ERTFallbackOutcome::AttackedCell: What = TEXT("colpisce la cella pianificata"); break;
+		default:                               What = TEXT("annullata"); break;
+		}
+
+		const TCHAR* Why = TEXT("");
+		switch (static_cast<ERTActionInvalidReason>(Entry.Amount))
+		{
+		case ERTActionInvalidReason::TargetGone:     Why = TEXT("bersaglio assente"); break;
+		case ERTActionInvalidReason::TargetDead:     Why = TEXT("bersaglio eliminato"); break;
+		case ERTActionInvalidReason::TargetFriendly: Why = TEXT("bersaglio alleato"); break;
+		case ERTActionInvalidReason::OutOfRange:     Why = TEXT("fuori portata"); break;
+		case ERTActionInvalidReason::NoLineOfSight:  Why = TEXT("nessuna linea di tiro"); break;
+		case ERTActionInvalidReason::NoMap:          Why = TEXT("nessuna mappa autorevole"); break;
+		default:                                     Why = TEXT("non eseguibile"); break;
+		}
+
+		return FString::Printf(TEXT("%s -> %s: azione %s (%s)"),
+			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), What, Why);
 	}
 
 	// Combat: chi colpisce chi, con quale esito e quanto danno.
