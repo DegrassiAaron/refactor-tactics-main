@@ -110,4 +110,15 @@ public:
 
 	/** Piano scelto per l'unita': ChooseBestPlan sulle candidate generate. */
 	static FRTHexBotPlan PlanUnit(const FRTHexSnapshot& Snapshot, int32 UnitId, const FRTHexBotContext& Context);
+
+	/**
+	 * Cella di FUGA: fra quelle raggiungibili entro il budget, quella piu' lontana (distanza esagonale) dalla
+	 * minaccia. A parita' di distanza vince il percorso piu' economico, poi l'ordine stabile della cella —
+	 * quindi l'esito non dipende dall'ordine di enumerazione. Nessuna via d'uscita (budget 0, celle bloccate
+	 * od occupate) -> resta dov'e'.
+	 *
+	 * Serve alla guardia di "panico" del kiter, che rinuncia al tiro per non farsi raggiungere: e' una scelta
+	 * di posizionamento pura, non un'utility, e resta separata da ScorePlan come nel bot quadrato.
+	 */
+	static FRTCellId BestKiteCell(const FRTHexSnapshot& Snapshot, int32 UnitId, const FRTCellId& Threat);
 };

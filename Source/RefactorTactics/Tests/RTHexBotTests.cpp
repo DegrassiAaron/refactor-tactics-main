@@ -318,4 +318,56 @@ bool FRTHexBotSeeksCoverTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// Fuga (kiting in panico): la guardia che il quadrato risolve con BestKiteCell
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotKiteCellTest,
+	"RefactorTactics.HexBot.KiteCellMaximizesDistance",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotKiteCellTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeBotMap(5);
+
+	TArray<FRTHexSimUnit> Units;
+	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), /*budget*/ 2));
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+
+	const FRTCellId Threat(2, 0);
+	const FRTCellId Flee = URTHexBotLibrary::BestKiteCell(Snap, /*UnitId*/ 1, Threat);
+
+	TestTrue(TEXT("si allontana dalla minaccia"),
+		URTHexLibrary::HexDistance(Flee, Threat) > URTHexLibrary::HexDistance(FRTCellId(0, 0), Threat));
+	TestTrue(TEXT("resta entro il budget"), URTHexLibrary::HexDistance(Flee, FRTCellId(0, 0)) <= 2);
+	TestTrue(TEXT("massimizza la distanza raggiungibile"), URTHexLibrary::HexDistance(Flee, Threat) == 4);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotKiteCellLegalTest,
+	"RefactorTactics.HexBot.KiteCellStaysLegal",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotKiteCellLegalTest::RunTest(const FString&)
+{
+	// Mappa STRETTA: la fuga non deve proporre celle inesistenti, bloccate od occupate.
+	URTHexMapAsset* M = MakeBotMap(1); // solo l'origine e i suoi 6 vicini
+
+	TArray<FRTHexSimUnit> Units;
+	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), /*budget*/ 3));
+	Units.Add(FRTHexSimUnit(2, FRTCellId(-1, 0), /*budget*/ 0)); // alleato fermo sulla via di fuga
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+
+	const FRTCellId Flee = URTHexBotLibrary::BestKiteCell(Snap, /*UnitId*/ 1, FRTCellId(1, 0));
+
+	TestTrue(TEXT("la cella di fuga esiste nella mappa"), M->ContainsCell(Flee));
+	TestFalse(TEXT("non fugge dentro un'altra unita'"), Flee == FRTCellId(-1, 0));
+
+	// Unita' immobile: non c'e' fuga possibile, resta dov'e' (nessuna mossa illegale, nessun crash).
+	TArray<FRTHexSimUnit> Stuck;
+	Stuck.Add(FRTHexSimUnit(1, FRTCellId(0, 0), /*budget*/ 0));
+	const FRTHexSnapshot StuckSnap = URTHexSimLibrary::MakeSnapshot(M, Stuck);
+	TestTrue(TEXT("senza budget resta dov'e'"),
+		URTHexBotLibrary::BestKiteCell(StuckSnap, 1, FRTCellId(1, 0)) == FRTCellId(0, 0));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
