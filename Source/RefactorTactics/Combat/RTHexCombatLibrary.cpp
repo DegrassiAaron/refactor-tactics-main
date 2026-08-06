@@ -3,6 +3,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexVisionLibrary.h"
+#include "Terrain/RTTerrainLibrary.h"
 
 namespace
 {
@@ -82,9 +83,29 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 			}
 		}
 
-		if (URTHexLibrary::HexDistance(Attacker.Cell, AimCell) > Intent.RangeCells)
+		// Il Fumo lungo la linea di tiro CAPPA la portata effettiva (indipendente da RangeCells): riusa
+		// HexLine, la stessa primitiva di HexHitCells per Shape::Line. Guardato da Map != nullptr perche'
+		// serve la cella; se Map e' nullo il path fail-closed a valle scarta comunque l'intento.
+		int32 EffectiveRange = Intent.RangeCells;
+		if (Map != nullptr)
 		{
-			continue; // fuori portata: scartato in silenzio (come il quadrato)
+			for (const FRTCellId& LineCell : URTHexLibrary::HexLine(Attacker.Cell, AimCell))
+			{
+				const FRTHexCellData* LineCellData = Map->FindCell(LineCell);
+				if (LineCellData)
+				{
+					const FRTTerrainDef Terrain = URTTerrainLibrary::FindTerrainDef(LineCellData->Surface);
+					if (Terrain.MaxTargetingRangeThrough > 0)
+					{
+						EffectiveRange = FMath::Min(EffectiveRange, Terrain.MaxTargetingRangeThrough);
+					}
+				}
+			}
+		}
+
+		if (URTHexLibrary::HexDistance(Attacker.Cell, AimCell) > EffectiveRange)
+		{
+			continue; // fuori portata (anche per il cap del Fumo): scartato in silenzio (come il quadrato)
 		}
 
 		// FAIL-CLOSED: senza mappa autorevole non si colpisce. Il motivo resta pero' DISTINTO da una

@@ -6,6 +6,7 @@
 #include "Turn/RTHexSimLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexLibrary.h"
+#include "Combat/RTHexCombatLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -224,6 +225,42 @@ bool FRTTerrainIceBlockedCellStopsSlidingTest::RunTest(const FString&)
 	const TArray<FRTCellId> Extended = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ 0, Path);
 
 	TestEqual(TEXT("nessuno scivolamento: la cella successiva blocca il movimento"), Extended.Num(), 2);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTerrainSmokeLimitsTargetingTest,
+	"RefactorTactics.Terrain.Smoke.LimitsTargeting",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTerrainSmokeLimitsTargetingTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 5))
+	{
+		Map->AddOrUpdateCell(FRTHexCellData(Id));
+	}
+	FRTHexCellData Smoke(FRTCellId(2, 0, 0));
+	Smoke.Surface = ERTHexSurface::Smoke;
+	Map->AddOrUpdateCell(Smoke);
+	Map->SortCells();
+
+	TArray<FRTHexCombatUnit> Units;
+	FRTHexCombatUnit Attacker; Attacker.UnitId = 0; Attacker.TeamId = 0; Attacker.Cell = FRTCellId(0, 0, 0);
+	FRTHexCombatUnit Target;   Target.UnitId = 1;   Target.TeamId = 1;   Target.Cell = FRTCellId(4, 0, 0);
+	Units.Add(Attacker);
+	Units.Add(Target);
+
+	FRTHexAttackIntent Intent;
+	Intent.AttackerId = 0;
+	Intent.TargetId = 1;
+	Intent.RangeCells = 6; // la portata dichiarata basterebbe, ma la linea attraversa il Fumo a q=2
+	Intent.Power = 10;
+
+	TArray<FRTHexAttackIntent> Intents;
+	Intents.Add(Intent);
+
+	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
+	TestEqual(TEXT("intento scartato: oltre il cap di targeting del Fumo (2 celle)"), Plan.Hits.Num(), 0);
 
 	return true;
 }
