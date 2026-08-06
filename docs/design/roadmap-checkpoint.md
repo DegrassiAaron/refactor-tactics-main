@@ -128,10 +128,26 @@ esplicito prima della rimozione.
 
 | CP | Obiettivo | Definition of Done | Verifica |
 |---|---|---|---|
-| **7.1** | Punto di ritorno + inventario | Tag git annotato (es. `pre-hex-only`) sull'ultimo commit con entrambi i substrati; classificazione dei 106 test non-hex in **neutri** (combat math, serializzazione TurnLog, regole di fase), **da portare**, **da rimuovere** | Tag pushato; tabella di classificazione in questo documento |
+| **7.1** 🟡 | Punto di ritorno + inventario | Tag git annotato (es. `pre-hex-only`) sull'ultimo commit con entrambi i substrati; classificazione dei test non-hex in **neutri**, **da portare**, **da rimuovere** | Fatto **2026-08-06**: tag annotato `pre-hex-only` creato **in locale** (il push richiede richiesta esplicita, come dice la issue `#39`); classificazione dei **123** test non-hex nella tabella qui sotto |
 | **7.2** | Rimozione del gameplay quadrato | Via `Grid/RTGridActor`, `Grid/RTGridLibrary`, resolver/bot/terreno quadrati e i test relativi; ciò che è neutro resta e continua a girare | Build verde; suite verde; `grep FRTGridCoord Source/` restituisce solo codice fuori dal flusso di gioco (o nulla) |
 | **7.3** | Misurazione dei budget | KPI del PDR misurati **una volta su hex** e registrati: FPS client, path mediana, tempo resolver per turno. Un numero misurato, anche fuori target, vale più di un ⏳ | Log/profiling allegato alla PR; valori riportati nella tabella KPI |
 | **7.4** | Release interna hex | Packaging Windows Development **e** Shipping dal codice solo-hex; partita completa senza editor | `RunUAT BuildCookRun` → BUILD SUCCESSFUL + avvio verificato |
+
+### Inventario dei test prima della rimozione (CP 7.1, 2026-08-06)
+
+Suite **230 test**: **107 esagonali** + **123 non-hex**. I 123 si dividono così:
+
+| Categoria | Test | File | Destino |
+|---|---:|---|---|
+| **Neutri** — non conoscono la topologia | **63** | `RTCombatLibraryTests` (14/15), `RTCombatResolverTests`, `RTTurnLogSerializationTests`, `RTTurnLogLibraryTests`, `RTTurnRulesTests`, `RTPlaybackLibraryTests`, `RTPlaybackPhaseTests`, `RTUnitTests`, `RTUnitPlacementTests`, `RTMatchSetup*`, `RTCatalogTests` | **restano** |
+| **Da portare** — logica valida, casa sbagliata | **1** | `RTGridFacingTests` (`DirectionYaw`: lavora su `FVector`, ma vive in `URTGridLibrary` ed è usata da `ARTUnit`) | sposta la funzione fuori da `Grid/`, poi il test resta |
+| **Da rimuovere** — vivono del substrato quadrato | **59** | `RTGridTests` (19), `RTBotUtilityTests` (13), `RTBotLibraryTests` (12), `RTMovementResolverTests` (8), `RTGridElevationTests` (3), `RTTurnLogTests` (2), `RTTerrainTests` (1), `RTCombatLibraryTests::Knockback…` (1) | via con `Grid/`, `Bot/RTBotLibrary`, `Turn/RTMovementResolver`, `Terrain/` |
+
+**Conteggio dichiarato in anticipo**: dopo il CP 7.2 la suite deve avere **171 test** (230 − 59). Un numero
+diverso significa che la rimozione ha portato via qualcosa che non doveva, o ne ha lasciato indietro.
+
+**Punto di ritorno**: tag annotato **`pre-hex-only`** sul commit `cad2693` (l'ultimo con entrambi i substrati).
+Esiste **in locale**: il push va chiesto, come prescrive la issue `#39`.
 
 **DoD di milestone**: un solo substrato · suite verde · budget misurati e registrati · build packaged giocabile ·
 `hex-map-roadmap.md` e `piano-canonico-mvp.md` allineati (nessun riferimento al quadrato come sistema vivo).
