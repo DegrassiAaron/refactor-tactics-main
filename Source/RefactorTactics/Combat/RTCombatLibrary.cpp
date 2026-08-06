@@ -59,18 +59,25 @@ bool URTCombatLibrary::CanPlayerControlUnit(int32 UnitTeamId, int32 PlayerTeamId
 	return UnitTeamId == PlayerTeamId;
 }
 
-bool URTCombatLibrary::CanTargetHexCell(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To,
-	int32 RangeCells)
+ERTHexTargetReason URTCombatLibrary::ClassifyHexTargeting(const URTHexMapAsset* Map, const FRTCellId& From,
+	const FRTCellId& To, int32 RangeCells)
 {
 	if (!Map)
 	{
-		return false; // FAIL-CLOSED: senza mappa autorevole la linea di tiro non e' verificabile
+		return ERTHexTargetReason::NoMap; // FAIL-CLOSED: senza mappa la linea di tiro non e' verificabile
 	}
 	if (URTHexLibrary::HexDistance(From, To) > FMath::Max(0, RangeCells))
 	{
-		return false;
+		return ERTHexTargetReason::OutOfRange; // la portata si valuta PRIMA: e' un difetto diverso da "coperto"
 	}
-	return URTHexVisionLibrary::HasLineOfSight(Map, From, To);
+	return URTHexVisionLibrary::HasLineOfSight(Map, From, To)
+		? ERTHexTargetReason::Ok : ERTHexTargetReason::NoLineOfSight;
+}
+
+bool URTCombatLibrary::CanTargetHexCell(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To,
+	int32 RangeCells)
+{
+	return ClassifyHexTargeting(Map, From, To, RangeCells) == ERTHexTargetReason::Ok;
 }
 
 int32 URTCombatLibrary::EffectiveAttackPower(int32 BasePower, int32 OccupantDamageBonus)

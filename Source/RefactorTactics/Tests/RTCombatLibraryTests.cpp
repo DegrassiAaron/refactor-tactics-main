@@ -245,4 +245,53 @@ bool FRTCombatHexTargetingTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Il MOTIVO del rifiuto va distinto, non solo il si/no. Difetto reale osservato in PIE: il controller usava
+ * CanTargetHexCell (che verifica portata **e** vista) come se fosse il solo esito della linea di tiro, cosi' un
+ * bersaglio semplicemente FUORI PORTATA veniva loggato come «coperto (nessuna linea di tiro)» — su un'arena
+ * senza un solo muro. Il messaggio «fuori portata» era diventato irraggiungibile.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCombatTargetReasonTest,
+	"RefactorTactics.Combat.HexTargetingReasonDistinguishesRangeFromCover",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCombatTargetReasonTest::RunTest(const FString&)
+{
+	const FRTCellId From(0, 0, 0);
+	const FRTCellId To(3, 0, 0); // distanza 3
+
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 4))
+	{
+		Map->AddOrUpdateCell(FRTHexCellData(Id));
+	}
+	Map->SortCells();
+
+	// Nessuna mappa: motivo dedicato, non "coperto".
+	TestTrue(TEXT("mappa assente -> NoMap"),
+		URTCombatLibrary::ClassifyHexTargeting(nullptr, From, To, 5) == ERTHexTargetReason::NoMap);
+
+	// In portata e senza ostacoli: ingaggiabile.
+	TestTrue(TEXT("in portata e vista libera -> Ok"),
+		URTCombatLibrary::ClassifyHexTargeting(Map, From, To, 5) == ERTHexTargetReason::Ok);
+
+	// FUORI PORTATA su mappa senza muri: deve dire OutOfRange, MAI NoLineOfSight.
+	const ERTHexTargetReason FarReason = URTCombatLibrary::ClassifyHexTargeting(Map, From, To, 2);
+	TestTrue(TEXT("oltre la portata -> OutOfRange"), FarReason == ERTHexTargetReason::OutOfRange);
+	TestFalse(TEXT("oltre la portata NON deve risultare 'coperto'"),
+		FarReason == ERTHexTargetReason::NoLineOfSight);
+
+	// In portata ma con un muro in mezzo: NoLineOfSight.
+	FRTHexCellData Wall(FRTCellId(2, 0, 0));
+	Wall.bBlocksLineOfSight = true;
+	Map->AddOrUpdateCell(Wall);
+	Map->SortCells();
+	TestTrue(TEXT("muro in portata -> NoLineOfSight"),
+		URTCombatLibrary::ClassifyHexTargeting(Map, From, To, 5) == ERTHexTargetReason::NoLineOfSight);
+
+	// Il gate booleano resta coerente con la classificazione.
+	TestFalse(TEXT("CanTargetHexCell coerente col motivo"),
+		URTCombatLibrary::CanTargetHexCell(Map, From, To, 5));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
