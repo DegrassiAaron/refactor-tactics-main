@@ -65,9 +65,6 @@ enum class ERTActionFallback : uint8
  * Slot del turno che un'azione occupa. Il catalogo v0.1 (§«Slot per turno») ne dichiara uno per riga: senza
  * questo dato, «Sprint consuma movimento **e** azione principale» diventerebbe un `if` sull'ActionId dentro
  * l'orchestratore — cioe' il tipo di eccezione hard-coded che il motore azioni esiste per togliere.
- *
- * Lo slot Reazione non c'e': le reazioni si dichiarano in planning e hanno un trigger, non una fase. Arrivano
- * con l'epic E5 (`#19`), che decidera' come rappresentarle.
  */
 UENUM(BlueprintType)
 enum class ERTActionSlot : uint8
@@ -79,7 +76,32 @@ enum class ERTActionSlot : uint8
 	/** Azione principale: attacchi, scatti, guardia, cure. E' il caso comune. */
 	Main,
 	/** Consuma ENTRAMBI gli slot: chi la usa non si muove oltre e non agisce (`Action.Sprint`). */
-	MovementAndMain
+	MovementAndMain,
+	/**
+	 * Slot reazione (CP 5.1, epic E5): 0-1 per turno, indipendente da Movimento e Principale — un eroe puo'
+	 * muoversi, agire E tenere una reazione pronta nello stesso turno. Si dichiara in planning come le altre
+	 * azioni; a differenza loro non ha una cella o un bersaglio scelti dal giocatore, ma un `ReactionTrigger`
+	 * valutato deterministicamente sullo snapshot del Blast.
+	 */
+	Reaction
+};
+
+/**
+ * Condizione che fa scattare una reazione (CP 5.1), valutata sullo snapshot GIA' RACCOLTO del Blast
+ * (`FRTHexBlastPlan::Hits`, dopo il filtro di `Action.Interrupt`): mai un `Delay`, una timeline o un montage
+ * nel resolver (invariante #3) — e' per questo che il trigger e' un dato puro da confrontare con un array,
+ * non un evento a cui reagire mentre il turno gira.
+ */
+UENUM(BlueprintType)
+enum class ERTReactionTrigger : uint8
+{
+	/** Nessun trigger dichiarato: non e' una reazione, o non ne ha ancora uno (dato incompleto). */
+	None,
+	/**
+	 * L'unita' e' bersaglio di almeno un colpo DIRETTO (`ERTAbilityShape::Single`) andato a segno in questo
+	 * Blast (`Action.Counter`, `Action.Deflect` — CP 5.2 aggiunge i loro effetti sulla stessa valutazione).
+	 */
+	HitByDirectAttack
 };
 
 /**
@@ -173,11 +195,18 @@ struct FRTActionDef
 
 	/**
 	 * Se falso, chi usa questa azione NON puo' tenere pronta una reazione in questo turno (`Action.Sprint`:
-	 * chi corre a perdifiato non para). Dichiarato qui perche' e' una regola dell'azione; a farla valere sara'
-	 * l'epic E5, che introduce lo slot reazione.
+	 * chi corre a perdifiato non para). Fatta valere da `ARTTurnManager::ResolveCombat` (CP 5.1): una reazione
+	 * pianificata insieme a un'azione con questo campo a falso finisce nel TurnLog come non disponibile.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	bool bAllowsReaction = true;
+
+	/**
+	 * Condizione che fa scattare QUESTA azione, se `Slot == Reaction` (CP 5.1). `None` per tutto cio' che
+	 * reazione non e'.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	ERTReactionTrigger ReactionTrigger = ERTReactionTrigger::None;
 
 	/** Se falso, `Action.Interrupt` non ha effetto su questa azione. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")

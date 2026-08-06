@@ -6,6 +6,7 @@
 #include "Turn/RTActionEffectLibrary.h"
 #include "Turn/RTActionFallbackLibrary.h"
 #include "Turn/RTMovementActionLibrary.h"
+#include "Turn/RTReactionLibrary.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Combat/RTCombatResolver.h"
 #include "Combat/RTCombatLibrary.h"
@@ -557,6 +558,10 @@ void ARTTurnManager::ResolveDash()
 	TArray<ARTUnit*> Units;
 	FRTHexSnapshot Snapshot = MakeCurrentSnapshot(Units);
 
+	// Fresco per il turno: chi corre a perdifiato (Action.Sprint) non para (CP 5.1), e questo e' l'unico
+	// posto dove si sa CON CERTEZZA cosa ha davvero usato lo slot di scatto.
+	ReactionBlockedThisTurn.Reset();
+
 	// Indice (in Units) dell'attaccante per ogni impatto accodato in QUESTO scatto: serve a scartare l'impatto,
 	// dopo la risoluzione simultanea, se la collisione ha bloccato il caricatore prima del contatto (CP 4.8).
 	TArray<int32> PendingImpactAttackerIdx;
@@ -713,6 +718,15 @@ void ARTTurnManager::ResolveDash()
 		const URTActionData* Used = Unit->GetAbility(DashAbilityIdx[i]);
 		if (!Used) { continue; }
 
+		// Chi ha usato un'azione che nega la reazione (CP 5.1: `Action.Sprint`) non ne tiene pronta una in
+		// questo turno, comunque sia pianificata — vale QUI, non dove lo scatto e' stato solo pianificato,
+		// perche' qui e' l'unico punto in cui l'azione risulta EFFETTIVAMENTE usata (non su cooldown, non
+		// scartata dal fallback).
+		if (!Used->Def.bAllowsReaction)
+		{
+			ReactionBlockedThisTurn.Add(Unit);
+		}
+
 		// SLOT consumati: lo dice il catalogo, non l'ActionId. `Action.Sprint` prende movimento **e** azione
 		// principale — chi corre allo scoperto non prosegue col Move e non spara nello stesso turno.
 		if (Used->Def.Slot == ERTActionSlot::MovementAndMain)
@@ -810,6 +824,14 @@ void ARTTurnManager::ResolveCombat()
 		if (!Ability || Ability->bDash || !Unit->CanUseAbility(AbilityIndex))
 		{
 			continue; // nessuna azione di Blast pianificata: non c'e' un'azione da far fallire
+		}
+
+		// Chi usa un'azione principale che nega la reazione (CP 5.1: nessuna oggi, ma il dato e' generico)
+		// non ne tiene pronta una in questo turno. `Action.Sprint` (l'unico caso reale) passa dallo scatto,
+		// non da qui: e' `ResolveDash` a registrarlo, perche' risolve prima e consuma lo slot principale.
+		if (!Ability->Def.bAllowsReaction)
+		{
+			ReactionBlockedThisTurn.Add(Unit);
 		}
 
 		// Da qui si ragiona su ISTANZE, non su puntatori: e' l'istanza che si valida e su cui si applica il
@@ -974,6 +996,47 @@ void ARTTurnManager::ResolveCombat()
 		return IntentDefs.IsValidIndex(Hit.IntentIndex)
 			&& IntentDefs[Hit.IntentIndex].ActionId == FName(TEXT("Action.Interrupt"));
 	});
+
+	// Reazioni (CP 5.1): valutate sui colpi GIA' raccolti di `Plan.Hits`, dopo il filtro di Interrupt — lo
+	// snapshot congelato del Blast, non un evento a cui reagire mentre il turno gira (invariante #3).
+	// Un'unita' con piu' trigger validi nello stesso Blast si ferma comunque a UNA attivazione:
+	// `EvaluateReactionTrigger` restituisce vero al primo colpo che soddisfa il trigger, non li conta.
+	// L'attivazione — o la non-attivazione, col motivo — finisce SEMPRE nel TurnLog, mai in silenzio.
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		ARTUnit* Unit = Units[i];
+		const int32 ReactionIdx = Unit->PlannedReactionAbility;
+		Unit->PlannedReactionAbility = INDEX_NONE; // consumato per questo turno (attivata o no)
+
+		const URTActionData* Reaction = Unit->GetAbility(ReactionIdx);
+		if (!Reaction || Reaction->Def.Slot != ERTActionSlot::Reaction)
+		{
+			continue; // nessuna reazione pianificata: niente da registrare
+		}
+
+		FRTTurnLogEntry Entry;
+		Entry.Phase = ERTMatchPhase::Blast;
+		Entry.Category = ERTLogCategory::Reaction;
+		Entry.SrcCell = Unit->Cell;
+		Entry.TgtCell = Unit->Cell;
+
+		if (!Unit->CanUseAbility(ReactionIdx) || ReactionBlockedThisTurn.Contains(Unit))
+		{
+			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Unavailable);
+		}
+		else if (URTReactionLibrary::EvaluateReactionTrigger(Reaction->Def.ReactionTrigger, i, Plan.Hits, Intents))
+		{
+			Unit->ConsumeAbility(ReactionIdx);
+			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Activated);
+		}
+		else
+		{
+			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::NotTriggered);
+		}
+
+		TurnLog.Add(Entry);
+		AddLogEvent(FString::Printf(TEXT("%s: %s"), *Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Entry)));
+	}
 
 	// Intenti fermati dalla copertura: l'attacco non avviene e il TurnLog ne registra il motivo.
 	for (const int32 BlockedIdx : Plan.BlockedIntents)

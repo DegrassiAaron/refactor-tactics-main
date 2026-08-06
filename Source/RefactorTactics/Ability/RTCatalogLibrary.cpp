@@ -356,6 +356,26 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*Range*/ 0, /*Cooldown*/ 1, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Marked, /*Turni*/ 1) }));
 
+	// --- Reazioni (catalogo §4) -------------------------------------------------------------------------
+	// Slot dedicato (CP 5.1, epic E5): 0-1 per unita', indipendente da Movimento e Principale. Il trigger si
+	// valuta sui colpi GIA' raccolti del Blast (dopo il filtro di Interrupt), mai con un'attesa nel resolver
+	// (invariante #3) — vedi ARTTurnManager::ResolveCombat. Le reazioni non dichiarano un `Fallback` vero
+	// (il catalogo lo dice esplicitamente): `Cancel` resta come segnaposto inerte, non usato da nessun percorso.
+	//
+	// `Counter` e' la sola delle tre reazioni vere del catalogo (le altre sono `Intercept` e `Deflect`, CP 5.3
+	// e CP 5.2) shippata in questo checkpoint: rileva il trigger e lo registra nel TurnLog, ma NON applica
+	// ancora il contrattacco da 16 danni — CP 5.2 aggiunge l'effetto (`Damage 16`) sulla stessa pipeline, come
+	// Push/Pull hanno fatto sul Control in CP 4.7. Range lasciato a 0: la tabella del catalogo non dichiara
+	// una portata per le reazioni ("entro il range consentito", senza numero), e qui non serve finche' il
+	// contrattacco non esiste — CP 5.2 lo decide quando diventa un dato che il colpo di ritorno usa davvero.
+	{
+		FRTActionDef Counter = ShippedAction(TEXT("Action.Counter"), ERTResolutionPhase::Control, /*Priority*/ 20,
+			/*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}, /*bInterruptible*/ true,
+			ERTActionSlot::Reaction);
+		Counter.ReactionTrigger = ERTReactionTrigger::HitByDirectAttack;
+		Catalog.Add(Counter);
+	}
+
 	// --- Azioni di CONTROLLO (catalogo §5) -------------------------------------------------------------
 	// Tutte risolvono nel Blast (fase dichiarata `Control`, codice 30) PRIMA del danno: la priorita' le mette
 	// nell'ordine 20 (Interrupt) → 25 (Root) → 40 (Push/Pull) → 50 (Slow) — sotto la piu' bassa offensiva

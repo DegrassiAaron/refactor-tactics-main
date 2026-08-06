@@ -256,6 +256,14 @@ protected:
 	/** Impatti raccolti nella fase Dash del turno corrente, consumati dal Blast. */
 	TArray<FRTChargeImpact> PendingChargeImpacts;
 
+	/**
+	 * Unita' a cui, in QUESTO turno, un'altra azione gia' risolta ha negato la reazione (`Action.Sprint`:
+	 * `FRTActionDef::bAllowsReaction = false`). Popolato da `ResolveDash` (l'unica fase, oggi, con un'azione
+	 * del genere) e riletto da `ResolveCombat` — la reazione risolve nel Blast, DOPO il Dash, quindi il divieto
+	 * deve sopravvivere al cambio di fase. Svuotato a inizio `ResolveDash`: e' sempre fresco per il turno.
+	 */
+	TSet<TWeakObjectPtr<ARTUnit>> ReactionBlockedThisTurn;
+
 private:
 	/** Animazione di movimento di una singola unita': waypoint gia' convertiti in mondo + fase (Dash/Move). */
 	struct FRTMoveAnim
