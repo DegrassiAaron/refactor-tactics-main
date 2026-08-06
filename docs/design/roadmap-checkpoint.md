@@ -207,10 +207,10 @@ che blocca la CI su mappa non valida, soak test senza crash.
 
 | Budget | Target | Stato |
 |---|---|---|
-| Client FPS | 60 | ⏳ non misurato → **CP 7.3** |
-| Path (mediana) | < 2 ms | ⏳ non misurato → **CP 7.3** |
-| Preview completa | < 50 ms | ⏳ non misurato → **CP 7.3** |
-| Resolver | < 100 ms/turno | ⏳ non misurato → **CP 7.3** |
+| Client FPS | 60 | ⏳ non misurato → **CP 7.3** (richiede il rendering: non misurabile in `-nullrhi`) |
+| Path (mediana) | < 2 ms | ✅ **0,025 ms** (2026-08-06, headless, A* su mappa r=12 = 469 celle, mediana di 200 percorsi da bordo a bordo) |
+| Preview completa | < 50 ms | ⏳ non misurato → **CP 7.3** (richiede l'editor: la preview è disegnata dalla HUD) |
+| Resolver | < 100 ms/turno | ✅ **0,41 ms/turno** (2026-08-06, headless, 2v2 su mappa r=6, playback escluso: è presentazione) |
 | Intent updates | 8–12 Hz | ⏳ con M10 |
 | **Replay divergence** | **0** | ✅ determinismo by-design; TurnLog permutazione-invariante, hash di replay, serializzazione versionata con checksum, verificato **anche su hex** (`RefactorTactics.HexSim.ReplayDivergenceZero`) |
 | **Intent leak** | **0** | ⏳ canary con M10 — privacy già invariante #6, oggi banale perché offline |
