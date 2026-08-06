@@ -477,6 +477,124 @@ bool FRTIceSlidesInMatchTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTerrainFireDamagesAndBurnsOnEnterTest,
+	"RefactorTactics.Terrain.Fire.DamagesAndBurnsOnEnter",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTerrainFireDamagesAndBurnsOnEnterTest::RunTest(const FString&)
+{
+	// Il Fuoco colpisce chi ATTRAVERSA la cella, non solo chi ci si ferma: gli OnEnterEffects del catalogo si
+	// applicano a ogni cella di `FRTHexMoveResult::Entered`. Il percorso e' scritto a mano perche' l'A* ha piu'
+	// rotte di pari costo fino a (2,0) e potrebbe aggirare il fuoco: con `PlannedCell` il test misurerebbe il
+	// tie-break del pathfinding invece del danno da terreno.
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnHexMap(World, /*Radius=*/ 4);
+	FRTHexCellData FireCell(FRTCellId(1, 0, 0));
+	FireCell.Surface = ERTHexSurface::Fire;
+	FireCell.MoveCost = 2; // costo del catalogo v0.1, come lo precompila il paint tool
+	MapActor->MapAsset->AddOrUpdateCell(FireCell);
+	MapActor->MapAsset->SortCells();
+
+	ARTUnit* Mover = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mover) { DestroyHexMoveWorld(World); return false; }
+
+	const int32 StartHealth = Mover->Health;
+	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) };
+	Mover->PlannedCell = FRTCellId(2, 0);
+
+	RunTurn(TM);
+
+	TestTrue(TEXT("il fuoco non ferma il movimento: arriva a destinazione"), Mover->Cell == FRTCellId(2, 0));
+	TestEqual(TEXT("10 danni dal Fuoco"), Mover->Health, StartHealth - 10);
+	TestTrue(TEXT("Burning applicato"), Mover->HasStatus(TAG_Status_Burning));
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTerrainFireDamagesOnDashTest,
+	"RefactorTactics.Terrain.Fire.DamagesOnDash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTerrainFireDamagesOnDashTest::RunTest(const FString&)
+{
+	// Stesso effetto per lo Scatto: passa da ResolveDash, non da ResolveMovement, ed e' l'altro punto in cui
+	// un'unita' entra in una cella. Lo scatto e' LINEARE, quindi la rotta e' univoca e il fuoco e' per forza
+	// attraversato (Fire non ha bBlocksDashCharge, a differenza di Rough).
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnHexMap(World, /*Radius=*/ 6);
+	FRTHexCellData FireCell(FRTCellId(1, 0, 0));
+	FireCell.Surface = ERTHexSurface::Fire;
+	FireCell.MoveCost = 2;
+	MapActor->MapAsset->AddOrUpdateCell(FireCell);
+	MapActor->MapAsset->SortCells();
+
+	ARTUnit* Runner = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Runner) { DestroyHexMoveWorld(World); return false; }
+
+	const int32 DashIdx = Runner->FindDashAbilityIndex();
+	if (!TestTrue(TEXT("il Ranger ha un'abilita' di scatto"), DashIdx != INDEX_NONE))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	const int32 StartHealth = Runner->Health;
+	Runner->PlannedCell = Runner->Cell; // nessun Move normale: il danno puo' venire solo dallo scatto
+	Runner->PlannedDashAbility = DashIdx;
+	Runner->PlannedDashCell = FRTCellId(3, 0);
+
+	RunTurn(TM);
+
+	TestTrue(TEXT("lo scatto arriva a destinazione attraversando il fuoco"), Runner->Cell == FRTCellId(3, 0));
+	TestEqual(TEXT("10 danni dal Fuoco anche in scatto"), Runner->Health, StartHealth - 10);
+	TestTrue(TEXT("Burning applicato anche in scatto"), Runner->HasStatus(TAG_Status_Burning));
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTerrainFireErodesTemporaryShieldTest,
+	"RefactorTactics.Terrain.Fire.ErodesTemporaryShieldFirst",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTerrainFireErodesTemporaryShieldTest::RunTest(const FString&)
+{
+	// Il danno da terreno passa dalla STESSA contabilita' del danno da azione (ARTUnit::ApplyCombatState):
+	// lo scudo assorbito erode prima la parte TEMPORANEA. Scrivere Health/Shield a mano funzionerebbe sui
+	// soli HP, ma lascerebbe TemporaryShield fermo al valore vecchio: nel Cleanup ExpireTemporaryShield lo
+	// sottrarrebbe una seconda volta e l'unita' perderebbe scudo BASE mai consumato.
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnHexMap(World, /*Radius=*/ 4);
+	FRTHexCellData FireCell(FRTCellId(1, 0, 0));
+	FireCell.Surface = ERTHexSurface::Fire;
+	FireCell.MoveCost = 2;
+	MapActor->MapAsset->AddOrUpdateCell(FireCell);
+	MapActor->MapAsset->SortCells();
+
+	// Guardian: 20 di scudo base + 5 temporaneo = 25. I 10 danni del fuoco stanno tutti nello scudo.
+	ARTUnit* Mover = SpawnHexUnit(World, 0, ERTArchetype::Guardian, FRTCellId(0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mover) { DestroyHexMoveWorld(World); return false; }
+
+	const int32 StartHealth = Mover->Health;
+	Mover->AddTemporaryShield(5);
+	Mover->PlannedAbilityIndex = INDEX_NONE; // nessuna azione: l'unica fonte di danno e' il terreno
+	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) };
+	Mover->PlannedCell = FRTCellId(2, 0);
+
+	RunTurn(TM);
+
+	TestEqual(TEXT("gli HP non calano: i 10 danni li assorbe lo scudo"), Mover->Health, StartHealth);
+	// 25 - 10 = 15, di cui 0 temporanei (i 5 sono stati consumati per primi): il Cleanup non ne toglie altri.
+	TestEqual(TEXT("resta lo scudo BASE non consumato, non uno in meno"), Mover->Shield, 15);
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovePathBlockedTest,
 	"RefactorTactics.Actions.Move.PathBlocked",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

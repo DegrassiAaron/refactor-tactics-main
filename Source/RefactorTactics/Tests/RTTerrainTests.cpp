@@ -80,6 +80,26 @@ bool FRTTerrainCostsFromCatalogTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTerrainShallowWaterAppliesWetTest,
+	"RefactorTactics.Terrain.ShallowWater.AppliesWet",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTerrainShallowWaterAppliesWetTest::RunTest(const FString&)
+{
+	// Verifica sul CATALOGO: e' li' che l'acqua bassa dichiara `Status.Wet`, ed e' da li' che
+	// ApplyTerrainOnEnterEffects lo pesca senza sapere di quale terreno si tratti.
+	// ATTENZIONE (aperto): la durata dichiarata e' 0 e sia ARTUnit::ApplyStatus sia URTActionEffectLibrary
+	// scartano gli stati con durata <= 0 (`Action.Sprint` usa 1 per "fino al Cleanup"). Finche' resta 0, Wet
+	// e Obscured sono INERTI in partita: il catalogo li dichiara ma nessuna unita' li riceve davvero.
+	const FRTTerrainDef Def = URTTerrainLibrary::FindTerrainDef(ERTHexSurface::ShallowWater);
+	bool bAppliesWet = false;
+	for (const FRTActionEffectSpec& Effect : Def.OnEnterEffects)
+	{
+		if (Effect.Effect == ERTActionEffect::Status && Effect.StatusTag == TAG_Status_Wet) { bAppliesWet = true; }
+	}
+	TestTrue(TEXT("ShallowWater applica Status.Wet"), bAppliesWet);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTerrainValidateCatalogTest,
 	"RefactorTactics.Terrain.ValidateCatalog.NoDuplicatesNoNegativeCosts",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
