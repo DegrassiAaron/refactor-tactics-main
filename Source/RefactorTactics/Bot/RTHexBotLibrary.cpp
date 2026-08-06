@@ -150,3 +150,43 @@ FRTHexBotPlan URTHexBotLibrary::PlanUnit(const FRTHexSnapshot& Snapshot, int32 U
 {
 	return ChooseBestPlan(Snapshot.Map, BuildCandidates(Snapshot, UnitId, Context), Context);
 }
+
+FRTCellId URTHexBotLibrary::BestKiteCell(const FRTHexSnapshot& Snapshot, int32 UnitId, const FRTCellId& Threat)
+{
+	// Le candidate arrivano da ReachableCells: budget, celle bloccate, occupanti e archi sono gia' applicati,
+	// quindi la fuga non puo' proporre una mossa illegale (stessa disciplina di BuildCandidates).
+	const TArray<FRTHexReachableCell> Reachable = URTHexSimLibrary::ReachableCells(Snapshot, UnitId);
+
+	FRTCellId Best;
+	int32 BestDistance = -1;
+	int32 BestCost = MAX_int32;
+	bool bFound = false;
+	for (const FRTHexReachableCell& Candidate : Reachable)
+	{
+		const int32 Distance = URTHexLibrary::HexDistance(Candidate.Cell, Threat);
+		// Piu' lontano dalla minaccia; a parita', il percorso piu' economico; a parita' ancora, l'ordine
+		// stabile della cella -> l'esito non dipende dall'ordine di enumerazione.
+		const bool bBetter =
+			!bFound
+			|| Distance > BestDistance
+			|| (Distance == BestDistance && Candidate.Cost < BestCost)
+			|| (Distance == BestDistance && Candidate.Cost == BestCost && URTHexLibrary::StableLess(Candidate.Cell, Best));
+		if (bBetter)
+		{
+			Best = Candidate.Cell;
+			BestDistance = Distance;
+			BestCost = Candidate.Cost;
+			bFound = true;
+		}
+	}
+
+	if (!bFound)
+	{
+		// Nessuna cella raggiungibile (unita' assente dallo snapshot): resta dov'e' se la si ritrova.
+		for (const FRTHexSimUnit& Unit : Snapshot.Units)
+		{
+			if (Unit.UnitId == UnitId) { return Unit.Cell; }
+		}
+	}
+	return Best;
+}

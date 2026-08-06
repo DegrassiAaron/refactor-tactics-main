@@ -74,12 +74,12 @@
 > viene inventata a lavoro finito. Precondizioni comuni: un livello con `ARTHexMapActor` + `MapAsset` popolato
 > (vedi «Mappa di prova» sotto) e il `RTGameMode` che allestisce la partita su quella mappa.
 >
-> **Eseguibili da CP 6.5** (2026-08-06): **PIE-HEXPLAY-1** (allestimento), **2/3** (input e pianificazione),
-> **4/4b/5** (movimento, scatto e collisione simultanea) e **6/6b/6c** (LOS, forme d'attacco, spinta) —
-> movimento, scatto, input, combattimento e spinta passano tutti dallo strato puro esagonale, con un'unica
+> **Eseguibili da CP 6.6** (2026-08-06): **PIE-HEXPLAY-1** (allestimento), **2/3** (input e pianificazione),
+> **4/4b/5** (movimento, scatto e collisione simultanea), **6/6b/6c** (LOS, forme d'attacco, spinta) e **7**
+> (bot) — l'intero turno (pianificazione dei bot compresa) passa dallo strato puro esagonale, con un'unica
 > fonte di scala (`ARTTurnManager::GetHexContext`).
-> Restano non eseguibili: **7** (bot, CP 6.6) e **8/9** (partita completa e HUD, CP 6.7–6.8) — quelle parti
-> girano ancora sulla matematica quadrata di `URTGridLibrary` applicata a coordinate assiali.
+> Resta non eseguibile: **9** (HUD, CP 6.7). La **8** (multilivello) richiede una mappa con due layer e un
+> arco, cioè l'artefatto d'editor della seduta U-multilivello.
 
 | ID | Cosa verificare | Precondizione | Esito atteso | Stato |
 |----|-----------------|---------------|--------------|-------|
@@ -92,7 +92,7 @@
 | **PIE-HEXPLAY-6** | Copertura: LOS esagonale | una cella con `bBlocksLineOfSight` fra attaccante e bersaglio | L'attacco pianificato attraverso il muro viene scartato con «nessuna linea di tiro»; spostandosi di una cella di lato il tiro va a segno. Con un ostacolo su un **altro layer** il tiro passa (regola di elevazione) | ⏳ **eseguibile da CP 6.4**. Coperto headless da `RefactorTactics.HexBlast.NoLineOfSightOnHexMap`; il PIE aggiunge ciò che il test non vede: che il giocatore **capisca** dal log perché il colpo non parte, e la prova sul multilivello |
 | **PIE-HEXPLAY-6b** | Forme d'attacco su esagoni | Guardian (Spazzata = cono) e Ranger (Colpo preciso = linea, Raffica = area) con più nemici in zona | Il **cono** colpisce il ventaglio davanti all'attaccante (3 celle a distanza 1), la **linea** colpisce anche chi sta sulla traiettoria prima del bersaglio, l'**area** colpisce il bersaglio e i suoi 6 vicini; **nessun alleato** viene colpito. Il combat log elenca un colpo per bersaglio | ⏳ **eseguibile da CP 6.4**. Forme coperte headless (`RefactorTactics.HexCombat.Shape*`): il PIE verifica che la zona colpita sia **leggibile a schermo**, non solo corretta nei dati |
 | **PIE-HEXPLAY-6c** | Spinta del Guardian su hex | Guardian che colpisce con Spazzata (knockback 2) | Il bersaglio è respinto lungo una delle **6 direzioni esagonali** (quella del colpo), non lungo un asse cardinale; si ferma davanti a un ostacolo, a un'altra unità o al bordo della mappa; due spinte opposte sullo stesso bersaglio si **annullano** e due bersagli spinti verso la stessa cella restano entrambi fermi | ⏳ **eseguibile da CP 6.5**. Coperto headless (`HexCombat.Knockback*`, `HexBlast.KnockbackOnHexGrid`); il PIE verifica lo **scivolamento animato** lungo il percorso |
-| **PIE-HEXPLAY-7** | Bot su hex | almeno un'unità con `bIsBotControlled` | Il bot propone **solo mosse legali** (mai celle occupate o fuori budget), preferisce le celle al riparo, il kiter mantiene la distanza e la mischia chiude; il log utility mostra celle in coordinate **assiali** `(q,r,L)` | ⏳ |
+| **PIE-HEXPLAY-7** | Bot su hex | almeno un'unità con `bIsBotControlled` | Il bot propone **solo mosse legali** (mai celle occupate o fuori budget), preferisce le celle al riparo, il kiter mantiene la distanza e la mischia chiude; il log utility mostra celle in coordinate **assiali** `(q,r,L)` | ⏳ **eseguibile da CP 6.6**. Coperto headless da `RefactorTactics.HexBotPlay.*` (mosse legali, panico, supporto, tuning, scatto prudente); il PIE aggiunge il **giudizio sul comportamento**: gli score hanno senso guardando la partita? |
 | **PIE-HEXPLAY-8** | Multilivello: movimento via arco | mappa con due layer collegati da una transizione | Un percorso che usa scala/ponte **cambia layer**; il playback porta l'unità alla quota giusta (`LayerHeight`); rimuovendo l'arco i due layer tornano irraggiungibili (il path fallisce, non «teletrasporta») | ⏳ |
 | **PIE-HEXPLAY-9** | HUD e anteprima piani su hex | partita hex avviata | Barre HP/scudo/energia, timer, fase e combat log invariati; l'anteprima dei piani (ciano) e la traccia post-lock seguono i **centri esagonali** e coincidono col percorso realmente eseguito | ⏳ |
 
