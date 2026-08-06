@@ -569,13 +569,21 @@ void ARTTurnManager::ResolveDash()
 		const int32 DashIdx = Unit->PlannedDashAbility;
 		Unit->PlannedDashAbility = INDEX_NONE; // consumato per questo turno (valido o no)
 		const URTActionData* Dash = Unit->GetAbility(DashIdx);
-		if (!Dash || !Dash->bDash || !Unit->CanUseAbility(DashIdx) || Unit->PlannedDashCell == Unit->Cell)
+
+		// Mobilita' rapida: lo dichiara il CATALOGO (fase FastMovement -> macro-fase Dash). Il flag legacy
+		// `bDash` resta accettato per le abilita' non ancora catalogate; sparisce con la migrazione di CP 4.5.
+		const bool bFastMovement = Dash != nullptr && (Dash->bDash
+			|| URTCatalogLibrary::MapResolutionPhase(Dash->Def.ResolutionPhase) == ERTMatchPhase::Dash);
+		if (!bFastMovement || !Unit->CanUseAbility(DashIdx) || Unit->PlannedDashCell == Unit->Cell)
 		{
 			continue;
 		}
 
-		// Il budget della fase Dash e' la portata dello SCATTO (con gli status), non il movimento del turno.
-		Snapshot.Units[i].MoveBudget = Unit->GetEffectiveDashRange(Dash->RangeCells);
+		// Budget della fase Dash: la portata dichiarata dall'azione (con gli status), non il movimento del
+		// turno. Per un'azione catalogata la verita' e' il `Def`: `Action.Sprint` vale 8 MP e quel numero sta
+		// nel catalogo, non sul campo legacy dell'asset.
+		const int32 DeclaredRange = Dash->Def.ActionId.IsNone() ? Dash->RangeCells : Dash->Def.RangeCells;
+		Snapshot.Units[i].MoveBudget = Unit->GetEffectiveDashRange(DeclaredRange);
 		const TArray<FRTCellId> Path = URTHexSimLibrary::FindPathForUnit(Snapshot, /*UnitId=*/ i, Unit->PlannedDashCell).Path;
 		if (Path.Num() < 2)
 		{
@@ -627,6 +635,38 @@ void ARTTurnManager::ResolveDash()
 		if (Unit->PlannedCell == PreDash)
 		{
 			Unit->PlannedCell = Final;   // nessun move pianificato: resta dopo lo scatto (niente ritorno indietro)
+		}
+
+		const URTActionData* Used = Unit->GetAbility(DashAbilityIdx[i]);
+		if (!Used) { continue; }
+
+		// SLOT consumati: lo dice il catalogo, non l'ActionId. `Action.Sprint` prende movimento **e** azione
+		// principale — chi corre allo scoperto non prosegue col Move e non spara nello stesso turno.
+		if (Used->Def.Slot == ERTActionSlot::MovementAndMain)
+		{
+			Unit->PlannedCell = Final;              // il movimento del turno finisce qui
+			Unit->PlannedAbilityIndex = INDEX_NONE; // lo slot principale e' speso
+			Unit->PlannedAttackTarget = nullptr;
+		}
+
+		// Effetti DICHIARATI dall'azione (Sprint applica `Status.Exposed`): stesso registry di Prep e Blast.
+		// L'orchestratore non sa quale stato sia ne' perche': aggiungerne un altro non lo tocca.
+		FRTActionInstance Instance;
+		Instance.Def = Used->Def;
+		Instance.SourceUnitId = i;
+		Instance.TargetUnitId = i;   // le mobilita' del vertical slice applicano i propri effetti a chi le usa
+		Instance.TargetCell = Final;
+		Instance.EventSequence = i;
+		for (const FRTActionEvent& Event : URTActionEffectLibrary::ProduceEvents(Instance))
+		{
+			if (Event.Kind == ERTActionEffect::Status)
+			{
+				Unit->ApplyStatus(Event.StatusTag, Event.Amount);
+				AddLogEvent(FString::Printf(TEXT("%s: %s per %d turno/i"),
+					*Unit->GetName(), *Event.StatusTag.ToString(), Event.Amount));
+			}
+			// Danno e spinta della Carica (CP 4.5) non si applicano qui: hanno per bersaglio il primo nemico
+			// sulla linea, non chi scatta, e vanno risolti con gli altri colpi.
 		}
 	}
 
@@ -755,7 +795,19 @@ void ARTTurnManager::ResolveCombat()
 	}
 
 	// Colpi a segno -> attacchi da applicare, con gli effetti collaterali dell'abilita' che li ha prodotti.
-	const TArray<FRTAttack> Attacks = URTHexCombatLibrary::ToAttacks(Plan);
+	// `Status.Exposed` (chi ha scattato allo scoperto) aggiunge +5 al PRIMO danno diretto che riceve: il delta
+	// vale una volta sola per bersaglio, quindi il totale non dipende da quale colpo se lo prenda.
+	TArray<int32> ExposedDelta;
+	ExposedDelta.Init(0, Units.Num());
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		if (Units[i] && Units[i]->HasStatus(TAG_Status_Exposed))
+		{
+			ExposedDelta[i] = URTCombatLibrary::ExposedFirstHitBonus;
+		}
+	}
+	const TArray<FRTAttack> Attacks =
+		URTCombatResolver::ApplyFirstHitDelta(URTHexCombatLibrary::ToAttacks(Plan), ExposedDelta);
 	TArray<FRTCellId> AttackSrc;  // cella dell'attaccante per ogni FRTAttack (TurnLog)
 	TArray<ARTUnit*> Attackers;
 	TArray<int32> UsedAbilityIndex;

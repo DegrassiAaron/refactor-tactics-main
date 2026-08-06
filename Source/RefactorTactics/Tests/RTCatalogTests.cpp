@@ -3,6 +3,7 @@
 #include "Ability/RTCatalogLibrary.h"
 #include "Ability/RTEquipmentData.h"
 #include "Ability/RTActionData.h"
+#include "Core/RTGameplayTags.h"
 #include "Unit/RTUnit.h"
 #include "Turn/RTTurnRules.h"
 #include "UObject/UnrealType.h"
@@ -225,6 +226,38 @@ bool FRTCatalogShippedTest::RunTest(const FString&)
 			Macro == ERTMatchPhase::Prep || Macro == ERTMatchPhase::Dash
 			|| Macro == ERTMatchPhase::Blast || Macro == ERTMatchPhase::Move);
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogCoreActionsTest,
+	"RefactorTactics.Catalog.ValidatorAcceptsCoreActions",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCatalogCoreActionsTest::RunTest(const FString&)
+{
+	// Le azioni generiche (`Action.*`) passano dallo stesso validator delle abilita' d'eroe: nessuna scorciatoia
+	// per il fatto che sono "di sistema".
+	const TArray<FRTActionDef> Core = URTCatalogLibrary::GetCoreActionCatalog();
+	TestTrue(TEXT("il catalogo delle azioni generiche non e' vuoto"), Core.Num() > 0);
+
+	const TArray<FString> Errors = URTCatalogLibrary::ValidateActions(Core);
+	for (const FString& E : Errors) { AddError(E); }
+	TestEqual(TEXT("le azioni generiche sono valide"), Errors.Num(), 0);
+
+	// `Action.Sprint` come lo descrive il catalogo v0.1 §2: mobilita' rapida, 8 MP, entrambi gli slot.
+	const FRTActionDef Sprint = URTCatalogLibrary::FindCoreAction(TEXT("Action.Sprint"));
+	TestTrue(TEXT("Action.Sprint e' nel catalogo"), Sprint.ActionId == FName(TEXT("Action.Sprint")));
+	TestTrue(TEXT("Sprint risolve nella fase Dash (mobilita' rapida)"),
+		URTCatalogLibrary::MapResolutionPhase(Sprint.ResolutionPhase) == ERTMatchPhase::Dash);
+	TestEqual(TEXT("Sprint vale 8 punti movimento"), Sprint.RangeCells, 8);
+	TestTrue(TEXT("Sprint consuma movimento E azione principale"), Sprint.Slot == ERTActionSlot::MovementAndMain);
+	TestEqual(TEXT("Sprint dichiara un solo effetto: lo stato"), Sprint.Effects.Num(), 1);
+	TestTrue(TEXT("e quell'effetto e' Status.Exposed per un turno"),
+		Sprint.Effects.Num() == 1 && Sprint.Effects[0].Effect == ERTActionEffect::Status
+		&& Sprint.Effects[0].StatusTag == TAG_Status_Exposed && Sprint.Effects[0].StatusDuration == 1);
+
+	// Un ID non catalogato non inventa un'azione: torna una definizione vuota.
+	TestTrue(TEXT("ID sconosciuto -> definizione vuota"),
+		URTCatalogLibrary::FindCoreAction(TEXT("Action.NonEsiste")).ActionId.IsNone());
 	return true;
 }
 

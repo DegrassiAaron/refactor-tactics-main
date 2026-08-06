@@ -63,4 +63,18 @@ public:
 
 	/** Definizione spedita con l'ActionId dato, o una definizione vuota se l'ID non e' nel catalogo. */
 	static FRTActionDef FindShippedAction(const FName& ActionId);
+
+	/**
+	 * Le azioni GENERICHE del catalogo v0.1 (`Action.*`), quelle che non appartengono a un eroe. Lista
+	 * separata da `GetShippedActionCatalog` perche' le due hanno regole diverse: quella spedita e' vincolata
+	 * a cio' che `ARTUnit::ConfigureAsArchetype` assegna davvero (test di allineamento), questa e' il
+	 * catalogo delle azioni che chiunque puo' dichiarare.
+	 *
+	 * Oggi contiene `Action.Sprint` (CP 4.2). `Wait`, `Move`, `BasicAttack`, `Guard`, `Activate`, `Interact`
+	 * arrivano con CP 4.4; le altre mobilita' rapide con CP 4.5.
+	 */
+	static TArray<FRTActionDef> GetCoreActionCatalog();
+
+	/** Azione generica con l'ActionId dato, o una definizione vuota se l'ID non e' nel catalogo. */
+	static FRTActionDef FindCoreAction(const FName& ActionId);
 };

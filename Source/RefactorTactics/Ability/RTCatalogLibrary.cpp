@@ -154,7 +154,7 @@ namespace
 {
 	FRTActionDef ShippedAction(const FName& Id, ERTResolutionPhase Phase, int32 Priority, int32 Range,
 		int32 Cooldown, ERTActionFallback Fallback, const TArray<FRTActionEffectSpec>& Effects,
-		bool bInterruptible = true)
+		bool bInterruptible = true, ERTActionSlot Slot = ERTActionSlot::Main)
 	{
 		FRTActionDef Def;
 		Def.Effects = Effects;
@@ -165,6 +165,7 @@ namespace
 		Def.CooldownTurns = Cooldown;
 		Def.Fallback = Fallback;
 		Def.bCanBeInterrupted = bInterruptible;
+		Def.Slot = Slot;
 		return Def;
 	}
 }
@@ -194,6 +195,34 @@ TArray<FRTActionDef> URTCatalogLibrary::GetShippedActionCatalog()
 FRTActionDef URTCatalogLibrary::FindShippedAction(const FName& ActionId)
 {
 	for (const FRTActionDef& Def : GetShippedActionCatalog())
+	{
+		if (Def.ActionId == ActionId) { return Def; }
+	}
+	return FRTActionDef();
+}
+
+TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
+{
+	TArray<FRTActionDef> Catalog;
+
+	// `Action.Sprint` (catalogo v0.1 §2) — 8 MP, consuma movimento E azione principale, applica `Status.Exposed`
+	// fino al Cleanup. Per le azioni di mobilita' rapida `RangeCells` e' il BUDGET in punti movimento, non un
+	// numero di celle: su terreno difficile si arriva meno lontano (e' lo stesso budget del movimento normale,
+	// con un'altra quantita').
+	//
+	// Lo svantaggio dello scatto lungo e' `Exposed`, dichiarato come EFFETTO: chi corre allo scoperto incassa
+	// +5 dal primo colpo. Niente di tutto cio' e' scritto nell'orchestratore.
+	Catalog.Add(ShippedAction(TEXT("Action.Sprint"), ERTResolutionPhase::FastMovement, /*Priority*/ 60,
+		/*Range (MP)*/ 8, /*Cooldown*/ 0, ERTActionFallback::Stop,
+		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Exposed, /*Turni*/ 1) },
+		/*bInterruptible*/ true, ERTActionSlot::MovementAndMain));
+
+	return Catalog;
+}
+
+FRTActionDef URTCatalogLibrary::FindCoreAction(const FName& ActionId)
+{
+	for (const FRTActionDef& Def : GetCoreActionCatalog())
 	{
 		if (Def.ActionId == ActionId) { return Def; }
 	}
