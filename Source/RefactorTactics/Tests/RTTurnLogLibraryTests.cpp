@@ -59,4 +59,55 @@ bool FRTTurnLogHashTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// Descrizione leggibile: il reason code deve arrivare al giocatore, con le coordinate assiali
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogDescribeTest,
+	"RefactorTactics.TurnLog.DescribeEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogDescribeTest::RunTest(const FString&)
+{
+	FRTTurnLogEntry Contested;
+	Contested.Phase = ERTMatchPhase::Move;
+	Contested.Category = ERTLogCategory::Move;
+	Contested.Outcome = static_cast<uint8>(ERTMoveOutcome::BlockedContested);
+	Contested.SrcCell = FRTCellId(1, -2, 0);
+	Contested.TgtCell = FRTCellId(1, -2, 0);
+	Contested.Amount = 0;
+
+	const FString ContestedText = URTTurnLogLibrary::DescribeEntry(Contested);
+	TestTrue(TEXT("la cella e' in coordinate assiali (q,r,L)"), ContestedText.Contains(TEXT("q=1")) && ContestedText.Contains(TEXT("r=-2")));
+	TestTrue(TEXT("il motivo e' leggibile"), ContestedText.Contains(TEXT("contesa")));
+
+	FRTTurnLogEntry NoLos;
+	NoLos.Phase = ERTMatchPhase::Blast;
+	NoLos.Category = ERTLogCategory::Combat;
+	NoLos.Outcome = static_cast<uint8>(ERTCombatOutcome::NoLineOfSight);
+	NoLos.SrcCell = FRTCellId(0, 0, 0);
+	NoLos.TgtCell = FRTCellId(3, 0, 1);
+
+	const FString NoLosText = URTTurnLogLibrary::DescribeEntry(NoLos);
+	TestTrue(TEXT("compaiono attaccante e bersaglio"), NoLosText.Contains(TEXT("q=0")) && NoLosText.Contains(TEXT("q=3")));
+	TestTrue(TEXT("il layer del bersaglio e' visibile"), NoLosText.Contains(TEXT("L=1")));
+	TestTrue(TEXT("il motivo e' leggibile"), NoLosText.Contains(TEXT("linea di tiro")));
+
+	FRTTurnLogEntry Lethal;
+	Lethal.Phase = ERTMatchPhase::Blast;
+	Lethal.Category = ERTLogCategory::Combat;
+	Lethal.Outcome = static_cast<uint8>(ERTCombatOutcome::Lethal);
+	Lethal.SrcCell = FRTCellId(0, 0, 0);
+	Lethal.TgtCell = FRTCellId(1, 0, 0);
+	Lethal.Amount = 40;
+
+	const FString LethalText = URTTurnLogLibrary::DescribeEntry(Lethal);
+	TestTrue(TEXT("il danno compare"), LethalText.Contains(TEXT("40")));
+	TestTrue(TEXT("l'esito letale e' dichiarato"), LethalText.Contains(TEXT("elimin")));
+
+	// Voci diverse devono leggersi diverse: una descrizione costante passerebbe le prove precedenti.
+	TestNotEqual(TEXT("descrizioni distinte per esiti distinti"), ContestedText, NoLosText);
+	TestNotEqual(TEXT("descrizioni distinte per danno diverso"), LethalText, NoLosText);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

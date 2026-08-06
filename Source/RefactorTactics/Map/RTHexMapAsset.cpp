@@ -309,3 +309,30 @@ void URTHexMapAsset::PostEditUndo()
 	OnMapChanged.Broadcast();
 }
 #endif
+
+FRTCellId URTHexMapAsset::GetCenterCell() const
+{
+	// Layer piu' basso = piano di gioco principale: e' quello che la camera deve inquadrare.
+	int32 BaseLayer = MAX_int32;
+	for (const FRTHexCellData& Cell : Cells)
+	{
+		BaseLayer = FMath::Min(BaseLayer, Cell.Id.Layer);
+	}
+	if (BaseLayer == MAX_int32)
+	{
+		return FRTCellId(); // mappa vuota
+	}
+
+	int32 MinQ = MAX_int32, MaxQ = MIN_int32, MinR = MAX_int32, MaxR = MIN_int32;
+	for (const FRTHexCellData& Cell : Cells)
+	{
+		if (Cell.Id.Layer != BaseLayer) { continue; }
+		MinQ = FMath::Min(MinQ, Cell.Id.X);
+		MaxQ = FMath::Max(MaxQ, Cell.Id.X);
+		MinR = FMath::Min(MinR, Cell.Id.Y);
+		MaxR = FMath::Max(MaxR, Cell.Id.Y);
+	}
+
+	// Mediana del bounding box assiale: divisione intera (nessun float nelle coordinate, invariante #4).
+	return FRTCellId(FMath::DivideAndRoundDown(MinQ + MaxQ, 2), FMath::DivideAndRoundDown(MinR + MaxR, 2), BaseLayer);
+}

@@ -6,19 +6,26 @@
 #include "Turn/RTTurnRules.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Core/RTGameplayTags.h"
-#include "Grid/RTGridActor.h"
-#include "Grid/RTGridLibrary.h"
+#include "Map/RTHexLibrary.h"
+#include "Map/RTHexMapActor.h"
+#include "Map/RTHexMapAsset.h"
+#include "Pathfinding/RTHexPathLibrary.h"
 #include "Engine/Canvas.h"
 #include "Kismet/GameplayStatics.h"
 
 namespace
 {
-	// Centro-mondo di una cella con l'elevazione del suo layer (per disegnare i path sul ponte).
-	FVector CellWorldElevated(const FRTCellId& Cell, const FVector& Origin, float CellSize, float LayerHeight)
+	// Centro-mondo di una cella esagonale, con la quota del suo layer (per disegnare i path sul ponte).
+	// Stessa conversione usata da risoluzione e playback: l'anteprima non puo' divergere dal percorso reale.
+	FVector HexCellWorld(const FRTCellId& Cell, const FVector& Origin, float HexSize, float LayerHeight)
 	{
-		FVector W = URTGridLibrary::CellToWorld(Cell, Origin, CellSize);
-		W.Z += Cell.Layer * LayerHeight;
-		return W;
+		return URTHexLibrary::AxialToWorld(Cell, Origin, HexSize, LayerHeight);
+	}
+
+	/** Cella in coordinate assiali, come compaiono nel TurnLog. */
+	FString HexCellText(const FRTCellId& Cell)
+	{
+		return FString::Printf(TEXT("(q=%d,r=%d,L=%d)"), Cell.X, Cell.Y, Cell.Layer);
 	}
 }
 
@@ -88,20 +95,27 @@ void ARTHUD::DrawHUD()
 	const ARTTurnManager* TurnManager =
 		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
 
+	// Geometria della mappa ESAGONALE: unica fonte di scala per ogni conversione cella -> schermo di questa
+	// HUD (traccia, anteprime, waypoint). La stessa che usano risoluzione e playback (ARTHexMapActor).
+	FVector Origin = FVector::ZeroVector;
+	float HexSize = 100.f;
+	float LayerH = 250.f;
+	const URTHexMapAsset* Map = nullptr;
+	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
+	{
+		Map = HexMap->GetHexContext(Origin, HexSize, LayerH);
+	}
+
 	// Traccia post-lock: il percorso realmente eseguito nell'ultima risoluzione (grigio, sotto le preview).
 	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::Planning)
 	{
-		const ARTGridActor* TrailGrid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
-		const FVector TOrigin = TrailGrid ? TrailGrid->GetActorLocation() : FVector::ZeroVector;
-		const float TCell = TrailGrid ? TrailGrid->CellSize : 200.f;
-		const float TLayerH = TrailGrid ? TrailGrid->LayerHeight : 0.f;
 		const FLinearColor TrailColor(0.6f, 0.6f, 0.6f, 0.5f);
 		for (const TArray<FRTCellId>& Route : TurnManager->GetLastMoveRoutes())
 		{
 			for (int32 i = 1; i < Route.Num(); ++i)
 			{
-				const FVector A = Project(CellWorldElevated(Route[i - 1], TOrigin, TCell, TLayerH));
-				const FVector B = Project(CellWorldElevated(Route[i], TOrigin, TCell, TLayerH));
+				const FVector A = Project(HexCellWorld(Route[i - 1], Origin, HexSize, LayerH));
+				const FVector B = Project(HexCellWorld(Route[i], Origin, HexSize, LayerH));
 				if (A.Z > 0.f && B.Z > 0.f)
 				{
 					DrawLine(A.X, A.Y, B.X, B.Y, TrailColor, 1.5f);
@@ -116,10 +130,6 @@ void ARTHUD::DrawHUD()
 	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::Planning && !TurnManager->IsResolving())
 	{
 		const int32 PlayerTeam = 0; // il giocatore controlla il team 0 (blu)
-		const ARTGridActor* Grid = Cast<ARTGridActor>(UGameplayStatics::GetActorOfClass(this, ARTGridActor::StaticClass()));
-		const FVector Origin = Grid ? Grid->GetActorLocation() : FVector::ZeroVector;
-		const float CellSize = Grid ? Grid->CellSize : 200.f;
-		const float LayerH = Grid ? Grid->LayerHeight : 0.f;
 
 		for (AActor* Actor : Actors)
 		{
@@ -158,7 +168,7 @@ void ARTHUD::DrawHUD()
 			}
 			else if (bMoving)
 			{
-				Intent = FString::Printf(TEXT("-> (%d,%d)"), Unit->PlannedCell.X, Unit->PlannedCell.Y);
+				Intent = FString::Printf(TEXT("-> %s"), *HexCellText(Unit->PlannedCell));
 			}
 			else
 			{
@@ -178,27 +188,24 @@ void ARTHUD::DrawHUD()
 			// (FindPath), cella per cella, ed evidenzia la cella di destinazione.
 			if (bMoving)
 			{
-				TMap<FRTCellId, int32> CostMap;
-				if (Grid) { Grid->BuildCostMap(CostMap); }
-				const int32 GW = Grid ? Grid->Width : 10;
-				const int32 GH = Grid ? Grid->Height : 10;
-				// Path composita (waypoint) se presente, altrimenti auto-route alla destinazione singola.
+				// Path composita (waypoint) se presente, altrimenti la rotta esagonale verso la destinazione:
+				// stesso A* dell'autorita', cosi' l'anteprima coincide col percorso poi eseguito.
 				const TArray<FRTCellId> PathCells = (Unit->PlannedPath.Num() >= 2)
 					? Unit->PlannedPath
-					: URTGridLibrary::FindPathByCost(Unit->Cell, Unit->PlannedCell, CostMap, GW, GH);
+					: URTHexPathLibrary::FindPath(Map, Unit->Cell, Unit->PlannedCell).Path;
 
-				// Polilinea lungo i centri-cella (a terra): mostra la deviazione attorno alle coperture.
+				// Polilinea lungo i centri esagonali: mostra la deviazione attorno alle coperture.
 				for (int32 i = 1; i < PathCells.Num(); ++i)
 				{
-					const FVector A = Project(CellWorldElevated(PathCells[i - 1], Origin, CellSize, LayerH));
-					const FVector B = Project(CellWorldElevated(PathCells[i], Origin, CellSize, LayerH));
+					const FVector A = Project(HexCellWorld(PathCells[i - 1], Origin, HexSize, LayerH));
+					const FVector B = Project(HexCellWorld(PathCells[i], Origin, HexSize, LayerH));
 					if (A.Z > 0.f && B.Z > 0.f)
 					{
 						DrawLine(A.X, A.Y, B.X, B.Y, Color, 2.f);
 					}
 				}
 
-				const FVector DestScreen = Project(CellWorldElevated(Unit->PlannedCell, Origin, CellSize, LayerH));
+				const FVector DestScreen = Project(HexCellWorld(Unit->PlannedCell, Origin, HexSize, LayerH));
 				if (DestScreen.Z > 0.f)
 				{
 					DrawRect(FLinearColor(Color.R, Color.G, Color.B, 0.35f), DestScreen.X - 12.f, DestScreen.Y - 12.f, 24.f, 24.f);
@@ -208,31 +215,29 @@ void ARTHUD::DrawHUD()
 			// Marker sui waypoint cliccati: i "punti" del percorso (nel colore dell'unita').
 			for (const FRTCellId& WP : Unit->PlannedWaypoints)
 			{
-				const FVector WPScreen = Project(CellWorldElevated(WP, Origin, CellSize, LayerH));
+				const FVector WPScreen = Project(HexCellWorld(WP, Origin, HexSize, LayerH));
 				if (WPScreen.Z > 0.f)
 				{
 					DrawRect(Color, WPScreen.X - 5.f, WPScreen.Y - 5.f, 10.f, 10.f);
 				}
 			}
 
-// Preview dello SCATTO pianificato (fase Dash): percorso e destinazione in MAGENTA, distinti dal movimento.
-				if (Unit->PlannedDashAbility != INDEX_NONE && Grid)
+			// Preview dello SCATTO pianificato (fase Dash): percorso e destinazione in MAGENTA, distinti dal movimento.
+			if (Unit->PlannedDashAbility != INDEX_NONE && Map)
+			{
+				const TArray<FRTCellId> DPath = URTHexPathLibrary::FindPath(Map, Unit->Cell, Unit->PlannedDashCell).Path;
+				const FLinearColor DashColor(1.f, 0.2f, 0.9f, 1.f);
+				for (int32 i = 1; i < DPath.Num(); ++i)
 				{
-					TMap<FRTCellId, int32> DCost;
-					Grid->BuildCostMap(DCost);
-					const TArray<FRTCellId> DPath = URTGridLibrary::FindPathByGraph(Unit->Cell, Unit->PlannedDashCell, DCost, Grid->GetEdges(), Grid->Width, Grid->Height);
-					const FLinearColor DashColor(1.f, 0.2f, 0.9f, 1.f);
-					for (int32 i = 1; i < DPath.Num(); ++i)
-					{
-						const FVector DA = Project(CellWorldElevated(DPath[i - 1], Origin, CellSize, LayerH));
-						const FVector DB = Project(CellWorldElevated(DPath[i], Origin, CellSize, LayerH));
-						if (DA.Z > 0.f && DB.Z > 0.f) { DrawLine(DA.X, DA.Y, DB.X, DB.Y, DashColor, 2.5f); }
-					}
-					const FVector DDest = Project(CellWorldElevated(Unit->PlannedDashCell, Origin, CellSize, LayerH));
-					if (DDest.Z > 0.f) { DrawRect(FLinearColor(DashColor.R, DashColor.G, DashColor.B, 0.4f), DDest.X - 10.f, DDest.Y - 10.f, 20.f, 20.f); }
+					const FVector DA = Project(HexCellWorld(DPath[i - 1], Origin, HexSize, LayerH));
+					const FVector DB = Project(HexCellWorld(DPath[i], Origin, HexSize, LayerH));
+					if (DA.Z > 0.f && DB.Z > 0.f) { DrawLine(DA.X, DA.Y, DB.X, DB.Y, DashColor, 2.5f); }
 				}
+				const FVector DDest = Project(HexCellWorld(Unit->PlannedDashCell, Origin, HexSize, LayerH));
+				if (DDest.Z > 0.f) { DrawRect(FLinearColor(DashColor.R, DashColor.G, DashColor.B, 0.4f), DDest.X - 10.f, DDest.Y - 10.f, 20.f, 20.f); }
+			}
 
-				// Linea verso il bersaglio d'attacco pianificato.
+			// Linea verso il bersaglio d'attacco pianificato.
 			if (Unit->PlannedAttackTarget && Unit->PlannedAttackTarget->IsAlive() && HeadScreen.Z > 0.f)
 			{
 				const FVector TgtScreen = Project(Unit->PlannedAttackTarget->GetActorLocation() + FVector(0.f, 0.f, WorldHeadOffset));
