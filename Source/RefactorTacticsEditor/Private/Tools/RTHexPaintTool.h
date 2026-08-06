@@ -60,6 +60,10 @@ public:
 	/** [Overlay] Colora le celle per superficie (debug read-only); le bloccate con esagono rosso. */
 	UPROPERTY(EditAnywhere, Category = "Hex|Overlay")
 	bool bShowOverlay = false;
+
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 };
 
 /**
