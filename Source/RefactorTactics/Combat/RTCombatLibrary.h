@@ -93,9 +93,15 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static bool IsUltimateReady(int32 Energy, int32 Max);
 
-	/** Range di movimento effettivo con gli status: Root azzera, Slow dimezza (arrotondato per difetto). */
+	/**
+	 * Range di movimento effettivo con lo status Root: azzera. `Slow` NON passa piu' da qui (CP 4.7): il
+	 * catalogo v0.1 §5 lo definisce come **+1 al costo di ogni cella**, un meccanismo di pathfinding
+	 * (`FRTHexSimUnit::MoveCostModifier`, `URTHexPathLibrary::FindPathAvoiding`), non una riduzione flat del
+	 * raggio. Dimezzare qui era la scelta pre-CP4.2 (prima del budget a costi per cella): con Slow tolto,
+	 * questa funzione fa esattamente cio' che il suo nome dice, senza un secondo bool che mente sulla firma.
+	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
-	static int32 EffectiveMoveRange(int32 BaseRange, bool bRooted, bool bSlowed);
+	static int32 EffectiveMoveRange(int32 BaseRange, bool bRooted);
 
 	/** Vero se un'abilita' e' utilizzabile: non in ricarica e con energia sufficiente. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")

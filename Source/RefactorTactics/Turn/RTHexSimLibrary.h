@@ -73,6 +73,25 @@ public:
 		const TArray<FRTCellId>& Waypoints);
 
 	/**
+	 * Il PREFISSO di Path (partenza in Path[0] inclusa) ancora affrontabile entro il budget CORRENTE
+	 * dell'unita' in Snapshot: somma il costo di ogni cella (+ il suo `MoveCostModifier`) e si ferma dove il
+	 * budget finisce. Non valuta occupazione ne' blocchi — quelli li gestisce `ResolveHexPaths` sui
+	 * micro-step, walking il path che gli si da'.
+	 *
+	 * Serve a intercettare un piano scritto PRIMA che lo status dell'unita' cambiasse NELLO STESSO turno
+	 * (`Action.Root` azzera il budget, `Action.Slow` alza il costo per cella — CP 4.7): senza, un percorso
+	 * gia' calcolato (dai waypoint, o scritto a mano) verrebbe eseguito com'era, ignorando lo stato attuale.
+	 * Se il budget non e' cambiato da quando il piano e' stato scritto, il prefisso coincide con Path intero
+	 * — nessuna troncatura, nessun ricalcolo: e' cio' che lascia intatto un ostacolo posizionale (una cella
+	 * occupata a meta' via), che resta compito di `ResolveHexPaths`, non di questa funzione.
+	 *
+	 * Path vuoto -> Path vuoto. UnitId sconosciuto o mappa assente -> Path invariato (fail-open sul dato che
+	 * non si puo' verificare, non sul movimento: il chiamante ha gia' un piano, qui si puo' solo accorciarlo).
+	 */
+	static TArray<FRTCellId> TruncatePathToBudget(const FRTHexSnapshot& Snapshot, int32 UnitId,
+		const TArray<FRTCellId>& Path);
+
+	/**
 	 * Movimento simultaneo lungo path esagonali gia' troncati al budget (ogni path e' From..To, From = indice 0),
 	 * con MICROSTEP sincroni: a ogni passo tutte le unita' avanzano di una cella e si risolvono le collisioni
 	 * (destinazione contesa -> contendenti fermi da li'; cella di un'unita' ferma -> bloccata; scambio diretto

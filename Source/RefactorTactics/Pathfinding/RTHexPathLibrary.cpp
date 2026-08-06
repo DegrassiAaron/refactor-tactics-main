@@ -48,7 +48,7 @@ FRTHexPathResult URTHexPathLibrary::FindPath(const URTHexMapAsset* Map, const FR
 }
 
 FRTHexPathResult URTHexPathLibrary::FindPathAvoiding(const URTHexMapAsset* Map, const FRTCellId& Start,
-	const FRTCellId& Goal, const TSet<FRTCellId>* Blocked, int32 MaxCost, int32 MaxNodes)
+	const FRTCellId& Goal, const TSet<FRTCellId>* Blocked, int32 MaxCost, int32 MaxNodes, int32 ExtraCostPerCell)
 {
 	FRTHexPathResult Result;
 
@@ -145,7 +145,7 @@ FRTHexPathResult URTHexPathLibrary::FindPathAvoiding(const URTHexMapAsset* Map, 
 			{
 				continue; // cella occupata da un'altra unita' (ostacolo dinamico)
 			}
-			const int32 Tentative = GScore[Current] + Step.Value;
+			const int32 Tentative = GScore[Current] + Step.Value + FMath::Max(0, ExtraCostPerCell);
 			if (MaxCost > 0 && Tentative > MaxCost)
 			{
 				continue; // oltre il budget di movimento

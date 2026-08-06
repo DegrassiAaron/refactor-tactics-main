@@ -177,22 +177,39 @@ di rimozione è scelta dal giocatore **durante il planning** (non a runtime: nes
 Tutte le azioni di controllo risolvono dentro il **Blast**, prima del danno, per priorità (il controllo non è una
 macro-fase separata: ADR-0003 §3).
 
-| ActionId | Azione | Macro-fase | Cod. | Prio | Effetto | Durata | CD |
-|---|---|---|---:|---:|---|---|---:|
-| `Action.Push` | Spinta | Blast | 30 | 40 | spinta 1 | istantanea | 1 |
-| `Action.Pull` | Trazione | Blast | 30 | 40 | trazione 1 | istantanea | 1 |
-| `Action.Root` | Radicamento | Blast | 30 | 25 | blocca il movimento | 1 turno | 2 |
-| `Action.Interrupt` | Interruzione | Blast | 30 | 20 | annulla azione compatibile | istantanea | 2 |
-| `Action.Slow` | Rallentamento | Blast | 30 | 50 | +1 costo movimento | 1 turno | 1 |
+| ActionId | Azione | Macro-fase | Cod. | Prio | Range | Effetto | Durata | CD |
+|---|---|---|---:|---:|---:|---|---|---:|
+| `Action.Push` | Spinta | Blast | 30 | 40 | 1 | spinta 1 | istantanea | 1 |
+| `Action.Pull` | Trazione | Blast | 30 | 40 | 2 | trazione 1 | istantanea | 1 |
+| `Action.Root` | Radicamento | Blast | 30 | 25 | 1 | blocca il movimento | 1 turno | 2 |
+| `Action.Interrupt` | Interruzione | Blast | 30 | 20 | 1 | annulla azione compatibile | istantanea | 2 |
+| `Action.Slow` | Rallentamento | Blast | 30 | 50 | 1 | +1 costo movimento | 1 turno | 1 |
 
-**Push / Pull** — un'unità non può terminare dentro un'altra · una copertura alta blocca lo spostamento · se la
-destinazione è bloccata, lo spostamento termina lì · le collisioni **non** producono danno nella v0.1 · le cadute
-arrivano con le mappe multilivello.
+**Range — decisa in CP 4.7, non nel PDF**: questa è l'unica sezione del catalogo la cui tabella non dichiarava
+una portata. 1 per quattro azioni su cinque; **Pull è l'eccezione (2)**: con targeting a 1 (adiacenza) il
+bersaglio, tirato di 1 cella verso chi tira, finirebbe sempre sulla sua stessa cella — sempre occupata — e la
+trazione si annullerebbe per costruzione, in ogni caso. Serve poter agganciare un bersaglio a 2 celle per
+tirarlo a 1 senza finirgli addosso.
+
+**Push / Pull** — un'unità non può terminare dentro un'altra · una copertura alta blocca lo spostamento (oggi
+letta da `bBlocksMovement`) · se la destinazione è bloccata, lo spostamento termina lì · le collisioni **non**
+producono danno nella v0.1 · le cadute arrivano con le mappe multilivello · la resistenza di `Action.Guard` (-1
+cella) vale solo per **Push**: il testo del catalogo dice «spinta», non «trazione», e la v0.1 non estende
+implicitamente la resistenza a Pull.
 
 **Root** — cancella i micro-step di movimento non ancora risolti · non impedisce attacchi, `Guard` o `Activate` ·
-non annulla un teletrasporto già risolto.
+non annulla un teletrasporto già risolto. Implementato tramite `GetEffectiveMoveRange` (azzera il budget per chi
+è radicato), letto FRESCO a ogni fase di movimento — così un Root applicato nel Blast si riflette già sulla fase
+Move dello stesso turno, anche su un percorso a waypoint già pianificato prima del radicamento
+(`URTHexSimLibrary::TruncatePathToBudget`, CP 4.7).
 
 **Interrupt** — un'azione è interrompibile **solo** se dichiara `bCanBeInterrupted = true`. Non tutte lo sono.
+Cancella l'intera azione bersaglio (danno ed effetti collaterali insieme), non solo i suoi effetti: si applica
+filtrando i colpi già raccolti nel Blast, prima che diventino danno o eventi.
+
+**Slow** — +1 al costo di **ogni cella** attraversata, non un dimezzamento del raggio totale (il meccanismo che
+`Ranger.Burst` applicava allo stesso stato prima di CP 4.7). Vale per il movimento a budget (`Action.Move`,
+`Action.Sprint`); non riduce le mobilità lineari (Dash/Charge/Leap/Reposition), dichiarato fuori scope v0.1.
 
 ---
 

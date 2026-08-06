@@ -32,6 +32,7 @@ TArray<FRTActionEvent> URTActionEffectLibrary::ProduceEvents(const FRTActionInst
 		case ERTActionEffect::Heal:
 		case ERTActionEffect::Shield:
 		case ERTActionEffect::Push:
+		case ERTActionEffect::Pull:
 			if (Spec.Amount <= 0 || Instance.TargetUnitId == INDEX_NONE)
 			{
 				continue; // entita' non positiva o nessun bersaglio: nessun evento da applicare

@@ -32,6 +32,15 @@ struct FRTHexSimUnit
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexSim")
 	int32 MoveBudget = 0;
 
+	/**
+	 * Sovrapprezzo (intero, >= 0) aggiunto al costo di OGNI cella attraversata, per QUESTA unita' (`Action.Slow`,
+	 * CP 4.7): 0 = nessun sovrapprezzo. E' un costo di pathfinding, non una riduzione del budget totale — la
+	 * differenza conta perche' rende piu' cara la strada lunga senza rendere impossibile quella corta,
+	 * mentre dimezzare il budget penalizza allo stesso modo un passo e dieci.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexSim")
+	int32 MoveCostModifier = 0;
+
 	FRTHexSimUnit() = default;
 	FRTHexSimUnit(int32 InUnitId, const FRTCellId& InCell, int32 InMoveBudget = 0, bool bInAlive = true)
 		: UnitId(InUnitId), Cell(InCell), bAlive(bInAlive), MoveBudget(InMoveBudget) {}

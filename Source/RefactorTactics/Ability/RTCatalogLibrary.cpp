@@ -356,6 +356,56 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*Range*/ 0, /*Cooldown*/ 1, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Marked, /*Turni*/ 1) }));
 
+	// --- Azioni di CONTROLLO (catalogo §5) -------------------------------------------------------------
+	// Tutte risolvono nel Blast (fase dichiarata `Control`, codice 30) PRIMA del danno: la priorita' le mette
+	// nell'ordine 20 (Interrupt) → 25 (Root) → 40 (Push/Pull) → 50 (Slow) — sotto la piu' bassa offensiva
+	// (MarkTarget, anch'essa 40): un'interruzione o un radicamento devono valere prima che qualunque colpo
+	// parta, non dopo. Range 1 per Push/Root/Interrupt/Slow, **2 per Pull**: la tabella del catalogo non
+	// dichiarava una portata (unica sezione senza colonna Range), quindi il numero e' deciso qui — e per Pull
+	// e' diverso dagli altri quattro per un motivo geometrico dichiarato sotto, non per svista.
+	//
+	// Push/Root/Slow riusano la STESSA pipeline di `ResolveCombat` che gia' applica gli effetti di
+	// Guardian.Sweep/Ranger.Burst (un'azione senza danno e' comunque un "colpo" con Power 0: l'effetto
+	// collaterale passa lo stesso). Interrupt e' l'eccezione: cancella l'INTERA azione di un'altra unita', non
+	// un effetto su un bersaglio, e per questo non dichiara nessun `FRTActionEffectSpec` — la sua conseguenza
+	// si applica filtrando `Plan.Hits` prima che diventino danno o eventi (`ARTTurnManager::ResolveCombat`).
+
+	// `Push` — spinta di 1 cella, che allontana. Riusa lo stesso meccanismo di knockback di Guardian.Sweep.
+	Catalog.Add(ShippedAction(TEXT("Action.Push"), ERTResolutionPhase::Control, /*Priority*/ 40,
+		/*Range*/ 1, /*Cooldown*/ 1, ERTActionFallback::Cancel,
+		{ FRTActionEffectSpec(ERTActionEffect::Push, 1) }));
+
+	// `Pull` — trazione di 1 cella, che avvicina: prima azione del catalogo a usare `ERTActionEffect::Pull`.
+	// Range **2**, non 1 come le altre quattro: con targeting a 1 (adiacenza) e trazione di 1, il bersaglio
+	// finirebbe SEMPRE sulla cella di chi tira — sempre occupata, quindi la trazione si annullerebbe per
+	// costruzione, in ogni caso, senza eccezioni. E' l'unica delle cinque a deviare, e la ragione e'
+	// geometrica: bisogna poter agganciare un bersaglio a 2 celle per tirarlo a 1 senza finirgli addosso.
+	Catalog.Add(ShippedAction(TEXT("Action.Pull"), ERTResolutionPhase::Control, /*Priority*/ 40,
+		/*Range*/ 2, /*Cooldown*/ 1, ERTActionFallback::Cancel,
+		{ FRTActionEffectSpec(ERTActionEffect::Pull, 1) }));
+
+	// `Root` — blocca il movimento per 1 turno. Cancella i micro-step di movimento NON ANCORA risolti (fase
+	// Move, dopo il Blast) tramite `GetEffectiveMoveRange`, che azzera il budget per chi e' radicato — non
+	// impedisce attacchi, Guard o Activate, che non passano da quel budget.
+	Catalog.Add(ShippedAction(TEXT("Action.Root"), ERTResolutionPhase::Control, /*Priority*/ 25,
+		/*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel,
+		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Root, /*Turni*/ 1) }));
+
+	// `Slow` — +1 al costo di OGNI cella per 1 turno (non dimezza il raggio: e' un meccanismo diverso da
+	// quello che `Ranger.Burst` applicava allo stesso tag prima di questo checkpoint — vedi
+	// `URTCombatLibrary::EffectiveMoveRange` e il modificatore di costo in `FRTHexSimUnit`). Non riduce la
+	// portata delle mobilita' lineari (Dash/Charge/Leap/Reposition): quelle non hanno un costo per cella da
+	// aumentare, e la v0.1 le dichiara fuori dall'effetto di Slow.
+	Catalog.Add(ShippedAction(TEXT("Action.Slow"), ERTResolutionPhase::Control, /*Priority*/ 50,
+		/*Range*/ 1, /*Cooldown*/ 1, ERTActionFallback::Cancel,
+		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Slow, /*Turni*/ 1) }));
+
+	// `Interrupt` — nessun effetto dichiarabile: la sua conseguenza e' cancellare l'azione di un'altra unita',
+	// non modificarne le statistiche. Agisce solo su chi dichiara `bCanBeInterrupted = true` — il controllo
+	// e' fatto da `ARTTurnManager::ResolveCombat`, non da un flag che questa azione porterebbe con se'.
+	Catalog.Add(ShippedAction(TEXT("Action.Interrupt"), ERTResolutionPhase::Control, /*Priority*/ 20,
+		/*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
+
 	return Catalog;
 }
 
