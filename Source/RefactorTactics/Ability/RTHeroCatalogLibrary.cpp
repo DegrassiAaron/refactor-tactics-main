@@ -299,3 +299,84 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiva()
 
 	return Riva;
 }
+
+URTHeroData* URTHeroCatalogLibrary::MakeBastion()
+{
+	URTHeroData* Bastion = NewObject<URTHeroData>();
+	Bastion->HeroId = TEXT("Hero.Bastion");
+	Bastion->DisplayName = FText::FromString(TEXT("Bastion"));
+	Bastion->MaxHealth = 120;
+	Bastion->MovePoints = 4;
+	Bastion->VisionRange = 5;
+	Bastion->PushResistance = 1; // l'unico del roster: compra HP e stabilita' con movimento e vista
+	Bastion->Affinity = TEXT("Affinity.Structures");
+	// Simmetrica a Vektor (CP 6.5), come Flux/Riva fra loro: il roster chiude in due coppie. Il piu' lento
+	// del roster e' vulnerabile a chi il movimento lo fa di mestiere.
+	Bastion->Weakness = TEXT("Affinity.Movement");
+
+	// Indice 0 — ImpactShot, attacco base. 24 danni / range 3 NON e' una fascia di
+	// `BasicAttackDamageForRange` (a range 3 la fascia da' 25): come `Riva.PressureJet`, l'attacco base e'
+	// dell'eroe, non della tabella generica. Un punto in meno del corto raggio standard, in cambio della
+	// stazza.
+	Bastion->Actions.Add(MakeHeroAction(TEXT("Bastion.ImpactShot"), ERTResolutionPhase::Attack, /*Priority*/ 50,
+		/*Range*/ 3, /*Cooldown*/ 0, ERTActionFallback::Cancel,
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 24) }));
+
+	// Indice 1 — KineticPanel. Crea una copertura da 30 HP: NIENTE di questo e' rappresentabile. Le
+	// coperture non esistono in `FRTHexCellData` (E9), e `ERTActionEffect` non ha un modo di crearle. I
+	// numeri del catalogo terreni (`Structure.KineticPanel`: integrita' 30, protezione 10) stanno nei
+	// `Parameters` della VARIANTE, che e' dove il catalogo eroi li differenzia davvero.
+	// Fase Preparation: si costruisce prima che i colpi partano, altrimenti la copertura arriverebbe dopo
+	// aver incassato — cioe' non servirebbe a niente.
+	Bastion->Actions.Add(MakeHeroAction(TEXT("Bastion.KineticPanel"), ERTResolutionPhase::Preparation,
+		/*Priority*/ 30, /*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
+
+	// Indice 2 — Reconfigure. Sposta o ruota una copertura ESISTENTE: dipende dallo stesso sistema mancante
+	// di KineticPanel, piu' un bersaglio (la copertura) che non e' ne' un'unita' ne' una cella nel modello
+	// attuale. Fase Preparation per lo stesso motivo del pannello.
+	Bastion->Actions.Add(MakeHeroAction(TEXT("Bastion.Reconfigure"), ERTResolutionPhase::Preparation,
+		/*Priority*/ 31, /*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
+
+	// Indice 3 — Ram. E' una CARICA: 20 danni + Push 1, gli stessi numeri di `Action.Charge` del catalogo
+	// azioni v0.1 §2 — non una coincidenza, e' la stessa azione con un nome d'eroe. Riuso identico di fase,
+	// stile di movimento e portata: l'impatto risolve nel Blast (codice 20/30), come per ogni carica.
+	const FRTActionDef ChargeDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge"));
+	URTActionData* Ram = MakeHeroAction(TEXT("Bastion.Ram"), ChargeDef.ResolutionPhase, ChargeDef.Priority,
+		ChargeDef.RangeCells, /*Cooldown*/ 2, ChargeDef.Fallback, ChargeDef.Effects);
+	Ram->Def.MovementStyle = ChargeDef.MovementStyle; // LinearCharge: si ferma ADDOSSO al primo nemico
+	Bastion->Actions.Add(Ram);
+
+	// Indice 4 — Interposition. Reazione che intercetta un attacco diretto a un alleato: E5 (nessuno slot
+	// Reazione) e per giunta richiede di RIDIRIGERE un colpo, cioe' di modificare un intento altrui gia'
+	// pianificato — cosa che il motore azioni oggi non prevede in nessuna forma. Slot None, non
+	// interrompibile, nessun effetto.
+	Bastion->Actions.Add(MakeHeroAction(TEXT("Bastion.Interposition"), ERTResolutionPhase::Preparation,
+		/*Priority*/ 32, /*Range*/ 2, /*Cooldown*/ 3, ERTActionFallback::Cancel, {},
+		ERTAbilityShape::Single, /*AreaRadius*/ 0, ERTActionSlot::None, /*bInterruptible*/ false));
+
+	// Variante di KineticPanel (vincolo v0.1: una sola abilita' fondamentale con variante per eroe).
+	// I due compromessi sono fatti di INTEGRITA' e DURATA, non di effetti: vivono in `Parameters` finche' E9
+	// non costruira' le strutture che li consumano.
+	FRTAbilityVariant Reinforced;
+	Reinforced.VariantId = TEXT("Bastion.KineticPanel.Reinforced");
+	Reinforced.DisplayName = FText::FromString(TEXT("Pannello rinforzato"));
+	Reinforced.Tradeoff = FText::FromString(TEXT("integrita' 45 invece di 30, ma dura un solo turno"));
+	Reinforced.Parameters.Add(TEXT("Integrity"), 45);
+	Reinforced.Parameters.Add(TEXT("DurationTurns"), 1);
+	Reinforced.Parameters.Add(TEXT("FreeRotations"), 0);
+
+	FRTAbilityVariant Adaptive;
+	Adaptive.VariantId = TEXT("Bastion.KineticPanel.Adaptive");
+	Adaptive.DisplayName = FText::FromString(TEXT("Pannello adattivo"));
+	Adaptive.Tradeoff = FText::FromString(TEXT("integrita' 25 invece di 30, ma una rotazione gratuita"));
+	Adaptive.Parameters.Add(TEXT("Integrity"), 25);
+	// Durata 0 = "non scade da sola" (il pannello base del catalogo terreni non dichiara una durata): il
+	// rinforzato la compra con la fragilita' del tempo, l'adattivo con quella dell'integrita'.
+	Adaptive.Parameters.Add(TEXT("DurationTurns"), 0);
+	Adaptive.Parameters.Add(TEXT("FreeRotations"), 1);
+
+	Bastion->Actions[1]->Variants.Add(Reinforced);
+	Bastion->Actions[1]->Variants.Add(Adaptive);
+
+	return Bastion;
+}
