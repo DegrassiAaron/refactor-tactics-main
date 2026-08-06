@@ -131,6 +131,64 @@ bool FRTHexMoveRejectsOutOfBudgetTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMoveBudgetCostsTest,
+	"RefactorTactics.HexMove.BudgetCostsInMatch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMoveBudgetCostsTest::RunTest(const FString&)
+{
+	// Il budget si spende in PUNTI MOVIMENTO, non in celle: su terreno difficile (costo 2) la stessa unita'
+	// arriva meno lontano. La libreria pura lo verifica gia' (HexSim.ReachableRespectsTerrainCost); qui si
+	// verifica che la PARTITA lo rispetti — cioe' che il TurnManager passi davvero i costi dell'asset.
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	// META' MAPPA difficile: TUTTE le celle a est (X > 0) costano 2. Non basta un corridoio: l'A* lo
+	// aggirerebbe dalle celle vicine a costo 1, e il test misurerebbe la deviazione invece del budget.
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 6))
+	{
+		FRTHexCellData Data(Id);
+		if (Id.X > 0)
+		{
+			Data.Surface = ERTHexSurface::Mud;
+			Data.MoveCost = 2; // terreno difficile del catalogo v0.1
+		}
+		Map->AddOrUpdateCell(Data);
+	}
+	Map->SortCells();
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Map;
+
+	ARTUnit* Mover = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	// Un avversario lontano e fermo: senza, la squadra 1 e' gia' eliminata e la partita finisce al primo
+	// turno (MatchEnded), quindi il secondo lock-in non risolverebbe nulla.
+	ARTUnit* Foe = SpawnHexUnit(World, 1, ERTArchetype::Guardian, FRTCellId(-5, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
+	Foe->PlannedCell = Foe->Cell;
+
+	// Budget 5: sul corridoio costoso bastano per 2 celle (2+2=4), non per 3 (6 > 5).
+	const int32 Budget = Mover->GetEffectiveMoveRange();
+	TestEqual(TEXT("il Ranger ha il budget standard"), Budget, 5);
+
+	Mover->PlannedCell = FRTCellId(3, 0); // costo 6: oltre il budget
+	RunTurn(TM);
+	TestTrue(TEXT("tre celle di terreno difficile costano piu' del budget: non ci arriva"),
+		!(Mover->Cell == FRTCellId(3, 0)));
+	TestTrue(TEXT("resta comunque su una cella valida"), Map->ContainsCell(Mover->Cell));
+
+	// Alla stessa distanza sul lato NORMALE (ovest, costo 1) ci arriva invece senza problemi: e' il COSTO a
+	// fermarla, non la distanza.
+	Mover->PlaceOnCell(FRTCellId(0, 0), FVector::ZeroVector, 100.f, 250.f);
+	Mover->PlannedCell = FRTCellId(-3, 0); // 3 celle a costo 1
+	Foe->PlannedCell = Foe->Cell;
+	RunTurn(TM);
+	TestTrue(TEXT("tre celle normali rientrano nello stesso budget"), Mover->Cell == FRTCellId(-3, 0));
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexDashReachesCellTest,
 	"RefactorTactics.HexMove.DashReachesCellOnHex",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
