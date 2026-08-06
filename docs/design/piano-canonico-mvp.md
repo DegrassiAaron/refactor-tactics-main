@@ -83,6 +83,29 @@ modding). Sono la **direzione futura**, non l'obiettivo attuale. Vedi §8.
 | Networking | core (lez. 9) | roadmap P0 post-tutorial | **Rimandato post-MVP**, ma architettura *server-authority-ready* | Si mantiene la disciplina di `02` come target |
 | Percorso progetto | `C:\Dev\...` | `D:\Dev\...` | **Radice del repo** | Il progetto UE vive nel repo versionato |
 
+### 3.0 Stato vigente delle decisioni superate (2026-08-06)
+
+La tabella sopra è la **riconciliazione dei due corsi** e resta leggibile come storia del progetto: alcune sue
+righe sono state superate da decisioni successive. Questa tabella dice, riga per riga, **cosa vale oggi** — così
+non serve ricostruirlo dai blocchi di revisione.
+
+| Riga superata (§3) | Valore vigente | Decisione |
+|---|---|---|
+| Griglia `10×10 @ 200 cm` | Griglia **esagonale** pointy-top, dimensione della cella dall'asset mappa | [ADR-0002](adr-0002-griglia-esagonale.md) |
+| Coord. cella `FRTGridCoord{X,Y}` | **`FRTCellId{X=q, Y=r, Layer}`** (assiale/cubica); `FRTGridCoord` **rimosso** dal codice (CP 6.1) | [ADR-0002](adr-0002-griglia-esagonale.md) |
+| Vittoria `Squadra eliminata` | Eliminazione **oppure** obiettivi **oppure** limite di **12 turni** (fine partita a tre vie) | [ADR-0003](adr-0003-modello-azioni-v01.md) |
+| Movimento `4 celle` / Dash `3` (§6) | **5 MP**, costo intero per cella (1 normale, 2 difficile/rampa); Sprint 8 MP; Dash/Charge/Leap a distanza fissa | [ADR-0003](adr-0003-modello-azioni-v01.md) |
+| Reazioni «north-star, escluse» (§8.2) | **In scope** per la v0.1: slot Reazione con trigger, **1 attivazione per turno** | [ADR-0003](adr-0003-modello-azioni-v01.md) |
+| Roster `2 archetipi` | **4 eroi** (Flux, Riva, Bastion, Vektor) con varianti d'equipaggiamento | [ADR-0003](adr-0003-modello-azioni-v01.md) |
+
+**Non** superato, e vale la pena ripeterlo perché il catalogo v0.1 dice altro: le **macro-fasi restano quelle di
+Atlas Reactor** — `Planning → Prep → Dash → Blast → Move → Cleanup`, con il **Move dopo il Blast**. I codici di
+fase del catalogo (0/10/20/30/40/50/60) sono un *attributo dell'azione*, rimappato sulle macro-fasi
+(ADR-0003 §3). Restano fermi anche UE **5.8.1** e il **no-GAS**.
+
+I valori numerici vigenti della v0.1 (azioni, terreni, equipaggiamento, eroi) vivono nei cataloghi versionati
+in [`balance/`](balance/), non in questo documento: qui restano le **decisioni**, lì i **numeri**.
+
 ### 3.1 Riconciliazione fonti PDF — path finding (2026-08-02)
 
 I 4 PDF (visione north-star) divergono su elementi *load-bearing* del path finding. Decisioni canoniche
@@ -220,12 +243,27 @@ reazione live né categorie di velocità/`EndOfPhase` (north-star, `spec-sequenz
 > **storico dell'MVP quadrato**; quelli vigenti per la v0.1 sono nei cataloghi di
 > `docs/design/balance/` (creati in CP 1.2, issue `#28`).
 
-| Parametro | Valore |
+**Valori vigenti** (v0.1, [ADR-0003](adr-0003-modello-azioni-v01.md); i dettagli per azione/eroe/terreno sono
+nei cataloghi di [`balance/`](balance/)):
+
+| Parametro | Valore vigente |
+|---|---|
+| Griglia | **esagonale** pointy-top, dimensione della cella dall'asset mappa (ADR-0002) |
+| Occupazione | max 1 unità/cella |
+| Movimento normale | **5 MP**, costo intero per cella (1 normale, 2 difficile/rampa) |
+| Mobilità rapida | Sprint 8 MP; Dash/Charge/Leap a **distanza fissa** dichiarata dall'azione |
+| Fine partita | eliminazione **oppure** obiettivi **oppure** limite di **12 turni** |
+| Reazioni | slot Reazione con trigger, **1 attivazione per turno** |
+| Timer pianificazione | 30 s (configurabile) |
+
+**Valori storici dell'MVP quadrato** (tabella conservata come riferimento di *parità*, non come regola vigente):
+
+| Parametro | Valore (storico) |
 |---|---|
 | Griglia | 10×10, cella 200 cm |
 | Occupazione | max 1 unità/cella |
-| Movimento normale | 4 celle |
-| Dash | 3 celle |
+| Movimento normale | 4 celle *(superato: 5 MP)* |
+| Dash | 3 celle *(superato: distanza fissa per azione)* |
 | HP unità | 100 |
 | Scudo base | 20 (assorbito prima degli HP) |
 | Attacco base | 30 |
@@ -289,10 +327,16 @@ da riconciliare se in futuro si adotta il modello a chunk multilivello.
 Il design esplorativo [`sequenza-turno.md`](sequenza-turno.md) (trascrizione del PDF omonimo) propone un
 modello di risoluzione molto più ricco: pianificazione segreta → **reveal progressivo** → **finestre di
 reazione** (stack LIFO stile *Magic*) → risoluzione con ordinamento **APNAP** → cleanup, con 5 categorie di
-velocità e budget di reazione. È **north-star**: **non modifica l'MVP** (che resta risoluzione deterministica
-"raccogli poi applica" a 4 fasi). Consolidamento, conflitti con gli invarianti #3/#4 e la sola parte adottabile
-a breve — **ordinamento deterministico degli effetti simultanei** (APNAP + tie-break totale) — in
+velocità e budget di reazione. Consolidamento, conflitti con gli invarianti #3/#4 e la parte adottata per prima
+— **ordinamento deterministico degli effetti simultanei** (APNAP + tie-break totale) — in
 [`spec-sequenza-turno.md`](spec-sequenza-turno.md).
+
+> **Aggiornamento 2026-08-06 ([ADR-0003](adr-0003-modello-azioni-v01.md), CP 1.1)**: le **reazioni non sono più
+> fuori scope**. La v0.1 adotta uno **slot Reazione** con trigger dichiarato e **1 attivazione per turno**
+> (epic **E5**). Resta north-star tutto il resto di questo modello: stack LIFO, finestre di reazione *live*,
+> reveal progressivo e le 5 categorie di velocità — che confliggerebbero con la risoluzione "raccogli poi
+> applica" (invariante #3). La reazione della v0.1 è **deterministica e senza finestre**: il trigger si valuta
+> nello snapshot della fase, non in una finestra interattiva.
 
 ---
 
