@@ -266,4 +266,42 @@ bool FRTHexCornersTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Punto da inquadrare per un gruppo di celle: la media dei loro centri. Serve alla camera per partire sulla
+ * squadra del giocatore invece che sul centro della mappa. Nessuna decisione di gioco: sola geometria.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexCentroidTest,
+	"RefactorTactics.Hex.CellsCentroidWorld",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexCentroidTest::RunTest(const FString&)
+{
+	const FVector Origin(500.0, -200.0, 30.0);
+	const float HexSize = 100.f;
+	const float LayerHeight = 250.f;
+
+	// Nessuna cella: si ripiega sull'origine, non su un punto arbitrario.
+	TestTrue(TEXT("insieme vuoto -> origine"),
+		URTHexLibrary::CellsCentroidWorld({}, Origin, HexSize, LayerHeight).Equals(Origin, 0.01));
+
+	// Una cella: esattamente il suo centro.
+	const FRTCellId Single(2, -1, 0);
+	TestTrue(TEXT("una cella -> il suo centro"),
+		URTHexLibrary::CellsCentroidWorld({ Single }, Origin, HexSize, LayerHeight)
+			.Equals(URTHexLibrary::AxialToWorld(Single, Origin, HexSize, LayerHeight), 0.01));
+
+	// Due celle: il punto medio fra i due centri (e' cio' che rende l'inquadratura "sulla squadra").
+	const FRTCellId A(0, 0, 0);
+	const FRTCellId B(4, 0, 0);
+	const FVector WA = URTHexLibrary::AxialToWorld(A, Origin, HexSize, LayerHeight);
+	const FVector WB = URTHexLibrary::AxialToWorld(B, Origin, HexSize, LayerHeight);
+	TestTrue(TEXT("due celle -> punto medio"),
+		URTHexLibrary::CellsCentroidWorld({ A, B }, Origin, HexSize, LayerHeight).Equals((WA + WB) * 0.5, 0.01));
+
+	// L'ordine dell'input non cambia il risultato.
+	TestTrue(TEXT("ordine irrilevante"),
+		URTHexLibrary::CellsCentroidWorld({ B, A }, Origin, HexSize, LayerHeight)
+			.Equals(URTHexLibrary::CellsCentroidWorld({ A, B }, Origin, HexSize, LayerHeight), 0.01));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

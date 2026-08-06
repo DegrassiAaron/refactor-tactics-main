@@ -35,6 +35,15 @@ public:
 	 */
 	void FocusOn(const FVector& WorldLocation);
 
+	/**
+	 * Inquadra la squadra del giocatore: centra sul punto medio delle sue unita' e avvicina a
+	 * `MatchStartArmLength`. Ritorna falso se non c'e' nulla da inquadrare (nessuna mappa, o nessuna unita'
+	 * della propria squadra ancora nel mondo), cosi' il chiamante puo' riprovare o ripiegare su `RecenterView`.
+	 *
+	 * Sola presentazione: legge lo stato, non lo cambia.
+	 */
+	bool FrameOwnTeam();
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -53,6 +62,14 @@ protected:
 	/** Distanza (arm length) iniziale all'avvio: piu' piccola = piu' vicino alla mappa. Tra Min e Max. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")
 	float DefaultArmLength = 800.f;
+
+	/**
+	 * Distanza all'avvio della partita, quando la camera si posiziona sulla squadra del giocatore: piu' piccola
+	 * di `DefaultArmLength` perche' si parte guardando le proprie unita', non l'intera mappa. `Home`
+	 * (`RecenterView`) resta a `DefaultArmLength`: sono due inquadrature diverse.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")
+	float MatchStartArmLength = 450.f;
 
 	/** Zoom minimo (piu' piccolo = primo piano piu' ravvicinato sui personaggi). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")
