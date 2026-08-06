@@ -404,7 +404,24 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		return;
 	}
 
-	// Click su una cella della mappa con un'unita' selezionata -> pianifica movimento o scatto.
+	// Click sulla mappa: la CELLA si ricava dalla quota del punto colpito (ponte vs terra), poi decide
+	// HandleClickOnCell — che e' guidabile dai test senza viewport.
+	{
+		FVector HitOrigin; float HitHexSize; float HitLayerH; const URTHexMapAsset* HitMap = nullptr;
+		if (HexMapWithContext(GetWorld(), HitOrigin, HitHexSize, HitLayerH, HitMap))
+		{
+			HandleClickOnCell(URTHexLibrary::WorldToCellId(Hit.Location, HitOrigin, HitHexSize, HitLayerH));
+		}
+		else
+		{
+			UE_LOG(LogRT, Warning, TEXT("[RT] Nessuna mappa esagonale nel livello: pianificazione non disponibile"));
+		}
+	}
+}
+
+void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
+{
+	ARTUnit* SelectedUnit = GetSelectedUnit();
 	if (!SelectedUnit)
 	{
 		return;
@@ -417,9 +434,6 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		UE_LOG(LogRT, Warning, TEXT("[RT] Nessuna mappa esagonale nel livello: pianificazione non disponibile"));
 		return;
 	}
-
-	// Cella cliccata: il layer viene dalla quota del punto colpito (ponte vs terra).
-	const FRTCellId Cell = URTHexLibrary::WorldToCellId(Hit.Location, Origin, HexSize, LayerH);
 	if (!Map->ContainsCell(Cell))
 	{
 		return; // click fuori dalla mappa: nessun piano, nessun rumore nel log

@@ -101,4 +101,22 @@ protected:
 public:
 	/** Unita' attualmente selezionata dal giocatore (nullo se nessuna). */
 	class ARTUnit* GetSelectedUnit() const;
+
+	/**
+	 * Decide cosa fare per un click su una CELLA: waypoint di movimento, scatto, oppure rifiuto col motivo.
+	 *
+	 * Separata dal raycast (`OnSelect` fa solo punto-mondo -> cella) perche' la decisione e' verificabile
+	 * headless mentre il raycast no: richiede un viewport. Stessa disciplina di `PlanBotsForTest`.
+	 * NON e' una scorciatoia per l'autorita': valida sempre sullo snapshot del TurnManager.
+	 */
+	void HandleClickOnCell(const FRTCellId& Cell);
+
+	/**
+	 * Seleziona un actor come farebbe un click su di esso (per i test dell'interazione). Prende `AActor*` e non
+	 * `ARTUnit*` perche' qui `ARTUnit` e' solo dichiarato: la conversione al puntatore base non sarebbe visibile.
+	 */
+	void SelectActorForTest(AActor* Actor) { SelectedActor = Actor; }
+
+	/** Ricostruisce il percorso dai waypoint correnti, come fa l'annullamento (per i test dell'interazione). */
+	void RebuildPlannedPathForTest() { RebuildPlannedPath(); }
 };
