@@ -6,8 +6,8 @@
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Map/RTHexLibrary.h"
-#include "Ability/RTAbilityData.h"
-#include "Bot/RTBotLibrary.h"
+#include "Ability/RTActionData.h"
+#include "Bot/RTHexBotLibrary.h"
 #include "Core/RTGameplayTags.h"
 #include "Grid/RTGridActor.h"
 #include "Grid/RTGridLibrary.h"
@@ -83,7 +83,7 @@ void ARTTurnManager::PlanBots()
 		bool bUsedSupport = false;
 		for (int32 A = 0; A < Bot->NumAbilities(); ++A)
 		{
-			const URTAbilityData* Ab = Bot->GetAbility(A);
+			const URTActionData* Ab = Bot->GetAbility(A);
 			if (Ab && Ab->bSelfTarget && Bot->CanUseAbility(A) && Bot->Health * 2 < Bot->MaxHealth)
 			{
 				Bot->PlannedAbilityIndex = A;
@@ -122,7 +122,7 @@ void ARTTurnManager::PlanBots()
 			int32 EnemyReach = Other->AttackRange;
 			for (int32 a = 0; a < Other->NumAbilities(); ++a)
 			{
-				const URTAbilityData* EAb = Other->GetAbility(a);
+				const URTActionData* EAb = Other->GetAbility(a);
 				if (EAb && !EAb->bDash) { EnemyReach = FMath::Max(EnemyReach, EAb->RangeCells); }
 			}
 			Ctx.Enemies.Add(Other->Cell);
@@ -140,7 +140,7 @@ void ARTTurnManager::PlanBots()
 
 		// Scatto disponibile per questo turno (serve sia alla fuga sia alle candidate di riposizionamento).
 		const int32 DashIdx = Bot->FindDashAbilityIndex();
-		const URTAbilityData* DashAb = Bot->GetAbility(DashIdx);
+		const URTActionData* DashAb = Bot->GetAbility(DashIdx);
 		const bool bDashReady = DashAb && DashAb->bDash && Bot->CanUseAbility(DashIdx);
 		const int32 DashBudget = bDashReady ? Bot->GetEffectiveDashRange(DashAb->RangeCells) : 0;
 
@@ -204,7 +204,7 @@ void ARTTurnManager::PlanBots()
 		StaySnapshot.Units[BotIdx].MoveBudget = 0;
 		for (int32 A = 0; A < Bot->NumAbilities(); ++A)
 		{
-			const URTAbilityData* Ability = Bot->GetAbility(A);
+			const URTActionData* Ability = Bot->GetAbility(A);
 			if (!Ability || Ability->bDash || Ability->bSelfTarget || !Bot->CanUseAbility(A)) { continue; }
 			AddCandidates(StaySnapshot, A, Ability->RangeCells, Ability->Power, /*bViaDash*/ false, /*bAttacksOnly*/ true);
 		}
@@ -214,7 +214,7 @@ void ARTTurnManager::PlanBots()
 		{
 			for (int32 A = 0; A < Bot->NumAbilities(); ++A)
 			{
-				const URTAbilityData* Ability = Bot->GetAbility(A);
+				const URTActionData* Ability = Bot->GetAbility(A);
 				if (!Ability || Ability->bDash || Ability->bSelfTarget || !Bot->CanUseAbility(A)) { continue; }
 				AddCandidates(DashSnapshot, A, Ability->RangeCells, Ability->Power, /*bViaDash*/ true, /*bAttacksOnly*/ true);
 			}
@@ -473,7 +473,7 @@ void ARTTurnManager::ResolvePrep()
 			continue;
 		}
 		const int32 Index = Unit->PlannedAbilityIndex;
-		const URTAbilityData* Ability = Unit->GetAbility(Index);
+		const URTActionData* Ability = Unit->GetAbility(Index);
 		if (Ability && Ability->bSelfTarget && Unit->CanUseAbility(Index))
 		{
 			Unit->Shield += Ability->Power;
@@ -512,7 +512,7 @@ void ARTTurnManager::ResolveDash()
 
 		const int32 DashIdx = Unit->PlannedDashAbility;
 		Unit->PlannedDashAbility = INDEX_NONE; // consumato per questo turno (valido o no)
-		const URTAbilityData* Dash = Unit->GetAbility(DashIdx);
+		const URTActionData* Dash = Unit->GetAbility(DashIdx);
 		if (!Dash || !Dash->bDash || !Unit->CanUseAbility(DashIdx) || Unit->PlannedDashCell == Unit->Cell)
 		{
 			continue;
@@ -626,7 +626,7 @@ void ARTTurnManager::ResolveCombat()
 	// la GEOMETRIA (portata, linea di tiro, celle colpite) la valida URTHexCombatLibrary.
 	TArray<FRTHexAttackIntent> Intents;
 	TArray<int32> IntentAbilityIndex;
-	TArray<const URTAbilityData*> IntentAbility;
+	TArray<const URTActionData*> IntentAbility;
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Units[i];
@@ -635,7 +635,7 @@ void ARTTurnManager::ResolveCombat()
 		Unit->PlannedAttackTarget = nullptr; // consumati nel turno
 		Unit->PlannedAbilityIndex = INDEX_NONE;
 
-		const URTAbilityData* Ability = Unit->GetAbility(AbilityIndex);
+		const URTActionData* Ability = Unit->GetAbility(AbilityIndex);
 		if (!Ability || Ability->bDash || !Target || !IndexOf.Contains(Target) || !Unit->CanUseAbility(AbilityIndex))
 		{
 			continue;
@@ -691,7 +691,7 @@ void ARTTurnManager::ResolveCombat()
 	{
 		ARTUnit* Attacker = Units[Hit.AttackerId];
 		ARTUnit* Victim = Units[Hit.TargetId];
-		const URTAbilityData* Ability = IntentAbility.IsValidIndex(Hit.IntentIndex) ? IntentAbility[Hit.IntentIndex] : nullptr;
+		const URTActionData* Ability = IntentAbility.IsValidIndex(Hit.IntentIndex) ? IntentAbility[Hit.IntentIndex] : nullptr;
 		AttackSrc.Add(HexUnits[Hit.AttackerId].Cell);
 
 		if (Ability && Ability->StatusToApply.IsValid() && Ability->StatusDuration > 0)
@@ -844,7 +844,7 @@ void ARTTurnManager::ResolveCombat()
 		{
 			continue;
 		}
-		const URTAbilityData* Ability = Attacker->GetAbility(UsedAbilityIndex[i]);
+		const URTActionData* Ability = Attacker->GetAbility(UsedAbilityIndex[i]);
 		Attacker->ConsumeAbility(UsedAbilityIndex[i]);
 		if (Ability && Ability->EnergyCost > 0)
 		{

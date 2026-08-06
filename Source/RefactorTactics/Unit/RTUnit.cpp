@@ -2,7 +2,7 @@
 #include "Grid/RTGridLibrary.h" // solo DirectionYaw: lavora su FVector, resta valida anche su hex
 #include "Map/RTHexLibrary.h"
 #include "Combat/RTCombatLibrary.h"
-#include "Ability/RTAbilityData.h"
+#include "Ability/RTActionData.h"
 #include "Core/RTGameplayTags.h"
 #include "RefactorTactics.h"
 #include "Components/StaticMeshComponent.h"
@@ -238,10 +238,10 @@ int32 ARTUnit::GetEffectiveDashRange(int32 BaseRange) const
 	return URTCombatLibrary::EffectiveMoveRange(BaseRange, HasStatus(TAG_Status_Root), HasStatus(TAG_Status_Slow));
 }
 
-URTAbilityData* ARTUnit::MakeAbility(const FString& Name, int32 Range, int32 Power, int32 Area,
+URTActionData* ARTUnit::MakeAbility(const FString& Name, int32 Range, int32 Power, int32 Area,
 	int32 Cooldown, int32 EnergyCost, FGameplayTag Status, int32 StatusDur)
 {
-	URTAbilityData* Ability = NewObject<URTAbilityData>(this);
+	URTActionData* Ability = NewObject<URTActionData>(this);
 	Ability->DisplayName = FText::FromString(Name);
 	Ability->RangeCells = Range;
 	Ability->Power = Power;
@@ -264,7 +264,7 @@ void ARTUnit::EnsureDefaultAbilities()
 	Abilities.Add(MakeAbility(TEXT("Colpo pesante"), FMath::Max(1, AttackRange - 1), AttackPower + 20, 0, 2, 0, FGameplayTag(), 0));
 	Abilities.Add(MakeAbility(TEXT("Ultimate"), AttackRange, AttackPower * UltimateMultiplier, UltimateRadius, 0, MaxEnergy, TAG_Status_Slow, 2));
 	// Scatto generico (fase Dash): riposizionamento rapido oltre il range di movimento, ricarica 2 turni.
-	URTAbilityData* Scatto = MakeAbility(TEXT("Scatto"), MoveRange + 2, 0, 0, 2, 0, FGameplayTag(), 0);
+	URTActionData* Scatto = MakeAbility(TEXT("Scatto"), MoveRange + 2, 0, 0, 2, 0, FGameplayTag(), 0);
 	Scatto->bDash = true;
 	Abilities.Add(Scatto);
 }
@@ -293,14 +293,14 @@ void ARTUnit::ConfigureAsArchetype(ERTArchetype InArchetype)
 		BaseMeshScale = FVector(1.0f, 1.0f, 2.0f); // snello e alto
 		Abilities.Add(MakeAbility(TEXT("Tiro"), 6, 25, 0, 0, 0, FGameplayTag(), 0));
 		// Colpo preciso: perfora la traiettoria e "rivela" il bersaglio (intento visibile per 1 turno).
-		URTAbilityData* Precise = MakeAbility(TEXT("Colpo preciso"), 7, 40, 0, 2, 0, TAG_Status_Reveal, 2);
+		URTActionData* Precise = MakeAbility(TEXT("Colpo preciso"), 7, 40, 0, 2, 0, TAG_Status_Reveal, 2);
 		Precise->Shape = ERTAbilityShape::Line;
 		Abilities.Add(Precise);
-		URTAbilityData* Raffica = MakeAbility(TEXT("Raffica"), 6, 50, 1, 0, MaxEnergy, TAG_Status_Slow, 2); // AoE + Slow
+		URTActionData* Raffica = MakeAbility(TEXT("Raffica"), 6, 50, 1, 0, MaxEnergy, TAG_Status_Slow, 2); // AoE + Slow
 		Raffica->bIgnites = true; // raffica infuocata: incendia il terreno infiammabile nell'area
 		Abilities.Add(Raffica);
 		// Scatto: riposizionamento rapido (fase Dash), 5 celle, ricarica 2 turni. Il Ranger e' mobile.
-		URTAbilityData* Scatto = MakeAbility(TEXT("Scatto"), 5, 0, 0, 2, 0, FGameplayTag(), 0);
+		URTActionData* Scatto = MakeAbility(TEXT("Scatto"), 5, 0, 0, 2, 0, FGameplayTag(), 0);
 		Scatto->bDash = true;
 		Abilities.Add(Scatto);
 	}
@@ -309,17 +309,17 @@ void ARTUnit::ConfigureAsArchetype(ERTArchetype InArchetype)
 		MaxHealth = 140; Shield = 20;  MoveRange = 3;  AttackRange = 3;  AttackPower = 30;
 		KiteStandoff = 0; // mischia: non fa kiting, punta a chiudere la distanza
 		BaseMeshScale = FVector(1.5f, 1.5f, 1.6f); // tozzo e largo
-		URTAbilityData* Sweep = MakeAbility(TEXT("Spazzata"), 3, 30, 0, 0, 0, FGameplayTag(), 0);
+		URTActionData* Sweep = MakeAbility(TEXT("Spazzata"), 3, 30, 0, 0, 0, FGameplayTag(), 0);
 		Sweep->Shape = ERTAbilityShape::Cone; // colpisce a ventaglio davanti
 		Sweep->bKnockback = true;             // e RESPINGE i colpiti di 2 celle (spinge oltre il bordo/nella lava)
 		Sweep->KnockbackDistance = 2;
 		Abilities.Add(Sweep);
-		URTAbilityData* Barrier = MakeAbility(TEXT("Barriera"), 0, 40, 0, 3, 0, FGameplayTag(), 0);
+		URTActionData* Barrier = MakeAbility(TEXT("Barriera"), 0, 40, 0, 3, 0, FGameplayTag(), 0);
 		Barrier->bSelfTarget = true; // supporto: +40 scudo su se stessi (fase Prep)
 		Abilities.Add(Barrier);
 		Abilities.Add(MakeAbility(TEXT("Terremoto"), 3, 40, 2, 0, MaxEnergy, TAG_Status_Root, 2)); // AoE ampio + Root
 		// Carica: scatto d'irruzione (fase Dash), 4 celle per chiudere la distanza, ricarica 3 turni.
-		URTAbilityData* Carica = MakeAbility(TEXT("Carica"), 4, 0, 0, 3, 0, FGameplayTag(), 0);
+		URTActionData* Carica = MakeAbility(TEXT("Carica"), 4, 0, 0, 3, 0, FGameplayTag(), 0);
 		Carica->bDash = true;
 		Abilities.Add(Carica);
 	}
@@ -331,7 +331,7 @@ void ARTUnit::ConfigureAsArchetype(ERTArchetype InArchetype)
 	}
 }
 
-URTAbilityData* ARTUnit::GetAbility(int32 Index) const
+URTActionData* ARTUnit::GetAbility(int32 Index) const
 {
 	return Abilities.IsValidIndex(Index) ? Abilities[Index] : nullptr;
 }
@@ -343,7 +343,7 @@ int32 ARTUnit::GetAbilityCooldown(int32 Index) const
 
 bool ARTUnit::CanUseAbility(int32 Index) const
 {
-	const URTAbilityData* Ability = GetAbility(Index);
+	const URTActionData* Ability = GetAbility(Index);
 	return Ability && URTCombatLibrary::IsAbilityUsable(GetAbilityCooldown(Index), Energy, Ability->EnergyCost);
 }
 
@@ -357,7 +357,7 @@ void ARTUnit::SelectAbility(int32 Index)
 
 void ARTUnit::ConsumeAbility(int32 Index)
 {
-	const URTAbilityData* Ability = GetAbility(Index);
+	const URTActionData* Ability = GetAbility(Index);
 	if (!Ability)
 	{
 		return;

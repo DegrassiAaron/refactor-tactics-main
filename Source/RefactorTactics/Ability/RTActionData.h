@@ -3,28 +3,52 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "GameplayTagContainer.h"
-#include "RTAbilityData.generated.h"
+#include "Ability/RTActionDef.h"
+#include "RTActionData.generated.h"
 
-/** Forma dell'area colpita da un'abilita'. */
+/** Forma dell'area colpita da un'azione. */
 UENUM(BlueprintType)
 enum class ERTAbilityShape : uint8
 {
 	Single, // solo il bersaglio
-	Area,   // diamante di raggio AreaRadius attorno al bersaglio
+	Area,   // esagono pieno di raggio AreaRadius attorno al bersaglio
 	Line,   // celle sulla traiettoria dall'attaccante al bersaglio
-	Cone    // ventaglio dall'attaccante nella direzione del bersaglio
+	Cone    // ventaglio di 120 gradi dall'attaccante verso il bersaglio
 };
 
 /**
- * Definizione data-driven di un'abilita' (Primary Data Asset).
- * Consente di creare varianti (eroi/attacchi diversi) come contenuto, senza toccare il C++.
+ * Definizione data-driven di un'AZIONE (Primary Data Asset): identita' e parametri del catalogo (`Def`) piu'
+ * gli effetti concreti che il resolver applica.
+ *
+ * Era `URTAbilityData`: rinominata al CP 1.3 perche' il catalogo v0.1 parla di *azioni* con ID stabili
+ * (`Action.Move`, `Action.HeavyAttack`), e due definizioni parallele — una per le "abilita" del codice e una
+ * per le "azioni" del catalogo — avrebbero diviso in due la stessa cosa. Il rename e' stato possibile senza
+ * redirector perche' nessun asset referenziava la classe (le abilita' sono create in codice).
+ *
+ * I campi di effetto qui sotto restano quelli dell'MVP; il motore azioni dell'epic E4 li rileggera' dal
+ * catalogo (docs/design/balance/RT_ActionCatalog_v0.1.md).
  */
 UCLASS(BlueprintType)
-class REFACTORTACTICS_API URTAbilityData : public UPrimaryDataAsset
+class REFACTORTACTICS_API URTActionData : public UPrimaryDataAsset
 {
 	GENERATED_BODY()
 
 public:
+	/**
+	 * Identita' e parametri di catalogo dell'azione (ID stabile, fase dichiarata, priorita', costo, fallback).
+	 * Vuoto per le abilita' create in codice prima del motore azioni: `ActionId` assente = azione non ancora
+	 * catalogata, non un errore.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	FRTActionDef Def;
+
+	/** ID primario stabile: `RTAction:<ActionId>`; senza ActionId ricade sul nome dell'asset. */
+	virtual FPrimaryAssetId GetPrimaryAssetId() const override
+	{
+		static const FPrimaryAssetType Type(TEXT("RTAction"));
+		return FPrimaryAssetId(Type, Def.ActionId.IsNone() ? GetFName() : Def.ActionId);
+	}
+
 	/** Nome mostrato (UI/log). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
 	FText DisplayName;

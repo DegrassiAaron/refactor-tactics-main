@@ -10,7 +10,7 @@
 class UStaticMeshComponent;
 class UMaterialInstanceDynamic;
 class UMaterialInterface;
-class URTAbilityData;
+class URTActionData;
 
 /** Archetipi dell'unita' con statistiche e abilita' distinte. */
 UENUM(BlueprintType)
@@ -91,7 +91,7 @@ public:
 
 	/** Abilita' data-driven dell'unita' (se vuota, popolata con default in codice all'avvio). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
-	TArray<TObjectPtr<URTAbilityData>> Abilities;
+	TArray<TObjectPtr<URTActionData>> Abilities;
 
 	/** Abilita' selezionata dal giocatore per la pianificazione. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Ability")
@@ -141,7 +141,7 @@ public:
 	void ConfigureAsArchetype(ERTArchetype InArchetype);
 
 	int32 NumAbilities() const { return Abilities.Num(); }
-	URTAbilityData* GetAbility(int32 Index) const;
+	URTActionData* GetAbility(int32 Index) const;
 
 	/** Indice della prima abilita' di scatto (bDash), o INDEX_NONE se l'unita' non ne ha. */
 	int32 FindDashAbilityIndex() const;
@@ -200,7 +200,7 @@ private:
 	void EnsureDefaultAbilities();
 
 	/** Crea un'abilita' data-driven in codice. */
-	URTAbilityData* MakeAbility(const FString& Name, int32 Range, int32 Power, int32 Area,
+	URTActionData* MakeAbility(const FString& Name, int32 Range, int32 Power, int32 Area,
 		int32 Cooldown, int32 EnergyCost, FGameplayTag Status, int32 StatusDur);
 
 public:

@@ -9,7 +9,7 @@
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
 #include "Unit/RTUnit.h"
-#include "Ability/RTAbilityData.h"
+#include "Ability/RTActionData.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Turn/RTTurnManager.h"
 #include "Core/RTTypes.h"
@@ -295,7 +295,7 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	if (ClickedUnit && SelectedUnit && ClickedUnit != SelectedUnit && ClickedUnit->TeamId != SelectedUnit->TeamId)
 	{
 		const int32 AbilityIndex = SelectedUnit->SelectedAbilityIndex;
-		const URTAbilityData* Ability = SelectedUnit->GetAbility(AbilityIndex);
+		const URTActionData* Ability = SelectedUnit->GetAbility(AbilityIndex);
 		if (Ability && Ability->bDash)
 		{
 			UE_LOG(LogRT, Log, TEXT("[RT] Lo scatto si pianifica su una CELLA, non su un nemico"));
@@ -402,7 +402,7 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	// Se l'abilita' selezionata e' uno SCATTO, si pianifica un DASH verso questa cella (fase Dash),
 	// invece di un waypoint di movimento normale.
 	const int32 SelIdx = SelectedUnit->SelectedAbilityIndex;
-	const URTAbilityData* SelAb = SelectedUnit->GetAbility(SelIdx);
+	const URTActionData* SelAb = SelectedUnit->GetAbility(SelIdx);
 	if (SelAb && SelAb->bDash)
 	{
 		if (!SelectedUnit->CanUseAbility(SelIdx))
@@ -502,7 +502,7 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 		return;
 	}
 	Unit->SelectAbility(Index);
-	const URTAbilityData* Ability = Unit->GetAbility(Index);
+	const URTActionData* Ability = Unit->GetAbility(Index);
 	if (!Ability)
 	{
 		return;

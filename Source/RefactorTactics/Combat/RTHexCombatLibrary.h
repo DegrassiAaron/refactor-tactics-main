@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
-#include "Ability/RTAbilityData.h"
+#include "Ability/RTActionData.h"
 #include "Combat/RTCombatResolver.h"
 #include "Map/RTCellId.h"
 #include "RTHexCombatLibrary.generated.h"

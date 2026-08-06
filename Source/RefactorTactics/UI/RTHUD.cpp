@@ -1,6 +1,6 @@
 #include "UI/RTHUD.h"
 #include "Unit/RTUnit.h"
-#include "Ability/RTAbilityData.h"
+#include "Ability/RTActionData.h"
 #include "Player/RTPlayerController.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnRules.h"
@@ -144,7 +144,7 @@ void ARTHUD::DrawHUD()
 			}
 
 			const bool bOwn = (Unit->TeamId == PlayerTeam);
-			const URTAbilityData* Planned = Unit->GetAbility(Unit->PlannedAbilityIndex);
+			const URTActionData* Planned = Unit->GetAbility(Unit->PlannedAbilityIndex);
 			const bool bMoving = (Unit->PlannedCell != Unit->Cell);
 			const bool bHasPlan = bMoving || Unit->PlannedAttackTarget != nullptr || Planned != nullptr || Unit->PlannedDashAbility != INDEX_NONE;
 			if (bOwn && !bHasPlan)
@@ -304,7 +304,7 @@ void ARTHUD::DrawHUD()
 			const float X = Canvas->SizeX * 0.45f;
 			for (int32 A = 0; A < Sel->NumAbilities(); ++A)
 			{
-				const URTAbilityData* Ability = Sel->GetAbility(A);
+				const URTActionData* Ability = Sel->GetAbility(A);
 				if (!Ability)
 				{
 					continue;
