@@ -785,7 +785,7 @@ Aggiungere gli include in testa al file, accanto agli altri:
 	}
 ```
 
-**4d.** In `ResolveTurn()`, immediatamente **prima** di `if (bEnablePlayback && ResolvedTimeline.Num() > 0)` (riga 385):
+**4d.** Sempre in `LockInAndResolve()` — le righe 318-391 sono **tutte in questa funzione**, non esiste nessuna `ResolveTurn()` — immediatamente **prima** di `if (bEnablePlayback && ResolvedTimeline.Num() > 0)` (riga 385):
 
 ```cpp
 	// Il playback di QUESTO turno parte da zero anche se non verra' riprodotto: senza, il ramo senza
@@ -985,7 +985,9 @@ In `OnSelect`, nel ramo di selezione, dentro `if (HitActor != SelectedActor)` (r
 
 - [ ] **Step 5: Aggancio sull'abilità scelta da tastiera**
 
-In `ARTPlayerController::SelectAbilityForCurrent(int32 Index)` — è l'imbuto unico dei tasti 1-4 (righe 541-544), quindi **un solo punto invece di quattro** — come ultima istruzione della funzione, dopo che l'abilità è stata assegnata:
+In `ARTPlayerController::SelectAbilityForCurrent(int32 Index)` (riga 507) — è l'imbuto unico dei tasti 1-4 (righe 541-544), quindi **un solo punto invece di quattro** — subito **dopo `Unit->SelectAbility(Index);`** (riga 514).
+
+Non «in fondo alla funzione»: sotto ci sono due `return` anticipati (`:510` nessuna unità, `:516` nessuna abilità) e il ramo `bSelfTarget` (`:521`), quindi «l'ultima istruzione» non è un punto unico. La riga 514 è invece dove l'intenzione del giocatore è già registrata, ed è attraversata da ogni pressione di tasto che produca un effetto:
 
 ```cpp
 	if (ARTTurnManager* TM = PacingTurnManager(this))
