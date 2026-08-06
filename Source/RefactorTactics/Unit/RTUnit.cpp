@@ -271,8 +271,6 @@ URTActionData* ARTUnit::MakeAbility(const FString& Name, int32 Range, int32 Powe
 	Ability->Shape = (Area > 0) ? ERTAbilityShape::Area : ERTAbilityShape::Single;
 	Ability->CooldownTurns = Cooldown;
 	Ability->EnergyCost = EnergyCost;
-	Ability->StatusToApply = Status;
-	Ability->StatusDuration = StatusDur;
 	return Ability;
 }
 
@@ -333,8 +331,8 @@ void ARTUnit::ConfigureAsArchetype(ERTArchetype InArchetype)
 		BaseMeshScale = FVector(1.5f, 1.5f, 1.6f); // tozzo e largo
 		URTActionData* Sweep = MakeAbility(TEXT("Spazzata"), 3, 30, 0, 0, 0, FGameplayTag(), 0);
 		Sweep->Shape = ERTAbilityShape::Cone; // colpisce a ventaglio davanti
-		Sweep->bKnockback = true;             // e RESPINGE i colpiti di 2 celle (spinge oltre il bordo/nella lava)
-		Sweep->KnockbackDistance = 2;
+		// La spinta di 2 celle e' dichiarata come EFFETTO nel catalogo (Guardian.Sweep: Damage + Push),
+		// non come flag letto dal resolver.
 		Abilities.Add(Sweep);
 		URTActionData* Barrier = MakeAbility(TEXT("Barriera"), 0, 40, 0, 3, 0, FGameplayTag(), 0);
 		Barrier->bSelfTarget = true; // supporto: +40 scudo su se stessi (fase Prep)

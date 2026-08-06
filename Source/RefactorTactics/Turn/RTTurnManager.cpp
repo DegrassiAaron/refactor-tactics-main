@@ -672,7 +672,20 @@ void ARTTurnManager::ResolveCombat()
 		Intent.Shape = Ability->Shape;
 		Intent.RangeCells = Ability->RangeCells;
 		Intent.AreaRadius = Ability->AreaRadius;
-		Intent.Power = URTCombatLibrary::EffectiveAttackPower(Ability->Power, /*OccupantDamageBonus=*/ 0);
+		// Danno DICHIARATO dagli effetti dell'azione: e' il catalogo a dirlo. Il campo legacy `Power` resta
+		// come ripiego per le abilita' non ancora catalogate (quelle generiche di EnsureDefaultAbilities):
+		// finche' esistono, toglierlo del tutto trasformerebbe i loro colpi in danno zero.
+		int32 DeclaredDamage = 0;
+		for (const FRTActionEffectSpec& Spec : Ability->Def.Effects)
+		{
+			if (Spec.Effect == ERTActionEffect::Damage)
+			{
+				DeclaredDamage = Spec.Amount;
+				break;
+			}
+		}
+		Intent.Power = URTCombatLibrary::EffectiveAttackPower(
+			DeclaredDamage > 0 ? DeclaredDamage : Ability->Power, /*OccupantDamageBonus=*/ 0);
 		Intents.Add(Intent);
 		IntentAbilityIndex.Add(AbilityIndex);
 		IntentAbility.Add(Ability);
@@ -732,19 +745,41 @@ void ARTTurnManager::ResolveCombat()
 		const URTActionData* Ability = IntentAbility.IsValidIndex(Hit.IntentIndex) ? IntentAbility[Hit.IntentIndex] : nullptr;
 		AttackSrc.Add(HexUnits[Hit.AttackerId].Cell);
 
-		if (Ability && Ability->StatusToApply.IsValid() && Ability->StatusDuration > 0)
+		// Effetti COLLATERALI del colpo (stato, spinta) dagli EVENTI dichiarati dall'azione, non da flag
+		// letti qui: e' il motore azioni (epic E4). Il danno resta separato perche' segue una regola sua —
+		// si somma per bersaglio e si applica in blocco, cosi' l'ordine dei colpi non cambia l'esito.
+		if (Ability)
 		{
-			StatusTargets.Add(Victim);
-			StatusTags.Add(Ability->StatusToApply);
-			StatusDurations.Add(Ability->StatusDuration);
-		}
+			FRTActionInstance Instance;
+			Instance.Def = Ability->Def;
+			Instance.SourceUnitId = Hit.AttackerId;
+			Instance.TargetUnitId = Hit.TargetId;
+			Instance.TargetCell = HexUnits[Hit.TargetId].Cell;
+			Instance.EventSequence = Plan.Hits.Num();
 
-		// Knockback: registra l'intento di spinta (dalla cella dell'attaccante).
-		if (Ability && Ability->bKnockback && Ability->KnockbackDistance > 0)
-		{
-			KnockFrom.Add(Victim, HexUnits[Hit.AttackerId].Cell);
-			KnockDist.Add(Victim, Ability->KnockbackDistance);
-			KnockCount.FindOrAdd(Victim)++;
+			for (const FRTActionEvent& Event : URTActionEffectLibrary::ProduceEvents(Instance))
+			{
+				switch (Event.Kind)
+				{
+				case ERTActionEffect::Status:
+					StatusTargets.Add(Victim);
+					StatusTags.Add(Event.StatusTag);
+					StatusDurations.Add(Event.Amount);
+					break;
+
+				case ERTActionEffect::Push:
+					KnockFrom.Add(Victim, HexUnits[Hit.AttackerId].Cell);
+					KnockDist.Add(Victim, Event.Amount);
+					KnockCount.FindOrAdd(Victim)++;
+					break;
+
+				default:
+					// Il danno e' gia' nel piano dei colpi (Hit.Power); cure e scudi non appartengono a un
+					// colpo a segno. Nessun altro effetto ha senso qui: dichiararlo sarebbe un errore di
+					// catalogo, non un caso da gestire.
+					break;
+				}
+			}
 		}
 
 		// Evento per il playback: colpo Attacker -> Victim (mostrato nel Blast).
