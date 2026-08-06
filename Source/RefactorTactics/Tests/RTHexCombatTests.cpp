@@ -476,4 +476,41 @@ bool FRTHexCombatPermutationTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexAttackOnCellTest,
+	"RefactorTactics.HexCombat.AttackTargetsCellWithoutUnit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexAttackOnCellTest::RunTest(const FString&)
+{
+	// Quel che serve a `Fallback.AttackCell`: un intento puo' mirare a una CELLA (TargetId = INDEX_NONE), e
+	// l'area colpisce chi ci si trova. Senza, il fallback degli AoE non avrebbe dove far partire il colpo.
+	URTHexMapAsset* Map = MakeCombatMap(6);
+
+	TArray<FRTHexCombatUnit> Units;
+	FRTHexCombatUnit Attacker; Attacker.UnitId = 0; Attacker.TeamId = 0; Attacker.Cell = FRTCellId(0, 0);
+	FRTHexCombatUnit Victim;   Victim.UnitId = 1;   Victim.TeamId = 1;   Victim.Cell = FRTCellId(3, 0);
+	FRTHexCombatUnit Friend;   Friend.UnitId = 2;   Friend.TeamId = 0;   Friend.Cell = FRTCellId(2, 0);
+	Units.Add(Attacker); Units.Add(Victim); Units.Add(Friend);
+
+	FRTHexAttackIntent OnCell;
+	OnCell.AttackerId = 0;
+	OnCell.TargetId = INDEX_NONE;      // il bersaglio non c'e' piu': si mira dove era stato puntato
+	OnCell.TargetCell = FRTCellId(3, 0);
+	OnCell.Shape = ERTAbilityShape::Area;
+	OnCell.AreaRadius = 1;
+	OnCell.RangeCells = 5;
+	OnCell.Power = 20;
+
+	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, { OnCell }, Map);
+	TestEqual(TEXT("l'area colpisce chi si trova sulla cella mirata"), Plan.Hits.Num(), 1);
+	TestTrue(TEXT("e colpisce il nemico, non l'alleato adiacente"),
+		Plan.Hits.Num() == 1 && Plan.Hits[0].TargetId == 1);
+
+	// La cella mirata resta soggetta alla portata: non e' una scorciatoia per sparare piu' lontano.
+	FRTHexAttackIntent TooFar = OnCell;
+	TooFar.RangeCells = 2;
+	TestEqual(TEXT("cella fuori portata: nessun colpo"),
+		URTHexCombatLibrary::CollectHexAttacks(Units, { TooFar }, Map).Hits.Num(), 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

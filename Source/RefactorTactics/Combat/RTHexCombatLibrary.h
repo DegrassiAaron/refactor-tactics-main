@@ -50,8 +50,17 @@ struct FRTHexAttackIntent
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
 	int32 AttackerId = INDEX_NONE;
 
+	/**
+	 * Unita' bersaglio, oppure `INDEX_NONE` per mirare a una CELLA: e' il caso di `Fallback.AttackCell`, dove
+	 * il bersaglio e' sparito ma l'area parte lo stesso dove era stata puntata. Con `INDEX_NONE` il chiamante
+	 * DEVE valorizzare `TargetCell`: portata, linea di tiro e forma si calcolano su quella.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
 	int32 TargetId = INDEX_NONE;
+
+	/** Cella mirata quando non c'e' un'unita' bersaglio (`TargetId == INDEX_NONE`); ignorata altrimenti. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	FRTCellId TargetCell;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
 	ERTAbilityShape Shape = ERTAbilityShape::Single;

@@ -4,6 +4,7 @@
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTActionQueueLibrary.h"
 #include "Turn/RTActionEffectLibrary.h"
+#include "Turn/RTActionFallbackLibrary.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Combat/RTCombatResolver.h"
 #include "Combat/RTCombatLibrary.h"
@@ -732,14 +733,66 @@ void ARTTurnManager::ResolveCombat()
 		Unit->PlannedAbilityIndex = INDEX_NONE;
 
 		const URTActionData* Ability = Unit->GetAbility(AbilityIndex);
-		if (!Ability || Ability->bDash || !Target || !IndexOf.Contains(Target) || !Unit->CanUseAbility(AbilityIndex))
+		if (!Ability || Ability->bDash || !Unit->CanUseAbility(AbilityIndex))
 		{
-			continue;
+			continue; // nessuna azione di Blast pianificata: non c'e' un'azione da far fallire
+		}
+
+		// Da qui si ragiona su ISTANZE, non su puntatori: e' l'istanza che si valida e su cui si applica il
+		// fallback DICHIARATO dall'azione, in un punto solo (spec E4 §D5).
+		FRTActionInstance Instance;
+		Instance.Def = Ability->Def;
+		if (Instance.Def.ActionId.IsNone())
+		{
+			Instance.Def.RangeCells = Ability->RangeCells; // ponte per le abilita' non ancora catalogate (CP 4.5)
+		}
+		Instance.SourceUnitId = i;
+		Instance.TargetUnitId = (Target && IndexOf.Contains(Target)) ? IndexOf[Target] : INDEX_NONE;
+		Instance.TargetCell = Target ? Target->Cell : Unit->Cell;
+		Instance.EventSequence = Intents.Num();
+
+		// Un'azione di Blast senza bersaglio non e' un'azione «che non ne ha uno» (quelle sono il movimento e il
+		// supporto su se stessi, e risolvono altrove): e' un'azione che il bersaglio l'ha PERSO — eliminato e
+		// rimosso dal livello, o mai valido. Senza questa distinzione l'istanza risulterebbe valida e l'unita'
+		// finirebbe per puntare la propria cella.
+		const ERTActionInvalidReason Reason = (Instance.TargetUnitId == INDEX_NONE)
+			? ERTActionInvalidReason::TargetGone
+			: URTActionFallbackLibrary::ValidateInstance(Instance, HexUnits, Map);
+
+		// La copertura NON passa di qui: la registra il piano del Blast col suo reason code (NoLineOfSight), e
+		// con la traiettoria bloccata nemmeno un'area potrebbe partire — applicarle `AttackCell` significherebbe
+		// colpire attraverso il muro. Stesso discorso per la mappa assente, che e' un difetto del livello.
+		const bool bHandledByPlan = Reason == ERTActionInvalidReason::NoLineOfSight
+			|| Reason == ERTActionInvalidReason::NoMap;
+
+		if (Reason != ERTActionInvalidReason::None && !bHandledByPlan)
+		{
+			const FRTFallbackResult Fallback = URTActionFallbackLibrary::ApplyFallback(Instance, Reason);
+
+			// L'azione fallita non sparisce piu' in silenzio: cosa e' stato applicato e PERCHE' finiscono nel
+			// TurnLog (categoria Fallback, motivo in Amount) e nel combat log.
+			FRTTurnLogEntry FallbackEntry;
+			FallbackEntry.Phase = ERTMatchPhase::Blast;
+			FallbackEntry.Category = ERTLogCategory::Fallback;
+			FallbackEntry.Outcome = static_cast<uint8>(URTActionFallbackLibrary::ToLogOutcome(Fallback.Applied));
+			FallbackEntry.SrcCell = Unit->Cell;
+			FallbackEntry.TgtCell = Instance.TargetCell;
+			FallbackEntry.Amount = static_cast<int32>(Reason);
+			TurnLog.Add(FallbackEntry);
+			AddLogEvent(FString::Printf(TEXT("%s: %s"),
+				*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(FallbackEntry)));
+
+			if (!Fallback.bProducesEffects)
+			{
+				continue; // Cancel (e cio' che vi degrada): l'azione non avviene
+			}
+			Instance = Fallback.Instance; // AttackCell: si perde il bersaglio, resta la cella
 		}
 
 		FRTHexAttackIntent Intent;
 		Intent.AttackerId = i;
-		Intent.TargetId = IndexOf[Target];
+		Intent.TargetId = Instance.TargetUnitId;
+		Intent.TargetCell = Instance.TargetCell;
 		Intent.Shape = Ability->Shape;
 		Intent.RangeCells = Ability->RangeCells;
 		Intent.AreaRadius = Ability->AreaRadius;
