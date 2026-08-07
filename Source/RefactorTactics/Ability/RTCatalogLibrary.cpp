@@ -394,6 +394,23 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		Catalog.Add(Deflect);
 	}
 
+	// `Intercept` — l'intercettore DIVENTA il bersaglio di un colpo diretto a un alleato entro 2 celle.
+	// Nessun effetto dichiarato: non aggiunge danno, ne' sposta, ne' applica stati — cambia CHI subisce un
+	// colpo altrui, che non e' esprimibile come `FRTActionEffectSpec` (quelli agiscono su un bersaglio dato).
+	//
+	// Range **2**: qui il numero e' dichiarato dal catalogo ("un alleato entro 2 celle"), non deciso da noi.
+	// Priorita' **10**, la piu' bassa fra le reazioni (Deflect 15, Counter 20), ed e' una regola, non un
+	// dettaglio: cambiando il bersaglio dei colpi, Intercept deve risolvere PRIMA che le altre reazioni
+	// valutino chi e' stato colpito — altrimenti il bersaglio originale contrattaccherebbe per un colpo che
+	// non ha piu' ricevuto.
+	{
+		FRTActionDef Intercept = ShippedAction(TEXT("Action.Intercept"), ERTResolutionPhase::Control, /*Priority*/ 10,
+			/*Range*/ 2, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}, /*bInterruptible*/ true,
+			ERTActionSlot::Reaction);
+		Intercept.ReactionTrigger = ERTReactionTrigger::AllyHitByDirectAttack;
+		Catalog.Add(Intercept);
+	}
+
 	// `Brace` — azione PRINCIPALE di Prep. Dichiara DUE stati: `Braced` (-10 a ogni danno diretto e blocca la
 	// prima spinta) e `Root` (blocca il movimento volontario). Root e' riuso 1:1 di un meccanismo gia'
 	// collaudato — azzera movimento e scatto, non tocca attacchi ne' spostamento subito, che e' esattamente
