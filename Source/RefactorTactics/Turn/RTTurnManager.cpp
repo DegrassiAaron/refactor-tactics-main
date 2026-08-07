@@ -623,7 +623,16 @@ void ARTTurnManager::LockInAndResolve()
 		}
 	}
 
-	PendingOutcome = URTTurnRules::EvaluateOutcome(Team0Alive, Team1Alive);
+	// Fine partita a tre vie (CP 10.3), valutata QUI: nel Cleanup, dopo gli effetti ambientali e i KO, e
+	// fuori dai resolver puri — nessuno di loro consulta il formato, e passarglielo sarebbe un parametro che
+	// nessuna funzione legge (spec §16.3).
+	FRTMatchState MatchState;
+	MatchState.Team0Alive = Team0Alive;
+	MatchState.Team1Alive = Team1Alive;
+	MatchState.Team0Score = Team0Score;
+	MatchState.Team1Score = Team1Score;
+	MatchState.RoundNumber = TurnNumber;
+	PendingResult = URTTurnRules::EvaluateMatchEnd(MatchState, MatchRules);
 
 	// Il playback di QUESTO turno parte da zero anche se non verra' riprodotto: senza, il ramo senza
 	// playback lascerebbe il valore del turno precedente e la misura leggerebbe una durata mai avvenuta.
@@ -985,14 +994,20 @@ void ARTTurnManager::ConcludeTurn()
 	// (prima del prossimo turno, cosi' non figurano piu' come bersagli/ostacoli).
 	DestroyDefeatedUnits();
 
-	if (PendingOutcome != ERTMatchOutcome::InProgress)
+	if (PendingResult.Outcome != ERTMatchOutcome::InProgress)
 	{
 		Phase = ERTMatchPhase::MatchEnded;
-		const TCHAR* Msg =
-			PendingOutcome == ERTMatchOutcome::Team0Wins ? TEXT("Vince il team 0 (blu)") :
-			PendingOutcome == ERTMatchOutcome::Team1Wins ? TEXT("Vince il team 1 (rosso)") :
-			TEXT("Pareggio");
-		AddLogEvent(FString::Printf(TEXT("Partita finita: %s"), Msg));
+
+		// Esito E via: "vince il team 0" e' la stessa frase per un'eliminazione e per un punto di vantaggio
+		// allo scadere dei round, e senza la via il log non permetterebbe di distinguerle (DoD di CP 10.3).
+		AddLogEvent(FString::Printf(TEXT("Partita finita: %s - %s (round %d/%d, obiettivo %d-%d, formato %s)"),
+			*URTTurnRules::DescribeOutcome(PendingResult.Outcome),
+			*URTTurnRules::DescribeEndReason(PendingResult.Reason),
+			TurnNumber,
+			MatchRules.RoundLimit,
+			Team0Score,
+			Team1Score,
+			*MatchRules.FormatId.ToString()));
 		return; // niente nuovo turno
 	}
 
@@ -1000,6 +1015,36 @@ void ARTTurnManager::ConcludeTurn()
 
 	// Riavvia la pianificazione del nuovo turno.
 	StartPlanningTimer();
+}
+
+int32 ARTTurnManager::GetTeamScore(int32 TeamId) const
+{
+	if (TeamId == 0) { return Team0Score; }
+	if (TeamId == 1) { return Team1Score; }
+	return 0;
+}
+
+void ARTTurnManager::AddTeamScore(int32 TeamId, int32 Points)
+{
+	if (TeamId == 0)
+	{
+		Team0Score += Points;
+	}
+	else if (TeamId == 1)
+	{
+		Team1Score += Points;
+	}
+	else
+	{
+		// Il 2v2 ha due squadre: un punto assegnato a una terza sparirebbe senza che nessuno lo noti, e
+		// l'esito della partita dipende da questi numeri.
+		UE_LOG(LogRT, Warning, TEXT("[RT] Punteggio %d assegnato alla squadra %d, che non esiste: ignorato"),
+			Points, TeamId);
+		return;
+	}
+
+	AddLogEvent(FString::Printf(TEXT("Obiettivo: team %d +%d (ora %d-%d)"),
+		TeamId, Points, Team0Score, Team1Score));
 }
 
 void ARTTurnManager::DestroyDefeatedUnits()

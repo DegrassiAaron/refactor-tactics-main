@@ -8,7 +8,9 @@
 
 class ARTUnit;
 class ARTHexMapActor;
+class ARTTurnManager;
 class URTHeroData;
+class URTMatchFormatData;
 
 /**
  * Sorgente della mappa su cui allestire la partita. Le voci generate non richiedono asset: `Content/**` non e'
@@ -89,12 +91,32 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Units")
 	TMap<FName, TSubclassOf<ARTUnit>> HeroUnitClasses;
 
+	/**
+	 * Formato di partita: da qui arrivano `RoundLimit` e soglia obiettivo (CP 10.3, issue #185).
+	 *
+	 * **Assente** ⇒ si gioca comunque, con il formato di ripiego, e il log lo dichiara: un gioco che rifiuta
+	 * di partire e' peggio di uno che parte dicendo su cosa sta girando (D1). **Presente ma invalido** ⇒ la
+	 * partita non si allestisce: il ripiego copre l'assenza, non il contenuto sbagliato.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Match")
+	TObjectPtr<URTMatchFormatData> MatchFormat;
+
 protected:
 	virtual void BeginPlay() override;
 
 private:
 	/** Applica `MapSource` all'actor mappa: sostituisce l'asset quando la scelta lo richiede, e lo dichiara nel log. */
 	void ApplyMapSource(ARTHexMapActor* HexMap);
+
+	/**
+	 * Risolve il formato di partita e lo consegna al `TurnManager`. Ritorna **false** se il formato e'
+	 * presente ma invalido — in quel caso la partita non va allestita.
+	 *
+	 * E' qui che vive la politica di ripiego, come per l'arena generata: la libreria pura rifiuta e basta,
+	 * l'Actor decide che farne e lo dichiara in Warning. Un ripiego silenzioso non produce una partita rotta,
+	 * produce numeri di playtest attribuiti a un formato che non era in vigore.
+	 */
+	bool ApplyMatchFormat(ARTTurnManager* TurnManager);
 
 	/**
 	 * Spawna l'eroe con l'`HeroId` dato. `Hero == nullptr` non spawna nulla (fail-closed): un'unita' con

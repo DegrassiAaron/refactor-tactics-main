@@ -267,20 +267,23 @@ namespace
 	}
 }
 
-TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>& Entries, ERTLogTopology Topology)
+TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>& Entries, ERTLogTopology Topology,
+	FName FormatId)
 {
 	// Forma CANONICA: ordina con EntryLess prima di scrivere -> byte permutazione-invarianti (come l'hash).
 	TArray<FRTTurnLogEntry> Canonical = Entries;
 	SortTurnLog(Canonical);
 
 	TArray<uint8> Out;
-	Out.Reserve(12 + Canonical.Num() * 33); // 31 byte a campi fissi + 2 di lunghezza dell'ActionId (hint)
+	Out.Reserve(14 + Canonical.Num() * 33); // 31 byte a campi fissi + 2 di lunghezza dell'ActionId (hint)
 
-	// Header: magic + versione + flags(topologia) + conteggio (tutto little-endian). Square = 0 -> i byte
-	// restano identici a quelli scritti prima che il campo flags fosse usato (retrocompatibilita').
+	// Header: magic + versione + flags(topologia) + identita' del formato + conteggio (little-endian).
+	// Il FormatId sta DOPO i flags e prima del conteggio: le posizioni dei campi precedenti non si spostano,
+	// cosi' un lettore che ispeziona magic/versione/flags continua a trovarli dove sono sempre stati.
 	AppendU32LE(Out, RT_TURNLOG_MAGIC);
-	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithActionId));
+	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithFormatId));
 	AppendU16LE(Out, static_cast<uint16>(Topology));
+	AppendStringUtf8(Out, FormatId.IsNone() ? FString() : FormatId.ToString());
 	AppendU32LE(Out, static_cast<uint32>(Canonical.Num()));
 
 	for (const FRTTurnLogEntry& E : Canonical)
@@ -305,20 +308,27 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 }
 
 bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FRTTurnLogEntry>& OutEntries,
-	ERTLogTopology* OutTopology)
+	ERTLogTopology* OutTopology, FName* OutFormatId)
 {
 	OutEntries.Reset();
+	if (OutFormatId)
+	{
+		*OutFormatId = NAME_None;
+	}
 
 	int32 Pos = 0;
 	uint32 Magic = 0;
 	if (!ReadU32LE(Bytes, Pos, Magic) || Magic != RT_TURNLOG_MAGIC) { return false; }
 
-	// Versioni LEGGIBILI: quella corrente e la precedente. La 2 non porta l'ActionId, e il suo posto resta
-	// vuoto — leggerla e' onesto (quei byte non contenevano un'identita'), inventarla no. Ogni altro valore e'
-	// rifiutato, come prima: interpretare byte di un formato ignoto produce un replay sbagliato in silenzio.
+	// Versioni LEGGIBILI: la corrente e le due precedenti. La 2 non porta l'ActionId, la 3 non porta il
+	// FormatId, e in entrambi i casi il posto resta vuoto — leggerle e' onesto (quei byte non contenevano
+	// quell'informazione), inventarla no. Ogni altro valore e' rifiutato: interpretare byte di un formato
+	// ignoto produce un replay sbagliato in silenzio.
 	uint16 Version = 0;
 	if (!ReadU16LE(Bytes, Pos, Version)) { return false; }
-	const bool bHasActionId = (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithActionId));
+	const bool bHasFormatId = (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithFormatId));
+	const bool bHasActionId = bHasFormatId
+		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithActionId));
 	if (!bHasActionId && Version != static_cast<uint16>(ERTTurnLogFormatVersion::WithChecksum)) { return false; }
 
 	// Flags = topologia delle celle. Fail-closed sui valori sconosciuti (come per la versione): interpretare
@@ -334,8 +344,30 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 		*OutTopology = static_cast<ERTLogTopology>(Flags);
 	}
 
+	if (bHasFormatId)
+	{
+		FString FormatId;
+		if (!ReadStringUtf8(Bytes, Pos, FormatId)) { return false; }
+		if (OutFormatId)
+		{
+			*OutFormatId = FormatId.IsEmpty() ? NAME_None : FName(*FormatId);
+		}
+	}
+
 	uint32 Count = 0;
 	if (!ReadU32LE(Bytes, Pos, Count)) { return false; }
+
+	// Fail-closed sul CONTEGGIO, prima di riservare memoria. Un file corrotto puo' dichiarare miliardi di
+	// voci, e `Reserve` su quel numero termina il processo (`OnInvalidArrayNum`) prima ancora che il checksum
+	// in coda possa smentirlo: il parser deve rifiutare, non morire. Il limite superiore vero e' il buffer
+	// che resta — ogni voce occupa almeno i suoi campi a dimensione fissa.
+	constexpr int32 FixedEntryBytes = 31;         // 3 uint8 + 7 int32
+	const int32 MinEntryBytes = bHasActionId ? FixedEntryBytes + 2 : FixedEntryBytes; // + lunghezza ActionId
+	const int32 Remaining = Bytes.Num() - Pos;
+	if (Remaining < 0 || Count > static_cast<uint32>(Remaining / MinEntryBytes))
+	{
+		return false;
+	}
 
 	OutEntries.Reserve(static_cast<int32>(Count));
 	for (uint32 i = 0; i < Count; ++i)
@@ -391,14 +423,14 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 }
 
 bool URTTurnLogLibrary::SaveTurnLogToFile(const FString& Path, const TArray<FRTTurnLogEntry>& Entries,
-	ERTLogTopology Topology)
+	ERTLogTopology Topology, FName FormatId)
 {
-	const TArray<uint8> Bytes = SerializeTurnLog(Entries, Topology);
+	const TArray<uint8> Bytes = SerializeTurnLog(Entries, Topology, FormatId);
 	return FFileHelper::SaveArrayToFile(Bytes, *Path);
 }
 
 bool URTTurnLogLibrary::LoadTurnLogFromFile(const FString& Path, TArray<FRTTurnLogEntry>& OutEntries,
-	ERTLogTopology* OutTopology)
+	ERTLogTopology* OutTopology, FName* OutFormatId)
 {
 	OutEntries.Reset();
 	TArray<uint8> Bytes;
@@ -406,5 +438,37 @@ bool URTTurnLogLibrary::LoadTurnLogFromFile(const FString& Path, TArray<FRTTurnL
 	{
 		return false; // file mancante o illeggibile
 	}
-	return DeserializeTurnLog(Bytes, OutEntries, OutTopology);
+	return DeserializeTurnLog(Bytes, OutEntries, OutTopology, OutFormatId);
+}
+
+ERTTraceComparison URTTurnLogLibrary::CompareSerializedTraces(const TArray<uint8>& A, const TArray<uint8>& B)
+{
+	TArray<FRTTurnLogEntry> EntriesA;
+	TArray<FRTTurnLogEntry> EntriesB;
+	ERTLogTopology TopologyA = ERTLogTopology::Square;
+	ERTLogTopology TopologyB = ERTLogTopology::Square;
+	FName FormatA = NAME_None;
+	FName FormatB = NAME_None;
+
+	if (!DeserializeTurnLog(A, EntriesA, &TopologyA, &FormatA)
+		|| !DeserializeTurnLog(B, EntriesB, &TopologyB, &FormatB))
+	{
+		return ERTTraceComparison::Unreadable;
+	}
+
+	// Il CONTESTO prima del contenuto: due tracce prodotte con formati (o topologie) diversi non sono
+	// confrontabili, e dire "divergenza" manderebbe a cercare un difetto nel codice dove c'e' una
+	// configurazione diversa. E' la stessa ragione per cui l'header porta questi due campi.
+	if (FormatA != FormatB)
+	{
+		return ERTTraceComparison::FormatMismatch;
+	}
+	if (TopologyA != TopologyB)
+	{
+		return ERTTraceComparison::TopologyMismatch;
+	}
+
+	return HashTurnLog(EntriesA) == HashTurnLog(EntriesB)
+		? ERTTraceComparison::Identical
+		: ERTTraceComparison::Divergence;
 }

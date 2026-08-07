@@ -296,13 +296,20 @@ void ARTHUD::DrawHUD()
 	// Barra di stato in alto: turno, fase e timer/avanzamento.
 	if (TurnManager)
 	{
+		// Contatore del turno: con un formato in vigore mostra anche il limite, altrimenti resta il solo
+		// numero — un "su 0" direbbe che la partita e' gia' scaduta, che non e' cio' che accade.
+		const int32 RoundLimit = TurnManager->GetMatchRules().RoundLimit;
+		const FString TurnCounter = RoundLimit > 0
+			? FString::Printf(TEXT("Turno %d/%d"), TurnManager->GetTurnNumber(), RoundLimit)
+			: FString::Printf(TEXT("Turno %d"), TurnManager->GetTurnNumber());
+
 		FString Status;
 		if (TurnManager->IsResolving())
 		{
 			// Durante il playback: fase in riproduzione + avanzamento + come saltare.
 			const int32 Pct = FMath::RoundToInt(TurnManager->GetPlaybackProgress01() * 100.f);
-			Status = FString::Printf(TEXT("Turno %d  -  Risoluzione: %s  [%d%%]  (Spazio: salta)"),
-				TurnManager->GetTurnNumber(), *TurnManager->GetPlaybackPhaseName(), Pct);
+			Status = FString::Printf(TEXT("%s  -  Risoluzione: %s  [%d%%]  (Spazio: salta)"),
+				*TurnCounter, *TurnManager->GetPlaybackPhaseName(), Pct);
 		}
 		else
 		{
@@ -313,7 +320,7 @@ void ARTHUD::DrawHUD()
 			case ERTMatchPhase::MatchEnded: PhaseName = TEXT("Fine"); break;
 			default:                        PhaseName = TEXT("Risoluzione"); break;
 			}
-			Status = FString::Printf(TEXT("Turno %d  -  %s"), TurnManager->GetTurnNumber(), PhaseName);
+			Status = FString::Printf(TEXT("%s  -  %s"), *TurnCounter, PhaseName);
 			const float Remaining = TurnManager->GetPlanningTimeRemaining();
 			if (TurnManager->GetPhase() == ERTMatchPhase::Planning && Remaining > 0.f)
 			{
@@ -370,12 +377,23 @@ void ARTHUD::DrawHUD()
 		}
 	}
 
-	// Esito + istruzione di riavvio a partita conclusa.
+	// Esito, VIA che l'ha determinato e istruzione di riavvio a partita conclusa (CP 10.3). "Vince il team 0"
+	// da solo non distingue un'eliminazione da un punto di vantaggio allo scadere dei round.
 	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::MatchEnded)
 	{
-		const FString Text = TEXT("PARTITA FINITA - premi R per rigiocare");
+		const FRTMatchResult Result = TurnManager->GetMatchResult();
+		const FString Headline = FString::Printf(TEXT("%s - %s"),
+			*URTTurnRules::DescribeOutcome(Result.Outcome),
+			*URTTurnRules::DescribeEndReason(Result.Reason));
+
 		float TW = 0.f, TH = 0.f;
-		GetTextSize(Text, TW, TH, nullptr, 2.f);
-		DrawText(Text, FLinearColor::White, (Canvas->SizeX - TW) * 0.5f, Canvas->SizeY * 0.4f, nullptr, 2.f);
+		GetTextSize(Headline, TW, TH, nullptr, 2.f);
+		DrawText(Headline, FLinearColor::White, (Canvas->SizeX - TW) * 0.5f, Canvas->SizeY * 0.4f, nullptr, 2.f);
+
+		const FString Restart = TEXT("premi R per rigiocare");
+		float RW = 0.f, RH = 0.f;
+		GetTextSize(Restart, RW, RH, nullptr, 1.2f);
+		DrawText(Restart, FLinearColor(0.85f, 0.85f, 0.85f, 1.f),
+			(Canvas->SizeX - RW) * 0.5f, Canvas->SizeY * 0.4f + TH + 8.f, nullptr, 1.2f);
 	}
 }
