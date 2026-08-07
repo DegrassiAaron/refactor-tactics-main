@@ -79,4 +79,25 @@ public:
 		const TArray<FRTHexAttackHit>& Hits, const TArray<FRTHexAttackIntent>& Intents,
 		const TArray<FRTHexCombatUnit>& Units, const URTHexMapAsset* Map,
 		const TSet<int32>& ExcludedHits);
+
+	/**
+	 * TUTTI gli effetti dichiarati da una reazione appena attivata, tradotti in eventi (CP 5.5).
+	 *
+	 * Prima di CP 5.5 il resolver leggeva dalla reazione **il primo `Damage` e nient'altro**, piu' un
+	 * `if (ActionId == "Action.Deflect")` per la riduzione: una reazione con due effetti — `Shield 15` a se'
+	 * **e** 10 danni all'attaccante, che e' `Flux.ReactiveCapacitor` — ne avrebbe applicato meta'. Qui la
+	 * lista si traduce per intero, nell'ordine dichiarato.
+	 *
+	 * CHI subisce ciascun effetto e' una regola per TIPO, non per azione — cosi' una reazione d'eroe non deve
+	 * dichiarare bersagli e il motore non deve conoscerne l'identita':
+	 * - `Damage`, `Push`, `Pull`, `Status` -> **chi ha innescato** la reazione (il senso di un contrattacco);
+	 * - `Heal`, `Shield`, `DamageReduction` -> **chi reagisce** (il senso di una difesa).
+	 *
+	 * `TriggeredBy == INDEX_NONE` (nessun attaccante identificato) elimina gli effetti del primo gruppo invece
+	 * di sceglierne uno a caso: un contrattacco senza bersaglio dichiarato non si inventa un bersaglio.
+	 *
+	 * Funzione PURA: traduce, non applica. E' il chiamante (`ARTTurnManager::ResolveCombat`) a decidere quando
+	 * gli eventi entrano nel turno, con lo stesso "raccogli poi applica" del resto del motore (invariante #3).
+	 */
+	static TArray<FRTActionEvent> BuildReactionEvents(const FRTActionDef& Def, int32 SelfId, int32 TriggeredBy);
 };

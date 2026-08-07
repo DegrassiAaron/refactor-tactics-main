@@ -2,9 +2,11 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "Ability/RTActionDef.h" // FRTActionEffectSpec: gli effetti di una reazione d'eroe sono un parametro
 #include "RTHeroCatalogLibrary.generated.h"
 
 class URTHeroData;
+class URTActionData;
 
 /**
  * Lettura e validazione del catalogo eroi: pura, deterministica, senza Actor.
@@ -94,4 +96,28 @@ public:
 	 * Nuove istanze a ogni chiamata (stesso idioma di `URTCatalogLibrary::GetCoreActionCatalog`).
 	 */
 	static TArray<URTHeroData*> GetHeroRoster();
+
+	/**
+	 * Una reazione D'EROE costruita sopra la semantica di un'azione core (CP 5.5): dal core arrivano fase,
+	 * priorita', slot, trigger, fallback e interrompibilita' — cioe' *come* la reazione si comporta nel turno;
+	 * dall'eroe l'identita' (`HeroActionId`), il cooldown e gli effetti — cioe' *cosa* fa e quanto.
+	 *
+	 * Esiste perche' l'alternativa e' peggiore: senza, `Bastion.Interposition` dovrebbe riscrivere la
+	 * semantica di `Action.Intercept` (o il resolver riconoscerla per ActionId), e ogni eroe con una reazione
+	 * aggiungerebbe un ramo al motore. Con questo helper la semantica si dichiara UNA volta nel catalogo core.
+	 *
+	 * `Effects` vuoto significa «gli stessi del core», non «nessun effetto»: e' il caso di una reazione d'eroe
+	 * che cambia solo identita' e cooldown. Per toglierli davvero, il posto e' l'azione core.
+	 * `RangeCells` negativo (default) eredita la portata del core; un valore >= 0 la sovrascrive.
+	 *
+	 * Specchia i campi legacy (`RangeCells`/`CooldownTurns`/`Power`/`Shape`) come `MakeHeroAction`: sono quelli
+	 * che `ARTUnit::ConsumeAbility` e `ARTTurnManager` leggono ancora oggi in partita.
+	 *
+	 * Restituisce `nullptr` se `CoreActionId` non e' nel catalogo o non e' una reazione (slot diverso da
+	 * `Reaction`): costruire una "reazione" sopra un'azione principale produrrebbe qualcosa che il pass delle
+	 * reazioni non guarderebbe mai, cioe' un'abilita' silenziosamente inerte.
+	 */
+	static URTActionData* MakeHeroReactionFromCoreAction(const FName& HeroActionId, const FName& CoreActionId,
+		int32 CooldownTurns, const TArray<FRTActionEffectSpec>& Effects = TArray<FRTActionEffectSpec>(),
+		int32 RangeCells = INDEX_NONE);
 };

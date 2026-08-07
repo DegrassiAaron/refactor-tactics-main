@@ -93,6 +93,19 @@ struct FRTTurnLogEntry
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	int32 Amount = 0;
 
+	/**
+	 * IDENTITA' dell'azione che ha prodotto la voce, quando ne ha una (CP 5.5). `NAME_None` = non dichiarata.
+	 *
+	 * Serve perche' le reazioni degli eroi riusano la semantica delle azioni core: senza questo campo
+	 * `Bastion.Interposition` e `Action.Intercept` produrrebbero voci IDENTICHE, e un replay non potrebbe piu'
+	 * dire quale abilita' e' scattata. E' l'ActionId del catalogo, cioe' la chiave stabile: non cambia mai.
+	 *
+	 * Oggi lo popolano le voci di categoria `Reaction`. Le altre categorie lo lasciano vuoto — completare i
+	 * reason code delle voci di combattimento e' CP 11.3, e riempirlo a meta' qui direbbe meno del nulla.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	FName ActionId;
+
 	FRTTurnLogEntry() = default;
 };
 
@@ -104,7 +117,13 @@ struct FRTTurnLogEntry
 enum class ERTTurnLogFormatVersion : uint16
 {
 	Initial      = 1, // header + voci, senza checksum (mai persistito su file)
-	WithChecksum = 2  // + checksum FNV del payload in coda: rileva la corruzione del contenuto
+	WithChecksum = 2, // + checksum FNV del payload in coda: rileva la corruzione del contenuto
+	/**
+	 * + `ActionId` per voce (CP 5.5), scritto come lunghezza uint16 e byte UTF-8 in coda alla voce.
+	 * E' il primo campo a lunghezza variabile del formato. Le tracce in versione 2 restano LEGGIBILI: il
+	 * loader le accetta e ne lascia l'ActionId vuoto, che e' esattamente cio' che quei byte dicevano.
+	 */
+	WithActionId = 3
 };
 
 /**

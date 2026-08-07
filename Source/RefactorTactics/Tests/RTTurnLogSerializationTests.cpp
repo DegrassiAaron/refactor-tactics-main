@@ -267,6 +267,90 @@ bool FRTTurnLogSquareBytesUnchangedTest::RunTest(const FString&)
 	return true;
 }
 
+// CP 5.5: l'identita' dell'azione sopravvive al round-trip, entra nell'hash e non collide con il vuoto.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogActionIdRoundTripTest,
+	"RefactorTactics.TurnLog.ActionIdRoundTrip",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogActionIdRoundTripTest::RunTest(const FString&)
+{
+	TArray<FRTTurnLogEntry> Log;
+	FRTTurnLogEntry Hero = MakeSerEntry(ERTMatchPhase::Blast, ERTLogCategory::Reaction, /*Attivata*/ 0,
+		FRTCellId(1, 1), FRTCellId(1, 1), 0);
+	Hero.ActionId = TEXT("Bastion.Interposition");
+	Log.Add(Hero);
+
+	// Stessa voce in tutto, tranne l'identita': senza il campo sarebbero indistinguibili.
+	FRTTurnLogEntry Core = Hero;
+	Core.ActionId = TEXT("Action.Intercept");
+	Log.Add(Core);
+
+	TArray<FRTTurnLogEntry> Restored;
+	TestTrue(TEXT("round-trip riuscito"),
+		URTTurnLogLibrary::DeserializeTurnLog(URTTurnLogLibrary::SerializeTurnLog(Log), Restored));
+	TestEqual(TEXT("due voci distinte"), Restored.Num(), 2);
+	TestEqual(TEXT("hash preservato"), URTTurnLogLibrary::HashTurnLog(Restored), URTTurnLogLibrary::HashTurnLog(Log));
+
+	// L'ordine canonico e' deterministico: `Action.Intercept` precede `Bastion.Interposition`.
+	if (Restored.Num() == 2)
+	{
+		TestTrue(TEXT("identita' preservata e ordinata lessicograficamente"),
+			Restored[0].ActionId == FName(TEXT("Action.Intercept"))
+			&& Restored[1].ActionId == FName(TEXT("Bastion.Interposition")));
+	}
+
+	// Due tracce che differiscono SOLO per l'identita' dell'azione hanno hash diversi: altrimenti il replay
+	// non potrebbe dire quale abilita' e' scattata.
+	TArray<FRTTurnLogEntry> OnlyCore;
+	OnlyCore.Add(Core);
+	TArray<FRTTurnLogEntry> OnlyHero;
+	OnlyHero.Add(Hero);
+	TestNotEqual(TEXT("l'identita' conta nell'hash"),
+		URTTurnLogLibrary::HashTurnLog(OnlyCore), URTTurnLogLibrary::HashTurnLog(OnlyHero));
+	return true;
+}
+
+// Retrocompatibilita': una traccia scritta prima di CP 5.5 (versione 2, senza ActionId) resta leggibile, e
+// l'identita' resta vuota — che e' esattamente cio' che quei byte dicevano.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogLegacyVersionReadableTest,
+	"RefactorTactics.TurnLog.LegacyVersionWithoutActionIdIsReadable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogLegacyVersionReadableTest::RunTest(const FString&)
+{
+	// Traccia in formato 2, costruita a mano: header (magic, versione 2, flags Square, conteggio) + una voce
+	// a campi fissi, senza il campo a lunghezza variabile, + checksum FNV in coda.
+	TArray<uint8> Bytes;
+	auto U16 = [&Bytes](uint16 V) { Bytes.Add(V & 0xFF); Bytes.Add((V >> 8) & 0xFF); };
+	auto U32 = [&Bytes](uint32 V)
+	{
+		Bytes.Add(V & 0xFF); Bytes.Add((V >> 8) & 0xFF); Bytes.Add((V >> 16) & 0xFF); Bytes.Add((V >> 24) & 0xFF);
+	};
+
+	U32(0x4C545452u); // 'RTTL'
+	U16(static_cast<uint16>(ERTTurnLogFormatVersion::WithChecksum));
+	U16(0); // topologia Square
+	U32(1); // una voce
+	Bytes.Add(static_cast<uint8>(ERTMatchPhase::Blast));
+	Bytes.Add(static_cast<uint8>(ERTLogCategory::Combat));
+	Bytes.Add(static_cast<uint8>(ERTCombatOutcome::Hit));
+	U32(0); U32(0); U32(0);  // SrcCell
+	U32(1); U32(0); U32(0);  // TgtCell
+	U32(25);                 // Amount
+
+	uint32 H = 2166136261u;
+	for (const uint8 B : Bytes) { H ^= B; H *= 16777619u; }
+	U32(H);
+
+	TArray<FRTTurnLogEntry> Out;
+	TestTrue(TEXT("una traccia in versione 2 resta leggibile"), URTTurnLogLibrary::DeserializeTurnLog(Bytes, Out));
+	TestEqual(TEXT("una voce letta"), Out.Num(), 1);
+	if (Out.Num() == 1)
+	{
+		TestEqual(TEXT("danno preservato"), Out[0].Amount, 25);
+		TestTrue(TEXT("nessuna identita' inventata"), Out[0].ActionId.IsNone());
+	}
+	return true;
+}
+
 // Fail-closed: una topologia sconosciuta e' rifiutata invece di essere interpretata a caso.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogUnknownTopologyTest,
 	"RefactorTactics.TurnLog.RejectsUnknownTopology",

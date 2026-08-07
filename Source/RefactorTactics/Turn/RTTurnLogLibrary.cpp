@@ -16,7 +16,11 @@ bool URTTurnLogLibrary::EntryLess(const FRTTurnLogEntry& A, const FRTTurnLogEntr
 	if (A.TgtCell.Y != B.TgtCell.Y)         { return A.TgtCell.Y < B.TgtCell.Y; }
 	if (A.TgtCell.Layer != B.TgtCell.Layer) { return A.TgtCell.Layer < B.TgtCell.Layer; }
 	if (A.Outcome != B.Outcome)             { return A.Outcome < B.Outcome; }
-	return A.Amount < B.Amount;
+	if (A.Amount != B.Amount)               { return A.Amount < B.Amount; }
+	// Ultimo campo, ultimo tie-break. Confronto LESSICOGRAFICO (`FName::Compare`), mai `FastLess`: quello
+	// ordina per indice nella name table, che dipende dall'ordine in cui i nomi sono stati creati nel processo
+	// — due esecuzioni della stessa partita darebbero due ordini diversi, cioe' due hash diversi (#4).
+	return A.ActionId.Compare(B.ActionId) < 0;
 }
 
 void URTTurnLogLibrary::SortTurnLog(TArray<FRTTurnLogEntry>& Entries)
@@ -91,6 +95,12 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		case ERTReactionOutcome::NotTriggered: What = TEXT("reazione pronta, nessun trigger"); break;
 		default:                               What = TEXT("reazione non disponibile"); break;
 		}
+		// QUALE reazione, quando l'identita' c'e': fra `Bastion.Interposition` e `Action.Intercept` cambia
+		// l'abilita' spesa e il cooldown, non solo l'esito (CP 5.5).
+		if (!Entry.ActionId.IsNone())
+		{
+			return FString::Printf(TEXT("%s: %s (%s)"), *CellText(Entry.SrcCell), What, *Entry.ActionId.ToString());
+		}
 		return FString::Printf(TEXT("%s: %s"), *CellText(Entry.SrcCell), What);
 	}
 
@@ -143,6 +153,14 @@ uint32 URTTurnLogLibrary::HashTurnLog(const TArray<FRTTurnLogEntry>& Entries)
 		Mix(static_cast<uint32>(E.TgtCell.Y));
 		Mix(static_cast<uint32>(E.TgtCell.Layer));
 		Mix(static_cast<uint32>(E.Amount));
+		// L'identita' dell'azione entra nell'hash byte per byte: due reazioni con la stessa geometria e lo
+		// stesso esito, ma abilita' diverse, devono produrre hash diversi — altrimenti il replay di CP 12.6
+		// non distinguerebbe `Bastion.Interposition` da `Action.Intercept`. Un nome vuoto non mescola nulla,
+		// quindi le tracce senza ActionId hanno lo stesso hash di prima di CP 5.5.
+		for (const TCHAR Ch : E.ActionId.ToString())
+		{
+			Mix(static_cast<uint32>(Ch));
+		}
 	}
 	return Hash;
 }
@@ -170,6 +188,24 @@ namespace
 	}
 
 	void AppendI32LE(TArray<uint8>& B, int32 V) { AppendU32LE(B, static_cast<uint32>(V)); }
+
+	/**
+	 * Stringa a lunghezza variabile: uint16 di lunghezza in byte + payload UTF-8. Primo campo non a
+	 * dimensione fissa del formato — l'ActionId e' un nome, e troncarlo a lunghezza fissa renderebbe due
+	 * azioni dal prefisso comune indistinguibili.
+	 *
+	 * Oltre 65535 byte la stringa viene troncata: e' il limite del campo di lunghezza. Nessun ActionId del
+	 * catalogo si avvicina a quella soglia (sono nomi come `Bastion.Interposition`), quindi il caso non e'
+	 * raggiungibile da dati validi — se lo diventasse, il posto dove rifiutarlo e' il validator del catalogo,
+	 * non il serializzatore.
+	 */
+	void AppendStringUtf8(TArray<uint8>& B, const FString& S)
+	{
+		const FTCHARToUTF8 Utf8(*S);
+		const int32 Len = FMath::Min(Utf8.Length(), static_cast<int32>(MAX_uint16));
+		AppendU16LE(B, static_cast<uint16>(Len));
+		B.Append(reinterpret_cast<const uint8*>(Utf8.Get()), Len);
+	}
 
 	// Letture con bounds-check: ritornano false invece di leggere fuori dal buffer (parser sicuro).
 	bool ReadU8(const TArray<uint8>& B, int32& Pos, uint8& Out)
@@ -207,6 +243,16 @@ namespace
 		return true;
 	}
 
+	bool ReadStringUtf8(const TArray<uint8>& B, int32& Pos, FString& Out)
+	{
+		uint16 Len = 0;
+		if (!ReadU16LE(B, Pos, Len)) { return false; }
+		if (Pos + Len > B.Num()) { return false; } // bounds-check come per gli interi: nessuna lettura fuori
+		Out = FString(FUTF8ToTCHAR(reinterpret_cast<const ANSICHAR*>(B.GetData() + Pos), Len));
+		Pos += Len;
+		return true;
+	}
+
 	// Checksum FNV-1a 32-bit sui byte grezzi (stesso mescolamento di HashTurnLog, ma sul buffer):
 	// rileva la corruzione del contenuto che magic/versione da soli non catturano.
 	uint32 FnvBytes(const uint8* Data, int32 Len)
@@ -228,12 +274,12 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 	SortTurnLog(Canonical);
 
 	TArray<uint8> Out;
-	Out.Reserve(12 + Canonical.Num() * 31);
+	Out.Reserve(12 + Canonical.Num() * 33); // 31 byte a campi fissi + 2 di lunghezza dell'ActionId (hint)
 
 	// Header: magic + versione + flags(topologia) + conteggio (tutto little-endian). Square = 0 -> i byte
 	// restano identici a quelli scritti prima che il campo flags fosse usato (retrocompatibilita').
 	AppendU32LE(Out, RT_TURNLOG_MAGIC);
-	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithChecksum));
+	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithActionId));
 	AppendU16LE(Out, static_cast<uint16>(Topology));
 	AppendU32LE(Out, static_cast<uint32>(Canonical.Num()));
 
@@ -249,6 +295,7 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 		AppendI32LE(Out, E.TgtCell.Y);
 		AppendI32LE(Out, E.TgtCell.Layer);
 		AppendI32LE(Out, E.Amount);
+		AppendStringUtf8(Out, E.ActionId.IsNone() ? FString() : E.ActionId.ToString());
 	}
 
 	// Checksum FNV di tutto cio' che precede (header + voci), in coda: rileva la corruzione del contenuto.
@@ -266,8 +313,13 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	uint32 Magic = 0;
 	if (!ReadU32LE(Bytes, Pos, Magic) || Magic != RT_TURNLOG_MAGIC) { return false; }
 
+	// Versioni LEGGIBILI: quella corrente e la precedente. La 2 non porta l'ActionId, e il suo posto resta
+	// vuoto — leggerla e' onesto (quei byte non contenevano un'identita'), inventarla no. Ogni altro valore e'
+	// rifiutato, come prima: interpretare byte di un formato ignoto produce un replay sbagliato in silenzio.
 	uint16 Version = 0;
-	if (!ReadU16LE(Bytes, Pos, Version) || Version != static_cast<uint16>(ERTTurnLogFormatVersion::WithChecksum)) { return false; }
+	if (!ReadU16LE(Bytes, Pos, Version)) { return false; }
+	const bool bHasActionId = (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithActionId));
+	if (!bHasActionId && Version != static_cast<uint16>(ERTTurnLogFormatVersion::WithChecksum)) { return false; }
 
 	// Flags = topologia delle celle. Fail-closed sui valori sconosciuti (come per la versione): interpretare
 	// coordinate di una topologia ignota produrrebbe un replay sbagliato in silenzio.
@@ -307,6 +359,17 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 		{
 			OutEntries.Reset();
 			return false;
+		}
+
+		if (bHasActionId)
+		{
+			FString ActionId;
+			if (!ReadStringUtf8(Bytes, Pos, ActionId))
+			{
+				OutEntries.Reset();
+				return false;
+			}
+			E.ActionId = ActionId.IsEmpty() ? NAME_None : FName(*ActionId);
 		}
 		OutEntries.Add(E);
 	}
