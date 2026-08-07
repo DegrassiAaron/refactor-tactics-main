@@ -559,11 +559,17 @@ void ARTTurnManager::LockInAndResolve()
 	// cella -> scadenza delle durate -> energia/scudo/cooldown -> conteggio delle unita' vive.
 	// La revoca precede il tick perche' le due nature non si sovrappongono: chi ha lasciato l'acqua si asciuga
 	// in QUESTO Cleanup, senza aspettare un turno.
-	const ARTHexMapActor* MapActor = ARTHexMapActor::FindInWorld(GetWorld());
-	const URTHexMapAsset* CleanupMap = MapActor ? MapActor->MapAsset : nullptr;
+	ARTHexMapActor* MapActor = ARTHexMapActor::FindInWorld(GetWorld());
+	URTHexMapAsset* CleanupMap = MapActor ? MapActor->MapAsset : nullptr;
 
-	// 0. Azioni ambientali (CP 8.3): la scarica elettrica precede il danno di `Burning`. Chi cade qui e' morto
-	// in QUESTO turno, come chi cade bruciato: il conteggio dei vivi arriva dopo entrambi.
+	// 0. Scadenza delle modifiche ambientali dei turni PRECEDENTI (CP 8.4). Precede le azioni di questo turno
+	// per una ragione di durata: una cella incendiata adesso deve bruciare per i suoi due turni pieni: se il
+	// tick venisse dopo, le mangerebbe subito uno.
+	TickDynamicSurfaces(CleanupMap);
+
+	// 1. Azioni ambientali (CP 8.3/8.4): la scarica elettrica e le modifiche del terreno precedono il danno di
+	// `Burning`. Chi cade qui e' morto in QUESTO turno, come chi cade bruciato: il conteggio dei vivi arriva
+	// dopo entrambi.
 	ResolveEnvironment(CleanupMap);
 
 	int32 Team0Alive = 0, Team1Alive = 0;
@@ -633,7 +639,111 @@ void ARTTurnManager::LockInAndResolve()
 	ConcludeTurn();
 }
 
-void ARTTurnManager::ResolveEnvironment(const URTHexMapAsset* Map)
+bool ARTTurnManager::ApplyDynamicSurface(URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexSurface NewSurface,
+	int32 Turns, const FName& CauseActionId)
+{
+	const FRTHexCellData* Existing = Map ? Map->FindCell(Cell) : nullptr;
+	if (!Existing || Turns <= 0)
+	{
+		return false; // fuori mappa o durata non positiva: non si modifica il campo per sbaglio
+	}
+	if (Existing->Surface == NewSurface)
+	{
+		return false; // gia' cosi': nessun cambiamento da registrare
+	}
+
+	FRTTurnLogEntry Entry;
+	Entry.Phase = ERTMatchPhase::Cleanup;
+	Entry.Category = ERTLogCategory::Environment;
+	Entry.ActionId = CauseActionId;
+	Entry.SrcCell = Cell;
+	Entry.TgtCell = Cell;
+
+	// Il fuoco non attecchisce su cio' che non brucia (catalogo terreni §2: «non incendia automaticamente
+	// acqua o metallo»). E' una proprieta' della superficie di DESTINAZIONE, letta dal catalogo — non un
+	// elenco di eccezioni scritto qui.
+	if (NewSurface == ERTHexSurface::Fire && !URTTerrainLibrary::FindTerrainDef(Existing->Surface).bIsFlammable)
+	{
+		Entry.Outcome = static_cast<uint8>(ERTEnvironmentOutcome::SurfaceRejected);
+		Entry.Amount = 0;
+		TurnLog.Add(Entry);
+		AddLogEvent(FString::Printf(TEXT("(q=%d,r=%d,L%d): non prende fuoco"), Cell.X, Cell.Y, Cell.Layer));
+		return false;
+	}
+
+	// L'acqua SPEGNE il fuoco: e' la stessa trasformazione, ma il TurnLog la distingue perche' per chi legge
+	// il replay «la cella si allaga» e «la cella si spegne» non sono lo stesso evento.
+	const bool bExtinguishes = (Existing->Surface == ERTHexSurface::Fire
+		&& NewSurface == ERTHexSurface::ShallowWater);
+
+	// L'ORIGINALE si registra una volta sola: una cella allagata e poi incendiata deve tornare al pavimento,
+	// non all'acqua che c'era un turno prima.
+	FRTDynamicSurface& State = DynamicSurfaces.FindOrAdd(Cell);
+	if (State.TurnsRemaining <= 0)
+	{
+		State.Original = Existing->Surface;
+	}
+	State.TurnsRemaining = Turns;
+
+	// La superficie corrente va nella MAPPA, che e' cio' che tutti leggono: il costo di movimento segue il
+	// catalogo della nuova superficie, altrimenti una pozza costerebbe ancora quanto il pavimento.
+	FRTHexCellData Updated = *Existing;
+	Updated.Surface = NewSurface;
+	Updated.MoveCost = URTTerrainLibrary::FindTerrainDef(NewSurface).MoveCost;
+	Map->AddOrUpdateCell(Updated);
+
+	Entry.Outcome = static_cast<uint8>(
+		bExtinguishes ? ERTEnvironmentOutcome::SurfaceExtinguished : ERTEnvironmentOutcome::SurfaceChanged);
+	Entry.Amount = Turns;
+	TurnLog.Add(Entry);
+	AddLogEvent(FString::Printf(TEXT("(q=%d,r=%d,L%d): %s (%d turni)"), Cell.X, Cell.Y, Cell.Layer,
+		bExtinguishes ? TEXT("il fuoco si spegne") : TEXT("la superficie cambia"), Turns));
+	return true;
+}
+
+void ARTTurnManager::TickDynamicSurfaces(URTHexMapAsset* Map)
+{
+	if (!Map || DynamicSurfaces.Num() == 0) { return; }
+
+	// Ordine STABILE: `TMap` non ha un ordine garantito, e da qui escono voci di TurnLog. Senza questo, due
+	// esecuzioni della stessa partita produrrebbero lo stesso insieme di voci in ordine diverso — l'hash e'
+	// permutazione-invariante e non se ne accorgerebbe, ma il combat log letto da un umano si', e il giorno in
+	// cui qualcosa dipendesse dall'ordine il difetto sarebbe gia' dentro.
+	TArray<FRTCellId> Cells;
+	DynamicSurfaces.GetKeys(Cells);
+	Cells.Sort([](const FRTCellId& A, const FRTCellId& B) { return URTHexLibrary::StableLess(A, B); });
+
+	for (const FRTCellId& Cell : Cells)
+	{
+		FRTDynamicSurface& State = DynamicSurfaces[Cell];
+		if (--State.TurnsRemaining > 0)
+		{
+			continue;
+		}
+
+		if (const FRTHexCellData* Current = Map->FindCell(Cell))
+		{
+			FRTHexCellData Restored = *Current;
+			Restored.Surface = State.Original;
+			Restored.MoveCost = URTTerrainLibrary::FindTerrainDef(State.Original).MoveCost;
+			Map->AddOrUpdateCell(Restored);
+
+			FRTTurnLogEntry Entry;
+			Entry.Phase = ERTMatchPhase::Cleanup;
+			Entry.Category = ERTLogCategory::Environment;
+			Entry.Outcome = static_cast<uint8>(ERTEnvironmentOutcome::SurfaceRestored);
+			Entry.SrcCell = Cell;
+			Entry.TgtCell = Cell;
+			Entry.Amount = 0;
+			TurnLog.Add(Entry);
+			AddLogEvent(FString::Printf(TEXT("(q=%d,r=%d,L%d): la superficie torna com'era"),
+				Cell.X, Cell.Y, Cell.Layer));
+		}
+		DynamicSurfaces.Remove(Cell);
+	}
+}
+
+void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 {
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
@@ -689,6 +799,37 @@ void ARTTurnManager::ResolveEnvironment(const URTHexMapAsset* Map)
 			AddLogEvent(FString::Printf(TEXT("%s: %s annullata (nessun bersaglio)"),
 				*Caster->GetName(), *Ability->Def.ActionId.ToString()));
 			continue;
+		}
+
+		// Azioni che modificano la MAPPA (CP 8.4). Quale superficie creano lo dice l'ActionId, ed e' l'unico
+		// punto in cui questo orchestratore lo guarda: la coppia azione->superficie non e' esprimibile come
+		// `FRTActionEffectSpec` (gli effetti agiscono su unita', non su celle) e inventare un campo
+		// «SurfaceCreated» nel catalogo per due sole azioni sarebbe un dato che nessun'altra azione useria.
+		// Quando le azioni ambientali saranno molte (CP 8.5), il posto giusto e' quel campo.
+		{
+			const FName EnvActionId = Ability->Def.ActionId;
+			ERTHexSurface Created = ERTHexSurface::Floor;
+			bool bCreatesSurface = false;
+			if (EnvActionId == FName(TEXT("Action.Ignite")))
+			{
+				Created = ERTHexSurface::Fire;
+				bCreatesSurface = true;
+			}
+			else if (EnvActionId == FName(TEXT("Action.CreateWater")))
+			{
+				Created = ERTHexSurface::ShallowWater;
+				bCreatesSurface = true;
+			}
+
+			if (bCreatesSurface)
+			{
+				Caster->ConsumeAbility(AbilityIndex);
+				// Durata 2 turni per entrambe (catalogo terreni §2 per il fuoco, catalogo azioni §6 per l'acqua).
+				// La cella e' quella del bersaglio, come per la scarica: stesso limite dichiarato sul
+				// targeting per cella.
+				ApplyDynamicSurface(Map, Target->Cell, Created, /*Turns*/ 2, EnvActionId);
+				continue;
+			}
 		}
 
 		// La SORGENTE e' la cella del bersaglio, non l'unita': l'elettricita' entra nel terreno e da li' si

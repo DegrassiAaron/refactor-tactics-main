@@ -75,6 +75,18 @@ struct FRTTerrainDef
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Terrain")
 	bool bConductsElectricity = false;
 
+	/**
+	 * La superficie puo' PRENDERE fuoco (CP 8.4): `Action.Ignite` la trasforma in `Fire`, il fuoco vi si
+	 * propaga. Il catalogo terreni §2 elenca come combustibili «vegetazione, olio, gas» — che **non esistono
+	 * fra le otto superfici del v0.1** — ed esclude esplicitamente acqua e metallo.
+	 *
+	 * Conseguenza dichiarata: oggi il campo e' vero solo per `Floor` e `Rough`, cioe' il terreno neutro. Il
+	 * fuoco non si propaga da solo perche' non c'e' combustibile che lo alimenti, non perche' manchi il codice:
+	 * e' una proprieta' del CATALOGO, verificata da un test (`Environment.Fire.DoesNotIgniteWaterOrMetal`).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Terrain")
+	bool bIsFlammable = false;
+
 	/** 0 = nessun limite; N > 0 = la portata effettiva di un intento la cui linea attraversa questa cella e' min(RangeCells, N). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Terrain")
 	int32 MaxTargetingRangeThrough = 0;
