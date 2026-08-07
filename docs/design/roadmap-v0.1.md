@@ -1,6 +1,6 @@
 # RefactorTactics — Roadmap v0.1 (vertical slice 2v2 su hex)
 
-> **Stato**: pianificata · **Ultimo aggiornamento**: 2026-08-05 · **Branch di lavoro**: `docs/v0.1-roadmap-review`
+> **Stato**: in esecuzione · **Ultimo aggiornamento**: 2026-08-07 · **Branch di lavoro**: `docs/consolidamento-showcase-v01`
 > **Scope sorgente**: `docs/PDR/RT_PDR_12_Catalog_v0.1.pdf` + `docs/src/RefactorTactics — Catalogo e bilanciamento v0.1.pdf`
 > **Decisione abilitante**: [`adr-0003-modello-azioni-v01.md`](adr-0003-modello-azioni-v01.md)
 >
@@ -39,9 +39,15 @@ mappe dinamico a runtime, stack di reazioni interattivo.
 
 ---
 
-## 2. Stato attuale — feature → file → stato
+## 2. Stato attuale — misurato sul repository
 
-Legenda: ✅ fatto e testato · 🟡 esiste ma parziale/non allineato al catalogo · 🟥 quadrato, da sostituire · ⏳ non esiste
+Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫ rimosso dal repo
+
+> ⚠️ **Riscritta il 2026-08-07** (HEAD `ea9009a`). La versione precedente dichiarava 🟥 «quadrato, da
+> sostituire» su **sette righe di codice che non esistono più**: `grep -rl FRTGridCoord Source/` non
+> restituisce nulla e `Grid/`, `Turn/RTMovementResolver.*`, `Bot/RTBotLibrary.*` sono stati rimossi al
+> **CP 3.2** (issue `#40`, chiusa). Uno stato che sopravvive alla propria smentita è peggio di uno stato
+> assente: chi legge dall'alto agisce sul dato falso. La tabella qui sotto è **misurata**, non ricordata.
 
 | Feature | File | Stato |
 |---|---|---|
@@ -56,32 +62,41 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale/non allineato al catalog
 | TurnLog: hash, serializzazione versionata, checksum, I/O | `Turn/RTTurnLog.h`, `Turn/RTTurnLogLibrary.{h,cpp}` | ✅ |
 | Editor mode mappa hex | `Source/RefactorTacticsEditor/` | ✅ (residuo verifiche PIE) |
 | Playback del movimento | `Turn/RTPlaybackLibrary.{h,cpp}` | ✅ |
-| **Allestimento partita** | `RTGameMode.{h,cpp}` | 🟥 quadrato + roster hard-coded a 2 archetipi |
-| **Posizione dell'unità** | `Unit/RTUnit.{h,cpp}` | 🟥 `FRTGridCoord` |
-| **Orchestrazione turno** | `Turn/RTTurnManager.{h,cpp}` | 🟥 quadrato |
-| **Input / selezione / preview** | `Player/RTPlayerController.{h,cpp}` | 🟥 quadrato |
-| **HUD e combat log** | `UI/RTHUD.{h,cpp}` | 🟥 quadrato |
-| **Combat math e resolver** | `Combat/RTCombatLibrary.*`, `Combat/RTCombatResolver.*` | 🟥 quadrato (matematica riusabile) |
-| **Resolver movimento** | `Turn/RTMovementResolver.{h,cpp}` | 🟥 quadrato (sostituito da `ResolveHexPaths`) |
-| Bot quadrato | `Bot/RTBotLibrary.{h,cpp}` | 🟥 da dismettere (E3) |
-| Griglia quadrata | `Grid/RTGridActor.*`, `Grid/RTGridLibrary.*` | 🟥 da dismettere (E3) |
+| Allestimento partita (mappa hex, roster da catalogo) | `RTGameMode.{h,cpp}`, `Turn/RTMatchSetupLibrary.*` | ✅ CP 2.1/6.1 · formazioni `Flux+Riva` vs `Bastion+Vektor` |
+| Posizione dell'unità | `Unit/RTUnit.{h,cpp}` | ✅ `FRTCellId` autorevole (`FRTGridCoord` **rimosso**) |
+| Orchestrazione turno su hex | `Turn/RTTurnManager.{h,cpp}` | ✅ CP 2.2 · snapshot + `ResolveHexPaths` + `BuildMoveLog` |
+| Input / selezione / preview | `Player/RTPlayerController.{h,cpp}` | ✅ CP 2.3 |
+| HUD e combat log su hex | `UI/RTHUD.{h,cpp}` | ✅ CP 2.7 · reason code con `(q,r,L)` |
+| Combat su hex, forme e LOS | `Combat/RTHexCombatLibrary.*`, `Combat/RTCombatResolver.*` | ✅ CP 2.4/2.5 |
+| Gameplay quadrato (griglia, bot, resolver, terreni v1) | `Grid/*`, `Bot/RTBotLibrary.*`, `Turn/RTMovementResolver.*`, `Terrain/*` | ⌫ rimosso al CP 3.2 · punto di ritorno: tag `pre-hex-only` |
 | Macro-fasi del turno | `Turn/RTTurnRules.h` (`ERTMatchPhase`) | ✅ **invariato** dall'ADR-0003 |
-| Abilità data-driven | `Ability/RTAbilityData.h` | 🟡 nessun `ActionId`, `Priority`, `Fallback`, `bCanBeInterrupted`; range in distanza di Manhattan; **zero asset `DA_`** |
-| Terreni | `Terrain/RTTerrainData.h`, `Terrain/RTTerrainLibrary.*`, `Terrain/RTTerrainTypes.h` | 🟡 v1 quadrata (5 tipi), da riportare agli 8 del catalogo su hex |
-| Budget movimento | `Turn/RTHexSimLibrary.*` | 🟡 a celle, da portare a **5 MP** con costi 1/2 |
+| Catalogo azioni e data asset | `Ability/RTActionDef.h`, `RTActionData.h`, `RTCatalogLibrary.*` | ✅ E1 · `ActionId`, `Priority`, `Fallback`, `Slot`, `MovementStyle`, validator |
+| Motore azioni a priorità, fallback, collisioni | `Turn/RTActionQueue*.h`, `RTActionEffectLibrary.*`, `RTActionFallbackLibrary.*` | ✅ E4 (52 test) |
+| Reazioni difensive e Intercept | `Turn/RTReactionLibrary.{h,cpp}` | ✅ E5 (24 test) · Counter/Deflect/Brace/Shield/Cleanse/Intercept |
+| Roster 4 eroi da dati | `Ability/RTHeroData.h`, `RTHeroCatalogLibrary.*` | 🟡 E6 (20 test) · statistiche e kit ✅, **5 reazioni d'eroe non cablate** → CP 5.5 + CP 6.7 |
+| Budget movimento | `Turn/RTHexSimLibrary.*` | ✅ **5 MP**, costi interi (CP 4.2) |
+| Privacy degli intenti | `Turn/RTIntentPrivacyLibrary.*` | ✅ `FRTPlannedIntent → FilterForTeam → FRTIntentView` |
+| Zone controllate / soppressione | `Combat/RTOffensiveActionLibrary.*` | ✅ `FRTSuppressiveZone` · precedente tecnico per Overwatch (E14) |
+| Terreni | `Map/RTHexCellData.h` (`ERTHexSurface`), `Turn/RTHexSimLibrary.*` | 🟡 CP 8.1 ✅ (8 superfici, Rough/Fire/Smoke/Ice/ShallowWater) · **stati, propagazione e interazioni** ⏳ (CP 8.2–8.5) |
 | **Coperture direzionali** (riduzione danno per bordo) | — | ⏳ *verificato assente*: `FRTHexCellData` ha solo `MoveCost`/`bBlocksMovement`/`bBlocksLineOfSight` |
 | **Strutture** (porte, ponti, pannelli, integrità) | — | ⏳ |
-| **Reazioni** | — | ⏳ |
-| **Obiettivi dinamici / Activate / Interact** | — | ⏳ |
-| **Comandi debug `rt.Debug.*`** | — | ⏳ *verificato assente*: nessun `FAutoConsoleCommand` in `Source/` |
-| **Intenti alleati con certezza** | — | ⏳ |
+| **Obiettivi dinamici / Activate / Interact** | — | 🟡 `Action.Activate`/`Interact` esistono come identità (CP 4.4); **nessun oggetto da attivare** |
+| **Comandi debug `rt.Debug.*`** | — | ⏳ *verificato assente*: nessun `FAutoConsoleCommand` di debug in `Source/` |
+| **Conoscenza parziale (vista/udito)** | — | ⏳ la vista è una statistica a catalogo che non decide nulla (E13) |
+| **Finestre di reazione interattive** | — | ⏳ ADR-0004 accettato, nessun codice (E14) |
+| **Scenario showcase e golden replay** | — | ⏳ (E15) |
 
-~~**Suite automatica**: **172** macro `IMPLEMENT_SIMPLE_AUTOMATION_TEST` in `Source/RefactorTactics/Tests/`
-(25 file, conteggio verificato 2026-08-05). **63** esagonali (`RTHex*`), il resto quadrate o neutre.~~
-→ **superato: 324 test unici in 48 file**, vedi **§2.1**.
+**Suite automatica**: **325 test unici** in `Source/RefactorTactics/Tests/` (rimisurati 2026-08-07 dopo il
+merge di `#144`; la §2.1 ne registrava 324 prima di quel merge). Comando riproducibile:
 
-**Stato in una riga**: le fondamenta esagonali sono complete e testate, ma **nessuna partita ci gira sopra**
-e il catalogo v0.1 (azioni, eroi, reazioni, ambiente, obiettivi) è **tutto da costruire**.
+```bash
+grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp | tr -d '"' | sort -u | wc -l
+```
+
+**Stato in una riga**: il **contenuto** della v0.1 è costruito e testato (cataloghi, azioni, reazioni, eroi) e
+gira su un **solo substrato esagonale**; mancano **il mondo** (ambiente, coperture, strutture, obiettivi), **la
+leggibilità** (HUD, log, debug), **la conoscenza parziale** e **il gate di release**. Il collo di bottiglia non
+è più il codice di gioco: è la **verifica interattiva** (CP 2.8/6.8 mai eseguito) e l'osservabilità.
 
 ### 2.1 ⚠️ Riallineamento misurato — 2026-08-07
 
@@ -127,25 +142,39 @@ di gioco: è la **verifica interattiva** (M6 CP 6.8 mai eseguito) e l'osservabil
 | **E2** | Parità hex del substrato | **P0** | 8 | Non si costruiscono 4 eroi sopra la griglia quadrata |
 | **E3** | Dismissione del quadrato | **P0** | 3 | Doppia manutenzione = ambiguità su dove va scritta una regola |
 | **E4** | Motore delle azioni a priorità | **P0** | 8 | È l'ossatura che regge azioni, reazioni, ambiente e obiettivi |
-| **E5** | Reazioni | P1 | 4 | Punto di rischio dell'ADR-0003 (revisione prevista alla chiusura) |
-| **E6** | Roster: 4 eroi | P1 | 6 | L'identità dei personaggi è un pilastro di prodotto |
+| **E5** | Reazioni | P1 | 5 | Punto di rischio dell'ADR-0003 (revisione prevista alla chiusura) |
+| **E6** | Roster: 4 eroi | P1 | 7 | L'identità dei personaggi è un pilastro di prodotto |
 | **E7** | Equipaggiamento e loadout | P2 | 4 | Scelta orizzontale (ogni variante ha uno svantaggio) |
 | **E8** | Terreni, stati e ambiente | P1 | 5 | La mappa come sistema di gioco (pilastro) |
 | **E9** | Coperture e strutture | P2 | 5 | Topologia mutevole: cache e path vanno invalidati, mai fantasma |
 | **E10** | Obiettivi dinamici e fine partita | P2 | 3 | Chiude il loop: la partita ha un motivo per muoversi |
-| **E11** | HUD, log e debug | P1 | 4 | Leggibilità tattica + osservabilità (senza `rt.Debug.*` si debugga a occhio) |
-| **E12** | Determinismo, QA e release | **P0** | 5 | Gate di release: senza checksum e packaged non è v0.1 |
+| **E11** | HUD, log e debug | P1 | 6 | Leggibilità tattica + osservabilità (senza `rt.Debug.*` si debugga a occhio) |
+| **E12** | Determinismo, QA e release | **P0** | 6 | Gate di release: senza checksum e packaged non è v0.1 |
 | **E13** | Conoscenza parziale — vista e udito | P2 | 5 | La vista è una statistica a catalogo che non decide nulla; il rumore è il suo gemello e i dati esistono già |
-| **E14** | Overwatch e reazioni interattive | P2 | 5 | Bait, bluff e commitment non sono recuperabili con reazioni dichiarate; l'aggancio (`SuppressiveLine`, `InterceptShot`) esiste già |
+| **E14** | Overwatch e reazioni interattive | P2 | 6 | Bait, bluff e commitment non sono recuperabili con reazioni dichiarate; l'aggancio (`SuppressiveLine`, `InterceptShot`) esiste già |
+| **E15** | Showcase «Il Relè» e golden replay | P1 | 5 | La prova integrata che le regole generali producono una partita: fixture, scenario e replay a hash stabile — consumer dei sistemi, mai codice speciale |
+| **E16** | Orientamento e direzionalità | P1 | 2 | L'orientamento smette di essere presentazione: decide difesa, percezione e reazioni con una sola primitiva (`HexCone`) e **zero numeri nuovi**. È **prerequisito di E13** |
 
-**Totale: 14 epic, 69 checkpoint** *(era 12/59; E13 ed E14 aggiunte il 2026-08-07, vedi §5.13 e
-[`brief-overwatch-reazioni.md`](brief-overwatch-reazioni.md))*.
+**Totale: 16 epic, 82 checkpoint** *(era 12/59; **E13** ed **E14** aggiunte il 2026-08-07; il 2026-08-07,
+consolidando [`../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md`](../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md):
+**E15** showcase (5 CP), **CP 5.5** e **CP 6.7** per il debito delle reazioni d'eroe, **CP 14.2** per
+l'estrazione del micro-step; consolidando
+[`../src/RefactorTactics_ActionGhosts_Phases_FastReactions_Claude.md`](../src/RefactorTactics_ActionGhosts_Phases_FastReactions_Claude.md):
+**CP 11.5** e **CP 11.6** per il planning visuale → [`brief-planning-visuale.md`](brief-planning-visuale.md);
+**E16** orientamento → [ADR-0005](adr-0005-orientamento.md), che chiude il punto aperto sul facing)*.
 
 > ✅ **CP 14.1 chiuso**: [ADR-0004](adr-0004-finestre-di-reazione.md) è **accettato** (2026-08-07). Cambia la
 > **forma del turno** (sequenza di sotto-risoluzioni) e unifica il modello delle reazioni; l'invariante #3 del
 > canone §5 è riformulato — «snapshot a inizio **segmento**». E5 resta chiusa e i suoi 24 test restano verdi:
 > il modello nuovo li contiene come caso `AllowedResponses ≤ 1`. **E14 non parte prima di E13** (il trigger
 > richiede livello `Rilevato`, non solo LOS).
+
+> 🎬 **E15 · showcase** (2026-08-07): la partita dimostrativa **«Il Relè»** entra in roadmap come epic
+> **consumer**, non come contenitore di feature. Regola vincolante: la showcase **espone il gap → si costruisce
+> il sistema generale → si testa il sistema → lo scenario lo consuma**. Mai un `if (Turn == 4)` nel
+> `TurnManager`, mai un `KineticPanel` «showcase-only» che anticipi E9. Le sue dipendenze (E8.2–8.5, E9, E10,
+> E14) restano nelle rispettive epic: E15 aggiunge **fixture, scenario, golden replay e DoD di presentazione**.
+> Documento di scenario: [`showcase-v0.1.md`](showcase-v0.1.md).
 
 > **Fuori dalla v0.1, registrate qui perché esistono i documenti sorgente**: il **motore del ghiaccio**
 > (Momentum, Traction, Slide a catena, Unbalanced/Prone, integrità, rottura, ponti) descritto in
@@ -174,6 +203,10 @@ flowchart LR
     E10[E10 · Obiettivi]
     E11[E11 · HUD, log, debug]
     E12[E12 · Determinismo<br/>QA e release]
+    E13[E13 · Conoscenza<br/>parziale]
+    E14[E14 · Overwatch<br/>e finestre]
+    E15[E15 · Showcase<br/>Il Relè]
+    E16[E16 · Orientamento]
 
     E2 --> E3 --> E4
     E1 --> E4
@@ -186,7 +219,22 @@ flowchart LR
     E7 --> E12
     E10 --> E12
     E11 --> E12
+    E4 --> E16 --> E13
+    E9 --> E16
+    E16 --> E14
+    E5 --> E13
+    E8 --> E13 --> E14
+    E6 --> E15
+    E8 --> E15
+    E10 --> E15
+    E14 -.opzionale.-> E15
+    E15 --> E12
 ```
+
+**E15 legge le altre epic, non le precede**: la prima fetta (`CP 15.1`–`15.2`, fixture su regole già
+atterrate) parte subito; le fette successive si sbloccano quando la relativa epic chiude. La freccia
+tratteggiata da E14 è l'unica **opzionale**: se Fast Reaction viene tagliata, la showcase perde il turno 4 e
+resta consegnabile.
 
 ### Sequenza consigliata
 
@@ -197,8 +245,12 @@ timeline
     Un solo substrato : E3 dismissione del quadrato
     Ossatura : E4 motore delle azioni a priorità
     Contenuto : E6 roster 4 eroi : E5 reazioni : E8 terreni e ambiente
+    Prima prova integrata : E15 CP 15.1-15.2 scenario e fixture Lite
     Mondo reattivo : E9 coperture e strutture : E7 equipaggiamento : E10 obiettivi dinamici
     Leggibilità : E11 HUD, log e comandi debug
+    Percezione : E13 vista e udito
+    Interazione : E14 overwatch e finestre di reazione
+    Prova finale : E15 CP 15.3-15.5 golden replay degli 8 turni
     Release : E12 determinismo, QA, packaging
 ```
 
@@ -308,11 +360,19 @@ turno**, senza attese nel resolver (invariante #3).
 |---|---|---|---|
 | **5.1** | Slot e trigger | Ogni eroe dichiara 0-1 reazione in planning; il trigger è valutato sullo snapshot della fase, senza `Delay`/timeline; **massimo una attivazione per turno** per modulo | `Reactions.SingleActivation`, `Reactions.NoResolverWait` (il resolver non attende) |
 | **5.2** | Difensive | `Counter` (16 danni dopo il colpo ricevuto, non su danno ambientale), `Deflect` (−20 al danno diretto, l'attacco conta come avvenuto), `Brace` (blocca la prima spinta, −10 ai danni diretti, blocca il movimento volontario), `Shield` (25 scudo consumato prima degli HP, scade nel Cleanup), `Cleanse` (rimuove **uno** stato scelto in planning) | Un test per reazione + `Reactions.Deflect.ZeroDamageStillHits` |
-| **5.3** | Intercept | L'intercettore diventa il bersaglio se un alleato entro 2 celle è bersagliato da un attacco **diretto** con traiettoria compatibile; **non** intercetta AoE né hazard | `Reactions.Intercept`, `Reactions.Intercept.RejectsAoE`, `Reactions.Intercept.RejectsHazard` |
+| **5.3** | Intercept | L'intercettore diventa il bersaglio se un alleato entro 2 celle è bersagliato da un attacco **diretto** con traiettoria compatibile; **non** intercetta AoE né hazard | `Reactions.Intercept`, `Reactions.InterceptRejectsAoE`, `Reactions.InterceptRejectsHazard` — **foglie univoche**, vedi §6 |
 | **5.4** | Privacy delle reazioni | La reazione preparata è visibile agli **alleati** durante il planning e **mai** ai nemici; nessun intento in `GameState` replicato globalmente | `Reactions.IntentNotVisibleToEnemy` (estensione di `FRTIntentVisibilityTest`) |
+| **5.5** *(nuovo 2026-08-07)* | Reazioni **componibili**: il motore regge le reazioni d'eroe | Una reazione può dichiarare **più effetti** on-trigger (`Flux.ReactiveCapacitor` = `Shield 15` **e** 10 danni all'attaccante) e conservare la propria **identità** nel TurnLog pur riusando la semantica core: un helper di costruzione (`MakeHeroReactionFromCoreAction` o equivalente nello stile del `RTHeroCatalogLibrary`) produce `ActionId` d'eroe + cooldown proprio sopra `Action.Intercept`/`Action.Deflect`. **Nessun `if (ActionId == …)` nel `TurnManager`**: il vincolo è verificato da un test che permuta gli ActionId | `Reactions.HeroReactionKeepsIdentityInLog`, `Reactions.MultiEffectReactionAppliesAll`, `Reactions.NoHeroSpecificBranchInResolver` |
 
 **Rischi**: è il punto di revisione dell'ADR-0003. Se il costo sfonda: degradare alle difensive di fase Prep
 (`Guard`/`Brace`/`Shield`) e rimandare `Counter`/`Intercept`/`Deflect` **fuori** dalla v0.1, aggiornando la DoD.
+
+> **CP 5.5 riapre l'epic**: E5 era stata chiusa con 24 test verdi, ma **nessuno la consuma** — le cinque
+> reazioni degli eroi hanno `Effects` vuoto e commenti «arriva con E5» nel catalogo, mentre E5 è passata.
+> Un motore che nessuno consuma non è finito: è un motore non collaudato. CP 5.5 aggiunge al motore ciò che
+> manca alle reazioni d'eroe; **CP 6.7** le cabla. `Vektor.InterceptShot` **non** rientra qui: è un trigger
+> d'ingresso su movimento, quindi il suo aggancio è **E14** (ADR-0004), non E5 — cablarlo su E5 sarebbe la
+> duplicazione di `FRTSuppressiveZone` che il canone vieta.
 
 ---
 
@@ -328,9 +388,16 @@ turno**, senza attese nel resolver (invariante #3).
 | **6.4** | Bastion — architetto del campo | 120 HP, 4 MP, vista 5, resistenza push 1, affinità strutture; `ImpactShot` (24, r3), `KineticPanel` (copertura 30 HP), `Reconfigure`, `Ram` (Charge 20 + Push 1), `Interposition`; variante rinforzato/adattivo | `Heroes.Bastion.PanelCreatesCover`, `Heroes.Bastion.PushResistance` |
 | **6.5** | Vektor — duellante predittivo | 100 HP, 6 MP, vista 6, affinità movimento; `PulseShot` (21, r4), `InterceptShot` (16 + stop movimento), `PassingBlade` (Dash 3, 20 attraversando), `Deflection` (−20), `Feint`; variante preciso/esteso | `Heroes.Vektor.InterceptShotStopsMovement` |
 | **6.6** | Selezione e spawn 2v2 | `ARTGameMode` spawna 4 eroi da `URTHeroData` (non più `RangerUnitClass`/`GuardianUnitClass` hard-coded); fallback visivo al cilindro se l'asset manca | Test d'integrazione (4 eroi distinti in `UWorld`); `PIE-V01-ROSTER` |
+| **6.7** *(nuovo 2026-08-07)* | Le reazioni degli eroi **funzionano in partita** | Quattro reazioni cablate sul motore E5 riusando la semantica core (CP 5.5): `Bastion.Interposition` → `Action.Intercept` (trigger `AllyHitByDirectAttack`, range 2), `Vektor.Deflection` → `Action.Deflect` (−20), `Flux.ReactiveCapacitor` → `Shield 15` **+** 10 all'attaccante, `Riva.FlowReaction` → **rinviata a E14** e dichiarata tale (produce movimento dentro un boundary). Ogni reazione occupa lo **slot `Reaction`** ed è soggetta a «una attivazione per turno». I commenti «arriva con E5» spariscono dal catalogo eroi e i test che oggi **fissano l'assenza** (`Effects.Num() == 0`) sono sostituiti da test di comportamento | `Heroes.BastionInterpositionRedirectsDirectHit`, `Heroes.BastionInterpositionUsesReactionSlot`, `Heroes.VektorDeflectionReducesDirectHit`, `Heroes.FluxReactiveCapacitorShieldsAndCounters` |
 
 **Rischi**: 4 eroi × 4 abilità × varianti = 20 combinazioni di regole. Nessuna variante deve essere migliore
 in ogni parametro (vincolo del catalogo, verificato dal validator di CP 1.4).
+
+> **CP 6.7 riapre l'epic** e ha una premessa scomoda: oggi esistono **test verdi che documentano il debito**
+> — per esempio `RTHeroBastionTests.cpp:133` verifica che `Interposition` **non abbia** effetti. Diventeranno
+> rossi il giorno del cablaggio: è il comportamento atteso, non una regressione. Vanno **sostituiti** da test
+> di comportamento nella stessa PR, mai cancellati e basta. **Dipende da CP 5.5**: senza reazioni a più
+> effetti, `ReactiveCapacitor` finirebbe come `if (Flux…)` nel resolver.
 
 ---
 
@@ -369,7 +436,7 @@ l'unicità del colpo per unità sono **test**, non commenti.
 
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
-| **9.1** | Copertura bassa direzionale | Associata a un **bordo** della cella (6 lati); riduce di 10 il danno diretto **solo** dal lato protetto; non protegge da AoE con centro sul lato protetto; integrità 30 | `Cover.DirectionalDamageReduction`, `Cover.LowCover.WrongSideNoReduction`, `Cover.LowCover.AoESameSide` |
+| **9.1** | Copertura bassa direzionale | Associata a un **bordo** della cella (6 lati); riduce di 10 il danno diretto **solo** dal lato protetto; non protegge da AoE con centro sul lato protetto; integrità 30. *(2026-08-07)* La copertura resta legata al **bordo della cella**: il facing dell'unità **non** la ruota — è il colpo fuori dall'arco frontale che la **annulla** (CP 16.2). Due direzionalità **ortogonali**: non vanno unificate | `Cover.DirectionalDamageReduction`, `Cover.LowCover.WrongSideNoReduction`, `Cover.LowCover.AoESameSide` |
 | **9.2** | Copertura alta e distruzione | Blocca movimento, LOS e proiettili; integrità 50; distruggibile (`HeavyAttack` 20, `BreachCharge` 35); alla distruzione la LOS si riapre **e il grafo si aggiorna** | `Cover.HighCover.BlocksAll`, `Cover.Destruction.ReopensLOS` |
 | **9.3** | Porte e revisione del grafo | Stati `Open/Closed/Locked/Destroyed`; ogni cambio incrementa la **revisione del chunk** e invalida cache di lookup e path; una porta chiusa a metà turno non produce path fantasma | `Structures.Door.StateChangeBumpsRevision`, `Structures.Door.InvalidatesPathCache` |
 | **9.4** | Ponti e `ModifyArc` | Il ponte è un arco fra due celle, attivo/disattivo/distrutto; non si muove durante la resolution; rimuovendolo i due layer tornano irraggiungibili (il path **fallisce**, non teletrasporta) | `Structures.Bridge.RemovalBreaksPath`; `PIE-HEXPLAY-8` |
@@ -398,9 +465,24 @@ modifica di regole coperta dall'ADR-0003: va riflessa in `piano-canonico-mvp.md 
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
 | **11.1** | HUD di partita | Barre HP/scudo/energia, timer di planning, fase corrente, slot occupati (movimento/principale/reazione), cooldown residui per azione | `PIE-V01-HUD` |
-| **11.2** | Intenti alleati e certezza | Gli intenti **alleati** sono mostrati con tre livelli: **confermato** (collegamento certo), **previsto** (valido nello snapshot corrente), **incerto** (una cella potrebbe cambiare durante il movimento); nessun intento avversario mostrato né replicato | `UI.IntentCertaintyClassification`; `PIE-V01-INTENT` |
+| **11.2** | Intenti alleati e certezza | Gli intenti **alleati** sono mostrati con tre livelli: **confermato** (collegamento certo), **previsto** (valido nello snapshot corrente), **incerto** (una cella potrebbe cambiare durante il movimento); nessun intento avversario mostrato né replicato. **Grammatica visiva** *(2026-08-07)*: confermato = linea piena · previsto = tratteggiata + icona di squadra · incerto = dissolto + `?`. La classificazione arriva dal resolver: la UI **non ricalcola il perché**. Finché **E13** non esiste, l'incertezza da **visibilità** non si mostra — un `?` che finge un sistema assente è peggio di nessun `?` | `UI.IntentCertaintyClassification`; `PIE-V01-INTENT` |
 | **11.3** | Combat log con reason code | Ogni esito del TurnLog compare nel log con coordinate assiali `(q,r,L)`, `ActionId`, `Priority` e `ValidationResult`; i fallback applicati sono espliciti | `UI.LogContainsReasonAndCoords`; `PIE-V01-LOG` |
 | **11.4** | Comandi `rt.Debug.*` | `rt.Debug.DrawGrid`, `DrawPaths`, `DrawCover`, `DrawIntent`, `DrawResolution`, `DumpSnapshot`, `DumpTurnLog`, `VerifyReplay` esistono e funzionano in PIE e in build Development; le celle mostrano `CellId`, `TerrainId`, `TraversalCost`, `OccupantId`, `HazardTags`, `CoverEdges`, `ChunkRevision` | `Debug.VerifyReplayDetectsDivergence` (test che introduce una divergenza e verifica che il comando la rilevi); `PIE-V01-DEBUG` |
+| **11.5** *(nuovo 2026-08-07)* | **Ghost Timeline**: preview del piano per fase | Un *Action Ghost* per fase (Prep · Dash · Blast · Move) mostra **dove** sarà l'unità e **da dove** agirà, non solo la destinazione. View model con una entry per fase (`Phase`, `UnitId`, `ActionId`, `PreviewOrigin`, `PreviewDestination`, `Facing`, `PoseId`, `TargetCells`, `AffectedCells`, `Certainty`) e **`ReactionPreview` separata dalla lista delle fasi** — la reaction non è una quinta fase. Origine, destinazione, celle bersaglio e area **coincidono con quelle che userebbe il resolver**: stesso A\*, stesso snapshot, nessuna seconda implementazione delle regole. Budget di presentazione: pooling di mesh/decal, nessun Actor persistente per preview, aggiornamento a frequenza limitata (**non** ogni Tick) | `Preview.GhostMatchesResolverPath`, `Preview.HitCellsMatchCombatShape`, `Preview.ReactionIsNotAPhaseEntry`, `Preview.ClearedWhenPlanIsCancelled` |
+| **11.6** *(nuovo 2026-08-07)* | **Scrubbing** delle fasi e ramo condizionale della reaction | Selezionando una fase il suo ghost si evidenzia e gli altri si attenuano, con origine, bersaglio, linea, AoE e copertura rilevante in evidenza; i **warning** (alleato sulla traiettoria, esposizione, collisione possibile) arrivano dallo stesso strato che produce i reason code del TurnLog — **mai** ricalcolati nel widget — e sono marcati *previsto*/*incerto*, mai *confermato*; la reaction armata compare come **ramo con `?`** accanto alla timeline | `Preview.AllyInAreaIsFlagged`, `Preview.WarningsComeFromResolverReasons`, `Preview.ArmedReactionRendersAsBranch`; `PIE-V01-GHOSTS` |
+
+> **CP 11.5/11.6 vengono da** [`brief-planning-visuale.md`](brief-planning-visuale.md), che consolida
+> `../src/RefactorTactics_ActionGhosts_Phases_FastReactions_Claude.md`. Il documento **conferma** sette
+> decisioni già canoniche (ordine delle fasi, Move ultima, Dash ≠ Move, privacy degli intenti, slow-motion
+> come presentazione, reaction decisa in resolution, renderer non autoritativo) e ne aggiunge una sola di
+> regola: il **displacement reattivo non è la Move Phase** e non la consuma — vincolo per `Riva.FlowReaction`
+> e per il troncamento del movimento in CP 14.5.
+>
+> ✅ **Il punto aperto sul facing è chiuso** ([ADR-0005](adr-0005-orientamento.md), 2026-08-07): l'orientamento
+> **non** resta presentazione. Diventa stato logico derivato dall'ultima azione di movimento e decide difesa,
+> percezione e reazioni → epic **E16**. Conseguenza per CP 11.5: il ghost deve mostrare il **facing pianificato**
+> e le direzioni **legali** (una · tre · sei, secondo lo stile di movimento). Sceglierlo senza vederlo
+> significa sceglierlo alla cieca, e vale per tutto il turno successivo.
 
 ---
 
@@ -432,15 +514,124 @@ Fonti: [`brief-conoscenza-parziale.md`](brief-conoscenza-parziale.md) ·
 
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
-| **13.1** | Celle visibili e conoscenza di squadra | Funzione **pura** e headless: celle visibili per unità (`HexDistance ≤ Vista` ∧ LOS), unione per squadra, ordine stabile; tre livelli `Nascosto / Incerto / Rilevato`; nessun consumatore ancora | `Vision.VisibleCellsRespectsSight`, `Vision.TeamKnowledgeIsUnion`, `Vision.SmokeCapsContactAtTwo`, `Vision.PermutationInvariant` |
+| **13.1** | Celle visibili e conoscenza di squadra | Funzione **pura** e headless: unione per squadra, ordine stabile; tre livelli `Nascosto / Incerto / Rilevato`; nessun consumatore ancora. **Vista a cono** *(ADR-0005, 2026-08-07)*: vista piena fino a `VisionRange` **nell'arco frontale** — la stessa `HexCone(Cella, Neighbor(Cella, Facing), Range)` della difesa direzionale — più **consapevolezza ravvicinata a 360° entro 2 celle** (stesso cap del fumo); oltre le 2 celle, fuori dall'arco, nulla. LOS richiesta in entrambi i casi. **Dipende da CP 16.1** | `Vision.VisibleCellsRespectsSight`, `Vision.ConeUsesHexConePrimitive`, `Vision.AwarenessWithinTwoCellsIgnoresFacing`, `Vision.TeamKnowledgeIsUnion`, `Vision.SmokeCapsContactAtTwo`, `Vision.PermutationInvariant` |
 | **13.2** | Il targeting consuma la conoscenza + memoria del contatto | Le azioni offensive rifiutano bersagli **ignoti alla squadra**; un bersaglio solo `Incerto` è bersagliabile solo per cella, mai per unità; `FRTLastKnownContact` per squadra nello snapshot, formato **versionato**, persistenza 1 turno | `Vision.CannotTargetUnknown`, `Vision.UncertainTargetsCellNotUnit`, `Vision.AllySpottingExtendsTargeting`, `Vision.LastContactExpiresAfterOneTurn` |
 | **13.3** | Propagazione del rumore | Flood fill **intero** sul grafo tattico limitato dall'intensità (`ReceivedNoise = Intensity − costo acustico`); `Noise_Mod` per superficie dal workbook; nessun `SphereOverlap`; ordine deterministico | `Noise.PropagationIsDeterministic`, `Noise.AttenuationBySurface`, `Noise.ThresholdDecidesDetection`, `Noise.PermutationInvariant` |
 | **13.4** | Rumore → contatto incerto | Un evento sonoro sopra soglia produce un contatto **`Incerto`** con area, mai la cella esatta; l'attacco rivela almeno la direzione; gli eventi entrano nel TurnLog **sanitizzati per squadra** | `Noise.ProducesUncertainContact`, `Noise.AttackRevealsDirection`, `Noise.TurnLogIsTeamFiltered` |
-| **13.5** | Bot e HUD sulla conoscenza parziale | `URTHexBotLibrary` pianifica sulla conoscenza della **propria** squadra e non bersaglia ciò che non conosce; HUD con marker d'ultimo contatto e area d'incertezza acustica | `Bot.PlansOnPartialKnowledge`, `Bot.DoesNotTargetUnknown`; PIE `PIE-V01-VISION`, `PIE-V01-NOISE` |
+| **13.5** | Bot e HUD sulla conoscenza parziale | `URTHexBotLibrary` pianifica sulla conoscenza della **propria** squadra e non bersaglia ciò che non conosce; HUD con marker d'ultimo contatto e area d'incertezza acustica. **Con ADR-0005** il bot valuta anche **da dove è visto e da dove può essere colpito**: l'orientamento entra nel punteggio delle candidate | `Bot.PlansOnPartialKnowledge`, `Bot.DoesNotTargetUnknown`, `Bot.ConsidersExposedRearArc`; PIE `PIE-V01-VISION`, `PIE-V01-NOISE` |
 
 **Rischi**: i test del bot (smoke/panic/support/tuning) cambiano **premessa**, non solo valori — un bot che
 perde il contatto e sbaglia è il comportamento atteso. Il rumore è ciò che rende necessario il livello
 `Incerto`: senza di esso il sistema si riduce a un secondo raggio di rilevamento.
+
+---
+
+### E14 — Overwatch e reazioni interattive · P2
+
+**Obiettivo**: una reazione può richiedere una **scelta live** durante la resolution senza rompere il
+determinismo. La decisione diventa un **input canonico** del replay, non un evento di presentazione.
+
+Decisione: [`adr-0004-finestre-di-reazione.md`](adr-0004-finestre-di-reazione.md) (accettato 2026-08-07) ·
+brief: [`brief-overwatch-reazioni.md`](brief-overwatch-reazioni.md). **Dipende da E13**: il trigger richiede
+livello `Rilevato`, non solo LOS. È **l'ultima epic della v0.1** e la **prima da tagliare** (§8).
+
+| CP | Obiettivo | DoD misurabile | Test / verifica |
+|---|---|---|---|
+| **14.1** ✅ | **ADR-0004** — composizione dell'invariante #3 | Il turno è una sequenza di sotto-risoluzioni; ogni segmento ha snapshot proprio; l'input del giocatore entra nel TurnLog come dato; il timeout è una funzione pura. `piano-canonico-mvp.md §5/§8.2` e `spec-sequenza-turno.md` §3 aggiornati | Revisione documentale — **chiuso 2026-08-07** |
+| **14.2** *(nuovo 2026-08-07)* | **Micro-step step-able**, a comportamento invariato | Il resolver di movimento espone uno stato esplicito (`FRTMovementResolutionState` + `ResolveNextHexMicroStep`); **`ResolveHexPaths` resta e diventa il wrapper** `initialize → while(!finished) step → result`. **Nessun comportamento cambia**: tutti i test di movimento, collisione, scivolamento e permutazione restano verdi **senza modifiche al comportamento atteso**; il TurnLog prodotto è identico a byte confrontabili. Nessuna finestra, nessuna UI, nessun trigger in questo CP | Suite movimento/collisioni **invariata** · `Movement.StepperMatchesBatchResolver` (stesso input ⇒ stesso risultato dei due percorsi) · `Movement.StepperIsDeterministicUnderPermutation` |
+| **14.3** | Modello unificato senza regressioni | `FRTReactionOpportunity` con `AllowedResponses`; `≤ 1` → commit immediato **senza** boundary. **I 24 test di E5 restano verdi senza modifiche al loro comportamento atteso.** `OpportunityId` **derivato deterministicamente** (`Turn.Phase.MicroStep.Owner.ReactionDef.Seq`), mai un GUID runtime | `Reactions.SingleResponseCommitsWithoutWindow`, `Reactions.OpportunityIdIsDerivedNotRandom`, suite E5 invariata |
+| **14.4** | Overwatch armato e trigger a micro-step | Zona controllata **riusando `FRTSuppressiveZone`** (nessuna seconda geometria), la cui direzione **nasce dal facing** dell'unità e non da un parametro dichiarato a parte *(ADR-0005 §4c: due sorgenti sarebbero due verità)*; trigger valutato a ogni micro-step con `TargetInsideArea ∧ LOS ∧ Rilevato ∧ ReactionStillArmed`; più bersagli nello stesso micro-step ⇒ **una** opportunity multi-bersaglio; ordine totale `ReactionPriority → AbilityPriority → UnitInitiative → StableUnitId → ReactionInstanceId` | `Overwatch.TriggersPerMicroStep`, `Overwatch.SimultaneousTargetsSingleOpportunity`, `Overwatch.RequiresDetection`, `Overwatch.OrderIsDeterministic` |
+| **14.5** | Finestra, commit e cablaggio di `Vektor.InterceptShot` | Finestra 3 s; `FIRE` consuma la charge e **tronca** il movimento residuo del bersaglio, `HOLD` mantiene armata la reaction; `Timeout → HOLD`; la decisione entra nel TurnLog e il **replay la riproduce**; la opportunity inviata al client non contiene trigger, percorsi né posizioni future; il **bot** decide con la sola opportunity sanitizzata; **prima misura di pacing** con `DecisionProvider` immediato (nessun timer reale) | `Overwatch.HoldKeepsArmed`, `Overwatch.TimeoutIsHold`, `Overwatch.DecisionIsReplayable`, `Overwatch.OpportunityLeaksNoFuture`, `Overwatch.FireTruncatesFutureMovement`, `Overwatch.InterruptionAffectsLaterCollision`, `Bot.DecidesWithoutFutureKnowledge` |
+| **14.6** | Counterplay, UI e misura reale | KO/Stun/Disarm/Forced Movement invalidano l'overwatch armato; UI `FIRE`/`HOLD` con countdown, **nessuna logica di gioco nel widget**, slow-motion come sola presentazione; durata della resolution **misurata e registrata** con 1/2/3 unità armate | `Overwatch.CancelledByStun`, `Overwatch.CancelledByForcedMovement`, `Overwatch.SlowMotionDoesNotChangeOutcome`; PIE `PIE-V01-OVERWATCH` |
+
+> **Rinumerazione 2026-08-07**: i CP 14.2–14.5 del brief sono diventati 14.3–14.6 per fare posto
+> all'estrazione del micro-step, che era implicita e non aveva un gate proprio pur essendo il punto più
+> rischioso dell'epic (tocca il resolver che tutta la suite usa). **Nessuna decisione dell'ADR-0004 cambia**:
+> la revisione prevista «alla chiusura di CP 14.5» si legge ora **CP 14.6**.
+
+**Rischi**: (a) la **durata della resolution** — `MaxPromptsPerReaction 3 × 3 s = 9 s` per una sola unità
+armata, senza cap aggregato (decisione D20). La soglia d'allarme di ADR-0004 è **20 s**; la prima misura è
+anticipata al CP 14.5 con decisioni immediate, così il pacing si scopre prima di costruire la UI.
+(b) **Non** costruire la policy `AutoCommit/PromptOwner` proposta dal documento di integrazione: è la stessa
+cosa di `AllowedResponses ≤ 1` (ADR-0004 §2), che la deriva dai dati invece di aggiungere un enum parallelo.
+
+---
+
+### E15 — Showcase «Il Relè» e golden replay · P1
+
+**Obiettivo**: una partita dimostrativa 2v2 di 8 turni che sia allo stesso tempo **fixture d'integrazione,
+golden replay e demo**. Fonte:
+[`../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md`](../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md).
+Scenario: `RT_Showcase_Relay_v01`, arena `L_Showcase_Relay`, `Flux + Riva` vs `Bastion + Vektor`.
+
+**Regola dell'epic** — la showcase è un **consumer**: espone il gap → si costruisce il sistema generale nella
+sua epic → si testa il sistema → lo scenario lo consuma → golden replay. Vietati: un secondo `ARTGameMode`,
+un `if (Turn == 4)` nel `TurnManager`, un `KineticPanel` «showcase-only» che anticipi E9, una regola
+`if (HeroId == …)`. Ciò che è **design della showcase e non canone** (relocation del Relay, «primo a 4 punti»,
+gli 8 turni) vive nei **dati di scenario**, mai nel codice delle regole.
+
+| CP | Obiettivo | DoD misurabile | Test / verifica |
+|---|---|---|---|
+| **15.1** | Documento di scenario | `docs/design/showcase-v0.1.md` esiste e separa tre sezioni: **canone corrente** (cosa il codice fa già), **target showcase** (gli 8 turni), **delta di scope** (cosa non esiste e in quale epic sta). Il roster vigente è dichiarato e i nomi superati (Aegis/Nyx/Drift/Vex, 100 HP, interrupt 5 s) sono elencati come **storici**. Ogni turno della sequenza cita l'epic che lo abilita | Revisione documentale; nessun requisito nuovo introdotto fuori dalle epic esistenti |
+| **15.2** | Fixture **Lite** su regole già atterrate | Una fixture di scenario deterministica costruita accanto a `URTMatchSetupLibrary` (arena generata, coordinate documentate, superfici esistenti, spawn canonico, seed fisso) — **nessuna regola nuova**, nessuna cover dinamica, nessun objective. Copre: Rough nega il Dash, Ice fa scivolare nel Move, Fire on-enter, Smoke limita il targeting, `PressureJet` danno/Wet/Push, `Ram` LinearCharge, Counter/Deflect/Intercept generici, fallback su bersaglio mosso, TurnLog leggibile | `ShowcaseRelay.FixtureLayoutIsStable` (celle, superfici, spawn), `ShowcaseRelay.LiteScenarioIsDeterministic` (N ripetizioni, stesso log/hash) |
+| **15.3** | Scenario **scriptabile** senza UI | Gli input di una partita showcase sono un **dato**: intenti per unità e turno + eventuali risposte alle finestre (`Boundary → FIRE/HOLD`), alimentabili nel resolver **senza** click, UMG o timer reali. La UI diventa un consumer degli stessi comandi | `ShowcaseRelay.ScriptedInputsDriveMatch`, `ShowcaseRelay.DecisionProviderIsInjectable` |
+| **15.4** | Golden replay degli 8 turni | Lo scenario completo gira e produce **`LogHash` e `StateHash` attesi**; una divergenza fallisce indicando turno, fase e `ActionId`. I file golden vivono con quelli del **CP 12.6** (stesso meccanismo, stessa cartella, **rigenerazione solo con flag esplicito**): la showcase è un elemento del corpus, non un secondo sistema | `ShowcaseRelay.DeterministicReplay`, `ShowcaseRelay.FinalStateHashStable`, `ShowcaseRelay.WetEnablesFluxCombo`, `ShowcaseRelay.InterpositionRedirectsHit`, `ShowcaseRelay.ObjectiveCheckedAfterKO` |
+| **15.5** | Presentazione e playtest | La partita è **giocabile e leggibile** in editor: il TurnLog spiega gli eventi chiave, KO non implica vittoria se l'obiettivo chiude il match, nessuna dipendenza dal frame rate. Screenshot/video **solo dopo** che la logica è verificata | `PIE-V01-SHOWCASE`; sessione di playtest di leggibilità registrata in `test-manuali-pie.md` |
+
+**Dipendenze per turno della sequenza target** (nessuna va anticipata dentro E15):
+
+| Turno | Mostra | Abilitato da |
+|---|---|---|
+| 1 | planning simultaneo, path alleati, Dash, terreno modificato | ✅ oggi · `FluidTrail` ambientale → **CP 8.5** · `KineticPanel` → **CP 9.5** |
+| 2 | setup `Wet`, `ConductiveNode` | **CP 8.2** (stati) · **CP 8.5** (creazione terreno) |
+| 3 | previsione e fallback su bersaglio mosso | ✅ oggi (CP 4.3) |
+| 4 | `InterceptShot` con finestra `FIRE`/`HOLD` | **CP 14.5** — **opzionale**: se E14 è tagliata, il turno degrada a reazione automatica |
+| 5 | Smoke e passaggio confermato → incerto | **CP 8.1** ✅ per il cap di targeting · certezza UI → **CP 11.2** · conoscenza reale → **E13** |
+| 6 | Push resistance e `Interposition` | **CP 5.5 + 6.7** |
+| 7 | combo acqua/elettricità | **CP 8.3** |
+| 8 | obiettivo contestabile, vittoria con un KO subito | **CP 10.2** (controllo nel Cleanup, dopo ambiente e KO) |
+
+**Rischi**: (a) il golden hash **cambia** a ogni epic che atterra (E8.2 → E8.3 → E9 → E10 → E14). Se la
+rigenerazione è comoda, il golden diventa una firma automatica e smette di proteggere: vale la regola del
+CP 12.6 — **rigenerazione con flag esplicito, mai in automatico**, e la PR che lo rigenera dichiara *perché*
+l'esito è cambiato. (b) La showcase ha sei stakeholder (demo, smoke test, fixture, golden, benchmark,
+tutorial): solo i criteri **verificabili in automatico** sono DoD. «Fa capire i pilastri senza spiegazione»
+resta un obiettivo di prodotto registrato in `showcase-v0.1.md`, non un gate di chiusura.
+
+---
+
+### E16 — Orientamento e direzionalità · P1
+
+**Obiettivo**: l'orientamento smette di essere presentazione e diventa una **decisione tattica**. Il facing
+deriva dall'ultima azione di movimento, si aggiorna a fine Move e vale per **tutto il turno successivo**.
+
+Decisione: [ADR-0005](adr-0005-orientamento.md) (accettato 2026-08-07). **Zero numeri nuovi**: la difesa
+direzionale toglie protezioni già a catalogo invece di aggiungere danno.
+
+> **Prerequisito di E13**: la vista a cono non si costruisce senza facing. La catena è
+> `E16.1 → E13 → E14`. Se E16 venisse tagliata, **E13 torna alla vista a 360°** (comportamento attuale) e
+> **E14 fa dichiarare all'Overwatch la propria direzione**: entrambe restano consegnabili, con meno profondità.
+
+| CP | Obiettivo | DoD misurabile | Test / verifica |
+|---|---|---|---|
+| **16.1** | Facing logico e derivazione dal movimento | `ERTHexDirection Facing` autorevole sull'unità, aggiornato **al termine della fase Move**. Direzioni legali per stile: `Linear*` → **una** (quella del movimento, derivata) · `Budget` → **tre** (ultimo passo e le due adiacenti, dichiarata) · `None` → **sei** (rotazione libera dichiarata, **non consuma slot**). Movimento **forzato**: ci si gira verso la cella d'origine dell'ultimo spostamento subito nell'ordine canonico; spostamento **ambientale** senza sorgente → invariato; un Move volontario successivo **vince**. Una rotazione dichiarata illegale è **rifiutata**, non corretta in silenzio. `Facing` entra in snapshot, TurnLog versionato e hash; la rotazione **dichiarata** è un intento e passa da `FilterForTeam`. La presentazione continua a interpolare lo yaw ma **atterra sul facing logico** a fine playback | `Facing.LinearMoveDerivesDirection`, `Facing.BudgetMoveAllowsLastStepPlusMinusOne`, `Facing.RejectsIllegalDeclaredRotation`, `Facing.StationaryUnitRotatesFreely`, `Facing.ForcedMovementFacesSource`, `Facing.EnvironmentalDisplacementKeepsFacing`, `Facing.VoluntaryMoveWinsOverForced`, `Facing.PermutationInvariant`, `Facing.IntentIsTeamFiltered` |
+| **16.2** | Difesa direzionale: l'emisfero posteriore è scoperto | L'**arco frontale** è definito operativamente da `URTHexLibrary::HexCone(Cella, Neighbor(Cella, Facing), Range)` — **nessuna seconda geometria**. Un colpo la cui origine **non** è nell'arco frontale **annulla** la riduzione da **copertura bassa** (−10) e da **`Action.Guard`** (−15). `Deflect`, `Brace`, `Shield` e gli scudi restano validi da **ogni** direzione: proteggono la persona, non un lato. Nessun modificatore nuovo | `Combat.BackAttackIgnoresCover`, `Combat.BackAttackIgnoresGuard`, `Combat.FlankAttackKeepsCover`, `Combat.ShieldWorksFromAnyDirection` |
+
+**Consumatori negli altri epic** — non sono CP di E16, sono DoD emendate:
+
+| Dove | Cosa cambia |
+|---|---|
+| **CP 13.1** (E13) | vista piena nell'arco frontale fino a `VisionRange`; **consapevolezza ravvicinata** a 360° entro **2 celle** (stesso cap del fumo); nulla oltre. Stessa primitiva `HexCone` |
+| **CP 13.5** (E13) | il bot considera **da dove è visto e da dove può essere colpito**: i suoi test cambiano premessa una seconda volta |
+| **CP 14.4** (E14) | la zona controllata dell'Overwatch **nasce dal facing**, non da una direzione dichiarata a parte (§10 della nota sorgente è superata) |
+| **CP 11.5** (E11) | il ghost mostra il **facing pianificato**: il campo `Facing` del view model diventa una scelta visibile, non una posa decorativa |
+| **CP 9.1** (E9) | la copertura bassa resta **per bordo di cella**; il facing non la ruota — è il colpo alle spalle che la annulla. Le due direzionalità sono ortogonali e non vanno unificate |
+
+**Rischi**: (a) **aggirare potrebbe diventare dominante** — se il gioco migliore è sempre prendere il fianco,
+le vie di rientro sono parametri (retro = sola direzione opposta, oppure riduzione parziale invece di
+annullamento), non modifiche del modello; (b) i test del bot cambiano premessa **due volte** (E13 e poi il
+cono); (c) senza il facing nella preview il giocatore sceglie **alla cieca** una decisione che vale per tutto
+il turno successivo: CP 11.5 è il gate di leggibilità di questa epic.
 
 ---
 
@@ -463,6 +654,46 @@ I dieci nomi richiesti dal catalogo (§15) sono **vincolanti**: devono esistere 
 
 Ogni test di determinismo esegue la stessa simulazione con **stesso snapshot, seed, definizioni e ordine**.
 
+### 6.1 Regola di naming — nessun nome è prefisso di un altro *(2026-08-07)*
+
+Un nome di test che è **prefisso gerarchico** di altri nomi eseguibili crea un nodo padre nell'albero
+dell'Automation Framework e **può essere saltato**. Il difetto è già stato incontrato in questo repository.
+
+```text
+❌  Reactions.Intercept  +  Reactions.Intercept.RejectsAoE     ← il padre è anche un test
+✅  Reactions.Intercept  +  Reactions.InterceptRejectsAoE      ← foglie univoche
+```
+
+Conseguenza per questo documento: i nomi `Reactions.Intercept.RejectsAoE` e `Reactions.Intercept.RejectsHazard`
+elencati fino al 2026-08-07 nel CP 5.3 **non esistevano nel codice** — la correzione era già stata applicata
+alle fonti (`Reactions.InterceptRejectsAoE`, `…RejectsHazard`) senza tornare sulla roadmap.
+
+`RefactorTactics.Reactions.Intercept` resta **vincolante** perché è nominato dal catalogo §15, e resta
+ammissibile perché nessun altro test lo usa come prefisso. Prima di aggiungere un nome nuovo:
+
+```bash
+grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp | tr -d '"' | sort -u
+```
+
+### 6.2 Nomi delle epic nuove — una sola forma per comportamento
+
+Il documento di integrazione (§43) e l'ADR-0004 propongono nomi diversi per gli **stessi** comportamenti.
+Vale la forma dell'ADR, che è la decisione accettata:
+
+| Comportamento | ✅ Nome vigente | ❌ Sinonimo da non usare |
+|---|---|---|
+| `HOLD` non consuma la charge | `Overwatch.HoldKeepsArmed` | `FastReaction.HoldKeepsReactionArmed` |
+| `FIRE` consuma la charge | `Overwatch.DecisionIsReplayable` (copre il commit) | `FastReaction.CommitConsumesCharge` |
+| timeout = `HOLD` | `Overwatch.TimeoutIsHold` | `FastReaction.TimeoutMapsToHold` |
+| bersagli simultanei = una opportunity | `Overwatch.SimultaneousTargetsSingleOpportunity` | `FastReaction.SimultaneousTargetsShareOpportunity` |
+| nessun dato futuro nel DTO | `Overwatch.OpportunityLeaksNoFuture` | `FastReaction.DoesNotExposeFutureTriggers` |
+| permutazione invariante | `Overwatch.OrderIsDeterministic` | `FastReaction.PermutationInvariant` |
+
+I nomi del documento che **non** hanno un equivalente nell'ADR restano validi e sono assegnati:
+`Overwatch.FireTruncatesFutureMovement` e `Overwatch.InterruptionAffectsLaterCollision` → **CP 14.5**;
+`Overwatch.CancelledByStun`/`…ByForcedMovement` → **CP 14.6**;
+la famiglia `Noise.*` → **CP 13.3/13.4**; la famiglia `ShowcaseRelay.*` → **E15**.
+
 ---
 
 ## 7. Mappatura con la roadmap canonica M6–M11
@@ -482,6 +713,9 @@ aggiunge il contenuto del catalogo.
 | E10 | — | **Nuova** (il canone fissava vittoria = eliminazione) |
 | E11 | parte di **M8** + osservabilità | Estende l'HUD con intenti/certezza e i comandi debug |
 | E12 | **M7** CP 7.3/7.4 + **M11** parziale | Anticipa i KPI e il packaging; la CI e il soak restano a M11 |
+| E13 | parte di **M8** + prepara **M10** | **Nuova**: la conoscenza di squadra sanitizzata è il modello che M10 dovrà replicare in rete |
+| E14 | — | **Nuova** (ADR-0004): cambia la forma del turno; il costo in rete (N round-trip) è un vincolo **di M10**, non della v0.1 offline |
+| E15 | parte di **M8** | **Nuova**: la showcase è la prova integrata e il banco di leggibilità che M8 usa per la presentazione |
 | — | **M10** Rete e privacy | **Fuori dalla v0.1** (resta post-release) |
 | — | **M11** Production readiness | Fuori, tranne quanto assorbito in E12 |
 
@@ -494,7 +728,13 @@ un gate della v0.1, perché l'editor è uno strumento, non una feature di gioco.
 
 | Rischio | P/I | Mitigazione | Stato |
 |---|---|---|---|
-| Scope: **69** checkpoint per un dev singolo | **H/H** | Ordine per priorità: se il tempo stringe si taglia **E14**, poi **E7**, poi **E10**, poi **E13**, poi le varianti di **E6** — mai E1/E2/E3/E4/E12. *Aggiornato 2026-08-07: E1/E4/E5/E6 risultano chiuse (§2.1), quindi il rischio si è spostato dal contenuto al **mondo** (E8/E9/E10) e all'osservabilità (E11)* | attivo |
+| Scope: **82** checkpoint per un dev singolo | **H/H** | Ordine di taglio: **E14**, poi **E7**, poi **E10**, poi **E13** (e con essa **E16**, che senza consumatori di percezione perde due terzi del valore), poi le varianti di **E6** — mai E1/E2/E3/E4/E12. **E15 non si taglia, si degrada**: senza E14 perde il turno 4, senza E9 perde le strutture, e resta consegnabile con i sistemi atterrati. *Aggiornato 2026-08-07: E1/E4/E5/E6 chiuse (§2.1); il rischio si è spostato al **mondo** (E8/E9/E10) e all'osservabilità (E11)* | attivo |
+| Il **golden hash** della showcase cambia a ogni epic che atterra | **H/M** | Rigenerazione **solo con flag esplicito** (regola del CP 12.6, estesa a E15); la PR che rigenera dichiara *perché* l'esito è cambiato, altrimenti il golden diventa una firma automatica | pianificato |
+| La finestra di reazione allunga la resolution oltre il tollerabile | M/**H** | Soglia d'allarme **20 s** (ADR-0004); prima misura anticipata al **CP 14.5** con decisioni immediate, prima di costruire la UI; rientri già valutati: cap aggregato o `MaxPromptsPerReaction = 1`, entrambi parametri | pianificato |
+| Reazioni d'eroe mai cablate: E5 chiusa ma **non consumata** | **H/M** | CP 5.5 (motore componibile) + CP 6.7 (cablaggio); i test che oggi fissano l'assenza vengono **sostituiti**, non cancellati | attivo |
+| Aggirare diventa dominante: con il retro scoperto il gioco migliore è sempre prendere il fianco | M/**H** | Vie di rientro **parametriche**, non modifiche del modello (ADR-0005 *Revisione*): retro ridotto alla sola direzione opposta, oppure riduzione parziale invece di annullamento. Soglia: se il playtest mostra che la posizione frontale non è mai giocabile | pianificato |
+| I test del bot cambiano premessa **due volte** (conoscenza parziale, poi cono visivo) | M/M | E16 prima di E13, così la premessa cambia una sola volta nell'ordine giusto; `Bot.ConsidersExposedRearArc` è il gate | pianificato |
+| Il documento di integrazione propone soluzioni **già superate** dall'ADR-0004 | M/M | §5 E14 dichiara le convergenze: `AutoCommit/PromptOwner` ≡ `AllowedResponses ≤ 1`; §6.2 unifica i nomi dei test; nessuna delle due si costruisce due volte | attivo |
 | La sostituzione della coordinata rompe il gioco a metà | H/H | E2 a fette compilabili, ogni CP con suite verde; tag `pre-hex-only` prima di E3 | attivo |
 | Le reazioni sfondano il budget di complessità | M/H | Revisione dell'ADR-0003 alla chiusura di E5; via di degrado già scritta (solo difensive di Prep) | pianificato |
 | Doppia definizione di abilità (`URTAbilityData` vs `URTActionData`) | **H/M** | CP 1.3 dichiara migrazione o estensione, non duplicazione; il validator di CP 1.4 fallisce su ID doppi | attivo |
@@ -537,6 +777,11 @@ Rilevati confrontando `roadmap-checkpoint.md` con il repository (2026-08-05):
 |---|---|
 | [`piano-canonico-mvp.md`](piano-canonico-mvp.md) | **Canone**: decisioni vincolanti e invarianti |
 | [`adr-0003-modello-azioni-v01.md`](adr-0003-modello-azioni-v01.md) | Decisione che abilita questa roadmap |
+| [`adr-0004-finestre-di-reazione.md`](adr-0004-finestre-di-reazione.md) | Decisione che abilita **E14**: l'invariante #3 si compone, un solo modello di reazione |
+| [`adr-0005-orientamento.md`](adr-0005-orientamento.md) | Decisione che abilita **E16**: il facing deriva dal movimento e decide difesa, percezione e reazioni |
+| [`showcase-v0.1.md`](showcase-v0.1.md) | Scenario della showcase **E15**: canone corrente, target, delta di scope |
+| [`brief-conoscenza-parziale.md`](brief-conoscenza-parziale.md) · [`brief-overwatch-reazioni.md`](brief-overwatch-reazioni.md) · [`brief-ghiaccio.md`](brief-ghiaccio.md) · [`brief-planning-visuale.md`](brief-planning-visuale.md) | Brief di scoping: cosa entra in **E11**/**E13**/**E14** e cosa resta north-star |
+| [`../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md`](../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md) · [`../src/RefactorTactics_ActionGhosts_Phases_FastReactions_Claude.md`](../src/RefactorTactics_ActionGhosts_Phases_FastReactions_Claude.md) | Handoff e note di design (2026-08-07): **materiale sorgente**, consolidato qui — in caso di conflitto prevale questo file |
 | *questo file* | **Release v0.1**: epic, checkpoint, DoD per checkpoint |
 | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate di release, KPI, checklist trasversale |
 | [`v0.1-issue-plan.md`](v0.1-issue-plan.md) | Titoli e body delle issue (e mappa issue ↔ checkpoint) |

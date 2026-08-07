@@ -1,0 +1,185 @@
+# ADR-0005 — Orientamento: il facing come stato di gioco derivato dal movimento
+
+> **Stato**: Accettato — da implementare · **Data**: 2026-08-07 · **Decisore**: utente (dev singolo)
+> **Contesto sorgente**: `docs/src/RefactorTactics_ActionGhosts_Phases_FastReactions_Claude.md` §17 (campo `Facing`
+> nel view model) e [`brief-planning-visuale.md`](brief-planning-visuale.md) §C5, che registrava il punto come aperto.
+> **Estende**: [ADR-0003](adr-0003-modello-azioni-v01.md) (stili di movimento) · [ADR-0004](adr-0004-finestre-di-reazione.md) (reazioni direzionali)
+
+## Contesto
+
+Il facing esiste già nel progetto, ma **solo come presentazione**: `ARTUnit::SetVisualLocation` orienta la
+mesh verso la direzione dello spostamento visivo (yaw continuo, `URTPlaybackLibrary::DirectionYaw`), e
+`bFaceMovementDirection` può disattivarlo. Nessuna regola lo consuma. Il test
+`Actions.Wait.AllowsFacingAndReaction` esiste proprio per **non precludere** un facing futuro: verifica che
+`Wait` non consumi lo slot che servirebbe a orientarsi e a reagire.
+
+La nota sugli Action Ghosts chiede un campo `Facing` nel view model della preview: da lì la domanda se il
+facing debba restare presentazione o diventare stato di gioco. Il brief l'aveva registrata come aperta,
+raccomandando «derivato, finché nessuna regola lo consuma».
+
+La decisione dell'utente è di **dargli tre consumatori** — difesa, percezione e reazioni — e di legarlo al
+movimento invece che renderlo un input libero.
+
+## Decisione
+
+### 1. Il facing è stato logico, e deriva dall'ultima azione di movimento
+
+L'unità ha un `ERTHexDirection Facing` **autorevole**: enum a sei valori con ordine stabile (`E, NE, NW, W,
+SW, SE`), intero, già usato da `URTHexLibrary::AxialDirection`/`Neighbor`. Nessun float, nessun angolo
+continuo nella logica.
+
+Si aggiorna **al termine della fase Move**, che è l'ultima fase volontaria del turno (ADR-0003 §1).
+
+| Stile di movimento | Direzioni legali | Chi decide |
+|---|---|---|
+| `LinearDash` · `LinearCharge` · `LinearLeap` | **una**: la direzione del movimento | derivato, nessun input |
+| `Budget` (`Action.Move`, `Sprint`) | **tre**: la direzione dell'ultimo passo e le due adiacenti (`D`, `D±1`) | dichiarato in planning fra le tre |
+| `None` (nessun movimento: `Wait`, sola azione principale) | **sei**: rotazione libera | dichiarato in planning |
+
+La rotazione **non consuma slot**: `Action.Wait` ha slot `None` e resta tale. Restare fermi e girarsi verso
+un corridoio è una scelta tattica, non un turno sprecato.
+
+### 2. Il facing è una decisione a effetto differito
+
+Poiché l'ordine è `Prep → Dash → Blast → Move` e il Move è l'ultima fase, il facing scelto in un turno vale
+per **tutto il turno successivo**, fino al suo Move. Durante il Blast del turno N l'unità guarda dove è
+finita al turno N−1 (o dove l'ha portata il Dash del turno N).
+
+**Derivata, non preferita**: è la conseguenza dell'ordine delle fasi, non una regola aggiunta. Ed è
+desiderabile — ti orienti verso la minaccia che *prevedi*, e se prevedi male resti scoperto. La stessa forma
+di commitment dell'Overwatch armato.
+
+### 3. Movimento forzato: ci si gira verso la sorgente
+
+Spinta, knockback e displacement da reazione **non** sono la Move Phase (regola già consolidata in
+[`brief-planning-visuale.md`](brief-planning-visuale.md) §A7) e quindi non seguono la regola §1. L'unità
+spostata contro la propria volontà si gira **verso la cella di origine dell'ultimo effetto di spostamento
+subito**, nell'ordine canonico di risoluzione — che è già totale e deterministico.
+
+Casi limite, tutti derivati senza regole nuove:
+
+| Situazione | Facing risultante |
+|---|---|
+| Più spinte nello stesso turno | verso l'origine dell'**ultima** nell'ordine canonico |
+| Danno o spostamento **ambientale** (nessun attaccante) | **invariato** |
+| AoE centrata su una cella | verso la **cella d'origine** dell'effetto, non verso chi l'ha lanciata |
+| L'unità viene spinta e poi si muove volontariamente | vince il Move: la §1 si applica per ultima |
+
+### 4. Un solo arco frontale, tre consumatori
+
+L'arco frontale è definito **operativamente** dalla primitiva già esistente:
+
+```
+ArcoFrontale(Unità) = URTHexLibrary::HexCone(Cella, Neighbor(Cella, Facing), Range)
+```
+
+`HexCone` è un ventaglio di 120°, «unione dei due settori a 60° adiacenti alla direzione principale»: a
+distanza 1 copre **3 celle**, a distanza 2 ne copre 5. Passando come bersaglio il vicino nella direzione del
+facing si ottiene il cono del facing **senza scrivere una seconda geometria** — la direzione principale di
+`HexCone` è per costruzione il primo passo della linea.
+
+> Questa è la scelta architetturale più importante dell'ADR: **vista, difesa e reazioni direzionali usano
+> letteralmente la stessa funzione**. Non possono divergere, perché non esistono due definizioni di «davanti».
+
+#### 4a. Difesa — l'emisfero posteriore è scoperto
+
+Un colpo la cui origine **non** è nell'arco frontale della vittima **annulla** la riduzione da **copertura
+bassa** (−10) e da **`Action.Guard`** (−15). Nessun modificatore nuovo, nessun numero da bilanciare: si
+riusano valori già a catalogo, togliendo una protezione invece di aggiungere danno.
+
+Non cambia: `Deflect`, `Brace`, `Shield` e gli scudi restano validi da ogni direzione — proteggono la
+persona, non un lato.
+
+#### 4b. Percezione — vista a cono con consapevolezza ravvicinata (E13)
+
+- Nell'arco frontale: vista piena fino a `VisionRange` dell'eroe (5–6 celle a catalogo), con LOS.
+- **In ogni direzione, entro 2 celle**: si percepisce comunque, con LOS. È la *consapevolezza ravvicinata*, e
+  riusa il **cap di contatto a 2 celle** già canonico per il fumo (`Max_Contact_Range`).
+- Oltre 2 celle fuori dall'arco frontale: nulla.
+
+La consapevolezza ravvicinata non è una concessione: senza di essa un'unità resta cieca alle spalle per un
+turno intero, e ciò che il giocatore non può nemmeno percepire smette di essere una scelta e diventa una
+punizione arbitraria.
+
+#### 4c. Reazioni direzionali — il cono dell'Overwatch **è** il facing (E14)
+
+La zona controllata di un Overwatch armato nasce dal facing dell'unità, **non** da una direzione dichiarata a
+parte come proponeva la nota sorgente (§10: `Direction: North-East`). Due sorgenti per la stessa cosa
+sarebbero due verità: chi arma la guardia decide dove guardare **orientandosi**.
+
+### 5. Determinismo e privacy
+
+- `Facing` entra nello **snapshot**, nel **TurnLog** (formato versionato) e nell'hash del replay: è un enum
+  intero con ordine stabile, quindi non introduce dipendenze da `TMap`, float o ordine di iterazione.
+- La rotazione **dichiarata** (casi `Budget` e `None`) è un **intento di planning**: viaggia in
+  `FRTPlannedIntent` e passa da `FilterForTeam` come tutto il resto. L'orientamento che un avversario
+  *intende* assumere è informazione; quello che ha **assunto** è pubblico, perché è una posa osservabile.
+- La presentazione continua a interpolare lo yaw, ma alla fine del playback **deve atterrare sul facing
+  logico**. Se la mesh guarda a nord e la regola dice sud, il giocatore legge una cosa e ne subisce un'altra:
+  è il difetto peggiore per la leggibilità tattica (invariante #1).
+
+## Alternative considerate
+
+| Alternativa | Esito |
+|---|---|
+| Facing solo presentazione (stato attuale) | **Scartata dall'utente**: nessun peso tattico all'orientamento |
+| Facing libero fra le 6 dopo un Move a budget | **Scartata**: spezza il legame «come arrivo determina come guardo» e rende il facing un intento del tutto indipendente dal movimento |
+| Facing obbligato all'ultimo passo | **Scartata**: inchioda l'orientamento a una direzione che il pathfinding ha scelto, costringendo a pianificare waypoint solo per girarsi |
+| Retro = 1 sola direzione con +6 danni | **Scartata**: raro da ottenere su hex, e aggiunge un modificatore invece di riusare quelli esistenti |
+| Cono visivo senza consapevolezza ravvicinata | **Scartata**: cecità totale alle spalle per un turno intero |
+| Cono visivo a 5 direzioni | **Scartata**: impatto quasi nullo, non giustifica il costo |
+| Chi è spinto resta orientato com'era | **Scartata dall'utente** a favore di «si gira verso la sorgente» |
+
+## Conseguenze
+
+**Positive**: l'orientamento diventa una decisione tattica con conseguenze su tre assi (difesa, percezione,
+reazioni) senza introdurre un solo numero nuovo · una sola primitiva (`HexCone`) definisce «davanti» per
+tutti e tre · il facing è già mezzo implementato lato presentazione · aggirare un nemico diventa una manovra
+con un premio leggibile, non solo un riposizionamento.
+
+**Negative / costi**:
+
+- **`Facing` diventa un prerequisito di E13**: la vista a cono non si può costruire prima. La catena della
+  v0.1 si allunga: `E16.1 → E13 → E14`;
+- la **difesa direzionale** tocca il combat math e va misurata: un colpo alle spalle su un bersaglio in
+  copertura passa da −10 a 0, cioè **10 danni in più** su HP che vanno da 90 a 120;
+- i test del bot cambiano premessa **due volte**: con E13 (conoscenza parziale) e con il cono (il bot deve
+  considerare da dove viene visto e da dove può essere colpito);
+- la rotazione dichiarata aggiunge un campo agli intenti, quindi alla privacy e alla serializzazione;
+- la **preview** deve mostrare il facing pianificato, altrimenti il giocatore sceglie alla cieca una decisione
+  che vale per tutto il turno successivo (CP 11.5 lo prevede già come campo del view model).
+
+**Invarianti**: **#1** rafforzato (la presentazione deve atterrare sul facing logico, non definirlo) · **#2**
+rispettato (il facing è un enum, non una rotazione del `FVector`) · **#4** rispettato (intero, ordine
+stabile, formato versionato) · **#6** rispettato (la rotazione **intesa** è filtrata per squadra, quella
+**assunta** è pubblica) · **#7** rispettato (l'arco frontale è una funzione pura già testata).
+
+## Verifica
+
+| Test | Cosa dimostra |
+|---|---|
+| `Facing.LinearMoveDerivesDirection` | dopo un Dash/Charge/Leap il facing è la direzione del movimento, senza input |
+| `Facing.BudgetMoveAllowsLastStepPlusMinusOne` | dopo un Move a budget sono legali **tre** direzioni e solo quelle |
+| `Facing.RejectsIllegalDeclaredRotation` | una rotazione dichiarata fuori dall'insieme legale viene **rifiutata**, non silenziosamente corretta |
+| `Facing.StationaryUnitRotatesFreely` | da fermo tutte e sei sono legali e la rotazione non consuma slot |
+| `Facing.ForcedMovementFacesSource` | chi è spinto si gira verso l'origine dell'ultimo spostamento subito |
+| `Facing.EnvironmentalDisplacementKeepsFacing` | uno spostamento ambientale senza sorgente lascia il facing invariato |
+| `Facing.VoluntaryMoveWinsOverForced` | se l'unità viene spinta e poi si muove, vale la regola del Move |
+| `Facing.PermutationInvariant` | permutare l'ordine degli input non cambia il facing risultante |
+| `Facing.IntentIsTeamFiltered` | la rotazione **dichiarata** non raggiunge il client avversario |
+| `Combat.BackAttackIgnoresCover` · `…IgnoresGuard` | un colpo fuori dall'arco frontale annulla −10 e −15 |
+| `Combat.FlankAttackKeepsCover` | dai fianchi la copertura vale: l'arco frontale è quello di `HexCone`, non solo la direzione esatta |
+| `Vision.ConeUsesHexConePrimitive` | la vista non ha una geometria propria |
+| `Vision.AwarenessWithinTwoCellsIgnoresFacing` | la consapevolezza ravvicinata vale in ogni direzione |
+| `Overwatch.ArcComesFromFacing` | la zona controllata non dichiara una direzione propria |
+
+## Revisione
+
+Rivedere alla chiusura di **CP 16.2** (difesa direzionale), con i dati del playtest.
+
+**Soglia di allarme**: se aggirare diventa dominante — cioè se il modo migliore di giocare è sempre e solo
+prendere il fianco — le vie di rientro sono parametri, non modifiche del modello: ridurre l'arco scoperto
+(retro = solo la direzione opposta), oppure trasformare l'annullamento della copertura in una riduzione
+parziale. **Seconda revisione** alla chiusura di **CP 13.5**, quando il bot gioca sulla percezione a cono:
+se il bot risulta cieco in modo illeggibile, il parametro da muovere è la consapevolezza ravvicinata (2 → 3
+celle), non la forma del cono.
