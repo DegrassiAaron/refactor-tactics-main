@@ -191,9 +191,13 @@ namespace
 
 	/**
 	 * Stringa a lunghezza variabile: uint16 di lunghezza in byte + payload UTF-8. Primo campo non a
-	 * dimensione fissa del formato — l'ActionId e' un nome, e troncarlo a N caratteri renderebbe due azioni
-	 * dal prefisso comune indistinguibili. Nomi oltre 65535 byte non esistono nel catalogo (il validator
-	 * rifiuta un ActionId vuoto, non ne limita la lunghezza): il clamp e' fail-closed, non silenzioso.
+	 * dimensione fissa del formato — l'ActionId e' un nome, e troncarlo a lunghezza fissa renderebbe due
+	 * azioni dal prefisso comune indistinguibili.
+	 *
+	 * Oltre 65535 byte la stringa viene troncata: e' il limite del campo di lunghezza. Nessun ActionId del
+	 * catalogo si avvicina a quella soglia (sono nomi come `Bastion.Interposition`), quindi il caso non e'
+	 * raggiungibile da dati validi — se lo diventasse, il posto dove rifiutarlo e' il validator del catalogo,
+	 * non il serializzatore.
 	 */
 	void AppendStringUtf8(TArray<uint8>& B, const FString& S)
 	{
@@ -270,7 +274,7 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 	SortTurnLog(Canonical);
 
 	TArray<uint8> Out;
-	Out.Reserve(12 + Canonical.Num() * 31);
+	Out.Reserve(12 + Canonical.Num() * 33); // 31 byte a campi fissi + 2 di lunghezza dell'ActionId (hint)
 
 	// Header: magic + versione + flags(topologia) + conteggio (tutto little-endian). Square = 0 -> i byte
 	// restano identici a quelli scritti prima che il campo flags fosse usato (retrocompatibilita').
