@@ -48,7 +48,22 @@ enum class ERTActionEffect : uint8
 	 * Aggiunto in CODA all'enum: i valori precedenti non si rinumerano, quindi i data asset gia' salvati
 	 * continuano a significare la stessa cosa.
 	 */
-	DamageReduction
+	DamageReduction,
+	/**
+	 * Danno alle STRUTTURE (coperture, e da CP 9.3/9.4 porte e ponti): una scala DIVERSA da `Damage` —
+	 * `Action.HeavyAttack` vale 35 contro un'unita' e 20 contro un muro, `Gadget.BreachCharge` 35 contro un
+	 * muro (catalogo v0.1, #61).
+	 *
+	 * Effetto separato e non un secondo campo su `Damage` perche' il catalogo deve dire ESPLICITAMENTE chi
+	 * puo' sfondare: con un campo, le ~28 azioni che non sfondano porterebbero uno zero che non significa
+	 * nulla. Chi lo consuma e' la raccolta del Blast (`URTHexCombatLibrary::CollectHexAttacks`), che lo porta
+	 * sul primo bordo coperto attraversato dal colpo; l'applicazione e' a fase conclusa
+	 * (`URTHexCoverLibrary::ApplyStructureDamage`), cosi' l'ordine dei colpi non cambia l'esito.
+	 *
+	 * Aggiunto in CODA all'enum, come `DamageReduction`: i valori precedenti non si rinumerano e i data asset
+	 * gia' salvati continuano a significare la stessa cosa.
+	 */
+	DamageStructure
 };
 
 /**

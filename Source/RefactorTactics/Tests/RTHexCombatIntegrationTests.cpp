@@ -596,3 +596,68 @@ bool FRTActionsMarkTargetReachesTargetTest::RunTest(const FString&)
 	DestroyHexBlastWorld(World);
 	return true;
 }
+
+/**
+ * Il pezzo che i test puri non possono dare: che in PARTITA il danno alle strutture venga davvero raccolto,
+ * applicato e SCRITTO nel TurnLog. Senza, `ApplyStructureDamage` potrebbe essere corretta e non venire
+ * chiamata da nessuno - il difetto ricorrente di questi checkpoint.
+ *
+ * Scena: muro alto sul bordo fra l'attaccante e il bersaglio. Il colpo non arriva a nessuno (la barriera
+ * toglie la linea di tiro), ma la barriera incassa: e' l'unico modo che l'attaccante ha di aprirsi la strada.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexCoverDestructionLoggedTest,
+	"RefactorTactics.Cover.Destruction.LoggedInPlayedTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexCoverDestructionLoggedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 4);
+
+	// Muro alto sul bordo W di (1,0): separa (0,0) da (1,0), e con esse l'attaccante dal bersaglio.
+	const FRTCellId Walled(1, 0);
+	FRTHexCellData WithWall = *MapActor->MapAsset->FindCell(Walled);
+	WithWall.Covers.Add(FRTHexCover(ERTHexDirection::W, ERTHexCoverType::High,
+		FRTHexCover::DefaultIntegrity(ERTHexCoverType::High)));
+	MapActor->MapAsset->AddOrUpdateCell(WithWall);
+	MapActor->MapAsset->SortCells();
+
+	ARTUnit* Breacher = SpawnHexBlastUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, ERTArchetype::Guardian, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Breacher || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	// L'abilita' dichiara di poter sfondare: e' il catalogo a concederlo (qui lo si simula sull'istanza,
+	// perche' l'archetipo di prova non ha `HeavyAttack` fra le sue).
+	Breacher->Abilities[0]->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 20));
+	Breacher->PlannedAbilityIndex = 0;
+	Breacher->PlannedAttackTarget = Foe;
+
+	const int32 HealthBefore = Foe->Health;
+	RunBlastTurn(TM);
+
+	TestEqual(TEXT("il muro ha fermato il colpo: il bersaglio e' intatto"), Foe->Health, HealthBefore);
+
+	// Il dato e' stato scalato sulla COPIA di lavoro della mappa, quella su cui gira la partita.
+	const FRTHexCellData* After = MapActor->MapAsset->FindCell(Walled);
+	TestTrue(TEXT("la copertura e' ancora in piedi, danneggiata"),
+		After && After->Covers.Num() == 1 && After->Covers[0].Integrity == 30);
+
+	// E il TurnLog lo dice, col bordo scritto come coppia di celle.
+	int32 Logged = 0;
+	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+	{
+		if (Entry.Category == ERTLogCategory::Environment
+			&& Entry.Outcome == static_cast<uint8>(ERTEnvironmentOutcome::CoverDamaged))
+		{
+			++Logged;
+			TestTrue(TEXT("la voce indica il bordo colpito"),
+				Entry.SrcCell == Walled && Entry.TgtCell == FRTCellId(0, 0));
+			TestEqual(TEXT("e l'integrita' residua"), Entry.Amount, 30);
+		}
+	}
+	TestEqual(TEXT("una voce di copertura danneggiata"), Logged, 1);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}

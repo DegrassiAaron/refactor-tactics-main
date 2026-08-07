@@ -51,6 +51,59 @@ TArray<FRTCellId> URTHexCombatLibrary::HexHitCells(ERTAbilityShape Shape, const 
 	return Cells;
 }
 
+namespace
+{
+	/**
+	 * Primo bordo COPERTO che la traiettoria attraversa, andando da `From` verso `To`. E' la barriera che il
+	 * colpo incontra per prima: quella oltre non la tocca nemmeno, perche' il colpo si ferma qui.
+	 */
+	bool FirstCoveredEdge(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To,
+		FRTCellId& OutFrom, FRTCellId& OutTo)
+	{
+		const FRTCellId Origin(From.X, From.Y, To.Layer);
+		if (Origin.X == To.X && Origin.Y == To.Y)
+		{
+			return false; // stessa cella assiale: nessun bordo attraversato
+		}
+
+		const TArray<FRTCellId> Line = URTHexLibrary::HexLine(Origin, To);
+		for (int32 I = 1; I < Line.Num(); ++I)
+		{
+			if (URTHexCoverLibrary::CoverBetween(Map, Line[I - 1], Line[I]) != ERTHexCoverType::None)
+			{
+				OutFrom = Line[I - 1];
+				OutTo = Line[I];
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Somma il danno su un bordo gia' presente, o ne aggiunge uno nuovo. La coppia di celle e' NORMALIZZATA
+	 * (ordine stabile) perche' due attaccanti ai lati opposti colpiscono la stessa barriera: senza, il muro
+	 * risulterebbe colpito due volte a meta' della forza.
+	 */
+	void AccumulateStructureHit(TArray<FRTStructureHit>& Hits, const FRTCellId& A, const FRTCellId& B,
+		int32 Amount, int32 AttackerId)
+	{
+		const bool bForward = URTHexLibrary::StableLess(A, B);
+		const FRTCellId& Low = bForward ? A : B;
+		const FRTCellId& High = bForward ? B : A;
+
+		for (FRTStructureHit& Existing : Hits)
+		{
+			if (Existing.From == Low && Existing.To == High)
+			{
+				Existing.Amount += Amount;
+				Existing.AttackerId = FMath::Min(Existing.AttackerId, AttackerId); // deterministico, per il log
+				return;
+			}
+		}
+		Hits.Add(FRTStructureHit(Low, High, Amount, AttackerId));
+	}
+}
+
 int32 URTHexCombatLibrary::HexCoverDamageReduction(const URTHexMapAsset* Map, const FRTCellId& From,
 	const FRTCellId& Target, ERTAbilityShape Shape)
 {
@@ -150,6 +203,20 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 			Plan.UnverifiableIntents.Add(IntentIdx);
 			continue;
 		}
+
+		// STRUTTURE (CP 9.2): il colpo che sbatte contro una barriera la danneggia. Si raccoglie PRIMA del
+		// controllo sulla linea di tiro, perche' il caso principale e' proprio quello — il muro alto che
+		// ferma il colpo e' anche l'unico bersaglio che l'attaccante puo' avere, visto che gli impedisce di
+		// vedere chiunque stia dietro. Il danno si somma per bordo e viene applicato a fase conclusa.
+		if (Intent.StructurePower > 0)
+		{
+			FRTCellId EdgeFrom, EdgeTo;
+			if (FirstCoveredEdge(Map, Attacker.Cell, AimCell, EdgeFrom, EdgeTo))
+			{
+				AccumulateStructureHit(Plan.StructureHits, EdgeFrom, EdgeTo, Intent.StructurePower,
+					Intent.AttackerId);
+			}
+		}
 		if (!URTHexVisionLibrary::HasLineOfSight(Map, Attacker.Cell, AimCell))
 		{
 			Plan.BlockedIntents.Add(IntentIdx);
@@ -191,6 +258,11 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 	});
 	Plan.BlockedIntents.Sort();
 	Plan.UnverifiableIntents.Sort();
+	Plan.StructureHits.Sort([](const FRTStructureHit& A, const FRTStructureHit& B)
+	{
+		if (!(A.From == B.From)) { return URTHexLibrary::StableLess(A.From, B.From); }
+		return URTHexLibrary::StableLess(A.To, B.To);
+	});
 
 	return Plan;
 }

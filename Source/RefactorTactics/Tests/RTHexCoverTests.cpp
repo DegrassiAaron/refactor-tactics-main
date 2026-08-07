@@ -1,11 +1,15 @@
 #include "Misc/AutomationTest.h"
 #include "Ability/RTActionData.h"
+#include "Ability/RTCatalogLibrary.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexCoverLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTHexVisionLibrary.h"
+#include "Pathfinding/RTHexPathLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -23,14 +27,30 @@ namespace
 		return M;
 	}
 
-	/** Copertura bassa sul bordo indicato della cella (la cella deve esistere). */
-	void SetLowCoverEdge(URTHexMapAsset* Map, const FRTCellId& Id, ERTHexDirection Edge)
+	/** Copertura del tipo indicato sul bordo di una cella (la cella deve esistere). */
+	void SetCoverEdge(URTHexMapAsset* Map, const FRTCellId& Id, ERTHexDirection Edge, ERTHexCoverType Type)
 	{
 		const FRTHexCellData* Existing = Map->FindCell(Id);
 		FRTHexCellData Data = Existing ? *Existing : FRTHexCellData(Id);
-		Data.Covers.Add(FRTHexCover(Edge));
+		Data.Covers.Add(FRTHexCover(Edge, Type, FRTHexCover::DefaultIntegrity(Type)));
 		Map->AddOrUpdateCell(Data);
 		Map->SortCells();
+	}
+
+	/** Copertura bassa sul bordo indicato della cella (la cella deve esistere). */
+	void SetLowCoverEdge(URTHexMapAsset* Map, const FRTCellId& Id, ERTHexDirection Edge)
+	{
+		SetCoverEdge(Map, Id, Edge, ERTHexCoverType::Low);
+	}
+
+	/** Vero se il grafo di traversata offre `To` fra i vicini di `From`. */
+	bool CoverGraphHasStep(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To)
+	{
+		for (const TPair<FRTCellId, int32>& Step : URTHexPathLibrary::GraphNeighbors(Map, From))
+		{
+			if (Step.Key == To) { return true; }
+		}
+		return false;
 	}
 
 	FRTHexCombatUnit CoverUnit(int32 UnitId, int32 TeamId, const FRTCellId& Cell)
@@ -189,6 +209,338 @@ bool FRTCoverLowCoverClampTest::RunTest(const FString&)
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
 	TestEqual(TEXT("il colpo resta nel piano"), Plan.Hits.Num(), 1);
 	TestEqual(TEXT("danno azzerato, mai negativo"), CoverPowerOn(Plan, 1), 0);
+	return true;
+}
+
+/**
+ * Nome vincolante della DoD (CP 9.2). La copertura ALTA nega l'attraversamento: vista, passo e proiettili,
+ * e lo fa NEI DUE VERSI — il dato sta su un bordo di una cella sola, ma un muro e' un muro da qualunque lato
+ * lo si guardi (decisione 2026-08-07 sulla issue #70).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverHighCoverBlocksAllTest,
+	"RefactorTactics.Cover.HighCover.BlocksAll",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCoverHighCoverBlocksAllTest::RunTest(const FString&)
+{
+	// Muro sul bordo W di (1,0): separa (0,0) da (1,0), che sono adiacenti.
+	const FRTCellId Behind(0, 0);
+	const FRTCellId Walled(1, 0);
+	URTHexMapAsset* Map = MakeCoverMap(3);
+	SetCoverEdge(Map, Walled, ERTHexDirection::W, ERTHexCoverType::High);
+
+	// Vista: bloccata nei due sensi. E' un ATTRAVERSAMENTO, non una cella che si oscura da sola.
+	TestFalse(TEXT("LOS bloccata verso il muro"), URTHexVisionLibrary::HasLineOfSight(Map, Behind, Walled));
+	TestFalse(TEXT("LOS bloccata nel verso opposto"), URTHexVisionLibrary::HasLineOfSight(Map, Walled, Behind));
+	TestFalse(TEXT("LOS bloccata anche piu' in la' sulla stessa linea"),
+		URTHexVisionLibrary::HasLineOfSight(Map, Behind, FRTCellId(3, 0)));
+
+	// Passo: negato nei due sensi, ma le due celle continuano a ESISTERE (non sono muri-cella).
+	TestFalse(TEXT("il grafo non offre il passo verso il muro"), CoverGraphHasStep(Map, Behind, Walled));
+	TestFalse(TEXT("ne' quello di ritorno"), CoverGraphHasStep(Map, Walled, Behind));
+	TestTrue(TEXT("le due celle restano nella mappa"),
+		Map->ContainsCell(Behind) && Map->ContainsCell(Walled));
+	TestTrue(TEXT("gli altri bordi restano percorribili"), CoverGraphHasStep(Map, Behind, FRTCellId(0, 1)));
+
+	// Proiettili: l'intento non produce colpi e finisce fra quelli bloccati dalla linea di tiro.
+	TArray<FRTHexCombatUnit> Units;
+	Units.Add(CoverUnit(0, 0, Behind));
+	Units.Add(CoverUnit(1, 1, Walled));
+	TArray<FRTHexAttackIntent> Intents;
+	Intents.Add(CoverIntent(0, 1, ERTAbilityShape::Single, 5, 30));
+	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
+	TestEqual(TEXT("nessun colpo attraversa il muro"), Plan.Hits.Num(), 0);
+	TestEqual(TEXT("registrato come linea di tiro bloccata"), Plan.BlockedIntents.Num(), 1);
+	return true;
+}
+
+/**
+ * La copertura BASSA non e' un muro: continua a lasciar passare vista e passo, e resta quella di CP 9.1 (-10
+ * al danno). Senza questo test, "alta blocca tutto" potrebbe essere implementata su TUTTE le coperture e la
+ * suite non se ne accorgerebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverLowCoverStillPassableTest,
+	"RefactorTactics.Cover.HighCover.LowCoverStaysPassable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCoverLowCoverStillPassableTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeCoverMap(3);
+	SetCoverEdge(Map, FRTCellId(1, 0), ERTHexDirection::W, ERTHexCoverType::Low);
+
+	TestTrue(TEXT("la copertura bassa non blocca la vista"),
+		URTHexVisionLibrary::HasLineOfSight(Map, FRTCellId(0, 0), FRTCellId(1, 0)));
+	TestTrue(TEXT("ne' il passo"), CoverGraphHasStep(Map, FRTCellId(0, 0), FRTCellId(1, 0)));
+	TestTrue(TEXT("ne' il passo di ritorno"), CoverGraphHasStep(Map, FRTCellId(1, 0), FRTCellId(0, 0)));
+
+	TestTrue(TEXT("il bordo e' riconosciuto come copertura bassa"),
+		URTHexCoverLibrary::CoverBetween(Map, FRTCellId(0, 0), FRTCellId(1, 0)) == ERTHexCoverType::Low);
+	TestFalse(TEXT("e non nega l'attraversamento"),
+		URTHexCoverLibrary::BlocksTraversal(Map, FRTCellId(0, 0), FRTCellId(1, 0)));
+
+	// Integrita' di catalogo per tipo: 30 la bassa, 50 l'alta.
+	TestEqual(TEXT("integrita' della copertura bassa"),
+		FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low), 30);
+	TestEqual(TEXT("integrita' della copertura alta"),
+		FRTHexCover::DefaultIntegrity(ERTHexCoverType::High), 50);
+	return true;
+}
+
+namespace
+{
+	/** Intento che porta anche danno a STRUTTURA (l'azione dichiara `DamageStructure`). */
+	FRTHexAttackIntent CoverBreachIntent(int32 AttackerId, int32 TargetId, int32 Power, int32 StructurePower)
+	{
+		FRTHexAttackIntent I = CoverIntent(AttackerId, TargetId, ERTAbilityShape::Single, 5, Power);
+		I.StructurePower = StructurePower;
+		return I;
+	}
+
+	/** Come sopra, ma mirando una CELLA (`Fallback.AttackCell`): e' cosi' che si punta una struttura. */
+	FRTHexAttackIntent CoverBreachCellIntent(int32 AttackerId, const FRTCellId& Cell, int32 Power,
+		int32 StructurePower)
+	{
+		FRTHexAttackIntent I = CoverIntent(AttackerId, INDEX_NONE, ERTAbilityShape::Single, 5, Power);
+		I.TargetCell = Cell;
+		I.StructurePower = StructurePower;
+		return I;
+	}
+
+	/** Scena standard: muro alto sul bordo W di (1,0), attaccante in (0,0), bersaglio dietro in (2,0). */
+	URTHexMapAsset* MakeWalledMap()
+	{
+		URTHexMapAsset* Map = MakeCoverMap(3);
+		SetCoverEdge(Map, FRTCellId(1, 0), ERTHexDirection::W, ERTHexCoverType::High);
+		return Map;
+	}
+
+	TArray<FRTHexCombatUnit> WalledUnits()
+	{
+		TArray<FRTHexCombatUnit> Units;
+		Units.Add(CoverUnit(0, 0, FRTCellId(0, 0)));
+		Units.Add(CoverUnit(1, 1, FRTCellId(2, 0)));
+		return Units;
+	}
+}
+
+/**
+ * Nome vincolante della DoD. Abbattuto il muro la vista si riapre — e si riapre perche' la copertura non c'e'
+ * PIU', non perche' qualcuno abbia spento un flag: la prova e' che prima dell'ultimo colpo e' ancora chiusa.
+ *
+ * Il colpo che sbatte contro il muro e' anche quello che lo danneggia: l'intento e' respinto dalla linea di
+ * tiro (l'unita' dietro non viene colpita), ma i suoi `DamageStructure` arrivano alla barriera che l'ha
+ * fermato. Senza questa regola una copertura alta sarebbe indistruttibile — dietro non c'e' nessun bersaglio
+ * nominabile, perche' il muro stesso impedisce di vederlo (decisione 4 sulla issue #70).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverDestructionReopensLOSTest,
+	"RefactorTactics.Cover.Destruction.ReopensLOS",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCoverDestructionReopensLOSTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeWalledMap();
+	const TArray<FRTHexCombatUnit> Units = WalledUnits();
+	TArray<FRTHexAttackIntent> Intents;
+	Intents.Add(CoverBreachIntent(0, 1, /*Power*/ 35, /*StructurePower*/ 20));
+
+	// Due colpi da 20 su integrita' 50: il muro regge.
+	for (int32 Shot = 0; Shot < 2; ++Shot)
+	{
+		const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
+		TestEqual(FString::Printf(TEXT("colpo %d: nessuno passa"), Shot + 1), Plan.Hits.Num(), 0);
+		URTHexCoverLibrary::ApplyStructureDamage(Map, Plan.StructureHits);
+	}
+	TestFalse(TEXT("dopo due colpi la vista e' ancora chiusa"),
+		URTHexVisionLibrary::HasLineOfSight(Map, FRTCellId(0, 0), FRTCellId(2, 0)));
+
+	// Terzo colpo: 60 danni cumulati su 50, il muro cade.
+	const FRTHexBlastPlan Last = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
+	const TArray<FRTCoverDamageResult> Changes = URTHexCoverLibrary::ApplyStructureDamage(Map, Last.StructureHits);
+
+	TestEqual(TEXT("una struttura cambiata"), Changes.Num(), 1);
+	TestTrue(TEXT("ed e' stata distrutta"), Changes.Num() == 1 && Changes[0].bDestroyed);
+	TestTrue(TEXT("la vista si riapre"),
+		URTHexVisionLibrary::HasLineOfSight(Map, FRTCellId(0, 0), FRTCellId(2, 0)));
+	TestTrue(TEXT("e ora i colpi arrivano"),
+		URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map).Hits.Num() == 1);
+	return true;
+}
+
+/**
+ * Nome vincolante della DoD. Il grafo di traversata deve aggiornarsi con la vista: se la barriera cade e il
+ * passo resta negato, il pathfinding continua a evitare un varco che esiste. E la REVISIONE deve salire —
+ * senza, una cache di percorso sopravvive a un grafo cambiato: e' il path fantasma che l'epic E9 esiste per
+ * impedire (`URTHexSimLibrary::IsSnapshotStale` confronta hash **e** revisione).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverDestructionUpdatesGraphTest,
+	"RefactorTactics.Cover.Destruction.UpdatesGraph",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCoverDestructionUpdatesGraphTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeWalledMap();
+	const FRTCellId Near(0, 0), Far(1, 0);
+
+	TestFalse(TEXT("prima: il passo e' negato"), CoverGraphHasStep(Map, Near, Far));
+	const int32 RevisionBefore = Map->Revision;
+
+	TArray<FRTStructureHit> Hits;
+	Hits.Add(FRTStructureHit(Near, Far, /*Amount*/ 50, /*AttackerId*/ 0));
+	const TArray<FRTCoverDamageResult> Changes = URTHexCoverLibrary::ApplyStructureDamage(Map, Hits);
+
+	TestTrue(TEXT("distrutta"), Changes.Num() == 1 && Changes[0].bDestroyed);
+	TestTrue(TEXT("il passo si riapre"), CoverGraphHasStep(Map, Near, Far));
+	TestTrue(TEXT("e anche quello di ritorno"), CoverGraphHasStep(Map, Far, Near));
+	TestTrue(TEXT("la revisione e' salita"), Map->Revision > RevisionBefore);
+	return true;
+}
+
+/**
+ * Il caso NORMALE, che i tre test della DoD non coprono: un colpo che non basta. La struttura resta in piedi
+ * con l'integrita' scalata e continua a bloccare — se cadesse al primo colpo, "integrita' 50" sarebbe un
+ * numero senza consumatore.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverDestructionPartialTest,
+	"RefactorTactics.Cover.Destruction.PartialDamageLeavesItStanding",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCoverDestructionPartialTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeWalledMap();
+	const FRTCellId Near(0, 0), Far(1, 0);
+
+	TArray<FRTStructureHit> Hits;
+	Hits.Add(FRTStructureHit(Near, Far, /*Amount*/ 20, /*AttackerId*/ 0));
+	const TArray<FRTCoverDamageResult> Changes = URTHexCoverLibrary::ApplyStructureDamage(Map, Hits);
+
+	TestEqual(TEXT("una struttura danneggiata"), Changes.Num(), 1);
+	TestFalse(TEXT("non distrutta"), Changes.Num() == 1 && Changes[0].bDestroyed);
+	TestEqual(TEXT("integrita' residua 30"), Changes.Num() == 1 ? Changes[0].RemainingIntegrity : -1, 30);
+
+	TestTrue(TEXT("blocca ancora la vista"), URTHexCoverLibrary::BlocksTraversal(Map, Near, Far));
+	TestFalse(TEXT("e ancora il passo"), CoverGraphHasStep(Map, Near, Far));
+
+	// Il dato scalato e' nella mappa, non solo nel risultato: e' quello che il turno dopo legge.
+	const FRTHexCellData* Data = Map->FindCell(Far);
+	TestTrue(TEXT("la copertura e' ancora nel dato con 30 punti"),
+		Data && Data->Covers.Num() == 1 && Data->Covers[0].Integrity == 30);
+	return true;
+}
+
+/**
+ * Invariante #3: due attaccanti sullo stesso muro nello stesso turno danno lo stesso esito in qualunque
+ * ordine. E' la ragione per cui il danno alle strutture si RACCOGLIE (sommato per bordo) e si applica a fase
+ * conclusa, invece di essere applicato colpo per colpo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverDestructionOrderIndependentTest,
+	"RefactorTactics.Cover.Destruction.OrderIndependent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCoverDestructionOrderIndependentTest::RunTest(const FString&)
+{
+	// Due attaccanti ai lati OPPOSTI dello stesso muro, ognuno mirando la cella oltre: 30 + 25 = 55 su 50.
+	// Le due coppie di celle arrivano invertite — (0,0)->(1,0) e (1,0)->(0,0) — quindi il test verifica anche
+	// che il bordo sia riconosciuto come lo STESSO da entrambi i lati, non come due strutture distinte.
+	TArray<FRTHexCombatUnit> Units;
+	Units.Add(CoverUnit(0, 0, FRTCellId(0, 0)));
+	Units.Add(CoverUnit(1, 1, FRTCellId(2, 0)));
+
+	TArray<FRTHexAttackIntent> Forward;
+	Forward.Add(CoverBreachCellIntent(0, FRTCellId(2, 0), 10, 30));
+	Forward.Add(CoverBreachCellIntent(1, FRTCellId(0, 0), 10, 25));
+	TArray<FRTHexAttackIntent> Reversed;
+	Reversed.Add(Forward[1]);
+	Reversed.Add(Forward[0]);
+
+	URTHexMapAsset* MapA = MakeWalledMap();
+	URTHexMapAsset* MapB = MakeWalledMap();
+	const FRTHexBlastPlan PlanA = URTHexCombatLibrary::CollectHexAttacks(Units, Forward, MapA);
+	const FRTHexBlastPlan PlanB = URTHexCombatLibrary::CollectHexAttacks(Units, Reversed, MapB);
+
+	TestEqual(TEXT("stesso numero di strutture colpite"), PlanA.StructureHits.Num(), PlanB.StructureHits.Num());
+	TestEqual(TEXT("un solo bordo, i due colpi sommati"), PlanA.StructureHits.Num(), 1);
+	TestEqual(TEXT("danno sommato 30+25"),
+		PlanA.StructureHits.Num() == 1 ? PlanA.StructureHits[0].Amount : -1, 55);
+
+	URTHexCoverLibrary::ApplyStructureDamage(MapA, PlanA.StructureHits);
+	URTHexCoverLibrary::ApplyStructureDamage(MapB, PlanB.StructureHits);
+	TestEqual(TEXT("le due mappe finiscono identiche"), MapA->ComputeHash(), MapB->ComputeHash());
+	return true;
+}
+
+/**
+ * La distruzione deve cambiare l'HASH della mappa (le coperture vi sono entrate con CP 9.1) e incrementare la
+ * REVISIONE: sono i due segnali con cui `IsSnapshotStale` avverte chi tiene una cache. Un colpo che non trova
+ * nulla non deve muovere ne' l'uno ne' l'altra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverDestructionRevisionTest,
+	"RefactorTactics.Cover.Destruction.BumpsRevisionAndHash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCoverDestructionRevisionTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeWalledMap();
+	const uint32 HashBefore = Map->ComputeHash();
+	const int32 RevisionBefore = Map->Revision;
+
+	// Colpo a vuoto: bordo senza copertura.
+	TArray<FRTStructureHit> Nothing;
+	Nothing.Add(FRTStructureHit(FRTCellId(0, 0), FRTCellId(0, 1), 30, 0));
+	TestEqual(TEXT("nessuna struttura su quel bordo"),
+		URTHexCoverLibrary::ApplyStructureDamage(Map, Nothing).Num(), 0);
+	TestEqual(TEXT("hash invariato"), Map->ComputeHash(), HashBefore);
+	TestEqual(TEXT("revisione invariata"), Map->Revision, RevisionBefore);
+
+	// Danno parziale: cambia il dato, quindi cambiano hash e revisione.
+	TArray<FRTStructureHit> Partial;
+	Partial.Add(FRTStructureHit(FRTCellId(0, 0), FRTCellId(1, 0), 20, 0));
+	URTHexCoverLibrary::ApplyStructureDamage(Map, Partial);
+	const uint32 HashDamaged = Map->ComputeHash();
+	TestTrue(TEXT("il danno parziale cambia l'hash"), HashDamaged != HashBefore);
+	TestTrue(TEXT("e la revisione"), Map->Revision > RevisionBefore);
+
+	// Distruzione: cambia ancora.
+	TArray<FRTStructureHit> Finish;
+	Finish.Add(FRTStructureHit(FRTCellId(0, 0), FRTCellId(1, 0), 30, 0));
+	URTHexCoverLibrary::ApplyStructureDamage(Map, Finish);
+	TestTrue(TEXT("la distruzione cambia l'hash"), Map->ComputeHash() != HashDamaged);
+	TestTrue(TEXT("la copertura non c'e' piu'"),
+		URTHexCoverLibrary::CoverBetween(Map, FRTCellId(0, 0), FRTCellId(1, 0)) == ERTHexCoverType::None);
+	return true;
+}
+
+/**
+ * Il catalogo DICHIARA chi puo' sfondare, e con quale scala. `HeavyAttack` vale 35 contro un'unita' e 20
+ * contro una struttura: due effetti distinti, non un numero riusato. Senza questo test la costante potrebbe
+ * derivare dal valore della DoD senza che niente se ne accorga — e la copertura alta sarebbe indistruttibile
+ * o cadrebbe in due colpi invece di tre.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverHeavyAttackBreachesTest,
+	"RefactorTactics.Cover.Destruction.HeavyAttackDeclaresStructureDamage",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCoverHeavyAttackBreachesTest::RunTest(const FString&)
+{
+	const FRTActionDef Heavy = URTCatalogLibrary::FindCoreAction(TEXT("Action.HeavyAttack"));
+	TestFalse(TEXT("l'azione esiste"), Heavy.ActionId.IsNone());
+
+	int32 UnitDamage = 0;
+	int32 StructureDamage = 0;
+	for (const FRTActionEffectSpec& Spec : Heavy.Effects)
+	{
+		if (Spec.Effect == ERTActionEffect::Damage) { UnitDamage = Spec.Amount; }
+		if (Spec.Effect == ERTActionEffect::DamageStructure) { StructureDamage = Spec.Amount; }
+	}
+	TestEqual(TEXT("35 contro un'unita'"), UnitDamage, 35);
+	TestEqual(TEXT("20 contro una struttura"), StructureDamage, 20);
+
+	// Tre colpi per abbattere una copertura alta: e' il numero che i test di distruzione danno per buono.
+	TestTrue(TEXT("integrita' 50: due colpi non bastano, tre si'"),
+		2 * StructureDamage < FRTHexCover::DefaultIntegrity(ERTHexCoverType::High)
+		&& 3 * StructureDamage >= FRTHexCover::DefaultIntegrity(ERTHexCoverType::High));
+
+	// Il resto del catalogo non sfonda: sfondare e' una capacita' concessa, non un effetto dell'essere forti.
+	int32 Breachers = 0;
+	for (const FRTActionDef& Def : URTCatalogLibrary::GetCoreActionCatalog())
+	{
+		for (const FRTActionEffectSpec& Spec : Def.Effects)
+		{
+			if (Spec.Effect == ERTActionEffect::DamageStructure) { ++Breachers; break; }
+		}
+	}
+	TestEqual(TEXT("una sola azione core sfonda, in v0.1"), Breachers, 1);
 	return true;
 }
 
