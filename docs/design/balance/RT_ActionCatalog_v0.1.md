@@ -143,17 +143,29 @@ appena raggiunta.
 
 ## 4. Azioni difensive e reazioni
 
-| ActionId | Azione | Slot | Macro-fase | Cod. | Prio | Effetto | CD |
-|---|---|---|---|---:|---:|---|---:|
-| `Action.Counter` | Contrattacco | Reazione | Blast | 30/40 | 20 | contrattacco 16 | 2 |
-| `Action.Intercept` | Interposizione | Reazione | Blast | 30 | 10 | protezione alleato | 2 |
-| `Action.Deflect` | Deviazione | Reazione | Blast | 30 | 15 | riduzione danno 20 | 2 |
-| `Action.Brace` | Irrigidimento | Principale | **Prep** | 10 | 30 | anti-spinta | 1 |
-| `Action.Shield` | Scudo | Principale | **Prep** | 10 | 35 | scudo temporaneo 25 | 2 |
-| `Action.Cleanse` | Purifica | Principale | Blast | 30 | 25 | rimozione stato | 2 |
+⚠️ **Solo tre di queste sei sono reazioni.** La colonna «Slot» è la distinzione che conta: `Counter`,
+`Intercept` e `Deflect` occupano lo slot **Reazione** (0-1 per turno, trigger valutato sullo snapshot del Blast);
+`Brace`, `Shield` e `Cleanse` sono azioni **Principali** che si dichiarano e basta, senza trigger. Stare nella
+stessa sezione del catalogo non le rende lo stesso tipo di cosa.
+
+| ActionId | Azione | Slot | Macro-fase | Cod. | Prio | Range | Effetto | CD |
+|---|---|---|---|---:|---:|---:|---|---:|
+| `Action.Counter` | Contrattacco | Reazione | Blast | 30/40 | 20 | 0 | contrattacco 16 | 2 |
+| `Action.Intercept` | Interposizione | Reazione | Blast | 30 | 10 | 2 | protezione alleato | 2 |
+| `Action.Deflect` | Deviazione | Reazione | Blast | 30 | 15 | 0 | riduzione danno 20 | 2 |
+| `Action.Brace` | Irrigidimento | Principale | **Prep** | 10 | 30 | 0 | anti-spinta | 1 |
+| `Action.Shield` | Scudo | Principale | **Prep** | 10 | 35 | 0 | scudo temporaneo 25 | 2 |
+| `Action.Cleanse` | Purifica | Principale | Blast | 30 | 25 | 0 | rimozione stato | 2 |
+
+> La colonna **Range** non era nella tabella originale (il PDF dice «entro il range consentito», senza numero):
+> i valori sono decisi in CP 5.2. `0` = su se stessi, che è il caso di tutte tranne `Intercept` (2 celle, questo
+> sì dichiarato dal testo). Per `Counter`, `0` significa che il contrattacco raggiunge chi ha colpito, chiunque
+> sia: inventare una portata cambierebbe *quali* attacchi si possono punire, e il catalogo non la fornisce.
 
 **Counter** — trigger: l'eroe è colpito da un attacco **diretto** entro il range consentito. Esegue un attacco da
 **16** danni *dopo* l'attacco ricevuto · non si attiva contro danni ambientali · una sola attivazione.
+Il contrattacco entra **in coda** agli attacchi del Blast: non consuma i modificatori "primo colpo"
+(Guard/Exposed/Deflect) di chi lo subisce, che restano per l'attacco pianificato.
 
 **Intercept** — trigger: un alleato entro **2** celle è bersagliato da un attacco diretto. L'intercettore
 **diventa** il bersaglio; la traiettoria deve essere compatibile · non intercetta AoE né hazard · una sola attivazione.
@@ -164,11 +176,22 @@ avvenuto (conta per trigger e marchi) · non riflette · non funziona contro AoE
 **Brace** — impedisce la prima spinta · riduce di **10** tutti i danni diretti fino al Cleanup · **blocca il
 movimento volontario** dell'eroe.
 
+> Tre precisazioni di implementazione (CP 5.2). Il **-10 vale su ogni colpo**, non solo sul primo: è un
+> meccanismo diverso da quello di `Guard`/`Deflect`, e usa una funzione diversa. L'**anti-spinta non ha limite
+> di distanza**, a differenza di `Guard` che regge solo 1 cella — è ciò che distingue le due. Il **blocco del
+> movimento** riusa `Status.Root`, quindi ferma anche lo scatto: chi si pianta per incassare non si riposiziona.
+
 **Shield** — applica **25** punti scudo, consumati prima della salute · scade nel Cleanup del turno · non protegge
 dagli effetti di controllo privi di danno.
 
 **Cleanse** — rimuove **un solo** stato fra `Burning`, `Electrified`, `Rooted`, `Marked`, `Exposed`. La priorità
 di rimozione è scelta dal giocatore **durante il planning** (non a runtime: nessuna scelta implicita).
+
+> **Limite v0.1**: `Burning` ed `Electrified` non esistono ancora come stato di unità (sono ambiente, epic E8 /
+> CP 8.2), quindi oggi `Cleanse` opera sui soli `Rooted`/`Marked`/`Exposed`. Il meccanismo scorre una lista di
+> tag dichiarata nel piano: in E8 basterà rendere pianificabili i due nuovi stati, senza toccare il resolver.
+> Senza un ordine dichiarato **non rimuove nulla** (fail-closed): "nessuna scelta implicita" significa che il
+> resolver non sceglie al posto del giocatore neppure quando il candidato sarebbe uno solo.
 
 ---
 

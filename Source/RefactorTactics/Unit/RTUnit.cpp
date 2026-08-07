@@ -239,6 +239,16 @@ bool ARTUnit::HasStatus(FGameplayTag Tag) const
 	return Turns && *Turns > 0;
 }
 
+bool ARTUnit::RemoveStatus(FGameplayTag Tag)
+{
+	if (!HasStatus(Tag))
+	{
+		return false; // scaduto o mai applicato: non c'era nulla da purificare
+	}
+	StatusTurns.Remove(Tag);
+	return true;
+}
+
 void ARTUnit::TickStatuses()
 {
 	for (auto It = StatusTurns.CreateIterator(); It; ++It)

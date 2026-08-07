@@ -159,6 +159,19 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
 	int32 PlannedReactionAbility = INDEX_NONE;
 
+	/**
+	 * Ordine di rimozione dichiarato per `Action.Cleanse` (CP 5.2): si purifica il PRIMO stato di questa lista
+	 * che l'unita' possiede davvero, e uno solo.
+	 *
+	 * La scelta e' del giocatore ed e' fatta in PIANIFICAZIONE, mai a runtime: il catalogo lo pretende
+	 * esplicitamente ("nessuna scelta implicita"), perche' un'euristica automatica ("togli il piu' dannoso")
+	 * renderebbe l'esito impredicibile — e la predizione e' un pilastro di prodotto. Lista vuota = nessuna
+	 * scelta dichiarata = nessuna rimozione (fail-closed): il Cleanse risolve senza effetto e lo registra,
+	 * invece di indovinare per conto del giocatore.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
+	TArray<FGameplayTag> PlannedCleansePriority;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	ERTArchetype Archetype = ERTArchetype::Ranger;
 
@@ -233,6 +246,13 @@ public:
 
 	/** Vero se lo status e' attivo (durata residua > 0). */
 	bool HasStatus(FGameplayTag Tag) const;
+
+	/**
+	 * Rimuove uno status PRIMA della sua scadenza naturale (`Action.Cleanse`, CP 5.2). Ritorna vero se lo
+	 * status c'era davvero: il chiamante distingue "purificato" da "non c'era nulla da togliere" senza
+	 * doverlo chiedere prima con `HasStatus`.
+	 */
+	bool RemoveStatus(FGameplayTag Tag);
 
 	/** Decrementa la durata di tutti gli status; rimuove quelli scaduti. */
 	void TickStatuses();

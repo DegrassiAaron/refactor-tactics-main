@@ -805,6 +805,50 @@ void ARTTurnManager::ResolveCombat()
 		HexUnits.Add(HexUnit);
 	}
 
+	// `Action.Cleanse` (CP 5.2): azione PRINCIPALE, non una reazione, e l'unica del Blast che agisce su CHI LA
+	// USA invece che su un bersaglio. Risolve PRIMA del ciclo degli intenti, per due motivi indipendenti:
+	//
+	// 1. quel ciclo CONSUMA `PlannedAbilityIndex` (lo azzera appena letto, per ogni unita'): un pass successivo
+	//    non troverebbe piu' nulla da leggere — e' lo stesso tranello gia' incontrato con `Action.Interrupt`
+	//    al CP 4.7;
+	// 2. purificarsi da `Exposed` DOPO aver incassato il +5 che quello stato comporta non servirebbe a niente.
+	//    Il catalogo le da' infatti codice 30 (controllo), non 40 (attacco): il controllo viene prima del danno.
+	//
+	// QUALE stato togliere lo dice il PIANO (`PlannedCleansePriority`), mai il resolver: si scorre la lista
+	// dichiarata e si rimuove il primo stato effettivamente presente, uno solo. Lista vuota -> nessuna
+	// rimozione (fail-closed): indovinare per conto del giocatore e' esattamente cio' che il catalogo vieta.
+	//
+	// Limite noto: non puo' togliere uno stato applicato da un'azione di controllo dello STESSO Blast (quelli
+	// si applicano a fine fase, insieme agli altri effetti dei colpi). Purifica cio' che c'era a inizio turno.
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		ARTUnit* Unit = Units[i];
+		const int32 CleanseIdx = Unit->PlannedAbilityIndex;
+		const URTActionData* Cleanse = Unit->GetAbility(CleanseIdx);
+		if (!Cleanse || Cleanse->Def.ActionId != FName(TEXT("Action.Cleanse")) || !Unit->CanUseAbility(CleanseIdx))
+		{
+			continue;
+		}
+
+		FGameplayTag Removed;
+		for (const FGameplayTag& Candidate : Unit->PlannedCleansePriority)
+		{
+			if (Unit->RemoveStatus(Candidate))
+			{
+				Removed = Candidate;
+				break; // UNO solo: e' il vincolo del catalogo, non un'ottimizzazione
+			}
+		}
+
+		Unit->ConsumeAbility(CleanseIdx);
+		Unit->PlannedAbilityIndex = INDEX_NONE; // consumata qui: non deve diventare anche un intento d'attacco
+		Unit->PlannedAttackTarget = nullptr;
+
+		AddLogEvent(Removed.IsValid()
+			? FString::Printf(TEXT("%s: purificato %s"), *Unit->GetName(), *Removed.ToString())
+			: FString::Printf(TEXT("%s: nessuno stato da purificare"), *Unit->GetName()));
+	}
+
 	// Intenti d'attacco: qui si valida l'ABILITA' (esiste, non e' uno scatto, e' utilizzabile);
 	// la GEOMETRIA (portata, linea di tiro, celle colpite) la valida URTHexCombatLibrary.
 	TArray<FRTHexAttackIntent> Intents;
@@ -1000,8 +1044,16 @@ void ARTTurnManager::ResolveCombat()
 	// Reazioni (CP 5.1): valutate sui colpi GIA' raccolti di `Plan.Hits`, dopo il filtro di Interrupt — lo
 	// snapshot congelato del Blast, non un evento a cui reagire mentre il turno gira (invariante #3).
 	// Un'unita' con piu' trigger validi nello stesso Blast si ferma comunque a UNA attivazione:
-	// `EvaluateReactionTrigger` restituisce vero al primo colpo che soddisfa il trigger, non li conta.
+	// `FindTriggeringAttacker` restituisce il primo colpo che soddisfa il trigger, non li conta.
 	// L'attivazione — o la non-attivazione, col motivo — finisce SEMPRE nel TurnLog, mai in silenzio.
+	//
+	// Gli EFFETTI delle reazioni attivate (CP 5.2) non si applicano qui: si raccolgono e si applicano insieme
+	// agli altri colpi, piu' sotto. E' "raccogli poi applica" (invariante #3) — una reazione che modificasse
+	// subito il danno lo farebbe su un totale ancora incompleto, e l'esito dipenderebbe dall'ordine delle unita'.
+	TArray<int32> DeflectDelta;       // riduzione del danno per bersaglio, dalle `Action.Deflect` attivate
+	TArray<FRTAttack> CounterAttacks; // contrattacchi delle `Action.Counter` attivate, accodati ai colpi veri
+	TArray<FRTCellId> CounterAttackSrc; // parallelo a CounterAttacks: cella di chi contrattacca, per il TurnLog
+	DeflectDelta.Init(0, Units.Num());
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Units[i];
@@ -1020,14 +1072,42 @@ void ARTTurnManager::ResolveCombat()
 		Entry.SrcCell = Unit->Cell;
 		Entry.TgtCell = Unit->Cell;
 
+		const int32 TriggeredBy = URTReactionLibrary::FindTriggeringAttacker(
+			Reaction->Def.ReactionTrigger, i, Plan.Hits, Intents);
+
 		if (!Unit->CanUseAbility(ReactionIdx) || ReactionBlockedThisTurn.Contains(Unit))
 		{
 			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Unavailable);
 		}
-		else if (URTReactionLibrary::EvaluateReactionTrigger(Reaction->Def.ReactionTrigger, i, Plan.Hits, Intents))
+		else if (TriggeredBy != INDEX_NONE)
 		{
 			Unit->ConsumeAbility(ReactionIdx);
 			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Activated);
+
+			// Effetto della reazione, DICHIARATO dall'azione. `Counter` porta il suo danno negli `Effects`
+			// (16, dal catalogo); `Deflect` non ne ha nessuno perche' "ridurre il danno subito" non e' un
+			// effetto applicato a un bersaglio ma un modificatore del calcolo — sta in URTCombatLibrary,
+			// come il -15 di Guard.
+			int32 CounterDamage = 0;
+			for (const FRTActionEffectSpec& Spec : Reaction->Def.Effects)
+			{
+				if (Spec.Effect == ERTActionEffect::Damage) { CounterDamage = Spec.Amount; break; }
+			}
+			if (CounterDamage > 0 && Units.IsValidIndex(TriggeredBy))
+			{
+				// Il contrattacco colpisce CHI ha colpito. Entra fra gli attacchi normali, quindi risolve
+				// sullo stato iniziale come tutti gli altri: chi cade in questo stesso Blast contrattacca
+				// comunque, che e' la regola gia' dichiarata da URTCombatResolver ("un'unita' colpita a
+				// morte infligge comunque il proprio danno").
+				CounterAttacks.Add(FRTAttack(TriggeredBy, CounterDamage));
+				CounterAttackSrc.Add(Unit->Cell);
+				AddLogEvent(FString::Printf(TEXT("%s: contrattacco su %s (%d)"),
+					*Unit->GetName(), *Units[TriggeredBy]->GetName(), CounterDamage));
+			}
+			if (Reaction->Def.ActionId == FName(TEXT("Action.Deflect")))
+			{
+				DeflectDelta[i] -= URTCombatLibrary::DeflectDamageReduction;
+			}
 		}
 		else
 		{
@@ -1086,9 +1166,28 @@ void ARTTurnManager::ResolveCombat()
 		{
 			FirstHitDelta[i] -= URTCombatLibrary::GuardFirstHitReduction;
 		}
+		// `Action.Deflect` (CP 5.2): la reazione si attiva UNA volta, quindi il suo -20 vale sul colpo che
+		// l'ha innescata — stessa meccanica di Guard, non una riduzione permanente del turno.
+		FirstHitDelta[i] += DeflectDelta[i];
 	}
-	const TArray<FRTAttack> Attacks =
-		URTCombatResolver::ApplyFirstHitDelta(URTHexCombatLibrary::ToAttacks(Plan), FirstHitDelta);
+
+	// `Action.Brace` (CP 5.2): -10 su OGNI danno diretto, non solo sul primo. E' un secondo passaggio con una
+	// funzione diversa (`ApplyDamageDelta`, senza il gate "una volta sola"): applicarlo con `ApplyFirstHitDelta`
+	// insieme agli altri delta ridurrebbe un colpo e lascerebbe passare interi tutti i successivi.
+	TArray<int32> EveryHitDelta;
+	EveryHitDelta.Init(0, Units.Num());
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		if (Units[i] && Units[i]->HasStatus(TAG_Status_Braced))
+		{
+			EveryHitDelta[i] -= URTCombatLibrary::BraceDamageReduction;
+		}
+	}
+
+	TArray<FRTAttack> Attacks = URTCombatResolver::ApplyDamageDelta(
+		URTCombatResolver::ApplyFirstHitDelta(URTHexCombatLibrary::ToAttacks(Plan), FirstHitDelta),
+		EveryHitDelta);
+
 	TArray<FRTCellId> AttackSrc;  // cella dell'attaccante per ogni FRTAttack (TurnLog)
 	TArray<ARTUnit*> Attackers;
 	TArray<int32> UsedAbilityIndex;
@@ -1176,6 +1275,16 @@ void ARTTurnManager::ResolveCombat()
 		}
 	}
 
+	// Contrattacchi (`Action.Counter`, CP 5.2): accodati QUI, dopo che `AttackSrc` e' completo — i due array
+	// sono paralleli e il TurnLog li legge per indice, quindi vanno estesi insieme o le voci si disallineano.
+	//
+	// In coda, non in mezzo: il catalogo descrive il contrattacco come un attacco eseguito "dopo l'attacco
+	// ricevuto". `ResolveAttacks` somma comunque per bersaglio sullo stato iniziale, quindi la posizione non
+	// cambia il totale; cambia quale colpo conta come "primo" per Guard/Exposed/Deflect, ed e' giusto che sia
+	// l'attacco pianificato a consumare quei delta, non un contrattacco arrivato di rimbalzo.
+	Attacks.Append(CounterAttacks);
+	AttackSrc.Append(CounterAttackSrc);
+
 	if (Attacks.Num() == 0)
 	{
 		return;
@@ -1249,6 +1358,16 @@ void ARTTurnManager::ResolveCombat()
 			if (T->HasStatus(TAG_Status_Guarded) && KnockDist[T] <= URTCombatLibrary::GuardResistedPushDistance)
 			{
 				AddLogEvent(FString::Printf(TEXT("%s: in guardia, resiste alla spinta"), *T->GetName()));
+				continue;
+			}
+
+			// `Action.Brace` (CP 5.2) "impedisce la PRIMA spinta", senza limite di distanza: e' cio' che lo
+			// distingue da Guard, che regge solo un passo. "Prima" e non "tutte" e' rispettato per costruzione,
+			// non da un contatore: tutte le spinte del Blast si risolvono in questo unico passaggio, e un
+			// bersaglio spinto da 2+ attaccanti e' gia' escluso sopra (`*Pushes != 1`, forze contraddittorie).
+			if (T->HasStatus(TAG_Status_Braced))
+			{
+				AddLogEvent(FString::Printf(TEXT("%s: irrigidito, la spinta non lo sposta"), *T->GetName()));
 				continue;
 			}
 

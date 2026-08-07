@@ -45,3 +45,23 @@ TArray<FRTAttack> URTCombatResolver::ApplyFirstHitDelta(const TArray<FRTAttack>&
 
 	return Result;
 }
+
+TArray<FRTAttack> URTCombatResolver::ApplyDamageDelta(const TArray<FRTAttack>& Attacks,
+	const TArray<int32>& DeltaByTarget)
+{
+	TArray<FRTAttack> Result = Attacks;
+
+	// Nessun set "gia' applicato": il delta vale per OGNI colpo di quel bersaglio. E' l'unica differenza da
+	// ApplyFirstHitDelta, ed e' la ragione per cui esistono due funzioni invece di un flag.
+	for (FRTAttack& Attack : Result)
+	{
+		if (!DeltaByTarget.IsValidIndex(Attack.TargetIndex)) { continue; }
+
+		const int32 Delta = DeltaByTarget[Attack.TargetIndex];
+		if (Delta == 0) { continue; }
+
+		Attack.Power = FMath::Max(0, Attack.Power + Delta);
+	}
+
+	return Result;
+}
