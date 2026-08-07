@@ -61,7 +61,7 @@ public:
 
 	/** Superficie assegnata dal generatore editor (GenerateIntoAsset). */
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap")
-	ERTHexSurface DemoSurface = ERTHexSurface::Normal;
+	ERTHexSurface DemoSurface = ERTHexSurface::Floor;
 
 	/** [Editor] Genera nell'asset assegnato un esagono pieno (DemoRadius, DemoSurface), marca dirty e ridisegna. */
 	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap")
@@ -80,7 +80,7 @@ public:
 	FRTCellId PaintCellTarget;
 
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap|Paint")
-	ERTHexSurface PaintSurface = ERTHexSurface::Normal;
+	ERTHexSurface PaintSurface = ERTHexSurface::Floor;
 
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap|Paint")
 	int32 PaintMoveCost = 1;

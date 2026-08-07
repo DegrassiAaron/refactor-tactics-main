@@ -317,8 +317,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSurfaceColorTest,
 bool FRTHexSurfaceColorTest::RunTest(const FString&)
 {
 	const TArray<ERTHexSurface> All = {
-		ERTHexSurface::Normal, ERTHexSurface::Water, ERTHexSurface::Mud, ERTHexSurface::Fire,
-		ERTHexSurface::Electrified, ERTHexSurface::Ice, ERTHexSurface::Void
+		ERTHexSurface::Floor, ERTHexSurface::ShallowWater, ERTHexSurface::Rough, ERTHexSurface::Fire,
+		ERTHexSurface::Conductive, ERTHexSurface::Ice, ERTHexSurface::Void,
+		ERTHexSurface::Smoke, ERTHexSurface::HighGround
 	};
 
 	// Distanza percettiva grossolana: somma delle differenze per canale. Due colori troppo vicini a schermo

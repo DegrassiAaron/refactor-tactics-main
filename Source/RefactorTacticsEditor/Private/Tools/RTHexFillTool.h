@@ -25,7 +25,7 @@ class URTHexFillToolProperties : public UInteractiveToolPropertySet
 public:
 	/** Superficie applicata alle celle della regione. */
 	UPROPERTY(EditAnywhere, Category = "Hex|Fill")
-	ERTHexSurface Surface = ERTHexSurface::Normal;
+	ERTHexSurface Surface = ERTHexSurface::Floor;
 
 	/** Costo di movimento applicato (intero). */
 	UPROPERTY(EditAnywhere, Category = "Hex|Fill", meta = (ClampMin = "0"))

@@ -6,8 +6,22 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexLibrary.h" // HexArea
+#include "Terrain/RTTerrainLibrary.h"
 
 #define LOCTEXT_NAMESPACE "URTHexPaintTool"
+
+#if WITH_EDITOR
+void URTHexPaintToolProperties::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(URTHexPaintToolProperties, Surface))
+	{
+		const FRTTerrainDef Def = URTTerrainLibrary::FindTerrainDef(Surface);
+		MoveCost = Def.MoveCost;
+		bBlocksMovement = false; // nessun terreno del catalogo v0.1 blocca il movimento normale
+	}
+}
+#endif
 
 UInteractiveTool* URTHexPaintToolBuilder::BuildTool(const FToolBuilderState& SceneState) const
 {

@@ -70,6 +70,7 @@
 | **PIE-HEX-MODE-L** | Rimuovi arco via tool (H5c.5b) | mode Hex Map, tool Arch, `ARTHexMapActor` con transizioni | Con `Operation=Remove`, click su un arco disegnato lo rimuove (Undo lo ripristina); click nel vuoto (nessun arco entro soglia) non fa nulla; con `Operation=Add` il flusso gizmo resta invariato | ⏳ (branch `feat/hex-grid`, H5c.5b) |
 | **PIE-HEX-MODE-M** | Overlay debug superfici (H5c.6) | mode Hex Map, tool Select o Paint, `ARTHexMapActor` con celle di superfici diverse | Con `bShowOverlay` attivo, ogni cella appare come esagono colorato per superficie (Water blu, Fire arancio, Mud marrone, ...); le celle bloccate hanno un esagono rosso interno; `bShowOverlay` off = nessun overlay | ✅ 2026-08-05 |
 | **PIE-HEX-MODE-N** | Secchiello / flood-fill (H5c.7) | mode Hex Map, tool Fill, `ARTHexMapActor` con `MapAsset` popolato | In Fill, click su una regione la riempie col pennello corrente; un Ctrl+Z ripristina l'intera regione; click su cella vuota non fa nulla; passando a Select/Paint con overlay si vedono i nuovi colori | ⏳ (branch `feat/hex-grid`, H5c.7) |
+| **PIE-HEX-MODE-O** | Default `MoveCost` dal catalogo terreni (CP 8.1) | mode Hex Map, tool Paint, `ARTHexMapActor` nel livello | Cambiando `Surface` nel pannello del pennello (es. a `Rough`), `MoveCost` si aggiorna da solo al valore del catalogo (`2` per `Rough`); `bBlocksMovement` resta `false` | ⏳ |
 | **PIE-BU2** | Bot: posizionamento via utility scoring | branch `feat/bot-utility` | In pianificazione il bot sceglie la cella pesando **minaccia/kiting** (può **restare** invece di esporsi); il combat log mostra `<Bot>: utility -> (x,y,Lz) score=N`. Il kiter (Ranger) mantiene la distanza, la mischia (Guardian) chiude, nessuno corre in celle sotto tiro. Osserva se gli score hanno senso → base per il **tuning dei pesi** (BU.3) | ✅ |
 | **PIE-BU2b** | Tuning pesi bot in editor | worktree `feat/bot-utility`, PIE attivo | Modificando `WKill/WThreat/WKiteViolation/WApproach/WDamage/WElevation` sul `TurnManager` (World Outliner → Details ▸ *Bot*) il comportamento cambia **dal turno successivo, senza ricompilare**: es. ↑`WThreat` = bot più prudente; ↓`WApproach` = mischia meno aggressiva; ↑`WElevation` = predilige le alte quote. Dettagli nella nota sotto | ✅ |
 | **PIE-BU3** | Bot: utility unica posizione/attacco | worktree `feat/bot-utility`, **dopo** refactor BU.3b | Un'unica utility sceglie fra **{resta e attacca}** e **{muoviti per posizionarti}** (l'attacco vale solo da fermo: il Blast precede il Move). Verifica: se attaccare da fermo espone troppo il bot preferisce ripararsi invece di sparare; se l'attacco **uccide** spara sempre; guardie **support/panic/dash** intatte; log `utility -> ... attacca X score=N` oppure `... score=N (resta)` | ✅ |
@@ -138,8 +139,8 @@ Le voci aperte non vanno affrontate una per una: molte condividono la stessa pre
 **cinque sessioni** si apre l'editor una volta sola per gruppo. Ordine consigliato: le sessioni **A** e **B** non
 dipendono da alcun asset da creare, la **C** sì; la **D** attende M6 e la **E** la release v0.1.
 
-### Sessione A — Editor Mode hex (nessun asset richiesto) → 12 voci
-`PIE-HEX-MODE-A/B/C/D/E/F/G/H/I/J/K/L/M/N` + `PIE-HEX`, `PIE-HEX-LAYER`, `PIE-HEX-TRANS`.
+### Sessione A — Editor Mode hex (nessun asset richiesto) → 13 voci
+`PIE-HEX-MODE-A/B/C/D/E/F/G/H/I/J/K/L/M/N/O` + `PIE-HEX`, `PIE-HEX-LAYER`, `PIE-HEX-TRANS`.
 
 1. Editor **chiuso**, ricompila il target Editor, poi apri `RefactorTactics.uproject`.
 2. Crea (o apri) un livello con un `ARTHexMapActor`; assegna un `URTHexMapAsset` a `MapAsset`; `DemoRadius > 0`
@@ -147,8 +148,9 @@ dipendono da alcun asset da creare, la **C** sì; la **D** attende M6 e la **E**
 3. Attiva il mode **Hex Map** dalla toolbar Modes → **PIE-HEX-MODE-A**.
 4. Tool **Select**: click su celle, controlla il readout; cambia `ActiveLayer` → **PIE-HEX-MODE-B**;
    attiva `bShowOverlay` → **PIE-HEX-MODE-M**.
-5. Tool **Paint**: click singolo (**C**), `Operation=Erase` (**D**), drag (**I**/**J**), `BrushRadius>0` (**K**).
-   Dopo ogni prova un **Ctrl+Z** e verifica il ripristino.
+5. Tool **Paint**: click singolo (**C**), `Operation=Erase` (**D**), drag (**I**/**J**), `BrushRadius>0` (**K**),
+   cambia `Surface` e osserva il `MoveCost` precompilato dal catalogo (**O**). Dopo ogni prova un **Ctrl+Z** e
+   verifica il ripristino.
 6. Tool **Fill**: click su una regione (**N**), poi Ctrl+Z.
 7. Tool **Arch**: gli archi esistenti si disegnano (**F**); click From + gizmo + Commit (**E**); riclicca e cambia
    tool per il ciclo di vita del gizmo (**G**); trascina in quota per lo snap cross-layer (**H**);

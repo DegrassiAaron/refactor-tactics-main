@@ -214,6 +214,13 @@ protected:
 	/** Registra un evento: lo scrive nel log LogRT e lo accoda al combat log della HUD. */
 	void AddLogEvent(const FString& Message);
 
+	/**
+	 * Applica gli OnEnterEffects (URTTerrainLibrary) di ogni cella in Entered a Unit: Damage via
+	 * URTCombatLibrary::ApplyDamage, Status via Unit->ApplyStatus. Usata da ResolveDash e ResolveMovement
+	 * sulle celle FRTHexMoveResult::Entered di ciascuna unita' (CP 8.1).
+	 */
+	void ApplyTerrainOnEnterEffects(const FRTHexSnapshot& Snapshot, ARTUnit* Unit, const TArray<FRTCellId>& Entered);
+
 	UPROPERTY()
 	TArray<FString> RecentEvents;
 

@@ -9,6 +9,7 @@
 #include "Combat/RTCombatResolver.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
+#include "Terrain/RTTerrainLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Bot/RTHexBotLibrary.h"
@@ -55,6 +56,45 @@ void ARTTurnManager::AddLogEvent(const FString& Message)
 	while (RecentEvents.Num() > MaxLogLines)
 	{
 		RecentEvents.RemoveAt(0);
+	}
+}
+
+void ARTTurnManager::ApplyTerrainOnEnterEffects(const FRTHexSnapshot& Snapshot, ARTUnit* Unit, const TArray<FRTCellId>& Entered)
+{
+	if (!Snapshot.Map || !Unit) { return; }
+
+	for (const FRTCellId& Cell : Entered)
+	{
+		const FRTHexCellData* CellData = Snapshot.Map->FindCell(Cell);
+		if (!CellData) { continue; }
+
+		// Gli effetti li DICHIARA il catalogo terreni, non uno switch qui: aggiungere un terreno pericoloso
+		// (o cambiarne i numeri) non tocca il resolver. Vocabolario condiviso con le azioni (FRTActionEffectSpec).
+		const FRTTerrainDef Terrain = URTTerrainLibrary::FindTerrainDef(CellData->Surface);
+		for (const FRTActionEffectSpec& Effect : Terrain.OnEnterEffects)
+		{
+			if (Effect.Effect == ERTActionEffect::Damage)
+			{
+				const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Effect.Amount, Unit->Shield, Unit->Health);
+				// ApplyCombatState, non l'assegnazione diretta: e' la stessa contabilita' del danno da azione ed
+				// e' l'unica che erode anche TemporaryShield. Scrivendo Health/Shield a mano lo scudo temporaneo
+				// resterebbe al valore vecchio e il Cleanup lo sottrarrebbe una seconda volta.
+				Unit->ApplyCombatState(Result.Health, Result.Shield);
+				AddLogEvent(FString::Printf(TEXT("%s: %d danni da terreno (q=%d,r=%d,L%d)"),
+					*Unit->GetName(), Effect.Amount, Cell.X, Cell.Y, Cell.Layer));
+			}
+			else if (Effect.Effect == ERTActionEffect::Status)
+			{
+				Unit->ApplyStatus(Effect.StatusTag, Effect.StatusDuration);
+				// Il log solo se qualcosa e' successo davvero: ApplyStatus scarta le durate <= 0 (no-op
+				// silenzioso), e un combat log che annuncia uno stato mai applicato e' peggio del silenzio.
+				// Oggi riguarda Wet e Obscured, dichiarati con durata 0 nel catalogo (gap tracciato per CP 8.2).
+				if (Effect.StatusDuration > 0)
+				{
+					AddLogEvent(FString::Printf(TEXT("%s: %s da terreno"), *Unit->GetName(), *Effect.StatusTag.ToString()));
+				}
+			}
+		}
 	}
 }
 
@@ -645,6 +685,7 @@ void ARTTurnManager::ResolveDash()
 		Unit->ConsumeAbility(DashAbilityIdx[i]);
 		Unit->Cell = Final;
 		Unit->SetVisualLocation(Unit->WorldForCell(Final, Origin, CellSize, LayerH));
+		ApplyTerrainOnEnterEffects(Snapshot, Unit, Resolved[i].Entered);
 		Unit->PlannedPath.Reset();       // la path composita partiva da PreDash: non piu' valida
 		Unit->PlannedWaypoints.Reset();
 		if (Unit->PlannedCell == PreDash)
@@ -684,9 +725,6 @@ void ARTTurnManager::ResolveDash()
 			// sulla linea, non chi scatta, e vanno risolti con gli altri colpi.
 		}
 	}
-
-	// NOTA (CP 6.5): come per il movimento normale, il danno delle celle pericolose attraversate dallo scatto
-	// non esiste nella partita esagonale (dipendeva da URTTerrainData del quadrato): torna con l'epic E8.
 
 	UE_LOG(LogRT, Log, TEXT("[RT] Fase Dash: %d scatti"), DasherCount);
 }
@@ -1172,6 +1210,11 @@ void ARTTurnManager::ResolveMovement()
 		{
 			Path = { Unit->Cell }; // fermo
 		}
+		// Ghiaccio: chi finisce il Move su Ice con budget residuo scivola di una cella oltre. La cella extra
+		// e' aggiunta al PATH, non alla posizione finale: cosi' occupazione e collisioni simultanee restano
+		// affare del microstep di ResolveHexPaths, che le risolve gia' in modo indipendente dall'ordine.
+		// Solo il Move normale: lo Scatto (LinearDashPath) non passa da qui — spec-terreni-e8.md §5.2.
+		Path = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ i, Path);
 		Paths.Add(Path);
 	}
 
@@ -1215,17 +1258,18 @@ void ARTTurnManager::ResolveMovement()
 		}
 	}
 
-	// Applica le posizioni finali.
+	// Applica le posizioni finali e gli effetti delle celle ATTRAVERSATE (non solo di quella finale).
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		Units[i]->PlaceOnCell(Resolved[i].Final, Origin, HexSize, LayerH);
+		ApplyTerrainOnEnterEffects(Snapshot, Units[i], Resolved[i].Entered);
 	}
 
-	// NOTA (CP 6.2): il cross-damage delle celle pericolose attraversate NON e' stato portato su hex.
-	// Dipendeva da URTTerrainData del substrato quadrato; la mappa esagonale descrive le superfici con
-	// ERTHexSurface (Water/Fire/Electrified/...) ma nessun dato ne definisce ancora gli effetti. E' una
-	// perdita funzionale dichiarata rispetto al quadrato, non una dimenticanza: l'ambiente attivo con i
-	// valori del catalogo e' l'epic E8 (CP 8.x). Finche' non esiste, attraversare il fuoco non fa danno.
+	// NOTA (CP 8.1): il cross-damage delle celle attraversate esiste di nuovo, ma solo per i terreni che
+	// DICHIARANO effetti nel catalogo v0.1 — oggi Fire (10 danni + Burning), ShallowWater (Wet) e Smoke
+	// (Obscured). Gli altri cinque non hanno OnEnterEffects: attraversarli non fa nulla, per scelta del
+	// catalogo e non per un buco del resolver. Gli hazard di FINE turno (danno periodico a chi sosta) restano
+	// fuori: li porta il CP 8.x dedicato, non questo.
 
 	UE_LOG(LogRT, Log, TEXT("[RT] Fase Move: risolte %d unita'"), Units.Num());
 }

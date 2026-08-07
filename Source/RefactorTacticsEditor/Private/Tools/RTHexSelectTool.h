@@ -38,7 +38,7 @@ public:
 
 	/** Dati della cella (validi se bSelectedCellExists) — readout richiesto dalla spec §3. */
 	UPROPERTY(VisibleAnywhere, Category = "Hex|Selezione")
-	ERTHexSurface Surface = ERTHexSurface::Normal;
+	ERTHexSurface Surface = ERTHexSurface::Floor;
 
 	UPROPERTY(VisibleAnywhere, Category = "Hex|Selezione")
 	int32 MoveCost = 0;

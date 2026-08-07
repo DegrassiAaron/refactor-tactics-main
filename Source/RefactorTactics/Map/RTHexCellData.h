@@ -8,13 +8,15 @@
 UENUM(BlueprintType)
 enum class ERTHexSurface : uint8
 {
-	Normal,
-	Water,
-	Mud,
+	Floor,
+	ShallowWater,
+	Rough,
 	Fire,
-	Electrified,
+	Conductive,
 	Ice,
-	Void
+	Void,
+	Smoke,
+	HighGround
 };
 
 /**
@@ -34,7 +36,7 @@ struct FRTHexCellData
 	int32 Height = 0;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
-	ERTHexSurface Surface = ERTHexSurface::Normal;
+	ERTHexSurface Surface = ERTHexSurface::Floor;
 
 	/** Costo di movimento base della cella (intero: no float nel pathfinding). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")

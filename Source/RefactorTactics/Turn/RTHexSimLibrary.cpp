@@ -3,6 +3,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Pathfinding/RTHexPathLibrary.h"
+#include "Terrain/RTTerrainLibrary.h"
 
 namespace
 {
@@ -288,7 +289,8 @@ TArray<FRTCellId> URTHexSimLibrary::LinearDashPath(const FRTHexSnapshot& Snapsho
 	{
 		Current = FRTCellId(Current.X + Step.X, Current.Y + Step.Y, Start.Layer);
 		const FRTHexCellData* Data = Snapshot.Map->FindCell(Current);
-		if (!Data || Data->bBlocksMovement || Blocked.Contains(Current))
+		if (!Data || Data->bBlocksMovement || Blocked.Contains(Current)
+			|| URTTerrainLibrary::FindTerrainDef(Data->Surface).bBlocksDashCharge)
 		{
 			return {};
 		}
@@ -310,6 +312,71 @@ bool URTHexSimLibrary::IsLinearDashReachable(const FRTHexSnapshot& Snapshot, int
 		return true; // "resto dov'e' sono" e' sempre praticabile: non e' uno scatto illegale
 	}
 	return LinearDashPath(Snapshot, UnitId, Goal).Num() >= 2;
+}
+
+TArray<FRTCellId> URTHexSimLibrary::ApplyIceSliding(const FRTHexSnapshot& Snapshot, int32 UnitId, const TArray<FRTCellId>& Path)
+{
+	const FRTHexSimUnit* Unit = FindUnit(Snapshot, UnitId);
+	if (!Snapshot.Map || !Unit || Path.Num() < 2)
+	{
+		return Path;
+	}
+
+	// Regola dal CATALOGO, non dall'enum: e' un dato del terreno come il costo e il blocco allo scatto. Con
+	// `SlideCells <= 0` non si scivola. Oggi si estende comunque di UNA sola cella (vedi FRTTerrainDef::SlideCells).
+	const FRTCellId LastCell = Path.Last();
+	const FRTHexCellData* LastData = Snapshot.Map->FindCell(LastCell);
+	if (!LastData || URTTerrainLibrary::FindTerrainDef(LastData->Surface).SlideCells <= 0)
+	{
+		return Path;
+	}
+
+	int32 PathCost = 0;
+	for (int32 I = 1; I < Path.Num(); ++I)
+	{
+		const FRTHexCellData* StepData = Snapshot.Map->FindCell(Path[I]);
+		PathCost += StepData ? FMath::Max(1, StepData->MoveCost) : 1;
+	}
+	if (Unit->MoveBudget - PathCost < 2)
+	{
+		return Path;
+	}
+
+	const FRTCellId PrevCell = Path[Path.Num() - 2];
+	if (PrevCell.Layer != LastCell.Layer)
+	{
+		return Path; // arrivo via transizione: nessuna "direzione" da cui scivolare
+	}
+
+	const int32 StepQ = LastCell.X - PrevCell.X;
+	const int32 StepR = LastCell.Y - PrevCell.Y;
+	FIntPoint Dir(0, 0);
+	bool bValidDirection = false;
+	for (int32 D = 0; D < 6; ++D)
+	{
+		const FIntPoint Candidate = URTHexLibrary::AxialDirection(static_cast<ERTHexDirection>(D));
+		if (Candidate.X == StepQ && Candidate.Y == StepR)
+		{
+			Dir = Candidate;
+			bValidDirection = true;
+			break;
+		}
+	}
+	if (!bValidDirection)
+	{
+		return Path; // ultimo passo non e' un vicino diretto
+	}
+
+	const FRTCellId SlideCell(LastCell.X + Dir.X, LastCell.Y + Dir.Y, LastCell.Layer);
+	const FRTHexCellData* SlideData = Snapshot.Map->FindCell(SlideCell);
+	if (!SlideData || SlideData->bBlocksMovement)
+	{
+		return Path;
+	}
+
+	TArray<FRTCellId> Extended = Path;
+	Extended.Add(SlideCell);
+	return Extended;
 }
 
 ERTHexWaypointReason URTHexSimLibrary::ClassifyWaypointCell(const FRTHexSnapshot& Snapshot, int32 UnitId,

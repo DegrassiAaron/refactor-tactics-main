@@ -3,6 +3,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexVisionLibrary.h"
+#include "Terrain/RTTerrainLibrary.h"
 
 namespace
 {
@@ -82,9 +83,17 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 			}
 		}
 
-		if (URTHexLibrary::HexDistance(Attacker.Cell, AimCell) > Intent.RangeCells)
+		// Il Fumo lungo la linea di tiro CAPPA la portata effettiva (indipendente da RangeCells). La regola sta
+		// in UN SOLO posto (URTTerrainLibrary): la stessa che usano la preview del giocatore
+		// (ClassifyHexTargeting), la validazione degli ordini (ValidateInstance) e il bot (BuildCandidates) —
+		// altrimenti quelli accettano un intento che qui viene scartato in silenzio.
+		// Con `Map == nullptr` il cap e' un no-op: l'intento lo scarta comunque il fail-closed qui sotto.
+		const int32 EffectiveRange =
+			URTTerrainLibrary::EffectiveTargetingRange(Map, Attacker.Cell, AimCell, Intent.RangeCells);
+
+		if (URTHexLibrary::HexDistance(Attacker.Cell, AimCell) > EffectiveRange)
 		{
-			continue; // fuori portata: scartato in silenzio (come il quadrato)
+			continue; // fuori portata (anche per il cap del Fumo): scartato in silenzio (come il quadrato)
 		}
 
 		// FAIL-CLOSED: senza mappa autorevole non si colpisce. Il motivo resta pero' DISTINTO da una

@@ -32,11 +32,11 @@ bool FRTHexMapAddFindTest::RunTest(const FString&)
 	// Update per Id: non duplica, aggiorna il dato.
 	FRTHexCellData Updated = Cell(1, 0);
 	Updated.MoveCost = 5;
-	Updated.Surface = ERTHexSurface::Water;
+	Updated.Surface = ERTHexSurface::ShallowWater;
 	Map->AddOrUpdateCell(Updated);
 	TestEqual(TEXT("update non duplica"), Map->NumCells(), 3);
 	const FRTHexCellData* Found = Map->FindCell(FRTCellId(1, 0));
-	TestTrue(TEXT("dato aggiornato"), Found && Found->MoveCost == 5 && Found->Surface == ERTHexSurface::Water);
+	TestTrue(TEXT("dato aggiornato"), Found && Found->MoveCost == 5 && Found->Surface == ERTHexSurface::ShallowWater);
 
 	// Remove.
 	TestTrue(TEXT("remove esistente"), Map->RemoveCell(FRTCellId(0, 0)));
@@ -106,9 +106,9 @@ bool FRTHexApplyBrushTest::RunTest(const FString&)
 	const FRTCellId Id(2, -1, 1);
 
 	// Cella nuova (Existing = nullptr): default Height=0, LOS=false; applica surface/cost/block.
-	const FRTHexCellData New = URTHexMapAsset::ApplyBrush(nullptr, Id, ERTHexSurface::Water, 3, true);
+	const FRTHexCellData New = URTHexMapAsset::ApplyBrush(nullptr, Id, ERTHexSurface::ShallowWater, 3, true);
 	TestTrue(TEXT("Id impostato"), New.Id == Id);
-	TestTrue(TEXT("Surface applicata"), New.Surface == ERTHexSurface::Water);
+	TestTrue(TEXT("Surface applicata"), New.Surface == ERTHexSurface::ShallowWater);
 	TestEqual(TEXT("MoveCost applicato"), New.MoveCost, 3);
 	TestTrue(TEXT("bBlocksMovement applicato"), New.bBlocksMovement);
 	TestEqual(TEXT("Height default 0"), New.Height, 0);
@@ -118,7 +118,7 @@ bool FRTHexApplyBrushTest::RunTest(const FString&)
 	FRTHexCellData Existing(Id);
 	Existing.Height = 3;
 	Existing.bBlocksLineOfSight = true;
-	Existing.Surface = ERTHexSurface::Normal;
+	Existing.Surface = ERTHexSurface::Floor;
 	Existing.MoveCost = 1;
 	Existing.bBlocksMovement = false;
 	const FRTHexCellData Painted = URTHexMapAsset::ApplyBrush(&Existing, Id, ERTHexSurface::Fire, 5, true);
@@ -138,15 +138,15 @@ bool FRTHexStrokeEquivalenceTest::RunTest(const FString&)
 	// Una pennellata di 3 celle produce lo stesso contenuto di 3 AddOrUpdateCell, e celle ordinate dopo EndStroke.
 	URTHexMapAsset* Stroke = NewObject<URTHexMapAsset>();
 	Stroke->BeginStroke();
-	TestTrue(TEXT("paint 1"), Stroke->PaintCellInStroke(FRTCellId(2, -1, 0), ERTHexSurface::Water, 3, true));
-	TestTrue(TEXT("paint 2"), Stroke->PaintCellInStroke(FRTCellId(0, 0, 0), ERTHexSurface::Normal, 1, false));
-	TestTrue(TEXT("paint 3"), Stroke->PaintCellInStroke(FRTCellId(1, 0, 1), ERTHexSurface::Mud, 2, false));
+	TestTrue(TEXT("paint 1"), Stroke->PaintCellInStroke(FRTCellId(2, -1, 0), ERTHexSurface::ShallowWater, 3, true));
+	TestTrue(TEXT("paint 2"), Stroke->PaintCellInStroke(FRTCellId(0, 0, 0), ERTHexSurface::Floor, 1, false));
+	TestTrue(TEXT("paint 3"), Stroke->PaintCellInStroke(FRTCellId(1, 0, 1), ERTHexSurface::Rough, 2, false));
 	Stroke->EndStroke();
 
 	URTHexMapAsset* Direct = NewObject<URTHexMapAsset>();
-	FRTHexCellData C1(FRTCellId(2, -1, 0)); C1.Surface = ERTHexSurface::Water; C1.MoveCost = 3; C1.bBlocksMovement = true;
-	FRTHexCellData C2(FRTCellId(0, 0, 0)); // default: Normal, costo 1, no block
-	FRTHexCellData C3(FRTCellId(1, 0, 1)); C3.Surface = ERTHexSurface::Mud; C3.MoveCost = 2;
+	FRTHexCellData C1(FRTCellId(2, -1, 0)); C1.Surface = ERTHexSurface::ShallowWater; C1.MoveCost = 3; C1.bBlocksMovement = true;
+	FRTHexCellData C2(FRTCellId(0, 0, 0)); // default: Floor, costo 1, no block
+	FRTHexCellData C3(FRTCellId(1, 0, 1)); C3.Surface = ERTHexSurface::Rough; C3.MoveCost = 2;
 	Direct->AddOrUpdateCell(C1); Direct->AddOrUpdateCell(C2); Direct->AddOrUpdateCell(C3);
 	Direct->SortCells();
 
@@ -174,7 +174,7 @@ bool FRTHexMapFloodRegionTest::RunTest(const FString&)
 {
 	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
 
-	// Helper locale: aggiunge una cella con superficie esplicita (Cell() di default e' Normal).
+	// Helper locale: aggiunge una cella con superficie esplicita (Cell() di default e' Floor).
 	auto AddSurf = [Map](int32 X, int32 Y, ERTHexSurface S)
 	{
 		FRTHexCellData C = Cell(X, Y);
@@ -182,14 +182,14 @@ bool FRTHexMapFloodRegionTest::RunTest(const FString&)
 		Map->AddOrUpdateCell(C);
 	};
 
-	// Regione contigua di 3 celle Normal: (0,0)-(1,0)-(0,1) (entrambe adiacenti a (0,0)).
-	AddSurf(0, 0, ERTHexSurface::Normal);
-	AddSurf(1, 0, ERTHexSurface::Normal);
-	AddSurf(0, 1, ERTHexSurface::Normal);
-	// Bordo: (2,0) adiacente a (1,0) ma Water (superficie diversa -> esclusa).
-	AddSurf(2, 0, ERTHexSurface::Water);
-	// Normal ma NON contigua alla regione -> esclusa.
-	AddSurf(5, 5, ERTHexSurface::Normal);
+	// Regione contigua di 3 celle Floor: (0,0)-(1,0)-(0,1) (entrambe adiacenti a (0,0)).
+	AddSurf(0, 0, ERTHexSurface::Floor);
+	AddSurf(1, 0, ERTHexSurface::Floor);
+	AddSurf(0, 1, ERTHexSurface::Floor);
+	// Bordo: (2,0) adiacente a (1,0) ma ShallowWater (superficie diversa -> esclusa).
+	AddSurf(2, 0, ERTHexSurface::ShallowWater);
+	// Floor ma NON contigua alla regione -> esclusa.
+	AddSurf(5, 5, ERTHexSurface::Floor);
 
 	const TArray<FRTCellId> Region = Map->FloodRegion(FRTCellId(0, 0));
 	const TSet<FRTCellId> RegionSet(Region);

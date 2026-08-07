@@ -1,6 +1,7 @@
 #include "Combat/RTCombatLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexVisionLibrary.h"
+#include "Terrain/RTTerrainLibrary.h"
 
 FRTDamageResult URTCombatLibrary::ApplyDamage(int32 Damage, int32 Shield, int32 Health)
 {
@@ -66,7 +67,11 @@ ERTHexTargetReason URTCombatLibrary::ClassifyHexTargeting(const URTHexMapAsset* 
 	{
 		return ERTHexTargetReason::NoMap; // FAIL-CLOSED: senza mappa la linea di tiro non e' verificabile
 	}
-	if (URTHexLibrary::HexDistance(From, To) > FMath::Max(0, RangeCells))
+	// La portata la CAPPA il terreno (Fumo): si valuta quella effettiva, non quella dichiarata dall'abilita'.
+	// Senza, la preview accetta un bersaglio che CollectHexAttacks scarta poi in silenzio: slot speso, nessun
+	// effetto, nessuna riga di log che lo spieghi.
+	const int32 EffectiveRange = URTTerrainLibrary::EffectiveTargetingRange(Map, From, To, RangeCells);
+	if (URTHexLibrary::HexDistance(From, To) > FMath::Max(0, EffectiveRange))
 	{
 		return ERTHexTargetReason::OutOfRange; // la portata si valuta PRIMA: e' un difetto diverso da "coperto"
 	}

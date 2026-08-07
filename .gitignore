@@ -75,3 +75,6 @@ Content/**/*.txt
 !Content/**/Binaries/
 !Content/RT/Art/GlobalMaterials/M_Global_Tint.uasset
 !Content/RT/Maps/Dev/L_Prototype/L_Prototype.umap
+
+# Scratch dello sviluppo assistito (subagent-driven-development): mai versionato
+.superpowers/

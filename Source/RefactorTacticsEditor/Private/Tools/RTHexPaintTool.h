@@ -36,7 +36,7 @@ public:
 	ERTHexPaintOp Operation = ERTHexPaintOp::Paint;
 
 	UPROPERTY(EditAnywhere, Category = "Hex|Pennello")
-	ERTHexSurface Surface = ERTHexSurface::Normal;
+	ERTHexSurface Surface = ERTHexSurface::Floor;
 
 	UPROPERTY(EditAnywhere, Category = "Hex|Pennello", meta = (ClampMin = "0"))
 	int32 MoveCost = 1;
@@ -60,6 +60,10 @@ public:
 	/** [Overlay] Colora le celle per superficie (debug read-only); le bloccate con esagono rosso. */
 	UPROPERTY(EditAnywhere, Category = "Hex|Overlay")
 	bool bShowOverlay = false;
+
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 };
 
 /**
