@@ -50,16 +50,6 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 		}
 	}
 
-	// Posizionamento per il turno SUCCESSIVO: una cella da cui si potra' colpire vale piu' di una vicinanza
-	// generica. Vale solo per le candidate che NON colpiscono gia' (quelle hanno il loro `WDamage`), e solo
-	// per chi non fa kiting: un kiter che si porta a tiro rinuncerebbe alla distanza di sicurezza, che e'
-	// la sua identita' di archetipo.
-	if (!Plan.bHasAttack && Context.KiteStandoff <= 0 && Context.PositioningRange > 0
-		&& MinDist != MAX_int32 && MinDist <= Context.PositioningRange)
-	{
-		Score += Context.WInRange;
-	}
-
 	// Elevazione: premia la quota alta della cella di destinazione (vantaggio di tiro/posizione).
 	Score += Context.WElevation * Plan.DestCell.Layer;
 

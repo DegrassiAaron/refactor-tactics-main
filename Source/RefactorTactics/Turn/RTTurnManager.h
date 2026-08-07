@@ -271,17 +271,6 @@ protected:
 	 */
 	TSet<TWeakObjectPtr<ARTUnit>> ReactionBlockedThisTurn;
 
-	/**
-	 * Unita' che hanno gia' speso lo slot PRINCIPALE nella fase Dash di questo turno (ogni mobilita' rapida del
-	 * catalogo lo dichiara: `Action.Dash` «e' lo slot Principale a essere speso, non quello di movimento»).
-	 *
-	 * Popolato da `ResolveDash`, riletto da `ResolveCombat`: chi ha scattato non attacca nello stesso turno.
-	 * Senza questa regola scatto e attacco convivevano, cioe' due azioni sullo stesso slot — e nessun bot
-	 * avrebbe mai usato una carica potendo scattare davanti al nemico e colpirlo con l'attacco base (#145).
-	 * Svuotato a inizio `ResolveDash`, come `ReactionBlockedThisTurn`.
-	 */
-	TSet<TWeakObjectPtr<ARTUnit>> MainSlotSpentThisTurn;
-
 private:
 	/** Animazione di movimento di una singola unita': waypoint gia' convertiti in mondo + fase (Dash/Move). */
 	struct FRTMoveAnim

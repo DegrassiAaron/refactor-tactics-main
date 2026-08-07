@@ -151,16 +151,7 @@ void ARTTurnManager::PlanBots()
 		Ctx.Origin = Bot->Cell;
 		Ctx.KiteStandoff = Bot->KiteStandoff;
 
-		// Portata migliore FRA LE AZIONI CHE COLPISCONO: e' la distanza a cui il bot vuole portarsi per poter
-		// agire il turno prossimo. Le mobilita' rapide non contano (spostano, non fanno male) e nemmeno il
-		// supporto su se stessi.
-		Ctx.PositioningRange = Bot->AttackRange;
-		for (int32 a = 0; a < Bot->NumAbilities(); ++a)
-		{
-			const URTActionData* Ab = Bot->GetAbility(a);
-			if (!Ab || URTCatalogLibrary::IsFastMovement(Ab->Def) || Ab->bSelfTarget) { continue; }
-			Ctx.PositioningRange = FMath::Max(Ctx.PositioningRange, Ab->RangeCells);
-		}
+
 		Ctx.WKill = WKill;
 		Ctx.WDamage = WDamage;
 		Ctx.WThreat = WThreat;
@@ -379,11 +370,22 @@ void ARTTurnManager::PlanBots()
 			}
 		}
 
-		// 4) Scatto per riposizionarsi (senza colpire): resta l'uso di ogni mobilita' rapida non-carica.
-		// Non esiste piu' una candidata «scatto + attacco»: entrambe occupano lo slot Principale, e il Blast
-		// scarterebbe l'attacco. Proporlo sarebbe pianificare una mossa che il resolver non esegue.
+		// 4) Scatto + attacco, e scatto per riposizionarsi.
+		//
+		// NOTA (#145): scatto e attacco occupano ENTRAMBI lo slot Principale secondo il catalogo, quindi
+		// pianificarli insieme viola `ValidateActionSlots` — che pero' non e' fatta valere in partita. Finche'
+		// resta cosi', «scatto + attacco base» domina sempre la carica (per il Guardian: 30 danni e spinta 2
+		// contro 20 e spinta 1, con cooldown 0 contro 3), e il bot non ne scegliera' nessuna. Il meccanismo
+		// qui sopra esiste ed e' corretto; a renderlo utile e' il bilanciamento, non altro codice.
 		if (bDashReady)
 		{
+			for (int32 A = 0; A < Bot->NumAbilities(); ++A)
+			{
+				const URTActionData* Ability = Bot->GetAbility(A);
+				if (!Ability || URTCatalogLibrary::IsFastMovement(Ability->Def) || Ability->bSelfTarget
+					|| !Bot->CanUseAbility(A)) { continue; }
+				AddCandidates(DashSnapshot, A, Ability->RangeCells, Ability->Power, /*bViaDash*/ true, /*bAttacksOnly*/ true);
+			}
 			AddCandidates(DashSnapshot, INDEX_NONE, /*Range*/ 0, /*Damage*/ 0, /*bViaDash*/ true, /*bAttacksOnly*/ false);
 		}
 
@@ -729,7 +731,6 @@ void ARTTurnManager::ResolveDash()
 	// Fresco per il turno: chi corre a perdifiato (Action.Sprint) non para (CP 5.1), e questo e' l'unico
 	// posto dove si sa CON CERTEZZA cosa ha davvero usato lo slot di scatto.
 	ReactionBlockedThisTurn.Reset();
-	MainSlotSpentThisTurn.Reset();
 
 	// Indice (in Units) dell'attaccante per ogni impatto accodato in QUESTO scatto: serve a scartare l'impatto,
 	// dopo la risoluzione simultanea, se la collisione ha bloccato il caricatore prima del contatto (CP 4.8).
@@ -906,18 +907,6 @@ void ARTTurnManager::ResolveDash()
 			Unit->PlannedAttackTarget = nullptr;
 		}
 
-		// Ogni mobilita' rapida spende lo slot PRINCIPALE, non solo lo Sprint: e' cio' che il catalogo dichiara
-		// per `Action.Dash` («e' lo slot Principale a essere speso, non quello di movimento»), e vale per la
-		// carica e per il salto allo stesso modo. Chi ha scattato non attacca in questo turno — il divieto si
-		// registra QUI, dove l'azione risulta effettivamente usata, e lo fa valere il Blast, che viene dopo.
-		//
-		// Vale sul piano gia' pianificato ma anche su uno arrivato dopo: `ResolveCombat` rilegge il set, non si
-		// affida al fatto che `PlannedAbilityIndex` sia stato azzerato qui.
-		if (Used->Def.Slot == ERTActionSlot::Main || Used->Def.Slot == ERTActionSlot::MovementAndMain)
-		{
-			MainSlotSpentThisTurn.Add(Unit);
-		}
-
 		// Effetti DICHIARATI dall'azione (Sprint applica `Status.Exposed`): stesso registry di Prep e Blast.
 		// L'orchestratore non sa quale stato sia ne' perche': aggiungerne un altro non lo tocca.
 		FRTActionInstance Instance;
@@ -1047,15 +1036,6 @@ void ARTTurnManager::ResolveCombat()
 		if (!Ability || URTCatalogLibrary::IsFastMovement(Ability->Def) || !Unit->CanUseAbility(AbilityIndex))
 		{
 			continue; // nessuna azione di Blast pianificata: non c'e' un'azione da far fallire
-		}
-
-		// Un solo slot Principale per turno (#145): chi ha scattato lo ha gia' speso nel Dash. L'azione non
-		// risolve e lo si DICE — un'azione che sparisce in silenzio e' indistinguibile da un bug.
-		if (MainSlotSpentThisTurn.Contains(Unit) && Ability->Def.Slot == ERTActionSlot::Main)
-		{
-			AddLogEvent(FString::Printf(TEXT("%s: %s non risolve (slot principale gia' speso dallo scatto)"),
-				*Unit->GetName(), *Ability->DisplayName.ToString()));
-			continue;
 		}
 
 		// Chi usa un'azione principale che nega la reazione (CP 5.1: nessuna oggi, ma il dato e' generico)
