@@ -75,7 +75,13 @@ enum class ERTCombatOutcome : uint8
 	ShieldAbsorbed, // danno assorbito interamente dallo scudo (HP invariati)
 	Lethal,         // bersaglio portato a HP <= 0
 	NoLineOfSight,  // attacco pianificato scartato per LOS bloccata
-	TerrainBonus    // colpo a segno con bonus altura (+danno), non letale
+	TerrainBonus,   // colpo a segno con bonus altura (+danno), non letale
+	/**
+	 * Cura applicata (CP 8.5, `Action.Heal`). Valore AGGIUNTO in coda come `Fallback`/`Reaction` prima: le
+	 * tracce gia' scritte non cambiano significato. Sta fra gli esiti di combattimento e non in una categoria
+	 * propria perche' e' la stessa domanda — quanti punti vita ha cambiato quell'azione, e a chi.
+	 */
+	Healed
 };
 
 /**

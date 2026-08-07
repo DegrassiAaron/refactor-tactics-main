@@ -553,6 +553,23 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.CreateWater"), ERTResolutionPhase::Environment, /*Priority*/ 60,
 		/*Range*/ 4, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
 
+	// `ModifyArc` — apre o chiude un COLLEGAMENTO fra celle (CP 8.5). Non tocca le superfici: cambia la
+	// topologia, ed e' per questo che la DoD chiede che **incrementi la revisione** della mappa — il numero che
+	// invalida le cache di percorso. Fase `Environment` come le altre ambientali: cambiare un arco a meta'
+	// Blast renderebbe invalido un percorso gia' calcolato in questo stesso turno.
+	Catalog.Add(ShippedAction(TEXT("Action.ModifyArc"), ERTResolutionPhase::Environment, /*Priority*/ 75,
+		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
+
+	// `Heal` — cura 20, portata 3, e **puo' bersagliare se stessi** (catalogo azioni §6). Priorita' 70: risolve
+	// DOPO gli attacchi (50-65), quindi cura le ferite di questo turno e non quelle del turno prima.
+	// A differenza delle ambientali risolve nel **Blast**: e' un'azione di supporto, non una modifica del campo.
+	{
+		FRTActionDef Heal = ShippedAction(TEXT("Action.Heal"), ERTResolutionPhase::Attack, /*Priority*/ 70,
+			/*Range*/ 3, /*Cooldown*/ 1, ERTActionFallback::Cancel,
+			{ FRTActionEffectSpec(ERTActionEffect::Heal, 20) });
+		Catalog.Add(Heal);
+	}
+
 	return Catalog;
 }
 
