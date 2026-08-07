@@ -67,6 +67,26 @@ struct FRTHexBotContext
 	UPROPERTY() int32 WThreat = 100;
 	UPROPERTY() int32 WKiteViolation = 50;
 	UPROPERTY() int32 WApproach = 10;
+
+	/**
+	 * Premio per una cella da cui il bot POTRA' colpire (distanza dal nemico piu' vicino entro `AttackRange`),
+	 * quando la candidata non colpisce gia' in questo turno. E' il valore del posizionarsi per il turno
+	 * SUCCESSIVO: senza, l'utility vede solo il turno corrente, e avvicinarsi ha solo costi — la minaccia
+	 * cresce piu' in fretta di quanto `WApproach` premi la vicinanza, quindi una mischia si ferma appena
+	 * FUORI dalla propria portata e la partita si blocca (stallo osservato in #145 facendo valere lo slot).
+	 *
+	 * Tarato sopra `WThreat` per due nemici (200): entrare a portata deve valere piu' del tiro che si incassa,
+	 * altrimenti il termine non cambia nessuna decisione.
+	 */
+	UPROPERTY() int32 WInRange = 250;
+
+	/**
+	 * Portata d'attacco MIGLIORE del bot, usata solo per il posizionamento. Distinta da `AttackRange`, che il
+	 * chiamante sovrascrive per ogni candidata (0 = «da questa cella non si colpisce»): senza un campo suo,
+	 * il premio di posizionamento non si attiverebbe mai proprio sulle candidate di movimento, che sono le
+	 * uniche a cui serve. 0 = nessun attacco -> nessun premio.
+	 */
+	UPROPERTY() int32 PositioningRange = 0;
 	/** Bonus per la quota (Layer) della cella: premia l'alta quota. */
 	UPROPERTY() int32 WElevation = 20;
 };

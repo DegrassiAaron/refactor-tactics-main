@@ -25,6 +25,15 @@ bool URTCatalogLibrary::IsFastMovement(const FRTActionDef& Def)
 	return MapResolutionPhase(Def.ResolutionPhase) == ERTMatchPhase::Dash;
 }
 
+int32 URTCatalogLibrary::FirstDamage(const FRTActionDef& Def)
+{
+	for (const FRTActionEffectSpec& Spec : Def.Effects)
+	{
+		if (Spec.Effect == ERTActionEffect::Damage) { return Spec.Amount; }
+	}
+	return 0;
+}
+
 int32 URTCatalogLibrary::ResolutionPhaseCode(ERTResolutionPhase Phase)
 {
 	switch (Phase)

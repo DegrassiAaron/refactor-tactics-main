@@ -319,58 +319,7 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	// Click su un'unita' nemica, con una nostra unita' selezionata -> pianifica l'abilita' attiva.
 	if (ClickedUnit && SelectedUnit && ClickedUnit != SelectedUnit && ClickedUnit->TeamId != SelectedUnit->TeamId)
 	{
-		const int32 AbilityIndex = SelectedUnit->SelectedAbilityIndex;
-		const URTActionData* Ability = SelectedUnit->GetAbility(AbilityIndex);
-		if (Ability && URTCatalogLibrary::IsFastMovement(Ability->Def))
-		{
-			UE_LOG(LogRT, Log, TEXT("[RT] Lo scatto si pianifica su una CELLA, non su un nemico"));
-			return;
-		}
-		if (!Ability)
-		{
-			return;
-		}
-		FVector TOrigin; float THexSize; float TLayerH; const URTHexMapAsset* TMap = nullptr;
-		HexMapWithContext(GetWorld(), TOrigin, THexSize, TLayerH, TMap);
-		// Un solo gate (FAIL-CLOSED: senza mappa autorevole non si ingaggia — test
-		// Combat.HexTargetingIsFailClosed) che dichiara anche il MOTIVO, cosi' il log non attribuisce alla
-		// copertura un bersaglio che era solo troppo lontano (test
-		// Combat.HexTargetingReasonDistinguishesRangeFromCover).
-		const bool bReady = SelectedUnit->CanUseAbility(AbilityIndex);
-		const ERTHexTargetReason Reason = URTCombatLibrary::ClassifyHexTargeting(
-			TMap, SelectedUnit->Cell, ClickedUnit->Cell, Ability->RangeCells);
-
-		if (bReady && Reason == ERTHexTargetReason::Ok)
-		{
-			SelectedUnit->PlannedAbilityIndex = AbilityIndex;
-			SelectedUnit->PlannedAttackTarget = ClickedUnit;
-			if (ARTTurnManager* TM = PacingTurnManager(this))
-			{
-				TM->RecordPlanningInput(ERTPlanningInput::Order);
-			}
-			UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s usa %s su %s"), *SelectedUnit->GetName(), *Ability->DisplayName.ToString(), *ClickedUnit->GetName());
-		}
-		else if (!bReady)
-		{
-			UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica/energia)"), *Ability->DisplayName.ToString());
-		}
-		else
-		{
-			switch (Reason)
-			{
-			case ERTHexTargetReason::OutOfRange:
-				UE_LOG(LogRT, Log, TEXT("[RT] %s fuori portata (max %d)"), *ClickedUnit->GetName(), Ability->RangeCells);
-				break;
-			case ERTHexTargetReason::NoLineOfSight:
-				UE_LOG(LogRT, Log, TEXT("[RT] %s coperto (nessuna linea di tiro)"), *ClickedUnit->GetName());
-				break;
-			case ERTHexTargetReason::NoMap:
-			default:
-				UE_LOG(LogRT, Warning,
-					TEXT("[RT] Nessuna mappa esagonale: bersagliamento non validabile, piano rifiutato"));
-				break;
-			}
-		}
+		HandleClickOnUnit(ClickedUnit);
 		return;
 	}
 
@@ -423,6 +372,79 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		else
 		{
 			UE_LOG(LogRT, Warning, TEXT("[RT] Nessuna mappa esagonale nel livello: pianificazione non disponibile"));
+		}
+	}
+}
+
+void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
+{
+	ARTUnit* SelectedUnit = Cast<ARTUnit>(SelectedActor);
+	if (!ClickedUnit || !SelectedUnit) { return; }
+
+	{
+		const int32 AbilityIndex = SelectedUnit->SelectedAbilityIndex;
+		const URTActionData* Ability = SelectedUnit->GetAbility(AbilityIndex);
+
+		// Una CARICA si pianifica proprio cliccando il nemico: e' l'azione che punta LUI e si ferma addosso a
+		// lui. Prima di #145 l'unico modo era cliccare una cella oltre il bersaglio e sperare che la
+		// traiettoria lo incontrasse — un'affordance che nessuno indovina.
+		if (Ability && Ability->Def.MovementStyle == ERTMovementStyle::LinearCharge)
+		{
+			HandleClickOnCell(ClickedUnit->Cell);
+			return;
+		}
+
+		// Ogni altra mobilita' rapida si ferma DAVANTI alle unita': puntarne una non ha senso, e il rifiuto
+		// dice perche' invece di non fare niente.
+		if (Ability && URTCatalogLibrary::IsFastMovement(Ability->Def))
+		{
+			UE_LOG(LogRT, Log, TEXT("[RT] Lo scatto si pianifica su una CELLA, non su un nemico"));
+			return;
+		}
+		if (!Ability)
+		{
+			return;
+		}
+		FVector TOrigin; float THexSize; float TLayerH; const URTHexMapAsset* TMap = nullptr;
+		HexMapWithContext(GetWorld(), TOrigin, THexSize, TLayerH, TMap);
+		// Un solo gate (FAIL-CLOSED: senza mappa autorevole non si ingaggia — test
+		// Combat.HexTargetingIsFailClosed) che dichiara anche il MOTIVO, cosi' il log non attribuisce alla
+		// copertura un bersaglio che era solo troppo lontano (test
+		// Combat.HexTargetingReasonDistinguishesRangeFromCover).
+		const bool bReady = SelectedUnit->CanUseAbility(AbilityIndex);
+		const ERTHexTargetReason Reason = URTCombatLibrary::ClassifyHexTargeting(
+			TMap, SelectedUnit->Cell, ClickedUnit->Cell, Ability->RangeCells);
+
+		if (bReady && Reason == ERTHexTargetReason::Ok)
+		{
+			SelectedUnit->PlannedAbilityIndex = AbilityIndex;
+			SelectedUnit->PlannedAttackTarget = ClickedUnit;
+			if (ARTTurnManager* TM = PacingTurnManager(this))
+			{
+				TM->RecordPlanningInput(ERTPlanningInput::Order);
+			}
+			UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s usa %s su %s"), *SelectedUnit->GetName(), *Ability->DisplayName.ToString(), *ClickedUnit->GetName());
+		}
+		else if (!bReady)
+		{
+			UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica/energia)"), *Ability->DisplayName.ToString());
+		}
+		else
+		{
+			switch (Reason)
+			{
+			case ERTHexTargetReason::OutOfRange:
+				UE_LOG(LogRT, Log, TEXT("[RT] %s fuori portata (max %d)"), *ClickedUnit->GetName(), Ability->RangeCells);
+				break;
+			case ERTHexTargetReason::NoLineOfSight:
+				UE_LOG(LogRT, Log, TEXT("[RT] %s coperto (nessuna linea di tiro)"), *ClickedUnit->GetName());
+				break;
+			case ERTHexTargetReason::NoMap:
+			default:
+				UE_LOG(LogRT, Warning,
+					TEXT("[RT] Nessuna mappa esagonale: bersagliamento non validabile, piano rifiutato"));
+				break;
+			}
 		}
 	}
 }

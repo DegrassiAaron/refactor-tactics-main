@@ -150,6 +150,17 @@ void ARTTurnManager::PlanBots()
 		FRTHexBotContext Ctx;
 		Ctx.Origin = Bot->Cell;
 		Ctx.KiteStandoff = Bot->KiteStandoff;
+
+		// Portata migliore FRA LE AZIONI CHE COLPISCONO: e' la distanza a cui il bot vuole portarsi per poter
+		// agire il turno prossimo. Le mobilita' rapide non contano (spostano, non fanno male) e nemmeno il
+		// supporto su se stessi.
+		Ctx.PositioningRange = Bot->AttackRange;
+		for (int32 a = 0; a < Bot->NumAbilities(); ++a)
+		{
+			const URTActionData* Ab = Bot->GetAbility(a);
+			if (!Ab || URTCatalogLibrary::IsFastMovement(Ab->Def) || Ab->bSelfTarget) { continue; }
+			Ctx.PositioningRange = FMath::Max(Ctx.PositioningRange, Ab->RangeCells);
+		}
 		Ctx.WKill = WKill;
 		Ctx.WDamage = WDamage;
 		Ctx.WThreat = WThreat;
@@ -292,6 +303,10 @@ void ARTTurnManager::PlanBots()
 		TArray<FRTHexBotPlan> Plans;
 		TArray<int32> PlanAbility;  // abilita' d'attacco della candidata (INDEX_NONE = solo movimento)
 		TArray<bool> PlanViaDash;   // la candidata si raggiunge con lo scatto
+		// Vero se la candidata e' una CARICA: allora si punta la cella del NEMICO (`Ctx.Enemies[TargetIndex]`),
+		// non `DestCell` — che per una carica e' dove ci si ferma, cioe' davanti al bersaglio. Serve un flag e
+		// non una cella-sentinella: `FRTCellId()` vale (0,0,0), che e' una cella vera della mappa.
+		TArray<bool> PlanIsCharge;
 
 		auto AddCandidates = [&](const FRTHexSnapshot& Snap, int32 AbilityIndex, int32 Range, int32 Damage,
 			bool bViaDash, bool bAttacksOnly)
@@ -312,6 +327,7 @@ void ARTTurnManager::PlanBots()
 				Plans.Add(Candidate);
 				PlanAbility.Add(Candidate.bHasAttack ? AbilityIndex : INDEX_NONE);
 				PlanViaDash.Add(bViaDash);
+				PlanIsCharge.Add(false);
 			}
 		};
 
@@ -329,17 +345,45 @@ void ARTTurnManager::PlanBots()
 			AddCandidates(StaySnapshot, A, Ability->RangeCells, Ability->Power, /*bViaDash*/ false, /*bAttacksOnly*/ true);
 		}
 
-		// 3) Scatto + attacco: dalla cella post-scatto si spara nello stesso turno (Dash prima del Blast).
+		// 3) CARICA: l'unico modo di scattare E colpire nello stesso turno, perche' il danno e' dell'azione di
+		// movimento stessa e non di una seconda azione principale (#145). Le candidate non possono nascere da
+		// `ReachableCells`: quella cerca celle LIBERE, mentre una carica punta la cella OCCUPATA dal nemico e
+		// si ferma davanti. Si generano quindi dai bersagli, chiedendo al resolver se la traiettoria li
+		// raggiunge — lo stesso codice che poi la eseguira'.
+		if (bDashReady && DashStyle == ERTMovementStyle::LinearCharge)
+		{
+			const int32 ImpactDamage = URTCatalogLibrary::FirstDamage(DashAb->Def);
+			for (int32 e = 0; e < Ctx.Enemies.Num(); ++e)
+			{
+				const FRTLinearMoveResult Linear = URTMovementActionLibrary::ResolveLinearMove(
+					Snapshot.Map, Bot->Cell, Ctx.Enemies[e], DashBudget, DashStyle, Snapshot.Occupancy, DashHostiles);
+
+				// Vale solo se l'impatto colpisce PROPRIO quel nemico: una traiettoria che ne incontra un altro
+				// prima e' una candidata diversa, e la genera il suo giro di ciclo.
+				if (Linear.Stop != ERTLinearStop::Impact
+					|| !EnemyUnitIndex.IsValidIndex(e) || Units[EnemyUnitIndex[e]] != Units[Linear.ImpactUnitId])
+				{
+					continue;
+				}
+
+				FRTHexBotPlan Charge;
+				Charge.DestCell = Linear.Final;   // dove il bot si ferma: adiacente al bersaglio
+				Charge.bHasAttack = true;
+				Charge.TargetIndex = e;
+				Charge.AttackDamage = ImpactDamage;
+				Charge.TargetHealth = Ctx.EnemyHealth.IsValidIndex(e) ? Ctx.EnemyHealth[e] : 0;
+				Plans.Add(Charge);
+				PlanAbility.Add(INDEX_NONE);      // il colpo NON e' una seconda azione: e' l'impatto della carica
+				PlanViaDash.Add(true);
+				PlanIsCharge.Add(true);
+			}
+		}
+
+		// 4) Scatto per riposizionarsi (senza colpire): resta l'uso di ogni mobilita' rapida non-carica.
+		// Non esiste piu' una candidata «scatto + attacco»: entrambe occupano lo slot Principale, e il Blast
+		// scarterebbe l'attacco. Proporlo sarebbe pianificare una mossa che il resolver non esegue.
 		if (bDashReady)
 		{
-			for (int32 A = 0; A < Bot->NumAbilities(); ++A)
-			{
-				const URTActionData* Ability = Bot->GetAbility(A);
-				if (!Ability || URTCatalogLibrary::IsFastMovement(Ability->Def) || Ability->bSelfTarget
-					|| !Bot->CanUseAbility(A)) { continue; }
-				AddCandidates(DashSnapshot, A, Ability->RangeCells, Ability->Power, /*bViaDash*/ true, /*bAttacksOnly*/ true);
-			}
-			// 4) Scatto per riposizionarsi (senza tiro): utile per chiudere in fretta la distanza.
 			AddCandidates(DashSnapshot, INDEX_NONE, /*Range*/ 0, /*Damage*/ 0, /*bViaDash*/ true, /*bAttacksOnly*/ false);
 		}
 
@@ -359,12 +403,23 @@ void ARTTurnManager::PlanBots()
 		}
 
 		const bool bViaDash = Plans.IsValidIndex(BestIdx) && PlanViaDash[BestIdx];
+		const bool bIsCharge = Plans.IsValidIndex(BestIdx) && PlanIsCharge[BestIdx];
 		const int32 BestAbility = Plans.IsValidIndex(BestIdx) ? PlanAbility[BestIdx] : INDEX_NONE;
 		ARTUnit* Target = (Best.bHasAttack && EnemyUnitIndex.IsValidIndex(Best.TargetIndex))
 			? Units[EnemyUnitIndex[Best.TargetIndex]] : nullptr;
 		const int32 Score = URTHexBotLibrary::ScorePlan(Snapshot.Map, Best, Ctx);
 
-		if (bViaDash && Target && BestAbility != INDEX_NONE)
+		if (bIsCharge && Target && Ctx.Enemies.IsValidIndex(Best.TargetIndex))
+		{
+			// CARICA: si punta la cella del bersaglio e la fase Dash si ferma addosso a lui registrando
+			// l'impatto. Nessun `PlannedAbilityIndex`: il colpo e' dell'azione di movimento, e pianificare
+			// anche un'azione principale significherebbe spendere due volte lo stesso slot.
+			Bot->PlannedDashAbility = DashIdx;
+			Bot->PlannedDashCell = Ctx.Enemies[Best.TargetIndex];
+			AddLogEvent(FString::Printf(TEXT("%s: utility -> CARICA su %s (impatto da (q=%d,r=%d,L%d)) score=%d"),
+				*Bot->GetName(), *Target->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score));
+		}
+		else if (bViaDash && Target && BestAbility != INDEX_NONE)
 		{
 			// Scatta (fase Dash) e attacca dalla cella post-scatto: nel Blast, che segue il Dash, il bot e' li'.
 			Bot->PlannedDashAbility = DashIdx;
@@ -674,6 +729,7 @@ void ARTTurnManager::ResolveDash()
 	// Fresco per il turno: chi corre a perdifiato (Action.Sprint) non para (CP 5.1), e questo e' l'unico
 	// posto dove si sa CON CERTEZZA cosa ha davvero usato lo slot di scatto.
 	ReactionBlockedThisTurn.Reset();
+	MainSlotSpentThisTurn.Reset();
 
 	// Indice (in Units) dell'attaccante per ogni impatto accodato in QUESTO scatto: serve a scartare l'impatto,
 	// dopo la risoluzione simultanea, se la collisione ha bloccato il caricatore prima del contatto (CP 4.8).
@@ -850,6 +906,18 @@ void ARTTurnManager::ResolveDash()
 			Unit->PlannedAttackTarget = nullptr;
 		}
 
+		// Ogni mobilita' rapida spende lo slot PRINCIPALE, non solo lo Sprint: e' cio' che il catalogo dichiara
+		// per `Action.Dash` («e' lo slot Principale a essere speso, non quello di movimento»), e vale per la
+		// carica e per il salto allo stesso modo. Chi ha scattato non attacca in questo turno — il divieto si
+		// registra QUI, dove l'azione risulta effettivamente usata, e lo fa valere il Blast, che viene dopo.
+		//
+		// Vale sul piano gia' pianificato ma anche su uno arrivato dopo: `ResolveCombat` rilegge il set, non si
+		// affida al fatto che `PlannedAbilityIndex` sia stato azzerato qui.
+		if (Used->Def.Slot == ERTActionSlot::Main || Used->Def.Slot == ERTActionSlot::MovementAndMain)
+		{
+			MainSlotSpentThisTurn.Add(Unit);
+		}
+
 		// Effetti DICHIARATI dall'azione (Sprint applica `Status.Exposed`): stesso registry di Prep e Blast.
 		// L'orchestratore non sa quale stato sia ne' perche': aggiungerne un altro non lo tocca.
 		FRTActionInstance Instance;
@@ -981,6 +1049,15 @@ void ARTTurnManager::ResolveCombat()
 			continue; // nessuna azione di Blast pianificata: non c'e' un'azione da far fallire
 		}
 
+		// Un solo slot Principale per turno (#145): chi ha scattato lo ha gia' speso nel Dash. L'azione non
+		// risolve e lo si DICE — un'azione che sparisce in silenzio e' indistinguibile da un bug.
+		if (MainSlotSpentThisTurn.Contains(Unit) && Ability->Def.Slot == ERTActionSlot::Main)
+		{
+			AddLogEvent(FString::Printf(TEXT("%s: %s non risolve (slot principale gia' speso dallo scatto)"),
+				*Unit->GetName(), *Ability->DisplayName.ToString()));
+			continue;
+		}
+
 		// Chi usa un'azione principale che nega la reazione (CP 5.1: nessuna oggi, ma il dato e' generico)
 		// non ne tiene pronta una in questo turno. `Action.Sprint` (l'unico caso reale) passa dallo scatto,
 		// non da qui: e' `ResolveDash` a registrarlo, perche' risolve prima e consuma lo slot principale.
@@ -1084,11 +1161,7 @@ void ARTTurnManager::ResolveCombat()
 		Intent.RangeCells = 1; // dopo l'impatto si e' adiacenti: e' questa la portata del colpo
 		Intent.AreaRadius = 0;
 
-		int32 ImpactDamage = 0;
-		for (const FRTActionEffectSpec& Spec : Impact.Def.Effects)
-		{
-			if (Spec.Effect == ERTActionEffect::Damage) { ImpactDamage = Spec.Amount; break; }
-		}
+		const int32 ImpactDamage = URTCatalogLibrary::FirstDamage(Impact.Def);
 		Intent.Power = URTCombatLibrary::EffectiveAttackPower(ImpactDamage, /*OccupantDamageBonus=*/ 0);
 
 		Intents.Add(Intent);

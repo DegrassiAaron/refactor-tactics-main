@@ -491,6 +491,67 @@ bool FRTHexDashBlockedTest::RunTest(const FString&)
 }
 
 /**
+ * Il BOT usa la carica per cio' per cui esiste: chiudere la distanza E colpire.
+ *
+ * Fino a #145 non lo faceva mai. Le candidate del bot nascono da `ReachableCells` (celle LIBERE) e vengono
+ * filtrate con `IsLinearReachable`, che su una carica e' falsa per costruzione: una carica non *arriva* sulla
+ * cella chiesta, si ferma addosso al nemico. Il bot poteva quindi proporre solo la cella davanti al bersaglio
+ * — che il resolver percorre senza incontrare nessuno, quindi senza impatto — e spendeva un cooldown da tre
+ * turni per un puro riposizionamento.
+ *
+ * Lo scenario e' scelto perche' la carica sia l'UNICA mossa che colpisce: il nemico e' a distanza 4, fuori
+ * dalla portata d'attacco del Guardian (3) e fuori dal suo movimento (3). Senza carica, nessun danno.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotChargesToHitTest,
+	"RefactorTactics.HexBotPlay.ChargePlanReachesAndHits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotChargesToHitTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMatchMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Bot   = SpawnHexMatchUnit(World, 1, ERTArchetype::Guardian, FRTCellId(0, 0));
+	ARTUnit* Enemy = SpawnHexMatchUnit(World, 0, ERTArchetype::Ranger,   FRTCellId(4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Bot || !Enemy) { DestroyHexMatchWorld(World); return false; }
+	Enemy->bIsBotControlled = false; // il bersaglio non decide nulla: resta fermo e incassa
+
+	// Premesse dello scenario: senza carica il Guardian non puo' fare male a nessuno da qui.
+	TestTrue(TEXT("premessa: il nemico e' fuori dalla portata d'attacco"),
+		URTHexLibrary::HexDistance(Bot->Cell, Enemy->Cell) > Bot->AttackRange);
+	TestTrue(TEXT("premessa: ed e' fuori dal movimento normale"),
+		URTHexLibrary::HexDistance(Bot->Cell, Enemy->Cell) > Bot->GetEffectiveMoveRange());
+
+	const int32 ChargeIdx = Bot->FindDashAbilityIndex();
+	const URTActionData* Charge = Bot->GetAbility(ChargeIdx);
+	if (!TestTrue(TEXT("premessa: il Guardian ha una carica"),
+		Charge && Charge->Def.MovementStyle == ERTMovementStyle::LinearCharge))
+	{
+		DestroyHexMatchWorld(World); return false;
+	}
+
+	const int32 HealthBefore = Enemy->Health;
+	TM->PlanBotsForTest();
+
+	// Il bot deve PIANIFICARE la carica contro il nemico, non un riposizionamento davanti a lui.
+	TestTrue(TEXT("il bot pianifica lo scatto"), Bot->PlannedDashAbility != INDEX_NONE);
+	TestEqual(TEXT("e lo punta sul NEMICO, non sulla cella davanti"),
+		Bot->PlannedDashCell.ToString(), Enemy->Cell.ToString());
+
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+	// E l'impatto deve produrre i suoi effetti: si ferma adiacente, il bersaglio incassa e viene spinto.
+	TestEqual(TEXT("il bot si ferma davanti al nemico"), Bot->Cell.ToString(), FRTCellId(3, 0, 0).ToString());
+	TestEqual(TEXT("il bersaglio incassa il danno d'impatto"), Enemy->Health, HealthBefore - 20);
+	TestEqual(TEXT("ed e' spinto di una cella"), Enemy->Cell.ToString(), FRTCellId(5, 0, 0).ToString());
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
+/**
  * Un EROE del catalogo scatta in partita. E' il percorso che il gioco usa davvero (`ARTUnit::ConfigureFromHeroData`,
  * il GameMode schiera i quattro eroi): `ConfigureAsArchetype` sopravvive solo nei test.
  *
