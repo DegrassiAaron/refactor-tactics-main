@@ -2,8 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
-#include "Test/RTTestScenario.h"
-#include "Test/RTTestResult.h"
+#include "ScenarioHarness/RTTestScenario.h"
+#include "ScenarioHarness/RTTestResult.h"
 #include "RTScenarioRunner.generated.h"
 
 class UWorld;
@@ -45,7 +45,7 @@ public:
 	 */
 	static FRTTestResult RunById(UWorld* World, const FString& ScenarioId, FString& OutReportDirectory);
 
-	/** ID di tutti gli scenari versionati sotto `Tests/Scenarios/`, in ordine alfabetico. */
+	/** ID di tutti gli scenari versionati sotto `Scenarios/`, in ordine alfabetico. */
 	static TArray<FString> ListScenarioIds();
 
 	/** Numero massimo di tick di risoluzione per turno: tetto di sicurezza, non una regola di gioco. */

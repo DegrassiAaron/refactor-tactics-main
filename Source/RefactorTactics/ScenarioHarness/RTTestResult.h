@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Test/RTTestScenario.h"
+#include "ScenarioHarness/RTTestScenario.h"
 
 
 /**

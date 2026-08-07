@@ -5,9 +5,9 @@
 // dica **cosa** ci si aspettava e **cosa** e' successo, non solo che e' fallito.
 
 #include "Misc/AutomationTest.h"
-#include "Test/RTScenarioLoader.h"
-#include "Test/RTScenarioRunner.h"
-#include "Test/RTTestReportWriter.h"
+#include "ScenarioHarness/RTScenarioLoader.h"
+#include "ScenarioHarness/RTScenarioRunner.h"
+#include "ScenarioHarness/RTTestReportWriter.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Misc/Paths.h"

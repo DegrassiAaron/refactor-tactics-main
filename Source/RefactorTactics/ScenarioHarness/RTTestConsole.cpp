@@ -2,10 +2,10 @@
 #include "HAL/IConsoleManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
-#include "Test/RTScenarioRunner.h"
-#include "Test/RTTestReportWriter.h"
-#include "Test/RTTestResult.h"
-#include "Test/RTScenarioLoader.h"
+#include "ScenarioHarness/RTScenarioRunner.h"
+#include "ScenarioHarness/RTTestReportWriter.h"
+#include "ScenarioHarness/RTTestResult.h"
+#include "ScenarioHarness/RTScenarioLoader.h"
 
 /**
  * Comandi console dell'RT Scenario Test Harness. Stesso namespace di `rt.Debug.DrawCells`.
@@ -118,7 +118,7 @@ namespace
 
 static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTTestList(
 	TEXT("rt.Test.List"),
-	TEXT("Elenca gli scenari di test versionati in Tests/Scenarios/."),
+	TEXT("Elenca gli scenari di test versionati in Scenarios/."),
 	FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateStatic(&RTTestListCommand));
 
 static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTTestRun(

@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
-#include "Test/RTTestResult.h"
+#include "ScenarioHarness/RTTestResult.h"
 #include "RTTestReportWriter.generated.h"
 
 /**

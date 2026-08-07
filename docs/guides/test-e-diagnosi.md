@@ -73,7 +73,7 @@ Un Automation Test verifica una funzione. Uno **scenario** fa giocare una partit
 finita — passando dal codice reale, non da scorciatoie.
 
 ```
-Tests/Scenarios/Movement/Basic.json
+Scenarios/Movement/Basic.json
         │
         ▼
   URTScenarioLoader          parsing + validazione   →  ERROR se il file è sbagliato
@@ -95,7 +95,7 @@ gameplay. È la proprietà che rende un test verde significativo.
 
 ## 4. Scrivere uno scenario
 
-File in `Tests/Scenarios/<Categoria>/<Nome>.json`. **L'ID è il percorso**: `Movement.Basic` vive in
+File in `Scenarios/<Categoria>/<Nome>.json`. **L'ID è il percorso**: `Movement.Basic` vive in
 `Movement/Basic.json`, e un test lo verifica.
 
 ```json
@@ -208,7 +208,7 @@ in ordine alfabetico — nessun indice da mantenere.
 ```json
 {
   "result": "ERROR",
-  "error": "scenario non leggibile: .../Tests/Scenarios/Non/Esiste.json"
+  "error": "scenario non leggibile: .../Scenarios/Non/Esiste.json"
 }
 ```
 
@@ -312,11 +312,16 @@ rt.Test.Scenario <ScenarioId>           auto-run al prossimo Play (vuoto = parti
 | Percorso | Contenuto |
 |---|---|
 | `Source/RefactorTactics/Tests/` | Automation Test (`.cpp`) |
-| `Source/RefactorTactics/Test/` | **harness** degli scenari (loader, runner, report, console) |
-| `Tests/Scenarios/` | scenari `.json` versionati |
+| `Source/RefactorTactics/ScenarioHarness/` | **harness** degli scenari (loader, runner, report, console) |
+| `Scenarios/` | scenari `.json` versionati |
 | `Saved/RTTests/` | report delle esecuzioni (artefatti, non versionati) |
 | `Saved/Logs/RefactorTactics.log` | log del motore |
 | [`test-manuali-pie.md`](../design/test-manuali-pie.md) | verifiche interattive, con stato |
 
-> **Attenzione ai nomi simili**: `Tests/` (plurale, radice) sono gli **scenari**; `Source/.../Tests/` sono i
-> **test C++**; `Source/.../Test/` (singolare) è l'**harness** che esegue gli scenari.
+Tre cose diverse, tre nomi diversi: **`Scenarios/`** sono i *dati* (cosa deve succedere),
+**`ScenarioHarness/`** è il *motore* che li esegue, **`Tests/`** sono i *test C++*.
+
+> **Nota storica**: fino al 2026-08-07 l'harness stava in `Source/.../Test/` e gli scenari in
+> `Tests/Scenarios/`. Tre percorsi con lo stesso nome al singolare e al plurale, per tre contenuti diversi:
+> bastava questa guida per accorgersene, e la rinomina è costata dieci minuti. Se aggiungi una directory qui
+> dentro, controlla che il nome dica **cosa contiene** e non somigli a nessun'altra.

@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
-#include "Test/RTTestScenario.h"
+#include "ScenarioHarness/RTTestScenario.h"
 #include "RTScenarioLoader.generated.h"
 
 /**
@@ -41,9 +41,9 @@ public:
 	 */
 	static bool Validate(const FRTTestScenario& Scenario, FString& OutError);
 
-	/** Radice degli scenari versionati: `<Progetto>/Tests/Scenarios/`. */
+	/** Radice degli scenari versionati: `<Progetto>/Scenarios/`. */
 	static FString ScenariosRoot();
 
-	/** Percorso di uno scenario dal suo ID: `Movement.Basic` -> `Tests/Scenarios/Movement/Basic.json`. */
+	/** Percorso di uno scenario dal suo ID: `Movement.Basic` -> `Scenarios/Movement/Basic.json`. */
 	static FString PathForScenarioId(const FString& ScenarioId);
 };

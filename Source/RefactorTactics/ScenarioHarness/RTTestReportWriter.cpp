@@ -1,4 +1,4 @@
-#include "Test/RTTestReportWriter.h"
+#include "ScenarioHarness/RTTestReportWriter.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Misc/DateTime.h"

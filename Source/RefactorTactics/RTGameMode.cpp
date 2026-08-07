@@ -9,8 +9,8 @@
 #include "Ability/RTHeroData.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTMatchSetupLibrary.h"
-#include "Test/RTScenarioRunner.h"
-#include "Test/RTTestResult.h"
+#include "ScenarioHarness/RTScenarioRunner.h"
+#include "ScenarioHarness/RTTestResult.h"
 
 /** Definita in Test/RTTestConsole.cpp: scenario da eseguire all'avvio invece della partita normale. */
 extern TAutoConsoleVariable<FString> CVarRTTestScenario;

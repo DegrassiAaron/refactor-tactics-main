@@ -1,5 +1,5 @@
-#include "Test/RTScenarioRunner.h"
-#include "Test/RTScenarioLoader.h"
+#include "ScenarioHarness/RTScenarioRunner.h"
+#include "ScenarioHarness/RTScenarioLoader.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Map/RTHexLibrary.h"
@@ -13,7 +13,7 @@
 #include "Unit/RTUnit.h"
 #include "RefactorTactics.h"
 #include "Kismet/GameplayStatics.h"
-#include "Test/RTTestReportWriter.h"
+#include "ScenarioHarness/RTTestReportWriter.h"
 #include "HAL/FileManager.h"
 #include "Misc/Paths.h"
 
