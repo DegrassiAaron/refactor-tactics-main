@@ -17,6 +17,13 @@
 > centri-cella, inquadratura e fluidita' del playback restano verificabili solo a schermo.
 
 ## Come eseguire
+
+> **Prima di aprire l'editor**: molte di queste voci hanno già una copertura automatica, e alcune si
+> riproducono senza toccare il mouse con uno **scenario** (`rt.Test.Scenario <Id>` + Play). Come si eseguono
+> i test, come si scrive uno scenario e come si legge un report fallito:
+> **[`../guides/test-e-diagnosi.md`](../guides/test-e-diagnosi.md)**.
+> Il PIE serve per ciò che nessun test vede: che si **veda** a schermo e che il giocatore **capisca**.
+
 - Apri il progetto: doppio clic su `RefactorTactics.uproject`. All'avvio l'editor può chiedere **quale versione
   dell'engine** usare: scegli **5.8** (`D:\EpicGames\UE_5.8`), la versione bloccata dal progetto. Se chiede di
   **ricompilare i moduli**, accetta — oppure compila da riga di comando (vedi `ue58-build-gotchas`).
