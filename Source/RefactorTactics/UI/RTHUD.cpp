@@ -1,5 +1,6 @@
 #include "UI/RTHUD.h"
 #include "Unit/RTUnit.h"
+#include "Turn/RTIntentPrivacyLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Player/RTPlayerController.h"
 #include "Turn/RTTurnManager.h"
@@ -125,28 +126,58 @@ void ARTHUD::DrawHUD()
 	}
 
 	// Visualizzazione degli INTENTI di pianificazione (fase Planning, non durante il playback).
-	// Invariante #6 (privacy dell'intento): il piano di un'unita' e' visibile agli alleati sempre,
-	// ai nemici solo se rivelati (status Reveal). Unita' proprie in ciano, nemici rivelati in giallo.
+	//
+	// Invariante #6 (privacy dell'intento), esteso alle reazioni con CP 5.4. La UI NON legge piu' lo stato di
+	// pianificazione delle unita': costruisce i piani autorevoli, li fa filtrare per squadra da
+	// `URTIntentPrivacyLibrary::FilterForTeam` e disegna SOLO le viste che tornano indietro.
+	//
+	// La differenza non e' stilistica. Prima il ciclo scorreva tutte le unita', leggeva il piano completo anche
+	// dei nemici e decideva di non disegnarlo: un occultamento GRAFICO, cioe' un dato presente sul client e
+	// nascosto a schermo — leggibile con qualunque strumento, e insostenibile quando arrivera' la rete (M10).
+	// Ora un piano avversario non rivelato non compare proprio fra le viste, e la reazione di un alleato non
+	// viene mai copiata in una vista avversaria.
 	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::Planning && !TurnManager->IsResolving())
 	{
 		const int32 PlayerTeam = 0; // il giocatore controlla il team 0 (blu)
 
+		// 1. RACCOGLI i piani autorevoli (in rete: lato server, mai spediti cosi' come sono).
+		TArray<FRTPlannedIntent> Authoritative;
+		Authoritative.Reserve(Actors.Num());
 		for (AActor* Actor : Actors)
 		{
 			const ARTUnit* Unit = Cast<ARTUnit>(Actor);
-			if (!Unit || !Unit->IsAlive())
-			{
-				continue;
-			}
-			if (!URTCombatLibrary::IsIntentVisibleTo(PlayerTeam, Unit->TeamId, Unit->HasStatus(TAG_Status_Reveal)))
-			{
-				continue; // nemico non rivelato: intento privato
-			}
+			if (!Unit || !Unit->IsAlive()) { continue; }
 
-			const bool bOwn = (Unit->TeamId == PlayerTeam);
 			const URTActionData* Planned = Unit->GetAbility(Unit->PlannedAbilityIndex);
-			const bool bMoving = (Unit->PlannedCell != Unit->Cell);
-			const bool bHasPlan = bMoving || Unit->PlannedAttackTarget != nullptr || Planned != nullptr || Unit->PlannedDashAbility != INDEX_NONE;
+			const URTActionData* Reaction = Unit->GetAbility(Unit->PlannedReactionAbility);
+
+			FRTPlannedIntent Intent;
+			Intent.OwnerCell = Unit->Cell;
+			Intent.TeamId = Unit->TeamId;
+			Intent.bAlive = true;
+			Intent.bRevealed = Unit->HasStatus(TAG_Status_Reveal);
+			Intent.bMoving = (Unit->PlannedCell != Unit->Cell);
+			Intent.PlannedCell = Unit->PlannedCell;
+			Intent.ActionName = Planned ? Planned->DisplayName : FText::GetEmpty();
+			Intent.bHasTarget = (Unit->PlannedAttackTarget != nullptr && Unit->PlannedAttackTarget->IsAlive());
+			Intent.TargetCell = Intent.bHasTarget ? Unit->PlannedAttackTarget->Cell : Unit->Cell;
+			Intent.ReactionName = Reaction ? Reaction->DisplayName : FText::GetEmpty();
+			Intent.PlannedPath = Unit->PlannedPath;
+			Intent.PlannedWaypoints = Unit->PlannedWaypoints;
+			Intent.bDashing = (Unit->PlannedDashAbility != INDEX_NONE);
+			Intent.DashCell = Unit->PlannedDashCell;
+			Authoritative.Add(Intent);
+		}
+
+		// 2. FILTRA per l'osservatore. Da qui in giu' lo stato completo non si tocca piu'.
+		const TArray<FRTIntentView> Views = URTIntentPrivacyLibrary::FilterForTeam(PlayerTeam, Authoritative);
+
+		// 3. DISEGNA le sole viste ricevute.
+		for (const FRTIntentView& View : Views)
+		{
+			const bool bOwn = View.bIsAlly;
+			const bool bHasPlan = View.bMoving || View.bHasTarget || !View.ActionName.IsEmpty()
+				|| View.bDashing || !View.ReactionName.IsEmpty();
 			if (bOwn && !bHasPlan)
 			{
 				continue; // unita' propria senza ordine: niente da mostrare
@@ -156,27 +187,32 @@ void ARTHUD::DrawHUD()
 				? FLinearColor(0.2f, 0.9f, 1.f, 1.f)   // ciano: le tue unita'
 				: FLinearColor(1.f, 0.9f, 0.2f, 1.f);  // giallo: nemico rivelato
 
-			// Descrizione testuale dell'intento.
+			// Descrizione testuale dell'intento, dalla sola vista.
 			FString Intent;
-			if (Planned && Unit->PlannedAttackTarget)
+			if (!View.ActionName.IsEmpty() && View.bHasTarget)
 			{
-				Intent = FString::Printf(TEXT("%s -> %s"), *Planned->DisplayName.ToString(), *Unit->PlannedAttackTarget->GetName());
+				Intent = FString::Printf(TEXT("%s -> %s"), *View.ActionName.ToString(), *HexCellText(View.TargetCell));
 			}
-			else if (Planned && Planned->bSelfTarget)
+			else if (!View.ActionName.IsEmpty())
 			{
-				Intent = Planned->DisplayName.ToString();
+				Intent = View.ActionName.ToString();
 			}
-			else if (bMoving)
+			else if (View.bMoving)
 			{
-				Intent = FString::Printf(TEXT("-> %s"), *HexCellText(Unit->PlannedCell));
+				Intent = FString::Printf(TEXT("-> %s"), *HexCellText(View.PlannedCell));
 			}
 			else
 			{
 				Intent = TEXT("fermo");
 			}
+			// La reazione compare solo se la vista ce l'ha: per un avversario e' vuota per costruzione.
+			if (!View.ReactionName.IsEmpty())
+			{
+				Intent += FString::Printf(TEXT("  (reazione: %s)"), *View.ReactionName.ToString());
+			}
 
-			// Etichetta sopra la testa.
-			const FVector Head = Unit->GetActorLocation() + FVector(0.f, 0.f, WorldHeadOffset);
+			// Etichetta sopra la testa, posizionata dalla CELLA (identita' stabile), non da un pointer all'Actor.
+			const FVector Head = HexCellWorld(View.OwnerCell, Origin, HexSize, LayerH) + FVector(0.f, 0.f, WorldHeadOffset);
 			const FVector HeadScreen = Project(Head);
 			if (HeadScreen.Z > 0.f)
 			{
@@ -184,17 +220,13 @@ void ARTHUD::DrawHUD()
 				DrawText(FString(Prefix) + Intent, Color, HeadScreen.X - BarWidth * 0.5f, HeadScreen.Y - 36.f, nullptr, 0.85f);
 			}
 
-			// Percorso pianificato (PF.2): traccia la rotta reale che aggira gli ostacoli
-			// (FindPath), cella per cella, ed evidenzia la cella di destinazione.
-			if (bMoving)
+			// Percorso pianificato: la rotta composita se la vista la porta, altrimenti lo stesso A* dell'autorita'.
+			if (View.bMoving)
 			{
-				// Path composita (waypoint) se presente, altrimenti la rotta esagonale verso la destinazione:
-				// stesso A* dell'autorita', cosi' l'anteprima coincide col percorso poi eseguito.
-				const TArray<FRTCellId> PathCells = (Unit->PlannedPath.Num() >= 2)
-					? Unit->PlannedPath
-					: URTHexPathLibrary::FindPath(Map, Unit->Cell, Unit->PlannedCell).Path;
+				const TArray<FRTCellId> PathCells = (View.PlannedPath.Num() >= 2)
+					? View.PlannedPath
+					: URTHexPathLibrary::FindPath(Map, View.OwnerCell, View.PlannedCell).Path;
 
-				// Polilinea lungo i centri esagonali: mostra la deviazione attorno alle coperture.
 				for (int32 i = 1; i < PathCells.Num(); ++i)
 				{
 					const FVector A = Project(HexCellWorld(PathCells[i - 1], Origin, HexSize, LayerH));
@@ -205,15 +237,15 @@ void ARTHUD::DrawHUD()
 					}
 				}
 
-				const FVector DestScreen = Project(HexCellWorld(Unit->PlannedCell, Origin, HexSize, LayerH));
+				const FVector DestScreen = Project(HexCellWorld(View.PlannedCell, Origin, HexSize, LayerH));
 				if (DestScreen.Z > 0.f)
 				{
 					DrawRect(FLinearColor(Color.R, Color.G, Color.B, 0.35f), DestScreen.X - 12.f, DestScreen.Y - 12.f, 24.f, 24.f);
 				}
 			}
 
-			// Marker sui waypoint cliccati: i "punti" del percorso (nel colore dell'unita').
-			for (const FRTCellId& WP : Unit->PlannedWaypoints)
+			// Marker sui waypoint cliccati: la vista li porta solo per le unita' proprie.
+			for (const FRTCellId& WP : View.PlannedWaypoints)
 			{
 				const FVector WPScreen = Project(HexCellWorld(WP, Origin, HexSize, LayerH));
 				if (WPScreen.Z > 0.f)
@@ -222,10 +254,10 @@ void ARTHUD::DrawHUD()
 				}
 			}
 
-			// Preview dello SCATTO pianificato (fase Dash): percorso e destinazione in MAGENTA, distinti dal movimento.
-			if (Unit->PlannedDashAbility != INDEX_NONE && Map)
+			// Preview dello SCATTO pianificato (fase Dash): percorso e destinazione in MAGENTA.
+			if (View.bDashing && Map)
 			{
-				const TArray<FRTCellId> DPath = URTHexPathLibrary::FindPath(Map, Unit->Cell, Unit->PlannedDashCell).Path;
+				const TArray<FRTCellId> DPath = URTHexPathLibrary::FindPath(Map, View.OwnerCell, View.DashCell).Path;
 				const FLinearColor DashColor(1.f, 0.2f, 0.9f, 1.f);
 				for (int32 i = 1; i < DPath.Num(); ++i)
 				{
@@ -233,14 +265,14 @@ void ARTHUD::DrawHUD()
 					const FVector DB = Project(HexCellWorld(DPath[i], Origin, HexSize, LayerH));
 					if (DA.Z > 0.f && DB.Z > 0.f) { DrawLine(DA.X, DA.Y, DB.X, DB.Y, DashColor, 2.5f); }
 				}
-				const FVector DDest = Project(HexCellWorld(Unit->PlannedDashCell, Origin, HexSize, LayerH));
+				const FVector DDest = Project(HexCellWorld(View.DashCell, Origin, HexSize, LayerH));
 				if (DDest.Z > 0.f) { DrawRect(FLinearColor(DashColor.R, DashColor.G, DashColor.B, 0.4f), DDest.X - 10.f, DDest.Y - 10.f, 20.f, 20.f); }
 			}
 
-			// Linea verso il bersaglio d'attacco pianificato.
-			if (Unit->PlannedAttackTarget && Unit->PlannedAttackTarget->IsAlive() && HeadScreen.Z > 0.f)
+			// Linea verso il bersaglio d'attacco pianificato (dalla CELLA del bersaglio, non dal suo Actor).
+			if (View.bHasTarget && HeadScreen.Z > 0.f)
 			{
-				const FVector TgtScreen = Project(Unit->PlannedAttackTarget->GetActorLocation() + FVector(0.f, 0.f, WorldHeadOffset));
+				const FVector TgtScreen = Project(HexCellWorld(View.TargetCell, Origin, HexSize, LayerH) + FVector(0.f, 0.f, WorldHeadOffset));
 				if (TgtScreen.Z > 0.f)
 				{
 					DrawLine(HeadScreen.X, HeadScreen.Y, TgtScreen.X, TgtScreen.Y, Color, 2.f);

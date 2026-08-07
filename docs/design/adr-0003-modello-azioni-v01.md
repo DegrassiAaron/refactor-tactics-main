@@ -129,3 +129,45 @@ DoD completa in [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md); chec
 Rivedere alla chiusura dell'epic **E5 (Reazioni)** — è il punto dove il costo può sfondare. Se sfonda:
 degradare a difensive di sola fase Prep (`Guard`/`Brace`/`Shield`) e rimandare `Counter`/`Intercept`/`Deflect`
 a dopo la v0.1, senza toccare il resto del modello.
+
+### Esito della revisione — E5 chiusa (CP 5.4, issue `#53`)
+
+**Il costo non ha sfondato: la via di degrado NON è stata applicata.** Le tre reazioni che il piano B avrebbe
+rimandato fuori dalla v0.1 — `Counter`, `Deflect`, `Intercept` — sono tutte costruite e collaudate, insieme alle
+difensive di Prep. Nessun elemento di E5 è stato tagliato.
+
+**Il modello ha retto senza modifiche strutturali.** I quattro checkpoint hanno aggiunto dati e un punto di
+valutazione, non eccezioni al motore:
+
+- `ERTActionSlot::Reaction` e `ERTReactionTrigger` sono **campi di `FRTActionDef`**, cioè catalogo. Aggiungere
+  una reazione resta "aggiungere una riga di dati", che è la promessa dell'ADR.
+- `Action.Shield` è arrivata **senza una riga di codice**: `ResolvePrep` traduceva già `ERTActionEffect::Shield`
+  in scudo temporaneo. È la prova più netta che il motore azioni sta facendo il suo lavoro.
+- Il trigger si valuta su `Plan.Hits` **già raccolti** — nessun `Delay`, nessuna timeline, nessuna attesa nel
+  resolver. L'invariante #3 non è stata toccata, e lo stack LIFO interattivo resta north-star (canone §8.2).
+
+**Le due correzioni al modello, entrambe additive:**
+
+1. **L'ordine intra-fase delle reazioni conta davvero.** `Action.Intercept` (priorità 10) cambia il *bersaglio*
+   dei colpi, quindi deve risolvere prima che `Deflect` (15) e `Counter` (20) valutino chi è stato colpito.
+   L'ordine `macro-fase → priorità → ActionId → UnitId → EventSequence` che l'ADR già prescriveva si è rivelato
+   sufficiente: è servito applicarlo, non cambiarlo.
+2. **Servono due meccanismi di delta sul danno, non uno.** `ApplyFirstHitDelta` (una volta per bersaglio) non
+   può esprimere `Brace` ("-10 a *ogni* danno diretto"): è nata `ApplyDamageDelta`. Sono regole diverse, e
+   tenerle in due funzioni le rende distinguibili invece di nascondere un flag dentro una.
+
+**Il limite che resta dichiarato**: `Cleanse` opera sui tre stati che esistono oggi; `Burning` ed `Electrified`
+sono ambiente (epic E8/CP 8.2). Il meccanismo scorre una lista di tag, quindi l'estensione non toccherà il
+resolver. Analogamente, le clausole "non su danno ambientale" di `Counter`/`Deflect`/`Intercept` sono verificate
+**per costruzione** del trigger, non simulando hazard inesistenti.
+
+**Privacy (CP 5.4)**: l'invariante #6 è stata estesa alle reazioni introducendo un **DTO filtrato per squadra**
+(`FRTIntentView`, prodotto da `URTIntentPrivacyLibrary::FilterForTeam`). Prima la UI leggeva il piano completo di
+tutte le unità e decideva di non disegnare quelle avversarie: un occultamento *grafico*, cioè un dato presente
+sul client e nascosto a schermo. Ora un piano avversario non rivelato non esiste proprio nella vista, e la
+reazione non viene mai copiata in una vista avversaria — **neppure sotto `Status.Reveal`**: `Reveal` mostra cosa
+un'unità sta per *fare*, non cosa è pronta a *parare*. È la lettura letterale della DoD di CP 5.4 ("mai visibile
+ai nemici") ed è una scelta di design da riconfermare quando la rete arriverà a **M10**, che è il momento in cui
+questo DTO smette di essere una precauzione e diventa il payload replicato.
+
+*Revisione eseguita alla chiusura di E5, con i quattro checkpoint (`#50`–`#53`) mergiati in `main`.*
