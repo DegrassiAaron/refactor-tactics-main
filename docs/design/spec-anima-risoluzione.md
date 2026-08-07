@@ -114,9 +114,12 @@ Parametri `UPROPERTY(EditAnywhere)` sul TurnManager → tuning **in editor senza
 | `AttackShowSeconds` | `~0.50` | durata di visualizzazione di un colpo + numero di danno |
 | `MaxPlaybackSeconds` | `~12` | oltre soglia → **speed-up automatico** (PDF p.4) |
 
-- **Target 2v2 offline**: round tipico **≈ 6–12 s**. I **45–60 s del PDF** valgono per **3-4 unità +
-  finestre di reazione**, assenti nell'MVP → non replicabili né desiderabili qui. *(Raccomandazione, da
-  confermare in PIE.)*
+- ~~**Target 2v2 offline**: round tipico **≈ 6–12 s**.~~ **Aggiornato 2026-08-07**
+  ([`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §9): playback tipico
+  **8–15 s** in 2v2 e **12–20 s** in 3v3 Standard. I **45–60 s del PDF** restano fuori scala.
+  ⚠️ Conseguenza da tarare quando la banda sarà misurata: `MaxPlaybackSeconds = 12` è **dentro** la nuova banda
+  2v2, quindi lo speed-up automatico scatterebbe sui round più pieni invece che sui casi patologici. **Non si
+  cambia adesso**: il valore si sposta col dato, non con la spec.
 - **Speed-up automatico**: se la durata stimata supera `MaxPlaybackSeconds`, comprimere beat/animazioni
   minori mantenendo l'ordine eventi.
 

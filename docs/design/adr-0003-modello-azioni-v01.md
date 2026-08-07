@@ -3,6 +3,13 @@
 > **Stato**: Accettato — da implementare · **Data**: 2026-08-05 · **Decisore**: utente (dev singolo)
 > **Contesto sorgente**: `docs/PDR/RT_PDR_12_Catalog_v0.1.pdf` + `docs/src/RefactorTactics — Catalogo e bilanciamento v0.1.pdf`,
 > su richiesta di realizzare la roadmap v0.1 (`docs/road-map_info.md`)
+>
+> ⚠️ **Emendamento 2026-08-07** — [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md):
+> il **«limite di 12 turni»** citato qui sotto non è più una regola universale. Resta la decisione strutturale —
+> **la partita finisce per più vie, non solo per eliminazione** — mentre il numero diventa `RoundLimit`,
+> **parametro del formato di partita**: **10–14** per il 2v2 della v0.1 (12 resta il valore iniziale del
+> catalogo), **16–20** per il 3v3 Standard. Nient'altro di questo ADR cambia: le macro-fasi
+> `Prep → Dash → Blast → Move` e il Move dopo il Blast restano invariati.
 
 ## Contesto
 
@@ -20,7 +27,7 @@ direzione, non scope. Divergono dal canone su sette punti *load-bearing*:
 | 2 | Budget movimento | 4 celle (Dash 3) | 5 MP, costo intero per cella (1 normale, 2 difficile/rampa) |
 | 3 | Reazioni | north-star, escluse (`§8.2`) | slot Reazione con trigger, 1 attivazione/turno |
 | 4 | Roster | 2 archetipi (Ranger/Guardian) | 4 eroi con identità, statistiche e varianti |
-| 5 | Vittoria | eliminazione della squadra | eliminazione **+** obiettivi **+** limite di 12 turni |
+| 5 | Vittoria | eliminazione della squadra | eliminazione **+** obiettivi **+** limite di round *(12 nel catalogo; oggi `RoundLimit` di formato)* |
 | 6 | Versione engine | UE **5.8.1** (bloccata) | UE 5.6.x |
 | 7 | Rete | rimandata a M10 | client-server autoritativo con rollback limitati |
 
