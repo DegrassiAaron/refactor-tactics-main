@@ -6,6 +6,10 @@
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnRules.h"
 #include "Unit/RTUnit.h"
+#include "Map/RTHexMapActor.h"
+#include "Map/RTHexMapAsset.h"
+#include "Map/RTHexCellData.h"
+#include "Map/RTHexLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -36,6 +40,29 @@ namespace
 		World->DestroyWorld(false);
 	}
 
+	/**
+	 * Mappa esagonale del mondo di prova. Senza, il turno non risolve NIENTE: il movimento e' fail-closed
+	 * senza mappa autorevole, quindi nessuna fase produce animazioni e il playback salta direttamente alla
+	 * fine. Entrambi i test di questo file passavano cosi' — uno avvertendo, l'altro perche' «l'unita' ferma
+	 * non e' mai corsa» e' vera per definizione quando non corre nessuno (issue #147).
+	 *
+	 * Raggio 12: contiene le celle usate dagli scenari, (6,6) compresa (distanza 12 dal centro).
+	 */
+	URTHexMapAsset* SpawnPlaybackMap(UWorld* World, int32 Radius = 12)
+	{
+		if (!World) { return nullptr; }
+		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
+		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
+		{
+			M->AddOrUpdateCell(FRTHexCellData(Id));
+		}
+		M->SortCells();
+
+		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
+		Actor->MapAsset = M;
+		return M;
+	}
+
 	ARTUnit* SpawnPlaybackUnit(UWorld* World, int32 TeamId, ERTArchetype Arch, const FRTCellId& Cell)
 	{
 		if (!World) { return nullptr; }
@@ -45,7 +72,9 @@ namespace
 		U->bIsBotControlled = false; // i piani li scriviamo noi: niente decisioni del bot in mezzo
 		U->ConfigureAsArchetype(Arch);
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
-		U->PlaceOnCell(Cell, FVector::ZeroVector, 200.f, /*LayerHeight=*/ 0.f);
+		// Stessa geometria che il MapActor dichiara (HexSize 100, LayerHeight 250): se il posizionamento e il
+		// playback usassero due scale diverse, le unita' si muoverebbero verso celle che non sono le loro.
+		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		return U;
 	}
 
@@ -87,6 +116,8 @@ bool FRTPlaybackMovingFlagPhaseTest::RunTest(const FString&)
 	TestNotNull(TEXT("World creato"), World);
 	if (!World) { return false; }
 
+	SpawnPlaybackMap(World);
+
 	// Due unita' vicine: il Guardian scatta, il Ranger avversario resta fermo e fa da bersaglio.
 	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, ERTArchetype::Guardian, FRTCellId(2, 2));
 	ARTUnit* Target = SpawnPlaybackUnit(World, 1, ERTArchetype::Ranger, FRTCellId(4, 2));
@@ -107,24 +138,25 @@ bool FRTPlaybackMovingFlagPhaseTest::RunTest(const FString&)
 	TM->LockInAndResolve();
 
 	// Durante il Dash chi scatta risulta in corsa...
-	if (AdvanceUntilPhase(TM, TEXT("Dash")))
+	//
+	// Se la fase non viene riprodotta il test FALLISCE, non avverte: un `AddWarning` finisce fra le centinaia
+	// di righe della suite e nessuno lo legge, mentre le due asserzioni che seguono — le uniche che coprono il
+	// difetto per cui questo test esiste — non verrebbero mai eseguite. Restare verdi senza provare nulla e'
+	// peggio che rompersi.
+	if (!TestTrue(TEXT("la fase Dash viene riprodotta"), AdvanceUntilPhase(TM, TEXT("Dash"))))
 	{
-		TestTrue(TEXT("nel Dash l'unita' che scatta e' in corsa"), Dasher->bIsMovingVisually);
+		DestroyPlaybackWorld(World);
+		return false;
 	}
-	else
-	{
-		AddWarning(TEXT("fase Dash non riprodotta: scenario non esercitato come previsto"));
-	}
+	TestTrue(TEXT("nel Dash l'unita' che scatta e' in corsa"), Dasher->bIsMovingVisually);
 
 	// ...e appena si passa al Blast NON deve piu' esserlo (era il difetto).
-	if (AdvanceUntilPhase(TM, TEXT("Blast")))
+	if (!TestTrue(TEXT("la fase Blast viene riprodotta"), AdvanceUntilPhase(TM, TEXT("Blast"))))
 	{
-		TestFalse(TEXT("nel Blast l'unita' non e' piu' in corsa"), Dasher->bIsMovingVisually);
+		DestroyPlaybackWorld(World);
+		return false;
 	}
-	else
-	{
-		AddWarning(TEXT("fase Blast non riprodotta: scenario non esercitato come previsto"));
-	}
+	TestFalse(TEXT("nel Blast l'unita' non e' piu' in corsa"), Dasher->bIsMovingVisually);
 
 	// A risoluzione conclusa nessuno resta in corsa.
 	AdvanceUntilDone(TM);
@@ -148,6 +180,8 @@ bool FRTPlaybackStillUnitNeverRunsTest::RunTest(const FString&)
 	TestNotNull(TEXT("World creato"), World);
 	if (!World) { return false; }
 
+	SpawnPlaybackMap(World);
+
 	ARTUnit* Mover = SpawnPlaybackUnit(World, 0, ERTArchetype::Ranger, FRTCellId(2, 2));
 	ARTUnit* Still = SpawnPlaybackUnit(World, 0, ERTArchetype::Guardian, FRTCellId(6, 6));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
@@ -158,15 +192,25 @@ bool FRTPlaybackStillUnitNeverRunsTest::RunTest(const FString&)
 	TM->LockInAndResolve();
 
 	bool bStillEverRan = false;
+	bool bMoverEverRan = false;
 	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
 	{
 		bStillEverRan |= Still->bIsMovingVisually;
+		bMoverEverRan |= Mover->bIsMovingVisually;
 		TM->Tick(0.05f);
 	}
 	bStillEverRan |= Still->bIsMovingVisually;
 
 	TestFalse(TEXT("l'unita' ferma non risulta mai in corsa"), bStillEverRan);
 	TestFalse(TEXT("nessuna corsa residua a fine risoluzione"), Mover->bIsMovingVisually);
+
+	// Senza questa riga il test e' vacuo: se NESSUNO si muove — perche' il mondo non ha una mappa e il
+	// movimento non risolve — «l'unita' ferma non e' mai corsa» e' vera per definizione, e la guardia non
+	// guarda niente.
+	TestTrue(TEXT("lo scenario ha davvero mosso qualcuno"), bMoverEverRan);
+	TestEqual(TEXT("e il movimento e' arrivato dove pianificato"), Mover->Cell.ToString(), FRTCellId(4, 2, 0).ToString());
+
+	DestroyPlaybackWorld(World);
 	return true;
 }
 
