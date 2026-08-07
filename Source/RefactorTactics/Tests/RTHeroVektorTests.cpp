@@ -83,9 +83,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVektorInterceptShotStopsMovementTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTVektorInterceptShotStopsMovementTest::RunTest(const FString&)
 {
-	// Nome vincolante della DoD — ma **le reazioni non esistono** (E5): non c'e' uno slot Reazione, e
-	// "fermare il movimento" non e' un `ERTActionEffect`. Il test verifica cio' che si puo' verificare oggi e
-	// fissa le proprieta' che sopravvivranno a E5.
+	// Nome vincolante della DoD. Il motore delle reazioni ora esiste (E5, CP 5.5) e le altre tre reazioni
+	// d'eroe sono cablate (CP 6.7) — **questa no, ed e' una decisione**: il suo trigger e' d'ingresso su
+	// movimento, quindi appartiene a E14 (ADR-0004). Cablarla qui duplicherebbe `FRTSuppressiveZone`, e
+	// "fermare il movimento" resta comunque fuori da `ERTActionEffect`. Il test verifica cio' che il dato
+	// dichiara oggi, incluso il rinvio: slot `None` e nessun trigger, cosi' il pass delle reazioni non la
+	// raccoglie e non puo' registrare un'attivazione senza effetti.
 	const URTActionData* Intercept = URTHeroCatalogLibrary::MakeVektor()->Actions[1];
 
 	TestEqual(TEXT("InterceptShot: 16 danni"),
@@ -93,11 +96,14 @@ bool FRTVektorInterceptShotStopsMovementTest::RunTest(const FString&)
 	TestEqual(TEXT("InterceptShot: cooldown 2"), Intercept->Def.CooldownTurns, 2);
 
 	// Si PREPARA (non si esegue): risolve nel Prep, non occupa l'azione principale, e non e' interrompibile —
-	// una reazione gia' pronta non si annulla. Sono le tre proprieta' che E5 dovra' rispettare.
+	// una reazione gia' pronta non si annulla.
 	TestTrue(TEXT("si prepara nel Prep"),
 		URTCatalogLibrary::MapResolutionPhase(Intercept->Def.ResolutionPhase) == ERTMatchPhase::Prep);
 	TestTrue(TEXT("non consuma l'azione principale"), Intercept->Def.Slot == ERTActionSlot::None);
 	TestFalse(TEXT("una reazione preparata non si interrompe"), Intercept->Def.bCanBeInterrupted);
+	// Il rinvio a E14 e' un DATO, non un commento: senza trigger, il pass delle reazioni non la vede.
+	TestTrue(TEXT("rinviata a E14: nessun trigger dichiarato"),
+		Intercept->Def.ReactionTrigger == ERTReactionTrigger::None);
 
     // Limite dichiarato: lo STOP del movimento non e' rappresentabile. Il parente gia' costruito e'
 	// `Action.SuppressiveLine` (CP 4.6), che ferma chi entra in una cella controllata: quando E5 arrivera',

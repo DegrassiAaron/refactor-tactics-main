@@ -39,17 +39,17 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in parte (vedi nota) · ⏳ da far
 | **H0–H6.5** Fondamenta esagonali | ✅ | Coordinate/asset/A\*/multilivello/editor mode + simulazione hex pura (snapshot, budget, collisioni, TurnLog, LOS, bot) — dettaglio in [`hex-map-roadmap.md`](hex-map-roadmap.md) |
 | **M6** Parità hex | 🟡 | **Codice completo** (CP 6.1–6.7 mergiati): la partita gira su esagoni — wiring, movimento, input, combat, scatto/spinta, bot, HUD. Resta il **playtest** CP 6.8 (sessione PIE) |
 | **M7** Dismissione del quadrato | 🟡 | **Un solo substrato + release interna**: CP 7.1, 7.2 e 7.4 fatti (rimozione, packaging Development e Shipping avviati). Resta **CP 7.3**: 2 KPI su 4 misurati, FPS e preview richiedono rendering/editor |
-| **M8** Presentazione e identità | 🟡 | **Le regole dei 4 eroi ci sono** (E6: 20 test, Flux/Riva/Bastion/Vektor con varianti e spawn da dati) e da **CP 5.5** (2026-08-07) il motore delle reazioni le regge, ma **cinque reazioni d'eroe non sono ancora cablate** (E6 riaperta, `#155`). Resta la **presentazione**: personaggi animati, anelli team/selezione, **Ghost Timeline del planning** (`#172`/`#173`), leggibilità tattica — banco di prova: la showcase E15 |
+| **M8** Presentazione e identità | 🟡 | **Le regole dei 4 eroi ci sono e le reazioni funzionano in partita** (E6: 25 test; CP 5.5 + CP 6.7 del 2026-08-07 hanno reso il motore componibile e cablato `Interposition`, `Deflection`, `ReactiveCapacitor`; `InterceptShot` e `FlowReaction` sono rinviate a **E14** e lo dichiarano nei dati). Resta la **presentazione**: personaggi animati, anelli team/selezione, **Ghost Timeline del planning** (`#172`/`#173`), leggibilità tattica — banco di prova: la showcase E15 |
 | **M9** Ambienti tattici + editor maturo | 🟡 | **Terreni e stati** (E8: costi, Rough, Fire, ShallowWater, Smoke, Ice — 17 test; **CP 8.2 stati temporanei chiuso il 2026-08-07**, 11 test: durata legata alla cella, danno di `Burning` nel Cleanup prima dei KO, `Wet` che spegne le fiamme, `Marked` cablato). Restano **propagazione elettrica e fuoco/acqua** (CP 8.3/8.4), cover dinamica, porte/ponti (E9) e il residuo H5 dell'editor |
 | **M10** Rete e privacy | ⏳ | Listen server, validazione server, planning team-only, canary intent leak. **Nuovo vincolo**: [ADR-0004](adr-0004-finestre-di-reazione.md) introduce N round-trip per turno (finestre di reazione) |
 | **M11** Production readiness | ⏳ | Budget in CI, validator commandlet, packaged soak, replay audit |
 
-**Suite automatica**: `Source/RefactorTactics/Tests/` — **347** test unici in 51 file (misurati 2026-08-07 alla
-chiusura di CP 5.5).
+**Suite automatica**: `Source/RefactorTactics/Tests/` — **352** test unici in 52 file (misurati 2026-08-07 alla
+chiusura di CP 6.7).
 Storia del numero: **172** alla chiusura di CP 6.0 → **230** con M6+E1 → **171** dopo la rimozione del quadrato
 (i **59** test previsti dall'inventario) → **324** con E4/E5/E6 e i terreni → **325** col merge di `#144` →
 **338** con gli stati temporanei di CP 8.2 (`#65`) → **342** con i merge di `#179`/`#180` (misurato, mai
-dichiarato: le due viste citavano ancora 338) → **347** con le reazioni componibili di CP 5.5 (`#154`).
+dichiarato: le due viste citavano ancora 338) → **347** con le reazioni componibili di CP 5.5 (`#154`) → **352** col cablaggio delle reazioni d'eroe di CP 6.7 (`#155`).
 
 Comando di misura, riproducibile:
 
@@ -109,7 +109,7 @@ La conseguenza sulle milestone di *questa* vista è:
 | Epic | Stato misurato | Effetto sulla milestone |
 |---|---|---|
 | E1, E4 | ✅ chiuse (9 + 52 test) | — |
-| E5, E6 | 🟡 **riaperte il 2026-08-07** (27 + 20 test verdi). **CP 5.5 chiuso**: il motore regge le reazioni d'eroe (più effetti per reazione, riduzione danno come dato, identità nel TurnLog, helper di costruzione). Restano **cinque reazioni d'eroe non cablate** | **M8** resta 🟡: il motore è pronto, ma cinque abilità su venti non fanno ancora nulla in partita — le cabla **CP 6.7** (`#155`) |
+| E5, E6 | ✅ **richiuse il 2026-08-07** (27 + 25 test verdi): **CP 5.5** rende il motore componibile, **CP 6.7** cabla tre reazioni d'eroe su cinque e dichiara nei dati il rinvio delle altre due a E14 | **M8** resta 🟡 solo per la **presentazione** (personaggi animati, anelli, Ghost Timeline): le regole degli eroi non hanno più abilità inerti |
 | E8 | 🟡 parziale (17 test; mancano `Environment.*`) | **M9 passa a 🟡** |
 | E7, E9, E10, E11, E12 | ⏳ assenti (nessun test nelle rispettive aree) | M9 e M11 restano aperte |
 | E13, E14, E15, E16 | ⏳ nuove (issue `#151`–`#177`) | E13/E14 preparano **M10**; E15 è il banco di leggibilità di **M8**; E16 dà peso tattico all'orientamento e **precede E13** |
@@ -117,8 +117,9 @@ La conseguenza sulle milestone di *questa* vista è:
 > **Riapertura di E5 ed E6 (2026-08-07)**: `Bastion.Interposition`, `Vektor.Deflection`,
 > `Flux.ReactiveCapacitor` e `Riva.FlowReaction` sono identità a catalogo con `Effects` vuoto, e
 > `RTHeroCatalogLibrary.cpp` porta ancora commenti «arriva con E5» — mentre E5 è chiusa. Un motore che nessuno
-> consuma non è collaudato: **CP 5.5** (`#154`) lo rende componibile — ✅ **chiuso il 2026-08-07**, vedi
-> [`spec-reazioni-componibili-cp55.md`](spec-reazioni-componibili-cp55.md) — e **CP 6.7** (`#155`) cabla gli eroi.
+> consuma non è collaudato: **CP 5.5** (`#154`) lo rende componibile e **CP 6.7** (`#155`) cabla gli eroi —
+> ✅ **entrambi chiusi il 2026-08-07**, vedi [`spec-reazioni-componibili-cp55.md`](spec-reazioni-componibili-cp55.md).
+> Restano fuori `Vektor.InterceptShot` e `Riva.FlowReaction`, rinviate a **E14** e dichiarate tali nei dati.
 > `Vektor.InterceptShot` e `Riva.FlowReaction` appartengono invece a **E14** (trigger su movimento e movimento
 > reattivo).
 

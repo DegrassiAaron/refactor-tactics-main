@@ -13,8 +13,25 @@ partecipano più allo spawn di partita; restano come helper nei test d'integrazi
 
 Molte abilità esistono come identità/fase/cooldown ma **senza l'effetto** che questo documento descrive,
 perché il sistema che dovrebbe consumarlo non è ancora costruito: coperture e strutture (E9), terreni dinamici
-(E8), reazioni (E5), gadget (E7). Ogni caso è dichiarato nella PR del rispettivo checkpoint e nei commenti del
+(E8), gadget (E7). Ogni caso è dichiarato nella PR del rispettivo checkpoint e nei commenti del
 codice, mai nascosto dietro un effetto segnaposto.
+
+### Reazioni — aggiornamento del 2026-08-07 (CP 6.7, `#155`)
+
+Le reazioni **non** sono più in quella lista: il motore di E5 le regge (CP 5.5, `#154`) e tre delle cinque
+sono cablate e verificate in partita.
+
+| Reazione | Semantica core riusata | Stato |
+|---|---|---|
+| `Flux.ReactiveCapacitor` | `Action.Counter` | ✅ scudo 15 **e** 10 danni all'attaccante |
+| `Bastion.Interposition` | `Action.Intercept` | ✅ incassa il colpo diretto a un alleato entro 2 celle |
+| `Vektor.Deflection` | `Action.Deflect` | ✅ −20 sul colpo che l'ha innescata |
+| `Vektor.InterceptShot` | — | ⏳ **E14**: trigger d'ingresso su movimento (ADR-0004), non «sono stato colpito» |
+| `Riva.FlowReaction` | — | ⏳ **E14**: produce movimento dentro un boundary di risoluzione |
+
+Le due rinviate lo dichiarano **nei dati** (slot `None`, nessun trigger), non solo nei commenti: con lo slot
+`Reaction` il pass del turno le raccoglierebbe e registrerebbe un'attivazione che non produce nulla.
+Identità, cooldown ed effetti restano dell'eroe; fase, priorità, slot e trigger vengono dall'azione core.
 
 ## Struttura di un eroe
 

@@ -130,7 +130,14 @@ bool FRTBastionPanelCreatesCoverTest::RunTest(const FString&)
 	// esattamente cio' che deve succedere: e' il promemoria che l'abilita' e' a meta'.
 	TestEqual(TEXT("KineticPanel: nessun effetto rappresentabile (E9)"), Panel->Def.Effects.Num(), 0);
 	TestEqual(TEXT("Reconfigure: nessun effetto rappresentabile (E9)"), Bastion->Actions[2]->Def.Effects.Num(), 0);
-	TestEqual(TEXT("Interposition: nessun effetto rappresentabile (E5)"), Bastion->Actions[4]->Def.Effects.Num(), 0);
+
+	// `Interposition` non e' piu' in questa lista (CP 6.7): era «nessun effetto perche' E5 non c'e'», ed e'
+	// diventata «nessun effetto **proprio**, perche' interporsi non e' un effetto» — cambia CHI subisce un
+	// colpo altrui, e quello lo fa la semantica di `Action.Intercept` che ora riusa. La verifica del suo
+	// comportamento sta in `Heroes.BastionInterposition*` (`RTHeroReactionTests.cpp`), dove puo' essere
+	// osservata in partita invece che contata a catalogo.
+	TestTrue(TEXT("Interposition: cablata come reazione, non piu' inerte"),
+		Bastion->Actions[4]->Def.Slot == ERTActionSlot::Reaction);
 	return true;
 }
 

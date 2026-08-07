@@ -41,10 +41,12 @@ public:
 	 * ogni chiamata — stesso idioma di `URTCatalogLibrary::GetCoreActionCatalog`: il catalogo eroi non e' un
 	 * singleton, e un chiamante che ne vuole due (es. specchio nello stesso 2v2) non condivide lo stato.
 	 *
+	 * `ReactiveCapacitor` e' **cablata** (CP 6.7): reazione sulla semantica di `Action.Counter` con due
+	 * effetti propri — scudo 15 a se' e 10 danni all'attaccante.
+	 *
 	 * Limiti dichiarati (nessun sistema a valle esiste ancora, quindi l'effetto non e' rappresentabile):
 	 * `ConductiveNode` non ha un modello di "cella conduttiva" (E8/E9); `Overload` non ha un modello di
-	 * "dispositivo interrompibile" (E7, gadget); `ReactiveCapacitor` non ha uno slot di reazione ne' un modo
-	 * di riferire "l'attaccante" a runtime (E5). Ogni azione esiste comunque come DATO, con la sua identita',
+	 * "dispositivo interrompibile" (E7, gadget). Ogni azione esiste comunque come DATO, con la sua identita',
 	 * portata e cooldown dal catalogo — solo l'effetto aggiuntivo resta un numero non ancora consumato.
 	 */
 	static URTHeroData* MakeFlux();
@@ -59,8 +61,9 @@ public:
 	 * decide solo SE un alleato viene colpito, non CON QUALE effetto) — la differenziazione arriva quando
 	 * Riva sara' davvero cablata (CP 6.6+). `FluidTrail` (acqua lungo il percorso) e `MistVeil` (fumo) non
 	 * hanno un modello di terreno dinamico (E8/E9): identita', fase, portata e cooldown sono dati veri,
-	 * l'effetto no. `FlowReaction` e' interamente non rappresentabile (nessuno slot Reazione, E5): Effects
-	 * vuoto, come `Flux.ReactiveCapacitor` per la sua meta' non rappresentabile.
+	 * l'effetto no. `FlowReaction` e' **rinviata a E14** (ADR-0004): produce movimento dentro un boundary di
+	 * risoluzione, che il motore delle reazioni di E5 non fa — il rinvio e' dichiarato come dato (slot `None`,
+	 * nessun trigger), non lasciato a un commento.
 	 */
 	static URTHeroData* MakeRiva();
 
@@ -69,12 +72,11 @@ public:
 	 * **resistenza push 1** (l'unico del roster), affinita' strutture, debolezza movimento — simmetrica a
 	 * Vektor (CP 6.5), come Flux/Riva lo sono fra loro.
 	 *
-	 * ⚠️ **E' l'eroe piu' incompleto del roster, e la sua issue (#57) chiede esplicitamente di dichiararlo.**
+	 * ⚠️ **Resta l'eroe piu' incompleto del roster, e la sua issue (#57) chiede esplicitamente di dichiararlo.**
 	 * `KineticPanel` e `Reconfigure` manipolano STRUTTURE, che non esistono nel modello dati (`FRTHexCellData`
 	 * non ha coperture: E9, issue `#69`/`#73`) — nessun effetto dichiarabile, i numeri del catalogo terreni
 	 * (`Structure.KineticPanel`: integrita' 30, protezione 10) vivono nei `Parameters` della variante finche'
-	 * qualcuno non li consuma. `Interposition` e' una reazione (E5). Solo `ImpactShot` e `Ram` sono
-	 * interamente rappresentabili oggi.
+	 * qualcuno non li consuma. `Interposition` e' **cablata** (CP 6.7) sulla semantica di `Action.Intercept`.
 	 */
 	static URTHeroData* MakeBastion();
 
@@ -83,11 +85,12 @@ public:
 	 * vista 6, resistenza push 0, affinita' movimento, debolezza strutture — simmetrica a Bastion, che chiude
 	 * il roster in due coppie (Flux↔Riva, Bastion↔Vektor).
 	 *
-	 * Limiti dichiarati: **due delle quattro abilita' fondamentali sono reazioni** (`InterceptShot`,
-	 * `Deflection`) e nessuno slot Reazione esiste (E5) — e' l'eroe che l'epic E5 completera' piu' degli
-	 * altri. `Feint` marca una CELLA e concede un `Reposition`: nessuna delle due meta' e' un
+	 * Delle sue **due reazioni**, `Deflection` e' cablata (CP 6.7, semantica di `Action.Deflect`) mentre
+	 * `InterceptShot` e' **rinviata a E14**: il suo trigger e' d'ingresso su movimento, e cablarla sul motore
+	 * di E5 duplicherebbe `FRTSuppressiveZone`.
+	 *
+	 * Limiti dichiarati: `Feint` marca una CELLA e concede un `Reposition`, e nessuna delle due meta' e' un
 	 * `ERTActionEffect` (gli stati si applicano alle unita', il movimento passa da `ERTMovementStyle`).
-	 * `PassingBlade` e' l'unica abilita' non-base interamente rappresentabile.
 	 */
 	static URTHeroData* MakeVektor();
 
