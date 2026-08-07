@@ -149,13 +149,13 @@ di gioco: è la **verifica interattiva** (M6 CP 6.8 mai eseguito) e l'osservabil
 | **E9** | Coperture e strutture | P2 | 5 | Topologia mutevole: cache e path vanno invalidati, mai fantasma |
 | **E10** | Obiettivi dinamici e fine partita | P2 | 3 | Chiude il loop: la partita ha un motivo per muoversi |
 | **E11** | HUD, log e debug | P1 | 6 | Leggibilità tattica + osservabilità (senza `rt.Debug.*` si debugga a occhio) |
-| **E12** | Determinismo, QA e release | **P0** | 5 | Gate di release: senza checksum e packaged non è v0.1 |
+| **E12** | Determinismo, QA e release | **P0** | 6 | Gate di release: senza checksum e packaged non è v0.1 |
 | **E13** | Conoscenza parziale — vista e udito | P2 | 5 | La vista è una statistica a catalogo che non decide nulla; il rumore è il suo gemello e i dati esistono già |
 | **E14** | Overwatch e reazioni interattive | P2 | 6 | Bait, bluff e commitment non sono recuperabili con reazioni dichiarate; l'aggancio (`SuppressiveLine`, `InterceptShot`) esiste già |
 | **E15** | Showcase «Il Relè» e golden replay | P1 | 5 | La prova integrata che le regole generali producono una partita: fixture, scenario e replay a hash stabile — consumer dei sistemi, mai codice speciale |
 | **E16** | Orientamento e direzionalità | P1 | 2 | L'orientamento smette di essere presentazione: decide difesa, percezione e reazioni con una sola primitiva (`HexCone`) e **zero numeri nuovi**. È **prerequisito di E13** |
 
-**Totale: 16 epic, 81 checkpoint** *(era 12/59; **E13** ed **E14** aggiunte il 2026-08-07; il 2026-08-07,
+**Totale: 16 epic, 82 checkpoint** *(era 12/59; **E13** ed **E14** aggiunte il 2026-08-07; il 2026-08-07,
 consolidando [`../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md`](../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md):
 **E15** showcase (5 CP), **CP 5.5** e **CP 6.7** per il debito delle reazioni d'eroe, **CP 14.2** per
 l'estrazione del micro-step; consolidando
@@ -728,7 +728,7 @@ un gate della v0.1, perché l'editor è uno strumento, non una feature di gioco.
 
 | Rischio | P/I | Mitigazione | Stato |
 |---|---|---|---|
-| Scope: **81** checkpoint per un dev singolo | **H/H** | Ordine di taglio: **E14**, poi **E7**, poi **E10**, poi **E13** (e con essa **E16**, che senza consumatori di percezione perde due terzi del valore), poi le varianti di **E6** — mai E1/E2/E3/E4/E12. **E15 non si taglia, si degrada**: senza E14 perde il turno 4, senza E9 perde le strutture, e resta consegnabile con i sistemi atterrati. *Aggiornato 2026-08-07: E1/E4/E5/E6 chiuse (§2.1); il rischio si è spostato al **mondo** (E8/E9/E10) e all'osservabilità (E11)* | attivo |
+| Scope: **82** checkpoint per un dev singolo | **H/H** | Ordine di taglio: **E14**, poi **E7**, poi **E10**, poi **E13** (e con essa **E16**, che senza consumatori di percezione perde due terzi del valore), poi le varianti di **E6** — mai E1/E2/E3/E4/E12. **E15 non si taglia, si degrada**: senza E14 perde il turno 4, senza E9 perde le strutture, e resta consegnabile con i sistemi atterrati. *Aggiornato 2026-08-07: E1/E4/E5/E6 chiuse (§2.1); il rischio si è spostato al **mondo** (E8/E9/E10) e all'osservabilità (E11)* | attivo |
 | Il **golden hash** della showcase cambia a ogni epic che atterra | **H/M** | Rigenerazione **solo con flag esplicito** (regola del CP 12.6, estesa a E15); la PR che rigenera dichiara *perché* l'esito è cambiato, altrimenti il golden diventa una firma automatica | pianificato |
 | La finestra di reazione allunga la resolution oltre il tollerabile | M/**H** | Soglia d'allarme **20 s** (ADR-0004); prima misura anticipata al **CP 14.5** con decisioni immediate, prima di costruire la UI; rientri già valutati: cap aggregato o `MaxPromptsPerReaction = 1`, entrambi parametri | pianificato |
 | Reazioni d'eroe mai cablate: E5 chiusa ma **non consumata** | **H/M** | CP 5.5 (motore componibile) + CP 6.7 (cablaggio); i test che oggi fissano l'assenza vengono **sostituiti**, non cancellati | attivo |
