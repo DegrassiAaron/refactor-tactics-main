@@ -225,6 +225,19 @@ void ARTUnit::OnDeselected()
 
 void ARTUnit::ApplyStatus(FGameplayTag Tag, int32 Turns)
 {
+	// Catalogo terreni §2: `Burning` e' "rimosso da `Wet`". La regola sta QUI e non nel chiamante, cosi'
+	// vale per ogni sorgente di bagnato — acqua bassa, `Riva.PressureJet`, `CircularTide` — invece che nel
+	// punto che si e' ricordato di scriverla. L'ordine e' voluto: si spegne anche se il Wet arriva insieme.
+	if (Tag == TAG_Status_Wet)
+	{
+		StatusTurns.Remove(TAG_Status_Burning);
+	}
+
+	if (Turns == PersistentWhileOnCell)
+	{
+		CellBoundStatuses.Add(Tag); // scade quando l'unita' lascia la cella, non a tempo
+		return;
+	}
 	if (Turns <= 0)
 	{
 		return;
@@ -236,7 +249,15 @@ void ARTUnit::ApplyStatus(FGameplayTag Tag, int32 Turns)
 bool ARTUnit::HasStatus(FGameplayTag Tag) const
 {
 	const int32* Turns = StatusTurns.Find(Tag);
-	return Turns && *Turns > 0;
+	return (Turns && *Turns > 0) || CellBoundStatuses.Contains(Tag);
+}
+
+void ARTUnit::ApplyMarkedBy(int32 MarkerTeamId, int32 Turns)
+{
+	// L'ultimo marchio vince: due squadre non possono rivendicare lo stesso bersaglio, e con 2 squadre in
+	// v0.1 il caso non e' nemmeno raggiungibile (si marca un nemico, non un alleato).
+	MarkedByTeam = MarkerTeamId;
+	ApplyStatus(TAG_Status_Marked, Turns);
 }
 
 bool ARTUnit::RemoveStatus(FGameplayTag Tag)
@@ -245,8 +266,27 @@ bool ARTUnit::RemoveStatus(FGameplayTag Tag)
 	{
 		return false; // scaduto o mai applicato: non c'era nulla da purificare
 	}
+	if (Tag == TAG_Status_Marked)
+	{
+		MarkedByTeam = INDEX_NONE; // il marchio se ne va con la sua provenienza
+	}
+	// `Action.Cleanse` purifica lo stato, non una delle sue sorgenti: chi e' bagnato dall'acqua E da Riva
+	// esce pulito da entrambe. Restare bagnati stando nell'acqua e' comunque il comportamento del turno
+	// dopo, perche' la cella lo riapplica all'ingresso successivo.
 	StatusTurns.Remove(Tag);
+	CellBoundStatuses.Remove(Tag);
 	return true;
+}
+
+void ARTUnit::RevokeCellBoundStatusesNotIn(const TSet<FGameplayTag>& Sustained)
+{
+	for (auto It = CellBoundStatuses.CreateIterator(); It; ++It)
+	{
+		if (!Sustained.Contains(*It))
+		{
+			It.RemoveCurrent();
+		}
+	}
 }
 
 void ARTUnit::TickStatuses()
@@ -255,6 +295,10 @@ void ARTUnit::TickStatuses()
 	{
 		if (--It.Value() <= 0)
 		{
+			if (It.Key() == TAG_Status_Marked)
+			{
+				MarkedByTeam = INDEX_NONE; // scaduto senza essere speso: la provenienza scade con lui
+			}
 			It.RemoveCurrent();
 		}
 	}

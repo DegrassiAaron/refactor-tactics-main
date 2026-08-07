@@ -40,13 +40,14 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in parte (vedi nota) · ⏳ da far
 | **M6** Parità hex | 🟡 | **Codice completo** (CP 6.1–6.7 mergiati): la partita gira su esagoni — wiring, movimento, input, combat, scatto/spinta, bot, HUD. Resta il **playtest** CP 6.8 (sessione PIE) |
 | **M7** Dismissione del quadrato | 🟡 | **Un solo substrato + release interna**: CP 7.1, 7.2 e 7.4 fatti (rimozione, packaging Development e Shipping avviati). Resta **CP 7.3**: 2 KPI su 4 misurati, FPS e preview richiedono rendering/editor |
 | **M8** Presentazione e identità | 🟡 | **Le regole dei 4 eroi ci sono** (epic E6 chiusa: 20 test, Flux/Riva/Bastion/Vektor con varianti e spawn da dati). Resta la **presentazione**: personaggi animati, anelli team/selezione, leggibilità tattica |
-| **M9** Ambienti tattici + editor maturo | 🟡 | **Terreni parziali** (E8: costi, Rough, Fire, ShallowWater, Smoke, Ice con scivolamento — 17 test). Restano **propagazione elettrica e fuoco/acqua** (CP 8.3/8.4), cover dinamica, porte/ponti (E9) e il residuo H5 dell'editor |
+| **M9** Ambienti tattici + editor maturo | 🟡 | **Terreni e stati** (E8: costi, Rough, Fire, ShallowWater, Smoke, Ice — 17 test; **CP 8.2 stati temporanei chiuso il 2026-08-07**, 11 test: durata legata alla cella, danno di `Burning` nel Cleanup prima dei KO, `Wet` che spegne le fiamme, `Marked` cablato). Restano **propagazione elettrica e fuoco/acqua** (CP 8.3/8.4), cover dinamica, porte/ponti (E9) e il residuo H5 dell'editor |
 | **M10** Rete e privacy | ⏳ | Listen server, validazione server, planning team-only, canary intent leak. **Nuovo vincolo**: [ADR-0004](adr-0004-finestre-di-reazione.md) introduce N round-trip per turno (finestre di reazione) |
 | **M11** Production readiness | ⏳ | Budget in CI, validator commandlet, packaged soak, replay audit |
 
-**Suite automatica**: `Source/RefactorTactics/Tests/` — **324 test unici in 48 file** (misurati 2026-08-07).
+**Suite automatica**: `Source/RefactorTactics/Tests/` — **336 test unici in 49 file** (misurati 2026-08-07).
 Storia del numero: **172** alla chiusura di CP 6.0 → **230** con M6+E1 → **171** dopo la rimozione del quadrato
-(i **59** test previsti dall'inventario) → **324** con E4/E5/E6 e i terreni.
+(i **59** test previsti dall'inventario) → **324** con E4/E5/E6 e i terreni → **336** con gli stati temporanei
+di CP 8.2 (`#65`).
 
 Comando di misura, riproducibile:
 
@@ -320,6 +321,8 @@ neutri (combat math, serializzazione, regole di fase). Il resto ha data di scade
 | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate di release `G1`–`G14`, KPI, checklist di contenuto |
 | [`balance/`](balance/) | **Numeri vigenti v0.1**: cataloghi azioni, terreni, equipaggiamento, eroi, matrice di test |
 | [`spec-motore-azioni-e4.md`](spec-motore-azioni-e4.md) | **Proposta di design** del motore azioni (epic E4): modello, fette, rischi, domande aperte |
+| [`spec-stati-temporanei-cp82.md`](spec-stati-temporanei-cp82.md) | **Stati temporanei** (CP 8.2): durata legata alla cella, ordine del Cleanup, decisioni e difetti di cablaggio trovati |
+| [`brief-delayed-actions.md`](brief-delayed-actions.md) | **Brief di scope** delle Delayed Actions e dei boundary di fase: cosa aggiungono oltre ad ADR-0004, dati, test minimi. Nessuna epic aperta |
 | [`v0.1-issue-plan.md`](v0.1-issue-plan.md) | Titoli e body delle 72 issue (`#14`–`#85`) e ordine di apertura dei branch |
 | [`adr-0003-modello-azioni-v01.md`](adr-0003-modello-azioni-v01.md) | Modello azioni del catalogo v0.1 sulle macro-fasi di Atlas |
 | [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) | **Normativo**: struttura di `Content/`, naming, dipendenze fra cartelle, spostamenti |

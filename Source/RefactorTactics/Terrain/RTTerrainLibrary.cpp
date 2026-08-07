@@ -42,6 +42,21 @@ TArray<FRTTerrainDef> URTTerrainLibrary::GetTerrainCatalog()
 	return Catalog;
 }
 
+TSet<FGameplayTag> URTTerrainLibrary::CellBoundStatusesFor(ERTHexSurface Surface)
+{
+	TSet<FGameplayTag> Sustained;
+	for (const FRTActionEffectSpec& Effect : FindTerrainDef(Surface).OnEnterEffects)
+	{
+		// Durata 0 su un effetto di stato = "finche' sulla cella" (spec-terreni-e8.md §2.1). Le durate
+		// esplicite (Burning 2) non sono sostenute dalla cella: scadono a tempo anche restando nel fuoco.
+		if (Effect.Effect == ERTActionEffect::Status && Effect.StatusDuration == 0 && Effect.StatusTag.IsValid())
+		{
+			Sustained.Add(Effect.StatusTag);
+		}
+	}
+	return Sustained;
+}
+
 FRTTerrainDef URTTerrainLibrary::FindTerrainDef(ERTHexSurface Surface)
 {
 	for (const FRTTerrainDef& Def : GetTerrainCatalog())

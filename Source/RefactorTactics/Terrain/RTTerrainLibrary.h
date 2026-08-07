@@ -45,6 +45,17 @@ public:
 	static int32 EffectiveTargetingRange(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To,
 		int32 RangeCells);
 
+	/**
+	 * Stati che la superficie SOSTIENE finche' l'unita' ci sta sopra: gli `OnEnterEffects` di tipo Status che
+	 * il catalogo dichiara con durata 0 («finche' sulla cella», CP 8.2). Oggi: `Wet` sull'acqua bassa,
+	 * `Obscured` nel fumo.
+	 *
+	 * Applicazione (all'ingresso) e revoca (nel Cleanup) leggono questa STESSA funzione: se divergessero,
+	 * uno stato potrebbe applicarsi e non essere mai revocato — o peggio il contrario, con l'unita' che si
+	 * asciuga stando nell'acqua.
+	 */
+	static TSet<FGameplayTag> CellBoundStatusesFor(ERTHexSurface Surface);
+
 	/** Errori strutturali del catalogo SPEDITO (vuoto = valido): id duplicato, costo o limite di targeting negativi. */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Terrain")
 	static TArray<FString> ValidateTerrainCatalog();

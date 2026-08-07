@@ -78,7 +78,7 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale/non allineato al catalog
 
 ~~**Suite automatica**: **172** macro `IMPLEMENT_SIMPLE_AUTOMATION_TEST` in `Source/RefactorTactics/Tests/`
 (25 file, conteggio verificato 2026-08-05). **63** esagonali (`RTHex*`), il resto quadrate o neutre.~~
-→ **superato: 324 test unici in 48 file**, vedi **§2.1**.
+→ **superato: 336 test unici in 49 file** (2026-08-07, dopo CP 8.2), vedi **§2.1**.
 
 **Stato in una riga**: le fondamenta esagonali sono complete e testate, ma **nessuna partita ci gira sopra**
 e il catalogo v0.1 (azioni, eroi, reazioni, ambiente, obiettivi) è **tutto da costruire**.
@@ -97,7 +97,7 @@ Le due righe qui sopra **erano vere il 2026-08-05 e non lo sono più**. Misura d
 | **E4** Motore azioni | da costruire | ✅ **chiusa** (52 test) | `Actions.{OrderByPriority, PermutationInvariant, PhaseMappingRespectsAtlas}`, 6 `Fallback.*`, `Guard.*`, `Charge.*`, `Leap.*`, `Root.*`, `Interrupt.*`, `Slow.*`, `Collisions.NoPlayerIdBias` |
 | **E5** Reazioni | da costruire | ✅ **chiusa** (24 test) | `Reactions.{SingleActivation, NoResolverWait, IntentNotVisibleToEnemy}`, `Counter/Deflect/Brace/Shield/Cleanse`, 5 test `Intercept*` |
 | **E6** Roster 4 eroi | da costruire | ✅ **chiusa** (20 test) | `Heroes.{Flux,Riva,Bastion,Vektor}.MatchesCatalog`, `*.VariantTradeoff`, `RosterIsBalanced`, `SpawnFromData` |
-| **E8** Terreni | da costruire | 🟡 **parziale** | ✅ `Terrain.{CostsFromCatalog, Rough.BlocksDash, Fire.*, ShallowWater.AppliesWet, Smoke.*, Ice.*}` · ❌ nessun test `Environment.*` (CP 8.3 propagazione elettrica, CP 8.4 fuoco/acqua) |
+| **E8** Terreni | da costruire | 🟡 **parziale** | ✅ `Terrain.{CostsFromCatalog, Rough.BlocksDash, Fire.*, ShallowWater.AppliesWet, Smoke.*, Ice.*}` · ✅ **CP 8.2 chiuso 2026-08-07**: 11 test `Status.*` (durata legata alla cella, `Burning` nel Cleanup, `WetRemovesBurning`, `Marked` con pass a priorità, `Obscured`) · ❌ nessun test `Environment.*` (CP 8.3 propagazione elettrica, CP 8.4 fuoco/acqua) |
 | **E7** Equipaggiamento | pianificata | ⏳ **assente** | nessun test `Equipment.*` |
 | **E9** Coperture/strutture | pianificata | ⏳ **assente** | nessun test `Cover.*` né `Structures.*` |
 | **E10** Obiettivi | pianificata | ⏳ **assente** | nessun test `Objectives.*` né `Match.*` |
@@ -146,6 +146,13 @@ di gioco: è la **verifica interattiva** (M6 CP 6.8 mai eseguito) e l'osservabil
 > canone §5 è riformulato — «snapshot a inizio **segmento**». E5 resta chiusa e i suoi 24 test restano verdi:
 > il modello nuovo li contiene come caso `AllowedResponses ≤ 1`. **E14 non parte prima di E13** (il trigger
 > richiede livello `Rilevato`, non solo LOS).
+
+> **Tema nuovo registrato ma non pianificato (2026-08-07)**: le **Delayed Actions** — azioni dichiarate in
+> Planning che risolvono a un **boundary di fase** successivo (`EndDash`, `EndBlast`, `EndMove`) scommettendo
+> su uno stato futuro. Fonte: `docs/src/RefactorTactics_DelayedActions_PhaseWindows_Claude.md` →
+> [`brief-delayed-actions.md`](brief-delayed-actions.md), che isola il **solo** contenuto non già coperto da
+> ADR-0004 ed E13/E14. Nessuna epic aperta: la proposta (E15, 4 checkpoint) attende una decisione di scope,
+> perché E14 non è iniziata e il rischio di ampiezza della v0.1 è già alto (§8).
 
 > **Fuori dalla v0.1, registrate qui perché esistono i documenti sorgente**: il **motore del ghiaccio**
 > (Momentum, Traction, Slide a catena, Unbalanced/Prone, integrità, rottura, ponti) descritto in

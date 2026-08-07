@@ -245,11 +245,36 @@ public:
 
 	bool IsAlive() const { return Health > 0; }
 
-	/** Applica uno status per Turns turni (non accorcia una durata gia' piu' lunga). */
+	/**
+	 * Durata sentinella: lo stato NON scade da solo, vale finche' la cella sotto i piedi dell'unita' lo
+	 * sostiene (CP 8.2, `spec-stati-temporanei-cp82.md` §3 D1). E' la forma di `Wet` sull'acqua bassa e di
+	 * `Obscured` nel fumo: un contatore li farebbe scadere mentre l'unita' e' ancora nell'acqua.
+	 * La revoca avviene nel Cleanup via RevokeCellBoundStatusesNotIn.
+	 */
+	static constexpr int32 PersistentWhileOnCell = -1;
+
+	/**
+	 * Applica uno status per Turns turni (non accorcia una durata gia' piu' lunga), oppure legato alla cella
+	 * se Turns == PersistentWhileOnCell.
+	 *
+	 * Le due nature convivono senza sovrascriversi: chi e' bagnato dall'acqua E dall'abilita' di Riva resta
+	 * bagnato per la durata di Riva anche dopo essere uscito dall'acqua.
+	 */
 	void ApplyStatus(FGameplayTag Tag, int32 Turns);
 
 	/** Vero se lo status e' attivo (durata residua > 0). */
 	bool HasStatus(FGameplayTag Tag) const;
+
+	/**
+	 * Applica `Status.Marked` registrando la SQUADRA del marcatore (CP 8.2).
+	 *
+	 * Il catalogo promette "+6 al prossimo attacco **alleato**": senza sapere chi ha marcato, il marchio
+	 * sarebbe una vulnerabilita' generica di cui approfitterebbe anche la squadra del bersaglio.
+	 */
+	void ApplyMarkedBy(int32 MarkerTeamId, int32 Turns);
+
+	/** Squadra che ha piazzato il marchio, `INDEX_NONE` se l'unita' non e' marcata. */
+	int32 GetMarkedByTeam() const { return MarkedByTeam; }
 
 	/**
 	 * Rimuove uno status PRIMA della sua scadenza naturale (`Action.Cleanse`, CP 5.2). Ritorna vero se lo
@@ -258,8 +283,18 @@ public:
 	 */
 	bool RemoveStatus(FGameplayTag Tag);
 
-	/** Decrementa la durata di tutti gli status; rimuove quelli scaduti. */
+	/** Decrementa la durata di tutti gli status A TERMINE; rimuove quelli scaduti. Non tocca i persistenti. */
 	void TickStatuses();
+
+	/**
+	 * Revoca gli stati legati alla cella che la cella corrente non sostiene piu' (Cleanup, CP 8.2).
+	 * `Sustained` sono i tag dichiarati dal terreno su cui l'unita' ha TERMINATO il turno: chi e' uscito
+	 * dall'acqua smette di essere bagnato subito, senza aspettare il turno successivo.
+	 *
+	 * Una durata esplicita in corso sullo stesso tag sopravvive: la revoca toglie solo la parte "finche'
+	 * sulla cella".
+	 */
+	void RevokeCellBoundStatusesNotIn(const TSet<FGameplayTag>& Sustained);
 
 	/** Range di movimento tenendo conto degli status (Root/Slow). */
 	int32 GetEffectiveMoveRange() const;
@@ -272,9 +307,21 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Combat", meta = (AllowPrivateAccess = "true"))
 	int32 TemporaryShield = 0;
 
-	/** Status attivi: tag -> turni residui. */
+	/** Status a termine: tag -> turni residui (sempre > 0; gli scaduti vengono rimossi). */
 	UPROPERTY()
 	TMap<FGameplayTag, int32> StatusTurns;
+
+	/** Squadra che ha applicato `Status.Marked` (INDEX_NONE = nessun marchio attivo). */
+	UPROPERTY()
+	int32 MarkedByTeam = INDEX_NONE;
+
+	/**
+	 * Status legati alla cella (durata PersistentWhileOnCell). Contenitore separato e non una sentinella
+	 * dentro StatusTurns: le due nature devono poter coesistere sullo STESSO tag senza che una cancelli
+	 * l'altra (acqua bassa + `Riva.PressureJet` sono entrambe sorgenti di `Wet`).
+	 */
+	UPROPERTY()
+	TSet<FGameplayTag> CellBoundStatuses;
 
 	/** Cooldown residuo per abilita' (parallelo a Abilities). */
 	UPROPERTY()
