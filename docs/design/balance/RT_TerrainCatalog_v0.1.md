@@ -4,12 +4,18 @@
 > **Decisione abilitante**: [`adr-0003-modello-azioni-v01.md`](../adr-0003-modello-azioni-v01.md) · **Checkpoint**: CP 1.2 (issue `#28`)
 > **Implementazione**: epic **E8** (terreni, `#64`–`#68`) ed **E9** (strutture, `#69`–`#73`).
 
-## Stato dell'implementazione (2026-08-06)
+## Stato dell'implementazione (aggiornato 2026-08-07)
 
-Oggi `FRTHexCellData` descrive una cella con `MoveCost`, `bBlocksMovement`, `bBlocksLineOfSight`, `Height` e
-`ERTHexSurface`: **nessun effetto attivo** è ancora collegato alle superfici, e le **coperture direzionali non
-esistono** (servirebbe una versione del formato dell'asset + migrazione, issue `#69`). Questo documento è il
-riferimento verso cui E8/E9 devono convergere, non una descrizione del comportamento attuale.
+Le **superfici agiscono**: costi, blocchi di Dash, `Wet`/`Obscured` legati alla cella, `Burning` nel Cleanup,
+scivolata sul ghiaccio (CP 8.1/8.2) e — da **CP 8.3** — la **propagazione elettrica** su acqua e superfici
+conduttive, che cammina sul grafo delle celle (BFS, massimo 3 passi, ogni unità colpita una volta) e risolve
+nel Cleanup prima del danno di `Burning`. Dettaglio in
+[`../spec-propagazione-elettrica-cp83.md`](../spec-propagazione-elettrica-cp83.md).
+
+Restano da costruire: **interazioni fuoco/acqua** (CP 8.4), **azioni ambientali** (CP 8.5), il **terreno
+dinamico** (una cella che cambia superficie a runtime: serve a `CreateWater`, `Ignite` e
+`Flux.ConductiveNode`) e le **coperture direzionali**, che non esistono nel formato dell'asset — servirebbe una
+versione del formato + migrazione, issue `#69`.
 
 ---
 

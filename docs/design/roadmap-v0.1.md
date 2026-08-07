@@ -86,7 +86,7 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 | **Finestre di reazione interattive** | — | ⏳ ADR-0004 accettato, nessun codice (E14) |
 | **Scenario showcase e golden replay** | — | ⏳ (E15) |
 
-**Suite automatica**: **352 test unici** in **52 file** (rimisurati 2026-08-07 alla chiusura di CP 6.7).
+**Suite automatica**: **359 test unici** in **53 file** (rimisurati 2026-08-07 alla chiusura di CP 8.3).
 ⚠️ La cifra dichiarata qui prima era **338 in 49 file**, ma il valore su `main` era già **342 in 50**: i merge
 di `#179`/`#180` sono arrivati dopo l'ultima misura. È la stessa deriva del 2026-08-05, e la regola resta
 quella: **si misura col comando, non si cita a memoria**. Comando riproducibile:
@@ -114,7 +114,7 @@ Le due righe qui sopra **erano vere il 2026-08-05 e non lo sono più**. Misura d
 | **E4** Motore azioni | da costruire | ✅ **chiusa** (52 test) | `Actions.{OrderByPriority, PermutationInvariant, PhaseMappingRespectsAtlas}`, 6 `Fallback.*`, `Guard.*`, `Charge.*`, `Leap.*`, `Root.*`, `Interrupt.*`, `Slow.*`, `Collisions.NoPlayerIdBias` |
 | **E5** Reazioni | da costruire | ✅ **chiusa** (27 test) — motore componibile **e consumato** | `Reactions.{SingleActivation, NoResolverWait, IntentNotVisibleToEnemy}`, `Counter/Deflect/Brace/Shield/Cleanse`, 5 test `Intercept*` · **CP 5.5** (2026-08-07): `Reactions.{MultiEffectReactionAppliesAll, HeroReactionKeepsIdentityInLog, NoHeroSpecificBranchInResolver}` · consumata da **CP 6.7** |
 | **E6** Roster 4 eroi | da costruire | ✅ **chiusa** (25 test) | `Heroes.{Flux,Riva,Bastion,Vektor}.MatchesCatalog`, `*.VariantTradeoff`, `RosterIsBalanced`, `SpawnFromData` · **CP 6.7** (2026-08-07): `Heroes.{BastionInterposition*, VektorDeflectionReducesDirectHit, FluxReactiveCapacitorShieldsAndCounters, ReactionsDeclaredOrDeferred}` |
-| **E8** Terreni | da costruire | 🟡 **parziale** | ✅ `Terrain.{CostsFromCatalog, Rough.BlocksDash, Fire.*, ShallowWater.AppliesWet, Smoke.*, Ice.*}` · ✅ **CP 8.2 chiuso 2026-08-07**: 11 test `Status.*` (durata legata alla cella, `Burning` nel Cleanup, `WetRemovesBurning`, `Marked` con pass a priorità, `Obscured`) · ❌ nessun test `Environment.*` (CP 8.3 propagazione elettrica, CP 8.4 fuoco/acqua) |
+| **E8** Terreni | da costruire | 🟡 **parziale** (restano CP 8.4/8.5) | ✅ `Terrain.{CostsFromCatalog, Rough.BlocksDash, Fire.*, ShallowWater.AppliesWet, Smoke.*, Ice.*}` · ✅ **CP 8.2 chiuso 2026-08-07**: 11 test `Status.*` (durata legata alla cella, `Burning` nel Cleanup, `WetRemovesBurning`, `Marked` con pass a priorità, `Obscured`) · ✅ **CP 8.3 chiuso 2026-08-07**: 7 test `Environment.*` (propagazione sul grafo dell'acqua, limite 3 passi, unicità per evento, ordine totale, fail-closed) · ❌ CP 8.4 fuoco/acqua, CP 8.5 azioni ambientali |
 | **E7** Equipaggiamento | pianificata | ⏳ **assente** | nessun test `Equipment.*` |
 | **E9** Coperture/strutture | pianificata | ⏳ **assente** | nessun test `Cover.*` né `Structures.*` |
 | **E10** Obiettivi | pianificata | ⏳ **assente** | nessun test `Objectives.*` né `Match.*` |
@@ -447,12 +447,23 @@ così colpiscono anche chi è appena entrato nella cella durante il Move.
 |---|---|---|---|
 | **8.1** | 8 terreni | `Floor`, `Rough` (2 MP, Dash/Charge vietati), `ShallowWater` (2 MP, Wet, spegne Burning, conduce), `Fire` (10 danni + Burning), `Conductive` (propaga, non applica Wet), `Smoke` (Obscured, targeting max 2), `Ice` (costo 1; scivolamento **opzionale**, il catalogo lo dichiara rimandabile), `HighGround` | `Terrain.CostsFromCatalog`, `Terrain.Rough.BlocksDash`, `Terrain.Smoke.LimitsTargeting` |
 | **8.2** | Stati temporanei | `Wet`, `Burning` (8 danni nel Cleanup, 2 turni, rimosso da Wet), `Electrified`, `Obscured`, `Rooted`, `Exposed` (+5 al primo danno diretto), `Marked` (+6, consumato), `Slow` (+1 costo); durata e scadenza nel Cleanup | Un test per stato + `Status.ExpiresInCleanup` |
-| **8.3** | Propagazione elettrica | Attraversa celle conduttive adiacenti, massimo **3 celle**; 20 danni iniziali, 12 propagati; **ogni unità colpita una sola volta** per evento; ordine `distanza dalla sorgente → CellId → UnitId` | `Environment.WaterElectricPropagation`, `Environment.Propagation.HitsUnitOnce`, `Environment.Propagation.DeterministicOrder` |
+| **8.3** ✅ *(chiuso 2026-08-07)* | Propagazione elettrica | Attraversa celle conduttive adiacenti, massimo **3 celle**; 20 danni iniziali, 12 propagati; **ogni unità colpita una sola volta** per evento; ordine `distanza dalla sorgente → CellId → UnitId` | `Environment.WaterElectricPropagation`, `Environment.Propagation.HitsUnitOnce`, `Environment.Propagation.DeterministicOrder` |
 | **8.4** | Interazioni fuoco/acqua | L'acqua **rimuove** il fuoco e cancella Burning; il fuoco non incendia acqua né metallo; propagazione deterministica | `Environment.WaterExtinguishesFire`, `Environment.Fire.DoesNotIgniteWaterOrMetal` |
 | **8.5** | Azioni ambientali e di supporto | `Heal` (20, non supera il massimo, non rimuove stati), `CreateWater` (r1, 2 turni), `Ignite` (2 turni), `Electrify`, `CreateCover` (30 integrità, 2 turni, non sovrapponibile), `ModifyArc` | Un test per azione + `Actions.CreateCover.NoOverlap` |
 
 **Rischi**: la propagazione senza limite è un errore esplicito del catalogo (§17). Il limite di 3 celle e
 l'unicità del colpo per unità sono **test**, non commenti.
+
+> **CP 8.3 chiuso il 2026-08-07** (`#66`, 7 test) — decisioni e limiti in
+> [`spec-propagazione-elettrica-cp83.md`](spec-propagazione-elettrica-cp83.md). Tre chiarimenti che la DoD non
+> conteneva e che sono stati **decisi** qui: il limite si conta in **passi sul grafo dell'acqua** (BFS), non in
+> distanza esagonale; la conduzione è della **cella**, mai dello stato `Wet` dell'unità; la propagazione
+> risolve nel Cleanup **prima** del danno di `Burning`. In più `Action.Electrify` entra nel catalogo core —
+> senza, la regola non aveva alcun innesco — e **`Gadget.Insulator` si sposta a CP 7.2** (`#61`): dipendeva da
+> un'epic non costruita, e una DoD non spuntabile non chiude un checkpoint.
+>
+> `Flux.ConductiveNode` resta senza effetti: «rendere conduttiva una cella» richiede **terreno dinamico**, che
+> la mappa (asset statico) non ha ancora. Non è una svista, è il limite dichiarato di CP 8.4/E9.
 
 ---
 
