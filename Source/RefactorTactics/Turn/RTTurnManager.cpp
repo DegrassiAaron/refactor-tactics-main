@@ -639,6 +639,34 @@ void ARTTurnManager::LockInAndResolve()
 	ConcludeTurn();
 }
 
+void ARTTurnManager::ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TArray<int32>& Amounts,
+	const TArray<FRTCellId>& Sources)
+{
+	// Tre regole del catalogo, tutte verificabili: non supera la salute massima · non rimuove stati (si tocca
+	// solo `Health`) · **non resuscita** chi e' caduto in questo turno — una cura che riportasse in piedi
+	// un'unita' a zero renderebbe il KO reversibile, che e' una regola diversa e non dichiarata da nessuna parte.
+	for (int32 h = 0; h < Targets.Num(); ++h)
+	{
+		ARTUnit* HealTarget = Targets[h];
+		if (!HealTarget || !HealTarget->IsAlive()) { continue; }
+
+		const int32 Before = HealTarget->Health;
+		HealTarget->ApplyCombatState(FMath::Min(HealTarget->MaxHealth, Before + Amounts[h]), HealTarget->Shield);
+		const int32 Restored = HealTarget->Health - Before;
+
+		FRTTurnLogEntry Entry;
+		Entry.Phase = ERTMatchPhase::Blast;
+		Entry.Category = ERTLogCategory::Combat;
+		Entry.Outcome = static_cast<uint8>(ERTCombatOutcome::Healed);
+		Entry.ActionId = FName(TEXT("Action.Heal"));
+		Entry.SrcCell = Sources.IsValidIndex(h) ? Sources[h] : HealTarget->Cell;
+		Entry.TgtCell = HealTarget->Cell;
+		Entry.Amount = Restored; // quanto e' stato curato DAVVERO: a salute piena la voce dice zero
+		TurnLog.Add(Entry);
+		AddLogEvent(FString::Printf(TEXT("%s: +%d salute"), *HealTarget->GetName(), Restored));
+	}
+}
+
 bool ARTTurnManager::ApplyDynamicSurface(URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexSurface NewSurface,
 	int32 Turns, const FName& CauseActionId)
 {
@@ -827,7 +855,68 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 				// Durata 2 turni per entrambe (catalogo terreni §2 per il fuoco, catalogo azioni §6 per l'acqua).
 				// La cella e' quella del bersaglio, come per la scarica: stesso limite dichiarato sul
 				// targeting per cella.
-				ApplyDynamicSurface(Map, Target->Cell, Created, /*Turns*/ 2, EnvActionId);
+				//
+				// L'acqua copre un RAGGIO 1 (catalogo azioni §6: «acqua raggio 1»), il fuoco la sola cella:
+				// il raggio e' dell'azione, non della meccanica, quindi si legge da qui e non dal terreno.
+				const int32 Radius = (Created == ERTHexSurface::ShallowWater) ? 1 : 0;
+				// Ordine STABILE delle celle: `HexArea` restituisce gia' un'area ordinata, quindi le voci di
+				// TurnLog escono sempre nella stessa sequenza (#4).
+				for (const FRTCellId& Cell : URTHexLibrary::HexArea(Target->Cell, Radius))
+				{
+					if (!ApplyDynamicSurface(Map, Cell, Created, /*Turns*/ 2, EnvActionId))
+					{
+						continue; // cella fuori mappa, gia' cosi', o che non ammette la trasformazione
+					}
+					// Le unita' GIA' presenti si bagnano subito: gli `OnEnterEffects` valgono per chi ENTRA, e
+					// aspettare che escano e rientrino per applicare `Wet` sarebbe una regola che nessuno
+					// capirebbe guardando il campo.
+					if (Created == ERTHexSurface::ShallowWater)
+					{
+						for (ARTUnit* Occupant : Units)
+						{
+							if (Occupant && Occupant->IsAlive() && Occupant->Cell == Cell)
+							{
+								Occupant->ApplyStatus(TAG_Status_Wet, ARTUnit::PersistentWhileOnCell);
+							}
+						}
+					}
+				}
+				continue;
+			}
+
+			// `Action.ModifyArc` (CP 8.5): apre o chiude il COLLEGAMENTO fra chi la usa e il bersaglio. Se
+			// l'arco c'e' lo toglie, altrimenti lo crea — «apri o chiudi» e' la stessa azione vista dai due
+			// lati, come una porta.
+			//
+			// **Limiti dichiarati**: (a) l'arco e' identificato dalla coppia (caster, bersaglio) perche' la
+			// pianificazione non ha un bersaglio-ARCO — arrivera' con l'editor/HUD di E9/E11; (b) il ponte
+			// creato **non scade**: la durata degli archi e' CP 9.4 (ponti e porte), qui c'e' l'apertura e la
+			// chiusura, che e' cio' che questa DoD chiede insieme alla revisione.
+			if (EnvActionId == FName(TEXT("Action.ModifyArc")))
+			{
+				Caster->ConsumeAbility(AbilityIndex);
+				if (Map)
+				{
+					const bool bClosed = Map->RemoveTransition(Caster->Cell, Target->Cell, /*bBothDirections*/ true);
+					if (!bClosed)
+					{
+						Map->AddTransition(Caster->Cell, Target->Cell, /*Cost*/ 1,
+							ERTHexTransitionKind::Bridge, /*bBidirectional*/ true);
+					}
+
+					FRTTurnLogEntry Entry;
+					Entry.Phase = ERTMatchPhase::Cleanup;
+					Entry.Category = ERTLogCategory::Environment;
+					Entry.Outcome = static_cast<uint8>(ERTEnvironmentOutcome::SurfaceChanged);
+					Entry.ActionId = EnvActionId;
+					Entry.SrcCell = Caster->Cell;
+					Entry.TgtCell = Target->Cell;
+					Entry.Amount = bClosed ? 0 : 1; // 0 = collegamento chiuso, 1 = collegamento aperto
+					TurnLog.Add(Entry);
+					AddLogEvent(FString::Printf(TEXT("%s: collegamento %s verso (q=%d,r=%d,L%d)"),
+						*Caster->GetName(), bClosed ? TEXT("chiuso") : TEXT("aperto"),
+						Target->Cell.X, Target->Cell.Y, Target->Cell.Layer));
+				}
 				continue;
 			}
 		}
@@ -1307,6 +1396,50 @@ void ARTTurnManager::ResolveCombat()
 		AddLogEvent(Removed.IsValid()
 			? FString::Printf(TEXT("%s: purificato %s"), *Unit->GetName(), *Removed.ToString())
 			: FString::Printf(TEXT("%s: nessuno stato da purificare"), *Unit->GetName()));
+	}
+
+	// `Action.Heal` (CP 8.5): azione di SUPPORTO, non un colpo. Si raccoglie qui, prima del ciclo degli
+	// intenti — che consuma `PlannedAbilityIndex` e costruirebbe un intento d'attacco su un alleato — e si
+	// applica DOPO i danni, piu' sotto: la priorita' 70 del catalogo la mette dopo gli attacchi (50-65),
+	// quindi cura le ferite di questo turno, non quelle del turno prima.
+	TArray<ARTUnit*> HealTargets;
+	TArray<int32> HealAmounts;
+	TArray<FRTCellId> HealSources;
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		ARTUnit* Unit = Units[i];
+		const int32 HealIdx = Unit->PlannedAbilityIndex;
+		const URTActionData* Heal = Unit->GetAbility(HealIdx);
+		if (!Heal || Heal->Def.ActionId != FName(TEXT("Action.Heal")) || !Unit->CanUseAbility(HealIdx))
+		{
+			continue;
+		}
+
+		// Bersaglio: chi e' stato scelto in pianificazione, oppure SE STESSI se non c'e' nessuno — il catalogo
+		// dichiara che la cura «puo' bersagliare se stessi», e curare a vuoto non e' un'alternativa sensata.
+		ARTUnit* HealTarget = Unit->PlannedAttackTarget ? Unit->PlannedAttackTarget.Get() : Unit;
+		Unit->PlannedAbilityIndex = INDEX_NONE;
+		Unit->PlannedAttackTarget = nullptr;
+		Unit->ConsumeAbility(HealIdx);
+
+		// Portata dal catalogo, misurata come per ogni altra azione: una cura a distanza infinita sarebbe una
+		// regola diversa da quella scritta.
+		if (URTHexLibrary::HexDistance(Unit->Cell, HealTarget->Cell) > Heal->Def.RangeCells)
+		{
+			AddLogEvent(FString::Printf(TEXT("%s: cura fuori portata"), *Unit->GetName()));
+			continue;
+		}
+
+		int32 Amount = 0;
+		for (const FRTActionEffectSpec& Spec : Heal->Def.Effects)
+		{
+			if (Spec.Effect == ERTActionEffect::Heal) { Amount = Spec.Amount; break; }
+		}
+		if (Amount <= 0) { continue; }
+
+		HealTargets.Add(HealTarget);
+		HealAmounts.Add(Amount);
+		HealSources.Add(Unit->Cell);
 	}
 
 	// Intenti d'attacco: qui si valida l'ABILITA' (esiste, non e' uno scatto, e' utilizzabile);
@@ -1979,6 +2112,10 @@ void ARTTurnManager::ResolveCombat()
 
 	if (Attacks.Num() == 0)
 	{
+		// Nessun colpo, ma le cure vanno applicate lo stesso: un supporto che cura fuori da uno scontro e' il
+		// caso NORMALE, non un'eccezione. (Difetto trovato da `Actions.Heal.RestoresWithoutExceedingMax`: la
+		// prima stesura usciva di qui e la cura spariva in silenzio.)
+		ApplyPlannedHeals(HealTargets, HealAmounts, HealSources);
 		return;
 	}
 
@@ -2025,6 +2162,8 @@ void ARTTurnManager::ResolveCombat()
 	{
 		Units[i]->ApplyCombatState(Resolved[i].Health, Resolved[i].Shield); // solo logico: rimozione visiva differita
 	}
+
+	ApplyPlannedHeals(HealTargets, HealAmounts, HealSources);
 
 	// --- Spinta (knockback): dopo il danno, sulle posizioni snapshot del Blast -----------------------
 	// Direzione ESAGONALE (una delle sei), non piu' cardinale: la spinta segue la linea attaccante->bersaglio

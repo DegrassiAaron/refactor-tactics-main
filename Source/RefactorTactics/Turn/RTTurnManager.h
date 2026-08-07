@@ -191,6 +191,14 @@ protected:
 	void ResolveEnvironment(URTHexMapAsset* Map);
 
 	/**
+	 * Applica le cure raccolte da `ResolveCombat` (CP 8.5). Chiamata da DUE punti — dopo i danni, e nel ramo
+	 * "nessun colpo in questo turno" — perche' una cura fuori da uno scontro e' il caso normale di un
+	 * supporto, non un'eccezione: con un solo call site la cura sparirebbe in silenzio quando nessuno attacca.
+	 */
+	void ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TArray<int32>& Amounts,
+		const TArray<FRTCellId>& Sources);
+
+	/**
 	 * Modifiche TEMPORANEE alla mappa (CP 8.4): fuoco acceso, acqua creata. Il terreno dinamico vive in due
 	 * pezzi, e la divisione non e' casuale:
 	 * - la superficie **corrente** sta nella mappa, perche' e' cio' che tutti leggono gia' (costi, Dash,

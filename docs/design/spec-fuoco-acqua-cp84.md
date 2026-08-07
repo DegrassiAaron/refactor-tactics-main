@@ -132,3 +132,62 @@ e `Result: Succeeded` verificato sull'output completo della build — le due lez
   e lo rileggesse dopo il Cleanup vedrebbe superfici diverse. È il comportamento voluto, ma è un'assunzione
   implicita che qualche funzione pura potrebbe fare: nessuna oggi la fa (tutte ricevono la mappa come parametro
   a ogni chiamata).
+
+---
+
+## 7. CP 8.5 — le azioni ambientali e di supporto *(2026-08-07, issue `#68`, chiude E8)*
+
+L'ultimo checkpoint di E8 completa il catalogo ambientale con le tre azioni che mancavano.
+
+| Azione | Cosa fa | Nota |
+|---|---|---|
+| `Action.Heal` | 20 HP, portata 3, priorità 70 | risolve nel **Blast dopo i danni**: cura le ferite di *questo* turno |
+| `Action.CreateWater` | esteso al **raggio 1** del catalogo, con `Wet` a chi è già sulle celle | CP 8.4 applicava la sola cella del bersaglio |
+| `Action.ModifyArc` | apre o chiude il collegamento fra chi la usa e il bersaglio | incrementa la **revisione** della mappa |
+
+### 7.1 Decisioni
+
+**La cura non resuscita.** Tre regole del catalogo verificate insieme: non supera la salute massima, non
+rimuove stati (si tocca solo `Health`), e non riporta in piedi chi è caduto in questo turno — un KO
+reversibile sarebbe una regola di gioco diversa, che nessun documento dichiara.
+
+**`ERTCombatOutcome::Healed`** registra il valore **effettivo**: curare a salute piena scrive `0`, non `20`.
+Un log che dicesse «curato 20» mentre gli HP non cambiano sarebbe un log che mente.
+
+**`ModifyArc` e la revisione.** La revisione è il numero che invalida le cache di percorso. Se cambiare la
+topologia non la incrementasse, un percorso calcolato prima resterebbe valido dopo: un'unità camminerebbe su
+un ponte che non c'è più. `AddTransition`/`RemoveTransition` la incrementavano già — qui si verifica che
+l'azione ci passi davvero.
+
+*Limiti dichiarati*: l'arco è identificato dalla coppia (chi usa l'azione, bersaglio), perché la
+pianificazione non ha un bersaglio-**arco** — arriverà con E9/E11; e il ponte creato **non scade**, perché la
+durata degli archi è CP 9.4 (ponti e porte).
+
+**`Action.CreateCover` resta fuori**, ed è la stessa decisione presa per `Gadget.Insulator` in CP 8.3: le
+coperture non esistono nel modello dati (`FRTHexCellData` non ha bordi protetti) e costruirle è **E9**.
+Un'azione che dichiarasse di crearle sarebbe inerte — il difetto che questi checkpoint chiudono, non uno da
+aggiungere. Un test fissa l'assenza, così la riga non si perde.
+
+### 7.2 Due difetti trovati dai test
+
+1. **`ResolveCombat` usciva prima di applicare le cure** quando nessuno attaccava (`if (Attacks.Num() == 0)
+   return;`). Una cura fuori da uno scontro è il caso **normale** di un supporto: il pass è diventato una
+   funzione chiamata da entrambi i punti d'uscita.
+2. **Collisione unity build su `RunTurn`**: due file di test avevano un helper omonimo in namespace anonimo, e
+   la collisione è comparsa solo aggiungendo un file nuovo — il raggruppamento unity cambia. Rinominato in
+   `RunStatusTurn`. È il caso già documentato nei gotcha di build: *un build verde non è garanzia di assenza
+   di collisione*.
+
+Un terzo difetto era **del test**, non del codice: senza nemici in campo la partita finisce al primo turno
+(`EvaluateOutcome`), quindi il secondo turno non risolveva e la seconda cura non arrivava mai. Il test ora
+tiene in campo un avversario inerte, invece di aggirare la regola di fine partita.
+
+### 7.3 Verifiche di mutazione
+
+| Mutazione | Test caduto |
+|---|---|
+| la cura non viene limitata alla salute massima | `Actions.Heal.RestoresWithoutExceedingMax` |
+| `CreateWater` torna alla sola cella bersaglio | `Actions.CreateWater.CoversRadiusAndWetsOccupants` |
+| `ModifyArc` non tocca la topologia | `Actions.ModifyArc.BumpsChunkRevision` |
+
+**Suite alla chiusura di E8**: **366 test unici in 55 file**, 0 fallimenti, entrambi i target verdi.

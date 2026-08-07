@@ -77,7 +77,7 @@ namespace
 		return U;
 	}
 
-	void RunTurn(ARTTurnManager* TM)
+	void RunStatusTurn(ARTTurnManager* TM)
 	{
 		TM->LockInAndResolve();
 		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
@@ -117,13 +117,13 @@ bool FRTStatusPersistsWhileOnCellTest::RunTest(const FString&)
 	Mover->PlannedCell = FRTCellId(1, 0);
 	StandStill(Foe);
 
-	RunTurn(TM);
+	RunStatusTurn(TM);
 	TestTrue(TEXT("entrato in acqua: bagnato"), Mover->HasStatus(TAG_Status_Wet));
 
 	// Secondo turno fermo nell'acqua: nessuna nuova applicazione (OnEnter scatta solo entrando).
 	StandStill(Mover);
 	StandStill(Foe);
-	RunTurn(TM);
+	RunStatusTurn(TM);
 	TestTrue(TEXT("ancora nell'acqua: ancora bagnato"), Mover->HasStatus(TAG_Status_Wet));
 
 	DestroyStatusWorld(World);
@@ -155,7 +155,7 @@ bool FRTStatusRevokedOnLeavingCellTest::RunTest(const FString&)
 	Mover->PlannedCell = FRTCellId(1, 0);
 	StandStill(Foe);
 
-	RunTurn(TM);
+	RunStatusTurn(TM);
 	if (!TestTrue(TEXT("premessa: fermarsi in acqua bagna"), Mover->HasStatus(TAG_Status_Wet)))
 	{
 		DestroyStatusWorld(World); // senza la premessa, l'asserzione sulla revoca sarebbe vera a vuoto
@@ -167,7 +167,7 @@ bool FRTStatusRevokedOnLeavingCellTest::RunTest(const FString&)
 	Mover->PlannedCell = FRTCellId(2, 0);
 	StandStill(Foe);
 
-	RunTurn(TM);
+	RunStatusTurn(TM);
 
 	TestEqual(TEXT("il movimento e' arrivato a destinazione"), Mover->Cell, FRTCellId(2, 0));
 	TestFalse(TEXT("uscito dall'acqua: asciutto gia' a fine turno"), Mover->HasStatus(TAG_Status_Wet));
@@ -199,7 +199,7 @@ bool FRTStatusBurningDamagesInCleanupTest::RunTest(const FString&)
 	Mover->PlannedCell = FRTCellId(1, 0);
 	StandStill(Foe);
 
-	RunTurn(TM);
+	RunStatusTurn(TM);
 
 	TestTrue(TEXT("il fuoco ha acceso Burning"), Mover->HasStatus(TAG_Status_Burning));
 	TestEqual(TEXT("10 all'ingresso + 8 nel Cleanup"), Mover->Health, StartHealth - 18);
@@ -230,17 +230,17 @@ bool FRTStatusBurningExpiresAfterTwoTurnsTest::RunTest(const FString&)
 	Mover->PlannedCell = FRTCellId(2, 0);
 	StandStill(Foe);
 
-	RunTurn(TM); // turno 1: 10 (ingresso) + 8 (Cleanup), durata residua 1
+	RunStatusTurn(TM); // turno 1: 10 (ingresso) + 8 (Cleanup), durata residua 1
 	const int32 AfterFirst = Mover->Health;
 
 	StandStill(Mover);
 	StandStill(Foe);
-	RunTurn(TM); // turno 2: solo gli 8 di Burning, lontano dal fuoco
+	RunStatusTurn(TM); // turno 2: solo gli 8 di Burning, lontano dal fuoco
 	const int32 AfterSecond = Mover->Health;
 
 	StandStill(Mover);
 	StandStill(Foe);
-	RunTurn(TM); // turno 3: lo stato e' scaduto, nessun danno
+	RunStatusTurn(TM); // turno 3: lo stato e' scaduto, nessun danno
 
 	TestEqual(TEXT("il secondo turno brucia ancora"), AfterSecond, AfterFirst - 8);
 	TestFalse(TEXT("dopo due turni Burning e' scaduto"), Mover->HasStatus(TAG_Status_Burning));
@@ -275,7 +275,7 @@ bool FRTStatusBurningDefeatCountsThisTurnTest::RunTest(const FString&)
 	Mover->PlannedCell = FRTCellId(1, 0);
 	StandStill(Foe);
 
-	RunTurn(TM);
+	RunStatusTurn(TM);
 
 	TestFalse(TEXT("bruciato a morte"), Mover->IsAlive());
 	TestEqual(TEXT("la partita e' finita in questo turno"), TM->GetPhase(), ERTMatchPhase::MatchEnded);
@@ -309,7 +309,7 @@ bool FRTStatusWetRemovesBurningTest::RunTest(const FString&)
 	Mover->PlannedCell = FRTCellId(1, 0);
 	StandStill(Foe);
 
-	RunTurn(TM);
+	RunStatusTurn(TM);
 
 	TestTrue(TEXT("l'acqua bagna"), Mover->HasStatus(TAG_Status_Wet));
 	TestFalse(TEXT("l'acqua ha spento le fiamme"), Mover->HasStatus(TAG_Status_Burning));
@@ -368,7 +368,7 @@ bool FRTStatusWetAmplifiesFluxDischargeTest::RunTest(const FString&)
 	StandStill(WetTarget);
 	StandStill(DryTarget);
 
-	RunTurn(TM);
+	RunStatusTurn(TM);
 
 	const int32 WetDamage = WetStart - WetTarget->Health;
 	if (!TestTrue(TEXT("premessa: il colpo e' arrivato"), WetDamage > 0))
@@ -385,7 +385,7 @@ bool FRTStatusWetAmplifiesFluxDischargeTest::RunTest(const FString&)
 	Flux->PlannedCell = Flux->Cell;
 	StandStill(WetTarget);
 	StandStill(DryTarget);
-	RunTurn(TM);
+	RunStatusTurn(TM);
 
 	TestEqual(TEXT("bersaglio asciutto: i 24 dichiarati e basta"), DryStart - DryTarget->Health, 24);
 
@@ -468,7 +468,7 @@ bool FRTStatusMarkedAllyHitConsumesBonusTest::RunTest(const FString&)
 	Ally2->PlannedCell = Ally2->Cell;
 	StandStill(Victim);
 
-	RunTurn(TM);
+	RunStatusTurn(TM);
 
 	// Due colpi base + un solo marchio: 2*base + 6, non 2*base + 12.
 	TestEqual(TEXT("il marchio vale una volta sola, sui colpi dello stesso Blast"),
@@ -523,7 +523,7 @@ bool FRTStatusMarkedEnemyHitDoesNotConsumeTest::RunTest(const FString&)
 	VictimMate->PlannedCell = VictimMate->Cell;
 	StandStill(Victim);
 
-	RunTurn(TM);
+	RunStatusTurn(TM);
 
 	// 24 (alleato del marcatore) + 6 (marchio speso una volta) + 18 (fuoco amico, senza bonus) = 48.
 	// Se il fuoco amico avesse consumato il marchio per primo, il totale sarebbe 42: il test distingue i casi.
@@ -563,7 +563,7 @@ bool FRTStatusObscuredBySmokeTest::RunTest(const FString&)
 	Shooter->PlannedCell = FRTCellId(1, 0);
 	StandStill(Foe);
 
-	RunTurn(TM);
+	RunStatusTurn(TM);
 
 	TestTrue(TEXT("nel fumo: offuscato"), Shooter->HasStatus(TAG_Status_Obscured));
 	TestEqual(TEXT("il cap del terreno regge: il colpo a 5 celle non arriva"), Foe->Health, FoeStart);
@@ -573,7 +573,7 @@ bool FRTStatusObscuredBySmokeTest::RunTest(const FString&)
 	Shooter->PlannedPath = { FRTCellId(1, 0), FRTCellId(2, 0) };
 	Shooter->PlannedCell = FRTCellId(2, 0);
 	StandStill(Foe);
-	RunTurn(TM);
+	RunStatusTurn(TM);
 
 	TestFalse(TEXT("fuori dal fumo: non piu' offuscato"), Shooter->HasStatus(TAG_Status_Obscured));
 
@@ -604,7 +604,7 @@ bool FRTStatusExpiresInCleanupTest::RunTest(const FString&)
 	Mover->PlannedCell = FRTCellId(1, 0);
 	StandStill(Foe);
 
-	RunTurn(TM);
+	RunStatusTurn(TM);
 
 	TestFalse(TEXT("la durata di 1 turno e' scaduta nel Cleanup"), Mover->HasStatus(TAG_Status_Exposed));
 	TestTrue(TEXT("lo stato legato alla cella non scade con lei"), Mover->HasStatus(TAG_Status_Wet));
