@@ -260,8 +260,13 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiva()
 	// (fase Dash, stile lineare — stessa famiglia di `Action.Dash`), la creazione di terreno no (nessun
 	// effetto di cella dinamica esiste: E8/E9). Nessun Effects dichiarato: il movimento non passa da li', e
 	// l'acqua lasciata dietro non ha un modello da consumare.
-	Riva->Actions.Add(MakeHeroAction(TEXT("Riva.FluidTrail"), ERTResolutionPhase::FastMovement, /*Priority*/ 30,
-		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop, {}));
+	URTActionData* FluidTrail = MakeHeroAction(TEXT("Riva.FluidTrail"), ERTResolutionPhase::FastMovement,
+		/*Priority*/ 30, /*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop, {});
+	// Lo stile va DICHIARATO, non lasciato al default: `ERTMovementStyle::None` non e' "non specificato", e'
+	// "non si muove", e la fase Dash lo instraderebbe sul pathfinding normale — cioe' una scia d'acqua che
+	// aggira gli ostacoli. Stessa provenienza di `Bastion.Ram`: lo stile viene dall'azione omologa (#142).
+	FluidTrail->Def.MovementStyle = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash")).MovementStyle;
+	Riva->Actions.Add(FluidTrail);
 
 	// Indice 3 — MistVeil. "Crea fumo raggio 1": nessun modello di cella (vision-blocking dinamico, E8/E9).
 	// Range 0 come `Flux.ConductiveNode`: segnaposto dichiarato, non un numero di bilanciamento, perche'

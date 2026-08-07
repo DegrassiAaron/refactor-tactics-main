@@ -495,11 +495,15 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 			const FRTLinearMoveResult Linear = URTMovementActionLibrary::ResolveLinearMove(
 				Map, SelectedUnit->Cell, Cell, DashRange, SelAb->Def.MovementStyle, Snapshot.Occupancy, Hostiles);
 
-			// `Fallback.Stop` (catalogo §2): se la traiettoria si chiude ci si ferma nell'ultima cella valida,
-			// non si annulla — quindi un piano che AVANZA (o che carica addosso a un nemico) resta valido anche
-			// se non arriva fin dove si e' cliccato. Si rifiuta solo cio' che non produrrebbe nulla.
+			// Regola di CP 4.5, gia' fissata da `HexSim.DashIsLinear`: o si arriva sulla cella RICHIESTA, o lo
+			// scatto non si pianifica. Niente scatto a meta' verso una cella che il giocatore non ha scelto —
+			// stessa disciplina dei waypoint compositi. (Il `Fallback.Stop` del catalogo resta: vale in
+			// RISOLUZIONE, quando il movimento simultaneo altrui chiude una traiettoria che era libera qui.)
+			//
+			// L'unica eccezione e' la CARICA: fermarsi addosso al nemico E' il suo modo di arrivare, e senza
+			// questa riga un bersaglio adiacente renderebbe la carica impianificabile.
 			const bool bCharges = (Linear.Stop == ERTLinearStop::Impact);
-			if (Linear.Final == SelectedUnit->Cell && !bCharges)
+			if (Linear.Final != Cell && !bCharges)
 			{
 				UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d,L%d) non e' raggiungibile in LINEA (%s, max %d) per %s"),
 					Cell.X, Cell.Y, Cell.Layer,
@@ -510,9 +514,8 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 
 			SelectedUnit->PlannedDashAbility = SelIdx;
 			SelectedUnit->PlannedDashCell = Cell;
-			UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s SCATTO -> (%d,%d,L%d), si fermera' a (%d,%d,L%d)%s"),
+			UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s SCATTO -> (%d,%d,L%d)%s"),
 				*SelectedUnit->GetName(), Cell.X, Cell.Y, Cell.Layer,
-				Linear.Final.X, Linear.Final.Y, Linear.Final.Layer,
 				bCharges ? TEXT(" con impatto") : TEXT(""));
 			return;
 		}

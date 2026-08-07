@@ -1,6 +1,9 @@
 #include "Misc/AutomationTest.h"
 #include "Ability/RTActionDef.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Ability/RTActionData.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
@@ -255,8 +258,10 @@ bool FRTMovementCatalogTest::RunTest(const FString&)
  * che si dimentica di dichiararlo NON e' un errore di compilazione — e' uno scatto che, in silenzio, torna a
  * usare il pathfinding del movimento normale (aggira gli ostacoli, attraversa `Rough`, sale di layer).
  *
- * La regola vale per ENTRAMBI i cataloghi, non solo per quello generico: le azioni degli archetipi
- * (`GetShippedActionCatalog`) sono quelle che il gioco assegna davvero, ed erano proprio loro a mancare.
+ * La regola vale per TUTTI E TRE i cataloghi. In particolare per quello degli EROI: `ARTUnit::ConfigureAsArchetype`
+ * non e' piu' un percorso di partita (Ranger e Guardian vivono ormai solo nei test), mentre `URTHeroData` e'
+ * cio' che il GameMode schiera davvero — se la guardia guardasse altrove sarebbe verde mentre il buco e' aperto
+ * proprio dove il gioco passa.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFastMovementDeclaresStyleTest,
 	"RefactorTactics.Actions.EveryFastMovementDeclaresStyle",
@@ -265,6 +270,14 @@ bool FRTFastMovementDeclaresStyleTest::RunTest(const FString&)
 {
 	TArray<FRTActionDef> All = URTCatalogLibrary::GetCoreActionCatalog();
 	All.Append(URTCatalogLibrary::GetShippedActionCatalog());
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+	{
+		if (!Hero) { continue; }
+		for (const URTActionData* Action : Hero->Actions)
+		{
+			if (Action) { All.Add(Action->Def); }
+		}
+	}
 
 	int32 FastMovers = 0;
 	for (const FRTActionDef& Def : All)

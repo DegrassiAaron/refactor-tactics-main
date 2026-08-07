@@ -10,6 +10,8 @@
 #include "Map/RTHexLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 #include "Turn/RTMovementActionLibrary.h"
 #include "Map/RTHexVisionLibrary.h"
 #include "Pathfinding/RTHexPathLibrary.h"
@@ -483,6 +485,88 @@ bool FRTHexDashBlockedTest::RunTest(const FString&)
 	TestTrue(TEXT("lo scatto non entra nella cella bloccata"), Dasher->Cell != Blocked);
 	// `Fallback.Stop`: ci si ferma nell'ultima cella valida della traiettoria, non si annulla e non si aggira.
 	TestEqual(TEXT("si ferma davanti al muro"), Dasher->Cell.ToString(), LastFree.ToString());
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
+/**
+ * Un EROE del catalogo scatta in partita. E' il percorso che il gioco usa davvero (`ARTUnit::ConfigureFromHeroData`,
+ * il GameMode schiera i quattro eroi): `ConfigureAsArchetype` sopravvive solo nei test.
+ *
+ * Il gate «questa e' un'azione di scatto» legge la fase del catalogo (#142), quindi le azioni d'eroe — che il
+ * flag legacy non l'hanno mai avuto — sono ora pianificabili. Questo test verifica che, una volta pianificate,
+ * risolvano sul ramo LINEARE: senza `MovementStyle` dichiarato finirebbero sul pathfinding e aggirerebbero
+ * l'ostacolo. E' esattamente il difetto che #142 chiude, sul catalogo che il gioco schiera.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexHeroDashIsLinearTest,
+	"RefactorTactics.HexMatch.HeroDashResolvesLinearly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexHeroDashIsLinearTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	URTHexMapAsset* Map = SpawnHexMatchMap(World, /*Radius=*/ 5);
+
+	// Muro a due celle sulla traiettoria: con il pathfinding lo si aggirerebbe, in linea ci si ferma davanti.
+	FRTHexCellData Wall(FRTCellId(2, 0, 0));
+	Wall.bBlocksMovement = true;
+	Map->AddOrUpdateCell(Wall);
+	Map->SortCells();
+
+	int32 HeroesWithDash = 0;
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+	{
+		if (!Hero) { continue; }
+
+		ARTUnit* Unit = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
+		if (!TestNotNull(TEXT("unita' d'eroe"), Unit)) { DestroyHexMatchWorld(World); return false; }
+		Unit->TeamId = 0;
+		Unit->ConfigureFromHeroData(Hero);
+		UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);
+		Unit->bIsBotControlled = false;
+		Unit->DispatchBeginPlay();
+		Unit->PlaceOnCell(FRTCellId(0, 0), FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+
+		const int32 DashIdx = Unit->FindDashAbilityIndex();
+		if (DashIdx == INDEX_NONE)
+		{
+			Unit->Destroy();
+			continue; // eroe senza mobilita' rapida: non c'e' nulla da verificare
+		}
+		++HeroesWithDash;
+
+		const URTActionData* Dash = Unit->GetAbility(DashIdx);
+		const FString Who = Hero->HeroId.ToString();
+
+		// Ogni mobilita' rapida d'eroe e' LINEARE nella v0.1: e' il dato che instrada la fase Dash.
+		if (!TestTrue(FString::Printf(TEXT("%s: lo scatto dichiara uno stile lineare"), *Who),
+			Dash && URTMovementActionLibrary::IsLinear(Dash->Def.MovementStyle)))
+		{
+			Unit->Destroy();
+			continue;
+		}
+
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM) { DestroyHexMatchWorld(World); return false; }
+
+		Unit->PlannedDashAbility = DashIdx;
+		Unit->PlannedDashCell = FRTCellId(3, 0); // oltre il muro, in linea
+		PlayOneTurn(TM);
+
+		// Il muro ferma la traiettoria: si arriva a (1,0), non a (3,0) girandoci attorno.
+		TestTrue(FString::Printf(TEXT("%s: lo scatto non supera il muro"), *Who),
+			Unit->Cell != FRTCellId(3, 0));
+		TestEqual(FString::Printf(TEXT("%s: si ferma davanti al muro"), *Who),
+			Unit->Cell.ToString(), FRTCellId(1, 0, 0).ToString());
+
+		TM->Destroy();
+		Unit->Destroy();
+	}
+
+	// Senza questa riga il test passerebbe anche se nessun eroe avesse una mobilita' rapida — cioe' proprio
+	// nel caso in cui il gate di #142 fosse tornato a non riconoscerle.
+	TestTrue(TEXT("almeno un eroe del roster ha una mobilita' rapida da esercitare"), HeroesWithDash > 0);
 
 	DestroyHexMatchWorld(World);
 	return true;

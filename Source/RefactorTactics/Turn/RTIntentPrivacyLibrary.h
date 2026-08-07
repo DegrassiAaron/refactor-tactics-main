@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Ability/RTActionDef.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Map/RTCellId.h"
 #include "RTIntentPrivacyLibrary.generated.h"
@@ -63,6 +64,14 @@ struct FRTPlannedIntent
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Privacy")
 	FRTCellId DashCell;
 
+	/**
+	 * COME si muove lo scatto pianificato. Serve alla PREVIEW: una mobilita' lineare va in linea retta, una a
+	 * budget segue il grafo, e disegnare l'una per l'altra mostrerebbe al giocatore un percorso che il resolver
+	 * non percorrera' (#142). Stessa classe d'informazione di `DashCell` — e' movimento, non autoria del piano.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Privacy")
+	ERTMovementStyle DashStyle = ERTMovementStyle::None;
+
 	FRTPlannedIntent() = default;
 };
 
@@ -117,6 +126,10 @@ struct FRTIntentView
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
 	FRTCellId DashCell;
+
+	/** Stile dello scatto: movimento, quindi esposto quanto `DashCell`. Vedi `FRTPlannedIntent::DashStyle`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
+	ERTMovementStyle DashStyle = ERTMovementStyle::None;
 
 	FRTIntentView() = default;
 };
