@@ -1,7 +1,7 @@
 # RT — Catalogo terreni, coperture e strutture v0.1
 
-> **Fonte**: `docs/src/RefactorTactics — Catalogo e bilanciamento v0.1.pdf` §§4–5 · `docs/PDR/RT_PDR_12_Catalog_v0.1.pdf`
-> **Decisione abilitante**: [`adr-0003-modello-azioni-v01.md`](../adr-0003-modello-azioni-v01.md) · **Checkpoint**: CP 1.2 (issue `#28`)
+> **Fonte**: `docs/src/RefactorTactics — Catalogo e bilanciamento v0.1.pdf` §§4–5 · `docs/archive/pdr-v0.1/RT_PDR_12_Catalog_v0.1.pdf`
+> **Decisione abilitante**: [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md) · **Checkpoint**: CP 1.2 (issue `#28`)
 > **Implementazione**: epic **E8** (terreni, `#64`–`#68`) ed **E9** (strutture, `#69`–`#73`).
 
 ## Stato dell'implementazione (aggiornato 2026-08-07)
@@ -10,7 +10,7 @@ Le **superfici agiscono**: costi, blocchi di Dash, `Wet`/`Obscured` legati alla 
 scivolata sul ghiaccio (CP 8.1/8.2) e — da **CP 8.3** — la **propagazione elettrica** su acqua e superfici
 conduttive, che cammina sul grafo delle celle (BFS, massimo 3 passi, ogni unità colpita una volta) e risolve
 nel Cleanup prima del danno di `Burning`. Dettaglio in
-[`../spec-propagazione-elettrica-cp83.md`](../spec-propagazione-elettrica-cp83.md).
+[`../spec-propagazione-elettrica-cp83.md`](../gameplay/spec-propagazione-elettrica-cp83.md).
 
 Restano da costruire: **interazioni fuoco/acqua** (CP 8.4), **azioni ambientali** (CP 8.5), il **terreno
 dinamico** (una cella che cambia superficie a runtime: serve a `CreateWater`, `Ignite` e
@@ -71,7 +71,7 @@ d'ingresso; una cella bloccata impedisce lo scivolamento.
 > `Terrain.Ice.SlideBudgetBoundaryIsExactlyTwo` (la soglia è esattamente 2), `Terrain.Ice.BlockedCellStopsSliding`
 > e `Terrain.Ice.SlidesInMatch` (nel turno reale, non solo in isolamento). Lo scivolamento **resta limitato a
 > una cella**: momentum, slide a catena e collisioni fra unità scivolanti sono fuori dalla v0.1
-> ([`brief-ghiaccio.md`](../brief-ghiaccio.md)).
+> ([`brief-ghiaccio.md`](../gameplay/brief-ghiaccio.md)).
 
 ### Quota elevata
 Costo 1 MP · la percorribilità **dipende dagli archi** (rampe/scale: i piani non sono adiacenti per costruzione) ·

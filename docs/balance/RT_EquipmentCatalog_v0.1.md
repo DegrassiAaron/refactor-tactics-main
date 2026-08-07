@@ -1,7 +1,7 @@
 # RT — Catalogo equipaggiamento v0.1
 
-> **Fonte**: `docs/src/RefactorTactics — Catalogo e bilanciamento v0.1.pdf` §6 · `docs/PDR/RT_PDR_12_Catalog_v0.1.pdf`
-> **Decisione abilitante**: [`adr-0003-modello-azioni-v01.md`](../adr-0003-modello-azioni-v01.md) · **Checkpoint**: CP 1.2 (issue `#28`)
+> **Fonte**: `docs/src/RefactorTactics — Catalogo e bilanciamento v0.1.pdf` §6 · `docs/archive/pdr-v0.1/RT_PDR_12_Catalog_v0.1.pdf`
+> **Decisione abilitante**: [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md) · **Checkpoint**: CP 1.2 (issue `#28`)
 > **Implementazione**: epic **E7** (`#60`–`#63`). È l'epic **tagliabile per prima** se il tempo stringe
 > (roadmap v0.1): il gioco resta completo senza equipaggiamento, non senza azioni.
 

@@ -2,7 +2,7 @@
 
 > **Stato**: **Implementata** (TDD RED→GREEN; suite **156/156**, build Editor Succeeded) · **Data**: 2026-08-05 ·
 > **Branch**: `feat/hex-vision`
-> **Fonte**: milestone **H6** di [`hex-map-roadmap.md`](hex-map-roadmap.md). Prerequisito dello switch di
+> **Fonte**: milestone **H6** di [`hex-map-roadmap.md`](../roadmap/hex-map-roadmap.md). Prerequisito dello switch di
 > `ARTTurnManager` su hex. Non tocca il turn loop quadrato.
 
 ## 1. Perché adesso

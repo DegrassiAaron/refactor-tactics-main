@@ -75,7 +75,7 @@ o quando serve alla feature corrente.
 ## 4. Struttura attiva nella milestone corrente
 
 La struttura completa di §3 è il **target**; oggi il progetto ha bisogno solo di questo sottoinsieme
-(milestone **M6 — Parità hex**, vedi [`roadmap-checkpoint.md`](roadmap-checkpoint.md)):
+(milestone **M6 — Parità hex**, vedi [`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md)):
 
 ```text
 /Game/RT/

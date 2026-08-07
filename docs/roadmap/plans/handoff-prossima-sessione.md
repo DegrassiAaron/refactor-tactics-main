@@ -1,8 +1,8 @@
 # Handoff — riprendere il lavoro da sessione fresca
 
 > Contesto compatto per una **nuova sessione** che continua a implementare su RefactorTactics.
-> Aggiornato: **2026-08-05**. Leggi anche [`piano-canonico-mvp.md`](piano-canonico-mvp.md) (decisioni),
-> [`roadmap-checkpoint.md`](roadmap-checkpoint.md) (milestone e DoD) e la memoria di progetto `ue58-build-gotchas`.
+> Aggiornato: **2026-08-05**. Leggi anche [`piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md) (decisioni),
+> [`roadmap-checkpoint.md`](../roadmap-checkpoint.md) (milestone e DoD) e la memoria di progetto `ue58-build-gotchas`.
 
 ## Dove siamo
 
@@ -43,7 +43,7 @@
 ## Metodo
 
 - **TDD** per la logica pura in `URT*Library` (RED→GREEN, testabile in automation).
-- Wiring/Actor/editor: build verde + voce in [`test-manuali-pie.md`](test-manuali-pie.md), verificata
+- Wiring/Actor/editor: build verde + voce in [`test-manuali-pie.md`](../../technical/test-manuali-pie.md), verificata
   dall'utente in PIE. Non dichiarare verde una voce PIE senza esecuzione reale.
 - Niente commit/push senza richiesta esplicita.
 

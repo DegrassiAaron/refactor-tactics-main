@@ -2,7 +2,7 @@
 
 > **Fonte**: `docs/src/RefactorTactics_DelayedActions_PhaseWindows_Claude.md` (1546 righe) ·
 > **Data**: 2026-08-07 · **Stato**: brief di scope, nessuna implementazione
-> **Rapporto con le decisioni vigenti**: [ADR-0004](adr-0004-finestre-di-reazione.md) (accettato) copre le
+> **Rapporto con le decisioni vigenti**: [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) (accettato) copre le
 > **finestre di reazione**; questo brief isola ciò che il documento aggiunge e che **nessun documento del repo
 > copriva**: le **Delayed Actions** e i **boundary di fase** come punti di risoluzione nominati.
 
@@ -72,14 +72,18 @@ Se il tema entra in roadmap, la forma minima è di 4 checkpoint dentro una **epi
 assegnare, **E15 (showcase) ed E16 (orientamento) sono già occupate** — da collocare *dopo* E14:
 `.1` modello dei boundary e coda · `.2` targeting predittivo e fallback · `.3` risoluzione al boundary con i
 test 1–7 · `.4` ghost timeline e privacy (test 8). **La decisione di aprirla è tua**: E14 non è
-iniziata, e il rischio di scope della v0.1 (§8 di [`roadmap-v0.1.md`](roadmap-v0.1.md)) è già segnalato come
+iniziata, e il rischio di scope della v0.1 (§8 di [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md)) è già segnalato come
 **alto**.
 
 ## 6. Rischi e domande aperte
 
-1. **Il documento dà per esistente più di quanto esista.** §23 elenca `RTReactionLibrary` fra i sistemi
-   presenti: nel repo **non c'è** un file con quel nome (le reazioni vivono in `ARTTurnManager` e nel catalogo
-   azioni). Il documento stesso prescrive di verificare i nomi reali prima di implementare: qui è stato fatto.
+1. ~~**Il documento dà per esistente più di quanto esista.** §23 elenca `RTReactionLibrary` fra i sistemi
+   presenti: nel repo **non c'è** un file con quel nome.~~
+   > ⚠️ **Rettifica del 2026-08-07**: questa osservazione era **sbagliata già quando è stata scritta**.
+   > `Turn/RTReactionLibrary.{h,cpp}` **esiste**, è l'epic **E5** (27 test) ed è dichiarato ✅ in
+   > [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) §2 nella stessa giornata. Il documento sorgente aveva
+   > ragione. La lezione resta ma si rovescia: **verificare i nomi reali vale in entrambe le direzioni** —
+   > negare l'esistenza di un sistema porta a ricostruirlo, che è il doppio del danno.
 2. **`EndPrep` non ha oggi un uso dichiarato**: nessuna azione del catalogo v0.1 ne avrebbe bisogno. Aprire
    quattro boundary quando ne servono due è superficie non richiesta.
 3. **Interazione con gli stati temporanei (CP 8.2)**: una Delayed Action che risolve a `EndMove` incontra uno
@@ -89,11 +93,41 @@ iniziata, e il rischio di scope della v0.1 (§8 di [`roadmap-v0.1.md`](roadmap-v
 4. **Un solo parametro con due nomi**: `FastDecisionDuration` (documento) e `FastReactionDuration` (ADR-0004)
    sono lo stesso 3.0 s. Non introdurre il secondo nome nel codice.
 
+## 6-bis. Trigger su transizione — [D-013](../decisions/RT_PDR_00_Decision_Log.md), 2026-08-07
+
+Il sorgente `RefactorTactics_Predictive_Actions_Traps_Claude.md` §8.2 chiede un `Tripwire` che scatti
+sull'**attraversamento di un arco** `CrossEdge(H6, H7)`, distinto dall'ingresso in H7 da un altro lato. La
+domanda registrata era «gli archi del grafo devono portare trigger?», e sembrava un gate da chiudere prima
+di **E9**.
+
+**La domanda era mal posta, e la verifica sul codice l'ha riformulata.** Gli archi degli adiacenti **non
+esistono**: `URTHexPathLibrary::GraphNeighbors` li calcola a ogni interrogazione da
+`URTHexLibrary::Neighbors(Cell)`, e `FRTHexEdge{From, To, Cost, Kind}` è memorizzato **solo** per le
+transizioni fra layer. Fra due celle di layer 0 non c'è alcun oggetto a cui attaccare un trigger.
+
+Le due vie, e perché una vince nettamente:
+
+| Via | Costo | Esito |
+|---|---|---|
+| **La definizione predittiva possiede la coppia** `(From → To)` + i tipi di transizione validi; il resolver la confronta col micro-step | nessuna modifica alla mappa | ✅ **adottata** |
+| Gli adiacenti diventano `FRTHexEdge` memorizzati | ~1400 archi su una mappa r=12 (oggi 0); formato e `ComputeHash` di `URTHexMapAsset` da versionare; `HexMap.HashIncludesTransitions` da rivedere; migrazione di `DA_HexMap_Sandbox` | ❌ scartata |
+
+**Conseguenze operative:**
+
+- `FRTHexEdge` resta riservato ai **salti di layer**. Non diventa il posto dove vive lo stato di gioco.
+- **OD-4 esce dai bloccanti**: nessun vincolo di precedenza rispetto a E9. Porte e ponti continuano a
+  modificare le transizioni fra layer via `Revision`, come già fanno.
+- Il trigger deve dichiarare i **tipi di transizione** che considera validi (sorgente §16): `Move` e `Dash`
+  attraversano l'arco, mentre teletrasporto, displacement e spinta **entrano nella cella senza percorrerlo**.
+  È la distinzione che rende un tripwire aggirabile — cioè giocabile.
+- Un trigger su transizione è quindi **dato dell'azione**, non dato della mappa: la stessa disciplina di
+  §3, dove boundary e targeting policy sono campi di `FRTActionDef`.
+
 ## 7. Rapporto con gli altri documenti
 
 | Documento | Relazione |
 |---|---|
-| [ADR-0004](adr-0004-finestre-di-reazione.md) | **Prevale** su finestre, timeout, privacy e trigger |
+| [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) | **Prevale** su finestre, timeout, privacy e trigger |
 | [`brief-overwatch-reazioni.md`](brief-overwatch-reazioni.md) | Copre Overwatch (E14); questo brief non lo ripete |
 | [`brief-conoscenza-parziale.md`](brief-conoscenza-parziale.md) | Copre detection e livelli di certezza (E13) |
-| [`adr-0003-modello-azioni-v01.md`](adr-0003-modello-azioni-v01.md) | Le macro-fasi restano `Prep → Dash → Blast → Move`: i boundary sono le loro uscite, non un nuovo ordine |
+| [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md) | Le macro-fasi restano `Prep → Dash → Blast → Move`: i boundary sono le loro uscite, non un nuovo ordine |

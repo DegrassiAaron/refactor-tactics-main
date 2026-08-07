@@ -2,8 +2,8 @@
 
 > **Issue**: `#66` · **Epic**: `#22` (E8) · **Dipende da**: `#65` (CP 8.2, chiusa) · **Data**: 2026-08-07
 > **Branch**: `feat/66-propagazione-elettrica` (worktree isolato) · **Baseline misurata**: 352 test in 52 file
-> Fonti: [`RT_TerrainCatalog_v0.1.md`](balance/RT_TerrainCatalog_v0.1.md) §2 ·
-> [`RT_ActionCatalog_v0.1.md`](balance/RT_ActionCatalog_v0.1.md) §6 · [`spec-terreni-e8.md`](spec-terreni-e8.md) ·
+> Fonti: [`RT_TerrainCatalog_v0.1.md`](../balance/RT_TerrainCatalog_v0.1.md) §2 ·
+> [`RT_ActionCatalog_v0.1.md`](../balance/RT_ActionCatalog_v0.1.md) §6 · [`spec-terreni-e8.md`](spec-terreni-e8.md) ·
 > [`spec-stati-temporanei-cp82.md`](spec-stati-temporanei-cp82.md) §4 (ordine del Cleanup)
 
 ## 1. Obiettivo

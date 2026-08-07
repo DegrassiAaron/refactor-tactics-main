@@ -2,7 +2,7 @@
 
 > **Stato**: Accettato — da implementare · **Data**: 2026-08-07 · **Decisore**: utente (dev singolo)
 > **Contesto sorgente**: `docs/src/RefactorTactics_ActionGhosts_Phases_FastReactions_Claude.md` §17 (campo `Facing`
-> nel view model) e [`brief-planning-visuale.md`](brief-planning-visuale.md) §C5, che registrava il punto come aperto.
+> nel view model) e [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md) §C5, che registrava il punto come aperto.
 > **Estende**: [ADR-0003](adr-0003-modello-azioni-v01.md) (stili di movimento) · [ADR-0004](adr-0004-finestre-di-reazione.md) (reazioni direzionali)
 
 ## Contesto
@@ -52,7 +52,7 @@ di commitment dell'Overwatch armato.
 ### 3. Movimento forzato: ci si gira verso la sorgente
 
 Spinta, knockback e displacement da reazione **non** sono la Move Phase (regola già consolidata in
-[`brief-planning-visuale.md`](brief-planning-visuale.md) §A7) e quindi non seguono la regola §1. L'unità
+[`brief-planning-visuale.md`](../technical/brief-planning-visuale.md) §A7) e quindi non seguono la regola §1. L'unità
 spostata contro la propria volontà si gira **verso la cella di origine dell'ultimo effetto di spostamento
 subito**, nell'ordine canonico di risoluzione — che è già totale e deterministico.
 

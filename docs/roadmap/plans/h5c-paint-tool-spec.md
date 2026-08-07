@@ -1,8 +1,8 @@
 # Spec H5c (prima fetta) — Tool "Paint-a-click" (Paint + Erase) nell'Editor Mode hex
 
 > **Stato**: Approvata (design) · **Data**: 2026-08-04 · **Branch**: `feat/hex-grid`
-> **Fonte**: milestone H5 di [`hex-map-roadmap.md`](hex-map-roadmap.md) (riga H5c+); spec sorgente §9–§10
-> (`docs/guides/Implementazione Griglia Esagonale ed Editor Mappa.docx`); [`adr-0002-griglia-esagonale.md`](adr-0002-griglia-esagonale.md).
+> **Fonte**: milestone H5 di [`hex-map-roadmap.md`](../hex-map-roadmap.md) (riga H5c+); spec sorgente §9–§10
+> (`docs/guides/Implementazione Griglia Esagonale ed Editor Mappa.docx`); [`adr-0002-griglia-esagonale.md`](../../decisions/adr-0002-griglia-esagonale.md).
 > Prosecuzione della prima consegna di H5 ([`h5-editor-mode-spec.md`](h5-editor-mode-spec.md), [`h5-editor-mode-plan.md`](h5-editor-mode-plan.md)).
 > Non tocca il quadrato (`feat/skeletal-units`, base di rollback).
 
@@ -107,7 +107,7 @@ l'operazione più frequente e rende l'authoring nel viewport completo (crea / mo
   - (Erase = `RemoveCell`, già coperto da H1.)
   - *Gotcha unity-build*: eventuali helper in namespace anonimo nel file di test devono avere nomi **unici per file**.
 - **Editor-bound (non headless, dichiarato)**: click/marker/pannello/switch tool → nuove voci manuali in
-  [`test-manuali-pie.md`](test-manuali-pie.md):
+  [`test-manuali-pie.md`](../../technical/test-manuali-pie.md):
   - `PIE-HEX-MODE-C` — paint a click (crea/aggiorna cella, marker verde, readout coerente, cambio `ActiveLayer`);
   - `PIE-HEX-MODE-D` — erase a click (rimuove la cella cliccata, marker rosso, Undo la ripristina).
 - **DoD applicabile**: build Editor + Game verdi; nessun nuovo warning non spiegato; nessuna dip. editor nel runtime

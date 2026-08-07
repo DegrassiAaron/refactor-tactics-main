@@ -3,9 +3,9 @@
 
 > **Sorgente Markdown canonica** (Git) del documento PDR-10, per la regola di manutenzione PDR-00 §6 #5
 > (*«i PDF sono snapshot di consultazione; le sorgenti testuali devono vivere nel repository Git»*, decisione
-> [D-009](RT_PDR_00_Decision_Log.md)). Trascrive lo snapshot `RT_PDR_10_Roadmap_QA_Rischi_v0.1.pdf` e aggiunge
+> [D-009](../decisions/RT_PDR_00_Decision_Log.md)). Trascrive lo snapshot `RT_PDR_10_Roadmap_QA_Rischi_v0.1.pdf` e aggiunge
 > una colonna **«Stato»** sintetica allineata al repo. Il **dettaglio di esecuzione** (checkpoint, mappatura
-> M↔F, test count) vive nel tracker [`../design/roadmap-checkpoint.md`](../design/roadmap-checkpoint.md)
+> M↔F, test count) vive nel tracker [`../design/roadmap-checkpoint.md`](roadmap-checkpoint.md)
 > (principio «una sola fonte logica per concetto»): qui c'è il **piano/requisiti**, lì l'**avanzamento**.
 
 ## Controllo del documento
@@ -52,7 +52,7 @@ non un calendario.»*
 | 5 | Camera, selezione, graybox 2D | Pan/zoom/rotate, cell hover/select. | 🟡 *(hover cella ⏳, CP 1.4)* |
 | 6 | FRTCellId, lookup, grafo, A* | Path visibile e testato. | ✅ *(`FRTGridCoord`, pathfinding pesato/grafo, test)* |
 | 7 | Due unità e planning movimento | Draft path per unità. | ✅ *(waypoint + preview)* |
-| 8 | Ready simultaneo locale | Countdown annullabile. | 🟡 *(timer 30 s + lock-in immediato con Spazio; il **countdown annullabile di 3 s** non esiste — verificato 2026-08-07 su `ARTTurnManager::LockInAndResolve`. Baseline in [`../design/spec-durata-partita-e-scala-mappe.md`](../design/spec-durata-partita-e-scala-mappe.md) §7.2)* |
+| 8 | Ready simultaneo locale | Countdown annullabile. | 🟡 *(timer 30 s + lock-in immediato con Spazio; il **countdown annullabile di 3 s** non esiste — verificato 2026-08-07 su `ARTTurnManager::LockInAndResolve`. Baseline in [`../design/spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §7.2)* |
 | 9 | Snapshot e movement resolution | Esito indipendente dal frame. | ✅ *(resolver ordine-indipendente, test)* |
 | 10 | TurnLog + Automation Test | Log visibile e test automatico. | 🟡 *(combat log + 63 test; TurnLog strutturato/replay ⏳)* |
 | 11 | Roadmap successiva | Backlog rete, GAS, multilivello, dedicated. | ✅ *(questo doc + tracker)* |
@@ -70,7 +70,7 @@ non un calendario.»*
 ## 4. Roadmap tecnica (F0–F6)
 
 > Fasi **ordinate per rischio**. Mappatura dettagliata M↔F e stato per exit gate nel
-> [tracker](../design/roadmap-checkpoint.md) §«Allineamento con i PDR».
+> [tracker](roadmap-checkpoint.md) §«Allineamento con i PDR».
 
 | Fase | Obiettivo | Exit gate | Stato (repo) |
 |---|---|---|---|
@@ -84,12 +84,12 @@ non un calendario.»*
 
 > **Divergenze segnalate** (prevale il canone MVP): **(a)** rete F1 anticipata dal PDR vs differita dall'MVP;
 > **(b)** GAS F2 dal PDR vs No-GAS nell'MVP. Recepite come direzione north-star, non come override — vedi
-> [D-009 · note](RT_PDR_00_Decision_Log.md) e [`piano-canonico-mvp.md`](../design/piano-canonico-mvp.md).
+> [D-009 · note](../decisions/RT_PDR_00_Decision_Log.md) e [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md).
 
 > **Lettura dell'exit gate di F4 (2026-08-07, D-010)**: i «playtest interno 20-30 min» coincidono col target di
 > durata del **3v3 Standard**. Il vertical slice **2v2** è più corto per costruzione (`RoundLimit` 10–14), quindi
 > il gate va letto come «**una sessione** di playtest da 20-30 min», non come la durata di una singola partita
-> 2v2. Bande complete in [`../design/spec-durata-partita-e-scala-mappe.md`](../design/spec-durata-partita-e-scala-mappe.md) §5–§6.
+> 2v2. Bande complete in [`../design/spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §5–§6.
 
 ## 5. Test pyramid
 
@@ -113,7 +113,7 @@ non un calendario.»*
 | Intent updates | 8-12 Hz | — | ⏳ (con rete) |
 | **Replay divergence** | **0** | state/log hash | 🟡 determinismo by-design + test ordine-indip.; TurnLog/replay a hash ⏳ |
 | **Intent leak** | **0** | network canary test | ⏳ (con F1) — privacy già invariante #6 |
-| **Durata match (P50 / P90)** | **25–30 min / < 40–45 min** *(3v3 Standard)* | telemetria di playtest, canale separato dal TurnLog | ⏳ **nuovo** (D-010) — metriche in [`../design/spec-durata-partita-e-scala-mappe.md`](../design/spec-durata-partita-e-scala-mappe.md) §17 |
+| **Durata match (P50 / P90)** | **25–30 min / < 40–45 min** *(3v3 Standard)* | telemetria di playtest, canale separato dal TurnLog | ⏳ **nuovo** (D-010) — metriche in [`../design/spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §17 |
 
 ## 7. Risk register
 
@@ -136,7 +136,7 @@ non un calendario.»*
 4. Include Automation/Functional Test pertinente. — ✅ *(63 test)*
 5. Rispetta i budget o registra la deviazione con owner. — ⏳ *(budget non misurati)*
 6. Verificata in **build packaged**. — 🟡 *(Shipping ok)*
-7. Documentazione, changelog e commit focalizzato. — ✅ *(`docs/design/`)*
+7. Documentazione, changelog e commit focalizzato. — ✅ *(`docs/`)*
 
 ## 9. Build e debug
 
@@ -161,7 +161,7 @@ non un calendario.»*
 Sprint immediato = **solo F0** fino al golden test del movimento; niente GAS o rete completa prima che
 snapshot, collisioni e TurnLog siano stabili. *(Stato repo: F0 completato; il lavoro è proseguito su incrementi
 post-MVP — pathfinding pesato/grafo, terreni, ponte multilivello, animazione della risoluzione, dash, knockback
-— tracciati in [`../design/roadmap-checkpoint.md`](../design/roadmap-checkpoint.md).)*
+— tracciati in [`../design/roadmap-checkpoint.md`](roadmap-checkpoint.md).)*
 
 ---
 

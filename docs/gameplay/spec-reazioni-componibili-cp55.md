@@ -2,8 +2,8 @@
 
 > **Issue**: `#154` · **Epic**: `#19` (E5) · **Sblocca**: `#155` (CP 6.7) · **Data**: 2026-08-07
 > **Branch**: `feat/154-reazioni-componibili` · **Baseline misurata**: 342 test in 50 file, 0 fallimenti
-> Fonti: [`roadmap-v0.1.md`](roadmap-v0.1.md) §5 E5 · [`RT_ActionCatalog_v0.1.md`](balance/RT_ActionCatalog_v0.1.md) §4 ·
-> catalogo eroi v0.1 §1-§4 · [`adr-0003-modello-azioni-v01.md`](adr-0003-modello-azioni-v01.md)
+> Fonti: [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) §5 E5 · [`RT_ActionCatalog_v0.1.md`](../balance/RT_ActionCatalog_v0.1.md) §4 ·
+> catalogo eroi v0.1 §1-§4 · [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md)
 
 ## 1. Obiettivo
 

@@ -1,8 +1,8 @@
 # Spec H5c.2 — Tool "Transizioni" con gizmo (Add-only) nell'Editor Mode hex
 
 > **Stato**: Approvata (design) · **Data**: 2026-08-04 · **Branch**: `feat/hex-grid`
-> **Fonte**: milestone H5 di [`hex-map-roadmap.md`](hex-map-roadmap.md) (riga H5c+, "strumenti archi con gizmo");
-> prosecuzione di [`h5c-paint-tool-spec.md`](h5c-paint-tool-spec.md); [`adr-0002-griglia-esagonale.md`](adr-0002-griglia-esagonale.md).
+> **Fonte**: milestone H5 di [`hex-map-roadmap.md`](../hex-map-roadmap.md) (riga H5c+, "strumenti archi con gizmo");
+> prosecuzione di [`h5c-paint-tool-spec.md`](h5c-paint-tool-spec.md); [`adr-0002-griglia-esagonale.md`](../../decisions/adr-0002-griglia-esagonale.md).
 > Non tocca il quadrato (`feat/skeletal-units`, base di rollback).
 
 ## 1. Contesto e obiettivo
@@ -117,7 +117,7 @@ e la linea di preview durante il drag del gizmo. *(Visibile mentre il tool è at
   layer; **Z a metà tra due** → tie-break `floor(x+0.5)` fissato esplicitamente (es. `Z=OriginZ+1.5*LayerHeight → 2`,
   `Z=OriginZ−0.5*LayerHeight → 0`); Z negativo → layer negativo. `AddTransition`/validator già coperti da H4.
 - **Editor-bound (non headless, dichiarato)**: gizmo/tool/render → nuove voci manuali in
-  [`test-manuali-pie.md`](test-manuali-pie.md):
+  [`test-manuali-pie.md`](../../technical/test-manuali-pie.md):
   - `PIE-HEX-MODE-E` — crea transizione via gizmo (click From, drag su To anche su altro layer, Commit → arco creato e disegnato; Undo lo rimuove);
   - `PIE-HEX-MODE-F` — render archi esistenti + `ClearArch` annulla l'arco pendente senza scrivere.
 - **DoD applicabile**: build Editor+Game verdi; nessun nuovo warning non spiegato; nessuna dip. editor nel runtime

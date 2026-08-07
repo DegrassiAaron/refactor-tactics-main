@@ -2,9 +2,9 @@
 
 > **Issue**: `#65` · **Epic**: `#22` (E8) · **Dipende da**: `#64` (CP 8.1, chiusa) · **Data**: 2026-08-07
 > **Branch**: `feat/65-stati-temporanei` · **Baseline misurata**: 325 test, 0 fallimenti
-> Fonti: [`RT_TerrainCatalog_v0.1.md`](balance/RT_TerrainCatalog_v0.1.md) §2 ·
-> [`RT_ActionCatalog_v0.1.md`](balance/RT_ActionCatalog_v0.1.md) §3 · [`spec-terreni-e8.md`](spec-terreni-e8.md) §6-bis ·
-> [`adr-0003-modello-azioni-v01.md`](adr-0003-modello-azioni-v01.md) §3
+> Fonti: [`RT_TerrainCatalog_v0.1.md`](../balance/RT_TerrainCatalog_v0.1.md) §2 ·
+> [`RT_ActionCatalog_v0.1.md`](../balance/RT_ActionCatalog_v0.1.md) §3 · [`spec-terreni-e8.md`](spec-terreni-e8.md) §6-bis ·
+> [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md) §3
 
 ## 1. Obiettivo
 
@@ -197,8 +197,8 @@ marchio — eliminando il setup artificiale che era stato dichiarato come limite
 `Unit/RTUnit.{h,cpp}` (sentinella, revoca, tick) · `Turn/RTTurnManager.cpp` (Cleanup, `FirstHitDelta`,
 `ApplyTerrainOnEnterEffects`) · `Combat/RTCombatResolver.{h,cpp}` (delta per squadra del marcatore) ·
 `Core/RTGameplayTags.{h,cpp}` (`Electrified`) · `Terrain/RTTerrainLibrary.cpp` (durate sentinella) ·
-`Tests/RTStatusTests.cpp` (nuovo) · `docs/design/balance/RT_TerrainCatalog_v0.1.md` ·
-`docs/design/spec-terreni-e8.md` · `docs/design/roadmap-v0.1.md` · `docs/design/roadmap-checkpoint.md`.
+`Tests/RTStatusTests.cpp` (nuovo) · `docs/balance/RT_TerrainCatalog_v0.1.md` ·
+`docs/gameplay/spec-terreni-e8.md` · `docs/roadmap/roadmap-v0.1.md` · `docs/roadmap/roadmap-checkpoint.md`.
 
 ## 8. Rischi
 

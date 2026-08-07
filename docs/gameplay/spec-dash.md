@@ -2,8 +2,8 @@
 
 > `/sc:design` + implementazione del **2026-08-03**. Obiettivo: attivare la fase **Dash** (finora pass-through)
 > con un riposizionamento rapido che si risolve **prima del Blast**. Documentale + implementato in TDD dove la
-> logica è pura, wiring + PIE per Actor/UI. Ancorata al canone ([`piano-canonico-mvp.md`](piano-canonico-mvp.md)),
-> al pathfinding a grafo ([`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md)) e all'animazione della
+> logica è pura, wiring + PIE per Actor/UI. Ancorata al canone ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md)),
+> al pathfinding a grafo ([`spec-pathfinding-pf3-pf4.md`](../technical/spec-pathfinding-pf3-pf4.md)) e all'animazione della
 > risoluzione ([`spec-anima-risoluzione.md`](spec-anima-risoluzione.md)).
 >
 > **Decisioni prese**: movimento del dash = **pathfinding** (aggira ostacoli) · **dash + move** (movimento doppio
@@ -39,7 +39,7 @@ Reactor e dà senso alla fase + profondità alla pianificazione (il Blast usa le
   Gli eroi del catalogo v0.1 hanno `Bastion.Ram` (`LinearCharge`), `Vektor.PassingBlade` e `Riva.FluidTrail`
   (`LinearDash`).
   > Questi sono i valori **oggi nel codice** (`ARTUnit::ConfigureAsArchetype`), non i valori vigenti della
-  > v0.1: con il budget a **5 MP** dell'[ADR-0003](adr-0003-modello-azioni-v01.md) le mobilità rapide passano a
+  > v0.1: con il budget a **5 MP** dell'[ADR-0003](../decisions/adr-0003-modello-azioni-v01.md) le mobilità rapide passano a
   > distanza fissa dichiarata dall'azione (`Dash 3`, `Charge 4`, `Leap 3`, `Sprint 8 MP`) — riparametrizzazione
   > al **CP 4.2** (issue `#43`), con la suite del bot come gate.
 
@@ -110,7 +110,7 @@ playback: `Prep → Dash → Blast → Move`.
 ## 8. Limiti aperti
 
 - **Dash del giocatore**: cablato (tasto `4` + click + preview), ma la conferma **interattiva** richiede il
-  mouse dell'utente (come il click→layer di [`spec-mappa-multilivello.md`](spec-mappa-multilivello.md)).
+  mouse dell'utente (come il click→layer di [`spec-mappa-multilivello.md`](../technical/spec-mappa-multilivello.md)).
 - **Dash "leggero"** (salto che scavalca le coperture in linea retta) **non** implementato: scelto il
   pathfinding (aggira gli ostacoli). Possibile enhancement futuro.
 - Tuning dei valori (portata/ricarica degli scatti) da tarare in gioco.

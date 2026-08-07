@@ -2,7 +2,7 @@
 
 > **Stato**: analizzato, checkpoint proposti · **Data**: 2026-08-07
 > **Sorgente**: [`../src/RefactorTactics_ActionGhosts_Phases_FastReactions_Claude.md`](../src/RefactorTactics_ActionGhosts_Phases_FastReactions_Claude.md) (22 sezioni)
-> **Destinazione**: epic **E11** di [`roadmap-v0.1.md`](roadmap-v0.1.md) — CP 11.5 e CP 11.6, più un'estensione della DoD di CP 11.2
+> **Destinazione**: epic **E11** di [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) — CP 11.5 e CP 11.6, più un'estensione della DoD di CP 11.2
 
 Il documento sorgente descrive **come si guarda un turno prima di confermarlo**: copie semitrasparenti del
 personaggio (*Action Ghost*) disposte per fase (*Ghost Timeline*), scrubbing delle fasi, grammatica visiva
@@ -72,7 +72,7 @@ warning è una **predizione** e non un esito, va marcato *previsto* o *incerto* 
 «in quale direzione sarà orientato»). Oggi il facing **non decide nulla**: `Actions.Wait.AllowsFacingAndReaction`
 esiste proprio come promessa di non impedirlo, e nessuna regola di cover o LOS lo consuma.
 
-> ✅ **Deciso il 2026-08-07** — [ADR-0005](adr-0005-orientamento.md), epic **E16**. Il facing **diventa stato
+> ✅ **Deciso il 2026-08-07** — [ADR-0005](../decisions/adr-0005-orientamento.md), epic **E16**. Il facing **diventa stato
 > di gioco**, e la raccomandazione «derivato, finché nessuna regola lo consuma» è superata: i consumatori ora
 > sono tre. Deriva dall'**ultima azione di movimento** (una direzione per i movimenti lineari, tre per il Move
 > a budget — ultimo passo ±1 — sei da fermo) e decide **difesa** (fuori dall'arco frontale copertura e Guard
@@ -115,5 +115,5 @@ warning di collisione, Fast Reaction reale, conoscenza parziale, multilivello, r
   presentazione di **M8**; i CP qui sopra chiedono che un `PoseId` esista e sia selezionabile, non che le
   animazioni siano prodotte.
 - **Ghost su più livelli** con occlusione fra layer: rinviato, come indica la sorgente.
-- **Facing autorevole**: **non più fuori scope** — è l'epic **E16** ([ADR-0005](adr-0005-orientamento.md)).
+- **Facing autorevole**: **non più fuori scope** — è l'epic **E16** ([ADR-0005](../decisions/adr-0005-orientamento.md)).
   Resta fuori di qui la sua *implementazione*: CP 11.5 lo **mostra**, CP 16.1 lo **decide**.

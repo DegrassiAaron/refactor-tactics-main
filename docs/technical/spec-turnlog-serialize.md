@@ -1,7 +1,7 @@
 # Spec — Serializzazione TurnLog versionata (SR + SR.file)
 
 > Slice successivo a [`spec-turnlog.md`](spec-turnlog.md) §11: chiude il ciclo determinismo/replay
-> (KPI [`roadmap-checkpoint.md`](roadmap-checkpoint.md) «Replay divergence = 0»). **Puro C++, TDD.**
+> (KPI [`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md) «Replay divergence = 0»). **Puro C++, TDD.**
 > **Stato: implementato** — `SR` (in-memory, merge `8b6dc32`) + `SR.file` (checksum v2 + I/O su file,
 > branch `feat/turnlog-file` → `main`). Suite **126/126**.
 

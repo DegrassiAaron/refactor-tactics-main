@@ -11,7 +11,7 @@
  *
  * Enum e non `FName`: gli effetti sono un insieme chiuso e piccolo, il compilatore verifica che ogni caso sia
  * gestito, e la funzione di traduzione resta TOTALE. Il modding (effetti definiti da dati) e' north-star, non
- * v0.1 — vedi docs/design/spec-motore-azioni-e4.md §7, domanda 1.
+ * v0.1 — vedi docs/gameplay/spec-motore-azioni-e4.md §7, domanda 1.
  */
 UENUM(BlueprintType)
 enum class ERTActionEffect : uint8
@@ -90,7 +90,7 @@ struct FRTActionEffectSpec
  * Un effetto GIA' RISOLTO, pronto da applicare. Le azioni non mutano lo stato: **producono eventi**, che
  * vengono applicati insieme sullo snapshot iniziale della fase (invariante #3, "raccogli poi applica").
  *
- * Solo interi (invariante #4). Riferimento: docs/design/spec-motore-azioni-e4.md §3.
+ * Solo interi (invariante #4). Riferimento: docs/gameplay/spec-motore-azioni-e4.md §3.
  */
 USTRUCT(BlueprintType)
 struct FRTActionEvent

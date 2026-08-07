@@ -8,7 +8,7 @@
 > ⚠️ **Fase tutorial chiusa (2026-08-05)**: nato come riconciliazione dei due corsi (`02-Tutorial`,
 > `03-TutorialToMVP`) per costruire l'MVP, questo piano è ora il canone di un progetto di **prodotto**.
 > I corsi sono storico; l'MVP quadrato M0–M5 è archiviato. Roadmap corrente:
-> [`roadmap-checkpoint.md`](roadmap-checkpoint.md).
+> [`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md).
 
 ---
 
@@ -17,8 +17,8 @@
 | Livello | Documenti | Ruolo |
 |---|---|---|
 | **Canonico (vincolante)** | *questo file* | Decisioni operative del progetto |
-| **Esecuzione** | [`roadmap-checkpoint.md`](roadmap-checkpoint.md) | Milestone, checkpoint, DoD misurabili, stato |
-| **Requisiti di lungo periodo** | [`../PDR/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](../PDR/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) | Fasi F0–F6, QA, rischi — direzione, non scope |
+| **Esecuzione** | [`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md) | Milestone, checkpoint, DoD misurabili, stato |
+| **Requisiti di lungo periodo** | [`../PDR/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](../roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) | Fasi F0–F6, QA, rischi — direzione, non scope |
 | **Visione (north-star)** | i 3 PRD + `Intenti condivisi.pdf` | Prodotto a lungo termine, **non** scope attuale |
 | **Storico / superato** | `00-Intro.pdf`, `01-StrutturaTutorial.pdf`, `02-Tutorial.pdf`, `03-TutorialToMVP.pdf` — **rimossi da `docs/src/` il 2026-08-07**, recuperabili dallo storico git | Brief e corsi da cui è nato il progetto (fase chiusa) |
 
@@ -43,18 +43,18 @@ modding). Sono la **direzione futura**, non l'obiettivo attuale. Vedi §8.
 
 ## 3. Decisioni canoniche — riconciliazione `02` ↔ `03`
 
-> ⚠️ **Revisione 2026-08-03 — PIVOT A GRIGLIA ESAGONALE** ([`adr-0002-griglia-esagonale.md`](adr-0002-griglia-esagonale.md)):
+> ⚠️ **Revisione 2026-08-03 — PIVOT A GRIGLIA ESAGONALE** ([`adr-0002-griglia-esagonale.md`](../decisions/adr-0002-griglia-esagonale.md)):
 > per decisione dell'utente il progetto abbandona la griglia **quadrata** (righe "Griglia" e "Coord. cella" della
 > tabella sotto) a favore di una griglia **esagonale** (assiale/cubica, `FRTCellId`) con editor mappa data-driven.
-> Quelle righe sono **superate**; il rifacimento procede per milestone H0–H9 ([`hex-map-roadmap.md`](hex-map-roadmap.md))
+> Quelle righe sono **superate**; il rifacimento procede per milestone H0–H9 ([`hex-map-roadmap.md`](../roadmap/hex-map-roadmap.md))
 > e invalida M1–M5 (griglia/combat/LOS/bot/pathfinding). Gli **invarianti** (determinismo, no float, dati autorevoli in
 > C++) restano. Il sistema quadrato resta su `feat/skeletal-units`/`main` come base di rollback.
 
-> ⚠️ **Revisione 2026-08-05 — MODELLO AZIONI v0.1** ([`adr-0003-modello-azioni-v01.md`](adr-0003-modello-azioni-v01.md)):
-> per la release **v0.1** ([`roadmap-v0.1.md`](roadmap-v0.1.md)) si adotta il modello del catalogo di bilanciamento —
+> ⚠️ **Revisione 2026-08-05 — MODELLO AZIONI v0.1** ([`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md)):
+> per la release **v0.1** ([`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md)) si adotta il modello del catalogo di bilanciamento —
 > ID azione stabili, **priorità intera** intra-fase, fallback dichiarati, budget **5 MP**, reazioni, 8 terreni,
 > coperture direzionali, obiettivi dinamici, limite di round *(oggi parametro di formato, non più «12» fisso:
-> [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §6)*. **Le macro-fasi NON cambiano**: resta
+> [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §6)*. **Le macro-fasi NON cambiano**: resta
 > `ERTMatchPhase{ Planning, Prep, Dash, Blast, Move, Cleanup, MatchEnded }` di Atlas Reactor — in particolare il
 > **Move resta dopo il Blast**. I codici di fase del catalogo (0/10/20/30/40/50/60) diventano un attributo
 > dell'azione, rimappato sulle macro-fasi (ADR-0003 §3). Sono **superati**: i valori di movimento di §6 e la
@@ -92,12 +92,12 @@ non serve ricostruirlo dai blocchi di revisione.
 
 | Riga superata (§3) | Valore vigente | Decisione |
 |---|---|---|
-| Griglia `10×10 @ 200 cm` | Griglia **esagonale** pointy-top, dimensione della cella dall'asset mappa | [ADR-0002](adr-0002-griglia-esagonale.md) |
-| Coord. cella `FRTGridCoord{X,Y}` | **`FRTCellId{X=q, Y=r, Layer}`** (assiale/cubica); `FRTGridCoord` **rimosso** dal codice (CP 6.1) | [ADR-0002](adr-0002-griglia-esagonale.md) |
-| Vittoria `Squadra eliminata` | Eliminazione **oppure** obiettivi **oppure** `RoundLimit` raggiunto (fine partita a più vie). Il `RoundLimit` è un **parametro del formato di partita**, non la costante «12»: 10–14 in 2v2, 16–20 in 3v3 Standard | [ADR-0003](adr-0003-modello-azioni-v01.md) · [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §6, §12 |
-| Movimento `4 celle` / Dash `3` (§6) | **5 MP**, costo intero per cella (1 normale, 2 difficile/rampa); Sprint 8 MP; Dash/Charge/Leap a distanza fissa | [ADR-0003](adr-0003-modello-azioni-v01.md) |
-| Reazioni «north-star, escluse» (§8.2) | **In scope** per la v0.1: slot Reazione con trigger, **1 attivazione per turno** | [ADR-0003](adr-0003-modello-azioni-v01.md) |
-| Roster `2 archetipi` | **4 eroi** (Flux, Riva, Bastion, Vektor) con varianti d'equipaggiamento | [ADR-0003](adr-0003-modello-azioni-v01.md) |
+| Griglia `10×10 @ 200 cm` | Griglia **esagonale** pointy-top, dimensione della cella dall'asset mappa | [ADR-0002](../decisions/adr-0002-griglia-esagonale.md) |
+| Coord. cella `FRTGridCoord{X,Y}` | **`FRTCellId{X=q, Y=r, Layer}`** (assiale/cubica); `FRTGridCoord` **rimosso** dal codice (CP 6.1) | [ADR-0002](../decisions/adr-0002-griglia-esagonale.md) |
+| Vittoria `Squadra eliminata` | Eliminazione **oppure** obiettivi **oppure** `RoundLimit` raggiunto (fine partita a più vie). Il `RoundLimit` è un **parametro del formato di partita**, non la costante «12»: 10–14 in 2v2, 16–20 in 3v3 Standard | [ADR-0003](../decisions/adr-0003-modello-azioni-v01.md) · [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §6, §12 |
+| Movimento `4 celle` / Dash `3` (§6) | **5 MP**, costo intero per cella (1 normale, 2 difficile/rampa); Sprint 8 MP; Dash/Charge/Leap a distanza fissa | [ADR-0003](../decisions/adr-0003-modello-azioni-v01.md) |
+| Reazioni «north-star, escluse» (§8.2) | **In scope** per la v0.1: slot Reazione con trigger, **1 attivazione per turno** | [ADR-0003](../decisions/adr-0003-modello-azioni-v01.md) |
+| Roster `2 archetipi` | **4 eroi** (Flux, Riva, Bastion, Vektor) con varianti d'equipaggiamento | [ADR-0003](../decisions/adr-0003-modello-azioni-v01.md) |
 
 **Non** superato, e vale la pena ripeterlo perché il catalogo v0.1 dice altro: le **macro-fasi restano quelle di
 Atlas Reactor** — `Planning → Prep → Dash → Blast → Move → Cleanup`, con il **Move dopo il Blast**. I codici di
@@ -105,13 +105,13 @@ fase del catalogo (0/10/20/30/40/50/60) sono un *attributo dell'azione*, rimappa
 (ADR-0003 §3). Restano fermi anche UE **5.8.1** e il **no-GAS**.
 
 I valori numerici vigenti della v0.1 (azioni, terreni, equipaggiamento, eroi) vivono nei cataloghi versionati
-in [`balance/`](balance/), non in questo documento: qui restano le **decisioni**, lì i **numeri**.
+in [`balance/`](../balance), non in questo documento: qui restano le **decisioni**, lì i **numeri**.
 
 ### 3.1 Riconciliazione fonti PDF — path finding (2026-08-02)
 
 I 4 PDF (visione north-star) divergono su elementi *load-bearing* del path finding. Decisioni canoniche
 (prevalgono sui PDF); dettaglio e gate di implementazione in
-[`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md).
+[`spec-pathfinding-pf3-pf4.md`](../technical/spec-pathfinding-pf3-pf4.md).
 
 - **Fasi del turno** — prevale lo schema già canonico (§3, `ERTMatchPhase`):
   `Planning → Prep → Dash → Blast → Move → Cleanup`. Gli schemi del "piano completo"
@@ -161,9 +161,9 @@ forme Line/Cone, status Shield/Reveal, build Shipping), non bloccanti per il ver
 Principi non negoziabili (valgono anche in offline, per preparare il multiplayer futuro) — numerazione allineata a `CLAUDE.md` § *Invarianti architetturali* (7 voci):
 
 1. **Autorità delle regole in C++**: il resolver decide l'esito; le animazioni/VFX non decidono nulla.
-2. **Griglia logica autoritativa**: la posizione vera è `FRTGridCoord`; il `FVector` serve solo al rendering.
+2. **Griglia logica autoritativa**: la posizione vera è **`FRTCellId{X=q, Y=r, Layer}`** (assiale/cubica); il `FVector` serve solo al rendering. *(Corretto il 2026-08-07: questa riga citava `FRTGridCoord`, **rimosso dal codice al CP 6.1** — vedi §3.0.)*
 3. **Resolver "raccogli poi applica"**: snapshot a inizio **segmento di risoluzione**, nessun `Delay`/timeline/montage dentro il segmento; l'ordine dell'array **non** deve cambiare il risultato. Quando l'esito dipende dall'ordine (scudo/buff/reazione prima del danno), l'ordine segue la regola deterministica di **§5.1** (APNAP + tie-break assoluto), non l'inserimento.
-   > **Riformulato il 2026-08-07 da [ADR-0004](adr-0004-finestre-di-reazione.md)** — *indebolito no, composto sì*. Un **segmento** è delimitato dall'inizio di una macro-fase **oppure** da un *decision boundary* (finestra di reazione). Il turno è una **sequenza** di segmenti, ciascuno dei quali è un «raccogli poi applica» completo con snapshot proprio. Il resolver non attende **mai** dentro un segmento: lo termina e restituisce il controllo. Prima di ADR-0004 il segmento coincideva sempre con la macro-fase, quindi la formulazione precedente resta valida per tutte le fasi senza finestre.
+   > **Riformulato il 2026-08-07 da [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md)** — *indebolito no, composto sì*. Un **segmento** è delimitato dall'inizio di una macro-fase **oppure** da un *decision boundary* (finestra di reazione). Il turno è una **sequenza** di segmenti, ciascuno dei quali è un «raccogli poi applica» completo con snapshot proprio. Il resolver non attende **mai** dentro un segmento: lo termina e restituisce il controllo. Prima di ADR-0004 il segmento coincideva sempre con la macro-fase, quindi la formulazione precedente resta valida per tutte le fasi senza finestre.
 4. **Determinismo**: niente `DeltaTime` non controllato nella logica dei turni; niente dipendenza dall'ordine di container non ordinati; ogni RNG usa seed/stream espliciti; ogni formato serializzato è versionato.
 5. **Server autoritativo** per ogni decisione di gameplay; il client calcola solo preview. Nell'MVP offline l'autorità è già isolata in `ARTTurnManager` (predisposizione al multiplayer).
 6. **Privacy dell'intento**: le intenzioni di pianificazione non raggiungono i client avversari — stato server + replica filtrata per squadra + autorizzazione server-side (invariante di `Intenti condivisi`). Nell'MVP offline: nessuna mossa avversaria mostrata/replicata durante la pianificazione.
@@ -171,18 +171,35 @@ Principi non negoziabili (valgono anche in offline, per preparare il multiplayer
 
 ### Classi principali (prefissi `RT`/`URT`)
 
+> ⚠️ **Riallineata al codice il 2026-08-07.** La versione precedente elencava **quattro classi su dieci che non
+> esistono**: `ARTGameState` e `URTTurnResolver` (mai realizzate — l'autorità vive in `ARTTurnManager`),
+> `URTGridLibrary` (rimossa col substrato quadrato al **CP 7.2**) e `URTAbilityData` (sostituita dal catalogo
+> data-driven `URTActionData`/`URTHeroData` in **E1**). Un documento vincolante che descrive codice inesistente
+> è peggio di un documento assente: chi lo legge agisce sul dato falso. Elenco riproducibile con
+> `grep -rhoE "^class REFACTORTACTICS_API [AU]RT[A-Za-z]+ : public [A-Za-z]+" Source/RefactorTactics/ | sort -u`.
+
 | Classe | Tipo | Responsabilità |
 |---|---|---|
-| `ARTGameMode` | GameMode | Regole autorevoli, avanzamento fasi |
-| `ARTGameState` | GameState | Stato replicabile (fase, turno, timer) |
-| `ARTPlayerController` | PlayerController | Input, selezione, invio piani |
+| `ARTGameMode` | GameMode | Regole autorevoli, allestimento della partita, avanzamento fasi |
+| `ARTPlayerController` | PlayerController | Input, selezione, pianificazione |
 | `ARTCameraPawn` | Pawn (BP `BP_TacticalCamera`) | Camera tattica pan/zoom |
-| `ARTTurnManager` | Actor | Orchestrazione del turno |
-| `URTTurnResolver` | UObject | Logica pura di risoluzione fasi |
-| `ARTUnit` | Actor | Unità: team, HP, scudo, energia, cella, abilità |
-| `URTAbilityData` | PrimaryDataAsset | Definizione data-driven abilità |
-| `URTGridLibrary` | BlueprintFunctionLibrary | Utility griglia (Manhattan, celle) |
-| `URTCombatLibrary` | BlueprintFunctionLibrary | Calcoli puri danno/copertura |
+| `ARTHUD` | HUD | Barre, timer, fase, combat log, anteprime dei piani |
+| `ARTTurnManager` | Actor | Orchestrazione del turno; **unico punto di autorità** (invariante #5) |
+| `ARTUnit` | Actor | Unità: team, HP, scudo, energia, cella (`FRTCellId`), kit |
+| `ARTHexMapActor` | Actor | Rendering della mappa via ISM — **nessun Actor per cella** |
+| `URTHexMapAsset` | PrimaryDataAsset | Mappa esagonale multilivello + hash stabile |
+| `URTActionData` · `URTHeroData` · `URTEquipmentData` | PrimaryDataAsset | Catalogo azioni · eroi · equipaggiamento (**no GAS**) |
+| `URTMatchFormatData` | PrimaryDataAsset | Parametri di formato: `RoundLimit`, timer ([D-010](../decisions/RT_PDR_00_Decision_Log.md)) |
+| `URTHexSimLibrary` | BlueprintFunctionLibrary | Snapshot, budget di movimento, collisioni simultanee |
+| `URTHexPathLibrary` | BlueprintFunctionLibrary | A\* esagonale multilivello, costi interi |
+| `URTHexVisionLibrary` | BlueprintFunctionLibrary | LOS e forme di targeting (Line/Cone/Area) |
+| `URTHexCombatLibrary` · `URTCombatResolver` | BlueprintFunctionLibrary | Risoluzione del combattimento su hex |
+| `URTCombatLibrary` | BlueprintFunctionLibrary | Combat math: **funzioni pure** (invariante #7) |
+| `URTActionQueueLibrary` · `URTActionEffectLibrary` · `URTActionFallbackLibrary` | BlueprintFunctionLibrary | Motore azioni: ordine per priorità intera, effetti, fallback (E4) |
+| `URTReactionLibrary` | BlueprintFunctionLibrary | Reazioni componibili e Intercept (E5) |
+| `URTHexBotLibrary` | BlueprintFunctionLibrary | Utility scoring del bot |
+| `URTTurnLogLibrary` | BlueprintFunctionLibrary | TurnLog: hash, serializzazione versionata, reason code |
+| `URTIntentPrivacyLibrary` | BlueprintFunctionLibrary | `FilterForTeam` → `FRTIntentView` (invariante #6) |
 
 ### Convenzioni asset
 
@@ -194,7 +211,7 @@ Naming `<Tipo>_<Feature>_<Nome>_<Variante>`: `BP_` Blueprint · `BPC_` Component
 Gli asset proprietari vivono sotto **`/Game/RT/`** con organizzazione **feature-first** (un asset sta vicino
 alla feature che lo possiede; niente cartelle globali per tipo). Regole vincolanti — struttura, posizionamento,
 dipendenze consentite fra cartelle, procedura di spostamento e checklist —
-in **[`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md)**.
+in **[`convenzioni-contenuti-ue.md`](../technical/convenzioni-contenuti-ue.md)**.
 
 ### Layout del progetto (radice repo)
 
@@ -211,7 +228,7 @@ SourceAssets/                   # sorgenti non importati (.blend/.psd/...) — c
 
 ### 5.1 Ordinamento deterministico degli effetti simultanei (APNAP) — 2026-08-02
 
-Recepito da [`spec-sequenza-turno.md`](spec-sequenza-turno.md) §3 (panel `/sc:spec-panel`). Estende
+Recepito da [`spec-sequenza-turno.md`](../gameplay/spec-sequenza-turno.md) §3 (panel `/sc:spec-panel`). Estende
 l'invariante #3: quando più effetti risolvono nello stesso istante e **l'ordine conta** (es. scudo/buff/reazione
 prima del danno), l'ordine è dato da una **regola totale deterministica**, mai dall'ordine di inserimento nel
 container.
@@ -238,23 +255,23 @@ reazione live né categorie di velocità/`EndOfPhase` (north-star, `spec-sequenz
 
 ## 6. Regole di gioco numeriche (valori iniziali, da bilanciare)
 
-> ⚠️ **Superata in parte dall'[ADR-0003](adr-0003-modello-azioni-v01.md) (2026-08-05)** per la release v0.1:
+> ⚠️ **Superata in parte dall'[ADR-0003](../decisions/adr-0003-modello-azioni-v01.md) (2026-08-05)** per la release v0.1:
 > il movimento passa da «4 celle / Dash 3» a **5 MP** con costo intero per cella (1 normale, 2 difficile,
 > 2 salita via rampa; Sprint 8 MP), la griglia è esagonale (ADR-0002) e la vittoria non è più solo per
 > eliminazione (obiettivi dinamici + limite di round). I valori qui sotto restano il riferimento
 > **storico dell'MVP quadrato**; quelli vigenti per la v0.1 sono nei cataloghi di
-> `docs/design/balance/` (creati in CP 1.2, issue `#28`).
+> `docs/balance/` (creati in CP 1.2, issue `#28`).
 >
 > ⚠️ **Revisione 2026-08-07 — DURATA, ROUND E SCALA DELLE MAPPE**
-> ([`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md)): il «limite di **12 turni**»
+> ([`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md)): il «limite di **12 turni**»
 > smette di essere una regola universale e diventa un **parametro di formato** (`RoundLimit`), insieme a timer
 > di planning, countdown del Ready, durata della Fast Reaction e banda della resolution. Il principio guida è
 > **«compatto nel tempo, non necessariamente piccolo nello spazio»**: la scala delle mappe si misura in **Move
 > necessari per raggiungere una zona rilevante**, non in celle, e non è vincolata a quella di Atlas Reactor.
 > Le macro-fasi **non cambiano**.
 
-**Valori vigenti** (v0.1, [ADR-0003](adr-0003-modello-azioni-v01.md); i dettagli per azione/eroe/terreno sono
-nei cataloghi di [`balance/`](balance/)):
+**Valori vigenti** (v0.1, [ADR-0003](../decisions/adr-0003-modello-azioni-v01.md); i dettagli per azione/eroe/terreno sono
+nei cataloghi di [`balance/`](../balance)):
 
 | Parametro | Valore vigente |
 |---|---|
@@ -263,7 +280,7 @@ nei cataloghi di [`balance/`](balance/)):
 | Movimento normale | **5 MP**, costo intero per cella (1 normale, 2 difficile/rampa) |
 | Mobilità rapida | Sprint 8 MP; Dash/Charge/Leap a **distanza fissa** dichiarata dall'azione |
 | Fine partita | eliminazione **oppure** obiettivi **oppure** `RoundLimit` (parametro di formato — v0.1 2v2: **10–14**, hard cap 14–16) |
-| Reazioni | slot Reazione con trigger, **1 attivazione per turno**; finestra interattiva **3,0 s** ([ADR-0004](adr-0004-finestre-di-reazione.md) §8) |
+| Reazioni | slot Reazione con trigger, **1 attivazione per turno**; finestra interattiva **3,0 s** ([ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) §8) |
 | Timer pianificazione | **30 s** in 2v2 (configurabile, da tarare sul misurato); baseline 3v3 Standard **40–45 s** |
 | Ready | Ready anticipato + **countdown annullabile di 3 s** quando tutti sono Ready ⏳ *non ancora implementato* |
 | Durata della partita | target 3v3 Standard **25–30 min**; **45 min** è il tetto da evitare, non un obiettivo |
@@ -291,11 +308,11 @@ nei cataloghi di [`balance/`](balance/)):
 
 ## 7. Roadmap
 
-La roadmap vive in **[`roadmap-checkpoint.md`](roadmap-checkpoint.md)** (unica vista di esecuzione: milestone,
+La roadmap vive in **[`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md)** (unica vista di esecuzione: milestone,
 checkpoint, DoD misurabili, stato). Sintesi:
 
 - **M0–M5** — MVP quadrato della fase tutorial: **archiviate** (consegnate, non si riaprono).
-- **H0–H6.5** — fondamenta della griglia esagonale: consegnate ([`hex-map-roadmap.md`](hex-map-roadmap.md)).
+- **H0–H6.5** — fondamenta della griglia esagonale: consegnate ([`hex-map-roadmap.md`](../roadmap/hex-map-roadmap.md)).
 - **M6 Parità hex** → **M7 Dismissione del quadrato** → **M8 Presentazione** → **M9 Ambienti/editor** →
   **M10 Rete e privacy** → **M11 Production readiness**.
 
@@ -335,21 +352,21 @@ Nota naming: il PDF usa `FRTGridCellId` (modello ricco); l'MVP usa `FRTGridCoord
 da riconciliare se in futuro si adotta il modello a chunk multilivello.
 
 > **Non è più un conflitto**: la **pianificazione a 40-60 s** del PDF. La baseline del formato principale
-> 3v3 è ora **40–45 s** ([`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §7);
+> 3v3 è ora **40–45 s** ([`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §7);
 > i **30 s** restano il valore del **2v2 corrente**, da tarare sul misurato, non da alzare per analogia.
 > Anche il «max 12 round» della modalità *Relay Control* elencata sopra va letto come il valore del **suo**
 > formato, non come limite del gioco.
 
 ### 8.2 Sequenza di risoluzione ricca — reazioni/reveal/timeline (north-star)
 
-Il design esplorativo [`sequenza-turno.md`](sequenza-turno.md) (trascrizione del PDF omonimo) propone un
+Il design esplorativo [`sequenza-turno.md`](../gameplay/sequenza-turno.md) (trascrizione del PDF omonimo) propone un
 modello di risoluzione molto più ricco: pianificazione segreta → **reveal progressivo** → **finestre di
 reazione** (stack LIFO stile *Magic*) → risoluzione con ordinamento **APNAP** → cleanup, con 5 categorie di
 velocità e budget di reazione. Consolidamento, conflitti con gli invarianti #3/#4 e la parte adottata per prima
 — **ordinamento deterministico degli effetti simultanei** (APNAP + tie-break totale) — in
-[`spec-sequenza-turno.md`](spec-sequenza-turno.md).
+[`spec-sequenza-turno.md`](../gameplay/spec-sequenza-turno.md).
 
-> **Aggiornamento 2026-08-06 ([ADR-0003](adr-0003-modello-azioni-v01.md), CP 1.1)**: le **reazioni non sono più
+> **Aggiornamento 2026-08-06 ([ADR-0003](../decisions/adr-0003-modello-azioni-v01.md), CP 1.1)**: le **reazioni non sono più
 > fuori scope**. La v0.1 adotta uno **slot Reazione** con trigger dichiarato e **1 attivazione per turno**
 > (epic **E5**). Resta north-star tutto il resto di questo modello: stack LIFO, finestre di reazione *live*,
 > reveal progressivo e le 5 categorie di velocità — che confliggerebbero con la risoluzione "raccogli poi
@@ -359,13 +376,13 @@ velocità e budget di reazione. Consolidamento, conflitti con gli invarianti #3/
 > ⚠️ **Aggiornamento 2026-08-07 — le finestre di reazione rientrano in scope.** Il documento
 > `docs/src/RefactorTactics_Overwatch_FastReaction_Claude.md` propone l'Overwatch come primo caso di un modello
 > generale di reazione con *decision boundary* e finestra di 3 s. La riconciliazione adottata è la via **(b)**
-> già prevista da [`spec-sequenza-turno.md`](spec-sequenza-turno.md) §3 C1: **l'invariante #3 si compone, non
+> già prevista da [`spec-sequenza-turno.md`](../gameplay/spec-sequenza-turno.md) §3 C1: **l'invariante #3 si compone, non
 > si deroga** — il turno diventa una sequenza di sotto-risoluzioni, ciascuna «raccogli poi applica» con
 > snapshot proprio, e l'input del giocatore entra nel TurnLog **come dato** (il timeout è una funzione pura).
 > Tutte le reazioni passano a un modello unico *opportunity → commit*, di cui quello di E5 è il caso degenere
 > (`AllowedResponses ≤ 1` → commit immediato, nessuna finestra).
-> Decisioni **D16–D22** e checkpoint in [`brief-overwatch-reazioni.md`](brief-overwatch-reazioni.md) (epic
-> **E14**). ✅ **Formalizzato in [ADR-0004](adr-0004-finestre-di-reazione.md)** (2026-08-07, = CP 14.1): questo
+> Decisioni **D16–D22** e checkpoint in [`brief-overwatch-reazioni.md`](../gameplay/brief-overwatch-reazioni.md) (epic
+> **E14**). ✅ **Formalizzato in [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md)** (2026-08-07, = CP 14.1): questo
 > paragrafo **è canone**, e l'invariante #3 di §5 è riformulato di conseguenza. Restano north-star lo stack
 > LIFO interattivo, gli interrupt annidati, il reveal progressivo e le 5 categorie di velocità.
 

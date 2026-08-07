@@ -3,8 +3,8 @@
 > **Stato**: brief di requisiti, **non** spec implementativa · **Data**: 2026-08-07 · **Origine**: `/sc:brainstorm`
 > **Cosa è**: il perimetro deciso in sessione per portare la *conoscenza parziale* nella v0.1.
 > **Cosa non è**: stealth. Nessuna firma visiva, nessun punteggio di rilevamento, nessun sensore — vedi §9.
-> **Autorità**: subordinato a [`piano-canonico-mvp.md`](piano-canonico-mvp.md) e [`adr-0003-modello-azioni-v01.md`](adr-0003-modello-azioni-v01.md).
-> Diventa vincolante solo quando i CP di §7 entrano in [`roadmap-v0.1.md`](roadmap-v0.1.md).
+> **Autorità**: subordinato a [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) e [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md).
+> Diventa vincolante solo quando i CP di §7 entrano in [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md).
 
 ## 1. Le tre nozioni, e quale entra adesso
 
@@ -34,7 +34,7 @@ Lo slice adotta **tre stati** invece di cinque: `Nascosto`, `ContattoIncerto`, `
 | **D4** | La visibilità si ricalcola ai **confini di fase**, non a ogni micro-step | Il Dash precede il Blast: riposizionarsi *può* ancora aprire o chiudere una linea prima degli attacchi — il 90% del valore tattico, senza toccare «raccogli poi applica» (invariante #3) |
 | **D5** | Il **targeting** è limitato alla conoscenza **di squadra**, non individuale | È la «copertura informativa»: chi ha vista 6 estende la portata utile di chi ha vista 5. Emerge dai numeri esistenti, senza una regola nuova |
 | **D6** | Il **bot** pianifica sulla **stessa** conoscenza parziale | In un 2v2 offline, nascondersi da un avversario onnisciente è teatro. È la voce più costosa dello slice ed è deliberata |
-| **D7** | ~~Nessuna finestra~~ → ~~finestra come presentazione~~ → **finestra interattiva vera** (rivista **due volte** il 2026-08-07) | **Superata da D16–D22** in [`brief-overwatch-reazioni.md`](brief-overwatch-reazioni.md). Il documento sorgente sull'Overwatch, emerso dopo, mostra che il bait/bluff non è recuperabile con condizioni dichiarate: se dichiaro «spara al primo che entra», il tank brucia sempre la reaction. La via (b) di `spec-sequenza-turno.md` §3 riconcilia la finestra con l'invariante #3 **per composizione** (sequenza di sotto-risoluzioni). ✅ Formalizzata in [ADR-0004](adr-0004-finestre-di-reazione.md) |
+| **D7** | ~~Nessuna finestra~~ → ~~finestra come presentazione~~ → **finestra interattiva vera** (rivista **due volte** il 2026-08-07) | **Superata da D16–D22** in [`brief-overwatch-reazioni.md`](brief-overwatch-reazioni.md). Il documento sorgente sull'Overwatch, emerso dopo, mostra che il bait/bluff non è recuperabile con condizioni dichiarate: se dichiaro «spara al primo che entra», il tank brucia sempre la reaction. La via (b) di `spec-sequenza-turno.md` §3 riconcilia la finestra con l'invariante #3 **per composizione** (sequenza di sotto-risoluzioni). ✅ Formalizzata in [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) |
 | **D8** | Il vertical slice è **Flux · Riva · Bastion · Vektor**; i 4 archetipi Paragon del workbook tornano `Candidate` | I cataloghi `.md` sono il canone (regola «`.md` > `.pdf`»); il workbook allinea roster e scale |
 | **D9** | I valori numerici partono dalla **scala più bassa**: statistiche dai cataloghi `.md`, parametri nuovi al **minimo di colonna**, uguali per tutti | Si parte piatti e conservativi; la differenziazione la produce il playtest, non una stima a tavolino |
 | **D10** | **AP ≡ slot**: `RES_ACTION` (cap 2) copre Movimento + Principale, `RES_REACTION` (cap 1) è lo slot Reazione | Non erano due sistemi in conflitto, erano due nomi dello stesso. Nessuna regola cambia |
@@ -73,7 +73,7 @@ quindi D5 **non riduce la gittata di nessuno**. Morde solo su bersagli non ancor
 
 Il delta vista 6 vs 5 vale **informazione**, non danno: a distanza 6 nessuna azione del roster arriva, quindi
 la vista lunga concede *anticipo di un turno*, non un colpo gratis. Questo evita di aggravare la dominanza di
-Vektor su Flux e Riva già registrata in CP 6.5 di [`RT_HeroCatalog_v0.1.md`](balance/RT_HeroCatalog_v0.1.md).
+Vektor su Flux e Riva già registrata in CP 6.5 di [`RT_HeroCatalog_v0.1.md`](../balance/RT_HeroCatalog_v0.1.md).
 
 > **Assunzione dichiarata**: i range di `PrecisionAttack`, `HeavyAttack`, `CircularAoE`, `SuppressiveLine`,
 > `MarkTarget`, `Push`, `Pull` e `Heal` **non** sono esposti nelle tabelle del catalogo azioni e non sono stati
@@ -83,12 +83,12 @@ Vektor su Flux e Riva già registrata in CP 6.5 di [`RT_HeroCatalog_v0.1.md`](ba
 
 | Documento | Impatto |
 |---|---|
-| [`piano-canonico-mvp.md`](piano-canonico-mvp.md) §8 | «fog of war» è classificata north-star P1. Lo slice **non** è fog of war (la mappa statica resta nota), ma la distinzione va scritta, altrimenti sembra scope creep |
-| [`h6-4-hex-vision-spec.md`](h6-4-hex-vision-spec.md) §6 | dichiara `VisibleCells` fuori scope. Va aggiornata: lo slice la introduce |
-| [`RT_TerrainCatalog_v0.1.md`](balance/RT_TerrainCatalog_v0.1.md) | il fumo ha già una regola (`Obscured`, cap targeting a **2**). **Prevale il catalogo**: niente densità progressiva |
-| [`RT_HeroCatalog_v0.1.md`](balance/RT_HeroCatalog_v0.1.md) | la frase «Bastion compra HP e resistenza con movimento **e vista**» diventa vera solo con questo slice; oggi è falsa |
+| [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) §8 | «fog of war» è classificata north-star P1. Lo slice **non** è fog of war (la mappa statica resta nota), ma la distinzione va scritta, altrimenti sembra scope creep |
+| [`h6-4-hex-vision-spec.md`](../technical/h6-4-hex-vision-spec.md) §6 | dichiara `VisibleCells` fuori scope. Va aggiornata: lo slice la introduce |
+| [`RT_TerrainCatalog_v0.1.md`](../balance/RT_TerrainCatalog_v0.1.md) | il fumo ha già una regola (`Obscured`, cap targeting a **2**). **Prevale il catalogo**: niente densità progressiva |
+| [`RT_HeroCatalog_v0.1.md`](../balance/RT_HeroCatalog_v0.1.md) | la frase «Bastion compra HP e resistenza con movimento **e vista**» diventa vera solo con questo slice; oggi è falsa |
 | `Core/RTGameplayTags.h` | `Status.Reveal` è già dichiarato e mai implementato: è il gancio naturale per «rivelato per un turno» |
-| [`roadmap-v0.1.md`](roadmap-v0.1.md) | +3 CP → **62** invece di 59. Va dichiarato, non assorbito in silenzio |
+| [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) | +3 CP → **62** invece di 59. Va dichiarato, non assorbito in silenzio |
 | `docs/RefactorTactics_Balance_Matrices_v0.1.xlsx` | ⚠️ **fonte numerica parallela**: contiene già il sistema di visione completo (foglio `04_Visione_Stealth` + `04b_Visione_Parametri`), ma su un **roster e una scala diversi** dai cataloghi in `balance/` — vedi §11 |
 
 ## 6. Matrice Visibilità × Terreno × Azione (ridotta allo scope)
@@ -201,8 +201,13 @@ dettagliata (Detection, Identification, Stealth, firme), modificatori di visione
 e i 22 parametri globali di `04b_Visione_Parametri`. Sono tutti marcati `Scope_v0.1 = Espansione` tranne quelli
 elencati in §3, e nessuno di essi è ancora un valore da portare in codice: il gate resta CP 13.1.
 
-⚠️ Il workbook **non è ancora versionato in git** (`docs/*.xlsx` risulta untracked). Finché non lo è, la sua
-autorità è di fatto quella di un file di lavoro locale.
+~~⚠️ Il workbook **non è ancora versionato in git** (`docs/*.xlsx` risulta untracked). Finché non lo è, la sua
+autorità è di fatto quella di un file di lavoro locale.~~
+
+> ✅ **Superata il 2026-08-07**: il workbook **è versionato** e vive in
+> [`../balance/RefactorTactics_Balance_Matrices_v0.1.xlsx`](../balance/RefactorTactics_Balance_Matrices_v0.1.xlsx),
+> accanto ai cataloghi `.md` di cui è lo strumento di esplorazione. La gerarchia non cambia: i `.md` restano
+> il canone (via **2**, D8–D11).
 
 ## 12. Il canale acustico — rumore
 

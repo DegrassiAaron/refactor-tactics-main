@@ -1,11 +1,14 @@
 # Spec — Animazione della risoluzione del turno (Resolution Playback)
 
+> ℹ️ **Regola vigente, esempi datati.** Il playback resta **presentazione** (invariante #1) e vive in `URTPlaybackLibrary`, conservata al CP 7.2.
+> Gli snippet citano API rimosse al **CP 7.2** (`URTGridLibrary`, `FRTGridCoord`): vanno letti come pseudo-codice, non come firme correnti.
+
 > `/sc:spec-panel` del **2026-08-03**. Obiettivo utente: *«valutare il round, vedere muovere i cilindri,
 > avere un senso della durata del round»*. Panel: Fowler (architettura), Nygard (robustezza di stato),
 > Adzic (pacing/esempi), Crispin (testabilità/determinismo). Documentale: **nessuna modifica al codice**.
 > Decisioni prese: **durata configurabile (default compatto) · movimento Move tutti in parallelo · spec prima del codice**.
-> Ancorata al canone ([`piano-canonico-mvp.md`](piano-canonico-mvp.md)), alla roadmap
-> ([`roadmap-checkpoint.md`](roadmap-checkpoint.md)), al resolver movimento ([`spec-mappa-multilivello.md`](spec-mappa-multilivello.md)).
+> Ancorata al canone ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md)), alla roadmap
+> ([`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md)), al resolver movimento ([`spec-mappa-multilivello.md`](../technical/spec-mappa-multilivello.md)).
 
 > ⚠️ **Conflitto di fonte.** Il PDF *«RefactorTactics – Sequenza di Risoluzione del Turno»* descrive un
 > modello **WEGO + stack LIFO (Magic) + reazioni/patch** (ispirato a Phantom Brigade/MtG) che **diverge**
@@ -212,9 +215,9 @@ Parametri `UPROPERTY(EditAnywhere)` sul TurnManager → tuning **in editor senza
 
 ## 13. Riferimenti
 
-- Canone: [`piano-canonico-mvp.md`](piano-canonico-mvp.md) — invarianti #1 (regole decidono), #4 (determinismo).
-- Roadmap: [`roadmap-checkpoint.md`](roadmap-checkpoint.md) — collocare AN.x come slice north-star post-MVP.
-- Resolver movimento e `Entered`: [`spec-mappa-multilivello.md`](spec-mappa-multilivello.md),
-  [`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md).
+- Canone: [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) — invarianti #1 (regole decidono), #4 (determinismo).
+- Roadmap: [`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md) — collocare AN.x come slice north-star post-MVP.
+- Resolver movimento e `Entered`: [`spec-mappa-multilivello.md`](../technical/spec-mappa-multilivello.md),
+  [`spec-pathfinding-pf3-pf4.md`](../technical/spec-pathfinding-pf3-pf4.md).
 - Ispirazione (north-star, non canone): `docs/RefactorTactics – Sequenza di Risoluzione del Turno.pdf`
   (timeline stile Phantom Brigade, batching, pacing ~60s, speed-up; **stack/reazioni fuori MVP**).

@@ -1,8 +1,8 @@
 # Spec H6.1–H6.3 — Simulazione su griglia esagonale (snapshot, budget, collisioni, TurnLog)
 
 > **Stato**: **Implementata** (TDD RED→GREEN; suite **140/140**, build Editor Succeeded) · **Data**: 2026-08-05 · **Branch**: `feat/hex-sim`
-> **Fonte**: milestone **H6** di [`hex-map-roadmap.md`](hex-map-roadmap.md) («Integrazione simulatore»).
-> Non tocca il turn loop quadrato (base di rollback, [ADR-0002](adr-0002-griglia-esagonale.md)).
+> **Fonte**: milestone **H6** di [`hex-map-roadmap.md`](../roadmap/hex-map-roadmap.md) («Integrazione simulatore»).
+> Non tocca il turn loop quadrato (base di rollback, [ADR-0002](../decisions/adr-0002-griglia-esagonale.md)).
 
 ## 1. Contesto e obiettivo
 
@@ -94,7 +94,7 @@ il difetto era latente e sarebbe emerso in una build pulita/CI. Helper rinominat
 # H6.3 — TurnLog e replay su celle esagonali
 
 > **Stato**: **Implementata** (TDD RED→GREEN; suite **146/146**, build Editor Succeeded) · **Branch**:
-> `feat/hex-turnlog` · Chiude il KPI «Replay divergence = 0» ([`roadmap-checkpoint.md`](roadmap-checkpoint.md))
+> `feat/hex-turnlog` · Chiude il KPI «Replay divergence = 0» ([`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md))
 > **per la topologia esagonale**.
 
 ## 3bis. Contesto
@@ -159,7 +159,7 @@ hazard di superficie.
 
 ## 8. Riferimenti
 
-- [`hex-map-roadmap.md`](hex-map-roadmap.md) — milestone H6 · [`adr-0002-griglia-esagonale.md`](adr-0002-griglia-esagonale.md)
+- [`hex-map-roadmap.md`](../roadmap/hex-map-roadmap.md) — milestone H6 · [`adr-0002-griglia-esagonale.md`](../decisions/adr-0002-griglia-esagonale.md)
 - Codice esistente riusato: `Pathfinding/RTHexPathLibrary` (A*, `GraphNeighbors`), `Map/RTHexMapAsset`
   (`ComputeHash`, `Revision`, `FindCell`), `Turn/RTTurnLog.h` (`ERTMoveOutcome`).
 - Riferimento di semantica per i microstep: `Turn/RTMovementResolver.cpp` (versione quadrata).

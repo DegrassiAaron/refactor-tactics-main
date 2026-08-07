@@ -2,8 +2,8 @@
 
 > **Fase corrente**: post-tutorial · **Ultimo aggiornamento**: 2026-08-05
 > Vista di **esecuzione** del progetto: milestone, checkpoint, Definition of Done (DoD) **misurabile** e metodo
-> di verifica. Il *cosa* e il *perché* stanno in [`piano-canonico-mvp.md`](piano-canonico-mvp.md); i requisiti
-> tecnici di lungo periodo in [`../PDR/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](../PDR/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md).
+> di verifica. Il *cosa* e il *perché* stanno in [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md); i requisiti
+> tecnici di lungo periodo in [`../PDR/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](RT_PDR_10_Roadmap_QA_Rischi_v0.2.md).
 >
 > Regola: un checkpoint è "fatto" solo quando il DoD è verificato col metodo indicato — non "sembra funzionare".
 
@@ -27,7 +27,7 @@ Conseguenze operative:
   i branch lunghi hanno già causato merge onerosi).
 - **1 checkpoint = ≥1 commit** con messaggio significativo; si committa quando il DoD del checkpoint è verde.
 - Test automatici prima di chiudere un checkpoint che tocca le regole (mai saltarli).
-- Le verifiche che richiedono l'editor sono voci in [`test-manuali-pie.md`](test-manuali-pie.md), non gate impliciti.
+- Le verifiche che richiedono l'editor sono voci in [`test-manuali-pie.md`](../technical/test-manuali-pie.md), non gate impliciti.
 
 ## Stato attuale
 
@@ -41,15 +41,15 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in parte (vedi nota) · ⏳ da far
 | **M7** Dismissione del quadrato | 🟡 | **Un solo substrato + release interna**: CP 7.1, 7.2 e 7.4 fatti (rimozione, packaging Development e Shipping avviati). Resta **CP 7.3**: 2 KPI su 4 misurati, FPS e preview richiedono rendering/editor |
 | **M8** Presentazione e identità | 🟡 | **Le regole dei 4 eroi ci sono e le reazioni funzionano in partita** (E6: 25 test; CP 5.5 + CP 6.7 del 2026-08-07 hanno reso il motore componibile e cablato `Interposition`, `Deflection`, `ReactiveCapacitor`; `InterceptShot` e `FlowReaction` sono rinviate a **E14** e lo dichiarano nei dati). Resta la **presentazione**: personaggi animati, anelli team/selezione, **Ghost Timeline del planning** (`#172`/`#173`), leggibilità tattica — banco di prova: la showcase E15 |
 | **M9** Ambienti tattici + editor maturo | 🟡 | **Terreni e stati** (E8: costi, Rough, Fire, ShallowWater, Smoke, Ice — 17 test; **CP 8.2 stati temporanei chiuso il 2026-08-07**, 11 test: durata legata alla cella, danno di `Burning` nel Cleanup prima dei KO, `Wet` che spegne le fiamme, `Marked` cablato). **CP 8.3 chiuso il 2026-08-07** (7 test: propagazione elettrica sul grafo dell'acqua, limite 3 passi, unicità per evento, ordine totale). **Epic E8 chiusa il 2026-08-07** (CP 8.1-8.5): terreni, stati, propagazione elettrica, terreno dinamico con fuoco/acqua, azioni ambientali e di supporto. Restano **cover dinamica e porte/ponti** (E9, con `CreateCover` rinviata da CP 8.5) e il residuo H5 dell'editor |
-| **M10** Rete e privacy | ⏳ | Listen server, validazione server, planning team-only, canary intent leak. **Nuovo vincolo**: [ADR-0004](adr-0004-finestre-di-reazione.md) introduce N round-trip per turno (finestre di reazione) |
+| **M10** Rete e privacy | ⏳ | Listen server, validazione server, planning team-only, canary intent leak. **Nuovo vincolo**: [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) introduce N round-trip per turno (finestre di reazione) |
 | **M11** Production readiness | ⏳ | Budget in CI, validator commandlet, packaged soak, replay audit |
 
-**Suite automatica**: `Source/RefactorTactics/Tests/` — **366** test unici in 55 file (misurati 2026-08-07 alla
-chiusura di CP 8.5 e dell'epic E8).
+**Suite automatica**: `Source/RefactorTactics/Tests/` — **390** test unici in **61** file (misurati 2026-08-07
+al commit `50159c6`).
 Storia del numero: **172** alla chiusura di CP 6.0 → **230** con M6+E1 → **171** dopo la rimozione del quadrato
 (i **59** test previsti dall'inventario) → **324** con E4/E5/E6 e i terreni → **325** col merge di `#144` →
 **338** con gli stati temporanei di CP 8.2 (`#65`) → **342** con i merge di `#179`/`#180` (misurato, mai
-dichiarato: le due viste citavano ancora 338) → **347** con le reazioni componibili di CP 5.5 (`#154`) → **352** col cablaggio delle reazioni d'eroe di CP 6.7 (`#155`) → **359** con la propagazione elettrica di CP 8.3 (`#66`) → **362** col terreno dinamico di CP 8.4 (`#67`) → **366** con le azioni ambientali di CP 8.5 (`#68`, epic E8 chiusa).
+dichiarato: le due viste citavano ancora 338) → **347** con le reazioni componibili di CP 5.5 (`#154`) → **352** col cablaggio delle reazioni d'eroe di CP 6.7 (`#155`) → **359** con la propagazione elettrica di CP 8.3 (`#66`) → **362** col terreno dinamico di CP 8.4 (`#67`) → **366** con le azioni ambientali di CP 8.5 (`#68`, epic E8 chiusa) → **390** col primo blocco dell'harness degli scenari (`50159c6`).
 
 Comando di misura, riproducibile:
 
@@ -75,13 +75,13 @@ Manca la prova sul campo: la sessione di playtest **CP 6.8**, che si esegue in e
 ## La release v0.1 (2026-08-05)
 
 Le milestone qui sotto restano la vista di **esecuzione**. Sopra di esse esiste ora una vista di **release**:
-[`roadmap-v0.1.md`](roadmap-v0.1.md) — **16 epic, 82 checkpoint** *(era 12/59; **E13** conoscenza parziale,
+[`roadmap-v0.1.md`](roadmap-v0.1.md) — **17 epic, 85 checkpoint** *(era 12/59; **E13** conoscenza parziale,
 **E14** overwatch, **E15** showcase ed **E16** orientamento aggiunte il 2026-08-07, insieme ai checkpoint del
-planning visuale in **E11** → [`brief-planning-visuale.md`](brief-planning-visuale.md))*, issue `#14`–`#85` e
+planning visuale in **E11** → [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md))*, issue `#14`–`#85` e
 `#151`–`#177` — che aggrega M6–M9 e
 aggiunge il contenuto del catalogo v0.1 (4 eroi, ~35 azioni, reazioni, ambiente attivo, strutture, obiettivi
 dinamici, comandi debug). La decisione abilitante è
-[`adr-0003-modello-azioni-v01.md`](adr-0003-modello-azioni-v01.md): **le macro-fasi restano quelle di Atlas**
+[`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md): **le macro-fasi restano quelle di Atlas**
 (`Prep → Dash → Blast → Move`), mentre dal catalogo si adottano modello azioni, priorità intera intra-fase,
 budget **5 MP**, reazioni, terreni e obiettivi.
 
@@ -95,10 +95,11 @@ budget **5 MP**, reazioni, terreni e obiettivi.
 | **E7** Equipaggiamento · **E10** Obiettivi | — | nuove |
 | **E8** Terreni/ambiente · **E9** Strutture | **M9** | M9 con i valori del catalogo, anticipata nella v0.1 |
 | **E12** QA e release | **M7** CP 7.3/7.4 + parte di **M11** | anticipa KPI e packaging; CI e soak restano a M11 |
-| **E13** Conoscenza parziale (vista e udito) | parte di **M8**/**M10** | **nuova** (2026-08-07): la vista decide il targeting, il rumore è il secondo canale — [`brief-conoscenza-parziale.md`](brief-conoscenza-parziale.md) |
-| **E14** Overwatch e reazioni interattive | — | **nuova** (2026-08-07): [ADR-0004](adr-0004-finestre-di-reazione.md); dipende da E13 |
-| **E15** Showcase «Il Relè» e golden replay | parte di **M8** | **nuova** (2026-08-07): la prova integrata — fixture, scenario scriptabile, replay a hash stabile — [`showcase-v0.1.md`](showcase-v0.1.md) |
-| **E16** Orientamento e direzionalità | parte di **M8**/**M9** | **nuova** (2026-08-07): [ADR-0005](adr-0005-orientamento.md); il facing deriva dal movimento e decide difesa, percezione e reazioni. **Prerequisito di E13** |
+| **E13** Conoscenza parziale (vista e udito) | parte di **M8**/**M10** | **nuova** (2026-08-07): la vista decide il targeting, il rumore è il secondo canale — [`brief-conoscenza-parziale.md`](../gameplay/brief-conoscenza-parziale.md) |
+| **E14** Overwatch e reazioni interattive | — | **nuova** (2026-08-07): [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md); dipende da E13 |
+| **E15** Showcase «Il Relè» e golden replay | parte di **M8** | **nuova** (2026-08-07): la prova integrata — fixture, scenario scriptabile, replay a hash stabile — [`showcase-v0.1.md`](../product/showcase-v0.1.md) |
+| **E16** Orientamento e direzionalità | parte di **M8**/**M9** | **nuova** (2026-08-07): [ADR-0005](../decisions/adr-0005-orientamento.md); il facing deriva dal movimento e decide difesa, percezione e reazioni. **Prerequisito di E13** |
+| **E17** Validazione di stress 4v4 | oltre **M9** | **nuova** (2026-08-07): [D-011](../decisions/RT_PDR_00_Decision_Log.md). **Misura, non produzione**: dove si rompe il sistema con otto unità. Dopo E15; **non** decide il formato principale |
 | — | **M10** Rete e privacy | **fuori** dalla v0.1 |
 
 ### Stato misurato delle epic — 2026-08-07
@@ -119,7 +120,7 @@ La conseguenza sulle milestone di *questa* vista è:
 > `Flux.ReactiveCapacitor` e `Riva.FlowReaction` sono identità a catalogo con `Effects` vuoto, e
 > `RTHeroCatalogLibrary.cpp` porta ancora commenti «arriva con E5» — mentre E5 è chiusa. Un motore che nessuno
 > consuma non è collaudato: **CP 5.5** (`#154`) lo rende componibile e **CP 6.7** (`#155`) cabla gli eroi —
-> ✅ **entrambi chiusi il 2026-08-07**, vedi [`spec-reazioni-componibili-cp55.md`](spec-reazioni-componibili-cp55.md).
+> ✅ **entrambi chiusi il 2026-08-07**, vedi [`spec-reazioni-componibili-cp55.md`](../gameplay/spec-reazioni-componibili-cp55.md).
 > Restano fuori `Vektor.InterceptShot` e `Riva.FlowReaction`, rinviate a **E14** e dichiarate tali nei dati.
 > `Vektor.InterceptShot` e `Riva.FlowReaction` appartengono invece a **E14** (trigger su movimento e movimento
 > reattivo).
@@ -153,15 +154,15 @@ Lo strato puro esiste già ed è testato (`URTHexSimLibrary`, `URTHexPathLibrary
 
 | CP | Obiettivo | Definition of Done | Verifica |
 |---|---|---|---|
-| **6.0** ✅ | Riordino dei contenuti | 11 asset sotto `/Game/RT` **feature-first**; percorsi hard-coded (`DefaultEngine.ini`, default `TSoftObjectPtr` in C++) e `.gitignore` aggiornati; nessun redirector residuo. Fatto **2026-08-05** via API Editor headless, suite **172/172** | Registro e insidie in [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §A. ⏳ resta il PIE degli anelli (`PIE-AS5`/`PIE-SEL`) |
-| **6.1** 🟡 | Allestimento della partita su mappa hex | `ARTGameMode` allestisce la partita da un `ARTHexMapActor` + `URTHexMapAsset`; `ARTUnit` ha la posizione autorevole in `FRTCellId` (**sostituzione**, non campo parallelo: due coordinate = due verità); l'occupazione è ricostruibile dallo stato unità | Codice **fatto** 2026-08-05: `FRTGridCoord` rimosso (35 file, tag `pre-cellid-swap`), `URTMatchSetupLibrary` pura, posizionamento via `URTHexLibrary`. Build Editor ✅, suite **180/0**. ⏳ resta `PIE-HEXPLAY-1`. Piano: [`cp6-1-hex-match-setup-plan.md`](cp6-1-hex-match-setup-plan.md) |
+| **6.0** ✅ | Riordino dei contenuti | 11 asset sotto `/Game/RT` **feature-first**; percorsi hard-coded (`DefaultEngine.ini`, default `TSoftObjectPtr` in C++) e `.gitignore` aggiornati; nessun redirector residuo. Fatto **2026-08-05** via API Editor headless, suite **172/172** | Registro e insidie in [`convenzioni-contenuti-ue.md`](../technical/convenzioni-contenuti-ue.md) §A. ⏳ resta il PIE degli anelli (`PIE-AS5`/`PIE-SEL`) |
+| **6.1** 🟡 | Allestimento della partita su mappa hex | `ARTGameMode` allestisce la partita da un `ARTHexMapActor` + `URTHexMapAsset`; `ARTUnit` ha la posizione autorevole in `FRTCellId` (**sostituzione**, non campo parallelo: due coordinate = due verità); l'occupazione è ricostruibile dallo stato unità | Codice **fatto** 2026-08-05: `FRTGridCoord` rimosso (35 file, tag `pre-cellid-swap`), `URTMatchSetupLibrary` pura, posizionamento via `URTHexLibrary`. Build Editor ✅, suite **180/0**. ⏳ resta `PIE-HEXPLAY-1`. Piano: [`cp6-1-hex-match-setup-plan.md`](plans/cp6-1-hex-match-setup-plan.md) |
 | **6.2** 🟡 | Movimento end-to-end | `ARTTurnManager` costruisce `FRTHexSnapshot`, risolve con `ResolveHexPaths`, applica gli esiti e produce il TurnLog con `BuildMoveLog`; playback lungo i centri esagonali senza deriva | Codice **fatto** 2026-08-05: `GetHexContext` unica fonte di scala; 3 test d'integrazione in `UWorld` (cella raggiunta senza deriva, destinazione fuori mappa rifiutata, contesa con 2 `BlockedContested` nel TurnLog). Suite **183/0**. ⏳ restano `PIE-HEXPLAY-4/5`. **Perdita dichiarata**: cross-damage del terreno non portato (dipendeva da `URTTerrainData` quadrato) → epic **E8** |
-| **6.3** 🟡 | Input, selezione, preview | Raycast → cella assiale del layer corretto; pianificazione a waypoint con rifiuto di celle oltre budget/bloccate/occupate; anteprima del percorso | Codice **fatto** 2026-08-05: `WorldToCellId`, `BuildCompositeHexPath` (budget cumulativo, rifiuto intero), `GetHexContext`/`FindInWorld` (unica fonte di scala, 4 duplicazioni rimosse), `MakeCurrentSnapshot` (il client valida sullo stato dell'autorità), anteprima a debug-line. **Riparata una regressione**: il controller cercava `ARTGridActor`, non più spawnato → movimento non pianificabile e LOS **fail-open**. Suite **192/0**. ⏳ restano `PIE-HEXPLAY-2/3`. Piano: [`cp6-3-hex-input-plan.md`](cp6-3-hex-input-plan.md) |
+| **6.3** 🟡 | Input, selezione, preview | Raycast → cella assiale del layer corretto; pianificazione a waypoint con rifiuto di celle oltre budget/bloccate/occupate; anteprima del percorso | Codice **fatto** 2026-08-05: `WorldToCellId`, `BuildCompositeHexPath` (budget cumulativo, rifiuto intero), `GetHexContext`/`FindInWorld` (unica fonte di scala, 4 duplicazioni rimosse), `MakeCurrentSnapshot` (il client valida sullo stato dell'autorità), anteprima a debug-line. **Riparata una regressione**: il controller cercava `ARTGridActor`, non più spawnato → movimento non pianificabile e LOS **fail-open**. Suite **192/0**. ⏳ restano `PIE-HEXPLAY-2/3`. Piano: [`cp6-3-hex-input-plan.md`](plans/cp6-3-hex-input-plan.md) |
 | **6.4** 🟡 | Combat su hex | Attacchi, forme (Single/Area/Line/Cone via `HexLine`/`HexCone`), LOS via `URTHexVisionLibrary`, energia/ultimate, status Root/Slow/Reveal risolti su `FRTCellId`; combat resolver «raccogli poi applica» ordine-indipendente | Codice **fatto** 2026-08-06: libreria pura `URTHexCombatLibrary` (`HexHitCells` + `CollectHexAttacks` fail-closed senza mappa, piano in ordine canonico) e `ResolveCombat` che ne dipende; ordine delle unità reso stabile per cella. 13 nuovi test (4 forme, portata, LOS, no-fuoco-amico, permutazione, 3 d'integrazione in `UWorld`). Suite **205/0**. ⏳ restano `PIE-HEXPLAY-6/6b`. **Perdite dichiarate**: bonus altura e incendio del terreno **quadrato** non portati (→ epic **E8**); la **spinta** resta cardinale fino al CP 6.5 |
 | **6.5** 🟡 | Dash e knockback su hex | Fase Dash attiva con budget esagonale; `KnockbackDestination` in versione esagonale (direzione fra celle adiacenti, spinte opposte che si annullano, contesa che resta ferma) | Codice **fatto** 2026-08-06: `ResolveDash` usa lo stesso strato puro del movimento (`MakeCurrentSnapshot` + `FindPathForUnit` col budget dello scatto + `ResolveHexPaths`), quindi anche le unità ferme bloccano; `URTHexCombatLibrary::HexKnockbackDestination` spinge lungo la **direzione esagonale** del colpo (fail-closed senza mappa, si ferma su bordo/ostacolo/unità, preserva il layer). Suite **213/0**. ⏳ restano `PIE-HEXPLAY-4b/6c` |
 | **6.6** 🟡 | Bot su hex | `ARTTurnManager` pianifica i bot via `URTHexBotLibrary`; nessuna mossa illegale proponibile (le candidate nascono da `ReachableCells`); pesi utility restano `UPROPERTY` tunabili in PIE | Codice **fatto** 2026-08-06: `PlanBots` costruisce un pool unico di candidate (riposizionamento · attacco da fermo · scatto+attacco · scatto di riposizionamento) e lascia scegliere a `ChooseBestPlan`; l'attacco è valutato **solo** dalla cella in cui il bot sarà nel Blast. Guardie conservate (supporto, panico del kiter via nuova `BestKiteCell` pura). I 5 test d'integrazione del bot **quadrato** sono stati **portati** su hex, non cancellati. Suite **215/0**. ⏳ resta `PIE-HEXPLAY-7` |
 | **6.7** 🟡 | HUD e osservabilità | Barre HP/scudo/energia, timer, fase, combat log e anteprima piani sui centri esagonali; i reason code del TurnLog compaiono nel log con coordinate assiali `(q,r,L)` | Codice **fatto** 2026-08-06: `ARTHUD` proietta ogni cella con `URTHexLibrary::AxialToWorld` dal contesto della mappa (traccia post-lock, anteprime, waypoint, scatto) e le rotte vengono dallo stesso A\* dell'autorità; nuova `URTTurnLogLibrary::DescribeEntry` (pura) porta i reason code nel combat log — quel che il giocatore legge e quel che il replay registra sono la **stessa** cosa. Sistemato anche `Home`: la camera ricentra sulla mappa esagonale (`URTHexMapAsset::GetCenterCell`), non più sulla griglia quadrata inesistente. Suite **217/0**. ⏳ resta `PIE-HEXPLAY-9` |
-| **6.8** 🟡 | Playtest della partita hex | Mappa di prova costruita con l'editor mode (esagono r=4, ostacoli, celle che bloccano la vista, superficie costosa, piattaforma su layer 1 con una transizione); partita completa fino alla vittoria Parte **headless fatta** 2026-08-06: `RefactorTactics.HexMatch.PlaysToCompletion` gioca un 2v2 bot-vs-bot completo (invarianti per turno: nessuna sovrapposizione, nessuna cella fuori mappa) e la partita **si decide al turno 25** — dato che ha aperto la issue di bilanciamento `#96` (il catalogo prevedeva 12 turni; dopo il fix la partita chiude al **round 10**, dentro la banda 10–14 del formato 2v2 — [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §6). Resta la **sessione D**: `PIE-HEXPLAY-1..9` in editor |
+| **6.8** 🟡 | Playtest della partita hex | Mappa di prova costruita con l'editor mode (esagono r=4, ostacoli, celle che bloccano la vista, superficie costosa, piattaforma su layer 1 con una transizione); partita completa fino alla vittoria Parte **headless fatta** 2026-08-06: `RefactorTactics.HexMatch.PlaysToCompletion` gioca un 2v2 bot-vs-bot completo (invarianti per turno: nessuna sovrapposizione, nessuna cella fuori mappa) e la partita **si decide al turno 25** — dato che ha aperto la issue di bilanciamento `#96` (il catalogo prevedeva 12 turni; dopo il fix la partita chiude al **round 10**, dentro la banda 10–14 del formato 2v2 — [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §6). Resta la **sessione D**: `PIE-HEXPLAY-1..9` in editor |
 
 **DoD di milestone**: le 9 voci `PIE-HEXPLAY` verdi · suite automatica verde con i nuovi test hex · una partita
 2v2 completa dall'avvio alla vittoria su mappa esagonale multilivello · nessun percorso di gioco che passi
@@ -244,7 +245,7 @@ stantia (test di invalidazione) · le regole ambientali sono coperte da test pur
 > (~5–7 Move, contatto in 1–2 round, 2–3 macro-rotte, choke point **e** alternative) per il formato 3v3 ·
 > **Operations** fuori scope. Fog of War, rumore, stealth, flank e Overwatch **degradano tutti insieme** su
 > mappe troppo piccole: è il motivo per cui la scala è una decisione di sistema e non di gusto.
-> Dettaglio e vincoli di level design: [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md)
+> Dettaglio e vincoli di level design: [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md)
 > §3–§4, §14.
 
 ---
@@ -297,7 +298,7 @@ che blocca la CI su mappa non valida, soak test senza crash.
 | **Durata match P50 / P90** | 25–30 min / < 40–45 min *(3v3 Standard)* | ⏳ **il 3v3 non esiste**: in v0.1 si misura la banda 2v2 e si registra come tale |
 | **Playback per round** | 8–15 s (2v2) | ⏳ con la sonda di pacing (`MsPlayback`) |
 
-> I tre budget nuovi vengono da **D-010** / [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md).
+> I tre budget nuovi vengono da **D-010** / [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md).
 > Sono **target di game design**, non budget di macchina: si registrano anche fuori target, e con la riserva sul
 > campione (un solo giocatore, che è l'autore del gioco).
 
@@ -355,27 +356,27 @@ neutri (combat math, serializzazione, regole di fase). Il resto ha data di scade
 
 | Documento | Ruolo |
 |---|---|
-| [`piano-canonico-mvp.md`](piano-canonico-mvp.md) | **Canone**: decisioni vincolanti, invarianti, regole numeriche |
+| [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) | **Canone**: decisioni vincolanti, invarianti, regole numeriche |
 | [`roadmap-v0.1.md`](roadmap-v0.1.md) | **Release v0.1**: 14 epic, 69 checkpoint, mappatura con queste milestone + **§2.1 stato misurato** |
 | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate di release `G1`–`G14`, KPI, checklist di contenuto |
-| [`balance/`](balance/) | **Numeri vigenti v0.1**: cataloghi azioni, terreni, equipaggiamento, eroi, matrice di test |
-| [`spec-motore-azioni-e4.md`](spec-motore-azioni-e4.md) | **Proposta di design** del motore azioni (epic E4): modello, fette, rischi, domande aperte |
-| [`spec-stati-temporanei-cp82.md`](spec-stati-temporanei-cp82.md) | **Stati temporanei** (CP 8.2): durata legata alla cella, ordine del Cleanup, decisioni e difetti di cablaggio trovati |
-| [`spec-fuoco-acqua-cp84.md`](spec-fuoco-acqua-cp84.md) | **Terreno dinamico** (CP 8.4): dove vive la superficie corrente, copia di lavoro della mappa, ordine del Cleanup, cosa brucia |
-| [`spec-propagazione-elettrica-cp83.md`](spec-propagazione-elettrica-cp83.md) | **Propagazione elettrica** (CP 8.3): grafo dell'acqua, ordine nel Cleanup, `Action.Electrify`, limiti dichiarati |
-| [`spec-reazioni-componibili-cp55.md`](spec-reazioni-componibili-cp55.md) | **Reazioni componibili** (CP 5.5): più effetti per reazione, riduzione danno come dato, identità nel TurnLog (formato v3), helper per le reazioni d'eroe |
-| [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) | **Durata della partita, budget del round e scala delle mappe**: target per formato, `RoundLimit` parametrico, classi di mappa (Skirmish/Standard/Operations), telemetria. Supera D-002 del Decision Log |
-| [`spec-pacing-turno.md`](spec-pacing-turno.md) | **Tempo di un turno** misurato sul giocatore: sonda, percentili, regola di taratura di `PlanningSeconds` |
-| [`brief-delayed-actions.md`](brief-delayed-actions.md) | **Brief di scope** delle Delayed Actions e dei boundary di fase: cosa aggiungono oltre ad ADR-0004, dati, test minimi. Nessuna epic aperta |
+| [`balance/`](../balance) | **Numeri vigenti v0.1**: cataloghi azioni, terreni, equipaggiamento, eroi, matrice di test |
+| [`spec-motore-azioni-e4.md`](../gameplay/spec-motore-azioni-e4.md) | **Proposta di design** del motore azioni (epic E4): modello, fette, rischi, domande aperte |
+| [`spec-stati-temporanei-cp82.md`](../gameplay/spec-stati-temporanei-cp82.md) | **Stati temporanei** (CP 8.2): durata legata alla cella, ordine del Cleanup, decisioni e difetti di cablaggio trovati |
+| [`spec-fuoco-acqua-cp84.md`](../gameplay/spec-fuoco-acqua-cp84.md) | **Terreno dinamico** (CP 8.4): dove vive la superficie corrente, copia di lavoro della mappa, ordine del Cleanup, cosa brucia |
+| [`spec-propagazione-elettrica-cp83.md`](../gameplay/spec-propagazione-elettrica-cp83.md) | **Propagazione elettrica** (CP 8.3): grafo dell'acqua, ordine nel Cleanup, `Action.Electrify`, limiti dichiarati |
+| [`spec-reazioni-componibili-cp55.md`](../gameplay/spec-reazioni-componibili-cp55.md) | **Reazioni componibili** (CP 5.5): più effetti per reazione, riduzione danno come dato, identità nel TurnLog (formato v3), helper per le reazioni d'eroe |
+| [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) | **Durata della partita, budget del round e scala delle mappe**: target per formato, `RoundLimit` parametrico, classi di mappa (Skirmish/Standard/Operations), telemetria. Supera D-002 del Decision Log |
+| [`spec-pacing-turno.md`](../gameplay/spec-pacing-turno.md) | **Tempo di un turno** misurato sul giocatore: sonda, percentili, regola di taratura di `PlanningSeconds` |
+| [`brief-delayed-actions.md`](../gameplay/brief-delayed-actions.md) | **Brief di scope** delle Delayed Actions e dei boundary di fase: cosa aggiungono oltre ad ADR-0004, dati, test minimi. Nessuna epic aperta |
 | [`v0.1-issue-plan.md`](v0.1-issue-plan.md) | Titoli e body delle 72 issue (`#14`–`#85`) e ordine di apertura dei branch |
-| [`adr-0003-modello-azioni-v01.md`](adr-0003-modello-azioni-v01.md) | Modello azioni del catalogo v0.1 sulle macro-fasi di Atlas |
-| [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) | **Normativo**: struttura di `Content/`, naming, dipendenze fra cartelle, spostamenti |
+| [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md) | Modello azioni del catalogo v0.1 sulle macro-fasi di Atlas |
+| [`convenzioni-contenuti-ue.md`](../technical/convenzioni-contenuti-ue.md) | **Normativo**: struttura di `Content/`, naming, dipendenze fra cartelle, spostamenti |
 | *questo file* | **Esecuzione**: milestone, checkpoint, DoD, stato |
 | [`roadmap-editor.md`](roadmap-editor.md) | **Operativo in editor**: sedute di authoring e verifica (U1–U17), ordine e dipendenze verso i checkpoint |
 | [`hex-map-roadmap.md`](hex-map-roadmap.md) | **Dettaglio tecnico** della linea esagonale H0–H6.5 (consegnate) e del residuo editor H5 |
-| [`../PDR/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](../PDR/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) | **Requisiti** di lungo periodo (fasi F0–F6, QA, rischi) — direzione, non scope |
-| [`test-manuali-pie.md`](test-manuali-pie.md) | Verifiche interattive in editor, per sessioni |
-| ADR ([`adr-0002-griglia-esagonale.md`](adr-0002-griglia-esagonale.md)) | Decisioni architetturali con motivazione e revisione |
+| [`../PDR/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) | **Requisiti** di lungo periodo (fasi F0–F6, QA, rischi) — direzione, non scope |
+| [`test-manuali-pie.md`](../technical/test-manuali-pie.md) | Verifiche interattive in editor, per sessioni |
+| ADR ([`adr-0002-griglia-esagonale.md`](../decisions/adr-0002-griglia-esagonale.md)) | Decisioni architetturali con motivazione e revisione |
 
 **Mappatura con le fasi PDR**: M6+M7 ≈ **F0** consolidata su hex · M8 ≈ parte di **F4** · M9 ≈ **F3**+**F2**
 (ambienti, kit) · M10 ≈ **F1** · M11 ≈ **F5–F6**. Le divergenze consolidate restano due, e prevale il canone:

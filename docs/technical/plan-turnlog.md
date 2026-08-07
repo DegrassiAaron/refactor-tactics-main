@@ -1,5 +1,8 @@
 # TurnLog + reason codes — Implementation Plan
 
+> 📦 **Piano di esecuzione consegnato** — **riferimento storico, non normativo.**
+> Gli snippet di codice usano API rimosse al **CP 7.2** (`URTGridLibrary`, `FRTGridCoord`). La feature è viva: `URTTurnLogLibrary` è in `main`, con hash permutazione-invariante, serializzazione versionata e checksum.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Produrre un TurnLog strutturato, deterministico e permutazione-invariante degli esiti di Movimento e Combat, con reason codes (enum interi), riflessi nel combat log HUD.

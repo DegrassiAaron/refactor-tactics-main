@@ -12,11 +12,11 @@
 
 La style guide visuale di riferimento è il file PNG presente nel repository:
 
-**`Guida visiva HUD tattica fantascientifica.png`**
+**`docs/technical/img/UI-style-guide.png`**
 
-Riferimento Markdown, assumendo che questo documento venga collocato nella stessa cartella del PNG:
+Riferimento Markdown:
 
-![RefactorTactics HUD Style Guide](./Guida%20visiva%20HUD%20tattica%20fantascientifica.png)
+![RefactorTactics HUD Style Guide](./img/UI-style-guide.png)
 
 La tavola di riferimento è una board da **1536×1024** e definisce il linguaggio grafico di base per:
 

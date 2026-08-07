@@ -1,11 +1,14 @@
 # Spec — TurnLog strutturato + reason codes (Movimento + Combat)
 
+> ℹ️ **Regola vigente, esempi datati.** Il TurnLog è **neutro rispetto alla topologia** e resta normativo: al CP 7.1 i suoi test sono stati classificati fra i **neutri** e sono sopravvissuti alla rimozione del quadrato.
+> Gli snippet citano API rimosse al **CP 7.2** (`URTGridLibrary`, `FRTGridCoord`): vanno letti come pseudo-codice, non come firme correnti.
+
 > `/sc:spec-panel` + brainstorming del **2026-08-03**. Obiettivo utente (task **P3** della roadmap): *«reason codes +
 > TurnLog»* — rendere ogni esito del turno **spiegabile** e produrre una traccia deterministica del round.
 > Panel: **Nygard** (osservabilità/robustezza), **Wiegers** (DoD misurabile), **Fowler** (confini), **Crispin/Adzic** (test per esempi).
 > Ancorata al codice (`RTTurnManager`, `RTMovementResolver`, `RTCombatResolver`, `RTCombatLibrary`, `RTResolvedEvent`),
-> al canone ([`piano-canonico-mvp.md`](piano-canonico-mvp.md) invarianti #1/#3/#4/#7, §5.1, §6) e alla roadmap
-> ([`roadmap-checkpoint.md`](roadmap-checkpoint.md)).
+> al canone ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) invarianti #1/#3/#4/#7, §5.1, §6) e alla roadmap
+> ([`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md)).
 > **Documentale: questo file non modifica il codice.**
 
 > ✅ **Nessun conflitto di scope**: P3 **non** è north-star. La roadmap lo traccia già come mitigazione del rischio
@@ -204,7 +207,7 @@ Slice successivo — **serializzazione versionata** — ✅ **fatto** (`SR`, mer
 
 ## 13. Riferimenti
 
-- Canone: [`piano-canonico-mvp.md`](piano-canonico-mvp.md) — invarianti #1/#3/#4/#7, §5.1 (APNAP/tie-break), §6.
-- Roadmap: [`roadmap-checkpoint.md`](roadmap-checkpoint.md) — risk register, KPI «Replay divergence = 0».
+- Canone: [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) — invarianti #1/#3/#4/#7, §5.1 (APNAP/tie-break), §6.
+- Roadmap: [`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md) — risk register, KPI «Replay divergence = 0».
 - Codice: `RTTurnManager.h/.cpp`, `RTMovementResolver.h/.cpp`, `RTCombatResolver.h/.cpp`, `RTCombatLibrary.h/.cpp`, `RTResolvedEvent.h`, `RTUnit.h`, `RTPlayerController.cpp`.
-- Playback (struttura sorella, non riusata): [`spec-anima-risoluzione.md`](spec-anima-risoluzione.md).
+- Playback (struttura sorella, non riusata): [`spec-anima-risoluzione.md`](../gameplay/spec-anima-risoluzione.md).

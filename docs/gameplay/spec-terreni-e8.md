@@ -1,7 +1,7 @@
 # Spec — Terreni esagonali (E8, CP 8.1)
 
-> Brainstorming del **2026-08-06**. Fonti: [`RT_TerrainCatalog_v0.1.md`](balance/RT_TerrainCatalog_v0.1.md)
-> (catalogo canonico) · [`v0.1-issue-plan.md`](v0.1-issue-plan.md) §E8 (issue `#64`, CP 8.1) · codice
+> Brainstorming del **2026-08-06**. Fonti: [`RT_TerrainCatalog_v0.1.md`](../balance/RT_TerrainCatalog_v0.1.md)
+> (catalogo canonico) · [`v0.1-issue-plan.md`](../roadmap/v0.1-issue-plan.md) §E8 (issue `#64`, CP 8.1) · codice
 > esistente (`Map/RTHexCellData.h`, `Pathfinding/RTHexPathLibrary.*`, `Combat/RTHexCombatLibrary.*`,
 > `Ability/RTActionDef.h` + `RTCatalogLibrary.*`). Superate le regole di
 > [`spec-terreni.md`](spec-terreni.md) (grid quadrato, rimosso in `7d8889b`).

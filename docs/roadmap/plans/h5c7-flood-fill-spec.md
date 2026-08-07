@@ -1,7 +1,7 @@
 # Spec H5c.7 — Flood-fill (secchiello)
 
 > **Stato**: Approvata (design) · **Data**: 2026-08-04 · **Branch**: `feat/hex-grid`
-> **Fonte**: milestone H5 di [`hex-map-roadmap.md`](hex-map-roadmap.md) (riga H5c+, shape/fill). Non tocca il quadrato.
+> **Fonte**: milestone H5 di [`hex-map-roadmap.md`](../hex-map-roadmap.md) (riga H5c+, shape/fill). Non tocca il quadrato.
 
 ## 1. Contesto e obiettivo
 Dipingere cella-per-cella (anche con drag/raggio) è lento per riempire regioni ampie della stessa superficie.
@@ -50,7 +50,7 @@ celle con la **stessa superficie**, applicando il pennello corrente (Surface/cos
 - **Logica pura → test headless**: `RefactorTactics.HexMap.FloodRegion` in `Source/RefactorTactics/Tests/RTHexMapTests.cpp`:
   regione di 3 celle contigue stessa superficie; un vicino di superficie diversa = bordo (escluso); una cella stessa
   superficie ma **non contigua** = esclusa; start su cella inesistente → regione vuota.
-- **Editor-bound (non headless, dichiarato)** → voce PIE in lista [`test-manuali-pie.md`](test-manuali-pie.md):
+- **Editor-bound (non headless, dichiarato)** → voce PIE in lista [`test-manuali-pie.md`](../../technical/test-manuali-pie.md):
   `PIE-HEX-MODE-N` — in Fill, click su una regione la riempie col pennello; un Undo la ripristina; click su cella vuota
   non fa nulla; con l'overlay (Select/Paint) si vedono i nuovi colori.
 - **DoD**: build Editor+Game verdi; nessuna dip. editor nel runtime oltre la `FScopedTransaction` già `#if WITH_EDITOR`;

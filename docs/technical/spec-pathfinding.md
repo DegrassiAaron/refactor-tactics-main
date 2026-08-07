@@ -1,7 +1,11 @@
 # Spec — Path Finding (RefactorTactics)
 
+> ⚠️ **Superato dal pivot esagonale** ([ADR-0002](../decisions/adr-0002-griglia-esagonale.md)) — **riferimento storico, non normativo.**
+> Descrive il substrato **quadrato**, rimosso dal codice al **CP 7.2** (`Grid/`, `URTGridLibrary`, `FRTGridCoord`, resolver e bot quadrati). Il path finding autorevole è oggi `URTHexPathLibrary` (A\* esagonale multilivello, costi interi); la specifica corrente è [`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md).
+> Conservato per provenienza e come comportamento di riferimento della parità hex (M6). Punto di ritorno: tag `pre-hex-only`.
+
 > Prodotta da un panel di revisione specifiche (`/sc:spec-panel`) il **2026-08-02**.
-> Autorità: subordinata a [`piano-canonico-mvp.md`](piano-canonico-mvp.md) e [`roadmap-checkpoint.md`](roadmap-checkpoint.md).
+> Autorità: subordinata a [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) e [`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md).
 > I riferimenti ai PDF sono la **visione north-star**, non lo scope MVP (vedi CLAUDE.md, fonte di verità §4).
 
 ## Ambito deciso

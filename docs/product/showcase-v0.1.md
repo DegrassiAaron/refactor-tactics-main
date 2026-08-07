@@ -1,7 +1,7 @@
 # RefactorTactics — Showcase v0.1 «Il Relè»
 
 > **Stato**: scenario definito · **fixture Lite atterrata (CP 15.2)**, turni non ancora scriptati · **Ultimo aggiornamento**: 2026-08-07
-> **Epic**: **E15** di [`roadmap-v0.1.md`](roadmap-v0.1.md) §5 · **CP 15.1–15.5**
+> **Epic**: **E15** di [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) §5 · **CP 15.1–15.5**
 > **Sorgente**: [`../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md`](../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md)
 > (handoff del 2026-08-07, consolidato qui — in caso di conflitto prevale questo file)
 
@@ -41,7 +41,7 @@ showcase → codice speciale → demo che funziona una volta sola
 ### Roster vigente — e cosa è storico
 
 Il roster canonico della v0.1 è **Flux · Riva · Bastion · Vektor**
-([`balance/RT_HeroCatalog_v0.1.md`](balance/RT_HeroCatalog_v0.1.md)).
+([`balance/RT_HeroCatalog_v0.1.md`](../balance/RT_HeroCatalog_v0.1.md)).
 
 Materiale **storico, non canone**, presente in PDF e documenti precedenti — da non reintrodurre:
 
@@ -49,7 +49,7 @@ Materiale **storico, non canone**, presente in PDF e documenti precedenti — da
 |---|---|
 | Aegis · Nyx · Drift · Vex | Flux · Riva · Bastion · Vektor |
 | 100 HP per tutti | 90 / 95 / 120 / 100 (per eroe, dal catalogo) |
-| Finestra di interrupt da 5 s | **3.0 s** ([ADR-0004](adr-0004-finestre-di-reazione.md) §8) |
+| Finestra di interrupt da 5 s | **3.0 s** ([ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) §8) |
 | Mappa piatta, griglia quadrata | esagonale assiale multilivello, `FRTCellId{X,Y,Layer}` |
 | GAS come motore delle abilità | resolver C++ + `URTActionData`; GAS resta north-star |
 
@@ -110,7 +110,7 @@ tratto `Ice` · un tratto `Rough` · almeno un percorso alternativo · (E9) cove
 > per scelta, perché deve far leggere otto turni scriptati in pochi minuti. Le mappe **Standard** del formato
 > competitivo saranno sensibilmente più ampie (~5–7 Move di attraversamento, 2–3 macro-rotte, ordine di
 > grandezza 150–200 celle percorribili). **Non usare questa arena come prova che le mappe finali debbano avere
-> questa dimensione** — [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §4, §18.
+> questa dimensione** — [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §4, §18.
 
 ---
 
@@ -132,7 +132,7 @@ Nessuna riga di questa tabella si costruisce dentro E15.
 | `Riva.FlowReaction` (riposizionamento **dentro** un boundary) | ⏳ rinviata | **E14** |
 | Micro-step del movimento sospendibile | ⏳ | **CP 14.2** |
 | Finestra `FIRE`/`HOLD` da 3 s, `Vektor.InterceptShot` interattivo | ⏳ | **CP 14.5** |
-| Orientamento come stato di gioco (facing dal movimento, retro scoperto) | ⏳ | **CP 16.1/16.2** — [ADR-0005](adr-0005-orientamento.md) |
+| Orientamento come stato di gioco (facing dal movimento, retro scoperto) | ⏳ | **CP 16.1/16.2** — [ADR-0005](../decisions/adr-0005-orientamento.md) |
 | Conoscenza parziale reale (vista **a cono**, rumore, tre livelli) | ⏳ | **E13** (dipende da CP 16.1) |
 | Etichette *confermato / previsto / incerto* nell'HUD | ⏳ | **CP 11.2** |
 
@@ -144,7 +144,7 @@ Queste regole valgono nello scenario e vivono nei **dati**, mai nel codice delle
 - il punteggio **«primo a 4 punti»**;
 - la durata di **8 turni** — **dato di scenario**, non una regola: il `RoundLimit` è un parametro di formato
   (2v2 v0.1: banda 10–14, valore iniziale 12; 3v3 Standard: 16–20 —
-  [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §6). Gli 8 turni della
+  [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §6). Gli 8 turni della
   showcase sono **più corti apposta**: è una demo scriptata, non una partita competitiva.
 
 > Vietato: `if (Turn == 4) { MoveRelay(); }` in `ARTTurnManager`. Quando la relocation arriverà, sarà uno
@@ -209,7 +209,7 @@ Dash» è una proprietà dell'arena verificata dai test di E4/E8, non un evento 
 
 ## 5. Determinismo e golden replay
 
-La formula di determinismo cambia quando entrano le finestre di reazione ([ADR-0004](adr-0004-finestre-di-reazione.md) §3):
+La formula di determinismo cambia quando entrano le finestre di reazione ([ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) §3):
 
 ```text
 stessa snapshot + stessi intenti di planning + stesse decisioni di reazione

@@ -8,7 +8,7 @@
 
 **Tech Stack:** Unreal Engine 5.8.1, C++, Unreal Automation Framework (`IMPLEMENT_SIMPLE_AUTOMATION_TEST`).
 
-**Spec:** [`spec-pacing-turno.md`](spec-pacing-turno.md).
+**Spec:** [`spec-pacing-turno.md`](../../gameplay/spec-pacing-turno.md).
 
 ## Global Constraints
 
@@ -1205,7 +1205,7 @@ Il target è **«nessun taglio»** e non un numero di secondi: il vincolo della 
 Nota: la tabella ha già una riga sul **numero** di round, che è l'issue `#96` — riga diversa, problema diverso
 (spec §10). ⚠️ **Aggiornata il 2026-08-07**: era `Turni per partita ≤ 12`, ora è `Round per partita (2v2 v0.1)
 10–14`, perché il limite è diventato un parametro di formato
-([`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §6). Anche la §4 della DoD ha
+([`spec-durata-partita-e-scala-mappe.md`](../../gameplay/spec-durata-partita-e-scala-mappe.md) §6). Anche la §4 della DoD ha
 tre righe nuove sulla **durata** che useranno lo stesso canale di questa sonda: non duplicarle qui.
 
 - [ ] **Step 2: Aggiornare il riferimento a `#96` nella spec**

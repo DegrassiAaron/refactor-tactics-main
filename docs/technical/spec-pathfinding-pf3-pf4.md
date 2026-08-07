@@ -2,7 +2,7 @@
 
 > Prodotta da un panel di revisione specifiche (`/sc:spec-panel`) il **2026-08-02**.
 > Segue [`spec-pathfinding.md`](spec-pathfinding.md) (PF.1/PF.2, già implementati).
-> Autorità: subordinata a [`piano-canonico-mvp.md`](piano-canonico-mvp.md). I riferimenti PDF = north-star.
+> Autorità: subordinata a [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md). I riferimenti PDF = north-star.
 
 ## 0. Riconciliazioni recepite (decisioni 2026-08-02)
 

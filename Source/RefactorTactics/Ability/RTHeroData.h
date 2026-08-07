@@ -20,7 +20,7 @@ class URTActionData;
  * `URTCatalogLibrary::MakeBasicAttack`), indici 1-4 le quattro abilita' fondamentali — di cui **una sola**
  * dichiara varianti (`URTHeroCatalogLibrary::ValidateHeroes` lo fa valere).
  *
- * Solo interi (invariante #4). Riferimento: docs/design/balance/RT_HeroCatalog_v0.1.md
+ * Solo interi (invariante #4). Riferimento: docs/balance/RT_HeroCatalog_v0.1.md
  */
 UCLASS(BlueprintType)
 class REFACTORTACTICS_API URTHeroData : public UPrimaryDataAsset
@@ -57,7 +57,7 @@ public:
 
 	/**
 	 * Debolezza dichiarata dell'eroe. Il PDF del catalogo la elenca fra gli elementi fissi ma non la esplicita
-	 * per nessuno dei quattro eroi (docs/design/balance/RT_HeroCatalog_v0.1.md §5): **non si inventa**, va
+	 * per nessuno dei quattro eroi (docs/balance/RT_HeroCatalog_v0.1.md §5): **non si inventa**, va
 	 * decisa esplicitamente per ciascun eroe. Un eroe senza debolezza non passa `ValidateHeroes`.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")

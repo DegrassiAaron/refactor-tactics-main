@@ -2,7 +2,7 @@
 
 > **Stato**: codice **completo** (fondamenta + wiring + anteprima) · ⏳ restano `PIE-HEXPLAY-2/3`
 > **Branch**: `feat/33-hex-input-planning` (padre: `main`) · **Data**: 2026-08-05
-> Roadmap: [`roadmap-checkpoint.md`](roadmap-checkpoint.md) CP 6.3 ≡ [`roadmap-v0.1.md`](roadmap-v0.1.md) CP 2.3
+> Roadmap: [`roadmap-checkpoint.md`](../roadmap-checkpoint.md) CP 6.3 ≡ [`roadmap-v0.1.md`](../roadmap-v0.1.md) CP 2.3
 
 ## Perché è bloccante: la regressione trovata
 

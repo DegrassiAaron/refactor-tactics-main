@@ -23,7 +23,7 @@ enum class ERTPlanningInput : uint8
 
 /**
  * Un turno misurato. TELEMETRIA: non entra nel TurnLog, non entra nel suo hash, non influenza nessuna
- * decisione di gioco (docs/design/spec-pacing-turno.md §4). E' l'unica ragione per cui puo' permettersi di
+ * decisione di gioco (docs/gameplay/spec-pacing-turno.md §4). E' l'unica ragione per cui puo' permettersi di
  * non essere deterministico.
  *
  * Tutti interi in millisecondi: un `float` in CSV con locale italiano stampa la virgola decimale, che

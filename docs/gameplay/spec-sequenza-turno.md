@@ -3,9 +3,9 @@
 > Prodotta da un panel di revisione specifiche (`/sc:spec-panel`) il **2026-08-02**.
 > Consolida il design esplorativo [`sequenza-turno.md`](sequenza-turno.md) (trascrizione leggibile del
 > PDF *«RefactorTactics – Sequenza di Risoluzione del Turno»*).
-> Autorità: **subordinata** a [`piano-canonico-mvp.md`](piano-canonico-mvp.md) (fonte di verità #1). Il grosso
+> Autorità: **subordinata** a [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) (fonte di verità #1). Il grosso
 > di questo modello è **north-star** (post-MVP): **non modifica l'MVP**. Convive con la riconciliazione fasi già
-> decisa in [`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md) §0 (R1).
+> decisa in [`spec-pathfinding-pf3-pf4.md`](../technical/spec-pathfinding-pf3-pf4.md) §0 (R1).
 
 ## 0. Cos'è il documento sorgente
 
@@ -40,7 +40,7 @@ sola parte adottabile a breve.
 > Lo schema fasi del sorgente (`Reveal → Reazione → Risoluzione`) **non** sostituisce il canone
 > `Planning → Prep → Dash → Blast → Move → Cleanup`: è un'elaborazione **mappabile** su di esso — Blast/Move
 > restano il punto di risoluzione; il layer reazioni si innesta sui checkpoint interni (`OnHit`, `OnMove`…).
-> (Decisione già presa: [`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md) §0 R1.)
+> (Decisione già presa: [`spec-pathfinding-pf3-pf4.md`](../technical/spec-pathfinding-pf3-pf4.md) §0 R1.)
 
 ## 2. Conflitti con gli invarianti (da NON risolvere in silenzio)
 
@@ -63,7 +63,7 @@ Per `CLAUDE.md` (conflitto tra fonti → segnala, non sovrascrivere una decision
   > proprio. L'invariante #3 **si compone, non si deroga** — nessun `Delay` entra nel resolver, che si ferma
   > su un *decision boundary* e riparte con l'input come **dato**. Restano vere le due condizioni di C2: il
   > default allo scadere è una funzione pura (`Timeout → HOLD`) e l'esito non dipende da *quando* arriva il
-  > click. ✅ **Formalizzato in [ADR-0004](adr-0004-finestre-di-reazione.md)** (2026-08-07): l'invariante #3
+  > click. ✅ **Formalizzato in [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md)** (2026-08-07): l'invariante #3
   > del canone §5 è riformulato — «snapshot a inizio **segmento**», dove un segmento è delimitato da una
   > macro-fase **o** da un decision boundary. **C1 è chiuso.**
 
@@ -80,7 +80,7 @@ Per `CLAUDE.md` (conflitto tra fonti → segnala, non sovrascrivere una decision
 ## 3. Adottabile ora (basso rischio, alto valore): ordinamento deterministico degli effetti simultanei
 
 **È l'unica estrazione a breve.** È un incremento del comportamento dei resolver, **recepito nel piano
-canonico** ([`piano-canonico-mvp.md`](piano-canonico-mvp.md) §5.1, 2026-08-02) come `FR-RESOLVE-01..03` — sul
+canonico** ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) §5.1, 2026-08-02) come `FR-RESOLVE-01..03` — sul
 modello delle riconciliazioni R1/R2/R3 del pathfinding.
 
 **Ordine totale APNAP-adattato** per un insieme di effetti simultanei:
@@ -171,6 +171,6 @@ Componenti del sorgente, con nota di riconciliazione:
 ## Appendice — sorgente e nota di collocazione
 
 Sorgente: [`sequenza-turno.md`](sequenza-turno.md) (trascrizione del PDF omonimo).
-**Nota storica:** il sorgente viveva nella radice `docs/`; spostato in `docs/design/` il **2026-08-02**
+**Nota storica:** il sorgente viveva nella radice `docs/`; spostato in `docs/design/` il **2026-08-02**, poi in `docs/gameplay/` il **2026-08-07**
 (convenzione `CLAUDE.md`: i design nella sottocartella pertinente) contestualmente a questo consolidamento.
 Conserva dettaglio non ripreso qui: snippet JSON, diagramma mermaid, tabelle UX e valori di default.

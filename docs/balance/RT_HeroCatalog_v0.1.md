@@ -1,7 +1,7 @@
 # RT — Catalogo eroi v0.1
 
-> **Fonte**: `docs/src/RefactorTactics — Catalogo e bilanciamento v0.1.pdf` §§7–9 · `docs/PDR/RT_PDR_12_Catalog_v0.1.pdf`
-> **Decisione abilitante**: [`adr-0003-modello-azioni-v01.md`](../adr-0003-modello-azioni-v01.md) · **Checkpoint**: CP 1.2 (issue `#28`)
+> **Fonte**: `docs/src/RefactorTactics — Catalogo e bilanciamento v0.1.pdf` §§7–9 · `docs/archive/pdr-v0.1/RT_PDR_12_Catalog_v0.1.pdf`
+> **Decisione abilitante**: [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md) · **Checkpoint**: CP 1.2 (issue `#28`)
 > **Implementazione**: epic **E6** (`#54`–`#59`).
 
 ## Stato dell'implementazione (2026-08-06)
@@ -162,7 +162,7 @@ nel vertical slice).
 ### 5.1 Percezione e risorsa firma — consolidato il 2026-08-07
 
 La colonna **Vista** smette di essere inerte: con lo slice di conoscenza parziale
-([`brief-conoscenza-parziale.md`](../brief-conoscenza-parziale.md)) decide **cosa la squadra può bersagliare**.
+([`brief-conoscenza-parziale.md`](../gameplay/brief-conoscenza-parziale.md)) decide **cosa la squadra può bersagliare**.
 Nessuna azione del roster supera la vista di chi la usa (max `range` 5 su vista minima 5), quindi il vincolo
 non riduce la gittata di nessuno: la vista lunga vale **anticipo d'informazione**, non danno.
 

@@ -1,7 +1,7 @@
 # ADR-0002 — Pivot da griglia quadrata a griglia esagonale (+ editor mappa)
 
 > **Stato**: Accettato — in implementazione · **Data**: 2026-08-03 · **Decisore**: utente (dev singolo)
-> **Contesto sorgente**: `/sc:spec-panel` su `docs/guides/Implementazione Griglia Esagonale ed Editor Mappa.docx`
+> **Contesto sorgente**: `/sc:spec-panel` su `docs/src/Editor - Implementazione Griglia Esagonale ed Editor Mappa.docx`
 
 ## Contesto
 
@@ -19,7 +19,7 @@ separati da rendering/NavMesh; split C++/Blueprint.
 
 ## Decisione
 
-Sostituire la griglia quadrata con una **esagonale**, **per milestone** (H0–H9, [`hex-map-roadmap.md`](hex-map-roadmap.md)),
+Sostituire la griglia quadrata con una **esagonale**, **per milestone** (H0–H9, [`hex-map-roadmap.md`](../roadmap/hex-map-roadmap.md)),
 piccole e **compilabili**:
 
 - **Coordinate**: `FRTCellId` assiale (X=Q, Y=R) + cubica derivata (Z = −X − Y), `Layer` per i piani; 6 vicini;
@@ -57,7 +57,7 @@ sostituzione dei sistemi avviene da H1+. Il ramo **`feat/hex-grid`** isola il pi
 
 ## Verifica (per milestone)
 
-Criteri Done H0–H9 in [`hex-map-roadmap.md`](hex-map-roadmap.md). **H0**: compila; test coordinate (axial↔world,
+Criteri Done H0–H9 in [`hex-map-roadmap.md`](../roadmap/hex-map-roadmap.md). **H0**: compila; test coordinate (axial↔world,
 6 vicini, distanza cubica, ordinamento) verdi; il modulo runtime **non** dipende da moduli Editor.
 
 ## Revisione

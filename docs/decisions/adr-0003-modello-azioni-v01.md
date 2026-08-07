@@ -1,10 +1,10 @@
 # ADR-0003 — Modello azioni/priorità del catalogo v0.1 sulle macro-fasi di Atlas
 
 > **Stato**: Accettato — da implementare · **Data**: 2026-08-05 · **Decisore**: utente (dev singolo)
-> **Contesto sorgente**: `docs/PDR/RT_PDR_12_Catalog_v0.1.pdf` + `docs/src/RefactorTactics — Catalogo e bilanciamento v0.1.pdf`,
+> **Contesto sorgente**: `docs/archive/pdr-v0.1/RT_PDR_12_Catalog_v0.1.pdf` + `docs/src/RefactorTactics — Catalogo e bilanciamento v0.1.pdf`,
 > su richiesta di realizzare la roadmap v0.1 (`docs/road-map_info.md`)
 >
-> ⚠️ **Emendamento 2026-08-07** — [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md):
+> ⚠️ **Emendamento 2026-08-07** — [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md):
 > il **«limite di 12 turni»** citato qui sotto non è più una regola universale. Resta la decisione strutturale —
 > **la partita finisce per più vie, non solo per eliminazione** — mentre il numero diventa `RoundLimit`,
 > **parametro del formato di partita**: **10–14** per il 2v2 della v0.1 (12 resta il valore iniziale del
@@ -60,7 +60,7 @@ Il modello a 7 fasi del catalogo **non sostituisce** le macro-fasi: i suoi codic
 - **Reazioni**: dichiarate in planning, trigger valutato deterministicamente, **massimo 1 attivazione per turno**.
 - **Terreni** (8), **stati** (Wet, Burning, Electrified, Obscured, Rooted, Exposed, Marked, Slow),
   **coperture/strutture** con integrità, **obiettivi dinamici**, **fallback** espliciti per azione.
-- **Cataloghi come documenti versionati** in `docs/design/balance/` (§13 del catalogo) e data asset
+- **Cataloghi come documenti versionati** in `docs/balance/` (§13 del catalogo) e data asset
   `PDA_*` sotto `Content/RT/` **feature-first** (non `Content/RefactorTactics/Data/` come scrive il catalogo:
   prevalgono le `convenzioni-contenuti-ue.md`).
 
@@ -128,8 +128,8 @@ reazioni — visibili agli alleati, **mai** replicate ai nemici.
 - Test di budget: 5 MP con costi 1/2 e rampa 2; Sprint 8 MP applica `Status.Exposed`.
 - Test «nessun float»: costi, priorità e danni sono interi in tutti i data asset (validator, CP 1.4).
 
-DoD completa in [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md); checkpoint in
-[`roadmap-v0.1.md`](roadmap-v0.1.md).
+DoD completa in [`v0.1-definition-of-done.md`](../roadmap/v0.1-definition-of-done.md); checkpoint in
+[`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md).
 
 ## Revisione
 

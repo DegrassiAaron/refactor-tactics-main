@@ -2,8 +2,8 @@
 
 > **Stato**: proposta di design, **da approvare** · **Data**: 2026-08-06 · **Epic**: E4 (`#42`–`#46`)
 > **Prerequisiti già in `main`**: `FRTActionDef` + `URTCatalogLibrary` (CP 1.3/1.4), cataloghi in
-> [`balance/`](balance/) (CP 1.2), turno interamente esagonale (M6).
-> **Decisione abilitante**: [ADR-0003](adr-0003-modello-azioni-v01.md).
+> [`balance/`](../balance) (CP 1.2), turno interamente esagonale (M6).
+> **Decisione abilitante**: [ADR-0003](../decisions/adr-0003-modello-azioni-v01.md).
 >
 > ⚠️ Le issue di E4 dichiarano una dipendenza da **`#40`** (rimozione del gameplay quadrato), che a sua volta
 > attende il playtest **CP 6.8**. Questa spec si può leggere e correggere subito; l'implementazione parte quando

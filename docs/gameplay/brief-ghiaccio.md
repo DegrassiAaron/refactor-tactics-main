@@ -4,8 +4,8 @@
 > `docs/src/RefactorTactics — Implementazione terreno Ghiaccio v0.1 in Unreal Engine 5.md` (36 sezioni)
 > **Esito**: lo **scivolamento base resta in v0.1 perché è già implementato**; il **motore** (Momentum,
 > Traction, Prone, collisioni a catena, integrità, rottura, ponti) è **fuori**, epic post-release.
-> **Autorità**: subordinato a [`piano-canonico-mvp.md`](piano-canonico-mvp.md) e
-> [`RT_TerrainCatalog_v0.1.md`](balance/RT_TerrainCatalog_v0.1.md).
+> **Autorità**: subordinato a [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) e
+> [`RT_TerrainCatalog_v0.1.md`](../balance/RT_TerrainCatalog_v0.1.md).
 
 ## 1. La sorpresa: lo slide c'è già
 
@@ -49,7 +49,7 @@ che l'ADR ha già risolto in senso opposto: chi implementasse §27 alla lettera 
 altro slide richiede un resolver **a punto fisso**: si itera finché lo stato non cambia più. È possibile in
 modo deterministico, ma è un motore nuovo, non un'estensione — e nessuna batteria di casi ne copre lo spazio
 di stato. Se rientrasse in scope, rientrerebbe con esso il **fuzzing deterministico**, valutato e scartato in
-[roadmap-v0.1 §5 CP 12.6](roadmap-v0.1.md).
+[roadmap-v0.1 §5 CP 12.6](../roadmap/roadmap-v0.1.md).
 
 ## 4. Cosa entra nella v0.1
 

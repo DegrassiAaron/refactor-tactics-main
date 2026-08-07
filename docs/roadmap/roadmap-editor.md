@@ -23,12 +23,12 @@ tre checkpoint a ✅ e chiude sei voci dell'Editor Mode ferme da M9.
 quando la seduta è finita, cosa sblocca.
 
 **Non è** il registro degli esiti → l'esito atteso e lo stato ✅/⏳ delle voci `PIE-*` vivono in
-[`test-manuali-pie.md`](test-manuali-pie.md). Qui si citano gli **ID**, mai il contenuto.
+[`test-manuali-pie.md`](../technical/test-manuali-pie.md). Qui si citano gli **ID**, mai il contenuto.
 
 **Non è** un manuale → la procedura passo-passo sta nelle guide esistenti
-([`guida-animazioni-paragon.md`](guida-animazioni-paragon.md),
-[`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §5/§6/§11,
-[`../guides/debug-vs-unreal.md`](../guides/debug-vs-unreal.md)), e viene linkata. I passi espliciti compaiono
+([`guida-animazioni-paragon.md`](../technical/guida-animazioni-paragon.md),
+[`convenzioni-contenuti-ue.md`](../technical/convenzioni-contenuti-ue.md) §5/§6/§11,
+[`../guides/debug-vs-unreal.md`](../technical/debug-vs-unreal.md)), e viene linkata. I passi espliciti compaiono
 solo dove nessuna guida copre ancora la cosa: oggi **U1** (costruire l'arena) e **U16** (misurare i KPI).
 
 **Non decide lo scope** → milestone e DoD di prodotto restano nelle altre due roadmap. Se una seduta scopre che
@@ -217,7 +217,7 @@ anello di team). **Fuori percorso critico**: nessuna di queste sedute blocca la 
 **Cosa fai**: i 26 pack Paragon sono in `Content/FabAsset/Paragon/` — path `/Game/FabAsset/Paragon/<Pack>/…`,
 non più `/Game/<Pack>/…` (`convenzioni-contenuti-ue.md` appendice B). ⚠️ Gideon, Sparrow e altri 3 pack sono
 stati danneggiati dalla migrazione del 2026-08-06 e **vanno riscaricati da Fab** prima di usarli.
-Procedura: [`guida-animazioni-paragon.md`](guida-animazioni-paragon.md) §AS.3 e §AS.4 punto 4.
+Procedura: [`guida-animazioni-paragon.md`](../technical/guida-animazioni-paragon.md) §AS.3 e §AS.4 punto 4.
 Collocazione: `/Game/RT/Characters/<CharacterId>/Blueprints/` (§5); i pack di terze parti restano **fuori** da
 `/Game/RT`. Assegna le classi a `GuardianUnitClass` / `RangerUnitClass` e tieni `VisualZOffset=0`.
 
@@ -230,7 +230,7 @@ Collocazione: `/Game/RT/Characters/<CharacterId>/Blueprints/` (§5); i pack di t
 **Sbloccata da**: U7 · **Preparazione condivisa con**: U7, U9 · **Percorso critico**: no
 **Produce**: `ABP_Gideon`, `ABP_Sparrow` e i montaggi Cast/Hit/Death
 
-**Cosa fai**: procedura completa in [`guida-animazioni-paragon.md`](guida-animazioni-paragon.md) §AS.4a
+**Cosa fai**: procedura completa in [`guida-animazioni-paragon.md`](../technical/guida-animazioni-paragon.md) §AS.4a
 (locomozione Idle↔Run pilotata dai delegate, **non** da `GetVelocity`) e §AS.4b (montaggi via eventi C++),
 più §«Ripetere per il Ranger» per il duplicato.
 
@@ -386,11 +386,11 @@ sbagliato.
 
 | Documento | Ruolo |
 |---|---|
-| [`piano-canonico-mvp.md`](piano-canonico-mvp.md) | **Canone**: decisioni vincolanti e invarianti |
+| [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) | **Canone**: decisioni vincolanti e invarianti |
 | [`roadmap-checkpoint.md`](roadmap-checkpoint.md) | **Esecuzione**: milestone M6–M11, checkpoint, DoD, stato |
 | [`roadmap-v0.1.md`](roadmap-v0.1.md) | **Release v0.1**: 14 epic, 69 checkpoint |
 | *questo file* | **Operativo in editor**: sedute, artefatti, ordine, dipendenze |
-| [`test-manuali-pie.md`](test-manuali-pie.md) | **Registro delle verifiche**: esito atteso e stato delle voci `PIE-*` |
-| [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) | **Normativo**: dove va un asset, come si chiama, come si sposta |
-| [`guida-animazioni-paragon.md`](guida-animazioni-paragon.md) | Procedura per personaggi, AnimBP e montaggi |
-| [`../guides/debug-vs-unreal.md`](../guides/debug-vs-unreal.md) | Compilare, avviare, debuggare, eseguire i test |
+| [`test-manuali-pie.md`](../technical/test-manuali-pie.md) | **Registro delle verifiche**: esito atteso e stato delle voci `PIE-*` |
+| [`convenzioni-contenuti-ue.md`](../technical/convenzioni-contenuti-ue.md) | **Normativo**: dove va un asset, come si chiama, come si sposta |
+| [`guida-animazioni-paragon.md`](../technical/guida-animazioni-paragon.md) | Procedura per personaggi, AnimBP e montaggi |
+| [`../guides/debug-vs-unreal.md`](../technical/debug-vs-unreal.md) | Compilare, avviare, debuggare, eseguire i test |

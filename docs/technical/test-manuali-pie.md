@@ -5,7 +5,7 @@
 > Regola: una voce è ✅ **solo dopo** verifica reale in PIE — non «dovrebbe funzionare».
 > Per lavorarci in modo efficiente vedi **«Sessioni di verifica consigliate»** in fondo: le voci aperte sono
 > raggruppate per preparazione condivisa, così l'editor si apre una volta per gruppo invece che una per voce.
-> **Quale voce affrontare e quando** lo dice [`roadmap-editor.md`](roadmap-editor.md): questo file resta il
+> **Quale voce affrontare e quando** lo dice [`roadmap-editor.md`](../roadmap/roadmap-editor.md): questo file resta il
 > **registro** (esito atteso e stato), quello è la **sequenza** (sedute U1–U17, artefatti da creare, dipendenze
 > verso i checkpoint di codice).
 
@@ -57,7 +57,7 @@ Misura riproducibile, così il numero non si cita a memoria:
 awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);
   if (s ~ /✅/) c["verde"]++; else if (s ~ /🟡/) c["parziale"]++; else c["aperta"]++ }
   END {printf "verde=%d parziale=%d aperta=%d\n", c["verde"], c["parziale"], c["aperta"]}' \
-  docs/design/test-manuali-pie.md
+  docs/technical/test-manuali-pie.md
 ```
 
 Le 30 aperte in tre gruppi, più due residui:
@@ -144,11 +144,11 @@ Le 30 aperte in tre gruppi, più due residui:
 
 ### Contenuto della v0.1 (catalogo azioni, eroi, ambiente, strutture)
 
-> Voci pianificate in anticipo per la release **v0.1** ([`roadmap-v0.1.md`](roadmap-v0.1.md)). Le prime dodici
+> Voci pianificate in anticipo per la release **v0.1** ([`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md)). Le prime dodici
 > traducono la matrice di test manuali del catalogo di bilanciamento (§14); le ultime cinque coprono roster,
 > HUD e strumenti di debug.
 > Precondizioni comuni: partita hex avviata (sessione D verde) e catalogo v0.1 caricato dai data asset.
-> Riferimento issue in [`v0.1-issue-plan.md`](v0.1-issue-plan.md).
+> Riferimento issue in [`v0.1-issue-plan.md`](../roadmap/v0.1-issue-plan.md).
 >
 > ⚠️ **Riallineamento 2026-08-07** — la frase «*il codice non esiste ancora*» che apriva questa sezione **era
 > falsa**: le epic E1, E4, E5 ed E6 sono chiuse (**352** test misurati a fine giornata; erano 324 quando
@@ -198,7 +198,7 @@ Le 30 aperte in tre gruppi, più due residui:
 
 ### Durata, ritmo e scala — verifiche di *game feel*
 
-> Voci aperte il **2026-08-07** con [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md).
+> Voci aperte il **2026-08-07** con [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md).
 > Sono l'unica parte di quella spec che un test automatico **non può** chiudere: i numeri sono target di
 > playtest, e ciò che si valuta è se il ritmo *si sente* giusto. Nessuna di queste voci è un gate della v0.1
 > (§3 della DoD): servono a **produrre i numeri**, non a superarli.
@@ -265,7 +265,7 @@ alla Sessione A.
 > Le 4 voci di **durata, ritmo e scala** non stanno qui ma nella **sessione F**: si giocano su una partita
 > intera e cercano numeri, non difetti — mescolarle a questa sessione farebbe interrompere la partita a metà.
 
-`PIE-V01-*`. **Non ancora eseguibile**: attende la release **v0.1** ([`roadmap-v0.1.md`](roadmap-v0.1.md)), che le
+`PIE-V01-*`. **Non ancora eseguibile**: attende la release **v0.1** ([`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md)), che le
 adotta come DoD del checkpoint **12.2** (issue [#82](https://github.com/DegrassiAaron/refactor-tactics-main/issues/82)).
 Le voci si aprono man mano che le epic chiudono, non tutte in fondo:
 
@@ -295,10 +295,10 @@ fine**, senza fermarsi a indagare, e si annotano i numeri. Serve un cronometro e
    (**PIE-V01-MATCHLEN**).
 4. **Solo dopo E14**: ripeti con un'unità in Overwatch e giudica la finestra da 3 s (**PIE-V01-OVERWATCH**).
 
-I numeri raccolti vanno nella tabella KPI di [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §4
+I numeri raccolti vanno nella tabella KPI di [`v0.1-definition-of-done.md`](../roadmap/v0.1-definition-of-done.md) §4
 **con la riserva sul campione** (un solo giocatore, che è l'autore del gioco) e **con l'etichetta «2v2»**: i
 target di 25–30 min sono del 3v3 Standard, che in v0.1 non esiste.
-Bande di riferimento: [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §5–§9, §17.
+Bande di riferimento: [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §5–§9, §17.
 
 ### Mappa di prova consigliata (serve alle sessioni A, D, E ed F)
 

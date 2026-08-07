@@ -1,8 +1,8 @@
 # RT — Matrice di test v0.1
 
-> **Fonte**: `docs/src/RefactorTactics — Catalogo e bilanciamento v0.1.pdf` §§10–12, §§14–16 · `docs/PDR/RT_PDR_12_Catalog_v0.1.pdf`
+> **Fonte**: `docs/src/RefactorTactics — Catalogo e bilanciamento v0.1.pdf` §§10–12, §§14–16 · `docs/archive/pdr-v0.1/RT_PDR_12_Catalog_v0.1.pdf`
 > **Checkpoint**: CP 1.2 (issue `#28`) · **Consumatori**: CP 12.2 (matrice manuale, `#82`) e CP 12.3 (suite automatica, `#83`)
-> Le voci manuali confluiscono in [`test-manuali-pie.md`](../test-manuali-pie.md) (sessione E); quelle automatiche
+> Le voci manuali confluiscono in [`test-manuali-pie.md`](../technical/test-manuali-pie.md) (sessione E); quelle automatiche
 > diventano test dell'Automation Framework.
 
 ## 1. Regole di collisione simultanea

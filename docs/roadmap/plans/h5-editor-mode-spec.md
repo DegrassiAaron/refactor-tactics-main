@@ -1,7 +1,7 @@
 # Spec H5 — Editor Mode dedicato per la mappa esagonale
 
 > **Stato**: Approvata (design) · **Data**: 2026-08-03 · **Branch**: `feat/hex-grid`
-> **Fonte**: milestone H5 di [`hex-map-roadmap.md`](hex-map-roadmap.md); spec sorgente §9–§10 (`docs/guides/Implementazione Griglia Esagonale ed Editor Mappa.docx`); [`adr-0002-griglia-esagonale.md`](adr-0002-griglia-esagonale.md).
+> **Fonte**: milestone H5 di [`hex-map-roadmap.md`](../hex-map-roadmap.md); spec sorgente §9–§10 (`docs/guides/Implementazione Griglia Esagonale ed Editor Mappa.docx`); [`adr-0002-griglia-esagonale.md`](../../decisions/adr-0002-griglia-esagonale.md).
 > Naturale prosecuzione di H4 (multilivello). Non tocca il quadrato (`feat/skeletal-units`, base di rollback).
 
 ## 1. Contesto e obiettivo
@@ -79,7 +79,7 @@ ce ne sono più di uno e nessuno è selezionato, il toolkit chiede di selezionar
 - **Logica pura**: `WorldToAxial` per-layer è già coperta da Automation (H0). Dove H5 introduce nuova logica pura
   (es. mapping hit→cella con scelta del layer, filtro selezione) si aggiungono Automation test headless.
 - **Interattivo**: il grosso di H5 (mode/tool/toolkit/Slate) **non è unit-testabile headless** — verifiche in editor,
-  nuove voci `PIE-HEX-MODE-*` in [`test-manuali-pie.md`](test-manuali-pie.md). Dichiarato esplicitamente (niente
+  nuove voci `PIE-HEX-MODE-*` in [`test-manuali-pie.md`](../../technical/test-manuali-pie.md). Dichiarato esplicitamente (niente
   «dovrebbe funzionare»).
 - **DoD applicabile**: compila (Editor + Game); nessun nuovo warning non spiegato; nessuna dip. editor nel runtime
   packaged; roadmap aggiornata; limiti dichiarati; invarianti verificati.

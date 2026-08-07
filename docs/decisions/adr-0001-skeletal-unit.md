@@ -1,8 +1,8 @@
 # ADR-0001 — Unità da Static Mesh (cilindro) a Skeletal Mesh animata
 
 > **Stato**: Accettato — in implementazione (parte C++ di AS.1 fatta, 66 test verdi) · **Data**: 2026-08-03 · **Decisore**: utente (dev singolo)
-> **Contesto sorgente**: `/sc:spec-panel` → [`spec-asset-pipeline.md`](spec-asset-pipeline.md)
-> Primo ADR del progetto (non esisteva convenzione ADR: questo file la inaugura in `docs/design/`).
+> **Contesto sorgente**: `/sc:spec-panel` → [`spec-asset-pipeline.md`](../technical/spec-asset-pipeline.md)
+> Primo ADR del progetto (non esisteva convenzione ADR: questo file la inaugura; gli ADR vivono in `docs/decisions/` dal 2026-08-07).
 
 ## Contesto
 

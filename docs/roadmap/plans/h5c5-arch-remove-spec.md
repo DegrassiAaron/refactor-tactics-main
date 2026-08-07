@@ -1,7 +1,7 @@
 # Spec H5c.5 — Rimozione archi via tool (click-to-remove)
 
 > **Stato**: Approvata (design) · **Data**: 2026-08-04 · **Branch**: `feat/hex-grid`
-> **Fonte**: milestone H5 di [`hex-map-roadmap.md`](hex-map-roadmap.md) (riga H5c+); completa
+> **Fonte**: milestone H5 di [`hex-map-roadmap.md`](../hex-map-roadmap.md) (riga H5c+); completa
 > [`h5c2-arch-gizmo-spec.md`](h5c2-arch-gizmo-spec.md) (Add-only → Add+Remove). Non tocca il quadrato.
 
 ## 1. Contesto e obiettivo
@@ -58,7 +58,7 @@ sopra** nel viewport. Fetta solo-editor + un piccolo refactor runtime; l'edit/ri
 - **Logica pura → test headless**: `RefactorTactics.Hex.DistanceRayToSegment` in `Source/RefactorTactics/Tests/RTHexTests.cpp`:
   ray che interseca il segmento → ~0; ray parallelo a distanza D → ~D; punto di closest oltre un estremo → distanza
   dall'endpoint; degeneri (segmento di lunghezza 0 → distanza punto-ray). `RemoveTransition` già coperto da H4.
-- **Editor-bound (non headless, dichiarato)** → voce PIE in lista [`test-manuali-pie.md`](test-manuali-pie.md):
+- **Editor-bound (non headless, dichiarato)** → voce PIE in lista [`test-manuali-pie.md`](../../technical/test-manuali-pie.md):
   `PIE-HEX-MODE-L` — in `Operation=Remove`, click su un arco disegnato lo rimuove (Undo lo ripristina); click nel vuoto
   (nessun arco entro soglia) non fa nulla; in `Operation=Add` il flusso gizmo resta invariato.
 - **DoD**: build Editor+Game verdi; nessuna dip. editor nel runtime oltre la `FScopedTransaction` già `#if WITH_EDITOR`;

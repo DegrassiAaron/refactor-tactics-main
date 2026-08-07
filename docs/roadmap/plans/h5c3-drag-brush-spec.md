@@ -1,9 +1,9 @@
 # Spec H5c.3 — Drag-brush (Paint continuo con 1 Undo per pennellata)
 
 > **Stato**: Approvata (design) · **Data**: 2026-08-04 · **Branch**: `feat/hex-grid`
-> **Fonte**: milestone H5 di [`hex-map-roadmap.md`](hex-map-roadmap.md) (riga H5c+); prosecuzione di
+> **Fonte**: milestone H5 di [`hex-map-roadmap.md`](../hex-map-roadmap.md) (riga H5c+); prosecuzione di
 > [`h5c-paint-tool-spec.md`](h5c-paint-tool-spec.md) e [`h5c2-arch-gizmo-spec.md`](h5c2-arch-gizmo-spec.md);
-> [`adr-0002-griglia-esagonale.md`](adr-0002-griglia-esagonale.md). Non tocca il quadrato (`feat/skeletal-units`).
+> [`adr-0002-griglia-esagonale.md`](../../decisions/adr-0002-griglia-esagonale.md). Non tocca il quadrato (`feat/skeletal-units`).
 
 ## 1. Contesto e obiettivo
 
@@ -94,7 +94,7 @@ press+release senza celle nuove oltre la prima = pennellata di 1 cella.
   `BeginStroke` + `PaintCellInStroke×N` + `EndStroke` produce lo stesso `NumCells`/dati di N `AddOrUpdateCell` e celle
   **ordinate** dopo `EndStroke`; `EraseCellInStroke` su cella assente ritorna `false`. `Modify()`/`MarkPackageDirty()`
   headless (`GUndo==nullptr`, `NewObject` transient) sono no-op innocui. Nessun `ARTHexMapActor`/RHI necessario.
-- **Editor-bound (non headless, dichiarato)** → voci PIE nella lista [`test-manuali-pie.md`](test-manuali-pie.md):
+- **Editor-bound (non headless, dichiarato)** → voci PIE nella lista [`test-manuali-pie.md`](../../technical/test-manuali-pie.md):
   - `PIE-HEX-MODE-I` — drag-paint: tenere premuto e trascinare dipinge più celle in una pennellata; **un** Ctrl+Z la annulla;
   - `PIE-HEX-MODE-J` — drag-erase (`Operation=Erase`): trascinare cancella più celle; un Undo ripristina.
 - **DoD applicabile**: build Editor+Game verdi; nessun nuovo warning non spiegato; nessuna dip. editor nel runtime

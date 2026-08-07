@@ -1,10 +1,10 @@
 # RT — Catalogo azioni v0.1
 
-> **Fonte**: `docs/src/RefactorTactics — Catalogo e bilanciamento v0.1.pdf` §§1–3, §12 · `docs/PDR/RT_PDR_12_Catalog_v0.1.pdf`
-> **Decisione abilitante**: [`adr-0003-modello-azioni-v01.md`](../adr-0003-modello-azioni-v01.md) · **Checkpoint**: CP 1.2 (issue `#28`)
+> **Fonte**: `docs/src/RefactorTactics — Catalogo e bilanciamento v0.1.pdf` §§1–3, §12 · `docs/archive/pdr-v0.1/RT_PDR_12_Catalog_v0.1.pdf`
+> **Decisione abilitante**: [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md) · **Checkpoint**: CP 1.2 (issue `#28`)
 > **Stato**: catalogo di riferimento per la release v0.1. Questi sono i **numeri vigenti**; le *decisioni* stanno
-> nel canone ([`piano-canonico-mvp.md`](../piano-canonico-mvp.md)), lo *stato di avanzamento* nella
-> [roadmap](../roadmap-checkpoint.md).
+> nel canone ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md)), lo *stato di avanzamento* nella
+> [roadmap](../roadmap/roadmap-checkpoint.md).
 
 ## Come si legge
 
@@ -28,7 +28,7 @@ Ogni azione dichiara:
 Controllo(30) → Attacco(40) → Ambiente(50) → Cleanup(60)`, con il movimento **prima** dell'attacco. Le
 macro-fasi del progetto restano quelle di Atlas — `Prep → Dash → Blast → Move` — quindi **la fase 20 si
 sdoppia**: mobilità rapida in `Dash` (prima del Blast), percorso normale in `Move` (dopo il Blast). Ogni azione
-di movimento qui sotto dichiara esplicitamente quale delle due. Motivazione in [ADR-0003 §3](../adr-0003-modello-azioni-v01.md).
+di movimento qui sotto dichiara esplicitamente quale delle due. Motivazione in [ADR-0003 §3](../decisions/adr-0003-modello-azioni-v01.md).
 
 ## Slot per turno
 
@@ -309,7 +309,7 @@ diretti usano **Cancel** · le cure usano **Cancel** · **le reazioni non hanno 
 
 | # | PDF | Qui | Motivo |
 |---|---|---|---|
-| 1 | Fasi `Snapshot→Preparazione→Movimento→Controllo→Attacco→Ambiente→Cleanup`, movimento **prima** dell'attacco | Macro-fasi di Atlas `Prep → Dash → Blast → Move`, movimento **dopo** l'attacco; i codici restano come attributo | [ADR-0003 §1/§3](../adr-0003-modello-azioni-v01.md): l'attacco da fermo è l'identità tattica del gioco e la premessa della logica esistente (bot compreso) |
+| 1 | Fasi `Snapshot→Preparazione→Movimento→Controllo→Attacco→Ambiente→Cleanup`, movimento **prima** dell'attacco | Macro-fasi di Atlas `Prep → Dash → Blast → Move`, movimento **dopo** l'attacco; i codici restano come attributo | [ADR-0003 §1/§3](../decisions/adr-0003-modello-azioni-v01.md): l'attacco da fermo è l'identità tattica del gioco e la premessa della logica esistente (bot compreso) |
 | 2 | Fase 20 unica per tutte le azioni di movimento | Fase 20 **sdoppiata**: mobilità rapida → `Dash`, percorso normale → `Move` | Conseguenza diretta di #1: non esistono azioni che risolvono «in mezzo» |
 | 3 | Fase 30 «Controllo» come fase a sé | Controllo dentro il **Blast**, ordinato per priorità (10–50) prima del danno | Una macro-fase in più cambierebbe il TurnLog e il playback senza aggiungere espressività: la priorità intera basta |
 | 4 | Fase 50 «Ambiente» come fase a sé | Propagazione ambientale nel **Cleanup**, prima dei KO | Stesso motivo di #3; dopo il Move, così colpisce anche chi è appena entrato |
@@ -326,6 +326,6 @@ lo implica.
 ## 9. Dove finisce questo catalogo
 
 - **Data asset**: `PDA_Action_<Nome>` sotto `Content/RT/…` **feature-first** (le
-  [convenzioni contenuti](../convenzioni-contenuti-ue.md) prevalgono sul `Content/RefactorTactics/Data/` del PDF).
+  [convenzioni contenuti](../technical/convenzioni-contenuti-ue.md) prevalgono sul `Content/RefactorTactics/Data/` del PDF).
 - **Validator**: CP 1.4 (issue `#30`) confronta i data asset con questo documento.
 - **Motore azioni**: epic **E4** (`#41`–`#45`); reazioni: epic **E5** (`#50`–`#53`).

@@ -98,13 +98,22 @@ mentre l'altro guarda, in turni **simultanei** — chi non ha reazioni armate at
 
 Dipende da **E13** (detection, D22) e da **E5** (chiusa, di cui riusa i trigger). Fonte: documento §5–§17.
 
-| CP | Obiettivo | DoD misurabile | Test |
-|---|---|---|---|
-| **14.1** | **ADR-0004** — composizione dell'invariante #3 | L'ADR dichiara: il turno è una sequenza di sotto-risoluzioni; ogni segmento ha snapshot proprio; l'input del giocatore entra nel TurnLog come dato; il timeout è una funzione pura. `piano-canonico-mvp.md §8.2` e `spec-sequenza-turno.md` §3 aggiornati | Revisione documentale |
-| **14.2** | Modello unificato senza regressioni | `FRTReactionOpportunity` con `AllowedResponses`; `≤ 1` → commit immediato. **I 24 test di E5 restano verdi senza modifiche al loro comportamento atteso** | `Reactions.SingleResponseCommitsWithoutWindow`, + suite E5 invariata |
-| **14.3** | Overwatch armato e trigger a micro-step | Cono direzionale, range fisso, LOS **e** detection; trigger valutato a ogni micro-step; opportunity multiple fino a consumo; simultanei → **una** opportunity multi-bersaglio | `Overwatch.TriggersPerMicroStep`, `Overwatch.SimultaneousTargetsSingleOpportunity`, `Overwatch.RequiresDetection`, `Overwatch.OrderIsDeterministic` |
-| **14.4** | Finestra e commit | Finestra 3 s; `FIRE` consuma la charge, `HOLD` la mantiene armata; `Timeout → HOLD`; la decisione entra nel TurnLog e il **replay la riproduce**; nessun dato futuro nella opportunity sanitizzata | `Overwatch.HoldKeepsArmed`, `Overwatch.TimeoutIsHold`, `Overwatch.DecisionIsReplayable`, `Overwatch.OpportunityLeaksNoFuture` |
-| **14.5** | Counterplay e misura | KO/Stun/Disarm/Forced Movement invalidano l'overwatch armato; durata della resolution **misurata e registrata** con 1/2/3 unità armate | `Overwatch.CancelledByStun`, `Overwatch.CancelledByForcedMovement`; PIE `PIE-V01-OVERWATCH` |
+> ⚠️ **La tabella dei checkpoint viveva qui ed è stata rimossa il 2026-08-07.** Era duplicata in
+> [`../roadmap/roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) §E14, e le due copie erano **divergenti**: qui
+> c'erano 5 checkpoint, lì 6 — la rinumerazione del 2026-08-07, che ha inserito **CP 14.2** (micro-step
+> step-able) e fatto scorrere tutti i successivi, non era mai tornata su questo file. Le issue GitHub
+> `#161`–`#166` seguono la roadmap.
+>
+> **Owner dei checkpoint: la roadmap.** Questo brief possiede le *decisioni* (§3, D16–D22), non il piano.
+
+Epic **E14 · Overwatch e reazioni interattive** (P2), 6 checkpoint: →
+[`../roadmap/roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) §E14.
+
+Dipende da **E13** (detection, D22) e da **E5** (chiusa, di cui riusa i trigger). Fonte: documento §5–§17.
+Due innesti decisi dopo questo brief, entrambi in roadmap:
+[D-012](../decisions/RT_PDR_00_Decision_Log.md) porta in **CP 14.3** la condizione dichiarata e in **CP 14.4**
+il costo-opportunità e i profili per eroe — dettaglio in
+[`brief-azioni-generiche-overwatch.md`](brief-azioni-generiche-overwatch.md).
 
 ## 7. Privacy — il requisito più delicato
 
@@ -121,7 +130,7 @@ naturale** di `Reactions.IntentNotVisibleToEnemy` già esistente.
 
 ## 8. Domande aperte — ✅ tutte chiuse il 2026-08-07
 
-Risolte in [ADR-0004](adr-0004-finestre-di-reazione.md). Tre discendono dagli invarianti, una è una scelta.
+Risolte in [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md). Tre discendono dagli invarianti, una è una scelta.
 
 | # | Domanda | Risposta | Natura |
 |---|---|---|---|

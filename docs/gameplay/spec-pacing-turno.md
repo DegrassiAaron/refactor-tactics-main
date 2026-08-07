@@ -6,7 +6,7 @@
 > interattiva nel resolver, CP 5.1 (`#50`) e l'invariante #3 restano invariati.
 >
 > ⚠️ **Aggiornamenti successivi, che non invalidano il metodo**:
-> **(a)** [ADR-0004](adr-0004-finestre-di-reazione.md) (2026-08-07) reintroduce finestre interattive come
+> **(a)** [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) (2026-08-07) reintroduce finestre interattive come
 > *decision boundary* — la D1 qui sotto resta la premessa storica di questa spec, non lo stato del canone;
 > il metodo di misura è invariato, e la Fast Reaction va misurata **a parte** (è Decision Time, non planning).
 > **(b)** [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) fissa le **bande
@@ -184,7 +184,7 @@ un parametro di design che qualcuno deve leggere e giustificare, non una cifra o
 
 Obbligatorio alla chiusura di **E4**, **E5**, **E6** (§1): sono le epic che allargano lo spazio di decisione,
 e un `PlanningSeconds` tarato prima di E4 non dice nulla su dopo. Registrazione nella tabella KPI di
-[`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §4 con data, metodo, numero di campioni e la
+[`v0.1-definition-of-done.md`](../roadmap/v0.1-definition-of-done.md) §4 con data, metodo, numero di campioni e la
 riserva sul campione (§12).
 
 ## 8. Test
@@ -262,8 +262,8 @@ Conviene quindi che la sonda esista **prima** che E4 chiuda, per avere un prima 
 - Lock-in e skip da input: `Source/RefactorTactics/Player/RTPlayerController.cpp:189-196, 469-477`
 - Hash e serializzazione del TurnLog: `Source/RefactorTactics/Turn/RTTurnLogLibrary.h:38-67`
 - Reazioni pre-committed: issue `#50` (CP 5.1), DoD «senza attese nel resolver»
-- KPI di macchina: issue `#41` (CP 3.3) · tabella in [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §4
+- KPI di macchina: issue `#41` (CP 3.3) · tabella in [`v0.1-definition-of-done.md`](../roadmap/v0.1-definition-of-done.md) §4
 - Durata della partita in round (problema distinto): issue `#96` · [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md)
 - Pacing del playback e conflitto di fonte sul PDF: [`spec-anima-risoluzione.md`](spec-anima-risoluzione.md), righe 10-15 (stack e Reaction Points fuori MVP) e 117-119 (perché i 45-60 s del PDF non si applicano qui)
 - Parametri north-star delle finestre di reazione: [`spec-sequenza-turno.md`](spec-sequenza-turno.md), riga «Budget UX» (2 RP/squadra, 2-3 finestre, timer 3 s)
-- Catalogo che allarga la decisione: [`spec-motore-azioni-e4.md`](spec-motore-azioni-e4.md), [`adr-0003-modello-azioni-v01.md`](adr-0003-modello-azioni-v01.md)
+- Catalogo che allarga la decisione: [`spec-motore-azioni-e4.md`](spec-motore-azioni-e4.md), [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md)

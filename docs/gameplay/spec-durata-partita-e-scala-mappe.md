@@ -5,12 +5,12 @@
 > quanto è grande una mappa e **come si misura** che sia della dimensione giusta.
 >
 > **Non è**: il tempo di *un* turno misurato sul giocatore reale (→ [`spec-pacing-turno.md`](spec-pacing-turno.md)),
-> né il modello delle reazioni interattive (→ [ADR-0004](adr-0004-finestre-di-reazione.md)), né il pacing del
+> né il modello delle reazioni interattive (→ [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md)), né il pacing del
 > playback (→ [`spec-anima-risoluzione.md`](spec-anima-risoluzione.md)). Questa spec dice **quali numeri
 > puntare**; quelle dicono **come misurarli** e **come si riproducono a schermo**.
 >
 > **Supera**: `RT_PDR_00_Decision_Log.md` **D-002** («massimo 12 turni; planning 30 s; resolution 6-12 s»),
-> il «limite di **12 turni**» come regola universale di [ADR-0003](adr-0003-modello-azioni-v01.md) §3, e ogni
+> il «limite di **12 turni**» come regola universale di [ADR-0003](../decisions/adr-0003-modello-azioni-v01.md) §3, e ogni
 > residuo di «finestra di interrupt / Reaction Charge da **5 s**» presentato come baseline corrente.
 
 ---
@@ -105,7 +105,7 @@ Spawn → scelta immediata della rotta → primo contatto / contestazione entro 
 ```
 
 **Perché la metrica è temporale e non spaziale**: il costo di traversata è già un intero per cella e dipende
-dal terreno (1 normale, 2 difficile/rampa — [`balance/RT_TerrainCatalog_v0.1.md`](balance/RT_TerrainCatalog_v0.1.md)).
+dal terreno (1 normale, 2 difficile/rampa — [`balance/RT_TerrainCatalog_v0.1.md`](../balance/RT_TerrainCatalog_v0.1.md)).
 Contare le celle misura la cosa sbagliata: 40 celle di `Rough` e 80 celle normali sono la stessa mappa dal punto
 di vista del giocatore. Il numero di **Move** le rende confrontabili.
 
@@ -187,7 +187,7 @@ MatchFormat.Skirmish2v2     ExpectedRounds = 10–14   RoundLimit = 14–16
 
 I valori reali si fissano con telemetria e playtest (§16). **Nessuna affermazione secondo cui la struttura
 finale del gioco è obbligatoriamente limitata a 8 o 12 round è vigente**: gli 8 turni della showcase sono un
-**dato di scenario** ([`showcase-v0.1.md`](showcase-v0.1.md) §3), i 12 del catalogo v0.1 diventano il valore
+**dato di scenario** ([`showcase-v0.1.md`](../product/showcase-v0.1.md) §3), i 12 del catalogo v0.1 diventano il valore
 iniziale di `RoundLimit` per il **solo** formato 2v2 della v0.1.
 
 > **Dato misurato che sostiene la banda 2v2**: `RefactorTactics.HexMatch.PlaysToCompletion` (2026-08-06) chiude
@@ -246,7 +246,7 @@ Il countdown **non sostituisce** il timer massimo del planning: è la scorciatoi
 | `DefaultTimeoutBehavior` | **HOLD** (mai `FIRE`: un mancato input non consuma una risorsa irreversibile) |
 | `MaxPromptsPerReaction` | 3, data-driven |
 
-Formalizzata in [ADR-0004](adr-0004-finestre-di-reazione.md) §8, che resta la fonte del modello.
+Formalizzata in [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) §8, che resta la fonte del modello.
 
 La Fast Reaction **non è una seconda fase di planning**. Deve essere breve, immediata, con poche opzioni,
 contestuale, leggibile, **senza menu profondi**. L'esempio canonico è l'Overwatch:
@@ -383,7 +383,7 @@ Progressione **concettuale** del match, da non trasformare in regola:
 Un esempio puramente illustrativo — «Round 1–5: Objective A · Round 6–10: entra Objective B · Late game:
 high-value objective» — serve a mostrare la forma, **non** a fissare i numeri. La schedulazione degli obiettivi,
 quando arriverà, è **dato di scenario** sopra il sistema di E10, mai un `if (Round == N)` nel `TurnManager`
-(stessa regola della showcase, [`showcase-v0.1.md`](showcase-v0.1.md) §3).
+(stessa regola della showcase, [`showcase-v0.1.md`](../product/showcase-v0.1.md) §3).
 
 ---
 
@@ -419,9 +419,9 @@ L'Overwatch direzionale beneficia di choke point, percorsi alternativi, porte, p
 possibilità di flank. Su mappa troppo piccola diventa **troppo facilmente dominante**.
 
 **Vincolo di level design**: nessuna posizione da cui una singola Overwatch controlli sistematicamente **tutte**
-le rotte principali senza counterplay. Sistema: **E14** → [ADR-0004](adr-0004-finestre-di-reazione.md),
+le rotte principali senza counterplay. Sistema: **E14** → [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md),
 [`brief-overwatch-reazioni.md`](brief-overwatch-reazioni.md); la direzione della zona nasce dal **facing**
-([ADR-0005](adr-0005-orientamento.md) §4c).
+([ADR-0005](../decisions/adr-0005-orientamento.md) §4c).
 
 ### 14.4 Movimento
 
@@ -448,7 +448,7 @@ Planning → Prep → Dash → Blast → Move → Cleanup
 ```
 
 Il **Move normale resta l'ultima fase di spostamento volontario**, dopo il Blast
-([ADR-0003](adr-0003-modello-azioni-v01.md) §1). Non si introducono sequenze tipo `Move → Attack`.
+([ADR-0003](../decisions/adr-0003-modello-azioni-v01.md) §1). Non si introducono sequenze tipo `Move → Attack`.
 
 **Fast Action e Fast Reaction sono finestre contestuali della resolution** e **non** autorizzano una seconda
 fase completa di planning (ADR-0004 §1: l'invariante #3 si *compone*, non si deroga).
@@ -566,7 +566,7 @@ TurnLog**, interi in millisecondi, nessun ritorno verso il gameplay. Metriche da
 | **P90** durata match | **< ~40–45 min** |
 
 Non sono SLA tecnici: sono **target di game design**, e come tutti i KPI del progetto vanno **registrati anche
-quando sono fuori target** ([`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §3, G11).
+quando sono fuori target** ([`v0.1-definition-of-done.md`](../roadmap/v0.1-definition-of-done.md) §3, G11).
 
 > **Riserva sul campione, da ripetere accanto a ogni numero**: lo scope corrente è 2v2 offline contro bot. Il
 > campione è **un solo giocatore, che è l'autore del gioco** — un P50 misurato così non descrive né il 3v3 né un
@@ -644,17 +644,17 @@ Sneak · Acoustic Mask.
 
 | Tema | Documento |
 |---|---|
-| Decisioni vincolanti del progetto | [`piano-canonico-mvp.md`](piano-canonico-mvp.md) §6 |
+| Decisioni vincolanti del progetto | [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) §6 |
 | Tempo di **un** turno, sonda e taratura | [`spec-pacing-turno.md`](spec-pacing-turno.md) |
 | Pacing del **playback** | [`spec-anima-risoluzione.md`](spec-anima-risoluzione.md) §6 |
-| Modello delle reazioni e finestra 3 s | [ADR-0004](adr-0004-finestre-di-reazione.md) |
-| Macro-fasi e vittoria a tre vie | [ADR-0003](adr-0003-modello-azioni-v01.md) |
-| Orientamento (direzione dell'Overwatch) | [ADR-0005](adr-0005-orientamento.md) |
+| Modello delle reazioni e finestra 3 s | [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) |
+| Macro-fasi e vittoria a tre vie | [ADR-0003](../decisions/adr-0003-modello-azioni-v01.md) |
+| Orientamento (direzione dell'Overwatch) | [ADR-0005](../decisions/adr-0005-orientamento.md) |
 | Conoscenza parziale, vista e rumore | [`brief-conoscenza-parziale.md`](brief-conoscenza-parziale.md) |
-| Obiettivi dinamici e fine partita | [`roadmap-v0.1.md`](roadmap-v0.1.md) §5 → **E10** |
-| Gate di release e KPI | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §3–§4 |
-| Verifiche interattive | [`test-manuali-pie.md`](test-manuali-pie.md) |
-| Decision Log del PDR | [`../PDR/RT_PDR_00_Decision_Log.md`](../PDR/RT_PDR_00_Decision_Log.md) **D-010** |
+| Obiettivi dinamici e fine partita | [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) §5 → **E10** |
+| Gate di release e KPI | [`v0.1-definition-of-done.md`](../roadmap/v0.1-definition-of-done.md) §3–§4 |
+| Verifiche interattive | [`test-manuali-pie.md`](../technical/test-manuali-pie.md) |
+| Decision Log del PDR | [`../PDR/RT_PDR_00_Decision_Log.md`](../decisions/RT_PDR_00_Decision_Log.md) **D-010** |
 | Codice toccato dai parametri | `Turn/RTTurnManager.h:134` (`MaxPlaybackSeconds`), `:239` (`PlanningSeconds`) |
 | Forma della configurazione, DoD e test | issue `#185` — decisa il 2026-08-07, consumata da **CP 10.3** (`#76`) |
 | Precedenti citati in §16.3 | `Turn/RTHexSim.h` (snapshot), `Turn/RTTurnLog.h` (`ERTLogTopology`, versioni 1→3), `Turn/RTTurnLogLibrary.cpp` (`HashTurnLog`) |

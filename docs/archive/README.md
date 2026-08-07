@@ -15,4 +15,4 @@ La fonte di verità del progetto è:
   (no C# runtime), MVP 2v2 offline, dev singolo.
 - **`CLAUDE_RefactorTactics-original.md`** *(ex `docs/CLAUDE_RefactorTactics.md`)* — ottima guida operativa,
   **assorbita** nel `/CLAUDE.md` a radice. Conservata come riferimento long-form (il catalogo comandi `/sc:*`
-  vive ora in `docs/SuperClaude_RefactorTactics_CheatSheet.md`).
+  vive ora in [`docs/src/SuperClaude_RefactorTactics_CheatSheet.md`](../src/SuperClaude_RefactorTactics_CheatSheet.md)).

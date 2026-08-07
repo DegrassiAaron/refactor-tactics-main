@@ -5,8 +5,8 @@
 > Panel: **Cockburn** (attore/goal), **Fowler** (architettura/aggancio), **Wiegers** (criteri di selezione),
 > **Adzic** (DoD per esempi), **Nygard** (licenze/robustezza/LFS), **Doumont** (chiarezza).
 > Ancorata al codice (`RTUnit`, `RTGameMode`, `RTTurnManager`, `RTAbilityData`), al canone
-> ([`piano-canonico-mvp.md`](piano-canonico-mvp.md)), alla roadmap ([`roadmap-checkpoint.md`](roadmap-checkpoint.md)) e
-> al playback della risoluzione ([`spec-anima-risoluzione.md`](spec-anima-risoluzione.md)).
+> ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md)), alla roadmap ([`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md)) e
+> al playback della risoluzione ([`spec-anima-risoluzione.md`](../gameplay/spec-anima-risoluzione.md)).
 > Workflow UE verificati sulla **doc ufficiale Epic** (URL in §7); le incertezze sono marcate esplicitamente.
 > **Documentale: nessuna modifica al codice in questo documento.**
 
@@ -14,7 +14,7 @@
 > *«asset placeholder / Starter Content»* e rimanda la **direzione artistica** al post-MVP; le unità sono
 > **cilindri** (static mesh). La richiesta — **personaggi skeletali animati** — va **oltre lo scope MVP** ed è
 > materiale **north-star**. Decisione dell'utente (2026-08-03) di procedere comunque: recepita e **gated** dietro
-> [`adr-0001-skeletal-unit.md`](adr-0001-skeletal-unit.md), con **fallback al cilindro** e **invarianti #1/#4
+> [`adr-0001-skeletal-unit.md`](../decisions/adr-0001-skeletal-unit.md), con **fallback al cilindro** e **invarianti #1/#4
 > intatti** (60 test verdi). L'MVP-core resta giocabile anche senza alcun asset.
 
 ---
@@ -80,7 +80,7 @@ Tre regole non negoziabili per **ogni** asset di presentazione:
 Scelta raccomandata (canone "presentazione in Blueprint"): **`BP_Unit : ARTUnit`** aggiunge in Blueprint uno
 `USkeletalMeshComponent` + AnimBP; `ARTGameMode` spawna il BP tramite `TSubclassOf<ARTUnit>` **configurabile per
 archetipo**, non più `ARTUnit::StaticClass()` fisso (`RTGameMode.cpp:80`). Dettaglio della decisione in
-[`adr-0001-skeletal-unit.md`](adr-0001-skeletal-unit.md).
+[`adr-0001-skeletal-unit.md`](../decisions/adr-0001-skeletal-unit.md).
 
 Punti che il refactor **deve** gestire (dal codice):
 
@@ -243,7 +243,7 @@ Un asset è **accettabile** solo se soddisfa criteri verificabili:
 | **CC0 / CC-BY (itch.io, OpenGameArt, Freesound)** | CC0: libero; CC-BY: **richiede attribuzione**. Verificare per singolo asset. | pagina del singolo asset |
 
 **Requisito `FR-ASSET-LIC-01`**: ogni asset importato ha una riga in un **registro di provenienza**
-(`docs/design/asset-licenze.md` o `DT_AssetProvenance`): nome, fonte, URL, licenza, data, note attribuzione.
+(`docs/technical/asset-licenze.md` o `DT_AssetProvenance`): nome, fonte, URL, licenza, data, note attribuzione.
 *Verifica: nessun asset in `Content/` privo di riga nel registro.*
 
 ---
@@ -295,7 +295,7 @@ Slice successivi (spec separata o estensione): **Audio** (SFX sui delegate + mus
 ## 12. Decisioni
 
 **Prese (2026-08-03):**
-- Personaggi skeletali animati (north-star), **gated** dietro [`adr-0001-skeletal-unit.md`](adr-0001-skeletal-unit.md).
+- Personaggi skeletali animati (north-star), **gated** dietro [`adr-0001-skeletal-unit.md`](../decisions/adr-0001-skeletal-unit.md).
 - Presentazione in **Blueprint** (`BP_Unit : ARTUnit` + AnimBP), spawn via `TSubclassOf` configurabile.
 - Animazioni **pilotate dai delegate**, non da `GetVelocity`.
 - **Fallback cilindro** obbligatorio; asset fuori da logica/test.
@@ -314,10 +314,10 @@ Slice successivi (spec separata o estensione): **Audio** (SFX sui delegate + mus
 
 ## 13. Riferimenti
 
-- Canone: [`piano-canonico-mvp.md`](piano-canonico-mvp.md) — invarianti #1 (regole decidono), #4 (determinismo), §5 (convenzioni asset), §9 (art direction aperta).
-- Roadmap: [`roadmap-checkpoint.md`](roadmap-checkpoint.md).
-- Playback e delegate: [`spec-anima-risoluzione.md`](spec-anima-risoluzione.md).
-- Decisione architetturale: [`adr-0001-skeletal-unit.md`](adr-0001-skeletal-unit.md).
+- Canone: [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) — invarianti #1 (regole decidono), #4 (determinismo), §5 (convenzioni asset), §9 (art direction aperta).
+- Roadmap: [`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md).
+- Playback e delegate: [`spec-anima-risoluzione.md`](../gameplay/spec-anima-risoluzione.md).
+- Decisione architetturale: [`adr-0001-skeletal-unit.md`](../decisions/adr-0001-skeletal-unit.md).
 - Codice: `RTUnit.cpp/.h`, `RTGameMode.cpp`, `RTTurnManager.cpp/.h`, `RTAbilityData.h`.
 - Doc UE ufficiale: Fab, FBX Import, IK Rig/Retargeter, MetaHuman, Skeletal Mesh Animation (URL in §7–§8).
 

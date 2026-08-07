@@ -2,7 +2,7 @@
 
 > **Stato**: Accettato — da implementare · **Data**: 2026-08-07 · **Decisore**: utente (dev singolo)
 > **Contesto sorgente**: `docs/src/RefactorTactics_Overwatch_FastReaction_Claude.md` (19 sezioni)
-> **Brief**: [`brief-overwatch-reazioni.md`](brief-overwatch-reazioni.md) (decisioni D16–D22)
+> **Brief**: [`brief-overwatch-reazioni.md`](../gameplay/brief-overwatch-reazioni.md) (decisioni D16–D22)
 > **Supera**: [ADR-0003](adr-0003-modello-azioni-v01.md) §4 riga «Stack di reazioni LIFO interattivo → scartato»
 > **limitatamente alla finestra singola non annidata**; lo stack LIFO resta scartato.
 
@@ -132,7 +132,7 @@ risultasse rumore inutile, si degrada a «vede solo il proprietario» senza tocc
 
 | Parametro | Valore | Origine |
 |---|---|---|
-| `FastReactionDuration` | **3.0 s** — **baseline di sistema per ogni Fast Reaction**, non solo per l'Overwatch | §3 sorgente · confermato da [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §8 |
+| `FastReactionDuration` | **3.0 s** — **baseline di sistema per ogni Fast Reaction**, non solo per l'Overwatch | §3 sorgente · confermato da [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §8 |
 | `MaxPromptsPerReaction` | **3** | §5 sorgente; data-driven |
 | `DefaultTimeoutBehavior` | **Hold** | §3 di questo ADR |
 | `Charges` (Overwatch v0.1) | **1** | §5 sorgente |
@@ -195,7 +195,7 @@ contiene **solo il presente** — mai trigger futuri, percorsi futuri, opportuni
 | `Overwatch.HoldKeepsArmed` | `HOLD` perde l'opportunità, non la reaction |
 | `Overwatch.CancelledByStun` · `…ByForcedMovement` | l'overwatch armato non è garantito fino a fine turno |
 
-Checkpoint in [`roadmap-v0.1.md`](roadmap-v0.1.md) epic **E14** (CP 14.1–14.5); questo ADR **è** il CP 14.1.
+Checkpoint in [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) epic **E14** (CP 14.1–14.5); questo ADR **è** il CP 14.1.
 
 ## Revisione
 
@@ -205,7 +205,7 @@ Rivedere alla chiusura di **CP 14.5**, che misura la durata reale della resoluti
 valutate — *cap aggregato per turno condiviso fra le unità* oppure `MaxPromptsPerReaction = 1` — senza toccare
 il modello, perché sono entrambe parametri.
 
-> **La soglia dei 20 s è coerente con le bande di formato** ([`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md)
+> **La soglia dei 20 s è coerente con le bande di formato** ([`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md)
 > §9): playback tipico **8–15 s** in 2v2 e **12–20 s** in 3v3 Standard. Attenzione a **cosa** si confronta: le
 > bande misurano il **playback** (Presentation Time), la soglia misura la resolution **comprese le finestre**
 > (Presentation + Decision Time). Sommarle senza distinguerle è l'errore che §11 di quella spec esiste per

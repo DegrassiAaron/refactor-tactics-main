@@ -8,8 +8,8 @@
 > descrizione di codice esistente.
 
 > Discovery `/sc:brainstorm` + review `/sc:spec-panel` del **2026-08-02**. Fonti: scelte utente +
-> `IdeeBase.pdf` (idee) + canone ([`piano-canonico-mvp.md`](piano-canonico-mvp.md)) + spec pathfinding
-> ([`spec-pathfinding.md`](spec-pathfinding.md), [`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md)).
+> `IdeeBase.pdf` (idee) + canone ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md)) + spec pathfinding
+> ([`spec-pathfinding.md`](../technical/spec-pathfinding.md), [`spec-pathfinding-pf3-pf4.md`](../technical/spec-pathfinding-pf3-pf4.md)).
 > Autorità: subordinato al piano canonico. `IdeeBase.pdf` = north-star (conflitti §9).
 
 ## 1. Re-slicing (raccomandazione del panel, accettata)

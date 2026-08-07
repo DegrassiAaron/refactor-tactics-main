@@ -1,7 +1,7 @@
 # Spec H5c.4 — Pennello a raggio N (Paint ad area)
 
 > **Stato**: Approvata (design) · **Data**: 2026-08-04 · **Branch**: `feat/hex-grid`
-> **Fonte**: milestone H5 di [`hex-map-roadmap.md`](hex-map-roadmap.md) (riga H5c+); prosecuzione di
+> **Fonte**: milestone H5 di [`hex-map-roadmap.md`](../hex-map-roadmap.md) (riga H5c+); prosecuzione di
 > [`h5c3-drag-brush-spec.md`](h5c3-drag-brush-spec.md). Non tocca il quadrato (`feat/skeletal-units`).
 
 ## 1. Contesto e obiettivo
@@ -42,7 +42,7 @@ Press/Drag → risolvi cella centro → `HexArea(centro, raggio)` → applica al
 ## 5. Testing e Definition of Done
 - **Nessuna nuova logica pura**: `HexArea` è già coperta da `RefactorTactics.Hex.HexAreaRadius`; l'applicazione ad area è
   tool-side (editor-bound). **Nessun nuovo test headless** (dichiarato); build verde + suite **93/93** invariata.
-- **Editor-bound** → voce PIE in lista [`test-manuali-pie.md`](test-manuali-pie.md): `PIE-HEX-MODE-K` — pennello a raggio N
+- **Editor-bound** → voce PIE in lista [`test-manuali-pie.md`](../../technical/test-manuali-pie.md): `PIE-HEX-MODE-K` — pennello a raggio N
   (raggio>0 dipinge/cancella l'esagono pieno; raggio 0 = 1 cella; un Undo per pennellata; drag + raggio = fasce larghe).
 - **DoD**: build Editor verde; nessuna dip. editor nel runtime (non tocca il runtime); invarianti #1/#4; roadmap aggiornata.
 

@@ -1,9 +1,12 @@
 # Design — Mappa multilivello: ponte sopraelevato (vertical slice PF.4)
 
+> ℹ️ **Regola vigente, esempi datati.** Il multilivello è realizzato: `FRTCellId.Layer` + archi espliciti in `URTHexPathLibrary` (PF.4).
+> Gli snippet citano API rimosse al **CP 7.2** (`URTGridLibrary`, `FRTGridCoord`): vanno letti come pseudo-codice, non come firme correnti.
+
 > `/sc:design` del **2026-08-02**. Decisioni prese: **layout = ponte sopraelevato · LOS = regole di
 > elevazione · scope = wiring minimo prima**. Ancorato al motore a grafo **PF.4.2**
-> ([`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md)), al terreno ([`spec-terreni.md`](spec-terreni.md)),
-> al canone ([`piano-canonico-mvp.md`](piano-canonico-mvp.md)). Documentale: nessuna modifica al codice.
+> ([`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md)), al terreno ([`spec-terreni.md`](../gameplay/spec-terreni.md)),
+> al canone ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md)). Documentale: nessuna modifica al codice.
 
 ## 1. Obiettivo
 
