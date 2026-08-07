@@ -31,7 +31,24 @@ enum class ERTActionEffect : uint8
 	 * si ferma prima della cella di chi tira, `HexKnockbackDestination` prima di un ostacolo qualunque). */
 	Pull,
 	/** Applica uno stato (Root, Slow, Reveal, ...) per una durata in turni. */
-	Status
+	Status,
+	/**
+	 * RIDUCE il danno diretto che sta per colpire il bersaglio dell'effetto (`Action.Deflect`: -20).
+	 *
+	 * Non e' uno scudo: lo scudo ASSORBE danno e si consuma, questa toglie punti al colpo prima che venga
+	 * calcolato — la differenza si vede quando il colpo e' piu' debole della riduzione (lo scudo resterebbe,
+	 * la riduzione no) e nel TurnLog, dove un colpo assorbito e un colpo attenuato non sono lo stesso esito.
+	 *
+	 * Fino a CP 5.5 il -20 di Deflect era un `if (ActionId == "Action.Deflect")` nel `TurnManager`: renderlo un
+	 * effetto DICHIARATO e' cio' che permette a una reazione d'eroe di riusarne la semantica con numeri propri
+	 * senza aggiungere un ramo. Chi lo consuma e' il pass delle reazioni di `ARTTurnManager::ResolveCombat`,
+	 * che lo raccoglie prima di risolvere i colpi; nelle altre fasi non ha significato (una riduzione senza un
+	 * colpo in arrivo non riduce nulla) ed e' ignorata, come gli altri effetti fuori posto.
+	 *
+	 * Aggiunto in CODA all'enum: i valori precedenti non si rinumerano, quindi i data asset gia' salvati
+	 * continuano a significare la stessa cosa.
+	 */
+	DamageReduction
 };
 
 /**

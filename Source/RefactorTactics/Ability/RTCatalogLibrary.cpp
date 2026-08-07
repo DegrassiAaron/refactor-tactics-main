@@ -1,6 +1,7 @@
 #include "Ability/RTCatalogLibrary.h"
 #include "Core/RTGameplayTags.h"
 #include "Ability/RTEquipmentData.h"
+#include "Combat/RTCombatLibrary.h" // DeflectDamageReduction: il numero della riduzione resta uno solo
 
 ERTMatchPhase URTCatalogLibrary::MapResolutionPhase(ERTResolutionPhase Phase)
 {
@@ -409,14 +410,17 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		Catalog.Add(Counter);
 	}
 
-	// `Deflect` — riduce di 20 il danno diretto che l'ha innescata. Nessun `FRTActionEffectSpec`: "ridurre il
-	// danno subito" non e' un effetto APPLICATO a un bersaglio (quelli sono danno, cura, scudo, spinta, stato),
-	// e' un modificatore del calcolo — vive come `URTCombatLibrary::DeflectDamageReduction`, esattamente come
-	// il -15 di `Action.Guard`, che per la stessa ragione non e' un effetto.
+	// `Deflect` — riduce di 20 il danno diretto che l'ha innescata, DICHIARANDOLO come effetto
+	// (`ERTActionEffect::DamageReduction`, CP 5.5). Fino a CP 5.2 il numero viveva solo come
+	// `URTCombatLibrary::DeflectDamageReduction` letta da un `if (ActionId == "Action.Deflect")` nel
+	// `TurnManager`: la costante resta la fonte del valore, ma chi lo applica ora lo legge dai dati — cosi' una
+	// reazione d'eroe puo' riusare la stessa semantica con un numero proprio senza un secondo ramo.
+	// Resta diverso dal -15 di `Action.Guard`, che non e' una reazione: quello e' uno stato di Prep.
 	{
 		FRTActionDef Deflect = ShippedAction(TEXT("Action.Deflect"), ERTResolutionPhase::Control, /*Priority*/ 15,
-			/*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}, /*bInterruptible*/ true,
-			ERTActionSlot::Reaction);
+			/*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel,
+			{ FRTActionEffectSpec(ERTActionEffect::DamageReduction, URTCombatLibrary::DeflectDamageReduction) },
+			/*bInterruptible*/ true, ERTActionSlot::Reaction);
 		Deflect.ReactionTrigger = ERTReactionTrigger::HitByDirectAttack;
 		Catalog.Add(Deflect);
 	}

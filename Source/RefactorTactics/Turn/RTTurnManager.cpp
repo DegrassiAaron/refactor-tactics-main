@@ -1285,6 +1285,7 @@ void ARTTurnManager::ResolveCombat()
 		Entry.Category = ERTLogCategory::Reaction;
 		Entry.SrcCell = Unit->Cell;
 		Entry.TgtCell = Unit->Cell;
+		Entry.ActionId = Reaction->Def.ActionId; // `Bastion.Interposition` non e' `Action.Intercept` (CP 5.5)
 
 		const int32 HitIdx = (Unit->CanUseAbility(ReactionIdx) && !ReactionBlockedThisTurn.Contains(Unit))
 			? URTReactionLibrary::FindInterceptableHit(i, Reaction->Def.RangeCells,
@@ -1335,8 +1336,8 @@ void ARTTurnManager::ResolveCombat()
 	// Gli EFFETTI delle reazioni attivate (CP 5.2) non si applicano qui: si raccolgono e si applicano insieme
 	// agli altri colpi, piu' sotto. E' "raccogli poi applica" (invariante #3) — una reazione che modificasse
 	// subito il danno lo farebbe su un totale ancora incompleto, e l'esito dipenderebbe dall'ordine delle unita'.
-	TArray<int32> DeflectDelta;       // riduzione del danno per bersaglio, dalle `Action.Deflect` attivate
-	TArray<FRTAttack> CounterAttacks; // contrattacchi delle `Action.Counter` attivate, accodati ai colpi veri
+	TArray<int32> DeflectDelta;       // riduzione del danno per bersaglio, DICHIARATA dalle reazioni attivate
+	TArray<FRTAttack> CounterAttacks; // colpi di ritorno delle reazioni attivate, accodati ai colpi veri
 	TArray<FRTCellId> CounterAttackSrc; // parallelo a CounterAttacks: cella di chi contrattacca, per il TurnLog
 	DeflectDelta.Init(0, Units.Num());
 	for (int32 i = 0; i < Units.Num(); ++i)
@@ -1356,6 +1357,7 @@ void ARTTurnManager::ResolveCombat()
 		Entry.Category = ERTLogCategory::Reaction;
 		Entry.SrcCell = Unit->Cell;
 		Entry.TgtCell = Unit->Cell;
+		Entry.ActionId = Reaction->Def.ActionId; // identita': `Vektor.Deflection` non e' `Action.Deflect` (CP 5.5)
 
 		const int32 TriggeredBy = URTReactionLibrary::FindTriggeringAttacker(
 			Reaction->Def.ReactionTrigger, i, Plan.Hits, Intents);
@@ -1369,29 +1371,50 @@ void ARTTurnManager::ResolveCombat()
 			Unit->ConsumeAbility(ReactionIdx);
 			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Activated);
 
-			// Effetto della reazione, DICHIARATO dall'azione. `Counter` porta il suo danno negli `Effects`
-			// (16, dal catalogo); `Deflect` non ne ha nessuno perche' "ridurre il danno subito" non e' un
-			// effetto applicato a un bersaglio ma un modificatore del calcolo — sta in URTCombatLibrary,
-			// come il -15 di Guard.
-			int32 CounterDamage = 0;
-			for (const FRTActionEffectSpec& Spec : Reaction->Def.Effects)
+			// TUTTI gli effetti che la reazione DICHIARA, non il primo che questo orchestratore riconosce
+			// (CP 5.5). `URTReactionLibrary::BuildReactionEvents` decide anche CHI li subisce, per tipo di
+			// effetto: offensivi a chi ha innescato, difensivi a chi reagisce. Qui non si guarda mai
+			// l'`ActionId`: e' cio' che permette a una reazione d'eroe di riusare la semantica di
+			// `Action.Deflect`/`Action.Counter` con numeri propri senza un ramo per eroe.
+			for (const FRTActionEvent& Event : URTReactionLibrary::BuildReactionEvents(Reaction->Def, i, TriggeredBy))
 			{
-				if (Spec.Effect == ERTActionEffect::Damage) { CounterDamage = Spec.Amount; break; }
-			}
-			if (CounterDamage > 0 && Units.IsValidIndex(TriggeredBy))
-			{
-				// Il contrattacco colpisce CHI ha colpito. Entra fra gli attacchi normali, quindi risolve
-				// sullo stato iniziale come tutti gli altri: chi cade in questo stesso Blast contrattacca
-				// comunque, che e' la regola gia' dichiarata da URTCombatResolver ("un'unita' colpita a
-				// morte infligge comunque il proprio danno").
-				CounterAttacks.Add(FRTAttack(TriggeredBy, CounterDamage));
-				CounterAttackSrc.Add(Unit->Cell);
-				AddLogEvent(FString::Printf(TEXT("%s: contrattacco su %s (%d)"),
-					*Unit->GetName(), *Units[TriggeredBy]->GetName(), CounterDamage));
-			}
-			if (Reaction->Def.ActionId == FName(TEXT("Action.Deflect")))
-			{
-				DeflectDelta[i] -= URTCombatLibrary::DeflectDamageReduction;
+				if (!Units.IsValidIndex(Event.TargetUnitId) || !Units[Event.TargetUnitId]) { continue; }
+				ARTUnit* EffectTarget = Units[Event.TargetUnitId];
+				switch (Event.Kind)
+				{
+				case ERTActionEffect::Damage:
+					// Il colpo di ritorno entra fra gli attacchi normali, quindi risolve sullo stato iniziale
+					// come tutti gli altri: chi cade in questo stesso Blast contrattacca comunque, che e' la
+					// regola gia' dichiarata da URTCombatResolver ("un'unita' colpita a morte infligge
+					// comunque il proprio danno").
+					CounterAttacks.Add(FRTAttack(Event.TargetUnitId, Event.Amount));
+					CounterAttackSrc.Add(Unit->Cell);
+					AddLogEvent(FString::Printf(TEXT("%s: contrattacco su %s (%d)"),
+						*Unit->GetName(), *EffectTarget->GetName(), Event.Amount));
+					break;
+
+				case ERTActionEffect::DamageReduction:
+					// Vale sul colpo che ha innescato la reazione: si attiva una volta sola, quindi entra fra
+					// i delta del PRIMO danno diretto, come il -15 di Guard.
+					DeflectDelta[Event.TargetUnitId] -= Event.Amount;
+					break;
+
+				case ERTActionEffect::Shield:
+					// Prima che i colpi vengano risolti, e con lo stesso aggiornamento sullo snapshot `States`
+					// da cui il resolver legge: uno scudo che arrivasse dopo scadrebbe nel Cleanup dello
+					// stesso turno senza aver protetto da niente.
+					EffectTarget->AddTemporaryShield(Event.Amount);
+					States[Event.TargetUnitId].Shield = EffectTarget->Shield;
+					AddLogEvent(FString::Printf(TEXT("%s: +%d scudo dalla reazione"),
+						*EffectTarget->GetName(), Event.Amount));
+					break;
+
+				default:
+					// `Heal`, `Push`, `Pull`, `Status`: nessuna reazione del catalogo v0.1 li dichiara, e
+					// applicarli qui richiederebbe cio' che il pass non ha (una direzione per la spinta, il
+					// consumo degli stati insieme agli altri colpi). Il posto dove aggiungerli e' questo.
+					break;
+				}
 			}
 		}
 		else
@@ -1561,8 +1584,9 @@ void ARTTurnManager::ResolveCombat()
 		{
 			FirstHitDelta[i] -= URTCombatLibrary::GuardFirstHitReduction;
 		}
-		// `Action.Deflect` (CP 5.2): la reazione si attiva UNA volta, quindi il suo -20 vale sul colpo che
-		// l'ha innescata — stessa meccanica di Guard, non una riduzione permanente del turno.
+		// Riduzione dichiarata dalle reazioni attivate (`Action.Deflect` e le reazioni d'eroe che ne riusano
+		// la semantica): una reazione si attiva UNA volta, quindi vale sul colpo che l'ha innescata — stessa
+		// meccanica di Guard, non una riduzione permanente del turno.
 		FirstHitDelta[i] += DeflectDelta[i];
 	}
 

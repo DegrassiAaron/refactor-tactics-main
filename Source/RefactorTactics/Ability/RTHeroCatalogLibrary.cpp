@@ -474,3 +474,26 @@ TArray<URTHeroData*> URTHeroCatalogLibrary::GetHeroRoster()
 {
 	return { MakeFlux(), MakeRiva(), MakeBastion(), MakeVektor() };
 }
+
+URTActionData* URTHeroCatalogLibrary::MakeHeroReactionFromCoreAction(const FName& HeroActionId,
+	const FName& CoreActionId, int32 CooldownTurns, const TArray<FRTActionEffectSpec>& Effects,
+	int32 RangeCells)
+{
+	const FRTActionDef Core = URTCatalogLibrary::FindCoreAction(CoreActionId);
+	if (Core.ActionId != CoreActionId || Core.Slot != ERTActionSlot::Reaction)
+	{
+		// Fail-closed: un'azione core assente, o che reazione non e', darebbe un'abilita' che il pass delle
+		// reazioni non guarda — inerte in partita e silenziosa nel TurnLog.
+		return nullptr;
+	}
+
+	URTActionData* Action = MakeHeroAction(HeroActionId, Core.ResolutionPhase, Core.Priority,
+		RangeCells >= 0 ? RangeCells : Core.RangeCells, CooldownTurns, Core.Fallback,
+		Effects.Num() > 0 ? Effects : Core.Effects, ERTAbilityShape::Single, /*AreaRadius*/ 0,
+		Core.Slot, Core.bCanBeInterrupted);
+
+	// Il trigger viene dalla semantica core: e' la domanda a cui la reazione risponde («sono stato colpito?»,
+	// «un alleato e' stato colpito?»), non un numero di bilanciamento dell'eroe.
+	Action->Def.ReactionTrigger = Core.ReactionTrigger;
+	return Action;
+}

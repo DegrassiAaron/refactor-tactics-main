@@ -1,6 +1,34 @@
 #include "Turn/RTReactionLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexVisionLibrary.h"
+#include "Turn/RTActionEffectLibrary.h"
+#include "Turn/RTActionQueue.h"
+
+namespace
+{
+	/**
+	 * Chi subisce l'effetto di una reazione: chi reagisce, o chi ha innescato. Switch senza `default`, cosi'
+	 * un effetto nuovo non puo' entrare nell'enum senza che qualcuno decida dove punta quando e' una reazione.
+	 */
+	bool ReactionEffectTargetsTriggerer(ERTActionEffect Effect)
+	{
+		switch (Effect)
+		{
+		case ERTActionEffect::Damage:
+		case ERTActionEffect::Push:
+		case ERTActionEffect::Pull:
+		case ERTActionEffect::Status:
+			return true; // reagire CONTRO chi ha colpito
+
+		case ERTActionEffect::None:
+		case ERTActionEffect::Heal:
+		case ERTActionEffect::Shield:
+		case ERTActionEffect::DamageReduction:
+			return false; // difendere SE STESSI
+		}
+		return false;
+	}
+}
 
 bool URTReactionLibrary::EvaluateReactionTrigger(ERTReactionTrigger Trigger, int32 SelfId,
 	const TArray<FRTHexAttackHit>& Hits, const TArray<FRTHexAttackIntent>& Intents)
@@ -77,4 +105,36 @@ int32 URTReactionLibrary::FindInterceptableHit(int32 SelfId, int32 InterceptRang
 		return h;
 	}
 	return INDEX_NONE;
+}
+
+TArray<FRTActionEvent> URTReactionLibrary::BuildReactionEvents(const FRTActionDef& Def, int32 SelfId,
+	int32 TriggeredBy)
+{
+	TArray<FRTActionEvent> Events;
+	if (SelfId == INDEX_NONE)
+	{
+		return Events;
+	}
+
+	// Un effetto per volta, nell'ORDINE dichiarato: la traduzione (entita' non positiva, stato senza tag,
+	// bersaglio assente) resta quella di `URTActionEffectLibrary::ProduceEvents`, non una seconda copia che
+	// puo' divergere. Il prezzo e' un'istanza per effetto: una reazione ne dichiara al piu' una manciata.
+	for (const FRTActionEffectSpec& Spec : Def.Effects)
+	{
+		const int32 TargetId = ReactionEffectTargetsTriggerer(Spec.Effect) ? TriggeredBy : SelfId;
+		if (TargetId == INDEX_NONE)
+		{
+			continue; // nessun attaccante identificato: l'effetto offensivo non si applica a caso
+		}
+
+		FRTActionInstance Instance;
+		Instance.Def = Def;
+		Instance.Def.Effects = { Spec };
+		Instance.SourceUnitId = SelfId;
+		Instance.TargetUnitId = TargetId;
+		Instance.EventSequence = Events.Num();
+		Events.Append(URTActionEffectLibrary::ProduceEvents(Instance));
+	}
+
+	return Events;
 }
