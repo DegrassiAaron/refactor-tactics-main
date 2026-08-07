@@ -66,6 +66,20 @@ public:
 	 */
 	static constexpr int32 BurningCleanupDamage = 8;
 
+	/**
+	 * Danno che la propagazione elettrica porta OLTRE la cella colpita (catalogo terreni §2, CP 8.3): 12,
+	 * contro i 20 del colpo diretto dichiarati da `Action.Electrify`.
+	 *
+	 * Sta qui e non negli `Effects` dell'azione perche' non e' un effetto dell'azione su un bersaglio — quelli
+	 * hanno un bersaglio scelto in pianificazione — ma il valore che l'AMBIENTE trasporta a chi la scarica
+	 * raggiunge senza che nessuno l'abbia mirato. Stessa natura del -20 di Deflect prima di CP 5.5 e del danno
+	 * di `Burning`: un numero del calcolo, non un effetto dichiarato.
+	 *
+	 * Come `Burning`, non e' danno diretto: `Guard`/`Brace`/`Deflect` non lo riducono e `Counter` non scatta
+	 * (il catalogo esclude esplicitamente il danno ambientale dai trigger di reazione).
+	 */
+	static constexpr int32 PropagatedElectricDamage = 12;
+
 	/** `Action.Guard`: spinta massima (in celle) a cui si resiste restando fermi. */
 	static constexpr int32 GuardResistedPushDistance = 1;
 

@@ -562,6 +562,10 @@ void ARTTurnManager::LockInAndResolve()
 	const ARTHexMapActor* MapActor = ARTHexMapActor::FindInWorld(GetWorld());
 	const URTHexMapAsset* CleanupMap = MapActor ? MapActor->MapAsset : nullptr;
 
+	// 0. Azioni ambientali (CP 8.3): la scarica elettrica precede il danno di `Burning`. Chi cade qui e' morto
+	// in QUESTO turno, come chi cade bruciato: il conteggio dei vivi arriva dopo entrambi.
+	ResolveEnvironment(CleanupMap);
+
 	int32 Team0Alive = 0, Team1Alive = 0;
 	{
 		TArray<AActor*> Actors;
@@ -627,6 +631,118 @@ void ARTTurnManager::LockInAndResolve()
 		return;
 	}
 	ConcludeTurn();
+}
+
+void ARTTurnManager::ResolveEnvironment(const URTHexMapAsset* Map)
+{
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+
+	TArray<ARTUnit*> Units;
+	Units.Reserve(Actors.Num());
+	for (AActor* Actor : Actors)
+	{
+		if (ARTUnit* Unit = Cast<ARTUnit>(Actor))
+		{
+			Units.Add(Unit);
+		}
+	}
+	if (Units.Num() == 0) { return; }
+	// Stesso ordine stabile per cella del resto del turno: da qui dipendono gli indici passati alla libreria
+	// e l'ordine in cui due scariche dello stesso turno si applicano.
+	Units.Sort([](const ARTUnit& A, const ARTUnit& B) { return URTHexLibrary::StableLess(A.Cell, B.Cell); });
+
+	// Snapshot delle unita' PRIMA di applicare qualunque danno: "raccogli poi applica" (invariante #3). Due
+	// scariche nello stesso Cleanup vedono lo stesso campo, quindi il loro esito non dipende dall'ordine.
+	TArray<FRTHexCombatUnit> HexUnits;
+	HexUnits.Reserve(Units.Num());
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		FRTHexCombatUnit HexUnit;
+		HexUnit.UnitId = i;
+		HexUnit.TeamId = Units[i]->TeamId;
+		HexUnit.Cell = Units[i]->Cell;
+		HexUnit.bAlive = Units[i]->IsAlive();
+		HexUnits.Add(HexUnit);
+	}
+
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		ARTUnit* Caster = Units[i];
+		const int32 AbilityIndex = Caster->PlannedAbilityIndex;
+		const URTActionData* Ability = Caster->GetAbility(AbilityIndex);
+		if (!Ability
+			|| URTCatalogLibrary::MapResolutionPhase(Ability->Def.ResolutionPhase) != ERTMatchPhase::Cleanup)
+		{
+			continue; // nessuna azione ambientale pianificata da questa unita'
+		}
+
+		ARTUnit* Target = Caster->PlannedAttackTarget;
+		Caster->PlannedAbilityIndex = INDEX_NONE; // consumato: attivata o no, il piano non sopravvive al turno
+		Caster->PlannedAttackTarget = nullptr;
+		if (!Caster->CanUseAbility(AbilityIndex)) { continue; }
+
+		// Il fallback dichiarato di `Action.Electrify` e' `Cancel`: senza bersaglio valido non succede nulla,
+		// e non si sceglie un bersaglio di ripiego (il catalogo vieta le scelte implicite).
+		if (!Target || !Target->IsAlive())
+		{
+			AddLogEvent(FString::Printf(TEXT("%s: %s annullata (nessun bersaglio)"),
+				*Caster->GetName(), *Ability->Def.ActionId.ToString()));
+			continue;
+		}
+
+		// La SORGENTE e' la cella del bersaglio, non l'unita': l'elettricita' entra nel terreno e da li' si
+		// propaga. **Limite dichiarato (CP 8.3)**: il catalogo prevede anche «colpisce una cella conduttiva»
+		// senza unita' sopra, ma la pianificazione non ha ancora un bersaglio-cella per le azioni
+		// (`PlannedAttackTarget` e' un'unita'); arrivera' col targeting per cella dell'HUD (E11).
+		const int32 InitialDamage = URTCatalogLibrary::FirstDamage(Ability->Def);
+		const TArray<FRTPropagationHit> Hits = URTTerrainLibrary::CollectElectricPropagation(
+			Map, Target->Cell, Ability->Def.PropagationLimit, InitialDamage,
+			URTCombatLibrary::PropagatedElectricDamage, HexUnits);
+
+		Caster->ConsumeAbility(AbilityIndex);
+		if (Hits.Num() == 0)
+		{
+			// Nessun colpo: senza mappa autorevole (fail-closed) o con il bersaglio ormai fuori dallo snapshot.
+			AddLogEvent(FString::Printf(TEXT("%s: %s senza effetto"),
+				*Caster->GetName(), *Ability->Def.ActionId.ToString()));
+			continue;
+		}
+
+		// APPLICA nell'ordine dichiarato dalla libreria (distanza -> cella -> unita'), che e' anche l'ordine
+		// in cui le voci finiscono nel TurnLog: il replay racconta la scarica come si e' propagata.
+		for (const FRTPropagationHit& Hit : Hits)
+		{
+			if (!Units.IsValidIndex(Hit.UnitId) || !Units[Hit.UnitId] || !Units[Hit.UnitId]->IsAlive())
+			{
+				continue;
+			}
+			ARTUnit* Victim = Units[Hit.UnitId];
+			const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Hit.Damage, Victim->Shield, Victim->Health);
+			Victim->ApplyCombatState(Result.Health, Result.Shield);
+
+			FRTTurnLogEntry Entry;
+			Entry.Phase = ERTMatchPhase::Cleanup;
+			Entry.Category = ERTLogCategory::Combat;
+			Entry.ActionId = Ability->Def.ActionId; // identita' dell'azione: un danno senza causa e' inspiegabile
+			Entry.SrcCell = Caster->Cell;
+			Entry.TgtCell = Hit.Cell;
+			Entry.Amount = Hit.Damage;
+			Entry.Outcome = static_cast<uint8>(
+				!Victim->IsAlive() ? ERTCombatOutcome::Lethal
+				: (Result.Health == Victim->MaxHealth || Hit.Damage <= 0) ? ERTCombatOutcome::ShieldAbsorbed
+				: ERTCombatOutcome::Hit);
+			TurnLog.Add(Entry);
+
+			AddLogEvent(FString::Printf(TEXT("%s: %d danni da %s (%d %s)"),
+				*Victim->GetName(), Hit.Damage, *Ability->Def.ActionId.ToString(),
+				Hit.Steps, Hit.Steps == 0 ? TEXT("colpo diretto") : TEXT("celle di propagazione")));
+			if (!Victim->IsAlive())
+			{
+				AddLogEvent(FString::Printf(TEXT("%s eliminato dalla scarica"), *Victim->GetName()));
+			}
+		}
+	}
 }
 
 void ARTTurnManager::ConcludeTurn()
@@ -1062,6 +1178,18 @@ void ARTTurnManager::ResolveCombat()
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Units[i];
+
+		// Le azioni AMBIENTALI (fase `Environment`) risolvono nel Cleanup, non qui: il loro piano deve
+		// sopravvivere a questo ciclo. E' lo stesso tranello gia' incontrato con `Action.Interrupt` (CP 4.7)
+		// e `Action.Cleanse` (CP 5.2) — questo ciclo AZZERA `PlannedAbilityIndex` per ogni unita', quindi un
+		// pass successivo non troverebbe piu' nulla da leggere.
+		const URTActionData* PlannedNow = Unit->GetAbility(Unit->PlannedAbilityIndex);
+		if (PlannedNow
+			&& URTCatalogLibrary::MapResolutionPhase(PlannedNow->Def.ResolutionPhase) == ERTMatchPhase::Cleanup)
+		{
+			continue; // il piano resta: lo consuma `ResolveEnvironment`
+		}
+
 		ARTUnit* Target = Unit->PlannedAttackTarget;
 		const int32 AbilityIndex = Unit->PlannedAbilityIndex;
 		Unit->PlannedAttackTarget = nullptr; // consumati nel turno

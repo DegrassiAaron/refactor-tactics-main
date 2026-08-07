@@ -6,6 +6,38 @@
 #include "RTTerrainData.generated.h"
 
 /**
+ * Un'unita' raggiunta da una propagazione ambientale (CP 8.3), con la DISTANZA a cui e' stata raggiunta e il
+ * danno che le spetta. E' il risultato di una funzione pura: descrive cosa succedera', non lo applica.
+ *
+ * `Steps` non e' un dettaglio diagnostico: e' la chiave d'ordine dichiarata dal catalogo terreni §2
+ * (`distanza dalla sorgente -> CellId -> UnitId`) e distingue il colpo diretto (0) dalla propagazione (> 0),
+ * che hanno danni diversi (20 / 12).
+ */
+USTRUCT(BlueprintType)
+struct FRTPropagationHit
+{
+	GENERATED_BODY()
+
+	/** Identita' stabile dell'unita' colpita (indice nello snapshot del turno). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Terrain")
+	int32 UnitId = INDEX_NONE;
+
+	/** Passi sul grafo conduttivo dalla cella sorgente: 0 = sorgente, N = raggiunta dopo N celle. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Terrain")
+	int32 Steps = 0;
+
+	/** Danno da applicare: iniziale a 0 passi, propagato oltre. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Terrain")
+	int32 Damage = 0;
+
+	/** Cella in cui l'unita' e' stata raggiunta (per il TurnLog). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Terrain")
+	FRTCellId Cell;
+
+	FRTPropagationHit() = default;
+};
+
+/**
  * Definizione dichiarativa di un terreno del catalogo (RT_TerrainCatalog_v0.1.md §1): costo di movimento,
  * blocchi, conducibilita' elettrica, limite di targeting ed effetti applicati all'ingresso. Vive nel
  * catalogo letterale di URTTerrainLibrary::GetTerrainCatalog, non in un asset ne' in uno switch C++.

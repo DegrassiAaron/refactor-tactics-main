@@ -40,16 +40,16 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in parte (vedi nota) · ⏳ da far
 | **M6** Parità hex | 🟡 | **Codice completo** (CP 6.1–6.7 mergiati): la partita gira su esagoni — wiring, movimento, input, combat, scatto/spinta, bot, HUD. Resta il **playtest** CP 6.8 (sessione PIE) |
 | **M7** Dismissione del quadrato | 🟡 | **Un solo substrato + release interna**: CP 7.1, 7.2 e 7.4 fatti (rimozione, packaging Development e Shipping avviati). Resta **CP 7.3**: 2 KPI su 4 misurati, FPS e preview richiedono rendering/editor |
 | **M8** Presentazione e identità | 🟡 | **Le regole dei 4 eroi ci sono e le reazioni funzionano in partita** (E6: 25 test; CP 5.5 + CP 6.7 del 2026-08-07 hanno reso il motore componibile e cablato `Interposition`, `Deflection`, `ReactiveCapacitor`; `InterceptShot` e `FlowReaction` sono rinviate a **E14** e lo dichiarano nei dati). Resta la **presentazione**: personaggi animati, anelli team/selezione, **Ghost Timeline del planning** (`#172`/`#173`), leggibilità tattica — banco di prova: la showcase E15 |
-| **M9** Ambienti tattici + editor maturo | 🟡 | **Terreni e stati** (E8: costi, Rough, Fire, ShallowWater, Smoke, Ice — 17 test; **CP 8.2 stati temporanei chiuso il 2026-08-07**, 11 test: durata legata alla cella, danno di `Burning` nel Cleanup prima dei KO, `Wet` che spegne le fiamme, `Marked` cablato). Restano **propagazione elettrica e fuoco/acqua** (CP 8.3/8.4), cover dinamica, porte/ponti (E9) e il residuo H5 dell'editor |
+| **M9** Ambienti tattici + editor maturo | 🟡 | **Terreni e stati** (E8: costi, Rough, Fire, ShallowWater, Smoke, Ice — 17 test; **CP 8.2 stati temporanei chiuso il 2026-08-07**, 11 test: durata legata alla cella, danno di `Burning` nel Cleanup prima dei KO, `Wet` che spegne le fiamme, `Marked` cablato). **CP 8.3 chiuso il 2026-08-07** (7 test: propagazione elettrica sul grafo dell'acqua, limite 3 passi, unicità per evento, ordine totale). Restano **fuoco/acqua e azioni ambientali** (CP 8.4/8.5), cover dinamica, porte/ponti (E9) e il residuo H5 dell'editor |
 | **M10** Rete e privacy | ⏳ | Listen server, validazione server, planning team-only, canary intent leak. **Nuovo vincolo**: [ADR-0004](adr-0004-finestre-di-reazione.md) introduce N round-trip per turno (finestre di reazione) |
 | **M11** Production readiness | ⏳ | Budget in CI, validator commandlet, packaged soak, replay audit |
 
-**Suite automatica**: `Source/RefactorTactics/Tests/` — **352** test unici in 52 file (misurati 2026-08-07 alla
-chiusura di CP 6.7).
+**Suite automatica**: `Source/RefactorTactics/Tests/` — **359** test unici in 53 file (misurati 2026-08-07 alla
+chiusura di CP 8.3).
 Storia del numero: **172** alla chiusura di CP 6.0 → **230** con M6+E1 → **171** dopo la rimozione del quadrato
 (i **59** test previsti dall'inventario) → **324** con E4/E5/E6 e i terreni → **325** col merge di `#144` →
 **338** con gli stati temporanei di CP 8.2 (`#65`) → **342** con i merge di `#179`/`#180` (misurato, mai
-dichiarato: le due viste citavano ancora 338) → **347** con le reazioni componibili di CP 5.5 (`#154`) → **352** col cablaggio delle reazioni d'eroe di CP 6.7 (`#155`).
+dichiarato: le due viste citavano ancora 338) → **347** con le reazioni componibili di CP 5.5 (`#154`) → **352** col cablaggio delle reazioni d'eroe di CP 6.7 (`#155`) → **359** con la propagazione elettrica di CP 8.3 (`#66`).
 
 Comando di misura, riproducibile:
 
@@ -360,6 +360,7 @@ neutri (combat math, serializzazione, regole di fase). Il resto ha data di scade
 | [`balance/`](balance/) | **Numeri vigenti v0.1**: cataloghi azioni, terreni, equipaggiamento, eroi, matrice di test |
 | [`spec-motore-azioni-e4.md`](spec-motore-azioni-e4.md) | **Proposta di design** del motore azioni (epic E4): modello, fette, rischi, domande aperte |
 | [`spec-stati-temporanei-cp82.md`](spec-stati-temporanei-cp82.md) | **Stati temporanei** (CP 8.2): durata legata alla cella, ordine del Cleanup, decisioni e difetti di cablaggio trovati |
+| [`spec-propagazione-elettrica-cp83.md`](spec-propagazione-elettrica-cp83.md) | **Propagazione elettrica** (CP 8.3): grafo dell'acqua, ordine nel Cleanup, `Action.Electrify`, limiti dichiarati |
 | [`spec-reazioni-componibili-cp55.md`](spec-reazioni-componibili-cp55.md) | **Reazioni componibili** (CP 5.5): più effetti per reazione, riduzione danno come dato, identità nel TurnLog (formato v3), helper per le reazioni d'eroe |
 | [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) | **Durata della partita, budget del round e scala delle mappe**: target per formato, `RoundLimit` parametrico, classi di mappa (Skirmish/Standard/Operations), telemetria. Supera D-002 del Decision Log |
 | [`spec-pacing-turno.md`](spec-pacing-turno.md) | **Tempo di un turno** misurato sul giocatore: sonda, percentili, regola di taratura di `PlanningSeconds` |
