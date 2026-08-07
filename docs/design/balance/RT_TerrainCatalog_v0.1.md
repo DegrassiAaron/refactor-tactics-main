@@ -60,8 +60,12 @@ non blocca il movimento.
 Interazioni: sciogliere con fuoco · rompere · elettrificare dopo lo scioglimento.
 Effetti: costo 1 MP · se un'unità entra con **almeno 2 MP residui**, scivola di una cella nella direzione
 d'ingresso; una cella bloccata impedisce lo scivolamento.
-> Il PDF stesso segnala che questa regola **va rimandata** se complica il primo test: lo scivolamento introduce
-> un movimento non pianificato dentro la risoluzione.
+> ~~Il PDF stesso segnala che questa regola **va rimandata**~~ — **superato il 2026-08-07**: la regola è
+> **implementata e vigente**, verificata da `Terrain.Ice.SlidesWithSufficientBudget`,
+> `Terrain.Ice.SlideBudgetBoundaryIsExactlyTwo` (la soglia è esattamente 2), `Terrain.Ice.BlockedCellStopsSliding`
+> e `Terrain.Ice.SlidesInMatch` (nel turno reale, non solo in isolamento). Lo scivolamento **resta limitato a
+> una cella**: momentum, slide a catena e collisioni fra unità scivolanti sono fuori dalla v0.1
+> ([`brief-ghiaccio.md`](../brief-ghiaccio.md)).
 
 ### Quota elevata
 Costo 1 MP · la percorribilità **dipende dagli archi** (rampe/scale: i piani non sono adiacenti per costruzione) ·

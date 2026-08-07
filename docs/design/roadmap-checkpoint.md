@@ -39,19 +39,29 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in parte (vedi nota) · ⏳ da far
 | **H0–H6.5** Fondamenta esagonali | ✅ | Coordinate/asset/A\*/multilivello/editor mode + simulazione hex pura (snapshot, budget, collisioni, TurnLog, LOS, bot) — dettaglio in [`hex-map-roadmap.md`](hex-map-roadmap.md) |
 | **M6** Parità hex | 🟡 | **Codice completo** (CP 6.1–6.7 mergiati): la partita gira su esagoni — wiring, movimento, input, combat, scatto/spinta, bot, HUD. Resta il **playtest** CP 6.8 (sessione PIE) |
 | **M7** Dismissione del quadrato | 🟡 | **Un solo substrato + release interna**: CP 7.1, 7.2 e 7.4 fatti (rimozione, packaging Development e Shipping avviati). Resta **CP 7.3**: 2 KPI su 4 misurati, FPS e preview richiedono rendering/editor |
-| **M8** Presentazione e identità | ⏳ | Personaggi animati, anelli team/selezione, leggibilità tattica |
-| **M9** Ambienti tattici + editor maturo | ⏳ | Hazard/cover dinamica/porte-ponti; residuo H5 dell'editor mappa |
-| **M10** Rete e privacy | ⏳ | Listen server, validazione server, planning team-only, canary intent leak |
+| **M8** Presentazione e identità | 🟡 | **Le regole dei 4 eroi ci sono** (epic E6 chiusa: 20 test, Flux/Riva/Bastion/Vektor con varianti e spawn da dati). Resta la **presentazione**: personaggi animati, anelli team/selezione, leggibilità tattica |
+| **M9** Ambienti tattici + editor maturo | 🟡 | **Terreni parziali** (E8: costi, Rough, Fire, ShallowWater, Smoke, Ice con scivolamento — 17 test). Restano **propagazione elettrica e fuoco/acqua** (CP 8.3/8.4), cover dinamica, porte/ponti (E9) e il residuo H5 dell'editor |
+| **M10** Rete e privacy | ⏳ | Listen server, validazione server, planning team-only, canary intent leak. **Nuovo vincolo**: [ADR-0004](adr-0004-finestre-di-reazione.md) introduce N round-trip per turno (finestre di reazione) |
 | **M11** Production readiness | ⏳ | Budget in CI, validator commandlet, packaged soak, replay audit |
 
-**Suite automatica**: `Source/RefactorTactics/Tests/` — ultima esecuzione completa **179/179 verdi**
-(2026-08-06, CP 4.1, headless con unity forzata; build **Editor e Game** entrambe verificate).
-Storia del numero: **172** alla chiusura di CP 6.0 → **230** con M6+E1 (movimento, input, combat, scatto,
-spinta, bot, osservabilità, catalogo, partita completa, KPI) → **171** dopo la rimozione del quadrato, che ha
-portato via esattamente i **59** test previsti dall'inventario. Restano **107 esagonali** e 64 neutri.
+**Suite automatica**: `Source/RefactorTactics/Tests/` — **324 test unici in 48 file** (misurati 2026-08-07).
+Storia del numero: **172** alla chiusura di CP 6.0 → **230** con M6+E1 → **171** dopo la rimozione del quadrato
+(i **59** test previsti dall'inventario) → **324** con E4/E5/E6 e i terreni.
+
+Comando di misura, riproducibile:
+
+```bash
+grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp | tr -d '"' | sort -u | wc -l
+```
 
 > **Correzione 2026-08-05**: questo documento dichiarava «169 test» mentre il CP 6.0, poche righe sotto,
-> riportava già 172/172. Le due cifre convivevano: il conteggio reale è **172**.
+> riportava già 172/172. Le due cifre convivevano: il conteggio reale era **172**.
+>
+> ⚠️ **Correzione 2026-08-07**: il documento dichiarava «179/179» — il conteggio reale è **324**, uno scarto di
+> **145 test**. La causa è strutturale, non una svista: le epic **E4, E5, E6** sono state costruite e testate
+> *senza* che questa vista di esecuzione venisse aggiornata, perché il lavoro era tracciato solo in
+> [`roadmap-v0.1.md`](roadmap-v0.1.md). Con due viste sullo stesso lavoro, aggiornarne una sola è il modo in cui
+> la deriva si crea. **D'ora in poi il conteggio si misura col comando qui sopra, non si cita a memoria.**
 
 **Stato del gioco, in una riga** (2026-08-06): **un solo substrato, esagonale**. Il codice quadrato non esiste
 più (`Grid/`, `Terrain/`, bot e resolver quadrati rimossi al CP 7.2; punto di ritorno: tag `pre-hex-only`).
@@ -62,7 +72,8 @@ Manca la prova sul campo: la sessione di playtest **CP 6.8**, che si esegue in e
 ## La release v0.1 (2026-08-05)
 
 Le milestone qui sotto restano la vista di **esecuzione**. Sopra di esse esiste ora una vista di **release**:
-[`roadmap-v0.1.md`](roadmap-v0.1.md) — **12 epic, 59 checkpoint, 72 issue** (`#14`–`#85`) — che aggrega M6–M9 e
+[`roadmap-v0.1.md`](roadmap-v0.1.md) — **14 epic, 69 checkpoint** *(era 12/59; **E13** conoscenza parziale ed
+**E14** overwatch aggiunte il 2026-08-07)*, issue `#14`–`#85` — che aggrega M6–M9 e
 aggiunge il contenuto del catalogo v0.1 (4 eroi, ~35 azioni, reazioni, ambiente attivo, strutture, obiettivi
 dinamici, comandi debug). La decisione abilitante è
 [`adr-0003-modello-azioni-v01.md`](adr-0003-modello-azioni-v01.md): **le macro-fasi restano quelle di Atlas**
@@ -79,7 +90,24 @@ budget **5 MP**, reazioni, terreni e obiettivi.
 | **E7** Equipaggiamento · **E10** Obiettivi | — | nuove |
 | **E8** Terreni/ambiente · **E9** Strutture | **M9** | M9 con i valori del catalogo, anticipata nella v0.1 |
 | **E12** QA e release | **M7** CP 7.3/7.4 + parte di **M11** | anticipa KPI e packaging; CI e soak restano a M11 |
+| **E13** Conoscenza parziale (vista e udito) | parte di **M8**/**M10** | **nuova** (2026-08-07): la vista decide il targeting, il rumore è il secondo canale — [`brief-conoscenza-parziale.md`](brief-conoscenza-parziale.md) |
+| **E14** Overwatch e reazioni interattive | — | **nuova** (2026-08-07): [ADR-0004](adr-0004-finestre-di-reazione.md); dipende da E13 |
 | — | **M10** Rete e privacy | **fuori** dalla v0.1 |
+
+### Stato misurato delle epic — 2026-08-07
+
+Non si duplica qui: la tabella completa epic → evidenza è in [`roadmap-v0.1.md`](roadmap-v0.1.md) **§2.1**.
+La conseguenza sulle milestone di *questa* vista è:
+
+| Epic | Stato misurato | Effetto sulla milestone |
+|---|---|---|
+| E1, E4, E5, E6 | ✅ chiuse (9 + 52 + 24 + 20 test) | **M8 passa a 🟡**: le regole dei 4 eroi esistono, manca la presentazione |
+| E8 | 🟡 parziale (17 test; mancano `Environment.*`) | **M9 passa a 🟡** |
+| E7, E9, E10, E11, E12 | ⏳ assenti (nessun test nelle rispettive aree) | M9 e M11 restano aperte |
+
+**Come leggere questa correzione**: M6 e M7 erano tracciate qui e sono accurate; M8 e M9 erano dichiarate ⏳
+perché il lavoro di E4–E6 è stato eseguito con la vista di release, senza tornare su questa. Le due viste vanno
+aggiornate **insieme** o la deriva si ripete.
 
 Conseguenza pratica: **chi lavora su M6 sta lavorando su E2**. Le issue `#31`–`#38` sono i checkpoint 6.1–6.8;
 si chiudono una volta, aggiornando entrambe le viste.
@@ -288,7 +316,7 @@ neutri (combat math, serializzazione, regole di fase). Il resto ha data di scade
 | Documento | Ruolo |
 |---|---|
 | [`piano-canonico-mvp.md`](piano-canonico-mvp.md) | **Canone**: decisioni vincolanti, invarianti, regole numeriche |
-| [`roadmap-v0.1.md`](roadmap-v0.1.md) | **Release v0.1**: 12 epic, 59 checkpoint, mappatura con queste milestone |
+| [`roadmap-v0.1.md`](roadmap-v0.1.md) | **Release v0.1**: 14 epic, 69 checkpoint, mappatura con queste milestone + **§2.1 stato misurato** |
 | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate di release `G1`–`G14`, KPI, checklist di contenuto |
 | [`balance/`](balance/) | **Numeri vigenti v0.1**: cataloghi azioni, terreni, equipaggiamento, eroi, matrice di test |
 | [`spec-motore-azioni-e4.md`](spec-motore-azioni-e4.md) | **Proposta di design** del motore azioni (epic E4): modello, fette, rischi, domande aperte |

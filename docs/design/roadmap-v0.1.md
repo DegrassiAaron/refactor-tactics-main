@@ -76,11 +76,46 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale/non allineato al catalog
 | **Comandi debug `rt.Debug.*`** | — | ⏳ *verificato assente*: nessun `FAutoConsoleCommand` in `Source/` |
 | **Intenti alleati con certezza** | — | ⏳ |
 
-**Suite automatica**: **172** macro `IMPLEMENT_SIMPLE_AUTOMATION_TEST` in `Source/RefactorTactics/Tests/`
-(25 file, conteggio verificato 2026-08-05). **63** esagonali (`RTHex*`), il resto quadrate o neutre.
+~~**Suite automatica**: **172** macro `IMPLEMENT_SIMPLE_AUTOMATION_TEST` in `Source/RefactorTactics/Tests/`
+(25 file, conteggio verificato 2026-08-05). **63** esagonali (`RTHex*`), il resto quadrate o neutre.~~
+→ **superato: 324 test unici in 48 file**, vedi **§2.1**.
 
 **Stato in una riga**: le fondamenta esagonali sono complete e testate, ma **nessuna partita ci gira sopra**
 e il catalogo v0.1 (azioni, eroi, reazioni, ambiente, obiettivi) è **tutto da costruire**.
+
+### 2.1 ⚠️ Riallineamento misurato — 2026-08-07
+
+Le due righe qui sopra **erano vere il 2026-08-05 e non lo sono più**. Misura diretta sul repository:
+
+- **324 test automatici unici** in **48 file** (la roadmap ne dichiarava 172 in 25 file: −152).
+- I nomi dei test sono la prova di cosa esiste: sono estraibili con
+  `grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp`.
+
+| Epic | Stato dichiarato | **Stato misurato** | Evidenza |
+|---|---|---|---|
+| **E1** Cataloghi | da costruire | ✅ **chiusa** | `Catalog.{IdsAreUnique, NoFloatInIntegerFields, PhaseMappingIsTotal, ValidatorRejectsInvalidAsset, ValidatorRejectsEquipmentWithoutDrawback, ValidatorRejectsUnboundedPropagation}` |
+| **E4** Motore azioni | da costruire | ✅ **chiusa** (52 test) | `Actions.{OrderByPriority, PermutationInvariant, PhaseMappingRespectsAtlas}`, 6 `Fallback.*`, `Guard.*`, `Charge.*`, `Leap.*`, `Root.*`, `Interrupt.*`, `Slow.*`, `Collisions.NoPlayerIdBias` |
+| **E5** Reazioni | da costruire | ✅ **chiusa** (24 test) | `Reactions.{SingleActivation, NoResolverWait, IntentNotVisibleToEnemy}`, `Counter/Deflect/Brace/Shield/Cleanse`, 5 test `Intercept*` |
+| **E6** Roster 4 eroi | da costruire | ✅ **chiusa** (20 test) | `Heroes.{Flux,Riva,Bastion,Vektor}.MatchesCatalog`, `*.VariantTradeoff`, `RosterIsBalanced`, `SpawnFromData` |
+| **E8** Terreni | da costruire | 🟡 **parziale** | ✅ `Terrain.{CostsFromCatalog, Rough.BlocksDash, Fire.*, ShallowWater.AppliesWet, Smoke.*, Ice.*}` · ❌ nessun test `Environment.*` (CP 8.3 propagazione elettrica, CP 8.4 fuoco/acqua) |
+| **E7** Equipaggiamento | pianificata | ⏳ **assente** | nessun test `Equipment.*` |
+| **E9** Coperture/strutture | pianificata | ⏳ **assente** | nessun test `Cover.*` né `Structures.*` |
+| **E10** Obiettivi | pianificata | ⏳ **assente** | nessun test `Objectives.*` né `Match.*` |
+| **E11** HUD/log/debug | pianificata | ⏳ **assente** | nessun test `UI.*` né `Debug.*` |
+| **E12** Determinismo/release | pianificata | ⏳ **assente** | nessun test `Simulation.*` (il replay è verificato una volta da `HexSim.ReplayDivergenceZero`, non 100) |
+
+**Sorpresa registrata**: lo **scivolamento su ghiaccio esiste ed è testato** (`Terrain.Ice.SlidesWithSufficientBudget`,
+`Ice.SlideBudgetBoundaryIsExactlyTwo`, `Ice.BlockedCellStopsSliding`, `Ice.SlidesInMatch`), benché il catalogo
+terreni lo dichiari «rimandabile». Non va né costruito né rimosso: va **documentato come vigente**.
+
+**I 10 test vincolanti del catalogo** (§6): **6 esistono**, 4 no —
+mancano `Environment.WaterElectricPropagation`, `Environment.WaterExtinguishesFire`,
+`Cover.DirectionalDamageReduction`, `Simulation.DeterministicReplay`.
+
+**Stato in una riga, aggiornato**: il **contenuto** della v0.1 (cataloghi, azioni, reazioni, eroi) è in gran
+parte costruito e testato; mancano **il mondo** (ambiente, coperture, strutture, obiettivi), **la leggibilità**
+(HUD, log, debug) e **il gate di release** (determinismo, packaging). Il collo di bottiglia non è più il codice
+di gioco: è la **verifica interattiva** (M6 CP 6.8 mai eseguito) e l'osservabilità.
 
 ---
 
@@ -100,8 +135,24 @@ e il catalogo v0.1 (azioni, eroi, reazioni, ambiente, obiettivi) è **tutto da c
 | **E10** | Obiettivi dinamici e fine partita | P2 | 3 | Chiude il loop: la partita ha un motivo per muoversi |
 | **E11** | HUD, log e debug | P1 | 4 | Leggibilità tattica + osservabilità (senza `rt.Debug.*` si debugga a occhio) |
 | **E12** | Determinismo, QA e release | **P0** | 5 | Gate di release: senza checksum e packaged non è v0.1 |
+| **E13** | Conoscenza parziale — vista e udito | P2 | 5 | La vista è una statistica a catalogo che non decide nulla; il rumore è il suo gemello e i dati esistono già |
+| **E14** | Overwatch e reazioni interattive | P2 | 5 | Bait, bluff e commitment non sono recuperabili con reazioni dichiarate; l'aggancio (`SuppressiveLine`, `InterceptShot`) esiste già |
 
-**Totale: 12 epic, 59 checkpoint.**
+**Totale: 14 epic, 69 checkpoint** *(era 12/59; E13 ed E14 aggiunte il 2026-08-07, vedi §5.13 e
+[`brief-overwatch-reazioni.md`](brief-overwatch-reazioni.md))*.
+
+> ✅ **CP 14.1 chiuso**: [ADR-0004](adr-0004-finestre-di-reazione.md) è **accettato** (2026-08-07). Cambia la
+> **forma del turno** (sequenza di sotto-risoluzioni) e unifica il modello delle reazioni; l'invariante #3 del
+> canone §5 è riformulato — «snapshot a inizio **segmento**». E5 resta chiusa e i suoi 24 test restano verdi:
+> il modello nuovo li contiene come caso `AllowedResponses ≤ 1`. **E14 non parte prima di E13** (il trigger
+> richiede livello `Rilevato`, non solo LOS).
+
+> **Fuori dalla v0.1, registrate qui perché esistono i documenti sorgente**: il **motore del ghiaccio**
+> (Momentum, Traction, Slide a catena, Unbalanced/Prone, integrità, rottura, ponti) descritto in
+> `docs/src/RefactorTactics — Implementazione terreno Ghiaccio v0.1 in Unreal Engine 5.md` →
+> [`brief-ghiaccio.md`](brief-ghiaccio.md). Lo **scivolamento base** resta in v0.1 perché è **già implementato**
+> (§2.1). I livelli di percezione oltre l'incerto (identificazione, firma, sensori) restano in
+> [`brief-conoscenza-parziale.md`](brief-conoscenza-parziale.md) §9.
 
 > **Nessuna stima in giorni.** Il progetto è a dev singolo e non esiste una velocity misurata: inventare date
 > sarebbe una metrica falsa. La roadmap ordina il lavoro e ne fissa i gate; il calendario si deriva a
@@ -362,6 +413,34 @@ modifica di regole coperta dall'ADR-0003: va riflessa in `piano-canonico-mvp.md 
 | **12.3** | Suite automatica completa | I 10 test nominati dal catalogo (§15) esistono con quei nomi e sono verdi; nessun test disabilitato o saltato per far passare la build | `RunUAT`/Automation: elenco completo verde; `grep -rn "skip\|disable" Source/RefactorTactics/Tests/` senza esiti |
 | **12.4** | KPI misurati | FPS client, path mediana, preview completa, resolver per turno **misurati e registrati** (anche se fuori target); replay divergence = 0; intent leak = 0 | Tabella KPI di `v0.1-definition-of-done.md` compilata con numeri reali |
 | **12.5** | Release interna v0.1 | Packaging Windows **Development** e **Shipping** dal codice solo-hex; una partita completa giocata **senza editor**, dall'avvio alla vittoria | `RunUAT BuildCookRun` → BUILD SUCCESSFUL + avvio e partita verificati |
+| **12.6** | **Corpus golden di TurnLog** *(nuovo, 2026-08-07)* | Un insieme di partite di riferimento serializzate su file sotto `Source/RefactorTactics/Tests/Golden/`; un test le riesegue e confronta **TurnLog e checksum**; una divergenza fallisce indicando turno, fase e `ActionId`. Rigenerabili con un flag esplicito, **mai** in automatico | `Simulation.GoldenCorpusMatches`, `Simulation.GoldenCorpusDetectsDivergence` (divergenza introdotta apposta) |
+
+> **CP 12.1 e 12.6 sono il sistema di test del combattimento scelto il 2026-08-07.** Il *fuzzing deterministico*
+> è stato valutato e **scartato**: regge solo perché il motore del ghiaccio (slide a catena) resta fuori dalla
+> v0.1 — se rientrasse, andrebbe riaperto, perché nessuna batteria di casi copre lo spazio di stato di un
+> movimento forzato ricorsivo. La *matrice del catalogo eseguibile* è rinviata: è infrastruttura da mantenere.
+
+---
+
+### E13 — Conoscenza parziale: vista e udito · P2
+
+**Obiettivo**: la conoscenza di squadra smette di essere totale. La **vista** (statistica già a catalogo, oggi
+inerte) e il **rumore** alimentano lo stesso modello a tre livelli. Non è fog of war: la mappa statica resta nota.
+
+Fonti: [`brief-conoscenza-parziale.md`](brief-conoscenza-parziale.md) ·
+`docs/src/RefactorTactics_Rumore_Claude.md`. Dipende da **E4** (fallback), **E6** (statistiche eroe), **E8** (fumo).
+
+| CP | Obiettivo | DoD misurabile | Test / verifica |
+|---|---|---|---|
+| **13.1** | Celle visibili e conoscenza di squadra | Funzione **pura** e headless: celle visibili per unità (`HexDistance ≤ Vista` ∧ LOS), unione per squadra, ordine stabile; tre livelli `Nascosto / Incerto / Rilevato`; nessun consumatore ancora | `Vision.VisibleCellsRespectsSight`, `Vision.TeamKnowledgeIsUnion`, `Vision.SmokeCapsContactAtTwo`, `Vision.PermutationInvariant` |
+| **13.2** | Il targeting consuma la conoscenza + memoria del contatto | Le azioni offensive rifiutano bersagli **ignoti alla squadra**; un bersaglio solo `Incerto` è bersagliabile solo per cella, mai per unità; `FRTLastKnownContact` per squadra nello snapshot, formato **versionato**, persistenza 1 turno | `Vision.CannotTargetUnknown`, `Vision.UncertainTargetsCellNotUnit`, `Vision.AllySpottingExtendsTargeting`, `Vision.LastContactExpiresAfterOneTurn` |
+| **13.3** | Propagazione del rumore | Flood fill **intero** sul grafo tattico limitato dall'intensità (`ReceivedNoise = Intensity − costo acustico`); `Noise_Mod` per superficie dal workbook; nessun `SphereOverlap`; ordine deterministico | `Noise.PropagationIsDeterministic`, `Noise.AttenuationBySurface`, `Noise.ThresholdDecidesDetection`, `Noise.PermutationInvariant` |
+| **13.4** | Rumore → contatto incerto | Un evento sonoro sopra soglia produce un contatto **`Incerto`** con area, mai la cella esatta; l'attacco rivela almeno la direzione; gli eventi entrano nel TurnLog **sanitizzati per squadra** | `Noise.ProducesUncertainContact`, `Noise.AttackRevealsDirection`, `Noise.TurnLogIsTeamFiltered` |
+| **13.5** | Bot e HUD sulla conoscenza parziale | `URTHexBotLibrary` pianifica sulla conoscenza della **propria** squadra e non bersaglia ciò che non conosce; HUD con marker d'ultimo contatto e area d'incertezza acustica | `Bot.PlansOnPartialKnowledge`, `Bot.DoesNotTargetUnknown`; PIE `PIE-V01-VISION`, `PIE-V01-NOISE` |
+
+**Rischi**: i test del bot (smoke/panic/support/tuning) cambiano **premessa**, non solo valori — un bot che
+perde il contatto e sbaglia è il comportamento atteso. Il rumore è ciò che rende necessario il livello
+`Incerto`: senza di esso il sistema si riduce a un secondo raggio di rilevamento.
 
 ---
 
@@ -415,7 +494,7 @@ un gate della v0.1, perché l'editor è uno strumento, non una feature di gioco.
 
 | Rischio | P/I | Mitigazione | Stato |
 |---|---|---|---|
-| Scope: 59 checkpoint per un dev singolo | **H/H** | Ordine per priorità: se il tempo stringe si taglia **E7**, poi **E10**, poi le varianti di **E6** — mai E1/E2/E3/E4/E12 | attivo |
+| Scope: **69** checkpoint per un dev singolo | **H/H** | Ordine per priorità: se il tempo stringe si taglia **E14**, poi **E7**, poi **E10**, poi **E13**, poi le varianti di **E6** — mai E1/E2/E3/E4/E12. *Aggiornato 2026-08-07: E1/E4/E5/E6 risultano chiuse (§2.1), quindi il rischio si è spostato dal contenuto al **mondo** (E8/E9/E10) e all'osservabilità (E11)* | attivo |
 | La sostituzione della coordinata rompe il gioco a metà | H/H | E2 a fette compilabili, ogni CP con suite verde; tag `pre-hex-only` prima di E3 | attivo |
 | Le reazioni sfondano il budget di complessità | M/H | Revisione dell'ADR-0003 alla chiusura di E5; via di degrado già scritta (solo difensive di Prep) | pianificato |
 | Doppia definizione di abilità (`URTAbilityData` vs `URTActionData`) | **H/M** | CP 1.3 dichiara migrazione o estensione, non duplicazione; il validator di CP 1.4 fallisce su ID doppi | attivo |

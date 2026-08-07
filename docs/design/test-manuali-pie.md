@@ -40,6 +40,28 @@
   Se la vista sembra bloccata e compaiono le **etichette degli actor** in viewport, hai fatto **Eject** (`F8`):
   stai guardando con la camera dell'editor, non con quella del gioco — `F8` di nuovo per rientrare nel pawn.
 
+## Stato in numeri — 2026-08-07
+
+**63 voci**: ✅ **22 verdi** · 🟡 **15 parziali** (regola coperta da test, resta il visivo) · ⏳ **26 aperte**.
+
+Misura riproducibile, così il numero non si cita a memoria:
+
+```bash
+awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);
+  if (s ~ /✅/) c["verde"]++; else if (s ~ /🟡/) c["parziale"]++; else c["aperta"]++ }
+  END {printf "verde=%d parziale=%d aperta=%d\n", c["verde"], c["parziale"], c["aperta"]}' \
+  docs/design/test-manuali-pie.md
+```
+
+Le 26 aperte in due gruppi, più due residui:
+
+| Gruppo | Voci | Nota |
+|---|---|---|
+| **Editor** (sessione A) | `HEX-LAYER` `HEX-TRANS` `HEX-MODE-E/F/G/H/L/N/O` | **9** — producono la mappa di prova, prerequisito del gruppo sotto |
+| **Partita hex** (sessione D) | `HEXPLAY-4/4b/5/6/6b/6c/7/9/10` | **9** — è il **gate di M6** (CP 6.8) |
+| **v0.1 senza codice** | `V01-ELEC` `V01-FIREWATER` `V01-LOWCOVER` `V01-DOOR` `V01-HUD` `V01-DEBUG` | **6** — attendono E8 CP 8.3/8.4, E9, E11 |
+| **Animazioni** | `AS4a` `AS4b` | **2** — richiedono i montage Paragon |
+
 ## Checklist
 
 | ID | Cosa verificare | Precondizione | Esito atteso | Stato |
@@ -107,30 +129,44 @@
 
 ### Contenuto della v0.1 (catalogo azioni, eroi, ambiente, strutture)
 
-> Voci **pianificate in anticipo** per la release **v0.1** ([`roadmap-v0.1.md`](roadmap-v0.1.md)): il codice non
-> esiste ancora. Le prime dodici traducono la matrice di test manuali del catalogo di bilanciamento (§14); le
-> ultime cinque coprono roster, HUD e strumenti di debug.
+> Voci pianificate in anticipo per la release **v0.1** ([`roadmap-v0.1.md`](roadmap-v0.1.md)). Le prime dodici
+> traducono la matrice di test manuali del catalogo di bilanciamento (§14); le ultime cinque coprono roster,
+> HUD e strumenti di debug.
 > Precondizioni comuni: partita hex avviata (sessione D verde) e catalogo v0.1 caricato dai data asset.
 > Riferimento issue in [`v0.1-issue-plan.md`](v0.1-issue-plan.md).
+>
+> ⚠️ **Riallineamento 2026-08-07** — la frase «*il codice non esiste ancora*» che apriva questa sezione **era
+> falsa**: le epic E1, E4, E5 ed E6 sono chiuse (324 test misurati). Riclassificazione verificata voce per
+> voce, non a stima:
+>
+> | Esito | Voci |
+> |---|---|
+> | ⏳ → 🟡 **coperte headless** | `PUSH` · `INTERCEPT` · `FF` · `ROSTER` · `INTENT` (metà) · `LOG` (parte) |
+> | ⏳ **restano aperte** | `ELEC` · `FIREWATER` (E8 CP 8.3/8.4) · `LOWCOVER` (E9) · `DOOR` (E9) · `HUD` (E11) · `DEBUG` (E11) |
+>
+> Le sei che restano ⏳ **coincidono esattamente** con le epic senza un solo test (`Environment.*`, `Cover.*`,
+> `Structures.*`, `UI.*`, `Debug.*`): non è una coincidenza, è la conferma che la riclassificazione è corretta.
+> Una voce 🟡 **non è verde**: il test copre la regola, il PIE copre ciò che il test non può vedere — che si
+> veda a schermo e che il giocatore lo capisca.
 
 | ID | Cosa verificare | Precondizione | Esito atteso | Stato |
 |----|-----------------|---------------|--------------|-------|
 | **PIE-V01-COLL** | Collisione sulla stessa cella | due unità pianificate verso la stessa cella, stessa priorità | Entrambe si fermano nella cella precedente; il log riporta il reason; ripetendo con una `Charge` contro un `Move`, la Charge entra e l'altra resta indietro | 🟡 **coperto headless** da `RefactorTactics.HexMove.ContestedCellStopsBoth` e `RefactorTactics.HexSim.ResolveContestedDestination` (destinazione contesa → entrambe ferme, esito indipendente dall'ordine). Al PIE resta da vedere che **a schermo** non si sovrappongano e che il combat log riporti il reason |
 | **PIE-V01-ROUGH** | Costo del terreno accidentato | mappa con celle `Terrain.Rough` | Attraversare una cella accidentata consuma **2 MP** invece di 1; con 5 MP il raggio raggiungibile si accorcia di conseguenza; `Dash` e `Charge` **non** la attraversano | 🟡 **coperto headless** da `RefactorTactics.HexSim.ReachableRespectsTerrainCost` e `RefactorTactics.MatchSetup.TestArenaHasTheFeaturesItPromises` (attraversare il fango costa più dei passi percorsi). Al PIE resta da vedere che il **budget mostrato** si riduca di conseguenza |
 | **PIE-V01-DASHCOVER** | Dash contro copertura alta | copertura alta sulla traiettoria del Dash | Il Dash si ferma prima della copertura oppure è invalidato in pianificazione (nessun attraversamento, nessun crash) | 🟡 **coperto headless 2026-08-06** — lo scatto e' ora **lineare** (`#46`, CP 4.5 parziale): `RefactorTactics.HexSim.DashIsLinear` verifica che un ostacolo sulla traiettoria **annulli** lo scatto (non lo aggira e non ci si ferma prima), che una cella non allineata alle sei direzioni sia rifiutata e che un layer diverso non sia mai «in linea». `HexMove.DashRefusesBlockedDestination` copre la destinazione bloccata: in RISOLUZIONE vale `Fallback.Stop` (ci si ferma nell'ultima cella libera della traiettoria), mentre in PIANIFICAZIONE la destinazione bloccata è rifiutata — le due cose non si contraddicono, la prima serve a quando il movimento simultaneo altrui chiude una traiettoria che era libera al lock-in (`#142`). `HexMatch.HeroDashResolvesLinearly` copre lo stesso sugli EROI, cioè sul catalogo che il gioco schiera. Al PIE resta da vedere **a schermo** che lo scatto non si pianifichi, invece di partire e fermarsi a metà |
-| **PIE-V01-PUSH** | Push verso cella occupata | bersaglio con una cella occupata alle spalle | Nessuno spostamento illegale: la spinta si annulla e l'unità resta dov'è; il log spiega il motivo | ⏳ |
+| **PIE-V01-PUSH** | Push verso cella occupata | bersaglio con una cella occupata alle spalle | Nessuno spostamento illegale: la spinta si annulla e l'unità resta dov'è; il log spiega il motivo | 🟡 **coperto headless 2026-08-07** da `RefactorTactics.Actions.Push.InvalidDestination` e `Actions.Pull`. Al PIE resta da vedere che **a schermo** l'unità non si sposti affatto (nessun sobbalzo) e che il log dia il motivo |
 | **PIE-V01-ELEC** | Acqua elettrificata | acqua creata da Riva/Sprinkler + `Electrify` di Flux | La propagazione segue le celle conduttive, si ferma a **3 celle**, colpisce ogni unità **una sola volta**; ripetendo la stessa configurazione l'esito è identico | ⏳ |
 | **PIE-V01-FIREWATER** | Acqua spegne il fuoco | cella in fiamme + acqua sopra | La cella di fuoco è rimossa e `Burning` cancellato dalle unità coinvolte; il fuoco non si propaga oltre | ⏳ |
 | **PIE-V01-LOWCOVER** | Copertura bassa direzionale | copertura bassa su un bordo fra attaccante e bersaglio | L'attacco dal lato protetto infligge **10 danni in meno**; girando attorno e colpendo da un altro lato il danno è pieno | ⏳ |
-| **PIE-V01-INTERCEPT** | Intercept protegge l'alleato | alleato entro 2 celle con `Intercept` preparato | L'intercettore **diventa** il bersaglio dell'attacco diretto; con un AoE o un hazard l'intercetto **non** scatta | ⏳ |
-| **PIE-V01-FF** | Friendly fire su AoE | `CircularAoE` centrato dove c'è anche un alleato | Il danno è applicato **anche** all'alleato; l'HUD/preview lo segnala prima del lock-in | ⏳ |
+| **PIE-V01-INTERCEPT** | Intercept protegge l'alleato | alleato entro 2 celle con `Intercept` preparato | L'intercettore **diventa** il bersaglio dell'attacco diretto; con un AoE o un hazard l'intercetto **non** scatta | 🟡 **coperto headless 2026-08-07** da `Reactions.Intercept`, `InterceptRejectsAoE`, `InterceptRejectsHazard`, `InterceptOnlyNearbyAllies`, `InterceptRequiresCompatibleTrajectory`, `InterceptResolvesBeforeOtherReactions`. Al PIE resta la **leggibilità**: che si capisca a schermo *chi* ha incassato il colpo al posto di chi |
+| **PIE-V01-FF** | Friendly fire su AoE | `CircularAoE` centrato dove c'è anche un alleato | Il danno è applicato **anche** all'alleato; l'HUD/preview lo segnala prima del lock-in | 🟡 **coperto headless 2026-08-07** da `Actions.AoE.FriendlyFire` (il danno **arriva** all'alleato). ⏳ al PIE resta la metà che il test non vede: che **l'anteprima lo segnali prima del lock-in**, non dopo il danno |
 | **PIE-V01-FALLBACK** | Fallback su bersaglio che si sposta | attacco diretto su un bersaglio che si muove nello stesso turno | Si applica il fallback dichiarato (`Cancel` per gli attacchi diretti): nessun colpo «inseguente», il log riporta il fallback applicato | 🟡 **coperto headless** da `RefactorTactics.Actions.Fallback.*` (8 test: `Stop`, `Wait`, `AttackCell`, `Cancel`, `ValidationReasons`, `LoggedOutcome`, `CancelIsLoggedInMatch`, `NoRandomTargeting`) — il fallback si applica e **compare nel log**, e non esiste bersagliamento automatico casuale. ⏳ al PIE resta da vedere che chi gioca **capisca** cosa e' successo leggendo il combat log, senza dedurlo dal comportamento |
 | **PIE-V01-DOOR** | Porta chiusa durante il turno | percorso che attraversa una porta chiusa da un'azione nello stesso turno | Il grafo è ricostruito: l'unità **si ferma** davanti alla porta (`Fallback.Stop`), nessun path fantasma attraverso la porta chiusa | ⏳ |
 | **PIE-V01-REPLAY** | Replay dello stesso turno | `rt.Debug.DumpTurnLog` + `rt.Debug.VerifyReplay` | Rieseguendo lo stesso turno con lo stesso seed, TurnLog e checksum sono **identici**; il comando non segnala divergenze | 🟡 **coperto headless** da `RefactorTactics.HexSim.ReplayDivergenceZero` (stesso snapshot → stesso TurnLog e stesso hash). ⏳ al PIE resta il giro con i comandi `rt.Debug.DumpTurnLog` / `rt.Debug.VerifyReplay`, che non esistono ancora (CP 11.4) |
-| **PIE-V01-ROSTER** | Roster dei 4 eroi | `URTHeroData` per Flux, Riva, Bastion, Vektor | Le 4 unità in campo hanno statistiche distinte (90/95/120/100 HP, 5/5/4/6 MP); il bot gestisce MP diversi senza proporre mosse illegali; asset mancante = fallback al cilindro | ⏳ |
+| **PIE-V01-ROSTER** | Roster dei 4 eroi | `URTHeroData` per Flux, Riva, Bastion, Vektor | Le 4 unità in campo hanno statistiche distinte (90/95/120/100 HP, 5/5/4/6 MP); il bot gestisce MP diversi senza proporre mosse illegali; asset mancante = fallback al cilindro | 🟡 **coperto headless 2026-08-07** da `Heroes.StatsFromData`, `Heroes.SpawnFromData`, `Heroes.SpawnFailsClosedWithoutData` (fallback), `Heroes.RosterIsBalanced` e i quattro `Heroes.<Eroe>.MatchesCatalog`. ⏳ al PIE resta il **giudizio in partita**: che i quattro si sentano diversi da giocare, e che il bot con 4 MP non proponga mosse da 6 |
 | **PIE-V01-HUD** | HUD di partita completo | partita v0.1 avviata | Barre HP/scudo/energia, timer, fase, **turno su 12**, slot occupati (movimento/principale/reazione) e cooldown residui, tutti a schermo e coerenti col simulatore | ⏳ |
-| **PIE-V01-INTENT** | Intenti alleati e certezza | due unità alleate in pianificazione | Gli intenti alleati mostrano i tre livelli **confermato / previsto / incerto**; **nessun** intento avversario è visibile in alcuna forma | ⏳ |
-| **PIE-V01-LOG** | Combat log con reason code | un turno con un fallback e una modifica ambientale | Ogni voce riporta `ActionId`, priorità, coordinate assiali `(q,r,L)` e `ValidationResult`; i fallback e le modifiche ambientali sono espliciti | ⏳ |
+| **PIE-V01-INTENT** | Intenti alleati e certezza | due unità alleate in pianificazione | Gli intenti alleati mostrano i tre livelli **confermato / previsto / incerto**; **nessun** intento avversario è visibile in alcuna forma | 🟡 **metà coperta 2026-08-07**: la **privacy** sì — `Reactions.IntentNotVisibleToEnemy` e `IntentViewSkipsDeadAndKeepsOrder` (nessun intento avversario, ordine stabile). ⏳ resta l'altra metà, i **tre livelli di certezza**, che appartengono a E11 CP 11.2 e non esistono ancora |
+| **PIE-V01-LOG** | Combat log con reason code | un turno con un fallback e una modifica ambientale | Ogni voce riporta `ActionId`, priorità, coordinate assiali `(q,r,L)` e `ValidationResult`; i fallback e le modifiche ambientali sono espliciti | 🟡 **parzialmente coperto 2026-08-07** da `Actions.Fallback.LoggedOutcome`, `Fallback.CancelIsLoggedInMatch`, `Reactions.NotTriggeredIsLogged`, `Terrain.Status.LogMatchesState` (ciò che accade **finisce** nel log). ⏳ resta il **formato**: `ActionId`, priorità e coordinate assiali nella voce, e le modifiche ambientali — che dipendono da E8 CP 8.3/8.4, assenti |
 | **PIE-V01-DEBUG** | Comandi `rt.Debug.*` | build Development o PIE | Gli 8 comandi rispondono; le celle mostrano `CellId`/`TerrainId`/`TraversalCost`/`OccupantId`/`HazardTags`/`CoverEdges`/`ChunkRevision`; **`DrawIntent` non rivela gli intenti avversari** | ⏳ |
 
 ## Sessioni di verifica consigliate

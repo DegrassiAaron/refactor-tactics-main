@@ -142,6 +142,25 @@ nel vertical slice).
 | Bastion | 120 | 4 | 5 | 1 | strutture | cambia la forma della mappa, lento |
 | Vektor | 100 | 6 | 6 | 0 | movimento | punisce chi si muove, il più mobile |
 
+### 5.1 Percezione e risorsa firma — consolidato il 2026-08-07
+
+La colonna **Vista** smette di essere inerte: con lo slice di conoscenza parziale
+([`brief-conoscenza-parziale.md`](../brief-conoscenza-parziale.md)) decide **cosa la squadra può bersagliare**.
+Nessuna azione del roster supera la vista di chi la usa (max `range` 5 su vista minima 5), quindi il vincolo
+non riduce la gittata di nessuno: la vista lunga vale **anticipo d'informazione**, non danno.
+
+| Eroe | Vista | Ruolo | Risorsa firma | Ricarica su | Cap |
+|---|---:|---|---|---|---:|
+| Flux | 6 | Controller | Carica Conduttiva | interazione elettrica | 4 |
+| Riva | 5 | Support | Riserva Idrica | interazione con acqua | 4 |
+| Bastion | 5 | Guardian | Integrità Strutturale | Cleanup | 4 |
+| Vektor | 6 | Striker | Slancio | movimento eseguito | 4 |
+
+I restanti parametri di percezione (`Detection`, `Identification`, `Stealth`, `Tracking`, firme) esistono nel
+workbook di bilanciamento e sono inizializzati **al valore più basso disponibile, uguale per tutti**
+(Detection 48, Identification 45, Stealth 2, Tracking 1): si parte piatti e si differenzia col playtest.
+Nessuno di essi entra nella v0.1 — lo slice è binario (in vista / fuori vista), vedi §3 del brief.
+
 Nessun eroe domina in ogni parametro: Bastion compra HP e resistenza con **movimento** e vista; Vektor compra
 mobilità con l'assenza di difese; Flux ha il danno combo più alto ma la salute più bassa.
 

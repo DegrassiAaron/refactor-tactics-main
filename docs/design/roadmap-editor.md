@@ -388,7 +388,7 @@ sbagliato.
 |---|---|
 | [`piano-canonico-mvp.md`](piano-canonico-mvp.md) | **Canone**: decisioni vincolanti e invarianti |
 | [`roadmap-checkpoint.md`](roadmap-checkpoint.md) | **Esecuzione**: milestone M6–M11, checkpoint, DoD, stato |
-| [`roadmap-v0.1.md`](roadmap-v0.1.md) | **Release v0.1**: 12 epic, 59 checkpoint |
+| [`roadmap-v0.1.md`](roadmap-v0.1.md) | **Release v0.1**: 14 epic, 69 checkpoint |
 | *questo file* | **Operativo in editor**: sedute, artefatti, ordine, dipendenze |
 | [`test-manuali-pie.md`](test-manuali-pie.md) | **Registro delle verifiche**: esito atteso e stato delle voci `PIE-*` |
 | [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) | **Normativo**: dove va un asset, come si chiama, come si sposta |

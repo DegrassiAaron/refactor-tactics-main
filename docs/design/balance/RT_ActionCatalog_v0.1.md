@@ -38,6 +38,17 @@ di movimento qui sotto dichiara esplicitamente quale delle due. Motivazione in [
 | Azione principale | 1 | `BasicAttack`, `Dash`, `Guard`, `Heal` |
 | Reazione | 1 | `Counter`, `Intercept`, `Deflect` |
 | Comunicazione | — | Ping, label |
+
+> **Slot ≡ Action Points** (consolidato il 2026-08-07). Il workbook di bilanciamento
+> `docs/RefactorTactics_Balance_Matrices_v0.1.xlsx` modella gli stessi slot come **risorse**: `RES_ACTION`
+> (Action Points, cap **2**, nessun riporto fra turni) copre Movimento + Azione principale, `RES_REACTION`
+> (cap **1**) è lo slot Reazione dell'ADR-0003. **Sono lo stesso sistema con due nomi**: la tabella qui sopra
+> resta la formulazione canonica, «AP» è ammesso come sinonimo nei documenti di bilanciamento.
+>
+> **Risorsa firma** — ciò che l'MVP chiamava *energia* è per-personaggio, con nome e trigger di ricarica
+> propri: `Flux` Carica Conduttiva · `Riva` Riserva Idrica · `Bastion` Integrità Strutturale · `Vektor`
+> Slancio. Cap **4** per tutte (valore più basso fra i candidati), ricarica **1** sul trigger d'affinità.
+> Cambia il nome e cosa la ricarica, **non** la regola.
 | Conferma | illimitata (rate limit) | Ready |
 
 Un piano completo dichiara: percorso di movimento · azione principale · reazione (se disponibile) · **facing

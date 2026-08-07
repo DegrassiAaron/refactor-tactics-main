@@ -29,7 +29,7 @@ sola parte adottabile a breve.
 | Ordine deterministico degli effetti simultanei (APNAP + tie-break totale) | ✅ **rafforza l'invariante #4** | **Recepito** nel canone §5.1 (`FR-RESOLVE-01..03`, dettaglio §3) |
 | Politiche di fallback/reazione **pre-committed** (funzioni pure sullo snapshot) | 🟡 compatibile con "raccogli poi applica" | Adottabile, **gated** da una ragione di gameplay |
 | Reveal a **livelli** (generico → elemento → bersaglio) | 🟡 elaborazione del binario `Status.Reveal` (M3.4) | North-star; compatibile in spirito |
-| **Finestre di reazione live** (popup 3s, input a metà esecuzione) | ❌ **conflitto con l'invariante #3** | **North-star, gated** (§3, C1) |
+| **Finestre di reazione live** (popup 3s, input a metà esecuzione) | ~~❌ conflitto con l'invariante #3~~ → 🟡 **riconciliabile per composizione** | **In scope dal 2026-08-07** con la via **(b)** di C1 — vedi [`brief-overwatch-reazioni.md`](brief-overwatch-reazioni.md); richiede **ADR-0004** |
 | **Reaction Stack LIFO** interattivo | 🟡 l'*ordine* LIFO sì; lo *stack live* no | Adotta l'ordine come regola pura; differisci l'interattivo |
 | 5 categorie di velocità (Immediate/Reaction/Fast/Standard/Slow) + `timing` (`EndOfPhase`…) | ❌ non nel canone; mal si sposa col batch a 4 fasi | North-star (§3) |
 | **Patch** (modificatori dinamici di un'abilità in corso) | 🟡 potente per combo, amplia il non-determinismo | North-star (§3) |
@@ -55,6 +55,17 @@ Per `CLAUDE.md` (conflitto tra fonti → segnala, non sovrascrivere una decision
   (a) **politiche pre-committed** valutate come funzioni pure dello snapshot, oppure
   (b) north-star: ogni finestra apre un **nuovo round di sotto-risoluzione deterministico** (modello a
   *priority passes* stile MTG) — **mai** un `Delay` dentro il resolver.
+
+  > ✅ **Risolto il 2026-08-07 con la via (b)**, alla luce di
+  > `docs/src/RefactorTactics_Overwatch_FastReaction_Claude.md` (che non esisteva quando questa spec è stata
+  > scritta). La formulazione operativa è in [`brief-overwatch-reazioni.md`](brief-overwatch-reazioni.md):
+  > il turno diventa una **sequenza di sotto-risoluzioni**, ciascuna «raccogli poi applica» con snapshot
+  > proprio. L'invariante #3 **si compone, non si deroga** — nessun `Delay` entra nel resolver, che si ferma
+  > su un *decision boundary* e riparte con l'input come **dato**. Restano vere le due condizioni di C2: il
+  > default allo scadere è una funzione pura (`Timeout → HOLD`) e l'esito non dipende da *quando* arriva il
+  > click. ✅ **Formalizzato in [ADR-0004](adr-0004-finestre-di-reazione.md)** (2026-08-07): l'invariante #3
+  > del canone §5 è riformulato — «snapshot a inizio **segmento**», dove un segmento è delimitato da una
+  > macro-fase **o** da un decision boundary. **C1 è chiuso.**
 
 - **C2 — Determinismo (invariante #4)** vs timing da orologio delle finestre (3s) e timing dell'input umano.
   **Riconciliazione:** l'esito deve dipendere **solo** da *se* una reazione pre-committed scatta (condizioni sul

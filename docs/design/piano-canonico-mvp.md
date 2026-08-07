@@ -161,7 +161,8 @@ Principi non negoziabili (valgono anche in offline, per preparare il multiplayer
 
 1. **Autorità delle regole in C++**: il resolver decide l'esito; le animazioni/VFX non decidono nulla.
 2. **Griglia logica autoritativa**: la posizione vera è `FRTGridCoord`; il `FVector` serve solo al rendering.
-3. **Resolver "raccogli poi applica"**: snapshot a inizio fase, nessun `Delay`/timeline/montage nel resolver; l'ordine dell'array **non** deve cambiare il risultato. Quando l'esito dipende dall'ordine (scudo/buff/reazione prima del danno), l'ordine segue la regola deterministica di **§5.1** (APNAP + tie-break assoluto), non l'inserimento.
+3. **Resolver "raccogli poi applica"**: snapshot a inizio **segmento di risoluzione**, nessun `Delay`/timeline/montage dentro il segmento; l'ordine dell'array **non** deve cambiare il risultato. Quando l'esito dipende dall'ordine (scudo/buff/reazione prima del danno), l'ordine segue la regola deterministica di **§5.1** (APNAP + tie-break assoluto), non l'inserimento.
+   > **Riformulato il 2026-08-07 da [ADR-0004](adr-0004-finestre-di-reazione.md)** — *indebolito no, composto sì*. Un **segmento** è delimitato dall'inizio di una macro-fase **oppure** da un *decision boundary* (finestra di reazione). Il turno è una **sequenza** di segmenti, ciascuno dei quali è un «raccogli poi applica» completo con snapshot proprio. Il resolver non attende **mai** dentro un segmento: lo termina e restituisce il controllo. Prima di ADR-0004 il segmento coincideva sempre con la macro-fase, quindi la formulazione precedente resta valida per tutte le fasi senza finestre.
 4. **Determinismo**: niente `DeltaTime` non controllato nella logica dei turni; niente dipendenza dall'ordine di container non ordinati; ogni RNG usa seed/stream espliciti; ogni formato serializzato è versionato.
 5. **Server autoritativo** per ogni decisione di gameplay; il client calcola solo preview. Nell'MVP offline l'autorità è già isolata in `ARTTurnManager` (predisposizione al multiplayer).
 6. **Privacy dell'intento**: le intenzioni di pianificazione non raggiungono i client avversari — stato server + replica filtrata per squadra + autorizzazione server-side (invariante di `Intenti condivisi`). Nell'MVP offline: nessuna mossa avversaria mostrata/replicata durante la pianificazione.
@@ -337,6 +338,19 @@ velocità e budget di reazione. Consolidamento, conflitti con gli invarianti #3/
 > reveal progressivo e le 5 categorie di velocità — che confliggerebbero con la risoluzione "raccogli poi
 > applica" (invariante #3). La reazione della v0.1 è **deterministica e senza finestre**: il trigger si valuta
 > nello snapshot della fase, non in una finestra interattiva.
+>
+> ⚠️ **Aggiornamento 2026-08-07 — le finestre di reazione rientrano in scope.** Il documento
+> `docs/src/RefactorTactics_Overwatch_FastReaction_Claude.md` propone l'Overwatch come primo caso di un modello
+> generale di reazione con *decision boundary* e finestra di 3 s. La riconciliazione adottata è la via **(b)**
+> già prevista da [`spec-sequenza-turno.md`](spec-sequenza-turno.md) §3 C1: **l'invariante #3 si compone, non
+> si deroga** — il turno diventa una sequenza di sotto-risoluzioni, ciascuna «raccogli poi applica» con
+> snapshot proprio, e l'input del giocatore entra nel TurnLog **come dato** (il timeout è una funzione pura).
+> Tutte le reazioni passano a un modello unico *opportunity → commit*, di cui quello di E5 è il caso degenere
+> (`AllowedResponses ≤ 1` → commit immediato, nessuna finestra).
+> Decisioni **D16–D22** e checkpoint in [`brief-overwatch-reazioni.md`](brief-overwatch-reazioni.md) (epic
+> **E14**). ✅ **Formalizzato in [ADR-0004](adr-0004-finestre-di-reazione.md)** (2026-08-07, = CP 14.1): questo
+> paragrafo **è canone**, e l'invariante #3 di §5 è riformulato di conseguenza. Restano north-star lo stack
+> LIFO interattivo, gli interrupt annidati, il reveal progressivo e le 5 categorie di velocità.
 
 ---
 
