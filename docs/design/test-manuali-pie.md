@@ -42,14 +42,17 @@
 
 ## Stato in numeri — 2026-08-07
 
-<<<<<<< HEAD
-**67 voci**: ✅ **22 verdi** · 🟡 **15 parziali** (regola coperta da test, resta il visivo) · ⏳ **30 aperte**.
-*(erano 63/22/15/26 prima delle **4** voci di durata, ritmo e scala aggiunte il 2026-08-07)*
-=======
-**65 voci**: ✅ **23 verdi** · 🟡 **16 parziali** (regola coperta da test, resta il visivo) · ⏳ **26 aperte**.
-*(Aggiornato a fine giornata 2026-08-07: +2 voci per gli strumenti di leggibilità, `PIE-DEBUG-CELLS` verde e
-`PIE-PREVIEW-AREA` aperta; `PIE-V01-DEBUG` da ⏳ a 🟡 perché `rt.Debug.DrawCells` esiste.)*
->>>>>>> a857970 (docs(pie): due voci per gli strumenti di leggibilita' e riclassificazione misurata)
+**71 voci**: ✅ **23 verdi** · 🟡 **17 parziali** (regola coperta da test, resta il visivo) · ⏳ **31 aperte**.
+*(Rimisurate il 2026-08-07 col comando qui sotto, su `main` a `234dfd2`.)*
+
+> **Perché questo numero era rotto** (issue #192): due sessioni parallele hanno misurato lo stesso file in
+> momenti diversi — «67 voci: 22/15/30» e «65 voci: 23/16/26» — e il merge ha lasciato **entrambe** le versioni
+> con i marcatori di conflitto dentro il documento. Nessuna delle due era sbagliata quando è stata scritta:
+> una aveva appena aggiunto le **4** voci di durata/ritmo/scala, l'altra le **2** degli strumenti di
+> leggibilità più tre riclassificazioni. Erano entrambe **parziali**, e sceglierne una avrebbe perso il lavoro
+> dell'altra. Da lì sono poi arrivate `PIE-V01-MATCHEND` (CP 10.3) e `PIE-V01-COVEREDIT` (CP 9.1), e
+> `PIE-V01-LOWCOVER` è passata da ⏳ a 🟡. **La lezione è quella già scritta qui sotto**: il numero si
+> *ricalcola*, non si aggiorna a mente — ed è per questo che il comando è nel documento.
 
 Misura riproducibile, così il numero non si cita a memoria:
 
@@ -60,21 +63,16 @@ awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);
   docs/design/test-manuali-pie.md
 ```
 
-Le 30 aperte in tre gruppi, più due residui:
+Le 31 aperte in sei gruppi, più un residuo (la somma è verificata: 2+9+9+4+4+1+2 = 31):
 
 | Gruppo | Voci | Nota |
 |---|---|---|
-<<<<<<< HEAD
-| **Editor** (sessione A) | `HEX-LAYER` `HEX-TRANS` `HEX-MODE-E/F/G/H/L/N/O` | **9** — producono la mappa di prova, prerequisito del gruppo sotto |
-| **Partita hex** (sessione D) | `HEXPLAY-4/4b/5/6/6b/6c/7/9/10` | **9** — è il **gate di M6** (CP 6.8) |
-| **v0.1 senza codice** | `V01-ELEC` `V01-FIREWATER` `V01-LOWCOVER` `V01-DOOR` `V01-HUD` `V01-DEBUG` | **6** — attendono E8 CP 8.3/8.4, E9, E11 |
-| **Durata e scala** (sessione F) | `V01-MATCHLEN` `V01-READY` `V01-OVERWATCH` `V01-MAPSCALE` | **4** — *nuove 2026-08-07*: producono numeri di playtest, non superano gate |
-=======
-| **Eseguibile subito** | `PREVIEW-AREA` | **1** — nessuna precondizione oltre a una partita avviata |
+| **Eseguibile subito** | `PREVIEW-AREA` `V01-MATCHEND` | **2** — nessuna precondizione oltre a una partita avviata (`MATCHEND` da CP 10.3) |
 | **Partita hex** (sessione D) | `HEXPLAY-4/4b/5/6/6b/6c/7/9/10` | **9** — è il **gate di M6** (CP 6.8). ⚠️ **Non serve più costruire la mappa a mano**: `MapSource = GeneratedTestArena` genera già esagono r=4, ostacoli, **muro che blocca la vista**, fango a costo 3, piattaforma su layer 1 e **una** transizione |
 | **Editor** (sessione A) | `HEX-LAYER` `HEX-TRANS` `HEX-MODE-E/F/G/H/L/N/O` | **9** — verificano gli **strumenti**, non più un prerequisito della sessione D |
-| **v0.1 senza codice** | `V01-ELEC` `V01-FIREWATER` (E8 CP 8.3/8.4) · `V01-LOWCOVER` `V01-DOOR` (E9) · `V01-HUD` (E11) | **5** — nessun test nelle aree `Environment.*`, `Cover.*`, `Structures.*`, `UI.*`: sono davvero da costruire |
->>>>>>> a857970 (docs(pie): due voci per gli strumenti di leggibilita' e riclassificazione misurata)
+| **Durata e scala** (sessione F) | `V01-MATCHLEN` `V01-MAPSCALE` `V01-READY` `V01-OVERWATCH` | **4** — producono numeri di playtest, non superano gate. `READY` e `OVERWATCH` descrivono un comportamento **atteso** (countdown ed E14) che non esiste ancora |
+| **In attesa di codice** | `V01-ELEC` `V01-FIREWATER` (E8, ora **chiusa**: il codice c'è, la verifica a schermo no) · `V01-DOOR` (E9 CP 9.3) · `V01-HUD` (E11) | **4** — `V01-LOWCOVER` è uscita da qui il 2026-08-07: con CP 9.1 la regola è coperta headless ed è passata a 🟡 |
+| **Asset da preparare** | `V01-COVEREDIT` | **1** — editing delle coperture nel data asset mappa (CP 9.1). ⚠️ `DA_HexMap_Sandbox` è oggi **vuoto**: va ridisegnato |
 | **Animazioni** | `AS4a` `AS4b` | **2** — richiedono i montage Paragon |
 
 ## Checklist
