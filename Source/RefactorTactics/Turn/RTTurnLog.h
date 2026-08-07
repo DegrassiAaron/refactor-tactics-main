@@ -8,12 +8,13 @@
 /**
  * Categoria dell'esito registrato nel TurnLog.
  *
- * `Fallback` e' un valore AGGIUNTO in coda (CP 4.3): la categoria viaggia come uint8 nel formato serializzato,
- * quindi i log scritti prima restano leggibili e la versione del formato non cambia. Aggiungerlo in mezzo
- * avrebbe invece rinumerato `Combat`, cioe' riscritto il significato dei file gia' su disco.
+ * `Fallback` e' un valore AGGIUNTO in coda (CP 4.3), `Reaction` un altro (CP 5.1): la categoria viaggia come
+ * uint8 nel formato serializzato, quindi i log scritti prima restano leggibili e la versione del formato non
+ * cambia. Aggiungerli in mezzo avrebbe invece rinumerato `Combat`, cioe' riscritto il significato dei file
+ * gia' su disco.
  */
 UENUM(BlueprintType)
-enum class ERTLogCategory : uint8 { Move, Combat, Fallback };
+enum class ERTLogCategory : uint8 { Move, Combat, Fallback, Reaction };
 
 /**
  * Quale fallback e' stato applicato a un'azione che non era piu' eseguibile. Speculare a `ERTActionFallback`
@@ -29,14 +30,21 @@ enum class ERTFallbackOutcome : uint8
 	Cancelled     // Fallback.Cancel: nessun effetto (ci finisce anche BasicAttack, non praticabile in v0.1)
 };
 
-/** Esito del movimento di un'unita' nel turno (dal resolver ResolvePaths). */
+/**
+ * Esito del movimento di un'unita' nel turno (dal resolver ResolvePaths).
+ *
+ * `BlockedByPriority` e `BlockedByImpact` sono valori AGGIUNTI in coda (CP 4.8, collisioni con priorita'):
+ * viaggiano come uint8 nel formato serializzato, quindi i log gia' scritti restano leggibili.
+ */
 UENUM(BlueprintType)
 enum class ERTMoveOutcome : uint8
 {
-	Stayed,           // non pianificava movimento (path < 2 celle)
-	Moved,            // raggiunta la destinazione pianificata (scambio incluso)
-	BlockedContested, // fermata (o parziale) per destinazione contesa
-	BlockedByUnit     // fermata (o parziale) per cella occupata da un'unita' ferma
+	Stayed,            // non pianificava movimento (path < 2 celle)
+	Moved,             // raggiunta la destinazione pianificata (scambio incluso)
+	BlockedContested,  // fermata (o parziale) per destinazione contesa a PARITA' di priorita'
+	BlockedByUnit,     // fermata (o parziale) per cella occupata da un'unita' ferma
+	BlockedByPriority, // fermata per destinazione contesa persa contro una mobilita' con priorita' migliore
+	BlockedByImpact    // fermata per scontro frontale con un'altra mobilita' lineare in arrivo opposto
 };
 
 /** Esito di un attacco nel turno. Priorita': Lethal > ShieldAbsorbed > TerrainBonus > Hit. */
@@ -66,7 +74,10 @@ struct FRTTurnLogEntry
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	ERTLogCategory Category = ERTLogCategory::Move;
 
-	/** Valore dell'enum di categoria (ERTMoveOutcome se Move, ERTCombatOutcome se Combat). Intero: no float (#4). */
+	/**
+	 * Valore dell'enum di categoria: `ERTMoveOutcome` se Move, `ERTCombatOutcome` se Combat, `ERTFallbackOutcome`
+	 * se Fallback, `ERTReactionOutcome` se Reaction. Intero: no float (#4).
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	uint8 Outcome = 0;
 

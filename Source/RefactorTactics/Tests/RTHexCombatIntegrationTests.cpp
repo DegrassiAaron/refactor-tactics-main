@@ -7,6 +7,8 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
 #include "Turn/RTActionFallbackLibrary.h"
+#include "Ability/RTActionData.h"
+#include "Ability/RTCatalogLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 
@@ -267,6 +269,211 @@ bool FRTHexBlastFallbackLoggedTest::RunTest(const FString&)
 		if (Line.Contains(TEXT("annullata")) && Line.Contains(TEXT("fuori portata"))) { bInCombatLog = true; }
 	}
 	TestTrue(TEXT("il combat log lo mostra a chi gioca"), bInCombatLog);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+namespace
+{
+	/** Da' all'unita' un'azione del catalogo generico e ne restituisce l'indice. */
+	int32 AddCoreAbility(ARTUnit* Unit, const TCHAR* ActionId)
+	{
+		if (!Unit) { return INDEX_NONE; }
+		URTActionData* Action = NewObject<URTActionData>(Unit);
+		Action->Def = URTCatalogLibrary::FindCoreAction(FName(ActionId));
+		Action->RangeCells = Action->Def.RangeCells;
+		Action->Power = 0;
+		Action->bSelfTarget = true;
+		Unit->Abilities.Add(Action);
+		return Unit->Abilities.Num() - 1;
+	}
+
+	/** Un attacco di prova che spinge di N celle: serve a distinguere la spinta da 1 da quella piu' forte. */
+	int32 AddPushAbility(ARTUnit* Unit, int32 PushCells)
+	{
+		if (!Unit) { return INDEX_NONE; }
+		URTActionData* Action = NewObject<URTActionData>(Unit);
+		Action->Def.ActionId = TEXT("Action.TestPush");
+		Action->Def.ResolutionPhase = ERTResolutionPhase::Attack;
+		Action->Def.RangeCells = 3;
+		Action->Def.Fallback = ERTActionFallback::Cancel;
+		Action->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 10));
+		Action->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Push, PushCells));
+		Action->RangeCells = 3;
+		Action->Power = 10;
+		Unit->Abilities.Add(Action);
+		return Unit->Abilities.Num() - 1;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGuardReducesDamageInMatchTest,
+	"RefactorTactics.Actions.Guard.ReducesFirstDirectDamageInMatch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGuardReducesDamageInMatchTest::RunTest(const FString&)
+{
+	// `Action.Guard` end-to-end: si prepara nel Prep, e nel Blast dello stesso turno toglie 15 al primo colpo.
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Defender = SpawnHexBlastUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTUnit* Shooter = SpawnHexBlastUnit(World, 1, ERTArchetype::Ranger, FRTCellId(3, 0)); // Tiro: 25 danni
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Defender || !Shooter) { DestroyHexBlastWorld(World); return false; }
+
+	const int32 StartHealth = Defender->Health;
+	const int32 GuardIdx = AddCoreAbility(Defender, TEXT("Action.Guard"));
+	Defender->PlannedAbilityIndex = GuardIdx;
+	Defender->PlannedAttackTarget = Defender; // su se stessi: la guardia si prepara addosso
+	Shooter->PlannedAbilityIndex = 0;
+	Shooter->PlannedAttackTarget = Defender;
+
+	RunBlastTurn(TM);
+
+	TestEqual(TEXT("in guardia il primo colpo fa 25 - 15"), StartHealth - Defender->Health, 10);
+
+	// Controprova: senza guardia lo stesso tiro arriva intero.
+	Defender->ApplyCombatState(StartHealth, 0);
+	Defender->PlannedAbilityIndex = INDEX_NONE;
+	Shooter->PlannedAbilityIndex = 0;
+	Shooter->PlannedAttackTarget = Defender;
+
+	RunBlastTurn(TM);
+
+	TestEqual(TEXT("senza guardia il colpo fa 25: la riduzione viene dallo stato"),
+		StartHealth - Defender->Health, 25);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGuardResistsPushTest,
+	"RefactorTactics.Actions.Guard.ResistsSinglePush",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGuardResistsPushTest::RunTest(const FString&)
+{
+	// La guardia regge UNA cella di spinta, non piu': non e' un'ancora.
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Defender = SpawnHexBlastUnit(World, 0, ERTArchetype::Guardian, FRTCellId(0, 0));
+	ARTUnit* Pusher = SpawnHexBlastUnit(World, 1, ERTArchetype::Ranger, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Defender || !Pusher) { DestroyHexBlastWorld(World); return false; }
+
+	const int32 GuardIdx = AddCoreAbility(Defender, TEXT("Action.Guard"));
+	const int32 Push1 = AddPushAbility(Pusher, /*PushCells=*/ 1);
+	const FRTCellId Start = Defender->Cell;
+
+	Defender->PlannedAbilityIndex = GuardIdx;
+	Defender->PlannedAttackTarget = Defender;
+	Pusher->PlannedAbilityIndex = Push1;
+	Pusher->PlannedAttackTarget = Defender;
+
+	RunBlastTurn(TM);
+
+	TestTrue(TEXT("in guardia, una spinta di 1 cella non sposta"), Defender->Cell == Start);
+
+	// Una spinta piu' forte passa comunque: la guardia attutisce, non ancora.
+	Defender->PlaceOnCell(Start, FVector::ZeroVector, 100.f, 250.f);
+	Defender->PlannedCell = Start;
+	Defender->PlannedAbilityIndex = AddCoreAbility(Defender, TEXT("Action.Guard"));
+	Defender->PlannedAttackTarget = Defender;
+	Pusher->PlannedAbilityIndex = AddPushAbility(Pusher, /*PushCells=*/ 2);
+	Pusher->PlannedAttackTarget = Defender;
+	Pusher->PlannedCell = Pusher->Cell;
+
+	RunBlastTurn(TM);
+
+	TestTrue(TEXT("una spinta di 2 celle sposta anche chi e' in guardia"), !(Defender->Cell == Start));
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChargeImpactInBlastTest,
+	"RefactorTactics.Actions.Charge.ImpactResolvesInBlast",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChargeImpactInBlastTest::RunTest(const FString&)
+{
+	// La carica in partita: il MOVIMENTO risolve nella fase Dash, il COLPO nel Blast (codice 20/30 del
+	// catalogo). Si verifica che accadano entrambe le cose e nell'ordine giusto — l'unita' si ferma davanti al
+	// bersaglio, e il bersaglio incassa 20 danni piu' una spinta di 1.
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Charger = SpawnHexBlastUnit(World, 0, ERTArchetype::Guardian, FRTCellId(0, 0));
+	ARTUnit* Victim = SpawnHexBlastUnit(World, 1, ERTArchetype::Ranger, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Charger || !Victim) { DestroyHexBlastWorld(World); return false; }
+
+	URTActionData* Charge = NewObject<URTActionData>(Charger);
+	Charge->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge"));
+	Charge->RangeCells = Charge->Def.RangeCells;
+	Charger->Abilities.Add(Charge);
+
+	const int32 VictimHealth = Victim->Health;
+	Charger->PlannedDashAbility = Charger->Abilities.Num() - 1;
+	Charger->PlannedDashCell = FRTCellId(3, 0); // dritto: incontra il bersaglio a (2,0) per strada
+
+	RunBlastTurn(TM);
+
+	TestTrue(TEXT("la carica si ferma davanti al bersaglio, non lo attraversa"), Charger->Cell == FRTCellId(1, 0));
+	TestEqual(TEXT("l'impatto fa 20 danni, applicati nel Blast"), VictimHealth - Victim->Health, 20);
+	TestTrue(TEXT("e lo spinge di una cella"), Victim->Cell == FRTCellId(3, 0));
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChargeHeadOnStopsTest,
+	"RefactorTactics.Actions.Charge.HeadOnStops",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChargeHeadOnStopsTest::RunTest(const FString&)
+{
+	// Nome vincolante del catalogo v0.1 (CP 4.8). Due cariche OPPOSTE (nessun bersaglio e' fermo: e' l'altra
+	// carica) a distanza dispari (3 celle, la portata dichiarata): senza la protezione dallo scontro frontale,
+	// il resolver a microstep le lascerebbe scambiarsi la cella di mezzo (`scambio diretto -> consentito`, la
+	// regola di base per il Move) e ciascuna finirebbe adiacente al bersaglio DALL'ALTRO lato, infliggendo
+	// comunque danno — le due si sarebbero attraversate senza mai scontrarsi davvero. Qui devono fermarsi
+	// l'una davanti all'altra, senza completare l'impatto: nessun danno, nessuna spinta.
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	ARTUnit* A = SpawnHexBlastUnit(World, 0, ERTArchetype::Guardian, FRTCellId(0, 0));
+	ARTUnit* B = SpawnHexBlastUnit(World, 1, ERTArchetype::Guardian, FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !A || !B) { DestroyHexBlastWorld(World); return false; }
+
+	URTActionData* ChargeA = NewObject<URTActionData>(A);
+	ChargeA->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge"));
+	ChargeA->RangeCells = ChargeA->Def.RangeCells;
+	A->Abilities.Add(ChargeA);
+
+	URTActionData* ChargeB = NewObject<URTActionData>(B);
+	ChargeB->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge"));
+	ChargeB->RangeCells = ChargeB->Def.RangeCells;
+	B->Abilities.Add(ChargeB);
+
+	const int32 HealthA = A->Health;
+	const int32 HealthB = B->Health;
+	A->PlannedDashAbility = A->Abilities.Num() - 1;
+	A->PlannedDashCell = FRTCellId(3, 0); // dritto verso B, esattamente la portata (3)
+	B->PlannedDashAbility = B->Abilities.Num() - 1;
+	B->PlannedDashCell = FRTCellId(0, 0); // dritto verso A, esattamente la portata (3)
+
+	RunBlastTurn(TM);
+
+	// Ciascuna avanza di UNA cella (non tre): si fermano l'una davanti all'altra, adiacenti, senza scambiarsi
+	// i lati e senza mai completare l'impatto.
+	TestTrue(TEXT("A si ferma a meta' strada, non attraversa B"), A->Cell == FRTCellId(1, 0));
+	TestTrue(TEXT("B si ferma a meta' strada, non attraversa A"), B->Cell == FRTCellId(2, 0));
+	TestEqual(TEXT("nessun danno a A: lo scontro frontale non e' un impatto riuscito"), A->Health, HealthA);
+	TestEqual(TEXT("nessun danno a B: lo scontro frontale non e' un impatto riuscito"), B->Health, HealthB);
 
 	DestroyHexBlastWorld(World);
 	return true;

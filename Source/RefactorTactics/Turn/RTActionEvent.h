@@ -24,8 +24,12 @@ enum class ERTActionEffect : uint8
 	Heal,
 	/** Scudo TEMPORANEO al bersaglio: protegge il turno e scade nel Cleanup. */
 	Shield,
-	/** Spinta del bersaglio lungo la direzione del colpo. */
+	/** Spinta del bersaglio lungo la direzione del colpo (allontana). */
 	Push,
+	/** Trazione del bersaglio lungo la direzione del colpo (avvicina). Simmetrica a Push, mai la stessa cosa
+	 * con un segno: le due hanno una destinazione diversa da calcolare (`URTHexCombatLibrary::HexPullDestination`
+	 * si ferma prima della cella di chi tira, `HexKnockbackDestination` prima di un ostacolo qualunque). */
+	Pull,
 	/** Applica uno stato (Root, Slow, Reveal, ...) per una durata in turni. */
 	Status
 };

@@ -77,7 +77,10 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 		if (bTargetsUnit)
 		{
 			const FRTHexCombatUnit& Target = Units[Intent.TargetId];
-			if (!Target.bAlive || Attacker.TeamId == Target.TeamId)
+			// Un alleato e' un bersaglio legittimo SOLO per un'area a fuoco amico: e' la scelta di chi la
+			// lancia, non un errore di mira da correggere in silenzio.
+			const bool bSameTeam = Attacker.TeamId == Target.TeamId;
+			if (!Target.bAlive || (bSameTeam && !Intent.bFriendlyFire))
 			{
 				continue; // bersaglio non ingaggiabile: nessun esito da registrare
 			}
@@ -112,11 +115,13 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 		const TArray<FRTCellId> HitCells =
 			HexHitCells(Intent.Shape, Attacker.Cell, AimCell, Intent.RangeCells, Intent.AreaRadius);
 
-		// Colpisce ogni nemico VIVO su una cella dell'area (niente fuoco amico, niente colpi sui morti).
+		// Colpisce ogni unita' VIVA su una cella dell'area: i nemici sempre, gli alleati solo se l'azione
+		// dichiara il fuoco amico. Chi lancia l'area non si colpisce mai da solo.
 		for (int32 u = 0; u < Units.Num(); ++u)
 		{
 			const FRTHexCombatUnit& Other = Units[u];
-			if (!Other.bAlive || Other.TeamId == Attacker.TeamId)
+			const bool bAlly = Other.TeamId == Attacker.TeamId;
+			if (!Other.bAlive || u == Intent.AttackerId || (bAlly && !Intent.bFriendlyFire))
 			{
 				continue;
 			}
@@ -139,6 +144,31 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 	Plan.UnverifiableIntents.Sort();
 
 	return Plan;
+}
+
+namespace
+{
+	/**
+	 * Passo per passo lungo (StepX, StepY) a partire da Target, fino a Distance celle: si ferma sulla cella
+	 * libera PRIMA di un bordo mappa, un ostacolo o una cella occupata. Nucleo comune di spinta e trazione —
+	 * cambia solo la direzione con cui il chiamante lo invoca.
+	 */
+	FRTCellId StepUntilBlocked(const FRTCellId& Target, int32 StepX, int32 StepY, int32 Distance,
+		const URTHexMapAsset* Map, const TArray<FRTCellId>& Occupied)
+	{
+		FRTCellId Current = Target;
+		for (int32 Step = 0; Step < Distance; ++Step)
+		{
+			const FRTCellId Next(Current.X + StepX, Current.Y + StepY, Target.Layer);
+			const FRTHexCellData* Data = Map->FindCell(Next);
+			if (Data == nullptr || Data->bBlocksMovement || Occupied.Contains(Next))
+			{
+				break; // bordo della mappa, ostacolo o unita': ci si ferma sulla cella libera precedente
+			}
+			Current = Next;
+		}
+		return Current;
+	}
 }
 
 FRTCellId URTHexCombatLibrary::HexKnockbackDestination(const FRTCellId& Attacker, const FRTCellId& Target, int32 Distance,
@@ -164,21 +194,35 @@ FRTCellId URTHexCombatLibrary::HexKnockbackDestination(const FRTCellId& Attacker
 		return Target;
 	}
 	const FRTCellId& Previous = Line[Line.Num() - 2];
-	const int32 StepX = Target.X - Previous.X;
-	const int32 StepY = Target.Y - Previous.Y;
+	// Si allontana: la direzione e' quella con cui si arriva AL bersaglio, proseguita oltre.
+	return StepUntilBlocked(Target, Target.X - Previous.X, Target.Y - Previous.Y, Distance, Map, Occupied);
+}
 
-	FRTCellId Current = Target;
-	for (int32 Step = 0; Step < Distance; ++Step)
+FRTCellId URTHexCombatLibrary::HexPullDestination(const FRTCellId& Puller, const FRTCellId& Target, int32 Distance,
+	const URTHexMapAsset* Map, const TArray<FRTCellId>& Occupied)
+{
+	// FAIL-CLOSED: stessa disciplina di HexKnockbackDestination.
+	if (Distance <= 0 || Map == nullptr)
 	{
-		const FRTCellId Next(Current.X + StepX, Current.Y + StepY, Target.Layer);
-		const FRTHexCellData* Data = Map->FindCell(Next);
-		if (Data == nullptr || Data->bBlocksMovement || Occupied.Contains(Next))
-		{
-			break; // bordo della mappa, ostacolo o unita': ci si ferma sulla cella libera precedente
-		}
-		Current = Next;
+		return Target;
 	}
-	return Current;
+
+	const FRTCellId From(Puller.X, Puller.Y, Target.Layer);
+	if (From.X == Target.X && From.Y == Target.Y)
+	{
+		return Target; // stessa cella assiale: nessuna direzione verso cui avvicinarsi
+	}
+
+	const TArray<FRTCellId> Line = URTHexLibrary::HexLine(From, Target);
+	if (Line.Num() < 2)
+	{
+		return Target;
+	}
+	const FRTCellId& Previous = Line[Line.Num() - 2];
+	// Si avvicina: direzione INVERTITA rispetto alla spinta. La cella di chi tira, se e' fra Occupied
+	// (lo e' sempre: e' un'unita' viva), ferma la trazione un passo prima — non si finisce mai addosso a chi
+	// tira, per la stessa regola per cui non si finisce mai dentro un'altra unita'.
+	return StepUntilBlocked(Target, -(Target.X - Previous.X), -(Target.Y - Previous.Y), Distance, Map, Occupied);
 }
 
 TArray<FRTAttack> URTHexCombatLibrary::ToAttacks(const FRTHexBlastPlan& Plan)

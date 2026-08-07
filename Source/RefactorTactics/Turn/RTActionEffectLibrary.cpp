@@ -4,6 +4,14 @@ TArray<FRTActionEvent> URTActionEffectLibrary::ProduceEvents(const FRTActionInst
 {
 	TArray<FRTActionEvent> Events;
 
+	// Un'azione interrotta non produce NULLA: e' tutto o niente, non mezzo danno (catalogo §3, `HeavyAttack`).
+	// Il controllo sta qui, prima della traduzione, cosi' vale per ogni azione senza che nessuna se ne occupi;
+	// `bCanBeInterrupted == false` (Guard, Barrier, SuppressiveLine) rende il flag ininfluente per costruzione.
+	if (Instance.bInterrupted && Instance.Def.bCanBeInterrupted)
+	{
+		return Events;
+	}
+
 	// Un'azione puo' dichiarare piu' effetti: si traducono nell'ordine dichiarato, che e' anche l'ordine in
 	// cui il chiamante li applichera' (il danno prima della spinta, se l'azione li elenca cosi').
 	for (const FRTActionEffectSpec& Spec : Instance.Def.Effects)
@@ -24,6 +32,7 @@ TArray<FRTActionEvent> URTActionEffectLibrary::ProduceEvents(const FRTActionInst
 		case ERTActionEffect::Heal:
 		case ERTActionEffect::Shield:
 		case ERTActionEffect::Push:
+		case ERTActionEffect::Pull:
 			if (Spec.Amount <= 0 || Instance.TargetUnitId == INDEX_NONE)
 			{
 				continue; // entita' non positiva o nessun bersaglio: nessun evento da applicare

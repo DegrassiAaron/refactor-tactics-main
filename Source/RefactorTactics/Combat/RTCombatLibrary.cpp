@@ -34,13 +34,9 @@ bool URTCombatLibrary::IsUltimateReady(int32 Energy, int32 Max)
 	return Max > 0 && Energy >= Max;
 }
 
-int32 URTCombatLibrary::EffectiveMoveRange(int32 BaseRange, bool bRooted, bool bSlowed)
+int32 URTCombatLibrary::EffectiveMoveRange(int32 BaseRange, bool bRooted)
 {
-	if (bRooted)
-	{
-		return 0;
-	}
-	return bSlowed ? BaseRange / 2 : BaseRange;
+	return bRooted ? 0 : BaseRange;
 }
 
 bool URTCombatLibrary::IsAbilityUsable(int32 CooldownRemaining, int32 Energy, int32 EnergyCost)

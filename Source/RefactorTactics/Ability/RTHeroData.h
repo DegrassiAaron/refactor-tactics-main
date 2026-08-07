@@ -10,8 +10,15 @@ class URTActionData;
  * Definizione data-driven di un EROE del catalogo v0.1 (Flux, Riva, Bastion, Vektor).
  *
  * Contiene solo cio' che il catalogo dichiara come **fisso** dell'eroe: identita', statistiche base e le
- * quattro azioni fondamentali. Cio' che e' configurabile (variante d'arma, gadget, modulo di reazione,
- * variante d'abilita') sta in `URTEquipmentData` e nel loadout, non qui.
+ * azioni fondamentali (attacco base compreso). Cio' che e' configurabile FRA eroi diversi (variante d'arma,
+ * gadget, modulo di reazione) sta in `URTEquipmentData` e nel loadout; la variante di UNA abilita'
+ * fondamentale invece e' dell'eroe stesso (`URTActionData::Variants`), perche' i suoi numeri dipendono
+ * dall'abilita' che modifica — la stessa "Scarica ramificata" non avrebbe senso su un'abilita' di un altro
+ * eroe.
+ *
+ * `Actions` ha ESATTAMENTE cinque elementi nel catalogo v0.1: indice 0 l'attacco base (fascia dalla portata,
+ * `URTCatalogLibrary::MakeBasicAttack`), indici 1-4 le quattro abilita' fondamentali — di cui **una sola**
+ * dichiara varianti (`URTHeroCatalogLibrary::ValidateHeroes` lo fa valere).
  *
  * Solo interi (invariante #4). Riferimento: docs/design/balance/RT_HeroCatalog_v0.1.md
  */
@@ -48,7 +55,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	FName Affinity;
 
-	/** Le azioni fondamentali dell'eroe (quattro nel catalogo v0.1, attacco base compreso). */
+	/**
+	 * Debolezza dichiarata dell'eroe. Il PDF del catalogo la elenca fra gli elementi fissi ma non la esplicita
+	 * per nessuno dei quattro eroi (docs/design/balance/RT_HeroCatalog_v0.1.md §5): **non si inventa**, va
+	 * decisa esplicitamente per ciascun eroe. Un eroe senza debolezza non passa `ValidateHeroes`.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	FName Weakness;
+
+	/** Le azioni dell'eroe: attacco base (indice 0) + quattro abilita' fondamentali (indici 1-4). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	TArray<TObjectPtr<URTActionData>> Actions;
 

@@ -37,7 +37,11 @@ public:
 	/**
 	 * Come FindPath, ma tratta le celle in Blocked come non percorribili (ostacoli DINAMICI, es. unita' occupanti:
 	 * non appartengono all'asset mappa). Blocked == nullptr equivale a FindPath. Goal bloccato -> NoPath.
+	 *
+	 * `ExtraCostPerCell` (>= 0) si somma al costo di OGNI arco attraversato (`Action.Slow`, CP 4.7): 0 =
+	 * nessun sovrapprezzo, comportamento invariato. E' un parametro del CHIAMANTE (dipende da CHI si muove),
+	 * non della mappa: la stessa cella costa diverso per un'unita' rallentata e per una che non lo e'.
 	 */
 	static FRTHexPathResult FindPathAvoiding(const URTHexMapAsset* Map, const FRTCellId& Start, const FRTCellId& Goal,
-		const TSet<FRTCellId>* Blocked, int32 MaxCost = 0, int32 MaxNodes = 100000);
+		const TSet<FRTCellId>* Blocked, int32 MaxCost = 0, int32 MaxNodes = 100000, int32 ExtraCostPerCell = 0);
 };

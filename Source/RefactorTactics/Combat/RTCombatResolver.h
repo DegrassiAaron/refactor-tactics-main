@@ -65,4 +65,16 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static TArray<FRTAttack> ApplyFirstHitDelta(const TArray<FRTAttack>& Attacks, const TArray<int32>& DeltaByTarget);
+
+	/**
+	 * Applica i modificatori che valgono su OGNI colpo ricevuto da un bersaglio: oggi `Action.Brace` (-10 a
+	 * tutti i danni diretti fino al Cleanup, CP 5.2). Stessa forma di `ApplyFirstHitDelta`, senza il gate
+	 * "una volta sola" — ed e' proprio quel gate a rendere le due funzioni non intercambiabili: `Brace`
+	 * applicato con `ApplyFirstHitDelta` proteggerebbe da un colpo e lascerebbe passare gli altri interi.
+	 *
+	 * Il danno di un colpo non scende sotto 0: un delta negativo puo' annullarlo, non curare. Un colpo
+	 * azzerato resta comunque una voce nell'array — cioe' un attacco AVVENUTO, non cancellato.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static TArray<FRTAttack> ApplyDamageDelta(const TArray<FRTAttack>& Attacks, const TArray<int32>& DeltaByTarget);
 };

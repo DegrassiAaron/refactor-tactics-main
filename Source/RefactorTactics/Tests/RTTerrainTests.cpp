@@ -10,6 +10,7 @@
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Turn/RTActionFallbackLibrary.h"
+#include "Turn/RTMovementActionLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -169,8 +170,25 @@ bool FRTTerrainRoughBlocksDashTest::RunTest(const FString&)
 	Snapshot.Map = Map;
 	Snapshot.Units.Add(Unit);
 
+	// Percorso del BOT (filtra le candidate con questa).
 	const TArray<FRTCellId> Path = URTHexSimLibrary::LinearDashPath(Snapshot, /*UnitId=*/ 0, FRTCellId(2, 0, 0));
 	TestEqual(TEXT("scatto rifiutato: Rough blocca Dash"), Path.Num(), 0);
+
+	// Percorso del RESOLVER: e' `ResolveLinearMove` (CP 4.5) a muovere davvero l'unita' nella fase Dash, non
+	// `LinearDashPath`. Se la regola vivesse solo nella prima, il bot rifiuterebbe uno scatto che il resolver
+	// eseguirebbe lo stesso — il DoD «Dash e Charge non attraversano Rough» sarebbe vero a meta'.
+	for (const ERTMovementStyle Style : { ERTMovementStyle::LinearDash, ERTMovementStyle::LinearCharge })
+	{
+		const FRTLinearMoveResult Linear = URTMovementActionLibrary::ResolveLinearMove(
+			Map, FRTCellId(0, 0, 0), FRTCellId(2, 0, 0), /*MaxCells=*/ 10, Style, {}, {});
+		TestTrue(TEXT("il resolver si ferma prima del Rough"), Linear.Final == FRTCellId(0, 0, 0));
+		TestTrue(TEXT("motivo dichiarato: terreno"), Linear.Stop == ERTLinearStop::BlockedByTerrain);
+	}
+
+	// Il SALTO invece scavalca: il terreno accidentato non ostacola chi ci passa sopra.
+	const FRTLinearMoveResult Leap = URTMovementActionLibrary::ResolveLinearMove(
+		Map, FRTCellId(0, 0, 0), FRTCellId(2, 0, 0), /*MaxCells=*/ 10, ERTMovementStyle::LinearLeap, {}, {});
+	TestTrue(TEXT("il salto scavalca il Rough"), Leap.Final == FRTCellId(2, 0, 0));
 
 	// Il movimento NORMALE, invece, attraversa Rough (costa di piu', non e' bloccato).
 	const FRTHexPathResult Normal = URTHexSimLibrary::FindPathForUnit(Snapshot, /*UnitId=*/ 0, FRTCellId(2, 0, 0));

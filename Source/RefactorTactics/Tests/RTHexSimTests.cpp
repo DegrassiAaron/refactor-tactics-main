@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "HAL/FileManager.h"
+#include "Ability/RTCatalogLibrary.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
@@ -403,6 +404,122 @@ bool FRTHexSimBlockedByStationaryTest::RunTest(const FString&)
 	TestTrue(TEXT("A bloccata alla partenza"), R.Num() == 2 && R[0].Final == FRTCellId(0, 0));
 	TestTrue(TEXT("reason = bloccata da unita'"), R.Num() == 2 && R[0].Outcome == ERTMoveOutcome::BlockedByUnit);
 	TestTrue(TEXT("B ferma"), R.Num() == 2 && R[1].Final == FRTCellId(1, 0) && R[1].Outcome == ERTMoveOutcome::Stayed);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Collisioni con priorita' (CP 4.8): variante di ResolveHexPaths con precedenza e scontro frontale.
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChargeBeatsMoveTest,
+	"RefactorTactics.Actions.Charge.BeatsMove",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChargeBeatsMoveTest::RunTest(const FString&)
+{
+	// Nome vincolante del catalogo v0.1 (CP 4.8). Le priorita' sono quelle REALI del catalogo (numero PIU'
+	// BASSO vince, stessa convenzione di URTActionQueueLibrary): `Action.Charge` (35) contro `Action.Move`
+	// (50) sulla STESSA cella contesa. In partita le due fasi non si sovrappongono mai (Dash prima, Move
+	// dopo il Blast): questo verifica il MECCANISMO condiviso, non uno scontro che avviene davvero fra loro.
+	const int32 ChargePriority = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge")).Priority;
+	const int32 MovePriority = URTCatalogLibrary::FindCoreAction(TEXT("Action.Move")).Priority;
+	if (!TestTrue(TEXT("Charge precede Move nel catalogo"), ChargePriority < MovePriority)) { return false; }
+
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0) }); // Charge
+	Paths.Add({ FRTCellId(2, 0), FRTCellId(1, 0) }); // Move
+	const TArray<int32> Priorities = { ChargePriority, MovePriority };
+	const TArray<bool> bLinear = { true, false };
+
+	const TArray<FRTHexMoveResult> R = URTHexSimLibrary::ResolveHexPaths(Paths, Priorities, bLinear);
+	TestTrue(TEXT("il Charge entra nella cella contesa"),
+		R.Num() == 2 && R[0].Final == FRTCellId(1, 0) && R[0].Outcome == ERTMoveOutcome::Moved);
+	TestTrue(TEXT("il Move resta indietro, per priorita' non per contesa a parita'"),
+		R.Num() == 2 && R[1].Final == FRTCellId(2, 0) && R[1].Outcome == ERTMoveOutcome::BlockedByPriority);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimPriorityTieStillContestedTest,
+	"RefactorTactics.HexSim.ResolvePriorityTieStillContested",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimPriorityTieStillContestedTest::RunTest(const FString&)
+{
+	// A PARITA' di priorita' (anche dichiarata esplicitamente, non solo "assente"), il comportamento resta
+	// quello di base: "Charge prevale su Move", non "il primo dell'array vince".
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0) });
+	Paths.Add({ FRTCellId(2, 0), FRTCellId(1, 0) });
+	const TArray<int32> Priorities = { 35, 35 };
+	const TArray<bool> bLinear = { true, true };
+
+	const TArray<FRTHexMoveResult> R = URTHexSimLibrary::ResolveHexPaths(Paths, Priorities, bLinear);
+	TestTrue(TEXT("entrambe ferme, nessuna vince per indice"),
+		R.Num() == 2 && R[0].Final == FRTCellId(0, 0) && R[1].Final == FRTCellId(2, 0));
+	TestTrue(TEXT("reason = contesa, non priorita'"),
+		R.Num() == 2 && R[0].Outcome == ERTMoveOutcome::BlockedContested && R[1].Outcome == ERTMoveOutcome::BlockedContested);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimHeadOnBlocksLinearSwapTest,
+	"RefactorTactics.HexSim.ResolveHeadOnBlocksLinearSwap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimHeadOnBlocksLinearSwapTest::RunTest(const FString&)
+{
+	// Contrasto diretto con ResolveSwapAllowed: la' lo scambio (nessuna mobilita' lineare) e' consentito, qui
+	// due mobilita' LINEARI (`Action.Charge` e affini) che si scambierebbero la cella si fermano l'una davanti
+	// all'altra invece di attraversarsi — e' lo scontro frontale di due cariche opposte (CP 4.8).
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0) });
+	Paths.Add({ FRTCellId(1, 0), FRTCellId(0, 0) });
+	const TArray<int32> Priorities = { 35, 35 };
+	const TArray<bool> bLinear = { true, true };
+
+	const TArray<FRTHexMoveResult> R = URTHexSimLibrary::ResolveHexPaths(Paths, Priorities, bLinear);
+	TestTrue(TEXT("nessuna attraversa l'altra"),
+		R.Num() == 2 && R[0].Final == FRTCellId(0, 0) && R[1].Final == FRTCellId(1, 0));
+	TestTrue(TEXT("reason = scontro frontale"),
+		R.Num() == 2 && R[0].Outcome == ERTMoveOutcome::BlockedByImpact && R[1].Outcome == ERTMoveOutcome::BlockedByImpact);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCollisionsNoPlayerIdBiasTest,
+	"RefactorTactics.Actions.Collisions.NoPlayerIdBias",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCollisionsNoPlayerIdBiasTest::RunTest(const FString&)
+{
+	// Nome vincolante del catalogo v0.1 (CP 4.8). Stesso scontro di FRTChargeBeatsMoveTest, con i due
+	// contendenti scambiati di POSIZIONE nell'array (permutazione degli "ID"): chi vince deve dipendere dalla
+	// priorita' dichiarata, mai dall'indice/ordine di inserimento.
+	const int32 ChargePriority = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge")).Priority;
+	const int32 MovePriority = URTCatalogLibrary::FindCoreAction(TEXT("Action.Move")).Priority;
+
+	TArray<TArray<FRTCellId>> PathsOrderA = {
+		{ FRTCellId(0, 0), FRTCellId(1, 0) }, // Charge in posizione 0
+		{ FRTCellId(2, 0), FRTCellId(1, 0) }  // Move in posizione 1
+	};
+	const TArray<FRTHexMoveResult> ResultA = URTHexSimLibrary::ResolveHexPaths(
+		PathsOrderA, { ChargePriority, MovePriority }, { true, false });
+
+	TArray<TArray<FRTCellId>> PathsOrderB = {
+		{ FRTCellId(2, 0), FRTCellId(1, 0) }, // Move in posizione 0
+		{ FRTCellId(0, 0), FRTCellId(1, 0) }  // Charge in posizione 1
+	};
+	const TArray<FRTHexMoveResult> ResultB = URTHexSimLibrary::ResolveHexPaths(
+		PathsOrderB, { MovePriority, ChargePriority }, { false, true });
+
+	if (!TestEqual(TEXT("un risultato per contendente, in entrambi gli ordini"), ResultA.Num(), 2)
+		|| !TestEqual(TEXT("un risultato per contendente, in entrambi gli ordini"), ResultB.Num(), 2))
+	{
+		return false;
+	}
+
+	// Ordine A: il Charge e' in posizione 0. Ordine B: il Charge e' in posizione 1. L'esito letto PER RUOLO
+	// (non per indice) deve coincidere.
+	TestTrue(TEXT("il Charge vince in entrambi gli ordini"),
+		ResultA[0].Final == FRTCellId(1, 0) && ResultB[1].Final == FRTCellId(1, 0));
+	TestTrue(TEXT("il Move perde in entrambi gli ordini"),
+		ResultA[1].Final == FRTCellId(2, 0) && ResultB[0].Final == FRTCellId(2, 0));
+	TestTrue(TEXT("stesso reason code per ruolo, a prescindere dall'indice"),
+		ResultA[0].Outcome == ResultB[1].Outcome && ResultA[1].Outcome == ResultB[0].Outcome);
 	return true;
 }
 

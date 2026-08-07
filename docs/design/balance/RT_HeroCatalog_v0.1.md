@@ -6,10 +6,15 @@
 
 ## Stato dell'implementazione (2026-08-06)
 
-Il gioco ha oggi **due archetipi** in codice (`ERTArchetype::Ranger` / `Guardian`, statistiche e abilità in
-`ARTUnit::ConfigureAsArchetype`), non quattro eroi. Questo documento è il riferimento verso cui E6 deve
-convergere. La sostituzione dei due archetipi con i quattro eroi è la parte del roster che il canone teneva
-volutamente piccola «finché il loop non è chiuso»: ora il loop esagonale è chiuso (M6).
+**Aggiornato al 2026-08-06 (epic E6 completata)**: i quattro eroi esistono come dati
+(`URTHeroCatalogLibrary::MakeFlux/MakeRiva/MakeBastion/MakeVektor`) e `ARTGameMode` allestisce il 2v2 con loro
+— formazione di default **Flux + Riva** contro **Bastion + Vektor**. I due archetipi (`ERTArchetype`) non
+partecipano più allo spawn di partita; restano come helper nei test d'integrazione.
+
+Molte abilità esistono come identità/fase/cooldown ma **senza l'effetto** che questo documento descrive,
+perché il sistema che dovrebbe consumarlo non è ancora costruito: coperture e strutture (E9), terreni dinamici
+(E8), reazioni (E5), gadget (E7). Ogni caso è dichiarato nella PR del rispettivo checkpoint e nei commenti del
+codice, mai nascosto dietro un effetto segnaposto.
 
 ## Struttura di un eroe
 
@@ -31,6 +36,7 @@ nel vertical slice).
 | Range visivo | 6 |
 | Resistenza Push | 0 |
 | Affinità | elettricità |
+| Debolezza | acqua (`Affinity.Water`) — decisa in CP 6.2, non nel PDF: stesso identificatore dell'affinità di Riva |
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
@@ -57,6 +63,7 @@ nel vertical slice).
 | Range visivo | 5 |
 | Resistenza Push | 0 |
 | Affinità | acqua |
+| Debolezza | elettricità (`Affinity.Electricity`) — decisa in CP 6.3, non nel PDF: simmetrica a Flux |
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
@@ -83,6 +90,7 @@ nel vertical slice).
 | Range visivo | 5 |
 | Resistenza Push | 1 |
 | Affinità | strutture |
+| Debolezza | movimento (`Affinity.Movement`) — decisa in CP 6.4, non nel PDF: simmetrica a Vektor |
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
@@ -109,6 +117,7 @@ nel vertical slice).
 | Range visivo | 6 |
 | Resistenza Push | 0 |
 | Affinità | movimento |
+| Debolezza | strutture (`Affinity.Structures`) — decisa in CP 6.5, non nel PDF: simmetrica a Bastion |
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
@@ -136,8 +145,22 @@ nel vertical slice).
 Nessun eroe domina in ogni parametro: Bastion compra HP e resistenza con **movimento** e vista; Vektor compra
 mobilità con l'assenza di difese; Flux ha il danno combo più alto ma la salute più bassa.
 
+> ⚠️ **Verificato in CP 6.5, e non è del tutto vero sulle statistiche**: sulle sole quattro statistiche base
+> **Vektor domina Flux e Riva** — è migliore o pari ovunque, e strettamente migliore in salute *e* movimento
+> (100/6/6/0 contro 90/5/6/0 e 95/5/5/0). L'affermazione qui sopra regge solo considerando il pacchetto
+> completo (statistiche **+ abilità**): Flux compensa col bonus combo più alto del roster (+8 su `Wet`), Riva
+> con la cura ad area. Sono i numeri del PDF, mantenuti invariati; il ribilanciamento è **E11**, tracciato
+> nella issue dedicata.
+
 **Debolezza dichiarata**: il PDF elenca «debolezza» fra gli elementi fissi di ogni eroe ma **non la esplicita**
-per nessuno dei quattro. Va fissata in E6 e scritta qui: senza, l'identità resta metà.
+per nessuno dei quattro. Va fissata in E6 e scritta qui: senza, l'identità resta metà. **Flux**: fissata in
+CP 6.2, acqua (`Affinity.Water`) — vedi §1. **Riva**: fissata in CP 6.3, elettricità (`Affinity.Electricity`),
+simmetrica a Flux — vedi §2. **Bastion**: fissata in CP 6.4, movimento (`Affinity.Movement`), simmetrica a
+Vektor — vedi §3. **Vektor**: fissata in CP 6.5, strutture (`Affinity.Structures`) — vedi §4.
+
+Il roster chiude in **due coppie simmetriche**: Flux↔Riva sull'acqua/elettricità, Bastion↔Vektor sullo
+spazio/movimento. La debolezza di ogni eroe è l'affinità di un altro — verificato da
+`RefactorTactics.Heroes.RosterIsBalanced`.
 
 ---
 
@@ -157,10 +180,14 @@ per nessuno dei quattro. Va fissata in E6 e scritta qui: senza, l'identità rest
 | # | PDF | Qui | Motivo |
 |---|---|---|---|
 | 1 | Tabelle delle abilità con nomi, effetti e cooldown sfalsati nell'estrazione | Ricostruite accoppiando `AbilityId` → effetto per posizione e per coerenza semantica (es. `Riva.MistVeil` → fumo, non «cura alleati») | L'accoppiamento letterale produceva abilità incoerenti col nome e col ruolo |
-| 2 | «Debolezza» dichiarata fra gli elementi fissi | **Assente** per tutti e quattro | Non si inventa: va decisa in E6 |
-| 3 | 4 eroi | In codice esistono 2 archetipi (Ranger/Guardian) | Lo stato è dichiarato in testa: il documento è il bersaglio di E6, non la descrizione dell'esistente |
+| 2 | «Debolezza» dichiarata fra gli elementi fissi | ~~Assente~~ → **fissata in E6** per tutti e quattro (CP 6.2–6.5), in due coppie simmetriche | Non è stata inventata: decisa esplicitamente eroe per eroe |
+| 3 | 4 eroi | ~~In codice esistono 2 archetipi~~ → **risolto in E6**: i quattro eroi sono in codice e in partita | Lo stato aggiornato è dichiarato in testa |
 | 4 | Cooldown di `Riva.PressureJet` non leggibile nella colonna | Assunto **0** (è l'attacco base per la sua colonna «Tipo: linea» a costo 0) | Coerente con gli altri attacchi base, tutti a CD 0 — assunzione **marcata** |
 
-**Non specificato nel PDF** (da fissare in E6): debolezza di ciascun eroe · range di `Flux.Overload` e
-`Riva.CircularTide` · durata di `Vektor.Feint` · se le reazioni degli eroi occupino lo stesso slot dei moduli di
-reazione dell'equipaggiamento (probabile, ma il PDF elenca entrambi senza dirlo).
+**Non specificato nel PDF** (da fissare in E6): debolezza di ciascun eroe (**tutte fissate**: Flux CP 6.2, Riva
+CP 6.3, Bastion CP 6.4, Vektor CP 6.5) ·
+range di `Flux.Overload` (fissato in CP 6.2: **3**, coerente con `ConductiveNode`) e `Riva.CircularTide`
+(fissato in CP 6.3: **4**, come `Flux.Overload`) · durata di `Status.Wet` (fissata in CP 6.3: **1 turno**, come
+`Guard`/`Exposed`/`Marked` — finestra di combo stretta) · durata di `Vektor.Feint` (fissata in CP 6.5: **1 turno**, come `Wet`/`Marked`) · se le reazioni
+degli eroi occupino lo stesso slot dei moduli di reazione dell'equipaggiamento (probabile, ma il PDF elenca
+entrambi senza dirlo).

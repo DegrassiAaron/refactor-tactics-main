@@ -87,35 +87,44 @@ public:
 		const TArray<FRTCellId>& Waypoints);
 
 	/**
+	 * Il PREFISSO di Path (partenza in Path[0] inclusa) ancora affrontabile entro il budget CORRENTE
+	 * dell'unita' in Snapshot: somma il costo di ogni cella (+ il suo `MoveCostModifier`) e si ferma dove il
+	 * budget finisce. Non valuta occupazione ne' blocchi — quelli li gestisce `ResolveHexPaths` sui
+	 * micro-step, walking il path che gli si da'.
+	 *
+	 * Serve a intercettare un piano scritto PRIMA che lo status dell'unita' cambiasse NELLO STESSO turno
+	 * (`Action.Root` azzera il budget, `Action.Slow` alza il costo per cella — CP 4.7): senza, un percorso
+	 * gia' calcolato (dai waypoint, o scritto a mano) verrebbe eseguito com'era, ignorando lo stato attuale.
+	 * Se il budget non e' cambiato da quando il piano e' stato scritto, il prefisso coincide con Path intero
+	 * — nessuna troncatura, nessun ricalcolo: e' cio' che lascia intatto un ostacolo posizionale (una cella
+	 * occupata a meta' via), che resta compito di `ResolveHexPaths`, non di questa funzione.
+	 *
+	 * Path vuoto -> Path vuoto. UnitId sconosciuto o mappa assente -> Path invariato (fail-open sul dato che
+	 * non si puo' verificare, non sul movimento: il chiamante ha gia' un piano, qui si puo' solo accorciarlo).
+	 */
+	static TArray<FRTCellId> TruncatePathToBudget(const FRTHexSnapshot& Snapshot, int32 UnitId,
+		const TArray<FRTCellId>& Path);
+
+	/**
+	 * Percorso di uno SCATTO: **lineare** lungo una delle sei direzioni esagonali, sullo stesso layer.
+	 * Non aggira ostacoli e non usa transizioni verticali.
+	 *
+	 * NOTA (riconciliazione 2026-08-07): il resolver del turno NON passa piu' di qui — usa
+	 * `URTMovementActionLibrary::ResolveLinearMove` (CP 4.5), che generalizza le quattro mobilita' lineari.
+	 * Questa resta perche' il BOT la usa per filtrare le candidate. Le due implementazioni vanno consolidate.
+	 */
+	static TArray<FRTCellId> LinearDashPath(const FRTHexSnapshot& Snapshot, int32 UnitId, const FRTCellId& Goal);
+
+	/** Vero se `Goal` e' raggiungibile con uno SCATTO lineare (la cella dell'unita' stessa conta). */
+	static bool IsLinearDashReachable(const FRTHexSnapshot& Snapshot, int32 UnitId, const FRTCellId& Goal);
+
+	/**
 	 * Cosa non va nella cella indicata come waypoint per l'unita': fuori mappa, ostacolo, occupata da un'altra
 	 * unita' — oppure `Ok`, e allora un eventuale rifiuto del percorso e' questione di **budget**.
 	 * Serve a spiegare il rifiuto con il motivo giusto invece di elencarne tre.
 	 */
 	static ERTHexWaypointReason ClassifyWaypointCell(const FRTHexSnapshot& Snapshot, int32 UnitId,
 		const FRTCellId& Cell);
-
-	/**
-	 * Percorso di uno SCATTO: **lineare** lungo una delle sei direzioni esagonali (catalogo v0.1 §3.2), sullo
-	 * stesso layer. Non aggira ostacoli, non gira angoli, non usa transizioni verticali — a differenza del
-	 * movimento normale, che passa dall'A* sul grafo.
-	 *
-	 * Ritorna il percorso completo `From..Goal` solo se: `Goal` e' allineato con la cella dell'unita' su una
-	 * delle sei direzioni, ogni cella attraversata esiste e non blocca il movimento, la destinazione non e'
-	 * occupata da un'altra unita', e il costo totale sta nel budget dell'unita' nello snapshot (per lo scatto il
-	 * chiamante vi mette la portata dichiarata dall'azione). Altrimenti ritorna **vuoto**: o si arriva dove si e'
-	 * chiesto, o non si scatta — nessuno scatto a meta' verso una cella che nessuno ha scelto.
-	 */
-	static TArray<FRTCellId> LinearDashPath(const FRTHexSnapshot& Snapshot, int32 UnitId, const FRTCellId& Goal);
-
-	/**
-	 * Vero se `Goal` e' raggiungibile con uno SCATTO (lineare) dall'unita' indicata. La cella dell'unita' stessa
-	 * conta come raggiungibile (significa "non mi muovo"), cosi' il predicato si puo' usare per filtrare un
-	 * insieme di candidate senza scartare quella di partenza.
-	 *
-	 * Serve a chi genera candidate col GRAFO (il bot usa `ReachableCells`) per non proporre scatti che il resolver
-	 * rifiuterebbe: un'abilita' spesa senza effetto e senza spiegazione e' peggio di una mossa non fatta.
-	 */
-	static bool IsLinearDashReachable(const FRTHexSnapshot& Snapshot, int32 UnitId, const FRTCellId& Goal);
 
 	/**
 	 * Se Path termina su una cella Ice e il budget residuo dell'unita' (MoveBudget - costo del percorso) e'
@@ -139,6 +148,26 @@ public:
 	 * delle richieste. Eredita la semantica del resolver quadrato che ha sostituito (rimosso al CP 7.2).
 	 */
 	static TArray<FRTHexMoveResult> ResolveHexPaths(const TArray<TArray<FRTCellId>>& Paths);
+
+	/**
+	 * Come `ResolveHexPaths`, con due dati per unita' (CP 4.8) che valgono SOLO per contendere una cella: la
+	 * precedenza dichiarata dall'azione (`FRTActionDef::Priority` del catalogo — numero PIU' BASSO vince, stessa
+	 * convenzione di `URTActionQueueLibrary`) e se la mobilita' e' LINEARE con impatto (`Action.Charge` e affini,
+	 * `URTMovementActionLibrary::IsLinear`).
+	 *
+	 * - Destinazione contesa fra priorita' diverse: la piu' bassa entra, le altre si fermano PRIMA
+	 *   (`BlockedByPriority`). A PARITA' di priorita' fra i contendenti, si torna al comportamento di base:
+	 *   tutti fermi (`BlockedContested`) — "Charge prevale su Move", non "il primo dell'array vince".
+	 * - Due mobilita' LINEARI che si scambierebbero la cella (l'una entra dove sta l'altra, e viceversa, nello
+	 *   stesso microstep) si fermano l'una davanti all'altra (`BlockedByImpact`) invece di attraversarsi: e'
+	 *   la lettura di uno scontro frontale fra due cariche opposte. Lo scambio fra mobilita' NON entrambe
+	 *   lineari resta consentito, come nella variante base.
+	 *
+	 * `Priorities`/`bLinearMovers` vuoti o piu' corti di `Paths` -> priorita' 0 (parita' con tutti) e non-lineare
+	 * per le unita' mancanti: con entrambi vuoti il risultato e' IDENTICO a `ResolveHexPaths(Paths)`.
+	 */
+	static TArray<FRTHexMoveResult> ResolveHexPaths(const TArray<TArray<FRTCellId>>& Paths,
+		const TArray<int32>& Priorities, const TArray<bool>& bLinearMovers);
 
 	/**
 	 * Voci di TurnLog dagli esiti del movimento simultaneo: una per unita', nell'ordine dell'input

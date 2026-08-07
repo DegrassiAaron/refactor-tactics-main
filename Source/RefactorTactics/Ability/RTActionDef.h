@@ -65,9 +65,6 @@ enum class ERTActionFallback : uint8
  * Slot del turno che un'azione occupa. Il catalogo v0.1 (§«Slot per turno») ne dichiara uno per riga: senza
  * questo dato, «Sprint consuma movimento **e** azione principale» diventerebbe un `if` sull'ActionId dentro
  * l'orchestratore — cioe' il tipo di eccezione hard-coded che il motore azioni esiste per togliere.
- *
- * Lo slot Reazione non c'e': le reazioni si dichiarano in planning e hanno un trigger, non una fase. Arrivano
- * con l'epic E5 (`#19`), che decidera' come rappresentarle.
  */
 UENUM(BlueprintType)
 enum class ERTActionSlot : uint8
@@ -79,7 +76,52 @@ enum class ERTActionSlot : uint8
 	/** Azione principale: attacchi, scatti, guardia, cure. E' il caso comune. */
 	Main,
 	/** Consuma ENTRAMBI gli slot: chi la usa non si muove oltre e non agisce (`Action.Sprint`). */
-	MovementAndMain
+	MovementAndMain,
+	/**
+	 * Slot reazione (CP 5.1, epic E5): 0-1 per turno, indipendente da Movimento e Principale — un eroe puo'
+	 * muoversi, agire E tenere una reazione pronta nello stesso turno. Si dichiara in planning come le altre
+	 * azioni; a differenza loro non ha una cella o un bersaglio scelti dal giocatore, ma un `ReactionTrigger`
+	 * valutato deterministicamente sullo snapshot del Blast.
+	 */
+	Reaction
+};
+
+/**
+ * Condizione che fa scattare una reazione (CP 5.1), valutata sullo snapshot GIA' RACCOLTO del Blast
+ * (`FRTHexBlastPlan::Hits`, dopo il filtro di `Action.Interrupt`): mai un `Delay`, una timeline o un montage
+ * nel resolver (invariante #3) — e' per questo che il trigger e' un dato puro da confrontare con un array,
+ * non un evento a cui reagire mentre il turno gira.
+ */
+UENUM(BlueprintType)
+enum class ERTReactionTrigger : uint8
+{
+	/** Nessun trigger dichiarato: non e' una reazione, o non ne ha ancora uno (dato incompleto). */
+	None,
+	/**
+	 * L'unita' e' bersaglio di almeno un colpo DIRETTO (`ERTAbilityShape::Single`) andato a segno in questo
+	 * Blast (`Action.Counter`, `Action.Deflect` — CP 5.2 aggiunge i loro effetti sulla stessa valutazione).
+	 */
+	HitByDirectAttack
+};
+
+/**
+ * COME si sposta un'azione di mobilita'. E' un dato del catalogo, non un ramo nell'orchestratore: `Dash` e
+ * `Sprint` risolvono nella stessa macro-fase ma si muovono in due modi diversi, e senza questo campo la
+ * differenza finirebbe in un `if` sull'ActionId.
+ */
+UENUM(BlueprintType)
+enum class ERTMovementStyle : uint8
+{
+	/** L'azione non sposta chi la usa (attacchi, guardia, interazioni). */
+	None,
+	/** Percorso a costi interi dentro un budget di MP, ostacoli aggirati in pianificazione (`Action.Sprint`). */
+	Budget,
+	/** Linea retta su una delle sei direzioni: si ferma davanti a muri e unita' (`Dash`, `Reposition`). */
+	LinearDash,
+	/** Come `LinearDash`, ma si ferma SUL primo nemico incontrato e lo colpisce (`Charge`). */
+	LinearCharge,
+	/** Salto: ignora unita' e celle intermedie, conta solo dove si atterra (`Leap`). */
+	LinearLeap
 };
 
 /**
@@ -129,6 +171,10 @@ struct FRTActionDef
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	ERTActionSlot Slot = ERTActionSlot::Main;
 
+	/** Come l'azione sposta chi la usa. `None` per tutto cio' che non e' mobilita'. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	ERTMovementStyle MovementStyle = ERTMovementStyle::None;
+
 	/**
 	 * Limite di propagazione ambientale in celle: **0 = non propaga**, N > 0 = si ferma a N celle.
 	 * Un valore negativo significherebbe "senza limite" ed e' rifiutato dal validator: una propagazione
@@ -147,9 +193,35 @@ struct FRTActionDef
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	TArray<FRTActionEffectSpec> Effects;
 
+	/**
+	 * Se falso, chi usa questa azione NON puo' tenere pronta una reazione in questo turno (`Action.Sprint`:
+	 * chi corre a perdifiato non para). Fatta valere da `ARTTurnManager::ResolveCombat` (CP 5.1): una reazione
+	 * pianificata insieme a un'azione con questo campo a falso finisce nel TurnLog come non disponibile.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	bool bAllowsReaction = true;
+
+	/**
+	 * Condizione che fa scattare QUESTA azione, se `Slot == Reaction` (CP 5.1). `None` per tutto cio' che
+	 * reazione non e'.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	ERTReactionTrigger ReactionTrigger = ERTReactionTrigger::None;
+
 	/** Se falso, `Action.Interrupt` non ha effetto su questa azione. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	bool bCanBeInterrupted = true;
+
+	/**
+	 * L'azione colpisce anche gli ALLEATI di chi la usa (`Action.CircularAoE`, catalogo §3). Default falso:
+	 * il fuoco amico e' l'eccezione dichiarata da una singola azione, non il comportamento di base.
+	 *
+	 * Sta nei DATI e non nel codice che costruisce l'intento: altrimenti chi assegnera' l'area a un eroe (E6)
+	 * dovrebbe scrivere `if (ActionId == "Action.CircularAoE")`, cioe' l'eccezione hard-coded che il motore
+	 * azioni esiste per togliere.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	bool bFriendlyFire = false;
 
 	FRTActionDef() = default;
 };

@@ -4,6 +4,7 @@
 #include "Combat/RTCombatLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 #include "Core/RTGameplayTags.h"
 #include "RefactorTactics.h"
 #include "Components/StaticMeshComponent.h"
@@ -238,6 +239,16 @@ bool ARTUnit::HasStatus(FGameplayTag Tag) const
 	return Turns && *Turns > 0;
 }
 
+bool ARTUnit::RemoveStatus(FGameplayTag Tag)
+{
+	if (!HasStatus(Tag))
+	{
+		return false; // scaduto o mai applicato: non c'era nulla da purificare
+	}
+	StatusTurns.Remove(Tag);
+	return true;
+}
+
 void ARTUnit::TickStatuses()
 {
 	for (auto It = StatusTurns.CreateIterator(); It; ++It)
@@ -251,13 +262,16 @@ void ARTUnit::TickStatuses()
 
 int32 ARTUnit::GetEffectiveMoveRange() const
 {
-	return URTCombatLibrary::EffectiveMoveRange(MoveRange, HasStatus(TAG_Status_Root), HasStatus(TAG_Status_Slow));
+	// Root azzera. Slow (CP 4.7) non passa piu' da qui: e' un costo per cella nel pathfinding
+	// (ARTTurnManager::MakeCurrentSnapshot), non una riduzione flat del budget.
+	return URTCombatLibrary::EffectiveMoveRange(MoveRange, HasStatus(TAG_Status_Root));
 }
 
 int32 ARTUnit::GetEffectiveDashRange(int32 BaseRange) const
 {
-	// Stessa logica del movimento (Root -> 0, Slow -> meta'), applicata alla portata dello scatto.
-	return URTCombatLibrary::EffectiveMoveRange(BaseRange, HasStatus(TAG_Status_Root), HasStatus(TAG_Status_Slow));
+	// Le mobilita' lineari (Dash/Charge/Leap/Reposition) non hanno un costo per cella da aumentare: Slow non
+	// le tocca in v0.1 (dichiarato in `Action.Slow`, catalogo v0.1 §5). Solo Root le azzera.
+	return URTCombatLibrary::EffectiveMoveRange(BaseRange, HasStatus(TAG_Status_Root));
 }
 
 URTActionData* ARTUnit::MakeAbility(const FString& Name, int32 Range, int32 Power, int32 Area,
@@ -369,6 +383,39 @@ void ARTUnit::ConfigureAsArchetype(ERTArchetype InArchetype)
 	{
 		Mesh->SetRelativeScale3D(BaseMeshScale);
 	}
+}
+
+void ARTUnit::ConfigureFromHeroData(const URTHeroData* Hero)
+{
+	// Fail-closed: senza dati non si configura nulla. Un numero a caso sarebbe peggio di un'unita' che
+	// mantiene lo stato precedente e lascia capire, dal comportamento, che qualcosa non e' stato passato.
+	if (Hero == nullptr)
+	{
+		return;
+	}
+
+	HeroId = Hero->HeroId;
+	MaxHealth = Hero->MaxHealth;
+	MoveRange = Hero->MovePoints;
+	VisionRange = Hero->VisionRange;
+	PushResistance = Hero->PushResistance;
+	Affinity = Hero->Affinity;
+	Weakness = Hero->Weakness;
+
+	// Le azioni sono gia' URTActionData*: si copiano cosi' come sono, non si ricostruiscono con MakeAbility
+	// (quella e' la via delle abilita' legacy inventate in codice, non dei dati del catalogo eroi).
+	Abilities = Hero->Actions;
+	AbilityCooldowns.Init(0, Abilities.Num());
+
+	// L'attacco base e' SEMPRE l'indice 0 (catalogo v0.1 §"Struttura di un eroe"): AttackRange/AttackPower
+	// restano campi dell'unita' perche' bot e TurnManager li leggono ancora da li', ma il NUMERO viene da qui.
+	if (Abilities.IsValidIndex(0) && Abilities[0])
+	{
+		AttackRange = Abilities[0]->RangeCells;
+		AttackPower = Abilities[0]->Power;
+	}
+
+	Health = MaxHealth;
 }
 
 URTActionData* ARTUnit::GetAbility(int32 Index) const

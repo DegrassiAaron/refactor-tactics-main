@@ -5,6 +5,8 @@
 #include "Turn/RTActionQueueLibrary.h"
 #include "Turn/RTActionEffectLibrary.h"
 #include "Turn/RTActionFallbackLibrary.h"
+#include "Turn/RTMovementActionLibrary.h"
+#include "Turn/RTReactionLibrary.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Combat/RTCombatResolver.h"
 #include "Combat/RTCombatLibrary.h"
@@ -606,11 +608,25 @@ void ARTTurnManager::ResolveDash()
 	TArray<ARTUnit*> Units;
 	FRTHexSnapshot Snapshot = MakeCurrentSnapshot(Units);
 
+	// Fresco per il turno: chi corre a perdifiato (Action.Sprint) non para (CP 5.1), e questo e' l'unico
+	// posto dove si sa CON CERTEZZA cosa ha davvero usato lo slot di scatto.
+	ReactionBlockedThisTurn.Reset();
+
+	// Indice (in Units) dell'attaccante per ogni impatto accodato in QUESTO scatto: serve a scartare l'impatto,
+	// dopo la risoluzione simultanea, se la collisione ha bloccato il caricatore prima del contatto (CP 4.8).
+	TArray<int32> PendingImpactAttackerIdx;
+
 	// Percorsi: uno per ogni unita' (le non-scattanti restano ferme, ma occupano e bloccano come le altre).
+	// Priorita' e stile lineare sono per la collisione simultanea (CP 4.8): due mobilita' del catalogo diverse
+	// (`Action.Charge` priorita' 35, `Action.Dash` 30, ecc.) possono coesistere nella STESSA fase Dash.
 	TArray<TArray<FRTCellId>> Paths;
 	TArray<int32> DashAbilityIdx; // parallelo a Units: INDEX_NONE = non scatta
+	TArray<int32> Priorities;     // parallelo a Units: FRTActionDef::Priority dell'azione, 0 per chi non scatta
+	TArray<bool> bLinearMovers;   // parallelo a Units: vero se la mobilita' e' lineare (URTMovementActionLibrary::IsLinear)
 	Paths.Reserve(Units.Num());
 	DashAbilityIdx.Init(INDEX_NONE, Units.Num());
+	Priorities.Init(0, Units.Num());
+	bLinearMovers.Init(false, Units.Num());
 	int32 DasherCount = 0;
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
@@ -634,25 +650,82 @@ void ARTTurnManager::ResolveDash()
 		// turno. Per un'azione catalogata la verita' e' il `Def`: `Action.Sprint` vale 8 MP e quel numero sta
 		// nel catalogo, non sul campo legacy dell'asset.
 		const int32 DeclaredRange = Dash->Def.ActionId.IsNone() ? Dash->RangeCells : Dash->Def.RangeCells;
-		Snapshot.Units[i].MoveBudget = Unit->GetEffectiveDashRange(DeclaredRange);
+		const int32 EffectiveRange = Unit->GetEffectiveDashRange(DeclaredRange);
 
-		// Lo scatto e' LINEARE (catalogo v0.1 §3.2, CP 4.5): lungo una delle sei direzioni, sullo stesso layer,
-		// senza aggirare ostacoli. Non usa l'A* sul grafo come il movimento normale — con quello un'unita' si
-		// "arrampicava" sulla piattaforma passando da una transizione.
-		const TArray<FRTCellId> Path = URTHexSimLibrary::LinearDashPath(Snapshot, /*UnitId=*/ i, Unit->PlannedDashCell);
-		if (Path.Num() < 2)
+		TArray<FRTCellId> Path;
+		bool bChargedIntoTarget = false;
+		if (URTMovementActionLibrary::IsLinear(Dash->Def.MovementStyle))
+		{
+			// Mobilita' LINEARE (catalogo §2): una direzione fra le sei, e cio' che sta sulla traiettoria la
+			// ferma. Non e' il pathfinding del movimento normale — con quello un muro davanti non fermerebbe
+			// nulla, lo si girerebbe intorno, e `Dash.BlockedArc` non avrebbe nulla da verificare.
+			TSet<int32> Hostiles;
+			for (int32 u = 0; u < Units.Num(); ++u)
+			{
+				if (Units[u] && Units[u]->IsAlive() && Units[u]->TeamId != Unit->TeamId) { Hostiles.Add(u); }
+			}
+
+			const FRTLinearMoveResult Linear = URTMovementActionLibrary::ResolveLinearMove(
+				Snapshot.Map, Unit->Cell, Unit->PlannedDashCell, EffectiveRange,
+				Dash->Def.MovementStyle, Snapshot.Occupancy, Hostiles);
+
+			// L'impatto della carica NON si applica qui: il catalogo le da' codice 20/30, cioe' movimento in
+			// fase Dash e impatto fra i controlli, che risolvono per priorita' dentro il Blast.
+			if (Linear.Stop == ERTLinearStop::Impact && Units.IsValidIndex(Linear.ImpactUnitId))
+			{
+				FRTChargeImpact Impact;
+				Impact.Attacker = Unit;
+				Impact.Target = Units[Linear.ImpactUnitId];
+				Impact.Def = Dash->Def;
+				PendingChargeImpacts.Add(Impact);
+				PendingImpactAttackerIdx.Add(i);
+				bChargedIntoTarget = true;
+			}
+
+			Path.Add(Unit->Cell);
+			Path.Append(Linear.Entered);
+		}
+		else
+		{
+			Snapshot.Units[i].MoveBudget = EffectiveRange;
+			Path = URTHexSimLibrary::FindPathForUnit(Snapshot, /*UnitId=*/ i, Unit->PlannedDashCell).Path;
+		}
+
+		// Una carica che si ferma subito ha comunque colpito: l'impatto e' gia' registrato qui sopra.
+		if (Path.Num() < 2 && !bChargedIntoTarget)
 		{
 			continue; // destinazione non allineata, fuori portata, bloccata o occupata
 		}
+		if (Path.Num() < 2)
+		{
+			Path = { Unit->Cell };
+		}
 		Paths[i] = Path;
 		DashAbilityIdx[i] = DashIdx;
+		Priorities[i] = Dash->Def.Priority;
+		bLinearMovers[i] = URTMovementActionLibrary::IsLinear(Dash->Def.MovementStyle);
 		++DasherCount;
 	}
 
 	if (DasherCount == 0) { return; }
 
-	// Scatti simultanei, ordine-indipendenti (stesso resolver a microstep del movimento).
-	const TArray<FRTHexMoveResult> Resolved = URTHexSimLibrary::ResolveHexPaths(Paths);
+	// Scatti simultanei, ordine-indipendenti (stesso resolver a microstep del movimento, con priorita' e
+	// scontro frontale fra mobilita' lineari — CP 4.8).
+	const TArray<FRTHexMoveResult> Resolved = URTHexSimLibrary::ResolveHexPaths(Paths, Priorities, bLinearMovers);
+
+	// Un impatto era stato previsto sul percorso GIA' troncato dal solo `ResolveLinearMove` (occupazione
+	// congelata a inizio fase): non sa se la collisione simultanea fermera' il caricatore PRIMA del contatto
+	// (due cariche opposte, CP 4.8 — senza questo filtro entrambe infliggerebbero comunque danno, pur non
+	// essendosi mai davvero scontrate). Vale solo se il caricatore ha completato il percorso GIA' troncato
+	// esattamente com'era: qualunque scarto (priorita' persa o scontro frontale) invalida l'impatto previsto.
+	for (int32 k = PendingChargeImpacts.Num() - 1; k >= 0; --k)
+	{
+		const int32 AttackerIdx = PendingImpactAttackerIdx[k];
+		if (!Resolved.IsValidIndex(AttackerIdx) || Resolved[AttackerIdx].Outcome != ERTMoveOutcome::Moved)
+		{
+			PendingChargeImpacts.RemoveAt(k);
+		}
+	}
 
 	// Eventi per il playback (Move-type, fase Dash) + traccia post-lock. Catturati PRIMA del placement.
 	for (int32 i = 0; i < Units.Num(); ++i)
@@ -695,6 +768,15 @@ void ARTTurnManager::ResolveDash()
 
 		const URTActionData* Used = Unit->GetAbility(DashAbilityIdx[i]);
 		if (!Used) { continue; }
+
+		// Chi ha usato un'azione che nega la reazione (CP 5.1: `Action.Sprint`) non ne tiene pronta una in
+		// questo turno, comunque sia pianificata — vale QUI, non dove lo scatto e' stato solo pianificato,
+		// perche' qui e' l'unico punto in cui l'azione risulta EFFETTIVAMENTE usata (non su cooldown, non
+		// scartata dal fallback).
+		if (!Used->Def.bAllowsReaction)
+		{
+			ReactionBlockedThisTurn.Add(Unit);
+		}
 
 		// SLOT consumati: lo dice il catalogo, non l'ActionId. `Action.Sprint` prende movimento **e** azione
 		// principale — chi corre allo scoperto non prosegue col Move e non spara nello stesso turno.
@@ -771,11 +853,57 @@ void ARTTurnManager::ResolveCombat()
 		HexUnits.Add(HexUnit);
 	}
 
+	// `Action.Cleanse` (CP 5.2): azione PRINCIPALE, non una reazione, e l'unica del Blast che agisce su CHI LA
+	// USA invece che su un bersaglio. Risolve PRIMA del ciclo degli intenti, per due motivi indipendenti:
+	//
+	// 1. quel ciclo CONSUMA `PlannedAbilityIndex` (lo azzera appena letto, per ogni unita'): un pass successivo
+	//    non troverebbe piu' nulla da leggere — e' lo stesso tranello gia' incontrato con `Action.Interrupt`
+	//    al CP 4.7;
+	// 2. purificarsi da `Exposed` DOPO aver incassato il +5 che quello stato comporta non servirebbe a niente.
+	//    Il catalogo le da' infatti codice 30 (controllo), non 40 (attacco): il controllo viene prima del danno.
+	//
+	// QUALE stato togliere lo dice il PIANO (`PlannedCleansePriority`), mai il resolver: si scorre la lista
+	// dichiarata e si rimuove il primo stato effettivamente presente, uno solo. Lista vuota -> nessuna
+	// rimozione (fail-closed): indovinare per conto del giocatore e' esattamente cio' che il catalogo vieta.
+	//
+	// Limite noto: non puo' togliere uno stato applicato da un'azione di controllo dello STESSO Blast (quelli
+	// si applicano a fine fase, insieme agli altri effetti dei colpi). Purifica cio' che c'era a inizio turno.
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		ARTUnit* Unit = Units[i];
+		const int32 CleanseIdx = Unit->PlannedAbilityIndex;
+		const URTActionData* Cleanse = Unit->GetAbility(CleanseIdx);
+		if (!Cleanse || Cleanse->Def.ActionId != FName(TEXT("Action.Cleanse")) || !Unit->CanUseAbility(CleanseIdx))
+		{
+			continue;
+		}
+
+		FGameplayTag Removed;
+		for (const FGameplayTag& Candidate : Unit->PlannedCleansePriority)
+		{
+			if (Unit->RemoveStatus(Candidate))
+			{
+				Removed = Candidate;
+				break; // UNO solo: e' il vincolo del catalogo, non un'ottimizzazione
+			}
+		}
+
+		Unit->ConsumeAbility(CleanseIdx);
+		Unit->PlannedAbilityIndex = INDEX_NONE; // consumata qui: non deve diventare anche un intento d'attacco
+		Unit->PlannedAttackTarget = nullptr;
+
+		AddLogEvent(Removed.IsValid()
+			? FString::Printf(TEXT("%s: purificato %s"), *Unit->GetName(), *Removed.ToString())
+			: FString::Printf(TEXT("%s: nessuno stato da purificare"), *Unit->GetName()));
+	}
+
 	// Intenti d'attacco: qui si valida l'ABILITA' (esiste, non e' uno scatto, e' utilizzabile);
 	// la GEOMETRIA (portata, linea di tiro, celle colpite) la valida URTHexCombatLibrary.
 	TArray<FRTHexAttackIntent> Intents;
 	TArray<int32> IntentAbilityIndex;
 	TArray<const URTActionData*> IntentAbility;
+	TArray<FRTActionDef> IntentDefs; // la definizione che ha prodotto l'intento: anche senza un URTActionData
+					 // dietro (l'impatto di una carica e' dati puri, non un'abilita' selezionata)
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Units[i];
@@ -788,6 +916,14 @@ void ARTTurnManager::ResolveCombat()
 		if (!Ability || Ability->bDash || !Unit->CanUseAbility(AbilityIndex))
 		{
 			continue; // nessuna azione di Blast pianificata: non c'e' un'azione da far fallire
+		}
+
+		// Chi usa un'azione principale che nega la reazione (CP 5.1: nessuna oggi, ma il dato e' generico)
+		// non ne tiene pronta una in questo turno. `Action.Sprint` (l'unico caso reale) passa dallo scatto,
+		// non da qui: e' `ResolveDash` a registrarlo, perche' risolve prima e consuma lo slot principale.
+		if (!Ability->Def.bAllowsReaction)
+		{
+			ReactionBlockedThisTurn.Add(Unit);
 		}
 
 		// Da qui si ragiona su ISTANZE, non su puntatori: e' l'istanza che si valida e su cui si applica il
@@ -865,9 +1001,170 @@ void ARTTurnManager::ResolveCombat()
 		Intents.Add(Intent);
 		IntentAbilityIndex.Add(AbilityIndex);
 		IntentAbility.Add(Ability);
+		IntentDefs.Add(Instance.Def);
 	}
 
-	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(HexUnits, Intents, Map);
+	// Impatti delle cariche risolte nella fase Dash: entrano nel Blast come intenti a portata 1, cioe' addosso
+	// al bersaglio. E' il codice 20/30 del catalogo — il movimento e' avvenuto prima, il colpo risolve qui, con
+	// gli altri, per priorita'. Applicarlo dentro la fase Dash lo avrebbe messo fuori dall'ordine.
+	for (const FRTChargeImpact& Impact : PendingChargeImpacts)
+	{
+		ARTUnit* Attacker = Impact.Attacker.Get();
+		ARTUnit* Victim = Impact.Target.Get();
+		if (!Attacker || !Victim || !IndexOf.Contains(Attacker) || !IndexOf.Contains(Victim)) { continue; }
+
+		FRTHexAttackIntent Intent;
+		Intent.AttackerId = IndexOf[Attacker];
+		Intent.TargetId = IndexOf[Victim];
+		Intent.TargetCell = Victim->Cell;
+		Intent.Shape = ERTAbilityShape::Single;
+		Intent.RangeCells = 1; // dopo l'impatto si e' adiacenti: e' questa la portata del colpo
+		Intent.AreaRadius = 0;
+
+		int32 ImpactDamage = 0;
+		for (const FRTActionEffectSpec& Spec : Impact.Def.Effects)
+		{
+			if (Spec.Effect == ERTActionEffect::Damage) { ImpactDamage = Spec.Amount; break; }
+		}
+		Intent.Power = URTCombatLibrary::EffectiveAttackPower(ImpactDamage, /*OccupantDamageBonus=*/ 0);
+
+		Intents.Add(Intent);
+		IntentAbilityIndex.Add(INDEX_NONE); // nessuna abilita' da consumare: lo scatto l'ha gia' fatto
+		IntentAbility.Add(nullptr);
+		IntentDefs.Add(Impact.Def);
+	}
+	PendingChargeImpacts.Reset();
+
+	FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(HexUnits, Intents, Map);
+
+	// `Action.Interrupt` (CP 4.7): cancella l'INTERA azione di un'altra unita', non un effetto su un
+	// bersaglio — per questo si filtra QUI, sui colpi gia' raccolti, invece di passare dal registry
+	// (`URTActionEffectLibrary::ProduceEvents`), che sa tradurre effetti su un bersaglio ma non "annulla
+	// l'azione X". Filtrare `Plan.Hits` prima che diventino danno o eventi cancella ENTRAMBI in un colpo solo
+	// — anche per un'abilita' ad area che avrebbe prodotto piu' Hit dallo stesso attaccante.
+	//
+	// L'Interrupt stesso passa dalla normale validazione di bersaglio/portata/linea di tiro di
+	// CollectHexAttacks (e' un intento come un altro, portata 1): un Interrupt senza linea di tiro sul
+	// bersaglio non produce un Hit, quindi non cancella nulla, esattamente come un attacco bloccato dalla
+	// copertura.
+	TSet<int32> InterruptedAttackerIds;
+	for (const FRTHexAttackHit& Hit : Plan.Hits)
+	{
+		if (!IntentDefs.IsValidIndex(Hit.IntentIndex)
+			|| IntentDefs[Hit.IntentIndex].ActionId != FName(TEXT("Action.Interrupt")))
+		{
+			continue;
+		}
+		if (!Units.IsValidIndex(Hit.TargetId)) { continue; }
+
+		// L'azione pianificata dal BERSAGLIO non si legge da `Unit->PlannedAbilityIndex`: il ciclo che ha
+		// costruito `Intents`, qualche riga sopra, l'ha gia' CONSUMATA (azzerata) per ogni unita', bersaglio
+		// compreso — e' cosi' che il turno evita di rieseguire due volte la stessa azione. Va cercata fra gli
+		// `Intents` gia' catturati, nell'entrata che il bersaglio ha prodotto per SE STESSO (AttackerId ==
+		// l'indice del bersaglio dell'Interrupt): e' li' che la definizione originale sopravvive al reset.
+		int32 VictimIntentIdx = INDEX_NONE;
+		for (int32 k = 0; k < Intents.Num(); ++k)
+		{
+			if (Intents[k].AttackerId == Hit.TargetId) { VictimIntentIdx = k; break; }
+		}
+
+		// Solo se il bersaglio ha DAVVERO pianificato un'azione interrompibile: un Interrupt su chi non ha
+		// pianificato nulla (o ha pianificato Guard, non interrompibile) non ha niente da cancellare.
+		if (VictimIntentIdx != INDEX_NONE && IntentDefs.IsValidIndex(VictimIntentIdx)
+			&& IntentDefs[VictimIntentIdx].bCanBeInterrupted)
+		{
+			InterruptedAttackerIds.Add(Hit.TargetId);
+			AddLogEvent(FString::Printf(TEXT("%s: interrotto da %s"),
+				*Units[Hit.TargetId]->GetName(), *Units[Hit.AttackerId]->GetName()));
+		}
+	}
+	// Il colpo dell'Interrupt STESSO non deve mai diventare un `FRTAttack`: non fa danno (`Effects` vuoto),
+	// ma un colpo a Power 0 nell'array conterebbe comunque come "primo colpo" per `ApplyFirstHitDelta` —
+	// consumando il bonus/malus di Guard/Exposed/Marked su un colpo fantasma invece che sull'attacco vero
+	// che dovrebbe riceverlo. Si toglie insieme ai colpi degli interrotti, nello stesso filtro.
+	Plan.Hits.RemoveAll([&InterruptedAttackerIds, &IntentDefs](const FRTHexAttackHit& Hit)
+	{
+		if (InterruptedAttackerIds.Contains(Hit.AttackerId)) { return true; }
+		return IntentDefs.IsValidIndex(Hit.IntentIndex)
+			&& IntentDefs[Hit.IntentIndex].ActionId == FName(TEXT("Action.Interrupt"));
+	});
+
+	// Reazioni (CP 5.1): valutate sui colpi GIA' raccolti di `Plan.Hits`, dopo il filtro di Interrupt — lo
+	// snapshot congelato del Blast, non un evento a cui reagire mentre il turno gira (invariante #3).
+	// Un'unita' con piu' trigger validi nello stesso Blast si ferma comunque a UNA attivazione:
+	// `FindTriggeringAttacker` restituisce il primo colpo che soddisfa il trigger, non li conta.
+	// L'attivazione — o la non-attivazione, col motivo — finisce SEMPRE nel TurnLog, mai in silenzio.
+	//
+	// Gli EFFETTI delle reazioni attivate (CP 5.2) non si applicano qui: si raccolgono e si applicano insieme
+	// agli altri colpi, piu' sotto. E' "raccogli poi applica" (invariante #3) — una reazione che modificasse
+	// subito il danno lo farebbe su un totale ancora incompleto, e l'esito dipenderebbe dall'ordine delle unita'.
+	TArray<int32> DeflectDelta;       // riduzione del danno per bersaglio, dalle `Action.Deflect` attivate
+	TArray<FRTAttack> CounterAttacks; // contrattacchi delle `Action.Counter` attivate, accodati ai colpi veri
+	TArray<FRTCellId> CounterAttackSrc; // parallelo a CounterAttacks: cella di chi contrattacca, per il TurnLog
+	DeflectDelta.Init(0, Units.Num());
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		ARTUnit* Unit = Units[i];
+		const int32 ReactionIdx = Unit->PlannedReactionAbility;
+		Unit->PlannedReactionAbility = INDEX_NONE; // consumato per questo turno (attivata o no)
+
+		const URTActionData* Reaction = Unit->GetAbility(ReactionIdx);
+		if (!Reaction || Reaction->Def.Slot != ERTActionSlot::Reaction)
+		{
+			continue; // nessuna reazione pianificata: niente da registrare
+		}
+
+		FRTTurnLogEntry Entry;
+		Entry.Phase = ERTMatchPhase::Blast;
+		Entry.Category = ERTLogCategory::Reaction;
+		Entry.SrcCell = Unit->Cell;
+		Entry.TgtCell = Unit->Cell;
+
+		const int32 TriggeredBy = URTReactionLibrary::FindTriggeringAttacker(
+			Reaction->Def.ReactionTrigger, i, Plan.Hits, Intents);
+
+		if (!Unit->CanUseAbility(ReactionIdx) || ReactionBlockedThisTurn.Contains(Unit))
+		{
+			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Unavailable);
+		}
+		else if (TriggeredBy != INDEX_NONE)
+		{
+			Unit->ConsumeAbility(ReactionIdx);
+			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Activated);
+
+			// Effetto della reazione, DICHIARATO dall'azione. `Counter` porta il suo danno negli `Effects`
+			// (16, dal catalogo); `Deflect` non ne ha nessuno perche' "ridurre il danno subito" non e' un
+			// effetto applicato a un bersaglio ma un modificatore del calcolo — sta in URTCombatLibrary,
+			// come il -15 di Guard.
+			int32 CounterDamage = 0;
+			for (const FRTActionEffectSpec& Spec : Reaction->Def.Effects)
+			{
+				if (Spec.Effect == ERTActionEffect::Damage) { CounterDamage = Spec.Amount; break; }
+			}
+			if (CounterDamage > 0 && Units.IsValidIndex(TriggeredBy))
+			{
+				// Il contrattacco colpisce CHI ha colpito. Entra fra gli attacchi normali, quindi risolve
+				// sullo stato iniziale come tutti gli altri: chi cade in questo stesso Blast contrattacca
+				// comunque, che e' la regola gia' dichiarata da URTCombatResolver ("un'unita' colpita a
+				// morte infligge comunque il proprio danno").
+				CounterAttacks.Add(FRTAttack(TriggeredBy, CounterDamage));
+				CounterAttackSrc.Add(Unit->Cell);
+				AddLogEvent(FString::Printf(TEXT("%s: contrattacco su %s (%d)"),
+					*Unit->GetName(), *Units[TriggeredBy]->GetName(), CounterDamage));
+			}
+			if (Reaction->Def.ActionId == FName(TEXT("Action.Deflect")))
+			{
+				DeflectDelta[i] -= URTCombatLibrary::DeflectDamageReduction;
+			}
+		}
+		else
+		{
+			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::NotTriggered);
+		}
+
+		TurnLog.Add(Entry);
+		AddLogEvent(FString::Printf(TEXT("%s: %s"), *Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Entry)));
+	}
 
 	// Intenti fermati dalla copertura: l'attacco non avviene e il TurnLog ne registra il motivo.
 	for (const int32 BlockedIdx : Plan.BlockedIntents)
@@ -900,19 +1197,45 @@ void ARTTurnManager::ResolveCombat()
 	}
 
 	// Colpi a segno -> attacchi da applicare, con gli effetti collaterali dell'abilita' che li ha prodotti.
-	// `Status.Exposed` (chi ha scattato allo scoperto) aggiunge +5 al PRIMO danno diretto che riceve: il delta
-	// vale una volta sola per bersaglio, quindi il totale non dipende da quale colpo se lo prenda.
-	TArray<int32> ExposedDelta;
-	ExposedDelta.Init(0, Units.Num());
+	// Gli stati che valgono sul PRIMO danno diretto entrano qui come un delta per bersaglio: `Status.Exposed`
+	// (chi ha scattato allo scoperto) somma +5, `Status.Guarded` (chi si e' messo in guardia) sottrae 15.
+	// Valgono una volta sola, quindi il totale non dipende da quale colpo se li prenda; chi e' esposto E in
+	// guardia li cumula, che e' l'esito prevedibile di aver fatto entrambe le cose.
+	TArray<int32> FirstHitDelta;
+	FirstHitDelta.Init(0, Units.Num());
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
-		if (Units[i] && Units[i]->HasStatus(TAG_Status_Exposed))
+		if (!Units[i]) { continue; }
+		if (Units[i]->HasStatus(TAG_Status_Exposed))
 		{
-			ExposedDelta[i] = URTCombatLibrary::ExposedFirstHitBonus;
+			FirstHitDelta[i] += URTCombatLibrary::ExposedFirstHitBonus;
+		}
+		if (Units[i]->HasStatus(TAG_Status_Guarded))
+		{
+			FirstHitDelta[i] -= URTCombatLibrary::GuardFirstHitReduction;
+		}
+		// `Action.Deflect` (CP 5.2): la reazione si attiva UNA volta, quindi il suo -20 vale sul colpo che
+		// l'ha innescata — stessa meccanica di Guard, non una riduzione permanente del turno.
+		FirstHitDelta[i] += DeflectDelta[i];
+	}
+
+	// `Action.Brace` (CP 5.2): -10 su OGNI danno diretto, non solo sul primo. E' un secondo passaggio con una
+	// funzione diversa (`ApplyDamageDelta`, senza il gate "una volta sola"): applicarlo con `ApplyFirstHitDelta`
+	// insieme agli altri delta ridurrebbe un colpo e lascerebbe passare interi tutti i successivi.
+	TArray<int32> EveryHitDelta;
+	EveryHitDelta.Init(0, Units.Num());
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		if (Units[i] && Units[i]->HasStatus(TAG_Status_Braced))
+		{
+			EveryHitDelta[i] -= URTCombatLibrary::BraceDamageReduction;
 		}
 	}
-	const TArray<FRTAttack> Attacks =
-		URTCombatResolver::ApplyFirstHitDelta(URTHexCombatLibrary::ToAttacks(Plan), ExposedDelta);
+
+	TArray<FRTAttack> Attacks = URTCombatResolver::ApplyDamageDelta(
+		URTCombatResolver::ApplyFirstHitDelta(URTHexCombatLibrary::ToAttacks(Plan), FirstHitDelta),
+		EveryHitDelta);
+
 	TArray<FRTCellId> AttackSrc;  // cella dell'attaccante per ogni FRTAttack (TurnLog)
 	TArray<ARTUnit*> Attackers;
 	TArray<int32> UsedAbilityIndex;
@@ -925,21 +1248,28 @@ void ARTTurnManager::ResolveCombat()
 	TMap<ARTUnit*, FRTCellId> KnockFrom;
 	TMap<ARTUnit*, int32> KnockDist;
 	TMap<ARTUnit*, int32> KnockCount;
+	// Trazione (`Action.Pull`, CP 4.7): stessa disciplina della spinta, array paralleli propri — una
+	// direzione INVERTITA (verso chi tira, non lontano da lui) non e' la stessa spinta con un segno cambiato
+	// nel dato che la applica.
+	TMap<ARTUnit*, FRTCellId> PullToward;
+	TMap<ARTUnit*, int32> PullDist;
+	TMap<ARTUnit*, int32> PullCount;
 	AttackSrc.Reserve(Plan.Hits.Num());
 	for (const FRTHexAttackHit& Hit : Plan.Hits)
 	{
 		ARTUnit* Attacker = Units[Hit.AttackerId];
 		ARTUnit* Victim = Units[Hit.TargetId];
 		const URTActionData* Ability = IntentAbility.IsValidIndex(Hit.IntentIndex) ? IntentAbility[Hit.IntentIndex] : nullptr;
+		const bool bHasDef = IntentDefs.IsValidIndex(Hit.IntentIndex);
 		AttackSrc.Add(HexUnits[Hit.AttackerId].Cell);
 
 		// Effetti COLLATERALI del colpo (stato, spinta) dagli EVENTI dichiarati dall'azione, non da flag
 		// letti qui: e' il motore azioni (epic E4). Il danno resta separato perche' segue una regola sua —
 		// si somma per bersaglio e si applica in blocco, cosi' l'ordine dei colpi non cambia l'esito.
-		if (Ability)
+		if (bHasDef)
 		{
 			FRTActionInstance Instance;
-			Instance.Def = Ability->Def;
+			Instance.Def = IntentDefs[Hit.IntentIndex];
 			Instance.SourceUnitId = Hit.AttackerId;
 			Instance.TargetUnitId = Hit.TargetId;
 			Instance.TargetCell = HexUnits[Hit.TargetId].Cell;
@@ -959,6 +1289,12 @@ void ARTTurnManager::ResolveCombat()
 					KnockFrom.Add(Victim, HexUnits[Hit.AttackerId].Cell);
 					KnockDist.Add(Victim, Event.Amount);
 					KnockCount.FindOrAdd(Victim)++;
+					break;
+
+				case ERTActionEffect::Pull:
+					PullToward.Add(Victim, HexUnits[Hit.AttackerId].Cell);
+					PullDist.Add(Victim, Event.Amount);
+					PullCount.FindOrAdd(Victim)++;
 					break;
 
 				default:
@@ -986,6 +1322,16 @@ void ARTTurnManager::ResolveCombat()
 			UsedAbilityIndex.Add(IntentAbilityIndex.IsValidIndex(Hit.IntentIndex) ? IntentAbilityIndex[Hit.IntentIndex] : INDEX_NONE);
 		}
 	}
+
+	// Contrattacchi (`Action.Counter`, CP 5.2): accodati QUI, dopo che `AttackSrc` e' completo — i due array
+	// sono paralleli e il TurnLog li legge per indice, quindi vanno estesi insieme o le voci si disallineano.
+	//
+	// In coda, non in mezzo: il catalogo descrive il contrattacco come un attacco eseguito "dopo l'attacco
+	// ricevuto". `ResolveAttacks` somma comunque per bersaglio sullo stato iniziale, quindi la posizione non
+	// cambia il totale; cambia quale colpo conta come "primo" per Guard/Exposed/Deflect, ed e' giusto che sia
+	// l'attacco pianificato a consumare quei delta, non un contrattacco arrivato di rimbalzo.
+	Attacks.Append(CounterAttacks);
+	AttackSrc.Append(CounterAttackSrc);
 
 	if (Attacks.Num() == 0)
 	{
@@ -1054,6 +1400,25 @@ void ARTTurnManager::ResolveCombat()
 		{
 			const int32* Pushes = KnockCount.Find(T);
 			if (!Pushes || *Pushes != 1 || !IsValid(T) || !T->IsAlive()) { continue; }
+
+			// `Action.Guard` regge una spinta di UNA cella: chi si e' piantato non arretra di un passo, ma una
+			// spinta piu' forte lo sposta comunque (la guardia non e' un'ancora, catalogo v0.1 §1).
+			if (T->HasStatus(TAG_Status_Guarded) && KnockDist[T] <= URTCombatLibrary::GuardResistedPushDistance)
+			{
+				AddLogEvent(FString::Printf(TEXT("%s: in guardia, resiste alla spinta"), *T->GetName()));
+				continue;
+			}
+
+			// `Action.Brace` (CP 5.2) "impedisce la PRIMA spinta", senza limite di distanza: e' cio' che lo
+			// distingue da Guard, che regge solo un passo. "Prima" e non "tutte" e' rispettato per costruzione,
+			// non da un contatore: tutte le spinte del Blast si risolvono in questo unico passaggio, e un
+			// bersaglio spinto da 2+ attaccanti e' gia' escluso sopra (`*Pushes != 1`, forze contraddittorie).
+			if (T->HasStatus(TAG_Status_Braced))
+			{
+				AddLogEvent(FString::Printf(TEXT("%s: irrigidito, la spinta non lo sposta"), *T->GetName()));
+				continue;
+			}
+
 			const FRTCellId Dest = URTHexCombatLibrary::HexKnockbackDestination(
 				KnockFrom[T], T->Cell, KnockDist[T], Map, KOccupied);
 			if (Dest != T->Cell) { KTargets.Add(T); KFinal.Add(Dest); }
@@ -1094,6 +1459,58 @@ void ARTTurnManager::ResolveCombat()
 			T->PlannedPath.Reset();      // path composita dalla vecchia cella non valida
 			T->PlannedWaypoints.Reset();
 			if (T->PlannedCell == OldCell) { T->PlannedCell = NewCell; } // niente move pianificato: resta spinto
+		}
+	}
+
+	// --- Trazione (`Action.Pull`, CP 4.7): stessa disciplina della spinta, direzione opposta -------------
+	// Il catalogo v0.1 §1 riserva la resistenza di `Action.Guard` alla "spinta": una trazione non viene
+	// resistita da chi si e' messo in guardia — non e' un'estensione implicita, e' cio' che il testo dice.
+	if (PullCount.Num() > 0)
+	{
+		TArray<FRTCellId> POccupied;
+		for (ARTUnit* U : Units) { POccupied.Add(U->Cell); }
+
+		TArray<ARTUnit*> PTargets;
+		TArray<FRTCellId> PFinal;
+		for (ARTUnit* T : Units)
+		{
+			const int32* Pulls = PullCount.Find(T);
+			if (!Pulls || *Pulls != 1 || !IsValid(T) || !T->IsAlive()) { continue; }
+
+			const FRTCellId Dest = URTHexCombatLibrary::HexPullDestination(
+				PullToward[T], T->Cell, PullDist[T], Map, POccupied);
+			if (Dest != T->Cell) { PTargets.Add(T); PFinal.Add(Dest); }
+		}
+		for (int32 a = 0; a < PTargets.Num(); ++a)
+		{
+			bool bContested = false;
+			for (int32 b = 0; b < PTargets.Num(); ++b)
+			{
+				if (a != b && PFinal[a] == PFinal[b]) { bContested = true; break; }
+			}
+			if (bContested) { continue; }
+
+			ARTUnit* T = PTargets[a];
+			const FRTCellId OldCell = T->Cell;
+			const FRTCellId NewCell = PFinal[a];
+			AddLogEvent(FString::Printf(TEXT("Trazione: %s -> (q=%d,r=%d,L%d)"),
+				*T->GetName(), NewCell.X, NewCell.Y, NewCell.Layer));
+
+			const TArray<FRTCellId> PPath = URTHexLibrary::HexLine(OldCell, NewCell);
+			{
+				FRTResolvedEvent Ev;
+				Ev.Phase = ERTMatchPhase::Blast;
+				Ev.Type = ERTResolvedEventType::Move;
+				Ev.Source = T;
+				Ev.Path = PPath;
+				ResolvedTimeline.Add(Ev);
+			}
+
+			T->Cell = NewCell;
+			T->SetVisualLocation(T->WorldForCell(NewCell, HexOrigin, HexSize, HexLayerH));
+			T->PlannedPath.Reset();
+			T->PlannedWaypoints.Reset();
+			if (T->PlannedCell == OldCell) { T->PlannedCell = NewCell; }
 		}
 	}
 
@@ -1168,7 +1585,12 @@ FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) c
 	SimUnits.Reserve(OutUnits.Num());
 	for (int32 i = 0; i < OutUnits.Num(); ++i)
 	{
-		SimUnits.Add(FRTHexSimUnit(i, OutUnits[i]->Cell, OutUnits[i]->GetEffectiveMoveRange(), /*bAlive=*/ true));
+		FRTHexSimUnit SimUnit(i, OutUnits[i]->Cell, OutUnits[i]->GetEffectiveMoveRange(), /*bAlive=*/ true);
+		// `Action.Slow` (CP 4.7): +1 al costo di ogni cella, letto FRESCO a ogni snapshot — cosi' uno Slow
+		// applicato nel Blast (stesso turno) si riflette gia' sulla fase Move che segue, senza bisogno di
+		// ricordare "quando" e' stato applicato.
+		SimUnit.MoveCostModifier = OutUnits[i]->HasStatus(TAG_Status_Slow) ? 1 : 0;
+		SimUnits.Add(SimUnit);
 	}
 	return URTHexSimLibrary::MakeSnapshot(Map, SimUnits);
 }
@@ -1205,6 +1627,15 @@ void ARTTurnManager::ResolveMovement()
 		{
 			Path = URTHexSimLibrary::FindPathForUnit(Snapshot, /*UnitId=*/ i, Unit->PlannedCell).Path;
 		}
+
+		// Il percorso e' stato calcolato al momento del click (o impostato direttamente), PRIMA che il Blast
+		// di QUESTO turno potesse radicare o rallentare l'unita' (`Action.Root`/`Action.Slow`, CP 4.7). Si
+		// TRONCA qui contro il budget FRESCO — non si ricalcola da zero: un ostacolo POSIZIONALE (un'altra
+		// unita' che occupa una cella a meta' strada) resta compito di `ResolveHexPaths` sotto, che cammina il
+		// percorso passo per passo; qui si intercetta solo "il budget e' cambiato da quando il piano e' stato
+		// scritto". Se non e' cambiato, il troncamento non taglia nulla — il percorso `FindPathForUnit` gia'
+		// rispettava lo snapshot fresco, quindi qui e' un no-op per costruzione.
+		Path = URTHexSimLibrary::TruncatePathToBudget(Snapshot, /*UnitId=*/ i, Path);
 
 		if (Path.Num() < 2)
 		{

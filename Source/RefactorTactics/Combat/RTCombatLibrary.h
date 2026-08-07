@@ -52,6 +52,53 @@ public:
 	 */
 	static constexpr int32 ExposedFirstHitBonus = 5;
 
+	/**
+	 * `Action.Guard`: riduce di 15 il PRIMO danno diretto ricevuto (catalogo v0.1 §1). Non protegge dagli
+	 * hazard ambientali gia' presenti — quelli non passano dai colpi diretti e arrivano con l'epic E8.
+	 */
+	static constexpr int32 GuardFirstHitReduction = 15;
+
+	/** `Action.Guard`: spinta massima (in celle) a cui si resiste restando fermi. */
+	static constexpr int32 GuardResistedPushDistance = 1;
+
+	/**
+	 * `Status.Marked` (`Action.MarkTarget`, catalogo v0.1 §3): +6 al PROSSIMO attacco alleato contro il
+	 * bersaglio, che consuma il marchio.
+	 *
+	 * Passa dalla stessa `ApplyFirstHitDelta` di `Exposed` e `Guard` — quindi "consumato una volta sola" e'
+	 * una proprieta' del resolver, non una corsa fra gli attaccanti a chi colpisce per primo. Vale solo sui
+	 * colpi DIRETTI: il danno ambientale non passa di li' (catalogo: «non aumenta il danno ambientale»).
+	 */
+	static constexpr int32 MarkedFirstHitBonus = 6;
+
+	/**
+	 * `Action.Deflect` (catalogo v0.1 §4): riduce di 20 il danno diretto che ha fatto scattare la reazione.
+	 *
+	 * Passa da `ApplyFirstHitDelta` come `Guard`: la reazione si attiva UNA volta, quindi vale sul colpo che
+	 * l'ha innescata, non su tutti quelli del turno. Se il danno arriva a zero l'attacco resta comunque un
+	 * colpo AVVENUTO (il clamp e' sul valore, non sulla voce): conta per trigger e marchi, come dice il catalogo.
+	 */
+	static constexpr int32 DeflectDamageReduction = 20;
+
+	/**
+	 * `Action.Brace` (catalogo v0.1 §4): riduce di 10 OGNI danno diretto fino al Cleanup.
+	 *
+	 * A differenza di `Guard`/`Deflect` NON passa da `ApplyFirstHitDelta`: "tutti i danni diretti" e' un'altra
+	 * regola, e usa `ApplyDamageDelta` (nessun gate "una volta sola"). E' la differenza che rende `Brace`
+	 * un'azione diversa da una guardia piu' forte.
+	 */
+	static constexpr int32 BraceDamageReduction = 10;
+
+	/**
+	 * `Flux.LinearDischarge` (catalogo eroi v0.1 §1): +8 danni contro un bersaglio `Status.Wet`.
+	 *
+	 * A differenza di `Exposed`/`Guard`/`Marked`, NON passa da `ApplyFirstHitDelta`: il bonus non si consuma
+	 * al primo colpo, vale per OGNI colpo finche' `Wet` e' attivo (come `Root`/`Slow`) — e riusa
+	 * `EffectiveAttackPower` (bonus di cella), non un meccanismo nuovo. E' specifico di UN'abilita', non una
+	 * regola di combattimento universale: per questo il nome non e' generico come gli altri.
+	 */
+	static constexpr int32 FluxWetDischargeBonus = 8;
+
 	/** Applica il danno: lo scudo assorbe per primo, poi gli HP. Nessun valore scende sotto 0. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static FRTDamageResult ApplyDamage(int32 Damage, int32 Shield, int32 Health);
@@ -64,9 +111,15 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static bool IsUltimateReady(int32 Energy, int32 Max);
 
-	/** Range di movimento effettivo con gli status: Root azzera, Slow dimezza (arrotondato per difetto). */
+	/**
+	 * Range di movimento effettivo con lo status Root: azzera. `Slow` NON passa piu' da qui (CP 4.7): il
+	 * catalogo v0.1 §5 lo definisce come **+1 al costo di ogni cella**, un meccanismo di pathfinding
+	 * (`FRTHexSimUnit::MoveCostModifier`, `URTHexPathLibrary::FindPathAvoiding`), non una riduzione flat del
+	 * raggio. Dimezzare qui era la scelta pre-CP4.2 (prima del budget a costi per cella): con Slow tolto,
+	 * questa funzione fa esattamente cio' che il suo nome dice, senza un secondo bool che mente sulla firma.
+	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
-	static int32 EffectiveMoveRange(int32 BaseRange, bool bRooted, bool bSlowed);
+	static int32 EffectiveMoveRange(int32 BaseRange, bool bRooted);
 
 	/** Vero se un'abilita' e' utilizzabile: non in ricarica e con energia sufficiente. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
