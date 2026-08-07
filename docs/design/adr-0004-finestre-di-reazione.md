@@ -132,7 +132,7 @@ risultasse rumore inutile, si degrada a «vede solo il proprietario» senza tocc
 
 | Parametro | Valore | Origine |
 |---|---|---|
-| `FastReactionDuration` | **3.0 s** | §3 sorgente |
+| `FastReactionDuration` | **3.0 s** — **baseline di sistema per ogni Fast Reaction**, non solo per l'Overwatch | §3 sorgente · confermato da [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §8 |
 | `MaxPromptsPerReaction` | **3** | §5 sorgente; data-driven |
 | `DefaultTimeoutBehavior` | **Hold** | §3 di questo ADR |
 | `Charges` (Overwatch v0.1) | **1** | §5 sorgente |
@@ -204,6 +204,12 @@ Rivedere alla chiusura di **CP 14.5**, che misura la durata reale della resoluti
 **Soglia di allarme**: resolution stabilmente sopra i **20 secondi**. In quel caso rientrano le due opzioni già
 valutate — *cap aggregato per turno condiviso fra le unità* oppure `MaxPromptsPerReaction = 1` — senza toccare
 il modello, perché sono entrambe parametri.
+
+> **La soglia dei 20 s è coerente con le bande di formato** ([`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md)
+> §9): playback tipico **8–15 s** in 2v2 e **12–20 s** in 3v3 Standard. Attenzione a **cosa** si confronta: le
+> bande misurano il **playback** (Presentation Time), la soglia misura la resolution **comprese le finestre**
+> (Presentation + Decision Time). Sommarle senza distinguerle è l'errore che §11 di quella spec esiste per
+> evitare — e il motivo per cui `ReactionDecisionSeconds` è una metrica separata da `ResolutionPlaybackSeconds`.
 
 **Seconda revisione** a **M10** (rete e privacy): il modello a N round-trip va verificato contro latenza,
 riconnessione e timeout di rete, dove il «timeout → HOLD» diventa anche la risposta al giocatore disconnesso.

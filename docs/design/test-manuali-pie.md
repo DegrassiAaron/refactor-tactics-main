@@ -42,7 +42,8 @@
 
 ## Stato in numeri — 2026-08-07
 
-**63 voci**: ✅ **22 verdi** · 🟡 **15 parziali** (regola coperta da test, resta il visivo) · ⏳ **26 aperte**.
+**67 voci**: ✅ **22 verdi** · 🟡 **15 parziali** (regola coperta da test, resta il visivo) · ⏳ **30 aperte**.
+*(erano 63/22/15/26 prima delle **4** voci di durata, ritmo e scala aggiunte il 2026-08-07)*
 
 Misura riproducibile, così il numero non si cita a memoria:
 
@@ -53,13 +54,14 @@ awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);
   docs/design/test-manuali-pie.md
 ```
 
-Le 26 aperte in due gruppi, più due residui:
+Le 30 aperte in tre gruppi, più due residui:
 
 | Gruppo | Voci | Nota |
 |---|---|---|
 | **Editor** (sessione A) | `HEX-LAYER` `HEX-TRANS` `HEX-MODE-E/F/G/H/L/N/O` | **9** — producono la mappa di prova, prerequisito del gruppo sotto |
 | **Partita hex** (sessione D) | `HEXPLAY-4/4b/5/6/6b/6c/7/9/10` | **9** — è il **gate di M6** (CP 6.8) |
 | **v0.1 senza codice** | `V01-ELEC` `V01-FIREWATER` `V01-LOWCOVER` `V01-DOOR` `V01-HUD` `V01-DEBUG` | **6** — attendono E8 CP 8.3/8.4, E9, E11 |
+| **Durata e scala** (sessione F) | `V01-MATCHLEN` `V01-READY` `V01-OVERWATCH` `V01-MAPSCALE` | **4** — *nuove 2026-08-07*: producono numeri di playtest, non superano gate |
 | **Animazioni** | `AS4a` `AS4b` | **2** — richiedono i montage Paragon |
 
 ## Checklist
@@ -164,16 +166,34 @@ Le 26 aperte in due gruppi, più due residui:
 | **PIE-V01-DOOR** | Porta chiusa durante il turno | percorso che attraversa una porta chiusa da un'azione nello stesso turno | Il grafo è ricostruito: l'unità **si ferma** davanti alla porta (`Fallback.Stop`), nessun path fantasma attraverso la porta chiusa | ⏳ |
 | **PIE-V01-REPLAY** | Replay dello stesso turno | `rt.Debug.DumpTurnLog` + `rt.Debug.VerifyReplay` | Rieseguendo lo stesso turno con lo stesso seed, TurnLog e checksum sono **identici**; il comando non segnala divergenze | 🟡 **coperto headless** da `RefactorTactics.HexSim.ReplayDivergenceZero` (stesso snapshot → stesso TurnLog e stesso hash). ⏳ al PIE resta il giro con i comandi `rt.Debug.DumpTurnLog` / `rt.Debug.VerifyReplay`, che non esistono ancora (CP 11.4) |
 | **PIE-V01-ROSTER** | Roster dei 4 eroi | `URTHeroData` per Flux, Riva, Bastion, Vektor | Le 4 unità in campo hanno statistiche distinte (90/95/120/100 HP, 5/5/4/6 MP); il bot gestisce MP diversi senza proporre mosse illegali; asset mancante = fallback al cilindro | 🟡 **coperto headless 2026-08-07** da `Heroes.StatsFromData`, `Heroes.SpawnFromData`, `Heroes.SpawnFailsClosedWithoutData` (fallback), `Heroes.RosterIsBalanced` e i quattro `Heroes.<Eroe>.MatchesCatalog`. ⏳ al PIE resta il **giudizio in partita**: che i quattro si sentano diversi da giocare, e che il bot con 4 MP non proponga mosse da 6 |
-| **PIE-V01-HUD** | HUD di partita completo | partita v0.1 avviata | Barre HP/scudo/energia, timer, fase, **turno su 12**, slot occupati (movimento/principale/reazione) e cooldown residui, tutti a schermo e coerenti col simulatore | ⏳ |
+| **PIE-V01-HUD** | HUD di partita completo | partita v0.1 avviata | Barre HP/scudo/energia, timer, fase, **round corrente su `RoundLimit`** (il limite letto dal formato, non scritto a mano nel widget), slot occupati (movimento/principale/reazione) e cooldown residui, tutti a schermo e coerenti col simulatore | ⏳ |
 | **PIE-V01-INTENT** | Intenti alleati e certezza | due unità alleate in pianificazione | Gli intenti alleati mostrano i tre livelli **confermato / previsto / incerto**; **nessun** intento avversario è visibile in alcuna forma | 🟡 **metà coperta 2026-08-07**: la **privacy** sì — `Reactions.IntentNotVisibleToEnemy` e `IntentViewSkipsDeadAndKeepsOrder` (nessun intento avversario, ordine stabile). ⏳ resta l'altra metà, i **tre livelli di certezza**, che appartengono a E11 CP 11.2 e non esistono ancora |
 | **PIE-V01-LOG** | Combat log con reason code | un turno con un fallback e una modifica ambientale | Ogni voce riporta `ActionId`, priorità, coordinate assiali `(q,r,L)` e `ValidationResult`; i fallback e le modifiche ambientali sono espliciti | 🟡 **parzialmente coperto 2026-08-07** da `Actions.Fallback.LoggedOutcome`, `Fallback.CancelIsLoggedInMatch`, `Reactions.NotTriggeredIsLogged`, `Terrain.Status.LogMatchesState` (ciò che accade **finisce** nel log). ⏳ resta il **formato**: `ActionId`, priorità e coordinate assiali nella voce, e le modifiche ambientali — che dipendono da E8 CP 8.3/8.4, assenti |
 | **PIE-V01-DEBUG** | Comandi `rt.Debug.*` | build Development o PIE | Gli 8 comandi rispondono; le celle mostrano `CellId`/`TerrainId`/`TraversalCost`/`OccupantId`/`HazardTags`/`CoverEdges`/`ChunkRevision`; **`DrawIntent` non rivela gli intenti avversari** | ⏳ |
 
+### Durata, ritmo e scala — verifiche di *game feel*
+
+> Voci aperte il **2026-08-07** con [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md).
+> Sono l'unica parte di quella spec che un test automatico **non può** chiudere: i numeri sono target di
+> playtest, e ciò che si valuta è se il ritmo *si sente* giusto. Nessuna di queste voci è un gate della v0.1
+> (§3 della DoD): servono a **produrre i numeri**, non a superarli.
+>
+> ⚠️ Il formato a cui puntano i target (**3v3 Standard**) **non esiste in v0.1**. Qui si misura il **2v2** e lo
+> si registra come 2v2 — non si dichiara «fuori target» un numero confrontato con la banda di un altro formato.
+
+| ID | Cosa verificare | Precondizione | Esito atteso | Stato |
+|----|-----------------|---------------|--------------|-------|
+| **PIE-V01-MATCHLEN** | Durata della partita e numero di round | partita 2v2 completa giocata da un umano contro i bot, cronometro alla mano (o `rt.Debug.Pacing` per i tempi di turno) | La partita chiude entro la banda **10–14 round** del formato 2v2 e **il ritmo non annoia**: nessuna sequenza di round in cui non succede nulla di significativo. Si annota: round giocati, durata a cronometro, round del **primo contatto** col nemico, e se la fine è arrivata per eliminazione o per limite. **Un numero fuori banda si registra, non si nasconde** | ⏳ |
+| **PIE-V01-READY** | Ready anticipato e countdown annullabile | partita avviata | Chiudendo la pianificazione prima dello scadere del timer parte un **countdown di 3 s** prima del commit; premendo **Unready** durante il countdown si torna alla pianificazione **senza aver perso il piano**; il countdown **non** sostituisce il timer massimo. Si annota a che secondo si è dichiarato Ready nei round tipici | ⏳ **il countdown non esiste ancora**: oggi Spazio fa lock-in immediato e irreversibile. La voce documenta il comportamento atteso, non uno da verificare adesso |
+| **PIE-V01-OVERWATCH** | Finestra Fast Reaction da 3 s | E14 (CP 14.5/14.6) atterrata; un'unità con Overwatch armato | La finestra `FIRE`/`HOLD` compare **solo** al proprietario (l'alleato la vede in sola lettura, l'avversario **nulla**), dura **3 s** con countdown visibile, e allo scadere applica **HOLD** senza consumare la charge. **Tre secondi bastano** a decidere senza rileggere tutta la situazione? Se serve rileggere, il problema è la finestra, non la durata. La slow-motion è solo presentazione: ripetendo lo stesso turno l'esito non cambia | ⏳ **E14** (CP 14.6) |
+| **PIE-V01-MAPSCALE** | Scala della mappa in Move, non in celle | mappa di prova con almeno **due rotte** distinte fra gli spawn | Dallo spawn, **attraversare tutta la mappa** costa un numero di Move coerente con la classe dichiarata (**Skirmish** ~3–4, **Standard** ~5–7); **entro 1–2 round** è possibile contestare una zona rilevante o entrare in contatto; le due rotte offrono un **trade-off reale** (più rapida vs più coperta), non due strade equivalenti | ⏳ dipende dalla mappa di prova (vedi sotto) |
+
 ## Sessioni di verifica consigliate
 
 Le voci aperte non vanno affrontate una per una: molte condividono la stessa preparazione. Raggruppandole in
-**cinque sessioni** si apre l'editor una volta sola per gruppo. Ordine consigliato: le sessioni **A** e **B** non
-dipendono da alcun asset da creare, la **C** sì; la **D** attende M6 e la **E** la release v0.1.
+**sei sessioni** si apre l'editor una volta sola per gruppo. Ordine consigliato: le sessioni **A** e **B** non
+dipendono da alcun asset da creare, la **C** sì; la **D** attende M6, la **E** la release v0.1 e la **F** si
+gioca *dopo* le altre, perché misura la partita finita.
 
 ### Sessione A — Editor Mode hex (nessun asset richiesto) → 13 voci
 `PIE-HEX-MODE-A/B/C/D/E/F/G/H/I/J/K/L/M/N/O` + `PIE-HEX`, `PIE-HEX-LAYER`, `PIE-HEX-TRANS`.
@@ -215,6 +235,10 @@ adotta come DoD del checkpoint 6.8. La mappa di prova va però preparata prima (
 alla Sessione A.
 
 ### Sessione E — Contenuto della v0.1 → 17 voci
+
+> Le 4 voci di **durata, ritmo e scala** non stanno qui ma nella **sessione F**: si giocano su una partita
+> intera e cercano numeri, non difetti — mescolarle a questa sessione farebbe interrompere la partita a metà.
+
 `PIE-V01-*`. **Non ancora eseguibile**: attende la release **v0.1** ([`roadmap-v0.1.md`](roadmap-v0.1.md)), che le
 adotta come DoD del checkpoint **12.2** (issue [#82](https://github.com/DegrassiAaron/refactor-tactics-main/issues/82)).
 Le voci si aprono man mano che le epic chiudono, non tutte in fondo:
@@ -229,7 +253,28 @@ Le voci si aprono man mano che le epic chiudono, non tutte in fondo:
 La mappa di prova della sessione D basta anche qui, con due aggiunte: **una porta** su un passaggio strettoia
 (per `PIE-V01-DOOR`) e **una copertura bassa** su un bordo esposto (per `PIE-V01-LOWCOVER`).
 
-### Mappa di prova consigliata (serve alle sessioni A, D ed E)
+### Sessione F — Durata, ritmo e scala → 4 voci
+
+`PIE-V01-MATCHLEN`, `PIE-V01-READY`, `PIE-V01-OVERWATCH`, `PIE-V01-MAPSCALE`.
+
+**Non è una sessione di caccia ai difetti: è una sessione di misura.** Si gioca **una partita intera fino alla
+fine**, senza fermarsi a indagare, e si annotano i numeri. Serve un cronometro e `bRecordPacing` attivo sul
+`TurnManager` (il CSV finisce in `Saved/RT/`, fuori dal versionamento).
+
+1. **Prima della partita**: sulla mappa di prova, conta i Move necessari per attraversarla da spawn a spawn e
+   verifica che esistano **almeno due rotte** con trade-off diverso (**PIE-V01-MAPSCALE**).
+2. **Durante**: annota a che secondo dichiari Ready nei round tipici, e se il countdown esiste e si annulla
+   (**PIE-V01-READY** — oggi **no**, la voce resta ⏳ finché il countdown non è implementato).
+3. **A fine partita**: round giocati, durata a cronometro, round del primo contatto, via di fine
+   (**PIE-V01-MATCHLEN**).
+4. **Solo dopo E14**: ripeti con un'unità in Overwatch e giudica la finestra da 3 s (**PIE-V01-OVERWATCH**).
+
+I numeri raccolti vanno nella tabella KPI di [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §4
+**con la riserva sul campione** (un solo giocatore, che è l'autore del gioco) e **con l'etichetta «2v2»**: i
+target di 25–30 min sono del 3v3 Standard, che in v0.1 non esiste.
+Bande di riferimento: [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §5–§9, §17.
+
+### Mappa di prova consigliata (serve alle sessioni A, D, E ed F)
 
 Un solo asset copre quasi tutte le verifiche: esagono pieno di **raggio 4** sul layer 0, con
 - 2–3 celle `bBlocksMovement` (ostacoli di movimento),
@@ -239,6 +284,12 @@ Un solo asset copre quasi tutte le verifiche: esagono pieno di **raggio 4** sul 
 
 Per la sessione E servono in più: una cella `Terrain.Rough`, una zona d'acqua adiacente a una superficie
 conduttiva, una **porta** su un passaggio obbligato e una **copertura bassa** su un bordo esposto.
+
+Per la sessione **F** serve una cosa che le altre non richiedono: **due rotte distinte** fra gli spawn, con
+trade-off diverso — una più corta ed esposta, una più lunga e coperta. Con una sola rotta `PIE-V01-MAPSCALE`
+non è verificabile e la partita misurata dice poco: senza scelta di percorso, il tempo di contatto è una
+costante della mappa, non una decisione del giocatore. Un esagono r=4 è **Skirmish** per costruzione
+(~3–4 Move di attraversamento): va bene per misurare, **non** è la scala di una mappa Standard.
 
 ### Cosa serve da me
 

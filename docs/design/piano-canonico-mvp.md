@@ -53,7 +53,8 @@ modding). Sono la **direzione futura**, non l'obiettivo attuale. Vedi §8.
 > ⚠️ **Revisione 2026-08-05 — MODELLO AZIONI v0.1** ([`adr-0003-modello-azioni-v01.md`](adr-0003-modello-azioni-v01.md)):
 > per la release **v0.1** ([`roadmap-v0.1.md`](roadmap-v0.1.md)) si adotta il modello del catalogo di bilanciamento —
 > ID azione stabili, **priorità intera** intra-fase, fallback dichiarati, budget **5 MP**, reazioni, 8 terreni,
-> coperture direzionali, obiettivi dinamici, limite di 12 turni. **Le macro-fasi NON cambiano**: resta
+> coperture direzionali, obiettivi dinamici, limite di round *(oggi parametro di formato, non più «12» fisso:
+> [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §6)*. **Le macro-fasi NON cambiano**: resta
 > `ERTMatchPhase{ Planning, Prep, Dash, Blast, Move, Cleanup, MatchEnded }` di Atlas Reactor — in particolare il
 > **Move resta dopo il Blast**. I codici di fase del catalogo (0/10/20/30/40/50/60) diventano un attributo
 > dell'azione, rimappato sulle macro-fasi (ADR-0003 §3). Sono **superati**: i valori di movimento di §6 e la
@@ -93,7 +94,7 @@ non serve ricostruirlo dai blocchi di revisione.
 |---|---|---|
 | Griglia `10×10 @ 200 cm` | Griglia **esagonale** pointy-top, dimensione della cella dall'asset mappa | [ADR-0002](adr-0002-griglia-esagonale.md) |
 | Coord. cella `FRTGridCoord{X,Y}` | **`FRTCellId{X=q, Y=r, Layer}`** (assiale/cubica); `FRTGridCoord` **rimosso** dal codice (CP 6.1) | [ADR-0002](adr-0002-griglia-esagonale.md) |
-| Vittoria `Squadra eliminata` | Eliminazione **oppure** obiettivi **oppure** limite di **12 turni** (fine partita a tre vie) | [ADR-0003](adr-0003-modello-azioni-v01.md) |
+| Vittoria `Squadra eliminata` | Eliminazione **oppure** obiettivi **oppure** `RoundLimit` raggiunto (fine partita a più vie). Il `RoundLimit` è un **parametro del formato di partita**, non la costante «12»: 10–14 in 2v2, 16–20 in 3v3 Standard | [ADR-0003](adr-0003-modello-azioni-v01.md) · [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §6, §12 |
 | Movimento `4 celle` / Dash `3` (§6) | **5 MP**, costo intero per cella (1 normale, 2 difficile/rampa); Sprint 8 MP; Dash/Charge/Leap a distanza fissa | [ADR-0003](adr-0003-modello-azioni-v01.md) |
 | Reazioni «north-star, escluse» (§8.2) | **In scope** per la v0.1: slot Reazione con trigger, **1 attivazione per turno** | [ADR-0003](adr-0003-modello-azioni-v01.md) |
 | Roster `2 archetipi` | **4 eroi** (Flux, Riva, Bastion, Vektor) con varianti d'equipaggiamento | [ADR-0003](adr-0003-modello-azioni-v01.md) |
@@ -240,9 +241,17 @@ reazione live né categorie di velocità/`EndOfPhase` (north-star, `spec-sequenz
 > ⚠️ **Superata in parte dall'[ADR-0003](adr-0003-modello-azioni-v01.md) (2026-08-05)** per la release v0.1:
 > il movimento passa da «4 celle / Dash 3» a **5 MP** con costo intero per cella (1 normale, 2 difficile,
 > 2 salita via rampa; Sprint 8 MP), la griglia è esagonale (ADR-0002) e la vittoria non è più solo per
-> eliminazione (obiettivi dinamici + limite di **12 turni**). I valori qui sotto restano il riferimento
+> eliminazione (obiettivi dinamici + limite di round). I valori qui sotto restano il riferimento
 > **storico dell'MVP quadrato**; quelli vigenti per la v0.1 sono nei cataloghi di
 > `docs/design/balance/` (creati in CP 1.2, issue `#28`).
+>
+> ⚠️ **Revisione 2026-08-07 — DURATA, ROUND E SCALA DELLE MAPPE**
+> ([`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md)): il «limite di **12 turni**»
+> smette di essere una regola universale e diventa un **parametro di formato** (`RoundLimit`), insieme a timer
+> di planning, countdown del Ready, durata della Fast Reaction e banda della resolution. Il principio guida è
+> **«compatto nel tempo, non necessariamente piccolo nello spazio»**: la scala delle mappe si misura in **Move
+> necessari per raggiungere una zona rilevante**, non in celle, e non è vincolata a quella di Atlas Reactor.
+> Le macro-fasi **non cambiano**.
 
 **Valori vigenti** (v0.1, [ADR-0003](adr-0003-modello-azioni-v01.md); i dettagli per azione/eroe/terreno sono
 nei cataloghi di [`balance/`](balance/)):
@@ -253,9 +262,11 @@ nei cataloghi di [`balance/`](balance/)):
 | Occupazione | max 1 unità/cella |
 | Movimento normale | **5 MP**, costo intero per cella (1 normale, 2 difficile/rampa) |
 | Mobilità rapida | Sprint 8 MP; Dash/Charge/Leap a **distanza fissa** dichiarata dall'azione |
-| Fine partita | eliminazione **oppure** obiettivi **oppure** limite di **12 turni** |
-| Reazioni | slot Reazione con trigger, **1 attivazione per turno** |
-| Timer pianificazione | 30 s (configurabile) |
+| Fine partita | eliminazione **oppure** obiettivi **oppure** `RoundLimit` (parametro di formato — v0.1 2v2: **10–14**, hard cap 14–16) |
+| Reazioni | slot Reazione con trigger, **1 attivazione per turno**; finestra interattiva **3,0 s** ([ADR-0004](adr-0004-finestre-di-reazione.md) §8) |
+| Timer pianificazione | **30 s** in 2v2 (configurabile, da tarare sul misurato); baseline 3v3 Standard **40–45 s** |
+| Ready | Ready anticipato + **countdown annullabile di 3 s** quando tutti sono Ready ⏳ *non ancora implementato* |
+| Durata della partita | target 3v3 Standard **25–30 min**; **45 min** è il tetto da evitare, non un obiettivo |
 
 **Valori storici dell'MVP quadrato** (tabella conservata come riferimento di *parità*, non come regola vigente):
 
@@ -319,9 +330,15 @@ da usare come riferimento quando le relative feature entrano in scope:
 - **Toolchain/hardware** e tabella migrazione C#→Unreal.
 
 **Conflitti col MVP** (restano distinzioni north-star, NON cambiano l'MVP): il PDF è **4v4**, mette **GAS** nello
-stack, vittoria **a punteggio**, pianificazione **40-60s**. L'MVP resta 2v2, no-GAS, vittoria per eliminazione,
-timer 30s. Nota naming: il PDF usa `FRTGridCellId` (modello ricco); l'MVP usa `FRTGridCoord{X,Y}` (semplice) —
+stack, vittoria **a punteggio**. L'MVP resta 2v2, no-GAS, con la vittoria a più vie dell'ADR-0003.
+Nota naming: il PDF usa `FRTGridCellId` (modello ricco); l'MVP usa `FRTGridCoord{X,Y}` (semplice) —
 da riconciliare se in futuro si adotta il modello a chunk multilivello.
+
+> **Non è più un conflitto**: la **pianificazione a 40-60 s** del PDF. La baseline del formato principale
+> 3v3 è ora **40–45 s** ([`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §7);
+> i **30 s** restano il valore del **2v2 corrente**, da tarare sul misurato, non da alzare per analogia.
+> Anche il «max 12 round» della modalità *Relay Control* elencata sopra va letto come il valore del **suo**
+> formato, non come limite del gioco.
 
 ### 8.2 Sequenza di risoluzione ricca — reazioni/reveal/timeline (north-star)
 

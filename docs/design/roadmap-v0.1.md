@@ -20,7 +20,7 @@ Un vertical slice **2v2 offline contro bot** su griglia **esagonale multilivello
 - **reazioni** preparate in planning (1 attivazione per turno);
 - **8 terreni attivi** con stati (Wet, Burning, Electrified, Obscured, …) e propagazione deterministica;
 - **coperture direzionali e strutture** (porte, ponti, pannelli) che cambiano la topologia;
-- **obiettivi dinamici** e fine partita a 12 turni;
+- **obiettivi dinamici** e fine partita a più vie (eliminazione · obiettivo · `RoundLimit`, parametro di formato — **10–14** round in 2v2, valore iniziale 12);
 - **HUD** con intenti alleati e certezza (confermato / previsto / incerto), **combat log** e comandi `rt.Debug.*`;
 - **determinismo verificato** (100 ripetizioni a seed fisso, checksum identico) e **build packaged** giocabile.
 
@@ -490,10 +490,14 @@ incrementata e migrazione dell'asset esistente (`DA_HexMap_Sandbox`), altrimenti
 |---|---|---|---|
 | **10.1** | `Activate` / `Interact` | Attivano un oggetto **adiacente**: porta, consolle, ascensore, generatore, sprinkler, ponte, obiettivo; effetto risolto nel Blast, conseguenze topologiche nel Cleanup | `Objectives.ActivateAdjacentOnly`, `Objectives.ActivateDoorChangesGraph` |
 | **10.2** | Obiettivo contestabile | Un obiettivo può essere contestato (anche con `Wait`); la verifica avviene nel **Cleanup**; contestazione paritaria = nessun progresso | `Objectives.ContestedNoProgress`, `Objectives.CheckedInCleanup` |
-| **10.3** | Fine partita | La partita termina per eliminazione della squadra **oppure** al raggiungimento dell'obiettivo **oppure** al **turno 12** (in tal caso vince chi ha più progresso; parità = pareggio dichiarato) | `Match.EndsOnElimination`, `Match.EndsOnTurnLimit`, `Match.TieIsDeclared` |
+| **10.3** | Fine partita | La partita termina per eliminazione della squadra **oppure** al raggiungimento dell'obiettivo **oppure** al **`RoundLimit`** (in tal caso vince chi ha più progresso; parità = pareggio dichiarato). Il limite è un **dato del formato di partita**, non una costante nel `TurnManager`: valore iniziale **12** per il 2v2 della v0.1, banda di riferimento **10–14** (hard cap 14–16). Cambiarlo **non** deve richiedere una ricompilazione né toccare le regole | `Match.EndsOnElimination`, `Match.EndsOnTurnLimit`, `Match.TieIsDeclared`, `Match.RoundLimitComesFromData` |
 
-**Rischi**: il canone fissava «vittoria = squadra eliminata». L'aggiunta di obiettivi e limite di turni è una
-modifica di regole coperta dall'ADR-0003: va riflessa in `piano-canonico-mvp.md §6` insieme al budget MP.
+**Rischi**: (a) il canone fissava «vittoria = squadra eliminata». L'aggiunta di obiettivi e limite di round è
+una modifica di regole coperta dall'ADR-0003: va riflessa in `piano-canonico-mvp.md §6` insieme al budget MP.
+(b) **Il numero 12 è il valore iniziale, non la regola.** Scriverlo come costante è il modo più rapido di
+chiudere il CP e il più costoso da disfare: il formato principale punta a 16–20 round
+([`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §6) e la partita deve poter
+finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — vie che una costante non prevede.
 
 ---
 
@@ -541,7 +545,7 @@ modifica di regole coperta dall'ADR-0003: va riflessa in `piano-canonico-mvp.md 
 | **12.1** | Replay deterministico rinforzato | Stessa snapshot + stesso seed + stesse definizioni + stesso ordine ⇒ checksum finale **identico** su **almeno 100 ripetizioni** | `Simulation.DeterministicReplay` (100 iterazioni), `Simulation.ChecksumStableAcrossPermutations` |
 | **12.2** | Matrice test manuali v0.1 | Le 12 voci `PIE-V01-*` esistono in `test-manuali-pie.md` con precondizione ed esito atteso e sono **eseguite** | Sessione E di `test-manuali-pie.md` completa |
 | **12.3** | Suite automatica completa | I 10 test nominati dal catalogo (§15) esistono con quei nomi e sono verdi; nessun test disabilitato o saltato per far passare la build | `RunUAT`/Automation: elenco completo verde; `grep -rn "skip\|disable" Source/RefactorTactics/Tests/` senza esiti |
-| **12.4** | KPI misurati | FPS client, path mediana, preview completa, resolver per turno **misurati e registrati** (anche se fuori target); replay divergence = 0; intent leak = 0 | Tabella KPI di `v0.1-definition-of-done.md` compilata con numeri reali |
+| **12.4** | KPI misurati | FPS client, path mediana, preview completa, resolver per turno **misurati e registrati** (anche se fuori target); replay divergence = 0; intent leak = 0. **In più** (2026-08-07): le metriche di **durata** — `RoundsPlayed`, `MatchDurationSeconds`, `PlanningDurationSeconds`, `ResolutionPlaybackSeconds`, `ReadyAtSeconds`, `FirstEnemyContactRound` — raccolte sul **2v2** e dichiarate come tali, **non** confrontate con le bande del 3v3 Standard che non esiste in v0.1 | Tabella KPI di `v0.1-definition-of-done.md` compilata con numeri reali · metriche in [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §17 |
 | **12.5** | Release interna v0.1 | Packaging Windows **Development** e **Shipping** dal codice solo-hex; una partita completa giocata **senza editor**, dall'avvio alla vittoria | `RunUAT BuildCookRun` → BUILD SUCCESSFUL + avvio e partita verificati |
 | **12.6** | **Corpus golden di TurnLog** *(nuovo, 2026-08-07)* | Un insieme di partite di riferimento serializzate su file sotto `Source/RefactorTactics/Tests/Golden/`; un test le riesegue e confronta **TurnLog e checksum**; una divergenza fallisce indicando turno, fase e `ActionId`. Rigenerabili con un flag esplicito, **mai** in automatico | `Simulation.GoldenCorpusMatches`, `Simulation.GoldenCorpusDetectsDivergence` (divergenza introdotta apposta) |
 
@@ -827,6 +831,7 @@ Rilevati confrontando `roadmap-checkpoint.md` con il repository (2026-08-05):
 | [`adr-0003-modello-azioni-v01.md`](adr-0003-modello-azioni-v01.md) | Decisione che abilita questa roadmap |
 | [`adr-0004-finestre-di-reazione.md`](adr-0004-finestre-di-reazione.md) | Decisione che abilita **E14**: l'invariante #3 si compone, un solo modello di reazione |
 | [`adr-0005-orientamento.md`](adr-0005-orientamento.md) | Decisione che abilita **E16**: il facing deriva dal movimento e decide difesa, percezione e reazioni |
+| [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) | **Durata, round e scala delle mappe**: target di partita, `RoundLimit` per formato, budget del round, classi di mappa e telemetria. Vincola **E10** (fine partita), **E11** (timer a HUD), **E14** (3 s) e il level design futuro |
 | [`showcase-v0.1.md`](showcase-v0.1.md) | Scenario della showcase **E15**: canone corrente, target, delta di scope |
 | [`brief-conoscenza-parziale.md`](brief-conoscenza-parziale.md) · [`brief-overwatch-reazioni.md`](brief-overwatch-reazioni.md) · [`brief-ghiaccio.md`](brief-ghiaccio.md) · [`brief-planning-visuale.md`](brief-planning-visuale.md) | Brief di scoping: cosa entra in **E11**/**E13**/**E14** e cosa resta north-star |
 | [`../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md`](../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md) · [`../src/RefactorTactics_ActionGhosts_Phases_FastReactions_Claude.md`](../src/RefactorTactics_ActionGhosts_Phases_FastReactions_Claude.md) | Handoff e note di design (2026-08-07): **materiale sorgente**, consolidato qui — in caso di conflitto prevale questo file |
