@@ -123,7 +123,14 @@ enum class ERTTurnLogFormatVersion : uint16
 	 * E' il primo campo a lunghezza variabile del formato. Le tracce in versione 2 restano LEGGIBILI: il
 	 * loader le accetta e ne lascia l'ActionId vuoto, che e' esattamente cio' che quei byte dicevano.
 	 */
-	WithActionId = 3
+	WithActionId = 3,
+	/**
+	 * + `FormatId` nell'HEADER (CP 10.3): l'identita' del formato di partita in vigore, subito dopo i flags.
+	 * Sta nell'header e non nelle voci perche' sarebbe una costante ripetuta N volte, e **non entra
+	 * nell'hash**: l'hash mescola i campi delle voci, e includervi un campo di contesto invaliderebbe in
+	 * blocco ogni hash golden. Le tracce in versione 3 restano LEGGIBILI, con `FormatId` neutro.
+	 */
+	WithFormatId = 4
 };
 
 /**

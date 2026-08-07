@@ -9,6 +9,8 @@
 #include "Ability/RTHeroData.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTMatchSetupLibrary.h"
+#include "Turn/RTMatchFormatData.h"
+#include "Turn/RTMatchFormatLibrary.h"
 #include "RefactorTactics.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/DirectionalLight.h"
@@ -113,6 +115,49 @@ void ARTGameMode::ApplyMapSource(ARTHexMapActor* HexMap)
 	}
 }
 
+bool ARTGameMode::ApplyMatchFormat(ARTTurnManager* TurnManager)
+{
+	FRTMatchRules Rules;
+	FString Reason;
+
+	if (MatchFormat)
+	{
+		if (!URTMatchFormatLibrary::ResolveRules(MatchFormat, Rules, Reason))
+		{
+			// Contenuto sbagliato: si rifiuta, non si ripiega. Un formato invalido silenziosamente sostituito
+			// dal ripiego farebbe girare la partita con regole diverse da quelle che il designer ha scritto.
+			UE_LOG(LogRT, Error,
+				TEXT("[RT] Formato di partita '%s' NON valido: %s. Partita non allestita: correggi l'asset "
+					 "oppure lascia MatchFormat vuoto per giocare con il formato di ripiego."),
+				*GetNameSafe(MatchFormat), *Reason);
+			return false;
+		}
+	}
+	else
+	{
+		Rules = URTMatchFormatLibrary::MakeFallbackRules();
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] Nessun MatchFormat assegnato: uso il formato di RIPIEGO '%s' (RoundLimit %d, "
+				 "soglia obiettivo %d). Assegna un URTMatchFormatData al GameMode per giocare un formato "
+				 "dichiarato: le misure di playtest vanno attribuite al formato giusto."),
+			*Rules.FormatId.ToString(), Rules.RoundLimit, Rules.ScoreToWin);
+	}
+
+	if (!TurnManager)
+	{
+		// Le regole non hanno destinatario: la partita girerebbe senza limite di round e nessuno lo saprebbe.
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] Nessun ARTTurnManager nel livello: il formato '%s' non e' stato applicato."),
+			*Rules.FormatId.ToString());
+		return true;
+	}
+
+	TurnManager->SetMatchRules(Rules);
+	UE_LOG(LogRT, Log, TEXT("[RT] Formato di partita in vigore: '%s' (RoundLimit %d, soglia obiettivo %d)"),
+		*Rules.FormatId.ToString(), Rules.RoundLimit, Rules.ScoreToWin);
+	return true;
+}
+
 void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 {
 	if (!HexMap)
@@ -121,6 +166,14 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 	}
 
 	ApplyMapSource(HexMap);
+
+	// Le regole di formato prima delle unita': se il formato e' invalido non si allestisce nulla, e la mappa
+	// resta a schermo con il motivo nel log (stesso trattamento delle celle di partenza insufficienti).
+	if (!ApplyMatchFormat(
+			Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()))))
+	{
+		return;
+	}
 
 	// Il livello puo' avere unita' gia' posate a mano: in quel caso l'allestimento automatico non interviene.
 	if (UGameplayStatics::GetActorOfClass(this, ARTUnit::StaticClass()))

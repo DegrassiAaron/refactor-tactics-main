@@ -350,11 +350,17 @@ ELSE RoundLimit raggiunto
 | Via | Stato v0.1 |
 |---|---|
 | Eliminazione della squadra | ✅ implementata |
-| Obiettivo raggiunto | ⏳ **CP 10.2/10.3** (issue `#75`/`#76`) |
-| `RoundLimit` → confronto punteggio | ⏳ **CP 10.3**; parità = **pareggio dichiarato** |
+| Obiettivo raggiunto | 🟡 **il giudice c'è, la fonte no** (CP 10.3): `ScoreToWin` chiude la partita, ma il progresso lo produrrà **CP 10.2** (`#75`) |
+| `RoundLimit` → confronto punteggio | ✅ **CP 10.3**; parità = **pareggio dichiarato** |
 | Overtime | **fuori scope v0.1** — non si costruisce un sistema di overtime sofisticato se non serve |
 
 Il `RoundLimit` è un parametro del Match Format (§6), non una costante del `TurnManager`.
+
+**Come è realizzata** *(CP 10.3, 2026-08-07)*: la regola è `URTTurnRules::EvaluateMatchEnd(FRTMatchState,
+FRTMatchRules)` — pura, valutata nel **Cleanup** dal `TurnManager`, mai dentro un resolver. Ritorna
+`FRTMatchResult`: **esito** (`ERTMatchOutcome`) e **via** (`ERTMatchEndReason`), separati perché «vince il
+team 0» è la stessa frase per un'eliminazione e per un punto di vantaggio allo scadere. Il progresso entra da
+`ARTTurnManager::AddTeamScore`, che è l'ingresso che CP 10.2 dovrà chiamare.
 
 ---
 
@@ -472,7 +478,7 @@ MapClass (Skirmish | Standard | Operations)
 | Decisione | Valore |
 |---|---|
 | **Collocazione** | **`URTMatchFormatData : UPrimaryDataAsset`** + libreria statica pura + validator, in **`Turn/`** — accanto a `RTTurnRules`, che è dove vivono le regole del turno |
-| **Cosa entra subito** | **solo `RoundLimit`** (D2). Gli altri parametri migrano quando un checkpoint li consuma |
+| **Cosa entra subito** | `RoundLimit` **e** `ScoreToWin` (D2: entra ciò che un checkpoint **consuma**, e CP 10.3 consuma entrambi). Gli altri migrano quando avranno un lettore |
 | **Formato assente** | la partita **si avvia comunque**, con un formato di ripiego, **anche in build packaged** (D1) |
 | **Formato invalido** | il validator lo **rifiuta**: la partita **non** si allestisce. Il ripiego copre l'assenza, non il contenuto sbagliato |
 | **Versionamento** | l'asset nasce con un proprio `FormatVersion`, come `URTHexMapAsset` |
@@ -481,6 +487,19 @@ MapClass (Skirmish | Standard | Operations)
 col validator che fallisce su asset invalido, gate **E1** della DoD). **Nessun `Subsystem`, nessun
 `ActorComponent`**: il progetto non ne usa (stessa motivazione di
 [`spec-pacing-turno.md`](spec-pacing-turno.md) §4).
+
+> **Perché `PlanningMaxSeconds` non è entrato** *(CP 10.3, 2026-08-07)*. La DoD di `#185` lo elencava fra i
+> casi che il validator deve rifiutare, ma **D2** lascia il timer di pianificazione come `UPROPERTY` sul
+> `TurnManager`: metterlo anche nell'asset avrebbe creato **due sorgenti per lo stesso valore**, che è il
+> difetto respinto da ADR-0005 §4c e la ragione per cui l'opzione **C** era stata scartata. Il campo entrerà
+> quando il `TurnManager` lo leggerà **al posto** della propria `UPROPERTY`, non accanto ad essa.
+> Per la stessa ragione `VictoryPolicy`/`OvertimePolicy` restano fuori: in v0.1 nessuna policy li consuma.
+
+**Realizzazione** *(CP 10.3)*: `URTMatchFormatData` (asset, con `FormatVersion`) + `FRTMatchRules` (le regole
+**risolte**, ciò che il `TurnManager` legge) + `URTMatchFormatLibrary` (`ValidateFormat`, `ResolveRules`
+fail-closed, `MakeFallbackRules`). Casi rifiutati dal validator: `RoundLimit ≤ 0` · `ExpectedRounds >
+RoundLimit` · `FormatId` assente · `FormatVersion ≤ 0` · `ScoreToWin < 0`. Il ripiego ha l'identità riservata
+`Format.Fallback`, così una traccia dice sempre se è stata prodotta senza formato dichiarato.
 
 **Dove vive il ripiego**: la libreria pura **rifiuta sempre** (`nullptr`/`false` + motivo); la politica di
 ripiego sta **solo** in `ARTGameMode`, dove già sta quella dell'arena generata. È la separazione che il
@@ -583,6 +602,8 @@ da 3 s. La sonda esiste già come design (`spec-pacing-turno.md`); qui si aggiun
 - Le macro-fasi e l'ordine `Prep → Dash → Blast → Move` **non cambiano**.
 - La **forma** della configurazione: `URTMatchFormatData` in `Turn/`, ripiego solo in `ARTGameMode`, `FormatId`
   nell'header del TurnLog e **non** nell'hash (§16.1–16.3, issue `#185`).
+- **Fine partita a tre vie** — eliminazione, obiettivo, `RoundLimit` — con la **via** dichiarata accanto
+  all'esito, e parità allo scadere = **pareggio dichiarato**. Implementata in CP 10.3 (2026-08-07, `#76`).
 
 ### 🧪 Baseline da playtestare
 

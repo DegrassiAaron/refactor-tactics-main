@@ -379,4 +379,201 @@ bool FRTTurnLogUnknownTopologyTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Un conteggio di voci IMPLAUSIBILE va rifiutato, non allocato. Trovato mentre l'header cresceva (CP 10.3):
+ * il byte corrotto di `DeserializeDetectsPayloadCorruption` e' finito sul campo del conteggio e `Reserve` ha
+ * terminato il processo — il checksum in coda non fa in tempo a smentire un numero che uccide il parser
+ * prima. Il difetto era latente da sempre: dipendeva solo da DOVE cadeva la corruzione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogRejectsImplausibleCountTest,
+	"RefactorTactics.TurnLog.RejectsImplausibleEntryCount",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogRejectsImplausibleCountTest::RunTest(const FString&)
+{
+	TArray<uint8> Bytes;
+	auto U16 = [&Bytes](uint16 V) { Bytes.Add(V & 0xFF); Bytes.Add((V >> 8) & 0xFF); };
+	auto U32 = [&Bytes](uint32 V)
+	{
+		Bytes.Add(V & 0xFF); Bytes.Add((V >> 8) & 0xFF); Bytes.Add((V >> 16) & 0xFF); Bytes.Add((V >> 24) & 0xFF);
+	};
+
+	U32(0x4C545452u); // 'RTTL'
+	U16(static_cast<uint16>(ERTTurnLogFormatVersion::WithFormatId));
+	U16(static_cast<uint16>(ERTLogTopology::Hex));
+	U16(0);           // FormatId vuoto
+	U32(0xFF000003u); // quattro miliardi di voci in un buffer di venti byte
+	U32(0);           // checksum qualsiasi: non ci si deve nemmeno arrivare
+
+	TArray<FRTTurnLogEntry> Out;
+	Out.Add(FRTTurnLogEntry());
+	TestFalse(TEXT("conteggio impossibile -> rifiutato, senza allocare"),
+		URTTurnLogLibrary::DeserializeTurnLog(Bytes, Out));
+	TestEqual(TEXT("output svuotato"), Out.Num(), 0);
+	return true;
+}
+
+// CP 10.3: l'IDENTITA' del formato di partita viaggia nell'header e sopravvive al round-trip.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogFormatIdRoundTripTest,
+	"RefactorTactics.TurnLog.FormatIdRoundTrip",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogFormatIdRoundTripTest::RunTest(const FString&)
+{
+	const TArray<FRTTurnLogEntry> Log = SampleLog();
+	const FName FormatId(TEXT("Format.Skirmish2v2"));
+
+	TArray<FRTTurnLogEntry> Restored;
+	ERTLogTopology Topology = ERTLogTopology::Square;
+	FName ReadFormatId;
+	TestTrue(TEXT("round-trip riuscito"), URTTurnLogLibrary::DeserializeTurnLog(
+		URTTurnLogLibrary::SerializeTurnLog(Log, ERTLogTopology::Hex, FormatId), Restored, &Topology, &ReadFormatId));
+	TestEqual(TEXT("identita' del formato preservata"), ReadFormatId, FormatId);
+	TestTrue(TEXT("topologia preservata"), Topology == ERTLogTopology::Hex);
+	TestEqual(TEXT("hash preservato"),
+		URTTurnLogLibrary::HashTurnLog(Restored), URTTurnLogLibrary::HashTurnLog(Log));
+
+	// Senza formato dichiarato l'identita' resta vuota: non si inventa un formato che nessuno ha scritto.
+	FName NoFormat(TEXT("segnaposto"));
+	TArray<FRTTurnLogEntry> Plain;
+	TestTrue(TEXT("round-trip senza formato"),
+		URTTurnLogLibrary::DeserializeTurnLog(URTTurnLogLibrary::SerializeTurnLog(Log), Plain, nullptr, &NoFormat));
+	TestTrue(TEXT("identita' assente, non inventata"), NoFormat.IsNone());
+
+	// Il file su disco porta lo stesso campo: e' li' che serve, quando due tracce vengono confrontate mesi dopo.
+	const FString Path = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Test_TurnLog_FormatId.rtlog"));
+	TestTrue(TEXT("salvataggio riuscito"),
+		URTTurnLogLibrary::SaveTurnLogToFile(Path, Log, ERTLogTopology::Hex, FormatId));
+	TArray<FRTTurnLogEntry> FromFile;
+	FName FromFileFormatId;
+	TestTrue(TEXT("caricamento riuscito"),
+		URTTurnLogLibrary::LoadTurnLogFromFile(Path, FromFile, nullptr, &FromFileFormatId));
+	TestEqual(TEXT("identita' preservata su file"), FromFileFormatId, FormatId);
+	IFileManager::Get().Delete(*Path);
+
+	return true;
+}
+
+// Il formato NON entra nell'hash: includerlo invaliderebbe in blocco ogni hash golden gia' registrato, che e'
+// esattamente cio' che la regola di rigenerazione di CP 12.6 esiste per impedire (issue #185).
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogHashIgnoresFormatIdTest,
+	"RefactorTactics.TurnLog.HashIgnoresFormatId",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogHashIgnoresFormatIdTest::RunTest(const FString&)
+{
+	const TArray<FRTTurnLogEntry> Log = SampleLog();
+
+	TArray<FRTTurnLogEntry> FromSkirmish;
+	TArray<FRTTurnLogEntry> FromStandard;
+	URTTurnLogLibrary::DeserializeTurnLog(
+		URTTurnLogLibrary::SerializeTurnLog(Log, ERTLogTopology::Hex, FName(TEXT("Format.Skirmish2v2"))), FromSkirmish);
+	URTTurnLogLibrary::DeserializeTurnLog(
+		URTTurnLogLibrary::SerializeTurnLog(Log, ERTLogTopology::Hex, FName(TEXT("Format.Standard3v3"))), FromStandard);
+
+	TestEqual(TEXT("stesse voci, stesso hash, formato diverso"),
+		URTTurnLogLibrary::HashTurnLog(FromSkirmish), URTTurnLogLibrary::HashTurnLog(FromStandard));
+	TestEqual(TEXT("e l'hash e' quello di sempre"),
+		URTTurnLogLibrary::HashTurnLog(FromSkirmish), URTTurnLogLibrary::HashTurnLog(Log));
+	return true;
+}
+
+// Retrocompatibilita': una traccia in versione 3 (con ActionId, senza FormatId) resta leggibile e l'identita'
+// del formato resta neutra — come Square = 0 per la topologia e l'ActionId vuoto della versione 2.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogLegacyWithoutFormatIdTest,
+	"RefactorTactics.TurnLog.LegacyVersionWithoutFormatIdIsReadable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogLegacyWithoutFormatIdTest::RunTest(const FString&)
+{
+	TArray<uint8> Bytes;
+	auto U16 = [&Bytes](uint16 V) { Bytes.Add(V & 0xFF); Bytes.Add((V >> 8) & 0xFF); };
+	auto U32 = [&Bytes](uint32 V)
+	{
+		Bytes.Add(V & 0xFF); Bytes.Add((V >> 8) & 0xFF); Bytes.Add((V >> 16) & 0xFF); Bytes.Add((V >> 24) & 0xFF);
+	};
+
+	U32(0x4C545452u); // 'RTTL'
+	U16(static_cast<uint16>(ERTTurnLogFormatVersion::WithActionId));
+	U16(static_cast<uint16>(ERTLogTopology::Hex));
+	U32(1); // una voce, e NESSUN campo di formato fra flags e conteggio
+	Bytes.Add(static_cast<uint8>(ERTMatchPhase::Blast));
+	Bytes.Add(static_cast<uint8>(ERTLogCategory::Combat));
+	Bytes.Add(static_cast<uint8>(ERTCombatOutcome::Hit));
+	U32(0); U32(0); U32(0);  // SrcCell
+	U32(1); U32(0); U32(0);  // TgtCell
+	U32(25);                 // Amount
+	U16(0);                  // ActionId vuoto (versione 3)
+
+	uint32 H = 2166136261u;
+	for (const uint8 B : Bytes) { H ^= B; H *= 16777619u; }
+	U32(H);
+
+	TArray<FRTTurnLogEntry> Out;
+	FName FormatId(TEXT("segnaposto"));
+	TestTrue(TEXT("una traccia in versione 3 resta leggibile"),
+		URTTurnLogLibrary::DeserializeTurnLog(Bytes, Out, nullptr, &FormatId));
+	TestEqual(TEXT("una voce letta"), Out.Num(), 1);
+	TestTrue(TEXT("nessun formato inventato"), FormatId.IsNone());
+	if (Out.Num() == 1)
+	{
+		TestEqual(TEXT("danno preservato"), Out[0].Amount, 25);
+	}
+	return true;
+}
+
+/**
+ * Il confronto fra tracce verifica il FORMATO prima degli hash e fallisce dicendo *formato diverso*, non
+ * *divergenza*: se l'hash non copre il formato, deve coprirlo la procedura di confronto, altrimenti il falso
+ * "nessuna divergenza" (o il falso allarme) ricompare un piano piu' su — issue #185, spec §16.3.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGoldenCorpusFormatMismatchTest,
+	"RefactorTactics.Simulation.GoldenCorpusRejectsFormatMismatch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGoldenCorpusFormatMismatchTest::RunTest(const FString&)
+{
+	const TArray<FRTTurnLogEntry> Log = SampleLog();
+	const FName Skirmish(TEXT("Format.Skirmish2v2"));
+	const FName Standard(TEXT("Format.Standard3v3"));
+
+	const TArray<uint8> Golden = URTTurnLogLibrary::SerializeTurnLog(Log, ERTLogTopology::Hex, Skirmish);
+
+	// Stesse voci, stesso formato: identiche.
+	TestTrue(TEXT("stessa traccia, stesso formato -> identiche"),
+		URTTurnLogLibrary::CompareSerializedTraces(Golden,
+			URTTurnLogLibrary::SerializeTurnLog(Log, ERTLogTopology::Hex, Skirmish))
+		== ERTTraceComparison::Identical);
+
+	// Stesse voci, formato diverso: il verdetto NON e' "divergenza". Le due tracce sono uguali voce per voce
+	// proprio perche' il limite non ha ancora morso: attribuirlo al codice sarebbe l'errore da evitare.
+	TestTrue(TEXT("formato diverso -> mismatch di formato, non divergenza"),
+		URTTurnLogLibrary::CompareSerializedTraces(Golden,
+			URTTurnLogLibrary::SerializeTurnLog(Log, ERTLogTopology::Hex, Standard))
+		== ERTTraceComparison::FormatMismatch);
+
+	// Una traccia senza formato dichiarato non e' confrontabile con una che lo dichiara.
+	TestTrue(TEXT("formato assente da un lato -> mismatch di formato"),
+		URTTurnLogLibrary::CompareSerializedTraces(Golden,
+			URTTurnLogLibrary::SerializeTurnLog(Log, ERTLogTopology::Hex))
+		== ERTTraceComparison::FormatMismatch);
+
+	// Topologia diversa: stesso ruolo, stesso trattamento.
+	TestTrue(TEXT("topologia diversa -> mismatch di topologia"),
+		URTTurnLogLibrary::CompareSerializedTraces(Golden,
+			URTTurnLogLibrary::SerializeTurnLog(Log, ERTLogTopology::Square, Skirmish))
+		== ERTTraceComparison::TopologyMismatch);
+
+	// Stesso formato, voci diverse: QUESTA e' una divergenza, ed e' l'unico caso in cui va detto.
+	TArray<FRTTurnLogEntry> Diverged = Log;
+	Diverged[0].Amount += 1;
+	TestTrue(TEXT("stesso formato, esito diverso -> divergenza"),
+		URTTurnLogLibrary::CompareSerializedTraces(Golden,
+			URTTurnLogLibrary::SerializeTurnLog(Diverged, ERTLogTopology::Hex, Skirmish))
+		== ERTTraceComparison::Divergence);
+
+	// Un buffer illeggibile non e' ne' identico ne' divergente: e' illeggibile.
+	TArray<uint8> Corrupted = Golden;
+	Corrupted[0] ^= 0xFF; // magic rotto
+	TestTrue(TEXT("traccia illeggibile -> dichiarata tale"),
+		URTTurnLogLibrary::CompareSerializedTraces(Golden, Corrupted) == ERTTraceComparison::Unreadable);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

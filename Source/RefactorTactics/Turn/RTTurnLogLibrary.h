@@ -6,6 +6,26 @@
 #include "RTTurnLogLibrary.generated.h"
 
 /**
+ * Esito del confronto fra due tracce serializzate. I casi di CONTESTO (formato, topologia) sono distinti
+ * dalla divergenza vera: due tracce prodotte con formati diversi non sono un bug del codice, e chiamarle
+ * "divergenza" manderebbe a cercare un difetto dove c'e' una configurazione diversa.
+ * Non e' UENUM: non serve ai Blueprint, e' un verdetto di libreria.
+ */
+enum class ERTTraceComparison : uint8
+{
+	/** Stesso formato, stessa topologia, stesse voci. */
+	Identical,
+	/** Le tracce dichiarano formati di partita diversi: non sono confrontabili. */
+	FormatMismatch,
+	/** Le tracce dichiarano topologie diverse: le celle non significano la stessa cosa. */
+	TopologyMismatch,
+	/** Stesso contesto, voci diverse: **questa** e' una divergenza. */
+	Divergence,
+	/** Almeno una delle due non e' una traccia valida (magic/versione/troncamento/checksum). */
+	Unreadable
+};
+
+/**
  * Ordinamento e hash del TurnLog per l'osservabilita'/replay. Pura, deterministica, SOLO interi
  * (invariante #4: niente float). L'hash e' usato per la verifica di replay ("replay divergence = 0"),
  * mai per la logica di gioco.
@@ -48,29 +68,39 @@ public:
 	 * scrive flags = 0, quindi i byte restano identici a quelli prodotti prima di questa estensione.
 	 */
 	static TArray<uint8> SerializeTurnLog(const TArray<FRTTurnLogEntry>& Entries,
-		ERTLogTopology Topology = ERTLogTopology::Square);
+		ERTLogTopology Topology = ERTLogTopology::Square, FName FormatId = NAME_None);
 
 	/**
 	 * Ricostruisce il TurnLog da un buffer prodotto da SerializeTurnLog. Ritorna false (fail-closed, nessun
 	 * crash) se magic/versione/topologia non riconosciuti o buffer troncato; in tal caso OutEntries e' svuotato.
-	 * Se OutTopology != nullptr riceve la topologia dichiarata nel file.
+	 * Se OutTopology != nullptr riceve la topologia dichiarata nel file; se OutFormatId != nullptr riceve
+	 * l'identita' del formato (`NAME_None` per le tracce scritte prima della versione 4).
 	 * Round-trip garantito a livello di hash: HashTurnLog(in) == HashTurnLog(out).
 	 */
 	static bool DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FRTTurnLogEntry>& OutEntries,
-		ERTLogTopology* OutTopology = nullptr);
+		ERTLogTopology* OutTopology = nullptr, FName* OutFormatId = nullptr);
 
 	/**
 	 * Salva il TurnLog su file (serializzazione binaria versionata + checksum). Ritorna false se la
 	 * scrittura fallisce. Thin wrapper su SerializeTurnLog + FFileHelper.
 	 */
 	static bool SaveTurnLogToFile(const FString& Path, const TArray<FRTTurnLogEntry>& Entries,
-		ERTLogTopology Topology = ERTLogTopology::Square);
+		ERTLogTopology Topology = ERTLogTopology::Square, FName FormatId = NAME_None);
 
 	/**
 	 * Carica il TurnLog da file. Ritorna false (fail-closed, OutEntries svuotato) se il file manca o il
 	 * contenuto e' invalido/corrotto (magic/versione/topologia/troncamento/checksum). Se OutTopology != nullptr
-	 * riceve la topologia dichiarata nel file. Wrapper su FFileHelper + DeserializeTurnLog.
+	 * riceve la topologia dichiarata nel file; se OutFormatId != nullptr l'identita' del formato.
+	 * Wrapper su FFileHelper + DeserializeTurnLog.
 	 */
 	static bool LoadTurnLogFromFile(const FString& Path, TArray<FRTTurnLogEntry>& OutEntries,
-		ERTLogTopology* OutTopology = nullptr);
+		ERTLogTopology* OutTopology = nullptr, FName* OutFormatId = nullptr);
+
+	/**
+	 * Confronta due tracce serializzate verificando il CONTESTO prima del contenuto: formato, poi topologia,
+	 * poi le voci (per hash). L'hash non copre formato e topologia — per non invalidare gli hash golden gia'
+	 * registrati — quindi deve coprirli questa procedura, o il falso "nessuna divergenza" ricompare un piano
+	 * piu' su (issue #185, spec §16.3).
+	 */
+	static ERTTraceComparison CompareSerializedTraces(const TArray<uint8>& A, const TArray<uint8>& B);
 };

@@ -48,6 +48,35 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	int32 GetTurnNumber() const { return TurnNumber; }
 
+	/**
+	 * Regole di formato IN VIGORE: `RoundLimit`, soglia obiettivo, identita' del formato (CP 10.3).
+	 * Non sono una costante di questo orchestratore: le risolve `ARTGameMode` dall'asset del formato.
+	 */
+	const FRTMatchRules& GetMatchRules() const { return MatchRules; }
+
+	/**
+	 * Assegna le regole di formato. La chiama `ARTGameMode` dopo averle risolte dall'asset — o dopo aver
+	 * scelto di ripiegare, che e' una decisione sua e non di questa classe (issue #185).
+	 * Non assegnarle lascia `RoundLimit` a 0, cioe' una partita che finisce solo per eliminazione: e' il
+	 * comportamento dei test che allestiscono un TurnManager senza GameMode.
+	 */
+	void SetMatchRules(const FRTMatchRules& InRules) { MatchRules = InRules; }
+
+	/** Esito della partita e via che l'ha determinato; `InProgress`/`None` finche' e' in corso. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	FRTMatchResult GetMatchResult() const { return PendingResult; }
+
+	/** Progresso obiettivo di una squadra (intero, mai un float). Squadra sconosciuta -> 0. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	int32 GetTeamScore(int32 TeamId) const;
+
+	/**
+	 * Aggiunge progresso obiettivo a una squadra. E' l'ingresso che il sistema Objective (CP 10.2) usera'
+	 * nel Cleanup: qui vive il GIUDICE della fine partita, non la fonte del punteggio.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
+	void AddTeamScore(int32 TeamId, int32 Points);
+
 	/** Secondi rimanenti alla pianificazione (0 se scaduto/assente). Utile per una futura HUD. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	float GetPlanningTimeRemaining() const;
@@ -297,7 +326,16 @@ private:
 	// Stato runtime del playback.
 	bool bIsResolving = false;
 	bool bPrepActiveThisTurn = false;
-	ERTMatchOutcome PendingOutcome = ERTMatchOutcome::InProgress;
+
+	/** Esito + via calcolati nel Cleanup e consumati da ConcludeTurn (che chiude o apre il round dopo). */
+	FRTMatchResult PendingResult;
+
+	/** Regole di formato in vigore. Default: nessun limite di round, nessuna soglia (solo eliminazione). */
+	FRTMatchRules MatchRules;
+
+	/** Progresso obiettivo per squadra. Alimentato da AddTeamScore, letto dalla regola di fine partita. */
+	int32 Team0Score = 0;
+	int32 Team1Score = 0;
 
 	TArray<FRTMoveAnim> MoveAnims;          // derivati dagli eventi Move
 	TArray<FRTResolvedEvent> PlaybackAttacks; // eventi Attack, mostrati in serie nel Blast
