@@ -72,12 +72,17 @@ warning è una **predizione** e non un esito, va marcato *previsto* o *incerto* 
 «in quale direzione sarà orientato»). Oggi il facing **non decide nulla**: `Actions.Wait.AllowsFacingAndReaction`
 esiste proprio come promessa di non impedirlo, e nessuna regola di cover o LOS lo consuma.
 
-> **Decisione richiesta** (non bloccante per il PoC): il facing dei ghost è **derivato dalla presentazione**
-> — l'unità guarda il bersaglio dichiarato o la direzione del movimento — oppure diventa un **dato di
-> gioco** che qualcosa consumerà (cover direzionale di E9, cono di Overwatch di E14)? La raccomandazione è
-> **derivato**: introdurre un facing autorevole senza un consumatore aggiunge stato da replicare, da
-> serializzare e da rendere deterministico, per un beneficio che oggi nessuna regola sfrutta. Se E9 o E14
-> lo richiederanno, sarà una decisione loro con un ADR.
+> ✅ **Deciso il 2026-08-07** — [ADR-0005](adr-0005-orientamento.md), epic **E16**. Il facing **diventa stato
+> di gioco**, e la raccomandazione «derivato, finché nessuna regola lo consuma» è superata: i consumatori ora
+> sono tre. Deriva dall'**ultima azione di movimento** (una direzione per i movimenti lineari, tre per il Move
+> a budget — ultimo passo ±1 — sei da fermo) e decide **difesa** (fuori dall'arco frontale copertura e Guard
+> non valgono), **percezione** (vista a cono + consapevolezza a 360° entro 2 celle, E13) e **reazioni** (il
+> cono dell'Overwatch nasce dal facing, E14).
+>
+> Conseguenza per **CP 11.5**: il ghost deve mostrare il facing pianificato **e le direzioni legali**, perché
+> l'orientamento si fissa a fine Move e vale per tutto il turno successivo. Il campo `Facing` del view model
+> smette di essere una posa decorativa: è una scelta, e sceglierla senza vederla significa sceglierla alla
+> cieca.
 
 **C6 — Il lavoro è già cominciato altrove.** Nel working tree esiste `Tests/RTPlanningPreviewTests.cpp` con
 `Preview.HitCellsMatchCombatShape`, `Preview.AllyInAreaIsFlagged`, `Preview.ClearedWhenPlanIsCancelled`,
@@ -110,4 +115,5 @@ warning di collisione, Fast Reaction reale, conoscenza parziale, multilivello, r
   presentazione di **M8**; i CP qui sopra chiedono che un `PoseId` esista e sia selezionabile, non che le
   animazioni siano prodotte.
 - **Ghost su più livelli** con occlusione fra layer: rinviato, come indica la sorgente.
-- **Facing autorevole**: fuori scope finché nessuna regola lo consuma (§C5).
+- **Facing autorevole**: **non più fuori scope** — è l'epic **E16** ([ADR-0005](adr-0005-orientamento.md)).
+  Resta fuori di qui la sua *implementazione*: CP 11.5 lo **mostra**, CP 16.1 lo **decide**.

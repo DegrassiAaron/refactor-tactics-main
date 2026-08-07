@@ -73,9 +73,10 @@ Manca la prova sul campo: la sessione di playtest **CP 6.8**, che si esegue in e
 ## La release v0.1 (2026-08-05)
 
 Le milestone qui sotto restano la vista di **esecuzione**. Sopra di esse esiste ora una vista di **release**:
-[`roadmap-v0.1.md`](roadmap-v0.1.md) — **15 epic, 79 checkpoint** *(era 12/59; **E13** conoscenza parziale,
-**E14** overwatch ed **E15** showcase aggiunte il 2026-08-07, insieme ai checkpoint del planning visuale in
-**E11** → [`brief-planning-visuale.md`](brief-planning-visuale.md))*, issue `#14`–`#85` e `#151`–`#173` — che aggrega M6–M9 e
+[`roadmap-v0.1.md`](roadmap-v0.1.md) — **16 epic, 81 checkpoint** *(era 12/59; **E13** conoscenza parziale,
+**E14** overwatch, **E15** showcase ed **E16** orientamento aggiunte il 2026-08-07, insieme ai checkpoint del
+planning visuale in **E11** → [`brief-planning-visuale.md`](brief-planning-visuale.md))*, issue `#14`–`#85` e
+`#151`–`#177` — che aggrega M6–M9 e
 aggiunge il contenuto del catalogo v0.1 (4 eroi, ~35 azioni, reazioni, ambiente attivo, strutture, obiettivi
 dinamici, comandi debug). La decisione abilitante è
 [`adr-0003-modello-azioni-v01.md`](adr-0003-modello-azioni-v01.md): **le macro-fasi restano quelle di Atlas**
@@ -95,6 +96,8 @@ budget **5 MP**, reazioni, terreni e obiettivi.
 | **E13** Conoscenza parziale (vista e udito) | parte di **M8**/**M10** | **nuova** (2026-08-07): la vista decide il targeting, il rumore è il secondo canale — [`brief-conoscenza-parziale.md`](brief-conoscenza-parziale.md) |
 | **E14** Overwatch e reazioni interattive | — | **nuova** (2026-08-07): [ADR-0004](adr-0004-finestre-di-reazione.md); dipende da E13 |
 | **E15** Showcase «Il Relè» e golden replay | parte di **M8** | **nuova** (2026-08-07): la prova integrata — fixture, scenario scriptabile, replay a hash stabile — [`showcase-v0.1.md`](showcase-v0.1.md) |
+| **E16** Orientamento e direzionalità | parte di **M8**/**M9** | **nuova** (2026-08-07): [ADR-0005](adr-0005-orientamento.md); il facing deriva dal movimento e decide difesa, percezione e reazioni. **Prerequisito di E13** |
+| **E16** Orientamento e direzionalità | parte di **M8**/**M9** | **nuova** (2026-08-07): [ADR-0005](adr-0005-orientamento.md); il facing deriva dal movimento e decide difesa, percezione e reazioni. **Prerequisito di E13** |
 | — | **M10** Rete e privacy | **fuori** dalla v0.1 |
 
 ### Stato misurato delle epic — 2026-08-07
@@ -108,7 +111,7 @@ La conseguenza sulle milestone di *questa* vista è:
 | E5, E6 | 🟡 **riaperte il 2026-08-07** (24 + 20 test verdi, ma **cinque reazioni d'eroe non cablate**) | **M8** resta 🟡: le regole dei 4 eroi esistono, ma cinque abilità su venti non fanno nulla in partita |
 | E8 | 🟡 parziale (17 test; mancano `Environment.*`) | **M9 passa a 🟡** |
 | E7, E9, E10, E11, E12 | ⏳ assenti (nessun test nelle rispettive aree) | M9 e M11 restano aperte |
-| E13, E14, E15 | ⏳ nuove (issue `#151`–`#171`) | E13/E14 preparano **M10**; E15 è il banco di leggibilità di **M8** |
+| E13, E14, E15, E16 | ⏳ nuove (issue `#151`–`#177`) | E13/E14 preparano **M10**; E15 è il banco di leggibilità di **M8**; E16 dà peso tattico all'orientamento e **precede E13** |
 
 > **Riapertura di E5 ed E6 (2026-08-07)**: `Bastion.Interposition`, `Vektor.Deflection`,
 > `Flux.ReactiveCapacitor` e `Riva.FlowReaction` sono identità a catalogo con `Effects` vuoto, e

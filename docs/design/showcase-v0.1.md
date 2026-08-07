@@ -92,7 +92,7 @@ Questa è la **sequenza finale**, non ciò che è giocabile oggi. Ogni turno dic
 | **3** | previsione e fallback | Flux dichiara `LinearDischarge` su Vektor; Vektor si sposta prima del Blast; il log mostra il fallback dichiarato | ✅ oggi (**CP 4.3**) |
 | **4** | reazione interattiva, bait e commitment | Flux entra nella zona di Vektor → `FIRE`/`HOLD` → **HOLD**; poi entra Riva → **FIRE**: danno e movimento troncato nella cella raggiunta | **CP 14.5** — **opzionale** |
 | **5** | informazione incompleta | Riva `MistVeil`; ciò che dipende dalla posizione nemica passa da *confermato* a *incerto* | cap targeting ✅ (**CP 8.1**) · etichette UI → **CP 11.2** · conoscenza reale → **E13** |
-| **6** | protezione e identità dei ruoli | `PressureJet` su Bastion mostra la Push Resistance; Flux attacca Vektor; `Bastion.Interposition` redirige il colpo | **CP 5.5 + 6.7** |
+| **6** | protezione e identità dei ruoli | `PressureJet` su Bastion mostra la Push Resistance; Flux attacca Vektor; `Bastion.Interposition` redirige il colpo. Con **E16**: Vektor, spinto, si gira verso chi lo ha colpito, e un attacco preso fuori dall'arco frontale ignora la copertura | **CP 5.5 + 6.7** · orientamento: **CP 16.1/16.2** |
 | **7** | payoff ambientale | la rete acqua/conduttivo è pronta: danno sorgente, danno propagato, propagazione ordinata, ogni unità colpita una volta sola | **CP 8.3** |
 | **8** | obiettivo > deathmatch | Flux va KO, Riva resiste sul relè, il punto è assegnato **dopo** ambiente e KO: la squadra vince con un eroe a terra | **CP 10.2** |
 
@@ -125,7 +125,8 @@ Nessuna riga di questa tabella si costruisce dentro E15.
 | `Riva.FlowReaction` (riposizionamento **dentro** un boundary) | ⏳ rinviata | **E14** |
 | Micro-step del movimento sospendibile | ⏳ | **CP 14.2** |
 | Finestra `FIRE`/`HOLD` da 3 s, `Vektor.InterceptShot` interattivo | ⏳ | **CP 14.5** |
-| Conoscenza parziale reale (vista, rumore, tre livelli) | ⏳ | **E13** |
+| Orientamento come stato di gioco (facing dal movimento, retro scoperto) | ⏳ | **CP 16.1/16.2** — [ADR-0005](adr-0005-orientamento.md) |
+| Conoscenza parziale reale (vista **a cono**, rumore, tre livelli) | ⏳ | **E13** (dipende da CP 16.1) |
 | Etichette *confermato / previsto / incerto* nell'HUD | ⏳ | **CP 11.2** |
 
 ### Design **della showcase**, non del gioco
