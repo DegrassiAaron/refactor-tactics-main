@@ -1,6 +1,6 @@
 # RefactorTactics — Showcase v0.1 «Il Relè»
 
-> **Stato**: scenario definito, non implementato · **Ultimo aggiornamento**: 2026-08-07
+> **Stato**: scenario definito · **fixture Lite atterrata (CP 15.2)**, turni non ancora scriptati · **Ultimo aggiornamento**: 2026-08-07
 > **Epic**: **E15** di [`roadmap-v0.1.md`](roadmap-v0.1.md) §5 · **CP 15.1–15.5**
 > **Sorgente**: [`../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md`](../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md)
 > (handoff del 2026-08-07, consolidato qui — in caso di conflitto prevale questo file)
@@ -171,6 +171,39 @@ Costruibile **oggi** (CP 15.2). Usa solo regole atterrate e serve da fixture d'i
 12. ripetizione a parità di input ⇒ stesso log e stesso hash.
 
 **Gate**: build Editor + Game verdi, suite verde, scenario ripetuto N volte con log/hash identico.
+
+### 4.1 La fixture atterrata — CP 15.2 *(2026-08-07)*
+
+`URTMatchSetupLibrary::MakeShowcaseRelayLiteArena` + `GetShowcaseRelayLiteSpawns`: nessun secondo
+`ARTGameMode`, nessun dato di scenario dentro `ARTTurnManager`.
+
+**Arena**: esagono pieno di raggio 5 sul layer 0 (**91 celle**). Le superfici stanno in **coppie speculari**
+`(q,r)` / `(-q,-r)` — nessuna metà campo è più comoda dell'altra, quindi un esito è attribuibile alle scelte
+e non al lato. I costi di movimento li detta il **catalogo terreni**: la fixture non incide numeri propri.
+
+| Superficie | Celle `(q,r)` | Perché è lì |
+|---|---|---|
+| `ShallowWater` | `(0,0)` · `(0,-1)` · `(0,1)` | spina d'acqua centrale: applica `Wet`, conduce (payoff a CP 8.3) |
+| `Conductive` | `(1,-1)` · `(-1,1)` | rete conduttiva a contatto con l'acqua |
+| `Rough` | `(-2,-1)` · `(2,1)` | vieta Dash/Charge su una via d'avvicinamento |
+| `Ice` | `(-2,2)` · `(2,-2)` | scivolamento di chi termina il Move |
+| `Fire` | `(0,-2)` · `(0,2)` | 10 danni + `Burning` on-enter |
+| `Smoke` | `(-1,-2)` · `(1,2)` | cap del targeting a 2 celle |
+
+**Spawn canonico** (celle di pavimento, anch'esse speculari): `Hero.Flux` `(-5,2)` e `Hero.Riva` `(-5,3)` per
+il team 0; `Hero.Bastion` `(5,-2)` e `Hero.Vektor` `(5,-3)` per il team 1. Le unità si configurano da
+`URTHeroCatalogLibrary`, **non** con `ConfigureAsArchetype` (legacy di test).
+
+**Verificato da**: `RefactorTactics.ShowcaseRelay.FixtureLayoutIsStable` (conteggio celle, superfici, costi
+dal catalogo, simmetria puntuale, spawn, hash stabile fra due generazioni) e
+`RefactorTactics.ShowcaseRelay.LiteScenarioIsDeterministic` (due partite di 4 turni ⇒ stesso hash d'arena,
+stesso hash di TurnLog per turno, stesse righe di log, stesso stato finale).
+
+**Limiti dichiarati** — la fixture *contiene* gli elementi che le regole della §4 consumano, ma **non li
+esercita ancora su richiesta**: le unità sono guidate dai bot, quindi quale cella venga calpestata in un dato
+turno non è deciso dallo scenario. Dichiarare gli intenti per turno e per unità è **CP 15.3** (`#169`); gli 8
+turni con hash atteso su file golden sono **CP 15.4** (`#170`). Finché 15.3 non atterra, «`Rough` nega un
+Dash» è una proprietà dell'arena verificata dai test di E4/E8, non un evento garantito di questa partita.
 
 ---
 

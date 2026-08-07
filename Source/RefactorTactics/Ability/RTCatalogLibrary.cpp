@@ -538,6 +538,38 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		Catalog.Add(Electrify);
 	}
 
+	// `Ignite` e `CreateWater` — le due azioni che CAMBIANO la mappa (CP 8.4). Il catalogo azioni le elenca
+	// entrambe con priorita' 60 e portata 4; qui risolvono nella sola fase `Environment` (Cleanup), non nel
+	// Blast: una cella che prende fuoco a meta' turno cambierebbe il costo di un percorso gia' calcolato.
+	//
+	// Nessuna delle due dichiara `Effects`: il loro esito non e' un effetto su un'UNITA' (danno, cura, stato)
+	// ma una modifica della CELLA, che `FRTActionEffectSpec` non sa esprimere — gli effetti si applicano a
+	// bersagli, non a terreno. La superficie che creano e la durata vivono nel resolver ambientale, che e'
+	// l'unico posto in cui il terreno dinamico esiste.
+	//
+	// **Durata 2 turni** per entrambe, dal catalogo terreni §2 (fuoco) e dal catalogo azioni §6 (acqua).
+	Catalog.Add(ShippedAction(TEXT("Action.Ignite"), ERTResolutionPhase::Environment, /*Priority*/ 60,
+		/*Range*/ 4, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
+	Catalog.Add(ShippedAction(TEXT("Action.CreateWater"), ERTResolutionPhase::Environment, /*Priority*/ 60,
+		/*Range*/ 4, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
+
+	// `ModifyArc` — apre o chiude un COLLEGAMENTO fra celle (CP 8.5). Non tocca le superfici: cambia la
+	// topologia, ed e' per questo che la DoD chiede che **incrementi la revisione** della mappa — il numero che
+	// invalida le cache di percorso. Fase `Environment` come le altre ambientali: cambiare un arco a meta'
+	// Blast renderebbe invalido un percorso gia' calcolato in questo stesso turno.
+	Catalog.Add(ShippedAction(TEXT("Action.ModifyArc"), ERTResolutionPhase::Environment, /*Priority*/ 75,
+		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
+
+	// `Heal` — cura 20, portata 3, e **puo' bersagliare se stessi** (catalogo azioni §6). Priorita' 70: risolve
+	// DOPO gli attacchi (50-65), quindi cura le ferite di questo turno e non quelle del turno prima.
+	// A differenza delle ambientali risolve nel **Blast**: e' un'azione di supporto, non una modifica del campo.
+	{
+		FRTActionDef Heal = ShippedAction(TEXT("Action.Heal"), ERTResolutionPhase::Attack, /*Priority*/ 70,
+			/*Range*/ 3, /*Cooldown*/ 1, ERTActionFallback::Cancel,
+			{ FRTActionEffectSpec(ERTActionEffect::Heal, 20) });
+		Catalog.Add(Heal);
+	}
+
 	return Catalog;
 }
 

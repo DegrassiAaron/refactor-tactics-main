@@ -103,6 +103,19 @@ void ARTGameMode::ApplyMapSource(ARTHexMapActor* HexMap)
 	// sull'arena demo: meglio un fondo di scena giocabile che il vuoto.
 	// Attenzione: qui si tratta solo il caso "nessuna cella". Una mappa d'autore con POCHE celle non viene
 	// rimpiazzata: e' un errore dell'autore e glielo si dice, invece di nascondergli la mappa sotto i piedi.
+	// COPIA di lavoro della mappa d'autore (CP 8.4): dal terreno dinamico in poi la partita **modifica** le
+	// celle (fuoco che si accende e si spegne, acqua che arriva), e modificare l'asset su disco sporcherebbe
+	// il contenuto del progetto — in PIE le modifiche resterebbero dopo lo Stop, e due partite di fila non
+	// partirebbero dallo stesso campo, cioe' addio determinismo.
+	//
+	// Le due arene generate non hanno questo problema: `MakeTestArena`/`MakeDemoArena` costruiscono gia' un
+	// oggetto nuovo a ogni partita. Qui si allinea il terzo caso agli altri due, invece di aggiungere un
+	// secondo modello ("a volte la mappa si puo' modificare, a volte no") che qualcuno prima o poi sbaglierebbe.
+	if (HexMap->MapAsset && HexMap->MapAsset->NumCells() > 0)
+	{
+		HexMap->MapAsset = DuplicateObject<URTHexMapAsset>(HexMap->MapAsset, HexMap);
+	}
+
 	if ((!HexMap->MapAsset || HexMap->MapAsset->NumCells() == 0) && DemoArenaRadius > 0)
 	{
 		HexMap->MapAsset = URTMatchSetupLibrary::MakeDemoArena(HexMap, DemoArenaRadius);

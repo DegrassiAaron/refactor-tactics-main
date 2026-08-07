@@ -559,11 +559,17 @@ void ARTTurnManager::LockInAndResolve()
 	// cella -> scadenza delle durate -> energia/scudo/cooldown -> conteggio delle unita' vive.
 	// La revoca precede il tick perche' le due nature non si sovrappongono: chi ha lasciato l'acqua si asciuga
 	// in QUESTO Cleanup, senza aspettare un turno.
-	const ARTHexMapActor* MapActor = ARTHexMapActor::FindInWorld(GetWorld());
-	const URTHexMapAsset* CleanupMap = MapActor ? MapActor->MapAsset : nullptr;
+	ARTHexMapActor* MapActor = ARTHexMapActor::FindInWorld(GetWorld());
+	URTHexMapAsset* CleanupMap = MapActor ? MapActor->MapAsset : nullptr;
 
-	// 0. Azioni ambientali (CP 8.3): la scarica elettrica precede il danno di `Burning`. Chi cade qui e' morto
-	// in QUESTO turno, come chi cade bruciato: il conteggio dei vivi arriva dopo entrambi.
+	// 0. Scadenza delle modifiche ambientali dei turni PRECEDENTI (CP 8.4). Precede le azioni di questo turno
+	// per una ragione di durata: una cella incendiata adesso deve bruciare per i suoi due turni pieni: se il
+	// tick venisse dopo, le mangerebbe subito uno.
+	TickDynamicSurfaces(CleanupMap);
+
+	// 1. Azioni ambientali (CP 8.3/8.4): la scarica elettrica e le modifiche del terreno precedono il danno di
+	// `Burning`. Chi cade qui e' morto in QUESTO turno, come chi cade bruciato: il conteggio dei vivi arriva
+	// dopo entrambi.
 	ResolveEnvironment(CleanupMap);
 
 	int32 Team0Alive = 0, Team1Alive = 0;
@@ -642,7 +648,139 @@ void ARTTurnManager::LockInAndResolve()
 	ConcludeTurn();
 }
 
-void ARTTurnManager::ResolveEnvironment(const URTHexMapAsset* Map)
+void ARTTurnManager::ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TArray<int32>& Amounts,
+	const TArray<FRTCellId>& Sources)
+{
+	// Tre regole del catalogo, tutte verificabili: non supera la salute massima · non rimuove stati (si tocca
+	// solo `Health`) · **non resuscita** chi e' caduto in questo turno — una cura che riportasse in piedi
+	// un'unita' a zero renderebbe il KO reversibile, che e' una regola diversa e non dichiarata da nessuna parte.
+	for (int32 h = 0; h < Targets.Num(); ++h)
+	{
+		ARTUnit* HealTarget = Targets[h];
+		if (!HealTarget || !HealTarget->IsAlive()) { continue; }
+
+		const int32 Before = HealTarget->Health;
+		HealTarget->ApplyCombatState(FMath::Min(HealTarget->MaxHealth, Before + Amounts[h]), HealTarget->Shield);
+		const int32 Restored = HealTarget->Health - Before;
+
+		FRTTurnLogEntry Entry;
+		Entry.Phase = ERTMatchPhase::Blast;
+		Entry.Category = ERTLogCategory::Combat;
+		Entry.Outcome = static_cast<uint8>(ERTCombatOutcome::Healed);
+		Entry.ActionId = FName(TEXT("Action.Heal"));
+		Entry.SrcCell = Sources.IsValidIndex(h) ? Sources[h] : HealTarget->Cell;
+		Entry.TgtCell = HealTarget->Cell;
+		Entry.Amount = Restored; // quanto e' stato curato DAVVERO: a salute piena la voce dice zero
+		TurnLog.Add(Entry);
+		AddLogEvent(FString::Printf(TEXT("%s: +%d salute"), *HealTarget->GetName(), Restored));
+	}
+}
+
+bool ARTTurnManager::ApplyDynamicSurface(URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexSurface NewSurface,
+	int32 Turns, const FName& CauseActionId)
+{
+	const FRTHexCellData* Existing = Map ? Map->FindCell(Cell) : nullptr;
+	if (!Existing || Turns <= 0)
+	{
+		return false; // fuori mappa o durata non positiva: non si modifica il campo per sbaglio
+	}
+	if (Existing->Surface == NewSurface)
+	{
+		return false; // gia' cosi': nessun cambiamento da registrare
+	}
+
+	FRTTurnLogEntry Entry;
+	Entry.Phase = ERTMatchPhase::Cleanup;
+	Entry.Category = ERTLogCategory::Environment;
+	Entry.ActionId = CauseActionId;
+	Entry.SrcCell = Cell;
+	Entry.TgtCell = Cell;
+
+	// Il fuoco non attecchisce su cio' che non brucia (catalogo terreni §2: «non incendia automaticamente
+	// acqua o metallo»). E' una proprieta' della superficie di DESTINAZIONE, letta dal catalogo — non un
+	// elenco di eccezioni scritto qui.
+	if (NewSurface == ERTHexSurface::Fire && !URTTerrainLibrary::FindTerrainDef(Existing->Surface).bIsFlammable)
+	{
+		Entry.Outcome = static_cast<uint8>(ERTEnvironmentOutcome::SurfaceRejected);
+		Entry.Amount = 0;
+		TurnLog.Add(Entry);
+		AddLogEvent(FString::Printf(TEXT("(q=%d,r=%d,L%d): non prende fuoco"), Cell.X, Cell.Y, Cell.Layer));
+		return false;
+	}
+
+	// L'acqua SPEGNE il fuoco: e' la stessa trasformazione, ma il TurnLog la distingue perche' per chi legge
+	// il replay «la cella si allaga» e «la cella si spegne» non sono lo stesso evento.
+	const bool bExtinguishes = (Existing->Surface == ERTHexSurface::Fire
+		&& NewSurface == ERTHexSurface::ShallowWater);
+
+	// L'ORIGINALE si registra una volta sola: una cella allagata e poi incendiata deve tornare al pavimento,
+	// non all'acqua che c'era un turno prima.
+	FRTDynamicSurface& State = DynamicSurfaces.FindOrAdd(Cell);
+	if (State.TurnsRemaining <= 0)
+	{
+		State.Original = Existing->Surface;
+	}
+	State.TurnsRemaining = Turns;
+
+	// La superficie corrente va nella MAPPA, che e' cio' che tutti leggono: il costo di movimento segue il
+	// catalogo della nuova superficie, altrimenti una pozza costerebbe ancora quanto il pavimento.
+	FRTHexCellData Updated = *Existing;
+	Updated.Surface = NewSurface;
+	Updated.MoveCost = URTTerrainLibrary::FindTerrainDef(NewSurface).MoveCost;
+	Map->AddOrUpdateCell(Updated);
+
+	Entry.Outcome = static_cast<uint8>(
+		bExtinguishes ? ERTEnvironmentOutcome::SurfaceExtinguished : ERTEnvironmentOutcome::SurfaceChanged);
+	Entry.Amount = Turns;
+	TurnLog.Add(Entry);
+	AddLogEvent(FString::Printf(TEXT("(q=%d,r=%d,L%d): %s (%d turni)"), Cell.X, Cell.Y, Cell.Layer,
+		bExtinguishes ? TEXT("il fuoco si spegne") : TEXT("la superficie cambia"), Turns));
+	return true;
+}
+
+void ARTTurnManager::TickDynamicSurfaces(URTHexMapAsset* Map)
+{
+	if (!Map || DynamicSurfaces.Num() == 0) { return; }
+
+	// Ordine STABILE: `TMap` non ha un ordine garantito, e da qui escono voci di TurnLog. Senza questo, due
+	// esecuzioni della stessa partita produrrebbero lo stesso insieme di voci in ordine diverso — l'hash e'
+	// permutazione-invariante e non se ne accorgerebbe, ma il combat log letto da un umano si', e il giorno in
+	// cui qualcosa dipendesse dall'ordine il difetto sarebbe gia' dentro.
+	TArray<FRTCellId> Cells;
+	DynamicSurfaces.GetKeys(Cells);
+	Cells.Sort([](const FRTCellId& A, const FRTCellId& B) { return URTHexLibrary::StableLess(A, B); });
+
+	for (const FRTCellId& Cell : Cells)
+	{
+		FRTDynamicSurface& State = DynamicSurfaces[Cell];
+		if (--State.TurnsRemaining > 0)
+		{
+			continue;
+		}
+
+		if (const FRTHexCellData* Current = Map->FindCell(Cell))
+		{
+			FRTHexCellData Restored = *Current;
+			Restored.Surface = State.Original;
+			Restored.MoveCost = URTTerrainLibrary::FindTerrainDef(State.Original).MoveCost;
+			Map->AddOrUpdateCell(Restored);
+
+			FRTTurnLogEntry Entry;
+			Entry.Phase = ERTMatchPhase::Cleanup;
+			Entry.Category = ERTLogCategory::Environment;
+			Entry.Outcome = static_cast<uint8>(ERTEnvironmentOutcome::SurfaceRestored);
+			Entry.SrcCell = Cell;
+			Entry.TgtCell = Cell;
+			Entry.Amount = 0;
+			TurnLog.Add(Entry);
+			AddLogEvent(FString::Printf(TEXT("(q=%d,r=%d,L%d): la superficie torna com'era"),
+				Cell.X, Cell.Y, Cell.Layer));
+		}
+		DynamicSurfaces.Remove(Cell);
+	}
+}
+
+void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 {
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
@@ -698,6 +836,98 @@ void ARTTurnManager::ResolveEnvironment(const URTHexMapAsset* Map)
 			AddLogEvent(FString::Printf(TEXT("%s: %s annullata (nessun bersaglio)"),
 				*Caster->GetName(), *Ability->Def.ActionId.ToString()));
 			continue;
+		}
+
+		// Azioni che modificano la MAPPA (CP 8.4). Quale superficie creano lo dice l'ActionId, ed e' l'unico
+		// punto in cui questo orchestratore lo guarda: la coppia azione->superficie non e' esprimibile come
+		// `FRTActionEffectSpec` (gli effetti agiscono su unita', non su celle) e inventare un campo
+		// «SurfaceCreated» nel catalogo per due sole azioni sarebbe un dato che nessun'altra azione useria.
+		// Quando le azioni ambientali saranno molte (CP 8.5), il posto giusto e' quel campo.
+		{
+			const FName EnvActionId = Ability->Def.ActionId;
+			ERTHexSurface Created = ERTHexSurface::Floor;
+			bool bCreatesSurface = false;
+			if (EnvActionId == FName(TEXT("Action.Ignite")))
+			{
+				Created = ERTHexSurface::Fire;
+				bCreatesSurface = true;
+			}
+			else if (EnvActionId == FName(TEXT("Action.CreateWater")))
+			{
+				Created = ERTHexSurface::ShallowWater;
+				bCreatesSurface = true;
+			}
+
+			if (bCreatesSurface)
+			{
+				Caster->ConsumeAbility(AbilityIndex);
+				// Durata 2 turni per entrambe (catalogo terreni §2 per il fuoco, catalogo azioni §6 per l'acqua).
+				// La cella e' quella del bersaglio, come per la scarica: stesso limite dichiarato sul
+				// targeting per cella.
+				//
+				// L'acqua copre un RAGGIO 1 (catalogo azioni §6: «acqua raggio 1»), il fuoco la sola cella:
+				// il raggio e' dell'azione, non della meccanica, quindi si legge da qui e non dal terreno.
+				const int32 Radius = (Created == ERTHexSurface::ShallowWater) ? 1 : 0;
+				// Ordine STABILE delle celle: `HexArea` restituisce gia' un'area ordinata, quindi le voci di
+				// TurnLog escono sempre nella stessa sequenza (#4).
+				for (const FRTCellId& Cell : URTHexLibrary::HexArea(Target->Cell, Radius))
+				{
+					if (!ApplyDynamicSurface(Map, Cell, Created, /*Turns*/ 2, EnvActionId))
+					{
+						continue; // cella fuori mappa, gia' cosi', o che non ammette la trasformazione
+					}
+					// Le unita' GIA' presenti si bagnano subito: gli `OnEnterEffects` valgono per chi ENTRA, e
+					// aspettare che escano e rientrino per applicare `Wet` sarebbe una regola che nessuno
+					// capirebbe guardando il campo.
+					if (Created == ERTHexSurface::ShallowWater)
+					{
+						for (ARTUnit* Occupant : Units)
+						{
+							if (Occupant && Occupant->IsAlive() && Occupant->Cell == Cell)
+							{
+								Occupant->ApplyStatus(TAG_Status_Wet, ARTUnit::PersistentWhileOnCell);
+							}
+						}
+					}
+				}
+				continue;
+			}
+
+			// `Action.ModifyArc` (CP 8.5): apre o chiude il COLLEGAMENTO fra chi la usa e il bersaglio. Se
+			// l'arco c'e' lo toglie, altrimenti lo crea — «apri o chiudi» e' la stessa azione vista dai due
+			// lati, come una porta.
+			//
+			// **Limiti dichiarati**: (a) l'arco e' identificato dalla coppia (caster, bersaglio) perche' la
+			// pianificazione non ha un bersaglio-ARCO — arrivera' con l'editor/HUD di E9/E11; (b) il ponte
+			// creato **non scade**: la durata degli archi e' CP 9.4 (ponti e porte), qui c'e' l'apertura e la
+			// chiusura, che e' cio' che questa DoD chiede insieme alla revisione.
+			if (EnvActionId == FName(TEXT("Action.ModifyArc")))
+			{
+				Caster->ConsumeAbility(AbilityIndex);
+				if (Map)
+				{
+					const bool bClosed = Map->RemoveTransition(Caster->Cell, Target->Cell, /*bBothDirections*/ true);
+					if (!bClosed)
+					{
+						Map->AddTransition(Caster->Cell, Target->Cell, /*Cost*/ 1,
+							ERTHexTransitionKind::Bridge, /*bBidirectional*/ true);
+					}
+
+					FRTTurnLogEntry Entry;
+					Entry.Phase = ERTMatchPhase::Cleanup;
+					Entry.Category = ERTLogCategory::Environment;
+					Entry.Outcome = static_cast<uint8>(ERTEnvironmentOutcome::SurfaceChanged);
+					Entry.ActionId = EnvActionId;
+					Entry.SrcCell = Caster->Cell;
+					Entry.TgtCell = Target->Cell;
+					Entry.Amount = bClosed ? 0 : 1; // 0 = collegamento chiuso, 1 = collegamento aperto
+					TurnLog.Add(Entry);
+					AddLogEvent(FString::Printf(TEXT("%s: collegamento %s verso (q=%d,r=%d,L%d)"),
+						*Caster->GetName(), bClosed ? TEXT("chiuso") : TEXT("aperto"),
+						Target->Cell.X, Target->Cell.Y, Target->Cell.Layer));
+				}
+				continue;
+			}
 		}
 
 		// La SORGENTE e' la cella del bersaglio, non l'unita': l'elettricita' entra nel terreno e da li' si
@@ -1211,6 +1441,50 @@ void ARTTurnManager::ResolveCombat()
 		AddLogEvent(Removed.IsValid()
 			? FString::Printf(TEXT("%s: purificato %s"), *Unit->GetName(), *Removed.ToString())
 			: FString::Printf(TEXT("%s: nessuno stato da purificare"), *Unit->GetName()));
+	}
+
+	// `Action.Heal` (CP 8.5): azione di SUPPORTO, non un colpo. Si raccoglie qui, prima del ciclo degli
+	// intenti — che consuma `PlannedAbilityIndex` e costruirebbe un intento d'attacco su un alleato — e si
+	// applica DOPO i danni, piu' sotto: la priorita' 70 del catalogo la mette dopo gli attacchi (50-65),
+	// quindi cura le ferite di questo turno, non quelle del turno prima.
+	TArray<ARTUnit*> HealTargets;
+	TArray<int32> HealAmounts;
+	TArray<FRTCellId> HealSources;
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		ARTUnit* Unit = Units[i];
+		const int32 HealIdx = Unit->PlannedAbilityIndex;
+		const URTActionData* Heal = Unit->GetAbility(HealIdx);
+		if (!Heal || Heal->Def.ActionId != FName(TEXT("Action.Heal")) || !Unit->CanUseAbility(HealIdx))
+		{
+			continue;
+		}
+
+		// Bersaglio: chi e' stato scelto in pianificazione, oppure SE STESSI se non c'e' nessuno — il catalogo
+		// dichiara che la cura «puo' bersagliare se stessi», e curare a vuoto non e' un'alternativa sensata.
+		ARTUnit* HealTarget = Unit->PlannedAttackTarget ? Unit->PlannedAttackTarget.Get() : Unit;
+		Unit->PlannedAbilityIndex = INDEX_NONE;
+		Unit->PlannedAttackTarget = nullptr;
+		Unit->ConsumeAbility(HealIdx);
+
+		// Portata dal catalogo, misurata come per ogni altra azione: una cura a distanza infinita sarebbe una
+		// regola diversa da quella scritta.
+		if (URTHexLibrary::HexDistance(Unit->Cell, HealTarget->Cell) > Heal->Def.RangeCells)
+		{
+			AddLogEvent(FString::Printf(TEXT("%s: cura fuori portata"), *Unit->GetName()));
+			continue;
+		}
+
+		int32 Amount = 0;
+		for (const FRTActionEffectSpec& Spec : Heal->Def.Effects)
+		{
+			if (Spec.Effect == ERTActionEffect::Heal) { Amount = Spec.Amount; break; }
+		}
+		if (Amount <= 0) { continue; }
+
+		HealTargets.Add(HealTarget);
+		HealAmounts.Add(Amount);
+		HealSources.Add(Unit->Cell);
 	}
 
 	// Intenti d'attacco: qui si valida l'ABILITA' (esiste, non e' uno scatto, e' utilizzabile);
@@ -1883,6 +2157,10 @@ void ARTTurnManager::ResolveCombat()
 
 	if (Attacks.Num() == 0)
 	{
+		// Nessun colpo, ma le cure vanno applicate lo stesso: un supporto che cura fuori da uno scontro e' il
+		// caso NORMALE, non un'eccezione. (Difetto trovato da `Actions.Heal.RestoresWithoutExceedingMax`: la
+		// prima stesura usciva di qui e la cura spariva in silenzio.)
+		ApplyPlannedHeals(HealTargets, HealAmounts, HealSources);
 		return;
 	}
 
@@ -1929,6 +2207,8 @@ void ARTTurnManager::ResolveCombat()
 	{
 		Units[i]->ApplyCombatState(Resolved[i].Health, Resolved[i].Shield); // solo logico: rimozione visiva differita
 	}
+
+	ApplyPlannedHeals(HealTargets, HealAmounts, HealSources);
 
 	// --- Spinta (knockback): dopo il danno, sulle posizioni snapshot del Blast -----------------------
 	// Direzione ESAGONALE (una delle sei), non piu' cardinale: la spinta segue la linea attaccante->bersaglio
