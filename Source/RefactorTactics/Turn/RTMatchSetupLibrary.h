@@ -8,6 +8,30 @@
 class URTHexMapAsset;
 
 /**
+ * Una posizione di partenza dello scenario showcase: QUALE eroe, in QUALE squadra, su QUALE cella.
+ * Legare i tre dati insieme evita l'ordine implicito di tre array paralleli, che si disallineano in silenzio.
+ */
+USTRUCT(BlueprintType)
+struct FRTShowcaseSpawn
+{
+	GENERATED_BODY()
+
+	/** `HeroId` del catalogo eroi (`Hero.Flux`, `Hero.Riva`, `Hero.Bastion`, `Hero.Vektor`), non un archetipo legacy. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Showcase")
+	FName HeroId;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Showcase")
+	int32 TeamId = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Showcase")
+	FRTCellId Cell;
+
+	FRTShowcaseSpawn() = default;
+	FRTShowcaseSpawn(FName InHeroId, int32 InTeamId, const FRTCellId& InCell)
+		: HeroId(InHeroId), TeamId(InTeamId), Cell(InCell) {}
+};
+
+/**
  * Funzioni PURE di allestimento della partita su mappa esagonale: scelta delle celle di partenza e
  * ricostruzione dell'occupazione dallo stato delle unita'. Nessuno stato, nessun Actor, nessun World:
  * il GameMode le chiama, i test le verificano headless.
@@ -50,6 +74,23 @@ public:
 	 * `Outer` nullo -> nullptr.
 	 */
 	static URTHexMapAsset* MakeTestArena(UObject* Outer);
+
+	/**
+	 * **Arena della showcase «Il Relè» — versione Lite** (CP 15.2): la fixture d'integrazione riproducibile.
+	 *
+	 * Esagono pieno di raggio 5 sul layer 0 (91 celle), con le sole superfici gia' atterrate e nessuna
+	 * regola nuova: acqua al centro, conduttivo a contatto, `Rough`, `Ice`, `Fire`, `Smoke`. Il layout e'
+	 * **simmetrico rispetto al centro** — la superficie di `(q,r)` e quella di `(-q,-r)` coincidono — cosi'
+	 * un esito non e' mai spiegabile con «quella meta' campo era piu' comoda».
+	 *
+	 * I costi di movimento li detta il catalogo terreni: la fixture non incide numeri propri.
+	 *
+	 * `Outer` nullo -> nullptr (nessuna arena a meta').
+	 */
+	static URTHexMapAsset* MakeShowcaseRelayLiteArena(UObject* Outer);
+
+	/** Posizioni di partenza canoniche della showcase: Flux + Riva (team 0) contro Bastion + Vektor (team 1). */
+	static TArray<FRTShowcaseSpawn> GetShowcaseRelayLiteSpawns();
 
 	/**
 	 * Occupazione cella -> UnitId ricostruita dallo stato delle unita': solo le vive occupano.
