@@ -99,6 +99,29 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 	Root->TryGetNumberField(TEXT("seed"), OutScenario.Seed);
 	Root->TryGetNumberField(TEXT("mapRadius"), OutScenario.MapRadius);
 
+	// --- celle modificate (opzionale) --------------------------------------------------------------------
+	const TArray<TSharedPtr<FJsonValue>>* CellsJson = nullptr;
+	if (Root->TryGetArrayField(TEXT("cells"), CellsJson))
+	{
+		for (const TSharedPtr<FJsonValue>& Value : *CellsJson)
+		{
+			const TSharedPtr<FJsonObject> Obj = Value->AsObject();
+			if (!Obj.IsValid()) { OutError = TEXT("cells: voce non valida"); return false; }
+
+			FRTScenarioCell Cell;
+			const TArray<TSharedPtr<FJsonValue>>* CellArr = nullptr;
+			Obj->TryGetArrayField(TEXT("cell"), CellArr);
+			if (!ParseCell(CellArr, Cell.Cell, OutError, TEXT("cells")))
+			{
+				return false;
+			}
+			Obj->TryGetBoolField(TEXT("blocksMovement"), Cell.bBlocksMovement);
+			Obj->TryGetBoolField(TEXT("blocksLineOfSight"), Cell.bBlocksLineOfSight);
+			Obj->TryGetNumberField(TEXT("moveCost"), Cell.MoveCost);
+			OutScenario.Cells.Add(Cell);
+		}
+	}
+
 	// --- unita' ------------------------------------------------------------------------------------------
 	const TArray<TSharedPtr<FJsonValue>>* UnitsJson = nullptr;
 	if (!Root->TryGetArrayField(TEXT("units"), UnitsJson) || UnitsJson->Num() == 0)
@@ -237,6 +260,23 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 		return false;
 	}
 
+	// Le celle modificate devono stare nell'arena: un ostacolo fuori mappa non blocca niente e lo scenario
+	// verificherebbe una condizione che non ha mai creato.
+	for (const FRTScenarioCell& Cell : Scenario.Cells)
+	{
+		if (URTHexLibrary::HexDistance(Cell.Cell, FRTCellId(0, 0, Cell.Cell.Layer)) > Scenario.MapRadius)
+		{
+			OutError = FString::Printf(TEXT("cella modificata %s fuori dall'arena di raggio %d"),
+				*Cell.Cell.ToString(), Scenario.MapRadius);
+			return false;
+		}
+		if (Cell.MoveCost < 0)
+		{
+			OutError = FString::Printf(TEXT("cella %s: moveCost negativo (%d)"), *Cell.Cell.ToString(), Cell.MoveCost);
+			return false;
+		}
+	}
+
 	const TSet<FName> Heroes = KnownHeroIds();
 	TSet<FString> SeenIds;
 	TSet<FRTCellId> SeenCells;
@@ -273,6 +313,17 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 			return false;
 		}
 		SeenCells.Add(Unit.Cell);
+
+		// Un'unita' che parte dentro un ostacolo e' uno scenario impossibile: il gioco non la piazzerebbe mai
+		// li', e ogni assertion successiva misurerebbe una situazione che non puo' esistere.
+		const FRTScenarioCell* OnBlocked = Scenario.Cells.FindByPredicate(
+			[&Unit](const FRTScenarioCell& C) { return C.Cell == Unit.Cell && C.bBlocksMovement; });
+		if (OnBlocked)
+		{
+			OutError = FString::Printf(TEXT("unita' '%s' parte su una cella che blocca il movimento %s"),
+				*Unit.Id, *Unit.Cell.ToString());
+			return false;
+		}
 	}
 
 	for (const FRTScenarioTurn& Turn : Scenario.Turns)
