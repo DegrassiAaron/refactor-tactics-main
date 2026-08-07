@@ -87,14 +87,14 @@ void ARTTurnManager::ApplyTerrainOnEnterEffects(const FRTHexSnapshot& Snapshot, 
 			}
 			else if (Effect.Effect == ERTActionEffect::Status)
 			{
-				Unit->ApplyStatus(Effect.StatusTag, Effect.StatusDuration);
-				// Il log solo se qualcosa e' successo davvero: ApplyStatus scarta le durate <= 0 (no-op
-				// silenzioso), e un combat log che annuncia uno stato mai applicato e' peggio del silenzio.
-				// Oggi riguarda Wet e Obscured, dichiarati con durata 0 nel catalogo (gap tracciato per CP 8.2).
-				if (Effect.StatusDuration > 0)
-				{
-					AddLogEvent(FString::Printf(TEXT("%s: %s da terreno"), *Unit->GetName(), *Effect.StatusTag.ToString()));
-				}
+				// Durata 0 nel catalogo = "finche' sulla cella" (CP 8.2): qui diventa la sentinella che
+				// ARTUnit riconosce. La revoca la fa il Cleanup leggendo lo STESSO catalogo, non una
+				// seconda tabella (URTTerrainLibrary::CellBoundStatusesFor).
+				const int32 Duration = (Effect.StatusDuration == 0)
+					? ARTUnit::PersistentWhileOnCell
+					: Effect.StatusDuration;
+				Unit->ApplyStatus(Effect.StatusTag, Duration);
+				AddLogEvent(FString::Printf(TEXT("%s: %s da terreno"), *Unit->GetName(), *Effect.StatusTag.ToString()));
 			}
 		}
 	}
@@ -555,9 +555,13 @@ void ARTTurnManager::LockInAndResolve()
 	// non e' ordinato, quindi l'ordine di inserimento non e' affidabile (enum: confronto per valore intero).
 	URTTurnLogLibrary::SortTurnLog(TurnLog); // ordine totale deterministico (libreria pura testabile)
 
-	// Fase Cleanup: energia, tick di status e cooldown, conteggio delle unita' vive per squadra.
-	// Gli HAZARD di fine turno non ci sono piu': dipendevano dal terreno quadrato (`URTTerrainData`), rimosso
-	// col substrato al CP 7.2. L'ambiente attivo su esagoni e' l'epic E8 e riporta qui il danno di fine turno.
+	// Fase Cleanup, nell'ordine fissato da `spec-stati-temporanei-cp82.md` §4: revoca degli stati legati alla
+	// cella -> scadenza delle durate -> energia/scudo/cooldown -> conteggio delle unita' vive.
+	// La revoca precede il tick perche' le due nature non si sovrappongono: chi ha lasciato l'acqua si asciuga
+	// in QUESTO Cleanup, senza aspettare un turno.
+	const ARTHexMapActor* MapActor = ARTHexMapActor::FindInWorld(GetWorld());
+	const URTHexMapAsset* CleanupMap = MapActor ? MapActor->MapAsset : nullptr;
+
 	int32 Team0Alive = 0, Team1Alive = 0;
 	{
 		TArray<AActor*> Actors;
@@ -568,6 +572,37 @@ void ARTTurnManager::LockInAndResolve()
 			if (!Unit || !Unit->IsAlive())
 			{
 				continue;
+			}
+
+			// 1. Effetti ambientali PRIMA dei KO (ADR-0003 §3): chi muore bruciato muore in questo turno.
+			// Passa dalla contabilita' del danno di gioco (ApplyDamage + ApplyCombatState), quindi erode
+			// prima lo scudo TEMPORANEO — che infatti scade solo piu' sotto, non prima.
+			if (Unit->HasStatus(TAG_Status_Burning))
+			{
+				const FRTDamageResult Burn = URTCombatLibrary::ApplyDamage(
+					URTCombatLibrary::BurningCleanupDamage, Unit->Shield, Unit->Health);
+				Unit->ApplyCombatState(Burn.Health, Burn.Shield);
+				AddLogEvent(FString::Printf(TEXT("%s: %d danni da Status.Burning (q=%d,r=%d,L%d)"),
+					*Unit->GetName(), URTCombatLibrary::BurningCleanupDamage,
+					Unit->Cell.X, Unit->Cell.Y, Unit->Cell.Layer));
+
+				if (!Unit->IsAlive())
+				{
+					// L'eliminazione da hazard non ha un beat di playback (la timeline e' gia' chiusa):
+					// la nasconde il catch-all di ConcludeTurn, che esiste proprio per questo caso.
+					AddLogEvent(FString::Printf(TEXT("%s eliminato dalle fiamme"), *Unit->GetName()));
+					continue; // morto adesso: non guadagna energia, non conta fra i vivi
+				}
+			}
+
+			// 2. Senza mappa autorevole non si revoca nulla: cancellare gli stati sarebbe inventare che la
+			// cella non li sostiene, quando in realta' non la si e' potuta leggere.
+			if (CleanupMap)
+			{
+				const FRTHexCellData* CellData = CleanupMap->FindCell(Unit->Cell);
+				Unit->RevokeCellBoundStatusesNotIn(CellData
+					? URTTerrainLibrary::CellBoundStatusesFor(CellData->Surface)
+					: TSet<FGameplayTag>());
 			}
 
 			Unit->Energy = URTCombatLibrary::GainEnergy(Unit->Energy, Unit->EnergyPerTurn, Unit->MaxEnergy);
@@ -1050,9 +1085,17 @@ void ARTTurnManager::ResolveCombat()
 		// fallback DICHIARATO dall'azione, in un punto solo (spec E4 §D5).
 		FRTActionInstance Instance;
 		Instance.Def = Ability->Def;
-		if (Instance.Def.ActionId.IsNone())
+		// Portata dell'istanza: dal catalogo se la dichiara, altrimenti dal portatore. `RangeCells <= 0` NON
+		// vuol dire "nessuna portata" — e' la convenzione del catalogo per «portata dell'arma»
+		// (`Action.PrecisionAttack`, «range dell'arma +1»; `Action.MarkTarget`).
+		//
+		// Prima il ponte valeva solo per le azioni SENZA `ActionId`, quindi quelle due si validavano con
+		// portata 0 e degradavano sempre al proprio fallback, mentre `Intent.RangeCells` leggeva il campo
+		// dell'asset: due verita' sulla stessa portata, e l'azione non arrivava mai a bersaglio.
+		// Difetto trovato al CP 8.2 (issue #65) mentre si cablava `Status.Marked`.
+		if (Instance.Def.ActionId.IsNone() || Instance.Def.RangeCells <= 0)
 		{
-			Instance.Def.RangeCells = Ability->RangeCells; // ponte per le abilita' non ancora catalogate (CP 4.5)
+			Instance.Def.RangeCells = Ability->RangeCells;
 		}
 		Instance.SourceUnitId = i;
 		Instance.TargetUnitId = (Target && IndexOf.Contains(Target)) ? IndexOf[Target] : INDEX_NONE;
@@ -1104,6 +1147,10 @@ void ARTTurnManager::ResolveCombat()
 		Intent.Shape = Ability->Shape;
 		Intent.RangeCells = Ability->RangeCells;
 		Intent.AreaRadius = Ability->AreaRadius;
+		// La friendly fire policy la DICHIARA l'azione (`Action.CircularAoE` la ha true): senza questa riga
+		// l'intento nasceva sempre a false e nessuna area colpiva un alleato in partita, benche' il dato
+		// esistesse nel catalogo e il resolver puro lo rispettasse. Difetto trovato al CP 8.2 e corretto qui.
+		Intent.bFriendlyFire = Instance.Def.bFriendlyFire;
 		// Danno DICHIARATO dagli effetti dell'azione: e' il catalogo a dirlo. Il campo legacy `Power` resta
 		// come ripiego per le abilita' non ancora catalogate (quelle generiche di EnsureDefaultAbilities):
 		// finche' esistono, toglierlo del tutto trasformerebbe i loro colpi in danno zero.
@@ -1387,6 +1434,116 @@ void ARTTurnManager::ResolveCombat()
 	}
 
 	// Colpi a segno -> attacchi da applicare, con gli effetti collaterali dell'abilita' che li ha prodotti.
+	// `Status.Marked` (CP 8.2, chiude la issue #137): pass a PRIORITA' dentro il Blast. Il catalogo da' a
+	// `Action.MarkTarget` la priorita' 40 «la piu' bassa delle offensive, perche' un marchio che arrivasse
+	// dopo i colpi non servirebbe a nulla»: il marchio deve quindi valere per i colpi dello stesso Blast a
+	// priorita' piu' alta. Applicarlo insieme agli altri status (piu' sotto, dopo il danno) lo renderebbe
+	// inutilizzabile in ogni turno — con durata 1 scade nel Cleanup dello stesso turno in cui e' applicato.
+	//
+	// Resta «raccogli poi applica»: si aggiustano i Power di colpi GIA' congelati, non si ricalcolano
+	// bersagli o traiettorie. Precedente nel codice: `Action.Interrupt` (priorita' 20) filtra i colpi del
+	// piano prima che diventino danno.
+	TArray<int32> IncomingMarkPriority; // per bersaglio: priorita' del marchio applicato in QUESTO Blast
+	IncomingMarkPriority.Init(MAX_int32, Units.Num());
+	TArray<bool> bMarkedBeforeBlast;    // marchio ereditato da un turno precedente: vale per qualunque colpo
+	bMarkedBeforeBlast.Init(false, Units.Num());
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		bMarkedBeforeBlast[i] = Units[i] && Units[i]->HasStatus(TAG_Status_Marked);
+	}
+	for (const FRTHexAttackHit& Hit : Plan.Hits)
+	{
+		if (!IntentDefs.IsValidIndex(Hit.IntentIndex) || !Units.IsValidIndex(Hit.TargetId)
+			|| !Units.IsValidIndex(Hit.AttackerId) || !Units[Hit.TargetId] || !Units[Hit.AttackerId])
+		{
+			continue;
+		}
+		const FRTActionDef& Def = IntentDefs[Hit.IntentIndex];
+		for (const FRTActionEffectSpec& Spec : Def.Effects)
+		{
+			if (Spec.Effect == ERTActionEffect::Status && Spec.StatusTag == TAG_Status_Marked)
+			{
+				Units[Hit.TargetId]->ApplyMarkedBy(Units[Hit.AttackerId]->TeamId, Spec.StatusDuration);
+				IncomingMarkPriority[Hit.TargetId] = FMath::Min(IncomingMarkPriority[Hit.TargetId], Def.Priority);
+			}
+		}
+	}
+
+	// Ordine di spesa del marchio: priorita' crescente, poi ActionId -> AttackerId -> IntentIndex. E' l'ordine
+	// canonico dell'ADR-0003 §3, e serve perche' «il PROSSIMO attacco alleato» sia una domanda con una sola
+	// risposta anche quando due alleati colpiscono lo stesso bersaglio nello stesso turno.
+	TArray<int32> HitOrder;
+	HitOrder.Reserve(Plan.Hits.Num());
+	for (int32 h = 0; h < Plan.Hits.Num(); ++h) { HitOrder.Add(h); }
+	HitOrder.Sort([&Plan, &IntentDefs](int32 A, int32 B)
+	{
+		const FRTHexAttackHit& HA = Plan.Hits[A];
+		const FRTHexAttackHit& HB = Plan.Hits[B];
+		const int32 PA = IntentDefs.IsValidIndex(HA.IntentIndex) ? IntentDefs[HA.IntentIndex].Priority : MAX_int32;
+		const int32 PB = IntentDefs.IsValidIndex(HB.IntentIndex) ? IntentDefs[HB.IntentIndex].Priority : MAX_int32;
+		if (PA != PB) { return PA < PB; }
+		const FName IdA = IntentDefs.IsValidIndex(HA.IntentIndex) ? IntentDefs[HA.IntentIndex].ActionId : NAME_None;
+		const FName IdB = IntentDefs.IsValidIndex(HB.IntentIndex) ? IntentDefs[HB.IntentIndex].ActionId : NAME_None;
+		if (IdA != IdB) { return IdA.LexicalLess(IdB); }
+		if (HA.AttackerId != HB.AttackerId) { return HA.AttackerId < HB.AttackerId; }
+		return HA.IntentIndex < HB.IntentIndex; // ordine TOTALE
+	});
+
+	TSet<int32> MarkSpentOn;
+	for (int32 h : HitOrder)
+	{
+		FRTHexAttackHit& Hit = Plan.Hits[h];
+		if (Hit.Power <= 0 || MarkSpentOn.Contains(Hit.TargetId)) { continue; } // "attacco": un colpo che fa danno
+		if (!Units.IsValidIndex(Hit.TargetId) || !Units.IsValidIndex(Hit.AttackerId)
+			|| !Units[Hit.TargetId] || !Units[Hit.AttackerId])
+		{
+			continue;
+		}
+		ARTUnit* Target = Units[Hit.TargetId];
+		if (!Target->HasStatus(TAG_Status_Marked)) { continue; }
+		if (Units[Hit.AttackerId]->TeamId != Target->GetMarkedByTeam()) { continue; } // solo la squadra del marcatore
+		if (!bMarkedBeforeBlast[Hit.TargetId])
+		{
+			// Marchio nato in questo Blast: vale solo per i colpi a priorita' PIU' ALTA, cioe' risolti dopo.
+			const int32 HitPriority = IntentDefs.IsValidIndex(Hit.IntentIndex)
+				? IntentDefs[Hit.IntentIndex].Priority : MAX_int32;
+			if (HitPriority <= IncomingMarkPriority[Hit.TargetId]) { continue; }
+		}
+		Hit.Power += URTCombatLibrary::MarkedFirstHitBonus;
+		MarkSpentOn.Add(Hit.TargetId);
+	}
+	// Consumo dopo il pass, non dentro: durante il pass `HasStatus` deve rispondere sullo stato congelato.
+	for (int32 TargetId : MarkSpentOn)
+	{
+		Units[TargetId]->RemoveStatus(TAG_Status_Marked);
+	}
+
+	// Bonus condizionati alla COPPIA (chi colpisce, chi subisce): si applicano sui colpi del piano, dove
+	// attaccante e bersaglio sono ancora entrambi noti — `FRTAttack` conserva solo il bersaglio, e dopo
+	// `ToAttacks` l'informazione non esiste piu'. Dopo l'Intercept, perche' il bersaglio puo' essere cambiato:
+	// il bonus lo decide chi il colpo lo incassa davvero.
+	//
+	// `Flux.LinearDischarge` +8 contro bersaglio `Status.Wet` (catalogo eroi §1). Non e' nella lista `Effects`
+	// perche' non e' un danno fisso, e vale su OGNI colpo dell'azione finche' il bersaglio e' bagnato — non
+	// solo sul primo, quindi non passa dai delta qui sotto.
+	//
+	// LIMITE DICHIARATO (CP 8.2): il confronto e' su un `ActionId` scritto qui. E' l'unico bonus condizionale
+	// del catalogo v0.1; quando ce ne sara' un secondo, la forma giusta e' un campo del catalogo azioni
+	// («bonus X contro stato Y»), non un secondo `if`.
+	for (FRTHexAttackHit& Hit : Plan.Hits)
+	{
+		if (!IntentDefs.IsValidIndex(Hit.IntentIndex)
+			|| IntentDefs[Hit.IntentIndex].ActionId != FName(TEXT("Flux.LinearDischarge")))
+		{
+			continue;
+		}
+		if (Units.IsValidIndex(Hit.TargetId) && Units[Hit.TargetId]
+			&& Units[Hit.TargetId]->HasStatus(TAG_Status_Wet))
+		{
+			Hit.Power = URTCombatLibrary::EffectiveAttackPower(Hit.Power, URTCombatLibrary::FluxWetDischargeBonus);
+		}
+	}
+
 	// Gli stati che valgono sul PRIMO danno diretto entrano qui come un delta per bersaglio: `Status.Exposed`
 	// (chi ha scattato allo scoperto) somma +5, `Status.Guarded` (chi si e' messo in guardia) sottrae 15.
 	// Valgono una volta sola, quindi il totale non dipende da quale colpo se li prenda; chi e' esposto E in
@@ -1470,6 +1627,10 @@ void ARTTurnManager::ResolveCombat()
 				switch (Event.Kind)
 				{
 				case ERTActionEffect::Status:
+					// `Status.Marked` NO: l'ha gia' applicato il pass a priorita' qui sopra, che ne conosce
+					// anche la squadra. Riapplicarlo ora rimetterebbe in piedi un marchio appena speso —
+					// e senza provenienza, quindi inutilizzabile ma visibile nell'HUD.
+					if (Event.StatusTag == TAG_Status_Marked) { break; }
 					StatusTargets.Add(Victim);
 					StatusTags.Add(Event.StatusTag);
 					StatusDurations.Add(Event.Amount);

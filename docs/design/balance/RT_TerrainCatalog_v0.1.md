@@ -77,7 +77,7 @@ bonus visuale.
 
 | Stato | Origine | Effetto | Durata |
 |---|---|---|---|
-| `Wet` | acqua bassa, `CreateWater`, Riva | conduce elettricità, rimuove `Burning` | finché sulla cella / dichiarata dall'effetto |
+| `Wet` | acqua bassa, `CreateWater`, Riva | conduce elettricità, rimuove `Burning` | finché sulla cella / **1 turno** se applicato da un'abilità (CP 8.2) |
 | `Burning` | fuoco, `Ignite` | 8 danni nel Cleanup | 2 turni, rimosso da `Wet` |
 | `Electrified` | propagazione elettrica | danno dell'evento | istantaneo (una sola volta per evento) |
 | `Obscured` | fumo | targeting limitato a 2 celle | finché nel fumo |
@@ -120,6 +120,7 @@ grafo** (invalidazione delle cache di percorso).
 | 3 | Ghiaccio con scivolamento obbligatorio | Marcato come **rimandabile** | È il PDF stesso a dirlo; lo scivolamento crea movimento non pianificato dentro la risoluzione |
 | 4 | Coperture come proprietà di cella | Coperture **direzionali per bordo** | Coerente con ADR-0002 (6 lati) e con la protezione «non da altre direzioni» del PDF stesso |
 
-**Non specificato nel PDF** (da decidere in E8/E9): riduzione esatta della LOS attraverso il fuoco · durata di
-`Wet` fuori dall'acqua · comportamento del ghiaccio quando due unità scivolano nella stessa cella · se la
-copertura bassa protegga anche dai `Push`.
+**Non specificato nel PDF** (da decidere in E8/E9): riduzione esatta della LOS attraverso il fuoco ·
+~~durata di `Wet` fuori dall'acqua~~ **deciso al CP 8.2: 1 turno**, il valore che il catalogo eroi dichiarava
+già per `Riva.PressureJet` e `Riva.CircularTide` · comportamento del ghiaccio quando due unità scivolano nella
+stessa cella · se la copertura bassa protegga anche dai `Push`.

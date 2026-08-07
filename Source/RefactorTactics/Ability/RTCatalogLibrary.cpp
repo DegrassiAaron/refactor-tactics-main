@@ -376,6 +376,9 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// `MarkTarget` — nessun danno proprio: applica `Status.Marked` per un turno, e il prossimo attacco
 	// alleato contro quel bersaglio infligge +6 e consuma il marchio. Priorita' 40, la piu' bassa delle
 	// offensive, perche' un marchio che arrivasse dopo i colpi non servirebbe a nulla.
+	// `Range 0` = **portata del portatore**, come `Action.PrecisionAttack` («range dell'arma +1», catalogo §3):
+	// non e' un'azione a portata nulla. La traduzione la fa `ARTTurnManager` sull'istanza (CP 8.2), che prima
+	// copriva le sole azioni non catalogate e lasciava quindi queste due invalidabili per fuori portata.
 	Catalog.Add(ShippedAction(TEXT("Action.MarkTarget"), ERTResolutionPhase::Attack, /*Priority*/ 40,
 		/*Range*/ 0, /*Cooldown*/ 1, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Marked, /*Turni*/ 1) }));

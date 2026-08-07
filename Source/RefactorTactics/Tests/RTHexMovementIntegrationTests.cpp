@@ -4,6 +4,7 @@
 #include "Unit/RTUnit.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Combat/RTCombatLibrary.h"
 #include "Core/RTGameplayTags.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
@@ -475,7 +476,9 @@ bool FRTIceSlidesInMatchTest::RunTest(const FString&)
 		Mover->GetActorLocation().Equals(Mover->WorldForCell(Mover->Cell, FVector::ZeroVector, 100.f, 250.f), 1.0f));
 	// Ghiaccio -> Fuoco: la cella in cui si SCIVOLA brucia come quella in cui si entra camminando. Nessuno ha
 	// scritto la regola "ghiaccio piu' fuoco": e' la conseguenza di due terreni indipendenti sullo stesso path.
-	TestEqual(TEXT("10 danni dal Fuoco nella cella di arrivo della scivolata"), Mover->Health, StartHealth - 10);
+	// Il turno intero, non il solo ingresso: 10 dal Fuoco + gli 8 di `Status.Burning` nel Cleanup (CP 8.2).
+	TestEqual(TEXT("10 danni dal Fuoco nella cella di arrivo della scivolata, piu' Burning"),
+		Mover->Health, StartHealth - 10 - URTCombatLibrary::BurningCleanupDamage);
 	TestTrue(TEXT("Burning applicato dalla cella scivolata"), Mover->HasStatus(TAG_Status_Burning));
 
 	// Controprova: stesso ghiaccio, budget residuo insufficiente. Arrivo su (4,0) costa 4 dei 5 MP: resta 1,
@@ -520,7 +523,9 @@ bool FRTTerrainFireDamagesAndBurnsOnEnterTest::RunTest(const FString&)
 	RunTurn(TM);
 
 	TestTrue(TEXT("il fuoco non ferma il movimento: arriva a destinazione"), Mover->Cell == FRTCellId(2, 0));
-	TestEqual(TEXT("10 danni dal Fuoco"), Mover->Health, StartHealth - 10);
+	// 10 all'ingresso (CP 8.1) + 8 di `Status.Burning` nel Cleanup (CP 8.2): il turno costa 18 in tutto.
+	TestEqual(TEXT("10 danni dal Fuoco, piu' gli 8 di Burning nel Cleanup"),
+		Mover->Health, StartHealth - 10 - URTCombatLibrary::BurningCleanupDamage);
 	TestTrue(TEXT("Burning applicato"), Mover->HasStatus(TAG_Status_Burning));
 
 	DestroyHexMoveWorld(World);
@@ -563,7 +568,8 @@ bool FRTTerrainFireDamagesOnDashTest::RunTest(const FString&)
 	RunTurn(TM);
 
 	TestTrue(TEXT("lo scatto arriva a destinazione attraversando il fuoco"), Runner->Cell == FRTCellId(3, 0));
-	TestEqual(TEXT("10 danni dal Fuoco anche in scatto"), Runner->Health, StartHealth - 10);
+	TestEqual(TEXT("10 danni dal Fuoco anche in scatto, piu' Burning nel Cleanup"),
+		Runner->Health, StartHealth - 10 - URTCombatLibrary::BurningCleanupDamage);
 	TestTrue(TEXT("Burning applicato anche in scatto"), Runner->HasStatus(TAG_Status_Burning));
 
 	DestroyHexMoveWorld(World);
@@ -601,9 +607,12 @@ bool FRTTerrainFireErodesTemporaryShieldTest::RunTest(const FString&)
 
 	RunTurn(TM);
 
-	TestEqual(TEXT("gli HP non calano: i 10 danni li assorbe lo scudo"), Mover->Health, StartHealth);
-	// 25 - 10 = 15, di cui 0 temporanei (i 5 sono stati consumati per primi): il Cleanup non ne toglie altri.
-	TestEqual(TEXT("resta lo scudo BASE non consumato, non uno in meno"), Mover->Shield, 15);
+	TestEqual(TEXT("gli HP non calano: il danno del terreno lo assorbe lo scudo"), Mover->Health, StartHealth);
+	// 25 - 10 (ingresso) - 8 (Burning nel Cleanup, CP 8.2) = 7, tutti di scudo BASE: i 5 temporanei sono stati
+	// consumati per primi, quindi ExpireTemporaryShield non ne toglie altri. Anche il danno ambientale del
+	// Cleanup passa dalla stessa contabilita': se ne saltasse una, questo numero sarebbe 12 o 2, non 7.
+	TestEqual(TEXT("resta lo scudo BASE non consumato, non uno in meno"),
+		Mover->Shield, 25 - 10 - URTCombatLibrary::BurningCleanupDamage);
 
 	DestroyHexMoveWorld(World);
 	return true;
@@ -615,11 +624,14 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTerrainStatusLogMatchesStateTest,
 bool FRTTerrainStatusLogMatchesStateTest::RunTest(const FString&)
 {
 	// Il combat log non deve raccontare cose non successe: se dice "Status.Wet da terreno", l'unita' deve
-	// avere Wet. Oggi l'acqua bassa dichiara Wet con durata 0 e ARTUnit::ApplyStatus scarta le durate <= 0,
-	// quindi non si applica nulla e non si deve loggare nulla.
+	// essere stata bagnata davvero.
 	//
-	// L'asserzione e' volutamente una COERENZA (log <-> stato), non "Wet non c'e'": quando il catalogo dara' a
-	// Wet una durata valida (CP 8.2) questo test deve continuare a passare, non diventare un falso allarme.
+	// RISCRITTO AL CP 8.2. La versione precedente confrontava `bLoggedWet == HasStatus(Wet)` a fine turno, e
+	// passava perche' erano entrambi FALSI: `Wet` aveva durata 0 e ApplyStatus scartava le durate <= 0.
+	// Ora l'acqua bagna davvero e il Cleanup revoca lo stato a chi ne e' uscito, quindi log e stato finale si
+	// riferiscono a due ISTANTI diversi e l'uguaglianza non e' piu' la proprieta' giusta: chi attraversa
+	// l'acqua viene bagnato (il log dice il vero) e poi si asciuga (lo stato finale e' assente).
+	// Il test copre entrambi gli esiti, cosi' non torna a essere una coerenza fra due assenze.
 	UWorld* World = MakeHexMoveWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	ARTHexMapActor* MapActor = SpawnHexMap(World, /*Radius=*/ 4);
@@ -630,18 +642,21 @@ bool FRTTerrainStatusLogMatchesStateTest::RunTest(const FString&)
 	MapActor->MapAsset->SortCells();
 
 	ARTUnit* Mover = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	// Il test dura due turni: senza un avversario vivo il primo Cleanup dichiara vinta la partita
+	// (`EvaluateOutcome(1, 0)`) e il secondo turno non verrebbe mai risolto. Sta fuori portata e fermo.
+	ARTUnit* Foe = SpawnHexUnit(World, 1, ERTArchetype::Guardian, FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TM || !Mover) { DestroyHexMoveWorld(World); return false; }
+	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
 
+	Foe->PlannedAbilityIndex = INDEX_NONE;
+	Foe->PlannedCell = Foe->Cell;
 	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) };
 	Mover->PlannedCell = FRTCellId(2, 0);
 
 	RunTurn(TM);
 
-	// ANCORAGGIO: la coerenza qui sotto e' `false == false`, quindi passerebbe anche se l'unita' non fosse mai
-	// arrivata all'acqua e ApplyTerrainOnEnterEffects non fosse mai stata chiamata. Prima si verifica che il
-	// movimento sia davvero avvenuto ATTRAVERSO la cella d'acqua, altrimenti il test passa per il motivo
-	// sbagliato e smetterebbe di sorvegliare il log.
+	// ANCORAGGIO: senza questo, il test passerebbe anche se l'unita' non fosse mai arrivata all'acqua e
+	// ApplyTerrainOnEnterEffects non fosse mai stata chiamata.
 	if (!TestTrue(TEXT("il Move e' davvero passato dall'acqua bassa e ha raggiunto la destinazione"),
 		Mover->Cell == FRTCellId(2, 0)))
 	{
@@ -649,12 +664,38 @@ bool FRTTerrainStatusLogMatchesStateTest::RunTest(const FString&)
 		return false;
 	}
 
-	bool bLoggedWet = false;
-	for (const FString& Line : TM->GetRecentEvents())
+	auto LoggedWet = [](const ARTTurnManager* Manager)
 	{
-		if (Line.Contains(TEXT("da terreno")) && Line.Contains(TEXT("Wet"))) { bLoggedWet = true; }
+		for (const FString& Line : Manager->GetRecentEvents())
+		{
+			if (Line.Contains(TEXT("da terreno")) && Line.Contains(TEXT("Wet"))) { return true; }
+		}
+		return false;
+	};
+
+	// Caso "attraversa ed esce": l'evento e' avvenuto (il log lo dice) e lo stato e' stato revocato dal
+	// Cleanup, perche' la cella d'arrivo non e' acqua.
+	TestTrue(TEXT("attraversare l'acqua produce la riga di log"), LoggedWet(TM));
+	TestFalse(TEXT("chi ne e' uscito non e' piu' bagnato a fine turno"), Mover->HasStatus(TAG_Status_Wet));
+
+	// Caso "entra e resta": stessa riga di log, ma qui lo stato regge il Cleanup. Le due meta' insieme
+	// escludono sia il log bugiardo sia lo stato che non si applica mai.
+	Mover->PlannedAbilityIndex = INDEX_NONE;
+	Mover->PlannedPath = { FRTCellId(2, 0), FRTCellId(1, 0) };
+	Mover->PlannedCell = FRTCellId(1, 0);
+	Foe->PlannedAbilityIndex = INDEX_NONE;
+	Foe->PlannedPath.Reset();
+	Foe->PlannedCell = Foe->Cell;
+	RunTurn(TM);
+
+	if (!TestEqual(TEXT("il secondo turno e' stato risolto: l'unita' e' nell'acqua"), Mover->Cell, FRTCellId(1, 0)))
+	{
+		DestroyHexMoveWorld(World); // altrimenti l'asserzione sullo stato direbbe solo che il turno non e' partito
+		return false;
 	}
-	TestEqual(TEXT("il log dello stato da terreno dice il vero"), bLoggedWet, Mover->HasStatus(TAG_Status_Wet));
+
+	TestTrue(TEXT("fermarsi nell'acqua bagna, e il log lo dice"), LoggedWet(TM));
+	TestTrue(TEXT("chi resta nell'acqua e' bagnato a fine turno"), Mover->HasStatus(TAG_Status_Wet));
 
 	DestroyHexMoveWorld(World);
 	return true;

@@ -203,7 +203,14 @@ sparisce più in silenzio»).
 `bBlocksLineOfSight = false` nel catalogo (deciso: "parziale" del PDF letto come "non bloccante" finché non
 esiste un sistema di LOS graduata). Nessun nuovo meccanismo.
 
-## 6-bis. Limite scoperto in review (Task 7, 2026-08-06): `Wet`/`Obscured` sono inerti a runtime
+## 6-bis. ~~Limite~~ RISOLTO al CP 8.2 (2026-08-07): `Wet`/`Obscured` sono inerti a runtime
+
+> ✅ **Chiuso da CP 8.2** (`#65`, [`spec-stati-temporanei-cp82.md`](spec-stati-temporanei-cp82.md) §3 D1):
+> `ARTUnit::ApplyStatus` accetta ora la durata sentinella `PersistentWhileOnCell`, e
+> `ARTTurnManager::ApplyTerrainOnEnterEffects` traduce la durata 0 del catalogo in quella sentinella. La revoca
+> avviene nel Cleanup leggendo lo stesso catalogo (`URTTerrainLibrary::CellBoundStatusesFor`). Entrare in acqua
+> bassa applica `Wet` davvero, uscirne lo toglie nello stesso turno. Il testo qui sotto resta come storia della
+> scoperta.
 
 `ShallowWater.OnEnterEffects` e `Smoke.OnEnterEffects` (Task 3) dichiarano `Status.Wet`/`Status.Obscured`
 con `StatusDuration = 0` (letto come "finché sulla cella", §2.1) — ma `ARTUnit::ApplyStatus` rifiuta

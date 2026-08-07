@@ -58,6 +58,14 @@ public:
 	 */
 	static constexpr int32 GuardFirstHitReduction = 15;
 
+	/**
+	 * `Status.Burning`: 8 danni nel Cleanup, per la durata dello stato (catalogo terreni §2, CP 8.2).
+	 *
+	 * Non e' un danno diretto: `Guard`, `Brace` e `Deflect` non lo riducono (i loro delta si applicano ai
+	 * colpi del Blast), e il catalogo lo conferma escludendo `Counter` dal danno ambientale.
+	 */
+	static constexpr int32 BurningCleanupDamage = 8;
+
 	/** `Action.Guard`: spinta massima (in celle) a cui si resiste restando fermi. */
 	static constexpr int32 GuardResistedPushDistance = 1;
 

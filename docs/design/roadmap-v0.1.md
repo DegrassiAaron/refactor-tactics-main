@@ -86,8 +86,8 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 | **Finestre di reazione interattive** | — | ⏳ ADR-0004 accettato, nessun codice (E14) |
 | **Scenario showcase e golden replay** | — | ⏳ (E15) |
 
-**Suite automatica**: **325 test unici** in `Source/RefactorTactics/Tests/` (rimisurati 2026-08-07 dopo il
-merge di `#144`; la §2.1 ne registrava 324 prima di quel merge). Comando riproducibile:
+**Suite automatica**: **338 test unici** in `Source/RefactorTactics/Tests/` (rimisurati 2026-08-07 dopo
+il merge di `#144` e di CP 8.2; la §2.1 ne registrava 324 prima di quei merge). Comando riproducibile:
 
 ```bash
 grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp | tr -d '"' | sort -u | wc -l
@@ -112,7 +112,7 @@ Le due righe qui sopra **erano vere il 2026-08-05 e non lo sono più**. Misura d
 | **E4** Motore azioni | da costruire | ✅ **chiusa** (52 test) | `Actions.{OrderByPriority, PermutationInvariant, PhaseMappingRespectsAtlas}`, 6 `Fallback.*`, `Guard.*`, `Charge.*`, `Leap.*`, `Root.*`, `Interrupt.*`, `Slow.*`, `Collisions.NoPlayerIdBias` |
 | **E5** Reazioni | da costruire | ✅ **chiusa** (24 test) | `Reactions.{SingleActivation, NoResolverWait, IntentNotVisibleToEnemy}`, `Counter/Deflect/Brace/Shield/Cleanse`, 5 test `Intercept*` |
 | **E6** Roster 4 eroi | da costruire | ✅ **chiusa** (20 test) | `Heroes.{Flux,Riva,Bastion,Vektor}.MatchesCatalog`, `*.VariantTradeoff`, `RosterIsBalanced`, `SpawnFromData` |
-| **E8** Terreni | da costruire | 🟡 **parziale** | ✅ `Terrain.{CostsFromCatalog, Rough.BlocksDash, Fire.*, ShallowWater.AppliesWet, Smoke.*, Ice.*}` · ❌ nessun test `Environment.*` (CP 8.3 propagazione elettrica, CP 8.4 fuoco/acqua) |
+| **E8** Terreni | da costruire | 🟡 **parziale** | ✅ `Terrain.{CostsFromCatalog, Rough.BlocksDash, Fire.*, ShallowWater.AppliesWet, Smoke.*, Ice.*}` · ✅ **CP 8.2 chiuso 2026-08-07**: 11 test `Status.*` (durata legata alla cella, `Burning` nel Cleanup, `WetRemovesBurning`, `Marked` con pass a priorità, `Obscured`) · ❌ nessun test `Environment.*` (CP 8.3 propagazione elettrica, CP 8.4 fuoco/acqua) |
 | **E7** Equipaggiamento | pianificata | ⏳ **assente** | nessun test `Equipment.*` |
 | **E9** Coperture/strutture | pianificata | ⏳ **assente** | nessun test `Cover.*` né `Structures.*` |
 | **E10** Obiettivi | pianificata | ⏳ **assente** | nessun test `Objectives.*` né `Match.*` |
@@ -175,6 +175,14 @@ l'estrazione del micro-step; consolidando
 > `TurnManager`, mai un `KineticPanel` «showcase-only» che anticipi E9. Le sue dipendenze (E8.2–8.5, E9, E10,
 > E14) restano nelle rispettive epic: E15 aggiunge **fixture, scenario, golden replay e DoD di presentazione**.
 > Documento di scenario: [`showcase-v0.1.md`](showcase-v0.1.md).
+
+> **Tema nuovo registrato ma non pianificato (2026-08-07)**: le **Delayed Actions** — azioni dichiarate in
+> Planning che risolvono a un **boundary di fase** successivo (`EndDash`, `EndBlast`, `EndMove`) scommettendo
+> su uno stato futuro. Fonte: `docs/src/RefactorTactics_DelayedActions_PhaseWindows_Claude.md` →
+> [`brief-delayed-actions.md`](brief-delayed-actions.md), che isola il **solo** contenuto non già coperto da
+> ADR-0004 ed E13/E14. **Nessuna epic aperta**: la proposta (4 checkpoint, numero da assegnare — E15 e E16
+> sono occupate) attende una decisione di scope, perché E14 non è iniziata e il rischio di ampiezza della
+> v0.1 è già alto (§8).
 
 > **Fuori dalla v0.1, registrate qui perché esistono i documenti sorgente**: il **motore del ghiaccio**
 > (Momentum, Traction, Slide a catena, Unbalanced/Prone, integrità, rottura, ponti) descritto in

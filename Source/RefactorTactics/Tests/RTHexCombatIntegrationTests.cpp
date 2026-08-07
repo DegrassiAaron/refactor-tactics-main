@@ -9,6 +9,8 @@
 #include "Turn/RTActionFallbackLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Combat/RTCombatLibrary.h"
+#include "Core/RTGameplayTags.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 
@@ -474,6 +476,122 @@ bool FRTChargeHeadOnStopsTest::RunTest(const FString&)
 	TestTrue(TEXT("B si ferma a meta' strada, non attraversa A"), B->Cell == FRTCellId(2, 0));
 	TestEqual(TEXT("nessun danno a A: lo scontro frontale non e' un impatto riuscito"), A->Health, HealthA);
 	TestEqual(TEXT("nessun danno a B: lo scontro frontale non e' un impatto riuscito"), B->Health, HealthB);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionsAoEFriendlyFireInMatchTest,
+	"RefactorTactics.Actions.AoE.FriendlyFireInMatch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionsAoEFriendlyFireInMatchTest::RunTest(const FString&)
+{
+	// `Action.CircularAoE` dichiara `bFriendlyFire = true` (`RTCatalogLibrary.cpp:361`) e il resolver puro lo
+	// rispetta (`Actions.AoE.FriendlyFire`) — ma finora `ARTTurnManager` non copiava mai il flag nell'intento,
+	// che nasce con `bFriendlyFire = false`: in partita nessuna area ha mai colpito un alleato.
+	//
+	// Il test e' d'INTEGRAZIONE per costruzione: la versione pura passava gia' e non poteva vedere il difetto.
+	// La specifica delle Delayed Actions (§3.3) elenca la "friendly fire policy" fra i campi che ogni azione
+	// deve dichiarare in planning: se il dato c'e' ma il resolver non lo legge, la policy non esiste.
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Thrower = SpawnHexBlastUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, ERTArchetype::Guardian, FRTCellId(3, 0));
+	ARTUnit* Ally = SpawnHexBlastUnit(World, 0, ERTArchetype::Ranger, FRTCellId(2, 0)); // adiacente al centro
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Thrower || !Foe || !Ally) { DestroyHexBlastWorld(World); return false; }
+
+	URTActionData* Area = NewObject<URTActionData>(Thrower);
+	Area->Def = URTCatalogLibrary::FindCoreAction(FName(TEXT("Action.CircularAoE")));
+	Area->RangeCells = Area->Def.RangeCells;
+	Area->Shape = ERTAbilityShape::Area;
+	Area->AreaRadius = 1;
+	Area->Power = 0;
+	for (const FRTActionEffectSpec& Spec : Area->Def.Effects)
+	{
+		if (Spec.Effect == ERTActionEffect::Damage) { Area->Power = Spec.Amount; break; }
+	}
+	const int32 AreaIdx = Thrower->Abilities.Add(Area);
+
+	Foe->Shield = 0;
+	Ally->Shield = 0;
+	const int32 FoeStart = Foe->Health;
+	const int32 AllyStart = Ally->Health;
+
+	Thrower->PlannedAbilityIndex = AreaIdx;
+	Thrower->PlannedAttackTarget = Foe;
+
+	RunBlastTurn(TM);
+
+	if (!TestEqual(TEXT("premessa: il nemico al centro incassa l'area"), FoeStart - Foe->Health, Area->Power))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("l'alleato adiacente incassa il fuoco amico dichiarato dal catalogo"),
+		AllyStart - Ally->Health, Area->Power);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionsMarkTargetReachesTargetTest,
+	"RefactorTactics.Actions.MarkTarget.ReachesTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionsMarkTargetReachesTargetTest::RunTest(const FString&)
+{
+	// `Action.MarkTarget` dichiara `Range 0` = «portata del portatore» (stessa convenzione di
+	// `Action.PrecisionAttack`, «range dell'arma +1»). Il ponte che traduce quello 0 copriva pero' le sole
+	// azioni senza `ActionId`: l'istanza si validava a portata 0 e degradava sempre al fallback `Cancel`,
+	// quindi il marchio non raggiungeva mai un bersaglio distante. Corretto al CP 8.2.
+	//
+	// L'osservabile non e' il tag a fine turno (durata 1: scade nel Cleanup dello stesso turno) ma il suo
+	// EFFETTO: il +6 sul colpo dell'alleato, che arriva solo se il marchio e' stato davvero applicato.
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Marker = SpawnHexBlastUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTUnit* Ally = SpawnHexBlastUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 1));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, ERTArchetype::Guardian, FRTCellId(3, 0)); // a 3 celle dal marcatore
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Marker || !Ally || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	// Azioni dal catalogo, senza toccare le portate: e' esattamente il caso che prima non funzionava.
+	URTActionData* Mark = NewObject<URTActionData>(Marker);
+	Mark->Def = URTCatalogLibrary::FindCoreAction(FName(TEXT("Action.MarkTarget")));
+	// `MarkTarget` non fa danno: il catalogo non dichiara alcun effetto `Damage`. Il campo legacy `Power`
+	// dell'asset (default 30) e' il ripiego per le abilita' NON catalogate e va azzerato qui, altrimenti il
+	// marcatore infliggerebbe 30 danni che il catalogo non prevede.
+	Mark->Power = 0;
+	const int32 MarkIdx = Marker->Abilities.Add(Mark);
+
+	URTActionData* Shot = NewObject<URTActionData>(Ally);
+	Shot->Def = URTCatalogLibrary::FindCoreAction(FName(TEXT("Action.PrecisionAttack")));
+	Shot->Power = 0;
+	for (const FRTActionEffectSpec& Spec : Shot->Def.Effects)
+	{
+		if (Spec.Effect == ERTActionEffect::Damage) { Shot->Power = Spec.Amount; break; }
+	}
+	const int32 ShotIdx = Ally->Abilities.Add(Shot);
+
+	TestEqual(TEXT("il catalogo dichiara 0 = portata del portatore"), Mark->Def.RangeCells, 0);
+
+	Foe->Shield = 0;
+	const int32 FoeStart = Foe->Health;
+
+	Marker->PlannedAbilityIndex = MarkIdx;
+	Marker->PlannedAttackTarget = Foe;
+	Ally->PlannedAbilityIndex = ShotIdx;
+	Ally->PlannedAttackTarget = Foe;
+
+	RunBlastTurn(TM);
+
+	// 24 del colpo + 6 del marchio: il marchio e' arrivato a 3 celle, e il pass a priorita' lo ha speso.
+	TestEqual(TEXT("il marchio ha raggiunto il bersaglio distante e ha dato il suo +6"),
+		FoeStart - Foe->Health, Shot->Power + URTCombatLibrary::MarkedFirstHitBonus);
 
 	DestroyHexBlastWorld(World);
 	return true;
