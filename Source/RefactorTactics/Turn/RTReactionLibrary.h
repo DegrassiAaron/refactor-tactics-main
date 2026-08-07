@@ -56,4 +56,27 @@ public:
 	 */
 	static int32 FindTriggeringAttacker(ERTReactionTrigger Trigger, int32 SelfId,
 		const TArray<FRTHexAttackHit>& Hits, const TArray<FRTHexAttackIntent>& Intents);
+
+	/**
+	 * Il primo colpo che `SelfId` puo' INTERCETTARE (`Action.Intercept`, CP 5.3), o `INDEX_NONE`.
+	 *
+	 * Un colpo e' intercettabile quando TUTTE queste cose sono vere:
+	 * - colpisce un ALLEATO (stessa squadra) diverso da `SelfId` — non ci si interpone davanti a se stessi;
+	 * - quell'alleato e' entro `InterceptRange` celle da `SelfId` (2, dichiarato dal catalogo);
+	 * - e' un attacco DIRETTO (intento a forma `Single`): un'area non ha una traiettoria da intercettare, e il
+	 *   catalogo lo esclude esplicitamente. Il danno ambientale non passa nemmeno da qui (arriva con E8);
+	 * - la traiettoria dall'attaccante a `SelfId` e' LIBERA: ci si mette in mezzo a un colpo, non lo si
+	 *   teletrasporta addosso. Senza mappa non si intercetta (FAIL-CLOSED: non si puo' verificare la linea).
+	 *
+	 * `ExcludedHits` sono i colpi gia' reclamati da un altro intercettore nello stesso Blast: si passa avanti
+	 * invece di contendere. Con due sole unita' per squadra (v0.1) la contesa non e' raggiungibile — un alleato
+	 * colpito ne lascia al massimo uno che possa intercettare — ma il parametro tiene la funzione onesta se le
+	 * squadre crescono.
+	 *
+	 * Funzione PURA: nessun Actor, nessun UWorld. Non applica la redirezione, la trova soltanto.
+	 */
+	static int32 FindInterceptableHit(int32 SelfId, int32 InterceptRange,
+		const TArray<FRTHexAttackHit>& Hits, const TArray<FRTHexAttackIntent>& Intents,
+		const TArray<FRTHexCombatUnit>& Units, const URTHexMapAsset* Map,
+		const TSet<int32>& ExcludedHits);
 };

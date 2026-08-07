@@ -170,6 +170,11 @@ Il contrattacco entra **in coda** agli attacchi del Blast: non consuma i modific
 **Intercept** — trigger: un alleato entro **2** celle è bersagliato da un attacco diretto. L'intercettore
 **diventa** il bersaglio; la traiettoria deve essere compatibile · non intercetta AoE né hazard · una sola attivazione.
 
+> La traiettoria che deve essere libera è quella dall'attaccante **all'intercettore**, non alla vittima: ci si
+> mette in mezzo a un colpo, non lo si teletrasporta addosso. La priorità **10** — la più bassa fra le reazioni —
+> non è un dettaglio di bilanciamento: cambiando il bersaglio dei colpi, Intercept deve risolvere prima che le
+> altre reazioni valutino chi è stato colpito, altrimenti il protetto contrattaccherebbe per un colpo mai ricevuto.
+
 **Deflect** — riduce il danno diretto di **20**. Se il danno arriva a zero l'attacco è comunque considerato
 avvenuto (conta per trigger e marchi) · non riflette · non funziona contro AoE ambientali.
 
