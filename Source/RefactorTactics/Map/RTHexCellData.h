@@ -20,8 +20,52 @@ enum class ERTHexSurface : uint8
 };
 
 /**
+ * Tipo di copertura su UN bordo di cella. `High` (CP 9.2) si aggiungera' in CODA: estendere un enum non e'
+ * una migrazione di formato, inventare oggi un valore che nessuna regola sa applicare lo sarebbe.
+ */
+UENUM(BlueprintType)
+enum class ERTHexCoverType : uint8
+{
+	None,  // nessuna copertura (una voce con questo tipo e' un dato incoerente: la valida ValidateMap)
+	Low    // copertura bassa: ripara dai colpi diretti che attraversano il bordo, non blocca ne' vista ne' passo
+};
+
+/**
+ * Copertura su UNO dei sei bordi di una cella. L'array della cella e' SPARSO: solo i bordi riparati vengono
+ * serializzati, quindi una mappa senza coperture pesa e hasha esattamente come prima.
+ *
+ * La direzionalita' e' del BORDO, non dell'unita': girarsi non sposta un muretto. Il facing (ADR-0005, epic
+ * #175) e' una direzionalita' ORTOGONALE — un colpo fuori dall'arco frontale ANNULLA questa riduzione
+ * (CP 16.2), ma e' una regola additiva, non la stessa regola.
+ */
+USTRUCT(BlueprintType)
+struct FRTHexCover
+{
+	GENERATED_BODY()
+
+	/** Bordo riparato, visto DALLA cella: `W` protegge dai colpi che entrano dal vicino a ovest. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	ERTHexDirection Edge = ERTHexDirection::E;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	ERTHexCoverType Type = ERTHexCoverType::Low;
+
+	/**
+	 * Punti struttura del riparo (catalogo v0.1: 30 per la copertura bassa). Il consumatore di questo turno
+	 * e' `ValidateMap` (un riparo a 0 non e' un riparo); la DISTRUZIONE arriva con CP 9.2, che lo scalera'.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	int32 Integrity = 30;
+
+	FRTHexCover() = default;
+	explicit FRTHexCover(ERTHexDirection InEdge, ERTHexCoverType InType = ERTHexCoverType::Low,
+		int32 InIntegrity = 30)
+		: Edge(InEdge), Type(InType), Integrity(InIntegrity) {}
+};
+
+/**
  * Dato compatto e AUTOREVOLE di una cella esagonale (serializzato nell'asset mappa). Nessun Actor per cella.
- * Estendibile in milestone successive (cover direzionale, hazard, Gameplay Tags, interazioni) senza rompere il formato.
+ * Estendibile in milestone successive (hazard, Gameplay Tags, interazioni) senza rompere il formato.
  */
 USTRUCT(BlueprintType)
 struct FRTHexCellData
@@ -47,6 +91,23 @@ struct FRTHexCellData
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
 	bool bBlocksLineOfSight = false;
+
+	/**
+	 * Coperture per bordo (0..6 voci, al massimo una per bordo). Sparso: le celle scoperte — la quasi
+	 * totalita' di una mappa — non pagano nulla. Formato v3.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	TArray<FRTHexCover> Covers;
+
+	/** Tipo di copertura sul bordo indicato (`None` se il bordo e' scoperto). */
+	ERTHexCoverType CoverOn(ERTHexDirection Edge) const
+	{
+		for (const FRTHexCover& Cover : Covers)
+		{
+			if (Cover.Edge == Edge) { return Cover.Type; }
+		}
+		return ERTHexCoverType::None;
+	}
 
 	FRTHexCellData() = default;
 	explicit FRTHexCellData(const FRTCellId& InId) : Id(InId) {}
