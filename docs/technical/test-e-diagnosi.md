@@ -125,6 +125,7 @@ File in `Scenarios/<Categoria>/<Nome>.json`. **L'ID è il percorso**: `Movement.
 |---|---|
 | `scenarioId` | ID gerarchico, **deve** corrispondere al percorso del file |
 | `mapRadius` | arena esagonale piena generata da codice (nessun `.umap` da versionare) |
+| `cells` | *(opzionale)* celle da modificare: `blocksMovement`, `blocksLineOfSight`, `moveCost` |
 | `hero` | ID stabile dal catalogo: `Hero.Flux` · `Hero.Riva` · `Hero.Bastion` · `Hero.Vektor` |
 | `cell` | `[q, r]` oppure `[q, r, layer]` — il layer è opzionale e vale 0 |
 | `move` | lista di **waypoint**, come li produrrebbe il giocatore cliccando |
@@ -145,6 +146,36 @@ già dichiararlo. Viene registrato nel report.
 
 Sono **due** di proposito: si aggiungono quando servono, non prima. Il modello dati regge le altre senza
 modifiche strutturali.
+
+### Ostacoli e terreno
+
+Per gli scenari che hanno bisogno di un muro o di terreno costoso, `cells` modifica l'arena generata senza
+versionare un `.umap`:
+
+```json
+"cells": [
+  { "cell": [0, 0, 0], "blocksMovement": true },
+  { "cell": [1, 0, 0], "moveCost": 3 },
+  { "cell": [2, 0, 0], "blocksLineOfSight": true }
+]
+```
+
+Le celle non elencate restano pavimento a costo 1. Due controlli evitano scenari privi di senso: una cella
+modificata **fuori dall'arena** (un ostacolo che non blocca niente) e un'unità che **parte dentro un
+ostacolo** (una situazione che il gioco non produrrebbe mai) vengono rifiutate con `ERROR`.
+
+> ⚠️ **Coordinate assiali**: il raggio limita anche `r`. Su un'arena di raggio 3, per `q = -1` le `r` valide
+> vanno da **−2 a 3**, non da −3 a 3. Sforare produce «cella fuori dall'arena» — succede facilmente quando si
+> genera un muro con un ciclo.
+
+### Scenari disponibili
+
+| ID | Verifica |
+|---|---|
+| `Movement.Basic` | l'unità raggiunge la cella adiacente pianificata |
+| `Movement.BasicFailsOnPurpose` | **FAIL voluto**: dimostra che il report diagnostica invece di dire solo «fallito» |
+| `Movement.Blocked` | un muro rende il percorso impossibile: il piano è rifiutato, l'unità resta ferma, il turno si chiude lo stesso |
+| `Movement.Collision` | due unità verso la stessa cella si fermano **entrambe** |
 
 ### Limiti della prima iterazione
 
