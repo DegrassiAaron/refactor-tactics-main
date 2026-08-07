@@ -250,4 +250,56 @@ bool FRTMovementCatalogTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Guardia contro il buco di #142: `ERTMovementStyle` ha `None` come default, quindi un'azione di mobilita'
+ * che si dimentica di dichiararlo NON e' un errore di compilazione — e' uno scatto che, in silenzio, torna a
+ * usare il pathfinding del movimento normale (aggira gli ostacoli, attraversa `Rough`, sale di layer).
+ *
+ * La regola vale per ENTRAMBI i cataloghi, non solo per quello generico: le azioni degli archetipi
+ * (`GetShippedActionCatalog`) sono quelle che il gioco assegna davvero, ed erano proprio loro a mancare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFastMovementDeclaresStyleTest,
+	"RefactorTactics.Actions.EveryFastMovementDeclaresStyle",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFastMovementDeclaresStyleTest::RunTest(const FString&)
+{
+	TArray<FRTActionDef> All = URTCatalogLibrary::GetCoreActionCatalog();
+	All.Append(URTCatalogLibrary::GetShippedActionCatalog());
+
+	int32 FastMovers = 0;
+	for (const FRTActionDef& Def : All)
+	{
+		if (URTCatalogLibrary::MapResolutionPhase(Def.ResolutionPhase) != ERTMatchPhase::Dash)
+		{
+			continue;
+		}
+		++FastMovers;
+		TestTrue(FString::Printf(TEXT("%s risolve nel Dash: deve dichiarare COME si sposta"), *Def.ActionId.ToString()),
+			Def.MovementStyle != ERTMovementStyle::None);
+	}
+
+	// Se il filtro non trovasse nulla, il test passerebbe senza provare niente.
+	TestTrue(TEXT("il catalogo contiene mobilita' rapide da verificare"), FastMovers > 0);
+
+	// Gli scatti degli archetipi sono LINEARI come le mobilita' omologhe del catalogo generico: e' il
+	// comportamento che CP 4.5 ha introdotto e che il default `None` stava annullando.
+	const FRTActionDef RangerDash = URTCatalogLibrary::FindShippedAction(TEXT("Ranger.Dash"));
+	TestTrue(TEXT("Ranger.Dash e' uno scatto lineare"), RangerDash.MovementStyle == ERTMovementStyle::LinearDash);
+
+	const FRTActionDef GuardianCharge = URTCatalogLibrary::FindShippedAction(TEXT("Guardian.Charge"));
+	TestTrue(TEXT("Guardian.Charge e' una carica"), GuardianCharge.MovementStyle == ERTMovementStyle::LinearCharge);
+
+	// Una carica si ferma ADDOSSO al nemico: senza effetti dichiarati l'impatto sarebbe un contatto da zero
+	// danni, cioe' una carica che non carica. Stessi numeri di `Action.Charge` (e' la stessa azione).
+	TestEqual(TEXT("Guardian.Charge dichiara due effetti"), GuardianCharge.Effects.Num(), 2);
+	if (GuardianCharge.Effects.Num() == 2)
+	{
+		TestTrue(TEXT("20 danni d'impatto"),
+			GuardianCharge.Effects[0].Effect == ERTActionEffect::Damage && GuardianCharge.Effects[0].Amount == 20);
+		TestTrue(TEXT("e una spinta di 1"),
+			GuardianCharge.Effects[1].Effect == ERTActionEffect::Push && GuardianCharge.Effects[1].Amount == 1);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

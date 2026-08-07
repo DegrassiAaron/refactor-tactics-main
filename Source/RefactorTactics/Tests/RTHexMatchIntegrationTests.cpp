@@ -9,6 +9,8 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
 #include "Ability/RTActionData.h"
+#include "Ability/RTCatalogLibrary.h"
+#include "Turn/RTMovementActionLibrary.h"
 #include "Map/RTHexVisionLibrary.h"
 #include "Pathfinding/RTHexPathLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
@@ -420,12 +422,13 @@ bool FRTHexClimbViaTransitionTest::RunTest(const FString&)
 }
 
 /**
- * Lo scatto non entra in una cella che blocca il movimento: la destinazione viene rifiutata e l'unita' resta.
- * Copre headless la parte verificabile di PIE-V01-DASHCOVER.
+ * Lo scatto non entra in una cella che blocca il movimento: si FERMA nell'ultima cella libera della
+ * traiettoria (`Fallback.Stop`). Copre headless la parte verificabile di PIE-V01-DASHCOVER.
  *
- * Nota di scope: qui si verifica il comportamento ATTUALE (lo scatto usa l'A* sul grafo, quindi aggira gli
- * ostacoli). Il catalogo v0.1 vuole uno scatto LINEARE che non attraversa muri: e' la migrazione di CP 4.5
- * (issue #46) e va verificata quando c'e', non asserita qui in anticipo.
+ * Aggiornato con #142: da quando `Ranger.Dash` dichiara `LinearDash`, lo scatto non passa piu' dall'A' sul
+ * grafo, quindi il muro non si aggira. Il test asseriva «l'unita' resta dov'era» e partiva da (2,3), che sulla
+ * mappa di prova (esagono di raggio 4) **non esiste**: l'unita' restava ferma perche' il pathfinding falliva
+ * sempre, non perche' la cella fosse bloccata. Ora la partenza e' una cella vera e la traiettoria e' reale.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexDashBlockedTest,
 	"RefactorTactics.HexMove.DashRefusesBlockedDestination",
@@ -440,13 +443,21 @@ bool FRTHexDashBlockedTest::RunTest(const FString&)
 	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
 	MapActor->MapAsset = Arena;
 
-	// (2,1) e' uno degli ostacoli della mappa di prova.
+	// (2,1) e' uno degli ostacoli della mappa di prova. Da (0,3) ci si arriva in LINEA (direzione q+1/r-1) in
+	// due celle: la prima, (1,2), e' libera — e' li' che lo scatto deve fermarsi.
 	const FRTCellId Blocked(2, 1, 0);
+	const FRTCellId From(0, 3, 0);
+	const FRTCellId LastFree(1, 2, 0);
 	const FRTHexCellData* BlockedData = Arena->FindCell(Blocked);
 	TestTrue(TEXT("premessa: la cella di prova blocca il movimento"),
 		BlockedData != nullptr && BlockedData->bBlocksMovement);
 
-	const FRTCellId From(2, 3, 0);
+	// Premessa che mancava: senza celle vere il test misurerebbe un pathfinding fallito, non un muro.
+	TestTrue(TEXT("premessa: la cella di partenza esiste"), Arena->ContainsCell(From));
+	const FRTHexCellData* FreeData = Arena->FindCell(LastFree);
+	TestTrue(TEXT("premessa: la cella intermedia esiste ed e' libera"),
+		FreeData != nullptr && !FreeData->bBlocksMovement);
+
 	ARTUnit* Dasher = SpawnHexMatchUnit(World, 0, ERTArchetype::Ranger, From);
 	ARTUnit* Idle   = SpawnHexMatchUnit(World, 1, ERTArchetype::Guardian, FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
@@ -458,16 +469,71 @@ bool FRTHexDashBlockedTest::RunTest(const FString&)
 	const int32 DashIdx = 3;
 	const URTActionData* Dash = Dasher->GetAbility(DashIdx);
 	if (!TestNotNull(TEXT("premessa: il Ranger ha lo scatto"), (void*)Dash)) { DestroyHexMatchWorld(World); return false; }
-	TestTrue(TEXT("premessa: e' un'abilita' di mobilita' rapida"), Dash->bDash);
+	TestTrue(TEXT("premessa: e' un'abilita' di mobilita' rapida"),
+		URTCatalogLibrary::IsFastMovement(Dash->Def));
+	TestTrue(TEXT("premessa: ed e' LINEARE (altrimenti il muro si aggirerebbe)"),
+		URTMovementActionLibrary::IsLinear(Dash->Def.MovementStyle));
 	TestTrue(TEXT("premessa: la cella bloccata e' entro la portata dello scatto"),
-		URTHexLibrary::HexDistance(From, Blocked) <= Dash->RangeCells);
+		URTHexLibrary::HexDistance(From, Blocked) <= Dash->Def.RangeCells);
 
 	Dasher->PlannedDashAbility = DashIdx;
 	Dasher->PlannedDashCell = Blocked;
 	PlayOneTurn(TM);
 
 	TestTrue(TEXT("lo scatto non entra nella cella bloccata"), Dasher->Cell != Blocked);
-	TestEqual(TEXT("l'unita' resta dov'era"), Dasher->Cell.ToString(), From.ToString());
+	// `Fallback.Stop`: ci si ferma nell'ultima cella valida della traiettoria, non si annulla e non si aggira.
+	TestEqual(TEXT("si ferma davanti al muro"), Dasher->Cell.ToString(), LastFree.ToString());
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
+/**
+ * La Carica del Guardian e' una CARICA, non uno scatto qualsiasi: percorre una linea retta, si ferma addosso
+ * al primo nemico che incontra e lo colpisce nel Blast (20 danni piu' una spinta di 1).
+ *
+ * Fino a #142 `Guardian.Charge` non dichiarava lo stile di movimento, quindi la fase Dash la instradava sul
+ * pathfinding normale: il Guardian AGGIRAVA il nemico e arrivava sulla cella chiesta senza colpirlo. Questo
+ * test guarda l'esito di un turno vero — posizione finale, danno, spinta — non il contenuto del catalogo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexGuardianChargeImpactTest,
+	"RefactorTactics.HexMatch.GuardianChargeStopsOnEnemyAndHits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexGuardianChargeImpactTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMatchMap(World, /*Radius=*/ 5);
+
+	// Guardian e bersaglio allineati sull'asse q: fra loro due celle libere, poi il nemico.
+	ARTUnit* Charger = SpawnHexMatchUnit(World, 0, ERTArchetype::Guardian, FRTCellId(0, 0));
+	ARTUnit* Target  = SpawnHexMatchUnit(World, 1, ERTArchetype::Ranger,   FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Charger || !Target) { DestroyHexMatchWorld(World); return false; }
+	Charger->bIsBotControlled = false; // i piani li scrive il test, non l'utility del bot
+	Target->bIsBotControlled = false;
+
+	// La Carica e' la quarta abilita' del Guardian (indice 3).
+	const int32 ChargeIdx = 3;
+	const URTActionData* Charge = Charger->GetAbility(ChargeIdx);
+	if (!TestNotNull(TEXT("premessa: il Guardian ha la Carica"), (void*)Charge))
+	{
+		DestroyHexMatchWorld(World); return false;
+	}
+	TestTrue(TEXT("premessa: e' `Guardian.Charge`"), Charge->Def.ActionId == FName(TEXT("Guardian.Charge")));
+	TestTrue(TEXT("premessa: dichiara lo stile carica"), Charge->Def.MovementStyle == ERTMovementStyle::LinearCharge);
+
+	const int32 HealthBefore = Target->Health;
+	Charger->PlannedDashAbility = ChargeIdx;
+	Charger->PlannedDashCell = Target->Cell; // si carica CONTRO il nemico
+	PlayOneTurn(TM);
+
+	// Si ferma ADDOSSO: adiacente al bersaglio, non sopra e non oltre.
+	TestEqual(TEXT("il Guardian si ferma davanti al nemico"), Charger->Cell.ToString(), FRTCellId(2, 0, 0).ToString());
+
+	// E colpisce: gli effetti della carica sono dati del catalogo, applicati nel Blast (codice 20/30).
+	TestEqual(TEXT("l'impatto toglie 20 punti vita"), Target->Health, HealthBefore - 20);
+	TestEqual(TEXT("e spinge il bersaglio di una cella"), Target->Cell.ToString(), FRTCellId(4, 0, 0).ToString());
 
 	DestroyHexMatchWorld(World);
 	return true;

@@ -171,7 +171,12 @@ void ARTTurnManager::PlanBots()
 			for (int32 a = 0; a < Other->NumAbilities(); ++a)
 			{
 				const URTActionData* EAb = Other->GetAbility(a);
-				if (EAb && !EAb->bDash) { EnemyReach = FMath::Max(EnemyReach, EAb->RangeCells); }
+				// La minaccia e' cio' che il nemico puo' COLPIRE: una mobilita' rapida sposta, non fa danno a
+				// distanza, e contarla gonfierebbe la portata percepita di ogni eroe che ne ha una.
+				if (EAb && !URTCatalogLibrary::IsFastMovement(EAb->Def))
+				{
+					EnemyReach = FMath::Max(EnemyReach, EAb->RangeCells);
+				}
 			}
 			Ctx.Enemies.Add(Other->Cell);
 			Ctx.EnemyRanges.Add(EnemyReach);
@@ -189,7 +194,7 @@ void ARTTurnManager::PlanBots()
 		// Scatto disponibile per questo turno (serve sia alla fuga sia alle candidate di riposizionamento).
 		const int32 DashIdx = Bot->FindDashAbilityIndex();
 		const URTActionData* DashAb = Bot->GetAbility(DashIdx);
-		const bool bDashReady = DashAb && DashAb->bDash && Bot->CanUseAbility(DashIdx);
+		const bool bDashReady = DashAb && URTCatalogLibrary::IsFastMovement(DashAb->Def) && Bot->CanUseAbility(DashIdx);
 
 		// Portata dello scatto letta come la legge ResolveDash: dal CATALOGO se l'azione ne fa parte,
 		// altrimenti dal campo legacy dell'asset. Se il bot leggesse un numero diverso da quello che il
@@ -241,10 +246,9 @@ void ARTTurnManager::PlanBots()
 		// grafo da cui le candidate sono nate — quindi li' non c'e' nulla da filtrare, e applicare il filtro
 		// lineare scarterebbe mosse perfettamente legali.
 		//
-		// Resta divergente il GATE "questa e' un'azione di scatto": qui `FindDashAbilityIndex` cerca il flag
-		// legacy `bDash`, mentre ResolveDash accetta anche la sola fase `FastMovement` dichiarata dal
-		// catalogo. Conseguenza: le abilita' degli eroi (che dichiarano la fase ma non il flag) non vengono
-		// mai pianificate come scatto dal bot. E' preesistente e tracciato in #142, non introdotto qui.
+		// Anche il GATE "questa e' un'azione di scatto" e' lo stesso (#142): `URTCatalogLibrary::IsFastMovement`
+		// legge la fase del catalogo, qui come in ResolveDash. Prima le due risposte divergevano e le azioni
+		// degli eroi — che dichiarano la fase e nient'altro — non venivano mai pianificate come scatto.
 		auto IsDashReachable = [&](const FRTHexSnapshot& Snap, const FRTCellId& Goal) -> bool
 		{
 			if (!URTMovementActionLibrary::IsLinear(DashStyle))
@@ -320,7 +324,8 @@ void ARTTurnManager::PlanBots()
 		for (int32 A = 0; A < Bot->NumAbilities(); ++A)
 		{
 			const URTActionData* Ability = Bot->GetAbility(A);
-			if (!Ability || Ability->bDash || Ability->bSelfTarget || !Bot->CanUseAbility(A)) { continue; }
+			if (!Ability || URTCatalogLibrary::IsFastMovement(Ability->Def) || Ability->bSelfTarget
+				|| !Bot->CanUseAbility(A)) { continue; }
 			AddCandidates(StaySnapshot, A, Ability->RangeCells, Ability->Power, /*bViaDash*/ false, /*bAttacksOnly*/ true);
 		}
 
@@ -330,7 +335,8 @@ void ARTTurnManager::PlanBots()
 			for (int32 A = 0; A < Bot->NumAbilities(); ++A)
 			{
 				const URTActionData* Ability = Bot->GetAbility(A);
-				if (!Ability || Ability->bDash || Ability->bSelfTarget || !Bot->CanUseAbility(A)) { continue; }
+				if (!Ability || URTCatalogLibrary::IsFastMovement(Ability->Def) || Ability->bSelfTarget
+					|| !Bot->CanUseAbility(A)) { continue; }
 				AddCandidates(DashSnapshot, A, Ability->RangeCells, Ability->Power, /*bViaDash*/ true, /*bAttacksOnly*/ true);
 			}
 			// 4) Scatto per riposizionarsi (senza tiro): utile per chiudere in fretta la distanza.
@@ -694,10 +700,10 @@ void ARTTurnManager::ResolveDash()
 		Unit->PlannedDashAbility = INDEX_NONE; // consumato per questo turno (valido o no)
 		const URTActionData* Dash = Unit->GetAbility(DashIdx);
 
-		// Mobilita' rapida: lo dichiara il CATALOGO (fase FastMovement -> macro-fase Dash). Il flag legacy
-		// `bDash` resta accettato per le abilita' non ancora catalogate; sparisce con la migrazione di CP 4.5.
-		const bool bFastMovement = Dash != nullptr && (Dash->bDash
-			|| URTCatalogLibrary::MapResolutionPhase(Dash->Def.ResolutionPhase) == ERTMatchPhase::Dash);
+		// Mobilita' rapida: lo dichiara il CATALOGO (fase FastMovement -> macro-fase Dash) e nient'altro. Il
+		// flag legacy `bDash` non esiste piu' (#142): era la seconda risposta alla stessa domanda, e chi
+		// leggeva l'una non vedeva le azioni dichiarate solo con l'altra.
+		const bool bFastMovement = Dash != nullptr && URTCatalogLibrary::IsFastMovement(Dash->Def);
 		if (!bFastMovement || !Unit->CanUseAbility(DashIdx) || Unit->PlannedDashCell == Unit->Cell)
 		{
 			continue;
@@ -970,7 +976,7 @@ void ARTTurnManager::ResolveCombat()
 		Unit->PlannedAbilityIndex = INDEX_NONE;
 
 		const URTActionData* Ability = Unit->GetAbility(AbilityIndex);
-		if (!Ability || Ability->bDash || !Unit->CanUseAbility(AbilityIndex))
+		if (!Ability || URTCatalogLibrary::IsFastMovement(Ability->Def) || !Unit->CanUseAbility(AbilityIndex))
 		{
 			continue; // nessuna azione di Blast pianificata: non c'e' un'azione da far fallire
 		}

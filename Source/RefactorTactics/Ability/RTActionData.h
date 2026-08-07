@@ -141,14 +141,6 @@ public:
 	bool bIgnites = false;
 
 	/**
-	 * Abilita' di SCATTO (fase Dash): non attacca, sposta l'unita' fino a RangeCells celle (pathfinding),
-	 * risolta PRIMA del Blast — ci si riposiziona prima che gli attacchi colpiscano. Gated da CooldownTurns.
-	 * Compatibile col movimento normale del turno (scatto + move).
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
-	bool bDash = false;
-
-	/**
 	 * Configurazioni alternative di QUESTA abilita' (0, 1 o 2 secondo il catalogo eroi v0.1). Vuoto = nessuna
 	 * variante: l'abilita' esiste solo nella sua forma base. Non e' un menu di potenziamenti: due varianti si
 	 * ESCLUDONO a vicenda nel loadout, e ognuna dichiara un compromesso, mai un puro vantaggio.

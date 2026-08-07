@@ -10,6 +10,8 @@
 #include "Turn/RTHexSimLibrary.h"
 #include "Unit/RTUnit.h"
 #include "Ability/RTActionData.h"
+#include "Ability/RTCatalogLibrary.h"
+#include "Turn/RTMovementActionLibrary.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Turn/RTTurnManager.h"
 #include "Core/RTTypes.h"
@@ -43,7 +45,7 @@ namespace
 	 * False se manca il turn manager o l'unita' non e' nello snapshot (es. non viva).
 	 */
 	bool PlanningSnapshotFor(const UObject* WorldContext, const ARTUnit* Unit,
-		FRTHexSnapshot& OutSnapshot, int32& OutUnitId)
+		FRTHexSnapshot& OutSnapshot, int32& OutUnitId, TArray<ARTUnit*>* OutUnits = nullptr)
 	{
 		OutUnitId = INDEX_NONE;
 		ARTTurnManager* TurnManager = Cast<ARTTurnManager>(
@@ -56,6 +58,12 @@ namespace
 		OutSnapshot = TurnManager->MakeCurrentSnapshot(Units);
 		// L'UnitId e' l'INDICE nell'array delle unita' vive: va ricalcolato a ogni interazione, non memorizzato.
 		OutUnitId = Units.IndexOfByKey(const_cast<ARTUnit*>(Unit));
+		if (OutUnits)
+		{
+			// Gli stessi indici dello snapshot: servono a distinguere i NEMICI (che una carica colpisce) dagli
+			// ostacoli (che la fermano). `FRTHexSimUnit` non porta la squadra, quindi la si legge dagli Actor.
+			*OutUnits = MoveTemp(Units);
+		}
 		return OutUnitId != INDEX_NONE;
 	}
 
@@ -313,7 +321,7 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	{
 		const int32 AbilityIndex = SelectedUnit->SelectedAbilityIndex;
 		const URTActionData* Ability = SelectedUnit->GetAbility(AbilityIndex);
-		if (Ability && Ability->bDash)
+		if (Ability && URTCatalogLibrary::IsFastMovement(Ability->Def))
 		{
 			UE_LOG(LogRT, Log, TEXT("[RT] Lo scatto si pianifica su una CELLA, non su un nemico"));
 			return;
@@ -442,7 +450,8 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	// Stato autorevole per la validazione: lo fornisce il TurnManager, il client non se lo ricostruisce.
 	FRTHexSnapshot Snapshot;
 	int32 UnitId = INDEX_NONE;
-	if (!PlanningSnapshotFor(this, SelectedUnit, Snapshot, UnitId))
+	TArray<ARTUnit*> SnapshotUnits;
+	if (!PlanningSnapshotFor(this, SelectedUnit, Snapshot, UnitId, &SnapshotUnits))
 	{
 		UE_LOG(LogRT, Warning, TEXT("[RT] %s non e' nello snapshot: pianificazione rifiutata"), *SelectedUnit->GetName());
 		return;
@@ -452,20 +461,63 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	// invece di un waypoint di movimento normale.
 	const int32 SelIdx = SelectedUnit->SelectedAbilityIndex;
 	const URTActionData* SelAb = SelectedUnit->GetAbility(SelIdx);
-	if (SelAb && SelAb->bDash)
+	if (SelAb && URTCatalogLibrary::IsFastMovement(SelAb->Def))
 	{
 		if (!SelectedUnit->CanUseAbility(SelIdx))
 		{
 			UE_LOG(LogRT, Log, TEXT("[RT] Scatto non pronto (ricarica) per %s"), *SelectedUnit->GetName());
 			return;
 		}
-		const int32 DashRange = SelectedUnit->GetEffectiveDashRange(SelAb->RangeCells);
+		// Portata letta come la legge ResolveDash: dal CATALOGO se l'azione ne fa parte, altrimenti dal campo
+		// legacy dell'asset. Leggere un numero diverso da quello del resolver significa accettare piani che
+		// poi non si eseguono (o negarne di buoni).
+		const int32 DeclaredRange = SelAb->Def.ActionId.IsNone() ? SelAb->RangeCells : SelAb->Def.RangeCells;
+		const int32 DashRange = SelectedUnit->GetEffectiveDashRange(DeclaredRange);
 		if (DashRange <= 0)
 		{
 			// MaxCost == 0 significa "illimitato" per l'A*: il budget nullo va intercettato prima.
 			UE_LOG(LogRT, Log, TEXT("[RT] Scatto senza portata utile per %s"), *SelectedUnit->GetName());
 			return;
 		}
+
+		if (URTMovementActionLibrary::IsLinear(SelAb->Def.MovementStyle))
+		{
+			// Mobilita' LINEARE: la si valida con lo STESSO codice che la eseguira'. Con l'A* il giocatore
+			// potrebbe cliccare una cella raggiungibile solo aggirando un ostacolo: il piano verrebbe
+			// accettato, la fase Dash non muoverebbe nulla e il turno si perderebbe in silenzio.
+			TSet<int32> Hostiles;
+			for (int32 i = 0; i < SnapshotUnits.Num(); ++i)
+			{
+				const ARTUnit* Other = SnapshotUnits[i];
+				if (Other && Other->IsAlive() && Other->TeamId != SelectedUnit->TeamId) { Hostiles.Add(i); }
+			}
+
+			const FRTLinearMoveResult Linear = URTMovementActionLibrary::ResolveLinearMove(
+				Map, SelectedUnit->Cell, Cell, DashRange, SelAb->Def.MovementStyle, Snapshot.Occupancy, Hostiles);
+
+			// `Fallback.Stop` (catalogo §2): se la traiettoria si chiude ci si ferma nell'ultima cella valida,
+			// non si annulla — quindi un piano che AVANZA (o che carica addosso a un nemico) resta valido anche
+			// se non arriva fin dove si e' cliccato. Si rifiuta solo cio' che non produrrebbe nulla.
+			const bool bCharges = (Linear.Stop == ERTLinearStop::Impact);
+			if (Linear.Final == SelectedUnit->Cell && !bCharges)
+			{
+				UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d,L%d) non e' raggiungibile in LINEA (%s, max %d) per %s"),
+					Cell.X, Cell.Y, Cell.Layer,
+					Linear.Stop == ERTLinearStop::NotAligned ? TEXT("non allineata o fuori portata") : TEXT("traiettoria bloccata"),
+					DashRange, *SelectedUnit->GetName());
+				return;
+			}
+
+			SelectedUnit->PlannedDashAbility = SelIdx;
+			SelectedUnit->PlannedDashCell = Cell;
+			UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s SCATTO -> (%d,%d,L%d), si fermera' a (%d,%d,L%d)%s"),
+				*SelectedUnit->GetName(), Cell.X, Cell.Y, Cell.Layer,
+				Linear.Final.X, Linear.Final.Y, Linear.Final.Layer,
+				bCharges ? TEXT(" con impatto") : TEXT(""));
+			return;
+		}
+
+		// Mobilita' a BUDGET (`Action.Sprint`): risolve col pathfinding, quindi si valida col pathfinding.
 		const TSet<FRTCellId> Occupied = [&Snapshot, UnitId]()
 		{
 			TSet<FRTCellId> Set;

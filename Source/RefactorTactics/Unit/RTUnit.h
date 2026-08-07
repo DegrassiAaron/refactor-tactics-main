@@ -196,7 +196,11 @@ public:
 	int32 NumAbilities() const { return Abilities.Num(); }
 	URTActionData* GetAbility(int32 Index) const;
 
-	/** Indice della prima abilita' di scatto (bDash), o INDEX_NONE se l'unita' non ne ha. */
+	/**
+	 * Indice della prima azione di mobilita' RAPIDA (fase Dash del catalogo), o INDEX_NONE se l'unita' non ne
+	 * ha. Il gate e' lo stesso di `ARTTurnManager::ResolveDash`: se qui e li' rispondessero in modo diverso, il
+	 * bot pianificherebbe scatti che il resolver rifiuta — o non ne pianificherebbe affatto (#142).
+	 */
 	int32 FindDashAbilityIndex() const;
 
 	/** Vero se l'abilita' e' pronta (non in ricarica) e c'e' energia sufficiente. */

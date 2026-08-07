@@ -291,9 +291,12 @@ bool FRTCatalogMatchesAbilitiesTest::RunTest(const FString&)
 			// La fase dichiarata deve corrispondere alla natura dell'abilita': uno scatto risolve nel Dash,
 			// un supporto su se stessi nel Prep, un attacco nel Blast.
 			const ERTMatchPhase Macro = URTCatalogLibrary::MapResolutionPhase(Ability->Def.ResolutionPhase);
-			if (Ability->bDash)
+			if (URTCatalogLibrary::IsFastMovement(Ability->Def))
 			{
 				TestEqual(FString::Printf(TEXT("%s e' uno scatto -> fase Dash"), *Name), Macro, ERTMatchPhase::Dash);
+				// E dichiara COME si sposta: senza, il resolver ricadrebbe sul pathfinding normale (#142).
+				TestTrue(FString::Printf(TEXT("%s dichiara uno stile di movimento"), *Name),
+					Ability->Def.MovementStyle != ERTMovementStyle::None);
 			}
 			else if (Ability->bSelfTarget)
 			{

@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "Ability/RTActionData.h"
+#include "Ability/RTCatalogLibrary.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
@@ -113,7 +114,8 @@ bool FRTHexBotLegalMovesTest::RunTest(const FString&)
 		if (Bot->PlannedDashAbility != INDEX_NONE)
 		{
 			const URTActionData* Dash = Bot->GetAbility(Bot->PlannedDashAbility);
-			TestTrue(TEXT("lo scatto pianificato e' un'abilita' di scatto"), Dash && Dash->bDash);
+			TestTrue(TEXT("lo scatto pianificato e' un'abilita' di scatto"),
+				Dash && URTCatalogLibrary::IsFastMovement(Dash->Def));
 			TestTrue(TEXT("la cella di scatto esiste nella mappa"), Map->ContainsCell(Bot->PlannedDashCell));
 			TestTrue(TEXT("la cella di scatto e' entro la portata dello scatto"),
 				Dash && URTHexLibrary::HexDistance(Bot->Cell, Bot->PlannedDashCell) <= Bot->GetEffectiveDashRange(Dash->RangeCells));
