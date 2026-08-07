@@ -44,4 +44,16 @@ public:
 	 */
 	static bool EvaluateReactionTrigger(ERTReactionTrigger Trigger, int32 SelfId,
 		const TArray<FRTHexAttackHit>& Hits, const TArray<FRTHexAttackIntent>& Intents);
+
+	/**
+	 * CHI ha innescato la reazione: l'`AttackerId` del primo colpo che soddisfa Trigger per SelfId, o
+	 * `INDEX_NONE` se nessuno. `EvaluateReactionTrigger` e' esattamente `!= INDEX_NONE` su questa.
+	 *
+	 * Serve a `Action.Counter` (CP 5.2), che deve colpire chi l'ha colpito: senza l'identita' dell'attaccante,
+	 * il contrattacco non avrebbe un bersaglio e andrebbe scelto a runtime — cioe' proprio la scelta implicita
+	 * che il catalogo vieta. "Primo" nell'ordine CANONICO di `Plan.Hits` (attaccante, bersaglio), non nell'ordine
+	 * di arrivo: due attaccanti che colpiscono nello stesso Blast producono sempre lo stesso contrattaccato.
+	 */
+	static int32 FindTriggeringAttacker(ERTReactionTrigger Trigger, int32 SelfId,
+		const TArray<FRTHexAttackHit>& Hits, const TArray<FRTHexAttackIntent>& Intents);
 };

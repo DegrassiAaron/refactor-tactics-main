@@ -356,25 +356,71 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*Range*/ 0, /*Cooldown*/ 1, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Marked, /*Turni*/ 1) }));
 
-	// --- Reazioni (catalogo §4) -------------------------------------------------------------------------
-	// Slot dedicato (CP 5.1, epic E5): 0-1 per unita', indipendente da Movimento e Principale. Il trigger si
-	// valuta sui colpi GIA' raccolti del Blast (dopo il filtro di Interrupt), mai con un'attesa nel resolver
-	// (invariante #3) — vedi ARTTurnManager::ResolveCombat. Le reazioni non dichiarano un `Fallback` vero
-	// (il catalogo lo dice esplicitamente): `Cancel` resta come segnaposto inerte, non usato da nessun percorso.
+	// --- Difensive e reazioni (catalogo §4) ---------------------------------------------------------------
+	// ATTENZIONE alla riga «Slot» della tabella: solo `Counter`, `Intercept` e `Deflect` occupano lo slot
+	// REAZIONE (0-1 per unita', indipendente da Movimento e Principale, trigger valutato sullo snapshot del
+	// Blast — CP 5.1). `Brace`, `Shield` e `Cleanse` sono azioni PRINCIPALI: si dichiarano e basta, senza
+	// trigger, e risolvono nella loro fase come qualunque altra azione. Trattarle tutte e cinque come
+	// "reazioni" perche' stanno nella stessa sezione del catalogo sarebbe una lettura sbagliata della tabella.
 	//
-	// `Counter` e' la sola delle tre reazioni vere del catalogo (le altre sono `Intercept` e `Deflect`, CP 5.3
-	// e CP 5.2) shippata in questo checkpoint: rileva il trigger e lo registra nel TurnLog, ma NON applica
-	// ancora il contrattacco da 16 danni — CP 5.2 aggiunge l'effetto (`Damage 16`) sulla stessa pipeline, come
-	// Push/Pull hanno fatto sul Control in CP 4.7. Range lasciato a 0: la tabella del catalogo non dichiara
-	// una portata per le reazioni ("entro il range consentito", senza numero), e qui non serve finche' il
-	// contrattacco non esiste — CP 5.2 lo decide quando diventa un dato che il colpo di ritorno usa davvero.
+	// Le reazioni non dichiarano un `Fallback` vero (il catalogo lo dice esplicitamente): `Cancel` resta un
+	// segnaposto inerte, non usato da nessun percorso.
+	//
+	// Range 0 per tutte: la tabella non dichiara una portata per questa sezione. Per le tre difensive su se
+	// stessi 0 e' il valore giusto (`self`); per `Counter` significa che il contrattacco raggiunge chi ha
+	// colpito, chiunque sia — la portata di un colpo di ritorno non e' un dato che il catalogo fornisce, e
+	// inventarne uno cambierebbe quali attacchi si possono punire.
+
+	// `Counter` — contrattacco da 16 danni contro chi ha colpito, DOPO il colpo ricevuto. Il danno e'
+	// dichiarato qui come effetto: il resolver lo legge dal `Def`, non da una costante propria.
 	{
 		FRTActionDef Counter = ShippedAction(TEXT("Action.Counter"), ERTResolutionPhase::Control, /*Priority*/ 20,
-			/*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}, /*bInterruptible*/ true,
+			/*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel,
+			{ FRTActionEffectSpec(ERTActionEffect::Damage, 16) }, /*bInterruptible*/ true,
 			ERTActionSlot::Reaction);
 		Counter.ReactionTrigger = ERTReactionTrigger::HitByDirectAttack;
 		Catalog.Add(Counter);
 	}
+
+	// `Deflect` — riduce di 20 il danno diretto che l'ha innescata. Nessun `FRTActionEffectSpec`: "ridurre il
+	// danno subito" non e' un effetto APPLICATO a un bersaglio (quelli sono danno, cura, scudo, spinta, stato),
+	// e' un modificatore del calcolo — vive come `URTCombatLibrary::DeflectDamageReduction`, esattamente come
+	// il -15 di `Action.Guard`, che per la stessa ragione non e' un effetto.
+	{
+		FRTActionDef Deflect = ShippedAction(TEXT("Action.Deflect"), ERTResolutionPhase::Control, /*Priority*/ 15,
+			/*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}, /*bInterruptible*/ true,
+			ERTActionSlot::Reaction);
+		Deflect.ReactionTrigger = ERTReactionTrigger::HitByDirectAttack;
+		Catalog.Add(Deflect);
+	}
+
+	// `Brace` — azione PRINCIPALE di Prep. Dichiara DUE stati: `Braced` (-10 a ogni danno diretto e blocca la
+	// prima spinta) e `Root` (blocca il movimento volontario). Root e' riuso 1:1 di un meccanismo gia'
+	// collaudato — azzera movimento e scatto, non tocca attacchi ne' spostamento subito, che e' esattamente
+	// cio' che il catalogo chiede a chi si irrigidisce: si pianta per incassare, non smette di combattere.
+	Catalog.Add(ShippedAction(TEXT("Action.Brace"), ERTResolutionPhase::Preparation, /*Priority*/ 30,
+		/*Range (self)*/ 0, /*Cooldown*/ 1, ERTActionFallback::Cancel,
+		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Braced, /*Turni*/ 1),
+		  FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Root, /*Turni*/ 1) },
+		/*bInterruptible*/ false, ERTActionSlot::Main));
+
+	// `Shield` — azione PRINCIPALE di Prep: 25 punti di scudo TEMPORANEO, consumati prima della salute e
+	// scaduti nel Cleanup. Stesso identico meccanismo di `Guardian.Barrier` (che ne da' 40): `ResolvePrep`
+	// traduce l'effetto in `AddTemporaryShield` senza sapere quale azione l'abbia prodotto. Non protegge dal
+	// controllo senza danno per costruzione — uno scudo assorbe danno, e Root/Slow non ne sono.
+	Catalog.Add(ShippedAction(TEXT("Action.Shield"), ERTResolutionPhase::Preparation, /*Priority*/ 35,
+		/*Range (self)*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel,
+		{ FRTActionEffectSpec(ERTActionEffect::Shield, 25) },
+		/*bInterruptible*/ false, ERTActionSlot::Main));
+
+	// `Cleanse` — azione PRINCIPALE, codice 30 (controllo) quindi risolve nel Blast PRIMA del danno: purificarsi
+	// dopo aver incassato il colpo che lo stato ha aggravato non servirebbe a niente. Nessun effetto dichiarato:
+	// "rimuovi uno stato a scelta" non e' esprimibile come `FRTActionEffectSpec` (che applica, non toglie), e
+	// soprattutto QUALE stato lo decide il piano del giocatore (`ARTUnit::PlannedCleansePriority`), non il dato
+	// dell'azione.
+	Catalog.Add(ShippedAction(TEXT("Action.Cleanse"), ERTResolutionPhase::Control, /*Priority*/ 25,
+		/*Range (self)*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel, {},
+		/*bInterruptible*/ true, ERTActionSlot::Main));
 
 	// --- Azioni di CONTROLLO (catalogo §5) -------------------------------------------------------------
 	// Tutte risolvono nel Blast (fase dichiarata `Control`, codice 30) PRIMA del danno: la priorita' le mette

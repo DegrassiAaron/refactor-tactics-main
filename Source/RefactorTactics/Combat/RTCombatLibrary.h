@@ -72,6 +72,24 @@ public:
 	static constexpr int32 MarkedFirstHitBonus = 6;
 
 	/**
+	 * `Action.Deflect` (catalogo v0.1 §4): riduce di 20 il danno diretto che ha fatto scattare la reazione.
+	 *
+	 * Passa da `ApplyFirstHitDelta` come `Guard`: la reazione si attiva UNA volta, quindi vale sul colpo che
+	 * l'ha innescata, non su tutti quelli del turno. Se il danno arriva a zero l'attacco resta comunque un
+	 * colpo AVVENUTO (il clamp e' sul valore, non sulla voce): conta per trigger e marchi, come dice il catalogo.
+	 */
+	static constexpr int32 DeflectDamageReduction = 20;
+
+	/**
+	 * `Action.Brace` (catalogo v0.1 §4): riduce di 10 OGNI danno diretto fino al Cleanup.
+	 *
+	 * A differenza di `Guard`/`Deflect` NON passa da `ApplyFirstHitDelta`: "tutti i danni diretti" e' un'altra
+	 * regola, e usa `ApplyDamageDelta` (nessun gate "una volta sola"). E' la differenza che rende `Brace`
+	 * un'azione diversa da una guardia piu' forte.
+	 */
+	static constexpr int32 BraceDamageReduction = 10;
+
+	/**
 	 * `Flux.LinearDischarge` (catalogo eroi v0.1 §1): +8 danni contro un bersaglio `Status.Wet`.
 	 *
 	 * A differenza di `Exposed`/`Guard`/`Marked`, NON passa da `ApplyFirstHitDelta`: il bonus non si consuma
