@@ -13,6 +13,27 @@
 
 #define LOCTEXT_NAMESPACE "RTHexMap"
 
+namespace
+{
+	/**
+	 * Geometria del disco che rappresenta una cella. Il cilindro dell'engine ha mezza-altezza 50 uu ed e'
+	 * CENTRATO sull'origine: con `RTCellFlatScale` la sua faccia superiore sta a `RTCellTopZ` sopra il centro
+	 * della cella.
+	 *
+	 * Perche' sono costanti condivise e non numeri sparsi: le linee di debug disegnate SOTTO `RTCellTopZ`
+	 * finiscono dentro il disco e diventano invisibili. E' successo davvero — il contorno della superficie era
+	 * a 2.0 con la faccia a 2.5, quindi fango e acqua non si vedevano mentre i marcatori a 3.0 si vedevano.
+	 * Legare i lift a questa costante fa si' che cambiare lo spessore del disco non riapra il difetto.
+	 */
+	constexpr float RTCellFlatScale = 0.05f;
+	constexpr float RTCellTopZ = 50.f * RTCellFlatScale; // 2.5 uu
+
+	/** Quote di disegno, tutte sopra la faccia del disco e in ordine di priorita' di lettura. */
+	constexpr float RTLiftSurface = RTCellTopZ + 0.5f;  // contorno della superficie (contesto)
+	constexpr float RTLiftMarker  = RTCellTopZ + 1.5f;  // blocca-movimento / blocca-vista
+	constexpr float RTLiftPreview = RTCellTopZ + 2.5f;  // anteprima di pianificazione (sopra a tutto)
+}
+
 ARTHexMapActor::ARTHexMapActor()
 {
 	// Tick abilitabile ma SPENTO all'avvio: si accende solo quando c'e' un'anteprima da disegnare
@@ -188,17 +209,23 @@ void ARTHexMapActor::DrawCellOverlay() const
 
 	for (const FRTHexCellData& Cell : MapAsset->Cells)
 	{
+		// `Height` alza l'ISTANZA (RebuildInstances), quindi deve alzare anche le linee: senza, su una cella
+		// rialzata il contorno resterebbe sepolto di `Height` unita' dentro il disco.
+		const float CellLift = static_cast<float>(Cell.Height);
+
 		// Contorno esterno: che superficie e'. Il costo di traversata si legge dalla superficie, non da un numero.
-		DrawRing(Cell.Id, URTHexLibrary::SurfaceColor(Cell.Surface), 0.86f, /*Lift=*/ 2.0f, /*Thickness=*/ 1.5f);
+		// La scala e' 0.90 (non 0.86) per stare appena FUORI dal disco, che copre 0.95 del raggio: cosi' il
+		// contorno non lotta con la faccia superiore per lo stesso pixel.
+		DrawRing(Cell.Id, URTHexLibrary::SurfaceColor(Cell.Surface), 0.90f, CellLift + RTLiftSurface, /*Thickness=*/ 2.0f);
 
 		// Due marcatori DISTINTI, perche' sono due regole diverse: dove non si passa e dove non si vede.
 		if (Cell.bBlocksMovement)
 		{
-			DrawRing(Cell.Id, URTHexLibrary::BlockedCellColor(), 0.45f, 3.0f, 2.5f);
+			DrawRing(Cell.Id, URTHexLibrary::BlockedCellColor(), 0.45f, CellLift + RTLiftMarker, 2.5f);
 		}
 		if (Cell.bBlocksLineOfSight)
 		{
-			DrawRing(Cell.Id, URTHexLibrary::SightBlockerColor(), 0.64f, 3.0f, 2.0f);
+			DrawRing(Cell.Id, URTHexLibrary::SightBlockerColor(), 0.64f, CellLift + RTLiftMarker, 2.0f);
 		}
 	}
 }
@@ -216,10 +243,20 @@ void ARTHexMapActor::DrawPlanningPreview() const
 	float LayerH = 0.f;
 	GetHexContext(Origin, Size, LayerH);
 
-	// Contorno di una cella, dai vertici condivisi con il marker dell'editor (stesso orientamento).
-	const auto DrawCellOutline = [World, &Origin, Size, LayerH](const FRTCellId& Cell, const FColor& Color, float Scale)
+	// Quota di una cella: `Height` alza l'istanza, quindi deve alzare anche le linee (senza, l'anteprima
+	// sprofonda dentro il disco delle celle rialzate).
+	const URTHexMapAsset* Map = MapAsset;
+	const auto CellLift = [Map](const FRTCellId& Cell) -> float
 	{
-		const FVector Center = URTHexLibrary::AxialToWorld(Cell, Origin, Size, LayerH) + FVector(0, 0, 4.0);
+		const FRTHexCellData* Data = Map ? Map->FindCell(Cell) : nullptr;
+		return Data ? static_cast<float>(Data->Height) : 0.f;
+	};
+
+	// Contorno di una cella, dai vertici condivisi con il marker dell'editor (stesso orientamento).
+	const auto DrawCellOutline = [World, &Origin, Size, LayerH, &CellLift](const FRTCellId& Cell, const FColor& Color, float Scale)
+	{
+		const FVector Center = URTHexLibrary::AxialToWorld(Cell, Origin, Size, LayerH)
+			+ FVector(0, 0, CellLift(Cell) + RTLiftPreview);
 		const TArray<FVector> Corners = URTHexLibrary::HexCorners(Center, Size * Scale);
 		for (int32 I = 0; I < Corners.Num(); ++I)
 		{
@@ -244,8 +281,10 @@ void ARTHexMapActor::DrawPlanningPreview() const
 		DrawCellOutline(PreviewPath[I], FColor(40, 220, 220), 0.72f);
 		if (I > 0)
 		{
-			const FVector A = URTHexLibrary::AxialToWorld(PreviewPath[I - 1], Origin, Size, LayerH) + FVector(0, 0, 6.0);
-			const FVector B = URTHexLibrary::AxialToWorld(PreviewPath[I], Origin, Size, LayerH) + FVector(0, 0, 6.0);
+			const FVector A = URTHexLibrary::AxialToWorld(PreviewPath[I - 1], Origin, Size, LayerH)
+				+ FVector(0, 0, CellLift(PreviewPath[I - 1]) + RTLiftPreview + 1.5f);
+			const FVector B = URTHexLibrary::AxialToWorld(PreviewPath[I], Origin, Size, LayerH)
+				+ FVector(0, 0, CellLift(PreviewPath[I]) + RTLiftPreview + 1.5f);
 			DrawDebugLine(World, A, B, FColor(40, 220, 220), false, -1.f, 0, 4.f);
 		}
 	}
@@ -326,8 +365,9 @@ void ARTHexMapActor::RebuildInstances()
 	}
 
 	// Cilindro engine: raggio 50 uu, mezza-altezza 50 uu. Scala X,Y per coprire ~l'esagono, Z sottile (disco).
+	// Lo spessore vive in `RTCellFlatScale` perche' le quote di disegno delle debug-line ci si appoggiano.
 	const float PlanarScale = UseHexSize / 50.f * 0.95f;
-	const float FlatScale = 0.05f;
+	const float FlatScale = RTCellFlatScale;
 
 	for (int32 I = 0; I < CellIds.Num(); ++I)
 	{
