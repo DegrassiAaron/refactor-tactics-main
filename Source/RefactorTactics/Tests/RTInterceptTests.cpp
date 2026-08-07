@@ -98,7 +98,7 @@ namespace
 		}
 	}
 
-	int32 CountReactionOutcome(const ARTTurnManager* TM, ERTReactionOutcome Outcome)
+	int32 CountInterceptOutcome(const ARTTurnManager* TM, ERTReactionOutcome Outcome)
 	{
 		int32 N = 0;
 		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
@@ -190,7 +190,7 @@ bool FRTInterceptTest::RunTest(const FString&)
 
 	RunItcTurn(TM);
 
-	TestEqual(TEXT("l'interposizione si e' attivata"), CountReactionOutcome(TM, ERTReactionOutcome::Activated), 1);
+	TestEqual(TEXT("l'interposizione si e' attivata"), CountInterceptOutcome(TM, ERTReactionOutcome::Activated), 1);
 	TestEqual(TEXT("l'alleato protetto non incassa nulla"), Victim->Health, VictimHealth);
 	TestEqual(TEXT("l'intercettore incassa al posto suo"), SaverHealth - Saver->Health, 25);
 
@@ -384,9 +384,9 @@ bool FRTInterceptBeforeOtherReactionsTest::RunTest(const FString&)
 	TestEqual(TEXT("l'attaccante non subisce il contrattacco di chi non e' stato colpito"),
 		Attacker->Health, AttackerHealth);
 	TestEqual(TEXT("una attivazione (l'interposizione) e una non-attivazione (il contrattacco)"),
-		CountReactionOutcome(TM, ERTReactionOutcome::Activated), 1);
+		CountInterceptOutcome(TM, ERTReactionOutcome::Activated), 1);
 	TestEqual(TEXT("il Counter del protetto risulta non innescato"),
-		CountReactionOutcome(TM, ERTReactionOutcome::NotTriggered), 1);
+		CountInterceptOutcome(TM, ERTReactionOutcome::NotTriggered), 1);
 
 	DestroyItcWorld(World);
 	return true;

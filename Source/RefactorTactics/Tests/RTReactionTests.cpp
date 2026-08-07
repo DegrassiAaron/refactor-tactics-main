@@ -104,7 +104,7 @@ namespace
 		}
 	}
 
-	int32 CountReactionOutcome(const ARTTurnManager* TM, ERTReactionOutcome Outcome)
+	int32 CountSlotReactionOutcome(const ARTTurnManager* TM, ERTReactionOutcome Outcome)
 	{
 		int32 N = 0;
 		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
@@ -145,8 +145,8 @@ bool FRTReactionSingleActivationTest::RunTest(const FString&)
 
 	RunReactionTurn(TM);
 
-	TestEqual(TEXT("una attivazione registrata"), CountReactionOutcome(TM, ERTReactionOutcome::Activated), 1);
-	TestEqual(TEXT("nessun'altra voce di reazione"), CountReactionOutcome(TM, ERTReactionOutcome::NotTriggered), 0);
+	TestEqual(TEXT("una attivazione registrata"), CountSlotReactionOutcome(TM, ERTReactionOutcome::Activated), 1);
+	TestEqual(TEXT("nessun'altra voce di reazione"), CountSlotReactionOutcome(TM, ERTReactionOutcome::NotTriggered), 0);
 	// Il cooldown POST-attivazione non si verifica qui: `AbilityCooldowns` (privato) si dimensiona in
 	// `ARTUnit::BeginPlay`, che questi world di test (`UWorld::CreateWorld` senza `World->BeginPlay()`, lo
 	// stesso schema di ogni altro file di test in questa suite) non arrivano mai a chiamare — la lettura
@@ -181,8 +181,8 @@ bool FRTReactionNoTriggerLoggedTest::RunTest(const FString&)
 
 	RunReactionTurn(TM);
 
-	TestEqual(TEXT("nessuna attivazione: nessuno ha colpito"), CountReactionOutcome(TM, ERTReactionOutcome::Activated), 0);
-	TestEqual(TEXT("registrata come non innescata"), CountReactionOutcome(TM, ERTReactionOutcome::NotTriggered), 1);
+	TestEqual(TEXT("nessuna attivazione: nessuno ha colpito"), CountSlotReactionOutcome(TM, ERTReactionOutcome::Activated), 0);
+	TestEqual(TEXT("registrata come non innescata"), CountSlotReactionOutcome(TM, ERTReactionOutcome::NotTriggered), 1);
 	// Non si verifica qui il cooldown (vedi il commento in SingleActivation): in questo world di test resta
 	// sempre 0, attivazione o no, quindi non distinguerebbe "non consumato" da "non misurabile".
 
@@ -224,7 +224,7 @@ bool FRTReactionMultipleTriggersStillOnceTest::RunTest(const FString&)
 	RunReactionTurn(TM);
 
 	TestEqual(TEXT("una sola attivazione, anche con due trigger validi"),
-		CountReactionOutcome(TM, ERTReactionOutcome::Activated), 1);
+		CountSlotReactionOutcome(TM, ERTReactionOutcome::Activated), 1);
 
 	DestroyReactionWorld(World);
 	return true;
@@ -266,8 +266,8 @@ bool FRTReactionSprintBlocksTest::RunTest(const FString&)
 
 	RunReactionTurn(TM);
 
-	TestEqual(TEXT("nessuna attivazione: lo Sprint la vieta"), CountReactionOutcome(TM, ERTReactionOutcome::Activated), 0);
-	TestEqual(TEXT("registrata come non disponibile"), CountReactionOutcome(TM, ERTReactionOutcome::Unavailable), 1);
+	TestEqual(TEXT("nessuna attivazione: lo Sprint la vieta"), CountSlotReactionOutcome(TM, ERTReactionOutcome::Activated), 0);
+	TestEqual(TEXT("registrata come non disponibile"), CountSlotReactionOutcome(TM, ERTReactionOutcome::Unavailable), 1);
 
 	DestroyReactionWorld(World);
 	return true;

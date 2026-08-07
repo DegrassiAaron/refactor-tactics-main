@@ -105,7 +105,7 @@ namespace
 		}
 	}
 
-	int32 CountReactionOutcome(const ARTTurnManager* TM, ERTReactionOutcome Outcome)
+	int32 CountDefensiveReactionOutcome(const ARTTurnManager* TM, ERTReactionOutcome Outcome)
 	{
 		int32 N = 0;
 		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
@@ -217,7 +217,7 @@ bool FRTCounterDealsDamageTest::RunTest(const FString&)
 
 	RunDefTurn(TM);
 
-	TestEqual(TEXT("la reazione si e' attivata"), CountReactionOutcome(TM, ERTReactionOutcome::Activated), 1);
+	TestEqual(TEXT("la reazione si e' attivata"), CountDefensiveReactionOutcome(TM, ERTReactionOutcome::Activated), 1);
 	TestEqual(TEXT("chi ha colpito incassa i 16 del contrattacco"), AttackerHealth - Attacker->Health, 16);
 	TestEqual(TEXT("chi non ha colpito non viene contrattaccato"), Bystander->Health, BystanderHealth);
 
@@ -298,7 +298,7 @@ bool FRTDeflectReducesDamageTest::RunTest(const FString&)
 
 	RunDefTurn(TM);
 
-	TestEqual(TEXT("la reazione si e' attivata"), CountReactionOutcome(TM, ERTReactionOutcome::Activated), 1);
+	TestEqual(TEXT("la reazione si e' attivata"), CountDefensiveReactionOutcome(TM, ERTReactionOutcome::Activated), 1);
 	TestEqual(TEXT("25 - 20 = 5 danni incassati"), Before - Reactor->Health,
 		25 - URTCombatLibrary::DeflectDamageReduction);
 	TestEqual(TEXT("non riflette: chi ha colpito non incassa nulla"), Attacker->Health, Attacker->MaxHealth);
@@ -356,7 +356,7 @@ bool FRTDeflectZeroDamageStillHitsTest::RunTest(const FString&)
 
 	TestEqual(TEXT("danno azzerato: nessun HP perso"), Reactor->Health, Before);
 	TestTrue(TEXT("l'attacco resta registrato come avvenuto nel TurnLog"), CountCombatEntries(TM) >= 1);
-	TestEqual(TEXT("e la reazione risulta comunque attivata"), CountReactionOutcome(TM, ERTReactionOutcome::Activated), 1);
+	TestEqual(TEXT("e la reazione risulta comunque attivata"), CountDefensiveReactionOutcome(TM, ERTReactionOutcome::Activated), 1);
 
 	DestroyDefWorld(World);
 	return true;
