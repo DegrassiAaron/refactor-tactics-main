@@ -97,7 +97,6 @@ budget **5 MP**, reazioni, terreni e obiettivi.
 | **E14** Overwatch e reazioni interattive | — | **nuova** (2026-08-07): [ADR-0004](adr-0004-finestre-di-reazione.md); dipende da E13 |
 | **E15** Showcase «Il Relè» e golden replay | parte di **M8** | **nuova** (2026-08-07): la prova integrata — fixture, scenario scriptabile, replay a hash stabile — [`showcase-v0.1.md`](showcase-v0.1.md) |
 | **E16** Orientamento e direzionalità | parte di **M8**/**M9** | **nuova** (2026-08-07): [ADR-0005](adr-0005-orientamento.md); il facing deriva dal movimento e decide difesa, percezione e reazioni. **Prerequisito di E13** |
-| **E16** Orientamento e direzionalità | parte di **M8**/**M9** | **nuova** (2026-08-07): [ADR-0005](adr-0005-orientamento.md); il facing deriva dal movimento e decide difesa, percezione e reazioni. **Prerequisito di E13** |
 | — | **M10** Rete e privacy | **fuori** dalla v0.1 |
 
 ### Stato misurato delle epic — 2026-08-07

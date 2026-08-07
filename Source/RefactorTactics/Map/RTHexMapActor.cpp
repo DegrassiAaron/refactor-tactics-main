@@ -112,13 +112,37 @@ void ARTHexMapActor::SetHoveredCell(const FRTCellId& Cell, bool bValid)
 	HoveredCell = Cell;
 	bHoveredValid = bValid;
 	// Il tick serve solo mentre c'e' qualcosa da disegnare: fuori dalla pianificazione l'actor resta inerte.
-	SetActorTickEnabled(bCellOverlay || bHoveredValid || PreviewPath.Num() > 0);
+	SetActorTickEnabled(HasAnythingToDraw());
 }
 
 void ARTHexMapActor::SetPreviewPath(const TArray<FRTCellId>& Path)
 {
 	PreviewPath = Path;
-	SetActorTickEnabled(bCellOverlay || bHoveredValid || PreviewPath.Num() > 0);
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+bool ARTHexMapActor::HasAnythingToDraw() const
+{
+	return bCellOverlay
+		|| bHoveredValid
+		|| PreviewPath.Num() > 0
+		|| PreviewHitCells.Num() > 0
+		|| PreviewReachable.Num() > 0;
+}
+
+void ARTHexMapActor::SetPreviewHitCells(const TArray<FRTCellId>& HitCells, const TArray<FRTCellId>& AllyCells)
+{
+	// Si copia e basta: le celle arrivano gia' calcolate da URTHexCombatLibrary::HexHitCells. Rifiltrarle qui
+	// sarebbe un secondo calcolo, e due calcoli della stessa cosa prima o poi divergono (invariante #1).
+	PreviewHitCells = HitCells;
+	PreviewAllyHitCells = AllyCells;
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::SetPreviewReachableCells(const TArray<FRTCellId>& ReachableCells)
+{
+	PreviewReachable = ReachableCells;
+	SetActorTickEnabled(HasAnythingToDraw());
 }
 
 void ARTHexMapActor::Tick(float DeltaSeconds)
@@ -134,7 +158,7 @@ void ARTHexMapActor::Tick(float DeltaSeconds)
 void ARTHexMapActor::SetCellOverlayEnabled(bool bEnabled)
 {
 	bCellOverlay = bEnabled;
-	SetActorTickEnabled(bCellOverlay || bHoveredValid || PreviewPath.Num() > 0);
+	SetActorTickEnabled(HasAnythingToDraw());
 }
 
 void ARTHexMapActor::DrawCellOverlay() const
@@ -204,6 +228,16 @@ void ARTHexMapActor::DrawPlanningPreview() const
 		}
 	};
 
+	// Ordine di disegno: dal meno al piu' urgente, cosi' l'informazione critica resta leggibile sopra.
+	// 1) dove POSSO andare  2) dove VADO  3) chi COLPISCO  4) cosa sto indicando.
+
+	// Celle raggiungibili: contorno piccolo e tenue. Fa vedere il budget mordere (il fango accorcia il raggio)
+	// senza coprire il resto: e' contesto, non una decisione presa.
+	for (const FRTCellId& Cell : PreviewReachable)
+	{
+		DrawCellOutline(Cell, FColor(60, 110, 90), 0.52f);
+	}
+
 	// Traccia del percorso: contorno ciano su ogni cella + segmento fra i centri consecutivi.
 	for (int32 I = 0; I < PreviewPath.Num(); ++I)
 	{
@@ -214,6 +248,15 @@ void ARTHexMapActor::DrawPlanningPreview() const
 			const FVector B = URTHexLibrary::AxialToWorld(PreviewPath[I], Origin, Size, LayerH) + FVector(0, 0, 6.0);
 			DrawDebugLine(World, A, B, FColor(40, 220, 220), false, -1.f, 0, 4.f);
 		}
+	}
+
+	// Zona colpita dall'attacco pianificato. Rosso = minaccia; ARANCIONE = c'e' un alleato dentro, e va visto
+	// PRIMA del lock-in: che il fuoco amico faccia danno e' gia' verificato dai test, che il giocatore lo sappia
+	// mentre puo' ancora cambiare idea no — quella meta' esiste solo qui.
+	for (const FRTCellId& Cell : PreviewHitCells)
+	{
+		const bool bAlly = PreviewAllyHitCells.Contains(Cell);
+		DrawCellOutline(Cell, bAlly ? FColor(255, 150, 30) : FColor(230, 60, 50), bAlly ? 0.80f : 0.68f);
 	}
 
 	// Cella sotto il cursore: disegnata per ultima e piu' larga, cosi' resta leggibile sopra la traccia.

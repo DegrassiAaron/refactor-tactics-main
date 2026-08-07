@@ -163,6 +163,34 @@ public:
 	/** Percorso pianificato da evidenziare (vuoto = nessuna traccia). Celle consecutive, partenza inclusa. */
 	void SetPreviewPath(const TArray<FRTCellId>& Path);
 
+	/**
+	 * Celle colpite dall'attacco pianificato (vuoto = nessuna anteprima). `AllyCells` e' il sottoinsieme
+	 * occupato da UNITA' ALLEATE: si disegna in arancione perche' il fuoco amico va visto **prima** del
+	 * lock-in, non dedotto dai danni dopo.
+	 *
+	 * Le celle arrivano gia' calcolate da `URTHexCombatLibrary::HexHitCells` (funzione pura, gia' testata):
+	 * qui non si ricalcola nulla, altrimenti anteprima ed esito potrebbero divergere (invariante #1).
+	 */
+	void SetPreviewHitCells(const TArray<FRTCellId>& HitCells, const TArray<FRTCellId>& AllyCells);
+
+	/**
+	 * Celle raggiungibili dall'unita' selezionata col budget corrente (vuoto = nessuna anteprima).
+	 * Vengono da `URTHexSimLibrary::ReachableCells`: budget, blocchi, occupanti e archi sono gia' applicati.
+	 */
+	void SetPreviewReachableCells(const TArray<FRTCellId>& ReachableCells);
+
+	/** Conteggi dell'anteprima (diagnostica e test headless: il disegno non e' verificabile senza schermo). */
+	int32 NumPreviewHitCells() const { return PreviewHitCells.Num(); }
+	int32 NumPreviewAllyHitCells() const { return PreviewAllyHitCells.Num(); }
+	int32 NumPreviewReachableCells() const { return PreviewReachable.Num(); }
+
+	/** Vero se la cella e' fra quelle colpite dall'anteprima corrente (test). */
+	bool IsPreviewHitCell(const FRTCellId& Cell) const { return PreviewHitCells.Contains(Cell); }
+	/** Vero se la cella e' fra quelle colpite **e** occupata da un alleato (test del fuoco amico). */
+	bool IsPreviewAllyHitCell(const FRTCellId& Cell) const { return PreviewAllyHitCells.Contains(Cell); }
+	/** Vero se la cella e' fra quelle raggiungibili nell'anteprima corrente (test). */
+	bool IsPreviewReachableCell(const FRTCellId& Cell) const { return PreviewReachable.Contains(Cell); }
+
 	/** Cella attualmente evidenziata e sua validita' (diagnostica e test). */
 	FRTCellId GetHoveredCell() const { return HoveredCell; }
 	bool IsHoveredCellValid() const { return bHoveredValid; }
@@ -202,6 +230,16 @@ protected:
 
 	/** Traccia del percorso pianificato, impostata dal controller. */
 	TArray<FRTCellId> PreviewPath;
+
+	/** Celle colpite dall'attacco pianificato, impostate dal controller (sola presentazione). */
+	TArray<FRTCellId> PreviewHitCells;
+	/** Sottoinsieme di `PreviewHitCells` occupato da alleati: fuoco amico, disegnato in arancione. */
+	TArray<FRTCellId> PreviewAllyHitCells;
+	/** Celle raggiungibili dall'unita' selezionata, impostate dal controller (sola presentazione). */
+	TArray<FRTCellId> PreviewReachable;
+
+	/** Vero se qualcosa va disegnato: evita di tenere il Tick acceso su un actor che non mostra nulla. */
+	bool HasAnythingToDraw() const;
 	/**
 	 * Ricostruisce la vista a ogni costruzione dell'actor: apertura del livello, spostamento, undo, spawn.
 	 * Le istanze ISM sono una vista DERIVATA dall'asset (autorevole): senza questo, riaprendo il livello la
