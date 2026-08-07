@@ -97,4 +97,23 @@ public:
 	static FRTLinearMoveResult ResolveLinearMove(const URTHexMapAsset* Map, const FRTCellId& From,
 		const FRTCellId& Target, int32 MaxCells, ERTMovementStyle Style,
 		const TMap<FRTCellId, int32>& Occupancy, const TSet<int32>& Hostiles);
+
+	/**
+	 * Vero se una mobilita' lineare con questi parametri **arriva davvero** su `Target`.
+	 *
+	 * Serve a chi PROPONE uno scatto (il bot genera le candidate col grafo, che non conosce la linearita')
+	 * per non offrire mosse che la risoluzione rifiuterebbe: un'abilita' spesa senza effetto e senza
+	 * spiegazione e' peggio di una mossa non fatta. E' un semplice predicato su `ResolveLinearMove`, non una
+	 * seconda implementazione — e' proprio la divergenza fra le due che la issue #140 ha chiuso.
+	 *
+	 * `From == Target` e' vero: «resto dove sono» non e' uno scatto illegale, e chi filtra un insieme di
+	 * candidate non deve perdere quella di partenza.
+	 *
+	 * Nota sulla CARICA: qui conta l'arrivo sulla cella, quindi una carica che si ferma ADDOSSO al nemico
+	 * (esito `Impact`, cella precedente) risulta non raggiungibile. E' voluto: chi filtra candidate di
+	 * riposizionamento vuole sapere dove si ATTERRA, e l'impatto e' un intento del Blast, non un arrivo.
+	 */
+	static bool IsLinearReachable(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& Target,
+		int32 MaxCells, ERTMovementStyle Style, const TMap<FRTCellId, int32>& Occupancy,
+		const TSet<int32>& Hostiles);
 };

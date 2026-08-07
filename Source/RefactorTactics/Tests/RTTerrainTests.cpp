@@ -170,13 +170,14 @@ bool FRTTerrainRoughBlocksDashTest::RunTest(const FString&)
 	Snapshot.Map = Map;
 	Snapshot.Units.Add(Unit);
 
-	// Percorso del BOT (filtra le candidate con questa).
-	const TArray<FRTCellId> Path = URTHexSimLibrary::LinearDashPath(Snapshot, /*UnitId=*/ 0, FRTCellId(2, 0, 0));
-	TestEqual(TEXT("scatto rifiutato: Rough blocca Dash"), Path.Num(), 0);
+	// Il predicato di raggiungibilita' lineare: dal consolidamento (#140) e' definito sopra la stessa
+	// funzione che esegue lo scatto, ed e' quello con cui il bot filtra le proprie candidate. La prova che il
+	// BOT lo usi davvero sta in `HexBotPlay.DashPlanIsExecutableOnCostlyTerrain`, non qui.
+	TestFalse(TEXT("la raggiungibilita' lineare nega lo scatto attraverso Rough"),
+		URTMovementActionLibrary::IsLinearReachable(Map, FRTCellId(0, 0, 0), FRTCellId(2, 0, 0),
+			/*MaxCells=*/ 10, ERTMovementStyle::LinearDash, Snapshot.Occupancy, {}));
 
-	// Percorso del RESOLVER: e' `ResolveLinearMove` (CP 4.5) a muovere davvero l'unita' nella fase Dash, non
-	// `LinearDashPath`. Se la regola vivesse solo nella prima, il bot rifiuterebbe uno scatto che il resolver
-	// eseguirebbe lo stesso — il DoD «Dash e Charge non attraversano Rough» sarebbe vero a meta'.
+	// E il RESOLVER, che muove davvero l'unita' nella fase Dash, si ferma per lo stesso motivo dichiarato.
 	for (const ERTMovementStyle Style : { ERTMovementStyle::LinearDash, ERTMovementStyle::LinearCharge })
 	{
 		const FRTLinearMoveResult Linear = URTMovementActionLibrary::ResolveLinearMove(
@@ -476,6 +477,60 @@ bool FRTTerrainIceSlideBudgetBoundaryTest::RunTest(const FString&)
 	// Budget 2 - costo 1 = residuo 1: una unita' sotto la soglia, non scivola.
 	TestEqual(TEXT("residuo 1: non scivola"), SlideWithBudget(2).Num(), 2);
 
+	return true;
+}
+
+/**
+ * Bot e resolver devono concordare su COSA e' raggiungibile con uno scatto.
+ *
+ * Il catalogo azioni distingue: `Action.Move`/`Action.Sprint` vanno a punti movimento, le mobilita'
+ * LINEARI (Dash/Charge/Leap/Reposition) vanno a celle — «non riduce le mobilita' lineari, dichiarato fuori
+ * scope v0.1». Finche' il bot ha filtrato le candidate col COSTO del terreno e il resolver le ha eseguite a
+ * CELLE, i due strati hanno risposto in modo diverso sulla stessa mappa: su terreno a costo 2 il bot si
+ * negava scatti perfettamente legali. Nessuna mossa illegale — l'invariante reggeva — ma un'opportunita'
+ * persa in silenzio, che nessun test vedeva.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTerrainDashReachAgreesTest,
+	"RefactorTactics.Terrain.Dash.BotAndResolverAgreeOnCostlyTerrain",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTerrainDashReachAgreesTest::RunTest(const FString&)
+{
+	// Corridoio di acqua bassa (costo 2) lungo +q: attraversabile, ma caro.
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 4))
+	{
+		Map->AddOrUpdateCell(FRTHexCellData(Id));
+	}
+	for (int32 Q = 1; Q <= 3; ++Q)
+	{
+		FRTHexCellData Water(FRTCellId(Q, 0, 0));
+		Water.Surface = ERTHexSurface::ShallowWater;
+		Water.MoveCost = 2; // il costo vive sulla cella, come lo dipinge il catalogo
+		Map->AddOrUpdateCell(Water);
+	}
+	Map->SortCells();
+
+	const FRTCellId Start(0, 0, 0);
+	const FRTCellId Goal(3, 0, 0);   // tre celle di distanza
+	const int32 DashRange = 3;       // portata dichiarata dall'azione: TRE CELLE
+
+	// La portata di una mobilita' lineare si conta in CELLE: tre celle di acqua costano 6 punti movimento,
+	// ma con portata 3 lo scatto ci arriva lo stesso. E' la regola del catalogo, ed e' cio' che il vecchio
+	// filtro del bot — che sommava il costo — negava.
+	const FRTLinearMoveResult Resolved = URTMovementActionLibrary::ResolveLinearMove(
+		Map, Start, Goal, DashRange, ERTMovementStyle::LinearDash, {}, {});
+	TestTrue(TEXT("tre celle care, portata tre: lo scatto arriva"), Resolved.Final == Goal);
+	TestEqual(TEXT("le attraversa tutte e tre"), Resolved.Entered.Num(), 3);
+
+	// Contro-prova sull'unita' di misura: se la portata fosse letta in punti movimento, 3 non basterebbe
+	// (servirebbero 6) e questa asserzione cadrebbe insieme a quella sopra.
+	TestTrue(TEXT("con portata 2 si ferma prima: e' un limite in celle, non in punti movimento"),
+		URTMovementActionLibrary::ResolveLinearMove(
+			Map, Start, Goal, /*MaxCells=*/ 2, ERTMovementStyle::LinearDash, {}, {}).Final == Start);
+
+	// L'accordo bot<->resolver NON si verifica qui: `IsLinearReachable` e' definita come
+	// `ResolveLinearMove(...).Final == Target`, quindi confrontarle sarebbe vero per costruzione. La prova
+	// sta in `HexBotPlay.DashPlanIsExecutableOnCostlyTerrain`, che passa da `PlanBots`.
 	return true;
 }
 
