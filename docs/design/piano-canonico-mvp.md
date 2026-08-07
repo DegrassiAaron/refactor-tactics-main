@@ -20,7 +20,7 @@
 | **Esecuzione** | [`roadmap-checkpoint.md`](roadmap-checkpoint.md) | Milestone, checkpoint, DoD misurabili, stato |
 | **Requisiti di lungo periodo** | [`../PDR/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](../PDR/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) | Fasi F0–F6, QA, rischi — direzione, non scope |
 | **Visione (north-star)** | i 3 PRD + `Intenti condivisi.pdf` | Prodotto a lungo termine, **non** scope attuale |
-| **Storico / superato** | `00-Intro.pdf`, `01-StrutturaTutorial.pdf`, `02-Tutorial.pdf`, `03-TutorialToMVP.pdf` | Brief e corsi da cui è nato il progetto (fase chiusa) |
+| **Storico / superato** | `00-Intro.pdf`, `01-StrutturaTutorial.pdf`, `02-Tutorial.pdf`, `03-TutorialToMVP.pdf` — **rimossi da `docs/src/` il 2026-08-07**, recuperabili dallo storico git | Brief e corsi da cui è nato il progetto (fase chiusa) |
 
 I 4 PRD descrivono un prodotto molto più ambizioso (4v4 competitivo, GAS, netcode avanzato,
 modding). Sono la **direzione futura**, non l'obiettivo attuale. Vedi §8.
