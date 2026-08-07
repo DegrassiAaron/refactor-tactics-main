@@ -177,6 +177,17 @@ protected:
 	void ResolveDash();
 	void ResolveCombat();
 	void ResolveMovement();
+
+	/**
+	 * Azioni AMBIENTALI pianificate (fase `Environment`, codice 50 del catalogo): risolvono nel **Cleanup**,
+	 * dopo il Move, cosi' colpiscono anche chi e' appena entrato nella cella. Oggi: la propagazione elettrica
+	 * di `Action.Electrify` (CP 8.3).
+	 *
+	 * Precede il danno di `Status.Burning` nell'ordine del Cleanup: la scarica e' un evento istantaneo
+	 * dell'ambiente, il bruciore e' un danno a tempo che matura a fine turno. L'ordine e' osservabile — chi
+	 * muore prende un reason code diverso nel TurnLog — quindi e' dichiarato, non lasciato al caso.
+	 */
+	void ResolveEnvironment(const URTHexMapAsset* Map);
 	void StartPlanningTimer();
 	void OnPlanningTimeout();
 

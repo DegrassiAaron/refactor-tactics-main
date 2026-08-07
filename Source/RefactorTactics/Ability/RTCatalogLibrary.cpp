@@ -520,6 +520,24 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.Interrupt"), ERTResolutionPhase::Control, /*Priority*/ 20,
 		/*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
 
+	// --- Azioni AMBIENTALI (catalogo §6) -----------------------------------------------------------------
+	// `Electrify` — la combo firma del gioco (CP 8.3). Fase `Environment` (codice 50), quindi risolve nel
+	// **Cleanup**, dopo il Move: cosi' colpisce anche chi e' appena entrato nell'acqua, che e' il punto
+	// tattico dell'azione. Portata 4, cooldown 2, danno iniziale 20 (catalogo azioni §6).
+	//
+	// `PropagationLimit = 3` e' il primo valore non nullo di quel campo: fino a qui esisteva solo come regola
+	// del validator («una propagazione illimitata rende il turno impredicibile», errore dichiarato §17). Il
+	// danno PROPAGATO (12) non e' un secondo `Effects`, perche' non e' un effetto dell'azione sul bersaglio
+	// ma il valore che l'ambiente porta oltre: vive come `URTCombatLibrary::PropagatedElectricDamage`,
+	// accanto alle altre costanti di calcolo (Guard, Deflect, Brace, Burning).
+	{
+		FRTActionDef Electrify = ShippedAction(TEXT("Action.Electrify"), ERTResolutionPhase::Environment,
+			/*Priority*/ 30, /*Range*/ 4, /*Cooldown*/ 2, ERTActionFallback::Cancel,
+			{ FRTActionEffectSpec(ERTActionEffect::Damage, 20) });
+		Electrify.PropagationLimit = 3;
+		Catalog.Add(Electrify);
+	}
+
 	return Catalog;
 }
 

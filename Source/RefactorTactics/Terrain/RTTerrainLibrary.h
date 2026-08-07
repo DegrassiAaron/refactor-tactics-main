@@ -4,6 +4,7 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Map/RTCellId.h"
 #include "Terrain/RTTerrainData.h"
+#include "Combat/RTHexCombatLibrary.h" // FRTHexCombatUnit: le unita' dello snapshot, non un secondo tipo
 #include "RTTerrainLibrary.generated.h"
 
 class URTHexMapAsset;
@@ -62,4 +63,32 @@ public:
 
 	/** Stessa validazione di ValidateTerrainCatalog, ma su un catalogo ARBITRARIO (testabile con input rotto). */
 	static TArray<FString> ValidateCatalogEntries(const TArray<FRTTerrainDef>& Catalog);
+
+	/**
+	 * Chi viene raggiunto da una scarica elettrica partita da `SourceCell`, e con quanto danno (CP 8.3).
+	 * PURA: nessun Actor, nessun UWorld, non applica nulla — calcola e restituisce, poi il chiamante applica.
+	 *
+	 * **Il percorso e' il grafo dell'acqua, non un raggio**: si cammina di cella in cella su superfici che
+	 * dichiarano `bConductsElectricity` (acqua bassa, superficie conduttiva), al massimo `MaxSteps` passi
+	 * (visita in ampiezza). La distanza esagonale darebbe un risultato diverso appena la pozza gira attorno a
+	 * un ostacolo, e «l'elettricita' segue l'acqua» e' la regola che il giocatore puo' prevedere guardando la
+	 * mappa — la leggibilita' tattica e' un pilastro di prodotto.
+	 *
+	 * Chi sta sulla `SourceCell` incassa `InitialDamage` (e' il bersaglio del colpo, non una propagazione);
+	 * chi viene raggiunto oltre incassa `PropagatedDamage`. **Ogni unita' compare al massimo una volta**, anche
+	 * quando piu' cammini d'acqua la raggiungono: e' il vincolo esplicito del catalogo terreni §2.
+	 *
+	 * La propagazione parte solo se la cella sorgente CONDUCE: elettrificare un bersaglio all'asciutto lo
+	 * colpisce e basta. Le unita' non vive non vengono contate.
+	 *
+	 * Ordine del risultato — dichiarato dal catalogo e verificato da un test: **passi crescenti**, poi
+	 * `URTHexLibrary::StableLess` sulla cella, poi `UnitId`. E' un ordine TOTALE: due esecuzioni con lo stesso
+	 * input producono la stessa sequenza, quindi lo stesso TurnLog e lo stesso hash (invariante #4).
+	 *
+	 * `Map == nullptr` -> risultato vuoto (fail-closed, come la linea di tiro): senza mappa non si sa quali
+	 * celle conducano, e inventarlo significherebbe danno arbitrario in partita.
+	 */
+	static TArray<FRTPropagationHit> CollectElectricPropagation(const URTHexMapAsset* Map,
+		const FRTCellId& SourceCell, int32 MaxSteps, int32 InitialDamage, int32 PropagatedDamage,
+		const TArray<FRTHexCombatUnit>& Units);
 };
