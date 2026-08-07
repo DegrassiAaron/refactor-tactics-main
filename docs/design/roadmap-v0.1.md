@@ -86,8 +86,10 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 | **Finestre di reazione interattive** | — | ⏳ ADR-0004 accettato, nessun codice (E14) |
 | **Scenario showcase e golden replay** | — | ⏳ (E15) |
 
-**Suite automatica**: **338 test unici** in `Source/RefactorTactics/Tests/` (rimisurati 2026-08-07 dopo
-il merge di `#144` e di CP 8.2; la §2.1 ne registrava 324 prima di quei merge). Comando riproducibile:
+**Suite automatica**: **347 test unici** in **51 file** (rimisurati 2026-08-07 alla chiusura di CP 5.5).
+⚠️ La cifra dichiarata qui prima era **338 in 49 file**, ma il valore su `main` era già **342 in 50**: i merge
+di `#179`/`#180` sono arrivati dopo l'ultima misura. È la stessa deriva del 2026-08-05, e la regola resta
+quella: **si misura col comando, non si cita a memoria**. Comando riproducibile:
 
 ```bash
 grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp | tr -d '"' | sort -u | wc -l
@@ -110,7 +112,7 @@ Le due righe qui sopra **erano vere il 2026-08-05 e non lo sono più**. Misura d
 |---|---|---|---|
 | **E1** Cataloghi | da costruire | ✅ **chiusa** | `Catalog.{IdsAreUnique, NoFloatInIntegerFields, PhaseMappingIsTotal, ValidatorRejectsInvalidAsset, ValidatorRejectsEquipmentWithoutDrawback, ValidatorRejectsUnboundedPropagation}` |
 | **E4** Motore azioni | da costruire | ✅ **chiusa** (52 test) | `Actions.{OrderByPriority, PermutationInvariant, PhaseMappingRespectsAtlas}`, 6 `Fallback.*`, `Guard.*`, `Charge.*`, `Leap.*`, `Root.*`, `Interrupt.*`, `Slow.*`, `Collisions.NoPlayerIdBias` |
-| **E5** Reazioni | da costruire | ✅ **chiusa** (24 test) | `Reactions.{SingleActivation, NoResolverWait, IntentNotVisibleToEnemy}`, `Counter/Deflect/Brace/Shield/Cleanse`, 5 test `Intercept*` |
+| **E5** Reazioni | da costruire | 🟡 **motore completo, non ancora consumato** (27 test) | `Reactions.{SingleActivation, NoResolverWait, IntentNotVisibleToEnemy}`, `Counter/Deflect/Brace/Shield/Cleanse`, 5 test `Intercept*` · ✅ **CP 5.5 chiuso 2026-08-07**: `Reactions.{MultiEffectReactionAppliesAll, HeroReactionKeepsIdentityInLog, NoHeroSpecificBranchInResolver}` — chiude quando **CP 6.7** cabla gli eroi |
 | **E6** Roster 4 eroi | da costruire | ✅ **chiusa** (20 test) | `Heroes.{Flux,Riva,Bastion,Vektor}.MatchesCatalog`, `*.VariantTradeoff`, `RosterIsBalanced`, `SpawnFromData` |
 | **E8** Terreni | da costruire | 🟡 **parziale** | ✅ `Terrain.{CostsFromCatalog, Rough.BlocksDash, Fire.*, ShallowWater.AppliesWet, Smoke.*, Ice.*}` · ✅ **CP 8.2 chiuso 2026-08-07**: 11 test `Status.*` (durata legata alla cella, `Burning` nel Cleanup, `WetRemovesBurning`, `Marked` con pass a priorità, `Obscured`) · ❌ nessun test `Environment.*` (CP 8.3 propagazione elettrica, CP 8.4 fuoco/acqua) |
 | **E7** Equipaggiamento | pianificata | ⏳ **assente** | nessun test `Equipment.*` |
@@ -370,11 +372,19 @@ turno**, senza attese nel resolver (invariante #3).
 | **5.2** | Difensive | `Counter` (16 danni dopo il colpo ricevuto, non su danno ambientale), `Deflect` (−20 al danno diretto, l'attacco conta come avvenuto), `Brace` (blocca la prima spinta, −10 ai danni diretti, blocca il movimento volontario), `Shield` (25 scudo consumato prima degli HP, scade nel Cleanup), `Cleanse` (rimuove **uno** stato scelto in planning) | Un test per reazione + `Reactions.Deflect.ZeroDamageStillHits` |
 | **5.3** | Intercept | L'intercettore diventa il bersaglio se un alleato entro 2 celle è bersagliato da un attacco **diretto** con traiettoria compatibile; **non** intercetta AoE né hazard | `Reactions.Intercept`, `Reactions.InterceptRejectsAoE`, `Reactions.InterceptRejectsHazard` — **foglie univoche**, vedi §6 |
 | **5.4** | Privacy delle reazioni | La reazione preparata è visibile agli **alleati** durante il planning e **mai** ai nemici; nessun intento in `GameState` replicato globalmente | `Reactions.IntentNotVisibleToEnemy` (estensione di `FRTIntentVisibilityTest`) |
-| **5.5** *(nuovo 2026-08-07)* | Reazioni **componibili**: il motore regge le reazioni d'eroe | Una reazione può dichiarare **più effetti** on-trigger (`Flux.ReactiveCapacitor` = `Shield 15` **e** 10 danni all'attaccante) e conservare la propria **identità** nel TurnLog pur riusando la semantica core: un helper di costruzione (`MakeHeroReactionFromCoreAction` o equivalente nello stile del `RTHeroCatalogLibrary`) produce `ActionId` d'eroe + cooldown proprio sopra `Action.Intercept`/`Action.Deflect`. **Nessun `if (ActionId == …)` nel `TurnManager`**: il vincolo è verificato da un test che permuta gli ActionId | `Reactions.HeroReactionKeepsIdentityInLog`, `Reactions.MultiEffectReactionAppliesAll`, `Reactions.NoHeroSpecificBranchInResolver` |
+| **5.5** ✅ *(chiuso 2026-08-07)* | Reazioni **componibili**: il motore regge le reazioni d'eroe | Una reazione può dichiarare **più effetti** on-trigger (`Flux.ReactiveCapacitor` = `Shield 15` **e** 10 danni all'attaccante) e conservare la propria **identità** nel TurnLog pur riusando la semantica core: un helper di costruzione (`MakeHeroReactionFromCoreAction` o equivalente nello stile del `RTHeroCatalogLibrary`) produce `ActionId` d'eroe + cooldown proprio sopra `Action.Intercept`/`Action.Deflect`. **Nessun `if (ActionId == …)` nel `TurnManager`**: il vincolo è verificato da un test che permuta gli ActionId | `Reactions.HeroReactionKeepsIdentityInLog`, `Reactions.MultiEffectReactionAppliesAll`, `Reactions.NoHeroSpecificBranchInResolver` |
 
 **Rischi**: è il punto di revisione dell'ADR-0003. Se il costo sfonda: degradare alle difensive di fase Prep
 (`Guard`/`Brace`/`Shield`) e rimandare `Counter`/`Intercept`/`Deflect` **fuori** dalla v0.1, aggiornando la DoD.
 
+> **CP 5.5 chiuso il 2026-08-07** (`#154`, 5 test nuovi) — dettaglio delle decisioni, dei limiti dichiarati e
+> delle verifiche di mutazione in [`spec-reazioni-componibili-cp55.md`](spec-reazioni-componibili-cp55.md).
+> Il motore ora applica **tutti** gli effetti dichiarati da una reazione (prima leggeva il primo `Damage` e
+> basta), la riduzione del danno è un effetto del catalogo (`ERTActionEffect::DamageReduction`) invece di un
+> `if (ActionId == "Action.Deflect")`, il TurnLog porta l'`ActionId` della reazione (formato **v3**, le tracce
+> v2 restano leggibili) e `URTHeroCatalogLibrary::MakeHeroReactionFromCoreAction` costruisce una reazione
+> d'eroe sopra la semantica core. **Il catalogo eroi non è toccato: il cablaggio è CP 6.7.**
+>
 > **CP 5.5 riapre l'epic**: E5 era stata chiusa con 24 test verdi, ma **nessuno la consuma** — le cinque
 > reazioni degli eroi hanno `Effects` vuoto e commenti «arriva con E5» nel catalogo, mentre E5 è passata.
 > Un motore che nessuno consuma non è finito: è un motore non collaudato. CP 5.5 aggiunge al motore ciò che
