@@ -916,7 +916,7 @@ bool FRTHexLinearDashTest::RunTest(const FString&)
 		TestTrue(TEXT("premessa: sul grafo la cella oltre l'ostacolo sarebbe raggiungibile"),
 			URTHexSimLibrary::FindPathForUnit(Snap, 7, Beyond).Status == ERTHexPathStatus::Success);
 		const FRTLinearMoveResult R = Dash(Snap, Start, Beyond, 3);
-		TestTrue(TEXT("ostacolo sulla linea -> non ci si arriva"), R.Final != Beyond);
+		TestTrue(TEXT("ostacolo sulla linea -> si resta fermi"), R.Final == Start);
 		TestTrue(TEXT("motivo dichiarato: terreno"), R.Stop == ERTLinearStop::BlockedByTerrain);
 	}
 
@@ -946,7 +946,7 @@ bool FRTHexLinearDashTest::RunTest(const FString&)
 			FRTHexSimUnit(8, FRTCellId(0, 2, 0), /*Budget=*/ 0)
 		});
 		const FRTLinearMoveResult R = Dash(Two, Start, FRTCellId(0, 2, 0), 3);
-		TestTrue(TEXT("destinazione occupata -> non ci si arriva"), R.Final != FRTCellId(0, 2, 0));
+		TestTrue(TEXT("destinazione occupata -> ci si ferma prima"), R.Final == FRTCellId(0, 1, 0));
 		TestTrue(TEXT("motivo dichiarato: unita'"), R.Stop == ERTLinearStop::BlockedByUnit);
 	}
 

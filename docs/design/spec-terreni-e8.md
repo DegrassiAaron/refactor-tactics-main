@@ -121,10 +121,16 @@ solo l'identificatore cambia):
 
 ### 5.1 Dash/Charge bloccati da `Rough`
 
-`Turn/RTHexSimLibrary.cpp:291` (`LinearDashPath`): il check `Data->bBlocksMovement` guadagna
-`|| URTTerrainLibrary::FindTerrainDef(Data->Surface).bBlocksDashCharge`. Il movimento normale (`Action.Move`,
+`Turn/RTMovementActionLibrary.cpp` (`IsTraversableByStep`, usata da `ResolveLinearMove`): oltre al muro
+(`bBlocksMovement`) la cella è negata anche da
+`URTTerrainLibrary::FindTerrainDef(Data->Surface).bBlocksDashCharge`. Il movimento normale (`Action.Move`,
 pathfinding via `RTHexPathLibrary`) **non** è affetto: `Rough` resta attraversabile a piedi, costa solo di
-più (`MoveCost=2`, già gestito dal costo esistente).
+più (`MoveCost=2`, già gestito dal costo esistente). Il **salto** scavalca: il predicato vale per gli stili
+che avanzano passo passo, non per l'atterraggio del `LinearLeap`.
+
+> **Aggiornato dopo la issue `#140`**: la regola viveva in `URTHexSimLibrary::LinearDashPath`, una seconda
+> implementazione dello scatto poi rimossa. Oggi esiste una sola funzione, e il bot vi accede col predicato
+> `URTMovementActionLibrary::IsLinearReachable`.
 
 ### 5.2 Ice — sliding (scelto: implementato ora, non rimandato)
 
@@ -141,11 +147,11 @@ gestisce occupazione e collisioni con lo stesso meccanismo di qualunque altro pa
 limite da dichiarare per il Move**: due unità che scivolano verso la stessa cella libera vengono gestite dal
 resolver esistente esattamente come due unità che vi si muovono normalmente.
 
-**Limite dichiarato**: lo Scatto (`LinearDashPath`) che termina su `Ice` **non** innesca lo scivolamento in
-CP 8.1. `LinearDashPath` non passa dal microstep condiviso — controlla i bloccati contro uno snapshot
-**statico** catturato a inizio fase (`BlockedCellsFor`), quindi estendere il suo path con una cella extra
-non avrebbe la stessa garanzia di correttezza sotto collisione simultanea del Move. Introdurlo richiederebbe
-far partecipare anche lo Scatto al resolver condiviso — fuori scope per CP 8.1, dichiarato in PR.
+**Limite dichiarato**: una mobilità **lineare** che termina su `Ice` **non** innesca lo scivolamento.
+`URTMovementActionLibrary::ResolveLinearMove` non passa dal microstep condiviso — valuta gli ostacoli contro
+l'occupazione **congelata** a inizio fase, quindi estendere il suo percorso con una cella extra non avrebbe
+la stessa garanzia di correttezza sotto collisione simultanea del Move. Introdurlo richiederebbe far
+partecipare anche lo Scatto al resolver condiviso — fuori scope per CP 8.1, dichiarato in PR.
 
 **Regola dai dati, non dall'enum**: chi scivola lo dichiara il catalogo con `FRTTerrainDef::SlideCells`
 (`Ice = 1`, tutti gli altri `0`), non un `Surface == ERTHexSurface::Ice` inciso in `ApplyIceSliding` — era

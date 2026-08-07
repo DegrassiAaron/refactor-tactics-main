@@ -170,10 +170,10 @@ bool FRTTerrainRoughBlocksDashTest::RunTest(const FString&)
 	Snapshot.Map = Map;
 	Snapshot.Units.Add(Unit);
 
-	// Il predicato con cui il BOT filtra le candidate: dal consolidamento (#140) e' lo stesso codice del
-	// resolver, quindi qui si verifica che la regola valga anche per chi PROPONE la mossa, non solo per chi
-	// la esegue.
-	TestFalse(TEXT("il bot non propone lo scatto: Rough lo nega"),
+	// Il predicato di raggiungibilita' lineare: dal consolidamento (#140) e' definito sopra la stessa
+	// funzione che esegue lo scatto, ed e' quello con cui il bot filtra le proprie candidate. La prova che il
+	// BOT lo usi davvero sta in `HexBotPlay.DashPlanIsExecutableOnCostlyTerrain`, non qui.
+	TestFalse(TEXT("la raggiungibilita' lineare nega lo scatto attraverso Rough"),
 		URTMovementActionLibrary::IsLinearReachable(Map, FRTCellId(0, 0, 0), FRTCellId(2, 0, 0),
 			/*MaxCells=*/ 10, ERTMovementStyle::LinearDash, Snapshot.Occupancy, {}));
 
