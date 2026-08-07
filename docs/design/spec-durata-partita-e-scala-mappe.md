@@ -463,14 +463,64 @@ ExpectedMatchDurationMinutes · SoftMaxMatchDurationMinutes
 MapClass (Skirmish | Standard | Operations)
 ```
 
-> ⚠️ **Questi nomi non sono vincolanti** e **non si crea architettura nuova per documentarli**. Quando il
-> formato diventerà un dato, va riusato ciò che esiste: il pattern del progetto è
-> `UPrimaryDataAsset` + libreria statica pura + validator (`URTActionData`, `URTHeroData`,
-> `URTCatalogLibrary`, `RT_ActionCatalog_v0.1.md`). **Nessun `Subsystem`, nessun `ActorComponent`**: il
-> progetto non ne usa (stessa motivazione di [`spec-pacing-turno.md`](spec-pacing-turno.md) §4).
->
+> ⚠️ **Questi nomi non sono vincolanti** e **non si crea architettura nuova per documentarli**.
 > Oggi `PlanningSeconds` e `MaxPlaybackSeconds` sono `UPROPERTY` su `ARTTurnManager` e `RoundLimit` **non
 > esiste affatto**. Il passaggio a formato dichiarato è lavoro di **CP 10.3** in poi, non di questa spec.
+
+### 16.1 Forma decisa *(2026-08-07, issue `#185`)*
+
+| Decisione | Valore |
+|---|---|
+| **Collocazione** | **`URTMatchFormatData : UPrimaryDataAsset`** + libreria statica pura + validator, in **`Turn/`** — accanto a `RTTurnRules`, che è dove vivono le regole del turno |
+| **Cosa entra subito** | **solo `RoundLimit`** (D2). Gli altri parametri migrano quando un checkpoint li consuma |
+| **Formato assente** | la partita **si avvia comunque**, con un formato di ripiego, **anche in build packaged** (D1) |
+| **Formato invalido** | il validator lo **rifiuta**: la partita **non** si allestisce. Il ripiego copre l'assenza, non il contenuto sbagliato |
+| **Versionamento** | l'asset nasce con un proprio `FormatVersion`, come `URTHexMapAsset` |
+
+È il pattern già in uso per il resto dei dati di gioco (`URTActionData`, `URTHeroData`, `URTCatalogLibrary`
+col validator che fallisce su asset invalido, gate **E1** della DoD). **Nessun `Subsystem`, nessun
+`ActorComponent`**: il progetto non ne usa (stessa motivazione di
+[`spec-pacing-turno.md`](spec-pacing-turno.md) §4).
+
+**Dove vive il ripiego**: la libreria pura **rifiuta sempre** (`nullptr`/`false` + motivo); la politica di
+ripiego sta **solo** in `ARTGameMode`, dove già sta quella dell'arena generata. È la separazione che il
+repository usa già — `MakeDemoArena` ritorna `nullptr` senza scusarsi, è il `GameMode` che sceglie di
+ripiegare e lo logga in Warning.
+
+> **Conseguenza vincolante di D1.** Siccome il ripiego esiste **ovunque**, l'onere si sposta tutto
+> sull'**osservabilità**: il formato realmente in vigore deve finire nel log e nella telemetria. Un ripiego
+> silenzioso non produce una partita rotta — produce una partita che gira benissimo mentre i numeri di §17
+> vengono attribuiti a un **formato fantasma**. Da rivedere a **M10**: fra due client, un ripiego silenzioso
+> non è un default comodo, è una divergenza di regole.
+
+### 16.2 Tre classi di parametri, tre regimi di determinismo
+
+«Il formato» non è una cosa sola, e trattarlo come blocco unico fa aggirare un divieto già scritto:
+
+| Classe | Parametri | Regime |
+|---|---|---|
+| **Regole** | `RoundLimit` · `VictoryPolicy` · `ScoreThreshold` · `OvertimePolicy` | Input **deterministici**: la simulazione li legge, l'esito ne dipende |
+| **Tempi UX** | `PlanningMaxSeconds` · `ReadyCountdownSeconds` · `FastReactionDefaultSeconds` | Tempo di **parete**: non devono **mai** raggiungere il TurnLog — [`spec-pacing-turno.md`](spec-pacing-turno.md) **D3**, «un tempo di parete lì dentro lo renderebbe non deterministico» |
+| **Target di design** | `ExpectedMatchDurationMinutes` · `SoftMaxMatchDurationMinutes` | **Documentazione**: non li legge nessun codice |
+
+Conseguenza diretta: nel TurnLog entra l'**identità** del formato (un `FormatId` stabile, come `ActionId`),
+**mai i suoi campi**.
+
+### 16.3 Snapshot e TurnLog
+
+| Dove | Entra? | Perché |
+|---|---|---|
+| **Snapshot** (`FRTHexSnapshot`) | **No**, per ora | Nessuna funzione pura lo legge: la fine partita si valuta nel Cleanup dal `TurnManager`, non dentro `ResolveHexPaths`. Metterlo ora significherebbe che ogni resolver porta un parametro che nessun resolver consulta. Quando servirà, entra **per riferimento + hash** come la mappa — mai copiato |
+| **Header del TurnLog** | **Sì** — `FormatId` | Stesso motivo di `ERTLogTopology`: *«senza questo marcatore le due tracce sarebbero indistinguibili e un confronto incrociato darebbe un falso "nessuna divergenza"»*. Due esecuzioni dello stesso scenario con `RoundLimit` diverso divergono al round in cui il limite morde, e la divergenza verrebbe attribuita al **codice** invece che alla **configurazione** |
+| **Voci del TurnLog** | **No** | Sarebbe una costante ripetuta N volte; `ActionId` è già dichiarato «il primo campo a lunghezza variabile del formato» |
+| **`HashTurnLog`** | **No** | L'hash mescola solo i campi delle voci, e la topologia infatti non ci entra. Includere il formato **invaliderebbe in blocco ogni hash golden**, cioè proprio ciò che la regola di CP 12.6 — rigenerazione solo con flag esplicito — esiste per impedire |
+
+Versione del formato serializzato a **4**; i file **v3 restano leggibili** con `FormatId` neutro, come
+`Square = 0` per la topologia e come l'`ActionId` vuoto di v3.
+
+**Se l'hash non copre il formato, deve coprirlo la procedura di confronto**, o il falso «nessuna divergenza»
+ricompare un piano più su: il test del corpus golden verifica che il formato coincida **prima** di confrontare
+gli hash, e fallisce dicendo *formato diverso*, non *divergenza*.
 
 ---
 
@@ -531,6 +581,8 @@ da 3 s. La sonda esiste già come design (`spec-pacing-turno.md`); qui si aggiun
 - Gli obiettivi devono mantenere pressione **anche** su mappe più grandi.
 - Un vertical slice più piccolo **non determina** la scala delle mappe finali.
 - Le macro-fasi e l'ordine `Prep → Dash → Blast → Move` **non cambiano**.
+- La **forma** della configurazione: `URTMatchFormatData` in `Turn/`, ripiego solo in `ARTGameMode`, `FormatId`
+  nell'header del TurnLog e **non** nell'hash (§16.1–16.3, issue `#185`).
 
 ### 🧪 Baseline da playtestare
 
@@ -583,3 +635,5 @@ Sneak · Acoustic Mask.
 | Verifiche interattive | [`test-manuali-pie.md`](test-manuali-pie.md) |
 | Decision Log del PDR | [`../PDR/RT_PDR_00_Decision_Log.md`](../PDR/RT_PDR_00_Decision_Log.md) **D-010** |
 | Codice toccato dai parametri | `Turn/RTTurnManager.h:134` (`MaxPlaybackSeconds`), `:239` (`PlanningSeconds`) |
+| Forma della configurazione, DoD e test | issue `#185` — decisa il 2026-08-07, consumata da **CP 10.3** (`#76`) |
+| Precedenti citati in §16.3 | `Turn/RTHexSim.h` (snapshot), `Turn/RTTurnLog.h` (`ERTLogTopology`, versioni 1→3), `Turn/RTTurnLogLibrary.cpp` (`HashTurnLog`) |
