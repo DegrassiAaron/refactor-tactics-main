@@ -538,6 +538,21 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		Catalog.Add(Electrify);
 	}
 
+	// `Ignite` e `CreateWater` — le due azioni che CAMBIANO la mappa (CP 8.4). Il catalogo azioni le elenca
+	// entrambe con priorita' 60 e portata 4; qui risolvono nella sola fase `Environment` (Cleanup), non nel
+	// Blast: una cella che prende fuoco a meta' turno cambierebbe il costo di un percorso gia' calcolato.
+	//
+	// Nessuna delle due dichiara `Effects`: il loro esito non e' un effetto su un'UNITA' (danno, cura, stato)
+	// ma una modifica della CELLA, che `FRTActionEffectSpec` non sa esprimere — gli effetti si applicano a
+	// bersagli, non a terreno. La superficie che creano e la durata vivono nel resolver ambientale, che e'
+	// l'unico posto in cui il terreno dinamico esiste.
+	//
+	// **Durata 2 turni** per entrambe, dal catalogo terreni §2 (fuoco) e dal catalogo azioni §6 (acqua).
+	Catalog.Add(ShippedAction(TEXT("Action.Ignite"), ERTResolutionPhase::Environment, /*Priority*/ 60,
+		/*Range*/ 4, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
+	Catalog.Add(ShippedAction(TEXT("Action.CreateWater"), ERTResolutionPhase::Environment, /*Priority*/ 60,
+		/*Range*/ 4, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
+
 	return Catalog;
 }
 

@@ -14,7 +14,27 @@
  * gia' su disco.
  */
 UENUM(BlueprintType)
-enum class ERTLogCategory : uint8 { Move, Combat, Fallback, Reaction };
+enum class ERTLogCategory : uint8 { Move, Combat, Fallback, Reaction, Environment };
+
+/**
+ * Come una CELLA e' cambiata durante il turno (CP 8.4). La mappa e' un sistema di gioco: se una cella prende
+ * fuoco o si allaga, il replay deve poterlo dire — altrimenti una unita' che a T+1 incassa danno «senza
+ * motivo» resta inspiegabile, e il TurnLog non e' piu' una traccia autoritativa.
+ *
+ * `Amount` della voce porta i turni di durata; `TgtCell` la cella modificata; `ActionId` chi l'ha causata.
+ */
+UENUM(BlueprintType)
+enum class ERTEnvironmentOutcome : uint8
+{
+	/** La superficie della cella e' cambiata (fuoco acceso, acqua creata). */
+	SurfaceChanged,
+	/** Una modifica temporanea e' scaduta: la cella e' tornata alla superficie originale. */
+	SurfaceRestored,
+	/** La modifica non e' avvenuta: la superficie di destinazione non l'ammette (acqua e metallo non bruciano). */
+	SurfaceRejected,
+	/** Una superficie ne ha rimossa un'altra: l'acqua che arriva sul fuoco lo spegne. */
+	SurfaceExtinguished
+};
 
 /**
  * Quale fallback e' stato applicato a un'azione che non era piu' eseguibile. Speculare a `ERTActionFallback`

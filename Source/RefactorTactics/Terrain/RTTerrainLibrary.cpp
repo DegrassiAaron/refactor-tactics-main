@@ -9,7 +9,7 @@ namespace
 	/** `SlideCells` in coda e con default: solo `Ice` lo valorizza, e li' e' scritto per nome. */
 	FRTTerrainDef MakeTerrain(ERTHexSurface Surface, int32 MoveCost, bool bBlocksDashCharge,
 		bool bBlocksLineOfSight, bool bConductsElectricity, int32 MaxTargetingRangeThrough,
-		TArray<FRTActionEffectSpec> OnEnterEffects, int32 SlideCells = 0)
+		TArray<FRTActionEffectSpec> OnEnterEffects, int32 SlideCells = 0, bool bIsFlammable = false)
 	{
 		FRTTerrainDef Def;
 		Def.Surface = Surface;
@@ -20,6 +20,7 @@ namespace
 		Def.MaxTargetingRangeThrough = MaxTargetingRangeThrough;
 		Def.OnEnterEffects = MoveTemp(OnEnterEffects);
 		Def.SlideCells = SlideCells;
+		Def.bIsFlammable = bIsFlammable;
 		return Def;
 	}
 }
@@ -27,8 +28,8 @@ namespace
 TArray<FRTTerrainDef> URTTerrainLibrary::GetTerrainCatalog()
 {
 	TArray<FRTTerrainDef> Catalog;
-	Catalog.Add(MakeTerrain(ERTHexSurface::Floor,        1, false, false, false, 0, {}));
-	Catalog.Add(MakeTerrain(ERTHexSurface::Rough,        2, true,  false, false, 0, {}));
+	Catalog.Add(MakeTerrain(ERTHexSurface::Floor,        1, false, false, false, 0, {}, /*Slide*/ 0, /*Flammable*/ true));
+	Catalog.Add(MakeTerrain(ERTHexSurface::Rough,        2, true,  false, false, 0, {}, /*Slide*/ 0, /*Flammable*/ true));
 	Catalog.Add(MakeTerrain(ERTHexSurface::ShallowWater, 2, false, false, true,  0,
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Wet, 0) }));
 	Catalog.Add(MakeTerrain(ERTHexSurface::Fire,         2, false, false, false, 0,

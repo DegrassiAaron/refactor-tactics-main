@@ -9,6 +9,7 @@
 #include "Ability/RTActionDef.h" // FRTActionDef: l'impatto della carica porta con se' la definizione
 #include "Turn/RTHexSim.h" // FRTHexSnapshot: restituito per valore da MakeCurrentSnapshot
 #include "Turn/RTPacing.h" // FRTPacingSample: telemetria, canale separato dal TurnLog
+#include "Map/RTHexCellData.h" // ERTHexSurface: il terreno dinamico ricorda la superficie originale (CP 8.4)
 #include "RTTurnManager.generated.h"
 
 class ARTUnit;
@@ -187,7 +188,36 @@ protected:
 	 * dell'ambiente, il bruciore e' un danno a tempo che matura a fine turno. L'ordine e' osservabile — chi
 	 * muore prende un reason code diverso nel TurnLog — quindi e' dichiarato, non lasciato al caso.
 	 */
-	void ResolveEnvironment(const URTHexMapAsset* Map);
+	void ResolveEnvironment(URTHexMapAsset* Map);
+
+	/**
+	 * Modifiche TEMPORANEE alla mappa (CP 8.4): fuoco acceso, acqua creata. Il terreno dinamico vive in due
+	 * pezzi, e la divisione non e' casuale:
+	 * - la superficie **corrente** sta nella mappa, perche' e' cio' che tutti leggono gia' (costi, Dash,
+	 *   ghiaccio, targeting, on-enter, conduttivita'): un secondo posto da consultare sarebbe un secondo
+	 *   modello di verita', e prima o poi qualcuno leggerebbe solo uno dei due;
+	 * - la superficie **originale** e i turni rimanenti stanno qui, perche' sono stato di PARTITA e non dato
+	 *   di mappa: due partite sulla stessa arena non devono ereditarsi il fuoco a vicenda.
+	 */
+	struct FRTDynamicSurface
+	{
+		ERTHexSurface Original = ERTHexSurface::Floor;
+		int32 TurnsRemaining = 0;
+	};
+	TMap<FRTCellId, FRTDynamicSurface> DynamicSurfaces;
+
+	/**
+	 * Cambia la superficie di una cella per `Turns` turni, registrandolo nel TurnLog. Ritorna falso (e non
+	 * cambia nulla) se la destinazione non ammette la trasformazione — l'acqua e il metallo non prendono
+	 * fuoco. Un secondo cambio sulla stessa cella **non** perde l'originale: si sovrascrive la superficie
+	 * corrente e si tiene la prima, altrimenti una cella allagata e poi incendiata non tornerebbe mai
+	 * com'era.
+	 */
+	bool ApplyDynamicSurface(URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexSurface NewSurface, int32 Turns,
+		const FName& CauseActionId);
+
+	/** Scadenza delle modifiche temporanee, nel Cleanup: a zero turni la cella torna com'era, e si registra. */
+	void TickDynamicSurfaces(URTHexMapAsset* Map);
 	void StartPlanningTimer();
 	void OnPlanningTimeout();
 

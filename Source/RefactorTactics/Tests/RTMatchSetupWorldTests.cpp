@@ -302,7 +302,15 @@ bool FRTGameModeMapSourceLevelAssetTest::RunTest(const FString&)
 	TestTrue(TEXT("il default e' la mappa del livello"), GameMode->MapSource == ERTMapSource::LevelAsset);
 	GameMode->SetupHexMatch(MapActor);
 
-	TestTrue(TEXT("la mappa d'autore NON viene sostituita"), MapActor->MapAsset == Authored);
+	// CP 8.4: la partita ora lavora su una COPIA della mappa d'autore, perche' il terreno dinamico la modifica
+	// (fuoco, acqua) e l'asset su disco non deve cambiare. Il test passa quindi dall'identita' del puntatore al
+	// CONTENUTO: quello che il checkpoint garantiva — «la mappa d'autore non viene rimpiazzata dall'arena
+	// demo» — resta verificato, e in piu' si verifica che la copia sia fedele.
+	TestNotNull(TEXT("la mappa e' allestita"), MapActor->MapAsset.Get());
+	TestTrue(TEXT("la mappa d'autore NON viene sostituita da un'altra arena"),
+		MapActor->MapAsset && MapActor->MapAsset->ComputeHash() == Authored->ComputeHash());
+	TestTrue(TEXT("ma e' una copia di lavoro: l'asset d'autore non viene modificato dalla partita"),
+		MapActor->MapAsset != Authored);
 
 	DestroySetupWorld(World);
 	return true;
