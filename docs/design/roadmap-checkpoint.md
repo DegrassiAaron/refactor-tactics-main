@@ -40,16 +40,16 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in parte (vedi nota) · ⏳ da far
 | **M6** Parità hex | 🟡 | **Codice completo** (CP 6.1–6.7 mergiati): la partita gira su esagoni — wiring, movimento, input, combat, scatto/spinta, bot, HUD. Resta il **playtest** CP 6.8 (sessione PIE) |
 | **M7** Dismissione del quadrato | 🟡 | **Un solo substrato + release interna**: CP 7.1, 7.2 e 7.4 fatti (rimozione, packaging Development e Shipping avviati). Resta **CP 7.3**: 2 KPI su 4 misurati, FPS e preview richiedono rendering/editor |
 | **M8** Presentazione e identità | 🟡 | **Le regole dei 4 eroi ci sono e le reazioni funzionano in partita** (E6: 25 test; CP 5.5 + CP 6.7 del 2026-08-07 hanno reso il motore componibile e cablato `Interposition`, `Deflection`, `ReactiveCapacitor`; `InterceptShot` e `FlowReaction` sono rinviate a **E14** e lo dichiarano nei dati). Resta la **presentazione**: personaggi animati, anelli team/selezione, **Ghost Timeline del planning** (`#172`/`#173`), leggibilità tattica — banco di prova: la showcase E15 |
-| **M9** Ambienti tattici + editor maturo | 🟡 | **Terreni e stati** (E8: costi, Rough, Fire, ShallowWater, Smoke, Ice — 17 test; **CP 8.2 stati temporanei chiuso il 2026-08-07**, 11 test: durata legata alla cella, danno di `Burning` nel Cleanup prima dei KO, `Wet` che spegne le fiamme, `Marked` cablato). **CP 8.3 chiuso il 2026-08-07** (7 test: propagazione elettrica sul grafo dell'acqua, limite 3 passi, unicità per evento, ordine totale). **CP 8.4 chiuso il 2026-08-07**: la mappa cambia in partita (terreno dinamico, fuoco/acqua, TurnLog ambientale). Restano **le azioni ambientali** (CP 8.5), cover dinamica, porte/ponti (E9) e il residuo H5 dell'editor |
+| **M9** Ambienti tattici + editor maturo | 🟡 | **Terreni e stati** (E8: costi, Rough, Fire, ShallowWater, Smoke, Ice — 17 test; **CP 8.2 stati temporanei chiuso il 2026-08-07**, 11 test: durata legata alla cella, danno di `Burning` nel Cleanup prima dei KO, `Wet` che spegne le fiamme, `Marked` cablato). **CP 8.3 chiuso il 2026-08-07** (7 test: propagazione elettrica sul grafo dell'acqua, limite 3 passi, unicità per evento, ordine totale). **Epic E8 chiusa il 2026-08-07** (CP 8.1-8.5): terreni, stati, propagazione elettrica, terreno dinamico con fuoco/acqua, azioni ambientali e di supporto. Restano **cover dinamica e porte/ponti** (E9, con `CreateCover` rinviata da CP 8.5) e il residuo H5 dell'editor |
 | **M10** Rete e privacy | ⏳ | Listen server, validazione server, planning team-only, canary intent leak. **Nuovo vincolo**: [ADR-0004](adr-0004-finestre-di-reazione.md) introduce N round-trip per turno (finestre di reazione) |
 | **M11** Production readiness | ⏳ | Budget in CI, validator commandlet, packaged soak, replay audit |
 
-**Suite automatica**: `Source/RefactorTactics/Tests/` — **362** test unici in 54 file (misurati 2026-08-07 alla
-chiusura di CP 8.4).
+**Suite automatica**: `Source/RefactorTactics/Tests/` — **366** test unici in 55 file (misurati 2026-08-07 alla
+chiusura di CP 8.5 e dell'epic E8).
 Storia del numero: **172** alla chiusura di CP 6.0 → **230** con M6+E1 → **171** dopo la rimozione del quadrato
 (i **59** test previsti dall'inventario) → **324** con E4/E5/E6 e i terreni → **325** col merge di `#144` →
 **338** con gli stati temporanei di CP 8.2 (`#65`) → **342** con i merge di `#179`/`#180` (misurato, mai
-dichiarato: le due viste citavano ancora 338) → **347** con le reazioni componibili di CP 5.5 (`#154`) → **352** col cablaggio delle reazioni d'eroe di CP 6.7 (`#155`) → **359** con la propagazione elettrica di CP 8.3 (`#66`) → **362** col terreno dinamico di CP 8.4 (`#67`).
+dichiarato: le due viste citavano ancora 338) → **347** con le reazioni componibili di CP 5.5 (`#154`) → **352** col cablaggio delle reazioni d'eroe di CP 6.7 (`#155`) → **359** con la propagazione elettrica di CP 8.3 (`#66`) → **362** col terreno dinamico di CP 8.4 (`#67`) → **366** con le azioni ambientali di CP 8.5 (`#68`, epic E8 chiusa).
 
 Comando di misura, riproducibile:
 
