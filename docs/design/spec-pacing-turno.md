@@ -4,6 +4,14 @@
 > **Ambito**: tempo reale di un turno (pianificazione + risoluzione), **non** il numero di turni per partita.
 > **Decisione abilitante di questa spec**: le reazioni **restano pre-committed** — nessuna finestra
 > interattiva nel resolver, CP 5.1 (`#50`) e l'invariante #3 restano invariati.
+>
+> ⚠️ **Aggiornamenti successivi, che non invalidano il metodo**:
+> **(a)** [ADR-0004](adr-0004-finestre-di-reazione.md) (2026-08-07) reintroduce finestre interattive come
+> *decision boundary* — la D1 qui sotto resta la premessa storica di questa spec, non lo stato del canone;
+> il metodo di misura è invariato, e la Fast Reaction va misurata **a parte** (è Decision Time, non planning).
+> **(b)** [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) fissa le **bande
+> obiettivo** per formato: `PlanningMax` **40–45 s** in 3v3 Standard, **30 s** nel 2v2 corrente. Questa spec
+> resta il modo in cui quei numeri si **verificano** invece di essere scelti.
 
 ## 1. Il problema
 
@@ -213,9 +221,13 @@ qualcuno sarà tentato di far leggere un tempo a una decisione.
 - **Non tocca le reazioni**: restano pre-committed, CP 5.1 e invariante #3 invariati (D1).
 - **Non aggrega più sessioni da codice**: nessun parser CSV: un foglio di calcolo lo fa, e oggi sarebbe codice
   non richiesto.
-- **Non affronta `#96`**: quello è il **numero** di turni (misurato a 10 dopo la scadenza dello scudo nel
+- **Non affronta `#96`**: quello è il **numero** di round (misurato a 10 dopo la scadenza dello scudo nel
   Cleanup; era 25 prima), questo è il **tempo** di un turno. Confonderli farebbe tarare il pacing su una
-  partita che è lunga per un altro motivo.
+  partita che è lunga per un altro motivo. Il numero di round e la durata della partita vivono in
+  [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md).
+- **Non misura la durata della partita né la Fast Reaction**: `MatchDurationSeconds`, `ReadyAtSeconds`,
+  `ReactionDecisionSeconds` e le altre metriche di formato sono elencate in quella spec (§17) e useranno
+  **questo stesso canale** — separato dal TurnLog, interi in millisecondi, nessun ritorno verso il gameplay.
 - **Non introduce finestre di risposta durante la risoluzione**: sarebbe un ADR che revisiona CP 5.1 e
   l'invariante #3, e non è ciò che questa sessione ha deciso.
 
@@ -251,7 +263,7 @@ Conviene quindi che la sonda esista **prima** che E4 chiuda, per avere un prima 
 - Hash e serializzazione del TurnLog: `Source/RefactorTactics/Turn/RTTurnLogLibrary.h:38-67`
 - Reazioni pre-committed: issue `#50` (CP 5.1), DoD «senza attese nel resolver»
 - KPI di macchina: issue `#41` (CP 3.3) · tabella in [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §4
-- Durata della partita in turni (problema distinto): issue `#96`
+- Durata della partita in round (problema distinto): issue `#96` · [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md)
 - Pacing del playback e conflitto di fonte sul PDF: [`spec-anima-risoluzione.md`](spec-anima-risoluzione.md), righe 10-15 (stack e Reaction Points fuori MVP) e 117-119 (perché i 45-60 s del PDF non si applicano qui)
 - Parametri north-star delle finestre di reazione: [`spec-sequenza-turno.md`](spec-sequenza-turno.md), riga «Budget UX» (2 RP/squadra, 2-3 finestre, timer 3 s)
 - Catalogo che allarga la decisione: [`spec-motore-azioni-e4.md`](spec-motore-azioni-e4.md), [`adr-0003-modello-azioni-v01.md`](adr-0003-modello-azioni-v01.md)

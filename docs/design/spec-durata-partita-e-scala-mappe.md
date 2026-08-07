@@ -1,0 +1,585 @@
+# Spec — Durata della partita, budget del round e scala delle mappe
+
+> **Stato**: decisioni consolidate + baseline da playtestare · **Data**: 2026-08-07 · **Decisore**: utente (dev singolo)
+> **Ambito**: quanto dura una partita, quanti round la compongono, quanto dura ogni finestra temporale del round,
+> quanto è grande una mappa e **come si misura** che sia della dimensione giusta.
+>
+> **Non è**: il tempo di *un* turno misurato sul giocatore reale (→ [`spec-pacing-turno.md`](spec-pacing-turno.md)),
+> né il modello delle reazioni interattive (→ [ADR-0004](adr-0004-finestre-di-reazione.md)), né il pacing del
+> playback (→ [`spec-anima-risoluzione.md`](spec-anima-risoluzione.md)). Questa spec dice **quali numeri
+> puntare**; quelle dicono **come misurarli** e **come si riproducono a schermo**.
+>
+> **Supera**: `RT_PDR_00_Decision_Log.md` **D-002** («massimo 12 turni; planning 30 s; resolution 6-12 s»),
+> il «limite di **12 turni**» come regola universale di [ADR-0003](adr-0003-modello-azioni-v01.md) §3, e ogni
+> residuo di «finestra di interrupt / Reaction Charge da **5 s**» presentato come baseline corrente.
+
+---
+
+## 0. Glossario — terminologia vincolante
+
+Il repository usa storicamente **«turno»** per ciò che qui si chiama **Round**. **Non si fa un rename globale**:
+il codice (`ERTMatchPhase`, `TurnNumber`, `ARTTurnManager`, `FRTTurnLogEntry`) resta com'è. Si fissa il
+glossario, così i documenti nuovi non moltiplicano i significati.
+
+| Termine | Significato | Nel codice / nei doc storici |
+|---|---|---|
+| **Match** (partita) | Dall'allestimento alla condizione di fine | «partita» |
+| **Round** | Un ciclo completo `Planning → Commit → Resolution → Cleanup` | **«turno»**, `TurnNumber` |
+| **Planning** | Finestra di pianificazione simultanea, con timer massimo | `ERTMatchPhase::Planning`, `PlanningSeconds` |
+| **Ready** | Dichiarazione «ho finito», anticipabile rispetto al timer | lock-in (Spazio) |
+| **Commit** | Chiusura irreversibile degli intenti, snapshot dello stato | `LockInAndResolve` |
+| **Resolution** | Calcolo autorevole + playback delle macro-fasi `Prep → Dash → Blast → Move` | `Resolving` |
+| **Fast Action** | Azione dichiarata in Planning che risolve a un boundary successivo | Delayed Actions ([`brief-delayed-actions.md`](brief-delayed-actions.md)) |
+| **Fast Reaction** | Scelta live richiesta **dentro** la resolution a un decision boundary | ADR-0004, `FRTReactionOpportunity` |
+| **Overtime** | Prolungamento oltre il `RoundLimit` a punteggio pari | ⏳ non esiste |
+| **Match Format** | Il pacchetto di parametri di un formato (3v3 Standard, 2v2 Skirmish…) | ⏳ non esiste |
+| **Ruleset** | L'insieme di regole/policy che governa un Match Format | ⏳ non esiste |
+
+**«Turno» non va usato** in documenti nuovi per indicare «il giro di una singola unità»: quel concetto non
+esiste in RefactorTactics — tutte le unità agiscono nello stesso round.
+
+---
+
+## 1. Il principio
+
+> **RefactorTactics deve essere compatto nel tempo, non necessariamente piccolo nello spazio.**
+
+*Atlas Reactor* resta il riferimento per **planning simultaneo**, **leggibilità delle fasi**, **commitment
+delle azioni** e **resolution simultanea**. Non è un riferimento per la **dimensione fisica della mappa**, la
+**distanza fra le squadre**, il **numero di round** né la **durata esatta della partita**.
+
+La dimensione della mappa si decide dalle necessità del gameplay di RefactorTactics, non per analogia.
+
+---
+
+## 2. Perché serve più spazio tattico
+
+RefactorTactics ha (o avrà) sistemi che senza spazio non producono decisioni:
+
+Fog of War · visibilità limitata · stealth · rumore e percezione acustica · Overwatch direzionale ·
+Fast Reaction · percorsi alternativi · flank · coperture · quota · ponti · porte · tunnel · acqua · fuoco ·
+elettricità · hazard · obiettivi dinamici · controllo del territorio.
+
+Una mappa troppo piccola li **degrada tutti insieme**, e ciascuno per la stessa ragione — il raggio dei sistemi
+diventa comparabile al diametro della mappa:
+
+| Sistema | Come degrada su mappa piccola |
+|---|---|
+| Fog of War / vista | la visibilità diventa di fatto globale: non c'è nulla da scoprire |
+| Rumore | ogni rumore è udito da tutta la squadra avversaria: smette di essere informazione parziale |
+| Stealth | non esiste una rotta abbastanza lunga da restare non visti |
+| Flank | il fianco è a due celle: aggirare non costa nulla, quindi non è una scelta |
+| Overwatch | una sola zona controllata copre tutte le rotte principali → dominante senza counterplay |
+| Rotte alternative | esistono sulla carta ma convergono subito: nessuna vera differenza di rischio |
+| Positional gameplay | compresso: la posizione conta meno del semplice ordine delle azioni |
+
+Le mappe di RefactorTactics possono quindi essere **sensibilmente più spaziose** di quelle di Atlas Reactor.
+
+---
+
+## 3. Come si dimensiona una mappa — *temporal map size*
+
+**Metrica primaria** — non i metri, non il numero assoluto di celle, non il confronto con Atlas Reactor:
+
+> **Quanti Move servono per raggiungere una zona tatticamente rilevante?**
+
+Una mappa è dimensionata correttamente quando:
+
+1. già nel **round 1** esistono decisioni tattiche significative;
+2. entro **1–2 round** si può contestare una zona importante o entrare in un primo contatto significativo;
+3. **attraversarla tutta** costa sensibilmente di più;
+4. esistono almeno **2–3 rotte strategicamente diverse**;
+5. il giocatore deve scegliere fra **rapidità, sicurezza, visibilità, rumore, copertura e opportunità di flank**.
+
+Da evitare:
+
+```text
+Spawn → Move → Move → Move → finalmente succede qualcosa
+```
+
+Da preferire:
+
+```text
+Spawn → scelta immediata della rotta → primo contatto / contestazione entro 1–2 round
+      → attraversamento completo molto più costoso
+```
+
+**Perché la metrica è temporale e non spaziale**: il costo di traversata è già un intero per cella e dipende
+dal terreno (1 normale, 2 difficile/rampa — [`balance/RT_TerrainCatalog_v0.1.md`](balance/RT_TerrainCatalog_v0.1.md)).
+Contare le celle misura la cosa sbagliata: 40 celle di `Rough` e 80 celle normali sono la stessa mappa dal punto
+di vista del giocatore. Il numero di **Move** le rende confrontabili.
+
+---
+
+## 4. Classi di mappa — data-driven, non hard-coded
+
+Le classi sono un **attributo del dato mappa**, non un `enum` con regole cablate: un livello dichiara la classe
+a cui appartiene e i target si verificano su di esso, non nel codice delle regole.
+
+### Skirmish
+
+**Uso**: tutorial, test, vertical slice iniziale, 2v2, match rapidi.
+
+| Target indicativo | Valore |
+|---|---|
+| Attraversamento completo | ~**3–4 Move** normali |
+| Primo contatto significativo | ~**1 round** |
+
+### Standard — formato competitivo principale
+
+**Uso**: 3v3, modalità principale.
+
+| Target indicativo | Valore |
+|---|---|
+| Attraversamento completo | ~**5–7 Move** normali |
+| Primo contatto / contestazione | **1–2 round** |
+| Macro-rotte | almeno **2–3** |
+| Topologia | choke point **e** percorsi alternativi |
+
+**La quantità esatta di celle non è bloccata.** Una Standard può tranquillamente superare le 100 celle e
+arrivare a **~150–200 celle percorribili** se il layout mantiene il tempo di contatto corretto. Quei numeri sono
+un **ordine di grandezza da playtestare**, non un requisito.
+
+### Operations — **futuro, fuori scope**
+
+Formato possibile in seguito: mappe sensibilmente più grandi, Fog of War più determinante, esplorazione,
+zone/obiettivi multipli, logistica e repositioning, match potenzialmente da **45–60+ minuti**.
+
+L'architettura deve **consentirlo** (parametri di formato nei dati, nessun limite cablato). **Non si implementa
+ora**: non è nella v0.1 né in M6–M11.
+
+---
+
+## 5. Durata desiderata della partita
+
+Formato principale **3v3 Standard**:
+
+| Caso | Durata |
+|---|---|
+| Match veloce | ~20–25 min |
+| **Match tipico (target)** | **~25–30 min** |
+| Match combattuto | ~30–40 min |
+| Eccezione / **hard ceiling di design** | ~**45 min** |
+
+I 45 minuti sono il **limite superiore da evitare nella maggioranza delle partite**, non un obiettivo: una
+normale partita competitiva non va progettata per durare 45 minuti.
+
+Sono **target di playtest**, non invarianti: nessuna regola del resolver dipende da questi numeri.
+
+---
+
+## 6. Numero di round
+
+La precedente «max 12 turni» **non è più una decisione definitiva** e **non è una regola universale**. Con
+resolution rapide e planning efficiente, 12 round producono partite troppo corte per il formato principale.
+
+| Formato | Round attesi | Hard cap indicativo |
+|---|---|---|
+| **3v3 Standard** | ~**16–20** | ~**20–22** |
+| **2v2 vertical slice / Skirmish** | ~**10–14** | ~**14–16** |
+
+Il numero di round è un **parametro del Match Format / Ruleset**, non una costante:
+
+```text
+MatchFormat.Standard3v3     ExpectedRounds = 16–20   RoundLimit = 20–22
+MatchFormat.Skirmish2v2     ExpectedRounds = 10–14   RoundLimit = 14–16
+```
+
+I valori reali si fissano con telemetria e playtest (§16). **Nessuna affermazione secondo cui la struttura
+finale del gioco è obbligatoriamente limitata a 8 o 12 round è vigente**: gli 8 turni della showcase sono un
+**dato di scenario** ([`showcase-v0.1.md`](showcase-v0.1.md) §3), i 12 del catalogo v0.1 diventano il valore
+iniziale di `RoundLimit` per il **solo** formato 2v2 della v0.1.
+
+> **Dato misurato che sostiene la banda 2v2**: `RefactorTactics.HexMatch.PlaysToCompletion` (2026-08-06) chiude
+> una partita bot-vs-bot al **round 10** — dentro la banda 10–14, e per un motivo noto (la scadenza dello scudo
+> nel Cleanup; prima erano 25, issue `#96`). È l'unico numero reale che abbiamo oggi, e viene da bot, non da
+> giocatori.
+
+---
+
+## 7. Planning e Ready
+
+### 7.1 Timer massimo + Ready anticipato
+
+Il planning usa **timer massimo** *e* **Ready anticipato**. **Non si assume che ogni round consumi l'intero
+timer**: il timer è il tetto, il Ready è il caso normale.
+
+| Formato | `PlanningMax` (baseline da testare) |
+|---|---|
+| **3v3 Standard** | **40–45 s** |
+| **2v2 v0.1** | **30 s** — valore corrente in codice (`RTTurnManager.h:239`), **da tarare sul misurato**, non da alzare per analogia col 3v3 |
+
+**Perché 40–45 s e non 30 s per il 3v3**: il giocatore deve valutare più personaggi, path, abilità, ghost delle
+azioni, AoE, azioni ritardate, Overwatch, Fast Reaction preparate, terreno, intenti alleati, collisioni,
+friendly fire, Fog of War e rischio informativo. 30 s possono risultare insufficienti nelle situazioni
+complesse — ed è esattamente la coda che [`spec-pacing-turno.md`](spec-pacing-turno.md) §7 chiama *taglio*.
+
+Il sistema deve però **incentivare round più rapidi** attraverso il Ready, non attraverso un timer corto.
+
+### 7.2 Ready countdown
+
+```text
+Player A READY @ 22 s
+Player B READY @ 28 s
+  → tutti Ready → countdown 3 s → Commit → Resolution
+```
+
+| Parametro | Baseline |
+|---|---|
+| `ReadyCountdown` | **3 s** |
+| Unready durante il countdown | **annulla** il countdown e torna al planning |
+
+Il countdown **non sostituisce** il timer massimo del planning: è la scorciatoia quando tutti hanno finito prima.
+
+> ⚠️ **Stato di implementazione (verificato 2026-08-07)**: oggi il lock-in è **immediato** — Spazio chiude il
+> planning senza countdown e senza possibilità di annullare (`RTPlayerController.cpp`, `LockInAndResolve`).
+> Il countdown annullabile **non esiste**. `RT_PDR_10 §2` riga 8 lo dichiarava ✅ ed è stato corretto a 🟡.
+> In 2v2 offline la differenza è nulla (un solo umano); diventa reale con il 3v3 e con **M10**.
+
+---
+
+## 8. Fast Reaction
+
+| Parametro | Valore |
+|---|---|
+| `FastReactionDuration` | **3.0 s** — **baseline di sistema** |
+| `DefaultTimeoutBehavior` | **HOLD** (mai `FIRE`: un mancato input non consuma una risorsa irreversibile) |
+| `MaxPromptsPerReaction` | 3, data-driven |
+
+Formalizzata in [ADR-0004](adr-0004-finestre-di-reazione.md) §8, che resta la fonte del modello.
+
+La Fast Reaction **non è una seconda fase di planning**. Deve essere breve, immediata, con poche opzioni,
+contestuale, leggibile, **senza menu profondi**. L'esempio canonico è l'Overwatch:
+
+```text
+FIRE     HOLD          ← timeout standard: HOLD
+```
+
+**I 5 secondi non sono più una baseline.** Ogni «interrupt window» o «Reaction Charge = 5 s» nei documenti
+sorgente (`docs/src/`) è **superato**: quei file sono materiale north-star, non canone. Reaction specifiche
+future possono dichiarare durate diverse **se il Ruleset lo consente**; 3 s resta il default di sistema.
+
+---
+
+## 9. Resolution
+
+La resolution resta spettacolare ma **relativamente rapida**.
+
+| Formato | Playback tipico per round |
+|---|---|
+| Vertical slice / 2v2 | ~**8–15 s** |
+| 3v3 Standard | ~**12–20 s** |
+
+Le Fast Reaction **estendono la durata reale** e non rientrano in questa banda (sono Decision Time, §11).
+
+La resolution **non va rallentata artificialmente** per raggiungere la durata desiderata della partita.
+Si preferisce **più decision cycle significativi** a resolution molto lunghe.
+
+La simulazione deterministica resta **separata** dal playback: la durata visuale non modifica ordine logico,
+seed, collisioni, stato né esiti (invariante #1 e #4; `Simulation.DeterministicReplay`).
+
+> **Conseguenza da tarare, non da implementare ora**: `MaxPlaybackSeconds = 12` (`RTTurnManager.h:134`) è la
+> soglia oltre la quale scatta lo speed-up automatico. Con la banda 8–15 s (2v2) comprimerebbe i round più
+> pieni. Il valore va rivisto **quando la banda viene misurata**, non adesso —
+> [`spec-anima-risoluzione.md`](spec-anima-risoluzione.md) §6, la cui raccomandazione «round tipico 6–12 s» è
+> **sostituita** da questa tabella.
+
+---
+
+## 10. Budget temporale del round
+
+Un round è composto concettualmente da:
+
+```text
+Planning
+  → Ready Countdown (eventuale)
+    → Commit
+      → Resolution
+        → Fast Decision Windows (eventuali)
+          → Cleanup / Score / transizione di round
+```
+
+Baseline **3v3 Standard**:
+
+| Segmento | Baseline |
+|---|---|
+| Planning | max **40–45 s**, spesso chiuso prima dal Ready |
+| Ready countdown | **3 s** se tutti Ready |
+| Resolution | ~**12–20 s** tipica |
+| Fast Reaction | **3 s** per opportunity **realmente generata** |
+| Cleanup / score | ~**3–5 s** di presentazione, possibilmente integrata nel playback |
+
+> ⚠️ **Non sommare i massimi** per stimare la durata media della partita. Il massimo del planning si verifica
+> raramente (è il Ready il caso normale), le finestre di reazione esistono solo quando un trigger scatta, e il
+> Cleanup si sovrappone al playback. Una stima ottenuta sommando i tetti sovrastima sistematicamente.
+> **La metrica reale si raccoglie con la telemetria** (§16).
+
+---
+
+## 11. Quattro tempi da non confondere
+
+| Tempo | Cos'è | Ordine di grandezza oggi |
+|---|---|---|
+| **Simulation Time** | Il resolver calcola il round | **0,41 ms/round** misurato (`Perf.TurnResolverMedian`, 2026-08-06) |
+| **Presentation Time** | Il playback riproduce ciò che è già stato deciso | secondi (§9) |
+| **Decision Time** | Attesa reale di un input umano: planning e Fast Reaction | secondi (§7, §8) |
+| **Wall-clock Match Time** | Quanto dura la partita per chi la gioca | minuti (§5) |
+
+Il resolver chiude un round logicamente in **meno di un millisecondo**; il playback dura secondi; la Fast
+Reaction è l'unica cosa che crea **vera Decision Time dentro la resolution**. Confondere queste categorie
+produce due errori opposti: credere che il gioco sia lento perché il playback dura, o credere che si possa
+accorciare la partita ottimizzando il resolver.
+
+---
+
+## 12. Fine partita
+
+La partita **non deve dipendere esclusivamente** dal raggiungimento del `RoundLimit`. Il sistema deve poter
+supportare quattro vie, governate dal **Ruleset**:
+
+```text
+Victory Condition raggiunta
+  → vittoria immediata / a fine fase
+ELSE Score Threshold raggiunta
+  → vittoria secondo Ruleset
+ELSE RoundLimit raggiunto
+  → confronto dei punteggi
+     IF pari → policy di overtime
+```
+
+| Via | Stato v0.1 |
+|---|---|
+| Eliminazione della squadra | ✅ implementata |
+| Obiettivo raggiunto | ⏳ **CP 10.2/10.3** (issue `#75`/`#76`) |
+| `RoundLimit` → confronto punteggio | ⏳ **CP 10.3**; parità = **pareggio dichiarato** |
+| Overtime | **fuori scope v0.1** — non si costruisce un sistema di overtime sofisticato se non serve |
+
+Il `RoundLimit` è un parametro del Match Format (§6), non una costante del `TurnManager`.
+
+---
+
+## 13. Obiettivi dinamici e anti-stallo
+
+Mappe più grandi **non devono** produrre camping o round vuoti. Lo strumento principale è il sistema Objective
+(epic **E10**).
+
+> **Principio**: gli obiettivi devono **comprimere progressivamente il conflitto** senza richiedere mappe
+> artificialmente piccole.
+
+Progressione **concettuale** del match, da non trasformare in regola:
+
+| Fase | Cosa domina |
+|---|---|
+| Early | controllo delle rotte, raccolta di informazioni |
+| Mid | obiettivo centrale o laterale in gioco |
+| Late | obiettivo di maggior valore, escalation, pressione crescente |
+
+Un esempio puramente illustrativo — «Round 1–5: Objective A · Round 6–10: entra Objective B · Late game:
+high-value objective» — serve a mostrare la forma, **non** a fissare i numeri. La schedulazione degli obiettivi,
+quando arriverà, è **dato di scenario** sopra il sistema di E10, mai un `if (Round == N)` nel `TurnManager`
+(stessa regola della showcase, [`showcase-v0.1.md`](showcase-v0.1.md) §3).
+
+---
+
+## 14. Relazioni con gli altri sistemi
+
+### 14.1 Fog of War
+
+```text
+Fog of War + mappa sufficientemente ampia = informazione come risorsa tattica
+```
+
+Su mappe Standard: **non** deve essere normale vedere sempre tutti gli avversari · perdere il contatto visivo
+deve essere possibile · il rumore può dare informazione **senza** dare la posizione esatta · si possono
+scegliere rotte per evitare il rilevamento · un flank reale è possibile · la **memoria dell'ultima posizione
+nota** ha significato.
+
+Questo vincola il level design futuro. Sistema: **E13** → [`brief-conoscenza-parziale.md`](brief-conoscenza-parziale.md)
+(tre livelli: `Rilevato` / `Incerto` / `UltimoContatto`).
+
+### 14.2 Rumore
+
+Il rumore diventa significativo solo su una mappa in cui **non** è automaticamente percepito da tutta la squadra
+avversaria. La scala deve permettere: zone acusticamente separate · materiali diversi · tunnel che propagano ·
+aree con rumore ambientale · Sprint come trade-off velocità/stealth · decoy · Acoustic Mask · deduzione della
+**direzione** senza la posizione esatta.
+
+Il sistema non si modifica qui: sorgente in `docs/src/RefactorTactics_Rumore_Claude.md`, scope in
+[`brief-conoscenza-parziale.md`](brief-conoscenza-parziale.md).
+
+### 14.3 Overwatch
+
+L'Overwatch direzionale beneficia di choke point, percorsi alternativi, porte, ponti, corridoi, tunnel e
+possibilità di flank. Su mappa troppo piccola diventa **troppo facilmente dominante**.
+
+**Vincolo di level design**: nessuna posizione da cui una singola Overwatch controlli sistematicamente **tutte**
+le rotte principali senza counterplay. Sistema: **E14** → [ADR-0004](adr-0004-finestre-di-reazione.md),
+[`brief-overwatch-reazioni.md`](brief-overwatch-reazioni.md); la direzione della zona nasce dal **facing**
+([ADR-0005](adr-0005-orientamento.md) §4c).
+
+### 14.4 Movimento
+
+**Non si aumenta il Move range per compensare una mappa più grande.** La distanza deve creare una **scelta**:
+
+| Modo | Trade-off |
+|---|---|
+| **Move** | sicuro, standard — 5 MP, costo intero per cella |
+| **Sprint** | più distanza (8 MP) ma più rumore, rischio, interazioni col terreno |
+| **Dash / Charge / Leap** | spostamento speciale nella fase Dash, distanza fissa, traiettoria lineare |
+| **Sneak** *(futuro)* | meno rumore, meno velocità |
+| **Fast traversal** | porte, ascensori, ponti, scorciatoie, abilità |
+
+È questo che permette mappe più grandi senza creare un «walking simulator tattico».
+
+---
+
+## 15. Fasi del turno — invariate
+
+**L'ordine macro delle fasi non cambia**:
+
+```text
+Planning → Prep → Dash → Blast → Move → Cleanup
+```
+
+Il **Move normale resta l'ultima fase di spostamento volontario**, dopo il Blast
+([ADR-0003](adr-0003-modello-azioni-v01.md) §1). Non si introducono sequenze tipo `Move → Attack`.
+
+**Fast Action e Fast Reaction sono finestre contestuali della resolution** e **non** autorizzano una seconda
+fase completa di planning (ADR-0004 §1: l'invariante #3 si *compone*, non si deroga).
+
+---
+
+## 16. Configurazione data-driven
+
+Tutti i parametri temporali devono essere data-driven tramite **Match Format / Ruleset** dove ragionevole.
+Elenco **concettuale** dei parametri, non una firma di struct:
+
+```text
+MatchFormatId · TeamSize
+PlanningMaxSeconds · ReadyCountdownSeconds · FastReactionDefaultSeconds
+ExpectedRoundCount · RoundLimit
+VictoryPolicy · ScoreThreshold · OvertimePolicy
+ExpectedMatchDurationMinutes · SoftMaxMatchDurationMinutes
+MapClass (Skirmish | Standard | Operations)
+```
+
+> ⚠️ **Questi nomi non sono vincolanti** e **non si crea architettura nuova per documentarli**. Quando il
+> formato diventerà un dato, va riusato ciò che esiste: il pattern del progetto è
+> `UPrimaryDataAsset` + libreria statica pura + validator (`URTActionData`, `URTHeroData`,
+> `URTCatalogLibrary`, `RT_ActionCatalog_v0.1.md`). **Nessun `Subsystem`, nessun `ActorComponent`**: il
+> progetto non ne usa (stessa motivazione di [`spec-pacing-turno.md`](spec-pacing-turno.md) §4).
+>
+> Oggi `PlanningSeconds` e `MaxPlaybackSeconds` sono `UPROPERTY` su `ARTTurnManager` e `RoundLimit` **non
+> esiste affatto**. Il passaggio a formato dichiarato è lavoro di **CP 10.3** in poi, non di questa spec.
+
+---
+
+## 17. Telemetria — cosa misurare al playtest
+
+Il canale è quello già progettato in [`spec-pacing-turno.md`](spec-pacing-turno.md) §4: **separato dal
+TurnLog**, interi in millisecondi, nessun ritorno verso il gameplay. Metriche da aggiungere:
+
+| Categoria | Metriche |
+|---|---|
+| **Durata** | `MatchDurationSeconds` · `RoundDurationSeconds` · `PlanningDurationSeconds` · `ResolutionPlaybackSeconds` |
+| **Reazioni** | `ReactionWindowCount` · `ReactionDecisionSeconds` |
+| **Ready** | `ReadyAtSeconds` |
+| **Struttura** | `RoundsPlayed` · `TeamEliminationRound` |
+| **Contatto** | `FirstEnemyContactRound` · `FirstObjectiveContestRound` |
+| **Mappa** | `CellsTraversedPerUnit` · `MapTraversalRounds` |
+| **Stallo** | `TimeWithNoEnemyContact` · `TimeWithNoMeaningfulDecision` |
+
+**Le due che contano di più**: **P50** e **P90** di `MatchDurationSeconds`.
+
+| Target iniziale (3v3 Standard) | Valore |
+|---|---|
+| **P50** durata match | **~25–30 min** |
+| **P90** durata match | **< ~40–45 min** |
+
+Non sono SLA tecnici: sono **target di game design**, e come tutti i KPI del progetto vanno **registrati anche
+quando sono fuori target** ([`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §3, G11).
+
+> **Riserva sul campione, da ripetere accanto a ogni numero**: lo scope corrente è 2v2 offline contro bot. Il
+> campione è **un solo giocatore, che è l'autore del gioco** — un P50 misurato così non descrive né il 3v3 né un
+> giocatore nuovo. Vale la stessa riserva già registrata per il pacing (`spec-pacing-turno.md` §12).
+
+---
+
+## 18. Impatto sul vertical slice
+
+Il vertical slice **resta 2v2** e **non si espande** per implementare una Standard map completa o Operations.
+La demo può usare una mappa **Skirmish** più piccola della futura Standard: **la dimensione della demo non è una
+prova che tutte le mappe finali debbano avere quella scala.**
+
+Il vertical slice deve però essere costruito in modo da poter **misurare**: planning time · resolution time ·
+numero di decisioni · first contact · round count · match duration · comportamento del Ready · Fast Reaction
+da 3 s. La sonda esiste già come design (`spec-pacing-turno.md`); qui si aggiunge cosa deve saper contare.
+
+---
+
+## 19. Stato delle decisioni
+
+### 🔒 Consolidate
+
+- Il match Standard punta a **≤ 30 min medi**.
+- **40–45 min** è limite superiore, non target.
+- Le mappe **non devono** essere obbligatoriamente piccole come quelle di Atlas Reactor.
+- **«Compatto nel tempo, non necessariamente piccolo nello spazio.»**
+- `FastReactionDuration` = **3 s** (baseline di sistema).
+- **Ready anticipato**.
+- **Ready countdown annullabile**.
+- Gli obiettivi devono mantenere pressione **anche** su mappe più grandi.
+- Un vertical slice più piccolo **non determina** la scala delle mappe finali.
+- Le macro-fasi e l'ordine `Prep → Dash → Blast → Move` **non cambiano**.
+
+### 🧪 Baseline da playtestare
+
+| Parametro | Baseline |
+|---|---|
+| Standard `PlanningMax` | 40–45 s |
+| Standard resolution | ~12–20 s |
+| Standard round | ~16–20 |
+| Standard hard cap | ~20–22 |
+| Standard traversal | ~5–7 Move |
+| Primo contatto significativo | entro 1–2 round |
+| Skirmish round | ~10–14 |
+| Skirmish traversal | ~3–4 Move |
+| Celle percorribili Standard | ordine di grandezza 150–200 |
+
+**Non trasformare questi valori in requisiti immutabili.** Nessuno di essi è oggi verificato da un test.
+
+### 🔭 Future / fuori scope
+
+Mappe **Operations** · match da 45–60+ min · overtime sofisticato · escalation definitiva degli obiettivi ·
+Sneak · Acoustic Mask.
+
+---
+
+## 20. Cosa questa spec **non** fa
+
+- **Non introduce codice.** Nessuna struct, nessun `enum`, nessun parametro nuovo su `ARTTurnManager`.
+- **Non cambia `PlanningSeconds`** (30 s in 2v2): il valore arriva dal misurato, come stabilito da
+  `spec-pacing-turno.md` D6.
+- **Non cambia gameplay già funzionante** per adattarlo a valori ancora da playtestare.
+- **Non fa rename globale** di «turno» → «round» (§0).
+- **Non modifica il sistema del rumore, della vista o delle reazioni**: rimanda alle rispettive specifiche.
+- **Non pianifica Operations**: registra solo che l'architettura non deve precluderlo.
+
+---
+
+## 21. Riferimenti
+
+| Tema | Documento |
+|---|---|
+| Decisioni vincolanti del progetto | [`piano-canonico-mvp.md`](piano-canonico-mvp.md) §6 |
+| Tempo di **un** turno, sonda e taratura | [`spec-pacing-turno.md`](spec-pacing-turno.md) |
+| Pacing del **playback** | [`spec-anima-risoluzione.md`](spec-anima-risoluzione.md) §6 |
+| Modello delle reazioni e finestra 3 s | [ADR-0004](adr-0004-finestre-di-reazione.md) |
+| Macro-fasi e vittoria a tre vie | [ADR-0003](adr-0003-modello-azioni-v01.md) |
+| Orientamento (direzione dell'Overwatch) | [ADR-0005](adr-0005-orientamento.md) |
+| Conoscenza parziale, vista e rumore | [`brief-conoscenza-parziale.md`](brief-conoscenza-parziale.md) |
+| Obiettivi dinamici e fine partita | [`roadmap-v0.1.md`](roadmap-v0.1.md) §5 → **E10** |
+| Gate di release e KPI | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §3–§4 |
+| Verifiche interattive | [`test-manuali-pie.md`](test-manuali-pie.md) |
+| Decision Log del PDR | [`../PDR/RT_PDR_00_Decision_Log.md`](../PDR/RT_PDR_00_Decision_Log.md) **D-010** |
+| Codice toccato dai parametri | `Turn/RTTurnManager.h:134` (`MaxPlaybackSeconds`), `:239` (`PlanningSeconds`) |

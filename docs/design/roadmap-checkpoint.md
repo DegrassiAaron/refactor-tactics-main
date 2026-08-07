@@ -160,7 +160,7 @@ Lo strato puro esiste già ed è testato (`URTHexSimLibrary`, `URTHexPathLibrary
 | **6.5** 🟡 | Dash e knockback su hex | Fase Dash attiva con budget esagonale; `KnockbackDestination` in versione esagonale (direzione fra celle adiacenti, spinte opposte che si annullano, contesa che resta ferma) | Codice **fatto** 2026-08-06: `ResolveDash` usa lo stesso strato puro del movimento (`MakeCurrentSnapshot` + `FindPathForUnit` col budget dello scatto + `ResolveHexPaths`), quindi anche le unità ferme bloccano; `URTHexCombatLibrary::HexKnockbackDestination` spinge lungo la **direzione esagonale** del colpo (fail-closed senza mappa, si ferma su bordo/ostacolo/unità, preserva il layer). Suite **213/0**. ⏳ restano `PIE-HEXPLAY-4b/6c` |
 | **6.6** 🟡 | Bot su hex | `ARTTurnManager` pianifica i bot via `URTHexBotLibrary`; nessuna mossa illegale proponibile (le candidate nascono da `ReachableCells`); pesi utility restano `UPROPERTY` tunabili in PIE | Codice **fatto** 2026-08-06: `PlanBots` costruisce un pool unico di candidate (riposizionamento · attacco da fermo · scatto+attacco · scatto di riposizionamento) e lascia scegliere a `ChooseBestPlan`; l'attacco è valutato **solo** dalla cella in cui il bot sarà nel Blast. Guardie conservate (supporto, panico del kiter via nuova `BestKiteCell` pura). I 5 test d'integrazione del bot **quadrato** sono stati **portati** su hex, non cancellati. Suite **215/0**. ⏳ resta `PIE-HEXPLAY-7` |
 | **6.7** 🟡 | HUD e osservabilità | Barre HP/scudo/energia, timer, fase, combat log e anteprima piani sui centri esagonali; i reason code del TurnLog compaiono nel log con coordinate assiali `(q,r,L)` | Codice **fatto** 2026-08-06: `ARTHUD` proietta ogni cella con `URTHexLibrary::AxialToWorld` dal contesto della mappa (traccia post-lock, anteprime, waypoint, scatto) e le rotte vengono dallo stesso A\* dell'autorità; nuova `URTTurnLogLibrary::DescribeEntry` (pura) porta i reason code nel combat log — quel che il giocatore legge e quel che il replay registra sono la **stessa** cosa. Sistemato anche `Home`: la camera ricentra sulla mappa esagonale (`URTHexMapAsset::GetCenterCell`), non più sulla griglia quadrata inesistente. Suite **217/0**. ⏳ resta `PIE-HEXPLAY-9` |
-| **6.8** 🟡 | Playtest della partita hex | Mappa di prova costruita con l'editor mode (esagono r=4, ostacoli, celle che bloccano la vista, superficie costosa, piattaforma su layer 1 con una transizione); partita completa fino alla vittoria Parte **headless fatta** 2026-08-06: `RefactorTactics.HexMatch.PlaysToCompletion` gioca un 2v2 bot-vs-bot completo (invarianti per turno: nessuna sovrapposizione, nessuna cella fuori mappa) e la partita **si decide al turno 25** — dato che ha aperto la issue di bilanciamento `#96` (il catalogo prevede 12 turni). Resta la **sessione D**: `PIE-HEXPLAY-1..9` in editor |
+| **6.8** 🟡 | Playtest della partita hex | Mappa di prova costruita con l'editor mode (esagono r=4, ostacoli, celle che bloccano la vista, superficie costosa, piattaforma su layer 1 con una transizione); partita completa fino alla vittoria Parte **headless fatta** 2026-08-06: `RefactorTactics.HexMatch.PlaysToCompletion` gioca un 2v2 bot-vs-bot completo (invarianti per turno: nessuna sovrapposizione, nessuna cella fuori mappa) e la partita **si decide al turno 25** — dato che ha aperto la issue di bilanciamento `#96` (il catalogo prevedeva 12 turni; dopo il fix la partita chiude al **round 10**, dentro la banda 10–14 del formato 2v2 — [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §6). Resta la **sessione D**: `PIE-HEXPLAY-1..9` in editor |
 
 **DoD di milestone**: le 9 voci `PIE-HEXPLAY` verdi · suite automatica verde con i nuovi test hex · una partita
 2v2 completa dall'avvio alla vittoria su mappa esagonale multilivello · nessun percorso di gioco che passi
@@ -236,6 +236,16 @@ Assorbe **H8** e il residuo di **H5**.
 **DoD di milestone**: un incremento ambientale cambia in modo osservabile l'esito di un turno · nessuna cache
 stantia (test di invalidazione) · le regole ambientali sono coperte da test puri.
 
+> **Scala delle mappe (2026-08-07, D-010)**: le mappe di M9 **non** sono vincolate alla compattezza di Atlas
+> Reactor. Il principio è *«compatto nel tempo, non necessariamente piccolo nello spazio»* e la metrica è
+> **temporale**: quanti Move servono per raggiungere una zona rilevante. Classi iniziali — **Skirmish**
+> (~3–4 Move di attraversamento, primo contatto ~1 round) per demo e vertical slice · **Standard**
+> (~5–7 Move, contatto in 1–2 round, 2–3 macro-rotte, choke point **e** alternative) per il formato 3v3 ·
+> **Operations** fuori scope. Fog of War, rumore, stealth, flank e Overwatch **degradano tutti insieme** su
+> mappe troppo piccole: è il motivo per cui la scala è una decisione di sistema e non di gusto.
+> Dettaglio e vincoli di level design: [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md)
+> §3–§4, §14.
+
 ---
 
 ## M10 — Rete e privacy
@@ -282,6 +292,13 @@ che blocca la CI su mappa non valida, soak test senza crash.
 | Intent updates | 8–12 Hz | ⏳ con M10 |
 | **Replay divergence** | **0** | ✅ determinismo by-design; TurnLog permutazione-invariante, hash di replay, serializzazione versionata con checksum, verificato **anche su hex** (`RefactorTactics.HexSim.ReplayDivergenceZero`) |
 | **Intent leak** | **0** | ⏳ canary con M10 — privacy già invariante #6, oggi banale perché offline |
+| **Round per partita** (2v2) | 10–14 (cap 14–16) | 🟡 **10** misurato bot-vs-bot (2026-08-06, `HexMatch.PlaysToCompletion`) — dentro banda, ma è un bot contro un bot |
+| **Durata match P50 / P90** | 25–30 min / < 40–45 min *(3v3 Standard)* | ⏳ **il 3v3 non esiste**: in v0.1 si misura la banda 2v2 e si registra come tale |
+| **Playback per round** | 8–15 s (2v2) | ⏳ con la sonda di pacing (`MsPlayback`) |
+
+> I tre budget nuovi vengono da **D-010** / [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md).
+> Sono **target di game design**, non budget di macchina: si registrano anche fuori target, e con la riserva sul
+> campione (un solo giocatore, che è l'autore del gioco).
 
 ## Rischi aperti
 
@@ -344,6 +361,8 @@ neutri (combat math, serializzazione, regole di fase). Il resto ha data di scade
 | [`spec-motore-azioni-e4.md`](spec-motore-azioni-e4.md) | **Proposta di design** del motore azioni (epic E4): modello, fette, rischi, domande aperte |
 | [`spec-stati-temporanei-cp82.md`](spec-stati-temporanei-cp82.md) | **Stati temporanei** (CP 8.2): durata legata alla cella, ordine del Cleanup, decisioni e difetti di cablaggio trovati |
 | [`spec-reazioni-componibili-cp55.md`](spec-reazioni-componibili-cp55.md) | **Reazioni componibili** (CP 5.5): più effetti per reazione, riduzione danno come dato, identità nel TurnLog (formato v3), helper per le reazioni d'eroe |
+| [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) | **Durata della partita, budget del round e scala delle mappe**: target per formato, `RoundLimit` parametrico, classi di mappa (Skirmish/Standard/Operations), telemetria. Supera D-002 del Decision Log |
+| [`spec-pacing-turno.md`](spec-pacing-turno.md) | **Tempo di un turno** misurato sul giocatore: sonda, percentili, regola di taratura di `PlanningSeconds` |
 | [`brief-delayed-actions.md`](brief-delayed-actions.md) | **Brief di scope** delle Delayed Actions e dei boundary di fase: cosa aggiungono oltre ad ADR-0004, dati, test minimi. Nessuna epic aperta |
 | [`v0.1-issue-plan.md`](v0.1-issue-plan.md) | Titoli e body delle 72 issue (`#14`–`#85`) e ordine di apertura dei branch |
 | [`adr-0003-modello-azioni-v01.md`](adr-0003-modello-azioni-v01.md) | Modello azioni del catalogo v0.1 sulle macro-fasi di Atlas |

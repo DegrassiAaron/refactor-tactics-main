@@ -34,7 +34,8 @@ showcase → codice speciale → demo che funziona una volta sola
 | Nome di lavoro | `RT_Showcase_Relay_v01` |
 | Arena | `L_Showcase_Relay` (asset d'autore) · fixture generata equivalente per i test |
 | Squadre | **Team 0**: Flux + Riva — **Team 1**: Bastion + Vektor (bot) |
-| Durata | 8 turni scriptati |
+| Durata | 8 turni scriptati *(dato di scenario, non il `RoundLimit` del gioco — §3)* |
+| Classe di mappa | **Skirmish** (~3–4 Move di attraversamento, primo contatto ~1 round) |
 | Obiettivo mostrato | il controllo di un relè contestabile decide la partita, **non** l'eliminazione |
 
 ### Roster vigente — e cosa è storico
@@ -105,6 +106,12 @@ tratto `Ice` · un tratto `Rough` · almeno un percorso alternativo · (E9) cove
 **Per il primo test headless non si dipende da un `.umap`**: prima la fixture riproducibile in codice/dati
 (CP 15.2), poi l'asset d'autore equivalente per la presentazione.
 
+> ⚠️ **La scala della showcase non è la scala del gioco.** `L_Showcase_Relay` è una mappa **Skirmish**: piccola
+> per scelta, perché deve far leggere otto turni scriptati in pochi minuti. Le mappe **Standard** del formato
+> competitivo saranno sensibilmente più ampie (~5–7 Move di attraversamento, 2–3 macro-rotte, ordine di
+> grandezza 150–200 celle percorribili). **Non usare questa arena come prova che le mappe finali debbano avere
+> questa dimensione** — [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §4, §18.
+
 ---
 
 ## 3. Delta di scope — cosa **non** esiste e chi lo costruisce
@@ -135,7 +142,10 @@ Queste regole valgono nello scenario e vivono nei **dati**, mai nel codice delle
 
 - la **relocation del Relay** (l'obiettivo si sposta durante la partita);
 - il punteggio **«primo a 4 punti»**;
-- la durata di **8 turni** (il canone v0.1 prevede il limite a 12).
+- la durata di **8 turni** — **dato di scenario**, non una regola: il `RoundLimit` è un parametro di formato
+  (2v2 v0.1: banda 10–14, valore iniziale 12; 3v3 Standard: 16–20 —
+  [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §6). Gli 8 turni della
+  showcase sono **più corti apposta**: è una demo scriptata, non una partita competitiva.
 
 > Vietato: `if (Turn == 4) { MoveRelay(); }` in `ARTTurnManager`. Quando la relocation arriverà, sarà uno
 > schedule di scenario (`ObjectivePhase[]` con `StartTurn`, `ActiveCells`, `Duration`) sopra il sistema
