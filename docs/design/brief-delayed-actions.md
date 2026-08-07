@@ -68,9 +68,10 @@ Il test 7 è quello che conta di più: è la stessa proprietà che regge già `A
 
 ## 5. Checkpoint proposti — **non aperti**
 
-Se il tema entra in roadmap, la forma minima è di 4 checkpoint dentro una epic propria (**E15**), *dopo* E14:
-`15.1` modello dei boundary e coda · `15.2` targeting predittivo e fallback · `15.3` risoluzione al boundary
-con i test 1–7 · `15.4` ghost timeline e privacy (test 8). **La decisione di aprirla è tua**: E14 non è
+Se il tema entra in roadmap, la forma minima è di 4 checkpoint dentro una **epic propria** — numero da
+assegnare, **E15 (showcase) ed E16 (orientamento) sono già occupate** — da collocare *dopo* E14:
+`.1` modello dei boundary e coda · `.2` targeting predittivo e fallback · `.3` risoluzione al boundary con i
+test 1–7 · `.4` ghost timeline e privacy (test 8). **La decisione di aprirla è tua**: E14 non è
 iniziata, e il rischio di scope della v0.1 (§8 di [`roadmap-v0.1.md`](roadmap-v0.1.md)) è già segnalato come
 **alto**.
 
