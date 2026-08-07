@@ -73,7 +73,7 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 | Catalogo azioni e data asset | `Ability/RTActionDef.h`, `RTActionData.h`, `RTCatalogLibrary.*` | ✅ E1 · `ActionId`, `Priority`, `Fallback`, `Slot`, `MovementStyle`, validator |
 | Motore azioni a priorità, fallback, collisioni | `Turn/RTActionQueue*.h`, `RTActionEffectLibrary.*`, `RTActionFallbackLibrary.*` | ✅ E4 (52 test) |
 | Reazioni difensive e Intercept | `Turn/RTReactionLibrary.{h,cpp}` | ✅ E5 (24 test) · Counter/Deflect/Brace/Shield/Cleanse/Intercept |
-| Roster 4 eroi da dati | `Ability/RTHeroData.h`, `RTHeroCatalogLibrary.*` | 🟡 E6 (20 test) · statistiche e kit ✅, **5 reazioni d'eroe non cablate** → CP 5.5 + CP 6.7 |
+| Roster 4 eroi da dati | `Ability/RTHeroData.h`, `RTHeroCatalogLibrary.*` | ✅ E6 (25 test) · statistiche, kit e **tre reazioni su cinque cablate** (CP 6.7); `InterceptShot`/`FlowReaction` rinviate a E14 |
 | Budget movimento | `Turn/RTHexSimLibrary.*` | ✅ **5 MP**, costi interi (CP 4.2) |
 | Privacy degli intenti | `Turn/RTIntentPrivacyLibrary.*` | ✅ `FRTPlannedIntent → FilterForTeam → FRTIntentView` |
 | Zone controllate / soppressione | `Combat/RTOffensiveActionLibrary.*` | ✅ `FRTSuppressiveZone` · precedente tecnico per Overwatch (E14) |
@@ -86,7 +86,7 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 | **Finestre di reazione interattive** | — | ⏳ ADR-0004 accettato, nessun codice (E14) |
 | **Scenario showcase e golden replay** | — | ⏳ (E15) |
 
-**Suite automatica**: **347 test unici** in **51 file** (rimisurati 2026-08-07 alla chiusura di CP 5.5).
+**Suite automatica**: **352 test unici** in **52 file** (rimisurati 2026-08-07 alla chiusura di CP 6.7).
 ⚠️ La cifra dichiarata qui prima era **338 in 49 file**, ma il valore su `main` era già **342 in 50**: i merge
 di `#179`/`#180` sono arrivati dopo l'ultima misura. È la stessa deriva del 2026-08-05, e la regola resta
 quella: **si misura col comando, non si cita a memoria**. Comando riproducibile:
@@ -112,8 +112,8 @@ Le due righe qui sopra **erano vere il 2026-08-05 e non lo sono più**. Misura d
 |---|---|---|---|
 | **E1** Cataloghi | da costruire | ✅ **chiusa** | `Catalog.{IdsAreUnique, NoFloatInIntegerFields, PhaseMappingIsTotal, ValidatorRejectsInvalidAsset, ValidatorRejectsEquipmentWithoutDrawback, ValidatorRejectsUnboundedPropagation}` |
 | **E4** Motore azioni | da costruire | ✅ **chiusa** (52 test) | `Actions.{OrderByPriority, PermutationInvariant, PhaseMappingRespectsAtlas}`, 6 `Fallback.*`, `Guard.*`, `Charge.*`, `Leap.*`, `Root.*`, `Interrupt.*`, `Slow.*`, `Collisions.NoPlayerIdBias` |
-| **E5** Reazioni | da costruire | 🟡 **motore completo, non ancora consumato** (27 test) | `Reactions.{SingleActivation, NoResolverWait, IntentNotVisibleToEnemy}`, `Counter/Deflect/Brace/Shield/Cleanse`, 5 test `Intercept*` · ✅ **CP 5.5 chiuso 2026-08-07**: `Reactions.{MultiEffectReactionAppliesAll, HeroReactionKeepsIdentityInLog, NoHeroSpecificBranchInResolver}` — chiude quando **CP 6.7** cabla gli eroi |
-| **E6** Roster 4 eroi | da costruire | ✅ **chiusa** (20 test) | `Heroes.{Flux,Riva,Bastion,Vektor}.MatchesCatalog`, `*.VariantTradeoff`, `RosterIsBalanced`, `SpawnFromData` |
+| **E5** Reazioni | da costruire | ✅ **chiusa** (27 test) — motore componibile **e consumato** | `Reactions.{SingleActivation, NoResolverWait, IntentNotVisibleToEnemy}`, `Counter/Deflect/Brace/Shield/Cleanse`, 5 test `Intercept*` · **CP 5.5** (2026-08-07): `Reactions.{MultiEffectReactionAppliesAll, HeroReactionKeepsIdentityInLog, NoHeroSpecificBranchInResolver}` · consumata da **CP 6.7** |
+| **E6** Roster 4 eroi | da costruire | ✅ **chiusa** (25 test) | `Heroes.{Flux,Riva,Bastion,Vektor}.MatchesCatalog`, `*.VariantTradeoff`, `RosterIsBalanced`, `SpawnFromData` · **CP 6.7** (2026-08-07): `Heroes.{BastionInterposition*, VektorDeflectionReducesDirectHit, FluxReactiveCapacitorShieldsAndCounters, ReactionsDeclaredOrDeferred}` |
 | **E8** Terreni | da costruire | 🟡 **parziale** | ✅ `Terrain.{CostsFromCatalog, Rough.BlocksDash, Fire.*, ShallowWater.AppliesWet, Smoke.*, Ice.*}` · ✅ **CP 8.2 chiuso 2026-08-07**: 11 test `Status.*` (durata legata alla cella, `Burning` nel Cleanup, `WetRemovesBurning`, `Marked` con pass a priorità, `Obscured`) · ❌ nessun test `Environment.*` (CP 8.3 propagazione elettrica, CP 8.4 fuoco/acqua) |
 | **E7** Equipaggiamento | pianificata | ⏳ **assente** | nessun test `Equipment.*` |
 | **E9** Coperture/strutture | pianificata | ⏳ **assente** | nessun test `Cover.*` né `Structures.*` |
@@ -406,11 +406,19 @@ turno**, senza attese nel resolver (invariante #3).
 | **6.4** | Bastion — architetto del campo | 120 HP, 4 MP, vista 5, resistenza push 1, affinità strutture; `ImpactShot` (24, r3), `KineticPanel` (copertura 30 HP), `Reconfigure`, `Ram` (Charge 20 + Push 1), `Interposition`; variante rinforzato/adattivo | `Heroes.Bastion.PanelCreatesCover`, `Heroes.Bastion.PushResistance` |
 | **6.5** | Vektor — duellante predittivo | 100 HP, 6 MP, vista 6, affinità movimento; `PulseShot` (21, r4), `InterceptShot` (16 + stop movimento), `PassingBlade` (Dash 3, 20 attraversando), `Deflection` (−20), `Feint`; variante preciso/esteso | `Heroes.Vektor.InterceptShotStopsMovement` |
 | **6.6** | Selezione e spawn 2v2 | `ARTGameMode` spawna 4 eroi da `URTHeroData` (non più `RangerUnitClass`/`GuardianUnitClass` hard-coded); fallback visivo al cilindro se l'asset manca | Test d'integrazione (4 eroi distinti in `UWorld`); `PIE-V01-ROSTER` |
-| **6.7** *(nuovo 2026-08-07)* | Le reazioni degli eroi **funzionano in partita** | Quattro reazioni cablate sul motore E5 riusando la semantica core (CP 5.5): `Bastion.Interposition` → `Action.Intercept` (trigger `AllyHitByDirectAttack`, range 2), `Vektor.Deflection` → `Action.Deflect` (−20), `Flux.ReactiveCapacitor` → `Shield 15` **+** 10 all'attaccante, `Riva.FlowReaction` → **rinviata a E14** e dichiarata tale (produce movimento dentro un boundary). Ogni reazione occupa lo **slot `Reaction`** ed è soggetta a «una attivazione per turno». I commenti «arriva con E5» spariscono dal catalogo eroi e i test che oggi **fissano l'assenza** (`Effects.Num() == 0`) sono sostituiti da test di comportamento | `Heroes.BastionInterpositionRedirectsDirectHit`, `Heroes.BastionInterpositionUsesReactionSlot`, `Heroes.VektorDeflectionReducesDirectHit`, `Heroes.FluxReactiveCapacitorShieldsAndCounters` |
+| **6.7** ✅ *(chiuso 2026-08-07)* | Le reazioni degli eroi **funzionano in partita** | Quattro reazioni cablate sul motore E5 riusando la semantica core (CP 5.5): `Bastion.Interposition` → `Action.Intercept` (trigger `AllyHitByDirectAttack`, range 2), `Vektor.Deflection` → `Action.Deflect` (−20), `Flux.ReactiveCapacitor` → `Shield 15` **+** 10 all'attaccante, `Riva.FlowReaction` → **rinviata a E14** e dichiarata tale (produce movimento dentro un boundary). Ogni reazione occupa lo **slot `Reaction`** ed è soggetta a «una attivazione per turno». I commenti «arriva con E5» spariscono dal catalogo eroi e i test che oggi **fissano l'assenza** (`Effects.Num() == 0`) sono sostituiti da test di comportamento | `Heroes.BastionInterpositionRedirectsDirectHit`, `Heroes.BastionInterpositionUsesReactionSlot`, `Heroes.VektorDeflectionReducesDirectHit`, `Heroes.FluxReactiveCapacitorShieldsAndCounters` |
 
 **Rischi**: 4 eroi × 4 abilità × varianti = 20 combinazioni di regole. Nessuna variante deve essere migliore
 in ogni parametro (vincolo del catalogo, verificato dal validator di CP 1.4).
 
+> **CP 6.7 chiuso il 2026-08-07** (`#155`, 5 test nuovi): `Bastion.Interposition`, `Vektor.Deflection` e
+> `Flux.ReactiveCapacitor` sono cablate sulla semantica core con `MakeHeroReactionFromCoreAction` e verificate
+> **in partita** (unità configurate con `ConfigureFromHeroData`). `Vektor.InterceptShot` e `Riva.FlowReaction`
+> restano a **E14**, e il rinvio è dichiarato nei dati — slot `None`, nessun trigger — non in un commento.
+> I test che fissavano l'assenza sono stati **sostituiti**: `Heroes.Bastion.PanelCreatesCover` ora verifica che
+> Interposition sia una reazione, `Heroes.Flux.MatchesCatalog` i suoi due effetti.
+> Dettaglio: [`spec-reazioni-componibili-cp55.md`](spec-reazioni-componibili-cp55.md) §8.
+>
 > **CP 6.7 riapre l'epic** e ha una premessa scomoda: oggi esistono **test verdi che documentano il debito**
 > — per esempio `RTHeroBastionTests.cpp:133` verifica che `Interposition` **non abbia** effetti. Diventeranno
 > rossi il giorno del cablaggio: è il comportamento atteso, non una regressione. Vanno **sostituiti** da test

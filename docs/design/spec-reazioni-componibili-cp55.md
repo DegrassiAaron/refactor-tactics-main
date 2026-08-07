@@ -156,3 +156,50 @@ l'azione core.
 - **`DamageReduction` fuori dalle reazioni**: un'azione di Prep che la dichiarasse verrebbe ignorata da
   `ResolvePrep` (come ogni effetto fuori posto). Il validator del catalogo non lo rifiuta: quando esisterà una
   seconda azione con riduzione, la forma giusta è una regola del validator, non un secondo `if`.
+
+---
+
+## 8. Il consumatore: CP 6.7 — le reazioni d'eroe cablate *(2026-08-07, issue `#155`)*
+
+CP 5.5 e CP 6.7 si leggono insieme: il primo rende il motore componibile, il secondo lo **consuma**. Senza il
+secondo, questa spec descriverebbe un motore ancora non collaudato — esattamente il difetto che ha riaperto E5.
+
+### 8.1 Cosa è stato cablato
+
+| Reazione | Semantica core | Dall'eroe | Verifica in partita |
+|---|---|---|---|
+| `Bastion.Interposition` | `Action.Intercept` (trigger `AllyHitByDirectAttack`, portata 2, priorità 10) | cooldown 3 | `Heroes.BastionInterpositionRedirectsDirectHit` |
+| `Vektor.Deflection` | `Action.Deflect` (−20 via `DamageReduction`) | cooldown 2 | `Heroes.VektorDeflectionReducesDirectHit` |
+| `Flux.ReactiveCapacitor` | `Action.Counter` (trigger `HitByDirectAttack`) | cooldown 3, effetti `{Shield 15, Damage 10}` | `Heroes.FluxReactiveCapacitorShieldsAndCounters` |
+
+`Interposition` non dichiara effetti propri, ed è **corretto**: interporsi cambia CHI subisce un colpo altrui,
+non cosa succede — è la stessa ragione per cui `Action.Intercept` non ne ha. Il test di Bastion che prima
+contava «zero effetti perché E5 non c'è» ora verifica che l'azione sia una reazione: il numero è lo stesso, il
+significato no, ed è per questo che è stato **sostituito** e non lasciato com'era.
+
+### 8.2 Il rinvio a E14 è un dato, non un commento *(decisione)*
+
+`Vektor.InterceptShot` (trigger d'ingresso su movimento) e `Riva.FlowReaction` (movimento reattivo dentro un
+boundary) restano a **E14** (ADR-0004). Lo dichiarano con **slot `None` e nessun trigger**, verificato da
+`Heroes.ReactionsDeclaredOrDeferred`.
+
+*Perché non basta il commento*: con lo slot `Reaction` il pass del turno le raccoglierebbe, e — non avendo
+effetti applicabili — registrerebbe nel TurnLog un'attivazione che non produce nulla. Un esito **falso** nel
+log è peggio di un'abilità dichiaratamente incompleta: consumerebbe anche l'unica attivazione del turno.
+
+### 8.3 Verifiche di mutazione
+
+| Mutazione | Test caduti | Atteso |
+|---|---|---|
+| `Interposition` torna scablata (slot `None`) | `BastionInterpositionUsesReactionSlot`, `BastionInterpositionRedirectsDirectHit`, `ReactionsDeclaredOrDeferred`, `Bastion.PanelCreatesCover` | ✅ i tre nuovi + quello sostituito |
+| `ReactiveCapacitor` senza il `Damage 10` | `FluxReactiveCapacitorShieldsAndCounters`, `Flux.MatchesCatalog` | ✅ comportamento + catalogo |
+| `Deflection` costruita su `Action.Counter` | `VektorDeflectionReducesDirectHit` | ✅ solo quello (Counter è comunque una reazione valida) |
+
+> ⚠️ **La prima esecuzione di queste mutazioni era invalida, e vale la pena scriverlo.** Un processo
+> `UnrealEditor-Cmd` rimasto appeso da una run precedente teneva bloccata `UnrealEditor-RefactorTactics.dll`:
+> il link falliva (`LNK1104`), i test giravano sul **binario precedente** e *nessuna* mutazione risultava
+> letale. Sembrava un test debole; era la pipeline. Da qui la regola: **verificare l'esito reale della build**
+> (`Result: Succeeded` sull'output completo, non un grep parziale) e chiudere i processi UE prima di
+> ricompilare — altrimenti una verifica di mutazione dà una falsa sicurezza, che è peggio del non farla.
+
+**Suite dopo CP 6.7**: **352 test unici in 52 file**, 0 fallimenti, entrambi i target verdi.
