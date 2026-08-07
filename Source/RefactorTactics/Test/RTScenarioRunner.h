@@ -36,6 +36,18 @@ public:
 	 */
 	static FRTTestResult Run(UWorld* World, const FRTTestScenario& Scenario);
 
+	/**
+	 * Carica lo scenario per ID (`Movement.Basic`), lo esegue e ne **scrive il report**.
+	 * E' il punto d'ingresso della console e dell'auto-run: un solo posto dove «eseguire uno scenario»
+	 * significa anche «lasciarne traccia leggibile».
+	 *
+	 * @param OutReportDirectory cartella della run appena scritta (vuota se la scrittura e' fallita).
+	 */
+	static FRTTestResult RunById(UWorld* World, const FString& ScenarioId, FString& OutReportDirectory);
+
+	/** ID di tutti gli scenari versionati sotto `Tests/Scenarios/`, in ordine alfabetico. */
+	static TArray<FString> ListScenarioIds();
+
 	/** Numero massimo di tick di risoluzione per turno: tetto di sicurezza, non una regola di gioco. */
 	static constexpr int32 MaxResolveTicks = 400;
 

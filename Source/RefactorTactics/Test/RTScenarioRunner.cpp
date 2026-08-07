@@ -13,6 +13,9 @@
 #include "Unit/RTUnit.h"
 #include "RefactorTactics.h"
 #include "Kismet/GameplayStatics.h"
+#include "Test/RTTestReportWriter.h"
+#include "HAL/FileManager.h"
+#include "Misc/Paths.h"
 
 namespace
 {
@@ -27,7 +30,13 @@ namespace
 		return Result;
 	}
 
-	/** Arena esagonale piena di raggio N sul layer 0: mappa da codice, nessun `.umap` da versionare. */
+	/**
+	 * Arena esagonale piena di raggio N sul layer 0: mappa da codice, nessun `.umap` da versionare.
+	 *
+	 * RIUSA l'actor mappa gia' presente se c'e'. Serve a far girare lo stesso runner in due contesti diversi:
+	 * un mondo vuoto (test di automazione) e una PIE dove il GameMode ha gia' spawnato mappa, luce e turn
+	 * manager. Spawnarne un secondo darebbe due griglie sovrapposte e un raycast ambiguo.
+	 */
 	URTHexMapAsset* BuildArena(UWorld* World, int32 Radius)
 	{
 		URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
@@ -37,12 +46,17 @@ namespace
 		}
 		Map->SortCells();
 
-		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
+		ARTHexMapActor* Actor = ARTHexMapActor::FindInWorld(World);
+		if (!Actor)
+		{
+			Actor = World->SpawnActor<ARTHexMapActor>();
+		}
 		if (!Actor)
 		{
 			return nullptr;
 		}
 		Actor->MapAsset = Map;
+		Actor->RebuildInstances(); // la vista ISM segue l'asset: senza, in PIE resterebbe la mappa precedente
 		return Map;
 	}
 
@@ -121,7 +135,13 @@ FRTTestResult URTScenarioRunner::Run(UWorld* World, const FRTTestScenario& Scena
 		UnitsById.Add(Spec.Id, Unit);
 	}
 
-	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	// Come per la mappa: si riusa quello del GameMode se la partita e' gia' avviata (PIE).
+	ARTTurnManager* TM = Cast<ARTTurnManager>(
+		UGameplayStatics::GetActorOfClass(World, ARTTurnManager::StaticClass()));
+	if (!TM)
+	{
+		TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	}
 	if (!TM)
 	{
 		return MakeErrorResult(Scenario, TEXT("impossibile creare il turn manager"));
@@ -238,4 +258,55 @@ FRTTestResult URTScenarioRunner::Run(UWorld* World, const FRTTestScenario& Scena
 		Result.PassedCount(), Result.Assertions.Num(), Result.TurnsPlayed);
 
 	return Result;
+}
+
+FRTTestResult URTScenarioRunner::RunById(UWorld* World, const FString& ScenarioId, FString& OutReportDirectory)
+{
+	OutReportDirectory.Reset();
+
+	FRTTestScenario Scenario;
+	FString Error;
+	const FString Path = URTScenarioLoader::PathForScenarioId(ScenarioId);
+	if (!URTScenarioLoader::LoadFromFile(Path, Scenario, Error))
+	{
+		// Scenario assente o malformato: ERROR con il percorso cercato, cosi' chi legge sa DOVE guardare.
+		FRTTestScenario Stub;
+		Stub.ScenarioId = ScenarioId;
+		FRTTestResult Result = MakeErrorResult(Stub, FString::Printf(TEXT("%s (%s)"), *Error, *Path));
+
+		FString WriteError;
+		URTTestReportWriter::Write(Result, FString(), OutReportDirectory, WriteError);
+		return Result;
+	}
+
+	FRTTestResult Result = Run(World, Scenario);
+
+	FString WriteError;
+	if (!URTTestReportWriter::Write(Result, FString(), OutReportDirectory, WriteError))
+	{
+		// Il report non scritto non cambia l'esito della simulazione, ma va detto: senza report l'harness
+		// perde il suo scopo, e un PASS silenzioso nasconderebbe il problema.
+		UE_LOG(LogRT, Error, TEXT("[RT-Test] report non scritto: %s"), *WriteError);
+	}
+	return Result;
+}
+
+TArray<FString> URTScenarioRunner::ListScenarioIds()
+{
+	TArray<FString> Files;
+	IFileManager::Get().FindFilesRecursive(Files, *URTScenarioLoader::ScenariosRoot(), TEXT("*.json"),
+		/*Files=*/ true, /*Directories=*/ false);
+
+	const FString Root = FPaths::ConvertRelativePathToFull(URTScenarioLoader::ScenariosRoot());
+	TArray<FString> Ids;
+	for (const FString& File : Files)
+	{
+		// Il percorso E' l'ID: `Movement/Basic.json` -> `Movement.Basic`. Nessun indice da mantenere.
+		FString Relative = FPaths::ConvertRelativePathToFull(File);
+		FPaths::MakePathRelativeTo(Relative, *(Root / TEXT("")));
+		Relative.RemoveFromEnd(TEXT(".json"));
+		Ids.Add(Relative.Replace(TEXT("/"), TEXT(".")).Replace(TEXT("\\"), TEXT(".")));
+	}
+	Ids.Sort();
+	return Ids;
 }

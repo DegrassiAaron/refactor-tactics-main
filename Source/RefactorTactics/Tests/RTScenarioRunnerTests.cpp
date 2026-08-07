@@ -231,4 +231,55 @@ bool FRTScenarioReportContentTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `RunById` e' il punto d'ingresso di console e auto-run: carica per ID, esegue e **scrive il report**.
+ * Va coperto qui perche' i comandi console non sono verificabili headless senza caricare una mappa, e la
+ * parte che conta — «eseguire lascia sempre una traccia leggibile» — e' in questa funzione, non nel comando.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioRunByIdWritesReportTest,
+	"RefactorTactics.Scenario.RunByIdWritesReport",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioRunByIdWritesReportTest::RunTest(const FString&)
+{
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	FString ReportDir;
+	const FRTTestResult Result = URTScenarioRunner::RunById(World, TEXT("Movement.Basic"), ReportDir);
+	DestroyRunnerWorld(World);
+
+	TestEqual(TEXT("esito PASS"), Result.OutcomeString(), FString(TEXT("PASS")));
+	if (TestFalse(TEXT("la cartella della run e' stata creata"), ReportDir.IsEmpty()))
+	{
+		FString Json;
+		TestTrue(TEXT("result.json esiste ed e' leggibile"),
+			FFileHelper::LoadFileToString(Json, *FPaths::Combine(ReportDir, TEXT("result.json"))));
+		TestTrue(TEXT("il report parla dello scenario giusto"), Json.Contains(TEXT("Movement.Basic")));
+	}
+
+	// Anche un ID inesistente deve lasciare un report: e' il caso in cui si ha piu' bisogno di sapere perche'.
+	UWorld* World2 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 2"), World2)) { return false; }
+	FString MissingDir;
+	const FRTTestResult Missing = URTScenarioRunner::RunById(World2, TEXT("Non.Esiste"), MissingDir);
+	DestroyRunnerWorld(World2);
+
+	TestEqual(TEXT("scenario inesistente -> ERROR"), Missing.OutcomeString(), FString(TEXT("ERROR")));
+	TestTrue(TEXT("l'errore dice DOVE ha cercato"), Missing.ErrorMessage.Contains(TEXT("Non")));
+	return true;
+}
+
+/** L'elenco degli scenari deriva dai file: l'ID e' il percorso, quindi non esiste un indice da mantenere. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioListIdsTest,
+	"RefactorTactics.Scenario.ListIdsFromFiles",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioListIdsTest::RunTest(const FString&)
+{
+	const TArray<FString> Ids = URTScenarioRunner::ListScenarioIds();
+	TestTrue(TEXT("almeno uno scenario trovato"), Ids.Num() > 0);
+	TestTrue(TEXT("Movement.Basic e' nell'elenco"), Ids.Contains(TEXT("Movement.Basic")));
+	TestTrue(TEXT("il FAIL intenzionale e' nell'elenco"), Ids.Contains(TEXT("Movement.BasicFailsOnPurpose")));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
