@@ -181,16 +181,15 @@ URTHeroData* URTHeroCatalogLibrary::MakeFlux()
 	// La variante (vincolo v0.1: una sola abilita' fondamentale per eroe) sta su LinearDischarge, non qui:
 	// vedi sotto.
 
-	// Indice 4 — ReactiveCapacitor. Scudo 15 (rappresentabile: e' un effetto Shield) + "10 danni
-	// all'attaccante" (NON rappresentabile: una reazione non ha ancora uno slot dedicato ne' un modo di
-	// riferire "chi ha appena colpito" — quel bersaglio si conosce solo al trigger, l'istanza pianificata non
-	// ce l'ha. Arriva con E5). Fase Preparation: il commento di ERTResolutionPhase la elenca esplicitamente
-	// fra "scudi, stance, trappole, REAZIONI PREPARATE". Slot None: non esiste ancora uno slot Reazione, e
-	// forzarla su Main le farebbe consumare l'azione principale che non le compete.
-	Flux->Actions.Add(MakeHeroAction(TEXT("Flux.ReactiveCapacitor"), ERTResolutionPhase::Preparation,
-		/*Priority*/ 35, /*Range*/ 0, /*Cooldown*/ 3, ERTActionFallback::Cancel,
-		{ FRTActionEffectSpec(ERTActionEffect::Shield, 15) }, ERTAbilityShape::Single, /*AreaRadius*/ 0,
-		ERTActionSlot::None, /*bInterruptible*/ false));
+	// Indice 4 — ReactiveCapacitor (CP 6.7). REAZIONE cablata sulla semantica di `Action.Counter`: stesso
+	// trigger («sono stato colpito da un attacco diretto») e stesso modo di raggiungere chi ha colpito. Gli
+	// EFFETTI sono di Flux e sono DUE — scudo 15 a se' **e** 10 danni all'attaccante: e' la reazione per cui
+	// CP 5.5 ha reso il motore componibile, e prima di allora ne sarebbe arrivata solo meta'.
+	// Cooldown 3, dal catalogo eroi: piu' lungo dei 2 di `Action.Counter`, perche' fa anche da scudo.
+	Flux->Actions.Add(MakeHeroReactionFromCoreAction(TEXT("Flux.ReactiveCapacitor"), TEXT("Action.Counter"),
+		/*Cooldown*/ 3,
+		{ FRTActionEffectSpec(ERTActionEffect::Shield, 15),
+		  FRTActionEffectSpec(ERTActionEffect::Damage, 10) }));
 
 	// Variante di LinearDischarge (catalogo v0.1 §6, vincolo: una sola abilita' fondamentale con variante).
 	// Concentrata: +6 danni (30 totali), un solo bersaglio — "non si propaga" e' vero per costruzione, dato
@@ -274,10 +273,12 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiva()
 	Riva->Actions.Add(MakeHeroAction(TEXT("Riva.MistVeil"), ERTResolutionPhase::Preparation, /*Priority*/ 35,
 		/*Range*/ 0, /*Cooldown*/ 3, ERTActionFallback::Cancel, {}, ERTAbilityShape::Area, /*AreaRadius*/ 1));
 
-	// Indice 4 — FlowReaction. `Reposition 1` dopo un attacco subito: e' una REAZIONE (E5, nessuno slot
-	// dedicato) che sposta l'unita' — e il movimento non e' nemmeno un `ERTActionEffect` rappresentabile
-	// (passa da `ERTMovementStyle`, non da Effects). Interamente senza effetto dichiarato, come la meta' non
-	// rappresentabile di `Flux.ReactiveCapacitor`. Slot None, non interrompibile (reazione preparata).
+	// Indice 4 — FlowReaction. `Reposition 1` dopo un attacco subito: e' una reazione che produce MOVIMENTO
+	// dentro un boundary di risoluzione, quindi il suo aggancio e' **E14** (ADR-0004, finestre di reazione),
+	// non E5 — il motore di E5 valuta i trigger sullo snapshot dei colpi e non sposta nessuno.
+	// Il rinvio e' dichiarato come DATO: slot `None` e nessun trigger. Darle lo slot `Reaction` la farebbe
+	// raccogliere dal pass delle reazioni, che la registrerebbe come attivata senza che accada nulla — un
+	// esito falso nel TurnLog e' peggio di un'abilita' dichiaratamente incompleta.
 	Riva->Actions.Add(MakeHeroAction(TEXT("Riva.FlowReaction"), ERTResolutionPhase::Preparation, /*Priority*/ 36,
 		/*Range*/ 0, /*Cooldown*/ 3, ERTActionFallback::Cancel, {}, ERTAbilityShape::Single, /*AreaRadius*/ 0,
 		ERTActionSlot::None, /*bInterruptible*/ false));
@@ -351,13 +352,15 @@ URTHeroData* URTHeroCatalogLibrary::MakeBastion()
 	Ram->Def.MovementStyle = ChargeDef.MovementStyle; // LinearCharge: si ferma ADDOSSO al primo nemico
 	Bastion->Actions.Add(Ram);
 
-	// Indice 4 — Interposition. Reazione che intercetta un attacco diretto a un alleato: E5 (nessuno slot
-	// Reazione) e per giunta richiede di RIDIRIGERE un colpo, cioe' di modificare un intento altrui gia'
-	// pianificato — cosa che il motore azioni oggi non prevede in nessuna forma. Slot None, non
-	// interrompibile, nessun effetto.
-	Bastion->Actions.Add(MakeHeroAction(TEXT("Bastion.Interposition"), ERTResolutionPhase::Preparation,
-		/*Priority*/ 32, /*Range*/ 2, /*Cooldown*/ 3, ERTActionFallback::Cancel, {},
-		ERTAbilityShape::Single, /*AreaRadius*/ 0, ERTActionSlot::None, /*bInterruptible*/ false));
+	// Indice 4 — Interposition (CP 6.7). REAZIONE cablata sulla semantica di `Action.Intercept`: Bastion
+	// DIVENTA il bersaglio di un colpo diretto a un alleato entro 2 celle. Nessun effetto proprio, ed e'
+	// corretto: interporsi non aggiunge danno ne' stati, cambia CHI subisce un colpo altrui — cosa che
+	// `FRTActionEffectSpec` non sa esprimere e che il pass delle reazioni fa gia' per l'azione core.
+	// La portata (2) e la priorita' (la piu' bassa fra le reazioni, cosi' la redirezione precede le altre)
+	// vengono dal core; il cooldown 3 dal catalogo eroi. L'eroe piu' resistente del roster e' quello che si
+	// mette in mezzo: e' la sua identita', non un numero in piu'.
+	Bastion->Actions.Add(MakeHeroReactionFromCoreAction(TEXT("Bastion.Interposition"), TEXT("Action.Intercept"),
+		/*Cooldown*/ 3));
 
 	// Variante di KineticPanel (vincolo v0.1: una sola abilita' fondamentale con variante per eroe).
 	// I due compromessi sono fatti di INTEGRITA' e DURATA, non di effetti: vivono in `Parameters` finche' E9
@@ -406,11 +409,11 @@ URTHeroData* URTHeroCatalogLibrary::MakeVektor()
 		/*Range*/ 4, /*Cooldown*/ 0, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 21) }));
 
-	// Indice 1 — InterceptShot. REAZIONE: 16 danni + stop del movimento a chi entra nella cella controllata.
-	// Il danno e' dichiarabile, "fermare il movimento" no — non e' un `ERTActionEffect` e non esiste uno slot
-	// Reazione (E5). Il parente piu' prossimo gia' costruito e' `Action.SuppressiveLine` (CP 4.6), che fa
-	// esattamente questo con un trigger d'ingresso: quando E5 arrivera', l'aggancio e' quello.
-	// Slot None (non consuma l'azione principale), non interrompibile: e' preparata, non eseguita.
+	// Indice 1 — InterceptShot. 16 danni + stop del movimento a chi ENTRA nella cella controllata: il trigger
+	// e' d'ingresso su movimento, non «sono stato colpito», quindi appartiene a **E14** (ADR-0004) e non a E5.
+	// Cablarla sul motore di E5 duplicherebbe `FRTSuppressiveZone` (CP 4.6), che quel trigger ce l'ha gia'.
+	// Il rinvio e' dichiarato come DATO: slot `None`, nessun trigger — il pass delle reazioni non la raccoglie
+	// e non puo' registrare un'attivazione che non produce nulla.
 	Vektor->Actions.Add(MakeHeroAction(TEXT("Vektor.InterceptShot"), ERTResolutionPhase::Preparation,
 		/*Priority*/ 30, /*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 16) }, ERTAbilityShape::Single, /*AreaRadius*/ 0,
@@ -425,13 +428,13 @@ URTHeroData* URTHeroCatalogLibrary::MakeVektor()
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 20) }));
 	Vektor->Actions[2]->Def.MovementStyle = ERTMovementStyle::LinearDash;
 
-    // Indice 3 — Deflection. REAZIONE: riduce di 20 il danno subito. Stessa famiglia di `Action.Guard`
-	// (-15 al primo colpo, `URTCombatLibrary::GuardFirstHitReduction`), ma con un trigger invece che una
-	// stance: senza slot Reazione (E5) non e' dichiarabile come effetto, perche' una riduzione non e' uno
-	// scudo — `Effect::Shield` assorbirebbe danno invece di ridurlo, e sarebbe un numero che mente.
-	Vektor->Actions.Add(MakeHeroAction(TEXT("Vektor.Deflection"), ERTResolutionPhase::Preparation,
-		/*Priority*/ 31, /*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel, {},
-		ERTAbilityShape::Single, /*AreaRadius*/ 0, ERTActionSlot::None, /*bInterruptible*/ false));
+	// Indice 3 — Deflection (CP 6.7). REAZIONE cablata sulla semantica di `Action.Deflect`: -20 sul colpo
+	// diretto che l'ha innescata. La riduzione arriva dagli effetti del core (`ERTActionEffect::DamageReduction`,
+	// CP 5.5) e resta distinta dallo scudo: uno scudo ASSORBE e si consuma, questa toglie punti al colpo.
+	// Stessa famiglia di `Action.Guard` (-15 al primo colpo) ma con un trigger invece di una stance.
+	// Cooldown 2, uguale al core: il catalogo eroi non ne dichiara uno diverso.
+	Vektor->Actions.Add(MakeHeroReactionFromCoreAction(TEXT("Vektor.Deflection"), TEXT("Action.Deflect"),
+		/*Cooldown*/ 2));
 
 	// Indice 4 — Feint. Marca una CELLA e concede un `Reposition`: nessuna delle due meta' e' dichiarabile.
 	// `Status` si applica alle UNITA', non alle celle; il movimento passa da `ERTMovementStyle`, non da

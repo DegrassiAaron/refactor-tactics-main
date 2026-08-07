@@ -56,24 +56,30 @@ bool FRTFluxMatchesCatalogTest::RunTest(const FString&)
 	TestEqual(TEXT("Overload: 18 danni"), FluxDeclaredDamage(Overload), 18);
 	TestEqual(TEXT("Overload: cooldown 3"), Overload->Def.CooldownTurns, 3);
 
+	// CP 6.7: la reazione e' cablata e dichiara DUE effetti (prima ne aveva uno, con il contrattacco
+	// «non rappresentabile» in un commento). Il secondo e' cio' che CP 5.5 ha reso applicabile.
 	const URTActionData* ReactiveCapacitor = Flux->Actions[4];
-	if (TestEqual(TEXT("ReactiveCapacitor: un solo effetto"), ReactiveCapacitor->Def.Effects.Num(), 1))
+	if (TestEqual(TEXT("ReactiveCapacitor: due effetti"), ReactiveCapacitor->Def.Effects.Num(), 2))
 	{
-		TestTrue(TEXT("ReactiveCapacitor: ed e' lo scudo"),
+		TestTrue(TEXT("ReactiveCapacitor: scudo 15 a chi reagisce"),
 			ReactiveCapacitor->Def.Effects[0].Effect == ERTActionEffect::Shield
 			&& ReactiveCapacitor->Def.Effects[0].Amount == 15);
+		TestTrue(TEXT("ReactiveCapacitor: 10 danni a chi ha colpito"),
+			ReactiveCapacitor->Def.Effects[1].Effect == ERTActionEffect::Damage
+			&& ReactiveCapacitor->Def.Effects[1].Amount == 10);
 	}
 	TestEqual(TEXT("ReactiveCapacitor: cooldown 3"), ReactiveCapacitor->Def.CooldownTurns, 3);
+	TestTrue(TEXT("ReactiveCapacitor: occupa lo slot Reazione"),
+		ReactiveCapacitor->Def.Slot == ERTActionSlot::Reaction);
 
 	// Flux e' un roster valido di per se': passa lo stesso validator che il roster completo dovra' passare.
 	const TArray<FString> Errors = URTHeroCatalogLibrary::ValidateHeroes({ Flux });
 	for (const FString& Err : Errors) { AddError(Err); }
 	TestEqual(TEXT("Flux e' strutturalmente valido"), Errors.Num(), 0);
 
-	// Limiti dichiarati: ConductiveNode e Overload non hanno gli effetti "cella conduttiva"/"interrupt
-	// dispositivi" (nessun sistema li consuma, E7/E8/E9), ReactiveCapacitor non ha il contrattacco
-	// (nessuno slot Reazione ne' un modo di riferire l'attaccante a runtime, E5). Qui si verifica solo che
-	// l'azione ESISTA come dato, non che l'effetto mancante sia presente — sarebbe l'errore opposto.
+	// Limiti dichiarati che RESTANO: ConductiveNode e Overload non hanno gli effetti "cella conduttiva" e
+	// "interrupt dispositivi" (nessun sistema li consuma, E7/E8/E9). Qui si verifica solo che l'azione ESISTA
+	// come dato, non che l'effetto mancante sia presente — sarebbe l'errore opposto.
 	TestEqual(TEXT("ConductiveNode: nessun effetto rappresentabile ancora"), Flux->Actions[2]->Def.Effects.Num(), 0);
 	return true;
 }
