@@ -13,6 +13,7 @@
 #include "Ability/RTCatalogLibrary.h"
 #include "Turn/RTMovementActionLibrary.h"
 #include "Combat/RTCombatLibrary.h"
+#include "Combat/RTHexCombatLibrary.h"
 #include "Turn/RTTurnManager.h"
 #include "Core/RTTypes.h"
 #include "RefactorTactics.h"
@@ -65,6 +66,67 @@ namespace
 			*OutUnits = MoveTemp(Units);
 		}
 		return OutUnitId != INDEX_NONE;
+	}
+
+	/**
+	 * Aggiorna l'anteprima di pianificazione (SOLA PRESENTAZIONE) dallo stato dell'unita' selezionata:
+	 * dove puo' arrivare e, se ha un attacco pianificato, quali celle colpirebbe — segnalando gli ALLEATI
+	 * che finirebbero nell'area.
+	 *
+	 * Entrambi gli insiemi vengono dalle stesse funzioni che decidono l'esito (`ReachableCells`,
+	 * `HexHitCells`): nessun calcolo parallelo, altrimenti il giocatore vedrebbe una zona e ne subirebbe
+	 * un'altra. `Unit == nullptr` (deselezione, fine pianificazione) spegne l'anteprima.
+	 */
+	void RefreshPlanningPreview(const UWorld* World, const ARTUnit* Unit)
+	{
+		FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
+		ARTHexMapActor* HexMap = HexMapWithContext(World, Origin, HexSize, LayerH, Map);
+		if (!HexMap)
+		{
+			return;
+		}
+		if (!Unit)
+		{
+			HexMap->SetPreviewReachableCells(TArray<FRTCellId>());
+			HexMap->SetPreviewHitCells(TArray<FRTCellId>(), TArray<FRTCellId>());
+			return;
+		}
+
+		// Dove puo' arrivare: budget, blocchi, occupanti e archi sono gia' applicati da ReachableCells.
+		FRTHexSnapshot Snapshot;
+		int32 UnitId = INDEX_NONE;
+		TArray<ARTUnit*> Units;
+		TArray<FRTCellId> Reachable;
+		if (PlanningSnapshotFor(World, Unit, Snapshot, UnitId, &Units))
+		{
+			for (const FRTHexReachableCell& R : URTHexSimLibrary::ReachableCells(Snapshot, UnitId))
+			{
+				Reachable.Add(R.Cell);
+			}
+		}
+		HexMap->SetPreviewReachableCells(Reachable);
+
+		// Chi colpirebbe: solo se c'e' davvero un attacco pianificato su un bersaglio vivo.
+		TArray<FRTCellId> Hit;
+		TArray<FRTCellId> Allies;
+		const URTActionData* Ability = Unit->GetAbility(Unit->PlannedAbilityIndex);
+		const ARTUnit* Target = Unit->PlannedAttackTarget;
+		if (Ability && Target && Target->IsAlive())
+		{
+			Hit = URTHexCombatLibrary::HexHitCells(Ability->Shape, Unit->Cell, Target->Cell,
+				Ability->RangeCells, Ability->AreaRadius);
+
+			// Fuoco amico: un alleato dentro l'area va visto PRIMA del lock-in, non dedotto dai danni dopo.
+			for (const ARTUnit* Other : Units)
+			{
+				if (Other && Other != Unit && Other->IsAlive() && Other->TeamId == Unit->TeamId
+					&& Hit.Contains(Other->Cell))
+				{
+					Allies.AddUnique(Other->Cell);
+				}
+			}
+		}
+		HexMap->SetPreviewHitCells(Hit, Allies);
 	}
 
 	/** Testo del motivo di rifiuto di un waypoint, dallo stato del pathfinding (per il log). */
@@ -356,6 +418,8 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 			{
 				const ARTUnit* NewUnit = Cast<ARTUnit>(HitActor);
 				SHexMap->SetPreviewPath(NewUnit ? NewUnit->PlannedPath : TArray<FRTCellId>());
+				// Con il piano arrivano anche le zone: dove puo' arrivare e, se ha gia' un bersaglio, chi colpisce.
+				RefreshPlanningPreview(GetWorld(), NewUnit);
 			}
 		}
 		return;
@@ -419,6 +483,9 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		{
 			SelectedUnit->PlannedAbilityIndex = AbilityIndex;
 			SelectedUnit->PlannedAttackTarget = ClickedUnit;
+			// La zona colpita compare SUBITO, col fuoco amico gia' segnalato: e' il momento in cui il giocatore
+			// puo' ancora cambiare idea. Dopo il lock-in l'informazione non serve piu' a niente.
+			RefreshPlanningPreview(GetWorld(), SelectedUnit);
 			if (ARTTurnManager* TM = PacingTurnManager(this))
 			{
 				TM->RecordPlanningInput(ERTPlanningInput::Order);
@@ -629,6 +696,9 @@ void ARTPlayerController::OnLockIn(const FInputActionValue& Value)
 		}
 		else
 		{
+			// L'anteprima muore col lock-in: da qui in poi mostrerebbe una minaccia gia' risolta, e la traccia
+			// del percorso la sostituisce `LastMoveRoutes` (cio' che e' DAVVERO successo, non cio' che si voleva).
+			RefreshPlanningPreview(GetWorld(), nullptr);
 			TurnManager->LockInAndResolve();
 		}
 	}

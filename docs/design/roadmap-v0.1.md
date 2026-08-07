@@ -483,6 +483,17 @@ modifica di regole coperta dall'ADR-0003: va riflessa in `piano-canonico-mvp.md 
 > percezione e reazioni → epic **E16**. Conseguenza per CP 11.5: il ghost deve mostrare il **facing pianificato**
 > e le direzioni **legali** (una · tre · sei, secondo lo stile di movimento). Sceglierlo senza vederlo
 > significa sceglierlo alla cieca, e vale per tutto il turno successivo.
+>
+> 🟡 **Anticipo parziale (2026-08-07)** — **non chiude** né 11.5 né 11.6. In pianificazione esiste ora
+> un'anteprima **statica** disegnata da `ARTHexMapActor`: celle raggiungibili (verde tenue), percorso
+> pianificato (ciano), zona colpita (**rosso**) con gli alleati dentro l'area in **arancione**. Le celle
+> arrivano **già calcolate** da `URTHexSimLibrary::ReachableCells` e `URTHexCombatLibrary::HexHitCells`:
+> nessuna seconda implementazione delle regole, come la DoD richiede. Coperti 3 dei test nominati
+> (`Preview.HitCellsMatchCombatShape`, `Preview.ClearedWhenPlanIsCancelled`, `Preview.AllyInAreaIsFlagged`)
+> più `Preview.ReachableCellsArePassedThrough`. **Restano aperti**: la timeline per fase e il view model
+> (`Preview.GhostMatchesResolverPath`, `Preview.ReactionIsNotAPhaseEntry`), lo scrubbing, i warning derivati
+> dai reason code (`Preview.WarningsComeFromResolverReasons`), il ramo della reaction armata
+> (`Preview.ArmedReactionRendersAsBranch`) e il **facing pianificato** richiesto da ADR-0005.
 
 ---
 
