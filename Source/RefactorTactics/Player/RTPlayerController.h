@@ -112,6 +112,16 @@ public:
 	void HandleClickOnCell(const FRTCellId& Cell);
 
 	/**
+	 * Decide cosa fare per un click su un'UNITA' avversaria: attacco, carica, o rifiuto col motivo. Estratta da
+	 * `OnSelect` per la stessa ragione di `HandleClickOnCell` — la decisione e' verificabile headless, il
+	 * raycast che la precede no.
+	 */
+	void HandleClickOnUnit(class ARTUnit* ClickedUnit);
+
+	/** Come sopra, per i test: il nome dichiara che il raycast e' stato saltato. */
+	void HandleClickOnUnitForTest(class ARTUnit* ClickedUnit) { HandleClickOnUnit(ClickedUnit); }
+
+	/**
 	 * Seleziona un actor come farebbe un click su di esso (per i test dell'interazione). Prende `AActor*` e non
 	 * `ARTUnit*` perche' qui `ARTUnit` e' solo dichiarato: la conversione al puntatore base non sarebbe visibile.
 	 */

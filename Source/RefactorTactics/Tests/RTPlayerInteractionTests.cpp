@@ -237,4 +237,62 @@ bool FRTPlayerDashIsLinearTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Con una CARICA selezionata, cliccare un nemico la pianifica contro di lui.
+ *
+ * Prima di #145 il click veniva rifiutato con «lo scatto si pianifica su una CELLA, non su un nemico», e
+ * l'unico modo di caricare era cliccare una cella OLTRE il bersaglio e sperare che la traiettoria lo
+ * incontrasse: un'affordance che nessuno indovina. Il rifiuto resta giusto per gli scatti che NON sono
+ * cariche — quelli si fermano davanti alle unita', quindi puntarne una non ha senso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerChargeOnEnemyTest,
+	"RefactorTactics.PlayerInput.ChargeIsPlannedByClickingTheEnemy",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerChargeOnEnemyTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+	// Guardian e bersaglio allineati sull'asse q, a distanza 3: dentro la portata della Carica (4).
+	ARTUnit* Charger = SpawnInteractionUnit(World, 0, ERTArchetype::Guardian, FRTCellId(0, 0, 0));
+	ARTUnit* Enemy   = SpawnInteractionUnit(World, 1, ERTArchetype::Ranger,   FRTCellId(3, 0, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!PC || !Charger || !Enemy) { DestroyInteractionWorld(World); return false; }
+
+	const int32 ChargeIdx = 3;
+	const URTActionData* Charge = Charger->GetAbility(ChargeIdx);
+	if (!TestTrue(TEXT("premessa: la quarta abilita' del Guardian e' una carica"),
+		Charge && Charge->Def.MovementStyle == ERTMovementStyle::LinearCharge))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+
+	PC->SelectActorForTest(Charger);
+	Charger->SelectAbility(ChargeIdx);
+	PC->HandleClickOnUnitForTest(Enemy);
+
+	TestEqual(TEXT("il click sul nemico pianifica la carica"), Charger->PlannedDashAbility, ChargeIdx);
+	TestTrue(TEXT("verso la cella del nemico"), Charger->PlannedDashCell == Enemy->Cell);
+	// La carica NON e' un attacco del Blast: l'impatto lo produce la fase Dash. Pianificare anche un attacco
+	// significherebbe colpire due volte con la stessa azione.
+	TestEqual(TEXT("e non pianifica anche un attacco separato"),
+		Charger->PlannedAbilityIndex, (int32)INDEX_NONE);
+
+	// Uno scatto che NON e' una carica si ferma davanti alle unita': puntarne una resta senza senso.
+	ARTUnit* Dasher = SpawnInteractionUnit(World, 0, ERTArchetype::Ranger, FRTCellId(-3, 0, 0));
+	PC->SelectActorForTest(Dasher);
+	Dasher->SelectAbility(3); // Scatto del Ranger: LinearDash
+	PC->HandleClickOnUnitForTest(Enemy);
+	TestEqual(TEXT("uno scatto non-carica sul nemico resta rifiutato"),
+		Dasher->PlannedDashAbility, (int32)INDEX_NONE);
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

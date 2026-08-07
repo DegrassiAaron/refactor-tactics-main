@@ -43,6 +43,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Catalog")
 	static bool IsFastMovement(const FRTActionDef& Def);
 
+	/**
+	 * Danno dichiarato da un'azione: il PRIMO effetto `Damage` della sua lista, 0 se non ne ha. Una sola
+	 * risposta alla domanda «quanto fa male questa azione», condivisa da chi la valuta (il bot) e da chi la
+	 * applica (il Blast) — la stessa disciplina con cui `IsFastMovement` ha unificato il gate dello scatto.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Catalog")
+	static int32 FirstDamage(const FRTActionDef& Def);
+
 	/** Codice numerico del catalogo (0/10/20/30/40/50/60): serve a rileggere i PDF, non alla risoluzione. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Catalog")
 	static int32 ResolutionPhaseCode(ERTResolutionPhase Phase);

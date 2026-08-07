@@ -150,6 +150,8 @@ void ARTTurnManager::PlanBots()
 		FRTHexBotContext Ctx;
 		Ctx.Origin = Bot->Cell;
 		Ctx.KiteStandoff = Bot->KiteStandoff;
+
+
 		Ctx.WKill = WKill;
 		Ctx.WDamage = WDamage;
 		Ctx.WThreat = WThreat;
@@ -292,6 +294,10 @@ void ARTTurnManager::PlanBots()
 		TArray<FRTHexBotPlan> Plans;
 		TArray<int32> PlanAbility;  // abilita' d'attacco della candidata (INDEX_NONE = solo movimento)
 		TArray<bool> PlanViaDash;   // la candidata si raggiunge con lo scatto
+		// Vero se la candidata e' una CARICA: allora si punta la cella del NEMICO (`Ctx.Enemies[TargetIndex]`),
+		// non `DestCell` — che per una carica e' dove ci si ferma, cioe' davanti al bersaglio. Serve un flag e
+		// non una cella-sentinella: `FRTCellId()` vale (0,0,0), che e' una cella vera della mappa.
+		TArray<bool> PlanIsCharge;
 
 		auto AddCandidates = [&](const FRTHexSnapshot& Snap, int32 AbilityIndex, int32 Range, int32 Damage,
 			bool bViaDash, bool bAttacksOnly)
@@ -312,6 +318,7 @@ void ARTTurnManager::PlanBots()
 				Plans.Add(Candidate);
 				PlanAbility.Add(Candidate.bHasAttack ? AbilityIndex : INDEX_NONE);
 				PlanViaDash.Add(bViaDash);
+				PlanIsCharge.Add(false);
 			}
 		};
 
@@ -329,7 +336,47 @@ void ARTTurnManager::PlanBots()
 			AddCandidates(StaySnapshot, A, Ability->RangeCells, Ability->Power, /*bViaDash*/ false, /*bAttacksOnly*/ true);
 		}
 
-		// 3) Scatto + attacco: dalla cella post-scatto si spara nello stesso turno (Dash prima del Blast).
+		// 3) CARICA: l'unico modo di scattare E colpire nello stesso turno, perche' il danno e' dell'azione di
+		// movimento stessa e non di una seconda azione principale (#145). Le candidate non possono nascere da
+		// `ReachableCells`: quella cerca celle LIBERE, mentre una carica punta la cella OCCUPATA dal nemico e
+		// si ferma davanti. Si generano quindi dai bersagli, chiedendo al resolver se la traiettoria li
+		// raggiunge — lo stesso codice che poi la eseguira'.
+		if (bDashReady && DashStyle == ERTMovementStyle::LinearCharge)
+		{
+			const int32 ImpactDamage = URTCatalogLibrary::FirstDamage(DashAb->Def);
+			for (int32 e = 0; e < Ctx.Enemies.Num(); ++e)
+			{
+				const FRTLinearMoveResult Linear = URTMovementActionLibrary::ResolveLinearMove(
+					Snapshot.Map, Bot->Cell, Ctx.Enemies[e], DashBudget, DashStyle, Snapshot.Occupancy, DashHostiles);
+
+				// Vale solo se l'impatto colpisce PROPRIO quel nemico: una traiettoria che ne incontra un altro
+				// prima e' una candidata diversa, e la genera il suo giro di ciclo.
+				if (Linear.Stop != ERTLinearStop::Impact
+					|| !EnemyUnitIndex.IsValidIndex(e) || Units[EnemyUnitIndex[e]] != Units[Linear.ImpactUnitId])
+				{
+					continue;
+				}
+
+				FRTHexBotPlan Charge;
+				Charge.DestCell = Linear.Final;   // dove il bot si ferma: adiacente al bersaglio
+				Charge.bHasAttack = true;
+				Charge.TargetIndex = e;
+				Charge.AttackDamage = ImpactDamage;
+				Charge.TargetHealth = Ctx.EnemyHealth.IsValidIndex(e) ? Ctx.EnemyHealth[e] : 0;
+				Plans.Add(Charge);
+				PlanAbility.Add(INDEX_NONE);      // il colpo NON e' una seconda azione: e' l'impatto della carica
+				PlanViaDash.Add(true);
+				PlanIsCharge.Add(true);
+			}
+		}
+
+		// 4) Scatto + attacco, e scatto per riposizionarsi.
+		//
+		// NOTA (#145): scatto e attacco occupano ENTRAMBI lo slot Principale secondo il catalogo, quindi
+		// pianificarli insieme viola `ValidateActionSlots` — che pero' non e' fatta valere in partita. Finche'
+		// resta cosi', «scatto + attacco base» domina sempre la carica (per il Guardian: 30 danni e spinta 2
+		// contro 20 e spinta 1, con cooldown 0 contro 3), e il bot non ne scegliera' nessuna. Il meccanismo
+		// qui sopra esiste ed e' corretto; a renderlo utile e' il bilanciamento, non altro codice.
 		if (bDashReady)
 		{
 			for (int32 A = 0; A < Bot->NumAbilities(); ++A)
@@ -339,7 +386,6 @@ void ARTTurnManager::PlanBots()
 					|| !Bot->CanUseAbility(A)) { continue; }
 				AddCandidates(DashSnapshot, A, Ability->RangeCells, Ability->Power, /*bViaDash*/ true, /*bAttacksOnly*/ true);
 			}
-			// 4) Scatto per riposizionarsi (senza tiro): utile per chiudere in fretta la distanza.
 			AddCandidates(DashSnapshot, INDEX_NONE, /*Range*/ 0, /*Damage*/ 0, /*bViaDash*/ true, /*bAttacksOnly*/ false);
 		}
 
@@ -359,12 +405,23 @@ void ARTTurnManager::PlanBots()
 		}
 
 		const bool bViaDash = Plans.IsValidIndex(BestIdx) && PlanViaDash[BestIdx];
+		const bool bIsCharge = Plans.IsValidIndex(BestIdx) && PlanIsCharge[BestIdx];
 		const int32 BestAbility = Plans.IsValidIndex(BestIdx) ? PlanAbility[BestIdx] : INDEX_NONE;
 		ARTUnit* Target = (Best.bHasAttack && EnemyUnitIndex.IsValidIndex(Best.TargetIndex))
 			? Units[EnemyUnitIndex[Best.TargetIndex]] : nullptr;
 		const int32 Score = URTHexBotLibrary::ScorePlan(Snapshot.Map, Best, Ctx);
 
-		if (bViaDash && Target && BestAbility != INDEX_NONE)
+		if (bIsCharge && Target && Ctx.Enemies.IsValidIndex(Best.TargetIndex))
+		{
+			// CARICA: si punta la cella del bersaglio e la fase Dash si ferma addosso a lui registrando
+			// l'impatto. Nessun `PlannedAbilityIndex`: il colpo e' dell'azione di movimento, e pianificare
+			// anche un'azione principale significherebbe spendere due volte lo stesso slot.
+			Bot->PlannedDashAbility = DashIdx;
+			Bot->PlannedDashCell = Ctx.Enemies[Best.TargetIndex];
+			AddLogEvent(FString::Printf(TEXT("%s: utility -> CARICA su %s (impatto da (q=%d,r=%d,L%d)) score=%d"),
+				*Bot->GetName(), *Target->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score));
+		}
+		else if (bViaDash && Target && BestAbility != INDEX_NONE)
 		{
 			// Scatta (fase Dash) e attacca dalla cella post-scatto: nel Blast, che segue il Dash, il bot e' li'.
 			Bot->PlannedDashAbility = DashIdx;
@@ -1084,11 +1141,7 @@ void ARTTurnManager::ResolveCombat()
 		Intent.RangeCells = 1; // dopo l'impatto si e' adiacenti: e' questa la portata del colpo
 		Intent.AreaRadius = 0;
 
-		int32 ImpactDamage = 0;
-		for (const FRTActionEffectSpec& Spec : Impact.Def.Effects)
-		{
-			if (Spec.Effect == ERTActionEffect::Damage) { ImpactDamage = Spec.Amount; break; }
-		}
+		const int32 ImpactDamage = URTCatalogLibrary::FirstDamage(Impact.Def);
 		Intent.Power = URTCombatLibrary::EffectiveAttackPower(ImpactDamage, /*OccupantDamageBonus=*/ 0);
 
 		Intents.Add(Intent);
