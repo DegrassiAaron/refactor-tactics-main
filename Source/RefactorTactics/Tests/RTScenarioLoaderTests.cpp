@@ -5,7 +5,7 @@
 // piu' tempo di quanto il test ne faccia risparmiare.
 
 #include "Misc/AutomationTest.h"
-#include "Test/RTScenarioLoader.h"
+#include "ScenarioHarness/RTScenarioLoader.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
@@ -115,7 +115,7 @@ bool FRTScenarioLoaderRejectsTest::RunTest(const FString&)
 }
 
 /**
- * OGNI scenario versionato in `Tests/Scenarios/` deve essere valido. E' la rete che impedisce di committare
+ * OGNI scenario versionato in `Scenarios/` deve essere valido. E' la rete che impedisce di committare
  * uno scenario rotto: senza, il difetto si scopre solo quando qualcuno prova a eseguirlo.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderShippedScenariosTest,

@@ -12,7 +12,7 @@
  * `LockInAndResolve` -> resolver -> TurnLog), mai con scorciatoie tipo `SetActorLocation`: un test che non
  * passa dal codice vero non prova niente sul codice vero.
  *
- * Formato: JSON versionabile in `Tests/Scenarios/<Categoria>/<Nome>.json`. Non sono `.uasset` perche' devono
+ * Formato: JSON versionabile in `Scenarios/<Categoria>/<Nome>.json`. Non sono `.uasset` perche' devono
  * essere leggibili e diffabili in una PR.
  */
 

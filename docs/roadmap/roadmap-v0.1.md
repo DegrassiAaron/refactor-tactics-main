@@ -86,7 +86,7 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 | **Finestre di reazione interattive** | — | ⏳ ADR-0004 accettato, nessun codice (E14) |
 | **Scenario showcase e golden replay** | — | ⏳ (E15) |
 
-**Suite automatica**: **397 test unici** in **62 file** (rimisurati 2026-08-07 **dopo il merge** della
+**Suite automatica**: **403 test unici** in **63 file** (rimisurati 2026-08-07 **dopo il merge** della
 riorganizzazione documentale). Le due viste sono arrivate al merge con due numeri diversi ed **entrambi
 corretti alla propria base** — 394 in 61 alla chiusura di CP 9.1, 390 in 61 col primo blocco dell'harness
 degli scenari — e dopo l'unione nessuno dei due valeva più. È il caso che dimostra la regola meglio di

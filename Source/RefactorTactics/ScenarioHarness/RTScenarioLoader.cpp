@@ -1,4 +1,4 @@
-#include "Test/RTScenarioLoader.h"
+#include "ScenarioHarness/RTScenarioLoader.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Map/RTHexLibrary.h"
@@ -42,12 +42,12 @@ namespace
 
 FString URTScenarioLoader::ScenariosRoot()
 {
-	return FPaths::Combine(FPaths::ProjectDir(), TEXT("Tests"), TEXT("Scenarios"));
+	return FPaths::Combine(FPaths::ProjectDir(), TEXT("Scenarios"));
 }
 
 FString URTScenarioLoader::PathForScenarioId(const FString& ScenarioId)
 {
-	// `Movement.Basic` -> `Tests/Scenarios/Movement/Basic.json`. L'ID gerarchico E' il percorso: un solo posto
+	// `Movement.Basic` -> `Scenarios/Movement/Basic.json`. L'ID gerarchico E' il percorso: un solo posto
 	// dove sta la verita' su dove vive uno scenario.
 	FString Path = ScenariosRoot();
 	TArray<FString> Parts;

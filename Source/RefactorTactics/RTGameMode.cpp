@@ -9,6 +9,11 @@
 #include "Ability/RTHeroData.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTMatchSetupLibrary.h"
+#include "ScenarioHarness/RTScenarioRunner.h"
+#include "ScenarioHarness/RTTestResult.h"
+
+/** Definita in Test/RTTestConsole.cpp: scenario da eseguire all'avvio invece della partita normale. */
+extern TAutoConsoleVariable<FString> CVarRTTestScenario;
 #include "Turn/RTMatchFormatData.h"
 #include "Turn/RTMatchFormatLibrary.h"
 #include "RefactorTactics.h"
@@ -61,6 +66,23 @@ void ARTGameMode::BeginPlay()
 	if (!UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()))
 	{
 		World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass(), FTransform::Identity);
+	}
+
+	// AUTO-RUN di uno scenario di test: se `rt.Test.Scenario` e' impostata, la partita normale NON viene
+	// allestita e al suo posto gira lo scenario. E' il workflow «premo Play e parte da solo» del documento
+	// di specifica, senza Actor da trascinare in un livello e quindi senza toccare nessun `.umap`.
+	//
+	// Il GameMode e' il posto giusto per questa decisione: sceglie COSA allestire, che e' il suo mestiere.
+	// Il resolver e il turn manager restano ignari dell'harness (nessun `if (IsTest)` nel gameplay).
+	const FString TestScenario = CVarRTTestScenario.GetValueOnGameThread();
+	if (!TestScenario.IsEmpty())
+	{
+		FString ReportDir;
+		const FRTTestResult Result = URTScenarioRunner::RunById(World, TestScenario, ReportDir);
+		UE_LOG(LogRT, Warning, TEXT("[RT-Test] AUTO-RUN %s -> %s (%d/%d assertion, %d turni) · report: %s"),
+			*TestScenario, *Result.OutcomeString(), Result.PassedCount(), Result.Assertions.Num(),
+			Result.TurnsPlayed, ReportDir.IsEmpty() ? TEXT("non scritto") : *ReportDir);
+		return;
 	}
 
 	SetupHexMatch(HexMap);
