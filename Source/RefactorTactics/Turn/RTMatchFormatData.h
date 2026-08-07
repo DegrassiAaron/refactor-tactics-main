@@ -45,7 +45,7 @@ struct FRTMatchRules
  * Asset versionato e confrontabile, come il resto dei dati di gioco (`URTActionData`, `URTHeroData`,
  * `URTHexMapAsset`) — non costanti sparse nell'orchestratore.
  *
- * Decisione di forma: issue #185, riportata in `docs/design/spec-durata-partita-e-scala-mappe.md` §16.1.
+ * Decisione di forma: issue #185, riportata in `docs/gameplay/spec-durata-partita-e-scala-mappe.md` §16.1.
  * Entra subito **solo cio' che un checkpoint consuma** (D2): `RoundLimit` e `ScoreToWin`, entrambi letti da
  * CP 10.3. Gli altri parametri della spec (§16) migrano quando avranno un lettore, non prima.
  */

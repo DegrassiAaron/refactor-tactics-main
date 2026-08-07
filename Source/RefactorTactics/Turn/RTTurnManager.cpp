@@ -2885,7 +2885,7 @@ float ARTTurnManager::GetPlaybackProgress01() const
 // --- Sonda di pacing --------------------------------------------------------------------------
 // TELEMETRIA. Nessun valore prodotto qui rientra in una decisione di gioco, nel TurnLog o nel suo hash:
 // e' l'unica ragione per cui questo canale puo' permettersi di non essere deterministico.
-// Spec: docs/design/spec-pacing-turno.md
+// Spec: docs/gameplay/spec-pacing-turno.md
 
 void ARTTurnManager::BeginPacingSample()
 {

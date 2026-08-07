@@ -30,7 +30,7 @@ enum class ERTHexWaypointReason : uint8
  *
  * E' l'UNICO strato di risoluzione del movimento: il turn loop quadrato (Grid/ + URTMovementResolver) e'
  * stato rimosso al CP 7.2, dopo che M6 ha portato la partita su esagoni. Il punto di ritorno resta il tag
- * git `pre-hex-only`. Vedi docs/design/h6-hex-sim-spec.md.
+ * git `pre-hex-only`. Vedi docs/technical/h6-hex-sim-spec.md.
  */
 UCLASS()
 class REFACTORTACTICS_API URTHexSimLibrary : public UBlueprintFunctionLibrary
@@ -124,7 +124,7 @@ public:
 	 * due unita' che scivolano verso la stessa cella libera sono gestite dal resolver esistente, non da
 	 * questa funzione. Va chiamata SOLO sul path del movimento normale, MAI su una mobilita' lineare
 	 * (`URTMovementActionLibrary::ResolveLinearMove`): lo Scatto non passa dal microstep condiviso, quindi
-	 * non avrebbe la stessa garanzia sotto collisione simultanea — vedi docs/design/spec-terreni-e8.md §5.2.
+	 * non avrebbe la stessa garanzia sotto collisione simultanea — vedi docs/gameplay/spec-terreni-e8.md §5.2.
 	 */
 	static TArray<FRTCellId> ApplyIceSliding(const FRTHexSnapshot& Snapshot, int32 UnitId, const TArray<FRTCellId>& Path);
 

@@ -15,11 +15,11 @@ Griglia **esagonale** multilivello (`FRTCellId`, coordinate assiali/cubiche) con
 > - **Nessuna partita gira ancora sull'esagonale**: il turn loop giocabile è quello **quadrato** dell'MVP
 >   (2v2 offline contro bot, movimento con conflitti, combat, HUD, vittoria). Colmare questo divario è la
 >   milestone **M6** ≡ epic **E2** della v0.1.
-> - **172 test automatici** (`Source/RefactorTactics/Tests/`, 25 file), ultima esecuzione riportata 172/172 verdi.
+> - **403 test automatici** unici (`Source/RefactorTactics/Tests/`, 63 file), misurati il 2026-08-07.
 > - Packaging Windows verificato sull'MVP quadrato (Development e Shipping).
 >
-> Dettaglio: [roadmap di release v0.1](docs/design/roadmap-v0.1.md) ·
-> [stato per checkpoint](docs/design/roadmap-checkpoint.md).
+> Dettaglio: [roadmap di release v0.1](docs/roadmap/roadmap-v0.1.md) ·
+> [stato per checkpoint](docs/roadmap/roadmap-checkpoint.md).
 
 ---
 
@@ -37,7 +37,7 @@ Un *vertical slice* giocabile **2v2 offline contro bot** su griglia esagonale mu
 - **determinismo verificato** (100 ripetizioni a seed fisso, checksum identico) e build packaged giocabile.
 
 Multiplayer in rete, 4v4, GAS, progressione e modding restano
-[visione post-v0.1](docs/design/piano-canonico-mvp.md#8-north-star-post-mvp-dai-prd).
+[visione post-v0.1](docs/product/piano-canonico-mvp.md#8-north-star-post-mvp-dai-prd).
 
 ## Stack tecnico
 
@@ -57,18 +57,21 @@ Multiplayer in rete, 4v4, GAS, progressione e modding restano
 RefactorTactics.uproject       # descrittore progetto Unreal (radice del repo)
 Source/
   RefactorTactics/             # modulo runtime C++
-    Ability/ Bot/ Camera/ Combat/ Core/ Grid/ Map/
-    Pathfinding/ Player/ Selection/ Terrain/ Turn/ UI/ Unit/ Tests/
+    Ability/ Bot/ Camera/ Combat/ Core/ Map/
+    Pathfinding/ Player/ Selection/ Turn/ UI/ Unit/ Tests/
   RefactorTacticsEditor/       # modulo editor-only (Hex Map Editor Mode)
 Config/                        # DefaultEngine.ini, DefaultGame.ini, input
 Content/
   RT/                          # asset proprietari, organizzati feature-first
   FabAsset/Paragon/            # pack di terze parti da Fab (non versionati - vedi Setup)
-docs/
-  design/                      # canone, roadmap, ADR, spec, verifiche PIE
-  PDR/                         # requisiti di lungo periodo (fasi F0-F6)
-  guides/                      # guide operative
-  src/                         # PDF sorgente (visione e cataloghi)
+docs/                          # >>> README.md e' il punto d'ingresso <<<
+  product/                     # visione, canone, vertical slice
+  gameplay/                    # regole: turno, azioni, reazioni, percezione, ambiente
+  technical/                   # architettura, mappa, TurnLog, UI, test, guide
+  balance/                     # numeri vigenti (cataloghi) + workbook
+  roadmap/                     # milestone, release v0.1, DoD, requisiti F0-F6
+  decisions/                   # ADR e Decision Log
+  src/                         # sorgenti non normativi (PDF di visione, brief grezzi)
   archive/                     # materiale superato
 CLAUDE.md · AGENTS.md          # guide operative per assistenti di codice
 ```
@@ -77,17 +80,21 @@ CLAUDE.md · AGENTS.md          # guide operative per assistenti di codice
 
 | Documento | Cosa contiene |
 |---|---|
-| [`docs/design/piano-canonico-mvp.md`](docs/design/piano-canonico-mvp.md) | ⭐ **Canone**: decisioni vincolanti, invarianti, regole numeriche |
-| [`docs/design/roadmap-v0.1.md`](docs/design/roadmap-v0.1.md) | Release **v0.1**: 12 epic, 59 checkpoint, stato feature → file |
-| [`docs/design/v0.1-definition-of-done.md`](docs/design/v0.1-definition-of-done.md) | Gate di release, KPI, checklist di contenuto |
-| [`docs/design/roadmap-checkpoint.md`](docs/design/roadmap-checkpoint.md) | Milestone M6–M11 con DoD misurabile e stato |
-| [`docs/design/architettura-codice.md`](docs/design/architettura-codice.md) | Mappa delle classi C++ |
-| [`docs/design/convenzioni-contenuti-ue.md`](docs/design/convenzioni-contenuti-ue.md) | Struttura di `Content/`, naming, dipendenze |
-| [`docs/design/test-manuali-pie.md`](docs/design/test-manuali-pie.md) | Verifiche interattive in editor, per sessioni |
-| ADR [0002](docs/design/adr-0002-griglia-esagonale.md) · [0003](docs/design/adr-0003-modello-azioni-v01.md) | Pivot esagonale · modello azioni della v0.1 |
+| [`docs/README.md`](docs/README.md) | 🧭 **Da qui**: gerarchia delle fonti, chi possiede quale concetto, le risposte brevi |
+| [`docs/product/piano-canonico-mvp.md`](docs/product/piano-canonico-mvp.md) | ⭐ **Canone**: decisioni vincolanti, invarianti, regole numeriche |
+| [`docs/roadmap/roadmap-v0.1.md`](docs/roadmap/roadmap-v0.1.md) | Release **v0.1**: 16 epic, 82 checkpoint, stato feature → file |
+| [`docs/roadmap/v0.1-definition-of-done.md`](docs/roadmap/v0.1-definition-of-done.md) | Gate di release, KPI, checklist di contenuto |
+| [`docs/roadmap/roadmap-checkpoint.md`](docs/roadmap/roadmap-checkpoint.md) | Milestone M6–M11 con DoD misurabile e stato |
+| [`docs/technical/architettura-codice.md`](docs/technical/architettura-codice.md) | Mappa delle classi C++ |
+| [`docs/technical/convenzioni-contenuti-ue.md`](docs/technical/convenzioni-contenuti-ue.md) | Struttura di `Content/`, naming, dipendenze |
+| [`docs/technical/test-manuali-pie.md`](docs/technical/test-manuali-pie.md) | Verifiche interattive in editor, per sessioni |
+| ADR [0002](docs/decisions/adr-0002-griglia-esagonale.md) · [0003](docs/decisions/adr-0003-modello-azioni-v01.md) · [0004](docs/decisions/adr-0004-finestre-di-reazione.md) | Pivot esagonale · modello azioni · finestre di reazione |
+| [`docs/OPEN_DECISIONS.md`](docs/OPEN_DECISIONS.md) | Cosa aspetta una decisione, e perché non è deducibile |
 
-> ⚠️ I PDF in `docs/src/` e `docs/PDR/` descrivono un prodotto più ambizioso dello scope corrente e in parte
-> si contraddicono. Le decisioni effettive sono riconciliate nel **piano canonico**, che ha la precedenza.
+> ⚠️ I PDF in `docs/src/` e `docs/archive/pdr-v0.1/` descrivono un prodotto più ambizioso dello scope corrente
+> e in parte si contraddicono. Le decisioni effettive sono riconciliate nel **piano canonico**, che ha la
+> precedenza; i conflitti noti sono registrati in
+> [`docs/DOC_CONFLICT_MATRIX.md`](docs/DOC_CONFLICT_MATRIX.md).
 
 ## Come compilare ed eseguire
 
@@ -105,8 +112,8 @@ CLAUDE.md · AGENTS.md          # guide operative per assistenti di codice
 4. Comandi: **WASD** pan camera · **rotellina** zoom · **Home** ricentra · **F** centra sull'unità selezionata ·
    **click** su unità propria = selezione · **click** su cella = movimento · **click** su nemico = attacco ·
    **Spazio** = risolvi il turno (o attendi il timer di 30 s) · **R** = riavvia la partita.
-5. Test: **Tools → Session Frontend → Automation** → `RefactorTactics` → *Start Tests* (172 test).
-   Guida al debug in [`docs/guides/debug-vs-unreal.md`](docs/guides/debug-vs-unreal.md).
+5. Test: **Tools → Session Frontend → Automation** → `RefactorTactics` → *Start Tests* (403 test).
+   Guida al debug in [`docs/technical/debug-vs-unreal.md`](docs/technical/debug-vs-unreal.md).
 
 ### Asset di terze parti
 
@@ -125,7 +132,7 @@ Per averli:
 > ⚠️ Essendo dentro il repo, `git clean -fdx` **cancella** questi 48 GB (`-x` include i file ignorati).
 > Usare `git clean -fd`, oppure `git clean -fdx -e Content/FabAsset`.
 
-Regole complete: [`docs/design/convenzioni-contenuti-ue.md`](docs/design/convenzioni-contenuti-ue.md),
+Regole complete: [`docs/technical/convenzioni-contenuti-ue.md`](docs/technical/convenzioni-contenuti-ue.md),
 appendice B.
 
 ## Principi di sviluppo

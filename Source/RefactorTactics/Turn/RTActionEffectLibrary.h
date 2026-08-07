@@ -17,7 +17,7 @@
  * Pura e totale: ogni valore di `ERTActionEffect` e' gestito esplicitamente, cosi' aggiungerne uno senza
  * tradurlo diventa un errore di compilazione e non un silenzio a runtime.
  *
- * Riferimento: docs/design/spec-motore-azioni-e4.md §3.
+ * Riferimento: docs/gameplay/spec-motore-azioni-e4.md §3.
  */
 UCLASS()
 class REFACTORTACTICS_API URTActionEffectLibrary : public UBlueprintFunctionLibrary

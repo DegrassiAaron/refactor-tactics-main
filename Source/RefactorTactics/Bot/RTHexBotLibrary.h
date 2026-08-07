@@ -79,7 +79,7 @@ struct FRTHexBotContext
  *
  * Le mosse candidate arrivano da URTHexSimLibrary::ReachableCells, che ha gia' applicato budget di movimento,
  * celle bloccate, unita' occupanti e archi verticali: il bot non rifa' pathfinding e non puo' proporre mosse
- * illegali. Vedi docs/design/h6-5-hex-bot-spec.md.
+ * illegali. Vedi docs/technical/h6-5-hex-bot-spec.md.
  */
 UCLASS()
 class REFACTORTACTICS_API URTHexBotLibrary : public UBlueprintFunctionLibrary

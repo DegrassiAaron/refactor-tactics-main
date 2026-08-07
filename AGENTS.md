@@ -17,8 +17,8 @@ Griglia **esagonale** (`FRTCellId`, assiale/cubica) con editor mappa data-driven
 
 ## Fonte di verità (in ordine di autorità)
 
-1. **`docs/design/piano-canonico-mvp.md`** — decisioni operative vincolanti (invarianti, architettura, regole). Prevale su tutto.
-2. **`docs/design/roadmap-checkpoint.md`** — milestone, checkpoint, Definition of Done misurabili, **stato**.
+1. **`docs/product/piano-canonico-mvp.md`** — decisioni operative vincolanti (invarianti, architettura, regole). Prevale su tutto.
+2. **`docs/roadmap/roadmap-checkpoint.md`** — milestone, checkpoint, Definition of Done misurabili, **stato**.
 3. Issue/task corrente · specifica di feature · ADR · test esistenti · implementazione corrente.
 4. I PDF in `docs/src/` (3 PRD + `Intenti condivisi` + `…piano completo di sviluppo`) = **visione north-star**, non scope corrente.
 5. Questo file (`AGENTS.md`).
@@ -46,7 +46,8 @@ Materiale superato/non autorevole: `docs/archive/`.
 - **Linguaggi**: **regole/dati/resolver/test in C++**, **presentazione/UI/VFX/camera/input in Blueprint**.
 - **C# non è il runtime**: **non** convertire il progetto in C#, **non** aggiungere UnrealCLR/UnrealSharp o
   runtime managed per supposizione (richiederebbe un ADR esplicito).
-- **No GAS**: abilità via `URTAbilityData : UPrimaryDataAsset`. GAS resta north-star (il PDR lo prevede in F2,
+- **No GAS**: abilità via **`URTActionData : UPrimaryDataAsset`** (+ `URTHeroData`, `URTEquipmentData`).
+  GAS resta north-star (il PDR lo prevede in F2,
   prevale il canone).
 - **Nome/prefissi**: progetto `RefactorTactics`; classi con prefisso **`RT`/`URT`** (non `AT`/`UAT`).
 - **Scope corrente**: **2v2 offline contro bot** su griglia esagonale. Multiplayer pianificato in **M10**,
@@ -83,13 +84,13 @@ verificabilità · estendibilità controllata (dati/regole espandibili senza cor
 
 ## Convenzioni
 
-- **Documentazione** sempre in `docs/` (sottocartella pertinente, es. `docs/design/`). Mai a radice del progetto.
+- **Documentazione** sempre in `docs/` (sottocartella pertinente, es. `docs/gameplay/`, `docs/technical/`; indice in `docs/README.md`). Mai a radice del progetto.
 - **Classi**: prefissi `RT`/`URT`; `PascalCase`; header minimali; `UPROPERTY`/`UFUNCTION` solo quando servono.
 - **Asset UE**: tutto il proprietario sotto **`/Game/RT/`**, organizzato **feature-first** (mai cartelle globali
   per tipo tipo `Blueprints/`, `Materials/`, `Meshes/`); naming `<Tipo>_<Feature>_<Nome>` con prefissi
   `BP_ BPC_ WBP_ ABP_ DA_ DT_ Curve_ SM_ SK_ M_ MI_ T_ NS_ SFX_ MUS_ L_ IMC_ IA_`. Terze parti (Paragon,
   Marketplace) restano fuori da `/Game/RT`. Regole complete, dipendenze consentite e procedura di spostamento:
-  **[`docs/design/convenzioni-contenuti-ue.md`](docs/design/convenzioni-contenuti-ue.md)** — vincolante.
+  **[`docs/technical/convenzioni-contenuti-ue.md`](docs/technical/convenzioni-contenuti-ue.md)** — vincolante.
 - Gli `.uasset`/`.umap` si spostano **dal Content Browser**, mai da Esplora File; dopo lo spostamento aggiorna i
   percorsi hard-coded in `Config/*.ini` e C++, poi `Fix Up Redirectors`.
 - **Non versionare**: `Binaries/ DerivedDataCache/ Intermediate/ Saved/ .vs/`, file generati IDE, segreti.
@@ -129,7 +130,7 @@ thread/authority.
 - **Esecutivi** (possono modificare): `/sc:implement /sc:task /sc:improve /sc:cleanup /sc:test /sc:build
   /sc:git /sc:troubleshoot --fix`.
 - **Non** passare in automatico da documentazione a esecuzione: un comando documentale non autorizza modifiche al codice.
-- Catalogo completo e scelta rapida: **`docs/SuperClaude_RefactorTactics_CheatSheet.md`**.
+- Catalogo completo e scelta rapida: **[`docs/src/SuperClaude_RefactorTactics_CheatSheet.md`](docs/src/SuperClaude_RefactorTactics_CheatSheet.md)**.
 
 ## Formato risposte
 
@@ -143,8 +144,8 @@ Rispondi e commenta **in italiano**. Termini tecnici e identificatori di codice 
 
 ## Come lavorare qui
 
-Prima di implementare, **rileggi `docs/design/piano-canonico-mvp.md`** (decisioni) e
-**`docs/design/roadmap-checkpoint.md`** (milestone corrente e DoD).
+Prima di implementare, **rileggi `docs/product/piano-canonico-mvp.md`** (decisioni) e
+**`docs/roadmap/roadmap-checkpoint.md`** (milestone corrente e DoD).
 
 Milestone attive: **M6 Parità hex** (la partita passa sulla griglia esagonale) → **M7 Dismissione del
 quadrato** → **M8 Presentazione** → **M9 Ambienti/editor** → **M10 Rete e privacy** → **M11 Production
