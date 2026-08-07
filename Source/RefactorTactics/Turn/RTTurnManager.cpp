@@ -1041,6 +1041,80 @@ void ARTTurnManager::ResolveCombat()
 			&& IntentDefs[Hit.IntentIndex].ActionId == FName(TEXT("Action.Interrupt"));
 	});
 
+	// `Action.Intercept` (CP 5.3): la reazione piu' delicata, perche' cambia il bersaglio di un attacco ALTRUI.
+	// Ha un pass tutto suo, PRIMA delle altre reazioni, e non e' una comodita': il catalogo le da' priorita' 10,
+	// la piu' bassa fra le reazioni (Deflect 15, Counter 20). Se risolvesse insieme alle altre, il bersaglio
+	// originale valuterebbe il proprio Counter su un colpo che non riceve piu' — contrattaccando per una ferita
+	// che ha preso qualcun altro.
+	//
+	// "Raccogli poi applica" anche qui: si decide TUTTO sui colpi congelati, poi si riscrivono i bersagli.
+	// `ExcludedHits` impedisce a due intercettori di reclamare lo stesso colpo; con due unita' per squadra la
+	// contesa non e' raggiungibile (chi e' colpito non puo' intercettare per se stesso), ma il meccanismo non
+	// dipende da quel numero.
+	TSet<int32> ClaimedHits;
+	TArray<int32> RedirectHit;      // parallelo alle claim: indice del colpo in Plan.Hits
+	TArray<int32> RedirectTo;       // chi lo intercetta (UnitId = indice in Units)
+	TArray<int32> RedirectFrom;     // bersaglio ORIGINALE, per il TurnLog
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		ARTUnit* Unit = Units[i];
+		const int32 ReactionIdx = Unit->PlannedReactionAbility;
+		const URTActionData* Reaction = Unit->GetAbility(ReactionIdx);
+		if (!Reaction || Reaction->Def.Slot != ERTActionSlot::Reaction
+			|| Reaction->Def.ReactionTrigger != ERTReactionTrigger::AllyHitByDirectAttack)
+		{
+			continue; // non e' un'interposizione: la valuta il ciclo generale piu' sotto
+		}
+
+		// Da qui l'azione e' NOSTRA: il ciclo generale non deve rivalutarla ne' registrarla una seconda volta.
+		Unit->PlannedReactionAbility = INDEX_NONE;
+
+		FRTTurnLogEntry Entry;
+		Entry.Phase = ERTMatchPhase::Blast;
+		Entry.Category = ERTLogCategory::Reaction;
+		Entry.SrcCell = Unit->Cell;
+		Entry.TgtCell = Unit->Cell;
+
+		const int32 HitIdx = (Unit->CanUseAbility(ReactionIdx) && !ReactionBlockedThisTurn.Contains(Unit))
+			? URTReactionLibrary::FindInterceptableHit(i, Reaction->Def.RangeCells,
+				Plan.Hits, Intents, HexUnits, Map, ClaimedHits)
+			: INDEX_NONE;
+
+		if (!Unit->CanUseAbility(ReactionIdx) || ReactionBlockedThisTurn.Contains(Unit))
+		{
+			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Unavailable);
+		}
+		else if (HitIdx != INDEX_NONE)
+		{
+			const int32 OriginalTarget = Plan.Hits[HitIdx].TargetId;
+			ClaimedHits.Add(HitIdx);
+			RedirectHit.Add(HitIdx);
+			RedirectTo.Add(i);
+			RedirectFrom.Add(OriginalTarget);
+
+			Unit->ConsumeAbility(ReactionIdx);
+			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Activated);
+			// Bersaglio ORIGINALE -> bersaglio FINALE: il TurnLog deve dire da chi a chi e' passato il colpo,
+			// altrimenti un danno comparso su un'unita' mai bersagliata risulterebbe inspiegabile nel replay.
+			Entry.SrcCell = Units[OriginalTarget]->Cell;
+			Entry.TgtCell = Unit->Cell;
+			AddLogEvent(FString::Printf(TEXT("%s: si interpone per %s"),
+				*Unit->GetName(), *Units[OriginalTarget]->GetName()));
+		}
+		else
+		{
+			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::NotTriggered);
+		}
+
+		TurnLog.Add(Entry);
+		AddLogEvent(FString::Printf(TEXT("%s: %s"), *Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Entry)));
+	}
+	// APPLICA: i bersagli si riscrivono solo ora, quando ogni decisione e' stata presa sullo stesso snapshot.
+	for (int32 r = 0; r < RedirectHit.Num(); ++r)
+	{
+		Plan.Hits[RedirectHit[r]].TargetId = RedirectTo[r];
+	}
+
 	// Reazioni (CP 5.1): valutate sui colpi GIA' raccolti di `Plan.Hits`, dopo il filtro di Interrupt — lo
 	// snapshot congelato del Blast, non un evento a cui reagire mentre il turno gira (invariante #3).
 	// Un'unita' con piu' trigger validi nello stesso Blast si ferma comunque a UNA attivazione:

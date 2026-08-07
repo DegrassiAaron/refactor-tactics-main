@@ -101,7 +101,16 @@ enum class ERTReactionTrigger : uint8
 	 * L'unita' e' bersaglio di almeno un colpo DIRETTO (`ERTAbilityShape::Single`) andato a segno in questo
 	 * Blast (`Action.Counter`, `Action.Deflect` — CP 5.2 aggiunge i loro effetti sulla stessa valutazione).
 	 */
-	HitByDirectAttack
+	HitByDirectAttack,
+
+	/**
+	 * Un ALLEATO entro la portata dell'azione e' bersaglio di un colpo diretto (`Action.Intercept`, CP 5.3).
+	 *
+	 * A differenza di `HitByDirectAttack` non basta guardare i colpi: servono squadre, posizioni e mappa (la
+	 * traiettoria dall'attaccante all'intercettore dev'essere libera). Per questo ha un punto d'ingresso suo,
+	 * `URTReactionLibrary::FindInterceptableHit`, invece di passare da `FindTriggeringAttacker`.
+	 */
+	AllyHitByDirectAttack
 };
 
 /**
