@@ -339,12 +339,22 @@ bool FRTHexBotDashAgreesWithResolverTest::RunTest(const FString&)
 	}
 
 	const int32 Declared = DashAb->Def.ActionId.IsNone() ? DashAb->RangeCells : DashAb->Def.RangeCells;
+	const int32 Range = Bot->GetEffectiveDashRange(Declared);
 	const FRTLinearMoveResult Resolved = URTMovementActionLibrary::ResolveLinearMove(
-		Snapshot.Map, Bot->Cell, Bot->PlannedDashCell, Bot->GetEffectiveDashRange(Declared),
+		Snapshot.Map, Bot->Cell, Bot->PlannedDashCell, Range,
 		DashAb->Def.MovementStyle, Snapshot.Occupancy, Hostiles);
 
 	TestTrue(TEXT("lo scatto pianificato dal bot arriva dove il bot lo ha pianificato"),
 		Resolved.Final == Bot->PlannedDashCell);
+
+	// E deve poterlo pianificare LONTANO quanto il resolver lo porterebbe. E' la parte che discrimina: le
+	// candidate nascono da un Dijkstra sui punti movimento, quindi finche' il budget dello scatto vi finiva
+	// dentro come se fossero MP, su acqua (costo 2) il bot non vedeva nulla oltre meta' portata — e nessun
+	// filtro puo' recuperare una candidata che non e' mai nata. Il kiter fugge il piu' lontano possibile:
+	// se la distanza si ferma a portata/costo, la troncatura e' tornata.
+	const int32 Fled = URTHexLibrary::HexDistance(Bot->Cell, Bot->PlannedDashCell);
+	AddInfo(FString::Printf(TEXT("fuga di %d celle su portata %d (terreno costo 2)"), Fled, Range));
+	TestTrue(TEXT("la fuga non e' troncata dal costo del terreno"), Fled > Range / 2);
 
 	DestroyHexBotWorld(World);
 	return true;

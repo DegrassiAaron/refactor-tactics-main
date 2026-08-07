@@ -514,29 +514,23 @@ bool FRTTerrainDashReachAgreesTest::RunTest(const FString&)
 	const FRTCellId Goal(3, 0, 0);   // tre celle di distanza
 	const int32 DashRange = 3;       // portata dichiarata dall'azione: TRE CELLE
 
-	FRTHexSimUnit Unit;
-	Unit.UnitId = 0;
-	Unit.Cell = Start;
-	Unit.MoveBudget = DashRange;
-
-	FRTHexSnapshot Snapshot;
-	Snapshot.Map = Map;
-	Snapshot.Units.Add(Unit);
-
-	// Il RESOLVER: e' cio' che accade davvero nella fase Dash.
+	// La portata di una mobilita' lineare si conta in CELLE: tre celle di acqua costano 6 punti movimento,
+	// ma con portata 3 lo scatto ci arriva lo stesso. E' la regola del catalogo, ed e' cio' che il vecchio
+	// filtro del bot — che sommava il costo — negava.
 	const FRTLinearMoveResult Resolved = URTMovementActionLibrary::ResolveLinearMove(
-		Map, Start, Goal, DashRange, ERTMovementStyle::LinearDash, Snapshot.Occupancy, {});
-	const bool bResolverArrives = (Resolved.Final == Goal);
-	TestTrue(TEXT("il resolver arriva: tre celle, portata tre"), bResolverArrives);
+		Map, Start, Goal, DashRange, ERTMovementStyle::LinearDash, {}, {});
+	TestTrue(TEXT("tre celle care, portata tre: lo scatto arriva"), Resolved.Final == Goal);
+	TestEqual(TEXT("le attraversa tutte e tre"), Resolved.Entered.Num(), 3);
 
-	// Il BOT: filtra le proprie candidate con questo predicato.
-	const bool bBotProposes = URTMovementActionLibrary::IsLinearReachable(
-		Map, Start, Goal, DashRange, ERTMovementStyle::LinearDash, Snapshot.Occupancy, {});
+	// Contro-prova sull'unita' di misura: se la portata fosse letta in punti movimento, 3 non basterebbe
+	// (servirebbero 6) e questa asserzione cadrebbe insieme a quella sopra.
+	TestTrue(TEXT("con portata 2 si ferma prima: e' un limite in celle, non in punti movimento"),
+		URTMovementActionLibrary::ResolveLinearMove(
+			Map, Start, Goal, /*MaxCells=*/ 2, ERTMovementStyle::LinearDash, {}, {}).Final == Start);
 
-	// L'invariante che conta: i due strati rispondono la STESSA cosa. Se divergono, il bot o propone mosse
-	// che il resolver rifiuta (spreco silenzioso dell'abilita'), o si nega mosse legali (opportunita' persa).
-	TestEqual(TEXT("bot e resolver concordano sulla raggiungibilita'"), bBotProposes, bResolverArrives);
-
+	// L'accordo bot<->resolver NON si verifica qui: `IsLinearReachable` e' definita come
+	// `ResolveLinearMove(...).Final == Target`, quindi confrontarle sarebbe vero per costruzione. La prova
+	// sta in `HexBotPlay.DashPlanIsExecutableOnCostlyTerrain`, che passa da `PlanBots`.
 	return true;
 }
 

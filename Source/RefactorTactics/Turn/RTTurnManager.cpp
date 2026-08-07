@@ -211,16 +211,40 @@ void ARTTurnManager::PlanBots()
 		FRTHexSnapshot DashSnapshot = Snapshot;
 		if (bDashReady)
 		{
-			DashSnapshot.Units[BotIdx].MoveBudget = DashBudget;
+			// Le candidate nascono da `ReachableCells`, che spende PUNTI MOVIMENTO (Dijkstra sui costi). Ma la
+			// portata di una mobilita' LINEARE si misura in CELLE — il catalogo dice che il terreno non la
+			// riduce. Passare la portata direttamente come budget tronca le candidate sul terreno caro: su
+			// acqua (costo 2) uno scatto da 5 celle ne vedrebbe 2, e le celle 3-5 non verrebbero mai
+			// proposte benche' il resolver le raggiunga. E' la stessa divergenza celle-vs-MP di #140, un
+			// gradino piu' a monte: il filtro puo' solo SCARTARE candidate, non farle nascere.
+			//
+			// Si allarga quindi il budget al caso peggiore (portata x costo della cella piu' cara della
+			// mappa) e si lascia che `IsDashReachable` poti cio' che non e' in linea.
+			int32 CandidateBudget = DashBudget;
+			if (URTMovementActionLibrary::IsLinear(DashStyle) && Snapshot.Map)
+			{
+				int32 MaxCellCost = 1;
+				for (const FRTHexCellData& Cell : Snapshot.Map->Cells)
+				{
+					MaxCellCost = FMath::Max(MaxCellCost, Cell.MoveCost);
+				}
+				CandidateBudget = DashBudget * MaxCellCost;
+			}
+			DashSnapshot.Units[BotIdx].MoveBudget = CandidateBudget;
 		}
 
 		// Il bot valuta la raggiungibilita' con lo STESSO codice che la fase Dash usa per eseguirla
 		// (issue #140): il grafo genera le candidate, ma e' la linearita' a dire quali sopravvivono.
 		//
-		// L'instradamento e' quello di ResolveDash, non una sua approssimazione: solo le mobilita' LINEARI
-		// passano da `ResolveLinearMove`. Una mobilita' a budget (`Action.Sprint`) risolve col pathfinding,
-		// lo stesso grafo da cui le candidate sono nate — quindi li' non c'e' nulla da filtrare, e applicare
-		// il filtro lineare scarterebbe mosse perfettamente legali.
+		// L'instradamento per STILE e' quello di ResolveDash: solo le mobilita' LINEARI passano da
+		// `ResolveLinearMove`. Una mobilita' a budget (`Action.Sprint`) risolve col pathfinding, lo stesso
+		// grafo da cui le candidate sono nate — quindi li' non c'e' nulla da filtrare, e applicare il filtro
+		// lineare scarterebbe mosse perfettamente legali.
+		//
+		// Resta divergente il GATE "questa e' un'azione di scatto": qui `FindDashAbilityIndex` cerca il flag
+		// legacy `bDash`, mentre ResolveDash accetta anche la sola fase `FastMovement` dichiarata dal
+		// catalogo. Conseguenza: le abilita' degli eroi (che dichiarano la fase ma non il flag) non vengono
+		// mai pianificate come scatto dal bot. E' preesistente e tracciato in #142, non introdotto qui.
 		auto IsDashReachable = [&](const FRTHexSnapshot& Snap, const FRTCellId& Goal) -> bool
 		{
 			if (!URTMovementActionLibrary::IsLinear(DashStyle))

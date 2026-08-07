@@ -1003,10 +1003,9 @@ bool FRTHexLinearFilterTest::RunTest(const FString&)
 			++GraphOnly; // raggiungibile camminando, non scattando: una candidata da scartare
 			continue;
 		}
-		// Se il predicato dice "in linea", lo scatto deve arrivarci davvero (coerenza interna).
-		TestTrue(*FString::Printf(TEXT("%s dichiarata in linea -> lo scatto ci arriva"), *Reach.Cell.ToString()),
-			Reach.Cell == Start || URTMovementActionLibrary::ResolveLinearMove(
-				Map, Start, Reach.Cell, 4, ERTMovementStyle::LinearDash, Snap.Occupancy, {}).Final == Reach.Cell);
+		// Nessuna asserzione qui: `IsLinearReachable` E' definita come `ResolveLinearMove(...).Final ==
+		// Target`, quindi confrontare le due sarebbe `if (!P) continue; assert(P)`. Cio' che il test prova
+		// sta sotto: che il filtro scarti davvero qualcosa, e il caso puntuale in fondo.
 	}
 
 	// Il caso deve esistere, altrimenti il filtro non sta filtrando nulla e il test non prova niente.
