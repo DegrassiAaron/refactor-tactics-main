@@ -27,7 +27,8 @@ UENUM(BlueprintType)
 enum class ERTHexCoverType : uint8
 {
 	None,  // nessuna copertura (una voce con questo tipo e' un dato incoerente: la valida ValidateMap)
-	Low    // copertura bassa: ripara dai colpi diretti che attraversano il bordo, non blocca ne' vista ne' passo
+	Low,   // copertura bassa: ripara dai colpi diretti che attraversano il bordo, non blocca ne' vista ne' passo
+	High   // copertura alta (CP 9.2): NEGA l'attraversamento del bordo a vista, passo e proiettili
 };
 
 /**
@@ -56,6 +57,16 @@ struct FRTHexCover
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
 	int32 Integrity = 30;
+
+	/**
+	 * Integrita' di catalogo per tipo: 30 la bassa, 50 l'alta (v0.1). Sta qui e non in `URTCombatLibrary`
+	 * perche' `Map/` non puo' dipendere da `Combat/`; la RIDUZIONE del danno, che e' della stessa famiglia dei
+	 * numeri di `Guard`/`Deflect`/`Brace`, resta invece di la'.
+	 */
+	static constexpr int32 DefaultIntegrity(ERTHexCoverType Type)
+	{
+		return Type == ERTHexCoverType::High ? 50 : 30;
+	}
 
 	FRTHexCover() = default;
 	explicit FRTHexCover(ERTHexDirection InEdge, ERTHexCoverType InType = ERTHexCoverType::Low,

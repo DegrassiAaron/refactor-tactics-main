@@ -336,9 +336,13 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// `HeavyAttack` — 35 danni e priorita' 80: risolve tardi, ed e' il prezzo che paga per essere il colpo
 	// piu' duro. Interrompibile: se un `Action.Interrupt` la coglie prima del Blast non produce NULLA — non
 	// mezzo danno, non un effetto parziale (lo garantisce URTActionEffectLibrary::ProduceEvents).
+	// Contro le STRUTTURE vale 20, non 35 (DoD di CP 9.2): un colpo pesante scalfisce un muro meno di una
+	// carica da sfondamento dedicata (`Gadget.BreachCharge`, 35 a struttura, epic E7 #61). Sono due scale
+	// diverse, ed e' per questo che sono due effetti dichiarati e non un numero solo.
 	Catalog.Add(ShippedAction(TEXT("Action.HeavyAttack"), ERTResolutionPhase::Attack, /*Priority*/ 80,
 		/*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel,
-		{ FRTActionEffectSpec(ERTActionEffect::Damage, 35) }));
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 35),
+		  FRTActionEffectSpec(ERTActionEffect::DamageStructure, 20) }));
 
 	// `LineAttack` — 22 danni al PRIMO bersaglio valido su una delle sei direzioni, portata 5. Non e' la
 	// `Shape::Line` delle abilita' d'archetipo (che colpisce tutti quelli attraversati): la risolve

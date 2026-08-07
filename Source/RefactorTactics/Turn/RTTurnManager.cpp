@@ -12,6 +12,7 @@
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
+#include "Map/RTHexCoverLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Bot/RTHexBotLibrary.h"
@@ -1612,6 +1613,18 @@ void ARTTurnManager::ResolveCombat()
 		}
 		Intent.Power = URTCombatLibrary::EffectiveAttackPower(
 			DeclaredDamage > 0 ? DeclaredDamage : Ability->Power, /*OccupantDamageBonus=*/ 0);
+
+		// Danno alle STRUTTURE (CP 9.2): scala distinta, dichiarata dall'azione. Nessun ripiego sul `Power`
+		// legacy — un'abilita' che non lo dichiara non sfonda, e va bene cosi': sfondare e' una capacita' che
+		// il catalogo concede, non un effetto collaterale di essere forti.
+		for (const FRTActionEffectSpec& Spec : Ability->Def.Effects)
+		{
+			if (Spec.Effect == ERTActionEffect::DamageStructure)
+			{
+				Intent.StructurePower = FMath::Max(0, Spec.Amount);
+				break;
+			}
+		}
 		Intents.Add(Intent);
 		IntentAbilityIndex.Add(AbilityIndex);
 		IntentAbility.Add(Ability);
@@ -1878,16 +1891,48 @@ void ARTTurnManager::ResolveCombat()
 	{
 		if (!Intents.IsValidIndex(BlockedIdx)) { continue; }
 		const FRTHexAttackIntent& Blocked = Intents[BlockedIdx];
+		// Il bersaglio puo' essere una CELLA e non un'unita' (`Fallback.AttackCell`, e da CP 9.2 anche il
+		// modo in cui si punta una struttura): con `TargetId == INDEX_NONE` indicizzare `HexUnits` uscirebbe
+		// dall'array. La cella mirata e' comunque cio' che il log deve dire.
+		const bool bTargetsUnit = HexUnits.IsValidIndex(Blocked.TargetId);
 		FRTTurnLogEntry NoLos;
 		NoLos.Phase = ERTMatchPhase::Blast;
 		NoLos.Category = ERTLogCategory::Combat;
 		NoLos.Outcome = static_cast<uint8>(ERTCombatOutcome::NoLineOfSight);
 		NoLos.SrcCell = HexUnits[Blocked.AttackerId].Cell;
-		NoLos.TgtCell = HexUnits[Blocked.TargetId].Cell;
+		NoLos.TgtCell = bTargetsUnit ? HexUnits[Blocked.TargetId].Cell : Blocked.TargetCell;
 		NoLos.Amount = 0;
 		TurnLog.Add(NoLos);
 		AddLogEvent(FString::Printf(TEXT("%s (%s -> %s)"), *URTTurnLogLibrary::DescribeEntry(NoLos),
-			*Units[Blocked.AttackerId]->GetName(), *Units[Blocked.TargetId]->GetName()));
+			*Units[Blocked.AttackerId]->GetName(),
+			bTargetsUnit ? *Units[Blocked.TargetId]->GetName() : TEXT("cella")));
+	}
+
+	// STRUTTURE (CP 9.2): il danno raccolto contro le barriere si applica ORA, a colpi risolti — non durante
+	// la raccolta. Chi ha sparato in questo Blast non guadagna la linea perche' il muro e' caduto: la vista e
+	// il grafo si riaprono dalla fase successiva, e l'ordine dei colpi non cambia l'esito (invariante #3).
+	//
+	// La mappa si prende dall'actor, non dal `Map` const di questa funzione: la partita gira su una COPIA di
+	// lavoro (`ARTGameMode` la duplica all'avvio), quindi abbattere un muro non tocca l'asset su disco. E' lo
+	// stesso puntatore che il Cleanup usa per le superfici dinamiche.
+	ARTHexMapActor* StructureMapActor = ARTHexMapActor::FindInWorld(GetWorld());
+	URTHexMapAsset* MutableMap = StructureMapActor ? StructureMapActor->MapAsset : nullptr;
+	for (const FRTCoverDamageResult& Change :
+		URTHexCoverLibrary::ApplyStructureDamage(MutableMap, Plan.StructureHits))
+	{
+		FRTTurnLogEntry Entry;
+		Entry.Phase = ERTMatchPhase::Blast;
+		Entry.Category = ERTLogCategory::Environment;
+		Entry.Outcome = static_cast<uint8>(
+			Change.bDestroyed ? ERTEnvironmentOutcome::CoverDestroyed : ERTEnvironmentOutcome::CoverDamaged);
+		// La coppia di celle E' il bordo: nessun campo nuovo nel TurnLog per dire "quale lato".
+		Entry.SrcCell = Change.Cell;
+		Entry.TgtCell = Change.Toward;
+		Entry.Amount = Change.RemainingIntegrity;
+		TurnLog.Add(Entry);
+		AddLogEvent(FString::Printf(TEXT("Copertura (q=%d,r=%d,L%d) verso (q=%d,r=%d): %s (integrita' %d)"),
+			Change.Cell.X, Change.Cell.Y, Change.Cell.Layer, Change.Toward.X, Change.Toward.Y,
+			Change.bDestroyed ? TEXT("abbattuta") : TEXT("danneggiata"), Change.RemainingIntegrity));
 	}
 
 	// Intenti NON VALUTABILI (nessuna mappa autorevole): non finiscono nel TurnLog come «nessuna linea di

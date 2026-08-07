@@ -1,6 +1,7 @@
 #include "Pathfinding/RTHexPathLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexCoverLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Algo/Reverse.h"
 
@@ -12,12 +13,14 @@ TArray<TPair<FRTCellId, int32>> URTHexPathLibrary::GraphNeighbors(const URTHexMa
 		return Out;
 	}
 
-	// Vicini orizzontali (stesso layer): presenti e non bloccati; costo = MoveCost della destinazione.
+	// Vicini orizzontali (stesso layer): presenti, non bloccati e non separati da una barriera; costo =
+	// MoveCost della destinazione. La copertura ALTA (CP 9.2) nega il PASSO fra le due celle senza toglierne
+	// nessuna dalla mappa: restano entrambe occupabili, semplicemente non si passa da una all'altra.
 	for (const FRTCellId& N : URTHexLibrary::Neighbors(Cell))
 	{
 		if (const FRTHexCellData* D = Map->FindCell(N))
 		{
-			if (!D->bBlocksMovement)
+			if (!D->bBlocksMovement && !URTHexCoverLibrary::BlocksTraversal(Map, Cell, N))
 			{
 				Out.Add(TPair<FRTCellId, int32>(N, FMath::Max(0, D->MoveCost)));
 			}
