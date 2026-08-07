@@ -78,7 +78,7 @@ enum class ERTAbilityShape : uint8
  * redirector perche' nessun asset referenziava la classe (le abilita' sono create in codice).
  *
  * I campi di effetto qui sotto restano quelli dell'MVP; il motore azioni dell'epic E4 li rileggera' dal
- * catalogo (docs/design/balance/RT_ActionCatalog_v0.1.md).
+ * catalogo (docs/balance/RT_ActionCatalog_v0.1.md).
  */
 UCLASS(BlueprintType)
 class REFACTORTACTICS_API URTActionData : public UPrimaryDataAsset

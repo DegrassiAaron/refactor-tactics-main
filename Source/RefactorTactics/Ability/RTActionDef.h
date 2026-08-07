@@ -138,7 +138,7 @@ enum class ERTMovementStyle : uint8
  * effetti. Solo INTERI (invariante #4): niente float in costi, priorita', portata o cooldown — il test
  * `RefactorTactics.Catalog.NoFloatInIntegerFields` lo verifica per reflection, non a occhio.
  *
- * Riferimento: docs/design/balance/RT_ActionCatalog_v0.1.md
+ * Riferimento: docs/balance/RT_ActionCatalog_v0.1.md
  */
 USTRUCT(BlueprintType)
 struct FRTActionDef
