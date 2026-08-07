@@ -111,7 +111,8 @@ La conseguenza sulle milestone di *questa* vista è:
 | E1, E4 | ✅ chiuse (9 + 52 test) | — |
 | E5, E6 | ✅ **richiuse il 2026-08-07** (27 + 25 test verdi): **CP 5.5** rende il motore componibile, **CP 6.7** cabla tre reazioni d'eroe su cinque e dichiara nei dati il rinvio delle altre due a E14 | **M8** resta 🟡 solo per la **presentazione** (personaggi animati, anelli, Ghost Timeline): le regole degli eroi non hanno più abilità inerti |
 | E8 | 🟡 parziale (17 test; mancano `Environment.*`) | **M9 passa a 🟡** |
-| E7, E9, E10, E11, E12 | ⏳ assenti (nessun test nelle rispettive aree) | M9 e M11 restano aperte |
+| E10 | 🟡 parziale (18 test `Match.*`/`MatchFormat.*`): **CP 10.3 chiuso il 2026-08-07** — fine partita a tre vie e `RoundLimit` da `URTMatchFormatData`. Restano **CP 10.1** (`#74`) e **CP 10.2** (`#75`): senza di loro la via «obiettivo» ha il giudice ma non la fonte | l'epic **non** è chiusa |
+| E7, E9, E11, E12 | ⏳ assenti (nessun test nelle rispettive aree) | M9 e M11 restano aperte |
 | E13, E14, E15, E16 | ⏳ nuove (issue `#151`–`#177`) | E13/E14 preparano **M10**; E15 è il banco di leggibilità di **M8**; E16 dà peso tattico all'orientamento e **precede E13** |
 
 > **Riapertura di E5 ed E6 (2026-08-07)**: `Bastion.Interposition`, `Vektor.Deflection`,
