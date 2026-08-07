@@ -165,6 +165,25 @@ public:
 		int32 RangeCells, int32 AreaRadius);
 
 	/**
+	 * Riduzione del danno diretto dovuta alla copertura sul bordo che il colpo ATTRAVERSA per entrare nella
+	 * cella del bersaglio (0 se non e' riparato da quel lato).
+	 *
+	 * Il bordo e' quello dell'ultimo passo della linea attaccante -> bersaglio, la stessa geometria con cui si
+	 * decide la direzione di una spinta: se il colpo arriva da ovest, la copertura che conta e' quella sul
+	 * bordo W del bersaglio. Ogni altro bordo e' inefficace — e' un riparo, non un bonus dell'unita'.
+	 *
+	 * `Area` -> sempre 0: un'esplosione non attraversa un bordo, investe la cella da ogni lato. Vale anche
+	 * quando il centro sta dal lato riparato, il caso in cui la protezione sembrerebbe dovuta (DoD CP 9.1);
+	 * col centro dall'altro lato la copertura non sarebbe interposta comunque.
+	 *
+	 * NOTA: e' una direzionalita' del BORDO. Il facing dell'unita' (ADR-0005) e' ortogonale e non la ruota:
+	 * un colpo fuori dall'arco frontale ANNULLERA' questa riduzione (CP 16.2), come regola additiva.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")
+	static int32 HexCoverDamageReduction(const URTHexMapAsset* Map, const FRTCellId& From,
+		const FRTCellId& Target, ERTAbilityShape Shape);
+
+	/**
 	 * Raccoglie i colpi a segno degli intenti del turno.
 	 *
 	 * Scarta l'intento se: id non validi, attaccante o bersaglio non vivi, stessa squadra, bersaglio oltre

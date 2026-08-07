@@ -86,7 +86,11 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 | **Finestre di reazione interattive** | — | ⏳ ADR-0004 accettato, nessun codice (E14) |
 | **Scenario showcase e golden replay** | — | ⏳ (E15) |
 
-**Suite automatica**: **390 test unici** in **61 file** (rimisurati 2026-08-07 al commit `50159c6`; erano 366 in 55 alla chiusura di CP 8.5, +24 col primo blocco dell'harness degli scenari).
+**Suite automatica**: **397 test unici** in **62 file** (rimisurati 2026-08-07 **dopo il merge** della
+riorganizzazione documentale). Le due viste sono arrivate al merge con due numeri diversi ed **entrambi
+corretti alla propria base** — 394 in 61 alla chiusura di CP 9.1, 390 in 61 col primo blocco dell'harness
+degli scenari — e dopo l'unione nessuno dei due valeva più. È il caso che dimostra la regola meglio di
+qualunque deriva: **si misura col comando**, dopo ogni merge e alla chiusura di ogni checkpoint.
 ⚠️ La cifra dichiarata qui prima era **338 in 49 file**, ma il valore su `main` era già **342 in 50**: i merge
 di `#179`/`#180` sono arrivati dopo l'ultima misura. È la stessa deriva del 2026-08-05, e la regola resta
 quella: **si misura col comando, non si cita a memoria**. Comando riproducibile:
@@ -116,7 +120,7 @@ Le due righe qui sopra **erano vere il 2026-08-05 e non lo sono più**. Misura d
 | **E6** Roster 4 eroi | da costruire | ✅ **chiusa** (25 test) | `Heroes.{Flux,Riva,Bastion,Vektor}.MatchesCatalog`, `*.VariantTradeoff`, `RosterIsBalanced`, `SpawnFromData` · **CP 6.7** (2026-08-07): `Heroes.{BastionInterposition*, VektorDeflectionReducesDirectHit, FluxReactiveCapacitorShieldsAndCounters, ReactionsDeclaredOrDeferred}` |
 | **E8** Terreni | da costruire | ✅ **chiusa il 2026-08-07** | ✅ `Terrain.{CostsFromCatalog, Rough.BlocksDash, Fire.*, ShallowWater.AppliesWet, Smoke.*, Ice.*}` · ✅ **CP 8.2 chiuso 2026-08-07**: 11 test `Status.*` (durata legata alla cella, `Burning` nel Cleanup, `WetRemovesBurning`, `Marked` con pass a priorità, `Obscured`) · ✅ **CP 8.3 chiuso 2026-08-07**: 7 test `Environment.*` (propagazione sul grafo dell'acqua, limite 3 passi, unicità per evento, ordine totale, fail-closed) · ✅ **CP 8.4**: terreno dinamico (la mappa cambia in partita), fuoco/acqua, TurnLog `Environment` · ✅ **CP 8.5**: `Heal`, `CreateWater` r1, `ModifyArc` con revisione — `CreateCover` rinviata a E9 |
 | **E7** Equipaggiamento | pianificata | ⏳ **assente** | nessun test `Equipment.*` |
-| **E9** Coperture/strutture | pianificata | ⏳ **assente** | nessun test `Cover.*` né `Structures.*` |
+| **E9** Coperture/strutture | pianificata | 🟡 **aperta, CP 9.1 chiuso** | ✅ **CP 9.1 chiuso 2026-08-07** (#69): 4 test `Cover.*` (riduzione direzionale, lato sbagliato, AoE dallo stesso lato, clamp a 0) + 3 `HexMap.*` (migrazione v2→v3, hash con le coperture, validazione). ⏳ restano CP 9.2–9.5: nessun test `Structures.*` |
 | **E10** Obiettivi | pianificata | ⏳ **assente** | nessun test `Objectives.*` né `Match.*` |
 | **E11** HUD/log/debug | pianificata | ⏳ **assente** | nessun test `UI.*` né `Debug.*` |
 | **E12** Determinismo/release | pianificata | ⏳ **assente** | nessun test `Simulation.*` (il replay è verificato una volta da `HexSim.ReplayDivergenceZero`, non 100) |
@@ -474,14 +478,17 @@ l'unicità del colpo per unità sono **test**, non commenti.
 
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
-| **9.1** | Copertura bassa direzionale | Associata a un **bordo** della cella (6 lati); riduce di 10 il danno diretto **solo** dal lato protetto; non protegge da AoE con centro sul lato protetto; integrità 30. *(2026-08-07)* La copertura resta legata al **bordo della cella**: il facing dell'unità **non** la ruota — è il colpo fuori dall'arco frontale che la **annulla** (CP 16.2). Due direzionalità **ortogonali**: non vanno unificate | `Cover.DirectionalDamageReduction`, `Cover.LowCover.WrongSideNoReduction`, `Cover.LowCover.AoESameSide` |
+| **9.1** ✅ | Copertura bassa direzionale | Associata a un **bordo** della cella (6 lati); riduce di 10 il danno diretto **solo** dal lato protetto; non protegge da AoE con centro sul lato protetto; integrità 30. *(2026-08-07)* La copertura resta legata al **bordo della cella**: il facing dell'unità **non** la ruota — è il colpo fuori dall'arco frontale che la **annulla** (CP 16.2). Due direzionalità **ortogonali**: non vanno unificate | ✅ **chiuso il 2026-08-07** (#69): `Cover.DirectionalDamageReduction`, `Cover.LowCover.{WrongSideNoReduction, AoESameSide, NeverHealsTarget}`, `HexMap.{FormatMigrationPreservesCells, CoverHashDeterminism, CoverValidation}`. Formato **v3**; `Action.CreateCover` resta a CP 9.5. Spec: [`spec-copertura-cp91.md`](../gameplay/spec-copertura-cp91.md) |
 | **9.2** | Copertura alta e distruzione | Blocca movimento, LOS e proiettili; integrità 50; distruggibile (`HeavyAttack` 20, `BreachCharge` 35); alla distruzione la LOS si riapre **e il grafo si aggiorna** | `Cover.HighCover.BlocksAll`, `Cover.Destruction.ReopensLOS` |
 | **9.3** | Porte e revisione del grafo | Stati `Open/Closed/Locked/Destroyed`; ogni cambio incrementa la **revisione del chunk** e invalida cache di lookup e path; una porta chiusa a metà turno non produce path fantasma | `Structures.Door.StateChangeBumpsRevision`, `Structures.Door.InvalidatesPathCache` |
 | **9.4** | Ponti e `ModifyArc` | Il ponte è un arco fra due celle, attivo/disattivo/distrutto; non si muove durante la resolution; rimuovendolo i due layer tornano irraggiungibili (il path **fallisce**, non teletrasporta) | `Structures.Bridge.RemovalBreaksPath`; `PIE-HEXPLAY-8` |
 | **9.5** | Pannello cinetico | `Bastion.KineticPanel` e `Gadget.PortableCover` creano una copertura bassa temporanea (integrità 30, 2 turni; variante rinforzato 45/1 turno, adattivo 25 + una rotazione gratuita) | `Structures.KineticPanel.TemporaryCover` |
 
-**Rischi**: `FRTHexCellData` **non ha** oggi il campo cover — va aggiunto con **versione del formato**
-incrementata e migrazione dell'asset esistente (`DA_HexMap_Sandbox`), altrimenti si rompe la serializzazione.
+**Rischi**: ~~`FRTHexCellData` **non ha** oggi il campo cover~~ — **risolto in CP 9.1** (2026-08-07): il campo
+`Covers` è entrato con la **versione del formato a 3** e `MigrateToCurrentFormat` chiamata da `PostLoad`. La
+non-perdita è dimostrata sulla serializzazione vera: un asset popolato scritto in v2 e riletto dal binario
+nuovo torna con celle, transizioni e digest **identici** (`spec-copertura-cp91.md` §7.3). `DA_HexMap_Sandbox`
+migra, ma è **vuoto in partenza** (0 celle): va ridisegnato prima di poterlo usare come banco di prova.
 
 ---
 

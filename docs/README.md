@@ -51,6 +51,7 @@ definita in due posti, è un difetto: apri una issue invece di aggiornarne una s
 | Orientamento e direzionalità | [`decisions/adr-0005-orientamento.md`](decisions/adr-0005-orientamento.md) | ⏳ E16 |
 | Mappa come grafo tattico, multilivello | [`technical/spec-mappa-multilivello.md`](technical/spec-mappa-multilivello.md) · [`technical/spec-pathfinding-pf3-pf4.md`](technical/spec-pathfinding-pf3-pf4.md) | ✅ |
 | Terreni, stati e propagazione | [`gameplay/spec-terreni-e8.md`](gameplay/spec-terreni-e8.md) + spec CP 8.2/8.3/8.4 | ✅ E8 |
+| Coperture direzionali | [`gameplay/spec-copertura-cp91.md`](gameplay/spec-copertura-cp91.md) | 🟡 CP 9.1 ✅ · E9 aperta |
 | Conoscenza parziale: vista **e** udito | [`gameplay/brief-conoscenza-parziale.md`](gameplay/brief-conoscenza-parziale.md) | ⏳ E13 |
 | Durata partita, round, scala mappe | [`gameplay/spec-durata-partita-e-scala-mappe.md`](gameplay/spec-durata-partita-e-scala-mappe.md) (D-010) | ✅ |
 | Pacing del turno misurato | [`gameplay/spec-pacing-turno.md`](gameplay/spec-pacing-turno.md) | ✅ |
@@ -116,7 +117,7 @@ invarianti del canone. **Quali sono aperte?** [`OPEN_DECISIONS.md`](OPEN_DECISIO
 [`archive/pdr-v0.1/`](archive/pdr-v0.1/); i piani consegnati in [`roadmap/plans/`](roadmap/plans/); e i singoli
 documenti che portano in testa il banner **⚠️ Superato** o **📦 Piano consegnato**.
 
-**Quali test verificano le regole?** **390 test automatici unici in 61 file**, sotto
+**Quali test verificano le regole?** **397 test automatici unici in 62 file**, sotto
 `Source/RefactorTactics/Tests/`. Misura riproducibile — *non citare a memoria*:
 
 ```bash

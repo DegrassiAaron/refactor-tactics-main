@@ -26,9 +26,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	FGuid MapId;
 
-	/** Versione del formato dati (per migrazioni future). v2: le transizioni entrano nell'hash + campo Kind sugli archi. */
+	/**
+	 * Versione corrente del formato dati.
+	 * v2: le transizioni entrano nell'hash + campo `Kind` sugli archi.
+	 * v3 (CP 9.1): coperture per bordo di cella (`FRTHexCellData::Covers`).
+	 */
+	static constexpr int32 CurrentFormatVersion = 3;
+
+	/** Versione del formato con cui l'asset e' stato scritto; `MigrateToCurrentFormat` la porta avanti. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
-	int32 FormatVersion = 2;
+	int32 FormatVersion = CurrentFormatVersion;
 
 	/** Dimensione dell'esagono (cm), usata per axial<->world. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexMap")
@@ -123,6 +130,16 @@ public:
 
 	/** Validazione minimale: Id duplicati, costi negativi, transizioni verso celle inesistenti. Ritorna gli errori. */
 	TArray<FString> ValidateMap() const;
+
+	/**
+	 * Porta l'asset alla versione corrente del formato. Idempotente (`PostLoad` puo' ripetersi) e conservativa:
+	 * v2 -> v3 non converte nulla, perche' il campo `Covers` nasce vuoto — quello che deve dimostrare e' di
+	 * NON toccare i dati esistenti.
+	 */
+	void MigrateToCurrentFormat();
+
+	/** Migra l'asset appena caricato: un asset scritto con un formato vecchio non deve mai arrivare al gioco. */
+	virtual void PostLoad() override;
 
 	/**
 	 * Invalida la cache Id->indice. Va chiamata quando Cells viene modificato SENZA passare dalle API di questa

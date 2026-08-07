@@ -42,14 +42,17 @@
 
 ## Stato in numeri — 2026-08-07
 
-<<<<<<< HEAD
-**67 voci**: ✅ **22 verdi** · 🟡 **15 parziali** (regola coperta da test, resta il visivo) · ⏳ **30 aperte**.
-*(erano 63/22/15/26 prima delle **4** voci di durata, ritmo e scala aggiunte il 2026-08-07)*
-=======
-**65 voci**: ✅ **23 verdi** · 🟡 **16 parziali** (regola coperta da test, resta il visivo) · ⏳ **26 aperte**.
-*(Aggiornato a fine giornata 2026-08-07: +2 voci per gli strumenti di leggibilità, `PIE-DEBUG-CELLS` verde e
-`PIE-PREVIEW-AREA` aperta; `PIE-V01-DEBUG` da ⏳ a 🟡 perché `rt.Debug.DrawCells` esiste.)*
->>>>>>> a857970 (docs(pie): due voci per gli strumenti di leggibilita' e riclassificazione misurata)
+**71 voci**: ✅ **23 verdi** · 🟡 **17 parziali** (regola coperta da test, resta il visivo) · ⏳ **31 aperte**.
+*(Rimisurate il 2026-08-07 col comando qui sotto, su `main` a `234dfd2`.)*
+
+> **Perché questo numero era rotto** (issue #192): due sessioni parallele hanno misurato lo stesso file in
+> momenti diversi — «67 voci: 22/15/30» e «65 voci: 23/16/26» — e il merge ha lasciato **entrambe** le versioni
+> con i marcatori di conflitto dentro il documento. Nessuna delle due era sbagliata quando è stata scritta:
+> una aveva appena aggiunto le **4** voci di durata/ritmo/scala, l'altra le **2** degli strumenti di
+> leggibilità più tre riclassificazioni. Erano entrambe **parziali**, e sceglierne una avrebbe perso il lavoro
+> dell'altra. Da lì sono poi arrivate `PIE-V01-MATCHEND` (CP 10.3) e `PIE-V01-COVEREDIT` (CP 9.1), e
+> `PIE-V01-LOWCOVER` è passata da ⏳ a 🟡. **La lezione è quella già scritta qui sotto**: il numero si
+> *ricalcola*, non si aggiorna a mente — ed è per questo che il comando è nel documento.
 
 Misura riproducibile, così il numero non si cita a memoria:
 
@@ -60,21 +63,16 @@ awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);
   docs/technical/test-manuali-pie.md
 ```
 
-Le 30 aperte in tre gruppi, più due residui:
+Le 31 aperte in sei gruppi, più un residuo (la somma è verificata: 2+9+9+4+4+1+2 = 31):
 
 | Gruppo | Voci | Nota |
 |---|---|---|
-<<<<<<< HEAD
-| **Editor** (sessione A) | `HEX-LAYER` `HEX-TRANS` `HEX-MODE-E/F/G/H/L/N/O` | **9** — producono la mappa di prova, prerequisito del gruppo sotto |
-| **Partita hex** (sessione D) | `HEXPLAY-4/4b/5/6/6b/6c/7/9/10` | **9** — è il **gate di M6** (CP 6.8) |
-| **v0.1 senza codice** | `V01-ELEC` `V01-FIREWATER` `V01-LOWCOVER` `V01-DOOR` `V01-HUD` `V01-DEBUG` | **6** — attendono E8 CP 8.3/8.4, E9, E11 |
-| **Durata e scala** (sessione F) | `V01-MATCHLEN` `V01-READY` `V01-OVERWATCH` `V01-MAPSCALE` | **4** — *nuove 2026-08-07*: producono numeri di playtest, non superano gate |
-=======
-| **Eseguibile subito** | `PREVIEW-AREA` | **1** — nessuna precondizione oltre a una partita avviata |
+| **Eseguibile subito** | `PREVIEW-AREA` `V01-MATCHEND` | **2** — nessuna precondizione oltre a una partita avviata (`MATCHEND` da CP 10.3) |
 | **Partita hex** (sessione D) | `HEXPLAY-4/4b/5/6/6b/6c/7/9/10` | **9** — è il **gate di M6** (CP 6.8). ⚠️ **Non serve più costruire la mappa a mano**: `MapSource = GeneratedTestArena` genera già esagono r=4, ostacoli, **muro che blocca la vista**, fango a costo 3, piattaforma su layer 1 e **una** transizione |
 | **Editor** (sessione A) | `HEX-LAYER` `HEX-TRANS` `HEX-MODE-E/F/G/H/L/N/O` | **9** — verificano gli **strumenti**, non più un prerequisito della sessione D |
-| **v0.1 senza codice** | `V01-ELEC` `V01-FIREWATER` (E8 CP 8.3/8.4) · `V01-LOWCOVER` `V01-DOOR` (E9) · `V01-HUD` (E11) | **5** — nessun test nelle aree `Environment.*`, `Cover.*`, `Structures.*`, `UI.*`: sono davvero da costruire |
->>>>>>> a857970 (docs(pie): due voci per gli strumenti di leggibilita' e riclassificazione misurata)
+| **Durata e scala** (sessione F) | `V01-MATCHLEN` `V01-MAPSCALE` `V01-READY` `V01-OVERWATCH` | **4** — producono numeri di playtest, non superano gate. `READY` e `OVERWATCH` descrivono un comportamento **atteso** (countdown ed E14) che non esiste ancora |
+| **In attesa di codice** | `V01-ELEC` `V01-FIREWATER` (E8, ora **chiusa**: il codice c'è, la verifica a schermo no) · `V01-DOOR` (E9 CP 9.3) · `V01-HUD` (E11) | **4** — `V01-LOWCOVER` è uscita da qui il 2026-08-07: con CP 9.1 la regola è coperta headless ed è passata a 🟡 |
+| **Asset da preparare** | `V01-COVEREDIT` | **1** — editing delle coperture nel data asset mappa (CP 9.1). ⚠️ `DA_HexMap_Sandbox` è oggi **vuoto**: va ridisegnato |
 | **Animazioni** | `AS4a` `AS4b` | **2** — richiedono i montage Paragon |
 
 ## Checklist
@@ -173,7 +171,8 @@ Le 30 aperte in tre gruppi, più due residui:
 | **PIE-V01-PUSH** | Push verso cella occupata | bersaglio con una cella occupata alle spalle | Nessuno spostamento illegale: la spinta si annulla e l'unità resta dov'è; il log spiega il motivo | 🟡 **coperto headless 2026-08-07** da `RefactorTactics.Actions.Push.InvalidDestination` e `Actions.Pull`. Al PIE resta da vedere che **a schermo** l'unità non si sposti affatto (nessun sobbalzo) e che il log dia il motivo |
 | **PIE-V01-ELEC** | Acqua elettrificata | acqua creata da Riva/Sprinkler + `Electrify` di Flux | La propagazione segue le celle conduttive, si ferma a **3 celle**, colpisce ogni unità **una sola volta**; ripetendo la stessa configurazione l'esito è identico | ⏳ |
 | **PIE-V01-FIREWATER** | Acqua spegne il fuoco | cella in fiamme + acqua sopra | La cella di fuoco è rimossa e `Burning` cancellato dalle unità coinvolte; il fuoco non si propaga oltre | ⏳ |
-| **PIE-V01-LOWCOVER** | Copertura bassa direzionale | copertura bassa su un bordo fra attaccante e bersaglio | L'attacco dal lato protetto infligge **10 danni in meno**; girando attorno e colpendo da un altro lato il danno è pieno | ⏳ |
+| **PIE-V01-LOWCOVER** | Copertura bassa direzionale | copertura bassa su un bordo fra attaccante e bersaglio (si aggiunge dal pannello proprietà del data asset mappa: `Covers` → `Edge`) | L'attacco dal lato protetto infligge **10 danni in meno**; girando attorno e colpendo da un altro lato il danno è pieno | 🟡 **coperto headless 2026-08-07** (CP 9.1) da `Cover.DirectionalDamageReduction`, `Cover.LowCover.WrongSideNoReduction` (bordo opposto **e** i due adiacenti), `Cover.LowCover.AoESameSide`, `Cover.LowCover.NeverHealsTarget`. Al PIE resta la **leggibilità**: che si capisca a schermo da quale lato si è riparati, visto che oggi nessuna mesh rappresenta il riparo |
+| **PIE-V01-COVEREDIT** | Coperture nell'asset mappa e migrazione del formato | `DA_HexMap_Sandbox` aperto nell'editor (formato v3 da CP 9.1) | L'asset si apre senza errori; `Cells → Covers` accetta una voce per bordo (`Edge`, `Type = Low`, `Integrity = 30`); **risalvando** l'asset la versione 3 si materializza su disco (finché non lo si risalva la migrazione avviene in memoria a ogni caricamento). Nessun dato preesistente cambia | ⏳ **la logica è coperta headless** da `HexMap.FormatMigrationPreservesCells` e dalla verifica sulla serializzazione reale (`spec-copertura-cp91.md` §7.3: 26 celle, digest identico attraverso v2 → v3). Al PIE resta ciò che il test non vede: **l'editing a mano** e il risalvataggio. ⚠️ `DA_HexMap_Sandbox` è oggi **vuoto (0 celle)**: va ridisegnato prima di usarlo |
 | **PIE-V01-INTERCEPT** | Intercept protegge l'alleato | alleato entro 2 celle con `Intercept` preparato | L'intercettore **diventa** il bersaglio dell'attacco diretto; con un AoE o un hazard l'intercetto **non** scatta | 🟡 **coperto headless 2026-08-07** da `Reactions.Intercept`, `InterceptRejectsAoE`, `InterceptRejectsHazard`, `InterceptOnlyNearbyAllies`, `InterceptRequiresCompatibleTrajectory`, `InterceptResolvesBeforeOtherReactions`. **Dal 2026-08-07 è anche un'abilità d'eroe reale** (CP 5.5/6.7): `Heroes.BastionInterpositionRedirectsDirectHit` e `…UsesReactionSlot`, più `Heroes.FluxReactiveCapacitorShieldsAndCounters` e `Heroes.VektorDeflectionReducesDirectHit`. Al PIE resta la **leggibilità**: che si capisca a schermo *chi* ha incassato il colpo al posto di chi |
 | **PIE-V01-FF** | Friendly fire su AoE | `CircularAoE` centrato dove c'è anche un alleato | Il danno è applicato **anche** all'alleato; l'HUD/preview lo segnala prima del lock-in | 🟡 **coperto headless 2026-08-07** da `Actions.AoE.FriendlyFire` (il danno **arriva**) e da `Preview.AllyInAreaIsFlagged` (la cella dell'alleato è marcata nell'anteprima). **L'anteprima ora esiste**: la cella dell'alleato dentro l'area si disegna in **arancione** invece che in rosso. Al PIE resta il giudizio: quell'arancione si **nota** prima di premere Spazio, o passa inosservato? |
 | **PIE-V01-FALLBACK** | Fallback su bersaglio che si sposta | attacco diretto su un bersaglio che si muove nello stesso turno | Si applica il fallback dichiarato (`Cancel` per gli attacchi diretti): nessun colpo «inseguente», il log riporta il fallback applicato | 🟡 **coperto headless** da `RefactorTactics.Actions.Fallback.*` (8 test: `Stop`, `Wait`, `AttackCell`, `Cancel`, `ValidationReasons`, `LoggedOutcome`, `CancelIsLoggedInMatch`, `NoRandomTargeting`) — il fallback si applica e **compare nel log**, e non esiste bersagliamento automatico casuale. ⏳ al PIE resta da vedere che chi gioca **capisca** cosa e' successo leggendo il combat log, senza dedurlo dal comportamento |

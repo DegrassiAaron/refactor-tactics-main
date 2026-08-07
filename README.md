@@ -15,7 +15,7 @@ Griglia **esagonale** multilivello (`FRTCellId`, coordinate assiali/cubiche) con
 > - **Nessuna partita gira ancora sull'esagonale**: il turn loop giocabile è quello **quadrato** dell'MVP
 >   (2v2 offline contro bot, movimento con conflitti, combat, HUD, vittoria). Colmare questo divario è la
 >   milestone **M6** ≡ epic **E2** della v0.1.
-> - **390 test automatici** unici (`Source/RefactorTactics/Tests/`, 61 file), misurati il 2026-08-07.
+> - **397 test automatici** unici (`Source/RefactorTactics/Tests/`, 62 file), misurati il 2026-08-07.
 > - Packaging Windows verificato sull'MVP quadrato (Development e Shipping).
 >
 > Dettaglio: [roadmap di release v0.1](docs/roadmap/roadmap-v0.1.md) ·
@@ -112,7 +112,7 @@ CLAUDE.md · AGENTS.md          # guide operative per assistenti di codice
 4. Comandi: **WASD** pan camera · **rotellina** zoom · **Home** ricentra · **F** centra sull'unità selezionata ·
    **click** su unità propria = selezione · **click** su cella = movimento · **click** su nemico = attacco ·
    **Spazio** = risolvi il turno (o attendi il timer di 30 s) · **R** = riavvia la partita.
-5. Test: **Tools → Session Frontend → Automation** → `RefactorTactics` → *Start Tests* (390 test).
+5. Test: **Tools → Session Frontend → Automation** → `RefactorTactics` → *Start Tests* (397 test).
    Guida al debug in [`docs/technical/debug-vs-unreal.md`](docs/technical/debug-vs-unreal.md).
 
 ### Asset di terze parti

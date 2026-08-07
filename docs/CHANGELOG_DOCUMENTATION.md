@@ -113,7 +113,8 @@ dopo un refactor**, e restano leggibili e falsi.
 ### Conteggio dei test riallineato
 
 Le due viste di roadmap dichiaravano **366 test in 55 file**; la misura al commit `50159c6` dà
-**390 in 61 file** (+24, dal primo blocco dell'harness degli scenari). È la terza volta che questo scarto si
+**390 in 61 file** (+24, dal primo blocco dell'harness degli scenari) — e **397 in 62** dopo il merge con `main`,
+dove sono atterrati i 7 test di CP 9.1. È la terza volta che questo scarto si
 apre — 2026-08-05 (−3), 2026-08-07 (−145), ora (−24) — e ogni volta perché il numero è stato *citato* invece
 che *misurato*. Il comando resta quello dichiarato nei due documenti:
 
