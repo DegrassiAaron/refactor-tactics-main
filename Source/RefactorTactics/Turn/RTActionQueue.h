@@ -13,7 +13,7 @@
  * disciplina di `FRTHexSimUnit` e del TurnLog, e senza di essa l'ordine di risoluzione dipenderebbe da
  * indirizzi di memoria.
  *
- * Riferimento: docs/design/spec-motore-azioni-e4.md §3.
+ * Riferimento: docs/gameplay/spec-motore-azioni-e4.md §3.
  */
 USTRUCT(BlueprintType)
 struct FRTActionInstance

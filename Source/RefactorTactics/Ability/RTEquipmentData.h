@@ -21,7 +21,7 @@ enum class ERTEquipmentSlot : uint8
  * permanente pay-to-win» del canone. Il catalogo elenca «rendere un equipaggiamento migliore in ogni
  * parametro» fra gli errori da evitare.
  *
- * Riferimento: docs/design/balance/RT_EquipmentCatalog_v0.1.md
+ * Riferimento: docs/balance/RT_EquipmentCatalog_v0.1.md
  */
 UCLASS(BlueprintType)
 class REFACTORTACTICS_API URTEquipmentData : public UPrimaryDataAsset

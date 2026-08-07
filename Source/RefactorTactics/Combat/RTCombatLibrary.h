@@ -112,6 +112,19 @@ public:
 	static constexpr int32 BraceDamageReduction = 10;
 
 	/**
+	 * Copertura bassa (catalogo v0.1, CP 9.1): riduce di 10 il danno diretto che ATTRAVERSA il bordo riparato.
+	 *
+	 * Sta qui accanto a `Guard`/`Deflect`/`Brace` perche' e' la stessa famiglia di numeri — quanto danno
+	 * diretto si toglie — anche se la condizione che la attiva e' geometrica invece che di stato. Come `Brace`
+	 * vale su OGNI colpo che arriva da quel lato (non si consuma): non passa da `ApplyFirstHitDelta`.
+	 *
+	 * NON riduce il danno ambientale (`Burning`, propagazione elettrica): quelli non attraversano un bordo,
+	 * nascono nella cella. E non riduce le AREE: un'esplosione non e' un proiettile che si possa intercettare
+	 * con un muretto — vale anche quando il centro sta dal lato riparato.
+	 */
+	static constexpr int32 LowCoverDamageReduction = 10;
+
+	/**
 	 * `Flux.LinearDischarge` (catalogo eroi v0.1 §1): +8 danni contro un bersaglio `Status.Wet`.
 	 *
 	 * A differenza di `Exposed`/`Guard`/`Marked`, NON passa da `ApplyFirstHitDelta`: il bonus non si consuma

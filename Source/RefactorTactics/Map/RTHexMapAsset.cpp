@@ -175,7 +175,7 @@ uint32 URTHexMapAsset::ComputeHash() const
 	Sorted.Sort([](const FRTHexCellData& A, const FRTHexCellData& B) { return URTHexLibrary::StableLess(A.Id, B.Id); });
 
 	uint32 Hash = GetTypeHash(FormatVersion);
-	for (const FRTHexCellData& C : Sorted)
+	for (FRTHexCellData& C : Sorted)
 	{
 		Hash = HashCombine(Hash, GetTypeHash(C.Id));
 		Hash = HashCombine(Hash, GetTypeHash(C.Height));
@@ -183,6 +183,20 @@ uint32 URTHexMapAsset::ComputeHash() const
 		Hash = HashCombine(Hash, GetTypeHash(C.MoveCost));
 		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(C.bBlocksMovement ? 1 : 0)));
 		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(C.bBlocksLineOfSight ? 1 : 0)));
+
+		// Le coperture sono dato autorevole (cambiano il danno subito): entrano nell'hash, ordinate per bordo
+		// perche' l'ordine dell'array lo decide chi edita l'asset, non la mappa. Una cella scoperta non
+		// aggiunge nulla: l'hash di una mappa senza coperture dipende solo dai campi di prima.
+		C.Covers.Sort([](const FRTHexCover& A, const FRTHexCover& B)
+		{
+			return static_cast<uint8>(A.Edge) < static_cast<uint8>(B.Edge);
+		});
+		for (const FRTHexCover& Cover : C.Covers)
+		{
+			Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(Cover.Edge)));
+			Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(Cover.Type)));
+			Hash = HashCombine(Hash, GetTypeHash(Cover.Integrity));
+		}
 	}
 
 	// Le transizioni sono dato autorevole (i ponti/tunnel cambiano il pathing): entrano nell'hash, ordinate
@@ -219,6 +233,34 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 		if (C.MoveCost < 0)
 		{
 			Errors.Add(FString::Printf(TEXT("Error: costo negativo su %s"), *C.Id.ToString()));
+		}
+
+		// Coperture: si scrivono a mano nell'editor delle proprieta', quindi qui si intercettano gli stati
+		// che nessuna regola sa risolvere — meglio un errore leggibile di un comportamento a sorte.
+		for (int32 I = 0; I < C.Covers.Num(); ++I)
+		{
+			const FRTHexCover& Cover = C.Covers[I];
+			if (Cover.Type == ERTHexCoverType::None)
+			{
+				Errors.Add(FString::Printf(TEXT("Error: voce di copertura senza tipo su %s"), *C.Id.ToString()));
+			}
+			else if (Cover.Integrity <= 0)
+			{
+				// Un riparo a zero punti struttura e' un riparo gia' distrutto: va tolto, non tenuto a 0
+				// (CP 9.2 lo scalera' davvero, e vorra' trovare solo coperture in piedi).
+				Errors.Add(FString::Printf(TEXT("Error: copertura con integrita' %d su %s"),
+					Cover.Integrity, *C.Id.ToString()));
+			}
+			// "Non sovrapponibile" (catalogo, `Action.CreateCover`): un bordo ha al massimo una copertura.
+			for (int32 J = 0; J < I; ++J)
+			{
+				if (C.Covers[J].Edge == Cover.Edge)
+				{
+					Errors.Add(FString::Printf(TEXT("Error: coperture sovrapposte sul bordo %d di %s"),
+						static_cast<int32>(Cover.Edge), *C.Id.ToString()));
+					break;
+				}
+			}
 		}
 	}
 	for (int32 I = 0; I < Transitions.Num(); ++I)
@@ -335,4 +377,24 @@ FRTCellId URTHexMapAsset::GetCenterCell() const
 
 	// Mediana del bounding box assiale: divisione intera (nessun float nelle coordinate, invariante #4).
 	return FRTCellId(FMath::DivideAndRoundDown(MinQ + MaxQ, 2), FMath::DivideAndRoundDown(MinR + MaxR, 2), BaseLayer);
+}
+
+void URTHexMapAsset::MigrateToCurrentFormat()
+{
+	if (FormatVersion >= CurrentFormatVersion)
+	{
+		return; // gia' aggiornato: idempotente, PostLoad puo' ripetersi
+	}
+
+	// v2 -> v3 (CP 9.1): il formato guadagna le coperture per bordo. NON c'e' nulla da convertire — `Covers`
+	// nasce vuoto e una mappa senza coperture si comporta esattamente come prima — quindi la migrazione si
+	// limita a dichiarare la versione. Il giorno in cui una migrazione dovra' TRASFORMARE dati, il posto e'
+	// questo, un `if (FormatVersion < N)` per volta, in ordine.
+	FormatVersion = CurrentFormatVersion;
+}
+
+void URTHexMapAsset::PostLoad()
+{
+	Super::PostLoad();
+	MigrateToCurrentFormat();
 }

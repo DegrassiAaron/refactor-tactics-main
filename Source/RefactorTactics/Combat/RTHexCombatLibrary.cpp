@@ -1,4 +1,5 @@
 #include "Combat/RTHexCombatLibrary.h"
+#include "Combat/RTCombatLibrary.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
@@ -48,6 +49,49 @@ TArray<FRTCellId> URTHexCombatLibrary::HexHitCells(ERTAbilityShape Shape, const 
 
 	CanonicalizeCells(Cells);
 	return Cells;
+}
+
+int32 URTHexCombatLibrary::HexCoverDamageReduction(const URTHexMapAsset* Map, const FRTCellId& From,
+	const FRTCellId& Target, ERTAbilityShape Shape)
+{
+	// Un'area investe la cella da ogni lato: nessun bordo da attraversare, nessuna copertura che tenga.
+	if (Map == nullptr || Shape == ERTAbilityShape::Area)
+	{
+		return 0;
+	}
+
+	const FRTHexCellData* Data = Map->FindCell(Target);
+	if (Data == nullptr || Data->Covers.Num() == 0)
+	{
+		return 0;
+	}
+
+	// Bordo attraversato = ultimo passo della linea attaccante -> bersaglio, calcolata sul piano del
+	// bersaglio (il Layer non entra nella geometria: i piani si collegano con archi espliciti).
+	const FRTCellId Origin(From.X, From.Y, Target.Layer);
+	if (Origin.X == Target.X && Origin.Y == Target.Y)
+	{
+		return 0; // stessa cella assiale: il colpo non attraversa nessun bordo
+	}
+	const TArray<FRTCellId> Line = URTHexLibrary::HexLine(Origin, Target);
+	if (Line.Num() < 2)
+	{
+		return 0;
+	}
+	const FRTCellId& Previous = Line[Line.Num() - 2];
+
+	// I sei vicini sono restituiti in ordine di direzione (E..SE): l'indice E' la direzione.
+	const TArray<FRTCellId> Ring = URTHexLibrary::Neighbors(Target);
+	for (int32 D = 0; D < Ring.Num(); ++D)
+	{
+		if (Ring[D].X == Previous.X && Ring[D].Y == Previous.Y)
+		{
+			return Data->CoverOn(static_cast<ERTHexDirection>(D)) == ERTHexCoverType::Low
+				? URTCombatLibrary::LowCoverDamageReduction
+				: 0;
+		}
+	}
+	return 0;
 }
 
 FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombatUnit>& Units,
@@ -127,7 +171,12 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 			}
 			if (HitCells.Contains(Other.Cell))
 			{
-				Plan.Hits.Add(FRTHexAttackHit(Intent.AttackerId, u, Intent.Power, IntentIdx));
+				// La copertura si applica QUI, sul singolo colpo: dipende da dove sta CHI lo subisce, non
+				// dall'intento — due bersagli della stessa azione possono essere riparati in modo diverso.
+				// Il danno si ferma a 0: il colpo resta avvenuto (trigger e marchi contano lo stesso).
+				const int32 Reduction = HexCoverDamageReduction(Map, Attacker.Cell, Other.Cell, Intent.Shape);
+				Plan.Hits.Add(FRTHexAttackHit(Intent.AttackerId, u,
+					FMath::Max(0, Intent.Power - Reduction), IntentIdx));
 			}
 		}
 	}
