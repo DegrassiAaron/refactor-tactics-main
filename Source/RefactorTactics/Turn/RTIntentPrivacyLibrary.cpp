@@ -30,6 +30,7 @@ TArray<FRTIntentView> URTIntentPrivacyLibrary::FilterForTeam(int32 ObserverTeamI
 		View.PlannedPath = Intent.PlannedPath; // movimento: `Reveal` lo espone
 		View.bDashing = Intent.bDashing;
 		View.DashCell = Intent.DashCell;
+		View.DashStyle = Intent.DashStyle;
 
 		// Reazione e waypoint si copiano SOLO per un alleato. Non c'e' un ramo che li copia e poi li cancella:
 		// per chiunque altro restano semplicemente non valorizzati, rivelato o meno.

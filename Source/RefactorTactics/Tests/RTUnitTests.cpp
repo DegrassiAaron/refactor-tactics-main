@@ -1,4 +1,9 @@
 #include "Misc/AutomationTest.h"
+#include "Ability/RTActionData.h"
+#include "Ability/RTActionDef.h"
+#include "Ability/RTCatalogLibrary.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 #include "Unit/RTUnit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -92,5 +97,46 @@ bool FRTTemporaryShieldConsumedFirstTest::RunTest(const FString&)
 	Unit->ApplyCombatState(/*NewHealth*/ 90, /*NewShield*/ 0); // scudo esaurito, il resto agli HP
 	Unit->ExpireTemporaryShield();
 	TestEqual(TEXT("scudo esaurito dal danno: resta 0, non un valore negativo"), Unit->Shield, 0);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Gate «questa e' un'azione di scatto»: lo dice il CATALOGO (fase), non un flag scritto a mano (#142)
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogFastMovementIsFoundAsDashTest,
+	"RefactorTactics.Unit.CatalogFastMovementIsFoundAsDash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCatalogFastMovementIsFoundAsDashTest::RunTest(const FString&)
+{
+	// Le azioni degli eroi arrivano dal catalogo e dichiarano la FASE, non un flag: fino a #142 nessuna di
+	// loro veniva riconosciuta come scatto, quindi il bot non ne pianificava mai uno per i quattro eroi.
+	URTHeroData* Bastion = URTHeroCatalogLibrary::MakeBastion();
+	if (!TestNotNull(TEXT("Bastion dal catalogo"), Bastion)) { return false; }
+
+	ARTUnit* Unit = NewObject<ARTUnit>();
+	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
+	Unit->ConfigureFromHeroData(Bastion);
+
+	const int32 DashIdx = Unit->FindDashAbilityIndex();
+	if (!TestTrue(TEXT("l'unita' riconosce la sua mobilita' rapida"), DashIdx != INDEX_NONE)) { return false; }
+
+	const URTActionData* Dash = Unit->GetAbility(DashIdx);
+	if (!TestNotNull(TEXT("l'abilita' trovata esiste"), (void*)Dash)) { return false; }
+	TestTrue(TEXT("ed e' proprio la carica di Bastion"), Dash->Def.ActionId == FName(TEXT("Bastion.Ram")));
+
+	// La verifica ha senso solo se il riconoscimento NON passa da un campo dell'asset: e' la fase del
+	// catalogo a dirlo. Se un giorno tornasse un flag, questa asserzione cadrebbe insieme al motivo del test.
+	TestTrue(TEXT("il gate e' la fase del catalogo"),
+		URTCatalogLibrary::MapResolutionPhase(Dash->Def.ResolutionPhase) == ERTMatchPhase::Dash);
+
+	// Un'azione che NON e' mobilita' rapida non deve essere scambiata per uno scatto: senza questa meta' il
+	// gate potrebbe rispondere «si'» a tutto e il test passerebbe lo stesso.
+	const URTActionData* BasicAttack = Unit->GetAbility(0);
+	if (TestNotNull(TEXT("l'attacco base dell'eroe"), (void*)BasicAttack))
+	{
+		TestTrue(TEXT("l'attacco base non e' uno scatto"), DashIdx != 0
+			&& URTCatalogLibrary::MapResolutionPhase(BasicAttack->Def.ResolutionPhase) != ERTMatchPhase::Dash);
+	}
 	return true;
 }

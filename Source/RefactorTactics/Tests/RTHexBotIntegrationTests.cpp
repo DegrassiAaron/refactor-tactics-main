@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "Ability/RTActionData.h"
+#include "Ability/RTCatalogLibrary.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
@@ -113,7 +114,8 @@ bool FRTHexBotLegalMovesTest::RunTest(const FString&)
 		if (Bot->PlannedDashAbility != INDEX_NONE)
 		{
 			const URTActionData* Dash = Bot->GetAbility(Bot->PlannedDashAbility);
-			TestTrue(TEXT("lo scatto pianificato e' un'abilita' di scatto"), Dash && Dash->bDash);
+			TestTrue(TEXT("lo scatto pianificato e' un'abilita' di scatto"),
+				Dash && URTCatalogLibrary::IsFastMovement(Dash->Def));
 			TestTrue(TEXT("la cella di scatto esiste nella mappa"), Map->ContainsCell(Bot->PlannedDashCell));
 			TestTrue(TEXT("la cella di scatto e' entro la portata dello scatto"),
 				Dash && URTHexLibrary::HexDistance(Bot->Cell, Bot->PlannedDashCell) <= Bot->GetEffectiveDashRange(Dash->RangeCells));
@@ -300,8 +302,8 @@ bool FRTHexBotDashAgreesWithResolverTest::RunTest(const FString&)
 	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
 
 	// Lo scatto dell'archetipo dichiara di essere LINEARE: e' il ramo che il consolidamento ha unificato.
-	// (Il catalogo spedito non lo dichiara ancora per Ranger.Dash — vedi #142: qui lo si impone al
-	// dato dell'abilita', cosi' il test copre il percorso lineare invece di quello a pathfinding.)
+	// La linearita' si VERIFICA sul dato del catalogo, non si impone qui: imponendola (come faceva questo
+	// test fino a #142) la guardia sarebbe rimasta verde anche se `Ranger.Dash` fosse tornato senza stile.
 	const int32 DashIdx = Bot->FindDashAbilityIndex();
 	if (!TestTrue(TEXT("l'archetipo ha un'abilita' di scatto"), DashIdx != INDEX_NONE))
 	{
@@ -309,7 +311,12 @@ bool FRTHexBotDashAgreesWithResolverTest::RunTest(const FString&)
 		return false;
 	}
 	URTActionData* DashAb = Bot->GetAbility(DashIdx);
-	DashAb->Def.MovementStyle = ERTMovementStyle::LinearDash;
+	if (!TestTrue(TEXT("premessa: lo scatto dell'archetipo e' lineare"),
+		DashAb && URTMovementActionLibrary::IsLinear(DashAb->Def.MovementStyle)))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
 
 	TM->PlanBotsForTest();
 

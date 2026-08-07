@@ -8,6 +8,11 @@
 >
 > **Decisioni prese**: movimento del dash = **pathfinding** (aggira ostacoli) · **dash + move** (movimento doppio
 > consentito) · scope = **bot + player**.
+>
+> ⚠️ **Aggiornata dopo CP 4.5 (`#46`) e `#142`** — due decisioni di questa spec non valgono più:
+> il movimento dello scatto **non** è più pathfinding (è **lineare**, e un ostacolo lo ferma) e `bDash` **non
+> esiste più**. Le sezioni sotto sono corrette in linea; qui resta la traccia di cosa è cambiato, perché è la
+> spec a cui rimandano i commenti del codice più vecchi.
 
 ## 1. Obiettivo e valore tattico
 
@@ -18,12 +23,21 @@ Reactor e dà senso alla fase + profondità alla pianificazione (il Blast usa le
 
 ## 2. Modello dati
 
-- `URTAbilityData::bDash` — l'abilità è uno scatto: non attacca, sposta l'unità fino a `RangeCells` celle
-  (budget di **costo**), gated da `CooldownTurns`. `Power` = 0.
+- **Cosa rende un'azione uno scatto**: la **fase dichiarata dal catalogo**, e nient'altro —
+  `URTCatalogLibrary::IsFastMovement(Def)` è vero quando la macro-fase è `Dash`. Il flag `URTActionData::bDash`
+  è stato **rimosso** con `#142`: esisteva in parallelo alla fase, e le azioni degli eroi (che dichiarano solo
+  la fase) non venivano riconosciute — il bot non pianificava scatti per nessuno dei quattro.
+- **Come si sposta** lo dice `FRTActionDef::MovementStyle`: `LinearDash` · `LinearCharge` (si ferma addosso al
+  primo nemico e lo colpisce) · `LinearLeap` (scavalca) · `Budget` (`Action.Sprint`, pathfinding). `None` su
+  un'azione di fase Dash è un **errore**, sorvegliato da `RefactorTactics.Actions.EveryFastMovementDeclaresStyle`
+  su tutti e tre i cataloghi (generico, spedito, eroi).
 - `ARTUnit::PlannedDashAbility` (`INDEX_NONE` = nessuno) + `ARTUnit::PlannedDashCell` — pianificazione dello
   scatto per il turno. `ARTUnit::FindDashAbilityIndex()` trova l'abilità di scatto dell'unità.
-- Abilità di scatto di default: **Ranger → "Scatto"** (5 celle, ricarica 2); **Guardian → "Carica"** (4 celle,
-  ricarica 3); fallback generico "Scatto" (`MoveRange+2`, ricarica 2). Sono la **4ª abilità** (indice 3).
+- Abilità di scatto di default: **Ranger → "Scatto"** (`Ranger.Dash`, 5 celle, ricarica 2, `LinearDash`);
+  **Guardian → "Carica"** (`Guardian.Charge`, 4 celle, ricarica 3, `LinearCharge`, 20 danni + spinta 1);
+  fallback generico "Scatto" (`Action.Dash`: 3 celle, ricarica 1). Sono la **4ª abilità** (indice 3).
+  Gli eroi del catalogo v0.1 hanno `Bastion.Ram` (`LinearCharge`), `Vektor.PassingBlade` e `Riva.FluidTrail`
+  (`LinearDash`).
   > Questi sono i valori **oggi nel codice** (`ARTUnit::ConfigureAsArchetype`), non i valori vigenti della
   > v0.1: con il budget a **5 MP** dell'[ADR-0003](adr-0003-modello-azioni-v01.md) le mobilità rapide passano a
   > distanza fissa dichiarata dall'azione (`Dash 3`, `Charge 4`, `Leap 3`, `Sprint 8 MP`) — riparametrizzazione
@@ -31,9 +45,11 @@ Reactor e dà senso alla fase + profondità alla pianificazione (il Blast usa le
 
 ## 3. Risoluzione (`ARTTurnManager::ResolveDash`, fase Dash)
 
-1. Raccoglie le unità vive con uno scatto pianificato **valido**: abilità `bDash` utilizzabile e
-   `PlannedDashCell` raggiungibile via `FindPathByGraph` entro il **costo** `RangeCells`. Lo scatto è
-   **consumato per il turno** in ogni caso (valido o no).
+1. Raccoglie le unità vive con uno scatto pianificato **valido**: azione di fase Dash utilizzabile
+   (`IsFastMovement`) e `PlannedDashCell` raggiungibile **secondo lo stile dichiarato** — in linea retta per le
+   mobilità lineari (`URTMovementActionLibrary::ResolveLinearMove`, la portata si misura in **celle**), col
+   pathfinding per quelle a budget (dove `RangeCells` sono **punti movimento**). Lo scatto è **consumato per il
+   turno** in ogni caso (valido o no).
 2. Risolve gli scatti **simultanei, ordine-indipendenti** (stesso `URTMovementResolver::ResolvePaths` del
    movimento).
 3. Applica le posizioni **senza cancellare il move normale** (dash + move): aggiorna `GridCell` + visuale;
@@ -57,17 +73,22 @@ sono esclusi dal Move (come per il combattimento).
   **prima del Blast**, la posizione post-scatto **ri-valida gittata/LOS** dell'attaccante: uscendo dal tiro,
   l'attacco previsto **manca**. Fallback al kite normale (movimento) se lo scatto non è pronto.
 
-Il bot è **dash-only** (non pianifica anche il move quando scatta). Le abilità `bDash` sono escluse dalla
-selezione d'attacco (non sono attacchi). *(Verifica PIE: osservati sia `scatto -> …` offensivi sia
+Il bot è **dash-only** (non pianifica anche il move quando scatta). Le azioni di mobilità rapida sono escluse
+dalla selezione d'attacco (non sono attacchi) e dal calcolo della minaccia nemica (spostano, non colpiscono). *(Verifica PIE: osservati sia `scatto -> …` offensivi sia
 `scatto difensivo (schiva) -> …`.)*
 
 ## 5. Giocatore (`RTPlayerController`, HUD)
 
 - **Tasto `4`** seleziona lo scatto (4ª abilità). Con lo scatto selezionato, il **click su una cella** pianifica
-  il dash verso quella cella (validato entro la portata dello scatto; supporta il click→layer del ponte).
+  il dash verso quella cella. La validazione usa **lo stesso codice che eseguirà lo scatto** (`#142`): lineare
+  per le mobilità lineari, pathfinding per quelle a budget. Vale la regola di CP 4.5 — **o si arriva sulla cella
+  richiesta, o lo scatto non si pianifica**: niente scatto a metà verso una cella che il giocatore non ha
+  scelto. L'unica eccezione è la **carica**, per cui fermarsi addosso al nemico *è* il modo di arrivare.
   Cliccare un nemico con lo scatto selezionato non fa nulla (lo scatto è su cella).
 - **HUD**: la preview dello scatto è disegnata in **magenta** (percorso + destinazione), distinta dal movimento
-  normale (ciano). Soggetta alla privacy dell'intento (invariante #6, come gli altri piani).
+  normale (ciano). La traiettoria segue **lo stile dichiarato** (`FRTIntentView::DashStyle`): linea retta per le
+  lineari, grafo per quelle a budget — disegnare l'A\* per uno scatto lineare mostrerebbe un percorso curvo
+  attorno a un ostacolo che in realtà lo ferma. Soggetta alla privacy dell'intento (invariante #6).
 
 ## 6. Playback (animazione)
 

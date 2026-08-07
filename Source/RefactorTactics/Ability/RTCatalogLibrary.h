@@ -31,6 +31,18 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Catalog")
 	static ERTMatchPhase MapResolutionPhase(ERTResolutionPhase Phase);
 
+	/**
+	 * Vero se l'azione e' una mobilita' RAPIDA, cioe' risolve nella macro-fase Dash (scatto, carica, salto,
+	 * riposizionamento, corsa). E' l'unico gate di «questa azione e' uno scatto»: prima di #142 il resolver
+	 * leggeva la fase e il resto del gioco un flag booleano sull'asset, e le due risposte divergevano — le
+	 * azioni degli eroi dichiarano la fase e non il flag, quindi il bot non pianificava scatti per loro.
+	 *
+	 * Non dice COME ci si sposta: quello e' `FRTActionDef::MovementStyle`, ed e' cio' che distingue una
+	 * mobilita' lineare da una a budget dentro la stessa fase.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Catalog")
+	static bool IsFastMovement(const FRTActionDef& Def);
+
 	/** Codice numerico del catalogo (0/10/20/30/40/50/60): serve a rileggere i PDF, non alla risoluzione. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Catalog")
 	static int32 ResolutionPhaseCode(ERTResolutionPhase Phase);

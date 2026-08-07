@@ -11,6 +11,7 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Pathfinding/RTHexPathLibrary.h"
+#include "Turn/RTMovementActionLibrary.h"
 #include "Engine/Canvas.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -166,6 +167,10 @@ void ARTHUD::DrawHUD()
 			Intent.PlannedWaypoints = Unit->PlannedWaypoints;
 			Intent.bDashing = (Unit->PlannedDashAbility != INDEX_NONE);
 			Intent.DashCell = Unit->PlannedDashCell;
+			if (const URTActionData* DashAb = Unit->GetAbility(Unit->PlannedDashAbility))
+			{
+				Intent.DashStyle = DashAb->Def.MovementStyle;
+			}
 			Authoritative.Add(Intent);
 		}
 
@@ -255,9 +260,16 @@ void ARTHUD::DrawHUD()
 			}
 
 			// Preview dello SCATTO pianificato (fase Dash): percorso e destinazione in MAGENTA.
+			//
+			// La traiettoria si disegna come la fase Dash la ESEGUIRA' (#142): una mobilita' lineare va dritta
+			// e non gira gli angoli, una a budget (`Action.Sprint`) segue il grafo. Disegnare l'A* per uno
+			// scatto lineare mostrerebbe un percorso curvo attorno a un ostacolo che in realta' lo ferma — e
+			// la leggibilita' tattica e' un pilastro, non un dettaglio estetico.
 			if (View.bDashing && Map)
 			{
-				const TArray<FRTCellId> DPath = URTHexPathLibrary::FindPath(Map, View.OwnerCell, View.DashCell).Path;
+				const TArray<FRTCellId> DPath = URTMovementActionLibrary::IsLinear(View.DashStyle)
+					? URTHexLibrary::HexLine(View.OwnerCell, View.DashCell)
+					: URTHexPathLibrary::FindPath(Map, View.OwnerCell, View.DashCell).Path;
 				const FLinearColor DashColor(1.f, 0.2f, 0.9f, 1.f);
 				for (int32 i = 1; i < DPath.Num(); ++i)
 				{

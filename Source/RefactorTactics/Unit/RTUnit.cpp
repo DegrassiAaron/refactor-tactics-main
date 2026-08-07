@@ -297,9 +297,12 @@ void ARTUnit::EnsureDefaultAbilities()
 	Abilities.Add(MakeAbility(TEXT("Attacco"), AttackRange, AttackPower, 0, 0, 0, FGameplayTag(), 0));
 	Abilities.Add(MakeAbility(TEXT("Colpo pesante"), FMath::Max(1, AttackRange - 1), AttackPower + 20, 0, 2, 0, FGameplayTag(), 0));
 	Abilities.Add(MakeAbility(TEXT("Ultimate"), AttackRange, AttackPower * UltimateMultiplier, UltimateRadius, 0, MaxEnergy, TAG_Status_Slow, 2));
-	// Scatto generico (fase Dash): riposizionamento rapido oltre il range di movimento, ricarica 2 turni.
-	URTActionData* Scatto = MakeAbility(TEXT("Scatto"), MoveRange + 2, 0, 0, 2, 0, FGameplayTag(), 0);
-	Scatto->bDash = true;
+	// Scatto generico: portata, ricarica e identita' vengono da `Action.Dash`, non da numeri inventati qui.
+	// E' anche cio' che lo rende riconoscibile come mobilita' rapida: il gate e' la FASE dichiarata dal
+	// catalogo (`URTCatalogLibrary::IsFastMovement`), non un flag booleano sull'asset.
+	const FRTActionDef DashDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
+	URTActionData* Scatto = MakeAbility(TEXT("Scatto"), DashDef.RangeCells, 0, 0, DashDef.CooldownTurns, 0, FGameplayTag(), 0);
+	Scatto->Def = DashDef;
 	Abilities.Add(Scatto);
 }
 
@@ -307,7 +310,7 @@ int32 ARTUnit::FindDashAbilityIndex() const
 {
 	for (int32 i = 0; i < Abilities.Num(); ++i)
 	{
-		if (Abilities[i] && Abilities[i]->bDash)
+		if (Abilities[i] && URTCatalogLibrary::IsFastMovement(Abilities[i]->Def))
 		{
 			return i;
 		}
@@ -334,9 +337,8 @@ void ARTUnit::ConfigureAsArchetype(ERTArchetype InArchetype)
 		Raffica->bIgnites = true; // raffica infuocata: incendia il terreno infiammabile nell'area
 		Abilities.Add(Raffica);
 		// Scatto: riposizionamento rapido (fase Dash), 5 celle, ricarica 2 turni. Il Ranger e' mobile.
-		URTActionData* Scatto = MakeAbility(TEXT("Scatto"), 5, 0, 0, 2, 0, FGameplayTag(), 0);
-		Scatto->bDash = true;
-		Abilities.Add(Scatto);
+		// Che sia uno scatto lo dice `Ranger.Dash` piu' sotto, con la sua fase e il suo stile lineare.
+		Abilities.Add(MakeAbility(TEXT("Scatto"), 5, 0, 0, 2, 0, FGameplayTag(), 0));
 	}
 	else // Guardian
 	{
@@ -352,10 +354,10 @@ void ARTUnit::ConfigureAsArchetype(ERTArchetype InArchetype)
 		Barrier->bSelfTarget = true; // supporto: +40 scudo su se stessi (fase Prep)
 		Abilities.Add(Barrier);
 		Abilities.Add(MakeAbility(TEXT("Terremoto"), 3, 40, 2, 0, MaxEnergy, TAG_Status_Root, 2)); // AoE ampio + Root
-		// Carica: scatto d'irruzione (fase Dash), 4 celle per chiudere la distanza, ricarica 3 turni.
-		URTActionData* Carica = MakeAbility(TEXT("Carica"), 4, 0, 0, 3, 0, FGameplayTag(), 0);
-		Carica->bDash = true;
-		Abilities.Add(Carica);
+		// Carica: irruzione lineare (fase Dash), 4 celle per chiudere la distanza, ricarica 3 turni. Si ferma
+		// addosso al primo nemico e lo colpisce: danno e spinta sono effetti di `Guardian.Charge`, non numeri
+		// scritti qui (il `Power` dell'asset resta 0, come per ogni azione i cui effetti stanno nel `Def`).
+		Abilities.Add(MakeAbility(TEXT("Carica"), 4, 0, 0, 3, 0, FGameplayTag(), 0));
 	}
 
 	// Identita' di catalogo delle azioni appena create: ActionId stabile, fase dichiarata, priorita' intera,

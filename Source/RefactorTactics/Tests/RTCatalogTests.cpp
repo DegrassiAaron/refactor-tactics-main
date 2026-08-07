@@ -291,17 +291,37 @@ bool FRTCatalogMatchesAbilitiesTest::RunTest(const FString&)
 			// La fase dichiarata deve corrispondere alla natura dell'abilita': uno scatto risolve nel Dash,
 			// un supporto su se stessi nel Prep, un attacco nel Blast.
 			const ERTMatchPhase Macro = URTCatalogLibrary::MapResolutionPhase(Ability->Def.ResolutionPhase);
-			if (Ability->bDash)
+
+			// Stile di movimento e fase sono due campi INDIPENDENTI, e la verifica va fatta nelle due
+			// direzioni. Asserire «fase Dash» dentro un ramo scelto da `IsFastMovement` sarebbe invece una
+			// tautologia: quel predicato E' definito come «macro-fase == Dash».
+			const bool bDeclaresMovement = Ability->Def.MovementStyle != ERTMovementStyle::None;
+			if (URTCatalogLibrary::IsFastMovement(Ability->Def))
 			{
-				TestEqual(FString::Printf(TEXT("%s e' uno scatto -> fase Dash"), *Name), Macro, ERTMatchPhase::Dash);
+				// Risolve nel Dash: deve dire COME si sposta, o il resolver ricade sul pathfinding (#142).
+				TestTrue(FString::Printf(TEXT("%s risolve nel Dash: dichiara COME si sposta"), *Name), bDeclaresMovement);
 			}
-			else if (Ability->bSelfTarget)
+			else if (bDeclaresMovement)
 			{
-				TestEqual(FString::Printf(TEXT("%s e' un supporto -> fase Prep"), *Name), Macro, ERTMatchPhase::Prep);
+				// Dichiara di spostare ma non e' fase Dash: l'unico caso legittimo e' il movimento NORMALE
+				// (`Action.Move`, stile Budget). E' la meta' che scopre uno scatto catalogato con la fase
+				// sbagliata — un `LinearDash` in fase Attack non si muoverebbe mai.
+				TestEqual(FString::Printf(TEXT("%s si sposta fuori dal Dash: puo' solo essere il Move"), *Name),
+					Macro, ERTMatchPhase::Move);
 			}
-			else
+
+			// Cio' che NON e' mobilita' si classifica dalla sua natura: un supporto su se stessi si prepara,
+			// tutto il resto colpisce.
+			if (!URTCatalogLibrary::IsFastMovement(Ability->Def))
 			{
-				TestEqual(FString::Printf(TEXT("%s e' un attacco -> fase Blast"), *Name), Macro, ERTMatchPhase::Blast);
+				if (Ability->bSelfTarget)
+				{
+					TestEqual(FString::Printf(TEXT("%s e' un supporto -> fase Prep"), *Name), Macro, ERTMatchPhase::Prep);
+				}
+				else if (!bDeclaresMovement)
+				{
+					TestEqual(FString::Printf(TEXT("%s e' un attacco -> fase Blast"), *Name), Macro, ERTMatchPhase::Blast);
+				}
 			}
 		}
 	}
