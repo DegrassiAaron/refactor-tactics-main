@@ -397,6 +397,16 @@ public:
 	static FLinearColor TeamColorFor(int32 InTeamId, const FLinearColor& Team0, const FLinearColor& Team1);
 
 	/**
+	 * Nome breve da mostrare sopra l'unita': `Hero.Flux` -> `Flux`. Serve al playtest, dove quattro cilindri
+	 * identici rendono impossibile dire chi sta facendo cosa — e senza quello un giudizio sul comportamento
+	 * del bot o sul ritmo della partita non vale nulla.
+	 *
+	 * `NAME_None` (unita' legacy da archetipo) -> `Fallback`, cosi' l'etichetta non sparisce mai. Pura e
+	 * testabile: la presentazione non deve inventarsi il nome, lo deriva dall'ID stabile.
+	 */
+	static FString ShortHeroName(FName InHeroId, const FString& Fallback);
+
+	/**
 	 * Offset Z LOCALE per portare un anello a terra (TeamRing/SelectionRing, figlio della mesh) al piano della
 	 * cella: compensa VisualZOffset e la scala Z del genitore. Guardia: ParentScaleZ 0 -> 1 (niente divisione). Pura.
 	 */

@@ -1,0 +1,1632 @@
+# RefactorTactics — Progettazione HUD
+
+**Documento:** `progettazione-hud.md`  
+**Stato:** consolidato iniziale per progettazione visuale e implementazione UMG  
+**Target:** PC-first, 1920×1080 come riferimento primario  
+**Engine:** Unreal Engine 5, patch bloccata dalla milestone corrente  
+**Ambito:** HUD screen-space, componenti UI, stati adattivi, criteri per asset e handoff a Unreal
+
+---
+
+## 1. Riferimento visuale ufficiale
+
+La style guide visuale di riferimento è il file PNG presente nel repository:
+
+**`Guida visiva HUD tattica fantascientifica.png`**
+
+Riferimento Markdown, assumendo che questo documento venga collocato nella stessa cartella del PNG:
+
+![RefactorTactics HUD Style Guide](./Guida%20visiva%20HUD%20tattica%20fantascientifica.png)
+
+La tavola di riferimento è una board da **1536×1024** e definisce il linguaggio grafico di base per:
+
+- pannelli;
+- pulsanti;
+- action slot;
+- frame ritratto;
+- overlay di stato;
+- barre risorsa;
+- Ghost Timeline;
+- reaction branch;
+- delayed action branch;
+- icone;
+- warning;
+- tactical marker.
+
+### Regola di prevalenza visuale
+
+Per la **presentazione grafica**, la style guide PNG è la fonte visiva primaria.
+
+Le regole di gameplay, privacy, risoluzione, certezza e disponibilità dei dati restano invece governate dal codice e dalle specifiche di progetto.
+
+La UI non deve mai inventare uno stato competitivo solo perché una variante grafica esiste nella style guide.
+
+---
+
+# 2. Obiettivo dell'HUD
+
+L'HUD di RefactorTactics deve aiutare il giocatore a:
+
+1. capire immediatamente in quale fase si trova;
+2. sapere quale unità sta modificando o osservando;
+3. costruire un piano senza perdere il contesto della scena 3D;
+4. leggere intenti alleati autorizzati;
+5. capire rischi, warning e dipendenze;
+6. distinguere ciò che è confermato, previsto o incerto;
+7. seguire la Resolution senza che l'animazione sembri decidere l'esito;
+8. reagire rapidamente alle Fast Reaction;
+9. comprendere perché un evento si è risolto in un certo modo;
+10. restare leggibile anche quando entrano quota, cover, rumore, visibilità e ambiente.
+
+L'HUD non deve diventare una plancia tattica permanente.
+
+La superficie primaria di gioco resta il **mondo 3D isometrico / three-quarter**.
+
+---
+
+# 3. Principio spaziale fondamentale
+
+La schermata normale deve essere progettata così:
+
+- **70–80% centrale:** viewport 3D libero;
+- **bordi e angoli:** HUD screen-space;
+- **world-space:** path, AoE, facing, ghost, cone, marker, cover e altri overlay contestuali.
+
+La griglia esagonale è un modello logico, non lo stile grafico dominante della schermata principale.
+
+## 3.1 Cosa NON deve occupare permanentemente il centro
+
+Non collocare al centro:
+
+- grossi pannelli;
+- minimappa permanente;
+- board tattica 2D;
+- griglia esagonale decorativa;
+- grandi cornici full-screen;
+- liste verticali di log;
+- schede personaggio estese;
+- action queue classica;
+- informazioni già leggibili nel mondo.
+
+## 3.2 Vista strategica separata
+
+La vista top-down prodotta durante le prime esplorazioni è utile, ma va considerata una modalità secondaria:
+
+**Strategic Overview / Tactical Overview**
+
+Possibili usi:
+
+- lettura generale del campo;
+- comparazione intenti alleati;
+- analisi multilivello;
+- replay;
+- spettatore;
+- debug.
+
+Non è la camera di gameplay standard.
+
+---
+
+# 4. Architettura visuale dell'interfaccia
+
+Il sistema visivo è diviso in quattro layer.
+
+## 4.1 Screen HUD / UMG
+
+Contiene:
+
+- turno;
+- fase;
+- timer;
+- objective;
+- team roster;
+- selected unit;
+- HP / shield / risorse;
+- action dock;
+- Ghost Timeline;
+- warning;
+- combat log;
+- conferma piano;
+- playback controls;
+- notifiche di sistema.
+
+## 4.2 Tactical World Overlay
+
+Contiene elementi proiettati o ancorati nel mondo 3D:
+
+- cell hover;
+- reachable cells;
+- movement path;
+- waypoint;
+- destination;
+- Dash trajectory;
+- target line;
+- AoE;
+- friendly-fire cells;
+- facing;
+- legal facing alternatives;
+- Overwatch cone;
+- cover relation;
+- hazard;
+- Action Ghost;
+- last contact;
+- sound contact.
+
+Questi elementi **non devono essere realizzati come grandi widget HUD statici**.
+
+## 4.3 Decision Windows
+
+Finestre temporanee per:
+
+- Fast Action;
+- Fast Reaction;
+- Overwatch;
+- future decision boundary.
+
+Devono essere compatte, leggibili e rapide.
+
+## 4.4 Information Overlay Modes
+
+Modalità tattiche contestuali:
+
+- Default;
+- Movement;
+- Threat;
+- Visibility;
+- Sound;
+- Terrain.
+
+`Default` deve restare la modalità più pulita e usata più spesso.
+
+---
+
+# 5. HUD adattivo per fase
+
+RefactorTactics non ha sette HUD indipendenti.
+
+Ha **un unico HUD adattivo** che cambia densità a seconda del compito cognitivo del giocatore.
+
+Ordine concettuale:
+
+`Planning → Prep → Dash → Blast → Move → Cleanup`
+
+Una Reaction non è una quinta fase.
+
+## 5.1 Densità informativa
+
+| Stato | Densità UI | Priorità |
+|---|---:|---|
+| Planning | Alta | decisione, preview, azioni, warning |
+| Prep | Media-bassa | setup e stato |
+| Dash | Bassa | mondo e movimento speciale |
+| Blast | Bassa | mondo, impatto, VFX, risultato |
+| Fast Reaction | Media-alta temporanea | decisione immediata |
+| Move | Bassa | posizione finale, facing, cover |
+| Cleanup | Bassa | stato persistente e transizione |
+
+---
+
+# 6. Layout base — Planning HUD
+
+## 6.1 Top center
+
+Mostra:
+
+- numero turno;
+- fase corrente;
+- timer;
+- stato del planning;
+- progressione logica compatta.
+
+Esempio:
+
+`TURN 04 · PLANNING · 00:21`
+
+## 6.2 Top left — Team roster
+
+Compatto.
+
+Ogni membro può mostrare:
+
+- portrait frame;
+- nome;
+- HP;
+- shield, se presente;
+- status essenziali;
+- Editing / Ready / Locked quando supportato;
+- Reaction Armed, se legalmente noto.
+
+Il roster non deve trasformarsi in tre enormi character card.
+
+## 6.3 Top right — Objective
+
+Compatto ma sempre leggibile.
+
+Può mostrare:
+
+- nome obiettivo;
+- punteggio;
+- stato;
+- progresso;
+- contestato;
+- countdown;
+- cambio recente.
+
+## 6.4 Lower left — Selected Unit
+
+Per l'unità selezionata:
+
+- ritratto;
+- nome;
+- ruolo;
+- HP;
+- shield;
+- risorsa specifica;
+- status;
+- buff / debuff temporanei;
+- eventualmente costo o stato dell'azione selezionata.
+
+Non è un character sheet RPG.
+
+## 6.5 Right side — Team Intent
+
+Pannello compatto e collassabile.
+
+Per un alleato può mostrare:
+
+- unità;
+- destinazione;
+- azione;
+- target;
+- facing;
+- label tattica;
+- Editing / Ready / Locked.
+
+Il dettaglio completo compare solo su hover, click o focus.
+
+## 6.6 Bottom center — Ghost Timeline
+
+La timeline canonica è:
+
+`PREP — DASH — BLAST — MOVE`
+
+La timeline rappresenta lo stato/azione previsto per ciascuna macrofase, non una coda arbitraria.
+
+Non deve mai sembrare:
+
+`Attack → Move → Attack → Dash`
+
+## 6.7 Bottom center — Action Dock
+
+Separare visivamente:
+
+### Universal Actions
+
+- Move
+- Wait
+- Guard
+- Overwatch
+- future universal actions
+
+### Hero Kit
+
+- Ability 1
+- Ability 2
+- Ability 3
+- Ability 4
+
+Questa è una **classificazione UI**, non una doppia economia d'azione.
+
+Il layout non deve far pensare:
+
+> scegli una Universal Action + una Hero Ability.
+
+## 6.8 Bottom right
+
+Azioni principali:
+
+- `CONFIRM PLAN`
+- `UNDO`
+- stato piano;
+- warning count;
+- invalid state.
+
+Per il flusso corrente offline/local usare `CONFIRM PLAN` / `LOCK IN`.
+
+Non simulare un falso stato `TEAM READY 1/2` finché non è realmente supportato.
+
+---
+
+# 7. Action Dock
+
+Ogni action slot deve poter rappresentare:
+
+- Available;
+- Hover;
+- Selected;
+- Planned;
+- Cooldown;
+- Unavailable;
+- Invalid;
+- Warning.
+
+Dalla style guide:
+
+- gli **Universal Action Slot** usano una famiglia più neutra;
+- gli **Hero Ability Slot** hanno maggiore caratterizzazione energetica;
+- lo stato Selected usa enfasi calda;
+- Reaction può usare accento viola;
+- Electric usa accento cyan/elettrico;
+- warning/invalid usano rosso/arancio.
+
+## 7.1 Contenuto di uno slot
+
+Layer separati:
+
+1. background/frame;
+2. icon;
+3. shortcut;
+4. resource cost;
+5. cooldown;
+6. state overlay;
+7. warning;
+8. planned marker.
+
+Non incorporare testo o numeri statici nel PNG di base.
+
+---
+
+# 8. Ghost Timeline
+
+La Ghost Timeline è uno dei componenti identitari dell'HUD.
+
+## 8.1 Fasi
+
+- Prep
+- Dash
+- Blast
+- Move
+
+## 8.2 Stati
+
+- Empty;
+- Populated;
+- Selected;
+- Inactive;
+- Resolution/Completed.
+
+## 8.3 Scrubbing
+
+Se il giocatore seleziona `BLAST`:
+
+- Blast Ghost diventa prominente;
+- origine dell'attacco diventa prominente;
+- target e AoE diventano prominenti;
+- warning Blast diventano prominenti;
+- altri ghost restano visibili ma attenuati.
+
+La camera resta isometrica.
+
+Non si passa a una mappa top-down.
+
+---
+
+# 9. Action Ghost
+
+Un Action Ghost non è principalmente un marker 2D.
+
+È idealmente:
+
+- copia 3D semitrasparente del personaggio;
+- posa significativa;
+- posizione prevista;
+- facing;
+- orientamento arma;
+- origine attacco;
+- anchor tattico a terra.
+
+Il marker 2D sotto i piedi è solo supporto.
+
+## 9.1 Regola rendering
+
+Il Ghost non calcola il risultato.
+
+Consuma dati prodotti dallo stesso stato/snapshot/regole usate dal gameplay.
+
+---
+
+# 10. Facing
+
+Facing è stato logico di gameplay e deve essere leggibile nella UI.
+
+Possibili usi:
+
+- difesa;
+- percezione;
+- Overwatch;
+- direzione frontale;
+- cover interaction.
+
+## 10.1 Selezione
+
+La scelta va mostrata nel mondo, non con una combo box testuale.
+
+### Stationary
+
+Può mostrare fino a sei direzioni.
+
+### Budget Move
+
+Mostra le direzioni legali finali.
+
+### Linear Dash / Charge / Leap
+
+Facing derivato automaticamente dalla direzione; evitare input inutile.
+
+## 10.2 Overwatch
+
+Il cono di Overwatch deriva dal facing.
+
+Non introdurre due controlli indipendenti:
+
+- Facing = NE
+- Overwatch Direction = E
+
+Il cono ruota con il facing.
+
+---
+
+# 11. Reaction e Fast Reaction
+
+Una Reaction è una diramazione, non una fase.
+
+Visualmente:
+
+`PREP — DASH — BLAST — MOVE`
+
+`              └── ⚡ REACTION`
+
+La style guide contiene un **Reaction Branch** dedicato.
+
+## 11.1 Overwatch Fast Reaction
+
+Prompt base:
+
+`⚡ OVERWATCH`
+
+`Vektor entered the controlled area`
+
+`2.4 s`
+
+`[ FIRE ] [ HOLD ]`
+
+Regole UX:
+
+- prompt compatto;
+- countdown immediatamente visibile;
+- pochissime opzioni;
+- non coprire la scena;
+- timeout = Hold;
+- nessuna anticipazione di futuri trigger;
+- nessun contatore tipo `Opportunity 1/3`.
+
+## 11.2 Target simultanei
+
+Se più target triggerano nello stesso micro-step:
+
+- un solo prompt;
+- scelte FIRE A / FIRE B / HOLD;
+- niente prompt sequenziali artificiali.
+
+---
+
+# 12. Delayed Action
+
+Delayed Action è concettualmente diversa dalla Fast Reaction.
+
+### Semantica visuale
+
+- `⚡` = decisione live/interattiva durante Resolution
+- `⏱` = azione già precommittata nel Planning ma risolta più avanti
+
+La style guide contiene un **Delayed Action Branch** separato.
+
+Lo stato Delayed Action deve restare **future/experimental** finché la feature non viene formalmente aperta.
+
+---
+
+# 13. Planning vs Resolution
+
+## 13.1 Planning HUD
+
+Mostra più controllo:
+
+- action dock;
+- Ghost Timeline;
+- selected unit;
+- warning;
+- ally intent;
+- confirm plan;
+- preview.
+
+## 13.2 Resolution HUD
+
+Collassa o nasconde:
+
+- action editing;
+- Confirm Plan;
+- controlli di modifica;
+- warning da planning non più rilevanti.
+
+Promuove:
+
+- fase corrente;
+- evento corrente;
+- combat log;
+- outcome;
+- `WHY?`;
+- playback controls;
+- reaction prompt, se necessario.
+
+---
+
+# 14. Combat Log ed Explainability
+
+Il combat log deve essere:
+
+- piccolo/collassato durante Planning;
+- più visibile durante Resolution;
+- guidato dal TurnLog autorevole;
+- espandibile.
+
+Esempio:
+
+`Flux → Arc Lance`  
+`Wet Chain +6`  
+`Vektor → 26 Damage`
+
+## 14.1 WHY?
+
+Esempio:
+
+`26 DAMAGE  [WHY?]`
+
+Espanso:
+
+| Voce | Valore |
+|---|---:|
+| Base | 20 |
+| Wet Chain | +6 |
+| Cover | 0 |
+| Final | 26 |
+
+Il widget non deve ricalcolare la formula.
+
+Mostra dati/reason code già prodotti dal sistema logico.
+
+---
+
+# 15. Warning System
+
+Tre livelli:
+
+## Info
+
+Segnalazione utile ma non bloccante.
+
+## Warning
+
+Rischio significativo.
+
+## Critical
+
+Errore o condizione bloccante.
+
+Possibili categorie:
+
+- Friendly Fire;
+- Collision;
+- Invalid Target;
+- Insufficient Resource;
+- Uncertain Outcome;
+- Hazard;
+- Plan Changed;
+- Path Invalidated;
+- Missing Plan;
+- Target May Move.
+
+## 15.1 Regola
+
+Non creare un “Christmas tree” di alert.
+
+Una warning hierarchy corretta usa:
+
+- icona;
+- forma;
+- pattern;
+- testo;
+- colore.
+
+Non affidarsi solo al colore.
+
+---
+
+# 16. Certainty Grammar
+
+Tre stati principali:
+
+## Confirmed
+
+- linea solida;
+- marker solido;
+- frame stabile;
+- alta opacità.
+
+## Predicted
+
+- linea tratteggiata;
+- marker vuoto/hollow;
+- ghost translucido.
+
+## Uncertain
+
+- linea puntinata/fading;
+- dissolvenza;
+- `?`;
+- area di incertezza.
+
+## 16.1 Separare i significati
+
+Non usare il solo colore per codificare contemporaneamente:
+
+- team ownership;
+- certainty;
+- phase;
+- action type.
+
+Usare insieme:
+
+- forma;
+- pattern;
+- spessore;
+- opacità;
+- simbolo;
+- colore.
+
+La style guide contiene Tactical Marker separati:
+
+- Confirmed;
+- Predicted;
+- Uncertain;
+- Waypoint;
+- Destination;
+- Last Contact.
+
+---
+
+# 17. Team Planning e privacy
+
+L'HUD può mostrare gli intenti della propria squadra.
+
+Non deve mai progettare un flusso in cui:
+
+1. il client riceve l'intento avversario;
+2. il widget lo nasconde.
+
+La privacy è architetturale.
+
+La UI riceve solo dati autorizzati.
+
+## 17.1 Team intent card
+
+Può includere:
+
+- character;
+- destination;
+- action;
+- target;
+- AoE;
+- facing;
+- reaction armed;
+- label;
+- freshness/state.
+
+Default compatto, dettaglio on-demand.
+
+---
+
+# 18. Target / Hover Inspector
+
+Elemento contestuale utile.
+
+Può mostrare, se autorizzato:
+
+- nome;
+- HP;
+- shield;
+- status visibili;
+- cover;
+- quota;
+- facing pubblico;
+- resistenze pubbliche;
+- relazione con il target corrente.
+
+Non deve diventare un pannello permanente.
+
+---
+
+# 19. Cost Preview
+
+Durante la selezione di un'azione può mostrare:
+
+- costo;
+- risorsa prima;
+- risorsa dopo;
+- cooldown;
+- charge consumata;
+- requisito non soddisfatto.
+
+Serve soprattutto per evitare errori di commit.
+
+---
+
+# 20. Layer / Elevation Indicator
+
+Con mappe multilivello deve poter indicare:
+
+- current layer;
+- sopra/sotto;
+- tetto;
+- ponte;
+- tunnel;
+- transizione verticale.
+
+Deve restare compatto.
+
+La quota deve essere percepita principalmente nel mondo 3D, non trasformata in tabella HUD.
+
+---
+
+# 21. Objective State
+
+Oltre al punteggio può comunicare:
+
+- neutral;
+- controlled;
+- contested;
+- capture progress;
+- scoring next turn;
+- objective changed;
+- temporary lock;
+- countdown.
+
+---
+
+# 22. Plan Health / Validity
+
+Non limitarsi a `VALID / INVALID`.
+
+Possibili stati:
+
+- Plan Valid;
+- 1 Warning;
+- Friendly Fire Risk;
+- Depends On Ally;
+- Resource Conflict;
+- Invalid Target;
+- Path Recompute Required.
+
+Il reason code deve arrivare dalla logica, non essere inferito dal widget.
+
+---
+
+# 23. Ping e coordinazione
+
+Supporto futuro/contestuale:
+
+- ping ricevuto;
+- focus target;
+- hold;
+- block route;
+- area attention;
+- short label;
+- temporary drawing.
+
+Devono avere TTL e sparire automaticamente.
+
+---
+
+# 24. Tactical Overlay Selector
+
+Controllo piccolo e richiudibile.
+
+Esempio:
+
+`TACTICAL VIEW ▼`
+
+- Default
+- Movement
+- Threat
+- Visibility
+- Sound
+- Terrain
+
+Non usare sei pannelli sempre aperti.
+
+---
+
+# 25. Partial Knowledge
+
+Non usare una classica mappa nera.
+
+La mappa statica resta leggibile.
+
+Stati informativi:
+
+## Hidden
+
+Nessun marker.
+
+## Uncertain Contact
+
+`?` + area approssimata.
+
+## Detected
+
+Rappresentazione normale autorizzata.
+
+## Last Contact
+
+Marker storico fading.
+
+La style guide include un Tactical Marker `LAST CONTACT`.
+
+---
+
+# 26. Sound / Acoustic Information
+
+Il rumore è informazione, non rivelazione automatica della posizione esatta.
+
+La modalità Sound può mostrare:
+
+- direzione;
+- area di incertezza;
+- categoria;
+- intensità;
+- età;
+- masking;
+- rumore ambientale.
+
+Possibili eventi HUD temporanei:
+
+- footsteps detected;
+- gunshot;
+- explosion;
+- electric discharge;
+- environmental noise;
+- decoy.
+
+Il Sound overlay deve restare contestuale.
+
+---
+
+# 27. System Notices
+
+Possibili notifiche transitorie:
+
+- Plan Committed;
+- Ally Changed Plan;
+- Target No Longer Valid;
+- Path Recomputed;
+- Objective Updated;
+- Contact Lost;
+- Noise Detected;
+- Reaction Armed;
+- Connection Issue;
+- Waiting For Server;
+- Reconnected.
+
+Non usare toast invasivi per ogni microevento.
+
+---
+
+# 28. Network / Competitive State
+
+HUD tecnico necessario per build online:
+
+- connection warning;
+- reconnect;
+- waiting for server;
+- stale state;
+- server response pending;
+- desync/error, se rilevato.
+
+Questi elementi devono essere separati dalla semantica gameplay.
+
+---
+
+# 29. Playback Controls
+
+Durante Resolution possono esistere:
+
+- pause visiva;
+- speed;
+- skip;
+- focus event.
+
+Sono controlli di presentazione.
+
+Non alterano:
+
+- snapshot;
+- resolver;
+- ordine logico;
+- outcome;
+- seed.
+
+---
+
+# 30. Minimap
+
+Per il vertical slice attuale:
+
+**nessuna minimap permanente consigliata**.
+
+Motivi:
+
+- mappa relativamente contenuta;
+- camera tattica;
+- overview separata più leggibile;
+- minimap duplicherebbe informazione.
+
+Rivalutare solo quando dimensioni, verticalità e navigazione lo giustificano.
+
+---
+
+# 31. Persistente, contestuale, temporaneo
+
+## Sempre visibile
+
+- turn/phase/timer;
+- selected unit essential state;
+- compact team state;
+- objective;
+- essential action state.
+
+## Contestuale
+
+- target inspector;
+- cost preview;
+- facing;
+- cover;
+- elevation;
+- ally intent detail;
+- tactical overlay selector;
+- warning details.
+
+## Temporaneo
+
+- Fast Reaction;
+- combat result;
+- objective capture;
+- contact lost;
+- noise detected;
+- invalid plan;
+- reconnect;
+- system notice.
+
+Questa classificazione è fondamentale per evitare sovraccarico.
+
+---
+
+# 32. Style Guide — palette
+
+Colori estratti dalla style guide PNG:
+
+## Neutrali
+
+| Token | Hex | Uso |
+|---|---|---|
+| `RT_UI_BG_Deep` | `#080F14` | fondo profondo |
+| `RT_UI_BG_Panel` | `#151A23` | superfici panel |
+| `RT_UI_BG_Raised` | `#212733` | superfici rialzate |
+| `RT_UI_Frame_Deep` | `#203542` | bordi/struttura |
+| `RT_UI_Frame_Mid` | `#4A5568` | bordi secondari |
+
+## Accenti
+
+| Token | Hex | Uso |
+|---|---|---|
+| `RT_UI_Cyan` | `#00E0FF` | focus, active, editing, shield |
+| `RT_UI_Violet` | `#7C5CFF` | reaction, special state |
+| `RT_UI_Amber` | `#FFD456` | selected, warning, commitment |
+| `RT_UI_Red` | `#FF4D4D` | critical, invalid, low health |
+| `RT_UI_White` | `#FFFFFF` | testo/icone ad alta priorità |
+
+Nota: i token semantici possono derivare da questi colori, ma la UI non deve dipendere solo dal colore.
+
+---
+
+# 33. Style Guide — tipografia
+
+La style guide indica:
+
+## Orbitron
+
+Uso:
+
+- headers;
+- numeri;
+- timer;
+- phase label;
+- valori importanti.
+
+## Exo 2
+
+Uso:
+
+- UI;
+- body text;
+- label;
+- descrizioni;
+- tooltip.
+
+Regole:
+
+- leggibile a 1080p;
+- evitare pesi troppo sottili;
+- evitare testo molto piccolo;
+- mantenere gerarchia chiara;
+- non incorporare testo nei PNG riutilizzabili.
+
+---
+
+# 34. Style Guide — pannelli
+
+Famiglie mostrate:
+
+- Panel Primary;
+- Panel Secondary;
+- Panel Compact;
+- Panel Tooltip;
+- Panel Warning.
+
+Caratteristiche:
+
+- fondo scuro;
+- bordi metallici sottili;
+- cut corner;
+- dettagli luminosi controllati;
+- decorazione interna minima;
+- centro relativamente uniforme.
+
+## 34.1 Implementazione Unreal
+
+Preferire pannelli **9-slice**.
+
+Asset suggeriti:
+
+- `RT_UI_Panel_Primary`
+- `RT_UI_Panel_Secondary`
+- `RT_UI_Panel_Compact`
+- `RT_UI_Panel_Tooltip`
+- `RT_UI_Panel_Warning`
+- `RT_UI_Panel_FastReaction`
+- `RT_UI_Panel_TeamIntent`
+
+Non creare decori che si deformano quando il pannello viene ridimensionato.
+
+---
+
+# 35. Style Guide — pulsanti
+
+Famiglie:
+
+- Button Primary;
+- Button Secondary;
+- Button Icon.
+
+Stati mostrati:
+
+- Normal;
+- Hover;
+- Pressed;
+- Disabled.
+
+Asset suggeriti:
+
+- `RT_UI_Button_Primary_*`
+- `RT_UI_Button_Secondary_*`
+- `RT_UI_Button_Icon_*`
+- `RT_UI_Button_ConfirmPlan_*`
+
+Il testo resta UMG.
+
+---
+
+# 36. Style Guide — portrait frame
+
+Varianti:
+
+- Own Character;
+- Ally;
+- Enemy / Neutral;
+- Selected;
+- KO / Unavailable.
+
+Overlay separati:
+
+- Ready;
+- Editing;
+- Selected;
+- Targeted;
+- Reaction Armed;
+- Low Health;
+- KO.
+
+I portrait frame non devono dominare l'artwork del personaggio.
+
+---
+
+# 37. Style Guide — resource bars
+
+Famiglie:
+
+- Health;
+- Shield;
+- Resource;
+- Timer / Progress.
+
+Esempi presenti:
+
+- Health `375 / 500`;
+- Shield `250 / 350`;
+- Resource `85 / 150`;
+- Timer `23s`.
+
+In Unreal separare:
+
+1. frame;
+2. fondo;
+3. fill;
+4. testo;
+5. marker opzionali.
+
+Non generare ogni percentuale come texture diversa.
+
+---
+
+# 38. Style Guide — icon system
+
+La tavola include:
+
+- Move;
+- Wait;
+- Guard;
+- Overwatch;
+- Attack;
+- Dash;
+- Cover;
+- Height;
+- Water;
+- Fire;
+- Electric;
+- Reaction.
+
+Requisiti:
+
+- silhouette chiara;
+- leggibile 24–48 px;
+- preferibilmente tintabile;
+- sfondo trasparente;
+- coerenza di spessore;
+- non eccessivamente dettagliata.
+
+---
+
+# 39. Style Guide — warning icons
+
+Presenti:
+
+- Critical;
+- Friendly Fire;
+- Collision;
+- Insufficient Resource;
+- Invalid Target;
+- Uncertain Outcome.
+
+Devono essere disponibili anche come:
+
+- icon only;
+- compact chip;
+- full warning row.
+
+---
+
+# 40. Style Guide — tactical markers
+
+Presenti:
+
+- Confirmed;
+- Predicted;
+- Uncertain;
+- Waypoint;
+- Destination;
+- Last Contact.
+
+Aggiunte previste:
+
+- Sound Contact;
+- Targeted;
+- Focus/Ping;
+- Cover;
+- Facing anchor.
+
+---
+
+# 41. Asset pipeline per Unreal
+
+## 41.1 Cosa produrre come asset 2D
+
+Buoni candidati:
+
+- panel frame;
+- button frame;
+- action slot;
+- portrait frame;
+- status frame;
+- resource frame;
+- icon;
+- warning icon;
+- timeline node;
+- reaction branch element;
+- tactical marker;
+- mask.
+
+## 41.2 Cosa NON produrre come PNG statico
+
+Non rasterizzare in asset fisso:
+
+- path;
+- AoE;
+- reachable cells;
+- facing cone;
+- Overwatch cone;
+- uncertainty area dinamica;
+- ghost character;
+- linee di targeting lunghe;
+- riempimenti percentuali;
+- cooldown numerici.
+
+Questi elementi vanno generati dinamicamente in Unreal con:
+
+- Material;
+- UI Material;
+- decals;
+- geometry;
+- instancing;
+- line renderer custom;
+- world-space primitives.
+
+---
+
+# 42. PNG e sorgenti
+
+Per gli asset raster:
+
+- PNG RGBA;
+- alpha pulito;
+- niente matte;
+- crop consistente;
+- padding consistente;
+- niente testo incorporato;
+- dimensioni power-of-two quando utile, non come dogma per UI;
+- asset tintabile quando possibile.
+
+Conservare anche la sorgente vettoriale/design quando disponibile.
+
+---
+
+# 43. Naming Unreal suggerito
+
+Pattern:
+
+`RT_UI_<Category>_<Name>_<State>`
+
+Esempi:
+
+- `RT_UI_Panel_Primary`
+- `RT_UI_Panel_Warning`
+- `RT_UI_Button_ConfirmPlan_Normal`
+- `RT_UI_Button_ConfirmPlan_Hover`
+- `RT_UI_Slot_Universal_Selected`
+- `RT_UI_Slot_Ability_Cooldown`
+- `RT_UI_Portrait_Selected`
+- `RT_UI_Icon_Overwatch`
+- `RT_UI_Icon_FriendlyFire`
+- `RT_UI_Phase_Blast`
+- `RT_UI_Branch_Reaction`
+- `RT_UI_Marker_Uncertain`
+
+---
+
+# 44. Struttura Content suggerita
+
+```text
+Content/RT/UI/
+├── HUD/
+├── Panels/
+├── Buttons/
+├── ActionSlots/
+├── PortraitFrames/
+├── Bars/
+├── Timeline/
+├── Icons/
+│   ├── Actions/
+│   ├── Tactical/
+│   ├── Environment/
+│   └── Warnings/
+├── Markers/
+├── Materials/
+└── Debug/
+```
+
+---
+
+# 45. Componenti UMG suggeriti
+
+Esempi di widget:
+
+- `WBP_RT_TacticalHUD`
+- `WBP_RT_TurnHeader`
+- `WBP_RT_TeamRoster`
+- `WBP_RT_TeamMember`
+- `WBP_RT_SelectedUnitPanel`
+- `WBP_RT_ObjectivePanel`
+- `WBP_RT_ActionDock`
+- `WBP_RT_ActionSlot`
+- `WBP_RT_GhostTimeline`
+- `WBP_RT_PhaseSlot`
+- `WBP_RT_WarningStack`
+- `WBP_RT_CombatLog`
+- `WBP_RT_WhyPanel`
+- `WBP_RT_FastReaction`
+- `WBP_RT_TacticalViewSelector`
+
+La logica competitiva non vive nei widget.
+
+---
+
+# 46. Stati HUD di riferimento
+
+Per validare il design completo devono esistere almeno questi mockup:
+
+## A. Planning — Clean
+
+- nessun warning;
+- unità selezionata;
+- action dock;
+- objective;
+- roster.
+
+## B. Planning — Selected + Warning
+
+- azione selezionata;
+- costo;
+- warning;
+- Ghost Timeline.
+
+## C. Planning — Team Intent
+
+- alleati con intenti;
+- conflict warning;
+- focus ally.
+
+## D. Resolution
+
+- action dock collassato;
+- phase timeline;
+- combat log;
+- outcome.
+
+## E. Fast Reaction
+
+- prompt compatto;
+- countdown;
+- FIRE / HOLD.
+
+## F. Partial Knowledge
+
+- uncertain contact;
+- last contact;
+- sound contact.
+
+---
+
+# 47. Criteri di revisione visiva
+
+## 47.1 Primo colpo d'occhio
+
+Entro 2 secondi devo capire:
+
+- fase;
+- tempo;
+- selected unit;
+- azioni;
+- conferma.
+
+## 47.2 Centro libero
+
+Pass/fail.
+
+Se la HUD invade la scena, va ridotta.
+
+## 47.3 Planning e Resolution
+
+Devono sembrare lo stesso prodotto, con densità diversa.
+
+## 47.4 Gerarchia
+
+Livello 1:
+
+- phase;
+- timer;
+- HP;
+- Confirm Plan.
+
+Livello 2:
+
+- resource;
+- objective;
+- ally state;
+- action detail.
+
+Livello 3:
+
+- warning detail;
+- modifier;
+- tooltip;
+- explanation.
+
+## 47.5 Action Dock
+
+Universal e Hero Kit distinguibili, senza comunicare doppia action economy.
+
+## 47.6 Ghost Timeline
+
+Deve sembrare una timeline di fase, non una action queue.
+
+## 47.7 Reaction
+
+Deve essere immediatamente leggibile e selezionabile.
+
+## 47.8 Character Panel
+
+Non deve diventare RPG character sheet.
+
+## 47.9 Warning
+
+Forma + icona + pattern + colore.
+
+## 47.10 Combat Log
+
+Ignorabile quando non serve, utile quando serve.
+
+## 47.11 Sci-fi restraint
+
+Evitare:
+
+- cockpit;
+- neon ovunque;
+- HUD da astronave;
+- MMO chrome;
+- texture rumorose;
+- decorazione senza funzione.
+
+---
+
+# 48. Brief compatto per Claude Design — HUD only
+
+Usare la style guide PNG come riferimento visivo.
+
+```text
+Design HUD-only screens for RefactorTactics.
+
+Use the provided RefactorTactics HUD Style Guide as the visual source of truth.
+
+Create screen-space HUD components only.
+
+No battlefield.
+No map.
+No characters in the world.
+No hex grid.
+No environment.
+No tactical board.
+
+Use transparent background or a neutral empty viewport placeholder.
+
+Keep 70–80% of the center free for the future 3D isometric game view.
+
+Maintain:
+- dark translucent premium sci-fi/fantasy panels;
+- restrained metallic frames;
+- subtle angular/hex cuts;
+- Orbitron for headers/numbers;
+- Exo 2 for UI/body;
+- palette based on #080F14, #151A23, #212733, #203542, #4A5568,
+  with accents #00E0FF, #7C5CFF, #FFD456, #FF4D4D and #FFFFFF.
+
+Create consistent states for:
+Planning,
+Resolution,
+Fast Reaction.
+
+Planning must include:
+turn/phase/timer,
+team roster,
+objective,
+selected unit,
+Ghost Timeline,
+Universal Actions,
+Hero Kit,
+warnings,
+ally intent,
+Confirm Plan.
+
+Resolution must collapse planning controls and promote:
+phase progression,
+combat log,
+event result,
+WHY?,
+playback state.
+
+Fast Reaction must show a compact urgent prompt such as:
+⚡ OVERWATCH
+2.4 s
+[FIRE] [HOLD]
+
+Reaction is a branch, never a fifth phase.
+
+Keep the HUD practical to reconstruct in Unreal Engine 5 UMG.
+Do not flatten the whole interface into one large image.
+```
+
+---
+
+# 49. Regola finale
+
+Ogni elemento permanente deve superare questa domanda:
+
+> Il giocatore ha bisogno di vederlo proprio adesso?
+
+Se la risposta è no:
+
+- collassarlo;
+- mostrarlo on-hover;
+- mostrarlo on-focus;
+- trasformarlo in overlay mode;
+- renderlo temporaneo.
+
+Il battlefield 3D resta il protagonista.
+
+---
+
+# 50. Checklist per Definition of Done della HUD
+
+Una feature HUD è considerata pronta quando:
+
+- comunica lo stato corretto;
+- non inventa logica competitiva;
+- usa soltanto dati autorizzati;
+- non espone planning avversario;
+- ha stati default/hover/selected/disabled dove necessari;
+- è leggibile a 1080p;
+- non usa solo il colore;
+- non degrada sensibilmente Slate/UI performance;
+- è verificata in PIE e packaged build;
+- ha debug/view-model sufficiente a spiegare eventuali mismatch;
+- resta coerente con la style guide PNG.
+
+---
+
+## Fine documento

@@ -92,6 +92,21 @@ void ARTHUD::DrawHUD()
 		{
 			DrawText(StatusStr, FLinearColor(1.f, 0.6f, 0.2f, 1.f), X, Y - 20.f, nullptr, 0.8f);
 		}
+
+		// NOME dell'eroe, sopra a tutto e centrato sulla barra. Senza, quattro cilindri identici rendono
+		// impossibile dire chi sta facendo cosa — e un giudizio sul bot o sul ritmo della partita, che e' cio'
+		// che il playtest deve dare, non varrebbe nulla. Posizione FISSA (non sotto lo status): un'etichetta che
+		// salta quando arriva un ROOT si legge peggio di una ferma.
+		const FString HeroName = ARTUnit::ShortHeroName(Unit->HeroId, Unit->GetName());
+		float NameW = 0.f;
+		float NameH = 0.f;
+		GetTextSize(HeroName, NameW, NameH, nullptr, 0.9f);
+		const FLinearColor NameColor = ARTUnit::TeamColorFor(Unit->TeamId,
+			FLinearColor(0.55f, 0.75f, 1.f, 1.f), FLinearColor(1.f, 0.62f, 0.55f, 1.f));
+		// Ombra di 1px: il testo chiaro su cielo chiaro sparirebbe, e la camera tattica guarda spesso il vuoto.
+		DrawText(HeroName, FLinearColor(0.f, 0.f, 0.f, 0.75f),
+			Screen.X - NameW * 0.5f + 1.f, Y - 36.f + 1.f, nullptr, 0.9f);
+		DrawText(HeroName, NameColor, Screen.X - NameW * 0.5f, Y - 36.f, nullptr, 0.9f);
 	}
 
 	const ARTTurnManager* TurnManager =

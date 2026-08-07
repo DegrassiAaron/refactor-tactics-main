@@ -106,6 +106,23 @@ FLinearColor ARTUnit::TeamColorFor(int32 InTeamId, const FLinearColor& Team0, co
 	return (InTeamId == 0) ? Team0 : Team1;
 }
 
+FString ARTUnit::ShortHeroName(FName InHeroId, const FString& Fallback)
+{
+	if (InHeroId.IsNone())
+	{
+		return Fallback;
+	}
+	const FString Full = InHeroId.ToString();
+	// Gli HeroId sono namespaced (`Hero.Flux`): a schermo serve l'ultimo segmento. Se un giorno l'ID smettesse
+	// di avere il punto, questa resta corretta invece di mostrare una stringa vuota.
+	int32 Dot = INDEX_NONE;
+	if (Full.FindLastChar(TEXT('.'), Dot) && Dot >= 0 && Dot + 1 < Full.Len())
+	{
+		return Full.RightChop(Dot + 1);
+	}
+	return Full;
+}
+
 float ARTUnit::RingLocalZ(float VisualZOffset, float ParentScaleZ)
 {
 	// La posizione relativa Z del figlio e' scalata dalla scala Z del genitore: compensa VisualZOffset
