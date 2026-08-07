@@ -8,6 +8,7 @@
 #include "Misc/Paths.h"
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
+#include "Turn/RTMovementActionLibrary.h"
 #include "Turn/RTTurnLogLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -893,16 +894,19 @@ bool FRTHexLinearDashTest::RunTest(const FString&)
 	const FRTCellId Start(0, 0, 0);
 	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(7, Start, /*Budget=*/ 3) });
 
+	// Lo scatto ha UNA sola implementazione (issue #140): la stessa che esegue la fase Dash.
+	auto Dash = [Map](const FRTHexSnapshot& S, const FRTCellId& From, const FRTCellId& Goal, int32 MaxCells)
+	{
+		return URTMovementActionLibrary::ResolveLinearMove(
+			Map, From, Goal, MaxCells, ERTMovementStyle::LinearDash, S.Occupancy, {});
+	};
+
 	// 1. In linea retta e libera: si scatta.
 	{
-		const TArray<FRTCellId> Path = URTHexSimLibrary::LinearDashPath(Snap, 7, FRTCellId(2, -2, 0));
-		TestTrue(TEXT("linea libera -> scatto valido"), Path.Num() >= 2);
-		if (Path.Num() >= 2)
-		{
-			TestTrue(TEXT("parte dalla cella dell'unita'"), Path[0] == Start);
-			TestTrue(TEXT("arriva sulla cella richiesta"), Path.Last() == FRTCellId(2, -2, 0));
-			TestEqual(TEXT("due passi in linea"), Path.Num(), 3);
-		}
+		const FRTLinearMoveResult R = Dash(Snap, Start, FRTCellId(2, -2, 0), 3);
+		TestTrue(TEXT("linea libera -> arriva sulla cella richiesta"), R.Final == FRTCellId(2, -2, 0));
+		TestEqual(TEXT("due passi in linea"), R.Entered.Num(), 2);
+		TestTrue(TEXT("esito dichiarato: completato"), R.Stop == ERTLinearStop::Completed);
 	}
 
 	// 2. Cella allineata ma con un ostacolo sulla traiettoria: RIFIUTATO (non lo aggira).
@@ -911,8 +915,9 @@ bool FRTHexLinearDashTest::RunTest(const FString&)
 		const FRTCellId Beyond(2, 0, 0);
 		TestTrue(TEXT("premessa: sul grafo la cella oltre l'ostacolo sarebbe raggiungibile"),
 			URTHexSimLibrary::FindPathForUnit(Snap, 7, Beyond).Status == ERTHexPathStatus::Success);
-		TestEqual(TEXT("ostacolo sulla linea -> nessuno scatto"),
-			URTHexSimLibrary::LinearDashPath(Snap, 7, Beyond).Num(), 0);
+		const FRTLinearMoveResult R = Dash(Snap, Start, Beyond, 3);
+		TestTrue(TEXT("ostacolo sulla linea -> non ci si arriva"), R.Final != Beyond);
+		TestTrue(TEXT("motivo dichiarato: terreno"), R.Stop == ERTLinearStop::BlockedByTerrain);
 	}
 
 	// 3. Cella NON allineata a nessuna delle sei direzioni: rifiutata, anche se vicina e raggiungibile.
@@ -920,21 +925,18 @@ bool FRTHexLinearDashTest::RunTest(const FString&)
 		const FRTCellId Offset(1, 1, 0);
 		TestTrue(TEXT("premessa: sul grafo la cella non allineata sarebbe raggiungibile"),
 			URTHexSimLibrary::FindPathForUnit(Snap, 7, Offset).Status == ERTHexPathStatus::Success);
-		TestEqual(TEXT("cella non allineata -> nessuno scatto"),
-			URTHexSimLibrary::LinearDashPath(Snap, 7, Offset).Num(), 0);
+		const FRTLinearMoveResult R = Dash(Snap, Start, Offset, 3);
+		TestTrue(TEXT("cella non allineata -> nessuno scatto"), R.Final == Start);
+		TestTrue(TEXT("motivo dichiarato: non allineata"), R.Stop == ERTLinearStop::NotAligned);
 	}
 
-	// 4. Oltre la portata: rifiutato. (Con budget 3 la stessa cella entrerebbe: 3 passi a costo 1. Il caso
-	//    discrimina il BUDGET, quindi serve un budget piu' stretto della distanza, non una cella piu' lontana —
-	//    piu' lontano finirebbe fuori mappa e verrebbe rifiutato per un altro motivo.)
+	// 4. Oltre la portata: rifiutato. La portata di una mobilita' LINEARE si misura in CELLE, non in punti
+	//    movimento — e' la distinzione del catalogo azioni («non riduce le mobilita' lineari»), ed e' cio' che
+	//    la issue #140 ha allineato fra bot e resolver.
 	{
 		const FRTCellId Far(0, 3, 0);
-		TestEqual(TEXT("con budget 3 la cella a 3 passi entra"),
-			URTHexSimLibrary::LinearDashPath(Snap, 7, Far).Num(), 4);
-
-		const FRTHexSnapshot Short = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(7, Start, /*Budget=*/ 2) });
-		TestEqual(TEXT("oltre la portata -> nessuno scatto"),
-			URTHexSimLibrary::LinearDashPath(Short, 7, Far).Num(), 0);
+		TestTrue(TEXT("con portata 3 la cella a 3 celle entra"), Dash(Snap, Start, Far, 3).Final == Far);
+		TestTrue(TEXT("con portata 2 la stessa cella e' fuori"), Dash(Snap, Start, Far, 2).Final == Start);
 	}
 
 	// 5. Cella occupata da un'altra unita': non ci si puo' fermare sopra.
@@ -943,8 +945,9 @@ bool FRTHexLinearDashTest::RunTest(const FString&)
 			FRTHexSimUnit(7, Start, /*Budget=*/ 3),
 			FRTHexSimUnit(8, FRTCellId(0, 2, 0), /*Budget=*/ 0)
 		});
-		TestEqual(TEXT("destinazione occupata -> nessuno scatto"),
-			URTHexSimLibrary::LinearDashPath(Two, 7, FRTCellId(0, 2, 0)).Num(), 0);
+		const FRTLinearMoveResult R = Dash(Two, Start, FRTCellId(0, 2, 0), 3);
+		TestTrue(TEXT("destinazione occupata -> non ci si arriva"), R.Final != FRTCellId(0, 2, 0));
+		TestTrue(TEXT("motivo dichiarato: unita'"), R.Stop == ERTLinearStop::BlockedByUnit);
 	}
 
 	// 6. Un layer diverso non e' mai "in linea": lo scatto non sale per una transizione.
@@ -955,8 +958,8 @@ bool FRTHexLinearDashTest::RunTest(const FString&)
 		const FRTHexSnapshot WithArc = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(7, Start, 3) });
 		TestTrue(TEXT("premessa: sul grafo la transizione porta al layer 1"),
 			URTHexSimLibrary::FindPathForUnit(WithArc, 7, FRTCellId(0, 1, 1)).Status == ERTHexPathStatus::Success);
-		TestEqual(TEXT("lo scatto non cambia layer"),
-			URTHexSimLibrary::LinearDashPath(WithArc, 7, FRTCellId(0, 1, 1)).Num(), 0);
+		TestTrue(TEXT("lo scatto non cambia layer"),
+			Dash(WithArc, Start, FRTCellId(0, 1, 1), 3).Final == Start);
 	}
 	return true;
 }
@@ -986,33 +989,39 @@ bool FRTHexLinearFilterTest::RunTest(const FString&)
 	const FRTCellId Start(0, 0, 0);
 	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(7, Start, /*Budget=*/ 4) });
 
+	auto Reachable = [Map](const FRTHexSnapshot& S, const FRTCellId& From, const FRTCellId& Goal, int32 MaxCells)
+	{
+		return URTMovementActionLibrary::IsLinearReachable(
+			Map, From, Goal, MaxCells, ERTMovementStyle::LinearDash, S.Occupancy, {});
+	};
+
 	int32 GraphOnly = 0;
 	for (const FRTHexReachableCell& Reach : URTHexSimLibrary::ReachableCells(Snap, 7))
 	{
-		const bool bLinear = URTHexSimLibrary::IsLinearDashReachable(Snap, 7, Reach.Cell);
-		if (!bLinear)
+		if (!Reachable(Snap, Start, Reach.Cell, 4))
 		{
 			++GraphOnly; // raggiungibile camminando, non scattando: una candidata da scartare
 			continue;
 		}
-		// Se il predicato dice "in linea", il percorso lineare deve esistere davvero (coerenza interna).
-		TestTrue(*FString::Printf(TEXT("%s dichiarata in linea -> percorso lineare esistente"), *Reach.Cell.ToString()),
-			Reach.Cell == Start || URTHexSimLibrary::LinearDashPath(Snap, 7, Reach.Cell).Num() >= 2);
+		// Se il predicato dice "in linea", lo scatto deve arrivarci davvero (coerenza interna).
+		TestTrue(*FString::Printf(TEXT("%s dichiarata in linea -> lo scatto ci arriva"), *Reach.Cell.ToString()),
+			Reach.Cell == Start || URTMovementActionLibrary::ResolveLinearMove(
+				Map, Start, Reach.Cell, 4, ERTMovementStyle::LinearDash, Snap.Occupancy, {}).Final == Reach.Cell);
 	}
 
 	// Il caso deve esistere, altrimenti il filtro non sta filtrando nulla e il test non prova niente.
 	AddInfo(FString::Printf(TEXT("celle raggiungibili solo sul grafo: %d"), GraphOnly));
 	TestTrue(TEXT("lo scenario contiene celle raggiungibili sul grafo ma NON in linea"), GraphOnly > 0);
 
-	// Un caso puntuale, indipendente dall'enumerazione: oltre l'ostacolo in direzione +q. Serve un budget piu'
-	// ampio, perche' il giro attorno al gruppo di ostacoli costa 5 passi mentre in linea ne basterebbero 2.
+	// Un caso puntuale, indipendente dall'enumerazione: oltre l'ostacolo in direzione +q. Serve una portata
+	// piu' ampia, perche' il giro attorno al gruppo di ostacoli costa 5 passi mentre in linea ne basterebbero 2.
 	{
-		const FRTHexSnapshot Wide = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(7, Start, /*Budget=*/ 6) });
 		const FRTCellId Beyond(2, 0, 0);
+		const FRTHexSnapshot Wide = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(7, Start, /*Budget=*/ 6) });
 		TestTrue(TEXT("premessa: (2,0) e' raggiungibile camminando (aggirando gli ostacoli)"),
 			URTHexSimLibrary::FindPathForUnit(Wide, 7, Beyond).Status == ERTHexPathStatus::Success);
 		TestFalse(TEXT("(2,0) NON e' raggiungibile scattando (ostacolo sulla linea)"),
-			URTHexSimLibrary::IsLinearDashReachable(Wide, 7, Beyond));
+			Reachable(Wide, Start, Beyond, 6));
 	}
 	return true;
 }

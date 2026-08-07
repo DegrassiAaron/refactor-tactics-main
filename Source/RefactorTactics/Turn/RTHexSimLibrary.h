@@ -106,19 +106,6 @@ public:
 		const TArray<FRTCellId>& Path);
 
 	/**
-	 * Percorso di uno SCATTO: **lineare** lungo una delle sei direzioni esagonali, sullo stesso layer.
-	 * Non aggira ostacoli e non usa transizioni verticali.
-	 *
-	 * NOTA (riconciliazione 2026-08-07): il resolver del turno NON passa piu' di qui — usa
-	 * `URTMovementActionLibrary::ResolveLinearMove` (CP 4.5), che generalizza le quattro mobilita' lineari.
-	 * Questa resta perche' il BOT la usa per filtrare le candidate. Le due implementazioni vanno consolidate.
-	 */
-	static TArray<FRTCellId> LinearDashPath(const FRTHexSnapshot& Snapshot, int32 UnitId, const FRTCellId& Goal);
-
-	/** Vero se `Goal` e' raggiungibile con uno SCATTO lineare (la cella dell'unita' stessa conta). */
-	static bool IsLinearDashReachable(const FRTHexSnapshot& Snapshot, int32 UnitId, const FRTCellId& Goal);
-
-	/**
 	 * Cosa non va nella cella indicata come waypoint per l'unita': fuori mappa, ostacolo, occupata da un'altra
 	 * unita' — oppure `Ok`, e allora un eventuale rifiuto del percorso e' questione di **budget**.
 	 * Serve a spiegare il rifiuto con il motivo giusto invece di elencarne tre.
@@ -135,8 +122,9 @@ public:
 	 * La cella aggiunta NON e' verificata per occupazione: il path esteso entra nel microstep di
 	 * ResolveHexPaths, che gestisce occupazione/collisione come qualunque altro passo pianificato — quindi
 	 * due unita' che scivolano verso la stessa cella libera sono gestite dal resolver esistente, non da
-	 * questa funzione. Va chiamata SOLO sul path del movimento normale, MAI su LinearDashPath (lo Scatto non
-	 * passa dal microstep condiviso: vedi docs/design/spec-terreni-e8.md §5.2).
+	 * questa funzione. Va chiamata SOLO sul path del movimento normale, MAI su una mobilita' lineare
+	 * (`URTMovementActionLibrary::ResolveLinearMove`): lo Scatto non passa dal microstep condiviso, quindi
+	 * non avrebbe la stessa garanzia sotto collisione simultanea — vedi docs/design/spec-terreni-e8.md §5.2.
 	 */
 	static TArray<FRTCellId> ApplyIceSliding(const FRTHexSnapshot& Snapshot, int32 UnitId, const TArray<FRTCellId>& Path);
 

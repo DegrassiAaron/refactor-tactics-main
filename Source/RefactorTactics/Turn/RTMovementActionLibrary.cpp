@@ -132,3 +132,14 @@ FRTLinearMoveResult URTMovementActionLibrary::ResolveLinearMove(const URTHexMapA
 	Result.Final = Current;
 	return Result;
 }
+
+bool URTMovementActionLibrary::IsLinearReachable(const URTHexMapAsset* Map, const FRTCellId& From,
+	const FRTCellId& Target, int32 MaxCells, ERTMovementStyle Style,
+	const TMap<FRTCellId, int32>& Occupancy, const TSet<int32>& Hostiles)
+{
+	if (From == Target)
+	{
+		return true; // "resto dove sono" e' sempre praticabile
+	}
+	return ResolveLinearMove(Map, From, Target, MaxCells, Style, Occupancy, Hostiles).Final == Target;
+}

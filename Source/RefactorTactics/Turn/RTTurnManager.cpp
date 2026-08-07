@@ -190,13 +190,46 @@ void ARTTurnManager::PlanBots()
 		const int32 DashIdx = Bot->FindDashAbilityIndex();
 		const URTActionData* DashAb = Bot->GetAbility(DashIdx);
 		const bool bDashReady = DashAb && DashAb->bDash && Bot->CanUseAbility(DashIdx);
-		const int32 DashBudget = bDashReady ? Bot->GetEffectiveDashRange(DashAb->RangeCells) : 0;
+
+		// Portata dello scatto letta come la legge ResolveDash: dal CATALOGO se l'azione ne fa parte,
+		// altrimenti dal campo legacy dell'asset. Se il bot leggesse un numero diverso da quello che il
+		// resolver usera', proporrebbe scatti fuori portata (o si negherebbe quelli buoni).
+		const int32 DashDeclaredRange = bDashReady
+			? (DashAb->Def.ActionId.IsNone() ? DashAb->RangeCells : DashAb->Def.RangeCells)
+			: 0;
+		const int32 DashBudget = bDashReady ? Bot->GetEffectiveDashRange(DashDeclaredRange) : 0;
+		const ERTMovementStyle DashStyle = bDashReady ? DashAb->Def.MovementStyle : ERTMovementStyle::None;
+
+		// Nemici del bot, per UnitId dello snapshot: la carica li tratta come bersagli, gli altri stili come
+		// ostacoli. Sono gli stessi indici che ResolveDash passa a ResolveLinearMove.
+		TSet<int32> DashHostiles;
+		for (int32 j = 0; j < Units.Num(); ++j)
+		{
+			if (Units[j] && Units[j]->IsAlive() && Units[j]->TeamId != Bot->TeamId) { DashHostiles.Add(j); }
+		}
 
 		FRTHexSnapshot DashSnapshot = Snapshot;
 		if (bDashReady)
 		{
 			DashSnapshot.Units[BotIdx].MoveBudget = DashBudget;
 		}
+
+		// Il bot valuta la raggiungibilita' con lo STESSO codice che la fase Dash usa per eseguirla
+		// (issue #140): il grafo genera le candidate, ma e' la linearita' a dire quali sopravvivono.
+		//
+		// L'instradamento e' quello di ResolveDash, non una sua approssimazione: solo le mobilita' LINEARI
+		// passano da `ResolveLinearMove`. Una mobilita' a budget (`Action.Sprint`) risolve col pathfinding,
+		// lo stesso grafo da cui le candidate sono nate — quindi li' non c'e' nulla da filtrare, e applicare
+		// il filtro lineare scarterebbe mosse perfettamente legali.
+		auto IsDashReachable = [&](const FRTHexSnapshot& Snap, const FRTCellId& Goal) -> bool
+		{
+			if (!URTMovementActionLibrary::IsLinear(DashStyle))
+			{
+				return true;
+			}
+			return URTMovementActionLibrary::IsLinearReachable(
+				Snap.Map, Bot->Cell, Goal, DashBudget, DashStyle, Snap.Occupancy, DashHostiles);
+		};
 
 		// Priorita' ritirata: se un nemico e' molto vicino (meta' dello standoff), il kiter fugge SUBITO,
 		// rinunciando al tiro. Guardia del bot quadrato, conservata: e' una scelta di archetipo, non utility.
@@ -209,7 +242,7 @@ void ARTTurnManager::PlanBots()
 				// raggiungibile in LINEA, lo scatto verrebbe rifiutato e il panico si tradurrebbe in un turno
 				// perso. Meglio non scattare e lasciare decidere al movimento normale.
 				const FRTCellId Dest = URTHexBotLibrary::BestKiteCell(DashSnapshot, BotIdx, Nearest->Cell);
-				if (Dest != Bot->Cell && URTHexSimLibrary::IsLinearDashReachable(DashSnapshot, BotIdx, Dest))
+				if (Dest != Bot->Cell && IsDashReachable(DashSnapshot, Dest))
 				{
 					Bot->PlannedDashAbility = DashIdx;
 					Bot->PlannedDashCell = Dest;
@@ -244,7 +277,7 @@ void ARTTurnManager::PlanBots()
 				// Le candidate nascono da ReachableCells, che segue il GRAFO. Lo scatto invece e' lineare
 				// (CP 4.5): senza questo filtro il bot proporrebbe scatti che ResolveDash rifiuta, sprecando
 				// l'abilita' in silenzio. L'invariante "il bot non propone mosse illegali" vale anche qui.
-				if (bViaDash && !URTHexSimLibrary::IsLinearDashReachable(Snap, BotIdx, Candidate.DestCell))
+				if (bViaDash && !IsDashReachable(Snap, Candidate.DestCell))
 				{
 					continue;
 				}
@@ -1718,7 +1751,9 @@ void ARTTurnManager::ResolveMovement()
 		// Ghiaccio: chi finisce il Move su Ice con budget residuo scivola di una cella oltre. La cella extra
 		// e' aggiunta al PATH, non alla posizione finale: cosi' occupazione e collisioni simultanee restano
 		// affare del microstep di ResolveHexPaths, che le risolve gia' in modo indipendente dall'ordine.
-		// Solo il Move normale: lo Scatto (LinearDashPath) non passa da qui — spec-terreni-e8.md §5.2.
+		// Solo il Move normale: le mobilita' lineari (ResolveLinearMove) non passano da qui — §5.2 di
+		// spec-terreni-e8.md: senza il microstep condiviso lo scivolamento non avrebbe la stessa garanzia
+		// sotto collisione simultanea.
 		Path = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ i, Path);
 		Paths.Add(Path);
 	}
