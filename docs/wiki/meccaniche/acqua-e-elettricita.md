@@ -5,7 +5,7 @@
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ENV-ELECTRIC -->
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-ENV-ELECTRIC` · Release: `v0.1` · Roadmap: `E8 · CP 8.3`  
+> Feature: `RT-FEAT-ENV-ELECTRIC` · Release: `v0.1` · Roadmap: `E8.3`  
 > Stato: **INTEGRATED** · Gate: `6/8`  
 > Scenario: `Visual.Combat.WaterElectric`  
 > Il sistema esiste ed e' testato, ma **nessun eroe della v0.1 ha `Action.Electrify` come abilita' normale**: la scarica arriva dall'ambiente e dalle interazioni, non da un kit.  
@@ -16,7 +16,7 @@
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ENV-WATER -->
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-ENV-WATER` · Release: `v0.1` · Roadmap: `E8 · CP 8.1, 8.4`  
+> Feature: `RT-FEAT-ENV-WATER` · Release: `v0.1` · Roadmap: `E8.1, E8.4`  
 > Stato: **INTEGRATED** · Gate: `6/8`  
 > Scenario: `Visual.Environment.WetExtinguishesFire`  
 > Verificato il `2026-08-08` su `2094b86`

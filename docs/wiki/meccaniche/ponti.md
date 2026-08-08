@@ -5,7 +5,7 @@
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-MAP-SPECIAL-TRANSITIONS -->
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-MAP-SPECIAL-TRANSITIONS` · Release: `v0.1` · Roadmap: `E9 · CP 9.4`  
+> Feature: `RT-FEAT-MAP-SPECIAL-TRANSITIONS` · Release: `v0.1` · Roadmap: `E9.4`  
 > Stato: **INTEGRATED** · Gate: `6/8`  
 > Scenario: `Visual.Map.MultiLevel`  
 > Verificato il `2026-08-08` su `2094b86`

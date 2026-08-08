@@ -4,8 +4,8 @@
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-MAP-FACING -->
 
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-MAP-FACING` · Release: `v0.1` · Roadmap: `E16 · CP 16.1, 16.2`  
+> ⚠️ **Progettata, non implementata.** Questa pagina descrive una meccanica **decisa e documentata** che il gioco **non esegue ancora**: oggi non è giocabile. Blocco generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-MAP-FACING` · Release: `v0.1` · Roadmap: `E16.1, E16.2`  
 > Stato: **SPECIFIED** · Gate: `1/8`  
 > Scenario: `—`  
 > Decisione accettata (ADR-0005) ma **non implementata**: quello che leggi qui descrive come funzionera', non come funziona oggi.  

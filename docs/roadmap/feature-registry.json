@@ -40,7 +40,8 @@
         "checkpoints": [
           "2.2",
           "4.1"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-MAP-HEXGRAPH"
@@ -100,7 +101,8 @@
         "checkpoints": [
           "12.1",
           "12.6"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-CORE-TURN",
@@ -159,7 +161,8 @@
         "checkpoints": [
           "12.1",
           "12.6"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-CORE-TURN"
@@ -218,7 +221,8 @@
           "14.1",
           "14.2",
           "14.3"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-CORE-TURN",
@@ -272,7 +276,8 @@
         "milestone": null,
         "checkpoints": [
           "11.1"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-CORE-TURN"
@@ -328,7 +333,8 @@
         "milestone": null,
         "checkpoints": [
           "2.1"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [],
       "owner_specs": [
@@ -384,7 +390,8 @@
         "milestone": null,
         "checkpoints": [
           "2.2"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-MAP-HEXGRAPH"
@@ -444,7 +451,8 @@
         "milestone": null,
         "checkpoints": [
           "2.4"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-MAP-HEXGRAPH"
@@ -505,7 +513,8 @@
         "checkpoints": [
           "16.1",
           "16.2"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-MAP-HEXGRAPH",
@@ -560,7 +569,8 @@
         "checkpoints": [
           "9.1",
           "9.2"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-MAP-HEXGRAPH",
@@ -607,7 +617,7 @@
         "runtime": "partial",
         "log_debug": "done",
         "automation": "partial",
-        "scenario": "todo",
+        "scenario": "partial",
         "ui_wiki": "partial",
         "packaged": "todo",
         "network_privacy": "na"
@@ -619,7 +629,8 @@
         "milestone": null,
         "checkpoints": [
           "9.5"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-MAP-COVER"
@@ -633,10 +644,10 @@
       "tests": [
         "RefactorTactics.Cover.Destruction"
       ],
-      "scenarios": [],
-      "scenarios_planned": [
+      "scenarios": [
         "Spec.Cover.TemporaryCoverExpires"
       ],
+      "scenarios_planned": [],
       "wiki_refs": [
         "docs/wiki/meccaniche/coperture.md",
         "docs/characters/v0.1/bastion.md"
@@ -646,7 +657,7 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "La distruzione esiste; `Action.CreateCover` è a catalogo ma la copertura **temporanea** è il residuo CP 9.5, rinviato da CP 8.5. Lo scenario `Spec.Cover.TemporaryCoverExpires` esiste nel branch `feat/scenari-test-automatici`, non ancora in `main`: è `planned`, non presente."
+      "notes": "La distruzione esiste; `Action.CreateCover` è a catalogo ma la copertura **temporanea** è il residuo CP 9.5, rinviato da CP 8.5. `Spec.Cover.TemporaryCoverExpires` è una **specifica eseguibile**: esiste in `main` ma esce `BLOCKED` finché la copertura temporanea non atterra. Per questo `scenario` è `partial` e non `done` — uno scenario bloccato descrive la feature, non la dimostra."
     },
     {
       "feature_id": "RT-FEAT-MAP-INTERACTIVE-EDGES",
@@ -675,7 +686,8 @@
         "milestone": null,
         "checkpoints": [
           "9.3"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-MAP-HEXGRAPH",
@@ -733,7 +745,8 @@
         "milestone": null,
         "checkpoints": [
           "9.4"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-MAP-HEXGRAPH",
@@ -796,7 +809,8 @@
         "milestone": null,
         "checkpoints": [
           "9.1"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-MAP-HEXGRAPH"
@@ -852,7 +866,8 @@
           "4.1",
           "4.3",
           "4.8"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-CORE-TURN",
@@ -921,7 +936,8 @@
           "4.4",
           "4.6",
           "4.7"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-ACTION-ENGINE"
@@ -987,7 +1003,8 @@
         "checkpoints": [
           "4.2",
           "4.5"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-ACTION-ENGINE",
@@ -1051,7 +1068,8 @@
         "checkpoints": [
           "2.5",
           "4.5"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-ACTION-ENGINE",
@@ -1115,7 +1133,8 @@
         "milestone": null,
         "checkpoints": [
           "4.4"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-ACTION-ENGINE"
@@ -1167,7 +1186,8 @@
       "roadmap": {
         "epic": null,
         "milestone": null,
-        "checkpoints": []
+        "checkpoints": [],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-ACTION-COOLDOWNS"
@@ -1216,7 +1236,8 @@
       "roadmap": {
         "epic": null,
         "milestone": null,
-        "checkpoints": []
+        "checkpoints": [],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-CORE-DECISION-BOUNDARY"
@@ -1251,7 +1272,7 @@
         "runtime": "todo",
         "log_debug": "todo",
         "automation": "todo",
-        "scenario": "todo",
+        "scenario": "partial",
         "ui_wiki": "partial",
         "packaged": "todo",
         "network_privacy": "na"
@@ -1264,7 +1285,8 @@
         "checkpoints": [
           "18.1",
           "18.2"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-ACTION-ENGINE",
@@ -1279,10 +1301,10 @@
         227
       ],
       "tests": [],
-      "scenarios": [],
-      "scenarios_planned": [
+      "scenarios": [
         "Spec.Predictive.WhiffOnEmptyCell"
       ],
+      "scenarios_planned": [],
       "wiki_refs": [
         "docs/wiki/game/reazioni-overwatch-e-previsioni.md",
         "docs/characters/v0.1/vektor.md"
@@ -1292,7 +1314,7 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "`Vektor.InterceptShot` è la thin slice: decisa in Planning, risolta a un boundary deterministico, senza input live (D-016). A catalogo la reazione dichiara il rinvio; il framework di trap resta fuori. Lo scenario vive nel branch `feat/scenari-test-automatici`."
+      "notes": "`Vektor.InterceptShot` è la thin slice: decisa in Planning, risolta a un boundary deterministico, senza input live (D-016). A catalogo la reazione dichiara il rinvio; il framework di trap resta fuori. `Spec.Predictive.WhiffOnEmptyCell` è una **specifica eseguibile**: esce `BLOCKED` finché il boundary non esiste, quindi `scenario` resta `partial`."
     },
     {
       "feature_id": "RT-FEAT-ACTION-TRAPS",
@@ -1319,7 +1341,8 @@
       "roadmap": {
         "epic": null,
         "milestone": null,
-        "checkpoints": []
+        "checkpoints": [],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-ACTION-PREDICTIVE"
@@ -1367,7 +1390,8 @@
           "7.2",
           "7.3",
           "7.4"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-DATA-ASSET-PIPELINE",
@@ -1427,7 +1451,8 @@
           "5.3",
           "5.4",
           "5.5"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-ACTION-ENGINE"
@@ -1493,7 +1518,8 @@
         "milestone": null,
         "checkpoints": [
           "14.3"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-CORE-DECISION-BOUNDARY",
@@ -1547,7 +1573,8 @@
         "checkpoints": [
           "14.5",
           "14.6"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-REACTION-OPPORTUNITY"
@@ -1587,7 +1614,7 @@
         "runtime": "todo",
         "log_debug": "todo",
         "automation": "todo",
-        "scenario": "todo",
+        "scenario": "partial",
         "ui_wiki": "partial",
         "packaged": "todo",
         "network_privacy": "todo"
@@ -1599,7 +1626,8 @@
         "milestone": null,
         "checkpoints": [
           "14.4"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-REACTION-OPPORTUNITY",
@@ -1616,10 +1644,10 @@
       "tests": [
         "RefactorTactics.Actions.SuppressiveLine"
       ],
-      "scenarios": [],
-      "scenarios_planned": [
+      "scenarios": [
         "Spec.Overwatch.HoldThenFire"
       ],
+      "scenarios_planned": [],
       "wiki_refs": [
         "docs/wiki/meccaniche/overwatch.md",
         "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
@@ -1629,7 +1657,7 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "**Non implementata**: `grep -rn \"Overwatch\" Source/` fuori dai test non restituisce nulla. L'aggancio tecnico esiste (`FRTSuppressiveZone` in `RTOffensiveActionLibrary`, azione `Action.SuppressiveLine`) ma è zona di soppressione, non Overwatch. Due pagine Wiki la descrivono già: il blocco di stato generato deve dire che è pianificata, non giocabile."
+      "notes": "**Non implementata**: `grep -rn \"Overwatch\" Source/` fuori dai test non restituisce nulla. L'aggancio tecnico esiste (`FRTSuppressiveZone` in `RTOffensiveActionLibrary`, azione `Action.SuppressiveLine`) ma è zona di soppressione, non Overwatch. Due pagine Wiki la descrivono già: il blocco di stato generato lo dichiara. `Spec.Overwatch.HoldThenFire` è la **specifica eseguibile** della finestra — con gli intent del turno 2 volutamente vuoti, perché la sintassi di HOLD/FIRE non è ancora decisa — ed esce `BLOCKED`."
     },
     {
       "feature_id": "RT-FEAT-REACTION-FAST-ACTION",
@@ -1658,7 +1686,8 @@
         "milestone": null,
         "checkpoints": [
           "14.6"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-REACTION-FAST"
@@ -1709,7 +1738,8 @@
         "milestone": null,
         "checkpoints": [
           "8.1"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-MAP-HEXGRAPH",
@@ -1769,7 +1799,8 @@
         "milestone": null,
         "checkpoints": [
           "8.2"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-ENV-TERRAIN"
@@ -1826,7 +1857,8 @@
         "checkpoints": [
           "8.1",
           "8.4"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-ENV-TERRAIN",
@@ -1887,7 +1919,8 @@
         "milestone": null,
         "checkpoints": [
           "8.3"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-ENV-WATER"
@@ -1947,7 +1980,8 @@
         "checkpoints": [
           "8.1",
           "8.4"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-ENV-TERRAIN",
@@ -2007,7 +2041,8 @@
         "milestone": null,
         "checkpoints": [
           "8.1"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-ENV-TERRAIN",
@@ -2064,7 +2099,8 @@
         "milestone": null,
         "checkpoints": [
           "8.1"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-ENV-TERRAIN"
@@ -2117,7 +2153,8 @@
       "roadmap": {
         "epic": null,
         "milestone": null,
-        "checkpoints": []
+        "checkpoints": [],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-ENV-ICE"
@@ -2164,7 +2201,8 @@
         "milestone": null,
         "checkpoints": [
           "8.5"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-ENV-WATER",
@@ -2227,7 +2265,8 @@
         "milestone": null,
         "checkpoints": [
           "13.1"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-MAP-LOS",
@@ -2281,7 +2320,8 @@
         "checkpoints": [
           "13.1",
           "13.2"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE",
@@ -2322,7 +2362,7 @@
         "runtime": "todo",
         "log_debug": "todo",
         "automation": "todo",
-        "scenario": "todo",
+        "scenario": "partial",
         "ui_wiki": "partial",
         "packaged": "todo",
         "network_privacy": "todo"
@@ -2334,7 +2374,8 @@
         "milestone": null,
         "checkpoints": [
           "13.3"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE",
@@ -2347,10 +2388,10 @@
         158
       ],
       "tests": [],
-      "scenarios": [],
-      "scenarios_planned": [
+      "scenarios": [
         "Spec.Perception.HeardNotSeen"
       ],
+      "scenarios_planned": [],
       "wiki_refs": [
         "docs/wiki/game/visibilita-rumore-e-informazione.md"
       ],
@@ -2359,7 +2400,7 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "Il rumore è il secondo canale di informazione e propaga sul grafo, non in linea d'aria. Lo scenario `Spec.Perception.HeardNotSeen` è nel branch `feat/scenari-test-automatici`."
+      "notes": "Il rumore è il secondo canale di informazione e propaga sul grafo, non in linea d'aria. `Spec.Perception.HeardNotSeen` è la **specifica eseguibile** del secondo canale: esce `BLOCKED` finché la conoscenza di squadra non esiste."
     },
     {
       "feature_id": "RT-FEAT-PERCEPTION-MEMORY",
@@ -2388,7 +2429,8 @@
         "milestone": null,
         "checkpoints": [
           "13.2"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-PERCEPTION-VISION"
@@ -2439,7 +2481,8 @@
         "milestone": null,
         "checkpoints": [
           "11.1"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [],
       "owner_specs": [
@@ -2488,7 +2531,8 @@
         "milestone": null,
         "checkpoints": [
           "11.1"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-MAP-PATHFINDING",
@@ -2548,7 +2592,8 @@
         "checkpoints": [
           "11.5",
           "11.6"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-UI-PLANNING",
@@ -2601,7 +2646,8 @@
         "milestone": null,
         "checkpoints": [
           "11.2"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-UI-PLANNING",
@@ -2658,7 +2704,8 @@
         "checkpoints": [
           "11.1",
           "11.2"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-UI-PLANNING"
@@ -2716,7 +2763,8 @@
         "milestone": null,
         "checkpoints": [
           "11.3"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-CORE-TURNLOG"
@@ -2774,7 +2822,8 @@
           "20.1",
           "20.2",
           "20.3"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-UI-PLANNING"
@@ -2824,7 +2873,8 @@
       "roadmap": {
         "epic": null,
         "milestone": null,
-        "checkpoints": []
+        "checkpoints": [],
+        "out_of_release_scope": "Tooling di test nato dall'issue `#209`: serve a chi sviluppa, non è contenuto della release. Già costruito e coperto da test; nessun gate della v0.1 dipende da lui."
       },
       "dependencies": [
         "RT-FEAT-TEST-SCENARIO-HARNESS"
@@ -2850,7 +2900,7 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "ScenarioId staccato dal percorso, tag su un solo asse, `ResolvePath` che rifiuta un ID ambiguo, catena di redirect. **Fuori dalle 20 epic della v0.1**: nasce dall'issue `#209` e non ha un checkpoint — è uno dei conflitti da chiudere (vedi report §F)."
+      "notes": "ScenarioId staccato dal percorso, tag su un solo asse, `ResolvePath` che rifiuta un ID ambiguo, catena di redirect. Fuori dalla vista di release **per decisione dichiarata** (2026-08-08), non per dimenticanza: vedi `out_of_release_scope`."
     },
     {
       "feature_id": "RT-FEAT-CHAR-V01-ROSTER",
@@ -2885,7 +2935,8 @@
           "6.5",
           "6.6",
           "6.7"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-ACTION-ENGINE",
@@ -2954,7 +3005,8 @@
       "roadmap": {
         "epic": null,
         "milestone": null,
-        "checkpoints": []
+        "checkpoints": [],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-CHAR-V01-ROSTER"
@@ -3002,9 +3054,14 @@
       "gates_done": 1,
       "gates_applicable": 7,
       "roadmap": {
-        "epic": null,
+        "epic": "E21",
         "milestone": "M8",
-        "checkpoints": []
+        "checkpoints": [
+          "21.1",
+          "21.2",
+          "21.3"
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-CHAR-V01-ROSTER",
@@ -3031,7 +3088,7 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "È il residuo di **M8**: il C++ (spawn con fallback, facing di presentazione, anello di team) è in `main`, il lavoro in editor no. Milestone senza epic v0.1 corrispondente: la roadmap di release non la copre, e questo è un conflitto registrato nel report §F."
+      "notes": "Il C++ (spawn con fallback, facing di presentazione, anello di team) è in `main`, il lavoro in editor no. Fino al 2026-08-08 era la milestone **M8** senza epic corrispondente nella vista di release: **E21** chiude quel buco. Il gate `packaged` resta `todo` perché la build packaged mostra ancora i cilindri."
     },
     {
       "feature_id": "RT-FEAT-CHAR-TRANSFORMATION",
@@ -3058,7 +3115,8 @@
       "roadmap": {
         "epic": null,
         "milestone": null,
-        "checkpoints": []
+        "checkpoints": [],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-CHAR-V01-ROSTER"
@@ -3101,7 +3159,8 @@
       "roadmap": {
         "epic": null,
         "milestone": null,
-        "checkpoints": []
+        "checkpoints": [],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-CHAR-V01-ROSTER",
@@ -3147,7 +3206,8 @@
       "roadmap": {
         "epic": null,
         "milestone": null,
-        "checkpoints": []
+        "checkpoints": [],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-CHAR-V01-ROSTER"
@@ -3198,7 +3258,8 @@
       "roadmap": {
         "epic": null,
         "milestone": null,
-        "checkpoints": []
+        "checkpoints": [],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-FACTION-SYSTEM",
@@ -3254,7 +3315,8 @@
         "checkpoints": [
           "10.1",
           "10.2"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-ACTION-ENGINE",
@@ -3272,10 +3334,10 @@
         "RefactorTactics.Match.EndsOnObjective",
         "RefactorTactics.Match.ObjectiveEndsAPlayedMatch"
       ],
-      "scenarios": [],
-      "scenarios_planned": [
+      "scenarios": [
         "Spec.Objective.PointSurvivesKO"
       ],
+      "scenarios_planned": [],
       "wiki_refs": [
         "docs/wiki/meccaniche/obiettivi-dinamici.md",
         "docs/wiki/game/obiettivi-e-fine-partita.md"
@@ -3314,7 +3376,8 @@
         "milestone": null,
         "checkpoints": [
           "10.3"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-CORE-TURN",
@@ -3372,7 +3435,8 @@
         "checkpoints": [
           "19.1",
           "19.2"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-DATA-ASSET-PIPELINE"
@@ -3425,7 +3489,8 @@
         "milestone": null,
         "checkpoints": [
           "12.4"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-CORE-TURN"
@@ -3479,7 +3544,8 @@
           "17.1",
           "17.2",
           "17.3"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-TEST-GOLDEN",
@@ -3534,7 +3600,8 @@
         "milestone": null,
         "checkpoints": [
           "2.6"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-MAP-PATHFINDING",
@@ -3589,7 +3656,8 @@
       "roadmap": {
         "epic": null,
         "milestone": null,
-        "checkpoints": []
+        "checkpoints": [],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-BOT-BASE",
@@ -3638,7 +3706,8 @@
         "milestone": null,
         "checkpoints": [
           "15.3"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-CORE-TURN",
@@ -3698,7 +3767,8 @@
           "15.2",
           "15.4",
           "15.5"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-TEST-SCENARIO-HARNESS",
@@ -3758,7 +3828,8 @@
       "roadmap": {
         "epic": null,
         "milestone": "M9",
-        "checkpoints": []
+        "checkpoints": [],
+        "out_of_release_scope": "Strumento d'editor: non entra nella build di gioco e non ha un gate di release. Tracciato da M9 e da `roadmap-editor.md`, non dalle epic della v0.1."
       },
       "dependencies": [
         "RT-FEAT-MAP-HEXGRAPH"
@@ -3811,7 +3882,8 @@
         "milestone": null,
         "checkpoints": [
           "1.4"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-DATA-ASSET-PIPELINE"
@@ -3866,7 +3938,8 @@
         "milestone": null,
         "checkpoints": [
           "11.4"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-CORE-TURNLOG"
@@ -3918,7 +3991,8 @@
         "milestone": null,
         "checkpoints": [
           "1.2"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-DATA-ASSET-PIPELINE",
@@ -3972,7 +4046,8 @@
         "milestone": null,
         "checkpoints": [
           "1.3"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [],
       "owner_specs": [
@@ -4025,7 +4100,8 @@
         "checkpoints": [
           "1.2",
           "1.3"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-DATA-STABLE-IDS"
@@ -4078,7 +4154,8 @@
         "milestone": null,
         "checkpoints": [
           "12.1"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-DATA-ASSET-PIPELINE",
@@ -4135,7 +4212,8 @@
         "milestone": null,
         "checkpoints": [
           "5.4"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-CORE-TURN"
@@ -4188,7 +4266,8 @@
       "roadmap": {
         "epic": null,
         "milestone": "M10",
-        "checkpoints": []
+        "checkpoints": [],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-NET-PRIVATE-PLANNING",
@@ -4235,7 +4314,8 @@
       "roadmap": {
         "epic": null,
         "milestone": null,
-        "checkpoints": []
+        "checkpoints": [],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-NET-AUTHORITY"
@@ -4280,7 +4360,8 @@
         "milestone": null,
         "checkpoints": [
           "12.4"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-CORE-TURN",
@@ -4333,7 +4414,8 @@
         "milestone": null,
         "checkpoints": [
           "12.5"
-        ]
+        ],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-CORE-TURN",

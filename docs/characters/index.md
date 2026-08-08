@@ -2,8 +2,8 @@
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CHAR-PRESENTATION -->
 
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-CHAR-PRESENTATION` · Release: `v0.1` · Roadmap: `M8`  
+> 🚧 **Parzialmente giocabile.** Il codice esiste ma la feature non è completa: i gate qui sotto dicono quanto manca. Blocco generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-CHAR-PRESENTATION` · Release: `v0.1` · Roadmap: `E21.1, E21.2, E21.3`  
 > Stato: **IMPLEMENTING** · Gate: `1/7`  
 > Scenario: `—`  
 > Verificato il `2026-08-08` su `2094b86`
@@ -13,7 +13,7 @@
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CHAR-V01-ROSTER -->
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-CHAR-V01-ROSTER` · Release: `v0.1` · Roadmap: `E6 · CP 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7`  
+> Feature: `RT-FEAT-CHAR-V01-ROSTER` · Release: `v0.1` · Roadmap: `E6.1, E6.2, E6.3, E6.4, E6.5, E6.6, E6.7`  
 > Stato: **INTEGRATED** · Gate: `6/8`  
 > Scenario: `Combat.BasicAttack`  
 > Verificato il `2026-08-08` su `2094b86`

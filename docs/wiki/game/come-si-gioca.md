@@ -4,8 +4,8 @@
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-NET-PRIVATE-PLANNING -->
 
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-NET-PRIVATE-PLANNING` · Release: `v0.1` · Roadmap: `E5 · CP 5.4`  
+> 🚧 **Parzialmente giocabile.** Il codice esiste ma la feature non è completa: i gate qui sotto dicono quanto manca. Blocco generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-NET-PRIVATE-PLANNING` · Release: `v0.1` · Roadmap: `E5.4`  
 > Stato: **TESTABLE** · Gate: `5/8`  
 > Scenario: `—`  
 > Verificato il `2026-08-08` su `2094b86`
@@ -14,8 +14,8 @@
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-UI-CERTAINTY -->
 
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-UI-CERTAINTY` · Release: `v0.1` · Roadmap: `E11 · CP 11.2`  
+> 🚧 **Parzialmente giocabile.** Il codice esiste ma la feature non è completa: i gate qui sotto dicono quanto manca. Blocco generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-UI-CERTAINTY` · Release: `v0.1` · Roadmap: `E11.2`  
 > Stato: **IMPLEMENTING** · Gate: `3/8`  
 > Scenario: `—`  
 > Verificato il `2026-08-08` su `2094b86`
@@ -24,8 +24,8 @@
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-UI-ACTION-GHOSTS -->
 
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-UI-ACTION-GHOSTS` · Release: `v0.1` · Roadmap: `E11 · CP 11.5, 11.6`  
+> ⚠️ **Progettata, non implementata.** Questa pagina descrive una meccanica **decisa e documentata** che il gioco **non esegue ancora**: oggi non è giocabile. Blocco generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-UI-ACTION-GHOSTS` · Release: `v0.1` · Roadmap: `E11.5, E11.6`  
 > Stato: **SPECIFIED** · Gate: `1/8`  
 > Scenario: `—`  
 > Verificato il `2026-08-08` su `2094b86`
@@ -35,7 +35,7 @@
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-UI-PLANNING -->
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-UI-PLANNING` · Release: `v0.1` · Roadmap: `E11 · CP 11.1`  
+> Feature: `RT-FEAT-UI-PLANNING` · Release: `v0.1` · Roadmap: `E11.1`  
 > Stato: **RELEASE_READY** · Gate: `6/7`  
 > Scenario: `Movement.SwapRejectedByPlanning`  
 > Verificato il `2026-08-08` su `2094b86`
@@ -44,8 +44,8 @@
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-UI-TACTICAL-CAMERA -->
 
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-UI-TACTICAL-CAMERA` · Release: `v0.1` · Roadmap: `E11 · CP 11.1`  
+> 🚧 **Parzialmente giocabile.** Il codice esiste ma la feature non è completa: i gate qui sotto dicono quanto manca. Blocco generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-UI-TACTICAL-CAMERA` · Release: `v0.1` · Roadmap: `E11.1`  
 > Stato: **IMPLEMENTING** · Gate: `1/6`  
 > Scenario: `—`  
 > Verificato il `2026-08-08` su `2094b86`

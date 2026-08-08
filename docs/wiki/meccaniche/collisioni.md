@@ -5,7 +5,7 @@
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ACTION-DASH-DISPLACEMENT -->
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-ACTION-DASH-DISPLACEMENT` · Release: `v0.1` · Roadmap: `E2 · CP 2.5, 4.5`  
+> Feature: `RT-FEAT-ACTION-DASH-DISPLACEMENT` · Release: `v0.1` · Roadmap: `E2.5, E2.5`  
 > Stato: **RELEASE_READY** · Gate: `7/8`  
 > Scenario: `Visual.Combat.PushResistance`  
 > Verificato il `2026-08-08` su `2094b86`
@@ -15,7 +15,7 @@
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ACTION-ENGINE -->
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-ACTION-ENGINE` · Release: `v0.1` · Roadmap: `E4 · CP 4.1, 4.3, 4.8`  
+> Feature: `RT-FEAT-ACTION-ENGINE` · Release: `v0.1` · Roadmap: `E4.1, E4.3, E4.8`  
 > Stato: **RELEASE_READY** · Gate: `7/8`  
 > Scenario: `Movement.Collision`  
 > Verificato il `2026-08-08` su `2094b86`

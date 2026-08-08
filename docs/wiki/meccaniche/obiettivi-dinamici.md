@@ -4,10 +4,10 @@
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-OBJECTIVE-SYSTEM -->
 
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-OBJECTIVE-SYSTEM` · Release: `v0.1` · Roadmap: `E10 · CP 10.1, 10.2`  
+> 🚧 **Parzialmente giocabile.** Il codice esiste ma la feature non è completa: i gate qui sotto dicono quanto manca. Blocco generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-OBJECTIVE-SYSTEM` · Release: `v0.1` · Roadmap: `E10.1, E10.2`  
 > Stato: **IMPLEMENTING** · Gate: `2/8`  
-> Scenario: `Spec.Objective.PointSurvivesKO (pianificato)`  
+> Scenario: `Spec.Objective.PointSurvivesKO`  
 > La partita **puo' finire** per obiettivo, ma in mappa **non esiste ancora un oggetto da attivare**: manca il consumatore, non la regola.  
 > Verificato il `2026-08-08` su `2094b86`
 

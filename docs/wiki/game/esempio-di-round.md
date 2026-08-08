@@ -5,7 +5,7 @@
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-UI-COMBAT-LOG -->
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-UI-COMBAT-LOG` · Release: `v0.1` · Roadmap: `E11 · CP 11.3`  
+> Feature: `RT-FEAT-UI-COMBAT-LOG` · Release: `v0.1` · Roadmap: `E11.3`  
 > Stato: **RELEASE_READY** · Gate: `6/7`  
 > Scenario: `Visual.Core.PhaseOrder`  
 > Verificato il `2026-08-08` su `2094b86`
@@ -15,7 +15,7 @@
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CORE-PLAYBACK -->
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-CORE-PLAYBACK` · Release: `v0.1` · Roadmap: `E11 · CP 11.1`  
+> Feature: `RT-FEAT-CORE-PLAYBACK` · Release: `v0.1` · Roadmap: `E11.1`  
 > Stato: **INTEGRATED** · Gate: `5/7`  
 > Scenario: `Visual.Core.PhaseOrder`  
 > Verificato il `2026-08-08` su `2094b86`
@@ -25,7 +25,7 @@
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CORE-TURN -->
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-CORE-TURN` · Release: `v0.1` · Roadmap: `E2 · CP 2.2, 4.1`  
+> Feature: `RT-FEAT-CORE-TURN` · Release: `v0.1` · Roadmap: `E2.2, E2.1`  
 > Stato: **RELEASE_READY** · Gate: `7/8`  
 > Scenario: `Visual.Core.PhaseOrder`  
 > Verificato il `2026-08-08` su `2094b86`

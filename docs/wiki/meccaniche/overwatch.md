@@ -4,10 +4,10 @@
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-REACTION-OVERWATCH -->
 
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-REACTION-OVERWATCH` · Release: `v0.1` · Roadmap: `E14 · CP 14.4`  
+> ⚠️ **Progettata, non implementata.** Questa pagina descrive una meccanica **decisa e documentata** che il gioco **non esegue ancora**: oggi non è giocabile. Blocco generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-REACTION-OVERWATCH` · Release: `v0.1` · Roadmap: `E14.4`  
 > Stato: **SPECIFIED** · Gate: `1/9`  
-> Scenario: `Spec.Overwatch.HoldThenFire (pianificato)`  
+> Scenario: `Spec.Overwatch.HoldThenFire`  
 > Le reazioni **preparate** esistono e funzionano in partita; l'**Overwatch interattivo** di questa pagina non e' implementato.  
 > Verificato il `2026-08-08` su `2094b86`
 

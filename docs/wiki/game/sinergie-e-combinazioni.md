@@ -6,7 +6,7 @@
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ENV-SYSTEMIC-COMBOS -->
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-ENV-SYSTEMIC-COMBOS` · Release: `v0.1` · Roadmap: `E8 · CP 8.5`  
+> Feature: `RT-FEAT-ENV-SYSTEMIC-COMBOS` · Release: `v0.1` · Roadmap: `E8.5`  
 > Stato: **INTEGRATED** · Gate: `6/8`  
 > Scenario: `Visual.Combat.WaterElectric`  
 > Verificato il `2026-08-08` su `2094b86`
