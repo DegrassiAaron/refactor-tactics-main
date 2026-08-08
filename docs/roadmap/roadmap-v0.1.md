@@ -871,11 +871,18 @@ resta un obiettivo di prodotto registrato in `showcase-v0.1.md`, non un gate di 
 
 ### E16 — Orientamento e direzionalità · P1
 
-**Obiettivo**: l'orientamento smette di essere presentazione e diventa una **decisione tattica**. Il facing
-deriva dall'ultima azione di movimento, si aggiorna a fine Move e vale per **tutto il turno successivo**.
+**Obiettivo**: l'orientamento smette di essere presentazione e diventa una **decisione tattica**. Il facing è
+stato di gioco autorevole e cambia **più volte dentro il round**: un'azione con bersaglio o direzione orienta
+l'unità **prima** di risolvere, e il `Move` — ultimo — fissa `FacingFinalAfterMove`, che **persiste** nel round
+successivo finché una nuova azione non lo cambia.
 
-Decisione: [ADR-0005](../decisions/adr-0005-orientamento.md) (accettato 2026-08-07). **Zero numeri nuovi**: la difesa
+Decisione: [ADR-0005](../decisions/adr-0005-orientamento.md) (accettato 2026-08-07), **emendata da
+[D-020](../decisions/RT_PDR_00_Decision_Log.md)** il 2026-08-08. **Zero numeri nuovi**: la difesa
 direzionale toglie protezioni già a catalogo invece di aggiungere danno.
+
+> ⚠️ Questa sezione diceva «il facing si aggiorna a fine Move e vale per tutto il turno successivo»: era il
+> testo **pre-D-020**, allineato il 2026-08-08. La parte che resta vera è che il `Move` è l'ultima fase
+> volontaria, quindi il facing *finale* del round è ancora una scommessa su quello dopo.
 
 > **Prerequisito di E13**: la vista a cono non si costruisce senza facing. La catena è
 > `E16.1 → E13 → E14`. Se E16 venisse tagliata, **E13 torna alla vista a 360°** (comportamento attuale) e
@@ -883,7 +890,7 @@ direzionale toglie protezioni già a catalogo invece di aggiungere danno.
 
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
-| **16.1** | Facing logico e derivazione dal movimento | `ERTHexDirection Facing` autorevole sull'unità, aggiornato **al termine della fase Move**. Direzioni legali per stile: `Linear*` → **una** (quella del movimento, derivata) · `Budget` → **tre** (ultimo passo e le due adiacenti, dichiarata) · `None` → **sei** (rotazione libera dichiarata, **non consuma slot**). Movimento **forzato**: ci si gira verso la cella d'origine dell'ultimo spostamento subito nell'ordine canonico; spostamento **ambientale** senza sorgente → invariato; un Move volontario successivo **vince**. Una rotazione dichiarata illegale è **rifiutata**, non corretta in silenzio. `Facing` entra in snapshot, TurnLog versionato e hash; la rotazione **dichiarata** è un intento e passa da `FilterForTeam`. La presentazione continua a interpolare lo yaw ma **atterra sul facing logico** a fine playback | `Facing.LinearMoveDerivesDirection`, `Facing.BudgetMoveAllowsLastStepPlusMinusOne`, `Facing.RejectsIllegalDeclaredRotation`, `Facing.StationaryUnitRotatesFreely`, `Facing.ForcedMovementFacesSource`, `Facing.EnvironmentalDisplacementKeepsFacing`, `Facing.VoluntaryMoveWinsOverForced`, `Facing.PermutationInvariant`, `Facing.IntentIsTeamFiltered` |
+| **16.1** | Facing logico e derivazione dal movimento | `ERTHexDirection Facing` autorevole sull'unità, aggiornato su **tutta la timeline di [D-020](../decisions/RT_PDR_00_Decision_Log.md)** (`FacingStartOfRound → FacingAfterPrepActionTargeting → FacingAfterDash → FacingUsedByBlast → FacingUsedByOverwatch → FacingFinalAfterMove`): ogni consumatore legge il valore **autorevole più recente**, e `FacingFinalAfterMove` persiste nel round successivo. Direzioni legali per stile: `Linear*` → **una** (quella del movimento, derivata) · `Budget` → **tre** (ultimo passo e le due adiacenti, dichiarata) · `None` → **sei** (rotazione libera dichiarata, **non consuma slot**). Movimento **forzato**: ci si gira verso la cella d'origine dell'ultimo spostamento subito nell'ordine canonico; spostamento **ambientale** senza sorgente → invariato; un Move volontario successivo **vince**. Una rotazione dichiarata illegale è **rifiutata**, non corretta in silenzio. `Facing` entra in snapshot, TurnLog versionato e hash; poiché i valori per round sono **più di uno**, snapshot e TurnLog devono dire **quale** facing ha usato ciascun consumatore — un campo per turno non basta e renderebbe il replay non ricostruibile ([D-020](../decisions/RT_PDR_00_Decision_Log.md)). Ogni cambio produce un evento con **reason code**: i valori sono **nuovi** e vanno aggiunti all'enum esistente seguendo [`spec-turnlog.md`](../technical/spec-turnlog.md), che è l'owner — la sua revisione del 2026-08-03 esiste proprio perché una stesura precedente aveva **ipotizzato reason inesistenti**. Copertura minima: il facing usato da un movimento, da un'azione con bersaglio, da una reazione e da uno spostamento forzato dev'essere distinguibile nel log. La rotazione **dichiarata** è un intento e passa da `FilterForTeam`. La presentazione continua a interpolare lo yaw ma **atterra sul facing logico** a fine playback | `Facing.LinearMoveDerivesDirection`, `Facing.BudgetMoveAllowsLastStepPlusMinusOne`, `Facing.RejectsIllegalDeclaredRotation`, `Facing.StationaryUnitRotatesFreely`, `Facing.ForcedMovementFacesSource`, `Facing.EnvironmentalDisplacementKeepsFacing`, `Facing.VoluntaryMoveWinsOverForced`, `Facing.PermutationInvariant`, `Facing.IntentIsTeamFiltered`, `Facing.DashThenBlastUsesLatestValue`, `Facing.TargetChangeWithinRoundReorients`, `Facing.TurnLogNamesConsumerAndReason`, `Facing.RoundInheritsFinalFacing` |
 | **16.2** | Difesa direzionale: l'emisfero posteriore è scoperto | L'**arco frontale** è definito operativamente da `URTHexLibrary::HexCone(Cella, Neighbor(Cella, Facing), Range)` — **nessuna seconda geometria**. Un colpo la cui origine **non** è nell'arco frontale **annulla** la riduzione da **copertura bassa** (−10) e da **`Action.Guard`** (−15). `Deflect`, `Brace`, `Shield` e gli scudi restano validi da **ogni** direzione: proteggono la persona, non un lato. Nessun modificatore nuovo | `Combat.BackAttackIgnoresCover`, `Combat.BackAttackIgnoresGuard`, `Combat.FlankAttackKeepsCover`, `Combat.ShieldWorksFromAnyDirection` |
 
 **Consumatori negli altri epic** — non sono CP di E16, sono DoD emendate:
@@ -896,11 +903,29 @@ direzionale toglie protezioni già a catalogo invece di aggiungere danno.
 | **CP 11.5** (E11) | il ghost mostra il **facing pianificato**: il campo `Facing` del view model diventa una scelta visibile, non una posa decorativa |
 | **CP 9.1** (E9) | la copertura bassa resta **per bordo di cella**; il facing non la ruota — è il colpo alle spalle che la annulla. Le due direzionalità sono ortogonali e non vanno unificate |
 
+**Prerequisito misurato sull'harness — 2026-08-08.** Nessuno scenario può oggi *verificare* un facing:
+`FRTScenarioIntent` non ha un campo di orientamento e `ERTAssertionKind` ha quattro voci
+(`UnitAtCell` · `TurnsCompleted` · `UnitHpEquals` · `UnitAlive`), nessuna delle quali legge il facing. Il
+loader **rifiuta** un'assertion sconosciuta, ma **ignora in silenzio** una chiave di intent sconosciuta:
+scrivere oggi uno scenario con `"facing": "NE"` produrrebbe un verde su una premessa mai applicata — il
+difetto peggiore, perché nessuno va a guardarlo. La capability `Facing` esiste già come stringa di `requires`
+ed è dichiarata dal **turno 4** di `RT_Showcase_Relay_v01`, che resta **`BLOCKED`** finché E16 non atterra:
+quello è il comportamento corretto e non va aggirato.
+
+Quindi CP 16.1 include l'estensione dello schema — campo di orientamento nell'intent e assertion sul facing —
+**prima** del corpus di scenari. Il corpus proposto dall'handoff del 2026-08-08 (venti casi `FACING-01`…`-20`)
+non è scrivibile prima, e non è stato scritto. Quando lo sarà, identità e tag seguono
+[`scenario-index-e-tag.md`](../technical/scenario-index-e-tag.md); una parte dei venti casi resta comunque
+sospesa a decisioni aperte — reazioni che ruotano, `Interact`, status e terreno — elencate come `FAC-5`…`FAC-8`
+in [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md).
+
 **Rischi**: (a) **aggirare potrebbe diventare dominante** — se il gioco migliore è sempre prendere il fianco,
 le vie di rientro sono parametri (retro = sola direzione opposta, oppure riduzione parziale invece di
 annullamento), non modifiche del modello; (b) i test del bot cambiano premessa **due volte** (E13 e poi il
 cono); (c) senza il facing nella preview il giocatore sceglie **alla cieca** una decisione che vale per tutto
-il turno successivo: CP 11.5 è il gate di leggibilità di questa epic.
+il turno successivo: CP 11.5 è il gate di leggibilità di questa epic; (d) **lo schema dell'harness ignora in
+silenzio le chiavi che non conosce**: finché l'estensione di CP 16.1 non atterra, ogni scenario «di facing»
+scritto in anticipo è verde e vuoto.
 
 ---
 

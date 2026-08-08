@@ -512,7 +512,8 @@
         "RT-FEAT-MAP-COVER"
       ],
       "owner_specs": [
-        "docs/decisions/adr-0005-orientamento.md"
+        "docs/decisions/adr-0005-orientamento.md",
+        "docs/decisions/RT_PDR_00_Decision_Log.md"
       ],
       "issues": [
         175,
@@ -530,7 +531,7 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "ADR-0005 e D-020 accettati, nessun codice. `Playback.DirectionYawFacesTarget` è presentazione, non stato di gioco: non vale come gate `runtime`. Prerequisito di E13. Attenzione: la pagina Wiki esiste già e descrive una meccanica che il gioco non ha — il blocco di stato generato deve dirlo."
+      "notes": "ADR-0005 e D-020 accettati, nessun codice. `Playback.DirectionYawFacesTarget` è presentazione, non stato di gioco: non vale come gate `runtime`. Prerequisito di E13. Attenzione: la pagina Wiki esiste già e descrive una meccanica che il gioco non ha — il blocco di stato generato deve dirlo. Il gate `scenario` non è solo «da scrivere»: oggi è **impossibile**. `FRTScenarioIntent` non ha un campo di orientamento e `ERTAssertionKind` non ha un'assertion che legga il facing; il loader ignora in silenzio una chiave di intent sconosciuta, quindi uno scenario di facing scritto ora sarebbe verde senza verificare niente. L'estensione dello schema è un prerequisito dichiarato di CP 16.1. Il modello ha inoltre decisioni aperte, `FAC-1`…`FAC-10` in `docs/OPEN_DECISIONS.md`: `FAC-4` (il facing durante i micro-step di un Move) blocca CP 16.1, perché i trigger di reazione cadono dentro il movimento e l'ADR copre inizio e fine ma non il mezzo."
     },
     {
       "feature_id": "RT-FEAT-MAP-COVER",
