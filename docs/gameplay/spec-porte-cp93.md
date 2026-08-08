@@ -270,7 +270,8 @@ Ogni riga è una modifica deliberata al codice di produzione, applicata **da sol
 e suite intera. Nessuna usa un `return` anticipato: in questo progetto il codice non eseguibile (C4702) è un
 errore di compilazione, quindi si muta un valore o una condizione già presenti.
 
-Baseline: **425 test, nessuno fallito**.
+Baseline: **425 test, nessuno fallito** (misura sul ramo prima del merge con `main`; dopo il merge la suite
+e' a **432 in 65 file** — le mutazioni sono state girate sul ramo, che e' dove il codice nuovo vive).
 
 | # | Mutazione | File | Test caduti |
 |---|---|---|---|

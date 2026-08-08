@@ -86,12 +86,14 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 | **Finestre di reazione interattive** | — | ⏳ ADR-0004 accettato, nessun codice (E14) |
 | **Scenario showcase e golden replay** | — | ⏳ (E15) |
 
-**Suite automatica**: **425 test unici** in **64 file** (misurati 2026-08-08 alla chiusura di CP 9.3: +13,
-di cui 10 `Structures.Door.*` e 3 `HexMap.Door*`; il file nuovo è `RTHexDoorTests.cpp`). Il tredicesimo,
-`Door.ReadsBothFaces`, non era previsto: l'ha reso necessario la **verifica di mutazione**, che ha scoperto
-come nessun test esercitasse la lettura del bordo dalla faccia che non dichiara la porta.
-Prima erano **412 in 63**, rimisurati 2026-08-07 **dopo il merge** di CP 9.2 e della
-riorganizzazione documentale. Le due viste sono arrivate al merge con due numeri diversi ed **entrambi
+**Suite automatica**: **432 test unici** in **65 file** (rimisurati 2026-08-08 **dopo** il merge
+di CP 9.3 con `main`). CP 9.3 porta **+13** test — 10 `Structures.Door.*` e 3 `HexMap.Door*`, nel file nuovo
+`RTHexDoorTests.cpp`. Il tredicesimo, `Door.ReadsBothFaces`, non era previsto: l'ha reso necessario la
+**verifica di mutazione**, che ha scoperto come nessun test esercitasse la lettura del bordo dalla faccia che
+non dichiara la porta.
+⚠️ Al merge le due parti dichiaravano **425 in 64** (CP 9.3) e **419 in 64** (`main`): entrambe corrette alla
+propria base e nessuna valida dopo l'unione — di nuovo. Le viste erano già arrivate a un merge con numeri
+diversi ed **entrambi
 corretti alla propria base** — 394 in 61 alla chiusura di CP 9.1, 390 in 61 col primo blocco dell'harness
 degli scenari — e dopo l'unione nessuno dei due valeva più. È il caso che dimostra la regola meglio di
 qualunque deriva: **si misura col comando**, dopo ogni merge e alla chiusura di ogni checkpoint.
@@ -133,9 +135,12 @@ Le due righe qui sopra **erano vere il 2026-08-05 e non lo sono più**. Misura d
 `Ice.SlideBudgetBoundaryIsExactlyTwo`, `Ice.BlockedCellStopsSliding`, `Ice.SlidesInMatch`), benché il catalogo
 terreni lo dichiari «rimandabile». Non va né costruito né rimosso: va **documentato come vigente**.
 
-**I 10 test vincolanti del catalogo** (§6): **6 esistono**, 4 no —
-mancano `Environment.WaterElectricPropagation`, `Environment.WaterExtinguishesFire`,
-`Cover.DirectionalDamageReduction`, `Simulation.DeterministicReplay`.
+~~**I 10 test vincolanti del catalogo** (§6): **6 esistono**, 4 no~~
+→ ✅ **tutti e 10 esistono** (misurato il 2026-08-08). Nel frattempo sono arrivati `Environment.*` e
+`Cover.DirectionalDamageReduction` (E8/E9) e, per ultimo, `Simulation.DeterministicReplay` con le sue **100
+ripetizioni** — insieme a `Simulation.ChecksumStableAcrossPermutations` che chiude **CP 12.1**.
+Verifica riproducibile: `grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp`
+e confronto con l'elenco di §6.
 
 **Stato in una riga, aggiornato**: il **contenuto** della v0.1 (cataloghi, azioni, reazioni, eroi) è in gran
 parte costruito e testato; mancano **il mondo** (ambiente, coperture, strutture, obiettivi), **la leggibilità**
@@ -165,8 +170,9 @@ di gioco: è la **verifica interattiva** (M6 CP 6.8 mai eseguito) e l'osservabil
 | **E15** | Showcase «Il Relè» e golden replay | P1 | 5 | La prova integrata che le regole generali producono una partita: fixture, scenario e replay a hash stabile — consumer dei sistemi, mai codice speciale |
 | **E16** | Orientamento e direzionalità | P1 | 2 | L'orientamento smette di essere presentazione: decide difesa, percezione e reazioni con una sola primitiva (`HexCone`) e **zero numeri nuovi**. È **prerequisito di E13** |
 | **E17** | Validazione di stress 4v4 | P3 | 3 | Misura, non produzione: dove si rompe il sistema con **otto unità** (resolver, leggibilità, prompt di reazione, TurnLog). Mirror del roster core, **dopo E15**. Non decide il formato principale ([D-011](../decisions/RT_PDR_00_Decision_Log.md)) |
+| **E18** | Predictive Action — thin slice | P2 | 2 | Il pilastro della **predizione** diventa percepibile con **una sola** azione: decisa in Planning, risolta a un boundary deterministico, **senza input live** ([D-016](../decisions/RT_PDR_00_Decision_Log.md)). Il framework di trap resta fuori |
 
-**Totale: 17 epic, 85 checkpoint** *(era 12/59; **E13** ed **E14** aggiunte il 2026-08-07; il 2026-08-07,
+**Totale: 18 epic, 87 checkpoint** *(era 12/59; **E13** ed **E14** aggiunte il 2026-08-07; il 2026-08-07,
 consolidando [`../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md`](../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md):
 **E15** showcase (5 CP), **CP 5.5** e **CP 6.7** per il debito delle reazioni d'eroe, **CP 14.2** per
 l'estrazione del micro-step; consolidando
@@ -360,7 +366,7 @@ finché CP 2.8 non è verde.**
 | **4.2** | Budget 5 MP e micro-step | Budget 5 MP; costo 1 cella normale, 2 difficile, 2 salita via rampa; Sprint 8 MP + `Status.Exposed`; il percorso **non** viene ricalcolato globalmente durante la resolution | `Actions.Move.BudgetCosts`, `Actions.Sprint.AppliesExposed`, `Actions.Move.NoGlobalRecompute` |
 | **4.3** | Fallback | `Fallback.{Stop,Wait,AttackCell,AttackTarget,BasicAttack,Cancel}` implementati; Move usa sempre `Stop`, AoE `AttackCell`, attacchi diretti e cure `Cancel`, reazioni nessuno; **nessun** targeting automatico casuale | Un test per fallback + `Actions.Fallback.NoRandomTargeting` |
 | **4.4** | Azioni fondamentali | `Wait`, `Move`, `BasicAttack`, `Guard`, `Activate`, `Interact` con fase/priorità del catalogo; `Guard` riduce di 15 il primo danno diretto e resiste a una spinta di 1, scade nel Cleanup | Un test per azione + `Actions.Guard.FirstHitOnly` |
-| **4.5** | Azioni di movimento | `Sprint`, `Dash`, `Charge`, `Leap`, `Reposition`; ciascuna dichiara **Dash o Move** come macro-fase (ADR-0003 §3); Charge 20 danni + Push 1 e si ferma all'impatto; Leap ignora unità e coperture basse ma subisce la cella d'atterraggio | `Actions.Dash.BlockedArc`, `Actions.Charge.StopsOnImpact`, `Actions.Leap.IgnoresIntermediateCells` |
+| **4.5** | Azioni di movimento *(⚠️ [D-015](../decisions/RT_PDR_00_Decision_Log.md): `Sprint` è oggi classificato qui per eredità, ma è un **profilo di `Move`**, non un Dash — migrazione tracciata)* | `Sprint`, `Dash`, `Charge`, `Leap`, `Reposition`; ciascuna dichiara **Dash o Move** come macro-fase (ADR-0003 §3); Charge 20 danni + Push 1 e si ferma all'impatto; Leap ignora unità e coperture basse ma subisce la cella d'atterraggio | `Actions.Dash.BlockedArc`, `Actions.Charge.StopsOnImpact`, `Actions.Leap.IgnoresIntermediateCells` |
 | **4.6** | Azioni offensive | `PrecisionAttack` (24, ignora copertura bassa), `HeavyAttack` (35, 20 alle strutture), `LineAttack` (22, primo bersaglio, range 5), `CircularAoE` (18, raggio 1, friendly fire), `SuppressiveLine`, `MarkTarget` (+6 al prossimo colpo alleato, consumato) | Un test per azione + `Actions.AoE.FriendlyFire`, `Actions.MarkTarget.ConsumedOnce` |
 | **4.7** | Azioni di controllo | `Push`/`Pull` (1 cella, nessuno spostamento illegale, copertura alta blocca), `Root` (annulla i micro-step non risolti, non impedisce attacchi), `Interrupt` (solo su azioni con `bCanBeInterrupted`), `Slow` (+1 costo) | `Actions.Push.InvalidDestination`, `Actions.Root.CancelsRemainingSteps`, `Actions.Interrupt.OnlyInterruptible` |
 | **4.8** | Collisioni simultanee v0.1 | Stessa cella e stessa priorità → entrambe si fermano prima; Charge prevale su Move; cella occupata da unità immobile → si ferma prima; due Charge opposte → entrambe si fermano; **nessun** esito dipendente dal Player ID | `Actions.Move.CellConflict`, `Actions.Charge.BeatsMove`, `Actions.Charge.HeadOnStops`, `Actions.Collisions.NoPlayerIdBias` |
@@ -554,7 +560,7 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
-| **12.1** | Replay deterministico rinforzato | Stessa snapshot + stesso seed + stesse definizioni + stesso ordine ⇒ checksum finale **identico** su **almeno 100 ripetizioni** | `Simulation.DeterministicReplay` (100 iterazioni), `Simulation.ChecksumStableAcrossPermutations` |
+| **12.1** ✅ | Replay deterministico rinforzato | Stessa snapshot + stesso seed + stesse definizioni + stesso ordine ⇒ checksum finale **identico** su **almeno 100 ripetizioni** | ✅ **2026-08-08**: `Simulation.DeterministicReplay` (100 iterazioni, 0 divergenze) e `Simulation.ChecksumStableAcrossPermutations` (unità e intent invertiti → stesso stato). Entrambi girano sullo **Scenario Harness**, quindi sul percorso di gioco reale. Più `Simulation.StateHashDistinguishesOutcomes`, che impedisce all'hash di degenerare in una costante — senza, i primi due passerebbero anche confrontando zeri |
 | **12.2** | Matrice test manuali v0.1 | Le 12 voci `PIE-V01-*` esistono in `test-manuali-pie.md` con precondizione ed esito atteso e sono **eseguite** | Sessione E di `test-manuali-pie.md` completa |
 | **12.3** | Suite automatica completa | I 10 test nominati dal catalogo (§15) esistono con quei nomi e sono verdi; nessun test disabilitato o saltato per far passare la build | `RunUAT`/Automation: elenco completo verde; `grep -rn "skip\|disable" Source/RefactorTactics/Tests/` senza esiti |
 | **12.4** | KPI misurati | FPS client, path mediana, preview completa, resolver per turno **misurati e registrati** (anche se fuori target); replay divergence = 0; intent leak = 0. **In più** (2026-08-07): le metriche di **durata** — `RoundsPlayed`, `MatchDurationSeconds`, `PlanningDurationSeconds`, `ResolutionPlaybackSeconds`, `ReadyAtSeconds`, `FirstEnemyContactRound` — raccolte sul **2v2** e dichiarate come tali, **non** confrontate con le bande del 3v3 Standard che non esiste in v0.1 | Tabella KPI di `v0.1-definition-of-done.md` compilata con numeri reali · metriche in [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §17 |
@@ -605,8 +611,17 @@ livello `Rilevato`, non solo LOS. È **l'ultima epic della v0.1** e la **prima d
 | **14.2** *(nuovo 2026-08-07)* | **Micro-step step-able**, a comportamento invariato | Il resolver di movimento espone uno stato esplicito (`FRTMovementResolutionState` + `ResolveNextHexMicroStep`); **`ResolveHexPaths` resta e diventa il wrapper** `initialize → while(!finished) step → result`. **Nessun comportamento cambia**: tutti i test di movimento, collisione, scivolamento e permutazione restano verdi **senza modifiche al comportamento atteso**; il TurnLog prodotto è identico a byte confrontabili. Nessuna finestra, nessuna UI, nessun trigger in questo CP | Suite movimento/collisioni **invariata** · `Movement.StepperMatchesBatchResolver` (stesso input ⇒ stesso risultato dei due percorsi) · `Movement.StepperIsDeterministicUnderPermutation` |
 | **14.3** | Modello unificato senza regressioni | `FRTReactionOpportunity` con `AllowedResponses`; `≤ 1` → commit immediato **senza** boundary. **I 24 test di E5 restano verdi senza modifiche al loro comportamento atteso.** `OpportunityId` **derivato deterministicamente** (`Turn.Phase.MicroStep.Owner.ReactionDef.Seq`), mai un GUID runtime. **+ [D-012](../decisions/RT_PDR_00_Decision_Log.md)**: una **condizione dichiarata in planning** è valutata al trigger come funzione pura e **riduce** le risposte legali; se ne resta una, commit immediato senza finestra. È così che i tre regimi *Automatic/Conditional/FastSelect* emergono dai dati — **nessun enum di policy parallelo** (vedi rischio (b) qui sotto). Le condizioni ammesse sono un elenco chiuso, validato dal ruleset | `Reactions.SingleResponseCommitsWithoutWindow`, `Reactions.OpportunityIdIsDerivedNotRandom`, `Reactions.DeclaredConditionCollapsesToImmediateCommit`, `Reactions.UnknownConditionIsRejectedByValidator`, suite E5 invariata |
 | **14.4** | Overwatch armato e trigger a micro-step | Zona controllata **riusando `FRTSuppressiveZone`** (nessuna seconda geometria), la cui direzione **nasce dal facing** dell'unità e non da un parametro dichiarato a parte *(ADR-0005 §4c: due sorgenti sarebbero due verità)*; trigger valutato a ogni micro-step con `TargetInsideArea ∧ LOS ∧ Rilevato ∧ ReactionStillArmed`; più bersagli nello stesso micro-step ⇒ **una** opportunity multi-bersaglio; ordine totale `ReactionPriority → AbilityPriority → UnitInitiative → StableUnitId → ReactionInstanceId`. **+ [D-012](../decisions/RT_PDR_00_Decision_Log.md)**: armare l'Overwatch **consuma lo slot dell'azione offensiva** (`Attack` \| `Ability` \| `Overwatch`), salvo eccezione dichiarata dall'abilità; il profilo è **dato per eroe** (area, arco, trigger e risposte legali), non un ramo nel resolver | `Overwatch.TriggersPerMicroStep`, `Overwatch.SimultaneousTargetsSingleOpportunity`, `Overwatch.RequiresDetection`, `Overwatch.OrderIsDeterministic`, `Overwatch.CompetesWithOffensiveAction`, `Overwatch.ProfileIsDataNotBranch` |
-| **14.5** | Finestra, commit e cablaggio di `Vektor.InterceptShot` | Finestra 3 s; `FIRE` consuma la charge e **tronca** il movimento residuo del bersaglio, `HOLD` mantiene armata la reaction; `Timeout → HOLD`; la decisione entra nel TurnLog e il **replay la riproduce**; la opportunity inviata al client non contiene trigger, percorsi né posizioni future; il **bot** decide con la sola opportunity sanitizzata; **prima misura di pacing** con `DecisionProvider` immediato (nessun timer reale) | `Overwatch.HoldKeepsArmed`, `Overwatch.TimeoutIsHold`, `Overwatch.DecisionIsReplayable`, `Overwatch.OpportunityLeaksNoFuture`, `Overwatch.FireTruncatesFutureMovement`, `Overwatch.InterruptionAffectsLaterCollision`, `Bot.DecidesWithoutFutureKnowledge` |
+| **14.5** ⚠️ | Finestra, commit e **primo consumatore** *(era `Vektor.InterceptShot`, vedi nota sotto)* | Finestra 3 s; `FIRE` consuma la charge e **tronca** il movimento residuo del bersaglio, `HOLD` mantiene armata la reaction; `Timeout → HOLD`; la decisione entra nel TurnLog e il **replay la riproduce**; la opportunity inviata al client non contiene trigger, percorsi né posizioni future; il **bot** decide con la sola opportunity sanitizzata; **prima misura di pacing** con `DecisionProvider` immediato (nessun timer reale) | `Overwatch.HoldKeepsArmed`, `Overwatch.TimeoutIsHold`, `Overwatch.DecisionIsReplayable`, `Overwatch.OpportunityLeaksNoFuture`, `Overwatch.FireTruncatesFutureMovement`, `Overwatch.InterruptionAffectsLaterCollision`, `Bot.DecidesWithoutFutureKnowledge` |
 | **14.6** | Counterplay, UI e misura reale | KO/Stun/Disarm/Forced Movement invalidano l'overwatch armato; UI `FIRE`/`HOLD` con countdown, **nessuna logica di gioco nel widget**, slow-motion come sola presentazione; durata della resolution **misurata e registrata** con 1/2/3 unità armate | `Overwatch.CancelledByStun`, `Overwatch.CancelledByForcedMovement`, `Overwatch.SlowMotionDoesNotChangeOutcome`; PIE `PIE-V01-OVERWATCH` |
+
+> ⚠️ **CP 14.5 cambia consumatore (2026-08-08).** `Vektor.InterceptShot` era il caso concreto scelto per la
+> prima finestra. Con [D-016](../decisions/RT_PDR_00_Decision_Log.md) quell'azione diventa una **Predictive
+> Action** — decisa in Planning, risolta a un boundary, **senza input live** — quindi **non le serve una
+> finestra** e passa a **E18**. È una semplificazione, non una perdita: E14 non dipende più da un'abilità
+> d'eroe per dimostrarsi. Il primo consumatore diventa l'**Overwatch universale** di
+> [D-014](../decisions/RT_PDR_00_Decision_Log.md), che è ciò che la finestra esiste per servire.
+> La proprietà da non perdere è il **troncamento del movimento residuo** (`Overwatch.FireTruncatesFutureMovement`):
+> vale per l'Overwatch tanto quanto valeva per l'Intercept.
 
 > **Rinumerazione 2026-08-07**: i CP 14.2–14.5 del brief sono diventati 14.3–14.6 per fare posto
 > all'estrazione del micro-step, che era implicita e non aveva un gate proprio pur essendo il punto più
@@ -730,6 +745,43 @@ produce una mappa di release. L'arena è un graybox il cui unico scopo è genera
 **Rischi**: (a) diventa produzione di contenuto invece che misura — il gate è che nessun CP aggiunga regole;
 (b) misura la leggibilità con un campione di **un** giocatore, che è l'autore del gioco: il dato va letto come
 segnale, non come validazione.
+
+### E18 — Predictive Action, thin slice · P2
+
+**Obiettivo**: rendere percepibile il pilastro della **predizione** — «scommetto che passerai di lì» — con
+**una sola** azione reale, senza aprire il framework di trappole.
+
+Decisione: [D-016](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-08). Semantica obbligatoria:
+
+```text
+Planning: previsione dichiarata per intero (cella/linea/area/direzione + boundary + fallback)
+  → trigger valutato come FUNZIONE PURA al boundary
+  → previsione corretta → risoluzione automatica
+  → previsione errata   → whiff/fallback dichiarato
+  → NESSUN input umano durante la Resolution
+```
+
+> **Perché non è E14.** Una Predictive Action **non è una reazione**: non riceve informazione nuova e non apre
+> finestre. Confonderle produrrebbe due semantiche per lo stesso trigger. `Vektor.InterceptShot` è il bersaglio
+> preferito, e oggi è a catalogo con `ERTActionSlot::None` e rinvio a E14 **dichiarato nei dati**: questa epic
+> lo **sgancia** da E14 invece di farlo dipendere da essa.
+
+| CP | Obiettivo | DoD misurabile | Test / verifica |
+|---|---|---|---|
+| **18.1** | Modello e boundary | Il targeting predittivo (`LockCell` per lo slice) e il **boundary di risoluzione** sono campi di `FRTActionDef`, non un secondo sistema: la coda azioni esistente li ordina. Il fallback usa `ERTActionFallback` già presente (`Cancel` ≡ fizzle). Nessun input umano nel percorso | `Predictive.ResolvesAtDeclaredBoundary`, `Predictive.WhiffUsesDeclaredFallback`, `Predictive.PermutationInvariant`, `Predictive.NoResolverWait` |
+| **18.2** | `Vektor.InterceptShot` come Predictive | L'azione **migra** da «rinviata a E14» a predittiva: cella dichiarata in Planning, 16 danni + stop del movimento a chi vi **entra**, whiff se nessuno entra. Il TurnLog spiega `TriggerMatched` / `PredictionWhiffed`. **Il replay la riproduce** senza input | `Predictive.InterceptCellHit`, `Predictive.InterceptCellMiss`, `Predictive.CrossingIsNotPresence`, `Heroes.Vektor.InterceptShotIsPredictive` |
+
+**Fuori scope, dichiarato**: trap persistenti, mine, tripwire su arco, catene di predictive action, editor
+visuale di trigger, interrupt annidati. Il trigger su transizione ha già la sua regola
+([D-013](../decisions/RT_PDR_00_Decision_Log.md)) ma **non** entra qui.
+
+**Dipendenze**: nessuna su E13/E14 — è il suo pregio. Tocca il motore azioni (E4, chiuso) e il catalogo eroi
+(E6, chiuso).
+
+**Rischi**: (a) la migrazione di `Vektor.InterceptShot` cambia il significato di un'azione **già a catalogo e
+già testata** — i test che oggi ne fissano il rinvio (`Heroes.ReactionsDeclaredOrDeferred`) vanno
+**sostituiti**, non cancellati; (b) «una sola predictive» è una soglia che si supera facilmente: ogni azione
+in più va discussa, non aggiunta.
 
 ---
 

@@ -282,4 +282,156 @@ bool FRTScenarioListIdsTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `Movement.Blocked`: un muro di ostacoli separa l'unita' dalla destinazione. Il percorso non esiste, quindi
+ * il piano viene rifiutato e l'unita' resta dov'e'. Il turno si chiude comunque: un piano impossibile non
+ * blocca la partita, e nessuno attraversa l'ostacolo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioMovementBlockedTest,
+	"RefactorTactics.Scenario.RunnerMovementBlocked",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioMovementBlockedTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Movement.Blocked"), Scenario)) { return false; }
+	TestTrue(TEXT("lo scenario dichiara degli ostacoli"), Scenario.Cells.Num() > 0);
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di PASS: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("esito PASS: l'unita' resta ferma, come previsto"), Result.OutcomeString(), FString(TEXT("PASS")));
+	TestEqual(TEXT("il turno si e' chiuso lo stesso"), Result.TurnsPlayed, 1);
+	return true;
+}
+
+/**
+ * `Movement.Collision`: due unita' verso la stessa cella si fermano ENTRAMBE. E' anche il caso in cui
+ * l'ordine dell'array non deve poter decidere: se lo decidesse, una delle due entrerebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioMovementCollisionTest,
+	"RefactorTactics.Scenario.RunnerMovementCollision",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioMovementCollisionTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Movement.Collision"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di PASS: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("esito PASS: destinazione contesa, entrambe ferme"), Result.OutcomeString(), FString(TEXT("PASS")));
+
+	// Le due assertion di posizione devono essere ENTRAMBE verdi: se una sola unita' fosse entrata, il
+	// contested avrebbe scelto un vincitore - cioe' l'ordine dell'array avrebbe deciso l'esito.
+	int32 Positions = 0;
+	for (const FRTAssertionResult& A : Result.Assertions)
+	{
+		if (A.Kind == ERTAssertionKind::UnitAtCell) { ++Positions; TestTrue(A.Description, A.bPassed); }
+	}
+	TestEqual(TEXT("verificate le posizioni di entrambe"), Positions, 2);
+	return true;
+}
+
+/** Le celle modificate dallo scenario finiscono davvero nell'arena: senza, l'ostacolo non bloccherebbe nulla. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCellOverridesApplyTest,
+	"RefactorTactics.Scenario.CellOverridesReachTheArena",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCellOverridesApplyTest::RunTest(const FString&)
+{
+	// Scenario costruito qui: la stessa destinazione, una volta libera e una volta murata. Se gli override
+	// non arrivassero all'arena, i due casi darebbero lo STESSO risultato - ed e' esattamente cio' che il
+	// confronto smaschera.
+	auto MakeScenario = [](bool bWall)
+	{
+		FRTTestScenario S;
+		S.ScenarioId = bWall ? TEXT("Probe.Walled") : TEXT("Probe.Open");
+		S.MapRadius = 3;
+		FRTScenarioUnit U;
+		U.Id = TEXT("A1"); U.HeroId = TEXT("Hero.Flux"); U.TeamId = 0; U.Cell = FRTCellId(-2, 0, 0);
+		S.Units.Add(U);
+		if (bWall)
+		{
+			// Muro sulla colonna q=-1. In coordinate assiali il raggio limita anche r: per q=-1 l'intervallo
+			// valido e' [-2, 3], non [-3, 3]. Sforarlo faceva rifiutare lo scenario dalla validazione con un
+			// ERROR - correttamente, ed e' cosi' che questo test si e' accorto di essere scritto male.
+			for (int32 R = -2; R <= 3; ++R)
+			{
+				FRTScenarioCell C; C.Cell = FRTCellId(-1, R, 0); C.bBlocksMovement = true; S.Cells.Add(C);
+			}
+		}
+		FRTScenarioTurn T;
+		FRTScenarioIntent I; I.UnitId = TEXT("A1"); I.Move.Add(FRTCellId(0, 0, 0));
+		T.Intents.Add(I); S.Turns.Add(T);
+		FRTTestExpectation E; E.Kind = ERTAssertionKind::UnitAtCell; E.UnitId = TEXT("A1"); E.Cell = FRTCellId(0, 0, 0);
+		S.Expect.Add(E);
+		return S;
+	};
+
+	UWorld* W1 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 1"), W1)) { return false; }
+	const FRTTestResult Open = URTScenarioRunner::Run(W1, MakeScenario(false));
+	DestroyRunnerWorld(W1);
+
+	UWorld* W2 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 2"), W2)) { return false; }
+	const FRTTestResult Walled = URTScenarioRunner::Run(W2, MakeScenario(true));
+	DestroyRunnerWorld(W2);
+
+	TestEqual(TEXT("senza muro l'unita' arriva"), Open.OutcomeString(), FString(TEXT("PASS")));
+	TestEqual(TEXT("con il muro NON arriva"), Walled.OutcomeString(), FString(TEXT("FAIL")));
+	return true;
+}
+
+/**
+ * `Movement.SwapRejectedByPlanning`: due unita' adiacenti NON si scambiano di posto.
+ *
+ * E' un test di CARATTERIZZAZIONE: fissa il comportamento attuale, non una regola desiderata. La
+ * pianificazione rifiuta un percorso verso una cella occupata (`FindPathForUnit`: goal occupato -> NoPath),
+ * quindi lo scambio non arriva mai al resolver.
+ *
+ * ⚠️ Il resolver invece lo CONSENTE — `HexSim.ResolveSwapAllowed` lo verifica, ma passando percorsi costruiti
+ * a mano e quindi bypassando il planner. Le due regole insieme rendono lo scambio **irraggiungibile dal
+ * gioco**, ed e' il tipo di difetto che solo un test d'integrazione puo' mostrare: entrambe le regole,
+ * guardate da sole, sono verdi e sensate.
+ *
+ * Se un giorno lo scambio dovra' essere possibile, sara' il planner a cambiare e questo test diventera'
+ * rosso: e' il segnale che si vuole, non un fastidio da mettere a tacere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioSwapRejectedTest,
+	"RefactorTactics.Scenario.RunnerSwapRejectedByPlanning",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioSwapRejectedTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Movement.SwapRejectedByPlanning"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di PASS: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("esito PASS: entrambe restano ferme (comportamento attuale)"),
+		Result.OutcomeString(), FString(TEXT("PASS")));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

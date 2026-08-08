@@ -1,6 +1,6 @@
 # Spec — Bot: utility scoring multi-fattore
 
-> ⚠️ **Superato dal pivot esagonale** ([ADR-0002](../decisions/adr-0002-griglia-esagonale.md)) — **riferimento storico, non normativo.**
+> ⚠️ **Superato dal pivot esagonale** ([ADR-0002](../../decisions/adr-0002-griglia-esagonale.md)) — **riferimento storico, non normativo.**
 > Descrive il substrato **quadrato**, rimosso dal codice al **CP 7.2** (`Grid/`, `URTGridLibrary`, `FRTGridCoord`, resolver e bot quadrati). Il bot autorevole è oggi `URTHexBotLibrary`: i cinque test d'integrazione sono stati **portati** su hex al CP 6.6, non cancellati.
 > Conservato per provenienza e come comportamento di riferimento della parità hex (M6). Punto di ritorno: tag `pre-hex-only`.
 
@@ -85,5 +85,5 @@ non cambia la scelta.
   solo le candidate delle euristiche (consigliato). · Copertura/LOS/quota come fattori aggiuntivi in BU.2.
 
 ## 9. Riferimenti
-- Canone: [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) §5 (invarianti #4 determinismo, #7 funzioni pure),
+- Canone: [`piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md) §5 (invarianti #4 determinismo, #7 funzioni pure),
   §5.1 (tie-break assoluto). Codice: `RTBotLibrary`, `RTTurnManager::PlanBots`.

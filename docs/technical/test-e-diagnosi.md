@@ -125,6 +125,7 @@ File in `Scenarios/<Categoria>/<Nome>.json`. **L'ID è il percorso**: `Movement.
 |---|---|
 | `scenarioId` | ID gerarchico, **deve** corrispondere al percorso del file |
 | `mapRadius` | arena esagonale piena generata da codice (nessun `.umap` da versionare) |
+| `cells` | *(opzionale)* celle da modificare: `blocksMovement`, `blocksLineOfSight`, `moveCost` |
 | `hero` | ID stabile dal catalogo: `Hero.Flux` · `Hero.Riva` · `Hero.Bastion` · `Hero.Vektor` |
 | `cell` | `[q, r]` oppure `[q, r, layer]` — il layer è opzionale e vale 0 |
 | `move` | lista di **waypoint**, come li produrrebbe il giocatore cliccando |
@@ -145,6 +146,47 @@ già dichiararlo. Viene registrato nel report.
 
 Sono **due** di proposito: si aggiungono quando servono, non prima. Il modello dati regge le altre senza
 modifiche strutturali.
+
+### Ostacoli e terreno
+
+Per gli scenari che hanno bisogno di un muro o di terreno costoso, `cells` modifica l'arena generata senza
+versionare un `.umap`:
+
+```json
+"cells": [
+  { "cell": [0, 0, 0], "blocksMovement": true },
+  { "cell": [1, 0, 0], "moveCost": 3 },
+  { "cell": [2, 0, 0], "blocksLineOfSight": true }
+]
+```
+
+Le celle non elencate restano pavimento a costo 1. Due controlli evitano scenari privi di senso: una cella
+modificata **fuori dall'arena** (un ostacolo che non blocca niente) e un'unità che **parte dentro un
+ostacolo** (una situazione che il gioco non produrrebbe mai) vengono rifiutate con `ERROR`.
+
+> ⚠️ **Coordinate assiali**: il raggio limita anche `r`. Su un'arena di raggio 3, per `q = -1` le `r` valide
+> vanno da **−2 a 3**, non da −3 a 3. Sforare produce «cella fuori dall'arena» — succede facilmente quando si
+> genera un muro con un ciclo.
+
+### Scenari disponibili
+
+| ID | Verifica |
+|---|---|
+| `Movement.Basic` | l'unità raggiunge la cella adiacente pianificata |
+| `Movement.BasicFailsOnPurpose` | **FAIL voluto**: dimostra che il report diagnostica invece di dire solo «fallito» |
+| `Movement.Blocked` | un muro rende il percorso impossibile: il piano è rifiutato, l'unità resta ferma, il turno si chiude lo stesso |
+| `Movement.Collision` | due unità verso la stessa cella si fermano **entrambe** |
+| `Movement.SwapRejectedByPlanning` | **caratterizzazione**: due unità adiacenti *non* si scambiano di posto, perché la pianificazione rifiuta un percorso verso una cella occupata (vedi §12) |
+
+### Scenari di caratterizzazione
+
+Non tutti gli scenari descrivono una regola *voluta*. Alcuni fissano il comportamento **attuale** perché non
+cambi per sbaglio, e dichiarano nel file stesso perché sono lì. Si riconoscono dal campo `_nota` che dice
+«caratterizzazione».
+
+Servono quando si scopre qualcosa che **non si è autorizzati a correggere**: se il comportamento sia giusto è
+una decisione di design, non una svista. Il test tiene fermo lo stato di fatto e diventa rosso il giorno in
+cui qualcuno lo cambia — che è il segnale desiderato, non un fastidio da mettere a tacere.
 
 ### Limiti della prima iterazione
 
@@ -325,3 +367,33 @@ Tre cose diverse, tre nomi diversi: **`Scenarios/`** sono i *dati* (cosa deve su
 > `Tests/Scenarios/`. Tre percorsi con lo stesso nome al singolare e al plurale, per tre contenuti diversi:
 > bastava questa guida per accorgersene, e la rinomina è costata dieci minuti. Se aggiungi una directory qui
 > dentro, controlla che il nome dica **cosa contiene** e non somigli a nessun'altra.
+
+---
+
+## 12. Cosa un test d'integrazione trova e uno unitario no
+
+Il **2026-08-08**, scrivendo uno scenario per un caso che le note PIE davano per scoperto, è emerso un difetto
+che nessuno dei test esistenti poteva mostrare. Vale come esempio di quando conviene uno scenario.
+
+**Il caso**: due unità adiacenti si scambiano di posto.
+
+| Livello | Regola | Test | Esito |
+|---|---|---|---|
+| Resolver | lo scambio **è consentito** | `HexSim.ResolveSwapAllowed` | ✅ verde |
+| Planner | goal occupato → **`NoPath`** | `HexSim.PathAvoidsOccupiedCell` | ✅ verde |
+
+Entrambe corrette, entrambe verdi, **ognuna guardata da sola**. Insieme rendono la regola del resolver
+**irraggiungibile**: nessun giocatore può pianificare uno scambio, perché cliccare sulla cella di un nemico
+adiacente non produce un percorso. Il test del resolver non se ne accorge perché costruisce i percorsi a mano,
+bypassando il planner.
+
+È il pattern **«dato senza consumatore»**: una regola che esiste, funziona, ed è irraggiungibile da chi
+dovrebbe attivarla.
+
+**Come cercarlo**: quando due sistemi hanno regole sullo stesso fenomeno — uno che *pianifica* e uno che
+*risolve*, uno che *produce* e uno che *consuma* — un test unitario per ciascuno non dice niente su cosa
+succede quando lavorano insieme. Serve qualcosa che percorra la catena intera. È esattamente ciò che uno
+scenario fa.
+
+**Cosa NON fare**: correggere la regola di iniziativa. Se lo scambio debba essere possibile è una decisione di
+design. Il difetto si fissa con una caratterizzazione e si segnala; chi decide, decide.

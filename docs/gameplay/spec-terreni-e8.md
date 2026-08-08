@@ -1,10 +1,24 @@
 # Spec — Terreni esagonali (E8, CP 8.1)
 
+> 🏔️ **[D-018](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-08) — `HighGround` e vista.**
+> Nella v0.1 la quota **non** dà alcun bonus numerico a `VisionRange`: nessun `+1` di default. Il «bonus
+> visuale» che questa spec dichiarava senza quantificarlo **non va quantificato**: la quota vale già
+> attraverso geometria, LOS, occlusione, copertura e topologia dei layer. Un bonus numerico futuro richiede
+> playtest e una decisione separata.
+>
+> 👁️ **`Smoke`**: il cap offensivo definito qui resta. Ma la semantica di **detection e contatto** è posseduta
+> da **E13** ([`brief-conoscenza-parziale.md`](brief-conoscenza-parziale.md)) e da
+> [ADR-0005](../decisions/adr-0005-orientamento.md) — il terreno **non** duplica la logica di percezione.
+>
+> 🏃 **[D-015](../decisions/RT_PDR_00_Decision_Log.md)**: `Sprint` è un **profilo di `Move`**, non un Dash.
+> Dove la classificazione legacy lo tratta come azione di fase Dash, è **debito di migrazione** dichiarato:
+> nessun documento deve insegnare «Sprint = Dash».
+
 > Brainstorming del **2026-08-06**. Fonti: [`RT_TerrainCatalog_v0.1.md`](../balance/RT_TerrainCatalog_v0.1.md)
 > (catalogo canonico) · [`v0.1-issue-plan.md`](../roadmap/v0.1-issue-plan.md) §E8 (issue `#64`, CP 8.1) · codice
 > esistente (`Map/RTHexCellData.h`, `Pathfinding/RTHexPathLibrary.*`, `Combat/RTHexCombatLibrary.*`,
 > `Ability/RTActionDef.h` + `RTCatalogLibrary.*`). Superate le regole di
-> [`spec-terreni.md`](spec-terreni.md) (grid quadrato, rimosso in `7d8889b`).
+> [`spec-terreni.md`](../archive/gameplay/spec-terreni.md) (grid quadrato, rimosso in `7d8889b`).
 > Autorità: subordinato al piano canonico e al catalogo terreni.
 
 ## 1. Obiettivo e scope

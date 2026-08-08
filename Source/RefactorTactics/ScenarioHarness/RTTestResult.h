@@ -49,6 +49,18 @@ struct FRTTestResult
 	/** Seed dichiarato dallo scenario. Registrato nel report anche se oggi nessun RNG lo consuma. */
 	int32 Seed = 0;
 
+	/**
+	 * Digest dello stato finale: posizione, salute, scudo ed energia di ogni unità viva.
+	 *
+	 * Serve al gate di determinismo (CP 12.1): stesso scenario ⇒ stesso hash, su qualunque numero di
+	 * ripetizioni. È **permutazione-invariante** per costruzione — le unità si ordinano prima di mescolare —
+	 * quindi cambiare l'ordine degli intent nello scenario non deve cambiarlo. Se cambia, l'ordine dell'array
+	 * sta decidendo l'esito, che è ciò che l'invariante #3 vieta.
+	 *
+	 * 0 quando lo scenario non è stato eseguito (`Error`): un hash su nessuno stato sarebbe un numero finto.
+	 */
+	uint32 StateHash = 0;
+
 	TArray<FRTAssertionResult> Assertions;
 
 	int32 PassedCount() const

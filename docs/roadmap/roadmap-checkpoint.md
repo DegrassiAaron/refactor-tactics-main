@@ -44,10 +44,12 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in parte (vedi nota) · ⏳ da far
 | **M10** Rete e privacy | ⏳ | Listen server, validazione server, planning team-only, canary intent leak. **Nuovo vincolo**: [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) introduce N round-trip per turno (finestre di reazione) |
 | **M11** Production readiness | ⏳ | Budget in CI, validator commandlet, packaged soak, replay audit |
 
-**Suite automatica**: `Source/RefactorTactics/Tests/` — **425** test unici in **64** file (misurati 2026-08-08
-alla chiusura di CP 9.3). ⚠️ La cifra dichiarata qui prima era **403 in 63**, mentre la vista v0.1 diceva
-**412 in 63**: entrambe erano corrette quando scritte e nessuna delle due valeva più dopo i merge successivi.
-È la stessa deriva di sempre — **si misura col comando**, dopo ogni merge e alla chiusura di ogni checkpoint.
+**Suite automatica**: `Source/RefactorTactics/Tests/` — **432** test unici in **65** file
+(rimisurati 2026-08-08 **dopo** il merge di CP 9.3 con `main`). ⚠️ Le due parti arrivavano al merge con
+**425 in 64** (questo ramo, CP 9.3) e **419 in 64** (`main`, con lo Scenario Harness e il gate di determinismo
+di CP 12.1): entrambe corrette alla propria base, **nessuna delle due valida dopo l'unione**. È la terza volta
+che succede, ed è sempre la stessa regola — **si misura col comando**, dopo ogni merge e alla chiusura di ogni
+checkpoint.
 Storia del numero: **172** alla chiusura di CP 6.0 → **230** con M6+E1 → **171** dopo la rimozione del quadrato
 (i **59** test previsti dall'inventario) → **324** con E4/E5/E6 e i terreni → **325** col merge di `#144` →
 **338** con gli stati temporanei di CP 8.2 (`#65`) → **342** con i merge di `#179`/`#180` (misurato, mai
@@ -77,7 +79,7 @@ Manca la prova sul campo: la sessione di playtest **CP 6.8**, che si esegue in e
 ## La release v0.1 (2026-08-05)
 
 Le milestone qui sotto restano la vista di **esecuzione**. Sopra di esse esiste ora una vista di **release**:
-[`roadmap-v0.1.md`](roadmap-v0.1.md) — **17 epic, 85 checkpoint** *(era 12/59; **E13** conoscenza parziale,
+[`roadmap-v0.1.md`](roadmap-v0.1.md) — **18 epic, 87 checkpoint** *(era 12/59; **E13** conoscenza parziale,
 **E14** overwatch, **E15** showcase ed **E16** orientamento aggiunte il 2026-08-07, insieme ai checkpoint del
 planning visuale in **E11** → [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md))*, issue `#14`–`#85` e
 `#151`–`#177` — che aggrega M6–M9 e
@@ -102,6 +104,7 @@ budget **5 MP**, reazioni, terreni e obiettivi.
 | **E15** Showcase «Il Relè» e golden replay | parte di **M8** | **nuova** (2026-08-07): la prova integrata — fixture, scenario scriptabile, replay a hash stabile — [`showcase-v0.1.md`](../product/showcase-v0.1.md) |
 | **E16** Orientamento e direzionalità | parte di **M8**/**M9** | **nuova** (2026-08-07): [ADR-0005](../decisions/adr-0005-orientamento.md); il facing deriva dal movimento e decide difesa, percezione e reazioni. **Prerequisito di E13** |
 | **E17** Validazione di stress 4v4 | oltre **M9** | **nuova** (2026-08-07): [D-011](../decisions/RT_PDR_00_Decision_Log.md). **Misura, non produzione**: dove si rompe il sistema con otto unità. Dopo E15; **non** decide il formato principale |
+| **E18** Predictive Action (thin slice) | parte di **M8** | **nuova** (2026-08-08): [D-016](../decisions/RT_PDR_00_Decision_Log.md). Una **sola** azione predittiva rende percepibile il pilastro della predizione. **Non dipende da E13/E14**: sgancia `Vektor.InterceptShot` da E14 |
 | — | **M10** Rete e privacy | **fuori** dalla v0.1 |
 
 ### Stato misurato delle epic — 2026-08-07

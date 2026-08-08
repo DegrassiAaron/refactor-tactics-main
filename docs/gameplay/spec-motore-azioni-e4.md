@@ -1,5 +1,24 @@
 # Spec E4 — Motore azioni data-driven
 
+> 📦 **AS-BUILT — spec storica di implementazione dell'epic E4.**
+> Lo stato in testa diceva ancora *«proposta di design, da approvare»*: **E4 è chiusa** (52 test). Questo
+> documento racconta **com'è stato costruito** il motore azioni, non cosa va costruito. Le sue «domande
+> aperte» sono in parte già risolte dal codice e dai checkpoint successivi.
+>
+> ### Superata da decisioni successive
+>
+> Le azioni fondamentali qui elencate — `Wait · Move · BasicAttack · Guard · Activate · Interact` — sono state
+> **riviste** il 2026-08-08:
+>
+> | | Vale oggi |
+> |---|---|
+> | [**D-014**](../decisions/RT_PDR_00_Decision_Log.md) | Generiche canoniche: `Wait · BasicAttack · Interact · Brace · Move · Overwatch`. `Activate` **assorbita da `Interact`**; `Guard` **non è più universale** (resta stance specifica) |
+> | [**D-015**](../decisions/RT_PDR_00_Decision_Log.md) | `Sneak · Normal · Sprint` sono **profili di `Move`**; `Sprint` **non è un Dash** |
+>
+> Gli Stable ID `Action.Guard`, `Action.Activate` e `Action.Sprint` **restano nel codice** e sono consumati:
+> la nuova tassonomia è semantica di gameplay, **non un rename già fatto**. La migrazione è tracciata come
+> issue. Questa spec **non va riscritta** come se il nuovo modello fosse sempre esistito.
+
 > **Stato**: proposta di design, **da approvare** · **Data**: 2026-08-06 · **Epic**: E4 (`#42`–`#46`)
 > **Prerequisiti già in `main`**: `FRTActionDef` + `URTCatalogLibrary` (CP 1.3/1.4), cataloghi in
 > [`balance/`](../balance) (CP 1.2), turno interamente esagonale (M6).

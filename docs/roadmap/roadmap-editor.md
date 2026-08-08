@@ -134,8 +134,11 @@ il residuo editor parcheggiato in **M9 CP 9.1**.
 
 1. `RTGameMode` come GameMode Override sul livello dell'arena (`../guides/debug-vs-unreal.md` §2).
 2. Play. Le unità sono **cilindri**: i `BP_Unit_*` non esistono più in `Content/` e il fallback è previsto —
-   non è un difetto. Se compare anche una griglia **quadrata**, nel livello c'è un `ARTGridActor` posato a
-   mano: il GameMode non ne crea più, ma non rimuove quelli già presenti.
+   non è un difetto. ~~Se compare anche una griglia **quadrata**, nel livello c'è un `ARTGridActor` posato a
+   mano: il GameMode non ne crea più, ma non rimuove quelli già presenti.~~
+   > ⚠️ **Superata (2026-08-08)**: `ARTGridActor` è stato **rimosso dal codice** al CP 7.2, quindi non può
+   > più esistere in un livello — un `.umap` che lo referenziasse lo perderebbe al caricamento. La verifica
+   > non ha più un oggetto da cercare.
 3. Due unità verso la stessa cella, lock-in con **Spazio** → contesa.
 4. Ripeti con lo **scambio diretto A↔B**: è l'unico caso che i test headless non coprono.
 

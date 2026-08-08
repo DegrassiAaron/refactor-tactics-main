@@ -1,5 +1,14 @@
 # RefactorTactics – Sequenza di Risoluzione del Turno
 
+> ⚠️ **Documento esplorativo — riferimento storico, non normativo.**
+> Ricerca di design del 2026-08-02 su reveal progressivo, **stack LIFO interattivo**, cinque categorie di
+> velocità, `Patch` dinamiche, modello dati JSON e timeline di esecuzione 45–60 s. **Niente di tutto questo è
+> il modello corrente**: la sequenza canonica del round è
+> [`../../gameplay/spec-sequenza-turno.md`](../../gameplay/spec-sequenza-turno.md), e le finestre di reazione
+> sono governate da [ADR-0004](../../decisions/adr-0004-finestre-di-reazione.md).
+> Conservato come **provenienza**: da qui vengono l'ordinamento APNAP e l'idea di finestra breve, entrambi
+> poi adottati in forma diversa.
+
 ## Sommario Esecutivo
 - **Pianificazione segreta (WEGO):** ~30s per programmare tutti gli ordini. In Phantom Brigade la fase di pianificazione risultava **molto più lunga** dell’esecuzione. Ogni unità riceve un ordine compatto (es. *Muovi+AbilitàX*), con percorso calcolato automaticamente. Sono previsti fallback configurabili (es. cambiare bersaglio se invalido, mantenere posizione), macro-comandi (es. “proteggi Y”), e reazioni automatiche preimpostate (parata, copertura) per velocizzare la pianificazione.  
 - **Reveal & Esecuzione (45–60s):** le intenzioni nemiche vengono rivelate **progressivamente** (icone generiche → elemento→ bersaglio specifico). Le azioni si risolvono su una **timeline orizzontale** (simile a un editor video) con finestre di reazione brevi (~3s). Si può **intervenire** con nuove azioni (`Reaction`) o modificare quelle in corso (`Patch`). La risoluzione segue un ordine **LIFO** (last-in-first-out), come nello stack di Magic.  

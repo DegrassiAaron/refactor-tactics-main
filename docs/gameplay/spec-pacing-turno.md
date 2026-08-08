@@ -1,5 +1,28 @@
 # Spec — Pacing del turno: misurare prima di tarare
 
+> ⏱️ **Due premesse, non una** (chiarito il 2026-08-08).
+>
+> - **Premessa storica** (2026-08-07, superata): reazioni *pre-committed*, nessuna finestra → il tempo di un
+>   round era interamente **Planning + Playback**, e la Resolution non chiedeva nulla al giocatore.
+> - **Modello corrente** ([ADR-0004](../decisions/adr-0004-finestre-di-reazione.md)): esistono **finestre di
+>   decisione live**. Il round guadagna una terza voce di tempo.
+>
+> Il **metodo di misura di questo documento resta valido**, ma va misurato un tempo in più:
+>
+> ```text
+> Simulation Time   il resolver: microsecondi, irrilevante per il giocatore
+> Presentation Time il playback dei segmenti
+> Decision Time     Planning  +  ogni finestra di Fast Reaction/Fast Action   <- NUOVO
+> Wall-clock        la somma, che e' cio' che il giocatore percepisce
+> ```
+>
+> Le finestre vanno campionate **separatamente** dal Planning: sono decisioni sotto pressione da 3 s, e
+> mediarle col Planning nasconde esattamente il dato che serve. Prima misura prevista: **CP 14.5**, con 1, 2 e
+> 3 unità armate; soglia d'allarme **20 s** di resolution.
+>
+> Le bande **3v3** citate qui sono **baseline di lavoro**, non un formato deciso
+> ([D-011](../decisions/RT_PDR_00_Decision_Log.md)).
+
 > **Stato**: design approvato in sessione, **da implementare** · **Data**: 2026-08-06
 > **Ambito**: tempo reale di un turno (pianificazione + risoluzione), **non** il numero di turni per partita.
 > **Decisione abilitante di questa spec**: le reazioni **restano pre-committed** — nessuna finestra

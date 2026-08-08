@@ -1,5 +1,18 @@
 # Spec — Terreno dinamico, fuoco e acqua (E8, CP 8.4)
 
+> 🧊 **Le transizioni termiche avanzate restano fuori dalla v0.1.** Congelamento, scioglimento, vapore e il
+> motore di momentum/traction del ghiaccio vivono in
+> [`brief-ghiaccio.md`](brief-ghiaccio.md) come direzione, non come scope: qui c'è **solo** ciò che il CP 8.4
+> ha costruito. `CrackedIce` resta fuori salvo decisione esplicita.
+>
+> 🧹 Questa spec è **owner dell'ordine del Cleanup** per la parte ambientale: le altre spec vi rimandano
+> invece di ripeterlo.
+
+> 📌 **Stato di implementazione storico al 2026-08-07 (CP 8.4).** Numeri, conteggi di test ed esiti qui sotto fotografano
+> la chiusura del checkpoint. Lo **stato corrente** è posseduto da
+> [`../roadmap/roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md): questa spec non compete con la roadmap come
+> fonte di stato.
+
 > **Issue**: `#67` · **Epic**: `#22` (E8) · **Dipende da**: `#66` (CP 8.3, chiusa) · **Data**: 2026-08-07
 > **Branch**: `feat/67-fuoco-acqua` (worktree isolato) · **Baseline misurata**: 359 test in 53 file
 > Fonti: [`RT_TerrainCatalog_v0.1.md`](../balance/RT_TerrainCatalog_v0.1.md) §2 ·

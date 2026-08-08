@@ -1,5 +1,29 @@
 # Brief — Delayed Actions e boundary di fase
 
+> ✅ **[D-016](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-08): un thin slice entra nella v0.1.**
+> Il brief lasciava l'epic fuori roadmap. La decisione è di includere **una sola** Predictive Action reale,
+> per rendere percepibile il pilastro della predizione senza aprire il framework di trap.
+>
+> **Bersaglio preferito**: `Vektor.InterceptShot`.
+>
+> ```text
+> Planning: previsione dichiarata per intero
+>   → trigger/boundary deterministico
+>   → previsione corretta  → risoluzione automatica
+>   → previsione errata    → whiff/fallback dichiarato
+>   → NESSUN input umano durante la Resolution
+> ```
+>
+> **Non va trasformata in Fast Reaction.** Resta fuori dalla v0.1: framework completo di trap/mine/gambit
+> persistenti, editor visuale di trigger, catene di predictive action, interrupt annidati.
+>
+> 🔎 **Nota di stato verificata il 2026-08-08.** Oggi `Vektor.InterceptShot` è a catalogo con
+> `ERTActionSlot::None` e **nessun trigger**, e il rinvio a **E14** è dichiarato *nei dati*
+> (`RTHeroCatalogLibrary.cpp`) perché il suo trigger è d'ingresso su movimento. Trattarla come Predictive
+> Action **la sgancia da E14**: non le serve una finestra interattiva, le serve un boundary deterministico.
+> È una semplificazione — ma resta una **migrazione di classificazione** da tracciare, non da fare in una PR
+> documentale.
+
 > **Fonte**: `docs/src/RefactorTactics_DelayedActions_PhaseWindows_Claude.md` (1546 righe) ·
 > **Data**: 2026-08-07 · **Stato**: brief di scope, nessuna implementazione
 > **Rapporto con le decisioni vigenti**: [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) (accettato) copre le

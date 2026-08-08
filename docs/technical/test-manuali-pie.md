@@ -21,7 +21,7 @@
 > **Prima di aprire l'editor**: molte di queste voci hanno già una copertura automatica, e alcune si
 > riproducono senza toccare il mouse con uno **scenario** (`rt.Test.Scenario <Id>` + Play). Come si eseguono
 > i test, come si scrive uno scenario e come si legge un report fallito:
-> **[`../guides/test-e-diagnosi.md`](test-e-diagnosi.md)**.
+> **[`test-e-diagnosi.md`](test-e-diagnosi.md)**.
 > Il PIE serve per ciò che nessun test vede: che si **veda** a schermo e che il giocatore **capisca**.
 
 - Apri il progetto: doppio clic su `RefactorTactics.uproject`. All'avvio l'editor può chiedere **quale versione
@@ -49,8 +49,10 @@
 
 ## Stato in numeri — 2026-08-08
 
-**71 voci**: ✅ **23 verdi** · 🟡 **18 parziali** (regola coperta da test, resta il visivo) · ⏳ **30 aperte**.
-*(Ricalcolate il 2026-08-08 col comando qui sotto, dopo CP 9.3: `PIE-V01-DOOR` è passata da ⏳ a 🟡.)*
+**74 voci**: ✅ **23 verdi** · 🟡 **18 parziali** (regola coperta da test, resta il visivo) · ⏳ **33 aperte**.
+*(Ricalcolate il 2026-08-08 col comando qui sotto, **dopo** il merge di CP 9.3 con `main`: `PIE-V01-DOOR` è
+passata da ⏳ a 🟡 e le 3 voci dello Scenario Test Harness sono entrate nel conteggio. Le due parti arrivavano
+al merge con «71: 23/18/30» e «74: 23/17/34» — entrambe corrette alla propria base, nessuna dopo l'unione.)*
 
 > **Perché questo numero era rotto** (issue #192): due sessioni parallele hanno misurato lo stesso file in
 > momenti diversi — «67 voci: 22/15/30» e «65 voci: 23/16/26» — e il merge ha lasciato **entrambe** le versioni
@@ -70,7 +72,7 @@ awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);
   docs/technical/test-manuali-pie.md
 ```
 
-Le 30 aperte in sei gruppi, più un residuo (la somma è verificata: 2+9+9+4+3+1+2 = 30):
+Le 33 aperte in sette gruppi, più un residuo (la somma è verificata: 2+9+9+4+3+1+2+3 = 33):
 
 | Gruppo | Voci | Nota |
 |---|---|---|
@@ -81,6 +83,7 @@ Le 30 aperte in sei gruppi, più un residuo (la somma è verificata: 2+9+9+4+3+1
 | **In attesa di codice** | `V01-ELEC` `V01-FIREWATER` (E8, ora **chiusa**: il codice c'è, la verifica a schermo no) · `V01-HUD` (E11) | **3** — `V01-LOWCOVER` è uscita da qui il 2026-08-07 (CP 9.1) e `V01-DOOR` il 2026-08-08 (CP 9.3): per entrambe la regola è ora coperta headless, e sono passate a 🟡 |
 | **Asset da preparare** | `V01-COVEREDIT` | **1** — editing delle coperture nel data asset mappa (CP 9.1). ⚠️ `DA_HexMap_Sandbox` è oggi **vuoto**: va ridisegnato |
 | **Animazioni** | `AS4a` `AS4b` | **2** — richiedono i montage Paragon |
+| **Scenario Test Harness** | `TEST-AUTORUN` `TEST-VISUAL` `TEST-CONSOLE` | **3** — l'harness è coperto headless (12 test `Scenario.*`); qui resta ciò che accade **a schermo** |
 
 ## Checklist
 
@@ -138,7 +141,7 @@ Le 30 aperte in sei gruppi, più un residuo (la somma è verificata: 2+9+9+4+3+1
 | **PIE-HEXPLAY-4** | Risoluzione e playback del movimento | piani impostati, lock-in con **Spazio** | Le unità scorrono di cella in cella lungo il percorso risolto; a fine playback ogni unità è **esattamente** sul centro della cella finale e la posizione visiva coincide con la cella logica (nessuna deriva accumulata) | ⏳ **eseguibile da CP 6.2**. Coperto headless da `RefactorTactics.HexMove.UnitReachesPlannedCell`; il PIE aggiunge cio' che il test non vede: la fluidita' dello scorrimento |
 | **PIE-HEXPLAY-3b** | Il rifiuto del bersaglio dice il motivo **giusto** | unità propria selezionata, un nemico **fuori portata** e uno **dietro una copertura** | Cliccando il nemico **fuori portata** il log dice «fuori portata (max N)» — **mai** «coperto», nemmeno su un'arena senza un solo muro. Cliccando quello dietro una cella con `bBlocksLineOfSight` dice «coperto (nessuna linea di tiro)». Con l'abilità in ricarica o senza energia dice «non pronta», prima di ogni altra verifica. Nel Blast, un attacco fermato dalla copertura compare nel combat log come reason code con coordinate assiali | 🟡 **2026-08-06** — metà **fuori portata** ✅ dal log: `RTUnit_3 fuori portata (max 3)` e `(max 7)` su un'arena **senza un solo muro**, dove prima usciva «coperto». Anche il caso positivo osservato: `Piano: RTUnit_0 usa Colpo preciso su RTUnit_3`. ⏳ resta la metà **coperto**: serve una cella con `bBlocksLineOfSight`, che l'arena di ripiego non ha. Coperto headless da `Combat.HexTargetingReasonDistinguishesRangeFromCover` e `HexCombat.NoMapFailClosed` |
 | **PIE-HEXPLAY-4b** | Scatto (fase Dash) su hex | unità con abilità di scatto pronta, destinazione entro la sua portata | Lo scatto si risolve **prima** del Blast e porta l'unità sulla cella scelta anche in direzione obliqua (dove il budget quadrato l'avrebbe rifiutata); oltre la portata, su cella occupata o bloccata lo scatto **non avviene** (l'unità resta, la ricarica scatta comunque); scatto + movimento nello stesso turno restano compatibili | ⏳ **eseguibile da CP 6.5**. Coperto headless da `RefactorTactics.HexMove.DashReachesCellOnHex` / `DashRejectsOutOfBudget` |
-| **PIE-HEXPLAY-5** | Collisione simultanea su hex | due unità pianificate verso la **stessa** cella | Entrambe restano ferme (o si fermano prima), **nessuna sovrapposizione**; il combat log riporta il reason «cella contesa»; ripetendo con lo scambio diretto A↔B lo scambio **riesce** | ⏳ **eseguibile da CP 6.2**. La contesa e' coperta headless da `RefactorTactics.HexMove.ContestedCellStopsBoth` (due esiti `BlockedContested` nel TurnLog); lo **scambio diretto A↔B** non e' coperto da test: e' il caso che il PIE deve davvero esercitare |
+| **PIE-HEXPLAY-5** | Collisione simultanea su hex | due unità pianificate verso la **stessa** cella | Entrambe restano ferme (o si fermano prima), **nessuna sovrapposizione**; il combat log riporta il reason «cella contesa»; ripetendo con lo scambio diretto A↔B lo scambio **riesce** | ⏳ **eseguibile da CP 6.2**. La contesa e' coperta headless da `RefactorTactics.HexMove.ContestedCellStopsBoth` (due esiti `BlockedContested` nel TurnLog). ⚠️ **La seconda metà di questa voce è FALSA** (verificato il 2026-08-08): lo scambio diretto A↔B **non riesce**, e non perché il resolver lo vieti — perché la **pianificazione** lo rifiuta prima (`FindPathForUnit`: goal occupato → `NoPath`). Cliccando la cella di un nemico adiacente non si ottiene alcun percorso, quindi lo scambio non è nemmeno pianificabile. Comportamento fissato da `Scenario.RunnerSwapRejectedByPlanning`; il conflitto con `HexSim.ResolveSwapAllowed` è descritto in `Scenarios/Movement/SwapRejectedByPlanning.json`. **Al PIE resta da confermare che il log dica il motivo** invece di lasciare il giocatore a chiedersi perché l'unità non si muove |
 | **PIE-HEXPLAY-6** | Copertura: LOS esagonale | una cella con `bBlocksLineOfSight` fra attaccante e bersaglio | L'attacco pianificato attraverso il muro viene scartato con «nessuna linea di tiro»; spostandosi di una cella di lato il tiro va a segno. Con un ostacolo su un **altro layer** il tiro passa (regola di elevazione) | ⏳ **eseguibile da CP 6.4**. Coperto headless da `RefactorTactics.HexBlast.NoLineOfSightOnHexMap`; il PIE aggiunge ciò che il test non vede: che il giocatore **capisca** dal log perché il colpo non parte, e la prova sul multilivello |
 | **PIE-HEXPLAY-6b** | Forme d'attacco su esagoni | **Flux** (`LinearDischarge` = linea, `Overload` = area r1) e **Riva** (`PressureJet` = linea, `CircularTide` = area r1) con più nemici in zona | La **linea** colpisce anche chi sta sulla traiettoria prima del bersaglio; l'**area** colpisce il bersaglio e i suoi 6 vicini. `CircularTide` **cura gli alleati e bagna i nemici**: il fuoco amico va giudicato su `Overload`, non su di essa. Il combat log elenca un colpo per bersaglio. ⚠️ **Il cono non è verificabile in partita**: `HexCone` esiste e ha i suoi test, ma **nessuna abilità del roster v0.1 lo usa** (0 occorrenze di `ERTAbilityShape::Cone`) — la voce citava «Guardian (Spazzata)», archetipo quadrato rimosso al CP 3.2 | ⏳ **eseguibile da CP 6.4**. Forme coperte headless (`RefactorTactics.HexCombat.Shape*`); l'**anteprima della zona esiste dal 2026-08-07** (contorno **rosso** sulle celle colpite, **arancione** sugli alleati), col wiring verificato da `Preview.HitCellsMatchCombatShape` — l'anteprima riceve le celle da `HexHitCells`, quindi non può divergere dall'esito. Il PIE verifica che quella zona sia **leggibile a colpo d'occhio**: si capisce dove finirà il cono *prima* di lanciarlo? |
 | **PIE-HEXPLAY-6c** | Spinta del Guardian su hex | Guardian che colpisce con Spazzata (knockback 2) | Il bersaglio è respinto lungo una delle **6 direzioni esagonali** (quella del colpo), non lungo un asse cardinale; si ferma davanti a un ostacolo, a un'altra unità o al bordo della mappa; due spinte opposte sullo stesso bersaglio si **annullano** e due bersagli spinti verso la stessa cella restano entrambi fermi | ⏳ **eseguibile da CP 6.5**. Coperto headless (`HexCombat.Knockback*`, `HexBlast.KnockbackOnHexGrid`); il PIE verifica lo **scivolamento animato** lungo il percorso |
@@ -201,6 +204,19 @@ Le 30 aperte in sei gruppi, più un residuo (la somma è verificata: 2+9+9+4+3+1
 |----|-----------------|---------------|--------------|-------|
 | **PIE-DEBUG-CELLS** | Overlay di leggibilità della mappa | partita avviata, console `rt.Debug.DrawCells 1` | Ogni cella mostra un contorno del **colore della superficie** (fango marrone, acqua blu, ghiaccio azzurro, fumo grigio-bluastro); **rosso interno** dove blocca il movimento, **giallo interno** dove blocca la vista. `rt.Debug.DrawCells 0` spegne tutto; senza argomento fa da interruttore | ✅ **2026-08-07** — verificato dall'utente su `GeneratedTestArena`. Giallo e rosso comparivano già; il **fango no**: il contorno superficie era disegnato a `z=2.0` mentre la faccia del disco-cella sta a `2.5` (cilindro engine, mezza-altezza 50 uu × `FlatScale` 0.05) e restava **sepolto nella mesh**. Corretto in `069b616`: le quote derivano ora da `RTCellTopZ` e sommano `Cell.Height` |
 | **PIE-PREVIEW-AREA** | Anteprima dell'area d'attacco e del fuoco amico | unità selezionata, un'abilità ad **area** o **cono** pianificata su un bersaglio | Le celle colpite si evidenziano in **rosso**; se un **alleato** è dentro l'area la sua cella è **arancione** — e si vede **prima** del lock-in. Le celle raggiungibili col budget corrente sono in **verde tenue** (il fango accorcia il raggio a vista d'occhio). Premendo Spazio l'anteprima **sparisce** | ⏳ **eseguibile ora**. Wiring coperto headless da `Preview.HitCellsMatchCombatShape` (l'anteprima riceve le celle da `HexHitCells`, quindi non può divergere dall'esito), `Preview.AllyInAreaIsFlagged`, `Preview.ClearedWhenPlanIsCancelled`, `Preview.ReachableCellsArePassedThrough`. Al PIE resta il **giudizio**: l'arancione si nota davvero prima di premere Spazio, o passa inosservato? |
+
+### Scenario Test Harness (aggiunte il 2026-08-07)
+
+> L'harness esegue scenari `.json` attraverso il **percorso di gioco reale** ed è **interamente coperto
+> headless** (12 test `RefactorTactics.Scenario.*`). Restano tre cose che nessun test automatico può vedere,
+> perché riguardano ciò che accade **a schermo** e ciò che l'utente **non deve** dover fare.
+> Guida d'uso: [`test-e-diagnosi.md`](test-e-diagnosi.md).
+
+| ID | Cosa verificare | Precondizione | Esito atteso | Stato |
+|----|-----------------|---------------|--------------|-------|
+| **PIE-TEST-AUTORUN** | «Premo Play e parte da solo» | console `rt.Test.Scenario Movement.Basic`, poi **Play** | Compaiono **due unità** (Flux team 0, Bastion team 1) su un'arena esagonale, **senza toccare mouse o tastiera**. Nell'Output Log: `[RT-Test] AUTO-RUN Movement.Basic -> PASS (2/2 assertion, 1 turni) · report: …`. La partita normale **non** viene allestita (nessun timer di pianificazione, nessun bot che gioca). Rimettendo `rt.Test.Scenario` a vuoto e ripremendo Play, torna la partita normale | ⏳ **la voce chiave**: è il requisito centrale del documento di specifica («devo poter premere Play e osservare»), ed è l'unico pezzo che non ho potuto verificare — headless non c'è un mondo di gioco su cui girare |
+| **PIE-TEST-VISUAL** | Il movimento si **vede**, non si teletrasporta | come sopra, dopo l'AUTO-RUN | L'unità `A1` si sposta da `(-2,0,0)` a `(-1,0,0)` **scorrendo** lungo il percorso, non saltando. A fine turno è esattamente sul centro della cella. ⚠️ Se invece appare già arrivata, il runner sta risolvendo più rapidamente di quanto il playback riesca a mostrare: **non è un difetto di simulazione** (i test headless verificano già l'esito) ma di presentazione, e va annotato qui — sarà la modalità *Visual* del harness a doverlo gestire | ⏳ |
+| **PIE-TEST-CONSOLE** | I comandi rispondono durante una partita | partita avviata (anche normale) | `rt.Test.List` elenca **4** scenari (`Movement.Basic`, `Movement.BasicFailsOnPurpose`, `Movement.Blocked`, `Movement.Collision`); `rt.Test.Run Movement.BasicFailsOnPurpose` stampa `FAIL` **con atteso e ottenuto** e il percorso del report; `rt.Test.DumpResult` ristampa l'ultimo `result.json`. ⚠️ Attenzione: eseguire uno scenario **sostituisce la mappa** e aggiunge unità alla partita in corso — è previsto (il runner riusa mappa e turn manager), ma dopo conviene riavviare con `R` | ⏳ |
 
 ### Durata, ritmo e scala — verifiche di *game feel*
 

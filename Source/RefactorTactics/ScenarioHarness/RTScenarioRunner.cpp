@@ -37,12 +37,26 @@ namespace
 	 * un mondo vuoto (test di automazione) e una PIE dove il GameMode ha gia' spawnato mappa, luce e turn
 	 * manager. Spawnarne un secondo darebbe due griglie sovrapposte e un raycast ambiguo.
 	 */
-	URTHexMapAsset* BuildArena(UWorld* World, int32 Radius)
+	URTHexMapAsset* BuildArena(UWorld* World, int32 Radius, const TArray<FRTScenarioCell>& Overrides)
 	{
 		URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
 		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
 		{
 			Map->AddOrUpdateCell(FRTHexCellData(Id));
+		}
+
+		// Poi le modifiche dello scenario: ostacoli, muri, terreno costoso. Applicate DOPO l'arena piena, cosi'
+		// una cella elencata due volte vince l'ultima e non dipende dall'ordine di generazione.
+		for (const FRTScenarioCell& Spec : Overrides)
+		{
+			FRTHexCellData Cell(Spec.Cell);
+			Cell.bBlocksMovement = Spec.bBlocksMovement;
+			Cell.bBlocksLineOfSight = Spec.bBlocksLineOfSight;
+			if (Spec.MoveCost > 0)
+			{
+				Cell.MoveCost = Spec.MoveCost;
+			}
+			Map->AddOrUpdateCell(Cell);
 		}
 		Map->SortCells();
 
@@ -71,6 +85,51 @@ namespace
 			}
 		}
 		return nullptr;
+	}
+
+	/**
+	 * Digest dello stato finale (FNV-1a, stesso idioma di `URTTurnLogLibrary::HashTurnLog`).
+	 *
+	 * Le unita' si ordinano per **ID di scenario** prima di mescolare: l'ID viene dal file ed e' stabile,
+	 * mentre l'ordine di `TMap` non lo e'. Senza l'ordinamento l'hash dipenderebbe dall'iterazione di un
+	 * container non ordinato — cioe' esattamente cio' che l'invariante #4 vieta, dentro lo strumento che
+	 * dovrebbe verificarlo.
+	 */
+	uint32 HashFinalState(const TMap<FString, ARTUnit*>& UnitsById)
+	{
+		TArray<FString> Ids;
+		UnitsById.GetKeys(Ids);
+		Ids.Sort();
+
+		uint32 Hash = 2166136261u; // FNV-1a offset basis (32 bit)
+		auto Mix = [&Hash](uint32 V)
+		{
+			Hash ^= V;
+			Hash *= 16777619u; // FNV-1a prime (32 bit)
+		};
+
+		for (const FString& Id : Ids)
+		{
+			const ARTUnit* Unit = UnitsById[Id];
+			if (!Unit)
+			{
+				continue;
+			}
+			// L'identita' entra nell'hash: due unita' che si scambiano di posto devono dare un hash DIVERSO
+			// da quello in cui sono rimaste ferme, altrimenti uno swap passerebbe per «niente e' successo».
+			for (const TCHAR Ch : Id)
+			{
+				Mix(static_cast<uint32>(Ch));
+			}
+			Mix(static_cast<uint32>(Unit->Cell.X));
+			Mix(static_cast<uint32>(Unit->Cell.Y));
+			Mix(static_cast<uint32>(Unit->Cell.Layer));
+			Mix(static_cast<uint32>(Unit->Health));
+			Mix(static_cast<uint32>(Unit->Shield));
+			Mix(static_cast<uint32>(Unit->Energy));
+			Mix(Unit->IsAlive() ? 1u : 0u);
+		}
+		return Hash;
 	}
 
 	/** Fa avanzare un turno fino in fondo, come `PlayOneTurn` dei test d'integrazione esistenti. */
@@ -102,7 +161,7 @@ FRTTestResult URTScenarioRunner::Run(UWorld* World, const FRTTestScenario& Scena
 	Result.Seed = Scenario.Seed;
 
 	// --- 2. mondo: mappa, unita', turn manager ------------------------------------------------------------
-	URTHexMapAsset* Map = BuildArena(World, Scenario.MapRadius);
+	URTHexMapAsset* Map = BuildArena(World, Scenario.MapRadius, Scenario.Cells);
 	if (!Map)
 	{
 		return MakeErrorResult(Scenario, TEXT("impossibile creare l'arena esagonale"));
@@ -205,6 +264,11 @@ FRTTestResult URTScenarioRunner::Run(UWorld* World, const FRTTestScenario& Scena
 		ResolveOneTurn(TM);
 		++Result.TurnsPlayed;
 	}
+
+	// Digest dello stato finale, prima delle assertion: e' cio' che il gate di determinismo confronta fra
+	// una ripetizione e l'altra, e vale anche quando qualche assertion fallisce (due FAIL identici devono
+	// avere lo stesso hash, altrimenti non si potrebbe dire se una regressione e' la stessa di ieri).
+	Result.StateHash = HashFinalState(UnitsById);
 
 	// --- 4. assertion -------------------------------------------------------------------------------------
 	for (const FRTTestExpectation& Exp : Scenario.Expect)

@@ -6,6 +6,17 @@
 > **Autorità**: subordinato a [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) e [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md).
 > Diventa vincolante solo quando i CP di §7 entrano in [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md).
 
+> ⚠️ **`D1`…`D15` qui sotto sono ID LOCALI di questo brief, non del [Decision Log](../decisions/RT_PDR_00_Decision_Log.md).**
+> Le sigle **collidono**: il `D14` di questo brief è la propagazione a flood fill, il `D-014` globale sono le
+> azioni generiche canoniche. Nel dubbio, il trattino distingue: `D-0xx` è globale e vincolante, `Dxx` è locale
+> e vale solo dentro il brief che lo contiene.
+
+> 🧭 **[ADR-0005](../decisions/adr-0005-orientamento.md) è prerequisito di questo slice** (2026-08-07). La
+> vista **non** è omnidirezionale: piena nell'**arco frontale** fino a `Vista`, più **consapevolezza a 360°
+> entro 2 celle** (lo stesso cap del fumo). La primitiva è una sola — `URTHexLibrary::HexCone` — condivisa da
+> difesa, percezione e Overwatch. Dove il testo qui sotto assume una vista a 360° piena, va letto come il
+> comportamento *precedente* ad ADR-0005: la catena è **E16 → E13 → E14**.
+
 ## 1. Le tre nozioni, e quale entra adesso
 
 Il design di partenza separa correttamente tre cose che di solito vengono confuse:
@@ -149,9 +160,16 @@ Lo slice li rispetta per costruzione, essendo offline e senza replica.
 
 ## 10. Domande aperte
 
-1. ~~**Bonus visuale della quota**~~ — **chiusa il 2026-08-07**: `Sight_Mod = +1` per la quota alta, `+2` per
-   il tetto, `−1` per tunnel e acqua profonda. Il valore era già nel workbook come nota di testo
-   («Visione +1» su `TERRAIN_HIGH`); ora è una colonna assegnabile, con la regola `Sight_Mod = Height`.
+1. **Bonus visuale della quota** — ⚠️ **riaperta e chiusa nel verso opposto da
+   [D-018](../decisions/RT_PDR_00_Decision_Log.md)** (2026-08-08): nella v0.1 la quota **non** dà alcun bonus
+   numerico a `VisionRange`.
+   > La chiusura del 2026-08-07 assegnava `Sight_Mod = +1` alla quota alta, `+2` al tetto, `−1` a tunnel e
+   > acqua profonda, con la regola `Sight_Mod = Height`. Il numero veniva dal **workbook**, non da un playtest,
+   > ed è caduto per la stessa ragione di D-002 e D-001: un valore scelto a tavolino che nessuno ha misurato.
+   >
+   > La quota **conta già** — attraverso geometria, LOS, occlusione, copertura e topologia dei layer. Sommarci
+   > un bonus numerico gratuito raddoppierebbe lo stesso vantaggio in due modi, e renderebbe la posizione alta
+   > l'unica giocabile. Un bonus futuro richiede playtest e una decisione nuova, non il ripristino di questa.
 2. **Auto-visibilità**: un'unità vede sempre sé stessa e i propri alleati, ovunque siano? (Assunto sì, ma non è
    ovvio con la mappa multilivello: un alleato nel tunnel resta noto?)
 3. **Contatto mutuo**: se A vede B, B vede A? Con viste diverse (6 vs 5) a distanza 6 la relazione è
@@ -236,7 +254,7 @@ silenziosa, il workbook rumorosa): due divergenze da chiudere prima di CP 13.3.
 | **D12** | Il rumore entra nella **v0.1**, dentro E13, non come epic separata | Condivide modello, privacy e UI con la vista: separarli produrrebbe due `TeamKnowledge` |
 | **D13** | La conoscenza passa a **tre livelli**; il rumore produce `ContattoIncerto`, **mai** una cella esatta | I cinque livelli di precisione del §13 sorgente sono il cuore del sistema. Un rumore che localizza con precisione è solo un secondo raggio di rilevamento |
 | **D14** | Propagazione = **flood fill intero** limitato dall'intensità sul grafo tattico, **non** `SphereOverlap` | §7 e §31 del sorgente; è la stessa query che serviranno propagazione elettrica (CP 8.3) e calore. Si costruisce **una volta** |
-| **D15** | La Fast Reaction acustica **non apre finestre**: è un trigger dichiarato in planning | Coperto da **D7**: il §16 del sorgente propone una finestra interattiva durante la resolution, già esclusa |
+| ~~**D15**~~ | ~~La Fast Reaction acustica **non apre finestre**: è un trigger dichiarato in planning~~ · ⚠️ **superata da [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md)** (2026-08-07): poggiava su **D7**, che vietava le finestre — e D7 è caduto. **Regola vigente**: un evento acustico **può** generare una `ReactionOpportunity`, ma **solo se una reaction o un profilo lo dichiara**; se poi si apra davvero una finestra lo decide il regime (`AllowedResponses` + eventuale condizione), non il canale. **Nessuna Fast Reaction acustica di default**: la v0.1 non ne definisce nessuna | Il divieto assoluto non ha più una premessa. Il suo posto lo prende un permesso **condizionato**, che è cosa diversa da un obbligo |
 
 ### Perimetro
 
