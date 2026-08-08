@@ -18,7 +18,7 @@ deterministico, su una griglia **esagonale multilivello**.
 | 1 | **Canone** | [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) | Invarianti, decisioni operative, regole. **Prevale su tutto** |
 | 2 | **Decisioni** | [`decisions/`](decisions/) — 5 ADR + [Decision Log](decisions/RT_PDR_00_Decision_Log.md) | Scelte architetturali e di prodotto, con motivazione |
 | 3 | **Esecuzione** | [`roadmap/roadmap-checkpoint.md`](roadmap/roadmap-checkpoint.md) | Milestone M6–M11, DoD misurabili, **stato** |
-| 4 | **Release** | [`roadmap/roadmap-v0.1.md`](roadmap/roadmap-v0.1.md) | Scope della v0.1: 17 epic, 85 checkpoint |
+| 4 | **Release** | [`roadmap/roadmap-v0.1.md`](roadmap/roadmap-v0.1.md) | Scope della v0.1: 18 epic, 87 checkpoint |
 | 5 | **Numeri** | [`balance/`](balance/) | Valori vigenti: azioni, eroi, terreni, equipaggiamento |
 | 6 | **Specifiche** | [`gameplay/`](gameplay/) · [`technical/`](technical/) | Dettaglio per feature |
 | 7 | **Requisiti lungo periodo** | [`roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) | Fasi F0–F6 — **direzione, non scope** |
@@ -41,7 +41,12 @@ definita in due posti, è un difetto: apri una issue invece di aggiornarne una s
 | Invarianti #1–#7 (autorità, determinismo, privacy) | [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) §5 | ✅ |
 | Identità e pilastri di prodotto | [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) §2 · [`../README.md`](../README.md) | ✅ |
 | Ordine delle macro-fasi | [`decisions/adr-0003-modello-azioni-v01.md`](decisions/adr-0003-modello-azioni-v01.md) | ✅ |
-| Ordinamento deterministico degli effetti simultanei (APNAP) | [`gameplay/spec-sequenza-turno.md`](gameplay/spec-sequenza-turno.md) §3 | ✅ |
+| **Sequenza canonica del round** e tassonomia temporale | [`gameplay/spec-sequenza-turno.md`](gameplay/spec-sequenza-turno.md) | ✅ **normativa** |
+| Ordine deterministico delle azioni | [`gameplay/spec-sequenza-turno.md`](gameplay/spec-sequenza-turno.md) §3.1 | ✅ implementato |
+| Ordine degli effetti simultanei (APNAP) | [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) §5.1 | ⚠️ **deciso, non implementato** |
+| Azioni generiche e profili di `Move` | [`gameplay/brief-azioni-generiche-overwatch.md`](gameplay/brief-azioni-generiche-overwatch.md) | ✅ D-014/D-015 · ⏳ migrazione ID |
+| Predictive Action (thin slice v0.1) | [`gameplay/brief-delayed-actions.md`](gameplay/brief-delayed-actions.md) | ✅ D-016 · ⏳ da implementare |
+| Coperture direzionali e `Intercept` | [`gameplay/spec-copertura-cp91.md`](gameplay/spec-copertura-cp91.md) | ✅ CP 9.1 · D-017 ⏳ |
 | Motore azioni: priorità, fallback, collisioni | [`gameplay/spec-motore-azioni-e4.md`](gameplay/spec-motore-azioni-e4.md) | ✅ E4 |
 | Reazioni componibili | [`gameplay/spec-reazioni-componibili-cp55.md`](gameplay/spec-reazioni-componibili-cp55.md) | ✅ E5 |
 | Finestre di reazione e decision boundary | [`decisions/adr-0004-finestre-di-reazione.md`](decisions/adr-0004-finestre-di-reazione.md) | ✅ deciso, ⏳ E14 |
@@ -51,7 +56,6 @@ definita in due posti, è un difetto: apri una issue invece di aggiornarne una s
 | Orientamento e direzionalità | [`decisions/adr-0005-orientamento.md`](decisions/adr-0005-orientamento.md) | ⏳ E16 |
 | Mappa come grafo tattico, multilivello | [`technical/spec-mappa-multilivello.md`](technical/spec-mappa-multilivello.md) · [`technical/spec-pathfinding-pf3-pf4.md`](technical/spec-pathfinding-pf3-pf4.md) | ✅ |
 | Terreni, stati e propagazione | [`gameplay/spec-terreni-e8.md`](gameplay/spec-terreni-e8.md) + spec CP 8.2/8.3/8.4 | ✅ E8 |
-| Coperture direzionali | [`gameplay/spec-copertura-cp91.md`](gameplay/spec-copertura-cp91.md) | 🟡 CP 9.1 ✅ · E9 aperta |
 | Conoscenza parziale: vista **e** udito | [`gameplay/brief-conoscenza-parziale.md`](gameplay/brief-conoscenza-parziale.md) | ⏳ E13 |
 | Durata partita, round, scala mappe | [`gameplay/spec-durata-partita-e-scala-mappe.md`](gameplay/spec-durata-partita-e-scala-mappe.md) (D-010) | ✅ |
 | Pacing del turno misurato | [`gameplay/spec-pacing-turno.md`](gameplay/spec-pacing-turno.md) | ✅ |

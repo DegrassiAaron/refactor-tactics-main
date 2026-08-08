@@ -31,13 +31,19 @@ Scoprirlo dopo significa riaprire tre epic chiuse. Scriverlo ora costa questo do
 | **A1** | Un'unità è identificata da uno `StableUnitId`, **mai** da un `HeroId` | `TMap<FName /*HeroId*/, ...>` come chiave di stato runtime |
 | **A2** | Ogni unità ha **owner** e **team** espliciti; owner ≠ team | assumere che l'owner di un'unità sia l'unità stessa |
 | **A3** | Le firme che accettano «un'unità» accettano **un'unità qualsiasi**, non un eroe | `void Foo(const URTHeroData* Hero)` dove basterebbe l'id o lo stato |
-| **A4** | Il numero di unità per squadra **non è 2**: chi itera, itera sullo stato | `for (int i = 0; i < 2; ++i)`, o `Team0Heroes.Num()` usato come verità |
+| **A4** | Il numero di unità per squadra **non è una costante**: né `2`, né `3`, né `4`. Chi itera, itera sullo stato | `for (int i = 0; i < 2; ++i)`, o `Team0Heroes.Num()` usato come verità |
 | **A5** | Occupazione, visibilità, rumore e TurnLog non fanno eccezioni per tipo | un ramo `if (IsHero)` in un resolver |
 | **A6** | **Nessun simulatore parallelo**: un'ausiliaria passa dallo stesso snapshot/resolver/TurnLog | un `Tick` o un componente che muove l'unità fuori dal resolver |
 
 > A4 ha già un'occorrenza da tenere d'occhio: `ARTGameMode::Team0Heroes`/`Team1Heroes` sono `TArray<FName>` con
 > **due** elementi di default. È il posto giusto per la composizione, ma non deve diventare il posto da cui
 > altri sistemi deducono «quante unità ci sono».
+>
+> **Il vincolo vale in entrambe le direzioni**: `TeamSize == 2` è l'assunzione ovvia da evitare, ma `== 3` e
+> `== 4` lo sono altrettanto. Un'unità ausiliaria aggiunge unità **fuori dal roster**, quindi rompe anche
+> l'idea che il numero coincida con la dimensione della squadra. L'epic **E17** (stress 4v4) serve proprio a
+> **scoprire questi hard-code** prima che lo faccia un giocatore: se un `if (Num == 2)` sopravvive da qualche
+> parte, è lì che si manifesta.
 
 ## 3. La baseline, quando il tema entrerà davvero
 

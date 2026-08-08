@@ -1,5 +1,10 @@
 # Copertura alta e distruzione — CP 9.2
 
+> 📌 **Stato di implementazione storico al 2026-08-08 (CP 9.2).** Numeri, conteggi di test ed esiti qui sotto fotografano
+> la chiusura del checkpoint. Lo **stato corrente** è posseduto da
+> [`../roadmap/roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md): questa spec non compete con la roadmap come
+> fonte di stato.
+
 > **Stato**: chiuso il 2026-08-07 · **Issue**: [#70](https://github.com/DegrassiAaron/refactor-tactics-main/issues/70) · **Epic**: E9 (#23) · **Segue**: [CP 9.1](spec-copertura-cp91.md)
 > **Codice**: `Map/RTHexCoverLibrary.*` (nuovo), `Map/RTHexCellData.h`, `Map/RTHexVisionLibrary.cpp`, `Pathfinding/RTHexPathLibrary.cpp`, `Combat/RTHexCombatLibrary.*`, `Turn/{RTActionEvent.h, RTActionEffectLibrary.cpp, RTTurnLog.h, RTTurnManager.cpp}`, `Ability/RTCatalogLibrary.cpp`
 

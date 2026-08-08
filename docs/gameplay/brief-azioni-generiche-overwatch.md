@@ -1,5 +1,29 @@
 # Brief — Azioni generiche e Overwatch universale
 
+> ✅ **Non è più una proposta: [D-014](../decisions/RT_PDR_00_Decision_Log.md) e
+> [D-015](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-08) hanno reso canonica la tassonomia di questo
+> brief.** Vale:
+>
+> ```text
+> Generiche:  Wait · BasicAttack · Interact · Brace · Move · Overwatch
+> Profili:    MoveProfile = Sneak | Normal | Sprint
+> Speciali:   Dash / Charge / Leap / Blink / Reposition / displacement forzato   (pre-Blast)
+>
+> Activate  -> assorbita da Interact
+> Guard     -> non piu' fondamentale universale (resta stance specifica)
+> Sprint    != Dash
+> Attack | Ability | Overwatch   (mai sommati, salvo eccezione dichiarata)
+> ```
+>
+> ⚠️ **La tassonomia è chiusa, la migrazione no.** `Action.Guard`, `Action.Activate` e `Action.Sprint`
+> **esistono e sono consumati** — misurato: `Action.Sprint` in 9 file di codice e 6 di test. Cancellarli o
+> rinominarli qui romperebbe test e replay: la migrazione è tracciata come issue, con Stable ID/replay safety
+> e validator fra i requisiti.
+>
+> Restano **tunable**, non bloccanti: costi MP, rumore, exposure, eventuale costo extra di slot dello Sprint,
+> differenze di profilo per eroe. Vivono nei cataloghi, e **non vanno inventati** in un consolidamento
+> documentale.
+
 > **Stato**: brief di requisiti · **Data**: 2026-08-07 · **Origine**: `/sc:brainstorm` su
 > [`../src/RefactorTactics_AzioniGeneriche_Overwatch_Universale_v0.1.md`](../src/RefactorTactics_AzioniGeneriche_Overwatch_Universale_v0.1.md) (41 §)
 > **Decisione abilitante**: [`D-012`](../decisions/RT_PDR_00_Decision_Log.md) — l'Overwatch **compete** con

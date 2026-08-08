@@ -1,12 +1,12 @@
 # Spec — Knockback (spinta)
 
-> ⚠️ **Superato dal pivot esagonale** ([ADR-0002](../decisions/adr-0002-griglia-esagonale.md)) — **riferimento storico, non normativo.**
+> ⚠️ **Superato dal pivot esagonale** ([ADR-0002](../../decisions/adr-0002-griglia-esagonale.md)) — **riferimento storico, non normativo.**
 > Descrive il substrato **quadrato**, rimosso dal codice al **CP 7.2** (`Grid/`, `URTGridLibrary`, `FRTGridCoord`, resolver e bot quadrati). La spinta autorevole è oggi `URTHexCombatLibrary::HexKnockbackDestination` (sei direzioni esagonali, CP 6.5).
 > Conservato per provenienza e come comportamento di riferimento della parità hex (M6). Punto di ritorno: tag `pre-hex-only`.
 
 > Implementazione del **2026-08-03** (TDD per la logica pura, wiring + PIE per l'integrazione). Nuova meccanica
 > di combattimento: un attacco **respinge** i bersagli colpiti nella fase Blast. Ancorata al canone
-> ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md), invarianti #1/#4/#7).
+> ([`piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md), invarianti #1/#4/#7).
 
 ## 1. Obiettivo
 

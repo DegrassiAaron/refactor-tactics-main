@@ -1,5 +1,27 @@
 # Copertura bassa direzionale — CP 9.1
 
+> 🎯 **[D-017](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-08) supera il limite su `Intercept`.**
+> Questa spec dichiarava che, quando `Intercept` redirige un colpo, il danno **conserva** la riduzione da
+> copertura calcolata sul bersaglio **originale**. Non è più la regola.
+>
+> Quando il colpo destinato ad **A** viene intercettato e il bersaglio effettivo diventa **B**:
+>
+> 1. identità dell'azione e dati **indipendenti dal target** restano invariati;
+> 2. la geometria **target-dependent** si rivalida su **B**: LOS, traiettoria, copertura applicabile, facing,
+>    difese geometriche;
+> 3. la rivalidazione **non apre** una nuova Reaction Opportunity;
+> 4. nessun nested reaction, nessun loop;
+> 5. il TurnLog spiega il **redirect** e il contesto difensivo effettivamente usato.
+>
+> Il motivo è di leggibilità prima che di simulazione: col vecchio comportamento il log poteva mostrare una
+> copertura **che davanti a B non esiste**. Serve un test discriminante con A e B a copertura diversa — vedi
+> le issue di migrazione.
+
+> 📌 **Stato di implementazione storico al 2026-08-07 (CP 9.1).** Numeri, conteggi di test ed esiti qui sotto fotografano
+> la chiusura del checkpoint. Lo **stato corrente** è posseduto da
+> [`../roadmap/roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md): questa spec non compete con la roadmap come
+> fonte di stato.
+
 > **Stato**: chiuso il 2026-08-07 · **Issue**: [#69](https://github.com/DegrassiAaron/refactor-tactics-main/issues/69) · **Epic**: E9 (#23)
 > **Fonti**: [`../roadmap/roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) §E9 · [`../product/piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) (invariante #4: ogni formato serializzato è versionato) · ADR-0005 (orientamento)
 > **Codice**: `Map/RTHexCellData.h`, `Map/RTHexMapAsset.*`, `Combat/RTCombatLibrary.h`, `Combat/RTHexCombatLibrary.*`

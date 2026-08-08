@@ -1,9 +1,30 @@
 # Spec — Reazioni componibili (E5, CP 5.5)
 
+> 📌 **Stato di implementazione storico al 2026-08-07 (CP 5.5).** Numeri, conteggi di test ed esiti qui sotto fotografano
+> la chiusura del checkpoint. Lo **stato corrente** è posseduto da
+> [`../roadmap/roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md): questa spec non compete con la roadmap come
+> fonte di stato.
+
 > **Issue**: `#154` · **Epic**: `#19` (E5) · **Sblocca**: `#155` (CP 6.7) · **Data**: 2026-08-07
 > **Branch**: `feat/154-reazioni-componibili` · **Baseline misurata**: 342 test in 50 file, 0 fallimenti
 > Fonti: [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) §5 E5 · [`RT_ActionCatalog_v0.1.md`](../balance/RT_ActionCatalog_v0.1.md) §4 ·
 > catalogo eroi v0.1 §1-§4 · [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md)
+
+> 🔗 **Un solo motore di reazioni, non due** ([ADR-0004](../decisions/adr-0004-finestre-di-reazione.md),
+> accettato dopo questa spec). Le reazioni pre-committed descritte qui **non** sono un sistema separato da
+> quello interattivo di **E14**: sono il suo **caso degenere**.
+>
+> ```text
+> Reaction armata → trigger valutato (funzione PURA, come qui)
+>      └─ FRTReactionOpportunity { AllowedResponses[] }
+>           ├─ AllowedResponses ≤ 1 → commit immediato, NESSUNA finestra   ← questa spec
+>           └─ AllowedResponses ≥ 2 → decision boundary + finestra 3 s     ← E14 / Overwatch
+> ```
+>
+> `Counter`, `Deflect`, `Brace`, `Shield` e `Cleanse` hanno **una sola risposta legale**: scattano o non
+> scattano. Restano deterministiche e senza finestre, e i test di questa spec continuano a valere **senza
+> modifiche al comportamento atteso**. Leggendo solo questo documento si potrebbe dedurre che E14 aggiunga un
+> secondo motore: **non lo fa**.
 
 ## 1. Obiettivo
 
