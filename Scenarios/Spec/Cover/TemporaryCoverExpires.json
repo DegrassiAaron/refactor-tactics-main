@@ -1,0 +1,43 @@
+{
+  "scenarioId": "Spec.Cover.TemporaryCoverExpires",
+  "tags": ["spec", "map", "bastion", "vektor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "SPECIFICA ESEGUIBILE di CP 9.5, l'ultimo checkpoint aperto di E9: la copertura **temporanea** creata da `Bastion.KineticPanel`. Bastion erige il pannello sul bordo esposto, incassa un colpo ridotto finche' dura, e quando la durata scade torna a incassarlo pieno. Sono tre momenti, e il terzo e' quello che conta: una copertura che non scade non e' temporanea, e nessuno se ne accorge se si verifica solo il secondo.",
+
+  "_nota_perche_esiste": "`Bastion.KineticPanel` esiste nel catalogo con effetti VUOTI, dichiarati tali: i numeri (integrita' 30, protezione 10) stanno nei `Parameters` della variante perche' non c'e' un sistema che li consumi. Questo file e' il consumatore mancante, scritto prima. Esce BLOCKED su `CreateCover`, capability che non e' nell'elenco di `IsCapabilityAvailable` — ed e' corretto cosi': l'elenco sta nel codice apposta, perche' dichiarare disponibile una capability inesistente non deve essere una modifica al JSON.",
+
+  "_nota_da_completare": "Chi implementa CP 9.5 riempie i turni 2 e 3 e aggiunge le due assertion che dimostrano la differenza: HP di Bastion dopo il colpo **coperto** e dopo quello **scoperto**. La distanza fra i due numeri e' la feature.",
+
+  "units": [
+    { "id": "B1", "hero": "Hero.Bastion", "team": 0, "cell": [-1, 0, 0] },
+    { "id": "V1", "hero": "Hero.Vektor",  "team": 1, "cell": [ 2, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — colpo di riferimento SENZA copertura: 120 meno 21 fa 99 su Bastion, ed e' la misura contro cui si leggeranno gli altri due turni. Gira sul gioco di oggi.",
+      "intents": [
+        { "unit": "V1", "ability": "Vektor.PulseShot", "target": "B1" }
+      ]
+    },
+    {
+      "_turno": "T2 — Bastion erige il pannello e incassa un colpo ridotto.",
+      "requires": ["CreateCover"],
+      "intents": []
+    },
+    {
+      "_turno": "T3 — la copertura e' scaduta: lo stesso colpo torna a valere pieno.",
+      "requires": ["CreateCover"],
+      "intents": []
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals",  "unit": "B1", "value": 99 },
+    { "type": "UnitAlive",     "unit": "B1", "value": true },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

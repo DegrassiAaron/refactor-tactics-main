@@ -110,8 +110,11 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 | **Facing come stato di gioco** | — | ⏳ ADR-0005 + D-020 accettati, nessun codice (E16) |
 | **Scenario showcase e golden replay** | `Tests/` (`ShowcaseRelay.*`) | 🟡 **iniziata**: fixture stabile e scenario lite deterministico |
 
-**Suite automatica**: **si misura, non si cita.** Ultima misura **456 test unici in 68 file**, il
-2026-08-08 dopo il merge di CP 9.3 (porte), CP 9.4 (ponti) e del consolidamento documentale.
+**Suite automatica**: **si misura, non si cita.** Ultima misura **492 test unici in 70 file**, il
+2026-08-08 dopo il corpus di scenari visivi e `RTScenarioCorpusTests`. Suite intera eseguita: **496 test
+performed, zero fallimenti** (i quattro in più della run sono ripetizioni del framework, non test nuovi).
+Il conteggio precedente era 456 in 68 file, dopo CP 9.3 (porte), CP 9.4 (ponti) e il consolidamento
+documentale.
 Ripartizione per area in [`../README.md`](../README.md). Comando riproducibile:
 
 ```bash

@@ -231,6 +231,113 @@ Le capability nuove (`CoverWindow`, `Interaction`, `Perception`) non vanno aggiu
 finché il sistema non esiste: l'elenco sta nel codice apposta, perché dichiarare disponibile una capability
 inesistente non deve essere una modifica al JSON.
 
+## 6-bis. Il corpus come test automatico
+
+### Uno scenario non è un test finché qualcuno non lo esegue
+
+`Scenario.ShippedScenariosAreValid` **carica** ogni scenario versionato e verifica che l'ID risolva al suo
+file. Non lo esegue. Uno scenario diventava un test solo se gli si scriveva accanto la propria
+`IMPLEMENT_SIMPLE_AUTOMATION_TEST` — `RunnerCombatBasicAttack`, `RunnerCounterStrikesBack`, una per file.
+
+È una convenzione che si dimentica: i diciassette scenari visivi sono stati committati senza, e per un commit
+intero sono sembrati coperti senza esserlo. Il verde di `ShippedScenariosAreValid` diceva soltanto che il JSON
+era ben formato.
+
+**`Scenario.EveryShippedScenarioRuns`** chiude il buco alla radice: scopre il corpus dall'indice e lo esegue
+tutto. Aggiungere un file basta perché venga eseguito — non c'è più un secondo passo da ricordare.
+
+| Esito | Trattamento | Perché |
+|---|---|---|
+| `PASS` | verde | ha giocato tutti i turni e le assertion tengono |
+| `BLOCKED` | **verde**, col motivo nel log | è il meccanismo che permette di versionare uno scenario prima dei suoi sistemi. Trattarlo come rosso renderebbe irrazionale scriverne in anticipo |
+| `FAIL` | rosso — difetto del **gioco** | riporta il primo assert caduto col valore reale |
+| `ERROR` | rosso — difetto dello **scenario** | la distinzione è già nel tipo di esito, e va conservata invece di appiattirla su «non passa» |
+
+Gli scenari con tag `expected-fail` sono esclusi e verificati al contrario da
+**`Scenario.ExpectedFailScenariosReallyFail`**: devono fallire *davvero*, e con `FAIL`, non `ERROR`. Se il
+gioco cambiasse in modo da farli passare, l'unica prova che l'harness sa dire «rosso» smetterebbe di provarlo
+senza che nulla diventi rosso. È il caso in cui il verde è il difetto.
+
+### Scenari-specifica: scritti prima della feature
+
+`Scenarios/Spec/` contiene scenari che descrivono una feature **che non esiste**. Dichiarano la capability in
+`requires`, escono `BLOCKED` nominandola, e si accendono da soli quando atterra.
+
+| ID | `requires` | La domanda che pone |
+|---|---|---|
+| `Spec.Overwatch.HoldThenFire` | `DecisionBoundary` `Facing` | HOLD scarta senza consumare la carica, FIRE tronca il movimento |
+| `Spec.Objective.PointSurvivesKO` | `Objective` | il punto è assegnato **dopo** ambiente e KO, non prima |
+| `Spec.Predictive.WhiffOnEmptyCell` | `PredictiveAction` | il colpo su una previsione sbagliata deve **mancare** |
+| `Spec.Perception.HeardNotSeen` | `Perception` | la squadra riceve un'**area**, mai la cella esatta |
+| `Spec.Cover.TemporaryCoverExpires` | `CreateCover` | una copertura temporanea **scade** — il terzo momento, quello che si dimentica |
+
+Il valore non è la copertura: è che queste domande vengono poste **prima**. `WhiffOnEmptyCell` è l'esempio
+netto — a implementazione finita si testa che il colpo arrivi quando la previsione è giusta, e
+un'implementazione che rivaluta il bersaglio al momento dello sparo passerebbe quel test e fallirebbe questo.
+Scritto dopo, quel caso non verrebbe in mente.
+
+Ognuno dichiara in `_nota_da_completare` cosa manca per renderlo verde, incluse **due assertion che non
+esistono**: `TeamScoreEquals` per gli obiettivi, e un modo di asserire sulla conoscenza di una squadra per la
+percezione. Meglio scoprirlo ora che a implementazione finita.
+
+Ogni turno di uno scenario-spec resta con `intents` **vuoti**: la sintassi con cui si dichiarerà una risposta
+HOLD/FIRE, o un bersaglio predittivo, non è decisa. Inventarla qui creerebbe un formato che nessuno ha scelto
+e che il primo implementatore dovrebbe disfare.
+
+### Cosa ha trovato la prima esecuzione
+
+Il corpus è stato eseguito per la prima volta il 2026-08-08. Build `RefactorTacticsEditor` **Succeeded** al
+primo colpo; **cinque scenari su diciassette erano rossi**, e la ripartizione delle cause è la ragione per cui
+questo test valeva la pena.
+
+Stato finale, misurato:
+
+```
+corpus eseguito: 28 PASS, 6 BLOCKED, 2 dichiarati expected-fail
+RefactorTactics.Scenario.EveryShippedScenarioRuns            Success
+RefactorTactics.Scenario.ExpectedFailScenariosReallyFail     Success
+```
+
+**Tre erano difetti miei, con una causa sola.** Lo scatto si dichiara con `dash` + `dashTo`, non con
+`ability`: dopo [D-028] occupano slot diversi — lo scatto prende il movimento, l'abilità la principale, e
+«schivo e sparo» dev'essere esprimibile. Dichiarato con `ability`, `Bastion.Ram` finiva nello slot del Blast
+e non partiva. Da qui `Charge` (Flux illeso), `PhaseOrder` (mancavano i 20 della carica) e
+`FallbackTargetMoved` (il bersaglio non si spostava).
+
+Il quarto scenario con lo stesso errore, `RoughRefusesCharge`, **era verde**. Si aspettava che non accadesse
+nulla, e infatti non accadeva nulla — ma perché la carica non partiva, non perché il Rough la vietasse. Un
+verde che tace è peggio di un rosso: senza gli altri quattro rossi a indicare la causa comune, sarebbe
+rimasto lì a dare una falsa sicurezza.
+
+**Uno era una mia assunzione sbagliata sulla regola.** `FallbackTargetMoved` faceva uscire Bastion
+dall'allineamento restando a quattro celle, e il colpo lo raggiungeva lo stesso. La forma `Line` descrive
+*chi altro* viene preso sulla traiettoria, non un vincolo di allineamento del bersaglio: il fallback scatta
+sulla **portata**. Lo scenario ora fa caricare Bastion in direzione opposta, fino a sette celle da Flux.
+
+**Due erano difetti del gioco**, e nessun test esistente li vedeva:
+
+| Difetto | Perché nessuno se n'era accorto |
+|---|---|
+| `PushResistance` non riduce le spinte ([#241]) | è un **dato senza consumatore**: catalogo → `ARTUnit` → test che ne verificano il *valore*. Nessuno lo legge quando applica una spinta |
+| la combo Riva→Flux non è realizzabile ([#242]) | `Heroes.Flux.WetBonus` verifica l'**aritmetica** di `EffectiveAttackPower` senza passare dal `TurnManager`. Il `Wet` di `PressureJet` arriva *durante* il Blast, quando i colpi sono già preparati — e su due turni scade nel Cleanup prima di servire |
+
+Il secondo è il più istruttivo del lotto: la combo firma della v0.1 era documentata, aveva un test verde, ed
+era **ineseguibile**. `Visual.Combat.WaterElectric` ora la mostra nell'unica forma che funziona — il bersaglio
+entra nell'acqua in fase Dash, prima del Blast — ed è il primo test end-to-end che ne esista.
+
+### Lacune dichiarate
+
+Tre abilità del kit non hanno scenario, e non per dimenticanza:
+
+| Abilità | Perché no |
+|---|---|
+| `Riva.CircularTide` | il routing cura-agli-alleati / `Wet`-ai-nemici è dichiarato **incompleto** nel catalogo. Un'assertion scritta sul design invece che sul comportamento reale produrrebbe un `FAIL` che accusa il gioco di un difetto già noto |
+| `Riva.FluidTrail` | la mobilità è rappresentabile, la scia d'acqua no: resterebbe uno scenario che verifica un Dash e lo chiama `FluidTrail` |
+| `Vektor.Feint` | nessuna delle due metà è dichiarabile — `Status` si applica alle unità e non alle celle, e il `Reposition` passa da `MovementStyle`, non da `Effects` |
+
+Vanno scritte quando il comportamento è **osservabile**, misurando il primo run invece di derivarlo dal
+catalogo. Le prime due sono il caso migliore per un test di **caratterizzazione**, non per una specifica.
+
 ## 7. Convenzioni
 
 ```

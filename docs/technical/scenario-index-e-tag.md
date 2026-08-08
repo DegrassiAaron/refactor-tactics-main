@@ -68,10 +68,14 @@ toglierlo dall'ultimo scenario che lo portava lo fa sparire. Stessa ragione per 
 legge i file: un elenco scritto a mano invecchia, e una voce di filtro che non filtra niente è un invito a
 cercare qualcosa che non c'è.
 
-Vocabolario al 2026-08-08 (**20 voci**, dopo il corpus `Visual.*`): `animation` · `bastion` · `combat` ·
-`core` · `environment` · `expected-fail` · `flux` · `friendly-fire` · `los` · `map` · `movement` ·
-`objectives` · `pathfinding` · `planning` · `reactions` · `relay` · `riva` · `shapes` · `showcase` ·
-`vektor`.
+Vocabolario al 2026-08-08 (**22 voci**, dopo i corpus `Visual.*` e `Spec.*`): `animation` · `bastion` ·
+`combat` · `core` · `environment` · `expected-fail` · `flux` · `friendly-fire` · `los` · `map` · `movement` ·
+`objectives` · `pathfinding` · `perception` · `planning` · `reactions` · `relay` · `riva` · `shapes` ·
+`showcase` · `spec` · `vektor`.
+
+Il tag **`spec`** ha un significato operativo e non solo di navigazione: marca gli scenari che descrivono una
+feature **non ancora costruita**, e che quindi escono `BLOCKED` per progetto. Filtrarci sopra risponde alla
+domanda «cosa ho già dichiarato e non ho ancora fatto».
 
 > Questa riga è una **fotografia**, e quando è stata rimisurata era indietro di **dieci** voci su venti.
 > Tre (`objectives`, `relay`, `showcase`) erano entrate con `RT_Showcase_Relay_v01`; tre
