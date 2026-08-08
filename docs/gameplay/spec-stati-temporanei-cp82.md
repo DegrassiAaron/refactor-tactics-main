@@ -1,5 +1,20 @@
 # Spec — Stati temporanei (E8, CP 8.2)
 
+> 👁️ **`Obscured` non è più solo osservabilità futura** (2026-08-08): è un **input reale** della conoscenza
+> parziale (**E13**, [`brief-conoscenza-parziale.md`](brief-conoscenza-parziale.md)) e concorre con
+> [ADR-0005](../decisions/adr-0005-orientamento.md) a decidere il livello di contatto. Il cap di targeting
+> definito qui resta; la **semantica di detection** è posseduta da E13, non da questa spec.
+>
+> 🧹 **Ordine del Cleanup — una sola fonte.** L'ordine definitivo è quello della spec ambientale più recente
+> ([`spec-fuoco-acqua-cp84.md`](spec-fuoco-acqua-cp84.md), che lo ha esteso con il terreno dinamico). Se le
+> due divergono, **prevale quella**: qui resta la parte sugli **stati**, non l'ordine complessivo. Due
+> documenti che definiscono lo stesso ordine sono due fonti normative, cioè nessuna.
+
+> 📌 **Stato di implementazione storico al 2026-08-07 (CP 8.2).** Numeri, conteggi di test ed esiti qui sotto fotografano
+> la chiusura del checkpoint. Lo **stato corrente** è posseduto da
+> [`../roadmap/roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md): questa spec non compete con la roadmap come
+> fonte di stato.
+
 > **Issue**: `#65` · **Epic**: `#22` (E8) · **Dipende da**: `#64` (CP 8.1, chiusa) · **Data**: 2026-08-07
 > **Branch**: `feat/65-stati-temporanei` · **Baseline misurata**: 325 test, 0 fallimenti
 > Fonti: [`RT_TerrainCatalog_v0.1.md`](../balance/RT_TerrainCatalog_v0.1.md) §2 ·

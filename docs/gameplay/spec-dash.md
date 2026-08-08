@@ -6,13 +6,23 @@
 > al pathfinding a grafo ([`spec-pathfinding-pf3-pf4.md`](../technical/spec-pathfinding-pf3-pf4.md)) e all'animazione della
 > risoluzione ([`spec-anima-risoluzione.md`](spec-anima-risoluzione.md)).
 >
-> **Decisioni prese**: movimento del dash = **pathfinding** (aggira ostacoli) · **dash + move** (movimento doppio
-> consentito) · scope = **bot + player**.
+> **Decisioni vigenti**: **dash + move** (movimento doppio consentito) · scope = **bot + player** ·
+> il movimento dello scatto è **lineare** e un ostacolo lo **ferma**, deciso da `ERTMovementStyle`
+> (`LinearDash` attraversa, `LinearCharge` si ferma sul primo nemico, `LinearLeap` scavalca).
 >
-> ⚠️ **Aggiornata dopo CP 4.5 (`#46`) e `#142`** — due decisioni di questa spec non valgono più:
-> il movimento dello scatto **non** è più pathfinding (è **lineare**, e un ostacolo lo ferma) e `bDash` **non
-> esiste più**. Le sezioni sotto sono corrette in linea; qui resta la traccia di cosa è cambiato, perché è la
-> spec a cui rimandano i commenti del codice più vecchi.
+> ⚠️ **Corretta il 2026-08-08.** La riga «movimento del dash = **pathfinding** (aggira ostacoli)» compariva
+> ancora fra le *decisioni prese*, smentita quattro righe più sotto dal blocco di aggiornamento: due
+> affermazioni opposte nella stessa testata, e la prima è quella che si legge per prima. È stata **rimossa**,
+> non barrata — una decisione superata non va lasciata in un elenco intitolato «decisioni prese».
+> Superata da **CP 4.5** (`#46`) e `#142`, che hanno anche eliminato `bDash`.
+>
+> 🧭 **[ADR-0005](../decisions/adr-0005-orientamento.md)**: `LinearDash`, `LinearCharge` e `LinearLeap`
+> **derivano il facing** dalla direzione del movimento — una sola direzione legale, non dichiarata a parte.
+>
+> 🏃 **[D-015](../decisions/RT_PDR_00_Decision_Log.md)**: `Sprint` **non è un Dash**. Appartiene alla famiglia
+> `Move` come profilo (`Sneak · Normal · Sprint`) e non introduce una seconda semantica di fase. Questa spec
+> descrive **solo** la mobilità speciale pre-Blast. L'`Action.Sprint` a catalogo, classificato oggi come
+> azione a budget, è **debito di migrazione** dichiarato — vedi le Note del Decision Log.
 
 ## 1. Obiettivo e valore tattico
 
@@ -111,9 +121,15 @@ playback: `Prep → Dash → Blast → Move`.
 
 - **Dash del giocatore**: cablato (tasto `4` + click + preview), ma la conferma **interattiva** richiede il
   mouse dell'utente (come il click→layer di [`spec-mappa-multilivello.md`](../technical/spec-mappa-multilivello.md)).
-- **Dash "leggero"** (salto che scavalca le coperture in linea retta) **non** implementato: scelto il
-  pathfinding (aggira gli ostacoli). Possibile enhancement futuro.
+- ~~**Dash "leggero"** (salto che scavalca le coperture in linea retta) **non** implementato: scelto il
+  pathfinding (aggira gli ostacoli).~~
+  > ✅ **Superato il 2026-08-08**: era il residuo della decisione ribaltata da CP 4.5. Lo scavalcamento
+  > **esiste** ed è `LinearLeap`; il pathfinding non è più il movimento dello scatto. La riga è conservata
+  > barrata perché è la sola traccia di quanto a lungo la spec si è contraddetta da sola.
 - Tuning dei valori (portata/ricarica degli scatti) da tarare in gioco.
+- **`Action.Sprint` è a budget e vive in questa spec per eredità** ([D-015](../decisions/RT_PDR_00_Decision_Log.md)):
+  semanticamente appartiene ai profili di `Move`. Finché la migrazione non è fatta, l'ID resta dov'è —
+  ma **nessun documento deve insegnare «Sprint = Dash»**.
 
 ## 9. Interazione con gli status (2026-08-03)
 

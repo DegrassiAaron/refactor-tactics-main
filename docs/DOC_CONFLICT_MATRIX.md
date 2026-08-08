@@ -47,8 +47,16 @@
 | 24 | Numerazione roadmap | F0–F6 del PDR | M6–M11 (esecuzione) + E1–E17 (release), **mappate** sulle F | [`roadmap/roadmap-checkpoint.md`](roadmap/roadmap-checkpoint.md) | `CONFIRMED` | non rinumerare |
 | 25 | Determinismo | — | snapshot + RulesVersion + seed ⇒ stesso `StateHash`/`LogHash`; le Fast Decision entrano nel TurnLog **come dato** | invariante #4 · [ADR-0004](decisions/adr-0004-finestre-di-reazione.md) | `CONFIRMED` | — |
 | 26 | Privacy dell'intento | — | `FilterForTeam → FRTIntentView`; canary a M10 | invariante #6 | `CONFIRMED` | — |
+| 27 | **Azioni generiche** | catalogo E4: `Wait · Move · BasicAttack · Guard · Activate · Interact` | `Wait · BasicAttack · Interact · Brace · Move · Overwatch`; `Activate`→`Interact`; `Guard` non universale | [D-014](decisions/RT_PDR_00_Decision_Log.md) | `SUPERSEDED` | ✅ semantica decisa · ⏳ **migrazione Stable ID** aperta (9 file usano `Action.Sprint`) |
+| 28 | **`Sprint`** | azione a budget in fase Dash | **profilo della famiglia `Move`**; `Sprint` ≠ Dash | [D-015](decisions/RT_PDR_00_Decision_Log.md) | `SUPERSEDED` | ✅ nessun documento insegna più «Sprint = Dash» · ⏳ migrazione |
+| 29 | **Predictive Action in v0.1** | fuori scope, nessuna epic | **thin slice**: una sola, `Vektor.InterceptShot` | [D-016](decisions/RT_PDR_00_Decision_Log.md) | `CONFIRMED` | ⏳ da inserire in roadmap; **sgancia** l'azione da E14 |
+| 30 | **`Intercept` e copertura** | il colpo conserva la copertura del bersaglio **originale** | geometria **rivalidata sul bersaglio effettivo**, senza nuova opportunity | [D-017](decisions/RT_PDR_00_Decision_Log.md) | `SUPERSEDED` | ⏳ serve test discriminante A/B a copertura diversa |
+| 31 | **`HighGround` e vista** | «bonus visuale» non quantificato · poi `Sight_Mod = +1/+2/−1` (workbook) | **nessun bonus numerico** in v0.1 | [D-018](decisions/RT_PDR_00_Decision_Log.md) | `SUPERSEDED` | ✅ chiusa nel verso opposto: il numero veniva dal workbook, non da un playtest |
+| 32 | **«Fast Action»** | usato per l'azione dichiarata in Planning che risolve dopo | quello è **Delayed/Predictive**; `Fast Action` è una scelta **live** | [D-019](decisions/RT_PDR_00_Decision_Log.md) | `DUPLICATE` | ✅ glossario corretto in `spec-durata-partita-e-scala-mappe.md` |
+| 33 | **Finestre live nell'MVP** | `spec-sequenza-turno.md` §4/§5: «non implementare, serve il multiplayer» | **in scope** (E14); il gate a due condizioni è caduto | [ADR-0004](decisions/adr-0004-finestre-di-reazione.md) | `SUPERSEDED` | ✅ il divieto **rimosso**: il documento diceva sì in §2 e no in §4 |
+| 34 | **APNAP a sei gruppi** | canone §5.1: ordine totale per effetti simultanei, `FR-RESOLVE-01` | **non implementato**: l'ordine reale è a 5 chiavi sulle *azioni* | codice (`RTActionQueueLibrary`) | **`OPEN`** | ⚠️ regola normativa **senza consumer** — decidere se costruirla o riscrivere §5.1 |
 
-**Riepilogo al 2026-08-07**: **24 risolti** (`CONFIRMED`/`SUPERSEDED`) · 1 `DUPLICATE` chiuso · **0 `OPEN`** · **0 `CONFLICT`**.
+**Riepilogo al 2026-08-08**: **31 risolti** (`CONFIRMED`/`SUPERSEDED`) · 2 `DUPLICATE` chiusi · **1 `OPEN`** (riga 34) · **0 `CONFLICT`**.
 
 > Le quattro voci aperte dalla revisione documentale sono state chiuse dalla sessione `/sc:brainstorm` del
 > 2026-08-07 (`D-011`, `D-012`, `D-013` + due brief). Due delle domande erano **mal poste**, e lo si è scoperto

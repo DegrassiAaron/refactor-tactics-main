@@ -1,5 +1,13 @@
 # Brief — Ghiaccio: cosa è già vigente, cosa resta fuori
 
+> 🧹 **L'ordine del Cleanup non si duplica qui.** L'owner è
+> [`spec-fuoco-acqua-cp84.md`](spec-fuoco-acqua-cp84.md), che lo ha esteso col terreno dinamico. Questo brief
+> descrive il **motore del ghiaccio**, non la sequenza di fine turno.
+>
+> `CrackedIce` e le interazioni termiche avanzate restano **fuori dalla v0.1** salvo decisione esplicita.
+> La divergenza numerica sul rumore dell'acqua (workbook `+3` contro `+2` del documento sorgente) si chiude
+> nel **catalogo di balance**, non qui: è un numero, e i numeri hanno un owner.
+
 > **Stato**: brief di requisiti · **Data**: 2026-08-07 · **Origine**: `/sc:brainstorm` su
 > `docs/src/RefactorTactics — Implementazione terreno Ghiaccio v0.1 in Unreal Engine 5.md` (36 sezioni)
 > **Esito**: lo **scivolamento base resta in v0.1 perché è già implementato**; il **motore** (Momentum,

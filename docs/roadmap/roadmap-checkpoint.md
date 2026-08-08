@@ -76,7 +76,7 @@ Manca la prova sul campo: la sessione di playtest **CP 6.8**, che si esegue in e
 ## La release v0.1 (2026-08-05)
 
 Le milestone qui sotto restano la vista di **esecuzione**. Sopra di esse esiste ora una vista di **release**:
-[`roadmap-v0.1.md`](roadmap-v0.1.md) — **17 epic, 85 checkpoint** *(era 12/59; **E13** conoscenza parziale,
+[`roadmap-v0.1.md`](roadmap-v0.1.md) — **18 epic, 87 checkpoint** *(era 12/59; **E13** conoscenza parziale,
 **E14** overwatch, **E15** showcase ed **E16** orientamento aggiunte il 2026-08-07, insieme ai checkpoint del
 planning visuale in **E11** → [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md))*, issue `#14`–`#85` e
 `#151`–`#177` — che aggrega M6–M9 e
@@ -101,6 +101,7 @@ budget **5 MP**, reazioni, terreni e obiettivi.
 | **E15** Showcase «Il Relè» e golden replay | parte di **M8** | **nuova** (2026-08-07): la prova integrata — fixture, scenario scriptabile, replay a hash stabile — [`showcase-v0.1.md`](../product/showcase-v0.1.md) |
 | **E16** Orientamento e direzionalità | parte di **M8**/**M9** | **nuova** (2026-08-07): [ADR-0005](../decisions/adr-0005-orientamento.md); il facing deriva dal movimento e decide difesa, percezione e reazioni. **Prerequisito di E13** |
 | **E17** Validazione di stress 4v4 | oltre **M9** | **nuova** (2026-08-07): [D-011](../decisions/RT_PDR_00_Decision_Log.md). **Misura, non produzione**: dove si rompe il sistema con otto unità. Dopo E15; **non** decide il formato principale |
+| **E18** Predictive Action (thin slice) | parte di **M8** | **nuova** (2026-08-08): [D-016](../decisions/RT_PDR_00_Decision_Log.md). Una **sola** azione predittiva rende percepibile il pilastro della predizione. **Non dipende da E13/E14**: sgancia `Vektor.InterceptShot` da E14 |
 | — | **M10** Rete e privacy | **fuori** dalla v0.1 |
 
 ### Stato misurato delle epic — 2026-08-07

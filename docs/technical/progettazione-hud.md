@@ -158,8 +158,13 @@ Questi elementi **non devono essere realizzati come grandi widget HUD statici**.
 
 Finestre temporanee per:
 
-- Fast Action;
-- Fast Reaction;
+- Fast Action — scelta live come continuazione di una **propria** azione;
+- Fast Reaction — scelta live provocata da un evento **esterno**;
+
+  > Sono categorie **distinte** ([D-019](../decisions/RT_PDR_00_Decision_Log.md)) sulla stessa
+  > `DecisionWindow`, e nessuna delle due è una *Delayed Action* (che si decide in Planning e non apre
+  > finestre). La v0.1 non definisce ancora una Fast Action concreta.
+
 - Overwatch;
 - future decision boundary.
 

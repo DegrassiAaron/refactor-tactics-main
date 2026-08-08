@@ -10,12 +10,17 @@
 > Ancorata al canone ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md)), alla roadmap
 > ([`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md)), al resolver movimento ([`spec-mappa-multilivello.md`](../technical/spec-mappa-multilivello.md)).
 
-> ⚠️ **Conflitto di fonte.** Il PDF *«RefactorTactics – Sequenza di Risoluzione del Turno»* descrive un
-> modello **WEGO + stack LIFO (Magic) + reazioni/patch** (ispirato a Phantom Brigade/MtG) che **diverge**
-> dalle fasi canoniche Prep→Dash→Blast→Move. È materiale **esplorativo/north-star**. Questa spec ne usa
-> **solo** la parte su **presentazione e pacing** (timeline, batching parallelo/serializzato, ritmo ~60s,
-> speed-up automatico). **Stack/reazioni/Reaction Points restano fuori MVP** e richiederebbero un ADR dedicato.
-> Il presente lavoro è **north-star / fuori MVP-core**: si affronta a MVP chiuso o come slice opzionale.
+> ⚠️ **Riscritta nel modello a segmenti il 2026-08-08.** Questa spec assumeva che il lock-in calcolasse
+> **una volta sola** l'intera timeline del round, e che il playback la riproducesse dall'inizio alla fine.
+> Con [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) **non regge più**: una scelta live a un
+> decision boundary può cambiare i segmenti successivi, quindi al lock-in il futuro del round **non è ancora
+> scritto**. Vedi §3.1.
+>
+> Superata anche la riga «**stack/reazioni/Reaction Points restano fuori MVP**»: le finestre di reazione sono
+> **in scope** (E14). Restano north-star lo stack **LIFO interattivo**, gli interrupt annidati e le `Patch`.
+> Il materiale esplorativo è in
+> [`../archive/gameplay/sequenza-turno-exploratory.md`](../archive/gameplay/sequenza-turno-exploratory.md);
+> la sequenza canonica è [`spec-sequenza-turno.md`](spec-sequenza-turno.md).
 
 ## 1. Obiettivo
 
@@ -48,15 +53,55 @@ disponibile: manca il layer che lo riproduce nel tempo.
 > **Le regole decidono l'esito; l'animazione riproduce.** (Invariante #1 del canone; coerente col PDF p.4
 > *«Sempre salvaguardare l'ordine degli eventi»*.)
 
-- La logica resta **sincrona e autoritativa** in `LockInAndResolve`: lo stato finale è calcolato **una volta
-  sola**, a lock-in.
-- Il playback legge **eventi già risolti**: se salta/accelera, **l'esito non cambia**.
+- La logica resta **autoritativa**: il playback legge **eventi già risolti** e, se salta o accelera,
+  **l'esito non cambia**.
 - Il `DeltaTime` che muove i cilindri governa **solo i pixel**, non le regole → **non** viola l'invariante #4
   (che riguarda la *logica* dei turni, non la presentazione).
 
+### 3.1 Il round si risolve a segmenti, non in un colpo solo
+
+> ⚠️ La formulazione precedente diceva «lo stato finale è calcolato **una volta sola**, a lock-in».
+> Era vera prima di [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md), e ora è falsa: se una finestra
+> di reazione può cambiare cosa succede dopo, al lock-in la timeline futura **non esiste ancora**.
+
+Modello corretto:
+
+```text
+COMMIT
+  └─ snapshot del segmento
+       → risolvi il segmento
+       → emetti eventi autorevoli
+       → riproduci il segmento                    (presentazione)
+       → nessun decision boundary?  continua
+       → decision boundary?
+            ferma GLOBALMENTE la simulazione logica
+            presenta la finestra
+            la risposta diventa input autorevole  (entra nel TurnLog come dato)
+            snapshot del segmento successivo
+            riprendi
+  └─ Cleanup
+```
+
+Cosa cambia **davvero** per questa spec, che resta di presentazione:
+
+1. La timeline **non si emette una volta**: si emette **per segmento**. Il playback consuma quello che c'è e
+   si ferma al boundary.
+2. La durata del round **non è più nota al lock-in**: dipende da quante finestre si aprono e da quanto il
+   giocatore ci mette. I target di §6 restano validi come **banda da misurare**, non come tempo calcolabile
+   in anticipo.
+3. Lo stato `Resolving` guadagna un sotto-stato di **attesa**: la presentazione può continuare in slow motion
+   mentre la logica è ferma. Il rallentamento è **solo visuale** — se decidesse qualcosa, l'esito
+   dipenderebbe dal frame rate.
+4. **Skip e accelerazione restano leciti** fino al boundary, mai attraverso: saltare una finestra
+   significherebbe scegliere al posto del giocatore. Il `Timeout → HOLD` è l'unica scelta automatica, ed è
+   una funzione pura.
+
+Il playback resta **presentation-only** in ogni caso: non decide, non ordina, non cambia l'esito.
+
 ## 4. Modello dati — timeline di eventi risolti
 
-`LockInAndResolve` popola, oltre allo stato finale, una **timeline** ordinata per fase:
+`LockInAndResolve` popola, oltre allo stato del segmento, una **timeline** ordinata per fase.
+⚠️ Con ADR-0004 la timeline copre **il segmento corrente**, non l'intero round (§3.1):
 
 ```cpp
 UENUM()
