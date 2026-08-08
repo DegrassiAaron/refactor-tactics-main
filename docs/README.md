@@ -117,7 +117,7 @@ invarianti del canone. **Quali sono aperte?** [`OPEN_DECISIONS.md`](OPEN_DECISIO
 [`archive/pdr-v0.1/`](archive/pdr-v0.1/); i piani consegnati in [`roadmap/plans/`](roadmap/plans/); e i singoli
 documenti che portano in testa il banner **⚠️ Superato** o **📦 Piano consegnato**.
 
-**Quali test verificano le regole?** **403 test automatici unici in 63 file**, sotto
+**Quali test verificano le regole?** **415 test automatici unici in 63 file**, sotto
 `Source/RefactorTactics/Tests/`. Misura riproducibile — *non citare a memoria*:
 
 ```bash

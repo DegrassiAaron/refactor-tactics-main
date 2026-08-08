@@ -37,12 +37,26 @@ namespace
 	 * un mondo vuoto (test di automazione) e una PIE dove il GameMode ha gia' spawnato mappa, luce e turn
 	 * manager. Spawnarne un secondo darebbe due griglie sovrapposte e un raycast ambiguo.
 	 */
-	URTHexMapAsset* BuildArena(UWorld* World, int32 Radius)
+	URTHexMapAsset* BuildArena(UWorld* World, int32 Radius, const TArray<FRTScenarioCell>& Overrides)
 	{
 		URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
 		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
 		{
 			Map->AddOrUpdateCell(FRTHexCellData(Id));
+		}
+
+		// Poi le modifiche dello scenario: ostacoli, muri, terreno costoso. Applicate DOPO l'arena piena, cosi'
+		// una cella elencata due volte vince l'ultima e non dipende dall'ordine di generazione.
+		for (const FRTScenarioCell& Spec : Overrides)
+		{
+			FRTHexCellData Cell(Spec.Cell);
+			Cell.bBlocksMovement = Spec.bBlocksMovement;
+			Cell.bBlocksLineOfSight = Spec.bBlocksLineOfSight;
+			if (Spec.MoveCost > 0)
+			{
+				Cell.MoveCost = Spec.MoveCost;
+			}
+			Map->AddOrUpdateCell(Cell);
 		}
 		Map->SortCells();
 
@@ -102,7 +116,7 @@ FRTTestResult URTScenarioRunner::Run(UWorld* World, const FRTTestScenario& Scena
 	Result.Seed = Scenario.Seed;
 
 	// --- 2. mondo: mappa, unita', turn manager ------------------------------------------------------------
-	URTHexMapAsset* Map = BuildArena(World, Scenario.MapRadius);
+	URTHexMapAsset* Map = BuildArena(World, Scenario.MapRadius, Scenario.Cells);
 	if (!Map)
 	{
 		return MakeErrorResult(Scenario, TEXT("impossibile creare l'arena esagonale"));

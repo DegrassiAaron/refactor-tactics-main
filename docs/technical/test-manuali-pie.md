@@ -21,7 +21,7 @@
 > **Prima di aprire l'editor**: molte di queste voci hanno già una copertura automatica, e alcune si
 > riproducono senza toccare il mouse con uno **scenario** (`rt.Test.Scenario <Id>` + Play). Come si eseguono
 > i test, come si scrive uno scenario e come si legge un report fallito:
-> **[`../guides/test-e-diagnosi.md`](test-e-diagnosi.md)**.
+> **[`test-e-diagnosi.md`](test-e-diagnosi.md)**.
 > Il PIE serve per ciò che nessun test vede: che si **veda** a schermo e che il giocatore **capisca**.
 
 - Apri il progetto: doppio clic su `RefactorTactics.uproject`. All'avvio l'editor può chiedere **quale versione
@@ -49,8 +49,8 @@
 
 ## Stato in numeri — 2026-08-07
 
-**71 voci**: ✅ **23 verdi** · 🟡 **17 parziali** (regola coperta da test, resta il visivo) · ⏳ **31 aperte**.
-*(Rimisurate il 2026-08-07 col comando qui sotto, su `main` a `234dfd2`.)*
+**74 voci**: ✅ **23 verdi** · 🟡 **17 parziali** (regola coperta da test, resta il visivo) · ⏳ **34 aperte**.
+*(Rimisurate col comando qui sotto dopo l'aggiunta delle 3 voci dello Scenario Test Harness.)*
 
 > **Perché questo numero era rotto** (issue #192): due sessioni parallele hanno misurato lo stesso file in
 > momenti diversi — «67 voci: 22/15/30» e «65 voci: 23/16/26» — e il merge ha lasciato **entrambe** le versioni
@@ -201,6 +201,19 @@ Le 31 aperte in sei gruppi, più un residuo (la somma è verificata: 2+9+9+4+4+1
 |----|-----------------|---------------|--------------|-------|
 | **PIE-DEBUG-CELLS** | Overlay di leggibilità della mappa | partita avviata, console `rt.Debug.DrawCells 1` | Ogni cella mostra un contorno del **colore della superficie** (fango marrone, acqua blu, ghiaccio azzurro, fumo grigio-bluastro); **rosso interno** dove blocca il movimento, **giallo interno** dove blocca la vista. `rt.Debug.DrawCells 0` spegne tutto; senza argomento fa da interruttore | ✅ **2026-08-07** — verificato dall'utente su `GeneratedTestArena`. Giallo e rosso comparivano già; il **fango no**: il contorno superficie era disegnato a `z=2.0` mentre la faccia del disco-cella sta a `2.5` (cilindro engine, mezza-altezza 50 uu × `FlatScale` 0.05) e restava **sepolto nella mesh**. Corretto in `069b616`: le quote derivano ora da `RTCellTopZ` e sommano `Cell.Height` |
 | **PIE-PREVIEW-AREA** | Anteprima dell'area d'attacco e del fuoco amico | unità selezionata, un'abilità ad **area** o **cono** pianificata su un bersaglio | Le celle colpite si evidenziano in **rosso**; se un **alleato** è dentro l'area la sua cella è **arancione** — e si vede **prima** del lock-in. Le celle raggiungibili col budget corrente sono in **verde tenue** (il fango accorcia il raggio a vista d'occhio). Premendo Spazio l'anteprima **sparisce** | ⏳ **eseguibile ora**. Wiring coperto headless da `Preview.HitCellsMatchCombatShape` (l'anteprima riceve le celle da `HexHitCells`, quindi non può divergere dall'esito), `Preview.AllyInAreaIsFlagged`, `Preview.ClearedWhenPlanIsCancelled`, `Preview.ReachableCellsArePassedThrough`. Al PIE resta il **giudizio**: l'arancione si nota davvero prima di premere Spazio, o passa inosservato? |
+
+### Scenario Test Harness (aggiunte il 2026-08-07)
+
+> L'harness esegue scenari `.json` attraverso il **percorso di gioco reale** ed è **interamente coperto
+> headless** (12 test `RefactorTactics.Scenario.*`). Restano tre cose che nessun test automatico può vedere,
+> perché riguardano ciò che accade **a schermo** e ciò che l'utente **non deve** dover fare.
+> Guida d'uso: [`test-e-diagnosi.md`](test-e-diagnosi.md).
+
+| ID | Cosa verificare | Precondizione | Esito atteso | Stato |
+|----|-----------------|---------------|--------------|-------|
+| **PIE-TEST-AUTORUN** | «Premo Play e parte da solo» | console `rt.Test.Scenario Movement.Basic`, poi **Play** | Compaiono **due unità** (Flux team 0, Bastion team 1) su un'arena esagonale, **senza toccare mouse o tastiera**. Nell'Output Log: `[RT-Test] AUTO-RUN Movement.Basic -> PASS (2/2 assertion, 1 turni) · report: …`. La partita normale **non** viene allestita (nessun timer di pianificazione, nessun bot che gioca). Rimettendo `rt.Test.Scenario` a vuoto e ripremendo Play, torna la partita normale | ⏳ **la voce chiave**: è il requisito centrale del documento di specifica («devo poter premere Play e osservare»), ed è l'unico pezzo che non ho potuto verificare — headless non c'è un mondo di gioco su cui girare |
+| **PIE-TEST-VISUAL** | Il movimento si **vede**, non si teletrasporta | come sopra, dopo l'AUTO-RUN | L'unità `A1` si sposta da `(-2,0,0)` a `(-1,0,0)` **scorrendo** lungo il percorso, non saltando. A fine turno è esattamente sul centro della cella. ⚠️ Se invece appare già arrivata, il runner sta risolvendo più rapidamente di quanto il playback riesca a mostrare: **non è un difetto di simulazione** (i test headless verificano già l'esito) ma di presentazione, e va annotato qui — sarà la modalità *Visual* del harness a doverlo gestire | ⏳ |
+| **PIE-TEST-CONSOLE** | I comandi rispondono durante una partita | partita avviata (anche normale) | `rt.Test.List` elenca **4** scenari (`Movement.Basic`, `Movement.BasicFailsOnPurpose`, `Movement.Blocked`, `Movement.Collision`); `rt.Test.Run Movement.BasicFailsOnPurpose` stampa `FAIL` **con atteso e ottenuto** e il percorso del report; `rt.Test.DumpResult` ristampa l'ultimo `result.json`. ⚠️ Attenzione: eseguire uno scenario **sostituisce la mappa** e aggiunge unità alla partita in corso — è previsto (il runner riusa mappa e turn manager), ma dopo conviene riavviare con `R` | ⏳ |
 
 ### Durata, ritmo e scala — verifiche di *game feel*
 

@@ -38,6 +38,34 @@ enum class ERTAssertionKind : uint8
 	TurnsCompleted
 };
 
+/**
+ * Modifica di una cella dell'arena generata: ostacoli, muri, terreno costoso.
+ *
+ * Serve a scrivere scenari come `Movement.Blocked` senza versionare un `.umap`: l'arena resta generata da
+ * codice e lo scenario ne cambia le poche celle che gli interessano. Le celle non elencate restano pavimento
+ * a costo 1.
+ */
+USTRUCT()
+struct FRTScenarioCell
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FRTCellId Cell;
+
+	/** Ostacolo: non ci si passa. Il pathfinding la aggira o rifiuta il percorso. */
+	UPROPERTY()
+	bool bBlocksMovement = false;
+
+	/** Muro: non ci si vede attraverso. Non impedisce il passaggio. */
+	UPROPERTY()
+	bool bBlocksLineOfSight = false;
+
+	/** Costo di traversata. 0 = non specificato, resta il default della cella (1). */
+	UPROPERTY()
+	int32 MoveCost = 0;
+};
+
 /** Un'unita' schierata dallo scenario. */
 USTRUCT()
 struct FRTScenarioUnit
@@ -131,6 +159,10 @@ struct FRTTestScenario
 	/** Raggio dell'arena esagonale generata per lo scenario. Mappa da codice: nessun `.umap` da versionare. */
 	UPROPERTY()
 	int32 MapRadius = 3;
+
+	/** Celle da modificare nell'arena generata (ostacoli, muri, terreno costoso). Vuoto = arena liscia. */
+	UPROPERTY()
+	TArray<FRTScenarioCell> Cells;
 
 	UPROPERTY()
 	TArray<FRTScenarioUnit> Units;
