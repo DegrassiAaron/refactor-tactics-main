@@ -1,0 +1,34 @@
+{
+  "scenarioId": "Visual.Combat.WaterElectric",
+  "tags": ["animation", "combat", "environment", "flux", "riva"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 5,
+
+  "_nota": "LA COMBO FIRMA della v0.1, e il solo scenario del corpus che mostra DUE regole con un colpo solo. Riva bagna Vektor con PressureJet (priorita' 50), Flux lo incenerisce con LinearDischarge (priorita' 55): dentro la stessa fase Blast la priorita' PIU' BASSA risolve per prima, quindi quando la scarica parte il bersaglio e' gia' `Status.Wet` e prende il bonus. Invertire le priorita' spegnerebbe la combo senza cambiare una riga di posizionamento — ed e' esattamente cio' che si sta guardando: non due colpi, ma un ORDINE.",
+
+  "_nota_aritmetica": "Vektor 100 - 16 (PressureJet) - 32 (LinearDischarge 24 + 8 di bonus su bersaglio Wet, `URTCombatLibrary::FluxWetDischargeBonus`) = 52. Se il primo run dice 60, il bonus Wet non e' stato applicato e il colpo e' arrivato prima del bagnato: e' la regola che questo scenario esiste per sorvegliare.",
+
+  "_nota_geometria": "Arena liscia di proposito: il bagnato deve venire da RIVA, non dal terreno, altrimenti lo scenario proverebbe l'acqua invece della coordinazione. I tre stanno sulla riga r=0 e nell'ordine Flux, Riva, Vektor: la spinta di 1 di PressureJet allontana Vektor LUNGO la linea di tiro di Flux (da 3 celle a 4, portata 5), invece di sfilarlo di lato.",
+
+  "units": [
+    { "id": "F1", "hero": "Hero.Flux",   "team": 0, "cell": [-3, 0, 0] },
+    { "id": "R1", "hero": "Hero.Riva",   "team": 0, "cell": [-2, 0, 0] },
+    { "id": "V1", "hero": "Hero.Vektor", "team": 1, "cell": [ 0, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "R1", "ability": "Riva.PressureJet",     "target": "V1" },
+        { "unit": "F1", "ability": "Flux.LinearDischarge", "target": "V1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals",  "unit": "V1", "value": 52 },
+    { "type": "UnitAlive",     "unit": "V1", "value": true },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

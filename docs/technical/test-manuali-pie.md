@@ -50,7 +50,11 @@
 
 ## Stato in numeri — 2026-08-08
 
-**83 voci**: ✅ **25 verdi** · 🟡 **21 parziali** (regola coperta da test, resta il visivo) · ⏳ **37 aperte**.
+**100 voci**: ✅ **25 verdi** · 🟡 **21 parziali** (regola coperta da test, resta il visivo) · ⏳ **54 aperte**.
+
+*(Rimisurate col comando qui sotto il **2026-08-08**, dopo le **17 voci** `PIE-VIS-*` del corpus di scenari
+visivi. Prima erano 83 con 37 aperte; verdi e parziali non cambiano, perché le nuove nascono tutte ⏳.
+`senza-marcatore` resta **0**.)*
 
 > ⚠️ **Il comando qui sotto era rotto, e ha mentito per settimane.** Usava `s ~ /✅/`, che cerca il simbolo
 > **ovunque** nella cella di stato — non il marcatore iniziale. Una voce 🟡 il cui testo cita un ✅ nella
@@ -88,7 +92,7 @@ awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);
   docs/technical/test-manuali-pie.md
 ```
 
-Delle 37 aperte, **30 stanno nei sette gruppi qui sotto** (`2+9+9+4+3+1+2 = 30`). Le **7 mancanti** sono voci
+Delle 54 aperte, **47 stanno negli otto gruppi qui sotto** (`2+9+9+4+3+1+2+17 = 47`). Le **7 mancanti** sono voci
 aggiunte il 2026-08-08 da un'altra sessione e non ancora assegnate a un gruppo: le lascio dichiarate invece
 di gonfiare una riga a caso, perché una somma che torna con sé stessa è il modo più facile di sembrare
 verificati senza esserlo (vedi la nota qui sopra). Chi le ha scritte sa dove vanno.
@@ -108,6 +112,7 @@ verificati senza esserlo (vedi la nota qui sopra). Chi le ha scritte sa dove van
 | **In attesa di codice** | `V01-ELEC` `V01-FIREWATER` (E8, ora **chiusa**: il codice c'è, la verifica a schermo no) · `V01-HUD` (E11) | **3** — `V01-LOWCOVER` è uscita da qui il 2026-08-07 (CP 9.1) e `V01-DOOR` il 2026-08-08 (CP 9.3): per entrambe la regola è ora coperta headless, e sono passate a 🟡 |
 | **Asset da preparare** | `V01-COVEREDIT` | **1** — editing delle coperture nel data asset mappa (CP 9.1). ⚠️ `DA_HexMap_Sandbox` è oggi **vuoto**: va ridisegnato |
 | **Animazioni** | `AS4a` `AS4b` | **2** — richiedono i montage Paragon |
+| **Scenari visivi** (corpus `Visual.*`) | `VIS-FIRE` `VIS-ICE` `VIS-WETFIRE` `VIS-KO` `VIS-CHARGE` `VIS-ROUGH` `VIS-COMBO` `VIS-PUSH` `VIS-FALLBACK` `VIS-SMOKE` `VIS-PHASES` `VIS-LEVEL` `VIS-COVER` `VIS-DOOR` `VIS-HIGH` `VIS-INTERPOSE` `VIS-DEFLECT` | **17** — nessuna precondizione oltre a scegliere lo scenario e premere Play. Non sono gate: la regola è già coperta headless dalle assertion, qui si guarda la **leggibilità**. Catalogo: [`scenari-validazione-visiva.md`](scenari-validazione-visiva.md) |
 
 ## Checklist
 
@@ -472,3 +477,41 @@ oppure dimmi cosa hai osservato e aggiorno le voci con l'esito (e apro un fix se
 > *(Le statistiche in sé sono già coperte da `RefactorTactics.Heroes.SpawnFromData`, che invoca
 > `ARTGameMode::SetupHexMatch` in un `UWorld` vero: qui si verifica solo ciò che si vede — mesh, anteprima
 > del movimento, e che il fallback al cilindro non sia regredito quando `HeroUnitClasses` è vuota.)*
+
+## Scenari di validazione visiva — corpus `Visual.*`
+
+> Aggiunte il **2026-08-08** con il corpus omonimo. Owner del catalogo:
+> [`scenari-validazione-visiva.md`](scenari-validazione-visiva.md).
+>
+> **Precondizione comune a tutte**: `Scenario Filter A = animation` nel `BP_GameMode`, poi
+> `Scenario To Run = <id>` e Play — oppure `rt.Test.Scenario <Id>`. Nessun'altra preparazione: gli scenari
+> portano con sé arena, unità e piani.
+>
+> **Queste voci non verificano che lo scenario passi.** Quella parte la dicono già le assertion, headless e
+> senza aprire l'editor: se la logica devia, lo scenario è rosso prima che qualcuno prema Play. Qui si
+> verifica **ciò che il test non può vedere** — che l'effetto sia leggibile, distinguibile da quelli vicini, e
+> che non suggerisca una regola diversa da quella che il resolver ha applicato.
+>
+> ⚠️ Tre di queste hanno un numero che il **primo run** deve confermare (`CHARGE` le celle finali, `COMBO`
+> il bonus Wet, `COVER` l'entità della riduzione). Se una esce rossa alla prima esecuzione, sospettare lo
+> **scenario** prima del gioco: sono valori derivati dal catalogo, non misurati.
+
+| ID | Cosa verificare | Precondizione | Esito atteso | Stato |
+|----|-----------------|---------------|--------------|-------|
+| **PIE-VIS-FIRE** | Danno da terreno in due momenti | `Visual.Environment.FireOnEnter` | All'ingresso in `(0,-2)` una reazione immediata (10 danni), e nel **Cleanup** una seconda, distinta, per `Burning` (8). Se le due usano la stessa animazione, una regola sparisce | ⏳ |
+| **PIE-VIS-ICE** | La scivolata non è un passo | `Visual.Environment.IceSlide` | Flux fa **due** passi voluti e **uno** subìto: il terzo, fino a `(-2,1)`, deve leggersi come perdita di controllo — non come un passo identico agli altri | ⏳ |
+| **PIE-VIS-WETFIRE** | L'acqua spegne le fiamme | `Visual.Environment.WetExtinguishesFire` | Al turno 2 il getto di Riva **spegne visibilmente** il fuoco addosso a Vektor. È un'assenza (i danni del Cleanup non arrivano): se le fiamme restano accese, il giocatore non sa che la regola è scattata | ⏳ |
+| **PIE-VIS-KO** | Eliminazione di un'unità | `Visual.Combat.Defeat` | Due colpi per turno, barra che scende due volte, e al secondo turno la rimozione. L'unità non deve sparire prima che il colpo sia arrivato | ⏳ |
+| **PIE-VIS-CHARGE** | La carica si distingue dal passo | `Visual.Movement.Charge` | Accelerazione, impatto e arresto **addosso** a Flux, più la spinta di 1. Confronto diretto con `Movement.LongWalk`: se si vedono uguali, la differenza fra Dash e Move non arriva | ⏳ |
+| **PIE-VIS-ROUGH** | Un rifiuto è muto | `Visual.Movement.RoughRefusesCharge` | La carica **non parte**: nessuno slancio accennato, nessun impatto mancato, nessuno si muove. Un rifiuto che sembra un'animazione interrotta suggerisce un bug dove c'è una regola | ⏳ |
+| **PIE-VIS-COMBO** | Acqua + elettricità, e l'ordine | `Visual.Combat.WaterElectric` | Dentro lo stesso Blast: prima il getto di Riva, **poi** la scarica di Flux potenziata. Si deve capire che il secondo colpo è più forte **perché** il primo è arrivato prima | ⏳ |
+| **PIE-VIS-PUSH** | Spinta assorbita vs subìta | `Visual.Combat.PushResistance` | Bastion incassa e **non arretra**, Vektor arretra. Se l'impatto su Bastion mostra comunque un contraccolpo, si legge una spinta riuscita dove è stata assorbita | ⏳ |
+| **PIE-VIS-FALLBACK** | Il piano viene rivalidato | `Visual.Combat.FallbackTargetMoved` | Bastion lascia la cella nel Dash e la scarica di Flux arriva **sulla cella vuota**. Deve leggersi come un piano che ha trovato il bersaglio altrove, non come un colpo a caso | ⏳ |
+| **PIE-VIS-SMOKE** | Il fumo accorcia, non acceca | `Visual.Combat.SmokeCapsTargeting` | Bastion **si vede** e non si può colpire. Diverso da `Combat.BlockedByWall`, dove la vista è negata: se il fumo si comporta come un muro, si impara la regola sbagliata | ⏳ |
+| **PIE-VIS-PHASES** | L'ordine delle fasi | `Visual.Core.PhaseOrder` | Tre azioni in tre momenti **separati e riconoscibili**: carica (Dash), colpo (Blast), camminata (Move). Se accadono insieme, la spina dorsale del turno resta invisibile | ⏳ |
+| **PIE-VIS-LEVEL** | Salita di livello | `Visual.Map.MultiLevel` | Flux sale sulla piattaforma attraverso l'unica transizione. Si deve capire **dove è finito**: è il banco di prova della camera su due layer | ⏳ |
+| **PIE-VIS-COVER** | La copertura è di un bordo | `Visual.Map.LowCoverEdge` | Due colpi simultanei sullo stesso bersaglio con **entità diverse**, e il bordo riparato distinguibile dagli altri cinque **prima** di sparare | ⏳ |
+| **PIE-VIS-DOOR** | La porta è di un bordo | `Visual.Map.ClosedDoor` | Riva arriva a `(1,1)` **girando**. Il percorso deve raccontare da sé perché è lungo: se la porta chiusa non si vede, il giro sembra un difetto del pathfinding | ⏳ |
+| **PIE-VIS-HIGH** | L'altura non dà bonus | `Visual.Map.HighGroundNoBonus` | Due colpi **identici** dalla cresta e dal piano. La presentazione non deve enfatizzare il tiro dall'alto: suggerirebbe un vantaggio numerico che in v0.1 non esiste (D-024) | ⏳ |
+| **PIE-VIS-INTERPOSE** | Il colpo cambia destinatario | `Visual.Reaction.Interposition` | Il proiettile parte verso Vektor e finisce su Bastion. **Entrambe le metà devono vedersi**: se si vede solo l'arrivo, la scena si legge come «Flux ha sbagliato mira» invece che come una reazione | ⏳ |
+| **PIE-VIS-DEFLECT** | La parata riduce | `Visual.Reaction.Deflection` | 22 diventano 2. Se la parata non si vede, si legge un attacco debole invece di una difesa riuscita — e la prossima volta il giocatore non arma la reazione | ⏳ |

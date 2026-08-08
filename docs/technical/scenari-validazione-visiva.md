@@ -1,0 +1,313 @@
+# Scenari di validazione visiva
+
+> **Owner** del corpus di scenari che si aprono **per guardare**, non per far girare un'assertion.
+> L'identità e i tag stanno in [`scenario-index-e-tag.md`](scenario-index-e-tag.md); come si scrive ed esegue
+> uno scenario sta in [`test-e-diagnosi.md`](test-e-diagnosi.md). Qui c'è **quali scenari servono, cosa si
+> guarda in ciascuno, e cosa oggi non è guardabile**.
+>
+> Definito il **2026-08-08**, issue `#231`. Stato: **17 scenari scritti** in `Scenarios/Visual/`, 17 voci
+> `PIE-VIS-*` in [`test-manuali-pie.md`](test-manuali-pie.md). Nessuno ancora eseguito in PIE: i valori
+> numerici vengono dal catalogo e dal codice, e il primo run li conferma.
+>
+> Le feature v0.1 che il corpus **non** può mostrare, e le estensioni di formato che servirebbero, sono
+> tracciate in `#233` — il dettaglio tecnico resta in §8.2.
+
+## 1. Il patto
+
+L'oracolo è l'occhio. Nessuno di questi scenari verifica la grafica in automatico: si sceglie lo scenario nel
+Details Panel, si preme Play, si guarda. La validazione la fa una persona.
+
+Le assertion restano lo stesso, e non sono un residuo: servono a garantire che **ciò che stai guardando sia lo
+stato giusto**. Uno scenario visivo senza assertion può mostrarti un'animazione bellissima di un colpo che ha
+mancato, e tu non lo sapresti. Il minimo è `TurnsCompleted` più una `UnitAtCell` o `UnitHpEquals`: se la
+logica devia, lo scenario diventa rosso prima che tu perda un pomeriggio a chiederti perché il VFX parte dal
+punto sbagliato.
+
+Regola pratica: **un'assertion per ogni cosa che stai guardando**. Guardi un colpo? Verifica gli HP. Guardi
+una scivolata? Verifica la cella finale.
+
+## 2. Come si esegue
+
+`ARTGameMode`, sezione `RefactorTactics|Test`:
+
+```
+Scenario Filter A   [animation ▼]     ← la lente: "voglio guardare"
+Scenario Filter B   [environment ▼]   ← il dominio
+Scenario To Run     [...       ▼]     ← solo chi passa entrambi
+```
+
+`animation` è un tag che **esiste già** nel vocabolario, e il modello dei tag lo prevede esplicitamente come
+lente («lo stesso scenario si apre per verificare una regola *oppure* per guardare un'animazione»). Non serve
+un asse nuovo, non serve una categoria: questi scenari sono scenari normali che portano `animation`.
+
+Il secondo tag è il dominio, e sono quelli che il corpus già usa o userà: `movement` · `combat` ·
+`environment` · `reactions` · `map` · `phases`.
+
+## 3. Il vincolo che decide tutto: quattro eventi
+
+Il canale che porta la simulazione alla presentazione è `FRTResolvedEvent`, e conosce **quattro** tipi:
+
+```
+Move          un'unità ha percorso un path (Path = start + celle attraversate)
+Attack        un colpo risolto (Source → Target, Amount = danno)
+HazardDamage  danno da terreno
+Defeated      rimozione visiva di un'unità eliminata
+```
+
+Più i delegate `OnPhaseStarted` / `OnUnitMoveStarted` / `OnUnitDefeated`, dichiarati in `RTTurnManager.h`
+proprio per agganciarci VFX/SFX in Blueprint.
+
+Questo divide gli effetti in tre categorie, e la divisione è il contenuto principale di questo documento:
+
+| | Cosa vuol dire | Esempi |
+|---|---|---|
+| **Agganciabile** | Esiste un evento: un VFX può partire da lì, adesso | passo, colpo, danno da terreno, KO, cambio di fase |
+| **Deducibile** | Nessun evento proprio, ma la conseguenza è osservabile | push (l'unità è altrove), fallback (il colpo va sulla cella), cover (il danno è minore) |
+| **Muto** | Nessun evento e nessuna conseguenza visibile | `Wet` applicato, `Burning` in corso, reazione armata, cella diventata conduttiva |
+
+Gli effetti **muti** sono il motivo per cui vale la pena scrivere questo catalogo prima dei VFX: oggi non
+esiste alcun modo di far partire un particellare quando un'unità diventa bagnata, perché nessuno lo dice.
+Si vede il terreno d'acqua — che c'era già prima — e nient'altro. La §8 elenca cosa servirebbe.
+
+## 4. Le fixture sono la tavolozza
+
+`FRTScenarioCell` sa dichiarare `bBlocksMovement`, `bBlocksLineOfSight` e `MoveCost`. **Non** sa dichiarare
+una superficie. Uno scenario non può quindi dipingere ghiaccio o fuoco su un'arena generata: sceglie una
+fixture che li contiene già e ci porta sopra le unità.
+
+Non è una limitazione da aggirare in fretta. Le superfici stanno in `URTMatchSetupLibrary`, protette da un
+test sul layout: copiarle in un JSON creerebbe una seconda geometria che nessuno confronta con la prima.
+
+### `RelayLite` — l'arena di servizio (raggio 5, 91 celle, simmetrica)
+
+È la tavolozza giusta per quasi tutta la fascia A: contiene ogni superficie, in coppie speculari `(q,r)` /
+`(-q,-r)`, su spazio abbondante.
+
+| Superficie | Celle |
+|---|---|
+| ShallowWater | `(0,0)` `(0,-1)` `(0,1)` |
+| Conductive | `(1,-1)` `(-1,1)` |
+| Rough | `(-2,-1)` `(2,1)` |
+| Ice | `(-2,2)` `(2,-2)` |
+| Fire | `(0,-2)` `(0,2)` |
+| Smoke | `(-1,-2)` `(1,2)` |
+
+Tutto il resto è Floor. La riga `r=0` da `(-5,0)` a `(-1,0)` è pavimento pulito: è il corridoio dove mettere
+un movimento che non deve incontrare nulla.
+
+### `RelayBasin` — la showcase (45 celle, righe `r=-3..3`)
+
+Serve quando l'elemento da guardare è **di bordo**, e sta solo qui:
+
+- **copertura bassa** sul lato nord di `(0,0)`;
+- **porta chiusa** sul bordo `(0,1)` → `(1,1)`;
+- HighGround `(2,-2)` `(3,-1)`; Ice `(-1,2)` `(0,2)` `(1,2)`; Fire `(2,-1)` `(1,-1)`;
+  Water `(-3,1)`…`(0,1)`; Conductive `(1,1)` `(2,1)`; Rough `(1,0)` `(2,0)`; Smoke `(-3,0)` `(-2,0)`.
+
+Spawn canonici: Flux `(-4,0)`, Riva `(-4,1)`, Bastion `(4,0)`, Vektor `(4,1)`.
+
+### `TestArena` — la geometria (raggio 4)
+
+L'unica con **due livelli**: piattaforma su layer 1 in `(2,-1,1)` `(2,0,1)` `(3,-1,1)` `(3,0,1)`, raggiungibile
+da **una sola** transizione `(1,0,0)` → `(2,0,1)`. Più il muro che blocca la vista su `q=0`, `r=-2..2`, gli
+ostacoli `(-1,2)` `(1,-2)` `(2,1)` e la fascia Rough a costo 3 su `q=-2`.
+
+## 5. Numeri del roster (verificati nel catalogo, non nei PDF)
+
+| Eroe | HP | MP | Attacco base | Note |
+|---|---:|---:|---|---|
+| Flux | 90 | 5 | `Flux.ArcPulse` 22, r4 | `LinearDischarge` 24 r5 linea cd2 · `Overload` 18 AoE r1 |
+| Riva | 95 | 5 | `Riva.PressureJet` 16 + Wet(1) + Push 1, r5 linea | fallback `AttackCell` |
+| Bastion | 120 | 4 | `Bastion.ImpactShot` 24, r3 | PushResistance 1 · `Ram` = carica 20 + Push 1 |
+| Vektor | 100 | 6 | `Vektor.PulseShot` 21, r4 | il più mobile |
+
+I danni da terreno vengono dal catalogo terreni (Fire: 10 + `Burning`) e vanno confermati al primo run.
+
+## 6. Il catalogo
+
+Colonna **Oggi**: `PASS` gira e si guarda · `MUTO` gira ma l'effetto non ha un evento a cui agganciarsi ·
+`FORMATO` il gioco lo sa fare, lo scenario non sa dirlo · `BLOCKED` capability assente, esce col nome.
+
+### Fascia A — banco VFX: effetti con un evento già disponibile
+
+Questi sono i primi sei da scrivere. Ognuno isola **un** evento, così un VFX nuovo si giudica senza rumore.
+
+Due dei sei erano già nel corpus. **Scritti** il 2026-08-08: i quattro nuovi, e sono i primi scenari del
+progetto a usare una fixture invece di un'arena generata.
+
+| ID | Fixture | Allestimento | Cosa guardi | Assertion | Stato |
+|---|---|---|---|---|---|
+| `Movement.LongWalk` *(esiste)* | r5 | due unità attraversano l'arena, 3 celle per turno × 2 | passo, orientamento, velocità, camera che segue | *(già sue)* | già `animation` |
+| `Combat.BasicAttack` *(esiste)* | r4 | Flux `ArcPulse` su Bastion a distanza 2 | partenza, volo, impatto, numero di danno | `UnitHpEquals B1 98` | già `animation` |
+| `Visual.Environment.FireOnEnter` | RelayLite | Vektor `(0,-3)` → move `(0,-2)` Fire | **due** momenti: 10 danni all'ingresso, 8 nel Cleanup per `Burning` | `UnitHpEquals V1 82` · `UnitAtCell (0,-2,0)` | scritto |
+| `Visual.Combat.Defeat` | r4 | Flux `(-1,0)`; Bastion `ImpactShot` + Vektor `PulseShot` per **due turni** | l'unità che incassa, poi sparisce: 24+21=45 a turno, 90 esatti in due | `UnitAlive F1 false` · `TurnsCompleted 2` | scritto |
+| `Visual.Movement.Charge` | r4 | Bastion `(3,0)` usa `Ram` su Flux `(1,0)` (distanza 2, portata 3) | la carica **si legge diversa** dal passo: accelerazione, impatto, arresto addosso | `UnitHpEquals F1 70` (90−20) | scritto |
+| `Visual.Environment.IceSlide` | RelayLite | Flux `(-2,4)` → move `(-2,3)` `(-2,2)` Ice, restano 3 MP | il passo extra deve leggersi come **scivolata**, non come un passo in più | `UnitAtCell F1 (-2,1,0)` | scritto |
+
+Tre cose emerse verificando i numeri prima di scrivere i file, e nessuna era ovvia:
+
+- **`Burning` costa 8 danni nel Cleanup**, per due turni. Vektor non finisce a 90 ma a **82**, e lo scenario
+  del fuoco ha quindi *due* momenti da guardare invece di uno. Un VFX che li copre con la stessa animazione
+  sta nascondendo una regola.
+- **`Action.Charge` ha portata 3** (catalogo azioni), ereditata da `Ram`: la distanza 2 dell'allestimento
+  sta dentro con un margine che sopravvive a un ritocco di bilanciamento.
+- **Lo scivolamento richiede budget residuo ≥ 2**, e prosegue *nella direzione dell'ultimo passo*. Flux ha
+  5 MP, il percorso ne costa 2, ne restano 3: scivola. Spostare la cella di partenza spegne l'effetto senza
+  che niente sembri rotto.
+
+Resta un'incognita dichiarata: in `Visual.Movement.Charge` le **celle finali** dipendono dall'ordine fra
+arresto e spinta. Non sono assertion — stanno in `_nota_celle`, e il primo run le promuove. Scriverle a
+indovinare produrrebbe un rosso che accusa il gioco di un errore proprio.
+
+Quello scenario porta anche il **push**: Flux finisce spinto di una cella senza che nessun evento lo dica. Se
+la spinta non si legge, non è un difetto del VFX — è la §8.1.
+
+### Fascia B — leggibilità: si capisce cosa è successo?
+
+| ID | Fixture | Cosa guardi | Stato |
+|---|---|---|---|
+| `Visual.Combat.WaterElectric` | r5 | Riva bagna (prio 50), Flux scarica potenziato (prio 55): **due regole in un colpo** — la combo firma e la priorità intra-fase. 100−16−32 = 52 | scritto |
+| `Visual.Combat.FallbackTargetMoved` | r4 | Bastion lascia la cella nel Dash, la scarica arriva sulla cella **vuota**: il piano è rivalidato, non annullato | scritto |
+| `Visual.Core.PhaseOrder` | r4 | tre azioni in tre fasi separate — carica, colpo, camminata: `Dash → Blast → Move` deve **vedersi** | scritto |
+| `Visual.Combat.PushResistance` | r4 | la stessa spinta su Bastion (assorbita, PushResist 1) e su Vektor (subìta): una statistica invisibile diventa visibile | scritto |
+| `Visual.Combat.SmokeCapsTargeting` | RelayLite | il bersaglio **si vede** e non si può colpire: il fumo accorcia, non acceca | scritto |
+| `Visual.Movement.RoughRefusesCharge` | RelayLite | il rifiuto in **pianificazione**: a schermo non deve accadere niente | scritto |
+| `Visual.Reaction.Interposition` | r4 | il proiettile **cambia destinatario** a mezz'aria: Bastion incassa al posto di Vektor. Il caso più difficile del corpus — se non si vede, si legge «Flux ha sbagliato mira» | scritto |
+| `Visual.Reaction.Deflection` | r4 | l'opposto: il colpo arriva dove doveva e **quasi non fa niente** (22 → 2). Se la parata non si vede, si legge un attacco debole invece di una difesa riuscita | scritto |
+| `Movement.Collision` *(esiste)* | r3 | chi cede la cella contesa, e che si capisca **perché** | già nel corpus |
+| `Combat.CounterStrikesBack` *(esiste)* | r4 | la terza grammatica difensiva: lo scudo assorbe **e** restituisce danno | già nel corpus |
+
+`Visual.Reaction.Interposition` è il caso più istruttivo del catalogo. La capability `Reaction` è
+**disponibile** — `Bastion.Interposition` è cablata e automatica. Ma `FRTScenarioIntent` ha `UnitId`, `Move`,
+`Ability`, `Target` e nient'altro: **non esiste un campo per armare la reazione pianificata**. Il gioco lo sa
+fare, lo scenario non lo sa dire. Vedi §8.2.
+
+### Fascia C — specchio: la grafica dice il vero?
+
+| ID | Fixture | Cosa guardi | Stato |
+|---|---|---|---|
+| `Visual.Environment.WetExtinguishesFire` | RelayLite | CP 8.4: l'acqua spegne le fiamme. Ciò che si guarda è un'**assenza** — gli 8 danni del Cleanup che non arrivano. 66, non 58 | scritto |
+| `Visual.Map.LowCoverEdge` | RelayBasin | due colpi simultanei sullo stesso bersaglio, **entità diverse**: la copertura è di un bordo. 90−14−21 = 55 | scritto |
+| `Visual.Map.ClosedDoor` | RelayBasin | Riva arriva **girando**: la porta è un bordo, e il percorso deve raccontare da sé perché è lungo | scritto |
+| `Visual.Map.HighGroundNoBonus` | RelayBasin | due Vektor identici, dalla cresta e dal piano: 21+21, nessun bonus (D-024) | scritto |
+| `Visual.Map.MultiLevel` | TestArena | la salita attraverso l'unica transizione: i layer non hanno adiacenza implicita | scritto |
+| `Combat.BlockedByWall` *(esiste)* | r4 | il muro ferma la **vista**, non il passaggio | già nel corpus |
+| `Visual.Water.Wet` | RelayLite | *niente*: `Wet` non emette nulla, si vede solo il terreno che c'era già | **MUTO** — non scritto |
+| `Visual.Conductive.Network` | RelayLite | *niente*: la rete conduttiva è un dato senza evento e senza consumatore | **MUTO** — non scritto |
+
+I due `MUTO` restano deliberatamente **non scritti**: uno scenario che si apre e non mostra niente di diverso
+da prima insegna a diffidare del corpus. Tornano quando esiste `StatusChanged` (§8.1).
+
+Le tre avvertenze della fascia C, per non scoprirle scrivendo i file:
+
+- `Visual.Cover.LowEdge` — l'entità della riduzione (la spec CP 9.1 dice 10 su danno diretto dal lato
+  protetto) non è stata verificata nel codice mentre si scriveva. Il valore dell'assertion lo fissa il primo
+  run: quello che questo scenario deve dimostrare è che i **due colpi differiscono**, non di quanto.
+- `Visual.Map.ClosedDoor` — che i 5 MP di Riva bastino a girare intorno alla porta passando da Rough dipende
+  dal costo di quella cella. Se non bastano, il percorso alternativo va accorciato: lo scenario deve mostrare
+  una deviazione, non un fallimento di budget.
+- `Visual.HighGround.NoBonus` — usa **due unità con lo stesso `HeroId`**, che il formato consente (l'`Id` è
+  locale allo scenario, `HeroId` è separato). È la forma più pulita per un confronto a parità di azione, ma
+  è la prima volta che il corpus la userebbe.
+
+### Fascia D — dichiarati oggi, accesi domani
+
+Scritti adesso con `requires`, escono `Blocked` col nome della capability mancante. Il catalogo diventa così
+la lista viva di cosa manca, e ogni feature che atterra accende la sua vetrina invece di richiedere che
+qualcuno si ricordi di scriverla.
+
+| ID | `requires` | Cosa mostrerà | Origine |
+|---|---|---|---|
+| `Visual.Overwatch.HoldThenFire` | `DecisionBoundary` | la finestra live: HOLD scarta l'opportunità, FIRE la consuma e tronca il movimento | E14 · ADR-0004 |
+| `Visual.Predictive.Whiff` | `PredictiveAction` | il valore del turno **è** il colpo che manca: si è sparato a una previsione | showcase T2 |
+| `Visual.Facing.Cone` | `Facing` | il cono di controllo, e cosa ci entra | E14 |
+| `Visual.Objective.Relay` | `Objective` | il punto assegnato nel Cleanup, **dopo** ambiente e KO | E10 · `#75` |
+| `Visual.Intercept.Revalidation` | `InterceptRevalidation` | la geometria rivalidata sul bersaglio effettivo | D-017 |
+| `Visual.CoverWindow.OpenFireSeal` | `CoverWindow` | apro → sparo → richiudo, tre unità della stessa squadra | **v0.2** · E22 |
+| `Visual.Interaction.DoorGraph` | `Interaction` | la porta come oggetto logico: apertura, revisione del grafo, path che cambia | **v0.2** · E23 |
+| `Visual.Perception.Noise` | `Perception` | il rumore come **seconda fonte di informazione**, non come debuff | non in scope v0.1 |
+
+Le capability nuove (`CoverWindow`, `Interaction`, `Perception`) non vanno aggiunte a `IsCapabilityAvailable`
+finché il sistema non esiste: l'elenco sta nel codice apposta, perché dichiarare disponibile una capability
+inesistente non deve essere una modifica al JSON.
+
+## 7. Convenzioni
+
+```
+scenarioId   Visual.<Dominio>.<Cosa>        prefisso Visual = si apre per guardare
+tags         ["animation", "<dominio>", "<eroe>"]
+percorso     Scenarios/Visual/<Dominio>/<Cosa>.json
+```
+
+Il prefisso `Visual.` non è una categoria — l'indice non ne ha — ma rende l'intento leggibile nella tendina
+anche senza filtri attivi. Il tag `animation` resta il meccanismo vero.
+
+Le cartelle sono storage e non promettono nulla: uno scenario può stare altrove e restare trovabile. Metterli
+insieme serve solo a chi legge un `git diff`.
+
+## 8. Cosa manca, in ordine di resa
+
+### 8.1 Eventi di playback per gli effetti muti
+
+Senza questi, tre scenari del catalogo sono vetrine cieche. La proposta minima, da introdurre **una alla
+volta insieme alla feature che la usa**, mai tutte insieme:
+
+| Evento | Sblocca | Costo |
+|---|---|---|
+| `Push` | la spinta si legge come spinta, non come teletrasporto | basso: il dato c'è già nella risoluzione |
+| `StatusChanged` | Wet, Burning, Shield, e ogni stato futuro di CP 8.2 | medio: serve decidere cosa entra nel DTO |
+| `EnvironmentChanged` | celle che cambiano superficie, porte, coperture | medio: dipende da chi muta l'ambiente |
+| `ReactionResolved` | la reazione che scatta ha un momento suo | basso, ma ha senso solo dopo §8.2 |
+
+`FRTResolvedEvent` ha già `Amount` e i due riferimenti a unità: per `Push` e `StatusChanged` la struttura
+regge senza cambiamenti di forma. Aggiungere un valore all'enum **in coda** non rinumera i precedenti.
+
+### 8.2 Cosa il formato scenario non sa dire
+
+`FRTScenarioSession::BeginTurn` scrive esattamente due cose sull'unità: `PlannedAbilityIndex`, cercato **nel
+kit dell'eroe**, e `PlannedAttackTarget`, che dev'essere **un'unità viva**. Da qui segue tutto il resto.
+
+| Non esprimibile | Perché | Feature v0.1 che resta fuori |
+|---|---|---|
+| Azioni con bersaglio **cella** | `target` è un id di unità, e dev'essere viva | **CP 8.3** propagazione elettrica (`Action.Electrify`), **CP 8.5** `Ignite` / `CreateWater`, **CP 9.4** `ModifyArc` e i ponti |
+| Azioni **core** | si cercano solo fra le 5 dell'eroe | `Guard`, `Brace`, `Interact`, `Push`, `Pull`, `Root`, `Slow`, `MarkTarget`, `Shield` — le azioni generiche di D-025 e gli stati di CP 8.2 che nessun kit applica |
+| Superfici e bordi d'autore | `FRTScenarioCell` ha solo `bBlocksMovement`, `bBlocksLineOfSight`, `MoveCost` | **CP 9.2** copertura alta: nessuna delle tre fixture ne contiene una, e lo scenario non può aggiungerla |
+
+> ✅ **Il quarto buco si è chiuso da solo.** Questo documento nasceva dichiarando che le reazioni non erano
+> esprimibili — e su una working copy indietro di qualche commit era vero. Su `origin/main` il campo
+> `reaction` **esiste già** nell'intent, viene letto dal loader e **validato** (dev'essere nel kit dell'eroe
+> e occupare lo slot `Reaction`). Da lì nascono `Visual.Reaction.Interposition` e
+> `Visual.Reaction.Deflection`. La lezione è di metodo: un limite va verificato contro il **ramo condiviso**,
+> non contro la copia che si ha sotto mano — altrimenti si documenta come mancante ciò che qualcun altro ha
+> appena costruito.
+
+Restano tre buchi, in ordine di resa:
+
+1. **un `target` che accetti una cella** — `{"targetCell": [q,r,l]}` accanto a `target`. Sblocca l'ambiente
+   e le strutture, cioè la parte più spettacolare della v0.1: la scarica che si propaga sull'acqua;
+2. **azioni core nel lookup** — oggi si cerca solo in `Hero->Actions`. Sblocca le sette azioni generiche di
+   D-025 e gli stati che nessun kit d'eroe applica;
+3. **`surface` in `FRTScenarioCell`** — con cautela: per le geometrie canoniche la fixture è la scelta
+   *giusta*, e un campo `surface` va usato solo per ciò che nessuna fixture serve. Vale per la copertura
+   alta, non per rifare l'acqua.
+
+Finché restano aperti, «tutte le feature della v0.1» non è un traguardo raggiungibile dal corpus: la parte
+mancante non è di scenari da scrivere, è di **formato da estendere**.
+
+### 8.3 Non serve
+
+- **Regia nel dato** (camera, pause, loop): deciso il 2026-08-08 di non introdurla. Camera libera.
+- **Replay come artefatto**: «replay» qui significa *rigiocare in Visual*, che l'harness fa già.
+- **Validazione automatica del grafico**: fuori scope per scelta. L'occhio è l'oracolo.
+
+## 9. Verifiche in PIE
+
+Ogni scenario di questo catalogo, quando viene scritto, porta una voce ⏳ in
+[`test-manuali-pie.md`](test-manuali-pie.md) con la forma `PIE-VIS-<dominio>`. La voce dice **cosa si deve
+vedere**, non «lo scenario passa»: quella parte la dicono già le assertion.
+
+**Fatto il 2026-08-08**: diciassette voci `PIE-VIS-*`, una per scenario, nella sezione *Scenari di validazione
+visiva*. Il conteggio è stato **rimisurato col comando del documento**, non aggiornato a mente: da
+`83 (25/21/37)` a `100 (25/21/54)`, con `senza-marcatore = 0`. Verdi e parziali non cambiano — le nuove
+nascono tutte ⏳ — e la ripartizione per gruppi passa a `2+9+9+4+3+1+2+17 = 47` delle 54 aperte, con le
+stesse 7 non assegnate di prima.

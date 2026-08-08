@@ -1,0 +1,34 @@
+{
+  "scenarioId": "Visual.Map.LowCoverEdge",
+  "tags": ["animation", "map", "combat", "flux", "bastion", "vektor"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "RelayBasin",
+
+  "_nota": "La copertura appartiene a un BORDO, non a una cella: e' la decisione di CP 9.1, ed e' invisibile finche' non la si colpisce da due lati diversi. Flux sta sul Relay a (0,0), che ha copertura bassa sul lato NORD. Nello stesso turno Bastion tira da nord — attraverso il bordo riparato — e Vektor da sud, dove non c'e' niente. Stesso bersaglio, stessa distanza, due danni diversi.",
+
+  "_nota_aritmetica": "La copertura bassa toglie 10 al danno diretto dal lato riparato: ImpactShot 24 diventa 14, PulseShot resta 21. Flux 90 - 14 - 21 = 55. Se il primo run dice 45, la protezione non e' stata applicata; se dice 65, e' stata applicata anche al colpo da sud, e sarebbe il difetto peggiore dei due — una copertura che protegge da ogni lato non e' una copertura, e' HP in piu'.",
+
+  "_nota_lettura": "Il giocatore deve poter capire da DOVE e' conveniente avvicinarsi guardando la mappa, prima di sparare. Se il bordo riparato non si distingue dagli altri cinque, questa regola esiste solo nel TurnLog.",
+
+  "units": [
+    { "id": "F1", "hero": "Hero.Flux",    "team": 0, "cell": [0,  0, 0] },
+    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [0, -2, 0] },
+    { "id": "V1", "hero": "Hero.Vektor",  "team": 1, "cell": [0,  2, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "B1", "ability": "Bastion.ImpactShot", "target": "F1" },
+        { "unit": "V1", "ability": "Vektor.PulseShot",   "target": "F1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals",  "unit": "F1", "value": 55 },
+    { "type": "UnitAtCell",    "unit": "F1", "cell": [0, 0, 0] },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

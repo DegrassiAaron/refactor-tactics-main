@@ -68,8 +68,27 @@ toglierlo dall'ultimo scenario che lo portava lo fa sparire. Stessa ragione per 
 legge i file: un elenco scritto a mano invecchia, e una voce di filtro che non filtra niente è un invito a
 cercare qualcosa che non c'è.
 
-Vocabolario al 2026-08-08: `animation` · `bastion` · `combat` · `core` · `expected-fail` · `flux` · `los` ·
-`movement` · `pathfinding` · `planning`.
+Vocabolario al 2026-08-08 (**20 voci**, dopo il corpus `Visual.*`): `animation` · `bastion` · `combat` ·
+`core` · `environment` · `expected-fail` · `flux` · `friendly-fire` · `los` · `map` · `movement` ·
+`objectives` · `pathfinding` · `planning` · `reactions` · `relay` · `riva` · `shapes` · `showcase` ·
+`vektor`.
+
+> Questa riga è una **fotografia**, e quando è stata rimisurata era indietro di **dieci** voci su venti.
+> Tre (`objectives`, `relay`, `showcase`) erano entrate con `RT_Showcase_Relay_v01`; tre
+> (`reactions`, `shapes`, `friendly-fire`) con gli scenari di combattimento aggiunti nel frattempo; quattro
+> (`environment`, `map`, `riva`, `vektor`) col corpus visivo. Nessuna di queste è passata di qui, ed è il
+> drift previsto due paragrafi più su — osservato, non ipotizzato.
+>
+> Il vocabolario **vero** resta `URTScenarioIndex::ListTags`. Si rilegge senza aprire l'editor:
+>
+> ```bash
+> grep -ho '"tags": \[[^]]*\]' Scenarios/*.json Scenarios/*/*.json Scenarios/*/*/*.json \
+>   | grep -o '"[a-z0-9-]*"' | grep -v '^"tags"$' | sort -u | tr -d '"'
+> ```
+>
+> Che il conteggio sia raddoppiato senza che nessuno se ne accorgesse è la conferma della soglia dichiarata
+> sopra: sotto le quaranta voci la tendina basta a sé stessa, ma **questa riga** va rimisurata col comando
+> ogni volta che si tocca il corpus, non aggiornata a memoria.
 
 ## 4. L'indice
 

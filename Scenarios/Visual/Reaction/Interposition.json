@@ -1,0 +1,35 @@
+{
+  "scenarioId": "Visual.Reaction.Interposition",
+  "tags": ["animation", "reactions", "combat", "flux", "bastion", "vektor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "La reazione che cambia CHI subisce un colpo altrui. Flux spara a Vektor; Bastion, che sta a una cella da lui, ha armato `Bastion.Interposition` e diventa lui il bersaglio. Vektor resta a 100 pieni senza aver fatto nulla, Bastion scende a 98 senza che nessun intent lo avesse messo sulla linea di tiro.",
+
+  "_nota_presentazione": "E' il caso piu' difficile da rendere leggibile di tutto il corpus: a schermo il proiettile deve **cambiare destinatario** a mezz'aria, o la scena si legge come «Flux ha sbagliato mira». Il colpo parte verso Vektor perche' quello era il piano, e finisce su Bastion perche' una reazione e' scattata: entrambe le meta' devono vedersi, altrimenti la reazione sembra un bug di targeting.",
+
+  "_nota_semantica": "`Interposition` non ha effetti propri, ed e' corretto: interporsi non aggiunge danno ne' stati, cambia il bersaglio. La portata 2 e la priorita' (la piu' bassa fra le reazioni, cosi' la redirezione precede le altre) vengono da `Action.Intercept`; l'identita' resta dell'eroe.",
+
+  "units": [
+    { "id": "F1", "hero": "Hero.Flux",    "team": 0, "cell": [0, 0, 0] },
+    { "id": "V1", "hero": "Hero.Vektor",  "team": 1, "cell": [2, 0, 0] },
+    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [2, 1, 0] }
+  ],
+
+  "turns": [
+    {
+      "requires": ["Reaction"],
+      "intents": [
+        { "unit": "B1", "reaction": "Bastion.Interposition" },
+        { "unit": "F1", "ability": "Flux.ArcPulse", "target": "V1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals",  "unit": "V1", "value": 100 },
+    { "type": "UnitHpEquals",  "unit": "B1", "value":  98 },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

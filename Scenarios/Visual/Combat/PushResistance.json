@@ -1,0 +1,41 @@
+{
+  "scenarioId": "Visual.Combat.PushResistance",
+  "tags": ["animation", "combat", "riva", "bastion", "vektor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "La stessa spinta su due bersagli diversi, in due turni. `Riva.PressureJet` spinge di 1: Bastion ha PushResistance 1 — l'unico del roster — e NON si muove; Vektor ha 0 e viene spostato. Il danno e' identico in entrambi i casi, quindi la sola cosa che distingue i due turni e' se il bersaglio arretra. Una statistica invisibile diventa una cosa da guardare.",
+
+  "_nota_leggibilita": "E' il caso in cui la presentazione puo' MENTIRE piu' facilmente: se l'impatto su Bastion riproduce comunque un contraccolpo, il giocatore leggera' una spinta assorbita come una spinta riuscita, e non capira' perche' la cella davanti e' ancora occupata.",
+
+  "units": [
+    { "id": "R1", "hero": "Hero.Riva",    "team": 0, "cell": [-1,  0, 0] },
+    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [ 1,  0, 0] },
+    { "id": "V1", "hero": "Hero.Vektor",  "team": 1, "cell": [ 1, -1, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — spinta su Bastion: 16 danni, ma resta dov'e'.",
+      "intents": [
+        { "unit": "R1", "ability": "Riva.PressureJet", "target": "B1" }
+      ]
+    },
+    {
+      "_turno": "T2 — stessa azione su Vektor: 16 danni, e arretra.",
+      "intents": [
+        { "unit": "R1", "ability": "Riva.PressureJet", "target": "V1" }
+      ]
+    }
+  ],
+
+  "_nota_celle": "Bastion e' atteso fermo su (1,0,0) ed e' un'assertion. La cella d'arrivo di Vektor dipende dalla direzione della linea di spinta e NON e' un'assertion: la fissa il primo run.",
+
+  "expect": [
+    { "type": "UnitAtCell",    "unit": "B1", "cell": [1, 0, 0] },
+    { "type": "UnitHpEquals",  "unit": "B1", "value": 104 },
+    { "type": "UnitHpEquals",  "unit": "V1", "value": 84 },
+    { "type": "TurnsCompleted", "value": 2 }
+  ]
+}

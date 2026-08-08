@@ -1,0 +1,34 @@
+{
+  "scenarioId": "Visual.Reaction.Deflection",
+  "tags": ["animation", "reactions", "combat", "flux", "vektor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "La reazione che non sposta niente e non ferisce nessuno: toglie soltanto 20 al colpo in arrivo (`URTCombatLibrary::DeflectDamageReduction`). Flux tira 22 con `ArcPulse`, Vektor ha armato `Vektor.Deflection`, e ne passano **2**. Vektor scende a 98.",
+
+  "_nota_presentazione": "Il complemento di `Visual.Reaction.Interposition`, e il suo opposto per difficolta': li' il colpo cambia bersaglio, qui arriva dove doveva e **quasi non fa niente**. Se la parata non si vede, il giocatore legge un attacco debole invece di una difesa riuscita — e la prossima volta non armera' la reazione. Due danni su ventidue devono sembrare il risultato di una scelta.",
+
+  "_nota_confronto": "Da guardare accanto a `Combat.CounterStrikesBack`, che copre l'altra semantica difensiva: li' lo scudo assorbe **e** restituisce danno, qui la riduzione agisce sul colpo che l'ha innescata e basta. Tre reazioni, tre grammatiche diverse: redirezione, assorbimento con risposta, riduzione secca.",
+
+  "units": [
+    { "id": "F1", "hero": "Hero.Flux",   "team": 0, "cell": [0, 0, 0] },
+    { "id": "V1", "hero": "Hero.Vektor", "team": 1, "cell": [2, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "requires": ["Reaction"],
+      "intents": [
+        { "unit": "V1", "reaction": "Vektor.Deflection" },
+        { "unit": "F1", "ability": "Flux.ArcPulse", "target": "V1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals",  "unit": "V1", "value": 98 },
+    { "type": "UnitAlive",     "unit": "V1", "value": true },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}
