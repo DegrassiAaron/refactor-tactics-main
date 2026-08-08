@@ -198,8 +198,11 @@ bool FRTSprintNoReactionTest::RunTest(const FString&)
 		TestTrue(FString::Printf(TEXT("%s consente la reazione"), Id), Def.bAllowsReaction);
 	}
 
-	// E resta l'unica a consumare entrambi gli slot: le due regole vanno insieme.
-	TestTrue(TEXT("Sprint spende movimento e azione principale"), Sprint.Slot == ERTActionSlot::MovementAndMain);
+	// E dopo D-028 negare la reazione e' rimasto il suo prezzo PRINCIPALE, non uno in piu': lo Sprint occupa
+	// il solo slot movimento come `Move`, quindi cio' che lo distingue da 3 MP in piu' e' esattamente questa
+	// riga piu' `Status.Exposed`. Se al playtest non basta, e' un `Move` migliore — l'upgrade puro che D-015
+	// vieta (voce `BAL-1` del backlog).
+	TestTrue(TEXT("Sprint spende il solo movimento"), Sprint.Slot == ERTActionSlot::Movement);
 	return true;
 }
 

@@ -167,14 +167,22 @@ bool FRTPrecisionAttackTest::RunTest(const FString&)
 	// Portata degenere: si ricade sul corpo a corpo (1) +1, non su una portata 1 "nuda".
 	TestEqual(TEXT("arma 0 -> portata 2"), URTCatalogLibrary::MakePrecisionAttack(0).RangeCells, 2);
 
-	// **Non usabile dopo Sprint**, e non perche' lo dica un `if` sull'ActionId: lo Sprint consuma movimento E
-	// azione principale, quindi l'attacco non trova piu' lo slot che gli serve.
+	// **Usabile dopo Sprint** da D-028, e non perche' lo dica un `if` sull'ActionId: lo Sprint occupa il solo
+	// slot movimento, quindi l'attacco trova ancora la principale libera. E' *corro e sparo*, la stessa forma
+	// di *schivo e sparo* — cio' che si rinuncia e' il `Move` normale, non il colpo.
+	//
+	// Prima di D-028 questo test verificava il rifiuto, e non era sbagliato: era la regola di allora.
 	const FRTActionDef Sprint = OffensiveDef(TEXT("Action.Sprint"));
 	const TArray<FString> AfterSprint = URTCatalogLibrary::ValidateActionSlots({ Sprint, Short });
-	TestEqual(TEXT("Sprint + precisione: piano rifiutato"), AfterSprint.Num(), 1);
-	if (AfterSprint.Num() > 0)
+	TestEqual(TEXT("Sprint + precisione: piano accettato"), AfterSprint.Num(), 0);
+
+	// Cio' che resta vietato e' DUE movimenti: e' li' che lo Sprint ha smesso di essere gratis.
+	const TArray<FString> SprintAndMove =
+		URTCatalogLibrary::ValidateActionSlots({ Sprint, OffensiveDef(TEXT("Action.Move")) });
+	TestEqual(TEXT("Sprint + Move: piano rifiutato"), SprintAndMove.Num(), 1);
+	if (SprintAndMove.Num() > 0)
 	{
-		TestTrue(TEXT("e l'errore nomina lo Sprint"), AfterSprint[0].Contains(TEXT("Action.Sprint")));
+		TestTrue(TEXT("e l'errore nomina il movimento"), SprintAndMove[0].Contains(TEXT("Action.")));
 	}
 
 	// La stessa precisione dopo un movimento NORMALE resta valida: e' lo Sprint a costare la principale.

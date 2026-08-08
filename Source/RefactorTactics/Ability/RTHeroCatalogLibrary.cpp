@@ -259,8 +259,11 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiva()
 	// (fase Dash, stile lineare — stessa famiglia di `Action.Dash`), la creazione di terreno no (nessun
 	// effetto di cella dinamica esiste: E8/E9). Nessun Effects dichiarato: il movimento non passa da li', e
 	// l'acqua lasciata dietro non ha un modello da consumare.
+	// Lo slot va dichiarato: `MakeHeroAction` mette `Main` di default, e per una mobilita' che non fa danno
+	// sarebbe quello sbagliato (D-028). Chi lascia la scia si e' mosso, ma puo' ancora agire.
 	URTActionData* FluidTrail = MakeHeroAction(TEXT("Riva.FluidTrail"), ERTResolutionPhase::FastMovement,
-		/*Priority*/ 30, /*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop, {});
+		/*Priority*/ 30, /*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop, {},
+		ERTAbilityShape::Single, /*AreaRadius*/ 0, ERTActionSlot::Movement);
 	// Lo stile va DICHIARATO, non lasciato al default: `ERTMovementStyle::None` non e' "non specificato", e'
 	// "non si muove", e la fase Dash lo instraderebbe sul pathfinding normale — cioe' una scia d'acqua che
 	// aggira gli ostacoli. Stessa provenienza di `Bastion.Ram`: lo stile viene dall'azione omologa (#142).

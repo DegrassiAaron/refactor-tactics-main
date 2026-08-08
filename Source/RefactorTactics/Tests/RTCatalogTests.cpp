@@ -243,13 +243,15 @@ bool FRTCatalogCoreActionsTest::RunTest(const FString&)
 	for (const FString& E : Errors) { AddError(E); }
 	TestEqual(TEXT("le azioni generiche sono valide"), Errors.Num(), 0);
 
-	// `Action.Sprint` come lo descrive il catalogo v0.1 §2: mobilita' rapida, 8 MP, entrambi gli slot.
+	// `Action.Sprint` come lo descrive il catalogo v0.1 §2: mobilita' rapida, 8 MP, slot movimento.
 	const FRTActionDef Sprint = URTCatalogLibrary::FindCoreAction(TEXT("Action.Sprint"));
 	TestTrue(TEXT("Action.Sprint e' nel catalogo"), Sprint.ActionId == FName(TEXT("Action.Sprint")));
 	TestTrue(TEXT("Sprint risolve nella fase Dash (mobilita' rapida)"),
 		URTCatalogLibrary::MapResolutionPhase(Sprint.ResolutionPhase) == ERTMatchPhase::Dash);
 	TestEqual(TEXT("Sprint vale 8 punti movimento"), Sprint.RangeCells, 8);
-	TestTrue(TEXT("Sprint consuma movimento E azione principale"), Sprint.Slot == ERTActionSlot::MovementAndMain);
+	// D-028: il solo slot movimento. Prima era `MovementAndMain`, e il costo dello scatto lungo era
+	// strutturale; ora il prezzo e' tutto nei dati (`Exposed` e nessuna reazione) — vedi `BAL-1`.
+	TestTrue(TEXT("Sprint consuma il solo slot movimento"), Sprint.Slot == ERTActionSlot::Movement);
 	TestEqual(TEXT("Sprint dichiara un solo effetto: lo stato"), Sprint.Effects.Num(), 1);
 	TestTrue(TEXT("e quell'effetto e' Status.Exposed per un turno"),
 		Sprint.Effects.Num() == 1 && Sprint.Effects[0].Effect == ERTActionEffect::Status

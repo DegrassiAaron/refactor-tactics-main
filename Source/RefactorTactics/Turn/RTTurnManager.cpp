@@ -375,11 +375,14 @@ void ARTTurnManager::PlanBots()
 
 		// 4) Scatto + attacco, e scatto per riposizionarsi.
 		//
-		// NOTA (#145): scatto e attacco occupano ENTRAMBI lo slot Principale secondo il catalogo, quindi
-		// pianificarli insieme viola `ValidateActionSlots` — che pero' non e' fatta valere in partita. Finche'
-		// resta cosi', «scatto + attacco base» domina sempre la carica (per il Guardian: 30 danni e spinta 2
-		// contro 20 e spinta 1, con cooldown 0 contro 3), e il bot non ne scegliera' nessuna. Il meccanismo
-		// qui sopra esiste ed e' corretto; a renderlo utile e' il bilanciamento, non altro codice.
+		// NOTA (#145, aggiornata da D-028): scatto e attacco sono ora slot DIVERSI — movimento e principale —
+		// quindi pianificarli insieme e' legale, ed e' la scelta *schivo e sparo*. Il prezzo c'e' e non e' piu'
+		// implicito: chi scatta non prosegue col Move (lo applica il resolver piu' sotto), chi carica si.
+		//
+		// Resta il problema di bilanciamento che la nota segnalava, e resta misurato sugli ARCHETIPI: per il
+		// Guardian «scatto + Sweep» fa 30 danni e spinta 2 con cooldown 0, la Charge 20 e spinta 1 con
+		// cooldown 3. Sul roster eroi i numeri sono altri. Il meccanismo qui sopra e' corretto; a renderlo
+		// utile e' il bilanciamento — voce `BAL-1` del backlog, che parte da una misura e non da una correzione.
 		if (bDashReady)
 		{
 			for (int32 A = 0; A < Bot->NumAbilities(); ++A)
@@ -1334,25 +1337,28 @@ void ARTTurnManager::ResolveDash()
 		}
 	}
 
-	// Applica le posizioni SENZA cancellare il move normale (scatto + move) e consuma l'abilita'.
+	// Applica le posizioni e consuma l'abilita'. Lo scatto SPENDE il movimento del turno (D-028): chi ha
+	// scattato non prosegue col Move, e questo e' il punto in cui la regola diventa vera — nel resolver, che
+	// e' cio' che decide l'esito (invariante #1), non in un controllo di pianificazione che il bot potrebbe
+	// aggirare. Prima di D-028 il move normale sopravviveva allo scatto: era il «movimento doppio» di
+	// `docs/gameplay/spec-dash.md`, vigente e implementato, ora superato.
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		if (DashAbilityIdx[i] == INDEX_NONE) { continue; }
 
 		ARTUnit* Unit = Units[i];
-		const FRTCellId PreDash = Unit->Cell;
 		const FRTCellId Final = Resolved[i].Final;
 		AddLogEvent(FString::Printf(TEXT("Scatto: %s -> (q=%d,r=%d,L%d)"), *Unit->GetName(), Final.X, Final.Y, Final.Layer));
 		Unit->ConsumeAbility(DashAbilityIdx[i]);
 		Unit->Cell = Final;
 		Unit->SetVisualLocation(Unit->WorldForCell(Final, Origin, CellSize, LayerH));
 		ApplyTerrainOnEnterEffects(Snapshot, Unit, Resolved[i].Entered);
-		Unit->PlannedPath.Reset();       // la path composita partiva da PreDash: non piu' valida
+		// Il movimento del turno e' finito qui: si scarta il percorso pianificato e la destinazione DIVENTA
+		// la cella d'arrivo dello scatto. Senza l'assegnazione il resolver del Move vedrebbe una `PlannedCell`
+		// diversa dalla posizione attuale e proverebbe comunque ad avvicinarcisi.
+		Unit->PlannedPath.Reset();
 		Unit->PlannedWaypoints.Reset();
-		if (Unit->PlannedCell == PreDash)
-		{
-			Unit->PlannedCell = Final;   // nessun move pianificato: resta dopo lo scatto (niente ritorno indietro)
-		}
+		Unit->PlannedCell = Final;
 
 		const URTActionData* Used = Unit->GetAbility(DashAbilityIdx[i]);
 		if (!Used) { continue; }
@@ -1366,11 +1372,16 @@ void ARTTurnManager::ResolveDash()
 			ReactionBlockedThisTurn.Add(Unit);
 		}
 
-		// SLOT consumati: lo dice il catalogo, non l'ActionId. `Action.Sprint` prende movimento **e** azione
-		// principale — chi corre allo scoperto non prosegue col Move e non spara nello stesso turno.
+		// SLOT consumati: lo dice il catalogo, non l'ActionId. Il movimento e' gia' speso qui sopra per OGNI
+		// mobilita' rapida (D-028); resta da spendere la principale per chi dichiara `MovementAndMain`.
+		//
+		// Dopo D-028 nessuna azione di serie usa quello slot — `Action.Sprint`, che era l'unica, e' passata a
+		// `Movement`. Il ramo resta perche' e' il meccanismo con cui un kit dichiara l'eccezione: «questa
+		// mobilita' costa tutto il turno» si esprime in DATI, senza un `if` sull'ActionId qui dentro. E resta
+		// verificato — `Actions.KitCanDeclareAMobilityThatCostsBothSlots` costruisce proprio quel caso, perche'
+		// un ramo che nessun dato attraversa e' un ramo che nessun test difende.
 		if (Used->Def.Slot == ERTActionSlot::MovementAndMain)
 		{
-			Unit->PlannedCell = Final;              // il movimento del turno finisce qui
 			Unit->PlannedAbilityIndex = INDEX_NONE; // lo slot principale e' speso
 			Unit->PlannedAttackTarget = nullptr;
 		}
