@@ -20,16 +20,20 @@
 
 <!-- RT_FEATURE_STATUS:END RT-FEAT-CHAR-V01-ROSTER -->
 
-La Wiki distingue il roster operativo dalle basi asset Paragon.
+La Wiki distingue il roster operativo dalle basi asset Paragon. Dal 2026-08-08 ogni eroe dichiara **quale**
+slot Paragon usa come base visuale ([D-037](../decisions/RT_PDR_00_Decision_Log.md)); la tabella completa sta in
+[`paragon.md`](paragon.md#mapping-visuale-del-roster).
 
 ## Roster v0.1 — RefactorTactics
 
-- [Flux](v0.1/flux.md)
-- [Riva](v0.1/riva.md)
-- [Bastion](v0.1/bastion.md)
-- [Vektor](v0.1/vektor.md)
+- [Flux](v0.1/flux.md) — base visuale: `Paragon.Gadget`
+- [Riva](v0.1/riva.md) — base visuale: `Paragon.Phase`
+- [Bastion](v0.1/bastion.md) — base visuale: `Paragon.Riktor`
+- [Vektor](v0.1/vektor.md) — base visuale: `Paragon.Wraith`
 
 ## Roster v0.2 — asset base Paragon
+
+Nome di lavoro e slot asset coincidono; il `RT Character ID` definitivo resta **TBD**.
 
 - [Steel](v0.2/steel.md)
 - [Aurora](v0.2/aurora.md)
