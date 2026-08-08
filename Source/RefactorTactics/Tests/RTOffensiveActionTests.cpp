@@ -106,17 +106,18 @@ bool FRTOffensiveActionsMatchCatalogTest::RunTest(const FString&)
 		TestTrue(FString::Printf(TEXT("%s: occupa l'azione principale"), E.Id), Def.Slot == ERTActionSlot::Main);
 	}
 
-	// Il fuoco amico e' un dato dell'AZIONE, ed e' l'eccezione di UNA sola: le altre cinque risparmiano gli
-	// alleati senza che nessuno debba ricordarsene al momento di costruire l'intento.
-	TestTrue(TEXT("solo l'area circolare colpisce i propri"),
-		OffensiveDef(TEXT("Action.CircularAoE")).bFriendlyFire);
-	for (const FRTActionDef& Def : URTCatalogLibrary::GetCoreActionCatalog())
+	// Fuoco amico ATTIVO su tutte le offensive (decisione dell'autore, 2026-08-08: in PvP e' attivo di
+	// default). Fino a ieri qui si pretendeva l'opposto — «l'eccezione di UNA sola azione» — e la regola
+	// vecchia era corretta come descrizione del catalogo core ma non arrivava mai in partita: gli eroi si
+	// costruiscono con `MakeHeroAction`, che non aveva il parametro, quindi nessuna azione del ROSTER lo
+	// aveva attivo. Il test era verde su un dato che nessuno leggeva.
+	//
+	// Si verifica sulle OFFENSIVE, non su tutto il catalogo: su `Action.Wait` o `Action.Move` il flag e'
+	// inerte (non producono intenti d'attacco, nessuno lo legge) e pretendere un valore sarebbe fissare
+	// rumore. Il valore che conta e' quello delle azioni che colpiscono qualcuno.
+	for (const FExpected& E : Expected)
 	{
-		if (Def.ActionId != FName(TEXT("Action.CircularAoE")))
-		{
-			TestFalse(FString::Printf(TEXT("%s non colpisce gli alleati"), *Def.ActionId.ToString()),
-				Def.bFriendlyFire);
-		}
+		TestTrue(FString::Printf(TEXT("%s colpisce anche gli alleati"), E.Id), OffensiveDef(E.Id).bFriendlyFire);
 	}
 
 	// La priorita' e' cio' che DIFFERENZIA le offensive dentro il Blast (obiettivo della issue): il marchio
@@ -167,14 +168,22 @@ bool FRTPrecisionAttackTest::RunTest(const FString&)
 	// Portata degenere: si ricade sul corpo a corpo (1) +1, non su una portata 1 "nuda".
 	TestEqual(TEXT("arma 0 -> portata 2"), URTCatalogLibrary::MakePrecisionAttack(0).RangeCells, 2);
 
-	// **Non usabile dopo Sprint**, e non perche' lo dica un `if` sull'ActionId: lo Sprint consuma movimento E
-	// azione principale, quindi l'attacco non trova piu' lo slot che gli serve.
+	// **Usabile dopo Sprint** da D-028, e non perche' lo dica un `if` sull'ActionId: lo Sprint occupa il solo
+	// slot movimento, quindi l'attacco trova ancora la principale libera. E' *corro e sparo*, la stessa forma
+	// di *schivo e sparo* — cio' che si rinuncia e' il `Move` normale, non il colpo.
+	//
+	// Prima di D-028 questo test verificava il rifiuto, e non era sbagliato: era la regola di allora.
 	const FRTActionDef Sprint = OffensiveDef(TEXT("Action.Sprint"));
 	const TArray<FString> AfterSprint = URTCatalogLibrary::ValidateActionSlots({ Sprint, Short });
-	TestEqual(TEXT("Sprint + precisione: piano rifiutato"), AfterSprint.Num(), 1);
-	if (AfterSprint.Num() > 0)
+	TestEqual(TEXT("Sprint + precisione: piano accettato"), AfterSprint.Num(), 0);
+
+	// Cio' che resta vietato e' DUE movimenti: e' li' che lo Sprint ha smesso di essere gratis.
+	const TArray<FString> SprintAndMove =
+		URTCatalogLibrary::ValidateActionSlots({ Sprint, OffensiveDef(TEXT("Action.Move")) });
+	TestEqual(TEXT("Sprint + Move: piano rifiutato"), SprintAndMove.Num(), 1);
+	if (SprintAndMove.Num() > 0)
 	{
-		TestTrue(TEXT("e l'errore nomina lo Sprint"), AfterSprint[0].Contains(TEXT("Action.Sprint")));
+		TestTrue(TEXT("e l'errore nomina il movimento"), SprintAndMove[0].Contains(TEXT("Action.")));
 	}
 
 	// La stessa precisione dopo un movimento NORMALE resta valida: e' lo Sprint a costare la principale.

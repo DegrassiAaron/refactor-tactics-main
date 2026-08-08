@@ -685,3 +685,76 @@ bool FRTScenarioShowcaseRelayV01Test::RunTest(const FString&)
 
 	return true;
 }
+
+// =====================================================================================================
+// S2-3 — il turno 1 della showcase e' DETERMINISTICO.
+//
+// Che passi lo verifica gia' `ShowcaseRelayV01RunsTurnOne`. Questo verifica una cosa diversa e piu' fragile:
+// che passi SEMPRE ALLO STESSO MODO. Quattro unita' che si muovono nello stesso turno sono esattamente il
+// caso in cui l'ordine dell'array puo' decidere l'esito senza che nessuno se ne accorga — e una showcase che
+// cambia da una esecuzione all'altra non e' una dimostrazione, e' un aneddoto.
+//
+// Il gate generale (`Simulation.DeterministicReplay`, 100 ripetizioni) gira su `Movement.Collision`: due
+// unita' su una mappa piccola. Questo gira sulla geometria canonica con il roster intero, che e' dove le
+// interazioni non previste hanno spazio per manifestarsi.
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseT1DeterministicTest,
+	"RefactorTactics.Scenario.ShowcaseT1IsDeterministic",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShowcaseT1DeterministicTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	FString LoadError;
+	const FString ScenarioPath = URTScenarioIndex::ResolvePath(TEXT("RT_Showcase_Relay_v01"), LoadError);
+	if (!TestTrue(TEXT("lo showcase si trova nell'indice"), !ScenarioPath.IsEmpty())
+		|| !TestTrue(TEXT("e si carica"), URTScenarioLoader::LoadFromFile(ScenarioPath, Scenario, LoadError)))
+	{
+		AddError(FString::Printf(TEXT("caricamento fallito: %s"), *LoadError));
+		return false;
+	}
+
+	// Ogni ripetizione in un mondo NUOVO: riusarlo lascerebbe in giro gli actor della precedente, e due
+	// esecuzioni identiche lo sarebbero per il motivo sbagliato — o divergerebbero per uno stato residuo che
+	// non c'entra col determinismo del gioco.
+	auto RunOnce = [this, &Scenario]() -> FRTTestResult
+	{
+		UWorld* World = MakeShowcaseWorld();
+		if (!World) { return FRTTestResult(); }
+		const FRTTestResult R = URTScenarioRunner::Run(World, Scenario);
+		DestroyShowcaseWorld(World);
+		return R;
+	};
+
+	const FRTTestResult First = RunOnce();
+	if (First.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("la prima esecuzione non e' partita: %s"), *First.ErrorMessage));
+		return false;
+	}
+	// Un hash a zero significherebbe «nessuno stato»: confrontare zeri fra loro non proverebbe niente.
+	TestNotEqual(TEXT("lo stato finale produce un hash reale"), First.StateHash, static_cast<uint32>(0));
+	TestTrue(TEXT("almeno un turno e' stato giocato davvero"), First.TurnsPlayed >= 1);
+
+	constexpr int32 Repetitions = 10;
+	int32 Divergences = 0;
+	for (int32 I = 1; I < Repetitions; ++I)
+	{
+		const FRTTestResult Again = RunOnce();
+		// Non solo l'hash: anche ESITO e turni giocati. Uno scenario che si fermasse prima produrrebbe uno
+		// stato diverso e quindi un hash diverso, ma uno che si ferma prima con lo stesso stato passerebbe
+		// un confronto sul solo hash.
+		if (Again.StateHash != First.StateHash
+			|| Again.OutcomeString() != First.OutcomeString()
+			|| Again.TurnsPlayed != First.TurnsPlayed)
+		{
+			++Divergences;
+			AddError(FString::Printf(
+				TEXT("ripetizione %d divergente: hash %08x vs %08x, esito %s vs %s, turni %d vs %d"),
+				I, Again.StateHash, First.StateHash, *Again.OutcomeString(), *First.OutcomeString(),
+				Again.TurnsPlayed, First.TurnsPlayed));
+		}
+	}
+	TestEqual(FString::Printf(TEXT("%d ripetizioni identiche"), Repetitions), Divergences, 0);
+	return true;
+}

@@ -9,6 +9,8 @@
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "ScenarioHarness/RTTestReportWriter.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Misc/Paths.h"
@@ -621,5 +623,549 @@ bool FRTScenarioWallActuallyBlocksTest::RunTest(const FString&)
 	TestNotEqual(TEXT("con e senza muro producono stati diversi"), OpenResult.StateHash, WalledResult.StateHash);
 	return true;
 }
+
+/**
+ * Esegue uno scenario e riporta OGNI assertion sugli HP con il suo `actual`.
+ *
+ * Il nome e' prolisso di proposito: la unity build fonde piu' file in una sola unita' di traduzione, e un
+ * helper con un nome ovvio (`RunAndCheck`) collide col primo omonimo di un altro file di test — e' gia'
+ * successo con tre helper insieme. Neppure un namespace anonimo protegge: fusi nella stessa TU, due namespace
+ * anonimi sono lo STESSO namespace.
+ */
+static bool RunScenarioAndReportHpAssertions(FAutomationTestBase& Test, const TCHAR* ScenarioId)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(Test, ScenarioId, Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!Test.TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		Test.AddError(FString::Printf(TEXT("%s: ERROR invece di PASS: %s"), ScenarioId, *Result.ErrorMessage));
+		return false;
+	}
+	Test.TestEqual(TEXT("esito PASS"), Result.OutcomeString(), FString(TEXT("PASS")));
+
+	// Ogni HP atteso col suo valore reale: quando uno di questi diventa rosso, il messaggio dice gia' di
+	// quanto ha sbagliato, senza bisogno di rieseguire lo scenario a mano.
+	for (const FRTAssertionResult& A : Result.Assertions)
+	{
+		if (A.Kind == ERTAssertionKind::UnitHpEquals)
+		{
+			Test.TestTrue(FString::Printf(TEXT("%s -> %s (atteso %s)"), *A.Description, *A.Actual, *A.Expected), A.bPassed);
+		}
+	}
+	return true;
+}
+
+/**
+ * `Combat.SplashHitsAlliesNotSelf`: l'area colpisce chiunque ci sia dentro, tranne chi la lancia.
+ *
+ * Col fuoco amico attivo «l'alleato incassa» non e' piu' una notizia: lo e' il fatto che l'ATTACCANTE no,
+ * pur stando dentro la propria esplosione. Lo scenario lo mette apposta nel raggio, cosi' l'esclusione e'
+ * verificata come regola (`u == AttackerId`) e non come geografia: piazzandolo lontano, quell'assert
+ * sarebbe verde anche in un gioco che si fa male da solo appena qualcuno gli si avvicina.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioSplashHitsAlliesTest,
+	"RefactorTactics.Scenario.RunnerSplashHitsAlliesNotSelf",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioSplashHitsAlliesTest::RunTest(const FString&)
+{
+	return RunScenarioAndReportHpAssertions(*this, TEXT("Combat.SplashHitsAlliesNotSelf"));
+}
+
+/**
+ * `Combat.LineHitsThrough`: la forma Line colpisce la traiettoria, non il bersaglio.
+ *
+ * B2 sta fra attaccante e bersaglio e non e' nominata da nessun intent. Se scende, la linea e' stata risolta
+ * come linea; se resta piena mentre B1 scende, il gioco sta trattando `ERTAbilityShape::Line` come un colpo
+ * singolo — un difetto che nessuno scenario a due unita' puo' vedere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLineHitsThroughTest,
+	"RefactorTactics.Scenario.RunnerLineHitsThrough",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLineHitsThroughTest::RunTest(const FString&)
+{
+	return RunScenarioAndReportHpAssertions(*this, TEXT("Combat.LineHitsThrough"));
+}
+
+/**
+ * Le forme colpiscono DAVVERO piu' di una cella.
+ *
+ * Controprova delle due sopra, nello spirito di `WallIsWhatStopsTheShot`. I numeri attesi negli scenari li ho
+ * scritti io: se avessi sbagliato la geometria e messo B2 fuori dall'area, avrei scritto «B2 resta piena» e il
+ * test sarebbe verde lo stesso, documentando una forma che non funziona. Qui la domanda e' posta al gioco e
+ * non allo scenario: quante unita' hanno perso HP? Se la risposta fosse 1, entrambe le forme starebbero
+ * degenerando in un colpo singolo, e i due test sopra passerebbero ugualmente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioShapesHitMoreThanOneTest,
+	"RefactorTactics.Scenario.ShapesHitMoreThanOneUnit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioShapesHitMoreThanOneTest::RunTest(const FString&)
+{
+	for (const TCHAR* Id : { TEXT("Combat.SplashHitsAlliesNotSelf"), TEXT("Combat.LineHitsThrough") })
+	{
+		FRTTestScenario Scenario;
+		if (!LoadShippedScenario(*this, Id, Scenario)) { return false; }
+
+		// Quante unita' lo scenario si aspetta di vedere ferite, secondo i suoi stessi numeri? Conta le
+		// UnitHpEquals il cui valore atteso e' sotto la salute massima dell'eroe schierato.
+		const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+		int32 ExpectedWounded = 0;
+		for (const FRTTestExpectation& A : Scenario.Expect)
+		{
+			if (A.Kind != ERTAssertionKind::UnitHpEquals) { continue; }
+			for (const FRTScenarioUnit& U : Scenario.Units)
+			{
+				if (U.Id != A.UnitId) { continue; }
+				for (const URTHeroData* Hero : Roster)
+				{
+					if (Hero != nullptr && Hero->HeroId == U.HeroId && A.Value < Hero->MaxHealth)
+					{
+						++ExpectedWounded;
+					}
+				}
+			}
+		}
+		TestTrue(FString::Printf(TEXT("%s: la forma deve ferire piu' di una unita' (attese %d)"), Id, ExpectedWounded),
+			ExpectedWounded >= 2);
+	}
+	return true;
+}
+
+/**
+ * `Combat.CounterStrikesBack`: una reazione ARMATA scatta e colpisce chi ha colpito.
+ *
+ * Il numero che conta e' quello di Bastion: 110 invece di 120, senza che nessun intent glielo abbia fatto
+ * fare. E' l'unico effetto del turno che nessuno ha chiesto esplicitamente, quindi l'unico che puo' venire
+ * solo dalla reazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCounterStrikesBackTest,
+	"RefactorTactics.Scenario.RunnerCounterStrikesBack",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCounterStrikesBackTest::RunTest(const FString&)
+{
+	return RunScenarioAndReportHpAssertions(*this, TEXT("Combat.CounterStrikesBack"));
+}
+
+/** `Combat.NoCounterWhenUnarmed`: senza armarla, la stessa reazione non scatta. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioNoCounterUnarmedTest,
+	"RefactorTactics.Scenario.RunnerNoCounterWhenUnarmed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioNoCounterUnarmedTest::RunTest(const FString&)
+{
+	return RunScenarioAndReportHpAssertions(*this, TEXT("Combat.NoCounterWhenUnarmed"));
+}
+
+/**
+ * E' l'ARMARLA a fare la differenza, non qualcos'altro.
+ *
+ * Stessa forma di `WallIsWhatStopsTheShot`. I due test sopra sono verdi anche in un gioco dove la reazione
+ * non esiste e Bastion non viene mai toccato — no: il primo fallirebbe. Ma sarebbero verdi entrambi in un
+ * gioco dove la reazione scatta SEMPRE, se per caso i numeri attesi fossero stati scritti su quel
+ * comportamento. Qui si confrontano i due stati finali e si pretende che differiscano: l'unica riga diversa
+ * fra i due scenari e' il campo `reaction`, quindi la differenza non puo' venire da altro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioArmingIsWhatFiresTest,
+	"RefactorTactics.Scenario.ArmingIsWhatFiresTheReaction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioArmingIsWhatFiresTest::RunTest(const FString&)
+{
+	FRTTestScenario Armed, Unarmed;
+	if (!LoadShippedScenario(*this, TEXT("Combat.CounterStrikesBack"), Armed)) { return false; }
+	if (!LoadShippedScenario(*this, TEXT("Combat.NoCounterWhenUnarmed"), Unarmed)) { return false; }
+
+	UWorld* W1 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 1"), W1)) { return false; }
+	const FRTTestResult ArmedResult = URTScenarioRunner::Run(W1, Armed);
+	DestroyRunnerWorld(W1);
+
+	UWorld* W2 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 2"), W2)) { return false; }
+	const FRTTestResult UnarmedResult = URTScenarioRunner::Run(W2, Unarmed);
+	DestroyRunnerWorld(W2);
+
+	TestNotEqual(TEXT("armata e disarmata producono stati diversi"), ArmedResult.StateHash, UnarmedResult.StateHash);
+	return true;
+}
+
+/**
+ * Armare qualcosa che NON e' una reazione viene rifiutato, con un motivo.
+ *
+ * E' il modo di fallire peggiore che ci sia in questo campo: `Flux.ArcPulse` in `reaction` non scatterebbe
+ * mai e non produrrebbe nessun errore: lo scenario girerebbe, l'assertion sui danni fallirebbe, e chi legge
+ * cercherebbe una regressione del combattimento invece di una riga sbagliata nel JSON.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioBadReactionRejectedTest,
+	"RefactorTactics.Scenario.NonReactionCannotBeArmed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioBadReactionRejectedTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.CounterStrikesBack"), Scenario)) { return false; }
+
+	// Un'abilita' che Flux POSSIEDE davvero, ma che non e' una reazione: il controllo che conta e' sullo
+	// SLOT. Usando un ID inesistente si verificherebbe solo che il nome non si trova, che e' un'altra cosa.
+	Scenario.Turns[0].Intents[0].Reaction = FName(TEXT("Flux.ArcPulse"));
+
+	FString Error;
+	TestFalse(TEXT("lo scenario viene rifiutato"), URTScenarioLoader::Validate(Scenario, Error));
+	TestTrue(TEXT("il motivo nomina lo slot"), Error.Contains(TEXT("non e' una reazione")));
+
+	// E la reazione VERA continua a passare: il controllo rifiuta ciò che deve, non tutto.
+	FRTTestScenario Good;
+	if (!LoadShippedScenario(*this, TEXT("Combat.CounterStrikesBack"), Good)) { return false; }
+	FString NoError;
+	TestTrue(TEXT("la reazione vera resta valida"), URTScenarioLoader::Validate(Good, NoError));
+	return true;
+}
+
+
+
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioAbilityNotInKitTest,
+	"RefactorTactics.Scenario.ActionNotInHeroKitIsError",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioAbilityNotInKitTest::RunTest(const FString&)
+{
+	// Il log d'errore e' PARTE del comportamento voluto: chi guarda la console deve vederlo. Dichiararlo
+	// atteso evita che l'automation lo scambi per un errore del test — e al tempo stesso lo pretende: se il
+	// codice smettesse di loggarlo, questo test fallirebbe per errore atteso mai arrivato.
+	AddExpectedError(TEXT("non possiede l'abilita'"), EAutomationExpectedErrorFlags::Contains, 1);
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	FRTTestScenario S;
+	S.ScenarioId = TEXT("Probe.AbilityNotInKit");
+	S.MapRadius = 4;
+	FRTScenarioUnit A; A.Id = TEXT("A1"); A.HeroId = TEXT("Hero.Flux");    A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+	FRTScenarioUnit B; B.Id = TEXT("B1"); B.HeroId = TEXT("Hero.Bastion"); B.TeamId = 1; B.Cell = FRTCellId(2, 0, 0);
+	S.Units.Add(A); S.Units.Add(B);
+
+	// `Riva.CircularTide` esiste nel catalogo, ma NON e' nel kit di Flux. E' il caso interessante: un id
+	// inventato lo prende gia' il validator al caricamento, questo no — passa la validazione e muore a runtime.
+	FRTScenarioTurn T;
+	FRTScenarioIntent I; I.UnitId = TEXT("A1"); I.Ability = TEXT("Riva.CircularTide"); I.Target = TEXT("B1");
+	T.Intents.Add(I); S.Turns.Add(T);
+
+	// Un'assertion che sarebbe caduta: e' cio' che prima produceva il FAIL fuorviante.
+	FRTTestExpectation E; E.Kind = ERTAssertionKind::UnitAlive; E.UnitId = TEXT("B1"); E.Value = 0;
+	S.Expect.Add(E);
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, S);
+	DestroyRunnerWorld(World);
+
+	TestEqual(TEXT("esito ERROR, non FAIL"), Result.OutcomeString(), FString(TEXT("ERROR")));
+	// Il messaggio deve bastare a correggere lo scenario senza aprire il log del motore.
+	TestTrue(TEXT("il messaggio nomina l'abilita'"), Result.ErrorMessage.Contains(TEXT("Riva.CircularTide")));
+	TestTrue(TEXT("e nomina l'unita' che la chiedeva"), Result.ErrorMessage.Contains(TEXT("A1")));
+	return true;
+}
+
+// =====================================================================================================
+// S2-2 — un bersaglio gia' abbattuto e' un esito di GIOCO, non un errore. Ma va detto.
+//
+// Prima veniva scartato in silenzio: l'intent spariva, l'assertion successiva cadeva, e il report non
+// dava alcun appiglio per capire perche'. Non e' ERROR (lo scenario e' scritto bene, e' la partita ad
+// essere andata cosi') e non e' FAIL di per se': e' una NOTA, che spiega un risultato altrimenti muto.
+
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioDeadTargetTest,
+	"RefactorTactics.Scenario.DeadTargetIsReported",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioDeadTargetTest::RunTest(const FString&)
+{
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	FRTTestScenario S;
+	S.ScenarioId = TEXT("Probe.DeadTarget");
+	S.MapRadius = 4;
+	// Due contro uno, a distanza di tiro. Il bersaglio ha 90-120 HP e ogni colpo ne toglie 20-28: il numero
+	// di turni non e' scelto per essere esatto ma per avere MARGINE. Se un giorno il bilanciamento cambiasse
+	// tanto da non bastare, a cadere sarebbe la precondizione qui sotto — con un messaggio che lo dice,
+	// invece di un fallimento misterioso sulla nota.
+	FRTScenarioUnit A; A.Id = TEXT("A1"); A.HeroId = TEXT("Hero.Flux");   A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+	FRTScenarioUnit B; B.Id = TEXT("A2"); B.HeroId = TEXT("Hero.Vektor"); B.TeamId = 0; B.Cell = FRTCellId(-2, 1, 0);
+	FRTScenarioUnit C; C.Id = TEXT("B1"); C.HeroId = TEXT("Hero.Riva");   C.TeamId = 1; C.Cell = FRTCellId(1, 0, 0);
+	// Un SECONDO difensore, lontano e mai bersagliato. Senza, la morte di B1 elimina la squadra 1, la partita
+	// finisce e il turno in cui si spara al morto non viene mai giocato: il test misurerebbe il silenzio di un
+	// turno che non e' avvenuto invece del silenzio del report. E' costato una run per accorgersene.
+	FRTScenarioUnit D; D.Id = TEXT("B2"); D.HeroId = TEXT("Hero.Bastion"); D.TeamId = 1; D.Cell = FRTCellId(4, 0, 0);
+	S.Units.Add(A); S.Units.Add(B); S.Units.Add(C); S.Units.Add(D);
+
+	// Otto turni di fuoco concentrato, poi un nono in cui si spara a un morto.
+	for (int32 Turn = 0; Turn < 9; ++Turn)
+	{
+		FRTScenarioTurn T;
+		FRTScenarioIntent I1; I1.UnitId = TEXT("A1"); I1.Ability = TEXT("Flux.ArcPulse"); I1.Target = TEXT("B1");
+		FRTScenarioIntent I2; I2.UnitId = TEXT("A2"); I2.Ability = TEXT("Vektor.PulseShot");   I2.Target = TEXT("B1");
+		T.Intents.Add(I1); T.Intents.Add(I2);
+		S.Turns.Add(T);
+	}
+
+	FRTTestExpectation E; E.Kind = ERTAssertionKind::UnitAlive; E.UnitId = TEXT("B1"); E.Value = 0;
+	S.Expect.Add(E);
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, S);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di eseguire: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	// Precondizione, non l'oggetto del test: senza un morto non c'e' niente da riportare.
+	TestEqual(TEXT("il bersaglio e' stato abbattuto"), Result.OutcomeString(), FString(TEXT("PASS")));
+
+	// L'oggetto del test: il report DICE che si e' sparato a un morto, invece di tacere.
+	bool bMentionsDeadTarget = false;
+	for (const FString& Note : Result.Notes)
+	{
+		bMentionsDeadTarget |= Note.Contains(TEXT("B1"));
+	}
+	TestTrue(TEXT("il report annota il bersaglio gia' abbattuto"), bMentionsDeadTarget);
+
+	// E la nota deve arrivare fino a `result.json`, che e' il file che qualcuno legge davvero. Senza questa
+	// verifica il writer potrebbe smettere di serializzarla e nessun test se ne accorgerebbe: una nota che
+	// esiste solo in memoria e' esattamente il dato che nessuno consuma.
+	const FString Json = URTTestReportWriter::ToJson(Result, TEXT("test-run"));
+	TSharedPtr<FJsonObject> Root;
+	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Json);
+	if (TestTrue(TEXT("il report e' JSON valido"), FJsonSerializer::Deserialize(Reader, Root) && Root.IsValid()))
+	{
+		const TArray<TSharedPtr<FJsonValue>>* NotesJson = nullptr;
+		if (TestTrue(TEXT("il JSON porta le note"), Root->TryGetArrayField(TEXT("notes"), NotesJson)))
+		{
+			bool bJsonMentions = false;
+			for (const TSharedPtr<FJsonValue>& V : *NotesJson)
+			{
+				bJsonMentions |= V->AsString().Contains(TEXT("B1"));
+			}
+			TestTrue(TEXT("e la nota nomina il bersaglio abbattuto"), bJsonMentions);
+		}
+	}
+	return true;
+}
+
+// =====================================================================================================
+// S2-2 — lo slot DASH negli intent.
+//
+// Finche' l'intent aveva un solo campo per l'azione, una mobilita' rapida non era esprimibile: lo scenario
+// poteva dire «attacca» o «muoviti», mai «scatta». Il turno 3 dello showcase chiede proprio quello, e senza
+// questo slot resterebbe scritto e mai giocato.
+//
+// L'ordine con SLOT-2 non era negoziabile: aggiungere questo campo PRIMA che D-028 fosse nel codice avrebbe
+// significato scrivere scenari in cui lo scatto occupa la principale, e riscriverli tutti dopo.
+//
+// Lo stesso scenario gira DUE volte, con e senza il campo `dash`. Un test che guardasse solo la posizione
+// finale del caso "con" non distinguerebbe uno scatto eseguito da un movimento normale arrivato li' per
+// altra via: il confronto e' cio' che rende l'assertion discriminante.
+
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioDashIntentTest,
+	"RefactorTactics.Scenario.DashIntentResolvesInDashPhase",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioDashIntentTest::RunTest(const FString&)
+{
+	auto MakeScenario = [](bool bWithDash)
+	{
+		FRTTestScenario S;
+		S.ScenarioId = bWithDash ? TEXT("Probe.DashDeclared") : TEXT("Probe.DashOmitted");
+		S.MapRadius = 4;
+		FRTScenarioUnit A; A.Id = TEXT("V"); A.HeroId = TEXT("Hero.Vektor"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+		// Un avversario lontano e fermo: senza, la squadra 1 e' vuota e la partita finisce prima di giocare.
+		FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Riva");   B.TeamId = 1; B.Cell = FRTCellId(0, 3, 0);
+		S.Units.Add(A); S.Units.Add(B);
+
+		FRTScenarioTurn T;
+		FRTScenarioIntent I;
+		I.UnitId = TEXT("V");
+		if (bWithDash)
+		{
+			// Tre celle in linea, traiettoria libera: `PassingBlade` e' `LinearDash`, e uno scatto lineare si
+			// FERMA su cio' che incontra (solo `LinearLeap` scavalca). Metterci in mezzo un'unita' verificherebbe
+			// la semantica dello stile, non lo slot dell'intent.
+			I.Dash = TEXT("Vektor.PassingBlade");
+			I.DashCell = FRTCellId(1, 0, 0);
+		}
+		T.Intents.Add(I);
+		S.Turns.Add(T);
+
+		FRTTestExpectation E; E.Kind = ERTAssertionKind::UnitAtCell; E.UnitId = TEXT("V");
+		E.Cell = bWithDash ? FRTCellId(1, 0, 0) : FRTCellId(-2, 0, 0);
+		S.Expect.Add(E);
+		return S;
+	};
+
+	UWorld* W1 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 1"), W1)) { return false; }
+	const FRTTestResult WithDash = URTScenarioRunner::Run(W1, MakeScenario(true));
+	DestroyRunnerWorld(W1);
+
+	UWorld* W2 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 2"), W2)) { return false; }
+	const FRTTestResult NoDash = URTScenarioRunner::Run(W2, MakeScenario(false));
+	DestroyRunnerWorld(W2);
+
+	if (WithDash.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di eseguire: %s"), *WithDash.ErrorMessage));
+		return false;
+	}
+
+	TestEqual(TEXT("con `dash` l'unita' scatta a destinazione"), WithDash.OutcomeString(), FString(TEXT("PASS")));
+	// Senza il campo, la stessa unita' nello stesso scenario NON si muove: e' cio' che dimostra che a spostarla
+	// e' stato l'intent di scatto e non il movimento normale.
+	TestEqual(TEXT("senza `dash` resta ferma"), NoDash.OutcomeString(), FString(TEXT("PASS")));
+	return true;
+}
+
+// =====================================================================================================
+// MOB-1 — i 20 danni di `PassingBlade` hanno finalmente un momento in cui applicarsi.
+//
+// Il test della libreria (`Movement.PassGoesThroughUnitsAndRecordsThem`) verifica CHI viene attraversato.
+// Questo verifica che l'attraversamento produca DANNO in partita: sono due cose diverse, e una lista di
+// unita' attraversate che nessuno legge sarebbe di nuovo un dato senza consumatore.
+
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioPassingBladeTest,
+	"RefactorTactics.Scenario.PassingBladeHitsWhoItCrosses",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioPassingBladeTest::RunTest(const FString&)
+{
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	FRTTestScenario S;
+	S.ScenarioId = TEXT("Probe.PassingBlade");
+	S.MapRadius = 4;
+	FRTScenarioUnit A; A.Id = TEXT("V"); A.HeroId = TEXT("Hero.Vektor"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+	// Riva e' IN MEZZO: la lama le passa attraverso e prosegue.
+	FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Riva");   B.TeamId = 1; B.Cell = FRTCellId(0, 0, 0);
+	S.Units.Add(A); S.Units.Add(B);
+
+	FRTScenarioTurn T;
+	FRTScenarioIntent I;
+	I.UnitId = TEXT("V");
+	I.Dash = TEXT("Vektor.PassingBlade");
+	I.DashCell = FRTCellId(1, 0, 0);   // oltre Riva
+	T.Intents.Add(I);
+	S.Turns.Add(T);
+
+	// Le DUE meta' della stessa regola, separate: si arriva oltre, E chi sta in mezzo lo paga. Un test che
+	// verificasse solo la posizione passerebbe anche con i 20 danni mai applicati.
+	FRTTestExpectation E1; E1.Kind = ERTAssertionKind::UnitAtCell;   E1.UnitId = TEXT("V"); E1.Cell = FRTCellId(1, 0, 0);
+	FRTTestExpectation E2; E2.Kind = ERTAssertionKind::UnitHpEquals; E2.UnitId = TEXT("R"); E2.Value = 75;
+	S.Expect.Add(E1); S.Expect.Add(E2);
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, S);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di eseguire: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("la lama attraversa e colpisce"), Result.OutcomeString(), FString(TEXT("PASS")));
+	return true;
+}
+
+// =====================================================================================================
+// S2-2c — bersagliare una CELLA e non un'unita'.
+//
+// Il modello a valle lo sa gia' fare: `FRTActionInstance` ha `TargetUnitId` **e** `TargetCell`, e il
+// resolver gestisce il bersaglio-cella (fallback `AttackCell`, strutture di CP 9.2). Il buco e' nel PIANO:
+// `PlannedAttackTarget` e' un'unita', e il limite era gia' dichiarato in `RTTurnManager` (CP 8.3).
+//
+// La cella e' VUOTA e il nemico ADIACENTE: e' cio' che rende il test discriminante. Centrando l'area su una
+// cella occupata, lo stesso danno arriverebbe anche bersagliando l'unita' — il test misurerebbe una
+// coincidenza invece della regola.
+
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCellTargetTest,
+	"RefactorTactics.Scenario.CellTargetedAbilityAppliesToCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCellTargetTest::RunTest(const FString&)
+{
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	FRTTestScenario S;
+	S.ScenarioId = TEXT("Probe.CellTarget");
+	S.MapRadius = 4;
+	FRTScenarioUnit A; A.Id = TEXT("F"); A.HeroId = TEXT("Hero.Flux"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+	FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Riva"); B.TeamId = 1; B.Cell = FRTCellId(1, 0, 0);
+	S.Units.Add(A); S.Units.Add(B);
+
+	FRTScenarioTurn T;
+	FRTScenarioIntent I;
+	I.UnitId = TEXT("F");
+	I.Ability = TEXT("Flux.Overload");        // AoE raggio 1, 18 danni, portata 3
+	I.TargetCell = FRTCellId(0, 0, 0);        // VUOTA, e adiacente a Riva
+	I.bTargetsCell = true;
+	T.Intents.Add(I);
+	S.Turns.Add(T);
+
+	// 95 meno i 18 dell'area: Riva e' presa dal RAGGIO, non perche' la si sia bersagliata.
+	FRTTestExpectation E; E.Kind = ERTAssertionKind::UnitHpEquals; E.UnitId = TEXT("R"); E.Value = 77;
+	S.Expect.Add(E);
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, S);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di eseguire: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("l'area centrata su una cella vuota prende chi le sta accanto"),
+		Result.OutcomeString(), FString(TEXT("PASS")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioAmbiguousTargetTest,
+	"RefactorTactics.Scenario.TargetAndTargetCellIsError",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioAmbiguousTargetTest::RunTest(const FString&)
+{
+	FRTTestScenario S;
+	S.ScenarioId = TEXT("Probe.AmbiguousTarget");
+	S.MapRadius = 4;
+	FRTScenarioUnit A; A.Id = TEXT("F"); A.HeroId = TEXT("Hero.Flux"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+	FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Riva"); B.TeamId = 1; B.Cell = FRTCellId(1, 0, 0);
+	S.Units.Add(A); S.Units.Add(B);
+
+	FRTScenarioTurn T;
+	FRTScenarioIntent I;
+	I.UnitId = TEXT("F");
+	I.Ability = TEXT("Flux.Overload");
+	I.Target = TEXT("R");                 // entrambi
+	I.TargetCell = FRTCellId(0, 0, 0);
+	I.bTargetsCell = true;
+	T.Intents.Add(I);
+	S.Turns.Add(T);
+	FRTTestExpectation E; E.Kind = ERTAssertionKind::UnitAlive; E.UnitId = TEXT("R"); E.Value = 1;
+	S.Expect.Add(E);
+
+	// La validazione e' PURA: non serve un mondo per sapere che lo scenario e' ambiguo, e prenderlo qui
+	// significa prenderlo prima di aver speso un turno di simulazione.
+	FString Error;
+	TestFalse(TEXT("uno scenario ambiguo non passa la validazione"), URTScenarioLoader::Validate(S, Error));
+	TestTrue(TEXT("e il motivo nomina il bersaglio doppio"),
+		Error.Contains(TEXT("target")) || Error.Contains(TEXT("bersaglio")));
+	return true;
+}
+
+
 
 #endif // WITH_DEV_AUTOMATION_TESTS

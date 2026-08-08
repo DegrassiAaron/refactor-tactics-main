@@ -131,6 +131,50 @@ struct FRTScenarioIntent
 	/** ID di scenario del bersaglio. Obbligatorio quando `Ability` e' valorizzata. */
 	UPROPERTY()
 	FString Target;
+
+	/**
+	 * `ActionId` della mobilita' RAPIDA (`Vektor.PassingBlade`, `Action.Dash`): risolve in fase Dash, prima
+	 * del Blast. Vuoto = nessuno scatto.
+	 *
+	 * Campo separato da `Ability` e non un'alternativa, perche' dopo [D-028] occupano slot diversi: lo scatto
+	 * prende il movimento, l'abilita' la principale, e *schivo e sparo* e' un turno legale che l'intent deve
+	 * poter esprimere. Con un solo campo non sarebbe rappresentabile.
+	 */
+	UPROPERTY()
+	FName Dash;
+
+	/** Cella d'arrivo dello scatto. Obbligatoria quando `Dash` e' valorizzata. */
+	UPROPERTY()
+	FRTCellId DashCell;
+
+	/**
+	 * Cella bersagliata da `Ability`, in alternativa a `Target`: le aree si centrano su una CELLA, che puo'
+	 * essere vuota. Valida solo con `bTargetsCell`.
+	 *
+	 * Dichiarare **entrambi** e' un `ERROR` di validazione, non una scelta fra i due: chi ha scritto lo
+	 * scenario non sa cosa voleva, e sceglierne uno al posto suo produrrebbe un test verde su una premessa
+	 * sbagliata — peggio di un rosso, perche' nessuno va a guardarlo.
+	 */
+	UPROPERTY()
+	FRTCellId TargetCell;
+
+	/** Vero se `Ability` mira a `TargetCell` invece che a un'unita'. Serve a distinguere «cella (0,0)» da «campo non dichiarato». */
+	UPROPERTY()
+	bool bTargetsCell = false;
+
+	/**
+	 * `ActionId` della REAZIONE che l'unita' arma per questo turno (`Flux.ReactiveCapacitor`). Vuota = nessuna.
+	 *
+	 * Armare non e' agire: la reazione dichiara solo **cosa succedera' se** il trigger scatta durante la
+	 * risoluzione. Non ha bersaglio — lo decide il trigger (chi ha colpito, quale alleato e' stato preso) —
+	 * ed e' per questo che sta in un campo suo invece di riusare `Ability`/`Target`: sono due slot diversi
+	 * dell'unita' (`PlannedReactionAbility` contro `PlannedAbilityIndex`), e la stessa unita' puo' attaccare
+	 * e reagire nello stesso turno.
+	 *
+	 * Per ID, per la stessa ragione dell'abilita'.
+	 */
+	UPROPERTY()
+	FName Reaction;
 };
 
 /** Un turno dello scenario. */

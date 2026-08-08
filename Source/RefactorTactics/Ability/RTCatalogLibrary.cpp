@@ -204,7 +204,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetShippedActionCatalog()
 	// rapida del catalogo (§2). Senza lo stile dichiarato ricadrebbe sul pathfinding del movimento normale —
 	// aggirerebbe gli ostacoli e attraverserebbe il terreno che nega lo scatto (#142).
 	Catalog.Add(ShippedAction(TEXT("Ranger.Dash"),        ERTResolutionPhase::FastMovement, 30, 5, 2, ERTActionFallback::Stop,       {},
-		/*bInterruptible*/ true, ERTActionSlot::Main, ERTMovementStyle::LinearDash));
+		/*bInterruptible*/ true, ERTActionSlot::Movement, ERTMovementStyle::LinearDash));
 
 	// Guardian — mischia resistente.
 	Catalog.Add(ShippedAction(TEXT("Guardian.Sweep"),   ERTResolutionPhase::Attack,       55, 3, 0, ERTActionFallback::AttackCell, { { ERTActionEffect::Damage, 30 }, { ERTActionEffect::Push, 2 } }));
@@ -244,7 +244,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.Sprint"), ERTResolutionPhase::FastMovement, /*Priority*/ 60,
 		/*Range (MP)*/ 8, /*Cooldown*/ 0, ERTActionFallback::Stop,
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Exposed, /*Turni*/ 1) },
-		/*bInterruptible*/ true, ERTActionSlot::MovementAndMain, ERTMovementStyle::Budget));
+		/*bInterruptible*/ true, ERTActionSlot::Movement, ERTMovementStyle::Budget));
 
 	// `Action.Wait` (catalogo v0.1 §1) — non fa nulla e risolve per ultima (priorita' 100). Serve gia' ora
 	// perche' e' cio' in cui `Fallback.Wait` trasforma un'azione: senza, il fallback dovrebbe inventarsi in
@@ -293,11 +293,11 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// nello stesso turno (ADR-0003 §3). Tutte con `Fallback.Stop`: se la traiettoria si chiude ci si ferma
 	// nell'ultima cella valida, non si annulla e non si aggira.
 
-	// `Dash` — 3 celle su una delle sei direzioni. Non consuma il percorso Move: scatto e movimento normale
-	// convivono nello stesso turno (e' lo slot Principale a essere speso, non quello di movimento).
+	// `Dash` — 3 celle su una delle sei direzioni. Occupa lo slot MOVIMENTO (D-028): chi scatta si e' mosso per
+	// questo turno e non prosegue col Move, ma l'azione principale gli resta — *schivo e sparo*.
 	Catalog.Add(ShippedAction(TEXT("Action.Dash"), ERTResolutionPhase::FastMovement, /*Priority*/ 30,
 		/*Range*/ 3, /*Cooldown*/ 1, ERTActionFallback::Stop, {},
-		/*bInterruptible*/ true, ERTActionSlot::Main, ERTMovementStyle::LinearDash));
+		/*bInterruptible*/ true, ERTActionSlot::Movement, ERTMovementStyle::LinearDash));
 
 	// `Charge` — 3 celle, si ferma ADDOSSO al primo nemico e lo colpisce: 20 danni piu' una spinta di 1.
 	// Gli effetti sono dichiarati qui, ma si applicano nel Blast (codice 20/30 del catalogo): il movimento e'
@@ -306,18 +306,21 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 20), FRTActionEffectSpec(ERTActionEffect::Push, 1) },
 		/*bInterruptible*/ true, ERTActionSlot::Main, ERTMovementStyle::LinearCharge));
+	// L'UNICA mobilita' lineare che resta sulla principale, e la ragione e' nei suoi Effects: fa danno, quindi
+	// e' un attacco che ti porta addosso al bersaglio, non mobilita' generica (D-028). Chi carica conserva il
+	// movimento e si sposta DOPO il Blast - l'economia opposta allo scatto, non la stessa a prezzo diverso.
 
 	// `Leap` — 3 celle scavalcando cio' che sta in mezzo (unita', coperture basse). La cella d'atterraggio
 	// invece la si subisce: dev'essere percorribile e libera.
 	Catalog.Add(ShippedAction(TEXT("Action.Leap"), ERTResolutionPhase::FastMovement, /*Priority*/ 25,
 		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop, {},
-		/*bInterruptible*/ true, ERTActionSlot::Main, ERTMovementStyle::LinearLeap));
+		/*bInterruptible*/ true, ERTActionSlot::Movement, ERTMovementStyle::LinearLeap));
 
 	// `Reposition` — due celle e nient'altro: nessuno stato, nessuna traversata. E' lo scatto "tattico" che si
 	// paga poco, e la differenza con `Sprint` sta tutta nei dati (2 celle in linea contro 8 MP piu' Exposed).
 	Catalog.Add(ShippedAction(TEXT("Action.Reposition"), ERTResolutionPhase::FastMovement, /*Priority*/ 40,
 		/*Range*/ 2, /*Cooldown*/ 1, ERTActionFallback::Stop, {},
-		/*bInterruptible*/ true, ERTActionSlot::Main, ERTMovementStyle::LinearDash));
+		/*bInterruptible*/ true, ERTActionSlot::Movement, ERTMovementStyle::LinearDash));
 
 	// --- Azioni OFFENSIVE (catalogo §3) ----------------------------------------------------------------
 	// Tutte nel Blast tranne la soppressione, che si PREPARA. La priorita' e' cio' che le distingue davvero:
@@ -356,16 +359,13 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// del CENTRO, il raggio dell'area sta nell'intento (`FRTHexAttackIntent::AreaRadius`): sono due numeri
 	// diversi e confonderli farebbe esplodere l'area a quattro celle di distanza.
 	//
-	// **Friendly fire attivo**: e' l'unica azione della v0.1 che colpisce anche i propri, e lo dichiara nei
-	// DATI (`bFriendlyFire`). Non e' una dimenticanza del filtro di squadra, e non e' una decisione di chi
-	// costruisce l'intento: chi assegnera' l'area a un eroe (E6) la copia da qui e basta.
-	{
-		FRTActionDef Area = ShippedAction(TEXT("Action.CircularAoE"), ERTResolutionPhase::Attack, /*Priority*/ 65,
-			/*Range (centro)*/ 4, /*Cooldown*/ 2, ERTActionFallback::AttackCell,
-			{ FRTActionEffectSpec(ERTActionEffect::Damage, 18) });
-		Area.bFriendlyFire = true;
-		Catalog.Add(Area);
-	}
+	// **Friendly fire**: non serve piu' dichiararlo qui. Dal 2026-08-08 `bFriendlyFire` e' vero di DEFAULT
+	// (vedi `FRTActionDef`), perche' la riga esplicita qui sotto non raggiungeva il roster: gli eroi si
+	// costruiscono con `MakeHeroAction`, che non aveva il parametro, e «la copia da qui e basta» non e'
+	// avvenuto — `Flux.Overload` aveva preso danno e raggio ma non il fuoco amico.
+	Catalog.Add(ShippedAction(TEXT("Action.CircularAoE"), ERTResolutionPhase::Attack, /*Priority*/ 65,
+		/*Range (centro)*/ 4, /*Cooldown*/ 2, ERTActionFallback::AttackCell,
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 18) }));
 
 	// `SuppressiveLine` — si PREPARA (fase 10, quindi macro-fase Prep) e si attiva su un trigger: il primo
 	// nemico che entra in una cella controllata durante il Move prende 16 danni e si ferma li'. Una sola

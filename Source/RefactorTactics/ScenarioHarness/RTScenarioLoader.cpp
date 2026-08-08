@@ -1,6 +1,7 @@
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Ability/RTActionData.h"
 #include "Map/RTHexLibrary.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -180,7 +181,21 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 					if (IntentObj->TryGetStringField(TEXT("ability"), AbilityText) && !AbilityText.IsEmpty())
 					{
 						Intent.Ability = FName(*AbilityText);
-						if (!IntentObj->TryGetStringField(TEXT("target"), Intent.Target) || Intent.Target.IsEmpty())
+
+						// Bersaglio a CELLA: alternativa a `target`, per le aree che si centrano su una cella
+						// anche vuota. La coesistenza dei due la rifiuta `Validate`, non questo punto: qui si
+						// legge il file, li' si giudica se ha senso.
+						const TArray<TSharedPtr<FJsonValue>>* TargetCellArr = nullptr;
+						if (IntentObj->TryGetArrayField(TEXT("targetCell"), TargetCellArr) && TargetCellArr->Num() >= 2)
+						{
+							Intent.TargetCell = FRTCellId(
+								static_cast<int32>((*TargetCellArr)[0]->AsNumber()),
+								static_cast<int32>((*TargetCellArr)[1]->AsNumber()),
+								TargetCellArr->Num() >= 3 ? static_cast<int32>((*TargetCellArr)[2]->AsNumber()) : 0);
+							Intent.bTargetsCell = true;
+							IntentObj->TryGetStringField(TEXT("target"), Intent.Target); // solo per diagnosticare l'ambiguita'
+						}
+						else if (!IntentObj->TryGetStringField(TEXT("target"), Intent.Target) || Intent.Target.IsEmpty())
 						{
 							// Un'abilita' senza bersaglio non e' un'omissione innocua: lo scenario girerebbe
 							// senza attaccare nessuno e l'assertion sui danni fallirebbe per il motivo sbagliato.
@@ -189,6 +204,35 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 								*Intent.UnitId, *AbilityText);
 							return false;
 						}
+					}
+
+					FString DashText;
+					if (IntentObj->TryGetStringField(TEXT("dash"), DashText) && !DashText.IsEmpty())
+					{
+						Intent.Dash = FName(*DashText);
+
+						// La destinazione e' obbligatoria per lo stesso motivo per cui lo e' il bersaglio di
+						// un'abilita': senza, lo scatto non partirebbe e l'assertion cadrebbe su un fatto
+						// diverso da quello che lo scenario voleva verificare.
+						const TArray<TSharedPtr<FJsonValue>>* DashCellArr = nullptr;
+						if (!IntentObj->TryGetArrayField(TEXT("dashTo"), DashCellArr) || DashCellArr->Num() < 2)
+						{
+							OutError = FString::Printf(
+								TEXT("intent di '%s': la mobilita' '%s' non dichiara una destinazione (campo dashTo)"),
+								*Intent.UnitId, *DashText);
+							return false;
+						}
+						Intent.DashCell = FRTCellId(
+							static_cast<int32>((*DashCellArr)[0]->AsNumber()),
+							static_cast<int32>((*DashCellArr)[1]->AsNumber()),
+							DashCellArr->Num() >= 3 ? static_cast<int32>((*DashCellArr)[2]->AsNumber()) : 0);
+					}
+
+					FString ReactionText;
+					if (IntentObj->TryGetStringField(TEXT("reaction"), ReactionText) && !ReactionText.IsEmpty())
+					{
+						// Nessun bersaglio da pretendere qui: una reazione non lo dichiara, lo riceve dal trigger.
+						Intent.Reaction = FName(*ReactionText);
 					}
 
 					const TArray<TSharedPtr<FJsonValue>>* MoveArr = nullptr;
@@ -382,6 +426,22 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 			}
 			if (!Intent.Ability.IsNone())
 			{
+				// Bersaglio doppio: `ERROR`, non una scelta fra i due. Sceglierne uno al posto di chi ha
+				// scritto lo scenario produrrebbe un test verde su una premessa sbagliata — e quello nessuno
+				// va a riaprirlo.
+				if (Intent.bTargetsCell && !Intent.Target.IsEmpty())
+				{
+					OutError = FString::Printf(
+						TEXT("intent di '%s': dichiara sia il bersaglio '%s' sia una cella (target e targetCell insieme)"),
+						*Intent.UnitId, *Intent.Target);
+					return false;
+				}
+				if (Intent.bTargetsCell)
+				{
+					// Una cella bersaglio segue le stesse regole di ogni altra cella dello scenario: fuori
+					// dall'arena e' un errore di scrittura, non un tiro che manca.
+					continue;
+				}
 				if (!SeenIds.Contains(Intent.Target))
 				{
 					OutError = FString::Printf(TEXT("intent di '%s': bersaglio '%s' non schierato"),
@@ -393,6 +453,45 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 					// Nessuna abilita' del roster v0.1 bersaglia se stessa: se un giorno esistesse, questo
 					// controllo va rilassato di PROPOSITO, non lasciato cadere per distrazione.
 					OutError = FString::Printf(TEXT("intent di '%s': l'unita' bersaglia se stessa"), *Intent.UnitId);
+					return false;
+				}
+			}
+
+			// La reazione si valida QUI e non a runtime perche' il suo modo di fallire e' silenzioso: armare
+			// una reazione inesistente non produce nessun effetto e nessun errore, e chi legge vedrebbe solo
+			// un'assertion sui danni che non torna, senza un indizio su dove guardare.
+			if (!Intent.Reaction.IsNone())
+			{
+				FName HeroId;
+				for (const FRTScenarioUnit& U : Scenario.Units)
+				{
+					if (U.Id == Intent.UnitId) { HeroId = U.HeroId; break; }
+				}
+
+				const URTActionData* Armed = nullptr;
+				for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+				{
+					if (Hero == nullptr || Hero->HeroId != HeroId) { continue; }
+					for (const URTActionData* Action : Hero->Actions)
+					{
+						if (Action && Action->Def.ActionId == Intent.Reaction) { Armed = Action; break; }
+					}
+					break;
+				}
+
+				if (Armed == nullptr)
+				{
+					OutError = FString::Printf(TEXT("intent di '%s' (%s): non possiede la reazione '%s'"),
+						*Intent.UnitId, *HeroId.ToString(), *Intent.Reaction.ToString());
+					return false;
+				}
+				if (Armed->Def.Slot != ERTActionSlot::Reaction)
+				{
+					// Un'azione normale armata come reazione non scatta mai: resterebbe li' a non fare niente,
+					// e lo scenario descriverebbe una regola che non ha mai messo alla prova.
+					OutError = FString::Printf(
+						TEXT("intent di '%s': '%s' non e' una reazione (non occupa lo slot Reaction)"),
+						*Intent.UnitId, *Intent.Reaction.ToString());
 					return false;
 				}
 			}

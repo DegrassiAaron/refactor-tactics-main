@@ -1,0 +1,29 @@
+{
+  "scenarioId": "Visual.Map.ClosedDoor",
+  "tags": ["animation", "map", "movement", "pathfinding", "riva"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "RelayBasin",
+
+  "_nota": "Anche la porta e' uno stato del BORDO (CP 9.3), non un ostacolo sulla cella. Riva sta a (0,1) e vuole (1,1), che le e' adiacente: il gate fra le due e' chiuso, quindi il percorso piu' corto non esiste e il pathfinding gira intorno passando da (0,0) e da (1,0), che e' Rough e costa 2. Riva arriva lo stesso — quattro punti movimento su cinque — ma per un'altra strada.",
+
+  "_nota_leggibilita": "L'esito e' un successo, e per questo e' insidioso: se la porta chiusa non si vede, il giro sembra un difetto del pathfinding. Il percorso deve raccontare da solo perche' e' cosi' lungo. E' anche il caso in cui la stessa porta toglie la linea di tiro oltre che il passo, dato che entrambe leggono `BlocksTraversal`.",
+
+  "units": [
+    { "id": "R1", "hero": "Hero.Riva",    "team": 0, "cell": [0, 1, 0] },
+    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [4, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "R1", "move": [[1, 1, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell",    "unit": "R1", "cell": [1, 1, 0] },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

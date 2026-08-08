@@ -1,6 +1,6 @@
 # RT — Catalogo azioni v0.1
 
-> **Fonte**: `docs/src/RefactorTactics — Catalogo e bilanciamento v0.1.pdf` §§1–3, §12 · `docs/archive/pdr-v0.1/RT_PDR_12_Catalog_v0.1.pdf`
+> **Fonte**: `docs/src/prd/catalogo-e-bilanciamento-v0.1.pdf` §§1–3, §12 · `docs/archive/pdr-v0.1/RT_PDR_12_Catalog_v0.1.pdf`
 > **Decisione abilitante**: [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md) · **Checkpoint**: CP 1.2 (issue `#28`)
 > **Stato**: catalogo di riferimento per la release v0.1. Questi sono i **numeri vigenti**; le *decisioni* stanno
 > nel canone ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md)), lo *stato di avanzamento* nella
@@ -48,9 +48,11 @@ di movimento qui sotto dichiara esplicitamente quale delle due. Motivazione in [
 > Stessi due slot, ordine diverso: ci si muove **prima** dei colpi per schivare, o **dopo** per ripararsi.
 > Nessuna delle due domina l'altra, ed è il motivo per cui lo scatto **non** occupa la principale.
 >
-> ⏳ **Nel codice la migrazione non è avvenuta**: `Action.Dash` è ancora `Principale` e `ValidateActionSlots`
-> non è chiamata in partita. Finché resta così questa tabella descrive la regola **decisa**, non ciò che la
-> partita impedisce — [`../DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md) riga 43.
+> ✅ **Migrato nel codice il 2026-08-08.** A far valere la regola è il **resolver**: dopo uno scatto la
+> destinazione pianificata *diventa* la cella d'arrivo, quindi il movimento è speso comunque sia stato
+> pianificato — non un controllo che il bot potrebbe aggirare (invariante #1). Vale anche per le mobilità
+> d'eroe: `Riva.FluidTrail` è passata a **Movimento**, e l'invariante `Heroes.MobilityWithoutDamageIsNotMain`
+> impedisce che la prossima nasca sulla principale, dove `MakeHeroAction` la metterebbe per default.
 | Reazione | 1 | `Counter`, `Intercept`, `Deflect` |
 | Comunicazione | — | Ping, label |
 
@@ -180,19 +182,21 @@ fretta è ciò che permette di sparare da un'altra parte nello stesso turno.
 | ActionId | Azione | Slot | Macro-fase | Cod. | Prio | Distanza | CD | Fallback | Interr. |
 |---|---|---|---|---:|---:|---|---:|---|---|
 | `Action.Sprint` *(vedi §2.1)* | Scatto lungo | Movimento + Principale ⚠️ | **Dash** ⚠️ | 20 | 60 | 8 MP | 0 | `Fallback.Stop` | sì |
-| `Action.Dash` | Scatto | **Movimento** ⏳ | **Dash** | 20 | 30 | 3 celle | 1 | `Fallback.Stop` | sì |
+| `Action.Dash` | Scatto | **Movimento** | **Dash** | 20 | 30 | 3 celle | 1 | `Fallback.Stop` | sì |
 | `Action.Charge` | Carica | Principale | **Dash** | 20/30 | 35 | 3 celle | 2 | `Fallback.Stop` | sì |
-| `Action.Leap` | Balzo | **Movimento** ⏳ | **Dash** | 20 | 25 | 3 celle | 2 | `Fallback.Stop` | sì |
-| `Action.Reposition` | Riposizionamento | **Movimento** ⏳ | **Dash** | 20 | 40 | 2 celle | 1 | `Fallback.Stop` | sì |
+| `Action.Leap` | Balzo | **Movimento** | **Dash** | 20 | 25 | 3 celle | 2 | `Fallback.Stop` | sì |
+| `Action.Reposition` | Riposizionamento | **Movimento** | **Dash** | 20 | 40 | 2 celle | 1 | `Fallback.Stop` | sì |
 
 **Sprint** — fornisce 8 MP · occupa il **solo slot movimento** ([D-028](../decisions/RT_PDR_00_Decision_Log.md),
 coerente con D-015) · non permette di preparare una reazione · applica `Status.Exposed` fino al Cleanup
 (**+5** al primo danno diretto ricevuto).
 
 > ⚠️ **Il prezzo dello Sprint ora regge tutto sui dati.** Finché consumava anche l'azione principale il costo
-> era strutturale; adesso è `Exposed` più la rinuncia alla reazione. Se non basta, `Sprint` diventa un `Move`
-> più lungo e basta — cioè l'**upgrade puro** che D-015 vieta. **Numero da guardare al primo playtest**, non
-> da decidere a tavolino.
+> era strutturale; adesso è `Exposed` (+5 al primo danno diretto) più la rinuncia alla reazione, contro 3 MP
+> in più di un `Move`. Se non basta, `Sprint` è un `Move` più lungo e basta — l'**upgrade puro** che D-015
+> vieta. Tracciato in [`../roadmap/plans/showcase-v01-audit.md`](../roadmap/plans/showcase-v01-audit.md)
+> §`BAL-1`, che dice **come misurarlo** (quante volte il bot lo sceglie quando era disponibile) invece di
+> proporre un numero nuovo.
 
 **Dash** — movimento lineare lungo una delle **sei** direzioni · non consuma il percorso `Move` (quindi è
 compatibile con esso) · non attraversa muri o coperture alte · non può terminare in una cella occupata.

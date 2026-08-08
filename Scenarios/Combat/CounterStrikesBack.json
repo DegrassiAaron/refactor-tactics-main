@@ -1,0 +1,31 @@
+{
+  "scenarioId": "Combat.CounterStrikesBack",
+  "tags": ["combat", "reactions", "core", "animation", "flux", "bastion"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "Flux arma Flux.ReactiveCapacitor e incassa Bastion.ImpactShot (24). La reazione scatta sul trigger HitByDirectAttack e fa DUE cose: 10 danni a chi ha colpito e scudo 15 a se'. Bastion scende a 110 senza che nessun intent glielo abbia fatto fare — e' l'unico effetto del turno che nessuno ha chiesto, quindi l'unico che puo' venire solo dalla reazione. Lo scudo assorbe il colpo CHE L'HA INNESCATA, non i successivi: 24 meno 15 fa 9, Flux resta a 81 e lo scudo si consuma a 0. Non e' un dettaglio d'implementazione ma la ragione per cui le reazioni difensive esistono — Action.Deflect e' una DamageReduction, e se agisse solo sui colpi futuri non servirebbe a niente rispondere a chi ti ha appena sparato. Scritto qui perche' e' esattamente il punto su cui mi ero sbagliato: avevo previsto 66 dando per scontato che lo scudo arrivasse dopo, e il test ha corretto me, non il gioco.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Flux",    "team": 0, "cell": [0, 0, 0] },
+    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [2, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "requires": ["Reaction"],
+      "intents": [
+        { "unit": "A1", "reaction": "Flux.ReactiveCapacitor" },
+        { "unit": "B1", "ability": "Bastion.ImpactShot", "target": "A1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals", "unit": "A1", "value":  81 },
+    { "type": "UnitHpEquals", "unit": "B1", "value": 110 },
+    { "type": "UnitAlive", "unit": "A1", "value": true },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

@@ -42,6 +42,17 @@ namespace
 			TEXT("Cover"),             // E9 CP 9.1/9.2: coperture bassa e alta, distruzione
 			TEXT("Structures"),        // E9 CP 9.3: porte come bordo, revisione della mappa
 		};
+		// NON disponibile, e la riga che manca vale quanto quelle che ci sono:
+		//
+		//   `ReactionPlanning` — dichiarare una reazione IN PIANIFICAZIONE. `PlannedReactionAbility` esiste,
+		//   il resolver lo legge in due punti e l'HUD pure, ma in tutto il progetto lo SCRIVONO solo i test:
+		//   ne' il controller ne' il bot. Dare agli scenari uno slot `reaction` renderebbe l'harness il primo
+		//   produttore di quel campo — cioe' piu' CAPACE del gioco, e i suoi verdi direbbero che il giocatore
+		//   puo' preparare una parata quando non puo'. E' il rovescio esatto del caso `ValidateActionSlots`,
+		//   dove l'harness rischiava di essere piu' SEVERO del gioco. Entrambe le asimmetrie mentono.
+		//
+		// Il produttore nasce con le finestre di reazione (E14/S5-1). Fino ad allora un turno che chiede
+		// `ReactionPlanning` e' BLOCKED, che e' la verita' e costa una riga.
 		return Available.Contains(Capability);
 	}
 
@@ -259,6 +270,17 @@ void FRTScenarioSession::BeginTurn()
 			// nei turni successivi senza che lo scenario glielo chieda.
 			U->PlannedAbilityIndex = INDEX_NONE;
 			U->PlannedAttackTarget = nullptr;
+			U->bAttackTargetsCell = false;
+			// Lo SCATTO non si azzera qui, ed e' deliberato: `RTTurnManager` lo consuma a ogni risoluzione
+			// («consumato per questo turno, valido o no»), quindi un reset in questo punto sarebbe una seconda
+			// copia della stessa regola — quella che smette di essere aggiornata quando la prima cambia.
+			//
+			// Verificato per mutazione: azzerarlo qui non fa cadere alcun test, perche' non c'e' niente da
+			// azzerare. E' il modo in cui questa riga, scritta d'istinto insieme alle due sopra, e' stata tolta.
+			// E la reazione armata: il turn manager la consuma da solo, ma solo se il trigger scatta. Senza
+			// questo azzeramento una reazione mai scattata resterebbe armata per tutto lo scenario, e un
+			// turno successivo la vedrebbe partire senza che nessun intent l'abbia chiesta.
+			U->PlannedReactionAbility = INDEX_NONE;
 		}
 	}
 
@@ -271,40 +293,125 @@ void FRTScenarioSession::BeginTurn()
 			continue;
 		}
 
+		// L'abilita' si cerca per ActionId: l'indice nel kit si sposta appena qualcuno ne aggiunge una, e uno
+		// scenario che punta a un indice continuerebbe a passare verificando l'abilita' sbagliata.
+		const auto FindAbilityIndex = [Unit](const FName& ActionId) -> int32
+		{
+			for (int32 I = 0; I < Unit->NumAbilities(); ++I)
+			{
+				const URTActionData* Ability = Unit->GetAbility(I);
+				if (Ability && Ability->Def.ActionId == ActionId) { return I; }
+			}
+			return INDEX_NONE;
+		};
+
+		// --- scatto (fase Dash, PRIMA del Blast) ------------------------------------------------------------
+		// Slot distinto dall'abilita' perche' dopo D-028 lo sono davvero: lo scatto prende il movimento, non la
+		// principale. Un intent puo' dichiarare entrambi, ed e' *schivo e sparo*.
+		if (!Intent.Dash.IsNone())
+		{
+			const int32 DashIndex = FindAbilityIndex(Intent.Dash);
+			if (DashIndex == INDEX_NONE)
+			{
+				ErroredBy = FString::Printf(TEXT("'%s' non possiede la mobilita' '%s' (turno %d)"),
+					*Intent.UnitId, *Intent.Dash.ToString(), TurnIndex + 1);
+				UE_LOG(LogRT, Error, TEXT("[RT-Test] %s: %s"), *Scenario.ScenarioId, *ErroredBy);
+			}
+			else
+			{
+				// Si scrive il PIANO, non l'esito: traiettoria, ostacoli e chi viene attraversato li decide il
+				// resolver in fase Dash. Anticiparli qui significherebbe verificare le regole della sessione
+				// invece di quelle del gioco.
+				Unit->PlannedDashAbility = DashIndex;
+				Unit->PlannedDashCell = Intent.DashCell;
+			}
+		}
+
 		// --- abilita' -------------------------------------------------------------------------------------
 		// Stessa strada del controller: si scrivono `PlannedAbilityIndex` e `PlannedAttackTarget`, esattamente
 		// come dopo un click sul nemico. Portata, LOS, cooldown ed energia li valuta il turn manager al momento
 		// della risoluzione — la sessione non li anticipa, altrimenti verificherebbe le proprie regole invece
 		// di quelle del gioco.
-		if (!Intent.Ability.IsNone())
+		// Bersaglio a UNITA': il caso a cella e' il ramo dopo. La condizione porta `!bTargetsCell` perche'
+		// altrimenti un intent a cella entrerebbe QUI, non troverebbe l'unita' (`Target` e' vuoto per
+		// costruzione) e finirebbe nel ramo del bersaglio abbattuto: una nota al posto di un attacco.
+		if (!Intent.Ability.IsNone() && !Intent.bTargetsCell)
 		{
 			TWeakObjectPtr<ARTUnit>* FoundTarget = UnitsById.Find(Intent.Target);
 			ARTUnit* Target = FoundTarget ? FoundTarget->Get() : nullptr;
 
-			// L'abilita' si cerca per ActionId: l'indice nel kit si sposta appena qualcuno ne aggiunge una.
-			int32 AbilityIndex = INDEX_NONE;
-			for (int32 I = 0; I < Unit->NumAbilities(); ++I)
-			{
-				const URTActionData* Ability = Unit->GetAbility(I);
-				if (Ability && Ability->Def.ActionId == Intent.Ability)
-				{
-					AbilityIndex = I;
-					break;
-				}
-			}
+			const int32 AbilityIndex = FindAbilityIndex(Intent.Ability);
 
 			if (AbilityIndex == INDEX_NONE)
 			{
-				// Un'abilita' che l'eroe non possiede e' un errore di scrittura dello scenario, non un esito di
-				// gioco: va detto forte, altrimenti l'assertion sui danni fallirebbe senza spiegare perche'.
-				UE_LOG(LogRT, Error, TEXT("[RT-Test] %s: '%s' non possiede l'abilita' '%s' (l'attacco non parte)"),
-					*Scenario.ScenarioId, *Intent.UnitId, *Intent.Ability.ToString());
+				// Un'abilita' che l'eroe non possiede e' un errore di SCRITTURA dello scenario, non un esito di
+				// gioco. Prima finiva in un log e l'attacco semplicemente non partiva: l'assertion sui danni
+				// cadeva e il report diceva FAIL, cioe' mandava a cercare una regressione che non esisteva.
+				//
+				// Il validator non puo' prenderlo al caricamento: `Riva.CircularTide` ESISTE nel catalogo, non
+				// e' nel kit di Flux — e il kit lo si conosce solo quando le unita' sono state costruite.
+				ErroredBy = FString::Printf(TEXT("'%s' non possiede l'abilita' '%s' (turno %d)"),
+					*Intent.UnitId, *Intent.Ability.ToString(), TurnIndex + 1);
+				UE_LOG(LogRT, Error, TEXT("[RT-Test] %s: %s"), *Scenario.ScenarioId, *ErroredBy);
 			}
-			else if (Target && Target->IsAlive())
+			else if (!Target || !Target->IsAlive())
+			{
+				// Non e' un errore: e' una partita andata cosi'. Ma tacerlo lascia senza spiegazione l'assertion
+				// che cadra' subito dopo — «perche' non ha attaccato?» e' la domanda che il report deve evitare
+				// di far nascere.
+				//
+				// `!Target` copre il caso REALE, e non era ovvio: `DestroyDefeatedUnits` rimuove le unita'
+				// abbattute a fine turno, quindi un morto non si osserva come `IsAlive() == false` ma come weak
+				// pointer NULLO. Il controllo su `IsAlive()` da solo non scattava mai. L'id, invece, e' garantito
+				// dichiarato: il loader rifiuta un intent che nomini un'unita' inesistente, quindi qui un
+				// puntatore nullo significa «c'era e non c'e' piu'», non «non e' mai esistita».
+				Notes.Add(FString::Printf(TEXT("turno %d: '%s' bersagliava '%s', gia' abbattuto: l'azione non parte"),
+					TurnIndex + 1, *Intent.UnitId, *Intent.Target));
+			}
+			else
 			{
 				Unit->PlannedAbilityIndex = AbilityIndex;
 				Unit->PlannedAttackTarget = Target;
 			}
+		}
+		else if (!Intent.Ability.IsNone() && Intent.bTargetsCell)
+		{
+			// Bersaglio a CELLA: nessun controllo sull'esistenza di un'unita' li' sopra, ed e' il punto —
+			// un'area si centra dove si vuole, anche su un varco vuoto. Che poi colpisca qualcuno lo decide
+			// il raggio, in fase Blast.
+			const int32 AbilityIndex = FindAbilityIndex(Intent.Ability);
+			if (AbilityIndex == INDEX_NONE)
+			{
+				ErroredBy = FString::Printf(TEXT("'%s' non possiede l'abilita' '%s' (turno %d)"),
+					*Intent.UnitId, *Intent.Ability.ToString(), TurnIndex + 1);
+				UE_LOG(LogRT, Error, TEXT("[RT-Test] %s: %s"), *Scenario.ScenarioId, *ErroredBy);
+			}
+			else
+			{
+				Unit->PlannedAbilityIndex = AbilityIndex;
+				Unit->PlannedAttackTarget = nullptr;
+				Unit->PlannedAttackCell = Intent.TargetCell;
+				Unit->bAttackTargetsCell = true;
+			}
+		}
+
+		// --- reazione -------------------------------------------------------------------------------------
+		// Slot diverso dall'abilita': la stessa unita' puo' attaccare E tenere armata una reazione nello
+		// stesso turno. Nessun bersaglio da impostare — chi subira' la reazione lo decide il trigger durante
+		// la risoluzione, non lo scenario.
+		if (!Intent.Reaction.IsNone())
+		{
+			for (int32 I = 0; I < Unit->NumAbilities(); ++I)
+			{
+				const URTActionData* Action = Unit->GetAbility(I);
+				if (Action && Action->Def.ActionId == Intent.Reaction)
+				{
+					Unit->PlannedReactionAbility = I;
+					break;
+				}
+			}
+			// Nessun ramo d'errore: che l'eroe possieda la reazione e che sia davvero una reazione lo ha gia'
+			// verificato il loader, che rifiuta lo scenario con un motivo invece di lasciarlo girare a vuoto.
 		}
 
 		if (Intent.Move.Num() == 0)
@@ -332,9 +439,19 @@ void FRTScenarioSession::BeginTurn()
 		}
 		else
 		{
+			Notes.Add(FString::Printf(TEXT("turno %d: percorso rifiutato per '%s': l'unita' resta ferma"),
+				TurnIndex + 1, *Intent.UnitId));
 			UE_LOG(LogRT, Warning, TEXT("[RT-Test] %s: percorso rifiutato per '%s' (l'unita' resta ferma)"),
 				*Scenario.ScenarioId, *Intent.UnitId);
 		}
+	}
+
+	// Uno scenario scritto male non si gioca: fermarsi qui evita di produrre uno stato che nessuna assertion
+	// puo' interpretare, e soprattutto evita di riportarlo come se fosse un verdetto sul gioco.
+	if (!ErroredBy.IsEmpty())
+	{
+		Finish();
+		return;
 	}
 
 	TM->LockInAndResolve();
@@ -426,6 +543,10 @@ void FRTScenarioSession::Finish()
 			// nei turni successivi senza che lo scenario glielo chieda.
 			U->PlannedAbilityIndex = INDEX_NONE;
 			U->PlannedAttackTarget = nullptr;
+			// E la reazione armata: il turn manager la consuma da solo, ma solo se il trigger scatta. Senza
+			// questo azzeramento una reazione mai scattata resterebbe armata per tutto lo scenario, e un
+			// turno successivo la vedrebbe partire senza che nessun intent l'abbia chiesta.
+			U->PlannedReactionAbility = INDEX_NONE;
 		}
 	}
 
@@ -542,10 +663,23 @@ void FRTScenarioSession::Finish()
 		Result.Assertions.Add(A);
 	}
 
-	// Precedenza: un FAIL vero batte il BLOCKED. Un'assertion caduta PRIMA del punto di blocco riguarda
-	// codice che esiste ed e' rotto — nasconderla dietro "non e' ancora pronto" sarebbe il modo piu'
-	// comodo di perdere una regressione.
-	if (Result.FailedCount() > 0)
+	Result.Notes = Notes;
+
+	// Precedenza: ERROR > FAIL > BLOCKED > PASS.
+	//
+	// L'ERROR viene per primo perche' e' l'unico che parla di CHI HA SBAGLIATO invece che di cosa e'
+	// successo: se lo scenario e' scritto male, ogni assertion che segue misura uno stato che non doveva
+	// esistere, e chiamarla FAIL manderebbe a cercare una regressione inesistente.
+	//
+	// Poi un FAIL vero batte il BLOCKED: un'assertion caduta PRIMA del punto di blocco riguarda codice che
+	// esiste ed e' rotto — nasconderla dietro "non e' ancora pronto" sarebbe il modo piu' comodo di perdere
+	// una regressione.
+	if (!ErroredBy.IsEmpty())
+	{
+		Result.Outcome = ERTTestOutcome::Error;
+		Result.ErrorMessage = ErroredBy;
+	}
+	else if (Result.FailedCount() > 0)
 	{
 		Result.Outcome = ERTTestOutcome::Fail;
 	}

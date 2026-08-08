@@ -72,9 +72,24 @@ Content/**/*.txt
 /Content/Paragon*/
 
 # ---- Eccezioni: questi vanno versionati ----
+# Un Blueprint e' CODICE, non un asset d'arte: BP_GameMode contiene il wiring delle classi e la
+# proprieta' `ScenarioToRun` con cui si lancia uno scenario al Play. Tenerlo fuori dal repo voleva dire
+# averlo su un disco solo — e il "git clean -fdx -e Content/FabAsset" consigliato qui sopra lo cancella.
+# Stesso criterio per la mappa di sviluppo e il suo data asset: sono il setup su cui girano le verifiche
+# PIE, non contenuto sostituibile. Cinque file, 62 KB in tutto (2026-08-08).
+#
+# Il criterio NON e' l'estensione ma il ruolo: se un .uasset e' logica o configurazione da cui dipende
+# una verifica, va versionato; se e' arte o contenuto rigenerabile, resta fuori. Attenzione pero': sono
+# binari, quindi un conflitto di merge su questi file NON e' risolvibile a mano — chi li tocca lo faccia
+# sapendo che l'ultimo che committa vince.
 !Content/**/Binaries/
 !Content/RT/Art/GlobalMaterials/M_Global_Tint.uasset
 !Content/RT/Maps/Dev/L_Prototype/L_Prototype.umap
+!Content/RT/Core/Framework/BP_GameMode.uasset
+!Content/RT/Characters/Shared/Materials/M_SelectionRing.uasset
+!Content/RT/Characters/Shared/Materials/M_TeamRing.uasset
+!Content/RT/Maps/Dev/L_DevSandbox/L_DevSandbox.umap
+!Content/RT/Maps/Dev/L_DevSandbox/Data/DA_HexMap_Sandbox.uasset
 
 # Scratch dello sviluppo assistito (subagent-driven-development): mai versionato
 .superpowers/

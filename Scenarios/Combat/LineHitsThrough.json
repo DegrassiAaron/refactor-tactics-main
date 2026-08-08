@@ -1,0 +1,30 @@
+{
+  "scenarioId": "Combat.LineHitsThrough",
+  "tags": ["combat", "shapes", "los", "animation", "flux", "bastion", "vektor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "Flux.LinearDischarge colpisce la TRAIETTORIA, non il bersaglio: chi sta in mezzo la incassa uguale. B2 e' piazzata fra A1 e B1 e non e' bersaglio di niente — se scende, la forma Line e' stata risolta davvero; se resta piena mentre B1 scende, il gioco sta trattando la linea come un colpo singolo. La cella dell'attaccante e' esclusa per costruzione (HexHitCells toglie From), e A1 lo verifica restando a 90.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Flux",    "team": 0, "cell": [-2, 0, 0] },
+    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [ 2, 0, 0] },
+    { "id": "B2", "hero": "Hero.Vektor",  "team": 1, "cell": [ 0, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "A1", "ability": "Flux.LinearDischarge", "target": "B1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals", "unit": "B1", "value":  96 },
+    { "type": "UnitHpEquals", "unit": "B2", "value":  76 },
+    { "type": "UnitHpEquals", "unit": "A1", "value":  90 },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

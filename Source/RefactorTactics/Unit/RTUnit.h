@@ -130,6 +130,27 @@ public:
 	TObjectPtr<ARTUnit> PlannedAttackTarget = nullptr;
 
 	/**
+	 * Cella bersagliata dall'azione principale, in alternativa a `PlannedAttackTarget`: le aree si centrano
+	 * su una CELLA, che puo' essere vuota (`Flux.Overload` su un varco, una cella conduttiva senza nessuno
+	 * sopra). Valida solo con `bAttackTargetsCell`.
+	 *
+	 * Chiude a meta' il limite dichiarato in `RTTurnManager` (CP 8.3): la pianificazione non aveva un
+	 * bersaglio-cella. Resta scoperto il lato HUD — puntare una cella col mouse e' E11.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Plan")
+	FRTCellId PlannedAttackCell;
+
+	/**
+	 * Vero se l'azione principale mira a `PlannedAttackCell` invece che a un'unita'.
+	 *
+	 * Serve un flag e non basta «target nullo»: nel resolver `TargetUnitId == INDEX_NONE` significa gia'
+	 * **bersaglio perso** (eliminato o mai valido), che degrada al fallback. Senza distinguerle, mirare a una
+	 * cella verrebbe letto come un errore di pianificazione.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Plan")
+	bool bAttackTargetsCell = false;
+
+	/**
 	 * Percorso composito pianificato (waypoint risolti in celle, From = Cell incluso).
 	 * Vuoto o < 2 celle = nessun movimento composito (si usa PlannedCell come destinazione singola).
 	 */

@@ -175,23 +175,9 @@ URTHeroData* URTHeroCatalogLibrary::MakeFlux()
 	// Indice 3 — Overload. AoE 18 danni, raggio 1 (riuso il raggio di `Action.CircularAoE`, non un numero
 	// nuovo), portata 3. "Interrupt sui dispositivi" non e' rappresentabile: non esistono dispositivi/gadget
 	// (E7). Solo il danno e' un effetto dichiarato.
-	URTActionData* Overload = MakeHeroAction(TEXT("Flux.Overload"), ERTResolutionPhase::Attack, /*Priority*/ 65,
+	Flux->Actions.Add(MakeHeroAction(TEXT("Flux.Overload"), ERTResolutionPhase::Attack, /*Priority*/ 65,
 		/*Range*/ 3, /*Cooldown*/ 3, ERTActionFallback::AttackCell,
-		{ FRTActionEffectSpec(ERTActionEffect::Damage, 18) }, ERTAbilityShape::Area, /*AreaRadius*/ 1);
-	// FUOCO AMICO: copiato da `Action.CircularAoE`, che lo dichiarava gia' e diceva in un commento «chi
-	// assegnera' l'area a un eroe (E6) la copia da qui e basta». Non era stato copiato, e il flag e' l'unico
-	// posto dove la differenza si vede: l'impianto funziona dal CP 8.2
-	// (`Intent.bFriendlyFire = Instance.Def.bFriendlyFire`), il resolver lo rispetta, ma con il dato a false
-	// nessuna area del roster poteva colpire un compagno.
-	//
-	// Si vedeva solo dall'ANTEPRIMA, che segnalava l'alleato in arancione mentre il colpo non gli avrebbe
-	// fatto niente: un avviso su un evento impossibile. Trovato il 2026-08-08 provando `PIE-PREVIEW-AREA`.
-	//
-	// Vale per `Overload` e NON per `Riva.CircularTide`: quella dichiara Heal per gli alleati, e finche'
-	// nessun resolver applica effetti diversi dentro la stessa area accenderla le farebbe fare DANNO ai
-	// propri invece di curarli. E' un limite dichiarato nell'header, non una dimenticanza.
-	Overload->Def.bFriendlyFire = true;
-	Flux->Actions.Add(Overload);
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 18) }, ERTAbilityShape::Area, /*AreaRadius*/ 1));
 	// La variante (vincolo v0.1: una sola abilita' fondamentale per eroe) sta su LinearDischarge, non qui:
 	// vedi sotto.
 
@@ -273,8 +259,11 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiva()
 	// (fase Dash, stile lineare — stessa famiglia di `Action.Dash`), la creazione di terreno no (nessun
 	// effetto di cella dinamica esiste: E8/E9). Nessun Effects dichiarato: il movimento non passa da li', e
 	// l'acqua lasciata dietro non ha un modello da consumare.
+	// Lo slot va dichiarato: `MakeHeroAction` mette `Main` di default, e per una mobilita' che non fa danno
+	// sarebbe quello sbagliato (D-028). Chi lascia la scia si e' mosso, ma puo' ancora agire.
 	URTActionData* FluidTrail = MakeHeroAction(TEXT("Riva.FluidTrail"), ERTResolutionPhase::FastMovement,
-		/*Priority*/ 30, /*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop, {});
+		/*Priority*/ 30, /*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop, {},
+		ERTAbilityShape::Single, /*AreaRadius*/ 0, ERTActionSlot::Movement);
 	// Lo stile va DICHIARATO, non lasciato al default: `ERTMovementStyle::None` non e' "non specificato", e'
 	// "non si muove", e la fase Dash lo instraderebbe sul pathfinding normale — cioe' una scia d'acqua che
 	// aggira gli ostacoli. Stessa provenienza di `Bastion.Ram`: lo stile viene dall'azione omologa (#142).
@@ -440,7 +429,11 @@ URTHeroData* URTHeroCatalogLibrary::MakeVektor()
 	Vektor->Actions.Add(MakeHeroAction(TEXT("Vektor.PassingBlade"), ERTResolutionPhase::FastMovement,
 		/*Priority*/ 30, /*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 20) }));
-	Vektor->Actions[2]->Def.MovementStyle = ERTMovementStyle::LinearDash;
+	// `LinearPass` e non `LinearDash`: fino al 2026-08-08 questo commento diceva «passa attraverso» e il
+	// codice si fermava sul primo nemico come uno scatto qualsiasi, quindi i 20 danni dichiarati sopra non
+	// avevano un momento in cui applicarsi. Lo stile e' un DATO proprio per questo (CP 4.5): la differenza
+	// fra fermarsi, fermarsi addosso, scavalcare e attraversare non e' un `if` sull'ActionId.
+	Vektor->Actions[2]->Def.MovementStyle = ERTMovementStyle::LinearPass;
 
 	// Indice 3 — Deflection (CP 6.7). REAZIONE cablata sulla semantica di `Action.Deflect`: -20 sul colpo
 	// diretto che l'ha innescata. La riduzione arriva dagli effetti del core (`ERTActionEffect::DamageReduction`,

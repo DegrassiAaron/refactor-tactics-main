@@ -1,0 +1,34 @@
+{
+  "scenarioId": "Visual.Combat.FallbackTargetMoved",
+  "tags": ["animation", "combat", "planning", "flux", "bastion"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "IL CONCETTO CENTRALE del gioco, in un turno solo: non stai ordinando una sequenza, stai dichiarando un piano che verra' RIVALIDATO. Flux dichiara `LinearDischarge` su Bastion, che sta a cinque celle esatte sulla sua riga. Ma la carica di Bastion risolve nel **Dash**, cioe' PRIMA del Blast: quando la scarica parte, il bersaglio non e' piu' sulla linea. Il fallback dichiarato dall'azione e' `AttackCell`, e il colpo va sulla cella dove Bastion NON e' piu'.",
+
+  "_nota_geometria": "Bastion carica Riva a (0,2), non un bersaglio sulla riga r=0: e' cio' che lo porta FUORI dalla linea di tiro invece che semplicemente piu' vicino. La traiettoria (2,0) -> (0,2) si ferma addosso a Riva, in (1,1).",
+
+  "_nota_aritmetica": "Bastion resta a 120 — illeso, perche' il colpo di Flux e' finito su una cella vuota. Riva scende a 75 (95 - 20 della carica). Se Bastion arrivasse a 96, il colpo lo ha seguito: la rivalidazione non e' avvenuta, e questo scenario e' rosso per la ragione giusta.",
+
+  "units": [
+    { "id": "F1", "hero": "Hero.Flux",    "team": 0, "cell": [-3, 0, 0] },
+    { "id": "R1", "hero": "Hero.Riva",    "team": 0, "cell": [ 0, 2, 0] },
+    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [ 2, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "F1", "ability": "Flux.LinearDischarge", "target": "B1" },
+        { "unit": "B1", "ability": "Bastion.Ram",          "target": "R1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals",  "unit": "B1", "value": 120 },
+    { "type": "UnitHpEquals",  "unit": "R1", "value": 75 },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}
