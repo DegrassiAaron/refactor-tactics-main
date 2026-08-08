@@ -58,6 +58,19 @@ FString URTTestReportWriter::ToJson(const FRTTestResult& Result, const FString& 
 		Root->SetStringField(TEXT("blockedReason"), Result.BlockedReason);
 	}
 
+	if (Result.Notes.Num() > 0)
+	{
+		// Ne' `error` ne' `blockedReason`: le note non dicono chi ha sbagliato, dicono cosa e' successo. Un
+		// intent che non e' partito perche' il bersaglio era gia' a terra spiega l'assertion che cade dopo —
+		// senza, resta un «non ha attaccato» senza motivo, e il motivo si cerca nel log del motore.
+		TArray<TSharedPtr<FJsonValue>> NoteValues;
+		for (const FString& Note : Result.Notes)
+		{
+			NoteValues.Add(MakeShared<FJsonValueString>(Note));
+		}
+		Root->SetArrayField(TEXT("notes"), NoteValues);
+	}
+
 	const TSharedRef<FJsonObject> Counts = MakeShared<FJsonObject>();
 	Counts->SetNumberField(TEXT("passed"), Result.PassedCount());
 	Counts->SetNumberField(TEXT("failed"), Result.FailedCount());

@@ -171,11 +171,20 @@ public:
 	 *   la lettura di uno scontro frontale fra due cariche opposte. Lo scambio fra mobilita' NON entrambe
 	 *   lineari resta consentito, come nella variante base.
 	 *
-	 * `Priorities`/`bLinearMovers` vuoti o piu' corti di `Paths` -> priorita' 0 (parita' con tutti) e non-lineare
-	 * per le unita' mancanti: con entrambi vuoti il risultato e' IDENTICO a `ResolveHexPaths(Paths)`.
+	 * `bPassThrough` marca chi ATTRAVERSA le unita' ferme lungo la traiettoria (`ERTMovementStyle::LinearPass`,
+	 * la lama di Vektor): per costoro un'unita' che resta su una cella INTERMEDIA non blocca il passo.
+	 *
+	 * Resta un vincolo sulla cella FINALE: si passa in mezzo a qualcuno, non ci si ferma dentro. E resta
+	 * invariata la contesa fra due unita' in MOVIMENTO verso la stessa cella — attraversare chi sta fermo e
+	 * incrociare chi si muove sono due problemi diversi, e qui e' risolto solo il primo.
+	 *
+	 * `Priorities`/`bLinearMovers`/`bPassThrough` vuoti o piu' corti di `Paths` -> priorita' 0 (parita' con
+	 * tutti), non-lineare e non-attraversante per le unita' mancanti: con tutti vuoti il risultato e'
+	 * IDENTICO a `ResolveHexPaths(Paths)`.
 	 */
 	static TArray<FRTHexMoveResult> ResolveHexPaths(const TArray<TArray<FRTCellId>>& Paths,
-		const TArray<int32>& Priorities, const TArray<bool>& bLinearMovers);
+		const TArray<int32>& Priorities, const TArray<bool>& bLinearMovers,
+		const TArray<bool>& bPassThrough = TArray<bool>());
 
 	/**
 	 * Voci di TurnLog dagli esiti del movimento simultaneo: una per unita', nell'ordine dell'input

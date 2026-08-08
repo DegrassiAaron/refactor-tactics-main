@@ -130,7 +130,18 @@ enum class ERTMovementStyle : uint8
 	/** Come `LinearDash`, ma si ferma SUL primo nemico incontrato e lo colpisce (`Charge`). */
 	LinearCharge,
 	/** Salto: ignora unita' e celle intermedie, conta solo dove si atterra (`Leap`). */
-	LinearLeap
+	LinearLeap,
+	/**
+	 * ATTRAVERSA le unita' sulla traiettoria e le colpisce, poi prosegue (`Vektor.PassingBlade`).
+	 *
+	 * La differenza con `LinearLeap` non e' il danno ma cosa si tocca: il salto **scavalca** e non incontra
+	 * nessuno, la lama passa **in mezzo** e applica a ognuno gli effetti dell'azione. Con `LinearCharge`
+	 * condivide il colpire, ma la carica si ferma sul primo bersaglio mentre questa tira dritto.
+	 *
+	 * Aggiunto IN CODA: i valori precedenti non cambiano numero, e gli asset che li hanno serializzati
+	 * continuano a rileggersi.
+	 */
+	LinearPass
 };
 
 /**

@@ -42,6 +42,16 @@ struct FRTLinearMoveResult
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
 	int32 ImpactUnitId = INDEX_NONE;
 
+	/**
+	 * Unita' ATTRAVERSATE lungo la traiettoria (`LinearPass`), nell'ordine in cui sono state incontrate.
+	 * Vuoto per ogni altro stile.
+	 *
+	 * Lista e non singolo id, a differenza di `ImpactUnitId`: la carica si ferma sul primo bersaglio, quindi
+	 * ne ha uno per definizione; la lama ne incontra quanti ne stanno sulla linea.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
+	TArray<int32> PassedThroughUnitIds;
+
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
 	ERTLinearStop Stop = ERTLinearStop::NotAligned;
 
@@ -71,7 +81,8 @@ public:
 	{
 		return Style == ERTMovementStyle::LinearDash
 			|| Style == ERTMovementStyle::LinearCharge
-			|| Style == ERTMovementStyle::LinearLeap;
+			|| Style == ERTMovementStyle::LinearLeap
+			|| Style == ERTMovementStyle::LinearPass;
 	}
 
 	/**

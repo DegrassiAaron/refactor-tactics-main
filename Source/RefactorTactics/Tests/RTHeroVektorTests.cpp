@@ -60,8 +60,12 @@ bool FRTVektorMatchesCatalogTest::RunTest(const FString&)
 
 	// PassingBlade ATTRAVERSA i nemici, la carica di Bastion si FERMA sul primo: la differenza e' un dato
 	// (`ERTMovementStyle`), non un `if` sull'ActionId. E' il motivo per cui quel campo esiste (CP 4.5).
-	TestTrue(TEXT("PassingBlade: passa attraverso (LinearDash)"),
-		PassingBlade->Def.MovementStyle == ERTMovementStyle::LinearDash);
+	//
+	// Fino al 2026-08-08 questa riga diceva «passa attraverso» e verificava `LinearDash`, che si ferma su cio'
+	// che incontra: la contraddizione era scritta dentro l'assertion, e il test la difendeva. `LinearPass`
+	// esiste per farla sparire (MOB-1).
+	TestTrue(TEXT("PassingBlade: passa attraverso (LinearPass)"),
+		PassingBlade->Def.MovementStyle == ERTMovementStyle::LinearPass);
 	const FRTActionDef ChargeDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge"));
 	TestTrue(TEXT("e non si ferma addosso come la carica"),
 		PassingBlade->Def.MovementStyle != ChargeDef.MovementStyle);

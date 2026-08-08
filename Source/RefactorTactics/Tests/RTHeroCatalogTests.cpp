@@ -221,4 +221,50 @@ bool FRTHeroValidateStructureTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// D-028 — una mobilita' che non fa danno NON puo' occupare l'azione principale.
+//
+// La discriminante non e' il nome dell'azione ma i suoi effetti: `Charge` sta sulla principale perche' e'
+// un attacco che ti porta addosso al bersaglio; uno scatto che non colpisce e' movimento e basta.
+//
+// Verificato sul ROSTER, non su un'azione costruita nel test: `MakeHeroAction` assegna `Main` per DEFAULT,
+// quindi ogni prossima mobilita' d'eroe nascera' sullo slot sbagliato se nessuno la dichiara. E' esattamente
+// il caso che questo test deve intercettare — non l'errore di oggi, quello di domani.
+// =====================================================================================================
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroMobilitySlotTest,
+	"RefactorTactics.Heroes.MobilityWithoutDamageIsNotMain",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroMobilitySlotTest::RunTest(const FString&)
+{
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+	if (!TestTrue(TEXT("il roster non e' vuoto"), Roster.Num() > 0)) { return false; }
+
+	int32 MobilityChecked = 0;
+	for (const URTHeroData* Hero : Roster)
+	{
+		if (!Hero) { continue; }
+		for (const URTActionData* Action : Hero->Actions)
+		{
+			if (!Action || Action->Def.ResolutionPhase != ERTResolutionPhase::FastMovement) { continue; }
+
+			bool bDealsDamage = false;
+			for (const FRTActionEffectSpec& Effect : Action->Def.Effects)
+			{
+				if (Effect.Effect == ERTActionEffect::Damage) { bDealsDamage = true; break; }
+			}
+			if (bDealsDamage) { continue; }   // e' una carica: la principale le spetta
+
+			++MobilityChecked;
+			TestEqual(
+				*FString::Printf(TEXT("%s e' mobilita' senza danno: slot movimento"), *Action->Def.ActionId.ToString()),
+				static_cast<int32>(Action->Def.Slot), static_cast<int32>(ERTActionSlot::Movement));
+		}
+	}
+
+	// Senza questa riga il test resterebbe verde anche se il roster perdesse OGNI mobilita': un ciclo che non
+	// itera non fallisce mai. E' la differenza fra "la regola vale" e "non ho guardato".
+	TestTrue(TEXT("almeno una mobilita' senza danno esiste nel roster"), MobilityChecked > 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
