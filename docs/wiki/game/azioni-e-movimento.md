@@ -48,7 +48,8 @@
 > Feature: `RT-FEAT-ACTION-GENERIC` · Release: `v0.1` · Roadmap: `E4.4, E4.6, E4.7`  
 > Stato: **IMPLEMENTING** · Gate: `3/8`  
 > Scenario: `Combat.BasicAttack`  
-> Sei azioni generiche su sette sono a catalogo e nel runtime: manca **Overwatch**, che arriva con E14.  
+> I pezzi che mancano li porta: `RT-FEAT-REACTION-OVERWATCH` · `RT-FEAT-OBJECTIVE-SYSTEM`  
+> Quattro azioni generiche su sette sono complete: `Wait`, `Move`, `BasicAttack`, `Guard`. `Brace` funziona ma come reazione; `Interact` è a catalogo **senza effetto**; `Overwatch` non esiste ancora.  
 > Verificato il `2026-08-08` su `2094b86`
 
 <!-- RT_FEATURE_STATUS:END RT-FEAT-ACTION-GENERIC -->

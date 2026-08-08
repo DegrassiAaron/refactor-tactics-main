@@ -46,6 +46,7 @@
       "dependencies": [
         "RT-FEAT-MAP-HEXGRAPH"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-sequenza-turno.md",
         "docs/gameplay/spec-anima-risoluzione.md"
@@ -108,6 +109,7 @@
         "RT-FEAT-CORE-TURN",
         "RT-FEAT-CORE-TURNLOG"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-anima-risoluzione.md"
       ],
@@ -167,6 +169,7 @@
       "dependencies": [
         "RT-FEAT-CORE-TURN"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/technical/spec-turnlog.md",
         "docs/technical/spec-turnlog-serialize.md"
@@ -228,6 +231,7 @@
         "RT-FEAT-CORE-TURN",
         "RT-FEAT-PERCEPTION-VISION"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/decisions/adr-0004-finestre-di-reazione.md"
       ],
@@ -282,6 +286,7 @@
       "dependencies": [
         "RT-FEAT-CORE-TURN"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-anima-risoluzione.md"
       ],
@@ -337,6 +342,7 @@
         "out_of_release_scope": ""
       },
       "dependencies": [],
+      "completed_by": [],
       "owner_specs": [
         "docs/decisions/adr-0002-griglia-esagonale.md",
         "docs/technical/spec-mappa-multilivello.md"
@@ -396,6 +402,7 @@
       "dependencies": [
         "RT-FEAT-MAP-HEXGRAPH"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/technical/spec-pathfinding.md",
         "docs/technical/spec-pathfinding-pf3-pf4.md"
@@ -457,6 +464,7 @@
       "dependencies": [
         "RT-FEAT-MAP-HEXGRAPH"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/technical/h6-4-hex-vision-spec.md"
       ],
@@ -520,6 +528,7 @@
         "RT-FEAT-MAP-HEXGRAPH",
         "RT-FEAT-MAP-COVER"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/decisions/adr-0005-orientamento.md"
       ],
@@ -576,6 +585,7 @@
         "RT-FEAT-MAP-HEXGRAPH",
         "RT-FEAT-MAP-LOS"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-copertura-cp91.md",
         "docs/gameplay/spec-copertura-alta-cp92.md"
@@ -635,6 +645,7 @@
       "dependencies": [
         "RT-FEAT-MAP-COVER"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-copertura-alta-cp92.md"
       ],
@@ -693,6 +704,7 @@
         "RT-FEAT-MAP-HEXGRAPH",
         "RT-FEAT-MAP-COVER"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-porte-cp93.md"
       ],
@@ -752,6 +764,7 @@
         "RT-FEAT-MAP-HEXGRAPH",
         "RT-FEAT-MAP-PATHFINDING"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-ponti-cp94.md",
         "docs/technical/spec-mappa-multilivello.md"
@@ -815,6 +828,7 @@
       "dependencies": [
         "RT-FEAT-MAP-HEXGRAPH"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/product/piano-canonico-mvp.md"
       ],
@@ -873,6 +887,7 @@
         "RT-FEAT-CORE-TURN",
         "RT-FEAT-DATA-ASSET-PIPELINE"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-motore-azioni-e4.md",
         "docs/decisions/adr-0003-modello-azioni-v01.md"
@@ -942,6 +957,10 @@
       "dependencies": [
         "RT-FEAT-ACTION-ENGINE"
       ],
+      "completed_by": [
+        "RT-FEAT-REACTION-OVERWATCH",
+        "RT-FEAT-OBJECTIVE-SYSTEM"
+      ],
       "owner_specs": [
         "docs/gameplay/brief-azioni-generiche-overwatch.md",
         "docs/balance/RT_ActionCatalog_v0.1.md"
@@ -968,12 +987,12 @@
       "wiki_refs": [
         "docs/wiki/game/azioni-e-movimento.md"
       ],
-      "wiki_note": "Sei azioni generiche su sette sono a catalogo e nel runtime: manca **Overwatch**, che arriva con E14.",
+      "wiki_note": "Quattro azioni generiche su sette sono complete: `Wait`, `Move`, `BasicAttack`, `Guard`. `Brace` funziona ma come reazione; `Interact` è a catalogo **senza effetto**; `Overwatch` non esiste ancora.",
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "Sei delle sette azioni generiche di D-025 esistono a catalogo e nel runtime (`Action.Wait`, `Move`, `BasicAttack`, `Guard`, `Brace`, `Interact`). La settima, **Overwatch, non esiste**: `grep -rn \"Overwatch\" Source/` fuori dai test non restituisce nulla. Per questo `runtime` è `partial` e non `done`: la porta RT-FEAT-REACTION-OVERWATCH."
+      "notes": "Delle sette azioni generiche di D-025, **quattro sono complete e testate** (`Wait`, `Move`, `BasicAttack`, `Guard`). Le altre tre non sono nello stesso stato, e la revisione di granularità del 2026-08-08 ha corretto una nota che diceva «sei su sette esistono a catalogo e nel runtime» — vera per il catalogo, falsa per il runtime:\n\n  · `Brace`   esiste, ma i suoi test vivono sotto `Reactions.Brace.*`: è a catalogo come\n              azione e si comporta come reazione. Ambiguità di modello, non di stato.\n  · `Interact` è **a catalogo senza effetto dichiarato e senza un solo test**\n              (`RTCatalogLibrary.cpp:281`: «nessun effetto dichiarato»). È un dato che\n              nessuno consuma — il difetto che questo progetto ha già pagato quattro volte.\n              Lo porta E10.1 insieme ad `Activate`; aperta la issue `#273` perche'\n              la scelta (togliere dal catalogo, fissare l'inerzia con un test, o\n              attendere E10.1) e' di design, non una correzione di iniziativa.\n  · `Overwatch` **non esiste**: `grep -rn \"Overwatch\" Source/` fuori dai test non\n              restituisce nulla. Lo porta E14.4.\n\nI gate restano `partial` perché la feature davvero non è completa; `completed_by` dice **chi** la completa, così la stessa mancanza non viene contata due volte."
     },
     {
       "feature_id": "RT-FEAT-ACTION-MOVE-PROFILES",
@@ -1010,6 +1029,7 @@
         "RT-FEAT-ACTION-ENGINE",
         "RT-FEAT-MAP-PATHFINDING"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-dash.md"
       ],
@@ -1075,6 +1095,7 @@
         "RT-FEAT-ACTION-ENGINE",
         "RT-FEAT-MAP-PATHFINDING"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-dash.md"
       ],
@@ -1139,6 +1160,7 @@
       "dependencies": [
         "RT-FEAT-ACTION-ENGINE"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/balance/RT_ActionCatalog_v0.1.md"
       ],
@@ -1192,6 +1214,7 @@
       "dependencies": [
         "RT-FEAT-ACTION-COOLDOWNS"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/balance/RT_HeroCatalog_v0.1.md"
       ],
@@ -1242,6 +1265,7 @@
       "dependencies": [
         "RT-FEAT-CORE-DECISION-BOUNDARY"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/brief-delayed-actions.md"
       ],
@@ -1292,6 +1316,7 @@
         "RT-FEAT-ACTION-ENGINE",
         "RT-FEAT-CHAR-V01-ROSTER"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/decisions/RT_PDR_00_Decision_Log.md"
       ],
@@ -1347,6 +1372,7 @@
       "dependencies": [
         "RT-FEAT-ACTION-PREDICTIVE"
       ],
+      "completed_by": [],
       "owner_specs": [],
       "issues": [],
       "tests": [],
@@ -1397,6 +1423,7 @@
         "RT-FEAT-DATA-ASSET-PIPELINE",
         "RT-FEAT-CHAR-V01-ROSTER"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/balance/RT_EquipmentCatalog_v0.1.md"
       ],
@@ -1457,6 +1484,7 @@
       "dependencies": [
         "RT-FEAT-ACTION-ENGINE"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-reazioni-componibili-cp55.md",
         "docs/gameplay/brief-overwatch-reazioni.md"
@@ -1526,6 +1554,7 @@
         "RT-FEAT-REACTION-PREPARED",
         "RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/decisions/adr-0004-finestre-di-reazione.md"
       ],
@@ -1579,6 +1608,7 @@
       "dependencies": [
         "RT-FEAT-REACTION-OPPORTUNITY"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/decisions/adr-0004-finestre-di-reazione.md"
       ],
@@ -1634,6 +1664,7 @@
         "RT-FEAT-MAP-FACING",
         "RT-FEAT-MAP-LOS"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/brief-overwatch-reazioni.md",
         "docs/gameplay/brief-azioni-generiche-overwatch.md"
@@ -1692,6 +1723,7 @@
       "dependencies": [
         "RT-FEAT-REACTION-FAST"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/brief-overwatch-reazioni.md"
       ],
@@ -1745,6 +1777,7 @@
         "RT-FEAT-MAP-HEXGRAPH",
         "RT-FEAT-DATA-ASSET-PIPELINE"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-terreni-e8.md",
         "docs/balance/RT_TerrainCatalog_v0.1.md"
@@ -1805,6 +1838,7 @@
       "dependencies": [
         "RT-FEAT-ENV-TERRAIN"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-stati-temporanei-cp82.md"
       ],
@@ -1864,6 +1898,7 @@
         "RT-FEAT-ENV-TERRAIN",
         "RT-FEAT-ENV-STATUS"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-fuoco-acqua-cp84.md"
       ],
@@ -1925,6 +1960,7 @@
       "dependencies": [
         "RT-FEAT-ENV-WATER"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-propagazione-elettrica-cp83.md"
       ],
@@ -1987,6 +2023,7 @@
         "RT-FEAT-ENV-TERRAIN",
         "RT-FEAT-ENV-STATUS"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-fuoco-acqua-cp84.md"
       ],
@@ -2048,6 +2085,7 @@
         "RT-FEAT-ENV-TERRAIN",
         "RT-FEAT-MAP-LOS"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-terreni-e8.md"
       ],
@@ -2105,6 +2143,7 @@
       "dependencies": [
         "RT-FEAT-ENV-TERRAIN"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-terreni-e8.md"
       ],
@@ -2159,6 +2198,7 @@
       "dependencies": [
         "RT-FEAT-ENV-ICE"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/brief-ghiaccio.md"
       ],
@@ -2209,6 +2249,7 @@
         "RT-FEAT-ENV-ELECTRIC",
         "RT-FEAT-ENV-FIRE"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-ownership-abilita-interazioni-sinergie.md",
         "docs/decisions/adr-0006-ownership-abilita-sinergie.md"
@@ -2272,6 +2313,7 @@
         "RT-FEAT-MAP-LOS",
         "RT-FEAT-MAP-FACING"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/brief-conoscenza-parziale.md"
       ],
@@ -2327,6 +2369,7 @@
         "RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE",
         "RT-FEAT-MAP-FACING"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/brief-conoscenza-parziale.md"
       ],
@@ -2381,6 +2424,7 @@
         "RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE",
         "RT-FEAT-MAP-HEXGRAPH"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/brief-conoscenza-parziale.md"
       ],
@@ -2435,6 +2479,7 @@
       "dependencies": [
         "RT-FEAT-PERCEPTION-VISION"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/brief-conoscenza-parziale.md"
       ],
@@ -2485,6 +2530,7 @@
         "out_of_release_scope": ""
       },
       "dependencies": [],
+      "completed_by": [],
       "owner_specs": [
         "docs/technical/progettazione-hud.md"
       ],
@@ -2538,6 +2584,7 @@
         "RT-FEAT-MAP-PATHFINDING",
         "RT-FEAT-CORE-TURN"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/technical/progettazione-hud.md",
         "docs/technical/spec-hover-cella.md"
@@ -2599,6 +2646,7 @@
         "RT-FEAT-UI-PLANNING",
         "RT-FEAT-UI-CERTAINTY"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/technical/brief-planning-visuale.md"
       ],
@@ -2653,6 +2701,7 @@
         "RT-FEAT-UI-PLANNING",
         "RT-FEAT-NET-PRIVATE-PLANNING"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/technical/progettazione-hud.md",
         "docs/technical/brief-planning-visuale.md"
@@ -2709,6 +2758,9 @@
       },
       "dependencies": [
         "RT-FEAT-UI-PLANNING"
+      ],
+      "completed_by": [
+        "RT-FEAT-UI-CERTAINTY"
       ],
       "owner_specs": [
         "docs/technical/progettazione-hud.md"
@@ -2769,6 +2821,7 @@
       "dependencies": [
         "RT-FEAT-CORE-TURNLOG"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/technical/spec-turnlog.md"
       ],
@@ -2828,6 +2881,7 @@
       "dependencies": [
         "RT-FEAT-UI-PLANNING"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/decisions/RT_PDR_00_Decision_Log.md"
       ],
@@ -2884,6 +2938,7 @@
       "dependencies": [
         "RT-FEAT-TEST-SCENARIO-HARNESS"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/technical/scenario-index-e-tag.md"
       ],
@@ -2948,6 +3003,7 @@
         "RT-FEAT-REACTION-PREPARED",
         "RT-FEAT-DATA-ASSET-PIPELINE"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/balance/RT_HeroCatalog_v0.1.md"
       ],
@@ -3016,6 +3072,7 @@
       "dependencies": [
         "RT-FEAT-CHAR-V01-ROSTER"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/characters/index.md"
       ],
@@ -3072,6 +3129,7 @@
         "RT-FEAT-CHAR-V01-ROSTER",
         "RT-FEAT-CORE-PLAYBACK"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/technical/guida-animazioni-paragon.md",
         "docs/technical/spec-team-identity.md",
@@ -3126,6 +3184,7 @@
       "dependencies": [
         "RT-FEAT-CHAR-V01-ROSTER"
       ],
+      "completed_by": [],
       "owner_specs": [],
       "issues": [],
       "tests": [],
@@ -3171,6 +3230,7 @@
         "RT-FEAT-CHAR-V01-ROSTER",
         "RT-FEAT-CORE-TURN"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/brief-unita-ausiliarie.md"
       ],
@@ -3217,6 +3277,7 @@
       "dependencies": [
         "RT-FEAT-CHAR-V01-ROSTER"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-ownership-abilita-interazioni-sinergie.md"
       ],
@@ -3270,6 +3331,7 @@
         "RT-FEAT-FACTION-SYSTEM",
         "RT-FEAT-TEST-SCENARIO-HARNESS"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-ownership-abilita-interazioni-sinergie.md"
       ],
@@ -3327,6 +3389,7 @@
         "RT-FEAT-ACTION-ENGINE",
         "RT-FEAT-MAP-INTERACTIVE-EDGES"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/product/showcase-v0.1.md"
       ],
@@ -3388,6 +3451,7 @@
         "RT-FEAT-CORE-TURN",
         "RT-FEAT-MATCH-FORMAT"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-durata-partita-e-scala-mappe.md"
       ],
@@ -3446,6 +3510,7 @@
       "dependencies": [
         "RT-FEAT-DATA-ASSET-PIPELINE"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-durata-partita-e-scala-mappe.md"
       ],
@@ -3500,6 +3565,7 @@
       "dependencies": [
         "RT-FEAT-CORE-TURN"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-pacing-turno.md",
         "docs/gameplay/spec-durata-partita-e-scala-mappe.md"
@@ -3556,6 +3622,7 @@
         "RT-FEAT-TEST-GOLDEN",
         "RT-FEAT-CORE-DETERMINISM"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/decisions/RT_PDR_00_Decision_Log.md"
       ],
@@ -3612,6 +3679,7 @@
         "RT-FEAT-MAP-PATHFINDING",
         "RT-FEAT-ACTION-ENGINE"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/technical/h6-5-hex-bot-spec.md"
       ],
@@ -3669,6 +3737,7 @@
         "RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE",
         "RT-FEAT-REACTION-OPPORTUNITY"
       ],
+      "completed_by": [],
       "owner_specs": [],
       "issues": [],
       "tests": [],
@@ -3718,6 +3787,7 @@
         "RT-FEAT-CORE-TURN",
         "RT-FEAT-CORE-DETERMINISM"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/technical/test-e-diagnosi.md",
         "docs/technical/scenari-validazione-visiva.md"
@@ -3780,6 +3850,7 @@
         "RT-FEAT-CORE-DETERMINISM",
         "RT-FEAT-OBJECTIVE-SYSTEM"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/product/showcase-v0.1.md"
       ],
@@ -3839,6 +3910,7 @@
       "dependencies": [
         "RT-FEAT-MAP-HEXGRAPH"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/roadmap/roadmap-editor.md",
         "docs/roadmap/hex-map-roadmap.md"
@@ -3893,6 +3965,7 @@
       "dependencies": [
         "RT-FEAT-DATA-ASSET-PIPELINE"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/technical/test-automatico-unreal.md"
       ],
@@ -3949,6 +4022,7 @@
       "dependencies": [
         "RT-FEAT-CORE-TURNLOG"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/technical/debug-vs-unreal.md"
       ],
@@ -4003,6 +4077,7 @@
         "RT-FEAT-DATA-ASSET-PIPELINE",
         "RT-FEAT-MATCH-PACING"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/balance/README.md",
         "docs/balance/RT_TestMatrix_v0.1.md"
@@ -4055,6 +4130,7 @@
         "out_of_release_scope": ""
       },
       "dependencies": [],
+      "completed_by": [],
       "owner_specs": [
         "docs/technical/convenzioni-contenuti-ue.md"
       ],
@@ -4111,6 +4187,7 @@
       "dependencies": [
         "RT-FEAT-DATA-STABLE-IDS"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/technical/spec-asset-pipeline.md",
         "docs/technical/convenzioni-contenuti-ue.md"
@@ -4166,6 +4243,7 @@
         "RT-FEAT-DATA-ASSET-PIPELINE",
         "RT-FEAT-CORE-TURNLOG"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/technical/spec-turnlog-serialize.md"
       ],
@@ -4223,6 +4301,7 @@
       "dependencies": [
         "RT-FEAT-CORE-TURN"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/product/piano-canonico-mvp.md"
       ],
@@ -4279,6 +4358,7 @@
         "RT-FEAT-CORE-DETERMINISM",
         "RT-FEAT-DATA-HASH"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md"
       ],
@@ -4325,6 +4405,7 @@
       "dependencies": [
         "RT-FEAT-NET-AUTHORITY"
       ],
+      "completed_by": [],
       "owner_specs": [],
       "issues": [],
       "tests": [],
@@ -4372,6 +4453,7 @@
         "RT-FEAT-CORE-TURN",
         "RT-FEAT-MAP-PATHFINDING"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md"
       ],
@@ -4390,7 +4472,7 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "Due KPI su quattro misurati (path 0,025 ms · resolver 0,41 ms/turno, 2026-08-06). FPS client e preview completa richiedono rendering ed editor: restano non misurati, e sono dichiarati tali invece di essere stimati."
+      "notes": "**L'elenco dei KPI e il loro stato non vivono qui**: l'owner è [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §4, che dichiara target, metodo di misura e valore per ciascuno. Ripeterli in questa nota creava una seconda copia da tenere allineata — lo stesso difetto che il registry chiude altrove, commesso qui dal registry stesso (trovato nella revisione di granularità del 2026-08-08).\nQuesta riga tiene solo lo stato della **capacità**: esiste un modo ripetibile di misurare i budget (`Perf.*` in automation) e `automation` resta `partial` perché copre i KPI headless, non quelli che richiedono rendering ed editor."
     },
     {
       "feature_id": "RT-FEAT-PROD-PACKAGED",
@@ -4426,6 +4508,7 @@
         "RT-FEAT-CORE-TURN",
         "RT-FEAT-DATA-ASSET-PIPELINE"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/technical/convenzioni-contenuti-ue.md"
       ],
@@ -4474,6 +4557,7 @@
       "dependencies": [
         "RT-FEAT-CORE-TURN"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/brief-delayed-actions.md"
       ],
@@ -4517,6 +4601,7 @@
       "dependencies": [
         "RT-FEAT-CORE-TURN"
       ],
+      "completed_by": [],
       "owner_specs": [
         "docs/gameplay/brief-stati-personaggio-e-trasformazioni.md",
         "docs/characters/matrici-stati-personaggio.md"

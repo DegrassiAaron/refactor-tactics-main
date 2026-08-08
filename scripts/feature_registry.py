@@ -286,6 +286,21 @@ def validate(registry, wiki_root=None):
             if dep not in id_set:
                 errors.append(f"{where} dipendenza verso FeatureId inesistente: {dep}")
 
+        # `completed_by` chiude il doppio conteggio: quando un pezzo di questa feature e' portato
+        # da un'altra, il rimando e' un DATO e non una frase nelle note. Senza, la stessa mancanza
+        # risulta due volte e chiudendola bisogna ricordarsi di aggiornare due righe — che e'
+        # precisamente il meccanismo che questo registry esiste per eliminare.
+        for other in feature.get("completed_by") or []:
+            if other not in id_set:
+                errors.append(f"{where} completed_by verso FeatureId inesistente: {other}")
+            elif other == fid:
+                errors.append(f"{where} completed_by verso se stessa")
+        if feature.get("completed_by") and not [
+                g for g in GATE_NAMES if gates.get(g) in ("partial", "todo")]:
+            warnings.append(
+                f"{where} dichiara completed_by ma non ha gate aperti: "
+                "se non manca niente, il rimando e' vecchio")
+
         for spec in feature.get("owner_specs") or []:
             if not os.path.isfile(os.path.join(REPO, spec)):
                 errors.append(f"{where} owner spec inesistente: {spec}")
@@ -401,6 +416,7 @@ def build_json(registry):
                 "out_of_release_scope": (roadmap.get("out_of_release_scope") or "").strip(),
             },
             "dependencies": feature.get("dependencies") or [],
+            "completed_by": feature.get("completed_by") or [],
             "owner_specs": feature.get("owner_specs") or [],
             "issues": feature.get("issues") or [],
             "tests": feature.get("tests") or [],
@@ -470,6 +486,9 @@ def status_block(entry):
     # La nota e' l'unico testo libero del blocco: serve a non perdere il dettaglio che i banner
     # scritti a mano portavano («esiste il dato ma nessun eroe lo usa»), tenendolo pero' in un
     # posto solo. Resta una riga: se serve un paragrafo, va nel corpo della pagina.
+    if entry.get("completed_by"):
+        lines.append("> I pezzi che mancano li porta: "
+                     + " · ".join(f"`{c}`" for c in entry["completed_by"]) + "  ")
     if entry.get("wiki_note"):
         lines.append(f"> {entry['wiki_note']}  ")
     lines += [
@@ -884,8 +903,13 @@ def render_features_by_epic(data):
         entries = sorted(by_epic[epic], key=lambda e: e["feature_id"])
         for i, entry in enumerate(entries):
             label = f"**{epic}**" if i == 0 else ""
+            title = entry["title"]
+            if entry.get("completed_by"):
+                # Il rimando sta nella riga, non in una nota: e' cio' che impedisce di contare
+                # due volte la stessa mancanza.
+                title += " — completata da " + ", ".join(f"`{c}`" for c in entry["completed_by"])
             lines.append(
-                f"| {label} | `{entry['feature_id']}` — {entry['title']} | "
+                f"| {label} | `{entry['feature_id']}` — {title} | "
                 f"{entry['status']} | {entry['gates_done']}/{entry['gates_applicable']} |"
             )
     lines.append("")
