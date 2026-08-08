@@ -126,7 +126,7 @@ decisioni e non il piano.
 ## 2026-08-07 — Riorganizzazione in `product/gameplay/technical/balance/roadmap/decisions/`
 
 **Origine**: revisione `/sc:spec-panel` su `src/RefactorTactics_Consolidamento_PRD_SourceOfTruth_Claude.md`,
-registrata in [`brief-consolidamento-documentale.md`](brief-consolidamento-documentale.md).
+registrata in [`brief-consolidamento-documentale.md`](roadmap/plans/brief-consolidamento-documentale.md).
 **HEAD di partenza**: `50159c6`.
 
 ### Struttura
