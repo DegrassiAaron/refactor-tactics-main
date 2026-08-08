@@ -38,11 +38,37 @@ rivaluta il bersaglio al momento dello sparo passerebbe quel test e fallirebbe q
 caso non verrebbe in mente. Due di loro dichiarano anche un'**assertion che non esiste** — `TeamScoreEquals`
 e un modo di asserire sulla conoscenza di squadra: meglio saperlo ora.
 
-### Limiti dichiarati
+### Eseguito, e cosa ha trovato
 
-**Niente è stato compilato né eseguito**: `RTScenarioCorpusTests.cpp` non è mai passato per un compilatore, e
-la prima esecuzione può scoprire sia errori di build sia scenari rossi fra i diciassette della voce
-precedente — che sono proprio quelli che questo test rende, per la prima volta, capaci di fallire.
+Build `RefactorTacticsEditor` **Succeeded** al primo colpo. Alla prima esecuzione del corpus, **cinque
+scenari su diciassette erano rossi** — e la ripartizione delle cause è ciò che rende questo test utile:
+
+- **tre difetti miei, una causa sola**: lo scatto si dichiara con `dash` + `dashTo`, non con `ability`
+  (dopo D-028 occupano slot diversi). Dichiarato con `ability`, `Bastion.Ram` finiva nello slot del Blast e
+  non partiva;
+- **un quarto scenario con lo stesso errore era verde**: `RoughRefusesCharge` si aspettava che non accadesse
+  nulla, e non accadeva nulla — ma perché la carica non partiva, non perché il Rough la vietasse. Senza gli
+  altri quattro rossi a indicare la causa comune, sarebbe rimasto a dare falsa sicurezza;
+- **una mia assunzione sbagliata sulla regola**: il fallback del bersaglio mosso scatta sulla **portata**,
+  non sull'allineamento. La forma `Line` descrive chi altro viene preso sulla traiettoria;
+- **due difetti del gioco**, che nessun test esistente vedeva → [#241] e [#242].
+
+`PushResistance` (**#241**) è un *dato senza consumatore*: dichiarato nel catalogo, copiato su `ARTUnit`,
+verificato dai test come **valore**, e mai letto quando si applica una spinta.
+
+La combo Riva→Flux (**#242**) è il caso più istruttivo della sessione: documentata nella showcase, con un
+test verde (`Heroes.Flux.WetBonus`, che verifica l'aritmetica senza passare dal `TurnManager`), e
+**ineseguibile** — il `Wet` di `PressureJet` arriva durante il Blast quando i colpi sono già preparati, e su
+due turni scade nel Cleanup prima di servire.
+
+`Visual.Combat.WaterElectric` è stato riscritto nell'unica forma che funziona — il bersaglio entra
+nell'acqua in fase **Dash**, prima del Blast — ed è oggi il primo test end-to-end della combo firma.
+
+### Limite dichiarato
+
+`Visual.Combat.PushResistance` porta il tag `expected-fail` con la nota che ne spiega il motivo: l'assertion
+resta quella **giusta**, la suite non è rossa e il difetto non è nascosto. Quando #241 verrà chiusa, sarà
+`ExpectedFailScenariosReallyFail` a diventare rosso e a chiedere di promuoverlo.
 
 Tre abilità del kit (`Riva.CircularTide`, `Riva.FluidTrail`, `Vektor.Feint`) restano **senza scenario**, e
 sono elencate col perché: il loro comportamento non è derivabile dal catalogo, e un'assertion scritta sul

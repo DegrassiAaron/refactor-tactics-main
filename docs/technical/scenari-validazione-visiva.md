@@ -284,6 +284,47 @@ Ogni turno di uno scenario-spec resta con `intents` **vuoti**: la sintassi con c
 HOLD/FIRE, o un bersaglio predittivo, non è decisa. Inventarla qui creerebbe un formato che nessuno ha scelto
 e che il primo implementatore dovrebbe disfare.
 
+### Cosa ha trovato la prima esecuzione
+
+Il corpus è stato eseguito per la prima volta il 2026-08-08. Build `RefactorTacticsEditor` **Succeeded** al
+primo colpo; **cinque scenari su diciassette erano rossi**, e la ripartizione delle cause è la ragione per cui
+questo test valeva la pena.
+
+Stato finale, misurato:
+
+```
+corpus eseguito: 28 PASS, 6 BLOCKED, 2 dichiarati expected-fail
+RefactorTactics.Scenario.EveryShippedScenarioRuns            Success
+RefactorTactics.Scenario.ExpectedFailScenariosReallyFail     Success
+```
+
+**Tre erano difetti miei, con una causa sola.** Lo scatto si dichiara con `dash` + `dashTo`, non con
+`ability`: dopo [D-028] occupano slot diversi — lo scatto prende il movimento, l'abilità la principale, e
+«schivo e sparo» dev'essere esprimibile. Dichiarato con `ability`, `Bastion.Ram` finiva nello slot del Blast
+e non partiva. Da qui `Charge` (Flux illeso), `PhaseOrder` (mancavano i 20 della carica) e
+`FallbackTargetMoved` (il bersaglio non si spostava).
+
+Il quarto scenario con lo stesso errore, `RoughRefusesCharge`, **era verde**. Si aspettava che non accadesse
+nulla, e infatti non accadeva nulla — ma perché la carica non partiva, non perché il Rough la vietasse. Un
+verde che tace è peggio di un rosso: senza gli altri quattro rossi a indicare la causa comune, sarebbe
+rimasto lì a dare una falsa sicurezza.
+
+**Uno era una mia assunzione sbagliata sulla regola.** `FallbackTargetMoved` faceva uscire Bastion
+dall'allineamento restando a quattro celle, e il colpo lo raggiungeva lo stesso. La forma `Line` descrive
+*chi altro* viene preso sulla traiettoria, non un vincolo di allineamento del bersaglio: il fallback scatta
+sulla **portata**. Lo scenario ora fa caricare Bastion in direzione opposta, fino a sette celle da Flux.
+
+**Due erano difetti del gioco**, e nessun test esistente li vedeva:
+
+| Difetto | Perché nessuno se n'era accorto |
+|---|---|
+| `PushResistance` non riduce le spinte ([#241]) | è un **dato senza consumatore**: catalogo → `ARTUnit` → test che ne verificano il *valore*. Nessuno lo legge quando applica una spinta |
+| la combo Riva→Flux non è realizzabile ([#242]) | `Heroes.Flux.WetBonus` verifica l'**aritmetica** di `EffectiveAttackPower` senza passare dal `TurnManager`. Il `Wet` di `PressureJet` arriva *durante* il Blast, quando i colpi sono già preparati — e su due turni scade nel Cleanup prima di servire |
+
+Il secondo è il più istruttivo del lotto: la combo firma della v0.1 era documentata, aveva un test verde, ed
+era **ineseguibile**. `Visual.Combat.WaterElectric` ora la mostra nell'unica forma che funziona — il bersaglio
+entra nell'acqua in fase Dash, prima del Blast — ed è il primo test end-to-end che ne esista.
+
 ### Lacune dichiarate
 
 Tre abilità del kit non hanno scenario, e non per dimenticanza:
