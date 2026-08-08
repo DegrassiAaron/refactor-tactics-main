@@ -74,9 +74,19 @@ void ARTGameMode::BeginPlay()
 	//
 	// Il GameMode e' il posto giusto per questa decisione: sceglie COSA allestire, che e' il suo mestiere.
 	// Il resolver e il turn manager restano ignari dell'harness (nessun `if (IsTest)` nel gameplay).
-	const FString TestScenario = CVarRTTestScenario.GetValueOnGameThread();
+	const FString TestScenario = ResolveScenarioToRun();
 	if (!TestScenario.IsEmpty())
 	{
+		// La pianificazione si accorcia PRIMA di eseguire: lo scenario risolve i propri turni da solo e poi
+		// lascia il turn manager in pianificazione. Col timer normale (30 s) si resterebbe a guardare un turno
+		// vuoto per mezzo minuto, e poi un altro, e un altro ancora — l'attesa che rende inguardabile una
+		// verifica che dura un secondo.
+		if (ARTTurnManager* TM = Cast<ARTTurnManager>(
+				UGameplayStatics::GetActorOfClass(World, ARTTurnManager::StaticClass())))
+		{
+			TM->SetPlanningSeconds(ScenarioPlanningSeconds);
+		}
+
 		FString ReportDir;
 		const FRTTestResult Result = URTScenarioRunner::RunById(World, TestScenario, ReportDir);
 		UE_LOG(LogRT, Warning, TEXT("[RT-Test] AUTO-RUN %s -> %s (%d/%d assertion, %d turni) · report: %s"),
@@ -309,4 +319,14 @@ ARTUnit* ARTGameMode::SpawnHero(int32 TeamId, const URTHeroData* Hero, const FRT
 		Unit->PlaceOnCell(InCell, Origin, HexSize, LayerHeight);
 	}
 	return Unit;
+}
+
+FString ARTGameMode::ResolveScenarioToRun() const
+{
+	// La console variable PREVALE sulla proprieta': la proprieta' e' la configurazione persistente («questo
+	// progetto, per ora, esegue questo scenario»), la console variable e' l'intento estemporaneo di chi lancia
+	// («adesso, solo per questa volta, eseguine un altro») — da riga di comando o in CI. Il piu' specifico
+	// vince, che e' la stessa regola di ogni override di configurazione.
+	const FString FromConsole = CVarRTTestScenario.GetValueOnGameThread();
+	return FromConsole.IsEmpty() ? ScenarioToRun : FromConsole;
 }

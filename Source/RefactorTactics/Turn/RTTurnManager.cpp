@@ -462,6 +462,25 @@ void ARTTurnManager::PlanBots()
 	}
 }
 
+void ARTTurnManager::SetPlanningSeconds(float NewSeconds)
+{
+	PlanningSeconds = FMath::Max(0.f, NewSeconds);
+
+	// Se la pianificazione e' GIA' in corso, il timer va rifatto: cambiare solo il campo lascerebbe scorrere
+	// quello vecchio, e il valore nuovo varrebbe dal turno dopo — cioe' proprio nel turno in cui serviva non
+	// farebbe niente.
+	UWorld* World = GetWorld();
+	if (World && Phase == ERTMatchPhase::Planning && !bIsResolving)
+	{
+		World->GetTimerManager().ClearTimer(PlanningTimerHandle);
+		if (PlanningSeconds > 0.f)
+		{
+			World->GetTimerManager().SetTimer(PlanningTimerHandle, this,
+				&ARTTurnManager::OnPlanningTimeout, PlanningSeconds, false);
+		}
+	}
+}
+
 void ARTTurnManager::StartPlanningTimer()
 {
 	UWorld* World = GetWorld();

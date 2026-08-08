@@ -67,6 +67,21 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	FRTMatchResult GetMatchResult() const { return PendingResult; }
 
+	/**
+	 * Cambia la durata della pianificazione e RIAVVIA il timer se e' in corso, cosi' il nuovo valore vale
+	 * subito invece che dal turno dopo. Valori negativi vengono portati a 0 (= nessuna scadenza).
+	 *
+	 * Serve all'allestimento (`ARTGameMode`) per accorciare la pianificazione quando gira uno scenario di
+	 * test: la partita normale continua a usare i suoi 30 secondi. Non e' una regola di gioco — e' ritmo di
+	 * presentazione, e resta fuori dal resolver.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
+	void SetPlanningSeconds(float NewSeconds);
+
+	/** Durata corrente della pianificazione (diagnostica e test). */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	float GetPlanningSeconds() const { return PlanningSeconds; }
+
 	/** Progresso obiettivo di una squadra (intero, mai un float). Squadra sconosciuta -> 0. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	int32 GetTeamScore(int32 TeamId) const;

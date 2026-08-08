@@ -101,6 +101,36 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Match")
 	TObjectPtr<URTMatchFormatData> MatchFormat;
 
+	/**
+	 * Scenario di test da eseguire **al posto** della partita normale (es. `Movement.Basic`).
+	 * Vuoto = si gioca normalmente.
+	 *
+	 * È una proprietà e non solo una console variable perché così **sopravvive alla sessione**: si imposta una
+	 * volta nei default di `BP_GameMode` e al primo Play lo scenario parte, senza doverla ridigitare a ogni
+	 * riavvio dell'editor. La console variable `rt.Test.Scenario` resta e **prevale**, per il caso opposto:
+	 * eseguire uno scenario diverso una volta sola, da riga di comando o in CI, senza toccare l'asset.
+	 *
+	 * `rt.Test.List` elenca gli ID disponibili.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Test")
+	FString ScenarioToRun;
+
+	/**
+	 * Durata della pianificazione **quando gira uno scenario**, in secondi.
+	 *
+	 * Serve perché lo scenario risolve i propri turni da solo e poi lascia il turn manager in pianificazione:
+	 * col timer normale (30 s) si resterebbe a guardare un turno vuoto per mezzo minuto, e poi un altro, e un
+	 * altro ancora. Con pochi secondi la partita **passa alla fase successiva** e si vede subito il campo
+	 * evolvere. Non tocca la partita normale, dove i 30 s servono a pianificare davvero.
+	 *
+	 * 0 = nessun timer (la pianificazione non scade mai): utile per fermare l'immagine e guardare con calma.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Test", meta = (ClampMin = "0.0"))
+	float ScenarioPlanningSeconds = 3.f;
+
+	/** Lo scenario da eseguire: la console variable prevale sulla proprietà, altrimenti vale la proprietà. Vuoto = partita normale. */
+	FString ResolveScenarioToRun() const;
+
 protected:
 	virtual void BeginPlay() override;
 

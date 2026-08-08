@@ -209,13 +209,36 @@ Le assertion fallite si stampano in console con **atteso e ottenuto**, non serve
 
 ### Auto-run: premi Play e parte
 
+Due modi, con precedenze diverse perché servono a cose diverse.
+
+**Dal `BP_GameMode`** — la via normale, e quella che **sopravvive alla sessione**:
+
+| Proprietà (categoria *RefactorTactics\|Test*) | Effetto |
+|---|---|
+| `ScenarioToRun` | ID dello scenario (`Movement.Basic`). Vuoto = partita normale |
+| `ScenarioPlanningSeconds` | durata della pianificazione **mentre gira uno scenario** (default **3 s**). `0` = nessuna scadenza, l'immagine resta ferma |
+
+Si impostano una volta nei *Class Defaults* di `BP_GameMode`, si salva, e da lì in poi **al primo Play lo
+scenario parte**. Non c'è niente da ridigitare a ogni riavvio dell'editor.
+
+**Da console o riga di comando** — l'override estemporaneo, che **prevale** sulla proprietà:
+
 ```
-rt.Test.Scenario Movement.Basic
+rt.Test.Scenario Movement.Collision
 ```
 
-Con questa variabile impostata, il `GameMode` esegue lo scenario **invece** di allestire la partita normale.
-Nessun click, nessun Actor da trascinare in un livello. Si può impostare anche da `DefaultEngine.ini` o da
-riga di comando con `-ExecCmds`. Rimettila vuota per tornare a giocare.
+La regola è quella di ogni override di configurazione: **il più specifico vince**. La proprietà dice «questo
+progetto, per ora, esegue questo scenario»; la console dice «adesso, solo per questa volta, un altro» — ed è
+ciò che serve in CI, dove l'asset non si tocca. Se fosse il contrario, impostare la proprietà renderebbe
+impossibile eseguire uno scenario diverso da riga di comando.
+
+In entrambi i casi il `GameMode` esegue lo scenario **invece** di allestire la partita normale. Per tornare a
+giocare: svuota la proprietà (e la console variable, se l'avevi impostata).
+
+> **Perché la pianificazione si accorcia.** Lo scenario risolve i propri turni da solo e poi lascia il turn
+> manager in pianificazione. Col timer normale (30 s) si resterebbe a guardare un turno vuoto per mezzo
+> minuto, poi un altro, poi un altro ancora — un'attesa che rende inguardabile una verifica che dura un
+> secondo. La partita normale continua a usare i suoi 30 s: è ritmo di presentazione, non una regola di gioco.
 
 ### Da test automatico
 
@@ -344,7 +367,7 @@ rt.Debug.DrawCells 1                    rende visibili le regole della mappa
 rt.Test.List                            scenari disponibili
 rt.Test.Run <ScenarioId>                esegue e scrive il report
 rt.Test.DumpResult [ScenarioId]         stampa l'ultimo result.json
-rt.Test.Scenario <ScenarioId>           auto-run al prossimo Play (vuoto = partita normale)
+rt.Test.Scenario <ScenarioId>           auto-run al prossimo Play, PREVALE su BP_GameMode (vuoto = vale la proprieta)
 ```
 
 ---
