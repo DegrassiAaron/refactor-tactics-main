@@ -1649,15 +1649,19 @@ void ARTTurnManager::ResolveCombat()
 			Instance.Def.RangeCells = Ability->RangeCells;
 		}
 		Instance.SourceUnitId = i;
-		Instance.TargetUnitId = (Target && IndexOf.Contains(Target)) ? IndexOf[Target] : INDEX_NONE;
-		Instance.TargetCell = Target ? Target->Cell : Unit->Cell;
+		// Bersaglio a CELLA: nessuna unita' mirata per costruzione, non una che si e' persa. La distinzione
+		// conta subito qui sotto, dove `TargetUnitId == INDEX_NONE` significa `TargetGone` e degraderebbe al
+		// fallback un'azione che invece sta facendo esattamente cio' che le e' stato chiesto.
+		const bool bTargetsCell = Unit->bAttackTargetsCell;
+		Instance.TargetUnitId = (!bTargetsCell && Target && IndexOf.Contains(Target)) ? IndexOf[Target] : INDEX_NONE;
+		Instance.TargetCell = bTargetsCell ? Unit->PlannedAttackCell : (Target ? Target->Cell : Unit->Cell);
 		Instance.EventSequence = Intents.Num();
 
 		// Un'azione di Blast senza bersaglio non e' un'azione «che non ne ha uno» (quelle sono il movimento e il
 		// supporto su se stessi, e risolvono altrove): e' un'azione che il bersaglio l'ha PERSO — eliminato e
 		// rimosso dal livello, o mai valido. Senza questa distinzione l'istanza risulterebbe valida e l'unita'
 		// finirebbe per puntare la propria cella.
-		const ERTActionInvalidReason Reason = (Instance.TargetUnitId == INDEX_NONE)
+		const ERTActionInvalidReason Reason = (Instance.TargetUnitId == INDEX_NONE && !bTargetsCell)
 			? ERTActionInvalidReason::TargetGone
 			: URTActionFallbackLibrary::ValidateInstance(Instance, HexUnits, Map);
 

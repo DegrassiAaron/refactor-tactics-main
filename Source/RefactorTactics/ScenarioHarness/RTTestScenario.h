@@ -146,6 +146,21 @@ struct FRTScenarioIntent
 	/** Cella d'arrivo dello scatto. Obbligatoria quando `Dash` e' valorizzata. */
 	UPROPERTY()
 	FRTCellId DashCell;
+
+	/**
+	 * Cella bersagliata da `Ability`, in alternativa a `Target`: le aree si centrano su una CELLA, che puo'
+	 * essere vuota. Valida solo con `bTargetsCell`.
+	 *
+	 * Dichiarare **entrambi** e' un `ERROR` di validazione, non una scelta fra i due: chi ha scritto lo
+	 * scenario non sa cosa voleva, e sceglierne uno al posto suo produrrebbe un test verde su una premessa
+	 * sbagliata — peggio di un rosso, perche' nessuno va a guardarlo.
+	 */
+	UPROPERTY()
+	FRTCellId TargetCell;
+
+	/** Vero se `Ability` mira a `TargetCell` invece che a un'unita'. Serve a distinguere «cella (0,0)» da «campo non dichiarato». */
+	UPROPERTY()
+	bool bTargetsCell = false;
 };
 
 /** Un turno dello scenario. */

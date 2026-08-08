@@ -835,4 +835,97 @@ bool FRTScenarioPassingBladeTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// S2-2c — bersagliare una CELLA e non un'unita'.
+//
+// Il modello a valle lo sa gia' fare: `FRTActionInstance` ha `TargetUnitId` **e** `TargetCell`, e il
+// resolver gestisce il bersaglio-cella (fallback `AttackCell`, strutture di CP 9.2). Il buco e' nel PIANO:
+// `PlannedAttackTarget` e' un'unita', e il limite era gia' dichiarato in `RTTurnManager` (CP 8.3).
+//
+// La cella e' VUOTA e il nemico ADIACENTE: e' cio' che rende il test discriminante. Centrando l'area su una
+// cella occupata, lo stesso danno arriverebbe anche bersagliando l'unita' — il test misurerebbe una
+// coincidenza invece della regola.
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCellTargetTest,
+	"RefactorTactics.Scenario.CellTargetedAbilityAppliesToCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCellTargetTest::RunTest(const FString&)
+{
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	FRTTestScenario S;
+	S.ScenarioId = TEXT("Probe.CellTarget");
+	S.MapRadius = 4;
+	FRTScenarioUnit A; A.Id = TEXT("F"); A.HeroId = TEXT("Hero.Flux"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+	FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Riva"); B.TeamId = 1; B.Cell = FRTCellId(1, 0, 0);
+	S.Units.Add(A); S.Units.Add(B);
+
+	FRTScenarioTurn T;
+	FRTScenarioIntent I;
+	I.UnitId = TEXT("F");
+	I.Ability = TEXT("Flux.Overload");        // AoE raggio 1, 18 danni, portata 3
+	I.TargetCell = FRTCellId(0, 0, 0);        // VUOTA, e adiacente a Riva
+	I.bTargetsCell = true;
+	T.Intents.Add(I);
+	S.Turns.Add(T);
+
+	// 95 meno i 18 dell'area: Riva e' presa dal RAGGIO, non perche' la si sia bersagliata.
+	FRTTestExpectation E; E.Kind = ERTAssertionKind::UnitHpEquals; E.UnitId = TEXT("R"); E.Value = 77;
+	S.Expect.Add(E);
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, S);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di eseguire: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("l'area centrata su una cella vuota prende chi le sta accanto"),
+		Result.OutcomeString(), FString(TEXT("PASS")));
+	return true;
+}
+
+/**
+ * Bersaglio unita' E cella insieme: `ERROR`, non una scelta arbitraria fra i due.
+ *
+ * Stessa regola di `ability` senza `target`, e per lo stesso motivo: chi ha scritto lo scenario non sa cosa
+ * voleva, e indovinare al posto suo produce uno scenario che verifica una cosa diversa da quella che chi
+ * l'ha scritto crede di aver verificato. Un test verde su una premessa sbagliata e' peggio di un rosso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioAmbiguousTargetTest,
+	"RefactorTactics.Scenario.TargetAndTargetCellIsError",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioAmbiguousTargetTest::RunTest(const FString&)
+{
+	FRTTestScenario S;
+	S.ScenarioId = TEXT("Probe.AmbiguousTarget");
+	S.MapRadius = 4;
+	FRTScenarioUnit A; A.Id = TEXT("F"); A.HeroId = TEXT("Hero.Flux"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+	FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Riva"); B.TeamId = 1; B.Cell = FRTCellId(1, 0, 0);
+	S.Units.Add(A); S.Units.Add(B);
+
+	FRTScenarioTurn T;
+	FRTScenarioIntent I;
+	I.UnitId = TEXT("F");
+	I.Ability = TEXT("Flux.Overload");
+	I.Target = TEXT("R");                 // entrambi
+	I.TargetCell = FRTCellId(0, 0, 0);
+	I.bTargetsCell = true;
+	T.Intents.Add(I);
+	S.Turns.Add(T);
+	FRTTestExpectation E; E.Kind = ERTAssertionKind::UnitAlive; E.UnitId = TEXT("R"); E.Value = 1;
+	S.Expect.Add(E);
+
+	// La validazione e' PURA: non serve un mondo per sapere che lo scenario e' ambiguo, e prenderlo qui
+	// significa prenderlo prima di aver speso un turno di simulazione.
+	FString Error;
+	TestFalse(TEXT("uno scenario ambiguo non passa la validazione"), URTScenarioLoader::Validate(S, Error));
+	TestTrue(TEXT("e il motivo nomina il bersaglio doppio"),
+		Error.Contains(TEXT("target")) || Error.Contains(TEXT("bersaglio")));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

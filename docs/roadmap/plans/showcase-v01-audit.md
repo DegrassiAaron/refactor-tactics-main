@@ -199,6 +199,32 @@ succedere*; l'hash cattura le derive.
 > `dash` che lo apre.
 
 
+### `S2-2c` — ✅ **FATTO 2026-08-08** — bersaglio a **cella**
+
+| | |
+|---|---|
+| **Goal** | Un'area si centra su una **cella**, che può essere vuota |
+| **Il buco era nel piano, non nella risoluzione** | `FRTActionInstance` ha già `TargetUnitId` **e** `TargetCell`, e il resolver gestisce il bersaglio-cella (fallback `AttackCell`, strutture CP 9.2). Mancava `PlannedAttackCell` su `ARTUnit` — limite già **dichiarato** in `RTTurnManager` (CP 8.3) |
+| **`target` + `targetCell`** | **`ERROR`** di validazione, non una scelta fra i due: sceglierne uno al posto di chi ha scritto lo scenario produce un verde su una premessa sbagliata, e quello nessuno lo riapre |
+| **Serve un flag, non «target nullo»** | Nel resolver `TargetUnitId == INDEX_NONE` significa già **bersaglio perso** e degrada al fallback. Senza `bAttackTargetsCell`, mirare a una cella verrebbe letto come un errore di pianificazione |
+| **Test** | `Scenario.CellTargetedAbilityAppliesToCell` (area su cella **vuota**, nemico **adiacente**: colpito per raggio, non per bersaglio) · `Scenario.TargetAndTargetCellIsError` |
+| **Resta scoperto** | Il lato HUD — puntare una cella col mouse è **E11**. Questo chiude metà del limite di CP 8.3 |
+
+### `S2-2d` — ⛔ **NON ORA** — slot `reaction`
+
+`PlannedReactionAbility` esiste, il resolver lo legge in **due** punti e l'HUD pure. In tutto il progetto lo
+**scrivono solo i test**: né il controller né il bot. Dare agli scenari uno slot `reaction` renderebbe
+l'harness il **primo produttore di produzione** di quel campo — cioè più **capace** del gioco, e i suoi verdi
+direbbero che il giocatore può preparare una parata quando non può.
+
+> È il rovescio esatto del caso `ValidateActionSlots`, dove l'harness rischiava di essere più **severo** del
+> gioco. Entrambe le asimmetrie mentono; questa è più insidiosa, perché produce **verdi** invece di rossi.
+
+Il produttore nasce con le finestre di reazione (**E14**/`S5-1`). Fino ad allora un turno che dichiara una
+reazione richiede la capability `ReactionPlanning` → **`BLOCKED`**, che è la verità e costa una riga.
+Costruire il produttore dentro l'harness sarebbe implementare la pianificazione delle reazioni sotto un
+altro nome.
+
 ### `S2-2b` — Togliere il reset ridondante dei piani nel runner *(pulizia, non bloccante)*
 
 | | |

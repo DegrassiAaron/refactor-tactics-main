@@ -42,6 +42,17 @@ namespace
 			TEXT("Cover"),             // E9 CP 9.1/9.2: coperture bassa e alta, distruzione
 			TEXT("Structures"),        // E9 CP 9.3: porte come bordo, revisione della mappa
 		};
+		// NON disponibile, e la riga che manca vale quanto quelle che ci sono:
+		//
+		//   `ReactionPlanning` — dichiarare una reazione IN PIANIFICAZIONE. `PlannedReactionAbility` esiste,
+		//   il resolver lo legge in due punti e l'HUD pure, ma in tutto il progetto lo SCRIVONO solo i test:
+		//   ne' il controller ne' il bot. Dare agli scenari uno slot `reaction` renderebbe l'harness il primo
+		//   produttore di quel campo — cioe' piu' CAPACE del gioco, e i suoi verdi direbbero che il giocatore
+		//   puo' preparare una parata quando non puo'. E' il rovescio esatto del caso `ValidateActionSlots`,
+		//   dove l'harness rischiava di essere piu' SEVERO del gioco. Entrambe le asimmetrie mentono.
+		//
+		// Il produttore nasce con le finestre di reazione (E14/S5-1). Fino ad allora un turno che chiede
+		// `ReactionPlanning` e' BLOCKED, che e' la verita' e costa una riga.
 		return Available.Contains(Capability);
 	}
 
@@ -259,6 +270,7 @@ void FRTScenarioSession::BeginTurn()
 			// nei turni successivi senza che lo scenario glielo chieda.
 			U->PlannedAbilityIndex = INDEX_NONE;
 			U->PlannedAttackTarget = nullptr;
+			U->bAttackTargetsCell = false;
 			// Lo SCATTO non si azzera qui, ed e' deliberato: `RTTurnManager` lo consuma a ogni risoluzione
 			// («consumato per questo turno, valido o no»), quindi un reset in questo punto sarebbe una seconda
 			// copia della stessa regola — quella che smette di essere aggiornata quando la prima cambia.
@@ -316,7 +328,10 @@ void FRTScenarioSession::BeginTurn()
 		// come dopo un click sul nemico. Portata, LOS, cooldown ed energia li valuta il turn manager al momento
 		// della risoluzione — la sessione non li anticipa, altrimenti verificherebbe le proprie regole invece
 		// di quelle del gioco.
-		if (!Intent.Ability.IsNone())
+		// Bersaglio a UNITA': il caso a cella e' il ramo dopo. La condizione porta `!bTargetsCell` perche'
+		// altrimenti un intent a cella entrerebbe QUI, non troverebbe l'unita' (`Target` e' vuoto per
+		// costruzione) e finirebbe nel ramo del bersaglio abbattuto: una nota al posto di un attacco.
+		if (!Intent.Ability.IsNone() && !Intent.bTargetsCell)
 		{
 			TWeakObjectPtr<ARTUnit>* FoundTarget = UnitsById.Find(Intent.Target);
 			ARTUnit* Target = FoundTarget ? FoundTarget->Get() : nullptr;
@@ -353,6 +368,26 @@ void FRTScenarioSession::BeginTurn()
 			{
 				Unit->PlannedAbilityIndex = AbilityIndex;
 				Unit->PlannedAttackTarget = Target;
+			}
+		}
+		else if (!Intent.Ability.IsNone() && Intent.bTargetsCell)
+		{
+			// Bersaglio a CELLA: nessun controllo sull'esistenza di un'unita' li' sopra, ed e' il punto —
+			// un'area si centra dove si vuole, anche su un varco vuoto. Che poi colpisca qualcuno lo decide
+			// il raggio, in fase Blast.
+			const int32 AbilityIndex = FindAbilityIndex(Intent.Ability);
+			if (AbilityIndex == INDEX_NONE)
+			{
+				ErroredBy = FString::Printf(TEXT("'%s' non possiede l'abilita' '%s' (turno %d)"),
+					*Intent.UnitId, *Intent.Ability.ToString(), TurnIndex + 1);
+				UE_LOG(LogRT, Error, TEXT("[RT-Test] %s: %s"), *Scenario.ScenarioId, *ErroredBy);
+			}
+			else
+			{
+				Unit->PlannedAbilityIndex = AbilityIndex;
+				Unit->PlannedAttackTarget = nullptr;
+				Unit->PlannedAttackCell = Intent.TargetCell;
+				Unit->bAttackTargetsCell = true;
 			}
 		}
 

@@ -180,7 +180,21 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 					if (IntentObj->TryGetStringField(TEXT("ability"), AbilityText) && !AbilityText.IsEmpty())
 					{
 						Intent.Ability = FName(*AbilityText);
-						if (!IntentObj->TryGetStringField(TEXT("target"), Intent.Target) || Intent.Target.IsEmpty())
+
+						// Bersaglio a CELLA: alternativa a `target`, per le aree che si centrano su una cella
+						// anche vuota. La coesistenza dei due la rifiuta `Validate`, non questo punto: qui si
+						// legge il file, li' si giudica se ha senso.
+						const TArray<TSharedPtr<FJsonValue>>* TargetCellArr = nullptr;
+						if (IntentObj->TryGetArrayField(TEXT("targetCell"), TargetCellArr) && TargetCellArr->Num() >= 2)
+						{
+							Intent.TargetCell = FRTCellId(
+								static_cast<int32>((*TargetCellArr)[0]->AsNumber()),
+								static_cast<int32>((*TargetCellArr)[1]->AsNumber()),
+								TargetCellArr->Num() >= 3 ? static_cast<int32>((*TargetCellArr)[2]->AsNumber()) : 0);
+							Intent.bTargetsCell = true;
+							IntentObj->TryGetStringField(TEXT("target"), Intent.Target); // solo per diagnosticare l'ambiguita'
+						}
+						else if (!IntentObj->TryGetStringField(TEXT("target"), Intent.Target) || Intent.Target.IsEmpty())
 						{
 							// Un'abilita' senza bersaglio non e' un'omissione innocua: lo scenario girerebbe
 							// senza attaccare nessuno e l'assertion sui danni fallirebbe per il motivo sbagliato.
@@ -404,6 +418,22 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 			}
 			if (!Intent.Ability.IsNone())
 			{
+				// Bersaglio doppio: `ERROR`, non una scelta fra i due. Sceglierne uno al posto di chi ha
+				// scritto lo scenario produrrebbe un test verde su una premessa sbagliata — e quello nessuno
+				// va a riaprirlo.
+				if (Intent.bTargetsCell && !Intent.Target.IsEmpty())
+				{
+					OutError = FString::Printf(
+						TEXT("intent di '%s': dichiara sia il bersaglio '%s' sia una cella (target e targetCell insieme)"),
+						*Intent.UnitId, *Intent.Target);
+					return false;
+				}
+				if (Intent.bTargetsCell)
+				{
+					// Una cella bersaglio segue le stesse regole di ogni altra cella dello scenario: fuori
+					// dall'arena e' un errore di scrittura, non un tiro che manca.
+					continue;
+				}
 				if (!SeenIds.Contains(Intent.Target))
 				{
 					OutError = FString::Printf(TEXT("intent di '%s': bersaglio '%s' non schierato"),
