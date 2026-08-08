@@ -50,11 +50,11 @@
 
 ## Stato in numeri — 2026-08-08
 
-**100 voci**: ✅ **25 verdi** · 🟡 **21 parziali** (regola coperta da test, resta il visivo) · ⏳ **54 aperte**.
+**110 voci**: ✅ **25 verdi** · 🟡 **21 parziali** (regola coperta da test, resta il visivo) · ⏳ **64 aperte**.
 
-*(Rimisurate col comando qui sotto il **2026-08-08**, dopo le **17 voci** `PIE-VIS-*` del corpus di scenari
-visivi. Prima erano 83 con 37 aperte; verdi e parziali non cambiano, perché le nuove nascono tutte ⏳.
-`senza-marcatore` resta **0**.)*
+*(Rimisurate col comando qui sotto il **2026-08-08**, dopo le **10 voci** `PIE-STATE-*` dell'epic E34. Prima
+erano 100 con 54 aperte; verdi e parziali non cambiano, perché le nuove nascono tutte ⏳ — e nascono ⏳ per un
+motivo più forte del solito: **verificano un sistema che non esiste**. `senza-marcatore` resta **0**.)*
 
 > ⚠️ **Il comando qui sotto era rotto, e ha mentito per settimane.** Usava `s ~ /✅/`, che cerca il simbolo
 > **ovunque** nella cella di stato — non il marcatore iniziale. Una voce 🟡 il cui testo cita un ✅ nella
@@ -92,8 +92,9 @@ awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);
   docs/technical/test-manuali-pie.md
 ```
 
-Delle 54 aperte, **47 stanno negli otto gruppi qui sotto** (`2+9+9+4+3+1+2+17 = 47`). Le **7 mancanti** sono voci
-aggiunte il 2026-08-08 da un'altra sessione e non ancora assegnate a un gruppo: le lascio dichiarate invece
+Delle 64 aperte, **47 stanno negli otto gruppi qui sotto** (`2+9+9+4+3+1+2+17 = 47`). Le **17 mancanti** sono
+7 voci aggiunte il 2026-08-08 da un'altra sessione più le **10** `PIE-STATE-*` di E34, che non entrano in una
+sessione di verifica perché non sono eseguibili: le lascio dichiarate invece
 di gonfiare una riga a caso, perché una somma che torna con sé stessa è il modo più facile di sembrare
 verificati senza esserlo (vedi la nota qui sopra). Chi le ha scritte sa dove vanno.
 
@@ -291,6 +292,30 @@ verificati senza esserlo (vedi la nota qui sopra). Chi le ha scritte sa dove van
 |----|-----------------|---------------|--------------|-------|
 | **PIE-ICON-01** | Le icone si distinguono a schermo | CP 20.2 atterrato, catalogo popolato per Identity/Action/Phase/Status/Certainty | Ogni icona è riconoscibile alla dimensione reale dell'HUD e **due stati diversi non si confondono**. Nessuna informazione affidata al **solo colore** (§12.4 del sorgente muri/porte, stessa regola per l'HUD). Una chiave non risolta si vede come errore, non come spazio vuoto | ⏳ **E20** (CP 20.3) |
 | **PIE-FMT-01** | Formato e mappa concordano | CP 19.1 atterrato | Avviando una mappa `Skirmish` con un formato `Standard` il gioco **rifiuta e lo dice**; con formato e mappa coerenti parte normalmente. Il caso di errore è quello da guardare: se fallisce in silenzio, la classe non sta proteggendo niente | ⏳ **E19** (CP 19.1) |
+
+### Stati del personaggio (E34, post-v0.1)
+
+Tutte ⏳ e **tutte dipendenti da un sistema che non esiste**: nascono qui perché il ciclo
+docs → epic → scenario → PIE resti chiuso, non perché siano eseguibili oggi. Epic
+[#244](https://github.com/DegrassiAaron/refactor-tactics-main/issues/244) · owner
+[`../gameplay/brief-stati-personaggio-e-trasformazioni.md`](../gameplay/brief-stati-personaggio-e-trasformazioni.md).
+
+| ID | Cosa verificare | Precondizione | Esito atteso | Stato |
+|----|-----------------|---------------|--------------|-------|
+| **PIE-STATE-01** | Lo stato attivo si riconosce senza ricordarlo | CP 34.6 · catalogo icone popolato | Guardando l'unità si capisce **in quale configurazione è**, senza aprire un tooltip. Due stati diversi non si confondono, e nessuna informazione è affidata al solo colore | ⏳ **E34** |
+| **PIE-STATE-02** | La transizione è dichiarata in Planning e risolve in `Prep` | CP 34.2 | Lo stato **non** cambia al momento del click: cambia in `Prep`, durante la risoluzione. Se cambia prima, il planning simultaneo sta leakando | ⏳ **E34** |
+| **PIE-STATE-03** | Il ghost mostra la configurazione **prevista** | CP 34.5 | Pianificando la transizione, il ghost mostra range, abilità e posizione **dello stato nuovo**, non di quello corrente. Le azioni rese indisponibili si vedono tali **prima** del commit | ⏳ **E34** |
+| **PIE-STATE-04** | Il toggle gratuito non esiste | CP 34.2 | Provare `A → B → A` in turni consecutivi: la seconda transizione è rifiutata o costa. Se è gratis, il sistema è micro-ottimizzazione — è il fallimento di design che il brief §5.2 vuole evitare | ⏳ **E34** |
+| **PIE-STATE-05** | Una forma a durata fissa scade nel `Cleanup` | CP 34.2 | Lo stato termina nella stessa fase in cui Bastion recupera `Integrità Strutturale`, non a inizio turno successivo | ⏳ **E34** |
+| **PIE-STATE-06** | Gli override di abilità si vedono nella barra | CP 34.3 | Entrando in stato, le abilità sostituite cambiano nell'HUD; quelle non disponibili sono disabilitate e **dicono perché** | ⏳ **E34** |
+| **PIE-STATE-07** | Il Move resta l'ultima fase volontaria | CP 34.4 | Con uno stato che riduce o disabilita il movimento, l'ordine delle macro-fasi **non cambia**: nessuno stato anticipa il Move o lo sposta prima del Blast | ⏳ **E34** |
+| **PIE-STATE-08** | Il trigger ambientale è leggibile | CP 34.7 · scenario `State.Flux.Charged` | Entrando nella cella elettrificata lo stato si attiva e **si vede perché**: la causa ambientale è distinguibile da un'attivazione volontaria | ⏳ **E34** |
+| **PIE-STATE-09** | Il default di una Fast Reaction non trasforma | CP 34.8 · **E14** | Lasciando scadere la finestra di 3,0 s, `Timeout → HOLD`: l'unità **non** entra in stato. Il default non deve mai essere la scelta più forte | ⏳ **E34** |
+| **PIE-STATE-10** | Il TurnLog spiega la transizione | CP 34.10 | Nel log compaiono stato precedente, stato nuovo, trigger, fase e motivo. Una transizione **rifiutata** compare quanto una riuscita: se il rifiuto è silenzioso, il playtest non è diagnosticabile | ⏳ **E34** |
+
+> Nessuna di queste è un gate della v0.1: sono la copertura di **CP 34.11**, e la loro esistenza serve a
+> impedire che la Matrix 5 di [`../characters/matrici-stati-personaggio.md`](../characters/matrici-stati-personaggio.md)
+> resti con le colonne di validazione vuote quando gli stati diventeranno `PROTOTYPE`.
 
 ## Sessioni di verifica consigliate
 

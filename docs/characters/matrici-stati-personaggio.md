@@ -170,14 +170,23 @@ deve essere più semplice altrove.*
 Dove sta ogni candidata rispetto alla verifica. **Tutte le righe sono vuote a valle di `DesignStatus`**, ed è
 un'informazione: nessuno stato è stato validato, perché nessuno è stato costruito.
 
-| StateId | Character | DesignStatus | Target | Scenario | PIE | Automazione | Logging | Validato |
+| StateId | Character | DesignStatus | Target | Issue | Scenario | PIE | Automazione | Validato |
 |---|---|---|---|---|---|---|---|---|
-| `State.Flux.Charged` | Flux | `PROPOSED` | post-v0.1 | ⏳ da definire | ⏳ | ❌ | ❌ | ❌ |
-| `State.Riva.Flow` | Riva | `PROPOSED` | post-v0.1 | ⏳ da definire | ⏳ | ❌ | ❌ | ❌ |
-| `State.Bastion.Bulwark` | Bastion | `PROPOSED` | post-v0.1 | ⏳ da definire | ⏳ | ❌ | ❌ | ❌ |
+| `State.Riva.Flow` | Riva | `PROPOSED` | post-v0.1 | [#256](https://github.com/DegrassiAaron/refactor-tactics-main/issues/256) | `State.Riva.Flow` 📋 | `PIE-STATE-01…05` | ❌ | ❌ |
+| `State.Flux.Charged` | Flux | `PROPOSED` | post-v0.1 | [#257](https://github.com/DegrassiAaron/refactor-tactics-main/issues/257) | `State.Flux.Charged` 📋 | `PIE-STATE-08` | ❌ | ❌ |
+| `State.Bastion.Bulwark` | Bastion | `PROPOSED` | post-v0.1 | [#258](https://github.com/DegrassiAaron/refactor-tactics-main/issues/258) | `State.Bastion.Bulwark` 📋 | `PIE-STATE-06…07` | ❌ | ❌ |
+| `State.Howitzer.Siege` | Howitzer | `PROPOSED` | post-v0.1 | [#259](https://github.com/DegrassiAaron/refactor-tactics-main/issues/259) | `State.Howitzer.Siege` 📋 | `PIE-STATE-02…04` | ❌ | ❌ |
+| — *(trasversale)* | — | — | post-v0.1 | [#255](https://github.com/DegrassiAaron/refactor-tactics-main/issues/255) | `State.MultiState.Stress` 📋 | `PIE-STATE-09…10` | ❌ | ❌ |
 | `State.Vektor.Siege` | Vektor | `REJECTED` | — | — | — | — | — | — |
 
-Gli ID sono **proposti**, non Stable ID: non esistono nel codice e non vanno citati come se esistessero.
+📋 = **definito, non scritto**. Gli scenari vivono in
+[`../gameplay/brief-stati-personaggio-e-trasformazioni.md`](../gameplay/brief-stati-personaggio-e-trasformazioni.md) §9
+e si scrivono quando E34 apre: uno scenario che non gira è peggio di uno che manca, perché sembra copertura.
+
+Gli `StateId` sono **proposti**, non Stable ID: non esistono nel codice e non vanno citati come se esistessero.
+
+**La colonna «Validato» è tutta ❌, ed è l'informazione principale della matrice.** Nessuno stato è stato
+verificato perché nessuno è stato costruito — e nessuna delle altre matrici deve far sembrare il contrario.
 
 ---
 
