@@ -18,7 +18,7 @@
 |---|---|---|
 | **Canonico (vincolante)** | *questo file* | Decisioni operative del progetto |
 | **Esecuzione** | [`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md) | Milestone, checkpoint, DoD misurabili, stato |
-| **Requisiti di lungo periodo** | [`../PDR/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](../roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) | Fasi F0–F6, QA, rischi — direzione, non scope |
+| **Requisiti di lungo periodo** | [`../roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](../roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) | Fasi F0–F6, QA, rischi — direzione, non scope |
 | **Visione (north-star)** | i 3 PRD + `Intenti condivisi.pdf` | Prodotto a lungo termine, **non** scope attuale |
 | **Storico / superato** | `00-Intro.pdf`, `01-StrutturaTutorial.pdf`, `02-Tutorial.pdf`, `03-TutorialToMVP.pdf` — **rimossi da `docs/src/` il 2026-08-07**, recuperabili dallo storico git | Brief e corsi da cui è nato il progetto (fase chiusa) |
 
@@ -404,7 +404,7 @@ velocità e budget di reazione. Consolidamento, conflitti con gli invarianti #3/
 > nello snapshot della fase, non in una finestra interattiva.
 >
 > ⚠️ **Aggiornamento 2026-08-07 — le finestre di reazione rientrano in scope.** Il documento
-> `docs/src/design/overwatch-e-fast-reaction.md` propone l'Overwatch come primo caso di un modello
+> `docs/archive/src/design/overwatch-e-fast-reaction.md` propone l'Overwatch come primo caso di un modello
 > generale di reazione con *decision boundary* e finestra di 3 s. La riconciliazione adottata è la via **(b)**
 > già prevista da [`spec-sequenza-turno.md`](../gameplay/spec-sequenza-turno.md) §3 C1: **l'invariante #3 si compone, non
 > si deroga** — il turno diventa una sequenza di sotto-risoluzioni, ciascuna «raccogli poi applica» con

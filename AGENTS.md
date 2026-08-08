@@ -31,8 +31,11 @@ Carica solo il contesto necessario, ma non saltare queste fonti quando pertinent
 6. **`docs/roadmap/roadmap-v0.1.md`** — scope e gate della release v0.1.
 7. Issue/task corrente, specifica di feature, cataloghi in `docs/balance/`, test e codice esistente.
 
-`docs/src/` contiene soprattutto input, audit e materiale di consolidamento/north-star: **non è fonte normativa
-per default**. `docs/archive/` è storico.
+`docs/src/` contiene i sorgenti **non ancora consumati** (PDF di visione, dataset, media): **non è fonte
+normativa per default**. `docs/archive/` è storico — e dal 2026-08-08 include
+[`docs/archive/src/`](docs/archive/src/README.md), dove finiscono i sorgenti **già recepiti** (design, handoff,
+audit) con l'indice di chi li possiede oggi. Se cerchi la provenienza di una regola, è lì; se cerchi la regola,
+è nell'owner.
 
 Se una decisione più recente dichiara esplicitamente di superare una regola più vecchia ma il canone non è
 ancora sincronizzato, **segnala la deriva e aggiorna gli owner documentali pertinenti**; non scegliere per

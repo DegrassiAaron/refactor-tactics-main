@@ -1,10 +1,10 @@
-> ✅ **RECEPITO il 2026-08-08.** Owner normativo: [`../../gameplay/spec-durata-partita-e-scala-mappe.md`](../../gameplay/spec-durata-partita-e-scala-mappe.md)
+> ✅ **RECEPITO il 2026-08-08.** Owner normativo: [`../../../gameplay/spec-durata-partita-e-scala-mappe.md`](../../../gameplay/spec-durata-partita-e-scala-mappe.md)
 > (classi di mappa, durata, round, Planning/Ready, Fast Reaction, budget del round) e la wiki
-> [`../../wiki/game/obiettivi-e-fine-partita.md`](../../wiki/game/obiettivi-e-fine-partita.md).
-> Decisione: [D-030](../../decisions/RT_PDR_00_Decision_Log.md). Le **due sole** parti non ancora nel codice —
+> [`../../../wiki/game/obiettivi-e-fine-partita.md`](../../../wiki/game/obiettivi-e-fine-partita.md).
+> Decisione: [D-030](../../../decisions/RT_PDR_00_Decision_Log.md). Le **due sole** parti non ancora nel codice —
 > classe di mappa sul dato mappa e `UnitsPerTeam` nel formato — sono **E19** di
-> [`../../roadmap/roadmap-v0.1.md`](../../roadmap/roadmap-v0.1.md); Standard 3v3 e Operations sono E24/E30 in
-> [`../../roadmap/roadmap-post-v0.1.md`](../../roadmap/roadmap-post-v0.1.md).
+> [`../../../roadmap/roadmap-v0.1.md`](../../../roadmap/roadmap-v0.1.md); Standard 3v3 e Operations sono E24/E30 in
+> [`../../../roadmap/roadmap-post-v0.1.md`](../../../roadmap/roadmap-post-v0.1.md).
 >
 > ⚠️ Attenzione a §4: `URTMatchFormatData` **esiste già** nel codice. I timer di parete restano fuori dal dato
 > **per decisione motivata** (ADR-0005 §4c), non per dimenticanza: non riproporre di spostarli.

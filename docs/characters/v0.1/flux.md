@@ -78,6 +78,8 @@ Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambien
 
 **Obiettivo del giocatore.** Preparare `Wet` o condizioni conduttive e scegliere quando convertire quel setup in danno/pressione. Quando il setup non è disponibile, `ArcPulse` mantiene una pressione stabile.
 
+**Misplay / Failure State.** Preparare la conduzione dove il nemico non arriverà, o scaricare prima che il bersaglio sia `Wet`. `LinearDischarge` **parte comunque**: perde gli +8, non l'azione. Il costo vero è la Carica Conduttiva, che ha cap 4 e si rigenera di 1 per interazione elettrica — un setup speso male non si recupera nel turno, e a Flux resta `ArcPulse`, cioè pressione stabile senza il picco che giustifica il personaggio. È il failure state più *silenzioso* del roster: il turno sembra normale, e la differenza si vede solo nel confronto con ciò che la stessa carica avrebbe reso al momento giusto.
+
 **Counterplay / rischio.** È il personaggio più fragile del roster v0.1. Se il nemico evita `Wet`, rompe il setup o lo costringe a spendere azioni difensive, la sua meccanica firma rende meno.
 
 ### Dati della meccanica
@@ -95,6 +97,7 @@ Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambien
 | State | Carica Conduttiva + stato Wet / celle conduttive |
 | Activation / Trigger | Interazioni elettriche e abilità di setup |
 | Payoff | Trasforma setup ambientali in pressione, incluso +8 su Wet con LinearDischarge |
+| Misplay / Failure State | Conduzione preparata nella zona sbagliata o scarica anticipata: `LinearDischarge` parte senza i +8 e la Carica Conduttiva è spesa; resta `ArcPulse` senza picco |
 | Counterplay | Uscire da Wet, interrompere setup, pressione sul fragile Flux |
 | Telegraphing | Stato pubblico/ambientale; risorsa team-visible |
 | Design Status | IMPLEMENTED |

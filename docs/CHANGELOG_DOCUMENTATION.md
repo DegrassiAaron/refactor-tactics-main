@@ -2,6 +2,131 @@
 
 ---
 
+## 2026-08-08 — Un gate per i link, che il consolidamento ha reso necessario
+
+**Origine**: il consolidamento della voce sotto. Spostare 25 sorgenti ha rotto link in tre modi e ne ha
+rivelato un quarto; tutto è stato trovato con script usa-e-getta, che è il modo migliore per non accorgersi
+la prossima volta.
+
+### Cosa è cambiato
+
+| File | Modifica |
+|---|---|
+| `scripts/check-docs-links.py` | **nuovo** — gemello di `check-docs-symbols.py`: target inesistenti, **etichette che mentono**, target non versionati, debito stantio |
+| [`README.md`](README.md) | La sezione «Gate anti-deriva» ora ne documenta due |
+| 6 documenti | Etichette corrette: `../PDR/`, `../guides/` e uno `../spec-…` a profondità sbagliata — **cartelle che non esistono**, in `piano-canonico-mvp.md`, `RT_TerrainCatalog_v0.1.md`, `spec-durata-partita-e-scala-mappe.md`, `roadmap-editor.md` (×2), `brief-consolidamento-documentale.md` |
+
+### Il controllo che nessuno fa
+
+L'etichetta di un link markdown può essere essa stessa un percorso, e restare al valore vecchio mentre il
+target viene corretto. Il link funziona, quindi ogni checker lo dichiara sano; il lettore legge un percorso
+che non esiste. Erano **36** dopo lo spostamento, più **6** già presenti da una riorganizzazione precedente —
+cartelle `PDR/` e `guides/` che il repository non ha mai avuto nella struttura corrente.
+
+Il gate distingue però lo stile legittimo: ``[`../balance/`](../balance/README.md)`` non è un errore, perché
+`../balance/` esiste. Segnala solo le etichette-percorso che **non risolvono**.
+
+### ⚠️ Le dieci immagini «rotte» non lo erano
+
+La voce precedente dichiarava un difetto preesistente: dieci infografiche mai committate in
+`src/data/wiki/CLAUDE_INTEGRATION_PROMPT.md`. **Era falso, ed è stato scritto qui.**
+
+Quei dieci `![…](…)` stanno dentro blocchi ```` ```md ````: sono **markdown suggerito** da incollare nelle
+pagine wiki, e i loro path sono relativi alla **destinazione**, non al documento che li contiene. Erano
+corretti dall'inizio. A sbagliare era lo script usa-e-getta con cui li ho misurati, che non gestiva i blocchi
+recintati — e la misura sbagliata è diventata un'affermazione in tre documenti.
+
+> **La lezione, che vale più del difetto.** Uno strumento scritto per verificare non è verificato da nessuno.
+> Il gate ha trovato l'errore del proprio prototipo appena ha imparato a leggere il markdown per davvero — e
+> ha trovato anche i propri due esempi nel README. Un controllo che non sopravvive alla propria
+> documentazione non è pronto: **la prima cosa che deve passare è il documento che lo descrive.**
+
+`DEBITO_NOTO` resta perciò **vuoto**, ed è la notizia buona: nel repository non c'è un solo link rotto. Il
+meccanismo sopravvive perché un gate senza via d'uscita viene disattivato per intero al primo blocco
+legittimo, ed è verificato per mutazione anche da vuoto.
+
+### Verificato per mutazione
+
+Rotta una cosa per volta, il gate becca **esattamente** quella — e, altrettanto importante, **non** becca ciò
+che non deve:
+
+| Mutazione | Atteso | Esito |
+|---|---|---|
+| Link a un file inesistente | fallisce | ✅ |
+| Etichetta-percorso che non risolve | fallisce | ✅ |
+| Target presente in locale ma non versionato | fallisce | ✅ |
+| Voce di `DEBITO_NOTO` non più vera | fallisce | ✅ |
+| `![img](…)` dentro un blocco ```` ```md ```` | **non** fallisce | ✅ |
+| Link vero *fuori* dal fence, stesso file | fallisce lo stesso | ✅ |
+| Link citato fra backtick | **non** fallisce | ✅ |
+
+Senza mutazioni resta verde sui **1518** link del repository: zero falsi positivi.
+
+---
+
+## 2026-08-08 — Tre aggiunte alle Signature, trasformazioni, e `docs/src/` che si svuota
+
+**Origine**: due sorgenti arrivati insieme in `docs/src/` — un'esplorazione sulle trasformazioni e un handoff
+che chiedeva di consolidare tre estensioni al framework delle Signature Mechanics.
+
+### Il problema
+
+L'handoff proponeva tre concetti come nuovi: `ConditionalIntent`, `GenericActionModifier`,
+`Misplay / Failure State`. **Solo uno lo era.**
+
+| Proposta | Verdetto | Cosa esisteva già |
+|---|---|---|
+| `GenericActionModifier` | ⛔ nome respinto | Il repository lo chiama **profilo** dal 2026-08-08: `MoveProfile` (D-015) e «il profilo dipende dall'eroe» (D-014). Mancava solo la *regola generale*, scritta due volte per casi particolari e mai una volta per tutti |
+| `ConditionalIntent` | 📅 rinviato, forma fissata | La **condizione dichiarata in planning** di D-012, che distingue il regime `Conditional` dell'Overwatch. Lo stesso predicato, spostato dal profilo di reazione all'intento |
+| `Misplay / Failure State` | ✅ adottato | Nulla — ma un **caso** era già regola: il whiff della Predictive Action (D-016) |
+
+> **La lezione si ripete.** È la stessa forma di `URTMatchFormatData` in E19: un concetto assente dall'indice
+> non è un concetto assente dal repository. Il costo di cercarlo per **sinonimi** — *profilo* invece di
+> *modifier* — è di qualche minuto; il costo di non farlo è una seconda verità che va poi riconciliata.
+> Il documento che proponeva il nome nuovo conteneva anche la clausola che lo escludeva: «*salvo che il
+> repository abbia già un nome migliore*».
+
+### Cosa è cambiato
+
+| File | Modifica |
+|---|---|
+| [`characters/_Template.md`](characters/_Template.md) | Campo **`Misplay / Failure State`** nello schema, con la regola che lo distingue dal `Counterplay` |
+| `characters/v0.1/{flux,riva,bastion,vektor}.md` | Il campo compilato, **quattro modi diversi di sbagliare**: whiff nel turno · carica spesa in silenzio · struttura che persiste · superficie regalata all'avversario |
+| [`characters/README.md`](characters/README.md) | Copertura del campo: 4/4 su v0.1, ⏳ v0.2, ⛔ candidati (senza kit non c'è modo definito di fallire) |
+| [`gameplay/brief-azioni-generiche-overwatch.md`](gameplay/brief-azioni-generiche-overwatch.md) | §4-bis: il **profilo** come forma generale delle sette generiche, 7 guardrail, e dove esiste già |
+| [`gameplay/brief-delayed-actions.md`](gameplay/brief-delayed-actions.md) | §7: `ConditionalIntent`, il confine con Fast Action/Reaction/Predictive/fallback, i vincoli e i 9 test |
+| [`gameplay/brief-stati-personaggio-e-trasformazioni.md`](gameplay/brief-stati-personaggio-e-trasformazioni.md) | **nuovo** — owner del Character State System: cinque famiglie, complexity budget, anti-pattern |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-032…D-035**. Nessun ADR: due sono schema documentale, due sono rinvii |
+| [`roadmap/roadmap-post-v0.1.md`](roadmap/roadmap-post-v0.1.md) | Epic **E33** (v0.3) ed **E34** (v0.4) |
+| [`wiki/game/azioni-e-movimento.md`](wiki/game/azioni-e-movimento.md) | Nota player-facing sui profili. **Nessuna feature futura pubblicizzata** |
+| `docs/src/` → `docs/archive/src/` | **25 sorgenti spostati**; ~130 link riscritti in 23 file |
+| [`archive/README.md`](archive/README.md) | Indicava come fonti `docs/design/piano-canonico-mvp.md` e `docs/design/roadmap-checkpoint.md`: **quella cartella non esiste** |
+
+### Decisioni prese
+
+- **nessuna trasformazione nella v0.1**: il sorgente ne proponeva quattro sui quattro eroi. Scope chiuso,
+  rischio già alto, e due dei quattro dipendono da E13 e dal sistema strutture. `Vektor: Mobile ↔ Siege` è
+  respinta anche nel merito — una forma che toglie il Dash spegne `Slancio` e la player question;
+- **uno `Stance` è un profilo commutabile**, non un sistema nuovo: metà di E34 non richiede codice nuovo;
+- **`docs/src/` si svuota quando un sorgente è recepito.** La convenzione precedente lo lasciava sul posto con
+  un banner, e la cartella mescolava *da lavorare* e *già lavorato*: la differenza stava solo in una colonna
+  di un indice. Ora sta nella posizione del file.
+
+### Verifica dei link
+
+I riferimenti sono stati controllati risolvendoli sul filesystem, non a occhio: **1518** link relativi, le 23
+rotture introdotte dallo spostamento chiuse, e **36 etichette** che mostravano il path vecchio con il target
+già corretto — link funzionanti, testo bugiardo, che nessun controllo sui soli target vede.
+
+> ⚠️ **Una misura di questa passata era sbagliata, ed è stata corretta il giorno stesso.** Lo script usa-e-getta
+> usato qui non gestiva i blocchi recintati, e ha riportato come rotte dieci immagini di
+> `src/data/wiki/CLAUDE_INTEGRATION_PROMPT.md`. Stanno dentro ```` ```md ````: sono *markdown suggerito* con
+> path relativi alla **destinazione**, ed erano corrette dall'inizio. Uno strumento scritto per verificare non
+> è verificato da nessuno — ed è la ragione per cui il controllo è diventato subito dopo un gate versionato,
+> `scripts/check-docs-links.py`, invece di restare uno script di sessione.
+
+---
+
 ## 2026-08-08 — Il corpus diventa un test, e cinque scenari-specifica
 
 **Origine**: seguito diretto della voce sotto. Nasce da una domanda semplice — «gli scenari servono anche
@@ -138,7 +263,7 @@ oggi raggiungibile dal corpus**, e la parte mancante è di formato da estendere,
 
 ## 2026-08-08 — Ownership di abilità, interazioni e sinergie (terzo passaggio)
 
-**Origine**: payload `Docs-Consolidation-v0.9` + handoff `docs/src/design/fazioni-v0.2-identita-visiva-e-roster.md`
+**Origine**: payload `Docs-Consolidation-v0.9` + handoff `docs/archive/src/design/fazioni-v0.2-identita-visiva-e-roster.md`
 (input, non autorità). Baseline dichiarata dal payload: `13cacb5`; **lavorato su `b057c67`** e poi **mergiato con
 `367790e`**, che nel frattempo era atterrato su `main`.
 
@@ -188,7 +313,7 @@ corretti da `367790e`, non da questo passaggio).
 
 ## 2026-08-08 — Consolidamento dei documenti **non**-Gameplay (secondo passaggio)
 
-**Origine**: audit `docs/src/audit/2026-08-08-docs-non-gameplay-v2.md`.
+**Origine**: audit `docs/archive/src/audit/2026-08-08-docs-non-gameplay-v2.md`.
 73 file in scope (tutto `docs/` **escluse** `gameplay/`, `src/`, `archive/`). Baseline: `HEAD 3335e36`,
 **419 test unici in 64 file**.
 
@@ -257,7 +382,7 @@ ricerca dei termini obsoleti sui soli documenti `CURRENT`/`CANONICAL`.
 
 ## 2026-08-08 — Consolidamento di `docs/gameplay/`
 
-**Origine**: audit `docs/src/audit/2026-08-08-docs-gameplay.md`, con
+**Origine**: audit `docs/archive/src/audit/2026-08-08-docs-gameplay.md`, con
 `D-014`…`D-019` approvate. 23 file passati in rassegna.
 
 ### Decisioni registrate
@@ -378,7 +503,7 @@ decisioni e non il piano.
 
 ## 2026-08-07 — Riorganizzazione in `product/gameplay/technical/balance/roadmap/decisions/`
 
-**Origine**: revisione `/sc:spec-panel` su `docs/src/handoff/consolidamento-prd-source-of-truth.md`,
+**Origine**: revisione `/sc:spec-panel` su `docs/archive/src/handoff/consolidamento-prd-source-of-truth.md`,
 registrata in [`brief-consolidamento-documentale.md`](roadmap/plans/brief-consolidamento-documentale.md).
 **HEAD di partenza**: `50159c6`.
 

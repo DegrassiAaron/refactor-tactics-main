@@ -19,3 +19,32 @@ I nomi Paragon sono usati come **Asset Base**. L'identità finale RefactorTactic
 ## Ownership dei kit
 
 Ogni abilità appartiene a un singolo personaggio/definizione. Le sinergie sono esempi esterni al kit: [Sinergie e combinazioni](../wiki/game/sinergie-e-combinazioni.md).
+
+## Matrici di design
+
+[`matrici-stati-personaggio.md`](matrici-stati-personaggio.md) — candidature di stato/trasformazione per
+l'intero roster, costo sistemico, budget di complessità e stato di validazione. È **tracciabilità**, non una
+fonte di regole: l'owner è [`../gameplay/brief-stati-personaggio-e-trasformazioni.md`](../gameplay/brief-stati-personaggio-e-trasformazioni.md).
+Nessun personaggio ha uno stato assegnato.
+
+## `Misplay / Failure State` — copertura, 2026-08-08
+
+[D-032](../decisions/RT_PDR_00_Decision_Log.md) ha aggiunto allo schema della Signature un campo che mancava:
+*cosa resta in mano al giocatore che usa la meccanica correttamente ma legge male il turno*. È distinto dal
+`Counterplay`, che descrive invece cosa fa l'avversario — vedi [`_Template.md`](_Template.md).
+
+| Livello | Pagine | Stato del campo |
+|---|---:|---|
+| `v0.1/` canonico | 4 | ✅ **compilato** su tutte e quattro |
+| `v0.2/` | 4 | ⏳ da compilare quando il kit esce da `DESIGN_SPEC` |
+| `candidates/` | 34 | ⛔ **non si compila**: la Signature è una riga del Character Master Matrix, senza kit né trigger. Dedurne un failure state significherebbe inventare la meccanica |
+
+Il campo si compila **dal kit esistente**, non dall'intuizione: se la meccanica non ha ancora trigger e payoff
+definiti, non ha nemmeno un modo definito di fallire. Vale la regola generale della cartella — *i campi
+mancanti restano mancanti*.
+
+Le quattro voci v0.1 non sono intercambiabili, ed è il test che il campo funziona: Vektor fallisce **nel
+turno** (whiff, [D-016](../decisions/RT_PDR_00_Decision_Log.md)), Flux **in silenzio** (carica spesa senza
+picco), Bastion **in modo persistente** (la struttura resta e ostacola gli alleati), Riva **a favore
+dell'avversario** (`Wet` non sa chi l'ha applicato, [D-029](../decisions/RT_PDR_00_Decision_Log.md)). Quattro
+modi diversi di sbagliare, non quattro modi di fare meno danno.

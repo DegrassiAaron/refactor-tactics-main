@@ -9,7 +9,7 @@
 > nel **catalogo di balance**, non qui: è un numero, e i numeri hanno un owner.
 
 > **Stato**: brief di requisiti · **Data**: 2026-08-07 · **Origine**: `/sc:brainstorm` su
-> `docs/src/design/terreno-ghiaccio-v0.1.md` (36 sezioni)
+> `docs/archive/src/design/terreno-ghiaccio-v0.1.md` (36 sezioni)
 > **Esito**: lo **scivolamento base resta in v0.1 perché è già implementato**; il **motore** (Momentum,
 > Traction, Prone, collisioni a catena, integrità, rottura, ponti) è **fuori**, epic post-release.
 > **Autorità**: subordinato a [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) e
@@ -90,7 +90,7 @@ modificatore di visibilità, e il modello della conoscenza deve esistere prima d
 
 ## 6. Il collegamento con il rumore
 
-Il §10 del documento sorgente e il §10 del [documento sul rumore](../src/design/rumore-e-percezione-acustica.md)
+Il §10 del documento sorgente e il §10 del [documento sul rumore](../archive/src/design/rumore-e-percezione-acustica.md)
 descrivono la stessa combo da due lati:
 
 ```

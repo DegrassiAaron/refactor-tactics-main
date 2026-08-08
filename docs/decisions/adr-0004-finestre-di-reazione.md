@@ -8,7 +8,7 @@
 > **logica** — che resta globale, perché serve al determinismo — dalla **presentazione**, che non deve avere
 > una pausa correlata alla scelta altrui. La §6 è precisata: `Rilevato` è il requisito del **profilo Overwatch
 > visivo**, non di *ogni* reazione.
-> **Contesto sorgente**: `docs/src/design/overwatch-e-fast-reaction.md` (19 sezioni)
+> **Contesto sorgente**: `docs/archive/src/design/overwatch-e-fast-reaction.md` (19 sezioni)
 > **Brief**: [`brief-overwatch-reazioni.md`](../gameplay/brief-overwatch-reazioni.md) (decisioni D16–D22)
 > **Supera**: [ADR-0003](adr-0003-modello-azioni-v01.md) §4 riga «Stack di reazioni LIFO interattivo → scartato»
 > **limitatamente alla finestra singola non annidata**; lo stack LIFO resta scartato.

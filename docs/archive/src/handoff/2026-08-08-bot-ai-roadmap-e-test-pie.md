@@ -1,9 +1,9 @@
 > ✅ **RECEPITO il 2026-08-08** (parte v0.1) · 📅 **il resto pianificato**.
-> I cinque test PIE di §24.1 sono in [`../../technical/test-manuali-pie.md`](../../technical/test-manuali-pie.md)
+> I cinque test PIE di §24.1 sono in [`../../../technical/test-manuali-pie.md`](../../../technical/test-manuali-pie.md)
 > come `PIE-AI-01`…`PIE-AI-05`; il comportamento del bot v0.1 è descritto al giocatore in
-> [`../../wiki/game/avversario-bot.md`](../../wiki/game/avversario-bot.md).
+> [`../../../wiki/game/avversario-bot.md`](../../../wiki/game/avversario-bot.md).
 > **Tactical Bot v1** (§5.2) è **E26** e **Expert Bot v2** (§5.3) è **E28** in
-> [`../../roadmap/roadmap-post-v0.1.md`](../../roadmap/roadmap-post-v0.1.md).
+> [`../../../roadmap/roadmap-post-v0.1.md`](../../../roadmap/roadmap-post-v0.1.md).
 
 # RefactorTactics — Bot AI tattica, roadmap, test PIE e scenari
 ## Handoff esecutivo per Claude Code — consolidamento repository

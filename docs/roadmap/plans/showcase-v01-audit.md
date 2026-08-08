@@ -2,7 +2,7 @@
 
 > `CURRENT` · **Data**: 2026-08-08 · **HEAD misurato**: merge di `origin/main` (CP 9.3) in
 > `docs/consolidamento-non-gameplay` · **Suite**: **432 test unici in 65 file**
-> **Origine**: handoff `../../src/handoff/roadmap-docs-test-e-showcase-v0.1.md`
+> **Origine**: handoff `../../archive/src/handoff/roadmap-docs-test-e-showcase-v0.1.md`
 >
 > **Cosa è**: la misura dello scarto fra ciò che il repository fa oggi e ciò che serve perché
 > `RT_Showcase_Relay_v01` giri per intero. **Cosa non è**: una specifica — quella è
@@ -71,8 +71,8 @@ L'handoff §0 dichiara come input, e la §1 mette al **rank #2**, file che non s
 | `Testing automatico Cloud.txt` | 6 | **assente** |
 | `Revisione sequenza turno.txt` | 5 | **assente** |
 | `docs/src/showcase/mappa-tattica-bacino-relay.png` · `..._board_im.png` | 9 | **assenti** |
-| `docs/src/design/overwatch-e-fast-reaction.md` | 4 | ✅ presente |
-| `docs/src/design/rumore-e-percezione-acustica.md` | — | ✅ presente |
+| `docs/archive/src/design/overwatch-e-fast-reaction.md` | 4 | ✅ presente |
+| `docs/archive/src/design/rumore-e-percezione-acustica.md` | — | ✅ presente |
 
 **Perché si può procedere lo stesso.** L'handoff **riporta per esteso** ciò che i due file assenti più
 importanti avrebbero portato: la §7 dà la mappa (45 celle, forma per riga, spawn, Relay a `(0,0,0)`, elenco dei

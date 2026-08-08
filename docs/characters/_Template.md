@@ -20,11 +20,20 @@
 
 **Obiettivo del giocatore.** <cosa cerca di ottenere>
 
+**Misplay / Failure State.** <cosa resta in mano al giocatore quando usa la meccanica **correttamente secondo le
+regole** ma legge male il turno>
+
 **Counterplay / rischio.** <come l'avversario può rispondere usando solo regole definite>
+
+> **`Misplay` non è `Counterplay`.** Il counterplay è ciò che fa **l'avversario** per neutralizzare la
+> Signature; il misplay è la conseguenza di una decisione sbagliata di **chi la usa**, senza che nessuno lo
+> abbia contrastato. Servono a due domande diverse: *«come lo fermo?»* e *«come posso sprecarlo?»*.
+> Compilare il campo con «fa meno danno» significa non averlo compilato: deve nominare la **decisione
+> specifica** che è andata storta e il suo costo. Vedi [D-032](../decisions/RT_PDR_00_Decision_Log.md).
 
 ### Dati della meccanica
 
-<Mechanic_ID, framework, dipendenze, trigger, payoff, counterplay, telegraphing, status>
+<Mechanic_ID, framework, dipendenze, trigger, payoff, **misplay/failure state**, counterplay, telegraphing, status>
 
 ## Statistiche base
 

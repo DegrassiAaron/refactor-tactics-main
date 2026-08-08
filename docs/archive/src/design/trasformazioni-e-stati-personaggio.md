@@ -1,7 +1,37 @@
 # RefactorTactics — Transformation / Alternate Form Exploration
 
-> **Status:** Design exploration / non vincolante  
+> `RESEARCH` · **Sorgente non normativo** · **Data**: 2026-08-08 · **Recepito da**:
+> [`../../../gameplay/brief-stati-personaggio-e-trasformazioni.md`](../../../gameplay/brief-stati-personaggio-e-trasformazioni.md)
+> · [D-035](../../../decisions/RT_PDR_00_Decision_Log.md) · epic **E34** in
+> [`../../../roadmap/roadmap-post-v0.1.md`](../../../roadmap/roadmap-post-v0.1.md)
+>
+> **Autorità**: nessuna. `RESEARCH` non risolve conflitti ([`../../../README.md`](../../../README.md), tabella delle
+> etichette). In caso di contrasto prevalgono il canone, gli ADR e i brief owner.
+
+> **Status originale:** Design exploration / non vincolante  
 > **Scopo:** conservare le alternative discusse per la meccanica di trasformazione e fornire una direzione consigliata senza eliminare opzioni future.
+
+## Correzioni applicate il 2026-08-08
+
+Il documento è stato **archiviato con il testo originale intatto** (convenzione 4 di
+[`../../../src/README.md`](../../../src/README.md)): le correzioni non riscrivono i paragrafi, sono note `⚠️` inserite accanto
+all'affermazione che correggono. Elenco completo, così che non vada cercato nel corpo:
+
+| § | Affermazione originale | Correzione |
+|---|---|---|
+| 2 | Elenca *unità ausiliarie* e *trappole* fra i sistemi che «competono per l'attenzione» oggi | Entrambi sono **fuori dalla v0.1**: le ausiliarie hanno solo vincoli architetturali, il framework di trap è escluso da [D-016](../../../decisions/RT_PDR_00_Decision_Log.md). Il budget di attenzione della v0.1 è più libero di quanto il documento assuma |
+| 5.3 | `Decision / Planning → Prep → Dash → Blast → Move` | La sequenza canonica ha sei voci: `Planning → Prep → Dash → Blast → Move → Cleanup`. L'ordine indicato è corretto, manca il `Cleanup` — che è proprio dove un `RevertRule` a durata fissa andrebbe valutato |
+| 7 (Vektor) | `Siege Mode` come «primo candidato per prototipare Alternate Form» | Contrasta con l'identità canonica di Vektor: *Predictive Duelist*, «il più mobile del roster», `Slancio` che **recupera muovendosi**. Una forma che rimuove il Dash non è uno stato, è un secondo personaggio. Vedi la nota in §14 |
+| 14 | «Raccomandazione specifica per la **v0.1**»: quattro trasformazioni sui quattro eroi | **Respinta.** Lo scope della v0.1 è chiuso (18 epic, 87 CP) e il rischio di scope è già dichiarato *alto*. Il framework è post-v0.1: [D-035](../../../decisions/RT_PDR_00_Decision_Log.md), epic **E34**. L'ordine di prototipazione resta valido come ordine, non come contenuto della vertical slice |
+| 15 | Schema `CharacterState` con `AbilityOverrides[]` | Resta **direzione**, non specifica. Vincoli che il documento non cita: **niente GAS** ([D-005](../../../decisions/RT_PDR_00_Decision_Log.md)) — le classi dati sono `URTActionData`/`URTHeroData`/`URTEquipmentData` — e nessun `if (Hero == X)` nel core ([ADR-0006](../../../decisions/adr-0006-ownership-abilita-sinergie.md)) |
+| 17 | `Decision Window: 3s` | Coincide con `FastReactionDuration` = **3,0 s**, di cui l'owner è [ADR-0004](../../../decisions/adr-0004-finestre-di-reazione.md) §8. È una **baseline da playtestare**, non un valore deciso: non va reintrodotto con un secondo nome |
+
+**Una cosa che il documento non vede**, e che è la ragione per cui il brief owner esiste: il repository ha già
+un meccanismo per «lo stesso comando si comporta diversamente a seconda dell'eroe» — il **profilo** di azione
+generica ([`../../../gameplay/brief-azioni-generiche-overwatch.md`](../../../gameplay/brief-azioni-generiche-overwatch.md) §4).
+Uno *Stance* è, dal punto di vista dei dati, un **cambio di profilo dichiarato in Planning**. Le categorie
+`Stance` e `Configuration` di §4 non chiedono quindi un sistema nuovo: chiedono di rendere commutabile in
+partita qualcosa che oggi è fisso per eroe.
 
 ---
 
@@ -43,6 +73,13 @@ RefactorTactics possiede già diversi sistemi che competono per l'attenzione del
 - unità ausiliarie;
 - trappole;
 - coordinamento tra personaggi.
+
+> ⚠️ **Correzione**: *unità ausiliarie* e *trappole* non competono per l'attenzione nella v0.1. Le ausiliarie
+> hanno solo vincoli architetturali e il gameplay è fuori release
+> ([`../../../gameplay/brief-unita-ausiliarie.md`](../../../gameplay/brief-unita-ausiliarie.md)); il framework di trap
+> è escluso da [D-016](../../../decisions/RT_PDR_00_Decision_Log.md), che ammette **una sola** Predictive Action.
+> Il budget di attenzione è quindi meno saturo di quanto il paragrafo assuma — il che rafforza la tesi del
+> documento, non la indebolisce: c'è spazio, ma va speso una volta sola.
 
 Una trasformazione completa può quasi raddoppiare la quantità di informazioni relativa a un singolo personaggio.
 
@@ -233,6 +270,11 @@ Ordine principale:
 
 **Decision / Planning → Prep → Dash → Blast → Move**
 
+> ⚠️ **Correzione**: la sequenza canonica ha sei voci — `Planning → Prep → Dash → Blast → Move → **Cleanup**`
+> ([`../../../gameplay/spec-sequenza-turno.md`](../../../gameplay/spec-sequenza-turno.md)). L'ordine indicato è
+> corretto; manca la fase in cui un `RevertRule` a durata fissa andrebbe valutato, che è esattamente il
+> `Cleanup`. È lì che Bastion recupera `Integrità Strutturale`, e sarebbe lì che una forma temporanea scade.
+
 Il normale **Move rimane l'ultima fase volontaria**.
 
 Una trasformazione dovrebbe preferibilmente:
@@ -409,6 +451,13 @@ Bastion diventa quasi parte della mappa:
 **Peso:** 7/10
 
 **Consiglio:** **primo candidato per prototipare Alternate Form.**
+
+> ⚠️ **Correzione**: contrasta con l'identità canonica di Vektor
+> ([`../../../characters/v0.1/vektor.md`](../../../characters/v0.1/vektor.md)): *Predictive Duelist*, «il più mobile
+> del roster», con `Slancio` che **recupera muovendosi**. Una forma che toglie il Dash non sospende una
+> statistica: spegne la risorsa firma e la player question («dove passerà il nemico?»). Non è uno stato dello
+> stesso personaggio, è un secondo personaggio. Se serve un banco di prova `Mobile ↔ Siege`, i candidati
+> coerenti sono **Howitzer** o **Murdock**, il cui kit è già costruito sul trade-off mobilità/precisione.
 
 ---
 
@@ -1177,6 +1226,16 @@ Perché:
 
 # 14. Raccomandazione specifica per la v0.1
 
+> ⚠️ **Respinta il 2026-08-08 — [D-035](../../../decisions/RT_PDR_00_Decision_Log.md).** Nessuna trasformazione
+> entra nella v0.1. Lo scope della release è chiuso (18 epic, 87 checkpoint) e il rischio di scope è già
+> registrato come **alto** in [`../../../roadmap/roadmap-v0.1.md`](../../../roadmap/roadmap-v0.1.md) §8; per di più
+> due dei quattro stati proposti qui dipendono da sistemi non ancora costruiti — `Charged` dal canale acustico
+> e ambientale di **E13**, `Bulwark` dal sistema strutture che regge già solo in parte `KineticPanel`.
+>
+> **Cosa sopravvive**: l'ordine di prototipazione di §22, come ordine. Il framework vive in
+> [`../../../gameplay/brief-stati-personaggio-e-trasformazioni.md`](../../../gameplay/brief-stati-personaggio-e-trasformazioni.md)
+> ed è pianificato come epic **E34**, post-v0.1.
+
 Roster:
 
 - Flux;
@@ -1240,6 +1299,13 @@ Questo permette di validare l'architettura senza caricare eccessivamente la vert
 ---
 
 # 15. Requisiti tecnici suggeriti
+
+> ⚠️ **Direzione, non specifica** — lo dice già il documento in chiusura di sezione, ma mancano tre vincoli del
+> repository: **niente GAS** ([D-005](../../../decisions/RT_PDR_00_Decision_Log.md)), quindi le classi dati sono
+> `URTActionData`/`URTHeroData`/`URTEquipmentData`; **nessun branch per eroe** nel core
+> ([ADR-0006](../../../decisions/adr-0006-ownership-abilita-sinergie.md)); e `AbilityOverrides[]` deve restare
+> compatibile con l'ownership del kit — uno stato può sostituire le abilità **del proprio** personaggio, mai
+> introdurre l'abilità di un altro.
 
 Il sistema dovrebbe supportare almeno:
 
@@ -1329,6 +1395,11 @@ IF incomingDamage >= threshold
     OFFER Reactive Armor
     Decision Window: 3s
 ```
+
+> ⚠️ **Nota di nomenclatura**: quel `3s` è `FastReactionDuration` = **3,0 s**, il cui owner è
+> [ADR-0004](../../../decisions/adr-0004-finestre-di-reazione.md) §8, ed è una **baseline da playtestare**, non un
+> valore deciso. Non va reintrodotto con un secondo nome: è già successo una volta con `FastDecisionDuration`
+> ([`../../../gameplay/brief-delayed-actions.md`](../../../gameplay/brief-delayed-actions.md) §6.4).
 
 La trasformazione può quindi essere anche una Decision Boundary.
 

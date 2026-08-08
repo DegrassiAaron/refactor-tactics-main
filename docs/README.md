@@ -80,6 +80,10 @@ definita in due posti, è un difetto: apri una issue invece di aggiornarne una s
 | Azioni generiche e Overwatch universale | [`gameplay/brief-azioni-generiche-overwatch.md`](gameplay/brief-azioni-generiche-overwatch.md) | ✅ deciso ([D-012](decisions/RT_PDR_00_Decision_Log.md) · [D-025](decisions/RT_PDR_00_Decision_Log.md): **sette** voci, `Guard` universale) · ⏳ E14 |
 | **Ownership di abilità, interazioni e sinergie** | [`gameplay/spec-ownership-abilita-interazioni-sinergie.md`](gameplay/spec-ownership-abilita-interazioni-sinergie.md) · [ADR-0006](decisions/adr-0006-ownership-abilita-sinergie.md) | ✅ **normativa** ([D-029](decisions/RT_PDR_00_Decision_Log.md)) · nessun runtime nuovo |
 | Trigger su transizione (trap, tripwire) | [`gameplay/brief-delayed-actions.md`](gameplay/brief-delayed-actions.md) §6-bis | ✅ deciso ([D-013](decisions/RT_PDR_00_Decision_Log.md)) · nessuna epic |
+| **Profilo** di azione generica (il modificatore per eroe) | [`gameplay/brief-azioni-generiche-overwatch.md`](gameplay/brief-azioni-generiche-overwatch.md) §4-bis | ✅ [D-033](decisions/RT_PDR_00_Decision_Log.md) · nome unico: **non** `GenericActionModifier` · profili concreti ⏳ |
+| Schema della Signature e **`Misplay / Failure State`** | [`characters/_Template.md`](characters/_Template.md) | ✅ [D-032](decisions/RT_PDR_00_Decision_Log.md) · compilato sulle 4 schede v0.1 |
+| Intento condizionale (`ConditionalIntent`) | [`gameplay/brief-delayed-actions.md`](gameplay/brief-delayed-actions.md) §7 | 📅 [D-034](decisions/RT_PDR_00_Decision_Log.md) · **post-v0.1**, epic E33 · bloccato dai boundary |
+| Stati del personaggio e trasformazioni | [`gameplay/brief-stati-personaggio-e-trasformazioni.md`](gameplay/brief-stati-personaggio-e-trasformazioni.md) · candidature in [`characters/matrici-stati-personaggio.md`](characters/matrici-stati-personaggio.md) | 📅 [D-035](decisions/RT_PDR_00_Decision_Log.md) · **post-v0.1**, epic E34 · nessun eroe assegnato |
 | Formato principale di partita | [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) `D-001`/`D-011` | ⚠️ **assunzione**: 3v3 baseline, mai misurato |
 | Validazione di stress 4v4 | [`roadmap/roadmap-v0.1.md`](roadmap/roadmap-v0.1.md) §E17 | ⏳ E17, dopo E15 |
 
@@ -188,9 +192,10 @@ docs/
 │   ├── meccaniche/  manuale per regola
 │   └── fazioni/     identità, filosofia, roster, scenari dimostrativi
 ├── characters/  pagine personaggio: v0.1, v0.2, candidati Paragon — **un kit per pagina**
-├── src/         sorgenti non normativi: PDF di visione e brief grezzi
+├── src/         sorgenti non normativi ancora da consumare: PDF di visione, dataset, media
 └── archive/     materiale superato
-    └── pdr-v0.1/  snapshot PDF dei PDR
+    ├── src/        i sorgenti già recepiti: design, handoff, audit
+    └── pdr-v0.1/   snapshot PDF dei PDR
 ```
 
 ### Due deviazioni dichiarate
@@ -201,6 +206,10 @@ docs/
 2. **`src/` non è documentazione**: è la casella di posta dei sorgenti grezzi (PDF di visione, brief non ancora
    triagiati). Vive accanto ai documenti perché è da lì che nascono, ma **non è normativa** e non compare nella
    gerarchia delle fonti sopra il livello 8.
+   > **Dal 2026-08-08 la casella si svuota.** Un sorgente recepito si sposta in
+   > [`archive/src/`](archive/src/README.md), invece di restare con un banner. La cartella `src/` risponde ora
+   > a una domanda sola — *cosa non è ancora stato consumato?* — e la risposta è la posizione del file, non una
+   > colonna di un indice.
 
 ---
 
@@ -248,3 +257,31 @@ forma in cui un documento afferma «questo esiste oggi». Non controlla la prosa
 comparire come storia («è stato rimosso») o come proposta («il DoD introduce…»): distinguerli lessicalmente
 non è affidabile, e un gate che sbaglia viene disattivato al terzo falso positivo. Sono esentati i documenti
 storici, i brief propositivi e le cartelle `archive/`, `src/`, `roadmap/plans/`.
+
+```bash
+python scripts/check-docs-links.py          # e python scripts/check-docs-links.py --known
+```
+
+Il gemello: un **link** punta a qualcosa che esiste, ed è etichettato per quello che è. Nasce dal
+consolidamento del 2026-08-08, che spostando 25 sorgenti ha rotto i link in tre modi — e solo il primo era
+ovvio. Controlla quattro cose:
+
+| Controllo | Cosa becca |
+|---|---|
+| Target inesistente | Il link rotto classico, tipicamente dopo uno spostamento |
+| **Etichetta che mente** | ``[`../vecchio/x.md`](../nuovo/x.md)``: il link funziona, il testo no. Erano **36** dopo lo spostamento, e nessun controllo sui soli target li vede |
+| Target **non versionato** | Esiste sulla tua macchina e su nessun'altra: committalo o togli il link |
+| Debito **stantio** | Una voce di `DEBITO_NOTO` che è tornata a funzionare: va tolta, o nasconderà la prossima |
+
+`DEBITO_NOTO` **non è un'esenzione**: è una promessa datata, con la sua ragione accanto, e il gate la verifica
+al contrario. **Oggi è vuoto**, e va tenuto vuoto; il meccanismo resta perché un gate senza via d'uscita viene
+disattivato *per intero* al primo blocco legittimo.
+
+Ignora i link **citati** (avvolti in backtick) e quelli dentro **blocchi recintati**. Non è una comodità: in un
+```` ```md ```` un `![img](…)` è un modello da incollare altrove, e i suoi path sono relativi alla
+**destinazione**. È l'errore in cui il gate è cascato da solo alla prima esecuzione, segnalando i due esempi
+scritti in questa pagina.
+
+Non controlla **ancoraggi** (`#sezione`) né **URL esterni**: il primo richiederebbe di riprodurre la
+slugificazione di GitHub su titoli con accenti ed emoji, il secondo la rete. Stessa disciplina dell'altro
+gate — meglio stretto e creduto che largo e ignorato.

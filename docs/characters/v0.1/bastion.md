@@ -76,6 +76,8 @@ Il controgioco è geometrico: aggirare le coperture, distruggere o rendere irril
 
 **Obiettivo del giocatore.** Controllare una porzione di mappa con coperture e presenza fisica, quindi proteggere l'alleato giusto con `Interposition` o convertire la posizione in pressione con `Ram`.
 
+**Misplay / Failure State.** Chiudere lo spazio sbagliato. Una struttura non è un effetto che scade: resta sulla mappa e modifica le rotte **di entrambe le squadre**, quindi una linea chiusa male ostacola anche gli alleati che Bastion doveva proteggere. Il costo di rimediare è il più alto del roster, perché Bastion ha 4 MP — il valore più basso — e `Reconfigure` gli consuma un altro turno per disfare ciò che ha appena costruito. La domanda «quale spazio chiudo» ha quindi una risposta sbagliata che **persiste**, mentre quella di Flux o Vektor si esaurisce nel turno.
+
 **Counterplay / rischio.** Ha 4 MP, il valore più basso del roster v0.1. Flank, separazione dagli alleati e distruzione delle strutture riducono il valore della sua architettura.
 
 ### Dati della meccanica
@@ -93,6 +95,7 @@ Il controgioco è geometrico: aggirare le coperture, distruggere o rendere irril
 | State | Integrità Strutturale + coperture/strutture controllate |
 | Activation / Trigger | Crea/riconfigura strutture e reagisce agli attacchi agli alleati |
 | Payoff | Modifica linee e rotte, assorbe pressione al posto degli alleati |
+| Misplay / Failure State | Chiudere la linea sbagliata: la struttura persiste e ostacola anche gli alleati; con 4 MP e `Reconfigure` a costo di turno, l'errore è il più caro da annullare |
 | Counterplay | Flank, mobilità, distruzione strutture, separazione dagli alleati |
 | Telegraphing | Strutture pubbliche; intenti di reazione team-only durante planning |
 | Design Status | IMPLEMENTED |
