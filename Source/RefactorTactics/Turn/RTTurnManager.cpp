@@ -13,6 +13,7 @@
 #include "Combat/RTHexCombatLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
 #include "Map/RTHexCoverLibrary.h"
+#include "Map/RTHexArcLibrary.h"
 #include "Map/RTHexDoorLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Ability/RTActionData.h"
@@ -569,6 +570,10 @@ void ARTTurnManager::LockInAndResolve()
 	// tick venisse dopo, le mangerebbe subito uno.
 	TickDynamicSurfaces(CleanupMap);
 
+	// Stessa ragione di ordine delle superfici: un ponte creato ADESSO deve durare i suoi turni pieni, quindi
+	// il tick precede le azioni di questo turno invece di mangiarne subito uno.
+	TickDynamicArcs(CleanupMap);
+
 	// 1. Azioni ambientali (CP 8.3/8.4): la scarica elettrica e le modifiche del terreno precedono il danno di
 	// `Burning`. Chi cade qui e' morto in QUESTO turno, come chi cade bruciato: il conteggio dei vivi arriva
 	// dopo entrambi.
@@ -740,6 +745,54 @@ bool ARTTurnManager::ApplyDynamicSurface(URTHexMapAsset* Map, const FRTCellId& C
 	return true;
 }
 
+void ARTTurnManager::TickDynamicArcs(URTHexMapAsset* Map)
+{
+	if (!Map || DynamicArcs.Num() == 0) { return; }
+
+	// Ordine STABILE: da qui escono voci di TurnLog, e due esecuzioni della stessa partita devono scriverle
+	// nella stessa sequenza (la stessa disciplina di `TickDynamicSurfaces`).
+	DynamicArcs.Sort([](const FRTDynamicArc& A, const FRTDynamicArc& B)
+	{
+		if (!(A.From == B.From)) { return URTHexLibrary::StableLess(A.From, B.From); }
+		return URTHexLibrary::StableLess(A.To, B.To);
+	});
+
+	for (int32 I = DynamicArcs.Num() - 1; I >= 0; --I)
+	{
+		FRTDynamicArc& Arc = DynamicArcs[I];
+		if (Arc.CreatedOnTurn == TurnNumber)
+		{
+			continue; // nato in questo turno: i suoi turni cominciano dal prossimo, non da adesso
+		}
+		if (--Arc.TurnsRemaining > 0)
+		{
+			continue; // il ponte regge ancora
+		}
+
+		// Scaduto: l'arco sparisce dalla mappa. I due layer tornano irraggiungibili e il percorso FALLISCE —
+		// il Move del turno successivo lo scopre da `GraphNeighbors`, non da un secondo controllo qui.
+		const FRTCellId From = Arc.From;
+		const FRTCellId To = Arc.To;
+		DynamicArcs.RemoveAt(I);
+		if (!Map->RemoveTransition(From, To, /*bBothDirections*/ true))
+		{
+			continue; // gia' rimosso per altra via (distrutto in combattimento): niente da registrare
+		}
+
+		FRTTurnLogEntry Entry;
+		Entry.Phase = ERTMatchPhase::Cleanup;
+		Entry.Category = ERTLogCategory::Environment;
+		Entry.Outcome = static_cast<uint8>(ERTEnvironmentOutcome::BridgeRemoved);
+		Entry.ActionId = FName(TEXT("Action.ModifyArc"));
+		Entry.SrcCell = From;
+		Entry.TgtCell = To;
+		Entry.Amount = 0;
+		TurnLog.Add(Entry);
+		AddLogEvent(FString::Printf(TEXT("Il ponte (q=%d,r=%d,L%d) -> (q=%d,r=%d,L%d) e' scaduto"),
+			From.X, From.Y, From.Layer, To.X, To.Y, To.Layer));
+	}
+}
+
 void ARTTurnManager::TickDynamicSurfaces(URTHexMapAsset* Map)
 {
 	if (!Map || DynamicSurfaces.Num() == 0) { return; }
@@ -895,41 +948,9 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 				continue;
 			}
 
-			// `Action.ModifyArc` (CP 8.5): apre o chiude il COLLEGAMENTO fra chi la usa e il bersaglio. Se
-			// l'arco c'e' lo toglie, altrimenti lo crea — «apri o chiudi» e' la stessa azione vista dai due
-			// lati, come una porta.
-			//
-			// **Limiti dichiarati**: (a) l'arco e' identificato dalla coppia (caster, bersaglio) perche' la
-			// pianificazione non ha un bersaglio-ARCO — arrivera' con l'editor/HUD di E9/E11; (b) il ponte
-			// creato **non scade**: la durata degli archi e' CP 9.4 (ponti e porte), qui c'e' l'apertura e la
-			// chiusura, che e' cio' che questa DoD chiede insieme alla revisione.
-			if (EnvActionId == FName(TEXT("Action.ModifyArc")))
-			{
-				Caster->ConsumeAbility(AbilityIndex);
-				if (Map)
-				{
-					const bool bClosed = Map->RemoveTransition(Caster->Cell, Target->Cell, /*bBothDirections*/ true);
-					if (!bClosed)
-					{
-						Map->AddTransition(Caster->Cell, Target->Cell, /*Cost*/ 1,
-							ERTHexTransitionKind::Bridge, /*bBidirectional*/ true);
-					}
-
-					FRTTurnLogEntry Entry;
-					Entry.Phase = ERTMatchPhase::Cleanup;
-					Entry.Category = ERTLogCategory::Environment;
-					Entry.Outcome = static_cast<uint8>(ERTEnvironmentOutcome::SurfaceChanged);
-					Entry.ActionId = EnvActionId;
-					Entry.SrcCell = Caster->Cell;
-					Entry.TgtCell = Target->Cell;
-					Entry.Amount = bClosed ? 0 : 1; // 0 = collegamento chiuso, 1 = collegamento aperto
-					TurnLog.Add(Entry);
-					AddLogEvent(FString::Printf(TEXT("%s: collegamento %s verso (q=%d,r=%d,L%d)"),
-						*Caster->GetName(), bClosed ? TEXT("chiuso") : TEXT("aperto"),
-						Target->Cell.X, Target->Cell.Y, Target->Cell.Layer));
-				}
-				continue;
-			}
+			// `Action.ModifyArc` NON passa piu' di qui: dal CP 9.4 risolve nel **Blast** insieme a porte e
+			// strutture, perche' la topologia deve cambiare tutta nello stesso momento e il Move che segue
+			// deve vederla. Il suo ramo vive in `ResolveCombat`.
 		}
 
 		// La SORGENTE e' la cella del bersaglio, non l'unita': l'elettricita' entra nel terreno e da li' si
@@ -1496,6 +1517,13 @@ void ARTTurnManager::ResolveCombat()
 	TArray<const URTActionData*> IntentAbility;
 	TArray<FRTActionDef> IntentDefs; // la definizione che ha prodotto l'intento: anche senza un URTActionData
 					 // dietro (l'impatto di una carica e' dati puri, non un'abilita' selezionata)
+
+	// Operazioni sugli ARCHI raccolte in questa fase (CP 9.4), applicate a fase CONCLUSA come i colpi e il
+	// danno alle strutture: due unita' che agiscono sullo stesso ponte devono dare lo stesso esito in
+	// qualunque ordine (invariante #3).
+	struct FRTPendingArcOp { FRTCellId From; FRTCellId To; };
+	TArray<FRTPendingArcOp> PendingArcOps;
+
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Units[i];
@@ -1509,6 +1537,26 @@ void ARTTurnManager::ResolveCombat()
 			&& URTCatalogLibrary::MapResolutionPhase(PlannedNow->Def.ResolutionPhase) == ERTMatchPhase::Cleanup)
 		{
 			continue; // il piano resta: lo consuma `ResolveEnvironment`
+		}
+
+		// `Action.ModifyArc` (CP 9.4) risolve QUI, ma non e' un intento d'attacco: si intercetta PRIMA della
+		// raccolta perche' il percorso normale leggerebbe il danno dagli effetti e, non trovandone, ripiegherebbe
+		// sul campo legacy `Ability->Power` — un'azione che cambia la topologia si metterebbe a fare danno.
+		//
+		// L'arco e' identificato dalla COPPIA (chi la usa, il bersaglio): la pianificazione non ha un
+		// bersaglio-arco, e questo resta un limite dichiarato finche' l'HUD di E11 non ne porta uno.
+		if (PlannedNow && PlannedNow->Def.ActionId == FName(TEXT("Action.ModifyArc")))
+		{
+			ARTUnit* ArcTarget = Unit->PlannedAttackTarget;
+			const int32 ArcAbilityIndex = Unit->PlannedAbilityIndex;
+			Unit->PlannedAttackTarget = nullptr;
+			Unit->PlannedAbilityIndex = INDEX_NONE; // consumato nel turno, attivata o no
+			if (Unit->CanUseAbility(ArcAbilityIndex) && ArcTarget && ArcTarget->IsAlive())
+			{
+				Unit->ConsumeAbility(ArcAbilityIndex);
+				PendingArcOps.Add({ Unit->Cell, ArcTarget->Cell });
+			}
+			continue;
 		}
 
 		ARTUnit* Target = Unit->PlannedAttackTarget;
@@ -1951,6 +1999,93 @@ void ARTTurnManager::ResolveCombat()
 		AddLogEvent(FString::Printf(TEXT("Copertura (q=%d,r=%d,L%d) verso (q=%d,r=%d): %s (integrita' %d)"),
 			Change.Cell.X, Change.Cell.Y, Change.Cell.Layer, Change.Toward.X, Change.Toward.Y,
 			Change.bDestroyed ? TEXT("abbattuta") : TEXT("danneggiata"), Change.RemainingIntegrity));
+	}
+
+	// ARCHI (CP 9.4). Due pezzi, entrambi a fase conclusa:
+	//
+	// 1. il DANNO. Un'azione che dichiara `DamageStructure` e mira a un'unita' agli estremi di un ponte lo
+	//    scalfisce. La coppia (attaccante, bersaglio) identifica l'arco per la stessa ragione di `ModifyArc`;
+	//    se fra le due celle non c'e' un arco, `DamageArc` non fa nulla e non tocca la revisione.
+	for (int32 IntentIdx = 0; IntentIdx < Intents.Num(); ++IntentIdx)
+	{
+		const FRTHexAttackIntent& Intent = Intents[IntentIdx];
+		if (Intent.StructurePower <= 0 || !HexUnits.IsValidIndex(Intent.AttackerId))
+		{
+			continue;
+		}
+		// Il bersaglio puo' essere una CELLA (`TargetId == INDEX_NONE`): l'arco si cerca comunque, verso la
+		// cella mirata — indicizzare `HexUnits[TargetId]` uscirebbe dall'array.
+		const FRTCellId ArcTo = HexUnits.IsValidIndex(Intent.TargetId)
+			? HexUnits[Intent.TargetId].Cell : Intent.TargetCell;
+
+		for (const FRTArcChange& Change :
+			URTHexArcLibrary::DamageArc(MutableMap, HexUnits[Intent.AttackerId].Cell, ArcTo, Intent.StructurePower))
+		{
+			FRTTurnLogEntry Entry;
+			Entry.Phase = ERTMatchPhase::Blast;
+			Entry.Category = ERTLogCategory::Environment;
+			Entry.Outcome = static_cast<uint8>(Change.bBroken
+				? ERTEnvironmentOutcome::BridgeDestroyed : ERTEnvironmentOutcome::BridgeDamaged);
+			Entry.SrcCell = Change.From;
+			Entry.TgtCell = Change.To;
+			Entry.Amount = Change.RemainingIntegrity;
+			TurnLog.Add(Entry);
+			AddLogEvent(FString::Printf(TEXT("Ponte (q=%d,r=%d,L%d) -> (q=%d,r=%d,L%d): %s (integrita' %d)"),
+				Change.From.X, Change.From.Y, Change.From.Layer,
+				Change.To.X, Change.To.Y, Change.To.Layer,
+				Change.bBroken ? TEXT("crollato") : TEXT("danneggiato"), Change.RemainingIntegrity));
+		}
+	}
+
+	// 2. `ModifyArc`: se il collegamento c'e' lo TOGLIE, altrimenti lo CREA — «apri o chiudi» e' la stessa
+	//    azione vista dai due lati. Il ponte creato e' TEMPORANEO (2 turni, come le altre modifiche ambientali
+	//    del catalogo) e CONDUTTIVO: la scarica lo risale, quindi e' un rischio oltre che una scorciatoia.
+	//    Ordine canonico prima di applicare: l'ordine delle unita' non deve decidere l'esito.
+	PendingArcOps.Sort([](const FRTPendingArcOp& A, const FRTPendingArcOp& B)
+	{
+		if (!(A.From == B.From)) { return URTHexLibrary::StableLess(A.From, B.From); }
+		return URTHexLibrary::StableLess(A.To, B.To);
+	});
+	for (const FRTPendingArcOp& Op : PendingArcOps)
+	{
+		if (!MutableMap) { break; }
+
+		const bool bRemoved = MutableMap->RemoveTransition(Op.From, Op.To, /*bBothDirections*/ true);
+		if (bRemoved)
+		{
+			DynamicArcs.RemoveAll([&Op](const FRTDynamicArc& D)
+			{
+				return (D.From == Op.From && D.To == Op.To) || (D.From == Op.To && D.To == Op.From);
+			});
+		}
+		else
+		{
+			// Creazione: i due versi in UNA sola revisione (un ponte e' un evento, non due archi).
+			TArray<FRTHexEdge> Built;
+			FRTHexEdge Forward(Op.From, Op.To, /*Cost*/ 1, ERTHexTransitionKind::Bridge);
+			Forward.bConductsElectricity = true;
+			FRTHexEdge Backward(Op.To, Op.From, /*Cost*/ 1, ERTHexTransitionKind::Bridge);
+			Backward.bConductsElectricity = true;
+			Built.Add(Forward);
+			Built.Add(Backward);
+			MutableMap->UpdateTransitions(Built);
+			// Durata 2 turni, come le altre modifiche ambientali del catalogo (`Ignite`, `CreateWater`).
+			DynamicArcs.Add({ Op.From, Op.To, /*TurnsRemaining*/ 2, /*CreatedOnTurn*/ TurnNumber });
+		}
+
+		FRTTurnLogEntry Entry;
+		Entry.Phase = ERTMatchPhase::Blast;
+		Entry.Category = ERTLogCategory::Environment;
+		Entry.Outcome = static_cast<uint8>(
+			bRemoved ? ERTEnvironmentOutcome::BridgeRemoved : ERTEnvironmentOutcome::BridgeCreated);
+		Entry.ActionId = FName(TEXT("Action.ModifyArc"));
+		Entry.SrcCell = Op.From;
+		Entry.TgtCell = Op.To;
+		Entry.Amount = bRemoved ? 0 : 2; // turni di durata del ponte creato
+		TurnLog.Add(Entry);
+		AddLogEvent(FString::Printf(TEXT("Collegamento %s: (q=%d,r=%d,L%d) -> (q=%d,r=%d,L%d)"),
+			bRemoved ? TEXT("rimosso") : TEXT("creato"),
+			Op.From.X, Op.From.Y, Op.From.Layer, Op.To.X, Op.To.Y, Op.To.Layer));
 	}
 
 	// PORTE (CP 9.3): stessa disciplina delle strutture — gli ordini si applicano ORA, a colpi risolti, non

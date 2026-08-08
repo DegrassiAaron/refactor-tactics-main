@@ -469,7 +469,7 @@ bool FRTDoorMigrationTest::RunTest(const FString&)
 
 	TestEqual(TEXT("versione portata alla corrente"), Legacy->FormatVersion,
 		URTHexMapAsset::CurrentFormatVersion);
-	TestEqual(TEXT("la versione corrente e' la 4"), URTHexMapAsset::CurrentFormatVersion, 4);
+	TestEqual(TEXT("la versione corrente e' la 5"), URTHexMapAsset::CurrentFormatVersion, 5);
 	TestEqual(TEXT("nessuna cella persa"), Legacy->NumCells(), 3);
 	TestEqual(TEXT("nessuna transizione persa"), Legacy->Transitions.Num(), 2); // bidirezionale
 

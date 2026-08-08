@@ -1,4 +1,5 @@
 #include "Terrain/RTTerrainLibrary.h"
+#include "Map/RTHexArcLibrary.h"
 #include "Core/RTGameplayTags.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
@@ -197,7 +198,20 @@ TArray<FRTPropagationHit> URTTerrainLibrary::CollectElectricPropagation(const UR
 			{
 				// Ordine dei vicini FISSO (`URTHexLibrary::Neighbors` restituisce le sei direzioni in ordine
 				// di enum): il risultato non dipende dall'iterazione di un container non ordinato (#4).
-				for (const FRTCellId& Neighbor : URTHexLibrary::Neighbors(Cell))
+				// I sei vicini planari, PIU' i ponti conduttivi uscenti (CP 9.4): senza questi la scarica non
+				// sale mai di layer, e «ponte conduttivo» non significherebbe niente. L'ordine e' fisso —
+				// prima i vicini in ordine di enum, poi gli archi nell'ordine dell'array, che `SortCells` e
+				// `AddTransition` tengono stabile — quindi il risultato non dipende da container non ordinati.
+				TArray<FRTCellId> Adjacent = URTHexLibrary::Neighbors(Cell);
+				for (const FRTHexEdge& Arc : Map->Transitions)
+				{
+					if (Arc.From == Cell && URTHexArcLibrary::ArcConductsElectricity(Map, Arc.From, Arc.To))
+					{
+						Adjacent.Add(Arc.To);
+					}
+				}
+
+				for (const FRTCellId& Neighbor : Adjacent)
 				{
 					if (Visited.Contains(Neighbor) || !Conducts(Neighbor))
 					{

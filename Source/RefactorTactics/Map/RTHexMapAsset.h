@@ -31,8 +31,9 @@ public:
 	 * v2: le transizioni entrano nell'hash + campo `Kind` sugli archi.
 	 * v3 (CP 9.1): coperture per bordo di cella (`FRTHexCellData::Covers`).
 	 * v4 (CP 9.3): porte per bordo di cella (`FRTHexCellData::Doors`).
+	 * v5 (CP 9.4): stato, integrita' e conduttivita' sugli archi (`FRTHexEdge`).
 	 */
-	static constexpr int32 CurrentFormatVersion = 4;
+	static constexpr int32 CurrentFormatVersion = 5;
 
 	/** Versione del formato con cui l'asset e' stato scritto; `MigrateToCurrentFormat` la porta avanti. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
@@ -123,6 +124,12 @@ public:
 
 	/** Rimuove la transizione From->To (e, se bBothDirections, anche To->From). Vero se ne ha rimossa almeno una. */
 	bool RemoveTransition(const FRTCellId& From, const FRTCellId& To, bool bBothDirections = true);
+
+	/**
+	 * Sostituisce gli archi indicati (per coppia From->To) e incrementa la revisione UNA SOLA VOLTA: un ponte
+	 * bidirezionale sono due archi ma un evento solo, come il portone di CP 9.3. Un array vuoto non incrementa.
+	 */
+	void UpdateTransitions(const TArray<FRTHexEdge>& InEdges);
 
 	/** Ordina le celle in modo stabile (Layer, X, Y) e invalida la cache. */
 	void SortCells();

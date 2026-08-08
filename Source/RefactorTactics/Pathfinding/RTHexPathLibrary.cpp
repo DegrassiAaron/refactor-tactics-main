@@ -27,10 +27,12 @@ TArray<TPair<FRTCellId, int32>> URTHexPathLibrary::GraphNeighbors(const URTHexMa
 		}
 	}
 
-	// Transizioni esplicite uscenti (rampe/ponti/scale/tunnel): costo = costo dell'arco.
+	// Transizioni esplicite uscenti (rampe/ponti/scale/tunnel): costo = costo dell'arco. Un arco non ATTIVO
+	// (CP 9.4) non e' un collegamento: le due celle tornano irraggiungibili l'una dall'altra, e il percorso
+	// FALLISCE invece di teletrasportare — non esiste un'adiacenza planare di riserva fra due layer.
 	for (const FRTHexEdge& E : Map->Transitions)
 	{
-		if (E.From == Cell)
+		if (E.From == Cell && E.State == ERTHexArcState::Active)
 		{
 			if (const FRTHexCellData* D = Map->FindCell(E.To))
 			{
