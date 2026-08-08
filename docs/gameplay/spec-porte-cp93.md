@@ -250,6 +250,7 @@ esiti si aggiungono **in coda** a `ERTEnvironmentOutcome`:
 | `Structures.Door.WallOverridesOpenDoor` | l'OR restrittivo: una porta aperta dentro un muro alto non apre nulla |
 | `Structures.Door.OpsOrderIndependent` | apertura e chiusura nello stesso turno danno lo stesso esito in qualunque ordine |
 | `Structures.Door.DestroyedStaysOpen` | `Destroyed` è terminale e `Locked` non si apre da sola |
+| `Structures.Door.ReadsBothFaces` | il bordo vale da entrambi i lati, anche se una faccia sola lo dichiara |
 | `HexMap.DoorHashDeterminism` | l'hash non dipende dall'ordine dell'array e cambia con lo stato |
 | `HexMap.DoorValidation` | porte sovrapposte sullo stesso bordo, porta dentro un muro alto |
 | `HexMap.DoorFormatMigration` | v3 → v4 non perde celle, coperture né transizioni |
@@ -265,8 +266,39 @@ da solo non esiste come test.
 
 ## 10. Verifica di mutazione
 
-Ogni riga è una modifica deliberata al codice di produzione, applicata da sola, con i test che sono caduti.
+Ogni riga è una modifica deliberata al codice di produzione, applicata **da sola**, seguita da build completa
+e suite intera. Nessuna usa un `return` anticipato: in questo progetto il codice non eseguibile (C4702) è un
+errore di compilazione, quindi si muta un valore o una condizione già presenti.
 
-| # | Mutazione | File | Test caduti | Esito |
-|---|---|---|---|---|
-| — | *(compilata dopo l'implementazione)* | | | |
+Baseline: **425 test, nessuno fallito**.
+
+| # | Mutazione | File | Test caduti |
+|---|---|---|---|
+| 1 | L'OR con la porta esce da `BlocksTraversal` | `RTHexCoverLibrary.cpp` | `Door.{BlocksLineOfSight, ClosingStopsMovement, DestroyedStaysOpen, GroupClosesTogether, InvalidatesPathCache, OpsOrderIndependent, TruncatesPlannedPath}` — **7** |
+| 2 | `Destroyed` non è più terminale | `RTHexDoorLibrary.cpp` | `Door.DestroyedStaysOpen` |
+| 3 | `Locked → Open` non è più rifiutata | `RTHexDoorLibrary.cpp` | `Door.DestroyedStaysOpen` |
+| 4 | Una revisione per cella invece che per gruppo | `RTHexMapAsset.cpp` | `Door.StateChangeBumpsRevision` |
+| 5 | Il gruppo `DoorId` non commuta insieme | `RTHexDoorLibrary.cpp` | `Door.GroupClosesTogether`, `Door.StateChangeBumpsRevision` |
+| 6 | Nessun troncamento topologico | `RTHexSimLibrary.cpp` | `Door.ClosingStopsMovement`, `Door.TruncatesPlannedPath` |
+| 7 | A parità di bordo vince lo stato **meno** restrittivo | `RTHexDoorLibrary.cpp` | `Door.OpsOrderIndependent` |
+| 8 | Lo stato della porta esce dall'hash | `RTHexMapAsset.cpp` | `HexMap.DoorHashDeterminism` |
+| 9 | Porta dentro un muro alto non più segnalata | `RTHexMapAsset.cpp` | `HexMap.DoorValidation`, `Door.WallOverridesOpenDoor` |
+| 10 | Il movimento fermato non lo dichiara nel log | `RTTurnManager.cpp` | `Door.ClosingStopsMovement` |
+| 11 | La porta dichiarata dalla faccia opposta non viene trovata | `RTHexCombatLibrary.cpp` | `Door.ClosingStopsMovement` |
+| 12 | La lettura guarda **una faccia sola** | `RTHexDoorLibrary.cpp` | `Door.ReadsBothFaces` ⚠️ *(vedi sotto)* |
+
+### Cosa ha trovato
+
+**La mutazione 12 non uccideva nulla.** Al primo giro, far leggere a `DoorBetween` una faccia sola invece di
+due lasciava passare tutti e dodici i test. Il motivo: ognuno dichiarava la porta esattamente dal lato da cui
+poi la interrogava, quindi il ramo «faccia opposta» non era esercitato da nessuno — mentre la decisione di
+progetto (§2, *Due facce, un bordo*) dice il contrario. Il test `Structures.Door.ReadsBothFaces` colma il buco:
+verifica la lettura **e** il comando dal lato che non dichiara la porta. Con lui la mutazione muore.
+
+È il difetto ricorrente in questo repository, in una forma nuova: non un dato senza consumatore, ma una
+**decisione senza verifica** — la regola era implementata correttamente e nessuno l'avrebbe notata rompersi.
+
+**La run della mutazione 8 si era fermata a 298 test su 425** senza crash nel log. Il dato non era utilizzabile:
+rieseguita insieme a una baseline di controllo, ha dato 425 completati e un solo test caduto, quello atteso. Il
+troncamento era dell'ambiente, non della mutazione — ed è la ragione per cui il numero di `Test Completed` va
+letto a ogni run e non dato per scontato.

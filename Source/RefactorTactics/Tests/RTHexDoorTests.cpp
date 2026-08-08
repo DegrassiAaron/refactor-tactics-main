@@ -183,6 +183,44 @@ bool FRTDoorBlocksSightTest::RunTest(const FString&)
 }
 
 /**
+ * Il bordo ha DUE facce e la porta puo' essere dichiarata da una sola: la regola non deve dipendere da quale
+ * delle due celle ha ricevuto il dato, altrimenti la stessa barriera fermerebbe chi arriva da una parte e non
+ * chi arriva dall'altra.
+ *
+ * Questo test non c'era: l'ha reso necessario la VERIFICA DI MUTAZIONE. Togliendo dalla lettura la faccia
+ * `To` — cioe' facendo guardare una faccia sola — non cadeva nessuno dei dodici test, perche' tutti
+ * dichiaravano la porta dal lato da cui poi la interrogavano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDoorBothFacesTest,
+	"RefactorTactics.Structures.Door.ReadsBothFaces",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDoorBothFacesTest::RunTest(const FString&)
+{
+	// Dichiarata SOLO dalla faccia (1,0)/E.
+	URTHexMapAsset* Map = MakeDoorMap(2);
+	PutDoor(Map, FRTCellId(1, 0), ERTHexDirection::E, ERTHexDoorState::Closed);
+
+	TestTrue(TEXT("letta dalla faccia che la dichiara"),
+		URTHexCoverLibrary::BlocksTraversal(Map, FRTCellId(1, 0), FRTCellId(2, 0)));
+	TestTrue(TEXT("letta dalla faccia OPPOSTA, che non la dichiara"),
+		URTHexCoverLibrary::BlocksTraversal(Map, FRTCellId(2, 0), FRTCellId(1, 0)));
+	TestFalse(TEXT("il grafo non offre il passo nemmeno tornando indietro"),
+		DoorGraphHasStep(Map, FRTCellId(2, 0), FRTCellId(1, 0)));
+
+	// E il comando vale nei due versi: chiudere dal lato che NON la dichiara scrive sulla faccia che la
+	// dichiara — altrimenti un'unita' potrebbe chiudersi la porta alle spalle solo stando dal lato giusto.
+	URTHexMapAsset* FromBehind = MakeDoorMap(2);
+	PutDoor(FromBehind, FRTCellId(1, 0), ERTHexDirection::E, ERTHexDoorState::Open);
+	TestEqual(TEXT("si commuta anche comandandola dal lato opposto"),
+		URTHexDoorLibrary::SetDoorState(FromBehind, FRTCellId(2, 0), FRTCellId(1, 0),
+			ERTHexDoorState::Closed).Num(), 1);
+	TestTrue(TEXT("e il bordo risulta chiuso da entrambi i lati"),
+		URTHexCoverLibrary::BlocksTraversal(FromBehind, FRTCellId(1, 0), FRTCellId(2, 0))
+		&& URTHexCoverLibrary::BlocksTraversal(FromBehind, FRTCellId(2, 0), FRTCellId(1, 0)));
+	return true;
+}
+
+/**
  * Un portone largo si commuta come una porta sola. Il gruppo non deve essere rettilineo: qui i tre bordi
  * stanno su direzioni diverse, ed e' comunque una porta sola.
  */
