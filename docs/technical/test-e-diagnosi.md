@@ -137,6 +137,7 @@ tabella di redirect stanno in [`scenario-index-e-tag.md`](scenario-index-e-tag.m
 | `move` | lista di **waypoint**, come li produrrebbe il giocatore cliccando |
 | `ability` | `ActionId` dell'abilità (`Flux.ArcPulse`) — per **ID**, non per indice |
 | `target` | ID di scenario del bersaglio; obbligatorio con `ability` |
+| `reaction` | `ActionId` della reazione che l'unità **arma** per il turno — nessun bersaglio |
 | `expect` | assertion; **almeno una**, altrimenti lo scenario passerebbe sempre |
 
 ### `seed` — dichiarato, non consumato
@@ -192,6 +193,10 @@ ostacolo** (una situazione che il gioco non produrrebbe mai) vengono rifiutate c
 | `Movement.LongWalk` | due unità attraversano l'arena, 3 celle per turno per 2 turni — **fatto per essere guardato** in PIE |
 | `Combat.BasicAttack` | Flux colpisce Bastion: 120 → 98 HP. Il primo scenario che verifica un **danno** |
 | `Combat.BlockedByWall` | stesso attacco con un muro in mezzo: il colpo **non parte** |
+| `Combat.SplashHitsAlliesNotSelf` | l'area colpisce i vicini **e** l'alleato, ma non chi la lancia |
+| `Combat.LineHitsThrough` | la linea colpisce chi sta in mezzo, non solo il bersaglio |
+| `Combat.CounterStrikesBack` | una reazione **armata** scatta e colpisce chi ha colpito |
+| `Combat.NoCounterWhenUnarmed` | senza armarla, la stessa reazione non scatta |
 | `Movement.SwapRejectedByPlanning` | **caratterizzazione**: due unità adiacenti *non* si scambiano di posto, perché la pianificazione rifiuta un percorso verso una cella occupata (vedi §12) |
 
 ### Scenari di caratterizzazione
@@ -214,6 +219,23 @@ bersaglio nullo, intent ignorato — perché «120 HP» è anche il risultato di
 terzo test che confronti i due `stateHash` e pretenda che **differiscano**
 (`Scenario.WallIsWhatStopsTheShot`). È la stessa forma di `Simulation.StateHashDistinguishesOutcomes`: quando
 due test si confrontano fra loro, qualcosa deve garantire che non stiano confrontando due zeri.
+
+### Armare non è agire
+
+`reaction` dichiara solo **cosa succederà se** il trigger scatta durante la risoluzione: non è un'azione, e
+non ha bersaglio — chi la subirà lo decide il trigger (chi ha colpito, quale alleato è stato preso). Per
+questo è un campo suo e non riusa `ability`/`target`: sono due slot diversi dell'unità, e la stessa unità
+può attaccare **e** tenere armata una reazione nello stesso turno.
+
+> Una reazione difensiva protegge dal colpo **che l'ha innescata**, non dai successivi. In
+> `Combat.CounterStrikesBack` lo scudo 15 assorbe i 24 in arrivo e Flux resta a 81, non a 66. È la ragione
+> per cui `Action.Deflect` (una `DamageReduction`) ha senso: se agisse solo sui colpi futuri, rispondere a
+> chi ti ha appena sparato non servirebbe a niente.
+
+La validazione della reazione sta nel **loader**, non a runtime, perché il suo modo di fallire è silenzioso:
+armare qualcosa che non è una reazione non produce nessun effetto e nessun errore, e si vedrebbe solo
+un'assertion sui danni che non torna. Il loader controlla due cose — che l'eroe la possieda, e che occupi
+davvero lo slot `Reaction`.
 
 ### Limiti attuali
 

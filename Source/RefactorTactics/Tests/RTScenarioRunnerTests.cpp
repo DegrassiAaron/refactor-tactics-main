@@ -9,6 +9,8 @@
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "ScenarioHarness/RTTestReportWriter.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Misc/Paths.h"
@@ -578,12 +580,207 @@ bool FRTScenarioWallActuallyBlocksTest::RunTest(const FString&)
 	return true;
 }
 
-// =====================================================================================================
-// S2-2 — un errore di SCRITTURA dello scenario non deve travestirsi da difetto del gioco.
-//
-// Prima: l'abilita' che l'eroe non possiede finiva in un `UE_LOG(Error)`, l'attacco non partiva, e
-// l'assertion sui danni cadeva. Il report diceva FAIL — cioe' «il gioco e' rotto» — per uno scenario
-// scritto male. Chi legge il report parte a cercare una regressione che non esiste.
+/**
+ * Esegue uno scenario e riporta OGNI assertion sugli HP con il suo `actual`.
+ *
+ * Il nome e' prolisso di proposito: la unity build fonde piu' file in una sola unita' di traduzione, e un
+ * helper con un nome ovvio (`RunAndCheck`) collide col primo omonimo di un altro file di test — e' gia'
+ * successo con tre helper insieme. Neppure un namespace anonimo protegge: fusi nella stessa TU, due namespace
+ * anonimi sono lo STESSO namespace.
+ */
+static bool RunScenarioAndReportHpAssertions(FAutomationTestBase& Test, const TCHAR* ScenarioId)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(Test, ScenarioId, Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!Test.TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		Test.AddError(FString::Printf(TEXT("%s: ERROR invece di PASS: %s"), ScenarioId, *Result.ErrorMessage));
+		return false;
+	}
+	Test.TestEqual(TEXT("esito PASS"), Result.OutcomeString(), FString(TEXT("PASS")));
+
+	// Ogni HP atteso col suo valore reale: quando uno di questi diventa rosso, il messaggio dice gia' di
+	// quanto ha sbagliato, senza bisogno di rieseguire lo scenario a mano.
+	for (const FRTAssertionResult& A : Result.Assertions)
+	{
+		if (A.Kind == ERTAssertionKind::UnitHpEquals)
+		{
+			Test.TestTrue(FString::Printf(TEXT("%s -> %s (atteso %s)"), *A.Description, *A.Actual, *A.Expected), A.bPassed);
+		}
+	}
+	return true;
+}
+
+/**
+ * `Combat.SplashHitsAlliesNotSelf`: l'area colpisce chiunque ci sia dentro, tranne chi la lancia.
+ *
+ * Col fuoco amico attivo «l'alleato incassa» non e' piu' una notizia: lo e' il fatto che l'ATTACCANTE no,
+ * pur stando dentro la propria esplosione. Lo scenario lo mette apposta nel raggio, cosi' l'esclusione e'
+ * verificata come regola (`u == AttackerId`) e non come geografia: piazzandolo lontano, quell'assert
+ * sarebbe verde anche in un gioco che si fa male da solo appena qualcuno gli si avvicina.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioSplashHitsAlliesTest,
+	"RefactorTactics.Scenario.RunnerSplashHitsAlliesNotSelf",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioSplashHitsAlliesTest::RunTest(const FString&)
+{
+	return RunScenarioAndReportHpAssertions(*this, TEXT("Combat.SplashHitsAlliesNotSelf"));
+}
+
+/**
+ * `Combat.LineHitsThrough`: la forma Line colpisce la traiettoria, non il bersaglio.
+ *
+ * B2 sta fra attaccante e bersaglio e non e' nominata da nessun intent. Se scende, la linea e' stata risolta
+ * come linea; se resta piena mentre B1 scende, il gioco sta trattando `ERTAbilityShape::Line` come un colpo
+ * singolo — un difetto che nessuno scenario a due unita' puo' vedere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLineHitsThroughTest,
+	"RefactorTactics.Scenario.RunnerLineHitsThrough",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLineHitsThroughTest::RunTest(const FString&)
+{
+	return RunScenarioAndReportHpAssertions(*this, TEXT("Combat.LineHitsThrough"));
+}
+
+/**
+ * Le forme colpiscono DAVVERO piu' di una cella.
+ *
+ * Controprova delle due sopra, nello spirito di `WallIsWhatStopsTheShot`. I numeri attesi negli scenari li ho
+ * scritti io: se avessi sbagliato la geometria e messo B2 fuori dall'area, avrei scritto «B2 resta piena» e il
+ * test sarebbe verde lo stesso, documentando una forma che non funziona. Qui la domanda e' posta al gioco e
+ * non allo scenario: quante unita' hanno perso HP? Se la risposta fosse 1, entrambe le forme starebbero
+ * degenerando in un colpo singolo, e i due test sopra passerebbero ugualmente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioShapesHitMoreThanOneTest,
+	"RefactorTactics.Scenario.ShapesHitMoreThanOneUnit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioShapesHitMoreThanOneTest::RunTest(const FString&)
+{
+	for (const TCHAR* Id : { TEXT("Combat.SplashHitsAlliesNotSelf"), TEXT("Combat.LineHitsThrough") })
+	{
+		FRTTestScenario Scenario;
+		if (!LoadShippedScenario(*this, Id, Scenario)) { return false; }
+
+		// Quante unita' lo scenario si aspetta di vedere ferite, secondo i suoi stessi numeri? Conta le
+		// UnitHpEquals il cui valore atteso e' sotto la salute massima dell'eroe schierato.
+		const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+		int32 ExpectedWounded = 0;
+		for (const FRTTestExpectation& A : Scenario.Expect)
+		{
+			if (A.Kind != ERTAssertionKind::UnitHpEquals) { continue; }
+			for (const FRTScenarioUnit& U : Scenario.Units)
+			{
+				if (U.Id != A.UnitId) { continue; }
+				for (const URTHeroData* Hero : Roster)
+				{
+					if (Hero != nullptr && Hero->HeroId == U.HeroId && A.Value < Hero->MaxHealth)
+					{
+						++ExpectedWounded;
+					}
+				}
+			}
+		}
+		TestTrue(FString::Printf(TEXT("%s: la forma deve ferire piu' di una unita' (attese %d)"), Id, ExpectedWounded),
+			ExpectedWounded >= 2);
+	}
+	return true;
+}
+
+/**
+ * `Combat.CounterStrikesBack`: una reazione ARMATA scatta e colpisce chi ha colpito.
+ *
+ * Il numero che conta e' quello di Bastion: 110 invece di 120, senza che nessun intent glielo abbia fatto
+ * fare. E' l'unico effetto del turno che nessuno ha chiesto esplicitamente, quindi l'unico che puo' venire
+ * solo dalla reazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCounterStrikesBackTest,
+	"RefactorTactics.Scenario.RunnerCounterStrikesBack",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCounterStrikesBackTest::RunTest(const FString&)
+{
+	return RunScenarioAndReportHpAssertions(*this, TEXT("Combat.CounterStrikesBack"));
+}
+
+/** `Combat.NoCounterWhenUnarmed`: senza armarla, la stessa reazione non scatta. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioNoCounterUnarmedTest,
+	"RefactorTactics.Scenario.RunnerNoCounterWhenUnarmed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioNoCounterUnarmedTest::RunTest(const FString&)
+{
+	return RunScenarioAndReportHpAssertions(*this, TEXT("Combat.NoCounterWhenUnarmed"));
+}
+
+/**
+ * E' l'ARMARLA a fare la differenza, non qualcos'altro.
+ *
+ * Stessa forma di `WallIsWhatStopsTheShot`. I due test sopra sono verdi anche in un gioco dove la reazione
+ * non esiste e Bastion non viene mai toccato — no: il primo fallirebbe. Ma sarebbero verdi entrambi in un
+ * gioco dove la reazione scatta SEMPRE, se per caso i numeri attesi fossero stati scritti su quel
+ * comportamento. Qui si confrontano i due stati finali e si pretende che differiscano: l'unica riga diversa
+ * fra i due scenari e' il campo `reaction`, quindi la differenza non puo' venire da altro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioArmingIsWhatFiresTest,
+	"RefactorTactics.Scenario.ArmingIsWhatFiresTheReaction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioArmingIsWhatFiresTest::RunTest(const FString&)
+{
+	FRTTestScenario Armed, Unarmed;
+	if (!LoadShippedScenario(*this, TEXT("Combat.CounterStrikesBack"), Armed)) { return false; }
+	if (!LoadShippedScenario(*this, TEXT("Combat.NoCounterWhenUnarmed"), Unarmed)) { return false; }
+
+	UWorld* W1 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 1"), W1)) { return false; }
+	const FRTTestResult ArmedResult = URTScenarioRunner::Run(W1, Armed);
+	DestroyRunnerWorld(W1);
+
+	UWorld* W2 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 2"), W2)) { return false; }
+	const FRTTestResult UnarmedResult = URTScenarioRunner::Run(W2, Unarmed);
+	DestroyRunnerWorld(W2);
+
+	TestNotEqual(TEXT("armata e disarmata producono stati diversi"), ArmedResult.StateHash, UnarmedResult.StateHash);
+	return true;
+}
+
+/**
+ * Armare qualcosa che NON e' una reazione viene rifiutato, con un motivo.
+ *
+ * E' il modo di fallire peggiore che ci sia in questo campo: `Flux.ArcPulse` in `reaction` non scatterebbe
+ * mai e non produrrebbe nessun errore: lo scenario girerebbe, l'assertion sui danni fallirebbe, e chi legge
+ * cercherebbe una regressione del combattimento invece di una riga sbagliata nel JSON.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioBadReactionRejectedTest,
+	"RefactorTactics.Scenario.NonReactionCannotBeArmed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioBadReactionRejectedTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.CounterStrikesBack"), Scenario)) { return false; }
+
+	// Un'abilita' che Flux POSSIEDE davvero, ma che non e' una reazione: il controllo che conta e' sullo
+	// SLOT. Usando un ID inesistente si verificherebbe solo che il nome non si trova, che e' un'altra cosa.
+	Scenario.Turns[0].Intents[0].Reaction = FName(TEXT("Flux.ArcPulse"));
+
+	FString Error;
+	TestFalse(TEXT("lo scenario viene rifiutato"), URTScenarioLoader::Validate(Scenario, Error));
+	TestTrue(TEXT("il motivo nomina lo slot"), Error.Contains(TEXT("non e' una reazione")));
+
+	// E la reazione VERA continua a passare: il controllo rifiuta ciò che deve, non tutto.
+	FRTTestScenario Good;
+	if (!LoadShippedScenario(*this, TEXT("Combat.CounterStrikesBack"), Good)) { return false; }
+	FString NoError;
+	TestTrue(TEXT("la reazione vera resta valida"), URTScenarioLoader::Validate(Good, NoError));
+	return true;
+}
+
+
+
 // =====================================================================================================
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioAbilityNotInKitTest,
@@ -632,6 +829,7 @@ bool FRTScenarioAbilityNotInKitTest::RunTest(const FString&)
 // Prima veniva scartato in silenzio: l'intent spariva, l'assertion successiva cadeva, e il report non
 // dava alcun appiglio per capire perche'. Non e' ERROR (lo scenario e' scritto bene, e' la partita ad
 // essere andata cosi') e non e' FAIL di per se': e' una NOTA, che spiega un risultato altrimenti muto.
+
 // =====================================================================================================
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioDeadTargetTest,
@@ -725,6 +923,7 @@ bool FRTScenarioDeadTargetTest::RunTest(const FString&)
 // Lo stesso scenario gira DUE volte, con e senza il campo `dash`. Un test che guardasse solo la posizione
 // finale del caso "con" non distinguerebbe uno scatto eseguito da un movimento normale arrivato li' per
 // altra via: il confronto e' cio' che rende l'assertion discriminante.
+
 // =====================================================================================================
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioDashIntentTest,
@@ -791,6 +990,7 @@ bool FRTScenarioDashIntentTest::RunTest(const FString&)
 // Il test della libreria (`Movement.PassGoesThroughUnitsAndRecordsThem`) verifica CHI viene attraversato.
 // Questo verifica che l'attraversamento produca DANNO in partita: sono due cose diverse, e una lista di
 // unita' attraversate che nessuno legge sarebbe di nuovo un dato senza consumatore.
+
 // =====================================================================================================
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioPassingBladeTest,
@@ -845,6 +1045,7 @@ bool FRTScenarioPassingBladeTest::RunTest(const FString&)
 // La cella e' VUOTA e il nemico ADIACENTE: e' cio' che rende il test discriminante. Centrando l'area su una
 // cella occupata, lo stesso danno arriverebbe anche bersagliando l'unita' — il test misurerebbe una
 // coincidenza invece della regola.
+
 // =====================================================================================================
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCellTargetTest,
@@ -888,13 +1089,6 @@ bool FRTScenarioCellTargetTest::RunTest(const FString&)
 	return true;
 }
 
-/**
- * Bersaglio unita' E cella insieme: `ERROR`, non una scelta arbitraria fra i due.
- *
- * Stessa regola di `ability` senza `target`, e per lo stesso motivo: chi ha scritto lo scenario non sa cosa
- * voleva, e indovinare al posto suo produce uno scenario che verifica una cosa diversa da quella che chi
- * l'ha scritto crede di aver verificato. Un test verde su una premessa sbagliata e' peggio di un rosso.
- */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioAmbiguousTargetTest,
 	"RefactorTactics.Scenario.TargetAndTargetCellIsError",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -927,5 +1121,7 @@ bool FRTScenarioAmbiguousTargetTest::RunTest(const FString&)
 		Error.Contains(TEXT("target")) || Error.Contains(TEXT("bersaglio")));
 	return true;
 }
+
+
 
 #endif // WITH_DEV_AUTOMATION_TESTS

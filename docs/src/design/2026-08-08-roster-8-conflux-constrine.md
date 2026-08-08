@@ -1,3 +1,11 @@
+> ✅ **RECEPITO il 2026-08-08.** Le quattro fazioni sono già in [`../../wiki/fazioni/index.md`](../../wiki/fazioni/index.md):
+> **Conflux** (Flux, Riva) e **Constrine** (Bastion, Vektor) per la v0.1; **Sentinel Directorate** (Steel,
+> Murdock) e **Resonance** (Aurora, Kwang) per la v0.2. Le schede dei quattro personaggi v0.2 esistono come
+> `DATA_SPEC` in [`../../characters/v0.2/`](../../characters/v0.2/).
+> Portarli a runtime è **E21** in [`../../roadmap/roadmap-post-v0.1.md`](../../roadmap/roadmap-post-v0.1.md),
+> con il vincolo di [ADR-0006](../../decisions/adr-0006-ownership-abilita-sinergie.md): nessun bonus di
+> fazione, nessun kit di coppia.
+
 # RefactorTactics — Roster 8 Personaggi
 ## v0.1 / v0.2 — Conflux e Constrine
 

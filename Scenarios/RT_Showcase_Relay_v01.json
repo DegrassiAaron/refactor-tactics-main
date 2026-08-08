@@ -1,6 +1,6 @@
 {
   "scenarioId": "RT_Showcase_Relay_v01",
-  "tags": ["showcase", "core", "combat", "movement", "flux", "riva", "bastion", "vektor"],
+  "tags": ["showcase", "relay", "objectives", "flux", "riva", "bastion", "vektor"],
   "version": 1,
   "seed": 12345,
 

@@ -8,9 +8,9 @@
 > descrizione di codice esistente.
 
 > Discovery `/sc:brainstorm` + review `/sc:spec-panel` del **2026-08-02**. Fonti: scelte utente +
-> `IdeeBase.pdf` (idee) + canone ([`piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md)) + spec pathfinding
+> `docs/src/prd/idee-base.pdf` (idee) + canone ([`piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md)) + spec pathfinding
 > ([`spec-pathfinding.md`](../../technical/spec-pathfinding.md), [`spec-pathfinding-pf3-pf4.md`](../../technical/spec-pathfinding-pf3-pf4.md)).
-> Autorità: subordinato al piano canonico. `IdeeBase.pdf` = north-star (conflitti §9).
+> Autorità: subordinato al piano canonico. `docs/src/prd/idee-base.pdf` = north-star (conflitti §9).
 
 ## 1. Re-slicing (raccomandazione del panel, accettata)
 
@@ -128,7 +128,7 @@ l'output per il `CrossDamage`. **Requisito testabile**: permutare l'ordine delle
 ```
 
 ## 9. ⚠️ Conflitti IdeeBase vs canone (segnalati)
-`IdeeBase.pdf`: turni **alternati**, **GAS**, **Punti Azione** → divergono dal canone (simultanei, no-GAS,
+`docs/src/prd/idee-base.pdf`: turni **alternati**, **GAS**, **Punti Azione** → divergono dal canone (simultanei, no-GAS,
 movimento a range). **Prevale il canone**; si adottano solo le idee di terreno, rimappate (niente PA; il
 costo consuma il budget di movimento; effetti deterministici).
 

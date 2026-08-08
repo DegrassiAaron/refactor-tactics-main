@@ -24,7 +24,7 @@
 > È una semplificazione — ma resta una **migrazione di classificazione** da tracciare, non da fare in una PR
 > documentale.
 
-> **Fonte**: `docs/src/RefactorTactics_DelayedActions_PhaseWindows_Claude.md` (1546 righe) ·
+> **Fonte**: `docs/src/design/delayed-actions-e-phase-windows.md` (1546 righe) ·
 > **Data**: 2026-08-07 · **Stato**: brief di scope, nessuna implementazione
 > **Rapporto con le decisioni vigenti**: [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) (accettato) copre le
 > **finestre di reazione**; questo brief isola ciò che il documento aggiunge e che **nessun documento del repo
@@ -119,7 +119,7 @@ iniziata, e il rischio di scope della v0.1 (§8 di [`roadmap-v0.1.md`](../roadma
 
 ## 6-bis. Trigger su transizione — [D-013](../decisions/RT_PDR_00_Decision_Log.md), 2026-08-07
 
-Il sorgente `RefactorTactics_Predictive_Actions_Traps_Claude.md` §8.2 chiede un `Tripwire` che scatti
+Il sorgente `docs/src/design/predictive-actions-e-trappole.md` §8.2 chiede un `Tripwire` che scatti
 sull'**attraversamento di un arco** `CrossEdge(H6, H7)`, distinto dall'ingresso in H7 da un altro lato. La
 domanda registrata era «gli archi del grafo devono portare trigger?», e sembrava un gate da chiudere prima
 di **E9**.

@@ -1,6 +1,7 @@
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Ability/RTActionData.h"
 #include "Map/RTHexLibrary.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -227,6 +228,13 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 							DashCellArr->Num() >= 3 ? static_cast<int32>((*DashCellArr)[2]->AsNumber()) : 0);
 					}
 
+					FString ReactionText;
+					if (IntentObj->TryGetStringField(TEXT("reaction"), ReactionText) && !ReactionText.IsEmpty())
+					{
+						// Nessun bersaglio da pretendere qui: una reazione non lo dichiara, lo riceve dal trigger.
+						Intent.Reaction = FName(*ReactionText);
+					}
+
 					const TArray<TSharedPtr<FJsonValue>>* MoveArr = nullptr;
 					if (IntentObj->TryGetArrayField(TEXT("move"), MoveArr))
 					{
@@ -445,6 +453,45 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 					// Nessuna abilita' del roster v0.1 bersaglia se stessa: se un giorno esistesse, questo
 					// controllo va rilassato di PROPOSITO, non lasciato cadere per distrazione.
 					OutError = FString::Printf(TEXT("intent di '%s': l'unita' bersaglia se stessa"), *Intent.UnitId);
+					return false;
+				}
+			}
+
+			// La reazione si valida QUI e non a runtime perche' il suo modo di fallire e' silenzioso: armare
+			// una reazione inesistente non produce nessun effetto e nessun errore, e chi legge vedrebbe solo
+			// un'assertion sui danni che non torna, senza un indizio su dove guardare.
+			if (!Intent.Reaction.IsNone())
+			{
+				FName HeroId;
+				for (const FRTScenarioUnit& U : Scenario.Units)
+				{
+					if (U.Id == Intent.UnitId) { HeroId = U.HeroId; break; }
+				}
+
+				const URTActionData* Armed = nullptr;
+				for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+				{
+					if (Hero == nullptr || Hero->HeroId != HeroId) { continue; }
+					for (const URTActionData* Action : Hero->Actions)
+					{
+						if (Action && Action->Def.ActionId == Intent.Reaction) { Armed = Action; break; }
+					}
+					break;
+				}
+
+				if (Armed == nullptr)
+				{
+					OutError = FString::Printf(TEXT("intent di '%s' (%s): non possiede la reazione '%s'"),
+						*Intent.UnitId, *HeroId.ToString(), *Intent.Reaction.ToString());
+					return false;
+				}
+				if (Armed->Def.Slot != ERTActionSlot::Reaction)
+				{
+					// Un'azione normale armata come reazione non scatta mai: resterebbe li' a non fare niente,
+					// e lo scenario descriverebbe una regola che non ha mai messo alla prova.
+					OutError = FString::Printf(
+						TEXT("intent di '%s': '%s' non e' una reazione (non occupa lo slot Reaction)"),
+						*Intent.UnitId, *Intent.Reaction.ToString());
 					return false;
 				}
 			}

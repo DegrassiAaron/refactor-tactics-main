@@ -90,10 +90,15 @@ Manca la prova sul campo: la sessione di playtest **CP 6.8**, che si esegue in e
 
 ## La release v0.1 (2026-08-05)
 
+> **Oltre la v0.1**: [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) ripartisce fra **v0.2, v0.3 e v0.4** (epic
+> E21–E32) il materiale dei sorgenti che non entra nel vertical slice — roster 8, Cover Window, muri e porte,
+> Standard 3v3, bot tattico ed esperto, Operations. Nessuna di quelle epic si apre prima dei 14 gate della v0.1.
+
 Le milestone qui sotto restano la vista di **esecuzione**. Sopra di esse esiste ora una vista di **release**:
-[`roadmap-v0.1.md`](roadmap-v0.1.md) — **18 epic, 87 checkpoint** *(era 12/59; **E13** conoscenza parziale,
+[`roadmap-v0.1.md`](roadmap-v0.1.md) — **20 epic, 92 checkpoint** *(era 12/59; **E13** conoscenza parziale,
 **E14** overwatch, **E15** showcase ed **E16** orientamento aggiunte il 2026-08-07, insieme ai checkpoint del
-planning visuale in **E11** → [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md))*, issue `#14`–`#85` e
+planning visuale in **E11** → [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md); **E19**
+classe di mappa ed **E20** icon language il 2026-08-08)*, issue `#14`–`#85` e
 `#151`–`#177` — che aggrega M6–M9 e
 aggiunge il contenuto del catalogo v0.1 (4 eroi, ~35 azioni, reazioni, ambiente attivo, strutture, obiettivi
 dinamici, comandi debug). La decisione abilitante è

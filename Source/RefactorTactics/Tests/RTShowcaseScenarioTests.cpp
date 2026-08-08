@@ -633,15 +633,10 @@ bool FRTScenarioShowcaseRelayV01Test::RunTest(const FString&)
 	// e non dell'harness.
 	FRTTestScenario Scenario;
 	FString LoadError;
-	// Il percorso si CHIEDE all'indice: da `c53efc3` l'ID e' dichiarato dal file, non dedotto dalla cartella.
+	// Il percorso si chiede all'INDICE: da `c53efc3` l'ID non e' piu' il percorso, e le cartelle sono libere.
 	const FString ScenarioPath = URTScenarioIndex::ResolvePath(TEXT("RT_Showcase_Relay_v01"), LoadError);
-	if (!TestTrue(TEXT("RT_Showcase_Relay_v01 si trova nell'indice"), !ScenarioPath.IsEmpty()))
-	{
-		AddError(FString::Printf(TEXT("id non risolto: %s"), *LoadError));
-		return false;
-	}
 	if (!TestTrue(TEXT("RT_Showcase_Relay_v01 si carica"),
-		URTScenarioLoader::LoadFromFile(ScenarioPath, Scenario, LoadError)))
+		!ScenarioPath.IsEmpty() && URTScenarioLoader::LoadFromFile(ScenarioPath, Scenario, LoadError)))
 	{
 		AddError(FString::Printf(TEXT("caricamento fallito: %s"), *LoadError));
 		return false;

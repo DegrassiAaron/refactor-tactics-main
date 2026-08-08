@@ -161,6 +161,20 @@ struct FRTScenarioIntent
 	/** Vero se `Ability` mira a `TargetCell` invece che a un'unita'. Serve a distinguere «cella (0,0)» da «campo non dichiarato». */
 	UPROPERTY()
 	bool bTargetsCell = false;
+
+	/**
+	 * `ActionId` della REAZIONE che l'unita' arma per questo turno (`Flux.ReactiveCapacitor`). Vuota = nessuna.
+	 *
+	 * Armare non e' agire: la reazione dichiara solo **cosa succedera' se** il trigger scatta durante la
+	 * risoluzione. Non ha bersaglio — lo decide il trigger (chi ha colpito, quale alleato e' stato preso) —
+	 * ed e' per questo che sta in un campo suo invece di riusare `Ability`/`Target`: sono due slot diversi
+	 * dell'unita' (`PlannedReactionAbility` contro `PlannedAbilityIndex`), e la stessa unita' puo' attaccare
+	 * e reagire nello stesso turno.
+	 *
+	 * Per ID, per la stessa ragione dell'abilita'.
+	 */
+	UPROPERTY()
+	FName Reaction;
 };
 
 /** Un turno dello scenario. */

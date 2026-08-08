@@ -277,6 +277,10 @@ void FRTScenarioSession::BeginTurn()
 			//
 			// Verificato per mutazione: azzerarlo qui non fa cadere alcun test, perche' non c'e' niente da
 			// azzerare. E' il modo in cui questa riga, scritta d'istinto insieme alle due sopra, e' stata tolta.
+			// E la reazione armata: il turn manager la consuma da solo, ma solo se il trigger scatta. Senza
+			// questo azzeramento una reazione mai scattata resterebbe armata per tutto lo scenario, e un
+			// turno successivo la vedrebbe partire senza che nessun intent l'abbia chiesta.
+			U->PlannedReactionAbility = INDEX_NONE;
 		}
 	}
 
@@ -389,6 +393,25 @@ void FRTScenarioSession::BeginTurn()
 				Unit->PlannedAttackCell = Intent.TargetCell;
 				Unit->bAttackTargetsCell = true;
 			}
+		}
+
+		// --- reazione -------------------------------------------------------------------------------------
+		// Slot diverso dall'abilita': la stessa unita' puo' attaccare E tenere armata una reazione nello
+		// stesso turno. Nessun bersaglio da impostare — chi subira' la reazione lo decide il trigger durante
+		// la risoluzione, non lo scenario.
+		if (!Intent.Reaction.IsNone())
+		{
+			for (int32 I = 0; I < Unit->NumAbilities(); ++I)
+			{
+				const URTActionData* Action = Unit->GetAbility(I);
+				if (Action && Action->Def.ActionId == Intent.Reaction)
+				{
+					Unit->PlannedReactionAbility = I;
+					break;
+				}
+			}
+			// Nessun ramo d'errore: che l'eroe possieda la reazione e che sia davvero una reazione lo ha gia'
+			// verificato il loader, che rifiuta lo scenario con un motivo invece di lasciarlo girare a vuoto.
 		}
 
 		if (Intent.Move.Num() == 0)
@@ -520,6 +543,10 @@ void FRTScenarioSession::Finish()
 			// nei turni successivi senza che lo scenario glielo chieda.
 			U->PlannedAbilityIndex = INDEX_NONE;
 			U->PlannedAttackTarget = nullptr;
+			// E la reazione armata: il turn manager la consuma da solo, ma solo se il trigger scatta. Senza
+			// questo azzeramento una reazione mai scattata resterebbe armata per tutto lo scenario, e un
+			// turno successivo la vedrebbe partire senza che nessun intent l'abbia chiesta.
+			U->PlannedReactionAbility = INDEX_NONE;
 		}
 	}
 

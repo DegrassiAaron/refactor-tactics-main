@@ -1,7 +1,7 @@
 # Brief — Planning visuale: Action Ghosts e Ghost Timeline
 
 > **Stato**: analizzato, checkpoint proposti · **Data**: 2026-08-07
-> **Sorgente**: [`../src/RefactorTactics_ActionGhosts_Phases_FastReactions_Claude.md`](../src/RefactorTactics_ActionGhosts_Phases_FastReactions_Claude.md) (22 sezioni)
+> **Sorgente**: [`../src/design/action-ghosts-fasi-fast-reactions.md`](../src/design/action-ghosts-fasi-fast-reactions.md) (22 sezioni)
 > **Destinazione**: epic **E11** di [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) — CP 11.5 e CP 11.6, più un'estensione della DoD di CP 11.2
 
 Il documento sorgente descrive **come si guarda un turno prima di confermarlo**: copie semitrasparenti del
