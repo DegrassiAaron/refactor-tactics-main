@@ -2,7 +2,7 @@
 
 - **Stato:** Accepted
 - **Data:** 2026-08-08
-- **Decision Log:** D-028
+- **Decision Log:** D-029
 - **Owner spec:** [`../gameplay/spec-ownership-abilita-interazioni-sinergie.md`](../gameplay/spec-ownership-abilita-interazioni-sinergie.md)
 
 ## Contesto

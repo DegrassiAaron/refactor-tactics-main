@@ -6,7 +6,14 @@
 > al pathfinding a grafo ([`spec-pathfinding-pf3-pf4.md`](../technical/spec-pathfinding-pf3-pf4.md)) e all'animazione della
 > risoluzione ([`spec-anima-risoluzione.md`](spec-anima-risoluzione.md)).
 >
-> **Decisioni vigenti**: **dash + move** (movimento doppio consentito) · scope = **bot + player** ·
+> ⚠️ **Superato il 2026-08-08 da [D-028](../decisions/RT_PDR_00_Decision_Log.md)** — **dash + move non e'
+> piu' consentito**. Lo scatto occupa lo **slot movimento**: un turno da' un movimento e un'azione
+> principale, e si sceglie **quando** muoversi — *schivo e sparo* (`Dash` + attacco) oppure *sparo e muovo*
+> (attacco + `Move`). Un eroe puo' dichiarare l'eccezione **nel proprio kit**; la regola generale no.
+> Tutto il resto di questa spec resta valido — lo scatto risolve **prima del Blast**, gli stili lineari, la
+> rivalidazione di gittata/LOS dalla posizione post-scatto: **cambia lo slot, non la fase**.
+>
+> **Decisioni vigenti**: ~~dash + move (movimento doppio consentito)~~ · scope = **bot + player** ·
 > il movimento dello scatto è **lineare** e un ostacolo lo **ferma**, deciso da `ERTMovementStyle`
 > (`LinearDash` attraversa, `LinearCharge` si ferma sul primo nemico, `LinearLeap` scavalca).
 >

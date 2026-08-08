@@ -80,7 +80,7 @@ nel vertical slice).
 | `Flux.Overload` | Sovraccarico | AoE | 18 danni, `Interrupt` sui dispositivi | 3 |
 | `Flux.ReactiveCapacitor` | Capacitore reattivo | reazione | scudo 15 e 10 danni all'attaccante | 3 |
 
-> **Ownership del bonus `Wet`** ([D-028](../decisions/RT_PDR_00_Decision_Log.md) ·
+> **Ownership del bonus `Wet`** ([D-029](../decisions/RT_PDR_00_Decision_Log.md) ·
 > [ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md)). Il `+8` di `Flux.LinearDischarge` è una
 > condizione **dell'abilità di Flux** su uno **stato del sistema**: dipende da `Status.Wet` sul bersaglio, non
 > dall'eroe che ha applicato `Wet`. Riva è oggi la sorgente più comune, ma **non** è un requisito: qualsiasi

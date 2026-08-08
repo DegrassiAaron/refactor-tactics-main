@@ -338,7 +338,7 @@ coordinate/hash, nessuna dipendenza dall'ordine dei container. 5. Log/TurnLog sp
 interattive registrate in `test-manuali-pie.md` (non dichiarate verdi senza esecuzione). 7. Documentazione
 aggiornata, commit focalizzato, nessun file generato o segreto. **Se qualcosa non è verificabile, si dichiara.**
 
-**8. Feature cross-character** *(aggiunto il 2026-08-08, [D-028](../decisions/RT_PDR_00_Decision_Log.md) /
+**8. Feature cross-character** *(aggiunto il 2026-08-08, [D-029](../decisions/RT_PDR_00_Decision_Log.md) /
 [ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md))*. Una feature che fa cooperare due o più
 personaggi non chiude senza **tre** test: sul **producer** (l'effetto pubblica davvero lo stato/superficie/evento),
 sul **consumer** (il payoff scatta con la condizione e **non** scatta senza), e sull'**assenza di dipendenza

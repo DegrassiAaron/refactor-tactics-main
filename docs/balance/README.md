@@ -42,7 +42,7 @@ versionato e validato — idealmente generato, così che non possa più diverger
 
 I cataloghi hero/action **possiedono** i numeri competitivi. Wiki, pagine di sinergia, pagine di fazione e
 scenari li **citano e li linkano**: non ne tengono una seconda copia normativa
-([D-028](../decisions/RT_PDR_00_Decision_Log.md) ·
+([D-029](../decisions/RT_PDR_00_Decision_Log.md) ·
 [ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md) ·
 [`../gameplay/spec-ownership-abilita-interazioni-sinergie.md`](../gameplay/spec-ownership-abilita-interazioni-sinergie.md)).
 

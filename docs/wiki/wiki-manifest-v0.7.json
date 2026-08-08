@@ -2,7 +2,7 @@
   "wikiVersion": "0.7",
   "previousWikiVersion": "0.6",
   "characterWikiVersion": "0.7",
-  "decision": "D-028 / ADR-0006 — abilities are owned by individual character/action definitions; interactions belong to systems; synergies are derived examples.",
+  "decision": "D-029 / ADR-0006 — abilities are owned by individual character/action definitions; interactions belong to systems; synergies are derived examples.",
   "normativeOwner": "gameplay/spec-ownership-abilita-interazioni-sinergie.md",
   "synergyPages": [
     "wiki/game/sinergie-e-combinazioni.md"

@@ -1,7 +1,7 @@
 # Spec — Ownership di abilità, interazioni sistemiche e sinergie
 
 > **Stato:** normativa · **Data:** 2026-08-08  
-> **Decisione:** ADR-0006 / D-028  
+> **Decisione:** ADR-0006 / D-029  
 > **Scope:** contenuti, Wiki, scenari, fazioni, cataloghi; nessun nuovo runtime richiesto da questa sola spec.
 
 ## 1. Decisione

@@ -27,7 +27,7 @@ implicita. `docs/archive/` è storico.
 - Un solo substrato: `FRTCellId`; no gameplay quadrato parallelo.
 - **No GAS nella v0.1**: `URTActionData` / `URTHeroData` / `URTEquipmentData`.
 - Azioni generiche (sette, **D-025**): `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch`.
-- Ownership contenuti (**D-028**): abilità → singolo owner; interazioni → sistemi; sinergie/fazioni/scenari →
+- Ownership contenuti (**D-029**): abilità → singolo owner; interazioni → sistemi; sinergie/fazioni/scenari →
   esempi. Niente ability di coppia né branch `if HeroA && HeroB`.
 - **Sprint = profilo Move, non Dash**.
 - Reazioni: `Opportunity → Commit`; Fast Reaction **3,0 s**, timeout **HOLD**.

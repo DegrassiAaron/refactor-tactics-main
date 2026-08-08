@@ -67,23 +67,26 @@
 
 | 42 | **Composizione delle azioni generiche** | due decisioni chiuse lo **stesso giorno** si contraddicevano: D-014 (passaggio Gameplay) ne canonizzava **sei** togliendo `Guard`; l'handoff non-Gameplay ne elencava **otto** con `Guard` e `Activate` distinte | **sette**: `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch` — `Guard` universale, `Activate` assorbita da `Interact` | [D-025](decisions/RT_PDR_00_Decision_Log.md) | `CONFLICT` → **risolto** | ✅ deciso dall'autore il 2026-08-08. Unico `CONFLICT` vero di questo passaggio: due fonti pari grado, nessuna gerarchia fra loro · ✅ **propagazione chiusa il 2026-08-08** in [`gameplay/brief-azioni-generiche-overwatch.md`](gameplay/brief-azioni-generiche-overwatch.md), `AGENTS.md`, `CLAUDE.md` e riga 27 di questa matrice — tutti elencavano ancora sei voci |
 
-| 43 | **Slot per turno: regola senza esecutore** | il catalogo dichiara uno slot per azione, e `URTCatalogLibrary::ValidateActionSlots` la implementa | **nessuno la fa rispettare in partita**: `Action.Dash` e `Action.BasicAttack` prendono entrambi `Main`, e sia il controller sia il bot li pianificano **insieme** | codice (`RTPlayerController`, `RTTurnManager` nota `#145`) | **`OPEN`** | ⚠️ verificato il 2026-08-08: la funzione è chiamata **solo da due test** (`RTOffensiveActionTests`). Il controller imposta `PlannedDashAbility` e `PlannedAbilityIndex` senza azzerare l'altro — quindi vale anche per il **giocatore**, non solo per il bot. Decidere se **applicarla** o **cambiare gli slot del catalogo**: oggi il documento dice una cosa e la partita ne fa un'altra |
+| 43 | **Slot dello scatto** | il catalogo assegnava `Dash` all'azione **principale**, e nessuno faceva rispettare la regola: controller e bot pianificavano `Dash` + attacco insieme | `Dash`, `Leap` e `Reposition` sono **movimento**; `Charge` resta principale perche' e' **un attacco** | [D-028](decisions/RT_PDR_00_Decision_Log.md) | `SUPERSEDED` | ✅ deciso il 2026-08-08. **Non era la regola a non essere applicata: era lo slot sbagliato** — il gioco faceva la cosa giusta con la regola sbagliata scritta accanto. Supera anche «dash + move consentito» di [`gameplay/spec-dash.md`](gameplay/spec-dash.md) · ⏳ **migrazione del codice**: `Action.Dash` e' ancora `Principale` e `ValidateActionSlots` non e' chiamata in partita |
 
-| 44 | **Ownership di abilità e sinergie** | Wiki, handoff fazioni e showcase descrivevano `Water-Electric` come **«combo Flux + Riva»**: una combinazione stava diventando una seconda fonte di abilità/numeri | tre livelli distinti: **Ability/Action Definition → singolo owner**; **interazione → sistema**; **sinergia/fazione/scenario → esempio**. Nel codice il `+8` legge già `Status.Wet` e non conosce l'eroe che l'ha applicato | [D-028](decisions/RT_PDR_00_Decision_Log.md) · [ADR-0006](decisions/adr-0006-ownership-abilita-sinergie.md) | `SUPERSEDED` | ✅ chiuso 2026-08-08 — conflitto **fra documento e documento**, non con il codice: l'audit di `Source/` non ha trovato branch `if HeroA && HeroB` né `PairBonus`/`FactionSetBonus`. Owner normativo: [`gameplay/spec-ownership-abilita-interazioni-sinergie.md`](gameplay/spec-ownership-abilita-interazioni-sinergie.md) |
+| 44 | **Ownership di abilità e sinergie** | Wiki, handoff fazioni e showcase descrivevano `Water-Electric` come **«combo Flux + Riva»**: una combinazione stava diventando una seconda fonte di abilità/numeri | tre livelli distinti: **Ability/Action Definition → singolo owner**; **interazione → sistema**; **sinergia/fazione/scenario → esempio**. Nel codice il `+8` legge già `Status.Wet` e non conosce l'eroe che l'ha applicato | [D-029](decisions/RT_PDR_00_Decision_Log.md) · [ADR-0006](decisions/adr-0006-ownership-abilita-sinergie.md) | `SUPERSEDED` | ✅ chiuso 2026-08-08 — conflitto **fra documento e documento**, non con il codice: l'audit di `Source/` non ha trovato branch `if HeroA && HeroB` né `PairBonus`/`FactionSetBonus`. Owner normativo: [`gameplay/spec-ownership-abilita-interazioni-sinergie.md`](gameplay/spec-ownership-abilita-interazioni-sinergie.md) |
 
 **Riepilogo al 2026-08-08** (secondo passaggio, documenti non-Gameplay): **40 risolti**
-(`CONFIRMED`/`SUPERSEDED`) · 2 `DUPLICATE` chiusi · **2 `OPEN`** (riga 34 APNAP, riga 43 slot per turno)
+(`CONFIRMED`/`SUPERSEDED`) · 2 `DUPLICATE` chiusi · **1 `OPEN`** (riga 34, APNAP)
 · **0 `CONFLICT`**.
 
 **Terzo passaggio, 2026-08-08 — ownership dei contenuti**: **+1 riga risolta** (riga 44, `SUPERSEDED`) e la
-propagazione ⏳ della riga 42 chiusa. I due `OPEN` e gli zero `CONFLICT` **non cambiano**: D-028 era un conflitto
-fra documenti, non fra documento e codice.
+propagazione ⏳ della riga 42 chiusa. L'unico `OPEN` residuo (riga 34, APNAP) e gli zero `CONFLICT` **non
+cambiano**: D-029 era un conflitto fra documenti, non fra documento e codice.
 
-> Le due righe `OPEN` hanno la **stessa forma**, ed è il difetto ricorrente di questo repository: una regola
-> normativa scritta, corretta, e che **nessun consumatore runtime applica**. L'APNAP a sei gruppi vive nel
-> canone e l'ordine reale è un altro; gli slot per turno vivono nel catalogo e nessuno li fa rispettare.
-> In entrambi i casi la scelta è la stessa: **costruire l'esecutore o riscrivere la regola** — non lasciarla
+> Restava una sola riga `OPEN`, ed è il difetto ricorrente di questo repository: una regola normativa
+> scritta, corretta, che **nessun consumatore runtime applica**. L'APNAP a sei gruppi vive nel canone e
+> l'ordine reale è un altro. La scelta è **costruire l'esecutore o riscrivere la regola**, mai lasciarla
 > leggibile e falsa.
+>
+> La riga 43 sembrava la stessa cosa e **non lo era**: là il gioco faceva la cosa **giusta** (schivare e
+> sparare) con la regola **sbagliata** scritta accanto. Applicare la regola avrebbe rotto il gioco per
+> difendere il documento. Vale la pena ricordarlo: «regola senza esecutore» non implica «esecutore mancante».
 
 > Le righe 35–41 nascono dall'audit del 2026-08-08 sui documenti non-Gameplay. Tre di esse (40, 41 e la parte
 > ⏳ della 8) non sono divergenze *fra documenti* ma **fra documento e codice**: la decisione è presa, la

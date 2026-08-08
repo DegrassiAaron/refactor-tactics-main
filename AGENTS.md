@@ -103,7 +103,7 @@ Regole da non regredire:
     requisito dichiarato *nella* Ability Definition, con counterplay e test propri.
 12. **Scenari, fazioni e Wiki non sono fonti competitive.** Dimostrano e spiegano; i numeri restano nei
     cataloghi `docs/balance/`, le abilità nella pagina/definizione del proprio owner. Owner della regola:
-    [D-028](docs/decisions/RT_PDR_00_Decision_Log.md) ·
+    [D-029](docs/decisions/RT_PDR_00_Decision_Log.md) ·
     [ADR-0006](docs/decisions/adr-0006-ownership-abilita-sinergie.md) ·
     [`docs/gameplay/spec-ownership-abilita-interazioni-sinergie.md`](docs/gameplay/spec-ownership-abilita-interazioni-sinergie.md).
 

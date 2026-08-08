@@ -5,8 +5,13 @@
 ## 2026-08-08 — Ownership di abilità, interazioni e sinergie (terzo passaggio)
 
 **Origine**: payload `Docs-Consolidation-v0.9` + handoff `src/RefactorTactics_Fazioni_v0.2_Consolidamento_Claude.md`
-(input, non autorità). Baseline dichiarata dal payload: `13cacb5`; **applicato su `b057c67`**, un commit più
-avanti (`docs(pie)`, nessuna sovrapposizione di file).
+(input, non autorità). Baseline dichiarata dal payload: `13cacb5`; **lavorato su `b057c67`** e poi **mergiato con
+`367790e`**, che nel frattempo era atterrato su `main`.
+
+> ⚠️ **Questa decisione è nata come `D-028` e si chiama `D-029`.** Due sessioni parallele hanno preso lo stesso
+> ID lo stesso giorno; quella sullo **slot dello scatto** ha mergiato prima. La regola che se ne ricava:
+> **l'ID di una decisione si assegna al merge, non quando si scrive la riga**. Chi arriva secondo rinumera —
+> non contende, e non lo scopre in produzione.
 
 ### Il problema
 
@@ -19,7 +24,7 @@ cablare la coppia: `if HeroA && HeroB` sarebbe stato *conforme alla documentazio
 
 | | |
 |---|---|
-| **D-028** | Le abilità hanno **ownership singola**; le sinergie sono **derivate**. Ability/Action Definition → singolo owner · status/surface/event/geometry → sistema · combinazioni fra eroi/fazioni → esempi e fixture. Owner: [ADR-0006](decisions/adr-0006-ownership-abilita-sinergie.md) + [`gameplay/spec-ownership-abilita-interazioni-sinergie.md`](gameplay/spec-ownership-abilita-interazioni-sinergie.md) |
+| **D-029** | Le abilità hanno **ownership singola**; le sinergie sono **derivate**. Ability/Action Definition → singolo owner · status/surface/event/geometry → sistema · combinazioni fra eroi/fazioni → esempi e fixture. Owner: [ADR-0006](decisions/adr-0006-ownership-abilita-sinergie.md) + [`gameplay/spec-ownership-abilita-interazioni-sinergie.md`](gameplay/spec-ownership-abilita-interazioni-sinergie.md) |
 
 ### Cosa è cambiato
 
@@ -38,6 +43,12 @@ cablare la coppia: `if HeroA && HeroB` sarebbe stato *conforme alla documentazio
 con `Guard` declassata — la forma di D-014, superata da **D-025** lo stesso 2026-08-08. Ora sono sette:
 `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch`. L'economia `Attack | Ability | Overwatch`
 non cambia. Era il ⏳ dichiarato nella riga 42 della matrice.
+
+### Limiti dichiarati
+
+Modifica **solo documentale**: nessuna build, nessun test, nessun PIE eseguito. `git diff --check` pulito,
+**0 link relativi rotti** in `docs/wiki/` e `docs/characters/` (i 5 verso `src/CLAUDE_Showcase_*` sono stati
+corretti da `367790e`, non da questo passaggio).
 
 ---
 

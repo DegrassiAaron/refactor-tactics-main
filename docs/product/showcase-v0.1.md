@@ -35,7 +35,7 @@
 > **Non** si costruisce l'intero framework di trappole per la showcase: una sola fetta verticale, con il suo
 > scenario automatico.
 > **Epic**: **E15** di [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) §5 · **CP 15.1–15.5**
-> **Sorgente**: [`../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md`](../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md)
+> **Sorgente**: [`../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md`](../src/showcase/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md)
 > (handoff del 2026-08-07, consolidato qui — in caso di conflitto prevale questo file)
 
 Questo documento tiene separate tre cose che è facile confondere: **cosa il codice fa già**, **cosa la
@@ -287,7 +287,7 @@ con un reason di restrizione di terreno, e Bastion corregge prima del Commit.
 *Expected*: il fuoco si spegne; la propagazione elettrica è ordinata e **non colpisce due volte** per lo stesso
 evento; la scivolata su ghiaccio è deterministica; `EnvironmentChanged` nel TurnLog.
 
-> **Cos'è «combo» qui** ([D-028](../decisions/RT_PDR_00_Decision_Log.md)). Questo turno è uno **scenario
+> **Cos'è «combo» qui** ([D-029](../decisions/RT_PDR_00_Decision_Log.md)). Questo turno è uno **scenario
 > dimostrativo di interazioni sistemiche**, non una combo di squadra: Riva e Flux non condividono un'abilità e
 > non ricevono un bonus perché sono insieme. Riva pubblica uno stato (`Wet` / acqua sulla cella), il sistema
 > ambientale lo propaga, e `Flux.LinearDischarge` legge **lo stato**, non l'identità di Riva. La stessa

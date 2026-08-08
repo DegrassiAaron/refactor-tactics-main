@@ -74,7 +74,7 @@ awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);
   docs/technical/test-manuali-pie.md
 ```
 
-Le 31 aperte in sette gruppi, più un residuo (la somma è verificata: 2+9+9+4+3+1+2+1 = 31):
+Le 31 aperte in sette gruppi (la somma è verificata contro il conteggio misurato sopra: 3+9+9+4+3+1+2 = 31):
 
 > ⚠️ **Nota di metodo.** Fino al 2026-08-08 questa riga diceva «le **31** aperte in sei gruppi», con
 > una somma «verificata» di `2+9+9+4+4+1+2 = 31`, mentre poche righe sopra il conteggio **misurato** ne
@@ -84,15 +84,13 @@ Le 31 aperte in sette gruppi, più un residuo (la somma è verificata: 2+9+9+4+3
 
 | Gruppo | Voci | Nota |
 |---|---|---|
-| **Eseguibile subito** | `PREVIEW-AREA` `V01-MATCHEND` | **2** — nessuna precondizione oltre a una partita avviata (`MATCHEND` da CP 10.3) |
-| **Scenario Test Harness** | le 3 voci della sezione dedicata | **3** — l'harness gira headless; queste verificano ciò che si vede a schermo con `rt.Test.Scenario` + Play |
+| **Eseguibile subito** (sessione G) | `PREVIEW-AREA` `V01-MATCHEND` `TEST-CONSOLE` | **3** — nessuna precondizione oltre a una partita avviata (`MATCHEND` da CP 10.3). `TEST-CONSOLE` va per **ultima**: `rt.Test.Run` sostituisce la mappa |
 | **Partita hex** (sessione D) | `HEXPLAY-4/4b/5/6/6b/6c/7/9/10` | **9** — è il **gate di M6** (CP 6.8). ⚠️ **Non serve più costruire la mappa a mano**: `MapSource = GeneratedTestArena` genera già esagono r=4, ostacoli, **muro che blocca la vista**, fango a costo 3, piattaforma su layer 1 e **una** transizione |
 | **Editor** (sessione A) | `HEX-LAYER` `HEX-TRANS` `HEX-MODE-E/F/G/H/L/N/O` | **9** — verificano gli **strumenti**, non più un prerequisito della sessione D |
 | **Durata e scala** (sessione F) | `V01-MATCHLEN` `V01-MAPSCALE` `V01-READY` `V01-OVERWATCH` | **4** — producono numeri di playtest, non superano gate. `READY` e `OVERWATCH` descrivono un comportamento **atteso** (countdown ed E14) che non esiste ancora |
 | **In attesa di codice** | `V01-ELEC` `V01-FIREWATER` (E8, ora **chiusa**: il codice c'è, la verifica a schermo no) · `V01-HUD` (E11) | **3** — `V01-LOWCOVER` è uscita da qui il 2026-08-07 (CP 9.1) e `V01-DOOR` il 2026-08-08 (CP 9.3): per entrambe la regola è ora coperta headless, e sono passate a 🟡 |
 | **Asset da preparare** | `V01-COVEREDIT` | **1** — editing delle coperture nel data asset mappa (CP 9.1). ⚠️ `DA_HexMap_Sandbox` è oggi **vuoto**: va ridisegnato |
 | **Animazioni** | `AS4a` `AS4b` | **2** — richiedono i montage Paragon |
-| **Scenario Test Harness** | `TEST-CONSOLE` | **1** — l'harness è coperto headless (30 test `Scenario.*` + `ScenarioIndex.*`); qui resta ciò che accade **a schermo**. Il 2026-08-08 sono passate a ✅ `TEST-AUTORUN`, `TEST-VISUAL` e le due del browser per tag (`SCEN-FILTER`, `SCEN-KEEP`, issue `#209`) |
 
 ## Checklist
 
@@ -334,6 +332,26 @@ I numeri raccolti vanno nella tabella KPI di [`v0.1-definition-of-done.md`](../r
 **con la riserva sul campione** (un solo giocatore, che è l'autore del gioco) e **con l'etichetta «2v2»**: i
 target di 25–30 min sono del 3v3 Standard, che in v0.1 non esiste.
 Bande di riferimento: [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §5–§9, §17.
+
+### Sessione G — Eseguibile subito, senza preparare niente → 3 voci
+
+`PIE-PREVIEW-AREA`, `PIE-V01-MATCHEND`, `PIE-TEST-CONSOLE`.
+
+**È la sola sessione che non attende nulla**: nessun asset da creare, nessun checkpoint da chiudere, nessuna
+mappa di prova. Basta premere Play sull'arena di ripiego. Le tre voci erano già nella checklist ma in nessuna
+sessione, e una voce che non sta in una seduta non viene eseguita mai — che è il motivo per cui questa
+sezione esiste.
+
+L'ordine non è arbitrario:
+
+1. **PIE-PREVIEW-AREA** e **PIE-V01-MATCHEND** su una partita normale: la prima guarda l'anteprima della zona
+   colpita, la seconda che la partita arrivi a una conclusione e che `R` riavvii.
+2. **PIE-TEST-CONSOLE** per **ultima**, e non per gusto di ordine: `rt.Test.Run` **sostituisce la mappa** e
+   aggiunge unità alla partita in corso. Eseguirla prima lascerebbe le altre due su uno stato che non è
+   quello che dicono di verificare. Dopo, si riavvia con `R`.
+
+Le altre voci dell'harness (`TEST-AUTORUN`, `TEST-VISUAL`, `SCEN-FILTER`, `SCEN-KEEP`) sono verdi dal
+2026-08-08 e non tornano qui.
 
 ### Mappa di prova consigliata (serve alle sessioni A, D, E ed F)
 

@@ -1,4 +1,4 @@
-> ✅ **RECEPITO il 2026-08-08 da [D-028](../decisions/RT_PDR_00_Decision_Log.md) /
+> ✅ **RECEPITO il 2026-08-08 da [D-029](../decisions/RT_PDR_00_Decision_Log.md) /
 > [ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md).** Questo handoff resta un **input**, non
 > un'autorità (`AGENTS.md`: `docs/src/` non è fonte normativa per default). Gli owner normativi
 > dell'ownership dei contenuti sono ora
@@ -8,7 +8,7 @@
 >
 > **Non c'è deriva da correggere qui**: il divieto di `SameFactionDamageBonus` / `SameFactionArmorBonus` /
 > `FactionSetBonus` (§3) e la regola «la cooperazione emerge dalle normali meccaniche» sono esattamente ciò che
-> D-028 ha consolidato. Il documento **non** propone kit di coppia o di fazione, quindi non è superato: è la
+> D-029 ha consolidato. Il documento **non** propone kit di coppia o di fazione, quindi non è superato: è la
 > fonte da cui la decisione è nata. Non riscriverlo.
 
 # REFACTORTACTICS — CONSOLIDAMENTO FAZIONI, IDENTITÀ VISIVA, ROSTER E SCENARI DI COOPERAZIONE
