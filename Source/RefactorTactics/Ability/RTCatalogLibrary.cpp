@@ -356,16 +356,13 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// del CENTRO, il raggio dell'area sta nell'intento (`FRTHexAttackIntent::AreaRadius`): sono due numeri
 	// diversi e confonderli farebbe esplodere l'area a quattro celle di distanza.
 	//
-	// **Friendly fire attivo**: e' l'unica azione della v0.1 che colpisce anche i propri, e lo dichiara nei
-	// DATI (`bFriendlyFire`). Non e' una dimenticanza del filtro di squadra, e non e' una decisione di chi
-	// costruisce l'intento: chi assegnera' l'area a un eroe (E6) la copia da qui e basta.
-	{
-		FRTActionDef Area = ShippedAction(TEXT("Action.CircularAoE"), ERTResolutionPhase::Attack, /*Priority*/ 65,
-			/*Range (centro)*/ 4, /*Cooldown*/ 2, ERTActionFallback::AttackCell,
-			{ FRTActionEffectSpec(ERTActionEffect::Damage, 18) });
-		Area.bFriendlyFire = true;
-		Catalog.Add(Area);
-	}
+	// **Friendly fire**: non serve piu' dichiararlo qui. Dal 2026-08-08 `bFriendlyFire` e' vero di DEFAULT
+	// (vedi `FRTActionDef`), perche' la riga esplicita qui sotto non raggiungeva il roster: gli eroi si
+	// costruiscono con `MakeHeroAction`, che non aveva il parametro, e «la copia da qui e basta» non e'
+	// avvenuto — `Flux.Overload` aveva preso danno e raggio ma non il fuoco amico.
+	Catalog.Add(ShippedAction(TEXT("Action.CircularAoE"), ERTResolutionPhase::Attack, /*Priority*/ 65,
+		/*Range (centro)*/ 4, /*Cooldown*/ 2, ERTActionFallback::AttackCell,
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 18) }));
 
 	// `SuppressiveLine` — si PREPARA (fase 10, quindi macro-fase Prep) e si attiva su un trigger: il primo
 	// nemico che entra in una cella controllata durante il Move prende 16 danni e si ferma li'. Una sola

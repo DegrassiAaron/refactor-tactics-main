@@ -1,0 +1,31 @@
+{
+  "scenarioId": "Combat.SplashHitsAlliesNotSelf",
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "Fuoco amico ATTIVO (decisione dell'autore, 2026-08-08: in PvP e' attivo di default). L'area di raggio 1 attorno a B1 copre sette celle, e A1 lancia il colpo standoci DENTRO: la sua cella (0,0) e' vicina di (1,0). Tre unita' su quattro incassano 18 — il nemico bersaglio, il nemico vicino, e l'alleato — e la quarta e' l'attaccante, che e' escluso per identita' (`u == AttackerId`) e non perche' sia fuori portata. E' l'unica configurazione in cui «l'attaccante non si colpisce da solo» viene messo davvero alla prova: se lo si mettesse a distanza di sicurezza, quell'assert sarebbe verde per geografia e non per regola. Sostituisce Combat.SplashSparesAllies, il cui nome descriveva la regola precedente.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Flux",    "team": 0, "cell": [ 0, 0, 0] },
+    { "id": "A2", "hero": "Hero.Riva",    "team": 0, "cell": [ 0, 1, 0] },
+    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [ 1, 0, 0] },
+    { "id": "B2", "hero": "Hero.Vektor",  "team": 1, "cell": [ 2, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "A1", "ability": "Flux.Overload", "target": "B1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals", "unit": "B1", "value": 102 },
+    { "type": "UnitHpEquals", "unit": "B2", "value":  82 },
+    { "type": "UnitHpEquals", "unit": "A2", "value":  77 },
+    { "type": "UnitHpEquals", "unit": "A1", "value":  90 },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

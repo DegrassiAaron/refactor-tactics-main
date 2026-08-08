@@ -106,17 +106,18 @@ bool FRTOffensiveActionsMatchCatalogTest::RunTest(const FString&)
 		TestTrue(FString::Printf(TEXT("%s: occupa l'azione principale"), E.Id), Def.Slot == ERTActionSlot::Main);
 	}
 
-	// Il fuoco amico e' un dato dell'AZIONE, ed e' l'eccezione di UNA sola: le altre cinque risparmiano gli
-	// alleati senza che nessuno debba ricordarsene al momento di costruire l'intento.
-	TestTrue(TEXT("solo l'area circolare colpisce i propri"),
-		OffensiveDef(TEXT("Action.CircularAoE")).bFriendlyFire);
-	for (const FRTActionDef& Def : URTCatalogLibrary::GetCoreActionCatalog())
+	// Fuoco amico ATTIVO su tutte le offensive (decisione dell'autore, 2026-08-08: in PvP e' attivo di
+	// default). Fino a ieri qui si pretendeva l'opposto — «l'eccezione di UNA sola azione» — e la regola
+	// vecchia era corretta come descrizione del catalogo core ma non arrivava mai in partita: gli eroi si
+	// costruiscono con `MakeHeroAction`, che non aveva il parametro, quindi nessuna azione del ROSTER lo
+	// aveva attivo. Il test era verde su un dato che nessuno leggeva.
+	//
+	// Si verifica sulle OFFENSIVE, non su tutto il catalogo: su `Action.Wait` o `Action.Move` il flag e'
+	// inerte (non producono intenti d'attacco, nessuno lo legge) e pretendere un valore sarebbe fissare
+	// rumore. Il valore che conta e' quello delle azioni che colpiscono qualcuno.
+	for (const FExpected& E : Expected)
 	{
-		if (Def.ActionId != FName(TEXT("Action.CircularAoE")))
-		{
-			TestFalse(FString::Printf(TEXT("%s non colpisce gli alleati"), *Def.ActionId.ToString()),
-				Def.bFriendlyFire);
-		}
+		TestTrue(FString::Printf(TEXT("%s colpisce anche gli alleati"), E.Id), OffensiveDef(E.Id).bFriendlyFire);
 	}
 
 	// La priorita' e' cio' che DIFFERENZIA le offensive dentro il Blast (obiettivo della issue): il marchio

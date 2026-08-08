@@ -617,19 +617,19 @@ static bool RunScenarioAndReportHpAssertions(FAutomationTestBase& Test, const TC
 }
 
 /**
- * `Combat.SplashSparesAllies`: l'AREA colpisce i vicini, ma non i propri.
+ * `Combat.SplashHitsAlliesNotSelf`: l'area colpisce chiunque ci sia dentro, tranne chi la lancia.
  *
- * Due affermazioni in un colpo solo, e si reggono a vicenda. «A2 e' intatta» da sola non varrebbe niente:
- * sarebbe verde anche se l'abilita' non fosse partita. Vale perche' nello STESSO turno B2 — che non e'
- * bersaglio di nessun intent, sta solo accanto a B1 — e' scesa di 18. Una meta' dimostra che il colpo e'
- * avvenuto, l'altra che il filtro di squadra ha scelto chi prenderlo.
+ * Col fuoco amico attivo «l'alleato incassa» non e' piu' una notizia: lo e' il fatto che l'ATTACCANTE no,
+ * pur stando dentro la propria esplosione. Lo scenario lo mette apposta nel raggio, cosi' l'esclusione e'
+ * verificata come regola (`u == AttackerId`) e non come geografia: piazzandolo lontano, quell'assert
+ * sarebbe verde anche in un gioco che si fa male da solo appena qualcuno gli si avvicina.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioSplashSparesAlliesTest,
-	"RefactorTactics.Scenario.RunnerSplashSparesAllies",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioSplashHitsAlliesTest,
+	"RefactorTactics.Scenario.RunnerSplashHitsAlliesNotSelf",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTScenarioSplashSparesAlliesTest::RunTest(const FString&)
+bool FRTScenarioSplashHitsAlliesTest::RunTest(const FString&)
 {
-	return RunScenarioAndReportHpAssertions(*this, TEXT("Combat.SplashSparesAllies"));
+	return RunScenarioAndReportHpAssertions(*this, TEXT("Combat.SplashHitsAlliesNotSelf"));
 }
 
 /**
@@ -661,7 +661,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioShapesHitMoreThanOneTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTScenarioShapesHitMoreThanOneTest::RunTest(const FString&)
 {
-	for (const TCHAR* Id : { TEXT("Combat.SplashSparesAllies"), TEXT("Combat.LineHitsThrough") })
+	for (const TCHAR* Id : { TEXT("Combat.SplashHitsAlliesNotSelf"), TEXT("Combat.LineHitsThrough") })
 	{
 		FRTTestScenario Scenario;
 		if (!LoadShippedScenario(*this, Id, Scenario)) { return false; }

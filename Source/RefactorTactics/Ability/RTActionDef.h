@@ -222,15 +222,23 @@ struct FRTActionDef
 	bool bCanBeInterrupted = true;
 
 	/**
-	 * L'azione colpisce anche gli ALLEATI di chi la usa (`Action.CircularAoE`, catalogo §3). Default falso:
-	 * il fuoco amico e' l'eccezione dichiarata da una singola azione, non il comportamento di base.
+	 * L'azione colpisce anche gli ALLEATI di chi la usa. **Default vero** (decisione dell'autore, 2026-08-08):
+	 * il fuoco amico e' attivo di base, non l'eccezione di una singola azione. Chi piazza un'area lo fa
+	 * sapendo dove sono i suoi.
 	 *
-	 * Sta nei DATI e non nel codice che costruisce l'intento: altrimenti chi assegnera' l'area a un eroe (E6)
-	 * dovrebbe scrivere `if (ActionId == "Action.CircularAoE")`, cioe' l'eccezione hard-coded che il motore
-	 * azioni esiste per togliere.
+	 * Il default era falso e nessun eroe lo ribaltava — `MakeHeroAction` non aveva nemmeno il parametro —
+	 * quindi il `bFriendlyFire = true` di `Action.CircularAoE` non raggiungeva il roster: in partita non si
+	 * attivava mai. Invertire il default e' il modo che NON lascia scoperto un eroe futuro; una lista di
+	 * azioni da marcare a mano si dimentica, un default no.
+	 *
+	 * Resta un `UPROPERTY` per azione perche' una singola azione possa dichiarare il contrario (una cura ad
+	 * area che non deve colpire i nemici, o viceversa), non perche' sia normale doverlo impostare.
+	 *
+	 * Sta nei DATI e non nel codice che costruisce l'intento: altrimenti servirebbe un
+	 * `if (ActionId == ...)`, cioe' l'eccezione hard-coded che il motore azioni esiste per togliere.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
-	bool bFriendlyFire = false;
+	bool bFriendlyFire = true;
 
 	FRTActionDef() = default;
 };
