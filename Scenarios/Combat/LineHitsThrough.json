@@ -1,5 +1,6 @@
 {
   "scenarioId": "Combat.LineHitsThrough",
+  "tags": ["combat", "shapes", "los", "animation", "flux", "bastion", "vektor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
