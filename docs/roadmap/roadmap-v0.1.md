@@ -259,7 +259,7 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 | **E17** | `RT-FEAT-STRESS-4V4` — Validazione di stress 4v4 | SPECIFIED | 1/7 |
 | **E18** | `RT-FEAT-ACTION-PREDICTIVE` — Predictive Action, thin slice | SPECIFIED | 1/8 |
 | **E19** | `RT-FEAT-MATCH-FORMAT` — Formato di partita e classe di mappa | TESTABLE | 4/8 |
-| **E20** | `RT-FEAT-UI-ICON-LANGUAGE` — HUD Icon Language | SPECIFIED | 1/7 |
+| **E20** | `RT-FEAT-UI-ICON-LANGUAGE` — HUD Icon Language | IMPLEMENTING | 1/7 |
 | **E21** | `RT-FEAT-CHAR-PRESENTATION` — Presentazione dei personaggi (mesh, animazioni, anelli) | IMPLEMENTING | 1/7 |
 
 **Fuori dalla vista di release, per decisione** — esiste, è tracciato, ma non è contenuto
@@ -1067,7 +1067,7 @@ Reaction, Coordination, Certainty, Warning, Objective.
 
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
-| **20.1** | `URTIconCatalogData` | Le icone si risolvono per **chiave semantica** (`Status.Wet`, `Certainty.Predicted`, …). Una chiave senza icona è un errore di validazione, non un widget vuoto | `IconCatalog.EveryKeyResolves`, `IconCatalog.MissingKeyIsValidationError` |
+| **20.1** | `URTIconCatalogData` | Le icone si risolvono per **chiave semantica** stabile (`UI.Icon.Status.Wet`, `UI.Icon.Phase.Blast`). Una chiave senza icona è un errore di validazione, non un widget vuoto; una chiave sconosciuta a runtime dà il missing-icon e una warning, mai il vuoto. L'insieme richiesto è **derivato dai dati di gioco** — tag `Status.*`, azioni core, fasi volontarie — non da una lista a mano | `IconCatalog.EveryKeyResolves`, `…MissingKeyIsValidationError`, `…UnknownKeyReturnsFallback`, `…DuplicateIdIsValidationError`, `…RequiredIdsFollowGameData` |
 | **20.2** | Categorie della v0.1 | Popolate le sole categorie che la v0.1 usa davvero: Identity, Action, Phase, Status, Certainty. Le altre sette restano dichiarate e vuote | `IconCatalog.V01CategoriesPopulated` |
 | **20.3** | I widget consumano il catalogo | Nessun widget di E11 referenzia una texture direttamente; l'HUD cambia icona cambiando il dato | `IconCatalog.NoDirectTextureInWidgets` + voce PIE `PIE-ICON-01` |
 
