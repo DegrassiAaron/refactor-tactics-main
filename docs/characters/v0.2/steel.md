@@ -140,6 +140,8 @@ Il controgioco previsto è separarlo dagli alleati, attaccare da più angoli, fo
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | RES_SHIELD | Integrità Scudo | 100 | 100 | 15 | Cleanup | Difesa/interpose | Break a 0 | Team-visible | DESIGN_SPEC |
 
+> **Ownership del kit:** le abilità di questa pagina appartengono esclusivamente a questo personaggio. Le sinergie con altri eroi sono esempi derivati da stati, superfici, geometria e altre regole comuni; non sono abilità condivise. Vedi [Sinergie e combinazioni](../../wiki/game/sinergie-e-combinazioni.md).
+
 ## Abilità
 
 ### Shield Bash

@@ -24,7 +24,7 @@ Porte e ponti non sono soltanto mesh decorative: possono cambiare la **topologia
 
 ## Acqua ed elettricità
 
-L'acqua bassa rende l'unità `Wet` e crea una superficie conduttiva. Il sistema ambientale può quindi trasformare una scelta di percorso in una vulnerabilità o in un setup di combo.
+L'acqua bassa rende l'unità `Wet` e crea una superficie conduttiva. Il sistema ambientale può quindi trasformare una scelta di percorso in una vulnerabilità o in un setup di interazione sistemica.
 
 ## Fuoco
 
@@ -52,3 +52,7 @@ La quota non dà un bonus numerico universale alla vista nella v0.1. È già imp
 - [Acqua ed elettricità](../meccaniche/acqua-e-elettricita.md)
 - [Fuoco e stati](../meccaniche/fuoco-e-stati.md)
 - [Topologia dinamica](../meccaniche/topologia-dinamica.md)
+
+## Sinergie
+
+Le interazioni ambientali sono regole del sistema, non abilità di una coppia. Vedi [Sinergie e combinazioni](sinergie-e-combinazioni.md).

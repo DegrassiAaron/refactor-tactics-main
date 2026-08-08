@@ -48,6 +48,8 @@ Il ruolo di lavoro è **Combo Fighter**. La Signature indica quale parte del sis
 
 Questa domanda è già esplicitamente definita nel Character Master Matrix.
 
+> **Ownership del kit:** le abilità di questa pagina appartengono esclusivamente a questo personaggio. Le sinergie con altri eroi sono esempi derivati da stati, superfici, geometria e altre regole comuni; non sono abilità condivise. Vedi [Sinergie e combinazioni](../../wiki/game/sinergie-e-combinazioni.md).
+
 ## Abilità / Skill
 
 **Non definite.**

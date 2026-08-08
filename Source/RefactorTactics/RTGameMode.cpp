@@ -448,3 +448,31 @@ bool ARTGameMode::IsScenarioRunning() const
 {
 	return ScenarioSession.IsValid() && !ScenarioSession->IsFinished();
 }
+
+FString ARTGameMode::GetScenarioBannerText() const
+{
+	// La condizione e' «questa sessione E' una run di scenario», non «lo scenario sta girando»: la partita
+	// normale non viene allestita nemmeno dopo che lo scenario e' finito, ed e' proprio allora che chi guarda
+	// si chiede dove sia il gioco.
+	const FString ScenarioId = ResolveScenarioToRun();
+	if (ScenarioId.IsEmpty())
+	{
+		return FString();
+	}
+
+	// La FONTE va detta anche a schermo, per la stessa ragione per cui il log la dice: una console variable
+	// impostata una volta scavalca la tendina a ogni Play successivo, e senza saperlo si cerca il difetto
+	// nella property sbagliata.
+	const TCHAR* Source = CVarRTTestScenario.GetValueOnGameThread().IsEmpty()
+		? TEXT("BP_GameMode")
+		: TEXT("rt.Test.Scenario");
+
+	FString Esito = TEXT("in corso");
+	if (ScenarioSession.IsValid() && ScenarioSession->IsFinished())
+	{
+		Esito = ScenarioSession->GetResult().OutcomeString();
+	}
+
+	return FString::Printf(TEXT("SCENARIO %s [%s]  -  %s  -  la partita normale NON e' allestita"),
+		*ScenarioId, Source, *Esito);
+}

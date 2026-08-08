@@ -190,6 +190,23 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Test")
 	bool IsScenarioRunning() const;
 
+	/**
+	 * Riga da mostrare **a schermo** quando questa sessione sta eseguendo uno scenario invece della partita
+	 * normale. Vuota = partita normale, e l'HUD non disegna nulla.
+	 *
+	 * Esiste perché il sintomo non punta alla causa. Con `ScenarioToRun` valorizzato `BeginPlay` esegue lo
+	 * scenario e ritorna: la partita normale **non viene allestita affatto**, quindi niente unità proprie,
+	 * niente selezione, niente barra abilità. Chi guarda vede uno schermo quasi vuoto e non ha modo di
+	 * sapere perché — la spiegazione c'è, ma è in una riga di Output Log che non si ha motivo di andare a
+	 * cercare. È successo il 2026-08-08, uscendo da `PIE-SCEN-KEEP` che lascia la property impostata.
+	 *
+	 * Non si basa su `IsScenarioRunning()`: quello torna falso appena lo scenario finisce, cioè **proprio
+	 * quando** chi guarda resta davanti a un campo fermo a chiedersi dov'è la partita. La condizione giusta
+	 * è «questa sessione è una run di scenario», che dura quanto la sessione.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Test")
+	FString GetScenarioBannerText() const;
+
 protected:
 	virtual void BeginPlay() override;
 

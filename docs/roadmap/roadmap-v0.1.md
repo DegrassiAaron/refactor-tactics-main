@@ -48,6 +48,15 @@ mappe dinamico a runtime.
 5. Offline: nessun networking in v0.1, ma autorità isolata (#5) e privacy dell'intento (#6) rispettate.
 6. Ogni checkpoint chiude con **DoD misurabile** e **test automatici**; le verifiche interattive sono voci
    in [`test-manuali-pie.md`](../technical/test-manuali-pie.md), non «sembra funzionare».
+7. **Un'abilità ha un solo owner** ([D-029](../decisions/RT_PDR_00_Decision_Log.md)): le interazioni
+   appartengono ai sistemi, le sinergie sono esempi. Nessuna epic di questa roadmap introduce kit di coppia o
+   di fazione.
+
+> 📝 **Nota documentale 2026-08-08 — nessuna epic nuova.** [D-029](../decisions/RT_PDR_00_Decision_Log.md) /
+> [ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md) sono una regola di ownership dei contenuti, non
+> una feature: non aggiungono checkpoint runtime. Aggiungono però un **requisito di DoD** per le feature
+> cross-character future — dettaglio in
+> [`roadmap-checkpoint.md`](roadmap-checkpoint.md) §«Definition of Done trasversale».
 
 ---
 

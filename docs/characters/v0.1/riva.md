@@ -11,7 +11,7 @@
 
 ## Panoramica
 
-Support/controller dell'acqua: bagna bersagli, cura, riposiziona e prepara il terreno per le combo di squadra.
+Support/controller dell'acqua: bagna bersagli, cura, riposiziona e prepara il terreno per interazioni sistemiche e sinergie di squadra.
 
 ## Identità tattica
 
@@ -32,7 +32,7 @@ Support/controller dell'acqua: bagna bersagli, cura, riposiziona e prepara il te
 | Dipendenze tecniche | Water, Wet, smoke, reposition |
 | Player question | Dove preparo il terreno per la squadra? |
 
-> **Nota bilanciamento:** Canonico v0.1. 95 HP, 5 MP, vista 5; valore massimo quando abilita combo e controllo terreno.
+> **Nota bilanciamento:** Canonico v0.1. 95 HP, 5 MP, vista 5; valore massimo quando abilita interazioni e controllo terreno.
 
 ## Meccanica firma
 
@@ -139,6 +139,8 @@ Il suo payoff cresce quando la squadra sfrutta le celle e gli stati che Riva ha 
 | Resource_ID | Nome | Cap | Start | Regen | Regen_Trigger | Spesa | Regola | Audience | Implementation_Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | RES_RIVA_WATER | Riserva Idrica | 4 | — | 1 | Interazione con acqua | Abilità firma | Cap 4; start non specificato | Team-visible | CANONICAL_PARTIAL |
+
+> **Ownership del kit:** le abilità di questa pagina appartengono esclusivamente a questo personaggio. Le sinergie con altri eroi sono esempi derivati da stati, superfici, geometria e altre regole comuni; non sono abilità condivise. Vedi [Sinergie e combinazioni](../../wiki/game/sinergie-e-combinazioni.md).
 
 ## Abilità
 

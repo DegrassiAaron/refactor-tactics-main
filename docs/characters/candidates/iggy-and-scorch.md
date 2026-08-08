@@ -48,6 +48,8 @@ Il ruolo di lavoro è **Terrain Controller / Duo**. La Signature indica quale pa
 
 La domanda primaria non è ancora definita nel documento sorgente.
 
+> **Ownership del kit:** le abilità di questa pagina appartengono esclusivamente a questo personaggio. Le sinergie con altri eroi sono esempi derivati da stati, superfici, geometria e altre regole comuni; non sono abilità condivise. Vedi [Sinergie e combinazioni](../../wiki/game/sinergie-e-combinazioni.md).
+
 ## Abilità / Skill
 
 **Non definite.**

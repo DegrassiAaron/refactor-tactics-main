@@ -38,6 +38,23 @@ Contiene ancora, e sono tutte esplorazioni superate:
 peggio di uno dichiaratamente vecchio. Un eventuale `v0.2` andrà **derivato** dai cataloghi Markdown,
 versionato e validato — idealmente generato, così che non possa più divergere da solo.
 
+## Chi possiede un numero, e chi lo cita soltanto
+
+I cataloghi hero/action **possiedono** i numeri competitivi. Wiki, pagine di sinergia, pagine di fazione e
+scenari li **citano e li linkano**: non ne tengono una seconda copia normativa
+([D-029](../decisions/RT_PDR_00_Decision_Log.md) ·
+[ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md) ·
+[`../gameplay/spec-ownership-abilita-interazioni-sinergie.md`](../gameplay/spec-ownership-abilita-interazioni-sinergie.md)).
+
+Corollari operativi:
+
+- un'abilità appartiene a **un** owner: non esistono kit di coppia o di fazione, e una sinergia non è un
+  `AbilityId`;
+- una condizione sistemica (`+8 su bersaglio Wet`) vive nel catalogo dell'**abilità che la dichiara**, non nella
+  pagina della sinergia che la usa come esempio;
+- se una pagina di sinergia deve spiegare un numero, lo **linka** al catalogo owner. Un valore duplicato in una
+  pagina divulgativa è lo stesso difetto della regola #1 qui sotto, solo più difficile da trovare.
+
 ## Come si cambia un valore
 
 1. **Trova l'owner.** Un numero vive in **un** catalogo. Se lo trovi in due, è un difetto: apri una issue,

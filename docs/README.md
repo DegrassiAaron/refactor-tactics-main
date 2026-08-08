@@ -16,7 +16,7 @@ deterministico, su una griglia **esagonale multilivello**.
 | # | Livello | Documento | Cosa decide |
 |---|---|---|---|
 | 1 | **Canone** | [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) | Invarianti, decisioni operative, regole. **Prevale su tutto** |
-| 2 | **Decisioni** | [`decisions/`](decisions/) — 5 ADR + [Decision Log](decisions/RT_PDR_00_Decision_Log.md) | Scelte architetturali e di prodotto, con motivazione |
+| 2 | **Decisioni** | [`decisions/`](decisions/) — 6 ADR + [Decision Log](decisions/RT_PDR_00_Decision_Log.md) | Scelte architetturali e di prodotto, con motivazione |
 | 3 | **Esecuzione** | [`roadmap/roadmap-checkpoint.md`](roadmap/roadmap-checkpoint.md) | Milestone M6–M11, DoD misurabili, **stato** |
 | 4 | **Release** | [`roadmap/roadmap-v0.1.md`](roadmap/roadmap-v0.1.md) | Scope della v0.1: 18 epic, 87 checkpoint |
 | 5 | **Numeri** | [`balance/`](balance/) | Valori vigenti: azioni, eroi, terreni, equipaggiamento |
@@ -77,7 +77,8 @@ definita in due posti, è un difetto: apri una issue invece di aggiornarne una s
 | Scenario della showcase | [`product/showcase-v0.1.md`](product/showcase-v0.1.md) | ⏳ E15 |
 | Gate di release | [`roadmap/v0.1-definition-of-done.md`](roadmap/v0.1-definition-of-done.md) | ⏳ |
 | Unità ausiliarie | [`gameplay/brief-unita-ausiliarie.md`](gameplay/brief-unita-ausiliarie.md) | ✅ vincoli decisi · gameplay **fuori** dalla v0.1 |
-| Azioni generiche e Overwatch universale | [`gameplay/brief-azioni-generiche-overwatch.md`](gameplay/brief-azioni-generiche-overwatch.md) | ✅ deciso ([D-012](decisions/RT_PDR_00_Decision_Log.md)) · ⏳ E14 |
+| Azioni generiche e Overwatch universale | [`gameplay/brief-azioni-generiche-overwatch.md`](gameplay/brief-azioni-generiche-overwatch.md) | ✅ deciso ([D-012](decisions/RT_PDR_00_Decision_Log.md) · [D-025](decisions/RT_PDR_00_Decision_Log.md): **sette** voci, `Guard` universale) · ⏳ E14 |
+| **Ownership di abilità, interazioni e sinergie** | [`gameplay/spec-ownership-abilita-interazioni-sinergie.md`](gameplay/spec-ownership-abilita-interazioni-sinergie.md) · [ADR-0006](decisions/adr-0006-ownership-abilita-sinergie.md) | ✅ **normativa** ([D-029](decisions/RT_PDR_00_Decision_Log.md)) · nessun runtime nuovo |
 | Trigger su transizione (trap, tripwire) | [`gameplay/brief-delayed-actions.md`](gameplay/brief-delayed-actions.md) §6-bis | ✅ deciso ([D-013](decisions/RT_PDR_00_Decision_Log.md)) · nessuna epic |
 | Formato principale di partita | [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) `D-001`/`D-011` | ⚠️ **assunzione**: 3v3 baseline, mai misurato |
 | Validazione di stress 4v4 | [`roadmap/roadmap-v0.1.md`](roadmap/roadmap-v0.1.md) §E17 | ⏳ E17, dopo E15 |
@@ -178,6 +179,11 @@ docs/
 ├── roadmap/     milestone, release v0.1, DoD, requisiti di lungo periodo
 │   └── plans/   piani di esecuzione consegnati (storico)
 ├── decisions/   ADR e Decision Log
+├── wiki/        guida al gioco per il giocatore (meccaniche, fazioni, sinergie) — divulgativa
+│   ├── game/        loop, azioni, ambiente, sinergie e combinazioni
+│   ├── meccaniche/  manuale per regola
+│   └── fazioni/     identità, filosofia, roster, scenari dimostrativi
+├── characters/  pagine personaggio: v0.1, v0.2, candidati Paragon — **un kit per pagina**
 ├── src/         sorgenti non normativi: PDF di visione e brief grezzi
 └── archive/     materiale superato
     └── pdr-v0.1/  snapshot PDF dei PDR

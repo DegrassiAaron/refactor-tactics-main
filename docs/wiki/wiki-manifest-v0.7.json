@@ -1,0 +1,28 @@
+{
+  "wikiVersion": "0.7",
+  "previousWikiVersion": "0.6",
+  "characterWikiVersion": "0.7",
+  "decision": "D-029 / ADR-0006 — abilities are owned by individual character/action definitions; interactions belong to systems; synergies are derived examples.",
+  "normativeOwner": "gameplay/spec-ownership-abilita-interazioni-sinergie.md",
+  "synergyPages": [
+    "wiki/game/sinergie-e-combinazioni.md"
+  ],
+  "factionPages": [
+    "wiki/fazioni/index.md",
+    "wiki/fazioni/conflux.md",
+    "wiki/fazioni/constrine.md",
+    "wiki/fazioni/sentinel-directorate.md",
+    "wiki/fazioni/resonance.md"
+  ],
+  "factions": [
+    { "displayName": "Conflux", "factionId": "Faction.Conflux", "firstAppearance": "v0.1", "members": ["Flux", "Riva"], "primaryColor": "#16C7B7", "scenarioId": "Team.Conflux.FluxRiva.ConductiveFlood", "scenarioStatus": "GATED" },
+    { "displayName": "Constrine", "factionId": "Faction.Constrine", "firstAppearance": "v0.1", "members": ["Bastion", "Vektor"], "primaryColor": "#D7A83E", "scenarioId": "Team.Constrine.BastionVektor.OnlyExit", "scenarioStatus": "GATED" },
+    { "displayName": "Sentinel Directorate", "factionId": "Faction.Sentinel", "firstAppearance": "v0.2", "members": ["Steel", "Murdock"], "primaryColor": "#356FF6", "scenarioId": "Team.Sentinel.SteelMurdock.HoldTheLine", "scenarioStatus": "GATED" },
+    { "displayName": "Resonance", "factionId": "Faction.Resonance", "firstAppearance": "v0.2", "members": ["Aurora", "Kwang"], "primaryColor": "#725CF4", "scenarioId": "Team.Resonance.AuroraKwang.FrozenAnchor", "scenarioStatus": "GATED" }
+  ],
+  "characterPagesGoverned": 42,
+  "factionPagesGoverned": 4,
+  "scenarioNote": "Faction scenario IDs come from the design spec and were NOT found in the repository scenario registry: the Wiki marks them GATED. A scenario is a demonstrative fixture, never an ability owner.",
+  "status": "player-facing derivative documentation; non-normative",
+  "generatedAt": "2026-08-08"
+}

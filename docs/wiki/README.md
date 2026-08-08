@@ -37,3 +37,7 @@ Per consultare una regola specifica durante una partita o un playtest:
 - [Facing](meccaniche/facing-e-direzionalita.md) · [Overwatch](meccaniche/overwatch.md)
 - [Collisioni](meccaniche/collisioni.md) · [Obiettivi](meccaniche/obiettivi-dinamici.md)
 
+
+## Ownership delle abilità
+
+Le abilità sono organizzate per **personaggio**, non per combinazione. Le interazioni appartengono ai sistemi; le sinergie sono esempi derivati. Vedi [Sinergie e combinazioni](game/sinergie-e-combinazioni.md).

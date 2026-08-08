@@ -5,20 +5,27 @@
 > brief.** Vale:
 >
 > ```text
-> Generiche:  Wait · BasicAttack · Interact · Brace · Move · Overwatch
+> Generiche:  Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch
 > Profili:    MoveProfile = Sneak | Normal | Sprint
 > Speciali:   Dash / Charge / Leap / Blink / Reposition / displacement forzato   (pre-Blast)
 >
 > Activate  -> assorbita da Interact
-> Guard     -> non piu' fondamentale universale (resta stance specifica)
+> Guard     -> fondamentale universale (D-025 emenda D-014 su questo solo punto)
 > Sprint    != Dash
 > Attack | Ability | Overwatch   (mai sommati, salvo eccezione dichiarata)
 > ```
 >
-> ⚠️ **La tassonomia è chiusa, la migrazione no.** `Action.Guard`, `Action.Activate` e `Action.Sprint`
+> 🔁 **Allineato a [D-025](../decisions/RT_PDR_00_Decision_Log.md) il 2026-08-08 — solo su `Guard`.** D-014
+> l'aveva declassata a stance specifica, ma `Guard` aveva già **tre** consumatori: il catalogo azioni (−15 e
+> resistenza a 1 cella di spinta), l'interazione con `Status.Root`, e la difesa direzionale di
+> [ADR-0005](../decisions/adr-0005-orientamento.md) §4a. L'elenco canonico è di **sette** voci.
+> L'economia `Attack | Ability | Overwatch` **non cambia**.
+>
+> ⚠️ **La tassonomia è chiusa, la migrazione no.** `Action.Activate` e `Action.Sprint`
 > **esistono e sono consumati** — misurato: `Action.Sprint` in 9 file di codice e 6 di test. Cancellarli o
 > rinominarli qui romperebbe test e replay: la migrazione è tracciata come issue, con Stable ID/replay safety
-> e validator fra i requisiti.
+> e validator fra i requisiti. `Action.Guard` **non fa più parte di questa migrazione**: dopo D-025 è di nuovo
+> uno Stable ID canonico, non un residuo.
 >
 > Restano **tunable**, non bloccanti: costi MP, rumore, exposure, eventuale costo extra di slot dello Sprint,
 > differenze di profilo per eroe. Vivono nei cataloghi, e **non vanno inventati** in un consolidamento
@@ -47,11 +54,11 @@ Quello che nessun documento del repo copriva:
 
 ## 2. La grammatica comune
 
-Sei azioni disponibili a tutti come **concetto**; l'implementazione dipende da eroe, equipaggiamento, profilo e
-stato (sorgente §3):
+Sette azioni disponibili a tutti come **concetto**; l'implementazione dipende da eroe, equipaggiamento, profilo e
+stato (sorgente §3, con `Guard` reintegrata da [D-025](../decisions/RT_PDR_00_Decision_Log.md)):
 
 ```text
-Wait · Basic Attack · Interact · Brace · Move · Overwatch
+Wait · Move · Basic Attack · Guard · Brace · Interact · Overwatch
 ```
 
 Non sostituiscono l'identità dei kit: sono il linguaggio che il resolver riusa. `Interact` in particolare è già

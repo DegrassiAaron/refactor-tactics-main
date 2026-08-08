@@ -27,3 +27,7 @@ Gli altri 34 slot sono conservati in `candidates/`: hanno Signature e dipendenze
 - `IMPLEMENTED` / v0.1: valori runtime/canonici dove presenti.
 - `DATA_SPEC` / v0.2: design numerico pianificato, non runtime v0.1.
 - `SIGNATURE_DEFINED` / Candidate: solo identità meccanica e framework; kit e numeri restano TBD.
+
+## Regola sui kit
+
+Le abilità sono organizzate per **personaggio**, non per combinazione. Vedi [Sinergie e combinazioni](../wiki/game/sinergie-e-combinazioni.md) e [Fazioni](../wiki/fazioni/index.md).
