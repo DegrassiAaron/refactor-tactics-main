@@ -11,6 +11,9 @@
 #include "Turn/RTMatchSetupLibrary.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "ScenarioHarness/RTTestResult.h"
+#include "ScenarioHarness/RTScenarioSession.h"
+#include "ScenarioHarness/RTScenarioLoader.h"
+#include "ScenarioHarness/RTTestReportWriter.h"
 
 /** Definita in Test/RTTestConsole.cpp: scenario da eseguire all'avvio invece della partita normale. */
 extern TAutoConsoleVariable<FString> CVarRTTestScenario;
@@ -26,6 +29,11 @@ ARTGameMode::ARTGameMode()
 	DefaultPawnClass = ARTCameraPawn::StaticClass();
 	PlayerControllerClass = ARTPlayerController::StaticClass();
 	HUDClass = ARTHUD::StaticClass();
+
+	// Tick abilitabile ma SPENTO all'avvio: si accende solo se parte uno scenario. Una partita normale non ha
+	// niente da far avanzare qui, e un GameMode che ticca a vuoto e' costo senza contropartita.
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = false;
 }
 
 void ARTGameMode::BeginPlay()
@@ -74,14 +82,55 @@ void ARTGameMode::BeginPlay()
 	//
 	// Il GameMode e' il posto giusto per questa decisione: sceglie COSA allestire, che e' il suo mestiere.
 	// Il resolver e il turn manager restano ignari dell'harness (nessun `if (IsTest)` nel gameplay).
-	const FString TestScenario = CVarRTTestScenario.GetValueOnGameThread();
+	const FString TestScenario = ResolveScenarioToRun();
 	if (!TestScenario.IsEmpty())
 	{
-		FString ReportDir;
-		const FRTTestResult Result = URTScenarioRunner::RunById(World, TestScenario, ReportDir);
-		UE_LOG(LogRT, Warning, TEXT("[RT-Test] AUTO-RUN %s -> %s (%d/%d assertion, %d turni) · report: %s"),
-			*TestScenario, *Result.OutcomeString(), Result.PassedCount(), Result.Assertions.Num(),
-			Result.TurnsPlayed, ReportDir.IsEmpty() ? TEXT("non scritto") : *ReportDir);
+		// La sessione parte QUI ma avanza in Tick, un passo per frame: e' cio' che rende lo scenario
+		// osservabile. Risolvendo tutto dentro BeginPlay finiva prima del primo fotogramma, e quel che si
+		// vedeva muoversi erano turni fantasma — misurato in PIE, non supposto.
+		FString ScenarioError;
+		FRTTestScenario Scenario;
+		if (!URTScenarioLoader::LoadFromFile(URTScenarioLoader::PathForScenarioId(TestScenario), Scenario, ScenarioError))
+		{
+			UE_LOG(LogRT, Error, TEXT("[RT-Test] scenario '%s' non caricabile: %s"), *TestScenario, *ScenarioError);
+			return;
+		}
+
+		// La FONTE va dichiarata sempre, non solo quando c'e' conflitto: chi legge il log deve poter dire
+		// «sta girando quello che ho scelto io» senza dedurlo dal comportamento a schermo.
+		const TCHAR* Source = CVarRTTestScenario.GetValueOnGameThread().IsEmpty()
+			? TEXT("proprieta' del GameMode")
+			: TEXT("console rt.Test.Scenario");
+		UE_LOG(LogRT, Warning, TEXT("[RT-Test] AUTO-RUN %s (da: %s): %d turni, pausa %.1fs — avanza un passo per frame"),
+			*TestScenario, Source, Scenario.Turns.Num(), ScenarioTurnPauseSeconds);
+
+		ScenarioSession = MakeShared<FRTScenarioSession>();
+		ScenarioSession->TurnPauseSeconds = ScenarioTurnPauseSeconds;
+		if (!ScenarioSession->Start(World, Scenario))
+		{
+			UE_LOG(LogRT, Error, TEXT("[RT-Test] %s -> ERROR: %s"),
+				*TestScenario, *ScenarioSession->GetResult().ErrorMessage);
+		}
+		SetActorTickEnabled(true);
+
+		// INQUADRATURA. Il percorso dello scenario non passa da `SetupHexMatch`, dove la partita normale si
+		// preoccupa di cio' che si vede: senza questo, la camera restava dove l'aveva lasciata il proprio
+		// BeginPlay — troppo alta e fuori centro. E' presentazione, non simulazione: non tocca l'esito.
+		//
+		// Al tick successivo, non subito: la camera potrebbe non essere ancora nata (l'ordine di BeginPlay fra
+		// actor non e' garantito, ed e' la stessa ragione per cui `ARTCameraPawn` gia' riprova una volta).
+		World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateWeakLambda(this, [this]()
+		{
+			if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(
+					UGameplayStatics::GetActorOfClass(this, ARTCameraPawn::StaticClass())))
+			{
+				// Lo scenario non ha una «propria squadra» da inquadrare: le unita' sono di entrambe, e quel che
+				// interessa e' vedere il campo INTERO, con tutti i movimenti dentro. `RecenterView` centra sulla
+				// mappa e riporta lo zoom d'insieme, che e' esattamente l'inquadratura giusta per guardare.
+				Cam->RecenterView();
+				UE_LOG(LogRT, Log, TEXT("[RT-Test] Camera centrata sulla mappa dello scenario."));
+			}
+		}));
 		return;
 	}
 
@@ -309,4 +358,81 @@ ARTUnit* ARTGameMode::SpawnHero(int32 TeamId, const URTHeroData* Hero, const FRT
 		Unit->PlaceOnCell(InCell, Origin, HexSize, LayerHeight);
 	}
 	return Unit;
+}
+
+FString ARTGameMode::ResolveScenarioToRun() const
+{
+	// La console variable PREVALE sulla proprieta': la proprieta' e' la configurazione persistente («questo
+	// progetto, per ora, esegue questo scenario»), la console variable e' l'intento estemporaneo di chi lancia
+	// («adesso, solo per questa volta, eseguine un altro») — da riga di comando o in CI. Il piu' specifico
+	// vince, che e' la stessa regola di ogni override di configurazione.
+	const FString FromConsole = CVarRTTestScenario.GetValueOnGameThread();
+	if (FromConsole.IsEmpty())
+	{
+		return ScenarioToRun;
+	}
+
+	// ...ma NON in silenzio. Una console variable dura quanto il processo dell'editor: digitata una volta,
+	// resta attiva per ogni Play successivo e continua a scavalcare la tendina senza che nulla lo dica. E'
+	// successo davvero — si sceglieva uno scenario nel Details Panel e ne partiva un altro, con l'unico
+	// indizio nel comportamento a schermo. La precedenza resta giusta; ad essere sbagliato era il silenzio.
+	if (!ScenarioToRun.IsEmpty() && ScenarioToRun != FromConsole)
+	{
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT-Test] La console variable rt.Test.Scenario='%s' SCAVALCA la proprieta' "
+				 "ScenarioToRun='%s' del GameMode. Per tornare a usare la proprieta': `rt.Test.Scenario \"\"`."),
+			*FromConsole, *ScenarioToRun);
+	}
+	return FromConsole;
+}
+
+TArray<FString> ARTGameMode::GetScenarioOptions() const
+{
+	// Voce vuota in TESTA: e' come si torna alla partita normale dal menu. Senza, l'unico modo per svuotare il
+	// campo sarebbe cancellarne il testo a mano — proprio cio' che il menu a tendina dovrebbe evitare.
+	TArray<FString> Options;
+	Options.Add(FString());
+	Options.Append(URTScenarioRunner::ListScenarioIds());
+	return Options;
+}
+
+void ARTGameMode::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	if (!ScenarioSession.IsValid() || ScenarioSession->IsFinished())
+	{
+		return;
+	}
+
+	// `bPumpTurnManager = false`: qui il mondo ticca gia' il turn manager. Pomparlo anche da qui lo farebbe
+	// correre al doppio della velocita', e il playback che si vuole GUARDARE passerebbe in meta' del tempo.
+	ScenarioSession->Step(DeltaSeconds, /*bPumpTurnManager=*/ false);
+
+	if (ScenarioSession->IsFinished())
+	{
+		const FRTTestResult& Result = ScenarioSession->GetResult();
+		FString ReportDir, WriteError;
+		if (!URTTestReportWriter::Write(Result, FString(), ReportDir, WriteError))
+		{
+			UE_LOG(LogRT, Error, TEXT("[RT-Test] report non scritto: %s"), *WriteError);
+		}
+		UE_LOG(LogRT, Warning, TEXT("[RT-Test] FINITO %s -> %s (%d/%d assertion, %d turni) · report: %s"),
+			*Result.ScenarioId, *Result.OutcomeString(), Result.PassedCount(), Result.Assertions.Num(),
+			Result.TurnsPlayed, ReportDir.IsEmpty() ? TEXT("non scritto") : *ReportDir);
+
+		for (const FRTAssertionResult& A : Result.Assertions)
+		{
+			if (!A.bPassed)
+			{
+				UE_LOG(LogRT, Error, TEXT("[RT-Test]   FALLITA %s: atteso %s, ottenuto %s"),
+					*A.Description, *A.Expected, *A.Actual);
+			}
+		}
+	}
+}
+
+bool ARTGameMode::IsScenarioRunning() const
+{
+	return ScenarioSession.IsValid() && !ScenarioSession->IsFinished();
 }

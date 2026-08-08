@@ -101,8 +101,63 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Match")
 	TObjectPtr<URTMatchFormatData> MatchFormat;
 
+	/**
+	 * Scenario di test da eseguire **al posto** della partita normale (es. `Movement.Basic`).
+	 * Vuoto = si gioca normalmente.
+	 *
+	 * È una proprietà e non solo una console variable perché così **sopravvive alla sessione**: si imposta una
+	 * volta nei default di `BP_GameMode` e al primo Play lo scenario parte, senza doverla ridigitare a ogni
+	 * riavvio dell'editor. La console variable `rt.Test.Scenario` resta e **prevale**, per il caso opposto:
+	 * eseguire uno scenario diverso una volta sola, da riga di comando o in CI, senza toccare l'asset.
+	 *
+	 * Nel Details Panel è un **menu a tendina**, non una casella di testo: gli ID vengono letti dai file in
+	 * `Scenarios/` (vedi `GetScenarioOptions`), quindi non si può digitare un ID inesistente e l'elenco non
+	 * va tenuto allineato a mano. La prima voce è **vuota** = partita normale.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Test",
+		meta = (GetOptions = "GetScenarioOptions"))
+	FString ScenarioToRun;
+
+	/**
+	 * Voci del menu a tendina di `ScenarioToRun`: gli scenari **realmente presenti** in `Scenarios/`, più una
+	 * voce vuota in testa per tornare alla partita normale.
+	 *
+	 * Legge i file invece di un elenco scritto a mano: aggiungere uno scenario lo fa comparire nel menu senza
+	 * toccare il codice, e un elenco che invecchia non puo' esistere. È lo stesso principio per cui l'ID di
+	 * uno scenario **è** il suo percorso.
+	 */
+	UFUNCTION()
+	TArray<FString> GetScenarioOptions() const;
+
+	/**
+	 * Pausa in secondi **prima** di risolvere ogni turno dello scenario: il tempo per guardare dove sono le
+	 * unità prima che si muovano.
+	 *
+	 * È ciò che rende uno scenario **osservabile**. Fino a `4e6c2e0` la partita si risolveva tutta dentro
+	 * `BeginPlay` e finiva prima del primo fotogramma: non si vedeva niente, e il movimento che sembrava lo
+	 * scenario erano turni fantasma. Ora la sessione avanza **un passo per frame**, e questa è la pausa fra un
+	 * turno e l'altro.
+	 *
+	 * 0 = nessuna pausa, i turni si incatenano (il playback resta comunque visibile).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Test", meta = (ClampMin = "0.0"))
+	float ScenarioTurnPauseSeconds = 1.5f;
+
+	/** Lo scenario da eseguire: la console variable prevale sulla proprietà, altrimenti vale la proprietà. Vuoto = partita normale. */
+	FString ResolveScenarioToRun() const;
+
+	/** Sessione dello scenario in corso, fatta avanzare un passo per frame da `Tick`. Nulla = nessuno scenario. */
+	TSharedPtr<class FRTScenarioSession> ScenarioSession;
+
+	/** Vero finché lo scenario sta girando: serve alla diagnostica e ai test. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Test")
+	bool IsScenarioRunning() const;
+
 protected:
 	virtual void BeginPlay() override;
+
+	/** Fa avanzare la sessione dello scenario: un passo per frame, cosi' il playback si VEDE. */
+	virtual void Tick(float DeltaSeconds) override;
 
 private:
 	/** Applica `MapSource` all'actor mappa: sostituisce l'asset quando la scelta lo richiede, e lo dichiara nel log. */

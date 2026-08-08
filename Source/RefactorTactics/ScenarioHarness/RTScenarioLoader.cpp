@@ -190,6 +190,21 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 					FRTScenarioIntent Intent;
 					IntentObj->TryGetStringField(TEXT("unit"), Intent.UnitId);
 
+					FString AbilityText;
+					if (IntentObj->TryGetStringField(TEXT("ability"), AbilityText) && !AbilityText.IsEmpty())
+					{
+						Intent.Ability = FName(*AbilityText);
+						if (!IntentObj->TryGetStringField(TEXT("target"), Intent.Target) || Intent.Target.IsEmpty())
+						{
+							// Un'abilita' senza bersaglio non e' un'omissione innocua: lo scenario girerebbe
+							// senza attaccare nessuno e l'assertion sui danni fallirebbe per il motivo sbagliato.
+							OutError = FString::Printf(
+								TEXT("intent di '%s': l'abilita' '%s' non dichiara un bersaglio (campo target)"),
+								*Intent.UnitId, *AbilityText);
+							return false;
+						}
+					}
+
 					const TArray<TSharedPtr<FJsonValue>>* MoveArr = nullptr;
 					if (IntentObj->TryGetArrayField(TEXT("move"), MoveArr))
 					{
@@ -245,11 +260,31 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 				Exp.Kind = ERTAssertionKind::TurnsCompleted;
 				Obj->TryGetNumberField(TEXT("value"), Exp.Value);
 			}
+			else if (Type == TEXT("UnitHpEquals"))
+			{
+				Exp.Kind = ERTAssertionKind::UnitHpEquals;
+				Obj->TryGetStringField(TEXT("unit"), Exp.UnitId);
+				if (!Obj->TryGetNumberField(TEXT("value"), Exp.Value))
+				{
+					// Senza `value` verificherebbe «HP == 0», cioe' una cosa diversa da quella che chi l'ha
+					// scritta intendeva. Meglio rifiutare che indovinare.
+					OutError = FString::Printf(TEXT("assertion UnitHpEquals su '%s': manca il campo value"), *Exp.UnitId);
+					return false;
+				}
+			}
+			else if (Type == TEXT("UnitAlive"))
+			{
+				Exp.Kind = ERTAssertionKind::UnitAlive;
+				Obj->TryGetStringField(TEXT("unit"), Exp.UnitId);
+				bool bAlive = true;
+				Obj->TryGetBoolField(TEXT("value"), bAlive);
+				Exp.Value = bAlive ? 1 : 0;
+			}
 			else
 			{
 				// Meglio rifiutare che ignorare: una assertion scritta male che venisse saltata in silenzio
 				// farebbe passare un test che non verifica nulla.
-				OutError = FString::Printf(TEXT("assertion sconosciuta: '%s' (previste: UnitAtCell, TurnsCompleted)"), *Type);
+				OutError = FString::Printf(TEXT("assertion sconosciuta: '%s' (previste: UnitAtCell, TurnsCompleted, UnitHpEquals, UnitAlive)"), *Type);
 				return false;
 			}
 			OutScenario.Expect.Add(Exp);
@@ -359,14 +394,39 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 				OutError = FString::Printf(TEXT("intent per un'unita' non schierata: '%s'"), *Intent.UnitId);
 				return false;
 			}
+			if (!Intent.Ability.IsNone())
+			{
+				if (!SeenIds.Contains(Intent.Target))
+				{
+					OutError = FString::Printf(TEXT("intent di '%s': bersaglio '%s' non schierato"),
+						*Intent.UnitId, *Intent.Target);
+					return false;
+				}
+				if (Intent.Target == Intent.UnitId)
+				{
+					// Nessuna abilita' del roster v0.1 bersaglia se stessa: se un giorno esistesse, questo
+					// controllo va rilassato di PROPOSITO, non lasciato cadere per distrazione.
+					OutError = FString::Printf(TEXT("intent di '%s': l'unita' bersaglia se stessa"), *Intent.UnitId);
+					return false;
+				}
+			}
 		}
 	}
 
 	for (const FRTTestExpectation& Exp : Scenario.Expect)
 	{
-		if (Exp.Kind == ERTAssertionKind::UnitAtCell && !SeenIds.Contains(Exp.UnitId))
+		const bool bNeedsUnit = (Exp.Kind == ERTAssertionKind::UnitAtCell)
+			|| (Exp.Kind == ERTAssertionKind::UnitHpEquals)
+			|| (Exp.Kind == ERTAssertionKind::UnitAlive);
+		if (bNeedsUnit && !SeenIds.Contains(Exp.UnitId))
 		{
-			OutError = FString::Printf(TEXT("assertion UnitAtCell su un'unita' non schierata: '%s'"), *Exp.UnitId);
+			OutError = FString::Printf(TEXT("assertion su un'unita' non schierata: '%s'"), *Exp.UnitId);
+			return false;
+		}
+		if (Exp.Kind == ERTAssertionKind::UnitHpEquals && Exp.Value < 0)
+		{
+			OutError = FString::Printf(TEXT("assertion UnitHpEquals su '%s': gli HP attesi non possono essere negativi (%d)"),
+				*Exp.UnitId, Exp.Value);
 			return false;
 		}
 	}

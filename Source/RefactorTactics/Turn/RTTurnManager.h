@@ -67,6 +67,21 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	FRTMatchResult GetMatchResult() const { return PendingResult; }
 
+	/**
+	 * Cambia la durata della pianificazione e RIAVVIA il timer se e' in corso, cosi' il nuovo valore vale
+	 * subito invece che dal turno dopo. Valori negativi vengono portati a 0 (= nessuna scadenza).
+	 *
+	 * Serve all'allestimento (`ARTGameMode`) per accorciare la pianificazione quando gira uno scenario di
+	 * test: la partita normale continua a usare i suoi 30 secondi. Non e' una regola di gioco — e' ritmo di
+	 * presentazione, e resta fuori dal resolver.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
+	void SetPlanningSeconds(float NewSeconds);
+
+	/** Durata corrente della pianificazione (diagnostica e test). */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	float GetPlanningSeconds() const { return PlanningSeconds; }
+
 	/** Progresso obiettivo di una squadra (intero, mai un float). Squadra sconosciuta -> 0. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	int32 GetTeamScore(int32 TeamId) const;
@@ -242,6 +257,29 @@ protected:
 		int32 TurnsRemaining = 0;
 	};
 	TMap<FRTCellId, FRTDynamicSurface> DynamicSurfaces;
+
+	/**
+	 * Ponti TEMPORANEI creati da `Action.ModifyArc` (CP 9.4). Stessa divisione di `DynamicSurfaces`: l'arco
+	 * corrente sta nella mappa, perche' e' cio' che il grafo legge gia'; la scadenza sta qui, perche' e' stato
+	 * di PARTITA — due partite sulla stessa arena non devono ereditarsi i ponti a vicenda.
+	 */
+	struct FRTDynamicArc
+	{
+		FRTCellId From;
+		FRTCellId To;
+		int32 TurnsRemaining = 0;
+		/**
+		 * Turno in cui il ponte e' nato. Serve al tick: `ModifyArc` risolve nel **Blast** e la scadenza gira
+		 * nel **Cleanup dello stesso turno**, quindi senza questo dato un ponte da 2 turni ne perderebbe uno
+		 * prima ancora che qualcuno possa attraversarlo. Le superfici dinamiche non hanno il problema perche'
+		 * nascono nel Cleanup, dopo il proprio tick.
+		 */
+		int32 CreatedOnTurn = 0;
+	};
+	TArray<FRTDynamicArc> DynamicArcs;
+
+	/** Scadenza dei ponti temporanei, nel Cleanup: a zero turni l'arco sparisce, e si registra. */
+	void TickDynamicArcs(URTHexMapAsset* Map);
 
 	/**
 	 * Cambia la superficie di una cella per `Turns` turni, registrandolo nel TurnLog. Ritorna falso (e non

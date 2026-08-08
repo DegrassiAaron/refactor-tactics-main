@@ -1,152 +1,90 @@
 # CLAUDE.md — RefactorTactics
 
-Guida operativa per Claude Code / SuperClaude in questo repository.
-Obiettivo: modifiche **piccole, verificabili, coerenti col piano canonico e sostenibili** —
-non tanto codice in fretta.
+Overlay operativo per **Claude Code / SuperClaude**.
+Le regole condivise del repository sono in **[`AGENTS.md`](AGENTS.md)**: leggilo prima di lavorare.
+Questo file resta volutamente corto per ridurre duplicazioni e drift.
 
-## Cos'è il progetto
+## 1. Context protocol
 
-**RefactorTactics** — gioco tattico PvP a **turni simultanei** (ispirato ad *Atlas Reactor*) su Unreal
-Engine 5.8, dev singolo. Loop: **pianificazione simultanea** → risoluzione a fasi
-**Prep → Dash → Blast → Move** (calcolate simultaneamente, applicate in ordine deterministico).
-Griglia **esagonale** (`FRTCellId`, assiale/cubica) con editor mappa data-driven.
+Non lavorare dalla memoria del progetto. Verifica branch/HEAD, task, codice, test e documenti owner.
 
-> **Fase tutorial chiusa (2026-08-05)**: il progetto è nato come percorso didattico UE partendo da C# e ha
-> prodotto l'MVP quadrato M0–M5, ora archiviato. Da qui in poi è un progetto di **prodotto**: si costruisce
-> per milestone M6+ (vedi roadmap), non per lezioni.
+Carica il contesto in questo ordine, **solo quando pertinente**:
 
-## Fonte di verità (in ordine di autorità)
+1. `AGENTS.md`.
+2. Decisioni/invarianti: `docs/product/piano-canonico-mvp.md`.
+3. Decisioni recenti: `docs/decisions/RT_PDR_00_Decision_Log.md` + ADR applicabili.
+4. Supersessioni/conflitti: `docs/DOC_CONFLICT_MATRIX.md` + `docs/OPEN_DECISIONS.md`.
+5. Stato/scope: `docs/roadmap/roadmap-checkpoint.md` + `docs/roadmap/roadmap-v0.1.md`.
+6. Feature: specifica owner + cataloghi `docs/balance/` + test + implementazione esistente.
 
-1. **`docs/product/piano-canonico-mvp.md`** — decisioni operative vincolanti (invarianti, architettura, regole). Prevale su tutto.
-2. **`docs/roadmap/roadmap-checkpoint.md`** — milestone, checkpoint, Definition of Done misurabili, **stato**.
-3. Issue/task corrente · specifica di feature · ADR · test esistenti · implementazione corrente.
-4. I PDF in `docs/src/` (3 PRD + `Intenti condivisi` + `…piano completo di sviluppo`) = **visione north-star**, non scope corrente.
-5. Questo file (`CLAUDE.md`).
+Usa search/grep prima di aprire file lunghi. `docs/src/` è input/audit/north-star: non usarlo come autorità
+implicita. `docs/archive/` è storico.
 
-**Se due fonti sono in conflitto**: non scegliere in silenzio → segnala il conflitto, indica l'impatto,
-proponi la modifica minima, non sovrascrivere una decisione approvata senza documentarla.
-Materiale superato/non autorevole: `docs/archive/`.
+## 2. Pin rapidi
 
-## Regole prioritarie
+- UE **5.8.1**; v0.1 **2v2 offline vs bot**; hex multilivello; roster **Flux/Riva/Bastion/Vektor**.
+- Fasi: `Planning → Prep → Dash → Blast → Move → Cleanup`; Move normale resta dopo Blast.
+- Un solo substrato: `FRTCellId`; no gameplay quadrato parallelo.
+- **No GAS nella v0.1**: `URTActionData` / `URTHeroData` / `URTEquipmentData`.
+- Azioni generiche: `Wait · BasicAttack · Interact · Brace · Move · Overwatch`.
+- **Sprint = profilo Move, non Dash**.
+- Reazioni: `Opportunity → Commit`; Fast Reaction **3,0 s**, timeout **HOLD**.
+- `Vektor.InterceptShot` = thin slice Predictive v0.1.
+- High Ground: nessun bonus numerico alla vista in v0.1.
+- Formato competitivo finale non deciso: 3v3 è baseline, 4v4 stress test.
 
-1. Leggi il contesto del repo **prima** di proporre modifiche; cerca implementazioni/convenzioni esistenti.
-2. Non duplicare classi, componenti, documenti o convenzioni. Non inventare requisiti, API, metriche o dipendenze.
-3. Se un requisito è ambiguo, separa: **fatti verificati / assunzioni / decisioni richieste / raccomandazioni**.
-4. Prima di una feature complessa, prepara o aggiorna specifica e design.
-5. Non dichiarare un lavoro completo senza le verifiche applicabili (build + test).
-6. Niente commit, push, merge o operazioni remote/distruttive senza richiesta esplicita.
-7. Non eliminare codice/asset/dati senza verificare riferimenti (anche Blueprint/reflection).
-8. Preferisci modifiche piccole e revisionabili a grandi riscritture.
-9. Costruisci **solo** ciò che serve alla milestone corrente della roadmap; le feature north-star restano fuori
-   scope finché la milestone non è chiusa.
+Il dettaglio resta negli owner documentali; non duplicarlo qui.
 
-## Decisioni tecniche fissate
+## 3. Classifica il task
 
-- **Motore**: Unreal Engine **5.8.1** (bloccata; non aggiornare salvo bug bloccanti).
-- **Linguaggi**: **regole/dati/resolver/test in C++**, **presentazione/UI/VFX/camera/input in Blueprint**.
-- **C# non è il runtime**: **non** convertire il progetto in C#, **non** aggiungere UnrealCLR/UnrealSharp o
-  runtime managed per supposizione (richiederebbe un ADR esplicito).
-- **No GAS**: abilità via **`URTActionData : UPrimaryDataAsset`** (+ `URTHeroData`, `URTEquipmentData`).
-  GAS resta north-star (il PDR lo prevede in F2,
-  prevale il canone).
-- **Nome/prefissi**: progetto `RefactorTactics`; classi con prefisso **`RT`/`URT`** (non `AT`/`UAT`).
-- **Scope corrente**: **2v2 offline contro bot** su griglia esagonale. Multiplayer pianificato in **M10**,
-  architettura *server-authority-ready* fin d'ora.
-- **VCS**: Git + **Git LFS** (asset binari UE via `.gitattributes`).
-- Il progetto UE vive nella **radice del repo** (`RefactorTactics.uproject`, `Source/`, `Content/`, `Config/`).
+**Documentale/analitico** (`/sc:brainstorm`, `research`, `design`, `workflow`, `analyze`, `estimate`, panel,
+`troubleshoot` senza `--fix`): produci l'output richiesto e **non passare automaticamente al codice**.
 
-## Invarianti architetturali (non negoziabili)
+**Esecutivo** (`/sc:implement`, `task`, `improve`, `cleanup`, `test`, `build`, `git`, `troubleshoot --fix`):
+verifica prima codice/test esistenti, poi applica il **diff minimo**. Niente refactor opportunistici.
 
-1. **Le regole decidono l'esito** (C++); animazioni/VFX non decidono nulla.
-2. Posizione autorevole = **cella logica** — `FRTCellId` (esagonale, assiale/cubica) è il target; `FRTGridCoord`
-   (quadrata) è il residuo in dismissione (M7). Il `FVector` serve solo al rendering.
-3. Resolver **"raccogli poi applica"**: snapshot a inizio fase, niente `Delay`/timeline/montage nel resolver,
-   l'ordine dell'array non deve cambiare l'esito.
-4. **Determinismo**: niente `DeltaTime` non controllato nella logica dei turni; niente dipendenza dall'ordine
-   di container non ordinati; ogni RNG futuro usa seed/stream espliciti; ogni formato serializzato è versionato.
-5. **Server autoritativo** per ogni decisione di gameplay; il client calcola solo preview.
-6. **Privacy dell'intento**: le intenzioni di pianificazione degli alleati **non** devono mai raggiungere i
-   client avversari — niente replica globale + occultamento grafico; usa stato server + replica filtrata per
-   squadra + autorizzazione server-side.
-7. **Combat math = funzioni pure** testabili (`URTCombatLibrary`).
+Per implementazioni non banali, preflight breve:
 
-## Pilastri di prodotto
+**Obiettivo · Stato verificato · Assunzioni · File · Approccio · Rischi · Test**
 
-Leggibilità tattica · predizione (non RNG opaco) · coordinazione di squadra · mappa come sistema di gioco ·
-identità dei personaggi con scelta orizzontale (nessuna potenza permanente pay-to-win) · determinismo e
-verificabilità · estendibilità controllata (dati/regole espandibili senza core pieno di eccezioni hard-coded).
+## 4. Guardrail Claude
 
-## Blueprint o C++
+- Non inventare API Unreal: verifica la **5.8.1** e le firme realmente presenti.
+- Simulazione/authority in C++; presentazione/configurazione in Blueprint/Data dove appropriato.
+- Niente `Delay`, montage, Tick o `DeltaTime` per decidere sequencing competitivo.
+- Niente dipendenza dall'ordine di `TMap`/`TSet`.
+- Niente branch per eroe nel core quando il comportamento può essere data-driven/componibile.
+- Nei test non aggirare il gameplay con `SetActorLocation`, `ApplyDamage` o `if (IsTest)` che salta la regola.
+- Non modificare `.uasset`/`.umap` a mano; i passi Editor restano verifiche manuali finché non eseguiti.
+- Prima di cancellare/rinominare cerca riferimenti C++, config, reflection, soft reference e Blueprint.
+- Un handoff/audit non è autorità e non autorizza da solo a implementare tutto ciò che contiene.
 
-- **Blueprint** quando: iterazione rapida di design · comportamento di presentazione · contenuto per designer.
-- **C++** quando: simulazione autorevole · determinismo · logica condivisa · rete/performance · test robusti.
-- Non spostare automaticamente tutto in C++ o tutto in Blueprint.
+## 5. Decision Boundary
 
-## Convenzioni
+Una finestra live non è un'attesa del resolver:
 
-- **Documentazione** sempre in `docs/` (sottocartella pertinente, es. `docs/gameplay/`, `docs/technical/`; indice in `docs/README.md`). Mai a radice del progetto.
-- **Classi**: prefissi `RT`/`URT`; `PascalCase`; header minimali; `UPROPERTY`/`UFUNCTION` solo quando servono.
-- **Asset UE**: tutto il proprietario sotto **`/Game/RT/`**, organizzato **feature-first** (mai cartelle globali
-  per tipo tipo `Blueprints/`, `Materials/`, `Meshes/`); naming `<Tipo>_<Feature>_<Nome>` con prefissi
-  `BP_ BPC_ WBP_ ABP_ DA_ DT_ Curve_ SM_ SK_ M_ MI_ T_ NS_ SFX_ MUS_ L_ IMC_ IA_`. Terze parti (Paragon,
-  Marketplace) restano fuori da `/Game/RT`. Regole complete, dipendenze consentite e procedura di spostamento:
-  **[`docs/technical/convenzioni-contenuti-ue.md`](docs/technical/convenzioni-contenuti-ue.md)** — vincolante.
-- Gli `.uasset`/`.umap` si spostano **dal Content Browser**, mai da Esplora File; dopo lo spostamento aggiorna i
-  percorsi hard-coded in `Config/*.ini` e C++, poi `Fix Up Redirectors`.
-- **Non versionare**: `Binaries/ DerivedDataCache/ Intermediate/ Saved/ .vs/`, file generati IDE, segreti.
-  Non modificare a mano `.uasset`/`.umap`.
-- Quando serve l'Editor UE: descrivi i passi esatti (asset, proprietà) + una verifica finale; **non fingere**
-  di aver completato una modifica su file binari.
+`Resolve segment → Opportunity → Decision Boundary → response → Validate/Commit → next segment`
 
-## Spiegazioni C++/UE — su richiesta
+Visual può rallentare la presentazione; Fast/Headless risponde subito tramite policy. Il risultato logico non
+dipende dal tempo reale. Non inviare al client trigger futuri, percorsi futuri o intenti privati avversari.
 
-Con la chiusura della fase tutorial il tutoring **non è più il default**: vai al punto, spiega il codice che
-scrivi, non il linguaggio. Se l'utente lo chiede («spiegami», «perché così»), usa il formato completo:
-*cosa costruiamo → concetto Unreal/C++ → differenza da C# → file coinvolti → implementazione → come provarla →
-errori comuni*, con attenzione a lifetime/ownership, validità dei puntatori, reflection Unreal, GC vs .NET,
-thread/authority.
+## 6. Test e consegna
 
-## Test & Definition of Done
+Ordine preferito: **test mirati → regressione correlata → suite richiesta dal DoD → build → PIE/packaged se gate**.
+Per scenari integrati usa il **RT Scenario Test Harness** e il percorso reale
+`Intent → Planning → Snapshot → Resolver → TurnLog`.
 
-- **Priorità test**: resolver · ordine fasi · conflitti movimento · pathfinding/cost provider · LOS/cover ·
-  validazione ordini · privacy dei piani · determinismo · serializzazione.
-- **Strumenti**: Unreal Automation Framework (`IMPLEMENT_SIMPLE_AUTOMATION_TEST`), eseguibili da Editor e CLI.
-- **DoD** (elementi applicabili): requisiti aggiornati · compila · test automatici + regressione · verifica
-  authority/privacy/determinismo dove pertinente · nessun segreto/file generato · nessun warning nuovo non
-  spiegato · documentazione aggiornata · limiti dichiarati. Se qualcosa non è verificabile, **dichiaralo**.
+Non copiare conteggi test dalla roadmap: **misurali sul branch corrente** quando servono.
+Prima di consegnare controlla `git status` e diff. Niente commit/push/merge/force/delete remoto senza richiesta
+esplicita; niente file generati o segreti.
 
-## Git
+Output finale:
 
-- Repository: `DegrassiAaron/refactor-tactics-main` (owner **DegrassiAaron**).
-- Il push HTTPS richiede l'account gh **`DegrassiAaron` attivo** (tende a tornare a `meepleAi-app`, che dà 403);
-  vedi la memoria di progetto per il workaround al blocco di Git Credential Manager.
-- Branch di feature per ogni lavoro (`feat/… fix/… refactor/… docs/… test/…`); Conventional Commits;
-  status+diff prima del commit; niente file generati/segreti; PR verso il branch padre.
+**Risultato · File modificati · Decisioni · Test/Build · Verifiche manuali · Limiti · Prossimo passo**
 
-## SuperClaude: documentali vs esecutivi
-
-- **Documentali** (non modificano codice — fermati dopo l'output): `/sc:brainstorm /sc:research /sc:design
-  /sc:workflow /sc:spawn /sc:analyze /sc:estimate /sc:spec-panel /sc:business-panel /sc:troubleshoot` (senza `--fix`).
-- **Esecutivi** (possono modificare): `/sc:implement /sc:task /sc:improve /sc:cleanup /sc:test /sc:build
-  /sc:git /sc:troubleshoot --fix`.
-- **Non** passare in automatico da documentazione a esecuzione: un comando documentale non autorizza modifiche al codice.
-- Catalogo completo e scelta rapida: **[`docs/src/SuperClaude_RefactorTactics_CheatSheet.md`](docs/src/SuperClaude_RefactorTactics_CheatSheet.md)**.
-
-## Formato risposte
-
-- **Prima di implementare**: Obiettivo · Stato verificato · Assunzioni · File coinvolti · Approccio · Rischi · Test previsti.
-- **Dopo**: Risultato · File modificati · Decisioni · Test/Build eseguite · Verifiche manuali · Limiti aperti · Prossimo passo.
-- Non dichiarare "funziona / completo / production ready / sicuro / deterministico" **senza evidenza**.
+Non dichiarare “funziona”, “completo”, “sicuro”, “production ready” o “deterministico” senza evidenza.
 
 ## Lingua
 
-Rispondi e commenta **in italiano**. Termini tecnici e identificatori di codice restano in inglese.
-
-## Come lavorare qui
-
-Prima di implementare, **rileggi `docs/product/piano-canonico-mvp.md`** (decisioni) e
-**`docs/roadmap/roadmap-checkpoint.md`** (milestone corrente e DoD).
-
-Milestone attive: **M6 Parità hex** (la partita passa sulla griglia esagonale) → **M7 Dismissione del
-quadrato** → **M8 Presentazione** → **M9 Ambienti/editor** → **M10 Rete e privacy** → **M11 Production
-readiness**. M0–M5 (MVP quadrato, fase tutorial) e H0–H6.5 (fondamenta esagonali) sono **chiuse**.
+Rispondi e commenta in **italiano**; identificatori e termini tecnici restano in English quando naturale.
+Tutoring C++/UE solo se richiesto.

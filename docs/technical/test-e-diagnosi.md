@@ -179,6 +179,7 @@ ostacolo** (una situazione che il gioco non produrrebbe mai) vengono rifiutate c
 | `Movement.BasicFailsOnPurpose` | **FAIL voluto**: dimostra che il report diagnostica invece di dire solo «fallito» |
 | `Movement.Blocked` | un muro rende il percorso impossibile: il piano è rifiutato, l'unità resta ferma, il turno si chiude lo stesso |
 | `Movement.Collision` | due unità verso la stessa cella si fermano **entrambe** |
+| `Movement.LongWalk` | due unità attraversano l'arena, 3 celle per turno per 2 turni — **fatto per essere guardato** in PIE |
 | `Movement.SwapRejectedByPlanning` | **caratterizzazione**: due unità adiacenti *non* si scambiano di posto, perché la pianificazione rifiuta un percorso verso una cella occupata (vedi §12) |
 
 ### Scenari di caratterizzazione
@@ -212,13 +213,50 @@ Le assertion fallite si stampano in console con **atteso e ottenuto**, non serve
 
 ### Auto-run: premi Play e parte
 
+Due modi, con precedenze diverse perché servono a cose diverse.
+
+**Dal `BP_GameMode`** — la via normale, e quella che **sopravvive alla sessione**:
+
+| Proprietà (categoria *RefactorTactics\|Test*) | Effetto |
+|---|---|
+| `ScenarioToRun` | **menu a tendina** con gli scenari disponibili. Prima voce **vuota** = partita normale |
+| `ScenarioPlanningSeconds` | durata della pianificazione **mentre gira uno scenario** (default **3 s**). `0` = nessuna scadenza, l'immagine resta ferma |
+
+Il menu si popola **leggendo i file** in `Scenarios/` (`GetScenarioOptions`), non da un elenco scritto nel
+codice: aggiungere uno scenario lo fa comparire nella tendina senza toccare nulla, e non si può selezionare
+un ID che non esiste. È lo stesso principio per cui l'ID di uno scenario **è** il suo percorso.
+
+Si impostano una volta nei *Class Defaults* di `BP_GameMode`, si salva, e da lì in poi **al primo Play lo
+scenario parte**. Non c'è niente da ridigitare a ogni riavvio dell'editor.
+
+**Da console o riga di comando** — l'override estemporaneo, che **prevale** sulla proprietà:
+
 ```
-rt.Test.Scenario Movement.Basic
+rt.Test.Scenario Movement.Collision
 ```
 
-Con questa variabile impostata, il `GameMode` esegue lo scenario **invece** di allestire la partita normale.
-Nessun click, nessun Actor da trascinare in un livello. Si può impostare anche da `DefaultEngine.ini` o da
-riga di comando con `-ExecCmds`. Rimettila vuota per tornare a giocare.
+La regola è quella di ogni override di configurazione: **il più specifico vince**. La proprietà dice «questo
+progetto, per ora, esegue questo scenario»; la console dice «adesso, solo per questa volta, un altro» — ed è
+ciò che serve in CI, dove l'asset non si tocca. Se fosse il contrario, impostare la proprietà renderebbe
+impossibile eseguire uno scenario diverso da riga di comando.
+
+> ⚠️ **La console variable dura quanto il processo dell'editor.** Digitata una volta, resta attiva per **ogni
+> Play successivo** e continua a scavalcare la tendina. È già costato una sessione di diagnosi: si sceglieva
+> uno scenario nel Details Panel e ne partiva un altro.
+>
+> Ora il log lo dice sempre — `AUTO-RUN <scenario> (da: proprietà del GameMode | console rt.Test.Scenario)` —
+> e in caso di conflitto avverte esplicitamente. Per tornare alla proprietà:
+> ```
+> rt.Test.Scenario ""
+> ```
+
+In entrambi i casi il `GameMode` esegue lo scenario **invece** di allestire la partita normale. Per tornare a
+giocare: svuota la proprietà (e la console variable, se l'avevi impostata).
+
+> **Perché la pianificazione si accorcia.** Lo scenario risolve i propri turni da solo e poi lascia il turn
+> manager in pianificazione. Col timer normale (30 s) si resterebbe a guardare un turno vuoto per mezzo
+> minuto, poi un altro, poi un altro ancora — un'attesa che rende inguardabile una verifica che dura un
+> secondo. La partita normale continua a usare i suoi 30 s: è ritmo di presentazione, non una regola di gioco.
 
 ### Da test automatico
 
@@ -317,6 +355,8 @@ Ognuna è costata tempo almeno una volta.
 | Errori di simboli duplicati fra file di test | la *unity build* mette più `.cpp` nella stessa translation unit | dai **nomi distinti** agli helper nei namespace anonimi di ogni file |
 | Linee di debug invisibili | disegnate **sotto** la faccia del disco-cella (che sta a `z = 2.5`) | usa le costanti `RTLift*` di `RTHexMapActor.cpp`, che derivano dallo spessore reale |
 | Un `.md` dichiara un numero di test diverso | la documentazione è indietro rispetto al codice | fidati del comando di §2 |
+| Le unità si muovono **dopo** che lo scenario è finito | piani rimasti appesi ririsolti a ogni turno: corretto in `4e6c2e0`, ma se ricompare, guarda i **timestamp** — la riga `AUTO-RUN` viene prima di ogni turno visibile |
+| Parte uno scenario **diverso** da quello scelto nella tendina | una `rt.Test.Scenario` digitata prima è ancora attiva: le console variable durano quanto il processo dell'editor | `rt.Test.Scenario ""`, oppure leggi `(da: …)` nella riga `AUTO-RUN` del log |
 
 ---
 
@@ -347,7 +387,7 @@ rt.Debug.DrawCells 1                    rende visibili le regole della mappa
 rt.Test.List                            scenari disponibili
 rt.Test.Run <ScenarioId>                esegue e scrive il report
 rt.Test.DumpResult [ScenarioId]         stampa l'ultimo result.json
-rt.Test.Scenario <ScenarioId>           auto-run al prossimo Play (vuoto = partita normale)
+rt.Test.Scenario <ScenarioId>           auto-run al prossimo Play, PREVALE su BP_GameMode (vuoto = vale la proprieta)
 ```
 
 ---

@@ -171,6 +171,33 @@ void URTHexMapAsset::AddTransition(const FRTCellId& From, const FRTCellId& To, i
 	++Revision;
 }
 
+void URTHexMapAsset::UpdateTransitions(const TArray<FRTHexEdge>& InEdges)
+{
+	if (InEdges.Num() == 0)
+	{
+		return; // nessuna modifica: la revisione non deve muoversi
+	}
+
+	for (const FRTHexEdge& Updated : InEdges)
+	{
+		bool bReplaced = false;
+		for (FRTHexEdge& Existing : Transitions)
+		{
+			if (Existing.From == Updated.From && Existing.To == Updated.To)
+			{
+				Existing = Updated;
+				bReplaced = true;
+				break;
+			}
+		}
+		if (!bReplaced)
+		{
+			Transitions.Add(Updated);
+		}
+	}
+	++Revision; // UNA volta per l'intero gruppo (un ponte bidirezionale e' un evento solo)
+}
+
 bool URTHexMapAsset::RemoveTransition(const FRTCellId& From, const FRTCellId& To, bool bBothDirections)
 {
 	const int32 Removed = Transitions.RemoveAll([&](const FRTHexEdge& E)
@@ -251,6 +278,12 @@ uint32 URTHexMapAsset::ComputeHash() const
 		Hash = HashCombine(Hash, GetTypeHash(E.To));
 		Hash = HashCombine(Hash, GetTypeHash(E.Cost));
 		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(E.Kind)));
+		// Stato, integrita' e conduttivita' (CP 9.4) sono dato autorevole quanto il costo: un ponte spento e
+		// uno acceso non sono la stessa mappa, ed e' anche cio' che permette a `IsSnapshotStale` di
+		// accorgersene senza dipendere dalla sola revisione.
+		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(E.State)));
+		Hash = HashCombine(Hash, GetTypeHash(E.Integrity));
+		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(E.bConductsElectricity ? 1 : 0)));
 	}
 	return Hash;
 }
@@ -351,6 +384,14 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 				break;
 			}
 		}
+		// Un arco ANCORA IN PIEDI con integrita' non positiva e' un ponte gia' crollato che non lo dichiara:
+		// il grafo lo offrirebbe, e chi ci cammina sopra passerebbe su una struttura a zero punti (CP 9.4).
+		if (E.State != ERTHexArcState::Destroyed && E.Integrity <= 0)
+		{
+			Errors.Add(FString::Printf(TEXT("Error: arco con integrita' %d ancora attivo %s -> %s"),
+				E.Integrity, *E.From.ToString(), *E.To.ToString()));
+		}
+
 		// Ridondante: stesso layer e celle gia' adiacenti orizzontalmente -> l'arco esplicito e' superfluo.
 		if (E.From != E.To && E.From.Layer == E.To.Layer && URTHexLibrary::HexDistance(E.From, E.To) == 1)
 		{
@@ -448,6 +489,9 @@ void URTHexMapAsset::MigrateToCurrentFormat()
 
 	// v2 -> v3 (CP 9.1): il formato guadagna le coperture per bordo.
 	// v3 -> v4 (CP 9.3): il formato guadagna le porte per bordo.
+	// v4 -> v5 (CP 9.4): gli archi guadagnano stato, integrita' e conduttivita'. I default sono quelli di un
+	// ponte SANO (`Active`, 40, non conduttivo): un arco letto da un asset vecchio non deve risultare spento,
+	// o la mappa cambierebbe significato solo per essere stata ricaricata.
 	// In nessuno dei due c'e' qualcosa da convertire — il campo nuovo nasce vuoto e una mappa che non lo usa
 	// si comporta esattamente come prima — quindi la migrazione si limita a dichiarare la versione. Il giorno
 	// in cui una migrazione dovra' TRASFORMARE dati, il posto e' questo, un `if (FormatVersion < N)` per

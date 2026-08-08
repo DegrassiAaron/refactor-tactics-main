@@ -45,7 +45,11 @@ enum class ERTAssertionKind : uint8
 	/** L'unita' indicata si trova sulla cella attesa a fine scenario. */
 	UnitAtCell,
 	/** Sono stati completati almeno N turni senza che la partita si interrompesse. */
-	TurnsCompleted
+	TurnsCompleted,
+	/** La salute dell'unita' e' esattamente il valore atteso: e' cosi' che si verifica un danno. */
+	UnitHpEquals,
+	/** L'unita' e' viva (`value` != 0) oppure abbattuta (`value` == 0). */
+	UnitAlive
 };
 
 /**
@@ -97,7 +101,12 @@ struct FRTScenarioUnit
 	FRTCellId Cell;
 };
 
-/** L'intento di una unita' in un turno. Prima iterazione: solo movimento (§IMPLEMENTATION STRATEGY: «non procedere ad abilita' finche' Movement.Basic non e' stabile»). */
+/**
+ * L'intento di una unita' in un turno: movimento, abilita', o entrambi.
+ *
+ * Movimento e abilita' convivono perche' convivono nel gioco — un'unita' ha uno slot movimento e uno slot
+ * principale, e usarli insieme e' la norma, non un caso limite.
+ */
 USTRUCT()
 struct FRTScenarioIntent
 {
@@ -106,9 +115,22 @@ struct FRTScenarioIntent
 	UPROPERTY()
 	FString UnitId;
 
-	/** Waypoint del movimento, come li produrrebbe il giocatore cliccando. Vuoto = l'unita' resta ferma. */
+	/** Waypoint del movimento, come li produrrebbe il giocatore cliccando. Vuoto = l'unita' non si sposta. */
 	UPROPERTY()
 	TArray<FRTCellId> Move;
+
+	/**
+	 * `ActionId` dell'abilita' da usare (`Flux.ArcPulse`). Vuoto = nessun attacco.
+	 *
+	 * Per **ID** e non per indice: l'indice di un'abilita' nel kit si sposta appena qualcuno ne aggiunge una,
+	 * e lo scenario continuerebbe a passare verificando l'abilita' sbagliata — il tipo di test che mente.
+	 */
+	UPROPERTY()
+	FName Ability;
+
+	/** ID di scenario del bersaglio. Obbligatorio quando `Ability` e' valorizzata. */
+	UPROPERTY()
+	FString Target;
 };
 
 /** Un turno dello scenario. */
@@ -149,7 +171,7 @@ struct FRTTestExpectation
 	UPROPERTY()
 	FRTCellId Cell;
 
-	/** Valore intero atteso (`TurnsCompleted`). */
+	/** Valore intero atteso (`TurnsCompleted`, `UnitHpEquals`, `UnitAlive`). */
 	UPROPERTY()
 	int32 Value = 0;
 };

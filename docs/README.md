@@ -136,12 +136,12 @@ a memoria** — questo file l'ha già sbagliato quattro volte:
 grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp | tr -d '"' | sort -u | wc -l
 ```
 
-Ultima misura: **432 test unici in 65 file**, il 2026-08-08 **dopo** il merge di CP 9.3 (porte). La
-ripartizione sotto è derivata dalla stessa misura e somma esattamente a 432.
+Ultima misura: **456 test unici in 68 file**, il 2026-08-08 dopo il merge di CP 9.3 (porte) e CP 9.4
+(ponti). La ripartizione sotto è derivata dalla stessa misura e somma esattamente a 456.
 
 | Area | Test | Cosa fissa |
 |---|---:|---|
-| `Hex*` (mappa, path, vision, bot, blast, move, match) | 85 | Coordinate, A\*, LOS, bot, partita completa |
+| `Hex*` (mappa, path, vision, bot, blast, move, match) | 88 | Coordinate, A\*, LOS, bot, partita completa |
 | `Actions.*` | 58 | Ordine per priorità, permutazione-invarianza, fallback, mappatura di fase |
 | `Terrain.*` · `Status.*` · `Environment.*` | 39 | Superfici, stati temporanei, propagazione elettrica, fuoco/acqua |
 | `Combat.*` · `HexCombat.*` | 36 | Danno dopo scudo, forme, LOS, niente fuoco amico |
@@ -150,11 +150,11 @@ ripartizione sotto è derivata dalla stessa misura e somma esattamente a 432.
 | `Match*` (allestimento, formato, fine partita) | 27 | Le tre vie di fine partita e il `RoundLimit` da formato |
 | `Heroes.*` | 25 | I 4 eroi corrispondono al catalogo, trade-off delle varianti |
 | `TurnLog.*` | 22 | Hash permutazione-invariante, serializzazione versionata, checksum |
-| `Scenario.*` | 13 | Harness degli scenari automatici: PASS/FAIL/ERROR, niente bypass |
+| `Scenario.*` | 22 | Harness: PASS/FAIL/ERROR/**BLOCKED**, fixture per nome, niente bypass |
+| `Structures.*` | 18 | Porte come bordo (CP 9.3), ponti come arco (CP 9.4) |
+| `Playback.*` · `Preview.*` · `PlayerInput.*` · `ShowcaseRelay.*` | 19 | Presentazione e input: non decidono, riproducono |
+| `Unit.*` · `Turn.*` · `Simulation.*` | 17 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
 | `Cover.*` | 13 | Copertura bassa e alta, bordi, danno a struttura e distruzione |
-| `Structures.*` | 10 | Porte come **bordo**: stato, blocco del passo, movimento che si ferma (CP 9.3) |
-| `Playback.*` · `Preview.*` · `PlayerInput.*` · `ShowcaseRelay.*` | 18 | Presentazione e input: non decidono, riproducono |
-| `Unit.*` · `Simulation.*` · `Turn.*` | 14 | Stato unità, determinismo del replay, ossatura del turno |
 | `Catalog.*` | 9 | Invarianti del catalogo: solo interi, slot dichiarati, ID stabili |
 | `Pacing.*` | 7 | Pacing del turno misurato |
 | `Perf.*` | 2 | Path mediana **0,025 ms** · resolver **0,41 ms/turno** |

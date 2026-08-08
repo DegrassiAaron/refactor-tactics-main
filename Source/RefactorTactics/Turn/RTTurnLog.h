@@ -51,7 +51,18 @@ enum class ERTEnvironmentOutcome : uint8
 	 */
 	DoorClosed,
 	/** Una porta si e' aperta: spiega perche' esiste un passaggio dove prima non c'era. */
-	DoorOpened
+	DoorOpened,
+	/**
+	 * Un ponte e' comparso (CP 9.4): `SrcCell`/`TgtCell` sono le due celle collegate e `Amount` i turni che
+	 * durera' (0 = permanente).
+	 */
+	BridgeCreated,
+	/** Un ponte e' stato tolto o e' scaduto: da qui i due layer sono di nuovo separati. */
+	BridgeRemoved,
+	/** Un ponte ha incassato danno ed e' ancora in piedi; `Amount` e' l'integrita' RESIDUA. */
+	BridgeDamaged,
+	/** Un ponte e' crollato: e' l'evento che spiega perche' un percorso fra due layer non esiste piu'. */
+	BridgeDestroyed
 };
 
 /**

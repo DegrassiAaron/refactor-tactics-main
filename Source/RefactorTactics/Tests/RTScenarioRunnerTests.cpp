@@ -434,4 +434,45 @@ bool FRTScenarioSwapRejectedTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `Movement.LongWalk`: due unita' attraversano l'arena, tre celle per turno, per due turni.
+ *
+ * Esiste per essere GUARDATO in PIE (`PIE-TEST-VISUAL`): su una cella sola non si distingue un'animazione da
+ * un teletrasporto. Ma resta un test normale, non uno scenario di serie B — se il movimento multi-cella su
+ * piu' turni si rompesse, questo lo direbbe prima che qualcuno se ne accorga a schermo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLongWalkTest,
+	"RefactorTactics.Scenario.RunnerLongWalk",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLongWalkTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Movement.LongWalk"), Scenario)) { return false; }
+	TestEqual(TEXT("sono due turni, non uno"), Scenario.Turns.Num(), 2);
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di PASS: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("esito PASS"), Result.OutcomeString(), FString(TEXT("PASS")));
+	TestEqual(TEXT("due turni giocati"), Result.TurnsPlayed, 2);
+
+	// Entrambe hanno percorso la loro strada: se una fosse rimasta indietro, l'assertion di posizione lo dice
+	// con la cella dove si e' fermata — che e' il primo posto dove guardare se un giorno diventasse rosso.
+	for (const FRTAssertionResult& A : Result.Assertions)
+	{
+		if (A.Kind == ERTAssertionKind::UnitAtCell)
+		{
+			TestTrue(FString::Printf(TEXT("%s -> %s (atteso %s)"), *A.Description, *A.Actual, *A.Expected), A.bPassed);
+		}
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
