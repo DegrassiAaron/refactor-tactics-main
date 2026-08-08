@@ -45,20 +45,6 @@ FString URTScenarioLoader::ScenariosRoot()
 	return FPaths::Combine(FPaths::ProjectDir(), TEXT("Scenarios"));
 }
 
-FString URTScenarioLoader::PathForScenarioId(const FString& ScenarioId)
-{
-	// `Movement.Basic` -> `Scenarios/Movement/Basic.json`. L'ID gerarchico E' il percorso: un solo posto
-	// dove sta la verita' su dove vive uno scenario.
-	FString Path = ScenariosRoot();
-	TArray<FString> Parts;
-	ScenarioId.ParseIntoArray(Parts, TEXT("."), /*InCullEmpty=*/ true);
-	for (int32 I = 0; I < Parts.Num(); ++I)
-	{
-		Path = FPaths::Combine(Path, I == Parts.Num() - 1 ? Parts[I] + TEXT(".json") : Parts[I]);
-	}
-	return Path;
-}
-
 bool URTScenarioLoader::LoadFromFile(const FString& FilePath, FRTTestScenario& OutScenario, FString& OutError)
 {
 	FString Text;

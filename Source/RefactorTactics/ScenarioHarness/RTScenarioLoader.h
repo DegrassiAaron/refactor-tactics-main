@@ -44,6 +44,7 @@ public:
 	/** Radice degli scenari versionati: `<Progetto>/Scenarios/`. */
 	static FString ScenariosRoot();
 
-	/** Percorso di uno scenario dal suo ID: `Movement.Basic` -> `Scenarios/Movement/Basic.json`. */
-	static FString PathForScenarioId(const FString& ScenarioId);
+	// Il percorso di uno scenario NON si calcola più dal suo ID: dal momento che l'ID è dichiarato dal file
+	// e le cartelle sono libere, l'unico modo di sapere dove vive è chiederlo all'indice
+	// (`URTScenarioIndex::ResolvePath`). Vedi `RTScenarioIndex.h` per il perché.
 };

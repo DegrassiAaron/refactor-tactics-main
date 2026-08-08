@@ -1,5 +1,6 @@
 {
   "scenarioId": "Combat.BlockedByWall",
+  "tags": ["combat", "los", "pathfinding", "flux", "bastion"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,

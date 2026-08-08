@@ -1,5 +1,6 @@
 {
   "scenarioId": "Movement.Basic",
+  "tags": ["movement", "core", "animation", "flux", "bastion"],
   "version": 1,
   "seed": 0,
   "mapRadius": 3,

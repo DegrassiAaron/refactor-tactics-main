@@ -102,6 +102,41 @@ public:
 	TObjectPtr<URTMatchFormatData> MatchFormat;
 
 	/**
+	 * Primo filtro della tendina degli scenari: un tag fra quelli realmente presenti nei file. Vuoto = non
+	 * restringe nulla.
+	 *
+	 * È una **vista, non un vincolo**: restringere l'elenco non tocca mai `ScenarioToRun`. Uno scenario già
+	 * scelto resta scelto e viene eseguito anche mentre i filtri mostrano altro — perché il filtro dice
+	 * «cosa sto cercando adesso», non «a cosa questo scenario appartiene», e una lente che cancella una
+	 * configurazione salvata sarebbe un modo elaborato di perdere lavoro.
+	 *
+	 * Dichiarato **prima** di `ScenarioToRun` perché il Details Panel segue l'ordine di dichiarazione, e i
+	 * filtri devono stare sopra ciò che filtrano.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Test",
+		meta = (GetOptions = "GetScenarioTagOptions"))
+	FString ScenarioFilterA;
+
+	/**
+	 * Secondo filtro, in **intersezione** con il primo: `reactions` + `flux` mostra gli scenari che portano
+	 * entrambi i tag.
+	 *
+	 * Due e non tre: due assi coprono il caso che serve — una tipologia incrociata con un personaggio o una
+	 * lente — e il terzo diventerebbe rumore prima di diventare utile.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Test",
+		meta = (GetOptions = "GetScenarioTagOptions"))
+	FString ScenarioFilterB;
+
+	/**
+	 * Voci dei due filtri: il vocabolario dei tag **realmente presenti** negli scenari, più una voce vuota
+	 * in testa per non filtrare. Nessun elenco dichiarato a mano, per la stessa ragione di
+	 * `GetScenarioOptions`: una categoria vuota nel menu invita a cercare qualcosa che non esiste.
+	 */
+	UFUNCTION()
+	TArray<FString> GetScenarioTagOptions() const;
+
+	/**
 	 * Scenario di test da eseguire **al posto** della partita normale (es. `Movement.Basic`).
 	 * Vuoto = si gioca normalmente.
 	 *
@@ -113,6 +148,9 @@ public:
 	 * Nel Details Panel è un **menu a tendina**, non una casella di testo: gli ID vengono letti dai file in
 	 * `Scenarios/` (vedi `GetScenarioOptions`), quindi non si può digitare un ID inesistente e l'elenco non
 	 * va tenuto allineato a mano. La prima voce è **vuota** = partita normale.
+	 *
+	 * L'elenco è ristretto da `ScenarioFilterA`/`ScenarioFilterB`: la combo di UE non filtra da testo, e
+	 * oltre la ventina di voci scorrerla smette di essere un modo di trovare qualcosa.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Test",
 		meta = (GetOptions = "GetScenarioOptions"))
@@ -123,8 +161,7 @@ public:
 	 * voce vuota in testa per tornare alla partita normale.
 	 *
 	 * Legge i file invece di un elenco scritto a mano: aggiungere uno scenario lo fa comparire nel menu senza
-	 * toccare il codice, e un elenco che invecchia non puo' esistere. È lo stesso principio per cui l'ID di
-	 * uno scenario **è** il suo percorso.
+	 * toccare il codice, e un elenco che invecchia non puo' esistere.
 	 */
 	UFUNCTION()
 	TArray<FString> GetScenarioOptions() const;

@@ -5,6 +5,7 @@
 // dica **cosa** ci si aspettava e **cosa** e' successo, non solo che e' fallito.
 
 #include "Misc/AutomationTest.h"
+#include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "ScenarioHarness/RTTestReportWriter.h"
@@ -44,9 +45,9 @@ namespace
 	/** Carica uno scenario versionato per ID; fallisce il test se manca (e' un ERROR d'ambiente, non un FAIL). */
 	bool LoadShippedScenario(FAutomationTestBase& Test, const TCHAR* ScenarioId, FRTTestScenario& Out)
 	{
-		const FString Path = URTScenarioLoader::PathForScenarioId(ScenarioId);
 		FString Error;
-		if (!URTScenarioLoader::LoadFromFile(Path, Out, Error))
+		const FString Path = URTScenarioIndex::ResolvePath(ScenarioId, Error);
+		if (Path.IsEmpty() || !URTScenarioLoader::LoadFromFile(Path, Out, Error))
 		{
 			Test.AddError(FString::Printf(TEXT("scenario '%s' non caricabile (%s): %s"), ScenarioId, *Path, *Error));
 			return false;
