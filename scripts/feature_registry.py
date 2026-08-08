@@ -565,6 +565,23 @@ def deploy_name(source_ref):
     return None
 
 
+MANUAL_STATUS_LINE = re.compile(
+    r"^> (?:[✅\U0001F7E1⚠️ ]*)?\*\*(?:Stato (?:v0\.1|nel gioco|repository)|Design status)"
+    r"[:\*]",
+)
+
+
+def strip_manual_status(text):
+    """Toglie i banner di stato scritti a mano: il blocco generato li sostituisce.
+
+    Nella sorgente in-repo sono gia' spariti; nel clone della Wiki no, perche' e' un altro
+    repository. Senza questo passaggio una pagina pubblicata mostrerebbe **due** stati, che e'
+    peggio di zero: il lettore non sa quale dei due e' vecchio.
+    """
+    kept = [line for line in text.split("\n") if not MANUAL_STATUS_LINE.match(line)]
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(kept))
+
+
 def apply_wiki_deploy(data, wiki_root, check=True):
     """Porta i blocchi generati nel clone della Wiki. Di norma si esegue con `--check`.
 
@@ -589,7 +606,7 @@ def apply_wiki_deploy(data, wiki_root, check=True):
             missing.append(f"{ref} -> {name}: la pagina non esiste nel clone")
             continue
         original = open(path, encoding="utf-8").read()
-        text = original
+        text = strip_manual_status(original)
         for entry in reversed(entries):
             fid = entry["feature_id"]
             block = status_block(entry)
