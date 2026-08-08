@@ -98,12 +98,39 @@ void ARTHUD::DrawHUD()
 		// impossibile dire chi sta facendo cosa — e un giudizio sul bot o sul ritmo della partita, che e' cio'
 		// che il playtest deve dare, non varrebbe nulla. Posizione FISSA (non sotto lo status): un'etichetta che
 		// salta quando arriva un ROOT si legge peggio di una ferma.
-		const FString HeroName = ARTUnit::ShortHeroName(Unit->HeroId, Unit->GetName());
+		FString HeroName = ARTUnit::ShortHeroName(Unit->HeroId, Unit->GetName());
+
+		// CHI viene colpito, marcato sull'UNITA' e non solo sulla cella.
+		//
+		// L'anteprima a terra dice quali CELLE entrano nella zona; la domanda che ci si fa guardando lo schermo
+		// e' un'altra — «questo cilindro lo prendo o no?». Sono due informazioni diverse, e finche' c'era solo
+		// la prima l'anteprima si vedeva e non si capiva (osservato in PIE il 2026-08-08: «non capisco se sto
+		// facendo un tiro e se nel tiro si interseca con un cilindro»).
+		//
+		// Il nome sopra la testa e' il posto giusto: c'e' gia', l'occhio ci va gia' per sapere chi e' chi, e
+		// non aggiunge un elemento nuovo da imparare.
+		FLinearColor NameColor = ARTUnit::TeamColorFor(Unit->TeamId,
+			FLinearColor(0.55f, 0.75f, 1.f, 1.f), FLinearColor(1.f, 0.62f, 0.55f, 1.f));
+		if (const ARTHexMapActor* HexMap = Cast<ARTHexMapActor>(
+				UGameplayStatics::GetActorOfClass(this, ARTHexMapActor::StaticClass())))
+		{
+			if (HexMap->IsPreviewAllyHitCell(Unit->Cell))
+			{
+				// Fuoco amico: l'avviso deve essere piu' forte del colore di squadra, perche' e' l'unico caso
+				// in cui chi guarda potrebbe voler cambiare idea.
+				HeroName = TEXT("! ") + HeroName;
+				NameColor = FLinearColor(1.f, 0.6f, 0.12f, 1.f);
+			}
+			else if (HexMap->IsPreviewHitCell(Unit->Cell))
+			{
+				HeroName = TEXT("* ") + HeroName;
+				NameColor = FLinearColor(1.f, 0.35f, 0.3f, 1.f);
+			}
+		}
+
 		float NameW = 0.f;
 		float NameH = 0.f;
 		GetTextSize(HeroName, NameW, NameH, nullptr, 0.9f);
-		const FLinearColor NameColor = ARTUnit::TeamColorFor(Unit->TeamId,
-			FLinearColor(0.55f, 0.75f, 1.f, 1.f), FLinearColor(1.f, 0.62f, 0.55f, 1.f));
 		// Ombra di 1px: il testo chiaro su cielo chiaro sparirebbe, e la camera tattica guarda spesso il vuoto.
 		DrawText(HeroName, FLinearColor(0.f, 0.f, 0.f, 0.75f),
 			Screen.X - NameW * 0.5f + 1.f, Y - 36.f + 1.f, nullptr, 0.9f);
@@ -389,6 +416,29 @@ void ARTHUD::DrawHUD()
 			const float LineH = 18.f;
 			float Y = Canvas->SizeY - 24.f - LineH * (Sel->NumAbilities() - 1);
 			const float X = Canvas->SizeX * 0.45f;
+
+			// COSA sto per fare, in una riga sopra la barra. La barra dice quali abilita' HO; questa dice se
+			// una zona e' davvero puntata adesso e quanto e' larga — la differenza fra «sto scegliendo» e «sto
+			// per tirare», che dai soli contorni a terra non si legge.
+			if (const ARTHexMapActor* HexMap = Cast<ARTHexMapActor>(
+					UGameplayStatics::GetActorOfClass(this, ARTHexMapActor::StaticClass())))
+			{
+				const int32 NumHit = HexMap->NumPreviewHitCells();
+				if (NumHit > 0)
+				{
+					const int32 NumAlly = HexMap->NumPreviewAllyHitCells();
+					FString Zona = FString::Printf(TEXT("TIRO: %d celle"), NumHit);
+					if (NumAlly > 0)
+					{
+						Zona += FString::Printf(TEXT("  -  %d ALLEATO%s NELLA ZONA"),
+							NumAlly, NumAlly > 1 ? TEXT("/I") : TEXT(""));
+					}
+					// Arancione quando c'e' fuoco amico: stesso codice colore del nome marcato sopra la testa,
+					// cosi' le due informazioni si riconoscono come la stessa cosa detta in due posti.
+					DrawText(Zona, NumAlly > 0 ? FLinearColor(1.f, 0.6f, 0.12f, 1.f) : FLinearColor(1.f, 0.35f, 0.3f, 1.f),
+						X, Y - LineH - 6.f, nullptr, 1.f);
+				}
+			}
 			for (int32 A = 0; A < Sel->NumAbilities(); ++A)
 			{
 				const URTActionData* Ability = Sel->GetAbility(A);
