@@ -11,6 +11,9 @@
 #include "Turn/RTMatchSetupLibrary.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "ScenarioHarness/RTTestResult.h"
+#include "ScenarioHarness/RTScenarioSession.h"
+#include "ScenarioHarness/RTScenarioLoader.h"
+#include "ScenarioHarness/RTTestReportWriter.h"
 
 /** Definita in Test/RTTestConsole.cpp: scenario da eseguire all'avvio invece della partita normale. */
 extern TAutoConsoleVariable<FString> CVarRTTestScenario;
@@ -26,6 +29,11 @@ ARTGameMode::ARTGameMode()
 	DefaultPawnClass = ARTCameraPawn::StaticClass();
 	PlayerControllerClass = ARTPlayerController::StaticClass();
 	HUDClass = ARTHUD::StaticClass();
+
+	// Tick abilitabile ma SPENTO all'avvio: si accende solo se parte uno scenario. Una partita normale non ha
+	// niente da far avanzare qui, e un GameMode che ticca a vuoto e' costo senza contropartita.
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = false;
 }
 
 void ARTGameMode::BeginPlay()
@@ -77,15 +85,15 @@ void ARTGameMode::BeginPlay()
 	const FString TestScenario = ResolveScenarioToRun();
 	if (!TestScenario.IsEmpty())
 	{
-		// Il turno si FERMA a scenario finito (default 0 = nessun timer). Lo scenario risolve i propri turni
-		// dentro BeginPlay: lasciare il turn manager a scandire non aggiunge niente da vedere e ri-risolve i
-		// piani rimasti appesi, producendo turni fantasma — in PIE si vedevano le unita' muoversi DOPO la fine
-		// dello scenario, tanto da sembrare lo scenario stesso. Un valore positivo fa proseguire la partita a
-		// quel ritmo, per chi vuole continuare a mano dallo stato lasciato.
-		if (ARTTurnManager* TM = Cast<ARTTurnManager>(
-				UGameplayStatics::GetActorOfClass(World, ARTTurnManager::StaticClass())))
+		// La sessione parte QUI ma avanza in Tick, un passo per frame: e' cio' che rende lo scenario
+		// osservabile. Risolvendo tutto dentro BeginPlay finiva prima del primo fotogramma, e quel che si
+		// vedeva muoversi erano turni fantasma — misurato in PIE, non supposto.
+		FString ScenarioError;
+		FRTTestScenario Scenario;
+		if (!URTScenarioLoader::LoadFromFile(URTScenarioLoader::PathForScenarioId(TestScenario), Scenario, ScenarioError))
 		{
-			TM->SetPlanningSeconds(ScenarioPlanningSeconds);
+			UE_LOG(LogRT, Error, TEXT("[RT-Test] scenario '%s' non caricabile: %s"), *TestScenario, *ScenarioError);
+			return;
 		}
 
 		// La FONTE va dichiarata sempre, non solo quando c'e' conflitto: chi legge il log deve poter dire
@@ -93,12 +101,17 @@ void ARTGameMode::BeginPlay()
 		const TCHAR* Source = CVarRTTestScenario.GetValueOnGameThread().IsEmpty()
 			? TEXT("proprieta' del GameMode")
 			: TEXT("console rt.Test.Scenario");
+		UE_LOG(LogRT, Warning, TEXT("[RT-Test] AUTO-RUN %s (da: %s): %d turni, pausa %.1fs — avanza un passo per frame"),
+			*TestScenario, Source, Scenario.Turns.Num(), ScenarioTurnPauseSeconds);
 
-		FString ReportDir;
-		const FRTTestResult Result = URTScenarioRunner::RunById(World, TestScenario, ReportDir);
-		UE_LOG(LogRT, Warning, TEXT("[RT-Test] AUTO-RUN %s (da: %s) -> %s (%d/%d assertion, %d turni) · report: %s"),
-			*TestScenario, Source, *Result.OutcomeString(), Result.PassedCount(), Result.Assertions.Num(),
-			Result.TurnsPlayed, ReportDir.IsEmpty() ? TEXT("non scritto") : *ReportDir);
+		ScenarioSession = MakeShared<FRTScenarioSession>();
+		ScenarioSession->TurnPauseSeconds = ScenarioTurnPauseSeconds;
+		if (!ScenarioSession->Start(World, Scenario))
+		{
+			UE_LOG(LogRT, Error, TEXT("[RT-Test] %s -> ERROR: %s"),
+				*TestScenario, *ScenarioSession->GetResult().ErrorMessage);
+		}
+		SetActorTickEnabled(true);
 		return;
 	}
 
@@ -362,4 +375,45 @@ TArray<FString> ARTGameMode::GetScenarioOptions() const
 	Options.Add(FString());
 	Options.Append(URTScenarioRunner::ListScenarioIds());
 	return Options;
+}
+
+void ARTGameMode::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	if (!ScenarioSession.IsValid() || ScenarioSession->IsFinished())
+	{
+		return;
+	}
+
+	// `bPumpTurnManager = false`: qui il mondo ticca gia' il turn manager. Pomparlo anche da qui lo farebbe
+	// correre al doppio della velocita', e il playback che si vuole GUARDARE passerebbe in meta' del tempo.
+	ScenarioSession->Step(DeltaSeconds, /*bPumpTurnManager=*/ false);
+
+	if (ScenarioSession->IsFinished())
+	{
+		const FRTTestResult& Result = ScenarioSession->GetResult();
+		FString ReportDir, WriteError;
+		if (!URTTestReportWriter::Write(Result, FString(), ReportDir, WriteError))
+		{
+			UE_LOG(LogRT, Error, TEXT("[RT-Test] report non scritto: %s"), *WriteError);
+		}
+		UE_LOG(LogRT, Warning, TEXT("[RT-Test] FINITO %s -> %s (%d/%d assertion, %d turni) · report: %s"),
+			*Result.ScenarioId, *Result.OutcomeString(), Result.PassedCount(), Result.Assertions.Num(),
+			Result.TurnsPlayed, ReportDir.IsEmpty() ? TEXT("non scritto") : *ReportDir);
+
+		for (const FRTAssertionResult& A : Result.Assertions)
+		{
+			if (!A.bPassed)
+			{
+				UE_LOG(LogRT, Error, TEXT("[RT-Test]   FALLITA %s: atteso %s, ottenuto %s"),
+					*A.Description, *A.Expected, *A.Actual);
+			}
+		}
+	}
+}
+
+bool ARTGameMode::IsScenarioRunning() const
+{
+	return ScenarioSession.IsValid() && !ScenarioSession->IsFinished();
 }

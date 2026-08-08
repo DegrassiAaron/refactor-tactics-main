@@ -154,9 +154,9 @@ bool FRTScenarioPacingDefaultTest::RunTest(const FString&)
 
 	// Il default deve essere BREVE ma non nullo: qualche secondo per vedere il campo, non mezzo minuto di
 	// attesa ne' un salto istantaneo che non lascia guardare niente.
-	TestTrue(TEXT("il ritmo di default e' positivo"), GameMode->ScenarioPlanningSeconds >= 0.f);
+	TestTrue(TEXT("il ritmo di default e' positivo"), GameMode->ScenarioTurnPauseSeconds >= 0.f);
 	TestTrue(TEXT("ed e' molto piu' corto della pianificazione normale (30 s)"),
-		GameMode->ScenarioPlanningSeconds < 10.f);
+		GameMode->ScenarioTurnPauseSeconds < 10.f);
 
 	DestroyAutoRunWorld(World);
 	return true;

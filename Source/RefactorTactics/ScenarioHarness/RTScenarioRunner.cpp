@@ -1,5 +1,6 @@
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
+#include "ScenarioHarness/RTScenarioSession.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Map/RTHexLibrary.h"
@@ -145,197 +146,25 @@ namespace
 
 FRTTestResult URTScenarioRunner::Run(UWorld* World, const FRTTestScenario& Scenario)
 {
-	// --- 1. precondizioni: tutto cio' che va storto qui e' ERROR, non FAIL --------------------------------
-	if (!World)
-	{
-		return MakeErrorResult(Scenario, TEXT("nessun mondo in cui eseguire lo scenario"));
-	}
-	FString ValidationError;
-	if (!URTScenarioLoader::Validate(Scenario, ValidationError))
-	{
-		return MakeErrorResult(Scenario, FString::Printf(TEXT("scenario non valido: %s"), *ValidationError));
-	}
+	// Ciclo stretto sopra la STESSA sessione che il gioco fa avanzare un passo per frame. Non e' una seconda
+	// implementazione: se lo fosse, un test verde non direbbe piu' niente su quel che si vede a schermo.
+	FRTScenarioSession Session;
+	Session.TurnPauseSeconds = 0.f; // headless non c'e' nessuno a guardare: nessuna pausa da rispettare
 
-	FRTTestResult Result;
-	Result.ScenarioId = Scenario.ScenarioId;
-	Result.Seed = Scenario.Seed;
-
-	// --- 2. mondo: mappa, unita', turn manager ------------------------------------------------------------
-	URTHexMapAsset* Map = BuildArena(World, Scenario.MapRadius, Scenario.Cells);
-	if (!Map)
+	if (!Session.Start(World, Scenario))
 	{
-		return MakeErrorResult(Scenario, TEXT("impossibile creare l'arena esagonale"));
+		return Session.GetResult();
 	}
 
-	TMap<FString, ARTUnit*> UnitsById;
-	for (const FRTScenarioUnit& Spec : Scenario.Units)
+	// Tetto complessivo: la sessione ha gia' il suo per turno, questo protegge dal caso in cui non avanzi
+	// affatto. Un test appeso somiglia a un test lento, e la differenza si scopre solo aspettando.
+	const int32 MaxSteps = MaxResolveTicks * (Scenario.Turns.Num() + 2);
+	for (int32 I = 0; I < MaxSteps && !Session.IsFinished(); ++I)
 	{
-		URTHeroData* Hero = FindHero(Spec.HeroId);
-		if (!Hero)
-		{
-			// Validate() lo esclude gia', ma il runner non si fida di un invariante altrui.
-			return MakeErrorResult(Scenario, FString::Printf(TEXT("eroe '%s' non nel catalogo"), *Spec.HeroId.ToString()));
-		}
-
-		ARTUnit* Unit = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
-		if (!Unit)
-		{
-			return MakeErrorResult(Scenario, FString::Printf(TEXT("spawn fallito per l'unita' '%s'"), *Spec.Id));
-		}
-		Unit->TeamId = Spec.TeamId;
-		Unit->ConfigureFromHeroData(Hero);
-		UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);
-		// Le unita' dello scenario NON sono bot: gli intent li decide il file, non l'utility scoring. Il bot
-		// resta disponibile per gli scenari «agent» futuri, che dichiareranno una policy invece di un intent.
-		Unit->bIsBotControlled = false;
-		Unit->DispatchBeginPlay();
-		Unit->PlaceOnCell(Spec.Cell, FVector::ZeroVector, Map->HexSize, Map->LayerHeight);
-
-		UnitsById.Add(Spec.Id, Unit);
+		Session.Step(0.05f, /*bPumpTurnManager=*/ true);
 	}
 
-	// Come per la mappa: si riusa quello del GameMode se la partita e' gia' avviata (PIE).
-	ARTTurnManager* TM = Cast<ARTTurnManager>(
-		UGameplayStatics::GetActorOfClass(World, ARTTurnManager::StaticClass()));
-	if (!TM)
-	{
-		TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	}
-	if (!TM)
-	{
-		return MakeErrorResult(Scenario, TEXT("impossibile creare il turn manager"));
-	}
-
-	// --- 3. turni: si scrivono i piani e si risolve, esattamente come dopo un lock-in del giocatore --------
-	const int32 TurnCount = FMath::Min(Scenario.Turns.Num(), MaxTurnsHardCap);
-	for (int32 TurnIndex = 0; TurnIndex < TurnCount; ++TurnIndex)
-	{
-		if (TM->GetPhase() == ERTMatchPhase::MatchEnded)
-		{
-			break; // la partita si e' decisa prima della fine dello scenario: i turni restanti non esistono
-		}
-
-		// Tutte ferme per default: un'unita' senza intent nel turno NON eredita il piano del turno prima.
-		for (const TPair<FString, ARTUnit*>& Pair : UnitsById)
-		{
-			if (ARTUnit* U = Pair.Value)
-			{
-				U->PlannedCell = U->Cell;
-				U->PlannedPath.Reset();
-				U->PlannedWaypoints.Reset();
-			}
-		}
-
-		for (const FRTScenarioIntent& Intent : Scenario.Turns[TurnIndex].Intents)
-		{
-			ARTUnit** Found = UnitsById.Find(Intent.UnitId);
-			ARTUnit* Unit = Found ? *Found : nullptr;
-			if (!Unit || !Unit->IsAlive() || Intent.Move.Num() == 0)
-			{
-				continue;
-			}
-
-			// Stessa strada del controller: i waypoint diventano un percorso composito calcolato sullo
-			// snapshot AUTOREVOLE. Se il percorso non e' valido (budget, blocchi, occupanti), l'unita' resta
-			// ferma e l'assertion lo mostrera' — che e' esattamente il comportamento del gioco.
-			TArray<ARTUnit*> SnapshotUnits;
-			const FRTHexSnapshot Snapshot = TM->MakeCurrentSnapshot(SnapshotUnits);
-			const int32 UnitId = SnapshotUnits.IndexOfByKey(Unit);
-			if (UnitId == INDEX_NONE)
-			{
-				continue;
-			}
-
-			const FRTHexPathResult Path = URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, Intent.Move);
-			if (Path.Path.Num() >= 2)
-			{
-				Unit->PlannedWaypoints = Intent.Move;
-				Unit->PlannedPath = Path.Path;
-				Unit->PlannedCell = Path.Path.Last();
-			}
-			else
-			{
-				UE_LOG(LogRT, Warning,
-					TEXT("[RT-Test] %s: percorso rifiutato per '%s' (l'unita' resta ferma)"),
-					*Scenario.ScenarioId, *Intent.UnitId);
-			}
-		}
-
-		ResolveOneTurn(TM);
-		++Result.TurnsPlayed;
-	}
-
-	// Piani AZZERATI a scenario finito. Il runner li ripulisce a ogni inizio turno, ma dopo l'ultimo restavano
-	// appesi: il turn manager continuava a girare e li ri-risolveva a ogni scadenza del timer, producendo turni
-	// fantasma. In PIE si vedevano le unita' muoversi DOPO la fine dello scenario — al punto da sembrare lo
-	// scenario stesso, che invece era gia' finito prima del primo fotogramma.
-	for (const TPair<FString, ARTUnit*>& Pair : UnitsById)
-	{
-		if (ARTUnit* U = Pair.Value)
-		{
-			U->PlannedCell = U->Cell;
-			U->PlannedPath.Reset();
-			U->PlannedWaypoints.Reset();
-		}
-	}
-
-	// Digest dello stato finale, prima delle assertion: e' cio' che il gate di determinismo confronta fra
-	// una ripetizione e l'altra, e vale anche quando qualche assertion fallisce (due FAIL identici devono
-	// avere lo stesso hash, altrimenti non si potrebbe dire se una regressione e' la stessa di ieri).
-	Result.StateHash = HashFinalState(UnitsById);
-
-	// --- 4. assertion -------------------------------------------------------------------------------------
-	for (const FRTTestExpectation& Exp : Scenario.Expect)
-	{
-		FRTAssertionResult A;
-		A.Kind = Exp.Kind;
-		A.Turn = Result.TurnsPlayed;
-
-		switch (Exp.Kind)
-		{
-		case ERTAssertionKind::UnitAtCell:
-		{
-			A.Description = FString::Printf(TEXT("UnitAtCell(%s)"), *Exp.UnitId);
-			A.Expected = Exp.Cell.ToString();
-
-			ARTUnit** Found = UnitsById.Find(Exp.UnitId);
-			const ARTUnit* Unit = Found ? *Found : nullptr;
-			if (!Unit)
-			{
-				A.Actual = TEXT("unita' assente");
-				A.bPassed = false;
-			}
-			else
-			{
-				A.Actual = Unit->Cell.ToString();
-				A.bPassed = (Unit->Cell == Exp.Cell);
-			}
-			break;
-		}
-		case ERTAssertionKind::TurnsCompleted:
-		{
-			A.Description = TEXT("TurnsCompleted");
-			A.Expected = FString::Printf(TEXT(">= %d"), Exp.Value);
-			A.Actual = FString::FromInt(Result.TurnsPlayed);
-			A.bPassed = (Result.TurnsPlayed >= Exp.Value);
-			break;
-		}
-		default:
-			A.Description = TEXT("assertion non implementata");
-			A.bPassed = false;
-			break;
-		}
-
-		Result.Assertions.Add(A);
-	}
-
-	Result.Outcome = (Result.FailedCount() == 0) ? ERTTestOutcome::Pass : ERTTestOutcome::Fail;
-
-	UE_LOG(LogRT, Log, TEXT("[RT-Test] %s: %s (%d/%d assertion, %d turni)"),
-		*Result.ScenarioId, *Result.OutcomeString(),
-		Result.PassedCount(), Result.Assertions.Num(), Result.TurnsPlayed);
-
-	return Result;
+	return Session.GetResult();
 }
 
 FRTTestResult URTScenarioRunner::RunById(UWorld* World, const FString& ScenarioId, FString& OutReportDirectory)

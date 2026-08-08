@@ -130,25 +130,34 @@ public:
 	TArray<FString> GetScenarioOptions() const;
 
 	/**
-	 * Durata della pianificazione **dopo** che uno scenario è finito, in secondi. **0 = il turno non avanza
-	 * più** (default): il campo resta fermo sullo stato finale, che è ciò che si vuole guardare.
+	 * Pausa in secondi **prima** di risolvere ogni turno dello scenario: il tempo per guardare dove sono le
+	 * unità prima che si muovano.
 	 *
-	 * Un valore positivo fa **continuare** la partita a quel ritmo, per chi vuole proseguire a mano dallo
-	 * stato lasciato dallo scenario.
+	 * È ciò che rende uno scenario **osservabile**. Fino a `4e6c2e0` la partita si risolveva tutta dentro
+	 * `BeginPlay` e finiva prima del primo fotogramma: non si vedeva niente, e il movimento che sembrava lo
+	 * scenario erano turni fantasma. Ora la sessione avanza **un passo per frame**, e questa è la pausa fra un
+	 * turno e l'altro.
 	 *
-	 * ⚠️ Il default era 3 s e **produceva turni fantasma**: lo scenario finisce dentro `BeginPlay`, e ogni
-	 * scadenza del timer risolveva di nuovo i piani rimasti appesi. In PIE si vedevano le unità muoversi
-	 * *dopo* la fine dello scenario, tanto da sembrare lo scenario stesso. I piani ora si azzerano a fine
-	 * scenario **e** il turno si ferma: due difese, perché una sola avrebbe lasciato il campo a metà.
+	 * 0 = nessuna pausa, i turni si incatenano (il playback resta comunque visibile).
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Test", meta = (ClampMin = "0.0"))
-	float ScenarioPlanningSeconds = 0.f;
+	float ScenarioTurnPauseSeconds = 1.5f;
 
 	/** Lo scenario da eseguire: la console variable prevale sulla proprietà, altrimenti vale la proprietà. Vuoto = partita normale. */
 	FString ResolveScenarioToRun() const;
 
+	/** Sessione dello scenario in corso, fatta avanzare un passo per frame da `Tick`. Nulla = nessuno scenario. */
+	TSharedPtr<class FRTScenarioSession> ScenarioSession;
+
+	/** Vero finché lo scenario sta girando: serve alla diagnostica e ai test. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Test")
+	bool IsScenarioRunning() const;
+
 protected:
 	virtual void BeginPlay() override;
+
+	/** Fa avanzare la sessione dello scenario: un passo per frame, cosi' il playback si VEDE. */
+	virtual void Tick(float DeltaSeconds) override;
 
 private:
 	/** Applica `MapSource` all'actor mappa: sostituisce l'asset quando la scelta lo richiede, e lo dichiara nel log. */
