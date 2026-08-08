@@ -83,9 +83,9 @@ Owner: [`../product/showcase-v0.1.md`](../product/showcase-v0.1.md) · audit:
 - [`data/characters-wiki-data-v0.4.xlsx`](data/characters-wiki-data-v0.4.xlsx) — dataset dei personaggi,
   citato da **44 schede** in `../characters/`. È il **dataset corrente**, non un sorgente consumato: resta qui.
 - `data/wiki/` — materiale di integrazione della wiki.
-  ⚠️ [`CLAUDE_INTEGRATION_PROMPT.md`](data/wiki/CLAUDE_INTEGRATION_PROMPT.md) punta a **10 immagini che non
-  sono mai state committate** (`data/images/…`). Difetto preesistente, arrivato con il materiale: il documento
-  è inutilizzabile così com'è finché le immagini non arrivano o i riferimenti non vengono corretti.
+  [`CLAUDE_INTEGRATION_PROMPT.md`](data/wiki/CLAUDE_INTEGRATION_PROMPT.md) contiene dieci blocchi di **markdown
+  suggerito** da incollare nelle pagine wiki: i path immagine al loro interno sono relativi alla
+  **destinazione**, non a questo file, quindi non risolvono da qui — ed è corretto così.
 - `media/fazioni/` — `faction-01..04.png`, icone delle fazioni.
 - `media/hud/` — `icon-01..04.png`, `hud-example.png` e `hud-style.png`; sorgente di design in
   [`../archive/src/design/2026-08-08-hud-faction-icons.md`](../archive/src/design/2026-08-08-hud-faction-icons.md).
