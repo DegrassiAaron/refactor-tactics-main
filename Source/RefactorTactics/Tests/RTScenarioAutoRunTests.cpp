@@ -200,4 +200,54 @@ bool FRTScenarioOptionsAreRealFilesTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * L'override NON deve essere silenzioso.
+ *
+ * Una console variable dura quanto il processo dell'editor: digitata una volta resta attiva per ogni Play
+ * successivo e continua a scavalcare la tendina del Details Panel senza che nulla lo dica. E' successo
+ * davvero — si sceglieva uno scenario e ne partiva un altro, con l'unico indizio nel comportamento a schermo,
+ * e la diagnosi e' costata la lettura dei log invece di uno sguardo.
+ *
+ * La precedenza resta quella giusta; ad essere sbagliato era il silenzio. Qui si verifica che il caso
+ * «entrambe impostate e diverse» produca un avviso, e che i casi innocui NON lo producano — un avviso che
+ * compare sempre e' rumore, e il rumore si impara a ignorare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutoRunOverrideIsAnnouncedTest,
+	"RefactorTactics.Scenario.AutoRunOverrideIsNotSilent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAutoRunOverrideIsAnnouncedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeAutoRunWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("game mode"), GameMode)) { DestroyAutoRunWorld(World); return false; }
+
+	FScopedScenarioCVar Guard;
+
+	// CASO CHE SCOTTA: proprieta' e console impostate su scenari DIVERSI -> avviso.
+	GameMode->ScenarioToRun = TEXT("Movement.LongWalk");
+	Guard.Set(TEXT("Movement.Collision"));
+	AddExpectedError(TEXT("SCAVALCA la proprieta'"), EAutomationExpectedErrorFlags::Contains, 1);
+	TestEqual(TEXT("vince comunque la console"),
+		GameMode->ResolveScenarioToRun(), FString(TEXT("Movement.Collision")));
+
+	// CASI INNOCUI: nessun avviso, altrimenti diventa rumore.
+	// (Se ne producessero uno, il test fallirebbe: un errore non atteso e' un fallimento in Automation.)
+	Guard.Set(TEXT(""));
+	TestEqual(TEXT("solo proprieta': nessun conflitto da segnalare"),
+		GameMode->ResolveScenarioToRun(), FString(TEXT("Movement.LongWalk")));
+
+	GameMode->ScenarioToRun.Reset();
+	Guard.Set(TEXT("Movement.Collision"));
+	TestEqual(TEXT("solo console: nessun conflitto da segnalare"),
+		GameMode->ResolveScenarioToRun(), FString(TEXT("Movement.Collision")));
+
+	GameMode->ScenarioToRun = TEXT("Movement.Collision");
+	TestEqual(TEXT("entrambe UGUALI: niente da segnalare"),
+		GameMode->ResolveScenarioToRun(), FString(TEXT("Movement.Collision")));
+
+	DestroyAutoRunWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -87,10 +87,16 @@ void ARTGameMode::BeginPlay()
 			TM->SetPlanningSeconds(ScenarioPlanningSeconds);
 		}
 
+		// La FONTE va dichiarata sempre, non solo quando c'e' conflitto: chi legge il log deve poter dire
+		// «sta girando quello che ho scelto io» senza dedurlo dal comportamento a schermo.
+		const TCHAR* Source = CVarRTTestScenario.GetValueOnGameThread().IsEmpty()
+			? TEXT("proprieta' del GameMode")
+			: TEXT("console rt.Test.Scenario");
+
 		FString ReportDir;
 		const FRTTestResult Result = URTScenarioRunner::RunById(World, TestScenario, ReportDir);
-		UE_LOG(LogRT, Warning, TEXT("[RT-Test] AUTO-RUN %s -> %s (%d/%d assertion, %d turni) · report: %s"),
-			*TestScenario, *Result.OutcomeString(), Result.PassedCount(), Result.Assertions.Num(),
+		UE_LOG(LogRT, Warning, TEXT("[RT-Test] AUTO-RUN %s (da: %s) -> %s (%d/%d assertion, %d turni) · report: %s"),
+			*TestScenario, Source, *Result.OutcomeString(), Result.PassedCount(), Result.Assertions.Num(),
 			Result.TurnsPlayed, ReportDir.IsEmpty() ? TEXT("non scritto") : *ReportDir);
 		return;
 	}
@@ -328,7 +334,23 @@ FString ARTGameMode::ResolveScenarioToRun() const
 	// («adesso, solo per questa volta, eseguine un altro») — da riga di comando o in CI. Il piu' specifico
 	// vince, che e' la stessa regola di ogni override di configurazione.
 	const FString FromConsole = CVarRTTestScenario.GetValueOnGameThread();
-	return FromConsole.IsEmpty() ? ScenarioToRun : FromConsole;
+	if (FromConsole.IsEmpty())
+	{
+		return ScenarioToRun;
+	}
+
+	// ...ma NON in silenzio. Una console variable dura quanto il processo dell'editor: digitata una volta,
+	// resta attiva per ogni Play successivo e continua a scavalcare la tendina senza che nulla lo dica. E'
+	// successo davvero — si sceglieva uno scenario nel Details Panel e ne partiva un altro, con l'unico
+	// indizio nel comportamento a schermo. La precedenza resta giusta; ad essere sbagliato era il silenzio.
+	if (!ScenarioToRun.IsEmpty() && ScenarioToRun != FromConsole)
+	{
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT-Test] La console variable rt.Test.Scenario='%s' SCAVALCA la proprieta' "
+				 "ScenarioToRun='%s' del GameMode. Per tornare a usare la proprieta': `rt.Test.Scenario \"\"`."),
+			*FromConsole, *ScenarioToRun);
+	}
+	return FromConsole;
 }
 
 TArray<FString> ARTGameMode::GetScenarioOptions() const

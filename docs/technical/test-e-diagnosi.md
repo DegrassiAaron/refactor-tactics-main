@@ -176,6 +176,7 @@ ostacolo** (una situazione che il gioco non produrrebbe mai) vengono rifiutate c
 | `Movement.BasicFailsOnPurpose` | **FAIL voluto**: dimostra che il report diagnostica invece di dire solo «fallito» |
 | `Movement.Blocked` | un muro rende il percorso impossibile: il piano è rifiutato, l'unità resta ferma, il turno si chiude lo stesso |
 | `Movement.Collision` | due unità verso la stessa cella si fermano **entrambe** |
+| `Movement.LongWalk` | due unità attraversano l'arena, 3 celle per turno per 2 turni — **fatto per essere guardato** in PIE |
 | `Movement.SwapRejectedByPlanning` | **caratterizzazione**: due unità adiacenti *non* si scambiano di posto, perché la pianificazione rifiuta un percorso verso una cella occupata (vedi §12) |
 
 ### Scenari di caratterizzazione
@@ -235,6 +236,16 @@ La regola è quella di ogni override di configurazione: **il più specifico vinc
 progetto, per ora, esegue questo scenario»; la console dice «adesso, solo per questa volta, un altro» — ed è
 ciò che serve in CI, dove l'asset non si tocca. Se fosse il contrario, impostare la proprietà renderebbe
 impossibile eseguire uno scenario diverso da riga di comando.
+
+> ⚠️ **La console variable dura quanto il processo dell'editor.** Digitata una volta, resta attiva per **ogni
+> Play successivo** e continua a scavalcare la tendina. È già costato una sessione di diagnosi: si sceglieva
+> uno scenario nel Details Panel e ne partiva un altro.
+>
+> Ora il log lo dice sempre — `AUTO-RUN <scenario> (da: proprietà del GameMode | console rt.Test.Scenario)` —
+> e in caso di conflitto avverte esplicitamente. Per tornare alla proprietà:
+> ```
+> rt.Test.Scenario ""
+> ```
 
 In entrambi i casi il `GameMode` esegue lo scenario **invece** di allestire la partita normale. Per tornare a
 giocare: svuota la proprietà (e la console variable, se l'avevi impostata).
@@ -341,6 +352,7 @@ Ognuna è costata tempo almeno una volta.
 | Errori di simboli duplicati fra file di test | la *unity build* mette più `.cpp` nella stessa translation unit | dai **nomi distinti** agli helper nei namespace anonimi di ogni file |
 | Linee di debug invisibili | disegnate **sotto** la faccia del disco-cella (che sta a `z = 2.5`) | usa le costanti `RTLift*` di `RTHexMapActor.cpp`, che derivano dallo spessore reale |
 | Un `.md` dichiara un numero di test diverso | la documentazione è indietro rispetto al codice | fidati del comando di §2 |
+| Parte uno scenario **diverso** da quello scelto nella tendina | una `rt.Test.Scenario` digitata prima è ancora attiva: le console variable durano quanto il processo dell'editor | `rt.Test.Scenario ""`, oppure leggi `(da: …)` nella riga `AUTO-RUN` del log |
 
 ---
 
