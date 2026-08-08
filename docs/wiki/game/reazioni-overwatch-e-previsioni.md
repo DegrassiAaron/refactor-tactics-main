@@ -4,8 +4,8 @@
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-REACTION-FAST-ACTION -->
 
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-REACTION-FAST-ACTION` · Release: `v0.1` · Roadmap: `E14 · CP 14.6`  
+> ⚠️ **Progettata, non implementata.** Questa pagina descrive una meccanica **decisa e documentata** che il gioco **non esegue ancora**: oggi non è giocabile. Blocco generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-REACTION-FAST-ACTION` · Release: `v0.1` · Roadmap: `E14.6`  
 > Stato: **DESIGNED** · Gate: `0/9`  
 > Scenario: `—`  
 > Verificato il `2026-08-08` su `2094b86`
@@ -14,10 +14,10 @@
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-REACTION-OVERWATCH -->
 
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-REACTION-OVERWATCH` · Release: `v0.1` · Roadmap: `E14 · CP 14.4`  
+> ⚠️ **Progettata, non implementata.** Questa pagina descrive una meccanica **decisa e documentata** che il gioco **non esegue ancora**: oggi non è giocabile. Blocco generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-REACTION-OVERWATCH` · Release: `v0.1` · Roadmap: `E14.4`  
 > Stato: **SPECIFIED** · Gate: `1/9`  
-> Scenario: `Spec.Overwatch.HoldThenFire (pianificato)`  
+> Scenario: `Spec.Overwatch.HoldThenFire`  
 > Le reazioni **preparate** esistono e funzionano in partita; l'**Overwatch interattivo** di questa pagina non e' implementato.  
 > Verificato il `2026-08-08` su `2094b86`
 
@@ -25,8 +25,8 @@
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-REACTION-FAST -->
 
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-REACTION-FAST` · Release: `v0.1` · Roadmap: `E14 · CP 14.5, 14.6`  
+> ⚠️ **Progettata, non implementata.** Questa pagina descrive una meccanica **decisa e documentata** che il gioco **non esegue ancora**: oggi non è giocabile. Blocco generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-REACTION-FAST` · Release: `v0.1` · Roadmap: `E14.5, E14.6`  
 > Stato: **SPECIFIED** · Gate: `1/9`  
 > Scenario: `—`  
 > Verificato il `2026-08-08` su `2094b86`
@@ -35,8 +35,8 @@
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-REACTION-OPPORTUNITY -->
 
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-REACTION-OPPORTUNITY` · Release: `v0.1` · Roadmap: `E14 · CP 14.3`  
+> ⚠️ **Progettata, non implementata.** Questa pagina descrive una meccanica **decisa e documentata** che il gioco **non esegue ancora**: oggi non è giocabile. Blocco generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-REACTION-OPPORTUNITY` · Release: `v0.1` · Roadmap: `E14.3`  
 > Stato: **SPECIFIED** · Gate: `1/8`  
 > Scenario: `—`  
 > Verificato il `2026-08-08` su `2094b86`
@@ -46,7 +46,7 @@
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-REACTION-PREPARED -->
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-REACTION-PREPARED` · Release: `v0.1` · Roadmap: `E5 · CP 5.1, 5.2, 5.3, 5.4, 5.5`  
+> Feature: `RT-FEAT-REACTION-PREPARED` · Release: `v0.1` · Roadmap: `E5.1, E5.2, E5.3, E5.4, E5.5`  
 > Stato: **INTEGRATED** · Gate: `6/8`  
 > Scenario: `Combat.CounterStrikesBack`  
 > Verificato il `2026-08-08` su `2094b86`
@@ -55,18 +55,18 @@
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ACTION-PREDICTIVE -->
 
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-ACTION-PREDICTIVE` · Release: `v0.1` · Roadmap: `E18 · CP 18.1, 18.2`  
+> ⚠️ **Progettata, non implementata.** Questa pagina descrive una meccanica **decisa e documentata** che il gioco **non esegue ancora**: oggi non è giocabile. Blocco generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-ACTION-PREDICTIVE` · Release: `v0.1` · Roadmap: `E18.1, E18.2`  
 > Stato: **SPECIFIED** · Gate: `1/8`  
-> Scenario: `Spec.Predictive.WhiffOnEmptyCell (pianificato)`  
+> Scenario: `Spec.Predictive.WhiffOnEmptyCell`  
 > Verificato il `2026-08-08` su `2094b86`
 
 <!-- RT_FEATURE_STATUS:END RT-FEAT-ACTION-PREDICTIVE -->
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CORE-DECISION-BOUNDARY -->
 
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-CORE-DECISION-BOUNDARY` · Release: `v0.1` · Roadmap: `E14 · CP 14.1, 14.2, 14.3`  
+> ⚠️ **Progettata, non implementata.** Questa pagina descrive una meccanica **decisa e documentata** che il gioco **non esegue ancora**: oggi non è giocabile. Blocco generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-CORE-DECISION-BOUNDARY` · Release: `v0.1` · Roadmap: `E14.1, E14.2, E14.3`  
 > Stato: **SPECIFIED** · Gate: `1/8`  
 > Scenario: `—`  
 > Verificato il `2026-08-08` su `2094b86`

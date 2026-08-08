@@ -2,7 +2,7 @@
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-BOT-TACTICAL -->
 
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> ⚠️ **Progettata, non implementata.** Questa pagina descrive una meccanica **decisa e documentata** che il gioco **non esegue ancora**: oggi non è giocabile. Blocco generato dal Feature Registry, non modificare a mano.  
 > Feature: `RT-FEAT-BOT-TACTICAL` · Release: `v0.2` · Roadmap: `—`  
 > Stato: **IDEA** · Gate: `0/8`  
 > Scenario: `—`  
@@ -13,7 +13,7 @@
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-BOT-BASE -->
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-BOT-BASE` · Release: `v0.1` · Roadmap: `E2 · CP 2.6`  
+> Feature: `RT-FEAT-BOT-BASE` · Release: `v0.1` · Roadmap: `E2.6`  
 > Stato: **RELEASE_READY** · Gate: `7/8`  
 > Scenario: `RT_Showcase_Relay_v01`  
 > Verificato il `2026-08-08` su `2094b86`

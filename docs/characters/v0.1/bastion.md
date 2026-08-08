@@ -9,7 +9,7 @@
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-REACTION-PREPARED -->
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-REACTION-PREPARED` · Release: `v0.1` · Roadmap: `E5 · CP 5.1, 5.2, 5.3, 5.4, 5.5`  
+> Feature: `RT-FEAT-REACTION-PREPARED` · Release: `v0.1` · Roadmap: `E5.1, E5.2, E5.3, E5.4, E5.5`  
 > Stato: **INTEGRATED** · Gate: `6/8`  
 > Scenario: `Combat.CounterStrikesBack`  
 > Verificato il `2026-08-08` su `2094b86`
@@ -18,10 +18,10 @@
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-MAP-DYNAMIC-COVER -->
 
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-MAP-DYNAMIC-COVER` · Release: `v0.1` · Roadmap: `E9 · CP 9.5`  
+> 🚧 **Parzialmente giocabile.** Il codice esiste ma la feature non è completa: i gate qui sotto dicono quanto manca. Blocco generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-MAP-DYNAMIC-COVER` · Release: `v0.1` · Roadmap: `E9.5`  
 > Stato: **IMPLEMENTING** · Gate: `2/8`  
-> Scenario: `Spec.Cover.TemporaryCoverExpires (pianificato)`  
+> Scenario: `Spec.Cover.TemporaryCoverExpires`  
 > La **distruzione** della copertura esiste; la **creazione temporanea** (CP 9.5) no.  
 > Verificato il `2026-08-08` su `2094b86`
 
@@ -30,7 +30,7 @@
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CHAR-V01-ROSTER -->
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-CHAR-V01-ROSTER` · Release: `v0.1` · Roadmap: `E6 · CP 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7`  
+> Feature: `RT-FEAT-CHAR-V01-ROSTER` · Release: `v0.1` · Roadmap: `E6.1, E6.2, E6.3, E6.4, E6.5, E6.6, E6.7`  
 > Stato: **INTEGRATED** · Gate: `6/8`  
 > Scenario: `Combat.BasicAttack`  
 > Verificato il `2026-08-08` su `2094b86`

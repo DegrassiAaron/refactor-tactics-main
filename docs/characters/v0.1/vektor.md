@@ -9,7 +9,7 @@
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-REACTION-PREPARED -->
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-REACTION-PREPARED` · Release: `v0.1` · Roadmap: `E5 · CP 5.1, 5.2, 5.3, 5.4, 5.5`  
+> Feature: `RT-FEAT-REACTION-PREPARED` · Release: `v0.1` · Roadmap: `E5.1, E5.2, E5.3, E5.4, E5.5`  
 > Stato: **INTEGRATED** · Gate: `6/8`  
 > Scenario: `Combat.CounterStrikesBack`  
 > Verificato il `2026-08-08` su `2094b86`
@@ -18,10 +18,10 @@
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ACTION-PREDICTIVE -->
 
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-ACTION-PREDICTIVE` · Release: `v0.1` · Roadmap: `E18 · CP 18.1, 18.2`  
+> ⚠️ **Progettata, non implementata.** Questa pagina descrive una meccanica **decisa e documentata** che il gioco **non esegue ancora**: oggi non è giocabile. Blocco generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-ACTION-PREDICTIVE` · Release: `v0.1` · Roadmap: `E18.1, E18.2`  
 > Stato: **SPECIFIED** · Gate: `1/8`  
-> Scenario: `Spec.Predictive.WhiffOnEmptyCell (pianificato)`  
+> Scenario: `Spec.Predictive.WhiffOnEmptyCell`  
 > Verificato il `2026-08-08` su `2094b86`
 
 <!-- RT_FEATURE_STATUS:END RT-FEAT-ACTION-PREDICTIVE -->
@@ -29,7 +29,7 @@
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CHAR-V01-ROSTER -->
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-CHAR-V01-ROSTER` · Release: `v0.1` · Roadmap: `E6 · CP 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7`  
+> Feature: `RT-FEAT-CHAR-V01-ROSTER` · Release: `v0.1` · Roadmap: `E6.1, E6.2, E6.3, E6.4, E6.5, E6.6, E6.7`  
 > Stato: **INTEGRATED** · Gate: `6/8`  
 > Scenario: `Combat.BasicAttack`  
 > Verificato il `2026-08-08` su `2094b86`

@@ -2,7 +2,7 @@
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-FACTION-SCENARIOS -->
 
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> ⚠️ **Progettata, non implementata.** Questa pagina descrive una meccanica **decisa e documentata** che il gioco **non esegue ancora**: oggi non è giocabile. Blocco generato dal Feature Registry, non modificare a mano.  
 > Feature: `RT-FEAT-FACTION-SCENARIOS` · Release: `v0.2` · Roadmap: `—`  
 > Stato: **DESIGNED** · Gate: `0/7`  
 > Scenario: `Team.Conflux.FluxRiva.ConductiveFlood (pianificato)`  
@@ -13,7 +13,7 @@
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-FACTION-SYSTEM -->
 
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> ⚠️ **Progettata, non implementata.** Questa pagina descrive una meccanica **decisa e documentata** che il gioco **non esegue ancora**: oggi non è giocabile. Blocco generato dal Feature Registry, non modificare a mano.  
 > Feature: `RT-FEAT-FACTION-SYSTEM` · Release: `v0.2` · Roadmap: `—`  
 > Stato: **DESIGNED** · Gate: `0/7`  
 > Scenario: `—`  

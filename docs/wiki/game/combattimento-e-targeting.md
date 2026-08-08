@@ -4,8 +4,8 @@
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-UI-WARNINGS -->
 
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-UI-WARNINGS` · Release: `v0.1` · Roadmap: `E11 · CP 11.1, 11.2`  
+> 🚧 **Parzialmente giocabile.** Il codice esiste ma la feature non è completa: i gate qui sotto dicono quanto manca. Blocco generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-UI-WARNINGS` · Release: `v0.1` · Roadmap: `E11.1, E11.2`  
 > Stato: **IMPLEMENTING** · Gate: `3/7`  
 > Scenario: `Combat.FriendlyFire`  
 > Verificato il `2026-08-08` su `2094b86`
@@ -15,7 +15,7 @@
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-MAP-LOS -->
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-MAP-LOS` · Release: `v0.1` · Roadmap: `E2 · CP 2.4`  
+> Feature: `RT-FEAT-MAP-LOS` · Release: `v0.1` · Roadmap: `E2.4`  
 > Stato: **RELEASE_READY** · Gate: `6/7`  
 > Scenario: `Combat.BlockedByWall`  
 > Vista e targeting esistono; la **percezione** completa (chi sa cosa, E13) e' un altro sistema e non c'e' ancora.  

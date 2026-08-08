@@ -52,7 +52,7 @@ riferimenti del workbook. Se serve, si rinomina e si rigenera tutto nello stesso
 | `runtime` | L'implementazione esiste in `Source/` e **qualcuno la consuma** |
 | `log_debug` | L'esito è osservabile: TurnLog, reason code, comando di debug |
 | `automation` | Test automatici pertinenti, verdi, che chiamano il gameplay reale |
-| `scenario` | Almeno uno scenario in `Scenarios/` la dimostra |
+| `scenario` | Almeno uno scenario in `Scenarios/` la **dimostra** — vedi la nota qui sotto |
 | `ui_wiki` | È spiegata all'utente **e** leggibile in gioco — servono entrambe |
 | `packaged` | Verificata nella build packaged **della release corrente** |
 | `network_privacy` | Corretta in rete: autorità server e nessuna fuga di intento |
@@ -67,9 +67,15 @@ Tre regole che vale la pena scrivere, perché sono i modi in cui questo schema s
 2. **`runtime: done` richiede un consumatore.** Il difetto ricorrente di questo progetto non è la
    formula sbagliata, è il dato che nessuno legge: `Marked` a catalogo senza codice che lo
    interroghi, `Effects` vuoto nelle reazioni d'eroe. Un dato senza consumatore è `partial`.
-3. **`packaged` guarda la release corrente.** Il packaging del CP 7.4 (2026-08-06) ha verificato la
+3. **`packaged` guarda la release corrente.** Il packaging di M7.4 (2026-08-06) ha verificato la
    partita, ma **precede** E8, E9 e gli scenari: non copre ciò che è arrivato dopo. Finché la
-   release interna CP 12.5 non lo rifà, nessuna feature di gameplay dichiara `packaged: done`.
+   release interna E12.5 non lo rifà, nessuna feature di gameplay dichiara `packaged: done`.
+4. **Uno scenario che esce `BLOCKED` non è `scenario: done`.** Il corpus contiene scenari `Spec.*`
+   scritti **prima** della capability — sono specifiche eseguibili, e lo dichiarano nelle proprie
+   note: «esce BLOCKED finché `DecisionBoundary` non esiste, e va bene». Il loro valore è che la
+   feature ha una forma eseguibile prima di essere costruita, e che il giorno in cui atterra si
+   accendono da soli. Ma descrivere non è dimostrare: il gate resta `partial` finché lo scenario
+   non passa davvero.
 
 ## 5. Lo stato è derivato, non dichiarato
 
