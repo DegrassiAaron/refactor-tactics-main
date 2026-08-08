@@ -165,17 +165,45 @@ Ordinato **secondo la roadmap reale**, non per dominio: ogni voce è una fetta v
 | **Test** | `Scenario.LoaderResolvesNamedMap`, `Scenario.LoaderRejectsUnknownMapId` |
 | **Commit** | `feat(harness): scenari che riferiscono una fixture di mappa per nome` |
 
-### `S2-2` — Gli intent sanno esprimere un'abilità
+### `S2-2` — Gli intent sanno esprimere **tutti gli slot** che un giocatore pianifica
+
+> *Riscritta il 2026-08-08 dopo `/sc:spec-panel`. La prima stesura proponeva un solo campo `ability` con un
+> `targetCell`, e non sarebbe bastata: gli otto turni usano quasi solo **bersagli-unità**, e un intent non è
+> un'azione — sono **quattro slot indipendenti**.*
 
 | | |
 |---|---|
-| **Goal** | `"ability": { "actionId": "...", "targetCell": [...] }` accanto a `"move"` |
-| **Scope** | Estensione di `FRTScenarioIntent`; il runner li instrada nello **stesso** percorso di pianificazione del giocatore |
-| **Non-goals** | Reaction policy (è `S5-1`); facing (è `S2-3`) |
-| **Dipende da** | `S2-1` |
-| **Acceptance** | Un `actionId` fuori catalogo è **`ERROR`**; un'abilità legale produce le stesse voci di TurnLog di una pianificata a mano |
-| **Test** | `Scenario.AbilityIntentResolvesLikePlanned`, `Scenario.UnknownActionIdIsError` |
-| **Commit** | `feat(harness): intent di abilita' negli scenari` |
+| **Goal** | Un intent esprime ciò che un giocatore dichiara in un turno: movimento, azione principale, dash, reazione |
+| **Forma** | `{ "unit", "move": [...], "main": { "actionId", "targetUnit" \| "targetCell" }, "dash": { "actionId", "cell" }, "reaction": { "actionId" } }` |
+| **Scope** | Estensione di `FRTScenarioIntent` · risoluzione `actionId → indice` sul **kit dell'eroe** · `URTCatalogLibrary::ValidateActionSlots` applicata agli intent · il runner li instrada nello **stesso** percorso di pianificazione del giocatore |
+| **Non-goals** | Reaction **policy** e finestre (`S5-1`/E14) · facing (**E16**, non `S2-3`) · `PlannedCleansePriority` · `preCommitValidation` · reset dei piani nel runner *(vedi nota)* |
+| **Dipende da** | `S2-1` ✅ |
+| **Acceptance** | 1. `actionId` fuori catalogo **o fuori dal kit dell'eroe** → **`ERROR`** col nome<br>2. azione in **cooldown** → si risolve col `Fallback` dichiarato, **non** `ERROR`: è comportamento del gioco, non difetto dello scenario<br>3. due azioni principali nello stesso turno → **`ERROR`**<br>4. **primaria**: asserzioni sull'**effetto** (danno applicato, stato, voci di TurnLog attese)<br>5. **complemento**: piano da scenario e piano scritto sui campi di `ARTUnit` → stesso `LogHash` |
+| **Test** | `Scenario.AbilityIntentAppliesExpectedEffect` · `.UnknownActionIdIsError` · `.ActionNotInHeroKitIsError` · `.CooldownFallsBackNotErrors` · `.TwoMainActionsIsError` · `.AbilityIntentMatchesDirectPlanHash` |
+| **Sblocca** | **T3** e **T7** per intero · **T5 solo in parte**: gate e `GraphRevision` sì, la *correzione del piano* no — richiede `preCommitValidation`, che è fuori scope |
+| **Commit** | `feat(harness): intent a slot nominati negli scenari` |
+
+**Perché l'acceptance 4 viene prima della 5.** Il confronto di `LogHash` confronta lo scenario con un piano
+scritto a mano **nel test**: se entrambi sbagliano allo stesso modo — per esempio saltando una validazione che
+il controller fa — resta verde e misura due percorsi ugualmente falsi. Da solo è un test che si guarda allo
+specchio. Le asserzioni sull'effetto dicono *cosa deve succedere*; l'hash cattura le derive.
+
+> **Nota — il reset dei piani è fuori scope, e non è più un rischio.** La prima stesura del panel lo dava per
+> difetto latente («il runner azzera solo il movimento»). **Falso**: il resolver consuma i piani in otto punti
+> e `ARTUnit::PlaceOnCell` riallinea il movimento. L'invariante è ora **pinnata** da
+> `Turn.PlansDoNotSurviveTheTurn` e `Turn.DiscardedPlanDoesNotSurviveTheTurn`, verificate con mutazione. Il
+> reset nel runner risulta quindi **ridondante, non divergente**: toglierlo è una pulizia a effetto nullo e
+> vive come voce a sé (`S2-2b`), non dentro S2-2.
+
+### `S2-2b` — Togliere il reset ridondante dei piani nel runner *(pulizia, non bloccante)*
+
+| | |
+|---|---|
+| **Goal** | Il runner smette di riazzerare i piani di movimento a ogni turno |
+| **Perché** | `PlaceOnCell` lo fa già. Un secondo owner dell'invariante può **mascherare** una regressione del resolver: lo scenario resterebbe verde mentre il gioco vero, in PIE e col giocatore, si comporta male — la stessa famiglia del `SetActorLocation` vietato |
+| **Non-goals** | Cambiare la semantica di «turno senza intent», che resta *l'unità non fa nulla* perché è già quella del gioco |
+| **Acceptance** | Suite invariata; `Turn.PlansDoNotSurvive*` restano verdi senza il reset |
+| **Rischio** | Nullo oggi, misurato: nessun comportamento dipende da quel reset |
 
 ### `S2-3` — Turno 1 della showcase
 
