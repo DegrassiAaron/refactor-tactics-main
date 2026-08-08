@@ -2,6 +2,76 @@
 
 ---
 
+## 2026-08-08 — Consolidamento di `docs/gameplay/`
+
+**Origine**: audit `src/RefactorTactics_DocsGameplay_Audit_Consolidamento_Claude_2026-08-08.md`, con
+`D-014`…`D-019` approvate. 23 file passati in rassegna.
+
+### Decisioni registrate
+
+| | |
+|---|---|
+| **D-014** | Generiche canoniche `Wait · BasicAttack · Interact · Brace · Move · Overwatch`; `Activate`→`Interact`; `Guard` non più universale |
+| **D-015** | `Sneak · Normal · Sprint` sono **profili di `Move`**; `Sprint` **non è un Dash** |
+| **D-016** | **Un** thin slice di Predictive Action nella v0.1 (`Vektor.InterceptShot`) |
+| **D-017** | `Intercept` **rivalida la geometria sul bersaglio effettivo** |
+| **D-018** | `HighGround` **senza bonus numerico** alla vista in v0.1 |
+| **D-019** | `Fast Action` ≠ `Fast Reaction` — categorie distinte sulla stessa `DecisionWindow` |
+
+### `spec-sequenza-turno.md` riscritta come **spec canonica del round**
+
+Diceva due cose opposte: §2 che le finestre live erano in scope (C1 chiuso da ADR-0004), §4 e §5 di «non
+implementare finestre live nell'MVP» perché «serve il multiplayer». La seconda era in forma di **divieto**, la
+più facile da prendere per buona. Il gate a due condizioni è caduto il 2026-08-07 — la ragione di gameplay
+esisteva (bait/bluff non recuperabili con condizioni dichiarate) e la riconciliazione **(b)**, già scritta lì
+come ipotesi, si è rivelata sufficiente.
+
+Ora il documento è normativo e corto: sequenza, tassonomia temporale, ordine deterministico, confine
+corrente/north-star. La storia è compressa in fondo.
+
+### Il difetto trovato guardando il codice
+
+**APNAP a sei gruppi non esiste.** Il canone §5.1 lo dichiara vincolante come `FR-RESOLVE-01`, ma
+`grep -rn "APNAP\|FR-RESOLVE" Source/` trova **un solo commento**. L'ordine reale è quello della coda azioni —
+`MacroPhase → Priority → ActionId → SourceUnitId → EventSequence` — che assorbe la parte *intra-gruppo* di
+APNAP ma non la partizione per appartenenza.
+
+Non è urgente: il canone dichiara l'implementazione *gated*. Ma è la solita forma — **una regola normativa che
+nessun consumer legge** — e ora è scritta, non da dedurre. Registrata come riga `OPEN` nella matrice.
+
+### Altre correzioni di fatto
+
+| | |
+|---|---|
+| `spec-anima-risoluzione.md` | Assumeva «lock-in calcola tutto una volta sola». Con ADR-0004 al lock-in **il futuro del round non è ancora scritto**: riscritta a segmenti, con la durata del round che smette di essere calcolabile in anticipo |
+| `spec-dash.md` | Elencava «dash = pathfinding (aggira ostacoli)» fra le **decisioni prese**, smentito quattro righe sotto. Rimosso dall'elenco, non barrato |
+| `spec-propagazione-elettrica-cp83.md` | Dichiarava `Action.Electrify` **assente dal catalogo core**. Oggi **esiste** (`RTCatalogLibrary.cpp`); nessun eroe la usa |
+| `brief-conoscenza-parziale.md` | §10.1 dichiarava **chiusa** la vista da quota con `Sight_Mod = +1/+2/−1`. **D-018 la chiude nel verso opposto**: il numero veniva dal workbook, non da un playtest |
+| `brief-conoscenza-parziale.md` | Il veto `D15` sulle finestre acustiche poggiava su `D7`, caduto. Sostituito da un permesso **condizionato**, non da un obbligo |
+| `spec-motore-azioni-e4.md` | Diceva ancora «proposta da approvare» a epic chiusa. Ora **AS-BUILT**, con la sezione delle decisioni che l'hanno superata |
+
+### Collisione di ID risolta
+
+I brief usano ID **locali** `D1`…`D22`, il Decision Log usa `D-001`…`D-019`. Le sigle si sovrappongono: il
+`D14` di `brief-conoscenza-parziale` è la propagazione a flood fill, il `D-014` globale sono le azioni
+generiche. Regola scritta in testa a entrambi i brief: **il trattino distingue** — `D-0xx` globale e
+vincolante, `Dxx` locale.
+
+### Archiviati
+
+`spec-bot-utility.md` · `spec-knockback.md` · `spec-terreni.md` · `sequenza-turno.md` → `archive/gameplay/`.
+L'ultimo rinominato `sequenza-turno-exploratory.md`: due file quasi omonimi in cartelle diverse erano una
+trappola di lettura.
+
+### Cosa NON è stato fatto, deliberatamente
+
+Nessuna migrazione di Stable ID. `Action.Guard`, `Action.Activate` e `Action.Sprint` **esistono e sono
+consumati** — `Action.Sprint` in 9 file di codice e 6 di test. La tassonomia di D-014/D-015 è **semantica di
+gameplay**, non un rename già avvenuto: farlo in una PR documentale romperebbe test e replay. Tracciato come
+issue.
+
+---
+
 ## 2026-08-07 (2) — Chiusura delle cinque decisioni aperte
 
 **Origine**: sessione `/sc:brainstorm`. Chiude `OD-1`…`OD-5` aperte poche ore prima dalla revisione documentale.

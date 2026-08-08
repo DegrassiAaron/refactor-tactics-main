@@ -359,7 +359,7 @@ da riconciliare se in futuro si adotta il modello a chunk multilivello.
 
 ### 8.2 Sequenza di risoluzione ricca — reazioni/reveal/timeline (north-star)
 
-Il design esplorativo [`sequenza-turno.md`](../gameplay/sequenza-turno.md) (trascrizione del PDF omonimo) propone un
+Il design esplorativo [`sequenza-turno.md`](../archive/gameplay/sequenza-turno-exploratory.md) (trascrizione del PDF omonimo) propone un
 modello di risoluzione molto più ricco: pianificazione segreta → **reveal progressivo** → **finestre di
 reazione** (stack LIFO stile *Magic*) → risoluzione con ordinamento **APNAP** → cleanup, con 5 categorie di
 velocità e budget di reazione. Consolidamento, conflitti con gli invarianti #3/#4 e la parte adottata per prima
