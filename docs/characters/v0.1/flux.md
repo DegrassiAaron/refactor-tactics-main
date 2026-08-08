@@ -34,6 +34,8 @@ Tecnico della conduzione: fragile, controlla il campo e converte setup elettrici
 
 > **Nota bilanciamento:** Canonico v0.1. 90 HP, 5 MP, vista 6; bonus +8 di LinearDischarge contro Wet.
 
+> **Nota su `Water-Electric Combo`:** è un'etichetta storica della meccanica secondaria. Indica l'interazione sistemica acqua/Wet ↔ elettricità, **non** una coppia obbligatoria Flux+Riva.
+
 ## Meccanica firma
 
 ### Descrizione della meccanica
@@ -140,13 +142,15 @@ Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambien
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | RES_FLUX_CONDUCTIVE | Carica Conduttiva | 4 | — | 1 | Interazione elettrica | Abilità firma | Cap 4; start non specificato | Team-visible | CANONICAL_PARTIAL |
 
+> **Ownership del kit:** le abilità di questa pagina appartengono esclusivamente a questo personaggio. Le sinergie con altri eroi sono esempi derivati da stati, superfici, geometria e altre regole comuni; non sono abilità condivise. Vedi [Sinergie e combinazioni](../../wiki/game/sinergie-e-combinazioni.md).
+
 ## Abilità
 
 ### Arc Pulse
 
 #### Descrizione
 
-Arc Pulse è l'attacco base affidabile di Flux. Infligge 22 danni a range 4 e non richiede setup ambientale: serve come opzione stabile quando non conviene investire una risorsa o preparare una combo.
+Arc Pulse è l'attacco base affidabile di Flux. Infligge 22 danni a range 4 e non richiede setup ambientale: serve come opzione stabile quando non conviene investire una risorsa o preparare un payoff sistemico.
 
 | Campo | Valore |
 | --- | --- |

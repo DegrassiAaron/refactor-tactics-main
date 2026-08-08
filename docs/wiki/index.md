@@ -20,3 +20,8 @@ Hai già capito il loop e vuoi cercare una regola precisa? Vai all'[indice delle
 
 - [Personaggi RefactorTactics](../characters/index.md)
 - [Indice dei 38 asset hero Paragon](../characters/paragon.md)
+
+## Sinergie e fazioni
+
+- [Sinergie e combinazioni](game/sinergie-e-combinazioni.md)
+- [Fazioni](fazioni/index.md)

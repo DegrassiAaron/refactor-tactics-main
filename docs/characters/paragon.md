@@ -62,3 +62,7 @@ Il Character Master Matrix traccia **38 hero nominati**. Le liste ufficiali Epic
 - `RefactorTactics_Character_Master_Matrix.md`
 - `RefactorTactics_Characters_Wiki_Data_v0.4.xlsx`
 - Epic Games, Paragon asset release (March/September 2018)
+
+## Governance del kit
+
+Le future abilità restano proprietà del singolo personaggio. Una Signature può suggerire affinità con stati o sistemi, ma non crea automaticamente un kit di coppia o di fazione.

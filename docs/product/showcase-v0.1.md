@@ -287,6 +287,15 @@ con un reason di restrizione di terreno, e Bastion corregge prima del Commit.
 *Expected*: il fuoco si spegne; la propagazione elettrica è ordinata e **non colpisce due volte** per lo stesso
 evento; la scivolata su ghiaccio è deterministica; `EnvironmentChanged` nel TurnLog.
 
+> **Cos'è «combo» qui** ([D-028](../decisions/RT_PDR_00_Decision_Log.md)). Questo turno è uno **scenario
+> dimostrativo di interazioni sistemiche**, non una combo di squadra: Riva e Flux non condividono un'abilità e
+> non ricevono un bonus perché sono insieme. Riva pubblica uno stato (`Wet` / acqua sulla cella), il sistema
+> ambientale lo propaga, e `Flux.LinearDischarge` legge **lo stato**, non l'identità di Riva. La stessa
+> sequenza vale con qualunque altra sorgente d'acqua autorizzata. Lo scenario **dimostra** la cooperazione:
+> non la implementa e non introduce regole competitive proprie
+> ([ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md) ·
+> [`../wiki/game/sinergie-e-combinazioni.md`](../wiki/game/sinergie-e-combinazioni.md)).
+
 ### Turno 8 — l'obiettivo batte il KO
 
 **Vektor** `InterceptShot` sull'accesso previsto al Relay. **Riva** prende una **rotta alternativa**, non

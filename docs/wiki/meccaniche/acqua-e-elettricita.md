@@ -48,7 +48,7 @@ Un ponte spento o distrutto interrompe la catena.
 
 ## Stato reale del roster
 
-Il motore della propagazione è implementato e verificato, ma nessuno dei quattro eroi v0.1 possiede normalmente `Action.Electrify` nel proprio kit. La combo **Flux + Wet** invece è già una meccanica del roster.
+Il motore della propagazione è implementato e verificato, ma nessuno dei quattro eroi v0.1 possiede normalmente `Action.Electrify` nel proprio kit. L'interazione **`Wet → Flux.LinearDischarge`** è già una meccanica del roster. Riva è una possibile sorgente di `Wet`, ma Flux dipende dallo stato, non dall'identità di Riva.
 
 ## Cosa deve ricordare il giocatore
 
@@ -63,3 +63,7 @@ Il motore della propagazione è implementato e verificato, ma nessuno dei quattr
 - `docs/gameplay/spec-stati-temporanei-cp82.md`
 - `docs/gameplay/spec-ponti-cp94.md`
 - `docs/balance/RT_HeroCatalog_v0.1.md`
+
+## Approfondimento
+
+- [Sinergie e combinazioni](../game/sinergie-e-combinazioni.md)

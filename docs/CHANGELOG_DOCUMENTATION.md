@@ -2,6 +2,45 @@
 
 ---
 
+## 2026-08-08 — Ownership di abilità, interazioni e sinergie (terzo passaggio)
+
+**Origine**: payload `Docs-Consolidation-v0.9` + handoff `src/RefactorTactics_Fazioni_v0.2_Consolidamento_Claude.md`
+(input, non autorità). Baseline dichiarata dal payload: `13cacb5`; **applicato su `b057c67`**, un commit più
+avanti (`docs(pie)`, nessuna sovrapposizione di file).
+
+### Il problema
+
+La documentazione descriveva `Water-Electric` come **«combo Flux + Riva»** in più punti — Wiki, showcase,
+handoff fazioni. Nel codice il bonus legge `Status.Wet` e **non conosce** l'eroe che l'ha applicato. Finché i
+documenti chiamavano «coppia» una regola sistemica, la prima implementazione futura avrebbe avuto ragione a
+cablare la coppia: `if HeroA && HeroB` sarebbe stato *conforme alla documentazione*.
+
+### Decisione registrata
+
+| | |
+|---|---|
+| **D-028** | Le abilità hanno **ownership singola**; le sinergie sono **derivate**. Ability/Action Definition → singolo owner · status/surface/event/geometry → sistema · combinazioni fra eroi/fazioni → esempi e fixture. Owner: [ADR-0006](decisions/adr-0006-ownership-abilita-sinergie.md) + [`gameplay/spec-ownership-abilita-interazioni-sinergie.md`](gameplay/spec-ownership-abilita-interazioni-sinergie.md) |
+
+### Cosa è cambiato
+
+- **42 pagine personaggio** (4 v0.1 · 4 v0.2 · 34 candidati) + i due template portano la nota
+  **`Ownership del kit`**; nuove pagine `wiki/game/sinergie-e-combinazioni.md` e `wiki/fazioni/` (4 fazioni).
+- Canone, `AGENTS.md`, `CLAUDE.md`, `balance/README.md`, `RT_HeroCatalog_v0.1.md`, showcase e roadmap recepiscono
+  la regola. La roadmap **non** guadagna un'epic: guadagna un requisito di **DoD** (producer · consumer ·
+  indipendenza dall'identità del partner).
+- **Nessuna riga di runtime toccata.** L'audit di `Source/` non ha trovato `PairBonus`, `FactionSetBonus`,
+  `ComboAbility` né branch `if HeroA && HeroB`. L'unico `if (Flux && Riva && ...)` è un null-guard in
+  `RTHeroSpawnTests.cpp`, e la riga 157 di quel test *asserisce* che i due eroi non condividono istanze d'azione.
+
+### Deriva collaterale chiusa: D-025
+
+`AGENTS.md`, `CLAUDE.md`, il brief azioni e la riga 27 della matrice elencavano ancora **sei** azioni generiche
+con `Guard` declassata — la forma di D-014, superata da **D-025** lo stesso 2026-08-08. Ora sono sette:
+`Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch`. L'economia `Attack | Ability | Overwatch`
+non cambia. Era il ⏳ dichiarato nella riga 42 della matrice.
+
+---
+
 ## 2026-08-08 — Consolidamento dei documenti **non**-Gameplay (secondo passaggio)
 
 **Origine**: audit `src/RefactorTactics_Audit_Docs_NonGameplay_Consolidamento_Claude_2026-08-08_v2.md`.

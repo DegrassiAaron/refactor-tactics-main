@@ -85,7 +85,7 @@ modding). Sono la **direzione futura**, non l'obiettivo attuale. Vedi §8.
 | Percorso progetto | `C:\Dev\...` | `D:\Dev\...` | **Radice del repo** | Il progetto UE vive nel repo versionato |
 
 > ⚠️ **Revisione 2026-08-08 — SECONDO PASSAGGIO DOCUMENTALE.** Il canone recepisce qui, come richiede la regola
-> di gerarchia («un ADR accettato si recepisce nel canone nello stesso commit»), sei punti che vivevano solo
+> di gerarchia («un ADR accettato si recepisce nel canone nello stesso commit»), sette punti che vivevano solo
 > negli ADR o nel Decision Log:
 >
 > | Punto | Cosa vale ora | Fonte |
@@ -96,6 +96,7 @@ modding). Sono la **direzione futura**, non l'obiettivo attuale. Vedi §8.
 > | **Quota / High Ground** | Vale per **geometria** — LOS, occlusione, copertura, accessibilità. **Nessun `+Damage` e nessun `+VisionRange` globali.** Un eroe, tratto, abilità o equipaggiamento può dichiarare un bonus da altura, in modo data-driven | [D-018](../decisions/RT_PDR_00_Decision_Log.md) · [D-024](../decisions/RT_PDR_00_Decision_Log.md) |
 > | **Formato di partita** | **Non è deciso.** 2v2 è la vertical slice corrente, 3v3 la baseline di lavoro, 4v4 solo scenario di stress (E17). Nessun documento tratti il 3v3 come formato di prodotto scelto: si consolida con la **prima misura** reale | [D-011](../decisions/RT_PDR_00_Decision_Log.md) |
 > | **Verifica automatica** | Gli scenari di test passano dalla **stessa pipeline di gioco** della partita reale: JSON versionato sotto `Scenarios/` → percorso di gioco → `result.json`, `PASS`/`FAIL`/`ERROR`. **Nessun bypass** del resolver, nessun Actor di test | `technical/test-automatico-unreal.md` |
+> | **Ownership contenuti** | Tre livelli che **non** diventano una sola fonte dati: **Ability/Action Definition → singolo owner** (eroe, equipaggiamento, oggetto, regola generica); **interazioni → sistemi** (`Wet`, conduttività, `Push`, cover, LOS, rumore); **sinergie/fazioni/scenari → riferimenti ed esempi**, mai una seconda fonte di numeri o di logica. Nessun bonus implicito di coppia/fazione, nessuna dipendenza hard-coded fra `HeroId` | [D-028](../decisions/RT_PDR_00_Decision_Log.md) · [ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md) · [`../gameplay/spec-ownership-abilita-interazioni-sinergie.md`](../gameplay/spec-ownership-abilita-interazioni-sinergie.md) |
 >
 > Restano fermi UE **5.8.1** ([D-022](../decisions/RT_PDR_00_Decision_Log.md), ora *Consolidata*) e il **no-GAS**
 > per la v0.1.

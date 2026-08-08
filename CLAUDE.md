@@ -26,7 +26,9 @@ implicita. `docs/archive/` è storico.
 - Fasi: `Planning → Prep → Dash → Blast → Move → Cleanup`; Move normale resta dopo Blast.
 - Un solo substrato: `FRTCellId`; no gameplay quadrato parallelo.
 - **No GAS nella v0.1**: `URTActionData` / `URTHeroData` / `URTEquipmentData`.
-- Azioni generiche: `Wait · BasicAttack · Interact · Brace · Move · Overwatch`.
+- Azioni generiche (sette, **D-025**): `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch`.
+- Ownership contenuti (**D-028**): abilità → singolo owner; interazioni → sistemi; sinergie/fazioni/scenari →
+  esempi. Niente ability di coppia né branch `if HeroA && HeroB`.
 - **Sprint = profilo Move, non Dash**.
 - Reazioni: `Opportunity → Commit`; Fast Reaction **3,0 s**, timeout **HOLD**.
 - `Vektor.InterceptShot` = thin slice Predictive v0.1.

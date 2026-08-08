@@ -59,11 +59,13 @@ Le macro-fasi non si cambiano per adattarsi a una singola abilità.
 
 Azioni generiche correnti:
 
-`Wait · BasicAttack · Interact · Brace · Move · Overwatch`
+`Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch`
 
 Regole da non regredire:
 
-- `Activate` è assorbita da `Interact`; `Guard` non è un'azione universale.
+- Sette voci, non sei: `Guard` **è tornata universale** e `Activate` resta assorbita da `Interact`
+  ([D-025](docs/decisions/RT_PDR_00_Decision_Log.md)). `Guard` aveva già tre consumatori — catalogo azioni,
+  `Status.Root`, difesa direzionale di ADR-0005 §4a — quindi non è una stance opzionale.
 - **Sprint è un profilo della famiglia Move, non un Dash**.
 - Overwatch è un'azione universale di Planning; il comportamento concreto dipende da eroe/equipaggiamento e
   compete con l'azione offensiva.
@@ -93,6 +95,17 @@ Regole da non regredire:
 8. C++ definisce cosa è possibile; Data Asset/Blueprint scelgono varianti e presentazione.
 9. ID, priorità, costi, durata, reason code e formati serializzati che incidono sulla simulazione sono stabili,
    espliciti e versionati.
+10. **Un'abilità ha un solo owner: non modellare una sinergia come ability di coppia.** Nessun `PairBonus`,
+    `FactionSetBonus` o `ComboAbility` condivisa, e nessun branch `if HeroA && HeroB` per un payoff che le
+    regole sistemiche già esprimono.
+11. **Producer e consumer comunicano tramite stato/tag/evento/superficie quando la regola è sistemica.** Chi
+    applica pubblica lo stato; chi legge dipende dallo stato, non dall'identità di chi l'ha applicato — salvo
+    requisito dichiarato *nella* Ability Definition, con counterplay e test propri.
+12. **Scenari, fazioni e Wiki non sono fonti competitive.** Dimostrano e spiegano; i numeri restano nei
+    cataloghi `docs/balance/`, le abilità nella pagina/definizione del proprio owner. Owner della regola:
+    [D-028](docs/decisions/RT_PDR_00_Decision_Log.md) ·
+    [ADR-0006](docs/decisions/adr-0006-ownership-abilita-sinergie.md) ·
+    [`docs/gameplay/spec-ownership-abilita-interazioni-sinergie.md`](docs/gameplay/spec-ownership-abilita-interazioni-sinergie.md).
 
 ## Conoscenza parziale e rete
 
