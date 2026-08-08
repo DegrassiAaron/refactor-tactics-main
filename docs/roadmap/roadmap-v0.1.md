@@ -86,7 +86,7 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 | **Finestre di reazione interattive** | — | ⏳ ADR-0004 accettato, nessun codice (E14) |
 | **Scenario showcase e golden replay** | — | ⏳ (E15) |
 
-**Suite automatica**: **@@COUNT@@ test unici** in **@@FILES@@ file** (rimisurati 2026-08-08 **dopo** il merge
+**Suite automatica**: **443 test unici** in **66 file** (rimisurati 2026-08-08 **dopo** il merge
 di CP 9.4 con `main`). CP 9.4 porta **+10** test — 7 `Structures.Bridge.*` e 3 `HexMap.Arc*`, nel file nuovo
 `RTHexArcTests.cpp` più due d'integrazione in `RTEnvironmentActionTests.cpp`. CP 9.3 porta **+13** test — 10 `Structures.Door.*` e 3 `HexMap.Door*`, nel file nuovo
 `RTHexDoorTests.cpp`. Il tredicesimo, `Door.ReadsBothFaces`, non era previsto: l'ha reso necessario la

@@ -44,7 +44,7 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in parte (vedi nota) · ⏳ da far
 | **M10** Rete e privacy | ⏳ | Listen server, validazione server, planning team-only, canary intent leak. **Nuovo vincolo**: [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) introduce N round-trip per turno (finestre di reazione) |
 | **M11** Production readiness | ⏳ | Budget in CI, validator commandlet, packaged soak, replay audit |
 
-**Suite automatica**: `Source/RefactorTactics/Tests/` — **@@COUNT@@** test unici in **@@FILES@@** file
+**Suite automatica**: `Source/RefactorTactics/Tests/` — **443** test unici in **66** file
 (rimisurati 2026-08-08 **dopo** il merge di CP 9.4 con `main`). ⚠️ Le due parti arrivavano al merge con
 **425 in 64** (questo ramo, CP 9.3) e **419 in 64** (`main`, con lo Scenario Harness e il gate di determinismo
 di CP 12.1): entrambe corrette alla propria base, **nessuna delle due valida dopo l'unione**. È la terza volta
