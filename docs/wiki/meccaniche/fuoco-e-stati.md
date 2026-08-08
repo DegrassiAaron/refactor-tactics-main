@@ -1,7 +1,26 @@
 # Fuoco, Burning e Wet
 
-> **Stato v0.1:** implementato e testato
 > **Tipo:** guida giocatore, non normativa
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ENV-FIRE -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-ENV-FIRE` · Release: `v0.1` · Roadmap: `E8 · CP 8.1, 8.4`  
+> Stato: **INTEGRATED** · Gate: `6/8`  
+> Scenario: `Visual.Environment.FireOnEnter`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-ENV-FIRE -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ENV-STATUS -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-ENV-STATUS` · Release: `v0.1` · Roadmap: `E8 · CP 8.2`  
+> Stato: **INTEGRATED** · Gate: `6/8`  
+> Scenario: `Visual.Environment.FireOnEnter`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-ENV-STATUS -->
 
 ## Entrare nel fuoco
 

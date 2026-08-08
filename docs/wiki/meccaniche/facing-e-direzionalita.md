@@ -1,7 +1,17 @@
 # Facing e direzionalità
 
-> **Stato v0.1:** decisione accettata, **non ancora implementata** nel gameplay autorevole
 > **Tipo:** guida giocatore, non normativa
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-MAP-FACING -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-MAP-FACING` · Release: `v0.1` · Roadmap: `E16 · CP 16.1, 16.2`  
+> Stato: **SPECIFIED** · Gate: `1/8`  
+> Scenario: `—`  
+> Decisione accettata (ADR-0005) ma **non implementata**: quello che leggi qui descrive come funzionera', non come funziona oggi.  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-MAP-FACING -->
 
 ## Che cos'è il facing
 

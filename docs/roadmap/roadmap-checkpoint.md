@@ -44,6 +44,14 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in parte (vedi nota) · ⏳ da far
 | **M10** Rete e privacy | ⏳ | Listen server, validazione server, planning team-only, canary intent leak. **Nuovo vincolo**: [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) introduce N round-trip per turno (finestre di reazione) |
 | **M11** Production readiness | ⏳ | Budget in CI, validator commandlet, packaged soak, replay audit |
 
+> **Terza vista, aggiunta il 2026-08-08: il Feature Registry.** Questa tabella dice a che punto sono le
+> **milestone**, [`roadmap-v0.1.md`](roadmap-v0.1.md) §2.1 a che punto sono le **epic**. Nessuna delle due
+> risponde a «la copertura direzionale funziona?» — la domanda che si fa chi legge la Wiki. Quella risposta
+> vive in [`feature-registry.yaml`](feature-registry.yaml), per **feature**, con lo stato derivato da gate
+> verificabili invece che scritto a mano. Le tre viste non si duplicano: la terza è l'unica che la Wiki e i
+> workbook leggono, e il suo stato è generato. Modello e comandi in
+> [`feature-registry.md`](feature-registry.md).
+
 **Suite automatica**: `Source/RefactorTactics/Tests/`. **Il numero vive in un posto solo** —
 [`roadmap-v0.1.md`](roadmap-v0.1.md) §2, con commit e data — e qui non si duplica: era duplicato in due viste,
 e le due viste hanno divergito. Si misura col comando qui sotto.
@@ -92,7 +100,7 @@ Manca la prova sul campo: la sessione di playtest **CP 6.8**, che si esegue in e
 
 > **Oltre la v0.1**: [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) ripartisce fra **v0.2, v0.3 e v0.4** (epic
 > E21–E32) il materiale dei sorgenti che non entra nel vertical slice — roster 8, Cover Window, muri e porte,
-> Standard 3v3, bot tattico ed esperto, Operations. Nessuna di quelle epic si apre prima dei 14 gate della v0.1.
+> Standard 3v3, bot tattico ed esperto, Operations. Nessuna di quelle epic si apre prima dei 15 gate della v0.1.
 
 Le milestone qui sotto restano la vista di **esecuzione**. Sopra di esse esiste ora una vista di **release**:
 [`roadmap-v0.1.md`](roadmap-v0.1.md) — **20 epic, 92 checkpoint** *(era 12/59; **E13** conoscenza parziale,
@@ -385,6 +393,7 @@ neutri (combat math, serializzazione, regole di fase). Il resto ha data di scade
 | Documento | Ruolo |
 |---|---|
 | [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) | **Canone**: decisioni vincolanti, invarianti, regole numeriche |
+| [`feature-registry.yaml`](feature-registry.yaml) · [`feature-registry.md`](feature-registry.md) | **Prodotto**: stato per *feature* (non per milestone né per epic), derivato da gate verificabili. Unica sorgente dello stato che Wiki e workbook leggono |
 | [`roadmap-v0.1.md`](roadmap-v0.1.md) | **Release v0.1**: 14 epic, 69 checkpoint, mappatura con queste milestone + **§2.1 stato misurato** |
 | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate di release `G1`–`G14`, KPI, checklist di contenuto |
 | [`balance/`](../balance) | **Numeri vigenti v0.1**: cataloghi azioni, terreni, equipaggiamento, eroi, matrice di test |

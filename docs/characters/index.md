@@ -1,5 +1,25 @@
 # RefactorTactics — Personaggi
 
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CHAR-PRESENTATION -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-CHAR-PRESENTATION` · Release: `v0.1` · Roadmap: `M8`  
+> Stato: **IMPLEMENTING** · Gate: `1/7`  
+> Scenario: `—`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-CHAR-PRESENTATION -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CHAR-V01-ROSTER -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-CHAR-V01-ROSTER` · Release: `v0.1` · Roadmap: `E6 · CP 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7`  
+> Stato: **INTEGRATED** · Gate: `6/8`  
+> Scenario: `Combat.BasicAttack`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-CHAR-V01-ROSTER -->
+
 La Wiki distingue il roster operativo dalle basi asset Paragon.
 
 ## Roster v0.1 — RefactorTactics

@@ -1,5 +1,25 @@
 # L'avversario controllato dal gioco
 
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-BOT-TACTICAL -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-BOT-TACTICAL` · Release: `v0.2` · Roadmap: `—`  
+> Stato: **IDEA** · Gate: `0/8`  
+> Scenario: `—`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-BOT-TACTICAL -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-BOT-BASE -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-BOT-BASE` · Release: `v0.1` · Roadmap: `E2 · CP 2.6`  
+> Stato: **RELEASE_READY** · Gate: `7/8`  
+> Scenario: `RT_Showcase_Relay_v01`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-BOT-BASE -->
+
 Nella v0.1 giochi **contro il bot**: non c'è multiplayer. Vale la pena sapere come ragiona, perché il gioco è a
 informazione incompleta e la prima domanda di ogni giocatore è sempre la stessa — *sta barando?*
 

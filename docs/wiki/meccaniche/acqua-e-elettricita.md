@@ -1,7 +1,27 @@
 # Acqua ed elettricità
 
-> **Stato v0.1:** `Wet`, bonus di Flux e propagazione elettrica sul terreno implementati/testati · nessun eroe v0.1 possiede ancora `Action.Electrify` come skill normale
 > **Tipo:** guida giocatore, non normativa
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ENV-ELECTRIC -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-ENV-ELECTRIC` · Release: `v0.1` · Roadmap: `E8 · CP 8.3`  
+> Stato: **INTEGRATED** · Gate: `6/8`  
+> Scenario: `Visual.Combat.WaterElectric`  
+> Il sistema esiste ed e' testato, ma **nessun eroe della v0.1 ha `Action.Electrify` come abilita' normale**: la scarica arriva dall'ambiente e dalle interazioni, non da un kit.  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-ENV-ELECTRIC -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ENV-WATER -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-ENV-WATER` · Release: `v0.1` · Roadmap: `E8 · CP 8.1, 8.4`  
+> Stato: **INTEGRATED** · Gate: `6/8`  
+> Scenario: `Visual.Environment.WetExtinguishesFire`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-ENV-WATER -->
 
 ## Due meccaniche collegate ma diverse
 

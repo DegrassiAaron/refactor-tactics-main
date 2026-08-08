@@ -97,3 +97,7 @@ Content/**/*.txt
 # Export wiki rigenerabili: non versionati (vedi docs/src/README.md)
 docs/src/**/*.zip
 docs/src/*.zip
+
+# Python bytecode degli script in scripts/
+__pycache__/
+*.pyc
