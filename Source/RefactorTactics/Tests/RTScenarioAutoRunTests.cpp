@@ -302,4 +302,58 @@ bool FRTAutoRunOverrideIsAnnouncedTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * La banda a schermo dice che questa NON e' una partita normale.
+ *
+ * Il difetto che chiude: con `ScenarioToRun` impostato, `BeginPlay` esegue lo scenario e ritorna, quindi la
+ * partita normale non viene allestita — niente unita' proprie, niente selezione, niente barra abilita'. Chi
+ * guarda vede uno schermo quasi vuoto. La spiegazione esisteva gia', ma solo nell'Output Log, che non si ha
+ * motivo di aprire quando il sintomo sembra «il gioco non parte».
+ *
+ * Verificato il 2026-08-08 dall'utente, seguendo le istruzioni di questa stessa checklist: uscendo da
+ * `PIE-SCEN-KEEP` la property resta impostata, e il Play successivo non e' una partita.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutoRunBannerTest,
+	"RefactorTactics.Scenario.AutoRunBannerDeclaresItIsNotAMatch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAutoRunBannerTest::RunTest(const FString&)
+{
+	FScopedScenarioCVar Guard;
+	Guard.Set(TEXT(""));
+
+	UWorld* World = MakeAutoRunWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("game mode"), GameMode)) { DestroyAutoRunWorld(World); return false; }
+
+	// Partita normale: nessuna banda. Una banda sempre accesa sarebbe rumore, e il rumore non si legge.
+	GameMode->ScenarioToRun.Reset();
+	TestTrue(TEXT("partita normale: nessuna banda"), GameMode->GetScenarioBannerText().IsEmpty());
+
+	// Scenario dalla property.
+	GameMode->ScenarioToRun = TEXT("Combat.BasicAttack");
+	const FString FromProperty = GameMode->GetScenarioBannerText();
+	TestFalse(TEXT("con uno scenario impostato la banda c'e'"), FromProperty.IsEmpty());
+	TestTrue(TEXT("la banda nomina lo scenario"), FromProperty.Contains(TEXT("Combat.BasicAttack")));
+	// E' la frase che risolve la confusione: senza, la banda direbbe cosa sta girando ma non cosa MANCA.
+	TestTrue(TEXT("la banda dice che la partita normale non e' allestita"),
+		FromProperty.Contains(TEXT("NON e' allestita")));
+	TestTrue(TEXT("la banda attribuisce la scelta al BP_GameMode"), FromProperty.Contains(TEXT("BP_GameMode")));
+
+	// La console variable prevale, e la banda deve dirlo: e' la fonte che si dimentica di aver impostato,
+	// perche' dura quanto il processo dell'editor e scavalca la tendina a ogni Play.
+	Guard.Set(TEXT("Movement.Basic"));
+	const FString FromCVar = GameMode->GetScenarioBannerText();
+	TestTrue(TEXT("la banda segue la cvar che prevale"), FromCVar.Contains(TEXT("Movement.Basic")));
+	TestTrue(TEXT("la banda attribuisce la scelta alla cvar"), FromCVar.Contains(TEXT("rt.Test.Scenario")));
+	TestFalse(TEXT("non attribuisce anche al BP_GameMode"), FromCVar.Contains(TEXT("BP_GameMode")));
+
+	// Nessuna sessione avviata: lo stato e' «in corso», non un esito inventato.
+	TestTrue(TEXT("senza sessione la banda non dichiara un esito"), FromCVar.Contains(TEXT("in corso")));
+
+	DestroyAutoRunWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

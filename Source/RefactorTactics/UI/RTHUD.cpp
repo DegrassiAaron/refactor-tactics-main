@@ -1,4 +1,5 @@
 #include "UI/RTHUD.h"
+#include "RTGameMode.h"
 #include "Unit/RTUnit.h"
 #include "Turn/RTIntentPrivacyLibrary.h"
 #include "Ability/RTActionData.h"
@@ -345,6 +346,26 @@ void ARTHUD::DrawHUD()
 		float TW = 0.f, TH = 0.f;
 		GetTextSize(Status, TW, TH, nullptr, 1.2f);
 		DrawText(Status, FLinearColor::White, (Canvas->SizeX - TW) * 0.5f, 16.f, nullptr, 1.2f);
+	}
+
+	// Banda «questa non e' una partita»: quando il GameMode sta eseguendo uno scenario, la partita normale non
+	// viene allestita e mancano unita' proprie, selezione e barra abilita'. Senza questa riga il sintomo non
+	// punta alla causa — la spiegazione esiste, ma solo nell'Output Log.
+	//
+	// Fondo scuro dietro il testo e non solo testo colorato: e' l'unico elemento dell'HUD che deve farsi
+	// leggere anche sopra la mappa, e chi lo legge sta gia' cercando di capire perche' non vede nulla.
+	if (const ARTGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<ARTGameMode>() : nullptr)
+	{
+		const FString Banner = GM->GetScenarioBannerText();
+		if (!Banner.IsEmpty())
+		{
+			float BW = 0.f, BH = 0.f;
+			GetTextSize(Banner, BW, BH, nullptr, 1.1f);
+			const float BX = (Canvas->SizeX - BW) * 0.5f;
+			const float BY = 44.f;
+			DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.7f), BX - 8.f, BY - 4.f, BW + 16.f, BH + 8.f);
+			DrawText(Banner, FLinearColor(1.f, 0.75f, 0.2f, 1.f), BX, BY, nullptr, 1.1f);
+		}
 	}
 
 	// Combat log in basso a sinistra (dal piu' vecchio in alto al piu' recente in basso).
