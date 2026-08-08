@@ -52,7 +52,7 @@ definita in due posti, è un difetto: apri una issue invece di aggiornarne una s
 | **Sequenza canonica del round** e tassonomia temporale | [`gameplay/spec-sequenza-turno.md`](gameplay/spec-sequenza-turno.md) | ✅ **normativa** |
 | Ordine deterministico delle azioni | [`gameplay/spec-sequenza-turno.md`](gameplay/spec-sequenza-turno.md) §3.1 | ✅ implementato |
 | Ordine degli effetti simultanei (APNAP) | [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) §5.1 | ⚠️ **deciso, non implementato** |
-| Azioni generiche e profili di `Move` | [`gameplay/brief-azioni-generiche-overwatch.md`](gameplay/brief-azioni-generiche-overwatch.md) | ✅ D-014/D-015 · ⏳ migrazione ID |
+| Azioni generiche e profili di `Move` | [`gameplay/brief-azioni-generiche-overwatch.md`](gameplay/brief-azioni-generiche-overwatch.md) · elenco vigente in [`balance/RT_ActionCatalog_v0.1.md`](balance/RT_ActionCatalog_v0.1.md) §1 | ✅ D-014/D-015 · **D-025**: sette generiche, `Guard` universale · ⏳ migrazione ID · ⏳ brief da allineare a D-025 |
 | Predictive Action (thin slice v0.1) | [`gameplay/brief-delayed-actions.md`](gameplay/brief-delayed-actions.md) | ✅ D-016 · ⏳ da implementare |
 | Coperture direzionali e `Intercept` | [`gameplay/spec-copertura-cp91.md`](gameplay/spec-copertura-cp91.md) | ✅ CP 9.1 · D-017 ⏳ |
 | Motore azioni: priorità, fallback, collisioni | [`gameplay/spec-motore-azioni-e4.md`](gameplay/spec-motore-azioni-e4.md) | ✅ E4 |

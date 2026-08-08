@@ -65,7 +65,9 @@
 | 40 | **Bonus danno da altura nel codice** | il terreno alto concede `+Damage` all'occupante | `OccupantDamageBonus` è un parametro **generico** di `EffectiveAttackPower`: ogni call site runtime passa `0` | codice (`RTCombatLibrary`, `RTTurnManager`) · [D-024](decisions/RT_PDR_00_Decision_Log.md) | `SUPERSEDED` | ⚠️ il meccanismo **resta** (serve ad altri effetti), la semantica «altura» no · il test `Combat.EffectiveAttackPowerWithTerrainBonus` insegna ancora il contrario nel nome → issue di rinomina |
 | 41 | **`Sprint`: fase e slot nel codice** | — | D-015 lo vuole profilo del `Move`, **solo** slot movimento, fase `Move` | [D-015](decisions/RT_PDR_00_Decision_Log.md) | `SUPERSEDED` | ⏳ **divergenza misurata il 2026-08-08**: nel codice `Action.Sprint` è in `ERTResolutionPhase::FastMovement` e consuma movimento **e** azione principale → issue di refactor, non correzione silenziosa |
 
-**Riepilogo al 2026-08-08** (secondo passaggio, documenti non-Gameplay): **39 risolti**
+| 42 | **Composizione delle azioni generiche** | due decisioni chiuse lo **stesso giorno** si contraddicevano: D-014 (passaggio Gameplay) ne canonizzava **sei** togliendo `Guard`; l'handoff non-Gameplay ne elencava **otto** con `Guard` e `Activate` distinte | **sette**: `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch` — `Guard` universale, `Activate` assorbita da `Interact` | [D-025](decisions/RT_PDR_00_Decision_Log.md) | `CONFLICT` → **risolto** | ✅ deciso dall'autore il 2026-08-08. Unico `CONFLICT` vero di questo passaggio: due fonti pari grado, nessuna gerarchia fra loro · ⏳ propagazione in `gameplay/brief-azioni-generiche-overwatch.md`, fuori scope qui |
+
+**Riepilogo al 2026-08-08** (secondo passaggio, documenti non-Gameplay): **40 risolti**
 (`CONFIRMED`/`SUPERSEDED`) · 2 `DUPLICATE` chiusi · **1 `OPEN`** (riga 34, APNAP) · **0 `CONFLICT`**.
 
 > Le righe 35–41 nascono dall'audit del 2026-08-08 sui documenti non-Gameplay. Tre di esse (40, 41 e la parte
