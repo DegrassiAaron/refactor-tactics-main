@@ -8,6 +8,7 @@
 > Feature: `RT-FEAT-UI-WARNINGS` · Release: `v0.1` · Roadmap: `E11.1, E11.2`  
 > Stato: **IMPLEMENTING** · Gate: `3/7`  
 > Scenario: `Combat.FriendlyFire`  
+> I pezzi che mancano li porta: `RT-FEAT-UI-CERTAINTY`  
 > Verificato il `2026-08-08` su `2094b86`
 
 <!-- RT_FEATURE_STATUS:END RT-FEAT-UI-WARNINGS -->

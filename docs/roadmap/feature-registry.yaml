@@ -707,6 +707,9 @@ features:
       checkpoints: ["4.4", "4.6", "4.7"]
     dependencies:
       - RT-FEAT-ACTION-ENGINE
+    completed_by:
+      - RT-FEAT-REACTION-OVERWATCH
+      - RT-FEAT-OBJECTIVE-SYSTEM
     owner_specs:
       - docs/gameplay/brief-azioni-generiche-overwatch.md
       - docs/balance/RT_ActionCatalog_v0.1.md
@@ -725,16 +728,31 @@ features:
     wiki_refs:
       - docs/wiki/game/azioni-e-movimento.md
     wiki_note: >-
-      Sei azioni generiche su sette sono a catalogo e nel runtime: manca **Overwatch**, che arriva con E14.
+      Quattro azioni generiche su sette sono complete: `Wait`, `Move`, `BasicAttack`, `Guard`.
+      `Brace` funziona ma come reazione; `Interact` è a catalogo **senza effetto**; `Overwatch` non
+      esiste ancora.
     last_verified:
       date: 2026-08-08
       commit: 2094b86
     notes: >
-      Sei delle sette azioni generiche di D-025 esistono a catalogo e nel runtime
-      (`Action.Wait`, `Move`, `BasicAttack`, `Guard`, `Brace`, `Interact`). La settima,
-      **Overwatch, non esiste**: `grep -rn "Overwatch" Source/` fuori dai test non restituisce
-      nulla. Per questo `runtime` è `partial` e non `done`: la porta
-      RT-FEAT-REACTION-OVERWATCH.
+      Delle sette azioni generiche di D-025, **quattro sono complete e testate**
+      (`Wait`, `Move`, `BasicAttack`, `Guard`). Le altre tre non sono nello stesso stato, e la
+      revisione di granularità del 2026-08-08 ha corretto una nota che diceva «sei su sette
+      esistono a catalogo e nel runtime» — vera per il catalogo, falsa per il runtime:
+
+        · `Brace`   esiste, ma i suoi test vivono sotto `Reactions.Brace.*`: è a catalogo come
+                    azione e si comporta come reazione. Ambiguità di modello, non di stato.
+        · `Interact` è **a catalogo senza effetto dichiarato e senza un solo test**
+                    (`RTCatalogLibrary.cpp:281`: «nessun effetto dichiarato»). È un dato che
+                    nessuno consuma — il difetto che questo progetto ha già pagato quattro volte.
+                    Lo porta E10.1 insieme ad `Activate`; aperta la issue `#273` perche'
+                    la scelta (togliere dal catalogo, fissare l'inerzia con un test, o
+                    attendere E10.1) e' di design, non una correzione di iniziativa.
+        · `Overwatch` **non esiste**: `grep -rn "Overwatch" Source/` fuori dai test non
+                    restituisce nulla. Lo porta E14.4.
+
+      I gate restano `partial` perché la feature davvero non è completa; `completed_by` dice
+      **chi** la completa, così la stessa mancanza non viene contata due volte.
 
   - feature_id: RT-FEAT-ACTION-MOVE-PROFILES
     title: Profili di movimento (Move, Sprint, Charge)
@@ -1977,6 +1995,8 @@ features:
       checkpoints: ["11.1", "11.2"]
     dependencies:
       - RT-FEAT-UI-PLANNING
+    completed_by:
+      - RT-FEAT-UI-CERTAINTY
     owner_specs:
       - docs/technical/progettazione-hud.md
     issues: [77, 78]
@@ -3218,9 +3238,15 @@ features:
       date: 2026-08-08
       commit: 2094b86
     notes: >
-      Due KPI su quattro misurati (path 0,025 ms · resolver 0,41 ms/turno, 2026-08-06). FPS client
-      e preview completa richiedono rendering ed editor: restano non misurati, e sono dichiarati
-      tali invece di essere stimati.
+      **L'elenco dei KPI e il loro stato non vivono qui**: l'owner è
+      [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §4, che dichiara target, metodo di
+      misura e valore per ciascuno. Ripeterli in questa nota creava una seconda copia da tenere
+      allineata — lo stesso difetto che il registry chiude altrove, commesso qui dal registry
+      stesso (trovato nella revisione di granularità del 2026-08-08).
+
+      Questa riga tiene solo lo stato della **capacità**: esiste un modo ripetibile di misurare i
+      budget (`Perf.*` in automation) e `automation` resta `partial` perché copre i KPI headless,
+      non quelli che richiedono rendering ed editor.
 
   - feature_id: RT-FEAT-PROD-PACKAGED
     title: Verifica su build packaged

@@ -77,6 +77,30 @@ Tre regole che vale la pena scrivere, perché sono i modi in cui questo schema s
    accendono da soli. Ma descrivere non è dimostrare: il gate resta `partial` finché lo scenario
    non passa davvero.
 
+### 4.1 Quando un pezzo lo porta un'altra feature
+
+`completed_by:` dichiara **chi** completa ciò che a questa feature manca.
+
+Nasce da un difetto trovato nella revisione di granularità del 2026-08-08:
+`RT-FEAT-ACTION-GENERIC` aveva quattro gate su otto deformati da due mancanze —
+`Overwatch` e `Interact` — che appartengono ad **altre due feature** già tracciate (E14.4 ed
+E10.1). La stessa mancanza era contata tre volte, e chiudere E14 avrebbe richiesto di ricordarsi
+di aggiornare due righe: esattamente il meccanismo che questo registry esiste per eliminare.
+
+```yaml
+completed_by:
+  - RT-FEAT-REACTION-OVERWATCH
+  - RT-FEAT-OBJECTIVE-SYSTEM
+```
+
+I gate **restano** aperti — la feature davvero non è completa — ma il rimando è un dato, non una
+frase nelle note: compare nella §2.2 della roadmap e nei blocchi Wiki, e il validator verifica che
+gli id esistano. Se una feature dichiara `completed_by` senza avere gate aperti, il validator
+avvisa: il rimando è vecchio.
+
+**Non è `dependencies`.** Una dipendenza è un prerequisito — ciò che deve esistere *prima*.
+`completed_by` è il contrario: ciò che arriverà *dopo* e chiuderà il buco.
+
 ## 5. Lo stato è derivato, non dichiarato
 
 `status` **non è un giudizio**: è una funzione dei gate, e il validator la verifica. Se i due
