@@ -1,0 +1,35 @@
+{
+  "scenarioId": "Visual.Combat.BraceReducesEveryHit",
+  "tags": ["animation", "combat", "core", "bastion", "flux", "vektor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "`Action.Brace` toglie 10 a OGNI danno diretto, non solo al primo (CP 5.2). Stesso allestimento di `Visual.Combat.GuardReducesFirstHit`, una sola azione cambiata: 120 - (22-10) - (21-10) = 97.",
+
+  "_nota_coppia": "I due scenari vanno letti insieme, ed e' il confronto a valere: **92 con Guard, 97 con Brace**. Guard toglie di piu' (15 contro 10) e finisce con il primo colpo; Brace toglie di meno e non finisce mai. Contro un solo attaccante conviene Guard, contro due conviene Brace — e questa e' la scelta tattica che le due azioni esistono per offrire. Se a schermo si vedessero uguali, la scelta non arriverebbe a chi gioca.",
+
+  "_nota_root": "`Brace` applica anche `Status.Root` per un turno: chi si pianta non si muove. Qui Bastion non ha un movimento pianificato, quindi il vincolo non si osserva — e' dichiarato perche' chi estende questo scenario sappia che c'e'.",
+
+  "units": [
+    { "id": "B1", "hero": "Hero.Bastion", "team": 0, "cell": [ 0, 0, 0] },
+    { "id": "F1", "hero": "Hero.Flux",    "team": 1, "cell": [-2, 0, 0] },
+    { "id": "V1", "hero": "Hero.Vektor",  "team": 1, "cell": [ 2, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "B1", "ability": "Action.Brace" },
+        { "unit": "F1", "ability": "Flux.ArcPulse",    "target": "B1" },
+        { "unit": "V1", "ability": "Vektor.PulseShot", "target": "B1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals",  "unit": "B1", "value": 97 },
+    { "type": "UnitAlive",     "unit": "B1", "value": true },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

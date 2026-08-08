@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "Ability/RTActionData.h"
+#include "Ability/RTCatalogLibrary.h" // GetGenericActionIds: il kit e' eroe + generiche (D-025)
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Engine/Engine.h"
@@ -128,7 +129,12 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 		TestEqual(FString::Printf(TEXT("%s: vista"), *Who), Unit->VisionRange, Hero->VisionRange);
 		TestEqual(FString::Printf(TEXT("%s: resistenza push"), *Who), Unit->PushResistance, Hero->PushResistance);
 		TestEqual(FString::Printf(TEXT("%s: affinita'"), *Who), Unit->Affinity, Hero->Affinity);
-		TestEqual(FString::Printf(TEXT("%s: cinque azioni"), *Who), Unit->NumAbilities(), 5);
+		// Cinque dell'eroe piu' le generiche di D-025: ogni unita' in campo puo' dichiarare `Guard` e `Brace`,
+		// e i quattro rami che li consumano nel TurnManager smettono di essere irraggiungibili.
+		TestEqual(FString::Printf(TEXT("%s: azioni dell'eroe piu' generiche"), *Who),
+			Unit->NumAbilities(), 5 + URTCatalogLibrary::GetGenericActionIds().Num());
+		TestEqual(FString::Printf(TEXT("%s: l'indice 0 resta l'attacco base"), *Who),
+			Unit->GetAbility(0)->Def.ActionId, Hero->Actions[0]->Def.ActionId);
 	}
 
 	// Formazione di default: Flux+Riva (giocatore) contro Bastion+Vektor (bot).

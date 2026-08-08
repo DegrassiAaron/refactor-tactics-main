@@ -31,6 +31,24 @@
 > differenze di profilo per eroe. Vivono nei cataloghi, e **non vanno inventati** in un consolidamento
 > documentale.
 
+> ✅ **Prime tre in partita il 2026-08-09** (#275). Fino a quel giorno l'elenco era canonico e **nessuna
+> unità possedeva una sola di queste azioni**: `ConfigureFromHeroData` faceva `Abilities = Hero->Actions` —
+> cinque azioni — e né il giocatore, né il bot, né l'harness avevano una seconda strada per arrivarci.
+> `Status.Guarded` e `Status.Braced` avevano già quattro consumatori nel `TurnManager`, raggiunti solo da test
+> che si costruivano l'abilità da soli.
+>
+> Ora `ConfigureFromHeroData` accoda `URTCatalogLibrary::MakeGenericActions`. Entrano **`Wait`, `Guard`,
+> `Brace`**; le altre quattro no, per ragioni diverse che vale la pena tenere distinte:
+>
+> | | Perché non entra |
+> |---|---|
+> | `Move` · `BasicAttack` | **ci sono già**, per altre strade: il movimento passa da `PlannedPath`, l'attacco base è l'indice 0 del kit |
+> | `Interact` | nessun **consumatore**: nessun codice risolve un'interazione. Darla a tutti sarebbe un comando che non fa niente — il difetto che #275 correggeva |
+> | `Overwatch` | non esiste nemmeno nel catalogo core: è **E14**, e arriva con la sua infrastruttura |
+>
+> **In coda, mai in testa**: l'attacco base è l'indice 0 per contratto di catalogo e `PlannedAbilityIndex` è un
+> indice, non un ID. Metterle davanti sposterebbe in silenzio ogni piano già scritto, compresi quelli del bot.
+
 > **Stato**: brief di requisiti · **Data**: 2026-08-07 · **Origine**: `/sc:brainstorm` su
 > [`../archive/src/design/azioni-generiche-overwatch-universale-v0.1.md`](../archive/src/design/azioni-generiche-overwatch-universale-v0.1.md) (41 §)
 > **Decisione abilitante**: [`D-012`](../decisions/RT_PDR_00_Decision_Log.md) — l'Overwatch **compete** con
