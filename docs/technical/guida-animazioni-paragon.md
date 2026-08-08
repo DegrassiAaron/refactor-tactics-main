@@ -1,7 +1,18 @@
-# Guida — Animare i personaggi Paragon (AS.3 / AS.4)
+# Guida — Workflow prototipo Paragon: animare un personaggio (AS.3 / AS.4)
 
-> Guida operativa per l'editor UE 5.8. Riferita a [`spec-asset-pipeline.md`](spec-asset-pipeline.md) (AS.3/AS.4).
-> Presuppone la Fase 2 fatta: `BP_Unit_Guardian : RTUnit` con Skeletal Mesh = **Gideon**, cilindro nascosto,
+> `CURRENT` come **metodo**, `HISTORICAL` come **casting** · **Ultimo aggiornamento**: 2026-08-08
+>
+> **Il procedimento vale; i nomi dei personaggi no.** Questa guida usa **Gideon** e **Sparrow** con gli
+> archetipi *Guardian* e *Ranger*: erano il prototipo del 2026-08-03, **non** il roster canonico, che è
+> **Flux · Riva · Bastion · Vektor**.
+>
+> **Non sostituire i nomi**: quale personaggio Paragon corrisponda a quale eroe è una decisione **aperta**
+> ([`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md)). Rinominare per plausibilità produrrebbe una mappatura che
+> nessuno ha scelto, in un documento che sembra autorevole. Leggi «Gideon» come «il personaggio che stai
+> importando».
+
+> Guida operativa per l'editor UE 5.8.1. Riferita a [`spec-asset-pipeline.md`](spec-asset-pipeline.md) (AS.3/AS.4).
+> Presuppone la Fase 2 fatta: un `BP_Unit_<Archetipo> : ARTUnit` con Skeletal Mesh assegnata, cilindro nascosto,
 > `VisualZOffset=0`. Tutto quello che segue è **Blueprint** (nessuna ricompilazione C++).
 
 ## AS.3 — Animazioni: con Paragon niente retargeting

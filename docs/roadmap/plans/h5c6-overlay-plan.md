@@ -1,5 +1,13 @@
 # H5c.6 — Overlay debug superfici (colora celle per dato) — Implementation Plan
 
+> ## 📦 `DELIVERED PLAN` — PIANO GIA' ESEGUITO, NON NORMATIVO
+>
+> Il piano di esecuzione, gia' eseguito. **Il corpo qui sotto non va aggiornato**: comandi, nomi di branch e percorsi sono quelli di allora, e
+> correggerli falsificherebbe la storia invece di renderla utile.
+>
+> Stato corrente: [`roadmap-checkpoint.md`](../roadmap-checkpoint.md) · indice dei documenti correnti:
+> [`../../README.md`](../../README.md). Banner aggiunto il 2026-08-08.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development o executing-plans. Step con checkbox.
 
 **Goal:** Rendere visibile ciò che il Paint scrive: con un toggle, ogni cella dell'asset è disegnata come esagono colorato per **superficie** (`ERTHexSurface`) + le celle **bloccate** (`bBlocksMovement`) marcate con un esagono rosso interno. Chiude il gap "dipingo superfici ma l'ISM le mostra tutte identiche".

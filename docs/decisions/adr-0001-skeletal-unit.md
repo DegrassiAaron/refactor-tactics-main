@@ -1,6 +1,14 @@
 # ADR-0001 — Unità da Static Mesh (cilindro) a Skeletal Mesh animata
 
-> **Stato**: Accettato — in implementazione (parte C++ di AS.1 fatta, 66 test verdi) · **Data**: 2026-08-03 · **Decisore**: utente (dev singolo)
+> `CANONICAL` · **Stato**: **Accettato — prototipo di presentazione, rollout differito** · **Data**: 2026-08-03
+> · **Decisore**: utente (dev singolo)
+>
+> **Stato al 2026-08-08.** La parte architetturale è **in codice**: `ARTUnit::VisualZOffset` esiste e
+> `ARTGameMode::HeroUnitClasses` è una `TMap<FName, TSubclassOf<ARTUnit>>`, cioè lo spawn per eroe è
+> configurabile come previsto dai punti 2 e 4. Ciò che **non** è deciso è il contenuto: **nessuna
+> corrispondenza fra i personaggi Paragon e il roster canonico (Flux · Riva · Bastion · Vektor) è stata
+> scelta**. Questo ADR non va letto come se il roster avesse già una resa visiva definitiva; la mappatura è
+> una voce aperta in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md).
 > **Contesto sorgente**: `/sc:spec-panel` → [`spec-asset-pipeline.md`](../technical/spec-asset-pipeline.md)
 > Primo ADR del progetto (non esisteva convenzione ADR: questo file la inaugura; gli ADR vivono in `docs/decisions/` dal 2026-08-07).
 
@@ -56,7 +64,9 @@ Introdurre lo skeletal **in modo additivo e reversibile**, non sostitutivo:
 ## Verifica (alla chiusura dell'implementazione)
 
 - `git`/build: compila senza warning nuovi non spiegati.
-- **60 automation test verdi** + 1 test C++ di fallback (spawn senza skeletal → unità valida).
+- Suite verde: il numero **si misura** col comando in [`../README.md`](../README.md), non si cita — i «60 test»
+  scritti qui il 2026-08-03 sono un numero storico, non un gate.
+- 1 test C++ di fallback (spawn senza skeletal → unità valida).
 - PIE: personaggio visibile e appoggiato a terra; corsa in Move; fallback cilindro se asset assente.
 - Licenze registrate (`spec-asset-pipeline.md §8`).
 

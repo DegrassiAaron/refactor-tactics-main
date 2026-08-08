@@ -2,7 +2,7 @@
 
 > Contesto compatto per una **nuova sessione** che continua a implementare su RefactorTactics.
 > Aggiornato: **2026-08-05**. Leggi anche [`piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md) (decisioni),
-> [`roadmap-checkpoint.md`](../roadmap-checkpoint.md) (milestone e DoD) e la memoria di progetto `ue58-build-gotchas`.
+> [`roadmap-checkpoint.md`](../../roadmap/roadmap-checkpoint.md) (milestone e DoD) e la memoria di progetto `ue58-build-gotchas`.
 
 ## Dove siamo
 

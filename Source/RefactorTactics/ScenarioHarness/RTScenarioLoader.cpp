@@ -97,6 +97,7 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 		return false;
 	}
 	Root->TryGetNumberField(TEXT("seed"), OutScenario.Seed);
+	Root->TryGetStringField(TEXT("fixture"), OutScenario.Fixture);
 	Root->TryGetNumberField(TEXT("mapRadius"), OutScenario.MapRadius);
 
 	// --- celle modificate (opzionale) --------------------------------------------------------------------
@@ -160,6 +161,24 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 			if (!TurnObj.IsValid()) { OutError = TEXT("turns: voce non valida"); return false; }
 
 			FRTScenarioTurn Turn;
+
+			// `requires`: cosa deve esistere nel gioco perche' questo turno sia giocabile. Il runner si ferma
+			// qui con `Blocked` invece di fallire, e lo scenario puo' essere versionato prima dei suoi sistemi.
+			const TArray<TSharedPtr<FJsonValue>>* RequiresJson = nullptr;
+			if (TurnObj->TryGetArrayField(TEXT("requires"), RequiresJson))
+			{
+				for (const TSharedPtr<FJsonValue>& Req : *RequiresJson)
+				{
+					FString Capability;
+					if (!Req->TryGetString(Capability) || Capability.IsEmpty())
+					{
+						OutError = TEXT("requires: ogni voce deve essere il nome di una capability");
+						return false;
+					}
+					Turn.Requires.Add(Capability);
+				}
+			}
+
 			const TArray<TSharedPtr<FJsonValue>>* IntentsJson = nullptr;
 			if (TurnObj->TryGetArrayField(TEXT("intents"), IntentsJson))
 			{
@@ -284,7 +303,10 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 		OutError = TEXT("scenarioId vuoto");
 		return false;
 	}
-	if (Scenario.MapRadius <= 0)
+	// `mapRadius` conta solo quando l'arena si GENERA. Con una fixture riferita per nome la forma la decide
+	// la fixture, e un raggio non ha nulla da dire: pretenderlo qui rifiuterebbe scenari perfettamente validi.
+	const bool bUsesFixture = !Scenario.Fixture.IsEmpty();
+	if (!bUsesFixture && Scenario.MapRadius <= 0)
 	{
 		OutError = FString::Printf(TEXT("mapRadius deve essere positivo (era %d)"), Scenario.MapRadius);
 		return false;
@@ -299,7 +321,7 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 	// verificherebbe una condizione che non ha mai creato.
 	for (const FRTScenarioCell& Cell : Scenario.Cells)
 	{
-		if (URTHexLibrary::HexDistance(Cell.Cell, FRTCellId(0, 0, Cell.Cell.Layer)) > Scenario.MapRadius)
+		if (!bUsesFixture && URTHexLibrary::HexDistance(Cell.Cell, FRTCellId(0, 0, Cell.Cell.Layer)) > Scenario.MapRadius)
 		{
 			OutError = FString::Printf(TEXT("cella modificata %s fuori dall'arena di raggio %d"),
 				*Cell.Cell.ToString(), Scenario.MapRadius);
@@ -336,7 +358,9 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 				*Unit.Id, *Unit.HeroId.ToString(), Heroes.Num());
 			return false;
 		}
-		if (URTHexLibrary::HexDistance(Unit.Cell, FRTCellId(0, 0, Unit.Cell.Layer)) > Scenario.MapRadius)
+		// Con una fixture la forma non e' un raggio: che la cella esista lo verifica il RUNNER sulla mappa
+		// vera (vedi `Run`), che e' l'unico posto dove la geometria reale e' disponibile.
+		if (!bUsesFixture && URTHexLibrary::HexDistance(Unit.Cell, FRTCellId(0, 0, Unit.Cell.Layer)) > Scenario.MapRadius)
 		{
 			OutError = FString::Printf(TEXT("unita' '%s': cella %s fuori dall'arena di raggio %d"),
 				*Unit.Id, *Unit.Cell.ToString(), Scenario.MapRadius);

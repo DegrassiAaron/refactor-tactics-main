@@ -11,7 +11,7 @@
 
 **Tech Stack:** Unreal Engine 5.8.1, C++, Unreal Automation Framework (`IMPLEMENT_SIMPLE_AUTOMATION_TEST`).
 
-**Spec:** [`spec-turnlog.md`](spec-turnlog.md).
+**Spec:** [`spec-turnlog.md`](../../technical/spec-turnlog.md).
 
 ## Global Constraints
 

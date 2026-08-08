@@ -1,9 +1,18 @@
 # Brief — Consolidamento documentale (revisione `/sc:spec-panel`)
 
+> ## 📦 `DELIVERED PLAN` — REVISIONE CONCLUSA, NON NORMATIVO
+>
+> Il **verbale** della revisione documentale del 2026-08-07, già eseguita. Non è una specifica e non descrive
+> lo stato di oggi: inventario e conteggi valgono per l'`HEAD 50159c6` di allora. Spostato qui il 2026-08-08
+> perché a radice di `docs/` si leggeva come un documento operativo.
+>
+> Owner corrente della struttura: [`README.md`](../../README.md) · stato corrente:
+> [`roadmap-checkpoint.md`](../roadmap-checkpoint.md).
+
 > **Stato**: revisione documentale · **Data**: 2026-08-07 · **HEAD analizzato**: `50159c6`
-> **Origine**: `/sc:spec-panel` su [`src/RefactorTactics_Consolidamento_PRD_SourceOfTruth_Claude.md`](src/RefactorTactics_Consolidamento_PRD_SourceOfTruth_Claude.md)
+> **Origine**: `/sc:spec-panel` su [`src/RefactorTactics_Consolidamento_PRD_SourceOfTruth_Claude.md`](../../src/RefactorTactics_Consolidamento_PRD_SourceOfTruth_Claude.md)
 > **Cosa è**: il verbale della revisione — inventario, critica del sorgente, piano di migrazione.
-> **Autorità**: subordinato a [`piano-canonico-mvp.md`](product/piano-canonico-mvp.md).
+> **Autorità**: subordinato a [`piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md).
 
 ## Esito — decisione dell'utente, 2026-08-07
 
@@ -11,7 +20,7 @@ La revisione **sconsigliava** la riorganizzazione in cartelle (§1, §6) e racco
 del concetto. L'utente ha scelto la **riorganizzazione completa**, con la raccomandazione contraria già nota.
 Decisione registrata ed eseguita: **101 file spostati**, **474 link** riscritti in modo programmatico e
 verificati (**0 rotti**), **8 difetti** corretti. Dettaglio in
-[`CHANGELOG_DOCUMENTATION.md`](CHANGELOG_DOCUMENTATION.md).
+[`CHANGELOG_DOCUMENTATION.md`](../../CHANGELOG_DOCUMENTATION.md).
 
 Le sezioni §1–§7 restano il **verbale com'era**, non riscritto a posteriori: servono a spiegare *perché* la
 raccomandazione era diversa, e a rendere reversibile la scelta se il costo si farà sentire.
@@ -20,9 +29,9 @@ Per non definire la stessa cosa in due posti, tre sezioni sono state **promosse*
 
 | Contenuto | Era | Owner |
 |---|---|---|
-| Matrice dei conflitti | §3 | [`DOC_CONFLICT_MATRIX.md`](DOC_CONFLICT_MATRIX.md) |
-| Decisioni aperte | §8 | [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md) |
-| Punto d'ingresso e owner dei concetti | §6 | [`README.md`](README.md) |
+| Matrice dei conflitti | §3 | [`DOC_CONFLICT_MATRIX.md`](../../DOC_CONFLICT_MATRIX.md) |
+| Decisioni aperte | §8 | [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) |
+| Punto d'ingresso e owner dei concetti | §6 | [`README.md`](../../README.md) |
 
 ---
 
@@ -125,7 +134,7 @@ rimosso al CP 7.2. Solo `spec-terreni.md` porta un marker di superamento.
 
 ## 3. Fase B — matrice dei conflitti
 
-Prodotta qui, **promossa** a documento proprio: [`DOC_CONFLICT_MATRIX.md`](DOC_CONFLICT_MATRIX.md).
+Prodotta qui, **promossa** a documento proprio: [`DOC_CONFLICT_MATRIX.md`](../../DOC_CONFLICT_MATRIX.md).
 Copre tutti e 22 i controlli obbligatori di §25 del sorgente, in 26 righe.
 
 **Esito**: 20 già risolti (`CONFIRMED`/`SUPERSEDED`) · 1 `DUPLICATE` chiuso · **3 `OPEN`** (unità ausiliarie,
@@ -319,7 +328,7 @@ owner*, e questo rende immediatamente visibile ogni duplicazione futura.
 
 ## 8. Decisioni aperte
 
-Prodotte qui, **promosse** a documento proprio: [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md).
+Prodotte qui, **promosse** a documento proprio: [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md).
 
 `OD-1` formato principale 3v3 *vs* 4v4 (**bloccante**) · `OD-2` unità ausiliarie · `OD-3` costo-opportunità e
 policy dell'Overwatch · `OD-4` trigger sugli archi del grafo · `OD-5` scenario 4v4 di stress.
@@ -329,7 +338,7 @@ plausibilità (§33).
 
 > ✅ **Tutte e cinque chiuse il 2026-08-07** dalla sessione `/sc:brainstorm` successiva — `D-011`, `D-012`,
 > `D-013`, due brief e l'epic **E17**. Due erano **mal poste**, e lo ha detto il codice: vedi la nota di metodo
-> in [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md). In particolare `OD-1` **non era bloccante** e `OD-4` non aveva
+> in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md). In particolare `OD-1` **non era bloccante** e `OD-4` non aveva
 > la scadenza legata a E9 che questo documento le attribuisce in §5.3 e §8.
 
 ## 9. Piano di migrazione — **eseguito**
@@ -342,8 +351,8 @@ sessione `/sc:brainstorm` dello stesso giorno; la colonna *Esito* registra dove 
 | **C.1** | **Riallineare il canone al codice** | `piano-canonico-mvp.md` §5 non cita più `URTGridLibrary`, `URTTurnResolver`, `ARTGameState`, `URTAbilityData`; la tabella elenca le classi **verificate** (`ARTGameMode`, `ARTTurnManager`, `ARTUnit`, `ARTPlayerController`, `ARTCameraPawn`, `URTCombatLibrary`, `URTActionData`, `URTHeroData`, `URTHexMapAsset`, `URTMatchFormatData`). Riferimenti a `URTAbilityData` corretti anche in `CLAUDE.md` e `README.md` | ✅ **fatto**, ed **esteso**: anche l'invariante #2 citava `FRTGridCoord`, rimosso al CP 6.1 |
 | **C.2** | **`docs/README.md` — indice per owner del concetto** | Tabella *concetto → documento owner → stato*, che copre le 13 domande di §34 del sorgente. Nessun concetto con due owner. Link verificati | ✅ **fatto** |
 | **C.3** | **Igiene dei riferimenti** | Link `SuperClaude_...` corretto (D3); §6.1 di `brief-delayed-actions.md` e §11 di `brief-conoscenza-parziale.md` corretti (D4, D5); i 3 sorgenti untracked versionati (D6); i documenti del substrato quadrato marcati (D7) | ✅ **fatto**, con una correzione: dei 7, solo **4** erano davvero superati — uno è un piano consegnato, tre restano normativi con esempi datati. Più **D8**: `progettazione-hud.md` referenziava un PNG inesistente |
-| **C.4** | **Gate automatico anti-deriva** | Uno script (`scripts/check-docs-symbols.*` o test Automation) che fallisce se un documento normativo cita un identificatore `URT*`/`ART*` assente da `Source/`. È la proposta di Nygard, ed è l'unico controllo di §Fase G realmente automatizzabile | ✅ **fatto**, e **due volte riscritto** dopo test di mutazione: contava le occorrenze invece delle dichiarazioni, e segnalava troppo. Vedi [`CHANGELOG_DOCUMENTATION.md`](CHANGELOG_DOCUMENTATION.md) |
-| **C.5** | **Brief delle tre aree aperte** | `brief-unita-ausiliarie.md`, `brief-azioni-generiche-overwatch.md`, `brief-predictive-e-trap.md`: ognuno con perimetro, fuori scope dichiarato, decisioni | 🟡 **due su tre**: unità ausiliarie e azioni generiche. Il terzo non serve più — `D-013` ha chiuso il tema in [`gameplay/brief-delayed-actions.md`](gameplay/brief-delayed-actions.md) §6-bis |
+| **C.4** | **Gate automatico anti-deriva** | Uno script (`scripts/check-docs-symbols.*` o test Automation) che fallisce se un documento normativo cita un identificatore `URT*`/`ART*` assente da `Source/`. È la proposta di Nygard, ed è l'unico controllo di §Fase G realmente automatizzabile | ✅ **fatto**, e **due volte riscritto** dopo test di mutazione: contava le occorrenze invece delle dichiarazioni, e segnalava troppo. Vedi [`CHANGELOG_DOCUMENTATION.md`](../../CHANGELOG_DOCUMENTATION.md) |
+| **C.5** | **Brief delle tre aree aperte** | `brief-unita-ausiliarie.md`, `brief-azioni-generiche-overwatch.md`, `brief-predictive-e-trap.md`: ognuno con perimetro, fuori scope dichiarato, decisioni | 🟡 **due su tre**: unità ausiliarie e azioni generiche. Il terzo non serve più — `D-013` ha chiuso il tema in [`gameplay/brief-delayed-actions.md`](../../gameplay/brief-delayed-actions.md) §6-bis |
 | **C.6** | **Vincoli anticipati sulle epic aperte** | `ResolutionPolicy` (`Automatic`/`Conditional`/`FastSelect`) entra nel DoD di **CP 14.3**; la nota «gli archi devono poter portare trigger» entra nella spec di **E9**; l'assunzione «ogni unità è uno dei 4 eroi» è vietata nei tipi introdotti da E13/E14/E16 | ✅ **fatto**, con una correzione: `ResolutionPolicy` **non** diventa un enum — la roadmap aveva già deciso il contrario, i tre regimi emergono da `AllowedResponses` + condizione dichiarata |
 | **C.7** | **Chiusura di OD-1/OD-2** | Il Decision Log guadagna `D-011` (formato principale) con stato esplicito; la risposta è stata **«nessuna delle due»**: D-001 declassata ad *Assunzione da bloccare* | ✅ **fatto** — `D-011` |
 | **C.8** | **Scenario 4v4 di stress in roadmap** | epic dopo E15 con quell'exit gate | ✅ **fatto** — **E17**, 3 checkpoint, P3 |
@@ -378,8 +387,8 @@ Prima di aprirle: le 62 issue esistenti sono state confrontate: nessuna copre qu
 
 | Documento | Relazione |
 |---|---|
-| [`piano-canonico-mvp.md`](product/piano-canonico-mvp.md) | **Prevale**. C.1 lo corregge, non lo sostituisce |
-| [`roadmap-v0.1.md`](roadmap/roadmap-v0.1.md) | I checkpoint di §9 vi entrano solo se approvati; §8 (rischio scope `H/H`) è il motivo per cui §9 apre pochissimo |
-| [`../PDR/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **Owner** delle `OPEN DECISIONS`: OD-1 diventa `D-011` lì, non qui |
-| [`brief-delayed-actions.md`](gameplay/brief-delayed-actions.md) · [`brief-overwatch-reazioni.md`](gameplay/brief-overwatch-reazioni.md) · [`brief-conoscenza-parziale.md`](gameplay/brief-conoscenza-parziale.md) | Coprono già Delayed, Overwatch e percezione: questo brief **non li ripete**, ne registra i difetti D4/D5 |
+| [`piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md) | **Prevale**. C.1 lo corregge, non lo sostituisce |
+| [`roadmap-v0.1.md`](../../roadmap/roadmap-v0.1.md) | I checkpoint di §9 vi entrano solo se approvati; §8 (rischio scope `H/H`) è il motivo per cui §9 apre pochissimo |
+| [`../PDR/RT_PDR_00_Decision_Log.md`](../../decisions/RT_PDR_00_Decision_Log.md) | **Owner** delle `OPEN DECISIONS`: OD-1 diventa `D-011` lì, non qui |
+| [`brief-delayed-actions.md`](../../gameplay/brief-delayed-actions.md) · [`brief-overwatch-reazioni.md`](../../gameplay/brief-overwatch-reazioni.md) · [`brief-conoscenza-parziale.md`](../../gameplay/brief-conoscenza-parziale.md) | Coprono già Delayed, Overwatch e percezione: questo brief **non li ripete**, ne registra i difetti D4/D5 |
 | `../src/RefactorTactics_Consolidamento_PRD_SourceOfTruth_Claude.md` | Sorgente di questa revisione. Resta in `src/` come input, **non** diventa normativo. Il link diventa attivo con **C.3** (oggi il file è untracked) |

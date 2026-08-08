@@ -1,5 +1,13 @@
 # Terreni esagonali (CP 8.1) — Piano di implementazione
 
+> ## 📦 `DELIVERED PLAN` — PIANO GIA' ESEGUITO, NON NORMATIVO
+>
+> Il piano di esecuzione, gia' eseguito. **Il corpo qui sotto non va aggiornato**: comandi, nomi di branch e percorsi sono quelli di allora, e
+> correggerli falsificherebbe la storia invece di renderla utile.
+>
+> Stato corrente: [`roadmap-checkpoint.md`](../roadmap-checkpoint.md) · indice dei documenti correnti:
+> [`../../README.md`](../../README.md). Banner aggiunto il 2026-08-08.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Portare gli 8 terreni del catalogo (`Floor/Rough/ShallowWater/Fire/Conductive/Smoke/Ice/HighGround`)

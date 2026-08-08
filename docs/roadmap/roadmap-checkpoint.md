@@ -1,9 +1,9 @@
 # RefactorTactics — Roadmap di prodotto
 
-> **Fase corrente**: post-tutorial · **Ultimo aggiornamento**: 2026-08-05
+> `CURRENT` · **Fase corrente**: post-tutorial · **Ultimo aggiornamento**: 2026-08-08
 > Vista di **esecuzione** del progetto: milestone, checkpoint, Definition of Done (DoD) **misurabile** e metodo
 > di verifica. Il *cosa* e il *perché* stanno in [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md); i requisiti
-> tecnici di lungo periodo in [`../PDR/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](RT_PDR_10_Roadmap_QA_Rischi_v0.2.md).
+> tecnici di lungo periodo in [`RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](RT_PDR_10_Roadmap_QA_Rischi_v0.2.md).
 >
 > Regola: un checkpoint è "fatto" solo quando il DoD è verificato col metodo indicato — non "sembra funzionare".
 
@@ -44,16 +44,28 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in parte (vedi nota) · ⏳ da far
 | **M10** Rete e privacy | ⏳ | Listen server, validazione server, planning team-only, canary intent leak. **Nuovo vincolo**: [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) introduce N round-trip per turno (finestre di reazione) |
 | **M11** Production readiness | ⏳ | Budget in CI, validator commandlet, packaged soak, replay audit |
 
-**Suite automatica**: `Source/RefactorTactics/Tests/` — **443** test unici in **66** file
-(rimisurati 2026-08-08 **dopo** il merge di CP 9.4 con `main`). ⚠️ Le due parti arrivavano al merge con
-**425 in 64** (questo ramo, CP 9.3) e **419 in 64** (`main`, con lo Scenario Harness e il gate di determinismo
-di CP 12.1): entrambe corrette alla propria base, **nessuna delle due valida dopo l'unione**. È la terza volta
-che succede, ed è sempre la stessa regola — **si misura col comando**, dopo ogni merge e alla chiusura di ogni
-checkpoint.
-Storia del numero: **172** alla chiusura di CP 6.0 → **230** con M6+E1 → **171** dopo la rimozione del quadrato
-(i **59** test previsti dall'inventario) → **324** con E4/E5/E6 e i terreni → **325** col merge di `#144` →
-**338** con gli stati temporanei di CP 8.2 (`#65`) → **342** con i merge di `#179`/`#180` (misurato, mai
-dichiarato: le due viste citavano ancora 338) → **347** con le reazioni componibili di CP 5.5 (`#154`) → **352** col cablaggio delle reazioni d'eroe di CP 6.7 (`#155`) → **359** con la propagazione elettrica di CP 8.3 (`#66`) → **362** col terreno dinamico di CP 8.4 (`#67`) → **366** con le azioni ambientali di CP 8.5 (`#68`, epic E8 chiusa) → **390** col primo blocco dell'harness degli scenari (`50159c6`).
+**Suite automatica**: `Source/RefactorTactics/Tests/`. **Il numero vive in un posto solo** —
+[`roadmap-v0.1.md`](roadmap-v0.1.md) §2, con commit e data — e qui non si duplica: era duplicato in due viste,
+e le due viste hanno divergito. Si misura col comando qui sotto.
+
+<details>
+<summary><strong>Storia del numero</strong> (storica, non da aggiornare)</summary>
+
+**172** alla chiusura di CP 6.0 → **230** con M6+E1 → **171** dopo la rimozione del quadrato (i **59** test
+previsti dall'inventario) → **324** con E4/E5/E6 e i terreni → **325** col merge di `#144` → **338** con gli
+stati temporanei di CP 8.2 (`#65`) → **342** con i merge di `#179`/`#180` (misurato, mai dichiarato: le due
+viste citavano ancora 338) → **347** con le reazioni componibili di CP 5.5 (`#154`) → **352** col cablaggio
+delle reazioni d'eroe di CP 6.7 (`#155`) → **359** con la propagazione elettrica di CP 8.3 (`#66`) → **362**
+col terreno dinamico di CP 8.4 (`#67`) → **366** con le azioni ambientali di CP 8.5 (`#68`, epic E8 chiusa) →
+**390** col primo blocco dell'harness degli scenari (`50159c6`) → **415** dopo la riorganizzazione
+documentale → **432** col merge di **CP 9.3** (porte) → **443** con **CP 9.4** (ponti). Al merge di CP 9.3 le due parti
+dichiaravano **425 in 64** e **419 in 64**: entrambe corrette alla propria base, nessuna valida dopo
+l'unione. È successo di nuovo al merge successivo, ed è la **quarta** volta.
+
+Vale la pena tenerla: mostra che la deriva non è mai stata una svista isolata, ma il costo fisso di scrivere a
+mano un numero che una macchina sa calcolare.
+
+</details>
 
 Comando di misura, riproducibile:
 
@@ -107,32 +119,31 @@ budget **5 MP**, reazioni, terreni e obiettivi.
 | **E18** Predictive Action (thin slice) | parte di **M8** | **nuova** (2026-08-08): [D-016](../decisions/RT_PDR_00_Decision_Log.md). Una **sola** azione predittiva rende percepibile il pilastro della predizione. **Non dipende da E13/E14**: sgancia `Vektor.InterceptShot` da E14 |
 | — | **M10** Rete e privacy | **fuori** dalla v0.1 |
 
-### Stato misurato delle epic — 2026-08-07
+### Effetto delle epic sulle milestone
 
-Non si duplica qui: la tabella completa epic → evidenza è in [`roadmap-v0.1.md`](roadmap-v0.1.md) **§2.1**.
-La conseguenza sulle milestone di *questa* vista è:
+**Lo stato delle epic non si duplica qui.** Una sola tabella `epic → stato → evidenza`, misurata, vive in
+[`roadmap-v0.1.md`](roadmap-v0.1.md) **§2.1**. Questa vista registra solo la **conseguenza sulle milestone**:
 
-| Epic | Stato misurato | Effetto sulla milestone |
+| Milestone | Stato | Cosa la tiene aperta |
 |---|---|---|
-| E1, E4 | ✅ chiuse (9 + 52 test) | — |
-| E5, E6 | ✅ **richiuse il 2026-08-07** (27 + 25 test verdi): **CP 5.5** rende il motore componibile, **CP 6.7** cabla tre reazioni d'eroe su cinque e dichiara nei dati il rinvio delle altre due a E14 | **M8** resta 🟡 solo per la **presentazione** (personaggi animati, anelli, Ghost Timeline): le regole degli eroi non hanno più abilità inerti |
-| E8 | 🟡 parziale (17 test; mancano `Environment.*`) | **M9 passa a 🟡** |
-| E10 | 🟡 parziale (18 test `Match.*`/`MatchFormat.*`): **CP 10.3 chiuso il 2026-08-07** — fine partita a tre vie e `RoundLimit` da `URTMatchFormatData`. Restano **CP 10.1** (`#74`) e **CP 10.2** (`#75`): senza di loro la via «obiettivo» ha il giudice ma non la fonte | l'epic **non** è chiusa |
-| E7, E9, E11, E12 | ⏳ assenti (nessun test nelle rispettive aree) | M9 e M11 restano aperte |
-| E13, E14, E15, E16 | ⏳ nuove (issue `#151`–`#177`) | E13/E14 preparano **M10**; E15 è il banco di leggibilità di **M8**; E16 dà peso tattico all'orientamento e **precede E13** |
+| **M6** Parità hex | ✅ | — |
+| **M7** Dismissione del quadrato | ✅ | — |
+| **M8** Presentazione e identità | 🟡 | Solo **presentazione**: personaggi animati, anelli, Ghost Timeline (E11), showcase (E15). Le regole degli eroi non hanno più abilità inerti |
+| **M9** Ambienti tattici ed editor | 🟡 | E8 è chiusa; restano **E9 CP 9.3–9.5** (porte, ponti, coperture temporanee) e gli obiettivi di E10 |
+| **M10** Rete e privacy | ⏳ | Fuori dalla v0.1. E13 ed E14 la preparano; [D-021](../decisions/RT_PDR_00_Decision_Log.md) le aggiunge la **privacy temporale** |
+| **M11** Production readiness | ⏳ | E7 assente; E12 ha chiuso CP 12.1 ma non il packaging |
 
-> **Riapertura di E5 ed E6 (2026-08-07)**: `Bastion.Interposition`, `Vektor.Deflection`,
-> `Flux.ReactiveCapacitor` e `Riva.FlowReaction` sono identità a catalogo con `Effects` vuoto, e
-> `RTHeroCatalogLibrary.cpp` porta ancora commenti «arriva con E5» — mentre E5 è chiusa. Un motore che nessuno
-> consuma non è collaudato: **CP 5.5** (`#154`) lo rende componibile e **CP 6.7** (`#155`) cabla gli eroi —
-> ✅ **entrambi chiusi il 2026-08-07**, vedi [`spec-reazioni-componibili-cp55.md`](../gameplay/spec-reazioni-componibili-cp55.md).
-> Restano fuori `Vektor.InterceptShot` e `Riva.FlowReaction`, rinviate a **E14** e dichiarate tali nei dati.
-> `Vektor.InterceptShot` e `Riva.FlowReaction` appartengono invece a **E14** (trigger su movimento e movimento
-> reattivo).
-
-**Come leggere questa correzione**: M6 e M7 erano tracciate qui e sono accurate; M8 e M9 erano dichiarate ⏳
-perché il lavoro di E4–E6 è stato eseguito con la vista di release, senza tornare su questa. Le due viste vanno
-aggiornate **insieme** o la deriva si ripete.
+> **La lezione del 2026-08-07, che vale più della correzione.** M8 ed M9 erano dichiarate ⏳ qui mentre E4–E6
+> erano già chiuse nella vista di release: il lavoro era stato eseguito guardando *un* documento e chiudendo
+> *quello*. Due viste dello stesso stato si aggiornano **insieme**, o la seconda diventa una bugia con la data
+> sbagliata. È lo stesso motivo per cui la tabella delle epic ora esiste in **un solo posto**.
+>
+> Stessa forma, altro caso: E5 ed E6 risultavano «chiuse» mentre `Bastion.Interposition`,
+> `Vektor.Deflection`, `Flux.ReactiveCapacitor` e `Riva.FlowReaction` erano identità a catalogo con `Effects`
+> **vuoto**. Un motore che nessuno consuma non è collaudato. CP 5.5 e CP 6.7 (chiusi il 2026-08-07) lo hanno
+> reso componibile e cablato tre reazioni su cinque; `InterceptShot` e `FlowReaction` restano rinviate — la
+> prima ora come **Predictive Action** (E18, [D-016](../decisions/RT_PDR_00_Decision_Log.md)), che la sgancia
+> da E14.
 
 Conseguenza pratica: **chi lavora su M6 sta lavorando su E2**. Le issue `#31`–`#38` sono i checkpoint 6.1–6.8;
 si chiudono una volta, aggiornando entrambe le viste.
@@ -316,7 +327,7 @@ che blocca la CI su mappa non valida, soak test senza crash.
 | Rete introdotta tardi su superficie ampia | M/H | Autorità isolata come gate di PR (invariante #5) | accettato, monitorato |
 | Budget mai misurati → target mitici | M/M | CP 7.3 forza una misura reale | pianificato |
 | Verifiche PIE che si accumulano | M/M | Raggruppate in sessioni A–D; ogni milestone chiude le proprie voci | attivo |
-| Scope roster/ambienti | H/M | 2 archetipi (Ranger/Guardian) finché il loop non è chiuso | attivo |
+| Scope roster/ambienti | H/M | ~~2 archetipi (Ranger/Guardian) finché il loop non è chiuso~~ → **superata**: E6 ha chiuso i 4 eroi ed E8 gli ambienti. `ERTArchetype` sopravvive come configurazione **di test** | ✅ chiusa 2026-08-08 |
 | Upgrade UE dentro una milestone | M/H | UE 5.8.1 bloccata (canone), upgrade solo fra milestone | ✅ |
 
 ## Definition of Done trasversale (per ogni PR)
@@ -379,7 +390,7 @@ neutri (combat math, serializzazione, regole di fase). Il resto ha data di scade
 | *questo file* | **Esecuzione**: milestone, checkpoint, DoD, stato |
 | [`roadmap-editor.md`](roadmap-editor.md) | **Operativo in editor**: sedute di authoring e verifica (U1–U17), ordine e dipendenze verso i checkpoint |
 | [`hex-map-roadmap.md`](hex-map-roadmap.md) | **Dettaglio tecnico** della linea esagonale H0–H6.5 (consegnate) e del residuo editor H5 |
-| [`../PDR/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) | **Requisiti** di lungo periodo (fasi F0–F6, QA, rischi) — direzione, non scope |
+| [`RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) | **Requisiti** di lungo periodo (fasi F0–F6, QA, rischi) — direzione, non scope |
 | [`test-manuali-pie.md`](../technical/test-manuali-pie.md) | Verifiche interattive in editor, per sessioni |
 | ADR ([`adr-0002-griglia-esagonale.md`](../decisions/adr-0002-griglia-esagonale.md)) | Decisioni architetturali con motivazione e revisione |
 

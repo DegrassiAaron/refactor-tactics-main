@@ -25,7 +25,17 @@ enum class ERTTestOutcome : uint8
 	/** Simulazione completata, almeno una assertion non soddisfatta. E' un difetto del GIOCO. */
 	Fail,
 	/** Impossibile eseguire: scenario invalido, eroe sconosciuto, mappa mancante. E' un difetto del TEST. */
-	Error
+	Error,
+	/**
+	 * Lo scenario e' valido e ha girato fin dove poteva, poi ha incontrato un turno che richiede una
+	 * capability **non ancora costruita**. Non e' un difetto di nessuno: e' il progetto che non c'e' ancora.
+	 *
+	 * Serve a poter versionare uno showcase **prima** che tutti i suoi sistemi esistano. Senza questo esito
+	 * la scelta sarebbe fra tenere la partita dimostrativa in Markdown per settimane, o vederla rossa ogni
+	 * giorno finche' non e' completa — e una suite che ha un rosso "normale" smette di essere letta.
+	 * Aggiunto IN CODA: i valori precedenti non cambiano numero.
+	 */
+	Blocked
 };
 
 /** Tipo di assertion. Prima iterazione: solo cio' che serve a `Movement.Basic` (§ASSERTION SYSTEM: «non creare un mega-framework prematuramente»). */
@@ -131,6 +141,17 @@ struct FRTScenarioTurn
 
 	UPROPERTY()
 	TArray<FRTScenarioIntent> Intents;
+
+	/**
+	 * Capability che questo turno richiede per essere eseguito (`PredictiveAction`, `Objective`, `Facing`,
+	 * `DecisionBoundary`, `InterceptRevalidation`, ...). Vuoto = nessun requisito oltre al gioco corrente.
+	 *
+	 * Il turno NON viene giocato se una manca: il risultato e' `Blocked` con il nome della capability, non
+	 * un `Fail`. E' cio' che permette allo showcase di esistere come dato mentre lo si costruisce, e di
+	 * dichiarare da solo **quanto lontano arriva oggi**.
+	 */
+	UPROPERTY()
+	TArray<FString> Requires;
 };
 
 /** Una condizione da verificare a fine scenario. */
@@ -178,7 +199,21 @@ struct FRTTestScenario
 	UPROPERTY()
 	int32 Seed = 0;
 
-	/** Raggio dell'arena esagonale generata per lo scenario. Mappa da codice: nessun `.umap` da versionare. */
+	/**
+	 * **Fixture di mappa riferita per nome** (`RelayBasin`, `RelayLite`, `TestArena`). Vuoto = si genera
+	 * l'arena da `MapRadius`, come prima.
+	 *
+	 * Riferire invece di duplicare non e' economia di righe: la geometria canonica vive in UN posto solo,
+	 * gia' protetto da un test (`ShowcaseRelay.BasinLayoutMatchesSpec`). Quarantacinque celle copiate in un
+	 * JSON sarebbero una seconda verita' che nessuno confronta con la prima — e che deriverebbe in silenzio.
+	 *
+	 * Un nome sconosciuto e' `Error`, mai un'arena vuota: la partita girerebbe comunque, dando un `Fail`
+	 * incomprensibile al posto di un messaggio che dice cosa manca.
+	 */
+	UPROPERTY()
+	FString Fixture;
+
+	/** Raggio dell'arena esagonale generata quando `Fixture` e' vuoto. Mappa da codice: nessun `.umap`. */
 	UPROPERTY()
 	int32 MapRadius = 3;
 

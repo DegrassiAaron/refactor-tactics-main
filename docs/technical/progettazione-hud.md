@@ -444,6 +444,13 @@ Consuma dati prodotti dallo stesso stato/snapshot/regole usate dal gameplay.
 
 Facing è stato logico di gameplay e deve essere leggibile nella UI.
 
+> ⚠️ **2026-08-08 — [D-020](../decisions/RT_PDR_00_Decision_Log.md): il facing cambia più volte per round.**
+> Un'azione con bersaglio orienta l'unità **prima di risolvere**, quindi non esiste «il facing dell'unità in
+> questo turno»: esiste il facing **della fase**. La UI deve mostrare quello della fase selezionata durante lo
+> scrubbing (§8.3), non un valore unico — e il facing **finale**, dopo il `Move`, è quello che l'unità porta
+> nel round successivo. Timeline completa in
+> [ADR-0005](../decisions/adr-0005-orientamento.md) §2-bis.
+
 Possibili usi:
 
 - difesa;

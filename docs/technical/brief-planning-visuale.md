@@ -79,16 +79,22 @@ esiste proprio come promessa di non impedirlo, e nessuna regola di cover o LOS l
 > non valgono), **percezione** (vista a cono + consapevolezza a 360° entro 2 celle, E13) e **reazioni** (il
 > cono dell'Overwatch nasce dal facing, E14).
 >
-> Conseguenza per **CP 11.5**: il ghost deve mostrare il facing pianificato **e le direzioni legali**, perché
-> l'orientamento si fissa a fine Move e vale per tutto il turno successivo. Il campo `Facing` del view model
-> smette di essere una posa decorativa: è una scelta, e sceglierla senza vederla significa sceglierla alla
-> cieca.
+> Conseguenza per **CP 11.5**: il ghost deve mostrare il facing pianificato **e le direzioni legali**. Il campo
+> `Facing` del view model smette di essere una posa decorativa: è una scelta, e sceglierla senza vederla
+> significa sceglierla alla cieca.
+>
+> ⚠️ **Aggiornato il 2026-08-08 — [D-020](../decisions/RT_PDR_00_Decision_Log.md).** La frase «l'orientamento si
+> fissa a fine Move» **non vale più**: un'azione con bersaglio orienta l'unità **prima di risolvere**, quindi
+> il facing cambia **più volte dentro il round**. Per la preview la conseguenza è concreta: il ghost non può
+> mostrare *un* facing per unità, deve mostrare **quello della fase selezionata** dallo scrubbing — il facing
+> del Blast può differire da quello del Dash e da quello finale. Resta vero che il facing **finale** (dopo il
+> `Move`) è quello che si eredita nel round successivo, ed è la scommessa che il giocatore deve poter vedere.
 
-**C6 — Il lavoro è già cominciato altrove.** Nel working tree esiste `Tests/RTPlanningPreviewTests.cpp` con
-`Preview.HitCellsMatchCombatShape`, `Preview.AllyInAreaIsFlagged`, `Preview.ClearedWhenPlanIsCancelled`,
-`Preview.ReachableCellsArePassedThrough`, insieme a modifiche di `RTHexMapActor`. È lo **stesso asse** (celle
-colpite, alleato nell'area, pulizia su annullamento) e va **incorporato**, non duplicato: i CP qui sotto
-partono da lì. Il nome della famiglia di test è già `Preview.*` e si mantiene.
+**C6 — Il lavoro era già cominciato altrove, ed è stato incorporato.** `Tests/RTPlanningPreviewTests.cpp` è in
+`main` con la famiglia `Preview.*` (`HitCellsMatchCombatShape`, `AllyInAreaIsFlagged`,
+`ClearedWhenPlanIsCancelled`, `ReachableCellsArePassedThrough`), insieme alle modifiche di `ARTHexMapActor`. È
+lo **stesso asse** dei CP qui sotto — celle colpite, alleato nell'area, pulizia su annullamento — e va esteso,
+non duplicato. *(La nota parlava di «working tree» e di un branch non ancora mergiato: mergiato.)*
 
 ---
 

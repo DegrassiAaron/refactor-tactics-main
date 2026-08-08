@@ -3,9 +3,14 @@
 Mappa del modulo C++ `Source/RefactorTactics/` allo stato attuale. Per le decisioni vincolanti vedi
 [piano canonico](../product/piano-canonico-mvp.md); per lo stato per checkpoint vedi [roadmap](../roadmap/roadmap-checkpoint.md).
 
-> **Aggiornata al 2026-08-06 (CP 7.2)**: il substrato **quadrato è stato rimosso**. Non esistono più `Grid/`,
-> `Terrain/`, `Bot/RTBotLibrary`, `Turn/RTMovementResolver` né `FRTGridCoord`: la posizione autorevole è
-> `FRTCellId` (assiale) e la mappa è un asset (`URTHexMapAsset`). Il punto di ritorno è il tag `pre-hex-only`.
+> `CURRENT` · **Owner** della mappa del codice · **Riallineata al codice il 2026-08-08**.
+>
+> Il substrato **quadrato è stato rimosso al CP 7.2**: non esistono più `Grid/`, `Bot/RTBotLibrary`,
+> `Turn/RTMovementResolver` né `FRTGridCoord`. La posizione autorevole è `FRTCellId` (assiale) e la mappa è un
+> asset (`URTHexMapAsset`). Il punto di ritorno storico è il tag `pre-hex-only`.
+>
+> *(La versione precedente diceva che anche `Terrain/` era sparito: **esiste**, ricostruito per E8. Ed elencava
+> «329 test in 49 file», un numero di due settimane prima — vedi la riga `Tests/`.)*
 
 ## Principi applicati
 
@@ -44,17 +49,60 @@ Mappa del modulo C++ `Source/RefactorTactics/` allo stato attuale. Per le decisi
 | `Turn/RTMatchFormatData` | `UPrimaryDataAsset` + `USTRUCT` | `URTMatchFormatData` (formato di partita: `FormatId`, `FormatVersion`, `RoundLimit`, `ExpectedRounds`, `ScoreToWin`) e `FRTMatchRules`, le regole **risolte** che il `TurnManager` legge — una sola verità per valore ([issue #185](../gameplay/spec-durata-partita-e-scala-mappe.md)) |
 | `Turn/RTMatchFormatLibrary` | Function Library (pure) | `ValidateFormat`/`ValidateRules` (elenco errori, forma di `ValidateMap`), `ResolveRules` **fail-closed** (mai un ripiego: quello è politica di `ARTGameMode`), `MakeFallbackRules` + `FallbackFormatId` |
 | `Turn/RTHexSim.h` | `USTRUCT`/struct | `FRTHexSimUnit` (UnitId/cella/vivo/`MoveBudget`), `FRTHexReachableCell`, `FRTHexMoveResult`; `FRTHexSnapshot` (struct puro: mappa referenziata + hash/revisione, occupazione copiata; vive solo dentro una fase) |
-| `Turn/RTHexSimLibrary` | Function Library (pure) | Simulazione su griglia **esagonale** (strato parallelo al quadrato, [spec](h6-hex-sim-spec.md)): `MakeSnapshot`/`ValidateSnapshot`/`IsSnapshotStale`, `IsCellFree`, `ReachableCells` (Dijkstra entro `MoveBudget`), `FindPathForUnit` (A* che evita le unità), `ResolveHexPaths` (microstep simultanei), `ToLogCoord`/`BuildMoveLog` (voci di TurnLog dagli esiti → replay) |
+| `Turn/RTHexSimLibrary` | Function Library (pure) | Simulazione su griglia esagonale — **l'unica**, non più uno strato parallelo ([spec `AS-BUILT`](h6-hex-sim-spec.md)): `MakeSnapshot`/`ValidateSnapshot`/`IsSnapshotStale`, `IsCellFree`, `ReachableCells` (Dijkstra entro `MoveBudget`), `FindPathForUnit` (A* che evita le unità), `ResolveHexPaths` (microstep simultanei), `ToLogCoord`/`BuildMoveLog` (voci di TurnLog dagli esiti → replay) |
 | `Turn/RTTurnLogLibrary` | Function Library (pure) | Ordine totale/hash permutazione-invariante del TurnLog; serializzazione binaria versionata con **topologia** (`ERTLogTopology`) nei flags dell'header e **identità del formato** (`FormatId`, versione 4) subito dopo, checksum FNV e I/O su file, tutto fail-closed; `CompareSerializedTraces` confronta il **contesto prima del contenuto** (`ERTTraceComparison`: *formato diverso* non è *divergenza*). Il `FormatId` **non entra nell'hash**: nessun hash golden viene invalidato |
 | `Turn/RTTurnManager` | `AActor` | Orchestratore: fasi, timer 30s, `PlanBots`, `ResolvePrep` (scudo/self-buff), `ResolveCombat` (Blast), `ResolveMovement` (Move + hazard fine turno), combat log, `LastMoveRoutes` (viz post-lock), esito |
-| `Combat/RTCombatLibrary` | Function Library (pure) | `ApplyDamage` (scudo poi HP), `GainEnergy`, `IsUltimateReady`, `EffectiveMoveRange` (Root/Slow), `IsAbilityUsable`, `IsIntentVisibleTo` (**invariante #6**), `EffectiveAttackPower` (Altura) |
+| `Combat/RTCombatLibrary` | Function Library (pure) | `ApplyDamage` (scudo poi HP), `GainEnergy`, `IsUltimateReady`, `EffectiveMoveRange` (Root/Slow), `IsAbilityUsable`, `IsIntentVisibleTo` (**invariante #6**), `EffectiveAttackPower(Base, OccupantDamageBonus)` — bonus **generico** di cella, **non** «altura»: ogni call site runtime passa `0` ([D-024](../decisions/RT_PDR_00_Decision_Log.md)) |
+| `Combat/RTHexCombatLibrary`, `RTOffensiveActionLibrary` | Function Library (pure) | Risoluzione del combattimento su hex: forme di targeting, LOS, niente fuoco amico; azioni offensive del catalogo |
+| `Map/RTHexCoverLibrary` | Function Library (pure) | Copertura **di bordo** (E9): `EdgeDirection`, `CoverBetween`, `BlocksTraversal` (consultata **sia** dal path **sia** dalla LOS: una sola risposta a «questo bordo è chiuso»), `ApplyStructureDamage` → `CoverDamaged`/`CoverDestroyed` |
+| `Terrain/RTTerrainData.h`, `RTTerrainLibrary` | `USTRUCT` + Function Library (pure) | Superfici, stati temporanei, propagazione elettrica, fuoco/acqua (E8) |
+| `Turn/RTReactionLibrary` | Function Library (pure) | Reazioni componibili e `Intercept` (E5). È il caso `AllowedResponses ≤ 1` del modello unificato di [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md), non un meccanismo separato |
+| `Turn/RTActionQueueLibrary`, `RTActionEffectLibrary`, `RTActionFallbackLibrary` | Function Library (pure) | Motore azioni (E4): ordine per priorità intera, effetti, fallback |
+| `Turn/RTMovementActionLibrary` | Function Library (pure) | Profili di movimento: `IsLinear`, stili `Budget`/`LinearDash`/`LinearCharge`/`LinearLeap` |
+| `Turn/RTMatchSetupLibrary` | Function Library (pure) | Allestimento della partita |
+| `Turn/RTPacingLibrary`, `RTPacing.h` | Function Library (pure) | Pacing del turno misurato; console `rt.Debug.Pacing` |
+| `Turn/RTPlaybackLibrary` | Function Library (pure) | Presentazione della risoluzione: **riproduce**, non decide (invariante #1) |
+| `Turn/RTIntentPrivacyLibrary` | Function Library (pure) | `FilterForTeam` → `FRTIntentView` (**invariante #6**). Con [D-021](../decisions/RT_PDR_00_Decision_Log.md) la privacy comprende anche il **tempo**: è qui che andrà il confine per le finestre di E14 |
+| `ScenarioHarness/` | Function Library + `USTRUCT` | **Scenario Test Harness**: `URTScenarioLoader` (JSON versionato da `Scenarios/`), `URTScenarioRunner` (esegue nel **percorso di gioco reale**), `URTTestReportWriter` (`result.json`), `FRTTestScenario`/`FRTTestResult`, console `rt.Test.*` in `RTTestConsole.cpp`. **Nessun Actor di test** ([spec](test-automatico-unreal.md)) |
 | `Combat/RTCombatResolver` | Function Library | `FRTUnitCombatState`, `FRTAttack`; `ResolveAttacks` (raccogli-poi-applica, focus-fire) |
 | `Bot/RTHexBotLibrary` | Function Library (pure) | Bot su griglia **esagonale** ([spec](h6-5-hex-bot-spec.md)): stessa politica del quadrato (`ScorePlan`/`ChooseBestPlan`) con distanza esagonale e LOS d'asset; `BuildCandidates` deriva le mosse da `ReachableCells` (budget/blocchi/occupanti/archi già applicati), `PlanUnit` sceglie |
 | `UI/RTHUD` | `AHUD` | Barre HP/scudo, energia, barra abilità, timer/fase, combat log, anteprima piani (ciano/reveal), viz percorso (waypoint + traccia risolta post-lock) |
 | `Map/RTHexOverlayConsole.cpp` | Console command | `rt.Debug.DrawCells`: overlay di leggibilità della mappa (superficie, blocca-movimento in rosso, blocca-vista in giallo). Strumento di sviluppo, sola lettura — in partita le celle sono cilindri identici e una mappa che non comunica le proprie regole rende il playtest cieco |
 | Anteprima di pianificazione | in `ARTHexMapActor` | `SetPreviewPath` (percorso, ciano) · `SetPreviewReachableCells` (dove posso arrivare, verde tenue) · `SetPreviewHitCells` (zona colpita, **rosso**; alleati nell'area in **arancione**). Le celle arrivano **già calcolate** da `ReachableCells`/`HexHitCells`: l'anteprima non ricalcola nulla, altrimenti potrebbe divergere dall'esito (invariante #1). Alimentata da `RefreshPlanningPreview` nel controller; si spegne al lock-in |
 | `RTGameMode` | `AGameModeBase` | Allestisce il demo (griglia, luce, 2v2, terreno, turn manager); imposta pawn/controller/HUD; marca team 1 come bot |
-| `Tests/` | Automation | Griglia, resolver, fasi, combat, bot, terreno, hex (mappa/path/layer/**sim**), TurnLog (hash/serializzazione/topologia), visione hex, bot hex, vista mappa, **catalogo, azioni, reazioni, eroi, terreni** — **329 test unici in 49 file**, suite eseguita verde (`Automation Test Queue Empty 329 tests performed`, 0 fail, 2026-08-07). Misura riproducibile: `grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp | sort -u | wc -l`. Attenzione: nella *unity build* i file di test condividono la translation unit → gli helper nei namespace anonimi devono avere **nomi distinti tra file** |
+| `Tests/` | Automation | Resolver, fasi, combat, bot, terreno, hex (mappa/path/layer/**sim**), TurnLog (hash/serializzazione/topologia), visione, coperture, catalogo, azioni, reazioni, eroi, match, scenari. **Il numero si misura, non si cita** — ultima misura **419 unici in 64 file** al commit `3335e36` (2026-08-08); ripartizione per area in [`../README.md`](../README.md). Comando: `grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp \| sort -u \| wc -l`. Attenzione: nella *unity build* i file di test condividono la translation unit → gli helper nei namespace anonimi devono avere **nomi distinti fra file** |
+
+## La pipeline, dall'alto
+
+```text
+Input giocatore  ·  Bot  ·  Scenario Harness
+                    ↓            (tre sorgenti di intento, UN solo percorso)
+            Planned Intent
+                    ↓
+              Turn Manager                    ← unico punto di autorità (invariante #5)
+                    ↓
+           Segment Snapshot                   ← mappa + hash + revisione + occupazione
+                    ↓
+        Action Queue → Resolver               ← raccogli poi applica, ordine per priorità intera
+                    ↓
+         Decision Boundary?  ──sì──┐          ← E14: finestra di reazione, fra i segmenti
+                    │ no           │
+                    │         risposta autorizzata
+                    │              │
+                    │←─────────────┘          ← nuovo segmento, nuovo snapshot
+                    ↓
+                 TurnLog                      ← hash permutazione-invariante, serializzazione versionata
+                    ↓
+              Presentazione                   ← riproduce, non decide
+```
+
+Il punto che questa forma rende visibile: **lo Scenario Harness entra dalla stessa porta del giocatore**. Non
+esiste un percorso di test che salta il resolver — se esistesse, i test misurerebbero un gioco diverso da
+quello che si gioca.
+
+Attraversano la pipeline, senza essere fasi: la **mappa** (`URTHexMapAsset`), il **path**
+(`URTHexPathLibrary`), la **LOS** (`URTHexVisionLibrary`), le **coperture** (`URTHexCoverLibrary`),
+l'**ambiente** (`URTTerrainLibrary`) e le **reazioni** (`URTReactionLibrary`).
 
 ## Flusso di un turno
 
@@ -79,17 +127,32 @@ Lock-in (Spazio) oppure timeout → LockInAndResolve()
       · altrimenti → MatchEnded (turni fermi, HUD "PARTITA FINITA")
 ```
 
-**Ordine delle fasi**: Prep → Dash → **Blast prima di Move** → si agisce/spara dalla posizione attuale, poi ci
-si sposta (modello *Atlas Reactor*).
+**Ordine delle fasi**: `Prep → Dash → Blast → Move → Cleanup`. Il **Move normale è l'ultima fase volontaria**:
+si agisce e si spara dalla posizione attuale, poi ci si sposta (modello *Atlas Reactor*). `Dash`, `Charge` e
+`Leap` sono mobilità **speciali** della fase `Dash`; `Sneak`, `Move` e `Sprint` sono **profili** del movimento
+normale e risolvono nel `Move` ([D-015](../decisions/RT_PDR_00_Decision_Log.md)).
 
-## Come si estende (per le prossime feature)
+> ⚠️ **Divergenza documento/codice, misurata il 2026-08-08.** Nel codice `Action.Sprint` è in
+> `ERTResolutionPhase::FastMovement` e consuma **movimento più azione principale**, mentre D-015 lo vuole
+> profilo del `Move` nel **solo** slot movimento. La decisione è presa, la migrazione no: `Action.Sprint`
+> compare in 15 file fra codice e test, e cancellarlo in una passata documentale romperebbe test e replay.
+> Tracciato in [`../DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md) riga 41.
 
-- **Path finding multilivello** (PF.4, north-star): `FRTGridCoord.Layer` + grafo esplicito con archi — vedi
-  [`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md).
-- **Sistema di reazioni / ordinamento ricco** (north-star): l'ordine deterministico degli effetti simultanei è
-  già normato in [piano §5.1](../product/piano-canonico-mvp.md) (`FR-RESOLVE-*`); il modello completo (stack LIFO, reveal,
-  categorie di velocità) è in [`spec-sequenza-turno.md`](../gameplay/spec-sequenza-turno.md).
-- **Multiplayer** (post-MVP): il `RTTurnManager` è già il punto di autorità; i piani diventano RPC server-side
-  con replica filtrata per squadra (privacy dell'intento, **invariante #6**).
+## Confine con ciò che non esiste ancora
 
-Ogni nuova regola nasce come **funzione pura con test** prima del wiring negli Actor.
+| Area | Stato | Dove vive il confine |
+|---|---|---|
+| **E13 — Team Knowledge** | non implementata | Oggi la vista è una statistica a catalogo che non decide nulla. LOS, rilevamento e conoscenza di squadra andranno separati; il rumore è un **secondo canale**, propagato con interi sul grafo — mai `SphereOverlap` |
+| **E14 — Decision Window** | non implementata | `URTReactionLibrary` è già il caso `AllowedResponses ≤ 1`. Ciò che manca è il **boundary fra segmenti**, non un secondo motore di reazioni. Vincolo di privacy: [D-021](../decisions/RT_PDR_00_Decision_Log.md) |
+| **E16 — Facing** | non implementata | Il facing esiste come **presentazione** (`URTPlaybackLibrary::DirectionYaw`). Diventerà stato di gioco con più valori per round ([D-020](../decisions/RT_PDR_00_Decision_Log.md)): snapshot e TurnLog dovranno dire *quale* facing ha usato ciascun consumatore |
+| **Rete** | fuori dalla v0.1 | `ARTTurnManager` è già l'unico punto di autorità; i piani diventeranno RPC server-side con replica filtrata per squadra |
+| **GAS** | fuori dalla v0.1 | Le abilità sono dati (`URTActionData`), non `GameplayAbility`. Divergenza dal PDR **dichiarata**, non dimenticata |
+
+## Come si estende
+
+Ogni nuova regola nasce come **funzione pura con test** prima del wiring negli Actor. È la ragione per cui la
+maggior parte di questa mappa è fatta di `UBlueprintFunctionLibrary`: si testano senza mondo e senza Actor.
+
+Il pathfinding multilivello (PF.4) e le reazioni componibili (E5), che le versioni precedenti di questo
+documento elencavano qui come *north-star* da costruire, sono **fatti**: vedi
+[`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md) e `Turn/RTReactionLibrary`.

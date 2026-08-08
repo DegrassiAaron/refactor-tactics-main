@@ -1,9 +1,25 @@
 # RT — Matrice di test v0.1
 
+> `CURRENT` · **Ultimo aggiornamento**: 2026-08-08
 > **Fonte**: `docs/src/RefactorTactics — Catalogo e bilanciamento v0.1.pdf` §§10–12, §§14–16 · `docs/archive/pdr-v0.1/RT_PDR_12_Catalog_v0.1.pdf`
 > **Checkpoint**: CP 1.2 (issue `#28`) · **Consumatori**: CP 12.2 (matrice manuale, `#82`) e CP 12.3 (suite automatica, `#83`)
-> Le voci manuali confluiscono in [`test-manuali-pie.md`](../technical/test-manuali-pie.md) (sessione E); quelle automatiche
-> diventano test dell'Automation Framework.
+> Le voci manuali confluiscono in [`test-manuali-pie.md`](../technical/test-manuali-pie.md) (sessione E); quelle
+> automatiche diventano test dell'Automation Framework.
+>
+> ## Cosa possiede questo documento, e cosa no
+>
+> **Possiede**: `requisito → test → tipo di test → criterio di accettazione`. È una mappa di *cosa va
+> verificato*, ed è stabile.
+>
+> **Non possiede lo stato.** Le note «stato attuale: questo non esiste ancora» sparse qui sotto erano vere
+> quando furono scritte e sono invecchiate una per una — per esempio «la precedenza di `Charge` non esiste
+> ancora: arriva con E4», scritta prima che E4 fosse completata. Lo stato si legge da due posti, e **solo** da
+> quelli:
+>
+> - se un test **esiste**: la suite → comando di misura in [`../README.md`](../README.md);
+> - se una feature **è fatta**: [`../roadmap/roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md).
+>
+> Dove sotto trovi ancora una frase di stato, leggila come **contesto storico**, non come verità corrente.
 
 ## 1. Regole di collisione simultanea
 
@@ -129,3 +145,61 @@ Sono gli stessi divieti degli invarianti #1/#3/#4/#6 del canone, visti dal lato 
 - [x] Nessun intento avversario viene replicato *(oggi banale: offline; canary in M10)*
 
 Le voci non spuntate non sono debito di questo checkpoint: sono il lavoro delle epic che questo catalogo abilita.
+
+---
+
+## 8. Copertura da costruire — requisito → test
+
+Aggiunta il **2026-08-08**. Aree decise ma **senza test corrispondenti**: finché la riga è vuota nella colonna
+«test», la regola esiste solo nei documenti.
+
+### 8.1 Ambiente e coperture (E8/E9 — regole già in codice)
+
+| Requisito | Tipo | Criterio di accettazione |
+|---|---|---|
+| Copertura **bassa** riduce il danno diretto | automatico | riduzione applicata sul bordo corretto; **decade** se l'origine è fuori dall'arco frontale ([ADR-0005](../decisions/adr-0005-orientamento.md) §4a) |
+| Copertura **alta** chiude il bordo | automatico | lo **stesso** bordo è impercorribile per il path **e** opaco per la LOS: un solo predicato, `BlocksTraversal` |
+| Distruzione di struttura | automatico | `CoverDamaged` con integrità residua, poi `CoverDestroyed`; dopo il crollo il bordo si attraversa e si vede |
+| **Nessun bonus danno da quota** | automatico | un'unità in alto e una in piano infliggono lo **stesso** danno a parità di tutto il resto ([D-024](../decisions/RT_PDR_00_Decision_Log.md)) |
+
+### 8.2 Decision Boundary e Overwatch (E14 — prima di implementare)
+
+| Requisito | Tipo | Criterio di accettazione |
+|---|---|---|
+| Nessuna finestra annidata | automatico | una risposta non può aprire una seconda finestra |
+| `Timeout → HOLD` | automatico | scaduti i 3,0 s l'esito è `HOLD`, deterministico |
+| `FIRE` / `HOLD` | automatico | entrambi gli esiti producono un TurnLog che li registra **come dato** |
+| Opportunity **simultanee** nello stesso micro-step | automatico | raccolte in **una sola** opportunity, non N in sequenza |
+| Opportunity multiple **nel tempo** | automatico | rispettano `MaxPromptsPerReaction = 3` |
+| Risposta **stale** | automatico | una risposta a una finestra già chiusa viene rifiutata, non applicata in ritardo |
+| Risposta **non autorizzata** | automatico | solo il proprietario della reaction può rispondere; il server rifiuta gli altri |
+| **Ripresa deterministica** | automatico | stessa risposta ⇒ stesso `StateHash`, su N ripetizioni |
+| **Nessuna informazione futura** nel DTO | automatico | il payload non contiene trigger non ancora avvenuti |
+| **Privacy temporale** ([D-021](../decisions/RT_PDR_00_Decision_Log.md)) | automatico + canary M10 | il DTO avversario non contiene trigger, opportunity, responder o timeout; **e** la resolution osservata da un avversario ha la stessa forma con e senza finestra aperta |
+| `Intercept` rivalida sul bersaglio effettivo ([D-017](../decisions/RT_PDR_00_Decision_Log.md)) | automatico | **test discriminante**: A e B a copertura *diversa*; il colpo redirezionato usa la copertura di **B**. Senza la differenza il test passerebbe anche col comportamento sbagliato |
+
+### 8.3 Facing (E16)
+
+| Requisito | Tipo | Criterio di accettazione |
+|---|---|---|
+| `Dash → Blast` | automatico | il Dash orienta; il Blast su un altro bersaglio **ri**orienta prima di risolvere |
+| Cambio di bersaglio | automatico | il facing segue l'ultimo bersaglio dichiarato |
+| Cono Overwatch | automatico | il cono della reazione **è** il facing, non una direzione dichiarata a parte |
+| `Move` finale | automatico | il `Move` fissa `FacingFinalAfterMove`, che diventa il `FacingStartOfRound` del round dopo |
+
+### 8.4 Conoscenza parziale (E13)
+
+| Requisito | Tipo | Criterio di accettazione |
+|---|---|---|
+| Tre livelli | automatico | `Nascosto` · `ContattoIncerto` · `Rilevato`, più `UltimoContatto` |
+| Unione per squadra | automatico | ciò che vede un alleato entra nella Team Knowledge dell'intera squadra |
+| **Rumore** | automatico | propagazione **intera** sul grafo (flood fill), mai `SphereOverlap`; deterministica |
+| Il **bot** non bara | automatico | il bot decide sulla Team Knowledge della propria squadra, mai su stato nemico nascosto |
+
+### 8.5 Scenario Harness
+
+| Requisito | Tipo | Criterio di accettazione |
+|---|---|---|
+| **Nessun bypass** | automatico | ogni scenario passa da `LockInAndResolve` e dal resolver; nessun percorso alternativo |
+| `Error` ≠ `Fail` | automatico | uno scenario invalido produce `ERROR`, non `FAIL` |
+| Determinismo | automatico | stesso scenario ⇒ stesso `StateHash`, **permutazione-invariante** rispetto all'ordine degli intent |

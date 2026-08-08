@@ -34,13 +34,24 @@ di movimento qui sotto dichiara esplicitamente quale delle due. Motivazione in [
 
 | Slot | Quantità | Esempi |
 |---|---|---|
-| Movimento | 1 | `Move` |
-| Azione principale | 1 | `BasicAttack`, `Dash`, `Guard`, `Heal` |
+| Movimento | 1 | `Move` — nei profili `Sneak`/`Move`/`Sprint` (§2.1) |
+| Azione principale | 1 | `BasicAttack`, `Dash`, `Guard`, `Heal`, **`Overwatch`** — mai due insieme |
+
+> ⚠️ **Questa regola oggi non è fatta rispettare in partita** (verificato il 2026-08-08).
+> `URTCatalogLibrary::ValidateActionSlots` la implementa correttamente, ma **nessuno la chiama nel gioco**:
+> solo due test. `ARTPlayerController` imposta `PlannedDashAbility` e `PlannedAbilityIndex` senza azzerare
+> l'altro, e il bot pianifica **scatto + attacco** di proposito — pur occupando entrambi lo slot principale.
+>
+> Chi legge questa tabella deve saperlo: descrive la regola **decisa**, non ciò che la partita impedisce.
+> Aperta in [`../DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md) riga 43 e in
+> [`../roadmap/plans/showcase-v01-audit.md`](../roadmap/plans/showcase-v01-audit.md) §`SLOT-1`: la scelta è
+> fra applicarla e cambiare gli slot del catalogo.
 | Reazione | 1 | `Counter`, `Intercept`, `Deflect` |
 | Comunicazione | — | Ping, label |
 
-> **Slot ≡ Action Points** (consolidato il 2026-08-07). Il workbook di bilanciamento
-> `docs/RefactorTactics_Balance_Matrices_v0.1.xlsx` modella gli stessi slot come **risorse**: `RES_ACTION`
+> **Slot ≡ Action Points** (consolidato il 2026-08-07). Il workbook `RefactorTactics_Balance_Matrices_v0.1.xlsx`
+> — che è **`RESEARCH`**, non una fonte ([D-023](../decisions/RT_PDR_00_Decision_Log.md)): qui vale solo come
+> nota terminologica — modella gli stessi slot come **risorse**: `RES_ACTION`
 > (Action Points, cap **2**, nessun riporto fra turni) copre Movimento + Azione principale, `RES_REACTION`
 > (cap **1**) è lo slot Reazione dell'ADR-0003. **Sono lo stesso sistema con due nomi**: la tabella qui sopra
 > resta la formulazione canonica, «AP» è ammesso come sinonimo nei documenti di bilanciamento.
@@ -56,7 +67,14 @@ finale** · fallback.
 
 ---
 
-## 1. Azioni fondamentali
+## 1. Azioni generiche (universali)
+
+Le **sette** azioni che ogni eroe possiede, indipendentemente dal kit
+([D-014](../decisions/RT_PDR_00_Decision_Log.md) · [D-025](../decisions/RT_PDR_00_Decision_Log.md)):
+
+```text
+Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch
+```
 
 | ActionId | Azione | Slot | Macro-fase | Cod. | Prio | Range | CD | Fallback | Interr. |
 |---|---|---|---|---:|---:|---|---:|---|---|
@@ -64,8 +82,31 @@ finale** · fallback.
 | `Action.Move` | Movimento | Movimento | **Move** | 20 | 50 | 5 MP | 0 | `Fallback.Stop` | sì |
 | `Action.BasicAttack` | Attacco base | Principale | Blast | 40 | 50 | arma | 0 | `Fallback.Cancel` | sì |
 | `Action.Guard` | Guardia | Principale | **Prep** | 10 | 40 | self | 0 | `Fallback.Cancel` | no |
-| `Action.Activate` | Attiva | Principale | Blast | 40 | 70 | 1 | 0 | `Fallback.Cancel` | sì |
+| `Action.Brace` | Irrigidimento | Principale | **Prep** | 10 | 30 | 0 | 1 | `Fallback.Cancel` | no |
 | `Action.Interact` | Interagisci | Principale | Blast | 40 | 80 | 1 | 0 | `Fallback.Cancel` | sì |
+| `Action.Overwatch` | Guardia reattiva | Principale | **Prep** *(arma)* | 10 | 45 | cono da facing | 0 | `Fallback.Cancel` | no |
+| `Action.Activate` | ~~Attiva~~ | — | — | 40 | 70 | 1 | 0 | — | — |
+
+**`Overwatch` è universale e compete con l'azione offensiva.** L'economia è
+`Attack` **oppure** `Ability` **oppure** `Overwatch`, mai sommate, salvo eccezione dichiarata da un'abilità
+([D-012](../decisions/RT_PDR_00_Decision_Log.md)). Il **profilo** — cosa scatta, con quale effetto — dipende
+dall'eroe e dall'equipaggiamento; l'**azione** no: non è la skill di qualcuno.
+Si arma in pianificazione, apre una finestra di **3,0 s** con `FIRE`/`HOLD` e `Timeout → HOLD`, e il suo cono
+**è** il facing dell'unità ([ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) ·
+[ADR-0005](../decisions/adr-0005-orientamento.md) §4c). Epic **E14**, dipende da E13.
+
+> **Da non confondere**: armare l'Overwatch costa l'**azione principale**; lo **slot reazione** preparato è
+> un'altra cosa e resta indipendente. Un eroe può avere entrambi.
+
+**`Action.Activate` è assorbita da `Action.Interact`** ([D-014](../decisions/RT_PDR_00_Decision_Log.md)):
+erano la stessa cosa con due nomi — «attiva un dispositivo» è un'interazione. La riga **resta barrata invece
+di sparire** perché lo Stable ID `Action.Activate` **è ancora consumato** dal codice: cancellarlo in una PR
+documentale romperebbe test e replay. La migrazione è tracciata come issue.
+
+**`Action.Guard` resta fra le universali** ([D-025](../decisions/RT_PDR_00_Decision_Log.md)): ha già tre
+consumatori — questo catalogo, l'interazione con `Status.Root`, e la difesa direzionale di
+[ADR-0005](../decisions/adr-0005-orientamento.md) §4a, dove fuori dall'arco frontale la sua riduzione decade.
+Toglierla dalle fondamentali avrebbe lasciato tre regole appese a un'azione non più garantita a nessuno.
 
 **Wait** — non si muove e non usa l'azione principale. Può comunque: impostare il facing · preparare una
 reazione · mantenere una stance già attiva · contestare un obiettivo.
@@ -87,18 +128,49 @@ regola standard del vertical slice).
 **Guard** — riduce di **15** il primo danno diretto ricevuto · resiste a una spinta di 1 cella · termina nel
 Cleanup · **non** protegge dagli hazard ambientali già presenti.
 
-**Activate** — attiva un oggetto adiacente: porta · consolle · ascensore · generatore · sprinkler · ponte · obiettivo.
+**Interact** — agisce su un oggetto adiacente: porta · consolle · ascensore · generatore · sprinkler · ponte ·
+obiettivo. Assorbe ciò che il catalogo chiamava `Activate`: il bersaglio cambia, il gesto no.
 
 ---
 
 ## 2. Azioni di movimento
 
-Tutte le mobilità rapide risolvono in macro-fase **Dash** (prima del Blast): riposizionarsi in fretta è ciò che
-permette di sparare da un'altra parte nello stesso turno. Solo `Action.Move` risolve in **Move**.
+Il movimento si divide in **due famiglie**, e la distinzione è strutturale
+([D-015](../decisions/RT_PDR_00_Decision_Log.md)):
+
+### 2.1 Profili del movimento normale — slot **Movimento**, fase **Move**
+
+`Sneak` · `Move` · `Sprint` **non sono tre azioni concorrenti**: sono tre **profili** della stessa famiglia.
+Occupano tutti il **solo slot movimento** e risolvono tutti nella macro-fase **`Move`**, cioè **dopo** il
+Blast. Cambiano distanza, rumore ed esposizione — non l'economia del turno.
+
+| Profilo | Budget | Note |
+|---|---|---|
+| `MovementMode.Sneak` | **non specificato** | Costo, portata e rumore **non sono definiti da nessuna fonte corrente**. Non si inventano: [issue di bilanciamento](../OPEN_DECISIONS.md) |
+| `MovementMode.Move` | **5 MP** | il profilo neutro |
+| `MovementMode.Sprint` | **8 MP** | conserva un trade-off reale, vedi sotto |
+
+**`Sprint` non è un `Dash`.** È il profilo lungo del movimento normale, quindi risolve dopo il Blast: non
+permette di sparare da un'altra posizione nello stesso turno, che è precisamente ciò che un `Dash` fa.
+
+> ⚠️ **Divergenza documento/codice, misurata il 2026-08-08.** Nel codice `Action.Sprint` è ancora in
+> `ERTResolutionPhase::FastMovement` (fase `Dash`) e consuma **movimento più azione principale**. La decisione
+> è presa, la migrazione no: lo Stable ID compare in **15 file** fra codice e test, e cancellarlo in una PR
+> documentale romperebbe test e replay. Tracciato in
+> [`../DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md) riga 41 → issue di refactor.
+>
+> **Il trade-off dello Sprint va migrato, non perso.** Oggi paga con `Status.Exposed` e con la rinuncia alla
+> reazione. Nel modello a profili non può diventare un potenziamento gratuito del `Move`: se perde il costo di
+> slot deve conservare un costo, altrimenti nessuno sceglierebbe più `Move`.
+
+### 2.2 Mobilità speciali — slot **Principale**, fase **Dash**
+
+`Dash` · `Charge` · `Leap` · `Reposition` risolvono in macro-fase **Dash**, prima del Blast: riposizionarsi in
+fretta è ciò che permette di sparare da un'altra parte nello stesso turno.
 
 | ActionId | Azione | Slot | Macro-fase | Cod. | Prio | Distanza | CD | Fallback | Interr. |
 |---|---|---|---|---:|---:|---|---:|---|---|
-| `Action.Sprint` | Scatto lungo | Movimento + Principale | **Dash** | 20 | 60 | 8 MP | 0 | `Fallback.Stop` | sì |
+| `Action.Sprint` *(vedi §2.1)* | Scatto lungo | Movimento + Principale ⚠️ | **Dash** ⚠️ | 20 | 60 | 8 MP | 0 | `Fallback.Stop` | sì |
 | `Action.Dash` | Scatto | Principale | **Dash** | 20 | 30 | 3 celle | 1 | `Fallback.Stop` | sì |
 | `Action.Charge` | Carica | Principale | **Dash** | 20/30 | 35 | 3 celle | 2 | `Fallback.Stop` | sì |
 | `Action.Leap` | Balzo | Principale | **Dash** | 20 | 25 | 3 celle | 2 | `Fallback.Stop` | sì |
@@ -130,6 +202,12 @@ all'impatto (controllo), che nel progetto resta dentro il **Blast** per priorit�
 | `Action.LineAttack` | Attacco lineare | Blast | 40 | 55 | 22 | linea | 1 | `Fallback.AttackCell` | sì |
 | `Action.CircularAoE` | Area circolare | Blast | 40 | 65 | 18 | cella, raggio 1 | 2 | `Fallback.AttackCell` | sì |
 | `Action.SuppressiveLine` | Linea di soppressione | **Prep** | 10/20 | 30 | 16 | linea / reazione | 2 | — | no |
+
+> **`SuppressiveLine` non si fonde con `Overwatch`.** Si somigliano — entrambe si armano in `Prep` e reagiscono
+> a un passaggio — ma non sono la stessa cosa: `Overwatch` è l'**azione universale** e l'infrastruttura di
+> controllo reattivo, `SuppressiveLine` è un **contenuto specifico** con effetti propri (linea, 16 danni,
+> cooldown 2). Se un giorno il codice dimostrasse che è solo un duplicato nominale dell'Overwatch, la
+> conclusione sarebbe una **issue di refactor**, non una cancellazione durante un riordino documentale.
 | `Action.MarkTarget` | Marchia bersaglio | Blast | 40 | 40 | 0 | bersaglio | 1 | `Fallback.Cancel` | sì |
 
 **Precision Attack** — range dell'arma **+1** · ignora la copertura bassa · **non** utilizzabile dopo Sprint.

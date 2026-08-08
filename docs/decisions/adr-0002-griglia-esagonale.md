@@ -1,6 +1,21 @@
 # ADR-0002 — Pivot da griglia quadrata a griglia esagonale (+ editor mappa)
 
-> **Stato**: Accettato — in implementazione · **Data**: 2026-08-03 · **Decisore**: utente (dev singolo)
+> `CANONICAL` · **Stato**: **Accettato — realizzato** · **Data**: 2026-08-03 · **Chiuso**: 2026-08-07
+> · **Decisore**: utente (dev singolo)
+>
+> **Non è più «in implementazione».** L'esagono è l'**unica** topologia di gioco: il substrato quadrato è stato
+> rimosso a **CP 7.2** e al 2026-08-08 `FRTGridCoord`, `URTGridLibrary` e `ARTGridActor` non esistono più in
+> `Source/` — ne resta un solo commento storico in `RTPlaybackLibrary.h`. Il multilivello è attivo
+> (`FRTCellId{q, r, Layer}` + transizioni esplicite fra layer).
+>
+> **Base di rollback**: il ramo `feat/skeletal-units` citato sotto è storia, non una via d'uscita praticabile —
+> tornare al quadrato oggi significherebbe rifare M6–M11.
+>
+> Come fu costruito: [`../technical/h6-hex-sim-spec.md`](../technical/h6-hex-sim-spec.md) ·
+> [`../technical/h6-4-hex-vision-spec.md`](../technical/h6-4-hex-vision-spec.md) ·
+> [`../technical/h6-5-hex-bot-spec.md`](../technical/h6-5-hex-bot-spec.md) (tutte `AS-BUILT`).
+> Com'è oggi: [`../technical/architettura-codice.md`](../technical/architettura-codice.md) ·
+> [`../technical/spec-pathfinding-pf3-pf4.md`](../technical/spec-pathfinding-pf3-pf4.md).
 > **Contesto sorgente**: `/sc:spec-panel` su `docs/src/Editor - Implementazione Griglia Esagonale ed Editor Mappa.docx`
 
 ## Contesto

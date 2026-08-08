@@ -51,6 +51,12 @@ FString URTTestReportWriter::ToJson(const FRTTestResult& Result, const FString& 
 		// Presente SOLO negli ERROR: la sua presenza distingue «non ho potuto eseguire» da «ho eseguito e non torna».
 		Root->SetStringField(TEXT("error"), Result.ErrorMessage);
 	}
+	if (!Result.BlockedReason.IsEmpty())
+	{
+		// Sta accanto a `error` e non al suo posto: chi legge il report deve poter distinguere «il test e'
+		// rotto» da «la feature non c'e' ancora» senza interpretare l'esito.
+		Root->SetStringField(TEXT("blockedReason"), Result.BlockedReason);
+	}
 
 	const TSharedRef<FJsonObject> Counts = MakeShared<FJsonObject>();
 	Counts->SetNumberField(TEXT("passed"), Result.PassedCount());
