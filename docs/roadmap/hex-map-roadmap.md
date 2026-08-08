@@ -10,7 +10,7 @@
 > [`roadmap-checkpoint.md`](roadmap-checkpoint.md).
 
 > Pivot deciso in [`adr-0002-griglia-esagonale.md`](../decisions/adr-0002-griglia-esagonale.md), da
-> `docs/src/Editor - Implementazione Griglia Esagonale ed Editor Mappa.docx`. Milestone **piccole e compilabili**;
+> `docs/src/prd/editor-griglia-esagonale-e-mappa.docx`. Milestone **piccole e compilabili**;
 > si compila e si testa dopo ogni milestone. Runtime hex **indipendente** dai moduli Editor.
 > Regola: una milestone è ✅ solo quando i suoi criteri **Done** sono verificati.
 >

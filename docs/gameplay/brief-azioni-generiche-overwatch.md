@@ -32,7 +32,7 @@
 > documentale.
 
 > **Stato**: brief di requisiti · **Data**: 2026-08-07 · **Origine**: `/sc:brainstorm` su
-> [`../src/RefactorTactics_AzioniGeneriche_Overwatch_Universale_v0.1.md`](../src/RefactorTactics_AzioniGeneriche_Overwatch_Universale_v0.1.md) (41 §)
+> [`../src/design/azioni-generiche-overwatch-universale-v0.1.md`](../src/design/azioni-generiche-overwatch-universale-v0.1.md) (41 §)
 > **Decisione abilitante**: [`D-012`](../decisions/RT_PDR_00_Decision_Log.md) — l'Overwatch **compete** con
 > l'azione offensiva; le tre policy entrano nel **DoD di CP 14.3**.
 > **Autorità**: [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) prevale su finestre, timeout e trigger.

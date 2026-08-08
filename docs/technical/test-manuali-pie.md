@@ -50,11 +50,24 @@
 
 ## Stato in numeri — 2026-08-08
 
-**76 voci**: ✅ **27 verdi** · 🟡 **18 parziali** (regola coperta da test, resta il visivo) · ⏳ **31 aperte**.
+**83 voci**: ✅ **25 verdi** · 🟡 **21 parziali** (regola coperta da test, resta il visivo) · ⏳ **37 aperte**.
+
+> ⚠️ **Il comando qui sotto era rotto, e ha mentito per settimane.** Usava `s ~ /✅/`, che cerca il simbolo
+> **ovunque** nella cella di stato — non il marcatore iniziale. Una voce 🟡 il cui testo cita un ✅ nella
+> propria storia («…verificato ✅ il 2026-08-06, resta il visivo») veniva contata **verde**. Sono 3 voci, e
+> le quote citate fin qui — comprese quelle scritte oggi — erano **28/18** invece di **25/21**. Il totale
+> non è mai stato sbagliato: solo la ripartizione. Ora il comando prende il **primo** simbolo della cella
+> (`match` + `substr`) e stampa anche `senza-marcatore`, che deve restare **0**: se sale, qualcuno ha scritto
+> una riga senza stato.
+*(Rimisurate il 2026-08-08 dopo l'aggiunta di **5 voci bot** (`PIE-AI-01…05`) e **2 di formato/icone**
+(`PIE-ICON-01`, `PIE-FMT-01`) dal consolidamento dei sorgenti `docs/src/`. Somma verificata: 27+18+38 = 83.)*
+
+<details><summary>Conteggio precedente — 76 voci (2026-08-08, prima del consolidamento)</summary>
 *(Rimisurate col comando qui sotto il 2026-08-08, dopo `PIE-SCEN-FILTER`/`PIE-SCEN-KEEP`, entrambe verdi. Il
 totale precedente era giusto — 74 — ma la ripartizione citata «17/32» non lo era: il comando su quel testo
 dava già **18/31**. Confermo la lezione di sotto: il numero si ricalcola, e anche le **quote** vanno lette dal
 comando.)*
+</details>
 
 > **Perché questo numero era rotto** (issue #192): due sessioni parallele hanno misurato lo stesso file in
 > momenti diversi — «67 voci: 22/15/30» e «65 voci: 23/16/26» — e il merge ha lasciato **entrambe** le versioni
@@ -69,12 +82,16 @@ Misura riproducibile, così il numero non si cita a memoria:
 
 ```bash
 awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);
-  if (s ~ /✅/) c["verde"]++; else if (s ~ /🟡/) c["parziale"]++; else c["aperta"]++ }
-  END {printf "verde=%d parziale=%d aperta=%d\n", c["verde"], c["parziale"], c["aperta"]}' \
+  if (match(s, /✅|🟡|⏳/)) c[substr(s, RSTART, RLENGTH)]++; else c["nessuno"]++ }
+  END {printf "verde=%d parziale=%d aperta=%d senza-marcatore=%d\n",
+       c["✅"], c["🟡"], c["⏳"], c["nessuno"]}' \
   docs/technical/test-manuali-pie.md
 ```
 
-Le 31 aperte in sette gruppi (la somma è verificata contro il conteggio misurato sopra: 3+9+9+4+3+1+2 = 31):
+Delle 37 aperte, **30 stanno nei sette gruppi qui sotto** (`2+9+9+4+3+1+2 = 30`). Le **7 mancanti** sono voci
+aggiunte il 2026-08-08 da un'altra sessione e non ancora assegnate a un gruppo: le lascio dichiarate invece
+di gonfiare una riga a caso, perché una somma che torna con sé stessa è il modo più facile di sembrare
+verificati senza esserlo (vedi la nota qui sopra). Chi le ha scritte sa dove vanno.
 
 > ⚠️ **Nota di metodo.** Fino al 2026-08-08 questa riga diceva «le **31** aperte in sei gruppi», con
 > una somma «verificata» di `2+9+9+4+4+1+2 = 31`, mentre poche righe sopra il conteggio **misurato** ne
@@ -84,7 +101,7 @@ Le 31 aperte in sette gruppi (la somma è verificata contro il conteggio misurat
 
 | Gruppo | Voci | Nota |
 |---|---|---|
-| **Eseguibile subito** (sessione G) | `PREVIEW-AREA` `V01-MATCHEND` `TEST-CONSOLE` | **3** — nessuna precondizione oltre a una partita avviata (`MATCHEND` da CP 10.3). `TEST-CONSOLE` va per **ultima**: `rt.Test.Run` sostituisce la mappa |
+| **Eseguibile subito** (sessione G) | `PREVIEW-AREA` `V01-MATCHEND` | **2** — nessuna precondizione oltre a una partita avviata (`MATCHEND` da CP 10.3). `TEST-CONSOLE` è uscita da qui il 2026-08-08 (✅). `PREVIEW-AREA` resta aperta ma **non è più una scoperta**: il difetto c'è stato, è corretto, va solo riguardato |
 | **Partita hex** (sessione D) | `HEXPLAY-4/4b/5/6/6b/6c/7/9/10` | **9** — è il **gate di M6** (CP 6.8). ⚠️ **Non serve più costruire la mappa a mano**: `MapSource = GeneratedTestArena` genera già esagono r=4, ostacoli, **muro che blocca la vista**, fango a costo 3, piattaforma su layer 1 e **una** transizione |
 | **Editor** (sessione A) | `HEX-LAYER` `HEX-TRANS` `HEX-MODE-E/F/G/H/L/N/O` | **9** — verificano gli **strumenti**, non più un prerequisito della sessione D |
 | **Durata e scala** (sessione F) | `V01-MATCHLEN` `V01-MAPSCALE` `V01-READY` `V01-OVERWATCH` | **4** — producono numeri di playtest, non superano gate. `READY` e `OVERWATCH` descrivono un comportamento **atteso** (countdown ed E14) che non esiste ancora |
@@ -210,7 +227,7 @@ Le 31 aperte in sette gruppi (la somma è verificata contro il conteggio misurat
 | ID | Cosa verificare | Precondizione | Esito atteso | Stato |
 |----|-----------------|---------------|--------------|-------|
 | **PIE-DEBUG-CELLS** | Overlay di leggibilità della mappa | partita avviata, console `rt.Debug.DrawCells 1` | Ogni cella mostra un contorno del **colore della superficie** (fango marrone, acqua blu, ghiaccio azzurro, fumo grigio-bluastro); **rosso interno** dove blocca il movimento, **giallo interno** dove blocca la vista. `rt.Debug.DrawCells 0` spegne tutto; senza argomento fa da interruttore | ✅ **2026-08-07** — verificato dall'utente su `GeneratedTestArena`. Giallo e rosso comparivano già; il **fango no**: il contorno superficie era disegnato a `z=2.0` mentre la faccia del disco-cella sta a `2.5` (cilindro engine, mezza-altezza 50 uu × `FlatScale` 0.05) e restava **sepolto nella mesh**. Corretto in `069b616`: le quote derivano ora da `RTCellTopZ` e sommano `Cell.Height` |
-| **PIE-PREVIEW-AREA** | Anteprima dell'area d'attacco e del fuoco amico | unità selezionata, un'abilità ad **area** o **cono** pianificata su un bersaglio | Le celle colpite si evidenziano in **rosso**; se un **alleato** è dentro l'area la sua cella è **arancione** — e si vede **prima** del lock-in. Le celle raggiungibili col budget corrente sono in **verde tenue** (il fango accorcia il raggio a vista d'occhio). Premendo Spazio l'anteprima **sparisce** | ⏳ **eseguibile ora**. Wiring coperto headless da `Preview.HitCellsMatchCombatShape` (l'anteprima riceve le celle da `HexHitCells`, quindi non può divergere dall'esito), `Preview.AllyInAreaIsFlagged`, `Preview.ClearedWhenPlanIsCancelled`, `Preview.ReachableCellsArePassedThrough`. Al PIE resta il **giudizio**: l'arancione si nota davvero prima di premere Spazio, o passa inosservato? |
+| **PIE-PREVIEW-AREA** | Anteprima dell'area d'attacco e del fuoco amico | unità selezionata, un'abilità ad **area** o **cono** pianificata su un bersaglio | Le celle colpite si evidenziano in **rosso**; se un **alleato** è dentro l'area la sua cella è **arancione** — e si vede **prima** del lock-in. Le celle raggiungibili col budget corrente sono in **verde tenue** (il fango accorcia il raggio a vista d'occhio). Premendo Spazio l'anteprima **sparisce** | ⏳ **difetto trovato e corretto il 2026-08-08, da riverificare.** Eseguita: «non vedo arancioni, forse il cilindro lo copre» — ed era esattamente così. L'arancione veniva disegnato (`FColor(255,150,30)`, contorno più largo del rosso) ma come `DrawDebugLine` con `DepthPriority=SDPG_World`, cioè **soggetto al test di profondità**, a 2,5 unità sopra il piano della cella: sopra a quel piano c'è il cilindro dell'unità, che da camera dall'alto lo copriva per intero. Il dettaglio che chiude la diagnosi: l'arancione **esiste solo su celle con un alleato sopra**, quindi era l'unico contorno sistematicamente nascosto — e con lui il rosso sul bersaglio. Corretto passando a `SDPG_Foreground` le sole celle che possono essere occupate (zona colpita e cella sotto il cursore); raggiungibili e traccia restano depth-tested, stanno per definizione su celle vuote. **Nessun test automatico può vedere questa classe di difetto**: il wiring era ed è verde (`Preview.HitCellsMatchCombatShape`, `Preview.AllyInAreaIsFlagged`, `Preview.ClearedWhenPlanIsCancelled`, `Preview.ReachableCellsArePassedThrough`) — l'anteprima riceveva le celle giuste e le disegnava dove non si vedevano |
 
 ### Scenario Test Harness (aggiunte il 2026-08-07)
 
@@ -225,7 +242,7 @@ Le 31 aperte in sette gruppi (la somma è verificata contro il conteggio misurat
 |----|-----------------|---------------|--------------|-------|
 | **PIE-TEST-AUTORUN** | «Premo Play e parte da solo» | **`BP_GameMode` → Class Defaults → *RefactorTactics\|Test* → `ScenarioToRun` = `Movement.Basic` (**menu a tendina**, non testo libero)**, Compile + Save, poi **Play**. *(In alternativa, per una volta sola: console `rt.Test.Scenario Movement.Basic`, che prevale sulla proprietà.)* | Compaiono **due unità** (Flux team 0, Bastion team 1) su un'arena esagonale, **senza toccare mouse o tastiera**. Nell'Output Log: `[RT-Test] AUTO-RUN Movement.Basic -> PASS (2/2 assertion, 1 turni) · report: …`. La partita normale **non** viene allestita (nessun timer di pianificazione, nessun bot che gioca). Rimettendo `rt.Test.Scenario` a vuoto e ripremendo Play, torna la partita normale | ✅ **2026-08-08** — verificato dall'utente in PIE. Log: `[RT-Test] AUTO-RUN Movement.Basic -> PASS (2/2 assertion, 1 turni) · report: Saved/RTTests/Movement.Basic/20260808-075237`. È il requisito centrale del documento di specifica («devo poter premere Play e osservare») e l'unico pezzo che l'automazione non poteva coprire, perché headless non esiste un mondo di gioco |
 | **PIE-TEST-VISUAL** | Il movimento si **vede**, non si teletrasporta | come sopra, dopo l'AUTO-RUN | L'unità `A1` si sposta da `(-2,0,0)` a `(-1,0,0)` **scorrendo** lungo il percorso, non saltando. A fine turno è esattamente sul centro della cella. ⚠️ Se invece appare già arrivata, il runner sta risolvendo più rapidamente di quanto il playback riesca a mostrare: **non è un difetto di simulazione** (i test headless verificano già l'esito) ma di presentazione, e va annotato qui — sarà la modalità *Visual* del harness a doverlo gestire | ✅ **2026-08-08** — verificato dall'utente dopo il **runner latente** (`8c8365e`). I timestamp lo provano: `AUTO-RUN 09:15:44.830` → `FINITO 09:15:48.772`, **3,9 secondi**, con i turni a `:44`, `:46`, `:48`. Nessun turno dopo il `FINITO`. **Storia**: il primo tentativo diede un falso positivo — il movimento visto erano **turni fantasma** (piani appesi + timer che li ririsolveva, `4e6c2e0`); lo scenario vero si risolveva dentro `BeginPlay` e finiva prima del primo fotogramma. La sessione ora avanza **un passo per frame**, e la stessa macchina a stati serve headless e in gioco |
-| **PIE-TEST-CONSOLE** | I comandi rispondono durante una partita | partita avviata (anche normale) | `rt.Test.List` elenca **8** scenari (i 6 `Movement.*` e i 2 `Combat.*`); `rt.Test.Run Movement.BasicFailsOnPurpose` stampa `FAIL` **con atteso e ottenuto** e il percorso del report; `rt.Test.DumpResult` ristampa l'ultimo `result.json`. ⚠️ Attenzione: eseguire uno scenario **sostituisce la mappa** e aggiunge unità alla partita in corso — è previsto (il runner riusa mappa e turn manager), ma dopo conviene riavviare con `R` | ⏳ *(il conteggio era «4», fermo a prima degli scenari `Combat.*`)* |
+| **PIE-TEST-CONSOLE** | I comandi rispondono durante una partita | partita avviata (anche normale) | `rt.Test.List` elenca **8** scenari (i 6 `Movement.*` e i 2 `Combat.*`); `rt.Test.Run Movement.BasicFailsOnPurpose` stampa `FAIL` **con atteso e ottenuto** e il percorso del report; `rt.Test.DumpResult` ristampa l'ultimo `result.json`. ⚠️ Attenzione: eseguire uno scenario **sostituisce la mappa** e aggiunge unità alla partita in corso — è previsto (il runner riusa mappa e turn manager), ma dopo conviene riavviare con `R` | 🟡 **2026-08-08 — metà eseguita.** `rt.Test.List` ha risposto a schermo: l'utente ha visto i **9** scenari (i 6 `Movement.*`, i 2 `Combat.*` e `RT_Showcase_Relay_v01`). Il `FAIL` di `rt.Test.Run Movement.BasicFailsOnPurpose` è stato **prodotto** — `FAIL (0/1 assertion, 1 turni)`, `FALLITA UnitAtCell(A1): atteso (q=3,r=0,L=0), ottenuto (q=-2,r=0,L=0)`, più il percorso del report — ma **l'utente non l'ha visto a schermo**: l'overlay della console in PIE mostra poche righe e scorre via. ⚠️ **Questa voce chiede «i comandi rispondono», e una risposta che non si legge non risponde**: era stata segnata ✅ sulla prova nei log, ed è stata corretta a 🟡 su obiezione dell'utente — la prova nei log dice che il *codice* funziona, che è ciò che i test headless già coprono (`Scenario.RunnerDiagnosesFailure`, `ReportIsSelfSufficient`). Per chiudere serve che l'esito sia **leggibile senza aprire l'Output Log**: o si porta a schermo una riga di sintesi, o si dichiara qui che il medium legittimo è l'Output Log e la voce cambia richiesta. Il conteggio in questa riga era «4», fermo a prima degli scenari `Combat.*` |
 | **PIE-SCEN-FILTER** | I filtri restringono la tendina, **e la tendina si aggiorna** | `BP_GameMode` → Class Defaults → *RefactorTactics\|Test* | Con i filtri vuoti, `Scenario To Run` elenca tutti e 8 gli scenari. Impostando `Scenario Filter A = movement` la tendina scende a **6**; aggiungendo `Scenario Filter B = core` scende a **3** (`Movement.Basic`, `Movement.Collision`, `Movement.SwapRejectedByPlanning`). Il vocabolario dei due filtri contiene solo tag esistenti, con la voce vuota in testa | ✅ **2026-08-08** — verificato dall'utente in Editor: «la selezione filtra i possibili scenario to run». **Il rischio tecnico non si è materializzato**: `GetOptions` rivaluta l'elenco al cambio di un'altra property dello stesso actor, quindi il Details Panel ridisegna la tendina da solo. Nessuna `PostEditChangeProperty`, nessuna dipendenza `PropertyEditor` |
 | **PIE-SCEN-KEEP** | Filtrare **non perde** lo scenario selezionato | come sopra, con `Scenario To Run = Combat.BasicAttack` già salvato | Impostando `Scenario Filter A = movement` — che esclude `Combat.BasicAttack` dalla vista — la property **resta** su `Combat.BasicAttack`, e premendo Play parte quello. Il filtro è una vista, non un vincolo | ✅ **2026-08-08** — verificato dall'utente in Editor: «se cambio scelta, lo scenario to run non si resetta». Il combo box tiene il valore corrente anche quando i filtri lo escludono dalla vista, quindi la configurazione salvata nel `.uasset` non sembra né è andata persa. ⚠️ **Al termine svuota `Scenario To Run`** (prima voce della tendina) e Save: la property sopravvive alla sessione, e al Play successivo il GameMode esegue lo scenario e **non allestisce la partita normale** (`RTGameMode.cpp:136` fa `return`). Sintomo: schermo quasi nero, nessuna unità tua, **nessuna barra abilità** — perché la barra si disegna solo con un'unità selezionata. Diagnosi in un colpo: cerca `AUTO-RUN` nell'Output Log, la riga dice anche **da dove** viene lo scenario |
 
@@ -246,6 +263,29 @@ Le 31 aperte in sette gruppi (la somma è verificata contro il conteggio misurat
 | **PIE-V01-READY** | Ready anticipato e countdown annullabile | partita avviata | Chiudendo la pianificazione prima dello scadere del timer parte un **countdown di 3 s** prima del commit; premendo **Unready** durante il countdown si torna alla pianificazione **senza aver perso il piano**; il countdown **non** sostituisce il timer massimo. Si annota a che secondo si è dichiarato Ready nei round tipici | ⏳ **il countdown non esiste ancora**: oggi Spazio fa lock-in immediato e irreversibile. La voce documenta il comportamento atteso, non uno da verificare adesso |
 | **PIE-V01-OVERWATCH** | Finestra Fast Reaction da 3 s | E14 (CP 14.5/14.6) atterrata; un'unità con Overwatch armato | La finestra `FIRE`/`HOLD` compare **solo** al proprietario (l'alleato la vede in sola lettura, l'avversario **nulla**), dura **3 s** con countdown visibile, e allo scadere applica **HOLD** senza consumare la charge. **Tre secondi bastano** a decidere senza rileggere tutta la situazione? Se serve rileggere, il problema è la finestra, non la durata. La slow-motion è solo presentazione: ripetendo lo stesso turno l'esito non cambia | ⏳ **E14** (CP 14.6) |
 | **PIE-V01-MAPSCALE** | Scala della mappa in Move, non in celle | mappa di prova con almeno **due rotte** distinte fra gli spawn | Dallo spawn, **attraversare tutta la mappa** costa un numero di Move coerente con la classe dichiarata (**Skirmish** ~3–4, **Standard** ~5–7); **entro 1–2 round** è possibile contestare una zona rilevante o entrare in contatto; le due rotte offrono un **trade-off reale** (più rapida vs più coperta), non due strade equivalenti | ⏳ dipende dalla mappa di prova (vedi sotto) |
+
+### Bot — leggibilità delle decisioni
+
+> Voci aperte il **2026-08-08** consolidando [`../src/handoff/2026-08-08-bot-ai-roadmap-e-test-pie.md`](../src/handoff/2026-08-08-bot-ai-roadmap-e-test-pie.md) §24.1.
+> Il bot ha già copertura headless ampia (utility scoring, copertura, minaccia da dash). Queste voci **non
+> ricontrollano la regola**: guardano se un umano che osserva la partita capisce *perché* il bot ha fatto
+> quella mossa. Un test può dire che lo score di una cella era il più alto; non può dire che la scelta
+> sembrasse sensata a chi guarda.
+
+| ID | Cosa verificare | Precondizione | Esito atteso | Stato |
+|----|-----------------|---------------|--------------|-------|
+| **PIE-AI-01** | Il bot produce solo Intent legali | scenario base, nessun input umano, bot su entrambi i team | Nessun intent invalido accettato, nessun bypass della validazione. L'Output Log non contiene rifiuti silenziosi: se un intent è scartato, il motivo è scritto | ⏳ — logica coperta headless; il PIE guarda il **log narrato** durante una partita intera |
+| **PIE-AI-02** | Objective awareness senza contatto | nessun nemico visibile, un obiettivo disponibile | Il bot avanza o contesta secondo il profilo, invece di restare fermo o di muoversi verso informazione che **non ha** (cercare uno stato nascosto sarebbe barare) | ⏳ |
+| **PIE-AI-03** | Lethal contro posizione | bersaglio legalmente eliminabile + alternativa di movimento mediocre | Il bot preferisce il KO, salvo che l'obiettivo domini la scelta. Lo score breakdown a schermo mostra **perché** | ⏳ |
+| **PIE-AI-04** | Cover contro esposizione | due celle raggiungibili a costo simile, una con cover valida | Il bot sceglie la cella tatticamente migliore e il breakdown lo spiega con la voce «copertura», non con un totale opaco | ⏳ |
+| **PIE-AI-05** | Hazard avoidance | il path più breve attraversa un hazard **noto** al bot | Il bot devia, oppure attraversa **dichiarando** che il costo vale il guadagno. Attraversare senza che il breakdown lo giustifichi è un difetto | ⏳ |
+
+### Formato e icone
+
+| ID | Cosa verificare | Precondizione | Esito atteso | Stato |
+|----|-----------------|---------------|--------------|-------|
+| **PIE-ICON-01** | Le icone si distinguono a schermo | CP 20.2 atterrato, catalogo popolato per Identity/Action/Phase/Status/Certainty | Ogni icona è riconoscibile alla dimensione reale dell'HUD e **due stati diversi non si confondono**. Nessuna informazione affidata al **solo colore** (§12.4 del sorgente muri/porte, stessa regola per l'HUD). Una chiave non risolta si vede come errore, non come spazio vuoto | ⏳ **E20** (CP 20.3) |
+| **PIE-FMT-01** | Formato e mappa concordano | CP 19.1 atterrato | Avviando una mappa `Skirmish` con un formato `Standard` il gioco **rifiuta e lo dice**; con formato e mappa coerenti parte normalmente. Il caso di errore è quello da guardare: se fallisce in silenzio, la classe non sta proteggendo niente | ⏳ **E19** (CP 19.1) |
 
 ## Sessioni di verifica consigliate
 

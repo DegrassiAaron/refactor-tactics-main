@@ -31,7 +31,7 @@ Lo slice adotta **tre stati** invece di cinque: `Nascosto`, `ContattoIncerto`, `
 `UltimoContatto`. `Identificato` richiede la firma visiva e resta fuori.
 
 > **Revisione del 2026-08-07**: il livello `ContattoIncerto`, inizialmente escluso, **rientra** perché il
-> [sistema di rumore](../src/RefactorTactics_Rumore_Claude.md) lo richiede per costruzione — vedi §12. Un
+> [sistema di rumore](../src/design/rumore-e-percezione-acustica.md) lo richiede per costruzione — vedi §12. Un
 > rumore che rivela la cella esatta non è rumore. La conoscenza smette quindi di essere binaria, e il canale
 > acustico costa poco proprio perché condivide questo modello con la vista.
 
@@ -229,7 +229,7 @@ autorità è di fatto quella di un file di lavoro locale.~~
 
 ## 12. Il canale acustico — rumore
 
-Fonte: `docs/src/RefactorTactics_Rumore_Claude.md` (33 sezioni). Brainstorming del **2026-08-07**.
+Fonte: `docs/src/design/rumore-e-percezione-acustica.md` (33 sezioni). Brainstorming del **2026-08-07**.
 
 **Perché costa poco.** Il rumore è il gemello acustico della visione e riusa *tutto*: `TeamKnowledge`, la
 privacy dell'invariante #6, i tre livelli UI confermato/previsto/incerto, la memoria dell'ultimo contatto

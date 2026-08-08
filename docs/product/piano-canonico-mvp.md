@@ -404,7 +404,7 @@ velocità e budget di reazione. Consolidamento, conflitti con gli invarianti #3/
 > nello snapshot della fase, non in una finestra interattiva.
 >
 > ⚠️ **Aggiornamento 2026-08-07 — le finestre di reazione rientrano in scope.** Il documento
-> `docs/src/RefactorTactics_Overwatch_FastReaction_Claude.md` propone l'Overwatch come primo caso di un modello
+> `docs/src/design/overwatch-e-fast-reaction.md` propone l'Overwatch come primo caso di un modello
 > generale di reazione con *decision boundary* e finestra di 3 s. La riconciliazione adottata è la via **(b)**
 > già prevista da [`spec-sequenza-turno.md`](../gameplay/spec-sequenza-turno.md) §3 C1: **l'invariante #3 si compone, non
 > si deroga** — il turno diventa una sequenza di sotto-risoluzioni, ciascuna «raccogli poi applica» con

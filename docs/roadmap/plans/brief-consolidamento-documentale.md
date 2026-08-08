@@ -10,7 +10,7 @@
 > [`roadmap-checkpoint.md`](../roadmap-checkpoint.md).
 
 > **Stato**: revisione documentale · **Data**: 2026-08-07 · **HEAD analizzato**: `50159c6`
-> **Origine**: `/sc:spec-panel` su [`src/RefactorTactics_Consolidamento_PRD_SourceOfTruth_Claude.md`](../../src/RefactorTactics_Consolidamento_PRD_SourceOfTruth_Claude.md)
+> **Origine**: `/sc:spec-panel` su [`docs/src/handoff/consolidamento-prd-source-of-truth.md`](../../src/handoff/consolidamento-prd-source-of-truth.md)
 > **Cosa è**: il verbale della revisione — inventario, critica del sorgente, piano di migrazione.
 > **Autorità**: subordinato a [`piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md).
 
@@ -148,7 +148,7 @@ Non ipotesi: ognuno è stato misurato sul branch al commit `50159c6`.
 |---|---|---|---|
 | **D1** | `piano-canonico-mvp.md` §5 «Classi principali» elenca **4 classi su 10 che non esistono più**: `URTGridLibrary`, `URTTurnResolver`, `ARTGameState`, `URTAbilityData` | `grep -rl "class .*URTGridLibrary" Source/` → vuoto. Le prime tre sono state rimosse al CP 7.2; `URTAbilityData` è oggi `URTActionData`/`URTHeroData` | **alta** — è il documento che prevale su tutto, e descrive un codice che non c'è |
 | **D2** | `docs/README.md` **non esiste**. §34 del sorgente lo indica come il punto d'ingresso da cui un nuovo sviluppatore deve capire il progetto | `ls docs/README.md` → *No such file* | **alta** — l'unico requisito di §24 che manca davvero |
-| **D3** | `CLAUDE.md` linka `docs/SuperClaude_RefactorTactics_CheatSheet.md`; il file è in `docs/src/`. Stesso link rotto in `archive/README.md` | `ls docs/SuperClaude_*.md` → *No such file*; `ls docs/src/SuperClaude_*.md` → ok | media |
+| **D3** | `CLAUDE.md` linka `docs/SuperClaude_RefactorTactics_CheatSheet.md`; il file è in `docs/src/`. Stesso link rotto in `archive/README.md` | `ls docs/SuperClaude_*.md` → *No such file*; `ls docs/src/SuperClaude_*.md` → ok | media | <!-- nomi storici: il file è oggi `docs/src/superclaude-cheatsheet.md` -->
 | **D4** | `brief-delayed-actions.md` §6.1 afferma «`RTReactionLibrary`: nel repo **non c'è** un file con quel nome». **C'è**: `Turn/RTReactionLibrary.{h,cpp}`, epic E5, 27 test | `roadmap-v0.1.md` riga 75 lo dichiara ✅ nella stessa giornata | media — un brief che smentisce sé stesso induce a ricostruire ciò che esiste |
 | **D5** | `brief-conoscenza-parziale.md` §11 avverte «il workbook **non è ancora versionato** in git (`docs/*.xlsx` untracked)». È versionato (allora in `docs/Data/`, oggi in `docs/balance/`) | `git ls-files docs/` → `docs/balance/RefactorTactics_Balance_Matrices_v0.1.xlsx` | bassa |
 | **D6** | Tre sorgenti di `docs/src/` sono **untracked**, incluse le due che *chiedono* il consolidamento | `git status --porcelain docs/` → `?? ..._NuoveDecisioni_4v4_...md`, `?? ..._Consolidamento_PRD_SourceOfTruth_...md`, `?? ..._MatchTiming_MapScale_...md` | media — un input non versionato non è una fonte |
@@ -391,4 +391,4 @@ Prima di aprirle: le 62 issue esistenti sono state confrontate: nessuna copre qu
 | [`roadmap-v0.1.md`](../../roadmap/roadmap-v0.1.md) | I checkpoint di §9 vi entrano solo se approvati; §8 (rischio scope `H/H`) è il motivo per cui §9 apre pochissimo |
 | [`../PDR/RT_PDR_00_Decision_Log.md`](../../decisions/RT_PDR_00_Decision_Log.md) | **Owner** delle `OPEN DECISIONS`: OD-1 diventa `D-011` lì, non qui |
 | [`brief-delayed-actions.md`](../../gameplay/brief-delayed-actions.md) · [`brief-overwatch-reazioni.md`](../../gameplay/brief-overwatch-reazioni.md) · [`brief-conoscenza-parziale.md`](../../gameplay/brief-conoscenza-parziale.md) | Coprono già Delayed, Overwatch e percezione: questo brief **non li ripete**, ne registra i difetti D4/D5 |
-| `../src/RefactorTactics_Consolidamento_PRD_SourceOfTruth_Claude.md` | Sorgente di questa revisione. Resta in `src/` come input, **non** diventa normativo. Il link diventa attivo con **C.3** (oggi il file è untracked) |
+| `../src/handoff/consolidamento-prd-source-of-truth.md` | Sorgente di questa revisione. Resta in `src/` come input, **non** diventa normativo. Il link diventa attivo con **C.3** (oggi il file è untracked) |

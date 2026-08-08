@@ -35,7 +35,7 @@
 > **Non** si costruisce l'intero framework di trappole per la showcase: una sola fetta verticale, con il suo
 > scenario automatico.
 > **Epic**: **E15** di [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) §5 · **CP 15.1–15.5**
-> **Sorgente**: [`../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md`](../src/showcase/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md)
+> **Sorgente**: [`../src/showcase/showcase-v0.1-integrazione-nel-codice.md`](../src/showcase/showcase-v0.1-integrazione-nel-codice.md)
 > (handoff del 2026-08-07, consolidato qui — in caso di conflitto prevale questo file)
 
 Questo documento tiene separate tre cose che è facile confondere: **cosa il codice fa già**, **cosa la
@@ -124,7 +124,7 @@ reazioni d'eroe non cablate erano cinque.)*
 ## 2. La mappa canonica — «Relay Basin»
 
 > ⚠️ **Layout autorato il 2026-08-08, non ereditato.** La specifica che avrebbe dovuto portare l'assegnazione
-> delle celle (`RT_Showcase_Relay_v01_ScenarioSpec_Claude.md`) **non esiste nel repository**: forma, spawn e
+> delle celle (`docs/src/showcase/relay-v0.1-scenario-spec.md`) **non esiste nel repository**: forma, spawn e
 > obiettivo vengono dall'handoff, la **disposizione dei terreni è stata progettata qui**, su autorizzazione
 > dell'autore. Se la spec originale riemerge, questo layout va confrontato con essa — non sovrascritto in
 > silenzio. Dettaglio in [`../roadmap/plans/showcase-v01-audit.md`](../roadmap/plans/showcase-v01-audit.md) §3.1.

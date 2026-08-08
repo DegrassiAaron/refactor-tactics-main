@@ -299,8 +299,8 @@ Deve supportare il futuro collegamento dalla wiki della fazione allo scenario la
 
 ## Team Combos
 
-> ℹ️ **Chiarito il 2026-08-08 da [D-029](../decisions/RT_PDR_00_Decision_Log.md) /
-> [ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md).** «Team Combos» è una **categoria di
+> ℹ️ **Chiarito il 2026-08-08 da [D-029](../../decisions/RT_PDR_00_Decision_Log.md) /
+> [ADR-0006](../../decisions/adr-0006-ownership-abilita-sinergie.md).** «Team Combos» è una **categoria di
 > scenari** — cioè una fixture dimostrativa — **non** un kit condiviso né un `AbilityId` di coppia. Uno
 > scenario può essere specifico della coppia; le abilità e i numeri restano del proprio owner e la regola
 > resta sistemica. L'esempio qui sotto è corretto proprio per questo: Flux legge lo **stato** prodotto da
