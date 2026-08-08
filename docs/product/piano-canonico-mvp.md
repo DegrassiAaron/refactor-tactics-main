@@ -84,6 +84,22 @@ modding). Sono la **direzione futura**, non l'obiettivo attuale. Vedi §8.
 | Networking | core (lez. 9) | roadmap P0 post-tutorial | **Rimandato post-MVP**, ma architettura *server-authority-ready* | Si mantiene la disciplina di `02` come target |
 | Percorso progetto | `C:\Dev\...` | `D:\Dev\...` | **Radice del repo** | Il progetto UE vive nel repo versionato |
 
+> ⚠️ **Revisione 2026-08-08 — SECONDO PASSAGGIO DOCUMENTALE.** Il canone recepisce qui, come richiede la regola
+> di gerarchia («un ADR accettato si recepisce nel canone nello stesso commit»), sei punti che vivevano solo
+> negli ADR o nel Decision Log:
+>
+> | Punto | Cosa vale ora | Fonte |
+> |---|---|---|
+> | **Facing** | È **stato di gioco**, non presentazione, e ha tre consumatori: difesa, percezione, reazioni direzionali. Un'azione con bersaglio **orienta l'unità prima di risolvere**; il `Move`, ultimo, fissa il facing finale, che persiste nel round successivo | [ADR-0005](../decisions/adr-0005-orientamento.md) · [D-020](../decisions/RT_PDR_00_Decision_Log.md) |
+> | **Conoscenza parziale** | Non è «fog of war»: la mappa statica è nota. È incompleta l'informazione sulle **unità e sugli eventi** — LOS geometrica + rilevamento + rumore + ultimo contatto ⇒ **Team Knowledge** a tre livelli. Il rumore è un **secondo canale**, propagato con interi sul grafo | `gameplay/brief-conoscenza-parziale.md` · E13 |
+> | **Overwatch** | **Universale**: azione di pianificazione per tutti, che **compete con l'azione offensiva principale** (`Attack` **oppure** `Ability` **oppure** `Overwatch`). Il profilo cambia per eroe/equipaggiamento; l'azione no | [D-012](../decisions/RT_PDR_00_Decision_Log.md) · [D-014](../decisions/RT_PDR_00_Decision_Log.md) |
+> | **Quota / High Ground** | Vale per **geometria** — LOS, occlusione, copertura, accessibilità. **Nessun `+Damage` e nessun `+VisionRange` globali.** Un eroe, tratto, abilità o equipaggiamento può dichiarare un bonus da altura, in modo data-driven | [D-018](../decisions/RT_PDR_00_Decision_Log.md) · [D-024](../decisions/RT_PDR_00_Decision_Log.md) |
+> | **Formato di partita** | **Non è deciso.** 2v2 è la vertical slice corrente, 3v3 la baseline di lavoro, 4v4 solo scenario di stress (E17). Nessun documento tratti il 3v3 come formato di prodotto scelto: si consolida con la **prima misura** reale | [D-011](../decisions/RT_PDR_00_Decision_Log.md) |
+> | **Verifica automatica** | Gli scenari di test passano dalla **stessa pipeline di gioco** della partita reale: JSON versionato sotto `Scenarios/` → percorso di gioco → `result.json`, `PASS`/`FAIL`/`ERROR`. **Nessun bypass** del resolver, nessun Actor di test | `technical/test-automatico-unreal.md` |
+>
+> Restano fermi UE **5.8.1** ([D-022](../decisions/RT_PDR_00_Decision_Log.md), ora *Consolidata*) e il **no-GAS**
+> per la v0.1.
+
 ### 3.0 Stato vigente delle decisioni superate (2026-08-06)
 
 La tabella sopra è la **riconciliazione dei due corsi** e resta leggibile come storia del progetto: alcune sue
@@ -167,6 +183,7 @@ Principi non negoziabili (valgono anche in offline, per preparare il multiplayer
 4. **Determinismo**: niente `DeltaTime` non controllato nella logica dei turni; niente dipendenza dall'ordine di container non ordinati; ogni RNG usa seed/stream espliciti; ogni formato serializzato è versionato.
 5. **Server autoritativo** per ogni decisione di gameplay; il client calcola solo preview. Nell'MVP offline l'autorità è già isolata in `ARTTurnManager` (predisposizione al multiplayer).
 6. **Privacy dell'intento**: le intenzioni di pianificazione non raggiungono i client avversari — stato server + replica filtrata per squadra + autorizzazione server-side (invariante di `Intenti condivisi`). Nell'MVP offline: nessuna mossa avversaria mostrata/replicata durante la pianificazione.
+   > **Esteso il 2026-08-08 da [D-021](../decisions/RT_PDR_00_Decision_Log.md)** — *anche il tempo è un canale*. La formulazione «payload filtrato per squadra» non copre le finestre di reazione: una **pausa osservabile** al decision boundary dice all'avversario che una finestra si è aperta, su quale micro-step e per quanto si è pensato, senza che un solo byte lo attraversi. La sospensione **logica** resta globale (serve al determinismo, [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) §5); la **presentazione avversaria** non deve avere una pausa variabile correlata alla scelta altrui. Zero leak comprende ora payload **e** timing.
 7. **Combat math = funzioni pure** in `URTCombatLibrary`, coperte da test.
 
 ### Classi principali (prefissi `RT`/`URT`)
@@ -200,6 +217,15 @@ Principi non negoziabili (valgono anche in offline, per preparare il multiplayer
 | `URTHexBotLibrary` | BlueprintFunctionLibrary | Utility scoring del bot |
 | `URTTurnLogLibrary` | BlueprintFunctionLibrary | TurnLog: hash, serializzazione versionata, reason code |
 | `URTIntentPrivacyLibrary` | BlueprintFunctionLibrary | `FilterForTeam` → `FRTIntentView` (invariante #6) |
+| `URTHexCoverLibrary` | BlueprintFunctionLibrary | Copertura direzionale bassa/alta, bordi, danno a struttura (E9) |
+| `URTTerrainLibrary` | BlueprintFunctionLibrary | Superfici, stati temporanei, propagazione (E8) |
+| `URTMatchSetupLibrary` · `URTMatchFormatLibrary` | BlueprintFunctionLibrary | Allestimento e parametri di formato; fine partita a tre vie |
+| `URTScenarioLoader` · `URTScenarioRunner` · `URTTestReportWriter` | BlueprintFunctionLibrary | **Scenario Test Harness**: JSON versionato → percorso di gioco reale → `result.json` |
+
+> Questa tabella elenca le classi **load-bearing** citate dal canone, non tutte: al 2026-08-08 il comando qui
+> sopra ne restituisce **40**. La mappa completa e aggiornata è di
+> [`../technical/architettura-codice.md`](../technical/architettura-codice.md), che ne è l'owner — il canone
+> non deve diventare un secondo inventario da tenere sincronizzato.
 
 ### Convenzioni asset
 
