@@ -95,12 +95,14 @@ gameplay. È la proprietà che rende un test verde significativo.
 
 ## 4. Scrivere uno scenario
 
-File in `Scenarios/<Categoria>/<Nome>.json`. **L'ID è il percorso**: `Movement.Basic` vive in
-`Movement/Basic.json`, e un test lo verifica.
+File `.json` sotto `Scenarios/`, in **qualunque** sottocartella. L'ID lo dichiara il file, non il percorso:
+spostare uno scenario non ne cambia l'identità, e a trovarlo ci pensano i **tag**. Il modello, il perché e la
+tabella di redirect stanno in [`scenario-index-e-tag.md`](scenario-index-e-tag.md).
 
 ```json
 {
   "scenarioId": "Movement.Basic",
+  "tags": ["movement", "core", "animation", "flux", "bastion"],
   "version": 1,
   "seed": 0,
   "mapRadius": 3,
@@ -123,7 +125,8 @@ File in `Scenarios/<Categoria>/<Nome>.json`. **L'ID è il percorso**: `Movement.
 
 | Campo | Significato |
 |---|---|
-| `scenarioId` | ID gerarchico, **deve** corrispondere al percorso del file |
+| `scenarioId` | ID stabile e gerarchico, **univoco** fra tutti gli scenari. Non deve corrispondere al percorso |
+| `tags` | *(opzionale)* parole per cui filtrare nell'Editor: tipologia, lente, personaggio. Vedi [`scenario-index-e-tag.md`](scenario-index-e-tag.md) |
 | `mapRadius` | arena esagonale piena generata da codice (nessun `.umap` da versionare) |
 | `cells` | *(opzionale)* celle da modificare: `blocksMovement`, `blocksLineOfSight`, `moveCost` |
 | `hero` | ID stabile dal catalogo: `Hero.Flux` · `Hero.Riva` · `Hero.Bastion` · `Hero.Vektor` |
@@ -236,12 +239,18 @@ Due modi, con precedenze diverse perché servono a cose diverse.
 
 | Proprietà (categoria *RefactorTactics\|Test*) | Effetto |
 |---|---|
-| `ScenarioToRun` | **menu a tendina** con gli scenari disponibili. Prima voce **vuota** = partita normale |
+| `ScenarioFilterA` / `ScenarioFilterB` | due tag che **restringono** la tendina sottostante, in intersezione. Vuoti = nessun filtro |
+| `ScenarioToRun` | **menu a tendina** con gli scenari che passano i filtri. Prima voce **vuota** = partita normale |
 | `ScenarioPlanningSeconds` | durata della pianificazione **mentre gira uno scenario** (default **3 s**). `0` = nessuna scadenza, l'immagine resta ferma |
 
 Il menu si popola **leggendo i file** in `Scenarios/` (`GetScenarioOptions`), non da un elenco scritto nel
 codice: aggiungere uno scenario lo fa comparire nella tendina senza toccare nulla, e non si può selezionare
-un ID che non esiste. È lo stesso principio per cui l'ID di uno scenario **è** il suo percorso.
+un ID che non esiste. Vale anche per il vocabolario dei due filtri, che è l'unione dei tag realmente presenti
+negli scenari — così non esistono voci che non filtrano niente.
+
+I filtri sono una **vista, non un vincolo**: restringere l'elenco non tocca mai `ScenarioToRun`. Uno scenario
+già scelto resta scelto ed eseguito anche mentre i filtri mostrano altro. Il perché sta in
+[`scenario-index-e-tag.md`](scenario-index-e-tag.md).
 
 Si impostano una volta nei *Class Defaults* di `BP_GameMode`, si salva, e da lì in poi **al primo Play lo
 scenario parte**. Non c'è niente da ridigitare a ogni riavvio dell'editor.

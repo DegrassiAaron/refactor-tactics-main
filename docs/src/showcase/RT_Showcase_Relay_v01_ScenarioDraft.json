@@ -1,0 +1,724 @@
+{
+  "schemaVersion": "design-draft-1",
+  "status": "DESIGN_FIXTURE_NOT_RUNTIME_SCHEMA",
+  "scenarioId": "RT_Showcase_Relay_v01",
+  "mapId": "L_Showcase_Relay",
+  "seed": 20260808,
+  "notes": [
+    "Claude must adapt this draft to the Scenario Harness schema actually present in the repository.",
+    "Coordinates are canonical logical axial coordinates for this design fixture.",
+    "Do not special-case showcase behavior in the resolver."
+  ],
+  "map": {
+    "coordinateSystem": "axial",
+    "layer": 0,
+    "validRows": {
+      "-3": [
+        -1,
+        0,
+        1
+      ],
+      "-2": [
+        -2,
+        -1,
+        0,
+        1,
+        2
+      ],
+      "-1": [
+        -3,
+        -2,
+        -1,
+        0,
+        1,
+        2,
+        3
+      ],
+      "0": [
+        -4,
+        -3,
+        -2,
+        -1,
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "1": [
+        -4,
+        -3,
+        -2,
+        -1,
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "2": [
+        -3,
+        -2,
+        -1,
+        0,
+        1,
+        2,
+        3
+      ],
+      "3": [
+        -2,
+        -1,
+        0,
+        1,
+        2
+      ]
+    },
+    "objective": {
+      "id": "Objective.Relay",
+      "cell": [
+        0,
+        0,
+        0
+      ]
+    },
+    "terrain": {
+      "Smoke": [
+        [
+          -3,
+          -1,
+          0
+        ],
+        [
+          -3,
+          0,
+          0
+        ],
+        [
+          -3,
+          1,
+          0
+        ]
+      ],
+      "HighGround": [
+        [
+          -1,
+          -3,
+          0
+        ],
+        [
+          0,
+          -3,
+          0
+        ],
+        [
+          1,
+          -3,
+          0
+        ],
+        [
+          -2,
+          -2,
+          0
+        ],
+        [
+          -1,
+          -2,
+          0
+        ],
+        [
+          0,
+          -2,
+          0
+        ],
+        [
+          1,
+          -2,
+          0
+        ],
+        [
+          2,
+          -2,
+          0
+        ],
+        [
+          2,
+          -1,
+          0
+        ]
+      ],
+      "Fire": [
+        [
+          0,
+          -1,
+          0
+        ],
+        [
+          1,
+          -1,
+          0
+        ]
+      ],
+      "Rough": [
+        [
+          2,
+          0,
+          0
+        ],
+        [
+          2,
+          1,
+          0
+        ],
+        [
+          3,
+          1,
+          0
+        ],
+        [
+          2,
+          2,
+          0
+        ]
+      ],
+      "ShallowWater": [
+        [
+          -3,
+          2,
+          0
+        ],
+        [
+          -2,
+          2,
+          0
+        ],
+        [
+          -1,
+          2,
+          0
+        ]
+      ],
+      "Conductive": [
+        [
+          1,
+          2,
+          0
+        ],
+        [
+          2,
+          2,
+          0
+        ]
+      ],
+      "Ice": [
+        [
+          -2,
+          3,
+          0
+        ],
+        [
+          -1,
+          3,
+          0
+        ],
+        [
+          0,
+          3,
+          0
+        ],
+        [
+          1,
+          3,
+          0
+        ],
+        [
+          2,
+          3,
+          0
+        ]
+      ]
+    },
+    "edges": [
+      {
+        "id": "BridgeEdge",
+        "from": [
+          -1,
+          2,
+          0
+        ],
+        "to": [
+          0,
+          2,
+          0
+        ],
+        "kind": "Bridge",
+        "initialState": "Enabled"
+      },
+      {
+        "id": "GateEdge",
+        "from": [
+          1,
+          0,
+          0
+        ],
+        "to": [
+          2,
+          0,
+          0
+        ],
+        "kind": "Interactive",
+        "initialState": "Open",
+        "controlCell": [
+          3,
+          0,
+          0
+        ]
+      }
+    ]
+  },
+  "units": [
+    {
+      "id": "Unit.Flux",
+      "heroId": "Hero.Flux",
+      "team": "Blue",
+      "cell": [
+        -4,
+        0,
+        0
+      ],
+      "facing": "E"
+    },
+    {
+      "id": "Unit.Riva",
+      "heroId": "Hero.Riva",
+      "team": "Blue",
+      "cell": [
+        -4,
+        1,
+        0
+      ],
+      "facing": "E"
+    },
+    {
+      "id": "Unit.Bastion",
+      "heroId": "Hero.Bastion",
+      "team": "Red",
+      "cell": [
+        4,
+        0,
+        0
+      ],
+      "facing": "W"
+    },
+    {
+      "id": "Unit.Vektor",
+      "heroId": "Hero.Vektor",
+      "team": "Red",
+      "cell": [
+        4,
+        1,
+        0
+      ],
+      "facing": "W"
+    }
+  ],
+  "turns": [
+    {
+      "turn": 1,
+      "purpose": "Opening: hex movement, dash, smoke, water lane, high ground, cover",
+      "intents": [
+        {
+          "unit": "Unit.Flux",
+          "move": [
+            [
+              -4,
+              0,
+              0
+            ],
+            [
+              -3,
+              0,
+              0
+            ],
+            [
+              -2,
+              0,
+              0
+            ]
+          ],
+          "facing": "E",
+          "main": "Action.Wait"
+        },
+        {
+          "unit": "Unit.Riva",
+          "action": "Riva.FluidTrail",
+          "dashPath": [
+            [
+              -4,
+              1,
+              0
+            ],
+            [
+              -3,
+              2,
+              0
+            ],
+            [
+              -2,
+              2,
+              0
+            ],
+            [
+              -1,
+              2,
+              0
+            ]
+          ]
+        },
+        {
+          "unit": "Unit.Bastion",
+          "action": "Bastion.KineticPanel",
+          "targetSector": "W",
+          "move": [
+            [
+              4,
+              0,
+              0
+            ],
+            [
+              3,
+              0,
+              0
+            ]
+          ],
+          "requiresFeature": "E9/runtime structures"
+        },
+        {
+          "unit": "Unit.Vektor",
+          "move": [
+            [
+              4,
+              1,
+              0
+            ],
+            [
+              3,
+              1,
+              0
+            ],
+            [
+              2,
+              1,
+              0
+            ],
+            [
+              2,
+              0,
+              0
+            ],
+            [
+              2,
+              -1,
+              0
+            ]
+          ],
+          "facing": "W"
+        }
+      ]
+    },
+    {
+      "turn": 2,
+      "purpose": "Wet + push setup, cover reconfigure, first predictive whiff",
+      "intents": [
+        {
+          "unit": "Unit.Flux",
+          "action": "Flux.ConductiveNode",
+          "targetCell": [
+            0,
+            2,
+            0
+          ],
+          "moveEnd": [
+            -1,
+            1,
+            0
+          ],
+          "note": "verify action range"
+        },
+        {
+          "unit": "Unit.Riva",
+          "action": "Riva.PressureJet",
+          "target": "Unit.Vektor",
+          "expectedEffects": [
+            "Damage",
+            "Wet",
+            "Push1IfValid"
+          ]
+        },
+        {
+          "unit": "Unit.Bastion",
+          "action": "Bastion.Reconfigure",
+          "target": "KineticPanel",
+          "moveEnd": [
+            2,
+            0,
+            0
+          ],
+          "requiresFeature": "E9/runtime structures"
+        },
+        {
+          "unit": "Unit.Vektor",
+          "action": "Vektor.InterceptShot",
+          "predictedCell": [
+            0,
+            1,
+            0
+          ],
+          "expected": "WHIFF",
+          "requiresFeature": "predictive thin slice"
+        }
+      ]
+    },
+    {
+      "turn": 3,
+      "purpose": "Dash before Blast, fire/burning, moving-target fallback",
+      "intents": [
+        {
+          "unit": "Unit.Flux",
+          "action": "Flux.LinearDischarge",
+          "target": "Unit.Vektor",
+          "movingTargetPolicy": "USE_CATALOG_CURRENT"
+        },
+        {
+          "unit": "Unit.Riva",
+          "action": "Riva.CircularTide",
+          "targetCell": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "unit": "Unit.Bastion",
+          "action": "Action.Brace"
+        },
+        {
+          "unit": "Unit.Vektor",
+          "action": "Vektor.PassingBlade",
+          "desiredThroughCells": [
+            [
+              1,
+              -1,
+              0
+            ],
+            [
+              0,
+              -1,
+              0
+            ]
+          ],
+          "endTarget": [
+            1,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "turn": 4,
+      "purpose": "Universal Overwatch: HOLD first target, FIRE second target",
+      "intents": [
+        {
+          "unit": "Unit.Flux",
+          "moveProfile": "Sprint",
+          "move": "ENTER_VEKTOR_OVERWATCH_FIRST"
+        },
+        {
+          "unit": "Unit.Riva",
+          "move": "ENTER_VEKTOR_OVERWATCH_LATER"
+        },
+        {
+          "unit": "Unit.Bastion",
+          "action": "Action.Wait"
+        },
+        {
+          "unit": "Unit.Vektor",
+          "action": "Action.Overwatch",
+          "facing": "W_OR_SW"
+        }
+      ],
+      "reactionPolicy": [
+        {
+          "owner": "Unit.Vektor",
+          "opportunity": 1,
+          "target": "Unit.Flux",
+          "response": "HOLD"
+        },
+        {
+          "owner": "Unit.Vektor",
+          "opportunity": 2,
+          "target": "Unit.Riva",
+          "response": "FIRE"
+        }
+      ],
+      "requiresFeature": "ADR-0004 universal Overwatch/Fast Decision"
+    },
+    {
+      "turn": 5,
+      "purpose": "Smoke, target validation, Deflect, Interact and GraphRevision",
+      "preCommitValidation": [
+        {
+          "unit": "Unit.Flux",
+          "draftAction": "Flux.LinearDischarge",
+          "target": "Unit.Vektor",
+          "expected": "VALIDATE_USING_SMOKE_RULES"
+        }
+      ],
+      "intents": [
+        {
+          "unit": "Unit.Flux",
+          "action": "Flux.ArcPulse",
+          "target": "Unit.Vektor"
+        },
+        {
+          "unit": "Unit.Riva",
+          "action": "Riva.MistVeil",
+          "targetCell": [
+            1,
+            1,
+            0
+          ]
+        },
+        {
+          "unit": "Unit.Bastion",
+          "action": "Action.Interact",
+          "target": "GateEdge",
+          "controlCell": [
+            3,
+            0,
+            0
+          ],
+          "requiresFeature": "interactive structures"
+        },
+        {
+          "unit": "Unit.Vektor",
+          "reaction": "Vektor.Deflection"
+        }
+      ]
+    },
+    {
+      "turn": 6,
+      "purpose": "Interposition redirect + LOS/cover revalidation + Wet/Push",
+      "intents": [
+        {
+          "unit": "Unit.Flux",
+          "action": "Flux.ArcPulse",
+          "target": "Unit.Vektor"
+        },
+        {
+          "unit": "Unit.Riva",
+          "action": "Riva.PressureJet",
+          "target": "Unit.Bastion"
+        },
+        {
+          "unit": "Unit.Bastion",
+          "reaction": "Bastion.Interposition"
+        },
+        {
+          "unit": "Unit.Vektor",
+          "action": "Vektor.PulseShot",
+          "target": "Unit.Flux"
+        }
+      ],
+      "expected": [
+        "OriginalTarget=Vektor",
+        "EffectiveTarget=Bastion",
+        "RevalidateLOSAndCover",
+        "NoNestedInteractiveReaction"
+      ]
+    },
+    {
+      "turn": 7,
+      "purpose": "Environment payoff: water/fire, electricity, ice slide, rough validation",
+      "preCommitValidation": [
+        {
+          "unit": "Unit.Bastion",
+          "draftAction": "Bastion.Ram",
+          "path": "THROUGH_ROUGH",
+          "expected": "INVALID"
+        }
+      ],
+      "intents": [
+        {
+          "unit": "Unit.Flux",
+          "action": "USE_ELECTRIC_ATTACK_FOR_CHAIN",
+          "target": "WET_OR_CONDUCTIVE_ENEMY"
+        },
+        {
+          "unit": "Unit.Riva",
+          "action": "Riva.FluidTrail",
+          "desiredGoal": "TOUCH_FIRE_WITH_WATER_IF_SUPPORTED"
+        },
+        {
+          "unit": "Unit.Bastion",
+          "action": "USE_CORRECTED_LEGAL_ACTION"
+        },
+        {
+          "unit": "Unit.Vektor",
+          "move": "NORMAL_MOVE_THROUGH_ICE"
+        }
+      ],
+      "expected": [
+        "WaterFireInteraction",
+        "ElectricPropagation",
+        "NoDuplicateElectricHit",
+        "IceSlideIfCurrentRuleAllows"
+      ]
+    },
+    {
+      "turn": 8,
+      "purpose": "Prediction whiff, Flux KO, Riva captures Relay, objective decides match",
+      "intents": [
+        {
+          "unit": "Unit.Flux",
+          "action": "USE_VALID_FINAL_ATTACK",
+          "target": "Unit.Vektor"
+        },
+        {
+          "unit": "Unit.Riva",
+          "moveEnd": [
+            0,
+            0,
+            0
+          ],
+          "avoidPredictedCell": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "unit": "Unit.Bastion",
+          "move": "ATTEMPT_RELAY_CONTEST_BUT_FAIL_FOR_REAL_RULE_REASON"
+        },
+        {
+          "unit": "Unit.Vektor",
+          "action": "Vektor.InterceptShot",
+          "predictedCell": [
+            1,
+            0,
+            0
+          ],
+          "followupOrAttack": "KO_FLUX_IF_LEGAL"
+        }
+      ],
+      "expected": [
+        "PredictionWhiffed",
+        "Unit.Flux=KO",
+        "Unit.Riva@Relay",
+        "ObjectiveUpdated=Blue",
+        "MatchEnded"
+      ]
+    }
+  ]
+}
