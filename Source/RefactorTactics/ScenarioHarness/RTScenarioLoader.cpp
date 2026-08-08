@@ -84,6 +84,8 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 		return false;
 	}
 	Root->TryGetNumberField(TEXT("seed"), OutScenario.Seed);
+	// Solo presentazione: quale unita' selezionare in PIE per far comparire l'anteprima. Headless non fa nulla.
+	Root->TryGetStringField(TEXT("previewUnit"), OutScenario.PreviewUnit);
 	Root->TryGetStringField(TEXT("fixture"), OutScenario.Fixture);
 	Root->TryGetNumberField(TEXT("mapRadius"), OutScenario.MapRadius);
 
