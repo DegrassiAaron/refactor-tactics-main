@@ -1,5 +1,11 @@
 # RefactorTactics — Audit completo di `docs/` non-Gameplay e piano di consolidamento per Claude Code
 
+> ⚠️ **SUPERATO da [`..._2026-08-08_v2.md`](RefactorTactics_Audit_Docs_NonGameplay_Consolidamento_Claude_2026-08-08_v2.md).**
+> Questa è la versione con le decisioni ancora **`BLOCKED / HUMAN DECISION`**. Le dieci decisioni sono state
+> **chiuse dall'autore il 2026-08-08** e vivono nella v2, che è quella da eseguire.
+> Conservata come provenienza: mostra *quali* domande erano aperte prima delle risposte.
+
+
 **Data audit:** 2026-08-08  
 **Repository:** `DegrassiAaron/refactor-tactics-main`  
 **Branch verificato:** `main`  

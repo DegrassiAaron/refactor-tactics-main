@@ -136,13 +136,13 @@ a memoria** — questo file l'ha già sbagliato quattro volte:
 grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp | tr -d '"' | sort -u | wc -l
 ```
 
-Ultima misura: **419 test unici in 64 file**, al commit `3335e36` del 2026-08-08. La ripartizione sotto è
-derivata dalla stessa misura (`… | awk -F. '{print $2}' | sort | uniq -c`) e somma esattamente a 419.
+Ultima misura: **432 test unici in 65 file**, il 2026-08-08 **dopo** il merge di CP 9.3 (porte). La
+ripartizione sotto è derivata dalla stessa misura e somma esattamente a 432.
 
 | Area | Test | Cosa fissa |
 |---|---:|---|
+| `Hex*` (mappa, path, vision, bot, blast, move, match) | 85 | Coordinate, A\*, LOS, bot, partita completa |
 | `Actions.*` | 58 | Ordine per priorità, permutazione-invarianza, fallback, mappatura di fase |
-| `Hex*` (mappa, path, vision, bot, blast, move, match) | 82 | Coordinate, A\*, LOS, bot, partita completa |
 | `Terrain.*` · `Status.*` · `Environment.*` | 39 | Superfici, stati temporanei, propagazione elettrica, fuoco/acqua |
 | `Combat.*` · `HexCombat.*` | 36 | Danno dopo scudo, forme, LOS, niente fuoco amico |
 | `Reactions.*` | 27 | Attivazione singola, trigger puro, reazioni componibili, privacy |
@@ -152,8 +152,9 @@ derivata dalla stessa misura (`… | awk -F. '{print $2}' | sort | uniq -c`) e s
 | `TurnLog.*` | 22 | Hash permutazione-invariante, serializzazione versionata, checksum |
 | `Scenario.*` | 13 | Harness degli scenari automatici: PASS/FAIL/ERROR, niente bypass |
 | `Cover.*` | 13 | Copertura bassa e alta, bordi, danno a struttura e distruzione |
+| `Structures.*` | 10 | Porte come **bordo**: stato, blocco del passo, movimento che si ferma (CP 9.3) |
 | `Playback.*` · `Preview.*` · `PlayerInput.*` · `ShowcaseRelay.*` | 18 | Presentazione e input: non decidono, riproducono |
-| `Unit.*` · `Simulation.*` · `Turn.*` | 14 | Stato unità e ossatura del turno |
+| `Unit.*` · `Simulation.*` · `Turn.*` | 14 | Stato unità, determinismo del replay, ossatura del turno |
 | `Catalog.*` | 9 | Invarianti del catalogo: solo interi, slot dichiarati, ID stabili |
 | `Pacing.*` | 7 | Pacing del turno misurato |
 | `Perf.*` | 2 | Path mediana **0,025 ms** · resolver **0,41 ms/turno** |

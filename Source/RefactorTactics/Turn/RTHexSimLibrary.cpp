@@ -418,6 +418,39 @@ TArray<FRTCellId> URTHexSimLibrary::TruncatePathToBudget(const FRTHexSnapshot& S
 	return Truncated;
 }
 
+TArray<FRTCellId> URTHexSimLibrary::TruncatePathToTopology(const FRTHexSnapshot& Snapshot,
+	const TArray<FRTCellId>& Path)
+{
+	if (!Snapshot.Map || Path.Num() < 2)
+	{
+		return Path; // dato non verificabile, o niente da camminare
+	}
+
+	TArray<FRTCellId> Walkable;
+	Walkable.Add(Path[0]);
+	for (int32 k = 1; k < Path.Num(); ++k)
+	{
+		// Si CHIEDE AL GRAFO invece di rileggere i bordi: la regola su cosa separa due celle vive in un posto
+		// solo (`URTHexCoverLibrary::BlocksTraversal`, che `GraphNeighbors` gia' interroga), e riscriverla qui
+		// significherebbe due risposte alla stessa domanda, destinate a divergere.
+		bool bStepStillExists = false;
+		for (const TPair<FRTCellId, int32>& Step : URTHexPathLibrary::GraphNeighbors(Snapshot.Map, Path[k - 1]))
+		{
+			if (Step.Key == Path[k])
+			{
+				bStepStillExists = true;
+				break;
+			}
+		}
+		if (!bStepStillExists)
+		{
+			break; // la topologia e' cambiata da quando il piano e' stato scritto: si ferma QUI
+		}
+		Walkable.Add(Path[k]);
+	}
+	return Walkable;
+}
+
 namespace
 {
 	TArray<FRTHexMoveResult> ResolveHexPathsInternal(const TArray<TArray<FRTCellId>>& Paths,

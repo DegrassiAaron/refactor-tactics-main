@@ -80,6 +80,45 @@ namespace
 	}
 
 	/**
+	 * Prima PORTA che la traiettoria attraversa, andando da `From` verso `To`. Simmetrica a
+	 * `FirstCoveredEdge`: e' il varco che il colpo incontra per primo, l'unico su cui puo' agire.
+	 */
+	bool FirstDoorEdge(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To,
+		FRTCellId& OutFrom, FRTCellId& OutTo)
+	{
+		const FRTCellId Origin(From.X, From.Y, To.Layer);
+		if (Origin.X == To.X && Origin.Y == To.Y)
+		{
+			return false; // stessa cella assiale: nessun bordo attraversato
+		}
+
+		const TArray<FRTCellId> Line = URTHexLibrary::HexLine(Origin, To);
+		for (int32 I = 1; I < Line.Num(); ++I)
+		{
+			// Una porta APERTA e' comunque una porta: e' proprio quella che si vuole poter chiudere. Il
+			// controllo va quindi sull'esistenza della voce, non sul fatto che blocchi.
+			const FRTHexCellData* Near = Map->FindCell(Line[I - 1]);
+			const FRTHexCellData* Far = Map->FindCell(Line[I]);
+			ERTHexDirection Forward = ERTHexDirection::E;
+			ERTHexDirection Backward = ERTHexDirection::E;
+			if (!URTHexCoverLibrary::EdgeDirection(Line[I - 1], Line[I], Forward)
+				|| !URTHexCoverLibrary::EdgeDirection(Line[I], Line[I - 1], Backward))
+			{
+				continue;
+			}
+			const bool bHasDoor = (Near != nullptr && Near->DoorOn(Forward) != nullptr)
+				|| (Far != nullptr && Far->DoorOn(Backward) != nullptr);
+			if (bHasDoor)
+			{
+				OutFrom = Line[I - 1];
+				OutTo = Line[I];
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
 	 * Somma il danno su un bordo gia' presente, o ne aggiunge uno nuovo. La coppia di celle e' NORMALIZZATA
 	 * (ordine stabile) perche' due attaccanti ai lati opposti colpiscono la stessa barriera: senza, il muro
 	 * risulterebbe colpito due volte a meta' della forza.
@@ -217,6 +256,19 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 					Intent.AttackerId);
 			}
 		}
+
+		// PORTE (CP 9.3): l'azione che dichiara `SetDoorState` agisce sulla prima porta che la sua traiettoria
+		// attraversa. Come per le strutture si raccoglie PRIMA del controllo sulla linea di tiro — una porta
+		// chiusa toglie la vista a chi sta oltre, e chiuderla sarebbe impossibile se il proprio effetto
+		// venisse scartato dalla porta stessa.
+		if (Intent.bChangesDoor)
+		{
+			FRTCellId DoorFrom, DoorTo;
+			if (FirstDoorEdge(Map, Attacker.Cell, AimCell, DoorFrom, DoorTo))
+			{
+				Plan.DoorOps.Add(FRTDoorOp(DoorFrom, DoorTo, Intent.DoorState));
+			}
+		}
 		if (!URTHexVisionLibrary::HasLineOfSight(Map, Attacker.Cell, AimCell))
 		{
 			Plan.BlockedIntents.Add(IntentIdx);
@@ -262,6 +314,12 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 	{
 		if (!(A.From == B.From)) { return URTHexLibrary::StableLess(A.From, B.From); }
 		return URTHexLibrary::StableLess(A.To, B.To);
+	});
+	Plan.DoorOps.Sort([](const FRTDoorOp& A, const FRTDoorOp& B)
+	{
+		if (!(A.From == B.From)) { return URTHexLibrary::StableLess(A.From, B.From); }
+		if (!(A.To == B.To)) { return URTHexLibrary::StableLess(A.To, B.To); }
+		return static_cast<uint8>(A.State) < static_cast<uint8>(B.State); // ordine TOTALE: Sort non e' stabile
 	});
 
 	return Plan;

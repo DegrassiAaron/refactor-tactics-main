@@ -1,0 +1,116 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Kismet/BlueprintFunctionLibrary.h"
+#include "Map/RTCellId.h"
+#include "Map/RTHexCellData.h"
+#include "RTHexDoorLibrary.generated.h"
+
+class URTHexMapAsset;
+
+/**
+ * Ordine di una porta raccolto durante una fase, gia' riferito al BORDO: la coppia di celle lo identifica
+ * senza una direzione, la stessa convenzione con cui il TurnLog lo scrive in `SrcCell`/`TgtCell`.
+ */
+USTRUCT(BlueprintType)
+struct FRTDoorOp
+{
+	GENERATED_BODY()
+
+	/** Cella dal lato di chi agisce. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	FRTCellId From;
+
+	/** Cella oltre il bordo. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	FRTCellId To;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	ERTHexDoorState State = ERTHexDoorState::Closed;
+
+	FRTDoorOp() = default;
+	FRTDoorOp(const FRTCellId& InFrom, const FRTCellId& InTo, ERTHexDoorState InState)
+		: From(InFrom), To(InTo), State(InState) {}
+};
+
+/** Cosa e' cambiato su un bordo dopo un ordine: le voci che il chiamante scrive nel TurnLog. */
+USTRUCT(BlueprintType)
+struct FRTDoorChange
+{
+	GENERATED_BODY()
+
+	/** Cella che PORTA la voce di porta (puo' essere una delle due facce del bordo). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	FRTCellId Cell;
+
+	/** Cella oltre il bordo: con `Cell` identifica la porta in modo leggibile nel log. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	FRTCellId Toward;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	ERTHexDoorState State = ERTHexDoorState::Closed;
+
+	/** Vero se il bordo, dopo il cambio, nega passo e vista. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	bool bBlocking = false;
+};
+
+/**
+ * Le porte: stato di un BORDO che puo' cambiare a partita in corso.
+ *
+ * Sta accanto a `URTHexCoverLibrary` e non dentro di essa perche' risponde a una domanda diversa — «questo
+ * varco e' aperto?» invece di «questo bordo ripara?» — ma la LETTURA e' unificata da `BlocksTraversal`, che
+ * somma muro e porta: e' quella l'unica funzione che vista, pathfinding e combat interrogano, quindi non
+ * possono divergere. Vedi docs/gameplay/spec-porte-cp93.md.
+ */
+UCLASS()
+class REFACTORTACTICS_API URTHexDoorLibrary : public UBlueprintFunctionLibrary
+{
+	GENERATED_BODY()
+
+public:
+	/**
+	 * Stato della porta sul bordo fra due celle ADIACENTI, visto dai due lati: vale il piu' RESTRITTIVO delle
+	 * due facce, con la stessa ragione delle coperture — la barriera e' fisica, e la regola non deve dipendere
+	 * da quale delle due celle l'ha ricevuta.
+	 *
+	 * `Open` se le celle non sono adiacenti, se il bordo non ha porte, se una cella manca o se `Map` e' nullo:
+	 * l'assenza di una porta non e' una porta aperta che qualcuno puo' chiudere, ma per la traversata sono
+	 * indistinguibili — chi deve saperlo usa `FindDoor`.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static ERTHexDoorState DoorBetween(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To);
+
+	/** Vero se sul bordo c'e' una porta che NEGA passo e vista (`Closed` o `Locked`). */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static bool BlocksBetween(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To);
+
+	/** Vero se quello stato nega passo e vista. Regola in un posto solo: la usano lettura e log. */
+	static bool StateBlocks(ERTHexDoorState State)
+	{
+		return State == ERTHexDoorState::Closed || State == ERTHexDoorState::Locked;
+	}
+
+	/**
+	 * UNICO ingresso di mutazione. Porta il bordo — e ogni altro bordo del suo GRUPPO (`DoorId`) — allo stato
+	 * richiesto, scrivendo su ENTRAMBE le facce dichiarate, e incrementa la revisione UNA sola volta.
+	 *
+	 * Le regole di transizione stanno qui perche' questo e' l'unico posto che puo' garantirle: chi le
+	 * bypassasse produrrebbe stati impossibili.
+	 * - `Destroyed` e' TERMINALE: nessuna transizione ne esce;
+	 * - `Locked` -> `Open` e' RIFIUTATA (serve l'apertura autorizzata di CP 10.1); le altre uscite sono ammesse.
+	 *
+	 * Ritorna solo cio' che e' cambiato DAVVERO, in ordine canonico, cosi' il chiamante ha esattamente le voci
+	 * da scrivere nel TurnLog. Un bordo senza porta, o gia' nello stato richiesto, non produce nulla e non
+	 * tocca ne' hash ne' revisione.
+	 */
+	static TArray<FRTDoorChange> SetDoorState(URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To,
+		ERTHexDoorState State);
+
+	/**
+	 * Applica gli ordini raccolti in una fase, a fase CONCLUSA (invariante #3: l'ordine degli ordini non
+	 * cambia l'esito). Sullo stesso bordo vince lo stato piu' RESTRITTIVO: due unita' che nello stesso turno
+	 * una apre e una chiude danno lo stesso esito in qualunque ordine.
+	 */
+	static TArray<FRTDoorChange> ApplyDoorOps(URTHexMapAsset* Map, const TArray<FRTDoorOp>& Ops);
+};

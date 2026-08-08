@@ -6,6 +6,7 @@
 #include "Combat/RTCombatResolver.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCoverLibrary.h"
+#include "Map/RTHexDoorLibrary.h"
 #include "RTHexCombatLibrary.generated.h"
 
 class URTHexMapAsset;
@@ -87,6 +88,18 @@ struct FRTHexAttackIntent
 	int32 StructurePower = 0;
 
 	/**
+	 * Stato a cui l'azione porta la prima PORTA attraversata dal colpo (CP 9.3), copiato da
+	 * `ERTActionEffect::SetDoorState`. `bChangesDoor` distingue «non dichiarato» da «porta ad Open», che come
+	 * valore di enum sarebbe zero: senza il flag, ogni azione del catalogo ordinerebbe di aprire ogni porta
+	 * sulla propria linea di tiro.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	bool bChangesDoor = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	ERTHexDoorState DoorState = ERTHexDoorState::Closed;
+
+	/**
 	 * L'area colpisce anche gli ALLEATI dell'attaccante, se stanno nelle celle interessate. Si COPIA da
 	 * `FRTActionDef::bFriendlyFire`, che e' dove l'azione lo dichiara: qui e' il parametro dell'intento, non
 	 * la sede della decisione.
@@ -156,6 +169,14 @@ struct FRTHexBlastPlan
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
 	TArray<FRTStructureHit> StructureHits;
+
+	/**
+	 * Ordini raccolti verso le PORTE, in ordine canonico (CP 9.3). Stanno nel piano e non applicati subito per
+	 * la stessa ragione dei colpi: due unita' che agiscono sulla stessa porta devono dare lo stesso esito in
+	 * qualunque ordine. Li applica `URTHexDoorLibrary::ApplyDoorOps` a fase conclusa.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	TArray<FRTDoorOp> DoorOps;
 };
 
 /**

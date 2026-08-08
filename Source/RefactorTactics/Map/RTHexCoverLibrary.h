@@ -94,7 +94,9 @@ public:
 
 	/**
 	 * Vero se il bordo fra due celle adiacenti NEGA l'attraversamento — vista, passo e proiettili.
-	 * Oggi lo fa solo la copertura alta: la bassa ripara chi ci sta dietro, non chiude il passaggio.
+	 * Lo fanno la copertura ALTA (la bassa ripara chi ci sta dietro, non chiude il passaggio) e una PORTA
+	 * chiusa o bloccata (CP 9.3). E' l'unico punto che risponde alla domanda: cambiarlo aggiorna insieme
+	 * `URTHexVisionLibrary`, `URTHexPathLibrary` e il combat, che non hanno una risposta propria.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static bool BlocksTraversal(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To);

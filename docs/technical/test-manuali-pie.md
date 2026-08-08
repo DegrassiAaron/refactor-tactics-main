@@ -48,10 +48,12 @@
   Se la vista sembra bloccata e compaiono le **etichette degli actor** in viewport, hai fatto **Eject** (`F8`):
   stai guardando con la camera dell'editor, non con quella del gioco — `F8` di nuovo per rientrare nel pawn.
 
-## Stato in numeri — 2026-08-07
+## Stato in numeri — 2026-08-08
 
-**74 voci**: ✅ **23 verdi** · 🟡 **17 parziali** (regola coperta da test, resta il visivo) · ⏳ **34 aperte**.
-*(Rimisurate col comando qui sotto dopo l'aggiunta delle 3 voci dello Scenario Test Harness.)*
+**74 voci**: ✅ **23 verdi** · 🟡 **18 parziali** (regola coperta da test, resta il visivo) · ⏳ **33 aperte**.
+*(Ricalcolate il 2026-08-08 col comando qui sotto, **dopo** il merge di CP 9.3 con `main`: `PIE-V01-DOOR` è
+passata da ⏳ a 🟡 e le 3 voci dello Scenario Test Harness sono entrate nel conteggio. Le due parti arrivavano
+al merge con «71: 23/18/30» e «74: 23/17/34» — entrambe corrette alla propria base, nessuna dopo l'unione.)*
 
 > **Perché questo numero era rotto** (issue #192): due sessioni parallele hanno misurato lo stesso file in
 > momenti diversi — «67 voci: 22/15/30» e «65 voci: 23/16/26» — e il merge ha lasciato **entrambe** le versioni
@@ -71,14 +73,13 @@ awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);
   docs/technical/test-manuali-pie.md
 ```
 
-Le **34** aperte, raggruppate per *cosa le sblocca*. La somma dei gruppi è **2+3+9+9+4+4+1+2 = 34** e deve
-coincidere col conteggio misurato qui sopra: se non coincide, è questa tabella a essere indietro — si
-riconta col comando, non si aggiusta a mente.
+Le 33 aperte in sette gruppi, più un residuo (la somma è verificata: 2+9+9+4+3+1+2+3 = 33):
 
-> ⚠️ **Corretto il 2026-08-08.** Questa riga diceva «le **31** aperte in sei gruppi», con una somma
-> «verificata» di `2+9+9+4+4+1+2 = 31`, mentre poche righe sopra il conteggio misurato diceva **34**. Le tre
-> voci mancanti erano quelle dello **Scenario Test Harness**, aggiunte al registro ma mai al riepilogo: la
-> somma era interna e tornava con sé stessa, il che è il modo più facile di sembrare verificati senza esserlo.
+> ⚠️ **Nota di metodo.** Fino al 2026-08-08 questa riga diceva «le **31** aperte in sei gruppi», con
+> una somma «verificata» di `2+9+9+4+4+1+2 = 31`, mentre poche righe sopra il conteggio **misurato** ne
+> diceva 34. La somma tornava **con sé stessa**: è il modo più facile di sembrare verificati senza esserlo.
+> La regola è che questa ripartizione deve coincidere col conteggio misurato sopra — se non coincide,
+> è **questa tabella** a essere indietro, e si riconta col comando.
 
 | Gruppo | Voci | Nota |
 |---|---|---|
@@ -87,9 +88,10 @@ riconta col comando, non si aggiusta a mente.
 | **Partita hex** (sessione D) | `HEXPLAY-4/4b/5/6/6b/6c/7/9/10` | **9** — è il **gate di M6** (CP 6.8). ⚠️ **Non serve più costruire la mappa a mano**: `MapSource = GeneratedTestArena` genera già esagono r=4, ostacoli, **muro che blocca la vista**, fango a costo 3, piattaforma su layer 1 e **una** transizione |
 | **Editor** (sessione A) | `HEX-LAYER` `HEX-TRANS` `HEX-MODE-E/F/G/H/L/N/O` | **9** — verificano gli **strumenti**, non più un prerequisito della sessione D |
 | **Durata e scala** (sessione F) | `V01-MATCHLEN` `V01-MAPSCALE` `V01-READY` `V01-OVERWATCH` | **4** — producono numeri di playtest, non superano gate. `READY` e `OVERWATCH` descrivono un comportamento **atteso** (countdown ed E14) che non esiste ancora |
-| **In attesa di codice** | `V01-ELEC` `V01-FIREWATER` (E8, ora **chiusa**: il codice c'è, la verifica a schermo no) · `V01-DOOR` (E9 CP 9.3) · `V01-HUD` (E11) | **4** — `V01-LOWCOVER` è uscita da qui il 2026-08-07: con CP 9.1 la regola è coperta headless ed è passata a 🟡 |
+| **In attesa di codice** | `V01-ELEC` `V01-FIREWATER` (E8, ora **chiusa**: il codice c'è, la verifica a schermo no) · `V01-HUD` (E11) | **3** — `V01-LOWCOVER` è uscita da qui il 2026-08-07 (CP 9.1) e `V01-DOOR` il 2026-08-08 (CP 9.3): per entrambe la regola è ora coperta headless, e sono passate a 🟡 |
 | **Asset da preparare** | `V01-COVEREDIT` | **1** — editing delle coperture nel data asset mappa (CP 9.1). ⚠️ `DA_HexMap_Sandbox` è oggi **vuoto**: va ridisegnato |
 | **Animazioni** | `AS4a` `AS4b` | **2** — richiedono i montage Paragon |
+| **Scenario Test Harness** | `TEST-AUTORUN` `TEST-VISUAL` `TEST-CONSOLE` | **3** — l'harness è coperto headless (12 test `Scenario.*`); qui resta ciò che accade **a schermo** |
 
 ## Checklist
 
@@ -192,7 +194,7 @@ riconta col comando, non si aggiusta a mente.
 | **PIE-V01-INTERCEPT** | Intercept protegge l'alleato | alleato entro 2 celle con `Intercept` preparato | L'intercettore **diventa** il bersaglio dell'attacco diretto; con un AoE o un hazard l'intercetto **non** scatta | 🟡 **coperto headless 2026-08-07** da `Reactions.Intercept`, `InterceptRejectsAoE`, `InterceptRejectsHazard`, `InterceptOnlyNearbyAllies`, `InterceptRequiresCompatibleTrajectory`, `InterceptResolvesBeforeOtherReactions`. **Dal 2026-08-07 è anche un'abilità d'eroe reale** (CP 5.5/6.7): `Heroes.BastionInterpositionRedirectsDirectHit` e `…UsesReactionSlot`, più `Heroes.FluxReactiveCapacitorShieldsAndCounters` e `Heroes.VektorDeflectionReducesDirectHit`. Al PIE resta la **leggibilità**: che si capisca a schermo *chi* ha incassato il colpo al posto di chi |
 | **PIE-V01-FF** | Friendly fire su AoE | `CircularAoE` centrato dove c'è anche un alleato | Il danno è applicato **anche** all'alleato; l'HUD/preview lo segnala prima del lock-in | 🟡 **coperto headless 2026-08-07** da `Actions.AoE.FriendlyFire` (il danno **arriva**) e da `Preview.AllyInAreaIsFlagged` (la cella dell'alleato è marcata nell'anteprima). **L'anteprima ora esiste**: la cella dell'alleato dentro l'area si disegna in **arancione** invece che in rosso. Al PIE resta il giudizio: quell'arancione si **nota** prima di premere Spazio, o passa inosservato? |
 | **PIE-V01-FALLBACK** | Fallback su bersaglio che si sposta | attacco diretto su un bersaglio che si muove nello stesso turno | Si applica il fallback dichiarato (`Cancel` per gli attacchi diretti): nessun colpo «inseguente», il log riporta il fallback applicato | 🟡 **coperto headless** da `RefactorTactics.Actions.Fallback.*` (8 test: `Stop`, `Wait`, `AttackCell`, `Cancel`, `ValidationReasons`, `LoggedOutcome`, `CancelIsLoggedInMatch`, `NoRandomTargeting`) — il fallback si applica e **compare nel log**, e non esiste bersagliamento automatico casuale. ⏳ al PIE resta da vedere che chi gioca **capisca** cosa e' successo leggendo il combat log, senza dedurlo dal comportamento |
-| **PIE-V01-DOOR** | Porta chiusa durante il turno | percorso che attraversa una porta chiusa da un'azione nello stesso turno | Il grafo è ricostruito: l'unità **si ferma** davanti alla porta (`Fallback.Stop`), nessun path fantasma attraverso la porta chiusa | ⏳ |
+| **PIE-V01-DOOR** | Porta chiusa durante il turno | percorso che attraversa una porta chiusa da un'azione nello stesso turno | Il grafo è ricostruito: l'unità **si ferma** davanti alla porta (`Fallback.Stop`), nessun path fantasma attraverso la porta chiusa | 🟡 **coperto headless 2026-08-08** da `RefactorTactics.Structures.Door.ClosingStopsMovement`, che gira un **turno vero** (porta chiusa nel Blast, percorso già pianificato, unità ferma davanti al varco e `BlockedByTopology` nel TurnLog). Al PIE resta il visivo: che l'unità si **fermi a schermo** senza attraversare l'anta e che il combat log dica il motivo. ⚠️ Serve una mappa con una porta: nessun `.uasset` ne disegna ancora una (limite dichiarato di CP 9.3) |
 | **PIE-V01-REPLAY** | Replay dello stesso turno | `rt.Debug.DumpTurnLog` + `rt.Debug.VerifyReplay` | Rieseguendo lo stesso turno con lo stesso seed, TurnLog e checksum sono **identici**; il comando non segnala divergenze | 🟡 **coperto headless** da `RefactorTactics.HexSim.ReplayDivergenceZero` (stesso snapshot → stesso TurnLog e stesso hash). ⏳ al PIE resta il giro con i comandi `rt.Debug.DumpTurnLog` / `rt.Debug.VerifyReplay`, che non esistono ancora (CP 11.4) |
 | **PIE-V01-ROSTER** | Roster dei 4 eroi | `URTHeroData` per Flux, Riva, Bastion, Vektor | Le 4 unità in campo hanno statistiche distinte (90/95/120/100 HP, 5/5/4/6 MP); il bot gestisce MP diversi senza proporre mosse illegali; asset mancante = fallback al cilindro | 🟡 **coperto headless 2026-08-07** da `Heroes.StatsFromData`, `Heroes.SpawnFromData`, `Heroes.SpawnFailsClosedWithoutData` (fallback), `Heroes.RosterIsBalanced` e i quattro `Heroes.<Eroe>.MatchesCatalog`. ⏳ al PIE resta il **giudizio in partita**: che i quattro si sentano diversi da giocare, e che il bot con 4 MP non proponga mosse da 6 |
 | **PIE-V01-HUD** | HUD di partita completo | partita v0.1 avviata | Barre HP/scudo/energia, timer, fase, **round corrente su `RoundLimit`** (il limite letto dal formato, non scritto a mano nel widget), slot occupati (movimento/principale/reazione) e cooldown residui, tutti a schermo e coerenti col simulatore | ⏳ |
