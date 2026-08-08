@@ -253,15 +253,27 @@ void ARTHexMapActor::DrawPlanningPreview() const
 	};
 
 	// Contorno di una cella, dai vertici condivisi con il marker dell'editor (stesso orientamento).
-	const auto DrawCellOutline = [World, &Origin, Size, LayerH, &CellLift](const FRTCellId& Cell, const FColor& Color, float Scale)
+	// `bThroughUnits`: disegna il contorno in FOREGROUND, cioe' senza test di profondita'.
+	//
+	// Serve alle celle che possono essere OCCUPATE. Il lift di 2.5 unita' mette l'anteprima sopra il terreno,
+	// non sopra un'unita': da camera dall'alto il cilindro di chi sta sulla cella copre il contorno per intero.
+	// L'arancione del fuoco amico ne era la vittima sistematica — esiste solo dove c'e' un alleato, quindi
+	// finiva SEMPRE sotto un cilindro, e l'avviso che deve arrivare prima del lock-in non arrivava mai.
+	// Osservato in PIE il 2026-08-08 (`PIE-PREVIEW-AREA`).
+	//
+	// Non si applica a tutto: celle raggiungibili e traccia del percorso stanno per definizione su celle
+	// VUOTE — niente le copre, e metterle in foreground le farebbe vedere attraverso il terreno senza che
+	// nessuno l'abbia chiesto.
+	const auto DrawCellOutline = [World, &Origin, Size, LayerH, &CellLift](const FRTCellId& Cell, const FColor& Color, float Scale, bool bThroughUnits = false)
 	{
 		const FVector Center = URTHexLibrary::AxialToWorld(Cell, Origin, Size, LayerH)
 			+ FVector(0, 0, CellLift(Cell) + RTLiftPreview);
 		const TArray<FVector> Corners = URTHexLibrary::HexCorners(Center, Size * Scale);
+		const uint8 Depth = bThroughUnits ? SDPG_Foreground : SDPG_World;
 		for (int32 I = 0; I < Corners.Num(); ++I)
 		{
 			DrawDebugLine(World, Corners[I], Corners[(I + 1) % Corners.Num()], Color,
-				/*bPersistentLines=*/ false, /*LifeTime=*/ -1.f, /*DepthPriority=*/ 0, /*Thickness=*/ 3.f);
+				/*bPersistentLines=*/ false, /*LifeTime=*/ -1.f, Depth, /*Thickness=*/ 3.f);
 		}
 	};
 
@@ -295,13 +307,16 @@ void ARTHexMapActor::DrawPlanningPreview() const
 	for (const FRTCellId& Cell : PreviewHitCells)
 	{
 		const bool bAlly = PreviewAllyHitCells.Contains(Cell);
-		DrawCellOutline(Cell, bAlly ? FColor(255, 150, 30) : FColor(230, 60, 50), bAlly ? 0.80f : 0.68f);
+		DrawCellOutline(Cell, bAlly ? FColor(255, 150, 30) : FColor(230, 60, 50), bAlly ? 0.80f : 0.68f,
+			/*bThroughUnits=*/ true);
 	}
 
 	// Cella sotto il cursore: disegnata per ultima e piu' larga, cosi' resta leggibile sopra la traccia.
+	// Anche questa attraversa le unita': si punta un bersaglio molto piu' spesso di una cella vuota, e
+	// l'evidenziazione che sparisce proprio quando indichi qualcuno e' peggio che non averla.
 	if (bHoveredValid)
 	{
-		DrawCellOutline(HoveredCell, FColor::Yellow, 0.88f);
+		DrawCellOutline(HoveredCell, FColor::Yellow, 0.88f, /*bThroughUnits=*/ true);
 	}
 }
 
