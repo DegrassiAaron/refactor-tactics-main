@@ -113,14 +113,14 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 **Suite automatica**: **si misura, non si cita — e da qui in avanti nemmeno si scrive.**
 
 <!-- RT_SUITE_COUNT:BEGIN -->
-**497 test unici in 71 file** — misurati su `3bdff38`.
+**499 test unici in 71 file** — misurati su `5f83d22`.
 
 Generato da `python scripts/feature_registry.py suite`: **non si aggiorna a mano**. Era scritto a mano in due documenti ed è divergito cinque volte.
 
 | Area | Test | Cosa fissa |
 |---|---:|---|
 | `Hex*` (mappa, path, vision, bot, blast, move, match) | 88 | Coordinate, A\*, LOS, bot, partita completa |
-| `Actions.*` | 61 | Ordine per priorità, permutazione-invarianza, fallback, mappatura di fase |
+| `Actions.*` | 63 | Ordine per priorità, permutazione-invarianza, fallback, mappatura di fase |
 | `Terrain.*` · `Status.*` · `Environment.*` | 39 | Superfici, stati temporanei, propagazione elettrica, fuoco/acqua |
 | `Combat.*` · `HexCombat.*` | 36 | Danno dopo scudo, forme, LOS, niente fuoco amico |
 | `Reactions.*` | 27 | Attivazione singola, trigger puro, reazioni componibili, privacy |
@@ -136,7 +136,7 @@ Generato da `python scripts/feature_registry.py suite`: **non si aggiorna a mano
 | `Catalog.*` | 9 | Invarianti del catalogo: solo interi, slot dichiarati, ID stabili |
 | `Pacing.*` | 7 | Pacing del turno misurato |
 | `Perf.*` | 2 | Path mediana **0,025 ms** · resolver **0,41 ms/turno** |
-| **totale** | **497** | |
+| **totale** | **499** | |
 <!-- RT_SUITE_COUNT:END -->
 
 > Questo numero è già stato sbagliato quattro volte, e la storia vale più della cifra: due viste sono arrivate

@@ -4,6 +4,9 @@
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTCombatResolver.h"
 #include "Core/RTGameplayTags.h"
+#include "Turn/RTActionEffectLibrary.h"
+#include "Turn/RTActionEvent.h"
+#include "Turn/RTActionQueue.h"
 #include "Turn/RTTurnRules.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -175,6 +178,65 @@ bool FRTGuardFirstHitOnlyTest::RunTest(const FString&)
 		Guard.Effects.Num() == 1 && Guard.Effects[0].Effect == ERTActionEffect::Status
 		&& Guard.Effects[0].StatusTag == TAG_Status_Guarded && Guard.Effects[0].StatusDuration == 1);
 	TestFalse(TEXT("la guardia non e' interrompibile"), Guard.bCanBeInterrupted);
+	return true;
+}
+
+namespace
+{
+	/**
+	 * Un'azione del catalogo e' INERTE quando non dichiara effetti e, risolta, non produce eventi.
+	 *
+	 * Passa dal codice reale — `FindCoreAction` per il dato, `ProduceEvents` per il comportamento —
+	 * invece di rileggere il catalogo a mano: un test che replica la definizione invece di chiamarla
+	 * resta verde anche quando il codice cambia, ed e' il difetto peggiore che possa avere.
+	 */
+	void TestActionIsInert(FAutomationTestBase& T, const TCHAR* Id)
+	{
+		const FRTActionDef Def = URTCatalogLibrary::FindCoreAction(FName(Id));
+		if (!T.TestTrue(FString::Printf(TEXT("%s e' nel catalogo"), Id), Def.ActionId == FName(Id)))
+		{
+			return;
+		}
+		T.TestEqual(FString::Printf(TEXT("%s non dichiara effetti"), Id), Def.Effects.Num(), 0);
+
+		FRTActionInstance Instance;
+		Instance.Def = Def;
+		Instance.SourceUnitId = 1;
+		Instance.TargetUnitId = 2;
+		const TArray<FRTActionEvent> Events = URTActionEffectLibrary::ProduceEvents(Instance);
+		T.TestEqual(FString::Printf(TEXT("%s risolta non produce eventi"), Id), Events.Num(), 0);
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractIsInertTest,
+	"RefactorTactics.Actions.Interact.IsInertUntilImplemented",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInteractIsInertTest::RunTest(const FString&)
+{
+	// `Action.Interact` esiste a catalogo — fase Blast, priorita' 80, portata 1 — ma NON FA NIENTE:
+	// nessun effetto dichiarato, nessun ramo del resolver che la esegua. Vedi la issue #273.
+	//
+	// Questo test fissa l'inerzia invece di ricordarsela. E' scritto per CADERE: il giorno in cui
+	// E10.1 le da' un effetto, diventa rosso e obbliga a sostituirlo con il test del comportamento
+	// vero. Senza, un effetto aggiunto a meta' passerebbe inosservato — che e' esattamente come
+	// `Marked`, il bonus Wet di Flux e le reazioni d'eroe con `Effects` vuoto sono rimasti inerti
+	// per settimane.
+	//
+	// Il catalogo continua a dichiarare fase, priorita' e slot perche' quelle SONO decise (D-025):
+	// e' il comportamento a non esserci.
+	TestActionIsInert(*this, TEXT("Action.Interact"));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActivateIsInertTest,
+	"RefactorTactics.Actions.Activate.IsInertUntilImplemented",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActivateIsInertTest::RunTest(const FString&)
+{
+	// Stessa condizione di `Action.Interact`, stessa issue: le due azioni condividono il commento
+	// nel catalogo («portata 1: solo oggetti ADIACENTI. Nessun effetto dichiarato») e lo stesso
+	// vuoto. Test separato perche' E10.1 potrebbe implementarne una prima dell'altra.
+	TestActionIsInert(*this, TEXT("Action.Activate"));
 	return true;
 }
 
