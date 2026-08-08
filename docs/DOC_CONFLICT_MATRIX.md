@@ -78,6 +78,10 @@
 | 48 | **Mapping visuale Paragon → roster** | «nessuna corrispondenza decisa», guide asset su Gideon/Sparrow | Flux → `Paragon.Gadget` · Riva → `Paragon.Phase` · Bastion → `Paragon.Riktor` · Vektor → `Paragon.Wraith` | [D-037](decisions/RT_PDR_00_Decision_Log.md) · tabella owner [`characters/paragon.md`](characters/paragon.md#mapping-visuale-del-roster) | `SUPERSEDED` | ✅ chiuso 2026-08-08. La voce era `OPEN` in [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md): il casting non esisteva, non era in disaccordo con qualcosa |
 | 49 | **`Gadget` come parola** | usata sia per la categoria di equipaggiamento (`Gadget.Medkit`, `ERTEquipmentSlot::Gadget`) sia per lo slot asset Paragon | l'equipaggiamento tiene il nome nudo; lo slot Paragon si scrive **sempre** `Paragon.Gadget` | [D-037](decisions/RT_PDR_00_Decision_Log.md) | `CONFIRMED` | Nessun rename: due domini diversi, un qualificatore. Il rischio è di lettura, non di codice — nessun identificatore collide |
 
+| 50 | **Quanto può girarsi un'unità** | l'handoff [`archive/src/handoff/2026-08-08-azioni-base-e-facing.md`](archive/src/handoff/2026-08-08-azioni-base-e-facing.md) §8/§10/§21/§23 propone `MoveEndPivotMaxSteps` e `DashEndPivotMaxSteps` **per eroe** (Bastion ±60°, Vektor ±180°, Riva ±120°/±180°) | le direzioni legali dipendono dallo **stile di movimento**, non dall'eroe: `Linear*` → **una**, `Budget` → **tre** (ultimo passo ±1), `None` → **sei**. «Facing libero fra le sei dopo un Move a budget» è già fra le **alternative scartate** dell'ADR | [ADR-0005](decisions/adr-0005-orientamento.md) §1 | `CONFIRMED` | ⏳ la proposta **non si scarta e non si applica**: è una richiesta di *modifica del canone*, registrata in [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md). Applicarla significherebbe aggiungere un asse di bilanciamento per eroe a un ADR il cui pregio dichiarato è **zero numeri nuovi** |
+| 51 | **Policy di facing dichiarative per azione ed effetto** | lo stesso handoff §11/§16/§20 propone enum per azione e per effetto: `KeepFacing` · `FaceTarget` · `LimitedTurn(N)` · `PreserveFacing` · `FaceAwayFromSource` · `RotateSteps(N)` · `RestorePreviousFacing` | due regole **universali** già decise, senza enum: un'azione con bersaglio o direzione **orienta prima di risolvere** (D-020); chi subisce uno spostamento si gira **verso l'origine dell'ultimo** subito nell'ordine canonico (ADR-0005 §3) | [D-020](decisions/RT_PDR_00_Decision_Log.md) · [ADR-0005](decisions/adr-0005-orientamento.md) §3 | `CONFIRMED` | ⏳ un enum per azione **sostituirebbe** una regola universale con una tabella da compilare per ogni azione, e il costo va pagato da un caso reale che la regola non copre. Nessuno è stato prodotto: registrato in [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md) |
+| 52 | **Guardia direzionale** | handoff §14: «lock del facing durante la stance», «protezione frontale forte / posteriore debole», «Intercept che cambia facing verso la traiettoria», da estendere anche a `Brace` | la direzionalità della difesa esiste **già** e in un verso solo: un colpo fuori dall'arco frontale **annulla** −10 (copertura bassa) e −15 (`Action.Guard`). `Deflect`, `Brace`, `Shield` e gli scudi restano validi da **ogni** direzione, perché proteggono la persona e non un lato | [ADR-0005](decisions/adr-0005-orientamento.md) §4a | `CONFIRMED` | ⏳ rendere `Brace` direzionale è una **modifica esplicita** di §4a, non una precisazione. Registrata in [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md); nel frattempo il test `Combat.ShieldWorksFromAnyDirection` di CP 16.2 è ciò che impedisce la deriva |
+
 **Quarto passaggio, 2026-08-08 — Signature, profili e trasformazioni**: **+3 righe risolte** (45, 46, 47).
 La 45 è la prima chiusa **in prevenzione**: il duplicato non è mai entrato nella documentazione, perché
 l'audit per sinonimi è stato fatto prima di scrivere. Resta **1 `OPEN`** (riga 34, APNAP) e **0 `CONFLICT`**.
@@ -89,6 +93,21 @@ l'audit per sinonimi è stato fatto prima di scrivere. Resta **1 `OPEN`** (riga 
 **Terzo passaggio, 2026-08-08 — ownership dei contenuti**: **+1 riga risolta** (riga 44, `SUPERSEDED`) e la
 propagazione ⏳ della riga 42 chiusa. L'unico `OPEN` residuo (riga 34, APNAP) e gli zero `CONFLICT` **non
 cambiano**: D-029 era un conflitto fra documenti, non fra documento e codice.
+
+**Quinto passaggio, 2026-08-08 — consolidamento azioni base e facing**: righe **50–52**, tutte `CONFIRMED`,
+tutte con azione ⏳. L'unico `OPEN` resta la riga 34 e i `CONFLICT` restano **zero**.
+
+> Le tre righe nuove hanno una forma che il documento non aveva ancora incontrato, e vale la pena nominarla:
+> la fonte più **recente** è anche la **meno autorevole**. Un handoff AI è l'ultima voce della gerarchia di
+> prevalenza — dopo decisioni esplicite, ADR, codice, gameplay attivo, roadmap e materiale storico — quindi
+> non apre un `CONFLICT`: due fonti confliggono solo quando **nessuna prevale**, e qui ADR-0005 prevale.
+>
+> Il che non le rende note a piè di pagina. Sono tre proposte coerenti fra loro, e insieme cambiano il modello:
+> l'ADR dice che il facing è **derivato** — «come arrivo determina come guardo» — mentre l'handoff lo vuole
+> **capacità del personaggio**, misurata in step di rotazione. È una scelta di design legittima e nessun
+> documento la può prendere al posto dell'autore. Registrarle come `CONFIRMED` significa che *oggi* vale
+> l'ADR, non che la domanda sia chiusa: la domanda vive in [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md), che è il
+> posto delle cose che aspettano una persona.
 
 > Restava una sola riga `OPEN`, ed è il difetto ricorrente di questo repository: una regola normativa
 > scritta, corretta, che **nessun consumatore runtime applica**. L'APNAP a sei gruppi vive nel canone e

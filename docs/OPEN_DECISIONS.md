@@ -37,6 +37,58 @@ sbagliato: l'unica decisione che bloccava lavoro costruibile era `OD-3`.
 
 ---
 
+## Aperte — facing e azioni base, dal consolidamento del 2026-08-08
+
+Origine: l'handoff [`archive/src/handoff/2026-08-08-azioni-base-e-facing.md`](archive/src/handoff/2026-08-08-azioni-base-e-facing.md), che chiudeva con
+quindici «decisioni ancora aperte». **Cinque erano già decise**, e una sesta era una domanda diversa da come
+era posta. Non compaiono fra le voci aperte, perché una domanda già chiusa che resta scritta come aperta
+invita a ridecidere ciò che è stato deciso:
+
+| Domanda dell'handoff | Perché non è aperta |
+|---|---|
+| §38.4 — quanto può girarsi un'unità **ferma** | [ADR-0005](decisions/adr-0005-orientamento.md) §1: stile `None` → **sei** direzioni, rotazione libera, **non consuma slot** |
+| §38.7 — quali Basic Attack usano `FaceTarget` | [D-020](decisions/RT_PDR_00_Decision_Log.md): **tutte** le azioni con bersaglio o direzione orientano prima di risolvere. Non è una proprietà per azione |
+| §38.10 — quali forced movement preservano il facing | [ADR-0005](decisions/adr-0005-orientamento.md) §3: verso l'origine dell'**ultimo** spostamento subito nell'ordine canonico; **ambientale senza sorgente** → invariato; un Move volontario successivo vince |
+| §38.14 — un'azione che ruota torna al facing precedente? | No: la timeline di D-020 va in avanti e non ha punto di ripristino. `FacingFinalAfterMove` **persiste** nel round dopo |
+| §38.15 — «Dash azione base» player-facing vs tassonomia tecnica | [D-015](decisions/RT_PDR_00_Decision_Log.md) + [D-028](decisions/RT_PDR_00_Decision_Log.md) + [`balance/RT_ActionCatalog_v0.1.md`](balance/RT_ActionCatalog_v0.1.md) §2.2: `Dash` è **mobilità speciale in fase Dash**, slot movimento. Che la Wiki lo presenti come azione base non è un conflitto: la Wiki è **dichiaratamente non normativa** (invariante #12) |
+| §38.5/§38.6 — valori di rotazione per personaggio | Non sono valori mancanti: sono un **modello diverso**. Vedi `FAC-1` |
+
+### Il modello — tre proposte che cambiano ADR-0005
+
+Righe **50–52** di [`DOC_CONFLICT_MATRIX.md`](DOC_CONFLICT_MATRIX.md). Oggi prevale l'ADR; queste voci
+esistono perché la proposta è coerente e nessun documento può accettarla al posto dell'autore.
+
+| ID | Domanda | Cosa cambierebbe |
+|---|---|---|
+| `FAC-1` | La rotazione è **derivata dal movimento** (canone) o è una **capacità del personaggio** misurata in step? | L'handoff propone `MoveEndPivotMaxSteps`/`DashEndPivotMaxSteps` per eroe. Il pregio dichiarato di ADR-0005 è **zero numeri nuovi**: questo ne aggiunge due per eroe, cioè un asse di bilanciamento. In cambio dà a Bastion e Vektor un'identità di movimento che oggi non hanno. **Non decidibile dai documenti**: serve l'autore |
+| `FAC-2` | Le regole universali D-020 / ADR-0005 §3 vanno sostituite da **policy dichiarative** per azione e per effetto? | Un enum per azione è più espressivo e va compilato per **ogni** azione del catalogo. Il costo si paga se esiste un caso reale che la regola universale sbaglia: **nessuno è stato prodotto** dall'handoff. Finché non esiste, la regola unica costa meno ed è già testabile |
+| `FAC-3` | `Brace` deve diventare **direzionale**? | ADR-0005 §4a dice il contrario in modo esplicito: `Deflect`, `Brace`, `Shield` proteggono la **persona**, non un lato. Cambiarlo è una modifica di §4a, e il test `Combat.ShieldWorksFromAnyDirection` (CP 16.2) esiste per impedire che accada per deriva |
+
+### Le lacune — cose che il canone non dice affatto
+
+Queste **non** contraddicono nessuna decisione: sono buchi. Vanno decise prima che E16 le incontri in codice.
+
+| ID | Domanda | Perché serve una risposta |
+|---|---|---|
+| `FAC-4` | Qual è il facing dell'unità **durante** i micro-step di un Move? | È la lacuna più urgente, ed è una conseguenza diretta di D-020. Overwatch, reazioni e cover direzionale si valutano a un boundary che cade **dentro** il movimento: se il facing intermedio non è definito, non è definito nemmeno cosa legge il trigger. ADR-0005 copre l'inizio e la fine del Move, non il mezzo. Blocca il DoD «snapshot e TurnLog dicono *quale* facing ha usato ciascun consumatore» |
+| `FAC-5` | Una **reazione** può ruotare l'unità che reagisce? | D-020 nomina `FacingUsedByOverwatch` come valore **letto**, mai scritto. Se una Return Fire ruota verso l'attaccante, il facing cambia a metà round e i consumatori successivi lo ereditano: è una regola nuova, non una precisazione |
+| `FAC-6` | `Interact` **richiede** un facing verso l'oggetto, oppure lo **impone**? | `Interact` è universale ([D-025](decisions/RT_PDR_00_Decision_Log.md)) e assorbe `Activate`: la risposta tocca porte, console e valvole di E9, non un solo dispositivo |
+| `FAC-7` | Quali **status** limitano la rotazione, separatamente dal movimento? | Oggi nessuno: `Status.Root` interagisce con `Guard`, non col facing. Distinguere «non può muoversi» da «non può girarsi» è una scelta di design, non un dettaglio implementativo |
+| `FAC-8` | Il **terreno** può limitare la rotazione (ghiaccio, condotti, scale)? | Fuori v0.1 — ma il ghiaccio esiste già in E8 e in `Visual/Environment/IceSlide`, quindi la domanda va registrata prima che qualcuno la risolva localmente in una spec di terreno |
+| `FAC-9` | Il pathfinding deve diventare **orientation-aware** — stato `(CellId, Facing)` invece di `CellId`? | Fuori v0.1, e va tenuto fuori finché non c'è una misura: moltiplica per sei lo spazio degli stati di A\*, contro i budget già dichiarati in [`technical/spec-pathfinding.md`](technical/spec-pathfinding.md). Il ripiego dichiarato dall'handoff — path geometrico, facing derivato, pivot validato alla fine — **è** già il modello di ADR-0005 |
+| `FAC-10` | Come si chiama la rotazione in posto? | Il canone dice «rotazione dichiarata», l'handoff dice `Pivot`, la Wiki non usa nessuno dei due. Non è pedanteria: `Reposition` è **già** una mobilità speciale a catalogo, quindi il vocabolario della rotazione va scelto una volta prima che tre documenti ne usino tre |
+
+> **Nota di metodo.** Filtrare le quindici domande contro il canone ne ha chiuse cinque senza discussione, e
+> ne ha riqualificata una sesta: «quali valori di rotazione per ogni eroe» non è un valore mancante, è la
+> domanda `FAC-1` travestita da tabella da compilare. Vale la stessa lezione di `OD-1`/`OD-4`: un elenco di
+> domande aperte redatto senza verificare il repository misura ciò che l'estensore non sapeva, non ciò che il
+> progetto non ha deciso.
+>
+> Le **dieci** voci qui sopra sono il residuo dopo la verifica — sette dall'elenco §38, tre (`FAC-1`…`FAC-3`)
+> promosse da proposte che l'handoff dava per acquisite. `FAC-4` è l'unica che blocca lavoro costruibile oggi:
+> le altre nove possono aspettare, ma non oltre l'apertura di E16, perché a quel punto il codice risponderà
+> per conto suo.
+
 ## Aperte — livello prodotto
 
 Owner: [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) §9. Non bloccano l'MVP tecnico.
