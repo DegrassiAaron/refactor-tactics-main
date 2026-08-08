@@ -2414,8 +2414,8 @@ void ARTTurnManager::ResolveCombat()
 					break;
 
 				case ERTActionEffect::Push:
-					// `PushResistance` e' una SOGLIA, non una sottrazione: chi la possiede regge le spinte fino
-					// a quel valore e cede a quelle piu' forti, per intero. La forma viene da `Action.Guard`,
+					// `PushResistance` e' una SOGLIA, non una sottrazione (D-038): chi la possiede regge le
+					// spinte fino a quel valore e cede a quelle piu' forti, per intero. La forma da `Action.Guard`,
 					// che dal CP 5.2 fa gia' esattamente questo con `GuardResistedPushDistance` — due
 					// resistenze alla spinta nello stesso combat con due semantiche diverse sarebbero state la
 					// prima cosa da spiegare a chi bilancia (#241).

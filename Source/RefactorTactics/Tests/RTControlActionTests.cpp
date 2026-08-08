@@ -213,7 +213,7 @@ bool FRTPushInvalidDestinationTest::RunTest(const FString&)
  * `PushResistance` e' una **soglia**: regge le spinte fino al proprio valore, cede a quelle piu' forti — e
  * quando cede la spinta passa **intera**, non ridotta. E' la forma di `Action.Guard` (CP 5.2), non una
  * sottrazione: due resistenze alla spinta con due semantiche diverse nello stesso combat sarebbero state la
- * prima cosa da spiegare a chi bilancia (#241, D-037).
+ * prima cosa da spiegare a chi bilancia (#241, D-038).
  *
  * Il caso che nessuno scenario puo' esprimere e' proprio quello che separa le due semantiche: **`Push 2`**
  * esiste solo su `Guardian.Sweep`, un'azione d'archetipo fuori dal roster v0.1. Con la sola spinta da 1 dei

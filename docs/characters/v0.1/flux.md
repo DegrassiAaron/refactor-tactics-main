@@ -1,10 +1,11 @@
 # Flux
 
-> **Asset base:** Flux  
+> **Asset base:** Paragon — Gadget  
 > **Hero_Key:** `ASSET_FLUX`  
 > **RT Character ID:** `Hero.Flux`  
 > **Release:** `v0.1`  
-> **Roster status:** Release v0.1
+> **Roster status:** Release v0.1  
+> **Provenienza visuale:** mesh e animazioni vengono dallo slot Paragon **Gadget** ([D-037](../../decisions/RT_PDR_00_Decision_Log.md) · tabella owner in [`paragon.md`](../paragon.md)). L'asset è la base visuale del prototipo, non l'identità di Flux.
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ENV-SYSTEMIC-COMBOS -->
 

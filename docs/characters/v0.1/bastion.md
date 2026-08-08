@@ -1,10 +1,11 @@
 # Bastion
 
-> **Asset base:** Bastion  
+> **Asset base:** Paragon — Riktor  
 > **Hero_Key:** `ASSET_BASTION`  
 > **RT Character ID:** `Hero.Bastion`  
 > **Release:** `v0.1`  
-> **Roster status:** Release v0.1
+> **Roster status:** Release v0.1  
+> **Provenienza visuale:** mesh e animazioni vengono dallo slot Paragon **Riktor** ([D-037](../../decisions/RT_PDR_00_Decision_Log.md) · tabella owner in [`paragon.md`](../paragon.md)). L'asset è la base visuale del prototipo, non l'identità di Bastion.
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-REACTION-PREPARED -->
 
