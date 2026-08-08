@@ -49,8 +49,10 @@
 
 ## Stato in numeri — 2026-08-08
 
-**74 voci**: ✅ **25 verdi** · 🟡 **17 parziali** (regola coperta da test, resta il visivo) · ⏳ **32 aperte**.
-*(Rimisurate col comando qui sotto dopo la verifica di `PIE-TEST-AUTORUN`.)*
+**76 voci**: ✅ **25 verdi** · 🟡 **18 parziali** (regola coperta da test, resta il visivo) · ⏳ **33 aperte**.
+*(Rimisurate col comando qui sotto il 2026-08-08, dopo `PIE-SCEN-FILTER`/`PIE-SCEN-KEEP`. Il totale precedente
+era giusto — 74 — ma la ripartizione citata «17/32» non lo era: il comando su quel testo dava già **18/31**.
+Confermo la lezione di sotto: il numero si ricalcola, e anche le **quote** vanno lette dal comando.)*
 
 > **Perché questo numero era rotto** (issue #192): due sessioni parallele hanno misurato lo stesso file in
 > momenti diversi — «67 voci: 22/15/30» e «65 voci: 23/16/26» — e il merge ha lasciato **entrambe** le versioni
@@ -81,7 +83,7 @@ Le 33 aperte in sette gruppi, più un residuo (la somma è verificata: 2+9+9+4+3
 | **In attesa di codice** | `V01-ELEC` `V01-FIREWATER` (E8, ora **chiusa**: il codice c'è, la verifica a schermo no) · `V01-HUD` (E11) | **3** — `V01-LOWCOVER` è uscita da qui il 2026-08-07 (CP 9.1) e `V01-DOOR` il 2026-08-08 (CP 9.3): per entrambe la regola è ora coperta headless, e sono passate a 🟡 |
 | **Asset da preparare** | `V01-COVEREDIT` | **1** — editing delle coperture nel data asset mappa (CP 9.1). ⚠️ `DA_HexMap_Sandbox` è oggi **vuoto**: va ridisegnato |
 | **Animazioni** | `AS4a` `AS4b` | **2** — richiedono i montage Paragon |
-| **Scenario Test Harness** | `TEST-AUTORUN` `TEST-VISUAL` `TEST-CONSOLE` | **3** — l'harness è coperto headless (12 test `Scenario.*`); qui resta ciò che accade **a schermo** |
+| **Scenario Test Harness** | `TEST-CONSOLE` `SCEN-FILTER` `SCEN-KEEP` | **3** — l'harness è coperto headless (30 test `Scenario.*` + `ScenarioIndex.*`); qui resta ciò che accade **a schermo**. `TEST-AUTORUN` e `TEST-VISUAL` sono passate a ✅ il 2026-08-08 e questa riga non le aveva ancora lasciate andare; le sostituiscono le due voci del browser per tag (`#209`) |
 
 ## Checklist
 
