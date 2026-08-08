@@ -475,4 +475,106 @@ bool FRTScenarioLongWalkTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `Combat.BasicAttack`: il primo scenario che verifica un DANNO invece di una posizione.
+ *
+ * Flux colpisce Bastion con `Flux.ArcPulse` (22 danni, portata 4) a distanza 2: Bastion scende da 120 a 98.
+ * I numeri vengono dal catalogo eroi v0.1 — se qualcuno li cambia senza aggiornare il catalogo, questo
+ * diventa rosso, ed e' il punto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCombatBasicAttackTest,
+	"RefactorTactics.Scenario.RunnerCombatBasicAttack",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCombatBasicAttackTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.BasicAttack"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di PASS: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("esito PASS"), Result.OutcomeString(), FString(TEXT("PASS")));
+
+	// Ogni assertion sugli HP deve essere verde: se il colpo non fosse partito, il bersaglio sarebbe a 120 e
+	// l'`actual` lo direbbe — e' il primo posto dove guardare se un giorno diventasse rosso.
+	for (const FRTAssertionResult& A : Result.Assertions)
+	{
+		if (A.Kind == ERTAssertionKind::UnitHpEquals)
+		{
+			TestTrue(FString::Printf(TEXT("%s -> %s (atteso %s)"), *A.Description, *A.Actual, *A.Expected), A.bPassed);
+		}
+	}
+	return true;
+}
+
+/**
+ * `Combat.BlockedByWall`: lo stesso attacco, con un muro in mezzo, NON arriva.
+ *
+ * E' il complemento necessario del test sopra. Da solo, «l'attacco fa 22 danni» non distingue un gioco che
+ * rispetta la copertura da uno che spara attraverso i muri: servono entrambi, e devono usare la stessa
+ * abilita' e la stessa coppia di eroi, altrimenti si confronterebbero due cose diverse.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCombatBlockedTest,
+	"RefactorTactics.Scenario.RunnerCombatBlockedByWall",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCombatBlockedTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.BlockedByWall"), Scenario)) { return false; }
+	TestTrue(TEXT("lo scenario dichiara un muro"), Scenario.Cells.Num() > 0);
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di PASS: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("esito PASS: il muro ferma il colpo"), Result.OutcomeString(), FString(TEXT("PASS")));
+	return true;
+}
+
+/**
+ * Il DANNO e' davvero il discrimine fra i due scenari.
+ *
+ * I due test sopra passano entrambi, ma da soli non provano che sia il MURO a fare la differenza: se
+ * l'attacco non partisse mai — abilita' sbagliata, bersaglio nullo, intent ignorato — sarebbero verdi lo
+ * stesso, perche' «120 HP» e' anche il risultato di «non e' successo niente». Qui si confrontano i due
+ * stati finali e si pretende che DIFFERISCANO.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioWallActuallyBlocksTest,
+	"RefactorTactics.Scenario.WallIsWhatStopsTheShot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioWallActuallyBlocksTest::RunTest(const FString&)
+{
+	FRTTestScenario Open, Walled;
+	if (!LoadShippedScenario(*this, TEXT("Combat.BasicAttack"), Open)) { return false; }
+	if (!LoadShippedScenario(*this, TEXT("Combat.BlockedByWall"), Walled)) { return false; }
+
+	UWorld* W1 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 1"), W1)) { return false; }
+	const FRTTestResult OpenResult = URTScenarioRunner::Run(W1, Open);
+	DestroyRunnerWorld(W1);
+
+	UWorld* W2 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 2"), W2)) { return false; }
+	const FRTTestResult WalledResult = URTScenarioRunner::Run(W2, Walled);
+	DestroyRunnerWorld(W2);
+
+	// Stati finali diversi -> hash diversi. Se fossero uguali, l'attacco non starebbe facendo niente in
+	// NESSUNO dei due casi, e i due test verdi sopra non proverebbero nulla.
+	TestNotEqual(TEXT("con e senza muro producono stati diversi"), OpenResult.StateHash, WalledResult.StateHash);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -1,0 +1,33 @@
+{
+  "scenarioId": "Combat.BlockedByWall",
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "Stesso attacco di Combat.BasicAttack, ma con un MURO fra i due: la linea di tiro e' bloccata e il colpo non parte. Bastion resta a 120 HP pieni. E' il complemento necessario del primo scenario — senza, un test verde direbbe solo «l'attacco arriva», e non saprebbe distinguere un gioco che rispetta la copertura da uno che spara attraverso i muri.",
+
+  "cells": [
+    { "cell": [0, -1, 0], "blocksLineOfSight": true },
+    { "cell": [0,  0, 0], "blocksLineOfSight": true },
+    { "cell": [0,  1, 0], "blocksLineOfSight": true }
+  ],
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Flux",    "team": 0, "cell": [-2, 0, 0] },
+    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [2, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "A1", "ability": "Flux.ArcPulse", "target": "B1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals", "unit": "B1", "value": 120 },
+    { "type": "UnitAlive", "unit": "B1", "value": true },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}
