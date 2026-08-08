@@ -50,12 +50,18 @@ L'handoff proponeva tre concetti come nuovi: `ConditionalIntent`, `GenericAction
   un banner, e la cartella mescolava *da lavorare* e *già lavorato*: la differenza stava solo in una colonna
   di un indice. Ora sta nella posizione del file.
 
-### Cosa resta rotto, e non è stato toccato
+### Verifica dei link
 
-`src/data/wiki/CLAUDE_INTEGRATION_PROMPT.md` punta a **10 immagini mai committate** (`data/images/…`).
-Difetto preesistente, arrivato con lo stesso commit dei due sorgenti; segnalato in
-[`src/README.md`](src/README.md) e non corretto, perché le immagini o arrivano o i riferimenti vanno riscritti
-— e nessuna delle due è una decisione documentale.
+I riferimenti sono stati controllati risolvendoli sul filesystem, non a occhio: **1518** link relativi, le 23
+rotture introdotte dallo spostamento chiuse, e **36 etichette** che mostravano il path vecchio con il target
+già corretto — link funzionanti, testo bugiardo, che nessun controllo sui soli target vede.
+
+> ⚠️ **Una misura di questa passata era sbagliata, ed è stata corretta il giorno stesso.** Lo script usa-e-getta
+> usato qui non gestiva i blocchi recintati, e ha riportato come rotte dieci immagini di
+> `src/data/wiki/CLAUDE_INTEGRATION_PROMPT.md`. Stanno dentro ```` ```md ````: sono *markdown suggerito* con
+> path relativi alla **destinazione**, ed erano corrette dall'inizio. Uno strumento scritto per verificare non
+> è verificato da nessuno — ed è la ragione per cui il controllo è diventato subito dopo un gate versionato,
+> `scripts/check-docs-links.py`, invece di restare uno script di sessione.
 
 ---
 
