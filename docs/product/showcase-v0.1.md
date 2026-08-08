@@ -238,6 +238,17 @@ Blast, prendendo `Burning`. **Riva** `CircularTide`. **Bastion** un'azione difen
 *Expected*: il bersaglio si è spostato fra dichiarazione e risoluzione, quindi si applica la **policy di moving
 target del catalogo**, e il TurnLog dice quale. `Burning` scade nel Cleanup.
 
+> ⚠️ **Il `Wet` del turno 2 non arriva qui, e la scarica di questo turno vale 24, non 32.** Il bagnato di
+> `PressureJet` dura **1 turno** e `TickStatuses` lo rimuove nel Cleanup del turno in cui è stato applicato:
+> fra un turno e il successivo non sopravvive. Non è un difetto — è [D-036](../decisions/RT_PDR_00_Decision_Log.md),
+> che ha scelto l'**ordine** invece della durata: la coordinazione acqua+elettricità si fa **dentro lo stesso
+> Blast**, dove `PressureJet` (priorità 50) risolve prima di `LinearDischarge` (55).
+>
+> Fino al 2026-08-08 questo documento lasciava intendere il contrario, e la combo firma della v0.1 **non era
+> eseguibile in nessuna forma** (#242). Le due forme che funzionano oggi hanno entrambe uno scenario:
+> `Visual.Combat.WaterElectricCoordinated` (Riva bagna e Flux scarica nello stesso turno) e
+> `Visual.Combat.WaterElectric` (il bersaglio entra nell'acqua nel Dash, e arriva al Blast già bagnato).
+
 > 🔒 **Decisione bloccata.** *Quale* sia quella policy va **letta dai dati** di `LinearDischarge`. Se il
 > catalogo non la dichiara, è una scelta di gameplay: non si inventa qui.
 

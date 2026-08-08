@@ -322,8 +322,19 @@ sulla **portata**. Lo scenario ora fa caricare Bastion in direzione opposta, fin
 | la combo Riva→Flux non è realizzabile ([#242]) | `Heroes.Flux.WetBonus` verifica l'**aritmetica** di `EffectiveAttackPower` senza passare dal `TurnManager`. Il `Wet` di `PressureJet` arriva *durante* il Blast, quando i colpi sono già preparati — e su due turni scade nel Cleanup prima di servire |
 
 Il secondo è il più istruttivo del lotto: la combo firma della v0.1 era documentata, aveva un test verde, ed
-era **ineseguibile**. `Visual.Combat.WaterElectric` ora la mostra nell'unica forma che funziona — il bersaglio
-entra nell'acqua in fase Dash, prima del Blast — ed è il primo test end-to-end che ne esista.
+era **ineseguibile**.
+
+**Corretto lo stesso giorno** ([D-036], #242): `Wet` ha ricevuto la disciplina che `Status.Marked` aveva già
+dal CP 8.2 — ciò che nasce dentro il Blast vale per i colpi a priorità più alta, con l'ordine canonico di
+ADR-0003 §3. Nessuna durata è stata toccata: la coordinazione è una questione di **ordine**, non di quanto
+dura il bagnato.
+
+Le due sorgenti di `Wet` hanno ora uno scenario ciascuna, e servono entrambe:
+
+| Scenario | Sorgente del bagnato | Cosa dimostra |
+|---|---|---|
+| `Visual.Combat.WaterElectricCoordinated` | `Riva.PressureJet`, priorità 50 | la **coordinazione fra due eroi** dentro lo stesso Blast: 100−16−32 = 52 |
+| `Visual.Combat.WaterElectric` | il **terreno**, attraversato in fase Dash | che il bonus non dipende da chi bagna (D-029): 100−32 = 68 |
 
 ### Lacune dichiarate
 
