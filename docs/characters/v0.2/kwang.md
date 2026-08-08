@@ -1,6 +1,17 @@
 # Kwang
-![Kwang — Paragon asset base](../images/paragon/kwang.png)
 
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CHAR-V02-ROSTER -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-CHAR-V02-ROSTER` · Release: `v0.2` · Roadmap: `—`  
+> Stato: **DESIGNED** · Gate: `0/8`  
+> Scenario: `—`  
+> Pagina di **progetto**: nessun dato di gioco e nessuna epic aperta per questo personaggio.  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-CHAR-V02-ROSTER -->
+
+![Kwang — Paragon asset base](../images/paragon/kwang.png)
 
 > 🧪 **Stato repository:** personaggio pianificato per **v0.2**. I valori sono `DATA_SPEC` / `DESIGN_SPEC`: servono a design, bilanciamento e Wiki, ma **non sono ancora runtime canonico v0.1**. Le finestre Fast Reaction storiche richiedono review prima dell'implementazione.
 
@@ -8,7 +19,6 @@
 > **Hero_Key:** `ASSET_KWANG`  
 > **RT Character ID:** `TBD`  
 > **Release:** `v0.2`  
-> **Design status:** `DATA_SPEC`  
 > **Roster status:** Release v0.2
 
 ## Panoramica
@@ -170,7 +180,6 @@ Storm Slash è l'attacco ravvicinato elettrico di Kwang: 135 danni, range 2, rag
 
 > Valori design v0.2 ereditati dalla matrice precedente.
 
-
 #### Uso tattico e limiti
 
 Tiene Kwang efficace vicino all'Anchor e crea una naturale sinergia con acqua/Wet. È `DESIGN_SPEC v0.2`.
@@ -200,7 +209,6 @@ Sword Anchor piazza l'elemento persistente centrale del kit a range 5. Infligge 
 | Data Status | SOURCE_VALUE |
 
 > Valori design v0.2 ereditati dalla matrice precedente.
-
 
 #### Uso tattico e limiti
 
@@ -232,7 +240,6 @@ Lightning Return permette a Kwang di tornare verso la spada-ancora fino a range 
 
 > Valori design v0.2 ereditati dalla matrice precedente.
 
-
 #### Uso tattico e limiti
 
 È mobilità legata a una condizione preparata: senza Anchor utile perde gran parte del valore. È `DESIGN_SPEC`.
@@ -262,7 +269,6 @@ Tempest Circuit è l'AoE/catena principale: 110 danni, range 6, raggio 2 e contr
 | Data Status | SOURCE_VALUE |
 
 > Valori design v0.2 ereditati dalla matrice precedente.
-
 
 #### Uso tattico e limiti
 

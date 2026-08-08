@@ -1,7 +1,56 @@
 # Come si gioca
 
-> **Stato nel gioco:** loop principale consolidato
 > **Tipo:** guida giocatore, non normativa
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-NET-PRIVATE-PLANNING -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-NET-PRIVATE-PLANNING` · Release: `v0.1` · Roadmap: `E5 · CP 5.4`  
+> Stato: **TESTABLE** · Gate: `5/8`  
+> Scenario: `—`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-NET-PRIVATE-PLANNING -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-UI-CERTAINTY -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-UI-CERTAINTY` · Release: `v0.1` · Roadmap: `E11 · CP 11.2`  
+> Stato: **IMPLEMENTING** · Gate: `3/8`  
+> Scenario: `—`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-UI-CERTAINTY -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-UI-ACTION-GHOSTS -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-UI-ACTION-GHOSTS` · Release: `v0.1` · Roadmap: `E11 · CP 11.5, 11.6`  
+> Stato: **SPECIFIED** · Gate: `1/8`  
+> Scenario: `—`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-UI-ACTION-GHOSTS -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-UI-PLANNING -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-UI-PLANNING` · Release: `v0.1` · Roadmap: `E11 · CP 11.1`  
+> Stato: **RELEASE_READY** · Gate: `6/7`  
+> Scenario: `Movement.SwapRejectedByPlanning`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-UI-PLANNING -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-UI-TACTICAL-CAMERA -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-UI-TACTICAL-CAMERA` · Release: `v0.1` · Roadmap: `E11 · CP 11.1`  
+> Stato: **IMPLEMENTING** · Gate: `1/6`  
+> Scenario: `—`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-UI-TACTICAL-CAMERA -->
 
 ## Una partita in una frase
 

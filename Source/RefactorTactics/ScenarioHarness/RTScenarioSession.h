@@ -72,6 +72,17 @@ private:
 	/** Scrive i piani del turno sulle unita', come farebbe il giocatore, e chiude la pianificazione. */
 	void BeginTurn();
 
+	/**
+	 * Seleziona in PIE l'unita' dichiarata da `PreviewUnit`, cosi' l'ANTEPRIMA del suo attacco compare da
+	 * sola durante la pausa prima del primo turno.
+	 *
+	 * Scrive in anticipo il solo piano d'attacco del turno 1 per quell'unita': `BeginTurn` riscrivera' gli
+	 * stessi valori un istante dopo, quindi e' idempotente e non anticipa nessuna decisione di gioco.
+	 * Senza player controller — cioe' headless — non fa nulla, ed e' la ragione per cui l'esito logico degli
+	 * scenari non puo' dipendere da questo campo.
+	 */
+	void ApplyPreviewSelection();
+
 	/** Azzera i piani, calcola l'hash dello stato e valuta le assertion. */
 	void Finish();
 

@@ -1,7 +1,47 @@
 # Visibilità, rumore e informazione
 
-> **Stato nel gioco:** modello deciso per la v0.1, implementazione E13/E16 non ancora completa
 > **Tipo:** guida giocatore, non normativa
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-PERCEPTION-MEMORY -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-PERCEPTION-MEMORY` · Release: `v0.1` · Roadmap: `E13 · CP 13.2`  
+> Stato: **SPECIFIED** · Gate: `1/9`  
+> Scenario: `—`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-PERCEPTION-MEMORY -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-PERCEPTION-NOISE -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-PERCEPTION-NOISE` · Release: `v0.1` · Roadmap: `E13 · CP 13.3`  
+> Stato: **SPECIFIED** · Gate: `1/9`  
+> Scenario: `Spec.Perception.HeardNotSeen (pianificato)`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-PERCEPTION-NOISE -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-PERCEPTION-VISION -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-PERCEPTION-VISION` · Release: `v0.1` · Roadmap: `E13 · CP 13.1, 13.2`  
+> Stato: **SPECIFIED** · Gate: `1/9`  
+> Scenario: `—`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-PERCEPTION-VISION -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE` · Release: `v0.1` · Roadmap: `E13 · CP 13.1`  
+> Stato: **SPECIFIED** · Gate: `1/9`  
+> Scenario: `—`  
+> Modello deciso per la v0.1; l'implementazione (E13, dopo E16) **non e' iniziata**: oggi la vista non decide nulla.  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE -->
 
 ## Perché l'informazione conta
 

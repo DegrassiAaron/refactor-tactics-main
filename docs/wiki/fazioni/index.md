@@ -1,5 +1,26 @@
 # Fazioni
 
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-FACTION-SCENARIOS -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-FACTION-SCENARIOS` · Release: `v0.2` · Roadmap: `—`  
+> Stato: **DESIGNED** · Gate: `0/7`  
+> Scenario: `Team.Conflux.FluxRiva.ConductiveFlood (pianificato)`  
+> Gli scenari di fazione sono **dichiarati ma non esistono** in `Scenarios/`: non si possono ancora giocare.  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-FACTION-SCENARIOS -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-FACTION-SYSTEM -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-FACTION-SYSTEM` · Release: `v0.2` · Roadmap: `—`  
+> Stato: **DESIGNED** · Gate: `0/7`  
+> Scenario: `—`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-FACTION-SYSTEM -->
+
 Le fazioni descrivono identità e affinità tattiche, **non raggruppano abilità** e non concedono bonus automatici.
 
 | Fazione | Release | Membri | Affinità sistemica |

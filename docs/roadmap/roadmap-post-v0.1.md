@@ -4,7 +4,7 @@
 > La v0.1 resta in [`roadmap-v0.1.md`](roadmap-v0.1.md); lo stato di esecuzione in
 > [`roadmap-checkpoint.md`](roadmap-checkpoint.md).
 >
-> **Questo documento non apre lavoro.** Nessuna epic qui dentro si implementa prima che i 14 gate della v0.1
+> **Questo documento non apre lavoro.** Nessuna epic qui dentro si implementa prima che i 15 gate della v0.1
 > siano verdi ([`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §3). Serve a decidere **oggi** le
 > cose che, se decise dopo, costringerebbero a rifare: numerazione delle epic, confini fra release, e quali
 > vincoli architetturali la v0.1 deve già rispettare.
@@ -251,4 +251,4 @@ Vektor, la cui forma `Siege` spegnerebbe la meccanica firma.
   [`../balance/`](../balance/README.md) quando esistono, altrimenti restano aperti.
 - **Dimensione delle mappe in celle**: esplicitamente non bloccata dal sorgente.
 - **Il formato competitivo finale**: 3v3 è baseline da playtestare, non una decisione chiusa.
-- **Le date**: nessuna epic qui ha una scadenza. La v0.1 non ha ancora chiuso i suoi 14 gate.
+- **Le date**: nessuna epic qui ha una scadenza. La v0.1 non ha ancora chiuso i suoi 15 gate.

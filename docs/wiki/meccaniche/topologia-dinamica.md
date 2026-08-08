@@ -1,7 +1,27 @@
 # Topologia dinamica
 
-> **Stato v0.1:** infrastruttura implementata; ulteriori strutture e interazioni continuano a essere aggiunte
 > **Tipo:** guida giocatore, non normativa
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-MAP-SPECIAL-TRANSITIONS -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-MAP-SPECIAL-TRANSITIONS` · Release: `v0.1` · Roadmap: `E9 · CP 9.4`  
+> Stato: **INTEGRATED** · Gate: `6/8`  
+> Scenario: `Visual.Map.MultiLevel`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-MAP-SPECIAL-TRANSITIONS -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-MAP-INTERACTIVE-EDGES -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-MAP-INTERACTIVE-EDGES` · Release: `v0.1` · Roadmap: `E9 · CP 9.3`  
+> Stato: **INTEGRATED** · Gate: `6/8`  
+> Scenario: `Visual.Map.ClosedDoor`  
+> Dato, regole di blocco e mutazione del bordo sono implementati e testati; l'**interazione del giocatore** (`Interact`/`Activate`) arriva con E10.  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-MAP-INTERACTIVE-EDGES -->
 
 ## Che cosa significa
 

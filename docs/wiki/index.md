@@ -26,3 +26,13 @@ Hai già capito il loop e vuoi cercare una regola precisa? Vai all'[indice delle
 
 - [Sinergie e combinazioni](game/sinergie-e-combinazioni.md)
 - [Fazioni](fazioni/index.md)
+
+## A che punto è il gioco
+
+- **[Stato delle feature](feature-status.md)** — cosa esiste davvero, feature per feature, con lo stato
+  derivato da gate verificabili.
+
+Questa Wiki descrive il gioco **come è progettato**: alcune meccaniche che leggi qui sono decise e
+documentate ma non ancora implementate. Ogni pagina lo dichiara nel proprio riquadro «Stato di sviluppo», e la
+tabella qui sopra le raccoglie tutte. Nessuno di quei riquadri è scritto a mano: si generano dal
+[Feature Registry](../roadmap/feature-registry.md).

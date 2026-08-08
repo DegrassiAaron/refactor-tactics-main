@@ -3,6 +3,7 @@
   "tags": ["combat", "core", "animation", "flux", "riva", "bastion"],
   "version": 1,
   "seed": 0,
+  "previewUnit": "A1",
   "mapRadius": 3,
 
   "_nota": "Flux lancia Overload (area raggio 1, 18 danni, portata 3) su Bastion, e Riva e' ADIACENTE a Bastion: sta dentro l'area, quindi la prende anche lei. E' lo scenario che pinna il fuoco amico del roster v0.1 — l'unica azione degli eroi che colpisce anche i propri, come faceva gia' Action.CircularAoE nel catalogo archetipi. Fino al 2026-08-08 il flag non era stato copiato sull'eroe: l'anteprima segnalava l'alleato in arancione e il colpo non gli faceva niente. Geometria: Flux a distanza 3 da Bastion (dentro la portata) e fuori dall'area, quindi resta illeso; chi lancia non si colpisce mai da solo. Numeri dal catalogo eroi: Bastion 120-18=102, Riva 95-18=77, Flux 90 intatto. Nessun bot pianifica in uno scenario, quindi Bastion non risponde.",

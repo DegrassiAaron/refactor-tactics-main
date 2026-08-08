@@ -3,6 +3,16 @@
 > **Tipo:** guida giocatore, non normativa  
 > **Owner normativo:** [`../../gameplay/spec-ownership-abilita-interazioni-sinergie.md`](../../gameplay/spec-ownership-abilita-interazioni-sinergie.md)
 
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ENV-SYSTEMIC-COMBOS -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-ENV-SYSTEMIC-COMBOS` · Release: `v0.1` · Roadmap: `E8 · CP 8.5`  
+> Stato: **INTEGRATED** · Gate: `6/8`  
+> Scenario: `Visual.Combat.WaterElectric`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-ENV-SYSTEMIC-COMBOS -->
+
 Le **abilità appartengono ai singoli personaggi**. RefactorTactics non raggruppa le abilità in kit di coppia, kit di fazione o pacchetti legati a una composizione specifica.
 
 La sinergia nasce quando definizioni indipendenti interagiscono attraverso le normali regole del gioco: stati, superfici, geometria, movimento, cover, targeting, informazione e reaction.

@@ -1,0 +1,236 @@
+{
+  "version": "0.2",
+  "style": "wide dark sci-fi game-design/wiki poster; pseudo-characters, isometric hex scenes, compact callouts",
+  "excludedStyles": [
+    "vertical old-style cards",
+    "python schematic v0.8 set"
+  ],
+  "coreImages": [
+    {
+      "id": 1,
+      "title": "RefactorTactics in 60 secondi",
+      "asset": "docs/wiki/images/core/01_refactortactics-in-60-secondi.png",
+      "targetPage": "docs/wiki/game/che-cose-refactortactics.md",
+      "placement": "Dopo ## In breve."
+    },
+    {
+      "id": 2,
+      "title": "Anatomia del turno",
+      "asset": "docs/wiki/images/core/02_anatomia-turno.png",
+      "targetPage": "docs/wiki/game/struttura-del-round.md",
+      "placement": "Dopo la sequenza testuale."
+    },
+    {
+      "id": 3,
+      "title": "Azioni universali e Dash",
+      "asset": "docs/wiki/images/core/03_azioni-universali-dash.png",
+      "targetPage": "docs/wiki/game/azioni-e-movimento.md",
+      "placement": "Prima delle singole azioni."
+    },
+    {
+      "id": 4,
+      "title": "Reazioni e Decision Boundary",
+      "asset": "docs/wiki/images/core/04_reazioni-decision-boundary.png",
+      "targetPage": "docs/wiki/game/reazioni-overwatch-e-previsioni.md",
+      "placement": "Prima dei tre concetti Prepared/Fast/Predictive."
+    },
+    {
+      "id": 5,
+      "title": "La mappa è un'arma",
+      "asset": "docs/wiki/images/core/05_mappa-e-un-arma.png",
+      "targetPage": "docs/wiki/game/mappa-terreni-e-ambiente.md",
+      "placement": "In apertura della pagina."
+    },
+    {
+      "id": 6,
+      "title": "Combo ambientali v0.1",
+      "asset": "docs/wiki/images/core/06_combo-ambientali-v0.1.png",
+      "targetPage": "docs/wiki/game/sinergie-e-combinazioni.md",
+      "placement": "Dopo la regola editoriale sistemica."
+    },
+    {
+      "id": 7,
+      "title": "Facing, LOS, Cover e Percezione",
+      "asset": "docs/wiki/images/core/07_facing-los-cover-percezione.png",
+      "targetPage": "docs/wiki/game/visibilita-rumore-e-informazione.md",
+      "placement": "Dopo l’introduzione."
+    },
+    {
+      "id": 8,
+      "title": "Planning e coordinazione",
+      "asset": "docs/wiki/images/core/08_planning-coordinazione.png",
+      "targetPage": "docs/wiki/game/planning-e-coordinazione.md",
+      "placement": "Immagine hero della nuova pagina, se non esiste."
+    },
+    {
+      "id": 9,
+      "title": "Roster v0.1",
+      "asset": "docs/wiki/images/core/09_roster-v0.1.png",
+      "targetPage": "docs/characters/index.md",
+      "placement": "Sotto ## Roster v0.1 — RefactorTactics."
+    },
+    {
+      "id": 10,
+      "title": "TurnLog e determinismo",
+      "asset": "docs/wiki/images/core/10_turnlog-determinismo.png",
+      "targetPage": "docs/wiki/technical/turnlog-e-determinismo.md",
+      "placement": "Immagine hero della Technical Wiki."
+    }
+  ],
+  "detailImages": [
+    {
+      "id": 11,
+      "title": "Mappa tattica esagonale 3D e regola di movimento",
+      "asset": "docs/wiki/images/gameplay/11_mappa-grafo-movimento.png",
+      "targetPage": "docs/wiki/game/mappa-terreni-e-ambiente.md",
+      "placement": "Dopo la spiegazione del grafo tattico.",
+      "notes": ""
+    },
+    {
+      "id": 12,
+      "title": "Facing, LOS e visibilità — esempio geometrico",
+      "asset": "docs/wiki/images/mechanics/12_facing-los-esempio.png",
+      "targetPage": "docs/wiki/meccaniche/facing-e-direzionalita.md",
+      "placement": "Dopo la definizione di facing/LOS.",
+      "notes": ""
+    },
+    {
+      "id": 13,
+      "title": "Modello decisionale unificato",
+      "asset": "docs/wiki/images/gameplay/13_opportunity-commit-resolution-effect.png",
+      "targetPage": "docs/wiki/game/reazioni-overwatch-e-previsioni.md",
+      "placement": "Dopo la distinzione Prepared/Fast/Predictive.",
+      "notes": ""
+    },
+    {
+      "id": 14,
+      "title": "Esempio di resolution con reazioni",
+      "asset": "docs/wiki/images/gameplay/14_resolution-reazioni-esempio.png",
+      "targetPage": "docs/wiki/game/esempio-di-round.md",
+      "placement": "Nella sezione che mostra la risoluzione del round.",
+      "notes": ""
+    },
+    {
+      "id": 15,
+      "title": "Stati e terreni — esempi visuali",
+      "asset": "docs/wiki/images/mechanics/15_stati-terreni-esempi.png",
+      "targetPage": "docs/wiki/game/mappa-terreni-e-ambiente.md",
+      "placement": "Dopo la tabella dei terreni v0.1.",
+      "notes": ""
+    },
+    {
+      "id": 16,
+      "title": "Modalità test e log deterministico",
+      "asset": "docs/wiki/images/technical/16_test-modes-log.png",
+      "targetPage": "docs/wiki/technical/turnlog-e-determinismo.md",
+      "placement": "Sezione test/replay/audit.",
+      "notes": ""
+    },
+    {
+      "id": 17,
+      "title": "Superfici, oggetti interattivi e cover",
+      "asset": "docs/wiki/images/mechanics/17_superfici-oggetti-cover.png",
+      "targetPage": "docs/wiki/game/mappa-terreni-e-ambiente.md",
+      "placement": "Sezione ambiente interattivo, prima degli approfondimenti.",
+      "notes": "Crop intenzionalmente limitato alla zona ambiente; esclude il vecchio pannello Reaction Charge 5s."
+    },
+    {
+      "id": 18,
+      "title": "Cover e transizioni della mappa",
+      "asset": "docs/wiki/images/mechanics/18_cover-transizioni.png",
+      "targetPage": "docs/wiki/meccaniche/topologia-dinamica.md",
+      "placement": "Apertura pagina o dopo la definizione di topologia dinamica.",
+      "notes": ""
+    },
+    {
+      "id": 19,
+      "title": "Acqua, Wet ed elettricità — combo sistemica",
+      "asset": "docs/wiki/images/mechanics/19_acqua-elettricita.png",
+      "targetPage": "docs/wiki/meccaniche/acqua-e-elettricita.md",
+      "placement": "Subito dopo la regola Wet → Electric.",
+      "notes": ""
+    },
+    {
+      "id": 20,
+      "title": "Facing, LOS e Cover — lettura tattica",
+      "asset": "docs/wiki/images/mechanics/20_facing-los-cover.png",
+      "targetPage": "docs/wiki/game/combattimento-e-targeting.md",
+      "placement": "Vicino alla spiegazione di LOS e cover.",
+      "notes": ""
+    },
+    {
+      "id": 21,
+      "title": "Percezione e Team Knowledge",
+      "asset": "docs/wiki/images/mechanics/21_percezione-team-knowledge.png",
+      "targetPage": "docs/wiki/game/visibilita-rumore-e-informazione.md",
+      "placement": "Dopo i livelli di conoscenza.",
+      "notes": ""
+    },
+    {
+      "id": 22,
+      "title": "Ghost, AoE, label e ping",
+      "asset": "docs/wiki/images/gameplay/22_ghost-aoe-label-ping.png",
+      "targetPage": "docs/wiki/game/planning-e-coordinazione.md",
+      "placement": "Sezione strumenti di coordinazione.",
+      "notes": ""
+    },
+    {
+      "id": 23,
+      "title": "Confermato, Previsto e Incerto",
+      "asset": "docs/wiki/images/gameplay/23_confermato-previsto-incerto.png",
+      "targetPage": "docs/wiki/game/planning-e-coordinazione.md",
+      "placement": "Sezione stato della preview e Ready.",
+      "notes": ""
+    },
+    {
+      "id": 24,
+      "title": "TurnLog: intenti, eventi e stato finale",
+      "asset": "docs/wiki/images/technical/24_turnlog-eventi-stato.png",
+      "targetPage": "docs/wiki/technical/turnlog-e-determinismo.md",
+      "placement": "Sezione TurnLog canonico.",
+      "notes": ""
+    },
+    {
+      "id": 25,
+      "title": "Determinismo, replay, test e debug",
+      "asset": "docs/wiki/images/technical/25_determinismo-replay-test-debug.png",
+      "targetPage": "docs/wiki/technical/turnlog-e-determinismo.md",
+      "placement": "Sezione riproducibilità e usi.",
+      "notes": ""
+    },
+    {
+      "id": 26,
+      "title": "Flux — card visuale v0.1",
+      "asset": "docs/characters/images/wiki/26_flux-card-v0.1.png",
+      "targetPage": "docs/characters/v0.1/flux.md",
+      "placement": "Dopo titolo e stato della scheda personaggio.",
+      "notes": "Estratto dal roster v0.1 nel poster wide corrente."
+    },
+    {
+      "id": 27,
+      "title": "Riva — card visuale v0.1",
+      "asset": "docs/characters/images/wiki/27_riva-card-v0.1.png",
+      "targetPage": "docs/characters/v0.1/riva.md",
+      "placement": "Dopo titolo e stato della scheda personaggio.",
+      "notes": "Estratto dal roster v0.1 nel poster wide corrente."
+    },
+    {
+      "id": 28,
+      "title": "Bastion — card visuale v0.1",
+      "asset": "docs/characters/images/wiki/28_bastion-card-v0.1.png",
+      "targetPage": "docs/characters/v0.1/bastion.md",
+      "placement": "Dopo titolo e stato della scheda personaggio.",
+      "notes": "Estratto dal roster v0.1 nel poster wide corrente."
+    },
+    {
+      "id": 29,
+      "title": "Vektor — card visuale v0.1",
+      "asset": "docs/characters/images/wiki/29_vektor-card-v0.1.png",
+      "targetPage": "docs/characters/v0.1/vektor.md",
+      "placement": "Dopo titolo e stato della scheda personaggio.",
+      "notes": "Estratto dal roster v0.1 nel poster wide corrente."
+    }
+  ],
+  "count": 29,
+  "editorialRule": "One core infographic per main hub page; additional detailed visuals only where they explain a distinct sub-rule. Do not repeat the same art across multiple pages."
+}

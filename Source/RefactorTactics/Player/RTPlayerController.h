@@ -45,6 +45,9 @@ protected:
 	TObjectPtr<UInputAction> ZoomAction;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> RotateAction;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> SelectAction;
 
 	UPROPERTY(Transient)
@@ -82,6 +85,7 @@ protected:
 
 	void OnPan(const FInputActionValue& Value);
 	void OnZoom(const FInputActionValue& Value);
+	void OnRotate(const FInputActionValue& Value);
 	void OnSelect(const FInputActionValue& Value);
 	void OnLockIn(const FInputActionValue& Value);
 	void OnRestart(const FInputActionValue& Value);
