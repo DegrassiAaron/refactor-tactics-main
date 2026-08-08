@@ -235,6 +235,23 @@ struct FRTTestScenario
 	int32 Version = 1;
 
 	/**
+	 * ID di scenario dell'unita' da **selezionare** quando lo scenario parte con un giocatore presente (PIE).
+	 * Vuoto = nessuna selezione, ed e' il caso normale.
+	 *
+	 * Serve a una cosa sola, e va detta perche' non e' ovvia: l'ANTEPRIMA di pianificazione — celle colpite in
+	 * rosso, alleato nell'area in arancione — non la produce il resolver ma il **player controller**, a
+	 * partire dal piano dell'unita' SELEZIONATA. Uno scenario allestisce il campo e risolve, quindi da solo
+	 * non fa comparire nulla: si vede l'esito, mai l'intenzione.
+	 *
+	 * Con questo campo la sessione scrive il piano d'attacco del primo turno sull'unita' indicata e la
+	 * seleziona **dalla stessa porta del giocatore** (`HandleClickOnUnit`), cosi' l'anteprima compare da sola
+	 * e resta visibile per tutta la pausa prima del turno. E' presentazione: headless non c'e' nessun
+	 * controller e il campo non fa niente, quindi l'esito logico non cambia di una virgola.
+	 */
+	UPROPERTY()
+	FString PreviewUnit;
+
+	/**
 	 * Seed dichiarato ma **non consumato**: oggi il progetto non ha alcun RNG e il determinismo viene da
 	 * coordinate intere e ordinamenti totali (`HexSim.ReplayDivergenceZero`). Il campo esiste perche' il
 	 * giorno in cui un RNG entrera' nel resolver lo scenario debba gia' saperlo dichiarare — non perche'

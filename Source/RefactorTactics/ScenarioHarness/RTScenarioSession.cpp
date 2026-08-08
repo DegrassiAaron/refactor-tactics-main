@@ -14,6 +14,7 @@
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnRules.h"
 #include "Unit/RTUnit.h"
+#include "Player/RTPlayerController.h"
 #include "RefactorTactics.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
@@ -233,7 +234,69 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 	State = EState::PauseBeforeTurn;
 	PauseElapsed = 0.f;
 	TurnIndex = 0;
+	ApplyPreviewSelection();
 	return true;
+}
+
+void FRTScenarioSession::ApplyPreviewSelection()
+{
+	if (Scenario.PreviewUnit.IsEmpty() || !Scenario.Turns.IsValidIndex(0))
+	{
+		return;
+	}
+
+	UWorld* W = World.Get();
+	// Nessun controller = headless. E' il ramo che garantisce che questo campo non possa spostare un esito:
+	// dove si misura, non gira.
+	ARTPlayerController* PC = W ? Cast<ARTPlayerController>(W->GetFirstPlayerController()) : nullptr;
+	if (!PC)
+	{
+		return;
+	}
+
+	TWeakObjectPtr<ARTUnit>* Found = UnitsById.Find(Scenario.PreviewUnit);
+	ARTUnit* Unit = Found ? Found->Get() : nullptr;
+	if (!Unit)
+	{
+		UE_LOG(LogRT, Warning, TEXT("[RT-Test] %s: previewUnit '%s' non esiste, nessuna selezione"),
+			*Scenario.ScenarioId, *Scenario.PreviewUnit);
+		return;
+	}
+
+	// Il piano d'ATTACCO del primo turno, scritto in anticipo solo per questa unita': senza, la selezione
+	// mostrerebbe le celle raggiungibili e nient'altro — l'anteprima della zona nasce dal piano, non dalla
+	// selezione. `BeginTurn` riscrivera' gli stessi valori: qui non si decide niente, si anticipa e basta.
+	for (const FRTScenarioIntent& Intent : Scenario.Turns[0].Intents)
+	{
+		if (Intent.UnitId != Scenario.PreviewUnit || Intent.Ability.IsNone() || Intent.bTargetsCell)
+		{
+			continue;
+		}
+		TWeakObjectPtr<ARTUnit>* FoundTarget = UnitsById.Find(Intent.Target);
+		ARTUnit* Target = FoundTarget ? FoundTarget->Get() : nullptr;
+		if (!Target)
+		{
+			break;
+		}
+		for (int32 I = 0; I < Unit->NumAbilities(); ++I)
+		{
+			const URTActionData* Ability = Unit->GetAbility(I);
+			if (Ability && Ability->Def.ActionId == Intent.Ability)
+			{
+				Unit->PlannedAbilityIndex = I;
+				Unit->PlannedAttackTarget = Target;
+				break;
+			}
+		}
+		break;
+	}
+
+	// Stessa porta del giocatore: `HandleClickOnUnit` e' cio' che chiama un click vero, quindi la selezione
+	// e il refresh dell'anteprima passano dal codice che gira in partita. Duplicarli qui produrrebbe
+	// un'anteprima che assomiglia a quella del gioco senza esserlo — e sarebbe proprio quella la bugia.
+	PC->HandleClickOnUnit(Unit);
+	UE_LOG(LogRT, Warning, TEXT("[RT-Test] %s: selezionata '%s' per l'anteprima (guarda la zona prima che risolva)"),
+		*Scenario.ScenarioId, *Scenario.PreviewUnit);
 }
 
 void FRTScenarioSession::BeginTurn()

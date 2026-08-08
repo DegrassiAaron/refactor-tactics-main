@@ -562,6 +562,52 @@ bool FRTScenarioCombatFriendlyFireTest::RunTest(const FString&)
 }
 
 /**
+ * `previewUnit` e' PRESENTAZIONE: non puo' spostare un esito.
+ *
+ * Il campo esiste perche' l'anteprima della zona colpita la produce il player controller sull'unita'
+ * selezionata, non il resolver: uno scenario, da solo, mostra l'esito e mai l'intenzione. Ma un campo dello
+ * scenario che tocca lo stato delle unita' — sia pure in anticipo e con gli stessi valori — e' esattamente
+ * il genere di scorciatoia che finisce per decidere una partita senza che nessuno se ne accorga.
+ *
+ * Qui si confronta lo stesso scenario con e senza il campo: stesso esito e stesso `StateHash`. Headless non
+ * c'e' nessun controller, quindi il ramo della selezione non gira nemmeno — ed e' proprio quello che rende
+ * la garanzia solida invece che sperata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioPreviewUnitIsPresentationOnlyTest,
+	"RefactorTactics.Scenario.PreviewUnitDoesNotChangeTheOutcome",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioPreviewUnitIsPresentationOnlyTest::RunTest(const FString&)
+{
+	FRTTestScenario WithPreview;
+	if (!LoadShippedScenario(*this, TEXT("Combat.FriendlyFire"), WithPreview)) { return false; }
+	if (!TestFalse(TEXT("lo scenario versionato dichiara previewUnit"), WithPreview.PreviewUnit.IsEmpty()))
+	{
+		return false;
+	}
+
+	FRTTestScenario Without = WithPreview;
+	Without.PreviewUnit.Reset();
+
+	UWorld* WorldA = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world A"), WorldA)) { return false; }
+	const FRTTestResult ResultA = URTScenarioRunner::Run(WorldA, WithPreview);
+	DestroyRunnerWorld(WorldA);
+
+	UWorld* WorldB = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world B"), WorldB)) { return false; }
+	const FRTTestResult ResultB = URTScenarioRunner::Run(WorldB, Without);
+	DestroyRunnerWorld(WorldB);
+
+	TestEqual(TEXT("stesso esito"), ResultA.OutcomeString(), ResultB.OutcomeString());
+	TestEqual(TEXT("stesso stato finale (StateHash)"), ResultA.StateHash, ResultB.StateHash);
+	TestEqual(TEXT("stessi turni giocati"), ResultA.TurnsPlayed, ResultB.TurnsPlayed);
+	// Un hash a zero significa «non eseguito»: senza questo controllo il test passerebbe confrontando
+	// due nulla.
+	TestTrue(TEXT("lo scenario e' stato davvero eseguito"), ResultA.StateHash != 0);
+	return true;
+}
+
+/**
  * `Combat.BlockedByWall`: lo stesso attacco, con un muro in mezzo, NON arriva.
  *
  * E' il complemento necessario del test sopra. Da solo, «l'attacco fa 22 danni» non distingue un gioco che
