@@ -441,4 +441,72 @@ bool FRTBridgeTemporaryTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Che in PARTITA il danno alle strutture raggiunga davvero un ARCO, non solo una copertura.
+ *
+ * Questo test non c'era: l'ha reso necessario la VERIFICA DI MUTAZIONE. Disattivando la raccolta del danno
+ * verso gli archi nel `TurnManager` non cadeva nessuno dei dieci test di CP 9.4, perche' `DamageBreaksAtZero`
+ * chiama `URTHexArcLibrary::DamageArc` DIRETTAMENTE: la libreria era coperta, il cablaggio no. E' il difetto
+ * ricorrente di questo repository — codice corretto che nessuno chiama.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBridgeDamagedInTurnTest,
+	"RefactorTactics.Structures.Bridge.DamagedInPlayedTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBridgeDamagedInTurnTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	const FRTCellId Ground(0, 0, 0);
+	const FRTCellId Upper(1, 0, 1);
+	MapActor->MapAsset->AddOrUpdateCell(FRTHexCellData(Upper));
+	MapActor->MapAsset->SortCells();
+	MapActor->MapAsset->AddTransition(Ground, Upper, /*Cost*/ 1, ERTHexTransitionKind::Bridge,
+		/*bBidirectional*/ true);
+
+	ARTUnit* Breacher = SpawnEnvUnit(World, 0, Ground);
+	ARTUnit* Foe = SpawnEnvUnit(World, 1, Upper);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Breacher"), Breacher) || !TestNotNull(TEXT("Foe"), Foe)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	// L'abilita' dichiara di poter sfondare: e' il catalogo a concederlo (qui lo si simula sull'istanza).
+	Breacher->Abilities[0]->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 20));
+	Breacher->PlannedAbilityIndex = 0;
+	Breacher->PlannedAttackTarget = Foe;
+
+	RunEnvTurn(TM);
+
+	// Il ponte ha incassato sulla COPIA di lavoro della mappa, quella su cui gira la partita.
+	const FRTHexEdge* Damaged = URTHexArcLibrary::FindArc(MapActor->MapAsset, Ground, Upper);
+	if (TestTrue(TEXT("il ponte c'e' ancora"), Damaged != nullptr))
+	{
+		TestEqual(TEXT("integrita' scalata dal colpo"), Damaged->Integrity, 20);
+		TestTrue(TEXT("ed e' ancora percorribile"), Damaged->State == ERTHexArcState::Active);
+	}
+	// Entrambi i versi: un ponte colpito una volta non deve reggere il doppio da una parte.
+	const FRTHexEdge* Back = URTHexArcLibrary::FindArc(MapActor->MapAsset, Upper, Ground);
+	TestTrue(TEXT("anche il verso opposto ha incassato"), Back && Back->Integrity == 20);
+
+	int32 Logged = 0;
+	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+	{
+		if (Entry.Category == ERTLogCategory::Environment
+			&& Entry.Outcome == static_cast<uint8>(ERTEnvironmentOutcome::BridgeDamaged))
+		{
+			++Logged;
+			TestEqual(TEXT("il log riporta l'integrita' residua"), Entry.Amount, 20);
+		}
+	}
+	TestEqual(TEXT("due voci, una per verso"), Logged, 2);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
