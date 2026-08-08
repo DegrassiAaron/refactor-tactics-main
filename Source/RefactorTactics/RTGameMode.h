@@ -110,10 +110,24 @@ public:
 	 * riavvio dell'editor. La console variable `rt.Test.Scenario` resta e **prevale**, per il caso opposto:
 	 * eseguire uno scenario diverso una volta sola, da riga di comando o in CI, senza toccare l'asset.
 	 *
-	 * `rt.Test.List` elenca gli ID disponibili.
+	 * Nel Details Panel è un **menu a tendina**, non una casella di testo: gli ID vengono letti dai file in
+	 * `Scenarios/` (vedi `GetScenarioOptions`), quindi non si può digitare un ID inesistente e l'elenco non
+	 * va tenuto allineato a mano. La prima voce è **vuota** = partita normale.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Test")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Test",
+		meta = (GetOptions = "GetScenarioOptions"))
 	FString ScenarioToRun;
+
+	/**
+	 * Voci del menu a tendina di `ScenarioToRun`: gli scenari **realmente presenti** in `Scenarios/`, più una
+	 * voce vuota in testa per tornare alla partita normale.
+	 *
+	 * Legge i file invece di un elenco scritto a mano: aggiungere uno scenario lo fa comparire nel menu senza
+	 * toccare il codice, e un elenco che invecchia non puo' esistere. È lo stesso principio per cui l'ID di
+	 * uno scenario **è** il suo percorso.
+	 */
+	UFUNCTION()
+	TArray<FString> GetScenarioOptions() const;
 
 	/**
 	 * Durata della pianificazione **quando gira uno scenario**, in secondi.

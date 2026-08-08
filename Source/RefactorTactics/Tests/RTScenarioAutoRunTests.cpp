@@ -11,6 +11,7 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
+#include "ScenarioHarness/RTScenarioRunner.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -158,6 +159,44 @@ bool FRTScenarioPacingDefaultTest::RunTest(const FString&)
 		GameMode->ScenarioPlanningSeconds < 10.f);
 
 	DestroyAutoRunWorld(World);
+	return true;
+}
+
+/**
+ * Il menu a tendina di `ScenarioToRun` elenca gli scenari REALI, e permette di tornare alla partita normale.
+ *
+ * Legge i file invece di un elenco scritto a mano: se domani qualcuno aggiunge uno scenario, deve comparire
+ * nel menu senza toccare il codice. Un elenco mantenuto a mano invecchierebbe alla prima aggiunta, e il primo
+ * a soffrirne sarebbe chi cerca uno scenario che c'e' ma non si vede.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioOptionsAreRealFilesTest,
+	"RefactorTactics.Scenario.AutoRunOptionsComeFromFiles",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioOptionsAreRealFilesTest::RunTest(const FString&)
+{
+	UWorld* World = MakeAutoRunWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("game mode"), GameMode)) { DestroyAutoRunWorld(World); return false; }
+
+	const TArray<FString> Options = GameMode->GetScenarioOptions();
+	DestroyAutoRunWorld(World);
+
+	// La voce vuota e' in TESTA: e' come si torna alla partita normale dal menu.
+	if (TestTrue(TEXT("il menu non e' vuoto"), Options.Num() > 0))
+	{
+		TestTrue(TEXT("la prima voce e' vuota (= partita normale)"), Options[0].IsEmpty());
+	}
+
+	// Gli ID veri ci sono, e vengono dai file: se qualcuno ne aggiunge uno, compare qui da solo.
+	TestTrue(TEXT("Movement.Basic e' selezionabile"), Options.Contains(TEXT("Movement.Basic")));
+	TestTrue(TEXT("Movement.Collision e' selezionabile"), Options.Contains(TEXT("Movement.Collision")));
+
+	// Il menu combacia con l'elenco dei file, meno la voce vuota aggiunta apposta: nessun ID inventato,
+	// nessuno scenario esistente lasciato fuori.
+	TestEqual(TEXT("tante voci quanti gli scenari, piu' quella vuota"),
+		Options.Num(), URTScenarioRunner::ListScenarioIds().Num() + 1);
 	return true;
 }
 

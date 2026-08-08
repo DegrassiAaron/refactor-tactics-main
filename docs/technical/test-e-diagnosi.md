@@ -215,8 +215,12 @@ Due modi, con precedenze diverse perché servono a cose diverse.
 
 | Proprietà (categoria *RefactorTactics\|Test*) | Effetto |
 |---|---|
-| `ScenarioToRun` | ID dello scenario (`Movement.Basic`). Vuoto = partita normale |
+| `ScenarioToRun` | **menu a tendina** con gli scenari disponibili. Prima voce **vuota** = partita normale |
 | `ScenarioPlanningSeconds` | durata della pianificazione **mentre gira uno scenario** (default **3 s**). `0` = nessuna scadenza, l'immagine resta ferma |
+
+Il menu si popola **leggendo i file** in `Scenarios/` (`GetScenarioOptions`), non da un elenco scritto nel
+codice: aggiungere uno scenario lo fa comparire nella tendina senza toccare nulla, e non si può selezionare
+un ID che non esiste. È lo stesso principio per cui l'ID di uno scenario **è** il suo percorso.
 
 Si impostano una volta nei *Class Defaults* di `BP_GameMode`, si salva, e da lì in poi **al primo Play lo
 scenario parte**. Non c'è niente da ridigitare a ogni riavvio dell'editor.

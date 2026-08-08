@@ -330,3 +330,13 @@ FString ARTGameMode::ResolveScenarioToRun() const
 	const FString FromConsole = CVarRTTestScenario.GetValueOnGameThread();
 	return FromConsole.IsEmpty() ? ScenarioToRun : FromConsole;
 }
+
+TArray<FString> ARTGameMode::GetScenarioOptions() const
+{
+	// Voce vuota in TESTA: e' come si torna alla partita normale dal menu. Senza, l'unico modo per svuotare il
+	// campo sarebbe cancellarne il testo a mano — proprio cio' che il menu a tendina dovrebbe evitare.
+	TArray<FString> Options;
+	Options.Add(FString());
+	Options.Append(URTScenarioRunner::ListScenarioIds());
+	return Options;
+}
