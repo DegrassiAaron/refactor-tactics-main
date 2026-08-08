@@ -5,9 +5,12 @@
 > uno scenario sta in [`test-e-diagnosi.md`](test-e-diagnosi.md). Qui c'è **quali scenari servono, cosa si
 > guarda in ciascuno, e cosa oggi non è guardabile**.
 >
-> Definito il **2026-08-08**. Stato: **17 scenari scritti** in `Scenarios/Visual/`, 17 voci `PIE-VIS-*` in
-> [`test-manuali-pie.md`](test-manuali-pie.md). Nessuno ancora eseguito in PIE: i valori numerici vengono dal
-> catalogo e dal codice, e il primo run li conferma.
+> Definito il **2026-08-08**, issue `#231`. Stato: **17 scenari scritti** in `Scenarios/Visual/`, 17 voci
+> `PIE-VIS-*` in [`test-manuali-pie.md`](test-manuali-pie.md). Nessuno ancora eseguito in PIE: i valori
+> numerici vengono dal catalogo e dal codice, e il primo run li conferma.
+>
+> Le feature v0.1 che il corpus **non** può mostrare, e le estensioni di formato che servirebbero, sono
+> tracciate in `#233` — il dettaglio tecnico resta in §8.2.
 
 ## 1. Il patto
 
