@@ -380,13 +380,16 @@ bool FRTSprintAppliesExposedTest::RunTest(const FString&)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSprintConsumesSlotsTest,
-	"RefactorTactics.Actions.Sprint.ConsumesMovementAndMain",
+	"RefactorTactics.Actions.Sprint.ConsumesOnlyMovement",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTSprintConsumesSlotsTest::RunTest(const FString&)
 {
-	// Lo slot dichiarato dal catalogo (`Movimento + Principale`) e' una regola, non una nota: chi sprinta non
-	// spara e non prosegue col Move nello stesso turno. Qui si pianifica di fare TUTTO — sprint, attacco e
-	// movimento — e si verifica che restino solo gli 8 MP dello sprint.
+	// D-028: lo `Sprint` occupa il SOLO slot movimento. Chi sprinta non prosegue col Move — quello slot e'
+	// speso — ma l'azione principale gli resta, quindi spara. Qui si pianifica di fare TUTTO (sprint, attacco
+	// e movimento) e si verifica che passino sprint e attacco, non il Move.
+	//
+	// Prima di D-028 lo slot era `Movimento + Principale` e questo test verificava l'opposto sull'attacco. Non
+	// era sbagliato: era la regola di allora.
 	UWorld* World = MakeHexMoveWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 8);
@@ -410,8 +413,9 @@ bool FRTSprintConsumesSlotsTest::RunTest(const FString&)
 	RunTurn(TM);
 
 	TestTrue(TEXT("il movimento e' finito con lo scatto: nessun Move oltre"), Runner->Cell == FRTCellId(3, 0));
-	TestEqual(TEXT("l'azione principale e' spesa: il Guardian non viene colpito"), Foe->Health, FoeHealth);
-	TestEqual(TEXT("nemmeno lo scudo del Guardian viene intaccato"), Foe->Shield, FoeShield);
+	// L'azione principale NON e' spesa dallo sprint: il colpo parte da (3,0), dove il Guardian e' a tiro.
+	TestTrue(TEXT("l'azione principale resta: il Guardian viene colpito"),
+		(Foe->Health + Foe->Shield) < (FoeHealth + FoeShield));
 
 	DestroyHexMoveWorld(World);
 	return true;
@@ -787,3 +791,146 @@ bool FRTMoveCellConflictTest::RunTest(const FString&)
 	DestroyHexMoveWorld(World);
 	return true;
 }
+
+
+// =====================================================================================================
+// D-028 — lo scatto e' movimento: si schiva e si spara, oppure si spara e ci si muove.
+//
+// Sono le due meta' della stessa regola, e vanno verificate separate: un solo test che le mescola
+// passerebbe anche se il Dash consumasse gli slot sbagliati in modo compensato.
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDashLeavesMainAvailableTest,
+	"RefactorTactics.Actions.Dash.LeavesMainAvailable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDashLeavesMainAvailableTest::RunTest(const FString&)
+{
+	// Schivo e sparo: lo scatto avvicina PRIMA del Blast, e l'attacco parte dalla posizione nuova.
+	//
+	// Questo test passava GIA' prima della migrazione degli slot, ed e' il fatto piu' importante di D-028: il
+	// gioco faceva la cosa giusta con la regola sbagliata scritta accanto (`Dash` dichiarato `Main`, e
+	// `ValidateActionSlots` mai chiamata in partita). Non e' un RED, e' caratterizzazione — esiste per
+	// impedire che la migrazione porti via il comportamento buono insieme alla regola cattiva.
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 8);
+
+	ARTUnit* Runner = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, ERTArchetype::Guardian, FRTCellId(8, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Runner || !Foe) { DestroyHexMoveWorld(World); return false; }
+
+	URTActionData* Dash = NewObject<URTActionData>(Runner);
+	Dash->DisplayName = FText::FromString(TEXT("Scatto"));
+	Dash->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
+	Runner->Abilities.Add(Dash);
+	const int32 DashIdx = Runner->Abilities.Num() - 1;
+
+	const int32 FoeBefore = Foe->Health + Foe->Shield;
+
+	// Da (0,0) il Guardian a (8,0) e' FUORI dalla portata 6 del Tiro. Dopo lo scatto di 3 celle e' a 5.
+	// Senza lo scatto il colpo non partirebbe: e' cio' che rende il test discriminante invece che decorativo.
+	Runner->PlannedDashAbility = DashIdx;
+	Runner->PlannedDashCell = FRTCellId(3, 0);
+	Runner->PlannedAbilityIndex = 0;
+	Runner->PlannedAttackTarget = Foe;
+	Foe->PlannedCell = Foe->Cell;
+
+	RunTurn(TM);
+
+	TestTrue(TEXT("lo scatto ha portato l'unita' a destinazione"), Runner->Cell == FRTCellId(3, 0));
+	TestTrue(TEXT("l'azione principale e' rimasta disponibile: il colpo e' arrivato"),
+		(Foe->Health + Foe->Shield) < FoeBefore);
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDashConsumesMovementTest,
+	"RefactorTactics.Actions.Dash.ConsumesTheMovement",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDashConsumesMovementTest::RunTest(const FString&)
+{
+	// L'altra meta': schivato, il movimento e' speso. Un Move pianificato oltre lo scatto NON avviene.
+	// Prima di D-028 avveniva, ed era la decisione «dash + move» di spec-dash.md — ora superata.
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 8);
+
+	ARTUnit* Runner = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, ERTArchetype::Guardian, FRTCellId(8, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Runner || !Foe) { DestroyHexMoveWorld(World); return false; }
+
+	URTActionData* Dash = NewObject<URTActionData>(Runner);
+	Dash->DisplayName = FText::FromString(TEXT("Scatto"));
+	Dash->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
+	Runner->Abilities.Add(Dash);
+
+	Runner->PlannedDashAbility = Runner->Abilities.Num() - 1;
+	Runner->PlannedDashCell = FRTCellId(3, 0);
+	Runner->PlannedCell = FRTCellId(5, 0);   // e dopo lo scatto vorrebbe avanzare di due celle
+	Foe->PlannedCell = Foe->Cell;
+
+	RunTurn(TM);
+
+	TestTrue(TEXT("si finisce dove ha portato lo scatto, non oltre"), Runner->Cell == FRTCellId(3, 0));
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+
+// =====================================================================================================
+// L'ECCEZIONE dichiarata da un kit, non dalla regola generale (D-028).
+//
+// Dopo la migrazione degli slot nessuna azione di serie usa `MovementAndMain`, e il ramo del resolver che
+// lo gestisce sarebbe diventato codice che nessun dato attraversa. Questo test costruisce il dato: una
+// mobilita' che dichiara di costare ENTRAMBI gli slot, come farebbe il kit di un eroe.
+//
+// Non e' un RED — il meccanismo esisteva gia' ed era cio' che rendeva `Action.Sprint` speciale prima di
+// D-028. E' la copertura di un ramo rimasto scoperto dalla migrazione: senza, la prossima persona che lo
+// trova morto lo cancella, e con lui il modo di esprimere l'eccezione senza un `if` sull'ActionId.
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKitDeclaredBothSlotsTest,
+	"RefactorTactics.Actions.KitCanDeclareAMobilityThatCostsBothSlots",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKitDeclaredBothSlotsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 8);
+
+	ARTUnit* Runner = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, ERTArchetype::Guardian, FRTCellId(8, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Runner || !Foe) { DestroyHexMoveWorld(World); return false; }
+
+	// Uno scatto identico ad `Action.Dash` TRANNE lo slot: e' il kit a dichiarare che costa tutto il turno.
+	URTActionData* Costly = NewObject<URTActionData>(Runner);
+	Costly->DisplayName = FText::FromString(TEXT("Scatto totale"));
+	Costly->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
+	Costly->Def.ActionId = FName(TEXT("Hero.CostlyDash"));
+	Costly->Def.Slot = ERTActionSlot::MovementAndMain;
+	Runner->Abilities.Add(Costly);
+
+	const int32 FoeBefore = Foe->Health + Foe->Shield;
+
+	Runner->PlannedDashAbility = Runner->Abilities.Num() - 1;
+	Runner->PlannedDashCell = FRTCellId(3, 0);
+	Runner->PlannedAbilityIndex = 0;          // il Tiro, che da (3,0) avrebbe il Guardian a portata
+	Runner->PlannedAttackTarget = Foe;
+	Foe->PlannedCell = Foe->Cell;
+
+	RunTurn(TM);
+
+	TestTrue(TEXT("lo scatto e' avvenuto"), Runner->Cell == FRTCellId(3, 0));
+	// La differenza con `Action.Dash`, e l'unica cosa che questo test dimostra: qui il colpo NON parte.
+	TestEqual(TEXT("il kit ha dichiarato che costa anche la principale: nessun colpo"),
+		Foe->Health + Foe->Shield, FoeBefore);
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+

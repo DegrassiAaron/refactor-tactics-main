@@ -2,7 +2,7 @@
 
 > `CURRENT` · **Data**: 2026-08-08 · **HEAD misurato**: merge di `origin/main` (CP 9.3) in
 > `docs/consolidamento-non-gameplay` · **Suite**: **432 test unici in 65 file**
-> **Origine**: handoff `../../src/RefactorTactics_Claude_Roadmap_Docs_Tests_Showcase_v01.md`
+> **Origine**: handoff `../../src/handoff/roadmap-docs-test-e-showcase-v0.1.md`
 >
 > **Cosa è**: la misura dello scarto fra ciò che il repository fa oggi e ciò che serve perché
 > `RT_Showcase_Relay_v01` giri per intero. **Cosa non è**: una specifica — quella è
@@ -66,13 +66,13 @@ L'handoff §0 dichiara come input, e la §1 mette al **rank #2**, file che non s
 
 | File | Rank | Stato |
 |---|---|---|
-| `RT_Showcase_Relay_v01_ScenarioSpec_Claude.md` | **2** | **assente** |
-| `RT_Showcase_Relay_v01_ScenarioDraft.json` | 3 | **assente** |
+| `docs/src/showcase/relay-v0.1-scenario-spec.md` | **2** | **assente** |
+| `docs/src/showcase/relay-v0.1-scenario-draft.json` | 3 | **assente** |
 | `Testing automatico Cloud.txt` | 6 | **assente** |
 | `Revisione sequenza turno.txt` | 5 | **assente** |
-| `mappa_tattica_del_bacino_relay.png` · `..._board_im.png` | 9 | **assenti** |
-| `RefactorTactics_Overwatch_FastReaction_Claude.md` | 4 | ✅ presente |
-| `RefactorTactics_Rumore_Claude.md` | — | ✅ presente |
+| `docs/src/showcase/mappa-tattica-bacino-relay.png` · `..._board_im.png` | 9 | **assenti** |
+| `docs/src/design/overwatch-e-fast-reaction.md` | 4 | ✅ presente |
+| `docs/src/design/rumore-e-percezione-acustica.md` | — | ✅ presente |
 
 **Perché si può procedere lo stesso.** L'handoff **riporta per esteso** ciò che i due file assenti più
 importanti avrebbero portato: la §7 dà la mappa (45 celle, forma per riga, spawn, Relay a `(0,0,0)`, elenco dei
@@ -199,6 +199,32 @@ succedere*; l'hash cattura le derive.
 > `dash` che lo apre.
 
 
+### `S2-2c` — ✅ **FATTO 2026-08-08** — bersaglio a **cella**
+
+| | |
+|---|---|
+| **Goal** | Un'area si centra su una **cella**, che può essere vuota |
+| **Il buco era nel piano, non nella risoluzione** | `FRTActionInstance` ha già `TargetUnitId` **e** `TargetCell`, e il resolver gestisce il bersaglio-cella (fallback `AttackCell`, strutture CP 9.2). Mancava `PlannedAttackCell` su `ARTUnit` — limite già **dichiarato** in `RTTurnManager` (CP 8.3) |
+| **`target` + `targetCell`** | **`ERROR`** di validazione, non una scelta fra i due: sceglierne uno al posto di chi ha scritto lo scenario produce un verde su una premessa sbagliata, e quello nessuno lo riapre |
+| **Serve un flag, non «target nullo»** | Nel resolver `TargetUnitId == INDEX_NONE` significa già **bersaglio perso** e degrada al fallback. Senza `bAttackTargetsCell`, mirare a una cella verrebbe letto come un errore di pianificazione |
+| **Test** | `Scenario.CellTargetedAbilityAppliesToCell` (area su cella **vuota**, nemico **adiacente**: colpito per raggio, non per bersaglio) · `Scenario.TargetAndTargetCellIsError` |
+| **Resta scoperto** | Il lato HUD — puntare una cella col mouse è **E11**. Questo chiude metà del limite di CP 8.3 |
+
+### `S2-2d` — ⛔ **NON ORA** — slot `reaction`
+
+`PlannedReactionAbility` esiste, il resolver lo legge in **due** punti e l'HUD pure. In tutto il progetto lo
+**scrivono solo i test**: né il controller né il bot. Dare agli scenari uno slot `reaction` renderebbe
+l'harness il **primo produttore di produzione** di quel campo — cioè più **capace** del gioco, e i suoi verdi
+direbbero che il giocatore può preparare una parata quando non può.
+
+> È il rovescio esatto del caso `ValidateActionSlots`, dove l'harness rischiava di essere più **severo** del
+> gioco. Entrambe le asimmetrie mentono; questa è più insidiosa, perché produce **verdi** invece di rossi.
+
+Il produttore nasce con le finestre di reazione (**E14**/`S5-1`). Fino ad allora un turno che dichiara una
+reazione richiede la capability `ReactionPlanning` → **`BLOCKED`**, che è la verità e costa una riga.
+Costruire il produttore dentro l'harness sarebbe implementare la pianificazione delle reazioni sotto un
+altro nome.
+
 ### `S2-2b` — Togliere il reset ridondante dei piani nel runner *(pulizia, non bloccante)*
 
 | | |
@@ -226,44 +252,103 @@ succedere*; l'hash cattura le derive.
 >
 > ⏳ **Resta la migrazione del codice** — voce `SLOT-2` qui sotto.
 
-### `SLOT-2` — Migrare gli slot della mobilità *(codice, non showcase)*
+### `SLOT-2` — ✅ **FATTO 2026-08-08** — Migrare gli slot della mobilità
 
 | | |
 |---|---|
 | **Goal** | Il codice applica [D-028](../../decisions/RT_PDR_00_Decision_Log.md) |
-| **Scope** | `Action.Dash`, `Action.Leap`, `Action.Reposition` → `ERTActionSlot::Movement` · `Action.Sprint` → `Movement` (oggi `MovementAndMain`) · `Charge` invariato · **rimuovere l'implementazione di dash + move** in `RTTurnManager` (che oggi conserva `PlannedCell` dopo lo scatto) · chiamare `ValidateActionSlots` in pianificazione |
-| **Non-goals** | Ribilanciare `Charge` e `Sprint`: sono numeri da playtest, non struttura |
-| **Acceptance** | `Dash` + attacco legale · `Dash` + `Move` **rifiutato** con reason · `Charge` + `Move` legale · `Charge` + attacco rifiutato · l'eccezione dichiarata da un kit continua a valere |
-| **Rischio dichiarato** | Il bot oggi pianifica scatto + attacco di proposito e la nota `#145` dice che «domina sempre la carica». Con gli slot corretti la combinazione resta legale, quindi il bot non cambia comportamento — ma `Charge` va **rimisurata**: se resta dominata è un problema di numeri, non di regole |
-| **Test** | `Actions.DashLeavesMainAvailable` · `Actions.DashAndMoveIsRejected` · `Actions.ChargeLeavesMovementAvailable` · `Actions.KitExceptionAllowsDashAndMove` |
+| **Scope** | **1.** core: `Action.Dash`, `Action.Leap`, `Action.Reposition`, `Action.Sprint` → `ERTActionSlot::Movement` (`Charge` invariato)<br>**2.** eroi: `Riva.FluidTrail` → `Movement` — vedi sotto, **non è un dettaglio**<br>**3.** resolver: dopo uno scatto il movimento è **speso** (`RTTurnManager` oggi conserva `PlannedCell` e concede il doppio movimento)<br>**4.** invariante sul roster che impedisca la ricaduta |
+| **Non-goals** | Ribilanciare `Charge` e `Sprint` → `BAL-1` · far rispettare gli slot nel controller e nel bot: l'esito lo decide il **resolver** (invariante #1), il rifiuto in pianificazione è UX e viene dopo |
+| **Acceptance** | `Dash` + attacco **legale** e il colpo parte dalla posizione post-scatto · `Dash` + `Move` → si finisce dove ha portato lo scatto · `Charge` + `Move` legale · nessuna mobilità d'eroe senza danno occupa la principale |
+| **Test** | `Actions.Sprint.ConsumesOnlyMovement` (riscritto) · `Actions.Dash.LeavesMainAvailable` · `Actions.Dash.ConsumesTheMovement` · `Heroes.MobilityWithoutDamageIsNotMain` · `Actions.KitCanDeclareAMobilityThatCostsBothSlots` |
+| **Esito** | **472/472 verdi.** Tre test che pinnavano la regola vecchia sono stati **riscritti**, non aggirati: `RTCatalogTests`, `RTMovementActionTests` e `RTOffensiveActionTests` verificavano che *Sprint + attacco* fosse rifiutato — era corretto, era la regola di allora |
 
-> Aperto il **2026-08-08** verificando se `S2-2` potesse appoggiarsi a `ValidateActionSlots`. Registrato in
-> [`../../DOC_CONFLICT_MATRIX.md`](../../DOC_CONFLICT_MATRIX.md) riga 43, stato **`OPEN`**.
+> **`MakeHeroAction` ha `Slot = ERTActionSlot::Main` come default**, e nessun kit lo sovrascrive. Conseguenze
+> verificate nel roster il 2026-08-08:
+>
+> | Azione d'eroe | Cos'è | Slot oggi | Sotto D-028 |
+> |---|---|---|---|
+> | `Bastion.Ram` | carica: 20 danni + `Push 1` | `Main` | `Main` ✅ — **è un attacco** |
+> | `Riva.FluidTrail` | `Dash 3`, `LinearDash`, **nessun effetto** | `Main` | `Movement` ❌ da correggere |
+>
+> Cambiare solo i quattro slot core avrebbe lasciato indietro l'unica mobilità d'eroe del roster. E il default
+> è il difetto vero: **ogni prossima mobilità nascerà sulla principale** senza che nessuno se ne accorga.
+>
+> La discriminante non è il nome ma quella di D-028: `Charge` occupa la principale **perché fa danno**. Da qui
+> l'invariante — *una mobilità che non fa danno non può occupare la principale* — che si verifica sul **roster
+> eroi**, dove le regole contano davvero. Migrata anche `Ranger.Dash` degli archetipi, per coerenza.
+>
+> **Un ramo è rimasto scoperto dalla migrazione.** Dopo D-028 nessuna azione usa più `MovementAndMain`, quindi
+> il ramo del resolver che lo gestisce non era più attraversato da alcun dato — e un ramo che nessun test
+> difende è un ramo che la prossima persona cancella. È stato tenuto (è il modo di dichiarare l'eccezione «questa
+> mobilità costa tutto il turno» **in dati**, senza un `if` sull'ActionId) e coperto con
+> `Actions.KitCanDeclareAMobilityThatCostsBothSlots`. La verifica di mutazione lo ha dimostrato: azzerare il
+> solo `PlannedAbilityIndex` **non fa cadere nulla** — `PlannedAttackTarget = nullptr` basta da solo — mentre
+> svuotare il ramo intero fa cadere esattamente quel test.
+
+### `MOB-1` — ✅ **CORRETTA 2026-08-08** — `Vektor.PassingBlade` non passava attraverso niente
+
+Trovata il 2026-08-08 scrivendo il test dello slot `dash`, verificando perché lo scatto si fermava.
 
 | | |
 |---|---|
-| **Il fatto** | Il catalogo dichiara uno slot per azione e `URTCatalogLibrary::ValidateActionSlots` implementa la regola. **Nessuno la chiama in partita**: solo due test (`RTOffensiveActionTests`) |
-| **Chi la viola** | **Entrambi.** `ARTPlayerController` imposta `PlannedDashAbility` e `PlannedAbilityIndex` senza azzerare l'altro, e il bot pianifica scatto + attacco di proposito (`RTTurnManager` nota `#145`) — pur occupando entrambi lo slot `Main` |
-| **Perché conta** | Il commento `#145` dice che «scatto + attacco base **domina sempre** la carica» (30 danni e spinta 2 contro 20 e spinta 1, cooldown 0 contro 3). Non è un dettaglio di bilanciamento: è una combinazione che il catalogo vieta e la partita premia |
-| **La scelta** | **Applicare** la regola (il controller e il bot azzerano lo slot opposto) **oppure** cambiare gli slot del catalogo perché il Dash non prenda `Main`. Non una terza via: oggi il documento dice una cosa e la partita ne fa un'altra |
-| **Effetto su `S2-2`** | Se l'harness applicasse `ValidateActionSlots` agli intent, **sarebbe più severo del gioco**: uno scenario verrebbe rifiutato per una combinazione che in PIE il giocatore può pianificare. È legittimo solo dichiarando che l'harness valida **il documento scenario**, non fa rispettare **una regola di gioco** |
-| **Non-goals** | Ribilanciare Dash e Charge: qui si decide *quale regola vale*, non quanto danno fa |
+| **Il fatto** | Il commento del kit dice: «`Dash 3` che colpisce per 20 le unità **ATTRAVERSATE** … la carica si FERMA sul primo nemico, **questa gli passa attraverso**». In `RTMovementActionLibrary` una traiettoria `LinearDash` che incontra un'unità si ferma con `BlockedByUnit`: **solo `LinearLeap` scavalca** |
+| **Conseguenza** | L'unica abilità non-base di Vektor «interamente rappresentabile» non fa la cosa che la descrive. I 20 danni dichiarati negli `Effects` non hanno un momento in cui applicarsi: nessuno viene mai attraversato |
+| **La scelta** | Dare a `LinearDash` (o a un nuovo stile) la traversata delle unità, **oppure** riscrivere il kit e il commento su ciò che il gioco fa. Non una terza via: oggi il dato dichiara un danno che nessun percorso può produrre |
+| **Non è** | Un difetto trovato dal test dello slot `dash`: quel test è stato riscritto per non dipenderne. È emerso *mentre* lo si scriveva, ed è il motivo per cui è finito qui invece che in una correzione di iniziativa |
+| **Risolta** | Nuovo `ERTMovementStyle::LinearPass`, **non** una modifica a `LinearDash`: quello è condiviso con `Action.Dash` e `Action.Reposition`, dove fermarsi davanti a un nemico è il comportamento giusto — cambiarlo lì avrebbe fatto passare **ogni** scatto attraverso le linee avversarie |
 
-**È la stessa forma dell'altra riga `OPEN`** (34, APNAP a sei gruppi): una regola normativa scritta, corretta,
-e senza consumatore runtime. Il difetto ricorrente di questo repository non è la formula sbagliata — è il dato
-che nessuno legge.
+> **La causa era a tre livelli, e i primi due non bastavano.** Stile nuovo nella libreria lineare: il test
+> passava, la partita no. Catalogo aggiornato: idem. Il blocco vero era in **`ResolveHexPaths`**, il resolver
+> dei movimenti simultanei, che ferma chiunque davanti a un'unità immobile — libreria corretta, partita no.
+> Serviva un flag `bPassThrough` anche lì.
+>
+> Vincolo esplicito: si attraversa una cella **intermedia**, mai la finale. Si passa in mezzo a qualcuno, non
+> ci si ferma dentro — due unità nella stessa cella a fine turno non sono rappresentabili. La contesa fra due
+> unità **in movimento** verso la stessa cella resta invariata: attraversare chi sta fermo e incrociare chi si
+> muove sono problemi diversi, ed è risolto solo il primo.
+>
+> Il test che pinnava lo stile vecchio conteneva la contraddizione **dentro il proprio messaggio**:
+> «PassingBlade: passa attraverso (LinearDash)». Diceva una cosa e ne verificava un'altra, e la difendeva.
 
-### `S2-3` — Turno 1 della showcase
+> È di nuovo la forma di [dati senza consumatore](../../DOC_CONFLICT_MATRIX.md): un numero nel catalogo che
+> nessun percorso runtime legge. Qui però il dato è **corretto** e manca il meccanismo — l'opposto di D-028,
+> dove il meccanismo c'era e lo slot era sbagliato.
+
+### `BAL-1` — I numeri di `Charge` e `Sprint` dopo D-028 *(playtest, non tavolino)*
+
+D-028 sistema la struttura e **sposta il prezzo sui dati**. Tre confronti che prima erano protetti da un costo
+di slot e adesso non lo sono più — misurati sul catalogo il 2026-08-08, non citati a memoria:
+
+| Confronto | I numeri | La domanda |
+|---|---|---|
+| **`Sprint` vs `Move`** | 8 MP contro 5, cooldown **0** entrambi. Prezzo dello sprint: `Exposed` (+5 al primo danno diretto) e nessuna reazione | 3 MP valgono +5 condizionale? Se il malus non morde, `Sprint` è un `Move` più lungo — l'**upgrade puro** che [D-015](../../decisions/RT_PDR_00_Decision_Log.md) vieta |
+| **`Charge` vs scatto + attacco** | `Charge`: 20 danni + `Push 1`, CD 2, resta il movimento. Scatto + base: **20–28** secondo la fascia d'arma (28 mischia · 25 corto · 22 medio · 20 lungo), CD 1, non resta niente | `Charge` fa **meno danno di un attacco base** a chiunque non abbia arma lunga. Paga il divario la `Push` più il movimento residuo? |
+| **`Reposition` vs `Dash`** | 2 celle contro 3. **Tutto il resto identico**: stessa fase, stesso stile, stesso cooldown, nessun effetto per nessuno dei due | `Reposition` è **strettamente dominato**. Non è colpa di D-028 — lo era già quando erano entrambi principali — ma ora i due sono nella stessa colonna e si confrontano a occhio |
+
+**Come si misura**: `Charge` e `Sprint` sono scelte di pianificazione, quindi il dato è *quante volte vengono
+scelte quando erano disponibili*. Il bot le valuta già tutte (`RTTurnManager`, utility scoring): un conteggio
+sulle partite bot-vs-bot dice se una branca non viene mai presa, **senza aspettare un umano**. Zero scelte su
+un campione ampio non è un'opinione di bilanciamento.
+
+**Cosa NON fare adesso**: cambiare i numeri. La nota `#145` diceva che scatto + attacco «domina sempre la
+carica» con valori (30 danni, spinta 2, cooldown 3) che **non sono quelli del roster**: vengono dagli
+archetipi di test — `Guardian.Sweep` (30 + `Push 2`, CD 0) contro `Guardian.Charge` (20 + `Push 1`, CD 3),
+verificati in `RTCatalogLibrary` il 2026-08-08. Sul roster eroi il confronto è un altro: `Bastion.Ram` ha
+cooldown **2**, e l'attacco base che lo batte dipende dalla fascia d'arma. È il motivo per cui questa voce
+parte da una misura e non da una correzione — e per cui la nota nel codice ora dice **su cosa** è misurata.
+
+
+### `S2-3` — ✅ **FATTO 2026-08-08** — Turno 1 della showcase
 
 | | |
 |---|---|
-| **Goal** | `RT.Scenario.Showcase.T1` verde attraverso il gameplay reale |
-| **Scope** | `Scenarios/Showcase/RelayBasin_T1.json`; assertion `UnitAtCell` sui quattro arrivi |
-| **Non-goals** | Facing (E16) e `CreateCover` (CP 9.5): il turno 1 li **dimostra** ma non li richiede per passare |
-| **Dipende da** | `S2-1`, `S2-2` |
-| **Acceptance** | Nessun `SetActorLocation`; lo `StateHash` è stabile su 10 ripetizioni |
-| **Test** | `RT.Scenario.Showcase.T1` |
-| **Commit** | `feat(showcase): turno 1 eseguibile dallo scenario` |
+| **Goal** | Il turno 1 gira sul gameplay reale **e sempre allo stesso modo** |
+| **Com'è finita** | Niente file separato: il turno 1 vive negli otto turni di `RT_Showcase_Relay_v01`, e lo scenario si ferma da solo al turno 2 con `BLOCKED — manca 'PredictiveAction'`. Un `RelayBasin_T1.json` a parte sarebbe stata una seconda verità sulla stessa partita |
+| **Esito** | `BLOCKED (5/5 assertion, 1 turni)` — le cinque assertion del T1 **passano**, e il blocco al turno 2 dice quanto lontano arriva oggi |
+| **Determinismo** | `Scenario.ShowcaseT1IsDeterministic`: 10 ripetizioni, ognuna in un mondo nuovo, stesso `StateHash` **ed** esito **e** turni giocati. Quattro unità che si muovono nello stesso turno sono il caso in cui l'ordine dell'array può decidere l'esito senza che nessuno se ne accorga |
+| **Perché non basta il gate esistente** | `Simulation.DeterministicReplay` gira a 100 ripetizioni su `Movement.Collision`: due unità, mappa piccola. Questo gira sulla geometria canonica col roster intero, dove le interazioni non previste hanno spazio per manifestarsi |
+| **Limite dichiarato** | Su questo test **non** è stata fatta verifica di mutazione: un gate di determinismo rileva una divergenza che non c'è, e una mutazione che la introducesse artificialmente proverebbe solo che il confronto confronta. Il suo valore si misura il giorno che diventa rosso |
 
 ### Voci successive, in ordine
 
