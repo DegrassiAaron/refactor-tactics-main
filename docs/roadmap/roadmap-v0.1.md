@@ -186,14 +186,20 @@ collo di bottiglia non è il codice di gioco: è la **verifica interattiva** —
 | **E16** | Orientamento e direzionalità | P1 | 2 | L'orientamento smette di essere presentazione: decide difesa, percezione e reazioni con una sola primitiva (`HexCone`) e **zero numeri nuovi**. È **prerequisito di E13** |
 | **E17** | Validazione di stress 4v4 | P3 | 3 | Misura, non produzione: dove si rompe il sistema con **otto unità** (resolver, leggibilità, prompt di reazione, TurnLog). Mirror del roster core, **dopo E15**. Non decide il formato principale ([D-011](../decisions/RT_PDR_00_Decision_Log.md)) |
 | **E18** | Predictive Action — thin slice | P2 | 2 | Il pilastro della **predizione** diventa percepibile con **una sola** azione: decisa in Planning, risolta a un boundary deterministico, **senza input live** ([D-016](../decisions/RT_PDR_00_Decision_Log.md)). Il framework di trap resta fuori |
+| **E19** | Classe di mappa e composizione | P2 | 2 | `URTMatchFormatData` **esiste già**: restano due buchi misurati — la mappa non dichiara la propria **classe** (implicita nel `FormatId`) e il formato non dichiara le **unità per squadra** ([D-030](../decisions/RT_PDR_00_Decision_Log.md)) |
+| **E20** | HUD Icon Language | P2 | 3 | Le icone sono un **catalogo semantico**, non texture referenziate nei widget: E11 costruisce l'HUD adesso, e riscrivere ogni widget dopo costa più del file di dati in più ([D-031](../decisions/RT_PDR_00_Decision_Log.md)) |
 
-**Totale: 18 epic, 87 checkpoint** *(era 12/59; **E13** ed **E14** aggiunte il 2026-08-07; il 2026-08-07,
+**Totale: 20 epic, 92 checkpoint** *(era 12/59; **E13** ed **E14** aggiunte il 2026-08-07; il 2026-08-07,
 consolidando [`../src/showcase/showcase-v0.1-integrazione-nel-codice.md`](../src/showcase/showcase-v0.1-integrazione-nel-codice.md):
 **E15** showcase (5 CP), **CP 5.5** e **CP 6.7** per il debito delle reazioni d'eroe, **CP 14.2** per
 l'estrazione del micro-step; consolidando
 [`../src/design/action-ghosts-fasi-fast-reactions.md`](../src/design/action-ghosts-fasi-fast-reactions.md):
 **CP 11.5** e **CP 11.6** per il planning visuale → [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md);
-**E16** orientamento → [ADR-0005](../decisions/adr-0005-orientamento.md), che chiude il punto aperto sul facing)*.
+**E16** orientamento → [ADR-0005](../decisions/adr-0005-orientamento.md), che chiude il punto aperto sul facing;
+il 2026-08-08, consolidando [`../src/design/match-timing-e-scala-mappe.md`](../src/design/match-timing-e-scala-mappe.md)
+e [`../src/design/2026-08-08-hud-faction-icons.md`](../src/design/2026-08-08-hud-faction-icons.md): **E19** e
+**E20**, le due sole parti di quei sorgenti che non possono aspettare la v0.2 —
+[`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) spiega perché il resto aspetta)*.
 
 > ✅ **CP 14.1 chiuso**: [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) è **accettato** (2026-08-07). Cambia la
 > **forma del turno** (sequenza di sotto-risoluzioni) e unifica il modello delle reazioni; l'invariante #3 del
@@ -873,6 +879,70 @@ visuale di trigger, interrupt annidati. Il trigger su transizione ha già la sua
 già testata** — i test che oggi ne fissano il rinvio (`Heroes.ReactionsDeclaredOrDeferred`) vanno
 **sostituiti**, non cancellati; (b) «una sola predictive» è una soglia che si supera facilmente: ogni azione
 in più va discussa, non aggiunta.
+
+---
+
+### E19 — Classe di mappa e composizione nel formato · P2
+
+> ⚠️ **Epic ridotta il 2026-08-08 dopo misura sul codice.** La versione iniziale proponeva di costruire
+> `URTMatchFormatData` e di estrarre i timer dalle costanti. **Entrambe le cose sono già a posto**:
+> `Source/RefactorTactics/Turn/RTMatchFormatData.h` esiste come asset versionato (`FormatId` es.
+> `Format.Skirmish2v2`, `RoundLimit`, `ExpectedRounds`, `ScoreToWin`) con `RTMatchFormatLibrary` e tre file di
+> test; i tempi di parete (`PlanningSeconds`, `MaxPlaybackSeconds`) sono fuori dal dato **per decisione
+> motivata** — ADR-0005 §4c, «due sorgenti sarebbero due verità» — non per dimenticanza. Resta scoperto solo
+> ciò che segue.
+
+**Obiettivo**: chiudere i due soli buchi fra `match-timing-e-scala-mappe.md` §4 e il codice reale.
+
+Decisione: [D-030](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-08). Owner documentale della materia:
+[`../gameplay/spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md), che
+copre già classi di mappa, durata, round, Planning/Ready, Fast Reaction e budget del round.
+
+| CP | Obiettivo | DoD misurabile | Test / verifica |
+|---|---|---|---|
+| **19.1** | `MapClass` sul dato mappa | La classe (`Skirmish` · `Standard` · `Operations`) è un campo di `URTHexMapAsset`: oggi è **implicita nel `FormatId`**, quindi una mappa non sa dire a quale classe appartiene e il controllo di coerenza formato↔mappa non è esprimibile. La simulazione **non ramifica** sulla classe: legge i parametri che essa porta | `MapClass.SliceIsSkirmish`, `MapClass.FormatAndMapAgree`, `MapClass.NotBranchedInSimulation` |
+| **19.2** | `UnitsPerTeam` nel formato | La composizione è un campo del formato, non un'assunzione del `GameMode`. `Format.Skirmish2v2` dichiara 2; E17 (stress 4v4) smette di essere un caso speciale e diventa un formato | `MatchFormat.DeclaresUnitsPerTeam`, `MatchFormat.GameModeHonoursComposition` |
+
+**Fuori scope, dichiarato**: formato 3v3, classe Standard giocabile, Operations, selezione del formato da UI.
+Stanno in [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) (E24, E30). Fuori scope anche i **timer nel dato**:
+è una decisione già presa in senso contrario.
+
+**Dipendenze**: nessuna bloccante. Tocca `URTHexMapAsset` e il `GameMode`.
+
+**Rischi**: aggiungere un campo a `URTHexMapAsset` tocca la **serializzazione** di un asset esistente — vale la
+verifica a due binari (scrivi col vecchio, rileggi col nuovo), non il solo test in memoria.
+
+**Già coperto altrove, da non rifare qui**: la misura delle baseline (attraversamento in Move, round reali,
+primo contatto) ha già le sue voci PIE — `PIE-V01-MATCHLEN`, `PIE-V01-MAPSCALE`, `PIE-V01-MATCHEND` in
+[`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md).
+
+---
+
+### E20 — HUD Icon Language · P2
+
+**Obiettivo**: le icone dell'HUD sono un **catalogo semantico** indicizzato per chiave, non texture
+referenziate widget per widget.
+
+Decisione: [D-031](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-08), da
+[`../src/design/2026-08-08-hud-faction-icons.md`](../src/design/2026-08-08-hud-faction-icons.md) §4, che
+definisce dodici categorie: Identity, Action, Phase, Environment, Map/Interaction, Status, Information,
+Reaction, Coordination, Certainty, Warning, Objective.
+
+| CP | Obiettivo | DoD misurabile | Test / verifica |
+|---|---|---|---|
+| **20.1** | `URTIconCatalogData` | Le icone si risolvono per **chiave semantica** (`Status.Wet`, `Certainty.Predicted`, …). Una chiave senza icona è un errore di validazione, non un widget vuoto | `IconCatalog.EveryKeyResolves`, `IconCatalog.MissingKeyIsValidationError` |
+| **20.2** | Categorie della v0.1 | Popolate le sole categorie che la v0.1 usa davvero: Identity, Action, Phase, Status, Certainty. Le altre sette restano dichiarate e vuote | `IconCatalog.V01CategoriesPopulated` |
+| **20.3** | I widget consumano il catalogo | Nessun widget di E11 referenzia una texture direttamente; l'HUD cambia icona cambiando il dato | `IconCatalog.NoDirectTextureInWidgets` + voce PIE `PIE-ICON-01` |
+
+**Fuori scope, dichiarato**: le dodici categorie complete, world-space HUD, icone di fazione per il roster 8,
+pagine wiki illustrate. Stanno in [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) (E25).
+
+**Dipendenze**: E11 (HUD, log e debug) — E20 va fatta **prima** che i widget di E11 siano scritti, o diventa
+un refactor invece di una fondazione. Le immagini sorgente sono in
+[`../src/media/hud/`](../src/media/hud/).
+
+**Rischi**: il catalogo semantico è utile solo se le chiavi sono **stabili**. Rinominare `Status.Wet` dopo che
+scenari e test lo usano costa quanto rinominare un'azione a catalogo.
 
 ---
 

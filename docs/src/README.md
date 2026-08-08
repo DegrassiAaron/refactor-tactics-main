@@ -119,20 +119,27 @@ Owner: [`../product/showcase-v0.1.md`](../product/showcase-v0.1.md) · audit: `.
 5. **Niente archivi generati**: gli export della wiki (`*.zip`) non stanno nel repository, sono rigenerabili.
 6. **Immagini**: `media/`, tranne quelle che appartengono a un bundle auto-contenuto come `showcase/`.
 
-## Tracciabilità mancante
+## Tracciabilità — chiusa il 2026-08-08
 
-Sette documenti non sono linkati da nessun owner. Per due esiste già un documento sullo stesso tema che però
-**non li cita** — vale la pena aggiungere il link o dichiararli superati:
+I sette documenti che nessun owner citava sono stati consolidati. Ognuno porta ora **in testa** un banner che
+dice dove è finito; la ripartizione fra release sta in
+[`../roadmap/roadmap-post-v0.1.md`](../roadmap/roadmap-post-v0.1.md).
 
-| Sorgente | Owner probabile | Azione |
+| Sorgente | Esito | Dove |
 |---|---|---|
-| `design/match-timing-e-scala-mappe.md` | [`../gameplay/spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) | verificare e linkare |
-| `design/2026-08-08-roster-8-conflux-constrine.md` | [`../wiki/fazioni/constrine.md`](../wiki/fazioni/constrine.md) | verificare e linkare |
-| `design/2026-08-08-cover-window-open-fire-seal.md` | nessuno | da consolidare |
-| `design/2026-08-08-muri-porte-e-interazioni.md` | nessuno | da consolidare |
-| `design/2026-08-08-hud-faction-icons.md` | nessuno | da consolidare (immagini già in `media/hud/`) |
-| `handoff/2026-08-07-nuove-decisioni-e-scenario-4v4.md` | nessuno | da consolidare |
-| `handoff/2026-08-08-bot-ai-roadmap-e-test-pie.md` | nessuno | da consolidare |
+| `design/match-timing-e-scala-mappe.md` | ✅ già recepito | `../gameplay/spec-durata-partita-e-scala-mappe.md` · [D-030](../decisions/RT_PDR_00_Decision_Log.md) · **E19** (2 CP: solo i buchi reali) |
+| `design/2026-08-08-hud-faction-icons.md` | ✅ fondazione in v0.1 | [D-031](../decisions/RT_PDR_00_Decision_Log.md) · **E20** · `PIE-ICON-01` |
+| `design/2026-08-08-roster-8-conflux-constrine.md` | ✅ già recepito | `../wiki/fazioni/` + `../characters/v0.2/` · runtime in **E21** (v0.2) |
+| `handoff/2026-08-08-bot-ai-roadmap-e-test-pie.md` | ✅ in parte | `PIE-AI-01…05` · `../wiki/game/avversario-bot.md` · **E26**/**E28** |
+| `handoff/2026-08-07-nuove-decisioni-e-scenario-4v4.md` | ✅ in parte | decisioni §3 già canone · scenario → **E17** (v0.1) / **E32** |
+| `design/2026-08-08-cover-window-open-fire-seal.md` | 📅 v0.2 | **E22**, con i 12 scenari di test |
+| `design/2026-08-08-muri-porte-e-interazioni.md` | 📅 v0.2 | **E23** |
 
-I sette PDF di `prd/` senza citazioni sono materiale fondativo — più la guida agli asset, che è di supporto —
-già superato dal piano canonico: non richiedono azione.
+> **Cosa ha insegnato questa passata.** Tre dei sette erano **già recepiti** e sembravano orfani solo perché
+> gli owner li citavano in forma relativa (`../src/…`), invisibile a una ricerca per `docs/src/`. E il primo
+> giro di **E19** proponeva di costruire `URTMatchFormatData` — che esiste da tempo. La lezione vale per la
+> prossima volta: *«nessun link in ingresso»* non è una misura di *«non fatto»*. Prima di scrivere un
+> checkpoint, si guarda il codice.
+
+I PDF di `prd/` senza citazioni sono materiale fondativo — più la guida agli asset, che è di supporto — già
+superato dal piano canonico: non richiedono azione.

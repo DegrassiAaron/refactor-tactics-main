@@ -52,7 +52,7 @@ glossario, così i documenti nuovi non moltiplicano i significati.
 | **Fast Reaction** | Scelta **live** provocata da un evento **esterno** (es. `FIRE`/`HOLD` dell'Overwatch) | [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) · [D-019](../decisions/RT_PDR_00_Decision_Log.md) |
 | **Fast Reaction** | Scelta live richiesta **dentro** la resolution a un decision boundary | ADR-0004, `FRTReactionOpportunity` |
 | **Overtime** | Prolungamento oltre il `RoundLimit` a punteggio pari | ⏳ non esiste |
-| **Match Format** | Il pacchetto di parametri di un formato (3v3 Standard, 2v2 Skirmish…) | ⏳ non esiste |
+| **Match Format** | Il pacchetto di parametri di un formato (3v3 Standard, 2v2 Skirmish…) | ✅ **esiste** — `URTMatchFormatData` (`Turn/RTMatchFormatData.h`): `FormatId`, `FormatVersion`, `RoundLimit`, `ExpectedRounds`, `ScoreToWin`. Mancano `UnitsPerTeam` e la classe di mappa sul dato mappa → **E19** |
 | **Ruleset** | L'insieme di regole/policy che governa un Match Format | ⏳ non esiste |
 
 **«Turno» non va usato** in documenti nuovi per indicare «il giro di una singola unità»: quel concetto non

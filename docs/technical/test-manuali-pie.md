@@ -50,11 +50,16 @@
 
 ## Stato in numeri — 2026-08-08
 
-**76 voci**: ✅ **27 verdi** · 🟡 **18 parziali** (regola coperta da test, resta il visivo) · ⏳ **31 aperte**.
+**83 voci**: ✅ **27 verdi** · 🟡 **18 parziali** (regola coperta da test, resta il visivo) · ⏳ **38 aperte**.
+*(Rimisurate il 2026-08-08 dopo l'aggiunta di **5 voci bot** (`PIE-AI-01…05`) e **2 di formato/icone**
+(`PIE-ICON-01`, `PIE-FMT-01`) dal consolidamento dei sorgenti `docs/src/`. Somma verificata: 27+18+38 = 83.)*
+
+<details><summary>Conteggio precedente — 76 voci (2026-08-08, prima del consolidamento)</summary>
 *(Rimisurate col comando qui sotto il 2026-08-08, dopo `PIE-SCEN-FILTER`/`PIE-SCEN-KEEP`, entrambe verdi. Il
 totale precedente era giusto — 74 — ma la ripartizione citata «17/32» non lo era: il comando su quel testo
 dava già **18/31**. Confermo la lezione di sotto: il numero si ricalcola, e anche le **quote** vanno lette dal
 comando.)*
+</details>
 
 > **Perché questo numero era rotto** (issue #192): due sessioni parallele hanno misurato lo stesso file in
 > momenti diversi — «67 voci: 22/15/30» e «65 voci: 23/16/26» — e il merge ha lasciato **entrambe** le versioni
@@ -246,6 +251,29 @@ Le 31 aperte in sette gruppi (la somma è verificata contro il conteggio misurat
 | **PIE-V01-READY** | Ready anticipato e countdown annullabile | partita avviata | Chiudendo la pianificazione prima dello scadere del timer parte un **countdown di 3 s** prima del commit; premendo **Unready** durante il countdown si torna alla pianificazione **senza aver perso il piano**; il countdown **non** sostituisce il timer massimo. Si annota a che secondo si è dichiarato Ready nei round tipici | ⏳ **il countdown non esiste ancora**: oggi Spazio fa lock-in immediato e irreversibile. La voce documenta il comportamento atteso, non uno da verificare adesso |
 | **PIE-V01-OVERWATCH** | Finestra Fast Reaction da 3 s | E14 (CP 14.5/14.6) atterrata; un'unità con Overwatch armato | La finestra `FIRE`/`HOLD` compare **solo** al proprietario (l'alleato la vede in sola lettura, l'avversario **nulla**), dura **3 s** con countdown visibile, e allo scadere applica **HOLD** senza consumare la charge. **Tre secondi bastano** a decidere senza rileggere tutta la situazione? Se serve rileggere, il problema è la finestra, non la durata. La slow-motion è solo presentazione: ripetendo lo stesso turno l'esito non cambia | ⏳ **E14** (CP 14.6) |
 | **PIE-V01-MAPSCALE** | Scala della mappa in Move, non in celle | mappa di prova con almeno **due rotte** distinte fra gli spawn | Dallo spawn, **attraversare tutta la mappa** costa un numero di Move coerente con la classe dichiarata (**Skirmish** ~3–4, **Standard** ~5–7); **entro 1–2 round** è possibile contestare una zona rilevante o entrare in contatto; le due rotte offrono un **trade-off reale** (più rapida vs più coperta), non due strade equivalenti | ⏳ dipende dalla mappa di prova (vedi sotto) |
+
+### Bot — leggibilità delle decisioni
+
+> Voci aperte il **2026-08-08** consolidando [`../src/handoff/2026-08-08-bot-ai-roadmap-e-test-pie.md`](../src/handoff/2026-08-08-bot-ai-roadmap-e-test-pie.md) §24.1.
+> Il bot ha già copertura headless ampia (utility scoring, copertura, minaccia da dash). Queste voci **non
+> ricontrollano la regola**: guardano se un umano che osserva la partita capisce *perché* il bot ha fatto
+> quella mossa. Un test può dire che lo score di una cella era il più alto; non può dire che la scelta
+> sembrasse sensata a chi guarda.
+
+| ID | Cosa verificare | Precondizione | Esito atteso | Stato |
+|----|-----------------|---------------|--------------|-------|
+| **PIE-AI-01** | Il bot produce solo Intent legali | scenario base, nessun input umano, bot su entrambi i team | Nessun intent invalido accettato, nessun bypass della validazione. L'Output Log non contiene rifiuti silenziosi: se un intent è scartato, il motivo è scritto | ⏳ — logica coperta headless; il PIE guarda il **log narrato** durante una partita intera |
+| **PIE-AI-02** | Objective awareness senza contatto | nessun nemico visibile, un obiettivo disponibile | Il bot avanza o contesta secondo il profilo, invece di restare fermo o di muoversi verso informazione che **non ha** (cercare uno stato nascosto sarebbe barare) | ⏳ |
+| **PIE-AI-03** | Lethal contro posizione | bersaglio legalmente eliminabile + alternativa di movimento mediocre | Il bot preferisce il KO, salvo che l'obiettivo domini la scelta. Lo score breakdown a schermo mostra **perché** | ⏳ |
+| **PIE-AI-04** | Cover contro esposizione | due celle raggiungibili a costo simile, una con cover valida | Il bot sceglie la cella tatticamente migliore e il breakdown lo spiega con la voce «copertura», non con un totale opaco | ⏳ |
+| **PIE-AI-05** | Hazard avoidance | il path più breve attraversa un hazard **noto** al bot | Il bot devia, oppure attraversa **dichiarando** che il costo vale il guadagno. Attraversare senza che il breakdown lo giustifichi è un difetto | ⏳ |
+
+### Formato e icone
+
+| ID | Cosa verificare | Precondizione | Esito atteso | Stato |
+|----|-----------------|---------------|--------------|-------|
+| **PIE-ICON-01** | Le icone si distinguono a schermo | CP 20.2 atterrato, catalogo popolato per Identity/Action/Phase/Status/Certainty | Ogni icona è riconoscibile alla dimensione reale dell'HUD e **due stati diversi non si confondono**. Nessuna informazione affidata al **solo colore** (§12.4 del sorgente muri/porte, stessa regola per l'HUD). Una chiave non risolta si vede come errore, non come spazio vuoto | ⏳ **E20** (CP 20.3) |
+| **PIE-FMT-01** | Formato e mappa concordano | CP 19.1 atterrato | Avviando una mappa `Skirmish` con un formato `Standard` il gioco **rifiuta e lo dice**; con formato e mappa coerenti parte normalmente. Il caso di errore è quello da guardare: se fallisce in silenzio, la classe non sta proteggendo niente | ⏳ **E19** (CP 19.1) |
 
 ## Sessioni di verifica consigliate
 
