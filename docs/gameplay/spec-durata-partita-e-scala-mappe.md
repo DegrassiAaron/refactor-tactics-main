@@ -674,7 +674,7 @@ Sneak · Acoustic Mask.
 | Obiettivi dinamici e fine partita | [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) §5 → **E10** |
 | Gate di release e KPI | [`v0.1-definition-of-done.md`](../roadmap/v0.1-definition-of-done.md) §3–§4 |
 | Verifiche interattive | [`test-manuali-pie.md`](../technical/test-manuali-pie.md) |
-| Decision Log del PDR | [`../PDR/RT_PDR_00_Decision_Log.md`](../decisions/RT_PDR_00_Decision_Log.md) **D-010** |
+| Decision Log del PDR | [`../decisions/RT_PDR_00_Decision_Log.md`](../decisions/RT_PDR_00_Decision_Log.md) **D-010** |
 | Codice toccato dai parametri | `Turn/RTTurnManager.h:134` (`MaxPlaybackSeconds`), `:239` (`PlanningSeconds`) |
 | Forma della configurazione, DoD e test | issue `#185` — decisa il 2026-08-07, consumata da **CP 10.3** (`#76`) |
 | Precedenti citati in §16.3 | `Turn/RTHexSim.h` (snapshot), `Turn/RTTurnLog.h` (`ERTLogTopology`, versioni 1→3), `Turn/RTTurnLogLibrary.cpp` (`HashTurnLog`) |

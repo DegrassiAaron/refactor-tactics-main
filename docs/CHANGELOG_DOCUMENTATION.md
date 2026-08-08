@@ -2,6 +2,68 @@
 
 ---
 
+## 2026-08-08 — Un gate per i link, che il consolidamento ha reso necessario
+
+**Origine**: il consolidamento della voce sotto. Spostare 25 sorgenti ha rotto link in tre modi e ne ha
+rivelato un quarto; tutto è stato trovato con script usa-e-getta, che è il modo migliore per non accorgersi
+la prossima volta.
+
+### Cosa è cambiato
+
+| File | Modifica |
+|---|---|
+| `scripts/check-docs-links.py` | **nuovo** — gemello di `check-docs-symbols.py`: target inesistenti, **etichette che mentono**, target non versionati, debito stantio |
+| [`README.md`](README.md) | La sezione «Gate anti-deriva» ora ne documenta due |
+| 6 documenti | Etichette corrette: `../PDR/`, `../guides/` e uno `../spec-…` a profondità sbagliata — **cartelle che non esistono**, in `piano-canonico-mvp.md`, `RT_TerrainCatalog_v0.1.md`, `spec-durata-partita-e-scala-mappe.md`, `roadmap-editor.md` (×2), `brief-consolidamento-documentale.md` |
+
+### Il controllo che nessuno fa
+
+L'etichetta di un link markdown può essere essa stessa un percorso, e restare al valore vecchio mentre il
+target viene corretto. Il link funziona, quindi ogni checker lo dichiara sano; il lettore legge un percorso
+che non esiste. Erano **36** dopo lo spostamento, più **6** già presenti da una riorganizzazione precedente —
+cartelle `PDR/` e `guides/` che il repository non ha mai avuto nella struttura corrente.
+
+Il gate distingue però lo stile legittimo: ``[`../balance/`](../balance/README.md)`` non è un errore, perché
+`../balance/` esiste. Segnala solo le etichette-percorso che **non risolvono**.
+
+### ⚠️ Le dieci immagini «rotte» non lo erano
+
+La voce precedente dichiarava un difetto preesistente: dieci infografiche mai committate in
+`src/data/wiki/CLAUDE_INTEGRATION_PROMPT.md`. **Era falso, ed è stato scritto qui.**
+
+Quei dieci `![…](…)` stanno dentro blocchi ```` ```md ````: sono **markdown suggerito** da incollare nelle
+pagine wiki, e i loro path sono relativi alla **destinazione**, non al documento che li contiene. Erano
+corretti dall'inizio. A sbagliare era lo script usa-e-getta con cui li ho misurati, che non gestiva i blocchi
+recintati — e la misura sbagliata è diventata un'affermazione in tre documenti.
+
+> **La lezione, che vale più del difetto.** Uno strumento scritto per verificare non è verificato da nessuno.
+> Il gate ha trovato l'errore del proprio prototipo appena ha imparato a leggere il markdown per davvero — e
+> ha trovato anche i propri due esempi nel README. Un controllo che non sopravvive alla propria
+> documentazione non è pronto: **la prima cosa che deve passare è il documento che lo descrive.**
+
+`DEBITO_NOTO` resta perciò **vuoto**, ed è la notizia buona: nel repository non c'è un solo link rotto. Il
+meccanismo sopravvive perché un gate senza via d'uscita viene disattivato per intero al primo blocco
+legittimo, ed è verificato per mutazione anche da vuoto.
+
+### Verificato per mutazione
+
+Rotta una cosa per volta, il gate becca **esattamente** quella — e, altrettanto importante, **non** becca ciò
+che non deve:
+
+| Mutazione | Atteso | Esito |
+|---|---|---|
+| Link a un file inesistente | fallisce | ✅ |
+| Etichetta-percorso che non risolve | fallisce | ✅ |
+| Target presente in locale ma non versionato | fallisce | ✅ |
+| Voce di `DEBITO_NOTO` non più vera | fallisce | ✅ |
+| `![img](…)` dentro un blocco ```` ```md ```` | **non** fallisce | ✅ |
+| Link vero *fuori* dal fence, stesso file | fallisce lo stesso | ✅ |
+| Link citato fra backtick | **non** fallisce | ✅ |
+
+Senza mutazioni resta verde sui **1518** link del repository: zero falsi positivi.
+
+---
+
 ## 2026-08-08 — Tre aggiunte alle Signature, trasformazioni, e `docs/src/` che si svuota
 
 **Origine**: due sorgenti arrivati insieme in `docs/src/` — un'esplorazione sulle trasformazioni e un handoff

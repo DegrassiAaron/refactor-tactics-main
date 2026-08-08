@@ -253,3 +253,31 @@ forma in cui un documento afferma «questo esiste oggi». Non controlla la prosa
 comparire come storia («è stato rimosso») o come proposta («il DoD introduce…»): distinguerli lessicalmente
 non è affidabile, e un gate che sbaglia viene disattivato al terzo falso positivo. Sono esentati i documenti
 storici, i brief propositivi e le cartelle `archive/`, `src/`, `roadmap/plans/`.
+
+```bash
+python scripts/check-docs-links.py          # e python scripts/check-docs-links.py --known
+```
+
+Il gemello: un **link** punta a qualcosa che esiste, ed è etichettato per quello che è. Nasce dal
+consolidamento del 2026-08-08, che spostando 25 sorgenti ha rotto i link in tre modi — e solo il primo era
+ovvio. Controlla quattro cose:
+
+| Controllo | Cosa becca |
+|---|---|
+| Target inesistente | Il link rotto classico, tipicamente dopo uno spostamento |
+| **Etichetta che mente** | ``[`../vecchio/x.md`](../nuovo/x.md)``: il link funziona, il testo no. Erano **36** dopo lo spostamento, e nessun controllo sui soli target li vede |
+| Target **non versionato** | Esiste sulla tua macchina e su nessun'altra: committalo o togli il link |
+| Debito **stantio** | Una voce di `DEBITO_NOTO` che è tornata a funzionare: va tolta, o nasconderà la prossima |
+
+`DEBITO_NOTO` **non è un'esenzione**: è una promessa datata, con la sua ragione accanto, e il gate la verifica
+al contrario. **Oggi è vuoto**, e va tenuto vuoto; il meccanismo resta perché un gate senza via d'uscita viene
+disattivato *per intero* al primo blocco legittimo.
+
+Ignora i link **citati** (avvolti in backtick) e quelli dentro **blocchi recintati**. Non è una comodità: in un
+```` ```md ```` un `![img](…)` è un modello da incollare altrove, e i suoi path sono relativi alla
+**destinazione**. È l'errore in cui il gate è cascato da solo alla prima esecuzione, segnalando i due esempi
+scritti in questa pagina.
+
+Non controlla **ancoraggi** (`#sezione`) né **URL esterni**: il primo richiederebbe di riprodurre la
+slugificazione di GitHub su titoli con accenti ed emoji, il secondo la rete. Stessa disciplina dell'altro
+gate — meglio stretto e creduto che largo e ignorato.
