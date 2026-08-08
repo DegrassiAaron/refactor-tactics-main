@@ -153,7 +153,7 @@ dall'handoff §7 è stata eseguita su questa tabella.
 | `ShallowWater` | `(-3,1)` `(-2,1)` `(-1,1)` `(0,1)` | Lane di Riva; è **conduttiva**, ed è ciò che rende possibile il payoff del turno 7 |
 | `Conductive` | `(1,1)` `(2,1)` | Prosegue la lane verso est: il `ConductiveNode` del turno 2 la collega all'acqua |
 | `Rough` | `(1,0)` `(2,0)` | Sbarra la via diretta est→Relay ai movimenti lineari: è ciò che invalida il `Ram` del turno 7 |
-| `Fire` | `(3,0)` `(3,1)` | Soglia est: Vektor la attraversa al turno 3 e prende `Burning` |
+| `Fire` | `(2,-1)` `(1,-1)` | Fascia sull'approccio **nord** al Relay: Vektor la attraversa al turno 3 scendendo dalla cresta |
 | `HighGround` | `(2,-2)` `(3,-1)` | Cresta nord-est, `Height = 1`. Vantaggio **geometrico**, nessun bonus numerico ([D-024](../decisions/RT_PDR_00_Decision_Log.md)) |
 | `Ice` | `(-1,2)` `(0,2)` `(1,2)` | Ripiano sud: scivolata deterministica al turno 7 |
 
@@ -203,14 +203,14 @@ si verifica. La regola vale per tutti: **nessun turno introduce codice speciale 
 
 | # | Dimostra | Dipende da | Test |
 |---|---|---|---|
-| 1 | Planning, ghost, commit, movimento hex, `Smoke`, Dash, acqua, `HighGround`, **facing**, cover, TurnLog | ✅ oggi, tranne **facing (E16)** e `CreateCover` (CP 9.5) | `RT.Scenario.Showcase.T1` |
-| 2 | `Wet`, Push, setup conduttivo, reconfigure, **Predictive Action**, **whiff** | ⏳ **E18** | `RT.Scenario.Showcase.T2` |
-| 3 | Dash prima del Blast, `Fire`, `Burning`, **moving target**, fallback, AoE | ✅ oggi · policy moving-target **da leggere dal catalogo** | `RT.Scenario.Showcase.T3` |
-| 4 | Reaction Opportunity, **Decision Boundary**, `HOLD`/`FIRE`, facing, trigger per micro-step | ⏳ **E14** (dipende da E13) + **E16** | `RT.Scenario.Showcase.T4` |
-| 5 | `Smoke`, validazione LOS/target, correzione del piano, `Deflection`, **Interact sul gate**, `GraphRevision++` | ✅ **CP 9.3** per il gate · validator ✅ | `RT.Scenario.Showcase.T5` |
-| 6 | `Intercept`, redirect del bersaglio, **rivalidazione della copertura**, `Wet`, Push, **nessuna reaction annidata** | ✅ CP 5.5/6.7 · ⏳ rivalidazione ([D-017](../decisions/RT_PDR_00_Decision_Log.md)) | `RT.Scenario.Showcase.T6` |
-| 7 | Acqua+Fuoco, elettricità, `Wet`, conduttivo, `Ice`, `Rough`, validazione in planning | ✅ **E8 chiusa** | `RT.Scenario.Showcase.T7` |
-| 8 | Predizione, rotta alternativa, KO, **objective**, cleanup, `MatchEnded` | ⏳ **E10 CP 10.1/10.2** + **E18** | `RT.Scenario.Showcase.T8` |
+| 1 | Planning, ghost, commit, movimento hex, `Smoke`, Dash, acqua, `HighGround`, **facing**, cover, TurnLog | **`FixtureReference`** — facing e `CreateCover` sono *dimostrati*, non richiesti per passare | `RT.Scenario.Showcase.T1` |
+| 2 | `Wet`, Push, setup conduttivo, reconfigure, **Predictive Action**, **whiff** | `FixtureReference` + **`PredictiveAction`** (E18) | `RT.Scenario.Showcase.T2` |
+| 3 | Dash prima del Blast, `Fire`, `Burning`, **moving target**, fallback, AoE | **`FixtureReference`** · policy moving-target **da leggere dal catalogo** | `RT.Scenario.Showcase.T3` |
+| 4 | Reaction Opportunity, **Decision Boundary**, `HOLD`/`FIRE`, facing, trigger per micro-step | `FixtureReference` + **`DecisionBoundary` + `Reaction` + `Facing`** (E14 dopo E13, E16) | `RT.Scenario.Showcase.T4` |
+| 5 | `Smoke`, validazione LOS/target, correzione del piano, `Deflection`, **Interact sul gate**, `GraphRevision++` | **`FixtureReference`** — il gate è una porta, CP 9.3 è chiuso | `RT.Scenario.Showcase.T5` |
+| 6 | `Intercept`, redirect del bersaglio, **rivalidazione della copertura**, `Wet`, Push, **nessuna reaction annidata** | `FixtureReference` + **`InterceptRevalidation`** ([D-017](../decisions/RT_PDR_00_Decision_Log.md)) — **non** serve il Decision Boundary: `Interposition` è automatica | `RT.Scenario.Showcase.T6` |
+| 7 | Acqua+Fuoco, elettricità, `Wet`, conduttivo, `Ice`, `Rough`, validazione in planning | **`FixtureReference`** — E8 è chiusa | `RT.Scenario.Showcase.T7` |
+| 8 | Predizione, rotta alternativa, KO, **objective**, cleanup, `MatchEnded` | `FixtureReference` + **`PredictiveAction` + `Objective`** (E18 + E10 CP 10.1/10.2) | `RT.Scenario.Showcase.T8` |
 
 ### Turno 1 — mappa e posizionamento
 
@@ -232,7 +232,7 @@ vedere: è metà del valore di una Predictive Action.
 
 ### Turno 3 — bersaglio in movimento e fuoco
 
-**Flux** `LinearDischarge` su Vektor. **Vektor** usa `PassingBlade` e attraversa `Fire` a `(3,0)` **prima** del
+**Flux** `LinearDischarge` su Vektor. **Vektor** usa `PassingBlade` e attraversa `Fire` a `(2,-1)` **prima** del
 Blast, prendendo `Burning`. **Riva** `CircularTide`. **Bastion** un'azione difensiva realmente a catalogo.
 
 *Expected*: il bersaglio si è spostato fra dichiarazione e risoluzione, quindi si applica la **policy di moving

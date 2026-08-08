@@ -148,11 +148,15 @@ La §10 chiede `Repeat 10 → 100 → 1000`. **CP 12.1 è già a 100 ripetizioni
 Ordinato **secondo la roadmap reale**, non per dominio: ogni voce è una fetta verticale
 `scenario → feature → test automatico → risultato visibile`.
 
-### `S2-1` — Lo scenario sa riferire una fixture nominata
+### `S2-1` — Lo scenario sa riferire una fixture nominata — ✅ **FATTO 2026-08-08**
+
+> Consegnato: campo `fixture`, `URTMatchSetupLibrary::MakeFixtureArena`, esito **`Blocked`** con `requires`
+> per turno, e lo scenario versionato `Scenarios/RT_Showcase_Relay_v01.json`. Il turno 1 gira attraverso il
+> resolver normale e `result.json` riporta `BLOCKED` + `blockedReason`. Suite: **437 verdi, 0 fallimenti**.
 
 | | |
 |---|---|
-| **Goal** | Uno scenario può dire `"mapId": "ShowcaseRelayBasin"` invece di ridisegnare la mappa nel JSON |
+| **Goal** | Uno scenario può dire `"fixture": "RelayBasin"` invece di ridisegnare la mappa nel JSON |
 | **Scope** | Campo `mapId` in `FRTTestScenario`; risoluzione nome → fixture in `URTScenarioLoader`; `mapRadius`/`cells[]` restano validi e si applicano **sopra** la fixture |
 | **Non-goals** | Caricare `.umap`; un registry generico di mappe |
 | **Dipende da** | ✅ `MakeShowcaseRelayBasinArena` |

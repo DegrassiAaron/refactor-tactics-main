@@ -675,7 +675,8 @@ Nessuna stima temporale: il repository non ne usa.
 |---|---|---|---|---|
 | **S0** | Scenario Harness baseline | — | 13 `Scenario.*` | ✅ **fatto**: JSON versionato → percorso di gioco reale → `result.json`, `PASS`/`FAIL`/`ERROR` |
 | **S1** | Fixture della mappa Relay Basin | S0 | `ShowcaseRelay.BasinLayoutMatchesSpec` | ✅ **fatto 2026-08-08**: 45 celle, superfici, gate chiuso, copertura, spawn — pinnati e verificati con mutazione |
-| **S2** | Turno 1 giocabile da scenario | S1 · **schema esteso** (`mapId`, intent di abilità, facing) | `RT.Scenario.Showcase.T1` | Le quattro unità si muovono dagli intent dello scenario, nessun `SetActorLocation` |
+| **S2-1** | Lo scenario **riferisce** la fixture per nome | S1 | `Scenario.FixtureFactoryResolvesKnownNames` · `.UnknownFixtureIsError` · `.BlockedTurnIsNotAFailure` · `.ShowcaseRelayV01RunsTurnOne` | ✅ **fatto 2026-08-08**: `RT_Showcase_Relay_v01` esiste, il turno 1 gira dal resolver normale, `result.json` dice `BLOCKED` col nome della capability |
+| **S2-2** | Intent di **abilità** negli scenari | S2-1 | `Scenario.AbilityIntentResolvesLikePlanned` | Un `actionId` fuori catalogo è `ERROR`; un'abilità legale produce le stesse voci di TurnLog di una pianificata a mano |
 | **S3** | Predictive Action, thin slice | S2 · **E18** | `RT.Scenario.Showcase.T2` | `PredictionWhiffed` con reason code: la previsione sbagliata **costa** |
 | **S4** | Bersaglio in movimento + Fire/Burning | S2 · policy moving-target **dal catalogo** | `RT.Scenario.Showcase.T3` | Il TurnLog dice **quale** policy ha applicato |
 | **S5** | Overwatch universale / Fast Reaction | S2 · **E13** → **E14** · **E16** (facing) | `RT.Scenario.Showcase.T4` | `HOLD` non consuma, la seconda opportunity esiste, `FIRE` consuma, **nessun leak** |
@@ -689,6 +690,53 @@ Nessuna stima temporale: il repository non ne usa.
 > lo scenario sappia esprimere un'abilità con un bersaglio invece del solo movimento. Finché non lo sa, ogni
 > feature nuova va verificata a mano — ed è il motivo per cui S2 viene prima di E13, E14, E16 ed E18 pur non
 > essendo una feature di gioco.
+
+#### Grafo delle dipendenze per turno
+
+*Aggiunto il 2026-08-08.* La roadmap della showcase **è un grafo di dipendenze**, non una sequenza arbitraria
+di issue. Ogni turno dichiara cosa lo blocca, con il nome della capability — mai «aspetta sistemi».
+
+```text
+T1  ->  FixtureReference
+T2  ->  FixtureReference + PredictiveAction
+T3  ->  FixtureReference
+T4  ->  FixtureReference + DecisionBoundary + Reaction + Facing
+T5  ->  FixtureReference
+T6  ->  FixtureReference + InterceptRevalidation
+T7  ->  FixtureReference
+T8  ->  FixtureReference + PredictiveAction + Objective
+```
+
+**Dopo S2-1 sono runnable T1, T3, T5, T7** — quattro turni su otto, subito.
+
+| Turno | Blocco | Capability mancante | Dove si costruisce |
+|---|---|---|---|
+| **T1** | — | — | ✅ dopo `S2-1` |
+| **T2** | `Vektor.InterceptShot` deve risolvere come predizione e mancare | `PredictiveAction` | **E18** ([D-016](../decisions/RT_PDR_00_Decision_Log.md)) |
+| **T3** | — | — | ✅ dopo `S2-1` |
+| **T4** | `HOLD` poi `FIRE` su **due** opportunity distinte | `DecisionBoundary` + `Reaction` + `Facing` | **E14** (dopo E13) + **E16** |
+| **T5** | — | — | ✅ dopo `S2-1` — il gate è una porta, CP 9.3 è chiuso |
+| **T6** | la copertura va rivalidata **su Bastion**, non su Vektor | `InterceptRevalidation` | [D-017](../decisions/RT_PDR_00_Decision_Log.md) |
+| **T7** | — | — | ✅ dopo `S2-1` — E8 è chiusa |
+| **T8** | whiff della predizione **e** punto sul Relay | `PredictiveAction` + `Objective` | **E18** + **E10** CP 10.1/10.2 |
+
+> **Quattro dipendenze corrette rispetto alla prima stesura**, e la ragione è nel codice:
+>
+> - **T2 non dipende dall'Objective**: dichiara `InterceptShot` su una cella prevista e verifica il *whiff*.
+>   L'obiettivo entra solo al T8.
+> - **T4 non dipende dal solo Facing**: il facing dà il cono, ma `HOLD`/`FIRE` **sono** la finestra. Senza
+>   Decision Boundary il turno non ha nulla da mostrare.
+> - **T6 non dipende dal Decision Boundary**: `Bastion.Interposition` è già cablata (CP 6.7) ed è una reazione
+>   **automatica** — il caso `AllowedResponses ≤ 1` di [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md),
+>   che per definizione non apre finestre. Manca solo la rivalidazione geometrica sul bersaglio effettivo.
+> - **T8 dipende da entrambe**: fa il whiff della predizione *e* assegna il punto.
+
+> **Il Decision Boundary viene prima dell'Overwatch, non insieme.** L'Overwatch deve essere il **primo
+> consumatore** del sistema generale `Reaction Definition → Intent → Snapshot → Opportunity → Commit →
+> Resolution`, non il posto dove quel sistema viene inventato. Se nascesse dentro l'Overwatch, la prima
+> reazione interattiva diversa dovrebbe rifarlo — ed è esattamente il difetto che
+> [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) evita dichiarando E5 il caso semplice dello stesso
+> modello, non un meccanismo separato. `HOLD` conserva la reaction; il timeout **non** consuma la risorsa.
 
 **Dipendenze per turno della sequenza target** (nessuna va anticipata dentro E15):
 

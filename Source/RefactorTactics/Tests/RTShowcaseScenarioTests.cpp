@@ -15,6 +15,12 @@
 #include "Map/RTCellId.h"
 #include "Terrain/RTTerrainLibrary.h"
 #include "Terrain/RTTerrainData.h"
+#include "ScenarioHarness/RTScenarioLoader.h"
+#include "ScenarioHarness/RTScenarioRunner.h"
+#include "ScenarioHarness/RTTestScenario.h"
+#include "ScenarioHarness/RTTestResult.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 
@@ -381,9 +387,9 @@ namespace
 			// Sbarra la via diretta est->Relay ai movimenti lineari: invalida il `Ram` del turno 7.
 			{ FRTCellId( 1, 0, 0), ERTHexSurface::Rough },
 			{ FRTCellId( 2, 0, 0), ERTHexSurface::Rough },
-			// Soglia est: Vektor la attraversa al turno 3 e prende `Burning`.
-			{ FRTCellId( 3, 0, 0), ERTHexSurface::Fire },
-			{ FRTCellId( 3, 1, 0), ERTHexSurface::Fire },
+			// Fascia nord: Vektor la attraversa al turno 3 scendendo dalla cresta. Lontana dagli spawn.
+			{ FRTCellId( 2, -1, 0), ERTHexSurface::Fire },
+			{ FRTCellId( 1, -1, 0), ERTHexSurface::Fire },
 			// Cresta nord-est: vantaggio GEOMETRICO, nessun bonus numerico (D-024).
 			{ FRTCellId( 2, -2, 0), ERTHexSurface::HighGround },
 			{ FRTCellId( 3, -1, 0), ERTHexSurface::HighGround },
@@ -501,6 +507,179 @@ bool FRTShowcaseBasinLayoutTest::RunTest(const FString&)
 	TestEqual(TEXT("Riva allo spawn dichiarato"),    ById.FindRef(TEXT("Hero.Riva")),    FRTCellId(-4, 1, 0));
 	TestEqual(TEXT("Bastion allo spawn dichiarato"), ById.FindRef(TEXT("Hero.Bastion")), FRTCellId( 4, 0, 0));
 	TestEqual(TEXT("Vektor allo spawn dichiarato"),  ById.FindRef(TEXT("Hero.Vektor")),  FRTCellId( 4, 1, 0));
+
+	return true;
+}
+
+// =====================================================================================================
+// S2-1 — lo scenario RIFERISCE la geometria, non la duplica
+//
+// Il punto non e' risparmiare righe di JSON: e' che la mappa canonica viva in UN posto solo, gia'
+// protetto da BasinLayoutMatchesSpec. Quarantacinque celle copiate dentro uno scenario sarebbero una
+// seconda verita' che nessun test confronta con la prima.
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioFixtureFactoryTest,
+	"RefactorTactics.Scenario.FixtureFactoryResolvesKnownNames",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioFixtureFactoryTest::RunTest(const FString&)
+{
+	UObject* Outer = GetTransientPackage();
+
+	const URTHexMapAsset* Basin = URTMatchSetupLibrary::MakeFixtureArena(Outer, TEXT("RelayBasin"));
+	if (TestNotNull(TEXT("la fixture RelayBasin si risolve"), Basin))
+	{
+		TestEqual(TEXT("RelayBasin ha le 45 celle della mappa canonica"), Basin->NumCells(), 45);
+	}
+
+	const URTHexMapAsset* Lite = URTMatchSetupLibrary::MakeFixtureArena(Outer, TEXT("RelayLite"));
+	if (TestNotNull(TEXT("la fixture RelayLite si risolve"), Lite))
+	{
+		TestEqual(TEXT("RelayLite resta l'esagono di raggio 5"), Lite->NumCells(), 91);
+	}
+
+	// Un nome sconosciuto non produce un'arena vuota su cui la partita girerebbe comunque dando un FAIL
+	// incomprensibile: produce NIENTE, e il chiamante decide.
+	TestNull(TEXT("una fixture sconosciuta non si inventa"),
+		URTMatchSetupLibrary::MakeFixtureArena(Outer, TEXT("NonEsiste")));
+	TestNull(TEXT("una fixture senza nome non si inventa"),
+		URTMatchSetupLibrary::MakeFixtureArena(Outer, FString()));
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioUnknownFixtureTest,
+	"RefactorTactics.Scenario.UnknownFixtureIsError",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioUnknownFixtureTest::RunTest(const FString&)
+{
+	UWorld* World = MakeShowcaseWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	FRTTestScenario Scenario;
+	Scenario.ScenarioId = TEXT("Test.UnknownFixture");
+	Scenario.Fixture = TEXT("NonEsiste");
+	Scenario.Units.Add([]{ FRTScenarioUnit U; U.Id = TEXT("A1"); U.HeroId = TEXT("Hero.Flux");
+		U.TeamId = 0; U.Cell = FRTCellId(0, 0, 0); return U; }());
+	// Uno scenario senza assertion viene rifiutato in validazione — giustamente: passerebbe sempre. Qui ne
+	// serve una qualunque, perche' cio' che si verifica e' che si arrivi al controllo della fixture.
+	Scenario.Expect.Add([]{ FRTTestExpectation E; E.Kind = ERTAssertionKind::TurnsCompleted; E.Value = 0; return E; }());
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyShowcaseWorld(World);
+
+	// ERROR, non FAIL: il gioco non ha sbagliato niente, lo scenario si'. Confonderli fa cercare nel
+	// resolver un difetto che sta nel JSON.
+	TestEqual(TEXT("fixture sconosciuta -> ERROR"),
+		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Error));
+	TestTrue(TEXT("il messaggio nomina la fixture"), Result.ErrorMessage.Contains(TEXT("NonEsiste")));
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioBlockedTurnTest,
+	"RefactorTactics.Scenario.BlockedTurnIsNotAFailure",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioBlockedTurnTest::RunTest(const FString&)
+{
+	UWorld* World = MakeShowcaseWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	FRTTestScenario Scenario;
+	Scenario.ScenarioId = TEXT("Test.BlockedTurn");
+	Scenario.Fixture = TEXT("RelayBasin");
+	for (const FRTShowcaseSpawn& Spawn : URTMatchSetupLibrary::GetShowcaseRelayBasinSpawns())
+	{
+		FRTScenarioUnit U;
+		U.Id = Spawn.HeroId.ToString();
+		U.HeroId = Spawn.HeroId;
+		U.TeamId = Spawn.TeamId;
+		U.Cell = Spawn.Cell;
+		Scenario.Units.Add(U);
+	}
+
+	// Turno 1: eseguibile. Turno 2: chiede una capability che non esiste.
+	Scenario.Turns.Add(FRTScenarioTurn());
+	FRTScenarioTurn Blocked;
+	Blocked.Requires.Add(TEXT("PredictiveAction"));
+	Scenario.Turns.Add(Blocked);
+
+	// L'assertion e' sul turno GIOCATO, non su quelli bloccati: e' cio' che rende l'esito un BLOCKED con
+	// zero fallimenti invece di un FAIL mascherato.
+	Scenario.Expect.Add([]{ FRTTestExpectation E; E.Kind = ERTAssertionKind::TurnsCompleted; E.Value = 1; return E; }());
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyShowcaseWorld(World);
+
+	// Il valore di questo esito e' tutto qui: uno showcase parzialmente eseguibile deve dire QUANTO
+	// arriva e COSA lo ferma, non fallire in blocco come se il gioco fosse rotto.
+	TestEqual(TEXT("capability mancante -> BLOCKED"),
+		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Blocked));
+	TestEqual(TEXT("il turno 1 e' stato giocato davvero"), Result.TurnsPlayed, 1);
+	TestTrue(TEXT("il motivo nomina la capability mancante"),
+		Result.BlockedReason.Contains(TEXT("PredictiveAction")));
+	TestEqual(TEXT("BLOCKED si legge come tale nel report"), Result.OutcomeString(), FString(TEXT("BLOCKED")));
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioShowcaseRelayV01Test,
+	"RefactorTactics.Scenario.ShowcaseRelayV01RunsTurnOne",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioShowcaseRelayV01Test::RunTest(const FString&)
+{
+	// Lo scenario VERSIONATO, non uno costruito nel test: e' cio' che rende questo un test dello showcase
+	// e non dell'harness.
+	FRTTestScenario Scenario;
+	FString LoadError;
+	if (!TestTrue(TEXT("RT_Showcase_Relay_v01 si carica"),
+		URTScenarioLoader::LoadFromFile(
+			URTScenarioLoader::PathForScenarioId(TEXT("RT_Showcase_Relay_v01")), Scenario, LoadError)))
+	{
+		AddError(FString::Printf(TEXT("caricamento fallito: %s"), *LoadError));
+		return false;
+	}
+
+	TestEqual(TEXT("riferisce la fixture invece di duplicarla"), Scenario.Fixture, FString(TEXT("RelayBasin")));
+	TestEqual(TEXT("la geometria non e' copiata nel JSON"), Scenario.Cells.Num(), 0);
+	TestEqual(TEXT("otto turni dichiarati"), Scenario.Turns.Num(), 8);
+
+	UWorld* World = MakeShowcaseWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	// `RunById` e non `Run`: e' il percorso che scrive davvero `result.json`. Un test che salta il report
+	// verificherebbe il resolver e lascerebbe scoperto proprio cio' che serve a diagnosticare da fuori.
+	FString ReportDir;
+	const FRTTestResult Result = URTScenarioRunner::RunById(World, TEXT("RT_Showcase_Relay_v01"), ReportDir);
+	DestroyShowcaseWorld(World);
+
+	// Il turno 1 gira attraverso il resolver normale; il turno 2 chiede la Predictive Action, che non c'e'.
+	TestEqual(TEXT("si ferma sul primo turno non supportato"),
+		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Blocked));
+	TestEqual(TEXT("il turno 1 e' stato giocato"), Result.TurnsPlayed, 1);
+	TestTrue(TEXT("dichiara cosa lo blocca"), Result.BlockedReason.Contains(TEXT("PredictiveAction")));
+
+	// Le assertion del turno 1 sono state valutate e sono passate: un BLOCKED non le nasconde.
+	TestTrue(TEXT("il turno 1 ha assertion valutate"), Result.Assertions.Num() > 0);
+	TestEqual(TEXT("nessuna assertion del turno 1 fallita"), Result.FailedCount(), 0);
+
+	// Lo stato finale e' un dato, non un caso: senza hash il golden replay non esiste.
+	TestNotEqual(TEXT("lo StateHash e' stato calcolato"), Result.StateHash, static_cast<uint32>(0));
+
+	// --- Il report: diagnosticabile da fuori, senza aprire i log di Unreal --------------------------
+	if (TestFalse(TEXT("il report ha una cartella"), ReportDir.IsEmpty()))
+	{
+		const FString ReportPath = FPaths::Combine(ReportDir, TEXT("result.json"));
+		FString Json;
+		if (TestTrue(TEXT("result.json e' stato scritto"), FFileHelper::LoadFileToString(Json, *ReportPath)))
+		{
+			TestTrue(TEXT("il report dichiara l'esito BLOCKED"), Json.Contains(TEXT("BLOCKED")));
+			// Il motivo sta accanto all'esito: «BLOCKED» da solo direbbe che non tutto e' pronto, che si
+			// sapeva gia'. Il valore e' nel nome della capability.
+			TestTrue(TEXT("il report nomina la capability mancante"), Json.Contains(TEXT("PredictiveAction")));
+			TestTrue(TEXT("il report distingue blockedReason da error"), Json.Contains(TEXT("blockedReason")));
+		}
+	}
 
 	return true;
 }

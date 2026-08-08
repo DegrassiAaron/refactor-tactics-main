@@ -249,9 +249,11 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 		// Sbarra la via diretta est->Relay ai movimenti lineari: invalida il `Ram` del turno 7.
 		{ FRTCellId( 1,  0, 0), ERTHexSurface::Rough },
 		{ FRTCellId( 2,  0, 0), ERTHexSurface::Rough },
-		// Soglia est: Vektor la attraversa al turno 3 e prende `Burning`.
-		{ FRTCellId( 3,  0, 0), ERTHexSurface::Fire },
-		{ FRTCellId( 3,  1, 0), ERTHexSurface::Fire },
+		// Fascia di fuoco sull'approccio NORD al Relay: Vektor la attraversa al turno 3 scendendo dalla
+		// cresta, e prende `Burning`. NON sta accanto agli spawn: messa a (3,0)/(3,1) murava Bastion nel suo
+		// angolo — ogni sua uscita passava dal fuoco, e il turno 1 sarebbe stato una punizione, non una scelta.
+		{ FRTCellId( 2, -1, 0), ERTHexSurface::Fire },
+		{ FRTCellId( 1, -1, 0), ERTHexSurface::Fire },
 		// Cresta nord-est: vantaggio GEOMETRICO, nessun bonus numerico (D-024).
 		{ FRTCellId( 2, -2, 0), ERTHexSurface::HighGround },
 		{ FRTCellId( 3, -1, 0), ERTHexSurface::HighGround },
@@ -296,6 +298,31 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 
 	Arena->SortCells();
 	return Arena;
+}
+
+URTHexMapAsset* URTMatchSetupLibrary::MakeFixtureArena(UObject* Outer, const FString& FixtureId)
+{
+	if (Outer == nullptr || FixtureId.IsEmpty())
+	{
+		return nullptr;
+	}
+
+	if (FixtureId.Equals(TEXT("RelayBasin"), ESearchCase::IgnoreCase))
+	{
+		return MakeShowcaseRelayBasinArena(Outer);
+	}
+	if (FixtureId.Equals(TEXT("RelayLite"), ESearchCase::IgnoreCase))
+	{
+		return MakeShowcaseRelayLiteArena(Outer);
+	}
+	if (FixtureId.Equals(TEXT("TestArena"), ESearchCase::IgnoreCase))
+	{
+		return MakeTestArena(Outer);
+	}
+
+	// Sconosciuta: nessuna arena. Inventarne una vuota farebbe girare la partita e produrrebbe un fallimento
+	// che parla di unita' fuori mappa invece che del nome sbagliato.
+	return nullptr;
 }
 
 TArray<FRTShowcaseSpawn> URTMatchSetupLibrary::GetShowcaseRelayBasinSpawns()

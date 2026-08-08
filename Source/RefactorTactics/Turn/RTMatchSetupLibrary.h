@@ -119,6 +119,19 @@ public:
 	static TArray<FRTShowcaseSpawn> GetShowcaseRelayBasinSpawns();
 
 	/**
+	 * **Fixture di mappa per nome**: `RelayBasin`, `RelayLite`, `TestArena`, `DemoArena`.
+	 *
+	 * E' il punto d'ingresso che permette a uno scenario di **riferire** una geometria invece di duplicarla.
+	 * Deliberatamente una funzione con un elenco chiuso e non un registry generico: le fixture sono poche,
+	 * nominate e versionate col codice, e un registry a runtime aggiungerebbe un modo di sbagliare (una
+	 * fixture registrata da qualche parte e non da un'altra) senza aggiungere niente.
+	 *
+	 * Nome sconosciuto o vuoto -> **nullptr**, mai un'arena vuota: il chiamante deve poter dire *quale* nome
+	 * non esiste, invece di far girare una partita su una mappa senza celle.
+	 */
+	static URTHexMapAsset* MakeFixtureArena(UObject* Outer, const FString& FixtureId);
+
+	/**
 	 * Occupazione cella -> UnitId ricostruita dallo stato delle unita': solo le vive occupano.
 	 * I tre array sono paralleli; lunghezze incoerenti -> mappa vuota (input non fidato, nessun indovinare).
 	 */

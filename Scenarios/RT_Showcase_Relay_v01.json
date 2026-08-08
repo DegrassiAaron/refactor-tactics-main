@@ -1,0 +1,69 @@
+{
+  "scenarioId": "RT_Showcase_Relay_v01",
+  "version": 1,
+  "seed": 12345,
+
+  "_nota": "Showcase canonica «Relay Basin». La geometria NON e' qui: e' riferita per nome e vive in MakeShowcaseRelayBasinArena, protetta da ShowcaseRelay.BasinLayoutMatchesSpec. Quarantacinque celle copiate qui sarebbero una seconda verita' che nessuno confronta con la prima. Spec: docs/product/showcase-v0.1.md",
+  "fixture": "RelayBasin",
+
+  "_nota_turni": "Gli otto turni esistono TUTTI come dato, anche quelli che il gioco non sa ancora giocare. Ognuno dichiara in `requires` la capability che gli manca: il runner si ferma sul primo non supportato e restituisce BLOCKED con il nome, invece di FAIL. Cosi' lo showcase dice da solo quanto lontano arriva oggi, e ogni feature che atterra ne accende un altro pezzo.",
+
+  "units": [
+    { "id": "Flux",    "hero": "Hero.Flux",    "team": 0, "cell": [-4, 0, 0] },
+    { "id": "Riva",    "hero": "Hero.Riva",    "team": 0, "cell": [-4, 1, 0] },
+    { "id": "Bastion", "hero": "Hero.Bastion", "team": 1, "cell": [ 4, 0, 0] },
+    { "id": "Vektor",  "hero": "Hero.Vektor",  "team": 1, "cell": [ 4, 1, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — mappa e posizionamento. Flux entra nel corridoio di Smoke, Riva imbocca la lane d'acqua, Bastion e Vektor avanzano dal loro lato. Nessuna capability mancante: gira sul gioco di oggi.",
+      "intents": [
+        { "unit": "Flux",    "move": [[-3, 0, 0]] },
+        { "unit": "Riva",    "move": [[-3, 1, 0]] },
+        { "unit": "Bastion", "move": [[ 3, 0, 0]] },
+        { "unit": "Vektor",  "move": [[ 3, 1, 0]] }
+      ]
+    },
+    {
+      "_turno": "T2 — Wet e predizione. Vektor dichiara InterceptShot su una cella prevista che Riva non attraversa: il valore del turno E' il whiff, e senza Predictive Action non c'e' niente da mostrare.",
+      "requires": ["PredictiveAction"],
+      "intents": []
+    },
+    {
+      "_turno": "T3 — bersaglio in movimento e fuoco. Vektor attraversa Fire a (2,-1) prima del Blast e prende Burning; Flux deve risolvere il bersaglio mosso secondo la policy del catalogo.",
+      "intents": []
+    },
+    {
+      "_turno": "T4 — Overwatch. Il facing da' il cono, ma HOLD e FIRE SONO la finestra: senza Decision Boundary il turno non esiste.",
+      "requires": ["DecisionBoundary", "Facing"],
+      "intents": []
+    },
+    {
+      "_turno": "T5 — fumo e struttura. Bastion apre il gate: la topologia cambia e la revisione della mappa sale. Il gate e' una porta, e le porte esistono da CP 9.3.",
+      "intents": []
+    },
+    {
+      "_turno": "T6 — interposizione. Bastion incassa il colpo diretto a Vektor. Interposition e' gia' cablata ed e' automatica: manca la RIVALIDAZIONE della geometria sul bersaglio effettivo (D-017).",
+      "requires": ["InterceptRevalidation"],
+      "intents": []
+    },
+    {
+      "_turno": "T7 — combo ambientale. Acqua sul fuoco, propagazione elettrica ordinata, scivolata su Ice, Ram rifiutato da Rough in pianificazione. E8 e' chiusa: gira sul gioco di oggi.",
+      "intents": []
+    },
+    {
+      "_turno": "T8 — l'obiettivo batte il KO. Riva prende la rotta alternativa e segna sul Relay mentre Flux va KO. Servono entrambe: la predizione che manca e l'obiettivo che non esiste.",
+      "requires": ["PredictiveAction", "Objective"],
+      "intents": []
+    }
+  ],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 1 },
+    { "type": "UnitAtCell", "unit": "Flux",    "cell": [-3, 0, 0] },
+    { "type": "UnitAtCell", "unit": "Riva",    "cell": [-3, 1, 0] },
+    { "type": "UnitAtCell", "unit": "Bastion", "cell": [ 3, 0, 0] },
+    { "type": "UnitAtCell", "unit": "Vektor",  "cell": [ 3, 1, 0] }
+  ]
+}
