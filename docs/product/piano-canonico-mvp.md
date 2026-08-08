@@ -134,8 +134,10 @@ I 4 PDF (visione north-star) divergono su elementi *load-bearing* del path findi
   (`Preparation→Movement→Actions→…`) e del PRD (`…Mobilità rapida→Movimento→…`) sono elaborazioni
   **mappabili** su questo, non sostituzioni. Il path finding serve a **Move** (movimento normale) e
   **Dash** (mobilità rapida, `TraversalProfile` distinto).
-- **Coordinata** — `FRTGridCoord{X, Y, Layer}` (§3): il campo verticale si chiama **`Layer`** (default 0),
-  **non `Level`** (divergenza PRD scartata). Il 2D corrisponde a `Layer = 0`; `GetTypeHash` includerà `Layer`.
+- **Coordinata** — ~~`FRTGridCoord{X, Y, Layer}`~~ → **`FRTCellId{X=q, Y=r, Layer}`** (assiale). Il campo
+  verticale si chiama **`Layer`** (default 0), **non `Level`** (divergenza PRD scartata); `GetTypeHash`
+  include `Layer`. *(Corretto il 2026-08-08: questa riga del 2026-08-02 nominava ancora il tipo quadrato,
+  rimosso al CP 7.2. La regola sul nome del campo resta valida — è cambiato il tipo che la porta.)*
 - **Costo di traversata** — modello **additivo intero**: `TraversalCost = Σ costi interi dei provider`
   (piano completo). **Niente float nel resolver/hash** (invariante determinismo #4); i `MovementMultiplier`
   float dei Data Asset si convertono a intero al caricamento. (Scartato il modello moltiplicativo-float del PRD.)
@@ -374,8 +376,9 @@ da usare come riferimento quando le relative feature entrano in scope:
 
 **Conflitti col MVP** (restano distinzioni north-star, NON cambiano l'MVP): il PDF è **4v4**, mette **GAS** nello
 stack, vittoria **a punteggio**. L'MVP resta 2v2, no-GAS, con la vittoria a più vie dell'ADR-0003.
-Nota naming: il PDF usa `FRTGridCellId` (modello ricco); l'MVP usa `FRTGridCoord{X,Y}` (semplice) —
-da riconciliare se in futuro si adotta il modello a chunk multilivello.
+Nota naming: il PDF usa `FRTGridCellId` (modello ricco); il progetto usa **`FRTCellId{q, r, Layer}`**
+(assiale) — da riconciliare se in futuro si adotta il modello a chunk multilivello. *(Fino al 2026-08-08
+questa riga citava `FRTGridCoord{X,Y}`, il tipo quadrato ormai rimosso.)*
 
 > **Non è più un conflitto**: la **pianificazione a 40-60 s** del PDF. La baseline del formato principale
 > 3v3 è ora **40–45 s** ([`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §7);

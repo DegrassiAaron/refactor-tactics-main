@@ -68,7 +68,7 @@ HUD** esistente (stringhe arricchite). Il TurnLog è **in-memory** e coperto da 
 | `ResolvePaths` restituisce `FRTPathResult{Final,Entered}` — **nessun outcome** esposto | `RTMovementResolver.h:39-48` |
 | **Copertura = blocca la LOS** (`GetVisionBlockers`); senza LOS l'attacco è **scartato** (non ridotto) | `RTTurnManager.cpp:567-570,612-618` |
 | **Budget / blocco-su-copertura** rifiutati in **PIANIFICAZIONE** (input), non nella risoluzione | `RTPlayerController.cpp:231-233,265-277` |
-| Danno effettivo = `EffectiveAttackPower(Power, AttackerDmgBonus)` — **altura +danno** (nessuna riduzione da copertura) | `RTTurnManager.cpp:663-666`; `RTCombatLibrary.h:62-63` |
+| Danno effettivo = `EffectiveAttackPower(Power, OccupantDamageBonus)` — bonus **generico di cella**, ~~altura +danno~~: ogni call site runtime passa `0` ([D-024](../decisions/RT_PDR_00_Decision_Log.md)) | `RTTurnManager.cpp`; `RTCombatLibrary.h` |
 | `URTCombatResolver::ResolveAttacks` applica scudo→HP e somma; morte via `NewlyDefeated(BeforeHP,AfterHP)` | `RTTurnManager.cpp:703-724`; `RTCombatLibrary.h:70-71` |
 | `ARTUnit` senza id esplicito; ha `TeamId` e `GridCell`; vale «max 1 unità/cella» | `RTUnit.h:36,47`; canone §6 |
 
@@ -143,7 +143,8 @@ Il TurnLog è un `TArray<FRTTurnLogEntry>`, membro di `ARTTurnManager`, con gett
 
 `LockInAndResolve` → i resolver girano come oggi → classificazione → `ARTTurnManager`: (1) accoda `FRTTurnLogEntry`,
 (2) chiama `AddLogEvent` con la stringa **arricchita** dal reason (es. *«Guardian: fermo (cella contesa)»*,
-*«Ranger → Bot: 45 (altura +danno)»*, *«Ranger → Bot: nessuna linea di tiro»*).
+*«Ranger → Bot: 45 (bonus di cella)»*, *«Ranger → Bot: nessuna linea di tiro»*). *(L'esempio diceva «altura
++danno»: la quota non dà danno, [D-024](../decisions/RT_PDR_00_Decision_Log.md).)*
 
 **Ordinamento del TurnLog** (deterministico, invariante #3/§5.1): **fase → categoria → `SrcCell`** (StableTieBreak
 per-coord). Non dipende **mai** dall'ordine d'inserimento nel container.

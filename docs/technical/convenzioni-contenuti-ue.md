@@ -301,7 +301,9 @@ Cartelle risultanti: `Core/Framework`, `Characters/{Guardian,Ranger,Shared}`, `M
 
 `M_Unit` è un materiale con parametro vettoriale `Color`, usato da:
 - `ARTUnit` (colore squadra dell'unità) — `RTUnit.h:324`
-- `ARTGridActor` (`TerrainMaterial`: piani colorati del terreno **e** evidenziazione hover) — `RTGridActor.h:121`
+- ~~`ARTGridActor` (`TerrainMaterial`: piani colorati del terreno **e** evidenziazione hover)~~ — **la classe
+  non esiste più**, rimossa col substrato quadrato al CP 7.2. Il ruolo è oggi di `ARTHexMapActor`, che
+  renderizza le celle via ISM. *(Corretto il 2026-08-08.)*
 
 Quindi è usato da **due sistemi diversi** (Characters e World/Grid), non da due personaggi.
 

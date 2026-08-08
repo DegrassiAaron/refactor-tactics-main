@@ -324,7 +324,7 @@ che blocca la CI su mappa non valida, soak test senza crash.
 | Rete introdotta tardi su superficie ampia | M/H | Autorità isolata come gate di PR (invariante #5) | accettato, monitorato |
 | Budget mai misurati → target mitici | M/M | CP 7.3 forza una misura reale | pianificato |
 | Verifiche PIE che si accumulano | M/M | Raggruppate in sessioni A–D; ogni milestone chiude le proprie voci | attivo |
-| Scope roster/ambienti | H/M | 2 archetipi (Ranger/Guardian) finché il loop non è chiuso | attivo |
+| Scope roster/ambienti | H/M | ~~2 archetipi (Ranger/Guardian) finché il loop non è chiuso~~ → **superata**: E6 ha chiuso i 4 eroi ed E8 gli ambienti. `ERTArchetype` sopravvive come configurazione **di test** | ✅ chiusa 2026-08-08 |
 | Upgrade UE dentro una milestone | M/H | UE 5.8.1 bloccata (canone), upgrade solo fra milestone | ✅ |
 
 ## Definition of Done trasversale (per ogni PR)

@@ -19,7 +19,8 @@ e porta il KPI «Replay divergence = 0» a ✅ (traccia salvabile, ricaricabile 
 ## 2. Stato di partenza (verificato sul codice)
 
 - `FRTTurnLogEntry` = 6 campi **interi**: `Phase`/`Category`/`Outcome` (uint8) + `SrcCell`/`TgtCell`
-  (`FRTGridCoord{X,Y,Layer}` int32) + `Amount` (int32). Nessun float.
+  (tre `int32` per cella: **assiali `q, r, Layer`** in esagonale — erano offset `X, Y, Layer` nel quadrato,
+  e il marcatore `ERTLogTopology` nei flags dell'header distingue i due) + `Amount` (int32). Nessun float.
 - `URTTurnLogLibrary::{EntryLess, SortTurnLog, HashTurnLog}` (FNV-1a 32-bit, permutazione-invariante) `ff5e079`.
 
 > ⚠️ **Allineamento 2026-08-08 — il formato è avanzato a `v4`.** Questa sezione descrive la **v2**, che era il
