@@ -1,6 +1,39 @@
 # RefactorTactics — Showcase v0.1 «Il Relè»
 
-> **Stato**: scenario definito · **fixture Lite atterrata (CP 15.2)**, turni non ancora scriptati · **Ultimo aggiornamento**: 2026-08-07
+> `CURRENT` · **Stato**: scenario definito · **fixture Lite atterrata (CP 15.2)**, turni non ancora scriptati
+> · **Ultimo aggiornamento**: 2026-08-08
+>
+> ## Riallineamento 2026-08-08 — buona parte del «non esiste» ora esiste
+>
+> Il delta di §3 fu scritto contro uno snapshot precedente. Cosa è cambiato:
+>
+> | Area | Allora | Ora |
+> |---|---|---|
+> | Roster 4 eroi (E6) | ⏳ | ✅ chiusa |
+> | Ambiente: stati, propagazione, fuoco/acqua, terreno dinamico, azioni ambientali (E8, CP 8.2–8.5) | ⏳ | ✅ **epic chiusa** |
+> | Copertura bassa e alta, integrità, distruzione (CP 9.1/9.2) | ⏳ «`FRTHexCellData` non ha il campo» | ✅ **il campo c'è**: `FRTHexCover{Edge, Type, Integrity}` |
+> | Reazioni d'eroe cablate (CP 5.5 + 6.7) | ⏳ | ✅ **tre su cinque**: `Interposition`, `Deflection`, `ReactiveCapacitor` |
+> | `Riva.FlowReaction` | ⏳ rinviata | ⏳ **E14** — invariato |
+> | `Vektor.InterceptShot` | ⏳ E14 | ⏳ **E18**, come **Predictive Action** — non serve più una finestra interattiva |
+> | Scenario Test Harness | inesistente | ✅ disponibile |
+>
+> ### La showcase è uno **scenario dell'harness**, non una seconda pipeline
+>
+> Ora che l'harness esiste, «Il Relè» va costruito come **scenario (o famiglia di scenari) di
+> `Scenarios/`** — stesso loader, stesso runner, stesso `result.json`, stesso `StateHash`. Costruirle una
+> pipeline propria significherebbe che la showcase gira su un percorso che il gioco non usa, ed è
+> esattamente il difetto che l'harness esiste per impedire. Spec:
+> [`../technical/test-automatico-unreal.md`](../technical/test-automatico-unreal.md).
+>
+> ### Punto risolto: sì, serve una Predictive Action vera
+>
+> Era registrato come da valutare. **Deciso** ([D-016](../decisions/RT_PDR_00_Decision_Log.md)): la showcase
+> deve mostrare **una** azione predittiva reale su **Vektor** — dichiarata interamente in Planning, con
+> payoff se la previsione è corretta e fallback dichiarato se no. È il pilastro della **scommessa sul
+> movimento**, e senza di essa la showcase mostra tutto tranne ciò che distingue il gioco.
+>
+> **Non** si costruisce l'intero framework di trappole per la showcase: una sola fetta verticale, con il suo
+> scenario automatico.
 > **Epic**: **E15** di [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) §5 · **CP 15.1–15.5**
 > **Sorgente**: [`../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md`](../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md)
 > (handoff del 2026-08-07, consolidato qui — in caso di conflitto prevale questo file)
@@ -57,8 +90,9 @@ Materiale **storico, non canone**, presente in PDF e documenti precedenti — da
 
 ## 1. Canone corrente — cosa il codice fa **già**
 
-Misurato sul repository il 2026-08-07 (HEAD `ea9009a`, **325 test unici**). La showcase può appoggiarsi a
-tutto ciò che segue **senza costruire nulla**.
+Misurato sul repository il **2026-08-08** (HEAD `3335e36`). Il conteggio dei test vive in
+[`../roadmap/roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) §2 e non si duplica qui. La showcase può
+appoggiarsi a tutto ciò che segue **senza costruire nulla**.
 
 | Area | Disponibile | Dove |
 |---|---|---|
@@ -75,10 +109,15 @@ tutto ciò che segue **senza costruire nulla**.
 **Limiti noti del canone corrente**, da non scambiare per bug:
 
 - il **Dash lineare che termina sul ghiaccio non scivola** (lo scivolamento è nel Move normale);
-- `HighGround` esiste come dato ma **nessuna regola lo consuma**;
-- `Wet`/`Obscured` sono dichiarati ma le **durate e la scadenza** arrivano con CP 8.2;
-- le reazioni sono **pianificate e automatiche**: non chiedono una scelta live e non sospendono la simulazione;
-- cinque **reazioni d'eroe non sono cablate** (CP 5.5 + CP 6.7).
+- `HighGround` esiste come dato e **nessuna regola gli dà un bonus numerico** — è voluto, non una lacuna: la quota vale per geometria ([D-024](../decisions/RT_PDR_00_Decision_Log.md));
+- le reazioni sono **pianificate e automatiche**: non chiedono una scelta live e non sospendono la simulazione
+  — è il caso `AllowedResponses ≤ 1` di [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md), non un
+  meccanismo diverso;
+- **due** reazioni d'eroe non sono cablate: `Riva.FlowReaction` (⏳ E14) e `Vektor.InterceptShot` (⏳ E18, come
+  Predictive Action). Le altre tre sono in partita da CP 6.7.
+
+*(Aggiornato il 2026-08-08: `Wet`/`Obscured` avevano «durate in arrivo con CP 8.2» — CP 8.2 è chiuso; e le
+reazioni d'eroe non cablate erano cinque.)*
 
 ---
 
@@ -120,18 +159,19 @@ Nessuna riga di questa tabella si costruisce dentro E15.
 
 | Delta | Stato | Epic / CP proprietario |
 |---|---|---|
-| Stati temporanei con durata e scadenza deterministica (`Wet`, `Burning`, `Electrified`, `Obscured`, `Rooted`, `Exposed`, `Marked`, `Slow`) | ⏳ | **CP 8.2** — issue `#65` |
-| Propagazione elettrica (≤ 3 celle, 20/12 danni, una volta per unità, ordine `distanza → CellId → UnitId`) | ⏳ | **CP 8.3** — issue `#66` |
-| Acqua spegne il fuoco, `Wet` cancella `Burning` | ⏳ | **CP 8.4** — issue `#67` |
-| Azioni che **creano** terreno (`CreateWater`, `Ignite`, `Electrify`, fumo di `MistVeil`, `ConductiveNode`, acqua di `FluidTrail`) | ⏳ | **CP 8.5** — issue `#68` |
-| Cover direzionale sui 6 bordi, integrità, distruzione | ⏳ (`FRTHexCellData` non ha il campo) | **CP 9.1/9.2** |
+| Stati temporanei con durata e scadenza deterministica (`Wet`, `Burning`, `Electrified`, `Obscured`, `Rooted`, `Exposed`, `Marked`, `Slow`) | ✅ | **CP 8.2** chiuso |
+| Propagazione elettrica (≤ 3 celle, 20/12 danni, una volta per unità, ordine `distanza → CellId → UnitId`) | ✅ | **CP 8.3** chiuso |
+| Acqua spegne il fuoco, `Wet` cancella `Burning` | ✅ | **CP 8.4** chiuso |
+| Azioni che **creano** terreno (`CreateWater`, `Ignite`, `Electrify`, fumo di `MistVeil`, `ConductiveNode`, acqua di `FluidTrail`) | ✅ | **CP 8.5** chiuso — `CreateCover` rinviata a E9 |
+| Cover direzionale sui 6 bordi, integrità, distruzione | ✅ `FRTHexCover{Edge, Type, Integrity}` in `FRTHexCellData` | **CP 9.1/9.2** chiusi |
 | Strutture: porte, ponti, `GraphRevision`, invalidazione cache | ⏳ | **CP 9.3/9.4** |
 | `KineticPanel` / `Reconfigure` come struttura, non come mesh spostata | ⏳ | **CP 9.5** |
 | Obiettivo contestabile verificato nel Cleanup, dopo ambiente e KO | ⏳ | **CP 10.2** — issue `#75` |
-| Reazioni d'eroe cablate al motore (`Interposition`, `Deflection`, `ReactiveCapacitor`) | ⏳ | **CP 5.5 + 6.7** |
+| Reazioni d'eroe cablate al motore (`Interposition`, `Deflection`, `ReactiveCapacitor`) | ✅ **tre su cinque** | **CP 5.5 + 6.7** chiusi |
 | `Riva.FlowReaction` (riposizionamento **dentro** un boundary) | ⏳ rinviata | **E14** |
 | Micro-step del movimento sospendibile | ⏳ | **CP 14.2** |
-| Finestra `FIRE`/`HOLD` da 3 s, `Vektor.InterceptShot` interattivo | ⏳ | **CP 14.5** |
+| Finestra `FIRE`/`HOLD` da 3 s | ⏳ | **CP 14.5** |
+| `Vektor.InterceptShot` come **Predictive Action** (dichiarata in Planning, nessun input in Resolution) | ⏳ | **E18** — [D-016](../decisions/RT_PDR_00_Decision_Log.md); **sganciata da E14** |
 | Orientamento come stato di gioco (facing dal movimento, retro scoperto) | ⏳ | **CP 16.1/16.2** — [ADR-0005](../decisions/adr-0005-orientamento.md) |
 | Conoscenza parziale reale (vista **a cono**, rumore, tre livelli) | ⏳ | **E13** (dipende da CP 16.1) |
 | Etichette *confermato / previsto / incerto* nell'HUD | ⏳ | **CP 11.2** |
