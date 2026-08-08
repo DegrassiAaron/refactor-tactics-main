@@ -142,7 +142,7 @@ python scripts/feature_registry.py suite      # rimisura e riscrive il blocco qu
 ```
 
 <!-- RT_SUITE_COUNT:BEGIN -->
-**496 test unici in 71 file** — misurati su `c3af5ca`.
+**496 test unici in 71 file** — misurati su `b605777`.
 
 Generato da `python scripts/feature_registry.py suite`: **non si aggiorna a mano**. Era scritto a mano in due documenti ed è divergito cinque volte.
 

@@ -2,7 +2,7 @@
 
 > `GENERATO` · Vista del **Feature Registry** (`docs/roadmap/feature-registry.yaml` nel repository del gioco).
 > Non modificare a mano: si rigenera con `python scripts/feature_registry.py wiki`.
-> Feature tracciate: **78** · Ultimo audit completo: **2026-08-08** su `2094b86`.
+> Feature tracciate: **80** · Ultimo audit completo: **2026-08-08** su `2094b86`.
 
 Questa pagina dice **cosa esiste davvero**. Una meccanica descritta altrove nella Wiki e
 marcata qui come `SPECIFIED` o `DESIGNED` e' progettata, non giocabile: la Wiki racconta
@@ -200,6 +200,13 @@ il gioco che sara', questa tabella dice a che punto e'.
 |---|---|---|---|---:|---|
 | `RT-FEAT-ACTION-DELAYED` | Delayed Action ai boundary di fase | — | **DESIGNED** | 0/8 | — |
 | `RT-FEAT-ACTION-TRAPS` | Trappole e gambit tattici | — | **IDEA** | 0/8 | — |
+
+### Gameplay
+
+| Feature | Titolo | Roadmap | Stato | Gate | Scenario |
+|---|---|---|---|---:|---|
+| `RT-FEAT-CHARACTER-STATE` | Character State / Configuration System | — | **SPECIFIED** | 1/9 | _pianificato_ |
+| `RT-FEAT-INTENT-CONDITIONAL` | Conditional Intent — un intento con una biforcazione | — | **SPECIFIED** | 1/9 | — |
 
 ### Networking
 

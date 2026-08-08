@@ -4463,7 +4463,8 @@
       "roadmap": {
         "epic": null,
         "milestone": null,
-        "checkpoints": []
+        "checkpoints": [],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-CORE-TURN"
@@ -4505,7 +4506,8 @@
       "roadmap": {
         "epic": null,
         "milestone": null,
-        "checkpoints": []
+        "checkpoints": [],
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-CORE-TURN"
