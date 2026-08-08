@@ -1,6 +1,17 @@
 # Murdock
-![Murdock — Paragon asset base](../images/paragon/murdock.png)
 
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CHAR-V02-ROSTER -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-CHAR-V02-ROSTER` · Release: `v0.2` · Roadmap: `—`  
+> Stato: **DESIGNED** · Gate: `0/8`  
+> Scenario: `—`  
+> Pagina di **progetto**: nessun dato di gioco e nessuna epic aperta per questo personaggio.  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-CHAR-V02-ROSTER -->
+
+![Murdock — Paragon asset base](../images/paragon/murdock.png)
 
 > 🧪 **Stato repository:** personaggio pianificato per **v0.2**. I valori sono `DATA_SPEC` / `DESIGN_SPEC`: servono a design, bilanciamento e Wiki, ma **non sono ancora runtime canonico v0.1**. Le finestre Fast Reaction storiche richiedono review prima dell'implementazione.
 
@@ -8,7 +19,6 @@
 > **Hero_Key:** `ASSET_MURDOCK`  
 > **RT Character ID:** `TBD`  
 > **Release:** `v0.2`  
-> **Design status:** `DATA_SPEC`  
 > **Roster status:** Release v0.2
 
 ## Panoramica
@@ -170,7 +180,6 @@ Rail Shot è il colpo a lungo raggio di Murdock: 180 danni a range 10. La specif
 
 > Valori design v0.2 ereditati dalla matrice precedente.
 
-
 #### Uso tattico e limiti
 
 È il payoff della posizione preparata: grande portata e danno, ma richiede una linea utile e rende evidente la presenza del marksman.
@@ -200,7 +209,6 @@ Suppressive Lane arma una linea di Overwatch fino a range 8 con raggio 1, 95 dan
 | Data Status | SOURCE_VALUE |
 
 > Valori design v0.2 ereditati dalla matrice precedente.
-
 
 #### Uso tattico e limiti
 
@@ -232,7 +240,6 @@ Tracer Beacon è un sensore a range 7 e raggio 1 per 2 turni che aumenta Trackin
 
 > Valori design v0.2 ereditati dalla matrice precedente.
 
-
 #### Uso tattico e limiti
 
 È il lato informativo del kit: rende più stabile il contatto e prepara Rail Shot o Overwatch.
@@ -262,7 +269,6 @@ Concussive Mine è una trappola a range 5, raggio 1, 80 danni e controllo 2 per 
 | Data Status | SOURCE_VALUE |
 
 > Valori design v0.2 ereditati dalla matrice precedente.
-
 
 #### Uso tattico e limiti
 

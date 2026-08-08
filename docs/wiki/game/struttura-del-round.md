@@ -1,7 +1,16 @@
 # Struttura del round
 
-> **Stato nel gioco:** normativa e consolidata
 > **Tipo:** guida giocatore, non normativa
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CORE-TURN -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-CORE-TURN` · Release: `v0.1` · Roadmap: `E2 · CP 2.2, 4.1`  
+> Stato: **RELEASE_READY** · Gate: `7/8`  
+> Scenario: `Visual.Core.PhaseOrder`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-CORE-TURN -->
 
 ## Sequenza completa
 

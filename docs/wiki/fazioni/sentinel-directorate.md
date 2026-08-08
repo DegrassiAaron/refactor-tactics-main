@@ -1,5 +1,15 @@
 # Sentinel Directorate
 
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-FACTION-SYSTEM -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-FACTION-SYSTEM` · Release: `v0.2` · Roadmap: `—`  
+> Stato: **DESIGNED** · Gate: `0/7`  
+> Scenario: `—`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-FACTION-SYSTEM -->
+
 ![Sentinel Directorate](../images/factions/sentinel-directorate.png)
 
 > **FactionId:** `Faction.Sentinel`  

@@ -1,13 +1,41 @@
 # Bastion
 
-> ✅ **Stato repository:** personaggio del roster **v0.1 canonico**. La pagina riassume i dati del workbook v0.4, che per i numeri v0.1 è un mirror documentale dei cataloghi versionati della repository. Quando una voce è `PARTIAL` o `DEFERRED_E14`, la pagina lo espone esplicitamente.
-
 > **Asset base:** Bastion  
 > **Hero_Key:** `ASSET_BASTION`  
 > **RT Character ID:** `Hero.Bastion`  
 > **Release:** `v0.1`  
-> **Design status:** `IMPLEMENTED`  
 > **Roster status:** Release v0.1
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-REACTION-PREPARED -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-REACTION-PREPARED` · Release: `v0.1` · Roadmap: `E5 · CP 5.1, 5.2, 5.3, 5.4, 5.5`  
+> Stato: **INTEGRATED** · Gate: `6/8`  
+> Scenario: `Combat.CounterStrikesBack`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-REACTION-PREPARED -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-MAP-DYNAMIC-COVER -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-MAP-DYNAMIC-COVER` · Release: `v0.1` · Roadmap: `E9 · CP 9.5`  
+> Stato: **IMPLEMENTING** · Gate: `2/8`  
+> Scenario: `Spec.Cover.TemporaryCoverExpires (pianificato)`  
+> La **distruzione** della copertura esiste; la **creazione temporanea** (CP 9.5) no.  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-MAP-DYNAMIC-COVER -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CHAR-V01-ROSTER -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-CHAR-V01-ROSTER` · Release: `v0.1` · Roadmap: `E6 · CP 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7`  
+> Stato: **INTEGRATED** · Gate: `6/8`  
+> Scenario: `Combat.BasicAttack`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-CHAR-V01-ROSTER -->
 
 ## Panoramica
 
@@ -173,7 +201,6 @@ Impact Shot è l'attacco base di Bastion: 24 danni a range 3. È semplice e cort
 
 > 24 danni, range 3.
 
-
 #### Uso tattico e limiti
 
 Serve come pressione diretta quando non è necessario spendere il turno per costruire o riconfigurare il campo.
@@ -203,7 +230,6 @@ Kinetic Panel è un'azione di Prep che crea una copertura con integrità base 30
 | Data Status | CANONICAL |
 
 > Dipende dal sistema strutture; varianti definiscono integrità/durata.
-
 
 #### Uso tattico e limiti
 
@@ -235,7 +261,6 @@ Reconfigure sposta o ruota una copertura esistente entro range 1. Non crea nuovo
 
 > Dipende dal targeting delle strutture.
 
-
 #### Uso tattico e limiti
 
 È `PARTIAL` perché dipende dal targeting delle strutture. Il suo payoff è cambiare linee e angoli senza dover ricreare una copertura.
@@ -266,7 +291,6 @@ Ram riusa la semantica di `Action.Charge`: movimento lineare fino a 3 celle, 20 
 
 > Riusa Action.Charge e LinearCharge.
 
-
 #### Uso tattico e limiti
 
 È l'opzione con cui Bastion trasforma massa e presenza in spostamento offensivo. Essendo una charge, può essere fermata dalla topologia e usa `Fallback.Stop`.
@@ -296,7 +320,6 @@ Interposition è la reazione firma di protezione: quando un alleato entro 2 cell
 | Data Status | CANONICAL |
 
 > Riusa Action.Intercept; cooldown eroe 3.
-
 
 #### Uso tattico e limiti
 

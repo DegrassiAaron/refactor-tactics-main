@@ -1,7 +1,27 @@
 # Obiettivi e fine partita
 
-> **Stato nel gioco:** condizioni di fine consolidate; valori di pacing da playtestare
 > **Tipo:** guida giocatore, non normativa
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-MATCH-END-CONDITIONS -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-MATCH-END-CONDITIONS` · Release: `v0.1` · Roadmap: `E10 · CP 10.3`  
+> Stato: **RELEASE_READY** · Gate: `7/8`  
+> Scenario: `Visual.Combat.Defeat`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-MATCH-END-CONDITIONS -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-OBJECTIVE-SYSTEM -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-OBJECTIVE-SYSTEM` · Release: `v0.1` · Roadmap: `E10 · CP 10.1, 10.2`  
+> Stato: **IMPLEMENTING** · Gate: `2/8`  
+> Scenario: `Spec.Objective.PointSurvivesKO (pianificato)`  
+> La partita **puo' finire** per obiettivo, ma in mappa **non esiste ancora un oggetto da attivare**: manca il consumatore, non la regola.  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-OBJECTIVE-SYSTEM -->
 
 ## Come si vince
 

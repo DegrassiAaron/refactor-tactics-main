@@ -1,34 +1,33 @@
 {
   "scenarioId": "Visual.Combat.WaterElectric",
-  "tags": ["animation", "combat", "environment", "flux", "riva"],
+  "tags": ["animation", "combat", "environment", "flux", "vektor"],
   "version": 1,
   "seed": 0,
-  "mapRadius": 5,
+  "fixture": "RelayLite",
 
-  "_nota": "LA COMBO FIRMA della v0.1, e il solo scenario del corpus che mostra DUE regole con un colpo solo. Riva bagna Vektor con PressureJet (priorita' 50), Flux lo incenerisce con LinearDischarge (priorita' 55): dentro la stessa fase Blast la priorita' PIU' BASSA risolve per prima, quindi quando la scarica parte il bersaglio e' gia' `Status.Wet` e prende il bonus. Invertire le priorita' spegnerebbe la combo senza cambiare una riga di posizionamento — ed e' esattamente cio' che si sta guardando: non due colpi, ma un ORDINE.",
+  "_nota": "La combo firma acqua+elettricita', nell'unica forma in cui il gioco di oggi la sa eseguire. Vektor scatta dentro la spina d'acqua a (0,0) in fase **Dash**; il terreno gli applica `Status.Wet` all'ingresso; il Blast arriva DOPO, e la scarica di Flux trova un bersaglio bagnato: 24 + 8 = 32. Vektor 100 -> 68.",
 
-  "_nota_aritmetica": "Vektor 100 - 16 (PressureJet) - 32 (LinearDischarge 24 + 8 di bonus su bersaglio Wet, `URTCombatLibrary::FluxWetDischargeBonus`) = 52. Se il primo run dice 60, il bonus Wet non e' stato applicato e il colpo e' arrivato prima del bagnato: e' la regola che questo scenario esiste per sorvegliare.",
+  "_nota_ordine": "Non e' un dettaglio di allestimento, e' LA regola: il bonus si applica leggendo `HasStatus(Wet)` quando i colpi vengono preparati. Solo cio' che bagna PRIMA del Blast conta — e prima del Blast c'e' il Dash, non il Move.",
 
-  "_nota_geometria": "Arena liscia di proposito: il bagnato deve venire da RIVA, non dal terreno, altrimenti lo scenario proverebbe l'acqua invece della coordinazione. I tre stanno sulla riga r=0 e nell'ordine Flux, Riva, Vektor: la spinta di 1 di PressureJet allontana Vektor LUNGO la linea di tiro di Flux (da 3 celle a 4, portata 5), invece di sfilarlo di lato.",
+  "_nota_riva": "Questo scenario nasceva come «Riva bagna, Flux scarica» e alla prima esecuzione ha dato 60 invece di 52: il `Wet` di `PressureJet` si applica DURANTE il Blast, quando i colpi sono gia' stati preparati, quindi il bonus non lo vede. E nemmeno spezzando la combo su due turni funzionerebbe: quel `Wet` dura 1 turno e `TickStatuses` lo rimuove nel Cleanup dello stesso turno in cui e' stato applicato. La coordinazione fra i due eroi, cosi' com'e' documentata, **non e' oggi realizzabile**: registrato come difetto separato.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Flux",   "team": 0, "cell": [-3, 0, 0] },
-    { "id": "R1", "hero": "Hero.Riva",   "team": 0, "cell": [-2, 0, 0] },
-    { "id": "V1", "hero": "Hero.Vektor", "team": 1, "cell": [ 0, 0, 0] }
+    { "id": "F1", "hero": "Hero.Flux",   "team": 0, "cell": [-2, 0, 0] },
+    { "id": "V1", "hero": "Hero.Vektor", "team": 1, "cell": [ 3, 0, 0] }
   ],
 
   "turns": [
     {
       "intents": [
-        { "unit": "R1", "ability": "Riva.PressureJet",     "target": "V1" },
+        { "unit": "V1", "dash": "Vektor.PassingBlade", "dashTo": [0, 0, 0] },
         { "unit": "F1", "ability": "Flux.LinearDischarge", "target": "V1" }
       ]
     }
   ],
 
   "expect": [
-    { "type": "UnitHpEquals",  "unit": "V1", "value": 52 },
-    { "type": "UnitAlive",     "unit": "V1", "value": true },
+    { "type": "UnitAtCell",    "unit": "V1", "cell": [0, 0, 0] },
+    { "type": "UnitHpEquals",  "unit": "V1", "value": 68 },
     { "type": "TurnsCompleted", "value": 1 }
   ]
 }

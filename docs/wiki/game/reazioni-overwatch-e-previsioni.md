@@ -1,7 +1,77 @@
 # Reazioni, Overwatch e predizione
 
-> **Stato nel gioco:** reazioni base presenti; Overwatch interattivo e finestre E14 ancora in sviluppo
 > **Tipo:** guida giocatore, non normativa
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-REACTION-FAST-ACTION -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-REACTION-FAST-ACTION` · Release: `v0.1` · Roadmap: `E14 · CP 14.6`  
+> Stato: **DESIGNED** · Gate: `0/9`  
+> Scenario: `—`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-REACTION-FAST-ACTION -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-REACTION-OVERWATCH -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-REACTION-OVERWATCH` · Release: `v0.1` · Roadmap: `E14 · CP 14.4`  
+> Stato: **SPECIFIED** · Gate: `1/9`  
+> Scenario: `Spec.Overwatch.HoldThenFire (pianificato)`  
+> Le reazioni **preparate** esistono e funzionano in partita; l'**Overwatch interattivo** di questa pagina non e' implementato.  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-REACTION-OVERWATCH -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-REACTION-FAST -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-REACTION-FAST` · Release: `v0.1` · Roadmap: `E14 · CP 14.5, 14.6`  
+> Stato: **SPECIFIED** · Gate: `1/9`  
+> Scenario: `—`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-REACTION-FAST -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-REACTION-OPPORTUNITY -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-REACTION-OPPORTUNITY` · Release: `v0.1` · Roadmap: `E14 · CP 14.3`  
+> Stato: **SPECIFIED** · Gate: `1/8`  
+> Scenario: `—`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-REACTION-OPPORTUNITY -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-REACTION-PREPARED -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-REACTION-PREPARED` · Release: `v0.1` · Roadmap: `E5 · CP 5.1, 5.2, 5.3, 5.4, 5.5`  
+> Stato: **INTEGRATED** · Gate: `6/8`  
+> Scenario: `Combat.CounterStrikesBack`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-REACTION-PREPARED -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ACTION-PREDICTIVE -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-ACTION-PREDICTIVE` · Release: `v0.1` · Roadmap: `E18 · CP 18.1, 18.2`  
+> Stato: **SPECIFIED** · Gate: `1/8`  
+> Scenario: `Spec.Predictive.WhiffOnEmptyCell (pianificato)`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-ACTION-PREDICTIVE -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CORE-DECISION-BOUNDARY -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-CORE-DECISION-BOUNDARY` · Release: `v0.1` · Roadmap: `E14 · CP 14.1, 14.2, 14.3`  
+> Stato: **SPECIFIED** · Gate: `1/8`  
+> Scenario: `—`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-CORE-DECISION-BOUNDARY -->
 
 ## Tre concetti diversi
 

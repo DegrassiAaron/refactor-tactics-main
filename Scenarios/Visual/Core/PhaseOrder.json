@@ -19,7 +19,7 @@
   "turns": [
     {
       "intents": [
-        { "unit": "B1", "ability": "Bastion.Ram",      "target": "F1" },
+        { "unit": "B1", "dash": "Bastion.Ram", "dashTo": [-1, 0, 0] },
         { "unit": "V1", "ability": "Vektor.PulseShot", "target": "F1" },
         { "unit": "R1", "move": [[-2, 1, 0], [-1, 1, 0]] }
       ]

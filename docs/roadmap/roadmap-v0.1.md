@@ -110,8 +110,11 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 | **Facing come stato di gioco** | — | ⏳ ADR-0005 + D-020 accettati, nessun codice (E16) |
 | **Scenario showcase e golden replay** | `Tests/` (`ShowcaseRelay.*`) | 🟡 **iniziata**: fixture stabile e scenario lite deterministico |
 
-**Suite automatica**: **si misura, non si cita.** Ultima misura **456 test unici in 68 file**, il
-2026-08-08 dopo il merge di CP 9.3 (porte), CP 9.4 (ponti) e del consolidamento documentale.
+**Suite automatica**: **si misura, non si cita.** Ultima misura **492 test unici in 70 file**, il
+2026-08-08 dopo il corpus di scenari visivi e `RTScenarioCorpusTests`. Suite intera eseguita: **496 test
+performed, zero fallimenti** (i quattro in più della run sono ripetizioni del framework, non test nuovi).
+Il conteggio precedente era 456 in 68 file, dopo CP 9.3 (porte), CP 9.4 (ponti) e il consolidamento
+documentale.
 Ripartizione per area in [`../README.md`](../README.md). Comando riproducibile:
 
 ```bash
@@ -161,6 +164,96 @@ arrivati sono `Cover.DirectionalDamageReduction` e `Simulation.DeterministicRepl
 ambiente, coperture) e gira su un solo substrato esagonale. Mancano la **conoscenza parziale** (E13), le
 **finestre di reazione** (E14), il **facing** (E16), l'**equipaggiamento** (E7) e la **leggibilità** (E11). Il
 collo di bottiglia non è il codice di gioco: è la **verifica interattiva** — CP 6.8 non è mai stato eseguito.
+
+### 2.2 Le feature che le epic implementano — generata dal Feature Registry
+
+Questa tabella **non si aggiorna a mano**: la riscrive
+`python scripts/feature_registry.py wiki` leggendo
+[`feature-registry.yaml`](feature-registry.yaml), che è l'unica sorgente dello stato per feature. Le due
+viste rispondono a domande diverse — l'epic dice *quando si lavora*, la feature dice *cosa esiste* — e
+tenerle sincronizzate a mano è il modo in cui questo repository ha già prodotto quattro numeri sbagliati.
+
+Il registry e il suo modello sono documentati in [`feature-registry.md`](feature-registry.md).
+
+<!-- RT_FEATURE_BY_EPIC:BEGIN -->
+
+| Epic | Feature | Stato | Gate |
+|---|---|---|---:|
+| **E1** | `RT-FEAT-DATA-ASSET-PIPELINE` — Primary Data Asset e cataloghi | RELEASE_READY | 5/6 |
+|  | `RT-FEAT-DATA-STABLE-IDS` — ID stabili e versioni dei contenuti | RELEASE_READY | 5/6 |
+|  | `RT-FEAT-TOOL-BALANCE-GROUND` — Banco di prova del bilanciamento | IMPLEMENTING | 3/6 |
+|  | `RT-FEAT-TOOL-VALIDATION` — Validator di dati, mappe e documenti | DONE | 5/5 |
+| **E2** | `RT-FEAT-ACTION-DASH-DISPLACEMENT` — Dash e spostamento forzato | RELEASE_READY | 7/8 |
+|  | `RT-FEAT-BOT-BASE` — Bot a utility scoring deterministico | RELEASE_READY | 7/8 |
+|  | `RT-FEAT-CORE-TURN` — Pipeline del turno simultaneo | RELEASE_READY | 7/8 |
+|  | `RT-FEAT-MAP-HEXGRAPH` — FRTCellId e grafo esagonale multilivello | RELEASE_READY | 7/8 |
+|  | `RT-FEAT-MAP-LOS` — LOS, targeting e traiettoria separati | RELEASE_READY | 6/7 |
+|  | `RT-FEAT-MAP-PATHFINDING` — A* esagonale autorevole | RELEASE_READY | 6/7 |
+| **E4** | `RT-FEAT-ACTION-COOLDOWNS` — Cooldown ed economia delle risorse | TESTABLE | 5/8 |
+|  | `RT-FEAT-ACTION-ENGINE` — Motore delle azioni a priorità intera | RELEASE_READY | 7/8 |
+|  | `RT-FEAT-ACTION-GENERIC` — Azioni generiche del catalogo | IMPLEMENTING | 3/8 |
+|  | `RT-FEAT-ACTION-MOVE-PROFILES` — Profili di movimento (Move, Sprint, Charge) | RELEASE_READY | 7/8 |
+| **E5** | `RT-FEAT-NET-PRIVATE-PLANNING` — Intenti privati per squadra | TESTABLE | 5/8 |
+|  | `RT-FEAT-REACTION-PREPARED` — Reazioni preparate in planning | INTEGRATED | 6/8 |
+| **E6** | `RT-FEAT-CHAR-V01-ROSTER` — Roster v0.1 — Flux, Riva, Bastion, Vektor | INTEGRATED | 6/8 |
+| **E7** | `RT-FEAT-ACTION-EQUIPMENT` — Equipaggiamento e loadout | IMPLEMENTING | 1/8 |
+| **E8** | `RT-FEAT-ENV-ELECTRIC` — Propagazione elettrica sul grafo dell'acqua | INTEGRATED | 6/8 |
+|  | `RT-FEAT-ENV-FIRE` — Fuoco e terreno dinamico | INTEGRATED | 6/8 |
+|  | `RT-FEAT-ENV-ICE` — Ghiaccio e scivolamento | INTEGRATED | 6/8 |
+|  | `RT-FEAT-ENV-STATUS` — Stati temporanei legati alla cella | INTEGRATED | 6/8 |
+|  | `RT-FEAT-ENV-STEAM` — Fumo e copertura visiva | INTEGRATED | 6/8 |
+|  | `RT-FEAT-ENV-SYSTEMIC-COMBOS` — Interazioni sistemiche producer/consumer | INTEGRATED | 6/8 |
+|  | `RT-FEAT-ENV-TERRAIN` — Otto terreni con costi e proprietà | INTEGRATED | 6/8 |
+|  | `RT-FEAT-ENV-WATER` — Acqua e stato Wet | INTEGRATED | 6/8 |
+| **E9** | `RT-FEAT-MAP-COVER` — Copertura direzionale per bordo | INTEGRATED | 6/8 |
+|  | `RT-FEAT-MAP-DYNAMIC-COVER` — Copertura modificabile e pannello cinetico | IMPLEMENTING | 2/8 |
+|  | `RT-FEAT-MAP-HIGH-GROUND` — Altura senza bonus numerico alla vista | INTEGRATED | 6/8 |
+|  | `RT-FEAT-MAP-INTERACTIVE-EDGES` — Porte e bordi commutabili | INTEGRATED | 6/8 |
+|  | `RT-FEAT-MAP-SPECIAL-TRANSITIONS` — Ponti, archi e transizioni multilivello | INTEGRATED | 6/8 |
+| **E10** | `RT-FEAT-MATCH-END-CONDITIONS` — Fine partita a tre vie | RELEASE_READY | 7/8 |
+|  | `RT-FEAT-OBJECTIVE-SYSTEM` — Obiettivi dinamici in mappa | IMPLEMENTING | 2/8 |
+| **E11** | `RT-FEAT-CORE-PLAYBACK` — Playback della risoluzione | INTEGRATED | 5/7 |
+|  | `RT-FEAT-TOOL-DEBUG-CONSOLE` — Comandi console rt.Debug e rt.Test | IMPLEMENTING | 3/6 |
+|  | `RT-FEAT-UI-ACTION-GHOSTS` — Action Ghosts e Ghost Timeline | SPECIFIED | 1/8 |
+|  | `RT-FEAT-UI-CERTAINTY` — Livelli di certezza degli intenti alleati | IMPLEMENTING | 3/8 |
+|  | `RT-FEAT-UI-COMBAT-LOG` — Combat log e spiegabilità | RELEASE_READY | 6/7 |
+|  | `RT-FEAT-UI-PLANNING` — HUD di planning, selezione e preview | RELEASE_READY | 6/7 |
+|  | `RT-FEAT-UI-TACTICAL-CAMERA` — Camera tattica | IMPLEMENTING | 1/6 |
+|  | `RT-FEAT-UI-WARNINGS` — Avvisi di collisione, fuoco amico e risorse | IMPLEMENTING | 3/7 |
+| **E12** | `RT-FEAT-CORE-DETERMINISM` — Snapshot e resolver deterministico | INTEGRATED | 5/7 |
+|  | `RT-FEAT-CORE-TURNLOG` — TurnLog, reason code, hash e replay | RELEASE_READY | 6/7 |
+|  | `RT-FEAT-DATA-HASH` — Hash di regole e contenuti | RELEASE_READY | 5/7 |
+|  | `RT-FEAT-MATCH-PACING` — Pacing del turno e del match | TESTABLE | 5/8 |
+|  | `RT-FEAT-PROD-PACKAGED` — Verifica su build packaged | IMPLEMENTING | 2/6 |
+|  | `RT-FEAT-PROD-PERFORMANCE` — Budget di performance misurati | IMPLEMENTING | 3/6 |
+| **E13** | `RT-FEAT-PERCEPTION-MEMORY` — Memoria del contatto e ultima posizione nota | SPECIFIED | 1/9 |
+|  | `RT-FEAT-PERCEPTION-NOISE` — Rumore e percezione acustica | SPECIFIED | 1/9 |
+|  | `RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE` — TeamKnowledge e informazione parziale | SPECIFIED | 1/9 |
+|  | `RT-FEAT-PERCEPTION-VISION` — Vista, facing e livelli di consapevolezza | SPECIFIED | 1/9 |
+| **E14** | `RT-FEAT-CORE-DECISION-BOUNDARY` — Risoluzione segmentata con Decision Boundary | SPECIFIED | 1/8 |
+|  | `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | SPECIFIED | 1/9 |
+|  | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | DESIGNED | 0/9 |
+|  | `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | SPECIFIED | 1/8 |
+|  | `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | SPECIFIED | 1/9 |
+| **E15** | `RT-FEAT-TEST-GOLDEN` — Golden replay e showcase «Il Relè» | IMPLEMENTING | 3/8 |
+|  | `RT-FEAT-TEST-SCENARIO-HARNESS` — Scenario Test Harness automatizzato | INTEGRATED | 6/8 |
+| **E16** | `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole | SPECIFIED | 1/8 |
+| **E17** | `RT-FEAT-STRESS-4V4` — Validazione di stress 4v4 | SPECIFIED | 1/7 |
+| **E18** | `RT-FEAT-ACTION-PREDICTIVE` — Predictive Action, thin slice | SPECIFIED | 1/8 |
+| **E19** | `RT-FEAT-MATCH-FORMAT` — Formato di partita e classe di mappa | TESTABLE | 4/8 |
+| **E20** | `RT-FEAT-UI-ICON-LANGUAGE` — HUD Icon Language | SPECIFIED | 1/7 |
+
+**Feature v0.1 senza epic** — lavoro dentro lo scope della release che nessuna delle 20 epic
+copre. Non e' una svista del registry: e' un buco della roadmap, ed e' il motivo per cui questa
+tabella e' generata.
+
+| Feature | Vista | Stato | Gate |
+|---|---|---|---:|
+| `RT-FEAT-CHAR-PRESENTATION` — Presentazione dei personaggi (mesh, animazioni, anelli) | M8 | IMPLEMENTING | 1/7 |
+| `RT-FEAT-TOOL-MAP-EDITOR` — Editor mode della mappa esagonale | M9 | TESTABLE | 4/6 |
+| `RT-FEAT-UI-SCENARIO-BROWSER` — Selettore e indice degli scenari | — | INTEGRATED | 6/8 |
+
+<!-- RT_FEATURE_BY_EPIC:END -->
 
 ---
 

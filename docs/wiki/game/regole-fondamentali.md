@@ -1,7 +1,26 @@
 # Regole fondamentali
 
-> **Stato nel gioco:** principi consolidati; alcuni sottosistemi sono ancora in sviluppo
 > **Tipo:** guida giocatore, non normativa
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CORE-TURNLOG -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-CORE-TURNLOG` · Release: `v0.1` · Roadmap: `E12 · CP 12.1, 12.6`  
+> Stato: **RELEASE_READY** · Gate: `6/7`  
+> Scenario: `Visual.Core.PhaseOrder`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-CORE-TURNLOG -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CORE-DETERMINISM -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-CORE-DETERMINISM` · Release: `v0.1` · Roadmap: `E12 · CP 12.1, 12.6`  
+> Stato: **INTEGRATED** · Gate: `5/7`  
+> Scenario: `RT_Showcase_Relay_v01`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-CORE-DETERMINISM -->
 
 ## Le regole da sapere prima di giocare
 

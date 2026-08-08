@@ -9,7 +9,9 @@
 
   "_nota_portata": "Portata 3 da `Action.Charge` nel catalogo azioni, ereditata da Ram. La distanza qui e' 2: dentro la portata, con un margine che sopravvive a un ritocco di bilanciamento.",
 
-  "_nota_celle": "Le celle finali attese sono Bastion (2,0,0) — fermo addosso — e Flux (0,0,0) — spinto di 1, PushResistance 0. NON sono assertion: dipendono dall'ordine fra arresto e spinta, che non e' stato verificato scrivendo lo scenario. Il primo run le conferma, e allora si promuovono a `UnitAtCell`. Scriverle a indovinare produrrebbe un rosso che accusa il gioco di un errore proprio.",
+  "_nota_dash": "Lo scatto si dichiara con `dash` + `dashTo`, NON con `ability`: dopo D-028 occupano slot diversi — lo scatto prende il movimento, l'abilita' la principale — e «schivo e sparo» dev'essere esprimibile. Dichiarato con `ability`, `Bastion.Ram` finisce nello slot del Blast e non parte: il primo run di questo scenario ha trovato Flux illeso a 90.",
+
+  "_nota_celle": "Le celle finali dipendono dall'ordine fra arresto e spinta e non sono assertion: le fissa il primo run.",
 
   "units": [
     { "id": "F1", "hero": "Hero.Flux",    "team": 0, "cell": [1, 0, 0] },
@@ -19,7 +21,7 @@
   "turns": [
     {
       "intents": [
-        { "unit": "B1", "ability": "Bastion.Ram", "target": "F1" }
+        { "unit": "B1", "dash": "Bastion.Ram", "dashTo": [1, 0, 0] }
       ]
     }
   ],

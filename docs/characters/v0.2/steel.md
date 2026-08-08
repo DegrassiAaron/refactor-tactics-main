@@ -1,6 +1,17 @@
 # Steel
-![Steel — Paragon asset base](../images/paragon/steel.png)
 
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CHAR-V02-ROSTER -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-CHAR-V02-ROSTER` · Release: `v0.2` · Roadmap: `—`  
+> Stato: **DESIGNED** · Gate: `0/8`  
+> Scenario: `—`  
+> Pagina di **progetto**: nessun dato di gioco e nessuna epic aperta per questo personaggio.  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-CHAR-V02-ROSTER -->
+
+![Steel — Paragon asset base](../images/paragon/steel.png)
 
 > 🧪 **Stato repository:** personaggio pianificato per **v0.2**. I valori sono `DATA_SPEC` / `DESIGN_SPEC`: servono a design, bilanciamento e Wiki, ma **non sono ancora runtime canonico v0.1**. Le finestre Fast Reaction storiche richiedono review prima dell'implementazione.
 
@@ -8,7 +19,6 @@
 > **Hero_Key:** `ASSET_STEEL`  
 > **RT Character ID:** `TBD`  
 > **Release:** `v0.2`  
-> **Design status:** `DATA_SPEC`  
 > **Roster status:** Release v0.2
 
 ## Panoramica
@@ -170,7 +180,6 @@ Shield Bash è un attacco ravvicinato lineare: 145 danni, range 2 e spinta 1. La
 
 > Valori design v0.2 ereditati dalla matrice precedente.
 
-
 #### Uso tattico e limiti
 
 Serve a liberare spazio davanti a Steel e a convertire il controllo frontale in displacement. È `DESIGN_SPEC v0.2`.
@@ -200,7 +209,6 @@ Bulwark Arc crea una copertura direzionale in un'area di raggio 3 per 2 turni, b
 | Data Status | SOURCE_VALUE |
 
 > Valori design v0.2 ereditati dalla matrice precedente.
-
 
 #### Uso tattico e limiti
 
@@ -232,7 +240,6 @@ Interpose è un Dash/reazione fino a 3 celle che segue un alleato e permette a S
 
 > Valori design v0.2 ereditati dalla matrice precedente.
 
-
 #### Uso tattico e limiti
 
 È il ponte tra mobilità e protezione. La specifica usa `FollowAlly` e resta da riallineare al modello di reaction più recente prima dell'implementazione.
@@ -262,7 +269,6 @@ Seismic Lock è un'AoE di controllo: 90 danni, range 1, raggio 2, controllo 3. L
 | Data Status | SOURCE_VALUE |
 
 > Valori design v0.2 ereditati dalla matrice precedente.
-
 
 #### Uso tattico e limiti
 

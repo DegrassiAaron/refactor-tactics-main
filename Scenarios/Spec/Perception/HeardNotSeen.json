@@ -1,0 +1,37 @@
+{
+  "scenarioId": "Spec.Perception.HeardNotSeen",
+  "tags": ["spec", "perception", "los", "vektor", "flux"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "TestArena",
+
+  "_nota": "SPECIFICA ESEGUIBILE di E13. Vektor corre dietro il muro che blocca la vista su q=0: non lo si vede, e lo si **sente**. Il rumore e' una seconda fonte di informazione, non un debuff — e cio' che la squadra avversaria ottiene e' un'area, non una cella: «qualcuno si muove a nord-est», non «Vektor e' in (1,-2,0)».",
+
+  "_nota_perche_esiste": "La tentazione, implementando, e' derivare la conoscenza dallo stato nascosto dell'avversario e poi nasconderla nella UI. Questo scenario esiste per rendere quella scorciatoia visibile come difetto: il trigger deve venire dall'**evento percepito**, non dall'intento nemico. Esce BLOCKED su `Perception`.",
+
+  "_nota_da_completare": "Servono due cose che non esistono: un modo di asserire sulla CONOSCENZA di una squadra (`ERTAssertionKind` oggi vede solo posizione, HP e vivo/morto) e la scala di precisione dell'informazione sonora — direzione, area larga, area stretta, cella esatta. Finche' l'assertion e' impossibile, uno scenario verde non proverebbe niente: meglio BLOCKED e dichiarato.",
+
+  "units": [
+    { "id": "F1", "hero": "Hero.Flux",   "team": 0, "cell": [-3,  0, 0] },
+    { "id": "V1", "hero": "Hero.Vektor", "team": 1, "cell": [ 3,  0, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — Vektor si sposta dietro il muro (q=0 blocca la vista, non il passo). Sul gioco di oggi accade il movimento; cio' che manca e' che Flux ne sappia qualcosa.",
+      "intents": [
+        { "unit": "V1", "move": [[2, 0, 0], [1, 0, 0]] }
+      ]
+    },
+    {
+      "_turno": "T2 — Vektor corre. Il team 0 non lo vede e deve ricevere una posizione APPROSSIMATA, mai la cella.",
+      "requires": ["Perception"],
+      "intents": []
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell",    "unit": "V1", "cell": [1, 0, 0] },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

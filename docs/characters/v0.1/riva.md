@@ -1,13 +1,40 @@
 # Riva
 
-> ✅ **Stato repository:** personaggio del roster **v0.1 canonico**. La pagina riassume i dati del workbook v0.4, che per i numeri v0.1 è un mirror documentale dei cataloghi versionati della repository. Quando una voce è `PARTIAL` o `DEFERRED_E14`, la pagina lo espone esplicitamente.
-
 > **Asset base:** Riva  
 > **Hero_Key:** `ASSET_RIVA`  
 > **RT Character ID:** `Hero.Riva`  
 > **Release:** `v0.1`  
-> **Design status:** `IMPLEMENTED`  
 > **Roster status:** Release v0.1
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ENV-SYSTEMIC-COMBOS -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-ENV-SYSTEMIC-COMBOS` · Release: `v0.1` · Roadmap: `E8 · CP 8.5`  
+> Stato: **INTEGRATED** · Gate: `6/8`  
+> Scenario: `Visual.Combat.WaterElectric`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-ENV-SYSTEMIC-COMBOS -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ENV-WATER -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-ENV-WATER` · Release: `v0.1` · Roadmap: `E8 · CP 8.1, 8.4`  
+> Stato: **INTEGRATED** · Gate: `6/8`  
+> Scenario: `Visual.Environment.WetExtinguishesFire`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-ENV-WATER -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CHAR-V01-ROSTER -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-CHAR-V01-ROSTER` · Release: `v0.1` · Roadmap: `E6 · CP 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7`  
+> Stato: **INTEGRATED** · Gate: `6/8`  
+> Scenario: `Combat.BasicAttack`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-CHAR-V01-ROSTER -->
 
 ## Panoramica
 
@@ -173,7 +200,6 @@ Pressure Jet è l'attacco base tematico di Riva: una linea a range 5 che infligg
 
 > Attacco base tematico: 16 danni, range 5.
 
-
 #### Uso tattico e limiti
 
 Fa tre cose con una sola azione leggibile: danno leggero, spostamento e setup. Il suo valore principale è spesso la posizione finale o il `Wet` lasciato al team, non il danno grezzo.
@@ -203,7 +229,6 @@ Circular Tide è l'AoE di supporto di Riva. A range 4 e raggio 1, cura 18 agli a
 | Data Status | CANONICAL |
 
 > Resolver ally/enemy differenziato nella stessa AoE è limite dichiarato.
-
 
 #### Uso tattico e limiti
 
@@ -235,7 +260,6 @@ Fluid Trail è un Dash lineare di 3 celle che dovrebbe lasciare acqua lungo il p
 
 > Movimento lineare dichiarato; creazione acqua lungo path dipende dal terreno dinamico.
 
-
 #### Uso tattico e limiti
 
 È insieme mobilità e setup: Riva cambia posizione mentre prepara celle utili a Wet, conduzione e controllo ambientale. Il fallback è `Stop` se il Dash non può essere completato.
@@ -266,7 +290,6 @@ Mist Veil è un'azione di Prep che crea fumo in un'area di raggio 1. È pensata 
 
 > Effetto cella dinamico non completamente rappresentato nell'azione.
 
-
 #### Uso tattico e limiti
 
 L'effetto dinamico sulla cella è ancora `PARTIAL`; il range 0 corrente è un placeholder tecnico. Il valore tattico è proteggere un attraversamento, rompere una linea o preparare un cambio di posizione.
@@ -296,7 +319,6 @@ Flow Reaction prevede un `Reposition 1` dopo che Riva subisce un attacco. È una
 | Data Status | CANONICAL |
 
 > Slot None nel dato corrente per evitare false attivazioni.
-
 
 #### Uso tattico e limiti
 
