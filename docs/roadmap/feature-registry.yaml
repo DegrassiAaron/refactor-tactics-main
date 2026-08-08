@@ -719,6 +719,8 @@ features:
       - RefactorTactics.Actions.Move
       - RefactorTactics.Actions.BasicAttack
       - RefactorTactics.Actions.Guard
+      - RefactorTactics.Actions.Interact.IsInertUntilImplemented
+      - RefactorTactics.Actions.Activate.IsInertUntilImplemented
       - RefactorTactics.Actions.CoreActionsMatchCatalog
       - RefactorTactics.Actions.ControlActionsMatchCatalog
       - RefactorTactics.Actions.OffensiveActionsMatchCatalog
@@ -742,12 +744,13 @@ features:
 
         · `Brace`   esiste, ma i suoi test vivono sotto `Reactions.Brace.*`: è a catalogo come
                     azione e si comporta come reazione. Ambiguità di modello, non di stato.
-        · `Interact` è **a catalogo senza effetto dichiarato e senza un solo test**
-                    (`RTCatalogLibrary.cpp:281`: «nessun effetto dichiarato»). È un dato che
-                    nessuno consuma — il difetto che questo progetto ha già pagato quattro volte.
-                    Lo porta E10.1 insieme ad `Activate`; aperta la issue `#273` perche'
-                    la scelta (togliere dal catalogo, fissare l'inerzia con un test, o
-                    attendere E10.1) e' di design, non una correzione di iniziativa.
+        · `Interact` è **a catalogo senza effetto dichiarato** (`RTCatalogLibrary.cpp:281`) e
+                    nessun ramo del resolver la esegue: un dato che nessuno consuma, il difetto che
+                    questo progetto ha già pagato quattro volte. Lo porta E10.1 insieme ad
+                    `Activate`. Dalla issue `#273` l'inerzia è **fissata da un test**
+                    (`Actions.Interact.IsInertUntilImplemented`), scritto per **cadere** il giorno
+                    in cui l'effetto arriva: verificato per mutazione il 2026-08-09 — dando un
+                    effetto a `Interact` cade quel test e solo quello.
         · `Overwatch` **non esiste**: `grep -rn "Overwatch" Source/` fuori dai test non
                     restituisce nulla. Lo porta E14.4.
 
