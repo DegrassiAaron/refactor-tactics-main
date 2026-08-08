@@ -151,7 +151,7 @@ il gioco che sara', questa tabella dice a che punto e'.
 | `RT-FEAT-UI-ACTION-GHOSTS` | Action Ghosts e Ghost Timeline | E11.5, E11.6 | **SPECIFIED** | 1/8 | — |
 | `RT-FEAT-UI-CERTAINTY` | Livelli di certezza degli intenti alleati | E11.2 | **IMPLEMENTING** | 3/8 | — |
 | `RT-FEAT-UI-COMBAT-LOG` | Combat log e spiegabilità | E11.3 | **RELEASE_READY** | 6/7 | `Visual.Core.PhaseOrder` |
-| `RT-FEAT-UI-ICON-LANGUAGE` | HUD Icon Language | E20.1, E20.2, E20.3 | **SPECIFIED** | 1/7 | — |
+| `RT-FEAT-UI-ICON-LANGUAGE` | HUD Icon Language | E20.1, E20.2, E20.3 | **IMPLEMENTING** | 1/7 | — |
 | `RT-FEAT-UI-PLANNING` | HUD di planning, selezione e preview | E11.1 | **RELEASE_READY** | 6/7 | `Movement.SwapRejectedByPlanning` · `Visual.Core.PhaseOrder` |
 | `RT-FEAT-UI-SCENARIO-BROWSER` | Selettore e indice degli scenari | fuori scope | **INTEGRATED** | 6/8 | `Movement.Basic` |
 | `RT-FEAT-UI-TACTICAL-CAMERA` | Camera tattica | E11.1 | **IMPLEMENTING** | 1/6 | — |
