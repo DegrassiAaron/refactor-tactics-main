@@ -18,7 +18,7 @@ deterministico, su una griglia **esagonale multilivello**.
 | 1 | **Canone** | [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) | Invarianti, decisioni operative, regole. **Prevale su tutto** |
 | 2 | **Decisioni** | [`decisions/`](decisions/) — 6 ADR + [Decision Log](decisions/RT_PDR_00_Decision_Log.md) | Scelte architetturali e di prodotto, con motivazione |
 | 3 | **Esecuzione** | [`roadmap/roadmap-checkpoint.md`](roadmap/roadmap-checkpoint.md) | Milestone M6–M11, DoD misurabili, **stato** |
-| 4 | **Release** | [`roadmap/roadmap-v0.1.md`](roadmap/roadmap-v0.1.md) | Scope della v0.1: 18 epic, 87 checkpoint |
+| 4 | **Release** | [`roadmap/roadmap-v0.1.md`](roadmap/roadmap-v0.1.md) | Scope della v0.1: 21 epic, 95 checkpoint |
 | 5 | **Numeri** | [`balance/`](balance/) | Valori vigenti: azioni, eroi, terreni, equipaggiamento |
 | 6 | **Specifiche** | [`gameplay/`](gameplay/) · [`technical/`](technical/) | Dettaglio per feature |
 | 7 | **Requisiti lungo periodo** | [`roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) | Fasi F0–F6 — **direzione, non scope** |
@@ -131,34 +131,38 @@ invarianti del canone. **Quali sono aperte?** [`OPEN_DECISIONS.md`](OPEN_DECISIO
 documenti che portano in testa il banner **⚠️ Superato** o **📦 Piano consegnato**.
 
 **Quali test verificano le regole?** Sotto `Source/RefactorTactics/Tests/`. Il numero **si misura, non si cita
-a memoria** — questo file l'ha già sbagliato quattro volte:
+a memoria** — questo file l'ha già sbagliato cinque volte, ed è il motivo per cui adesso è generato:
 
 ```bash
-grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp | tr -d '"' | sort -u | wc -l
+python scripts/feature_registry.py suite      # rimisura e riscrive il blocco qui sotto
 ```
 
-Ultima misura: **456 test unici in 68 file**, il 2026-08-08 dopo il merge di CP 9.3 (porte) e CP 9.4
-(ponti). La ripartizione sotto è derivata dalla stessa misura e somma esattamente a 456.
+<!-- RT_SUITE_COUNT:BEGIN -->
+**496 test unici in 71 file** — misurati su `c3af5ca`.
+
+Generato da `python scripts/feature_registry.py suite`: **non si aggiorna a mano**. Era scritto a mano in due documenti ed è divergito cinque volte.
 
 | Area | Test | Cosa fissa |
 |---|---:|---|
 | `Hex*` (mappa, path, vision, bot, blast, move, match) | 88 | Coordinate, A\*, LOS, bot, partita completa |
-| `Actions.*` | 58 | Ordine per priorità, permutazione-invarianza, fallback, mappatura di fase |
+| `Actions.*` | 61 | Ordine per priorità, permutazione-invarianza, fallback, mappatura di fase |
 | `Terrain.*` · `Status.*` · `Environment.*` | 39 | Superfici, stati temporanei, propagazione elettrica, fuoco/acqua |
 | `Combat.*` · `HexCombat.*` | 36 | Danno dopo scudo, forme, LOS, niente fuoco amico |
 | `Reactions.*` | 27 | Attivazione singola, trigger puro, reazioni componibili, privacy |
 | `HexSim.*` | 27 | Snapshot, budget, collisioni simultanee, **replay divergence 0** |
 | `Match*` (allestimento, formato, fine partita) | 27 | Le tre vie di fine partita e il `RoundLimit` da formato |
-| `Heroes.*` | 25 | I 4 eroi corrispondono al catalogo, trade-off delle varianti |
+| `Heroes.*` | 26 | I 4 eroi corrispondono al catalogo, trade-off delle varianti |
 | `TurnLog.*` | 22 | Hash permutazione-invariante, serializzazione versionata, checksum |
-| `Scenario.*` | 22 | Harness: PASS/FAIL/ERROR/**BLOCKED**, fixture per nome, niente bypass |
-| `Structures.*` | 18 | Porte come bordo (CP 9.3), ponti come arco (CP 9.4) |
-| `Playback.*` · `Preview.*` · `PlayerInput.*` · `ShowcaseRelay.*` | 19 | Presentazione e input: non decidono, riproducono |
-| `Unit.*` · `Turn.*` · `Simulation.*` | 17 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
+| `Scenario.*` · `ScenarioIndex.*` | 53 | Harness: PASS/FAIL/ERROR/**BLOCKED**, identità e tag, niente bypass |
+| `Structures.*` | 18 | Porte come bordo (E9.3), ponti come arco (E9.4) |
+| `Playback.*` · `Preview.*` · `PlayerInput.*` · `ShowcaseRelay.*` · `Camera.*` | 23 | Presentazione e input: non decidono, riproducono |
+| `Unit.*` · `Turn.*` · `Simulation.*` · `Movement.*` | 18 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
 | `Cover.*` | 13 | Copertura bassa e alta, bordi, danno a struttura e distruzione |
 | `Catalog.*` | 9 | Invarianti del catalogo: solo interi, slot dichiarati, ID stabili |
 | `Pacing.*` | 7 | Pacing del turno misurato |
 | `Perf.*` | 2 | Path mediana **0,025 ms** · resolver **0,41 ms/turno** |
+| **totale** | **496** | |
+<!-- RT_SUITE_COUNT:END -->
 
 ---
 

@@ -110,16 +110,34 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 | **Facing come stato di gioco** | — | ⏳ ADR-0005 + D-020 accettati, nessun codice (E16) |
 | **Scenario showcase e golden replay** | `Tests/` (`ShowcaseRelay.*`) | 🟡 **iniziata**: fixture stabile e scenario lite deterministico |
 
-**Suite automatica**: **si misura, non si cita.** Ultima misura **492 test unici in 70 file**, il
-2026-08-08 dopo il corpus di scenari visivi e `RTScenarioCorpusTests`. Suite intera eseguita: **496 test
-performed, zero fallimenti** (i quattro in più della run sono ripetizioni del framework, non test nuovi).
-Il conteggio precedente era 456 in 68 file, dopo CP 9.3 (porte), CP 9.4 (ponti) e il consolidamento
-documentale.
-Ripartizione per area in [`../README.md`](../README.md). Comando riproducibile:
+**Suite automatica**: **si misura, non si cita — e da qui in avanti nemmeno si scrive.**
 
-```bash
-grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp | tr -d '"' | sort -u | wc -l
-```
+<!-- RT_SUITE_COUNT:BEGIN -->
+**496 test unici in 71 file** — misurati su `c3af5ca`.
+
+Generato da `python scripts/feature_registry.py suite`: **non si aggiorna a mano**. Era scritto a mano in due documenti ed è divergito cinque volte.
+
+| Area | Test | Cosa fissa |
+|---|---:|---|
+| `Hex*` (mappa, path, vision, bot, blast, move, match) | 88 | Coordinate, A\*, LOS, bot, partita completa |
+| `Actions.*` | 61 | Ordine per priorità, permutazione-invarianza, fallback, mappatura di fase |
+| `Terrain.*` · `Status.*` · `Environment.*` | 39 | Superfici, stati temporanei, propagazione elettrica, fuoco/acqua |
+| `Combat.*` · `HexCombat.*` | 36 | Danno dopo scudo, forme, LOS, niente fuoco amico |
+| `Reactions.*` | 27 | Attivazione singola, trigger puro, reazioni componibili, privacy |
+| `HexSim.*` | 27 | Snapshot, budget, collisioni simultanee, **replay divergence 0** |
+| `Match*` (allestimento, formato, fine partita) | 27 | Le tre vie di fine partita e il `RoundLimit` da formato |
+| `Heroes.*` | 26 | I 4 eroi corrispondono al catalogo, trade-off delle varianti |
+| `TurnLog.*` | 22 | Hash permutazione-invariante, serializzazione versionata, checksum |
+| `Scenario.*` · `ScenarioIndex.*` | 53 | Harness: PASS/FAIL/ERROR/**BLOCKED**, identità e tag, niente bypass |
+| `Structures.*` | 18 | Porte come bordo (E9.3), ponti come arco (E9.4) |
+| `Playback.*` · `Preview.*` · `PlayerInput.*` · `ShowcaseRelay.*` · `Camera.*` | 23 | Presentazione e input: non decidono, riproducono |
+| `Unit.*` · `Turn.*` · `Simulation.*` · `Movement.*` | 18 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
+| `Cover.*` | 13 | Copertura bassa e alta, bordi, danno a struttura e distruzione |
+| `Catalog.*` | 9 | Invarianti del catalogo: solo interi, slot dichiarati, ID stabili |
+| `Pacing.*` | 7 | Pacing del turno misurato |
+| `Perf.*` | 2 | Path mediana **0,025 ms** · resolver **0,41 ms/turno** |
+| **totale** | **496** | |
+<!-- RT_SUITE_COUNT:END -->
 
 > Questo numero è già stato sbagliato quattro volte, e la storia vale più della cifra: due viste sono arrivate
 > a un merge con **due numeri diversi ed entrambi corretti alla propria base** (394 in 61 alla chiusura di
@@ -242,16 +260,16 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 | **E18** | `RT-FEAT-ACTION-PREDICTIVE` — Predictive Action, thin slice | SPECIFIED | 1/8 |
 | **E19** | `RT-FEAT-MATCH-FORMAT` — Formato di partita e classe di mappa | TESTABLE | 4/8 |
 | **E20** | `RT-FEAT-UI-ICON-LANGUAGE` — HUD Icon Language | SPECIFIED | 1/7 |
+| **E21** | `RT-FEAT-CHAR-PRESENTATION` — Presentazione dei personaggi (mesh, animazioni, anelli) | IMPLEMENTING | 1/7 |
 
-**Feature v0.1 senza epic** — lavoro dentro lo scope della release che nessuna delle 20 epic
-copre. Non e' una svista del registry: e' un buco della roadmap, ed e' il motivo per cui questa
-tabella e' generata.
+**Fuori dalla vista di release, per decisione** — esiste, è tracciato, ma non è contenuto
+della v0.1. Dichiararlo è tracciabilità quanto assegnare un'epic: quello che non va bene è il
+silenzio.
 
-| Feature | Vista | Stato | Gate |
-|---|---|---|---:|
-| `RT-FEAT-CHAR-PRESENTATION` — Presentazione dei personaggi (mesh, animazioni, anelli) | M8 | IMPLEMENTING | 1/7 |
-| `RT-FEAT-TOOL-MAP-EDITOR` — Editor mode della mappa esagonale | M9 | TESTABLE | 4/6 |
-| `RT-FEAT-UI-SCENARIO-BROWSER` — Selettore e indice degli scenari | — | INTEGRATED | 6/8 |
+| Feature | Vista | Perché fuori scope |
+|---|---|---|
+| `RT-FEAT-TOOL-MAP-EDITOR` — Editor mode della mappa esagonale | M9 | Strumento d'editor: non entra nella build di gioco e non ha un gate di release. Tracciato da M9 e da `roadmap-editor.md`, non dalle epic della v0.1. |
+| `RT-FEAT-UI-SCENARIO-BROWSER` — Selettore e indice degli scenari | — | Tooling di test nato dall'issue `#209`: serve a chi sviluppa, non è contenuto della release. Già costruito e coperto da test; nessun gate della v0.1 dipende da lui. |
 
 <!-- RT_FEATURE_BY_EPIC:END -->
 
@@ -281,8 +299,9 @@ tabella e' generata.
 | **E18** | Predictive Action — thin slice | P2 | 2 | Il pilastro della **predizione** diventa percepibile con **una sola** azione: decisa in Planning, risolta a un boundary deterministico, **senza input live** ([D-016](../decisions/RT_PDR_00_Decision_Log.md)). Il framework di trap resta fuori |
 | **E19** | Classe di mappa e composizione | P2 | 2 | `URTMatchFormatData` **esiste già**: restano due buchi misurati — la mappa non dichiara la propria **classe** (implicita nel `FormatId`) e il formato non dichiara le **unità per squadra** ([D-030](../decisions/RT_PDR_00_Decision_Log.md)) |
 | **E20** | HUD Icon Language | P2 | 3 | Le icone sono un **catalogo semantico**, non texture referenziate nei widget: E11 costruisce l'HUD adesso, e riscrivere ogni widget dopo costa più del file di dati in più ([D-031](../decisions/RT_PDR_00_Decision_Log.md)) |
+| **E21** | Presentazione e leggibilità | P1 | 3 | Il gioco smette di essere cilindri colorati. Era l'unico lavoro **dentro** lo scope di release che nessuna epic copriva: viveva solo nella milestone M8, e il Feature Registry lo ha reso visibile il 2026-08-08 |
 
-**Totale: 20 epic, 92 checkpoint** *(era 12/59; **E13** ed **E14** aggiunte il 2026-08-07; il 2026-08-07,
+**Totale: 21 epic, 95 checkpoint** *(era 12/59; **E13** ed **E14** aggiunte il 2026-08-07; il 2026-08-07,
 consolidando [`../src/showcase/showcase-v0.1-integrazione-nel-codice.md`](../src/showcase/showcase-v0.1-integrazione-nel-codice.md):
 **E15** showcase (5 CP), **CP 5.5** e **CP 6.7** per il debito delle reazioni d'eroe, **CP 14.2** per
 l'estrazione del micro-step; consolidando
@@ -397,7 +416,32 @@ timeline
 
 ## 4. Convenzione dei checkpoint
 
-Ogni checkpoint dichiara: **ID stabile** (`CPx.y`) · obiettivo · **DoD misurabile** · **test automatici** ·
+### 4.1 Il prefisso è obbligatorio *(dal 2026-08-08)*
+
+Un checkpoint si scrive **`E<epic>.<n>`** o **`M<milestone>.<n>`**, mai `CP <n>.<m>` nudo.
+
+Non è estetica: senza prefisso il riferimento **non è risolvibile**. Tre collisioni reali, tutte in uso
+oggi:
+
+| Scritto | Significa | E anche |
+|---|---|---|
+| `CP 6.1` | **E6.1** — `URTHeroData` e statistiche | **M6.1** — allestimento della partita su mappa hex (≡ **E2.1**) |
+| `CP 9.1` | **E9.1** — copertura bassa direzionale | **M9.1** — residuo dell'editor mappa (H5) |
+| `CP 10.1` | **E10.1** — `Activate` e `Interact` sugli oggetti | **M10.1** — listen server e autorità |
+
+**Regola di lettura per il corpus esistente**: le ~950 citazioni `CP n.m` già scritte nei documenti non
+sono state riscritte — sarebbe stato un rewrite di 93 file mentre altre sessioni ci lavorano, con più
+rischio che valore. Si leggono come **checkpoint di epic**, che è il caso dominante e coincide con le 72
+issue GitHub aperte. Dove serve il checkpoint di una *milestone*, il prefisso `M` è obbligatorio anche
+in una citazione.
+
+Le tabelle che **definiscono** i checkpoint — §5 qui sotto e le tabelle di milestone in
+[`roadmap-checkpoint.md`](roadmap-checkpoint.md) — usano la forma prefissata: lì l'ambiguità sarebbe
+strutturale.
+
+### 4.2 Cosa dichiara un checkpoint
+
+Ogni checkpoint dichiara: **ID stabile** · obiettivo · **DoD misurabile** · **test automatici** ·
 verifica PIE se serve · file coinvolti · rischi · criterio di chiusura.
 
 **Criterio di chiusura standard** (vale per tutti se non specificato diversamente): il branch di feature è
@@ -1033,6 +1077,39 @@ pagine wiki illustrate. Stanno in [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md)
 **Dipendenze**: E11 (HUD, log e debug) — E20 va fatta **prima** che i widget di E11 siano scritti, o diventa
 un refactor invece di una fondazione. Le immagini sorgente sono in
 [`../src/media/hud/`](../src/media/hud/).
+
+---
+
+### E21 — Presentazione e leggibilità · P1
+
+**Perché esiste** *(2026-08-08)*. Non è lavoro nuovo: è lavoro che **c'era già** e che nessuna epic
+copriva. Viveva nella milestone **M8** della vista di esecuzione, e la vista di release non lo vedeva —
+un buco che nessuno aveva notato finché il Feature Registry non ha generato la mappatura epic → feature
+e ha lasciato `RT-FEAT-CHAR-PRESENTATION` in una tabella «senza assegnazione».
+
+Non finisce in **E11** perché E11 è l'**interfaccia** — widget, combat log, comandi `rt.Debug.*`, Ghost
+Timeline — mentre qui si parla di come le unità appaiono **in scena**: mesh, animazioni, materiali,
+anelli. Sono due mestieri diversi con verifiche diverse, e E11 ha già 6 checkpoint.
+
+Il C++ è in `main` da tempo (spawn `TSubclassOf` con fallback al cilindro, eventi di montaggio, anello di
+team parametrico, `Unit.TeamColorFor` e `Unit.RingLocalZ` verdi): **quello che manca è il lavoro in
+editor**, che nessun test automatico può chiudere.
+
+| CP | Obiettivo | DoD misurabile | Test / verifica |
+|---|---|---|---|
+| **E21.1** | Personaggi sui centri esagonali | I `BP_Unit_*` (Paragon) sono posati sui centri, a terra, senza compenetrazione; se l'asset manca si vede il cilindro, non un buco | `PIE-AS2`, `PIE-FACING` |
+| **E21.2** | Animazioni di locomozione e impatto | `ABP_*` con Idle↔Run nella fase Move; montaggi Cast/Hit/Death nel Blast. **La morte visiva resta differita**: la presentazione non decide (invariante #1) | `PIE-AS4a`, `PIE-AS4b` |
+| **E21.3** | Leggibilità tattica | `M_TeamRing` e `M_SelectionRing` assegnati; colori delle superfici leggibili **in partita**, non solo nell'overlay dell'editor; camera tarata su scala esagonale | `PIE-AS5`, `PIE-SEL` + giudizio a schermo |
+
+**Gate di chiusura dell'epic**: la sessione C di [`test-manuali-pie.md`](../technical/test-manuali-pie.md)
+è verde · nessun cilindro nel gioco se non per asset mancante · una partita registrata (video o
+screenshot) come riferimento di stato.
+
+**Dipendenze**: E6 (roster) per i dati degli eroi, E20 (icon language) per le icone dell'HUD di squadra.
+Non dipende da E11: gli anelli e le mesh non passano dai widget.
+
+**Rischio dichiarato**: è l'unica epic della v0.1 il cui DoD **non è chiudibile in automation**. Tre voci
+PIE e un giudizio a schermo: va eseguita, non dedotta.
 
 **Rischi**: il catalogo semantico è utile solo se le chiavi sono **stabili**. Rinominare `Status.Wet` dopo che
 scenari e test lo usano costa quanto rinominare un'azione a catalogo.
