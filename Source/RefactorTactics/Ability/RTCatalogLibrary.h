@@ -6,6 +6,7 @@
 #include "Turn/RTTurnRules.h"
 
 class URTEquipmentData;
+class URTActionData;
 #include "RTCatalogLibrary.generated.h"
 
 /**
@@ -134,4 +135,34 @@ public:
 	 * un'eccezione sull'ActionId: lo Sprint prende la principale, e l'attacco non la trova piu'.
 	 */
 	static TArray<FString> ValidateActionSlots(const TArray<FRTActionDef>& PlannedActions);
+
+	/**
+	 * Gli `ActionId` delle azioni **generiche** che ogni unita' possiede in aggiunta al proprio kit (D-025).
+	 *
+	 * Sono **tre** delle sette dichiarate, e le altre quattro mancano per ragioni diverse che vale la pena
+	 * distinguere:
+	 *
+	 * - `Move` e `BasicAttack` **ci sono gia'**, per altre strade: il movimento passa da `PlannedPath` e non
+	 *   da uno slot azione, e l'attacco base e' l'indice 0 del kit di ogni eroe (catalogo v0.1);
+	 * - `Interact` non ha un **consumatore**: nessun codice risolve un'interazione. Aggiungerla darebbe a ogni
+	 *   unita' un comando che non fa niente — cioe' lo stesso difetto che questa lista corregge;
+	 * - `Overwatch` non esiste nemmeno nel catalogo core: e' **E14** (ADR-0004, finestre di reazione), e
+	 *   arrivera' con la sua infrastruttura.
+	 *
+	 * `Guard`, `Brace` e `Wait` entrano perche' sono complete dall'altra parte: `Status.Guarded` e
+	 * `Status.Braced` hanno gia' quattro consumatori nel `TurnManager` — riduzione del danno e resistenza alle
+	 * spinte — che senza un produttore restavano irraggiungibili in partita.
+	 */
+	static TArray<FName> GetGenericActionIds();
+
+	/**
+	 * Istanze NUOVE delle azioni generiche, da accodare al kit di un'unita'.
+	 *
+	 * Nuove e non condivise: `URTActionData` e' un oggetto, e due unita' che ne condividessero uno
+	 * condividerebbero anche ogni campo che un giorno diventasse mutabile. Il cooldown vive gia' nell'unita'
+	 * (`AbilityCooldowns`), ma la garanzia sta nell'istanza, non nel fatto che oggi non ci sia altro stato.
+	 *
+	 * @param Outer proprietario degli oggetti creati: l'unita' che li accoda, cosi' la loro vita e' la sua.
+	 */
+	static TArray<URTActionData*> MakeGenericActions(UObject* Outer);
 };

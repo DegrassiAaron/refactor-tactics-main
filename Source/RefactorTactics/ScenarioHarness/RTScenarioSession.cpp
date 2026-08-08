@@ -4,6 +4,7 @@
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Ability/RTActionData.h"
+#include "Ability/RTCatalogLibrary.h" // MapResolutionPhase: un'azione di Prep non ha un bersaglio da dichiarare
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
@@ -433,6 +434,13 @@ void FRTScenarioSession::BeginTurn()
 
 			const int32 AbilityIndex = FindAbilityIndex(Intent.Ability);
 
+			// Un'azione di Prep agisce su chi la usa, quindi non ha un bersaglio da dichiarare. La domanda si
+			// pone al CATALOGO — `MapResolutionPhase` — invece di elencare gli ActionId self: un'azione di Prep
+			// aggiunta domani si comporta bene senza che nessuno si ricordi di questa riga.
+			const URTActionData* PlannedAbility = Unit->GetAbility(AbilityIndex);
+			const bool bResolvesOnSelf = PlannedAbility
+				&& URTCatalogLibrary::MapResolutionPhase(PlannedAbility->Def.ResolutionPhase) == ERTMatchPhase::Prep;
+
 			if (AbilityIndex == INDEX_NONE)
 			{
 				// Un'abilita' che l'eroe non possiede e' un errore di SCRITTURA dello scenario, non un esito di
@@ -444,6 +452,15 @@ void FRTScenarioSession::BeginTurn()
 				ErroredBy = FString::Printf(TEXT("'%s' non possiede l'abilita' '%s' (turno %d)"),
 					*Intent.UnitId, *Intent.Ability.ToString(), TurnIndex + 1);
 				UE_LOG(LogRT, Error, TEXT("[RT-Test] %s: %s"), *Scenario.ScenarioId, *ErroredBy);
+			}
+			else if (bResolvesOnSelf)
+			{
+				// Azione che risolve su CHI LA USA (`Action.Guard`, `Action.Brace`, e ogni azione di Prep del
+				// vertical slice): il `TurnManager` si bersaglia da solo — `Instance.TargetUnitId = i`, e il
+				// `PlannedAttackTarget` non lo guarda nemmeno. Pretendere un bersaglio qui sarebbe una regola
+				// dell'HARNESS che il gioco non ha, e costringerebbe a scrivere «Bastion si mette in guardia
+				// bersagliando se stesso» per ottenere quel che il gioco chiama semplicemente mettersi in guardia.
+				Unit->PlannedAbilityIndex = AbilityIndex;
 			}
 			else if (!Target || !Target->IsAlive())
 			{

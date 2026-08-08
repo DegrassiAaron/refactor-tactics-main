@@ -1,5 +1,6 @@
 #include "Ability/RTCatalogLibrary.h"
 #include "Core/RTGameplayTags.h"
+#include "Ability/RTActionData.h" // MakeGenericActions crea le istanze accodate al kit
 #include "Ability/RTEquipmentData.h"
 #include "Combat/RTCombatLibrary.h" // DeflectDamageReduction: il numero della riduzione resta uno solo
 
@@ -691,4 +692,30 @@ FRTActionDef URTCatalogLibrary::FindCoreAction(const FName& ActionId)
 		if (Def.ActionId == ActionId) { return Def; }
 	}
 	return FRTActionDef();
+}
+
+TArray<FName> URTCatalogLibrary::GetGenericActionIds()
+{
+	// L'ordine e' quello di D-025 per le tre che entrano, e conta: sono accodate al kit, quindi diventano
+	// indici stabili. Cambiarlo sposta gli indici di ogni unita' — e `PlannedAbilityIndex` e' un indice.
+	return { TEXT("Action.Wait"), TEXT("Action.Guard"), TEXT("Action.Brace") };
+}
+
+TArray<URTActionData*> URTCatalogLibrary::MakeGenericActions(UObject* Outer)
+{
+	TArray<URTActionData*> Actions;
+	for (const FName& Id : GetGenericActionIds())
+	{
+		const FRTActionDef Def = FindCoreAction(Id);
+		// Un ID che il catalogo non conosce non produce un'azione vuota: quella entrerebbe nel kit con
+		// `ActionId` nullo e si presenterebbe come un comando reale che non fa niente.
+		if (Def.ActionId.IsNone())
+		{
+			continue;
+		}
+		URTActionData* Action = NewObject<URTActionData>(Outer);
+		Action->Def = Def;
+		Actions.Add(Action);
+	}
+	return Actions;
 }

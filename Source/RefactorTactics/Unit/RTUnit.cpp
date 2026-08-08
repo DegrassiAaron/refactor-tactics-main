@@ -468,10 +468,20 @@ void ARTUnit::ConfigureFromHeroData(const URTHeroData* Hero)
 	// Le azioni sono gia' URTActionData*: si copiano cosi' come sono, non si ricostruiscono con MakeAbility
 	// (quella e' la via delle abilita' legacy inventate in codice, non dei dati del catalogo eroi).
 	Abilities = Hero->Actions;
+
+	// Le azioni GENERICHE (D-025) si accodano al kit: sono dell'unita' quanto le sue, e da qui in poi il
+	// giocatore, il bot e l'harness le trovano tutti dalla stessa lista — nessuno dei tre ha una seconda
+	// strada per arrivarci, ed e' il motivo per cui prima non erano dichiarabili da nessuno.
+	//
+	// IN CODA, mai in testa: l'attacco base e' SEMPRE l'indice 0 (catalogo v0.1 §"Struttura di un eroe") e
+	// `PlannedAbilityIndex` e' un indice, non un ID. Metterle davanti sposterebbe in silenzio ogni piano
+	// gia' scritto — compresi quelli del bot, che sceglie per indice.
+	Abilities.Append(URTCatalogLibrary::MakeGenericActions(this));
+
 	AbilityCooldowns.Init(0, Abilities.Num());
 
-	// L'attacco base e' SEMPRE l'indice 0 (catalogo v0.1 §"Struttura di un eroe"): AttackRange/AttackPower
-	// restano campi dell'unita' perche' bot e TurnManager li leggono ancora da li', ma il NUMERO viene da qui.
+	// AttackRange/AttackPower restano campi dell'unita' perche' bot e TurnManager li leggono ancora da li',
+	// ma il NUMERO viene dall'indice 0, che l'append qui sopra lascia dov'era.
 	if (Abilities.IsValidIndex(0) && Abilities[0])
 	{
 		AttackRange = Abilities[0]->RangeCells;

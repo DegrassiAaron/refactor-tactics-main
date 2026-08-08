@@ -174,6 +174,8 @@ la spinta non si legge, non è un difetto del VFX — è la §8.1.
 | `Visual.Movement.RoughRefusesCharge` | RelayLite | il rifiuto in **pianificazione**: a schermo non deve accadere niente | scritto |
 | `Visual.Reaction.Interposition` | r4 | il proiettile **cambia destinatario** a mezz'aria: Bastion incassa al posto di Vektor. Il caso più difficile del corpus — se non si vede, si legge «Flux ha sbagliato mira» | scritto |
 | `Visual.Reaction.Deflection` | r4 | l'opposto: il colpo arriva dove doveva e **quasi non fa niente** (22 → 2). Se la parata non si vede, si legge un attacco debole invece di una difesa riuscita | scritto |
+| `Visual.Combat.GuardReducesFirstHit` | r4 | `Guard` toglie 15 al **primo** colpo e finisce lì: 120 → 92 | scritto |
+| `Visual.Combat.BraceReducesEveryHit` | r4 | `Brace` toglie 10 a **ogni** colpo e non finisce mai: 120 → 97 | scritto |
 | `Movement.Collision` *(esiste)* | r3 | chi cede la cella contesa, e che si capisca **perché** | già nel corpus |
 | `Combat.CounterStrikesBack` *(esiste)* | r4 | la terza grammatica difensiva: lo scudo assorbe **e** restituisce danno | già nel corpus |
 
@@ -387,9 +389,14 @@ kit dell'eroe**, e `PlannedAttackTarget`, che dev'essere **un'unità viva**. Da 
 
 | Non esprimibile | Perché | Feature v0.1 che resta fuori |
 |---|---|---|
-| Azioni con bersaglio **cella** | `target` è un id di unità, e dev'essere viva | **CP 8.3** propagazione elettrica (`Action.Electrify`), **CP 8.5** `Ignite` / `CreateWater`, **CP 9.4** `ModifyArc` e i ponti |
-| Azioni **core** | si cercano solo fra le 5 dell'eroe | `Guard`, `Brace`, `Interact`, `Push`, `Pull`, `Root`, `Slow`, `MarkTarget`, `Shield` — le azioni generiche di D-025 e gli stati di CP 8.2 che nessun kit applica |
-| Superfici e bordi d'autore | `FRTScenarioCell` ha solo `bBlocksMovement`, `bBlocksLineOfSight`, `MoveCost` | **CP 9.2** copertura alta: nessuna delle tre fixture ne contiene una, e lo scenario non può aggiungerla |
+| Azioni **core diverse dalle tre generiche** | il kit di un'unità è *eroe + `Wait`/`Guard`/`Brace`*: `Electrify`, `Ignite`, `CreateWater`, `ModifyArc`, `Push`, `MarkTarget` non appartengono a nessuno | **CP 8.3** propagazione elettrica, **CP 8.5** terreno dinamico, **CP 9.4** ponti |
+| Superfici e bordi d'autore | `FRTScenarioCell` ha solo `bBlocksMovement`, `bBlocksLineOfSight`, `MoveCost` | **CP 9.2** copertura alta: nessuna delle tre fixture ne contiene una |
+
+> ✅ **Due buchi chiusi il 2026-08-09.** Le azioni **con bersaglio-cella** erano già esprimibili (`targetCell`
+> esisteva, e l'avevo dichiarato mancante verificando contro una copia vecchia). Le azioni **generiche** —
+> `Wait`, `Guard`, `Brace` — ora appartengono a ogni unità: non è stato l'harness a cambiare, è stato il gioco
+> (#275). Le restanti azioni core restano fuori **perché nessuna unità le possiede**, che è un fatto di
+> gameplay: darle allo scenario e non al giocatore produrrebbe test verdi su regole inesistenti.
 
 > ✅ **Il quarto buco si è chiuso da solo.** Questo documento nasceva dichiarando che le reazioni non erano
 > esprimibili — e su una working copy indietro di qualche commit era vero. Su `origin/main` il campo

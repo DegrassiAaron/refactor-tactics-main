@@ -2,6 +2,8 @@
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Ability/RTActionData.h"
+#include "Ability/RTCatalogLibrary.h" // un'azione di Prep risolve su se' e non dichiara un bersaglio
+#include "Turn/RTTurnRules.h"
 #include "Map/RTHexLibrary.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -199,12 +201,28 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 						}
 						else if (!IntentObj->TryGetStringField(TEXT("target"), Intent.Target) || Intent.Target.IsEmpty())
 						{
-							// Un'abilita' senza bersaglio non e' un'omissione innocua: lo scenario girerebbe
-							// senza attaccare nessuno e l'assertion sui danni fallirebbe per il motivo sbagliato.
-							OutError = FString::Printf(
-								TEXT("intent di '%s': l'abilita' '%s' non dichiara un bersaglio (campo target)"),
-								*Intent.UnitId, *AbilityText);
-							return false;
+							// Un'azione che risolve su CHI LA USA non ha un bersaglio da dichiarare: il
+							// `TurnManager` si bersaglia da solo in fase Prep (`Instance.TargetUnitId = i`), e
+							// pretenderlo qui costringerebbe a scrivere «Bastion si mette in guardia bersagliando
+							// se stesso». La domanda si pone al CATALOGO invece di elencare gli ActionId self,
+							// cosi' un'azione di Prep aggiunta domani non deve ricordarsi di questa riga.
+							//
+							// Se l'ID non e' nel catalogo core la Def torna vuota e la fase e' quella di default:
+							// non e' Prep, quindi il bersaglio resta obbligatorio. Le azioni d'eroe passano di
+							// qui, ed e' il comportamento che avevano prima.
+							const FRTActionDef Def = URTCatalogLibrary::FindCoreAction(Intent.Ability);
+							const bool bResolvesOnSelf = !Def.ActionId.IsNone()
+								&& URTCatalogLibrary::MapResolutionPhase(Def.ResolutionPhase) == ERTMatchPhase::Prep;
+							if (!bResolvesOnSelf)
+							{
+								// Per tutte le altre, un'abilita' senza bersaglio non e' un'omissione innocua: lo
+								// scenario girerebbe senza attaccare nessuno e l'assertion sui danni fallirebbe
+								// per il motivo sbagliato.
+								OutError = FString::Printf(
+									TEXT("intent di '%s': l'abilita' '%s' non dichiara un bersaglio (campo target)"),
+									*Intent.UnitId, *AbilityText);
+								return false;
+							}
 						}
 					}
 
@@ -443,6 +461,18 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 					// Una cella bersaglio segue le stesse regole di ogni altra cella dello scenario: fuori
 					// dall'arena e' un errore di scrittura, non un tiro che manca.
 					continue;
+				}
+				// Azione che risolve su chi la usa: il bersaglio vuoto e' la forma CORRETTA, non un'omissione.
+				// La lettura piu' sopra l'ha gia' ammessa; qui si evita che il controllo «e' schierato?» la
+				// respinga cercando un'unita' di nome "".
+				if (Intent.Target.IsEmpty())
+				{
+					const FRTActionDef SelfDef = URTCatalogLibrary::FindCoreAction(Intent.Ability);
+					if (!SelfDef.ActionId.IsNone()
+						&& URTCatalogLibrary::MapResolutionPhase(SelfDef.ResolutionPhase) == ERTMatchPhase::Prep)
+					{
+						continue;
+					}
 				}
 				if (!SeenIds.Contains(Intent.Target))
 				{

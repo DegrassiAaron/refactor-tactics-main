@@ -81,7 +81,17 @@ bool FRTHeroStatsFromDataTest::RunTest(const FString&)
 	TestEqual(TEXT("resistenza push"), Unit->PushResistance, 2);
 	TestEqual(TEXT("affinita'"), Unit->Affinity, FName(TEXT("acqua")));
 	TestEqual(TEXT("debolezza"), Unit->Weakness, FName(TEXT("elettricita")));
-	TestEqual(TEXT("cinque azioni copiate cosi' come sono"), Unit->NumAbilities(), 5);
+	// Le cinque dell'eroe PIU' le generiche di D-025, accodate da `ConfigureFromHeroData`. Il numero si
+	// compone, non si scrive: aggiungere una generica non deve costringere a inseguire un `8` qui dentro.
+	TestEqual(TEXT("le azioni dell'eroe piu' le generiche"),
+		Unit->NumAbilities(), 5 + URTCatalogLibrary::GetGenericActionIds().Num());
+	// L'indice 0 resta l'attacco base: e' un contratto del catalogo, ed e' la ragione per cui le generiche
+	// vanno IN CODA. Se un giorno finissero in testa, questo assert cade prima che lo faccia una partita.
+	if (const URTActionData* First = Unit->GetAbility(0))
+	{
+		TestEqual(TEXT("l'indice 0 e' ancora l'attacco base dell'eroe"),
+			First->Def.ActionId, Hero->Actions[0]->Def.ActionId);
+	}
 
 	// Cambiare i NUMERI sull'asset e riconfigurare cambia l'unita' di conseguenza: la fonte e' l'asset, non un
 	// valore congelato alla prima chiamata.
