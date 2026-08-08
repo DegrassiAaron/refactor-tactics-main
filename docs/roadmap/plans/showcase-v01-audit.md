@@ -339,17 +339,16 @@ cooldown **2**, e l'attacco base che lo batte dipende dalla fascia d'arma. È il
 parte da una misura e non da una correzione — e per cui la nota nel codice ora dice **su cosa** è misurata.
 
 
-### `S2-3` — Turno 1 della showcase
+### `S2-3` — ✅ **FATTO 2026-08-08** — Turno 1 della showcase
 
 | | |
 |---|---|
-| **Goal** | `RT.Scenario.Showcase.T1` verde attraverso il gameplay reale |
-| **Scope** | `Scenarios/Showcase/RelayBasin_T1.json`; assertion `UnitAtCell` sui quattro arrivi |
-| **Non-goals** | Facing (E16) e `CreateCover` (CP 9.5): il turno 1 li **dimostra** ma non li richiede per passare |
-| **Dipende da** | `S2-1`, `S2-2` |
-| **Acceptance** | Nessun `SetActorLocation`; lo `StateHash` è stabile su 10 ripetizioni |
-| **Test** | `RT.Scenario.Showcase.T1` |
-| **Commit** | `feat(showcase): turno 1 eseguibile dallo scenario` |
+| **Goal** | Il turno 1 gira sul gameplay reale **e sempre allo stesso modo** |
+| **Com'è finita** | Niente file separato: il turno 1 vive negli otto turni di `RT_Showcase_Relay_v01`, e lo scenario si ferma da solo al turno 2 con `BLOCKED — manca 'PredictiveAction'`. Un `RelayBasin_T1.json` a parte sarebbe stata una seconda verità sulla stessa partita |
+| **Esito** | `BLOCKED (5/5 assertion, 1 turni)` — le cinque assertion del T1 **passano**, e il blocco al turno 2 dice quanto lontano arriva oggi |
+| **Determinismo** | `Scenario.ShowcaseT1IsDeterministic`: 10 ripetizioni, ognuna in un mondo nuovo, stesso `StateHash` **ed** esito **e** turni giocati. Quattro unità che si muovono nello stesso turno sono il caso in cui l'ordine dell'array può decidere l'esito senza che nessuno se ne accorga |
+| **Perché non basta il gate esistente** | `Simulation.DeterministicReplay` gira a 100 ripetizioni su `Movement.Collision`: due unità, mappa piccola. Questo gira sulla geometria canonica col roster intero, dove le interazioni non previste hanno spazio per manifestarsi |
+| **Limite dichiarato** | Su questo test **non** è stata fatta verifica di mutazione: un gate di determinismo rileva una divergenza che non c'è, e una mutazione che la introducesse artificialmente proverebbe solo che il confronto confronta. Il suo valore si misura il giorno che diventa rosso |
 
 ### Voci successive, in ordine
 
