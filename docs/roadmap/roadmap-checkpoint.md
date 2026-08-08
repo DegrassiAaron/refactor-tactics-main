@@ -44,7 +44,7 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in parte (vedi nota) · ⏳ da far
 | **M10** Rete e privacy | ⏳ | Listen server, validazione server, planning team-only, canary intent leak. **Nuovo vincolo**: [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) introduce N round-trip per turno (finestre di reazione) |
 | **M11** Production readiness | ⏳ | Budget in CI, validator commandlet, packaged soak, replay audit |
 
-**Suite automatica**: `Source/RefactorTactics/Tests/` — **415** test unici in **63** file (misurati 2026-08-08
+**Suite automatica**: `Source/RefactorTactics/Tests/` — **419** test unici in **64** file (misurati 2026-08-08
 dopo il merge della riorganizzazione documentale; le due viste arrivavano al merge con 390 e 394, entrambi
 corretti alla propria base e nessuno dei due valido dopo l'unione).
 Storia del numero: **172** alla chiusura di CP 6.0 → **230** con M6+E1 → **171** dopo la rimozione del quadrato

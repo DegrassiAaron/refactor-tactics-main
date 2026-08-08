@@ -176,6 +176,17 @@ ostacolo** (una situazione che il gioco non produrrebbe mai) vengono rifiutate c
 | `Movement.BasicFailsOnPurpose` | **FAIL voluto**: dimostra che il report diagnostica invece di dire solo «fallito» |
 | `Movement.Blocked` | un muro rende il percorso impossibile: il piano è rifiutato, l'unità resta ferma, il turno si chiude lo stesso |
 | `Movement.Collision` | due unità verso la stessa cella si fermano **entrambe** |
+| `Movement.SwapRejectedByPlanning` | **caratterizzazione**: due unità adiacenti *non* si scambiano di posto, perché la pianificazione rifiuta un percorso verso una cella occupata (vedi §12) |
+
+### Scenari di caratterizzazione
+
+Non tutti gli scenari descrivono una regola *voluta*. Alcuni fissano il comportamento **attuale** perché non
+cambi per sbaglio, e dichiarano nel file stesso perché sono lì. Si riconoscono dal campo `_nota` che dice
+«caratterizzazione».
+
+Servono quando si scopre qualcosa che **non si è autorizzati a correggere**: se il comportamento sia giusto è
+una decisione di design, non una svista. Il test tiene fermo lo stato di fatto e diventa rosso il giorno in
+cui qualcuno lo cambia — che è il segnale desiderato, non un fastidio da mettere a tacere.
 
 ### Limiti della prima iterazione
 
@@ -356,3 +367,33 @@ Tre cose diverse, tre nomi diversi: **`Scenarios/`** sono i *dati* (cosa deve su
 > `Tests/Scenarios/`. Tre percorsi con lo stesso nome al singolare e al plurale, per tre contenuti diversi:
 > bastava questa guida per accorgersene, e la rinomina è costata dieci minuti. Se aggiungi una directory qui
 > dentro, controlla che il nome dica **cosa contiene** e non somigli a nessun'altra.
+
+---
+
+## 12. Cosa un test d'integrazione trova e uno unitario no
+
+Il **2026-08-08**, scrivendo uno scenario per un caso che le note PIE davano per scoperto, è emerso un difetto
+che nessuno dei test esistenti poteva mostrare. Vale come esempio di quando conviene uno scenario.
+
+**Il caso**: due unità adiacenti si scambiano di posto.
+
+| Livello | Regola | Test | Esito |
+|---|---|---|---|
+| Resolver | lo scambio **è consentito** | `HexSim.ResolveSwapAllowed` | ✅ verde |
+| Planner | goal occupato → **`NoPath`** | `HexSim.PathAvoidsOccupiedCell` | ✅ verde |
+
+Entrambe corrette, entrambe verdi, **ognuna guardata da sola**. Insieme rendono la regola del resolver
+**irraggiungibile**: nessun giocatore può pianificare uno scambio, perché cliccare sulla cella di un nemico
+adiacente non produce un percorso. Il test del resolver non se ne accorge perché costruisce i percorsi a mano,
+bypassando il planner.
+
+È il pattern **«dato senza consumatore»**: una regola che esiste, funziona, ed è irraggiungibile da chi
+dovrebbe attivarla.
+
+**Come cercarlo**: quando due sistemi hanno regole sullo stesso fenomeno — uno che *pianifica* e uno che
+*risolve*, uno che *produce* e uno che *consuma* — un test unitario per ciascuno non dice niente su cosa
+succede quando lavorano insieme. Serve qualcosa che percorra la catena intera. È esattamente ciò che uno
+scenario fa.
+
+**Cosa NON fare**: correggere la regola di iniziativa. Se lo scambio debba essere possibile è una decisione di
+design. Il difetto si fissa con una caratterizzazione e si segnala; chi decide, decide.

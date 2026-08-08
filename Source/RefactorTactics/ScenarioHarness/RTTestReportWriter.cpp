@@ -42,6 +42,10 @@ FString URTTestReportWriter::ToJson(const FRTTestResult& Result, const FString& 
 	Root->SetNumberField(TEXT("seed"), Result.Seed);
 	Root->SetNumberField(TEXT("turnsPlayed"), Result.TurnsPlayed);
 
+	// Esadecimale, non decimale: un hash si confronta a occhio fra due report, e in esadecimale la differenza
+	// si vede alla prima cifra invece che contando le posizioni.
+	Root->SetStringField(TEXT("stateHash"), FString::Printf(TEXT("%08x"), Result.StateHash));
+
 	if (!Result.ErrorMessage.IsEmpty())
 	{
 		// Presente SOLO negli ERROR: la sua presenza distingue «non ho potuto eseguire» da «ho eseguito e non torna».
