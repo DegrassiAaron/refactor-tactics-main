@@ -2194,6 +2194,14 @@ void ARTTurnManager::ResolveCombat()
 	IncomingMarkPriority.Init(MAX_int32, Units.Num());
 	TArray<bool> bMarkedBeforeBlast;    // marchio ereditato da un turno precedente: vale per qualunque colpo
 	bMarkedBeforeBlast.Init(false, Units.Num());
+	// Stessa disciplina per `Wet`, e per la stessa ragione: `Riva.PressureJet` bagna DENTRO il Blast, quindi
+	// un bonus che leggesse solo `HasStatus` non lo vedrebbe mai — e con durata 1 il bagnato scade nel Cleanup
+	// dello stesso turno, quindi non lo vedrebbe nemmeno il turno dopo. La combo acqua+elettricita' era
+	// documentata, aveva un test verde sull'aritmetica, e non era eseguibile in partita (#242).
+	// Differenza dal marchio: il bagnato NON si consuma. Vale su ogni colpo finche' il bersaglio e' bagnato,
+	// quindi qui si raccoglie soltanto la priorita' — non c'e' un `WetSpentOn`.
+	TArray<int32> IncomingWetPriority;  // per bersaglio: priorita' dell'azione che lo bagna in QUESTO Blast
+	IncomingWetPriority.Init(MAX_int32, Units.Num());
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		bMarkedBeforeBlast[i] = Units[i] && Units[i]->HasStatus(TAG_Status_Marked);
@@ -2212,6 +2220,13 @@ void ARTTurnManager::ResolveCombat()
 			{
 				Units[Hit.TargetId]->ApplyMarkedBy(Units[Hit.AttackerId]->TeamId, Spec.StatusDuration);
 				IncomingMarkPriority[Hit.TargetId] = FMath::Min(IncomingMarkPriority[Hit.TargetId], Def.Priority);
+			}
+			// Il bagnato si REGISTRA e basta: applicarlo qui lo farebbe scadere nel Cleanup come prima, e
+			// soprattutto lo renderebbe visibile a colpi che risolvono PRIMA di chi bagna. Lo applica il pass
+			// degli effetti, dopo il danno, come per ogni altro status.
+			else if (Spec.Effect == ERTActionEffect::Status && Spec.StatusTag == TAG_Status_Wet)
+			{
+				IncomingWetPriority[Hit.TargetId] = FMath::Min(IncomingWetPriority[Hit.TargetId], Def.Priority);
 			}
 		}
 	}
@@ -2274,6 +2289,14 @@ void ARTTurnManager::ResolveCombat()
 	// perche' non e' un danno fisso, e vale su OGNI colpo dell'azione finche' il bersaglio e' bagnato — non
 	// solo sul primo, quindi non passa dai delta qui sotto.
 	//
+	// Due sorgenti di bagnato, e contano entrambe:
+	//   - GIA' bagnato quando il Blast comincia (acqua bassa attraversata nel Dash, o turno precedente):
+	//     `HasStatus` risponde di si', e vale per qualunque colpo;
+	//   - bagnato IN QUESTO Blast (`Riva.PressureJet`, priorita' 50): vale solo per i colpi a priorita' piu'
+	//     ALTA, cioe' risolti dopo. `LinearDischarge` ha priorita' 55, quindi la coordinazione funziona.
+	// La seconda meta' mancava, ed e' il motivo per cui la combo firma della v0.1 non era eseguibile (#242).
+	// L'ordine e' quello canonico di ADR-0003 §3, lo stesso del marchio: non ne nasce un secondo.
+	//
 	// LIMITE DICHIARATO (CP 8.2): il confronto e' su un `ActionId` scritto qui. E' l'unico bonus condizionale
 	// del catalogo v0.1; quando ce ne sara' un secondo, la forma giusta e' un campo del catalogo azioni
 	// («bonus X contro stato Y»), non un secondo `if`.
@@ -2284,8 +2307,14 @@ void ARTTurnManager::ResolveCombat()
 		{
 			continue;
 		}
-		if (Units.IsValidIndex(Hit.TargetId) && Units[Hit.TargetId]
-			&& Units[Hit.TargetId]->HasStatus(TAG_Status_Wet))
+		if (!Units.IsValidIndex(Hit.TargetId) || !Units[Hit.TargetId])
+		{
+			continue;
+		}
+		const bool bWetBeforeBlast = Units[Hit.TargetId]->HasStatus(TAG_Status_Wet);
+		const bool bWetFromThisBlast =
+			IntentDefs[Hit.IntentIndex].Priority > IncomingWetPriority[Hit.TargetId];
+		if (bWetBeforeBlast || bWetFromThisBlast)
 		{
 			Hit.Power = URTCombatLibrary::EffectiveAttackPower(Hit.Power, URTCombatLibrary::FluxWetDischargeBonus);
 		}
