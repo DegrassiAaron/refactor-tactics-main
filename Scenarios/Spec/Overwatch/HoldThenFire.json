@@ -1,0 +1,40 @@
+{
+  "scenarioId": "Spec.Overwatch.HoldThenFire",
+  "tags": ["spec", "reactions", "vektor", "flux", "riva"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 5,
+
+  "_nota": "SPECIFICA ESEGUIBILE di E14, non un test di oggi. Descrive la feature firma delle finestre di reazione: Vektor controlla un varco; Flux ci entra per primo e Vektor risponde HOLD; poi entra Riva e Vektor risponde FIRE. HOLD scarta l'opportunita' senza consumare la carica, FIRE la consuma e TRONCA il movimento nella cella raggiunta.",
+
+  "_nota_perche_esiste": "Esce BLOCKED finche' `DecisionBoundary` non esiste, e va bene: il valore e' che la feature ha una forma eseguibile PRIMA di essere costruita. Quando la capability atterra, questo file si accende da solo e dice se la semantica e' quella concordata — invece di essere scritto dopo, quando l'implementazione e' gia' la sola descrizione di se stessa.",
+
+  "_nota_da_completare": "Gli intent del turno 2 sono volutamente vuoti: la sintassi con cui si dichiarera' una risposta HOLD/FIRE non esiste ancora, e inventarla qui creerebbe un formato che nessuno ha deciso. Chi implementa E14 riempie il turno e aggiunge le assertion sugli HP di Riva e sulla cella in cui si e' fermata.",
+
+  "units": [
+    { "id": "F1", "hero": "Hero.Flux",   "team": 0, "cell": [-3,  0, 0] },
+    { "id": "R1", "hero": "Hero.Riva",   "team": 0, "cell": [-3,  1, 0] },
+    { "id": "V1", "hero": "Hero.Vektor", "team": 1, "cell": [ 2, -1, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — avvicinamento. Gira sul gioco di oggi: le due unita' del team 0 si portano all'imbocco del varco.",
+      "intents": [
+        { "unit": "F1", "move": [[-2, 0, 0]] },
+        { "unit": "R1", "move": [[-2, 1, 0]] }
+      ]
+    },
+    {
+      "_turno": "T2 — la finestra. Vektor arma l'Overwatch sul varco; Flux entra (HOLD), poi Riva entra (FIRE). Serve la sospensione della risoluzione a un decision boundary, e il facing che definisce il cono.",
+      "requires": ["DecisionBoundary", "Facing"],
+      "intents": []
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell",    "unit": "F1", "cell": [-2, 0, 0] },
+    { "type": "UnitAtCell",    "unit": "R1", "cell": [-2, 1, 0] },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

@@ -2,6 +2,54 @@
 
 ---
 
+## 2026-08-08 — Il corpus diventa un test, e cinque scenari-specifica
+
+**Origine**: seguito diretto della voce sotto. Nasce da una domanda semplice — «gli scenari servono anche
+come test automatici quando si implementa?» — la cui risposta ha scoperto che non lo erano affatto.
+
+### Il problema
+
+`Scenario.ShippedScenariosAreValid` **carica** ogni scenario e verifica che l'ID risolva al file. Non lo
+esegue. Uno scenario diventava un test solo se qualcuno gli scriveva accanto la propria
+`IMPLEMENT_SIMPLE_AUTOMATION_TEST`.
+
+I diciassette scenari della voce precedente erano stati committati **senza**. Per un commit intero sono
+sembrati coperti: il verde diceva soltanto che il JSON era ben formato.
+
+### Cosa è cambiato
+
+| File | Modifica |
+|---|---|
+| `Tests/RTScenarioCorpusTests.cpp` | **nuovo** — `Scenario.EveryShippedScenarioRuns` scopre il corpus dall'indice e lo esegue tutto; `Scenario.ExpectedFailScenariosReallyFail` verifica che i dichiarati-rossi lo siano davvero |
+| `Scenarios/Spec/**` | **5 scenari-specifica**: Overwatch, Objective, Predictive, Perception, CreateCover |
+| [`technical/scenari-validazione-visiva.md`](technical/scenari-validazione-visiva.md) | §6-bis: il corpus come test, gli scenari-spec, e tre lacune dichiarate |
+| [`technical/scenario-index-e-tag.md`](technical/scenario-index-e-tag.md) | vocabolario 20 → **22** (`perception`, `spec`) |
+
+### Le due decisioni
+
+**`BLOCKED` è verde.** È il meccanismo che permette di versionare uno scenario prima dei suoi sistemi:
+trattarlo come rosso renderebbe irrazionale scriverne in anticipo, e si perderebbe il solo modo che il
+progetto ha di dichiarare una feature futura in forma eseguibile. `FAIL` resta un difetto del **gioco**,
+`ERROR` un difetto dello **scenario**, e i due messaggi lo dicono.
+
+**Gli scenari-spec pongono la domanda prima.** `Spec.Predictive.WhiffOnEmptyCell` è l'esempio: a
+implementazione finita si testa che il colpo arrivi quando la previsione è giusta, e un'implementazione che
+rivaluta il bersaglio al momento dello sparo passerebbe quel test e fallirebbe questo. Scritto dopo, quel
+caso non verrebbe in mente. Due di loro dichiarano anche un'**assertion che non esiste** — `TeamScoreEquals`
+e un modo di asserire sulla conoscenza di squadra: meglio saperlo ora.
+
+### Limiti dichiarati
+
+**Niente è stato compilato né eseguito**: `RTScenarioCorpusTests.cpp` non è mai passato per un compilatore, e
+la prima esecuzione può scoprire sia errori di build sia scenari rossi fra i diciassette della voce
+precedente — che sono proprio quelli che questo test rende, per la prima volta, capaci di fallire.
+
+Tre abilità del kit (`Riva.CircularTide`, `Riva.FluidTrail`, `Vektor.Feint`) restano **senza scenario**, e
+sono elencate col perché: il loro comportamento non è derivabile dal catalogo, e un'assertion scritta sul
+design invece che sul comportamento reale produrrebbe un rosso che accusa il gioco di un difetto già noto.
+
+---
+
 ## 2026-08-08 — Corpus di scenari di validazione visiva
 
 **Origine**: sessione di brainstorming a partire dai sorgenti `docs/src/` consolidati. Nessun payload esterno:
