@@ -49,10 +49,8 @@
 
 ## Stato in numeri — 2026-08-08
 
-**74 voci**: ✅ **23 verdi** · 🟡 **18 parziali** (regola coperta da test, resta il visivo) · ⏳ **33 aperte**.
-*(Ricalcolate il 2026-08-08 col comando qui sotto, **dopo** il merge di CP 9.3 con `main`: `PIE-V01-DOOR` è
-passata da ⏳ a 🟡 e le 3 voci dello Scenario Test Harness sono entrate nel conteggio. Le due parti arrivavano
-al merge con «71: 23/18/30» e «74: 23/17/34» — entrambe corrette alla propria base, nessuna dopo l'unione.)*
+**74 voci**: ✅ **24 verdi** · 🟡 **17 parziali** (regola coperta da test, resta il visivo) · ⏳ **33 aperte**.
+*(Rimisurate col comando qui sotto dopo la verifica di `PIE-TEST-AUTORUN`.)*
 
 > **Perché questo numero era rotto** (issue #192): due sessioni parallele hanno misurato lo stesso file in
 > momenti diversi — «67 voci: 22/15/30» e «65 voci: 23/16/26» — e il merge ha lasciato **entrambe** le versioni
