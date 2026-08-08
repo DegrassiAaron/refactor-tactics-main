@@ -2,6 +2,75 @@
 
 ---
 
+## 2026-08-08 — Consolidamento dei documenti **non**-Gameplay (secondo passaggio)
+
+**Origine**: audit `src/RefactorTactics_Audit_Docs_NonGameplay_Consolidamento_Claude_2026-08-08_v2.md`.
+73 file in scope (tutto `docs/` **escluse** `gameplay/`, `src/`, `archive/`). Baseline: `HEAD 3335e36`,
+**419 test unici in 64 file**.
+
+Il primo passaggio aveva sistemato la **struttura**; questo trova il problema opposto — documenti nella
+struttura giusta che contengono ancora stato storico, snapshot intermedi e correzioni stratificate.
+
+### Decisioni registrate
+
+| | |
+|---|---|
+| **D-020** | Un'azione con bersaglio **orienta l'unità prima di risolvere**; timeline del facing a sei punti. Emenda [ADR-0005](decisions/adr-0005-orientamento.md) §1–§2 |
+| **D-021** | Una Decision Window privata **non è deducibile nemmeno dal tempo**: la sospensione logica resta globale, la presentazione avversaria no. Estende l'invariante #6 |
+| **D-022** | **UE 5.8.1** consolidata; chiude `D-007` |
+| **D-023** | Il workbook `.xlsx` è **`RESEARCH`**; i cataloghi `.md` sono i dati canonici |
+| **D-024** | La quota **non aumenta il danno**; completa D-018 sul lato danno |
+| **D-025** | **Sette** azioni generiche: `Guard` torna universale, `Activate` resta assorbita da `Interact`. Emenda D-014 |
+
+### Il paradosso di governance
+
+`README.md` dichiarava «il canone prevale su tutto», ma ADR-0004 e ADR-0005 *correggevano* il canone. Ora la
+regola è esplicita: **un ADR accettato si recepisce nel canone nello stesso commit**, e un ADR accettato ma non
+recepito è un difetto registrabile. Aggiunta la tassonomia dei tag — `CANONICAL`, `CURRENT`, `AS-BUILT`,
+`DELIVERED PLAN`, `HISTORICAL`, `RESEARCH`, `OPEN` — con la regola che uno storico «sbagliato» non si corregge:
+il difetto è lo storico *senza etichetta*.
+
+### Contraddizioni interne trovate, non ereditate
+
+- **ADR-0004** diceva due cose incompatibili: la §5 sospende la simulazione «così chi guarda vede il mondo
+  fermarsi», la §7 che l'avversario non riceve nulla. Una pausa globale osservabile **è** il dato. → §7-bis.
+- **`roadmap-v0.1.md`** conteneva due viste dello stesso stato, ognuna correttiva dell'altra: nella stessa
+  pagina E8 risultava «da costruire» **e** «chiusa», con due «stato in una riga» diversi. → una sola tabella.
+- **`test-manuali-pie.md`** dichiarava 34 voci aperte in testa e «le 31 aperte, somma verificata
+  `2+9+9+4+4+1+2 = 31`» venti righe sotto. La somma tornava **con sé stessa**.
+- **D-014 vs l'handoff** si contraddicevano sulle azioni generiche, chiusi lo stesso giorno: unico `CONFLICT`
+  vero del passaggio, risolto dall'autore → D-025.
+
+### Documenti che non descrivevano più il progetto
+
+`test-automatico-unreal.md` era ancora il **prompt di implementazione** dell'harness (1114 righe di «TASK —
+progettare e implementare»), e proponeva un `ARTTestDirector` che non è mai stato costruito → prompt in `src/`,
+spec as-built al suo posto. `debug-vs-unreal.md` era una guida **M1 quadrata**. `spec-pathfinding-pf3-pf4.md` e
+`spec-mappa-multilivello.md`, indicate come owner correnti, descrivevano `FRTGridCoord` a 4 vicini → riscritte
+dal codice, corpi originali in `archive/technical/`. `architettura-codice.md` elencava 25 classi su 40 e dava
+per «north-star da costruire» PF.4 e le reazioni, entrambe fatte.
+
+### Divergenze documento↔codice registrate, non nascoste
+
+Tre restano aperte come issue, perché la decisione è presa e la migrazione no:
+`Action.Sprint` è in `FastMovement` e consuma due slot mentre D-015 lo vuole profilo del `Move`;
+`OccupantDamageBonus` è generico e ogni call site passa `0`, ma il test si chiama `...WithTerrainBonus`;
+`Overwatch` è deciso da D-012 e compariva **zero volte** in `balance/`.
+
+### Riclassificazioni
+
+20 piani in `roadmap/plans/` con header uniforme (corpi invariati) · `roadmap-editor.md` **ritirata** (terza
+vista di stato da allineare a mano) · `hex-map-roadmap.md` congelata · `v0.1-issue-plan.md` a snapshot ·
+`use-case-list.md` e l'handoff in `archive/session-notes/` · `plan-turnlog.md` e
+`brief-consolidamento-documentale.md` in `roadmap/plans/`.
+
+### Verifiche
+
+`python scripts/check-docs-symbols.py` ✅ · **916 link relativi, 0 rotti** · test count rimisurato ·
+ricerca dei termini obsoleti sui soli documenti `CURRENT`/`CANONICAL`.
+
+---
+
 ## 2026-08-08 — Consolidamento di `docs/gameplay/`
 
 **Origine**: audit `src/RefactorTactics_DocsGameplay_Audit_Consolidamento_Claude_2026-08-08.md`, con
@@ -126,7 +195,7 @@ decisioni e non il piano.
 ## 2026-08-07 — Riorganizzazione in `product/gameplay/technical/balance/roadmap/decisions/`
 
 **Origine**: revisione `/sc:spec-panel` su `src/RefactorTactics_Consolidamento_PRD_SourceOfTruth_Claude.md`,
-registrata in [`brief-consolidamento-documentale.md`](brief-consolidamento-documentale.md).
+registrata in [`brief-consolidamento-documentale.md`](roadmap/plans/brief-consolidamento-documentale.md).
 **HEAD di partenza**: `50159c6`.
 
 ### Struttura

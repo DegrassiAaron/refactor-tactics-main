@@ -10,9 +10,17 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexCoverLibrary.h"
+#include "Map/RTHexDoorLibrary.h"
 #include "Map/RTCellId.h"
 #include "Terrain/RTTerrainLibrary.h"
 #include "Terrain/RTTerrainData.h"
+#include "ScenarioHarness/RTScenarioLoader.h"
+#include "ScenarioHarness/RTScenarioRunner.h"
+#include "ScenarioHarness/RTTestScenario.h"
+#include "ScenarioHarness/RTTestResult.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 
@@ -342,6 +350,334 @@ bool FRTShowcaseLiteDeterminismTest::RunTest(const FString&)
 		for (int32 I = 0; I < First.FinalState.Num(); ++I)
 		{
 			TestEqual(TEXT("stato finale dell'unita'"), Second.FinalState[I], First.FinalState[I]);
+		}
+	}
+
+	return true;
+}
+
+// =====================================================================================================
+// Relay Basin — la mappa CANONICA della showcase (RT_Showcase_Relay_v01)
+//
+// Non sostituisce l'arena Lite: quella e' un esagono simmetrico di raggio 5 che serve al determinismo,
+// questa e' la mappa degli 8 turni. Convivono perche' rispondono a due domande diverse — «l'esito e'
+// riproducibile?» e «il gioco sa mostrare cio' che dice di essere?».
+//
+// Il layout e' AUTORATO (docs/product/showcase-v0.1.md §2): la spec di scenario dichiarata dall'handoff
+// non esiste nel repository. Questo test e' cio' che impedisce alla mappa di derivare in silenzio.
+// =====================================================================================================
+namespace
+{
+	/** Le celle non-`Floor` del Relay Basin. Ogni cella compare UNA volta sola: e' la verifica di coerenza
+	 *  richiesta dall'handoff §7, e qui e' una proprieta' del tipo, non un controllo da ricordare. */
+	TArray<FRTShowcaseExpectedSurface> BasinExpectedSurfaces()
+	{
+		return {
+			// Corridoio ovest: Flux ci passa al turno 1; `MistVeil` ne aggiunge al turno 5.
+			{ FRTCellId(-3, 0, 0), ERTHexSurface::Smoke },
+			{ FRTCellId(-2, 0, 0), ERTHexSurface::Smoke },
+			// Lane d'acqua di Riva: conduttiva, ed e' cio' che rende possibile il payoff del turno 7.
+			{ FRTCellId(-3, 1, 0), ERTHexSurface::ShallowWater },
+			{ FRTCellId(-2, 1, 0), ERTHexSurface::ShallowWater },
+			{ FRTCellId(-1, 1, 0), ERTHexSurface::ShallowWater },
+			{ FRTCellId( 0, 1, 0), ERTHexSurface::ShallowWater },
+			// Prosegue verso est: il `ConductiveNode` del turno 2 collega questa tratta all'acqua.
+			{ FRTCellId( 1, 1, 0), ERTHexSurface::Conductive },
+			{ FRTCellId( 2, 1, 0), ERTHexSurface::Conductive },
+			// Sbarra la via diretta est->Relay ai movimenti lineari: invalida il `Ram` del turno 7.
+			{ FRTCellId( 1, 0, 0), ERTHexSurface::Rough },
+			{ FRTCellId( 2, 0, 0), ERTHexSurface::Rough },
+			// Fascia nord: Vektor la attraversa al turno 3 scendendo dalla cresta. Lontana dagli spawn.
+			{ FRTCellId( 2, -1, 0), ERTHexSurface::Fire },
+			{ FRTCellId( 1, -1, 0), ERTHexSurface::Fire },
+			// Cresta nord-est: vantaggio GEOMETRICO, nessun bonus numerico (D-024).
+			{ FRTCellId( 2, -2, 0), ERTHexSurface::HighGround },
+			{ FRTCellId( 3, -1, 0), ERTHexSurface::HighGround },
+			// Ripiano sud: scivolata deterministica al turno 7.
+			{ FRTCellId(-1, 2, 0), ERTHexSurface::Ice },
+			{ FRTCellId( 0, 2, 0), ERTHexSurface::Ice },
+			{ FRTCellId( 1, 2, 0), ERTHexSurface::Ice },
+		};
+	}
+
+	/** Estensione di `q` per ogni riga `r`, dall'handoff §7. Somma = 45. */
+	struct FRTBasinRow { int32 R; int32 MinQ; int32 MaxQ; };
+	TArray<FRTBasinRow> BasinRows()
+	{
+		return { {-3,-1,1}, {-2,-2,2}, {-1,-3,3}, {0,-4,4}, {1,-4,4}, {2,-3,3}, {3,-2,2} };
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseBasinLayoutTest,
+	"RefactorTactics.ShowcaseRelay.BasinLayoutMatchesSpec",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShowcaseBasinLayoutTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(GetTransientPackage());
+	if (!TestNotNull(TEXT("l'arena Relay Basin esiste"), Arena))
+	{
+		return false;
+	}
+
+	// --- Forma: 45 celle su un solo layer, riga per riga -------------------------------------------
+	TestEqual(TEXT("numero di celle"), Arena->NumCells(), 45);
+	TestEqual(TEXT("un solo layer"), Arena->GetLayers().Num(), 1);
+
+	int32 Expected = 0;
+	for (const FRTBasinRow& Row : BasinRows())
+	{
+		for (int32 Q = Row.MinQ; Q <= Row.MaxQ; ++Q)
+		{
+			++Expected;
+			TestTrue(*FString::Printf(TEXT("la cella (%d,%d) appartiene alla mappa"), Q, Row.R),
+				Arena->ContainsCell(FRTCellId(Q, Row.R, 0)));
+		}
+	}
+	TestEqual(TEXT("la forma dichiarata somma a 45"), Expected, 45);
+
+	// --- Superfici dichiarate ----------------------------------------------------------------------
+	for (const FRTShowcaseExpectedSurface& Want : BasinExpectedSurfaces())
+	{
+		const FRTHexCellData* Data = Arena->FindCell(Want.Cell);
+		if (!TestNotNull(*FString::Printf(TEXT("la cella %s esiste"), *Want.Cell.ToString()), Data))
+		{
+			continue;
+		}
+		TestEqual(*FString::Printf(TEXT("superficie di %s"), *Want.Cell.ToString()),
+			static_cast<int32>(Data->Surface), static_cast<int32>(Want.Surface));
+	}
+
+	// --- I costi vengono dal CATALOGO ---------------------------------------------------------------
+	// Se la fixture incidesse i propri numeri, cambiare il catalogo terreni lascerebbe la showcase su
+	// valori morti — e nessun test se ne accorgerebbe.
+	for (const FRTCellId& Id : Arena->CellsInLayer(0))
+	{
+		const FRTHexCellData* Data = Arena->FindCell(Id);
+		if (!Data) { continue; }
+		const FRTTerrainDef Def = URTTerrainLibrary::FindTerrainDef(Data->Surface);
+		TestEqual(*FString::Printf(TEXT("costo di %s coerente col catalogo"), *Id.ToString()),
+			Data->MoveCost, Def.MoveCost);
+	}
+
+	// --- Il Relay e' pavimento libero ---------------------------------------------------------------
+	// L'obiettivo non deve stare su un terreno che lo difende o lo penalizza da solo: chi lo tiene deve
+	// averlo tenuto, non esserci capitato sopra.
+	const FRTHexCellData* Relay = Arena->FindCell(FRTCellId(0, 0, 0));
+	if (TestNotNull(TEXT("la cella del Relay esiste"), Relay))
+	{
+		TestEqual(TEXT("il Relay e' su Floor"), static_cast<int32>(Relay->Surface),
+			static_cast<int32>(ERTHexSurface::Floor));
+		TestFalse(TEXT("il Relay non blocca il movimento"), Relay->bBlocksMovement);
+	}
+
+	// --- Gate: una PORTA chiusa, non un meccanismo nuovo (CP 9.3) -----------------------------------
+	TestEqual(TEXT("il gate e' chiuso all'inizio"),
+		static_cast<int32>(URTHexDoorLibrary::DoorBetween(Arena, FRTCellId(0, 1, 0), FRTCellId(1, 1, 0))),
+		static_cast<int32>(ERTHexDoorState::Closed));
+	TestTrue(TEXT("il gate chiuso nega il passo"),
+		URTHexDoorLibrary::BlocksBetween(Arena, FRTCellId(0, 1, 0), FRTCellId(1, 1, 0)));
+	// Nei DUE versi: una porta e' un bordo, non una direzione.
+	TestTrue(TEXT("il gate nega il passo anche in senso inverso"),
+		URTHexDoorLibrary::BlocksBetween(Arena, FRTCellId(1, 1, 0), FRTCellId(0, 1, 0)));
+
+	// --- Copertura bassa sull'approccio nord al Relay (CP 9.1) --------------------------------------
+	TestEqual(TEXT("copertura bassa fra (0,-1) e il Relay"),
+		static_cast<int32>(URTHexCoverLibrary::CoverBetween(Arena, FRTCellId(0, 0, 0), FRTCellId(0, -1, 0))),
+		static_cast<int32>(ERTHexCoverType::Low));
+
+	// --- Spawn canonici ------------------------------------------------------------------------------
+	const TArray<FRTShowcaseSpawn> Spawns = URTMatchSetupLibrary::GetShowcaseRelayBasinSpawns();
+	TestEqual(TEXT("quattro unita' in campo (2v2)"), Spawns.Num(), 4);
+
+	TMap<FName, FRTCellId> ById;
+	for (const FRTShowcaseSpawn& Spawn : Spawns)
+	{
+		ById.Add(Spawn.HeroId, Spawn.Cell);
+		TestTrue(*FString::Printf(TEXT("lo spawn di %s e' dentro la mappa"), *Spawn.HeroId.ToString()),
+			Arena->ContainsCell(Spawn.Cell));
+		const FRTHexCellData* Data = Arena->FindCell(Spawn.Cell);
+		if (Data)
+		{
+			TestEqual(*FString::Printf(TEXT("%s parte su Floor"), *Spawn.HeroId.ToString()),
+				static_cast<int32>(Data->Surface), static_cast<int32>(ERTHexSurface::Floor));
+		}
+	}
+
+	TestEqual(TEXT("Flux allo spawn dichiarato"),    ById.FindRef(TEXT("Hero.Flux")),    FRTCellId(-4, 0, 0));
+	TestEqual(TEXT("Riva allo spawn dichiarato"),    ById.FindRef(TEXT("Hero.Riva")),    FRTCellId(-4, 1, 0));
+	TestEqual(TEXT("Bastion allo spawn dichiarato"), ById.FindRef(TEXT("Hero.Bastion")), FRTCellId( 4, 0, 0));
+	TestEqual(TEXT("Vektor allo spawn dichiarato"),  ById.FindRef(TEXT("Hero.Vektor")),  FRTCellId( 4, 1, 0));
+
+	return true;
+}
+
+// =====================================================================================================
+// S2-1 — lo scenario RIFERISCE la geometria, non la duplica
+//
+// Il punto non e' risparmiare righe di JSON: e' che la mappa canonica viva in UN posto solo, gia'
+// protetto da BasinLayoutMatchesSpec. Quarantacinque celle copiate dentro uno scenario sarebbero una
+// seconda verita' che nessun test confronta con la prima.
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioFixtureFactoryTest,
+	"RefactorTactics.Scenario.FixtureFactoryResolvesKnownNames",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioFixtureFactoryTest::RunTest(const FString&)
+{
+	UObject* Outer = GetTransientPackage();
+
+	const URTHexMapAsset* Basin = URTMatchSetupLibrary::MakeFixtureArena(Outer, TEXT("RelayBasin"));
+	if (TestNotNull(TEXT("la fixture RelayBasin si risolve"), Basin))
+	{
+		TestEqual(TEXT("RelayBasin ha le 45 celle della mappa canonica"), Basin->NumCells(), 45);
+	}
+
+	const URTHexMapAsset* Lite = URTMatchSetupLibrary::MakeFixtureArena(Outer, TEXT("RelayLite"));
+	if (TestNotNull(TEXT("la fixture RelayLite si risolve"), Lite))
+	{
+		TestEqual(TEXT("RelayLite resta l'esagono di raggio 5"), Lite->NumCells(), 91);
+	}
+
+	// Un nome sconosciuto non produce un'arena vuota su cui la partita girerebbe comunque dando un FAIL
+	// incomprensibile: produce NIENTE, e il chiamante decide.
+	TestNull(TEXT("una fixture sconosciuta non si inventa"),
+		URTMatchSetupLibrary::MakeFixtureArena(Outer, TEXT("NonEsiste")));
+	TestNull(TEXT("una fixture senza nome non si inventa"),
+		URTMatchSetupLibrary::MakeFixtureArena(Outer, FString()));
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioUnknownFixtureTest,
+	"RefactorTactics.Scenario.UnknownFixtureIsError",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioUnknownFixtureTest::RunTest(const FString&)
+{
+	UWorld* World = MakeShowcaseWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	FRTTestScenario Scenario;
+	Scenario.ScenarioId = TEXT("Test.UnknownFixture");
+	Scenario.Fixture = TEXT("NonEsiste");
+	Scenario.Units.Add([]{ FRTScenarioUnit U; U.Id = TEXT("A1"); U.HeroId = TEXT("Hero.Flux");
+		U.TeamId = 0; U.Cell = FRTCellId(0, 0, 0); return U; }());
+	// Uno scenario senza assertion viene rifiutato in validazione — giustamente: passerebbe sempre. Qui ne
+	// serve una qualunque, perche' cio' che si verifica e' che si arrivi al controllo della fixture.
+	Scenario.Expect.Add([]{ FRTTestExpectation E; E.Kind = ERTAssertionKind::TurnsCompleted; E.Value = 0; return E; }());
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyShowcaseWorld(World);
+
+	// ERROR, non FAIL: il gioco non ha sbagliato niente, lo scenario si'. Confonderli fa cercare nel
+	// resolver un difetto che sta nel JSON.
+	TestEqual(TEXT("fixture sconosciuta -> ERROR"),
+		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Error));
+	TestTrue(TEXT("il messaggio nomina la fixture"), Result.ErrorMessage.Contains(TEXT("NonEsiste")));
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioBlockedTurnTest,
+	"RefactorTactics.Scenario.BlockedTurnIsNotAFailure",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioBlockedTurnTest::RunTest(const FString&)
+{
+	UWorld* World = MakeShowcaseWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	FRTTestScenario Scenario;
+	Scenario.ScenarioId = TEXT("Test.BlockedTurn");
+	Scenario.Fixture = TEXT("RelayBasin");
+	for (const FRTShowcaseSpawn& Spawn : URTMatchSetupLibrary::GetShowcaseRelayBasinSpawns())
+	{
+		FRTScenarioUnit U;
+		U.Id = Spawn.HeroId.ToString();
+		U.HeroId = Spawn.HeroId;
+		U.TeamId = Spawn.TeamId;
+		U.Cell = Spawn.Cell;
+		Scenario.Units.Add(U);
+	}
+
+	// Turno 1: eseguibile. Turno 2: chiede una capability che non esiste.
+	Scenario.Turns.Add(FRTScenarioTurn());
+	FRTScenarioTurn Blocked;
+	Blocked.Requires.Add(TEXT("PredictiveAction"));
+	Scenario.Turns.Add(Blocked);
+
+	// L'assertion e' sul turno GIOCATO, non su quelli bloccati: e' cio' che rende l'esito un BLOCKED con
+	// zero fallimenti invece di un FAIL mascherato.
+	Scenario.Expect.Add([]{ FRTTestExpectation E; E.Kind = ERTAssertionKind::TurnsCompleted; E.Value = 1; return E; }());
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyShowcaseWorld(World);
+
+	// Il valore di questo esito e' tutto qui: uno showcase parzialmente eseguibile deve dire QUANTO
+	// arriva e COSA lo ferma, non fallire in blocco come se il gioco fosse rotto.
+	TestEqual(TEXT("capability mancante -> BLOCKED"),
+		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Blocked));
+	TestEqual(TEXT("il turno 1 e' stato giocato davvero"), Result.TurnsPlayed, 1);
+	TestTrue(TEXT("il motivo nomina la capability mancante"),
+		Result.BlockedReason.Contains(TEXT("PredictiveAction")));
+	TestEqual(TEXT("BLOCKED si legge come tale nel report"), Result.OutcomeString(), FString(TEXT("BLOCKED")));
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioShowcaseRelayV01Test,
+	"RefactorTactics.Scenario.ShowcaseRelayV01RunsTurnOne",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioShowcaseRelayV01Test::RunTest(const FString&)
+{
+	// Lo scenario VERSIONATO, non uno costruito nel test: e' cio' che rende questo un test dello showcase
+	// e non dell'harness.
+	FRTTestScenario Scenario;
+	FString LoadError;
+	if (!TestTrue(TEXT("RT_Showcase_Relay_v01 si carica"),
+		URTScenarioLoader::LoadFromFile(
+			URTScenarioLoader::PathForScenarioId(TEXT("RT_Showcase_Relay_v01")), Scenario, LoadError)))
+	{
+		AddError(FString::Printf(TEXT("caricamento fallito: %s"), *LoadError));
+		return false;
+	}
+
+	TestEqual(TEXT("riferisce la fixture invece di duplicarla"), Scenario.Fixture, FString(TEXT("RelayBasin")));
+	TestEqual(TEXT("la geometria non e' copiata nel JSON"), Scenario.Cells.Num(), 0);
+	TestEqual(TEXT("otto turni dichiarati"), Scenario.Turns.Num(), 8);
+
+	UWorld* World = MakeShowcaseWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	// `RunById` e non `Run`: e' il percorso che scrive davvero `result.json`. Un test che salta il report
+	// verificherebbe il resolver e lascerebbe scoperto proprio cio' che serve a diagnosticare da fuori.
+	FString ReportDir;
+	const FRTTestResult Result = URTScenarioRunner::RunById(World, TEXT("RT_Showcase_Relay_v01"), ReportDir);
+	DestroyShowcaseWorld(World);
+
+	// Il turno 1 gira attraverso il resolver normale; il turno 2 chiede la Predictive Action, che non c'e'.
+	TestEqual(TEXT("si ferma sul primo turno non supportato"),
+		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Blocked));
+	TestEqual(TEXT("il turno 1 e' stato giocato"), Result.TurnsPlayed, 1);
+	TestTrue(TEXT("dichiara cosa lo blocca"), Result.BlockedReason.Contains(TEXT("PredictiveAction")));
+
+	// Le assertion del turno 1 sono state valutate e sono passate: un BLOCKED non le nasconde.
+	TestTrue(TEXT("il turno 1 ha assertion valutate"), Result.Assertions.Num() > 0);
+	TestEqual(TEXT("nessuna assertion del turno 1 fallita"), Result.FailedCount(), 0);
+
+	// Lo stato finale e' un dato, non un caso: senza hash il golden replay non esiste.
+	TestNotEqual(TEXT("lo StateHash e' stato calcolato"), Result.StateHash, static_cast<uint32>(0));
+
+	// --- Il report: diagnosticabile da fuori, senza aprire i log di Unreal --------------------------
+	if (TestFalse(TEXT("il report ha una cartella"), ReportDir.IsEmpty()))
+	{
+		const FString ReportPath = FPaths::Combine(ReportDir, TEXT("result.json"));
+		FString Json;
+		if (TestTrue(TEXT("result.json e' stato scritto"), FFileHelper::LoadFileToString(Json, *ReportPath)))
+		{
+			TestTrue(TEXT("il report dichiara l'esito BLOCKED"), Json.Contains(TEXT("BLOCKED")));
+			// Il motivo sta accanto all'esito: «BLOCKED» da solo direbbe che non tutto e' pronto, che si
+			// sapeva gia'. Il valore e' nel nome della capability.
+			TestTrue(TEXT("il report nomina la capability mancante"), Json.Contains(TEXT("PredictiveAction")));
+			TestTrue(TEXT("il report distingue blockedReason da error"), Json.Contains(TEXT("blockedReason")));
 		}
 	}
 

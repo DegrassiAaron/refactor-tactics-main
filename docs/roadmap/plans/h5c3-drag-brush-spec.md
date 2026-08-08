@@ -1,5 +1,13 @@
 # Spec H5c.3 — Drag-brush (Paint continuo con 1 Undo per pennellata)
 
+> ## 🧱 `AS-BUILT` — SPECIFICA DI CIO' CHE FU CONSEGNATO
+>
+> La specifica del checkpoint, congelata. **Il corpo qui sotto non va aggiornato**: comandi, nomi di branch e percorsi sono quelli di allora, e
+> correggerli falsificherebbe la storia invece di renderla utile.
+>
+> Stato corrente: [`roadmap-checkpoint.md`](../roadmap-checkpoint.md) · indice dei documenti correnti:
+> [`../../README.md`](../../README.md). Banner aggiunto il 2026-08-08.
+
 > **Stato**: Approvata (design) · **Data**: 2026-08-04 · **Branch**: `feat/hex-grid`
 > **Fonte**: milestone H5 di [`hex-map-roadmap.md`](../hex-map-roadmap.md) (riga H5c+); prosecuzione di
 > [`h5c-paint-tool-spec.md`](h5c-paint-tool-spec.md) e [`h5c2-arch-gizmo-spec.md`](h5c2-arch-gizmo-spec.md);

@@ -1,1115 +1,254 @@
-# TASK — PROGETTARE E IMPLEMENTARE RT AUTOMATED SCENARIO TEST HARNESS
+# Spec — RT Scenario Test Harness
 
-Stai lavorando sulla repository di RefactorTactics, progetto Unreal Engine 5.
-
-Prima di modificare codice:
-1. analizza la repository;
-2. leggi AGENTS.md / CLAUDE.md se presenti;
-3. leggi la documentazione sotto Docs/, in particolare quella relativa a:
-   - architettura UE;
-   - simulazione deterministica;
-   - TurnLog;
-   - roadmap/QA;
-   - mappe e pathfinding;
-   - planning;
-   - Fast Action / Fast Reaction;
-4. considera la documentazione della repository come fonte di verità;
-5. segnala eventuali conflitti tra questa richiesta e l'implementazione/documentazione esistente.
-
-Non inventare API Unreal.
-Usa la versione Unreal bloccata realmente nella repository.
-Se una API Unreal varia tra versioni, verifica quella effettivamente utilizzata dal progetto.
+> `CURRENT` · **Stato**: as-built, allineata al codice il **2026-08-08** · **Owner**: questo file
+> **Guida operativa** (come si lancia, come si legge un esito): [`test-e-diagnosi.md`](test-e-diagnosi.md).
+>
+> *Fino al 2026-08-08 questo file era il **prompt di implementazione** originale — «TASK — progettare e
+> implementare…», 1114 righe di istruzioni a un agente. Un prompt non è una specifica: descrive ciò che si
+> voleva provare a costruire, non ciò che è stato costruito. Il prompt è conservato in
+> [`../src/RefactorTactics_ScenarioHarness_TASK_prompt_originale.md`](../src/RefactorTactics_ScenarioHarness_TASK_prompt_originale.md).*
 
 ---
 
-# OBIETTIVO
+## 1. Il principio, e perché è l'unico che conta
 
-Voglio introdurre molto presto nello sviluppo un sistema automatico di test di gameplay chiamato provvisoriamente:
+**Uno scenario passa dallo stesso percorso di gioco di una partita reale.**
 
-RT Automated Scenario Test Harness
+```
+scenario JSON → piani sulle unità → LockInAndResolve → resolver → TurnLog → assertion
+```
 
-Il sistema deve permettere questo workflow:
+Mai `SetActorLocation`, mai una scorciatoia che salti il resolver. Un test che non attraversa il codice vero
+non prova niente sul codice vero: proverebbe che l'harness sa spostare un Actor.
 
-Claude Code
-    ↓
-crea/modifica uno scenario di test testuale
-    ↓
-Unreal Editor
-    ↓
-io eventualmente modifico alcuni parametri nel Details Panel
-    ↓
-premuto Play
-    ↓
-il test parte automaticamente
-    ↓
-le unità vengono spawnate/configurate
-    ↓
-si muovono e scelgono/eseguono azioni senza input umano
-    ↓
-Planning / Ready / Snapshot / Resolution avvengono automaticamente
-    ↓
-eventuali Fast Action / Fast Reaction vengono risolte tramite policy di test
-    ↓
-Unreal genera TurnLog + report machine-readable
-    ↓
-Claude Code legge il report e i log
-    ↓
-Claude determina PASS/FAIL e diagnostica la causa del fallimento
+È la stessa porta da cui entrano il giocatore e il bot — vedi la pipeline in
+[`architettura-codice.md`](architettura-codice.md).
 
-Durante un test io NON devo:
-- cliccare unità;
-- selezionare celle;
-- scegliere abilità;
-- premere Ready;
-- rispondere manualmente alle reaction.
+## 2. Cosa fu costruito, e cosa il prompt proponeva
 
-Devo poter premere Play e osservare la simulazione.
+| Il prompt proponeva | Cosa esiste |
+|---|---|
+| un `ARTTestDirector`, Actor da mettere nel livello | **nessun Actor di test**: `grep -rn "TestDirector" Source/` non trova nulla |
+| — | una **CVar** `rt.Test.Scenario` + un ramo in `ARTGameMode` |
+| un runner dedicato | lo **stesso** runner della partita |
 
----
+La soluzione adottata è più semplice di quella proposta, e la differenza è sostanziale: senza un Actor
+obbligatorio, uno scenario non ha prerequisiti di livello. Si imposta una variabile e si preme Play.
 
-# PRINCIPIO ARCHITETTURALE FONDAMENTALE
+## 3. Dove vivono gli scenari
 
-NON creare una seconda simulazione specifica per i test.
+**`Scenarios/<Categoria>/<Nome>.json`**, alla **radice del repository** — non in `Content/`.
 
-Il Test Harness deve usare lo stesso percorso del gameplay reale.
+Sono JSON perché devono essere **leggibili e diffabili in una pull request**. Come `.uasset` sarebbero binari,
+e nessuna review potrebbe dire cosa è cambiato in uno scenario.
 
-Architettura desiderata:
+Al 2026-08-08 ne esistono **cinque**, tutti `Movement.*`:
 
-Human UI ---------+
-                  |
-Test Scenario ----+----> Intent / Commands
-                  |
-Bot --------------+
-                  |
-Replay -----------+
-                  |
-                  v
-              Planning
-                  |
-                Commit
-                  |
-               Snapshot
-                  |
-               Resolver
-                  |
-              TurnLog
-                  |
-             Game State
+| Scenario | Cosa fissa |
+|---|---|
+| `Movement.Basic` | il caso nominale: l'unità arriva dove è stata mandata |
+| `Movement.BasicFailsOnPurpose` | **fallisce apposta**: verifica che l'harness sappia dire `FAIL`. Un test che non sa fallire non è un test |
+| `Movement.Blocked` | percorso inesistente ⇒ piano **rifiutato in pianificazione**, l'unità resta dov'è. È il comportamento del gioco, non un errore |
+| `Movement.Collision` | due unità che si contendono la stessa cella |
+| `Movement.SwapRejectedByPlanning` | lo scambio A↔B **non è pianificabile** |
 
-Il Test Harness deve produrre gli stessi tipi di Intent/Command che produrrebbe il gameplay normale.
+## 4. Schema dello scenario
 
-NON sono accettabili scorciatoie come:
-
-Test -> SetActorLocation()
-
-oppure:
-
-Test -> ApplyDamage()
-
-se il gameplay reale passa attraverso movimento, resolver, ability resolution, environment resolver ecc.
-
-Il test deve esercitare il codice reale.
-
----
-
-# OBIETTIVI A LUNGO TERMINE
-
-Il sistema dovrà supportare tre modalità.
-
-## 1. VISUAL
-
-Avviabile dall'Unreal Editor.
-
-Premo Play e vedo fisicamente:
-
-- unità muoversi;
-- abilità partire;
-- dash;
-- attacchi;
-- reaction;
-- collisioni;
-- effetti terreno;
-- acqua;
-- elettricità;
-- fuoco;
-- cover;
-- KO;
-- objective;
-- turni successivi.
-
-La presentazione può essere rallentata per leggibilità, ma NON deve influenzare la simulazione.
-
----
-
-## 2. FAST
-
-Stesso scenario e stesso simulatore, ma:
-
-- animazioni ridotte/skippate;
-- nessuna attesa reale;
-- reaction automatiche immediate;
-- risoluzione più veloce possibile.
-
-Serve per regression test locali.
-
----
-
-## 3. HEADLESS
-
-Stesso scenario eseguibile:
-
-- da command line;
-- tramite Unreal Automation;
-- eventualmente in CI;
-- senza interazione umana;
-- possibilmente senza rendering.
-
-Il risultato deve essere identico dal punto di vista logico.
-
----
-
-# SCENARI TESTUALI
-
-Gli scenari NON devono essere .uasset generati da Claude.
-
-Preferire file testuali versionabili in Git.
-
-Valuta JSON come prima opzione, salvo che il progetto abbia già una soluzione migliore.
-
-Struttura indicativa:
-
-Tests/
-  Scenarios/
-    Movement/
-    Combat/
-    Environment/
-    Reactions/
-    Visibility/
-    Objectives/
-    Network/
-
-oppure una posizione coerente con la repository esistente.
-
-Esempio concettuale:
-
+```jsonc
 {
-  "scenarioId": "Environment.WaterElectric.Basic",
-  "version": 1,
-  "seed": 12345,
+  "scenarioId": "Movement.Blocked",   // ID stabile e gerarchico; dà il nome alla cartella di output
+  "version": 1,                       // versione del FORMATO, non del contenuto
+  "seed": 0,                          // dichiarato ma NON consumato — vedi §4.1
+  "mapRadius": 3,                     // arena esagonale GENERATA: nessun .umap da versionare
 
-  "map": "L_DevSandbox",
+  "cells":  [ { "cell": [q, r, layer], "blocksMovement": true,
+                "blocksLineOfSight": false, "moveCost": 0 } ],   // moveCost 0 = default (1)
 
-  "units": [
-    {
-      "id": "Unit_Drift",
-      "characterId": "Drift",
-      "team": 0,
-      "cell": [0, 0, 0]
-    },
-    {
-      "id": "Unit_Vex",
-      "characterId": "Vex",
-      "team": 1,
-      "cell": [2, 0, 0]
-    }
-  ],
+  "units":  [ { "id": "A1", "hero": "Hero.Flux", "team": 0, "cell": [-2, 0, 0] } ],
 
-  "turns": [
-    {
-      "intents": [
-        {
-          "unit": "Unit_Drift",
-          "ability": "Floodgate",
-          "targetCell": [1, 0, 0]
-        },
-        {
-          "unit": "Unit_Vex",
-          "move": [
-            [2, 0, 0],
-            [1, 0, 0]
-          ]
-        }
-      ]
-    }
-  ],
+  "turns":  [ { "intents": [ { "unit": "A1", "move": [[2, -1, 0]] } ] } ],
 
-  "expect": [
-    {
-      "type": "SurfaceHasStatus",
-      "cell": [1, 0, 0],
-      "status": "Wet"
-    }
-  ]
+  "expect": [ { "type": "UnitAtCell",     "unit": "A1", "cell": [-2, 0, 0] },
+              { "type": "TurnsCompleted", "value": 1 } ]
 }
+```
 
-Questo schema è solo concettuale.
+- `id` dell'unità è **locale allo scenario** (`A1`), non l'ID di gioco: lo usano intent e assertion.
+- `hero` è lo Stable ID del catalogo: `Hero.Flux`, `Hero.Riva`, `Hero.Bastion`, `Hero.Vektor`.
+- `move` sono i **waypoint**, esattamente come li produrrebbe un giocatore che clicca. Vuoto = unità ferma.
+- `cells` modifica solo le celle che interessano: le altre restano pavimento a costo 1. È ciò che permette di
+  scrivere `Movement.Blocked` senza versionare una mappa.
 
-NON implementarlo ciecamente.
+### 4.1 Il `seed` non fa niente, e va bene così
 
-Prima studia i tipi già presenti nella repository e costruisci un formato aderente al modello reale.
+Il campo esiste, viene registrato nel report, e **nessun RNG lo consuma**: oggi il progetto non ha RNG, e il
+determinismo viene da coordinate intere e ordinamenti totali (`HexSim.ReplayDivergenceZero`). Sta lì perché il
+giorno in cui un RNG entrasse nel resolver, lo scenario debba già saperlo dichiarare — non perché serva adesso.
 
----
+## 5. Assertion
 
-# SCRIPTED TEST VS AGENT TEST
+`ERTAssertionKind`, deliberatamente **due**:
 
-Il framework deve essere progettato per supportare due categorie.
+| Tipo | Verifica |
+|---|---|
+| `UnitAtCell` | l'unità indicata è sulla cella attesa a fine scenario |
+| `TurnsCompleted` | sono stati completati almeno N turni senza che la partita si interrompesse |
 
-## SCRIPTED SCENARIO
+Non è una mancanza: il prompt stesso avvertiva di «non creare un mega-framework prematuramente». Le assertion
+si aggiungono quando uno scenario reale le richiede.
 
-Le decisioni sono completamente definite.
+Ogni risultato porta **`Expected` e `Actual`**, non un booleano. Un report che dice «fallita» senza dire cosa
+si aspettava costringe a rieseguire il test per capire — e a quel punto tanto varrebbe non averlo.
 
-Esempio:
+## 6. `PASS` · `FAIL` · `ERROR` — e perché sono tre
 
-Turn 1:
-Drift -> Floodgate C4
-Vex -> Move C4
+| Esito | Significato | Di chi è il difetto |
+|---|---|---|
+| `Pass` | simulazione completata, tutte le assertion soddisfatte | — |
+| `Fail` | simulazione completata, almeno un'assertion non soddisfatta | **del gioco** |
+| `Error` | impossibile eseguire: scenario invalido, eroe sconosciuto, mappa mancante | **del test** o dell'ambiente |
 
-Turn 2:
-Nyx -> Arc Lance C4
+**`Error` non è un `Fail`.** Confonderli fa perdere ore su una regressione che non esiste: uno scenario rotto
+si traveste da difetto di gioco, e si va a cercare nel resolver un bug che è nel JSON.
 
-Serve per:
+## 7. Output
 
-- golden test;
-- regression;
-- determinismo;
-- bug reproduction;
-- verifica puntuale di una regola.
+`Saved/RTTests/<ScenarioId>/<RunId>/result.json` — `Saved/` è già escluso da git: i report sono **artefatti**,
+non sorgenti. `URTTestReportWriter` versiona lo schema di `result.json` e `FindLatestRunDirectory` recupera
+l'ultima esecuzione.
 
-Questi test devono avere priorità iniziale.
+Il report contiene: `ScenarioId`, esito, `ErrorMessage` (solo se `Error`), `TurnsPlayed`, `Seed`, l'elenco
+delle assertion con expected/actual, e **`StateHash`**.
 
----
+### 7.1 `StateHash` e il gate di determinismo
 
-## AGENT SCENARIO
+Digest dello stato finale — posizione, salute, scudo, energia di ogni unità viva — usato dal gate di
+determinismo (CP 12.1): **stesso scenario ⇒ stesso hash**, su qualunque numero di ripetizioni.
 
-Estensione successiva.
+È **permutazione-invariante per costruzione**: le unità si ordinano prima di essere mescolate nell'hash.
+Quindi cambiare l'ordine degli intent nello scenario **non deve** cambiarlo. Se cambia, l'ordine dell'array sta
+decidendo l'esito — che è precisamente ciò che l'invariante #3 vieta.
 
-Invece di specificare esattamente l'azione, assegniamo una policy.
+Vale `0` quando lo scenario non è stato eseguito (`Error`): un hash calcolato su nessuno stato sarebbe un
+numero finto.
 
-Esempio:
+## 8. Console e auto-run
 
-Aegis = Defensive
-Nyx = Aggressive
-Drift = EnvironmentControl
-Vex = Objective
+| Comando | Effetto |
+|---|---|
+| `rt.Test.List` | elenca gli scenari versionati |
+| `rt.Test.Run <ScenarioId>` | esegue nel mondo corrente e scrive il report |
+| `rt.Test.DumpResult [Id]` | stampa l'ultimo `result.json` |
+| `rt.Test.Scenario <Id>` | **CVar**: scenario da eseguire automaticamente all'avvio della partita |
 
-Il Test Agent:
+`rt.Test.Scenario` va impostata **prima** di premere Play: `ARTGameMode` vede la variabile e la partita normale
+**non** viene allestita — al suo posto parte lo scenario.
 
-1. enumera azioni legalmente disponibili;
-2. assegna uno score deterministico;
-3. seleziona un'azione;
-4. produce un normale Intent;
-5. passa attraverso il normale sistema di planning.
+## 9. Requisiti aperti
 
-NON implementare subito una AI complessa se aumenta lo scope.
-
-Per la prima iterazione basta progettare un'interfaccia che permetta di aggiungerla in seguito.
-
----
-
-# RT TEST DIRECTOR
-
-Valuta l'introduzione di un Actor o servizio equivalente, ad esempio:
-
-ARTTestDirector
-
-da poter inserire in:
-
-L_DevSandbox
-
-Il nome definitivo deve seguire le convenzioni della repository.
-
-Il Test Director deve essere soltanto un ORCHESTRATORE.
-
-NON deve contenere logica competitiva.
-
-Possibili proprietà Editor:
-
-Scenario
-AutoRun
-SeedOverride
-AutoReady
-PlaybackMode
-PlaybackSpeed
-StopOnFailure
-ShowDebug
-RepeatCount
-
-e un sistema limitato di override di configurazione.
-
-Esempio concettuale:
-
-Scenario:
-Environment.WaterElectric.Basic
-
-AutoRun:
-true
-
-Mode:
-Visual
-
-Seed:
-12345
-
-ShowDebug:
-true
-
-Gli override devono essere tracciati nel report.
+| Tema | Stato |
+|---|---|
+| Assertion su HP, scudo, stati, TurnLog | da aggiungere quando uno scenario le richiede |
+| Intent diversi dal movimento (abilità, reazioni) | non implementati: il prompt chiedeva esplicitamente di non procedere finché `Movement.Basic` non fosse stabile |
+| **Politica per le Fast Reaction** | aperta. Quando E14 introdurrà le finestre, uno scenario dovrà poter dichiarare la risposta attesa (`FIRE`/`HOLD`/timeout) **come dato**, altrimenti diventa non deterministico |
+| **Nessun bypass** | invariante permanente: se un giorno un percorso di test saltasse il resolver, i test smetterebbero di misurare il gioco |
 
 ---
 
-# WORKFLOW EDITOR DESIDERATO
-
-Voglio poter fare:
-
-1. apro L_DevSandbox;
-2. seleziono RTTestDirector;
-3. scelgo Scenario;
-4. eventualmente modifico parametri;
-5. premo Play.
-
-A questo punto tutto parte automaticamente.
-
-Non voglio dover premere altri pulsanti.
-
----
-
-# ESECUZIONE AUTOMATICA
-
-Flusso concettuale:
-
-BeginPlay
-    ↓
-Detect Test Mode
-    ↓
-Load Scenario
-    ↓
-Validate Scenario
-    ↓
-Reset / Build Initial State
-    ↓
-Apply Explicit Test Overrides
-    ↓
-Spawn / Configure Units
-    ↓
-Start Turn
-    ↓
-Submit Intents
-    ↓
-Auto Ready
-    ↓
-Commit
-    ↓
-Build Immutable Snapshot
-    ↓
-Resolve
-    ↓
-Collect TurnLog
-    ↓
-Evaluate Assertions
-    ↓
-Next Turn
-    ↓
-Final Assertions
-    ↓
-Write Test Report
-    ↓
-PASS / FAIL
-
-Riutilizzare i sistemi reali esistenti.
-
----
-
-# FAST ACTION / FAST REACTION
-
-Il framework deve essere predisposto per le decision window.
-
-Un test deve poter definire policy come:
-
-CommitFirstValid
-Hold
-Timeout
-HoldFirstThenCommit
-TargetHighestPriority
-TargetSpecificUnit
-
-Esempio Overwatch:
-
-Enemy A entra nell'area
--> HOLD
-
-Enemy B entra nell'area
--> FIRE
-
-La Test Policy deve rispondere alla stessa Reaction Opportunity utilizzata dal gameplay reale.
-
-NON creare codice speciale tipo:
-
-if (IsTest)
-    SkipOverwatchLogic();
-
-Il test deve esercitare:
-
-Trigger
--> Reaction Opportunity
--> Decision
--> Validation
--> Commit/Hold
--> Resolver
--> TurnLog
-
----
-
-# TEMPO REALE
-
-In Visual Mode può essere utile lasciare brevi pause per capire cosa sta succedendo.
-
-In Fast/Headless:
-
-NON aspettare:
-
-- planning timer;
-- countdown Ready;
-- animazioni;
-- 3 secondi di Fast Reaction;
-- montage;
-- VFX.
-
-La simulazione logica deve avanzare immediatamente tra i decision boundary.
-
-Timer real-time e animazioni non devono decidere il risultato.
-
----
-
-# ASSERTION SYSTEM
-
-Non limitarti a verificare "il gioco non è crashato".
-
-Serve un sistema di assertion di dominio.
-
-Esempi futuri:
-
-UnitAtCell
-UnitHpEquals
-UnitHpRange
-UnitHasStatus
-UnitNotHasStatus
-UnitKO
-SurfaceHasStatus
-EdgeEnabled
-EdgeDisabled
-CoverExists
-CoverDestroyed
-AbilityResolved
-AbilityFizzled
-EventExists
-EventNotExists
-EventCount
-ObjectiveState
-TurnCompleted
-StateHashEquals
-LogHashEquals
-
-Ogni assertion deve produrre:
-
-- Expected;
-- Actual;
-- Turn;
-- Phase;
-- MicroStep;
-- Unit/Cell/Event coinvolto;
-- reason code quando disponibile.
-
-Prima iterazione: implementa solo quelle necessarie per i primi test.
-
-Non creare un mega-framework prematuramente.
-
----
-
-# OUTPUT MACHINE-READABLE
-
-Questo è CRITICO.
-
-Claude Code deve poter leggere il risultato senza interpretare migliaia di righe di log Unreal.
-
-Ogni esecuzione deve generare una directory tipo:
-
-Saved/RTTests/
-  <ScenarioId>/
-    <RunId>/
-      result.json
-      turnlog.jsonl
-      state_initial.json
-      state_final.json
-
-Se alcuni file non sono ancora implementabili, partire da:
-
-result.json
-turnlog.jsonl
-
-Il formato deve essere stabile e versionato.
-
----
-
-# RESULT.JSON
-
-Esempio concettuale:
-
-{
-  "schemaVersion": 1,
-
-  "scenario": "Environment.WaterElectric.Basic",
-
-  "runId": "...",
-
-  "result": "FAIL",
-
-  "engineVersion": "...",
-  "projectVersion": "...",
-  "rulesVersion": "...",
-
-  "seed": 12345,
-
-  "assertions": {
-    "passed": 11,
-    "failed": 1
-  },
-
-  "failures": [
-    {
-      "assertion": "UnitDamage",
-      "unit": "Vex",
-      "expected": 20,
-      "actual": 0,
-
-      "turn": 2,
-      "phase": "Blast",
-      "microStep": 3,
-
-      "reason": "RequiredSurfaceMissing"
-    }
-  ],
-
-  "stateHash": "...",
-  "logHash": "..."
-}
-
-Usa nomenclatura reale della repository.
-
----
-
-# TURNLOG
-
-Il TurnLog deve restare il log canonico della simulazione.
-
-NON creare un secondo event system parallelo solo per i test.
-
-I report di test devono analizzare il TurnLog reale.
-
-Esempio concettuale:
-
-Turn=2
-Phase=Blast
-Event=AbilityDeclared
-Source=Nyx
-Ability=ArcLance
-
-Turn=2
-Phase=Blast
-Event=EnvironmentPropagationCheck
-Cell=[1,0,0]
-Expected=Wet
-Actual=None
-
-Turn=2
-Phase=Blast
-Event=AbilityFizzled
-Reason=RequiredSurfaceMissing
-
-La struttura deve permettere a Claude di risalire alla causa.
-
----
-
-# DETERMINISMO
-
-Uno scenario deve dichiarare o ricevere un seed esplicito.
-
-Stesso:
-
-- scenario;
-- initial state;
-- intents;
-- rules version;
-- resolver configuration;
-- content manifest;
-- seed;
-
-deve produrre:
-
-- stesso stato finale;
-- stesso TurnLog canonico;
-- stesso StateHash;
-- stesso LogHash.
-
-Aggiungere in futuro Repeat Test:
-
-Run scenario 100 / 1000 volte
--> assert zero divergence.
-
-NON usare:
-
-FMath::Rand()
-
-o timing di frame/animazioni per risultati competitivi.
-
----
-
-# CLAUDE ANALYSIS WORKFLOW
-
-Progettare l'output in modo che dopo un'esecuzione io possa dire a Claude Code:
-
-"analizza ultimo test"
-
-e Claude possa:
-
-1. trovare l'ultima run;
-2. aprire result.json;
-3. individuare assertion fallite;
-4. leggere il sottoinsieme rilevante del TurnLog;
-5. confrontare initial/final state se necessario;
-6. cercare nel codice le classi coinvolte;
-7. proporre root cause;
-8. indicare file/linee probabilmente coinvolte;
-9. suggerire una fix;
-10. indicare quali regression test rieseguire.
-
-NON serve implementare un'integrazione Claude dentro Unreal.
-
-Claude Code legge semplicemente file prodotti dal gioco.
-
----
-
-# LOGGING
-
-Usare categorie di log RefactorTactics esistenti quando disponibili.
-
-Il log umano deve essere utile, ma la fonte principale per Claude deve essere il report strutturato.
-
-Ogni evento importante dovrebbe avere:
-
-- EventType;
-- Stable IDs;
-- Turn;
-- Phase;
-- MicroStep;
-- ReasonCode;
-- before/after essenziale quando utile.
-
-Evitare messaggi testuali non strutturati come unica fonte.
-
----
-
-# PRIMA ITERAZIONE — SCOPE RIGOROSO
-
-NON implementare subito:
-
-- AI avanzata;
-- monte carlo;
-- migliaia di assertion;
-- editor visuale degli scenari;
-- distributed testing;
-- cloud testing;
-- reinforcement learning;
-- matchmaking;
-- networking completo se F1 non è ancora iniziata;
-- sistema generico gigantesco.
-
-Prima iterazione minima:
-
-1. uno scenario testuale;
-2. un Test Director;
-3. AutoRun da Play;
-4. due unità;
-5. movimento pianificato automaticamente;
-6. Auto Ready;
-7. normale Snapshot;
-8. normale Movement Resolver;
-9. normale TurnLog;
-10. una o due assertion;
-11. result.json;
-12. PASS/FAIL;
-13. scenario eseguibile anche tramite Automation Test se possibile senza duplicare logica.
-
-Primo scenario consigliato:
-
-Movement.Basic
-
-Unit A:
-Cell 0,0,0
-
-Intent:
-Move -> cella adiacente valida
-
-Expected:
-- MoveStarted;
-- MoveStep;
-- UnitAtCell expected;
-- TurnCompleted;
-- deterministic hashes disponibili se già implementati.
-
-Secondo scenario:
-
-Movement.Blocked
-
-Terzo:
-
-Movement.Collision
-
-Solo dopo passare a abilità/ambiente.
-
----
-
-# INTEGRAZIONE CON UNREAL AUTOMATION FRAMEWORK
-
-Il RT Scenario Harness NON sostituisce Unreal Automation Framework.
-
-Usare entrambi.
-
-Automation Framework:
-
-- FRTCellId;
-- hash;
-- A*;
-- serializzazione;
-- resolver puro;
-- validator.
-
-RT Scenario Harness:
-
-- Planning -> Snapshot -> Resolution;
-- gameplay integrato;
-- scenari visuali;
-- più turni;
-- abilità;
-- ambiente;
-- reaction;
-- objective.
-
-Functional Test:
-
-- integrazione con mappe/Actor/presentazione quando appropriato.
-
-Packaged Test:
-
-- milestone/release;
-- networking/privacy quando entreranno nello scope.
-
-Idealmente un Automation Test deve poter richiamare lo stesso Scenario Runner senza duplicare lo scenario.
-
----
-
-# ARCHITETTURA DESIDERATA
-
-Valuta una separazione simile a:
-
-FRTTestScenario
-    dati scenario
-
-FRTTestScenarioLoader
-    parsing + validazione
-
-FRTScenarioRunner
-    state machine del test
-
-ARTTestDirector
-    bridge Editor / Visual Mode
-
-FRTTestAssertion
-    assertion data
-
-FRTTestResult
-    risultato
-
-FRTTestReportWriter
-    output JSON
-
-IRTTacticalAgent / IRTTestDecisionPolicy
-    futura estensione per decisioni automatiche
-
-I nomi sono proposte.
-
-Riusa tipi/classi già presenti se svolgono queste responsabilità.
-
-Evita UObject quando una struct/service C++ semplice è sufficiente.
-
----
-
-# REQUIREMENTS EDITOR
-
-Le proprietà principali devono essere modificabili dal Details Panel quando sensato.
-
-Devo poter cambiare velocemente:
-
-- scenario;
-- seed;
-- mode;
-- playback speed;
-- repeat count;
-- debug;
-- eventuali override consentiti.
-
-Gli override di gameplay devono essere espliciti e registrati nel result.json.
-
-Non alterare silenziosamente Data Assets globali.
-
----
-
-# TESTABILITY FIRST
-
-Da questo momento l'architettura dovrebbe seguire questo requisito:
-
-OGNI nuova meccanica competitiva deve poter essere esercitata senza input umano tramite uno scenario automatico.
-
-Questo vale in futuro per:
-
-- movimento;
-- collisioni;
-- dash;
-- attack;
-- AoE;
-- Overwatch;
-- Fast Reaction;
-- Fast Action;
-- acqua;
-- elettricità;
-- fuoco;
-- ghiaccio;
-- cover;
-- LOS;
-- visibility;
-- noise;
-- objectives;
-- KO;
-- cooldown;
-- network privacy.
-
-La UI NON deve essere necessaria per far funzionare la simulazione.
-
----
-
-# DEFINITION OF DONE DELLA PRIMA ITERAZIONE
-
-Considera il task completato soltanto se posso fare:
-
-1. apro L_DevSandbox;
-2. seleziono RTTestDirector;
-3. scelgo Movement.Basic;
-4. imposto AutoRun=true;
-5. premo Play;
-6. non tocco mouse/tastiera;
-7. le unità vengono configurate automaticamente;
-8. parte il planning;
-9. vengono inviati gli intent;
-10. Ready viene eseguito automaticamente;
-11. viene creato lo snapshot;
-12. il resolver muove l'unità;
-13. la rappresentazione visiva riproduce il movimento;
-14. il TurnLog registra gli eventi;
-15. viene valutata l'assertion;
-16. viene creato result.json;
-17. il test termina PASS;
-18. posso aprire result.json e capire chiaramente cosa è successo.
-
-Deve inoltre esistere almeno un caso FAIL intenzionale per verificare che il report diagnostico funzioni.
-
----
-
-# SICUREZZA ARCHITETTURALE
-
-Il Test Harness non deve contaminare codice shipping.
-
-Valuta:
-
-#if WITH_DEV_AUTOMATION_TESTS
-
-oppure moduli/configurazioni appropriate alla struttura del progetto.
-
-Ma non mettere macro ovunque.
-
-Separare chiaramente:
-
-Runtime simulation
-vs
-Development/Test orchestration.
-
-Il resolver non deve conoscere ARTTestDirector.
-
----
-
-# FILE DA PRODURRE
-
-Prima di implementare, proponi esattamente:
-
-- file nuovi;
-- file modificati;
-- dipendenze Build.cs;
-- eventuali Config;
-- posizione degli scenario;
-- posizione output Saved/.
-
-Poi procedi per piccoli commit logici.
-
----
-
-# TEST AUTOMATICI DEL TEST FRAMEWORK
-
-Il framework stesso deve essere testato.
-
-Minimo:
-
-Scenario loader:
-valid file -> success
-
-Scenario loader:
-invalid Stable ID -> failure chiara
-
-Runner:
-Movement.Basic -> PASS
-
-Runner:
-Movement intentionally wrong expectation -> FAIL
-
-Repeat:
-stesso scenario + seed -> stesso result/hash
-
-Assicurarsi che un FAIL del gameplay non venga confuso con un errore infrastrutturale.
-
-Distinguere:
-
-PASS
-FAIL
-ERROR
-
-FAIL:
-simulazione completata, assertion non soddisfatta.
-
-ERROR:
-scenario invalido, crash logico, risorsa mancante, impossibile avviare il test.
-
----
-
-# DEBUG
-
-Aggiungere strumenti sufficienti per capire:
-
-CurrentScenario
-Turn
-Phase
-MicroStep
-CurrentIntent
-CurrentAssertion
-RunnerState
-
-Possibile console/debug command:
-
-rt.Test.Status
-rt.Test.Run <ScenarioId>
-rt.Test.DumpResult
-
-Solo se coerenti con il sistema console esistente.
-
----
-
-# IMPLEMENTATION STRATEGY
-
-Lavora incrementalmente.
-
-STEP 1:
-analisi repository.
-
-STEP 2:
-proposta architettura minima.
-
-STEP 3:
-implementare solo Movement.Basic.
-
-STEP 4:
-farlo funzionare in Visual Mode.
-
-STEP 5:
-result.json.
-
-STEP 6:
-Automation wrapper.
-
-STEP 7:
-Movement.Blocked / Collision.
-
-NON procedere ad abilità, environment o AI finché Movement.Basic non è stabile.
-
----
-
-# OUTPUT CHE VOGLIO DA TE ORA
-
-Prima di scrivere codice dammi:
-
-1. stato attuale della repository relativo a testing, planning, snapshot, resolver e TurnLog;
-2. cosa esiste già e cosa manca;
-3. eventuali conflitti con la documentazione;
-4. architettura minima proposta;
-5. diagramma del flusso;
-6. elenco esatto dei file da creare/modificare;
-7. formato iniziale dello scenario;
-8. formato iniziale di result.json;
-9. come ARTTestDirector si integra con L_DevSandbox;
-10. come eseguire il primo test da Unreal Editor;
-11. come eseguirlo da command line;
-12. rischi tecnici;
-13. acceptance criteria;
-14. sequenza di commit proposta.
-
-DOPO questa analisi, se non emergono blocchi reali, implementa la prima iterazione.
-
-Non chiedermi conferma per dettagli minori:
-scegli default ragionevoli e documentali.
-
-Mantieni scope rigoroso.
-
----
-
-# COMMIT SUGGERITI
-
-Usa commit piccoli e focalizzati, ad esempio:
-
-feat(test): add scenario test data model and loader
-
-feat(test): add automated scenario runner
-
-feat(test): add visual test director for dev sandbox
-
-feat(test): add movement basic scenario
-
-feat(test): write structured scenario result reports
-
-test(test): add scenario runner automation coverage
-
-Adatta i nomi alla repository reale.
-
----
-
-# RISULTATO FINALE DESIDERATO
-
-La base di RefactorTactics deve diventare testabile così:
-
-modifico una regola
-        ↓
-premio Play
-        ↓
-i personaggi giocano automaticamente lo scenario
-        ↓
-Unreal produce log e report
-        ↓
-Claude Code analizza FAIL/PASS
-        ↓
-posso correggere rapidamente la regressione
-
-Il sistema deve essere sufficientemente generale da crescere insieme al gioco, ma la prima implementazione deve essere piccola, compilabile e immediatamente utile.
+## 10. Lo schema **target** — cosa serve alla showcase
+
+*Aggiunta il 2026-08-08.* `RT_Showcase_Relay_v01` ([`../product/showcase-v0.1.md`](../product/showcase-v0.1.md))
+è il consumatore che dice quanto manca all'harness. **Si estende lo schema esistente, non se ne fa un altro**:
+il draft JSON dichiarato dall'handoff non esiste nel repository, e quello attuale regge.
+
+### 10.1 Campi
+
+| Campo | Oggi | Target |
+|---|---|---|
+| `scenarioId` · `version` · `seed` | ✅ | — |
+| `mapRadius` · `cells[]` | ✅ arena generata + override | **+ `mapId`**: riferisce una fixture nominata (`ShowcaseRelayBasin`) invece di ridisegnarla nel JSON |
+| `units[]` | ✅ id, eroe, team, cella | + `facing` iniziale |
+| `turns[].intents[]` | ✅ **solo `move`** | **+ `ability`** (`actionId`, bersaglio cella/unità, direzione), + `facing` |
+| — | — | **+ `surfaces[]` · `structures[]` · `objective`**: stato iniziale dell'ambiente, invece di dedurlo |
+| — | — | **+ `reactionPolicy[]`** (§10.2) |
+| — | — | **+ `ruleset`**, per fissare la versione di regole del golden |
+| `expect[]` | ✅ 2 tipi | **~25** (§10.3) |
+
+### 10.2 Reaction policy
+
+Uno scenario deve poter **automatizzare una Fast Decision vera**, non saltarla:
+
+```text
+Hold                 rispondi sempre HOLD
+CommitFirstValid     FIRE alla prima opportunity legale
+HoldFirstThenCommit  HOLD alla prima, FIRE alla seconda   <- il turno 4 della showcase
+CommitSpecificTarget FIRE solo su un bersaglio nominato
+Timeout              non rispondere, e verifica che il timeout dia HOLD
+```
+
+**La policy risponde alla vera `ReactionOpportunity` del runtime.** In `FAST`/`HEADLESS` la decisione è
+immediata, ma attraversa **lo stesso contratto logico** — altrimenti il test verificherebbe una finestra che
+in partita non esiste.
+
+### 10.3 Assertion
+
+Si aggiungono **quando uno scenario le richiede**, e molte si costruiscono su poche primitive: «leggi un
+campo dello stato finale» e «conta eventi nel TurnLog» coprono la maggior parte della lista.
+
+| Famiglia | Assertion |
+|---|---|
+| Turno e unità | `TurnCompleted` · `UnitAtCell` · `UnitHasStatus` · `UnitNotHasStatus` · `UnitKO` |
+| Ambiente | `SurfaceHasStatus` · `SurfaceNotHasStatus` · `EdgeEnabled` · `EdgeDisabled` · `GraphRevisionChanged` · `CoverExists` |
+| Azioni | `AbilityResolved` · `AbilityFizzled` · `EventExists` · `EventCount` |
+| Reazioni | `ReactionOpportunityExists` · `ReactionResponseEquals` · `ReactionConsumed` |
+| Predizione | `PredictionWhiffed` · `OriginalTargetEquals` · `EffectiveTargetEquals` |
+| Partita | `ObjectiveUpdated` · `MatchEnded` |
+| Determinismo | `StateHashEquals` · `LogHashEquals` |
+
+### 10.4 Report
+
+```text
+Saved/RTTests/<ScenarioId>/<RunId>/
+    result.json        esito, assertion, failure diagnosticabili
+    turnlog.jsonl      una riga per voce: diffabile, grep-abile
+    state_initial.json
+    state_final.json
+```
+
+`result.json` porta già `schemaVersion`, `scenarioId`, esito, `seed`, assertion e `stateHash`. Mancano:
+`runId`, `engineVersion`, `projectVersion`, `rulesVersion`, `contentManifestHash`, `resolverConfigHash`,
+`logHash`, `duration`.
+
+Ogni failure deve dire **`assertion` · `expected` · `actual` · `turn` · `phase` · `microStep` ·
+`source/unit/cell/event` · `reasonCode`**. Il criterio è quello di sempre: si deve poter diagnosticare un
+fallimento **senza aprire migliaia di righe di log Unreal**.
+
+### 10.5 Modi
+
+| Modo | Cosa fa | Vincolo |
+|---|---|---|
+| `HEADLESS` | nessun rendering, il più veloce | è quello di oggi |
+| `FAST` | con mondo, senza attese di presentazione | — |
+| `VISUAL` | playback osservabile | **stesso esito logico** dei precedenti |
+
+L'equivalenza logica fra i tre modi è essa stessa un test (`Visual vs Fast`, `Fast vs Headless`): se un modo
+producesse un esito diverso, la presentazione starebbe decidendo qualcosa — che è l'invariante #1 rotta.
+
+### 10.6 Matrice degli scenari della showcase
+
+| Test | Tipo | Feature | Turni | Modo | Atteso |
+|---|---|---|---|---|---|
+| `RT.Scenario.Showcase.T1` | Functional | apertura | T1 | Fast | PASS |
+| `RT.Scenario.Showcase.T2` | Functional | predizione | T2 | Fast | PASS |
+| `RT.Scenario.Showcase.T3` | Functional | moving target, fuoco | T3 | Fast | PASS |
+| `RT.Scenario.Showcase.T4` | Functional | overwatch | T4 | Fast | PASS |
+| `RT.Scenario.Showcase.T5` | Functional | struttura, revisione | T5 | Fast | PASS |
+| `RT.Scenario.Showcase.T6` | Functional | interposizione | T6 | Fast | PASS |
+| `RT.Scenario.Showcase.T7` | Functional | ambiente | T7 | Fast | PASS |
+| `RT.Scenario.Showcase.Full` | Golden | partita intera | T1–T8 | Fast | PASS |
+| `RT.Scenario.Showcase.Repeat` | Determinismo | hash | Full | Headless | 0 divergenze |
+| `RT.Scenario.Showcase.Visual` | Smoke | presentazione | Full | Visual | completa |
+| `RT.Scenario.Showcase.Packaged` | Smoke | packaged | Full | Packaged | completa |
+
+Quando una feature è troppo importante per essere verificata **solo** end-to-end, si aggiunge un test core
+mirato: uno scenario che fallisce dice *che* qualcosa non va, un test unitario dice *cosa*.

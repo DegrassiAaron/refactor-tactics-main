@@ -43,13 +43,36 @@ Tutti i gadget hanno **cooldown 3**.
 | `Gadget.Sprinkler` | Sprinkler | acqua raggio 1 |
 | `Gadget.Insulator` | Isolante | immunità a **una** propagazione elettrica |
 | `Gadget.SmokeEmitter` | Emettitore di fumo | fumo raggio 1 |
-| `Gadget.PortableCover` | Copertura portatile | crea una copertura bassa |
-| `Gadget.Sensor` | Sensore | rivela un'area |
+| `Gadget.PortableCover` | Copertura portatile | crea una **copertura bassa su un bordo** (modello E9) |
+| `Gadget.Sensor` | Sensore | **alza la Team Knowledge** in un'area (modello E13) |
+
+> **Allineamento 2026-08-08 — due gadget parlavano una lingua che non esiste più.**
+>
+> - `Gadget.PortableCover` crea una copertura **di bordo**, non «di cella»: è
+>   `FRTHexCover{Edge, Type: Low, Integrity}` come ogni altra copertura (E9). Ne consegue che è **direzionale**
+>   e **distruttibile**, e che la protezione decade fuori dall'arco frontale
+>   ([ADR-0005](../decisions/adr-0005-orientamento.md) §4a). Owner del modello:
+>   [`RT_TerrainCatalog_v0.1.md`](RT_TerrainCatalog_v0.1.md).
+> - `Gadget.Sensor` **non «rivela tutto»**. Nel modello di conoscenza parziale (E13) un sensore **alza il
+>   livello** su ciò che copre — tipicamente da `Nascosto`/`ContattoIncerto` a `Rilevato` — e alimenta la
+>   **Team Knowledge**, non una visione onnisciente. Raggio e durata restano **non specificati** dalla fonte:
+>   si fissano in E7, non qui.
 | `Gadget.Anchor` | Ancora | impedisce **una** spinta |
 
 ---
 
 ## 3. Moduli di reazione
+
+> **I moduli di reazione si dividono in due regimi**, e la divisione **emerge dai dati** — non da un enum di
+> policy parallelo ([ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) §2):
+>
+> | Regime | Condizione | Cosa succede |
+> |---|---|---|
+> | **Automatico** | `AllowedResponses ≤ 1` | non c'è scelta da fare: risolve deterministicamente, **nessuna finestra**. È il regime di tutte le reazioni di E5 |
+> | **Interattivo** | `AllowedResponses > 1` | apre una **Decision Window** di 3,0 s, `Timeout → HOLD`. Epic **E14** |
+>
+> Un modulo non «è» automatico o interattivo per natura: lo diventa in base a quante risposte legittime i suoi
+> dati ammettono. Ecco perché non serve un secondo motore di reazioni — E5 è già il caso semplice di E14.
 
 | ReactionId | Reazione | Trigger | Effetto |
 |---|---|---|---|

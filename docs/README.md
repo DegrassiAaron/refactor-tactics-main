@@ -25,6 +25,14 @@ deterministico, su una griglia **esagonale multilivello**.
 | 8 | **Visione north-star** | [`src/`](src/) (PDF dei PRD) | Prodotto a lungo termine, **non** obiettivo attuale |
 | 9 | **Storico** | [`archive/`](archive/) | Materiale superato, conservato per provenienza |
 
+> **Il canone e gli ADR non possono divergere.** La tabella dice che il livello 1 prevale sul livello 2, ma un
+> ADR accettato *corregge* il canone: ADR-0004 ha cambiato la forma della risoluzione, ADR-0005 ha spostato il
+> facing fra gli stati di gioco. Senza una regola, «canone > ADR» diventa un paradosso di governance.
+> **La regola è: un ADR accettato viene recepito nel canone nello stesso commit che lo accetta.** Non esiste
+> uno stato intermedio «canone più emendamenti da assorbire» che il lettore debba ricostruire a mente. Se un
+> ADR risulta `Accettato` ma non ancora recepito, quello è un difetto: si registra in
+> [`DOC_CONFLICT_MATRIX.md`](DOC_CONFLICT_MATRIX.md) e si chiude, non si lascia implicito.
+
 **Decisioni aperte**: [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md) · **conflitti fra documenti**:
 [`DOC_CONFLICT_MATRIX.md`](DOC_CONFLICT_MATRIX.md) · **storia della documentazione**:
 [`CHANGELOG_DOCUMENTATION.md`](CHANGELOG_DOCUMENTATION.md).
@@ -44,7 +52,7 @@ definita in due posti, è un difetto: apri una issue invece di aggiornarne una s
 | **Sequenza canonica del round** e tassonomia temporale | [`gameplay/spec-sequenza-turno.md`](gameplay/spec-sequenza-turno.md) | ✅ **normativa** |
 | Ordine deterministico delle azioni | [`gameplay/spec-sequenza-turno.md`](gameplay/spec-sequenza-turno.md) §3.1 | ✅ implementato |
 | Ordine degli effetti simultanei (APNAP) | [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) §5.1 | ⚠️ **deciso, non implementato** |
-| Azioni generiche e profili di `Move` | [`gameplay/brief-azioni-generiche-overwatch.md`](gameplay/brief-azioni-generiche-overwatch.md) | ✅ D-014/D-015 · ⏳ migrazione ID |
+| Azioni generiche e profili di `Move` | [`gameplay/brief-azioni-generiche-overwatch.md`](gameplay/brief-azioni-generiche-overwatch.md) · elenco vigente in [`balance/RT_ActionCatalog_v0.1.md`](balance/RT_ActionCatalog_v0.1.md) §1 | ✅ D-014/D-015 · **D-025**: sette generiche, `Guard` universale · ⏳ migrazione ID · ⏳ brief da allineare a D-025 |
 | Predictive Action (thin slice v0.1) | [`gameplay/brief-delayed-actions.md`](gameplay/brief-delayed-actions.md) | ✅ D-016 · ⏳ da implementare |
 | Coperture direzionali e `Intercept` | [`gameplay/spec-copertura-cp91.md`](gameplay/spec-copertura-cp91.md) | ✅ CP 9.1 · D-017 ⏳ |
 | Motore azioni: priorità, fallback, collisioni | [`gameplay/spec-motore-azioni-e4.md`](gameplay/spec-motore-azioni-e4.md) | ✅ E4 |
@@ -64,7 +72,7 @@ definita in due posti, è un difetto: apri una issue invece di aggiornarne una s
 | HUD e leggibilità | [`technical/progettazione-hud.md`](technical/progettazione-hud.md) · [`technical/brief-planning-visuale.md`](technical/brief-planning-visuale.md) | ⏳ E11 |
 | Mappa delle classi C++ | [`technical/architettura-codice.md`](technical/architettura-codice.md) | ✅ |
 | Struttura di `Content/`, naming asset | [`technical/convenzioni-contenuti-ue.md`](technical/convenzioni-contenuti-ue.md) | ✅ **normativo** |
-| Test automatici e scenari | [`technical/test-automatico-unreal.md`](technical/test-automatico-unreal.md) | 🟡 harness in corso |
+| Test automatici e scenari | [`technical/test-automatico-unreal.md`](technical/test-automatico-unreal.md) | ✅ harness consegnato · ⏳ assertion oltre il movimento |
 | Verifiche interattive in editor | [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | 🟡 |
 | Scenario della showcase | [`product/showcase-v0.1.md`](product/showcase-v0.1.md) | ⏳ E15 |
 | Gate di release | [`roadmap/v0.1-definition-of-done.md`](roadmap/v0.1-definition-of-done.md) | ⏳ |
@@ -121,25 +129,34 @@ invarianti del canone. **Quali sono aperte?** [`OPEN_DECISIONS.md`](OPEN_DECISIO
 [`archive/pdr-v0.1/`](archive/pdr-v0.1/); i piani consegnati in [`roadmap/plans/`](roadmap/plans/); e i singoli
 documenti che portano in testa il banner **⚠️ Superato** o **📦 Piano consegnato**.
 
-**Quali test verificano le regole?** **419 test automatici unici in 64 file**, sotto
-`Source/RefactorTactics/Tests/`. Misura riproducibile — *non citare a memoria*:
+**Quali test verificano le regole?** Sotto `Source/RefactorTactics/Tests/`. Il numero **si misura, non si cita
+a memoria** — questo file l'ha già sbagliato quattro volte:
 
 ```bash
 grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp | tr -d '"' | sort -u | wc -l
 ```
 
+Ultima misura: **456 test unici in 68 file**, il 2026-08-08 dopo il merge di CP 9.3 (porte) e CP 9.4
+(ponti). La ripartizione sotto è derivata dalla stessa misura e somma esattamente a 456.
+
 | Area | Test | Cosa fissa |
 |---|---:|---|
+| `Hex*` (mappa, path, vision, bot, blast, move, match) | 88 | Coordinate, A\*, LOS, bot, partita completa |
 | `Actions.*` | 58 | Ordine per priorità, permutazione-invarianza, fallback, mappatura di fase |
+| `Terrain.*` · `Status.*` · `Environment.*` | 39 | Superfici, stati temporanei, propagazione elettrica, fuoco/acqua |
+| `Combat.*` · `HexCombat.*` | 36 | Danno dopo scudo, forme, LOS, niente fuoco amico |
 | `Reactions.*` | 27 | Attivazione singola, trigger puro, reazioni componibili, privacy |
 | `HexSim.*` | 27 | Snapshot, budget, collisioni simultanee, **replay divergence 0** |
+| `Match*` (allestimento, formato, fine partita) | 27 | Le tre vie di fine partita e il `RoundLimit` da formato |
 | `Heroes.*` | 25 | I 4 eroi corrispondono al catalogo, trade-off delle varianti |
 | `TurnLog.*` | 22 | Hash permutazione-invariante, serializzazione versionata, checksum |
-| `Combat.*` · `HexCombat.*` | 36 | Danno dopo scudo, forme, LOS, niente fuoco amico |
-| `Terrain.*` · `Status.*` · `Environment.*` | 39 | Superfici, stati temporanei, propagazione elettrica, fuoco/acqua |
-| `Hex*.*` (mappa, path, vision, bot, match) | ~80 | Coordinate, A\*, LOS, bot, partita completa |
-| `Match*.*` | 27 | Allestimento, formato di partita, fine partita a tre vie |
-| `Scenario.*` | 3 | Harness degli scenari automatici (in costruzione) |
+| `Scenario.*` | 22 | Harness: PASS/FAIL/ERROR/**BLOCKED**, fixture per nome, niente bypass |
+| `Structures.*` | 18 | Porte come bordo (CP 9.3), ponti come arco (CP 9.4) |
+| `Playback.*` · `Preview.*` · `PlayerInput.*` · `ShowcaseRelay.*` | 19 | Presentazione e input: non decidono, riproducono |
+| `Unit.*` · `Turn.*` · `Simulation.*` | 17 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
+| `Cover.*` | 13 | Copertura bassa e alta, bordi, danno a struttura e distruzione |
+| `Catalog.*` | 9 | Invarianti del catalogo: solo interi, slot dichiarati, ID stabili |
+| `Pacing.*` | 7 | Pacing del turno misurato |
 | `Perf.*` | 2 | Path mediana **0,025 ms** · resolver **0,41 ms/turno** |
 
 ---
@@ -152,7 +169,6 @@ docs/
 ├── DOC_CONFLICT_MATRIX.md       conflitti fra documenti e loro stato
 ├── OPEN_DECISIONS.md            cosa aspetta una decisione umana
 ├── CHANGELOG_DOCUMENTATION.md   storia della documentazione
-├── brief-consolidamento-documentale.md
 │
 ├── product/     visione, canone, vertical slice
 ├── gameplay/    regole di gioco: turno, azioni, reazioni, percezione, ambiente
@@ -186,6 +202,26 @@ docs/
   changelog sta **accanto alla regola**, non in un file separato.
 - Un documento superato **non si cancella**: guadagna un banner in testa e resta come provenienza.
 - Nessuna affermazione su codice, test o metriche senza **misura riproducibile** nel documento stesso.
+
+### Come si classifica un documento
+
+Ogni documento porta in testa **una** di queste etichette. Serve a rispondere alla sola domanda che conta
+prima di leggerlo: *questa frase vale ancora?* — senza dover interpretare date, commit e correzioni.
+
+| Tag | Significato | Si aggiorna? |
+|---|---|---|
+| `CANONICAL` | Decide: è la fonte che prevale in caso di conflitto | Sì — è il posto dove si cambia una regola |
+| `CURRENT` | Descrive com'è il progetto **oggi**, subordinato al canone | Sì |
+| `AS-BUILT` | Congela ciò che fu **consegnato** a un checkpoint | No — si emenda con un rimando, non si riscrive |
+| `DELIVERED PLAN` | Piano di esecuzione già eseguito | No |
+| `HISTORICAL` | Superato, conservato per provenienza | No |
+| `RESEARCH` | Esplorazione, non dato vigente | Non è una fonte: non risolve conflitti |
+| `OPEN` | Aspetta una decisione umana | Vive in [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md) |
+
+Un documento `AS-BUILT` o `HISTORICAL` che descrive un mondo scomparso **non è un difetto da correggere**:
+riscriverlo falsificherebbe la storia. La correzione va nel documento `CURRENT` che possiede la regola; allo
+storico basta un rimando in testa. Il difetto vero è l'opposto — uno storico *senza* etichetta, che si legge
+come se fosse la specifica di oggi.
 
 ### Gate anti-deriva
 

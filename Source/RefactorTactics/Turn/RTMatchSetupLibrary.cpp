@@ -3,6 +3,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexCoverLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
 #include "Terrain/RTTerrainData.h"
 
@@ -203,6 +204,137 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayLiteArena(UObject* Outer)
 
 	Arena->SortCells();
 	return Arena;
+}
+
+URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer)
+{
+	if (Outer == nullptr)
+	{
+		return nullptr;
+	}
+
+	URTHexMapAsset* Arena = NewObject<URTHexMapAsset>(Outer);
+
+	// --- Forma: 45 celle, sette righe. Non e' un esagono pieno: e' un bacino, piu' largo al centro. --------
+	// L'estensione per riga viene dalla specifica della showcase; la somma (3+5+7+9+9+7+5) e' fissata dal
+	// test, cosi' una riga aggiunta per sbaglio non passa inosservata.
+	struct FBasinRow { int32 R; int32 MinQ; int32 MaxQ; };
+	static const FBasinRow Rows[] = {
+		{ -3, -1, 1 }, { -2, -2, 2 }, { -1, -3, 3 }, { 0, -4, 4 }, { 1, -4, 4 }, { 2, -3, 3 }, { 3, -2, 2 }
+	};
+	for (const FBasinRow& Row : Rows)
+	{
+		for (int32 Q = Row.MinQ; Q <= Row.MaxQ; ++Q)
+		{
+			Arena->AddOrUpdateCell(MakeShowcaseTerrainCell(FRTCellId(Q, Row.R, 0), ERTHexSurface::Floor));
+		}
+	}
+
+	// --- Superfici ----------------------------------------------------------------------------------------
+	// Ogni cella compare UNA volta: e' la coerenza che la specifica chiede di verificare, e qui e' garantita
+	// dalla forma della tabella invece che da un controllo da ricordare.
+	struct FBasinPatch { FRTCellId Cell; ERTHexSurface Surface; };
+	static const FBasinPatch Patches[] = {
+		// Corridoio ovest: Flux ci passa al turno 1, `MistVeil` ne aggiunge al turno 5.
+		{ FRTCellId(-3,  0, 0), ERTHexSurface::Smoke },
+		{ FRTCellId(-2,  0, 0), ERTHexSurface::Smoke },
+		// Lane d'acqua di Riva: conduttiva, ed e' cio' che rende possibile il payoff elettrico del turno 7.
+		{ FRTCellId(-3,  1, 0), ERTHexSurface::ShallowWater },
+		{ FRTCellId(-2,  1, 0), ERTHexSurface::ShallowWater },
+		{ FRTCellId(-1,  1, 0), ERTHexSurface::ShallowWater },
+		{ FRTCellId( 0,  1, 0), ERTHexSurface::ShallowWater },
+		// Prosegue verso est: il `ConductiveNode` del turno 2 collega questa tratta all'acqua.
+		{ FRTCellId( 1,  1, 0), ERTHexSurface::Conductive },
+		{ FRTCellId( 2,  1, 0), ERTHexSurface::Conductive },
+		// Sbarra la via diretta est->Relay ai movimenti lineari: invalida il `Ram` del turno 7.
+		{ FRTCellId( 1,  0, 0), ERTHexSurface::Rough },
+		{ FRTCellId( 2,  0, 0), ERTHexSurface::Rough },
+		// Fascia di fuoco sull'approccio NORD al Relay: Vektor la attraversa al turno 3 scendendo dalla
+		// cresta, e prende `Burning`. NON sta accanto agli spawn: messa a (3,0)/(3,1) murava Bastion nel suo
+		// angolo — ogni sua uscita passava dal fuoco, e il turno 1 sarebbe stato una punizione, non una scelta.
+		{ FRTCellId( 2, -1, 0), ERTHexSurface::Fire },
+		{ FRTCellId( 1, -1, 0), ERTHexSurface::Fire },
+		// Cresta nord-est: vantaggio GEOMETRICO, nessun bonus numerico (D-024).
+		{ FRTCellId( 2, -2, 0), ERTHexSurface::HighGround },
+		{ FRTCellId( 3, -1, 0), ERTHexSurface::HighGround },
+		// Ripiano sud: chi TERMINA il Move qui scivola, in modo deterministico (turno 7).
+		{ FRTCellId(-1,  2, 0), ERTHexSurface::Ice },
+		{ FRTCellId( 0,  2, 0), ERTHexSurface::Ice },
+		{ FRTCellId( 1,  2, 0), ERTHexSurface::Ice },
+	};
+	for (const FBasinPatch& Patch : Patches)
+	{
+		Arena->AddOrUpdateCell(MakeShowcaseTerrainCell(Patch.Cell, Patch.Surface));
+	}
+
+	// --- Elementi di bordo --------------------------------------------------------------------------------
+	// Copertura bassa sull'approccio NORD al Relay: da quel lato ci si avvicina riparati, dagli altri no.
+	// La direzione si CHIEDE alla libreria invece di scriverla a mano: se la convenzione dei sei lati
+	// cambiasse, un valore inciso qui diventerebbe silenziosamente il bordo sbagliato.
+	if (FRTHexCellData* RelayCell = const_cast<FRTHexCellData*>(Arena->FindCell(FRTCellId(0, 0, 0))))
+	{
+		ERTHexDirection Edge;
+		if (URTHexCoverLibrary::EdgeDirection(FRTCellId(0, 0, 0), FRTCellId(0, -1, 0), Edge))
+		{
+			FRTHexCellData Updated = *RelayCell;
+			Updated.Covers.Add(FRTHexCover(Edge, ERTHexCoverType::Low,
+				FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low)));
+			Arena->AddOrUpdateCell(Updated);
+		}
+	}
+
+	// Il gate della lane sud: una PORTA chiusa (CP 9.3), non un meccanismo nuovo. Bastion la apre al turno 5,
+	// la revisione della mappa sale e un percorso che prima non esisteva diventa percorribile.
+	if (const FRTHexCellData* GateCell = Arena->FindCell(FRTCellId(0, 1, 0)))
+	{
+		ERTHexDirection Edge;
+		if (URTHexCoverLibrary::EdgeDirection(FRTCellId(0, 1, 0), FRTCellId(1, 1, 0), Edge))
+		{
+			FRTHexCellData Updated = *GateCell;
+			Updated.Doors.Add(FRTHexDoor(Edge, ERTHexDoorState::Closed));
+			Arena->AddOrUpdateCell(Updated);
+		}
+	}
+
+	Arena->SortCells();
+	return Arena;
+}
+
+URTHexMapAsset* URTMatchSetupLibrary::MakeFixtureArena(UObject* Outer, const FString& FixtureId)
+{
+	if (Outer == nullptr || FixtureId.IsEmpty())
+	{
+		return nullptr;
+	}
+
+	if (FixtureId.Equals(TEXT("RelayBasin"), ESearchCase::IgnoreCase))
+	{
+		return MakeShowcaseRelayBasinArena(Outer);
+	}
+	if (FixtureId.Equals(TEXT("RelayLite"), ESearchCase::IgnoreCase))
+	{
+		return MakeShowcaseRelayLiteArena(Outer);
+	}
+	if (FixtureId.Equals(TEXT("TestArena"), ESearchCase::IgnoreCase))
+	{
+		return MakeTestArena(Outer);
+	}
+
+	// Sconosciuta: nessuna arena. Inventarne una vuota farebbe girare la partita e produrrebbe un fallimento
+	// che parla di unita' fuori mappa invece che del nome sbagliato.
+	return nullptr;
+}
+
+TArray<FRTShowcaseSpawn> URTMatchSetupLibrary::GetShowcaseRelayBasinSpawns()
+{
+	// Estremi opposti del bacino, sulle due righe centrali. Celle di pavimento: nessuna squadra comincia
+	// dentro un terreno che la penalizza al primo passo.
+	return {
+		FRTShowcaseSpawn(TEXT("Hero.Flux"),    /*TeamId=*/ 0, FRTCellId(-4, 0, 0)),
+		FRTShowcaseSpawn(TEXT("Hero.Riva"),    /*TeamId=*/ 0, FRTCellId(-4, 1, 0)),
+		FRTShowcaseSpawn(TEXT("Hero.Bastion"), /*TeamId=*/ 1, FRTCellId( 4, 0, 0)),
+		FRTShowcaseSpawn(TEXT("Hero.Vektor"),  /*TeamId=*/ 1, FRTCellId( 4, 1, 0)),
+	};
 }
 
 TArray<FRTShowcaseSpawn> URTMatchSetupLibrary::GetShowcaseRelayLiteSpawns()

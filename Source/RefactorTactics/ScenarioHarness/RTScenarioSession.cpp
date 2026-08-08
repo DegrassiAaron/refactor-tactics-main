@@ -10,6 +10,7 @@
 #include "Map/RTHexCellData.h"
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnRules.h"
 #include "Unit/RTUnit.h"
@@ -25,13 +26,53 @@ namespace
 	 * RIUSA l'actor mappa gia' presente se c'e': lo stesso codice gira in un mondo vuoto (test) e in una PIE
 	 * dove il GameMode ha gia' allestito. Spawnarne un secondo darebbe due griglie sovrapposte.
 	 */
-	URTHexMapAsset* BuildScenarioArena(UWorld* World, int32 Radius, const TArray<FRTScenarioCell>& Overrides,
-		ARTHexMapActor*& OutActor)
+	/**
+	 * Le capability che il gioco possiede **oggi**. Un turno che ne chiede una assente non viene giocato, e
+	 * lo scenario si dichiara `Blocked` invece di fallire.
+	 *
+	 * L'elenco sta nel CODICE e non nei dati: se stesse nello scenario, dichiarare disponibile una capability
+	 * inesistente sarebbe una modifica al JSON, e il primo scenario verde e bugiardo arriverebbe da li'.
+	 */
+	bool IsCapabilityAvailable(const FString& Capability)
 	{
-		URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
+		static const TSet<FString> Available = {
+			TEXT("FixtureReference"),  // lo scenario riferisce la geometria per nome
+			TEXT("Reaction"),          // E5: reazioni componibili, automatiche (AllowedResponses <= 1)
+			TEXT("Environment"),       // E8: superfici, stati, propagazione
+			TEXT("Cover"),             // E9 CP 9.1/9.2: coperture bassa e alta, distruzione
+			TEXT("Structures"),        // E9 CP 9.3: porte come bordo, revisione della mappa
+		};
+		return Available.Contains(Capability);
+	}
+
+	/**
+	 * L'arena dello scenario: una **fixture riferita per nome** se dichiarata, altrimenti generata dal raggio.
+	 *
+	 * Riferire invece di duplicare tiene la geometria canonica in UN posto solo, gia' protetto da un test
+	 * (`ShowcaseRelay.BasinLayoutMatchesSpec`). Gli override di cella restano validi e si applicano SOPRA la
+	 * fixture: le due strade differiscono solo per come nasce la mappa.
+	 */
+	URTHexMapAsset* BuildScenarioArena(UWorld* World, const FString& Fixture, int32 Radius,
+		const TArray<FRTScenarioCell>& Overrides, ARTHexMapActor*& OutActor)
+	{
+		URTHexMapAsset* Map = nullptr;
+		if (!Fixture.IsEmpty())
 		{
-			Map->AddOrUpdateCell(FRTHexCellData(Id));
+			// Nome sconosciuto -> nullptr, mai un'arena vuota: quella farebbe girare la partita e produrrebbe
+			// un fallimento che parla di unita' fuori mappa invece che della fixture inesistente.
+			Map = URTMatchSetupLibrary::MakeFixtureArena(World, Fixture);
+			if (!Map)
+			{
+				return nullptr;
+			}
+		}
+		else
+		{
+			Map = NewObject<URTHexMapAsset>();
+			for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
+			{
+				Map->AddOrUpdateCell(FRTHexCellData(Id));
+			}
 		}
 
 		// Le modifiche DOPO l'arena piena: una cella elencata due volte vince l'ultima, e l'esito non dipende
@@ -108,10 +149,13 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 	}
 
 	ARTHexMapActor* MapActor = nullptr;
-	Map = BuildScenarioArena(InWorld, Scenario.MapRadius, Scenario.Cells, MapActor);
+	Map = BuildScenarioArena(InWorld, Scenario.Fixture, Scenario.MapRadius, Scenario.Cells, MapActor);
 	if (!Map)
 	{
-		return Fail(TEXT("impossibile creare l'arena esagonale"));
+		// Il nome sbagliato si dice, non si aggira: e' un difetto dello SCENARIO, e va nominato.
+		return Fail(Scenario.Fixture.IsEmpty()
+			? TEXT("impossibile creare l'arena esagonale")
+			: *FString::Printf(TEXT("fixture di mappa sconosciuta: '%s'"), *Scenario.Fixture));
 	}
 
 	// Origine e scala dall'ACTOR mappa, non dall'origine del mondo: e' la stessa fonte che usa `RebuildInstances`
@@ -188,6 +232,19 @@ void FRTScenarioSession::BeginTurn()
 	{
 		Finish();
 		return;
+	}
+
+	// Il turno chiede qualcosa che il gioco non sa ancora fare? Ci si ferma QUI, dichiarando cosa manca.
+	// Non si gioca "quel che si puo'" del turno: un turno a meta' produrrebbe uno stato che non corrisponde
+	// ne' al gioco di oggi ne' a quello di domani, e ogni assertion successiva mentirebbe.
+	for (const FString& Required : Scenario.Turns[TurnIndex].Requires)
+	{
+		if (!IsCapabilityAvailable(Required))
+		{
+			BlockedBy = FString::Printf(TEXT("turno %d: manca la capability '%s'"), TurnIndex + 1, *Required);
+			Finish();
+			return;
+		}
 	}
 
 	// Tutte ferme per default: un'unita' senza intent nel turno NON eredita il piano del turno prima.
@@ -485,7 +542,22 @@ void FRTScenarioSession::Finish()
 		Result.Assertions.Add(A);
 	}
 
-	Result.Outcome = (Result.FailedCount() == 0) ? ERTTestOutcome::Pass : ERTTestOutcome::Fail;
+	// Precedenza: un FAIL vero batte il BLOCKED. Un'assertion caduta PRIMA del punto di blocco riguarda
+	// codice che esiste ed e' rotto — nasconderla dietro "non e' ancora pronto" sarebbe il modo piu'
+	// comodo di perdere una regressione.
+	if (Result.FailedCount() > 0)
+	{
+		Result.Outcome = ERTTestOutcome::Fail;
+	}
+	else if (!BlockedBy.IsEmpty())
+	{
+		Result.Outcome = ERTTestOutcome::Blocked;
+		Result.BlockedReason = BlockedBy;
+	}
+	else
+	{
+		Result.Outcome = ERTTestOutcome::Pass;
+	}
 	State = EState::Finished;
 
 	UE_LOG(LogRT, Log, TEXT("[RT-Test] %s: %s (%d/%d assertion, %d turni)"),

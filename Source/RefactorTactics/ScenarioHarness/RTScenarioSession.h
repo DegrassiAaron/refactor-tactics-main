@@ -87,6 +87,12 @@ private:
 	int32 TurnIndex = 0;
 	float PauseElapsed = 0.f;
 
+	/**
+	 * Perche' la sessione si e' fermata prima della fine, se si e' fermata: nomina la **capability mancante**
+	 * e il turno che la chiedeva. Vuoto = lo scenario e' arrivato in fondo.
+	 */
+	FString BlockedBy;
+
 	/** Tetto di sicurezza sulla risoluzione di UN turno: fallire e' meglio che girare all'infinito. */
 	int32 ResolveTicks = 0;
 };

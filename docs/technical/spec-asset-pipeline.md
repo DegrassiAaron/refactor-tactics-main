@@ -1,5 +1,16 @@
 # Spec — Pipeline asset: selezione, import, uso (personaggi, animazioni, audio)
 
+> **Due documenti in uno — leggili separati.**
+>
+> | Parte | Stato |
+> |---|---|
+> | **Principi della pipeline** — presentazione-only, riferimenti **soft** con fallback, Blueprint e AnimBP che *consumano* eventi autorevoli e non decidono nulla, licenze da registrare | `CURRENT`. Reggono, e discendono dall'invariante #1 |
+> | **«Stato attuale» e pipeline a due archetipi** (Gideon/Sparrow, Guardian/Ranger) | `HISTORICAL`. Era l'esperimento del 2026-08-03: il roster canonico è **Flux · Riva · Bastion · Vektor**, e la mappatura Paragon → eroe è **aperta** ([`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md)) |
+>
+> **Non è l'owner di percorsi e naming**: quello è
+> [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md), che è normativo. Dove i due divergono, vince
+> quello. *(Cappello aggiunto il 2026-08-08.)*
+
 > `/sc:spec-panel` del **2026-08-03**. Obiettivo utente: *«selezionare gli asset, inserirli e utilizzarli —
 > personaggi, animazioni, suoni, musiche; decidere quali usare; essere guidato all'import e all'uso in Unreal»*.
 > Panel: **Cockburn** (attore/goal), **Fowler** (architettura/aggancio), **Wiegers** (criteri di selezione),

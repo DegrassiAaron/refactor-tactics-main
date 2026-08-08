@@ -1,6 +1,13 @@
 # ADR-0004 — Finestre di reazione: composizione dell'invariante #3 e modello unificato
 
-> **Stato**: Accettato — da implementare · **Data**: 2026-08-07 · **Decisore**: utente (dev singolo)
+> `CANONICAL` · **Stato**: Accettato — da implementare (E14) · **Data**: 2026-08-07 · **Decisore**: utente (dev singolo)
+>
+> ⚠️ **Emendamento 2026-08-08 — [D-021](RT_PDR_00_Decision_Log.md)**: la §5 (sospensione **globale**) e la §7
+> (l'avversario «non riceve nulla») erano in tensione fra loro. Una pausa globale *osservabile* è essa stessa
+> l'informazione: dice all'avversario che una finestra si è aperta. Vedi **§7-bis**, che separa la sospensione
+> **logica** — che resta globale, perché serve al determinismo — dalla **presentazione**, che non deve avere
+> una pausa correlata alla scelta altrui. La §6 è precisata: `Rilevato` è il requisito del **profilo Overwatch
+> visivo**, non di *ogni* reazione.
 > **Contesto sorgente**: `docs/src/RefactorTactics_Overwatch_FastReaction_Claude.md` (19 sezioni)
 > **Brief**: [`brief-overwatch-reazioni.md`](../gameplay/brief-overwatch-reazioni.md) (decisioni D16–D22)
 > **Supera**: [ADR-0003](adr-0003-modello-azioni-v01.md) §4 riga «Stack di reazioni LIFO interattivo → scartato»
@@ -116,6 +123,13 @@ L'Overwatch base non spara a una posizione dedotta.
 **Dipendenza dichiarata**: E14 non parte prima di **E13**. Senza livelli di conoscenza, `TargetDetected` non
 ha una definizione e l'Overwatch sparerebbe a unità che la squadra non percepisce.
 
+> **Precisazione 2026-08-08.** `Rilevato` è il requisito di **questo** trigger — l'Overwatch a profilo visivo —
+> e non va promosso a requisito universale di **ogni** reazione. Una reazione **acustica** può essere legittima
+> con una Team Knowledge derivata dal **rumore**, cioè a livello `Incerto`: il rumore è un secondo canale
+> percettivo, non una vista degradata. La tabella qui sopra descrive il profilo visivo; un profilo che dichiara
+> un canale diverso dichiara anche la propria soglia. Ciò che resta vietato a tutti è sparare a una posizione
+> **dedotta** senza alcun contatto (`Resonance Shot`, north-star).
+
 ### 7. Visibilità della finestra *(risolve §8.1)*
 
 - **Decide** solo il proprietario della reaction.
@@ -127,6 +141,33 @@ ha una definizione e l'Overwatch sparerebbe a unità che la squadra non percepis
 È l'unica delle quattro domande che non discende dagli invarianti: in tre secondi la coordinazione vocale non
 è realistica, quindi la visione dell'alleato serve alla **leggibilità**, non alla decisione. Se al playtest
 risultasse rumore inutile, si degrada a «vede solo il proprietario» senza toccare il modello.
+
+### 7-bis. Privacy **temporale**: la finestra non deve essere deducibile *(emendamento 2026-08-08, [D-021](RT_PDR_00_Decision_Log.md))*
+
+La §7 copriva il **payload**: l'avversario non riceve i dati della finestra. Non basta. La §5 sospende la
+simulazione **per tutte le unità**, e se quella sospensione è osservabile l'avversario impara comunque tutto
+ciò che conta: *qualcuno ha appena ricevuto una scelta, in questo istante, su quel micro-step*. Una pausa
+variabile è un canale laterale — la durata del silenzio è correlata alla decisione altrui.
+
+Questo è un **requisito di privacy**, non una rifinitura di presentazione. I personaggi devono continuare a
+essere percepiti come agenti che agiscono in contemporanea.
+
+| Livello | Regola |
+|---|---|
+| **Logico** (server) | La progressione **può** sospendersi al Decision Boundary: serve al determinismo (§3, §5). Resta invariato |
+| **DTO verso l'avversario** | Non contiene trigger, opportunity, `AllowedResponses`, identità del responder, timeout, né metadati da cui dedurre la finestra |
+| **Presentazione avversaria** | **Nessuna pausa variabile correlata alla scelta privata.** Buffering, pacing, *fixed resolution beat* o meccanismo equivalente: il ritmo osservato non deve dipendere dal tempo di risposta di un altro giocatore |
+| **Autorità** | Timeout e risposta sono **server-authoritative**: un client lento non allunga la finestra, e un client che non risponde ottiene `HOLD` |
+
+Entra nell'invariante #6 come sua estensione: *zero leak di intenti e informazioni private* comprende ora
+**anche il tempo**. La vecchia formulazione «payload visibile solo alla propria squadra» non copriva questo
+caso perché il canale non è il pacchetto, è la sua assenza.
+
+**Verifica**: test di packet privacy (nessun campo della finestra nel DTO avversario) **e** un piano di
+verifica del canale temporale in **M10/E14** — la resolution osservata da un avversario deve avere la stessa
+forma con e senza finestra aperta. Se in v0.1 (offline, contro bot) il requisito non è pienamente
+verificabile, si documenta l'architettura e si apre la issue per il multiplayer: **non si degrada il
+requisito** a «lo sistemeremo con la UI».
 
 ### 8. Parametri iniziali *(risolve §8.3)*
 

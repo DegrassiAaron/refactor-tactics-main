@@ -12,10 +12,18 @@ conduttive, che cammina sul grafo delle celle (BFS, massimo 3 passi, ogni unità
 nel Cleanup prima del danno di `Burning`. Dettaglio in
 [`../spec-propagazione-elettrica-cp83.md`](../gameplay/spec-propagazione-elettrica-cp83.md).
 
-Restano da costruire: **interazioni fuoco/acqua** (CP 8.4), **azioni ambientali** (CP 8.5), il **terreno
-dinamico** (una cella che cambia superficie a runtime: serve a `CreateWater`, `Ignite` e
-`Flux.ConductiveNode`) e le **coperture direzionali**, che non esistono nel formato dell'asset — servirebbe una
-versione del formato + migrazione, issue `#69`.
+> ⚠️ **Aggiornato il 2026-08-08.** Il paragrafo che seguiva elencava come «da costruire» cose ormai
+> **costruite**. Stato reale:
+>
+> | Area | Stato |
+> |---|---|
+> | Interazioni **fuoco/acqua** (CP 8.4) | ✅ fatte |
+> | **Terreno dinamico** — cella che cambia superficie a runtime (`CreateWater`, `Ignite`, `Flux.ConductiveNode`) | ✅ fatto |
+> | **Coperture direzionali** — «non esistono nel formato dell'asset» | ✅ **esistono**: `FRTHexCover{Edge, Type, Integrity}` in `FRTHexCellData`, con `URTHexCoverLibrary`. Copertura **bassa** (CP 9.1) e **alta** (CP 9.2), con `Integrity` e distruzione |
+> | Azioni ambientali (CP 8.5) | vedi roadmap |
+> | Porte, ponti, coperture temporanee | ⏳ **da completare** |
+>
+> Lo stato per checkpoint è della [roadmap](../roadmap/roadmap-checkpoint.md), non di questo catalogo.
 
 ---
 
@@ -30,7 +38,7 @@ versione del formato + migrazione, issue `#69`.
 | `Terrain.Conductive` | Superficie metallica | 1 MP | consentito | libera | conduce elettricità |
 | `Terrain.Smoke` | Fumo | 1 MP | consentito | ridotta | applica `Obscured` |
 | `Terrain.Ice` | Ghiaccio | 1 MP | consentito (scivoloso) | libera | scivolamento (`Sliding`) |
-| `Terrain.HighGround` | Quota elevata | 1 MP | dipende dagli archi | libera | bonus visuale |
+| `Terrain.HighGround` | Quota elevata | 1 MP | dipende dagli archi | libera | **vantaggio geometrico**, nessun bonus numerico |
 
 ### Pavimento
 Interazioni: movimento · Sprint · Dash · posizionamento gadget. **Nessun effetto.**
@@ -74,8 +82,27 @@ d'ingresso; una cella bloccata impedisce lo scivolamento.
 > ([`brief-ghiaccio.md`](../gameplay/brief-ghiaccio.md)).
 
 ### Quota elevata
-Costo 1 MP · la percorribilità **dipende dagli archi** (rampe/scale: i piani non sono adiacenti per costruzione) ·
-bonus visuale.
+
+Costo 1 MP · la percorribilità **dipende dagli archi** (rampe e scale: i piani non sono adiacenti per
+costruzione).
+
+**L'altura dà vantaggio geometrico, non numerico** ([D-018](../decisions/RT_PDR_00_Decision_Log.md) ·
+[D-024](../decisions/RT_PDR_00_Decision_Log.md)):
+
+1. modifica **geometria, LOS, copertura e accessibilità** — e questo basta a renderla una posizione contesa;
+2. **nessun `+Damage`** per il solo fatto di stare in alto;
+3. **nessun `+VisionRange`** finché un playtest non lo giustifichi;
+4. un **eroe, tratto, abilità, equipaggiamento o specializzazione** può dichiarare esplicitamente un bonus
+   legato alla quota: allora è suo, ed è scritto nel suo kit.
+
+> *Fino al 2026-08-08 questa riga diceva «bonus visuale», senza quantificarlo, e il workbook proponeva
+> `Sight_Mod = +1/+2/−1`. Quel numero veniva da un'esplorazione, non da un playtest.*
+>
+> **Nel codice il bonus da altura non è mai stato applicato**: `URTCombatLibrary::EffectiveAttackPower(Base,
+> OccupantDamageBonus)` è un parametro **generico** e ogni call site runtime passa `0`. Il meccanismo resta —
+> serve ad altri effetti — ma non è «l'altura». Il test
+> `RefactorTactics.Combat.EffectiveAttackPowerWithTerrainBonus` insegna ancora il contrario nel nome: issue di
+> rinomina, non correzione al volo.
 
 ---
 
