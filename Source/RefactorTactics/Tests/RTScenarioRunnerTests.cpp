@@ -8,6 +8,8 @@
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "ScenarioHarness/RTTestReportWriter.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Misc/Paths.h"
@@ -574,6 +576,118 @@ bool FRTScenarioWallActuallyBlocksTest::RunTest(const FString&)
 	// Stati finali diversi -> hash diversi. Se fossero uguali, l'attacco non starebbe facendo niente in
 	// NESSUNO dei due casi, e i due test verdi sopra non proverebbero nulla.
 	TestNotEqual(TEXT("con e senza muro producono stati diversi"), OpenResult.StateHash, WalledResult.StateHash);
+	return true;
+}
+
+/**
+ * Esegue uno scenario e riporta OGNI assertion sugli HP con il suo `actual`.
+ *
+ * Il nome e' prolisso di proposito: la unity build fonde piu' file in una sola unita' di traduzione, e un
+ * helper con un nome ovvio (`RunAndCheck`) collide col primo omonimo di un altro file di test — e' gia'
+ * successo con tre helper insieme. Neppure un namespace anonimo protegge: fusi nella stessa TU, due namespace
+ * anonimi sono lo STESSO namespace.
+ */
+static bool RunScenarioAndReportHpAssertions(FAutomationTestBase& Test, const TCHAR* ScenarioId)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(Test, ScenarioId, Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!Test.TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		Test.AddError(FString::Printf(TEXT("%s: ERROR invece di PASS: %s"), ScenarioId, *Result.ErrorMessage));
+		return false;
+	}
+	Test.TestEqual(TEXT("esito PASS"), Result.OutcomeString(), FString(TEXT("PASS")));
+
+	// Ogni HP atteso col suo valore reale: quando uno di questi diventa rosso, il messaggio dice gia' di
+	// quanto ha sbagliato, senza bisogno di rieseguire lo scenario a mano.
+	for (const FRTAssertionResult& A : Result.Assertions)
+	{
+		if (A.Kind == ERTAssertionKind::UnitHpEquals)
+		{
+			Test.TestTrue(FString::Printf(TEXT("%s -> %s (atteso %s)"), *A.Description, *A.Actual, *A.Expected), A.bPassed);
+		}
+	}
+	return true;
+}
+
+/**
+ * `Combat.SplashSparesAllies`: l'AREA colpisce i vicini, ma non i propri.
+ *
+ * Due affermazioni in un colpo solo, e si reggono a vicenda. «A2 e' intatta» da sola non varrebbe niente:
+ * sarebbe verde anche se l'abilita' non fosse partita. Vale perche' nello STESSO turno B2 — che non e'
+ * bersaglio di nessun intent, sta solo accanto a B1 — e' scesa di 18. Una meta' dimostra che il colpo e'
+ * avvenuto, l'altra che il filtro di squadra ha scelto chi prenderlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioSplashSparesAlliesTest,
+	"RefactorTactics.Scenario.RunnerSplashSparesAllies",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioSplashSparesAlliesTest::RunTest(const FString&)
+{
+	return RunScenarioAndReportHpAssertions(*this, TEXT("Combat.SplashSparesAllies"));
+}
+
+/**
+ * `Combat.LineHitsThrough`: la forma Line colpisce la traiettoria, non il bersaglio.
+ *
+ * B2 sta fra attaccante e bersaglio e non e' nominata da nessun intent. Se scende, la linea e' stata risolta
+ * come linea; se resta piena mentre B1 scende, il gioco sta trattando `ERTAbilityShape::Line` come un colpo
+ * singolo — un difetto che nessuno scenario a due unita' puo' vedere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLineHitsThroughTest,
+	"RefactorTactics.Scenario.RunnerLineHitsThrough",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLineHitsThroughTest::RunTest(const FString&)
+{
+	return RunScenarioAndReportHpAssertions(*this, TEXT("Combat.LineHitsThrough"));
+}
+
+/**
+ * Le forme colpiscono DAVVERO piu' di una cella.
+ *
+ * Controprova delle due sopra, nello spirito di `WallIsWhatStopsTheShot`. I numeri attesi negli scenari li ho
+ * scritti io: se avessi sbagliato la geometria e messo B2 fuori dall'area, avrei scritto «B2 resta piena» e il
+ * test sarebbe verde lo stesso, documentando una forma che non funziona. Qui la domanda e' posta al gioco e
+ * non allo scenario: quante unita' hanno perso HP? Se la risposta fosse 1, entrambe le forme starebbero
+ * degenerando in un colpo singolo, e i due test sopra passerebbero ugualmente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioShapesHitMoreThanOneTest,
+	"RefactorTactics.Scenario.ShapesHitMoreThanOneUnit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioShapesHitMoreThanOneTest::RunTest(const FString&)
+{
+	for (const TCHAR* Id : { TEXT("Combat.SplashSparesAllies"), TEXT("Combat.LineHitsThrough") })
+	{
+		FRTTestScenario Scenario;
+		if (!LoadShippedScenario(*this, Id, Scenario)) { return false; }
+
+		// Quante unita' lo scenario si aspetta di vedere ferite, secondo i suoi stessi numeri? Conta le
+		// UnitHpEquals il cui valore atteso e' sotto la salute massima dell'eroe schierato.
+		const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+		int32 ExpectedWounded = 0;
+		for (const FRTTestExpectation& A : Scenario.Expect)
+		{
+			if (A.Kind != ERTAssertionKind::UnitHpEquals) { continue; }
+			for (const FRTScenarioUnit& U : Scenario.Units)
+			{
+				if (U.Id != A.UnitId) { continue; }
+				for (const URTHeroData* Hero : Roster)
+				{
+					if (Hero != nullptr && Hero->HeroId == U.HeroId && A.Value < Hero->MaxHealth)
+					{
+						++ExpectedWounded;
+					}
+				}
+			}
+		}
+		TestTrue(FString::Printf(TEXT("%s: la forma deve ferire piu' di una unita' (attese %d)"), Id, ExpectedWounded),
+			ExpectedWounded >= 2);
+	}
 	return true;
 }
 
