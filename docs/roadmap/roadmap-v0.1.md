@@ -3,7 +3,7 @@
 > `CURRENT` · **Stato**: in esecuzione · **Ultimo aggiornamento**: 2026-08-08
 > **Questa è l'unica vista dello stato delle epic** (§2.1); la vista di esecuzione per milestone è
 > [`roadmap-checkpoint.md`](roadmap-checkpoint.md), che non lo duplica.
-> **Scope sorgente**: `docs/archive/pdr-v0.1/RT_PDR_12_Catalog_v0.1.pdf` + `docs/src/RefactorTactics — Catalogo e bilanciamento v0.1.pdf`
+> **Scope sorgente**: `docs/archive/pdr-v0.1/RT_PDR_12_Catalog_v0.1.pdf` + `docs/src/prd/catalogo-e-bilanciamento-v0.1.pdf`
 > **Decisione abilitante**: [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md)
 >
 > Questa è la vista **di release**: cosa deve esistere perché la v0.1 sia consegnabile.
@@ -188,10 +188,10 @@ collo di bottiglia non è il codice di gioco: è la **verifica interattiva** —
 | **E18** | Predictive Action — thin slice | P2 | 2 | Il pilastro della **predizione** diventa percepibile con **una sola** azione: decisa in Planning, risolta a un boundary deterministico, **senza input live** ([D-016](../decisions/RT_PDR_00_Decision_Log.md)). Il framework di trap resta fuori |
 
 **Totale: 18 epic, 87 checkpoint** *(era 12/59; **E13** ed **E14** aggiunte il 2026-08-07; il 2026-08-07,
-consolidando [`../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md`](../src/showcase/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md):
+consolidando [`../src/showcase/showcase-v0.1-integrazione-nel-codice.md`](../src/showcase/showcase-v0.1-integrazione-nel-codice.md):
 **E15** showcase (5 CP), **CP 5.5** e **CP 6.7** per il debito delle reazioni d'eroe, **CP 14.2** per
 l'estrazione del micro-step; consolidando
-[`../src/RefactorTactics_ActionGhosts_Phases_FastReactions_Claude.md`](../src/RefactorTactics_ActionGhosts_Phases_FastReactions_Claude.md):
+[`../src/design/action-ghosts-fasi-fast-reactions.md`](../src/design/action-ghosts-fasi-fast-reactions.md):
 **CP 11.5** e **CP 11.6** per il planning visuale → [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md);
 **E16** orientamento → [ADR-0005](../decisions/adr-0005-orientamento.md), che chiude il punto aperto sul facing)*.
 
@@ -210,7 +210,7 @@ l'estrazione del micro-step; consolidando
 
 > **Tema nuovo registrato ma non pianificato (2026-08-07)**: le **Delayed Actions** — azioni dichiarate in
 > Planning che risolvono a un **boundary di fase** successivo (`EndDash`, `EndBlast`, `EndMove`) scommettendo
-> su uno stato futuro. Fonte: `docs/src/RefactorTactics_DelayedActions_PhaseWindows_Claude.md` →
+> su uno stato futuro. Fonte: `docs/src/design/delayed-actions-e-phase-windows.md` →
 > [`brief-delayed-actions.md`](../gameplay/brief-delayed-actions.md), che isola il **solo** contenuto non già coperto da
 > ADR-0004 ed E13/E14. **Nessuna epic aperta**: la proposta (4 checkpoint, numero da assegnare — E15 e E16
 > sono occupate) attende una decisione di scope, perché E14 non è iniziata e il rischio di ampiezza della
@@ -218,7 +218,7 @@ l'estrazione del micro-step; consolidando
 
 > **Fuori dalla v0.1, registrate qui perché esistono i documenti sorgente**: il **motore del ghiaccio**
 > (Momentum, Traction, Slide a catena, Unbalanced/Prone, integrità, rottura, ponti) descritto in
-> `docs/src/RefactorTactics — Implementazione terreno Ghiaccio v0.1 in Unreal Engine 5.md` →
+> `docs/src/design/terreno-ghiaccio-v0.1.md` →
 > [`brief-ghiaccio.md`](../gameplay/brief-ghiaccio.md). Lo **scivolamento base** resta in v0.1 perché è **già implementato**
 > (§2.1). I livelli di percezione oltre l'incerto (identificazione, firma, sensori) restano in
 > [`brief-conoscenza-parziale.md`](../gameplay/brief-conoscenza-parziale.md) §9.
@@ -546,7 +546,7 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 | **11.6** *(nuovo 2026-08-07)* | **Scrubbing** delle fasi e ramo condizionale della reaction | Selezionando una fase il suo ghost si evidenzia e gli altri si attenuano, con origine, bersaglio, linea, AoE e copertura rilevante in evidenza; i **warning** (alleato sulla traiettoria, esposizione, collisione possibile) arrivano dallo stesso strato che produce i reason code del TurnLog — **mai** ricalcolati nel widget — e sono marcati *previsto*/*incerto*, mai *confermato*; la reaction armata compare come **ramo con `?`** accanto alla timeline | `Preview.AllyInAreaIsFlagged`, `Preview.WarningsComeFromResolverReasons`, `Preview.ArmedReactionRendersAsBranch`; `PIE-V01-GHOSTS` |
 
 > **CP 11.5/11.6 vengono da** [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md), che consolida
-> `../src/RefactorTactics_ActionGhosts_Phases_FastReactions_Claude.md`. Il documento **conferma** sette
+> `../src/design/action-ghosts-fasi-fast-reactions.md`. Il documento **conferma** sette
 > decisioni già canoniche (ordine delle fasi, Move ultima, Dash ≠ Move, privacy degli intenti, slow-motion
 > come presentazione, reaction decisa in resolution, renderer non autoritativo) e ne aggiunge una sola di
 > regola: il **displacement reattivo non è la Move Phase** e non la consuma — vincolo per `Riva.FlowReaction`
@@ -595,7 +595,7 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 inerte) e il **rumore** alimentano lo stesso modello a tre livelli. Non è fog of war: la mappa statica resta nota.
 
 Fonti: [`brief-conoscenza-parziale.md`](../gameplay/brief-conoscenza-parziale.md) ·
-`docs/src/RefactorTactics_Rumore_Claude.md`. Dipende da **E4** (fallback), **E6** (statistiche eroe), **E8** (fumo).
+`docs/src/design/rumore-e-percezione-acustica.md`. Dipende da **E4** (fallback), **E6** (statistiche eroe), **E8** (fumo).
 
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
@@ -655,7 +655,7 @@ cosa di `AllowedResponses ≤ 1` (ADR-0004 §2), che la deriva dai dati invece d
 
 **Obiettivo**: una partita dimostrativa 2v2 di 8 turni che sia allo stesso tempo **fixture d'integrazione,
 golden replay e demo**. Fonte:
-[`../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md`](../src/showcase/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md).
+[`../src/showcase/showcase-v0.1-integrazione-nel-codice.md`](../src/showcase/showcase-v0.1-integrazione-nel-codice.md).
 Scenario: `RT_Showcase_Relay_v01`, arena `L_Showcase_Relay`, `Flux + Riva` vs `Bastion + Vektor`.
 
 **Regola dell'epic** — la showcase è un **consumer**: espone il gap → si costruisce il sistema generale nella
@@ -1023,7 +1023,7 @@ Rilevati confrontando `roadmap-checkpoint.md` con il repository (2026-08-05):
 | [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) | **Durata, round e scala delle mappe**: target di partita, `RoundLimit` per formato, budget del round, classi di mappa e telemetria. Vincola **E10** (fine partita), **E11** (timer a HUD), **E14** (3 s) e il level design futuro |
 | [`showcase-v0.1.md`](../product/showcase-v0.1.md) | Scenario della showcase **E15**: canone corrente, target, delta di scope |
 | [`brief-conoscenza-parziale.md`](../gameplay/brief-conoscenza-parziale.md) · [`brief-overwatch-reazioni.md`](../gameplay/brief-overwatch-reazioni.md) · [`brief-ghiaccio.md`](../gameplay/brief-ghiaccio.md) · [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md) | Brief di scoping: cosa entra in **E11**/**E13**/**E14** e cosa resta north-star |
-| [`../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md`](../src/showcase/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md) · [`../src/RefactorTactics_ActionGhosts_Phases_FastReactions_Claude.md`](../src/RefactorTactics_ActionGhosts_Phases_FastReactions_Claude.md) | Handoff e note di design (2026-08-07): **materiale sorgente**, consolidato qui — in caso di conflitto prevale questo file |
+| [`../src/showcase/showcase-v0.1-integrazione-nel-codice.md`](../src/showcase/showcase-v0.1-integrazione-nel-codice.md) · [`../src/design/action-ghosts-fasi-fast-reactions.md`](../src/design/action-ghosts-fasi-fast-reactions.md) | Handoff e note di design (2026-08-07): **materiale sorgente**, consolidato qui — in caso di conflitto prevale questo file |
 | *questo file* | **Release v0.1**: epic, checkpoint, DoD per checkpoint |
 | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate di release, KPI, checklist trasversale |
 | [`v0.1-issue-plan.md`](v0.1-issue-plan.md) | Titoli e body delle issue (e mappa issue ↔ checkpoint) |

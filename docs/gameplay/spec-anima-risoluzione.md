@@ -264,5 +264,5 @@ Parametri `UPROPERTY(EditAnywhere)` sul TurnManager → tuning **in editor senza
 - Roadmap: [`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md) — collocare AN.x come slice north-star post-MVP.
 - Resolver movimento e `Entered`: [`spec-mappa-multilivello.md`](../technical/spec-mappa-multilivello.md),
   [`spec-pathfinding-pf3-pf4.md`](../technical/spec-pathfinding-pf3-pf4.md).
-- Ispirazione (north-star, non canone): `docs/RefactorTactics – Sequenza di Risoluzione del Turno.pdf`
+- Ispirazione (north-star, non canone): `docs/src/prd/sequenza-risoluzione-turno.pdf`
   (timeline stile Phantom Brigade, batching, pacing ~60s, speed-up; **stack/reazioni fuori MVP**).

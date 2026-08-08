@@ -6,7 +6,7 @@
 > *Fino al 2026-08-08 questo file era il **prompt di implementazione** originale — «TASK — progettare e
 > implementare…», 1114 righe di istruzioni a un agente. Un prompt non è una specifica: descrive ciò che si
 > voleva provare a costruire, non ciò che è stato costruito. Il prompt è conservato in
-> [`../src/RefactorTactics_ScenarioHarness_TASK_prompt_originale.md`](../src/RefactorTactics_ScenarioHarness_TASK_prompt_originale.md).*
+> [`../src/handoff/scenario-harness-task-originale.md`](../src/handoff/scenario-harness-task-originale.md).*
 
 ---
 

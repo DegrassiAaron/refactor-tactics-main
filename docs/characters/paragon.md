@@ -60,7 +60,7 @@ Il Character Master Matrix traccia **38 hero nominati**. Le liste ufficiali Epic
 ## Fonti
 
 - `RefactorTactics_Character_Master_Matrix.md`
-- `RefactorTactics_Characters_Wiki_Data_v0.4.xlsx`
+- `docs/src/data/characters-wiki-data-v0.4.xlsx`
 - Epic Games, Paragon asset release (March/September 2018)
 
 ## Governance del kit

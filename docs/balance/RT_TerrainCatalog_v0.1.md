@@ -1,6 +1,6 @@
 # RT — Catalogo terreni, coperture e strutture v0.1
 
-> **Fonte**: `docs/src/RefactorTactics — Catalogo e bilanciamento v0.1.pdf` §§4–5 · `docs/archive/pdr-v0.1/RT_PDR_12_Catalog_v0.1.pdf`
+> **Fonte**: `docs/src/prd/catalogo-e-bilanciamento-v0.1.pdf` §§4–5 · `docs/archive/pdr-v0.1/RT_PDR_12_Catalog_v0.1.pdf`
 > **Decisione abilitante**: [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md) · **Checkpoint**: CP 1.2 (issue `#28`)
 > **Implementazione**: epic **E8** (terreni, `#64`–`#68`) ed **E9** (strutture, `#69`–`#73`).
 

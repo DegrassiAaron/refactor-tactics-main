@@ -5,7 +5,7 @@
 > vive** e **come lo si trova**.
 >
 > Deciso il **2026-08-08**, issue `#209`. Origine: handoff
-> `docs/src/RefactorTactics_Scenario_Browser_BP_GameMode_Claude.md`, rivisto con `/sc:spec-panel`.
+> `docs/src/handoff/scenario-browser-bp-gamemode.md`, rivisto con `/sc:spec-panel`.
 
 ## 1. Le tre responsabilità
 

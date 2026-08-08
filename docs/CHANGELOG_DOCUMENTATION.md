@@ -4,7 +4,7 @@
 
 ## 2026-08-08 — Ownership di abilità, interazioni e sinergie (terzo passaggio)
 
-**Origine**: payload `Docs-Consolidation-v0.9` + handoff `src/RefactorTactics_Fazioni_v0.2_Consolidamento_Claude.md`
+**Origine**: payload `Docs-Consolidation-v0.9` + handoff `docs/src/design/fazioni-v0.2-identita-visiva-e-roster.md`
 (input, non autorità). Baseline dichiarata dal payload: `13cacb5`; **lavorato su `b057c67`** e poi **mergiato con
 `367790e`**, che nel frattempo era atterrato su `main`.
 
@@ -54,7 +54,7 @@ corretti da `367790e`, non da questo passaggio).
 
 ## 2026-08-08 — Consolidamento dei documenti **non**-Gameplay (secondo passaggio)
 
-**Origine**: audit `src/RefactorTactics_Audit_Docs_NonGameplay_Consolidamento_Claude_2026-08-08_v2.md`.
+**Origine**: audit `docs/src/audit/2026-08-08-docs-non-gameplay-v2.md`.
 73 file in scope (tutto `docs/` **escluse** `gameplay/`, `src/`, `archive/`). Baseline: `HEAD 3335e36`,
 **419 test unici in 64 file**.
 
@@ -123,7 +123,7 @@ ricerca dei termini obsoleti sui soli documenti `CURRENT`/`CANONICAL`.
 
 ## 2026-08-08 — Consolidamento di `docs/gameplay/`
 
-**Origine**: audit `src/RefactorTactics_DocsGameplay_Audit_Consolidamento_Claude_2026-08-08.md`, con
+**Origine**: audit `docs/src/audit/2026-08-08-docs-gameplay.md`, con
 `D-014`…`D-019` approvate. 23 file passati in rassegna.
 
 ### Decisioni registrate
@@ -244,7 +244,7 @@ decisioni e non il piano.
 
 ## 2026-08-07 — Riorganizzazione in `product/gameplay/technical/balance/roadmap/decisions/`
 
-**Origine**: revisione `/sc:spec-panel` su `src/RefactorTactics_Consolidamento_PRD_SourceOfTruth_Claude.md`,
+**Origine**: revisione `/sc:spec-panel` su `docs/src/handoff/consolidamento-prd-source-of-truth.md`,
 registrata in [`brief-consolidamento-documentale.md`](roadmap/plans/brief-consolidamento-documentale.md).
 **HEAD di partenza**: `50159c6`.
 

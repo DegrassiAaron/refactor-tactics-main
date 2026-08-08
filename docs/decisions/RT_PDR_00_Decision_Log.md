@@ -45,7 +45,7 @@ Regola di manutenzione #1: *ogni modifica a un requisito aggiunge o aggiorna una
 
 | **D-025** | **`Guard` torna fra le azioni generiche universali; `Activate` resta assorbita da `Interact`.** L'elenco canonico diventa di **sette** voci: `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch` | **Consolidata** | **Emenda D-014** su un solo punto. `Guard` aveva già **tre consumatori** — il catalogo azioni (−15 e resistenza a 1 cella di spinta), l'interazione con `Status.Root`, e la difesa direzionale di [ADR-0005](adr-0005-orientamento.md) §4a, dove la riduzione decade fuori dall'arco frontale: toglierla dalle universali avrebbe lasciato tre regole appese a un'azione non più garantita a nessuno. `Activate` resta assorbita perché «attivare un dispositivo» **è** un'interazione. ✅ Il brief [`../gameplay/brief-azioni-generiche-overwatch.md`](../gameplay/brief-azioni-generiche-overwatch.md) **è stato allineato il 2026-08-08** (solo sul punto `Guard`; l'economia `Attack \| Ability \| Overwatch` non cambia), insieme a `AGENTS.md` e `CLAUDE.md`, che elencavano ancora sei voci |
 
-| **D-026** | **La mappa «Relay Basin» autorata è il riferimento canonico della showcase.** Il terzetto `MakeShowcaseRelayBasinArena` + [`../product/showcase-v0.1.md`](../product/showcase-v0.1.md) §2 + il test `ShowcaseRelay.BasinLayoutMatchesSpec` **è** la geometria della showcase, finché non si decide esplicitamente di cambiarla. Se la specifica originale (`RT_Showcase_Relay_v01_ScenarioSpec_Claude.md`, mai esistita nel repository) riemerge, si fa un **diff di design** — **mai una sostituzione automatica** | **Consolidata** | Il layout è stato progettato in assenza della fonte dichiarata, e **dichiarato tale** invece di essere spacciato per specifica preesistente: è quello che lo rende adottabile. La geometria vive in **un posto solo** ed è già protetta da un test con verifica di mutazione; lo scenario non la duplica, la **riferisce** per nome |
+| **D-026** | **La mappa «Relay Basin» autorata è il riferimento canonico della showcase.** Il terzetto `MakeShowcaseRelayBasinArena` + [`../product/showcase-v0.1.md`](../product/showcase-v0.1.md) §2 + il test `ShowcaseRelay.BasinLayoutMatchesSpec` **è** la geometria della showcase, finché non si decide esplicitamente di cambiarla. Se la specifica originale (`docs/src/showcase/relay-v0.1-scenario-spec.md`, mai esistita nel repository) riemerge, si fa un **diff di design** — **mai una sostituzione automatica** | **Consolidata** | Il layout è stato progettato in assenza della fonte dichiarata, e **dichiarato tale** invece di essere spacciato per specifica preesistente: è quello che lo rende adottabile. La geometria vive in **un posto solo** ed è già protetta da un test con verifica di mutazione; lo scenario non la duplica, la **riferisce** per nome |
 
 | **D-027** | **Gli scenari esprimono il modello *deciso*, non quello *implementato*.** Quando una decisione consolidata e il codice divergono, il formato dello scenario segue la **decisione**; il divario si dichiara con `requires` sul turno, e il runner restituisce `Blocked` con il nome della capability mancante finché la migrazione non atterra. Prima applicazione: `Sneak · Move · Sprint` come **profili del movimento** ([D-015](RT_PDR_00_Decision_Log.md)) mentre `Action.Sprint` è ancora `MovementAndMain` in `ERTResolutionPhase::FastMovement` | **Consolidata** | Applica la regola di prevalenza («decisioni esplicite più recenti» > codice corrente) al formato dei dati di test. **Gli scenari non si riscrivono** quando la migrazione arriva: cambia il codice, e i turni bloccati diventano verdi da soli. L'alternativa — seguire il codice — costringerebbe a riscrivere ogni scenario due volte |
 
@@ -56,7 +56,7 @@ Regola di manutenzione #1: *ogni modifica a un requisito aggiunge o aggiorna una
 ## Note
 
 - **D-029** (2026-08-08): nasce dal consolidamento di Character Wiki, Faction Wiki e sinergie
-  (`../src/RefactorTactics_Fazioni_v0.2_Consolidamento_Claude.md` come input, **non** come autorità). La
+  (`../src/design/fazioni-v0.2-identita-visiva-e-roster.md` come input, **non** come autorità). La
   decisione è **documentale e di data model**, non una feature: separa tre cose che stavano scivolando in una
   sola fonte — kit del personaggio, regola di sistema, esempio di cooperazione. Il caso che l'ha resa necessaria
   è `Water-Electric`: descritto in più punti come «combo Flux + Riva», mentre nel codice il bonus legge
@@ -66,7 +66,7 @@ Regola di manutenzione #1: *ogni modifica a un requisito aggiunge o aggiorna una
   quella sullo slot dello scatto è atterrata prima su `main`. L'ID si assegna **al merge**, non quando si
   scrive la riga: chi arriva secondo rinumera, non contende.
 - **D-014…D-019** (2026-08-08): approvate in sessione e recepite dal consolidamento di `docs/gameplay/`
-  (handoff `../src/RefactorTactics_DocsGameplay_Audit_Consolidamento_Claude_2026-08-08.md`). Gli ID proposti
+  (handoff `../src/audit/2026-08-08-docs-gameplay.md`). Gli ID proposti
   dall'handoff erano liberi e sono stati usati così com'erano.
 - **Migrazione degli Stable ID legacy (D-014, D-015)**: `Action.Guard`, `Action.Activate` e `Action.Sprint`
   **esistono e sono consumati** — misurato al 2026-08-08: `Action.Sprint` in **9** file di codice e **6** di
@@ -102,7 +102,7 @@ Regola di manutenzione #1: *ogni modifica a un requisito aggiunge o aggiorna una
   rimasta aperta solo perché nessuno l'aveva chiusa: la regola d'ora in poi è **upgrade solo fra milestone,
   solo con migrazione esplicita**.
 - **D-020…D-024** (2026-08-08): approvate dall'autore e recepite dal consolidamento dei documenti
-  **non**-Gameplay (handoff `../src/RefactorTactics_Audit_Docs_NonGameplay_Consolidamento_Claude_2026-08-08_v2.md`).
+  **non**-Gameplay (handoff `../src/audit/2026-08-08-docs-non-gameplay-v2.md`).
   Gli ID `D-014`…`D-019` erano già stati presi dal passaggio Gameplay, quindi questa serie parte da **D-020**.
   Quattro di esse emendano un ADR esistente invece di crearne uno nuovo: la decisione cambiava una clausola,
   non l'architettura.

@@ -1,7 +1,7 @@
 # Brief — Overwatch e modello unificato delle reazioni
 
 > **Stato**: brief di requisiti · **Data**: 2026-08-07 · **Origine**: `/sc:brainstorm` su
-> `docs/src/RefactorTactics_Overwatch_FastReaction_Claude.md` (19 sezioni)
+> `docs/src/design/overwatch-e-fast-reaction.md` (19 sezioni)
 > **Esito**: le finestre di reazione **rientrano in scope**, con la via di riconciliazione già proposta da
 > [`spec-sequenza-turno.md`](spec-sequenza-turno.md) §3; tutte le reazioni passano a **un solo modello**
 > a *opportunity → commit*, di cui quello attuale diventa il **caso degenere**.
