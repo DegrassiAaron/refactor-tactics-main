@@ -1,0 +1,382 @@
+# Vektor
+
+> ✅ **Stato repository:** personaggio del roster **v0.1 canonico**. La pagina riassume i dati del workbook v0.4, che per i numeri v0.1 è un mirror documentale dei cataloghi versionati della repository. Quando una voce è `PARTIAL` o `DEFERRED_E14`, la pagina lo espone esplicitamente.
+
+> **Asset base:** Vektor  
+> **Hero_Key:** `ASSET_VEKTOR`  
+> **RT Character ID:** `Hero.Vektor`  
+> **Release:** `v0.1`  
+> **Design status:** `IMPLEMENTED`  
+> **Roster status:** Release v0.1
+
+## Panoramica
+
+Duellante predittivo: il più mobile del roster, punisce traiettorie e movimento con dash, intercetti e deviazioni.
+
+## Identità tattica
+
+| Campo | Valore |
+| --- | --- |
+| Ruolo primario | Striker |
+| Ruolo secondario | Controller |
+| Macro ruolo Signature | Striker |
+| Specializzazione | Predictive Duelist |
+| Profilo range | Medium |
+| Tipo danno | Kinetic |
+| Complessità gameplay | TBD |
+| Complessità tecnica (1–5) | TBD |
+| Risorsa firma | Slancio |
+| Signature primaria | Predictive Interception |
+| Signature secondaria | Movement Punish |
+| Framework principali | Movement, Reaction, Prediction, Control |
+| Dipendenze tecniche | Movement triggers, facing, reaction boundaries |
+| Player question | Dove passerà il nemico? |
+
+> **Nota bilanciamento:** Canonico v0.1. 100 HP, 6 MP, vista 6; mobilità alta in cambio di minori strumenti difensivi.
+
+## Meccanica firma
+
+### Descrizione della meccanica
+
+**Predictive Interception** premia la lettura delle traiettorie avversarie. Vektor ha il movimento più alto del roster v0.1 e usa questo vantaggio per occupare linee favorevoli, attraversare il campo e punire movimenti che diventano prevedibili.
+
+Lo **Slancio** ha cap 4 e recupera 1 quando viene eseguito movimento; il valore iniziale non è ancora specificato. `InterceptShot` è la manifestazione più diretta della meccanica, ma richiede le decision boundary di E14; `PassingBlade`, `Deflection` e `Feint` coprono rispettivamente mobilità offensiva, difesa reattiva e previsione.
+
+Il controgioco consiste nel cambiare rotta, usare coperture e LOS per negare le linee preparate, fare bait delle reazioni e impedire a Vektor di convertire mobilità in un duello favorevole.
+
+### Lettura tattica
+
+**Obiettivo del giocatore.** Usare 6 MP e Dash per prendere linee favorevoli, leggere dove passerà l'avversario e trasformare quella previsione in intercetto, attraversamento offensivo o controllo.
+
+**Counterplay / rischio.** Se l'avversario cambia rotta, chiude LOS o forza Vektor a spendere la reazione sul bersaglio sbagliato, il payoff predittivo cala. `InterceptShot` resta rinviata a E14.
+
+### Dati della meccanica
+
+| Campo | Valore |
+| --- | --- |
+| Mechanic ID | `MECH_VEKTOR_PREDICTIVE_INTERCEPTION` |
+| Nome | Predictive Interception |
+| Scope | Exclusive |
+| Tipo | Primary Signature |
+| Secondaria | Movement Punish |
+| Framework | Movement, Reaction, Prediction |
+| Dipendenze tecniche | Movement triggers, decision boundaries, facing |
+| Player question | Dove passerà il nemico? |
+| State | Slancio + zone/traiettorie controllate |
+| Activation / Trigger | Movimento eseguito e azioni di intercetto |
+| Payoff | Punisce traiettorie prevedibili e usa mobilità superiore per il duello |
+| Counterplay | Cambiare rotta, chiudere LOS, strutture, bait delle reazioni |
+| Telegraphing | Zona armata/trigger osservabili secondo regole di informazione |
+| Design Status | IMPLEMENTED_PARTIAL |
+
+> Deflection è cablata; InterceptShot dipende da E14.
+
+## Statistiche base
+
+| Campo | Valore |
+| --- | --- |
+| HP | 100 |
+| Armatura | — |
+| Resistenza | — |
+| Movimento base | 6 |
+| Iniziativa | — |
+| Precisione (1–10) | — |
+| Potenza (1–10) | — |
+| Controllo (1–10) | — |
+| Supporto (1–10) | — |
+| Durabilità (1–10) | — |
+| Indice Combat | — |
+| Budget Punti | — |
+| Delta Budget | — |
+
+**Stato dati:** `CANONICAL_PARTIAL` — Canonico: HP 100, Move 6. Altri attributi di questa matrice non sono definiti nel catalogo v0.1.
+
+## Visione e stealth
+
+| Campo | Valore |
+| --- | --- |
+| Sight Range (hex) | 6 |
+| Detection (0–100) | 48 |
+| Identification (0–100) | 45 |
+| Tracking (turni) | 1 |
+| Vision Height | — |
+| Stealth (1–10) | 2 |
+| Reveal Recovery Step | — |
+| Spotting Support (1–10) | — |
+| Firma Movimento | — |
+| Firma Attacco | — |
+| Sensor Resist (1–10) | — |
+| Contatto Default | — |
+
+> Vista 6 canonica. Detection 48 / Identification 45 / Stealth 2 / Tracking 1 sono baseline catalogo, non attive nello slice binario v0.1.
+
+**Stato dati:** `CANONICAL_BASELINE` — Percezione avanzata da differenziare via playtest.
+
+## Mobilità
+
+| Campo | Valore |
+| --- | --- |
+| Move Hex / MP | 6 |
+| Sprint Bonus | — |
+| Dash Range | — |
+| Verticalità (1–10) | — |
+| Costo Acqua | — |
+| Costo Ghiaccio | — |
+| Costo Fango | — |
+| Porta AP | — |
+| Ponte Mod | — |
+| Tunnel Mod | — |
+| Ascensore AP | — |
+| Knockback Resist | 0 |
+| Collision Priority | — |
+
+> Move 6 MP e Push Resistance 0 canonici. Altri modificatori di mobilità non sono definiti per eroe.
+
+**Stato dati:** `CANONICAL_PARTIAL` — PassingBlade è un Dash 3 lineare.
+
+## Risorsa firma
+
+| Resource_ID | Nome | Cap | Start | Regen | Regen_Trigger | Spesa | Regola | Audience | Implementation_Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| RES_VEKTOR_MOMENTUM | Slancio | 4 | — | 1 | Movimento eseguito | Abilità firma | Cap 4; start non specificato | Team-visible | CANONICAL_PARTIAL |
+
+## Abilità
+
+### Pulse Shot
+
+#### Descrizione
+
+Pulse Shot è l'attacco base di Vektor: 21 danni a range 4. Offre pressione a medio raggio senza compromettere il posizionamento per le sue azioni predittive.
+
+| Campo | Valore |
+| --- | --- |
+| Ability ID | `Vektor.PulseShot` |
+| Categoria | Attacco base |
+| Priorità | 50 |
+| Costo risorsa | — |
+| Cooldown (turni) | 0 |
+| Range (hex) | 4 |
+| AoE Radius | 0 |
+| Danno base | 21 |
+| Control Strength | 0 |
+| Durata (turni) | 0 |
+| Loss/Contact Policy | Fallback.Cancel |
+| Interazione terreno | Attacco base medio raggio |
+| Gameplay Tags | `Ability.Offense.Kinetic` |
+| Implementation Status | IMPLEMENTED |
+| Data Status | CANONICAL |
+
+> 21 danni, range 4.
+
+
+#### Uso tattico e limiti
+
+È l'opzione neutra del kit quando non si vuole investire in una linea d'intercetto o in una Dash.
+
+### Intercept Shot
+
+#### Descrizione
+
+Intercept Shot prepara una punizione su movimento: quando un nemico entra nella cella o zona controllata, infligge 16 danni e interrompe il movimento.
+
+| Campo | Valore |
+| --- | --- |
+| Ability ID | `Vektor.InterceptShot` |
+| Categoria | Reazione/Overwatch |
+| Priorità | 30 |
+| Costo risorsa | — |
+| Cooldown (turni) | 2 |
+| Range (hex) | 1 |
+| AoE Radius | 0 |
+| Danno base | 16 |
+| Control Strength | 1 |
+| Durata (turni) | 0 |
+| Loss/Contact Policy | DecisionBoundary.E14 |
+| Interazione terreno | 16 danni e stop movimento quando un nemico entra nella cella controllata |
+| Gameplay Tags | `Ability.Reaction.Overwatch` |
+| Implementation Status | DEFERRED_E14 |
+| Data Status | CANONICAL |
+
+> Slot None nel dato corrente; trigger d'ingresso appartiene a E14.
+
+
+#### Uso tattico e limiti
+
+La meccanica dipende dalle finestre/decision boundary di E14 e quindi è `DEFERRED_E14`. Le varianti scambiano danno contro ampiezza della zona controllata.
+
+### Passing Blade
+
+#### Descrizione
+
+Passing Blade è un Dash lineare di 3 celle che infligge 20 danni alle unità attraversate. Usa `LinearDash`: attraversa la linea invece di fermarsi al primo bersaglio come una charge.
+
+| Campo | Valore |
+| --- | --- |
+| Ability ID | `Vektor.PassingBlade` |
+| Categoria | Dash/Line |
+| Priorità | 30 |
+| Costo risorsa | — |
+| Cooldown (turni) | 2 |
+| Range (hex) | 3 |
+| AoE Radius | 0 |
+| Danno base | 20 |
+| Control Strength | 0 |
+| Durata (turni) | 0 |
+| Loss/Contact Policy | Fallback.Stop |
+| Interazione terreno | Dash 3 lineare, 20 danni alle unità attraversate |
+| Gameplay Tags | `Ability.Mobility.Dash.Kinetic` |
+| Implementation Status | IMPLEMENTED |
+| Data Status | CANONICAL |
+
+> MovementStyle LinearDash.
+
+
+#### Uso tattico e limiti
+
+È la conversione più diretta della mobilità di Vektor in pressione offensiva e permette di cambiare lato dello scontro mentre si produce danno.
+
+### Deflection
+
+#### Descrizione
+
+Deflection è una reazione su attacco diretto che riduce di 20 il danno del colpo che l'ha innescata, con cooldown 2.
+
+| Campo | Valore |
+| --- | --- |
+| Ability ID | `Vektor.Deflection` |
+| Categoria | Reazione/Deflect |
+| Priorità | 15 |
+| Costo risorsa | — |
+| Cooldown (turni) | 2 |
+| Range (hex) | 0 |
+| AoE Radius | 0 |
+| Danno base | 0 |
+| Control Strength | 20 |
+| Durata (turni) | 0 |
+| Loss/Contact Policy | Reaction.Trigger.DirectHit |
+| Interazione terreno | Riduce di 20 il colpo diretto che l'ha innescata |
+| Gameplay Tags | `Ability.Reaction.Deflect` |
+| Implementation Status | IMPLEMENTED |
+| Data Status | CANONICAL |
+
+> Riusa Action.Deflect.
+
+
+#### Uso tattico e limiti
+
+È già implementata riusando `Action.Deflect`. A differenza di uno scudo persistente, modifica quel singolo colpo e non crea una riserva di HP temporanei.
+
+### Feint
+
+#### Descrizione
+
+Feint è un'azione di controllo predittivo: marca una cella per 1 turno e concede un `Reposition`. La sua identità è legata alla previsione di dove il duello si sposterà, non al danno diretto.
+
+| Campo | Valore |
+| --- | --- |
+| Ability ID | `Vektor.Feint` |
+| Categoria | Control |
+| Priorità | 40 |
+| Costo risorsa | — |
+| Cooldown (turni) | 2 |
+| Range (hex) | 3 |
+| AoE Radius | 0 |
+| Danno base | 0 |
+| Control Strength | 1 |
+| Durata (turni) | 1 |
+| Loss/Contact Policy | Fallback.Cancel |
+| Interazione terreno | Marca una cella e concede Reposition; durata marcatura 1 turno |
+| Gameplay Tags | `Ability.Control.Prediction` |
+| Implementation Status | PARTIAL |
+| Data Status | CANONICAL |
+
+> Target cell + reposition non sono ancora completamente rappresentati.
+
+
+#### Uso tattico e limiti
+
+È ancora `PARTIAL` perché target-cell e reposition non sono completamente rappresentati nello stesso effetto runtime.
+
+## Fast Reactions / Reaction
+
+### Descrizione delle reazioni
+
+- **`Vektor.InterceptShot`** — Quando un nemico entra nella cella/zona controllata, la specifica prevede `FIRE/HOLD`; `FIRE` infligge 16 danni e ferma il movimento. Resta `DEFERRED_E14`.
+- **`Vektor.Deflection`** — Quando Vektor subisce un attacco diretto, riduce automaticamente di 20 il danno del colpo nella v0.1 corrente. È già descritta anche fra le abilità.
+
+| Reaction_ID | Trigger | Tipo | Finestra_sec_SOURCE | Costo | Priorità | Scelta_A | Scelta_B | Default_Timeout | Tradeoff | Implementation_Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Vektor.InterceptShot | Nemico entra nella cella/zona controllata | Overwatch | 3 | — | 30 | FIRE | HOLD | HOLD | 16 danni + stop movimento | DEFERRED_E14 |
+| Vektor.Deflection | Subisce un attacco diretto | Deflect | — | — | 15 | Deflect automatico (v0.1 attuale) | — | — | -20 danno sul colpo | IMPLEMENTED |
+
+> ⚠️ **Review required:** una o più finestre temporali sono valori sorgente/storici. Il modello corrente di Fast Reaction usa una baseline di 3,0 s; questi valori vanno riallineati prima dell'implementazione.
+> `Vektor.InterceptShot` — Rinviata a E14; richiede trigger su movimento e decision boundary.
+> `Vektor.Deflection` — Reazione deterministica attuale; nessuna finestra live.
+
+## Equipaggiamento
+
+Per la v0.1 il workbook assegna agli eroi il **catalogo generico canonico**: varianti arma, gadget e moduli di reazione sono condivisi. La tabella sotto mostra tutti i valori disponibili nella matrice.
+
+| Equipment_ID | Slot | Nome | Budget | Vantaggio | Svantaggio | Sinergia | Principio | Implementation_Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Weapon.Precision | Weapon | Precisione | — | +1 range | −4 danni | Attacco base | Scelta orizzontale | CANONICAL |
+| Weapon.Impact | Weapon | Impatto | — | Applica Push 1 | −1 range | Attacco base | Scelta orizzontale | CANONICAL |
+| Weapon.Overcharge | Weapon | Sovraccarico | — | +6 danni | Cooldown +1 | Attacco base | Scelta orizzontale | CANONICAL |
+| Weapon.Split | Weapon | Multiplo | — | Bersaglio aggiuntivo | −6 danni | Attacco base | Scelta orizzontale | CANONICAL |
+| Weapon.Suppressive | Weapon | Soppressione | — | Applica Slow | −5 danni | Attacco base | Scelta orizzontale | CANONICAL |
+| Weapon.Environmental | Weapon | Ambientale | — | Migliora hazard | −5 danni diretti | Attacco base | Scelta orizzontale | CANONICAL |
+| Gadget.Medkit | Gadget | Medkit | — | Cura 18 | — | Support | Cooldown 3 | CANONICAL |
+| Gadget.BreachCharge | Gadget | Carica da breccia | — | 35 danni a struttura | — | Map | Cooldown 3 | CANONICAL |
+| Gadget.Sprinkler | Gadget | Sprinkler | — | Acqua raggio 1 | — | Water combo | Cooldown 3 | CANONICAL |
+| Gadget.Insulator | Gadget | Isolante | — | Immunità a una propagazione elettrica | — | Electric defense | Cooldown 3 | CANONICAL |
+| Gadget.SmokeEmitter | Gadget | Emettitore di fumo | — | Fumo raggio 1 | — | Vision | Cooldown 3 | CANONICAL |
+| Gadget.PortableCover | Gadget | Copertura portatile | — | Crea copertura bassa | — | Structures | Cooldown 3 | CANONICAL |
+| Gadget.Sensor | Gadget | Sensore | — | Rivela un'area | — | Vision | Cooldown 3; raggio/durata non specificati | CANONICAL_PARTIAL |
+| Gadget.Anchor | Gadget | Ancora | — | Impedisce una spinta | — | Displacement | Cooldown 3 | CANONICAL |
+| Reaction.EmergencyDash | Reaction | Dash d'emergenza | — | Reposition 1 | — | Reaction | Trigger: sei bersagliato | CANONICAL |
+| Reaction.ReactiveShield | Reaction | Scudo reattivo | — | Scudo 15 | — | Reaction | Trigger: subisci danno | CANONICAL |
+| Reaction.CounterShot | Reaction | Contrattacco | — | 14 danni | — | Reaction | Trigger: sei colpito | CANONICAL |
+| Reaction.AllyIntercept | Reaction | Interposizione | — | Cambia bersaglio | — | Reaction | Trigger: alleato bersagliato | CANONICAL |
+| Reaction.HazardEscape | Reaction | Fuga hazard | — | Reposition 1 | — | Reaction | Trigger: cella diventa pericolosa | CANONICAL |
+| Reaction.Cleanse | Reaction | Pulizia automatica | — | Rimuove lo stato | — | Reaction | Trigger: ricevi controllo | CANONICAL |
+| Reaction.Anchor | Reaction | Ancoraggio | — | Annulla Push/Pull | — | Reaction | Trigger: ricevi Push/Pull | CANONICAL |
+
+## Varianti
+
+| Variant_ID | Nome | Vantaggio | Svantaggio | Incompatibile_Con | Specializzazione | Implementation_Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| Vektor.InterceptShot.Precise | Intercetto preciso | 20 danni | Controlla una sola cella | Vektor.InterceptShot.Extended | Duelist | CANONICAL |
+| Vektor.InterceptShot.Extended | Intercetto esteso | Controlla linea di 3 celle | 14 danni | Vektor.InterceptShot.Precise | Control | CANONICAL |
+
+## Talenti
+
+_NOT DEFINED nelle tabelle correnti; nessun talento è stato inventato._
+
+## Stato produzione
+
+| Campo | Valore |
+| --- | --- |
+| Page Status | DATA_READY |
+| Stats | PARTIAL_CANONICAL |
+| Vision | BASELINE |
+| Mobility | PARTIAL_CANONICAL |
+| Signature | DEFINED |
+| Abilities | DEFINED (5) |
+| Reactions | DEFINED (2) |
+| Resource | DEFINED |
+| Equipment | CANONICAL GENERIC |
+| Variants | DEFINED (2) |
+| Talents | NOT DEFINED |
+| Release | v0.1 |
+
+## Stato della pagina
+
+Questa pagina è **operativa per la v0.1**: numeri e semantiche competitive derivano dai cataloghi/versioni correnti della repository. Le descrizioni narrative aggiunte qui sono una vista editoriale delle stesse regole e **non introducono nuovi effetti**. Le voci `PARTIAL` / `DEFERRED_E14` restano esplicitamente non complete.
+
+## Governance
+
+- **Dataset:** `RefactorTactics_Characters_Wiki_Data_v0.4.xlsx`.
+- **Release dati:** `v0.1`.
+- I campi `—` / `TBD` sono intenzionali: indicano che la fonte non definisce quel valore.
+- La Wiki è una vista documentale; il runtime non deve usare Markdown come fonte competitiva.
+- Per la v0.1, i valori competitivi canonici restano i cataloghi versionati sotto `docs/balance/` e l'implementazione C++ verificata dai test.

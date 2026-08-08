@@ -3,6 +3,7 @@
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Ability/RTActionData.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
@@ -197,6 +198,10 @@ void FRTScenarioSession::BeginTurn()
 			U->PlannedCell = U->Cell;
 			U->PlannedPath.Reset();
 			U->PlannedWaypoints.Reset();
+			// Anche il piano d'ATTACCO: senza, un'unita' che ha attaccato al turno 1 continuerebbe a farlo
+			// nei turni successivi senza che lo scenario glielo chieda.
+			U->PlannedAbilityIndex = INDEX_NONE;
+			U->PlannedAttackTarget = nullptr;
 		}
 	}
 
@@ -204,7 +209,48 @@ void FRTScenarioSession::BeginTurn()
 	{
 		TWeakObjectPtr<ARTUnit>* Found = UnitsById.Find(Intent.UnitId);
 		ARTUnit* Unit = Found ? Found->Get() : nullptr;
-		if (!Unit || !Unit->IsAlive() || Intent.Move.Num() == 0)
+		if (!Unit || !Unit->IsAlive())
+		{
+			continue;
+		}
+
+		// --- abilita' -------------------------------------------------------------------------------------
+		// Stessa strada del controller: si scrivono `PlannedAbilityIndex` e `PlannedAttackTarget`, esattamente
+		// come dopo un click sul nemico. Portata, LOS, cooldown ed energia li valuta il turn manager al momento
+		// della risoluzione — la sessione non li anticipa, altrimenti verificherebbe le proprie regole invece
+		// di quelle del gioco.
+		if (!Intent.Ability.IsNone())
+		{
+			TWeakObjectPtr<ARTUnit>* FoundTarget = UnitsById.Find(Intent.Target);
+			ARTUnit* Target = FoundTarget ? FoundTarget->Get() : nullptr;
+
+			// L'abilita' si cerca per ActionId: l'indice nel kit si sposta appena qualcuno ne aggiunge una.
+			int32 AbilityIndex = INDEX_NONE;
+			for (int32 I = 0; I < Unit->NumAbilities(); ++I)
+			{
+				const URTActionData* Ability = Unit->GetAbility(I);
+				if (Ability && Ability->Def.ActionId == Intent.Ability)
+				{
+					AbilityIndex = I;
+					break;
+				}
+			}
+
+			if (AbilityIndex == INDEX_NONE)
+			{
+				// Un'abilita' che l'eroe non possiede e' un errore di scrittura dello scenario, non un esito di
+				// gioco: va detto forte, altrimenti l'assertion sui danni fallirebbe senza spiegare perche'.
+				UE_LOG(LogRT, Error, TEXT("[RT-Test] %s: '%s' non possiede l'abilita' '%s' (l'attacco non parte)"),
+					*Scenario.ScenarioId, *Intent.UnitId, *Intent.Ability.ToString());
+			}
+			else if (Target && Target->IsAlive())
+			{
+				Unit->PlannedAbilityIndex = AbilityIndex;
+				Unit->PlannedAttackTarget = Target;
+			}
+		}
+
+		if (Intent.Move.Num() == 0)
 		{
 			continue;
 		}
@@ -319,6 +365,10 @@ void FRTScenarioSession::Finish()
 			U->PlannedCell = U->Cell;
 			U->PlannedPath.Reset();
 			U->PlannedWaypoints.Reset();
+			// Anche il piano d'ATTACCO: senza, un'unita' che ha attaccato al turno 1 continuerebbe a farlo
+			// nei turni successivi senza che lo scenario glielo chieda.
+			U->PlannedAbilityIndex = INDEX_NONE;
+			U->PlannedAttackTarget = nullptr;
 		}
 	}
 
@@ -386,6 +436,44 @@ void FRTScenarioSession::Finish()
 			A.Expected = FString::Printf(TEXT(">= %d"), Exp.Value);
 			A.Actual = FString::FromInt(Result.TurnsPlayed);
 			A.bPassed = (Result.TurnsPlayed >= Exp.Value);
+			break;
+		}
+		case ERTAssertionKind::UnitHpEquals:
+		{
+			A.Description = FString::Printf(TEXT("UnitHpEquals(%s)"), *Exp.UnitId);
+			A.Expected = FString::FromInt(Exp.Value);
+
+			TWeakObjectPtr<ARTUnit>* Found = UnitsById.Find(Exp.UnitId);
+			const ARTUnit* Unit = Found ? Found->Get() : nullptr;
+			if (!Unit)
+			{
+				// Un'unita' ABBATTUTA puo' essere stata distrutta: distinguerlo da «non esiste» conta, perche'
+				// sono due difetti diversi — uno di gioco, uno di scenario.
+				A.Actual = TEXT("unita' assente (abbattuta o mai creata)");
+				A.bPassed = false;
+			}
+			else
+			{
+				// Lo SCUDO si dichiara separatamente: qui si guardano gli HP, e un danno assorbito dallo scudo
+				// deve risultare come «HP invariati», non come «nessun danno».
+				A.Actual = FString::Printf(TEXT("%d (scudo %d)"), Unit->Health, Unit->Shield);
+				A.bPassed = (Unit->Health == Exp.Value);
+			}
+			break;
+		}
+		case ERTAssertionKind::UnitAlive:
+		{
+			const bool bWantAlive = (Exp.Value != 0);
+			A.Description = FString::Printf(TEXT("UnitAlive(%s)"), *Exp.UnitId);
+			A.Expected = bWantAlive ? TEXT("viva") : TEXT("abbattuta");
+
+			TWeakObjectPtr<ARTUnit>* Found = UnitsById.Find(Exp.UnitId);
+			const ARTUnit* Unit = Found ? Found->Get() : nullptr;
+			// Un'unita' rimossa dal mondo conta come abbattuta: e' il modo in cui il gioco toglie di mezzo chi
+			// arriva a zero HP, e chiedere «e' viva?» a un puntatore nullo deve avere una risposta, non un crash.
+			const bool bIsAlive = (Unit != nullptr && Unit->IsAlive());
+			A.Actual = bIsAlive ? TEXT("viva") : TEXT("abbattuta");
+			A.bPassed = (bIsAlive == bWantAlive);
 			break;
 		}
 		default:

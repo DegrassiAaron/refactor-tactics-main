@@ -1,0 +1,379 @@
+# Riva
+
+> ✅ **Stato repository:** personaggio del roster **v0.1 canonico**. La pagina riassume i dati del workbook v0.4, che per i numeri v0.1 è un mirror documentale dei cataloghi versionati della repository. Quando una voce è `PARTIAL` o `DEFERRED_E14`, la pagina lo espone esplicitamente.
+
+> **Asset base:** Riva  
+> **Hero_Key:** `ASSET_RIVA`  
+> **RT Character ID:** `Hero.Riva`  
+> **Release:** `v0.1`  
+> **Design status:** `IMPLEMENTED`  
+> **Roster status:** Release v0.1
+
+## Panoramica
+
+Support/controller dell'acqua: bagna bersagli, cura, riposiziona e prepara il terreno per le combo di squadra.
+
+## Identità tattica
+
+| Campo | Valore |
+| --- | --- |
+| Ruolo primario | Support |
+| Ruolo secondario | Controller |
+| Macro ruolo Signature | Support |
+| Specializzazione | Water Terrain Manipulator |
+| Profilo range | Medium |
+| Tipo danno | Water |
+| Complessità gameplay | TBD |
+| Complessità tecnica (1–5) | TBD |
+| Risorsa firma | Riserva Idrica |
+| Signature primaria | Water Shaping |
+| Signature secondaria | Wet Setup |
+| Framework principali | Environment, Support, Movement, Status |
+| Dipendenze tecniche | Water, Wet, smoke, reposition |
+| Player question | Dove preparo il terreno per la squadra? |
+
+> **Nota bilanciamento:** Canonico v0.1. 95 HP, 5 MP, vista 5; valore massimo quando abilita combo e controllo terreno.
+
+## Meccanica firma
+
+### Descrizione della meccanica
+
+**Water Shaping** fa di Riva il principale personaggio di setup ambientale della v0.1. La sua acqua non è solo un tema visivo: serve a applicare `Wet`, spostare unità, sostenere gli alleati e preparare interazioni successive, soprattutto con l'elettricità.
+
+La **Riserva Idrica** ha cap 4 e recupera 1 tramite interazioni con l'acqua; il valore iniziale non è ancora specificato. Il kit alterna effetti immediati (`PressureJet`, `CircularTide`) a trasformazioni del campo (`FluidTrail`, `MistVeil`) e a un riposizionamento reattivo (`FlowReaction`, rinviato a E14).
+
+Il suo payoff cresce quando la squadra sfrutta le celle e gli stati che Riva ha preparato. Il controgioco consiste nel non restare nelle zone predisposte, interrompere la continuità del setup e sfruttare il fatto che l'acqua può diventare un vettore utile anche all'elettricità avversaria.
+
+### Lettura tattica
+
+**Obiettivo del giocatore.** Creare valore di squadra attraverso `Wet`, spinta, cura, acqua e fumo. Riva è più efficace quando il turno successivo o un alleato possono sfruttare ciò che ha preparato.
+
+**Counterplay / rischio.** Il setup può essere evitato o sfruttato dall'avversario. Inoltre `FlowReaction` non è ancora attiva nella v0.1 corrente perché dipende dalle decision boundary di E14.
+
+### Dati della meccanica
+
+| Campo | Valore |
+| --- | --- |
+| Mechanic ID | `MECH_RIVA_WATER_SHAPING` |
+| Nome | Water Shaping |
+| Scope | Exclusive |
+| Tipo | Primary Signature |
+| Secondaria | Wet Setup |
+| Framework | Environment, Support, Movement |
+| Dipendenze tecniche | Water, Wet, smoke, reposition |
+| Player question | Dove preparo il terreno per la squadra? |
+| State | Riserva Idrica + superfici/stati d'acqua |
+| Activation / Trigger | Interazioni con acqua e abilità di setup |
+| Payoff | Cura, Wet, controllo terreno e riposizionamento |
+| Counterplay | Disperdere il setup, elettricità nemica, uscire dalle zone preparate |
+| Telegraphing | Stato ambientale pubblico/observed; risorsa team-visible |
+| Design Status | IMPLEMENTED |
+
+> FlowReaction resta rinviata a E14; il resto del kit è catalogato.
+
+## Statistiche base
+
+| Campo | Valore |
+| --- | --- |
+| HP | 95 |
+| Armatura | — |
+| Resistenza | — |
+| Movimento base | 5 |
+| Iniziativa | — |
+| Precisione (1–10) | — |
+| Potenza (1–10) | — |
+| Controllo (1–10) | — |
+| Supporto (1–10) | — |
+| Durabilità (1–10) | — |
+| Indice Combat | — |
+| Budget Punti | — |
+| Delta Budget | — |
+
+**Stato dati:** `CANONICAL_PARTIAL` — Canonico: HP 95, Move 5. Altri attributi di questa matrice non sono definiti nel catalogo v0.1.
+
+## Visione e stealth
+
+| Campo | Valore |
+| --- | --- |
+| Sight Range (hex) | 5 |
+| Detection (0–100) | 48 |
+| Identification (0–100) | 45 |
+| Tracking (turni) | 1 |
+| Vision Height | — |
+| Stealth (1–10) | 2 |
+| Reveal Recovery Step | — |
+| Spotting Support (1–10) | — |
+| Firma Movimento | — |
+| Firma Attacco | — |
+| Sensor Resist (1–10) | — |
+| Contatto Default | — |
+
+> Vista 5 canonica. Detection 48 / Identification 45 / Stealth 2 / Tracking 1 sono baseline catalogo, non attive nello slice binario v0.1.
+
+**Stato dati:** `CANONICAL_BASELINE` — Percezione avanzata da differenziare via playtest.
+
+## Mobilità
+
+| Campo | Valore |
+| --- | --- |
+| Move Hex / MP | 5 |
+| Sprint Bonus | — |
+| Dash Range | — |
+| Verticalità (1–10) | — |
+| Costo Acqua | — |
+| Costo Ghiaccio | — |
+| Costo Fango | — |
+| Porta AP | — |
+| Ponte Mod | — |
+| Tunnel Mod | — |
+| Ascensore AP | — |
+| Knockback Resist | 0 |
+| Collision Priority | — |
+
+> Move 5 MP e Push Resistance 0 canonici. Altri modificatori di mobilità non sono definiti per eroe.
+
+**Stato dati:** `CANONICAL_PARTIAL` — FluidTrail è un Dash 3 specifico dell'eroe.
+
+## Risorsa firma
+
+| Resource_ID | Nome | Cap | Start | Regen | Regen_Trigger | Spesa | Regola | Audience | Implementation_Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| RES_RIVA_WATER | Riserva Idrica | 4 | — | 1 | Interazione con acqua | Abilità firma | Cap 4; start non specificato | Team-visible | CANONICAL_PARTIAL |
+
+## Abilità
+
+### Pressure Jet
+
+#### Descrizione
+
+Pressure Jet è l'attacco base tematico di Riva: una linea a range 5 che infligge 16 danni, applica `Wet` per 1 turno e `Push 1`.
+
+| Campo | Valore |
+| --- | --- |
+| Ability ID | `Riva.PressureJet` |
+| Categoria | Attacco base lineare |
+| Priorità | 50 |
+| Costo risorsa | — |
+| Cooldown (turni) | 0 |
+| Range (hex) | 5 |
+| AoE Radius | 0 |
+| Danno base | 16 |
+| Control Strength | 1 |
+| Durata (turni) | 1 |
+| Loss/Contact Policy | Fallback.AttackCell |
+| Interazione terreno | Applica Wet 1 e Push 1 |
+| Gameplay Tags | `Ability.Offense.Line.Water` |
+| Implementation Status | IMPLEMENTED |
+| Data Status | CANONICAL |
+
+> Attacco base tematico: 16 danni, range 5.
+
+
+#### Uso tattico e limiti
+
+Fa tre cose con una sola azione leggibile: danno leggero, spostamento e setup. Il suo valore principale è spesso la posizione finale o il `Wet` lasciato al team, non il danno grezzo.
+
+### Circular Tide
+
+#### Descrizione
+
+Circular Tide è l'AoE di supporto di Riva. A range 4 e raggio 1, cura 18 agli alleati e applica `Wet` ai nemici per 1 turno.
+
+| Campo | Valore |
+| --- | --- |
+| Ability ID | `Riva.CircularTide` |
+| Categoria | AoE support |
+| Priorità | 60 |
+| Costo risorsa | — |
+| Cooldown (turni) | 2 |
+| Range (hex) | 4 |
+| AoE Radius | 1 |
+| Danno base | 0 |
+| Control Strength | 0 |
+| Durata (turni) | 1 |
+| Loss/Contact Policy | Fallback.AttackCell |
+| Interazione terreno | Cura 18 agli alleati e applica Wet ai nemici |
+| Gameplay Tags | `Ability.Support.AOE.Water` |
+| Implementation Status | PARTIAL |
+| Data Status | CANONICAL |
+
+> Resolver ally/enemy differenziato nella stessa AoE è limite dichiarato.
+
+
+#### Uso tattico e limiti
+
+La specifica è `PARTIAL` perché il resolver corrente non differenzia ancora pienamente effetti alleati/nemici nella stessa AoE. Le varianti scelgono fra più cura (`Healing`) o più controllo (`Impact`).
+
+### Fluid Trail
+
+#### Descrizione
+
+Fluid Trail è un Dash lineare di 3 celle che dovrebbe lasciare acqua lungo il percorso. Il movimento è la parte già rappresentata; la creazione dinamica dell'acqua lungo il path resta parziale.
+
+| Campo | Valore |
+| --- | --- |
+| Ability ID | `Riva.FluidTrail` |
+| Categoria | Dash |
+| Priorità | 30 |
+| Costo risorsa | — |
+| Cooldown (turni) | 2 |
+| Range (hex) | 3 |
+| AoE Radius | 0 |
+| Danno base | 0 |
+| Control Strength | 0 |
+| Durata (turni) | 0 |
+| Loss/Contact Policy | Fallback.Stop |
+| Interazione terreno | Dash 3 e crea acqua lungo il percorso |
+| Gameplay Tags | `Ability.Mobility.Dash.Water` |
+| Implementation Status | PARTIAL |
+| Data Status | CANONICAL |
+
+> Movimento lineare dichiarato; creazione acqua lungo path dipende dal terreno dinamico.
+
+
+#### Uso tattico e limiti
+
+È insieme mobilità e setup: Riva cambia posizione mentre prepara celle utili a Wet, conduzione e controllo ambientale. Il fallback è `Stop` se il Dash non può essere completato.
+
+### Mist Veil
+
+#### Descrizione
+
+Mist Veil è un'azione di Prep che crea fumo in un'area di raggio 1. È pensata per modificare la leggibilità e le linee di visione del campo, non per infliggere danno.
+
+| Campo | Valore |
+| --- | --- |
+| Ability ID | `Riva.MistVeil` |
+| Categoria | Prep/AoE |
+| Priorità | 35 |
+| Costo risorsa | — |
+| Cooldown (turni) | 3 |
+| Range (hex) | 0 |
+| AoE Radius | 1 |
+| Danno base | 0 |
+| Control Strength | 0 |
+| Durata (turni) | 0 |
+| Loss/Contact Policy | Fallback.Cancel |
+| Interazione terreno | Crea fumo raggio 1; range 0 è placeholder tecnico corrente |
+| Gameplay Tags | `Ability.Vision.Smoke` |
+| Implementation Status | PARTIAL |
+| Data Status | CANONICAL |
+
+> Effetto cella dinamico non completamente rappresentato nell'azione.
+
+
+#### Uso tattico e limiti
+
+L'effetto dinamico sulla cella è ancora `PARTIAL`; il range 0 corrente è un placeholder tecnico. Il valore tattico è proteggere un attraversamento, rompere una linea o preparare un cambio di posizione.
+
+### Flow Reaction
+
+#### Descrizione
+
+Flow Reaction prevede un `Reposition 1` dopo che Riva subisce un attacco. È una reazione di movimento e quindi richiede una decision boundary durante la resolution.
+
+| Campo | Valore |
+| --- | --- |
+| Ability ID | `Riva.FlowReaction` |
+| Categoria | Reazione/Reposition |
+| Priorità | 36 |
+| Costo risorsa | — |
+| Cooldown (turni) | 3 |
+| Range (hex) | 0 |
+| AoE Radius | 0 |
+| Danno base | 0 |
+| Control Strength | 0 |
+| Durata (turni) | 0 |
+| Loss/Contact Policy | DecisionBoundary.E14 |
+| Interazione terreno | Reposition 1 dopo un attacco subito |
+| Gameplay Tags | `Ability.Reaction.Movement` |
+| Implementation Status | DEFERRED_E14 |
+| Data Status | CANONICAL |
+
+> Slot None nel dato corrente per evitare false attivazioni.
+
+
+#### Uso tattico e limiti
+
+Per evitare TurnLog falsi è esplicitamente `DEFERRED_E14`: nel dato corrente non occupa ancora uno slot Reaction attivo.
+
+## Fast Reactions / Reaction
+
+### Descrizione delle reazioni
+
+- **`Riva.FlowReaction`** — Dopo un attacco subito, la specifica prevede `Reposition 1`. Richiede una decision boundary e resta `DEFERRED_E14`; la baseline di 3 s appartiene al modello futuro, non al comportamento runtime corrente.
+
+| Reaction_ID | Trigger | Tipo | Finestra_sec_SOURCE | Costo | Priorità | Scelta_A | Scelta_B | Default_Timeout | Tradeoff | Implementation_Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Riva.FlowReaction | Dopo un attacco subito | Movement reaction | 3 | — | 36 | Reposition 1 | Hold | Hold | Movimento dentro decision boundary | DEFERRED_E14 |
+
+> ⚠️ **Review required:** una o più finestre temporali sono valori sorgente/storici. Il modello corrente di Fast Reaction usa una baseline di 3,0 s; questi valori vanno riallineati prima dell'implementazione.
+> `Riva.FlowReaction` — Rinviata a E14; durata 3 s è baseline del modello Fast Reaction, non implementazione corrente.
+
+## Equipaggiamento
+
+Per la v0.1 il workbook assegna agli eroi il **catalogo generico canonico**: varianti arma, gadget e moduli di reazione sono condivisi. La tabella sotto mostra tutti i valori disponibili nella matrice.
+
+| Equipment_ID | Slot | Nome | Budget | Vantaggio | Svantaggio | Sinergia | Principio | Implementation_Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Weapon.Precision | Weapon | Precisione | — | +1 range | −4 danni | Attacco base | Scelta orizzontale | CANONICAL |
+| Weapon.Impact | Weapon | Impatto | — | Applica Push 1 | −1 range | Attacco base | Scelta orizzontale | CANONICAL |
+| Weapon.Overcharge | Weapon | Sovraccarico | — | +6 danni | Cooldown +1 | Attacco base | Scelta orizzontale | CANONICAL |
+| Weapon.Split | Weapon | Multiplo | — | Bersaglio aggiuntivo | −6 danni | Attacco base | Scelta orizzontale | CANONICAL |
+| Weapon.Suppressive | Weapon | Soppressione | — | Applica Slow | −5 danni | Attacco base | Scelta orizzontale | CANONICAL |
+| Weapon.Environmental | Weapon | Ambientale | — | Migliora hazard | −5 danni diretti | Attacco base | Scelta orizzontale | CANONICAL |
+| Gadget.Medkit | Gadget | Medkit | — | Cura 18 | — | Support | Cooldown 3 | CANONICAL |
+| Gadget.BreachCharge | Gadget | Carica da breccia | — | 35 danni a struttura | — | Map | Cooldown 3 | CANONICAL |
+| Gadget.Sprinkler | Gadget | Sprinkler | — | Acqua raggio 1 | — | Water combo | Cooldown 3 | CANONICAL |
+| Gadget.Insulator | Gadget | Isolante | — | Immunità a una propagazione elettrica | — | Electric defense | Cooldown 3 | CANONICAL |
+| Gadget.SmokeEmitter | Gadget | Emettitore di fumo | — | Fumo raggio 1 | — | Vision | Cooldown 3 | CANONICAL |
+| Gadget.PortableCover | Gadget | Copertura portatile | — | Crea copertura bassa | — | Structures | Cooldown 3 | CANONICAL |
+| Gadget.Sensor | Gadget | Sensore | — | Rivela un'area | — | Vision | Cooldown 3; raggio/durata non specificati | CANONICAL_PARTIAL |
+| Gadget.Anchor | Gadget | Ancora | — | Impedisce una spinta | — | Displacement | Cooldown 3 | CANONICAL |
+| Reaction.EmergencyDash | Reaction | Dash d'emergenza | — | Reposition 1 | — | Reaction | Trigger: sei bersagliato | CANONICAL |
+| Reaction.ReactiveShield | Reaction | Scudo reattivo | — | Scudo 15 | — | Reaction | Trigger: subisci danno | CANONICAL |
+| Reaction.CounterShot | Reaction | Contrattacco | — | 14 danni | — | Reaction | Trigger: sei colpito | CANONICAL |
+| Reaction.AllyIntercept | Reaction | Interposizione | — | Cambia bersaglio | — | Reaction | Trigger: alleato bersagliato | CANONICAL |
+| Reaction.HazardEscape | Reaction | Fuga hazard | — | Reposition 1 | — | Reaction | Trigger: cella diventa pericolosa | CANONICAL |
+| Reaction.Cleanse | Reaction | Pulizia automatica | — | Rimuove lo stato | — | Reaction | Trigger: ricevi controllo | CANONICAL |
+| Reaction.Anchor | Reaction | Ancoraggio | — | Annulla Push/Pull | — | Reaction | Trigger: ricevi Push/Pull | CANONICAL |
+
+## Varianti
+
+| Variant_ID | Nome | Vantaggio | Svantaggio | Incompatibile_Con | Specializzazione | Implementation_Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| Riva.CircularTide.Healing | Marea curativa | Cura 24 invece di 18 | Non applica Wet ai nemici | Riva.CircularTide.Impact | Support | CANONICAL |
+| Riva.CircularTide.Impact | Marea d'urto | Applica Push 1 ai nemici | Cura solo 10 | Riva.CircularTide.Healing | Control | CANONICAL |
+
+## Talenti
+
+_NOT DEFINED nelle tabelle correnti; nessun talento è stato inventato._
+
+## Stato produzione
+
+| Campo | Valore |
+| --- | --- |
+| Page Status | DATA_READY |
+| Stats | PARTIAL_CANONICAL |
+| Vision | BASELINE |
+| Mobility | PARTIAL_CANONICAL |
+| Signature | DEFINED |
+| Abilities | DEFINED (5) |
+| Reactions | DEFINED (1) |
+| Resource | DEFINED |
+| Equipment | CANONICAL GENERIC |
+| Variants | DEFINED (2) |
+| Talents | NOT DEFINED |
+| Release | v0.1 |
+
+## Stato della pagina
+
+Questa pagina è **operativa per la v0.1**: numeri e semantiche competitive derivano dai cataloghi/versioni correnti della repository. Le descrizioni narrative aggiunte qui sono una vista editoriale delle stesse regole e **non introducono nuovi effetti**. Le voci `PARTIAL` / `DEFERRED_E14` restano esplicitamente non complete.
+
+## Governance
+
+- **Dataset:** `RefactorTactics_Characters_Wiki_Data_v0.4.xlsx`.
+- **Release dati:** `v0.1`.
+- I campi `—` / `TBD` sono intenzionali: indicano che la fonte non definisce quel valore.
+- La Wiki è una vista documentale; il runtime non deve usare Markdown come fonte competitiva.
+- Per la v0.1, i valori competitivi canonici restano i cataloghi versionati sotto `docs/balance/` e l'implementazione C++ verificata dai test.

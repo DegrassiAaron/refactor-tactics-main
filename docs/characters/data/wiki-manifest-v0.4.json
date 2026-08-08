@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 2,
+  "datasetVersion": "v0.4",
+  "narrativeFields": [
+    "05_Hero_Mechanics.Descrizione_Wiki",
+    "06_Abilities.Descrizione_Wiki",
+    "06_Abilities.Uso_Tattico_Wiki"
+  ],
+  "officialRoster": {
+    "v0.1": [
+      "Flux",
+      "Riva",
+      "Bastion",
+      "Vektor"
+    ],
+    "v0.2": [
+      "Steel",
+      "Aurora",
+      "Murdock",
+      "Kwang"
+    ]
+  },
+  "rules": {
+    "v0.1": "canonical/current repository data; expose PARTIAL/DEFERRED states",
+    "v0.2": "DATA_SPEC/DESIGN_SPEC; not runtime canonical"
+  },
+  "pages": [
+    "docs/characters/README.md",
+    "docs/characters/_Template.md",
+    "docs/characters/index.md",
+    "docs/characters/v0.1/bastion.md",
+    "docs/characters/v0.1/flux.md",
+    "docs/characters/v0.1/riva.md",
+    "docs/characters/v0.1/vektor.md",
+    "docs/characters/v0.2/aurora.md",
+    "docs/characters/v0.2/kwang.md",
+    "docs/characters/v0.2/murdock.md",
+    "docs/characters/v0.2/steel.md"
+  ]
+}
