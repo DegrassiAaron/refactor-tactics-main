@@ -1,0 +1,28 @@
+{
+  "scenarioId": "Combat.NoCounterWhenUnarmed",
+  "tags": ["combat", "reactions", "core", "flux", "bastion"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "Identico a Combat.CounterStrikesBack tranne per una riga: Flux non arma niente. Flux incassa gli stessi 24, ma Bastion resta a 120 pieni. E' il complemento necessario — da solo, «Bastion scende a 110» non distingue una reazione che ARMANDOLA scatta da una che scatta sempre, e una reazione che parte senza essere stata pianificata non e' una reazione, e' una proprieta' dell'eroe. La coppia isola l'unica variabile che cambia: il campo `reaction` nell'intent.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Flux",    "team": 0, "cell": [0, 0, 0] },
+    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [2, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "B1", "ability": "Bastion.ImpactShot", "target": "A1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals", "unit": "A1", "value":  66 },
+    { "type": "UnitHpEquals", "unit": "B1", "value": 120 },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

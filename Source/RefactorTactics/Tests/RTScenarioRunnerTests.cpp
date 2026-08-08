@@ -692,4 +692,91 @@ bool FRTScenarioShapesHitMoreThanOneTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `Combat.CounterStrikesBack`: una reazione ARMATA scatta e colpisce chi ha colpito.
+ *
+ * Il numero che conta e' quello di Bastion: 110 invece di 120, senza che nessun intent glielo abbia fatto
+ * fare. E' l'unico effetto del turno che nessuno ha chiesto esplicitamente, quindi l'unico che puo' venire
+ * solo dalla reazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCounterStrikesBackTest,
+	"RefactorTactics.Scenario.RunnerCounterStrikesBack",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCounterStrikesBackTest::RunTest(const FString&)
+{
+	return RunScenarioAndReportHpAssertions(*this, TEXT("Combat.CounterStrikesBack"));
+}
+
+/** `Combat.NoCounterWhenUnarmed`: senza armarla, la stessa reazione non scatta. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioNoCounterUnarmedTest,
+	"RefactorTactics.Scenario.RunnerNoCounterWhenUnarmed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioNoCounterUnarmedTest::RunTest(const FString&)
+{
+	return RunScenarioAndReportHpAssertions(*this, TEXT("Combat.NoCounterWhenUnarmed"));
+}
+
+/**
+ * E' l'ARMARLA a fare la differenza, non qualcos'altro.
+ *
+ * Stessa forma di `WallIsWhatStopsTheShot`. I due test sopra sono verdi anche in un gioco dove la reazione
+ * non esiste e Bastion non viene mai toccato — no: il primo fallirebbe. Ma sarebbero verdi entrambi in un
+ * gioco dove la reazione scatta SEMPRE, se per caso i numeri attesi fossero stati scritti su quel
+ * comportamento. Qui si confrontano i due stati finali e si pretende che differiscano: l'unica riga diversa
+ * fra i due scenari e' il campo `reaction`, quindi la differenza non puo' venire da altro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioArmingIsWhatFiresTest,
+	"RefactorTactics.Scenario.ArmingIsWhatFiresTheReaction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioArmingIsWhatFiresTest::RunTest(const FString&)
+{
+	FRTTestScenario Armed, Unarmed;
+	if (!LoadShippedScenario(*this, TEXT("Combat.CounterStrikesBack"), Armed)) { return false; }
+	if (!LoadShippedScenario(*this, TEXT("Combat.NoCounterWhenUnarmed"), Unarmed)) { return false; }
+
+	UWorld* W1 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 1"), W1)) { return false; }
+	const FRTTestResult ArmedResult = URTScenarioRunner::Run(W1, Armed);
+	DestroyRunnerWorld(W1);
+
+	UWorld* W2 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 2"), W2)) { return false; }
+	const FRTTestResult UnarmedResult = URTScenarioRunner::Run(W2, Unarmed);
+	DestroyRunnerWorld(W2);
+
+	TestNotEqual(TEXT("armata e disarmata producono stati diversi"), ArmedResult.StateHash, UnarmedResult.StateHash);
+	return true;
+}
+
+/**
+ * Armare qualcosa che NON e' una reazione viene rifiutato, con un motivo.
+ *
+ * E' il modo di fallire peggiore che ci sia in questo campo: `Flux.ArcPulse` in `reaction` non scatterebbe
+ * mai e non produrrebbe nessun errore: lo scenario girerebbe, l'assertion sui danni fallirebbe, e chi legge
+ * cercherebbe una regressione del combattimento invece di una riga sbagliata nel JSON.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioBadReactionRejectedTest,
+	"RefactorTactics.Scenario.NonReactionCannotBeArmed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioBadReactionRejectedTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.CounterStrikesBack"), Scenario)) { return false; }
+
+	// Un'abilita' che Flux POSSIEDE davvero, ma che non e' una reazione: il controllo che conta e' sullo
+	// SLOT. Usando un ID inesistente si verificherebbe solo che il nome non si trova, che e' un'altra cosa.
+	Scenario.Turns[0].Intents[0].Reaction = FName(TEXT("Flux.ArcPulse"));
+
+	FString Error;
+	TestFalse(TEXT("lo scenario viene rifiutato"), URTScenarioLoader::Validate(Scenario, Error));
+	TestTrue(TEXT("il motivo nomina lo slot"), Error.Contains(TEXT("non e' una reazione")));
+
+	// E la reazione VERA continua a passare: il controllo rifiuta ciò che deve, non tutto.
+	FRTTestScenario Good;
+	if (!LoadShippedScenario(*this, TEXT("Combat.CounterStrikesBack"), Good)) { return false; }
+	FString NoError;
+	TestTrue(TEXT("la reazione vera resta valida"), URTScenarioLoader::Validate(Good, NoError));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
