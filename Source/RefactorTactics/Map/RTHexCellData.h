@@ -201,8 +201,24 @@ enum class ERTHexTransitionKind : uint8
 };
 
 /**
+ * Stato di un arco (CP 9.4). `Inactive` e `Destroyed` sono indistinguibili per il grafo — da nessuno dei due
+ * si passa — e differiscono per la REVERSIBILITA': un ponte disattivato si riattiva, uno distrutto no. E' la
+ * stessa distinzione che le porte fanno fra `Closed` e `Destroyed`.
+ */
+UENUM(BlueprintType)
+enum class ERTHexArcState : uint8
+{
+	Active,    // il collegamento esiste e si percorre
+	Inactive,  // spento: non si passa, ma si puo' riattivare
+	Destroyed  // abbattuto: stato TERMINALE
+};
+
+/**
  * Arco di transizione ESPLICITA tra due celle esagonali (scale, rampe, ponti, tunnel, ascensori). Direzionale:
  * il bidirezionale richiede due archi. Le celle su layer diversi NON sono adiacenti senza un arco.
+ *
+ * L'arco e' ADDITIVO: crea un collegamento dove non c'era. E' la ragione per cui le PORTE non stanno qui ma
+ * sui bordi (CP 9.3) — negare un'adiacenza planare richiede un oggetto sottrattivo, e questo non lo e'.
  */
 USTRUCT(BlueprintType)
 struct FRTHexEdge
@@ -221,6 +237,25 @@ struct FRTHexEdge
 	/** Tipo semantico dell'arco (informativo: non altera il pathfinding, che usa solo Cost). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
 	ERTHexTransitionKind Kind = ERTHexTransitionKind::Stair;
+
+	/** Stato del collegamento (CP 9.4). Solo `Active` e' percorribile. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	ERTHexArcState State = ERTHexArcState::Active;
+
+	/** Punti struttura del ponte (catalogo v0.1: 40). A zero l'arco passa a `Destroyed`. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	int32 Integrity = DefaultIntegrity;
+
+	/**
+	 * L'elettricita' RISALE questo collegamento (CP 9.4). Senza, la propagazione resta planare: il BFS di
+	 * `URTTerrainLibrary::CollectElectricPropagation` cammina sui sei vicini e non sale mai di layer. Un ponte
+	 * conduttivo e' quindi un rischio oltre che una scorciatoia.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	bool bConductsElectricity = false;
+
+	/** Integrita' di catalogo di un ponte (v0.1). Sta qui per la stessa ragione di `FRTHexCover`. */
+	static constexpr int32 DefaultIntegrity = 40;
 
 	FRTHexEdge() = default;
 	FRTHexEdge(const FRTCellId& InFrom, const FRTCellId& InTo, int32 InCost,

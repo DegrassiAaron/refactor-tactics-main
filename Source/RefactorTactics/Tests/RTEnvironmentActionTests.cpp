@@ -7,7 +7,10 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
+#include "Map/RTHexArcLibrary.h"
 #include "Map/RTHexMapAsset.h"
+#include "Pathfinding/RTHexPath.h"
+#include "Pathfinding/RTHexPathLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnManager.h"
@@ -262,13 +265,18 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEnvironmentActionsMatchCatalogTest,
 bool FRTEnvironmentActionsMatchCatalogTest::RunTest(const FString&)
 {
 	// Le azioni ambientali del catalogo §6 esistono con i numeri dichiarati, e risolvono tutte nel Cleanup:
-	// una di esse nel Blast cambierebbe il campo a meta' turno, invalidando percorsi gia' calcolati.
+	// una di esse nel Blast cambierebbe il TERRENO a meta' turno, e il costo di un percorso gia' calcolato
+	// cambierebbe sotto i piedi di chi lo sta percorrendo senza che nulla lo fermi.
+	//
+	// `Action.ModifyArc` **non e' piu' fra queste** (CP 9.4, 2026-08-08): e' passata al Blast con porte e
+	// strutture, perche' la TOPOLOGIA e' un caso diverso dal terreno — un passo che non esiste piu' viene
+	// troncato da `TruncatePathToTopology` con un reason code, mentre un costo che cambia non lo si nota.
+	// La sua fase e' verificata piu' sotto, insieme al perche'.
 	struct FExpected { const TCHAR* Id; int32 Range; int32 Cooldown; };
 	const FExpected Environmental[] = {
 		{ TEXT("Action.Electrify"),   4, 2 },
 		{ TEXT("Action.Ignite"),      4, 2 },
 		{ TEXT("Action.CreateWater"), 4, 2 },
-		{ TEXT("Action.ModifyArc"),   3, 2 },
 	};
 
 	for (const FExpected& E : Environmental)
@@ -281,6 +289,17 @@ bool FRTEnvironmentActionsMatchCatalogTest::RunTest(const FString&)
 			URTCatalogLibrary::MapResolutionPhase(Def.ResolutionPhase) == ERTMatchPhase::Cleanup);
 	}
 
+	// `Action.ModifyArc` resta nel catalogo con i suoi numeri, ma nel **Blast**: e' la decisione di CP 9.4, e
+	// senza questa riga il cambio di fase passerebbe senza che nessun test se ne accorga.
+	{
+		const FRTActionDef Arc = URTCatalogLibrary::FindCoreAction(TEXT("Action.ModifyArc"));
+		TestTrue(TEXT("ModifyArc e' nel catalogo"), Arc.ActionId == FName(TEXT("Action.ModifyArc")));
+		TestEqual(TEXT("ModifyArc: portata invariata"), Arc.RangeCells, 3);
+		TestEqual(TEXT("ModifyArc: cooldown invariato"), Arc.CooldownTurns, 2);
+		TestTrue(TEXT("ModifyArc risolve nel BLAST, con porte e strutture"),
+			URTCatalogLibrary::MapResolutionPhase(Arc.ResolutionPhase) == ERTMatchPhase::Blast);
+	}
+
 	// `Action.CreateCover` **non** e' qui, ed e' una decisione: le coperture non esistono nel modello dati
 	// (`FRTHexCellData` non ha bordi protetti) e costruirle e' l'epic E9. Un'azione che dichiarasse di creare
 	// una copertura senza che le coperture esistano sarebbe un'abilita' inerte — il difetto che questo
@@ -291,6 +310,202 @@ bool FRTEnvironmentActionsMatchCatalogTest::RunTest(const FString&)
 	const TArray<FString> Errors = URTCatalogLibrary::ValidateActions(URTCatalogLibrary::GetCoreActionCatalog());
 	for (const FString& Err : Errors) { AddError(Err); }
 	TestEqual(TEXT("il catalogo resta valido"), Errors.Num(), 0);
+	return true;
+}
+
+/**
+ * La DoD di CP 9.4 nel caso che conta: il ponte sparisce a META' TURNO e chi lo stava per attraversare NON si
+ * ritrova dall'altra parte. E' il gemello di `Door.ClosingStopsMovement`, ma con una differenza che il
+ * checkpoint esiste per fissare — una porta chiusa si aggira, un ponte tolto no: fra due layer non c'e' una
+ * via alternativa, quindi il percorso FALLISCE invece di allungarsi.
+ *
+ * Scena: ponte fra (0,0,L0) e (1,0,L1). Chi lo taglia sta su un estremo — l'arco e' identificato dalla coppia
+ * (caster, bersaglio) — e nello stesso turno si sposta, cosi' la cella di arrivo resta LIBERA: senza questo,
+ * il Mover si fermerebbe comunque per occupazione e il test non dimostrerebbe niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBridgeNoTeleportTest,
+	"RefactorTactics.Structures.Bridge.NoTeleportOnRemoval",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBridgeNoTeleportTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	const FRTCellId Ground(0, 0, 0);
+	const FRTCellId Upper(1, 0, 1);
+	MapActor->MapAsset->AddOrUpdateCell(FRTHexCellData(Upper));
+	MapActor->MapAsset->SortCells();
+	MapActor->MapAsset->AddTransition(Ground, Upper, /*Cost*/ 1, ERTHexTransitionKind::Bridge,
+		/*bBidirectional*/ true);
+
+	ARTUnit* Cutter = SpawnEnvUnit(World, 0, Ground);
+	ARTUnit* Mover = SpawnEnvUnit(World, 1, Upper);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Cutter"), Cutter) || !TestNotNull(TEXT("Mover"), Mover)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	// Il percorso e' valido nel momento in cui viene scritto: il ponte c'e'.
+	TestTrue(TEXT("col ponte il passo esiste"),
+		URTHexArcLibrary::IsArcTraversable(MapActor->MapAsset, Upper, Ground));
+	Mover->PlannedPath = { Upper, Ground };
+
+	// Chi taglia il ponte libera anche la cella di arrivo, altrimenti il Mover si fermerebbe per occupazione
+	// e non si saprebbe se e' stata la topologia o un'unita' di mezzo.
+	PlanEnvAction(Cutter, TEXT("Action.ModifyArc"), Mover);
+	Cutter->PlannedPath = { Ground, FRTCellId(1, 0, 0) };
+
+	RunEnvTurn(TM);
+
+	TestFalse(TEXT("il ponte non c'e' piu'"),
+		URTHexArcLibrary::IsArcTraversable(MapActor->MapAsset, Upper, Ground));
+	TestTrue(TEXT("chi lo attraversava e' rimasto dov'era"), Mover->Cell == Upper);
+	TestFalse(TEXT("e NON si e' teletrasportato di sotto"), Mover->Cell == Ground);
+	TestTrue(TEXT("la cella di arrivo era davvero libera"), Cutter->Cell != Ground);
+
+	// Dal turno dopo il percorso non esiste proprio: e' il «path fallisce» della DoD, non un giro piu' lungo.
+	const FRTHexPathResult Broken = URTHexPathLibrary::FindPath(MapActor->MapAsset, Upper, Ground, /*MaxCost*/ 0);
+	TestTrue(TEXT("il percorso fra i due layer FALLISCE"), Broken.Status == ERTHexPathStatus::NoPath);
+
+	int32 Logged = 0;
+	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+	{
+		if (Entry.Category == ERTLogCategory::Environment
+			&& Entry.Outcome == static_cast<uint8>(ERTEnvironmentOutcome::BridgeRemoved))
+		{
+			++Logged;
+		}
+	}
+	TestEqual(TEXT("il TurnLog registra il ponte tolto"), Logged, 1);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * Il ponte creato da `ModifyArc` e' TEMPORANEO e CONDUTTIVO. La durata e' quella delle altre modifiche
+ * ambientali del catalogo (2 turni) e i suoi turni cominciano dal PROSSIMO: l'azione risolve nel Blast e la
+ * scadenza gira nel Cleanup dello stesso turno, quindi senza questa distinzione il ponte ne perderebbe uno
+ * prima che qualcuno possa attraversarlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBridgeTemporaryTest,
+	"RefactorTactics.Structures.Bridge.TemporaryBridgeExpires",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBridgeTemporaryTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	const FRTCellId Ground(0, 0, 0);
+	const FRTCellId Upper(1, 0, 1);
+	MapActor->MapAsset->AddOrUpdateCell(FRTHexCellData(Upper));
+	MapActor->MapAsset->SortCells();
+
+	ARTUnit* Builder = SpawnEnvUnit(World, 0, Ground);
+	ARTUnit* Target = SpawnEnvUnit(World, 1, Upper);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Builder"), Builder) || !TestNotNull(TEXT("Target"), Target)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	TestFalse(TEXT("all'inizio i due layer sono separati"),
+		URTHexArcLibrary::IsArcTraversable(MapActor->MapAsset, Ground, Upper));
+
+	PlanEnvAction(Builder, TEXT("Action.ModifyArc"), Target);
+	RunEnvTurn(TM); // turno 1: il ponte nasce
+
+	TestTrue(TEXT("il ponte esiste"), URTHexArcLibrary::IsArcTraversable(MapActor->MapAsset, Ground, Upper));
+	TestTrue(TEXT("ed e' CONDUTTIVO: la scarica lo risale"),
+		URTHexArcLibrary::ArcConductsElectricity(MapActor->MapAsset, Ground, Upper));
+
+	RunEnvTurn(TM); // turno 2: regge (i suoi turni cominciano da qui)
+	TestTrue(TEXT("dopo un turno regge ancora"),
+		URTHexArcLibrary::IsArcTraversable(MapActor->MapAsset, Ground, Upper));
+
+	RunEnvTurn(TM); // turno 3: scade
+	TestFalse(TEXT("scaduto: i due layer sono di nuovo separati"),
+		URTHexArcLibrary::IsArcTraversable(MapActor->MapAsset, Ground, Upper));
+	TestTrue(TEXT("e il percorso fallisce"),
+		URTHexPathLibrary::FindPath(MapActor->MapAsset, Ground, Upper, /*MaxCost*/ 0).Status
+			== ERTHexPathStatus::NoPath);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * Che in PARTITA il danno alle strutture raggiunga davvero un ARCO, non solo una copertura.
+ *
+ * Questo test non c'era: l'ha reso necessario la VERIFICA DI MUTAZIONE. Disattivando la raccolta del danno
+ * verso gli archi nel `TurnManager` non cadeva nessuno dei dieci test di CP 9.4, perche' `DamageBreaksAtZero`
+ * chiama `URTHexArcLibrary::DamageArc` DIRETTAMENTE: la libreria era coperta, il cablaggio no. E' il difetto
+ * ricorrente di questo repository — codice corretto che nessuno chiama.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBridgeDamagedInTurnTest,
+	"RefactorTactics.Structures.Bridge.DamagedInPlayedTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBridgeDamagedInTurnTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	const FRTCellId Ground(0, 0, 0);
+	const FRTCellId Upper(1, 0, 1);
+	MapActor->MapAsset->AddOrUpdateCell(FRTHexCellData(Upper));
+	MapActor->MapAsset->SortCells();
+	MapActor->MapAsset->AddTransition(Ground, Upper, /*Cost*/ 1, ERTHexTransitionKind::Bridge,
+		/*bBidirectional*/ true);
+
+	ARTUnit* Breacher = SpawnEnvUnit(World, 0, Ground);
+	ARTUnit* Foe = SpawnEnvUnit(World, 1, Upper);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Breacher"), Breacher) || !TestNotNull(TEXT("Foe"), Foe)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	// L'abilita' dichiara di poter sfondare: e' il catalogo a concederlo (qui lo si simula sull'istanza).
+	Breacher->Abilities[0]->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 20));
+	Breacher->PlannedAbilityIndex = 0;
+	Breacher->PlannedAttackTarget = Foe;
+
+	RunEnvTurn(TM);
+
+	// Il ponte ha incassato sulla COPIA di lavoro della mappa, quella su cui gira la partita.
+	const FRTHexEdge* Damaged = URTHexArcLibrary::FindArc(MapActor->MapAsset, Ground, Upper);
+	if (TestTrue(TEXT("il ponte c'e' ancora"), Damaged != nullptr))
+	{
+		TestEqual(TEXT("integrita' scalata dal colpo"), Damaged->Integrity, 20);
+		TestTrue(TEXT("ed e' ancora percorribile"), Damaged->State == ERTHexArcState::Active);
+	}
+	// Entrambi i versi: un ponte colpito una volta non deve reggere il doppio da una parte.
+	const FRTHexEdge* Back = URTHexArcLibrary::FindArc(MapActor->MapAsset, Upper, Ground);
+	TestTrue(TEXT("anche il verso opposto ha incassato"), Back && Back->Integrity == 20);
+
+	int32 Logged = 0;
+	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+	{
+		if (Entry.Category == ERTLogCategory::Environment
+			&& Entry.Outcome == static_cast<uint8>(ERTEnvironmentOutcome::BridgeDamaged))
+		{
+			++Logged;
+			TestEqual(TEXT("il log riporta l'integrita' residua"), Entry.Amount, 20);
+		}
+	}
+	TestEqual(TEXT("due voci, una per verso"), Logged, 2);
+
+	DestroyEnvWorld(World);
 	return true;
 }
 

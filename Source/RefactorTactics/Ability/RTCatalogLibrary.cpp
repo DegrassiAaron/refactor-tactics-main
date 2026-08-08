@@ -557,11 +557,22 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.CreateWater"), ERTResolutionPhase::Environment, /*Priority*/ 60,
 		/*Range*/ 4, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
 
-	// `ModifyArc` — apre o chiude un COLLEGAMENTO fra celle (CP 8.5). Non tocca le superfici: cambia la
-	// topologia, ed e' per questo che la DoD chiede che **incrementi la revisione** della mappa — il numero che
-	// invalida le cache di percorso. Fase `Environment` come le altre ambientali: cambiare un arco a meta'
-	// Blast renderebbe invalido un percorso gia' calcolato in questo stesso turno.
-	Catalog.Add(ShippedAction(TEXT("Action.ModifyArc"), ERTResolutionPhase::Environment, /*Priority*/ 75,
+	// `ModifyArc` — apre o chiude un COLLEGAMENTO fra celle. Non tocca le superfici: cambia la topologia, ed e'
+	// per questo che la DoD chiede che **incrementi la revisione** della mappa — il numero che invalida le
+	// cache di percorso.
+	//
+	// **Fase cambiata in CP 9.4** (2026-08-08), da `Environment` (Cleanup) ad `Attack` (Blast). La ragione
+	// scritta qui prima — «cambiare un arco a meta' Blast renderebbe invalido un percorso gia' calcolato in
+	// questo stesso turno» — era vera quando e' stata scritta e non lo e' piu': `TruncatePathToTopology`
+	// (CP 9.3) tronca il percorso al primo passo che il grafo non offre piu', quindi un percorso invalidato
+	// non produce un fantasma ma una fermata con reason code (`BlockedByTopology`).
+	//
+	// Il guadagno e' l'uniformita': porte, muri e ponti cambiano tutti a fase conclusa nel Blast e il Move che
+	// segue li vede. Due tempi diversi per due oggetti topologici sarebbero una regola che nessun giocatore
+	// puo' dedurre guardando il campo.
+	//
+	// `Attack` (40) copre «attacchi, abilita', cure, **interazioni**»: e' un'interazione con la mappa.
+	Catalog.Add(ShippedAction(TEXT("Action.ModifyArc"), ERTResolutionPhase::Attack, /*Priority*/ 75,
 		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
 
 	// `Heal` — cura 20, portata 3, e **puo' bersagliare se stessi** (catalogo azioni §6). Priorita' 70: risolve

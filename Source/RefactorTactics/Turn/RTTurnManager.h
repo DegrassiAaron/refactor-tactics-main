@@ -244,6 +244,29 @@ protected:
 	TMap<FRTCellId, FRTDynamicSurface> DynamicSurfaces;
 
 	/**
+	 * Ponti TEMPORANEI creati da `Action.ModifyArc` (CP 9.4). Stessa divisione di `DynamicSurfaces`: l'arco
+	 * corrente sta nella mappa, perche' e' cio' che il grafo legge gia'; la scadenza sta qui, perche' e' stato
+	 * di PARTITA — due partite sulla stessa arena non devono ereditarsi i ponti a vicenda.
+	 */
+	struct FRTDynamicArc
+	{
+		FRTCellId From;
+		FRTCellId To;
+		int32 TurnsRemaining = 0;
+		/**
+		 * Turno in cui il ponte e' nato. Serve al tick: `ModifyArc` risolve nel **Blast** e la scadenza gira
+		 * nel **Cleanup dello stesso turno**, quindi senza questo dato un ponte da 2 turni ne perderebbe uno
+		 * prima ancora che qualcuno possa attraversarlo. Le superfici dinamiche non hanno il problema perche'
+		 * nascono nel Cleanup, dopo il proprio tick.
+		 */
+		int32 CreatedOnTurn = 0;
+	};
+	TArray<FRTDynamicArc> DynamicArcs;
+
+	/** Scadenza dei ponti temporanei, nel Cleanup: a zero turni l'arco sparisce, e si registra. */
+	void TickDynamicArcs(URTHexMapAsset* Map);
+
+	/**
 	 * Cambia la superficie di una cella per `Turns` turni, registrandolo nel TurnLog. Ritorna falso (e non
 	 * cambia nulla) se la destinazione non ammette la trasformazione — l'acqua e il metallo non prendono
 	 * fuoco. Un secondo cambio sulla stessa cella **non** perde l'originale: si sovrascrive la superficie
