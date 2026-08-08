@@ -36,6 +36,16 @@ di movimento qui sotto dichiara esplicitamente quale delle due. Motivazione in [
 |---|---|---|
 | Movimento | 1 | `Move` — nei profili `Sneak`/`Move`/`Sprint` (§2.1) |
 | Azione principale | 1 | `BasicAttack`, `Dash`, `Guard`, `Heal`, **`Overwatch`** — mai due insieme |
+
+> ⚠️ **Questa regola oggi non è fatta rispettare in partita** (verificato il 2026-08-08).
+> `URTCatalogLibrary::ValidateActionSlots` la implementa correttamente, ma **nessuno la chiama nel gioco**:
+> solo due test. `ARTPlayerController` imposta `PlannedDashAbility` e `PlannedAbilityIndex` senza azzerare
+> l'altro, e il bot pianifica **scatto + attacco** di proposito — pur occupando entrambi lo slot principale.
+>
+> Chi legge questa tabella deve saperlo: descrive la regola **decisa**, non ciò che la partita impedisce.
+> Aperta in [`../DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md) riga 43 e in
+> [`../roadmap/plans/showcase-v01-audit.md`](../roadmap/plans/showcase-v01-audit.md) §`SLOT-1`: la scelta è
+> fra applicarla e cambiare gli slot del catalogo.
 | Reazione | 1 | `Counter`, `Intercept`, `Deflect` |
 | Comunicazione | — | Ping, label |
 

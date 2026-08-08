@@ -205,6 +205,24 @@ specchio. Le asserzioni sull'effetto dicono *cosa deve succedere*; l'hash cattur
 | **Acceptance** | Suite invariata; `Turn.PlansDoNotSurvive*` restano verdi senza il reset |
 | **Rischio** | Nullo oggi, misurato: nessun comportamento dipende da quel reset |
 
+### `SLOT-1` — Gli slot per turno sono una regola che nessuno fa rispettare *(non è lavoro di showcase)*
+
+> Aperto il **2026-08-08** verificando se `S2-2` potesse appoggiarsi a `ValidateActionSlots`. Registrato in
+> [`../../DOC_CONFLICT_MATRIX.md`](../../DOC_CONFLICT_MATRIX.md) riga 43, stato **`OPEN`**.
+
+| | |
+|---|---|
+| **Il fatto** | Il catalogo dichiara uno slot per azione e `URTCatalogLibrary::ValidateActionSlots` implementa la regola. **Nessuno la chiama in partita**: solo due test (`RTOffensiveActionTests`) |
+| **Chi la viola** | **Entrambi.** `ARTPlayerController` imposta `PlannedDashAbility` e `PlannedAbilityIndex` senza azzerare l'altro, e il bot pianifica scatto + attacco di proposito (`RTTurnManager` nota `#145`) — pur occupando entrambi lo slot `Main` |
+| **Perché conta** | Il commento `#145` dice che «scatto + attacco base **domina sempre** la carica» (30 danni e spinta 2 contro 20 e spinta 1, cooldown 0 contro 3). Non è un dettaglio di bilanciamento: è una combinazione che il catalogo vieta e la partita premia |
+| **La scelta** | **Applicare** la regola (il controller e il bot azzerano lo slot opposto) **oppure** cambiare gli slot del catalogo perché il Dash non prenda `Main`. Non una terza via: oggi il documento dice una cosa e la partita ne fa un'altra |
+| **Effetto su `S2-2`** | Se l'harness applicasse `ValidateActionSlots` agli intent, **sarebbe più severo del gioco**: uno scenario verrebbe rifiutato per una combinazione che in PIE il giocatore può pianificare. È legittimo solo dichiarando che l'harness valida **il documento scenario**, non fa rispettare **una regola di gioco** |
+| **Non-goals** | Ribilanciare Dash e Charge: qui si decide *quale regola vale*, non quanto danno fa |
+
+**È la stessa forma dell'altra riga `OPEN`** (34, APNAP a sei gruppi): una regola normativa scritta, corretta,
+e senza consumatore runtime. Il difetto ricorrente di questo repository non è la formula sbagliata — è il dato
+che nessuno legge.
+
 ### `S2-3` — Turno 1 della showcase
 
 | | |
