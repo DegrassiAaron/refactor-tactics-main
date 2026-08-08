@@ -2905,7 +2905,7 @@
       "wiki_note": "",
       "last_verified": {
         "date": "2026-08-09",
-        "commit": "5f83d22"
+        "commit": "1ca9bcd"
       },
       "notes": "D-031: le icone sono un **catalogo semantico** (`URTIconCatalogData`), non texture referenziate nei widget. Entra in v0.1 perché E11 costruisce l'HUD adesso e riscrivere ogni widget dopo costerebbe di più. La v0.1 (**E20**, `#217`–`#220`) popola cinque categorie su dodici; le altre sette e i consumer world-space, reaction e perception sono **E25** in `roadmap-post-v0.1.md` (`#265` epic, `#266`–`#269` checkpoint), aperta il 2026-08-08. Una sola feature per due epic: il catalogo è lo stesso, cambia quanto ne è popolato."
     },
