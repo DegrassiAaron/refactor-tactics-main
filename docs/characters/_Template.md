@@ -42,6 +42,10 @@
 
 <valori o NOT DEFINED>
 
+## Ownership del kit
+
+> Le abilità sotto appartengono a questo personaggio. Le sinergie con altri eroi sono esempi derivati e vanno collegate alla [pagina sinergie](../wiki/game/sinergie-e-combinazioni.md), non modellate come abilità condivise.
+
 ## Abilità
 
 ### <Nome skill>

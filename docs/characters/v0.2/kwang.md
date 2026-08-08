@@ -140,6 +140,8 @@ Il controgioco previsto è disabilitare o rendere inutile l'Anchor, fare groundi
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | RES_STORM | Carica Tempesta | 100 | 25 | 15 | Electric interaction | Chain/counter | Decay 10/turn | Team-visible | DESIGN_SPEC |
 
+> **Ownership del kit:** le abilità di questa pagina appartengono esclusivamente a questo personaggio. Le sinergie con altri eroi sono esempi derivati da stati, superfici, geometria e altre regole comuni; non sono abilità condivise. Vedi [Sinergie e combinazioni](../../wiki/game/sinergie-e-combinazioni.md).
+
 ## Abilità
 
 ### Storm Slash

@@ -28,3 +28,7 @@ Cosa esiste davvero e cosa è ancora in sviluppo.
 ## Fonti normative
 
 - `docs/...`
+
+## Ownership / fonte
+
+Se la pagina cita più personaggi, chiarire quale regola è sistemica e quali kit sono solo esempi. Non creare abilità di coppia o di fazione.
