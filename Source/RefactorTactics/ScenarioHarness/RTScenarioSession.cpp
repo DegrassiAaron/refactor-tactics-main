@@ -295,12 +295,31 @@ void FRTScenarioSession::BeginTurn()
 
 			if (AbilityIndex == INDEX_NONE)
 			{
-				// Un'abilita' che l'eroe non possiede e' un errore di scrittura dello scenario, non un esito di
-				// gioco: va detto forte, altrimenti l'assertion sui danni fallirebbe senza spiegare perche'.
-				UE_LOG(LogRT, Error, TEXT("[RT-Test] %s: '%s' non possiede l'abilita' '%s' (l'attacco non parte)"),
-					*Scenario.ScenarioId, *Intent.UnitId, *Intent.Ability.ToString());
+				// Un'abilita' che l'eroe non possiede e' un errore di SCRITTURA dello scenario, non un esito di
+				// gioco. Prima finiva in un log e l'attacco semplicemente non partiva: l'assertion sui danni
+				// cadeva e il report diceva FAIL, cioe' mandava a cercare una regressione che non esisteva.
+				//
+				// Il validator non puo' prenderlo al caricamento: `Riva.CircularTide` ESISTE nel catalogo, non
+				// e' nel kit di Flux — e il kit lo si conosce solo quando le unita' sono state costruite.
+				ErroredBy = FString::Printf(TEXT("'%s' non possiede l'abilita' '%s' (turno %d)"),
+					*Intent.UnitId, *Intent.Ability.ToString(), TurnIndex + 1);
+				UE_LOG(LogRT, Error, TEXT("[RT-Test] %s: %s"), *Scenario.ScenarioId, *ErroredBy);
 			}
-			else if (Target && Target->IsAlive())
+			else if (!Target || !Target->IsAlive())
+			{
+				// Non e' un errore: e' una partita andata cosi'. Ma tacerlo lascia senza spiegazione l'assertion
+				// che cadra' subito dopo — «perche' non ha attaccato?» e' la domanda che il report deve evitare
+				// di far nascere.
+				//
+				// `!Target` copre il caso REALE, e non era ovvio: `DestroyDefeatedUnits` rimuove le unita'
+				// abbattute a fine turno, quindi un morto non si osserva come `IsAlive() == false` ma come weak
+				// pointer NULLO. Il controllo su `IsAlive()` da solo non scattava mai. L'id, invece, e' garantito
+				// dichiarato: il loader rifiuta un intent che nomini un'unita' inesistente, quindi qui un
+				// puntatore nullo significa «c'era e non c'e' piu'», non «non e' mai esistita».
+				Notes.Add(FString::Printf(TEXT("turno %d: '%s' bersagliava '%s', gia' abbattuto: l'azione non parte"),
+					TurnIndex + 1, *Intent.UnitId, *Intent.Target));
+			}
+			else
 			{
 				Unit->PlannedAbilityIndex = AbilityIndex;
 				Unit->PlannedAttackTarget = Target;
@@ -332,9 +351,19 @@ void FRTScenarioSession::BeginTurn()
 		}
 		else
 		{
+			Notes.Add(FString::Printf(TEXT("turno %d: percorso rifiutato per '%s': l'unita' resta ferma"),
+				TurnIndex + 1, *Intent.UnitId));
 			UE_LOG(LogRT, Warning, TEXT("[RT-Test] %s: percorso rifiutato per '%s' (l'unita' resta ferma)"),
 				*Scenario.ScenarioId, *Intent.UnitId);
 		}
+	}
+
+	// Uno scenario scritto male non si gioca: fermarsi qui evita di produrre uno stato che nessuna assertion
+	// puo' interpretare, e soprattutto evita di riportarlo come se fosse un verdetto sul gioco.
+	if (!ErroredBy.IsEmpty())
+	{
+		Finish();
+		return;
 	}
 
 	TM->LockInAndResolve();
@@ -542,10 +571,23 @@ void FRTScenarioSession::Finish()
 		Result.Assertions.Add(A);
 	}
 
-	// Precedenza: un FAIL vero batte il BLOCKED. Un'assertion caduta PRIMA del punto di blocco riguarda
-	// codice che esiste ed e' rotto — nasconderla dietro "non e' ancora pronto" sarebbe il modo piu'
-	// comodo di perdere una regressione.
-	if (Result.FailedCount() > 0)
+	Result.Notes = Notes;
+
+	// Precedenza: ERROR > FAIL > BLOCKED > PASS.
+	//
+	// L'ERROR viene per primo perche' e' l'unico che parla di CHI HA SBAGLIATO invece che di cosa e'
+	// successo: se lo scenario e' scritto male, ogni assertion che segue misura uno stato che non doveva
+	// esistere, e chiamarla FAIL manderebbe a cercare una regressione inesistente.
+	//
+	// Poi un FAIL vero batte il BLOCKED: un'assertion caduta PRIMA del punto di blocco riguarda codice che
+	// esiste ed e' rotto — nasconderla dietro "non e' ancora pronto" sarebbe il modo piu' comodo di perdere
+	// una regressione.
+	if (!ErroredBy.IsEmpty())
+	{
+		Result.Outcome = ERTTestOutcome::Error;
+		Result.ErrorMessage = ErroredBy;
+	}
+	else if (Result.FailedCount() > 0)
 	{
 		Result.Outcome = ERTTestOutcome::Fail;
 	}

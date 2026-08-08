@@ -93,6 +93,18 @@ private:
 	 */
 	FString BlockedBy;
 
+	/**
+	 * Errore di SCRITTURA dello scenario scoperto durante l'esecuzione — tipicamente un'abilita' che l'eroe
+	 * non possiede. Vuoto = nessuno.
+	 *
+	 * Esiste separato da `BlockedBy` perche' ha precedenza su tutto: uno scenario scritto male non produce un
+	 * verdetto sul gioco. Se cadesse come `Fail`, il report direbbe «regressione» per un errore di battitura.
+	 */
+	FString ErroredBy;
+
+	/** Vedi `FRTTestResult::Notes`: cio' che e' successo e che spiega un risultato altrimenti muto. */
+	TArray<FString> Notes;
+
 	/** Tetto di sicurezza sulla risoluzione di UN turno: fallire e' meglio che girare all'infinito. */
 	int32 ResolveTicks = 0;
 };

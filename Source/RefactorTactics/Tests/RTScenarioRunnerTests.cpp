@@ -578,4 +578,138 @@ bool FRTScenarioWallActuallyBlocksTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// S2-2 — un errore di SCRITTURA dello scenario non deve travestirsi da difetto del gioco.
+//
+// Prima: l'abilita' che l'eroe non possiede finiva in un `UE_LOG(Error)`, l'attacco non partiva, e
+// l'assertion sui danni cadeva. Il report diceva FAIL — cioe' «il gioco e' rotto» — per uno scenario
+// scritto male. Chi legge il report parte a cercare una regressione che non esiste.
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioAbilityNotInKitTest,
+	"RefactorTactics.Scenario.ActionNotInHeroKitIsError",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioAbilityNotInKitTest::RunTest(const FString&)
+{
+	// Il log d'errore e' PARTE del comportamento voluto: chi guarda la console deve vederlo. Dichiararlo
+	// atteso evita che l'automation lo scambi per un errore del test — e al tempo stesso lo pretende: se il
+	// codice smettesse di loggarlo, questo test fallirebbe per errore atteso mai arrivato.
+	AddExpectedError(TEXT("non possiede l'abilita'"), EAutomationExpectedErrorFlags::Contains, 1);
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	FRTTestScenario S;
+	S.ScenarioId = TEXT("Probe.AbilityNotInKit");
+	S.MapRadius = 4;
+	FRTScenarioUnit A; A.Id = TEXT("A1"); A.HeroId = TEXT("Hero.Flux");    A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+	FRTScenarioUnit B; B.Id = TEXT("B1"); B.HeroId = TEXT("Hero.Bastion"); B.TeamId = 1; B.Cell = FRTCellId(2, 0, 0);
+	S.Units.Add(A); S.Units.Add(B);
+
+	// `Riva.CircularTide` esiste nel catalogo, ma NON e' nel kit di Flux. E' il caso interessante: un id
+	// inventato lo prende gia' il validator al caricamento, questo no — passa la validazione e muore a runtime.
+	FRTScenarioTurn T;
+	FRTScenarioIntent I; I.UnitId = TEXT("A1"); I.Ability = TEXT("Riva.CircularTide"); I.Target = TEXT("B1");
+	T.Intents.Add(I); S.Turns.Add(T);
+
+	// Un'assertion che sarebbe caduta: e' cio' che prima produceva il FAIL fuorviante.
+	FRTTestExpectation E; E.Kind = ERTAssertionKind::UnitAlive; E.UnitId = TEXT("B1"); E.Value = 0;
+	S.Expect.Add(E);
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, S);
+	DestroyRunnerWorld(World);
+
+	TestEqual(TEXT("esito ERROR, non FAIL"), Result.OutcomeString(), FString(TEXT("ERROR")));
+	// Il messaggio deve bastare a correggere lo scenario senza aprire il log del motore.
+	TestTrue(TEXT("il messaggio nomina l'abilita'"), Result.ErrorMessage.Contains(TEXT("Riva.CircularTide")));
+	TestTrue(TEXT("e nomina l'unita' che la chiedeva"), Result.ErrorMessage.Contains(TEXT("A1")));
+	return true;
+}
+
+// =====================================================================================================
+// S2-2 — un bersaglio gia' abbattuto e' un esito di GIOCO, non un errore. Ma va detto.
+//
+// Prima veniva scartato in silenzio: l'intent spariva, l'assertion successiva cadeva, e il report non
+// dava alcun appiglio per capire perche'. Non e' ERROR (lo scenario e' scritto bene, e' la partita ad
+// essere andata cosi') e non e' FAIL di per se': e' una NOTA, che spiega un risultato altrimenti muto.
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioDeadTargetTest,
+	"RefactorTactics.Scenario.DeadTargetIsReported",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioDeadTargetTest::RunTest(const FString&)
+{
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	FRTTestScenario S;
+	S.ScenarioId = TEXT("Probe.DeadTarget");
+	S.MapRadius = 4;
+	// Due contro uno, a distanza di tiro. Il bersaglio ha 90-120 HP e ogni colpo ne toglie 20-28: il numero
+	// di turni non e' scelto per essere esatto ma per avere MARGINE. Se un giorno il bilanciamento cambiasse
+	// tanto da non bastare, a cadere sarebbe la precondizione qui sotto — con un messaggio che lo dice,
+	// invece di un fallimento misterioso sulla nota.
+	FRTScenarioUnit A; A.Id = TEXT("A1"); A.HeroId = TEXT("Hero.Flux");   A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+	FRTScenarioUnit B; B.Id = TEXT("A2"); B.HeroId = TEXT("Hero.Vektor"); B.TeamId = 0; B.Cell = FRTCellId(-2, 1, 0);
+	FRTScenarioUnit C; C.Id = TEXT("B1"); C.HeroId = TEXT("Hero.Riva");   C.TeamId = 1; C.Cell = FRTCellId(1, 0, 0);
+	// Un SECONDO difensore, lontano e mai bersagliato. Senza, la morte di B1 elimina la squadra 1, la partita
+	// finisce e il turno in cui si spara al morto non viene mai giocato: il test misurerebbe il silenzio di un
+	// turno che non e' avvenuto invece del silenzio del report. E' costato una run per accorgersene.
+	FRTScenarioUnit D; D.Id = TEXT("B2"); D.HeroId = TEXT("Hero.Bastion"); D.TeamId = 1; D.Cell = FRTCellId(4, 0, 0);
+	S.Units.Add(A); S.Units.Add(B); S.Units.Add(C); S.Units.Add(D);
+
+	// Otto turni di fuoco concentrato, poi un nono in cui si spara a un morto.
+	for (int32 Turn = 0; Turn < 9; ++Turn)
+	{
+		FRTScenarioTurn T;
+		FRTScenarioIntent I1; I1.UnitId = TEXT("A1"); I1.Ability = TEXT("Flux.ArcPulse"); I1.Target = TEXT("B1");
+		FRTScenarioIntent I2; I2.UnitId = TEXT("A2"); I2.Ability = TEXT("Vektor.PulseShot");   I2.Target = TEXT("B1");
+		T.Intents.Add(I1); T.Intents.Add(I2);
+		S.Turns.Add(T);
+	}
+
+	FRTTestExpectation E; E.Kind = ERTAssertionKind::UnitAlive; E.UnitId = TEXT("B1"); E.Value = 0;
+	S.Expect.Add(E);
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, S);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di eseguire: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	// Precondizione, non l'oggetto del test: senza un morto non c'e' niente da riportare.
+	TestEqual(TEXT("il bersaglio e' stato abbattuto"), Result.OutcomeString(), FString(TEXT("PASS")));
+
+	// L'oggetto del test: il report DICE che si e' sparato a un morto, invece di tacere.
+	bool bMentionsDeadTarget = false;
+	for (const FString& Note : Result.Notes)
+	{
+		bMentionsDeadTarget |= Note.Contains(TEXT("B1"));
+	}
+	TestTrue(TEXT("il report annota il bersaglio gia' abbattuto"), bMentionsDeadTarget);
+
+	// E la nota deve arrivare fino a `result.json`, che e' il file che qualcuno legge davvero. Senza questa
+	// verifica il writer potrebbe smettere di serializzarla e nessun test se ne accorgerebbe: una nota che
+	// esiste solo in memoria e' esattamente il dato che nessuno consuma.
+	const FString Json = URTTestReportWriter::ToJson(Result, TEXT("test-run"));
+	TSharedPtr<FJsonObject> Root;
+	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Json);
+	if (TestTrue(TEXT("il report e' JSON valido"), FJsonSerializer::Deserialize(Reader, Root) && Root.IsValid()))
+	{
+		const TArray<TSharedPtr<FJsonValue>>* NotesJson = nullptr;
+		if (TestTrue(TEXT("il JSON porta le note"), Root->TryGetArrayField(TEXT("notes"), NotesJson)))
+		{
+			bool bJsonMentions = false;
+			for (const TSharedPtr<FJsonValue>& V : *NotesJson)
+			{
+				bJsonMentions |= V->AsString().Contains(TEXT("B1"));
+			}
+			TestTrue(TEXT("e la nota nomina il bersaglio abbattuto"), bJsonMentions);
+		}
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

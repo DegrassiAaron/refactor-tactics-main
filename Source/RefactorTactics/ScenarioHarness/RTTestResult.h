@@ -68,6 +68,17 @@ struct FRTTestResult
 	 */
 	uint32 StateHash = 0;
 
+	/**
+	 * Cose accadute durante l'esecuzione che non sono ne' assertion ne' errori, ma senza le quali un
+	 * risultato resterebbe muto: un intent che non e' partito perche' il bersaglio era gia' a terra, un
+	 * percorso rifiutato dal budget.
+	 *
+	 * La distinzione con `ErrorMessage` e' chi ha sbagliato: un `Error` dice «lo scenario e' scritto male e
+	 * non si e' potuto eseguire», una nota dice «e' andata cosi', ed ecco perche'». Confonderle rimanderebbe
+	 * a cercare una regressione dove c'e' solo una partita andata diversamente da come la si immaginava.
+	 */
+	TArray<FString> Notes;
+
 	TArray<FRTAssertionResult> Assertions;
 
 	int32 PassedCount() const
