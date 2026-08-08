@@ -50,7 +50,7 @@
 
 ## Stato in numeri — 2026-08-08
 
-**110 voci**: ✅ **25 verdi** · 🟡 **21 parziali** (regola coperta da test, resta il visivo) · ⏳ **64 aperte**.
+**111 voci**: ✅ **25 verdi** · 🟡 **21 parziali** (regola coperta da test, resta il visivo) · ⏳ **65 aperte**.
 
 *(Rimisurate col comando qui sotto il **2026-08-08**, dopo le **10 voci** `PIE-STATE-*` dell'epic E34. Prima
 erano 100 con 54 aperte; verdi e parziali non cambiano, perché le nuove nascono tutte ⏳ — e nascono ⏳ per un
@@ -92,7 +92,7 @@ awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);
   docs/technical/test-manuali-pie.md
 ```
 
-Delle 64 aperte, **47 stanno negli otto gruppi qui sotto** (`2+9+9+4+3+1+2+17 = 47`). Le **17 mancanti** sono
+Delle 65 aperte, **48 stanno negli otto gruppi qui sotto** (`2+9+9+4+3+1+2+18 = 48`). Le **17 mancanti** sono
 7 voci aggiunte il 2026-08-08 da un'altra sessione più le **10** `PIE-STATE-*` di E34, che non entrano in una
 sessione di verifica perché non sono eseguibili: le lascio dichiarate invece
 di gonfiare una riga a caso, perché una somma che torna con sé stessa è il modo più facile di sembrare
@@ -113,7 +113,7 @@ verificati senza esserlo (vedi la nota qui sopra). Chi le ha scritte sa dove van
 | **In attesa di codice** | `V01-ELEC` `V01-FIREWATER` (E8, ora **chiusa**: il codice c'è, la verifica a schermo no) · `V01-HUD` (E11) | **3** — `V01-LOWCOVER` è uscita da qui il 2026-08-07 (CP 9.1) e `V01-DOOR` il 2026-08-08 (CP 9.3): per entrambe la regola è ora coperta headless, e sono passate a 🟡 |
 | **Asset da preparare** | `V01-COVEREDIT` | **1** — editing delle coperture nel data asset mappa (CP 9.1). ⚠️ `DA_HexMap_Sandbox` è oggi **vuoto**: va ridisegnato |
 | **Animazioni** | `AS4a` `AS4b` | **2** — richiedono i montage Paragon |
-| **Scenari visivi** (corpus `Visual.*`) | `VIS-FIRE` `VIS-ICE` `VIS-WETFIRE` `VIS-KO` `VIS-CHARGE` `VIS-ROUGH` `VIS-COMBO` `VIS-PUSH` `VIS-FALLBACK` `VIS-SMOKE` `VIS-PHASES` `VIS-LEVEL` `VIS-COVER` `VIS-DOOR` `VIS-HIGH` `VIS-INTERPOSE` `VIS-DEFLECT` | **17** — nessuna precondizione oltre a scegliere lo scenario e premere Play. Non sono gate: la regola è già coperta headless dalle assertion, qui si guarda la **leggibilità**. Catalogo: [`scenari-validazione-visiva.md`](scenari-validazione-visiva.md) |
+| **Scenari visivi** (corpus `Visual.*`) | `VIS-FIRE` `VIS-ICE` `VIS-WETFIRE` `VIS-KO` `VIS-CHARGE` `VIS-ROUGH` `VIS-COMBO` `VIS-PUSH` `VIS-FALLBACK` `VIS-SMOKE` `VIS-PHASES` `VIS-LEVEL` `VIS-COVER` `VIS-DOOR` `VIS-HIGH` `VIS-INTERPOSE` `VIS-DEFLECT` `VIS-HIGHCOVER` | **18** — nessuna precondizione oltre a scegliere lo scenario e premere Play. Non sono gate: la regola è già coperta headless dalle assertion, qui si guarda la **leggibilità**. Catalogo: [`scenari-validazione-visiva.md`](scenari-validazione-visiva.md) |
 
 ## Checklist
 
@@ -538,5 +538,6 @@ oppure dimmi cosa hai osservato e aggiorno le voci con l'esito (e apro un fix se
 | **PIE-VIS-COVER** | La copertura è di un bordo | `Visual.Map.LowCoverEdge` | Due colpi simultanei sullo stesso bersaglio con **entità diverse**, e il bordo riparato distinguibile dagli altri cinque **prima** di sparare | ⏳ |
 | **PIE-VIS-DOOR** | La porta è di un bordo | `Visual.Map.ClosedDoor` | Riva arriva a `(1,1)` **girando**. Il percorso deve raccontare da sé perché è lungo: se la porta chiusa non si vede, il giro sembra un difetto del pathfinding | ⏳ |
 | **PIE-VIS-HIGH** | L'altura non dà bonus | `Visual.Map.HighGroundNoBonus` | Due colpi **identici** dalla cresta e dal piano. La presentazione non deve enfatizzare il tiro dall'alto: suggerirebbe un vantaggio numerico che in v0.1 non esiste (D-024) | ⏳ |
+| **PIE-VIS-HIGHCOVER** | La barriera alta nega, non riduce | `Visual.Map.HighCoverBlocks` (fixture `CoverYard`) | Il colpo **non parte** e il percorso **gira**: due negazioni dallo stesso bordo. La barriera dev'essere distinguibile a colpo d'occhio dalla copertura **bassa** una riga più sotto — se si somigliano, il giocatore prova a sparare attraverso un muro | ⏳ |
 | **PIE-VIS-INTERPOSE** | Il colpo cambia destinatario | `Visual.Reaction.Interposition` | Il proiettile parte verso Vektor e finisce su Bastion. **Entrambe le metà devono vedersi**: se si vede solo l'arrivo, la scena si legge come «Flux ha sbagliato mira» invece che come una reazione | ⏳ |
 | **PIE-VIS-DEFLECT** | La parata riduce | `Visual.Reaction.Deflection` | 22 diventano 2. Se la parata non si vede, si legge un attacco debole invece di una difesa riuscita — e la prossima volta il giocatore non arma la reazione | ⏳ |

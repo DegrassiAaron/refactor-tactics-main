@@ -319,10 +319,63 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeFixtureArena(UObject* Outer, const FSt
 	{
 		return MakeTestArena(Outer);
 	}
+	if (FixtureId.Equals(TEXT("CoverYard"), ESearchCase::IgnoreCase))
+	{
+		return MakeCoverYardArena(Outer);
+	}
 
 	// Sconosciuta: nessuna arena. Inventarne una vuota farebbe girare la partita e produrrebbe un fallimento
 	// che parla di unita' fuori mappa invece che del nome sbagliato.
 	return nullptr;
+}
+
+URTHexMapAsset* URTMatchSetupLibrary::MakeCoverYardArena(UObject* Outer)
+{
+	if (Outer == nullptr)
+	{
+		return nullptr;
+	}
+
+	URTHexMapAsset* Arena = NewObject<URTHexMapAsset>(Outer);
+
+	// Esagono pieno di raggio 3, tutto pavimento: 3*3*6 + 1 = 37 celle. Nessuna superficie, di proposito —
+	// qui si studiano i BORDI, e un terreno che cambia costo o visibilita' offrirebbe una seconda spiegazione
+	// a ogni esito.
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 3))
+	{
+		Arena->AddOrUpdateCell(MakeShowcaseTerrainCell(Id, ERTHexSurface::Floor));
+	}
+
+	// I due bordi. La direzione si CHIEDE alla libreria invece di scriverla a mano: se la convenzione dei sei
+	// lati cambiasse, un valore inciso qui diventerebbe silenziosamente il bordo sbagliato (stessa disciplina
+	// del Relay Basin).
+	struct FYardCover
+	{
+		FRTCellId From;
+		FRTCellId To;
+		ERTHexCoverType Type;
+	};
+	static const FYardCover Covers[] = {
+		// Barriera ALTA sulla riga centrale: nega vista, passo e proiettili nei due versi (integrita' 50).
+		{ FRTCellId(0, 0, 0), FRTCellId(1, 0, 0), ERTHexCoverType::High },
+		// Copertura BASSA una riga sotto, sulla stessa direzione: si passa e si vede, ma il danno diretto dal
+		// lato riparato cala di 10. Il confronto fra le due sta tutto in una cella di differenza.
+		{ FRTCellId(0, 1, 0), FRTCellId(1, 1, 0), ERTHexCoverType::Low },
+	};
+	for (const FYardCover& Cover : Covers)
+	{
+		const FRTHexCellData* Cell = Arena->FindCell(Cover.From);
+		ERTHexDirection Edge;
+		if (Cell && URTHexCoverLibrary::EdgeDirection(Cover.From, Cover.To, Edge))
+		{
+			FRTHexCellData Updated = *Cell;
+			Updated.Covers.Add(FRTHexCover(Edge, Cover.Type, FRTHexCover::DefaultIntegrity(Cover.Type)));
+			Arena->AddOrUpdateCell(Updated);
+		}
+	}
+
+	Arena->SortCells();
+	return Arena;
 }
 
 TArray<FRTShowcaseSpawn> URTMatchSetupLibrary::GetShowcaseRelayBasinSpawns()

@@ -106,6 +106,25 @@ Serve quando l'elemento da guardare è **di bordo**, e sta solo qui:
 
 Spawn canonici: Flux `(-4,0)`, Riva `(-4,1)`, Bastion `(4,0)`, Vektor `(4,1)`.
 
+### `CoverYard` — i bordi, e nient'altro (raggio 3, 37 celle)
+
+Nata il 2026-08-09 (#233) perché la copertura **alta** non compariva in nessuna delle altre tre, e senza una
+cella dove trovarla non era possibile scrivere uno scenario su CP 9.2.
+
+| Bordo | Tipo | Cosa fa |
+|---|---|---|
+| `(0,0)` ↔ `(1,0)` | **alta** | nega vista, passo e proiettili **nei due versi**; integrità 50 |
+| `(0,1)` ↔ `(1,1)` | **bassa** | lascia passare tutto, toglie 10 al danno diretto dal lato riparato |
+
+I due bordi stanno sulla **stessa direzione a una riga di distanza**: la differenza fra «riduce» e «nega» si
+osserva spostando il bersaglio di una cella, senza cambiare mappa. Tutto il resto è pavimento e non ci sono
+superfici — in un cortile che serve a studiare i bordi, un terreno offrirebbe una seconda spiegazione a ogni
+esito.
+
+**Perché non nel Relay Basin**: è la mappa autorata degli 8 turni, protetta da `BasinLayoutMatchesSpec`.
+Aggiungerle una barriera per comodità di test avrebbe cambiato la showcase per una ragione che con la
+showcase non c'entra.
+
 ### `TestArena` — la geometria (raggio 4)
 
 L'unica con **due livelli**: piattaforma su layer 1 in `(2,-1,1)` `(2,0,1)` `(3,-1,1)` `(3,0,1)`, raggiungibile
@@ -192,6 +211,7 @@ fare, lo scenario non lo sa dire. Vedi §8.2.
 | `Visual.Map.LowCoverEdge` | RelayBasin | due colpi simultanei sullo stesso bersaglio, **entità diverse**: la copertura è di un bordo. 90−14−21 = 55 | scritto |
 | `Visual.Map.ClosedDoor` | RelayBasin | Riva arriva **girando**: la porta è un bordo, e il percorso deve raccontare da sé perché è lungo | scritto |
 | `Visual.Map.HighGroundNoBonus` | RelayBasin | due Vektor identici, dalla cresta e dal piano: 21+21, nessun bonus (D-024) | scritto |
+| `Visual.Map.HighCoverBlocks` | **CoverYard** | la barriera **alta** nega vista *e* passo in un turno solo: il colpo non parte e il percorso gira | scritto |
 | `Visual.Map.MultiLevel` | TestArena | la salita attraverso l'unica transizione: i layer non hanno adiacenza implicita | scritto |
 | `Combat.BlockedByWall` *(esiste)* | r4 | il muro ferma la **vista**, non il passaggio | già nel corpus |
 | `Visual.Water.Wet` | RelayLite | *niente*: `Wet` non emette nulla, si vede solo il terreno che c'era già | **MUTO** — non scritto |
@@ -389,14 +409,16 @@ kit dell'eroe**, e `PlannedAttackTarget`, che dev'essere **un'unità viva**. Da 
 
 | Non esprimibile | Perché | Feature v0.1 che resta fuori |
 |---|---|---|
-| Azioni **core diverse dalle tre generiche** | il kit di un'unità è *eroe + `Wait`/`Guard`/`Brace`*: `Electrify`, `Ignite`, `CreateWater`, `ModifyArc`, `Push`, `MarkTarget` non appartengono a nessuno | **CP 8.3** propagazione elettrica, **CP 8.5** terreno dinamico, **CP 9.4** ponti |
-| Superfici e bordi d'autore | `FRTScenarioCell` ha solo `bBlocksMovement`, `bBlocksLineOfSight`, `MoveCost` | **CP 9.2** copertura alta: nessuna delle tre fixture ne contiene una |
+| Azioni **core diverse dalle tre generiche** | il kit di un'unità è *eroe + `Wait`/`Guard`/`Brace`*: `Electrify`, `Ignite`, `CreateWater`, `ModifyArc`, `Push`, `MarkTarget`, `HeavyAttack` non appartengono a nessuno | **CP 8.3** propagazione elettrica, **CP 8.5** terreno dinamico, **CP 9.4** ponti, e l'**abbattimento** di una copertura (`DamageStructure` è solo su `HeavyAttack`) |
 
-> ✅ **Due buchi chiusi il 2026-08-09.** Le azioni **con bersaglio-cella** erano già esprimibili (`targetCell`
+> ✅ **Tre buchi chiusi il 2026-08-09.** Le azioni **con bersaglio-cella** erano già esprimibili (`targetCell`
 > esisteva, e l'avevo dichiarato mancante verificando contro una copia vecchia). Le azioni **generiche** —
 > `Wait`, `Guard`, `Brace` — ora appartengono a ogni unità: non è stato l'harness a cambiare, è stato il gioco
-> (#275). Le restanti azioni core restano fuori **perché nessuna unità le possiede**, che è un fatto di
-> gameplay: darle allo scenario e non al giocatore produrrebbe test verdi su regole inesistenti.
+> (#275). E `surface` **non serviva**: la copertura alta mancava perché nessuna fixture ne conteneva una, non
+> perché il formato non sapesse dirla — ora c'è `CoverYard` (#233).
+>
+> Le restanti azioni core restano fuori **perché nessuna unità le possiede**, che è un fatto di gameplay:
+> darle allo scenario e non al giocatore produrrebbe test verdi su regole inesistenti.
 
 > ✅ **Il quarto buco si è chiuso da solo.** Questo documento nasceva dichiarando che le reazioni non erano
 > esprimibili — e su una working copy indietro di qualche commit era vero. Su `origin/main` il campo

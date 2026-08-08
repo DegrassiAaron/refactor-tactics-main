@@ -119,7 +119,28 @@ public:
 	static TArray<FRTShowcaseSpawn> GetShowcaseRelayBasinSpawns();
 
 	/**
-	 * **Fixture di mappa per nome**: `RelayBasin`, `RelayLite`, `TestArena`, `DemoArena`.
+	 * **Cover Yard**: esagono di raggio 3, tutto pavimento, con due bordi coperti e nient'altro.
+	 *
+	 * Esiste perche' la copertura **alta** (CP 9.2) non compare in nessun'altra fixture, e senza una cella
+	 * dove trovarla non e' possibile scrivere uno scenario che la metta alla prova. Il Relay Basin non e' il
+	 * posto: e' la mappa autorata degli 8 turni, protetta da `BasinLayoutMatchesSpec`, e aggiungerle una
+	 * barriera per comodita' di test cambierebbe la showcase per una ragione che con la showcase non c'entra.
+	 *
+	 * Due bordi, scelti per essere confrontabili:
+	 *
+	 * - **alta** fra `(0,0)` e `(1,0)`: nega vista, passo e proiettili nei DUE versi, integrita' 50;
+	 * - **bassa** fra `(0,1)` e `(1,1)`: lascia passare tutto e toglie 10 al danno diretto dal lato riparato.
+	 *
+	 * Sono sulla stessa direzione a una riga di distanza, quindi la differenza fra «riduce» e «nega» si
+	 * osserva muovendo il bersaglio di una cella invece di cambiare mappa.
+	 *
+	 * Niente terreni: una fixture che serve a studiare i BORDI non deve avere anche superfici che spiegano
+	 * un esito diverso. `Outer` nullo -> nullptr.
+	 */
+	static URTHexMapAsset* MakeCoverYardArena(UObject* Outer);
+
+	/**
+	 * **Fixture di mappa per nome**: `RelayBasin`, `RelayLite`, `TestArena`, `DemoArena`, `CoverYard`.
 	 *
 	 * E' il punto d'ingresso che permette a uno scenario di **riferire** una geometria invece di duplicarla.
 	 * Deliberatamente una funzione con un elenco chiuso e non un registry generico: le fixture sono poche,

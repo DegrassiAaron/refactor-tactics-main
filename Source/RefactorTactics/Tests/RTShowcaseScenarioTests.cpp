@@ -539,12 +539,58 @@ bool FRTScenarioFixtureFactoryTest::RunTest(const FString&)
 		TestEqual(TEXT("RelayLite resta l'esagono di raggio 5"), Lite->NumCells(), 91);
 	}
 
+	const URTHexMapAsset* Yard = URTMatchSetupLibrary::MakeFixtureArena(Outer, TEXT("CoverYard"));
+	if (TestNotNull(TEXT("la fixture CoverYard si risolve"), Yard))
+	{
+		TestEqual(TEXT("CoverYard e' l'esagono di raggio 3"), Yard->NumCells(), 37);
+	}
+
 	// Un nome sconosciuto non produce un'arena vuota su cui la partita girerebbe comunque dando un FAIL
 	// incomprensibile: produce NIENTE, e il chiamante decide.
 	TestNull(TEXT("una fixture sconosciuta non si inventa"),
 		URTMatchSetupLibrary::MakeFixtureArena(Outer, TEXT("NonEsiste")));
 	TestNull(TEXT("una fixture senza nome non si inventa"),
 		URTMatchSetupLibrary::MakeFixtureArena(Outer, FString()));
+
+	return true;
+}
+
+/**
+ * `CoverYard` porta i DUE tipi di copertura, e la differenza si legge dai dati prima ancora che da una
+ * partita: la barriera **alta** nega l'attraversamento, la **bassa** lo lascia passare riducendo il danno.
+ *
+ * Il test guarda `CoverBetween`, non i campi della cella: e' la stessa funzione che interrogano vista, grafo
+ * e combat (CP 9.2 §3), quindi verificarla qui vuol dire verificare cio' che il gioco chiedera' davvero. E
+ * la chiede nei **due versi**: una barriera disegnata su una faccia sola che bloccasse in una direzione e non
+ * nell'altra passerebbe un controllo sui campi e fallirebbe qui.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverYardLayoutTest,
+	"RefactorTactics.Scenario.CoverYardHasBothCoverTypes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCoverYardLayoutTest::RunTest(const FString&)
+{
+	const URTHexMapAsset* Yard = URTMatchSetupLibrary::MakeCoverYardArena(GetTransientPackage());
+	if (!TestNotNull(TEXT("il Cover Yard esiste"), Yard))
+	{
+		return false;
+	}
+
+	const FRTCellId HighA(0, 0, 0), HighB(1, 0, 0);
+	const FRTCellId LowA(0, 1, 0),  LowB(1, 1, 0);
+
+	TestEqual(TEXT("(0,0)->(1,0) e' una barriera ALTA"),
+		URTHexCoverLibrary::CoverBetween(Yard, HighA, HighB), ERTHexCoverType::High);
+	TestEqual(TEXT("e lo e' anche nel verso opposto"),
+		URTHexCoverLibrary::CoverBetween(Yard, HighB, HighA), ERTHexCoverType::High);
+
+	TestEqual(TEXT("(0,1)->(1,1) e' una copertura BASSA"),
+		URTHexCoverLibrary::CoverBetween(Yard, LowA, LowB), ERTHexCoverType::Low);
+
+	// Il resto del cortile e' sgombro: se un bordo qualunque risultasse coperto, ogni scenario scritto qui
+	// misurerebbe una barriera che nessuno ha disegnato.
+	TestEqual(TEXT("un bordo qualunque non ha coperture"),
+		URTHexCoverLibrary::CoverBetween(Yard, FRTCellId(-1, 0, 0), FRTCellId(-2, 0, 0)),
+		ERTHexCoverType::None);
 
 	return true;
 }
