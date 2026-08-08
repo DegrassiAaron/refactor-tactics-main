@@ -131,6 +131,21 @@ struct FRTScenarioIntent
 	/** ID di scenario del bersaglio. Obbligatorio quando `Ability` e' valorizzata. */
 	UPROPERTY()
 	FString Target;
+
+	/**
+	 * `ActionId` della mobilita' RAPIDA (`Vektor.PassingBlade`, `Action.Dash`): risolve in fase Dash, prima
+	 * del Blast. Vuoto = nessuno scatto.
+	 *
+	 * Campo separato da `Ability` e non un'alternativa, perche' dopo [D-028] occupano slot diversi: lo scatto
+	 * prende il movimento, l'abilita' la principale, e *schivo e sparo* e' un turno legale che l'intent deve
+	 * poter esprimere. Con un solo campo non sarebbe rappresentabile.
+	 */
+	UPROPERTY()
+	FName Dash;
+
+	/** Cella d'arrivo dello scatto. Obbligatoria quando `Dash` e' valorizzata. */
+	UPROPERTY()
+	FRTCellId DashCell;
 };
 
 /** Un turno dello scenario. */

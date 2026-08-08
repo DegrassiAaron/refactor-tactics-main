@@ -259,6 +259,12 @@ void FRTScenarioSession::BeginTurn()
 			// nei turni successivi senza che lo scenario glielo chieda.
 			U->PlannedAbilityIndex = INDEX_NONE;
 			U->PlannedAttackTarget = nullptr;
+			// Lo SCATTO non si azzera qui, ed e' deliberato: `RTTurnManager` lo consuma a ogni risoluzione
+			// («consumato per questo turno, valido o no»), quindi un reset in questo punto sarebbe una seconda
+			// copia della stessa regola — quella che smette di essere aggiornata quando la prima cambia.
+			//
+			// Verificato per mutazione: azzerarlo qui non fa cadere alcun test, perche' non c'e' niente da
+			// azzerare. E' il modo in cui questa riga, scritta d'istinto insieme alle due sopra, e' stata tolta.
 		}
 	}
 
@@ -271,6 +277,40 @@ void FRTScenarioSession::BeginTurn()
 			continue;
 		}
 
+		// L'abilita' si cerca per ActionId: l'indice nel kit si sposta appena qualcuno ne aggiunge una, e uno
+		// scenario che punta a un indice continuerebbe a passare verificando l'abilita' sbagliata.
+		const auto FindAbilityIndex = [Unit](const FName& ActionId) -> int32
+		{
+			for (int32 I = 0; I < Unit->NumAbilities(); ++I)
+			{
+				const URTActionData* Ability = Unit->GetAbility(I);
+				if (Ability && Ability->Def.ActionId == ActionId) { return I; }
+			}
+			return INDEX_NONE;
+		};
+
+		// --- scatto (fase Dash, PRIMA del Blast) ------------------------------------------------------------
+		// Slot distinto dall'abilita' perche' dopo D-028 lo sono davvero: lo scatto prende il movimento, non la
+		// principale. Un intent puo' dichiarare entrambi, ed e' *schivo e sparo*.
+		if (!Intent.Dash.IsNone())
+		{
+			const int32 DashIndex = FindAbilityIndex(Intent.Dash);
+			if (DashIndex == INDEX_NONE)
+			{
+				ErroredBy = FString::Printf(TEXT("'%s' non possiede la mobilita' '%s' (turno %d)"),
+					*Intent.UnitId, *Intent.Dash.ToString(), TurnIndex + 1);
+				UE_LOG(LogRT, Error, TEXT("[RT-Test] %s: %s"), *Scenario.ScenarioId, *ErroredBy);
+			}
+			else
+			{
+				// Si scrive il PIANO, non l'esito: traiettoria, ostacoli e chi viene attraversato li decide il
+				// resolver in fase Dash. Anticiparli qui significherebbe verificare le regole della sessione
+				// invece di quelle del gioco.
+				Unit->PlannedDashAbility = DashIndex;
+				Unit->PlannedDashCell = Intent.DashCell;
+			}
+		}
+
 		// --- abilita' -------------------------------------------------------------------------------------
 		// Stessa strada del controller: si scrivono `PlannedAbilityIndex` e `PlannedAttackTarget`, esattamente
 		// come dopo un click sul nemico. Portata, LOS, cooldown ed energia li valuta il turn manager al momento
@@ -281,17 +321,7 @@ void FRTScenarioSession::BeginTurn()
 			TWeakObjectPtr<ARTUnit>* FoundTarget = UnitsById.Find(Intent.Target);
 			ARTUnit* Target = FoundTarget ? FoundTarget->Get() : nullptr;
 
-			// L'abilita' si cerca per ActionId: l'indice nel kit si sposta appena qualcuno ne aggiunge una.
-			int32 AbilityIndex = INDEX_NONE;
-			for (int32 I = 0; I < Unit->NumAbilities(); ++I)
-			{
-				const URTActionData* Ability = Unit->GetAbility(I);
-				if (Ability && Ability->Def.ActionId == Intent.Ability)
-				{
-					AbilityIndex = I;
-					break;
-				}
-			}
+			const int32 AbilityIndex = FindAbilityIndex(Intent.Ability);
 
 			if (AbilityIndex == INDEX_NONE)
 			{

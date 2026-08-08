@@ -712,4 +712,77 @@ bool FRTScenarioDeadTargetTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// S2-2 — lo slot DASH negli intent.
+//
+// Finche' l'intent aveva un solo campo per l'azione, una mobilita' rapida non era esprimibile: lo scenario
+// poteva dire «attacca» o «muoviti», mai «scatta». Il turno 3 dello showcase chiede proprio quello, e senza
+// questo slot resterebbe scritto e mai giocato.
+//
+// L'ordine con SLOT-2 non era negoziabile: aggiungere questo campo PRIMA che D-028 fosse nel codice avrebbe
+// significato scrivere scenari in cui lo scatto occupa la principale, e riscriverli tutti dopo.
+//
+// Lo stesso scenario gira DUE volte, con e senza il campo `dash`. Un test che guardasse solo la posizione
+// finale del caso "con" non distinguerebbe uno scatto eseguito da un movimento normale arrivato li' per
+// altra via: il confronto e' cio' che rende l'assertion discriminante.
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioDashIntentTest,
+	"RefactorTactics.Scenario.DashIntentResolvesInDashPhase",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioDashIntentTest::RunTest(const FString&)
+{
+	auto MakeScenario = [](bool bWithDash)
+	{
+		FRTTestScenario S;
+		S.ScenarioId = bWithDash ? TEXT("Probe.DashDeclared") : TEXT("Probe.DashOmitted");
+		S.MapRadius = 4;
+		FRTScenarioUnit A; A.Id = TEXT("V"); A.HeroId = TEXT("Hero.Vektor"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+		// Un avversario lontano e fermo: senza, la squadra 1 e' vuota e la partita finisce prima di giocare.
+		FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Riva");   B.TeamId = 1; B.Cell = FRTCellId(0, 3, 0);
+		S.Units.Add(A); S.Units.Add(B);
+
+		FRTScenarioTurn T;
+		FRTScenarioIntent I;
+		I.UnitId = TEXT("V");
+		if (bWithDash)
+		{
+			// Tre celle in linea, traiettoria libera: `PassingBlade` e' `LinearDash`, e uno scatto lineare si
+			// FERMA su cio' che incontra (solo `LinearLeap` scavalca). Metterci in mezzo un'unita' verificherebbe
+			// la semantica dello stile, non lo slot dell'intent.
+			I.Dash = TEXT("Vektor.PassingBlade");
+			I.DashCell = FRTCellId(1, 0, 0);
+		}
+		T.Intents.Add(I);
+		S.Turns.Add(T);
+
+		FRTTestExpectation E; E.Kind = ERTAssertionKind::UnitAtCell; E.UnitId = TEXT("V");
+		E.Cell = bWithDash ? FRTCellId(1, 0, 0) : FRTCellId(-2, 0, 0);
+		S.Expect.Add(E);
+		return S;
+	};
+
+	UWorld* W1 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 1"), W1)) { return false; }
+	const FRTTestResult WithDash = URTScenarioRunner::Run(W1, MakeScenario(true));
+	DestroyRunnerWorld(W1);
+
+	UWorld* W2 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 2"), W2)) { return false; }
+	const FRTTestResult NoDash = URTScenarioRunner::Run(W2, MakeScenario(false));
+	DestroyRunnerWorld(W2);
+
+	if (WithDash.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di eseguire: %s"), *WithDash.ErrorMessage));
+		return false;
+	}
+
+	TestEqual(TEXT("con `dash` l'unita' scatta a destinazione"), WithDash.OutcomeString(), FString(TEXT("PASS")));
+	// Senza il campo, la stessa unita' nello stesso scenario NON si muove: e' cio' che dimostra che a spostarla
+	// e' stato l'intent di scatto e non il movimento normale.
+	TestEqual(TEXT("senza `dash` resta ferma"), NoDash.OutcomeString(), FString(TEXT("PASS")));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

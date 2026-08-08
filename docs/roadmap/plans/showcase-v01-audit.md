@@ -260,6 +260,21 @@ succedere*; l'hash cattura le derive.
 > solo `PlannedAbilityIndex` **non fa cadere nulla** — `PlannedAttackTarget = nullptr` basta da solo — mentre
 > svuotare il ramo intero fa cadere esattamente quel test.
 
+### `MOB-1` — `Vektor.PassingBlade` non passa attraverso niente
+
+Trovata il 2026-08-08 scrivendo il test dello slot `dash`, verificando perché lo scatto si fermava.
+
+| | |
+|---|---|
+| **Il fatto** | Il commento del kit dice: «`Dash 3` che colpisce per 20 le unità **ATTRAVERSATE** … la carica si FERMA sul primo nemico, **questa gli passa attraverso**». In `RTMovementActionLibrary` una traiettoria `LinearDash` che incontra un'unità si ferma con `BlockedByUnit`: **solo `LinearLeap` scavalca** |
+| **Conseguenza** | L'unica abilità non-base di Vektor «interamente rappresentabile» non fa la cosa che la descrive. I 20 danni dichiarati negli `Effects` non hanno un momento in cui applicarsi: nessuno viene mai attraversato |
+| **La scelta** | Dare a `LinearDash` (o a un nuovo stile) la traversata delle unità, **oppure** riscrivere il kit e il commento su ciò che il gioco fa. Non una terza via: oggi il dato dichiara un danno che nessun percorso può produrre |
+| **Non è** | Un difetto trovato dal test dello slot `dash`: quel test è stato riscritto per non dipenderne. È emerso *mentre* lo si scriveva, ed è il motivo per cui è finito qui invece che in una correzione di iniziativa |
+
+> È di nuovo la forma di [dati senza consumatore](../../DOC_CONFLICT_MATRIX.md): un numero nel catalogo che
+> nessun percorso runtime legge. Qui però il dato è **corretto** e manca il meccanismo — l'opposto di D-028,
+> dove il meccanismo c'era e lo slot era sbagliato.
+
 ### `BAL-1` — I numeri di `Charge` e `Sprint` dopo D-028 *(playtest, non tavolino)*
 
 D-028 sistema la struttura e **sposta il prezzo sui dati**. Tre confronti che prima erano protetti da un costo

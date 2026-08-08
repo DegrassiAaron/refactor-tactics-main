@@ -191,6 +191,28 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 						}
 					}
 
+					FString DashText;
+					if (IntentObj->TryGetStringField(TEXT("dash"), DashText) && !DashText.IsEmpty())
+					{
+						Intent.Dash = FName(*DashText);
+
+						// La destinazione e' obbligatoria per lo stesso motivo per cui lo e' il bersaglio di
+						// un'abilita': senza, lo scatto non partirebbe e l'assertion cadrebbe su un fatto
+						// diverso da quello che lo scenario voleva verificare.
+						const TArray<TSharedPtr<FJsonValue>>* DashCellArr = nullptr;
+						if (!IntentObj->TryGetArrayField(TEXT("dashTo"), DashCellArr) || DashCellArr->Num() < 2)
+						{
+							OutError = FString::Printf(
+								TEXT("intent di '%s': la mobilita' '%s' non dichiara una destinazione (campo dashTo)"),
+								*Intent.UnitId, *DashText);
+							return false;
+						}
+						Intent.DashCell = FRTCellId(
+							static_cast<int32>((*DashCellArr)[0]->AsNumber()),
+							static_cast<int32>((*DashCellArr)[1]->AsNumber()),
+							DashCellArr->Num() >= 3 ? static_cast<int32>((*DashCellArr)[2]->AsNumber()) : 0);
+					}
+
 					const TArray<TSharedPtr<FJsonValue>>* MoveArr = nullptr;
 					if (IntentObj->TryGetArrayField(TEXT("move"), MoveArr))
 					{
