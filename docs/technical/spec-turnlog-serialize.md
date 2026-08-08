@@ -22,7 +22,26 @@ e porta il KPI «Replay divergence = 0» a ✅ (traccia salvabile, ricaricabile 
   (`FRTGridCoord{X,Y,Layer}` int32) + `Amount` (int32). Nessun float.
 - `URTTurnLogLibrary::{EntryLess, SortTurnLog, HashTurnLog}` (FNV-1a 32-bit, permutazione-invariante) `ff5e079`.
 
-## 3. Formato binario (versione 2, `WithChecksum`)
+> ⚠️ **Allineamento 2026-08-08 — il formato è avanzato a `v4`.** Questa sezione descrive la **v2**, che era il
+> formato al momento della stesura. Da allora `ERTTurnLogFormatVersion` è cresciuto **due volte**, sempre in
+> modo retrocompatibile:
+>
+> | Versione | Cosa aggiunge | Le tracce precedenti |
+> |---|---|---|
+> | `Initial = 1` | header + voci, senza checksum | mai persistita su file |
+> | `WithChecksum = 2` | checksum FNV del payload in coda | — |
+> | `WithActionId = 3` | `ActionId` per voce (CP 5.5): `uint16` di lunghezza + byte UTF-8 in coda alla voce — **primo campo a lunghezza variabile** | leggibili, `ActionId` vuoto: che è esattamente ciò che quei byte dicevano |
+> | `WithFormatId = 4` | `FormatId` nell'**header** (CP 10.3), dopo i flags. Sta nell'header perché nelle voci sarebbe una costante ripetuta N volte, e **non entra nell'hash**: includervi un campo di contesto invaliderebbe in blocco ogni hash golden | leggibili, `FormatId` neutro |
+>
+> Quindi «il loader accetta solo v2» **non vale più**: accetta v2, v3 e v4, e rifiuta le versioni sconosciute
+> invece di interpretare byte arbitrari (invariante #4).
+>
+> **Aggiungere una categoria o un outcome non richiede una nuova versione**, e non è prudenza: i valori nuovi
+> sono **accodati** e viaggiano come `uint8`, quindi i file già scritti restano leggibili. Si incrementa la
+> versione solo quando cambia il **layout** di header o voce. Inserire un valore *in mezzo* rinumererebbe
+> `Combat` e riscriverebbe il significato dei file esistenti: quello sì.
+
+## 3. Formato binario (versione 2, `WithChecksum`) — *storico, vedi il riquadro sopra*
 
 Little-endian **esplicito** (indipendente dall'endianness della piattaforma; non usa `FArchive`):
 

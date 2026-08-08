@@ -22,6 +22,28 @@
 > I reason sono stati corretti di conseguenza (rimossi `CoverReduced`/`BlockedByCover`/`OutOfBudget`; aggiunti
 > `TerrainBonus`, `NoLineOfSight`, `Stayed`). Decisione utente: set **Core + NoLineOfSight + TerrainBonus** (§12, D-TL-5).
 
+> ⚠️ **Emendamento 2026-08-08 — due affermazioni della revisione sopra non valgono più.**
+> Erano **corrette al 3 agosto**, quando la copertura era solo un bloccante di LOS e non esisteva E9: non sono
+> errori di allora, sono fotografie scadute. Il §2 «Stato attuale» va letto con questo cappello.
+>
+> | La revisione 2026-08-03 diceva | Oggi |
+> |---|---|
+> | «la copertura **non** riduce il danno, blocca la LOS ⇒ attacco scartato» | **Dipende dal tipo**: la copertura **bassa riduce** il danno (CP 9.1), la copertura **alta blocca** il bordo (CP 9.2). La riduzione decade se il colpo arriva fuori dall'arco frontale ([ADR-0005](../decisions/adr-0005-orientamento.md) §4a) |
+> | «l'unico modificatore di danno è l'**altura** (`EffectiveAttackPower`, +danno)» | **Falso oggi.** `OccupantDamageBonus` è un parametro **generico** e ogni call site runtime passa `0` — verificato il 2026-08-08 in `RTTurnManager.cpp`. La quota **non** dà danno ([D-024](../decisions/RT_PDR_00_Decision_Log.md)): vale per geometria |
+>
+> **Categorie e outcome correnti** (da `Turn/RTTurnLog.h`, non da memoria):
+> `ERTLogCategory = { Move, Combat, Fallback, Reaction, Environment }` ·
+> `ERTEnvironmentOutcome = { SurfaceChanged, SurfaceRestored, SurfaceRejected, SurfaceExtinguished, CoverDamaged, CoverDestroyed }`.
+>
+> **Serve una nuova versione di formato per questi valori? No** — e la ragione è nel codice, non nella prudenza:
+> i valori nuovi sono **accodati** e viaggiano come `uint8`, quindi le tracce già su disco restano leggibili.
+> Si incrementa `ERTTurnLogFormatVersion` solo quando cambia il **layout** di header o voce; l'ultimo
+> incremento è stato **v4 `WithFormatId`** (CP 10.3). Inserire un valore *in mezzo* rinumererebbe `Combat`,
+> cioè riscriverebbe il significato dei file esistenti: quello sì richiederebbe una versione.
+>
+> Dettaglio delle regole di copertura: [`../gameplay/spec-copertura-cp91.md`](../gameplay/spec-copertura-cp91.md) ·
+> [`../gameplay/spec-copertura-alta-cp92.md`](../gameplay/spec-copertura-alta-cp92.md).
+
 ---
 
 ## 1. Obiettivo & scope

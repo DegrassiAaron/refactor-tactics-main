@@ -1,117 +1,120 @@
-# Design — Mappa multilivello: ponte sopraelevato (vertical slice PF.4)
+# Spec — La mappa come grafo tattico esagonale multilivello
 
-> ℹ️ **Regola vigente, esempi datati.** Il multilivello è realizzato: `FRTCellId.Layer` + archi espliciti in `URTHexPathLibrary` (PF.4).
-> Gli snippet citano API rimosse al **CP 7.2** (`URTGridLibrary`, `FRTGridCoord`): vanno letti come pseudo-codice, non come firme correnti.
+> `CURRENT` · **Stato**: as-built, allineata al codice il **2026-08-08** · **Owner**: questo file
+> **Autorità**: subordinata a [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) e a
+> [ADR-0002](../decisions/adr-0002-griglia-esagonale.md).
+>
+> Si legge **senza conoscere la migrazione**. Il corpo originale — ponte sopraelevato su griglia quadrata
+> 10×10, `FRTGridCoord`, due ISM del vecchio sistema — è conservato in
+> [`spec-mappa-multilivello-quadrato.md`](../archive/technical/spec-mappa-multilivello-quadrato.md): resta la
+> fonte del *perché* il multilivello ha questa forma, non del *come* è fatto oggi.
 
-> `/sc:design` del **2026-08-02**. Decisioni prese: **layout = ponte sopraelevato · LOS = regole di
-> elevazione · scope = wiring minimo prima**. Ancorato al motore a grafo **PF.4.2**
-> ([`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md)), al terreno ([`spec-terreni.md`](../archive/gameplay/spec-terreni.md)),
-> al canone ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md)). Documentale: nessuna modifica al codice.
+---
 
-## 1. Obiettivo
+## 1. Il principio
 
-Vertical slice a **2 layer** con un **ponte sopraelevato** che attraversa la mappa: verticalità tattica con
-**vantaggio di elevazione** reale sulla linea di tiro, riusando il motore a grafo e i sistemi esistenti.
+La mappa **è un sistema di gioco**, non uno sfondo: decide dove si passa, cosa si vede e cosa si può
+distruggere. Due conseguenze che vincolano tutto il resto:
 
-## 2. Concept — il ponte
+1. **Nessun Actor per cella.** Le celle sono dati compatti in un `URTHexMapAsset`; il rendering è un solo
+   `ARTHexMapActor` con ISM/HISM. Diecimila celle non sono diecimila oggetti da tickare.
+2. **Il dato autorevole è separato dal rendering.** La posizione vera è `FRTCellId`; il `FVector` esiste solo
+   per disegnare.
 
-- **Layer 0** (terra): la 10×10 attuale, incluse le 4 coperture centrali (restano ostacoli a terra).
-- **Layer 1** (ponte): una **passerella larga 1 cella** lungo la riga `y=4`, dai bordi al centro, che passa
-  **sopra** le coperture centrali. Celle-ponte: `(2,4,1) … (7,4,1)` (6 celle).
-- **Rampe** (archi bidirezionali, costo 2) alle due estremità: `(1,4,0) ↔ (2,4,1)` e `(8,4,0) ↔ (7,4,1)`.
-- Il ponte è **alta quota**: chi ci sta vede e spara **oltre** le coperture basse (elevazione, §5), ma è
-  **esposto** su una passerella stretta. Rischio/ricompensa; contendibile da entrambe le squadre (2 rampe).
-- Buff opzionale: le celle-ponte possono portare **Altura** (`OccupantDamageBonus`) per rimarcare l'alta quota.
+---
 
-## 3. Modello dati
+## 2. Coordinate
 
-Riusa i tipi PF.4 (`FRTGridCoord{X,Y,Layer}`, `FRTTraversalEdge`). L'`ARTGridActor` è la fonte del grafo:
-- **Celle valide per layer**: layer 0 = intera 10×10; layer 1 = **insieme esplicito** delle celle-ponte. Le
-  celle non presenti su un layer sono impassabili (`RT_BLOCKED_COST` nella cost map di quel layer) — un solo
-  meccanismo, nessun concetto nuovo di "cella inesistente".
-- **Archi**: `TArray<FRTTraversalEdge> Edges` sull'`ARTGridActor` (le rampe), creati a runtime in C++
-  (come terreno/abilità, nessun `.uasset`). `GetEdges()` per i chiamanti.
-- **`BuildCostMap`/`BuildBotCostMap`** estesi ai layer (costo terreno per cella valida; bloccate le non-valide).
+`FRTCellId{ X = q, Y = r, Layer }` — assiale, con cubica derivata (`z = −q − r`).
 
-## 4. Rendering
+| Proprietà | Valore |
+|---|---|
+| Vicini sullo stesso layer | **6**, direzioni `E, NE, NW, W, SW, SE` |
+| Distanza | cubica, intera |
+| Layer | intero: piani sovrapposti dello stesso spazio |
+| Conversione ↔ mondo | assiale ↔ world con arrotondamento cubico; la dimensione della cella viene **dall'asset**, non da una costante |
 
-- **Due ISM**: `Cells0` (esistente, quota base) e `Cells1` (nuovo, celle-ponte a quota `Z + LayerHeight`,
-  ≈ 250 cm). Le coperture centrali (cubi) restano a terra, il ponte passa sopra.
-- **Rampe**: una mesh inclinata (o marker) tra le celle collegate dagli archi.
-- **Camera**: la top-down attuale gestisce le altezze; nessun cambio nell'MVP (eventuale pitch da tarare).
-- `CellToWorld` estesa con la quota del layer; `RefreshTerrainVisuals` per-layer.
+**Celle su layer diversi non sono adiacenti.** Mai, nemmeno se si trovano una sopra l'altra. Si collegano
+**solo** con una transizione esplicita: è la regola che rende il multilivello un grafo invece di un solido.
 
-## 5. LOS con regole di elevazione (DECISO)
+---
 
-**Regola**: lungo la linea 2D tiratore→bersaglio, una cella blocca la LOS **solo se il suo blocker sta a un
-layer ≥ quello del tiratore**. Modello: ogni blocker occupa l'altezza `[layer, layer+1)`; l'occhio del tiratore
-è al suo layer.
-- **Tiratore a terra (layer 0)**: bloccato dalle coperture di layer 0 (come oggi); il **ponte (layer 1) è sopra
-  l'occhio → non blocca** (si spara *sotto* il ponte). ✓
-- **Tiratore sul ponte (layer 1)**: le coperture di layer 0 sono **sotto l'occhio → non bloccano** (si spara
-  *oltre* le coperture basse = **vantaggio di elevazione**). ✓
-- Deterministica, riusa il campionamento 2D di `HasLineOfSight`; generalizzazione: la funzione prende il
-  **layer del tiratore** e considera solo i vision-blocker con `layer ≥ tiratore`. *TDD-abile.*
+## 3. Il dato di cella
 
-## 6. Regole di gioco (MVP)
+`FRTHexCellData`:
 
-- **Movimento cross-layer** via rampe (archi, costo 2); budget = budget di costo; `FindPathByGraph`.
-- **Occupazione** 1 unità per cella *per layer* (`(x,y,0)` e `(x,y,1)` distinte).
-- **Alta quota**: elevazione (§5) + eventuale buff Altura sulle celle-ponte.
-- **Caduta/spinta**: nessun push nell'MVP → nessuna caduta. Rimandata.
+| Campo | Tipo | Ruolo |
+|---|---|---|
+| `Height` | `int32` | quota; vale per **geometria** — LOS, occlusione, accessibilità. **Nessun bonus a danno o vista** ([D-018](../decisions/RT_PDR_00_Decision_Log.md) · [D-024](../decisions/RT_PDR_00_Decision_Log.md)) |
+| `Surface` | `ERTHexSurface` | pavimento, acqua, fuoco, ghiaccio… (E8) |
+| `MoveCost` | `int32` | costo **intero** per entrare nella cella |
+| `bBlocksMovement` | `bool` | cella impenetrabile |
+| `bBlocksLineOfSight` | `bool` | cella opaca |
+| `Covers` | `TArray<FRTHexCover>` | coperture **sui bordi**, non sulla cella — vedi §4 |
 
-## 7. Interazione (il pezzo nuovo più delicato)
+## 4. Le coperture stanno sui bordi
 
-Un click deve risolvere `(X, Y, Layer)`. **Soluzione**: ogni layer ha il suo ISM con collisione;
-`GetHitResultUnderCursor` ritorna il **componente colpito** + indice-istanza → si deriva il Layer
-(`Cells0`→0, `Cells1`→1) e la cella. Il ponte (più in alto) "copre" le celle sotto: cliccando la passerella
-si mira al ponte, cliccando il pavimento si mira a terra. Deterministico. `PlaceOnCell` posiziona l'unità alla
-quota del layer. **Rischio**: la priorità di collisione tra `Cells0`/`Cells1` va provata in PIE presto.
+`FRTHexCover{ Edge: ERTHexDirection, Type: ERTHexCoverType, Integrity: int32 }`, con `CoverOn(Edge)` per
+interrogarle.
 
-## 8. Determinismo & invarianti
+Una copertura appartiene a **uno dei sei lati**, non alla cella: un muretto ti protegge da nord e non da sud, e
+modellarlo come proprietà della cella renderebbe la direzionalità impossibile da esprimere.
 
-- Pathfinding a grafo **deterministico** (tie-break `X,Y,Layer`); costo intero (R3) → hash stabile.
-- Autorità server: reachability/path validati col grafo.
-- **`GraphRevision`/`SchemaVersion`**: solo con archi **dinamici** (crolli/portali da skill) → north-star. Nel
-  ponte l'MVP è **statico** nello snapshot → non serve.
+- **Bassa** — non chiude il bordo: riduce il danno di chi la usa (CP 9.1). La riduzione **decade** se il colpo
+  arriva fuori dall'arco frontale ([ADR-0005](../decisions/adr-0005-orientamento.md) §4a).
+- **Alta** — **chiude il bordo**: `URTHexCoverLibrary::BlocksTraversal` è consultato **sia** da
+  `URTHexPathLibrary::GraphNeighbors` **sia** da `URTHexVisionLibrary`. Movimento e vista non possono
+  divergere, perché leggono lo stesso predicato.
+- `Integrity` (default **30**) rende la copertura **distruttibile**: il TurnLog registra `CoverDamaged` con
+  l'integrità residua e `CoverDestroyed` quando il bordo si apre (CP 9.2).
 
-## 9. Piano d'implementazione (stato 2026-08-02)
+---
 
-- **MP.1 — Ponte + movimento cross-layer** ✅ *(codice completo, 53 test; salita interattiva non ancora
-  PIE-verificata dall'utente)*: `SpawnBridge` (celle layer 1 (3,4,1)..(7,4,1) + 2 rampe) · `BuildCostMap`
-  multilivello (celle-ponte calpestabili, resto di layer 1 impassabile) · `BridgeCells` ISM a quota ·
-  `LayerFromHitComponent` (click→layer) · pipeline movimento graph-aware (`FindPathByGraph`, `PathCost`/
-  `BuildCompositePath` con archi) · `PlaceOnCell(..., LayerHeight)`. Fix: ponte non sopra lo spawn del Guardian.
-- **MP.2 — LOS di elevazione** ✅ TDD: un blocker blocca solo se allo **stesso layer** del tiratore (dal ponte
-  si spara sopra le coperture basse; a terra si spara sotto il ponte). Retro-compatibile col 2D.
-- **MP.3 — HUD path elevato** ✅: linea, pallini, destinazione e traccia post-lock seguono la quota del layer.
-- **MP.4 — bot-sul-ponte** ✅ *(2026-08-03)*: `URTBotLibrary::BestFiringCell` (logica pura, 2 test RED→GREEN):
-  quando il bot non ha un tiro dalla cella attuale, cerca una **posizione di tiro** raggiungibile (grafo/rampe)
-  con LOS + gittata, **preferendo l'alta quota** (elevazione: spara oltre le coperture basse); se non ce n'è si
-  avvicina come prima. Integrato in `PlanBots` (log `riposiziona per il tiro (layer N)`). Verifica PIE: i bot si
-  riposizionano in gioco (osservato `layer 0`, aggiramento a terra); la salita sul ponte (`layer 1`) è provata
-  dal test `BestFiringCellClimbsBridgeForElevatedShot` ed emerge in gioco quando il bot è vicino a una rampa e
-  le coperture bloccano il tiro a terra.
-- **MP.4 — verifica PIE del click→layer + tuning colori/quota/camera** ⏳ (richiede gioco manuale dell'utente).
+## 5. Le transizioni fra layer
 
-> **Nota di verifica**: la logica cross-layer è coperta da test (`FindPathByGraph`, `PathCost` via arco,
-> LOS di elevazione, `BestFiringCell`). Il solo pezzo non verificabile senza gioco manuale è il **click→layer**
-> a schermo (selezione/pianificazione su celle sul ponte).
+`FRTHexEdge{ From, To, Cost, Kind }`, gestite con `AddTransition(From, To, Cost, Kind, bBidirectional)` e
+`RemoveTransition(From, To, bBothDirections)`.
 
-## 10. Rischi
+Sono **direzionali**: il bidirezionale è due archi. Una scala percorribile in un solo senso non è un caso
+speciale da programmare, è semplicemente un arco solo.
 
-- **Click→layer** (ISM-hit priority): il più nuovo → PIE presto (MP.1).
-- **Leggibilità** due layer in top-down → colori/quota da tarare.
-- **Bot** su reachability a grafo: scoring da estendere (salire/evitare esposizione).
-- **Epica**: affettata (MP.1 minimo prima).
+`ERTHexTransitionKind` = `Stair · Ramp · Bridge · Tunnel · Elevator · Jump`.
+`Jump` è predisposizione; il teletrasporto resta fuori.
 
-## 11. Conflitti segnalati (regola CLAUDE.md)
+> **Gli archi non portano trigger.** Una trap o un tripwire possiede la propria coppia `(From → To)` e la
+> confronta col micro-step del movimento; `FRTHexEdge` resta riservato ai soli salti di layer
+> ([D-013](../decisions/RT_PDR_00_Decision_Log.md)). Il motivo è nella §2 di
+> [`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md): gli adiacenti orizzontali sono **calcolati**,
+> quindi non esiste un arco su cui appendere il trigger.
 
-- Il ponte **non** cambia la semantica delle coperture centrali (restano ostacoli a terra); aggiunge un layer
-  sopra. Nessun conflitto col canone attuale, salvo aggiornare roadmap/mappa quando il ponte sarà a schermo.
-- Coerente con R1/R2/R3 (§3.1 canone) e col motore PF.4 già consegnato.
+---
 
-## 12. Prossimo passo
+## 6. Asset, formato e identità
 
-`/sc:design` è documentale: qui ci si ferma. L'implementazione parte da **MP.1** con `/sc:implement` (o via
-richiesta esplicita) — TDD dove la logica è pura (LOS di elevazione), wiring + PIE per rendering/interazione.
+| Elemento | Valore |
+|---|---|
+| Tipo | `URTHexMapAsset : UPrimaryDataAsset` |
+| Versione di formato | `CurrentFormatVersion = 3`, con `MigrateToCurrentFormat()` in `PostLoad()` |
+| Ordine | `SortCells()` — ordine stabile, indipendente dall'inserimento |
+| Identità | `ComputeHash()` — hash deterministico del contenuto |
+| Revisione | `Revision`, incrementata a ogni modifica strutturale |
+
+`Revision` e `ComputeHash()` servono insieme allo **snapshot** di simulazione: `FRTHexSimSnapshot` cattura
+entrambi e si dichiara obsoleto se uno dei due cambia. Sono il meccanismo che impedisce a un turno di essere
+risolto contro una mappa diversa da quella su cui era stato pianificato.
+
+L'editing (`BeginStroke` / `PaintCellInStroke` / `EraseCellInStroke` / `EndStroke`, `ApplyBrush`) è **solo
+editor**: il modulo runtime non dipende da UnrealEd.
+
+---
+
+## 7. Che cosa questo documento **non** possiede
+
+| Tema | Owner |
+|---|---|
+| A\*, archi percorribili, costi del cammino | [`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md) |
+| Regole di copertura e distruzione | [`../gameplay/spec-copertura-cp91.md`](../gameplay/spec-copertura-cp91.md) · [`../gameplay/spec-copertura-alta-cp92.md`](../gameplay/spec-copertura-alta-cp92.md) |
+| Superfici, stati, propagazione | [`../gameplay/spec-terreni-e8.md`](../gameplay/spec-terreni-e8.md) |
+| LOS e forme di targeting | [`h6-4-hex-vision-spec.md`](h6-4-hex-vision-spec.md) (`AS-BUILT`, emendata da E9/E13) |
+| Percorsi e naming degli asset in `Content/` | [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) |
+| Stato di avanzamento | [`../roadmap/roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md) |

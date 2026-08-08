@@ -1,105 +1,118 @@
-# Spec — Path Finding avanzato: PF.3 (cost provider + A* pesato) e PF.4 (grafo multilivello)
+# Spec — Pathfinding sul grafo tattico esagonale
 
-> Prodotta da un panel di revisione specifiche (`/sc:spec-panel`) il **2026-08-02**.
-> Segue [`spec-pathfinding.md`](spec-pathfinding.md) (PF.1/PF.2, già implementati).
-> Autorità: subordinata a [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md). I riferimenti PDF = north-star.
+> `CURRENT` · **Stato**: as-built, allineata al codice il **2026-08-08** · **Owner**: questo file
+> **Autorità**: subordinata a [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) e a
+> [ADR-0002](../decisions/adr-0002-griglia-esagonale.md).
+>
+> Si legge **senza conoscere la migrazione**: qui non si parla di quadrato. Il corpo originale, scritto per
+> `FRTGridCoord` a 4 vicini e distanza Manhattan, è conservato in
+> [`spec-pathfinding-pf3-pf4-quadrato.md`](../archive/technical/spec-pathfinding-pf3-pf4-quadrato.md) — le sigle
+> **PF.3/PF.4** vengono da lì e sopravvivono solo nel nome di questo file.
 
-## 0. Riconciliazioni recepite (decisioni 2026-08-02)
+---
 
-Le tre contraddizioni tra fonti sono state decise. **Da recepire nel piano canonico** (fonte di verità #1)
-prima di implementare PF.3/PF.4.
+## 1. Che cosa decide questo documento
 
-| # | Contraddizione | Decisione | Motivazione |
-|---|---|---|---|
-| **R1** | Schema fasi turno | **`Planning → Prep → Dash → Blast → Move → Cleanup`** (quello del codice / Atlas) | Già implementato/testato (`ERTMatchPhase`, `URTTurnRules::NextPhase`). Gli schemi di [Piano completo, p.15] e [PRD, p.4] sono elaborazioni mappabili su questo. Il path finding serve a **Move** (normale) e **Dash** (mobilità rapida, profilo distinto). |
-| **R2** | Naming coordinata / campo Z | **`FRTGridCoord` + campo `Layer`** | Nome struct già nel codice (=PRD); campo `Layer` = [Piano completo] + commento già presente in `RTTypes.h`. Estensione retro-compatibile: `int32 Layer = 0` → il 2D resta invariato; `GetTypeHash` includerà `Layer`. |
-| **R3** | Modello di costo | **Additivo intero** | `TraversalCost = Σ costi interi dei provider` [Piano completo, p.13]. Interi → deterministici/hashabili (**invariante #4**). I `MovementMultiplier` float dei Data Asset [PRD, p.16] si convertono a intero al caricamento; **niente float nel resolver/hash**. |
+Come si calcola un percorso fra due celle e quali archi esistono. È **autorevole**: il movimento del gioco
+passa da qui, non dalla NavMesh di Unreal, che non conosce né le celle né le regole tattiche.
 
-## 1. Gate di scope (il panel raccomanda di NON implementare finché non si aprono)
+Owner del codice: `URTHexPathLibrary` (`Source/RefactorTactics/Pathfinding/`).
 
-| Incremento | Gate |
+---
+
+## 2. Il grafo
+
+La mappa **non** è una matrice di celle adiacenti per posizione: è un grafo, e gli archi sono di due specie.
+
+| Specie di arco | Come nasce | Costo |
+|---|---|---|
+| **Vicinato orizzontale** | **calcolato**, non memorizzato: i 6 vicini di `URTHexLibrary::Neighbors` sullo stesso `Layer` | `MoveCost` della cella di **destinazione** |
+| **Transizione fra layer** | **dato esplicito** nell'asset (`FRTHexEdge` in `URTHexMapAsset::Transitions`, via `AddTransition(From, To, Cost, Kind, bBidirectional)`) | costo dichiarato dall'arco |
+
+Che gli adiacenti orizzontali siano *calcolati* non è un dettaglio implementativo: è la ragione per cui una
+trappola su transizione possiede la propria coppia `(From → To)` invece di appenderla alla mappa
+([D-013](../decisions/RT_PDR_00_Decision_Log.md)). Non c'è un arco su cui appenderla.
+
+`URTHexPathLibrary::GraphNeighbors(Map, Cell)` restituisce i vicini percorribili in **ordine deterministico**:
+prima le sei direzioni nell'ordine `E, NE, NW, W, SW, SE`, poi le transizioni nell'ordine dell'asset.
+
+### 2.1 Quando un arco orizzontale non esiste
+
+Un vicino è scartato se:
+
+1. la cella di destinazione ha `bBlocksMovement`; **oppure**
+2. `URTHexCoverLibrary::BlocksTraversal(Map, From, To)` è vero — cioè fra le due celle c'è una **copertura
+   alta**, che è una proprietà del **bordo**, non della cella.
+
+Il secondo punto è la ragione per cui la copertura alta si comporta come un muro: lo **stesso** predicato è
+consultato da `URTHexVisionLibrary` per la LOS. Movimento e vista non possono divergere sulla domanda «questo
+bordo è chiuso?», perché non esistono due risposte.
+
+---
+
+## 3. L'algoritmo
+
+**A\* deterministico a costi interi.**
+
+```
+FindPath(Map, Start, Goal, MaxCost = 0, MaxNodes = 100000)
+FindPathAvoiding(Map, Start, Goal, Blocked, MaxCost = 0, MaxNodes = 100000, ExtraCostPerCell = 0)
+```
+
+| Elemento | Scelta | Perché |
+|---|---|---|
+| Euristica | distanza esagonale (cubica) | ammissibile finché gli archi sono locali: non sovrastima mai |
+| Costi | **interi**, mai `float` | invariante #4: due macchine devono ottenere lo stesso percorso |
+| Tie-break | **ID della cella**, ordinamento stabile | senza di esso l'esito dipenderebbe dall'ordine di iterazione di `TSet`/`TMap`, che non è garantito |
+| `MaxCost` | `0` = illimitato | serve al budget di movimento (MP) |
+| `MaxNodes` | guardia, default `100000` | un grafo malformato non deve poter appendere il turno |
+
+### 3.1 Ostacoli dinamici e chi si muove
+
+`FindPathAvoiding` separa due cose che il quadrato confondeva:
+
+- **`Blocked`** — celle non percorribili che **non appartengono all'asset**: tipicamente le unità che le
+  occupano. Non sono dati di mappa, quindi non stanno nella mappa. `Blocked == nullptr` equivale a `FindPath`;
+  se il *goal* è bloccato il risultato è `NoPath`.
+- **`ExtraCostPerCell`** (`>= 0`) — sovrapprezzo su **ogni** arco attraversato (CP 4.7, `Action.Slow`). È un
+  parametro **del chiamante**, non della mappa: la stessa cella costa diversamente a un'unità rallentata e a
+  una che non lo è. Metterlo nella mappa avrebbe reso il costo una proprietà del terreno anziché di chi cammina.
+
+---
+
+## 4. Determinismo, revisione e cache
+
+- Il risultato dipende **solo** da `(Map, Start, Goal, Blocked, MaxCost, MaxNodes, ExtraCostPerCell)`. Nessun
+  `DeltaTime`, nessun RNG, nessuna dipendenza dall'ordine di container non ordinati.
+- `URTHexMapAsset::Revision` si incrementa a ogni modifica strutturale della mappa. **Oggi non invalida una
+  cache di percorsi, perché una cache di percorsi non esiste**: `URTHexPathLibrary` ricalcola sempre. La
+  revisione è consumata dallo **snapshot** di simulazione (`FRTHexSimSnapshot::Revision`), che confronta
+  revisione **e** hash della mappa per accorgersi di essere obsoleto.
+- Se un giorno servisse una cache, `Revision` è il gancio già presente — ma finché non c'è, questo documento
+  non deve raccontarla.
+
+---
+
+## 5. Prestazioni
+
+Misurate, non stimate. Test `RefactorTactics.Perf.PathfindingMedian`:
+
+| Metrica | Valore |
 |---|---|
-| **R1/R2/R3** | nessuno — sono decisioni, si recepiscono subito nel piano canonico |
-| **PF.3** cost provider + A\* pesato | **`FR-TERRAIN-01`** — deve esistere ≥1 tipo di terreno con costo di traversata > 1. Senza un terreno a costo, l'A\* pesato non ha nulla da pesare (YAGNI). Il terreno è a sua volta una feature di gioco da volere per *ragioni di gameplay*. |
-| **PF.4** grafo multilivello | Un **design di mappa multilivello** + una **meccanica** che lo usi (scale/portali/dislivelli). È il salto architetturale maggiore (da griglia implicita a grafo esplicito). North-star. |
+| Mediana di `FindPath` | **0,025 ms** |
+| Mediana del resolver di turno (contesto) | **0,41 ms/turno** (`RefactorTactics.Perf.TurnResolverMedian`) |
 
-## 2. PF.3 — Cost provider + A\* pesato (gated da FR-TERRAIN-01)
+I numeri valgono sulla macchina di sviluppo e sulle mappe correnti: l'hardware target non è definito
+([`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md)), quindi sono **misure**, non garanzie.
 
-**Architettura (seam già presente):** `ReachableCells`/`FindPath` incapsulano già la nozione di passo.
-Si sostituisce «costo 1 se libero / bloccato» con un provider di costo; il BFS diventa **Dijkstra/A\***.
+---
 
-- `ICostProvider::Step(From, To) → { int Cost | Blocked }`, con **`Cost ≥ 1`** (clamp; niente costi negativi).
-- Primi due provider (non lo zoo di 10 del PRD): **Terrain** (costo per tipo di cella) e **Occupancy**
-  (celle occupate/prenotate → bloccate o penalizzate).
-- **Euristica ammissibile:** `H = Manhattan × minCost` con `minCost ≥ 1` (resta Manhattan se minCost=1)
-  [Piano completo, p.14]. Tie-break deterministico (`StableTieBreak`).
+## 6. Che cosa questo documento **non** possiede
 
-**Requisiti (SMART):**
-- `FR-PATH-06` — `FindPath` ritorna il percorso a **costo totale minimo** (non a celle minime): fra due rotte,
-  preferisce quella più economica anche se più lunga in celle. *Verifica: terreno costoso vs giro economico.*
-- `FR-PATH-07` — reachability entro un **budget di costo** (non di passi): `ReachableCellsByCost(From, Budget, …)`.
-- `FR-PATH-02` (invariato) — aggiungere un provider **non** modifica l'algoritmo (criterio PRD [p.11,23]).
-- `FR-PATH-08` — euristica ammissibile: il costo stimato non supera mai il costo reale (A\* ottimo).
-
-**Esempi (Given/When/Then):**
-```
-Given  terreno "fango" costo 3 su (5,4)..(5,6); resto costo 1; unita' a (5,3), bersaglio (5,7)
-When   FindPath a costo minimo
-Then   preferisce il giro (5,3)->(4,3)->(4,4)->(4,5)->(4,6)->(4,7)->(5,7) [costo 6]
-And    NON la retta (5,3)->(5,4)->(5,5)->(5,6)->(5,7) [costo 1+3+3+3+1 = 11]
-
-Given  budget di costo 4, terreno come sopra
-When   ReachableCellsByCost
-Then   (5,6) [costo 1+3+3=7] NON e' raggiungibile; (2,3) [costo 3] si'
-```
-
-**Failure mode:** costo negativo → clamp a 0/rifiuto; costo statico nello snapshot del turno (nessun ricalcolo
-mid-turno nell'MVP; `CostRevision` è north-star [Piano completo, p.14]); path assente → unità ferma.
-
-**Test plan:** (1) path a costo minimo preferisce il giro economico *(discriminante)*; (2) ammissibilità
-euristica (A\* trova l'ottimo su griglia nota); (3) determinismo con costi pari; (4) reachability-per-costo;
-(5) provider aggiuntivo non cambia i risultati dell'algoritmo (FR-PATH-02).
-
-## 3. PF.4 — Grafo multilivello (motore ✅ 2026-08-02 · mappa gated da design)
-
-> **Motore consegnato (TDD, 52 test):** `FRTGridCoord{X,Y,Layer}` (retro-compatibile, Layer 0 = 2D);
-> `FRTTraversalEdge{From,To,Cost}`; `URTGridLibrary::ReachableCellsByGraph`/`FindPathByGraph` (Dijkstra
-> che espande i 4 vicini ortogonali same-layer **+** gli archi uscenti, tie-break `(X,Y,Layer)`).
-> Verificato: portale che accorcia, scala tra layer, reachability cross-layer per costo.
-> **Ancora ⏳** (gated da un design di mappa multilivello): rendering del 2° layer, scale/portali come
-> oggetti di gioco, wiring del graph-pathfinding nel controller/resolver, camera e bot multilivello,
-> `GraphRevision`/`SchemaVersion`. Sotto il design originario.
-
-**Cambio di paradigma:** da griglia implicita (4 vicini) a **grafo esplicito** con archi. Il pathfinder itera
-sugli **archi uscenti** invece che sui vicini ortogonali.
-
-**Modello dati (recepisce R2):**
-- `FRTGridCoord { int32 X, Y, Layer = 0 }` — `GetTypeHash` include `Layer`.
-- `FRTTraversalEdge { FRTGridCoord From, To; EEdgeType EdgeType; int32 Cost; FGameplayTagContainer RequiredTags; bool bEnabled }`
-  — scale/rampe/portali/ascensori/salti [Piano completo, p.12]. Celle collegate anche se non adiacenti.
-- Versionamento: `GraphRevision` (mutazioni topologiche) + `SchemaVersion` (serializzazione) — **invariante #4**.
-
-**Requisiti:** `FR-GRID-01` (≥3 livelli logici [PRD, p.22]); `FR-GRID-02` (archi con direzione/costo/requisiti/
-enabled [PRD, p.23]); `FR-GRID-03` (le mutazioni incrementano `GraphRevision`).
-
-**Compatibilità (Newman):** `Layer = 0` di default → i dati/percorsi 2D esistenti restano validi (migrazione
-implicita). Nessun formato serializzato senza campo versione.
-
-**Vertical slice minimo** [Piano completo, p.32]: 2 layer, collegamenti = scala + jump pad, 4 terreni, effetti
-fuoco/acqua; dimostrare "movimento multilivello" e "un percorso diverso per due unità".
-
-## 4. Non-goal / YAGNI (esplicito)
-
-- Nessuno zoo di 10 cost provider: 2 all'inizio (Terrain, Occupancy).
-- Nessuna cache/invalidazione per revisione finché non c'è profiling su mappe grandi (100 celle = irrilevante;
-  budget `<50/100 ms` sono per 2.000–3.000 celle [PRD, p.23]).
-- Nessun "percorso più sicuro" (rischio/esposizione) nel path mostrato al giocatore: resta comando esplicito/IA
-  [Piano completo, p.14].
-- PF.4 non parte senza una mappa multilivello disegnata e una meccanica che la usi.
-
-## Appendice — citazioni PDF
-
-`TraversalCost = EdgeBase+Terrain+UnitProfile+Status+Hazard+Reservation+Scenario` [Piano completo, p.13] ·
-`H = Manhattan orizzontale + min cambi layer` [p.14] · `FRTTraversalEdge{From,To,EdgeType,BaseCost,RequiredTags,
-BlockedTags,Capacity}` [p.12] · `FR-GRID-01..03`, `FR-PATH-02` [PRD, p.22-23] · budget `<50/100 ms` su
-2.000–3.000 celle [PRD, p.23] · vertical slice 2 layer [Piano completo, p.32].
+| Tema | Owner |
+|---|---|
+| Struttura della mappa, layer, transizioni come contenuto | [`spec-mappa-multilivello.md`](spec-mappa-multilivello.md) |
+| Copertura: tipi, integrità, distruzione | [`../gameplay/spec-copertura-cp91.md`](../gameplay/spec-copertura-cp91.md) · [`../gameplay/spec-copertura-alta-cp92.md`](../gameplay/spec-copertura-alta-cp92.md) |
+| Budget di movimento, profili `Sneak/Move/Sprint`, collisioni simultanee | [`../gameplay/spec-sequenza-turno.md`](../gameplay/spec-sequenza-turno.md) · [`../balance/RT_ActionCatalog_v0.1.md`](../balance/RT_ActionCatalog_v0.1.md) |
+| Mappa delle classi C++ | [`architettura-codice.md`](architettura-codice.md) |
+| Stato di avanzamento | [`../roadmap/roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md) |

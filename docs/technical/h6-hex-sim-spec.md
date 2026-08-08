@@ -1,6 +1,16 @@
 # Spec H6.1–H6.3 — Simulazione su griglia esagonale (snapshot, budget, collisioni, TurnLog)
 
-> **Stato**: **Implementata** (TDD RED→GREEN; suite **140/140**, build Editor Succeeded) · **Data**: 2026-08-05 · **Branch**: `feat/hex-sim`
+> ## 🧱 `AS-BUILT 2026-08-05` — fetta di migrazione consegnata
+>
+> **Questo documento descrive un ponte temporaneo, non l'architettura corrente.** Dove dice che il substrato
+> quadrato e quello esagonale **convivono**, era vero il 2026-08-05: l'implementazione quadrata è stata
+> **rimossa al CP 7.2**, e oggi l'esagono è l'unica topologia di gioco.
+>
+> **Non usare questo file come owner dell'architettura.** Owner corrente:
+> [`architettura-codice.md`](architettura-codice.md).
+
+> **Stato**: **Implementata** · **Data**: 2026-08-05 · **Branch**: `feat/hex-sim`
+> *(la suite «140/140» è il numero di allora; oggi si misura col comando in [`../README.md`](../README.md))*
 > **Fonte**: milestone **H6** di [`hex-map-roadmap.md`](../roadmap/hex-map-roadmap.md) («Integrazione simulatore»).
 > Non tocca il turn loop quadrato (base di rollback, [ADR-0002](../decisions/adr-0002-griglia-esagonale.md)).
 
