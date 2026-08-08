@@ -15,6 +15,7 @@
 #include "Map/RTCellId.h"
 #include "Terrain/RTTerrainLibrary.h"
 #include "Terrain/RTTerrainData.h"
+#include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "ScenarioHarness/RTTestScenario.h"
@@ -632,9 +633,10 @@ bool FRTScenarioShowcaseRelayV01Test::RunTest(const FString&)
 	// e non dell'harness.
 	FRTTestScenario Scenario;
 	FString LoadError;
+	// Il percorso si chiede all'INDICE: da `c53efc3` l'ID non e' piu' il percorso, e le cartelle sono libere.
+	const FString ScenarioPath = URTScenarioIndex::ResolvePath(TEXT("RT_Showcase_Relay_v01"), LoadError);
 	if (!TestTrue(TEXT("RT_Showcase_Relay_v01 si carica"),
-		URTScenarioLoader::LoadFromFile(
-			URTScenarioLoader::PathForScenarioId(TEXT("RT_Showcase_Relay_v01")), Scenario, LoadError)))
+		!ScenarioPath.IsEmpty() && URTScenarioLoader::LoadFromFile(ScenarioPath, Scenario, LoadError)))
 	{
 		AddError(FString::Printf(TEXT("caricamento fallito: %s"), *LoadError));
 		return false;
