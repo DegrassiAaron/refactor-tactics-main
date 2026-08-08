@@ -209,6 +209,81 @@ bool FRTPushInvalidDestinationTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `PushResistance` e' una **soglia**: regge le spinte fino al proprio valore, cede a quelle piu' forti — e
+ * quando cede la spinta passa **intera**, non ridotta. E' la forma di `Action.Guard` (CP 5.2), non una
+ * sottrazione: due resistenze alla spinta con due semantiche diverse nello stesso combat sarebbero state la
+ * prima cosa da spiegare a chi bilancia (#241, D-037).
+ *
+ * Il caso che nessuno scenario puo' esprimere e' proprio quello che separa le due semantiche: **`Push 2`**
+ * esiste solo su `Guardian.Sweep`, un'azione d'archetipo fuori dal roster v0.1. Con la sola spinta da 1 dei
+ * kit, soglia e sottrazione darebbero lo stesso risultato e questo test sarebbe verde comunque.
+ *
+ * `Action.Pull` **non** e' resistito, ed e' deliberato: il catalogo riserva la resistenza di Guard alla
+ * spinta. Verificarlo qui impedisce che qualcuno lo "aggiusti" per simmetria.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPushResistanceIsAThresholdTest,
+	"RefactorTactics.Actions.PushResistanceIsAThreshold",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPushResistanceIsAThresholdTest::RunTest(const FString&)
+{
+	struct FCase
+	{
+		const TCHAR* ActionId;   // azione che produce la spinta
+		int32 Resistance;        // resistenza del bersaglio
+		int32 VictimQ;           // distanza del bersaglio sulla riga r=0
+		bool bShouldMove;        // ci si aspetta che si sposti?
+		const TCHAR* What;
+	};
+	// La trazione vuole il bersaglio a DUE celle: tirato da una sola, la cella verso cui andrebbe e' quella
+	// del puller ed e' occupata — non si sposterebbe per geografia invece che per resistenza, e il caso
+	// direbbe il contrario di quel che sembra.
+	static const FCase Cases[] = {
+		{ TEXT("Action.Push"),      1, 1, false, TEXT("Push 1 contro resistenza 1: assorbita") },
+		{ TEXT("Action.Push"),      0, 1, true,  TEXT("Push 1 contro resistenza 0: arretra") },
+		{ TEXT("Guardian.Sweep"),   1, 1, true,  TEXT("Push 2 contro resistenza 1: la soglia cede, e cede INTERA") },
+		{ TEXT("Action.Pull"),      1, 2, true,  TEXT("Pull 1 contro resistenza 1: la trazione non e' resistita") },
+	};
+
+	for (const FCase& C : Cases)
+	{
+		UWorld* World = MakeControlWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		SpawnControlMap(World, 4);
+
+		ARTUnit* Mover = SpawnControlUnit(World, 0, FRTCellId(0, 0));
+		ARTUnit* Victim = SpawnControlUnit(World, 1, FRTCellId(C.VictimQ, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Mover || !Victim || !TM) { DestroyControlWorld(World); return false; }
+
+		Victim->PushResistance = C.Resistance;
+		const FRTCellId Before = Victim->Cell;
+
+		// `Guardian.Sweep` sta nel catalogo ARCHETIPI, non fra le azioni core: e' l'unica del progetto con
+		// `Push 2`, ed e' il motivo per cui questo test esiste.
+		URTActionData* Ability = NewObject<URTActionData>(Mover);
+		Ability->Def = URTCatalogLibrary::FindCoreAction(FName(C.ActionId));
+		if (Ability->Def.ActionId.IsNone())
+		{
+			Ability->Def = URTCatalogLibrary::FindShippedAction(FName(C.ActionId));
+		}
+		Ability->RangeCells = Ability->Def.RangeCells;
+		Ability->Power = 0;
+		Mover->Abilities.Add(Ability);
+
+		Mover->PlannedAbilityIndex = Mover->Abilities.Num() - 1;
+		Mover->PlannedAttackTarget = Victim;
+		Victim->PlannedAbilityIndex = INDEX_NONE;
+
+		RunControlTurn(TM);
+
+		const bool bMoved = !(Victim->Cell == Before);
+		TestEqual(C.What, bMoved, C.bShouldMove);
+		DestroyControlWorld(World);
+	}
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPullTest,
 	"RefactorTactics.Actions.Pull",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

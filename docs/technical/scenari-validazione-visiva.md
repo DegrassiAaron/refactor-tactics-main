@@ -292,6 +292,9 @@ senza che nulla diventi rosso. È il caso in cui il verde è il difetto.
 | `Spec.Predictive.WhiffOnEmptyCell` | `PredictiveAction` | il colpo su una previsione sbagliata deve **mancare** |
 | `Spec.Perception.HeardNotSeen` | `Perception` | la squadra riceve un'**area**, mai la cella esatta |
 | `Spec.Cover.TemporaryCoverExpires` | `CreateCover` | una copertura temporanea **scade** — il terzo momento, quello che si dimentica |
+| `Spec.Environment.ElectricPropagation` | `EnvironmentalActionOwner` | la scarica segue l'**acqua**, non il raggio: 20 alla sorgente, 12 ai propagati, chi è all'asciutto resta illeso |
+| `Spec.Environment.WaterQuenchesFire` | `EnvironmentalActionOwner` | creare acqua su una cella che brucia **spegne il terreno** — non solo il `Burning` di un'unità |
+| `Spec.Map.BridgeBreaksThePath` | `EnvironmentalActionOwner` | un arco è **additivo**: romperlo non allunga il percorso, lo **annulla** |
 
 Il valore non è la copertura: è che queste domande vengono poste **prima**. `WhiffOnEmptyCell` è l'esempio
 netto — a implementazione finita si testa che il colpo arrivi quando la previsione è giusta, e
@@ -301,6 +304,23 @@ Scritto dopo, quel caso non verrebbe in mente.
 Ognuno dichiara in `_nota_da_completare` cosa manca per renderlo verde, incluse **due assertion che non
 esistono**: `TeamScoreEquals` per gli obiettivi, e un modo di asserire sulla conoscenza di una squadra per la
 percezione. Meglio scoprirlo ora che a implementazione finita.
+
+### Una capability che non nomina una feature mancante
+
+`EnvironmentalActionOwner` è diversa dalle altre cinque, e la differenza è il punto: **il sistema esiste ed è
+chiuso**. CP 8.3, CP 8.5 e CP 9.4 sono verdi, `Action.Electrify` sta nel catalogo con `PropagationLimit = 3`,
+e il `TurnManager` la risolve leggendo `PlannedAbilityIndex`. Quello che manca è **chi la possiede**: nessuna
+unità ha quelle azioni nel kit.
+
+È lo stesso difetto che #275 ha chiuso per `Guard` e `Brace`, con una differenza che vieta la stessa
+soluzione: quelle erano azioni **generiche** per D-025 e potevano entrare nel kit di tutti. Un'azione
+ambientale in mano a ogni eroe sarebbe una decisione di design — «chiunque può incendiare e creare acqua» —
+non un cablaggio.
+
+La via canonica è un'altra, e il progetto l'ha già usata per le reazioni: `Flux.ConductiveNode`,
+`Riva.MistVeil` e `Riva.FluidTrail` **esistono nel catalogo eroi con `Effects` vuoti**, e i loro commenti
+dichiarano il perché — quando furono scritte, il sistema d'ambiente non c'era. Ora c'è. Cablarle alla
+semantica core conservando l'identità dell'eroe è la stessa mossa di `Bastion.Ram` → `Action.Charge`.
 
 Ogni turno di uno scenario-spec resta con `intents` **vuoti**: la sintassi con cui si dichiarerà una risposta
 HOLD/FIRE, o un bersaglio predittivo, non è decisa. Inventarla qui creerebbe un formato che nessuno ha scelto
@@ -340,7 +360,7 @@ sulla **portata**. Lo scenario ora fa caricare Bastion in direzione opposta, fin
 
 | Difetto | Perché nessuno se n'era accorto |
 |---|---|
-| `PushResistance` non riduce le spinte ([#241]) | è un **dato senza consumatore**: catalogo → `ARTUnit` → test che ne verificano il *valore*. Nessuno lo legge quando applica una spinta |
+| `PushResistance` non riduce le spinte ([#241], **chiuso**) | era un **dato senza consumatore**: catalogo → `ARTUnit` → test che ne verificano il *valore*. Nessuno lo leggeva quando applicava una spinta |
 | la combo Riva→Flux non è realizzabile ([#242]) | `Heroes.Flux.WetBonus` verifica l'**aritmetica** di `EffectiveAttackPower` senza passare dal `TurnManager`. Il `Wet` di `PressureJet` arriva *durante* il Blast, quando i colpi sono già preparati — e su due turni scade nel Cleanup prima di servire |
 
 Il secondo è il più istruttivo del lotto: la combo firma della v0.1 era documentata, aveva un test verde, ed

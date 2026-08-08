@@ -1,0 +1,36 @@
+{
+  "scenarioId": "Spec.Environment.WaterQuenchesFire",
+  "tags": ["spec", "environment", "riva", "vektor"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "RelayLite",
+
+  "_nota": "SPECIFICA ESEGUIBILE di CP 8.5, il lato mancante del terreno dinamico: creare acqua su una cella che brucia la **spegne**. Oggi il corpus mostra solo il verso opposto e piu' piccolo — `Visual.Environment.WetExtinguishesFire`, dove l'acqua toglie il `Burning` a un'UNITA'. Qui si spegne il **terreno**.",
+
+  "_nota_perche_e_bloccato": "⚠️ `Action.CreateWater` e `Action.Ignite` sono nel catalogo e il `TurnManager` le risolve per `ActionId` nel pass ambientale. Nessuna unita' le possiede. Vedi `Spec.Environment.ElectricPropagation` per il ragionamento completo: la strada e' cablare `Riva.FluidTrail` e `Riva.MistVeil`, che esistono con `Effects` vuoti proprio in attesa del sistema che ora c'e'.",
+
+  "_nota_da_completare": "Chi cabla riempie i due turni e aggiunge l'assertion che conta: un'unita' che entra sulla cella **dopo** che l'acqua l'ha spenta non prende i 10 danni del fuoco. Verificare la superficie non basta — e' l'effetto sull'unita' a dire che il terreno e' cambiato davvero.",
+
+  "units": [
+    { "id": "R1", "hero": "Hero.Riva",   "team": 0, "cell": [ 0, -3, 0] },
+    { "id": "V1", "hero": "Hero.Vektor", "team": 1, "cell": [ 1, -3, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — allestimento davanti alla fascia di fuoco di RelayLite, che sta a (0,-2). Gira sul gioco di oggi.",
+      "intents": []
+    },
+    {
+      "_turno": "T2 — Riva allaga (0,-2): il fuoco si spegne, e chi ci entra dopo non brucia piu'.",
+      "requires": ["EnvironmentalActionOwner"],
+      "intents": []
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell",    "unit": "R1", "cell": [0, -3, 0] },
+    { "type": "UnitHpEquals",  "unit": "V1", "value": 100 },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

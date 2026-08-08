@@ -1,0 +1,37 @@
+{
+  "scenarioId": "Spec.Map.BridgeBreaksThePath",
+  "tags": ["spec", "map", "pathfinding", "flux", "bastion"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "TestArena",
+
+  "_nota": "SPECIFICA ESEGUIBILE di CP 9.4. Un arco fra due layer e' **additivo**: romperlo non allunga il percorso, lo **annulla**. Fra i layer non c'e' adiacenza di riserva, quindi basta togliere l'unica transizione perche' il path FALLISCA invece di teletrasportare. `TestArena` e' la fixture giusta perche' ha esattamente quell'unica transizione: (1,0,0) -> (2,0,1).",
+
+  "_nota_perche_e_bloccato": "⚠️ `Action.ModifyArc` esiste, dal CP 9.4 risolve nel **Blast**, crea ponti temporanei e conduttivi — e nessuna unita' la possiede. Stesso difetto di `Spec.Environment.ElectricPropagation`.",
+
+  "_nota_cosa_dimostra_davvero": "Non «il ponte si rompe», ma che la **revisione della mappa** sale e i percorsi gia' pianificati se ne accorgono: un path calcolato prima della rottura non deve restare valido. E' l'obiettivo dichiarato di E9 — niente path fantasma — e si osserva solo con un movimento pianificato **nello stesso turno** in cui l'arco cade.",
+
+  "_nota_da_completare": "Chi cabla l'azione riempie il turno 2 e aggiunge l'assertion: Flux resta sul layer 0 invece di salire, e il TurnLog dice `BlockedByTopology`. Se arrivasse comunque sulla piattaforma, il path era fantasma.",
+
+  "units": [
+    { "id": "F1", "hero": "Hero.Flux",    "team": 0, "cell": [ 1, 0, 0] },
+    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [-4, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — Flux e' all'imbocco dell'unica transizione verso la piattaforma. Gira sul gioco di oggi.",
+      "intents": []
+    },
+    {
+      "_turno": "T2 — l'arco cade mentre Flux ci sta salendo: il percorso non si allunga, sparisce.",
+      "requires": ["EnvironmentalActionOwner"],
+      "intents": []
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell",    "unit": "F1", "cell": [1, 0, 0] },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}
