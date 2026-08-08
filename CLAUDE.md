@@ -17,8 +17,9 @@ Carica il contesto in questo ordine, **solo quando pertinente**:
 5. Stato/scope: `docs/roadmap/roadmap-checkpoint.md` + `docs/roadmap/roadmap-v0.1.md`.
 6. Feature: specifica owner + cataloghi `docs/balance/` + test + implementazione esistente.
 
-Usa search/grep prima di aprire file lunghi. `docs/src/` è input/audit/north-star: non usarlo come autorità
-implicita. `docs/archive/` è storico.
+Usa search/grep prima di aprire file lunghi. `docs/src/` è input/north-star non ancora consumato: non usarlo
+come autorità implicita. `docs/archive/` è storico, e `docs/archive/src/` conserva i sorgenti già recepiti —
+utile per la provenienza, mai per la regola.
 
 ## 2. Pin rapidi
 

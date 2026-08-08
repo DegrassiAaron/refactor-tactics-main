@@ -430,7 +430,7 @@ avversaria. La scala deve permettere: zone acusticamente separate · materiali d
 aree con rumore ambientale · Sprint come trade-off velocità/stealth · decoy · Acoustic Mask · deduzione della
 **direzione** senza la posizione esatta.
 
-Il sistema non si modifica qui: sorgente in `docs/src/design/rumore-e-percezione-acustica.md`, scope in
+Il sistema non si modifica qui: sorgente in `docs/archive/src/design/rumore-e-percezione-acustica.md`, scope in
 [`brief-conoscenza-parziale.md`](brief-conoscenza-parziale.md).
 
 ### 14.3 Overwatch

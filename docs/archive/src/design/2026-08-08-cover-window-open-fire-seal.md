@@ -1,5 +1,5 @@
 > 📅 **PIANIFICATO per la v0.2** il 2026-08-08 — **non** è materiale della v0.1.
-> Diventa **E22** in [`../../roadmap/roadmap-post-v0.1.md`](../../roadmap/roadmap-post-v0.1.md), inclusi i 12
+> Diventa **E22** in [`../../../roadmap/roadmap-post-v0.1.md`](../../../roadmap/roadmap-post-v0.1.md), inclusi i 12
 > scenari di test e i due core test. Dipende da E9 (coperture) ed E14 (overwatch), che in v0.1 sono P2 e
 > ancora aperte: anticiparlo significherebbe costruire su fondamenta non verificate.
 

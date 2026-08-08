@@ -117,6 +117,24 @@ La direzione di design consolidata tratta:
 
 I valori numerici definitivi sono ancora da playtestare e la migrazione dal vecchio `Action.Sprint` non è completata.
 
+## Non tutti eseguono la stessa azione allo stesso modo
+
+Il **profilo** non riguarda solo il Move. Le azioni generiche sono lo stesso comando per tutti — stessa fase,
+stesse regole, stesso posto nell'economia del turno — ma **come** si comportano dipende dal personaggio.
+
+L'Overwatch è l'esempio più visibile: tutti possono armarlo, ma un tiratore sorveglia un arco stretto a lunga
+distanza e risponde con `FIRE` o `HOLD`, mentre un difensore sorveglia un arco largo attorno a un alleato e
+risponde intercettando. Non sono due abilità diverse: è la stessa azione con due profili.
+
+Vale la pena saperlo per una ragione pratica: **conoscere il personaggio non basta a prevederlo, serve
+conoscere il suo profilo.** Due eroi che dichiarano Overwatch sulla stessa cella non stanno minacciando la
+stessa cosa.
+
+Un profilo non è un potenziamento: se dà un vantaggio, ha un prezzo dichiarato — è la stessa logica delle
+varianti, dove non esistono scelte gratuitamente migliori.
+
+> In questa versione il profilo di un personaggio è **fisso**: non si cambia durante la partita.
+
 ## Mobilità speciale
 
 Queste non sono varianti del Move normale:

@@ -286,11 +286,11 @@ tabella e' generata.
 consolidando [`../src/showcase/showcase-v0.1-integrazione-nel-codice.md`](../src/showcase/showcase-v0.1-integrazione-nel-codice.md):
 **E15** showcase (5 CP), **CP 5.5** e **CP 6.7** per il debito delle reazioni d'eroe, **CP 14.2** per
 l'estrazione del micro-step; consolidando
-[`../src/design/action-ghosts-fasi-fast-reactions.md`](../src/design/action-ghosts-fasi-fast-reactions.md):
+[`../archive/src/design/action-ghosts-fasi-fast-reactions.md`](../archive/src/design/action-ghosts-fasi-fast-reactions.md):
 **CP 11.5** e **CP 11.6** per il planning visuale → [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md);
 **E16** orientamento → [ADR-0005](../decisions/adr-0005-orientamento.md), che chiude il punto aperto sul facing;
-il 2026-08-08, consolidando [`../src/design/match-timing-e-scala-mappe.md`](../src/design/match-timing-e-scala-mappe.md)
-e [`../src/design/2026-08-08-hud-faction-icons.md`](../src/design/2026-08-08-hud-faction-icons.md): **E19** e
+il 2026-08-08, consolidando [`../archive/src/design/match-timing-e-scala-mappe.md`](../archive/src/design/match-timing-e-scala-mappe.md)
+e [`../archive/src/design/2026-08-08-hud-faction-icons.md`](../archive/src/design/2026-08-08-hud-faction-icons.md): **E19** e
 **E20**, le due sole parti di quei sorgenti che non possono aspettare la v0.2 —
 [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) spiega perché il resto aspetta)*.
 
@@ -309,7 +309,7 @@ e [`../src/design/2026-08-08-hud-faction-icons.md`](../src/design/2026-08-08-hud
 
 > **Tema nuovo registrato ma non pianificato (2026-08-07)**: le **Delayed Actions** — azioni dichiarate in
 > Planning che risolvono a un **boundary di fase** successivo (`EndDash`, `EndBlast`, `EndMove`) scommettendo
-> su uno stato futuro. Fonte: `docs/src/design/delayed-actions-e-phase-windows.md` →
+> su uno stato futuro. Fonte: `docs/archive/src/design/delayed-actions-e-phase-windows.md` →
 > [`brief-delayed-actions.md`](../gameplay/brief-delayed-actions.md), che isola il **solo** contenuto non già coperto da
 > ADR-0004 ed E13/E14. **Nessuna epic aperta**: la proposta (4 checkpoint, numero da assegnare — E15 e E16
 > sono occupate) attende una decisione di scope, perché E14 non è iniziata e il rischio di ampiezza della
@@ -317,7 +317,7 @@ e [`../src/design/2026-08-08-hud-faction-icons.md`](../src/design/2026-08-08-hud
 
 > **Fuori dalla v0.1, registrate qui perché esistono i documenti sorgente**: il **motore del ghiaccio**
 > (Momentum, Traction, Slide a catena, Unbalanced/Prone, integrità, rottura, ponti) descritto in
-> `docs/src/design/terreno-ghiaccio-v0.1.md` →
+> `docs/archive/src/design/terreno-ghiaccio-v0.1.md` →
 > [`brief-ghiaccio.md`](../gameplay/brief-ghiaccio.md). Lo **scivolamento base** resta in v0.1 perché è **già implementato**
 > (§2.1). I livelli di percezione oltre l'incerto (identificazione, firma, sensori) restano in
 > [`brief-conoscenza-parziale.md`](../gameplay/brief-conoscenza-parziale.md) §9.
@@ -645,7 +645,7 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 | **11.6** *(nuovo 2026-08-07)* | **Scrubbing** delle fasi e ramo condizionale della reaction | Selezionando una fase il suo ghost si evidenzia e gli altri si attenuano, con origine, bersaglio, linea, AoE e copertura rilevante in evidenza; i **warning** (alleato sulla traiettoria, esposizione, collisione possibile) arrivano dallo stesso strato che produce i reason code del TurnLog — **mai** ricalcolati nel widget — e sono marcati *previsto*/*incerto*, mai *confermato*; la reaction armata compare come **ramo con `?`** accanto alla timeline | `Preview.AllyInAreaIsFlagged`, `Preview.WarningsComeFromResolverReasons`, `Preview.ArmedReactionRendersAsBranch`; `PIE-V01-GHOSTS` |
 
 > **CP 11.5/11.6 vengono da** [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md), che consolida
-> `../src/design/action-ghosts-fasi-fast-reactions.md`. Il documento **conferma** sette
+> `../archive/src/design/action-ghosts-fasi-fast-reactions.md`. Il documento **conferma** sette
 > decisioni già canoniche (ordine delle fasi, Move ultima, Dash ≠ Move, privacy degli intenti, slow-motion
 > come presentazione, reaction decisa in resolution, renderer non autoritativo) e ne aggiunge una sola di
 > regola: il **displacement reattivo non è la Move Phase** e non la consuma — vincolo per `Riva.FlowReaction`
@@ -694,7 +694,7 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 inerte) e il **rumore** alimentano lo stesso modello a tre livelli. Non è fog of war: la mappa statica resta nota.
 
 Fonti: [`brief-conoscenza-parziale.md`](../gameplay/brief-conoscenza-parziale.md) ·
-`docs/src/design/rumore-e-percezione-acustica.md`. Dipende da **E4** (fallback), **E6** (statistiche eroe), **E8** (fumo).
+`docs/archive/src/design/rumore-e-percezione-acustica.md`. Dipende da **E4** (fallback), **E6** (statistiche eroe), **E8** (fumo).
 
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
@@ -1017,7 +1017,7 @@ primo contatto) ha già le sue voci PIE — `PIE-V01-MATCHLEN`, `PIE-V01-MAPSCAL
 referenziate widget per widget.
 
 Decisione: [D-031](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-08), da
-[`../src/design/2026-08-08-hud-faction-icons.md`](../src/design/2026-08-08-hud-faction-icons.md) §4, che
+[`../archive/src/design/2026-08-08-hud-faction-icons.md`](../archive/src/design/2026-08-08-hud-faction-icons.md) §4, che
 definisce dodici categorie: Identity, Action, Phase, Environment, Map/Interaction, Status, Information,
 Reaction, Coordination, Certainty, Warning, Objective.
 
@@ -1186,7 +1186,7 @@ Rilevati confrontando `roadmap-checkpoint.md` con il repository (2026-08-05):
 | [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) | **Durata, round e scala delle mappe**: target di partita, `RoundLimit` per formato, budget del round, classi di mappa e telemetria. Vincola **E10** (fine partita), **E11** (timer a HUD), **E14** (3 s) e il level design futuro |
 | [`showcase-v0.1.md`](../product/showcase-v0.1.md) | Scenario della showcase **E15**: canone corrente, target, delta di scope |
 | [`brief-conoscenza-parziale.md`](../gameplay/brief-conoscenza-parziale.md) · [`brief-overwatch-reazioni.md`](../gameplay/brief-overwatch-reazioni.md) · [`brief-ghiaccio.md`](../gameplay/brief-ghiaccio.md) · [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md) | Brief di scoping: cosa entra in **E11**/**E13**/**E14** e cosa resta north-star |
-| [`../src/showcase/showcase-v0.1-integrazione-nel-codice.md`](../src/showcase/showcase-v0.1-integrazione-nel-codice.md) · [`../src/design/action-ghosts-fasi-fast-reactions.md`](../src/design/action-ghosts-fasi-fast-reactions.md) | Handoff e note di design (2026-08-07): **materiale sorgente**, consolidato qui — in caso di conflitto prevale questo file |
+| [`../src/showcase/showcase-v0.1-integrazione-nel-codice.md`](../src/showcase/showcase-v0.1-integrazione-nel-codice.md) · [`../archive/src/design/action-ghosts-fasi-fast-reactions.md`](../archive/src/design/action-ghosts-fasi-fast-reactions.md) | Handoff e note di design (2026-08-07): **materiale sorgente**, consolidato qui — in caso di conflitto prevale questo file |
 | *questo file* | **Release v0.1**: epic, checkpoint, DoD per checkpoint |
 | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate di release, KPI, checklist trasversale |
 | [`v0.1-issue-plan.md`](v0.1-issue-plan.md) | Titoli e body delle issue (e mappa issue ↔ checkpoint) |

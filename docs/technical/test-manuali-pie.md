@@ -271,7 +271,7 @@ verificati senza esserlo (vedi la nota qui sopra). Chi le ha scritte sa dove van
 
 ### Bot — leggibilità delle decisioni
 
-> Voci aperte il **2026-08-08** consolidando [`../src/handoff/2026-08-08-bot-ai-roadmap-e-test-pie.md`](../src/handoff/2026-08-08-bot-ai-roadmap-e-test-pie.md) §24.1.
+> Voci aperte il **2026-08-08** consolidando [`../archive/src/handoff/2026-08-08-bot-ai-roadmap-e-test-pie.md`](../archive/src/handoff/2026-08-08-bot-ai-roadmap-e-test-pie.md) §24.1.
 > Il bot ha già copertura headless ampia (utility scoring, copertura, minaccia da dash). Queste voci **non
 > ricontrollano la regola**: guardano se un umano che osserva la partita capisce *perché* il bot ha fatto
 > quella mossa. Un test può dire che lo score di una cella era il più alto; non può dire che la scelta

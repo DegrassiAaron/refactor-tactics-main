@@ -20,13 +20,13 @@ v0.1 o no. Questo file registra quella ripartizione una volta sola.
 
 | Sorgente | Alimenta |
 |---|---|
-| [`design/2026-08-08-roster-8-conflux-constrine.md`](../src/design/2026-08-08-roster-8-conflux-constrine.md) | E21 |
-| [`design/2026-08-08-cover-window-open-fire-seal.md`](../src/design/2026-08-08-cover-window-open-fire-seal.md) | E22 |
-| [`design/2026-08-08-muri-porte-e-interazioni.md`](../src/design/2026-08-08-muri-porte-e-interazioni.md) | E23 |
-| [`design/match-timing-e-scala-mappe.md`](../src/design/match-timing-e-scala-mappe.md) | E19 (v0.1), E24, E30 |
-| [`design/2026-08-08-hud-faction-icons.md`](../src/design/2026-08-08-hud-faction-icons.md) | E20 (v0.1), E25 |
-| [`handoff/2026-08-08-bot-ai-roadmap-e-test-pie.md`](../src/handoff/2026-08-08-bot-ai-roadmap-e-test-pie.md) | E26, E28 |
-| [`handoff/2026-08-07-nuove-decisioni-e-scenario-4v4.md`](../src/handoff/2026-08-07-nuove-decisioni-e-scenario-4v4.md) | E24, E27 |
+| [`design/2026-08-08-roster-8-conflux-constrine.md`](../archive/src/design/2026-08-08-roster-8-conflux-constrine.md) | E21 |
+| [`design/2026-08-08-cover-window-open-fire-seal.md`](../archive/src/design/2026-08-08-cover-window-open-fire-seal.md) | E22 |
+| [`design/2026-08-08-muri-porte-e-interazioni.md`](../archive/src/design/2026-08-08-muri-porte-e-interazioni.md) | E23 |
+| [`design/match-timing-e-scala-mappe.md`](../archive/src/design/match-timing-e-scala-mappe.md) | E19 (v0.1), E24, E30 |
+| [`design/2026-08-08-hud-faction-icons.md`](../archive/src/design/2026-08-08-hud-faction-icons.md) | E20 (v0.1), E25 |
+| [`handoff/2026-08-08-bot-ai-roadmap-e-test-pie.md`](../archive/src/handoff/2026-08-08-bot-ai-roadmap-e-test-pie.md) | E26, E28 |
+| [`handoff/2026-08-07-nuove-decisioni-e-scenario-4v4.md`](../archive/src/handoff/2026-08-07-nuove-decisioni-e-scenario-4v4.md) | E24, E27 |
 
 ## Le release
 
@@ -34,8 +34,8 @@ v0.1 o no. Questo file registra quella ripartizione una volta sola.
 |---|---|---|---|---|
 | **v0.1** | Vertical slice | Il turno simultaneo funziona e si vede | E1–E20 | Skirmish 2v2 vs bot |
 | **v0.2** | Struttura e finestre | Il campo diventa manipolabile; roster 8 | E21–E26 | Standard 3v3 |
-| **v0.3** | Informazione | Quello che non sai vale quanto quello che fai | E27–E29 | Standard 3v3 |
-| **v0.4** | Operations | Partite lunghe su mappe grandi | E30–E32 | Operations 4v4+ |
+| **v0.3** | Informazione | Quello che non sai vale quanto quello che fai | E27–E29 · **E33** | Standard 3v3 |
+| **v0.4** | Operations | Partite lunghe su mappe grandi | E30–E32 · **E34** | Operations 4v4+ |
 
 Oltre la v0.4 resta **north-star non pianificato**: multiplayer in rete (milestone M10 del piano canonico),
 progressione, modding, editor mappe a runtime. Non si aprono epic per ciò che non ha una release.
@@ -183,6 +183,25 @@ del planner come strumento di QA.
 Ciò che E18 ha dichiarato fuori scope: trap persistenti, mine, tripwire su arco, catene di azioni predittive.
 Si apre solo se il thin slice E18 ha retto al playtest.
 
+### E33 — Conditional Intent · P2
+
+[D-034](../decisions/RT_PDR_00_Decision_Log.md). Un intento con **1** condizione e **2** rami, dichiarati per
+intero in Planning e valutati a un boundary nominato. Non è un sistema nuovo: è la **condizione dichiarata**
+che D-012 ha già ammesso per il regime `Conditional` dell'Overwatch, spostata dal profilo di reazione
+all'intento. Forma e vincoli in
+[`../gameplay/brief-delayed-actions.md`](../gameplay/brief-delayed-actions.md) §7.
+
+**Dipende da E18**, non da E29: `EvaluationBoundary` è il campo `boundary` che oggi non esiste in
+`FRTActionDef`. Costruire i rami prima dei boundary significherebbe inventarne un secondo modello — lo stesso
+errore che il §5 del brief sulle azioni generiche evita per le policy.
+
+Sta in v0.3 e non prima perché il valore si vede solo quando l'informazione è imperfetta: coprirsi con un ramo
+alternativo ha senso contro un avversario di cui **non sai** cosa farà, ed è E27 a rendere vero quel «non sai».
+
+Il rischio da sorvegliare è uno solo, e non è tecnico: una lista di predicati che cresce a ogni richiesta
+diventa un linguaggio di scripting. Il gate è che la lista resti **chiusa e validata**, e che ogni estensione
+sia una decisione, non una configurazione.
+
 ---
 
 ## v0.4 — «Operations»
@@ -201,6 +220,28 @@ riscritture.
 La v0.1 usa il 4v4 solo come **stress test** (E17). Qui diventerebbe un formato vero — ma solo se il playtest
 del 3v3 dice che il sistema regge la densità. Resta la nota del piano canonico: il formato competitivo finale
 **non è deciso**, 3v3 è baseline e 4v4 stress test.
+
+### E34 — Stati del personaggio e trasformazioni · P3
+
+[D-035](../decisions/RT_PDR_00_Decision_Log.md). Un sistema di **stati del personaggio** presentato in cinque
+famiglie — `Stance · Form · Overdrive · Environmental · Configuration` — non un sistema chiamato
+`Transformation`. Forma, guardrail e anti-pattern in
+[`../gameplay/brief-stati-personaggio-e-trasformazioni.md`](../gameplay/brief-stati-personaggio-e-trasformazioni.md).
+
+**Metà dell'epic potrebbe non servire.** Uno `Stance` è un **profilo commutabile in Planning**
+([D-033](../decisions/RT_PDR_00_Decision_Log.md)), e i profili esistono già come concetto: se il primo
+prototipo è un cambio di profilo, valida `Stance` e `Configuration` senza toccare i kit. Solo `Form`,
+`Overdrive` ed `Environmental` richiedono override di abilità e movimento.
+
+**Perché qui e non prima.** Non per tema — la v0.4 è «Operations» — ma per dipendenze e priorità: serve il
+roster stabilizzato (**E21**), i profili reali (**E14**), e per la famiglia `Environmental` il canale
+ambientale di **E27**. È anche la più cara in carico cognitivo, e il documento sorgente lo dice meglio di
+qualunque stima: *una buona trasformazione deve aumentare le decisioni strategiche più di quanto aumenti le
+informazioni da ricordare*.
+
+**Nessun eroe ha uno stato assegnato**, ed è deliberato: le alternative Light/Medium/Signature del sorgente
+restano tre per personaggio. I banchi di prova coerenti col kit sono Howitzer, Murdock e GRIM.exe — **non**
+Vektor, la cui forma `Siege` spegnerebbe la meccanica firma.
 
 ---
 

@@ -32,7 +32,7 @@
 > documentale.
 
 > **Stato**: brief di requisiti · **Data**: 2026-08-07 · **Origine**: `/sc:brainstorm` su
-> [`../src/design/azioni-generiche-overwatch-universale-v0.1.md`](../src/design/azioni-generiche-overwatch-universale-v0.1.md) (41 §)
+> [`../archive/src/design/azioni-generiche-overwatch-universale-v0.1.md`](../archive/src/design/azioni-generiche-overwatch-universale-v0.1.md) (41 §)
 > **Decisione abilitante**: [`D-012`](../decisions/RT_PDR_00_Decision_Log.md) — l'Overwatch **compete** con
 > l'azione offensiva; le tre policy entrano nel **DoD di CP 14.3**.
 > **Autorità**: [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) prevale su finestre, timeout e trigger.
@@ -102,6 +102,63 @@ risposte legali · policy · **fasi sorvegliate** · priorità · timeout.
 
 > **`AllowedResponses` è già il ponte**: ADR-0004 lo usa per distinguere il commit immediato (`≤ 1`) dalla
 > finestra (`≥ 2`). Le risposte legali del profilo **sono** quel campo — non serve un secondo modello.
+
+## 4-bis. Il profilo è la forma generale — [D-033](../decisions/RT_PDR_00_Decision_Log.md), 2026-08-08
+
+Il §3 e il §4 dicono due volte la stessa cosa senza nominarla: `Move` ha profili
+([D-015](../decisions/RT_PDR_00_Decision_Log.md)), `Overwatch` ha un profilo per eroe
+([D-014](../decisions/RT_PDR_00_Decision_Log.md)). La regola generale non era scritta, e questo l'ha resa
+riscopribile — un handoff esterno
+([`../archive/src/handoff/2026-08-08-tre-aggiunte-signature-mechanics.md`](../archive/src/handoff/2026-08-08-tre-aggiunte-signature-mechanics.md))
+ha proposto di introdurla come concetto nuovo, con il nome `GenericActionModifier`. **Il nome è stato
+respinto, il concetto promosso**: il repository lo chiama già **profilo**, e due nomi per la stessa cosa
+sarebbero la «seconda verità» che il §5 evita per le policy.
+
+> **Un'azione generica è universale come comando, framework e semantica di fase. Il suo effetto concreto
+> dipende dal profilo dell'eroe.** Vale per tutte e sette, non solo per `Move` e `Overwatch`.
+
+Perché conta al di là della nomenclatura: è il meccanismo che permette a un eroe di essere caratterizzato
+**senza** una quinta abilità. Senza di esso, ogni identità deve diventare un'ability propria, e il roster
+cresce in superficie invece che in profondità.
+
+### Cosa dichiara un profilo
+
+Gli stessi campi che §4 elenca per l'Overwatch, generalizzati: azione generica di base · eroe o archetipo che
+la modifica · **regola modificata** · condizioni · vantaggio · **trade-off** · telegraphing · counterplay ·
+effetti su fase, action economy, targeting, range, facing e charges.
+
+Il trade-off non è opzionale: è ciò che distingue un profilo da un upgrade.
+
+### Guardrail
+
+Un profilo:
+
+1. **non trasforma la generica in altro.** Se non è più riconoscibile come `Interact`, è un'ability e va nel kit.
+2. **non è un upgrade puro.** Ogni vantaggio dichiara il suo costo — è la stessa disciplina delle Varianti,
+   dove «nessun upgrade puro» è già regola nelle schede personaggio.
+3. **preserva la semantica della fase.** Un profilo di `Move` resta l'ultima fase volontaria; non anticipa il
+   Move al Dash ([ADR-0003](../decisions/adr-0003-modello-azioni-v01.md)).
+4. **non aggira l'action economy.** `Attack | Ability | Overwatch` (§6) non si scavalca con un profilo.
+5. **resta data-driven.** Nessun `if (Hero == X)` nel resolver: è la regola di
+   [ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md) applicata alle generiche.
+6. **è spiegabile nel TurnLog**, che deve poter dire *azione base + profilo applicato* e non solo il risultato.
+7. **è fisso per eroe in v0.1.** Un profilo che cambia **durante** la partita è uno *Stance*, ed è un altro
+   sistema: [`brief-stati-personaggio-e-trasformazioni.md`](brief-stati-personaggio-e-trasformazioni.md),
+   post-v0.1.
+
+### Dove esiste già, e dove no
+
+| Generica | Profilo | Stato |
+|---|---|---|
+| `Move` | `Sneak \| Normal \| Sprint` | ✅ D-015 · aggancio su `FRTActionDef::MovementStyle` · il rumore che li distingue dipende da **E13** |
+| `Overwatch` | per archetipo (§4) | ✅ D-014 · risposte legali ≡ `AllowedResponses` · **E14** |
+| `Guard` · `Brace` | — | ⏳ candidati naturali: l'effetto esatto di `Brace` è già fra le [domande aperte](#8-domande-aperte--da-playtestare-non-da-decidere-a-tavolino) |
+| `Interact` | — | ⏳ candidato: raggio e bersagli ammessi sono la variazione ovvia (E9/E10) |
+| `Wait` · `BasicAttack` | — | nessun caso d'uso oggi. Non si costruisce un profilo perché lo schema lo consente |
+
+**Nessun dato nuovo è stato inventato qui.** I profili concreti dei quattro eroi v0.1 restano fra le domande
+aperte del §8, dove erano; questa sezione fissa la *forma*, non i valori. Il gate anti-omogeneizzazione resta
+quello del §7: due eroi non devono avere lo stesso profilo.
 
 ## 5. Le tre policy — regimi, **non** un enum
 

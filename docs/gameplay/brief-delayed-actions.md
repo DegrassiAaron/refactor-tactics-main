@@ -24,7 +24,7 @@
 > È una semplificazione — ma resta una **migrazione di classificazione** da tracciare, non da fare in una PR
 > documentale.
 
-> **Fonte**: `docs/src/design/delayed-actions-e-phase-windows.md` (1546 righe) ·
+> **Fonte**: `docs/archive/src/design/delayed-actions-e-phase-windows.md` (1546 righe) ·
 > **Data**: 2026-08-07 · **Stato**: brief di scope, nessuna implementazione
 > **Rapporto con le decisioni vigenti**: [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) (accettato) copre le
 > **finestre di reazione**; questo brief isola ciò che il documento aggiunge e che **nessun documento del repo
@@ -119,7 +119,7 @@ iniziata, e il rischio di scope della v0.1 (§8 di [`roadmap-v0.1.md`](../roadma
 
 ## 6-bis. Trigger su transizione — [D-013](../decisions/RT_PDR_00_Decision_Log.md), 2026-08-07
 
-Il sorgente `docs/src/design/predictive-actions-e-trappole.md` §8.2 chiede un `Tripwire` che scatti
+Il sorgente `docs/archive/src/design/predictive-actions-e-trappole.md` §8.2 chiede un `Tripwire` che scatti
 sull'**attraversamento di un arco** `CrossEdge(H6, H7)`, distinto dall'ingresso in H7 da un altro lato. La
 domanda registrata era «gli archi del grafo devono portare trigger?», e sembrava un gate da chiudere prima
 di **E9**.
@@ -147,7 +147,78 @@ Le due vie, e perché una vince nettamente:
 - Un trigger su transizione è quindi **dato dell'azione**, non dato della mappa: la stessa disciplina di
   §3, dove boundary e targeting policy sono campi di `FRTActionDef`.
 
-## 7. Rapporto con gli altri documenti
+## 7. `ConditionalIntent` — [D-034](../decisions/RT_PDR_00_Decision_Log.md), post-v0.1
+
+Un intento dichiarato in Planning con **una sola biforcazione**, valutata a un boundary nominato:
+
+```text
+ConditionalIntent
+├── Condition          valutata al boundary, funzione pura sullo stato autorizzato
+├── TrueBranch
+├── FalseBranch
+└── EvaluationBoundary uno dei boundary di §2
+```
+
+### Non è un sistema nuovo: è una condizione che cambia di posto
+
+[D-012](../decisions/RT_PDR_00_Decision_Log.md) ha già ammesso una **condizione dichiarata in planning** —
+è ciò che distingue il regime `Conditional` dell'Overwatch da `FastSelect`
+([`brief-azioni-generiche-overwatch.md`](brief-azioni-generiche-overwatch.md) §5): un predicato scelto in
+planning, valutato dal resolver come funzione pura, che riduce le risposte legali. `ConditionalIntent` prende
+quella stessa condizione e la sposta **dal profilo di reazione all'intento**. Il modello di valutazione, i
+vincoli di privacy e il requisito di determinismo sono già decisi; ciò che manca è il ramo alternativo.
+
+Questo è anche il motivo per cui **non serve un ADR**: nessuna nuova architettura, un campo in più su un
+modello che D-012 ha già aperto.
+
+### Il confine con i vicini
+
+Il rischio del concetto non è tecnico, è tassonomico: somiglia a cinque cose che il repository ha già deciso e
+che **non vanno confuse**.
+
+| Meccanismo | Quando si decide | Chi provoca la scelta |
+|---|---|---|
+| **`ConditionalIntent`** | Planning: **entrambi** i rami sono dichiarati | Nessuno: la condizione si valuta da sé al boundary |
+| `Delayed / Predictive Action` | Planning, ramo unico | Nessuno; se la previsione sbaglia → whiff/fallback ([D-016](../decisions/RT_PDR_00_Decision_Log.md)) |
+| `Fast Action` | Live, a un Decision Boundary | Il giocatore, come **continuazione della propria azione** ([D-019](../decisions/RT_PDR_00_Decision_Log.md)) |
+| `Fast Reaction` | Live, a un Decision Boundary | Un **evento esterno** (D-019) |
+| `Fallback` | Mai: è validazione | Il resolver, quando il bersaglio dichiarato non è più legale (§3) |
+| Policy del bot | Mai: è la stessa simulazione | Il bot sceglie *come* un giocatore, non con regole proprie |
+
+La differenza che conta per il giocatore: con una Predictive Action **scommette**, con un `ConditionalIntent`
+**si copre**. Sono due economie diverse, e vanno bilanciate diversamente — un intento condizionale che costa
+quanto uno secco rende la scommessa irrazionale.
+
+### Vincoli — stretti per costruzione
+
+Una condizione ammessa da un ruleset diventa un linguaggio di scripting alla terza estensione. Il §5 del brief
+sulle azioni generiche registra già questo rischio per le reazioni; qui è più acuto, perché l'intento ha due
+rami invece di una lista di risposte.
+
+- **1** condizione, **2** rami. Nessun nesting, nessun `else-if`, nessun loop.
+- Il predicato viene da una **lista chiusa e validata**, non da una grammatica.
+- Valutazione solo su **stato autorizzato**: mai su intento avversario nascosto — invariante #6, e privacy di
+  [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) §6-§7.
+- Il ramo non selezionato **non produce effetti** e non compare nel log dell'avversario.
+- Il TurnLog registra **condizione valutata + ramo scelto**, altrimenti il replay è deterministico ma non
+  spiegabile.
+- La UI deve poter mostrare **entrambi** gli esiti in Planning: un ramo invisibile è carico cognitivo puro.
+- Nessun input umano durante la Resolution: se ne serve uno, è una `Fast Action`, non questo.
+
+### Dipendenze e stato
+
+📅 **Post-v0.1**, epic **E33** in [`../roadmap/roadmap-post-v0.1.md`](../roadmap/roadmap-post-v0.1.md).
+**Non implementabile prima** dell'epic delle Delayed Actions (§5): `EvaluationBoundary` è lo stesso campo
+`boundary` che oggi **non esiste** in `FRTActionDef` — costruire i rami prima dei boundary significherebbe
+inventarne un secondo modello.
+
+Test minimi, sulla falsariga degli otto di §4: `Conditional.TrueBranch` · `Conditional.FalseBranch` ·
+`Conditional.SameStateSameBranch` (stato identico → stesso ramo) · `Conditional.EvaluatesAtDeclaredBoundary` ·
+`Conditional.NoEnemyIntentAccess` · `Conditional.UnselectedBranchHasNoEffect` ·
+`Conditional.TurnLogRecordsBranch` · `Conditional.PermutationInvariant` · `Conditional.RejectsNesting`
+(errore di validazione esplicito, non silenzioso).
+
+## 8. Rapporto con gli altri documenti
 
 | Documento | Relazione |
 |---|---|

@@ -1,8 +1,8 @@
 > ✅ **RECEPITO in parte** il 2026-08-08. Le decisioni di §3 (roster, Fast Reaction 3,0 s, ordine delle fasi,
-> griglia, no-GAS) sono **già canone** — vedi [`../../product/piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md)
-> e il [Decision Log](../../decisions/RT_PDR_00_Decision_Log.md): questo documento le registra, non le
+> griglia, no-GAS) sono **già canone** — vedi [`../../../product/piano-canonico-mvp.md`](../../../product/piano-canonico-mvp.md)
+> e il [Decision Log](../../../decisions/RT_PDR_00_Decision_Log.md): questo documento le registra, non le
 > introduce. Lo **scenario 4v4 a 8 turni** resta materiale di stress: **E17** in v0.1 (validazione, non
-> produzione) e **E32** in [`../../roadmap/roadmap-post-v0.1.md`](../../roadmap/roadmap-post-v0.1.md) se mai
+> produzione) e **E32** in [`../../../roadmap/roadmap-post-v0.1.md`](../../../roadmap/roadmap-post-v0.1.md) se mai
 > diventasse un formato. Il formato competitivo finale **non è deciso**: 3v3 è baseline, 4v4 stress test.
 
 # REFACTORTACTICS — CONSOLIDAMENTO NUOVE DECISIONI, SCENARIO 4V4 E ROADMAP

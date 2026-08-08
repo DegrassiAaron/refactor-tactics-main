@@ -1,5 +1,29 @@
 # TASK — Consolidare tre estensioni al framework delle Signature Mechanics
 
+> `HISTORICAL` · **Handoff eseguito il 2026-08-08** · **Sorgente non normativo**
+>
+> | Aggiunta | Esito | Dove vive ora |
+> |---|---|---|
+> | `Misplay / Failure State` | ✅ **adottata** — era davvero assente | Campo dello schema in [`../../../characters/_Template.md`](../../../characters/_Template.md), compilato sulle 4 schede v0.1 · [D-032](../../../decisions/RT_PDR_00_Decision_Log.md) |
+> | `GenericActionModifier` | ⛔ **respinta come nome, adottata come concetto** — il repository lo chiama già **profilo** | [`../../../gameplay/brief-azioni-generiche-overwatch.md`](../../../gameplay/brief-azioni-generiche-overwatch.md) §4-bis · [D-033](../../../decisions/RT_PDR_00_Decision_Log.md) |
+> | `ConditionalIntent` | 📅 **post-v0.1**, come chiedeva il documento | [`../../../gameplay/brief-delayed-actions.md`](../../../gameplay/brief-delayed-actions.md) §7 · [D-034](../../../decisions/RT_PDR_00_Decision_Log.md) · epic **E33** |
+>
+> **Autorità**: nessuna. Un handoff non è una fonte e non autorizza da solo a implementare ciò che contiene.
+
+## Correzioni applicate il 2026-08-08
+
+Testo originale **intatto** (convenzione 4 di [`../../../src/README.md`](../../../src/README.md)). Errori di fatto rilevati
+eseguendo la task:
+
+| § | Affermazione originale | Correzione |
+|---|---|---|
+| 4 | Cerca in `docs/design/`, `docs/actions/`, `docs/adr/` | **Nessuno dei tre esiste.** I path reali sono `docs/gameplay/` (regole), `docs/decisions/` (ADR + Decision Log), `docs/balance/` (numeri), `docs/characters/` (schede). Il documento lo prevede — «i path reali prevalgono» — ma l'elenco induceva a creare cartelle nuove |
+| 5 | La wiki è nel repository separato `refactor-tactics-main.wiki` | **Vero ma incompleto**: quel repository esiste ed è la wiki *pubblicata*. Il **sorgente** è in-repo, in [`../../../wiki/`](../../../wiki/), e le due non vanno modificate in parallelo. Questo consolidamento ha toccato **solo** il sorgente; la pubblicazione è un passo separato e non è stata eseguita |
+| 2 | Propone `GenericActionModifier` come nome nuovo | Il repository ha già il concetto e il nome: **profilo**. `MoveProfile = Sneak \| Normal \| Sprint` ([D-015](../../../decisions/RT_PDR_00_Decision_Log.md)) e «Overwatch è universale, il **profilo** dipende dall'eroe» ([D-014](../../../decisions/RT_PDR_00_Decision_Log.md)). Il documento stesso impone la regola che lo esclude: «*salvo che il repository abbia già un nome migliore*», «*NON duplicarlo*» |
+| 1 | Presenta `ConditionalIntent` come concetto senza precedenti | Ha già un precursore **deciso**: il regime `Conditional` dell'Overwatch, cioè «`AllowedResponses ≥ 2` **+ condizione dichiarata in planning**» ([D-012](../../../decisions/RT_PDR_00_Decision_Log.md)). Non è un sistema nuovo da inventare: è la stessa condizione spostata dal profilo di reazione all'intento |
+| 6 | «Roster corrente» senza definirlo | Il roster attivo è a tre livelli: **v0.1 canonico** (Flux · Riva · Bastion · Vektor), **v0.2** (Aurora · Kwang · Murdock · Steel) e **34 candidati** Paragon. L'audit dei gap è stato fatto sul solo v0.1, come chiede §6 («dare precedenza al roster realmente attivo») |
+| 8 | Ipotizza «ADR solo se cambia il modello runtime» | Confermato: **nessun ADR**. Nessuna delle tre aggiunte cambia l'architettura — due sono schema documentale, la terza è rinviata. Sono quattro voci di Decision Log, che è la forma prevista dal documento stesso |
+
 Stai lavorando sul progetto **RefactorTactics**.
 
 Esistono due repository/cartelle distinte da considerare:
