@@ -211,6 +211,27 @@ stabile, formato versionato) · **#6** rispettato (la rotazione **intesa** è fi
 | `Vision.AwarenessWithinTwoCellsIgnoresFacing` | la consapevolezza ravvicinata vale in ogni direzione |
 | `Overwatch.ArcComesFromFacing` | la zona controllata non dichiara una direzione propria |
 
+## Perimetro — cosa questo ADR non decide *(nota 2026-08-08)*
+
+L'ADR decide **come si determina** il facing e **chi lo consuma**. Non decide, e non va letto come se lo
+facesse:
+
+| Fuori perimetro | Dove vive la domanda |
+|---|---|
+| Il facing **durante** i micro-step di un Move | `FAC-4` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) — la §1 copre inizio e fine del Move, non il mezzo, e i trigger cadono nel mezzo |
+| Se una **reazione** possa ruotare chi reagisce | `FAC-5` — la §4c e D-020 nominano il facing dell'Overwatch come valore **letto**, mai scritto |
+| Se `Interact` richieda o imponga un orientamento | `FAC-6` |
+| Se **status** o **terreno** possano limitare la rotazione | `FAC-7`, `FAC-8` |
+| Se il pathfinding debba diventare orientation-aware | `FAC-9` — l'ADR assume `CellId → CellId` con facing derivato e validato alla fine |
+| Il **vocabolario** della rotazione in posto | `FAC-10` — qui si dice «rotazione dichiarata»; `Pivot` e `Reorient` non sono termini di questo ADR |
+
+Tre proposte di **modifica** dell'ADR sono registrate come `FAC-1`, `FAC-2` e `FAC-3` nello stesso file, e
+come righe **45–47** di [`../DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md): rotazione come capacità
+**del personaggio** invece che derivata dal movimento; **policy dichiarative** per azione ed effetto al posto
+delle due regole universali; `Brace` **direzionale** contro la §4a. Nessuna è stata applicata. Vengono da un
+handoff del 2026-08-08, che nella gerarchia di prevalenza del progetto è l'**ultima** fonte — quindi l'ADR
+resta in vigore — ma sono coerenti fra loro e cambiano il modello, non i dettagli: la scelta è dell'autore.
+
 ## Revisione
 
 Rivedere alla chiusura di **CP 16.2** (difesa direzionale), con i dati del playtest.
