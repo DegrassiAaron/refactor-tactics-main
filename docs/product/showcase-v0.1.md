@@ -1,4 +1,4 @@
-# RefactorTactics — Showcase v0.1 «Il Relè»
+# RefactorTactics — Showcase v0.1 «Relay Basin» — `RT_Showcase_Relay_v01`
 
 > `CURRENT` · **Stato**: scenario definito · **fixture Lite atterrata (CP 15.2)**, turni non ancora scriptati
 > · **Ultimo aggiornamento**: 2026-08-08
@@ -121,39 +121,197 @@ reazioni d'eroe non cablate erano cinque.)*
 
 ---
 
-## 2. Target showcase — gli 8 turni
+## 2. La mappa canonica — «Relay Basin»
 
-Questa è la **sequenza finale**, non ciò che è giocabile oggi. Ogni turno dichiara l'epic che lo abilita.
+> ⚠️ **Layout autorato il 2026-08-08, non ereditato.** La specifica che avrebbe dovuto portare l'assegnazione
+> delle celle (`RT_Showcase_Relay_v01_ScenarioSpec_Claude.md`) **non esiste nel repository**: forma, spawn e
+> obiettivo vengono dall'handoff, la **disposizione dei terreni è stata progettata qui**, su autorizzazione
+> dell'autore. Se la spec originale riemerge, questo layout va confrontato con essa — non sovrascritto in
+> silenzio. Dettaglio in [`../roadmap/plans/showcase-v01-audit.md`](../roadmap/plans/showcase-v01-audit.md) §3.1.
 
-| # | Cosa mostra | Contenuto | Abilitato da |
+**45 celle, un solo `Layer = 0`.** Forma per riga, in coordinate assiali `(q, r)`:
+
+```text
+r=-3:  q = -1 .. +1     (3)
+r=-2:  q = -2 .. +2     (5)
+r=-1:  q = -3 .. +3     (7)
+r= 0:  q = -4 .. +4     (9)   <- lane centrale, Relay a (0,0)
+r=+1:  q = -4 .. +4     (9)   <- lane acqua/conduttiva
+r=+2:  q = -3 .. +3     (7)
+r=+3:  q = -2 .. +2     (5)
+                       ---- 45
+```
+
+### 2.1 Superfici
+
+Ogni cella non elencata è `Floor`. **Nessuna cella compare due volte**: la verifica di coerenza richiesta
+dall'handoff §7 è stata eseguita su questa tabella.
+
+| Superficie | Celle | Ruolo tattico |
+|---|---|---|
+| `Smoke` | `(-3,0)` `(-2,0)` | Corridoio ovest: Flux ci passa al turno 1; al turno 5 `MistVeil` ne aggiunge |
+| `ShallowWater` | `(-3,1)` `(-2,1)` `(-1,1)` `(0,1)` | Lane di Riva; è **conduttiva**, ed è ciò che rende possibile il payoff del turno 7 |
+| `Conductive` | `(1,1)` `(2,1)` | Prosegue la lane verso est: il `ConductiveNode` del turno 2 la collega all'acqua |
+| `Rough` | `(1,0)` `(2,0)` | Sbarra la via diretta est→Relay ai movimenti lineari: è ciò che invalida il `Ram` del turno 7 |
+| `Fire` | `(3,0)` `(3,1)` | Soglia est: Vektor la attraversa al turno 3 e prende `Burning` |
+| `HighGround` | `(2,-2)` `(3,-1)` | Cresta nord-est, `Height = 1`. Vantaggio **geometrico**, nessun bonus numerico ([D-024](../decisions/RT_PDR_00_Decision_Log.md)) |
+| `Ice` | `(-1,2)` `(0,2)` `(1,2)` | Ripiano sud: scivolata deterministica al turno 7 |
+
+Le sette superfici più `Floor` coprono **tutte e otto** quelle richieste dall'handoff, e tutte esistono già in
+`ERTHexSurface`: non è stato inventato nulla.
+
+### 2.2 Unità e obiettivo
+
+| | Cella | Squadra |
+|---|---|---|
+| **Relay** | `(0,0,0)` | `Objective.Relay`, contendibile |
+| Flux | `(-4,0,0)` | **Blue** |
+| Riva | `(-4,1,0)` | **Blue** |
+| Bastion | `(4,0,0)` | **Red** |
+| Vektor | `(4,1,0)` | **Red** |
+
+### 2.3 Elementi di bordo
+
+| Elemento | Bordo | Stato iniziale | Dipendenza |
 |---|---|---|---|
-| **1** | mappa, planning simultaneo, terreno modificato | Riva `FluidTrail` verso il centro; Flux prende posizione; Bastion crea `KineticPanel`; Vektor prende una linea utile | ✅ oggi · acqua da `FluidTrail` → **CP 8.5** · pannello → **CP 9.5** |
-| **2** | preparazione leggibile di una combo | Riva `PressureJet` su Vektor (16 danni + `Wet` + Push 1); Flux `ConductiveNode` | **CP 8.2** (stati) · **CP 8.5** (mutazione cella) |
-| **3** | previsione e fallback | Flux dichiara `LinearDischarge` su Vektor; Vektor si sposta prima del Blast; il log mostra il fallback dichiarato | ✅ oggi (**CP 4.3**) |
-| **4** | reazione interattiva, bait e commitment | Flux entra nella zona di Vektor → `FIRE`/`HOLD` → **HOLD**; poi entra Riva → **FIRE**: danno e movimento troncato nella cella raggiunta | **CP 14.5** — **opzionale** |
-| **5** | informazione incompleta | Riva `MistVeil`; ciò che dipende dalla posizione nemica passa da *confermato* a *incerto* | cap targeting ✅ (**CP 8.1**) · etichette UI → **CP 11.2** · conoscenza reale → **E13** |
-| **6** | protezione e identità dei ruoli | `PressureJet` su Bastion mostra la Push Resistance; Flux attacca Vektor; `Bastion.Interposition` redirige il colpo. Con **E16**: Vektor, spinto, si gira verso chi lo ha colpito, e un attacco preso fuori dall'arco frontale ignora la copertura | **CP 5.5 + 6.7** · orientamento: **CP 16.1/16.2** |
-| **7** | payoff ambientale | la rete acqua/conduttivo è pronta: danno sorgente, danno propagato, propagazione ordinata, ogni unità colpita una volta sola | **CP 8.3** |
-| **8** | obiettivo > deathmatch | Flux va KO, Riva resiste sul relè, il punto è assegnato **dopo** ambiente e KO: la squadra vince con un eroe a terra | **CP 10.2** |
+| **Copertura bassa** | `(0,0)` ↔ `(0,-1)` | `Low`, integrità 30 | ✅ CP 9.1 |
+| **Gate** | `(0,1)` ↔ `(1,1)` | **`Closed`** — Bastion lo apre al turno 5 | ✅ **CP 9.3**: è una porta, non un meccanismo nuovo |
+| **Ponte** | `(2,1)` ↔ `(2,2)` | dichiarato, **non attraversato dagli 8 turni** | ⏳ **CP 9.4** |
 
-### Mappa target
-
-Relay A centrale · Relay B su settore secondario · `ShallowWater` · `Conductive` · fumo producibile · un
-tratto `Ice` · un tratto `Rough` · almeno un percorso alternativo · (E9) cover direzionale bassa,
-`KineticPanel`, una porta o un ponte · (E10) obiettivo contestabile.
-
-**Per il primo test headless non si dipende da un `.umap`**: prima la fixture riproducibile in codice/dati
-(CP 15.2), poi l'asset d'autore equivalente per la presentazione.
+> **Perché il ponte non è nei turni.** L'handoff §7 chiede un `Bridge Edge` e insieme fissa `Layer = 0` per
+> tutte le celle. Ma `FRTHexEdge` è riservato per decisione esplicita alle **sole transizioni fra layer**
+> ([D-013](../decisions/RT_PDR_00_Decision_Log.md)): un ponte fra due celle dello stesso layer **non è un
+> arco**. È stato quindi modellato come **struttura di bordo**, la stessa famiglia delle porte — che è
+> esattamente ciò che **CP 9.4** sta costruendo. Nessun meccanismo inventato: una dipendenza riconosciuta.
+> Gli 8 turni non lo attraversano, quindi la showcase **non è bloccata** da CP 9.4.
 
 > ⚠️ **La scala della showcase non è la scala del gioco.** `L_Showcase_Relay` è una mappa **Skirmish**: piccola
-> per scelta, perché deve far leggere otto turni scriptati in pochi minuti. Le mappe **Standard** del formato
-> competitivo saranno sensibilmente più ampie (~5–7 Move di attraversamento, 2–3 macro-rotte, ordine di
-> grandezza 150–200 celle percorribili). **Non usare questa arena come prova che le mappe finali debbano avere
-> questa dimensione** — [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §4, §18.
+> per scelta, perché deve far leggere otto turni in pochi minuti. Le mappe **Standard** saranno sensibilmente
+> più ampie (~5–7 Move di attraversamento, 150–200 celle percorribili). **Non usare questa arena come prova**
+> che le mappe finali debbano avere questa dimensione —
+> [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §4, §18.
+
+**Per il primo test headless non serve un `.umap`**: la fixture è **generata da codice** e versionata come
+dati; l'asset d'autore equivalente arriva dopo, per la presentazione.
 
 ---
 
-## 3. Delta di scope — cosa **non** esiste e chi lo costruisce
+## 3. Gli 8 turni
+
+La **sequenza finale**, non ciò che è giocabile oggi. Ogni turno dichiara cosa dimostra, da cosa dipende e come
+si verifica. La regola vale per tutti: **nessun turno introduce codice speciale per sé**.
+
+| # | Dimostra | Dipende da | Test |
+|---|---|---|---|
+| 1 | Planning, ghost, commit, movimento hex, `Smoke`, Dash, acqua, `HighGround`, **facing**, cover, TurnLog | ✅ oggi, tranne **facing (E16)** e `CreateCover` (CP 9.5) | `RT.Scenario.Showcase.T1` |
+| 2 | `Wet`, Push, setup conduttivo, reconfigure, **Predictive Action**, **whiff** | ⏳ **E18** | `RT.Scenario.Showcase.T2` |
+| 3 | Dash prima del Blast, `Fire`, `Burning`, **moving target**, fallback, AoE | ✅ oggi · policy moving-target **da leggere dal catalogo** | `RT.Scenario.Showcase.T3` |
+| 4 | Reaction Opportunity, **Decision Boundary**, `HOLD`/`FIRE`, facing, trigger per micro-step | ⏳ **E14** (dipende da E13) + **E16** | `RT.Scenario.Showcase.T4` |
+| 5 | `Smoke`, validazione LOS/target, correzione del piano, `Deflection`, **Interact sul gate**, `GraphRevision++` | ✅ **CP 9.3** per il gate · validator ✅ | `RT.Scenario.Showcase.T5` |
+| 6 | `Intercept`, redirect del bersaglio, **rivalidazione della copertura**, `Wet`, Push, **nessuna reaction annidata** | ✅ CP 5.5/6.7 · ⏳ rivalidazione ([D-017](../decisions/RT_PDR_00_Decision_Log.md)) | `RT.Scenario.Showcase.T6` |
+| 7 | Acqua+Fuoco, elettricità, `Wet`, conduttivo, `Ice`, `Rough`, validazione in planning | ✅ **E8 chiusa** | `RT.Scenario.Showcase.T7` |
+| 8 | Predizione, rotta alternativa, KO, **objective**, cleanup, `MatchEnded` | ⏳ **E10 CP 10.1/10.2** + **E18** | `RT.Scenario.Showcase.T8` |
+
+### Turno 1 — mappa e posizionamento
+
+**Flux** muove dallo spawn verso il centro attraversando `Smoke` a `(-3,0)`/`(-2,0)` e chiude con **facing a
+Est**. **Riva** usa `FluidTrail` e percorre la lane d'acqua. **Bastion** usa `KineticPanel`, creando una
+copertura direzionale verso il centro, e avanza. **Vektor** raggiunge la cresta `HighGround`.
+
+*Expected*: quattro unità mosse, nessuna collisione, `Smoke` applica il cap di targeting, il TurnLog registra
+quattro `Move` con le celle attraversate.
+
+### Turno 2 — Wet e predizione
+
+**Flux** `ConductiveNode` verso la lane acqua/conduttiva. **Riva** `PressureJet` su Vektor: danno, `Wet` e Push
+se legalmente valido. **Bastion** `Reconfigure` sul pannello. **Vektor** dichiara `InterceptShot` su una cella
+prevista — e **Riva non la attraversa**.
+
+*Expected*: `PredictionWhiffed` con reason code. La previsione sbagliata **costa** l'azione, e questo si deve
+vedere: è metà del valore di una Predictive Action.
+
+### Turno 3 — bersaglio in movimento e fuoco
+
+**Flux** `LinearDischarge` su Vektor. **Vektor** usa `PassingBlade` e attraversa `Fire` a `(3,0)` **prima** del
+Blast, prendendo `Burning`. **Riva** `CircularTide`. **Bastion** un'azione difensiva realmente a catalogo.
+
+*Expected*: il bersaglio si è spostato fra dichiarazione e risoluzione, quindi si applica la **policy di moving
+target del catalogo**, e il TurnLog dice quale. `Burning` scade nel Cleanup.
+
+> 🔒 **Decisione bloccata.** *Quale* sia quella policy va **letta dai dati** di `LinearDischarge`. Se il
+> catalogo non la dichiara, è una scelta di gameplay: non si inventa qui.
+
+### Turno 4 — Overwatch
+
+**Vektor** sceglie `Overwatch`: il **facing** definisce il cono controllato. **Flux** entra per primo →
+opportunity con risposta **`HOLD`**. **Riva** entra dopo → **seconda** opportunity, risposta **`FIRE`**.
+
+*Expected* — e sono queste le asserzioni che contano:
+
+```text
+HOLD non consuma la carica
+la seconda opportunity esiste
+FIRE consuma la carica
+nessuna informazione futura nel DTO
+```
+
+L'ultima riga è un requisito di **privacy**, non di correttezza
+([D-021](../decisions/RT_PDR_00_Decision_Log.md)): l'avversario non deve poter dedurre la finestra, nemmeno dal
+tempo.
+
+### Turno 5 — fumo e struttura
+
+**Riva** `MistVeil`. **Flux** dichiara **di proposito** un piano non valido attraverso il fumo: il validator di
+planning deve restituire un **reason**, e poi Flux committa un'azione valida. **Bastion** fa `Interact` sul
+**gate** `(0,1)↔(1,1)`: la topologia cambia, `GraphRevision` sale, la cache dei path si invalida. **Vektor**
+`Deflection`.
+
+*Expected*: `EdgeDisabled → EdgeEnabled`, `GraphRevisionChanged`, e un percorso che **prima non esisteva**.
+
+### Turno 6 — interposizione
+
+**Flux** attacca Vektor. **Bastion** interpone: bersaglio originale `Vektor`, bersaglio effettivo `Bastion`. La
+geometria si **rivalida su Bastion** — LOS, traiettoria, copertura — senza aprire una reaction annidata
+([D-017](../decisions/RT_PDR_00_Decision_Log.md)). **Riva** `PressureJet` su Bastion. **Vektor** attacca Flux.
+
+*Expected*: `OriginalTargetEquals(Vektor)`, `EffectiveTargetEquals(Bastion)`, e la copertura applicata è
+**quella di Bastion**. Serve un test **discriminante** — A e B a copertura diversa — altrimenti passerebbe
+anche col comportamento sbagliato.
+
+### Turno 7 — combo ambientale
+
+**Riva** porta acqua su una zona `Fire`. **Flux** usa il miglior attacco elettrico disponibile. **Vektor** fa un
+`Move` normale su `Ice`. **Bastion** dichiara un `Ram` attraverso `Rough` a `(1,0)`: **il planning lo rifiuta**
+con un reason di restrizione di terreno, e Bastion corregge prima del Commit.
+
+*Expected*: il fuoco si spegne; la propagazione elettrica è ordinata e **non colpisce due volte** per lo stesso
+evento; la scivolata su ghiaccio è deterministica; `EnvironmentChanged` nel TurnLog.
+
+### Turno 8 — l'obiettivo batte il KO
+
+**Vektor** `InterceptShot` sull'accesso previsto al Relay. **Riva** prende una **rotta alternativa**, non
+attraversa la cella prevista (`PredictionWhiffed`) e termina **sul Relay**. **Bastion** tenta di contestare e
+non riesce. **Flux** completa un'ultima azione offensiva e va **KO**.
+
+*Expected final state*:
+
+```text
+Flux  = KO
+Riva  = viva, sul Relay (0,0,0)
+Relay = controllato da Blue
+Match = terminato, Blue vince
+```
+
+Il punto è assegnato **dopo** ambiente e KO: si vince con un eroe a terra. È il pilastro «obiettivo, non
+deathmatch» — e senza il turno 8 la showcase dimostrerebbe soltanto un deathmatch riuscito bene.
+
+> 🔒 **Decisione bloccata.** *Perché* Bastion fallisce la contesa deve essere una causa reale del ruleset
+> (costo, path, stato). Il sistema objective non esiste ancora: la causa non si può scegliere prima di sapere
+> quali cause il ruleset ammetterà.
+
+---
+
+## 4. Delta di scope — cosa **non** esiste e chi lo costruisce
 
 Nessuna riga di questa tabella si costruisce dentro E15.
 
@@ -164,7 +322,8 @@ Nessuna riga di questa tabella si costruisce dentro E15.
 | Acqua spegne il fuoco, `Wet` cancella `Burning` | ✅ | **CP 8.4** chiuso |
 | Azioni che **creano** terreno (`CreateWater`, `Ignite`, `Electrify`, fumo di `MistVeil`, `ConductiveNode`, acqua di `FluidTrail`) | ✅ | **CP 8.5** chiuso — `CreateCover` rinviata a E9 |
 | Cover direzionale sui 6 bordi, integrità, distruzione | ✅ `FRTHexCover{Edge, Type, Integrity}` in `FRTHexCellData` | **CP 9.1/9.2** chiusi |
-| Strutture: porte, ponti, `GraphRevision`, invalidazione cache | ⏳ | **CP 9.3/9.4** |
+| Strutture: **porte**, `GraphRevision`, invalidazione cache | ✅ | **CP 9.3** chiuso — la porta è un **bordo** (formato mappa v4), letta dallo stesso `BlocksTraversal` di muri e coperture |
+| Strutture: **ponti** | ⏳ | **CP 9.4** — non blocca gli 8 turni, vedi §2.3 |
 | `KineticPanel` / `Reconfigure` come struttura, non come mesh spostata | ⏳ | **CP 9.5** |
 | Obiettivo contestabile verificato nel Cleanup, dopo ambiente e KO | ⏳ | **CP 10.2** — issue `#75` |
 | Reazioni d'eroe cablate al motore (`Interposition`, `Deflection`, `ReactiveCapacitor`) | ✅ **tre su cinque** | **CP 5.5 + 6.7** chiusi |
@@ -193,7 +352,7 @@ Queste regole valgono nello scenario e vivono nei **dati**, mai nel codice delle
 
 ---
 
-## 4. Showcase **Lite** — la prima fetta, senza sistemi nuovi
+## 5. Showcase **Lite** — la prima fetta, senza sistemi nuovi
 
 Costruibile **oggi** (CP 15.2). Usa solo regole atterrate e serve da fixture d'integrazione:
 
@@ -247,7 +406,7 @@ Dash» è una proprietà dell'arena verificata dai test di E4/E8, non un evento 
 
 ---
 
-## 5. Determinismo e golden replay
+## 6. Determinismo e golden replay
 
 La formula di determinismo cambia quando entrano le finestre di reazione ([ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) §3):
 
@@ -283,7 +442,7 @@ La PR che rigenera dichiara *perché* l'esito è cambiato.
 
 ---
 
-## 6. Obiettivi di prodotto — registrati, non usati come gate
+## 7. Obiettivi di prodotto — registrati, non usati come gate
 
 La showcase serve a sei scopi con criteri diversi: demo interna, scenario di smoke test, fixture di
 integrazione, golden replay, benchmark del resolver, base per il tutorial e per i playtest di leggibilità.
@@ -294,7 +453,7 @@ playtest di CP 15.5: sono ragioni per iterare, non condizioni di chiusura.
 
 ---
 
-## 7. Errori da evitare *(dalla §53 della sorgente, ridotti a quelli attivi)*
+## 8. Errori da evitare *(dalla §53 della sorgente, ridotti a quelli attivi)*
 
 1. reintrodurre Aegis/Nyx/Drift/Vex o qualunque valore della tabella §0;
 2. creare un secondo `ARTGameMode` «showcase» con regole duplicate;
