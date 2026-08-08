@@ -164,6 +164,9 @@ void ARTPlayerController::BuildInputMappings()
 	ZoomAction = NewObject<UInputAction>(this, TEXT("IA_Zoom"));
 	ZoomAction->ValueType = EInputActionValueType::Axis1D;
 
+	RotateAction = NewObject<UInputAction>(this, TEXT("IA_Rotate"));
+	RotateAction->ValueType = EInputActionValueType::Axis1D;
+
 	SelectAction = NewObject<UInputAction>(this, TEXT("IA_Select"));
 	SelectAction->ValueType = EInputActionValueType::Boolean;
 
@@ -216,6 +219,14 @@ void ARTPlayerController::BuildInputMappings()
 	// Zoom (Axis1D): rotellina del mouse.
 	MappingContext->MapKey(ZoomAction, EKeys::MouseWheelAxis);
 
+	// Rotazione della vista: E = orario, Q = antiorario. Sono i tasti che ogni gioco tattico con camera
+	// libera usa per questo, e stanno accanto a WASD: chi guida non deve spostare la mano.
+	MappingContext->MapKey(RotateAction, EKeys::E);
+	{
+		FEnhancedActionKeyMapping& M = MappingContext->MapKey(RotateAction, EKeys::Q);
+		M.Modifiers.Add(NewObject<UInputModifierNegate>(this));
+	}
+
 	// Select (Boolean): tasto sinistro del mouse.
 	MappingContext->MapKey(SelectAction, EKeys::LeftMouseButton);
 
@@ -264,6 +275,9 @@ void ARTPlayerController::SetupInputComponent()
 	{
 		EIC->BindAction(PanAction, ETriggerEvent::Triggered, this, &ARTPlayerController::OnPan);
 		EIC->BindAction(ZoomAction, ETriggerEvent::Triggered, this, &ARTPlayerController::OnZoom);
+		// `Started` e non `Triggered`: la rotazione e' a SCATTI di `YawStep`, quindi deve avvenire una volta
+		// per pressione. Con `Triggered` un tasto tenuto giu' avrebbe girato la vista di 45 gradi per frame.
+		EIC->BindAction(RotateAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRotate);
 		EIC->BindAction(SelectAction, ETriggerEvent::Started, this, &ARTPlayerController::OnSelect);
 		EIC->BindAction(LockInAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLockIn);
 		EIC->BindAction(RestartAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRestart);
@@ -342,6 +356,14 @@ void ARTPlayerController::OnZoom(const FInputActionValue& Value)
 	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
 	{
 		Cam->AddZoom(Value.Get<float>());
+	}
+}
+
+void ARTPlayerController::OnRotate(const FInputActionValue& Value)
+{
+	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
+	{
+		Cam->AddYaw(Value.Get<float>());
 	}
 }
 

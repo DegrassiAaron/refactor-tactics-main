@@ -49,7 +49,7 @@ void ARTCameraPawn::ApplyViewSettings()
 	// La distanza iniziale deve stare nello stesso intervallo che lo zoom rispetta: un default fuori range
 	// darebbe una partenza che il primo scroll "corregge" di scatto.
 	SpringArm->TargetArmLength = FMath::Clamp(DefaultArmLength, MinArmLength, MaxArmLength);
-	SpringArm->SetRelativeRotation(FRotator(CameraPitch, 0.f, 0.f));
+	SpringArm->SetRelativeRotation(FRotator(CameraPitch, CameraYaw, 0.f));
 }
 
 bool ARTCameraPawn::FrameOwnTeam()
@@ -126,9 +126,35 @@ void ARTCameraPawn::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 
 void ARTCameraPawn::AddPlanarMovement(const FVector2D& Axis)
 {
-	// Sul piano mondo, indipendente dall'inclinazione della camera.
-	const FVector Delta(Axis.Y * PanSpeed, Axis.X * PanSpeed, 0.f);
+	// Sul piano, ma RELATIVO a dove la camera guarda: `Axis.Y` e' «avanti sullo schermo», `Axis.X` e' «a
+	// destra sullo schermo». Con yaw 0 il risultato e' identico a prima (nessuna inquadratura esistente
+	// cambia comportamento); appena si ruota, e' cio' che impedisce a W di spostare la vista di lato.
+	//
+	// L'inclinazione non entra: si scorre sul piano della mappa, non lungo la direzione di sguardo, altrimenti
+	// scorrere avvicinerebbe anche il terreno.
+	const FVector Forward = FRotator(0.f, CameraYaw, 0.f).RotateVector(FVector::ForwardVector);
+	const FVector Right   = FRotator(0.f, CameraYaw, 0.f).RotateVector(FVector::RightVector);
+	const FVector Delta   = (Forward * Axis.Y + Right * Axis.X) * PanSpeed;
 	AddActorWorldOffset(Delta);
+}
+
+void ARTCameraPawn::AddYaw(float AxisValue)
+{
+	if (FMath::IsNearlyZero(AxisValue))
+	{
+		return;
+	}
+	// Normalizzata subito: ruotando a lungo nella stessa direzione il valore crescerebbe senza fine, e il
+	// campo in editor diventerebbe illeggibile pur descrivendo la stessa vista.
+	CameraYaw = FRotator::ClampAxis(CameraYaw + FMath::Sign(AxisValue) * YawStep);
+
+	// SOLO la rotazione, non `ApplyViewSettings()`: quella riporta anche il braccio a `DefaultArmLength`, e
+	// ruotare avrebbe annullato lo zoom a ogni pressione. Sono due cose diverse che vivevano nella stessa
+	// funzione perche' finora nessuno cambiava l'inquadratura senza volerla anche ripristinare.
+	if (SpringArm)
+	{
+		SpringArm->SetRelativeRotation(FRotator(CameraPitch, CameraYaw, 0.f));
+	}
 }
 
 void ARTCameraPawn::AddZoom(float AxisValue)
@@ -156,8 +182,12 @@ void ARTCameraPawn::RecenterView()
 			SetActorLocation(Origin);
 		}
 	}
+	// Anche la ROTAZIONE torna a zero. `Home` e' il tasto del «riportami a un'inquadratura che conosco»: se
+	// riportasse la posizione ma lasciasse la vista girata, chi si e' perso ruotando resterebbe perso.
+	CameraYaw = 0.f;
 	if (SpringArm)
 	{
 		SpringArm->TargetArmLength = DefaultArmLength;
+		SpringArm->SetRelativeRotation(FRotator(CameraPitch, CameraYaw, 0.f));
 	}
 }

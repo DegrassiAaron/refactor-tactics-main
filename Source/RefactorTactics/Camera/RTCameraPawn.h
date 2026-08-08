@@ -19,11 +19,31 @@ class REFACTORTACTICS_API ARTCameraPawn : public APawn
 public:
 	ARTCameraPawn();
 
-	/** Sposta la camera sul piano mondo XY (input.X = destra, input.Y = avanti). */
+	/**
+	 * Sposta la camera sul piano XY **relativamente a dove guarda**: `input.Y` e' «avanti sullo schermo»,
+	 * `input.X` e' «a destra sullo schermo».
+	 *
+	 * Relativo e non in assi mondo, ed e' la meta' che rende usabile la rotazione: con il pan ancorato al
+	 * mondo, dopo aver girato la vista di 90 gradi premere W avrebbe spostato l'inquadratura di lato. Chi
+	 * guida non pensa in coordinate della mappa — pensa in «su, giu', destra, sinistra» rispetto a cio' che
+	 * vede.
+	 */
 	void AddPlanarMovement(const FVector2D& Axis);
 
 	/** Zoom variando la lunghezza del braccio (valore positivo = allontana). */
 	void AddZoom(float AxisValue);
+
+	/**
+	 * Ruota la vista attorno al punto inquadrato (valore positivo = orario visto dall'alto).
+	 *
+	 * Su una griglia esagonale girare non e' un vezzo: le unita' sono cilindri e le anteprime si disegnano a
+	 * terra, quindi da una sola angolazione una cella dietro a qualcuno resta illeggibile. La rotazione e' il
+	 * modo economico di guardarci dietro — l'alternativa sarebbe rendere trasparente mezza scena.
+	 */
+	void AddYaw(float AxisValue);
+
+	/** Direzione di sguardo corrente sul piano, in gradi. Serve al pan relativo e ai test. */
+	float GetCameraYaw() const { return CameraYaw; }
 
 	/** Riporta la camera al centro della griglia e ripristina lo zoom di default (DefaultArmLength). */
 	void RecenterView();
@@ -86,6 +106,26 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
 		meta = (ClampMin = "-89.0", ClampMax = "0.0"))
 	float CameraPitch = -40.f;
+
+	/**
+	 * Direzione di sguardo sul piano, in gradi. 0 = l'orientamento di partenza, quello di ogni inquadratura
+	 * prima che esistesse la rotazione.
+	 *
+	 * Normalizzata in `[0, 360)` a ogni passo: senza, ruotando a lungo nella stessa direzione il valore
+	 * cresceva senza fine e in editor il campo diventava illeggibile.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")
+	float CameraYaw = 0.f;
+
+	/**
+	 * Gradi per passo di rotazione. 45 e' deliberatamente **non** un divisore di 60: sarebbe la scelta ovvia
+	 * su una griglia esagonale, ma agganciare la vista agli assi della griglia rende impossibile guardare
+	 * *fra* due file di celle, che e' esattamente cio' che serve quando un cilindro copre quello che c'e'
+	 * dietro.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
+		meta = (ClampMin = "1.0", ClampMax = "90.0"))
+	float YawStep = 45.f;
 
 	/** Applica distanza (clampata tra Min e Max) e inclinazione correnti al braccio. */
 	void ApplyViewSettings();
