@@ -152,3 +152,103 @@ numero finto.
 | Intent diversi dal movimento (abilità, reazioni) | non implementati: il prompt chiedeva esplicitamente di non procedere finché `Movement.Basic` non fosse stabile |
 | **Politica per le Fast Reaction** | aperta. Quando E14 introdurrà le finestre, uno scenario dovrà poter dichiarare la risposta attesa (`FIRE`/`HOLD`/timeout) **come dato**, altrimenti diventa non deterministico |
 | **Nessun bypass** | invariante permanente: se un giorno un percorso di test saltasse il resolver, i test smetterebbero di misurare il gioco |
+
+---
+
+## 10. Lo schema **target** — cosa serve alla showcase
+
+*Aggiunta il 2026-08-08.* `RT_Showcase_Relay_v01` ([`../product/showcase-v0.1.md`](../product/showcase-v0.1.md))
+è il consumatore che dice quanto manca all'harness. **Si estende lo schema esistente, non se ne fa un altro**:
+il draft JSON dichiarato dall'handoff non esiste nel repository, e quello attuale regge.
+
+### 10.1 Campi
+
+| Campo | Oggi | Target |
+|---|---|---|
+| `scenarioId` · `version` · `seed` | ✅ | — |
+| `mapRadius` · `cells[]` | ✅ arena generata + override | **+ `mapId`**: riferisce una fixture nominata (`ShowcaseRelayBasin`) invece di ridisegnarla nel JSON |
+| `units[]` | ✅ id, eroe, team, cella | + `facing` iniziale |
+| `turns[].intents[]` | ✅ **solo `move`** | **+ `ability`** (`actionId`, bersaglio cella/unità, direzione), + `facing` |
+| — | — | **+ `surfaces[]` · `structures[]` · `objective`**: stato iniziale dell'ambiente, invece di dedurlo |
+| — | — | **+ `reactionPolicy[]`** (§10.2) |
+| — | — | **+ `ruleset`**, per fissare la versione di regole del golden |
+| `expect[]` | ✅ 2 tipi | **~25** (§10.3) |
+
+### 10.2 Reaction policy
+
+Uno scenario deve poter **automatizzare una Fast Decision vera**, non saltarla:
+
+```text
+Hold                 rispondi sempre HOLD
+CommitFirstValid     FIRE alla prima opportunity legale
+HoldFirstThenCommit  HOLD alla prima, FIRE alla seconda   <- il turno 4 della showcase
+CommitSpecificTarget FIRE solo su un bersaglio nominato
+Timeout              non rispondere, e verifica che il timeout dia HOLD
+```
+
+**La policy risponde alla vera `ReactionOpportunity` del runtime.** In `FAST`/`HEADLESS` la decisione è
+immediata, ma attraversa **lo stesso contratto logico** — altrimenti il test verificherebbe una finestra che
+in partita non esiste.
+
+### 10.3 Assertion
+
+Si aggiungono **quando uno scenario le richiede**, e molte si costruiscono su poche primitive: «leggi un
+campo dello stato finale» e «conta eventi nel TurnLog» coprono la maggior parte della lista.
+
+| Famiglia | Assertion |
+|---|---|
+| Turno e unità | `TurnCompleted` · `UnitAtCell` · `UnitHasStatus` · `UnitNotHasStatus` · `UnitKO` |
+| Ambiente | `SurfaceHasStatus` · `SurfaceNotHasStatus` · `EdgeEnabled` · `EdgeDisabled` · `GraphRevisionChanged` · `CoverExists` |
+| Azioni | `AbilityResolved` · `AbilityFizzled` · `EventExists` · `EventCount` |
+| Reazioni | `ReactionOpportunityExists` · `ReactionResponseEquals` · `ReactionConsumed` |
+| Predizione | `PredictionWhiffed` · `OriginalTargetEquals` · `EffectiveTargetEquals` |
+| Partita | `ObjectiveUpdated` · `MatchEnded` |
+| Determinismo | `StateHashEquals` · `LogHashEquals` |
+
+### 10.4 Report
+
+```text
+Saved/RTTests/<ScenarioId>/<RunId>/
+    result.json        esito, assertion, failure diagnosticabili
+    turnlog.jsonl      una riga per voce: diffabile, grep-abile
+    state_initial.json
+    state_final.json
+```
+
+`result.json` porta già `schemaVersion`, `scenarioId`, esito, `seed`, assertion e `stateHash`. Mancano:
+`runId`, `engineVersion`, `projectVersion`, `rulesVersion`, `contentManifestHash`, `resolverConfigHash`,
+`logHash`, `duration`.
+
+Ogni failure deve dire **`assertion` · `expected` · `actual` · `turn` · `phase` · `microStep` ·
+`source/unit/cell/event` · `reasonCode`**. Il criterio è quello di sempre: si deve poter diagnosticare un
+fallimento **senza aprire migliaia di righe di log Unreal**.
+
+### 10.5 Modi
+
+| Modo | Cosa fa | Vincolo |
+|---|---|---|
+| `HEADLESS` | nessun rendering, il più veloce | è quello di oggi |
+| `FAST` | con mondo, senza attese di presentazione | — |
+| `VISUAL` | playback osservabile | **stesso esito logico** dei precedenti |
+
+L'equivalenza logica fra i tre modi è essa stessa un test (`Visual vs Fast`, `Fast vs Headless`): se un modo
+producesse un esito diverso, la presentazione starebbe decidendo qualcosa — che è l'invariante #1 rotta.
+
+### 10.6 Matrice degli scenari della showcase
+
+| Test | Tipo | Feature | Turni | Modo | Atteso |
+|---|---|---|---|---|---|
+| `RT.Scenario.Showcase.T1` | Functional | apertura | T1 | Fast | PASS |
+| `RT.Scenario.Showcase.T2` | Functional | predizione | T2 | Fast | PASS |
+| `RT.Scenario.Showcase.T3` | Functional | moving target, fuoco | T3 | Fast | PASS |
+| `RT.Scenario.Showcase.T4` | Functional | overwatch | T4 | Fast | PASS |
+| `RT.Scenario.Showcase.T5` | Functional | struttura, revisione | T5 | Fast | PASS |
+| `RT.Scenario.Showcase.T6` | Functional | interposizione | T6 | Fast | PASS |
+| `RT.Scenario.Showcase.T7` | Functional | ambiente | T7 | Fast | PASS |
+| `RT.Scenario.Showcase.Full` | Golden | partita intera | T1–T8 | Fast | PASS |
+| `RT.Scenario.Showcase.Repeat` | Determinismo | hash | Full | Headless | 0 divergenze |
+| `RT.Scenario.Showcase.Visual` | Smoke | presentazione | Full | Visual | completa |
+| `RT.Scenario.Showcase.Packaged` | Smoke | packaged | Full | Packaged | completa |
+
+Quando una feature è troppo importante per essere verificata **solo** end-to-end, si aggiunge un test core
+mirato: uno scenario che fallisce dice *che* qualcosa non va, un test unitario dice *cosa*.

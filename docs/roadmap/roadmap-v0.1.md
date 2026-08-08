@@ -662,6 +662,34 @@ gli 8 turni) vive nei **dati di scenario**, mai nel codice delle regole.
 | **15.4** | Golden replay degli 8 turni | Lo scenario completo gira e produce **`LogHash` e `StateHash` attesi**; una divergenza fallisce indicando turno, fase e `ActionId`. I file golden vivono con quelli del **CP 12.6** (stesso meccanismo, stessa cartella, **rigenerazione solo con flag esplicito**): la showcase è un elemento del corpus, non un secondo sistema | `ShowcaseRelay.DeterministicReplay`, `ShowcaseRelay.FinalStateHashStable`, `ShowcaseRelay.WetEnablesFluxCombo`, `ShowcaseRelay.InterpositionRedirectsHit`, `ShowcaseRelay.ObjectiveCheckedAfterKO` |
 | **15.5** | Presentazione e playtest | La partita è **giocabile e leggibile** in editor: il TurnLog spiega gli eventi chiave, KO non implica vittoria se l'obiettivo chiude il match, nessuna dipendenza dal frame rate. Screenshot/video **solo dopo** che la logica è verificata | `PIE-V01-SHOWCASE`; sessione di playtest di leggibilità registrata in `test-manuali-pie.md` |
 
+#### Tranche verticali della showcase — `S0`…`S10`
+
+*Aggiunte il 2026-08-08.* L'handoff proponeva una roadmap verticale `S0`…`S10`. **Non è una roadmap
+concorrente**: è la stessa, letta dal lato della showcase invece che dal lato delle epic. Ogni tranche dice
+cosa sblocca — e la showcase diventa la **spina dorsale verificabile** della v0.1, perché ogni turno che passa
+è una feature che esiste davvero.
+
+Nessuna stima temporale: il repository non ne usa.
+
+| ID | Deliverable | Dipendenze | Test | Exit gate |
+|---|---|---|---|---|
+| **S0** | Scenario Harness baseline | — | 13 `Scenario.*` | ✅ **fatto**: JSON versionato → percorso di gioco reale → `result.json`, `PASS`/`FAIL`/`ERROR` |
+| **S1** | Fixture della mappa Relay Basin | S0 | `ShowcaseRelay.BasinLayoutMatchesSpec` | ✅ **fatto 2026-08-08**: 45 celle, superfici, gate chiuso, copertura, spawn — pinnati e verificati con mutazione |
+| **S2** | Turno 1 giocabile da scenario | S1 · **schema esteso** (`mapId`, intent di abilità, facing) | `RT.Scenario.Showcase.T1` | Le quattro unità si muovono dagli intent dello scenario, nessun `SetActorLocation` |
+| **S3** | Predictive Action, thin slice | S2 · **E18** | `RT.Scenario.Showcase.T2` | `PredictionWhiffed` con reason code: la previsione sbagliata **costa** |
+| **S4** | Bersaglio in movimento + Fire/Burning | S2 · policy moving-target **dal catalogo** | `RT.Scenario.Showcase.T3` | Il TurnLog dice **quale** policy ha applicato |
+| **S5** | Overwatch universale / Fast Reaction | S2 · **E13** → **E14** · **E16** (facing) | `RT.Scenario.Showcase.T4` | `HOLD` non consuma, la seconda opportunity esiste, `FIRE` consuma, **nessun leak** |
+| **S6** | Smoke + strutture + `GraphRevision` | S2 · ✅ CP 9.3 (gate) | `RT.Scenario.Showcase.T5` | `EdgeDisabled → EdgeEnabled`, revisione che sale, un percorso che **prima non esisteva** |
+| **S7** | Interposizione e redirect | S2 · **D-017** (rivalidazione) | `RT.Scenario.Showcase.T6` | Test **discriminante**: A e B a copertura diversa, o passa anche col comportamento sbagliato |
+| **S8** | Payoff ambientale | S2 · ✅ **E8 chiusa** | `RT.Scenario.Showcase.T7` | Acqua spegne il fuoco; propagazione ordinata, **una volta sola** per evento; slide deterministica |
+| **S9** | Objective Relay + 8 turni completi | S2…S8 · **E10 CP 10.1/10.2** | `RT.Scenario.Showcase.Full` | Blue vince **con Flux a terra**: l'obiettivo batte il KO |
+| **S10** | Golden replay, repeat, packaged smoke | S9 · CP 12.3/12.5 | `.Repeat` · `.Visual` · `.Packaged` | `Repeat 1000` (da 100, già raggiunto a CP 12.1) + equivalenza `Visual`/`Fast`/`Headless` |
+
+> **Il collo di bottiglia è S2, non i sistemi mancanti.** Otto tranche su undici dipendono da *una* cosa: che
+> lo scenario sappia esprimere un'abilità con un bersaglio invece del solo movimento. Finché non lo sa, ogni
+> feature nuova va verificata a mano — ed è il motivo per cui S2 viene prima di E13, E14, E16 ed E18 pur non
+> essendo una feature di gioco.
+
 **Dipendenze per turno della sequenza target** (nessuna va anticipata dentro E15):
 
 | Turno | Mostra | Abilitato da |

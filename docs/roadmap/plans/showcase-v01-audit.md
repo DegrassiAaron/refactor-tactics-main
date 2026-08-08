@@ -140,3 +140,68 @@ La §10 chiede `Repeat 10 → 100 → 1000`. **CP 12.1 è già a 100 ripetizioni
 | 1 | La policy per il **moving target** del turno 3 | «secondo la policy reale definita dal catalogo»: va letta dai dati di `LinearDischarge`, e se il catalogo non la dichiara è una decisione di gameplay, non documentale |
 | 2 | Come si **contende** il Relay (turno 8, Bastion fallisce «per una causa reale del ruleset») | Il sistema objective non esiste: la causa del fallimento non può essere scelta prima di sapere quali cause il ruleset ammette |
 | 3 | Se la **Predictive Action** consuma lo slot principale | Tocca l'action economy, che è materia da decisione esplicita (D-014/D-025) |
+
+---
+
+## 6. Backlog implementativo
+
+Ordinato **secondo la roadmap reale**, non per dominio: ogni voce è una fetta verticale
+`scenario → feature → test automatico → risultato visibile`.
+
+### `S2-1` — Lo scenario sa riferire una fixture nominata
+
+| | |
+|---|---|
+| **Goal** | Uno scenario può dire `"mapId": "ShowcaseRelayBasin"` invece di ridisegnare la mappa nel JSON |
+| **Scope** | Campo `mapId` in `FRTTestScenario`; risoluzione nome → fixture in `URTScenarioLoader`; `mapRadius`/`cells[]` restano validi e si applicano **sopra** la fixture |
+| **Non-goals** | Caricare `.umap`; un registry generico di mappe |
+| **Dipende da** | ✅ `MakeShowcaseRelayBasinArena` |
+| **File** | `ScenarioHarness/RTTestScenario.h`, `RTScenarioLoader.*` |
+| **Acceptance** | Uno scenario con `mapId` sconosciuto è **`ERROR`**, non `FAIL`; con `mapId` valido l'arena coincide cella per cella con la fixture |
+| **Test** | `Scenario.LoaderResolvesNamedMap`, `Scenario.LoaderRejectsUnknownMapId` |
+| **Commit** | `feat(harness): scenari che riferiscono una fixture di mappa per nome` |
+
+### `S2-2` — Gli intent sanno esprimere un'abilità
+
+| | |
+|---|---|
+| **Goal** | `"ability": { "actionId": "...", "targetCell": [...] }` accanto a `"move"` |
+| **Scope** | Estensione di `FRTScenarioIntent`; il runner li instrada nello **stesso** percorso di pianificazione del giocatore |
+| **Non-goals** | Reaction policy (è `S5-1`); facing (è `S2-3`) |
+| **Dipende da** | `S2-1` |
+| **Acceptance** | Un `actionId` fuori catalogo è **`ERROR`**; un'abilità legale produce le stesse voci di TurnLog di una pianificata a mano |
+| **Test** | `Scenario.AbilityIntentResolvesLikePlanned`, `Scenario.UnknownActionIdIsError` |
+| **Commit** | `feat(harness): intent di abilita' negli scenari` |
+
+### `S2-3` — Turno 1 della showcase
+
+| | |
+|---|---|
+| **Goal** | `RT.Scenario.Showcase.T1` verde attraverso il gameplay reale |
+| **Scope** | `Scenarios/Showcase/RelayBasin_T1.json`; assertion `UnitAtCell` sui quattro arrivi |
+| **Non-goals** | Facing (E16) e `CreateCover` (CP 9.5): il turno 1 li **dimostra** ma non li richiede per passare |
+| **Dipende da** | `S2-1`, `S2-2` |
+| **Acceptance** | Nessun `SetActorLocation`; lo `StateHash` è stabile su 10 ripetizioni |
+| **Test** | `RT.Scenario.Showcase.T1` |
+| **Commit** | `feat(showcase): turno 1 eseguibile dallo scenario` |
+
+### Voci successive, in ordine
+
+| ID | Titolo | Sblocca | Dipende da |
+|---|---|---|---|
+| `S4-1` | Leggere e registrare la policy di **moving target** dal catalogo | T3 | catalogo |
+| `S6-1` | Assertion `EdgeEnabled`/`EdgeDisabled`/`GraphRevisionChanged` | T5 | ✅ CP 9.3 |
+| `S8-1` | Assertion su superfici e stati (`SurfaceHasStatus`, `UnitHasStatus`) | T7 | ✅ E8 |
+| `S7-1` | **D-017**: `Intercept` rivalida la geometria sul bersaglio effettivo + test discriminante | T6 | E5 |
+| `S3-1` | Predictive Action, slice `Vektor.InterceptShot` (**E18**) | T2, T8 | D-016 |
+| `S5-1` | `reactionPolicy[]` + Decision Boundary (**E14**) | T4 | E13, E16 |
+| `S9-1` | Objective `Relay` contendibile (**E10 CP 10.1/10.2**) | T8, Full | — |
+| `S10-1` | `turnlog.jsonl` + campi mancanti di `result.json` | Golden | — |
+| `S10-2` | `Repeat 1000` ed equivalenza `Visual`/`Fast`/`Headless` | Golden | S9-1 |
+
+**Definition of Done, per ognuna** — non basta che si veda in PIE:
+
+1. passa dal gameplay/resolver reale; 2. nessun caso speciale dello scenario; 3. deterministica;
+4. TurnLog e reason code; 5. test automatico; 6. visualizzazione sufficiente a diagnosticare;
+7. compatibile con l'autorità di rete prevista; 8. nessun leak di planning; 9. documentazione aggiornata;
+10. packaged test dove il livello della feature lo richiede.
