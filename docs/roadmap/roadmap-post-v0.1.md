@@ -243,6 +243,12 @@ informazioni da ricordare*.
 restano tre per personaggio. I banchi di prova coerenti col kit sono Howitzer, Murdock e GRIM.exe — **non**
 Vektor, la cui forma `Siege` spegnerebbe la meccanica firma.
 
+**Tracciata su GitHub**: epic [#244](https://github.com/DegrassiAaron/refactor-tactics-main/issues/244), con
+11 checkpoint (`CP 34.1`–`34.11`) e 4 prototipi personaggio. Le candidature per l'intero roster stanno in
+[`../characters/matrici-stati-personaggio.md`](../characters/matrici-stati-personaggio.md); l'ordine dei
+prototipi va **dal più leggero al più invasivo** — `Riva · Flow` non tocca alcun sistema condiviso,
+`Bastion · Bulwark` tocca cover, LOS, collisione e pathing.
+
 ---
 
 ## Cosa questo documento non decide
