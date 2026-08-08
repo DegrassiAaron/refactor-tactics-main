@@ -10,6 +10,8 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexCoverLibrary.h"
+#include "Map/RTHexDoorLibrary.h"
 #include "Map/RTCellId.h"
 #include "Terrain/RTTerrainLibrary.h"
 #include "Terrain/RTTerrainData.h"
@@ -344,6 +346,161 @@ bool FRTShowcaseLiteDeterminismTest::RunTest(const FString&)
 			TestEqual(TEXT("stato finale dell'unita'"), Second.FinalState[I], First.FinalState[I]);
 		}
 	}
+
+	return true;
+}
+
+// =====================================================================================================
+// Relay Basin — la mappa CANONICA della showcase (RT_Showcase_Relay_v01)
+//
+// Non sostituisce l'arena Lite: quella e' un esagono simmetrico di raggio 5 che serve al determinismo,
+// questa e' la mappa degli 8 turni. Convivono perche' rispondono a due domande diverse — «l'esito e'
+// riproducibile?» e «il gioco sa mostrare cio' che dice di essere?».
+//
+// Il layout e' AUTORATO (docs/product/showcase-v0.1.md §2): la spec di scenario dichiarata dall'handoff
+// non esiste nel repository. Questo test e' cio' che impedisce alla mappa di derivare in silenzio.
+// =====================================================================================================
+namespace
+{
+	/** Le celle non-`Floor` del Relay Basin. Ogni cella compare UNA volta sola: e' la verifica di coerenza
+	 *  richiesta dall'handoff §7, e qui e' una proprieta' del tipo, non un controllo da ricordare. */
+	TArray<FRTShowcaseExpectedSurface> BasinExpectedSurfaces()
+	{
+		return {
+			// Corridoio ovest: Flux ci passa al turno 1; `MistVeil` ne aggiunge al turno 5.
+			{ FRTCellId(-3, 0, 0), ERTHexSurface::Smoke },
+			{ FRTCellId(-2, 0, 0), ERTHexSurface::Smoke },
+			// Lane d'acqua di Riva: conduttiva, ed e' cio' che rende possibile il payoff del turno 7.
+			{ FRTCellId(-3, 1, 0), ERTHexSurface::ShallowWater },
+			{ FRTCellId(-2, 1, 0), ERTHexSurface::ShallowWater },
+			{ FRTCellId(-1, 1, 0), ERTHexSurface::ShallowWater },
+			{ FRTCellId( 0, 1, 0), ERTHexSurface::ShallowWater },
+			// Prosegue verso est: il `ConductiveNode` del turno 2 collega questa tratta all'acqua.
+			{ FRTCellId( 1, 1, 0), ERTHexSurface::Conductive },
+			{ FRTCellId( 2, 1, 0), ERTHexSurface::Conductive },
+			// Sbarra la via diretta est->Relay ai movimenti lineari: invalida il `Ram` del turno 7.
+			{ FRTCellId( 1, 0, 0), ERTHexSurface::Rough },
+			{ FRTCellId( 2, 0, 0), ERTHexSurface::Rough },
+			// Soglia est: Vektor la attraversa al turno 3 e prende `Burning`.
+			{ FRTCellId( 3, 0, 0), ERTHexSurface::Fire },
+			{ FRTCellId( 3, 1, 0), ERTHexSurface::Fire },
+			// Cresta nord-est: vantaggio GEOMETRICO, nessun bonus numerico (D-024).
+			{ FRTCellId( 2, -2, 0), ERTHexSurface::HighGround },
+			{ FRTCellId( 3, -1, 0), ERTHexSurface::HighGround },
+			// Ripiano sud: scivolata deterministica al turno 7.
+			{ FRTCellId(-1, 2, 0), ERTHexSurface::Ice },
+			{ FRTCellId( 0, 2, 0), ERTHexSurface::Ice },
+			{ FRTCellId( 1, 2, 0), ERTHexSurface::Ice },
+		};
+	}
+
+	/** Estensione di `q` per ogni riga `r`, dall'handoff §7. Somma = 45. */
+	struct FRTBasinRow { int32 R; int32 MinQ; int32 MaxQ; };
+	TArray<FRTBasinRow> BasinRows()
+	{
+		return { {-3,-1,1}, {-2,-2,2}, {-1,-3,3}, {0,-4,4}, {1,-4,4}, {2,-3,3}, {3,-2,2} };
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseBasinLayoutTest,
+	"RefactorTactics.ShowcaseRelay.BasinLayoutMatchesSpec",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShowcaseBasinLayoutTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(GetTransientPackage());
+	if (!TestNotNull(TEXT("l'arena Relay Basin esiste"), Arena))
+	{
+		return false;
+	}
+
+	// --- Forma: 45 celle su un solo layer, riga per riga -------------------------------------------
+	TestEqual(TEXT("numero di celle"), Arena->NumCells(), 45);
+	TestEqual(TEXT("un solo layer"), Arena->GetLayers().Num(), 1);
+
+	int32 Expected = 0;
+	for (const FRTBasinRow& Row : BasinRows())
+	{
+		for (int32 Q = Row.MinQ; Q <= Row.MaxQ; ++Q)
+		{
+			++Expected;
+			TestTrue(*FString::Printf(TEXT("la cella (%d,%d) appartiene alla mappa"), Q, Row.R),
+				Arena->ContainsCell(FRTCellId(Q, Row.R, 0)));
+		}
+	}
+	TestEqual(TEXT("la forma dichiarata somma a 45"), Expected, 45);
+
+	// --- Superfici dichiarate ----------------------------------------------------------------------
+	for (const FRTShowcaseExpectedSurface& Want : BasinExpectedSurfaces())
+	{
+		const FRTHexCellData* Data = Arena->FindCell(Want.Cell);
+		if (!TestNotNull(*FString::Printf(TEXT("la cella %s esiste"), *Want.Cell.ToString()), Data))
+		{
+			continue;
+		}
+		TestEqual(*FString::Printf(TEXT("superficie di %s"), *Want.Cell.ToString()),
+			static_cast<int32>(Data->Surface), static_cast<int32>(Want.Surface));
+	}
+
+	// --- I costi vengono dal CATALOGO ---------------------------------------------------------------
+	// Se la fixture incidesse i propri numeri, cambiare il catalogo terreni lascerebbe la showcase su
+	// valori morti — e nessun test se ne accorgerebbe.
+	for (const FRTCellId& Id : Arena->CellsInLayer(0))
+	{
+		const FRTHexCellData* Data = Arena->FindCell(Id);
+		if (!Data) { continue; }
+		const FRTTerrainDef Def = URTTerrainLibrary::FindTerrainDef(Data->Surface);
+		TestEqual(*FString::Printf(TEXT("costo di %s coerente col catalogo"), *Id.ToString()),
+			Data->MoveCost, Def.MoveCost);
+	}
+
+	// --- Il Relay e' pavimento libero ---------------------------------------------------------------
+	// L'obiettivo non deve stare su un terreno che lo difende o lo penalizza da solo: chi lo tiene deve
+	// averlo tenuto, non esserci capitato sopra.
+	const FRTHexCellData* Relay = Arena->FindCell(FRTCellId(0, 0, 0));
+	if (TestNotNull(TEXT("la cella del Relay esiste"), Relay))
+	{
+		TestEqual(TEXT("il Relay e' su Floor"), static_cast<int32>(Relay->Surface),
+			static_cast<int32>(ERTHexSurface::Floor));
+		TestFalse(TEXT("il Relay non blocca il movimento"), Relay->bBlocksMovement);
+	}
+
+	// --- Gate: una PORTA chiusa, non un meccanismo nuovo (CP 9.3) -----------------------------------
+	TestEqual(TEXT("il gate e' chiuso all'inizio"),
+		static_cast<int32>(URTHexDoorLibrary::DoorBetween(Arena, FRTCellId(0, 1, 0), FRTCellId(1, 1, 0))),
+		static_cast<int32>(ERTHexDoorState::Closed));
+	TestTrue(TEXT("il gate chiuso nega il passo"),
+		URTHexDoorLibrary::BlocksBetween(Arena, FRTCellId(0, 1, 0), FRTCellId(1, 1, 0)));
+	// Nei DUE versi: una porta e' un bordo, non una direzione.
+	TestTrue(TEXT("il gate nega il passo anche in senso inverso"),
+		URTHexDoorLibrary::BlocksBetween(Arena, FRTCellId(1, 1, 0), FRTCellId(0, 1, 0)));
+
+	// --- Copertura bassa sull'approccio nord al Relay (CP 9.1) --------------------------------------
+	TestEqual(TEXT("copertura bassa fra (0,-1) e il Relay"),
+		static_cast<int32>(URTHexCoverLibrary::CoverBetween(Arena, FRTCellId(0, 0, 0), FRTCellId(0, -1, 0))),
+		static_cast<int32>(ERTHexCoverType::Low));
+
+	// --- Spawn canonici ------------------------------------------------------------------------------
+	const TArray<FRTShowcaseSpawn> Spawns = URTMatchSetupLibrary::GetShowcaseRelayBasinSpawns();
+	TestEqual(TEXT("quattro unita' in campo (2v2)"), Spawns.Num(), 4);
+
+	TMap<FName, FRTCellId> ById;
+	for (const FRTShowcaseSpawn& Spawn : Spawns)
+	{
+		ById.Add(Spawn.HeroId, Spawn.Cell);
+		TestTrue(*FString::Printf(TEXT("lo spawn di %s e' dentro la mappa"), *Spawn.HeroId.ToString()),
+			Arena->ContainsCell(Spawn.Cell));
+		const FRTHexCellData* Data = Arena->FindCell(Spawn.Cell);
+		if (Data)
+		{
+			TestEqual(*FString::Printf(TEXT("%s parte su Floor"), *Spawn.HeroId.ToString()),
+				static_cast<int32>(Data->Surface), static_cast<int32>(ERTHexSurface::Floor));
+		}
+	}
+
+	TestEqual(TEXT("Flux allo spawn dichiarato"),    ById.FindRef(TEXT("Hero.Flux")),    FRTCellId(-4, 0, 0));
+	TestEqual(TEXT("Riva allo spawn dichiarato"),    ById.FindRef(TEXT("Hero.Riva")),    FRTCellId(-4, 1, 0));
+	TestEqual(TEXT("Bastion allo spawn dichiarato"), ById.FindRef(TEXT("Hero.Bastion")), FRTCellId( 4, 0, 0));
+	TestEqual(TEXT("Vektor allo spawn dichiarato"),  ById.FindRef(TEXT("Hero.Vektor")),  FRTCellId( 4, 1, 0));
 
 	return true;
 }
