@@ -165,35 +165,39 @@ Ordinato **secondo la roadmap reale**, non per dominio: ogni voce è una fetta v
 | **Test** | `Scenario.LoaderResolvesNamedMap`, `Scenario.LoaderRejectsUnknownMapId` |
 | **Commit** | `feat(harness): scenari che riferiscono una fixture di mappa per nome` |
 
-### `S2-2` — Gli intent sanno esprimere **tutti gli slot** che un giocatore pianifica
+### `S2-2` — Quel che manca agli intent, dopo la seconda lettura
 
-> *Riscritta il 2026-08-08 dopo `/sc:spec-panel`. La prima stesura proponeva un solo campo `ability` con un
-> `targetCell`, e non sarebbe bastata: gli otto turni usano quasi solo **bersagli-unità**, e un intent non è
-> un'azione — sono **quattro slot indipendenti**.*
+> *Riscritta due volte. La prima proponeva un campo `ability` con `targetCell`; la seconda quattro slot
+> nominati. Nel frattempo **una parte è atterrata** da un'altra sessione, e questa versione tiene solo il
+> residuo — verificato contro il codice il 2026-08-08.*
+
+**Già fatto, e converso da solo.** Il codice atterrato risolve l'abilità per `ActionId` (non per indice) e
+lascia cooldown, portata e LOS al gioco — le stesse due scelte del panel, con la stessa motivazione scritta
+nei commenti. `Validate()` controlla inoltre che `Target` sia un'unità schierata e non sé stessa, quindi un
+id sbagliato è già `ERROR` **al caricamento**. Tutto questo esce dallo scope.
 
 | | |
 |---|---|
-| **Goal** | Un intent esprime ciò che un giocatore dichiara in un turno: movimento, azione principale, dash, reazione |
-| **Forma** | `{ "unit", "move": [...], "main": { "actionId", "targetUnit" \| "targetCell" }, "dash": { "actionId", "cell" }, "reaction": { "actionId" } }` |
-| **Scope** | Estensione di `FRTScenarioIntent` · risoluzione `actionId → indice` sul **kit dell'eroe** · `URTCatalogLibrary::ValidateActionSlots` applicata agli intent · il runner li instrada nello **stesso** percorso di pianificazione del giocatore |
-| **Non-goals** | Reaction **policy** e finestre (`S5-1`/E14) · facing (**E16**, non `S2-3`) · `PlannedCleansePriority` · `preCommitValidation` · reset dei piani nel runner *(vedi nota)* |
-| **Dipende da** | `S2-1` ✅ |
-| **Acceptance** | 1. `actionId` fuori catalogo **o fuori dal kit dell'eroe** → **`ERROR`** col nome<br>2. azione in **cooldown** → si risolve col `Fallback` dichiarato, **non** `ERROR`: è comportamento del gioco, non difetto dello scenario<br>3. due azioni principali nello stesso turno → **`ERROR`**<br>4. **primaria**: asserzioni sull'**effetto** (danno applicato, stato, voci di TurnLog attese)<br>5. **complemento**: piano da scenario e piano scritto sui campi di `ARTUnit` → stesso `LogHash` |
-| **Test** | `Scenario.AbilityIntentAppliesExpectedEffect` · `.UnknownActionIdIsError` · `.ActionNotInHeroKitIsError` · `.CooldownFallsBackNotErrors` · `.TwoMainActionsIsError` · `.AbilityIntentMatchesDirectPlanHash` |
-| **Sblocca** | **T3** e **T7** per intero · **T5 solo in parte**: gate e `GraphRevision` sì, la *correzione del piano* no — richiede `preCommitValidation`, che è fuori scope |
-| **Commit** | `feat(harness): intent a slot nominati negli scenari` |
+| **Goal** | Completare gli intent con ciò che gli otto turni chiedono e che il codice non esprime |
+| **Scope** | **1.** `targetCell` accanto a `targetUnit` — `CreateWater` r1 e le AoE bersagliano una **cella**<br>**2.** slot **`dash`** — `PassingBlade` è mobilità della fase Dash (T3)<br>**3.** slot **`reaction`** — `Deflection` si dichiara in planning, è E5 automatica (T5)<br>**4.** abilità **fuori dal kit → `ERROR`**, non log + `FAIL`<br>**5.** bersaglio **morto** → voce nel report, non scarto silenzioso |
+| **Non-goals** | Reaction **policy** e finestre (`S5-1`/E14) · facing (**E16**) · `PlannedCleansePriority` · `preCommitValidation` · reset dei piani (`S2-2b`) |
+| **Dipende da** | `S2-1` ✅ · lo slot `dash` dipende da **`SLOT-2`**, vedi sotto |
+| **Acceptance** | 1. `actionId` fuori catalogo o **fuori dal kit** → **`ERROR`** col nome, non un `FAIL` sui danni<br>2. bersaglio già abbattuto → l'intent non parte **e il report lo dice**<br>3. cooldown → `Fallback` dichiarato, mai `ERROR` *(già vero)*<br>4. **primaria**: asserzioni sull'**effetto** (danno, stato, voci di TurnLog)<br>5. **complemento**: piano da scenario e piano scritto sui campi di `ARTUnit` → stesso `LogHash` |
+| **Test** | `Scenario.ActionNotInHeroKitIsError` · `.DeadTargetIsReported` · `.CellTargetedAbilityAppliesToCell` · `.DashIntentResolvesInDashPhase` · `.ReactionIntentIsDeclaredInPlanning` · `.AbilityIntentMatchesDirectPlanHash` |
+| **Sblocca** | **T7** per intero · **T3** dopo `SLOT-2` · **T5 in parte**: gate e `GraphRevision` sì, la *correzione del piano* no — richiede `preCommitValidation`, fuori scope |
+| **Commit** | `feat(harness): bersaglio a cella, slot dash e reazione negli intent` |
 
-**Perché l'acceptance 4 viene prima della 5.** Il confronto di `LogHash` confronta lo scenario con un piano
-scritto a mano **nel test**: se entrambi sbagliano allo stesso modo — per esempio saltando una validazione che
-il controller fa — resta verde e misura due percorsi ugualmente falsi. Da solo è un test che si guarda allo
-specchio. Le asserzioni sull'effetto dicono *cosa deve succedere*; l'hash cattura le derive.
+**Perché l'acceptance 4 viene prima della 5.** Il confronto di `LogHash` mette lo scenario contro un piano
+scritto a mano **nel test**: se entrambi sbagliano allo stesso modo resta verde e misura due percorsi
+ugualmente falsi. Da solo è un test che si guarda allo specchio. Le asserzioni sull'effetto dicono *cosa deve
+succedere*; l'hash cattura le derive.
 
-> **Nota — il reset dei piani è fuori scope, e non è più un rischio.** La prima stesura del panel lo dava per
-> difetto latente («il runner azzera solo il movimento»). **Falso**: il resolver consuma i piani in otto punti
-> e `ARTUnit::PlaceOnCell` riallinea il movimento. L'invariante è ora **pinnata** da
-> `Turn.PlansDoNotSurviveTheTurn` e `Turn.DiscardedPlanDoesNotSurviveTheTurn`, verificate con mutazione. Il
-> reset nel runner risulta quindi **ridondante, non divergente**: toglierlo è una pulizia a effetto nullo e
-> vive come voce a sé (`S2-2b`), non dentro S2-2.
+> **L'ordine con `SLOT-2` non è negoziabile.** Aggiungere lo slot `dash` **prima** che
+> [D-028](../../decisions/RT_PDR_00_Decision_Log.md) sia nel codice significa scrivere scenari in cui `Dash`
+> occupa la principale — e riscriverli tutti quando la migrazione atterra. Con `Ability` + `Target` il problema
+> non esisteva: c'è **un solo** campo, quindi due azioni principali non erano nemmeno esprimibili. È lo slot
+> `dash` che lo apre.
+
 
 ### `S2-2b` — Togliere il reset ridondante dei piani nel runner *(pulizia, non bloccante)*
 
@@ -205,7 +209,33 @@ specchio. Le asserzioni sull'effetto dicono *cosa deve succedere*; l'hash cattur
 | **Acceptance** | Suite invariata; `Turn.PlansDoNotSurvive*` restano verdi senza il reset |
 | **Rischio** | Nullo oggi, misurato: nessun comportamento dipende da quel reset |
 
-### `SLOT-1` — Gli slot per turno sono una regola che nessuno fa rispettare *(non è lavoro di showcase)*
+### `SLOT-1` — ✅ **CHIUSA il 2026-08-08** da [D-028](../../decisions/RT_PDR_00_Decision_Log.md)
+
+> **Non era la regola a non essere applicata: era lo slot sbagliato.**
+>
+> `Dash`, `Leap` e `Reposition` passano allo slot **movimento**; `Charge` resta principale perché è **un
+> attacco**. Un turno dà un movimento e un'azione principale, e si sceglie **quando** muoversi: *schivo e
+> sparo* oppure *sparo e muovo*.
+>
+> Il gioco faceva già la cosa giusta — controller e bot permettevano scatto + attacco — con la regola
+> sbagliata scritta accanto. **Applicare `ValidateActionSlots` così com'era avrebbe rotto il gioco per
+> difendere il documento.** È il motivo per cui la verifica è partita dalla domanda «cosa dice la
+> documentazione» invece che «come lo faccio rispettare».
+>
+> Risolve anche la nota `#145`: `Dash + attacco` e `Charge` non sono più la stessa cosa a prezzi diversi.
+>
+> ⏳ **Resta la migrazione del codice** — voce `SLOT-2` qui sotto.
+
+### `SLOT-2` — Migrare gli slot della mobilità *(codice, non showcase)*
+
+| | |
+|---|---|
+| **Goal** | Il codice applica [D-028](../../decisions/RT_PDR_00_Decision_Log.md) |
+| **Scope** | `Action.Dash`, `Action.Leap`, `Action.Reposition` → `ERTActionSlot::Movement` · `Action.Sprint` → `Movement` (oggi `MovementAndMain`) · `Charge` invariato · **rimuovere l'implementazione di dash + move** in `RTTurnManager` (che oggi conserva `PlannedCell` dopo lo scatto) · chiamare `ValidateActionSlots` in pianificazione |
+| **Non-goals** | Ribilanciare `Charge` e `Sprint`: sono numeri da playtest, non struttura |
+| **Acceptance** | `Dash` + attacco legale · `Dash` + `Move` **rifiutato** con reason · `Charge` + `Move` legale · `Charge` + attacco rifiutato · l'eccezione dichiarata da un kit continua a valere |
+| **Rischio dichiarato** | Il bot oggi pianifica scatto + attacco di proposito e la nota `#145` dice che «domina sempre la carica». Con gli slot corretti la combinazione resta legale, quindi il bot non cambia comportamento — ma `Charge` va **rimisurata**: se resta dominata è un problema di numeri, non di regole |
+| **Test** | `Actions.DashLeavesMainAvailable` · `Actions.DashAndMoveIsRejected` · `Actions.ChargeLeavesMovementAvailable` · `Actions.KitExceptionAllowsDashAndMove` |
 
 > Aperto il **2026-08-08** verificando se `S2-2` potesse appoggiarsi a `ValidateActionSlots`. Registrato in
 > [`../../DOC_CONFLICT_MATRIX.md`](../../DOC_CONFLICT_MATRIX.md) riga 43, stato **`OPEN`**.

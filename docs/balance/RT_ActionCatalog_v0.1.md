@@ -34,18 +34,23 @@ di movimento qui sotto dichiara esplicitamente quale delle due. Motivazione in [
 
 | Slot | Quantità | Esempi |
 |---|---|---|
-| Movimento | 1 | `Move` — nei profili `Sneak`/`Move`/`Sprint` (§2.1) |
-| Azione principale | 1 | `BasicAttack`, `Dash`, `Guard`, `Heal`, **`Overwatch`** — mai due insieme |
+| Movimento | 1 | `Move` nei profili `Sneak`/`Move`/`Sprint` (§2.1) · `Dash`, `Leap`, `Reposition` (§2.2) |
+| Azione principale | 1 | `BasicAttack`, `Charge`, `Guard`, `Heal`, **`Overwatch`** — mai due insieme |
 
-> ⚠️ **Questa regola oggi non è fatta rispettare in partita** (verificato il 2026-08-08).
-> `URTCatalogLibrary::ValidateActionSlots` la implementa correttamente, ma **nessuno la chiama nel gioco**:
-> solo due test. `ARTPlayerController` imposta `PlannedDashAbility` e `PlannedAbilityIndex` senza azzerare
-> l'altro, e il bot pianifica **scatto + attacco** di proposito — pur occupando entrambi lo slot principale.
+> **Un movimento e un'azione principale** — e si sceglie **quando** ci si muove
+> ([D-028](../decisions/RT_PDR_00_Decision_Log.md)):
 >
-> Chi legge questa tabella deve saperlo: descrive la regola **decisa**, non ciò che la partita impedisce.
-> Aperta in [`../DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md) riga 43 e in
-> [`../roadmap/plans/showcase-v01-audit.md`](../roadmap/plans/showcase-v01-audit.md) §`SLOT-1`: la scelta è
-> fra applicarla e cambiare gli slot del catalogo.
+> ```text
+> schivo e sparo   ->  Dash (movimento, fase Dash)  +  Attacco (principale, Blast)
+> sparo e muovo    ->  Attacco (principale, Blast)  +  Move (movimento, fase Move)
+> ```
+>
+> Stessi due slot, ordine diverso: ci si muove **prima** dei colpi per schivare, o **dopo** per ripararsi.
+> Nessuna delle due domina l'altra, ed è il motivo per cui lo scatto **non** occupa la principale.
+>
+> ⏳ **Nel codice la migrazione non è avvenuta**: `Action.Dash` è ancora `Principale` e `ValidateActionSlots`
+> non è chiamata in partita. Finché resta così questa tabella descrive la regola **decisa**, non ciò che la
+> partita impedisce — [`../DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md) riga 43.
 | Reazione | 1 | `Counter`, `Intercept`, `Deflect` |
 | Comunicazione | — | Ping, label |
 
@@ -163,21 +168,31 @@ permette di sparare da un'altra posizione nello stesso turno, che è precisament
 > reazione. Nel modello a profili non può diventare un potenziamento gratuito del `Move`: se perde il costo di
 > slot deve conservare un costo, altrimenti nessuno sceglierebbe più `Move`.
 
-### 2.2 Mobilità speciali — slot **Principale**, fase **Dash**
+### 2.2 Mobilità speciali — fase **Dash**
 
 `Dash` · `Charge` · `Leap` · `Reposition` risolvono in macro-fase **Dash**, prima del Blast: riposizionarsi in
 fretta è ciò che permette di sparare da un'altra parte nello stesso turno.
 
+**Ma non occupano tutte lo stesso slot** ([D-028](../decisions/RT_PDR_00_Decision_Log.md)): `Dash`, `Leap` e
+`Reposition` sono **movimento** — schivi e ti resta l'azione principale, ma non ti muovi ancora. `Charge` è
+**un attacco** che ti porta addosso al bersaglio: occupa la **principale**, e il movimento ti resta.
+
 | ActionId | Azione | Slot | Macro-fase | Cod. | Prio | Distanza | CD | Fallback | Interr. |
 |---|---|---|---|---:|---:|---|---:|---|---|
 | `Action.Sprint` *(vedi §2.1)* | Scatto lungo | Movimento + Principale ⚠️ | **Dash** ⚠️ | 20 | 60 | 8 MP | 0 | `Fallback.Stop` | sì |
-| `Action.Dash` | Scatto | Principale | **Dash** | 20 | 30 | 3 celle | 1 | `Fallback.Stop` | sì |
+| `Action.Dash` | Scatto | **Movimento** ⏳ | **Dash** | 20 | 30 | 3 celle | 1 | `Fallback.Stop` | sì |
 | `Action.Charge` | Carica | Principale | **Dash** | 20/30 | 35 | 3 celle | 2 | `Fallback.Stop` | sì |
-| `Action.Leap` | Balzo | Principale | **Dash** | 20 | 25 | 3 celle | 2 | `Fallback.Stop` | sì |
-| `Action.Reposition` | Riposizionamento | Principale | **Dash** | 20 | 40 | 2 celle | 1 | `Fallback.Stop` | sì |
+| `Action.Leap` | Balzo | **Movimento** ⏳ | **Dash** | 20 | 25 | 3 celle | 2 | `Fallback.Stop` | sì |
+| `Action.Reposition` | Riposizionamento | **Movimento** ⏳ | **Dash** | 20 | 40 | 2 celle | 1 | `Fallback.Stop` | sì |
 
-**Sprint** — fornisce 8 MP · consuma movimento **e** azione principale · non permette di preparare una reazione ·
-applica `Status.Exposed` fino al Cleanup (**+5** al primo danno diretto ricevuto).
+**Sprint** — fornisce 8 MP · occupa il **solo slot movimento** ([D-028](../decisions/RT_PDR_00_Decision_Log.md),
+coerente con D-015) · non permette di preparare una reazione · applica `Status.Exposed` fino al Cleanup
+(**+5** al primo danno diretto ricevuto).
+
+> ⚠️ **Il prezzo dello Sprint ora regge tutto sui dati.** Finché consumava anche l'azione principale il costo
+> era strutturale; adesso è `Exposed` più la rinuncia alla reazione. Se non basta, `Sprint` diventa un `Move`
+> più lungo e basta — cioè l'**upgrade puro** che D-015 vieta. **Numero da guardare al primo playtest**, non
+> da decidere a tavolino.
 
 **Dash** — movimento lineare lungo una delle **sei** direzioni · non consuma il percorso `Move` (quindi è
 compatibile con esso) · non attraversa muri o coperture alte · non può terminare in una cella occupata.

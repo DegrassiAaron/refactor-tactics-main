@@ -35,7 +35,7 @@
 > **Non** si costruisce l'intero framework di trappole per la showcase: una sola fetta verticale, con il suo
 > scenario automatico.
 > **Epic**: **E15** di [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) §5 · **CP 15.1–15.5**
-> **Sorgente**: [`../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md`](../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md)
+> **Sorgente**: [`../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md`](../src/showcase/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md)
 > (handoff del 2026-08-07, consolidato qui — in caso di conflitto prevale questo file)
 
 Questo documento tiene separate tre cose che è facile confondere: **cosa il codice fa già**, **cosa la
