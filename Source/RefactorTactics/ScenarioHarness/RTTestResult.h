@@ -44,6 +44,13 @@ struct FRTTestResult
 	/** Motivo leggibile, valorizzato solo quando `Outcome == Error`. */
 	FString ErrorMessage;
 
+	/**
+	 * Perche' lo scenario si e' fermato, valorizzato solo quando `Outcome == Blocked`: nomina la **capability
+	 * mancante** e il turno che la chiedeva. Senza il nome, un BLOCKED direbbe solo «non tutto e' pronto», che
+	 * e' esattamente cio' che si sapeva gia'.
+	 */
+	FString BlockedReason;
+
 	int32 TurnsPlayed = 0;
 
 	/** Seed dichiarato dallo scenario. Registrato nel report anche se oggi nessun RNG lo consuma. */
@@ -77,9 +84,10 @@ struct FRTTestResult
 	{
 		switch (Outcome)
 		{
-		case ERTTestOutcome::Pass:  return TEXT("PASS");
-		case ERTTestOutcome::Fail:  return TEXT("FAIL");
-		default:                    return TEXT("ERROR");
+		case ERTTestOutcome::Pass:    return TEXT("PASS");
+		case ERTTestOutcome::Fail:    return TEXT("FAIL");
+		case ERTTestOutcome::Blocked: return TEXT("BLOCKED");
+		default:                      return TEXT("ERROR");
 		}
 	}
 };

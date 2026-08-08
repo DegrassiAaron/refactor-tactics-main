@@ -5,6 +5,7 @@
 // piu' tempo di quanto il test ne faccia risparmiare.
 
 #include "Misc/AutomationTest.h"
+#include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -134,6 +135,13 @@ bool FRTScenarioLoaderShippedScenariosTest::RunTest(const FString&)
 
 	for (const FString& File : Files)
 	{
+		// I file `_*.json` non sono scenari (la tabella di redirect vive li' accanto): stessa convenzione
+		// che usa la scansione dell'indice, e va ripetuta qui o questo test fallirebbe sulla tabella.
+		if (FPaths::GetCleanFilename(File).StartsWith(TEXT("_")))
+		{
+			continue;
+		}
+
 		FRTTestScenario Scenario;
 		FString Error;
 		const bool bOk = URTScenarioLoader::LoadFromFile(File, Scenario, Error);
@@ -144,10 +152,19 @@ bool FRTScenarioLoaderShippedScenariosTest::RunTest(const FString&)
 			continue;
 		}
 
-		// L'ID deve corrispondere al percorso: altrimenti `rt.Test.Run <id>` non troverebbe il file.
-		const FString Expected = FPaths::ConvertRelativePathToFull(URTScenarioLoader::PathForScenarioId(Scenario.ScenarioId));
-		TestEqual(FString::Printf(TEXT("%s: l'id corrisponde al percorso"), *Scenario.ScenarioId),
-			FPaths::ConvertRelativePathToFull(File), Expected);
+		// T1 — L'ID deve riportare a QUESTO file passando per l'indice: altrimenti `rt.Test.Run <id>` non
+		// troverebbe il file. Da quando le cartelle sono libere l'invariante non e' piu' «l'id e' il
+		// percorso» ma «l'id risolve al percorso», e questa e' piu' forte: fallisce anche quando due file
+		// dichiarano lo stesso ID, caso che il confronto con il percorso non poteva vedere.
+		FString ResolveError;
+		const FString Resolved = URTScenarioIndex::ResolvePath(Scenario.ScenarioId, ResolveError);
+		if (!TestFalse(FString::Printf(TEXT("%s: l'indice lo risolve"), *Scenario.ScenarioId), Resolved.IsEmpty()))
+		{
+			AddError(FString::Printf(TEXT("%s -> %s"), *Scenario.ScenarioId, *ResolveError));
+			continue;
+		}
+		TestEqual(FString::Printf(TEXT("%s: l'id risolve a questo file"), *Scenario.ScenarioId),
+			Resolved, FPaths::ConvertRelativePathToFull(File));
 	}
 	return true;
 }

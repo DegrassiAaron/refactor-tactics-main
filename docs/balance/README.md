@@ -1,28 +1,65 @@
 # Cataloghi di bilanciamento v0.1
 
-I **numeri vigenti** della release v0.1, in Markdown versionato e diffabile: il bilanciamento si revisiona in PR,
-non riaprendo un PDF. Le *decisioni* restano nel canone ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md)),
-lo *stato di avanzamento* nella [roadmap](../roadmap/roadmap-checkpoint.md).
+> `CANONICAL` per i **numeri** · **Ultimo aggiornamento**: 2026-08-08
+>
+> I valori vigenti della v0.1, in Markdown versionato e diffabile: il bilanciamento si revisiona in PR, non
+> riaprendo un PDF. Le **decisioni** restano nel canone
+> ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md)); lo **stato di avanzamento** nella
+> [roadmap](../roadmap/roadmap-checkpoint.md) — questo README non lo duplica più.
 
-| File | Contenuto | Implementato da |
+## Quali file sono normativi
+
+| File | Possiede | Autorevole? |
 |---|---|---|
-| [`RT_ActionCatalog_v0.1.md`](RT_ActionCatalog_v0.1.md) | ~35 azioni con ID stabile, macro-fase, priorità, range, costo, cooldown, fallback, interrompibilità | E4 (motore azioni), E5 (reazioni) |
-| [`RT_TerrainCatalog_v0.1.md`](RT_TerrainCatalog_v0.1.md) | 8 terreni, stati ambientali, coperture e strutture | E8 (ambiente), E9 (strutture) |
-| [`RT_EquipmentCatalog_v0.1.md`](RT_EquipmentCatalog_v0.1.md) | Varianti arma, gadget, moduli di reazione | E7 (equipaggiamento) |
-| [`RT_HeroCatalog_v0.1.md`](RT_HeroCatalog_v0.1.md) | Flux, Riva, Bastion, Vektor: statistiche, abilità, varianti, loadout | E6 (roster) |
-| [`RT_TestMatrix_v0.1.md`](RT_TestMatrix_v0.1.md) | Collisioni, combo, test manuali e automatici, comandi di debug | E12 (QA e release) |
+| [`RT_ActionCatalog_v0.1.md`](RT_ActionCatalog_v0.1.md) | ~35 azioni: ID stabile, macro-fase, priorità, range, costo, cooldown, fallback, interrompibilità | ✅ **sì** |
+| [`RT_HeroCatalog_v0.1.md`](RT_HeroCatalog_v0.1.md) | Flux · Riva · Bastion · Vektor: statistiche, abilità, varianti, loadout | ✅ **sì** |
+| [`RT_TerrainCatalog_v0.1.md`](RT_TerrainCatalog_v0.1.md) | 8 terreni, stati ambientali, coperture e strutture | ✅ **sì** |
+| [`RT_EquipmentCatalog_v0.1.md`](RT_EquipmentCatalog_v0.1.md) | Varianti arma, gadget, moduli di reazione | ✅ **sì** |
+| [`RT_TestMatrix_v0.1.md`](RT_TestMatrix_v0.1.md) | Requisito → test → criterio di accettazione | ✅ come **mappa dei test**, non come stato |
+| `RefactorTactics_Balance_Matrices_v0.1.xlsx` | Matrici di esplorazione | ❌ **no** — `RESEARCH`, vedi sotto |
 
-**Fonte**: `docs/src/RefactorTactics — Catalogo e bilanciamento v0.1.pdf` e `docs/archive/pdr-v0.1/RT_PDR_12_Catalog_v0.1.pdf`,
-adottati con [ADR-0003](../decisions/adr-0003-modello-azioni-v01.md).
+## ⚠️ Il workbook non è una fonte
 
-## Due avvertenze per chi legge
+`RefactorTactics_Balance_Matrices_v0.1.xlsx` è **`RESEARCH`** ([D-023](../decisions/RT_PDR_00_Decision_Log.md)).
+**Non si usa per risolvere un conflitto contro i cataloghi `.md`.** Quando i due divergono, vince il Markdown —
+sempre, senza discutere quale sia più recente.
 
-1. **Questi documenti descrivono il bersaglio, non l'esistente.** Ogni file dichiara in testa cosa è già in
-   codice e cosa no. Al 2026-08-06 il gioco ha due archetipi (non quattro eroi), nessun effetto attivo sulle
-   superfici e nessuna copertura direzionale.
-2. **Le divergenze rispetto ai PDF sono elencate in fondo a ogni file**, con il motivo. La più importante:
-   le macro-fasi restano quelle di Atlas Reactor (`Prep → Dash → Blast → Move`, **Move dopo il Blast**), mentre
-   il catalogo metteva il movimento prima dell'attacco — i codici di fase del catalogo sopravvivono come
-   attributo dell'azione ([ADR-0003 §3](../decisions/adr-0003-modello-azioni-v01.md)).
+Contiene ancora, e sono tutte esplorazioni superate:
 
-Dove un numero **manca nella fonte**, il file lo dichiara «non specificato» invece di inventarlo.
+| Foglio | Cosa dice | Perché non vale |
+|---|---|---|
+| `02_Roster` | banca archetipi Paragon | il roster è Flux · Riva · Bastion · Vektor |
+| `06_Abilita_VS` | Steel · Aurora · Murdock · Kwang | personaggi mai adottati |
+| `07_Fast_Reactions` | finestra **5–7 s** | la baseline è **3,0 s** ([ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) §8) |
+| `15_Azioni_Turni` | `FastReaction_sec = 6`; planning 35/35/40; `Max_Turni = 12` | `RoundLimit` è un parametro di formato ([D-010](../decisions/RT_PDR_00_Decision_Log.md)), non una costante |
+| note percezione | «360° base, coni solo Overwatch/sensori» | incompatibile con [ADR-0005](../decisions/adr-0005-orientamento.md): il cono frontale è generale |
+
+**Non correggerlo cella per cella.** Un workbook rattoppato diventerebbe una falsa fonte corrente, che è
+peggio di uno dichiaratamente vecchio. Un eventuale `v0.2` andrà **derivato** dai cataloghi Markdown,
+versionato e validato — idealmente generato, così che non possa più divergere da solo.
+
+## Come si cambia un valore
+
+1. **Trova l'owner.** Un numero vive in **un** catalogo. Se lo trovi in due, è un difetto: apri una issue,
+   non aggiornarne uno solo.
+2. **Cambialo lì**, in PR, con il motivo nel messaggio di commit.
+3. **Aggiorna il codice** se il valore è già consumato: i cataloghi sono la fonte, ma non si applicano da soli.
+   Cerca lo Stable ID (`grep -rn "Action.Sprint" Source/`) prima di dichiarare fatto.
+4. **Aggancialo a una verifica.** Un valore senza consumatore è il difetto ricorrente di questo progetto: se
+   nessun test e nessun playtest lo tocca, è un numero che *sembra* deciso. Registra il test in
+   [`RT_TestMatrix_v0.1.md`](RT_TestMatrix_v0.1.md), o la voce di taratura in
+   [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) sotto «Da playtestare».
+
+Dove un numero **manca nella fonte**, il file lo dichiara *non specificato*. Non lo si inventa: un numero
+plausibile scritto in un catalogo autorevole è indistinguibile da uno deciso.
+
+## Divergenze dai PDF di origine
+
+Elencate in fondo a ogni file, col motivo. La principale: le macro-fasi restano quelle di *Atlas Reactor*
+(`Prep → Dash → Blast → Move`, **Move dopo il Blast**), mentre il catalogo PDR metteva il movimento prima
+dell'attacco. I codici di fase del catalogo sopravvivono come attributo dell'azione
+([ADR-0003 §3](../decisions/adr-0003-modello-azioni-v01.md)).
+
+**Fonte**: `docs/src/RefactorTactics — Catalogo e bilanciamento v0.1.pdf` e
+`docs/archive/pdr-v0.1/RT_PDR_12_Catalog_v0.1.pdf`, adottati con
+[ADR-0003](../decisions/adr-0003-modello-azioni-v01.md).

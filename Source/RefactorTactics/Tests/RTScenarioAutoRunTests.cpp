@@ -201,6 +201,58 @@ bool FRTScenarioOptionsAreRealFilesTest::RunTest(const FString&)
 }
 
 /**
+ * I filtri restringono la tendina, e NON toccano la selezione.
+ *
+ * Sono una vista, non un vincolo: filtrare dice «cosa sto cercando adesso», non «a cosa questo scenario
+ * appartiene». Uno scenario gia' scelto deve restare scelto anche mentre i filtri mostrano altro —
+ * azzerarlo sarebbe un modo elaborato di perdere una configurazione salvata nel `.uasset`.
+ *
+ * E' anche la ragione per cui non esiste piu' un errore di «category mismatch»: con una lente non c'e'
+ * niente da cui uno scenario possa essere incoerente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioOptionsFilterTest,
+	"RefactorTactics.Scenario.AutoRunOptionsAreFilteredByTags",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioOptionsFilterTest::RunTest(const FString&)
+{
+	UWorld* World = MakeAutoRunWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("game mode"), GameMode)) { DestroyAutoRunWorld(World); return false; }
+
+	const TArray<FString> SenzaFiltri = GameMode->GetScenarioOptions();
+
+	// Il vocabolario dei filtri viene dai file, con la voce vuota in testa per non filtrare.
+	const TArray<FString> Vocabolario = GameMode->GetScenarioTagOptions();
+	const bool bVocabolarioOk = Vocabolario.Num() > 1 && Vocabolario[0].IsEmpty();
+	TestTrue(TEXT("il vocabolario dei tag ha la voce vuota in testa"), bVocabolarioOk);
+	TestTrue(TEXT("'movement' e' fra i filtri offerti"), Vocabolario.Contains(TEXT("movement")));
+
+	// Uno scenario scelto PRIMA di filtrare: e' quello che non deve muoversi.
+	GameMode->ScenarioToRun = TEXT("Combat.BasicAttack");
+
+	GameMode->ScenarioFilterA = TEXT("movement");
+	const TArray<FString> Filtrato = GameMode->GetScenarioOptions();
+
+	GameMode->ScenarioFilterB = TEXT("core");
+	const TArray<FString> Incrociato = GameMode->GetScenarioOptions();
+
+	const FString SelezioneDopo = GameMode->ScenarioToRun;
+	DestroyAutoRunWorld(World);
+
+	TestTrue(TEXT("un filtro restringe il menu"), Filtrato.Num() < SenzaFiltri.Num());
+	TestTrue(TEXT("due filtri restringono ancora"), Incrociato.Num() < Filtrato.Num());
+	TestTrue(TEXT("la voce vuota resta in testa anche filtrando"), Incrociato.Num() > 0 && Incrociato[0].IsEmpty());
+	TestTrue(TEXT("Movement.Basic passa movement+core"), Incrociato.Contains(TEXT("Movement.Basic")));
+	TestFalse(TEXT("Combat.BasicAttack non passa il filtro movement"), Filtrato.Contains(TEXT("Combat.BasicAttack")));
+
+	// Il punto del test: la selezione e' sopravvissuta al filtro che la esclude dalla vista.
+	TestEqual(TEXT("filtrare non tocca lo scenario selezionato"), SelezioneDopo, FString(TEXT("Combat.BasicAttack")));
+	return true;
+}
+
+/**
  * L'override NON deve essere silenzioso.
  *
  * Una console variable dura quanto il processo dell'editor: digitata una volta resta attiva per ogni Play

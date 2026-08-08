@@ -1,6 +1,11 @@
 # ADR-0005 — Orientamento: il facing come stato di gioco derivato dal movimento
 
-> **Stato**: Accettato — da implementare · **Data**: 2026-08-07 · **Decisore**: utente (dev singolo)
+> `CANONICAL` · **Stato**: Accettato — da implementare (E16) · **Data**: 2026-08-07 · **Decisore**: utente (dev singolo)
+>
+> ⚠️ **Emendamento 2026-08-08 — [D-020](RT_PDR_00_Decision_Log.md)**: le §1 e §2 dicevano che il facing si
+> aggiorna **solo** al termine del `Move`. Non è più così: un'azione con bersaglio o direzione **orienta
+> l'unità prima di risolvere**. Vedi la nuova **§2-bis**, che nomina i sei punti della timeline. Il resto
+> dell'ADR — facing come stato di gioco, arco frontale unico, determinismo e privacy — resta invariato.
 > **Contesto sorgente**: `docs/src/RefactorTactics_ActionGhosts_Phases_FastReactions_Claude.md` §17 (campo `Facing`
 > nel view model) e [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md) §C5, che registrava il punto come aperto.
 > **Estende**: [ADR-0003](adr-0003-modello-azioni-v01.md) (stili di movimento) · [ADR-0004](adr-0004-finestre-di-reazione.md) (reazioni direzionali)
@@ -48,6 +53,39 @@ finita al turno N−1 (o dove l'ha portata il Dash del turno N).
 **Derivata, non preferita**: è la conseguenza dell'ordine delle fasi, non una regola aggiunta. Ed è
 desiderabile — ti orienti verso la minaccia che *prevedi*, e se prevedi male resti scoperto. La stessa forma
 di commitment dell'Overwatch armato.
+
+### 2-bis. Emendamento 2026-08-08 — un'azione con bersaglio orienta *prima* di risolvere
+
+Le §1 e §2 sopra sono **superate** nella parte in cui dicono che il facing cambia soltanto a fine `Move`, e che
+quindi durante il Blast del turno N l'unità guarda ancora dove l'aveva lasciata il turno N−1.
+
+**Regola ([D-020](RT_PDR_00_Decision_Log.md)).** Quando un'azione ha un bersaglio o una direzione, il
+personaggio **si orienta verso quel bersaglio/direzione prima che l'azione risolva**. Il facing resta stato di
+gioco, ma cambia **più volte dentro il round**: ogni consumatore legge il valore autorevole più recente.
+
+| Punto della timeline | Quando | Chi lo scrive |
+|---|---|---|
+| `FacingStartOfRound` | apertura del round | eredità: il `FacingFinalAfterMove` del round precedente |
+| `FacingAfterPrepActionTargeting` | fase `Prep`, azione con bersaglio | il bersaglio dichiarato |
+| `FacingAfterDash` | fase `Dash` | la direzione o il bersaglio del Dash |
+| `FacingUsedByBlast` | fase `Blast` | il bersaglio del Blast, applicato **prima** della risoluzione |
+| `FacingUsedByOverwatch` | reazione | il cono pianificato — coerente con §4c, che già lo diceva |
+| `FacingFinalAfterMove` | fase `Move` | l'ultima direzione percorsa, o la direzione finale pianificata dove il sistema la supporta |
+
+`FacingFinalAfterMove` **persiste nel round successivo** finché una nuova azione non lo cambia: è il valore che
+diventa `FacingStartOfRound`.
+
+**Cosa non cambia.** Il `Move` resta l'ultima fase volontaria, quindi il facing *finale* del round è ancora una
+scommessa su quello dopo: su questo la §2 aveva ragione, e il commitment dell'Overwatch armato resta intatto.
+Cade solo la clausola più forte — che l'unità non possa girarsi *mentre* agisce, che rendeva innaturale un
+personaggio che spara a un bersaglio guardando altrove.
+
+**Conseguenza da non perdere.** Con più valori di facing per round, snapshot e TurnLog non possono più
+registrarne **uno** per turno: devono dire *quale* valore ha usato ciascun consumatore, altrimenti il replay
+non è ricostruibile e la §5 (determinismo) diventa falsa.
+
+**Test richiesti** (E16): sequenza `Dash → Blast`; cambio di bersaglio nello stesso round; cono Overwatch;
+`Move` che fissa il facing finale; ereditarietà del facing nel round successivo.
 
 ### 3. Movimento forzato: ci si gira verso la sorgente
 

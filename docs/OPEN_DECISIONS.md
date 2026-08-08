@@ -1,6 +1,6 @@
 # Decisioni aperte
 
-> **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-07
+> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-08
 > **Cosa è**: l'elenco di ciò che **aspetta una persona**. Nessuna di queste voci può essere chiusa
 > deducendola dai documenti: o mancano i dati, o due fonti si contraddicono senza gerarchia.
 > **Cosa non è**: il registro delle decisioni prese — quello è il
@@ -48,6 +48,7 @@ Owner: [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) §9. Non
 | Direzione artistica | inesistente; si usano placeholder e asset Paragon |
 | Hardware target | mai definito → i budget KPI restano **da misurare**, non garanzie |
 | Identità originale (nomi, lore) | necessaria per una pubblicazione |
+| **Mapping visuale Paragon → roster** | **aperta**. Le guide asset descrivono ancora Gideon/Sparrow (Guardian/Ranger); il roster canonico è Flux · Riva · Bastion · Vektor. Nessuna corrispondenza è stata decisa: non si rinomina per plausibilità — vedi [ADR-0001](decisions/adr-0001-skeletal-unit.md) e [`technical/guida-animazioni-paragon.md`](technical/guida-animazioni-paragon.md) |
 
 ## Assunzioni da bloccare
 
@@ -57,7 +58,11 @@ arriva; finché non arriva, nessun documento deve trattarle come vincolanti.
 | ID | Assunzione | Cosa la consolida |
 |---|---|---|
 | [`D-001`](decisions/RT_PDR_00_Decision_Log.md) | Formato principale **3v3** | La prima misura reale su una partita ≥3v3. Oggi non esiste: la v0.1 misura la banda **2v2** |
-| [`D-007`](decisions/RT_PDR_00_Decision_Log.md) | UE **5.8** baseline | Formalizzazione a *Consolidata*: nel repo la patch è di fatto bloccata a **5.8.1** |
+
+`D-007` (baseline motore) **non è più qui**: chiusa il 2026-08-08 come
+[`D-022`](decisions/RT_PDR_00_Decision_Log.md) — **UE 5.8.1**, upgrade solo fra milestone e con migrazione
+esplicita. Era il caso opposto a `D-001`: non mancava la misura, mancava solo la formalizzazione di un vincolo
+che il repository applicava già.
 
 ## Da playtestare — non decisioni, tarature
 

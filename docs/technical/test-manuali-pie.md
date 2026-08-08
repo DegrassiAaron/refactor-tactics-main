@@ -1,5 +1,6 @@
 # Test manuali (PIE) — verifiche interattive da eseguire
 
+> `CURRENT` · **Ultimo aggiornamento**: 2026-08-08 · **Owner**: questo file — è il **registro** delle verifiche interattive.
 > Verifiche che richiedono l'editor UE (PIE, mouse, asset) e **non** sono automatizzabili headless.
 > **Complementari** ai test Automation (suite integrata **bot + hex** su `main`, tutti verdi). Parte del DoD «playtest ogni incremento» (roadmap §QA).
 > Regola: una voce è ✅ **solo dopo** verifica reale in PIE — non «dovrebbe funzionare».
@@ -49,8 +50,11 @@
 
 ## Stato in numeri — 2026-08-08
 
-**74 voci**: ✅ **25 verdi** · 🟡 **17 parziali** (regola coperta da test, resta il visivo) · ⏳ **32 aperte**.
-*(Rimisurate col comando qui sotto dopo la verifica di `PIE-TEST-AUTORUN`.)*
+**76 voci**: ✅ **27 verdi** · 🟡 **18 parziali** (regola coperta da test, resta il visivo) · ⏳ **31 aperte**.
+*(Rimisurate col comando qui sotto il 2026-08-08, dopo `PIE-SCEN-FILTER`/`PIE-SCEN-KEEP`, entrambe verdi. Il
+totale precedente era giusto — 74 — ma la ripartizione citata «17/32» non lo era: il comando su quel testo
+dava già **18/31**. Confermo la lezione di sotto: il numero si ricalcola, e anche le **quote** vanno lette dal
+comando.)*
 
 > **Perché questo numero era rotto** (issue #192): due sessioni parallele hanno misurato lo stesso file in
 > momenti diversi — «67 voci: 22/15/30» e «65 voci: 23/16/26» — e il merge ha lasciato **entrambe** le versioni
@@ -70,18 +74,23 @@ awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);
   docs/technical/test-manuali-pie.md
 ```
 
-Le 33 aperte in sette gruppi, più un residuo (la somma è verificata: 2+9+9+4+3+1+2+3 = 33):
+Le 31 aperte in sette gruppi (la somma è verificata contro il conteggio misurato sopra: 3+9+9+4+3+1+2 = 31):
+
+> ⚠️ **Nota di metodo.** Fino al 2026-08-08 questa riga diceva «le **31** aperte in sei gruppi», con
+> una somma «verificata» di `2+9+9+4+4+1+2 = 31`, mentre poche righe sopra il conteggio **misurato** ne
+> diceva 34. La somma tornava **con sé stessa**: è il modo più facile di sembrare verificati senza esserlo.
+> La regola è che questa ripartizione deve coincidere col conteggio misurato sopra — se non coincide,
+> è **questa tabella** a essere indietro, e si riconta col comando.
 
 | Gruppo | Voci | Nota |
 |---|---|---|
-| **Eseguibile subito** | `PREVIEW-AREA` `V01-MATCHEND` | **2** — nessuna precondizione oltre a una partita avviata (`MATCHEND` da CP 10.3) |
+| **Eseguibile subito** (sessione G) | `PREVIEW-AREA` `V01-MATCHEND` `TEST-CONSOLE` | **3** — nessuna precondizione oltre a una partita avviata (`MATCHEND` da CP 10.3). `TEST-CONSOLE` va per **ultima**: `rt.Test.Run` sostituisce la mappa |
 | **Partita hex** (sessione D) | `HEXPLAY-4/4b/5/6/6b/6c/7/9/10` | **9** — è il **gate di M6** (CP 6.8). ⚠️ **Non serve più costruire la mappa a mano**: `MapSource = GeneratedTestArena` genera già esagono r=4, ostacoli, **muro che blocca la vista**, fango a costo 3, piattaforma su layer 1 e **una** transizione |
 | **Editor** (sessione A) | `HEX-LAYER` `HEX-TRANS` `HEX-MODE-E/F/G/H/L/N/O` | **9** — verificano gli **strumenti**, non più un prerequisito della sessione D |
 | **Durata e scala** (sessione F) | `V01-MATCHLEN` `V01-MAPSCALE` `V01-READY` `V01-OVERWATCH` | **4** — producono numeri di playtest, non superano gate. `READY` e `OVERWATCH` descrivono un comportamento **atteso** (countdown ed E14) che non esiste ancora |
 | **In attesa di codice** | `V01-ELEC` `V01-FIREWATER` (E8, ora **chiusa**: il codice c'è, la verifica a schermo no) · `V01-HUD` (E11) | **3** — `V01-LOWCOVER` è uscita da qui il 2026-08-07 (CP 9.1) e `V01-DOOR` il 2026-08-08 (CP 9.3): per entrambe la regola è ora coperta headless, e sono passate a 🟡 |
 | **Asset da preparare** | `V01-COVEREDIT` | **1** — editing delle coperture nel data asset mappa (CP 9.1). ⚠️ `DA_HexMap_Sandbox` è oggi **vuoto**: va ridisegnato |
 | **Animazioni** | `AS4a` `AS4b` | **2** — richiedono i montage Paragon |
-| **Scenario Test Harness** | `TEST-AUTORUN` `TEST-VISUAL` `TEST-CONSOLE` | **3** — l'harness è coperto headless (12 test `Scenario.*`); qui resta ciò che accade **a schermo** |
 
 ## Checklist
 
@@ -97,27 +106,27 @@ Le 33 aperte in sette gruppi, più un residuo (la somma è verificata: 2+9+9+4+3
 | **PIE-MP4** | Click → layer (multilivello) | mappa col ponte sopraelevato | Il click seleziona la cella del **layer giusto** (terra vs ponte) | 🟡 **logica coperta headless** da `RefactorTactics.Hex.WorldToCellIdRoundTripAcrossLayers` (il punto-mondo torna la cella **completa**, layer incluso, e la composizione e' la stessa usata dal click di gioco). ⏳ al PIE resta il gesto col mouse su celle sovrapposte: che cliccando il ponte si selezioni la cella del ponte e non quella sotto |
 | **PIE-CP1.4** | Evidenziazione cella sotto il cursore | — | La cella sotto il mouse è evidenziata | ✅ 2026-08-05 |
 | **PIE-HEX** | Griglia esagonale graybox (pivot) | `ARTHexMapActor` in un livello, `DemoRadius > 0` | Griglia di celle esagonali visibile (graybox); con `MapAsset` popolato mostra quelle celle | ✅ 2026-08-05 (con `DemoRadius=0` la griglia resta: viene dall'asset) |
-| **PIE-HEX-LAYER** | Filtro layer attivo (H4) | `ARTHexMapActor` con celle su ≥2 layer (es. `GenerateIntoAsset` con `ActiveLayer=0`, poi `ActiveLayer=1`) | `LayerView=ActiveOnly` mostra **solo** le celle di `ActiveLayer`; `AllLayers` le mostra tutte, impilate per quota (`LayerHeight`) → la viz non confonde i livelli | ⏳ (branch `feat/hex-grid`, H4b) |
-| **PIE-HEX-TRANS** | Transizione verticale bridge/scala (H4) | due celle sovrapposte (stessi X/Y, Layer diverso), `TransitionFrom`/`TransitionTo` impostati | `AddVerticalTransition` collega i due layer (Undo/Redo ok, package dirty, validator pulito); `RemoveVerticalTransition` lo toglie | ⏳ (branch `feat/hex-grid`, H4b) |
+| **PIE-HEX-LAYER** | Filtro layer attivo (H4) | `ARTHexMapActor` con celle su ≥2 layer (es. `GenerateIntoAsset` con `ActiveLayer=0`, poi `ActiveLayer=1`) | `LayerView=ActiveOnly` mostra **solo** le celle di `ActiveLayer`; `AllLayers` le mostra tutte, impilate per quota (`LayerHeight`) → la viz non confonde i livelli | ⏳ (H4b) |
+| **PIE-HEX-TRANS** | Transizione verticale bridge/scala (H4) | due celle sovrapposte (stessi X/Y, Layer diverso), `TransitionFrom`/`TransitionTo` impostati | `AddVerticalTransition` collega i due layer (Undo/Redo ok, package dirty, validator pulito); `RemoveVerticalTransition` lo toglie | ⏳ (H4b) |
 | **PIE-HEX-MODE-A** | Editor Mode hex appare e si attiva (H5a) | modulo `RefactorTacticsEditor` compilato | Nella toolbar Modes compare «Hex Map»; attivandolo il pannello si apre senza crash (nessun tool) | ✅ 2026-08-05 |
 | **PIE-HEX-MODE-B** | Selezione a click nel viewport (H5b) | mode Hex Map attivo, `ARTHexMapActor` nel livello (selezionato o unico) | Tool «Select» attivo → click su una cella → esagono giallo sulla cella + `SelectedCell`/superficie/costo/blocco corretti nel pannello; cambiando `ActiveLayer` sull'actor seleziona il piano giusto (celle sovrapposte) | ✅ 2026-08-05 |
 | **PIE-HEX-MODE-C** | Paint a click nel viewport (H5c) | mode Hex Map attivo, tool Paint, `ARTHexMapActor` nel livello | Con `Operation=Paint`, click su una cella → esagono verde + cella creata/aggiornata (superficie/costo/blocco del pennello); `LastCell` corretto; Undo ripristina | ✅ 2026-08-05 (il refresh dopo Undo richiedeva il fix `ea51b45`) |
 | **PIE-HEX-MODE-D** | Erase a click nel viewport (H5c) | mode Hex Map attivo, tool Paint | Con `Operation=Erase`, click su una cella esistente → esagono rosso + cella rimossa dall'ISM; Undo ripristina; cambiando `ActiveLayer` agisce sul piano giusto | ✅ 2026-08-05 |
-| **PIE-HEX-MODE-F** | Render transizioni nel tool Arch (H5c.2a) | mode Hex Map, tool Arch, `ARTHexMapActor` con transizioni | Le transizioni esistenti appaiono come linee colorate (per Kind) con freccia From->To | ⏳ (branch `feat/hex-grid`, H5c.2a) |
-| **PIE-HEX-MODE-E** | Crea transizione via gizmo (H5c.2b) | mode Hex Map, tool Arch, `ARTHexMapActor` con celle su >=2 layer | Click From → gizmo → drag su To (anche altro layer, snap a cella) → Commit crea la transizione (visibile); Undo la rimuove; ClearArch annulla il pendente | ⏳ (branch `feat/hex-grid`, H5c.2b) |
-| **PIE-HEX-MODE-G** | Ciclo di vita del gizmo (smoke, H5c.2b) | mode Hex Map, tool Arch, `ARTHexMapActor` nel livello | Click su una cella → compare il gizmo di traslazione; **re-click** su un'altra cella → resta **un solo** gizmo (nessun duplicato); **cambio tool** (Select) o uscita dal mode → il gizmo **sparisce** (nessun gizmo orfano in scena) | ⏳ (branch `feat/hex-grid`, H5c.2b) |
-| **PIE-HEX-MODE-H** | Snap del gizmo cross-layer (H5c.2b) | mode Hex Map, tool Arch, celle su >=2 layer | Trascinando il gizmo, `To` si aggancia sempre al **centro di una cella**; alzando la quota di ~`LayerHeight` il target passa al **layer superiore** (`WorldToLayer`); nessun jitter/loop durante lo snap (guardia `bSnapping`) | ⏳ (branch `feat/hex-grid`, H5c.2b) |
+| **PIE-HEX-MODE-F** | Render transizioni nel tool Arch (H5c.2a) | mode Hex Map, tool Arch, `ARTHexMapActor` con transizioni | Le transizioni esistenti appaiono come linee colorate (per Kind) con freccia From->To | ⏳ (H5c.2a) |
+| **PIE-HEX-MODE-E** | Crea transizione via gizmo (H5c.2b) | mode Hex Map, tool Arch, `ARTHexMapActor` con celle su >=2 layer | Click From → gizmo → drag su To (anche altro layer, snap a cella) → Commit crea la transizione (visibile); Undo la rimuove; ClearArch annulla il pendente | ⏳ (H5c.2b) |
+| **PIE-HEX-MODE-G** | Ciclo di vita del gizmo (smoke, H5c.2b) | mode Hex Map, tool Arch, `ARTHexMapActor` nel livello | Click su una cella → compare il gizmo di traslazione; **re-click** su un'altra cella → resta **un solo** gizmo (nessun duplicato); **cambio tool** (Select) o uscita dal mode → il gizmo **sparisce** (nessun gizmo orfano in scena) | ⏳ (H5c.2b) |
+| **PIE-HEX-MODE-H** | Snap del gizmo cross-layer (H5c.2b) | mode Hex Map, tool Arch, celle su >=2 layer | Trascinando il gizmo, `To` si aggancia sempre al **centro di una cella**; alzando la quota di ~`LayerHeight` il target passa al **layer superiore** (`WorldToLayer`); nessun jitter/loop durante lo snap (guardia `bSnapping`) | ⏳ (H5c.2b) |
 | **PIE-HEX-MODE-I** | Drag-paint (H5c.3b) | mode Hex Map, tool Paint (`Operation=Paint`), `ARTHexMapActor` con `MapAsset` | Tenere premuto e trascinare dipinge più celle in una pennellata (dedup: ripassare non ridipinge); **un** Ctrl+Z annulla l'intera pennellata; click singolo = 1 cella (PIE-C invariato) | ✅ 2026-08-05 |
 | **PIE-HEX-MODE-J** | Drag-erase (H5c.3b) | mode Hex Map, tool Paint (`Operation=Erase`) | Trascinare cancella più celle in una pennellata; un Undo le ripristina tutte; cambiare tool a metà drag non lascia transazioni aperte; **erase su celle inesistenti/vuote NON crea voci Undo né marca l'asset dirty** (transazione lazy) | ✅ 2026-08-05 |
 | **PIE-HEX-MODE-K** | Pennello a raggio N (H5c.4) | mode Hex Map, tool Paint, `ARTHexMapActor` con `MapAsset` | `BrushRadius=0` → 1 cella (come prima); `BrushRadius=N>0` → un click dipinge/cancella l'esagono pieno di raggio N; drag dipinge fasce larghe (dedup); **un** Ctrl+Z annulla l'intera pennellata | ✅ 2026-08-05 |
-| **PIE-HEX-MODE-L** | Rimuovi arco via tool (H5c.5b) | mode Hex Map, tool Arch, `ARTHexMapActor` con transizioni | Con `Operation=Remove`, click su un arco disegnato lo rimuove (Undo lo ripristina); click nel vuoto (nessun arco entro soglia) non fa nulla; con `Operation=Add` il flusso gizmo resta invariato | ⏳ (branch `feat/hex-grid`, H5c.5b) |
+| **PIE-HEX-MODE-L** | Rimuovi arco via tool (H5c.5b) | mode Hex Map, tool Arch, `ARTHexMapActor` con transizioni | Con `Operation=Remove`, click su un arco disegnato lo rimuove (Undo lo ripristina); click nel vuoto (nessun arco entro soglia) non fa nulla; con `Operation=Add` il flusso gizmo resta invariato | ⏳ (H5c.5b) |
 | **PIE-HEX-MODE-M** | Overlay debug superfici (H5c.6) | mode Hex Map, tool Select o Paint, `ARTHexMapActor` con celle di superfici diverse | Con `bShowOverlay` attivo, ogni cella appare come esagono colorato per superficie (Water blu, Fire arancio, Mud marrone, ...); le celle bloccate hanno un esagono rosso interno; `bShowOverlay` off = nessun overlay | ✅ 2026-08-05 |
-| **PIE-HEX-MODE-N** | Secchiello / flood-fill (H5c.7) | mode Hex Map, tool Fill, `ARTHexMapActor` con `MapAsset` popolato | In Fill, click su una regione la riempie col pennello corrente; un Ctrl+Z ripristina l'intera regione; click su cella vuota non fa nulla; passando a Select/Paint con overlay si vedono i nuovi colori | ⏳ (branch `feat/hex-grid`, H5c.7) |
+| **PIE-HEX-MODE-N** | Secchiello / flood-fill (H5c.7) | mode Hex Map, tool Fill, `ARTHexMapActor` con `MapAsset` popolato | In Fill, click su una regione la riempie col pennello corrente; un Ctrl+Z ripristina l'intera regione; click su cella vuota non fa nulla; passando a Select/Paint con overlay si vedono i nuovi colori | ⏳ (H5c.7) |
 | **PIE-HEX-MODE-O** | Default `MoveCost` dal catalogo terreni (CP 8.1) | mode Hex Map, tool Paint, `ARTHexMapActor` nel livello | Cambiando `Surface` nel pannello del pennello (es. a `Rough`), `MoveCost` si aggiorna da solo al valore del catalogo (`2` per `Rough`); `bBlocksMovement` resta `false` | ⏳ |
-| **PIE-BU2** | Bot: posizionamento via utility scoring | branch `feat/bot-utility` | In pianificazione il bot sceglie la cella pesando **minaccia/kiting** (può **restare** invece di esporsi); il combat log mostra `<Bot>: utility -> (x,y,Lz) score=N`. Il kiter (Ranger) mantiene la distanza, la mischia (Guardian) chiude, nessuno corre in celle sotto tiro. Osserva se gli score hanno senso → base per il **tuning dei pesi** (BU.3) | ✅ |
-| **PIE-BU2b** | Tuning pesi bot in editor | worktree `feat/bot-utility`, PIE attivo | Modificando `WKill/WThreat/WKiteViolation/WApproach/WDamage/WElevation` sul `TurnManager` (World Outliner → Details ▸ *Bot*) il comportamento cambia **dal turno successivo, senza ricompilare**: es. ↑`WThreat` = bot più prudente; ↓`WApproach` = mischia meno aggressiva; ↑`WElevation` = predilige le alte quote. Dettagli nella nota sotto | ✅ |
-| **PIE-BU3** | Bot: utility unica posizione/attacco | worktree `feat/bot-utility`, **dopo** refactor BU.3b | Un'unica utility sceglie fra **{resta e attacca}** e **{muoviti per posizionarti}** (l'attacco vale solo da fermo: il Blast precede il Move). Verifica: se attaccare da fermo espone troppo il bot preferisce ripararsi invece di sparare; se l'attacco **uccide** spara sempre; guardie **support/panic/dash** intatte; log `utility -> ... attacca X score=N` oppure `... score=N (resta)` | ✅ |
-| **PIE-BU3c** | Bot: dash+attacco (scatto poi colpisce) | worktree `feat/bot-utility`, **dopo** BU.3c | Se scattando raggiunge una cella da cui ha tiro e l'attacco conviene (utility), il bot pianifica **scatto + attacco** (log `utility -> scatto (x,y,Lz) + attacca X`): nel Blast (dopo il Dash) colpisce dalla cella post-scatto. **Nota**: se lo scatto è deviato da un conflitto di movimento simultaneo, l'attacco può mancare (log `nessuna linea di tiro`) — coerente coi turni simultanei | ✅ |
+| **PIE-BU2** | Bot: posizionamento via utility scoring | partita avviata | In pianificazione il bot sceglie la cella pesando **minaccia/kiting** (può **restare** invece di esporsi); il combat log mostra `<Bot>: utility -> (x,y,Lz) score=N`. Il kiter (Ranger) mantiene la distanza, la mischia (Guardian) chiude, nessuno corre in celle sotto tiro. Osserva se gli score hanno senso → base per il **tuning dei pesi** (BU.3) | ✅ |
+| **PIE-BU2b** | Tuning pesi bot in editor | PIE attivo | Modificando `WKill/WThreat/WKiteViolation/WApproach/WDamage/WElevation` sul `TurnManager` (World Outliner → Details ▸ *Bot*) il comportamento cambia **dal turno successivo, senza ricompilare**: es. ↑`WThreat` = bot più prudente; ↓`WApproach` = mischia meno aggressiva; ↑`WElevation` = predilige le alte quote. Dettagli nella nota sotto | ✅ |
+| **PIE-BU3** | Bot: utility unica posizione/attacco | **dopo** refactor BU.3b | Un'unica utility sceglie fra **{resta e attacca}** e **{muoviti per posizionarti}** (l'attacco vale solo da fermo: il Blast precede il Move). Verifica: se attaccare da fermo espone troppo il bot preferisce ripararsi invece di sparare; se l'attacco **uccide** spara sempre; guardie **support/panic/dash** intatte; log `utility -> ... attacca X score=N` oppure `... score=N (resta)` | ✅ |
+| **PIE-BU3c** | Bot: dash+attacco (scatto poi colpisce) | **dopo** BU.3c | Se scattando raggiunge una cella da cui ha tiro e l'attacco conviene (utility), il bot pianifica **scatto + attacco** (log `utility -> scatto (x,y,Lz) + attacca X`): nel Blast (dopo il Dash) colpisce dalla cella post-scatto. **Nota**: se lo scatto è deviato da un conflitto di movimento simultaneo, l'attacco può mancare (log `nessuna linea di tiro`) — coerente coi turni simultanei | ✅ |
 
 ### Partita su griglia esagonale (M6 — Parità hex)
 
@@ -206,15 +215,19 @@ Le 33 aperte in sette gruppi, più un residuo (la somma è verificata: 2+9+9+4+3
 ### Scenario Test Harness (aggiunte il 2026-08-07)
 
 > L'harness esegue scenari `.json` attraverso il **percorso di gioco reale** ed è **interamente coperto
-> headless** (12 test `RefactorTactics.Scenario.*`). Restano tre cose che nessun test automatico può vedere,
-> perché riguardano ciò che accade **a schermo** e ciò che l'utente **non deve** dover fare.
-> Guida d'uso: [`test-e-diagnosi.md`](test-e-diagnosi.md).
+> headless** (30 test `RefactorTactics.Scenario.*` + `RefactorTactics.ScenarioIndex.*`, misurati il
+> 2026-08-08). Restano cinque cose che nessun test automatico può vedere, perché riguardano ciò che accade
+> **a schermo** e ciò che l'utente **non deve** dover fare.
+> Guida d'uso: [`test-e-diagnosi.md`](test-e-diagnosi.md) · modello di classificazione:
+> [`scenario-index-e-tag.md`](scenario-index-e-tag.md).
 
 | ID | Cosa verificare | Precondizione | Esito atteso | Stato |
 |----|-----------------|---------------|--------------|-------|
 | **PIE-TEST-AUTORUN** | «Premo Play e parte da solo» | **`BP_GameMode` → Class Defaults → *RefactorTactics\|Test* → `ScenarioToRun` = `Movement.Basic` (**menu a tendina**, non testo libero)**, Compile + Save, poi **Play**. *(In alternativa, per una volta sola: console `rt.Test.Scenario Movement.Basic`, che prevale sulla proprietà.)* | Compaiono **due unità** (Flux team 0, Bastion team 1) su un'arena esagonale, **senza toccare mouse o tastiera**. Nell'Output Log: `[RT-Test] AUTO-RUN Movement.Basic -> PASS (2/2 assertion, 1 turni) · report: …`. La partita normale **non** viene allestita (nessun timer di pianificazione, nessun bot che gioca). Rimettendo `rt.Test.Scenario` a vuoto e ripremendo Play, torna la partita normale | ✅ **2026-08-08** — verificato dall'utente in PIE. Log: `[RT-Test] AUTO-RUN Movement.Basic -> PASS (2/2 assertion, 1 turni) · report: Saved/RTTests/Movement.Basic/20260808-075237`. È il requisito centrale del documento di specifica («devo poter premere Play e osservare») e l'unico pezzo che l'automazione non poteva coprire, perché headless non esiste un mondo di gioco |
 | **PIE-TEST-VISUAL** | Il movimento si **vede**, non si teletrasporta | come sopra, dopo l'AUTO-RUN | L'unità `A1` si sposta da `(-2,0,0)` a `(-1,0,0)` **scorrendo** lungo il percorso, non saltando. A fine turno è esattamente sul centro della cella. ⚠️ Se invece appare già arrivata, il runner sta risolvendo più rapidamente di quanto il playback riesca a mostrare: **non è un difetto di simulazione** (i test headless verificano già l'esito) ma di presentazione, e va annotato qui — sarà la modalità *Visual* del harness a doverlo gestire | ✅ **2026-08-08** — verificato dall'utente dopo il **runner latente** (`8c8365e`). I timestamp lo provano: `AUTO-RUN 09:15:44.830` → `FINITO 09:15:48.772`, **3,9 secondi**, con i turni a `:44`, `:46`, `:48`. Nessun turno dopo il `FINITO`. **Storia**: il primo tentativo diede un falso positivo — il movimento visto erano **turni fantasma** (piani appesi + timer che li ririsolveva, `4e6c2e0`); lo scenario vero si risolveva dentro `BeginPlay` e finiva prima del primo fotogramma. La sessione ora avanza **un passo per frame**, e la stessa macchina a stati serve headless e in gioco |
-| **PIE-TEST-CONSOLE** | I comandi rispondono durante una partita | partita avviata (anche normale) | `rt.Test.List` elenca **4** scenari (`Movement.Basic`, `Movement.BasicFailsOnPurpose`, `Movement.Blocked`, `Movement.Collision`); `rt.Test.Run Movement.BasicFailsOnPurpose` stampa `FAIL` **con atteso e ottenuto** e il percorso del report; `rt.Test.DumpResult` ristampa l'ultimo `result.json`. ⚠️ Attenzione: eseguire uno scenario **sostituisce la mappa** e aggiunge unità alla partita in corso — è previsto (il runner riusa mappa e turn manager), ma dopo conviene riavviare con `R` | ⏳ |
+| **PIE-TEST-CONSOLE** | I comandi rispondono durante una partita | partita avviata (anche normale) | `rt.Test.List` elenca **8** scenari (i 6 `Movement.*` e i 2 `Combat.*`); `rt.Test.Run Movement.BasicFailsOnPurpose` stampa `FAIL` **con atteso e ottenuto** e il percorso del report; `rt.Test.DumpResult` ristampa l'ultimo `result.json`. ⚠️ Attenzione: eseguire uno scenario **sostituisce la mappa** e aggiunge unità alla partita in corso — è previsto (il runner riusa mappa e turn manager), ma dopo conviene riavviare con `R` | ⏳ *(il conteggio era «4», fermo a prima degli scenari `Combat.*`)* |
+| **PIE-SCEN-FILTER** | I filtri restringono la tendina, **e la tendina si aggiorna** | `BP_GameMode` → Class Defaults → *RefactorTactics\|Test* | Con i filtri vuoti, `Scenario To Run` elenca tutti e 8 gli scenari. Impostando `Scenario Filter A = movement` la tendina scende a **6**; aggiungendo `Scenario Filter B = core` scende a **3** (`Movement.Basic`, `Movement.Collision`, `Movement.SwapRejectedByPlanning`). Il vocabolario dei due filtri contiene solo tag esistenti, con la voce vuota in testa | ✅ **2026-08-08** — verificato dall'utente in Editor: «la selezione filtra i possibili scenario to run». **Il rischio tecnico non si è materializzato**: `GetOptions` rivaluta l'elenco al cambio di un'altra property dello stesso actor, quindi il Details Panel ridisegna la tendina da solo. Nessuna `PostEditChangeProperty`, nessuna dipendenza `PropertyEditor` |
+| **PIE-SCEN-KEEP** | Filtrare **non perde** lo scenario selezionato | come sopra, con `Scenario To Run = Combat.BasicAttack` già salvato | Impostando `Scenario Filter A = movement` — che esclude `Combat.BasicAttack` dalla vista — la property **resta** su `Combat.BasicAttack`, e premendo Play parte quello. Il filtro è una vista, non un vincolo | ✅ **2026-08-08** — verificato dall'utente in Editor: «se cambio scelta, lo scenario to run non si resetta». Il combo box tiene il valore corrente anche quando i filtri lo escludono dalla vista, quindi la configurazione salvata nel `.uasset` non sembra né è andata persa. ⚠️ **Al termine svuota `Scenario To Run`** (prima voce della tendina) e Save: la property sopravvive alla sessione, e al Play successivo il GameMode esegue lo scenario e **non allestisce la partita normale** (`RTGameMode.cpp:136` fa `return`). Sintomo: schermo quasi nero, nessuna unità tua, **nessuna barra abilità** — perché la barra si disegna solo con un'unità selezionata. Diagnosi in un colpo: cerca `AUTO-RUN` nell'Output Log, la riga dice anche **da dove** viene lo scenario |
 
 ### Durata, ritmo e scala — verifiche di *game feel*
 
@@ -319,6 +332,32 @@ I numeri raccolti vanno nella tabella KPI di [`v0.1-definition-of-done.md`](../r
 **con la riserva sul campione** (un solo giocatore, che è l'autore del gioco) e **con l'etichetta «2v2»**: i
 target di 25–30 min sono del 3v3 Standard, che in v0.1 non esiste.
 Bande di riferimento: [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §5–§9, §17.
+
+### Sessione G — Eseguibile subito, senza preparare niente → 3 voci
+
+`PIE-PREVIEW-AREA`, `PIE-V01-MATCHEND`, `PIE-TEST-CONSOLE`.
+
+**È la sola sessione che non attende nulla**: nessun asset da creare, nessun checkpoint da chiudere, nessuna
+mappa di prova. Basta premere Play sull'arena di ripiego. Le tre voci erano già nella checklist ma in nessuna
+sessione, e una voce che non sta in una seduta non viene eseguita mai — che è il motivo per cui questa
+sezione esiste.
+
+> ⚠️ **Prima di cominciare, controlla che `Scenario To Run` sia vuoto** (`BP_GameMode` → Class Defaults →
+> *RefactorTactics|Test*) e che `rt.Test.Scenario` in console sia vuota — quest'ultima **prevale** sulla
+> property e dura quanto il processo dell'editor. Con uno scenario impostato la partita normale non viene
+> allestita affatto, e tutte e tre queste voci diventano non eseguibili: niente unità tue, niente selezione,
+> niente barra abilità. È successo il 2026-08-08, uscendo da `PIE-SCEN-KEEP` che lascia la property valorizzata.
+
+L'ordine non è arbitrario:
+
+1. **PIE-PREVIEW-AREA** e **PIE-V01-MATCHEND** su una partita normale: la prima guarda l'anteprima della zona
+   colpita, la seconda che la partita arrivi a una conclusione e che `R` riavvii.
+2. **PIE-TEST-CONSOLE** per **ultima**, e non per gusto di ordine: `rt.Test.Run` **sostituisce la mappa** e
+   aggiunge unità alla partita in corso. Eseguirla prima lascerebbe le altre due su uno stato che non è
+   quello che dicono di verificare. Dopo, si riavvia con `R`.
+
+Le altre voci dell'harness (`TEST-AUTORUN`, `TEST-VISUAL`, `SCEN-FILTER`, `SCEN-KEEP`) sono verdi dal
+2026-08-08 e non tornano qui.
 
 ### Mappa di prova consigliata (serve alle sessioni A, D, E ed F)
 

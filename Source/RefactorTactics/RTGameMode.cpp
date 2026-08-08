@@ -9,6 +9,7 @@
 #include "Ability/RTHeroData.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTMatchSetupLibrary.h"
+#include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "ScenarioHarness/RTTestResult.h"
 #include "ScenarioHarness/RTScenarioSession.h"
@@ -90,7 +91,8 @@ void ARTGameMode::BeginPlay()
 		// vedeva muoversi erano turni fantasma — misurato in PIE, non supposto.
 		FString ScenarioError;
 		FRTTestScenario Scenario;
-		if (!URTScenarioLoader::LoadFromFile(URTScenarioLoader::PathForScenarioId(TestScenario), Scenario, ScenarioError))
+		const FString ScenarioPath = URTScenarioIndex::ResolvePath(TestScenario, ScenarioError);
+		if (ScenarioPath.IsEmpty() || !URTScenarioLoader::LoadFromFile(ScenarioPath, Scenario, ScenarioError))
 		{
 			UE_LOG(LogRT, Error, TEXT("[RT-Test] scenario '%s' non caricabile: %s"), *TestScenario, *ScenarioError);
 			return;
@@ -392,7 +394,17 @@ TArray<FString> ARTGameMode::GetScenarioOptions() const
 	// campo sarebbe cancellarne il testo a mano — proprio cio' che il menu a tendina dovrebbe evitare.
 	TArray<FString> Options;
 	Options.Add(FString());
-	Options.Append(URTScenarioRunner::ListScenarioIds());
+	Options.Append(URTScenarioIndex::ListIds(ScenarioFilterA, ScenarioFilterB));
+	return Options;
+}
+
+TArray<FString> ARTGameMode::GetScenarioTagOptions() const
+{
+	// Voce vuota in testa anche qui, e per lo stesso motivo: e' come si smette di filtrare. Senza, l'unico
+	// modo per togliere un filtro sarebbe cancellarne il testo a mano.
+	TArray<FString> Options;
+	Options.Add(FString());
+	Options.Append(URTScenarioIndex::ListTags());
 	return Options;
 }
 

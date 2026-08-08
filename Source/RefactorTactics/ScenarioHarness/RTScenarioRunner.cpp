@@ -1,4 +1,5 @@
 #include "ScenarioHarness/RTScenarioRunner.h"
+#include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioSession.h"
 #include "Ability/RTHeroCatalogLibrary.h"
@@ -173,13 +174,17 @@ FRTTestResult URTScenarioRunner::RunById(UWorld* World, const FString& ScenarioI
 
 	FRTTestScenario Scenario;
 	FString Error;
-	const FString Path = URTScenarioLoader::PathForScenarioId(ScenarioId);
-	if (!URTScenarioLoader::LoadFromFile(Path, Scenario, Error))
+	const FString Path = URTScenarioIndex::ResolvePath(ScenarioId, Error);
+	if (Path.IsEmpty() || !URTScenarioLoader::LoadFromFile(Path, Scenario, Error))
 	{
 		// Scenario assente o malformato: ERROR con il percorso cercato, cosi' chi legge sa DOVE guardare.
+		// Con l'indice il percorso puo' essere vuoto — l'ID non e' stato risolto — e in quel caso il motivo
+		// e' gia' dentro `Error`, che nomina l'ID e dice quanti scenari sono stati esaminati.
 		FRTTestScenario Stub;
 		Stub.ScenarioId = ScenarioId;
-		FRTTestResult Result = MakeErrorResult(Stub, FString::Printf(TEXT("%s (%s)"), *Error, *Path));
+		FRTTestResult Result = MakeErrorResult(Stub, Path.IsEmpty()
+			? Error
+			: FString::Printf(TEXT("%s (%s)"), *Error, *Path));
 
 		FString WriteError;
 		URTTestReportWriter::Write(Result, FString(), OutReportDirectory, WriteError);
@@ -200,20 +205,8 @@ FRTTestResult URTScenarioRunner::RunById(UWorld* World, const FString& ScenarioI
 
 TArray<FString> URTScenarioRunner::ListScenarioIds()
 {
-	TArray<FString> Files;
-	IFileManager::Get().FindFilesRecursive(Files, *URTScenarioLoader::ScenariosRoot(), TEXT("*.json"),
-		/*Files=*/ true, /*Directories=*/ false);
-
-	const FString Root = FPaths::ConvertRelativePathToFull(URTScenarioLoader::ScenariosRoot());
-	TArray<FString> Ids;
-	for (const FString& File : Files)
-	{
-		// Il percorso E' l'ID: `Movement/Basic.json` -> `Movement.Basic`. Nessun indice da mantenere.
-		FString Relative = FPaths::ConvertRelativePathToFull(File);
-		FPaths::MakePathRelativeTo(Relative, *(Root / TEXT("")));
-		Relative.RemoveFromEnd(TEXT(".json"));
-		Ids.Add(Relative.Replace(TEXT("/"), TEXT(".")).Replace(TEXT("\\"), TEXT(".")));
-	}
-	Ids.Sort();
-	return Ids;
+	// L'ID non si deduce piu' dal percorso: lo dichiara il file, e l'indice lo legge. Cosi' spostare uno
+	// scenario in un'altra cartella non ne cambia l'identita' — ed e' cio' che permette di raggrupparlo
+	// per piu' criteri insieme invece che per la sola cartella in cui sta.
+	return URTScenarioIndex::ListIds(FString(), FString());
 }

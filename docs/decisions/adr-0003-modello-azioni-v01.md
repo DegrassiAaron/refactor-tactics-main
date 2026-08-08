@@ -1,6 +1,20 @@
 # ADR-0003 — Modello azioni/priorità del catalogo v0.1 sulle macro-fasi di Atlas
 
-> **Stato**: Accettato — da implementare · **Data**: 2026-08-05 · **Decisore**: utente (dev singolo)
+> `CANONICAL` · **Stato**: **Accettato — motore azioni implementato (E4), emendato due volte**
+> · **Data**: 2026-08-05 · **Decisore**: utente (dev singolo)
+>
+> ## ⚠️ EMENDATO DA [ADR-0004](adr-0004-finestre-di-reazione.md)
+>
+> Questo ADR **non va letto da solo**: ADR-0004 ne ha superato una premessa centrale. In sintesi, cosa resta e
+> cosa cade:
+>
+> | Punto | Stato |
+> |---|---|
+> | Macro-sequenza `Prep → Dash → Blast → Move`, col `Move` **dopo** il Blast | **resta** — è il cuore dell'ADR |
+> | «Niente finestre live nell'MVP: servirebbe il multiplayer» | **cade**. Il modello a **segmenti deterministici** con Decision Boundary *fra* i segmenti le rende compatibili con l'invariante #3, ed E14 le ha in scope |
+> | Reazioni di E5 (deterministiche, senza finestra) | **restano valide**, ma come **caso semplice** del modello unificato `opportunity → commit`: sono quelle con `AllowedResponses ≤ 1`, non un meccanismo separato |
+> | Economia dell'azione principale | `Overwatch` è **universale** ([D-012](RT_PDR_00_Decision_Log.md)/[D-014](RT_PDR_00_Decision_Log.md)) ed è un'**azione principale che arma una reazione**: compete con `Attack`/`Ability`. Da non confondere con lo **slot reazione** preparato, che è un'altra cosa e resta indipendente |
+> | Famiglia del movimento | `Sneak · Move · Sprint` sono **profili del movement slot** ([D-015](RT_PDR_00_Decision_Log.md)) e risolvono nella fase **`Move`**, dopo il Blast. `Dash · Leap · Charge · Reposition` restano movimenti **speciali** della fase `Dash`. **`Sprint` non è un Dash** |
 > **Contesto sorgente**: `docs/archive/pdr-v0.1/RT_PDR_12_Catalog_v0.1.pdf` + `docs/src/RefactorTactics — Catalogo e bilanciamento v0.1.pdf`,
 > su richiesta di realizzare la roadmap v0.1 (`docs/road-map_info.md`)
 >

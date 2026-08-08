@@ -1,6 +1,6 @@
 # Matrice dei conflitti documentali
 
-> **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-07 · **Owner**: questo file
+> `CURRENT` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-08 · **Owner**: questo file
 > **Scopo**: registrare dove due documenti dicono cose diverse, e cosa vale oggi.
 > **Regola**: un conflitto non si risolve in silenzio. O si registra `SUPERSEDED` con la fonte che prevale,
 > o diventa una voce di [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md). Mai una scelta implicita.
@@ -28,7 +28,7 @@
 | 5 | Nome del parametro | `FastDecisionDuration` | `FastReactionDuration` | [ADR-0004](decisions/adr-0004-finestre-di-reazione.md) | `DUPLICATE` | ✅ un solo nome nel codice |
 | 6 | Modello delle reazioni | deterministiche, senza finestre | unico `opportunity → commit`; l'attuale è `AllowedResponses ≤ 1` | [ADR-0004](decisions/adr-0004-finestre-di-reazione.md) (D17) | `CONFIRMED` | — |
 | 7 | Overwatch | skill del singolo eroe | caso concreto del modello generale di reazione | [ADR-0004](decisions/adr-0004-finestre-di-reazione.md) · E14 | `CONFIRMED` | — |
-| 8 | **Overwatch universale** | — | azione di Planning **per tutti**, effetto dal profilo di eroe/equipaggiamento; **compete** con l'azione offensiva | [D-012](decisions/RT_PDR_00_Decision_Log.md) | `CONFIRMED` | ✅ chiuso 2026-08-07 · owner [`gameplay/brief-azioni-generiche-overwatch.md`](gameplay/brief-azioni-generiche-overwatch.md) |
+| 8 | **Overwatch universale** | — | azione di Planning **per tutti**, effetto dal profilo di eroe/equipaggiamento; **compete** con l'azione offensiva | [D-012](decisions/RT_PDR_00_Decision_Log.md) | `CONFIRMED` | ✅ decisione chiusa 2026-08-07 · owner [`gameplay/brief-azioni-generiche-overwatch.md`](gameplay/brief-azioni-generiche-overwatch.md) · ⏳ **propagazione incompleta**, distinta dalla decisione: al 2026-08-08 `Overwatch` compariva **zero volte** in `balance/` — riga aggiunta al catalogo azioni, profilo per eroe ancora assente |
 | 9 | Action Ghosts | — | Ghost Timeline per fase, presentation-only | [`technical/brief-planning-visuale.md`](technical/brief-planning-visuale.md) | `CONFIRMED` | CP 11.5/11.6 |
 | 10 | Delayed Actions | — | dichiarate in Planning, risolvono a un boundary nominato | [`gameplay/brief-delayed-actions.md`](gameplay/brief-delayed-actions.md) | `CONFIRMED` | nessuna epic, deliberato |
 | 11 | **Trigger su transizione** | «gli archi portano trigger?» — domanda mal posta: gli adiacenti **non sono dati** | la **trap possiede** la coppia `(From→To)`; `FRTHexEdge` resta per i soli salti di layer | [D-013](decisions/RT_PDR_00_Decision_Log.md) | `CONFIRMED` | ✅ chiuso 2026-08-07 · mappa invariata, nessun vincolo su E9 |
@@ -43,7 +43,8 @@
 | 20 | **Formato principale** | D-001: **3v3** principale, *Consolidata* | **non deciso**: D-001 declassata ad *Assunzione da bloccare*; 3v3 resta baseline, 4v4 solo stress (E17) | [D-011](decisions/RT_PDR_00_Decision_Log.md) | `CONFIRMED` | ✅ chiuso 2026-08-07 — si consolida con la **prima misura** su una partita ≥3v3 |
 | 21 | GAS | previsto in F2 dal PDR | **no-GAS**: `URTActionData : UPrimaryDataAsset` | canone | `CONFIRMED` | divergenza dichiarata |
 | 22 | Multilivello | 2D piatto | `Layer` in `FRTCellId`, A\* multilivello | [ADR-0002](decisions/adr-0002-griglia-esagonale.md) · PF.4 | `CONFIRMED` | — |
-| 23 | Testing automatico | test unitari + Automation | **RT Scenario Test Harness**: scenari JSON → percorso di gioco reale → `result.json` | [`technical/test-automatico-unreal.md`](technical/test-automatico-unreal.md) | `CONFIRMED` | 🟡 primo blocco atterrato |
+| 23 | Testing automatico | test unitari + Automation | **RT Scenario Test Harness**: scenari JSON → percorso di gioco reale → `result.json` | [`technical/test-automatico-unreal.md`](technical/test-automatico-unreal.md) | `CONFIRMED` | ✅ harness consegnato: 5 scenari `Movement.*`, console `rt.Test.*`, auto-run via CVar + GameMode, 13 test `Scenario.*` |
+| 23-bis | Forma dell'harness | il prompt proponeva un `ARTTestDirector` come Actor obbligatorio | CVar + GameMode + **stesso runner**: nessun Actor di test nel codice | codice (`ScenarioHarness/RTTestConsole.cpp`) | `SUPERSEDED` | ✅ il documento owner era rimasto il **prompt di implementazione**, non la spec di ciò che fu costruito — riscritto il 2026-08-08 |
 | 24 | Numerazione roadmap | F0–F6 del PDR | M6–M11 (esecuzione) + E1–E17 (release), **mappate** sulle F | [`roadmap/roadmap-checkpoint.md`](roadmap/roadmap-checkpoint.md) | `CONFIRMED` | non rinumerare |
 | 25 | Determinismo | — | snapshot + RulesVersion + seed ⇒ stesso `StateHash`/`LogHash`; le Fast Decision entrano nel TurnLog **come dato** | invariante #4 · [ADR-0004](decisions/adr-0004-finestre-di-reazione.md) | `CONFIRMED` | — |
 | 26 | Privacy dell'intento | — | `FilterForTeam → FRTIntentView`; canary a M10 | invariante #6 | `CONFIRMED` | — |
@@ -56,7 +57,35 @@
 | 33 | **Finestre live nell'MVP** | `spec-sequenza-turno.md` §4/§5: «non implementare, serve il multiplayer» | **in scope** (E14); il gate a due condizioni è caduto | [ADR-0004](decisions/adr-0004-finestre-di-reazione.md) | `SUPERSEDED` | ✅ il divieto **rimosso**: il documento diceva sì in §2 e no in §4 |
 | 34 | **APNAP a sei gruppi** | canone §5.1: ordine totale per effetti simultanei, `FR-RESOLVE-01` | **non implementato**: l'ordine reale è a 5 chiavi sulle *azioni* | codice (`RTActionQueueLibrary`) | **`OPEN`** | ⚠️ regola normativa **senza consumer** — decidere se costruirla o riscrivere §5.1 |
 
-**Riepilogo al 2026-08-08**: **31 risolti** (`CONFIRMED`/`SUPERSEDED`) · 2 `DUPLICATE` chiusi · **1 `OPEN`** (riga 34) · **0 `CONFLICT`**.
+| 35 | **Gerarchia Canone/ADR** | «il canone prevale su tutto», ma ADR-0004/0005 *correggevano* il canone | un ADR accettato è **recepito nel canone nello stesso commit**: nessuno stato «canone + emendamenti» | [`README.md`](README.md) §gerarchia | `CONFIRMED` | ✅ chiuso 2026-08-08 — era un paradosso di governance, non un conflitto di contenuto |
+| 36 | **Quando cambia il facing** | facing = presentazione; oppure «cambia solo dopo il Move» | l'unità **si orienta verso il target/direzione prima che l'azione risolva**; il `Move`, ultimo, fissa il facing finale, che persiste nel round dopo | [D-020](decisions/RT_PDR_00_Decision_Log.md) · [ADR-0005](decisions/adr-0005-orientamento.md) | `SUPERSEDED` | ⏳ E16 · servono i test di sequenza `Dash → Blast`, cambio bersaglio, cono Overwatch, `Move` finale |
+| 37 | **Privacy della finestra di reazione** | privacy = «payload visibile solo alla propria squadra» | anche il **tempo** è un canale: l'avversario non deve poter dedurre che una finestra è stata aperta | [D-021](decisions/RT_PDR_00_Decision_Log.md) · [ADR-0004](decisions/adr-0004-finestre-di-reazione.md) | `CONFIRMED` | ⏳ E14/M10 · requisito di privacy, **non** rifinitura UI: niente pausa osservabile correlata alla scelta altrui |
+| 38 | **Baseline del motore** | D-007: UE **5.8** come *assunzione da bloccare* | **5.8.1** consolidata: upgrade solo fra milestone e con migrazione esplicita | [D-022](decisions/RT_PDR_00_Decision_Log.md) | `SUPERSEDED` | ✅ chiuso 2026-08-08 — il repo la bloccava già di fatto; restava aperta solo sulla carta |
+| 39 | **Workbook di bilanciamento** | `RefactorTactics_Balance_Matrices_v0.1.xlsx` letto come fonte di numeri | **`RESEARCH`**: i canonici sono i cataloghi `balance/RT_*Catalog_v0.1.md` | [D-023](decisions/RT_PDR_00_Decision_Log.md) | `SUPERSEDED` | ✅ il workbook non risolve più conflitti · un futuro v0.2 andrà **derivato** dai cataloghi |
+| 40 | **Bonus danno da altura nel codice** | il terreno alto concede `+Damage` all'occupante | `OccupantDamageBonus` è un parametro **generico** di `EffectiveAttackPower`: ogni call site runtime passa `0` | codice (`RTCombatLibrary`, `RTTurnManager`) · [D-024](decisions/RT_PDR_00_Decision_Log.md) | `SUPERSEDED` | ⚠️ il meccanismo **resta** (serve ad altri effetti), la semantica «altura» no · il test `Combat.EffectiveAttackPowerWithTerrainBonus` insegna ancora il contrario nel nome → issue di rinomina |
+| 41 | **`Sprint`: fase e slot nel codice** | — | D-015 lo vuole profilo del `Move`, **solo** slot movimento, fase `Move` | [D-015](decisions/RT_PDR_00_Decision_Log.md) | `SUPERSEDED` | ⏳ **divergenza misurata il 2026-08-08**: nel codice `Action.Sprint` è in `ERTResolutionPhase::FastMovement` e consuma movimento **e** azione principale → issue di refactor, non correzione silenziosa |
+
+| 42 | **Composizione delle azioni generiche** | due decisioni chiuse lo **stesso giorno** si contraddicevano: D-014 (passaggio Gameplay) ne canonizzava **sei** togliendo `Guard`; l'handoff non-Gameplay ne elencava **otto** con `Guard` e `Activate` distinte | **sette**: `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch` — `Guard` universale, `Activate` assorbita da `Interact` | [D-025](decisions/RT_PDR_00_Decision_Log.md) | `CONFLICT` → **risolto** | ✅ deciso dall'autore il 2026-08-08. Unico `CONFLICT` vero di questo passaggio: due fonti pari grado, nessuna gerarchia fra loro · ⏳ propagazione in `gameplay/brief-azioni-generiche-overwatch.md`, fuori scope qui |
+
+| 43 | **Slot dello scatto** | il catalogo assegnava `Dash` all'azione **principale**, e nessuno faceva rispettare la regola: controller e bot pianificavano `Dash` + attacco insieme | `Dash`, `Leap` e `Reposition` sono **movimento**; `Charge` resta principale perche' e' **un attacco** | [D-028](decisions/RT_PDR_00_Decision_Log.md) | `SUPERSEDED` | ✅ deciso il 2026-08-08. **Non era la regola a non essere applicata: era lo slot sbagliato** — il gioco faceva la cosa giusta con la regola sbagliata scritta accanto. Supera anche «dash + move consentito» di [`gameplay/spec-dash.md`](gameplay/spec-dash.md) · ⏳ **migrazione del codice**: `Action.Dash` e' ancora `Principale` e `ValidateActionSlots` non e' chiamata in partita |
+
+**Riepilogo al 2026-08-08** (secondo passaggio, documenti non-Gameplay): **40 risolti**
+(`CONFIRMED`/`SUPERSEDED`) · 2 `DUPLICATE` chiusi · **1 `OPEN`** (riga 34, APNAP)
+· **0 `CONFLICT`**.
+
+> Restava una sola riga `OPEN`, ed è il difetto ricorrente di questo repository: una regola normativa
+> scritta, corretta, che **nessun consumatore runtime applica**. L'APNAP a sei gruppi vive nel canone e
+> l'ordine reale è un altro. La scelta è **costruire l'esecutore o riscrivere la regola**, mai lasciarla
+> leggibile e falsa.
+>
+> La riga 43 sembrava la stessa cosa e **non lo era**: là il gioco faceva la cosa **giusta** (schivare e
+> sparare) con la regola **sbagliata** scritta accanto. Applicare la regola avrebbe rotto il gioco per
+> difendere il documento. Vale la pena ricordarlo: «regola senza esecutore» non implica «esecutore mancante».
+
+> Le righe 35–41 nascono dall'audit del 2026-08-08 sui documenti non-Gameplay. Tre di esse (40, 41 e la parte
+> ⏳ della 8) non sono divergenze *fra documenti* ma **fra documento e codice**: la decisione è presa, la
+> migrazione no. Restano registrate finché la issue corrispondente non è chiusa — è esattamente il caso in cui
+> marcare «✅ fatto» renderebbe la matrice leggibile e falsa.
 
 > Le quattro voci aperte dalla revisione documentale sono state chiuse dalla sessione `/sc:brainstorm` del
 > 2026-08-07 (`D-011`, `D-012`, `D-013` + due brief). Due delle domande erano **mal poste**, e lo si è scoperto

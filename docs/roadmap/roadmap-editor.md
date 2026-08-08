@@ -1,6 +1,23 @@
 # RefactorTactics — Roadmap delle sedute in editor
 
-> **Ultimo aggiornamento**: 2026-08-06
+> ## 🗄️ `HISTORICAL` — VISTA RITIRATA IL 2026-08-08
+>
+> Era una buona idea — separare il lavoro che **solo** una persona davanti a Unreal può fare — ma era la
+> **terza** vista di stato da tenere allineata a mano, e ha perso la gara: il «prossimo lavoro U1/U2/U3» qui
+> sotto è indietro rispetto al codice e all'arena `GeneratedTestArena`.
+>
+> Tre tracker sincronizzati a mano diventano tre verità diverse. Da qui in poi:
+>
+> | Serve | Si legge |
+> |---|---|
+> | Cosa va verificato in editor, e cosa è già verificato | [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md) — **il registro** |
+> | Cosa conviene fare prima | [`roadmap-checkpoint.md`](roadmap-checkpoint.md) — **le priorità** |
+> | Come si lancia una sessione di verifica | [`../technical/debug-vs-unreal.md`](../technical/debug-vs-unreal.md) |
+>
+> Il corpo resta come provenienza: il metodo con cui furono ordinate le sedute è ancora ragionevole, e servirà
+> se un giorno questa vista verrà **generata** invece che scritta.
+
+> **Ultimo aggiornamento del corpo**: 2026-08-06
 > Terza vista del progetto, accanto a [`roadmap-checkpoint.md`](roadmap-checkpoint.md) (esecuzione) e
 > [`roadmap-v0.1.md`](roadmap-v0.1.md) (release): la vista **operativa in editor**. Elenca le sedute che solo
 > una persona davanti a Unreal può fare — costruire asset e verificare le implementazioni — nell'ordine in cui

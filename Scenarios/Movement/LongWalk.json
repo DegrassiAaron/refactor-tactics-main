@@ -1,5 +1,6 @@
 {
   "scenarioId": "Movement.LongWalk",
+  "tags": ["movement", "animation", "flux", "bastion"],
   "version": 1,
   "seed": 0,
   "mapRadius": 5,

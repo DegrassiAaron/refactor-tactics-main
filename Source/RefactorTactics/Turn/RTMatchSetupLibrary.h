@@ -93,6 +93,45 @@ public:
 	static TArray<FRTShowcaseSpawn> GetShowcaseRelayLiteSpawns();
 
 	/**
+	 * **Arena «Relay Basin» — la mappa CANONICA della showcase** (`RT_Showcase_Relay_v01`).
+	 *
+	 * 45 celle su un solo layer, forma irregolare (7 righe, `q` da -4 a +4 sulle due centrali), con l'obiettivo
+	 * `Relay` a `(0,0,0)` e le due squadre agli estremi ovest ed est. Terreni: `Smoke` a ovest, lane
+	 * `ShallowWater` -> `Conductive` a sud, `Rough` a sbarrare la via diretta est->Relay, `Fire` sulla soglia
+	 * est, cresta `HighGround` a nord-est, ripiano `Ice` a sud. In piu': una **copertura bassa** sull'approccio
+	 * nord al Relay e un **gate chiuso** (una porta, CP 9.3) sulla lane sud.
+	 *
+	 * **Non sostituisce `MakeShowcaseRelayLiteArena`.** Quella e' un esagono simmetrico che serve al
+	 * determinismo; questa e' la mappa degli 8 turni. Rispondono a due domande diverse — «l'esito e'
+	 * riproducibile?» e «il gioco sa mostrare cio' che dice di essere?» — e una non implica l'altra.
+	 *
+	 * Il layout e' **autorato** (`docs/product/showcase-v0.1.md` §2): la spec di scenario dichiarata
+	 * dall'handoff non esiste nel repository. `RefactorTactics.ShowcaseRelay.BasinLayoutMatchesSpec` e' cio'
+	 * che gli impedisce di derivare in silenzio.
+	 *
+	 * I costi di movimento li detta il **catalogo terreni**: la fixture non incide numeri propri.
+	 *
+	 * `Outer` nullo -> nullptr (nessuna arena a meta').
+	 */
+	static URTHexMapAsset* MakeShowcaseRelayBasinArena(UObject* Outer);
+
+	/** Spawn canonici del Relay Basin: Flux `(-4,0)` + Riva `(-4,1)` contro Bastion `(4,0)` + Vektor `(4,1)`. */
+	static TArray<FRTShowcaseSpawn> GetShowcaseRelayBasinSpawns();
+
+	/**
+	 * **Fixture di mappa per nome**: `RelayBasin`, `RelayLite`, `TestArena`, `DemoArena`.
+	 *
+	 * E' il punto d'ingresso che permette a uno scenario di **riferire** una geometria invece di duplicarla.
+	 * Deliberatamente una funzione con un elenco chiuso e non un registry generico: le fixture sono poche,
+	 * nominate e versionate col codice, e un registry a runtime aggiungerebbe un modo di sbagliare (una
+	 * fixture registrata da qualche parte e non da un'altra) senza aggiungere niente.
+	 *
+	 * Nome sconosciuto o vuoto -> **nullptr**, mai un'arena vuota: il chiamante deve poter dire *quale* nome
+	 * non esiste, invece di far girare una partita su una mappa senza celle.
+	 */
+	static URTHexMapAsset* MakeFixtureArena(UObject* Outer, const FString& FixtureId);
+
+	/**
 	 * Occupazione cella -> UnitId ricostruita dallo stato delle unita': solo le vive occupano.
 	 * I tre array sono paralleli; lunghezze incoerenti -> mappa vuota (input non fidato, nessun indovinare).
 	 */

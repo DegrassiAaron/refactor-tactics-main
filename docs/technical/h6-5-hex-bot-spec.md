@@ -1,7 +1,21 @@
 # Spec H6.5 — Bot su griglia esagonale (utility scoring)
 
-> **Stato**: **Implementata** (TDD RED→GREEN; suite **166/166**, build Editor Succeeded) · **Data**: 2026-08-05 ·
-> **Branch**: `feat/hex-bot`
+> ## 🧱 `AS-BUILT 2026-08-05` — spec di ciò che fu consegnato a H6.5
+>
+> **Non è il documento in cui si cambia il bot oggi.** Descrive l'utility scoring com'era al checkpoint H6.5.
+>
+> **Requisiti sopravvenuti**, che questa spec non poteva conoscere e che vincolano ogni lavoro futuro sul bot:
+>
+> - il bot **non può leggere stato nemico nascosto**: deve decidere sulla **Team Knowledge** della propria
+>   squadra (E13), altrimenti bara e il playtest misura la cosa sbagliata;
+> - deve tenere conto del **facing** e dell'arco frontale (E16, [ADR-0005](../decisions/adr-0005-orientamento.md));
+> - deve avere una **politica di reazione** esplicita per Overwatch e finestre (E14);
+> - va sottoposto alla **validazione di stress** a scala maggiore (E17).
+>
+> Owner corrente: [`architettura-codice.md`](architettura-codice.md) · roadmap E13/E14/E16/E17.
+
+> **Stato**: **Implementata** · **Data**: 2026-08-05 · **Branch**: `feat/hex-bot`
+> *(la suite «166/166» è il numero di allora; oggi si misura col comando in [`../README.md`](../README.md))*
 > **Fonte**: milestone **H6** di [`hex-map-roadmap.md`](../roadmap/hex-map-roadmap.md). Ultimo prerequisito puro prima
 > dello switch di `ARTTurnManager`. Non tocca il bot quadrato ([`spec-bot-utility.md`](../archive/gameplay/spec-bot-utility.md)).
 

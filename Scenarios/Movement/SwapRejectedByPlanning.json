@@ -1,5 +1,6 @@
 {
   "scenarioId": "Movement.SwapRejectedByPlanning",
+  "tags": ["movement", "core", "planning", "flux", "bastion"],
   "version": 1,
   "seed": 0,
   "mapRadius": 3,

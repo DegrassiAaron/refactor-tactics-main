@@ -72,10 +72,15 @@ Content/
 **Non creare preventivamente le directory vuote.** Una directory nasce quando contiene almeno un asset reale
 o quando serve alla feature corrente.
 
-## 4. Struttura attiva nella milestone corrente
+## 4. Sottoinsieme in uso
 
-La struttura completa di §3 è il **target**; oggi il progetto ha bisogno solo di questo sottoinsieme
-(milestone **M6 — Parità hex**, vedi [`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md)):
+La struttura completa di §3 è il **target**; il progetto ne usa oggi solo questo sottoinsieme. Quali cartelle
+servano dipende dal lavoro in corso, ma **questo documento non è un tracker**: per sapere a che punto è il
+progetto si legge [`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md), che ne è l'unico owner.
+
+*(Fino al 2026-08-08 questa sezione si intitolava «struttura attiva nella milestone corrente» e nominava la
+**M6 — Parità hex**, chiusa da tempo: una convenzione che invecchia insieme a una milestone smette di essere
+una convenzione.)*
 
 ```text
 /Game/RT/
@@ -161,7 +166,12 @@ reference non necessarie.
 |---|---|
 | `/Game/Developers/<Nome>` | esperimenti personali temporanei; **mai referenziata dal runtime** |
 | `/Game/RT/Dev` | strumenti e materiali di debug condivisi (`M_Debug_CellValid`, `BP_Debug_IntentVisualizer`) |
-| `/Game/RT/Tests` | Functional Test, mappe di test, fixture, replay deterministici |
+| `/Game/RT/Tests` | Functional Test, mappe di test, fixture, replay deterministici — **asset**, non dati testuali |
+
+> **Gli scenari dello Scenario Test Harness non stanno in `Content/`.** Vivono in **`Scenarios/`, alla radice
+> del repository**: sono JSON versionati, si leggono in una diff e si modificano senza aprire l'editor. Metterli
+> sotto `/Game/RT/Tests` li avrebbe trasformati in `.uasset` binari, cioè in qualcosa che nessuna code review
+> può leggere. Vedi [`test-automatico-unreal.md`](test-automatico-unreal.md).
 | `/Game/ThirdParty` | asset esterni **privi** di un namespace proprio |
 
 Non modificare direttamente un asset esterno se puoi crearne una variante proprietaria sotto `/Game/RT`.
@@ -291,7 +301,9 @@ Cartelle risultanti: `Core/Framework`, `Characters/{Guardian,Ranger,Shared}`, `M
 
 `M_Unit` è un materiale con parametro vettoriale `Color`, usato da:
 - `ARTUnit` (colore squadra dell'unità) — `RTUnit.h:324`
-- `ARTGridActor` (`TerrainMaterial`: piani colorati del terreno **e** evidenziazione hover) — `RTGridActor.h:121`
+- ~~`ARTGridActor` (`TerrainMaterial`: piani colorati del terreno **e** evidenziazione hover)~~ — **la classe
+  non esiste più**, rimossa col substrato quadrato al CP 7.2. Il ruolo è oggi di `ARTHexMapActor`, che
+  renderizza le celle via ISM. *(Corretto il 2026-08-08.)*
 
 Quindi è usato da **due sistemi diversi** (Characters e World/Grid), non da due personaggi.
 

@@ -11,10 +11,27 @@
 — formazione di default **Flux + Riva** contro **Bastion + Vektor**. I due archetipi (`ERTArchetype`) non
 partecipano più allo spawn di partita; restano come helper nei test d'integrazione.
 
-Molte abilità esistono come identità/fase/cooldown ma **senza l'effetto** che questo documento descrive,
-perché il sistema che dovrebbe consumarlo non è ancora costruito: coperture e strutture (E9), terreni dinamici
-(E8), gadget (E7). Ogni caso è dichiarato nella PR del rispettivo checkpoint e nei commenti del
-codice, mai nascosto dietro un effetto segnaposto.
+**Aggiornamento 2026-08-08.** Di quel «non ancora costruito» resta solo una voce: **E8** (terreni dinamici,
+superfici attive) ed **E9** (coperture bassa e alta, strutture, distruzione) sono **completate**; le abilità
+che dipendevano da loro hanno ora un sistema che le consuma. Manca **E7** (gadget). Ogni caso residuo è
+dichiarato nella PR del checkpoint e nei commenti del codice, mai nascosto dietro un effetto segnaposto.
+
+### Overwatch, per ogni eroe
+
+`Overwatch` **non è la skill di nessuno**: è un'azione universale che ogni eroe possiede
+([D-012](../decisions/RT_PDR_00_Decision_Log.md) · [D-014](../decisions/RT_PDR_00_Decision_Log.md)), e compete
+con l'azione offensiva principale. Ciò che **cambia per eroe** è il **profilo**: cosa fa scattare la reazione e
+con quale effetto, secondo kit ed equipaggiamento.
+
+I quattro profili **non esistono ancora** — né nel codice né in una fonte corrente — e questo documento **non
+li inventa**. Si definiscono in **E14**, insieme alla finestra di decisione.
+
+### Quota elevata
+
+Nessun eroe riceve danno o vista in più per il fatto di stare in alto
+([D-018](../decisions/RT_PDR_00_Decision_Log.md) · [D-024](../decisions/RT_PDR_00_Decision_Log.md)): l'altura
+vale per geometria. Un eroe **può** dichiarare un bonus legato alla quota, ma allora è **suo**, scritto nel suo
+kit — non una regola implicita del terreno.
 
 ### Reazioni — aggiornamento del 2026-08-07 (CP 6.7, `#155`)
 
@@ -173,10 +190,22 @@ non riduce la gittata di nessuno: la vista lunga vale **anticipo d'informazione*
 | Bastion | 5 | Guardian | Integrità Strutturale | Cleanup | 4 |
 | Vektor | 6 | Striker | Slancio | movimento eseguito | 4 |
 
-I restanti parametri di percezione (`Detection`, `Identification`, `Stealth`, `Tracking`, firme) esistono nel
-workbook di bilanciamento e sono inizializzati **al valore più basso disponibile, uguale per tutti**
-(Detection 48, Identification 45, Stealth 2, Tracking 1): si parte piatti e si differenzia col playtest.
-Nessuno di essi entra nella v0.1 — lo slice è binario (in vista / fuori vista), vedi §3 del brief.
+I restanti parametri di percezione (`Detection`, `Identification`, `Stealth`, `Tracking`, firme) sono
+inizializzati **al valore più basso disponibile, uguale per tutti** (Detection 48, Identification 45,
+Stealth 2, Tracking 1): si parte piatti e si differenzia col playtest.
+
+> ⚠️ **Corretto il 2026-08-08.** Questo paragrafo diceva: «*nessuno di essi entra nella v0.1 — lo slice è
+> binario (in vista / fuori vista)*». **Non è più vero**, e i numeri qui sopra venivano dal workbook, che è
+> `RESEARCH` ([D-023](../decisions/RT_PDR_00_Decision_Log.md)).
+>
+> La percezione della v0.1 **non è binaria**: è **conoscenza parziale** a tre livelli — `Nascosto`,
+> `ContattoIncerto`, `Rilevato` — più `UltimoContatto`, unita per squadra (**Team Knowledge**, epic **E13**).
+> Il **rumore** è un secondo canale, propagato con interi sul grafo. Il **facing** aggiunge un cono frontale
+> più la consapevolezza ravvicinata a 360° entro 2 celle
+> ([ADR-0005](../decisions/adr-0005-orientamento.md) §4b, epic **E16**).
+>
+> Quali di questi parametri diventino statistiche per eroe, e con quali valori, si decide in **E13**: qui non
+> si scrive un numero che nessun sistema legge.
 
 Nessun eroe domina in ogni parametro: Bastion compra HP e resistenza con **movimento** e vista; Vektor compra
 mobilità con l'assenza di difese; Flux ha il danno combo più alto ma la salute più bassa.

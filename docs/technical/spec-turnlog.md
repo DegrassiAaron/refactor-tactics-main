@@ -22,6 +22,28 @@
 > I reason sono stati corretti di conseguenza (rimossi `CoverReduced`/`BlockedByCover`/`OutOfBudget`; aggiunti
 > `TerrainBonus`, `NoLineOfSight`, `Stayed`). Decisione utente: set **Core + NoLineOfSight + TerrainBonus** (§12, D-TL-5).
 
+> ⚠️ **Emendamento 2026-08-08 — due affermazioni della revisione sopra non valgono più.**
+> Erano **corrette al 3 agosto**, quando la copertura era solo un bloccante di LOS e non esisteva E9: non sono
+> errori di allora, sono fotografie scadute. Il §2 «Stato attuale» va letto con questo cappello.
+>
+> | La revisione 2026-08-03 diceva | Oggi |
+> |---|---|
+> | «la copertura **non** riduce il danno, blocca la LOS ⇒ attacco scartato» | **Dipende dal tipo**: la copertura **bassa riduce** il danno (CP 9.1), la copertura **alta blocca** il bordo (CP 9.2). La riduzione decade se il colpo arriva fuori dall'arco frontale ([ADR-0005](../decisions/adr-0005-orientamento.md) §4a) |
+> | «l'unico modificatore di danno è l'**altura** (`EffectiveAttackPower`, +danno)» | **Falso oggi.** `OccupantDamageBonus` è un parametro **generico** e ogni call site runtime passa `0` — verificato il 2026-08-08 in `RTTurnManager.cpp`. La quota **non** dà danno ([D-024](../decisions/RT_PDR_00_Decision_Log.md)): vale per geometria |
+>
+> **Categorie e outcome correnti** (da `Turn/RTTurnLog.h`, non da memoria):
+> `ERTLogCategory = { Move, Combat, Fallback, Reaction, Environment }` ·
+> `ERTEnvironmentOutcome = { SurfaceChanged, SurfaceRestored, SurfaceRejected, SurfaceExtinguished, CoverDamaged, CoverDestroyed }`.
+>
+> **Serve una nuova versione di formato per questi valori? No** — e la ragione è nel codice, non nella prudenza:
+> i valori nuovi sono **accodati** e viaggiano come `uint8`, quindi le tracce già su disco restano leggibili.
+> Si incrementa `ERTTurnLogFormatVersion` solo quando cambia il **layout** di header o voce; l'ultimo
+> incremento è stato **v4 `WithFormatId`** (CP 10.3). Inserire un valore *in mezzo* rinumererebbe `Combat`,
+> cioè riscriverebbe il significato dei file esistenti: quello sì richiederebbe una versione.
+>
+> Dettaglio delle regole di copertura: [`../gameplay/spec-copertura-cp91.md`](../gameplay/spec-copertura-cp91.md) ·
+> [`../gameplay/spec-copertura-alta-cp92.md`](../gameplay/spec-copertura-alta-cp92.md).
+
 ---
 
 ## 1. Obiettivo & scope
@@ -46,7 +68,7 @@ HUD** esistente (stringhe arricchite). Il TurnLog è **in-memory** e coperto da 
 | `ResolvePaths` restituisce `FRTPathResult{Final,Entered}` — **nessun outcome** esposto | `RTMovementResolver.h:39-48` |
 | **Copertura = blocca la LOS** (`GetVisionBlockers`); senza LOS l'attacco è **scartato** (non ridotto) | `RTTurnManager.cpp:567-570,612-618` |
 | **Budget / blocco-su-copertura** rifiutati in **PIANIFICAZIONE** (input), non nella risoluzione | `RTPlayerController.cpp:231-233,265-277` |
-| Danno effettivo = `EffectiveAttackPower(Power, AttackerDmgBonus)` — **altura +danno** (nessuna riduzione da copertura) | `RTTurnManager.cpp:663-666`; `RTCombatLibrary.h:62-63` |
+| Danno effettivo = `EffectiveAttackPower(Power, OccupantDamageBonus)` — bonus **generico di cella**, ~~altura +danno~~: ogni call site runtime passa `0` ([D-024](../decisions/RT_PDR_00_Decision_Log.md)) | `RTTurnManager.cpp`; `RTCombatLibrary.h` |
 | `URTCombatResolver::ResolveAttacks` applica scudo→HP e somma; morte via `NewlyDefeated(BeforeHP,AfterHP)` | `RTTurnManager.cpp:703-724`; `RTCombatLibrary.h:70-71` |
 | `ARTUnit` senza id esplicito; ha `TeamId` e `GridCell`; vale «max 1 unità/cella» | `RTUnit.h:36,47`; canone §6 |
 
@@ -121,7 +143,8 @@ Il TurnLog è un `TArray<FRTTurnLogEntry>`, membro di `ARTTurnManager`, con gett
 
 `LockInAndResolve` → i resolver girano come oggi → classificazione → `ARTTurnManager`: (1) accoda `FRTTurnLogEntry`,
 (2) chiama `AddLogEvent` con la stringa **arricchita** dal reason (es. *«Guardian: fermo (cella contesa)»*,
-*«Ranger → Bot: 45 (altura +danno)»*, *«Ranger → Bot: nessuna linea di tiro»*).
+*«Ranger → Bot: 45 (bonus di cella)»*, *«Ranger → Bot: nessuna linea di tiro»*). *(L'esempio diceva «altura
++danno»: la quota non dà danno, [D-024](../decisions/RT_PDR_00_Decision_Log.md).)*
 
 **Ordinamento del TurnLog** (deterministico, invariante #3/§5.1): **fase → categoria → `SrcCell`** (StableTieBreak
 per-coord). Non dipende **mai** dall'ordine d'inserimento nel container.

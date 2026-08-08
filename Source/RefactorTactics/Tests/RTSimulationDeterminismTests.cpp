@@ -10,6 +10,7 @@
 // scritta apposta per passare.
 
 #include "Misc/AutomationTest.h"
+#include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "Engine/Engine.h"
@@ -57,7 +58,8 @@ namespace
 	bool LoadDeterminismScenario(FAutomationTestBase& Test, const TCHAR* Id, FRTTestScenario& Out)
 	{
 		FString Error;
-		if (!URTScenarioLoader::LoadFromFile(URTScenarioLoader::PathForScenarioId(Id), Out, Error))
+		const FString Path = URTScenarioIndex::ResolvePath(Id, Error);
+		if (Path.IsEmpty() || !URTScenarioLoader::LoadFromFile(Path, Out, Error))
 		{
 			Test.AddError(FString::Printf(TEXT("scenario '%s' non caricabile: %s"), Id, *Error));
 			return false;

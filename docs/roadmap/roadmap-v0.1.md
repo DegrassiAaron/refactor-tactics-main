@@ -1,6 +1,8 @@
 # RefactorTactics — Roadmap v0.1 (vertical slice 2v2 su hex)
 
-> **Stato**: in esecuzione · **Ultimo aggiornamento**: 2026-08-07 · **Branch di lavoro**: `docs/consolidamento-showcase-v01`
+> `CURRENT` · **Stato**: in esecuzione · **Ultimo aggiornamento**: 2026-08-08
+> **Questa è l'unica vista dello stato delle epic** (§2.1); la vista di esecuzione per milestone è
+> [`roadmap-checkpoint.md`](roadmap-checkpoint.md), che non lo duplica.
 > **Scope sorgente**: `docs/archive/pdr-v0.1/RT_PDR_12_Catalog_v0.1.pdf` + `docs/src/RefactorTactics — Catalogo e bilanciamento v0.1.pdf`
 > **Decisione abilitante**: [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md)
 >
@@ -25,7 +27,17 @@ Un vertical slice **2v2 offline contro bot** su griglia **esagonale multilivello
 - **determinismo verificato** (100 ripetizioni a seed fisso, checksum identico) e **build packaged** giocabile.
 
 **Fuori scope v0.1** (restano north-star): multiplayer in rete, 4v4, GAS, progressione, modding, editor di
-mappe dinamico a runtime, stack di reazioni interattivo.
+mappe dinamico a runtime.
+
+> ⚠️ **Precisato il 2026-08-08.** Questa riga diceva «stack di reazioni interattivo» fra le cose fuori scope,
+> ma **E14 è in roadmap**: letta com'era, escludeva un'epic pianificata. La distinzione va fatta per bene,
+> perché è la stessa di [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md):
+>
+> | **Fuori** dalla v0.1 | **Dentro**, epic E14 |
+> |---|---|
+> | stack **LIFO arbitrario** di reazioni | **una** Decision Window, delimitata |
+> | reazioni **annidate** | mai annidata: una risposta non ne apre un'altra |
+> | finestre che aprono finestre | Overwatch e Fast Reaction, con `Timeout → HOLD` |
 
 ### Principi non negoziabili della v0.1
 
@@ -77,76 +89,69 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 | Budget movimento | `Turn/RTHexSimLibrary.*` | ✅ **5 MP**, costi interi (CP 4.2) |
 | Privacy degli intenti | `Turn/RTIntentPrivacyLibrary.*` | ✅ `FRTPlannedIntent → FilterForTeam → FRTIntentView` |
 | Zone controllate / soppressione | `Combat/RTOffensiveActionLibrary.*` | ✅ `FRTSuppressiveZone` · precedente tecnico per Overwatch (E14) |
-| Terreni | `Map/RTHexCellData.h` (`ERTHexSurface`), `Turn/RTHexSimLibrary.*` | 🟡 CP 8.1 ✅ (8 superfici, Rough/Fire/Smoke/Ice/ShallowWater) · **stati, propagazione e interazioni** ⏳ (CP 8.2–8.5) |
-| **Coperture direzionali** (riduzione danno per bordo) | — | ⏳ *verificato assente*: `FRTHexCellData` ha solo `MoveCost`/`bBlocksMovement`/`bBlocksLineOfSight` |
-| **Strutture** (porte, ponti, pannelli, integrità) | — | ⏳ |
-| **Obiettivi dinamici / Activate / Interact** | — | 🟡 `Action.Activate`/`Interact` esistono come identità (CP 4.4); **nessun oggetto da attivare** |
-| **Comandi debug `rt.Debug.*`** | — | ⏳ *verificato assente*: nessun `FAutoConsoleCommand` di debug in `Source/` |
+| Terreni, stati, propagazione | `Terrain/RTTerrainLibrary.*`, `Map/RTHexCellData.h` | ✅ **E8 chiusa**: 8 superfici, stati temporanei, propagazione elettrica, fuoco/acqua, terreno dinamico |
+| **Coperture direzionali** (riduzione danno per bordo) | `Map/RTHexCoverLibrary.*` | ✅ `FRTHexCover{Edge, Type, Integrity}` in `FRTHexCellData` — bassa (CP 9.1) e alta (CP 9.2), con distruzione |
+| **Strutture** (porte, ponti, pannelli, integrità) | `Map/RTHexCoverLibrary.*` | 🟡 integrità e distruzione ✅ (`Cover.Destruction.*`) · **porte, ponti, coperture temporanee** ⏳ (CP 9.3–9.5) |
+| **Fine partita a tre vie** | `Turn/RTTurnRules.*`, `Turn/RTMatchFormatData.h` | ✅ CP 10.3: eliminazione, obiettivo, `RoundLimit` da formato, pareggio dichiarato |
+| **Obiettivi dinamici** | — | 🟡 la partita **finisce** per obiettivo (`Match.EndsOnObjective`); **nessun oggetto da attivare** in mappa |
+| **Comandi debug `rt.Debug.*`** | `Map/RTHexOverlayConsole.cpp`, `Turn/RTPacingConsole.cpp` | ✅ `rt.Debug.DrawCells` · `rt.Debug.Pacing` |
+| **Scenario Test Harness** | `ScenarioHarness/*` | ✅ 5 scenari, console `rt.Test.*`, auto-run via CVar, `result.json` |
 | **Conoscenza parziale (vista/udito)** | — | ⏳ la vista è una statistica a catalogo che non decide nulla (E13) |
 | **Finestre di reazione interattive** | — | ⏳ ADR-0004 accettato, nessun codice (E14) |
-| **Scenario showcase e golden replay** | — | ⏳ (E15) |
+| **Facing come stato di gioco** | — | ⏳ ADR-0005 + D-020 accettati, nessun codice (E16) |
+| **Scenario showcase e golden replay** | `Tests/` (`ShowcaseRelay.*`) | 🟡 **iniziata**: fixture stabile e scenario lite deterministico |
 
-**Suite automatica**: **443 test unici** in **66 file** (rimisurati 2026-08-08 **dopo** il merge
-di CP 9.4 con `main`). CP 9.4 porta **+10** test — 7 `Structures.Bridge.*` e 3 `HexMap.Arc*`, nel file nuovo
-`RTHexArcTests.cpp` più due d'integrazione in `RTEnvironmentActionTests.cpp`. CP 9.3 porta **+13** test — 10 `Structures.Door.*` e 3 `HexMap.Door*`, nel file nuovo
-`RTHexDoorTests.cpp`. Il tredicesimo, `Door.ReadsBothFaces`, non era previsto: l'ha reso necessario la
-**verifica di mutazione**, che ha scoperto come nessun test esercitasse la lettura del bordo dalla faccia che
-non dichiara la porta.
-⚠️ Al merge le due parti dichiaravano **425 in 64** (CP 9.3) e **419 in 64** (`main`): entrambe corrette alla
-propria base e nessuna valida dopo l'unione — di nuovo. Le viste erano già arrivate a un merge con numeri
-diversi ed **entrambi
-corretti alla propria base** — 394 in 61 alla chiusura di CP 9.1, 390 in 61 col primo blocco dell'harness
-degli scenari — e dopo l'unione nessuno dei due valeva più. È il caso che dimostra la regola meglio di
-qualunque deriva: **si misura col comando**, dopo ogni merge e alla chiusura di ogni checkpoint.
-⚠️ La cifra dichiarata qui prima era **338 in 49 file**, ma il valore su `main` era già **342 in 50**: i merge
-di `#179`/`#180` sono arrivati dopo l'ultima misura. È la stessa deriva del 2026-08-05, e la regola resta
-quella: **si misura col comando, non si cita a memoria**. Comando riproducibile:
+**Suite automatica**: **si misura, non si cita.** Ultima misura **456 test unici in 68 file**, il
+2026-08-08 dopo il merge di CP 9.3 (porte), CP 9.4 (ponti) e del consolidamento documentale.
+Ripartizione per area in [`../README.md`](../README.md). Comando riproducibile:
 
 ```bash
 grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp | tr -d '"' | sort -u | wc -l
 ```
 
-**Stato in una riga**: il **contenuto** della v0.1 è costruito e testato (cataloghi, azioni, reazioni, eroi) e
-gira su un **solo substrato esagonale**; mancano **il mondo** (ambiente, coperture, strutture, obiettivi), **la
-leggibilità** (HUD, log, debug), **la conoscenza parziale** e **il gate di release**. Il collo di bottiglia non
-è più il codice di gioco: è la **verifica interattiva** (CP 2.8/6.8 mai eseguito) e l'osservabilità.
+> Questo numero è già stato sbagliato quattro volte, e la storia vale più della cifra: due viste sono arrivate
+> a un merge con **due numeri diversi ed entrambi corretti alla propria base** (394 in 61 alla chiusura di
+> CP 9.1, 390 in 61 col primo blocco dell'harness), e dopo l'unione nessuno dei due valeva più. Si rimisura
+> **dopo ogni merge**, non alla chiusura del proprio ramo.
 
-### 2.1 ⚠️ Riallineamento misurato — 2026-08-07
+### 2.1 Stato delle epic — misurato il 2026-08-08
 
-Le due righe qui sopra **erano vere il 2026-08-05 e non lo sono più**. Misura diretta sul repository:
+Una sola tabella, misurata sul repository. **Non esiste più una seconda vista «stato dichiarato vs stato
+misurato»**: questo file ne conteneva due, e ognuna correggeva l'altra fino a dire, nella stessa pagina, che
+E8 era «da costruire» e «chiusa». La storia di quelle correzioni sta nel Git log e nel changelog, non qui.
 
-- **324 test automatici unici** in **48 file** (la roadmap ne dichiarava 172 in 25 file: −152).
-- I nomi dei test sono la prova di cosa esiste: sono estraibili con
-  `grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp`.
+Evidenza = i **nomi dei test**, che sono la prova di ciò che esiste:
+`grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp`
 
-| Epic | Stato dichiarato | **Stato misurato** | Evidenza |
-|---|---|---|---|
-| **E1** Cataloghi | da costruire | ✅ **chiusa** | `Catalog.{IdsAreUnique, NoFloatInIntegerFields, PhaseMappingIsTotal, ValidatorRejectsInvalidAsset, ValidatorRejectsEquipmentWithoutDrawback, ValidatorRejectsUnboundedPropagation}` |
-| **E4** Motore azioni | da costruire | ✅ **chiusa** (52 test) | `Actions.{OrderByPriority, PermutationInvariant, PhaseMappingRespectsAtlas}`, 6 `Fallback.*`, `Guard.*`, `Charge.*`, `Leap.*`, `Root.*`, `Interrupt.*`, `Slow.*`, `Collisions.NoPlayerIdBias` |
-| **E5** Reazioni | da costruire | ✅ **chiusa** (27 test) — motore componibile **e consumato** | `Reactions.{SingleActivation, NoResolverWait, IntentNotVisibleToEnemy}`, `Counter/Deflect/Brace/Shield/Cleanse`, 5 test `Intercept*` · **CP 5.5** (2026-08-07): `Reactions.{MultiEffectReactionAppliesAll, HeroReactionKeepsIdentityInLog, NoHeroSpecificBranchInResolver}` · consumata da **CP 6.7** |
-| **E6** Roster 4 eroi | da costruire | ✅ **chiusa** (25 test) | `Heroes.{Flux,Riva,Bastion,Vektor}.MatchesCatalog`, `*.VariantTradeoff`, `RosterIsBalanced`, `SpawnFromData` · **CP 6.7** (2026-08-07): `Heroes.{BastionInterposition*, VektorDeflectionReducesDirectHit, FluxReactiveCapacitorShieldsAndCounters, ReactionsDeclaredOrDeferred}` |
-| **E8** Terreni | da costruire | ✅ **chiusa il 2026-08-07** | ✅ `Terrain.{CostsFromCatalog, Rough.BlocksDash, Fire.*, ShallowWater.AppliesWet, Smoke.*, Ice.*}` · ✅ **CP 8.2 chiuso 2026-08-07**: 11 test `Status.*` (durata legata alla cella, `Burning` nel Cleanup, `WetRemovesBurning`, `Marked` con pass a priorità, `Obscured`) · ✅ **CP 8.3 chiuso 2026-08-07**: 7 test `Environment.*` (propagazione sul grafo dell'acqua, limite 3 passi, unicità per evento, ordine totale, fail-closed) · ✅ **CP 8.4**: terreno dinamico (la mappa cambia in partita), fuoco/acqua, TurnLog `Environment` · ✅ **CP 8.5**: `Heal`, `CreateWater` r1, `ModifyArc` con revisione — `CreateCover` rinviata a E9 |
-| **E7** Equipaggiamento | pianificata | ⏳ **assente** | nessun test `Equipment.*` |
-| **E9** Coperture/strutture | pianificata | 🟡 **aperta, CP 9.1–9.4 chiusi** | ✅ **CP 9.1 chiuso 2026-08-07** (#69): 4 test `Cover.*` + 3 `HexMap.*` (migrazione v2→v3, hash, validazione). ✅ **CP 9.2 chiuso 2026-08-07** (#70): 9 test — la copertura alta nega vista e passo **per bordo, nei due versi**, si abbatte con `DamageStructure` e la revisione della mappa sale nello stesso punto che usa CP 9.3. ✅ **CP 9.4 chiuso 2026-08-08** (#72): 10 test — 7 `Structures.Bridge.*` + 3 `HexMap.Arc*`; l'arco è **additivo**, quindi romperlo non allunga il percorso ma lo **annulla**. ✅ **CP 9.3 chiuso 2026-08-08** (#71): 13 test — 10 `Structures.Door.*` + 3 `HexMap.Door*`; la porta è un **bordo** (formato **v4**), la si legge dallo stesso `BlocksTraversal` di muri e coperture e il movimento già pianificato si **ferma** davanti a una porta chiusa a metà turno. ⏳ resta **CP 9.5** (pannello cinetico) |
-| **E10** Obiettivi | pianificata | ⏳ **assente** | nessun test `Objectives.*` né `Match.*` |
-| **E11** HUD/log/debug | pianificata | ⏳ **assente** | nessun test `UI.*` né `Debug.*` |
-| **E12** Determinismo/release | pianificata | ⏳ **assente** | nessun test `Simulation.*` (il replay è verificato una volta da `HexSim.ReplayDivergenceZero`, non 100) |
+| Epic | Stato | Evidenza |
+|---|---|---|
+| **E1** Canone, cataloghi, modello dati | ✅ **chiusa** | 9 test `Catalog.*` — ID unici, niente float nei campi interi, mappatura di fase totale, validator |
+| **E2** Parità hex del substrato | ✅ **chiusa** | l'intero turno gira su esagoni |
+| **E3** Dismissione del quadrato | ✅ **chiusa** | `FRTGridCoord`, `URTGridLibrary`, `ARTGridActor` non esistono più in `Source/` (CP 7.2) |
+| **E4** Motore azioni a priorità | ✅ **chiusa** | 58 test `Actions.*` + `Fallback.*` — ordine per priorità, permutazione-invarianza, collisioni senza bias di Player ID |
+| **E5** Reazioni | ✅ **chiusa** | 27 test `Reactions.*` — attivazione singola, nessuna attesa nel resolver, `Intercept`, reazioni componibili |
+| **E6** Roster 4 eroi | ✅ **chiusa** | 25 test `Heroes.*` — i quattro eroi corrispondono al catalogo; **tre reazioni su cinque** cablate, `InterceptShot`/`FlowReaction` rinviate |
+| **E7** Equipaggiamento e loadout | ⏳ **assente** | nessun test `Equipment.*` |
+| **E8** Terreni, stati e ambiente | ✅ **chiusa** | 39 test `Terrain.*` · `Status.*` · `Environment.*` — superfici, stati temporanei, propagazione elettrica, fuoco/acqua, terreno dinamico |
+| **E9** Coperture e strutture | 🟡 **CP 9.1–9.4 chiusi** | 13 test `Cover.*` — bassa (riduzione per bordo, decade dal lato sbagliato), alta (nega vista **e** passo nei due versi), distruzione con revisione e riapertura della LOS · 10 test `Structures.Door.*` + 3 `HexMap.Door*` — la porta è un **bordo** (formato mappa **v4**), letta dallo stesso `BlocksTraversal` di muri e coperture, e un movimento già pianificato si **ferma** davanti a una porta chiusa a metà turno · 7 test `Structures.Bridge.*` + 3 `HexMap.Arc*` — il ponte è un **arco**, non un bordo (CP 9.4) · ⏳ CP 9.5: coperture temporanee |
+| **E10** Obiettivi dinamici e fine partita | 🟡 **CP 10.3 chiuso** | 27 test `Match*.*` — fine partita a tre vie, `RoundLimit` da formato, pareggio dichiarato, fallback di formato osservabile · ⏳ nessun oggetto da attivare in mappa |
+| **E11** HUD, log e debug | 🟡 **parziale** | 4 `Preview.*`, 4 `PlayerInput.*`, 8 `Playback.*`; console `rt.Debug.DrawCells` e `rt.Debug.Pacing` esistono · ⏳ Ghost Timeline (CP 11.5/11.6) |
+| **E12** Determinismo, QA e release | 🟡 **CP 12.1 chiuso** | 4 `Simulation.*` — replay deterministico su **100 ripetizioni**, checksum stabile per permutazioni, corpus golden che rifiuta un formato diverso · 13 `Scenario.*` (harness) · 2 `Perf.*` · ⏳ packaged build (CP 12.3/12.5) |
+| **E13** Conoscenza parziale: vista e udito | ⏳ **assente** | la vista è una statistica a catalogo che non decide nulla |
+| **E14** Overwatch e reazioni interattive | ⏳ **assente** | ADR-0004 accettato, nessun codice. Dipende da E13 |
+| **E15** Showcase «Il Relè» e golden replay | 🟡 **iniziata** | 2 test `ShowcaseRelay.*` — fixture stabile, scenario lite deterministico |
+| **E16** Orientamento e direzionalità | ⏳ **assente** | ADR-0005 + [D-020](../decisions/RT_PDR_00_Decision_Log.md) accettati, nessun codice |
+| **E17** Validazione di stress 4v4 | ⏳ **assente** | dopo E15; **non** è un gate di release |
 
-**Sorpresa registrata**: lo **scivolamento su ghiaccio esiste ed è testato** (`Terrain.Ice.SlidesWithSufficientBudget`,
-`Ice.SlideBudgetBoundaryIsExactlyTwo`, `Ice.BlockedCellStopsSliding`, `Ice.SlidesInMatch`), benché il catalogo
-terreni lo dichiari «rimandabile». Non va né costruito né rimosso: va **documentato come vigente**.
+**Due cose vigenti che i documenti non dichiaravano.** Lo **scivolamento su ghiaccio** esiste ed è testato
+(`Terrain.Ice.*`), benché il catalogo terreni lo dicesse «rimandabile»: va documentato come vigente, non
+costruito né rimosso. E i **10 test vincolanti del catalogo** (§6) **esistono tutti e dieci** — gli ultimi
+arrivati sono `Cover.DirectionalDamageReduction` e `Simulation.DeterministicReplay` con le sue 100 ripetizioni.
 
-~~**I 10 test vincolanti del catalogo** (§6): **6 esistono**, 4 no~~
-→ ✅ **tutti e 10 esistono** (misurato il 2026-08-08). Nel frattempo sono arrivati `Environment.*` e
-`Cover.DirectionalDamageReduction` (E8/E9) e, per ultimo, `Simulation.DeterministicReplay` con le sue **100
-ripetizioni** — insieme a `Simulation.ChecksumStableAcrossPermutations` che chiude **CP 12.1**.
-Verifica riproducibile: `grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp`
-e confronto con l'elenco di §6.
-
-**Stato in una riga, aggiornato**: il **contenuto** della v0.1 (cataloghi, azioni, reazioni, eroi) è in gran
-parte costruito e testato; mancano **il mondo** (ambiente, coperture, strutture, obiettivi), **la leggibilità**
-(HUD, log, debug) e **il gate di release** (determinismo, packaging). Il collo di bottiglia non è più il codice
-di gioco: è la **verifica interattiva** (M6 CP 6.8 mai eseguito) e l'osservabilità.
+**Stato in una riga**: il **contenuto** della v0.1 è costruito e testato (cataloghi, azioni, reazioni, eroi,
+ambiente, coperture) e gira su un solo substrato esagonale. Mancano la **conoscenza parziale** (E13), le
+**finestre di reazione** (E14), il **facing** (E16), l'**equipaggiamento** (E7) e la **leggibilità** (E11). Il
+collo di bottiglia non è il codice di gioco: è la **verifica interattiva** — CP 6.8 non è mai stato eseguito.
 
 ---
 
@@ -174,7 +179,7 @@ di gioco: è la **verifica interattiva** (M6 CP 6.8 mai eseguito) e l'osservabil
 | **E18** | Predictive Action — thin slice | P2 | 2 | Il pilastro della **predizione** diventa percepibile con **una sola** azione: decisa in Planning, risolta a un boundary deterministico, **senza input live** ([D-016](../decisions/RT_PDR_00_Decision_Log.md)). Il framework di trap resta fuori |
 
 **Totale: 18 epic, 87 checkpoint** *(era 12/59; **E13** ed **E14** aggiunte il 2026-08-07; il 2026-08-07,
-consolidando [`../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md`](../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md):
+consolidando [`../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md`](../src/showcase/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md):
 **E15** showcase (5 CP), **CP 5.5** e **CP 6.7** per il debito delle reazioni d'eroe, **CP 14.2** per
 l'estrazione del micro-step; consolidando
 [`../src/RefactorTactics_ActionGhosts_Phases_FastReactions_Claude.md`](../src/RefactorTactics_ActionGhosts_Phases_FastReactions_Claude.md):
@@ -641,7 +646,7 @@ cosa di `AllowedResponses ≤ 1` (ADR-0004 §2), che la deriva dai dati invece d
 
 **Obiettivo**: una partita dimostrativa 2v2 di 8 turni che sia allo stesso tempo **fixture d'integrazione,
 golden replay e demo**. Fonte:
-[`../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md`](../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md).
+[`../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md`](../src/showcase/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md).
 Scenario: `RT_Showcase_Relay_v01`, arena `L_Showcase_Relay`, `Flux + Riva` vs `Bastion + Vektor`.
 
 **Regola dell'epic** — la showcase è un **consumer**: espone il gap → si costruisce il sistema generale nella
@@ -657,6 +662,82 @@ gli 8 turni) vive nei **dati di scenario**, mai nel codice delle regole.
 | **15.3** | Scenario **scriptabile** senza UI | Gli input di una partita showcase sono un **dato**: intenti per unità e turno + eventuali risposte alle finestre (`Boundary → FIRE/HOLD`), alimentabili nel resolver **senza** click, UMG o timer reali. La UI diventa un consumer degli stessi comandi | `ShowcaseRelay.ScriptedInputsDriveMatch`, `ShowcaseRelay.DecisionProviderIsInjectable` |
 | **15.4** | Golden replay degli 8 turni | Lo scenario completo gira e produce **`LogHash` e `StateHash` attesi**; una divergenza fallisce indicando turno, fase e `ActionId`. I file golden vivono con quelli del **CP 12.6** (stesso meccanismo, stessa cartella, **rigenerazione solo con flag esplicito**): la showcase è un elemento del corpus, non un secondo sistema | `ShowcaseRelay.DeterministicReplay`, `ShowcaseRelay.FinalStateHashStable`, `ShowcaseRelay.WetEnablesFluxCombo`, `ShowcaseRelay.InterpositionRedirectsHit`, `ShowcaseRelay.ObjectiveCheckedAfterKO` |
 | **15.5** | Presentazione e playtest | La partita è **giocabile e leggibile** in editor: il TurnLog spiega gli eventi chiave, KO non implica vittoria se l'obiettivo chiude il match, nessuna dipendenza dal frame rate. Screenshot/video **solo dopo** che la logica è verificata | `PIE-V01-SHOWCASE`; sessione di playtest di leggibilità registrata in `test-manuali-pie.md` |
+
+#### Tranche verticali della showcase — `S0`…`S10`
+
+*Aggiunte il 2026-08-08.* L'handoff proponeva una roadmap verticale `S0`…`S10`. **Non è una roadmap
+concorrente**: è la stessa, letta dal lato della showcase invece che dal lato delle epic. Ogni tranche dice
+cosa sblocca — e la showcase diventa la **spina dorsale verificabile** della v0.1, perché ogni turno che passa
+è una feature che esiste davvero.
+
+Nessuna stima temporale: il repository non ne usa.
+
+| ID | Deliverable | Dipendenze | Test | Exit gate |
+|---|---|---|---|---|
+| **S0** | Scenario Harness baseline | — | 13 `Scenario.*` | ✅ **fatto**: JSON versionato → percorso di gioco reale → `result.json`, `PASS`/`FAIL`/`ERROR` |
+| **S1** | Fixture della mappa Relay Basin | S0 | `ShowcaseRelay.BasinLayoutMatchesSpec` | ✅ **fatto 2026-08-08**: 45 celle, superfici, gate chiuso, copertura, spawn — pinnati e verificati con mutazione |
+| **S2-1** | Lo scenario **riferisce** la fixture per nome | S1 | `Scenario.FixtureFactoryResolvesKnownNames` · `.UnknownFixtureIsError` · `.BlockedTurnIsNotAFailure` · `.ShowcaseRelayV01RunsTurnOne` | ✅ **fatto 2026-08-08**: `RT_Showcase_Relay_v01` esiste, il turno 1 gira dal resolver normale, `result.json` dice `BLOCKED` col nome della capability |
+| **S2-2** | Intent a **slot nominati** (`main` / `dash` / `reaction`), con bersaglio **unità o cella** | S2-1 ✅ | `Scenario.AbilityIntentAppliesExpectedEffect` · `.ActionNotInHeroKitIsError` · `.CooldownFallsBackNotErrors` · `.TwoMainActionsIsError` | Azione fuori dal kit → `ERROR`; **cooldown → fallback, non `ERROR`**; due azioni principali → `ERROR`. Sblocca **T3** e **T7**; **T5 in parte** |
+| **S3** | Predictive Action, thin slice | S2 · **E18** | `RT.Scenario.Showcase.T2` | `PredictionWhiffed` con reason code: la previsione sbagliata **costa** |
+| **S4** | Bersaglio in movimento + Fire/Burning | S2 · policy moving-target **dal catalogo** | `RT.Scenario.Showcase.T3` | Il TurnLog dice **quale** policy ha applicato |
+| **S5** | Overwatch universale / Fast Reaction | S2 · **E13** → **E14** · **E16** (facing) | `RT.Scenario.Showcase.T4` | `HOLD` non consuma, la seconda opportunity esiste, `FIRE` consuma, **nessun leak** |
+| **S6** | Smoke + strutture + `GraphRevision` | S2 · ✅ CP 9.3 (gate) | `RT.Scenario.Showcase.T5` | `EdgeDisabled → EdgeEnabled`, revisione che sale, un percorso che **prima non esisteva** |
+| **S7** | Interposizione e redirect | S2 · **D-017** (rivalidazione) | `RT.Scenario.Showcase.T6` | Test **discriminante**: A e B a copertura diversa, o passa anche col comportamento sbagliato |
+| **S8** | Payoff ambientale | S2 · ✅ **E8 chiusa** | `RT.Scenario.Showcase.T7` | Acqua spegne il fuoco; propagazione ordinata, **una volta sola** per evento; slide deterministica |
+| **S9** | Objective Relay + 8 turni completi | S2…S8 · **E10 CP 10.1/10.2** | `RT.Scenario.Showcase.Full` | Blue vince **con Flux a terra**: l'obiettivo batte il KO |
+| **S10** | Golden replay, repeat, packaged smoke | S9 · CP 12.3/12.5 | `.Repeat` · `.Visual` · `.Packaged` | `Repeat 1000` (da 100, già raggiunto a CP 12.1) + equivalenza `Visual`/`Fast`/`Headless` |
+
+> **Il collo di bottiglia è S2, non i sistemi mancanti.** Otto tranche su undici dipendono da *una* cosa: che
+> lo scenario sappia esprimere un'abilità con un bersaglio invece del solo movimento. Finché non lo sa, ogni
+> feature nuova va verificata a mano — ed è il motivo per cui S2 viene prima di E13, E14, E16 ed E18 pur non
+> essendo una feature di gioco.
+
+#### Grafo delle dipendenze per turno
+
+*Aggiunto il 2026-08-08.* La roadmap della showcase **è un grafo di dipendenze**, non una sequenza arbitraria
+di issue. Ogni turno dichiara cosa lo blocca, con il nome della capability — mai «aspetta sistemi».
+
+```text
+T1  ->  FixtureReference
+T2  ->  FixtureReference + PredictiveAction
+T3  ->  FixtureReference
+T4  ->  FixtureReference + DecisionBoundary + Reaction + Facing
+T5  ->  FixtureReference
+T6  ->  FixtureReference + InterceptRevalidation
+T7  ->  FixtureReference
+T8  ->  FixtureReference + PredictiveAction + Objective
+```
+
+**Dopo S2-1 sono runnable T1, T3, T5, T7** — quattro turni su otto, subito.
+
+| Turno | Blocco | Capability mancante | Dove si costruisce |
+|---|---|---|---|
+| **T1** | — | — | ✅ dopo `S2-1` |
+| **T2** | `Vektor.InterceptShot` deve risolvere come predizione e mancare | `PredictiveAction` | **E18** ([D-016](../decisions/RT_PDR_00_Decision_Log.md)) |
+| **T3** | — | — | ✅ dopo `S2-1` |
+| **T4** | `HOLD` poi `FIRE` su **due** opportunity distinte | `DecisionBoundary` + `Reaction` + `Facing` | **E14** (dopo E13) + **E16** |
+| **T5** | — | — | ✅ dopo `S2-1` — il gate è una porta, CP 9.3 è chiuso |
+| **T6** | la copertura va rivalidata **su Bastion**, non su Vektor | `InterceptRevalidation` | [D-017](../decisions/RT_PDR_00_Decision_Log.md) |
+| **T7** | — | — | ✅ dopo `S2-1` — E8 è chiusa |
+| **T8** | whiff della predizione **e** punto sul Relay | `PredictiveAction` + `Objective` | **E18** + **E10** CP 10.1/10.2 |
+
+> **Quattro dipendenze corrette rispetto alla prima stesura**, e la ragione è nel codice:
+>
+> - **T2 non dipende dall'Objective**: dichiara `InterceptShot` su una cella prevista e verifica il *whiff*.
+>   L'obiettivo entra solo al T8.
+> - **T4 non dipende dal solo Facing**: il facing dà il cono, ma `HOLD`/`FIRE` **sono** la finestra. Senza
+>   Decision Boundary il turno non ha nulla da mostrare.
+> - **T6 non dipende dal Decision Boundary**: `Bastion.Interposition` è già cablata (CP 6.7) ed è una reazione
+>   **automatica** — il caso `AllowedResponses ≤ 1` di [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md),
+>   che per definizione non apre finestre. Manca solo la rivalidazione geometrica sul bersaglio effettivo.
+> - **T8 dipende da entrambe**: fa il whiff della predizione *e* assegna il punto.
+
+> **Il Decision Boundary viene prima dell'Overwatch, non insieme.** L'Overwatch deve essere il **primo
+> consumatore** del sistema generale `Reaction Definition → Intent → Snapshot → Opportunity → Commit →
+> Resolution`, non il posto dove quel sistema viene inventato. Se nascesse dentro l'Overwatch, la prima
+> reazione interattiva diversa dovrebbe rifarlo — ed è esattamente il difetto che
+> [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) evita dichiarando E5 il caso semplice dello stesso
+> modello, non un meccanismo separato. `HOLD` conserva la reaction; il timeout **non** consuma la risorsa.
 
 **Dipendenze per turno della sequenza target** (nessuna va anticipata dentro E15):
 
@@ -933,7 +1014,7 @@ Rilevati confrontando `roadmap-checkpoint.md` con il repository (2026-08-05):
 | [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) | **Durata, round e scala delle mappe**: target di partita, `RoundLimit` per formato, budget del round, classi di mappa e telemetria. Vincola **E10** (fine partita), **E11** (timer a HUD), **E14** (3 s) e il level design futuro |
 | [`showcase-v0.1.md`](../product/showcase-v0.1.md) | Scenario della showcase **E15**: canone corrente, target, delta di scope |
 | [`brief-conoscenza-parziale.md`](../gameplay/brief-conoscenza-parziale.md) · [`brief-overwatch-reazioni.md`](../gameplay/brief-overwatch-reazioni.md) · [`brief-ghiaccio.md`](../gameplay/brief-ghiaccio.md) · [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md) | Brief di scoping: cosa entra in **E11**/**E13**/**E14** e cosa resta north-star |
-| [`../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md`](../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md) · [`../src/RefactorTactics_ActionGhosts_Phases_FastReactions_Claude.md`](../src/RefactorTactics_ActionGhosts_Phases_FastReactions_Claude.md) | Handoff e note di design (2026-08-07): **materiale sorgente**, consolidato qui — in caso di conflitto prevale questo file |
+| [`../src/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md`](../src/showcase/CLAUDE_Showcase_v0.1_Integration_CurrentCode.md) · [`../src/RefactorTactics_ActionGhosts_Phases_FastReactions_Claude.md`](../src/RefactorTactics_ActionGhosts_Phases_FastReactions_Claude.md) | Handoff e note di design (2026-08-07): **materiale sorgente**, consolidato qui — in caso di conflitto prevale questo file |
 | *questo file* | **Release v0.1**: epic, checkpoint, DoD per checkpoint |
 | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate di release, KPI, checklist trasversale |
 | [`v0.1-issue-plan.md`](v0.1-issue-plan.md) | Titoli e body delle issue (e mappa issue ↔ checkpoint) |

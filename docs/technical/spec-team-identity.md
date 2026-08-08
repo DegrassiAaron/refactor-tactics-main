@@ -1,5 +1,15 @@
 # Spec — AS.5 Identità di team (anello a terra)
 
+> ## 🧱 `AS-BUILT` — implementata, non un piano
+>
+> Questa spec parlava al futuro come se l'anello fosse ancora da costruire. **È realizzata**: l'anello di team
+> è in codice (`ARTUnit`, con `RingLocalZ` che compensa `VisualZOffset` e la scala del genitore) e la
+> verifica interattiva è registrata nel registro PIE.
+>
+> **Non aggancia una resa visiva definitiva del roster**: quale personaggio corrisponda a Flux, Riva, Bastion
+> o Vektor è una decisione **aperta** ([`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md)). L'anello funziona
+> indipendentemente da quella scelta — è esattamente il motivo per cui fu preferito al MID `"Color"`.
+
 > Brainstorming del **2026-08-03** (dopo AS.1–AS.4). Obiettivo: rendere i due team distinguibili **dall'alto** con
 > personaggi skeletal texturizzati, dove il MID `"Color"` sul cilindro non si vede.
 > Ancorata al codice (`RTUnit.cpp/.h`), al canone ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) invariante #1 «le
