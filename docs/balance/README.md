@@ -77,6 +77,6 @@ Elencate in fondo a ogni file, col motivo. La principale: le macro-fasi restano 
 dell'attacco. I codici di fase del catalogo sopravvivono come attributo dell'azione
 ([ADR-0003 §3](../decisions/adr-0003-modello-azioni-v01.md)).
 
-**Fonte**: `docs/src/RefactorTactics — Catalogo e bilanciamento v0.1.pdf` e
+**Fonte**: `docs/src/prd/catalogo-e-bilanciamento-v0.1.pdf` e
 `docs/archive/pdr-v0.1/RT_PDR_12_Catalog_v0.1.pdf`, adottati con
 [ADR-0003](../decisions/adr-0003-modello-azioni-v01.md).

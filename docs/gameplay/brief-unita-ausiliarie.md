@@ -1,7 +1,7 @@
 # Brief — Unità ausiliarie: il concetto, non il gameplay
 
 > **Stato**: brief di scope · **Data**: 2026-08-07 · **Origine**: `/sc:brainstorm` su
-> [`../src/RefactorTactics_Auxiliary_Units_Claude.md`](../src/RefactorTactics_Auxiliary_Units_Claude.md) (28 §)
+> [`../src/design/auxiliary-units.md`](../src/design/auxiliary-units.md) (28 §)
 > **Decisione**: `OD-2` chiusa — **concetto unico, gameplay fuori dalla v0.1**.
 > **Cosa è**: l'elenco dei vincoli da rispettare **mentre si costruisce altro**, perché costano quasi nulla ora
 > e molto dopo.
@@ -81,4 +81,4 @@ Gameplay Tag propri · le 8 issue proposte in §27.
 | [`brief-conoscenza-parziale.md`](brief-conoscenza-parziale.md) | E13 introduce i tipi della percezione: **A1, A3, A5** si applicano lì per primi |
 | [`brief-overwatch-reazioni.md`](brief-overwatch-reazioni.md) | E14: una torretta è un consumatore di `Automatic`, non un sistema parallelo (**A6**) |
 | [ADR-0005](../decisions/adr-0005-orientamento.md) | E16: il facing è dell'unità, non dell'eroe (**A3**) |
-| [`../src/RefactorTactics_Auxiliary_Units_Claude.md`](../src/RefactorTactics_Auxiliary_Units_Claude.md) | Sorgente. Resta non normativo |
+| [`../src/design/auxiliary-units.md`](../src/design/auxiliary-units.md) | Sorgente. Resta non normativo |

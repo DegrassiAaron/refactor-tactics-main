@@ -8,6 +8,7 @@ Se vuoi capire il gioco in pochi minuti, leggi in quest'ordine:
 - **[Come si gioca](game/come-si-gioca.md)** — flusso completo di una partita.
 - **[Struttura del round](game/struttura-del-round.md)** — Planning → Prep → Dash → Blast → Move → Cleanup.
 - **[Esempio di un round](game/esempio-di-round.md)** — il flusso visto in pratica.
+- **[L'avversario controllato dal gioco](game/avversario-bot.md)** — come ragiona il bot, e perché non bara.
 - **[Personaggi](../characters/index.md)** — roster v0.1 e v0.2.
 
 Poi puoi approfondire azioni, movimento, ambiente, reazioni, visibilità e condizioni di vittoria dalle pagine collegate nel [README della Wiki](README.md).

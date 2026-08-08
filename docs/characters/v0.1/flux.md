@@ -375,7 +375,7 @@ Questa pagina è **operativa per la v0.1**: numeri e semantiche competitive deri
 
 ## Governance
 
-- **Dataset:** `RefactorTactics_Characters_Wiki_Data_v0.4.xlsx`.
+- **Dataset:** `docs/src/data/characters-wiki-data-v0.4.xlsx`.
 - **Release dati:** `v0.1`.
 - I campi `—` / `TBD` sono intenzionali: indicano che la fonte non definisce quel valore.
 - La Wiki è una vista documentale; il runtime non deve usare Markdown come fonte competitiva.
