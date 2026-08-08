@@ -175,12 +175,19 @@ misurato, non per completezza:
 - validazione di `MilestoneId`/`FactionId`: nel codice non esistono né milestone né fazioni, quindi non c'è
   niente contro cui validare. `flux` e `conflux` restano tag, non ID.
 
-## 9. Verifiche in Editor
+## 9. Verifiche in Editor — fatte
 
-Registrate in [`test-manuali-pie.md`](test-manuali-pie.md): `PIE-SCEN-FILTER` (i filtri restringono e la
-tendina si aggiorna) e `PIE-SCEN-KEEP` (filtrare non perde la selezione salvata).
+`PIE-SCEN-FILTER` e `PIE-SCEN-KEEP` in [`test-manuali-pie.md`](test-manuali-pie.md), **entrambe verdi il
+2026-08-08**.
 
-La prima porta l'unico rischio tecnico rimasto: se `GetOptions` non rivalutasse l'elenco al cambio di
-un'altra property, servirebbe una `PostEditChangeProperty` che forzi il refresh del Details Panel — con la
-dipendenza `PropertyEditor` che oggi il modulo non ha. Non è stata aggiunta in anticipo: è macchinario per un
-problema che potrebbe non esistere.
+Due fatti che valgono oltre questa feature:
+
+- **`GetOptions` rivaluta l'elenco quando cambia un'altra property dello stesso actor.** Era il solo rischio
+  tecnico del disegno — se la tendina fosse rimasta ferma finché non si deselezionava l'actor, sarebbe
+  servita una `PostEditChangeProperty` con la dipendenza `PropertyEditor`. Non serve: il Details Panel
+  ridisegna da sé. Una property con `GetOptions` può quindi dipendere da un'altra property senza macchinario.
+- **Il combo box mostra il valore corrente anche quando non è fra le opzioni.** È ciò che rende sicura la
+  scelta «i filtri non toccano la selezione»: uno scenario escluso dalla vista resta visibile nel campo e
+  non sembra perso.
+
+Il macchinario per il refresh non era stato scritto in anticipo, e non è servito.
