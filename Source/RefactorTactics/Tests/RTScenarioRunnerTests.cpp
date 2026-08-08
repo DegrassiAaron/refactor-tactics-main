@@ -8,6 +8,9 @@
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
+#include "ScenarioHarness/RTScenarioSession.h"
+#include "Player/RTPlayerController.h"
+#include "Map/RTHexMapActor.h"
 #include "ScenarioHarness/RTTestReportWriter.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
@@ -604,6 +607,60 @@ bool FRTScenarioPreviewUnitIsPresentationOnlyTest::RunTest(const FString&)
 	// Un hash a zero significa «non eseguito»: senza questo controllo il test passerebbe confrontando
 	// due nulla.
 	TestTrue(TEXT("lo scenario e' stato davvero eseguito"), ResultA.StateHash != 0);
+	return true;
+}
+
+/**
+ * `previewUnit` accende DAVVERO l'anteprima, alleato compreso.
+ *
+ * E' il test che mancava, ed e' il motivo per cui il difetto e' arrivato fino allo schermo dell'utente. Il
+ * primo tentativo selezionava chiamando `HandleClickOnUnit(Unit)`, che **non seleziona**: presuppone una
+ * selezione e tratta l'argomento come BERSAGLIO, quindi usciva subito. Non compariva niente, e il log
+ * dichiarava successo perche' stampava dopo la chiamata senza verificarla.
+ *
+ * Avevo dichiarato questo ramo «non coperto e non copribile, headless non c'e' un controller». Era falso:
+ * un player controller si spawna anche in un mondo di test, e con lui il ramo si esercita per intero. La
+ * lacuna non era nella tecnica, era nella mia assunzione.
+ *
+ * Verifica il RISULTATO osservabile — le celle che l'anteprima ha acceso sulla mappa — non il fatto che una
+ * funzione sia stata chiamata: e' la differenza fra provare che si vede e provare che si e' provato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioPreviewUnitLightsThePreviewTest,
+	"RefactorTactics.Scenario.PreviewUnitActuallyLightsTheAreaAndTheAlly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioPreviewUnitLightsThePreviewTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.FriendlyFire"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	// Senza controller il ramo dell'anteprima non gira: spawnarlo E' il test.
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!TestNotNull(TEXT("player controller"), PC)) { DestroyRunnerWorld(World); return false; }
+
+	FRTScenarioSession Session;
+	const bool bStarted = Session.Start(World, Scenario);
+	if (!TestTrue(TEXT("la sessione parte"), bStarted))
+	{
+		AddError(Session.GetResult().ErrorMessage);
+		DestroyRunnerWorld(World);
+		return false;
+	}
+
+	ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(World);
+	if (!TestNotNull(TEXT("mappa esagonale"), HexMap)) { DestroyRunnerWorld(World); return false; }
+
+	const int32 Hit = HexMap->NumPreviewHitCells();
+	const int32 Ally = HexMap->NumPreviewAllyHitCells();
+	DestroyRunnerWorld(World);
+
+	// L'area di raggio 1 accende il bersaglio piu' i suoi vicini: un numero maggiore di uno distingue
+	// «l'area c'e'» da «e' stato puntato un bersaglio singolo».
+	TestTrue(FString::Printf(TEXT("l'anteprima ha acceso l'area (celle: %d)"), Hit), Hit > 1);
+	// L'ARANCIONE: e' l'informazione per cui questo scenario esiste.
+	TestEqual(TEXT("l'alleata nell'area e' segnalata"), Ally, 1);
 	return true;
 }
 

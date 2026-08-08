@@ -122,6 +122,20 @@ public:
 	 */
 	void HandleClickOnUnit(class ARTUnit* ClickedUnit);
 
+	/**
+	 * SELEZIONA un actor, con tutto cio' che la selezione comporta: evidenziazione, anteprima del piano,
+	 * telemetria di ritmo.
+	 *
+	 * Da non confondere con `HandleClickOnUnit`, che **non seleziona**: quella presuppone una selezione e
+	 * tratta l'argomento come BERSAGLIO. Scambiarle non produce un errore, produce silenzio — la chiamata
+	 * esce subito e a schermo non cambia niente (successo il 2026-08-08).
+	 *
+	 * @param bRecordAsPlayerInput false quando a selezionare non e' una persona (uno scenario che allestisce
+	 *        un'anteprima): la telemetria di ritmo misura quanto impiega un GIOCATORE a decidere, e una
+	 *        selezione automatica falserebbe i numeri di `PIE-V01-MATCHLEN`.
+	 */
+	void SelectUnit(AActor* Actor, bool bRecordAsPlayerInput = true);
+
 	/** Come sopra, per i test: il nome dichiara che il raycast e' stato saltato. */
 	void HandleClickOnUnitForTest(class ARTUnit* ClickedUnit) { HandleClickOnUnit(ClickedUnit); }
 
