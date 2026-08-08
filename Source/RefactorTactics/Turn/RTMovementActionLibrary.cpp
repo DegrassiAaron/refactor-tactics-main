@@ -110,6 +110,17 @@ FRTLinearMoveResult URTMovementActionLibrary::ResolveLinearMove(const URTHexMapA
 
 		if (const int32* Occupant = Occupancy.Find(Next))
 		{
+			// La lama ATTRAVERSA e tira dritto — tranne che sulla cella d'arrivo: si passa in mezzo a
+			// qualcuno, non ci si ferma dentro. Due unita' nella stessa cella non sono rappresentabili, e
+			// un'eccezione qui la renderebbe possibile per una sola azione.
+			if (Style == ERTMovementStyle::LinearPass && K < Distance)
+			{
+				Result.PassedThroughUnitIds.Add(*Occupant);
+				Current = Next;
+				Result.Entered.Add(Next);
+				continue;
+			}
+
 			// La carica si ferma ADDOSSO al nemico (impatto); per tutti gli altri e' solo un ostacolo.
 			Result.Stop = (Style == ERTMovementStyle::LinearCharge && Hostiles.Contains(*Occupant))
 				? ERTLinearStop::Impact

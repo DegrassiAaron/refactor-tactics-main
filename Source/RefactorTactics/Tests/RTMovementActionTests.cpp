@@ -318,4 +318,78 @@ bool FRTFastMovementDeclaresStyleTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// MOB-1 — la lama che PASSA ATTRAVERSO.
+//
+// `LinearDash` si ferma su cio' che incontra, `LinearCharge` si ferma addosso, `LinearLeap` scavalca senza
+// toccare. Manca la quarta: attraversare colpendo. `Vektor.PassingBlade` la descriveva gia' («colpisce per
+// 20 le unita' ATTRAVERSATE») ma usava `LinearDash`, quindi non attraversava nessuno e quei 20 danni non
+// avevano un momento in cui applicarsi.
+//
+// Stile NUOVO invece di cambiare `LinearDash`: quello e' condiviso con `Action.Dash` e `Action.Reposition`,
+// dove fermarsi davanti a un nemico e' il comportamento giusto. Cambiarlo li' avrebbe fatto passare ogni
+// scatto attraverso le linee avversarie.
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLinearPassTest,
+	"RefactorTactics.Movement.PassGoesThroughUnitsAndRecordsThem",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLinearPassTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeMoveActionMap();
+
+	// Due unita' sulla traiettoria fra (0,0) e (4,0): 7 e 9, in celle diverse.
+	TMap<FRTCellId, int32> Occupancy;
+	Occupancy.Add(FRTCellId(1, 0, 0), 7);
+	Occupancy.Add(FRTCellId(3, 0, 0), 9);
+	const TSet<int32> Hostiles = { 7, 9 };
+
+	const FRTLinearMoveResult Pass = URTMovementActionLibrary::ResolveLinearMove(
+		Map, FRTCellId(0, 0, 0), FRTCellId(4, 0, 0), /*MaxCells*/ 4,
+		ERTMovementStyle::LinearPass, Occupancy, Hostiles);
+
+	TestTrue(TEXT("la lama arriva a destinazione"), Pass.Final == FRTCellId(4, 0, 0));
+	TestEqual(TEXT("e lo dichiara come arrivo, non come blocco"),
+		static_cast<int32>(Pass.Stop), static_cast<int32>(ERTLinearStop::Completed));
+	TestEqual(TEXT("ha attraversato ENTRAMBE le unita'"), Pass.PassedThroughUnitIds.Num(), 2);
+	TestTrue(TEXT("e sa quali"),
+		Pass.PassedThroughUnitIds.Contains(7) && Pass.PassedThroughUnitIds.Contains(9));
+
+	// Il confronto che rende il test discriminante: lo STESSO percorso con lo stile vecchio si ferma subito.
+	const FRTLinearMoveResult Dash = URTMovementActionLibrary::ResolveLinearMove(
+		Map, FRTCellId(0, 0, 0), FRTCellId(4, 0, 0), /*MaxCells*/ 4,
+		ERTMovementStyle::LinearDash, Occupancy, Hostiles);
+	TestTrue(TEXT("lo scatto normale invece si ferma davanti alla prima"), Dash.Final == FRTCellId(0, 0, 0));
+	TestEqual(TEXT("e non attraversa nessuno"), Dash.PassedThroughUnitIds.Num(), 0);
+
+	// La cella d'ARRIVO resta un vincolo: si passa ATTRAVERSO, non ci si ferma dentro qualcuno.
+	TMap<FRTCellId, int32> Occupied;
+	Occupied.Add(FRTCellId(4, 0, 0), 5);
+	const FRTLinearMoveResult OntoUnit = URTMovementActionLibrary::ResolveLinearMove(
+		Map, FRTCellId(0, 0, 0), FRTCellId(4, 0, 0), /*MaxCells*/ 4,
+		ERTMovementStyle::LinearPass, Occupied, TSet<int32>{ 5 });
+	TestFalse(TEXT("non si atterra sopra un'unita'"), OntoUnit.Final == FRTCellId(4, 0, 0));
+
+	// Gli stessi identici parametri della partita (Probe.PassingBlade): se questo passa e lo scenario no, il
+	// difetto non e' qui.
+	TMap<FRTCellId, int32> Mid;
+	Mid.Add(FRTCellId(0, 0, 0), 1);
+	const FRTLinearMoveResult AsInMatch = URTMovementActionLibrary::ResolveLinearMove(
+		Map, FRTCellId(-2, 0, 0), FRTCellId(1, 0, 0), /*MaxCells*/ 3,
+		ERTMovementStyle::LinearPass, Mid, TSet<int32>{ 1 });
+	TestTrue(TEXT("coi parametri della partita la lama arriva"), AsInMatch.Final == FRTCellId(1, 0, 0));
+	TestEqual(TEXT("e registra chi ha attraversato"), AsInMatch.PassedThroughUnitIds.Num(), 1);
+
+	// E un muro ferma anche la lama: attraversare le UNITA' non vuol dire attraversare la roccia.
+	MakeWall(Map, FRTCellId(2, 0, 0));
+	const FRTLinearMoveResult Walled = URTMovementActionLibrary::ResolveLinearMove(
+		Map, FRTCellId(0, 0, 0), FRTCellId(4, 0, 0), /*MaxCells*/ 4,
+		ERTMovementStyle::LinearPass, Occupancy, Hostiles);
+	TestEqual(TEXT("il muro ferma la lama"),
+		static_cast<int32>(Walled.Stop), static_cast<int32>(ERTLinearStop::BlockedByTerrain));
+	TestEqual(TEXT("e conta solo chi ha attraversato PRIMA del muro"), Walled.PassedThroughUnitIds.Num(), 1);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

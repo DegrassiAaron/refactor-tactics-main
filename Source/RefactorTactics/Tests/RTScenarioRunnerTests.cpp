@@ -785,4 +785,54 @@ bool FRTScenarioDashIntentTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// MOB-1 — i 20 danni di `PassingBlade` hanno finalmente un momento in cui applicarsi.
+//
+// Il test della libreria (`Movement.PassGoesThroughUnitsAndRecordsThem`) verifica CHI viene attraversato.
+// Questo verifica che l'attraversamento produca DANNO in partita: sono due cose diverse, e una lista di
+// unita' attraversate che nessuno legge sarebbe di nuovo un dato senza consumatore.
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioPassingBladeTest,
+	"RefactorTactics.Scenario.PassingBladeHitsWhoItCrosses",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioPassingBladeTest::RunTest(const FString&)
+{
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	FRTTestScenario S;
+	S.ScenarioId = TEXT("Probe.PassingBlade");
+	S.MapRadius = 4;
+	FRTScenarioUnit A; A.Id = TEXT("V"); A.HeroId = TEXT("Hero.Vektor"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+	// Riva e' IN MEZZO: la lama le passa attraverso e prosegue.
+	FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Riva");   B.TeamId = 1; B.Cell = FRTCellId(0, 0, 0);
+	S.Units.Add(A); S.Units.Add(B);
+
+	FRTScenarioTurn T;
+	FRTScenarioIntent I;
+	I.UnitId = TEXT("V");
+	I.Dash = TEXT("Vektor.PassingBlade");
+	I.DashCell = FRTCellId(1, 0, 0);   // oltre Riva
+	T.Intents.Add(I);
+	S.Turns.Add(T);
+
+	// Le DUE meta' della stessa regola, separate: si arriva oltre, E chi sta in mezzo lo paga. Un test che
+	// verificasse solo la posizione passerebbe anche con i 20 danni mai applicati.
+	FRTTestExpectation E1; E1.Kind = ERTAssertionKind::UnitAtCell;   E1.UnitId = TEXT("V"); E1.Cell = FRTCellId(1, 0, 0);
+	FRTTestExpectation E2; E2.Kind = ERTAssertionKind::UnitHpEquals; E2.UnitId = TEXT("R"); E2.Value = 75;
+	S.Expect.Add(E1); S.Expect.Add(E2);
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, S);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di eseguire: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("la lama attraversa e colpisce"), Result.OutcomeString(), FString(TEXT("PASS")));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

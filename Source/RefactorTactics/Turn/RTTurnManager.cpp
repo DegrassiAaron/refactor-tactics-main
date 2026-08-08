@@ -1214,10 +1214,12 @@ void ARTTurnManager::ResolveDash()
 	TArray<int32> DashAbilityIdx; // parallelo a Units: INDEX_NONE = non scatta
 	TArray<int32> Priorities;     // parallelo a Units: FRTActionDef::Priority dell'azione, 0 per chi non scatta
 	TArray<bool> bLinearMovers;   // parallelo a Units: vero se la mobilita' e' lineare (URTMovementActionLibrary::IsLinear)
+	TArray<bool> bPassThrough;    // parallelo a Units: vero per chi ATTRAVERSA le unita' ferme (LinearPass)
 	Paths.Reserve(Units.Num());
 	DashAbilityIdx.Init(INDEX_NONE, Units.Num());
 	Priorities.Init(0, Units.Num());
 	bLinearMovers.Init(false, Units.Num());
+	bPassThrough.Init(false, Units.Num());
 	int32 DasherCount = 0;
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
@@ -1273,6 +1275,23 @@ void ARTTurnManager::ResolveDash()
 				bChargedIntoTarget = true;
 			}
 
+			// Chi e' stato ATTRAVERSATO paga come chi viene urtato: stessa coda, stessa fase, stessi effetti
+			// dichiarati dall'azione. Non un secondo percorso di danno — un secondo percorso divergerebbe dal
+			// primo alla prima modifica, ed e' esattamente il difetto che la issue #140 ha chiuso altrove.
+			for (const int32 CrossedId : Linear.PassedThroughUnitIds)
+			{
+				if (!Units.IsValidIndex(CrossedId) || !Units[CrossedId] || !Units[CrossedId]->IsAlive())
+				{
+					continue;
+				}
+				FRTChargeImpact Crossed;
+				Crossed.Attacker = Unit;
+				Crossed.Target = Units[CrossedId];
+				Crossed.Def = Dash->Def;
+				PendingChargeImpacts.Add(Crossed);
+				PendingImpactAttackerIdx.Add(i);
+			}
+
 			Path.Add(Unit->Cell);
 			Path.Append(Linear.Entered);
 		}
@@ -1295,6 +1314,11 @@ void ARTTurnManager::ResolveDash()
 		DashAbilityIdx[i] = DashIdx;
 		Priorities[i] = Dash->Def.Priority;
 		bLinearMovers[i] = URTMovementActionLibrary::IsLinear(Dash->Def.MovementStyle);
+		// `ResolveLinearMove` ha gia' deciso CHI viene attraversato, ma il percorso passa ancora dal microstep
+		// simultaneo, che ferma chiunque davanti a un'unita' immobile. Senza questo flag la lama si fermerebbe
+		// davanti al primo bersaglio nonostante la traiettoria dica il contrario — ed e' esattamente cosi' che
+		// il difetto si presentava: libreria corretta, partita no.
+		bPassThrough[i] = (Dash->Def.MovementStyle == ERTMovementStyle::LinearPass);
 		++DasherCount;
 	}
 
@@ -1302,7 +1326,7 @@ void ARTTurnManager::ResolveDash()
 
 	// Scatti simultanei, ordine-indipendenti (stesso resolver a microstep del movimento, con priorita' e
 	// scontro frontale fra mobilita' lineari — CP 4.8).
-	const TArray<FRTHexMoveResult> Resolved = URTHexSimLibrary::ResolveHexPaths(Paths, Priorities, bLinearMovers);
+	const TArray<FRTHexMoveResult> Resolved = URTHexSimLibrary::ResolveHexPaths(Paths, Priorities, bLinearMovers, bPassThrough);
 
 	// Un impatto era stato previsto sul percorso GIA' troncato dal solo `ResolveLinearMove` (occupazione
 	// congelata a inizio fase): non sa se la collisione simultanea fermera' il caricatore PRIMA del contatto

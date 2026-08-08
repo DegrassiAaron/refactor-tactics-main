@@ -260,7 +260,7 @@ succedere*; l'hash cattura le derive.
 > solo `PlannedAbilityIndex` **non fa cadere nulla** — `PlannedAttackTarget = nullptr` basta da solo — mentre
 > svuotare il ramo intero fa cadere esattamente quel test.
 
-### `MOB-1` — `Vektor.PassingBlade` non passa attraverso niente
+### `MOB-1` — ✅ **CORRETTA 2026-08-08** — `Vektor.PassingBlade` non passava attraverso niente
 
 Trovata il 2026-08-08 scrivendo il test dello slot `dash`, verificando perché lo scatto si fermava.
 
@@ -270,6 +270,20 @@ Trovata il 2026-08-08 scrivendo il test dello slot `dash`, verificando perché l
 | **Conseguenza** | L'unica abilità non-base di Vektor «interamente rappresentabile» non fa la cosa che la descrive. I 20 danni dichiarati negli `Effects` non hanno un momento in cui applicarsi: nessuno viene mai attraversato |
 | **La scelta** | Dare a `LinearDash` (o a un nuovo stile) la traversata delle unità, **oppure** riscrivere il kit e il commento su ciò che il gioco fa. Non una terza via: oggi il dato dichiara un danno che nessun percorso può produrre |
 | **Non è** | Un difetto trovato dal test dello slot `dash`: quel test è stato riscritto per non dipenderne. È emerso *mentre* lo si scriveva, ed è il motivo per cui è finito qui invece che in una correzione di iniziativa |
+| **Risolta** | Nuovo `ERTMovementStyle::LinearPass`, **non** una modifica a `LinearDash`: quello è condiviso con `Action.Dash` e `Action.Reposition`, dove fermarsi davanti a un nemico è il comportamento giusto — cambiarlo lì avrebbe fatto passare **ogni** scatto attraverso le linee avversarie |
+
+> **La causa era a tre livelli, e i primi due non bastavano.** Stile nuovo nella libreria lineare: il test
+> passava, la partita no. Catalogo aggiornato: idem. Il blocco vero era in **`ResolveHexPaths`**, il resolver
+> dei movimenti simultanei, che ferma chiunque davanti a un'unità immobile — libreria corretta, partita no.
+> Serviva un flag `bPassThrough` anche lì.
+>
+> Vincolo esplicito: si attraversa una cella **intermedia**, mai la finale. Si passa in mezzo a qualcuno, non
+> ci si ferma dentro — due unità nella stessa cella a fine turno non sono rappresentabili. La contesa fra due
+> unità **in movimento** verso la stessa cella resta invariata: attraversare chi sta fermo e incrociare chi si
+> muove sono problemi diversi, ed è risolto solo il primo.
+>
+> Il test che pinnava lo stile vecchio conteneva la contraddizione **dentro il proprio messaggio**:
+> «PassingBlade: passa attraverso (LinearDash)». Diceva una cosa e ne verificava un'altra, e la difendeva.
 
 > È di nuovo la forma di [dati senza consumatore](../../DOC_CONFLICT_MATRIX.md): un numero nel catalogo che
 > nessun percorso runtime legge. Qui però il dato è **corretto** e manca il meccanismo — l'opposto di D-028,

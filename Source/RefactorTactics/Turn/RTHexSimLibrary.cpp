@@ -454,7 +454,8 @@ TArray<FRTCellId> URTHexSimLibrary::TruncatePathToTopology(const FRTHexSnapshot&
 namespace
 {
 	TArray<FRTHexMoveResult> ResolveHexPathsInternal(const TArray<TArray<FRTCellId>>& Paths,
-		const TArray<int32>& Priorities, const TArray<bool>& bLinearMovers)
+		const TArray<int32>& Priorities, const TArray<bool>& bLinearMovers,
+		const TArray<bool>& bPassThrough)
 	{
 		const int32 N = Paths.Num();
 		TArray<FRTHexMoveResult> Results;
@@ -464,6 +465,7 @@ namespace
 		// array vuoti l'esito e' identico alla variante senza priorita'.
 		auto PriorityOf = [&Priorities](int32 i) { return Priorities.IsValidIndex(i) ? Priorities[i] : 0; };
 		auto IsLinearMover = [&bLinearMovers](int32 i) { return bLinearMovers.IsValidIndex(i) && bLinearMovers[i]; };
+		auto PassesThrough = [&bPassThrough](int32 i) { return bPassThrough.IsValidIndex(i) && bPassThrough[i]; };
 
 		TArray<FRTCellId> Pos;  Pos.SetNum(N);   // posizione corrente
 		TArray<int32> Prog;     Prog.SetNum(N);  // indice raggiunto nel path
@@ -562,7 +564,13 @@ namespace
 					}
 
 					// Bloccata da un'unita' che RESTA (esaurita o congelata) sulla cella di destinazione.
-					if (!bBlocked)
+					//
+					// Chi ATTRAVERSA ci passa in mezzo, ma solo se quella cella non e' la sua ULTIMA: si
+					// transita dentro qualcuno, non ci si ferma. Due unita' nella stessa cella a fine turno non
+					// sono rappresentabili, e un'eccezione qui le renderebbe possibili per una sola azione.
+					const bool bFinalStep = Paths.IsValidIndex(i) && (Prog[i] + 1) == (Paths[i].Num() - 1);
+					const bool bCrossesStationary = PassesThrough(i) && !bFinalStep;
+					if (!bBlocked && !bCrossesStationary)
 					{
 						for (int32 j = 0; j < N; ++j)
 						{
@@ -638,13 +646,13 @@ namespace
 
 TArray<FRTHexMoveResult> URTHexSimLibrary::ResolveHexPaths(const TArray<TArray<FRTCellId>>& Paths)
 {
-	return ResolveHexPathsInternal(Paths, TArray<int32>(), TArray<bool>());
+	return ResolveHexPathsInternal(Paths, TArray<int32>(), TArray<bool>(), TArray<bool>());
 }
 
 TArray<FRTHexMoveResult> URTHexSimLibrary::ResolveHexPaths(const TArray<TArray<FRTCellId>>& Paths,
-	const TArray<int32>& Priorities, const TArray<bool>& bLinearMovers)
+	const TArray<int32>& Priorities, const TArray<bool>& bLinearMovers, const TArray<bool>& bPassThrough)
 {
-	return ResolveHexPathsInternal(Paths, Priorities, bLinearMovers);
+	return ResolveHexPathsInternal(Paths, Priorities, bLinearMovers, bPassThrough);
 }
 
 TArray<FRTTurnLogEntry> URTHexSimLibrary::BuildMoveLog(const TArray<TArray<FRTCellId>>& Paths,

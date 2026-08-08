@@ -429,7 +429,11 @@ URTHeroData* URTHeroCatalogLibrary::MakeVektor()
 	Vektor->Actions.Add(MakeHeroAction(TEXT("Vektor.PassingBlade"), ERTResolutionPhase::FastMovement,
 		/*Priority*/ 30, /*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 20) }));
-	Vektor->Actions[2]->Def.MovementStyle = ERTMovementStyle::LinearDash;
+	// `LinearPass` e non `LinearDash`: fino al 2026-08-08 questo commento diceva «passa attraverso» e il
+	// codice si fermava sul primo nemico come uno scatto qualsiasi, quindi i 20 danni dichiarati sopra non
+	// avevano un momento in cui applicarsi. Lo stile e' un DATO proprio per questo (CP 4.5): la differenza
+	// fra fermarsi, fermarsi addosso, scavalcare e attraversare non e' un `if` sull'ActionId.
+	Vektor->Actions[2]->Def.MovementStyle = ERTMovementStyle::LinearPass;
 
 	// Indice 3 — Deflection (CP 6.7). REAZIONE cablata sulla semantica di `Action.Deflect`: -20 sul colpo
 	// diretto che l'ha innescata. La riduzione arriva dagli effetti del core (`ERTActionEffect::DamageReduction`,
