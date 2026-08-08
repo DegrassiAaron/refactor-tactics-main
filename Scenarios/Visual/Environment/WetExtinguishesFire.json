@@ -1,0 +1,39 @@
+{
+  "scenarioId": "Visual.Environment.WetExtinguishesFire",
+  "tags": ["animation", "environment", "riva", "vektor"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "RelayLite",
+
+  "_nota": "CP 8.4 a schermo: l'acqua spegne le fiamme. Vektor entra nel fuoco al turno 1 e brucia; al turno 2 Riva lo bagna e `Status.Wet` rimuove `Status.Burning` — quindi il Cleanup del secondo turno NON gli toglie gli 8 danni che gli avrebbe tolto. Cio' che si guarda e' un'assenza, e le assenze sono la cosa piu' difficile da rendere leggibile: se le fiamme addosso a Vektor non si spengono visibilmente quando l'acqua lo colpisce, il giocatore non ha modo di sapere che la regola e' scattata.",
+
+  "_nota_aritmetica": "T1: 100 - 10 (fuoco all'ingresso) - 8 (Burning nel Cleanup) = 82. T2: 82 - 16 (PressureJet) = 66, e Burning e' stato rimosso prima del Cleanup. **58 sarebbe il valore se il bagnato NON spegnesse**: e' la differenza fra i due numeri a dare valore a questo scenario.",
+
+  "_nota_fuoco": "Vektor resta sulla cella di fuoco anche al turno 2, e va bene: l'effetto del terreno e' `on-enter`, non `on-stay`, quindi non si riapplica a chi e' gia' li'. La spinta di PressureJet lo sposta comunque fuori dalla fiamma.",
+
+  "units": [
+    { "id": "R1", "hero": "Hero.Riva",   "team": 0, "cell": [-2,  0, 0] },
+    { "id": "V1", "hero": "Hero.Vektor", "team": 1, "cell": [ 0, -3, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — Vektor entra nel fuoco: 10 subito, 8 nel Cleanup, `Burning` per 2 turni.",
+      "intents": [
+        { "unit": "V1", "move": [[0, -2, 0]] }
+      ]
+    },
+    {
+      "_turno": "T2 — Riva lo bagna. Il Burning avrebbe ancora un turno da correre, e invece si spegne.",
+      "intents": [
+        { "unit": "R1", "ability": "Riva.PressureJet", "target": "V1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals",  "unit": "V1", "value": 66 },
+    { "type": "UnitAlive",     "unit": "V1", "value": true },
+    { "type": "TurnsCompleted", "value": 2 }
+  ]
+}

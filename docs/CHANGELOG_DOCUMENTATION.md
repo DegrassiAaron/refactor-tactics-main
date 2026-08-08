@@ -2,6 +2,66 @@
 
 ---
 
+## 2026-08-08 — Corpus di scenari di validazione visiva
+
+**Origine**: sessione di brainstorming a partire dai sorgenti `docs/src/` consolidati. Nessun payload esterno:
+il materiale nuovo del 2026-08-08 (Cover Window, muri/porte) è **v0.2** — E22/E23 — e qui entra solo come
+`requires` dichiarati.
+
+### Il problema
+
+Il corpus scenari serviva a verificare **regole**. Quando si vuole giudicare un effetto a schermo — un VFX,
+una scivolata, una spinta assorbita — non c'era un insieme di fixture pensate per portare l'occhio sulla cosa
+giusta, e ognuno se le allestiva a mano.
+
+Cercando di scriverle sono emersi due limiti che nessun documento dichiarava:
+
+1. **il canale di presentazione conosce quattro eventi** (`Move`, `Attack`, `HazardDamage`, `Defeated`).
+   Nessun evento per stati, spinte, reazioni o mutazioni d'ambiente: un VFX di `Wet` non ha nulla a cui
+   agganciarsi. È il difetto «dato senza consumatore» applicato alla presentazione;
+2. **il formato scenario non sa esprimere** azioni con bersaglio-cella, azioni core e superfici d'autore —
+   tre blocchi di feature v0.1 **già atterrate** che il corpus non può mostrare.
+
+> ⚠️ **Un quarto limite era stato dichiarato, e non esisteva.** Il documento nasceva affermando che le
+> reazioni non fossero esprimibili: vero sulla working copy in uso, **falso su `origin/main`**, dove il campo
+> `reaction` esiste, è letto dal loader ed è validato contro il kit e lo slot. La differenza è emersa solo
+> perché `git diff origin/main..HEAD` mostrava righe **in meno** nell'harness — cioè il ramo condiviso era
+> avanti, non indietro. Da lì `Visual.Reaction.Interposition` e `Visual.Reaction.Deflection`, che senza quella
+> verifica non sarebbero stati scritti.
+>
+> **La regola**: un limite si verifica contro il ramo condiviso, non contro la copia che si ha sotto mano.
+> Altrimenti si documenta come mancante ciò che un'altra sessione ha appena costruito — ed è la stessa
+> famiglia di errore degli ID `D-028`/`D-029` di poche voci fa.
+
+### Cosa è cambiato
+
+| File | Modifica |
+|---|---|
+| [`technical/scenari-validazione-visiva.md`](technical/scenari-validazione-visiva.md) | **nuovo** — owner del corpus: le tre fasce, la tavolozza delle fixture, i quattro eventi disponibili, e in §8 cosa manca in ordine di resa |
+| `Scenarios/Visual/**` | **17 scenari nuovi**, i primi del progetto a riferire una **fixture** invece di generare l'arena |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | 17 voci `PIE-VIS-*`; conteggio **rimisurato col comando**: 83 (25/21/37) → **100 (25/21/54)** |
+| [`technical/scenario-index-e-tag.md`](technical/scenario-index-e-tag.md) | vocabolario dei tag da 10 a **20** voci: la fotografia era indietro di **dieci**, e solo quattro erano di questa sessione |
+
+### Decisioni prese
+
+- **nessuna categoria nuova**: il tag `animation`, che il modello dei tag prevedeva già come *lente*, è il
+  meccanismo di navigazione. `Visual.` è un prefisso leggibile, non un asse;
+- **nessuna regia nel dato** (camera, pause, loop) e nessun replay come artefatto: «replay» qui significa
+  *rigiocare in Visual*, che l'harness fa già;
+- **nessuna validazione automatica del grafico** — l'oracolo è l'occhio. Le assertion logiche restano, e
+  servono a garantire che ciò che si guarda sia lo stato giusto: senza, si può ammirare l'animazione di un
+  colpo che ha mancato;
+- i due scenari **muti** (`Wet`, rete conduttiva) sono deliberatamente **non scritti**: un file che si apre e
+  non mostra niente insegna a diffidare del corpus.
+
+### Limite dichiarato
+
+Nessuno dei 15 è stato eseguito: i valori vengono dal catalogo e dal codice letto, non da un run. Tre hanno
+un numero che il primo run deve confermare, e lo dichiarano nel file. **«Tutte le feature della v0.1» non è
+oggi raggiungibile dal corpus**, e la parte mancante è di formato da estendere, non di scenari da scrivere.
+
+---
+
 ## 2026-08-08 — Ownership di abilità, interazioni e sinergie (terzo passaggio)
 
 **Origine**: payload `Docs-Consolidation-v0.9` + handoff `docs/src/design/fazioni-v0.2-identita-visiva-e-roster.md`

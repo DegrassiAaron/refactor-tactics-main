@@ -1,0 +1,34 @@
+{
+  "scenarioId": "Visual.Core.PhaseOrder",
+  "tags": ["animation", "core", "planning", "flux", "riva", "bastion", "vektor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "Un turno, tre fasi, tre unita' che si muovono in momenti diversi: Bastion carica nel **Dash**, Vektor spara nel **Blast**, Riva cammina nel **Move**. La sequenza `Prep -> Dash -> Blast -> Move` e' la spina dorsale del gioco e questo e' il solo scenario del corpus che la mette tutta in un'inquadratura. Se a schermo le tre cose accadono insieme, la regola per cui il movimento normale arriva DOPO i colpi — che e' il motivo per cui si puo' sfuggire a un attacco solo con la mobilita' rapida — resta invisibile.",
+
+  "_nota_aritmetica": "Flux 90 - 20 (Bastion.Ram, Dash) - 21 (Vektor.PulseShot, Blast) = 49. Riva arriva a (-1,1) camminando due celle, e parte DOPO che i colpi sono gia' risolti.",
+
+  "units": [
+    { "id": "F1", "hero": "Hero.Flux",    "team": 0, "cell": [-1,  0, 0] },
+    { "id": "R1", "hero": "Hero.Riva",    "team": 0, "cell": [-3,  1, 0] },
+    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [ 1,  0, 0] },
+    { "id": "V1", "hero": "Hero.Vektor",  "team": 1, "cell": [ 1, -1, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "B1", "ability": "Bastion.Ram",      "target": "F1" },
+        { "unit": "V1", "ability": "Vektor.PulseShot", "target": "F1" },
+        { "unit": "R1", "move": [[-2, 1, 0], [-1, 1, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals",  "unit": "F1", "value": 49 },
+    { "type": "UnitAtCell",    "unit": "R1", "cell": [-1, 1, 0] },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

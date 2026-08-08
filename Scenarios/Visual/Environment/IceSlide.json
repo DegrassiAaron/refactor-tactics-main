@@ -1,0 +1,29 @@
+{
+  "scenarioId": "Visual.Environment.IceSlide",
+  "tags": ["animation", "environment", "movement", "flux"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "RelayLite",
+
+  "_nota": "BANCO VFX per lo scivolamento. Flux cammina due celle e TERMINA su ghiaccio a (-2,2): il resolver estende il percorso di una cella nella direzione dell'ultimo passo, fino a (-2,1). Il passo extra non e' un passo: se l'animazione lo riproduce identico agli altri due, il giocatore non ha modo di capire che il gioco ha deciso al posto suo — ed e' esattamente cio' che questo scenario serve a giudicare.",
+
+  "_nota_regola": "`ApplyIceSliding` scivola solo se il budget RESIDUO e' >= 2. Flux ha 5 MP, il percorso ne costa 2 (Floor 1 + Ice 1), ne restano 3: scivola. Cambiare la cella di partenza puo' quindi spegnere l'effetto senza che niente sembri rotto.",
+
+  "units": [
+    { "id": "F1", "hero": "Hero.Flux",    "team": 0, "cell": [-2, 4, 0] },
+    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [ 4, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "F1", "move": [[-2, 3, 0], [-2, 2, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell",    "unit": "F1", "cell": [-2, 1, 0] },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

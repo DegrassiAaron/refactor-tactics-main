@@ -1,0 +1,32 @@
+{
+  "scenarioId": "Visual.Movement.Charge",
+  "tags": ["animation", "movement", "combat", "bastion", "flux"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "BANCO VFX per la mobilita' lineare. Bastion carica Flux da due celle di distanza con `Bastion.Ram`: `LinearCharge` si ferma ADDOSSO al primo nemico sulla traiettoria, infligge 20 danni e spinge di 1. Il confronto che questo scenario serve a fare e' con `Movement.LongWalk`: se la carica si vede uguale a una camminata, la differenza fra mobilita' rapida e movimento normale — che in questo gioco e' una differenza di FASE, Dash prima di Blast — non arriva a chi guarda.",
+
+  "_nota_portata": "Portata 3 da `Action.Charge` nel catalogo azioni, ereditata da Ram. La distanza qui e' 2: dentro la portata, con un margine che sopravvive a un ritocco di bilanciamento.",
+
+  "_nota_celle": "Le celle finali attese sono Bastion (2,0,0) — fermo addosso — e Flux (0,0,0) — spinto di 1, PushResistance 0. NON sono assertion: dipendono dall'ordine fra arresto e spinta, che non e' stato verificato scrivendo lo scenario. Il primo run le conferma, e allora si promuovono a `UnitAtCell`. Scriverle a indovinare produrrebbe un rosso che accusa il gioco di un errore proprio.",
+
+  "units": [
+    { "id": "F1", "hero": "Hero.Flux",    "team": 0, "cell": [1, 0, 0] },
+    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [3, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "B1", "ability": "Bastion.Ram", "target": "F1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals",  "unit": "F1", "value": 70 },
+    { "type": "UnitAlive",     "unit": "F1", "value": true },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

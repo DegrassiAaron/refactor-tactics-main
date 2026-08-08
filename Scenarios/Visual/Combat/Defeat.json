@@ -1,0 +1,44 @@
+{
+  "scenarioId": "Visual.Combat.Defeat",
+  "tags": ["animation", "combat", "flux", "bastion", "vektor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "BANCO VFX per il KO. Due nemici colpiscono Flux con gli attacchi base per due turni: 24 (Bastion.ImpactShot) + 21 (Vektor.PulseShot) = 45 a turno, e i 90 HP di Flux finiscono ESATTAMENTE alla fine del secondo. Nessun cooldown in mezzo: entrambe le azioni hanno cooldown 0. Arena liscia e nessun terreno, perche' l'unica cosa da guardare qui e' l'eliminazione.",
+
+  "_nota_riva": "Riva sta in un angolo e non fa nulla, e non e' decorazione: senza di lei il team 0 verrebbe annientato con Flux e la partita finirebbe, portandosi via il secondo turno che questo scenario deve completare.",
+
+  "_nota_evento": "L'eliminazione emette `Defeated` e il delegate `OnUnitDefeated`: e' il solo evento del canale di presentazione dedicato alla rimozione di un'unita'.",
+
+  "units": [
+    { "id": "F1", "hero": "Hero.Flux",    "team": 0, "cell": [-1,  0, 0] },
+    { "id": "R1", "hero": "Hero.Riva",    "team": 0, "cell": [-4,  1, 0] },
+    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [ 1,  0, 0] },
+    { "id": "V1", "hero": "Hero.Vektor",  "team": 1, "cell": [ 1, -1, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — 90 -> 45. Si guarda l'incassare: due colpi nello stesso Blast, e la barra che scende due volte.",
+      "intents": [
+        { "unit": "B1", "ability": "Bastion.ImpactShot", "target": "F1" },
+        { "unit": "V1", "ability": "Vektor.PulseShot",   "target": "F1" }
+      ]
+    },
+    {
+      "_turno": "T2 — 45 -> 0. Stessi due colpi. Il secondo porta a zero: e' qui che si guarda il KO.",
+      "intents": [
+        { "unit": "B1", "ability": "Bastion.ImpactShot", "target": "F1" },
+        { "unit": "V1", "ability": "Vektor.PulseShot",   "target": "F1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAlive",     "unit": "F1", "value": false },
+    { "type": "UnitAlive",     "unit": "R1", "value": true },
+    { "type": "UnitHpEquals",  "unit": "R1", "value": 95 },
+    { "type": "TurnsCompleted", "value": 2 }
+  ]
+}
