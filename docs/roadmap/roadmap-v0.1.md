@@ -129,9 +129,12 @@ Le due righe qui sopra **erano vere il 2026-08-05 e non lo sono più**. Misura d
 `Ice.SlideBudgetBoundaryIsExactlyTwo`, `Ice.BlockedCellStopsSliding`, `Ice.SlidesInMatch`), benché il catalogo
 terreni lo dichiari «rimandabile». Non va né costruito né rimosso: va **documentato come vigente**.
 
-**I 10 test vincolanti del catalogo** (§6): **6 esistono**, 4 no —
-mancano `Environment.WaterElectricPropagation`, `Environment.WaterExtinguishesFire`,
-`Cover.DirectionalDamageReduction`, `Simulation.DeterministicReplay`.
+~~**I 10 test vincolanti del catalogo** (§6): **6 esistono**, 4 no~~
+→ ✅ **tutti e 10 esistono** (misurato il 2026-08-08). Nel frattempo sono arrivati `Environment.*` e
+`Cover.DirectionalDamageReduction` (E8/E9) e, per ultimo, `Simulation.DeterministicReplay` con le sue **100
+ripetizioni** — insieme a `Simulation.ChecksumStableAcrossPermutations` che chiude **CP 12.1**.
+Verifica riproducibile: `grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp`
+e confronto con l'elenco di §6.
 
 **Stato in una riga, aggiornato**: il **contenuto** della v0.1 (cataloghi, azioni, reazioni, eroi) è in gran
 parte costruito e testato; mancano **il mondo** (ambiente, coperture, strutture, obiettivi), **la leggibilità**
@@ -550,7 +553,7 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
-| **12.1** | Replay deterministico rinforzato | Stessa snapshot + stesso seed + stesse definizioni + stesso ordine ⇒ checksum finale **identico** su **almeno 100 ripetizioni** | `Simulation.DeterministicReplay` (100 iterazioni), `Simulation.ChecksumStableAcrossPermutations` |
+| **12.1** ✅ | Replay deterministico rinforzato | Stessa snapshot + stesso seed + stesse definizioni + stesso ordine ⇒ checksum finale **identico** su **almeno 100 ripetizioni** | ✅ **2026-08-08**: `Simulation.DeterministicReplay` (100 iterazioni, 0 divergenze) e `Simulation.ChecksumStableAcrossPermutations` (unità e intent invertiti → stesso stato). Entrambi girano sullo **Scenario Harness**, quindi sul percorso di gioco reale. Più `Simulation.StateHashDistinguishesOutcomes`, che impedisce all'hash di degenerare in una costante — senza, i primi due passerebbero anche confrontando zeri |
 | **12.2** | Matrice test manuali v0.1 | Le 12 voci `PIE-V01-*` esistono in `test-manuali-pie.md` con precondizione ed esito atteso e sono **eseguite** | Sessione E di `test-manuali-pie.md` completa |
 | **12.3** | Suite automatica completa | I 10 test nominati dal catalogo (§15) esistono con quei nomi e sono verdi; nessun test disabilitato o saltato per far passare la build | `RunUAT`/Automation: elenco completo verde; `grep -rn "skip\|disable" Source/RefactorTactics/Tests/` senza esiti |
 | **12.4** | KPI misurati | FPS client, path mediana, preview completa, resolver per turno **misurati e registrati** (anche se fuori target); replay divergence = 0; intent leak = 0. **In più** (2026-08-07): le metriche di **durata** — `RoundsPlayed`, `MatchDurationSeconds`, `PlanningDurationSeconds`, `ResolutionPlaybackSeconds`, `ReadyAtSeconds`, `FirstEnemyContactRound` — raccolte sul **2v2** e dichiarate come tali, **non** confrontate con le bande del 3v3 Standard che non esiste in v0.1 | Tabella KPI di `v0.1-definition-of-done.md` compilata con numeri reali · metriche in [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §17 |

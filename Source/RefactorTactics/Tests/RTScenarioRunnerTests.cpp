@@ -396,4 +396,42 @@ bool FRTScenarioCellOverridesApplyTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `Movement.SwapRejectedByPlanning`: due unita' adiacenti NON si scambiano di posto.
+ *
+ * E' un test di CARATTERIZZAZIONE: fissa il comportamento attuale, non una regola desiderata. La
+ * pianificazione rifiuta un percorso verso una cella occupata (`FindPathForUnit`: goal occupato -> NoPath),
+ * quindi lo scambio non arriva mai al resolver.
+ *
+ * ⚠️ Il resolver invece lo CONSENTE — `HexSim.ResolveSwapAllowed` lo verifica, ma passando percorsi costruiti
+ * a mano e quindi bypassando il planner. Le due regole insieme rendono lo scambio **irraggiungibile dal
+ * gioco**, ed e' il tipo di difetto che solo un test d'integrazione puo' mostrare: entrambe le regole,
+ * guardate da sole, sono verdi e sensate.
+ *
+ * Se un giorno lo scambio dovra' essere possibile, sara' il planner a cambiare e questo test diventera'
+ * rosso: e' il segnale che si vuole, non un fastidio da mettere a tacere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioSwapRejectedTest,
+	"RefactorTactics.Scenario.RunnerSwapRejectedByPlanning",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioSwapRejectedTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Movement.SwapRejectedByPlanning"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di PASS: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("esito PASS: entrambe restano ferme (comportamento attuale)"),
+		Result.OutcomeString(), FString(TEXT("PASS")));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
