@@ -83,7 +83,7 @@ definita in due posti, è un difetto: apri una issue invece di aggiornarne una s
 | **Profilo** di azione generica (il modificatore per eroe) | [`gameplay/brief-azioni-generiche-overwatch.md`](gameplay/brief-azioni-generiche-overwatch.md) §4-bis | ✅ [D-033](decisions/RT_PDR_00_Decision_Log.md) · nome unico: **non** `GenericActionModifier` · profili concreti ⏳ |
 | Schema della Signature e **`Misplay / Failure State`** | [`characters/_Template.md`](characters/_Template.md) | ✅ [D-032](decisions/RT_PDR_00_Decision_Log.md) · compilato sulle 4 schede v0.1 |
 | Intento condizionale (`ConditionalIntent`) | [`gameplay/brief-delayed-actions.md`](gameplay/brief-delayed-actions.md) §7 | 📅 [D-034](decisions/RT_PDR_00_Decision_Log.md) · **post-v0.1**, epic E33 · bloccato dai boundary |
-| Stati del personaggio e trasformazioni | [`gameplay/brief-stati-personaggio-e-trasformazioni.md`](gameplay/brief-stati-personaggio-e-trasformazioni.md) | 📅 [D-035](decisions/RT_PDR_00_Decision_Log.md) · **post-v0.1**, epic E34 · nessun eroe assegnato |
+| Stati del personaggio e trasformazioni | [`gameplay/brief-stati-personaggio-e-trasformazioni.md`](gameplay/brief-stati-personaggio-e-trasformazioni.md) · candidature in [`characters/matrici-stati-personaggio.md`](characters/matrici-stati-personaggio.md) | 📅 [D-035](decisions/RT_PDR_00_Decision_Log.md) · **post-v0.1**, epic E34 · nessun eroe assegnato |
 | Formato principale di partita | [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) `D-001`/`D-011` | ⚠️ **assunzione**: 3v3 baseline, mai misurato |
 | Validazione di stress 4v4 | [`roadmap/roadmap-v0.1.md`](roadmap/roadmap-v0.1.md) §E17 | ⏳ E17, dopo E15 |
 

@@ -116,6 +116,10 @@ Il segnale che conta è qualitativo, e i due esiti sono distinguibili:
 
 ## 8. Cosa resta aperto
 
+> 📊 **Le candidature vivono in [`../characters/matrici-stati-personaggio.md`](../characters/matrici-stati-personaggio.md)**:
+> tutte le alternative L/M/S per ~40 personaggi, il costo sistemico di ognuna, il budget di complessità e lo
+> stato di validazione. Nessuna riga supera oggi `PROPOSED`.
+
 Nessun eroe ha uno stato assegnato: le proposte del sorgente (§7–§13) restano **alternative di design**, tre per
 personaggio, deliberatamente non risolte. Una Signature scartata come trasformazione può tornare come ability,
 come passiva o come profilo — ed è il motivo per cui il sorgente non è stato potato.

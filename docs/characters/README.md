@@ -20,6 +20,13 @@ I nomi Paragon sono usati come **Asset Base**. L'identità finale RefactorTactic
 
 Ogni abilità appartiene a un singolo personaggio/definizione. Le sinergie sono esempi esterni al kit: [Sinergie e combinazioni](../wiki/game/sinergie-e-combinazioni.md).
 
+## Matrici di design
+
+[`matrici-stati-personaggio.md`](matrici-stati-personaggio.md) — candidature di stato/trasformazione per
+l'intero roster, costo sistemico, budget di complessità e stato di validazione. È **tracciabilità**, non una
+fonte di regole: l'owner è [`../gameplay/brief-stati-personaggio-e-trasformazioni.md`](../gameplay/brief-stati-personaggio-e-trasformazioni.md).
+Nessun personaggio ha uno stato assegnato.
+
 ## `Misplay / Failure State` — copertura, 2026-08-08
 
 [D-032](../decisions/RT_PDR_00_Decision_Log.md) ha aggiunto allo schema della Signature un campo che mancava:
