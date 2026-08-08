@@ -173,7 +173,32 @@ Due vincoli che non sono dettagli:
    stessa disciplina delle Fast Decision — altrimenti due partite identiche con ordine di inserimento diverso
    producono hash diversi, e il KPI `replay divergence 0` cade.
 
-## 11. Rapporto con gli altri documenti
+## 11. Terminologia — e la parola già occupata
+
+```text
+Character State
+├── Stance          postura commutabile, leggera
+├── Form            cambio sostanziale di comportamento
+├── Overdrive       potenziamento forte e temporaneo
+├── Environmental   causato o alimentato dal terreno
+└── Configuration   riconfigurazione, una attiva alla volta
+```
+
+⚠️ **«Stato» è già preso.** Il progetto lo usa per gli **stati temporanei** — `Status.Wet`, `Status.Marked`,
+`Burning` — che sono un'altra cosa: appartengono alla cella o al bersaglio, li applica qualcun altro, e il
+giocatore non li sceglie. Un *Character State* è invece una **configurazione scelta dal proprio giocatore**.
+
+La distinzione non è accademica: è esattamente il caso di
+[D-029](../decisions/RT_PDR_00_Decision_Log.md), dove `Wet` non sa chi l'ha applicato. Se i due concetti
+scivolano in una parola sola, la prima implementazione avrà ragione a metterli nello stesso sistema — e sarà
+sbagliata.
+
+Nei documenti, quindi: **stato del personaggio** o `Character State` per questo framework; **stato temporaneo**
+per `Status.*`, di cui l'owner resta [`spec-stati-temporanei-cp82.md`](spec-stati-temporanei-cp82.md).
+Il glossario player-facing **non** cambia: non contiene ancora il framework, e non deve — nessuna riga supera
+`PROPOSED`.
+
+## 12. Rapporto con gli altri documenti
 
 | Documento | Relazione |
 |---|---|
