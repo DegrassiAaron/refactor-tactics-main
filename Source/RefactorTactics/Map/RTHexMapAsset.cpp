@@ -31,6 +31,29 @@ void URTHexMapAsset::AddOrUpdateCell(const FRTHexCellData& Cell)
 	++Revision;
 }
 
+void URTHexMapAsset::UpdateCells(const TArray<FRTHexCellData>& InCells)
+{
+	if (InCells.Num() == 0)
+	{
+		return; // nessuna modifica: la revisione non deve muoversi
+	}
+
+	EnsureLookup();
+	for (const FRTHexCellData& Cell : InCells)
+	{
+		if (const int32* Idx = Lookup.Find(Cell.Id))
+		{
+			Cells[*Idx] = Cell; // aggiorna in loco (indice stabile)
+		}
+		else
+		{
+			const int32 NewIdx = Cells.Add(Cell);
+			Lookup.Add(Cell.Id, NewIdx); // la cache resta valida (append non muove gli altri)
+		}
+	}
+	++Revision; // UNA volta per l'intero gruppo
+}
+
 void URTHexMapAsset::BeginStroke()
 {
 	Modify();
@@ -197,6 +220,20 @@ uint32 URTHexMapAsset::ComputeHash() const
 			Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(Cover.Type)));
 			Hash = HashCombine(Hash, GetTypeHash(Cover.Integrity));
 		}
+
+		// Le porte cambiano la topologia, quindi sono dato autorevole quanto le coperture: entrano nell'hash
+		// con lo stesso criterio (ordinate per bordo). E' anche cio' che permette a `IsSnapshotStale` di
+		// accorgersi di una porta che si e' mossa, non solo alla revisione.
+		C.Doors.Sort([](const FRTHexDoor& A, const FRTHexDoor& B)
+		{
+			return static_cast<uint8>(A.Edge) < static_cast<uint8>(B.Edge);
+		});
+		for (const FRTHexDoor& Door : C.Doors)
+		{
+			Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(Door.Edge)));
+			Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(Door.State)));
+			Hash = HashCombine(Hash, GetTypeHash(Door.DoorId));
+		}
 	}
 
 	// Le transizioni sono dato autorevole (i ponti/tunnel cambiano il pathing): entrano nell'hash, ordinate
@@ -260,6 +297,29 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 						static_cast<int32>(Cover.Edge), *C.Id.ToString()));
 					break;
 				}
+			}
+		}
+
+		// Porte (CP 9.3): stessi due difetti che le coperture non sanno risolvere, piu' quello nuovo — una
+		// porta dentro un muro pieno. A runtime il muro vince comunque (`BlocksTraversal` e' un OR
+		// restrittivo), quindi la porta non si aprirebbe mai: meglio dirlo a chi disegna il livello che
+		// lasciargli credere di aver messo un varco.
+		for (int32 I = 0; I < C.Doors.Num(); ++I)
+		{
+			const FRTHexDoor& Door = C.Doors[I];
+			for (int32 J = 0; J < I; ++J)
+			{
+				if (C.Doors[J].Edge == Door.Edge)
+				{
+					Errors.Add(FString::Printf(TEXT("Error: porte sovrapposte sul bordo %d di %s"),
+						static_cast<int32>(Door.Edge), *C.Id.ToString()));
+					break;
+				}
+			}
+			if (C.CoverOn(Door.Edge) == ERTHexCoverType::High)
+			{
+				Errors.Add(FString::Printf(TEXT("Error: porta dentro una copertura alta sul bordo %d di %s"),
+					static_cast<int32>(Door.Edge), *C.Id.ToString()));
 			}
 		}
 	}
@@ -386,10 +446,12 @@ void URTHexMapAsset::MigrateToCurrentFormat()
 		return; // gia' aggiornato: idempotente, PostLoad puo' ripetersi
 	}
 
-	// v2 -> v3 (CP 9.1): il formato guadagna le coperture per bordo. NON c'e' nulla da convertire — `Covers`
-	// nasce vuoto e una mappa senza coperture si comporta esattamente come prima — quindi la migrazione si
-	// limita a dichiarare la versione. Il giorno in cui una migrazione dovra' TRASFORMARE dati, il posto e'
-	// questo, un `if (FormatVersion < N)` per volta, in ordine.
+	// v2 -> v3 (CP 9.1): il formato guadagna le coperture per bordo.
+	// v3 -> v4 (CP 9.3): il formato guadagna le porte per bordo.
+	// In nessuno dei due c'e' qualcosa da convertire — il campo nuovo nasce vuoto e una mappa che non lo usa
+	// si comporta esattamente come prima — quindi la migrazione si limita a dichiarare la versione. Il giorno
+	// in cui una migrazione dovra' TRASFORMARE dati, il posto e' questo, un `if (FormatVersion < N)` per
+	// volta, in ordine.
 	FormatVersion = CurrentFormatVersion;
 }
 

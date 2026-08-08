@@ -75,6 +75,54 @@ struct FRTHexCover
 };
 
 /**
+ * Stato di una porta su un bordo (CP 9.3). `Closed` e `Locked` bloccano allo stesso modo passo e vista: la
+ * differenza e' CHI puo' riaprirle — `SetDoorState` non apre una `Locked`, serve l'apertura autorizzata di
+ * CP 10.1. `Destroyed` e' TERMINALE: una porta sfondata non si richiude.
+ */
+UENUM(BlueprintType)
+enum class ERTHexDoorState : uint8
+{
+	Open,      // si passa e si vede
+	Closed,    // nega passo e vista; riapribile
+	Locked,    // come Closed, ma non si apre da sola
+	Destroyed  // aperta per sempre (stato terminale)
+};
+
+/**
+ * Porta su UNO dei sei bordi di una cella. Come le coperture, l'array della cella e' SPARSO e la direzionalita'
+ * e' del BORDO: una mappa senza porte pesa e hasha esattamente come prima.
+ *
+ * Una porta e' un bordo e non un arco (`FRTHexEdge`) perche' e' SOTTRATTIVA — nega un'adiacenza che esiste —
+ * mentre l'arco e' additivo: `GraphNeighbors` aggiunge i sei vicini planari PRIMA e indipendentemente dagli
+ * archi, quindi togliere un arco fra celle adiacenti non chiuderebbe nulla. Vedi
+ * docs/gameplay/spec-porte-cp93.md §1.
+ */
+USTRUCT(BlueprintType)
+struct FRTHexDoor
+{
+	GENERATED_BODY()
+
+	/** Bordo occupato dalla porta, visto DALLA cella (stessa convenzione di `FRTHexCover`). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	ERTHexDirection Edge = ERTHexDirection::E;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	ERTHexDoorState State = ERTHexDoorState::Closed;
+
+	/**
+	 * Gruppo di appartenenza: i bordi che lo condividono formano UNA porta larga e si commutano insieme, con
+	 * un solo incremento di revisione (un portone e' un evento, non tre). `INDEX_NONE` = porta singola.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	int32 DoorId = INDEX_NONE;
+
+	FRTHexDoor() = default;
+	explicit FRTHexDoor(ERTHexDirection InEdge, ERTHexDoorState InState = ERTHexDoorState::Closed,
+		int32 InDoorId = INDEX_NONE)
+		: Edge(InEdge), State(InState), DoorId(InDoorId) {}
+};
+
+/**
  * Dato compatto e AUTOREVOLE di una cella esagonale (serializzato nell'asset mappa). Nessun Actor per cella.
  * Estendibile in milestone successive (hazard, Gameplay Tags, interazioni) senza rompere il formato.
  */
@@ -110,6 +158,12 @@ struct FRTHexCellData
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
 	TArray<FRTHexCover> Covers;
 
+	/**
+	 * Porte per bordo (0..6 voci, al massimo una per bordo). Sparso come `Covers`. Formato v4.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	TArray<FRTHexDoor> Doors;
+
 	/** Tipo di copertura sul bordo indicato (`None` se il bordo e' scoperto). */
 	ERTHexCoverType CoverOn(ERTHexDirection Edge) const
 	{
@@ -118,6 +172,16 @@ struct FRTHexCellData
 			if (Cover.Edge == Edge) { return Cover.Type; }
 		}
 		return ERTHexCoverType::None;
+	}
+
+	/** Porta dichiarata su quel bordo, o nullptr se il bordo non ne ha. */
+	const FRTHexDoor* DoorOn(ERTHexDirection Edge) const
+	{
+		for (const FRTHexDoor& Door : Doors)
+		{
+			if (Door.Edge == Edge) { return &Door; }
+		}
+		return nullptr;
 	}
 
 	FRTHexCellData() = default;

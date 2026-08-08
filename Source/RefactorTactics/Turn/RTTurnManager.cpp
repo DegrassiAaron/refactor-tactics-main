@@ -13,6 +13,7 @@
 #include "Combat/RTHexCombatLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
 #include "Map/RTHexCoverLibrary.h"
+#include "Map/RTHexDoorLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Bot/RTHexBotLibrary.h"
@@ -1625,6 +1626,23 @@ void ARTTurnManager::ResolveCombat()
 				break;
 			}
 		}
+
+		// PORTE (CP 9.3): lo stato viaggia in `Amount` (interi soltanto, come la durata di uno stato). Un
+		// valore fuori intervallo non produce nessun ordine — meglio nessuna operazione che una porta portata
+		// a uno stato che non esiste.
+		for (const FRTActionEffectSpec& Spec : Ability->Def.Effects)
+		{
+			if (Spec.Effect != ERTActionEffect::SetDoorState)
+			{
+				continue;
+			}
+			if (Spec.Amount >= 0 && Spec.Amount <= static_cast<int32>(ERTHexDoorState::Destroyed))
+			{
+				Intent.bChangesDoor = true;
+				Intent.DoorState = static_cast<ERTHexDoorState>(Spec.Amount);
+			}
+			break;
+		}
 		Intents.Add(Intent);
 		IntentAbilityIndex.Add(AbilityIndex);
 		IntentAbility.Add(Ability);
@@ -1933,6 +1951,27 @@ void ARTTurnManager::ResolveCombat()
 		AddLogEvent(FString::Printf(TEXT("Copertura (q=%d,r=%d,L%d) verso (q=%d,r=%d): %s (integrita' %d)"),
 			Change.Cell.X, Change.Cell.Y, Change.Cell.Layer, Change.Toward.X, Change.Toward.Y,
 			Change.bDestroyed ? TEXT("abbattuta") : TEXT("danneggiata"), Change.RemainingIntegrity));
+	}
+
+	// PORTE (CP 9.3): stessa disciplina delle strutture — gli ordini si applicano ORA, a colpi risolti, non
+	// durante la raccolta. Chi ha sparato in questo Blast non perde la linea perche' una porta si e' chiusa: la
+	// topologia cambia dalla fase SUCCESSIVA, che e' il Move — ed e' li' che il percorso gia' pianificato deve
+	// accorgersene.
+	for (const FRTDoorChange& Change : URTHexDoorLibrary::ApplyDoorOps(MutableMap, Plan.DoorOps))
+	{
+		FRTTurnLogEntry Entry;
+		Entry.Phase = ERTMatchPhase::Blast;
+		Entry.Category = ERTLogCategory::Environment;
+		Entry.Outcome = static_cast<uint8>(
+			Change.bBlocking ? ERTEnvironmentOutcome::DoorClosed : ERTEnvironmentOutcome::DoorOpened);
+		// La coppia di celle E' il bordo, come per le coperture: nessun campo nuovo nel TurnLog.
+		Entry.SrcCell = Change.Cell;
+		Entry.TgtCell = Change.Toward;
+		Entry.Amount = static_cast<int32>(Change.State);
+		TurnLog.Add(Entry);
+		AddLogEvent(FString::Printf(TEXT("Porta (q=%d,r=%d,L%d) verso (q=%d,r=%d): %s"),
+			Change.Cell.X, Change.Cell.Y, Change.Cell.Layer, Change.Toward.X, Change.Toward.Y,
+			Change.bBlocking ? TEXT("chiusa") : TEXT("aperta")));
 	}
 
 	// Intenti NON VALUTABILI (nessuna mappa autorevole): non finiscono nel TurnLog come «nessuna linea di
@@ -2484,6 +2523,11 @@ void ARTTurnManager::ResolveMovement()
 
 	TArray<TArray<FRTCellId>> Paths;
 	Paths.Reserve(Units.Num());
+	// Chi e' stato accorciato dalla TOPOLOGIA: il resolver non puo' saperlo (il taglio avviene prima che lui
+	// veda il percorso) e classificherebbe `Moved`, vero sul percorso troncato ma falso su cio' che l'unita'
+	// aveva pianificato. Lo sa questo ciclo, e lo scrive lui nel log.
+	TArray<bool> bStoppedByTopology;
+	bStoppedByTopology.Init(false, Units.Num());
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Units[i];
@@ -2521,6 +2565,16 @@ void ARTTurnManager::ResolveMovement()
 		// spec-terreni-e8.md: senza il microstep condiviso lo scivolamento non avrebbe la stessa garanzia
 		// sotto collisione simultanea.
 		Path = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ i, Path);
+
+		// TOPOLOGIA (CP 9.3): il percorso e' stato validato quando la mappa era un'altra — una porta chiusa
+		// nel Blast di QUESTO turno, un muro caduto — e `TruncatePathToBudget` non se ne accorge, perche'
+		// guarda il budget. Senza questo taglio un percorso gia' pianificato attraverserebbe un varco che nel
+		// frattempo si e' chiuso: il «path fantasma». Il movimento si FERMA all'ultima cella valida
+		// (`Fallback.Stop`), non si annulla.
+		const int32 PlannedLength = Path.Num();
+		Path = URTHexSimLibrary::TruncatePathToTopology(Snapshot, Path);
+		bStoppedByTopology[i] = Path.Num() < PlannedLength;
+
 		Paths.Add(Path);
 	}
 
@@ -2528,7 +2582,18 @@ void ARTTurnManager::ResolveMovement()
 
 	// TurnLog dagli esiti: la chiave e' la cella di PARTENZA (Paths[i][0]), stabile perche' Cell cambia
 	// dopo PlaceOnCell. BuildMoveLog produce una voce per unita' nell'ordine dell'input.
-	const TArray<FRTTurnLogEntry> MoveLog = URTHexSimLibrary::BuildMoveLog(Paths, Resolved);
+	TArray<FRTTurnLogEntry> MoveLog = URTHexSimLibrary::BuildMoveLog(Paths, Resolved);
+	for (int32 i = 0; i < MoveLog.Num(); ++i)
+	{
+		// Il reason code della topologia sostituisce quello del resolver solo se l'unita' ha davvero percorso
+		// tutto cio' che le restava: se si e' fermata anche per un'unita' o per una cella contesa, quel motivo
+		// e' avvenuto DOPO il taglio ed e' la spiegazione piu' vicina a cio' che il giocatore ha visto.
+		if (bStoppedByTopology.IsValidIndex(i) && bStoppedByTopology[i]
+			&& Resolved[i].Outcome == ERTMoveOutcome::Moved)
+		{
+			MoveLog[i].Outcome = static_cast<uint8>(ERTMoveOutcome::BlockedByTopology);
+		}
+	}
 	TurnLog.Append(MoveLog);
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{

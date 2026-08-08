@@ -106,6 +106,26 @@ public:
 		const TArray<FRTCellId>& Path);
 
 	/**
+	 * Il PREFISSO di Path ancora percorribile sulla TOPOLOGIA corrente della mappa dello snapshot: si ferma
+	 * PRIMA del primo passo che il grafo non consente piu'.
+	 *
+	 * Serve a intercettare un percorso validato quando la mappa era un'altra — una porta chiusa nel Blast, un
+	 * muro alzato — che `TruncatePathToBudget` non vede, perche' quella guarda il budget. Senza, un percorso
+	 * gia' pianificato attraverserebbe un varco che nel frattempo si e' chiuso: e' il «path fantasma» che
+	 * CP 9.3 esiste per impedire. Il movimento si FERMA all'ultima cella valida (`Fallback.Stop`), non si
+	 * annulla.
+	 *
+	 * Non duplica la regola dei bordi: CHIEDE AL GRAFO — un passo sopravvive solo se la destinazione compare
+	 * fra i `GraphNeighbors` della cella corrente. Con una sola domanda copre porte, muri, celle bloccate e
+	 * celle sparite, e restera' corretta quando gli archi cambieranno (CP 9.4).
+	 *
+	 * Path con meno di 2 celle -> invariato. Mappa assente -> Path invariato (fail-open sul dato non
+	 * verificabile: il chiamante ha gia' un piano, qui si puo' solo accorciarlo).
+	 */
+	static TArray<FRTCellId> TruncatePathToTopology(const FRTHexSnapshot& Snapshot,
+		const TArray<FRTCellId>& Path);
+
+	/**
 	 * Cosa non va nella cella indicata come waypoint per l'unita': fuori mappa, ostacolo, occupata da un'altra
 	 * unita' — oppure `Ok`, e allora un eventuale rifiuto del percorso e' questione di **budget**.
 	 * Serve a spiegare il rifiuto con il motivo giusto invece di elencarne tre.
