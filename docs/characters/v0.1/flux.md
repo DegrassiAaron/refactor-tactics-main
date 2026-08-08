@@ -1,13 +1,41 @@
 # Flux
 
-> ✅ **Stato repository:** personaggio del roster **v0.1 canonico**. La pagina riassume i dati del workbook v0.4, che per i numeri v0.1 è un mirror documentale dei cataloghi versionati della repository. Quando una voce è `PARTIAL` o `DEFERRED_E14`, la pagina lo espone esplicitamente.
-
 > **Asset base:** Flux  
 > **Hero_Key:** `ASSET_FLUX`  
 > **RT Character ID:** `Hero.Flux`  
 > **Release:** `v0.1`  
-> **Design status:** `IMPLEMENTED`  
 > **Roster status:** Release v0.1
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ENV-SYSTEMIC-COMBOS -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-ENV-SYSTEMIC-COMBOS` · Release: `v0.1` · Roadmap: `E8 · CP 8.5`  
+> Stato: **INTEGRATED** · Gate: `6/8`  
+> Scenario: `Visual.Combat.WaterElectric`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-ENV-SYSTEMIC-COMBOS -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ENV-ELECTRIC -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-ENV-ELECTRIC` · Release: `v0.1` · Roadmap: `E8 · CP 8.3`  
+> Stato: **INTEGRATED** · Gate: `6/8`  
+> Scenario: `Visual.Combat.WaterElectric`  
+> Il sistema esiste ed e' testato, ma **nessun eroe della v0.1 ha `Action.Electrify` come abilita' normale**: la scarica arriva dall'ambiente e dalle interazioni, non da un kit.  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-ENV-ELECTRIC -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CHAR-V01-ROSTER -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-CHAR-V01-ROSTER` · Release: `v0.1` · Roadmap: `E6 · CP 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7`  
+> Stato: **INTEGRATED** · Gate: `6/8`  
+> Scenario: `Combat.BasicAttack`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-CHAR-V01-ROSTER -->
 
 ## Panoramica
 
@@ -172,7 +200,6 @@ Arc Pulse è l'attacco base affidabile di Flux. Infligge 22 danni a range 4 e no
 
 > MakeBasicAttack(4): 22 danni, range 4.
 
-
 #### Uso tattico e limiti
 
 È la scelta a basso impegno del kit: mantiene pressione a medio raggio senza consumare cooldown. Non riceve il bonus `Wet` di `LinearDischarge`.
@@ -202,7 +229,6 @@ Linear Discharge è l'attacco lineare firma di Flux. Infligge 24 danni a range 5
 | Data Status | CANONICAL |
 
 > Bonus Wet gestito separatamente dal danno base.
-
 
 #### Uso tattico e limiti
 
@@ -234,7 +260,6 @@ Conductive Node è un'azione di setup in Prep che rende conduttiva una cella per
 
 > Effetto di conduttività non completamente rappresentato nel modello dell'azione.
 
-
 #### Uso tattico e limiti
 
 Il comportamento completo della cella conduttiva è ancora `PARTIAL`; il range 0 nel dato corrente è un placeholder tecnico e non va interpretato come scelta di bilanciamento finale.
@@ -265,7 +290,6 @@ Overload è l'AoE di Flux: 18 danni, range 3, raggio 1 e cooldown 3. La specific
 
 > Danno 18/raggio1; interrupt dispositivi dipende da sistemi futuri.
 
-
 #### Uso tattico e limiti
 
 È il payoff ad area del kit quando più bersagli o elementi del campo sono raccolti nello stesso spazio. Oggi il danno AoE è la parte più definita; l'interazione con dispositivi resta `PARTIAL`.
@@ -295,7 +319,6 @@ Reactive Capacitor è la reazione difensiva/offensiva di Flux. Quando subisce un
 | Data Status | CANONICAL |
 
 > Riusa Action.Counter con effetti componibili.
-
 
 #### Uso tattico e limiti
 

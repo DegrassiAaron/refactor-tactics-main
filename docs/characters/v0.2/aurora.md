@@ -1,6 +1,17 @@
 # Aurora
-![Aurora — Paragon asset base](../images/paragon/aurora.png)
 
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CHAR-V02-ROSTER -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-CHAR-V02-ROSTER` · Release: `v0.2` · Roadmap: `—`  
+> Stato: **DESIGNED** · Gate: `0/8`  
+> Scenario: `—`  
+> Pagina di **progetto**: nessun dato di gioco e nessuna epic aperta per questo personaggio.  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-CHAR-V02-ROSTER -->
+
+![Aurora — Paragon asset base](../images/paragon/aurora.png)
 
 > 🧪 **Stato repository:** personaggio pianificato per **v0.2**. I valori sono `DATA_SPEC` / `DESIGN_SPEC`: servono a design, bilanciamento e Wiki, ma **non sono ancora runtime canonico v0.1**. Le finestre Fast Reaction storiche richiedono review prima dell'implementazione.
 
@@ -8,7 +19,6 @@
 > **Hero_Key:** `ASSET_AURORA`  
 > **RT Character ID:** `TBD`  
 > **Release:** `v0.2`  
-> **Design status:** `DATA_SPEC`  
 > **Roster status:** Release v0.2
 
 ## Panoramica
@@ -170,7 +180,6 @@ Glacial Lance è un attacco lineare Cold da 120 danni a range 5. Continua lungo 
 
 > Valori design v0.2 ereditati dalla matrice precedente.
 
-
 #### Uso tattico e limiti
 
 Combina danno e trasformazione del terreno, creando materiale per Frozen Domain. È `DESIGN_SPEC v0.2`.
@@ -200,7 +209,6 @@ Frozen Simulacrum è un Dash/Decoy a range 4 che lascia un ostacolo o simulacro 
 | Data Status | SOURCE_VALUE |
 
 > Valori design v0.2 ereditati dalla matrice precedente.
-
 
 #### Uso tattico e limiti
 
@@ -232,7 +240,6 @@ Hoarfrost Ring è un'AoE Cold da 75 danni, range 4 e raggio 2, con controllo 3 e
 
 > Valori design v0.2 ereditati dalla matrice precedente.
 
-
 #### Uso tattico e limiti
 
 È il principale strumento per estendere Frozen Domain su una zona ampia e rendere costoso attraversarla.
@@ -262,7 +269,6 @@ Whiteout crea un'area di fumo freddo a range 5 e raggio 2 per 2 turni. Riduce Id
 | Data Status | SOURCE_VALUE |
 
 > Valori design v0.2 ereditati dalla matrice precedente.
-
 
 #### Uso tattico e limiti
 

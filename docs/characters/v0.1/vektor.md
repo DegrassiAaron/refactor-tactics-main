@@ -1,13 +1,40 @@
 # Vektor
 
-> ✅ **Stato repository:** personaggio del roster **v0.1 canonico**. La pagina riassume i dati del workbook v0.4, che per i numeri v0.1 è un mirror documentale dei cataloghi versionati della repository. Quando una voce è `PARTIAL` o `DEFERRED_E14`, la pagina lo espone esplicitamente.
-
 > **Asset base:** Vektor  
 > **Hero_Key:** `ASSET_VEKTOR`  
 > **RT Character ID:** `Hero.Vektor`  
 > **Release:** `v0.1`  
-> **Design status:** `IMPLEMENTED`  
 > **Roster status:** Release v0.1
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-REACTION-PREPARED -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-REACTION-PREPARED` · Release: `v0.1` · Roadmap: `E5 · CP 5.1, 5.2, 5.3, 5.4, 5.5`  
+> Stato: **INTEGRATED** · Gate: `6/8`  
+> Scenario: `Combat.CounterStrikesBack`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-REACTION-PREPARED -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ACTION-PREDICTIVE -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-ACTION-PREDICTIVE` · Release: `v0.1` · Roadmap: `E18 · CP 18.1, 18.2`  
+> Stato: **SPECIFIED** · Gate: `1/8`  
+> Scenario: `Spec.Predictive.WhiffOnEmptyCell (pianificato)`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-ACTION-PREDICTIVE -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CHAR-V01-ROSTER -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-CHAR-V01-ROSTER` · Release: `v0.1` · Roadmap: `E6 · CP 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7`  
+> Stato: **INTEGRATED** · Gate: `6/8`  
+> Scenario: `Combat.BasicAttack`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-CHAR-V01-ROSTER -->
 
 ## Panoramica
 
@@ -170,7 +197,6 @@ Pulse Shot è l'attacco base di Vektor: 21 danni a range 4. Offre pressione a me
 
 > 21 danni, range 4.
 
-
 #### Uso tattico e limiti
 
 È l'opzione neutra del kit quando non si vuole investire in una linea d'intercetto o in una Dash.
@@ -200,7 +226,6 @@ Intercept Shot prepara una punizione su movimento: quando un nemico entra nella 
 | Data Status | CANONICAL |
 
 > Slot None nel dato corrente; trigger d'ingresso appartiene a E14.
-
 
 #### Uso tattico e limiti
 
@@ -232,7 +257,6 @@ Passing Blade è un Dash lineare di 3 celle che infligge 20 danni alle unità at
 
 > MovementStyle LinearDash.
 
-
 #### Uso tattico e limiti
 
 È la conversione più diretta della mobilità di Vektor in pressione offensiva e permette di cambiare lato dello scontro mentre si produce danno.
@@ -263,7 +287,6 @@ Deflection è una reazione su attacco diretto che riduce di 20 il danno del colp
 
 > Riusa Action.Deflect.
 
-
 #### Uso tattico e limiti
 
 È già implementata riusando `Action.Deflect`. A differenza di uno scudo persistente, modifica quel singolo colpo e non crea una riserva di HP temporanei.
@@ -293,7 +316,6 @@ Feint è un'azione di controllo predittivo: marca una cella per 1 turno e conced
 | Data Status | CANONICAL |
 
 > Target cell + reposition non sono ancora completamente rappresentati.
-
 
 #### Uso tattico e limiti
 

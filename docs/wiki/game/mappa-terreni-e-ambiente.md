@@ -1,7 +1,57 @@
 # Mappa, terreni e ambiente
 
-> **Stato nel gioco:** terreni v0.1 implementati; strutture e interazioni continuano a essere estese
 > **Tipo:** guida giocatore, non normativa
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ENV-ICE -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-ENV-ICE` · Release: `v0.1` · Roadmap: `E8 · CP 8.1`  
+> Stato: **INTEGRATED** · Gate: `6/8`  
+> Scenario: `Visual.Environment.IceSlide`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-ENV-ICE -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ENV-STEAM -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-ENV-STEAM` · Release: `v0.1` · Roadmap: `E8 · CP 8.1`  
+> Stato: **INTEGRATED** · Gate: `6/8`  
+> Scenario: `Visual.Combat.SmokeCapsTargeting`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-ENV-STEAM -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ENV-TERRAIN -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-ENV-TERRAIN` · Release: `v0.1` · Roadmap: `E8 · CP 8.1`  
+> Stato: **INTEGRATED** · Gate: `6/8`  
+> Scenario: `Visual.Movement.RoughRefusesCharge`  
+> Gli otto terreni sono implementati e testati; strutture e interazioni continuano a essere estese.  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-ENV-TERRAIN -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-MAP-HIGH-GROUND -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-MAP-HIGH-GROUND` · Release: `v0.1` · Roadmap: `E9 · CP 9.1`  
+> Stato: **INTEGRATED** · Gate: `6/8`  
+> Scenario: `Visual.Map.HighGroundNoBonus`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-MAP-HIGH-GROUND -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-MAP-HEXGRAPH -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-MAP-HEXGRAPH` · Release: `v0.1` · Roadmap: `E2 · CP 2.1`  
+> Stato: **RELEASE_READY** · Gate: `7/8`  
+> Scenario: `Visual.Map.MultiLevel`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-MAP-HEXGRAPH -->
 
 ## La mappa è un grafo tattico
 

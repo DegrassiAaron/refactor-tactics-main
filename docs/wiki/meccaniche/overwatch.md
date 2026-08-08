@@ -1,7 +1,17 @@
 # Overwatch e Fast Reactions
 
-> **Stato v0.1:** modello deciso · reazioni preparate di base esistono · Overwatch interattivo E14 non ancora implementato
 > **Tipo:** guida giocatore, non normativa
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-REACTION-OVERWATCH -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-REACTION-OVERWATCH` · Release: `v0.1` · Roadmap: `E14 · CP 14.4`  
+> Stato: **SPECIFIED** · Gate: `1/9`  
+> Scenario: `Spec.Overwatch.HoldThenFire (pianificato)`  
+> Le reazioni **preparate** esistono e funzionano in partita; l'**Overwatch interattivo** di questa pagina non e' implementato.  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-REACTION-OVERWATCH -->
 
 ## Il concetto
 

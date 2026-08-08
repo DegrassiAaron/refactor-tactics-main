@@ -1,7 +1,77 @@
 # Azioni e movimento
 
-> **Stato nel gioco:** tassonomia canonica; migrazione degli Stable ID legacy ancora in corso
 > **Tipo:** guida giocatore, non normativa
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ACTION-SUPERS -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-ACTION-SUPERS` · Release: `v0.2` · Roadmap: `—`  
+> Stato: **IMPLEMENTING** · Gate: `0/8`  
+> Scenario: `—`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-ACTION-SUPERS -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ACTION-COOLDOWNS -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-ACTION-COOLDOWNS` · Release: `v0.1` · Roadmap: `E4 · CP 4.4`  
+> Stato: **TESTABLE** · Gate: `5/8`  
+> Scenario: `—`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-ACTION-COOLDOWNS -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ACTION-DASH-DISPLACEMENT -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-ACTION-DASH-DISPLACEMENT` · Release: `v0.1` · Roadmap: `E2 · CP 2.5, 4.5`  
+> Stato: **RELEASE_READY** · Gate: `7/8`  
+> Scenario: `Visual.Combat.PushResistance`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-ACTION-DASH-DISPLACEMENT -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ACTION-MOVE-PROFILES -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-ACTION-MOVE-PROFILES` · Release: `v0.1` · Roadmap: `E4 · CP 4.2, 4.5`  
+> Stato: **RELEASE_READY** · Gate: `7/8`  
+> Scenario: `Visual.Movement.Charge`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-ACTION-MOVE-PROFILES -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ACTION-GENERIC -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-ACTION-GENERIC` · Release: `v0.1` · Roadmap: `E4 · CP 4.4, 4.6, 4.7`  
+> Stato: **IMPLEMENTING** · Gate: `3/8`  
+> Scenario: `Combat.BasicAttack`  
+> Sei azioni generiche su sette sono a catalogo e nel runtime: manca **Overwatch**, che arriva con E14.  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-ACTION-GENERIC -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ACTION-ENGINE -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-ACTION-ENGINE` · Release: `v0.1` · Roadmap: `E4 · CP 4.1, 4.3, 4.8`  
+> Stato: **RELEASE_READY** · Gate: `7/8`  
+> Scenario: `Movement.Collision`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-ACTION-ENGINE -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-MAP-PATHFINDING -->
+
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-MAP-PATHFINDING` · Release: `v0.1` · Roadmap: `E2 · CP 2.2`  
+> Stato: **RELEASE_READY** · Gate: `6/7`  
+> Scenario: `Movement.Basic`  
+> Verificato il `2026-08-08` su `2094b86`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-MAP-PATHFINDING -->
 
 ## Le azioni generiche
 
