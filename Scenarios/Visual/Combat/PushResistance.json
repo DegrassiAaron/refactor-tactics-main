@@ -1,13 +1,13 @@
 {
   "scenarioId": "Visual.Combat.PushResistance",
-  "tags": ["animation", "combat", "expected-fail", "riva", "bastion", "vektor"],
+  "tags": ["animation", "combat", "riva", "bastion", "vektor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
 
   "_nota": "La stessa spinta su due bersagli diversi, in due turni. `Riva.PressureJet` spinge di 1: Bastion ha PushResistance 1 — l'unico del roster — e NON dovrebbe muoversi; Vektor ha 0 e viene spostato. Il danno e' identico, quindi la sola cosa che distingue i due turni e' se il bersaglio arretra.",
 
-  "_nota_expected_fail": "⚠️ FALLISCE, ed e' un difetto del GIOCO gia' registrato: alla prima esecuzione Bastion e' finito in (2,0,0) invece di restare in (1,0,0). `PushResistance` e' un DATO SENZA CONSUMATORE — il catalogo lo dichiara, `ARTUnit` lo copia in `ApplyHeroData`, i test d'eroe lo verificano come valore, e **nessuno lo legge quando applica una spinta**. Non c'e' una sola occorrenza fuori da catalogo, unita' e test.\n\nLo scenario resta com'e', con l'assertion GIUSTA, e porta il tag `expected-fail`: la suite non diventa rossa, e il difetto non viene nascosto. Il giorno in cui la resistenza verra' implementata, sara' `Scenario.ExpectedFailScenariosReallyFail` a diventare rosso — dicendo che questo file va promosso da difetto documentato a regola verificata.",
+  "_nota_storia": "Ha portato il tag `expected-fail` dal 2026-08-08 al 2026-08-09, con l'assertion GIUSTA e il gioco che sbagliava: `PushResistance` era un dato senza consumatore — dichiarato nel catalogo, copiato su `ARTUnit`, verificato dai test come VALORE, e mai letto quando si applicava una spinta. Bastion arretrava come chiunque altro (#241). Ora la regola c'e' e il tag e' caduto: la resistenza e' una SOGLIA, come quella di `Action.Guard` da cui prende la forma.",
 
   "_nota_leggibilita": "E' il caso in cui la presentazione puo' MENTIRE piu' facilmente: se l'impatto su Bastion riproduce comunque un contraccolpo, il giocatore leggera' una spinta assorbita come una spinta riuscita, e non capira' perche' la cella davanti e' ancora occupata.",
 

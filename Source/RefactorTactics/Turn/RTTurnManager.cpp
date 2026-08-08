@@ -2414,6 +2414,23 @@ void ARTTurnManager::ResolveCombat()
 					break;
 
 				case ERTActionEffect::Push:
+					// `PushResistance` e' una SOGLIA, non una sottrazione (D-038): chi la possiede regge le
+					// spinte fino a quel valore e cede a quelle piu' forti, per intero. La forma da `Action.Guard`,
+					// che dal CP 5.2 fa gia' esattamente questo con `GuardResistedPushDistance` — due
+					// resistenze alla spinta nello stesso combat con due semantiche diverse sarebbero state la
+					// prima cosa da spiegare a chi bilancia (#241).
+					//
+					// La regola sta QUI, nel punto in cui la distanza viene registrata, e non nei sette
+					// produttori di spinta del catalogo: il settimo nascerebbe gia' rotto.
+					//
+					// Il `Pull` tre casi piu' sotto **non** la applica, ed e' deliberato: il catalogo v0.1 §1
+					// riserva la resistenza di Guard alla spinta, e una trazione non viene resistita da chi si
+					// e' piantato. Estenderla qui avrebbe reso `PushResistance` piu' forte di `Guard` senza che
+					// nessuno lo avesse deciso.
+					if (Victim && Event.Amount <= Victim->PushResistance)
+					{
+						break; // spinta assorbita: non si registra, quindi non c'e' niente da risolvere
+					}
 					KnockFrom.Add(Victim, HexUnits[Hit.AttackerId].Cell);
 					KnockDist.Add(Victim, Event.Amount);
 					KnockCount.FindOrAdd(Victim)++;
