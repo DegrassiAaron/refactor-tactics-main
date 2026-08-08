@@ -24,7 +24,8 @@ namespace
 	 * RIUSA l'actor mappa gia' presente se c'e': lo stesso codice gira in un mondo vuoto (test) e in una PIE
 	 * dove il GameMode ha gia' allestito. Spawnarne un secondo darebbe due griglie sovrapposte.
 	 */
-	URTHexMapAsset* BuildScenarioArena(UWorld* World, int32 Radius, const TArray<FRTScenarioCell>& Overrides)
+	URTHexMapAsset* BuildScenarioArena(UWorld* World, int32 Radius, const TArray<FRTScenarioCell>& Overrides,
+		ARTHexMapActor*& OutActor)
 	{
 		URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
 		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
@@ -58,6 +59,7 @@ namespace
 		}
 		Actor->MapAsset = Map;
 		Actor->RebuildInstances(); // la vista ISM segue l'asset: senza, in PIE resterebbe la mappa precedente
+		OutActor = Actor;
 		return Map;
 	}
 
@@ -104,10 +106,23 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 		return Fail(FString::Printf(TEXT("scenario non valido: %s"), *ValidationError));
 	}
 
-	Map = BuildScenarioArena(InWorld, Scenario.MapRadius, Scenario.Cells);
+	ARTHexMapActor* MapActor = nullptr;
+	Map = BuildScenarioArena(InWorld, Scenario.MapRadius, Scenario.Cells, MapActor);
 	if (!Map)
 	{
 		return Fail(TEXT("impossibile creare l'arena esagonale"));
+	}
+
+	// Origine e scala dall'ACTOR mappa, non dall'origine del mondo: e' la stessa fonte che usa `RebuildInstances`
+	// per disegnare la griglia e che usa l'allestimento della partita normale. Prendendo `FVector::ZeroVector`,
+	// con un actor mappa spostato nel livello le unita' finivano in un punto e la griglia in un altro — e la
+	// camera, inquadrando le unita', lasciava la mappa fuori campo. Osservato in PIE su L_DevSandbox.
+	FVector MapOrigin = FVector::ZeroVector;
+	float MapHexSize = Map->HexSize;
+	float MapLayerHeight = Map->LayerHeight;
+	if (MapActor)
+	{
+		MapActor->GetHexContext(MapOrigin, MapHexSize, MapLayerHeight);
 	}
 
 	for (const FRTScenarioUnit& Spec : Scenario.Units)
@@ -130,7 +145,7 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 		// Le unita' dello scenario NON sono bot: gli intent li decide il file, non l'utility scoring.
 		Unit->bIsBotControlled = false;
 		Unit->DispatchBeginPlay();
-		Unit->PlaceOnCell(Spec.Cell, FVector::ZeroVector, Map->HexSize, Map->LayerHeight);
+		Unit->PlaceOnCell(Spec.Cell, MapOrigin, MapHexSize, MapLayerHeight);
 
 		UnitsById.Add(Spec.Id, Unit);
 	}

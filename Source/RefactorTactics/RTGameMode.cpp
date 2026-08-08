@@ -112,6 +112,25 @@ void ARTGameMode::BeginPlay()
 				*TestScenario, *ScenarioSession->GetResult().ErrorMessage);
 		}
 		SetActorTickEnabled(true);
+
+		// INQUADRATURA. Il percorso dello scenario non passa da `SetupHexMatch`, dove la partita normale si
+		// preoccupa di cio' che si vede: senza questo, la camera restava dove l'aveva lasciata il proprio
+		// BeginPlay — troppo alta e fuori centro. E' presentazione, non simulazione: non tocca l'esito.
+		//
+		// Al tick successivo, non subito: la camera potrebbe non essere ancora nata (l'ordine di BeginPlay fra
+		// actor non e' garantito, ed e' la stessa ragione per cui `ARTCameraPawn` gia' riprova una volta).
+		World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateWeakLambda(this, [this]()
+		{
+			if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(
+					UGameplayStatics::GetActorOfClass(this, ARTCameraPawn::StaticClass())))
+			{
+				// Lo scenario non ha una «propria squadra» da inquadrare: le unita' sono di entrambe, e quel che
+				// interessa e' vedere il campo INTERO, con tutti i movimenti dentro. `RecenterView` centra sulla
+				// mappa e riporta lo zoom d'insieme, che e' esattamente l'inquadratura giusta per guardare.
+				Cam->RecenterView();
+				UE_LOG(LogRT, Log, TEXT("[RT-Test] Camera centrata sulla mappa dello scenario."));
+			}
+		}));
 		return;
 	}
 
