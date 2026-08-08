@@ -5,28 +5,43 @@
 > [`../product/piano-canonico-mvp.md`](../product/piano-canonico-mvp.md),
 > [`../decisions/RT_PDR_00_Decision_Log.md`](../decisions/RT_PDR_00_Decision_Log.md) e gli ADR applicabili.
 
-Qui vive il materiale **in ingresso**: i PDF originari da cui è nato il progetto, le specifiche di design
-prodotte in sessione, gli audit della documentazione e gli handoff operativi. Un documento entra in questa
-cartella così com'è; diventa vincolante solo quando un **owner documentale** lo recepisce (un brief in
-`../gameplay/`, una spec in `../technical/`, un ADR in `../decisions/`).
+Qui vive il materiale **in ingresso** che non è ancora stato consumato: i PDF originari da cui è nato il
+progetto, i dataset ancora in uso e le immagini a cui la documentazione punta. Un documento entra così com'è;
+diventa vincolante solo quando un **owner documentale** lo recepisce (un brief in `../gameplay/`, una spec in
+`../technical/`, un ADR in `../decisions/`).
+
+## ⚠️ Cambio di regola — 2026-08-08
+
+**Un sorgente recepito non resta più qui: si sposta in [`../archive/src/`](../archive/src/README.md).**
+
+Fino al 2026-08-08 la convenzione era l'opposta — il sorgente restava in `docs/src/` con un banner in testa che
+puntava all'owner. Aveva un difetto misurabile: `docs/src/` cresceva mescolando *materiale da lavorare* e
+*materiale già lavorato*, e la sola cosa che li distingueva era una colonna di questo indice. Chi apriva la
+cartella non poteva sapere cosa avesse ancora un compito.
+
+Ora la distinzione è la **posizione**:
+
+```text
+docs/src/          da consumare, o ancora in uso
+docs/archive/src/  consumato: resta per provenienza
+```
+
+I **25 documenti** già recepiti — `design/`, `handoff/`, `audit/` — sono stati spostati in blocco. L'indice con
+la colonna «Recepito da» si è spostato con loro: [`../archive/src/README.md`](../archive/src/README.md).
+
+Resta valido il resto della convenzione, che è la parte importante: **i sorgenti non si riscrivono.** Una
+correzione è una nota `⚠️` accanto all'affermazione sbagliata, mai una modifica del paragrafo.
 
 ## Struttura
 
 ```
 docs/src/
-├── prd/         11  PDF/docx originari: PRD, roadmap, idee di partenza
-├── design/      14  specifiche di design per sistema o meccanica
-├── audit/        2  fotografie dello stato di docs/ con piano di rientro
-├── handoff/      7  prompt/task esecutivi rivolti alla repository
-├── showcase/     5  scenario «Relay Basin» v0.1: spec, draft JSON, mappe
-├── data/         1  dataset personaggi
-├── media/       22  icone fazioni, icone e mockup HUD, infografiche
+├── prd/      11  PDF/docx originari: PRD, roadmap, idee di partenza
+├── showcase/  5  scenario «Relay Basin» v0.1: spec, draft JSON, mappe
+├── data/      3  dataset personaggi + materiale di integrazione wiki
+├── media/    28  icone fazioni, icone e mockup HUD, infografiche
 └── superclaude-cheatsheet.md
 ```
-
-**Colonna «Recepito da»**: documenti fuori da `docs/src/` che linkano il file — misurato, non dichiarato.
-Un trattino significa *nessun link in ingresso*: il materiale può essere ancora da consolidare **oppure**
-essere stato assorbito senza lasciare tracciabilità. Vedi [Tracciabilità mancante](#tracciabilità-mancante).
 
 ## `prd/` — documenti originari
 
@@ -44,46 +59,9 @@ essere stato assorbito senza lasciare tracciabilità. Vedi [Tracciabilità manca
 | [`idee-ruoli-characters.pdf`](prd/idee-ruoli-characters.pdf) | Idee sui ruoli dei personaggi | — |
 | [`guida-trovare-asset-free.pdf`](prd/guida-trovare-asset-free.pdf) | Guida operativa: reperire asset gratuiti | — |
 
-> I PDF descrivono un prodotto **più ambizioso dello scope corrente** (vedi `README.md` di progetto): vanno
-> letti come north-star, non come backlog.
-
-## `design/` — specifiche per sistema
-
-| File | Data | Sistema | Recepito da |
-|---|---|---|---|
-| [`overwatch-e-fast-reaction.md`](design/overwatch-e-fast-reaction.md) | — | Overwatch, Fast Action, Fast Reaction | ADR-0004, `../gameplay/brief-overwatch-reazioni.md`, piano canonico |
-| [`action-ghosts-fasi-fast-reactions.md`](design/action-ghosts-fasi-fast-reactions.md) | — | Ghost di azione, ordine fasi, `Facing` | ADR-0005, `../technical/brief-planning-visuale.md` |
-| [`rumore-e-percezione-acustica.md`](design/rumore-e-percezione-acustica.md) | — | Rumore, percezione acustica, fog of war | `../gameplay/brief-conoscenza-parziale.md` + roadmap v0.1 |
-| [`delayed-actions-e-phase-windows.md`](design/delayed-actions-e-phase-windows.md) | 2026-08-07 | Delayed actions, phase boundaries | `../gameplay/brief-delayed-actions.md` |
-| [`terreno-ghiaccio-v0.1.md`](design/terreno-ghiaccio-v0.1.md) | — | Terreno ghiaccio in UE5 | `../gameplay/brief-ghiaccio.md` |
-| [`auxiliary-units.md`](design/auxiliary-units.md) | — | Pet, evocazioni, droni, torrette | `../gameplay/brief-unita-ausiliarie.md` |
-| [`azioni-generiche-overwatch-universale-v0.1.md`](design/azioni-generiche-overwatch-universale-v0.1.md) | 2026-08-07 | Azioni generiche, Overwatch universale | `../gameplay/brief-azioni-generiche-overwatch.md` |
-| [`predictive-actions-e-trappole.md`](design/predictive-actions-e-trappole.md) | — | Azioni predittive, trappole, gambit | `../gameplay/brief-delayed-actions.md` |
-| [`fazioni-v0.2-identita-visiva-e-roster.md`](design/fazioni-v0.2-identita-visiva-e-roster.md) | — | Fazioni, identità visiva, cooperazione | D-029 / ADR-0006 (banner in testa al file) |
-| [`match-timing-e-scala-mappe.md`](design/match-timing-e-scala-mappe.md) | — | Durata partita, round budget, scala mappe | — ⚠️ vedi nota |
-| [`2026-08-08-cover-window-open-fire-seal.md`](design/2026-08-08-cover-window-open-fire-seal.md) | 2026-08-08 | Cover Window, Open → Fire → Seal | — |
-| [`2026-08-08-muri-porte-e-interazioni.md`](design/2026-08-08-muri-porte-e-interazioni.md) | 2026-08-08 | Muri, porte, interazioni, validazione | — |
-| [`2026-08-08-roster-8-conflux-constrine.md`](design/2026-08-08-roster-8-conflux-constrine.md) | 2026-08-08 | Roster 8 personaggi, Conflux e Constrine | — ⚠️ vedi nota |
-| [`2026-08-08-hud-faction-icons.md`](design/2026-08-08-hud-faction-icons.md) | 2026-08-08 | Icone fazioni, HUD icon language | — (immagini in [`media/hud/`](media/hud)) |
-
-## `audit/` — stato della documentazione
-
-| File | Oggetto | Recepito da |
-|---|---|---|
-| [`2026-08-08-docs-gameplay.md`](audit/2026-08-08-docs-gameplay.md) | Audit di `../gameplay/` + piano di consolidamento | `../CHANGELOG_DOCUMENTATION.md`, Decision Log |
-| [`2026-08-08-docs-non-gameplay-v2.md`](audit/2026-08-08-docs-non-gameplay-v2.md) | Audit del resto di `docs/` — decisioni chiuse | `../CHANGELOG_DOCUMENTATION.md`, Decision Log |
-
-## `handoff/` — task esecutivi
-
-| File | Oggetto | Recepito da |
-|---|---|---|
-| [`consolidamento-prd-source-of-truth.md`](handoff/consolidamento-prd-source-of-truth.md) | Consolidare PRD e source of truth | `../roadmap/plans/brief-consolidamento-documentale.md` |
-| [`scenario-browser-bp-gamemode.md`](handoff/scenario-browser-bp-gamemode.md) | Selettore scenari per categoria in `BP_GameMode` | `../technical/scenario-index-e-tag.md` |
-| [`scenario-harness-task-originale.md`](handoff/scenario-harness-task-originale.md) | Task originale dello Scenario Test Harness | `../technical/test-automatico-unreal.md` |
-| [`roadmap-v0.1-prompt-originale.md`](handoff/roadmap-v0.1-prompt-originale.md) | Prompt da cui è nata la roadmap v0.1 | ADR-0003 |
-| [`roadmap-docs-test-e-showcase-v0.1.md`](handoff/roadmap-docs-test-e-showcase-v0.1.md) | Consolidamento roadmap/test/showcase v0.1 | `../roadmap/plans/showcase-v01-audit.md` |
-| [`2026-08-07-nuove-decisioni-e-scenario-4v4.md`](handoff/2026-08-07-nuove-decisioni-e-scenario-4v4.md) | Nuove decisioni, scenario 4v4, roadmap | — |
-| [`2026-08-08-bot-ai-roadmap-e-test-pie.md`](handoff/2026-08-08-bot-ai-roadmap-e-test-pie.md) | Bot AI tattica, test PIE, scenari | — |
+> I PDF **non si archiviano**: descrivono un prodotto più ambizioso dello scope corrente e sono il livello 8
+> della gerarchia delle fonti — *visione north-star*, consultata di continuo. Vanno letti come direzione, non
+> come backlog.
 
 ## `showcase/` — «Relay Basin» v0.1
 
@@ -94,16 +72,24 @@ essere stato assorbito senza lasciare tracciabilità. Vedi [Tracciabilità manca
 | [`showcase-v0.1-integrazione-nel-codice.md`](showcase/showcase-v0.1-integrazione-nel-codice.md) | Handoff di integrazione nel codice attuale |
 | [`mappa-tattica-bacino-relay.png`](showcase/mappa-tattica-bacino-relay.png) · [`dynamic-map.png`](showcase/dynamic-map.png) | Mappe di riferimento |
 
-Owner: [`../product/showcase-v0.1.md`](../product/showcase-v0.1.md) · audit: `../roadmap/plans/showcase-v01-audit.md`.
+Owner: [`../product/showcase-v0.1.md`](../product/showcase-v0.1.md) · audit:
+[`../roadmap/plans/showcase-v01-audit.md`](../roadmap/plans/showcase-v01-audit.md).
+
+> **Non archiviato**, benché l'handoff sia già stato recepito: **E15 è ancora aperta**, e il bundle si consulta
+> mentre la si costruisce. Si sposterà quando la showcase sarà consegnata.
 
 ## `data/` e `media/`
 
-- [`data/characters-wiki-data-v0.4.xlsx`](data/characters-wiki-data-v0.4.xlsx) — dataset dei personaggi.
-  Citato da **44 schede** in `../characters/`: è il file di `docs/src/` con più consumatori.
+- [`data/characters-wiki-data-v0.4.xlsx`](data/characters-wiki-data-v0.4.xlsx) — dataset dei personaggi,
+  citato da **44 schede** in `../characters/`. È il **dataset corrente**, non un sorgente consumato: resta qui.
+- `data/wiki/` — materiale di integrazione della wiki.
+  ⚠️ [`CLAUDE_INTEGRATION_PROMPT.md`](data/wiki/CLAUDE_INTEGRATION_PROMPT.md) punta a **10 immagini che non
+  sono mai state committate** (`data/images/…`). Difetto preesistente, arrivato con il materiale: il documento
+  è inutilizzabile così com'è finché le immagini non arrivano o i riferimenti non vengono corretti.
 - `media/fazioni/` — `faction-01..04.png`, icone delle fazioni.
-- `media/hud/` — `icon-01..04.png` (icone HUD), `hud-example.png` e `hud-style.png` (mockup e linguaggio
-  visivo); sorgente di design in `design/2026-08-08-hud-faction-icons.md`.
-- `media/infografica/` — 12 infografiche su azioni, turno, feature e interazione con l'ambiente.
+- `media/hud/` — `icon-01..04.png`, `hud-example.png` e `hud-style.png`; sorgente di design in
+  [`../archive/src/design/2026-08-08-hud-faction-icons.md`](../archive/src/design/2026-08-08-hud-faction-icons.md).
+- `media/infografica/` — 18 infografiche su azioni, turno, feature e interazione con l'ambiente.
 
 ## Convenzioni
 
@@ -112,34 +98,21 @@ Owner: [`../product/showcase-v0.1.md`](../product/showcase-v0.1.md) · audit: `.
 2. **Data in testa** (`2026-08-08-oggetto.md`) quando il documento fotografa un momento: audit, handoff,
    decisioni di sessione. Le specifiche per sistema si nominano invece per **sistema**, non per data.
 3. **Un documento, una cartella**: se un file è insieme design e handoff, decide il criterio dominante —
-   *definisce un sistema* → `design/`; *dice cosa fare nella repo* → `handoff/`.
-4. **I sorgenti non si riscrivono.** Quando un documento viene recepito, si aggiunge un banner in testa che
-   punta all'owner (vedi `design/fazioni-v0.2-identita-visiva-e-roster.md`) e si aggiorna questo indice.
-   Il testo originale resta intatto: serve a ricostruire da dove è nata una decisione.
+   *definisce un sistema* → `design/`; *dice cosa fare nella repo* → `handoff/`. Le due cartelle vivono ora in
+   [`../archive/src/`](../archive/src/README.md); un sorgente nuovo di quel tipo nasce qui e ci si sposta
+   quando viene recepito.
+4. **I sorgenti non si riscrivono.** Il testo originale resta intatto: serve a ricostruire da dove è nata una
+   decisione. Le correzioni sono note `⚠️` affiancate, e un elenco in testa che le riassume.
 5. **Niente archivi generati**: gli export della wiki (`*.zip`) non stanno nel repository, sono rigenerabili.
 6. **Immagini**: `media/`, tranne quelle che appartengono a un bundle auto-contenuto come `showcase/`.
 
-## Tracciabilità — chiusa il 2026-08-08
+## Come si archivia un sorgente
 
-I sette documenti che nessun owner citava sono stati consolidati. Ognuno porta ora **in testa** un banner che
-dice dove è finito; la ripartizione fra release sta in
-[`../roadmap/roadmap-post-v0.1.md`](../roadmap/roadmap-post-v0.1.md).
+```bash
+git mv docs/src/<cartella>/<file>.md docs/archive/src/<cartella>/<file>.md
+```
 
-| Sorgente | Esito | Dove |
-|---|---|---|
-| `design/match-timing-e-scala-mappe.md` | ✅ già recepito | `../gameplay/spec-durata-partita-e-scala-mappe.md` · [D-030](../decisions/RT_PDR_00_Decision_Log.md) · **E19** (2 CP: solo i buchi reali) |
-| `design/2026-08-08-hud-faction-icons.md` | ✅ fondazione in v0.1 | [D-031](../decisions/RT_PDR_00_Decision_Log.md) · **E20** · `PIE-ICON-01` |
-| `design/2026-08-08-roster-8-conflux-constrine.md` | ✅ già recepito | `../wiki/fazioni/` + `../characters/v0.2/` · runtime in **E21** (v0.2) |
-| `handoff/2026-08-08-bot-ai-roadmap-e-test-pie.md` | ✅ in parte | `PIE-AI-01…05` · `../wiki/game/avversario-bot.md` · **E26**/**E28** |
-| `handoff/2026-08-07-nuove-decisioni-e-scenario-4v4.md` | ✅ in parte | decisioni §3 già canone · scenario → **E17** (v0.1) / **E32** |
-| `design/2026-08-08-cover-window-open-fire-seal.md` | 📅 v0.2 | **E22**, con i 12 scenari di test |
-| `design/2026-08-08-muri-porte-e-interazioni.md` | 📅 v0.2 | **E23** |
-
-> **Cosa ha insegnato questa passata.** Tre dei sette erano **già recepiti** e sembravano orfani solo perché
-> gli owner li citavano in forma relativa (`../src/…`), invisibile a una ricerca per `docs/src/`. E il primo
-> giro di **E19** proponeva di costruire `URTMatchFormatData` — che esiste da tempo. La lezione vale per la
-> prossima volta: *«nessun link in ingresso»* non è una misura di *«non fatto»*. Prima di scrivere un
-> checkpoint, si guarda il codice.
-
-I PDF di `prd/` senza citazioni sono materiale fondativo — più la guida agli asset, che è di supporto — già
-superato dal piano canonico: non richiedono azione.
+Poi: banner in testa al file con l'owner che l'ha recepito · riga nella tabella di
+[`../archive/src/README.md`](../archive/src/README.md) · **riscrittura dei link**, che scendono di un livello
+(`../../` → `../../../`) e vanno aggiornati anche in chi lo cita. L'ultimo passo è quello che si dimentica:
+verificarlo risolvendo davvero i link sul filesystem, non a occhio.

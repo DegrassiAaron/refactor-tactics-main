@@ -2,6 +2,63 @@
 
 ---
 
+## 2026-08-08 — Tre aggiunte alle Signature, trasformazioni, e `docs/src/` che si svuota
+
+**Origine**: due sorgenti arrivati insieme in `docs/src/` — un'esplorazione sulle trasformazioni e un handoff
+che chiedeva di consolidare tre estensioni al framework delle Signature Mechanics.
+
+### Il problema
+
+L'handoff proponeva tre concetti come nuovi: `ConditionalIntent`, `GenericActionModifier`,
+`Misplay / Failure State`. **Solo uno lo era.**
+
+| Proposta | Verdetto | Cosa esisteva già |
+|---|---|---|
+| `GenericActionModifier` | ⛔ nome respinto | Il repository lo chiama **profilo** dal 2026-08-08: `MoveProfile` (D-015) e «il profilo dipende dall'eroe» (D-014). Mancava solo la *regola generale*, scritta due volte per casi particolari e mai una volta per tutti |
+| `ConditionalIntent` | 📅 rinviato, forma fissata | La **condizione dichiarata in planning** di D-012, che distingue il regime `Conditional` dell'Overwatch. Lo stesso predicato, spostato dal profilo di reazione all'intento |
+| `Misplay / Failure State` | ✅ adottato | Nulla — ma un **caso** era già regola: il whiff della Predictive Action (D-016) |
+
+> **La lezione si ripete.** È la stessa forma di `URTMatchFormatData` in E19: un concetto assente dall'indice
+> non è un concetto assente dal repository. Il costo di cercarlo per **sinonimi** — *profilo* invece di
+> *modifier* — è di qualche minuto; il costo di non farlo è una seconda verità che va poi riconciliata.
+> Il documento che proponeva il nome nuovo conteneva anche la clausola che lo escludeva: «*salvo che il
+> repository abbia già un nome migliore*».
+
+### Cosa è cambiato
+
+| File | Modifica |
+|---|---|
+| [`characters/_Template.md`](characters/_Template.md) | Campo **`Misplay / Failure State`** nello schema, con la regola che lo distingue dal `Counterplay` |
+| `characters/v0.1/{flux,riva,bastion,vektor}.md` | Il campo compilato, **quattro modi diversi di sbagliare**: whiff nel turno · carica spesa in silenzio · struttura che persiste · superficie regalata all'avversario |
+| [`characters/README.md`](characters/README.md) | Copertura del campo: 4/4 su v0.1, ⏳ v0.2, ⛔ candidati (senza kit non c'è modo definito di fallire) |
+| [`gameplay/brief-azioni-generiche-overwatch.md`](gameplay/brief-azioni-generiche-overwatch.md) | §4-bis: il **profilo** come forma generale delle sette generiche, 7 guardrail, e dove esiste già |
+| [`gameplay/brief-delayed-actions.md`](gameplay/brief-delayed-actions.md) | §7: `ConditionalIntent`, il confine con Fast Action/Reaction/Predictive/fallback, i vincoli e i 9 test |
+| [`gameplay/brief-stati-personaggio-e-trasformazioni.md`](gameplay/brief-stati-personaggio-e-trasformazioni.md) | **nuovo** — owner del Character State System: cinque famiglie, complexity budget, anti-pattern |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-032…D-035**. Nessun ADR: due sono schema documentale, due sono rinvii |
+| [`roadmap/roadmap-post-v0.1.md`](roadmap/roadmap-post-v0.1.md) | Epic **E33** (v0.3) ed **E34** (v0.4) |
+| [`wiki/game/azioni-e-movimento.md`](wiki/game/azioni-e-movimento.md) | Nota player-facing sui profili. **Nessuna feature futura pubblicizzata** |
+| `docs/src/` → `docs/archive/src/` | **25 sorgenti spostati**; ~130 link riscritti in 23 file |
+| [`archive/README.md`](archive/README.md) | Indicava come fonti `docs/design/piano-canonico-mvp.md` e `docs/design/roadmap-checkpoint.md`: **quella cartella non esiste** |
+
+### Decisioni prese
+
+- **nessuna trasformazione nella v0.1**: il sorgente ne proponeva quattro sui quattro eroi. Scope chiuso,
+  rischio già alto, e due dei quattro dipendono da E13 e dal sistema strutture. `Vektor: Mobile ↔ Siege` è
+  respinta anche nel merito — una forma che toglie il Dash spegne `Slancio` e la player question;
+- **uno `Stance` è un profilo commutabile**, non un sistema nuovo: metà di E34 non richiede codice nuovo;
+- **`docs/src/` si svuota quando un sorgente è recepito.** La convenzione precedente lo lasciava sul posto con
+  un banner, e la cartella mescolava *da lavorare* e *già lavorato*: la differenza stava solo in una colonna
+  di un indice. Ora sta nella posizione del file.
+
+### Cosa resta rotto, e non è stato toccato
+
+`src/data/wiki/CLAUDE_INTEGRATION_PROMPT.md` punta a **10 immagini mai committate** (`data/images/…`).
+Difetto preesistente, arrivato con lo stesso commit dei due sorgenti; segnalato in
+[`src/README.md`](src/README.md) e non corretto, perché le immagini o arrivano o i riferimenti vanno riscritti
+— e nessuna delle due è una decisione documentale.
+
+---
+
 ## 2026-08-08 — Corpus di scenari di validazione visiva
 
 **Origine**: sessione di brainstorming a partire dai sorgenti `docs/src/` consolidati. Nessun payload esterno:
@@ -64,7 +121,7 @@ oggi raggiungibile dal corpus**, e la parte mancante è di formato da estendere,
 
 ## 2026-08-08 — Ownership di abilità, interazioni e sinergie (terzo passaggio)
 
-**Origine**: payload `Docs-Consolidation-v0.9` + handoff `docs/src/design/fazioni-v0.2-identita-visiva-e-roster.md`
+**Origine**: payload `Docs-Consolidation-v0.9` + handoff `docs/archive/src/design/fazioni-v0.2-identita-visiva-e-roster.md`
 (input, non autorità). Baseline dichiarata dal payload: `13cacb5`; **lavorato su `b057c67`** e poi **mergiato con
 `367790e`**, che nel frattempo era atterrato su `main`.
 
@@ -114,7 +171,7 @@ corretti da `367790e`, non da questo passaggio).
 
 ## 2026-08-08 — Consolidamento dei documenti **non**-Gameplay (secondo passaggio)
 
-**Origine**: audit `docs/src/audit/2026-08-08-docs-non-gameplay-v2.md`.
+**Origine**: audit `docs/archive/src/audit/2026-08-08-docs-non-gameplay-v2.md`.
 73 file in scope (tutto `docs/` **escluse** `gameplay/`, `src/`, `archive/`). Baseline: `HEAD 3335e36`,
 **419 test unici in 64 file**.
 
@@ -183,7 +240,7 @@ ricerca dei termini obsoleti sui soli documenti `CURRENT`/`CANONICAL`.
 
 ## 2026-08-08 — Consolidamento di `docs/gameplay/`
 
-**Origine**: audit `docs/src/audit/2026-08-08-docs-gameplay.md`, con
+**Origine**: audit `docs/archive/src/audit/2026-08-08-docs-gameplay.md`, con
 `D-014`…`D-019` approvate. 23 file passati in rassegna.
 
 ### Decisioni registrate
@@ -304,7 +361,7 @@ decisioni e non il piano.
 
 ## 2026-08-07 — Riorganizzazione in `product/gameplay/technical/balance/roadmap/decisions/`
 
-**Origine**: revisione `/sc:spec-panel` su `docs/src/handoff/consolidamento-prd-source-of-truth.md`,
+**Origine**: revisione `/sc:spec-panel` su `docs/archive/src/handoff/consolidamento-prd-source-of-truth.md`,
 registrata in [`brief-consolidamento-documentale.md`](roadmap/plans/brief-consolidamento-documentale.md).
 **HEAD di partenza**: `50159c6`.
 

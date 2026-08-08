@@ -48,6 +48,8 @@ Il suo payoff cresce quando la squadra sfrutta le celle e gli stati che Riva ha 
 
 **Obiettivo del giocatore.** Creare valore di squadra attraverso `Wet`, spinta, cura, acqua e fumo. Riva è più efficace quando il turno successivo o un alleato possono sfruttare ciò che ha preparato.
 
+**Misplay / Failure State.** Preparare il terreno nel posto sbagliato. È il failure state più severo del roster v0.1, perché non si limita a sprecare la Riserva Idrica: `Wet` è uno **stato della cella**, e il bonus elettrico lo legge senza sapere chi l'ha applicato — la stessa proprietà registrata da [D-029](../../decisions/RT_PDR_00_Decision_Log.md) a proposito di `Water-Electric`. Una superficie bagnata piazzata male non è un investimento perso: è un **vettore consegnato all'avversario**, che può usarla contro la squadra di Riva. Gli altri tre eroi v0.1, sbagliando, perdono valore; Riva può regalarlo.
+
 **Counterplay / rischio.** Il setup può essere evitato o sfruttato dall'avversario. Inoltre `FlowReaction` non è ancora attiva nella v0.1 corrente perché dipende dalle decision boundary di E14.
 
 ### Dati della meccanica
@@ -65,6 +67,7 @@ Il suo payoff cresce quando la squadra sfrutta le celle e gli stati che Riva ha 
 | State | Riserva Idrica + superfici/stati d'acqua |
 | Activation / Trigger | Interazioni con acqua e abilità di setup |
 | Payoff | Cura, Wet, controllo terreno e riposizionamento |
+| Misplay / Failure State | Bagnare l'area sbagliata: `Wet` è stato della cella e non conosce chi l'ha applicato (D-029) → la superficie diventa un vettore sfruttabile **dall'avversario** |
 | Counterplay | Disperdere il setup, elettricità nemica, uscire dalle zone preparate |
 | Telegraphing | Stato ambientale pubblico/observed; risorsa team-visible |
 | Design Status | IMPLEMENTED |

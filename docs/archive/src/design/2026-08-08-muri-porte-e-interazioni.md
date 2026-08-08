@@ -1,5 +1,5 @@
 > 📅 **PIANIFICATO per la v0.2** il 2026-08-08 — **non** è materiale della v0.1.
-> Diventa **E23** in [`../../roadmap/roadmap-post-v0.1.md`](../../roadmap/roadmap-post-v0.1.md): separazione
+> Diventa **E23** in [`../../../roadmap/roadmap-post-v0.1.md`](../../../roadmap/roadmap-post-v0.1.md): separazione
 > geometria/logica, porta come oggetto logico unico, Stable ID e binding, interaction graph, leggibilità
 > (§12.4: mai il solo colore). Gli Stable ID si decidono una volta — cambiarli dopo il primo cook invalida
 > scenari, golden replay e mappe salvate.

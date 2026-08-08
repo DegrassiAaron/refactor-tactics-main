@@ -10,7 +10,7 @@
 > [`roadmap-checkpoint.md`](../roadmap-checkpoint.md).
 
 > **Stato**: revisione documentale · **Data**: 2026-08-07 · **HEAD analizzato**: `50159c6`
-> **Origine**: `/sc:spec-panel` su [`docs/src/handoff/consolidamento-prd-source-of-truth.md`](../../src/handoff/consolidamento-prd-source-of-truth.md)
+> **Origine**: `/sc:spec-panel` su [`docs/archive/src/handoff/consolidamento-prd-source-of-truth.md`](../../archive/src/handoff/consolidamento-prd-source-of-truth.md)
 > **Cosa è**: il verbale della revisione — inventario, critica del sorgente, piano di migrazione.
 > **Autorità**: subordinato a [`piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md).
 
@@ -391,4 +391,4 @@ Prima di aprirle: le 62 issue esistenti sono state confrontate: nessuna copre qu
 | [`roadmap-v0.1.md`](../../roadmap/roadmap-v0.1.md) | I checkpoint di §9 vi entrano solo se approvati; §8 (rischio scope `H/H`) è il motivo per cui §9 apre pochissimo |
 | [`../PDR/RT_PDR_00_Decision_Log.md`](../../decisions/RT_PDR_00_Decision_Log.md) | **Owner** delle `OPEN DECISIONS`: OD-1 diventa `D-011` lì, non qui |
 | [`brief-delayed-actions.md`](../../gameplay/brief-delayed-actions.md) · [`brief-overwatch-reazioni.md`](../../gameplay/brief-overwatch-reazioni.md) · [`brief-conoscenza-parziale.md`](../../gameplay/brief-conoscenza-parziale.md) | Coprono già Delayed, Overwatch e percezione: questo brief **non li ripete**, ne registra i difetti D4/D5 |
-| `../src/handoff/consolidamento-prd-source-of-truth.md` | Sorgente di questa revisione. Resta in `src/` come input, **non** diventa normativo. Il link diventa attivo con **C.3** (oggi il file è untracked) |
+| `../archive/src/handoff/consolidamento-prd-source-of-truth.md` | Sorgente di questa revisione. Resta in `src/` come input, **non** diventa normativo. Il link diventa attivo con **C.3** (oggi il file è untracked) |

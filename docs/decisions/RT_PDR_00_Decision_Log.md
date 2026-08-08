@@ -55,7 +55,32 @@ Regola di manutenzione #1: *ogni modifica a un requisito aggiunge o aggiorna una
 | **D-030** | **Il formato di partita è un dato, non una costante.** Unità per squadra, round budget, hard cap, secondi di Planning e di Fast Reaction stanno in un `URTMatchFormatData`; la **classe di mappa** (`Skirmish` · `Standard` · `Operations`) è un campo del dato mappa, non un `switch` nella simulazione. La v0.1 dichiara `Skirmish 2v2` come qualunque altro formato. **La scala della mappa non è vincolata da Atlas Reactor**: RefactorTactics è «compatto nel tempo, non necessariamente piccolo nello spazio». Owner: **E19** di [`../roadmap/roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) | **Consolidata** | `TurnManager`, `GameMode`, dato mappa, test che assumono round cap o timer. Abilita Standard 3v3 (E24) e Operations (E30) senza estirpare costanti. **Non** fissa un numero di celle: il sorgente dichiara «150–200 non è un requisito» |
 | **D-031** | **Le icone dell'HUD sono un catalogo semantico.** Si risolvono per chiave (`Status.Wet`, `Certainty.Predicted`, …) da un `URTIconCatalogData`; nessun widget referenzia una texture direttamente. Dodici categorie dichiarate — Identity, Action, Phase, Environment, Map/Interaction, Status, Information, Reaction, Coordination, Certainty, Warning, Objective — di cui la v0.1 popola le cinque che usa davvero. Una chiave senza icona è un **errore di validazione**, non un widget vuoto. Owner: **E20** di [`../roadmap/roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) | **Consolidata** | Widget di E11, wiki, roster HUD. Va **prima** di E11, non dopo: a widget scritti diventa un refactor. Le chiavi sono stabili come gli Stable ID delle azioni |
 
+| **D-032** | **`Misplay / Failure State` è un campo obbligatorio della Signature Mechanic.** Descrive cosa resta in mano al giocatore che usa la meccanica **correttamente secondo le regole** ma legge male il turno, ed è **distinto dal `Counterplay`**, che descrive invece la risposta dell'avversario. Non è compilabile con «fa meno danno»: deve nominare la decisione specifica andata storta e il suo costo. Si compila **dal kit esistente**: dove trigger e payoff non sono definiti, il campo resta mancante. Owner: [`../characters/_Template.md`](../characters/_Template.md) | **Consolidata** | Schema delle schede personaggio, compilato sulle **4** pagine v0.1. Nessun runtime: è un criterio anti-clone documentale. Un caso era già regola — il whiff di D-016 — e questo campo lo generalizza |
+| **D-033** | **Il modificatore di un'azione generica si chiama `profilo`. Non si introduce un secondo nome.** Un'azione generica è universale come comando, framework e semantica di fase; l'effetto concreto dipende dal **profilo dell'eroe**, e la regola vale per tutte e sette, non solo per `Move` (D-015) e `Overwatch` (D-014). Un profilo dichiara trade-off, non solo vantaggio; resta data-driven, non aggira l'action economy e deve essere spiegabile nel TurnLog come *azione base + profilo*. In v0.1 è **fisso per eroe**. Owner: [`../gameplay/brief-azioni-generiche-overwatch.md`](../gameplay/brief-azioni-generiche-overwatch.md) §4-bis | **Consolidata** *(i profili concreti dei 4 eroi restano domande aperte)* | **Respinge il nome `GenericActionModifier`** proposto dall'handoff `../archive/src/handoff/2026-08-08-tre-aggiunte-signature-mechanics.md`: sarebbe stata una seconda verità sullo stesso comportamento. Nessun dato nuovo, nessuna epic nuova |
+| **D-034** | **`ConditionalIntent` è post-v0.1 e non è un sistema nuovo.** Un intento con **1** condizione e **2** rami, dichiarati per intero in Planning e valutati a un boundary nominato. È la **condizione dichiarata** che D-012 ha già ammesso per il regime `Conditional` dell'Overwatch, spostata dal profilo di reazione all'intento. Vincoli: nessun nesting, nessun loop, predicati da lista chiusa, nessun accesso all'intento avversario, ramo non scelto senza effetti, TurnLog che registra condizione + ramo. **Nessun ADR**: non cambia l'architettura. Owner: [`../gameplay/brief-delayed-actions.md`](../gameplay/brief-delayed-actions.md) §7 | **Consolidata** *(come decisione di rinvio e di forma; l'implementazione non è pianificata in v0.1)* | Epic **E33**. **Bloccata dai boundary**: `EvaluationBoundary` è il campo `boundary` che oggi non esiste in `FRTActionDef`. Costruirla prima delle Delayed Actions significherebbe inventarne un secondo modello |
+| **D-035** | **Le trasformazioni sono un sistema di stati del personaggio, post-v0.1.** Non si costruisce un sistema chiamato `Transformation`: si costruisce uno **stato**, presentato in cinque famiglie — `Stance · Form · Overdrive · Environmental · Configuration`. **Nessuna trasformazione entra nella v0.1**: la proposta di quattro stati sui quattro eroi è respinta. Uno `Stance` è un **profilo commutabile in Planning** (D-033), quindi metà del framework non richiede sistemi nuovi. Vale il *complexity budget*: chi ha una trasformazione importante è più semplice altrove. Owner: [`../gameplay/brief-stati-personaggio-e-trasformazioni.md`](../gameplay/brief-stati-personaggio-e-trasformazioni.md) | **Consolidata** *(come decisione di rinvio e di forma; nessun eroe ha uno stato assegnato)* | Epic **E34**. Motivi del rinvio: scope v0.1 chiuso e a rischio **alto**; `Charged` dipende da E13 e `Bulwark` dal sistema strutture; `Vektor: Mobile ↔ Siege` **contraddice** la sua meccanica firma. Banchi di prova coerenti: Howitzer, Murdock, GRIM.exe |
+
 ## Note
+
+- **D-032…D-035** (2026-08-08): nascono dal consolidamento di due sorgenti arrivati insieme —
+  `../archive/src/design/trasformazioni-e-stati-personaggio.md` e
+  `../archive/src/handoff/2026-08-08-tre-aggiunte-signature-mechanics.md`. **Tre delle quattro sono decisioni di
+  *non* costruire**: due rinvii con forma fissata (D-034, D-035) e un rifiuto di nomenclatura (D-033). È il
+  risultato normale di un audit fatto prima e non dopo: delle tre estensioni proposte dall'handoff, **una sola
+  era davvero assente** dal repository.
+  - `GenericActionModifier` esisteva già, e con un nome migliore: **profilo**, in D-014 e D-015. Il documento
+    che lo proponeva conteneva anche la regola che lo escludeva — «*salvo che il repository abbia già un nome
+    migliore*». La lezione è la stessa di `URTMatchFormatData` in E19: **un concetto assente dall'indice non è
+    un concetto assente dal repository**, e cercarlo per sinonimi costa meno che costruirlo due volte.
+  - `ConditionalIntent` aveva un precursore **deciso** — la condizione dichiarata di D-012 — che nessuno aveva
+    collegato perché viveva in un documento sulle reazioni, non sugli intenti.
+  - `Misplay / Failure State` era l'unica genuinamente nuova. E anche lì un caso esisteva già come regola: il
+    whiff della Predictive Action di D-016.
+  **Nessun ADR** per nessuna delle quattro: due sono schema documentale, due sono rinvii. Un ADR serve quando
+  cambia l'architettura, non quando si nomina qualcosa.
+  > ⚠️ **ID assegnati al merge.** Il 2026-08-08 erano attive più sessioni parallele sullo stesso repository e
+  > `D-028` era già stato preso due volte (vedi la nota su D-029). Se una serie `D-032`…`D-035` atterra prima
+  > su `main`, questa rinumera: chi arriva secondo rinumera, non contende.
 
 - **D-030 e D-031** (2026-08-08): nascono dal consolidamento dei sette sorgenti di `docs/src/` rimasti senza
   owner — vedi [`../roadmap/roadmap-post-v0.1.md`](../roadmap/roadmap-post-v0.1.md), che ripartisce quel
@@ -65,7 +90,7 @@ Regola di manutenzione #1: *ogni modifica a un requisito aggiunge o aggiorna una
   che come estensione. Cover Window, muri/porte, roster 8, 3v3, bot tattico e Operations non superano quel
   criterio e restano nelle release successive.
 - **D-029** (2026-08-08): nasce dal consolidamento di Character Wiki, Faction Wiki e sinergie
-  (`../src/design/fazioni-v0.2-identita-visiva-e-roster.md` come input, **non** come autorità). La
+  (`../archive/src/design/fazioni-v0.2-identita-visiva-e-roster.md` come input, **non** come autorità). La
   decisione è **documentale e di data model**, non una feature: separa tre cose che stavano scivolando in una
   sola fonte — kit del personaggio, regola di sistema, esempio di cooperazione. Il caso che l'ha resa necessaria
   è `Water-Electric`: descritto in più punti come «combo Flux + Riva», mentre nel codice il bonus legge
@@ -75,7 +100,7 @@ Regola di manutenzione #1: *ogni modifica a un requisito aggiunge o aggiorna una
   quella sullo slot dello scatto è atterrata prima su `main`. L'ID si assegna **al merge**, non quando si
   scrive la riga: chi arriva secondo rinumera, non contende.
 - **D-014…D-019** (2026-08-08): approvate in sessione e recepite dal consolidamento di `docs/gameplay/`
-  (handoff `../src/audit/2026-08-08-docs-gameplay.md`). Gli ID proposti
+  (handoff `../archive/src/audit/2026-08-08-docs-gameplay.md`). Gli ID proposti
   dall'handoff erano liberi e sono stati usati così com'erano.
 - **Migrazione degli Stable ID legacy (D-014, D-015)**: `Action.Guard`, `Action.Activate` e `Action.Sprint`
   **esistono e sono consumati** — misurato al 2026-08-08: `Action.Sprint` in **9** file di codice e **6** di
@@ -111,7 +136,7 @@ Regola di manutenzione #1: *ogni modifica a un requisito aggiunge o aggiorna una
   rimasta aperta solo perché nessuno l'aveva chiusa: la regola d'ora in poi è **upgrade solo fra milestone,
   solo con migrazione esplicita**.
 - **D-020…D-024** (2026-08-08): approvate dall'autore e recepite dal consolidamento dei documenti
-  **non**-Gameplay (handoff `../src/audit/2026-08-08-docs-non-gameplay-v2.md`).
+  **non**-Gameplay (handoff `../archive/src/audit/2026-08-08-docs-non-gameplay-v2.md`).
   Gli ID `D-014`…`D-019` erano già stati presi dal passaggio Gameplay, quindi questa serie parte da **D-020**.
   Quattro di esse emendano un ADR esistente invece di crearne uno nuovo: la decisione cambiava una clausola,
   non l'architettura.

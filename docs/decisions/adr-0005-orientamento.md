@@ -6,7 +6,7 @@
 > aggiorna **solo** al termine del `Move`. Non è più così: un'azione con bersaglio o direzione **orienta
 > l'unità prima di risolvere**. Vedi la nuova **§2-bis**, che nomina i sei punti della timeline. Il resto
 > dell'ADR — facing come stato di gioco, arco frontale unico, determinismo e privacy — resta invariato.
-> **Contesto sorgente**: `docs/src/design/action-ghosts-fasi-fast-reactions.md` §17 (campo `Facing`
+> **Contesto sorgente**: `docs/archive/src/design/action-ghosts-fasi-fast-reactions.md` §17 (campo `Facing`
 > nel view model) e [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md) §C5, che registrava il punto come aperto.
 > **Estende**: [ADR-0003](adr-0003-modello-azioni-v01.md) (stili di movimento) · [ADR-0004](adr-0004-finestre-di-reazione.md) (reazioni direzionali)
 

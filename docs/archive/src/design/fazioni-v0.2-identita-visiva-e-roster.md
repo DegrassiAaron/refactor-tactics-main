@@ -1,10 +1,10 @@
-> ✅ **RECEPITO il 2026-08-08 da [D-029](../../decisions/RT_PDR_00_Decision_Log.md) /
-> [ADR-0006](../../decisions/adr-0006-ownership-abilita-sinergie.md).** Questo handoff resta un **input**, non
+> ✅ **RECEPITO il 2026-08-08 da [D-029](../../../decisions/RT_PDR_00_Decision_Log.md) /
+> [ADR-0006](../../../decisions/adr-0006-ownership-abilita-sinergie.md).** Questo handoff resta un **input**, non
 > un'autorità (`AGENTS.md`: `docs/src/` non è fonte normativa per default). Gli owner normativi
 > dell'ownership dei contenuti sono ora
-> [`../gameplay/spec-ownership-abilita-interazioni-sinergie.md`](../../gameplay/spec-ownership-abilita-interazioni-sinergie.md)
-> e le pagine Wiki [`../wiki/fazioni/index.md`](../../wiki/fazioni/index.md) ·
-> [`../wiki/game/sinergie-e-combinazioni.md`](../../wiki/game/sinergie-e-combinazioni.md).
+> [`../../../gameplay/spec-ownership-abilita-interazioni-sinergie.md`](../../../gameplay/spec-ownership-abilita-interazioni-sinergie.md)
+> e le pagine Wiki [`../../../wiki/fazioni/index.md`](../../../wiki/fazioni/index.md) ·
+> [`../../../wiki/game/sinergie-e-combinazioni.md`](../../../wiki/game/sinergie-e-combinazioni.md).
 >
 > **Non c'è deriva da correggere qui**: il divieto di `SameFactionDamageBonus` / `SameFactionArmorBonus` /
 > `FactionSetBonus` (§3) e la regola «la cooperazione emerge dalle normali meccaniche» sono esattamente ciò che

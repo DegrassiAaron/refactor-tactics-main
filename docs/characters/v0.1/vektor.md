@@ -48,6 +48,8 @@ Il controgioco consiste nel cambiare rotta, usare coperture e LOS per negare le 
 
 **Obiettivo del giocatore.** Usare 6 MP e Dash per prendere linee favorevoli, leggere dove passerà l'avversario e trasformare quella previsione in intercetto, attraversamento offensivo o controllo.
 
+**Misplay / Failure State.** Leggere male la traiettoria. La previsione è dichiarata per intero in Planning e non riceve informazione nuova: se il nemico non passa dove Vektor ha scommesso, l'azione **risolve lo stesso** come whiff o fallback dichiarato — è la regola di [D-016](../../decisions/RT_PDR_00_Decision_Log.md), non una nota editoriale. Il costo non è il danno mancato ma il turno: l'azione offensiva è già spesa ([D-012](../../decisions/RT_PDR_00_Decision_Log.md), `Attack` **oppure** `Ability` **oppure** `Overwatch`), e Vektor ha speso mobilità per mettersi sulla linea sbagliata. È l'unico failure state del roster v0.1 che è già una **regola decisa** invece che una descrizione.
+
 **Counterplay / rischio.** Se l'avversario cambia rotta, chiude LOS o forza Vektor a spendere la reazione sul bersaglio sbagliato, il payoff predittivo cala. `InterceptShot` resta rinviata a E14.
 
 ### Dati della meccanica
@@ -65,6 +67,7 @@ Il controgioco consiste nel cambiare rotta, usare coperture e LOS per negare le 
 | State | Slancio + zone/traiettorie controllate |
 | Activation / Trigger | Movimento eseguito e azioni di intercetto |
 | Payoff | Punisce traiettorie prevedibili e usa mobilità superiore per il duello |
+| Misplay / Failure State | Previsione errata → whiff o fallback dichiarato (D-016); azione offensiva del turno già spesa e posizione presa sulla linea sbagliata |
 | Counterplay | Cambiare rotta, chiudere LOS, strutture, bait delle reazioni |
 | Telegraphing | Zona armata/trigger osservabili secondo regole di informazione |
 | Design Status | IMPLEMENTED_PARTIAL |
