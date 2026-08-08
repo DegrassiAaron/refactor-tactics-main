@@ -30,8 +30,9 @@ public:
 	 * Versione corrente del formato dati.
 	 * v2: le transizioni entrano nell'hash + campo `Kind` sugli archi.
 	 * v3 (CP 9.1): coperture per bordo di cella (`FRTHexCellData::Covers`).
+	 * v4 (CP 9.3): porte per bordo di cella (`FRTHexCellData::Doors`).
 	 */
-	static constexpr int32 CurrentFormatVersion = 3;
+	static constexpr int32 CurrentFormatVersion = 4;
 
 	/** Versione del formato con cui l'asset e' stato scritto; `MigrateToCurrentFormat` la porta avanti. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
@@ -59,6 +60,14 @@ public:
 
 	/** Aggiunge o aggiorna (per Id) una cella; incrementa la revisione. */
 	void AddOrUpdateCell(const FRTHexCellData& Cell);
+
+	/**
+	 * Aggiunge o aggiorna PIU' celle incrementando la revisione UNA SOLA VOLTA. Serve a chi compie una modifica
+	 * topologica che tocca piu' celle ma e' un evento solo — un portone largo tre bordi si apre una volta, non
+	 * tre — cosi' che chi osserva la revisione non veda tre cambi dove ce n'e' stato uno.
+	 * Un array vuoto non incrementa nulla.
+	 */
+	void UpdateCells(const TArray<FRTHexCellData>& InCells);
 
 	/** Inizia una pennellata: Modify() una volta (stato pre-pennellata per l'undo). Nessuna transazione (la apre il caller). */
 	void BeginStroke();

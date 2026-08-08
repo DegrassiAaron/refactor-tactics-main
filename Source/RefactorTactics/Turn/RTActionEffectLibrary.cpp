@@ -28,6 +28,15 @@ TArray<FRTActionEvent> URTActionEffectLibrary::ProduceEvents(const FRTActionInst
 		case ERTActionEffect::None:
 			continue; // dichiarato ma vuoto: l'azione occupa lo slot e basta
 
+		case ERTActionEffect::SetDoorState:
+			// Come `DamageStructure`: non e' un evento verso un'unita'. Lo raccoglie il Blast sul bordo, e un
+			// evento con `TargetUnitId` valido lo farebbe applicare a chi sta dietro la porta.
+			//
+			// Questo `case` NON e' garantito dallo switch: il commento qui sopra promette che aggiungere un
+			// effetto senza tradurlo non compili, ma non e' vero — passerebbe in silenzio producendo un evento
+			// con `Amount` 0.
+			continue;
+
 		case ERTActionEffect::DamageStructure:
 			// Non colpisce un'UNITA': la barriera non e' un bersaglio del registry degli effetti, e un evento
 			// con `TargetUnitId` valido le farebbe applicare danno a chi sta dietro. Lo raccoglie il Blast sul

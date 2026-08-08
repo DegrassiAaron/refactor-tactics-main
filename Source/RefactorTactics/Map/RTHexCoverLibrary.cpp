@@ -1,4 +1,5 @@
 #include "Map/RTHexCoverLibrary.h"
+#include "Map/RTHexDoorLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 
@@ -59,7 +60,11 @@ ERTHexCoverType URTHexCoverLibrary::CoverBetween(const URTHexMapAsset* Map, cons
 
 bool URTHexCoverLibrary::BlocksTraversal(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To)
 {
-	return CoverBetween(Map, From, To) == ERTHexCoverType::High;
+	// L'OR e' RESTRITTIVO: se un bordo porta sia un muro alto sia una porta, aprire la porta non buca il muro.
+	// Il muro resta il dato piu' forte, e un livello mal disegnato non produce un varco a sorpresa (la coppia
+	// la segnala `ValidateMap`). Questa e' l'UNICA funzione che vista, grafo e combat interrogano.
+	return CoverBetween(Map, From, To) == ERTHexCoverType::High
+		|| URTHexDoorLibrary::BlocksBetween(Map, From, To);
 }
 
 namespace

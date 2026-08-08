@@ -44,7 +44,14 @@ enum class ERTEnvironmentOutcome : uint8
 	 * Una copertura e' stata abbattuta: da qui in poi quel bordo si attraversa. E' l'evento che spiega perche'
 	 * al turno successivo una linea di tiro esiste dove prima non c'era.
 	 */
-	CoverDestroyed
+	CoverDestroyed,
+	/**
+	 * Una porta si e' chiusa (CP 9.3): da qui in poi quel bordo non si attraversa e non si vede attraverso.
+	 * `SrcCell`/`TgtCell` sono le due celle del BORDO, come per le coperture — nessun campo nuovo nel log.
+	 */
+	DoorClosed,
+	/** Una porta si e' aperta: spiega perche' esiste un passaggio dove prima non c'era. */
+	DoorOpened
 };
 
 /**
@@ -75,7 +82,17 @@ enum class ERTMoveOutcome : uint8
 	BlockedContested,  // fermata (o parziale) per destinazione contesa a PARITA' di priorita'
 	BlockedByUnit,     // fermata (o parziale) per cella occupata da un'unita' ferma
 	BlockedByPriority, // fermata per destinazione contesa persa contro una mobilita' con priorita' migliore
-	BlockedByImpact    // fermata per scontro frontale con un'altra mobilita' lineare in arrivo opposto
+	BlockedByImpact,   // fermata per scontro frontale con un'altra mobilita' lineare in arrivo opposto
+	/**
+	 * Fermata perche' la TOPOLOGIA e' cambiata dopo che il percorso era stato pianificato: una porta chiusa,
+	 * un muro alzato, una cella sparita (CP 9.3). Aggiunto in CODA: le tracce gia' scritte non cambiano
+	 * significato.
+	 *
+	 * Lo scrive il chiamante e non `ResolveHexPaths`: il troncamento avviene PRIMA che il resolver veda il
+	 * percorso, quindi lui classificherebbe `Moved` — vero sul percorso troncato, falso su cio' che l'unita'
+	 * aveva pianificato.
+	 */
+	BlockedByTopology
 };
 
 /** Esito di un attacco nel turno. Priorita': Lethal > ShieldAbsorbed > TerrainBonus > Hit. */

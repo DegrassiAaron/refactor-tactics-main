@@ -5,6 +5,8 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexCoverLibrary.h"
+#include "Map/RTHexDoorLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Turn/RTActionFallbackLibrary.h"
 #include "Ability/RTActionData.h"
@@ -657,6 +659,87 @@ bool FRTHexCoverDestructionLoggedTest::RunTest(const FString&)
 		}
 	}
 	TestEqual(TEXT("una voce di copertura danneggiata"), Logged, 1);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+/**
+ * Il difetto che CP 9.3 esiste per impedire, e che nessun test puro sul pathfinding puo' trovare: il percorso
+ * del Move e' stato validato PRIMA, al momento del click, e `ResolveMovement` lo esegue com'e'. Se una porta si
+ * chiude nel Blast — cioe' a meta' turno — un percorso che la attraversava produrrebbe un passo fantasma.
+ *
+ * Scena: porta aperta sul bordo (1,0)<->(2,0). Il Mover ha gia' pianificato (0,0) -> (1,0) -> (2,0). Il Closer,
+ * dall'altro lato, spara verso di lui: la sua azione dichiara `SetDoorState` e la prima porta sulla linea di
+ * tiro si chiude a fase conclusa. Il Move che segue deve fermarsi PRIMA del varco (`Fallback.Stop`), non
+ * attraversarlo e non annullarsi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexDoorClosingStopsMovementTest,
+	"RefactorTactics.Structures.Door.ClosingStopsMovement",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexDoorClosingStopsMovementTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 4);
+
+	// Porta APERTA sul bordo E di (1,0): separa (1,0) da (2,0) quando sara' chiusa.
+	const FRTCellId Hinge(1, 0);
+	FRTHexCellData WithDoor = *MapActor->MapAsset->FindCell(Hinge);
+	WithDoor.Doors.Add(FRTHexDoor(ERTHexDirection::E, ERTHexDoorState::Open));
+	MapActor->MapAsset->AddOrUpdateCell(WithDoor);
+	MapActor->MapAsset->SortCells();
+
+	ARTUnit* Mover = SpawnHexBlastUnit(World, 1, ERTArchetype::Guardian, FRTCellId(0, 0));
+	ARTUnit* Closer = SpawnHexBlastUnit(World, 0, ERTArchetype::Ranger, FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mover || !Closer) { DestroyHexBlastWorld(World); return false; }
+
+	// Il percorso e' gia' validato: con la porta aperta lo era davvero, ed e' esattamente il punto.
+	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) };
+	TestTrue(TEXT("con la porta aperta il passo esisteva"),
+		!URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, FRTCellId(1, 0), FRTCellId(2, 0)));
+
+	// L'azione dichiara di chiudere la prima porta sulla propria linea di tiro (qui la si simula
+	// sull'istanza: l'azione di catalogo che apre e chiude porte e' CP 10.1).
+	Closer->Abilities[0]->Def.Effects.Add(
+		FRTActionEffectSpec(ERTActionEffect::SetDoorState,
+			static_cast<int32>(ERTHexDoorState::Closed)));
+	Closer->PlannedAbilityIndex = 0;
+	Closer->PlannedAttackTarget = Mover;
+
+	RunBlastTurn(TM);
+
+	// 1. La porta si e' chiusa sulla copia di lavoro della mappa (non sull'asset su disco).
+	TestTrue(TEXT("la porta e' chiusa"),
+		URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, FRTCellId(1, 0), FRTCellId(2, 0)));
+
+	// 2. Il movimento si e' FERMATO prima del varco, non annullato: l'unita' e' avanzata di una cella.
+	TestTrue(TEXT("l'unita' si e' fermata davanti alla porta"), Mover->Cell == FRTCellId(1, 0));
+
+	// 3. Il TurnLog dice entrambe le cose, con il bordo scritto come coppia di celle.
+	int32 DoorEntries = 0;
+	int32 StoppedEntries = 0;
+	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+	{
+		if (Entry.Category == ERTLogCategory::Environment
+			&& Entry.Outcome == static_cast<uint8>(ERTEnvironmentOutcome::DoorClosed))
+		{
+			++DoorEntries;
+			TestTrue(TEXT("la voce indica il bordo della porta"),
+				(Entry.SrcCell == FRTCellId(1, 0) && Entry.TgtCell == FRTCellId(2, 0))
+				|| (Entry.SrcCell == FRTCellId(2, 0) && Entry.TgtCell == FRTCellId(1, 0)));
+		}
+		if (Entry.Category == ERTLogCategory::Move
+			&& Entry.Outcome == static_cast<uint8>(ERTMoveOutcome::BlockedByTopology))
+		{
+			++StoppedEntries;
+			TestTrue(TEXT("il reason code riporta partenza e arrivo veri"),
+				Entry.SrcCell == FRTCellId(0, 0) && Entry.TgtCell == FRTCellId(1, 0));
+		}
+	}
+	TestEqual(TEXT("una voce di porta chiusa"), DoorEntries, 1);
+	TestEqual(TEXT("una voce di movimento fermato dalla topologia"), StoppedEntries, 1);
 
 	DestroyHexBlastWorld(World);
 	return true;

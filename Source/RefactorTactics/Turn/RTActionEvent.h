@@ -63,7 +63,19 @@ enum class ERTActionEffect : uint8
 	 * Aggiunto in CODA all'enum, come `DamageReduction`: i valori precedenti non si rinumerano e i data asset
 	 * gia' salvati continuano a significare la stessa cosa.
 	 */
-	DamageStructure
+	DamageStructure,
+	/**
+	 * Porta una PORTA allo stato dichiarato (CP 9.3): `Amount` e' il valore di `ERTHexDoorState` — la stessa
+	 * convenzione con cui la durata di uno stato viaggia in `Amount`, interi soltanto. Un valore fuori
+	 * intervallo non produce nessuna operazione.
+	 *
+	 * Come `DamageStructure` non colpisce un'UNITA': lo raccoglie il Blast sulla prima PORTA attraversata dal
+	 * colpo (`URTHexCombatLibrary::CollectHexAttacks`) e lo applica a fase conclusa
+	 * (`URTHexDoorLibrary::ApplyDoorOps`), cosi' l'ordine degli ordini non cambia l'esito.
+	 *
+	 * Non e' un'azione di catalogo: l'azione che apre e chiude porte e' CP 10.1 (`Action.Activate`).
+	 */
+	SetDoorState
 };
 
 /**
