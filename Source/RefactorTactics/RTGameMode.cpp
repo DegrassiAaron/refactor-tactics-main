@@ -77,10 +77,11 @@ void ARTGameMode::BeginPlay()
 	const FString TestScenario = ResolveScenarioToRun();
 	if (!TestScenario.IsEmpty())
 	{
-		// La pianificazione si accorcia PRIMA di eseguire: lo scenario risolve i propri turni da solo e poi
-		// lascia il turn manager in pianificazione. Col timer normale (30 s) si resterebbe a guardare un turno
-		// vuoto per mezzo minuto, e poi un altro, e un altro ancora — l'attesa che rende inguardabile una
-		// verifica che dura un secondo.
+		// Il turno si FERMA a scenario finito (default 0 = nessun timer). Lo scenario risolve i propri turni
+		// dentro BeginPlay: lasciare il turn manager a scandire non aggiunge niente da vedere e ri-risolve i
+		// piani rimasti appesi, producendo turni fantasma — in PIE si vedevano le unita' muoversi DOPO la fine
+		// dello scenario, tanto da sembrare lo scenario stesso. Un valore positivo fa proseguire la partita a
+		// quel ritmo, per chi vuole continuare a mano dallo stato lasciato.
 		if (ARTTurnManager* TM = Cast<ARTTurnManager>(
 				UGameplayStatics::GetActorOfClass(World, ARTTurnManager::StaticClass())))
 		{

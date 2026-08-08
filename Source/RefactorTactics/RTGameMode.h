@@ -130,17 +130,19 @@ public:
 	TArray<FString> GetScenarioOptions() const;
 
 	/**
-	 * Durata della pianificazione **quando gira uno scenario**, in secondi.
+	 * Durata della pianificazione **dopo** che uno scenario è finito, in secondi. **0 = il turno non avanza
+	 * più** (default): il campo resta fermo sullo stato finale, che è ciò che si vuole guardare.
 	 *
-	 * Serve perché lo scenario risolve i propri turni da solo e poi lascia il turn manager in pianificazione:
-	 * col timer normale (30 s) si resterebbe a guardare un turno vuoto per mezzo minuto, e poi un altro, e un
-	 * altro ancora. Con pochi secondi la partita **passa alla fase successiva** e si vede subito il campo
-	 * evolvere. Non tocca la partita normale, dove i 30 s servono a pianificare davvero.
+	 * Un valore positivo fa **continuare** la partita a quel ritmo, per chi vuole proseguire a mano dallo
+	 * stato lasciato dallo scenario.
 	 *
-	 * 0 = nessun timer (la pianificazione non scade mai): utile per fermare l'immagine e guardare con calma.
+	 * ⚠️ Il default era 3 s e **produceva turni fantasma**: lo scenario finisce dentro `BeginPlay`, e ogni
+	 * scadenza del timer risolveva di nuovo i piani rimasti appesi. In PIE si vedevano le unità muoversi
+	 * *dopo* la fine dello scenario, tanto da sembrare lo scenario stesso. I piani ora si azzerano a fine
+	 * scenario **e** il turno si ferma: due difese, perché una sola avrebbe lasciato il campo a metà.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Test", meta = (ClampMin = "0.0"))
-	float ScenarioPlanningSeconds = 3.f;
+	float ScenarioPlanningSeconds = 0.f;
 
 	/** Lo scenario da eseguire: la console variable prevale sulla proprietà, altrimenti vale la proprietà. Vuoto = partita normale. */
 	FString ResolveScenarioToRun() const;

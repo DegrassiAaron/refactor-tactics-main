@@ -265,6 +265,20 @@ FRTTestResult URTScenarioRunner::Run(UWorld* World, const FRTTestScenario& Scena
 		++Result.TurnsPlayed;
 	}
 
+	// Piani AZZERATI a scenario finito. Il runner li ripulisce a ogni inizio turno, ma dopo l'ultimo restavano
+	// appesi: il turn manager continuava a girare e li ri-risolveva a ogni scadenza del timer, producendo turni
+	// fantasma. In PIE si vedevano le unita' muoversi DOPO la fine dello scenario — al punto da sembrare lo
+	// scenario stesso, che invece era gia' finito prima del primo fotogramma.
+	for (const TPair<FString, ARTUnit*>& Pair : UnitsById)
+	{
+		if (ARTUnit* U = Pair.Value)
+		{
+			U->PlannedCell = U->Cell;
+			U->PlannedPath.Reset();
+			U->PlannedWaypoints.Reset();
+		}
+	}
+
 	// Digest dello stato finale, prima delle assertion: e' cio' che il gate di determinismo confronta fra
 	// una ripetizione e l'altra, e vale anche quando qualche assertion fallisce (due FAIL identici devono
 	// avere lo stesso hash, altrimenti non si potrebbe dire se una regressione e' la stessa di ieri).
