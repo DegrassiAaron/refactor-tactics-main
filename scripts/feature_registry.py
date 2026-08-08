@@ -113,7 +113,11 @@ def known_scenarios():
 
 
 def known_roadmap_refs():
-    """Epic e checkpoint dichiarati dalla roadmap di release; milestone da quella di esecuzione."""
+    """Epic e checkpoint dichiarati dalla roadmap di release; milestone da quella di esecuzione.
+
+    Riconosce sia la forma prefissata `E9.1` (convenzione dal 2026-08-08) sia `CP 9.1` senza
+    prefisso, che resta valida nel corpus storico e si legge come checkpoint di **epic**.
+    """
     epics, checkpoints, milestones = set(), set(), set()
     if os.path.isfile(ROADMAP_V01):
         text = open(ROADMAP_V01, encoding="utf-8").read()
@@ -121,6 +125,8 @@ def known_roadmap_refs():
         epics.update(re.findall(r"\*\*(E\d+)\*\*", text))
         checkpoints.update(re.findall(r"CP (\d+\.\d+)", text))
         checkpoints.update(re.findall(r"^\| \*\*(\d+\.\d+)\*\*", text, re.M))
+        # Forma prefissata: `E9.1` dichiara il checkpoint 9.1 dell'epic E9.
+        checkpoints.update(re.findall(r"\bE(\d+\.\d+)\b", text))
     if os.path.isfile(ROADMAP_CHECKPOINT):
         text = open(ROADMAP_CHECKPOINT, encoding="utf-8").read()
         milestones.update(re.findall(r"\*\*(M\d+)\*\*", text))
@@ -262,9 +268,19 @@ def validate(registry, wiki_root=None):
         milestone = roadmap.get("milestone")
         if milestone and milestone not in milestones:
             errors.append(f"{where} milestone inesistente nella roadmap di esecuzione: {milestone}")
+        for key in roadmap or {}:
+            if key not in ("epic", "milestone", "checkpoints", "out_of_release_scope"):
+                errors.append(f"{where} campo roadmap sconosciuto: {key}")
         for cp in roadmap.get("checkpoints") or []:
             if str(cp) not in checkpoints:
-                errors.append(f"{where} checkpoint inesistente: CP {cp}")
+                container = epic or milestone
+                label = f"{container}.{str(cp).split('.', 1)[-1]}" if container else f"CP {cp}"
+                errors.append(f"{where} checkpoint inesistente: {label}")
+        if roadmap.get("checkpoints") and not (epic or milestone):
+            errors.append(f"{where} checkpoint dichiarati senza epic ne' milestone: "
+                          "il riferimento non sarebbe risolvibile")
+        if roadmap.get("out_of_release_scope") and epic:
+            errors.append(f"{where} ha un'epic e insieme out_of_release_scope: decidi quale dei due")
 
         for dep in feature.get("dependencies") or []:
             if dep not in id_set:
@@ -284,7 +300,14 @@ def validate(registry, wiki_root=None):
                 errors.append(f"{where} ScenarioId inesistente: {sid}")
         for sid in planned:
             if sid in scenarios:
-                warnings.append(f"{where} scenario dichiarato planned ma ora esiste: {sid} — promuovilo")
+                # Errore e non avviso: uno scenario marcato `planned` che esiste davvero non e' un
+                # promemoria, e' il registry che dice una cosa falsa. Un avviso qui si sarebbe
+                # accumulato fino a diventare rumore — che e' il modo in cui il conteggio dei test
+                # e' divergito cinque volte.
+                errors.append(
+                    f"{where} scenario dichiarato planned ma presente in Scenarios/: {sid} — "
+                    "promuovilo fra gli scenari presenti e rivedi il gate `scenario`"
+                )
 
         for ref in feature.get("wiki_refs") or []:
             if ref.startswith("wiki:"):
@@ -375,6 +398,7 @@ def build_json(registry):
                 "epic": roadmap.get("epic"),
                 "milestone": roadmap.get("milestone"),
                 "checkpoints": [str(c) for c in (roadmap.get("checkpoints") or [])],
+                "out_of_release_scope": (roadmap.get("out_of_release_scope") or "").strip(),
             },
             "dependencies": feature.get("dependencies") or [],
             "owner_specs": feature.get("owner_specs") or [],
@@ -396,18 +420,49 @@ def build_json(registry):
     }
 
 
+def roadmap_ref(roadmap):
+    """Riferimento di roadmap nella forma prefissata.
+
+    Un checkpoint non si cita mai senza il proprio contenitore: `CP 10.1` e' «Activate e Interact»
+    in E10 **e** «listen server» in M10, e `CP 6.1` e' due cose diverse in E2 e in E6. Il prefisso
+    non e' decorazione, e' cio' che rende il riferimento risolvibile.
+    """
+    container = roadmap.get("epic") or roadmap.get("milestone")
+    if not container:
+        return "fuori scope" if roadmap.get("out_of_release_scope") else "—"
+    checkpoints = roadmap.get("checkpoints") or []
+    if not checkpoints:
+        return container
+    # Il checkpoint prefissato contiene gia' il contenitore: ripeterlo darebbe «E14 · E14.4».
+    return ", ".join(f"{container}.{c.split('.', 1)[-1]}" for c in checkpoints)
+
+
 def status_block(entry):
     roadmap = entry["roadmap"]
-    ref = roadmap.get("epic") or roadmap.get("milestone") or "—"
-    if roadmap.get("checkpoints"):
-        ref += " · CP " + ", ".join(roadmap["checkpoints"])
+    ref = roadmap_ref(roadmap)
     scenario = entry["scenarios"][0] if entry["scenarios"] else (
         entry["scenarios_planned"][0] + " (pianificato)" if entry["scenarios_planned"] else "—")
     verified = entry["last_verified"] or {}
+    # La marcatura e' proporzionale allo scarto fra cio' che la pagina descrive e cio' che il gioco
+    # fa. Una forma uniforme per una feature RELEASE_READY e per una con 1 gate su 9 viene letta
+    # come boilerplate e saltata — e questa Wiki e' pubblica: chi arriva da una ricerca legge le
+    # regole, non il riquadro.
+    status = entry["status"]
+    if status in ("IDEA", "DESIGNED", "SPECIFIED"):
+        intro = ("> ⚠️ **Progettata, non implementata.** Questa pagina descrive una meccanica "
+                 "**decisa e documentata** che il gioco **non esegue ancora**: oggi non è "
+                 "giocabile. Blocco generato dal Feature Registry, non modificare a mano.  ")
+    elif status in ("IMPLEMENTING", "TESTABLE"):
+        intro = ("> 🚧 **Parzialmente giocabile.** Il codice esiste ma la feature non è completa: "
+                 "i gate qui sotto dicono quanto manca. Blocco generato dal Feature Registry, "
+                 "non modificare a mano.  ")
+    else:
+        intro = "> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  "
+
     lines = [
         MARKER_BEGIN.format(fid=entry["feature_id"]),
         "",
-        "> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  ",
+        intro,
         f"> Feature: `{entry['feature_id']}` · Release: `{entry['release']}` · Roadmap: `{ref}`  ",
         f"> Stato: **{entry['status']}** · Gate: `{entry['gates_done']}/{entry['gates_applicable']}`  ",
         f"> Scenario: `{scenario}`  ",
@@ -479,10 +534,7 @@ def render_status_page(data):
             for entry in sorted(entries, key=lambda e: e["feature_id"]):
                 if entry["area"] != area:
                     continue
-                roadmap = entry["roadmap"]
-                ref = roadmap.get("epic") or roadmap.get("milestone") or "—"
-                if roadmap.get("checkpoints"):
-                    ref += " · " + ", ".join("CP " + c for c in roadmap["checkpoints"])
+                ref = roadmap_ref(entry["roadmap"])
                 if entry["scenarios"]:
                     scenario = "`" + "` · `".join(entry["scenarios"][:2]) + "`"
                 elif entry["scenarios_planned"]:
@@ -654,17 +706,173 @@ def insert_block(text, block):
 ROADMAP_MARKER_BEGIN = "<!-- RT_FEATURE_BY_EPIC:BEGIN -->"
 ROADMAP_MARKER_END = "<!-- RT_FEATURE_BY_EPIC:END -->"
 
+SUITE_MARKER_BEGIN = "<!-- RT_SUITE_COUNT:BEGIN -->"
+SUITE_MARKER_END = "<!-- RT_SUITE_COUNT:END -->"
+SUITE_COUNT_TARGETS = (
+    os.path.join(REPO, "docs", "README.md"),
+    ROADMAP_V01,
+)
+
+
+def current_head():
+    """Commit su cui la misura e' stata presa. Senza, il numero non e' verificabile."""
+    head = os.path.join(REPO, ".git")
+    try:
+        import subprocess
+        out = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=REPO,
+                             capture_output=True, text=True, timeout=10)
+        return out.stdout.strip() or "sconosciuto"
+    except Exception:
+        return "sconosciuto"
+
+
+def suite_measure():
+    """Conta i test unici e i file che li dichiarano. Stessa fonte del validator."""
+    names = known_tests()
+    files = 0
+    if os.path.isdir(TESTS_DIR):
+        pattern = re.compile(r'"RefactorTactics\.[A-Za-z0-9_.]+"')
+        for entry in sorted(os.listdir(TESTS_DIR)):
+            if not entry.endswith(".cpp"):
+                continue
+            with open(os.path.join(TESTS_DIR, entry), encoding="utf-8", errors="replace") as fh:
+                if pattern.search(fh.read()):
+                    files += 1
+    return len(names), files
+
+
+# Ripartizione della suite per area. I prefissi sono esaustivi **per costruzione**: se un test non
+# rientra in nessuna categoria il generatore fallisce, invece di produrre una tabella che non somma.
+# E' il difetto che questa tabella aveva: «somma esattamente a 456» era vero il giorno in cui fu
+# scritta e mai piu' verificato.
+SUITE_AREAS = [
+    ("`Hex*` (mappa, path, vision, bot, blast, move, match)",
+     ("Hex", "HexMap", "HexMapActor", "HexPath", "HexVision", "HexBot", "HexBotPlay",
+      "HexBlast", "HexMove", "HexMatch"),
+     "Coordinate, A\\*, LOS, bot, partita completa"),
+    ("`Actions.*`", ("Actions",),
+     "Ordine per priorità, permutazione-invarianza, fallback, mappatura di fase"),
+    ("`Terrain.*` · `Status.*` · `Environment.*`", ("Terrain", "Status", "Environment"),
+     "Superfici, stati temporanei, propagazione elettrica, fuoco/acqua"),
+    ("`Combat.*` · `HexCombat.*`", ("Combat", "HexCombat"),
+     "Danno dopo scudo, forme, LOS, niente fuoco amico"),
+    ("`Reactions.*`", ("Reactions",),
+     "Attivazione singola, trigger puro, reazioni componibili, privacy"),
+    ("`HexSim.*`", ("HexSim",),
+     "Snapshot, budget, collisioni simultanee, **replay divergence 0**"),
+    ("`Match*` (allestimento, formato, fine partita)", ("Match", "MatchFormat", "MatchSetup"),
+     "Le tre vie di fine partita e il `RoundLimit` da formato"),
+    ("`Heroes.*`", ("Heroes",),
+     "I 4 eroi corrispondono al catalogo, trade-off delle varianti"),
+    ("`TurnLog.*`", ("TurnLog",),
+     "Hash permutazione-invariante, serializzazione versionata, checksum"),
+    ("`Scenario.*` · `ScenarioIndex.*`", ("Scenario", "ScenarioIndex"),
+     "Harness: PASS/FAIL/ERROR/**BLOCKED**, identità e tag, niente bypass"),
+    ("`Structures.*`", ("Structures",),
+     "Porte come bordo (E9.3), ponti come arco (E9.4)"),
+    ("`Playback.*` · `Preview.*` · `PlayerInput.*` · `ShowcaseRelay.*` · `Camera.*`",
+     ("Playback", "Preview", "PlayerInput", "ShowcaseRelay", "Camera"),
+     "Presentazione e input: non decidono, riproducono"),
+    ("`Unit.*` · `Turn.*` · `Simulation.*` · `Movement.*`",
+     ("Unit", "Turn", "Simulation", "Movement"),
+     "Stato unità, **ciclo di vita dei piani**, determinismo del replay"),
+    ("`Cover.*`", ("Cover",),
+     "Copertura bassa e alta, bordi, danno a struttura e distruzione"),
+    ("`Catalog.*`", ("Catalog",),
+     "Invarianti del catalogo: solo interi, slot dichiarati, ID stabili"),
+    ("`Pacing.*`", ("Pacing",), "Pacing del turno misurato"),
+    ("`Perf.*`", ("Perf",), "Path mediana **0,025 ms** · resolver **0,41 ms/turno**"),
+]
+
+
+def suite_breakdown():
+    """Conteggio per area. Solleva se un test non rientra in nessuna categoria dichiarata."""
+    names = known_tests()
+    buckets = {label: 0 for label, _p, _d in SUITE_AREAS}
+    prefix_to_label = {}
+    for label, prefixes, _desc in SUITE_AREAS:
+        for prefix in prefixes:
+            prefix_to_label[prefix] = label
+
+    orphans = []
+    for name in names:
+        parts = name.split(".")
+        area = parts[1] if len(parts) > 1 else ""
+        label = prefix_to_label.get(area)
+        if label is None:
+            orphans.append(name)
+        else:
+            buckets[label] += 1
+    return buckets, sorted(orphans)
+
+
+def render_suite_count():
+    """Il conteggio della suite come valore GENERATO.
+
+    Era scritto a mano in due posti e ha divertito cinque volte, l'ultima di 34 test. Il comando di
+    misura era gia' nel documento: se il comando esiste, il numero non si copia.
+
+    Restano fuori i numeri STORICI nelle spec di checkpoint (362, 359, 347...): fotografano cosa era
+    vero alla chiusura di quel CP e non devono aggiornarsi mai. Non hanno marker, il generatore non
+    li vede.
+    """
+    count, files = suite_measure()
+    buckets, orphans = suite_breakdown()
+    lines = [
+        SUITE_MARKER_BEGIN,
+        f"**{count} test unici in {files} file** — misurati su `{current_head()}`.",
+        "",
+        "Generato da `python scripts/feature_registry.py suite`: **non si aggiorna a mano**. Era "
+        "scritto a mano in due documenti ed è divergito cinque volte.",
+        "",
+        "| Area | Test | Cosa fissa |",
+        "|---|---:|---|",
+    ]
+    for label, _prefixes, desc in SUITE_AREAS:
+        lines.append(f"| {label} | {buckets[label]} | {desc} |")
+    lines.append(f"| **totale** | **{sum(buckets.values())}** | |")
+    if orphans:
+        lines += ["", "> ⚠️ Test fuori da ogni area dichiarata: " +
+                  ", ".join(f"`{o}`" for o in orphans[:8])]
+    lines.append(SUITE_MARKER_END)
+    return "\n".join(lines)
+
+
+def apply_suite_count(check=False):
+    block = render_suite_count()
+    pattern = re.compile(
+        re.escape(SUITE_MARKER_BEGIN) + r".*?" + re.escape(SUITE_MARKER_END), re.S)
+    changed = []
+    for path in SUITE_COUNT_TARGETS:
+        if not os.path.isfile(path):
+            continue
+        original = open(path, encoding="utf-8").read()
+        if SUITE_MARKER_BEGIN not in original:
+            continue
+        text = pattern.sub(lambda _m: block, original)
+        if text != original:
+            changed.append(os.path.relpath(path, REPO).replace("\\", "/"))
+            if not check:
+                with open(path, "w", encoding="utf-8", newline="\n") as fh:
+                    fh.write(text)
+    return changed
+
 
 def render_features_by_epic(data):
     """Mappa epic → feature per la roadmap di release: generata, non ricopiata a mano."""
     by_epic = {}
     unassigned = []
+    out_of_scope = []
     for entry in data["features"]:
         epic = entry["roadmap"].get("epic")
         if epic:
             by_epic.setdefault(epic, []).append(entry)
         elif entry["release"] == "v0.1":
-            unassigned.append(entry)
+            # Un buco e una decisione non si mescolano: la prima tabella deve poter restare vuota.
+            if entry["roadmap"].get("out_of_release_scope"):
+                out_of_scope.append(entry)
+            else:
+                unassigned.append(entry)
 
     lines = [
         ROADMAP_MARKER_BEGIN,
@@ -683,9 +891,10 @@ def render_features_by_epic(data):
     lines.append("")
     if unassigned:
         lines += [
-            "**Feature v0.1 senza epic** — lavoro dentro lo scope della release che nessuna delle 20 epic",
-            "copre. Non e' una svista del registry: e' un buco della roadmap, ed e' il motivo per cui questa",
-            "tabella e' generata.",
+            "> ⚠️ **Feature v0.1 senza assegnazione** — lavoro dentro lo scope della release che nessuna",
+            "> epic copre e che nessuno ha dichiarato fuori scope. Questa tabella **deve restare vuota**:",
+            "> se compare una riga, o le si assegna un'epic o si dichiara `out_of_release_scope` con un",
+            "> motivo.",
             "",
             "| Feature | Vista | Stato | Gate |",
             "|---|---|---|---:|",
@@ -696,6 +905,20 @@ def render_features_by_epic(data):
                 f"| `{entry['feature_id']}` — {entry['title']} | {where} | "
                 f"{entry['status']} | {entry['gates_done']}/{entry['gates_applicable']} |"
             )
+        lines.append("")
+    if out_of_scope:
+        lines += [
+            "**Fuori dalla vista di release, per decisione** — esiste, è tracciato, ma non è contenuto",
+            "della v0.1. Dichiararlo è tracciabilità quanto assegnare un'epic: quello che non va bene è il",
+            "silenzio.",
+            "",
+            "| Feature | Vista | Perché fuori scope |",
+            "|---|---|---|",
+        ]
+        for entry in sorted(out_of_scope, key=lambda e: e["feature_id"]):
+            where = entry["roadmap"].get("milestone") or "—"
+            reason = " ".join(entry["roadmap"]["out_of_release_scope"].split())
+            lines.append(f"| `{entry['feature_id']}` — {entry['title']} | {where} | {reason} |")
         lines.append("")
     lines.append(ROADMAP_MARKER_END)
     return "\n".join(lines)
@@ -813,8 +1036,7 @@ def render_audit(data):
         "|---|---|---|---|---|---:|---:|---:|---:|",
     ]
     for entry in sorted(data["features"], key=lambda e: (e["release"], e["area"], e["feature_id"])):
-        roadmap = entry["roadmap"]
-        ref = roadmap.get("epic") or roadmap.get("milestone") or "—"
+        ref = roadmap_ref(entry["roadmap"])
         out.append(
             f"| `{entry['feature_id']}` | {entry['title']} | {entry['release']} | "
             f"{entry['status']} ({entry['gates_done']}/{entry['gates_applicable']}) | {ref} | "
@@ -840,7 +1062,8 @@ def write_if_needed(path, content, check):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("command",
-                        choices=["validate", "generate", "wiki", "workbook", "deploy", "report"])
+                        choices=["validate", "generate", "wiki", "workbook", "suite",
+                                 "deploy", "report"])
     parser.add_argument("--wiki-root", help="radice del clone della Wiki (deploy flat)")
     parser.add_argument("--check", action="store_true", help="non scrivere: fallisci se disallineato")
     parser.add_argument("--write", action="store_true",
@@ -899,6 +1122,20 @@ def main():
             print(f"aggiornato {os.path.relpath(ROADMAP_V01, REPO)}")
         if not (changed or page_changed or roadmap_changed):
             print("pagine gia' allineate")
+        return 0
+
+    if args.command == "suite":
+        count, files = suite_measure()
+        changed = apply_suite_count(args.check)
+        print(f"suite: {count} test unici in {files} file su {current_head()}")
+        if args.check and changed:
+            for ref in changed:
+                print(f"disallineato: {ref}")
+            return 1
+        for ref in changed:
+            print(f"aggiornato {ref}")
+        if not changed:
+            print("conteggio gia' allineato")
         return 0
 
     if args.command == "workbook":
