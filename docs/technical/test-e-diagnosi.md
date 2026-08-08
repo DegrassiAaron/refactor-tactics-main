@@ -129,6 +129,8 @@ File in `Scenarios/<Categoria>/<Nome>.json`. **L'ID è il percorso**: `Movement.
 | `hero` | ID stabile dal catalogo: `Hero.Flux` · `Hero.Riva` · `Hero.Bastion` · `Hero.Vektor` |
 | `cell` | `[q, r]` oppure `[q, r, layer]` — il layer è opzionale e vale 0 |
 | `move` | lista di **waypoint**, come li produrrebbe il giocatore cliccando |
+| `ability` | `ActionId` dell'abilità (`Flux.ArcPulse`) — per **ID**, non per indice |
+| `target` | ID di scenario del bersaglio; obbligatorio con `ability` |
 | `expect` | assertion; **almeno una**, altrimenti lo scenario passerebbe sempre |
 
 ### `seed` — dichiarato, non consumato
@@ -143,9 +145,14 @@ già dichiararlo. Viene registrato nel report.
 |---|---|
 | `UnitAtCell` | l'unità è sulla cella attesa a fine scenario |
 | `TurnsCompleted` | sono stati giocati almeno N turni |
+| `UnitHpEquals` | la salute è **esattamente** il valore atteso — è così che si verifica un danno |
+| `UnitAlive` | l'unità è viva (`true`) o abbattuta (`false`) |
 
-Sono **due** di proposito: si aggiungono quando servono, non prima. Il modello dati regge le altre senza
-modifiche strutturali.
+Si aggiungono quando servono, non prima. Il modello dati regge le altre senza modifiche strutturali.
+
+> `UnitHpEquals` riporta anche lo **scudo** nell'`actual` (`"98 (scudo 15)"`): un danno assorbito dallo scudo
+> si legge come «HP invariati», che è diverso da «nessun danno». La distinzione conta quando arriveranno le
+> reazioni difensive.
 
 ### Ostacoli e terreno
 
@@ -177,6 +184,8 @@ ostacolo** (una situazione che il gioco non produrrebbe mai) vengono rifiutate c
 | `Movement.Blocked` | un muro rende il percorso impossibile: il piano è rifiutato, l'unità resta ferma, il turno si chiude lo stesso |
 | `Movement.Collision` | due unità verso la stessa cella si fermano **entrambe** |
 | `Movement.LongWalk` | due unità attraversano l'arena, 3 celle per turno per 2 turni — **fatto per essere guardato** in PIE |
+| `Combat.BasicAttack` | Flux colpisce Bastion: 120 → 98 HP. Il primo scenario che verifica un **danno** |
+| `Combat.BlockedByWall` | stesso attacco con un muro in mezzo: il colpo **non parte** |
 | `Movement.SwapRejectedByPlanning` | **caratterizzazione**: due unità adiacenti *non* si scambiano di posto, perché la pianificazione rifiuta un percorso verso una cella occupata (vedi §12) |
 
 ### Scenari di caratterizzazione
@@ -189,10 +198,21 @@ Servono quando si scopre qualcosa che **non si è autorizzati a correggere**: se
 una decisione di design, non una svista. Il test tiene fermo lo stato di fatto e diventa rosso il giorno in
 cui qualcuno lo cambia — che è il segnale desiderato, non un fastidio da mettere a tacere.
 
-### Limiti della prima iterazione
+### Scenari in coppia
 
-Solo **intent di movimento**: niente abilità, niente reazioni. È lo scope dichiarato — le abilità entrano
-quando il movimento è stabile.
+`Combat.BasicAttack` e `Combat.BlockedByWall` vanno letti **insieme**: da solo, «l'attacco fa 22 danni» non
+distingue un gioco che rispetta la copertura da uno che spara attraverso i muri.
+
+E nemmeno la coppia basta. Entrambi passerebbero se l'attacco non partisse **mai** — abilità sbagliata,
+bersaglio nullo, intent ignorato — perché «120 HP» è anche il risultato di «non è successo niente». Serve un
+terzo test che confronti i due `stateHash` e pretenda che **differiscano**
+(`Scenario.WallIsWhatStopsTheShot`). È la stessa forma di `Simulation.StateHashDistinguishesOutcomes`: quando
+due test si confrontano fra loro, qualcosa deve garantire che non stiano confrontando due zeri.
+
+### Limiti attuali
+
+Niente **reazioni** e niente abilità ad area con bersaglio su cella: l'intent bersaglia sempre un'unità. Le
+forme (`Line`, `Area`, `Cone`) si risolvono normalmente — è il *bersaglio dichiarato* a dover essere un'unità.
 
 ---
 
