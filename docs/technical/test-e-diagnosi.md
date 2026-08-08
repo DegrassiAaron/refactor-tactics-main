@@ -4,7 +4,10 @@
 > come si risale alla causa quando qualcosa non torna.
 > **Complementare a** [`debug-vs-unreal.md`](debug-vs-unreal.md), che copre il *debugger* (breakpoint, step,
 > Live Coding). Qui si parla di **verifica automatica** e di **lettura degli esiti**.
-> **Ultimo aggiornamento**: 2026-08-07
+> `CURRENT` · **Ultimo aggiornamento**: 2026-08-08 (verificata contro `Scenarios/` e `ScenarioHarness/`:
+> cinque scenari, quattro comandi console, percorsi corretti — nessuna correzione necessaria).
+> La **spec** dell'harness — schema, assertion, esiti, `StateHash` — è
+> [`test-automatico-unreal.md`](test-automatico-unreal.md).
 
 ---
 
