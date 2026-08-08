@@ -1,5 +1,14 @@
 # RefactorTactics — Griglia Esagonale ed Editor Mappa (H0–H6.5)
 
+> ## 🧱 `DELIVERED` — REGISTRO DI ESECUZIONE STORICO
+>
+> **H0–H6.5 sono consegnate.** L'esagono è diventato l'**unico** substrato di gioco e il quadrato è stato
+> rimosso al CP 7.2 — quindi dove il corpo qui sotto descrive la **convivenza** fra i due, o il quadrato come
+> base di rollback, sta descrivendo il 2026-08-05.
+>
+> **Non è un tracker corrente**: non aggiornarlo. Roadmap corrente:
+> [`roadmap-checkpoint.md`](roadmap-checkpoint.md).
+
 > Pivot deciso in [`adr-0002-griglia-esagonale.md`](../decisions/adr-0002-griglia-esagonale.md), da
 > `docs/src/Editor - Implementazione Griglia Esagonale ed Editor Mappa.docx`. Milestone **piccole e compilabili**;
 > si compila e si testa dopo ogni milestone. Runtime hex **indipendente** dai moduli Editor.

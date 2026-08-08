@@ -1,5 +1,13 @@
 # Follow-up H5c.3 — Erase senza transazione no-op (transazione lazy) — Implementation Plan
 
+> ## 📦 `DELIVERED PLAN` — PIANO GIA' ESEGUITO, NON NORMATIVO
+>
+> Il piano di esecuzione, gia' eseguito. **Il corpo qui sotto non va aggiornato**: comandi, nomi di branch e percorsi sono quelli di allora, e
+> correggerli falsificherebbe la storia invece di renderla utile.
+>
+> Stato corrente: [`roadmap-checkpoint.md`](../roadmap-checkpoint.md) · indice dei documenti correnti:
+> [`../../README.md`](../../README.md). Banner aggiunto il 2026-08-08.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development o executing-plans. Step con checkbox.
 
 **Goal:** L'erase (click/drag) su celle inesistenti non deve creare una voce Undo no-op né marcare l'asset dirty. Ripristina per il drag tool la garanzia che il click singolo di H5c.1 aveva (`ARTHexMapActor::EraseCell` con early-out `!ContainsCell`).

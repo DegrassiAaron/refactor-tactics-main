@@ -1,5 +1,13 @@
 # Spec H5c (prima fetta) — Tool "Paint-a-click" (Paint + Erase) nell'Editor Mode hex
 
+> ## 🧱 `AS-BUILT` — SPECIFICA DI CIO' CHE FU CONSEGNATO
+>
+> La specifica del checkpoint, congelata. **Il corpo qui sotto non va aggiornato**: comandi, nomi di branch e percorsi sono quelli di allora, e
+> correggerli falsificherebbe la storia invece di renderla utile.
+>
+> Stato corrente: [`roadmap-checkpoint.md`](../roadmap-checkpoint.md) · indice dei documenti correnti:
+> [`../../README.md`](../../README.md). Banner aggiunto il 2026-08-08.
+
 > **Stato**: Approvata (design) · **Data**: 2026-08-04 · **Branch**: `feat/hex-grid`
 > **Fonte**: milestone H5 di [`hex-map-roadmap.md`](../hex-map-roadmap.md) (riga H5c+); spec sorgente §9–§10
 > (`docs/guides/Implementazione Griglia Esagonale ed Editor Mappa.docx`); [`adr-0002-griglia-esagonale.md`](../../decisions/adr-0002-griglia-esagonale.md).

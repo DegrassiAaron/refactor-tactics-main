@@ -1,5 +1,13 @@
 # Piano di implementazione — H5 Editor Mode dedicato (prima consegna: H5a + H5b)
 
+> ## 📦 `DELIVERED PLAN` — PIANO GIA' ESEGUITO, NON NORMATIVO
+>
+> Il piano di esecuzione, gia' eseguito. **Il corpo qui sotto non va aggiornato**: comandi, nomi di branch e percorsi sono quelli di allora, e
+> correggerli falsificherebbe la storia invece di renderla utile.
+>
+> Stato corrente: [`roadmap-checkpoint.md`](../roadmap-checkpoint.md) · indice dei documenti correnti:
+> [`../../README.md`](../../README.md). Banner aggiunto il 2026-08-08.
+
 > **Per worker agentici:** SUB-SKILL RICHIESTA: usare superpowers:subagent-driven-development (consigliato) o
 > superpowers:executing-plans per implementare task per task. Gli step usano checkbox (`- [ ]`).
 

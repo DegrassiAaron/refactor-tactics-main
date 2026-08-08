@@ -1,6 +1,17 @@
 # REFACTORTACTICS — PDR-10
 ## Roadmap tecnica, QA e rischi
 
+> ## 🎯 `CURRENT` come **requisiti di lungo periodo** — non come stato
+>
+> Questo PDR possiede le **fasi F0–F6**, il modello di rischio, i target di performance e la DoD north-star:
+> quella parte vale, ed è il motivo per cui il documento esiste.
+>
+> **Non possiede lo stato del repository.** La colonna «Stato repo» qui sotto è un'istantanea che invecchia da
+> sola — al 2026-08-08 citava ancora «63 test» e «2 archetipi», quando i test sono **419** e gli archetipi sono
+> diventati **quattro eroi**. Un documento di lungo periodo che duplica lo stato giornaliero lo duplica
+> *sbagliato*: leggila come **contesto storico**, e per lo stato vero vai a
+> [`roadmap-checkpoint.md`](roadmap-checkpoint.md) (esecuzione) e [`roadmap-v0.1.md`](roadmap-v0.1.md) (release).
+
 > **Sorgente Markdown canonica** (Git) del documento PDR-10, per la regola di manutenzione PDR-00 §6 #5
 > (*«i PDF sono snapshot di consultazione; le sorgenti testuali devono vivere nel repository Git»*, decisione
 > [D-009](../decisions/RT_PDR_00_Decision_Log.md)). Trascrive lo snapshot `RT_PDR_10_Roadmap_QA_Rischi_v0.1.pdf` e aggiunge

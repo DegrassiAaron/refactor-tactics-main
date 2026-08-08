@@ -1,6 +1,8 @@
 # RefactorTactics — Roadmap v0.1 (vertical slice 2v2 su hex)
 
-> **Stato**: in esecuzione · **Ultimo aggiornamento**: 2026-08-07 · **Branch di lavoro**: `docs/consolidamento-showcase-v01`
+> `CURRENT` · **Stato**: in esecuzione · **Ultimo aggiornamento**: 2026-08-08
+> **Questa è l'unica vista dello stato delle epic** (§2.1); la vista di esecuzione per milestone è
+> [`roadmap-checkpoint.md`](roadmap-checkpoint.md), che non lo duplica.
 > **Scope sorgente**: `docs/archive/pdr-v0.1/RT_PDR_12_Catalog_v0.1.pdf` + `docs/src/RefactorTactics — Catalogo e bilanciamento v0.1.pdf`
 > **Decisione abilitante**: [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md)
 >
@@ -25,7 +27,17 @@ Un vertical slice **2v2 offline contro bot** su griglia **esagonale multilivello
 - **determinismo verificato** (100 ripetizioni a seed fisso, checksum identico) e **build packaged** giocabile.
 
 **Fuori scope v0.1** (restano north-star): multiplayer in rete, 4v4, GAS, progressione, modding, editor di
-mappe dinamico a runtime, stack di reazioni interattivo.
+mappe dinamico a runtime.
+
+> ⚠️ **Precisato il 2026-08-08.** Questa riga diceva «stack di reazioni interattivo» fra le cose fuori scope,
+> ma **E14 è in roadmap**: letta com'era, escludeva un'epic pianificata. La distinzione va fatta per bene,
+> perché è la stessa di [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md):
+>
+> | **Fuori** dalla v0.1 | **Dentro**, epic E14 |
+> |---|---|
+> | stack **LIFO arbitrario** di reazioni | **una** Decision Window, delimitata |
+> | reazioni **annidate** | mai annidata: una risposta non ne apre un'altra |
+> | finestre che aprono finestre | Overwatch e Fast Reaction, con `Timeout → HOLD` |
 
 ### Principi non negoziabili della v0.1
 
@@ -77,69 +89,68 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 | Budget movimento | `Turn/RTHexSimLibrary.*` | ✅ **5 MP**, costi interi (CP 4.2) |
 | Privacy degli intenti | `Turn/RTIntentPrivacyLibrary.*` | ✅ `FRTPlannedIntent → FilterForTeam → FRTIntentView` |
 | Zone controllate / soppressione | `Combat/RTOffensiveActionLibrary.*` | ✅ `FRTSuppressiveZone` · precedente tecnico per Overwatch (E14) |
-| Terreni | `Map/RTHexCellData.h` (`ERTHexSurface`), `Turn/RTHexSimLibrary.*` | 🟡 CP 8.1 ✅ (8 superfici, Rough/Fire/Smoke/Ice/ShallowWater) · **stati, propagazione e interazioni** ⏳ (CP 8.2–8.5) |
-| **Coperture direzionali** (riduzione danno per bordo) | — | ⏳ *verificato assente*: `FRTHexCellData` ha solo `MoveCost`/`bBlocksMovement`/`bBlocksLineOfSight` |
-| **Strutture** (porte, ponti, pannelli, integrità) | — | ⏳ |
-| **Obiettivi dinamici / Activate / Interact** | — | 🟡 `Action.Activate`/`Interact` esistono come identità (CP 4.4); **nessun oggetto da attivare** |
-| **Comandi debug `rt.Debug.*`** | — | ⏳ *verificato assente*: nessun `FAutoConsoleCommand` di debug in `Source/` |
+| Terreni, stati, propagazione | `Terrain/RTTerrainLibrary.*`, `Map/RTHexCellData.h` | ✅ **E8 chiusa**: 8 superfici, stati temporanei, propagazione elettrica, fuoco/acqua, terreno dinamico |
+| **Coperture direzionali** (riduzione danno per bordo) | `Map/RTHexCoverLibrary.*` | ✅ `FRTHexCover{Edge, Type, Integrity}` in `FRTHexCellData` — bassa (CP 9.1) e alta (CP 9.2), con distruzione |
+| **Strutture** (porte, ponti, pannelli, integrità) | `Map/RTHexCoverLibrary.*` | 🟡 integrità e distruzione ✅ (`Cover.Destruction.*`) · **porte, ponti, coperture temporanee** ⏳ (CP 9.3–9.5) |
+| **Fine partita a tre vie** | `Turn/RTTurnRules.*`, `Turn/RTMatchFormatData.h` | ✅ CP 10.3: eliminazione, obiettivo, `RoundLimit` da formato, pareggio dichiarato |
+| **Obiettivi dinamici** | — | 🟡 la partita **finisce** per obiettivo (`Match.EndsOnObjective`); **nessun oggetto da attivare** in mappa |
+| **Comandi debug `rt.Debug.*`** | `Map/RTHexOverlayConsole.cpp`, `Turn/RTPacingConsole.cpp` | ✅ `rt.Debug.DrawCells` · `rt.Debug.Pacing` |
+| **Scenario Test Harness** | `ScenarioHarness/*` | ✅ 5 scenari, console `rt.Test.*`, auto-run via CVar, `result.json` |
 | **Conoscenza parziale (vista/udito)** | — | ⏳ la vista è una statistica a catalogo che non decide nulla (E13) |
 | **Finestre di reazione interattive** | — | ⏳ ADR-0004 accettato, nessun codice (E14) |
-| **Scenario showcase e golden replay** | — | ⏳ (E15) |
+| **Facing come stato di gioco** | — | ⏳ ADR-0005 + D-020 accettati, nessun codice (E16) |
+| **Scenario showcase e golden replay** | `Tests/` (`ShowcaseRelay.*`) | 🟡 **iniziata**: fixture stabile e scenario lite deterministico |
 
-**Suite automatica**: **415 test unici** in **63 file** (rimisurati 2026-08-07 **dopo il merge** di CP 9.2 e della
-riorganizzazione documentale). Le due viste sono arrivate al merge con due numeri diversi ed **entrambi
-corretti alla propria base** — 394 in 61 alla chiusura di CP 9.1, 390 in 61 col primo blocco dell'harness
-degli scenari — e dopo l'unione nessuno dei due valeva più. È il caso che dimostra la regola meglio di
-qualunque deriva: **si misura col comando**, dopo ogni merge e alla chiusura di ogni checkpoint.
-⚠️ La cifra dichiarata qui prima era **338 in 49 file**, ma il valore su `main` era già **342 in 50**: i merge
-di `#179`/`#180` sono arrivati dopo l'ultima misura. È la stessa deriva del 2026-08-05, e la regola resta
-quella: **si misura col comando, non si cita a memoria**. Comando riproducibile:
+**Suite automatica**: **si misura, non si cita.** Ultima misura **419 test unici in 64 file**, al commit
+`3335e36` del 2026-08-08. Ripartizione per area in [`../README.md`](../README.md).
 
 ```bash
 grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp | tr -d '"' | sort -u | wc -l
 ```
 
-**Stato in una riga**: il **contenuto** della v0.1 è costruito e testato (cataloghi, azioni, reazioni, eroi) e
-gira su un **solo substrato esagonale**; mancano **il mondo** (ambiente, coperture, strutture, obiettivi), **la
-leggibilità** (HUD, log, debug), **la conoscenza parziale** e **il gate di release**. Il collo di bottiglia non
-è più il codice di gioco: è la **verifica interattiva** (CP 2.8/6.8 mai eseguito) e l'osservabilità.
+> Questo numero è già stato sbagliato quattro volte, e la storia vale più della cifra: due viste sono arrivate
+> a un merge con **due numeri diversi ed entrambi corretti alla propria base** (394 in 61 alla chiusura di
+> CP 9.1, 390 in 61 col primo blocco dell'harness), e dopo l'unione nessuno dei due valeva più. Si rimisura
+> **dopo ogni merge**, non alla chiusura del proprio ramo.
 
-### 2.1 ⚠️ Riallineamento misurato — 2026-08-07
+### 2.1 Stato delle epic — misurato il 2026-08-08
 
-Le due righe qui sopra **erano vere il 2026-08-05 e non lo sono più**. Misura diretta sul repository:
+Una sola tabella, misurata sul repository. **Non esiste più una seconda vista «stato dichiarato vs stato
+misurato»**: questo file ne conteneva due, e ognuna correggeva l'altra fino a dire, nella stessa pagina, che
+E8 era «da costruire» e «chiusa». La storia di quelle correzioni sta nel Git log e nel changelog, non qui.
 
-- **324 test automatici unici** in **48 file** (la roadmap ne dichiarava 172 in 25 file: −152).
-- I nomi dei test sono la prova di cosa esiste: sono estraibili con
-  `grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp`.
+Evidenza = i **nomi dei test**, che sono la prova di ciò che esiste:
+`grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp`
 
-| Epic | Stato dichiarato | **Stato misurato** | Evidenza |
-|---|---|---|---|
-| **E1** Cataloghi | da costruire | ✅ **chiusa** | `Catalog.{IdsAreUnique, NoFloatInIntegerFields, PhaseMappingIsTotal, ValidatorRejectsInvalidAsset, ValidatorRejectsEquipmentWithoutDrawback, ValidatorRejectsUnboundedPropagation}` |
-| **E4** Motore azioni | da costruire | ✅ **chiusa** (52 test) | `Actions.{OrderByPriority, PermutationInvariant, PhaseMappingRespectsAtlas}`, 6 `Fallback.*`, `Guard.*`, `Charge.*`, `Leap.*`, `Root.*`, `Interrupt.*`, `Slow.*`, `Collisions.NoPlayerIdBias` |
-| **E5** Reazioni | da costruire | ✅ **chiusa** (27 test) — motore componibile **e consumato** | `Reactions.{SingleActivation, NoResolverWait, IntentNotVisibleToEnemy}`, `Counter/Deflect/Brace/Shield/Cleanse`, 5 test `Intercept*` · **CP 5.5** (2026-08-07): `Reactions.{MultiEffectReactionAppliesAll, HeroReactionKeepsIdentityInLog, NoHeroSpecificBranchInResolver}` · consumata da **CP 6.7** |
-| **E6** Roster 4 eroi | da costruire | ✅ **chiusa** (25 test) | `Heroes.{Flux,Riva,Bastion,Vektor}.MatchesCatalog`, `*.VariantTradeoff`, `RosterIsBalanced`, `SpawnFromData` · **CP 6.7** (2026-08-07): `Heroes.{BastionInterposition*, VektorDeflectionReducesDirectHit, FluxReactiveCapacitorShieldsAndCounters, ReactionsDeclaredOrDeferred}` |
-| **E8** Terreni | da costruire | ✅ **chiusa il 2026-08-07** | ✅ `Terrain.{CostsFromCatalog, Rough.BlocksDash, Fire.*, ShallowWater.AppliesWet, Smoke.*, Ice.*}` · ✅ **CP 8.2 chiuso 2026-08-07**: 11 test `Status.*` (durata legata alla cella, `Burning` nel Cleanup, `WetRemovesBurning`, `Marked` con pass a priorità, `Obscured`) · ✅ **CP 8.3 chiuso 2026-08-07**: 7 test `Environment.*` (propagazione sul grafo dell'acqua, limite 3 passi, unicità per evento, ordine totale, fail-closed) · ✅ **CP 8.4**: terreno dinamico (la mappa cambia in partita), fuoco/acqua, TurnLog `Environment` · ✅ **CP 8.5**: `Heal`, `CreateWater` r1, `ModifyArc` con revisione — `CreateCover` rinviata a E9 |
-| **E7** Equipaggiamento | pianificata | ⏳ **assente** | nessun test `Equipment.*` |
-| **E9** Coperture/strutture | pianificata | 🟡 **aperta, CP 9.1 e 9.2 chiusi** | ✅ **CP 9.1 chiuso 2026-08-07** (#69): 4 test `Cover.*` + 3 `HexMap.*` (migrazione v2→v3, hash, validazione). ✅ **CP 9.2 chiuso 2026-08-07** (#70): 9 test — la copertura alta nega vista e passo **per bordo, nei due versi**, si abbatte con `DamageStructure` e la revisione della mappa sale nello stesso punto che userà CP 9.3. ⏳ restano CP 9.3–9.5: nessun test `Structures.*` |
-| **E10** Obiettivi | pianificata | ⏳ **assente** | nessun test `Objectives.*` né `Match.*` |
-| **E11** HUD/log/debug | pianificata | ⏳ **assente** | nessun test `UI.*` né `Debug.*` |
-| **E12** Determinismo/release | pianificata | ⏳ **assente** | nessun test `Simulation.*` (il replay è verificato una volta da `HexSim.ReplayDivergenceZero`, non 100) |
+| Epic | Stato | Evidenza |
+|---|---|---|
+| **E1** Canone, cataloghi, modello dati | ✅ **chiusa** | 9 test `Catalog.*` — ID unici, niente float nei campi interi, mappatura di fase totale, validator |
+| **E2** Parità hex del substrato | ✅ **chiusa** | l'intero turno gira su esagoni |
+| **E3** Dismissione del quadrato | ✅ **chiusa** | `FRTGridCoord`, `URTGridLibrary`, `ARTGridActor` non esistono più in `Source/` (CP 7.2) |
+| **E4** Motore azioni a priorità | ✅ **chiusa** | 58 test `Actions.*` + `Fallback.*` — ordine per priorità, permutazione-invarianza, collisioni senza bias di Player ID |
+| **E5** Reazioni | ✅ **chiusa** | 27 test `Reactions.*` — attivazione singola, nessuna attesa nel resolver, `Intercept`, reazioni componibili |
+| **E6** Roster 4 eroi | ✅ **chiusa** | 25 test `Heroes.*` — i quattro eroi corrispondono al catalogo; **tre reazioni su cinque** cablate, `InterceptShot`/`FlowReaction` rinviate |
+| **E7** Equipaggiamento e loadout | ⏳ **assente** | nessun test `Equipment.*` |
+| **E8** Terreni, stati e ambiente | ✅ **chiusa** | 39 test `Terrain.*` · `Status.*` · `Environment.*` — superfici, stati temporanei, propagazione elettrica, fuoco/acqua, terreno dinamico |
+| **E9** Coperture e strutture | 🟡 **CP 9.1 e 9.2 chiusi** | 13 test `Cover.*` — bassa (riduzione per bordo, decade dal lato sbagliato), alta (nega vista **e** passo nei due versi), distruzione con revisione e riapertura della LOS · ⏳ CP 9.3–9.5: porte, ponti, coperture temporanee |
+| **E10** Obiettivi dinamici e fine partita | 🟡 **CP 10.3 chiuso** | 27 test `Match*.*` — fine partita a tre vie, `RoundLimit` da formato, pareggio dichiarato, fallback di formato osservabile · ⏳ nessun oggetto da attivare in mappa |
+| **E11** HUD, log e debug | 🟡 **parziale** | 4 `Preview.*`, 4 `PlayerInput.*`, 8 `Playback.*`; console `rt.Debug.DrawCells` e `rt.Debug.Pacing` esistono · ⏳ Ghost Timeline (CP 11.5/11.6) |
+| **E12** Determinismo, QA e release | 🟡 **CP 12.1 chiuso** | 4 `Simulation.*` — replay deterministico su **100 ripetizioni**, checksum stabile per permutazioni, corpus golden che rifiuta un formato diverso · 13 `Scenario.*` (harness) · 2 `Perf.*` · ⏳ packaged build (CP 12.3/12.5) |
+| **E13** Conoscenza parziale: vista e udito | ⏳ **assente** | la vista è una statistica a catalogo che non decide nulla |
+| **E14** Overwatch e reazioni interattive | ⏳ **assente** | ADR-0004 accettato, nessun codice. Dipende da E13 |
+| **E15** Showcase «Il Relè» e golden replay | 🟡 **iniziata** | 2 test `ShowcaseRelay.*` — fixture stabile, scenario lite deterministico |
+| **E16** Orientamento e direzionalità | ⏳ **assente** | ADR-0005 + [D-020](../decisions/RT_PDR_00_Decision_Log.md) accettati, nessun codice |
+| **E17** Validazione di stress 4v4 | ⏳ **assente** | dopo E15; **non** è un gate di release |
 
-**Sorpresa registrata**: lo **scivolamento su ghiaccio esiste ed è testato** (`Terrain.Ice.SlidesWithSufficientBudget`,
-`Ice.SlideBudgetBoundaryIsExactlyTwo`, `Ice.BlockedCellStopsSliding`, `Ice.SlidesInMatch`), benché il catalogo
-terreni lo dichiari «rimandabile». Non va né costruito né rimosso: va **documentato come vigente**.
+**Due cose vigenti che i documenti non dichiaravano.** Lo **scivolamento su ghiaccio** esiste ed è testato
+(`Terrain.Ice.*`), benché il catalogo terreni lo dicesse «rimandabile»: va documentato come vigente, non
+costruito né rimosso. E i **10 test vincolanti del catalogo** (§6) **esistono tutti e dieci** — gli ultimi
+arrivati sono `Cover.DirectionalDamageReduction` e `Simulation.DeterministicReplay` con le sue 100 ripetizioni.
 
-~~**I 10 test vincolanti del catalogo** (§6): **6 esistono**, 4 no~~
-→ ✅ **tutti e 10 esistono** (misurato il 2026-08-08). Nel frattempo sono arrivati `Environment.*` e
-`Cover.DirectionalDamageReduction` (E8/E9) e, per ultimo, `Simulation.DeterministicReplay` con le sue **100
-ripetizioni** — insieme a `Simulation.ChecksumStableAcrossPermutations` che chiude **CP 12.1**.
-Verifica riproducibile: `grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp`
-e confronto con l'elenco di §6.
-
-**Stato in una riga, aggiornato**: il **contenuto** della v0.1 (cataloghi, azioni, reazioni, eroi) è in gran
-parte costruito e testato; mancano **il mondo** (ambiente, coperture, strutture, obiettivi), **la leggibilità**
-(HUD, log, debug) e **il gate di release** (determinismo, packaging). Il collo di bottiglia non è più il codice
-di gioco: è la **verifica interattiva** (M6 CP 6.8 mai eseguito) e l'osservabilità.
+**Stato in una riga**: il **contenuto** della v0.1 è costruito e testato (cataloghi, azioni, reazioni, eroi,
+ambiente, coperture) e gira su un solo substrato esagonale. Mancano la **conoscenza parziale** (E13), le
+**finestre di reazione** (E14), il **facing** (E16), l'**equipaggiamento** (E7) e la **leggibilità** (E11). Il
+collo di bottiglia non è il codice di gioco: è la **verifica interattiva** — CP 6.8 non è mai stato eseguito.
 
 ---
 
