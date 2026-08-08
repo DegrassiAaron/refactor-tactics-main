@@ -3,7 +3,7 @@
 > **Stato**: **Implementata** (TDD RED→GREEN; suite **166/166**, build Editor Succeeded) · **Data**: 2026-08-05 ·
 > **Branch**: `feat/hex-bot`
 > **Fonte**: milestone **H6** di [`hex-map-roadmap.md`](../roadmap/hex-map-roadmap.md). Ultimo prerequisito puro prima
-> dello switch di `ARTTurnManager`. Non tocca il bot quadrato ([`spec-bot-utility.md`](../gameplay/spec-bot-utility.md)).
+> dello switch di `ARTTurnManager`. Non tocca il bot quadrato ([`spec-bot-utility.md`](../archive/gameplay/spec-bot-utility.md)).
 
 ## 1. Contesto
 

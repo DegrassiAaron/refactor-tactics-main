@@ -5,7 +5,7 @@
 
 > `/sc:design` del **2026-08-02**. Decisioni prese: **layout = ponte sopraelevato · LOS = regole di
 > elevazione · scope = wiring minimo prima**. Ancorato al motore a grafo **PF.4.2**
-> ([`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md)), al terreno ([`spec-terreni.md`](../gameplay/spec-terreni.md)),
+> ([`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md)), al terreno ([`spec-terreni.md`](../archive/gameplay/spec-terreni.md)),
 > al canone ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md)). Documentale: nessuna modifica al codice.
 
 ## 1. Obiettivo

@@ -8,6 +8,24 @@
 > né il modello delle reazioni interattive (→ [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md)), né il pacing del
 > playback (→ [`spec-anima-risoluzione.md`](spec-anima-risoluzione.md)). Questa spec dice **quali numeri
 > puntare**; quelle dicono **come misurarli** e **come si riproducono a schermo**.
+
+> ⚠️ **Questo documento NON decide il formato di partita** ([D-011](../decisions/RT_PDR_00_Decision_Log.md),
+> 2026-08-08). Vale:
+>
+> ```text
+> 2v2  = vertical slice corrente della v0.1
+> 3v3  = baseline di lavoro / ipotesi   <- tutti i numeri "Standard" qui sotto
+> 4v4  = validazione di stress (epic E17), NON formato principale
+> formato competitivo principale = APERTO, si consolida con la prima misura su una partita >=3v3
+> ```
+>
+> I numeri 3v3 restano utili come **termine di paragone** e come taratura di partenza: non sono una decisione
+> normativa, e nessun altro documento deve citarli come «il formato». `D-001` è stata declassata ad
+> *Assunzione da bloccare* proprio perché nessun 3v3 è mai stato giocato.
+>
+> 🕐 **Glossario corretto** ([D-019](../decisions/RT_PDR_00_Decision_Log.md)): «Fast Action» qui indicava
+> l'azione dichiarata in Planning che risolve più tardi. È una **Delayed / Predictive Action**. `Fast Action`
+> è invece una scelta **live** limitata, continuazione di una propria azione — vedi §2.
 >
 > **Supera**: `RT_PDR_00_Decision_Log.md` **D-002** («massimo 12 turni; planning 30 s; resolution 6-12 s»),
 > il «limite di **12 turni**» come regola universale di [ADR-0003](../decisions/adr-0003-modello-azioni-v01.md) §3, e ogni
@@ -29,7 +47,9 @@ glossario, così i documenti nuovi non moltiplicano i significati.
 | **Ready** | Dichiarazione «ho finito», anticipabile rispetto al timer | lock-in (Spazio) |
 | **Commit** | Chiusura irreversibile degli intenti, snapshot dello stato | `LockInAndResolve` |
 | **Resolution** | Calcolo autorevole + playback delle macro-fasi `Prep → Dash → Blast → Move` | `Resolving` |
-| **Fast Action** | Azione dichiarata in Planning che risolve a un boundary successivo | Delayed Actions ([`brief-delayed-actions.md`](brief-delayed-actions.md)) |
+| **Delayed / Predictive Action** | Azione dichiarata **interamente in Planning** che risolve a un boundary successivo, **senza input umano** | [`brief-delayed-actions.md`](brief-delayed-actions.md) · [D-016](../decisions/RT_PDR_00_Decision_Log.md) |
+| **Fast Action** | Scelta **live** limitata, continuazione esplicita di una **propria** azione (es. `LEFT`/`RIGHT` dopo un'ability) | [D-019](../decisions/RT_PDR_00_Decision_Log.md) — ⚠️ questo documento usava «Fast Action» per la riga sopra: **uso errato**, corretto il 2026-08-08 |
+| **Fast Reaction** | Scelta **live** provocata da un evento **esterno** (es. `FIRE`/`HOLD` dell'Overwatch) | [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) · [D-019](../decisions/RT_PDR_00_Decision_Log.md) |
 | **Fast Reaction** | Scelta live richiesta **dentro** la resolution a un decision boundary | ADR-0004, `FRTReactionOpportunity` |
 | **Overtime** | Prolungamento oltre il `RoundLimit` a punteggio pari | ⏳ non esiste |
 | **Match Format** | Il pacchetto di parametri di un formato (3v3 Standard, 2v2 Skirmish…) | ⏳ non esiste |
@@ -125,9 +145,9 @@ a cui appartiene e i target si verificano su di esso, non nel codice delle regol
 | Attraversamento completo | ~**3–4 Move** normali |
 | Primo contatto significativo | ~**1 round** |
 
-### Standard — formato competitivo principale
+### Standard — baseline di lavoro 3v3
 
-**Uso**: 3v3, modalità principale.
+**Uso**: 3v3, **baseline di lavoro**, non formato deciso ([D-011](../decisions/RT_PDR_00_Decision_Log.md)).
 
 | Target indicativo | Valore |
 |---|---|
@@ -152,7 +172,7 @@ ora**: non è nella v0.1 né in M6–M11.
 
 ## 5. Durata desiderata della partita
 
-Formato principale **3v3 Standard**:
+Baseline di lavoro **3v3 Standard** — ipotesi, non formato deciso:
 
 | Caso | Durata |
 |---|---|
@@ -171,7 +191,7 @@ Sono **target di playtest**, non invarianti: nessuna regola del resolver dipende
 ## 6. Numero di round
 
 La precedente «max 12 turni» **non è più una decisione definitiva** e **non è una regola universale**. Con
-resolution rapide e planning efficiente, 12 round producono partite troppo corte per il formato principale.
+resolution rapide e planning efficiente, 12 round producono partite troppo corte per la baseline 3v3.
 
 | Formato | Round attesi | Hard cap indicativo |
 |---|---|---|

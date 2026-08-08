@@ -7,6 +7,28 @@
 > a *opportunity → commit*, di cui quello attuale diventa il **caso degenere**.
 > **Autorità**: richiede **ADR-0004** prima dell'implementazione (vedi §3).
 
+> ⚠️ **`D16`…`D22` in §3 sono ID LOCALI di questo brief**, non del
+> [Decision Log](../decisions/RT_PDR_00_Decision_Log.md). Le sigle **collidono**: il `D19` locale è
+> «`Timeout → HOLD`», il `D-019` globale è la distinzione fra Fast Action e Fast Reaction. Il trattino
+> distingue: `D-0xx` globale e vincolante, `Dxx` locale al brief.
+
+## 0. Decisioni arrivate dopo questo brief — 2026-08-07/08
+
+Il brief resta valido su finestra, timeout, trigger e privacy. Quattro decisioni successive lo **estendono**;
+sono qui in testa perché cambiano cosa va costruito, non solo come si racconta.
+
+| | Cosa aggiunge |
+|---|---|
+| [**D-012**](../decisions/RT_PDR_00_Decision_Log.md) | L'Overwatch **compete** con l'azione offensiva: `Attack` \| `Ability` \| `Overwatch`, mai sommati. Senza costo-opportunità è la scelta di chi è indeciso |
+| [**D-014**](../decisions/RT_PDR_00_Decision_Log.md) | L'Overwatch è una **azione generica universale**, disponibile a tutti; l'effetto viene dal **profilo dell'eroe** (area, arco, trigger ammessi, risposte legali), non da un ramo nel resolver |
+| [**D-019**](../decisions/RT_PDR_00_Decision_Log.md) | `Fast Reaction` (evento **esterno**) e `Fast Action` (continuazione di una **propria** azione) sono categorie **distinte** sulla stessa `DecisionWindow`. Questo brief descrive la prima |
+| [**ADR-0005**](../decisions/adr-0005-orientamento.md) | Il cono sorvegliato **nasce dal `Facing`**, non da una `Direction` dichiarata a parte. Due sorgenti sarebbero due verità |
+
+I tre regimi *Automatic · Conditional · FastSelect* **non sono un enum**: emergono da `AllowedResponses` più
+una condizione dichiarata in Planning — dettaglio in
+[`brief-azioni-generiche-overwatch.md`](brief-azioni-generiche-overwatch.md) §5. È la mitigazione del rischio
+di §5 di questo brief, ed è per questo che sta nel DoD di **CP 14.3** e non a valle.
+
 ## 1. Il conflitto era già registrato — e già riconciliato
 
 Non è un tema nuovo. `spec-sequenza-turno.md` lo classifica come conflitto **C1** e ne propone due vie:

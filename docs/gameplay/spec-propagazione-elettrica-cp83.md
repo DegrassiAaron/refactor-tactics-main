@@ -1,5 +1,10 @@
 # Spec — Propagazione elettrica (E8, CP 8.3)
 
+> 📌 **Stato di implementazione storico al 2026-08-07 (CP 8.3).** Numeri, conteggi di test ed esiti qui sotto fotografano
+> la chiusura del checkpoint. Lo **stato corrente** è posseduto da
+> [`../roadmap/roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md): questa spec non compete con la roadmap come
+> fonte di stato.
+
 > **Issue**: `#66` · **Epic**: `#22` (E8) · **Dipende da**: `#65` (CP 8.2, chiusa) · **Data**: 2026-08-07
 > **Branch**: `feat/66-propagazione-elettrica` (worktree isolato) · **Baseline misurata**: 352 test in 52 file
 > Fonti: [`RT_TerrainCatalog_v0.1.md`](../balance/RT_TerrainCatalog_v0.1.md) §2 ·
@@ -18,7 +23,7 @@ turno impredicibile, cioè l'opposto del pilastro di prodotto «predizione, non 
 |---|---|---|
 | `bConductsElectricity` sul terreno | ✅ esiste, vero per `ShallowWater` e `Conductive` | nessun lettore |
 | `PropagationLimit` su `FRTActionDef` | ✅ esiste, validator rifiuta i negativi | **nessuna azione lo valorizzava** |
-| `Action.Electrify` | ❌ **assente dal catalogo core** | compariva solo in `RTCatalogTests.cpp:157` come azione sintetica |
+| `Action.Electrify` | ❌ assente dal catalogo core **al momento del CP** | compariva solo in `RTCatalogTests.cpp:157` come azione sintetica · ✅ **oggi esiste** in `RTCatalogLibrary.cpp` come azione di fase `Environment`; **nessun eroe la usa** (verificato 2026-08-08) |
 | `Status.Electrified` | 🟡 tag definito | nessun consumatore |
 
 Il difetto era quindi *strutturale*: la regola esisteva nei documenti e i suoi ingredienti nel codice, ma
