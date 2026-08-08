@@ -144,9 +144,32 @@ scenari, golden replay e mappe salvate.
 
 ### E25 — Icon Language completo · P2
 
-**Obiettivo**: estendere il catalogo di E19/E20 alle dodici categorie piene, con world-space HUD e pagine wiki.
+**Obiettivo**: estendere il catalogo di E20 alle dodici categorie piene, con world-space HUD e pagine wiki.
 
-**Dipendenze**: E20. **Fuori scope**: rifacimento dell'HUD della v0.1.
+E20 popola cinque categorie su dodici — Identity, Action, Phase, Status, Certainty — e lascia le altre sette
+dichiarate e vuote. Questa epic le riempie **quando** il consumer esiste: Reaction dipende da E14, Information
+da E13/E27, le icone di fazione oltre le due canoniche da E21. Nessuna categoria fa nascere una feature di
+gameplay per poter mostrare un'icona.
+
+| CP | Obiettivo | DoD misurabile |
+|---|---|---|
+| **25.1** | Tassonomia completa e governance | Ogni `IconId` dichiarato ha categoria, significato e **consumer nominato** — o è marcato «senza consumer». Una sola owner spec, naming stabile verificato, `IconId` ≠ `GameplayTag`, regola scritta per la rinomina |
+| **25.2** | Catalogo completo, validator e authoring | Il catalogo di CP 20.1 esteso, non un secondo catalogo. Il validator rifiuta `IconId` duplicato, asset nullo, fallback ciclico, categoria invalida. Lo stack ordina per `Priority` → `IconId` stabile, mai per ordine di `TMap` |
+| **25.3** | Integrazione HUD, world-space, reaction, perception | Nessun widget referenzia una texture. Il DTO della Reaction UI non contiene trigger futuri, path avversari né dati dal `CanonicalIntentStore` — dimostrato da un test. Un contatto acustico resta un'area |
+| **25.4** | Accessibility, Wiki e documentazione | `Confirmed/Predicted/Uncertain` distinguibili in **grayscale**: la differenza è nella forma. Le pagine Wiki distinguono SPECIFICATO, DATO PRESENTE e CONSUMATO A RUNTIME, e non chiamano «implementato» un dato |
+
+**Dipendenze**: E20 (fondazione), poi E11, E14, E13/E27, E21 per i consumer.
+**Fuori scope**: rifacimento dell'HUD della v0.1; authoring workflow completo, localization audit, theme
+variants, high-contrast pack ed export generato del catalogo, che restano post-v0.2.
+
+**Regola che non si negozia**: `Team` e `Faction` sono assi distinti. L'identità di squadra dipende dalla
+partita, quella di fazione è narrativa e resta corretta nei mirror match. Non si codifica
+`Conflux = Team Blue`, e la fazione non produce bonus di gameplay ([ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md)).
+
+**Tracciata su GitHub** *(2026-08-08)*: epic [#265](https://github.com/DegrassiAaron/refactor-tactics-main/issues/265),
+con 4 checkpoint (`CP 25.1`–`25.4`). Fondazione v0.1 in
+[#217](https://github.com/DegrassiAaron/refactor-tactics-main/issues/217) (E20): **non le si sottrae scope**.
+Feature Registry: `RT-FEAT-UI-ICON-LANGUAGE`.
 
 ### E26 — Tactical Bot v1 · P1
 
