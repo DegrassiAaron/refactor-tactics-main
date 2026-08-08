@@ -10,7 +10,7 @@ Le **superfici agiscono**: costi, blocchi di Dash, `Wet`/`Obscured` legati alla 
 scivolata sul ghiaccio (CP 8.1/8.2) e — da **CP 8.3** — la **propagazione elettrica** su acqua e superfici
 conduttive, che cammina sul grafo delle celle (BFS, massimo 3 passi, ogni unità colpita una volta) e risolve
 nel Cleanup prima del danno di `Burning`. Dettaglio in
-[`../spec-propagazione-elettrica-cp83.md`](../gameplay/spec-propagazione-elettrica-cp83.md).
+[`../gameplay/spec-propagazione-elettrica-cp83.md`](../gameplay/spec-propagazione-elettrica-cp83.md).
 
 > ⚠️ **Aggiornato il 2026-08-08.** Il paragrafo che seguiva elencava come «da costruire» cose ormai
 > **costruite**. Stato reale:

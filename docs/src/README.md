@@ -36,12 +36,18 @@ correzione è una nota `⚠️` accanto all'affermazione sbagliata, mai una modi
 
 ```
 docs/src/
-├── prd/      11  PDF/docx originari: PRD, roadmap, idee di partenza
-├── showcase/  5  scenario «Relay Basin» v0.1: spec, draft JSON, mappe
-├── data/      3  dataset personaggi + materiale di integrazione wiki
-├── media/    28  icone fazioni, icone e mockup HUD, infografiche
-└── superclaude-cheatsheet.md
+├── prd/       11  PDF/docx originari: PRD, roadmap, idee di partenza
+├── design/    27  mockup e sorgenti grafici: fazioni, infografiche, UI
+├── media/     28  icone fazioni, icone e mockup HUD, infografiche
+├── showcase/   5  scenario «Relay Basin» v0.1: spec, draft JSON, mappe
+├── RefactorTactics_Wiki_WidePoster_Integration_Package_v0.2/   37  kit wide-poster, in integrazione
+└── CLAUDE_v0.2_Super_Actions_Cooldowns_Docs_Wiki_Roadmap.md    handoff v0.2, non ancora triagiato
 ```
+
+> ⚠️ **Due cose si sono spostate il 2026-08-08 e non sono più qui**: il dataset personaggi è ora
+> [`../characters/data/RefactorTactics_Characters_Wiki_Data_v0.4.xlsx`](../characters/data/RefactorTactics_Characters_Wiki_Data_v0.4.xlsx)
+> — dove appartiene, accanto alle 44 schede che lo citano — e il cheatsheet è
+> [`../superclaude-cheatsheet.md`](../superclaude-cheatsheet.md), perché non era un sorgente di progetto.
 
 ## `prd/` — documenti originari
 
@@ -78,18 +84,24 @@ Owner: [`../product/showcase-v0.1.md`](../product/showcase-v0.1.md) · audit:
 > **Non archiviato**, benché l'handoff sia già stato recepito: **E15 è ancora aperta**, e il bundle si consulta
 > mentre la si costruisce. Si sposterà quando la showcase sarà consegnata.
 
-## `data/` e `media/`
+## `design/` e `media/` — sorgenti grafici
 
-- [`data/characters-wiki-data-v0.4.xlsx`](data/characters-wiki-data-v0.4.xlsx) — dataset dei personaggi,
-  citato da **44 schede** in `../characters/`. È il **dataset corrente**, non un sorgente consumato: resta qui.
-- `data/wiki/` — materiale di integrazione della wiki.
-  [`CLAUDE_INTEGRATION_PROMPT.md`](data/wiki/CLAUDE_INTEGRATION_PROMPT.md) contiene dieci blocchi di **markdown
-  suggerito** da incollare nelle pagine wiki: i path immagine al loro interno sono relativi alla
-  **destinazione**, non a questo file, quindi non risolvono da qui — ed è corretto così.
+- `design/fazioni/`, `design/infografica/`, `design/ui/` — mockup e sorgenti visivi. La cartella `design/`
+  è rinata dopo l'archiviazione del 2026-08-08: non contiene più specifiche di sistema, che ora stanno in
+  [`../archive/src/design/`](../archive/src/README.md), ma **materiale grafico** in ingresso.
 - `media/fazioni/` — `faction-01..04.png`, icone delle fazioni.
 - `media/hud/` — `icon-01..04.png`, `hud-example.png` e `hud-style.png`; sorgente di design in
   [`../archive/src/design/2026-08-08-hud-faction-icons.md`](../archive/src/design/2026-08-08-hud-faction-icons.md).
 - `media/infografica/` — 18 infografiche su azioni, turno, feature e interazione con l'ambiente.
+
+## In lavorazione
+
+- `RefactorTactics_Wiki_WidePoster_Integration_Package_v0.2/` — kit di integrazione della wiki, **in corso**.
+  I `![…](…)` dei suoi `.md` sono *markdown suggerito*: i path sono relativi alla pagina wiki di
+  **destinazione**, non al file che li contiene, quindi non risolvono da qui ed è corretto così.
+- [`CLAUDE_v0.2_Super_Actions_Cooldowns_Docs_Wiki_Roadmap.md`](CLAUDE_v0.2_Super_Actions_Cooldowns_Docs_Wiki_Roadmap.md)
+  — handoff v0.2 su super action e cooldown, **non ancora triagiato**. Quando un owner lo recepisce, si sposta
+  in [`../archive/src/handoff/`](../archive/src/README.md).
 
 ## Convenzioni
 

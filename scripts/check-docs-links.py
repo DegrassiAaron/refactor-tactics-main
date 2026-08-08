@@ -1,0 +1,222 @@
+#!/usr/bin/env python3
+"""Gate anti-deriva: un link markdown punta a qualcosa che esiste, ed e' etichettato per quello che e'.
+
+Gemello di `check-docs-symbols.py`. Quello nasce dal difetto D1 — un documento che cita classi
+inesistenti; questo dal consolidamento del 2026-08-08 (PR #239), che spostando 25 sorgenti in
+`docs/archive/src/` ha rotto link in **tre** modi, di cui solo il primo e' ovvio:
+
+  1. i riferimenti **entranti** puntavano ancora alla vecchia posizione;
+  2. i file spostati erano scesi di un livello, quindi anche i loro link **uscenti** erano sbagliati;
+  3. **36 etichette** mostravano il path vecchio mentre il target era gia' corretto — link funzionante,
+     testo bugiardo. Nessun controllo che guardi solo i target lo vede.
+
+Piu' una quarta categoria, che il gate controlla per prevenzione: un target che esiste **solo in locale**.
+Il documento funziona sulla macchina di chi l'ha scritto e su nessun'altra.
+
+Controlla anche se stesso, ed e' il motivo per cui ignora i link **citati**: un documento *sui link*
+contiene link d'esempio, e alla prima esecuzione questo gate ha segnalato i due esempi nel proprio
+README. Stessa ragione per cui salta i blocchi recintati — dove un `![img](...)` e' un modello da
+incollare altrove, con i path relativi alla **destinazione**, non a chi lo contiene.
+
+Uso:
+    python scripts/check-docs-links.py             # dalla radice del repo
+    python scripts/check-docs-links.py --known     # elenca il debito dichiarato e la sua ragione
+
+Esce con codice 1 se un link e' rotto, se un'etichetta mente, se un target esiste solo in locale,
+oppure se una voce di DEBITO_NOTO non e' piu' vera.
+
+Cosa NON controlla, deliberatamente:
+  - gli **ancoraggi** (`#sezione`): la slugificazione di GitHub su titoli con accenti, emoji e codice
+    inline non e' riproducibile in poche righe, e un gate che sbaglia viene disattivato al terzo falso
+    positivo. Meglio stretto e creduto che largo e ignorato;
+  - gli **URL esterni**: richiederebbero rete, quindi un gate non deterministico;
+  - i file **non tracciati**: si controlla cio' che e' nel repository, non la propria copia di lavoro.
+    E' anche cio' che rende sensato il controllo #3 (vedi `NON_VERSIONATO`).
+"""
+import os
+import re
+import subprocess
+import sys
+import urllib.parse
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# [testo](target)  ·  ![alt](img)  ·  [`path`](target) — con titolo opzionale fra virgolette.
+# Il `!` dell'immagine sta PRIMA della parentesi quadra, e va incluso nel match: se resta fuori,
+# `_is_quoted` guarda il `!` invece del backtick che lo precede e un'immagine citata come esempio
+# viene scambiata per un link vero. Difetto trovato dal gate su se stesso, di nuovo.
+LINK_RE = re.compile(r'(!?)\[(`?)([^\]]*?)(`?)\]\(\s*<?([^)>\s]+)>?(?:\s+"[^"]*")?\s*\)')
+
+SKIP_SCHEMES = ("http://", "https://", "mailto:", "ftp://", "tel:", "data:")
+
+FENCE_RE = re.compile(r"^([ \t]*)(`{3,}|~{3,}).*?^\1?\2[ \t]*$", re.M | re.S)
+
+
+def _fence_spans(text):
+    """Le regioni dentro un blocco di codice recintato: li' un link e' un esempio, non un link."""
+    return [(m.start(), m.end()) for m in FENCE_RE.finditer(text)]
+
+
+def _is_quoted(text, start, end):
+    """Il link e' avvolto per intero in un code span — cioe' e' citato, non usato.
+
+    Serve perche' un documento *sui link* contiene link d'esempio: questo gate ne ha due nel
+    proprio README, e alla prima esecuzione si e' segnalato da solo. Regola volutamente stretta:
+    solo il caso «backtick subito prima di `[` e subito dopo `)`». Non prova a interpretare la
+    grammatica dei code span, che con le etichette in backtick — `[`path`](path)`, la forma piu'
+    diffusa nel repo — diventa ambigua e cancellerebbe proprio i controlli che servono.
+    """
+    before = text[start - 1] if start else ""
+    after = text[end] if end < len(text) else ""
+    return before == "`" and after == "`"
+
+# Debito dichiarato. Una voce qui NON e' un'esenzione: e' una promessa datata, e il gate
+# la verifica al contrario — se il link torna a funzionare, la voce va tolta e il gate lo
+# pretende. Un allowlist che non sa invalidarsi diventa il posto dove i difetti vanno a
+# morire in silenzio.
+#
+# **Oggi e' vuoto, e va tenuto vuoto.** Il meccanismo resta perche' un gate senza via d'uscita
+# viene disattivato *per intero* al primo blocco legittimo, e perche' e' verificato per mutazione.
+# La prima voce candidata si e' rivelata inesistente: le dieci infografiche di
+# `CLAUDE_INTEGRATION_PROMPT.md` sembravano link rotti a uno script che non gestiva i blocchi
+# recintati. Stanno dentro ```md, sono *markdown suggerito* da incollare nelle pagine wiki, e i
+# loro path sono relativi alla **destinazione**. Erano corrette dall'inizio.
+DEBITO_NOTO = {}
+
+
+def tracked_files():
+    """I file versionati, secondo git. Non la working copy: quella e' solo tua."""
+    out = subprocess.run(
+        ["git", "-C", REPO, "ls-files", "-z"],
+        capture_output=True, check=True, text=True, encoding="utf-8",
+    ).stdout
+    return {p.replace("\\", "/") for p in out.split("\0") if p}
+
+
+def rel(abs_path):
+    return os.path.relpath(abs_path, REPO).replace("\\", "/")
+
+
+def looks_like_path(label):
+    """Un'etichetta che *afferma* un percorso, e che quindi puo' mentire."""
+    return label.startswith(("../", "./", "docs/"))
+
+
+def label_resolves(label, base):
+    """Un'etichetta-percorso e' vera se esiste — dalla radice del repo se parte per `docs/`,
+    altrimenti dalla cartella del documento. Entrambi gli stili sono in uso e leciti."""
+    root = REPO if label.startswith("docs/") else base
+    return os.path.exists(os.path.normpath(os.path.join(root, label)))
+
+
+def main():
+    tracked = tracked_files()
+    if not tracked:
+        print("ERRORE: git non elenca file — percorso sbagliato?", file=sys.stderr)
+        return 2
+    tracked_dirs = {d for p in tracked for d in _parents(p)}
+
+    rotti, etichette, non_versionati = [], [], []
+    controllati = 0
+    debito_visto = {k: 0 for k in DEBITO_NOTO}
+
+    for src in sorted(f for f in tracked if f.endswith(".md")):
+        abs_src = os.path.join(REPO, src)
+        try:
+            text = open(abs_src, encoding="utf-8").read()
+        except (OSError, UnicodeDecodeError):
+            continue
+        base = os.path.dirname(abs_src)
+        fences = _fence_spans(text)
+
+        for m in LINK_RE.finditer(text):
+            _, _, label, _, target = m.groups()
+            if target.startswith(SKIP_SCHEMES) or target.startswith("#"):
+                continue
+            if _is_quoted(text, m.start(), m.end()):
+                continue
+            if any(a <= m.start() < b for a, b in fences):
+                continue
+            bare = urllib.parse.unquote(target.split("#", 1)[0])
+            if not bare:
+                continue
+            controllati += 1
+            riga = text[: m.start()].count("\n") + 1
+            risolto = os.path.normpath(os.path.join(base, bare))
+            rel_target = rel(risolto)
+
+            if not os.path.exists(risolto):
+                if src in DEBITO_NOTO:
+                    debito_visto[src] += 1
+                else:
+                    rotti.append((src, riga, target))
+                continue
+
+            # Esiste sul disco: ma esiste anche per gli altri?
+            if rel_target not in tracked and rel_target not in tracked_dirs:
+                non_versionati.append((src, riga, target))
+
+            # L'etichetta afferma un percorso diverso dal target, e quel percorso non esiste.
+            # `[../balance/](../balance/README.md)` e' uno stile legittimo — la cartella esiste —
+            # e non va segnalato: sarebbe il falso positivo che fa disattivare il gate.
+            lab = label.strip()
+            if looks_like_path(lab) and lab.split("#")[0] != bare:
+                if not label_resolves(lab.split("#")[0], base):
+                    etichette.append((src, riga, lab, target))
+
+    if "--known" in sys.argv:
+        print(f"Debito dichiarato ({len(DEBITO_NOTO)}):")
+        for f, why in DEBITO_NOTO.items():
+            print(f"    {f}\n        {why}\n        link rotti tollerati ora: {debito_visto[f]}")
+        print()
+
+    stale = [f for f, n in debito_visto.items() if n == 0]
+    print(f"Link relativi controllati: {controllati} · file markdown versionati: "
+          f"{sum(1 for f in tracked if f.endswith('.md'))}")
+
+    if not (rotti or etichette or non_versionati or stale):
+        tollerati = sum(debito_visto.values())
+        coda = f" ({tollerati} rotti tollerati come debito dichiarato)" if tollerati else ""
+        print(f"OK — ogni link risolve, ogni etichetta dice il vero{coda}.")
+        return 0
+
+    print()
+    if rotti:
+        print(f"FALLITO — {len(rotti)} link a un target inesistente:\n")
+        for f, n, t in rotti:
+            print(f"  {f}:{n}\n      -> {t}")
+        print("\n  Se hai spostato un file, ricorda i tre passaggi: riferimenti entranti,")
+        print("  link uscenti dai file spostati (scendono di un livello), etichette.\n")
+
+    if etichette:
+        print(f"FALLITO — {len(etichette)} etichette che dichiarano un percorso inesistente:\n")
+        for f, n, lab, t in etichette:
+            print(f"  {f}:{n}\n      etichetta: {lab}\n      target:    {t}")
+        print("\n  Il link funziona, il testo no. Allinea l'etichetta al target — oppure usa")
+        print("  un'etichetta che non sia un percorso, se volevi scrivere altro.\n")
+
+    if non_versionati:
+        print(f"FALLITO — {len(non_versionati)} target esistono in locale ma NON sono versionati:\n")
+        for f, n, t in non_versionati:
+            print(f"  {f}:{n}\n      -> {t}")
+        print("\n  Funziona sulla tua macchina e su nessun'altra. O lo committi, o togli il link.\n")
+
+    if stale:
+        print(f"FALLITO — {len(stale)} voci di DEBITO_NOTO non sono piu' vere:\n")
+        for f in stale:
+            print(f"  {f}\n      non ha piu' link rotti: togli la voce da DEBITO_NOTO.")
+        print("\n  Un debito che si e' risolto e resta dichiarato nasconde il prossimo.\n")
+
+    return 1
+
+
+def _parents(path):
+    """Tutte le directory che contengono `path`, in forma relativa al repo."""
+    d = os.path.dirname(path)
+    while d:
+        yield d
+        d = os.path.dirname(d)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

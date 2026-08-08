@@ -25,7 +25,7 @@ La fonte di verità del progetto è:
 | `technical/` | Le versioni **a griglia quadrata** di mappa multilivello e pathfinding, superate dal pivot esagonale (ADR-0002) |
 | `session-notes/` | Note di sessione e handoff datati |
 | `plan-variant-chatgpt.md` | *(ex `docs/claude.md`)* PRD/piano alternativo **in conflitto** col piano canonico: assume C#/UnrealSharp, formato 4v4, team 5-10 persone, scope molto ampio (mod.io/Steam Workshop, roguelike/deckbuilding, schema DB, Unreal Horde). Superato: il canone usa C++/Blueprint, MVP 2v2 offline, dev singolo |
-| `CLAUDE_RefactorTactics-original.md` | *(ex `docs/CLAUDE_RefactorTactics.md`)* guida operativa **assorbita** nel `CLAUDE.md` a radice. Il catalogo comandi `/sc:*` vive in [`../src/superclaude-cheatsheet.md`](../src/superclaude-cheatsheet.md) |
+| `CLAUDE_RefactorTactics-original.md` | *(ex `docs/CLAUDE_RefactorTactics.md`)* guida operativa **assorbita** nel `CLAUDE.md` a radice. Il catalogo comandi `/sc:*` vive in [`../superclaude-cheatsheet.md`](../superclaude-cheatsheet.md) |
 
 ## La regola che vale qui
 

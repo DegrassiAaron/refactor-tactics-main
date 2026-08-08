@@ -10,7 +10,7 @@
     },
     "note": "Primo audit completo. La seed list dell'handoff del 2026-08-08 è stata confrontata voce per voce con Source/, Tests/, Scenarios/, docs/ e la Wiki: le voci che il repository non conferma sono marcate per quello che sono (SPECIFIED, DESIGNED, IDEA), non promosse a DONE.\n"
   },
-  "count": 78,
+  "count": 80,
   "features": [
     {
       "feature_id": "RT-FEAT-CORE-TURN",
@@ -4355,6 +4355,114 @@
         "commit": "2094b86"
       },
       "notes": "Packaging Development **e** Shipping verdi al CP 7.4 (2026-08-06) con l'eseguibile avviato e giocato. **Quella verifica precede E8, E9 e gli scenari**: il gate `packaged` delle feature successive resta `todo` finché la release interna CP 12.5 non le riesegue. Nessun test automatico gira su packaged."
+    },
+    {
+      "feature_id": "RT-FEAT-INTENT-CONDITIONAL",
+      "title": "Conditional Intent — un intento con una biforcazione",
+      "area": "Gameplay",
+      "kind": "gameplay",
+      "release": "future",
+      "priority": "P2",
+      "status": "SPECIFIED",
+      "status_derived": "SPECIFIED",
+      "gates": {
+        "spec": "done",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "todo"
+      },
+      "gates_done": 1,
+      "gates_applicable": 9,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": []
+      },
+      "dependencies": [
+        "RT-FEAT-CORE-TURN"
+      ],
+      "owner_specs": [
+        "docs/gameplay/brief-delayed-actions.md"
+      ],
+      "issues": [],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {},
+      "notes": "D-034, epic **E33** in `roadmap-post-v0.1.md`. Non e' un sistema nuovo: e' la condizione dichiarata in planning che D-012 ha gia' ammesso per il regime `Conditional` dell'Overwatch, spostata dal profilo di reazione all'intento. Un predicato, due rami, nessun nesting, lista chiusa e validata — altrimenti la finestra di reazione rientra dalla porta di servizio come mini-linguaggio di scripting. **Bloccata dai boundary**: `EvaluationBoundary` e' il campo `boundary` che oggi non esiste in `FRTActionDef`."
+    },
+    {
+      "feature_id": "RT-FEAT-CHARACTER-STATE",
+      "title": "Character State / Configuration System",
+      "area": "Gameplay",
+      "kind": "gameplay",
+      "release": "future",
+      "priority": "P3",
+      "status": "SPECIFIED",
+      "status_derived": "SPECIFIED",
+      "gates": {
+        "spec": "done",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "todo"
+      },
+      "gates_done": 1,
+      "gates_applicable": 9,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": []
+      },
+      "dependencies": [
+        "RT-FEAT-CORE-TURN"
+      ],
+      "owner_specs": [
+        "docs/gameplay/brief-stati-personaggio-e-trasformazioni.md",
+        "docs/characters/matrici-stati-personaggio.md"
+      ],
+      "issues": [
+        244,
+        245,
+        246,
+        247,
+        248,
+        249,
+        250,
+        251,
+        252,
+        253,
+        254,
+        255,
+        256,
+        257,
+        258,
+        259
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [
+        "State.Riva.Flow",
+        "State.Flux.Charged",
+        "State.Bastion.Bulwark",
+        "State.Howitzer.Siege",
+        "State.MultiState.Stress"
+      ],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {},
+      "notes": "D-035, epic **E34** in `roadmap-post-v0.1.md`. Cinque famiglie — Stance, Form, Overdrive, Environmental, Configuration — su un'infrastruttura sola. **Meta' potrebbe non servire**: uno Stance e' un profilo commutabile in Planning (D-033), e i profili esistono gia' come concetto. **Nessuna trasformazione nella v0.1** e nessun eroe ha uno stato assegnato: le candidature Light/Medium/Signature per ~40 personaggi stanno in `matrici-stati-personaggio.md`, nessuna oltre PROPOSED. L'unica REJECTED e' `Vektor Siege`, respinta nel merito: Slancio recupera muovendosi, e una forma che toglie il Dash spegne la meccanica firma."
     }
   ]
 }

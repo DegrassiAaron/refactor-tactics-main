@@ -116,6 +116,10 @@ Il segnale che conta è qualitativo, e i due esiti sono distinguibili:
 
 ## 8. Cosa resta aperto
 
+> 📊 **Le candidature vivono in [`../characters/matrici-stati-personaggio.md`](../characters/matrici-stati-personaggio.md)**:
+> tutte le alternative L/M/S per ~40 personaggi, il costo sistemico di ognuna, il budget di complessità e lo
+> stato di validazione. Nessuna riga supera oggi `PROPOSED`.
+
 Nessun eroe ha uno stato assegnato: le proposte del sorgente (§7–§13) restano **alternative di design**, tre per
 personaggio, deliberatamente non risolte. Una Signature scartata come trasformazione può tornare come ability,
 come passiva o come profilo — ed è il motivo per cui il sorgente non è stato potato.
@@ -124,7 +128,77 @@ Non decisi, e da non dedurre: quali famiglie entrano davvero · quanti stati con
 se la trasformazione possa essere una `Fast Reaction` (§17 del sorgente: possibile, «da usare con moderazione»,
 e comunque dipendente da **E14**) · il costo in action economy.
 
-## 9. Rapporto con gli altri documenti
+## 9. Scenari di validazione — definiti, non scritti
+
+Cinque scenari, **da scrivere quando E34 apre**: oggi descriverebbero un sistema che non esiste, e uno scenario
+che non gira è peggio di uno che manca — sembra copertura. Gli ID seguono la convenzione del corpus
+([`../technical/scenari-validazione-visiva.md`](../technical/scenari-validazione-visiva.md)).
+
+| ID | Cosa valida | Perché è questo, e non un altro |
+|---|---|---|
+| `State.Riva.Flow` | Trigger su sequenza, stato leggero, nessun override | **Il primo da scrivere.** È l'unico che non tocca cover, LOS, collisione o pathing: se fallisce, il difetto è nel framework, non nell'integrazione |
+| `State.Flux.Charged` | Trigger ambientale, mutazione di skill, interazione con `Wet` | Valida la pipeline `ambiente → stato → abilità → ambiente`. Il caso interessante è che il bonus legge `Status.Wet` **senza sapere chi l'ha applicato** ([D-029](../decisions/RT_PDR_00_Decision_Log.md)) |
+| `State.Bastion.Bulwark` | Pseudo-cover, LOS, protezione dell'alleato, pathing | Il più invasivo: quattro sistemi condivisi in un colpo solo. Va scritto **dopo** i due leggeri |
+| `State.Howitzer.Siege` | Alternate Form completa: override movimento + skill, revert a costo di `Prep` | Il banco di prova di `Mobile ↔ Siege`. **Non Vektor**: vedi §2 |
+| `State.MultiState.Stress` | Più unità in stati diversi nello stesso turno | Il solo che può rompere il determinismo. Deve dimostrare **permutazione-invarianza**: stessi stati, ordine di inserimento diverso, `TurnLog` e hash identici |
+
+Nessun bypass del gameplay: percorso reale `Intent → Planning → Snapshot → Resolver → TurnLog`, niente
+`SetActorLocation` né scorciatoie. Le verifiche interattive corrispondenti sono le voci `PIE-STATE-*` di
+[`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md).
+
+## 10. Logging — cosa deve poter ricostruire
+
+Uno stato deterministico ma **non spiegabile** è un mezzo risultato: il replay torna uguale e nessuno sa
+perché. Il TurnLog deve registrare le transizioni con gli stessi reason code che già usa, non con un canale
+parallelo.
+
+Gli eventi minimi, da nominare secondo le convenzioni del TurnLog esistente
+([`../technical/spec-turnlog.md`](../technical/spec-turnlog.md)):
+
+```text
+StateRequested · StateActivated · StateRejected
+StateExpired   · StateReverted
+StateAbilityOverrideApplied · StateMovementOverrideApplied
+StateEnvironmentTrigger
+```
+
+Ogni voce deve bastare a ricostruire, **da sola**: personaggio · stato precedente · stato nuovo · trigger ·
+fase · round · motivo · bersaglio o cella rilevante.
+
+Due vincoli che non sono dettagli:
+
+1. **`StateRejected` è obbligatorio quanto `StateActivated`.** Una transizione rifiutata in silenzio è il
+   difetto che rende impossibile diagnosticare un playtest: il giocatore vede che «non è successo niente».
+2. **L'hash del TurnLog resta permutazione-invariante.** Le voci di stato entrano nel log *come dato*, con la
+   stessa disciplina delle Fast Decision — altrimenti due partite identiche con ordine di inserimento diverso
+   producono hash diversi, e il KPI `replay divergence 0` cade.
+
+## 11. Terminologia — e la parola già occupata
+
+```text
+Character State
+├── Stance          postura commutabile, leggera
+├── Form            cambio sostanziale di comportamento
+├── Overdrive       potenziamento forte e temporaneo
+├── Environmental   causato o alimentato dal terreno
+└── Configuration   riconfigurazione, una attiva alla volta
+```
+
+⚠️ **«Stato» è già preso.** Il progetto lo usa per gli **stati temporanei** — `Status.Wet`, `Status.Marked`,
+`Burning` — che sono un'altra cosa: appartengono alla cella o al bersaglio, li applica qualcun altro, e il
+giocatore non li sceglie. Un *Character State* è invece una **configurazione scelta dal proprio giocatore**.
+
+La distinzione non è accademica: è esattamente il caso di
+[D-029](../decisions/RT_PDR_00_Decision_Log.md), dove `Wet` non sa chi l'ha applicato. Se i due concetti
+scivolano in una parola sola, la prima implementazione avrà ragione a metterli nello stesso sistema — e sarà
+sbagliata.
+
+Nei documenti, quindi: **stato del personaggio** o `Character State` per questo framework; **stato temporaneo**
+per `Status.*`, di cui l'owner resta [`spec-stati-temporanei-cp82.md`](spec-stati-temporanei-cp82.md).
+Il glossario player-facing **non** cambia: non contiene ancora il framework, e non deve — nessuna riga supera
+`PROPOSED`.
+
+## 12. Rapporto con gli altri documenti
 
 | Documento | Relazione |
 |---|---|
