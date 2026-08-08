@@ -117,12 +117,20 @@ namespace
 				Ability->RangeCells, Ability->AreaRadius);
 
 			// Fuoco amico: un alleato dentro l'area va visto PRIMA del lock-in, non dedotto dai danni dopo.
-			for (const ARTUnit* Other : Units)
+			//
+			// Ma solo se l'azione puo' DAVVERO colpirlo. L'avviso nasceva dalla sola geometria, e quindi
+			// compariva anche per abilita' con `bFriendlyFire` a false, dove l'alleato non subisce nulla: un
+			// allarme su un evento impossibile insegna a ignorare gli allarmi. Oggi riguarda `CircularTide`,
+			// che per limite dichiarato non tocca i propri (curerebbe con l'effetto sbagliato).
+			if (Ability->Def.bFriendlyFire)
 			{
-				if (Other && Other != Unit && Other->IsAlive() && Other->TeamId == Unit->TeamId
-					&& Hit.Contains(Other->Cell))
+				for (const ARTUnit* Other : Units)
 				{
-					Allies.AddUnique(Other->Cell);
+					if (Other && Other != Unit && Other->IsAlive() && Other->TeamId == Unit->TeamId
+						&& Hit.Contains(Other->Cell))
+					{
+						Allies.AddUnique(Other->Cell);
+					}
 				}
 			}
 		}

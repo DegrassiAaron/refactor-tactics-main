@@ -518,6 +518,50 @@ bool FRTScenarioCombatBasicAttackTest::RunTest(const FString&)
 }
 
 /**
+ * `Combat.FriendlyFire`: l'area di Flux prende anche Riva, perche' Riva e' adiacente al bersaglio.
+ *
+ * E' il test che il difetto del 2026-08-08 avrebbe fatto cadere, e che non esisteva. Il flag
+ * `bFriendlyFire` viveva solo sull'archetipo `Action.CircularAoE` — ormai test-only — e nessuno l'aveva
+ * copiato su `Flux.Overload`: in partita nessuna area poteva colpire un compagno, mentre l'anteprima
+ * segnalava l'alleato in arancione. Il resolver era corretto rispetto al dato; mancava il dato.
+ *
+ * Serve INSIEME al test sul catalogo (`Heroes.AreaFriendlyFireIsDeclaredOnTheRoster`), non al suo posto:
+ * quello pinna il dato, questo pinna che il dato arrivi fino al danno passando dal percorso di gioco reale.
+ * Con il solo test sul catalogo, un impianto rotto fra flag e resolver resterebbe verde.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCombatFriendlyFireTest,
+	"RefactorTactics.Scenario.RunnerCombatFriendlyFire",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCombatFriendlyFireTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.FriendlyFire"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di PASS: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("esito PASS"), Result.OutcomeString(), FString(TEXT("PASS")));
+
+	// Se il fuoco amico tornasse spento, l'alleata resterebbe a 95 invece che a 77 e l'`actual` lo direbbe:
+	// e' l'unica assertion di questo scenario che distingue «l'area funziona» da «l'area risparmia i propri».
+	for (const FRTAssertionResult& A : Result.Assertions)
+	{
+		if (A.Kind == ERTAssertionKind::UnitHpEquals)
+		{
+			TestTrue(FString::Printf(TEXT("%s -> %s (atteso %s)"), *A.Description, *A.Actual, *A.Expected), A.bPassed);
+		}
+	}
+	return true;
+}
+
+/**
  * `Combat.BlockedByWall`: lo stesso attacco, con un muro in mezzo, NON arriva.
  *
  * E' il complemento necessario del test sopra. Da solo, «l'attacco fa 22 danni» non distingue un gioco che

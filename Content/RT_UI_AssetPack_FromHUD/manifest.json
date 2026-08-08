@@ -1,0 +1,609 @@
+{
+  "source": "file_00000000d09081f4be1e3a1072dae635.png",
+  "source_size": [
+    1536,
+    864
+  ],
+  "note": "Concept extraction from HUD screenshot. Use as prototype/reference assets; rebuild critical frames as clean 9-slice/vector assets for production.",
+  "assets": {
+    "P_TeamRoster": {
+      "file": "panels/P_TeamRoster.png",
+      "box": [
+        0,
+        0,
+        325,
+        397
+      ],
+      "size": [
+        325,
+        397
+      ]
+    },
+    "P_SelectedCharacter": {
+      "file": "panels/P_SelectedCharacter.png",
+      "box": [
+        0,
+        465,
+        378,
+        745
+      ],
+      "size": [
+        378,
+        280
+      ]
+    },
+    "P_TurnHeader": {
+      "file": "panels/P_TurnHeader.png",
+      "box": [
+        500,
+        0,
+        1055,
+        68
+      ],
+      "size": [
+        555,
+        68
+      ]
+    },
+    "P_GhostTimeline": {
+      "file": "panels/P_GhostTimeline.png",
+      "box": [
+        392,
+        465,
+        1186,
+        620
+      ],
+      "size": [
+        794,
+        155
+      ]
+    },
+    "P_ActionsHeroKit": {
+      "file": "panels/P_ActionsHeroKit.png",
+      "box": [
+        400,
+        610,
+        1146,
+        780
+      ],
+      "size": [
+        746,
+        170
+      ]
+    },
+    "P_Objectives": {
+      "file": "panels/P_Objectives.png",
+      "box": [
+        1190,
+        0,
+        1536,
+        292
+      ],
+      "size": [
+        346,
+        292
+      ]
+    },
+    "P_AllyIntent": {
+      "file": "panels/P_AllyIntent.png",
+      "box": [
+        1188,
+        285,
+        1536,
+        610
+      ],
+      "size": [
+        348,
+        325
+      ]
+    },
+    "P_ConfirmControls": {
+      "file": "panels/P_ConfirmControls.png",
+      "box": [
+        1150,
+        610,
+        1536,
+        780
+      ],
+      "size": [
+        386,
+        170
+      ]
+    },
+    "P_WarningsBar": {
+      "file": "panels/P_WarningsBar.png",
+      "box": [
+        0,
+        775,
+        720,
+        864
+      ],
+      "size": [
+        720,
+        89
+      ]
+    },
+    "P_CombatLog": {
+      "file": "panels/P_CombatLog.png",
+      "box": [
+        1080,
+        775,
+        1536,
+        864
+      ],
+      "size": [
+        456,
+        89
+      ]
+    },
+    "B_ConfirmPlan": {
+      "file": "buttons/B_ConfirmPlan.png",
+      "box": [
+        1166,
+        621,
+        1518,
+        716
+      ],
+      "size": [
+        352,
+        95
+      ]
+    },
+    "B_Undo": {
+      "file": "buttons/B_Undo.png",
+      "box": [
+        1180,
+        717,
+        1363,
+        770
+      ],
+      "size": [
+        183,
+        53
+      ]
+    },
+    "B_PlanValid": {
+      "file": "buttons/B_PlanValid.png",
+      "box": [
+        1360,
+        717,
+        1528,
+        770
+      ],
+      "size": [
+        168,
+        53
+      ]
+    },
+    "W_FriendlyFire": {
+      "file": "warnings/W_FriendlyFire.png",
+      "box": [
+        15,
+        790,
+        190,
+        850
+      ],
+      "size": [
+        175,
+        60
+      ]
+    },
+    "W_TargetMayMove": {
+      "file": "warnings/W_TargetMayMove.png",
+      "box": [
+        192,
+        790,
+        405,
+        850
+      ],
+      "size": [
+        213,
+        60
+      ]
+    },
+    "W_InsufficientResource": {
+      "file": "warnings/W_InsufficientResource.png",
+      "box": [
+        407,
+        790,
+        655,
+        850
+      ],
+      "size": [
+        248,
+        60
+      ]
+    },
+    "T_Move": {
+      "file": "tiles/T_Move.png",
+      "box": [
+        425,
+        652,
+        505,
+        752
+      ],
+      "size": [
+        80,
+        100
+      ]
+    },
+    "T_Wait": {
+      "file": "tiles/T_Wait.png",
+      "box": [
+        503,
+        652,
+        580,
+        752
+      ],
+      "size": [
+        77,
+        100
+      ]
+    },
+    "T_Guard": {
+      "file": "tiles/T_Guard.png",
+      "box": [
+        578,
+        652,
+        652,
+        752
+      ],
+      "size": [
+        74,
+        100
+      ]
+    },
+    "T_Overwatch": {
+      "file": "tiles/T_Overwatch.png",
+      "box": [
+        648,
+        652,
+        724,
+        752
+      ],
+      "size": [
+        76,
+        100
+      ]
+    },
+    "T_IonBlast": {
+      "file": "tiles/T_IonBlast.png",
+      "box": [
+        728,
+        650,
+        812,
+        752
+      ],
+      "size": [
+        84,
+        102
+      ]
+    },
+    "T_PhaseDash": {
+      "file": "tiles/T_PhaseDash.png",
+      "box": [
+        812,
+        650,
+        903,
+        752
+      ],
+      "size": [
+        91,
+        102
+      ]
+    },
+    "T_KineticShield": {
+      "file": "tiles/T_KineticShield.png",
+      "box": [
+        902,
+        650,
+        996,
+        752
+      ],
+      "size": [
+        94,
+        102
+      ]
+    },
+    "T_DisruptorGrenade": {
+      "file": "tiles/T_DisruptorGrenade.png",
+      "box": [
+        996,
+        650,
+        1123,
+        752
+      ],
+      "size": [
+        127,
+        102
+      ]
+    },
+    "I_Move": {
+      "file": "icons/I_Move.png",
+      "reference_file": "icons/I_Move_reference.png",
+      "box": [
+        442,
+        668,
+        492,
+        720
+      ],
+      "size": [
+        50,
+        52
+      ],
+      "transparent_extraction": true
+    },
+    "I_Wait": {
+      "file": "icons/I_Wait.png",
+      "reference_file": "icons/I_Wait_reference.png",
+      "box": [
+        520,
+        668,
+        568,
+        720
+      ],
+      "size": [
+        48,
+        52
+      ],
+      "transparent_extraction": true
+    },
+    "I_Guard": {
+      "file": "icons/I_Guard.png",
+      "reference_file": "icons/I_Guard_reference.png",
+      "box": [
+        594,
+        668,
+        640,
+        720
+      ],
+      "size": [
+        46,
+        52
+      ],
+      "transparent_extraction": true
+    },
+    "I_Overwatch": {
+      "file": "icons/I_Overwatch.png",
+      "reference_file": "icons/I_Overwatch_reference.png",
+      "box": [
+        663,
+        668,
+        710,
+        720
+      ],
+      "size": [
+        47,
+        52
+      ],
+      "transparent_extraction": true
+    },
+    "I_IonBlast": {
+      "file": "icons/I_IonBlast.png",
+      "reference_file": "icons/I_IonBlast_reference.png",
+      "box": [
+        747,
+        668,
+        795,
+        718
+      ],
+      "size": [
+        48,
+        50
+      ],
+      "transparent_extraction": true
+    },
+    "I_PhaseDash": {
+      "file": "icons/I_PhaseDash.png",
+      "reference_file": "icons/I_PhaseDash_reference.png",
+      "box": [
+        837,
+        669,
+        887,
+        717
+      ],
+      "size": [
+        50,
+        48
+      ],
+      "transparent_extraction": true
+    },
+    "I_KineticShield": {
+      "file": "icons/I_KineticShield.png",
+      "reference_file": "icons/I_KineticShield_reference.png",
+      "box": [
+        930,
+        669,
+        978,
+        718
+      ],
+      "size": [
+        48,
+        49
+      ],
+      "transparent_extraction": true
+    },
+    "I_DisruptorGrenade": {
+      "file": "icons/I_DisruptorGrenade.png",
+      "reference_file": "icons/I_DisruptorGrenade_reference.png",
+      "box": [
+        1022,
+        669,
+        1072,
+        718
+      ],
+      "size": [
+        50,
+        49
+      ],
+      "transparent_extraction": true
+    },
+    "I_Reaction": {
+      "file": "icons/I_Reaction.png",
+      "reference_file": "icons/I_Reaction_reference.png",
+      "box": [
+        1008,
+        496,
+        1052,
+        541
+      ],
+      "size": [
+        44,
+        45
+      ],
+      "transparent_extraction": true
+    },
+    "I_DelayedAction": {
+      "file": "icons/I_DelayedAction.png",
+      "reference_file": "icons/I_DelayedAction_reference.png",
+      "box": [
+        1008,
+        568,
+        1049,
+        608
+      ],
+      "size": [
+        41,
+        40
+      ],
+      "transparent_extraction": true
+    },
+    "I_Ready": {
+      "file": "icons/I_Ready.png",
+      "reference_file": "icons/I_Ready_reference.png",
+      "box": [
+        238,
+        170,
+        268,
+        198
+      ],
+      "size": [
+        30,
+        28
+      ],
+      "transparent_extraction": true
+    },
+    "I_RoleFaction_Main": {
+      "file": "icons/I_RoleFaction_Main.png",
+      "reference_file": "icons/I_RoleFaction_Main_reference.png",
+      "box": [
+        324,
+        482,
+        360,
+        520
+      ],
+      "size": [
+        36,
+        38
+      ],
+      "transparent_extraction": true
+    },
+    "I_WarningFriendlyFire": {
+      "file": "icons/I_WarningFriendlyFire.png",
+      "reference_file": "icons/I_WarningFriendlyFire_reference.png",
+      "box": [
+        27,
+        798,
+        75,
+        842
+      ],
+      "size": [
+        48,
+        44
+      ],
+      "transparent_extraction": true
+    },
+    "I_WarningTargetMayMove": {
+      "file": "icons/I_WarningTargetMayMove.png",
+      "reference_file": "icons/I_WarningTargetMayMove_reference.png",
+      "box": [
+        210,
+        798,
+        255,
+        842
+      ],
+      "size": [
+        45,
+        44
+      ],
+      "transparent_extraction": true
+    },
+    "I_WarningResource": {
+      "file": "icons/I_WarningResource.png",
+      "reference_file": "icons/I_WarningResource_reference.png",
+      "box": [
+        425,
+        798,
+        472,
+        842
+      ],
+      "size": [
+        47,
+        44
+      ],
+      "transparent_extraction": true
+    }
+  },
+  "nine_slice_suggestions_px": {
+    "P_TeamRoster": [
+      22,
+      22,
+      22,
+      22
+    ],
+    "P_SelectedCharacter": [
+      28,
+      28,
+      28,
+      28
+    ],
+    "P_Objectives": [
+      20,
+      20,
+      20,
+      20
+    ],
+    "P_AllyIntent": [
+      20,
+      20,
+      20,
+      20
+    ],
+    "B_ConfirmPlan": [
+      34,
+      22,
+      34,
+      22
+    ],
+    "B_Undo": [
+      22,
+      18,
+      22,
+      18
+    ],
+    "B_PlanValid": [
+      22,
+      18,
+      22,
+      18
+    ],
+    "W_FriendlyFire": [
+      24,
+      16,
+      24,
+      16
+    ],
+    "W_TargetMayMove": [
+      24,
+      16,
+      24,
+      16
+    ],
+    "W_InsufficientResource": [
+      24,
+      16,
+      24,
+      16
+    ]
+  }
+}
