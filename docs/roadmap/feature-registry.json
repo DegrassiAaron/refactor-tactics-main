@@ -1,0 +1,4360 @@
+{
+  "_generated": "NON EDITARE: generato da docs/roadmap/feature-registry.yaml con scripts/feature_registry.py generate",
+  "meta": {
+    "registry_version": 1,
+    "schema_version": 1,
+    "last_full_audit": {
+      "date": "2026-08-08",
+      "commit": "2094b86",
+      "suite": "490 test unici in 69 file"
+    },
+    "note": "Primo audit completo. La seed list dell'handoff del 2026-08-08 è stata confrontata voce per voce con Source/, Tests/, Scenarios/, docs/ e la Wiki: le voci che il repository non conferma sono marcate per quello che sono (SPECIFIED, DESIGNED, IDEA), non promosse a DONE.\n"
+  },
+  "count": 78,
+  "features": [
+    {
+      "feature_id": "RT-FEAT-CORE-TURN",
+      "title": "Pipeline del turno simultaneo",
+      "area": "Core",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P0",
+      "status": "RELEASE_READY",
+      "status_derived": "RELEASE_READY",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "done",
+        "packaged": "partial",
+        "network_privacy": "na"
+      },
+      "gates_done": 7,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E2",
+        "milestone": null,
+        "checkpoints": [
+          "2.2",
+          "4.1"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-MAP-HEXGRAPH"
+      ],
+      "owner_specs": [
+        "docs/gameplay/spec-sequenza-turno.md",
+        "docs/gameplay/spec-anima-risoluzione.md"
+      ],
+      "issues": [
+        32,
+        42
+      ],
+      "tests": [
+        "RefactorTactics.Turn.*",
+        "RefactorTactics.HexMatch.*"
+      ],
+      "scenarios": [
+        "Visual.Core.PhaseOrder"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/struttura-del-round.md",
+        "docs/wiki/game/esempio-di-round.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Planning → Prep → Dash → Blast → Move → Cleanup, con il Move normale dopo il Blast (ADR-0003). `HexMatch.PlaysToCompletion` gioca una partita intera; il packaging del CP 7.4 l'ha eseguita senza editor."
+    },
+    {
+      "feature_id": "RT-FEAT-CORE-DETERMINISM",
+      "title": "Snapshot e resolver deterministico",
+      "area": "Core",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P0",
+      "status": "INTEGRATED",
+      "status_derived": "INTEGRATED",
+      "gates": {
+        "spec": "done",
+        "data": "na",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "partial",
+        "packaged": "partial",
+        "network_privacy": "na"
+      },
+      "gates_done": 5,
+      "gates_applicable": 7,
+      "roadmap": {
+        "epic": "E12",
+        "milestone": null,
+        "checkpoints": [
+          "12.1",
+          "12.6"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-CORE-TURN",
+        "RT-FEAT-CORE-TURNLOG"
+      ],
+      "owner_specs": [
+        "docs/gameplay/spec-anima-risoluzione.md"
+      ],
+      "issues": [
+        81,
+        178
+      ],
+      "tests": [
+        "RefactorTactics.Simulation.*",
+        "RefactorTactics.HexSim.ReplayDivergenceZero"
+      ],
+      "scenarios": [
+        "RT_Showcase_Relay_v01"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/regole-fondamentali.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "KPI «replay divergence 0» verificato anche su hex. `ui_wiki` parziale: il determinismo è citato nelle regole fondamentali ma non ha una pagina che lo spieghi al giocatore."
+    },
+    {
+      "feature_id": "RT-FEAT-CORE-TURNLOG",
+      "title": "TurnLog, reason code, hash e replay",
+      "area": "Core",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P0",
+      "status": "RELEASE_READY",
+      "status_derived": "RELEASE_READY",
+      "gates": {
+        "spec": "done",
+        "data": "na",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "done",
+        "packaged": "partial",
+        "network_privacy": "na"
+      },
+      "gates_done": 6,
+      "gates_applicable": 7,
+      "roadmap": {
+        "epic": "E12",
+        "milestone": null,
+        "checkpoints": [
+          "12.1",
+          "12.6"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-CORE-TURN"
+      ],
+      "owner_specs": [
+        "docs/technical/spec-turnlog.md",
+        "docs/technical/spec-turnlog-serialize.md"
+      ],
+      "issues": [
+        81,
+        178
+      ],
+      "tests": [
+        "RefactorTactics.TurnLog.*"
+      ],
+      "scenarios": [
+        "Visual.Core.PhaseOrder"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/regole-fondamentali.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "22 test: ordine totale, hash permutazione-invariante, serializzazione versionata con checksum, I/O su file, letture legacy. `DescribeEntry` porta i reason code nel combat log del giocatore."
+    },
+    {
+      "feature_id": "RT-FEAT-CORE-DECISION-BOUNDARY",
+      "title": "Risoluzione segmentata con Decision Boundary",
+      "area": "Core",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "SPECIFIED",
+      "status_derived": "SPECIFIED",
+      "gates": {
+        "spec": "done",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 1,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E14",
+        "milestone": null,
+        "checkpoints": [
+          "14.1",
+          "14.2",
+          "14.3"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-CORE-TURN",
+        "RT-FEAT-PERCEPTION-VISION"
+      ],
+      "owner_specs": [
+        "docs/decisions/adr-0004-finestre-di-reazione.md"
+      ],
+      "issues": [
+        161,
+        162,
+        163
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "CP 14.1 è chiuso ma è la *decisione*: ADR-0004 è accettato e riformula l'invariante #3 («snapshot a inizio segmento»). Nessun codice: `grep -rn \"Overwatch\" Source/` fuori dai test non restituisce nulla. Il resto di E14 non parte prima di E13."
+    },
+    {
+      "feature_id": "RT-FEAT-CORE-PLAYBACK",
+      "title": "Playback della risoluzione",
+      "area": "Core",
+      "kind": "ui",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "INTEGRATED",
+      "status_derived": "INTEGRATED",
+      "gates": {
+        "spec": "done",
+        "data": "na",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "partial",
+        "packaged": "partial",
+        "network_privacy": "na"
+      },
+      "gates_done": 5,
+      "gates_applicable": 7,
+      "roadmap": {
+        "epic": "E11",
+        "milestone": null,
+        "checkpoints": [
+          "11.1"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-CORE-TURN"
+      ],
+      "owner_specs": [
+        "docs/gameplay/spec-anima-risoluzione.md"
+      ],
+      "issues": [
+        77
+      ],
+      "tests": [
+        "RefactorTactics.Playback.*"
+      ],
+      "scenarios": [
+        "Visual.Core.PhaseOrder",
+        "Visual.Combat.Defeat"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/esempio-di-round.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "La presentazione non decide (invariante #1): la morte visiva resta differita. Non era nella seed list dell'handoff; esiste in repo con 8 test e va tracciata."
+    },
+    {
+      "feature_id": "RT-FEAT-MAP-HEXGRAPH",
+      "title": "FRTCellId e grafo esagonale multilivello",
+      "area": "Map",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P0",
+      "status": "RELEASE_READY",
+      "status_derived": "RELEASE_READY",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "done",
+        "packaged": "partial",
+        "network_privacy": "na"
+      },
+      "gates_done": 7,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E2",
+        "milestone": null,
+        "checkpoints": [
+          "2.1"
+        ]
+      },
+      "dependencies": [],
+      "owner_specs": [
+        "docs/decisions/adr-0002-griglia-esagonale.md",
+        "docs/technical/spec-mappa-multilivello.md"
+      ],
+      "issues": [
+        31
+      ],
+      "tests": [
+        "RefactorTactics.Hex.*",
+        "RefactorTactics.HexMap.*",
+        "RefactorTactics.HexMapActor.*"
+      ],
+      "scenarios": [
+        "Visual.Map.MultiLevel"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/mappa-terreni-e-ambiente.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Un solo substrato: `FRTGridCoord` e `Grid/` non esistono più (CP 3.2). Il formato mappa è alla v5 con migrazione verificata sulla serializzazione reale."
+    },
+    {
+      "feature_id": "RT-FEAT-MAP-PATHFINDING",
+      "title": "A* esagonale autorevole",
+      "area": "Map",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P0",
+      "status": "RELEASE_READY",
+      "status_derived": "RELEASE_READY",
+      "gates": {
+        "spec": "done",
+        "data": "na",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "done",
+        "packaged": "partial",
+        "network_privacy": "na"
+      },
+      "gates_done": 6,
+      "gates_applicable": 7,
+      "roadmap": {
+        "epic": "E2",
+        "milestone": null,
+        "checkpoints": [
+          "2.2"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-MAP-HEXGRAPH"
+      ],
+      "owner_specs": [
+        "docs/technical/spec-pathfinding.md",
+        "docs/technical/spec-pathfinding-pf3-pf4.md"
+      ],
+      "issues": [
+        32
+      ],
+      "tests": [
+        "RefactorTactics.HexPath.*",
+        "RefactorTactics.HexMove.*"
+      ],
+      "scenarios": [
+        "Movement.Basic",
+        "Movement.Blocked",
+        "Movement.LongWalk",
+        "Visual.Map.MultiLevel"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/azioni-e-movimento.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Costi interi, ordine stabile, mediana misurata 0,025 ms su mappa r=12 (CP 7.3)."
+    },
+    {
+      "feature_id": "RT-FEAT-MAP-LOS",
+      "title": "LOS, targeting e traiettoria separati",
+      "area": "Map",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P0",
+      "status": "RELEASE_READY",
+      "status_derived": "RELEASE_READY",
+      "gates": {
+        "spec": "done",
+        "data": "na",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "done",
+        "packaged": "partial",
+        "network_privacy": "na"
+      },
+      "gates_done": 6,
+      "gates_applicable": 7,
+      "roadmap": {
+        "epic": "E2",
+        "milestone": null,
+        "checkpoints": [
+          "2.4"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-MAP-HEXGRAPH"
+      ],
+      "owner_specs": [
+        "docs/technical/h6-4-hex-vision-spec.md"
+      ],
+      "issues": [
+        34
+      ],
+      "tests": [
+        "RefactorTactics.HexVision.*",
+        "RefactorTactics.HexCombat.BlockedLineOfSight",
+        "RefactorTactics.Combat.HexTargetingIsFailClosed",
+        "RefactorTactics.Combat.HexTargetingReasonDistinguishesRangeFromCover"
+      ],
+      "scenarios": [
+        "Combat.BlockedByWall",
+        "Combat.LineHitsThrough",
+        "Visual.Combat.SmokeCapsTargeting"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/combattimento-e-targeting.md"
+      ],
+      "wiki_note": "Vista e targeting esistono; la **percezione** completa (chi sa cosa, E13) e' un altro sistema e non c'e' ancora.",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Fail-closed senza mappa. Il reason code distingue «fuori portata» da «coperto»: è la differenza che il giocatore deve poter leggere."
+    },
+    {
+      "feature_id": "RT-FEAT-MAP-FACING",
+      "title": "Facing come stato di gioco autorevole",
+      "area": "Map",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "SPECIFIED",
+      "status_derived": "SPECIFIED",
+      "gates": {
+        "spec": "done",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 1,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E16",
+        "milestone": null,
+        "checkpoints": [
+          "16.1",
+          "16.2"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-MAP-HEXGRAPH",
+        "RT-FEAT-MAP-COVER"
+      ],
+      "owner_specs": [
+        "docs/decisions/adr-0005-orientamento.md"
+      ],
+      "issues": [
+        175,
+        176,
+        177
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/meccaniche/facing-e-direzionalita.md"
+      ],
+      "wiki_note": "Decisione accettata (ADR-0005) ma **non implementata**: quello che leggi qui descrive come funzionera', non come funziona oggi.",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "ADR-0005 e D-020 accettati, nessun codice. `Playback.DirectionYawFacesTarget` è presentazione, non stato di gioco: non vale come gate `runtime`. Prerequisito di E13. Attenzione: la pagina Wiki esiste già e descrive una meccanica che il gioco non ha — il blocco di stato generato deve dirlo."
+    },
+    {
+      "feature_id": "RT-FEAT-MAP-COVER",
+      "title": "Copertura direzionale per bordo",
+      "area": "Map",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "INTEGRATED",
+      "status_derived": "INTEGRATED",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 6,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E9",
+        "milestone": null,
+        "checkpoints": [
+          "9.1",
+          "9.2"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-MAP-HEXGRAPH",
+        "RT-FEAT-MAP-LOS"
+      ],
+      "owner_specs": [
+        "docs/gameplay/spec-copertura-cp91.md",
+        "docs/gameplay/spec-copertura-alta-cp92.md"
+      ],
+      "issues": [
+        69,
+        70
+      ],
+      "tests": [
+        "RefactorTactics.Cover.*",
+        "RefactorTactics.HexMap.Cover*"
+      ],
+      "scenarios": [
+        "Visual.Map.LowCoverEdge"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/meccaniche/coperture.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Bassa (−10 al danno diretto dal lato riparato) e alta (nega vista, passo e proiettili nei due versi, si abbatte riaprendo LOS e grafo). Integrità e distruzione coperte."
+    },
+    {
+      "feature_id": "RT-FEAT-MAP-DYNAMIC-COVER",
+      "title": "Copertura modificabile e pannello cinetico",
+      "area": "Map",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
+      "gates": {
+        "spec": "partial",
+        "data": "done",
+        "runtime": "partial",
+        "log_debug": "done",
+        "automation": "partial",
+        "scenario": "todo",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 2,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E9",
+        "milestone": null,
+        "checkpoints": [
+          "9.5"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-MAP-COVER"
+      ],
+      "owner_specs": [
+        "docs/gameplay/spec-copertura-alta-cp92.md"
+      ],
+      "issues": [
+        73
+      ],
+      "tests": [
+        "RefactorTactics.Cover.Destruction"
+      ],
+      "scenarios": [],
+      "scenarios_planned": [
+        "Spec.Cover.TemporaryCoverExpires"
+      ],
+      "wiki_refs": [
+        "docs/wiki/meccaniche/coperture.md",
+        "docs/characters/v0.1/bastion.md"
+      ],
+      "wiki_note": "La **distruzione** della copertura esiste; la **creazione temporanea** (CP 9.5) no.",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "La distruzione esiste; `Action.CreateCover` è a catalogo ma la copertura **temporanea** è il residuo CP 9.5, rinviato da CP 8.5. Lo scenario `Spec.Cover.TemporaryCoverExpires` esiste nel branch `feat/scenari-test-automatici`, non ancora in `main`: è `planned`, non presente."
+    },
+    {
+      "feature_id": "RT-FEAT-MAP-INTERACTIVE-EDGES",
+      "title": "Porte e bordi commutabili",
+      "area": "Map",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "INTEGRATED",
+      "status_derived": "INTEGRATED",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 6,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E9",
+        "milestone": null,
+        "checkpoints": [
+          "9.3"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-MAP-HEXGRAPH",
+        "RT-FEAT-MAP-COVER"
+      ],
+      "owner_specs": [
+        "docs/gameplay/spec-porte-cp93.md"
+      ],
+      "issues": [
+        71
+      ],
+      "tests": [
+        "RefactorTactics.Structures.Door",
+        "RefactorTactics.HexMap.Door*"
+      ],
+      "scenarios": [
+        "Visual.Map.ClosedDoor"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/meccaniche/porte.md",
+        "docs/wiki/meccaniche/topologia-dinamica.md"
+      ],
+      "wiki_note": "Dato, regole di blocco e mutazione del bordo sono implementati e testati; l'**interazione del giocatore** (`Interact`/`Activate`) arriva con E10.",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "La porta è uno stato del **bordo**, letto dallo stesso `BlocksTraversal` che serve vista, grafo e combat. Un percorso che incontra una porta chiusa si ferma (`BlockedByTopology`), non la attraversa."
+    },
+    {
+      "feature_id": "RT-FEAT-MAP-SPECIAL-TRANSITIONS",
+      "title": "Ponti, archi e transizioni multilivello",
+      "area": "Map",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "INTEGRATED",
+      "status_derived": "INTEGRATED",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 6,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E9",
+        "milestone": null,
+        "checkpoints": [
+          "9.4"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-MAP-HEXGRAPH",
+        "RT-FEAT-MAP-PATHFINDING"
+      ],
+      "owner_specs": [
+        "docs/gameplay/spec-ponti-cp94.md",
+        "docs/technical/spec-mappa-multilivello.md"
+      ],
+      "issues": [
+        72
+      ],
+      "tests": [
+        "RefactorTactics.Structures.Bridge",
+        "RefactorTactics.HexMap.Arc*",
+        "RefactorTactics.HexMap.VerticalTransition",
+        "RefactorTactics.HexMap.ValidateTransitions",
+        "RefactorTactics.HexPath.CrossLayerNeedsTransition",
+        "RefactorTactics.HexMove.ClimbsOnlyThroughTransition"
+      ],
+      "scenarios": [
+        "Visual.Map.MultiLevel"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/meccaniche/ponti.md",
+        "docs/wiki/meccaniche/topologia-dinamica.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Un arco è additivo: romperlo annulla il percorso invece di allungarlo, perché fra due layer non c'è adiacenza di riserva. `Action.ModifyArc` risolve nel Blast e crea ponti temporanei e conduttivi."
+    },
+    {
+      "feature_id": "RT-FEAT-MAP-HIGH-GROUND",
+      "title": "Altura senza bonus numerico alla vista",
+      "area": "Map",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P3",
+      "status": "INTEGRATED",
+      "status_derived": "INTEGRATED",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 6,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E9",
+        "milestone": null,
+        "checkpoints": [
+          "9.1"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-MAP-HEXGRAPH"
+      ],
+      "owner_specs": [
+        "docs/product/piano-canonico-mvp.md"
+      ],
+      "issues": [],
+      "tests": [
+        "RefactorTactics.Combat.EffectiveAttackPowerWithTerrainBonus",
+        "RefactorTactics.HexBot.ScoreElevationBonus"
+      ],
+      "scenarios": [
+        "Visual.Map.HighGroundNoBonus"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/mappa-terreni-e-ambiente.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Registrata come feature perché è una **decisione attiva** con uno scenario che la dimostra: in v0.1 l'altura non dà bonus numerico alla vista. Il vantaggio resta topologico (LOS)."
+    },
+    {
+      "feature_id": "RT-FEAT-ACTION-ENGINE",
+      "title": "Motore delle azioni a priorità intera",
+      "area": "Actions",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P0",
+      "status": "RELEASE_READY",
+      "status_derived": "RELEASE_READY",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "done",
+        "packaged": "partial",
+        "network_privacy": "na"
+      },
+      "gates_done": 7,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E4",
+        "milestone": null,
+        "checkpoints": [
+          "4.1",
+          "4.3",
+          "4.8"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-CORE-TURN",
+        "RT-FEAT-DATA-ASSET-PIPELINE"
+      ],
+      "owner_specs": [
+        "docs/gameplay/spec-motore-azioni-e4.md",
+        "docs/decisions/adr-0003-modello-azioni-v01.md"
+      ],
+      "issues": [
+        42,
+        44,
+        49
+      ],
+      "tests": [
+        "RefactorTactics.Actions.OrderByPriority",
+        "RefactorTactics.Actions.PermutationInvariant",
+        "RefactorTactics.Actions.Collisions",
+        "RefactorTactics.Actions.Fallback",
+        "RefactorTactics.Actions.PhaseMappingRespectsAtlas",
+        "RefactorTactics.Actions.NewEffectNeedsNoOrchestratorChange"
+      ],
+      "scenarios": [
+        "Movement.Collision",
+        "Movement.SwapRejectedByPlanning",
+        "Visual.Combat.FallbackTargetMoved"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/azioni-e-movimento.md",
+        "docs/wiki/meccaniche/collisioni.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "L'ossatura su cui poggiano azioni, reazioni, ambiente e obiettivi: priorità intera intra-fase, fallback espliciti, collisioni senza bias di Player ID. Non era una voce separata della seed list ma è il presupposto di tutta la sezione C."
+    },
+    {
+      "feature_id": "RT-FEAT-ACTION-GENERIC",
+      "title": "Azioni generiche del catalogo",
+      "area": "Actions",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P0",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
+      "gates": {
+        "spec": "done",
+        "data": "partial",
+        "runtime": "partial",
+        "log_debug": "done",
+        "automation": "partial",
+        "scenario": "partial",
+        "ui_wiki": "done",
+        "packaged": "partial",
+        "network_privacy": "na"
+      },
+      "gates_done": 3,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E4",
+        "milestone": null,
+        "checkpoints": [
+          "4.4",
+          "4.6",
+          "4.7"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-ACTION-ENGINE"
+      ],
+      "owner_specs": [
+        "docs/gameplay/brief-azioni-generiche-overwatch.md",
+        "docs/balance/RT_ActionCatalog_v0.1.md"
+      ],
+      "issues": [
+        45,
+        47,
+        48
+      ],
+      "tests": [
+        "RefactorTactics.Actions.Wait",
+        "RefactorTactics.Actions.Move",
+        "RefactorTactics.Actions.BasicAttack",
+        "RefactorTactics.Actions.Guard",
+        "RefactorTactics.Actions.CoreActionsMatchCatalog",
+        "RefactorTactics.Actions.ControlActionsMatchCatalog",
+        "RefactorTactics.Actions.OffensiveActionsMatchCatalog"
+      ],
+      "scenarios": [
+        "Combat.BasicAttack",
+        "Movement.Basic"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/azioni-e-movimento.md"
+      ],
+      "wiki_note": "Sei azioni generiche su sette sono a catalogo e nel runtime: manca **Overwatch**, che arriva con E14.",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Sei delle sette azioni generiche di D-025 esistono a catalogo e nel runtime (`Action.Wait`, `Move`, `BasicAttack`, `Guard`, `Brace`, `Interact`). La settima, **Overwatch, non esiste**: `grep -rn \"Overwatch\" Source/` fuori dai test non restituisce nulla. Per questo `runtime` è `partial` e non `done`: la porta RT-FEAT-REACTION-OVERWATCH."
+    },
+    {
+      "feature_id": "RT-FEAT-ACTION-MOVE-PROFILES",
+      "title": "Profili di movimento (Move, Sprint, Charge)",
+      "area": "Actions",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "RELEASE_READY",
+      "status_derived": "RELEASE_READY",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "done",
+        "packaged": "partial",
+        "network_privacy": "na"
+      },
+      "gates_done": 7,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E4",
+        "milestone": null,
+        "checkpoints": [
+          "4.2",
+          "4.5"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-ACTION-ENGINE",
+        "RT-FEAT-MAP-PATHFINDING"
+      ],
+      "owner_specs": [
+        "docs/gameplay/spec-dash.md"
+      ],
+      "issues": [
+        43,
+        46
+      ],
+      "tests": [
+        "RefactorTactics.Actions.Sprint",
+        "RefactorTactics.Actions.Charge",
+        "RefactorTactics.Actions.Leap",
+        "RefactorTactics.Actions.MovementActionsDeclareStyleAndPhase",
+        "RefactorTactics.Actions.EveryFastMovementDeclaresStyle",
+        "RefactorTactics.Unit.CatalogFastMovementIsFoundAsDash"
+      ],
+      "scenarios": [
+        "Visual.Movement.Charge",
+        "Visual.Movement.RoughRefusesCharge"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/azioni-e-movimento.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "**Sprint è un profilo di Move, non un Dash** (pin del canone): fase e stile sono dichiarati dal dato, non dedotti. Budget 5 MP con costi interi."
+    },
+    {
+      "feature_id": "RT-FEAT-ACTION-DASH-DISPLACEMENT",
+      "title": "Dash e spostamento forzato",
+      "area": "Actions",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P0",
+      "status": "RELEASE_READY",
+      "status_derived": "RELEASE_READY",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "done",
+        "packaged": "partial",
+        "network_privacy": "na"
+      },
+      "gates_done": 7,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E2",
+        "milestone": null,
+        "checkpoints": [
+          "2.5",
+          "4.5"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-ACTION-ENGINE",
+        "RT-FEAT-MAP-PATHFINDING"
+      ],
+      "owner_specs": [
+        "docs/gameplay/spec-dash.md"
+      ],
+      "issues": [
+        35,
+        46
+      ],
+      "tests": [
+        "RefactorTactics.Actions.Dash",
+        "RefactorTactics.Actions.Push",
+        "RefactorTactics.Actions.Pull",
+        "RefactorTactics.HexMove.Dash*",
+        "RefactorTactics.HexCombat.Knockback*",
+        "RefactorTactics.HexSim.DashIsLinear",
+        "RefactorTactics.HexBlast.KnockbackOnHexGrid"
+      ],
+      "scenarios": [
+        "Visual.Combat.PushResistance"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/azioni-e-movimento.md",
+        "docs/wiki/meccaniche/collisioni.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Il Dash è una fase, distinta dal Move normale che resta dopo il Blast. Il knockback spinge lungo la direzione esagonale del colpo, fail-closed senza mappa, preserva il layer."
+    },
+    {
+      "feature_id": "RT-FEAT-ACTION-COOLDOWNS",
+      "title": "Cooldown ed economia delle risorse",
+      "area": "Actions",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "TESTABLE",
+      "status_derived": "TESTABLE",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "partial",
+        "automation": "done",
+        "scenario": "todo",
+        "ui_wiki": "done",
+        "packaged": "partial",
+        "network_privacy": "na"
+      },
+      "gates_done": 5,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E4",
+        "milestone": null,
+        "checkpoints": [
+          "4.4"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-ACTION-ENGINE"
+      ],
+      "owner_specs": [
+        "docs/balance/RT_ActionCatalog_v0.1.md"
+      ],
+      "issues": [
+        45
+      ],
+      "tests": [
+        "RefactorTactics.Combat.AbilityUsableByCooldownAndEnergy",
+        "RefactorTactics.Combat.GainEnergyClampsToMax"
+      ],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/azioni-e-movimento.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Cooldown ed energia sono dati del catalogo e il gate di usabilità li legge. Nessuno scenario li dimostra: un cooldown che non scala oggi non produce una diagnosi visibile."
+    },
+    {
+      "feature_id": "RT-FEAT-ACTION-SUPERS",
+      "title": "Ultimate e azioni ad alto impegno",
+      "area": "Actions",
+      "kind": "gameplay",
+      "release": "v0.2",
+      "priority": "P2",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
+      "gates": {
+        "spec": "partial",
+        "data": "partial",
+        "runtime": "partial",
+        "log_debug": "partial",
+        "automation": "partial",
+        "scenario": "todo",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 0,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": []
+      },
+      "dependencies": [
+        "RT-FEAT-ACTION-COOLDOWNS"
+      ],
+      "owner_specs": [
+        "docs/balance/RT_HeroCatalog_v0.1.md"
+      ],
+      "issues": [],
+      "tests": [
+        "RefactorTactics.Combat.UltimateReadyAtFullEnergy"
+      ],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/azioni-e-movimento.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Esiste la risorsa (energia, `UltimateReady`) ma non una categoria «super» con regole proprie. Nessuna epic della v0.1 la apre: la seed list la elenca, il repository la conferma solo come risorsa. Resta v0.2 senza epic assegnata."
+    },
+    {
+      "feature_id": "RT-FEAT-ACTION-DELAYED",
+      "title": "Delayed Action ai boundary di fase",
+      "area": "Actions",
+      "kind": "gameplay",
+      "release": "future",
+      "priority": "P3",
+      "status": "DESIGNED",
+      "status_derived": "DESIGNED",
+      "gates": {
+        "spec": "partial",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 0,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": []
+      },
+      "dependencies": [
+        "RT-FEAT-CORE-DECISION-BOUNDARY"
+      ],
+      "owner_specs": [
+        "docs/gameplay/brief-delayed-actions.md"
+      ],
+      "issues": [],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Brief di scope, **nessuna epic aperta**: la proposta (4 checkpoint, numero non assegnato) attende una decisione perché E14 non è iniziata. Registrata per non perderla, non promossa."
+    },
+    {
+      "feature_id": "RT-FEAT-ACTION-PREDICTIVE",
+      "title": "Predictive Action, thin slice",
+      "area": "Actions",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "SPECIFIED",
+      "status_derived": "SPECIFIED",
+      "gates": {
+        "spec": "done",
+        "data": "partial",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 1,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E18",
+        "milestone": null,
+        "checkpoints": [
+          "18.1",
+          "18.2"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-ACTION-ENGINE",
+        "RT-FEAT-CHAR-V01-ROSTER"
+      ],
+      "owner_specs": [
+        "docs/decisions/RT_PDR_00_Decision_Log.md"
+      ],
+      "issues": [
+        225,
+        226,
+        227
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [
+        "Spec.Predictive.WhiffOnEmptyCell"
+      ],
+      "wiki_refs": [
+        "docs/wiki/game/reazioni-overwatch-e-previsioni.md",
+        "docs/characters/v0.1/vektor.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "`Vektor.InterceptShot` è la thin slice: decisa in Planning, risolta a un boundary deterministico, senza input live (D-016). A catalogo la reazione dichiara il rinvio; il framework di trap resta fuori. Lo scenario vive nel branch `feat/scenari-test-automatici`."
+    },
+    {
+      "feature_id": "RT-FEAT-ACTION-TRAPS",
+      "title": "Trappole e gambit tattici",
+      "area": "Actions",
+      "kind": "gameplay",
+      "release": "future",
+      "priority": "P3",
+      "status": "IDEA",
+      "status_derived": "IDEA",
+      "gates": {
+        "spec": "todo",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 0,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": []
+      },
+      "dependencies": [
+        "RT-FEAT-ACTION-PREDICTIVE"
+      ],
+      "owner_specs": [],
+      "issues": [],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Nella seed list, ma **nessuna fonte nel repository**: né spec, né epic, né issue. Resta IDEA finché un documento owner non la definisce. E18 dichiara esplicitamente che il framework di trap è fuori dal proprio scope."
+    },
+    {
+      "feature_id": "RT-FEAT-ACTION-EQUIPMENT",
+      "title": "Equipaggiamento e loadout",
+      "area": "Actions",
+      "kind": "content",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
+      "gates": {
+        "spec": "done",
+        "data": "partial",
+        "runtime": "partial",
+        "log_debug": "todo",
+        "automation": "partial",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 1,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E7",
+        "milestone": null,
+        "checkpoints": [
+          "7.1",
+          "7.2",
+          "7.3",
+          "7.4"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-DATA-ASSET-PIPELINE",
+        "RT-FEAT-CHAR-V01-ROSTER"
+      ],
+      "owner_specs": [
+        "docs/balance/RT_EquipmentCatalog_v0.1.md"
+      ],
+      "issues": [
+        21,
+        60,
+        61,
+        62,
+        63
+      ],
+      "tests": [
+        "RefactorTactics.Catalog.ValidatorRejectsEquipmentWithoutDrawback"
+      ],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "`URTEquipmentData` e il catalogo esistono, e il validator impone che ogni variante abbia uno svantaggio. Manca il loadout in partita: E7 è l'epic **assente** che tiene aperta M11. Nessuna pagina Wiki la descrive."
+    },
+    {
+      "feature_id": "RT-FEAT-REACTION-PREPARED",
+      "title": "Reazioni preparate in planning",
+      "area": "Reactions",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "INTEGRATED",
+      "status_derived": "INTEGRATED",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "partial",
+        "packaged": "partial",
+        "network_privacy": "na"
+      },
+      "gates_done": 6,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E5",
+        "milestone": null,
+        "checkpoints": [
+          "5.1",
+          "5.2",
+          "5.3",
+          "5.4",
+          "5.5"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-ACTION-ENGINE"
+      ],
+      "owner_specs": [
+        "docs/gameplay/spec-reazioni-componibili-cp55.md",
+        "docs/gameplay/brief-overwatch-reazioni.md"
+      ],
+      "issues": [
+        19,
+        50,
+        51,
+        52,
+        53,
+        154
+      ],
+      "tests": [
+        "RefactorTactics.Reactions.*"
+      ],
+      "scenarios": [
+        "Combat.CounterStrikesBack",
+        "Combat.NoCounterWhenUnarmed",
+        "Visual.Reaction.Deflection",
+        "Visual.Reaction.Interposition"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/reazioni-overwatch-e-previsioni.md",
+        "docs/characters/v0.1/bastion.md",
+        "docs/characters/v0.1/vektor.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "27 test. Una attivazione per turno, reazioni componibili, identità nel TurnLog, nessun branch per eroe nel resolver (`Reactions.NoHeroSpecificBranchInResolver`). Distinta da RT-FEAT-REACTION-OPPORTUNITY: qui la reazione si **arma prima** e scatta da sola, senza finestra di decisione."
+    },
+    {
+      "feature_id": "RT-FEAT-REACTION-OPPORTUNITY",
+      "title": "Modello Opportunity → Commit",
+      "area": "Reactions",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "SPECIFIED",
+      "status_derived": "SPECIFIED",
+      "gates": {
+        "spec": "done",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 1,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E14",
+        "milestone": null,
+        "checkpoints": [
+          "14.3"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-CORE-DECISION-BOUNDARY",
+        "RT-FEAT-REACTION-PREPARED",
+        "RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE"
+      ],
+      "owner_specs": [
+        "docs/decisions/adr-0004-finestre-di-reazione.md"
+      ],
+      "issues": [
+        163
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "ADR-0004 accettato; il modello unificato contiene E5 come caso `AllowedResponses ≤ 1`. Nessun codice. Non parte prima di E13: il trigger richiede livello «Rilevato», non solo LOS."
+    },
+    {
+      "feature_id": "RT-FEAT-REACTION-FAST",
+      "title": "Fast Reaction con finestra limitata",
+      "area": "Reactions",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "SPECIFIED",
+      "status_derived": "SPECIFIED",
+      "gates": {
+        "spec": "done",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "todo"
+      },
+      "gates_done": 1,
+      "gates_applicable": 9,
+      "roadmap": {
+        "epic": "E14",
+        "milestone": null,
+        "checkpoints": [
+          "14.5",
+          "14.6"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-REACTION-OPPORTUNITY"
+      ],
+      "owner_specs": [
+        "docs/decisions/adr-0004-finestre-di-reazione.md"
+      ],
+      "issues": [
+        165,
+        166
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Finestra **3,0 s**, timeout **HOLD**. `network_privacy` è `todo` e non `na`: la finestra viaggia in rete quando arriva M10 e non deve rivelare intenti avversari (invariante #6, D-021 privacy temporale). In v0.1 offline non è verificabile, ma non è nemmeno «non applicabile»."
+    },
+    {
+      "feature_id": "RT-FEAT-REACTION-OVERWATCH",
+      "title": "Overwatch universale profilabile",
+      "area": "Reactions",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "SPECIFIED",
+      "status_derived": "SPECIFIED",
+      "gates": {
+        "spec": "done",
+        "data": "partial",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "todo"
+      },
+      "gates_done": 1,
+      "gates_applicable": 9,
+      "roadmap": {
+        "epic": "E14",
+        "milestone": null,
+        "checkpoints": [
+          "14.4"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-REACTION-OPPORTUNITY",
+        "RT-FEAT-MAP-FACING",
+        "RT-FEAT-MAP-LOS"
+      ],
+      "owner_specs": [
+        "docs/gameplay/brief-overwatch-reazioni.md",
+        "docs/gameplay/brief-azioni-generiche-overwatch.md"
+      ],
+      "issues": [
+        164
+      ],
+      "tests": [
+        "RefactorTactics.Actions.SuppressiveLine"
+      ],
+      "scenarios": [],
+      "scenarios_planned": [
+        "Spec.Overwatch.HoldThenFire"
+      ],
+      "wiki_refs": [
+        "docs/wiki/meccaniche/overwatch.md",
+        "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
+      ],
+      "wiki_note": "Le reazioni **preparate** esistono e funzionano in partita; l'**Overwatch interattivo** di questa pagina non e' implementato.",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "**Non implementata**: `grep -rn \"Overwatch\" Source/` fuori dai test non restituisce nulla. L'aggancio tecnico esiste (`FRTSuppressiveZone` in `RTOffensiveActionLibrary`, azione `Action.SuppressiveLine`) ma è zona di soppressione, non Overwatch. Due pagine Wiki la descrivono già: il blocco di stato generato deve dire che è pianificata, non giocabile."
+    },
+    {
+      "feature_id": "RT-FEAT-REACTION-FAST-ACTION",
+      "title": "Fast Action come continuazione della propria azione",
+      "area": "Reactions",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P3",
+      "status": "DESIGNED",
+      "status_derived": "DESIGNED",
+      "gates": {
+        "spec": "partial",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "todo"
+      },
+      "gates_done": 0,
+      "gates_applicable": 9,
+      "roadmap": {
+        "epic": "E14",
+        "milestone": null,
+        "checkpoints": [
+          "14.6"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-REACTION-FAST"
+      ],
+      "owner_specs": [
+        "docs/gameplay/brief-overwatch-reazioni.md"
+      ],
+      "issues": [
+        166
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Il brief la nomina dentro il counterplay di CP 14.6 ma non le dedica regole proprie: `spec` resta `partial`. Da promuovere solo con un owner esplicito."
+    },
+    {
+      "feature_id": "RT-FEAT-ENV-TERRAIN",
+      "title": "Otto terreni con costi e proprietà",
+      "area": "Environment",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "INTEGRATED",
+      "status_derived": "INTEGRATED",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 6,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E8",
+        "milestone": null,
+        "checkpoints": [
+          "8.1"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-MAP-HEXGRAPH",
+        "RT-FEAT-DATA-ASSET-PIPELINE"
+      ],
+      "owner_specs": [
+        "docs/gameplay/spec-terreni-e8.md",
+        "docs/balance/RT_TerrainCatalog_v0.1.md"
+      ],
+      "issues": [
+        64
+      ],
+      "tests": [
+        "RefactorTactics.Terrain.CostsFromCatalog",
+        "RefactorTactics.Terrain.Rough",
+        "RefactorTactics.Terrain.ValidateCatalog",
+        "RefactorTactics.Terrain.ValidateCatalogEntries"
+      ],
+      "scenarios": [
+        "Visual.Movement.RoughRefusesCharge"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/mappa-terreni-e-ambiente.md"
+      ],
+      "wiki_note": "Gli otto terreni sono implementati e testati; strutture e interazioni continuano a essere estese.",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Il costo per cella viene dal catalogo, non da costanti nel codice. Base comune di tutte le feature ambientali: non era una voce separata della seed list ma le altre dipendono da lei."
+    },
+    {
+      "feature_id": "RT-FEAT-ENV-STATUS",
+      "title": "Stati temporanei legati alla cella",
+      "area": "Environment",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "INTEGRATED",
+      "status_derived": "INTEGRATED",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 6,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E8",
+        "milestone": null,
+        "checkpoints": [
+          "8.2"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-ENV-TERRAIN"
+      ],
+      "owner_specs": [
+        "docs/gameplay/spec-stati-temporanei-cp82.md"
+      ],
+      "issues": [
+        65
+      ],
+      "tests": [
+        "RefactorTactics.Status.*",
+        "RefactorTactics.Terrain.Status"
+      ],
+      "scenarios": [
+        "Visual.Environment.FireOnEnter"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/meccaniche/fuoco-e-stati.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Durata legata alla cella, danno di `Burning` nel Cleanup prima dei KO, `Marked` cablato. 12 test: la lezione di CP 8.2 è che un dato senza consumatore runtime non è una feature."
+    },
+    {
+      "feature_id": "RT-FEAT-ENV-WATER",
+      "title": "Acqua e stato Wet",
+      "area": "Environment",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "INTEGRATED",
+      "status_derived": "INTEGRATED",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 6,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E8",
+        "milestone": null,
+        "checkpoints": [
+          "8.1",
+          "8.4"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-ENV-TERRAIN",
+        "RT-FEAT-ENV-STATUS"
+      ],
+      "owner_specs": [
+        "docs/gameplay/spec-fuoco-acqua-cp84.md"
+      ],
+      "issues": [
+        64,
+        67
+      ],
+      "tests": [
+        "RefactorTactics.Terrain.ShallowWater",
+        "RefactorTactics.Status.Wet",
+        "RefactorTactics.Actions.CreateWater",
+        "RefactorTactics.Environment.WaterExtinguishesFire"
+      ],
+      "scenarios": [
+        "Visual.Environment.WetExtinguishesFire"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/meccaniche/acqua-e-elettricita.md",
+        "docs/characters/v0.1/riva.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "`Wet` spegne le fiamme ed è il substrato della propagazione elettrica. `Action.CreateWater` la produce come superficie, non come effetto d'eroe."
+    },
+    {
+      "feature_id": "RT-FEAT-ENV-ELECTRIC",
+      "title": "Propagazione elettrica sul grafo dell'acqua",
+      "area": "Environment",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "INTEGRATED",
+      "status_derived": "INTEGRATED",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 6,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E8",
+        "milestone": null,
+        "checkpoints": [
+          "8.3"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-ENV-WATER"
+      ],
+      "owner_specs": [
+        "docs/gameplay/spec-propagazione-elettrica-cp83.md"
+      ],
+      "issues": [
+        66
+      ],
+      "tests": [
+        "RefactorTactics.Environment.WaterElectricPropagation",
+        "RefactorTactics.Environment.Propagation",
+        "RefactorTactics.Structures.Bridge.ConductsElectricity",
+        "RefactorTactics.Catalog.ValidatorRejectsUnboundedPropagation"
+      ],
+      "scenarios": [
+        "Visual.Combat.WaterElectric"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/meccaniche/acqua-e-elettricita.md",
+        "docs/characters/v0.1/flux.md"
+      ],
+      "wiki_note": "Il sistema esiste ed e' testato, ma **nessun eroe della v0.1 ha `Action.Electrify` come abilita' normale**: la scarica arriva dall'ambiente e dalle interazioni, non da un kit.",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Limite di 3 passi, unicità per evento, ordine totale nel Cleanup. Dal CP 9.4 la scarica **risale** un ponte conduttivo: prima non saliva mai di layer."
+    },
+    {
+      "feature_id": "RT-FEAT-ENV-FIRE",
+      "title": "Fuoco e terreno dinamico",
+      "area": "Environment",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "INTEGRATED",
+      "status_derived": "INTEGRATED",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 6,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E8",
+        "milestone": null,
+        "checkpoints": [
+          "8.1",
+          "8.4"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-ENV-TERRAIN",
+        "RT-FEAT-ENV-STATUS"
+      ],
+      "owner_specs": [
+        "docs/gameplay/spec-fuoco-acqua-cp84.md"
+      ],
+      "issues": [
+        64,
+        67
+      ],
+      "tests": [
+        "RefactorTactics.Terrain.Fire",
+        "RefactorTactics.Status.Burning",
+        "RefactorTactics.Environment.Fire"
+      ],
+      "scenarios": [
+        "Visual.Environment.FireOnEnter",
+        "Visual.Environment.WetExtinguishesFire"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/meccaniche/fuoco-e-stati.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "La superficie corrente vive in una copia di lavoro della mappa: la mappa asset non muta a runtime. `Burning` danneggia nel Cleanup, prima dei KO."
+    },
+    {
+      "feature_id": "RT-FEAT-ENV-STEAM",
+      "title": "Fumo e copertura visiva",
+      "area": "Environment",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "INTEGRATED",
+      "status_derived": "INTEGRATED",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 6,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E8",
+        "milestone": null,
+        "checkpoints": [
+          "8.1"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-ENV-TERRAIN",
+        "RT-FEAT-MAP-LOS"
+      ],
+      "owner_specs": [
+        "docs/gameplay/spec-terreni-e8.md"
+      ],
+      "issues": [
+        64
+      ],
+      "tests": [
+        "RefactorTactics.Terrain.Smoke",
+        "RefactorTactics.Status.Obscured"
+      ],
+      "scenarios": [
+        "Visual.Combat.SmokeCapsTargeting"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/mappa-terreni-e-ambiente.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Nel repository è **fumo** (`Smoke` → `Obscured`), non vapore: la seed list dice «steam», il codice e il catalogo dicono `Smoke`. Nome allineato al codice, che è la fonte verificabile."
+    },
+    {
+      "feature_id": "RT-FEAT-ENV-ICE",
+      "title": "Ghiaccio e scivolamento",
+      "area": "Environment",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "INTEGRATED",
+      "status_derived": "INTEGRATED",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 6,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E8",
+        "milestone": null,
+        "checkpoints": [
+          "8.1"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-ENV-TERRAIN"
+      ],
+      "owner_specs": [
+        "docs/gameplay/spec-terreni-e8.md"
+      ],
+      "issues": [
+        64
+      ],
+      "tests": [
+        "RefactorTactics.Terrain.Ice"
+      ],
+      "scenarios": [
+        "Visual.Environment.IceSlide"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/mappa-terreni-e-ambiente.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Solo lo **scivolamento base**, che è già implementato. Il motore completo (Momentum, Traction, slide a catena, Unbalanced/Prone, integrità e rottura) è RT-FEAT-ENV-ICE-ENGINE, fuori dalla v0.1."
+    },
+    {
+      "feature_id": "RT-FEAT-ENV-ICE-ENGINE",
+      "title": "Motore del ghiaccio (momentum, rottura, prone)",
+      "area": "Environment",
+      "kind": "gameplay",
+      "release": "v0.2",
+      "priority": "P3",
+      "status": "DESIGNED",
+      "status_derived": "DESIGNED",
+      "gates": {
+        "spec": "partial",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 0,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": []
+      },
+      "dependencies": [
+        "RT-FEAT-ENV-ICE"
+      ],
+      "owner_specs": [
+        "docs/gameplay/brief-ghiaccio.md"
+      ],
+      "issues": [],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Brief esistente, nessuna epic. Separato da RT-FEAT-ENV-ICE proprio perché la roadmap dichiara che lo scivolamento base resta in v0.1 e il resto no."
+    },
+    {
+      "feature_id": "RT-FEAT-ENV-SYSTEMIC-COMBOS",
+      "title": "Interazioni sistemiche producer/consumer",
+      "area": "Environment",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "INTEGRATED",
+      "status_derived": "INTEGRATED",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 6,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E8",
+        "milestone": null,
+        "checkpoints": [
+          "8.5"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-ENV-WATER",
+        "RT-FEAT-ENV-ELECTRIC",
+        "RT-FEAT-ENV-FIRE"
+      ],
+      "owner_specs": [
+        "docs/gameplay/spec-ownership-abilita-interazioni-sinergie.md",
+        "docs/decisions/adr-0006-ownership-abilita-sinergie.md"
+      ],
+      "issues": [
+        68
+      ],
+      "tests": [
+        "RefactorTactics.Environment.ChangesAppearInTurnLog",
+        "RefactorTactics.Actions.EnvironmentalSetMatchesCatalog",
+        "RefactorTactics.Reactions.NoHeroSpecificBranchInResolver"
+      ],
+      "scenarios": [
+        "Visual.Combat.WaterElectric",
+        "Visual.Environment.WetExtinguishesFire"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/sinergie-e-combinazioni.md",
+        "docs/characters/v0.1/flux.md",
+        "docs/characters/v0.1/riva.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "D-029 / ADR-0006: un'abilità ha un solo owner, le interazioni appartengono ai sistemi, le sinergie sono esempi derivati. Niente `if (HeroA && HeroB)`. Il DoD trasversale §8 chiede tre test per ogni feature cross-character: producer, consumer, indipendenza dal partner."
+    },
+    {
+      "feature_id": "RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE",
+      "title": "TeamKnowledge e informazione parziale",
+      "area": "Perception",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "SPECIFIED",
+      "status_derived": "SPECIFIED",
+      "gates": {
+        "spec": "done",
+        "data": "partial",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "todo"
+      },
+      "gates_done": 1,
+      "gates_applicable": 9,
+      "roadmap": {
+        "epic": "E13",
+        "milestone": null,
+        "checkpoints": [
+          "13.1"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-MAP-LOS",
+        "RT-FEAT-MAP-FACING"
+      ],
+      "owner_specs": [
+        "docs/gameplay/brief-conoscenza-parziale.md"
+      ],
+      "issues": [
+        151,
+        156
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/visibilita-rumore-e-informazione.md"
+      ],
+      "wiki_note": "Modello deciso per la v0.1; l'implementazione (E13, dopo E16) **non e' iniziata**: oggi la vista non decide nulla.",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "La vista è oggi **una statistica a catalogo che non decide nulla**: i dati esistono (`data: partial`), il consumatore runtime no. Prerequisito di E14."
+    },
+    {
+      "feature_id": "RT-FEAT-PERCEPTION-VISION",
+      "title": "Vista, facing e livelli di consapevolezza",
+      "area": "Perception",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "SPECIFIED",
+      "status_derived": "SPECIFIED",
+      "gates": {
+        "spec": "done",
+        "data": "partial",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "todo"
+      },
+      "gates_done": 1,
+      "gates_applicable": 9,
+      "roadmap": {
+        "epic": "E13",
+        "milestone": null,
+        "checkpoints": [
+          "13.1",
+          "13.2"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE",
+        "RT-FEAT-MAP-FACING"
+      ],
+      "owner_specs": [
+        "docs/gameplay/brief-conoscenza-parziale.md"
+      ],
+      "issues": [
+        156,
+        157
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/visibilita-rumore-e-informazione.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Il targeting deve **consumare** la conoscenza, non la LOS nuda. I livelli oltre l'incerto (identificazione, firma, sensori) restano fuori dalla v0.1 per decisione del brief §9."
+    },
+    {
+      "feature_id": "RT-FEAT-PERCEPTION-NOISE",
+      "title": "Rumore e percezione acustica",
+      "area": "Perception",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "SPECIFIED",
+      "status_derived": "SPECIFIED",
+      "gates": {
+        "spec": "done",
+        "data": "partial",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "todo"
+      },
+      "gates_done": 1,
+      "gates_applicable": 9,
+      "roadmap": {
+        "epic": "E13",
+        "milestone": null,
+        "checkpoints": [
+          "13.3"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE",
+        "RT-FEAT-MAP-HEXGRAPH"
+      ],
+      "owner_specs": [
+        "docs/gameplay/brief-conoscenza-parziale.md"
+      ],
+      "issues": [
+        158
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [
+        "Spec.Perception.HeardNotSeen"
+      ],
+      "wiki_refs": [
+        "docs/wiki/game/visibilita-rumore-e-informazione.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Il rumore è il secondo canale di informazione e propaga sul grafo, non in linea d'aria. Lo scenario `Spec.Perception.HeardNotSeen` è nel branch `feat/scenari-test-automatici`."
+    },
+    {
+      "feature_id": "RT-FEAT-PERCEPTION-MEMORY",
+      "title": "Memoria del contatto e ultima posizione nota",
+      "area": "Perception",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "SPECIFIED",
+      "status_derived": "SPECIFIED",
+      "gates": {
+        "spec": "done",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "todo"
+      },
+      "gates_done": 1,
+      "gates_applicable": 9,
+      "roadmap": {
+        "epic": "E13",
+        "milestone": null,
+        "checkpoints": [
+          "13.2"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-PERCEPTION-VISION"
+      ],
+      "owner_specs": [
+        "docs/gameplay/brief-conoscenza-parziale.md"
+      ],
+      "issues": [
+        157
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/visibilita-rumore-e-informazione.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "«Ultimo noto» e «sentito ma non visto» sono stati distinti dalla conoscenza corrente: senza memoria, perdere la LOS cancellerebbe l'informazione, che è peggio di non averla mai avuta."
+    },
+    {
+      "feature_id": "RT-FEAT-UI-TACTICAL-CAMERA",
+      "title": "Camera tattica",
+      "area": "UI",
+      "kind": "ui",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
+      "gates": {
+        "spec": "partial",
+        "data": "na",
+        "runtime": "done",
+        "log_debug": "na",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "partial",
+        "packaged": "partial",
+        "network_privacy": "na"
+      },
+      "gates_done": 1,
+      "gates_applicable": 6,
+      "roadmap": {
+        "epic": "E11",
+        "milestone": null,
+        "checkpoints": [
+          "11.1"
+        ]
+      },
+      "dependencies": [],
+      "owner_specs": [
+        "docs/technical/progettazione-hud.md"
+      ],
+      "issues": [
+        77
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/come-si-gioca.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "`ARTCameraPawn` esiste e la build packaged la usa, ma **nessun test automatico** la copre e la taratura su scala esagonale è una verifica PIE aperta (CP 8.3 di M8). Non promuovere per «si vede che funziona»."
+    },
+    {
+      "feature_id": "RT-FEAT-UI-PLANNING",
+      "title": "HUD di planning, selezione e preview",
+      "area": "UI",
+      "kind": "ui",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "RELEASE_READY",
+      "status_derived": "RELEASE_READY",
+      "gates": {
+        "spec": "done",
+        "data": "na",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "done",
+        "packaged": "partial",
+        "network_privacy": "na"
+      },
+      "gates_done": 6,
+      "gates_applicable": 7,
+      "roadmap": {
+        "epic": "E11",
+        "milestone": null,
+        "checkpoints": [
+          "11.1"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-MAP-PATHFINDING",
+        "RT-FEAT-CORE-TURN"
+      ],
+      "owner_specs": [
+        "docs/technical/progettazione-hud.md",
+        "docs/technical/spec-hover-cella.md"
+      ],
+      "issues": [
+        77
+      ],
+      "tests": [
+        "RefactorTactics.Preview.*",
+        "RefactorTactics.PlayerInput.*"
+      ],
+      "scenarios": [
+        "Movement.SwapRejectedByPlanning",
+        "Visual.Core.PhaseOrder"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/come-si-gioca.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Il client valida sullo stato dell'autorità (`MakeCurrentSnapshot`): la preview non è una seconda verità. Waypoint, undo, rifiuto fuori budget coperti da test."
+    },
+    {
+      "feature_id": "RT-FEAT-UI-ACTION-GHOSTS",
+      "title": "Action Ghosts e Ghost Timeline",
+      "area": "UI",
+      "kind": "ui",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "SPECIFIED",
+      "status_derived": "SPECIFIED",
+      "gates": {
+        "spec": "done",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 1,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E11",
+        "milestone": null,
+        "checkpoints": [
+          "11.5",
+          "11.6"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-UI-PLANNING",
+        "RT-FEAT-UI-CERTAINTY"
+      ],
+      "owner_specs": [
+        "docs/technical/brief-planning-visuale.md"
+      ],
+      "issues": [
+        172,
+        173
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/come-si-gioca.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Preview del piano per fase e scrubbing: è la parte di M8 che resta aperta insieme alla presentazione dei personaggi."
+    },
+    {
+      "feature_id": "RT-FEAT-UI-CERTAINTY",
+      "title": "Livelli di certezza degli intenti alleati",
+      "area": "UI",
+      "kind": "ui",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
+      "gates": {
+        "spec": "done",
+        "data": "na",
+        "runtime": "partial",
+        "log_debug": "done",
+        "automation": "partial",
+        "scenario": "todo",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "done"
+      },
+      "gates_done": 3,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E11",
+        "milestone": null,
+        "checkpoints": [
+          "11.2"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-UI-PLANNING",
+        "RT-FEAT-NET-PRIVATE-PLANNING"
+      ],
+      "owner_specs": [
+        "docs/technical/progettazione-hud.md",
+        "docs/technical/brief-planning-visuale.md"
+      ],
+      "issues": [
+        78
+      ],
+      "tests": [
+        "RefactorTactics.Combat.IntentVisibleToAlliesAlwaysEnemiesOnlyIfRevealed",
+        "RefactorTactics.Reactions.IntentViewSkipsDeadAndKeepsOrder"
+      ],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/come-si-gioca.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Il filtro per squadra esiste ed è testato (confermato / previsto / incerto arrivano da lì), ma la resa a schermo dei tre livelli è dentro CP 11.2, non chiuso."
+    },
+    {
+      "feature_id": "RT-FEAT-UI-WARNINGS",
+      "title": "Avvisi di collisione, fuoco amico e risorse",
+      "area": "UI",
+      "kind": "ui",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
+      "gates": {
+        "spec": "done",
+        "data": "na",
+        "runtime": "partial",
+        "log_debug": "done",
+        "automation": "partial",
+        "scenario": "done",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 3,
+      "gates_applicable": 7,
+      "roadmap": {
+        "epic": "E11",
+        "milestone": null,
+        "checkpoints": [
+          "11.1",
+          "11.2"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-UI-PLANNING"
+      ],
+      "owner_specs": [
+        "docs/technical/progettazione-hud.md"
+      ],
+      "issues": [
+        77,
+        78
+      ],
+      "tests": [
+        "RefactorTactics.Preview.AllyInAreaIsFlagged",
+        "RefactorTactics.HexCombat.NoFriendlyFire"
+      ],
+      "scenarios": [
+        "Combat.FriendlyFire",
+        "Combat.SplashHitsAlliesNotSelf"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/combattimento-e-targeting.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "L'alleato nell'area viene segnalato in preview e il fuoco amico è deciso dalle regole, non dall'HUD. Mancano gli avvisi di risorsa e incertezza."
+    },
+    {
+      "feature_id": "RT-FEAT-UI-COMBAT-LOG",
+      "title": "Combat log e spiegabilità",
+      "area": "UI",
+      "kind": "ui",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "RELEASE_READY",
+      "status_derived": "RELEASE_READY",
+      "gates": {
+        "spec": "done",
+        "data": "na",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "done",
+        "packaged": "partial",
+        "network_privacy": "na"
+      },
+      "gates_done": 6,
+      "gates_applicable": 7,
+      "roadmap": {
+        "epic": "E11",
+        "milestone": null,
+        "checkpoints": [
+          "11.3"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-CORE-TURNLOG"
+      ],
+      "owner_specs": [
+        "docs/technical/spec-turnlog.md"
+      ],
+      "issues": [
+        79
+      ],
+      "tests": [
+        "RefactorTactics.TurnLog.DescribeEntry",
+        "RefactorTactics.HexMatch.TurnLogExplainsTheTurn"
+      ],
+      "scenarios": [
+        "Visual.Core.PhaseOrder"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/esempio-di-round.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Quel che il giocatore legge e quel che il replay registra sono la stessa cosa: una sola funzione pura (`DescribeEntry`) produce entrambi."
+    },
+    {
+      "feature_id": "RT-FEAT-UI-ICON-LANGUAGE",
+      "title": "HUD Icon Language",
+      "area": "UI",
+      "kind": "ui",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "SPECIFIED",
+      "status_derived": "SPECIFIED",
+      "gates": {
+        "spec": "done",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "na",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 1,
+      "gates_applicable": 7,
+      "roadmap": {
+        "epic": "E20",
+        "milestone": null,
+        "checkpoints": [
+          "20.1",
+          "20.2",
+          "20.3"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-UI-PLANNING"
+      ],
+      "owner_specs": [
+        "docs/decisions/RT_PDR_00_Decision_Log.md"
+      ],
+      "issues": [
+        217,
+        218,
+        219,
+        220
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "D-031: le icone sono un **catalogo semantico** (`URTIconCatalogData`), non texture referenziate nei widget. Entra in v0.1 perché E11 costruisce l'HUD adesso e riscrivere ogni widget dopo costerebbe di più."
+    },
+    {
+      "feature_id": "RT-FEAT-UI-SCENARIO-BROWSER",
+      "title": "Selettore e indice degli scenari",
+      "area": "UI",
+      "kind": "tooling",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "INTEGRATED",
+      "status_derived": "INTEGRATED",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 6,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": []
+      },
+      "dependencies": [
+        "RT-FEAT-TEST-SCENARIO-HARNESS"
+      ],
+      "owner_specs": [
+        "docs/technical/scenario-index-e-tag.md"
+      ],
+      "issues": [
+        209
+      ],
+      "tests": [
+        "RefactorTactics.ScenarioIndex.*",
+        "RefactorTactics.Scenario.AutoRunOptions*",
+        "RefactorTactics.Scenario.ListIdsFromFiles"
+      ],
+      "scenarios": [
+        "Movement.Basic"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "ScenarioId staccato dal percorso, tag su un solo asse, `ResolvePath` che rifiuta un ID ambiguo, catena di redirect. **Fuori dalle 20 epic della v0.1**: nasce dall'issue `#209` e non ha un checkpoint — è uno dei conflitti da chiudere (vedi report §F)."
+    },
+    {
+      "feature_id": "RT-FEAT-CHAR-V01-ROSTER",
+      "title": "Roster v0.1 — Flux, Riva, Bastion, Vektor",
+      "area": "Characters",
+      "kind": "content",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "INTEGRATED",
+      "status_derived": "INTEGRATED",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "partial",
+        "packaged": "partial",
+        "network_privacy": "na"
+      },
+      "gates_done": 6,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E6",
+        "milestone": null,
+        "checkpoints": [
+          "6.1",
+          "6.2",
+          "6.3",
+          "6.4",
+          "6.5",
+          "6.6",
+          "6.7"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-ACTION-ENGINE",
+        "RT-FEAT-REACTION-PREPARED",
+        "RT-FEAT-DATA-ASSET-PIPELINE"
+      ],
+      "owner_specs": [
+        "docs/balance/RT_HeroCatalog_v0.1.md"
+      ],
+      "issues": [
+        20,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        155
+      ],
+      "tests": [
+        "RefactorTactics.Heroes.*"
+      ],
+      "scenarios": [
+        "Combat.BasicAttack",
+        "Visual.Reaction.Interposition",
+        "Visual.Reaction.Deflection",
+        "RT_Showcase_Relay_v01"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/characters/v0.1/flux.md",
+        "docs/characters/v0.1/riva.md",
+        "docs/characters/v0.1/bastion.md",
+        "docs/characters/v0.1/vektor.md",
+        "docs/characters/index.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "26 test. Statistiche e kit dai dati; **tre reazioni d'eroe su cinque** cablate al CP 6.7 (`Interposition`, `Deflection`, `ReactiveCapacitor`). `Vektor.InterceptShot` è rinviata a E18 e `Riva.FlowReaction` a E14, e i dati lo dichiarano (`Heroes.ReactionsDeclaredOrDeferred`)."
+    },
+    {
+      "feature_id": "RT-FEAT-CHAR-V02-ROSTER",
+      "title": "Roster v0.2 — Steel, Aurora, Murdock, Kwang",
+      "area": "Characters",
+      "kind": "content",
+      "release": "v0.2",
+      "priority": "P2",
+      "status": "DESIGNED",
+      "status_derived": "DESIGNED",
+      "gates": {
+        "spec": "partial",
+        "data": "partial",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 0,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": []
+      },
+      "dependencies": [
+        "RT-FEAT-CHAR-V01-ROSTER"
+      ],
+      "owner_specs": [
+        "docs/characters/index.md"
+      ],
+      "issues": [],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/characters/v0.2/steel.md",
+        "docs/characters/v0.2/aurora.md",
+        "docs/characters/v0.2/murdock.md",
+        "docs/characters/v0.2/kwang.md"
+      ],
+      "wiki_note": "Pagina di **progetto**: nessun dato di gioco e nessuna epic aperta per questo personaggio.",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Quattro pagine Wiki e le righe `DATA_READY_v0.2` nel workbook esistono; **nessun dato di gioco e nessuna epic**. È il caso tipico da non promuovere: la documentazione è avanti al codice ed è corretto che lo sia, purché il blocco di stato lo dica."
+    },
+    {
+      "feature_id": "RT-FEAT-CHAR-PRESENTATION",
+      "title": "Presentazione dei personaggi (mesh, animazioni, anelli)",
+      "area": "Characters",
+      "kind": "ui",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
+      "gates": {
+        "spec": "done",
+        "data": "partial",
+        "runtime": "partial",
+        "log_debug": "na",
+        "automation": "partial",
+        "scenario": "todo",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 1,
+      "gates_applicable": 7,
+      "roadmap": {
+        "epic": null,
+        "milestone": "M8",
+        "checkpoints": []
+      },
+      "dependencies": [
+        "RT-FEAT-CHAR-V01-ROSTER",
+        "RT-FEAT-CORE-PLAYBACK"
+      ],
+      "owner_specs": [
+        "docs/technical/guida-animazioni-paragon.md",
+        "docs/technical/spec-team-identity.md",
+        "docs/decisions/adr-0001-skeletal-unit.md"
+      ],
+      "issues": [],
+      "tests": [
+        "RefactorTactics.Unit.TeamColorFor",
+        "RefactorTactics.Unit.RingLocalZ",
+        "RefactorTactics.Unit.ShortHeroNameFromStableId"
+      ],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/characters/index.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "È il residuo di **M8**: il C++ (spawn con fallback, facing di presentazione, anello di team) è in `main`, il lavoro in editor no. Milestone senza epic v0.1 corrispondente: la roadmap di release non la copre, e questo è un conflitto registrato nel report §F."
+    },
+    {
+      "feature_id": "RT-FEAT-CHAR-TRANSFORMATION",
+      "title": "Stati di personaggio, stance e trasformazioni",
+      "area": "Characters",
+      "kind": "gameplay",
+      "release": "v0.2",
+      "priority": "P3",
+      "status": "IDEA",
+      "status_derived": "IDEA",
+      "gates": {
+        "spec": "todo",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 0,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": []
+      },
+      "dependencies": [
+        "RT-FEAT-CHAR-V01-ROSTER"
+      ],
+      "owner_specs": [],
+      "issues": [],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Nella seed list. Un brief (`brief-stati-personaggio-e-trasformazioni.md`) esiste nel branch `docs/consolidamento-signature-e-trasformazioni`, **non in `main`**: finché non è mergiato, `owner_specs` resta vuoto e lo stato è IDEA. Da rialzare a DESIGNED al merge."
+    },
+    {
+      "feature_id": "RT-FEAT-CHAR-AUXILIARY-UNITS",
+      "title": "Unità ausiliarie (pet, evocazioni, gadget)",
+      "area": "Characters",
+      "kind": "gameplay",
+      "release": "v0.2",
+      "priority": "P3",
+      "status": "DESIGNED",
+      "status_derived": "DESIGNED",
+      "gates": {
+        "spec": "partial",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 0,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": []
+      },
+      "dependencies": [
+        "RT-FEAT-CHAR-V01-ROSTER",
+        "RT-FEAT-CORE-TURN"
+      ],
+      "owner_specs": [
+        "docs/gameplay/brief-unita-ausiliarie.md"
+      ],
+      "issues": [],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Brief di scope in `main`, nessuna epic. Tocca il budget del turno e l'ordine di risoluzione: non è contenuto additivo."
+    },
+    {
+      "feature_id": "RT-FEAT-FACTION-SYSTEM",
+      "title": "Fazioni, identità e iconografia",
+      "area": "Factions",
+      "kind": "content",
+      "release": "v0.2",
+      "priority": "P3",
+      "status": "DESIGNED",
+      "status_derived": "DESIGNED",
+      "gates": {
+        "spec": "partial",
+        "data": "partial",
+        "runtime": "todo",
+        "log_debug": "na",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 0,
+      "gates_applicable": 7,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": []
+      },
+      "dependencies": [
+        "RT-FEAT-CHAR-V01-ROSTER"
+      ],
+      "owner_specs": [
+        "docs/gameplay/spec-ownership-abilita-interazioni-sinergie.md"
+      ],
+      "issues": [],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/fazioni/index.md",
+        "docs/wiki/fazioni/conflux.md",
+        "docs/wiki/fazioni/constrine.md",
+        "docs/wiki/fazioni/sentinel-directorate.md",
+        "docs/wiki/fazioni/resonance.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Quattro fazioni con id, colori e membership vivono nel manifest della Wiki (`wiki-manifest-v0.7.json`); **niente nel codice**. Vincolo di D-029: le fazioni non creano bonus impliciti di coppia — le sinergie passano dai sistemi comuni (Wet, Electric, Cover, Facing, Noise, Surface, Transition, Status, Event)."
+    },
+    {
+      "feature_id": "RT-FEAT-FACTION-SCENARIOS",
+      "title": "Scenari di cooperazione per fazione",
+      "area": "Factions",
+      "kind": "content",
+      "release": "v0.2",
+      "priority": "P3",
+      "status": "DESIGNED",
+      "status_derived": "DESIGNED",
+      "gates": {
+        "spec": "partial",
+        "data": "partial",
+        "runtime": "todo",
+        "log_debug": "na",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 0,
+      "gates_applicable": 7,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": []
+      },
+      "dependencies": [
+        "RT-FEAT-FACTION-SYSTEM",
+        "RT-FEAT-TEST-SCENARIO-HARNESS"
+      ],
+      "owner_specs": [
+        "docs/gameplay/spec-ownership-abilita-interazioni-sinergie.md"
+      ],
+      "issues": [],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [
+        "Team.Conflux.FluxRiva.ConductiveFlood",
+        "Team.Constrine.BastionVektor.OnlyExit",
+        "Team.Sentinel.SteelMurdock.HoldTheLine",
+        "Team.Resonance.AuroraKwang.FrozenAnchor"
+      ],
+      "wiki_refs": [
+        "docs/wiki/fazioni/index.md"
+      ],
+      "wiki_note": "Gli scenari di fazione sono **dichiarati ma non esistono** in `Scenarios/`: non si possono ancora giocare.",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "I quattro ScenarioId sono dichiarati nel manifest Wiki con `scenarioStatus: GATED` e **nessuno esiste in `Scenarios/`**: sono `planned`. La Wiki li nomina già: senza il blocco di stato, un lettore li crede giocabili."
+    },
+    {
+      "feature_id": "RT-FEAT-OBJECTIVE-SYSTEM",
+      "title": "Obiettivi dinamici in mappa",
+      "area": "Objectives",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
+      "gates": {
+        "spec": "done",
+        "data": "partial",
+        "runtime": "partial",
+        "log_debug": "done",
+        "automation": "partial",
+        "scenario": "partial",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 2,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E10",
+        "milestone": null,
+        "checkpoints": [
+          "10.1",
+          "10.2"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-ACTION-ENGINE",
+        "RT-FEAT-MAP-INTERACTIVE-EDGES"
+      ],
+      "owner_specs": [
+        "docs/product/showcase-v0.1.md"
+      ],
+      "issues": [
+        24,
+        74,
+        75
+      ],
+      "tests": [
+        "RefactorTactics.Match.EndsOnObjective",
+        "RefactorTactics.Match.ObjectiveEndsAPlayedMatch"
+      ],
+      "scenarios": [],
+      "scenarios_planned": [
+        "Spec.Objective.PointSurvivesKO"
+      ],
+      "wiki_refs": [
+        "docs/wiki/meccaniche/obiettivi-dinamici.md",
+        "docs/wiki/game/obiettivi-e-fine-partita.md"
+      ],
+      "wiki_note": "La partita **puo' finire** per obiettivo, ma in mappa **non esiste ancora un oggetto da attivare**: manca il consumatore, non la regola.",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "La partita **finisce** per obiettivo, ma **non esiste un oggetto da attivare in mappa**: `Action.Activate` e `Action.Interact` sono a catalogo con portata 1 e nessun effetto dichiarato, e **nessun test le esercita** (il validator ha rifiutato un riferimento a `Actions.Activate` che non esiste). È il caso «dato senza consumatore»: `runtime` resta `partial` finché CP 10.2 non porta l'obiettivo contestabile."
+    },
+    {
+      "feature_id": "RT-FEAT-MATCH-END-CONDITIONS",
+      "title": "Fine partita a tre vie",
+      "area": "Objectives",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "RELEASE_READY",
+      "status_derived": "RELEASE_READY",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "done",
+        "packaged": "partial",
+        "network_privacy": "na"
+      },
+      "gates_done": 7,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E10",
+        "milestone": null,
+        "checkpoints": [
+          "10.3"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-CORE-TURN",
+        "RT-FEAT-MATCH-FORMAT"
+      ],
+      "owner_specs": [
+        "docs/gameplay/spec-durata-partita-e-scala-mappe.md"
+      ],
+      "issues": [
+        76
+      ],
+      "tests": [
+        "RefactorTactics.Match.*"
+      ],
+      "scenarios": [
+        "Visual.Combat.Defeat",
+        "RT_Showcase_Relay_v01"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/obiettivi-e-fine-partita.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Eliminazione, obiettivo e `RoundLimit` da formato, con pareggio dichiarato. Il `RoundLimit` è un parametro del formato, non una costante."
+    },
+    {
+      "feature_id": "RT-FEAT-MATCH-FORMAT",
+      "title": "Formato di partita e classe di mappa",
+      "area": "Objectives",
+      "kind": "data",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "TESTABLE",
+      "status_derived": "TESTABLE",
+      "gates": {
+        "spec": "done",
+        "data": "partial",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "todo",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 4,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E19",
+        "milestone": null,
+        "checkpoints": [
+          "19.1",
+          "19.2"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-DATA-ASSET-PIPELINE"
+      ],
+      "owner_specs": [
+        "docs/gameplay/spec-durata-partita-e-scala-mappe.md"
+      ],
+      "issues": [
+        214,
+        215,
+        216
+      ],
+      "tests": [
+        "RefactorTactics.MatchFormat.*"
+      ],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "`URTMatchFormatData` **esiste già** con validator e fallback osservabile: E19 non lo costruisce, chiude due buchi misurati — `MapClass` sul dato mappa e `UnitsPerTeam` nel formato (D-030). I timer restano fuori dal formato per decisione (ADR-0005 §4c)."
+    },
+    {
+      "feature_id": "RT-FEAT-MATCH-PACING",
+      "title": "Pacing del turno e del match",
+      "area": "Objectives",
+      "kind": "tooling",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "TESTABLE",
+      "status_derived": "TESTABLE",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "todo",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 5,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E12",
+        "milestone": null,
+        "checkpoints": [
+          "12.4"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-CORE-TURN"
+      ],
+      "owner_specs": [
+        "docs/gameplay/spec-pacing-turno.md",
+        "docs/gameplay/spec-durata-partita-e-scala-mappe.md"
+      ],
+      "issues": [
+        84
+      ],
+      "tests": [
+        "RefactorTactics.Pacing.*"
+      ],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "La sonda misura senza toccare il risultato logico (`Pacing.DoesNotAffectTurnLogHash`). I target di durata sono di game design, non budget di macchina, e si registrano anche fuori target — con la riserva sul campione: un solo giocatore, che è l'autore."
+    },
+    {
+      "feature_id": "RT-FEAT-STRESS-4V4",
+      "title": "Validazione di stress 4v4",
+      "area": "Objectives",
+      "kind": "tooling",
+      "release": "v0.1",
+      "priority": "P3",
+      "status": "SPECIFIED",
+      "status_derived": "SPECIFIED",
+      "gates": {
+        "spec": "done",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "na",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 1,
+      "gates_applicable": 7,
+      "roadmap": {
+        "epic": "E17",
+        "milestone": null,
+        "checkpoints": [
+          "17.1",
+          "17.2",
+          "17.3"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-TEST-GOLDEN",
+        "RT-FEAT-CORE-DETERMINISM"
+      ],
+      "owner_specs": [
+        "docs/decisions/RT_PDR_00_Decision_Log.md"
+      ],
+      "issues": [
+        221,
+        222,
+        223,
+        224
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [
+        "Stress.4v4.CoreRoster"
+      ],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "**Misura, non produzione** (D-011): dove si rompe il sistema con otto unità. Non decide il formato competitivo finale — 3v3 resta la baseline di studio, 4v4 lo stress test."
+    },
+    {
+      "feature_id": "RT-FEAT-BOT-BASE",
+      "title": "Bot a utility scoring deterministico",
+      "area": "Tools",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "RELEASE_READY",
+      "status_derived": "RELEASE_READY",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "done",
+        "packaged": "partial",
+        "network_privacy": "na"
+      },
+      "gates_done": 7,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E2",
+        "milestone": null,
+        "checkpoints": [
+          "2.6"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-MAP-PATHFINDING",
+        "RT-FEAT-ACTION-ENGINE"
+      ],
+      "owner_specs": [
+        "docs/technical/h6-5-hex-bot-spec.md"
+      ],
+      "issues": [
+        36
+      ],
+      "tests": [
+        "RefactorTactics.HexBot.*",
+        "RefactorTactics.HexBotPlay.*"
+      ],
+      "scenarios": [
+        "RT_Showcase_Relay_v01"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/avversario-bot.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Nessuna mossa illegale è proponibile: le candidate nascono da `ReachableCells`. L'attacco è valutato solo dalla cella in cui il bot sarà nel Blast. Pesi tunabili in PIE."
+    },
+    {
+      "feature_id": "RT-FEAT-BOT-TACTICAL",
+      "title": "Bot tattico con conoscenza e reazioni",
+      "area": "Tools",
+      "kind": "gameplay",
+      "release": "v0.2",
+      "priority": "P3",
+      "status": "IDEA",
+      "status_derived": "IDEA",
+      "gates": {
+        "spec": "todo",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 0,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": []
+      },
+      "dependencies": [
+        "RT-FEAT-BOT-BASE",
+        "RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE",
+        "RT-FEAT-REACTION-OPPORTUNITY"
+      ],
+      "owner_specs": [],
+      "issues": [],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/avversario-bot.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Citato in `roadmap-post-v0.1.md` fra le epic E21–E32 ma senza owner documentale proprio. Non può iniziare prima di E13/E14: un bot che «sa tutto» non è un bot tattico."
+    },
+    {
+      "feature_id": "RT-FEAT-TEST-SCENARIO-HARNESS",
+      "title": "Scenario Test Harness automatizzato",
+      "area": "Tools",
+      "kind": "tooling",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "INTEGRATED",
+      "status_derived": "INTEGRATED",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 6,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E15",
+        "milestone": null,
+        "checkpoints": [
+          "15.3"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-CORE-TURN",
+        "RT-FEAT-CORE-DETERMINISM"
+      ],
+      "owner_specs": [
+        "docs/technical/test-e-diagnosi.md",
+        "docs/technical/scenari-validazione-visiva.md"
+      ],
+      "issues": [
+        169
+      ],
+      "tests": [
+        "RefactorTactics.Scenario.*"
+      ],
+      "scenarios": [
+        "Movement.Basic",
+        "Movement.BasicFailsOnPurpose",
+        "Combat.BasicAttack"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "43 test. Percorso reale `Intent → Planning → Snapshot → Resolver → TurnLog`, console `rt.Test.*`, auto-run via CVar, `result.json` autosufficiente, e uno scenario che **deve** fallire (`Movement.BasicFailsOnPurpose`) perché la diagnosi sia dimostrata."
+    },
+    {
+      "feature_id": "RT-FEAT-TEST-GOLDEN",
+      "title": "Golden replay e showcase «Il Relè»",
+      "area": "Tools",
+      "kind": "tooling",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
+      "gates": {
+        "spec": "done",
+        "data": "partial",
+        "runtime": "partial",
+        "log_debug": "done",
+        "automation": "partial",
+        "scenario": "done",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 3,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E15",
+        "milestone": null,
+        "checkpoints": [
+          "15.1",
+          "15.2",
+          "15.4",
+          "15.5"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-TEST-SCENARIO-HARNESS",
+        "RT-FEAT-CORE-DETERMINISM",
+        "RT-FEAT-OBJECTIVE-SYSTEM"
+      ],
+      "owner_specs": [
+        "docs/product/showcase-v0.1.md"
+      ],
+      "issues": [
+        153,
+        167,
+        168,
+        170,
+        171
+      ],
+      "tests": [
+        "RefactorTactics.ShowcaseRelay.*",
+        "RefactorTactics.Scenario.ShowcaseRelayV01RunsTurnOne",
+        "RefactorTactics.Scenario.ShowcaseT1IsDeterministic",
+        "RefactorTactics.Simulation.GoldenCorpusRejectsFormatMismatch"
+      ],
+      "scenarios": [
+        "RT_Showcase_Relay_v01"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Fixture stabile e scenario Lite deterministico esistono; il golden replay degli **otto turni** (CP 15.4) no. Regola vincolante di E15: la showcase espone il gap, si costruisce il sistema generale, lo si testa, e solo allora lo scenario lo consuma."
+    },
+    {
+      "feature_id": "RT-FEAT-TOOL-MAP-EDITOR",
+      "title": "Editor mode della mappa esagonale",
+      "area": "Tools",
+      "kind": "tooling",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "TESTABLE",
+      "status_derived": "TESTABLE",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "partial",
+        "automation": "done",
+        "scenario": "na",
+        "ui_wiki": "todo",
+        "packaged": "na",
+        "network_privacy": "na"
+      },
+      "gates_done": 4,
+      "gates_applicable": 6,
+      "roadmap": {
+        "epic": null,
+        "milestone": "M9",
+        "checkpoints": []
+      },
+      "dependencies": [
+        "RT-FEAT-MAP-HEXGRAPH"
+      ],
+      "owner_specs": [
+        "docs/roadmap/roadmap-editor.md",
+        "docs/roadmap/hex-map-roadmap.md"
+      ],
+      "issues": [],
+      "tests": [
+        "RefactorTactics.HexMap.ApplyBrushMerge",
+        "RefactorTactics.HexMap.FloodRegion",
+        "RefactorTactics.HexMap.StrokeEquivalence",
+        "RefactorTactics.HexMap.LookupInvalidatedAfterExternalEdit"
+      ],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "`Source/RefactorTacticsEditor/` con tool di paint, fill, select e archi. Il residuo sono **verifiche PIE aperte** (H5: E/F/G/H/L/N) registrate in `test-manuali-pie.md`, non gate impliciti. `packaged: na` — è uno strumento d'editor, non entra nella build di gioco."
+    },
+    {
+      "feature_id": "RT-FEAT-TOOL-VALIDATION",
+      "title": "Validator di dati, mappe e documenti",
+      "area": "Tools",
+      "kind": "tooling",
+      "release": "v0.1",
+      "priority": "P0",
+      "status": "DONE",
+      "status_derived": "DONE",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "na",
+        "ui_wiki": "na",
+        "packaged": "na",
+        "network_privacy": "na"
+      },
+      "gates_done": 5,
+      "gates_applicable": 5,
+      "roadmap": {
+        "epic": "E1",
+        "milestone": null,
+        "checkpoints": [
+          "1.4"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-DATA-ASSET-PIPELINE"
+      ],
+      "owner_specs": [
+        "docs/technical/test-automatico-unreal.md"
+      ],
+      "issues": [
+        30
+      ],
+      "tests": [
+        "RefactorTactics.Catalog.Validator*",
+        "RefactorTactics.HexMap.Validate*",
+        "RefactorTactics.Terrain.ValidateCatalog*",
+        "RefactorTactics.MatchFormat.ValidatorRejectsInvalidAsset",
+        "RefactorTactics.ScenarioIndex.DuplicateIdIsRejected"
+      ],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Validator di catalogo, mappa, terreni, formato e indice scenari, più il gate documentale `scripts/check-docs-symbols.py`. Da questa consegna include anche `scripts/feature_registry.py validate`, che verifica **questo** file."
+    },
+    {
+      "feature_id": "RT-FEAT-TOOL-DEBUG-CONSOLE",
+      "title": "Comandi console rt.Debug e rt.Test",
+      "area": "Tools",
+      "kind": "tooling",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
+      "gates": {
+        "spec": "done",
+        "data": "na",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "partial",
+        "scenario": "na",
+        "ui_wiki": "todo",
+        "packaged": "partial",
+        "network_privacy": "na"
+      },
+      "gates_done": 3,
+      "gates_applicable": 6,
+      "roadmap": {
+        "epic": "E11",
+        "milestone": null,
+        "checkpoints": [
+          "11.4"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-CORE-TURNLOG"
+      ],
+      "owner_specs": [
+        "docs/technical/debug-vs-unreal.md"
+      ],
+      "issues": [
+        80
+      ],
+      "tests": [
+        "RefactorTactics.Scenario.AutoRunOverrideIsNotSilent",
+        "RefactorTactics.Pacing.CsvRowMatchesHeader"
+      ],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "`rt.Debug.DrawCells`, `rt.Debug.Pacing`, `rt.Test.*`. I comandi in sé non sono coperti da test diretti: lo sono le funzioni che invocano."
+    },
+    {
+      "feature_id": "RT-FEAT-TOOL-BALANCE-GROUND",
+      "title": "Banco di prova del bilanciamento",
+      "area": "Tools",
+      "kind": "data",
+      "release": "v0.1",
+      "priority": "P3",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "partial",
+        "log_debug": "done",
+        "automation": "partial",
+        "scenario": "todo",
+        "ui_wiki": "na",
+        "packaged": "na",
+        "network_privacy": "na"
+      },
+      "gates_done": 3,
+      "gates_applicable": 6,
+      "roadmap": {
+        "epic": "E1",
+        "milestone": null,
+        "checkpoints": [
+          "1.2"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-DATA-ASSET-PIPELINE",
+        "RT-FEAT-MATCH-PACING"
+      ],
+      "owner_specs": [
+        "docs/balance/README.md",
+        "docs/balance/RT_TestMatrix_v0.1.md"
+      ],
+      "issues": [
+        28
+      ],
+      "tests": [
+        "RefactorTactics.Heroes.RosterIsBalanced",
+        "RefactorTactics.Catalog.ShippedCatalogMatchesAbilities"
+      ],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "I cataloghi versionati e la matrice di test esistono; il workbook `.xlsx` è la fonte dei numeri. Manca un banco che li **eserciti** in modo ripetibile oltre alla suite."
+    },
+    {
+      "feature_id": "RT-FEAT-DATA-STABLE-IDS",
+      "title": "ID stabili e versioni dei contenuti",
+      "area": "Data",
+      "kind": "data",
+      "release": "v0.1",
+      "priority": "P0",
+      "status": "RELEASE_READY",
+      "status_derived": "RELEASE_READY",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "na",
+        "ui_wiki": "na",
+        "packaged": "partial",
+        "network_privacy": "na"
+      },
+      "gates_done": 5,
+      "gates_applicable": 6,
+      "roadmap": {
+        "epic": "E1",
+        "milestone": null,
+        "checkpoints": [
+          "1.3"
+        ]
+      },
+      "dependencies": [],
+      "owner_specs": [
+        "docs/technical/convenzioni-contenuti-ue.md"
+      ],
+      "issues": [
+        29
+      ],
+      "tests": [
+        "RefactorTactics.Catalog.IdsAreUnique",
+        "RefactorTactics.TurnLog.ActionIdRoundTrip",
+        "RefactorTactics.Unit.ShortHeroNameFromStableId",
+        "RefactorTactics.ScenarioIndex.IdIsIndependentOfPath"
+      ],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "`ActionId`, `HeroId`, `ScenarioId`, `FormatId`: identità dichiarate e indipendenti dal percorso o dal titolo. È il presupposto anche dei `feature_id` di questo registry."
+    },
+    {
+      "feature_id": "RT-FEAT-DATA-ASSET-PIPELINE",
+      "title": "Primary Data Asset e cataloghi",
+      "area": "Data",
+      "kind": "data",
+      "release": "v0.1",
+      "priority": "P0",
+      "status": "RELEASE_READY",
+      "status_derived": "RELEASE_READY",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "na",
+        "ui_wiki": "na",
+        "packaged": "partial",
+        "network_privacy": "na"
+      },
+      "gates_done": 5,
+      "gates_applicable": 6,
+      "roadmap": {
+        "epic": "E1",
+        "milestone": null,
+        "checkpoints": [
+          "1.2",
+          "1.3"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-DATA-STABLE-IDS"
+      ],
+      "owner_specs": [
+        "docs/technical/spec-asset-pipeline.md",
+        "docs/technical/convenzioni-contenuti-ue.md"
+      ],
+      "issues": [
+        28,
+        29
+      ],
+      "tests": [
+        "RefactorTactics.Catalog.*"
+      ],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "`URTActionData`, `URTHeroData`, `URTEquipmentData`, `URTMatchFormatData` — **senza GAS**, che resta fuori dalla v0.1 per decisione di canone. Nessun float nei campi interi."
+    },
+    {
+      "feature_id": "RT-FEAT-DATA-HASH",
+      "title": "Hash di regole e contenuti",
+      "area": "Data",
+      "kind": "data",
+      "release": "v0.1",
+      "priority": "P0",
+      "status": "RELEASE_READY",
+      "status_derived": "RELEASE_READY",
+      "gates": {
+        "spec": "done",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "na",
+        "ui_wiki": "na",
+        "packaged": "partial",
+        "network_privacy": "todo"
+      },
+      "gates_done": 5,
+      "gates_applicable": 7,
+      "roadmap": {
+        "epic": "E12",
+        "milestone": null,
+        "checkpoints": [
+          "12.1"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-DATA-ASSET-PIPELINE",
+        "RT-FEAT-CORE-TURNLOG"
+      ],
+      "owner_specs": [
+        "docs/technical/spec-turnlog-serialize.md"
+      ],
+      "issues": [
+        81
+      ],
+      "tests": [
+        "RefactorTactics.HexMap.SortAndDeterministicHash",
+        "RefactorTactics.HexMap.HashIncludesTransitions",
+        "RefactorTactics.HexMap.CoverHashDeterminism",
+        "RefactorTactics.HexMap.DoorHashDeterminism",
+        "RefactorTactics.HexMap.ArcHashDeterminism",
+        "RefactorTactics.TurnLog.Hash*"
+      ],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "`network_privacy: todo` perché l'hash della mappa deve essere validato all'ingresso in partita quando arriva M10 (CP 10.1): oggi non c'è nessun ingresso da validare."
+    },
+    {
+      "feature_id": "RT-FEAT-NET-PRIVATE-PLANNING",
+      "title": "Intenti privati per squadra",
+      "area": "Networking",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "TESTABLE",
+      "status_derived": "TESTABLE",
+      "gates": {
+        "spec": "done",
+        "data": "na",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "todo",
+        "ui_wiki": "done",
+        "packaged": "partial",
+        "network_privacy": "todo"
+      },
+      "gates_done": 5,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E5",
+        "milestone": null,
+        "checkpoints": [
+          "5.4"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-CORE-TURN"
+      ],
+      "owner_specs": [
+        "docs/product/piano-canonico-mvp.md"
+      ],
+      "issues": [
+        53
+      ],
+      "tests": [
+        "RefactorTactics.Reactions.IntentNotVisibleToEnemy",
+        "RefactorTactics.Combat.IntentVisibleToAlliesAlwaysEnemiesOnlyIfRevealed",
+        "RefactorTactics.Combat.PlayerControlsOwnUnitsOnly"
+      ],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/come-si-gioca.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "`FRTPlannedIntent → FilterForTeam → FRTIntentView` esiste e il filtro è testato. Il gate `network_privacy` resta `todo`: oggi la privacy è **banale perché il gioco è offline**, e il canary anti-leak (CP 10.3) è la sola prova che conti."
+    },
+    {
+      "feature_id": "RT-FEAT-NET-AUTHORITY",
+      "title": "Multiplayer con autorità server",
+      "area": "Networking",
+      "kind": "infra",
+      "release": "future",
+      "priority": "P2",
+      "status": "SPECIFIED",
+      "status_derived": "SPECIFIED",
+      "gates": {
+        "spec": "done",
+        "data": "na",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "todo"
+      },
+      "gates_done": 1,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": null,
+        "milestone": "M10",
+        "checkpoints": []
+      },
+      "dependencies": [
+        "RT-FEAT-NET-PRIVATE-PLANNING",
+        "RT-FEAT-CORE-DETERMINISM",
+        "RT-FEAT-DATA-HASH"
+      ],
+      "owner_specs": [
+        "docs/roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md"
+      ],
+      "issues": [],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "**Fuori dalla v0.1** e senza epic di release: vive nella milestone **M10** della vista di esecuzione, non nelle 20 epic. Il campo `milestone` esiste proprio per questo caso: i CP di M10 si chiamano 10.1–10.3 **come** quelli di E10, che sono tutt'altro (obiettivi dinamici). Scriverli in `checkpoints` renderebbe il riferimento ambiguo. ADR-0004 aggiunge N round-trip per turno: vincolo nuovo su questa milestone."
+    },
+    {
+      "feature_id": "RT-FEAT-NET-DEDICATED",
+      "title": "Dedicated server",
+      "area": "Networking",
+      "kind": "infra",
+      "release": "future",
+      "priority": "P3",
+      "status": "IDEA",
+      "status_derived": "IDEA",
+      "gates": {
+        "spec": "todo",
+        "data": "na",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "todo"
+      },
+      "gates_done": 0,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": []
+      },
+      "dependencies": [
+        "RT-FEAT-NET-AUTHORITY"
+      ],
+      "owner_specs": [],
+      "issues": [],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Nella seed list e nel PDR come direzione, senza documento owner nel repository. IDEA."
+    },
+    {
+      "feature_id": "RT-FEAT-PROD-PERFORMANCE",
+      "title": "Budget di performance misurati",
+      "area": "Production",
+      "kind": "infra",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
+      "gates": {
+        "spec": "done",
+        "data": "na",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "partial",
+        "scenario": "todo",
+        "ui_wiki": "na",
+        "packaged": "partial",
+        "network_privacy": "na"
+      },
+      "gates_done": 3,
+      "gates_applicable": 6,
+      "roadmap": {
+        "epic": "E12",
+        "milestone": null,
+        "checkpoints": [
+          "12.4"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-CORE-TURN",
+        "RT-FEAT-MAP-PATHFINDING"
+      ],
+      "owner_specs": [
+        "docs/roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md"
+      ],
+      "issues": [
+        84,
+        41
+      ],
+      "tests": [
+        "RefactorTactics.Perf.*"
+      ],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Due KPI su quattro misurati (path 0,025 ms · resolver 0,41 ms/turno, 2026-08-06). FPS client e preview completa richiedono rendering ed editor: restano non misurati, e sono dichiarati tali invece di essere stimati."
+    },
+    {
+      "feature_id": "RT-FEAT-PROD-PACKAGED",
+      "title": "Verifica su build packaged",
+      "area": "Production",
+      "kind": "infra",
+      "release": "v0.1",
+      "priority": "P0",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
+      "gates": {
+        "spec": "done",
+        "data": "na",
+        "runtime": "done",
+        "log_debug": "partial",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "na",
+        "packaged": "partial",
+        "network_privacy": "na"
+      },
+      "gates_done": 2,
+      "gates_applicable": 6,
+      "roadmap": {
+        "epic": "E12",
+        "milestone": null,
+        "checkpoints": [
+          "12.5"
+        ]
+      },
+      "dependencies": [
+        "RT-FEAT-CORE-TURN",
+        "RT-FEAT-DATA-ASSET-PIPELINE"
+      ],
+      "owner_specs": [
+        "docs/technical/convenzioni-contenuti-ue.md"
+      ],
+      "issues": [
+        85
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-08",
+        "commit": "2094b86"
+      },
+      "notes": "Packaging Development **e** Shipping verdi al CP 7.4 (2026-08-06) con l'eseguibile avviato e giocato. **Quella verifica precede E8, E9 e gli scenari**: il gate `packaged` delle feature successive resta `todo` finché la release interna CP 12.5 non le riesegue. Nessun test automatico gira su packaged."
+    }
+  ]
+}
