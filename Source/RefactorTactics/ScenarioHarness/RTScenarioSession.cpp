@@ -248,7 +248,14 @@ void FRTScenarioSession::ApplyPreviewSelection()
 	UWorld* W = World.Get();
 	// Nessun controller = headless. E' il ramo che garantisce che questo campo non possa spostare un esito:
 	// dove si misura, non gira.
-	ARTPlayerController* PC = W ? Cast<ARTPlayerController>(W->GetFirstPlayerController()) : nullptr;
+	//
+	// `GetActorOfClass` e non `GetFirstPlayerController()`: quest'ultima legge la lista di controller del
+	// mondo, che si popola solo attraverso il login del GameMode — in un mondo di test un controller
+	// spawnato con `SpawnActor` non ci finisce, e il ramo restava non esercitabile. Cercare l'ATTORE e' anche
+	// il modo in cui il resto del progetto trova turn manager, mappa e camera.
+	ARTPlayerController* PC = W
+		? Cast<ARTPlayerController>(UGameplayStatics::GetActorOfClass(W, ARTPlayerController::StaticClass()))
+		: nullptr;
 	if (!PC)
 	{
 		return;
@@ -263,9 +270,16 @@ void FRTScenarioSession::ApplyPreviewSelection()
 		return;
 	}
 
-	// Il piano d'ATTACCO del primo turno, scritto in anticipo solo per questa unita': senza, la selezione
-	// mostrerebbe le celle raggiungibili e nient'altro — l'anteprima della zona nasce dal piano, non dalla
-	// selezione. `BeginTurn` riscrivera' gli stessi valori: qui non si decide niente, si anticipa e basta.
+	// I TRE GESTI del giocatore, nell'ordine in cui li farebbe: scegli l'abilita', seleziona la tua unita',
+	// clicca il nemico. Passando dalle stesse funzioni, e non scrivendo lo stato a mano: un'anteprima
+	// costruita per scorciatoia assomiglierebbe a quella del gioco senza esserlo, ed e' proprio quella la
+	// bugia che questo scenario dovrebbe smascherare.
+	//
+	// Il primo tentativo chiamava il solo `HandleClickOnUnit(Unit)` credendo che selezionasse. Non seleziona:
+	// presuppone una selezione e tratta l'argomento come BERSAGLIO, quindi usciva subito e a schermo non
+	// compariva niente — mentre il log qui sotto dichiarava successo. Da li' il `Verify` in fondo.
+	ARTUnit* Target = nullptr;
+	int32 AbilityIndex = INDEX_NONE;
 	for (const FRTScenarioIntent& Intent : Scenario.Turns[0].Intents)
 	{
 		if (Intent.UnitId != Scenario.PreviewUnit || Intent.Ability.IsNone() || Intent.bTargetsCell)
@@ -273,30 +287,44 @@ void FRTScenarioSession::ApplyPreviewSelection()
 			continue;
 		}
 		TWeakObjectPtr<ARTUnit>* FoundTarget = UnitsById.Find(Intent.Target);
-		ARTUnit* Target = FoundTarget ? FoundTarget->Get() : nullptr;
-		if (!Target)
-		{
-			break;
-		}
+		Target = FoundTarget ? FoundTarget->Get() : nullptr;
 		for (int32 I = 0; I < Unit->NumAbilities(); ++I)
 		{
 			const URTActionData* Ability = Unit->GetAbility(I);
 			if (Ability && Ability->Def.ActionId == Intent.Ability)
 			{
-				Unit->PlannedAbilityIndex = I;
-				Unit->PlannedAttackTarget = Target;
+				AbilityIndex = I;
 				break;
 			}
 		}
 		break;
 	}
 
-	// Stessa porta del giocatore: `HandleClickOnUnit` e' cio' che chiama un click vero, quindi la selezione
-	// e il refresh dell'anteprima passano dal codice che gira in partita. Duplicarli qui produrrebbe
-	// un'anteprima che assomiglia a quella del gioco senza esserlo — e sarebbe proprio quella la bugia.
-	PC->HandleClickOnUnit(Unit);
-	UE_LOG(LogRT, Warning, TEXT("[RT-Test] %s: selezionata '%s' per l'anteprima (guarda la zona prima che risolva)"),
-		*Scenario.ScenarioId, *Scenario.PreviewUnit);
+	if (!Target || AbilityIndex == INDEX_NONE)
+	{
+		UE_LOG(LogRT, Warning, TEXT("[RT-Test] %s: '%s' non ha un attacco su bersaglio al turno 1, nessuna anteprima"),
+			*Scenario.ScenarioId, *Scenario.PreviewUnit);
+		return;
+	}
+
+	Unit->SelectedAbilityIndex = AbilityIndex;                  // come premere il tasto dell'abilita'
+	PC->SelectUnit(Unit, /*bRecordAsPlayerInput=*/ false);      // come cliccare la propria unita'
+	PC->HandleClickOnUnit(Target);                              // come cliccare il nemico
+
+	// VERIFICA invece di dichiarare. La riga precedente stampava «selezionata» subito dopo la chiamata, e ha
+	// raccontato per un'intera sessione un successo che non c'era: se il piano non e' atterrato, il log deve
+	// dirlo qui, dove si sa, invece di lasciarlo scoprire a chi guarda uno schermo che non cambia.
+	if (Unit->PlannedAttackTarget == Target)
+	{
+		UE_LOG(LogRT, Warning, TEXT("[RT-Test] %s: '%s' punta '%s' — anteprima attiva, guardala prima che risolva"),
+			*Scenario.ScenarioId, *Scenario.PreviewUnit, *Target->GetName());
+	}
+	else
+	{
+		UE_LOG(LogRT, Error, TEXT("[RT-Test] %s: l'anteprima NON e' partita — il bersaglio e' stato rifiutato "
+			"(portata, linea di tiro o abilita' non pronta). Le righe [RT] qui sopra dicono quale"),
+			*Scenario.ScenarioId);
+	}
 }
 
 void FRTScenarioSession::BeginTurn()

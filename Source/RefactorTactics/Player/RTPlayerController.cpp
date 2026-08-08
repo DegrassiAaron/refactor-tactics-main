@@ -428,30 +428,7 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	// Click su un'unita' (o altro selezionabile) -> selezione.
 	if (IRTSelectable* Selectable = Cast<IRTSelectable>(HitActor))
 	{
-		if (HitActor != SelectedActor)
-		{
-			if (IRTSelectable* Previous = Cast<IRTSelectable>(SelectedActor))
-			{
-				Previous->OnDeselected();
-			}
-			Selectable->OnSelected();
-			if (ARTTurnManager* TM = PacingTurnManager(this))
-			{
-				TM->RecordPlanningInput(ERTPlanningInput::Selection);
-			}
-			SelectedActor = HitActor;
-			UE_LOG(LogRT, Log, TEXT("[RT] Selezionata: %s"), *HitActor->GetName());
-
-			// L'anteprima segue la selezione: mostra il piano dell'unita' scelta (vuoto se non ne ha).
-			FVector SOrigin; float SHexSize; float SLayerH; const URTHexMapAsset* SMap = nullptr;
-			if (ARTHexMapActor* SHexMap = HexMapWithContext(GetWorld(), SOrigin, SHexSize, SLayerH, SMap))
-			{
-				const ARTUnit* NewUnit = Cast<ARTUnit>(HitActor);
-				SHexMap->SetPreviewPath(NewUnit ? NewUnit->PlannedPath : TArray<FRTCellId>());
-				// Con il piano arrivano anche le zone: dove puo' arrivare e, se ha gia' un bersaglio, chi colpisce.
-				RefreshPlanningPreview(GetWorld(), NewUnit);
-			}
-		}
+		SelectUnit(HitActor);
 		return;
 	}
 
@@ -467,6 +444,54 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		{
 			UE_LOG(LogRT, Warning, TEXT("[RT] Nessuna mappa esagonale nel livello: pianificazione non disponibile"));
 		}
+	}
+}
+
+void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
+{
+	// Estratta da `OnSelect` — non duplicata: la selezione ha effetti collaterali (evidenziazione, anteprima,
+	// telemetria) e averne due copie significa che una smettera' di essere aggiornata.
+	//
+	// Serve anche fuori dal clic: uno scenario che vuole mostrare l'anteprima deve selezionare come selezione
+	// il giocatore, non impostando `SelectedActor` di nascosto. Il primo tentativo passava da
+	// `HandleClickOnUnit`, che NON seleziona — presuppone una selezione e tratta l'argomento come BERSAGLIO —
+	// quindi usciva subito senza fare nulla, e a schermo non compariva niente.
+	if (Actor == SelectedActor)
+	{
+		return;
+	}
+	IRTSelectable* Selectable = Cast<IRTSelectable>(Actor);
+	if (!Selectable)
+	{
+		return;
+	}
+
+	if (IRTSelectable* Previous = Cast<IRTSelectable>(SelectedActor))
+	{
+		Previous->OnDeselected();
+	}
+	Selectable->OnSelected();
+
+	// La telemetria di ritmo misura quanto impiega un GIOCATORE a decidere: una selezione fatta da uno
+	// scenario non e' una decisione, e contarla falserebbe i numeri di `PIE-V01-MATCHLEN`.
+	if (bRecordAsPlayerInput)
+	{
+		if (ARTTurnManager* TM = PacingTurnManager(this))
+		{
+			TM->RecordPlanningInput(ERTPlanningInput::Selection);
+		}
+	}
+	SelectedActor = Actor;
+	UE_LOG(LogRT, Log, TEXT("[RT] Selezionata: %s"), *Actor->GetName());
+
+	// L'anteprima segue la selezione: mostra il piano dell'unita' scelta (vuoto se non ne ha).
+	FVector SOrigin; float SHexSize; float SLayerH; const URTHexMapAsset* SMap = nullptr;
+	if (ARTHexMapActor* SHexMap = HexMapWithContext(GetWorld(), SOrigin, SHexSize, SLayerH, SMap))
+	{
+		const ARTUnit* NewUnit = Cast<ARTUnit>(Actor);
+		SHexMap->SetPreviewPath(NewUnit ? NewUnit->PlannedPath : TArray<FRTCellId>());
+		// Con il piano arrivano anche le zone: dove puo' arrivare e, se ha gia' un bersaglio, chi colpisce.
+		RefreshPlanningPreview(GetWorld(), NewUnit);
 	}
 }
 
