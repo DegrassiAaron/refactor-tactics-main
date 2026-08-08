@@ -15,11 +15,12 @@
 
 > 🧪 **Stato repository:** personaggio pianificato per **v0.2**. I valori sono `DATA_SPEC` / `DESIGN_SPEC`: servono a design, bilanciamento e Wiki, ma **non sono ancora runtime canonico v0.1**. Le finestre Fast Reaction storiche richiedono review prima dell'implementazione.
 
-> **Asset base:** Murdock  
+> **Asset base:** Paragon — Murdock  
 > **Hero_Key:** `ASSET_MURDOCK`  
 > **RT Character ID:** `TBD`  
 > **Release:** `v0.2`  
-> **Roster status:** Release v0.2
+> **Roster status:** Release v0.2  
+> **Provenienza visuale:** mesh e animazioni vengono dallo slot Paragon **Murdock**, omonimo del nome di lavoro ([D-037](../../decisions/RT_PDR_00_Decision_Log.md) · tabella owner in [`paragon.md`](../paragon.md)). Il nome coincide, il RT Character ID resta **TBD**: coincidere non è essere deciso.
 
 ## Panoramica
 

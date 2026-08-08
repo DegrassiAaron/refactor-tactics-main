@@ -5,6 +5,7 @@
 > 🧩 **Stato RefactorTactics:** `CANDIDATE / SIGNATURE_DEFINED`  
 > **Release:** `UNASSIGNED`  
 > **Roster ufficiale:** `NO`  
+> **Uso corrente:** base visuale di **Bastion** (`Hero.Bastion`, v0.1) — [D-037](../../decisions/RT_PDR_00_Decision_Log.md). L'asset è impegnato; il concept di Riktor resta un candidato senza release.  
 > **Asset base:** Paragon — Riktor  
 > **RT Character ID:** `TBD`
 

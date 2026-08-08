@@ -16,6 +16,22 @@ Le pagine dei candidati **non assegnano una release** e non inventano kit o valo
 
 I nomi Paragon sono usati come **Asset Base**. L'identità finale RefactorTactics può essere rinominata quando CharacterId, display name e lore vengono approvati.
 
+## Identità, asset e release sono tre cose
+
+[D-037](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-08) assegna a ogni eroe del roster uno **slot asset
+Paragon** come base visuale. La tabella owner sta in [`paragon.md`](paragon.md#mapping-visuale-del-roster);
+qui non si duplica.
+
+| | Cos'è | Cosa non è |
+|---|---|---|
+| **Identità RefactorTactics** | `Hero.Flux`, kit, lore, fazione | non cambia perché cambia l'asset |
+| **Slot asset Paragon** | mesh, scheletro, animazioni del prototipo | non è un personaggio del roster |
+| **Release** | quando l'eroe entra nel roster operativo | non si assegna a un candidato |
+
+Conseguenze pratiche: `Hero.Flux` **non** diventa `Hero.Gadget`; un asset Paragon usato come base visuale non
+guadagna una release; e si scrive sempre `Paragon.Gadget`, mai `Gadget` nudo — che qui è già una categoria di
+equipaggiamento.
+
 ## Ownership dei kit
 
 Ogni abilità appartiene a un singolo personaggio/definizione. Le sinergie sono esempi esterni al kit: [Sinergie e combinazioni](../wiki/game/sinergie-e-combinazioni.md).

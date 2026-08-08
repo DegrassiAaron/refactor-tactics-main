@@ -6,10 +6,12 @@
 > archetipi *Guardian* e *Ranger*: erano il prototipo del 2026-08-03, **non** il roster canonico, che è
 > **Flux · Riva · Bastion · Vektor**.
 >
-> **Non sostituire i nomi**: quale personaggio Paragon corrisponda a quale eroe è una decisione **aperta**
-> ([`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md)). Rinominare per plausibilità produrrebbe una mappatura che
-> nessuno ha scelto, in un documento che sembra autorevole. Leggi «Gideon» come «il personaggio che stai
-> importando».
+> **Il casting non è più aperto** (2026-08-08, [D-037](../decisions/RT_PDR_00_Decision_Log.md)): Flux usa lo
+> slot Paragon **Gadget**, Riva **Phase**, Bastion **Riktor**, Vektor **Wraith** — tabella owner in
+> [`../characters/paragon.md`](../characters/paragon.md#mapping-visuale-del-roster). Gli esempi qui sotto
+> restano su Gideon/Sparrow perché sono il **procedimento** registrato nel prototipo del 2026-08-03, non il
+> casting: leggi «Gideon» come «il personaggio che stai importando», e sostituisci il percorso dell'asset con
+> quello dello slot assegnato all'eroe su cui stai lavorando.
 
 > Guida operativa per l'editor UE 5.8.1. Riferita a [`spec-asset-pipeline.md`](spec-asset-pipeline.md) (AS.3/AS.4).
 > Presuppone la Fase 2 fatta: un `BP_Unit_<Archetipo> : ARTUnit` con Skeletal Mesh assegnata, cilindro nascosto,

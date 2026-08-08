@@ -48,7 +48,7 @@ Owner: [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) §9. Non
 | Direzione artistica | inesistente; si usano placeholder e asset Paragon |
 | Hardware target | mai definito → i budget KPI restano **da misurare**, non garanzie |
 | Identità originale (nomi, lore) | necessaria per una pubblicazione |
-| **Mapping visuale Paragon → roster** | **aperta**. Le guide asset descrivono ancora Gideon/Sparrow (Guardian/Ranger); il roster canonico è Flux · Riva · Bastion · Vektor. Nessuna corrispondenza è stata decisa: non si rinomina per plausibilità — vedi [ADR-0001](decisions/adr-0001-skeletal-unit.md) e [`technical/guida-animazioni-paragon.md`](technical/guida-animazioni-paragon.md) |
+| ~~Mapping visuale Paragon → roster~~ | **chiusa il 2026-08-08** da [`D-037`](decisions/RT_PDR_00_Decision_Log.md): Flux → `Paragon.Gadget`, Riva → `Paragon.Phase`, Bastion → `Paragon.Riktor`, Vektor → `Paragon.Wraith`. Tabella owner in [`characters/paragon.md`](characters/paragon.md). Resta aperto solo il **nome retail** dei quattro slot v0.2, che è la riga «Identità originale» qui sopra |
 
 ## Assunzioni da bloccare
 
