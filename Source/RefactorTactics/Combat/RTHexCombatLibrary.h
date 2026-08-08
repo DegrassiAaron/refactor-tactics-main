@@ -5,6 +5,7 @@
 #include "Ability/RTActionData.h"
 #include "Combat/RTCombatResolver.h"
 #include "Map/RTCellId.h"
+#include "Map/RTHexCoverLibrary.h"
 #include "RTHexCombatLibrary.generated.h"
 
 class URTHexMapAsset;
@@ -78,6 +79,14 @@ struct FRTHexAttackIntent
 	int32 Power = 0;
 
 	/**
+	 * Danno contro le STRUTTURE (CP 9.2), copiato da `ERTActionEffect::DamageStructure` dell'azione: e' una
+	 * scala diversa da `Power` — `HeavyAttack` vale 35 su un'unita' e 20 su un muro. Zero = l'azione non
+	 * scalfisce le strutture, che e' il caso della quasi totalita' del catalogo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	int32 StructurePower = 0;
+
+	/**
 	 * L'area colpisce anche gli ALLEATI dell'attaccante, se stanno nelle celle interessate. Si COPIA da
 	 * `FRTActionDef::bFriendlyFire`, che e' dove l'azione lo dichiara: qui e' il parametro dell'intento, non
 	 * la sede della decisione.
@@ -139,6 +148,14 @@ struct FRTHexBlastPlan
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
 	TArray<int32> UnverifiableIntents;
+
+	/**
+	 * Danno raccolto contro le STRUTTURE, sommato per bordo e in ordine canonico (CP 9.2). Sta nel piano e non
+	 * applicato subito per la stessa ragione dei colpi: due attaccanti sullo stesso muro devono dare lo stesso
+	 * esito in qualunque ordine. Lo applica `URTHexCoverLibrary::ApplyStructureDamage` a fase conclusa.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	TArray<FRTStructureHit> StructureHits;
 };
 
 /**

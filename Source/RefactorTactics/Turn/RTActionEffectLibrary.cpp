@@ -28,6 +28,14 @@ TArray<FRTActionEvent> URTActionEffectLibrary::ProduceEvents(const FRTActionInst
 		case ERTActionEffect::None:
 			continue; // dichiarato ma vuoto: l'azione occupa lo slot e basta
 
+		case ERTActionEffect::DamageStructure:
+			// Non colpisce un'UNITA': la barriera non e' un bersaglio del registry degli effetti, e un evento
+			// con `TargetUnitId` valido le farebbe applicare danno a chi sta dietro. Lo raccoglie il Blast sul
+			// primo bordo coperto attraversato (`URTHexCombatLibrary::CollectHexAttacks`) e lo applica a fase
+			// conclusa. Trovato da `Actions.HeavyAttack.NoEffectIfInterrupted`, che contava due eventi dove
+			// l'azione ne ha uno solo verso il bersaglio.
+			continue;
+
 		case ERTActionEffect::Damage:
 		case ERTActionEffect::Heal:
 		case ERTActionEffect::Shield:

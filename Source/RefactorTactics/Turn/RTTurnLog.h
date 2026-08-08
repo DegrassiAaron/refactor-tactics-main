@@ -33,7 +33,18 @@ enum class ERTEnvironmentOutcome : uint8
 	/** La modifica non e' avvenuta: la superficie di destinazione non l'ammette (acqua e metallo non bruciano). */
 	SurfaceRejected,
 	/** Una superficie ne ha rimossa un'altra: l'acqua che arriva sul fuoco lo spegne. */
-	SurfaceExtinguished
+	SurfaceExtinguished,
+	/**
+	 * Una copertura ha incassato danno ed e' ancora in piedi (CP 9.2). `SrcCell` e `TgtCell` sono le due
+	 * celle del BORDO — la coppia lo identifica senza aggiungere un campo direzione al log — e `Amount`
+	 * l'integrita' RESIDUA, cosi' chi legge il replay sa quanto manca al crollo.
+	 */
+	CoverDamaged,
+	/**
+	 * Una copertura e' stata abbattuta: da qui in poi quel bordo si attraversa. E' l'evento che spiega perche'
+	 * al turno successivo una linea di tiro esiste dove prima non c'era.
+	 */
+	CoverDestroyed
 };
 
 /**
