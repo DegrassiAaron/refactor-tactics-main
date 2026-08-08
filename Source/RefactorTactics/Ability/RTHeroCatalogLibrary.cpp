@@ -175,9 +175,23 @@ URTHeroData* URTHeroCatalogLibrary::MakeFlux()
 	// Indice 3 — Overload. AoE 18 danni, raggio 1 (riuso il raggio di `Action.CircularAoE`, non un numero
 	// nuovo), portata 3. "Interrupt sui dispositivi" non e' rappresentabile: non esistono dispositivi/gadget
 	// (E7). Solo il danno e' un effetto dichiarato.
-	Flux->Actions.Add(MakeHeroAction(TEXT("Flux.Overload"), ERTResolutionPhase::Attack, /*Priority*/ 65,
+	URTActionData* Overload = MakeHeroAction(TEXT("Flux.Overload"), ERTResolutionPhase::Attack, /*Priority*/ 65,
 		/*Range*/ 3, /*Cooldown*/ 3, ERTActionFallback::AttackCell,
-		{ FRTActionEffectSpec(ERTActionEffect::Damage, 18) }, ERTAbilityShape::Area, /*AreaRadius*/ 1));
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 18) }, ERTAbilityShape::Area, /*AreaRadius*/ 1);
+	// FUOCO AMICO: copiato da `Action.CircularAoE`, che lo dichiarava gia' e diceva in un commento «chi
+	// assegnera' l'area a un eroe (E6) la copia da qui e basta». Non era stato copiato, e il flag e' l'unico
+	// posto dove la differenza si vede: l'impianto funziona dal CP 8.2
+	// (`Intent.bFriendlyFire = Instance.Def.bFriendlyFire`), il resolver lo rispetta, ma con il dato a false
+	// nessuna area del roster poteva colpire un compagno.
+	//
+	// Si vedeva solo dall'ANTEPRIMA, che segnalava l'alleato in arancione mentre il colpo non gli avrebbe
+	// fatto niente: un avviso su un evento impossibile. Trovato il 2026-08-08 provando `PIE-PREVIEW-AREA`.
+	//
+	// Vale per `Overload` e NON per `Riva.CircularTide`: quella dichiara Heal per gli alleati, e finche'
+	// nessun resolver applica effetti diversi dentro la stessa area accenderla le farebbe fare DANNO ai
+	// propri invece di curarli. E' un limite dichiarato nell'header, non una dimenticanza.
+	Overload->Def.bFriendlyFire = true;
+	Flux->Actions.Add(Overload);
 	// La variante (vincolo v0.1: una sola abilita' fondamentale per eroe) sta su LinearDischarge, non qui:
 	// vedi sotto.
 

@@ -221,4 +221,49 @@ bool FRTHeroValidateStructureTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Il FUOCO AMICO e' un dato del roster, e va verificato sul roster.
+ *
+ * L'impianto funziona dal CP 8.2 e il resolver rispetta il flag, ma per mesi nessuna area del gioco ha
+ * potuto colpire un compagno: `Action.CircularAoE` lo dichiarava nel catalogo ARCHETIPI — ormai test-only —
+ * e nessuno l'aveva copiato sull'eroe, benche' il commento dell'archetipo lo dicesse esplicitamente. Il
+ * comportamento a runtime era corretto rispetto al dato: era il dato a mancare.
+ *
+ * Un test sul comportamento non lo avrebbe preso, perche' con il flag a false il resolver fa la cosa giusta
+ * (non colpisce). Serve un test sul DATO, ed e' questo.
+ *
+ * `CircularTide` e' l'altra faccia: deve restare a false finche' nessun resolver applica effetti diversi ad
+ * alleati e nemici nella stessa area — accenderla ora farebbe DANNO ai propri con un'abilita' che dichiara
+ * di curarli. Verificarlo qui impedisce di «uniformare» le due aree per simmetria.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroCatalogFriendlyFireTest,
+	"RefactorTactics.Heroes.AreaFriendlyFireIsDeclaredOnTheRoster",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroCatalogFriendlyFireTest::RunTest(const FString&)
+{
+	const URTActionData* Overload = nullptr;
+	const URTActionData* CircularTide = nullptr;
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+	{
+		if (!Hero) { continue; }
+		for (const URTActionData* Action : Hero->Actions)
+		{
+			if (!Action) { continue; }
+			if (Action->Def.ActionId == FName(TEXT("Flux.Overload")))    { Overload = Action; }
+			if (Action->Def.ActionId == FName(TEXT("Riva.CircularTide"))) { CircularTide = Action; }
+		}
+	}
+
+	if (!TestNotNull(TEXT("Flux.Overload nel roster"), Overload)) { return false; }
+	if (!TestNotNull(TEXT("Riva.CircularTide nel roster"), CircularTide)) { return false; }
+
+	TestEqual(TEXT("Overload e' un'area"), Overload->Shape, ERTAbilityShape::Area);
+	TestTrue(TEXT("Overload dichiara il fuoco amico"), Overload->Def.bFriendlyFire);
+
+	TestEqual(TEXT("CircularTide e' un'area"), CircularTide->Shape, ERTAbilityShape::Area);
+	TestFalse(TEXT("CircularTide NON dichiara il fuoco amico (curerebbe con l'effetto sbagliato)"),
+		CircularTide->Def.bFriendlyFire);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
