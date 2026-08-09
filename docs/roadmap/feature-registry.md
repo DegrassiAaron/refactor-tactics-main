@@ -142,12 +142,39 @@ python scripts/feature_registry.py generate    # riscrive feature-registry.json
 python scripts/feature_registry.py wiki        # blocchi di stato + pagina Stato delle feature
                                                #   + tabella §2.2 di roadmap-v0.1.md
 python scripts/feature_registry.py workbook    # sheet 15_Wiki_Feature_Refs del workbook character
+python scripts/feature_registry.py shortlist   # le quattro viste corte di docs/roadmap/*.shortlist.md
 python scripts/feature_registry.py report      # tabella di audit su stdout
 ```
 
-`generate`, `wiki` e `workbook` accettano `--check`: non scrivono e falliscono se l'output è
+`generate`, `wiki`, `workbook` e `shortlist` accettano `--check`: non scrivono e falliscono se l'output è
 disallineato dalla sorgente. È la forma da usare in un gate automatico (**G15** della Definition of
 Done).
+
+### Le quattro shortlist
+
+`shortlist` riscrive i blocchi marcati di
+[`roadmap.shortlist.md`](roadmap.shortlist.md), [`featuremap.shortlist.md`](featuremap.shortlist.md),
+[`scenariomap.shortlist.md`](scenariomap.shortlist.md) e
+[`milestonemap.shortlist.md`](milestonemap.shortlist.md). Fuori dai marcatori non tocca niente.
+
+Non inventa una seconda regola per lo stato: **ogni valore viene dal proprio owner**, misurato.
+
+| Blocco | Cosa genera | Sorgente |
+|---|---|---|
+| `RT_SHORTLIST_EPICS` | stato e gate per epic | stato da [`roadmap-v0.1.md`](roadmap-v0.1.md) §2.1 · gate dal registry |
+| `RT_SHORTLIST_FEATURES` | le feature per area | il registry |
+| `RT_SHORTLIST_SCENARIOS` | corpus, `BLOCKED`, `planned` | `Scenarios/` + le capability di `RTScenarioSession.cpp` |
+| `RT_SHORTLIST_MILESTONES` | stato per milestone | [`roadmap-checkpoint.md`](roadmap-checkpoint.md) |
+| `RT_SHORTLIST_MILESTONES_GATES` | i gate `G1`–`G15` | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §3 |
+
+**La colonna umana viene preservata.** L'ultima colonna di ogni tabella — la riga di descrizione — non è
+derivabile: il generatore la rilegge dal blocco precedente e la reimpagina. Una feature nuova compare con
+`—`, che è un buco visibile invece di una riga che sparisce.
+
+**Due cose che il generatore fa e una persona no**: quando lo stesso oggetto è dichiarato due volte con
+valori diversi (è successo con **M6** e **M7**, 🟡 in una tabella e ✅ in un'altra dello stesso file) lo
+**nomina** e riporta la lettura più conservativa, invece di sceglierne una in silenzio; e quando un'epic
+non ha stato nell'owner (**E18**–**E21** in §2.1) lo dichiara invece di dedurlo.
 
 ### Deploy verso il clone della Wiki
 
