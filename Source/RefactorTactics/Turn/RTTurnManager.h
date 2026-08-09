@@ -381,7 +381,10 @@ protected:
 	 * URTCombatLibrary::ApplyDamage, Status via Unit->ApplyStatus. Usata da ResolveDash e ResolveMovement
 	 * sulle celle FRTHexMoveResult::Entered di ciascuna unita' (CP 8.1).
 	 */
-	void ApplyTerrainOnEnterEffects(const FRTHexSnapshot& Snapshot, ARTUnit* Unit, const TArray<FRTCellId>& Entered);
+	void ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUnit* Unit, const TArray<FRTCellId>& Entered);
+
+	/** Le celle ENTRATE lungo un percorso: tutte tranne la partenza, dove l'unita' stava gia'. */
+	static TArray<FRTCellId> CellsEnteredAlong(const TArray<FRTCellId>& Path);
 
 	UPROPERTY()
 	TArray<FString> RecentEvents;

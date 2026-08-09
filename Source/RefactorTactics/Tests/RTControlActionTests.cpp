@@ -600,4 +600,160 @@ bool FRTSlowAppliesInLiveTurnTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * Una spinta ATTRAVERSO il fuoco brucia (#308).
+ *
+ * `spec-tassonomia-movimento.md` §3: «lo spostamento forzato ignora il costo VOLONTARIO del terreno. Non
+ * ignora la geometria, e non ignora gli hazard». Chi viene spinto attraverso `asciutto -> fuoco -> asciutto`
+ * ha attraversato quella cella di fuoco, e ne subisce le conseguenze pur non avendo speso un solo punto
+ * movimento: il costo e' cio' che si paga per SCEGLIERE di passare, la geometria e' cio' che c'e'.
+ *
+ * Non lo faceva. `KPath` — la linea percorsa dalla spinta — era calcolata «per l'animazione», e un commento
+ * rimandava il danno da attraversamento «all'ambiente attivo (epic E8)». E8 e' atterrata (sei checkpoint
+ * `INTEGRATED`) e questo punto non e' stato ripassato: un rinvio scaduto, non una decisione.
+ *
+ * MISURA DIFFERENZIALE, non un numero assoluto: la stessa scena due volte, identica tranne la superficie
+ * della cella di mezzo. Cosi' il danno dell'azione che spinge (`Guardian.Sweep` ne dichiara 30) esce dal
+ * conto da solo, e resta esattamente cio' che il fuoco aggiunge. Un test scritto sul totale mentirebbe alla
+ * prima volta che qualcuno ribilancia l'azione.
+ *
+ * La cella d'ARRIVO non brucia: e' deliberato. Con l'arrivo in fiamme il test passerebbe anche applicando i
+ * soli effetti della destinazione — cioe' anche col difetto meta' corretto — e la domanda dell'issue era
+ * proprio sulle celle INTERMEDIE.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPushThroughFireTest,
+	"RefactorTactics.Actions.Push.CrossesHazardsOfEveryCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPushThroughFireTest::RunTest(const FString&)
+{
+	// Restituisce la salute della vittima a fine turno, e dove e' finita. `bBurningMidCell` accende la sola
+	// cella di mezzo.
+	auto RunPush = [this](bool bBurningMidCell, FRTCellId& OutCell, bool& bOutBurning) -> int32
+	{
+		UWorld* World = MakeControlWorld();
+		if (!World) { return -1; }
+
+		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
+		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 6))
+		{
+			FRTHexCellData Data(Id);
+			if (bBurningMidCell && Id == FRTCellId(2, 0))
+			{
+				Data.Surface = ERTHexSurface::Fire;
+				// Il costo del catalogo per il fuoco e' 2, e va messo: se la spinta lo leggesse, il test
+				// direbbe «non brucia» quando il difetto vero sarebbe «la spinta paga il terreno».
+				Data.MoveCost = 2;
+			}
+			M->AddOrUpdateCell(Data);
+		}
+		M->SortCells();
+		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+		MapActor->MapAsset = M;
+
+		ARTUnit* Mover = SpawnControlUnit(World, 0, FRTCellId(0, 0));
+		ARTUnit* Victim = SpawnControlUnit(World, 1, FRTCellId(1, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Mover || !Victim || !TM) { DestroyControlWorld(World); return -1; }
+
+		Victim->PushResistance = 0;
+
+		// `Guardian.Sweep`: l'unica azione del progetto con `Push 2`, che e' cio' che serve — con una spinta
+		// di una cella sola non esisterebbe una cella INTERMEDIA da attraversare.
+		URTActionData* Ability = NewObject<URTActionData>(Mover);
+		Ability->Def = URTCatalogLibrary::FindShippedAction(TEXT("Guardian.Sweep"));
+		Ability->RangeCells = Ability->Def.RangeCells;
+		Ability->Power = 0;
+		Mover->Abilities.Add(Ability);
+		Mover->PlannedAbilityIndex = Mover->Abilities.Num() - 1;
+		Mover->PlannedAttackTarget = Victim;
+		Victim->PlannedAbilityIndex = INDEX_NONE;
+		Victim->PlannedCell = Victim->Cell;
+
+		RunControlTurn(TM);
+
+		OutCell = Victim->Cell;
+		bOutBurning = Victim->HasStatus(TAG_Status_Burning);
+		const int32 Health = Victim->Health;
+		DestroyControlWorld(World);
+		return Health;
+	};
+
+	FRTCellId ClearCell, BurningCell;
+	bool bClearBurning = false, bFireBurning = false;
+	const int32 HealthOverClearGround = RunPush(/*bBurningMidCell*/ false, ClearCell, bClearBurning);
+	const int32 HealthThroughFire = RunPush(/*bBurningMidCell*/ true, BurningCell, bFireBurning);
+
+	if (!TestTrue(TEXT("entrambe le esecuzioni sono andate a buon fine"),
+		HealthOverClearGround >= 0 && HealthThroughFire >= 0))
+	{
+		return false;
+	}
+
+	// Precondizione: la spinta e' avvenuta, di due celle, e in ENTRAMBI i casi finisce nello stesso posto.
+	// Senza, la differenza di salute potrebbe venire da una geometria diversa invece che dal fuoco.
+	TestTrue(TEXT("spinta di due celle su terreno libero"), ClearCell == FRTCellId(3, 0));
+	TestTrue(TEXT("e la stessa spinta attraverso il fuoco arriva alla stessa cella"),
+		BurningCell == FRTCellId(3, 0));
+
+	// Il catalogo terreni dichiara `Fire = 10 danni + Status.Burning 2 turni`, e `Burning` batte **8** nel
+	// Cleanup (`URTCombatLibrary::BurningCleanupDamage`) — anche in quello del turno stesso, che gira dopo il
+	// Blast. Il conto atteso e' quindi la somma dei due, scritta come somma e non come `18`: un numero unico
+	// non direbbe quale dei due manca il giorno che il test diventa rosso.
+	const int32 ExpectedFireCost = 10 + URTCombatLibrary::BurningCleanupDamage;
+	TestEqual(TEXT("attraversare il fuoco costa l'ingresso piu' il Burning del Cleanup, e non li paga chi non lo attraversa"),
+		HealthOverClearGround - HealthThroughFire, ExpectedFireCost);
+	TestFalse(TEXT("su terreno libero nessuno brucia"), bClearBurning);
+	TestTrue(TEXT("chi e' stato spinto nel fuoco ne esce in fiamme: gli effetti sono TUTTI quelli della cella, non il solo danno"),
+		bFireBurning);
+
+	return true;
+}
+
+/**
+ * Essere spinti non consuma il movimento della vittima (#308, terzo bullet).
+ *
+ * La regola sta nella stessa §3: lo spostamento forzato «non consuma il `MoveBudget` della vittima, ne' la
+ * sua azione, ne' il suo Dash». Non e' osservabile su un campo — il budget vive nello snapshot del turno, non
+ * sull'unita' — ma lo e' sul risultato: una vittima spinta nel Blast **si muove comunque** nel Move dello
+ * stesso turno, che risolve dopo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPushDoesNotSpendVictimMoveTest,
+	"RefactorTactics.Actions.Push.DoesNotSpendTheVictimMove",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPushDoesNotSpendVictimMoveTest::RunTest(const FString&)
+{
+	UWorld* World = MakeControlWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnControlMap(World, 6);
+
+	ARTUnit* Mover = SpawnControlUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Victim = SpawnControlUnit(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Mover || !Victim || !TM) { DestroyControlWorld(World); return false; }
+
+	Victim->PushResistance = 0;
+
+	URTActionData* Ability = NewObject<URTActionData>(Mover);
+	Ability->Def = URTCatalogLibrary::FindShippedAction(TEXT("Guardian.Sweep"));
+	Ability->RangeCells = Ability->Def.RangeCells;
+	Ability->Power = 0;
+	Mover->Abilities.Add(Ability);
+	Mover->PlannedAbilityIndex = Mover->Abilities.Num() - 1;
+	Mover->PlannedAttackTarget = Victim;
+
+	// La vittima pianifica di andare a NORD-EST. Verra' spinta a est nel Blast, e il Move — che risolve dopo —
+	// deve comunque portarla dove aveva deciso.
+	const FRTCellId Goal(3, -2);
+	Victim->PlannedAbilityIndex = INDEX_NONE;
+	Victim->PlannedCell = Goal;
+
+	RunControlTurn(TM);
+
+	TestTrue(TEXT("la vittima e' stata spinta E si e' comunque mossa dove voleva"), Victim->Cell == Goal);
+
+	DestroyControlWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
