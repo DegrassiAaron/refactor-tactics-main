@@ -554,4 +554,98 @@ bool FRTCoverHeavyAttackBreachesTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * CP 9.5 — una copertura si puo' ERIGERE in partita, e il bordo ne regge UNA sola.
+ *
+ * «Non sovrapponibile» e' del catalogo (`Action.CreateCover`) e finora valeva solo per il dato disegnato a
+ * mano (`ValidateMap`). Da qui si scrive sulla mappa durante il turno, quindi la stessa invariante deve reggere
+ * a runtime — e reggere sulle DUE facce del bordo: una copertura dichiarata dal vicino e' la stessa barriera,
+ * e ammetterne una seconda darebbe un muro che regge il doppio, con la meta' del danno che sparisce senza che
+ * niente lo spieghi.
+ *
+ * Il rifiuto deve anche essere GRATUITO: se toccasse la revisione, ogni tentativo fallito invaliderebbe le
+ * cache di percorso di tutti.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverAddRejectsOccupiedEdgeTest,
+	"RefactorTactics.Cover.AddCover.RejectsOccupiedEdge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCoverAddRejectsOccupiedEdgeTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeCoverMap(2);
+	const FRTCellId Cell(0, 0);
+	const FRTCellId East = URTHexLibrary::Neighbors(Cell)[static_cast<int32>(ERTHexDirection::E)];
+
+	TestTrue(TEXT("la prima copertura nasce"),
+		URTHexCoverLibrary::AddCover(Map, Cell, ERTHexDirection::E, ERTHexCoverType::Low, 30));
+	TestEqual(TEXT("ed e' quella del catalogo: bassa, integrita' 30"),
+		URTHexCoverLibrary::CoverBetween(Map, Cell, East), ERTHexCoverType::Low);
+
+	const int32 AfterCreate = Map->Revision;
+
+	TestFalse(TEXT("lo stesso bordo, dalla stessa faccia: rifiutata"),
+		URTHexCoverLibrary::AddCover(Map, Cell, ERTHexDirection::E, ERTHexCoverType::Low, 30));
+	TestFalse(TEXT("lo stesso bordo, dalla faccia del VICINO: rifiutata"),
+		URTHexCoverLibrary::AddCover(Map, East, ERTHexDirection::W, ERTHexCoverType::Low, 30));
+	TestFalse(TEXT("fuori mappa: rifiutata"),
+		URTHexCoverLibrary::AddCover(Map, FRTCellId(99, 99), ERTHexDirection::E, ERTHexCoverType::Low, 30));
+	TestFalse(TEXT("integrita' zero: non e' una copertura"),
+		URTHexCoverLibrary::AddCover(Map, FRTCellId(0, 1), ERTHexDirection::E, ERTHexCoverType::Low, 0));
+	TestFalse(TEXT("tipo None: non e' una copertura"),
+		URTHexCoverLibrary::AddCover(Map, FRTCellId(0, 1), ERTHexDirection::E, ERTHexCoverType::None, 30));
+
+	TestEqual(TEXT("nessun rifiuto ha toccato la revisione"), Map->Revision, AfterCreate);
+
+	// Un bordo LIBERO della stessa cella resta disponibile: il rifiuto e' del bordo, non della cella.
+	TestTrue(TEXT("un altro bordo della stessa cella: ammesso"),
+		URTHexCoverLibrary::AddCover(Map, Cell, ERTHexDirection::W, ERTHexCoverType::Low, 30));
+	return true;
+}
+
+/**
+ * CP 9.5 — la copertura eretta in partita e' una copertura VERA, e toglierla la fa smettere di proteggere.
+ *
+ * Il difetto ricorrente di questo repository e' il dato che nessuno legge: qui si verifica che a chiedere la
+ * riduzione sia il **consumatore reale** (`CollectHexAttacks`, lo stesso che serve le coperture disegnate a
+ * mano) e non un secondo percorso scritto per l'occasione. Poi si toglie e il danno torna pieno: e' la prova
+ * che la scadenza di un pannello temporaneo avra' un effetto osservabile.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverAddThenRemoveTest,
+	"RefactorTactics.Cover.AddCover.RemovedStopsProtecting",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCoverAddThenRemoveTest::RunTest(const FString&)
+{
+	TArray<FRTHexCombatUnit> Units;
+	Units.Add(CoverUnit(0, 0, FRTCellId(0, 0)));
+	Units.Add(CoverUnit(1, 1, FRTCellId(2, 0)));
+
+	TArray<FRTHexAttackIntent> Intents;
+	Intents.Add(CoverIntent(0, 1, ERTAbilityShape::Single, 5, 30));
+
+	URTHexMapAsset* Map = MakeCoverMap(3);
+	TestEqual(TEXT("prima: danno pieno"),
+		CoverPowerOn(URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map), 1), 30);
+
+	const int32 Before = Map->Revision;
+	TestTrue(TEXT("il pannello si erige sul bordo verso l'attaccante"),
+		URTHexCoverLibrary::AddCover(Map, FRTCellId(2, 0), ERTHexDirection::W, ERTHexCoverType::Low, 30));
+	TestTrue(TEXT("erigerla incrementa la revisione"), Map->Revision > Before);
+
+	TestEqual(TEXT("il consumatore reale la legge: -10"),
+		CoverPowerOn(URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map), 1),
+		30 - URTCombatLibrary::LowCoverDamageReduction);
+
+	const int32 AfterCreate = Map->Revision;
+	TestTrue(TEXT("si toglie"),
+		URTHexCoverLibrary::RemoveCover(Map, FRTCellId(2, 0), ERTHexDirection::W));
+	TestTrue(TEXT("toglierla incrementa la revisione"), Map->Revision > AfterCreate);
+	TestEqual(TEXT("tolta: danno di nuovo pieno"),
+		CoverPowerOn(URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map), 1), 30);
+
+	const int32 AfterRemove = Map->Revision;
+	TestFalse(TEXT("togliere un bordo scoperto non e' un evento"),
+		URTHexCoverLibrary::RemoveCover(Map, FRTCellId(2, 0), ERTHexDirection::W));
+	TestEqual(TEXT("e non tocca la revisione"), Map->Revision, AfterRemove);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

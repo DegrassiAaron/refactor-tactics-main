@@ -43,6 +43,7 @@ namespace
 			TEXT("Environment"),       // E8: superfici, stati, propagazione
 			TEXT("Cover"),             // E9 CP 9.1/9.2: coperture bassa e alta, distruzione
 			TEXT("Structures"),        // E9 CP 9.3: porte come bordo, revisione della mappa
+			TEXT("CreateCover"),       // E9 CP 9.5: coperture erette in partita, temporanee, spostabili
 			// D-039 (#282): un EROE possiede davvero un'azione ambientale. Non basta che il resolver la sappia
 			// risolvere — per mesi la sapeva, e nessuna unita' poteva innescarla. Oggi `Flux.ConductiveNode` e'
 			// `Action.Electrify` e `Riva.FluidTrail` e' `Action.CreateWater`.
@@ -372,6 +373,9 @@ void FRTScenarioSession::BeginTurn()
 			U->PlannedAbilityIndex = INDEX_NONE;
 			U->PlannedAttackTarget = nullptr;
 			U->bAttackTargetsCell = false;
+			// E il BORDO dichiarato: senza, un pannello eretto al turno 1 lascerebbe il lato scritto nel piano
+			// e un'azione di struttura del turno 3 lo troverebbe gia' pronto senza averlo chiesto.
+			U->bHasPlannedCoverEdge = false;
 			// Lo SCATTO non si azzera qui, ed e' deliberato: `RTTurnManager` lo consuma a ogni risoluzione
 			// («consumato per questo turno, valido o no»), quindi un reset in questo punto sarebbe una seconda
 			// copia della stessa regola — quella che smette di essere aggiornata quando la prima cambia.
@@ -509,6 +513,15 @@ void FRTScenarioSession::BeginTurn()
 				Unit->PlannedAttackTarget = nullptr;
 				Unit->PlannedAttackCell = Intent.TargetCell;
 				Unit->bAttackTargetsCell = true;
+
+				// Il BORDO, per le azioni che agiscono su una struttura di bordo (CP 9.5). Si scrive solo se
+				// lo scenario lo dichiara: senza flag, il resolver rifiuta con `CoverRejected` invece di
+				// scegliere un lato — ed e' cio' che deve succedere se il file lo dimentica.
+				if (Intent.bHasCoverEdge)
+				{
+					Unit->PlannedCoverEdge = Intent.CoverEdge;
+					Unit->bHasPlannedCoverEdge = true;
+				}
 			}
 		}
 

@@ -113,7 +113,7 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 **Suite automatica**: **si misura, non si cita — e da qui in avanti nemmeno si scrive.**
 
 <!-- RT_SUITE_COUNT:BEGIN -->
-**499 test unici in 71 file** — misurati su `5f83d22`.
+**507 test unici in 72 file** — misurati su `2683233`.
 
 Generato da `python scripts/feature_registry.py suite`: **non si aggiorna a mano**. Era scritto a mano in due documenti ed è divergito cinque volte.
 
@@ -128,15 +128,17 @@ Generato da `python scripts/feature_registry.py suite`: **non si aggiorna a mano
 | `Match*` (allestimento, formato, fine partita) | 27 | Le tre vie di fine partita e il `RoundLimit` da formato |
 | `Heroes.*` | 26 | I 4 eroi corrispondono al catalogo, trade-off delle varianti |
 | `TurnLog.*` | 22 | Hash permutazione-invariante, serializzazione versionata, checksum |
-| `Scenario.*` · `ScenarioIndex.*` | 54 | Harness: PASS/FAIL/ERROR/**BLOCKED**, identità e tag, niente bypass |
+| `Scenario.*` · `ScenarioIndex.*` | 55 | Harness: PASS/FAIL/ERROR/**BLOCKED**, identità e tag, niente bypass |
 | `Structures.*` | 18 | Porte come bordo (E9.3), ponti come arco (E9.4) |
 | `Playback.*` · `Preview.*` · `PlayerInput.*` · `ShowcaseRelay.*` · `Camera.*` | 23 | Presentazione e input: non decidono, riproducono |
 | `Unit.*` · `Turn.*` · `Simulation.*` · `Movement.*` | 18 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
-| `Cover.*` | 13 | Copertura bassa e alta, bordi, danno a struttura e distruzione |
+| `Cover.*` | 15 | Copertura bassa e alta, bordi, danno a struttura e distruzione |
 | `Catalog.*` | 9 | Invarianti del catalogo: solo interi, slot dichiarati, ID stabili |
 | `Pacing.*` | 7 | Pacing del turno misurato |
 | `Perf.*` | 2 | Path mediana **0,025 ms** · resolver **0,41 ms/turno** |
-| **totale** | **499** | |
+| **totale** | **502** | |
+
+> ⚠️ Test fuori da ogni area dichiarata: `RefactorTactics.IconCatalog.DuplicateIdIsValidationError`, `RefactorTactics.IconCatalog.EveryKeyResolves`, `RefactorTactics.IconCatalog.MissingKeyIsValidationError`, `RefactorTactics.IconCatalog.RequiredIdsFollowGameData`, `RefactorTactics.IconCatalog.UnknownKeyReturnsFallback`
 <!-- RT_SUITE_COUNT:END -->
 
 > Questo numero è già stato sbagliato quattro volte, e la storia vale più della cifra: due viste sono arrivate
@@ -163,7 +165,7 @@ Evidenza = i **nomi dei test**, che sono la prova di ciò che esiste:
 | **E6** Roster 4 eroi | ✅ **chiusa** | 25 test `Heroes.*` — i quattro eroi corrispondono al catalogo; **tre reazioni su cinque** cablate, `InterceptShot`/`FlowReaction` rinviate |
 | **E7** Equipaggiamento e loadout | ⏳ **assente** | nessun test `Equipment.*` |
 | **E8** Terreni, stati e ambiente | ✅ **chiusa** | 39 test `Terrain.*` · `Status.*` · `Environment.*` — superfici, stati temporanei, propagazione elettrica, fuoco/acqua, terreno dinamico |
-| **E9** Coperture e strutture | 🟡 **CP 9.1–9.4 chiusi** | 13 test `Cover.*` — bassa (riduzione per bordo, decade dal lato sbagliato), alta (nega vista **e** passo nei due versi), distruzione con revisione e riapertura della LOS · 10 test `Structures.Door.*` + 3 `HexMap.Door*` — la porta è un **bordo** (formato mappa **v4**), letta dallo stesso `BlocksTraversal` di muri e coperture, e un movimento già pianificato si **ferma** davanti a una porta chiusa a metà turno · 7 test `Structures.Bridge.*` + 3 `HexMap.Arc*` — il ponte è un **arco**, non un bordo (CP 9.4) · ⏳ CP 9.5: coperture temporanee |
+| **E9** Coperture e strutture | ✅ **chiusa** | 15 test `Cover.*` — bassa (riduzione per bordo, decade dal lato sbagliato), alta (nega vista **e** passo nei due versi), distruzione con revisione e riapertura della LOS · 10 test `Structures.Door.*` + 3 `HexMap.Door*` — la porta è un **bordo** (formato mappa **v4**), letta dallo stesso `BlocksTraversal` di muri e coperture, e un movimento già pianificato si **ferma** davanti a una porta chiusa a metà turno · 7 test `Structures.Bridge.*` + 3 `HexMap.Arc*` — il ponte è un **arco**, non un bordo (CP 9.4) · **CP 9.5 (2026-08-09)**: le coperture si **erigono e si spostano in partita** e scadono nel Cleanup — `Structures.KineticPanel.*`, `Actions.CreateCover.*`, `Heroes.Bastion.{KineticPanelVariantApplied, Reconfigure*}`, `Equipment.PortableCover.*`, e `Spec.Cover.TemporaryCoverExpires` da `BLOCKED` a `PASS` |
 | **E10** Obiettivi dinamici e fine partita | 🟡 **CP 10.3 chiuso** | 27 test `Match*.*` — fine partita a tre vie, `RoundLimit` da formato, pareggio dichiarato, fallback di formato osservabile · ⏳ nessun oggetto da attivare in mappa |
 | **E11** HUD, log e debug | 🟡 **parziale** | 4 `Preview.*`, 4 `PlayerInput.*`, 8 `Playback.*`; console `rt.Debug.DrawCells` e `rt.Debug.Pacing` esistono · ⏳ Ghost Timeline (CP 11.5/11.6) |
 | **E12** Determinismo, QA e release | 🟡 **CP 12.1 chiuso** | 4 `Simulation.*` — replay deterministico su **100 ripetizioni**, checksum stabile per permutazioni, corpus golden che rifiuta un formato diverso · 13 `Scenario.*` (harness) · 2 `Perf.*` · ⏳ packaged build (CP 12.3/12.5) |
@@ -227,7 +229,7 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-ENV-TERRAIN` — Otto terreni con costi e proprietà | INTEGRATED | 6/8 |
 |  | `RT-FEAT-ENV-WATER` — Acqua e stato Wet | INTEGRATED | 6/8 |
 | **E9** | `RT-FEAT-MAP-COVER` — Copertura direzionale per bordo | INTEGRATED | 6/8 |
-|  | `RT-FEAT-MAP-DYNAMIC-COVER` — Copertura modificabile e pannello cinetico | IMPLEMENTING | 2/8 |
+|  | `RT-FEAT-MAP-DYNAMIC-COVER` — Copertura modificabile e pannello cinetico | INTEGRATED | 6/8 |
 |  | `RT-FEAT-MAP-HIGH-GROUND` — Altura senza bonus numerico alla vista | INTEGRATED | 6/8 |
 |  | `RT-FEAT-MAP-INTERACTIVE-EDGES` — Porte e bordi commutabili | INTEGRATED | 6/8 |
 |  | `RT-FEAT-MAP-SPECIAL-TRANSITIONS` — Ponti, archi e transizioni multilivello | INTEGRATED | 6/8 |
@@ -653,7 +655,7 @@ l'unicità del colpo per unità sono **test**, non commenti.
 | **9.2** ✅ | Copertura alta e distruzione | Blocca movimento, LOS e proiettili; integrità 50; distruggibile (`HeavyAttack` 20, `BreachCharge` 35); alla distruzione la LOS si riapre **e il grafo si aggiorna** | ✅ **chiuso il 2026-08-07** (#70): 9 test, fra cui `Cover.HighCover.BlocksAll`, `Cover.Destruction.{ReopensLOS, UpdatesGraph, OrderIndependent, LoggedInPlayedTurn}`. Barriera **per bordo, nei due versi**; `DamageStructure` come effetto dichiarato; riapertura **dalla fase successiva** (invariante #3). `BreachCharge` resta a **#61**. Spec: [`spec-copertura-alta-cp92.md`](../gameplay/spec-copertura-alta-cp92.md) |
 | **9.3** ✅ | Porte e revisione del grafo | Stati `Open/Closed/Locked/Destroyed`; ogni cambio incrementa la **revisione del chunk** e invalida cache di lookup e path; una porta chiusa a metà turno non produce path fantasma | ✅ **chiuso il 2026-08-08** (#71): 13 test, fra cui `Structures.Door.{StateChangeBumpsRevision, InvalidatesPathCache, ClosingStopsMovement}` e uno che gira un **turno vero** in `UWorld`. Decisione: la porta è un **bordo**, non un arco — la LOS interroga solo `BlocksTraversal`, e un arco fra celle adiacenti non nega nulla perché `GraphNeighbors` le collega comunque. Formato **v4**; portoni larghi come **gruppo di bordi** (`DoorId`, una sola revisione); `TruncatePathToTopology` chiede al grafo invece di rileggere i bordi. `PIE-V01-DOOR` → 🟡. Spec: [`spec-porte-cp93.md`](../gameplay/spec-porte-cp93.md) |
 | **9.4** ✅ | Ponti e `ModifyArc` | Il ponte è un arco fra due celle, attivo/disattivo/distrutto; non si muove durante la resolution; rimuovendolo i due layer tornano irraggiungibili (il path **fallisce**, non teletrasporta) | ✅ **chiuso il 2026-08-08** (#72): 10 test, fra cui `Structures.Bridge.{RemovalBreaksPath, NoTeleportOnRemoval, TemporaryBridgeExpires, ConductsElectricity}`. Formato **v5**; il ponte bidirezionale è **un evento** (due archi, una revisione). **Decisione**: `Action.ModifyArc` passa da `Environment` (Cleanup) al **Blast** — la ragione che il catalogo dava per il Cleanup non vale più da CP 9.3, e ora porte, muri e ponti cambiano tutti nello stesso momento. La scarica **risale** i ponti conduttivi: prima non saliva mai di layer. `PIE-HEXPLAY-8` rafforzata. Limiti → #206, #207. Spec: [`spec-ponti-cp94.md`](../gameplay/spec-ponti-cp94.md) |
-| **9.5** | Pannello cinetico | `Bastion.KineticPanel` e `Gadget.PortableCover` creano una copertura bassa temporanea (integrità 30, 2 turni; variante rinforzato 45/1 turno, adattivo 25 + una rotazione gratuita) | `Structures.KineticPanel.TemporaryCover` |
+| **9.5** ✅ | Pannello cinetico | `Bastion.KineticPanel` e `Gadget.PortableCover` creano una copertura bassa temporanea (integrità 30, 2 turni; variante rinforzato 45/1 turno, adattivo 25 + una rotazione gratuita) | ✅ **chiuso il 2026-08-09** (#73): 8 test + `Spec.Cover.TemporaryCoverExpires` da `BLOCKED` a `PASS`. `Action.CreateCover` entra nel catalogo e risolve in **Prep** — il catalogo azioni si allinea al catalogo eroi ([D-040](../decisions/RT_PDR_00_Decision_Log.md)): eretta nel Blast arriverebbe dopo aver incassato. L'operazione su struttura è un **dato** (`ERTStructureOp`), non tre `if` sull'ActionId. Primo consumatore delle **varianti di abilità**, che nessun sistema leggeva. Portata validata prima di toccare la mappa, al contrario di `ModifyArc` (#206). Spec: [`spec-coperture-temporanee-cp95.md`](../gameplay/spec-coperture-temporanee-cp95.md) |
 
 **Rischi**: ~~`FRTHexCellData` **non ha** oggi il campo cover~~ — **risolto in CP 9.1** (2026-08-07): il campo
 `Covers` è entrato con la **versione del formato a 3** e `MigrateToCurrentFormat` chiamata da `PostLoad`. La
@@ -745,15 +747,21 @@ Fonti: [`brief-conoscenza-parziale.md`](../gameplay/brief-conoscenza-parziale.md
 
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
-| **13.1** | Celle visibili e conoscenza di squadra | Funzione **pura** e headless: unione per squadra, ordine stabile; tre livelli `Nascosto / Incerto / Rilevato`; nessun consumatore ancora. **Vista a cono** *(ADR-0005, 2026-08-07)*: vista piena fino a `VisionRange` **nell'arco frontale** — la stessa `HexCone(Cella, Neighbor(Cella, Facing), Range)` della difesa direzionale — più **consapevolezza ravvicinata a 360° entro 2 celle** (stesso cap del fumo); oltre le 2 celle, fuori dall'arco, nulla. LOS richiesta in entrambi i casi. **Dipende da CP 16.1** | `Vision.VisibleCellsRespectsSight`, `Vision.ConeUsesHexConePrimitive`, `Vision.AwarenessWithinTwoCellsIgnoresFacing`, `Vision.TeamKnowledgeIsUnion`, `Vision.SmokeCapsContactAtTwo`, `Vision.PermutationInvariant` |
+| **13.1** | Celle visibili e conoscenza di squadra | Funzione **pura** e headless: unione per squadra, ordine stabile; tre livelli `Nascosto / Incerto / Rilevato`; nessun consumatore ancora — **ma con scadenza**: se CP 13.2 non chiude nella stessa PR, `RT-FEAT-PERCEPTION-VISION` resta `runtime: partial`, perché un dato che nessuno legge non è una feature che esiste. **Vista a cono** *(ADR-0005, 2026-08-07)*: vista piena fino a `VisionRange` **nell'arco frontale** — la stessa `HexCone(Cella, Neighbor(Cella, Facing), Range)` della difesa direzionale — più **consapevolezza ravvicinata a 360° entro 2 celle** (stesso cap del fumo); oltre le 2 celle, fuori dall'arco, nulla. LOS richiesta in entrambi i casi. ~~**Dipende da CP 16.1**~~ — **dipendenza soddisfatta il 2026-08-09** (E16 chiusa, PR #290): `Facing` è autorevole sull'unità e nello snapshot, e `URTHexCombatLibrary::IsInFrontalArc` è già la forma del cono da riusare. ⚠️ `Vision.SmokeCapsContactAtTwo` deve **riusare** `URTTerrainLibrary::EffectiveTargetingRange`, non ricalcolare il cap: il progetto ha già rifiutato una volta di farne un secondo gate (`Status.Obscured.AppliedBySmokeWithoutChangingGate`, decisione D4) | `Vision.VisibleCellsRespectsSight`, `Vision.ConeUsesHexConePrimitive`, `Vision.AwarenessWithinTwoCellsIgnoresFacing`, `Vision.TeamKnowledgeIsUnion`, `Vision.SmokeCapsContactAtTwo`, `Vision.PermutationInvariant` |
 | **13.2** | Il targeting consuma la conoscenza + memoria del contatto | Le azioni offensive rifiutano bersagli **ignoti alla squadra**; un bersaglio solo `Incerto` è bersagliabile solo per cella, mai per unità; `FRTLastKnownContact` per squadra nello snapshot, formato **versionato**, persistenza 1 turno | `Vision.CannotTargetUnknown`, `Vision.UncertainTargetsCellNotUnit`, `Vision.AllySpottingExtendsTargeting`, `Vision.LastContactExpiresAfterOneTurn` |
 | **13.3** | Propagazione del rumore | Flood fill **intero** sul grafo tattico limitato dall'intensità (`ReceivedNoise = Intensity − costo acustico`); `Noise_Mod` per superficie dal workbook; nessun `SphereOverlap`; ordine deterministico | `Noise.PropagationIsDeterministic`, `Noise.AttenuationBySurface`, `Noise.ThresholdDecidesDetection`, `Noise.PermutationInvariant` |
-| **13.4** | Rumore → contatto incerto | Un evento sonoro sopra soglia produce un contatto **`Incerto`** con area, mai la cella esatta; l'attacco rivela almeno la direzione; gli eventi entrano nel TurnLog **sanitizzati per squadra** | `Noise.ProducesUncertainContact`, `Noise.AttackRevealsDirection`, `Noise.TurnLogIsTeamFiltered` |
+| **13.4** | Rumore → contatto incerto | Un evento sonoro sopra soglia produce un contatto **`Incerto`** con area, mai la cella esatta; l'attacco rivela almeno la direzione; l'evento entra nel TurnLog **completo** — quindi nell'hash — e ciò che raggiunge un osservatore passa da un **filtro proprio**, che per una squadra che non lo ha udito non produce **nessuna voce**, non una voce vuota. ⚠️ **Corretto il 2026-08-09** (#295): la formulazione precedente chiedeva un TurnLog «sanitizzato per squadra», e il TurnLog è **uno solo** ed è la sorgente di `HashTurnLog` — filtrarlo avrebbe reso il checksum dipendente da chi guarda. Stessa disciplina di `FRTPlannedIntent → FilterForTeam → FRTIntentView` | `Noise.ProducesUncertainContact`, `Noise.AttackRevealsDirection`, `Noise.ObserverViewOmitsUnheard`, `Noise.HashIsIndependentOfObserver` |
 | **13.5** | Bot e HUD sulla conoscenza parziale | `URTHexBotLibrary` pianifica sulla conoscenza della **propria** squadra e non bersaglia ciò che non conosce; HUD con marker d'ultimo contatto e area d'incertezza acustica. **Con ADR-0005** il bot valuta anche **da dove è visto e da dove può essere colpito**: l'orientamento entra nel punteggio delle candidate | `Bot.PlansOnPartialKnowledge`, `Bot.DoesNotTargetUnknown`, `Bot.ConsidersExposedRearArc`; PIE `PIE-V01-VISION`, `PIE-V01-NOISE` |
 
 **Rischi**: i test del bot (smoke/panic/support/tuning) cambiano **premessa**, non solo valori — un bot che
 perde il contatto e sbaglia è il comportamento atteso. Il rumore è ciò che rende necessario il livello
 `Incerto`: senza di esso il sistema si riduce a un secondo raggio di rilevamento.
+
+**Prerequisiti che aspettano una persona** *(spec panel 2026-08-09, issue #294)*: la **soglia d'udito** non esiste in nessun catalogo (`URTHeroData` ha quattro statistiche e nessuna è l'udito), le due divergenze `Noise_Mod` su acqua bassa e vegetazione sono dichiarate nel brief §12 e mai chiuse — quella sulla vegetazione è **di segno** — e la simmetria del contatto va ridecisa ora che la vista è a cono: decide se `TeamKnowledge` è una **relazione** o un **insieme**, cioè la struttura dati di CP 13.1.
+
+**Ogni checkpoint dichiara almeno uno scenario** `Spec.Perception.*`, non solo test unitari. La conoscenza parziale è una proprietà del turno intero: «il bot non bersaglia ciò che non conosce» si verifica facendo giocare una partita. La lezione viene da CP 16.1, dove 13 test unitari verdi convivevano con un resolver che non chiamava la libreria, e a smentirli è stato uno scenario.
+
+**Ordine con CP 12.6** (`#178`, P0): CP 13.2 mette `FRTLastKnownContact` versionato nello snapshot e CP 13.4 aggiunge voci al TurnLog. O il corpus golden nasce dopo CP 13.2, o si dichiara **come** si rigenera — un corpus rigenerabile senza procedura è un corpus che verrà rigenerato per far passare un test.
 
 ---
 
@@ -1106,6 +1114,9 @@ pagine wiki illustrate. Stanno in [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md)
 un refactor invece di una fondazione. Le immagini sorgente sono in
 [`../src/media/hud/`](../src/media/hud/).
 
+**Rischi**: il catalogo semantico è utile solo se le chiavi sono **stabili**. Rinominare `Status.Wet` dopo che
+scenari e test lo usano costa quanto rinominare un'azione a catalogo.
+
 ---
 
 ### E21 — Presentazione e leggibilità · P1
@@ -1139,8 +1150,13 @@ Non dipende da E11: gli anelli e le mesh non passano dai widget.
 **Rischio dichiarato**: è l'unica epic della v0.1 il cui DoD **non è chiudibile in automation**. Tre voci
 PIE e un giudizio a schermo: va eseguita, non dedotta.
 
-**Rischi**: il catalogo semantico è utile solo se le chiavi sono **stabili**. Rinominare `Status.Wet` dopo che
-scenari e test lo usano costa quanto rinominare un'azione a catalogo.
+**Tracciata su GitHub** *(2026-08-09)*: epic [#286](https://github.com/DegrassiAaron/refactor-tactics-main/issues/286),
+con i tre checkpoint [#287](https://github.com/DegrassiAaron/refactor-tactics-main/issues/287),
+[#288](https://github.com/DegrassiAaron/refactor-tactics-main/issues/288) e
+[#289](https://github.com/DegrassiAaron/refactor-tactics-main/issues/289). Era l'**unica** epic della v0.1 senza issue: il buco è stato trovato
+incrociando le issue aperte con la §3 di questo file, ed esisteva perché l'epic è nata da una tabella
+generata invece che da una sessione di pianificazione. Il numero `E21` è stato conteso — vedi
+[D-039](../decisions/RT_PDR_00_Decision_Log.md).
 
 ---
 

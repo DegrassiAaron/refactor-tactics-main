@@ -174,6 +174,19 @@ struct FRTHexCellData
 		return ERTHexCoverType::None;
 	}
 
+	/**
+	 * Voce di copertura su quel bordo, o nullptr se il bordo e' scoperto. `CoverOn` risponde «che tipo», questa
+	 * serve a chi deve leggere anche l'INTEGRITA' — spostare una copertura conservandola (CP 9.5) o scalarla.
+	 */
+	const FRTHexCover* CoverEntryOn(ERTHexDirection Edge) const
+	{
+		for (const FRTHexCover& Cover : Covers)
+		{
+			if (Cover.Edge == Edge) { return &Cover; }
+		}
+		return nullptr;
+	}
+
 	/** Porta dichiarata su quel bordo, o nullptr se il bordo non ne ha. */
 	const FRTHexDoor* DoorOn(ERTHexDirection Edge) const
 	{

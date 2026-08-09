@@ -76,6 +76,24 @@ public:
 	static TArray<FString> ValidateEquipment(const TArray<const URTEquipmentData*>& Equipment);
 
 	/**
+	 * `Gadget.PortableCover` del catalogo equipaggiamento (CP 9.5). E' l'**unico** gadget costruito in v0.1, e
+	 * non e' l'inizio del catalogo completo: quello, con slot, loadout e validazione dell'insieme, e' l'epic E7
+	 * (`#61`, `#63`). Sta qui perche' il DoD di questo checkpoint lo nomina, e perche' e' il secondo
+	 * consumatore di `Action.CreateCover` — cioe' la prova che la semantica e' condivisa e non e' di Bastion.
+	 */
+	static URTEquipmentData* MakePortableCoverGadget();
+
+	/**
+	 * L'azione che un equipaggiamento concede, costruita dall'azione CORE che dichiara in `GrantedActionId`.
+	 * Nullptr se non ne concede nessuna o se l'id non e' nel catalogo.
+	 *
+	 * Conserva la semantica del core (fase, priorita', portata, `StructureOp`) e sostituisce due cose:
+	 * l'**ActionId**, che diventa quello del gadget perche' il TurnLog deve dire CHI ha agito, e il
+	 * **cooldown**, che e' dell'oggetto — un gadget si ricarica coi suoi tempi, non con quelli dell'azione.
+	 */
+	static URTActionData* MakeEquipmentAction(const URTEquipmentData* Item, UObject* Outer);
+
+	/**
 	 * Il catalogo di azioni realmente SPEDITO dal gioco: le definizioni che `ARTUnit` assegna agli archetipi.
 	 * Serve al test che tiene allineati documento e codice — se un'azione perde l'ActionId o cambia fallback,
 	 * il validator lo scopre in CI invece che in partita.

@@ -597,6 +597,11 @@ void ARTTurnManager::LockInAndResolve()
 	// il tick precede le azioni di questo turno invece di mangiarne subito uno.
 	TickDynamicArcs(CleanupMap);
 
+	// Le coperture temporanee (CP 9.5) scalano invece GIA' in questo Cleanup, e non e' un'incoerenza con le due
+	// righe qui sopra: un pannello nasce in **Prep**, cioe' prima del Blast che lo usa, quindi il turno in cui
+	// e' stato eretto e' un turno in cui ha gia' riparato qualcuno. Saltarlo gliene regalerebbe uno.
+	TickDynamicCovers(CleanupMap);
+
 	// 1. Azioni ambientali (CP 8.3/8.4): la scarica elettrica e le modifiche del terreno precedono il danno di
 	// `Burning`. Chi cade qui e' morto in QUESTO turno, come chi cade bruciato: il conteggio dei vivi arriva
 	// dopo entrambi.
@@ -813,6 +818,59 @@ void ARTTurnManager::TickDynamicArcs(URTHexMapAsset* Map)
 		TurnLog.Add(Entry);
 		AddLogEvent(FString::Printf(TEXT("Il ponte (q=%d,r=%d,L%d) -> (q=%d,r=%d,L%d) e' scaduto"),
 			From.X, From.Y, From.Layer, To.X, To.Y, To.Layer));
+	}
+}
+
+void ARTTurnManager::TickDynamicCovers(URTHexMapAsset* Map)
+{
+	if (!Map || DynamicCovers.Num() == 0) { return; }
+
+	// Ordine STABILE: da qui escono voci di TurnLog, e due esecuzioni della stessa partita devono scriverle
+	// nella stessa sequenza (la stessa disciplina di `TickDynamicArcs`).
+	DynamicCovers.Sort([](const FRTDynamicCover& A, const FRTDynamicCover& B)
+	{
+		if (!(A.Cell == B.Cell)) { return URTHexLibrary::StableLess(A.Cell, B.Cell); }
+		return static_cast<uint8>(A.Edge) < static_cast<uint8>(B.Edge);
+	});
+
+	for (int32 I = DynamicCovers.Num() - 1; I >= 0; --I)
+	{
+		FRTDynamicCover& Cover = DynamicCovers[I];
+		if (Cover.TurnsRemaining <= 0)
+		{
+			continue; // non scade da sola (pannello adattivo): resta finche' qualcuno non l'abbatte
+		}
+		if (--Cover.TurnsRemaining > 0)
+		{
+			continue; // il pannello regge ancora
+		}
+
+		const FRTCellId Cell = Cover.Cell;
+		const ERTHexDirection Edge = Cover.Edge;
+		DynamicCovers.RemoveAt(I);
+
+		// La cella OLTRE il bordo: il TurnLog identifica una struttura con la coppia di celle, come per
+		// coperture danneggiate, porte e ponti — nessun campo direzione nel log.
+		const TArray<FRTCellId> Ring = URTHexLibrary::Neighbors(Cell);
+		const int32 EdgeIndex = static_cast<int32>(Edge);
+		const FRTCellId Toward = Ring.IsValidIndex(EdgeIndex) ? Ring[EdgeIndex] : Cell;
+
+		if (!URTHexCoverLibrary::RemoveCover(Map, Cell, Edge))
+		{
+			continue; // gia' sparita per altra via (abbattuta in combattimento): niente da registrare
+		}
+
+		FRTTurnLogEntry Entry;
+		Entry.Phase = ERTMatchPhase::Cleanup;
+		Entry.Category = ERTLogCategory::Environment;
+		Entry.Outcome = static_cast<uint8>(ERTEnvironmentOutcome::CoverExpired);
+		Entry.ActionId = FName(TEXT("Action.CreateCover"));
+		Entry.SrcCell = Cell;
+		Entry.TgtCell = Toward;
+		Entry.Amount = 0;
+		TurnLog.Add(Entry);
+		AddLogEvent(FString::Printf(TEXT("La copertura (q=%d,r=%d,L%d) e' scaduta"),
+			Cell.X, Cell.Y, Cell.Layer));
 	}
 }
 
@@ -1105,6 +1163,310 @@ void ARTTurnManager::DestroyDefeatedUnits()
 	}
 }
 
+int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
+{
+	ARTHexMapActor* MapActor = ARTHexMapActor::FindInWorld(GetWorld());
+	URTHexMapAsset* Map = MapActor ? MapActor->MapAsset : nullptr;
+
+	// Che cosa si e' chiesto alla mappa, gia' validato contro il PIANO (bordo dichiarato, bersaglio, portata).
+	// Si raccoglie tutto prima di scrivere, come per `PendingArcOps` nel Blast: due pannelli sullo stesso bordo
+	// nello stesso turno non possono coesistere, e chi vince deve dipendere da un ordine stabile e non
+	// dall'ordine in cui `GetAllActorsOfClass` ha restituito gli attori.
+	struct FRTPendingCoverOp
+	{
+		FRTCellId Cell;
+		ERTHexDirection Edge = ERTHexDirection::E;
+		int32 Integrity = 0;
+		int32 Turns = 0;
+		int32 FreeRotations = 0;
+		FName ActionId;
+	};
+	TArray<FRTPendingCoverOp> Pending;
+
+	// Gli SPOSTAMENTI (`Bastion.Reconfigure`). Portano con se' chi li ha chiesti, perche' il cooldown si decide
+	// solo in applicazione: una rotazione gratuita non lo spende, e quale copertura si sposta — quindi se una
+	// rotazione gratuita c'e' — si sa solo guardando il campo.
+	struct FRTPendingMoveOp
+	{
+		FRTCellId Cell;
+		ERTHexDirection ToEdge = ERTHexDirection::E;
+		FName ActionId;
+		ARTUnit* Mover = nullptr;
+		int32 AbilityIndex = INDEX_NONE;
+	};
+	TArray<FRTPendingMoveOp> Moves;
+
+	// Le voci di rifiuto decise gia' in raccolta: escono in coda agli esiti, cosi' il replay racconta prima
+	// cosa e' successo al campo e poi cosa non e' successo a chi ci ha provato.
+	TArray<FRTTurnLogEntry> Rejections;
+
+	auto Reject = [this, &Rejections](const FRTCellId& From, const FRTCellId& Toward, const FName& ActionId,
+		const TCHAR* Why, const ARTUnit* Who)
+	{
+		FRTTurnLogEntry Entry;
+		Entry.Phase = ERTMatchPhase::Prep;
+		Entry.Category = ERTLogCategory::Environment;
+		Entry.Outcome = static_cast<uint8>(ERTEnvironmentOutcome::CoverRejected);
+		Entry.ActionId = ActionId;
+		Entry.SrcCell = From;
+		Entry.TgtCell = Toward;
+		Entry.Amount = 0;
+		Rejections.Add(Entry);
+		AddLogEvent(FString::Printf(TEXT("%s: %s annullata (%s)"),
+			Who ? *Who->GetName() : TEXT("?"), *ActionId.ToString(), Why));
+	};
+
+	for (ARTUnit* Unit : Units) // gia' ordinati per cella dal chiamante
+	{
+		if (!Unit || !Unit->IsAlive()) { continue; }
+
+		const int32 Index = Unit->PlannedAbilityIndex;
+		const URTActionData* Ability = Unit->GetAbility(Index);
+		if (!Ability || Ability->Def.StructureOp == ERTStructureOp::None)
+		{
+			continue; // non tocca le strutture di bordo: la vede il motore azioni, o nessuno
+		}
+
+		// Il piano si consuma nel turno, attivata o no: e' la stessa disciplina di `ModifyArc` nel Blast.
+		const FRTActionDef Def = Ability->Def;
+		const bool bHasEdge = Unit->bHasPlannedCoverEdge;
+		const ERTHexDirection Edge = Unit->PlannedCoverEdge;
+		const bool bTargetsCell = Unit->bAttackTargetsCell;
+		const FRTCellId TargetCell = bTargetsCell ? Unit->PlannedAttackCell
+			: (Unit->PlannedAttackTarget ? Unit->PlannedAttackTarget->Cell : Unit->Cell);
+		const bool bHasTarget = bTargetsCell || Unit->PlannedAttackTarget != nullptr;
+
+		Unit->PlannedAbilityIndex = INDEX_NONE;
+		Unit->PlannedAttackTarget = nullptr;
+		Unit->bHasPlannedCoverEdge = false;
+		if (!Unit->CanUseAbility(Index)) { continue; }
+
+		if (!bHasTarget)
+		{
+			// Nessuna scelta implicita: il catalogo la vieta, e «la propria cella» sarebbe una scelta implicita
+			// per quanto comoda. Chi vuole ripararsi davanti dichiara la propria cella.
+			Reject(Unit->Cell, Unit->Cell, Def.ActionId, TEXT("nessun bersaglio"), Unit);
+			continue;
+		}
+		if (!bHasEdge)
+		{
+			Reject(Unit->Cell, TargetCell, Def.ActionId, TEXT("nessun bordo dichiarato"), Unit);
+			continue;
+		}
+		// La portata si valida QUI, prima di toccare la mappa. `ModifyArc` non lo fa e la issue #206 lo
+		// registra come difetto: un'azione che dichiara `Range 3` e opera a dieci celle non e' un'azione a
+		// portata, e' un'azione senza portata.
+		if (URTHexLibrary::HexDistance(Unit->Cell, TargetCell) > Def.RangeCells)
+		{
+			Reject(Unit->Cell, TargetCell, Def.ActionId, TEXT("fuori portata"), Unit);
+			continue;
+		}
+
+		// Lo SPOSTAMENTO non consuma qui: la rotazione gratuita del pannello adattivo si scopre solo guardando
+		// quale copertura verra' mossa, e quello succede in applicazione.
+		if (Def.StructureOp == ERTStructureOp::MoveCover)
+		{
+			Moves.Add({ TargetCell, Edge, Def.ActionId, Unit, Index });
+			continue;
+		}
+
+		Unit->ConsumeAbility(Index);
+
+		// Integrita' e durata del catalogo terreni (`Structure.KineticPanel`: 30 punti struttura) e del
+		// catalogo azioni (2 turni, come ogni altra modifica temporanea del campo).
+		int32 Integrity = FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low);
+		int32 Turns = 2;
+		int32 FreeRotations = 0;
+
+		// La VARIANTE attiva sostituisce i due numeri, se li dichiara. E' il primo punto in cui i `Parameters`
+		// di una variante decidono qualcosa: il pannello rinforzato compra integrita' con la durata (45 per un
+		// turno solo), l'adattivo compra flessibilita' con l'integrita' (25, e `DurationTurns` 0 — non scade
+		// da sola). Non c'e' un ramo per eroe: si legge il dato di quell'abilita', qualunque sia.
+		if (const FRTAbilityVariant* Variant = Ability->FindVariant(Unit->ActiveVariantId))
+		{
+			if (const int32* Declared = Variant->Parameters.Find(TEXT("Integrity")))
+			{
+				Integrity = *Declared;
+			}
+			if (const int32* Declared = Variant->Parameters.Find(TEXT("DurationTurns")))
+			{
+				Turns = *Declared;
+			}
+			if (const int32* Declared = Variant->Parameters.Find(TEXT("FreeRotations")))
+			{
+				FreeRotations = *Declared;
+			}
+		}
+
+		Pending.Add({ TargetCell, Edge, Integrity, Turns, FreeRotations, Def.ActionId });
+	}
+
+	if (Pending.Num() == 0 && Moves.Num() == 0 && Rejections.Num() == 0)
+	{
+		return 0;
+	}
+
+	Pending.Sort([](const FRTPendingCoverOp& A, const FRTPendingCoverOp& B)
+	{
+		if (!(A.Cell == B.Cell)) { return URTHexLibrary::StableLess(A.Cell, B.Cell); }
+		return static_cast<uint8>(A.Edge) < static_cast<uint8>(B.Edge);
+	});
+
+	int32 Erected = 0;
+	for (const FRTPendingCoverOp& Op : Pending)
+	{
+		const TArray<FRTCellId> Ring = URTHexLibrary::Neighbors(Op.Cell);
+		const int32 EdgeIndex = static_cast<int32>(Op.Edge);
+		const FRTCellId Toward = Ring.IsValidIndex(EdgeIndex) ? Ring[EdgeIndex] : Op.Cell;
+
+		if (!URTHexCoverLibrary::AddCover(Map, Op.Cell, Op.Edge, ERTHexCoverType::Low, Op.Integrity))
+		{
+			// Bordo gia' riparato o cella fuori mappa. Il cooldown resta speso: l'azione e' stata usata, ed e'
+			// il `Cancel` del catalogo — non un'azione che non e' mai partita.
+			FRTTurnLogEntry Entry;
+			Entry.Phase = ERTMatchPhase::Prep;
+			Entry.Category = ERTLogCategory::Environment;
+			Entry.Outcome = static_cast<uint8>(ERTEnvironmentOutcome::CoverRejected);
+			Entry.ActionId = Op.ActionId;
+			Entry.SrcCell = Op.Cell;
+			Entry.TgtCell = Toward;
+			Entry.Amount = 0;
+			Rejections.Add(Entry);
+			AddLogEvent(FString::Printf(TEXT("(q=%d,r=%d,L%d): il bordo e' gia' riparato"),
+				Op.Cell.X, Op.Cell.Y, Op.Cell.Layer));
+			continue;
+		}
+
+		// Entra nella lista anche se non scade (`Turns` 0, pannello adattivo): la lista dice quali coperture
+		// sono «di partita», e serve a `Reconfigure` per portarsi dietro le rotazioni gratuite. E' il tick a
+		// saltare le permanenti, non l'inserimento a escluderle.
+		DynamicCovers.Add({ Op.Cell, Op.Edge, Op.Turns, Op.FreeRotations });
+
+		FRTTurnLogEntry Entry;
+		Entry.Phase = ERTMatchPhase::Prep;
+		Entry.Category = ERTLogCategory::Environment;
+		Entry.Outcome = static_cast<uint8>(ERTEnvironmentOutcome::CoverCreated);
+		Entry.ActionId = Op.ActionId;
+		Entry.SrcCell = Op.Cell;
+		Entry.TgtCell = Toward;
+		Entry.Amount = Op.Turns;
+		TurnLog.Add(Entry);
+		AddLogEvent(FString::Printf(TEXT("(q=%d,r=%d,L%d): copertura eretta (%d turni)"),
+			Op.Cell.X, Op.Cell.Y, Op.Cell.Layer, Op.Turns));
+		++Erected;
+	}
+
+	// Gli SPOSTAMENTI dopo le creazioni: agiscono su un campo gia' aggiornato, e l'ordine fra i due gruppi e'
+	// dichiarato invece che emergente dall'ordine degli attori.
+	Moves.Sort([](const FRTPendingMoveOp& A, const FRTPendingMoveOp& B)
+	{
+		if (!(A.Cell == B.Cell)) { return URTHexLibrary::StableLess(A.Cell, B.Cell); }
+		return static_cast<uint8>(A.ToEdge) < static_cast<uint8>(B.ToEdge);
+	});
+
+	for (const FRTPendingMoveOp& Move : Moves)
+	{
+		ARTUnit* Mover = Move.Mover;
+		auto RejectMove = [&](const TCHAR* Why)
+		{
+			// Un tentativo fallito spende comunque l'azione: e' il `Cancel` del catalogo, non un turno gratis.
+			if (Mover) { Mover->ConsumeAbility(Move.AbilityIndex); }
+			Reject(Move.Cell, Move.Cell, Move.ActionId, Why, Mover);
+		};
+
+		const FRTHexCellData* Source = Map ? Map->FindCell(Move.Cell) : nullptr;
+		if (Source == nullptr)
+		{
+			RejectMove(TEXT("cella fuori mappa"));
+			continue;
+		}
+
+		// QUALE copertura si sposta: quella della cella indicata. Se ce n'e' piu' d'una la scelta sarebbe
+		// implicita — «la prima dell'array» e' un ordine che il giocatore non vede — quindi si rifiuta. Un
+		// rifiuto leggibile e' meglio di una regola indovinabile solo leggendo il codice.
+		int32 Found = 0;
+		ERTHexDirection FromEdge = ERTHexDirection::E;
+		for (const FRTHexCover& Cover : Source->Covers)
+		{
+			if (Cover.Type == ERTHexCoverType::None) { continue; }
+			++Found;
+			FromEdge = Cover.Edge;
+		}
+		if (Found == 0)
+		{
+			RejectMove(TEXT("nessuna copertura da spostare"));
+			continue;
+		}
+		if (Found > 1)
+		{
+			RejectMove(TEXT("piu' coperture sulla cella: quale spostare non e' dichiarabile"));
+			continue;
+		}
+		if (FromEdge == Move.ToEdge)
+		{
+			RejectMove(TEXT("e' gia' su quel bordo"));
+			continue;
+		}
+
+		const FRTHexCover* Entry = Source->CoverEntryOn(FromEdge);
+		const ERTHexCoverType MovedType = Entry ? Entry->Type : ERTHexCoverType::Low;
+		const int32 MovedIntegrity = Entry ? Entry->Integrity : FRTHexCover::DefaultIntegrity(MovedType);
+
+		// Si toglie e si rimette: se la destinazione rifiuta (bordo gia' riparato), si RIMETTE dov'era. Una
+		// copertura che sparisce perche' lo spostamento non era possibile sarebbe la peggiore delle due.
+		URTHexCoverLibrary::RemoveCover(Map, Move.Cell, FromEdge);
+		if (!URTHexCoverLibrary::AddCover(Map, Move.Cell, Move.ToEdge, MovedType, MovedIntegrity))
+		{
+			URTHexCoverLibrary::AddCover(Map, Move.Cell, FromEdge, MovedType, MovedIntegrity);
+			RejectMove(TEXT("il bordo di destinazione e' gia' riparato"));
+			continue;
+		}
+
+		// La voce di partita segue la copertura: durata residua conservata (spostare non ringiovanisce un
+		// pannello) e una rotazione gratuita in meno, se ne aveva.
+		bool bWasFree = false;
+		for (FRTDynamicCover& Tracked : DynamicCovers)
+		{
+			if (Tracked.Cell == Move.Cell && Tracked.Edge == FromEdge)
+			{
+				Tracked.Edge = Move.ToEdge;
+				if (Tracked.FreeRotations > 0)
+				{
+					--Tracked.FreeRotations;
+					bWasFree = true;
+				}
+				break;
+			}
+		}
+
+		// La rotazione gratuita non spende il cooldown: e' cio' che il pannello adattivo compra con i 5 punti
+		// struttura in meno. Le successive si pagano come tutte le altre.
+		if (!bWasFree && Mover)
+		{
+			Mover->ConsumeAbility(Move.AbilityIndex);
+		}
+
+		const TArray<FRTCellId> Ring = URTHexLibrary::Neighbors(Move.Cell);
+		const int32 ToIndex = static_cast<int32>(Move.ToEdge);
+		const FRTCellId Toward = Ring.IsValidIndex(ToIndex) ? Ring[ToIndex] : Move.Cell;
+
+		FRTTurnLogEntry Entry2;
+		Entry2.Phase = ERTMatchPhase::Prep;
+		Entry2.Category = ERTLogCategory::Environment;
+		Entry2.Outcome = static_cast<uint8>(ERTEnvironmentOutcome::CoverMoved);
+		Entry2.ActionId = Move.ActionId;
+		Entry2.SrcCell = Move.Cell;
+		Entry2.TgtCell = Toward;
+		Entry2.Amount = MovedIntegrity; // l'integrita' viaggia con la copertura: spostarla non la ripara
+		TurnLog.Add(Entry2);
+		AddLogEvent(FString::Printf(TEXT("(q=%d,r=%d,L%d): copertura spostata%s"),
+			Move.Cell.X, Move.Cell.Y, Move.Cell.Layer, bWasFree ? TEXT(" (rotazione gratuita)") : TEXT("")));
+	}
+
+	TurnLog.Append(Rejections);
+	return Erected;
+}
+
 void ARTTurnManager::ResolvePrep()
 {
 	// Prima fase che passa dal MOTORE AZIONI (epic E4): raccogli -> ordina -> traduci in EVENTI -> applica.
@@ -1122,6 +1484,15 @@ void ARTTurnManager::ResolvePrep()
 		}
 	}
 	Units.Sort([](const ARTUnit& A, const ARTUnit& B) { return URTHexLibrary::StableLess(A.Cell, B.Cell); });
+
+	// 0. Le strutture di BORDO (CP 9.5) prima del motore azioni, e fuori da esso: il loro esito e' una modifica
+	// della mappa, non un evento verso un'unita'. Passando dalla raccolta, un'azione senza `Effects`
+	// ripiegherebbe sul campo legacy `Power` e un pannello si metterebbe a fare danno — e' lo stesso motivo per
+	// cui `ModifyArc` si intercetta prima degli intenti nel Blast.
+	if (ResolveCoverStructures(Units) > 0)
+	{
+		bPrepActiveThisTurn = true; // c'e' un beat di Prep da mostrare nel playback
+	}
 
 	// 1. RACCOGLI: un'istanza per ogni azione di Prep pianificata e utilizzabile.
 	TArray<FRTActionInstance> Instances;
@@ -1955,9 +2326,20 @@ void ARTTurnManager::ResolveCombat()
 		AddLogEvent(FString::Printf(TEXT("%s: %s"), *Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Entry)));
 	}
 	// APPLICA: i bersagli si riscrivono solo ora, quando ogni decisione e' stata presa sullo stesso snapshot.
+	//
+	// Riscrivere il solo `TargetId` non basta (D-017): la copertura e' gia' dentro il `Power`, calcolata sul
+	// bordo davanti a chi era il bersaglio quando i colpi sono stati raccolti. Il colpo arriverebbe a chi si
+	// interpone protetto dal muretto di qualcun altro — e il combat log mostrerebbe una copertura che davanti
+	// a lui non esiste. `RedirectHitTo` rivalida la geometria target-dependent su chi il colpo lo incassa
+	// davvero, ed e' l'unico posto dove farlo: qui il redirect e' deciso e nessuna reazione e' ancora stata
+	// valutata sui colpi riscritti, quindi la rivalidazione non puo' aprire una seconda opportunity.
+	//
+	// E' la stessa disciplina dei bonus di coppia piu' sotto (`Flux.LinearDischarge` contro `Status.Wet`):
+	// cio' che dipende da CHI subisce si decide dopo l'Intercept, non prima.
 	for (int32 r = 0; r < RedirectHit.Num(); ++r)
 	{
-		Plan.Hits[RedirectHit[r]].TargetId = RedirectTo[r];
+		Plan.Hits[RedirectHit[r]] = URTHexCombatLibrary::RedirectHitTo(RedirectTo[r],
+			Plan.Hits[RedirectHit[r]], HexUnits, Intents, Map);
 	}
 
 	// Reazioni (CP 5.1): valutate sui colpi GIA' raccolti di `Plan.Hits`, dopo il filtro di Interrupt — lo

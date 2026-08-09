@@ -282,6 +282,49 @@ protected:
 	void TickDynamicArcs(URTHexMapAsset* Map);
 
 	/**
+	 * Coperture TEMPORANEE erette in partita da `Action.CreateCover` (CP 9.5). Stessa divisione di
+	 * `DynamicSurfaces` e `DynamicArcs`: la copertura corrente sta nella mappa, perche' e' cio' che combat,
+	 * vista e grafo leggono gia'; la scadenza sta qui, perche' e' stato di PARTITA.
+	 *
+	 * A differenza del ponte NON serve il turno di nascita, e la ragione e' la fase: `CreateCover` risolve in
+	 * **Prep**, cioe' PRIMA del Blast che la usera'. Un pannello da 2 turni eretto nel turno N deve riparare il
+	 * Blast di N e quello di N+1, quindi il tick del Cleanup di N deve gia' scalare — mentre il ponte, che
+	 * nasce nel Blast, salta il proprio turno perche' altrimenti perderebbe l'unica fase Move per cui e' stato
+	 * costruito. Le due regole divergono per la fase in cui nascono, non per svista.
+	 */
+	struct FRTDynamicCover
+	{
+		FRTCellId Cell;
+		ERTHexDirection Edge = ERTHexDirection::E;
+		/** Turni che restano. **0 = non scade da sola** (pannello adattivo): il tick la salta. */
+		int32 TurnsRemaining = 0;
+		/**
+		 * Rotazioni ancora gratuite (pannello adattivo: 1). Una `Reconfigure` che ne consuma una non spende il
+		 * cooldown: e' il compromesso che il catalogo eroi dichiara in cambio di 25 punti struttura invece di 30.
+		 */
+		int32 FreeRotations = 0;
+	};
+	/**
+	 * Tutte le coperture erette IN PARTITA, anche quelle che non scadono: la lista non serve solo alla
+	 * scadenza, ma a sapere quali coperture sono «di partita» e quali erano gia' sulla mappa — e a portarsi
+	 * dietro le rotazioni gratuite quando una viene spostata.
+	 */
+	TArray<FRTDynamicCover> DynamicCovers;
+
+	/** Scadenza delle coperture temporanee, nel Cleanup: a zero turni il bordo torna scoperto, e si registra. */
+	void TickDynamicCovers(URTHexMapAsset* Map);
+
+	/**
+	 * Pass delle strutture di BORDO nella fase Prep (CP 9.5): raccoglie le richieste di `Action.CreateCover`,
+	 * le ordina e le applica a fase conclusa. Ritorna il numero di coperture erette davvero.
+	 *
+	 * Sta fuori da `ResolvePrep` (il motore azioni, che lavora su eventi verso UNITA') per la stessa ragione
+	 * per cui `ModifyArc` sta fuori dalla raccolta degli intenti del Blast: il suo esito e' una modifica della
+	 * mappa, e passare dagli effetti la farebbe ripiegare sul campo legacy `Power`.
+	 */
+	int32 ResolveCoverStructures(const TArray<ARTUnit*>& Units);
+
+	/**
 	 * Cambia la superficie di una cella per `Turns` turni, registrandolo nel TurnLog. Ritorna falso (e non
 	 * cambia nulla) se la destinazione non ammette la trasformazione — l'acqua e il metallo non prendono
 	 * fuoco. Un secondo cambio sulla stessa cella **non** perde l'originale: si sovrascrive la superficie

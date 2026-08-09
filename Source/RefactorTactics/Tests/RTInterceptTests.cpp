@@ -1,6 +1,7 @@
 #include "Misc/AutomationTest.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Combat/RTCombatLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Engine/Engine.h"
 #include "Kismet/GameplayStatics.h"
@@ -98,6 +99,28 @@ namespace
 		}
 	}
 
+	/** Copertura bassa sul bordo indicato della cella, sull'asset gia' montato nell'actor mappa. */
+	void AddItcLowCover(ARTHexMapActor* MapActor, const FRTCellId& Cell, ERTHexDirection Edge)
+	{
+		if (!MapActor || !MapActor->MapAsset) { return; }
+		const FRTHexCellData* Existing = MapActor->MapAsset->FindCell(Cell);
+		FRTHexCellData Data = Existing ? *Existing : FRTHexCellData(Cell);
+		Data.Covers.Add(FRTHexCover(Edge, ERTHexCoverType::Low,
+			FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low)));
+		MapActor->MapAsset->AddOrUpdateCell(Data);
+		MapActor->MapAsset->SortCells();
+	}
+
+	/** Danno registrato dal TurnLog sulla cella indicata (-1 se nessuna voce di combattimento la nomina). */
+	int32 LoggedCombatDamageOn(const ARTTurnManager* TM, const FRTCellId& Cell)
+	{
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Combat && E.TgtCell == Cell) { return E.Amount; }
+		}
+		return -1;
+	}
+
 	int32 CountInterceptOutcome(const ARTTurnManager* TM, ERTReactionOutcome Outcome)
 	{
 		int32 N = 0;
@@ -106,6 +129,59 @@ namespace
 			if (E.Category == ERTLogCategory::Reaction && E.Outcome == static_cast<uint8>(Outcome)) { ++N; }
 		}
 		return N;
+	}
+
+	/** Esito di una partita di prova con l'interposizione e una copertura bassa da una parte o dall'altra. */
+	struct FItcCoverOutcome
+	{
+		int32 SaverDamage = -1;    // danno incassato da CHI intercetta
+		int32 VictimDamage = -1;   // danno incassato dal bersaglio originale (deve restare 0)
+		int32 Activations = 0;     // reazioni attivate nel turno
+		int32 LoggedOnSaver = -1;  // danno che il TurnLog registra sulla cella dell'intercettore
+	};
+
+	/**
+	 * Attaccante (4,0) team 1 spara alla vittima (0,0) team 0; l'intercettore (1,0) team 0 si interpone.
+	 * La copertura bassa si mette sul bordo E — quello attraversato dal colpo in arrivo — della vittima,
+	 * dell'intercettore, o di nessuno dei due: e' l'unica differenza fra le tre partite.
+	 */
+	FItcCoverOutcome RunItcCoverScene(bool bCoverOnVictim, bool bCoverOnSaver)
+	{
+		FItcCoverOutcome Out;
+		UWorld* World = MakeItcWorld();
+		if (!World) { return Out; }
+
+		ARTHexMapActor* MapActor = SpawnItcMap(World);
+		if (bCoverOnVictim) { AddItcLowCover(MapActor, FRTCellId(0, 0), ERTHexDirection::E); }
+		if (bCoverOnSaver) { AddItcLowCover(MapActor, FRTCellId(1, 0), ERTHexDirection::E); }
+
+		ARTUnit* Attacker = SpawnItcUnit(World, 1, FRTCellId(4, 0));
+		ARTUnit* Victim = SpawnItcUnit(World, 0, FRTCellId(0, 0));
+		ARTUnit* Saver = SpawnItcUnit(World, 0, FRTCellId(1, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Attacker || !Victim || !Saver || !TM)
+		{
+			DestroyItcWorld(World);
+			return Out;
+		}
+
+		Saver->PlannedReactionAbility = AddItcAbility(Saver, TEXT("Action.Intercept"));
+		Saver->PlannedAbilityIndex = INDEX_NONE;
+
+		const int32 VictimHealth = Victim->Health;
+		const int32 SaverHealth = Saver->Health;
+		Attacker->PlannedAbilityIndex = 0; // Tiro: 25, colpo singolo
+		Attacker->PlannedAttackTarget = Victim;
+
+		RunItcTurn(TM);
+
+		Out.SaverDamage = SaverHealth - Saver->Health;
+		Out.VictimDamage = VictimHealth - Victim->Health;
+		Out.Activations = CountInterceptOutcome(TM, ERTReactionOutcome::Activated);
+		Out.LoggedOnSaver = LoggedCombatDamageOn(TM, FRTCellId(1, 0));
+
+		DestroyItcWorld(World);
+		return Out;
 	}
 
 	/** Scenario puro: attaccante 0 (team 1) colpisce la vittima 1 (team 0); l'intercettore 2 e' team 0. */
@@ -387,6 +463,99 @@ bool FRTInterceptBeforeOtherReactionsTest::RunTest(const FString&)
 		CountInterceptOutcome(TM, ERTReactionOutcome::Activated), 1);
 	TestEqual(TEXT("il Counter del protetto risulta non innescato"),
 		CountInterceptOutcome(TM, ERTReactionOutcome::NotTriggered), 1);
+
+	DestroyItcWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterceptRecalculatesCoverTest,
+	"RefactorTactics.Cover.InterceptRecalculatesOnEffectiveTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterceptRecalculatesCoverTest::RunTest(const FString&)
+{
+	// D-017: la geometria TARGET-DEPENDENT si rivaluta su chi il colpo lo incassa davvero. La copertura e'
+	// una proprieta' del bordo davanti al BERSAGLIO: conservare quella del bersaglio originale farebbe
+	// comparire nel combat log una protezione che davanti all'intercettore non esiste — o sparire quella che
+	// c'e'. Le tre partite sono identiche tranne che per dove sta il muretto, quindi il -10 puo' venire solo
+	// da li'.
+	const int32 Reduction = URTCombatLibrary::LowCoverDamageReduction;
+
+	const FItcCoverOutcome Bare = RunItcCoverScene(/*bCoverOnVictim=*/ false, /*bCoverOnSaver=*/ false);
+	TestEqual(TEXT("controllo: senza coperture l'intercettore incassa il colpo pieno"), Bare.SaverDamage, 25);
+	TestEqual(TEXT("controllo: l'interposizione si e' attivata"), Bare.Activations, 1);
+
+	// La vittima era riparata, l'intercettore no: il colpo che arriva a LUI e' pieno. E' il caso che il
+	// comportamento precedente sbagliava, riportando i 15 calcolati davanti alla vittima.
+	const FItcCoverOutcome CoveredVictim = RunItcCoverScene(/*bCoverOnVictim=*/ true, /*bCoverOnSaver=*/ false);
+	TestEqual(TEXT("l'interposizione si e' attivata"), CoveredVictim.Activations, 1);
+	TestEqual(TEXT("la copertura del bersaglio ORIGINALE non protegge chi si interpone"),
+		CoveredVictim.SaverDamage, 25);
+	TestEqual(TEXT("il bersaglio protetto non incassa nulla"), CoveredVictim.VictimDamage, 0);
+
+	// Caso simmetrico, ed e' quello che rende il test discriminante: senza di lui passerebbe anche una
+	// rivalidazione che si limitasse a ignorare sempre la copertura.
+	const FItcCoverOutcome CoveredSaver = RunItcCoverScene(/*bCoverOnVictim=*/ false, /*bCoverOnSaver=*/ true);
+	TestEqual(TEXT("l'interposizione si e' attivata"), CoveredSaver.Activations, 1);
+	TestEqual(TEXT("la copertura di CHI intercetta lo protegge davvero"),
+		CoveredSaver.SaverDamage, 25 - Reduction);
+	TestEqual(TEXT("il bersaglio protetto non incassa nulla"), CoveredSaver.VictimDamage, 0);
+
+	// Il TurnLog deve raccontare il contesto difensivo EFFETTIVAMENTE usato: il danno registrato sulla cella
+	// dell'intercettore e' quello rivalidato, non quello calcolato davanti alla vittima.
+	TestEqual(TEXT("il TurnLog registra sull'intercettore il danno pieno"), CoveredVictim.LoggedOnSaver, 25);
+	TestEqual(TEXT("e quello ridotto quando e' lui a essere riparato"),
+		CoveredSaver.LoggedOnSaver, 25 - Reduction);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterceptNoSecondOpportunityTest,
+	"RefactorTactics.Cover.InterceptDoesNotOpenSecondOpportunity",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterceptNoSecondOpportunityTest::RunTest(const FString&)
+{
+	// D-017: rivalidare la geometria sul bersaglio effettivo NON apre una seconda finestra di reazione. Il
+	// terzo alleato e' a 3 celle dalla vittima (fuori dalle 2 del catalogo) ma a 2 dall'intercettore: se il
+	// colpo redirezionato riaprisse un'opportunita', lui potrebbe intercettarlo a sua volta — una catena.
+	UWorld* World = MakeItcWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnItcMap(World);
+
+	ARTUnit* Attacker = SpawnItcUnit(World, 1, FRTCellId(5, 0));
+	ARTUnit* Victim = SpawnItcUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Saver = SpawnItcUnit(World, 0, FRTCellId(1, 0));  // a 1 dalla vittima: puo' intercettare
+	ARTUnit* Third = SpawnItcUnit(World, 0, FRTCellId(3, 0));  // a 3 dalla vittima, a 2 dall'intercettore
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Attacker"), Attacker) || !TestNotNull(TEXT("Victim"), Victim)
+		|| !TestNotNull(TEXT("Saver"), Saver) || !TestNotNull(TEXT("Third"), Third)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyItcWorld(World);
+		return false;
+	}
+
+	Saver->PlannedReactionAbility = AddItcAbility(Saver, TEXT("Action.Intercept"));
+	Saver->PlannedAbilityIndex = INDEX_NONE;
+	const int32 ThirdReactionIdx = AddItcAbility(Third, TEXT("Action.Intercept"));
+	Third->PlannedReactionAbility = ThirdReactionIdx;
+	Third->PlannedAbilityIndex = INDEX_NONE;
+
+	const int32 VictimHealth = Victim->Health;
+	const int32 SaverHealth = Saver->Health;
+	const int32 ThirdHealth = Third->Health;
+	Attacker->PlannedAbilityIndex = 0; // Tiro: 25, colpo singolo
+	Attacker->PlannedAttackTarget = Victim;
+
+	RunItcTurn(TM);
+
+	TestEqual(TEXT("una sola interposizione, non una catena"),
+		CountInterceptOutcome(TM, ERTReactionOutcome::Activated), 1);
+	TestEqual(TEXT("il terzo alleato non aveva un colpo da intercettare"),
+		CountInterceptOutcome(TM, ERTReactionOutcome::NotTriggered), 1);
+	TestEqual(TEXT("incassa chi si e' interposto"), SaverHealth - Saver->Health, 25);
+	TestEqual(TEXT("il terzo alleato non incassa nulla"), ThirdHealth - Third->Health, 0);
+	TestEqual(TEXT("il bersaglio originale non incassa nulla"), VictimHealth - Victim->Health, 0);
+	TestTrue(TEXT("la reazione del terzo alleato resta disponibile: non l'ha spesa"),
+		Third->CanUseAbility(ThirdReactionIdx));
 
 	DestroyItcWorld(World);
 	return true;

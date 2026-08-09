@@ -115,6 +115,22 @@ enum class ERTReactionTrigger : uint8
 };
 
 /**
+ * Che cosa un'azione fa a una copertura di bordo (CP 9.5). Dato del catalogo, non un ramo nell'orchestratore:
+ * la stessa operazione appartiene all'azione core, a un'abilita' d'eroe e a un gadget, e i tre non devono
+ * diventare tre `if` sull'ActionId.
+ */
+UENUM(BlueprintType)
+enum class ERTStructureOp : uint8
+{
+	/** L'azione non tocca le strutture di bordo. */
+	None,
+	/** Erige una copertura bassa temporanea sul bordo dichiarato dal piano. */
+	CreateCover,
+	/** Sposta una copertura gia' esistente su un altro bordo, conservandone integrita' e durata residua. */
+	MoveCover
+};
+
+/**
  * COME si sposta un'azione di mobilita'. E' un dato del catalogo, non un ramo nell'orchestratore: `Dash` e
  * `Sprint` risolvono nella stessa macro-fase ma si muovono in due modi diversi, e senza questo campo la
  * differenza finirebbe in un `if` sull'ActionId.
@@ -195,6 +211,18 @@ struct FRTActionDef
 	/** Come l'azione sposta chi la usa. `None` per tutto cio' che non e' mobilita'. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	ERTMovementStyle MovementStyle = ERTMovementStyle::None;
+
+	/**
+	 * Che cosa l'azione fa a una STRUTTURA di bordo (CP 9.5). `None` per tutto il resto.
+	 *
+	 * Esiste per la stessa ragione di `MovementStyle`, e la sua assenza si sarebbe pagata subito: erigere una
+	 * copertura e' semantica di **tre** identita' diverse — l'azione core, l'abilita' di Bastion e il gadget
+	 * portatile — e senza un dato il resolver avrebbe tre `if` sull'ActionId, cioe' un ramo per eroe nel core.
+	 * `Ignite`, `CreateWater` ed `Electrify` sono ancora riconosciute per ActionId: la' i produttori sono uno
+	 * ciascuno, e il campo si aggiungera' quando smetteranno di esserlo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	ERTStructureOp StructureOp = ERTStructureOp::None;
 
 	/**
 	 * Limite di propagazione ambientale in celle: **0 = non propaga**, N > 0 = si ferma a N celle.
