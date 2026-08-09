@@ -102,6 +102,21 @@ Owner: [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) §9. Non
 | Identità originale (nomi, lore) | necessaria per una pubblicazione |
 | ~~Mapping visuale Paragon → roster~~ | **chiusa il 2026-08-08** da [`D-037`](decisions/RT_PDR_00_Decision_Log.md): Flux → `Paragon.Gadget`, Riva → `Paragon.Phase`, Bastion → `Paragon.Riktor`, Vektor → `Paragon.Wraith`. Tabella owner in [`characters/paragon.md`](characters/paragon.md). Resta aperto solo il **nome retail** dei quattro slot v0.2, che è la riga «Identità originale» qui sopra |
 
+## Aperte — bloccano un'epic gia' specificata
+
+Owner: [`gameplay/brief-conoscenza-parziale.md`](gameplay/brief-conoscenza-parziale.md). A differenza delle
+voci di prodotto qui sopra, queste **fermano lavoro pianificato**: senza risposta, il primo checkpoint di E13
+non ha un criterio. Aperte dalla spec panel del 2026-08-09 ([`#294`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/294)).
+
+| ID | Tema | Perche' non e' deducibile | Blocca |
+|---|---|---|---|
+| `PER-1` | **Soglia d'udito**: statistica per eroe o costante di regola? | Il dato **non esiste**: `URTHeroData` ha `MaxHealth`, `MovePoints`, `VisionRange`, `PushResistance` e nient'altro, e il catalogo `balance/` non lo aggiunge. Se la risposta e' «per eroe» servono quattro numeri **decisi**, non dedotti dal workbook, che e' `RESEARCH` ([D-023](decisions/RT_PDR_00_Decision_Log.md)) | CP 13.3, CP 13.4 |
+| `PER-2` | **`Noise_Mod` di acqua bassa e vegetazione** | Due fonti si contraddicono senza gerarchia: acqua bassa **+3** (workbook) contro **+2** (documento sorgente), vegetazione **+1** contro **−2**. La seconda e' una divergenza **di segno** — «la vegetazione ti nasconde» e «ti tradisce» sono due giochi diversi sullo stesso terreno | CP 13.3 |
+| `PER-3` | **Il contatto e' simmetrico?** Se A vede B, B vede A? | Era un caso di bordo quando l'asimmetria veniva dai soli range diversi (6 contro 5). Con **CP 16.1 chiuso** la vista e' a **cono di 120°**: A puo' avere B nel proprio arco mentre B guarda altrove, e l'asimmetria diventa la norma. La risposta decide se `TeamKnowledge` e' una **relazione** o un **insieme**, cioe' la struttura dati | CP 13.1 |
+
+Minori, stessa sessione: un alleato nel **tunnel** resta noto (§10.2 del brief)? E `range azione ≤ vista` diventa
+un invariante verificato del catalogo o un controllo caso per caso (§10.4)?
+
 ## Assunzioni da bloccare
 
 Voci del Decision Log che **aspettano una misura**, non una discussione. Si consolidano da sole quando il dato
