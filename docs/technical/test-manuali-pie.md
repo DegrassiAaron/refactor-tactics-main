@@ -53,12 +53,12 @@
 
 ## Stato in numeri — 2026-08-09
 
-**117 voci**: ✅ **27 verdi** · 🟡 **21 parziali** (regola coperta da test, resta il visivo) · ⏳ **69 aperte**.
+**118 voci**: ✅ **28 verdi** · 🟡 **21 parziali** (regola coperta da test, resta il visivo) · ⏳ **69 aperte**.
 
 *(Rimisurate col comando qui sotto il **2026-08-09**, dopo l'aggiunta di `PIE-MUT-BASTION-SLOW` — la prima
 voce del registro che **non** è una verifica visiva: è una verifica di mutazione, headless, rimasta fuori
 dall'automazione solo perché richiede una precondizione che nessuno script si garantisce da solo. Nata ⏳ e
-chiusa ✅ lo stesso giorno. `senza-marcatore` misurato: **0**.)*
+chiusa ✅ lo stesso giorno, come la sua gemella `PIE-MUT-ACTIONS-ZERO`. `senza-marcatore` misurato: **0**.)*
 
 *(Rimisurate col comando qui sotto il **2026-08-09** **dopo il merge**, non prima: due rami hanno toccato
 questo file lo stesso giorno e ognuno aveva il **proprio** numero giusto — `114 (25/21/68)` da un lato, con le
@@ -353,6 +353,7 @@ leggibilità minima nel senso più stretto, non presentazione.
 | ID | Cosa verificare | Precondizione | Esito atteso | Stato |
 |----|-----------------|---------------|--------------|-------|
 | **PIE-MUT-BASTION-SLOW** | L'assert su `Status.Slow` di `Bastion.ImpactShot` **sa diventare rosso** | Nessun `UnrealEditor`/`UnrealEditor-Cmd` in esecuzione (`Get-Process UnrealEditor-Cmd`): finché uno tiene `Binaries/Win64/UnrealEditor-RefactorTactics.dll`, il link fallisce con `LNK1104` e il test gira contro il binario vecchio. ⚠️ **Il processo che blocca non è l'Editor**: è il runner headless delle automation, visibile solo in Task Manager — «ho chiuso l'editor» non basta | Togliere la riga `FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Slow, 1)` da `RTHeroCatalogLibrary.cpp` (indice 0 di Bastion) · ricostruire · **verificare che `LastWriteTime` della DLL sia più recente del sorgente** — è questo il passo che rende la prova valida, non la scritta `Result: Succeeded` · eseguire `Automation RunTests RefactorTactics.Heroes`. Deve cadere **esattamente** `RefactorTactics.Heroes.Bastion.MatchesCatalog`, sull'assert «ImpactShot: applica Status.Slow», e **nient'altro**. Poi ripristinare la riga e ricostruire | ✅ **2026-08-09** — eseguita. DLL `20:35:57` contro sorgente `20:35:38` (mutazione **nel binario**, non solo su disco), poi `29 tests performed` con **un solo** rosso: `Heroes.Bastion.MatchesCatalog`, `Expected 'ImpactShot: applica Status.Slow' to be true`. Nient'altro è caduto: l'assert non è vacuo. Ripristinata e ricostruita, albero identico al commit. **Storia utile a chi ripete la prova**: due tentativi precedenti erano risultati «verdi» ed erano falsi negativi — nel primo la DLL era più vecchia del sorgente (`LNK1104`, file tenuto da un runner headless), nel secondo l'automation non partiva affatto (vedi la nota sotto) |
+| **PIE-MUT-ACTIONS-ZERO** | La convenzione `Actions[0] = attacco base` **sa diventare rossa** | Come sopra: nessun processo UE che tenga la DLL, e runner lanciato **in diretta** | Aggiungere `Bastion->Actions.Swap(0, 3);` in coda a `MakeBastion` — cosi' l'indice 0 non e' piu' l'attacco base — - ricostruire, **verificando il timestamp della DLL** - `Automation RunTests RefactorTactics.Heroes`. Deve cadere `RefactorTactics.Heroes.BasicAttackIsIndexZeroForEveryHero`. ⚠️ **Cadono anche altri due test** (`Bastion.MatchesCatalog`, `BastionInterpositionUsesReactionSlot`) ed e' **corretto**: uno scambio di indici rompe tutto cio' che dipende dalla posizione, non solo la convenzione. Non e' rumore da sopprimere: e' la misura di quanto il roster dipenda da quegli indici — cioe' l'argomento a favore di un campo di ruolo, il giorno in cui un consumer runtime lo giustifichera' | ✅ **2026-08-09** — eseguita. DLL `21:58:37` contro sorgente `21:58:07`; `30 tests performed`, 3 rossi fra cui quello atteso, con `Expected 'ImpactShot: 8 danni' to be 8, but it was 20`. Ripristinata: sorgente identico a `origin/main` |
 
 > ⚠️ **Come lanciare il runner, e perché conta.** Un processo avviato con `Start-Process` (staccato, senza
 > console) viene **throttlato da UE come applicazione in background**: il motore gira a ~0,6 fps invece di

@@ -2,7 +2,7 @@
 
 - **Stato:** Accepted
 - **Data:** 2026-08-09
-- **Decision Log:** `D-0xx` *(da assegnare al merge — il progetto ha già avuto sei collisioni di contatore fra sessioni parallele: l'ID si prende quando il branch entra, non ora)*
+- **Decision Log:** [D-058](RT_PDR_00_Decision_Log.md) *(assegnata il 2026-08-09 verificando il massimo su **tutti** i branch remoti, non solo su `main`: il progetto ha già avuto sei collisioni di contatore, e due branch aperti rivendicavano ID non ancora mergiati)*
 - **Owner spec:** da creare (`../gameplay/spec-attacco-base-per-eroe.md`)
 - **Issue:** [#315](https://github.com/DegrassiAaron/refactor-tactics-main/issues/315)
 - **Provenienza:** consolidamento `RefactorTactics_BasicAttack_Consolidation_Claude_2026-08-09.md`, rivisto contro il codice
