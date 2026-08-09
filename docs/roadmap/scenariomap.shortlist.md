@@ -69,7 +69,7 @@ corpus e i bloccati sono invece generati in §1 e vincono sempre.
 
 | Classe | Chi esegue | Chi giudica | Quanti *(owner, 2026-08-09)* |
 |:--:|---|---|---|
-| **A** | la macchina | l'assertion | **21** scenari *(→ 24: vedi sotto)* |
+| **A** | la macchina | l'assertion | **24** scenari |
 | **B** | la macchina | **una persona** che guarda | **21** scenari ↔ 21 voci `PIE-VIS-*` |
 | **C** | una persona | una persona | **95** voci PIE |
 | **D** | — | — | vedi §1: i `BLOCKED` e i `planned` sono misurati |
@@ -77,15 +77,14 @@ corpus e i bloccati sono invece generati in §1 e vincono sempre.
 In B l'assertion esiste comunque: garantisce che ciò che stai guardando sia lo **stato giusto**, perché uno
 scenario visivo senza assertion può mostrarti una bellissima animazione di un colpo che ha mancato.
 
-> ⚠️ **Due scarti che la misura di §1 ha trovato nell'owner** — da correggere là, non qui:
-> i tre scenari che chiedevano `EnvironmentalActionOwner` **non sono più bloccati** (la capability è
-> atterrata lo stesso giorno con `#282`), quindi la classe A è a **24** e i `BLOCKED` a **10**, non 12;
-> e i `planned` misurati nel registry sono **21**, non 13 — l'owner ne elencava ventuno sotto un totale di
-> tredici. È il difetto che il comando `shortlist` esiste per non far ripetere.
+> ✅ **I due scarti che la misura di §1 aveva trovato sono stati corretti nell'owner** il 2026-08-09:
+> la classe A passa da 21 a **24** (i tre `EnvironmentalActionOwner` si sono accesi con `#282`) e i
+> `planned` da 13 a **21** — erano ventuno elencati sotto un totale di tredici. Restano scritti a mano solo
+> i conteggi **A/B/C**, che dipendono da dove sta l'oracolo e non dai file.
 
 ---
 
-## 3. Classe A — automatico, nessun umano · 21
+## 3. Classe A — automatico, nessun umano · 24
 
 Eseguiti in blocco da `RefactorTactics.Scenario.EveryShippedScenarioRuns`, che **scopre il corpus dall'indice**:
 aggiungere un file basta perché venga eseguito. Nessuno di questi compare nel registro PIE, ed è corretto.
@@ -104,6 +103,11 @@ chi cede la cella contesa e con quale reason (`Collision`) · due unità attrave
 (`DerivesFromMove`) · il Dash riscrive prima del Blast (`DashReorients`) · il bersaglio orienta prima di
 risolvere (`TargetingReorients`) · `Guard` riduce di fronte (`FrontAttackKeepsGuard`) e **non** da dietro
 (`BackAttackIgnoresGuard`) · `Brace` invece tiene da ogni lato (`BraceHoldsFromBehind`).
+
+**`EnvironmentalActionOwner` · 3** — accesi da `#282` il 2026-08-09, quando le azioni ambientali hanno avuto
+un **possessore**: la scarica corre sul grafo dell'acqua perché un eroe la innesca
+(`Spec.Environment.ElectricPropagation`) · l'acqua spegne le fiamme (`…WaterQuenchesFire`) · rompere un arco
+**annulla** il percorso invece di allungarlo (`Spec.Map.BridgeBreaksThePath`).
 
 **+2** — `Spec.Cover.TemporaryCoverExpires` (acceso da E9.5: una copertura temporanea **scade**) ·
 `RT_Showcase_Relay_v01` (gli 8 turni della showcase, oggi **BLOCKED** su 5 capability).
