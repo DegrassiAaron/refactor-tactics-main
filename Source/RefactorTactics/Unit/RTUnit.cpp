@@ -59,7 +59,7 @@ void ARTUnit::BeginPlay()
 	Super::BeginPlay();
 	Health = MaxHealth;
 	EnsureDefaultAbilities();
-	AbilityCooldowns.Init(0, Abilities.Num());
+	SyncAbilityCooldowns();
 	ApplyTeamColor();
 }
 
@@ -365,6 +365,8 @@ void ARTUnit::EnsureDefaultAbilities()
 	URTActionData* Scatto = MakeAbility(TEXT("Scatto"), DashDef.RangeCells, 0, 0, DashDef.CooldownTurns, 0, FGameplayTag(), 0);
 	Scatto->Def = DashDef;
 	Abilities.Add(Scatto);
+
+	SyncAbilityCooldowns();
 }
 
 int32 ARTUnit::FindDashAbilityIndex() const
@@ -442,6 +444,7 @@ void ARTUnit::ConfigureAsArchetype(ERTArchetype InArchetype)
 	}
 
 	Health = MaxHealth;
+	SyncAbilityCooldowns();
 	if (Mesh)
 	{
 		Mesh->SetRelativeScale3D(BaseMeshScale);
@@ -478,7 +481,7 @@ void ARTUnit::ConfigureFromHeroData(const URTHeroData* Hero)
 	// gia' scritto — compresi quelli del bot, che sceglie per indice.
 	Abilities.Append(URTCatalogLibrary::MakeGenericActions(this));
 
-	AbilityCooldowns.Init(0, Abilities.Num());
+	SyncAbilityCooldowns();
 
 	// AttackRange/AttackPower restano campi dell'unita' perche' bot e TurnManager li leggono ancora da li',
 	// ma il NUMERO viene dall'indice 0, che l'append qui sopra lascia dov'era.
@@ -494,6 +497,11 @@ void ARTUnit::ConfigureFromHeroData(const URTHeroData* Hero)
 URTActionData* ARTUnit::GetAbility(int32 Index) const
 {
 	return Abilities.IsValidIndex(Index) ? Abilities[Index] : nullptr;
+}
+
+void ARTUnit::SyncAbilityCooldowns()
+{
+	AbilityCooldowns.SetNumZeroed(Abilities.Num());
 }
 
 int32 ARTUnit::GetAbilityCooldown(int32 Index) const

@@ -224,11 +224,15 @@ bool FRTHeroReactionIdentityTest::RunTest(const FString&)
 	TestTrue(TEXT("il TurnLog porta l'ActionId d'eroe, non quello del core"),
 		Entry->ActionId == FName(TEXT("Test.Deflection")));
 
-	// Cooldown PROPRIO. Il residuo a runtime non e' osservabile qui: i world di test non chiamano
-	// `World->BeginPlay()`, quindi `ARTUnit::AbilityCooldowns` resta vuoto e ogni cooldown legge 0 in TUTTA la
-	// suite (limite dell'harness, issue #135 — non del motore azioni). Si verifica dove il dato vive davvero,
-	// e su ENTRAMBI i campi: `ARTUnit::ConsumeAbility` legge quello LEGACY, quindi un helper che popolasse
-	// solo `Def` produrrebbe una reazione riutilizzabile ogni turno, senza che nulla lo segnali.
+	// Cooldown PROPRIO, verificato dove il dato vive e su ENTRAMBI i campi: `ARTUnit::ConsumeAbility` legge
+	// quello LEGACY, quindi un helper che popolasse solo `Def` produrrebbe una reazione riutilizzabile ogni
+	// turno, senza che nulla lo segnali.
+	//
+	// Il commento qui sopra diceva che il residuo a runtime «non e' osservabile»: valeva fino a **#135**, che
+	// ha riallineato `AbilityCooldowns` al kit in tutti i punti che lo popolano invece del solo `BeginPlay`.
+	// Oggi il residuo si osserva su un'unita' configurata (`RefactorTactics.Unit.ArchetypeKitRecordsCooldown`).
+	// Resta scoperto il caso degli helper che aggiungono abilita' DOPO la configurazione: quelli allungano
+	// `Abilities` senza risincronizzare, e per quegli slot il cooldown legge ancora 0.
 	TestEqual(TEXT("il cooldown d'eroe e' nel Def"), Deflection->Def.CooldownTurns, HeroCooldown);
 	TestEqual(TEXT("e nel campo legacy che il turno consuma davvero"), Deflection->CooldownTurns, HeroCooldown);
 	TestTrue(TEXT("l'indice della reazione e' valido"), ReactionIndex != INDEX_NONE);

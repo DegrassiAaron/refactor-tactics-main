@@ -394,6 +394,12 @@ bool FRTActionModifyArcTest::RunTest(const FString&)
 	// Rigiocata sulla stessa coppia, l'azione CHIUDE quello che aveva aperto — «apri o chiudi» e' la stessa
 	// azione vista dai due lati, come una porta.
 	const int32 RevisionAfterOpen = MapActor->MapAsset->Revision;
+
+	// `Action.ModifyArc` ha COOLDOWN 2: al turno immediatamente successivo non e' ancora disponibile, e
+	// rigiocarla subito era uno scenario che in partita non esiste. Il test lo faceva lo stesso perche'
+	// `AbilityCooldowns` restava vuoto senza `BeginPlay` (#135); ora il cooldown c'e' e si aspetta il turno.
+	RunEnvTurn(TM);
+
 	PlanEnvAction(Caster, TEXT("Action.ModifyArc"), Target);
 	RunEnvTurn(TM);
 
@@ -1074,6 +1080,10 @@ bool FRTBastionReconfigureRefusesTest::RunTest(const FString&)
 	const FRTCellId NorthEast = URTHexLibrary::Neighbors(One)[static_cast<int32>(ERTHexDirection::NE)];
 	URTHexCoverLibrary::AddCover(MapActor->MapAsset, NorthEast,
 		ERTHexDirection::SW, ERTHexCoverType::Low, 30); // la faccia opposta del bordo NE di `One`
+
+	// `Bastion.Reconfigure` ha COOLDOWN 2: come sopra, il secondo rifiuto va chiesto quando l'azione e'
+	// tornata disponibile, non al turno dopo (#135).
+	RunEnvTurn(TM);
 
 	URTActionData* Second = URTHeroCatalogLibrary::MakeBastion()->Actions[2];
 	PlanHeroCoverAction(Bastion, Second, One, ERTHexDirection::NE);

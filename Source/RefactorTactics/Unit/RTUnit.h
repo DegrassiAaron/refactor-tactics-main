@@ -430,6 +430,19 @@ private:
 	UPROPERTY()
 	TArray<int32> AbilityCooldowns;
 
+	/**
+	 * Riallinea `AbilityCooldowns` ad `Abilities`: va chiamata OVUNQUE il kit venga popolato o sostituito.
+	 *
+	 * Era dimensionato solo in `BeginPlay` e in `ConfigureFromHeroData`, quindi un'unita' configurata come
+	 * archetipo in un world che non ha chiamato `World->BeginPlay()` — cioe' ogni world di test — teneva
+	 * l'array VUOTO: `ConsumeAbility` trovava `IsValidIndex` falso e non scriveva, `GetAbilityCooldown`
+	 * rispondeva sempre 0. Nessun test poteva accorgersene (#135).
+	 *
+	 * `SetNumZeroed` e non `Init`: azzera i nuovi slot senza cancellare i cooldown gia' scorrendo, cosi' la
+	 * chiamata resta sicura anche se il kit cambia a partita iniziata.
+	 */
+	void SyncAbilityCooldowns();
+
 	/** Popola Abilities con un set di default (attacco, colpo pesante, ultimate) se vuota. */
 	void EnsureDefaultAbilities();
 
