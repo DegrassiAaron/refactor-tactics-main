@@ -122,6 +122,12 @@ vede di essere osservato?» — ed e' quella che e' stata decisa.
 E meta' di `PER-2` si e' sciolta guardando il codice invece dei documenti: la divergenza di segno riguardava
 la **vegetazione**, che non e' fra le otto superfici della v0.1. Una domanda senza terreno su cui atterrare.
 
+## Aperte — livello regole
+
+| Tema | Stato |
+|---|---|
+| **Che ne è del Move pianificato se l'unità viene spostata prima della fase Move** | ⏳ **aperta il 2026-08-09**. Pianifico `H5 → H6 → H7`, una spinta nel Blast mi porta in `G5`, poi comincia il Move. Tre modelli: **A** annulla il Move (semplice e deterministico, ma una spinta di una cella annulla un turno), **B** ricalcola il percorso verso la destinazione (**escluso**: contraddice *«mai auto-reroute»*, già in vigore), **C** riesegue la sequenza di direzioni dalla nuova origine (conserva l'intenzione, ma è complesso con porte e layer). **Baseline da testare: A; alternativa C.** Criterio di uscita dichiarato: si decide dopo scenario **e** playtest, e il segnale che A è troppo punitivo è un Move annullato più di una volta ogni due round. Owner: [`gameplay/spec-tassonomia-movimento.md`](gameplay/spec-tassonomia-movimento.md) §5 |
+
 ## Assunzioni da bloccare
 
 Voci del Decision Log che **aspettano una misura**, non una discussione. Si consolidano da sole quando il dato
