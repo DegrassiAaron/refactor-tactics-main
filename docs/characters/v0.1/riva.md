@@ -173,6 +173,36 @@ Il suo payoff cresce quando la squadra sfrutta le celle e gli stati che Riva ha 
 
 > **Ownership del kit:** le abilità di questa pagina appartengono esclusivamente a questo personaggio. Le sinergie con altri eroi sono esempi derivati da stati, superfici, geometria e altre regole comuni; non sono abilità condivise. Vedi [Sinergie e combinazioni](../../wiki/game/sinergie-e-combinazioni.md).
 
+## Profilo di attacco base
+
+| Campo | Valore |
+| --- | --- |
+| Ability ID | `Riva.PressureJet` |
+| Famiglia | **Setup** |
+| Danno / portata | 16 · range 5 · forma a linea |
+| Payload oltre il danno | `Status.Wet` 1 turno · `Push 1` |
+| Dipendenza dal base | ★★★☆☆ — è il suo strumento di preparazione, non la sua fonte di danno |
+
+> **È l'unico dei quattro che nasceva già conforme.** Quando ADR-0007 ha fissato le famiglie, `PressureJet`
+> non ha richiesto nessuna modifica: era già l'esempio che dimostrava la tesi.
+
+### Il test della falsa scelta
+
+| Domanda | Risposta |
+| --- | --- |
+| Quando è la scelta corretta? | Quando serve `Wet` su un bersaglio per la scarica elettrica **nello stesso Blast** · quando la spinta di 1 sposta qualcuno da una cella che gli serve |
+| Quando è inferiore a un'abilità firma? | Quando serve danno adesso: 16 è il secondo valore più basso del roster, e chi la gioca cercando DPS la sta usando male |
+| Che cosa risparmia? | Il cooldown delle sue abilità d'area, e il turno di Flux: la combo non richiede che nessuno dei due spenda una firma |
+| Che counterplay esiste? | Il tempo. `Wet` dura **1 turno** e `TickStatuses` lo rimuove nel Cleanup dello stesso turno ([D-036](../../decisions/RT_PDR_00_Decision_Log.md)): la finestra è un solo Blast, e chi conosce l'ordine di priorità sa quando è già passata |
+| Che cosa impara il giocatore? | Che il valore di un attacco è quello che **prepara**, non quello che toglie |
+
+### Prove
+
+| Che cosa | Dove |
+| --- | --- |
+| Il payload è nel dato | `RefactorTactics.Heroes.Riva.MatchesCatalog` |
+| L'effetto si vede in partita | `Visual.Combat.WaterElectricCoordinated` — il `Wet` non è osservabile direttamente (il runner non ha `UnitHasStatus`), quindi lo scenario lo prova con l'aritmetica: `100 − 16 − 32 = 52`, dove i 32 valgono solo se il bersaglio è bagnato. Senza `Wet` sarebbe 60, e lo scenario diventa rosso |
+
 ## Abilità
 
 ### Pressure Jet

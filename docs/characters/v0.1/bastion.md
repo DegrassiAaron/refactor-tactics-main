@@ -174,6 +174,34 @@ Il controgioco è geometrico: aggirare le coperture, distruggere o rendere irril
 
 > **Ownership del kit:** le abilità di questa pagina appartengono esclusivamente a questo personaggio. Le sinergie con altri eroi sono esempi derivati da stati, superfici, geometria e altre regole comuni; non sono abilità condivise. Vedi [Sinergie e combinazioni](../../wiki/game/sinergie-e-combinazioni.md).
 
+## Profilo di attacco base
+
+| Campo | Valore |
+| --- | --- |
+| Ability ID | `Bastion.ImpactShot` |
+| Famiglia | **Utility / Emergency** |
+| Danno / portata | 8 · range 3 |
+| Payload oltre il danno | `Status.Slow` 1 turno |
+| Dipendenza dal base | ★☆☆☆☆ — è l'eroe che lo usa **meno**, e va bene così |
+
+### Il test della falsa scelta
+
+| Domanda | Risposta |
+| --- | --- |
+| Quando è la scelta corretta? | Finire un bersaglio a pochi HP · rallentare chi sta attraversando il varco che Bastion controlla, **nello stesso turno**: lo `Slow` è letto fresco dallo snapshot, quindi agisce sulla fase Move che segue il Blast · avere una risposta affidabile senza spendere niente |
+| Quando è inferiore a un'abilità firma? | Quasi sempre, se `KineticPanel` o `Interposition` sono disponibili: 8 danni non cambiano una partita, una copertura nel posto giusto sì |
+| Che cosa risparmia? | Il cooldown di `KineticPanel` e `Ram`, e lo slot di reazione |
+| Che counterplay esiste? | Restare oltre le 3 celle. È la portata più corta del roster su un eroe da 4 MP, il più lento: chi lo tiene a distanza non lo subisce mai |
+| Che cosa impara il giocatore? | Che il danno di Bastion non è il punto. Se prova a vincere sparando, perde — ed è il motivo per cui il numero è 8 e non 24 |
+
+### Prove
+
+| Che cosa | Dove |
+| --- | --- |
+| Il payload è nel dato | `RefactorTactics.Heroes.Bastion.MatchesCatalog` — asserisce 8, range 3 e la presenza di `Status.Slow` |
+| Il danno si vede in partita | `Combat.CounterStrikesBack` · `Combat.NoCounterWhenUnarmed` |
+| **Lo `Slow` si vede in partita** | `Combat.BastionImpactShotSlows`, in coppia con `Combat.MoveIsFullWithoutSlow` — lo stato non è osservabile (non esiste `UnitHasStatus`), quindi si prova con la **cella** in cui il bersaglio si ferma: due invece di quattro |
+
 ## Abilità
 
 ### Impact Shot

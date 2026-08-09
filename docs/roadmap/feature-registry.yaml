@@ -928,6 +928,59 @@ features:
       **Sprint è un profilo di Move, non un Dash** (pin del canone): fase e stile sono dichiarati
       dal dato, non dedotti. Budget 5 MP con costi interi.
 
+  - feature_id: RT-FEAT-ACTION-BASIC-ATTACK-PROFILES
+    title: Profili di attacco base per eroe
+    area: Actions
+    kind: gameplay
+    release: v0.1
+    priority: P1
+    status: IMPLEMENTING
+    gates:
+      spec: partial
+      data: done
+      runtime: done
+      log_debug: partial
+      automation: partial
+      scenario: partial
+      ui_wiki: partial
+      packaged: todo
+      network_privacy: na
+    roadmap:
+      epic: E4
+    dependencies:
+      - RT-FEAT-ACTION-ENGINE
+      - RT-FEAT-ACTION-GENERIC
+      - RT-FEAT-CHAR-V01-ROSTER
+      - RT-FEAT-CORE-DETERMINISM
+      - RT-FEAT-MAP-LOS
+      - RT-FEAT-ENV-STATUS
+    owner_specs:
+      - docs/decisions/adr-0007-attacco-base-per-eroe.md
+    issues: [315]
+    tests:
+      - RefactorTactics.Heroes.BasicAttackByRangeBand
+      - RefactorTactics.Heroes.Bastion.MatchesCatalog
+    scenarios:
+      - Combat.BasicAttack
+      - Combat.BastionImpactShotSlows
+      - Combat.MoveIsFullWithoutSlow
+    wiki_refs:
+      - docs/wiki/game/azioni-e-movimento.md
+    last_verified:
+      date: 2026-08-09
+      commit: d41d36c
+    notes: >
+      Categoria universale, payload dell'eroe: chiude per `BasicAttack` i «profili concreti dei 4
+      eroi» che **D-033** aveva lasciato aperti ([ADR-0007](../decisions/adr-0007-attacco-base-per-eroe.md)).
+      Riva era già conforme (`PressureJet` 16 + `Wet` + `Push`); Vektor resta invariato, perché
+      «Primary Weapon» è un profilo d'uso e non una promessa di potenza; Flux resta damage-only, e il
+      suo motore elettrico ha già un owner che non è l'attacco base (`ConductiveNode`, D-046).
+      **`data` è `done`**: `Bastion.ImpactShot` è passato a 8 danni + `Status.Slow` 1 turno.
+      **`automation` resta `partial`** perché manca il test che faccia valere la convenzione
+      `Actions[0]` su tutto il roster. **`log_debug` è `partial`** perché il TurnLog registra
+      l'`ActionId` ma non sa esprimere la coppia «azione base + profilo» che D-033 richiede:
+      difetto ereditato, non introdotto qui.
+
   - feature_id: RT-FEAT-ACTION-DASH-DISPLACEMENT
     title: Dash e spostamento forzato
     area: Actions
