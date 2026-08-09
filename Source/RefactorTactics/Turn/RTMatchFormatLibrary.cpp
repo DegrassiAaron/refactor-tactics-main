@@ -25,7 +25,39 @@ TArray<FString> URTMatchFormatLibrary::ValidateRules(const FRTMatchRules& Rules)
 			Rules.ScoreToWin));
 	}
 
+	// CP 19.2: senza composizione dichiarata il formato non descrive una partita. Zero non e' «nessun limite»
+	// come per `ScoreToWin` — e' una squadra vuota.
+	if (Rules.UnitsPerTeam <= 0)
+	{
+		Errors.Add(FString::Printf(
+			TEXT("UnitsPerTeam %d: il formato non dichiara quante unita' schiera una squadra"),
+			Rules.UnitsPerTeam));
+	}
+
 	return Errors;
+}
+
+TArray<FString> URTMatchFormatLibrary::ValidateAgainstMap(const FRTMatchRules& Rules, const URTHexMapAsset* Map)
+{
+	if (!Map)
+	{
+		return { TEXT("mappa assente: l'accoppiata formato/mappa non e' verificabile") };
+	}
+
+	if (Map->MapClass != Rules.MapClass)
+	{
+		const UEnum* ClassEnum = StaticEnum<ERTMapClass>();
+		const FString Wanted = ClassEnum ? ClassEnum->GetNameStringByValue(static_cast<int64>(Rules.MapClass)) : FString();
+		const FString Found = ClassEnum ? ClassEnum->GetNameStringByValue(static_cast<int64>(Map->MapClass)) : FString();
+
+		// Il messaggio nomina entrambe le classi: chi legge un log di allestimento fallito deve sapere cosa
+		// cambiare, e «classe incompatibile» non lo dice.
+		return { FString::Printf(
+			TEXT("il formato '%s' richiede una mappa %s, ma la mappa dichiara %s"),
+			*Rules.FormatId.ToString(), *Wanted, *Found) };
+	}
+
+	return {};
 }
 
 TArray<FString> URTMatchFormatLibrary::ValidateFormat(const URTMatchFormatData* Format)
@@ -39,6 +71,8 @@ TArray<FString> URTMatchFormatLibrary::ValidateFormat(const URTMatchFormatData* 
 	Rules.FormatId = Format->FormatId;
 	Rules.RoundLimit = Format->RoundLimit;
 	Rules.ScoreToWin = Format->ScoreToWin;
+	Rules.UnitsPerTeam = Format->UnitsPerTeam;
+	Rules.MapClass = Format->MapClass;
 
 	TArray<FString> Errors = ValidateRules(Rules);
 
@@ -86,6 +120,8 @@ bool URTMatchFormatLibrary::ResolveRules(const URTMatchFormatData* Format, FRTMa
 	OutRules.FormatId = Format->FormatId;
 	OutRules.RoundLimit = Format->RoundLimit;
 	OutRules.ScoreToWin = Format->ScoreToWin;
+	OutRules.UnitsPerTeam = Format->UnitsPerTeam;
+	OutRules.MapClass = Format->MapClass;
 	return true;
 }
 
@@ -95,5 +131,10 @@ FRTMatchRules URTMatchFormatLibrary::MakeFallbackRules()
 	Rules.FormatId = FallbackFormatId;
 	Rules.RoundLimit = 12;
 	Rules.ScoreToWin = 0;
+	// Il ripiego copre l'ASSENZA del formato, e deve produrre la partita del vertical slice: 2v2 su mappa
+	// Skirmish. Un ripiego che non dichiarasse la composizione fallirebbe la propria validazione, e la (D1)
+	// «la partita si avvia comunque» smetterebbe di valere.
+	Rules.UnitsPerTeam = 2;
+	Rules.MapClass = ERTMapClass::Skirmish;
 	return Rules;
 }

@@ -287,7 +287,7 @@ silenzio.
 
 | Feature | Vista | Perché fuori scope |
 |---|---|---|
-| `RT-FEAT-TOOL-MAP-EDITOR` — Editor mode della mappa esagonale | M9 | Strumento d'editor: non entra nella build di gioco e non ha un gate di release. Tracciato da M9 e da `roadmap-editor.md`, non dalle epic della v0.1. |
+| `RT-FEAT-TOOL-MAP-EDITOR` — Editor mode della mappa esagonale | M9 | Strumento d'editor: non entra nella build di gioco e non ha un gate di release. Tracciato da M9 e dalla [EditorMap](editormap.shortlist.md), non dalle epic della v0.1. |
 | `RT-FEAT-UI-SCENARIO-BROWSER` — Selettore e indice degli scenari | — | Tooling di test nato dall'issue `#209`: serve a chi sviluppa, non è contenuto della release. Già costruito e coperto da test; nessun gate della v0.1 dipende da lui. |
 
 <!-- RT_FEATURE_BY_EPIC:END -->
@@ -761,23 +761,30 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 | **12.4** | KPI misurati | FPS client, path mediana, preview completa, resolver per turno **misurati e registrati** (anche se fuori target); replay divergence = 0; intent leak = 0. **In più** (2026-08-07): le metriche di **durata** — `RoundsPlayed`, `MatchDurationSeconds`, `PlanningDurationSeconds`, `ResolutionPlaybackSeconds`, `ReadyAtSeconds`, `FirstEnemyContactRound` — raccolte sul **2v2** e dichiarate come tali, **non** confrontate con le bande del 3v3 Standard che non esiste in v0.1 | Tabella KPI di `v0.1-definition-of-done.md` compilata con numeri reali · metriche in [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §17 |
 | **12.5** | Release interna v0.1 | Packaging Windows **Development** e **Shipping** dal codice solo-hex; una partita completa giocata **senza editor**, dall'avvio alla vittoria | `RunUAT BuildCookRun` → BUILD SUCCESSFUL + avvio e partita verificati |
 
-> **Metà di CP 12.5 è già verificata, e le due mancanze sono note** (2026-08-10, misurate da un worktree).
-> `RunUAT BuildCookRun` esce **`BUILD SUCCESSFUL`**: pacchetto 915 MB, `.pak` 10 MB, e il binario avvia una
-> partita 2v2 su 65 celle con 4 eroi — pianificazione, lock-in e fase Move risolti **senza editor**. La
-> ricetta completa sta in [`../technical/test-e-diagnosi.md`](../technical/test-e-diagnosi.md) §1.
+> **Il DoD di CP 12.5 è soddisfatto alla lettera** (2026-08-10, misurato da un worktree):
 >
-> **Cosa manca davvero**, e non è il packaging:
+> | Richiesta del DoD | Esito |
+> |---|---|
+> | Packaging Windows **Development** | ✅ `BUILD SUCCESSFUL` · pacchetto 916 MB · `.pak` 10 MB |
+> | Packaging Windows **Shipping** | ✅ `BUILD SUCCESSFUL` · 569 MB · binario 159 MB, avviato e attivo (223 MB RAM) |
+> | Partita completa **senza editor**, fino alla vittoria | ✅ `Partita finita: Vince il team 1 (rosso) - per eliminazione (round 6/12)` — 6 turni, zero crash |
+>
+> Ricetta in [`../technical/test-e-diagnosi.md`](../technical/test-e-diagnosi.md) §1. Note operative: il
+> **cook Shipping non produce log** (`UE_LOG` a livello `Display` è compilato fuori), quindi la partita si
+> verifica sul pacchetto **Development**; e lanciare `Packaged/Windows/RefactorTactics.exe` avvia il
+> **launcher stub** da 168 KB — il binario vero sta in `RefactorTactics/Binaries/Win64/`.
+>
+> ⚠️ **Ma il checkpoint si chiama «Release interna v0.1», e questo non lo è ancora.** Restano due mancanze,
+> ed è la ragione per cui il gate `packaged` delle feature resta chiuso:
 >
 > 1. **Nessun `MatchFormat` assegnato.** Il pacchettizzato ripiega su `Format.Fallback` (RoundLimit 12,
->    soglia obiettivo 0) e lo dichiara come `Warning`. Una release che parte su un formato di ripiego non è
->    la release.
+>    soglia obiettivo 0) e lo dichiara come `Warning`. La partita verificata è finita 6/12 **per
+>    eliminazione**: la via a punti non è mai stata esercitata, perché la soglia obiettivo è 0.
 > 2. **Il gioco parte sulla mappa di PROVA.** `MapSource=GeneratedTestArena` genera 65 celle con ostacoli:
->    è l'arena di test, non un livello di gioco. `L_Prototype` si carica, ma è vuoto per costruzione — la
->    board la allestisce il GameMode a runtime.
+>    è l'arena di test, non un livello di gioco.
 >
-> Entrambe sono **dati**, non codice: nessuna delle due richiede build. Sono ciò che separa «il gioco si
-> pacchettizza» da «la release esiste», ed è la ragione per cui il gate `packaged` resta chiuso.
-> Manca inoltre la partita **fino alla vittoria**, che resta una verifica umana.
+> Entrambe sono **dati, non codice**: nessuna richiede una build. Sono ciò che separa «il gioco si
+> pacchettizza» — ora dimostrato — da «la release esiste».
 | **12.6** | **Corpus golden di TurnLog** *(nuovo, 2026-08-07)* | Un insieme di partite di riferimento serializzate su file sotto `Source/RefactorTactics/Tests/Golden/`; un test le riesegue e confronta **TurnLog e checksum**; una divergenza fallisce indicando turno, fase e `ActionId`. Rigenerabili con un flag esplicito, **mai** in automatico | `Simulation.GoldenCorpusMatches`, `Simulation.GoldenCorpusDetectsDivergence` (divergenza introdotta apposta) |
 
 > **CP 12.1 e 12.6 sono il sistema di test del combattimento scelto il 2026-08-07.** Il *fuzzing deterministico*
@@ -1376,6 +1383,6 @@ Rilevati confrontando `roadmap-checkpoint.md` con il repository (2026-08-05):
 | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate di release, KPI, checklist trasversale |
 | [`v0.1-issue-plan.md`](v0.1-issue-plan.md) | Titoli e body delle issue (e mappa issue ↔ checkpoint) |
 | [`roadmap-checkpoint.md`](roadmap-checkpoint.md) | **Esecuzione**: stato delle milestone M6–M11 |
-| [`roadmap-editor.md`](roadmap-editor.md) | **Operativo in editor**: sedute di authoring e verifica (U1–U17) |
+| [`editormap.shortlist.md`](editormap.shortlist.md) | **Operativo in editor**: sedute di authoring e verifica, generata da [`editor-sessions.yaml`](editor-sessions.yaml) |
 | [`test-manuali-pie.md`](../technical/test-manuali-pie.md) | Verifiche interattive, sessioni A–E |
 | `docs/balance/` | Cataloghi azioni/terreni/equipaggiamento/eroi/test (creati in CP 1.2) |

@@ -16,6 +16,7 @@
 #include "Pathfinding/RTHexPath.h"
 #include "Pathfinding/RTHexPathLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
+#include "Turn/RTActionFallbackLibrary.h"
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
@@ -416,6 +417,65 @@ bool FRTActionModifyArcTest::RunTest(const FString&)
 		}
 	}
 	TestTrue(TEXT("il TurnLog registra la modifica del collegamento"), ArcEntries > 0);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionModifyArcRangeTest,
+	"RefactorTactics.Actions.ModifyArc.RejectsOutOfRange",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionModifyArcRangeTest::RunTest(const FString&)
+{
+	// **Nome vincolante** della DoD di #206. `Action.ModifyArc` dichiara `Range 3` a catalogo, ma fino a questo
+	// checkpoint il suo ramo applicava l'operazione senza mai misurare la distanza: si apriva un ponte con un
+	// bersaglio dall'altra parte della mappa. Il difetto non si vedeva perche' l'azione NON passa da
+	// `ValidateInstance` — e' intercettata prima della raccolta degli intenti — quindi non ereditava il
+	// controllo che ogni altra azione del Blast riceve.
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World); // raggio 4: la cella a distanza 4 esiste ed e' fuori portata
+
+	ARTUnit* Caster = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Target = SpawnEnvUnit(World, 1, FRTCellId(4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Caster"), Caster) || !TestNotNull(TEXT("Target"), Target) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	// La premessa del test e' misurata, non assunta: se il catalogo cambiasse la portata, o se la geometria
+	// mettesse le due celle a distanza 3, questo test diventerebbe verde per il motivo sbagliato.
+	const int32 Distance = URTHexLibrary::HexDistance(Caster->Cell, Target->Cell);
+	const FRTActionDef Def = URTCatalogLibrary::FindCoreAction(FName(TEXT("Action.ModifyArc")));
+	TestEqual(TEXT("Action.ModifyArc e' a catalogo"), Def.ActionId, FName(TEXT("Action.ModifyArc")));
+	TestTrue(TEXT("il bersaglio e' davvero fuori dalla portata dichiarata"), Distance > Def.RangeCells);
+
+	const int32 RevisionBefore = MapActor->MapAsset->Revision;
+	const int32 ArcsBefore = MapActor->MapAsset->Transitions.Num();
+
+	PlanEnvAction(Caster, TEXT("Action.ModifyArc"), Target);
+	RunEnvTurn(TM);
+
+	TestEqual(TEXT("nessun collegamento e' nato"), MapActor->MapAsset->Transitions.Num(), ArcsBefore);
+	TestEqual(TEXT("e la topologia non e' cambiata: la revisione resta"),
+		MapActor->MapAsset->Revision, RevisionBefore);
+
+	// Il `Cancel` dichiarato dal catalogo dev'essere VISIBILE: un'azione che sparisce in silenzio e'
+	// indistinguibile da un difetto, ed e' il modo in cui questo difetto e' sopravvissuto a due checkpoint.
+	bool bLoggedCancel = false;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Fallback
+			&& E.ActionId == FName(TEXT("Action.ModifyArc"))
+			&& E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::OutOfRange))
+		{
+			bLoggedCancel = true;
+		}
+	}
+	TestTrue(TEXT("il TurnLog dice che e' stata annullata, e perche'"), bLoggedCancel);
 
 	DestroyEnvWorld(World);
 	return true;

@@ -201,7 +201,7 @@ void ARTGameMode::ApplyMapSource(ARTHexMapActor* HexMap)
 	}
 }
 
-bool ARTGameMode::ApplyMatchFormat(ARTTurnManager* TurnManager)
+bool ARTGameMode::ApplyMatchFormat(ARTTurnManager* TurnManager, const URTHexMapAsset* Map, FRTMatchRules& OutRules)
 {
 	FRTMatchRules Rules;
 	FString Reason;
@@ -229,6 +229,22 @@ bool ARTGameMode::ApplyMatchFormat(ARTTurnManager* TurnManager)
 			*Rules.FormatId.ToString(), Rules.RoundLimit, Rules.ScoreToWin);
 	}
 
+	// CP 19.1: l'accoppiata formato/mappa si verifica QUI, prima di schierare. Un 3v3 Standard su una mappa
+	// disegnata per il 2v2 non e' una partita piu' stretta, e' una partita sbagliata — e scoprirlo al terzo
+	// turno costa un playtest. Vale anche per il ripiego: se il livello porta una mappa Operations, il 2v2 di
+	// ripiego non e' la partita giusta da avviarci sopra.
+	const TArray<FString> Mismatch = URTMatchFormatLibrary::ValidateAgainstMap(Rules, Map);
+	if (Mismatch.Num() > 0)
+	{
+		UE_LOG(LogRT, Error,
+			TEXT("[RT] Formato e mappa non combaciano: %s. Partita non allestita: assegna una mappa della "
+				 "classe richiesta, oppure un formato disegnato per questa mappa."),
+			*FString::Join(Mismatch, TEXT("; ")));
+		return false;
+	}
+
+	OutRules = Rules;
+
 	if (!TurnManager)
 	{
 		// Le regole non hanno destinatario: la partita girerebbe senza limite di round e nessuno lo saprebbe.
@@ -239,8 +255,9 @@ bool ARTGameMode::ApplyMatchFormat(ARTTurnManager* TurnManager)
 	}
 
 	TurnManager->SetMatchRules(Rules);
-	UE_LOG(LogRT, Log, TEXT("[RT] Formato di partita in vigore: '%s' (RoundLimit %d, soglia obiettivo %d)"),
-		*Rules.FormatId.ToString(), Rules.RoundLimit, Rules.ScoreToWin);
+	UE_LOG(LogRT, Log,
+		TEXT("[RT] Formato di partita in vigore: '%s' (RoundLimit %d, soglia obiettivo %d, %d unita' per squadra)"),
+		*Rules.FormatId.ToString(), Rules.RoundLimit, Rules.ScoreToWin, Rules.UnitsPerTeam);
 	return true;
 }
 
@@ -255,8 +272,10 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 
 	// Le regole di formato prima delle unita': se il formato e' invalido non si allestisce nulla, e la mappa
 	// resta a schermo con il motivo nel log (stesso trattamento delle celle di partenza insufficienti).
+	FRTMatchRules Rules;
 	if (!ApplyMatchFormat(
-			Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()))))
+			Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass())),
+			HexMap->MapAsset, Rules))
 	{
 		return;
 	}
@@ -267,12 +286,18 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 		return;
 	}
 
+	// La composizione la dichiara il FORMATO (CP 19.2), non l'orchestratore: finche' il `2` viveva qui, «2v2»
+	// era una proprieta' del codice di allestimento, e lo stress 4v4 di E17 doveva essere un caso speciale del
+	// `GameMode` invece di un formato che dichiara 4.
 	const URTHexMapAsset* Map = HexMap->MapAsset;
-	const TArray<FRTCellId> Start = URTMatchSetupLibrary::PickStartCells(Map, /*NumPerTeam=*/ 2, /*Layer=*/ 0);
-	if (Start.Num() != 4)
+	const int32 CellsNeeded = Rules.UnitsPerTeam * 2;
+	const TArray<FRTCellId> Start = URTMatchSetupLibrary::PickStartCells(Map, Rules.UnitsPerTeam, /*Layer=*/ 0);
+	if (Start.Num() != CellsNeeded)
 	{
 		UE_LOG(LogRT, Warning,
-			TEXT("[RT] Mappa esagonale senza celle percorribili sufficienti: partita non allestita"));
+			TEXT("[RT] Mappa esagonale senza celle percorribili sufficienti: il formato '%s' ne chiede %d "
+				 "(%d per squadra) e la mappa ne offre %d. Partita non allestita."),
+			*Rules.FormatId.ToString(), CellsNeeded, Rules.UnitsPerTeam, Start.Num());
 		return;
 	}
 
@@ -299,6 +324,22 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 	TSet<FName> Spawned;
 	int32 CellIndex = 0;
 	const TArray<const TArray<FName>*> Formations = { &Team0Heroes, &Team1Heroes };
+
+	// La formazione deve dichiarare tanti eroi quanti il formato ne schiera (CP 19.2). Senza questo controllo
+	// il formato direbbe 4 e il campo ne vedrebbe 2: la partita girerebbe, e il numero dichiarato sarebbe un
+	// dato che nessuno onora — il difetto ricorrente di questo repository.
+	for (int32 TeamId = 0; TeamId < Formations.Num(); ++TeamId)
+	{
+		if (Formations[TeamId]->Num() != Rules.UnitsPerTeam)
+		{
+			UE_LOG(LogRT, Error,
+				TEXT("[RT] Il formato '%s' schiera %d unita' per squadra, ma la formazione della squadra %d ne "
+					 "dichiara %d. Partita non allestita: allinea Team%dHeroes al formato, o il formato alla "
+					 "formazione."),
+				*Rules.FormatId.ToString(), Rules.UnitsPerTeam, TeamId, Formations[TeamId]->Num(), TeamId);
+			return;
+		}
+	}
 
 	for (int32 TeamId = 0; TeamId < Formations.Num(); ++TeamId)
 	{
