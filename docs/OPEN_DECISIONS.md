@@ -1,6 +1,6 @@
 # Decisioni aperte
 
-> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-08
+> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-09
 > **Cosa è**: l'elenco di ciò che **aspetta una persona**. Nessuna di queste voci può essere chiusa
 > deducendola dai documenti: o mancano i dati, o due fonti si contraddicono senza gerarchia.
 > **Cosa non è**: il registro delle decisioni prese — quello è il
@@ -111,6 +111,23 @@ prima che E10 le incontri in codice.
 >
 > Registrarla due volte sarebbe costato più della duplicazione: due ID per la stessa domanda si chiudono in
 > momenti diversi, e il secondo resta aperto a mentire.
+
+---
+
+## Aperte — modello dei terreni, dalla spec panel del 2026-08-09
+
+Origine: [`roadmap/plans/map-editor-brief-spec-panel-2026-08-09.md`](roadmap/plans/map-editor-brief-spec-panel-2026-08-09.md) §7.2.
+Il brief revisionato quel giorno contiene **una sola** osservazione che il canone non sa già chiudere — e non
+è una sua proposta: è una **critica al repository**, arrivata da fuori proprio perché da dentro sembra
+normale.
+
+| ID | Domanda | Perché serve una risposta |
+|---|---|---|
+| `MED-1` | `Fire` e `Smoke` restano **superfici**, o diventano solo **stati temporanei** sopra una superficie base? | Il canone li dichiara in **entrambi** i modi: `ERTHexSurface` li elenca fra le otto superfici di **CP 8.1**, e **CP 8.2** ha `Burning` e `Obscured` come stati temporanei con durata e scadenza nel Cleanup. Le due letture non si contraddicono su nessun test verde — si contraddicono sulla domanda che nessuno ha ancora posto: *una cella `Fire` con stato `Burning` è ridondante o è un caso legale?* La risposta decide se una superficie può essere creata e distrutta in partita (`Ignite` di CP 8.5 lo fa già) o se le otto sono un vocabolario permanente. **Non decidibile dai documenti**: è una scelta di modello, e la seconda opzione costa una migrazione del formato mappa (oggi `FormatVersion=4`) |
+
+> **Non è urgente e non blocca nulla oggi**: `Fire` e `Smoke` come superfici hanno catalogo, costi e test. È
+> registrata qui perché il costo di rispondere cresce con ogni regola che si appoggia all'ambiguità — ed è
+> l'unico modo per non riscoprirla al terzo brief esterno che la nota.
 
 ## Aperte — livello prodotto
 
