@@ -9,6 +9,8 @@
 
   "_nota_ordine": "L'invariante che l'assertion di ordine sorveglia e' una macro-fase di ADR-0003: il Blast risolve PRIMA del Move. A1 colpisce nel Blast, B1 cammina nel Move, e nel TurnLog la voce di combattimento precede quella di movimento. Se qualcuno invertisse le due fasi, tutti gli scenari di posizione resterebbero verdi — arrivano dove dovevano — e cadrebbe questo.",
 
+  "_nota_valore": "#361 — la terza primitiva. `LogEventCount` dice CHE il colpo e' avvenuto, `LogEventAmount` dice QUANTO ha tolto: e' `Amount` della prima voce che corrisponde. Sta qui e non in uno scenario del Time Bank perche' `Amount` e' il payload numerico di OGNI categoria — danno per `Combat`, celle per `Move`, millisecondi per `Decision` (spec-turnlog.md §4.2) — e l'assertion va dimostrata su un evento che esiste gia' in partita, non su uno che arrivera' con CP 14.8.",
+
   "_nota_assenza": "Il conteggio a zero e' l'altra meta' della capability: `DeclarationRejected` non deve esserci perche' nessuno ha dichiarato una rotazione. E' la forma che serve alla segretezza (`Spec.Clash.HiddenUntilReveal`), dove cio' che conta e' che una voce NON compaia prima del reveal.",
 
   "units": [
@@ -30,6 +32,7 @@
       "category": "Combat", "outcome": "Hit",
       "thenCategory": "Move", "thenOutcome": "Moved" },
     { "type": "LogEventCount", "category": "Combat", "outcome": "Hit", "value": 1 },
+    { "type": "LogEventAmount", "category": "Combat", "outcome": "Hit", "value": 22 },
     { "type": "LogEventCount", "category": "Facing", "outcome": "DeclarationRejected", "value": 0 },
     { "type": "UnitAtCell", "unit": "B1", "cell": [1, 0, 0] },
     { "type": "TurnsCompleted", "value": 1 }
