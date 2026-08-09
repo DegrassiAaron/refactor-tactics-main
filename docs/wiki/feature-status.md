@@ -112,8 +112,8 @@ il gioco che sara', questa tabella dice a che punto e'.
 |---|---|---|---|---:|---|
 | `RT-FEAT-PERCEPTION-MEMORY` | Memoria del contatto e ultima posizione nota | E13.2 | **SPECIFIED** | 1/9 | — |
 | `RT-FEAT-PERCEPTION-NOISE` | Rumore e percezione acustica | E13.3 | **SPECIFIED** | 1/9 | `Spec.Perception.HeardNotSeen` |
-| `RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE` | TeamKnowledge e informazione parziale | E13.1 | **SPECIFIED** | 1/9 | — |
-| `RT-FEAT-PERCEPTION-VISION` | Vista, facing e livelli di consapevolezza | E13.1, E13.2 | **SPECIFIED** | 1/9 | — |
+| `RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE` | TeamKnowledge e informazione parziale | E13.1 | **IMPLEMENTING** | 3/9 | — |
+| `RT-FEAT-PERCEPTION-VISION` | Vista, facing e livelli di consapevolezza | E13.1, E13.2 | **IMPLEMENTING** | 3/9 | — |
 
 ### Production
 

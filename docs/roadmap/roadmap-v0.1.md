@@ -251,8 +251,8 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-PROD-PERFORMANCE` — Budget di performance misurati | IMPLEMENTING | 3/6 |
 | **E13** | `RT-FEAT-PERCEPTION-MEMORY` — Memoria del contatto e ultima posizione nota | SPECIFIED | 1/9 |
 |  | `RT-FEAT-PERCEPTION-NOISE` — Rumore e percezione acustica | SPECIFIED | 1/9 |
-|  | `RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE` — TeamKnowledge e informazione parziale | SPECIFIED | 1/9 |
-|  | `RT-FEAT-PERCEPTION-VISION` — Vista, facing e livelli di consapevolezza | SPECIFIED | 1/9 |
+|  | `RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE` — TeamKnowledge e informazione parziale | IMPLEMENTING | 3/9 |
+|  | `RT-FEAT-PERCEPTION-VISION` — Vista, facing e livelli di consapevolezza | IMPLEMENTING | 3/9 |
 | **E14** | `RT-FEAT-CORE-DECISION-BOUNDARY` — Risoluzione segmentata con Decision Boundary | SPECIFIED | 1/8 |
 |  | `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | SPECIFIED | 1/9 |
 |  | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | DESIGNED | 0/9 |

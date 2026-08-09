@@ -1731,13 +1731,15 @@ features:
     kind: gameplay
     release: v0.1
     priority: P2
-    status: SPECIFIED
+    status: IMPLEMENTING
     gates:
       spec: done
-      data: partial
-      runtime: todo
+      data: done
+      # Stessa ragione della vista: `URTPerceptionLibrary::TeamVisibleCells` esiste ed e' testata,
+      # ma nessuno la interroga finche' CP 13.2 non fa consumare la conoscenza al targeting.
+      runtime: partial
       log_debug: todo
-      automation: todo
+      automation: done
       scenario: todo
       ui_wiki: partial
       packaged: todo
@@ -1751,7 +1753,13 @@ features:
     owner_specs:
       - docs/gameplay/brief-conoscenza-parziale.md
     issues: [151, 156]
-    tests: []
+    tests:
+      - RefactorTactics.Vision.VisibleCellsRespectsSight
+      - RefactorTactics.Vision.ConeUsesHexConePrimitive
+      - RefactorTactics.Vision.AwarenessWithinTwoCellsIgnoresFacing
+      - RefactorTactics.Vision.TeamKnowledgeIsUnion
+      - RefactorTactics.Vision.SmokeCapsContactAtTwo
+      - RefactorTactics.Vision.PermutationInvariant
     scenarios: []
     wiki_refs:
       - docs/wiki/game/visibilita-rumore-e-informazione.md
@@ -1770,13 +1778,17 @@ features:
     kind: gameplay
     release: v0.1
     priority: P2
-    status: SPECIFIED
+    status: IMPLEMENTING
     gates:
       spec: done
-      data: partial
-      runtime: todo
+      data: done
+      # `partial` VOLUTO, non dimenticato: CP 13.1 costruisce la funzione pura e dichiara di non
+      # avere consumatori. Il DoD ha una scadenza esplicita — se CP 13.2 non chiude nella stessa
+      # PR, questo gate NON sale a `done`, perche' un dato che nessuno legge non e' una feature
+      # che esiste. Il consumatore e' il targeting di CP 13.2.
+      runtime: partial
       log_debug: todo
-      automation: todo
+      automation: done
       scenario: todo
       ui_wiki: partial
       packaged: todo
@@ -1790,7 +1802,13 @@ features:
     owner_specs:
       - docs/gameplay/brief-conoscenza-parziale.md
     issues: [156, 157]
-    tests: []
+    tests:
+      - RefactorTactics.Vision.VisibleCellsRespectsSight
+      - RefactorTactics.Vision.ConeUsesHexConePrimitive
+      - RefactorTactics.Vision.AwarenessWithinTwoCellsIgnoresFacing
+      - RefactorTactics.Vision.TeamKnowledgeIsUnion
+      - RefactorTactics.Vision.SmokeCapsContactAtTwo
+      - RefactorTactics.Vision.PermutationInvariant
     scenarios: []
     wiki_refs:
       - docs/wiki/game/visibilita-rumore-e-informazione.md
