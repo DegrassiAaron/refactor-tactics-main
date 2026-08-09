@@ -70,12 +70,24 @@ Oggi i quattro attacchi base non passano da `Action.BasicAttack`: hanno `ActionI
 (`Flux.ArcPulse`, `Riva.PressureJet`, `Bastion.ImpactShot`, `Vektor.PulseShot`), quindi il TurnLog registra
 **il nome dell'eroe**, non la coppia.
 
-Questo ADR **non risolve** quel punto e non lo dichiara risolto: lo registra come conseguenza da verificare.
-È anche la ragione per cui il punto 6 è una scelta *per la v0.1* e non definitiva — se il TurnLog deve
-esprimere la coppia, servirà rendere il profilo un dato esplicito, e quello sarà il primo consumer reale.
+Questo ADR **non risolveva** quel punto e non lo dichiarava risolto: lo registrava come conseguenza da
+verificare. Era anche la ragione per cui il punto 6 era una scelta *per la v0.1* e non definitiva — se il
+TurnLog deve esprimere la coppia, serve rendere il profilo un dato esplicito, e quello sarebbe stato il primo
+consumer reale.
 
-> Da misurare prima di marcare il gate `log_debug`: il TurnLog distingue oggi un attacco base da un'abilità
-> fondamentale? Se no, è un difetto di D-033 che questo ADR eredita, non ne crea uno nuovo.
+> ✅ **Risolto il 2026-08-09** ([#354](https://github.com/DegrassiAaron/refactor-tactics-main/issues/354)).
+> Il consumer **era questo**: `FRTActionDef::BaseActionId` dichiara di quale generica un'azione è profilo, la
+> voce di TurnLog lo porta (formato **v5**) e `DescribeActionIdentity` rende la coppia
+> `Action.BasicAttack · Bastion.ImpactShot`.
+>
+> **La regola del punto 6 non è stata violata — è stata soddisfatta.** Diceva che un campo entra *solo quando
+> esiste il consumer*; D-033 era il consumer, e finché non è stato costruito il campo non c'era. Questo è il
+> modo in cui quella regola è pensata per funzionare: non «mai un campo», ma «nessun campo senza qualcuno che
+> lo legga».
+>
+> Resta invece vero **per il ruolo**: «attacco base» è ancora la convenzione posizionale `Actions[0]`, tenuta
+> da `BasicAttackIsIndexZeroForEveryHero`. `BaseActionId` dice *di cosa* un'azione è profilo, non *che ruolo*
+> ha nel kit: sono due domande diverse, e solo la prima aveva un consumer.
 
 ## Perché `Slow` per Bastion
 

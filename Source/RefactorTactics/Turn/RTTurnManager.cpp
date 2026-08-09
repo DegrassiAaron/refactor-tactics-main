@@ -1066,6 +1066,7 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 			Entry.Phase = ERTMatchPhase::Cleanup;
 			Entry.Category = ERTLogCategory::Combat;
 			Entry.ActionId = Ability->Def.ActionId; // identita' dell'azione: un danno senza causa e' inspiegabile
+			Entry.BaseActionId = Ability->Def.BaseActionId; // di quale generica e' un profilo (D-033, #354)
 			Entry.SrcCell = Caster->Cell;
 			Entry.TgtCell = Hit.Cell;
 			Entry.Amount = Hit.Damage;
@@ -2295,6 +2296,7 @@ void ARTTurnManager::ResolveCombat()
 		Entry.SrcCell = Unit->Cell;
 		Entry.TgtCell = Unit->Cell;
 		Entry.ActionId = Reaction->Def.ActionId; // `Bastion.Interposition` non e' `Action.Intercept` (CP 5.5)
+		Entry.BaseActionId = Reaction->Def.BaseActionId; // vuoto finche' le reazioni non dichiarano un profilo
 
 		const int32 HitIdx = (Unit->CanUseAbility(ReactionIdx) && !ReactionBlockedThisTurn.Contains(Unit))
 			? URTReactionLibrary::FindInterceptableHit(i, Reaction->Def.RangeCells,
@@ -2378,6 +2380,7 @@ void ARTTurnManager::ResolveCombat()
 		Entry.SrcCell = Unit->Cell;
 		Entry.TgtCell = Unit->Cell;
 		Entry.ActionId = Reaction->Def.ActionId; // identita': `Vektor.Deflection` non e' `Action.Deflect` (CP 5.5)
+		Entry.BaseActionId = Reaction->Def.BaseActionId; // vuoto finche' le reazioni non dichiarano un profilo
 
 		const int32 TriggeredBy = URTReactionLibrary::FindTriggeringAttacker(
 			Reaction->Def.ReactionTrigger, i, Plan.Hits, Intents);

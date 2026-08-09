@@ -198,6 +198,42 @@ bool FRTHeroBasicAttackIsIndexZeroTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroBasicAttackDeclaresBaseTest,
+	"RefactorTactics.Heroes.BasicAttackDeclaresItsBaseAction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroBasicAttackDeclaresBaseTest::RunTest(const FString&)
+{
+	// D-033 chiede che un'azione generica con profilo sia spiegabile nel TurnLog come *azione base + profilo*.
+	// Perche' lo sia, il DATO deve dichiarare la relazione: `Bastion.ImpactShot` e' un'azione d'eroe, e chi
+	// legge una traccia non la risolve col catalogo core.
+	//
+	// Senza questo test, dimenticare `BaseActionId` su un eroe nuovo non romperebbe NIENTE — l'azione
+	// funziona, e solo la spiegabilita' si degrada in silenzio. E' il difetto tipico dei campi di sola
+	// documentazione: nessuno se ne accorge finche' non serve leggere una traccia.
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+	if (!TestEqual(TEXT("il roster v0.1 ha quattro eroi"), Roster.Num(), 4)) { return false; }
+
+	for (const URTHeroData* Hero : Roster)
+	{
+		if (!TestNotNull(TEXT("eroe non nullo"), Hero) || Hero->Actions.Num() < 5) { continue; }
+		const FString Who = Hero->HeroId.ToString();
+
+		TestEqual(*FString::Printf(TEXT("%s: l'attacco base dichiara Action.BasicAttack"), *Who),
+			Hero->Actions[0]->Def.BaseActionId, FName(TEXT("Action.BasicAttack")));
+
+		// Le quattro fondamentali NON sono profili di un'azione generica: sono abilita' proprie. Dichiararlo
+		// e' importante quanto il contrario — un `BaseActionId` messo dappertutto direbbe che tutto e' un
+		// profilo di qualcosa, cioe' non direbbe piu' niente.
+		for (int32 a = 1; a < Hero->Actions.Num(); ++a)
+		{
+			if (!Hero->Actions[a]) { continue; }
+			TestTrue(*FString::Printf(TEXT("%s: l'abilita' #%d non e' profilo di una generica"), *Who, a),
+				Hero->Actions[a]->Def.BaseActionId.IsNone());
+		}
+	}
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroExactlyOneVariantTest,
 	"RefactorTactics.Heroes.ExactlyOneVariantPerHero",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

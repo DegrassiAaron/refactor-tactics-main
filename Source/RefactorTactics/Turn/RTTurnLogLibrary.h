@@ -55,6 +55,18 @@ public:
 	static FString DescribeEntry(const FRTTurnLogEntry& Entry);
 
 	/**
+	 * L'identita' dell'azione di una voce, come **azione base + profilo** quando la voce sa dirlo:
+	 * `Action.BasicAttack · Bastion.ImpactShot`. E' la forma che [D-033](../../../docs/decisions/RT_PDR_00_Decision_Log.md)
+	 * chiede — «spiegabile nel TurnLog come azione base + profilo» — e senza di essa una traccia dice solo
+	 * `Bastion.ImpactShot`, che e' un'azione d'EROE e non si risolve col catalogo core.
+	 *
+	 * Ricade sul solo `ActionId` quando `BaseActionId` e' vuoto (traccia di formato < 5, o azione che non e'
+	 * profilo di niente) o quando i due coincidono. Pura: legge solo la voce.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|TurnLog")
+	static FString DescribeActionIdentity(const FRTTurnLogEntry& Entry);
+
+	/**
 	 * Hash intero (FNV-1a sui campi interi) del TurnLog, PERMUTAZIONE-INVARIANTE (ordina con EntryLess
 	 * prima di mescolare). Deterministico, solo interi. Uso: verifica di replay, mai logica di gioco.
 	 */
