@@ -1375,6 +1375,23 @@ void ARTTurnManager::ResolveDash()
 		const FRTCellId Final = Resolved[i].Final;
 		AddLogEvent(FString::Printf(TEXT("Scatto: %s -> (q=%d,r=%d,L%d)"), *Unit->GetName(), Final.X, Final.Y, Final.Layer));
 		Unit->ConsumeAbility(DashAbilityIdx[i]);
+
+		// `FacingAfterDash` (CP 16.1, D-020): lo scatto orienta, e il Blast che segue leggera' QUESTO valore.
+		// Derivato dalla rotta effettiva, prima di spostare l'unita', cosi' la partenza e' ancora quella vera.
+		if (Resolved[i].Entered.Num() > 0)
+		{
+			TArray<FRTCellId> Walked;
+			Walked.Reserve(Resolved[i].Entered.Num() + 1);
+			Walked.Add(Unit->Cell);
+			Walked.Append(Resolved[i].Entered);
+
+			FRTHexSimUnit Dashed(i, Unit->Cell, /*InMoveBudget=*/ 0);
+			Dashed.Facing = Unit->Facing;
+			URTFacingLibrary::RecordFacingChange(Dashed, URTFacingLibrary::FacingFromPath(Walked, Dashed.Facing),
+				ERTFacingOutcome::DerivedFromDash, ERTMatchPhase::Dash, TurnLog);
+			Unit->Facing = Dashed.Facing;
+		}
+
 		Unit->Cell = Final;
 		Unit->SetVisualLocation(Unit->WorldForCell(Final, Origin, CellSize, LayerH));
 		ApplyTerrainOnEnterEffects(Snapshot, Unit, Resolved[i].Entered);
@@ -1631,6 +1648,26 @@ void ARTTurnManager::ResolveCombat()
 		if (!Ability->Def.bAllowsReaction)
 		{
 			ReactionBlockedThisTurn.Add(Unit);
+		}
+
+		// D-020: un'azione con BERSAGLIO orienta chi la usa PRIMA che risolva. Non e' una proprieta' dichiarata
+		// per azione — e' la regola: si guarda cio' che si colpisce. Qui, e non nel Prep, perche' le azioni di
+		// Prep del vertical slice agiscono su chi le usa (`Instance.TargetUnitId = i`) e non hanno un bersaglio
+		// esterno verso cui girarsi.
+		//
+		// Conta la cella DICHIARATA nel piano, non il primo bersaglio che l'area colpira': l'orientamento e' una
+		// scelta del giocatore, e un'area che prende tre unita' non deve farlo dipendere dall'ordine di calcolo.
+		if (Target && Target->IsAlive() && Target != Unit)
+		{
+			ERTHexDirection TowardsTarget = Unit->Facing;
+			if (URTHexLibrary::DirectionTowards(Unit->Cell, Target->Cell, TowardsTarget))
+			{
+				FRTHexSimUnit Attacker(i, Unit->Cell, /*InMoveBudget=*/ 0);
+				Attacker.Facing = Unit->Facing;
+				URTFacingLibrary::RecordFacingChange(Attacker, TowardsTarget, ERTFacingOutcome::TargetingReoriented,
+					ERTMatchPhase::Blast, TurnLog);
+				Unit->Facing = Attacker.Facing;
+			}
 		}
 
 		// Da qui si ragiona su ISTANZE, non su puntatori: e' l'istanza che si valida e su cui si applica il
@@ -3118,6 +3155,28 @@ void ARTTurnManager::FinishPlayback()
 			A.Unit->SetVisualLocation(A.Unit->WorldForCell(A.Unit->Cell, PBOrigin, PBCellSize, PBLayerHeight));
 		}
 	}
+	// La mesh ATTERRA sul facing logico (CP 16.1). Durante il playback lo yaw interpola verso la direzione di
+	// marcia, che e' presentazione; a fine risoluzione deve coincidere con il valore che le REGOLE useranno nel
+	// turno dopo — altrimenti il giocatore legge un orientamento e ne subisce un altro quando arriva la difesa
+	// direzionale (CP 16.2).
+	//
+	// Qui e non alla fine dell'animazione: `SkipPlayback` passa da questa funzione, quindi saltare la
+	// risoluzione non deve lasciare la figura girata dalla parte sbagliata.
+	{
+		TArray<AActor*> AllUnitsForFacing;
+		UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), AllUnitsForFacing);
+		for (AActor* UnitActor : AllUnitsForFacing)
+		{
+			ARTUnit* U = Cast<ARTUnit>(UnitActor);
+			if (!U || !U->IsAlive()) { continue; }
+
+			const FVector Here = U->WorldForCell(U->Cell, PBOrigin, PBCellSize, PBLayerHeight);
+			const FRTCellId Ahead = URTHexLibrary::Neighbor(U->Cell, U->Facing);
+			const FVector There = U->WorldForCell(Ahead, PBOrigin, PBCellSize, PBLayerHeight);
+			U->SetActorRotation(FRotator(0.f, URTPlaybackLibrary::DirectionYaw(Here, There), 0.f));
+		}
+	}
+
 	// Catch-all: nasconde eventuali eliminati non ancora mostrati (hazard di Cleanup, oppure skip del playback).
 	for (const FRTResolvedEvent& D : PlaybackDefeated)
 	{
