@@ -28,6 +28,10 @@ Conseguenze operative:
 - **1 checkpoint = ≥1 commit** con messaggio significativo; si committa quando il DoD del checkpoint è verde.
 - Test automatici prima di chiudere un checkpoint che tocca le regole (mai saltarli).
 - Le verifiche che richiedono l'editor sono voci in [`test-manuali-pie.md`](../technical/test-manuali-pie.md), non gate impliciti.
+- **Su GitHub il lavoro è raggruppato per *fetta di release*, non per milestone M6–M11** *(dal 2026-08-09)*:
+  undici milestone con criterio di chiusura scritto nella `description`, mappatura e regola di manutenzione in
+  [`plans/organizzazione-milestone-github-2026-08-09.md`](plans/organizzazione-milestone-github-2026-08-09.md).
+  I nomi non usano mai `M<n>`: i due spazi di numerazione collidono e GitHub non ha modo di disambiguare.
 
 ## Stato attuale
 
