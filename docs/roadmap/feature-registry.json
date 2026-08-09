@@ -567,12 +567,12 @@
       "kind": "gameplay",
       "release": "v0.1",
       "priority": "P1",
-      "status": "INTEGRATED",
-      "status_derived": "INTEGRATED",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
       "gates": {
         "spec": "done",
         "data": "done",
-        "runtime": "done",
+        "runtime": "partial",
         "log_debug": "done",
         "automation": "done",
         "scenario": "done",
@@ -580,7 +580,7 @@
         "packaged": "todo",
         "network_privacy": "partial"
       },
-      "gates_done": 6,
+      "gates_done": 5,
       "gates_applicable": 9,
       "roadmap": {
         "epic": "E16",
@@ -600,6 +600,7 @@
       ],
       "owner_specs": [
         "docs/decisions/adr-0005-orientamento.md",
+        "docs/decisions/adr-0008-rotazione-e-policy-di-facing.md",
         "docs/decisions/RT_PDR_00_Decision_Log.md",
         "docs/technical/spec-turnlog.md"
       ],
@@ -607,7 +608,9 @@
         175,
         176,
         177,
-        291
+        291,
+        341,
+        339
       ],
       "tests": [
         "RefactorTactics.Facing.LinearMoveDerivesDirection",
@@ -4010,10 +4013,12 @@
       ],
       "completed_by": [],
       "owner_specs": [
+        "docs/gameplay/spec-bot-hex.md",
         "docs/technical/h6-5-hex-bot-spec.md"
       ],
       "issues": [
-        36
+        36,
+        202
       ],
       "tests": [
         "RefactorTactics.HexBot.*",
@@ -4462,10 +4467,12 @@
       "dependencies": [],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/convenzioni-contenuti-ue.md"
+        "docs/technical/convenzioni-contenuti-ue.md",
+        "docs/technical/piano-migrazione-stable-id.md"
       ],
       "issues": [
-        29
+        29,
+        199
       ],
       "tests": [
         "RefactorTactics.Catalog.IdsAreUnique",

@@ -181,7 +181,7 @@ Principi non negoziabili (valgono anche in offline, per preparare il multiplayer
 
 1. **Autorità delle regole in C++**: il resolver decide l'esito; le animazioni/VFX non decidono nulla.
 2. **Griglia logica autoritativa**: la posizione vera è **`FRTCellId{X=q, Y=r, Layer}`** (assiale/cubica); il `FVector` serve solo al rendering. *(Corretto il 2026-08-07: questa riga citava `FRTGridCoord`, **rimosso dal codice al CP 6.1** — vedi §3.0.)*
-3. **Resolver "raccogli poi applica"**: snapshot a inizio **segmento di risoluzione**, nessun `Delay`/timeline/montage dentro il segmento; l'ordine dell'array **non** deve cambiare il risultato. Quando l'esito dipende dall'ordine (scudo/buff/reazione prima del danno), l'ordine segue la regola deterministica di **§5.1** (APNAP + tie-break assoluto), non l'inserimento.
+3. **Resolver "raccogli poi applica"**: snapshot a inizio **segmento di risoluzione**, nessun `Delay`/timeline/montage dentro il segmento; l'ordine dell'array **non** deve cambiare il risultato. Quando l'esito dipende dall'ordine, l'ordine segue la regola deterministica di **§5.1**, non l'inserimento: oggi l'ordine totale a cinque chiavi sulle **azioni** (§5.1.A). L'ordinamento degli **effetti** simultanei (scudo/buff/reazione prima del danno) è **gated** e non ancora costruito — vedi §5.1.B.
    > **Riformulato il 2026-08-07 da [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md)** — *indebolito no, composto sì*. Un **segmento** è delimitato dall'inizio di una macro-fase **oppure** da un *decision boundary* (finestra di reazione). Il turno è una **sequenza** di segmenti, ciascuno dei quali è un «raccogli poi applica» completo con snapshot proprio. Il resolver non attende **mai** dentro un segmento: lo termina e restituisce il controllo. Prima di ADR-0004 il segmento coincideva sempre con la macro-fase, quindi la formulazione precedente resta valida per tutte le fasi senza finestre.
 4. **Determinismo**: niente `DeltaTime` non controllato nella logica dei turni; niente dipendenza dall'ordine di container non ordinati; ogni RNG usa seed/stream espliciti; ogni formato serializzato è versionato.
 5. **Server autoritativo** per ogni decisione di gameplay; il client calcola solo preview. Nell'MVP offline l'autorità è già isolata in `ARTTurnManager` (predisposizione al multiplayer).
@@ -255,30 +255,55 @@ docs/                           # documentazione (design, guide, PDR, sorgenti P
 SourceAssets/                   # sorgenti non importati (.blend/.psd/...) — creata alla prima necessità
 ```
 
-### 5.1 Ordinamento deterministico degli effetti simultanei (APNAP) — 2026-08-02
+### 5.1 Ordinamento deterministico — cosa è in vigore, cosa è gated — 2026-08-02, riscritta 2026-08-10
 
 Recepito da [`spec-sequenza-turno.md`](../gameplay/spec-sequenza-turno.md) §3 (panel `/sc:spec-panel`). Estende
-l'invariante #3: quando più effetti risolvono nello stesso istante e **l'ordine conta** (es. scudo/buff/reazione
-prima del danno), l'ordine è dato da una **regola totale deterministica**, mai dall'ordine di inserimento nel
-container.
+l'invariante #3: quando l'esito dipende dall'ordine, l'ordine è dato da una **regola totale deterministica**,
+mai dall'inserimento nel container.
 
-**Ordine di gruppo (APNAP-adattato):** 1) sistema/State (morti, scadenze) → 2) unità attiva → 3) alleati
-dell'attivo → 4) avversari → 5) terreno/oggetti → 6) globali di scenario. Intra-gruppo:
-**velocità → priorità (intera) → tie-break assoluto** (id unità / coord stabile, come lo `StableTieBreak` del
-path finding) → così due effetti pari non dipendono mai dall'ordine del container.
+> ⚠️ **Riscritta il 2026-08-10** ([#201](https://github.com/DegrassiAaron/refactor-tactics-main/issues/201)).
+> La versione precedente dichiarava `FR-RESOLVE-01` **vincolante** e tre righe dopo ne dichiarava
+> l'implementazione **gated**. Un requisito non può essere insieme in vigore e da costruire quando servirà:
+> chi leggeva non poteva sapere se stava leggendo una regola o una promessa. I tre blocchi qui sotto separano
+> ciò che il codice fa da ciò che il codice **non** fa.
 
-**Requisiti vincolanti** (SMART; esempi Given/When/Then e test plan in `spec-sequenza-turno.md` §3):
-- **`FR-RESOLVE-01`** — ordine totale deterministico per effetti simultanei (gruppi APNAP + tie-break
-  assoluto). Generalizza l'attuale "danni sommati per bersaglio" ai casi ordine-dipendenti. *Verifica:
-  permutare l'array di input non cambia il log eventi.*
+#### A. In vigore — ordine totale sulle **azioni**
+
+`URTActionQueueLibrary::InstanceLess` ordina le azioni pianificate con cinque chiavi:
+
+```text
+macro-fase (Prep → Dash → Blast → Move → Cleanup) → Priority → ActionId → SourceUnitId → EventSequence
+```
+
+Nessuna chiave è un float, nessuna dipende dall'ordine di una `TMap`. La macro-fase viene **prima** della
+priorità (ADR-0003 §1). *Verifica: permutare l'array di ingresso non cambia la sequenza risolta.*
+
+#### B. Gated — partizione a sei gruppi sugli **effetti**
+
+L'ordine di gruppo APNAP-adattato — 1) sistema/State (morti, scadenze) → 2) unità attiva → 3) alleati
+dell'attivo → 4) avversari → 5) terreno/oggetti → 6) globali di scenario, con intra-gruppo
+**velocità → priorità intera → tie-break assoluto** — **non è implementato**, e non è una versione parziale
+del blocco A: A ordina *quale azione risolve prima*, questo ordinerebbe *quale effetto si applica prima*.
+
+- **`FR-RESOLVE-01`** — ordine totale per effetti simultanei (gruppi APNAP + tie-break assoluto).
+  **Stato: gated, non vincolante.** Oggi non è osservabile perché il combat somma i danni per bersaglio e la
+  somma è commutativa. **Trigger di costruzione dichiarato: `CP 14.3`**, quando una reazione che *modifica* il
+  danno prima dell'applicazione romperà la commutatività — un bersaglio a 10 HP che subisce 12 danni e riceve
+  +5 di scudo vive o muore a seconda dell'ordine. Sede prevista: una libreria di effetti che **oggi non esiste**.
+
+#### C. Vincolanti
+
+- **`FR-RESOLVE-03`** — nessun **float** nell'ordinamento/hash; priorità intere (invariante #4). Verificabile
+  oggi, e verificato dal blocco A.
 - **`FR-RESOLVE-02`** — **State-Based Actions** (morte a HP≤0, scadenza status) controllate **fra un effetto e
   il successivo**; un bersaglio morto invalida gli effetti pendenti che lo riguardano.
-- **`FR-RESOLVE-03`** — nessun **float** nell'ordinamento/hash; priorità intere (coerente con l'invariante #4, **Determinismo**).
+  ⚠️ **Conformità non misurata (2026-08-10).** Non esiste nel codice una sede esplicita di State-Based Actions:
+  il danno si applica con `URTCombatLibrary::ApplyDamage` durante la risoluzione e gli abbattuti si rimuovono a
+  fine turno (`DestroyDefeatedUnits`). Non è dimostrato che sia violato, ma **non è dimostrato che sia
+  rispettato**: resta scritto come vincolante e va verificato, non dato per acquisito.
 
 **Scope:** regola del *resolver puro* (offline e futuro server-authority). **Non** introduce finestre di
-reazione live né categorie di velocità/`EndOfPhase` (north-star, `spec-sequenza-turno.md` §4). Implementazione
-**gated**: si esercita quando esistono effetti ordine-dipendenti (buff/scudo/reazioni); il combat attuale a
-"danni sommati" resta un caso particolare già conforme.
+reazione live né categorie di velocità/`EndOfPhase` (north-star, `spec-sequenza-turno.md` §4).
 
 ---
 

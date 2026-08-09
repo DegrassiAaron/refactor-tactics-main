@@ -9,6 +9,14 @@
 > **Contesto sorgente**: `docs/archive/src/design/action-ghosts-fasi-fast-reactions.md` §17 (campo `Facing`
 > nel view model) e [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md) §C5, che registrava il punto come aperto.
 > **Estende**: [ADR-0003](adr-0003-modello-azioni-v01.md) (stili di movimento) · [ADR-0004](adr-0004-finestre-di-reazione.md) (reazioni direzionali)
+>
+> ⛔ **Superato in parte 2026-08-10 — [ADR-0008](adr-0008-rotazione-e-policy-di-facing.md)**: la **§1** (tabella
+> delle direzioni legali per stile) e la **§3** (regola universale dello spostamento subìto) **non sono più in
+> vigore come scritte**. La rotazione finale è ora una **capacità del personaggio** misurata in step
+> (`FAC-1`), e le due regole universali sono diventate il **default** di policy dichiarate sul dato (`FAC-2`).
+> ADR-0008 definisce inoltre il facing **durante** i micro-step (`FAC-4`), che qui era fuori perimetro.
+> **Resta invariato tutto il resto**: il facing come stato di gioco, la timeline di D-020 (§2-bis), l'arco
+> frontale unico e i suoi tre consumatori (§4), il determinismo e la privacy (§5).
 
 ## Contesto
 
@@ -40,6 +48,12 @@ Si aggiorna **al termine della fase Move**, che è l'ultima fase volontaria del 
 | `LinearDash` · `LinearCharge` · `LinearLeap` | **una**: la direzione del movimento | derivato, nessun input |
 | `Budget` (`Action.Move`, `Sprint`) | **tre**: la direzione dell'ultimo passo e le due adiacenti (`D`, `D±1`) | dichiarato in planning fra le tre |
 | `None` (nessun movimento: `Wait`, sola azione principale) | **sei**: rotazione libera | dichiarato in planning |
+
+> ⛔ **Tabella superata da [ADR-0008](adr-0008-rotazione-e-policy-di-facing.md) §1 (2026-08-10).** Le direzioni
+> legali non dipendono più dallo **stile** ma dal **budget di pivot del personaggio**
+> (`MoveEndPivotMaxSteps` / `DashEndPivotMaxSteps`, 0–3 step). Le tre righe qui sopra restano vere come
+> **casi particolari**: `Linear*` ≡ budget 0, `Budget` ≡ budget 1, `None` ≡ `StationaryPivotMaxSteps` = 3, che
+> ADR-0008 conferma universale.
 
 La rotazione **non consuma slot**: `Action.Wait` ha slot `None` e resta tale. Restare fermi e girarsi verso
 un corridoio è una scelta tattica, non un turno sprecato.
@@ -88,6 +102,11 @@ non è ricostruibile e la §5 (determinismo) diventa falsa.
 `Move` che fissa il facing finale; ereditarietà del facing nel round successivo.
 
 ### 3. Movimento forzato: ci si gira verso la sorgente
+
+> ⛔ **Superata come regola universale da [ADR-0008](adr-0008-rotazione-e-policy-di-facing.md) §3 (2026-08-10).**
+> Quanto segue resta il **comportamento vigente**, ma non più come regola implicita nel resolver: è il
+> **default** di `ERTDisplacementFacingPolicy` (`FaceSource` per `Forced`, `Keep` per `Environmental`). Un
+> effetto che non dichiara nulla si comporta esattamente come descritto qui.
 
 Spinta, knockback e displacement da reazione **non** sono la Move Phase (regola già consolidata in
 [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md) §A7) e quindi non seguono la regola §1. L'unità
@@ -235,19 +254,23 @@ facesse:
 
 | Fuori perimetro | Dove vive la domanda |
 |---|---|
-| Il facing **durante** i micro-step di un Move | `FAC-4` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) — la §1 copre inizio e fine del Move, non il mezzo, e i trigger cadono nel mezzo |
+| ~~Il facing **durante** i micro-step di un Move~~ | ✅ **Chiuso 2026-08-10**: `FAC-4` è deciso in [ADR-0008](adr-0008-rotazione-e-policy-di-facing.md) §2 — è la direzione dell'**ultimo passo compiuto** |
 | Se una **reazione** possa ruotare chi reagisce | `FAC-5` — la §4c e D-020 nominano il facing dell'Overwatch come valore **letto**, mai scritto |
 | Se `Interact` richieda o imponga un orientamento | `FAC-6` |
 | Se **status** o **terreno** possano limitare la rotazione | `FAC-7`, `FAC-8` |
 | Se il pathfinding debba diventare orientation-aware | `FAC-9` — l'ADR assume `CellId → CellId` con facing derivato e validato alla fine |
-| Il **vocabolario** della rotazione in posto | `FAC-10` — qui si dice «rotazione dichiarata»; `Pivot` e `Reorient` non sono termini di questo ADR |
+| ~~Il **vocabolario** della rotazione in posto~~ | ✅ **Chiuso 2026-08-10**: `FAC-10` è risolto in [ADR-0008](adr-0008-rotazione-e-policy-di-facing.md) §4 — **pivot** è la capacità, **rotazione dichiarata** è l'atto |
 
-Tre proposte di **modifica** dell'ADR sono registrate come `FAC-1`, `FAC-2` e `FAC-3` nello stesso file, e
-come righe **50–52** di [`../DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md): rotazione come capacità
-**del personaggio** invece che derivata dal movimento; **policy dichiarative** per azione ed effetto al posto
-delle due regole universali; `Brace` **direzionale** contro la §4a. Nessuna è stata applicata. Vengono da un
-handoff del 2026-08-08, che nella gerarchia di prevalenza del progetto è l'**ultima** fonte — quindi l'ADR
-resta in vigore — ma sono coerenti fra loro e cambiano il modello, non i dettagli: la scelta è dell'autore.
+Tre proposte di **modifica** dell'ADR erano registrate come `FAC-1`, `FAC-2` e `FAC-3` nello stesso file, e
+come righe **50–52** di [`../DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md).
+
+**Esito, 2026-08-10.** `FAC-1` (rotazione come capacità **del personaggio**) e `FAC-2` (**policy dichiarative**
+per azione ed effetto) sono state **accettate** dall'autore e sono ora in
+[ADR-0008](adr-0008-rotazione-e-policy-di-facing.md): la §1 e la §3 di questo ADR sono superate di conseguenza.
+`FAC-3` (`Brace` **direzionale**, contro la §4a) **non è stata decisa** e resta aperta: la §4a è tuttora in
+vigore e `Combat.ShieldWorksFromAnyDirection` continua a proteggerla dalla deriva. Da notare che, con `FAC-2`
+accettata, `FAC-3` avrebbe ora una sede naturale in cui esprimersi — una policy di facing dichiarata su
+`Brace` — il che ne abbassa il costo di implementazione ma **non** ne cambia il merito.
 
 ## Revisione
 

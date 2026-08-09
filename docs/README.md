@@ -61,7 +61,9 @@ definita in due posti, è un difetto: apri una issue invece di aggiornarne una s
 | Overwatch | [`gameplay/brief-overwatch-reazioni.md`](gameplay/brief-overwatch-reazioni.md) | ⏳ E14 |
 | Delayed Actions e boundary nominati | [`gameplay/brief-delayed-actions.md`](gameplay/brief-delayed-actions.md) | ⏳ nessuna epic |
 | Griglia esagonale e coordinate | [`decisions/adr-0002-griglia-esagonale.md`](decisions/adr-0002-griglia-esagonale.md) | ✅ |
-| Orientamento e direzionalità | [`decisions/adr-0005-orientamento.md`](decisions/adr-0005-orientamento.md) | ⏳ E16 |
+| Orientamento e direzionalità | [`decisions/adr-0005-orientamento.md`](decisions/adr-0005-orientamento.md) · [ADR-0008](decisions/adr-0008-rotazione-e-policy-di-facing.md) | ⏳ E16 · ADR-0008 (2026-08-10) **supera** §1 e §3 di ADR-0005: la rotazione è una **capacità del personaggio** in step, e il facing nei micro-step è quello dell'**ultimo passo compiuto** |
+| **Il bot** — politica, utility, candidate | [`gameplay/spec-bot-hex.md`](gameplay/spec-bot-hex.md) | ✅ spec **attiva** (2026-08-10, [#202](https://github.com/DegrassiAaron/refactor-tactics-main/issues/202)) · ⚠️ dichiara ciò che il bot **non** sa ancora: niente Team Knowledge (⏳ E13), niente facing (⏳ E16), niente reazioni (⏳ E14) · storia in [`technical/h6-5-hex-bot-spec.md`](technical/h6-5-hex-bot-spec.md) (`AS-BUILT`) |
+| Migrazione degli Stable ID legacy | [`technical/piano-migrazione-stable-id.md`](technical/piano-migrazione-stable-id.md) | ⏳ **piano, non eseguito** ([#199](https://github.com/DegrassiAaron/refactor-tactics-main/issues/199)) · tassonomia decisa da [D-014](decisions/RT_PDR_00_Decision_Log.md)/[D-015](decisions/RT_PDR_00_Decision_Log.md) |
 | Mappa come grafo tattico, multilivello | [`technical/spec-mappa-multilivello.md`](technical/spec-mappa-multilivello.md) · [`technical/spec-pathfinding-pf3-pf4.md`](technical/spec-pathfinding-pf3-pf4.md) | ✅ |
 | Terreni, stati e propagazione | [`gameplay/spec-terreni-e8.md`](gameplay/spec-terreni-e8.md) + spec CP 8.2/8.3/8.4 | ✅ E8 |
 | Conoscenza parziale: vista **e** udito | [`gameplay/brief-conoscenza-parziale.md`](gameplay/brief-conoscenza-parziale.md) | ⏳ E13 |
