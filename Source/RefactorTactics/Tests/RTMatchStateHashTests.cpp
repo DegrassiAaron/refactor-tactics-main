@@ -5,6 +5,11 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTMatchStateHash.h"
+#include "ScenarioHarness/RTScenarioRunner.h"
+#include "ScenarioHarness/RTTestScenario.h"
+#include "ScenarioHarness/RTTestResult.h"
+#include "Engine/Engine.h"
+#include "Engine/World.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -123,6 +128,142 @@ bool FRTChecksumCoversEnvironmentTest::RunTest(const FString&)
 			URTMatchStateHashLibrary::HashMatchState(Map, Different, NoScore));
 	}
 
+	return true;
+}
+
+/**
+ * Il checksum della PARTITA GIOCATA vede la mappa (CP 12.1, issue #81) — copertura del CABLAGGIO.
+ *
+ * `ChecksumCoversEnvironment` prova la libreria; questo prova che la sessione gliela passi davvero. La
+ * distinzione non è accademica: con il cablaggio mutato in `HashMatchState(nullptr, ...)` la suite restava
+ * **interamente verde**. È il difetto ricorrente di questo repository — libreria coperta, cablaggio scoperto.
+ *
+ * `Action.CreateCover` è l'azione giusta per dimostrarlo perché cambia la MAPPA lasciando identiche le
+ * UNITÀ: nessuno si muove, nessuno perde vita. Se l'hash ignorasse la mappa, i due finali sarebbero
+ * indistinguibili — ed è esattamente ciò che succedeva.
+ */
+namespace
+{
+	UWorld* MakeWiringWorld()
+	{
+		UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+		if (World && GEngine)
+		{
+			FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+			Ctx.SetCurrentWorld(World);
+		}
+		return World;
+	}
+
+	void DestroyWiringWorld(UWorld* World)
+	{
+		if (World && GEngine)
+		{
+			GEngine->DestroyWorldContext(World);
+			World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+		}
+	}
+
+	/** Un turno, due unità ferme. Con `bErectCover` Bastion erige un pannello sul proprio bordo E. */
+	FRTTestScenario MakeCoverWiringScenario(bool bErectCover)
+	{
+		FRTTestScenario S;
+		S.ScenarioId = TEXT("Internal.ChecksumMapWiring");
+		S.MapRadius = 3;
+
+		FRTScenarioUnit Bastion;
+		Bastion.Id = TEXT("B1");
+		Bastion.HeroId = FName(TEXT("Hero.Bastion"));
+		Bastion.TeamId = 0;
+		Bastion.Cell = FRTCellId(0, 0);
+		S.Units.Add(Bastion);
+
+		// Un avversario lontano e inerte: serve solo perché la partita non finisca per eliminazione prima di
+		// arrivare al digest.
+		FRTScenarioUnit Foe;
+		Foe.Id = TEXT("V1");
+		Foe.HeroId = FName(TEXT("Hero.Vektor"));
+		Foe.TeamId = 1;
+		Foe.Cell = FRTCellId(3, 0);
+		S.Units.Add(Foe);
+
+		FRTScenarioTurn Turn;
+		if (bErectCover)
+		{
+			FRTScenarioIntent Erect;
+			Erect.UnitId = TEXT("B1");
+			Erect.Ability = FName(TEXT("Bastion.KineticPanel"));
+			Erect.TargetCell = FRTCellId(0, 0);
+			Erect.bTargetsCell = true;
+			Erect.CoverEdge = ERTHexDirection::E;
+			Erect.bHasCoverEdge = true;
+			Turn.Intents.Add(Erect);
+			Turn.Requires.Add(TEXT("CreateCover"));
+		}
+		S.Turns.Add(Turn);
+
+		// L'harness RIFIUTA uno scenario senza assertion — «passerebbe sempre» — ed e' una guardia giusta.
+		// Questa e' vera in entrambe le varianti: nessuno si muove, ed e' esattamente il punto del test. Se un
+		// giorno smettesse di esserlo, i due hash differirebbero per le UNITA' e non per la mappa, e il test
+		// direbbe di aver verificato una cosa che non ha verificato.
+		FRTTestExpectation Still;
+		Still.Kind = ERTAssertionKind::UnitAtCell;
+		Still.UnitId = TEXT("B1");
+		Still.Cell = FRTCellId(0, 0);
+		S.Expect.Add(Still);
+
+		FRTTestExpectation FoeStill;
+		FoeStill.Kind = ERTAssertionKind::UnitAtCell;
+		FoeStill.UnitId = TEXT("V1");
+		FoeStill.Cell = FRTCellId(3, 0);
+		S.Expect.Add(FoeStill);
+
+		return S;
+	}
+
+	uint32 RunAndHash(FAutomationTestBase& Test, bool bErectCover, bool& bOutOk)
+	{
+		bOutOk = false;
+		UWorld* World = MakeWiringWorld();
+		if (!World)
+		{
+			return 0;
+		}
+		const FRTTestResult Result = URTScenarioRunner::Run(World, MakeCoverWiringScenario(bErectCover));
+		DestroyWiringWorld(World);
+
+		// Uno scenario BLOCKED o in errore darebbe due hash uguali per il motivo sbagliato, e il test
+		// passerebbe da verde a verde senza aver verificato nulla.
+		if (Result.Outcome == ERTTestOutcome::Error || Result.Outcome == ERTTestOutcome::Blocked)
+		{
+			Test.AddError(FString::Printf(TEXT("scenario non eseguibile (%s): %s%s"),
+				*Result.OutcomeString(), *Result.ErrorMessage, *Result.BlockedReason));
+			return 0;
+		}
+		bOutOk = true;
+		return Result.StateHash;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChecksumSeesMapWiringTest,
+	"RefactorTactics.Simulation.ChecksumSeesMapInPlayedScenario",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChecksumSeesMapWiringTest::RunTest(const FString&)
+{
+	bool bPlainOk = false;
+	bool bCoverOk = false;
+
+	const uint32 Plain = RunAndHash(*this, /*bErectCover*/ false, bPlainOk);
+	const uint32 WithCover = RunAndHash(*this, /*bErectCover*/ true, bCoverOk);
+
+	if (!TestTrue(TEXT("entrambe le partite sono eseguibili"), bPlainOk && bCoverOk))
+	{
+		return false;
+	}
+
+	// Le unità finiscono identiche in entrambe: l'unica differenza è il pannello sulla mappa. Se il digest
+	// non ricevesse la mappa, i due hash coinciderebbero.
+	TestNotEqual(TEXT("una copertura eretta in partita cambia il checksum"), WithCover, Plain);
 	return true;
 }
 
