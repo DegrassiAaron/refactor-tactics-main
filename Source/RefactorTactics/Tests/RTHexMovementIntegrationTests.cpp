@@ -934,3 +934,53 @@ bool FRTKitDeclaredBothSlotsTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * La causa di uno spostamento e' leggibile nel TurnLog dopo un TURNO VERO (#307).
+ *
+ * Il DoD della issue chiede esplicitamente «un test che lo dimostri su un turno vero, non sulla libreria»:
+ * e' il difetto ricorrente di questo repository — libreria coperta, cablaggio scoperto.
+ *
+ * `ActionId` esiste gia' nella voce, e' gia' serializzato e gia' entra in `HashTurnLog`: la causa non costa
+ * una migrazione di formato. Restano da dichiarare le cause dello scatto e dello spostamento forzato, che
+ * hanno produttori diversi da `BuildMoveLog`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMoveLogCauseInMatchTest,
+	"RefactorTactics.HexMove.LogDeclaresMoveCause",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMoveLogCauseInMatchTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 4);
+
+	ARTUnit* Mover = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, ERTArchetype::Guardian, FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
+
+	const FRTCellId Goal(2, -1);
+	Mover->PlannedCell = Goal;
+	Foe->PlannedCell = Foe->Cell;
+
+	RunTurn(TM);
+
+	int32 MoveEntries = 0;
+	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+	{
+		if (Entry.Category != ERTLogCategory::Move)
+		{
+			continue;
+		}
+		++MoveEntries;
+		TestEqual(TEXT("la voce di movimento dichiara il movimento volontario"),
+			Entry.ActionId, FName(TEXT("Action.Move")));
+	}
+
+	// Senza questa, il ciclo sopra passerebbe su una lista vuota: un TurnLog senza voci Move renderebbe
+	// il test verde senza aver verificato nulla.
+	TestTrue(TEXT("il turno ha prodotto almeno una voce di movimento"), MoveEntries > 0);
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
