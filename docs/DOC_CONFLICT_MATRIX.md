@@ -90,6 +90,9 @@
 | 55 | **Vocabolario di status del Feature Registry** | `RT_Governance_Master` §5 propone 13 status (`IMPLEMENTED`, `IMPLEMENTED_PARTIAL`, `DATA_SPEC`, `FUTURE`, `HISTORICAL`…) e i master li usano per dichiarare lo stato delle feature | 10 status, **derivati dai gate** con regola deterministica e verificati dal validator: se i gate non reggono lo stato dichiarato, `validate` fallisce | [`roadmap/feature-registry.yaml`](roadmap/feature-registry.yaml) | `CONFIRMED` | ✅ 2026-08-09. Adottarli romperebbe `feature_registry.py validate`. ⚠️ Nota utile: i **nove gate** dello stesso documento (`spec · data · runtime · log_debug · automation · scenario · ui_wiki · packaged · network_privacy`) coincidono **alla lettera** — quella parte si cita, non si riscrive |
 | 56 | **Fase delle conseguenze topologiche (CP 10.1)** | la DoD di CP 10.1 diceva «effetto risolto nel Blast, **conseguenze topologiche nel Cleanup**» | la topologia cambia **dentro il Blast**: `SetDoorState` è un effetto raccolto nel Blast e applicato a fase conclusa (CP 9.3), e `Action.ModifyArc` è passata dal Cleanup al Blast (CP 9.4) | [`gameplay/spec-porte-cp93.md`](gameplay/spec-porte-cp93.md) §5 · [`balance/RT_ActionCatalog_v0.1.md`](balance/RT_ActionCatalog_v0.1.md) | `SUPERSEDED` | ✅ corretto 2026-08-09. Difetto **interno**, non del pacchetto: la riga era stata scritta prima che E9 decidesse, ed era rimasta. Una topologia che cambia dopo il Move non può fermare un movimento — è il path fantasma che `TruncatePathToTopology` esiste per impedire |
 
+| 57 | **Granularità delle feature UI** | il kit `RefactorTactics_HUD_Consolidation_Claude.md` §28 chiede di registrare **38** feature `HUD.*` (`HUD.Core`, `HUD.TimeBank`, `HUD.EventBanner`…); l'`RT_UI_UX_Master` §30 ne elenca 15 come `RT-FEAT-UI-*` | il registry ha **8** feature UI, e delle 15 del master **9 non esistono** — mentre le due che esistono e servono, `RT-FEAT-UI-ICON-LANGUAGE` ([D-031](decisions/RT_PDR_00_Decision_Log.md), E20) e `RT-FEAT-UI-SCENARIO-BROWSER`, il master **non le nomina** | [`roadmap/feature-registry.yaml`](roadmap/feature-registry.yaml) | `DUPLICATE` → **evitato** | ✅ 2026-08-09, chiuso in prevenzione come la riga 45. Un widget non è una feature: `HUD.EventBanner` e `HUD.ResolutionTimeline` sono due pezzi dello stesso comportamento già inventariato. Lo stesso pacchetto lo vieta (`RT_Governance_Master` §39: «non creare una seconda Feature Map») |
+| 58 | **`TEAM READY n/m` e «Fog of War» nel kit HUD** | il kit prescrive `Team Ready 2/3` come componente persistente (§3.5) e struttura tre milestone attorno alla **Fog of War** (§11, §30, §31) | il team-ready **non è implementato** nel build locale e non va simulato; e non è FoW, è **conoscenza parziale a tre livelli** con la mappa statica nota | [`technical/progettazione-hud.md`](technical/progettazione-hud.md) §17 · riga 13 di questa matrice | `CONFIRMED` | ✅ 2026-08-09. Il conflitto è **interno al pacchetto**: l'`RT_UI_UX_Master`, più recente, corregge il kit su entrambi i punti (`UI-READY-01`, §22) e coincide col repository. Quando due documenti dello stesso pacchetto divergono, prevale quello che concorda col canone — non il più dettagliato |
+
 **Quarto passaggio, 2026-08-08 — Signature, profili e trasformazioni**: **+3 righe risolte** (45, 46, 47).
 La 45 è la prima chiusa **in prevenzione**: il duplicato non è mai entrato nella documentazione, perché
 l'audit per sinonimi è stato fatto prima di scrivere. Resta **1 `OPEN`** (riga 34, APNAP) e **0 `CONFLICT`**.
@@ -131,6 +134,19 @@ non viene dal pacchetto** (riga 56): l'audit ha trovato un difetto interno mentr
 > ma che **sette dei nove «conflitti aperti» che dichiara erano già chiusi**. Un handoff che ripropone come
 > aperte decisioni prese invita a ridecidere ciò che è stato deciso, e questa matrice esiste per rendere
 > quell'invito visibile invece che efficace.
+
+**Settimo passaggio, 2026-08-09 — cluster UI/UX dello stesso pacchetto**: righe **57–58**, entrambe chiuse
+senza applicare nulla. L'unico `OPEN` resta la riga 34 e i `CONFLICT` restano **zero**.
+
+> Qui la forma è un'altra ancora, e conviene registrarla perché tornerà: **la fonte esterna era indietro
+> rispetto al repository, non avanti.** [`technical/progettazione-hud.md`](technical/progettazione-hud.md) ha
+> 50 sezioni e copriva già, con più precisione della fonte, tredici delle proposte del pacchetto — inclusa la
+> «Outcome Explanation», che nel repository si chiama **WHY?** da prima.
+>
+> Il valore del passaggio non è quindi in ciò che ha aggiunto, ma in ciò che ha **impedito di aggiungere**:
+> 38 feature duplicate, due milestone costruite su un vocabolario (`Fog of War`) che il progetto ha già
+> respinto, e un componente HUD che finge uno stato di rete inesistente. Un consolidamento che si misura in
+> righe scritte avrebbe recepito tutto e peggiorato il documento.
 
 > Restava una sola riga `OPEN`, ed è il difetto ricorrente di questo repository: una regola normativa
 > scritta, corretta, che **nessun consumatore runtime applica**. L'APNAP a sei gruppi vive nel canone e
