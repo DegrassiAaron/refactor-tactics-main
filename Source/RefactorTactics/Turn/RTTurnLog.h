@@ -49,7 +49,16 @@ enum class ERTFacingOutcome : uint8
 	/** LETTURA: il combattimento della fase Blast ha usato questo valore. */
 	UsedByBlast,
 	/** LETTURA: l'Overwatch ha usato questo valore (il cono pianificato, E14). */
-	UsedByOverwatch
+	UsedByOverwatch,
+	/**
+	 * Il colpo e' arrivato FUORI dall'arco frontale e la protezione da copertura/`Guard` non ha retto
+	 * (CP 16.2). La direzione registrata e' il facing del BERSAGLIO, cioe' il lato che stava guardando
+	 * mentre veniva colpito dall'altra parte.
+	 *
+	 * Ha un valore proprio invece di riusare `UsedByBlast` perche' il giocatore deve poter leggere *perche'*
+	 * la copertura non l'ha protetto: «il colpo usa l'orientamento SE» non risponde a quella domanda.
+	 */
+	RearHitBypassedCover
 };
 
 /**

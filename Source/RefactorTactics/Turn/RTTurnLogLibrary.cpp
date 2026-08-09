@@ -132,6 +132,9 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 			return FString::Printf(TEXT("%s: il colpo usa l'orientamento %s"), *CellText(Entry.SrcCell), Dir);
 		case ERTFacingOutcome::UsedByOverwatch:
 			return FString::Printf(TEXT("%s: l'overwatch usa l'orientamento %s"), *CellText(Entry.SrcCell), Dir);
+		case ERTFacingOutcome::RearHitBypassedCover:
+			return FString::Printf(TEXT("%s -> %s: colpo fuori dall'arco frontale (guardava %s), la protezione non vale"),
+				*CellText(Entry.TgtCell), *CellText(Entry.SrcCell), Dir);
 		default:
 			return FString::Printf(TEXT("%s: orientamento %s"), *CellText(Entry.SrcCell), Dir);
 		}

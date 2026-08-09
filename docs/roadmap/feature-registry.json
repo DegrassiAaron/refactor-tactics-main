@@ -500,12 +500,12 @@
       "kind": "gameplay",
       "release": "v0.1",
       "priority": "P1",
-      "status": "IMPLEMENTING",
-      "status_derived": "IMPLEMENTING",
+      "status": "INTEGRATED",
+      "status_derived": "INTEGRATED",
       "gates": {
         "spec": "done",
         "data": "done",
-        "runtime": "partial",
+        "runtime": "done",
         "log_debug": "done",
         "automation": "done",
         "scenario": "done",
@@ -513,7 +513,7 @@
         "packaged": "todo",
         "network_privacy": "partial"
       },
-      "gates_done": 5,
+      "gates_done": 6,
       "gates_applicable": 9,
       "roadmap": {
         "epic": "E16",
@@ -552,10 +552,17 @@
         "RefactorTactics.Facing.RoundInheritsFinalFacing",
         "RefactorTactics.Facing.TurnLogNamesConsumerAndReason",
         "RefactorTactics.Facing.PermutationInvariant",
-        "RefactorTactics.Facing.IntentIsTeamFiltered"
+        "RefactorTactics.Facing.IntentIsTeamFiltered",
+        "RefactorTactics.Combat.BackAttackIgnoresCover",
+        "RefactorTactics.Combat.FlankAttackKeepsCover",
+        "RefactorTactics.Combat.ShieldWorksFromAnyDirection"
       ],
       "scenarios": [
-        "Spec.Facing.DerivesFromMove"
+        "Spec.Facing.DerivesFromMove",
+        "Spec.Facing.DashReorients",
+        "Spec.Facing.TargetingReorients",
+        "Spec.Facing.BackAttackIgnoresGuard",
+        "Spec.Facing.FrontAttackKeepsGuard"
       ],
       "scenarios_planned": [],
       "wiki_refs": [

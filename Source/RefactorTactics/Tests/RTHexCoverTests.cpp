@@ -53,13 +53,21 @@ namespace
 		return false;
 	}
 
-	FRTHexCombatUnit CoverUnit(int32 UnitId, int32 TeamId, const FRTCellId& Cell)
+	/**
+	 * Unita' del Blast. Da CP 16.2 il FACING conta: la copertura protegge solo dai colpi che arrivano
+	 * nell'arco frontale, quindi un difensore va orientato verso chi lo attacca perche' il riparo valga.
+	 * Prima di quella regola il campo non esisteva e questi test misuravano la copertura con l'attaccante
+	 * implicitamente alle spalle — funzionava, ma non era cio' che dicevano di verificare.
+	 */
+	FRTHexCombatUnit CoverUnit(int32 UnitId, int32 TeamId, const FRTCellId& Cell,
+		ERTHexDirection Facing = ERTHexDirection::E)
 	{
 		FRTHexCombatUnit U;
 		U.UnitId = UnitId;
 		U.TeamId = TeamId;
 		U.Cell = Cell;
 		U.bAlive = true;
+		U.Facing = Facing;
 		return U;
 	}
 
@@ -101,7 +109,9 @@ bool FRTCoverDirectionalDamageReductionTest::RunTest(const FString&)
 {
 	TArray<FRTHexCombatUnit> Units;
 	Units.Add(CoverUnit(0, 0, FRTCellId(0, 0)));
-	Units.Add(CoverUnit(1, 1, FRTCellId(2, 0)));
+	// Il difensore GUARDA l'attaccante (a ovest): la copertura protegge solo l'arco frontale (CP 16.2), e
+	// senza dichiararlo questo test misurerebbe un colpo alle spalle invece della riduzione da riparo.
+	Units.Add(CoverUnit(1, 1, FRTCellId(2, 0), ERTHexDirection::W));
 
 	TArray<FRTHexAttackIntent> Intents;
 	Intents.Add(CoverIntent(0, 1, ERTAbilityShape::Single, 5, 30));
@@ -201,7 +211,7 @@ bool FRTCoverLowCoverClampTest::RunTest(const FString&)
 
 	TArray<FRTHexCombatUnit> Units;
 	Units.Add(CoverUnit(0, 0, FRTCellId(0, 0)));
-	Units.Add(CoverUnit(1, 1, FRTCellId(2, 0)));
+	Units.Add(CoverUnit(1, 1, FRTCellId(2, 0), ERTHexDirection::W)); // guarda l'attaccante: il riparo vale (CP 16.2)
 
 	TArray<FRTHexAttackIntent> Intents;
 	Intents.Add(CoverIntent(0, 1, ERTAbilityShape::Single, 5, 4)); // 4 - 10 sarebbe negativo

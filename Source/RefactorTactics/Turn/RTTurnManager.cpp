@@ -1491,6 +1491,7 @@ void ARTTurnManager::ResolveCombat()
 		HexUnit.TeamId = Unit->TeamId;
 		HexUnit.Cell = Unit->Cell;
 		HexUnit.bAlive = Unit->IsAlive();
+		HexUnit.Facing = Unit->Facing; // CP 16.2: da che lato e' scoperta
 		HexUnits.Add(HexUnit);
 	}
 
@@ -1667,6 +1668,14 @@ void ARTTurnManager::ResolveCombat()
 				URTFacingLibrary::RecordFacingChange(Attacker, TowardsTarget, ERTFacingOutcome::TargetingReoriented,
 					ERTMatchPhase::Blast, TurnLog);
 				Unit->Facing = Attacker.Facing;
+
+				// Anche nella copia del Blast: `HexUnits` e' stato costruito PRIMA di questo ciclo, e la difesa
+				// direzionale (CP 16.2) legge di li'. Senza questa riga, due unita' che si attaccano a vicenda
+				// nella stessa fase si girerebbero l'una verso l'altra e verrebbero comunque colpite alle spalle.
+				if (HexUnits.IsValidIndex(i))
+				{
+					HexUnits[i].Facing = Unit->Facing;
+				}
 			}
 		}
 
@@ -2373,7 +2382,40 @@ void ARTTurnManager::ResolveCombat()
 		}
 		if (Units[i]->HasStatus(TAG_Status_Guarded))
 		{
-			FirstHitDelta[i] -= URTCombatLibrary::GuardFirstHitReduction;
+			// CP 16.2: la guardia copre il davanti. Se il colpo che la consuma arriva fuori dall'arco frontale
+			// non vale — si TOGLIE una protezione, non si aggiunge danno.
+			//
+			// Quale colpo la consuma lo decide `ApplyFirstHitDelta`: il PRIMO dell'array, che e' l'ordine
+			// canonico gia' fissato da `Plan.Hits`. Si guarda quello, non «un colpo qualsiasi da dietro»:
+			// altrimenti un attacco frontale perderebbe la guardia per colpa di un secondo colpo alle spalle
+			// che il delta non tocca nemmeno.
+			const FRTHexAttackHit* FirstHit = Plan.Hits.FindByPredicate(
+				[i](const FRTHexAttackHit& Hit) { return Hit.TargetId == i; });
+
+			bool bGuardHolds = true;
+			if (FirstHit && HexUnits.IsValidIndex(FirstHit->AttackerId))
+			{
+				bGuardHolds = URTHexCombatLibrary::IsInFrontalArc(
+					HexUnits[i].Cell, HexUnits[i].Facing, HexUnits[FirstHit->AttackerId].Cell);
+			}
+
+			if (bGuardHolds)
+			{
+				FirstHitDelta[i] -= URTCombatLibrary::GuardFirstHitReduction;
+			}
+			else
+			{
+				FRTTurnLogEntry Bypassed;
+				Bypassed.Phase = ERTMatchPhase::Blast;
+				Bypassed.Category = ERTLogCategory::Facing;
+				Bypassed.Outcome = static_cast<uint8>(ERTFacingOutcome::RearHitBypassedCover);
+				Bypassed.SrcCell = HexUnits[FirstHit->AttackerId].Cell;
+				Bypassed.TgtCell = HexUnits[i].Cell;
+				Bypassed.Amount = static_cast<int32>(HexUnits[i].Facing);
+				TurnLog.Add(Bypassed);
+				AddLogEvent(FString::Printf(TEXT("%s: %s"), *Units[i]->GetName(),
+					*URTTurnLogLibrary::DescribeEntry(Bypassed)));
+			}
 		}
 		// Riduzione dichiarata dalle reazioni attivate (`Action.Deflect` e le reazioni d'eroe che ne riusano
 		// la semantica): una reazione si attiva UNA volta, quindi vale sul colpo che l'ha innescata — stessa

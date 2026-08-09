@@ -383,18 +383,19 @@ features:
     kind: gameplay
     release: v0.1
     priority: P1
-    status: IMPLEMENTING
+    status: INTEGRATED
     gates:
       spec: done
       data: done
-      # partial e non done: il Move scrive il facing e lo snapshot lo porta, ma Dash, targeting di Prep e
-      # lettura del Blast non sono ancora cablati nel TurnManager (restano in CP 16.1, seconda meta').
-      runtime: partial
+      # Consumatori reali: il Move e il Dash lo scrivono, un'azione con bersaglio riorienta prima di risolvere,
+      # il playback ci atterra sopra, e la difesa direzionale di CP 16.2 lo legge per decidere se la copertura
+      # protegge. L'unico momento di D-020 senza codice e' `FacingUsedByOverwatch`, che appartiene a E14.
+      runtime: done
       log_debug: done
       automation: done
       scenario: done
-      # La Wiki spiega il facing, il gioco non lo mostra ancora: la mesh interpola lo yaw ma non atterra
-      # sul valore logico a fine playback.
+      # La Wiki lo spiega e la figura in campo e' girata dal lato giusto, ma il gioco non MOSTRA l'arco:
+      # niente indicatore del cono frontale in HUD, quindi «leggibile in gioco» non e' ancora vero.
       ui_wiki: partial
       packaged: todo
       # Era `na`, ed era sbagliato: il facing viaggia negli intent, quindi dovra' essere corretto in rete.
@@ -426,8 +427,15 @@ features:
       - RefactorTactics.Facing.TurnLogNamesConsumerAndReason
       - RefactorTactics.Facing.PermutationInvariant
       - RefactorTactics.Facing.IntentIsTeamFiltered
+      - RefactorTactics.Combat.BackAttackIgnoresCover
+      - RefactorTactics.Combat.FlankAttackKeepsCover
+      - RefactorTactics.Combat.ShieldWorksFromAnyDirection
     scenarios:
       - Spec.Facing.DerivesFromMove
+      - Spec.Facing.DashReorients
+      - Spec.Facing.TargetingReorients
+      - Spec.Facing.BackAttackIgnoresGuard
+      - Spec.Facing.FrontAttackKeepsGuard
     wiki_refs:
       - docs/wiki/meccaniche/facing-e-direzionalita.md
     wiki_note: >-
