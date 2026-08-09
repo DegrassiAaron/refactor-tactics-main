@@ -77,7 +77,7 @@ bool FRTFluxMatchesCatalogTest::RunTest(const FString&)
 	for (const FString& Err : Errors) { AddError(Err); }
 	TestEqual(TEXT("Flux e' strutturalmente valido"), Errors.Num(), 0);
 
-	// ConductiveNode NON e' piu' un limite dichiarato: da D-039 (#282) e' cablata su `Action.Electrify`, e
+	// ConductiveNode NON e' piu' un limite dichiarato: da D-046 (#282) e' cablata su `Action.Electrify`, e
 	// Flux e' il produttore di propagazione elettrica del roster. Il limite di prima era vero quando fu
 	// scritto — poi E8 ha chiuso, il modello di cella conduttiva e' esistito, e la dichiarazione onesta e'
 	// diventata un dato che nessuno leggeva.

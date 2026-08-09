@@ -5,9 +5,9 @@
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "SPECIFICA ESEGUIBILE di E14.7 (D-042/D-043). Il caso pari: due partecipanti scelgono lo STESSO intento di grammatica, quindi nessuno ha vantaggio e ciascuno applica il proprio `TieOutcome`. La proprieta' da difendere e' che il pari **non apre un secondo round**: la resolution riprende subito, con il TieOutcome applicato UNA volta sola.",
+  "_nota": "SPECIFICA ESEGUIBILE di E14.7 (D-048/D-049). Il caso pari: due partecipanti scelgono lo STESSO intento di grammatica, quindi nessuno ha vantaggio e ciascuno applica il proprio `TieOutcome`. La proprieta' da difendere e' che il pari **non apre un secondo round**: la resolution riprende subito, con il TieOutcome applicato UNA volta sola.",
 
-  "_nota_perche_esiste": "Un secondo prompt sul pari sarebbe la deriva piu' naturale del sistema — e la piu' costosa: raddoppierebbe il tempo della finestra proprio nel caso in cui i due giocatori si sono letti allo stesso modo, e con il reveal a scadenza fissa (D-042) quel raddoppio non e' comprimibile. Questo file esiste per rendere rossa quella deriva.",
+  "_nota_perche_esiste": "Un secondo prompt sul pari sarebbe la deriva piu' naturale del sistema — e la piu' costosa: raddoppierebbe il tempo della finestra proprio nel caso in cui i due giocatori si sono letti allo stesso modo, e con il reveal a scadenza fissa (D-048) quel raddoppio non e' comprimibile. Questo file esiste per rendere rossa quella deriva.",
 
   "_nota_da_completare": "Intent del turno 2 vuoti: sintassi non decisa. Chi implementa E14.7 aggiunge l'assertion sugli HP di entrambi — il punto e' che l'esito valga UNA volta, quindi il valore atteso e' quello di un solo TieOutcome, non di due — e verifica che `TurnsCompleted` non cresca oltre il previsto.",
 

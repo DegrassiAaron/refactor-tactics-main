@@ -8,7 +8,7 @@
 > Feature: `RT-FEAT-ENV-ELECTRIC` · Release: `v0.1` · Roadmap: `E8.3`  
 > Stato: **INTEGRATED** · Gate: `6/8`  
 > Scenario: `Visual.Combat.WaterElectric`  
-> Dal 2026-08-09 la scarica ha un **owner nel roster**: `Flux.ConductiveNode` **e'** `Action.Electrify` (D-039). Prima nessun eroe la possedeva e il motore era verde ma non innescabile in partita.  
+> Dal 2026-08-09 la scarica ha un **owner nel roster**: `Flux.ConductiveNode` **e'** `Action.Electrify` (D-046, nata come D-039). Prima nessun eroe la possedeva e il motore era verde ma non innescabile in partita.  
 > Verificato il `2026-08-09` su `f1f85b1`
 
 <!-- RT_FEATURE_STATUS:END RT-FEAT-ENV-ELECTRIC -->
@@ -69,7 +69,7 @@ Un ponte spento o distrutto interrompe la catena.
 ## Stato reale del roster
 
 Dal **2026-08-09** la scarica ha un owner nel roster: `Flux.ConductiveNode` **è** `Action.Electrify`
-([D-039](../../decisions/RT_PDR_00_Decision_Log.md)). Fino a quel giorno il motore era implementato,
+([D-046](../../decisions/RT_PDR_00_Decision_Log.md)). Fino a quel giorno il motore era implementato,
 verificato e **non innescabile in partita** — nessun eroe possedeva l'azione, quindi la propagazione arrivava
 solo dall'ambiente.
 

@@ -980,7 +980,7 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 		// «SurfaceCreated» nel catalogo per due sole azioni sarebbe un dato che nessun'altra azione useria.
 		// Quando le azioni ambientali saranno molte (CP 8.5), il posto giusto e' quel campo.
 		{
-			// Dal DATO, non dal nome (D-039, #282). Il confronto per ActionId funzionava finche' le uniche
+			// Dal DATO, non dal nome (D-046, #282). Il confronto per ActionId funzionava finche' le uniche
 			// azioni ambientali erano quelle del catalogo core; non appena un eroe ne possiede una — e
 			// `Riva.FluidTrail` non puo' chiamarsi `Action.CreateWater` — un `if` sul nome smette di poter
 			// esprimere «e' quell'azione». Stessa strada di `PropagationLimit`, che infatti gia' funzionava

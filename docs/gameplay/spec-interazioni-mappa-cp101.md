@@ -284,7 +284,7 @@ già costruiti. Restano fuori, esplicitamente:
 - torrette, droni, trappole e ogni **Tactical Device** — sono produttori di reazioni, quindi dipendono da E14;
 - telecamere, sensori e radar — sono produttori di conoscenza, quindi dipendono da E13;
 - il controllo **remoto** sorgente → bersaglio, che richiede la privacy dei collegamenti (§8) e quindi la rete;
-- valvole, pompe e fluidodinamica: l'acqua ha un produttore nel roster ([`D-039`](../decisions/RT_PDR_00_Decision_Log.md),
+- valvole, pompe e fluidodinamica: l'acqua ha un produttore nel roster ([`D-046`](../decisions/RT_PDR_00_Decision_Log.md),
   `Riva.FluidTrail` **è** `Action.CreateWater`) e non serve un secondo modello per crearla;
 - ascensori e piattaforme mobili, che sono transizioni con stato temporale, non elementi con verbi.
 

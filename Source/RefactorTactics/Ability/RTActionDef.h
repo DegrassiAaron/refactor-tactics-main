@@ -244,7 +244,7 @@ struct FRTActionDef
 	 * (`if (Id == "Action.CreateWater")`). Il commento di allora lo ammetteva e rimandava: «inventare un campo
 	 * SurfaceCreated per due sole azioni sarebbe un dato che nessun'altra azione userebbe; quando le azioni
 	 * ambientali saranno molte, il posto giusto e' quel campo». La condizione e' arrivata da un'altra
-	 * direzione: con D-039 un EROE possiede un'azione ambientale, e `Riva.FluidTrail` non puo' chiamarsi
+	 * direzione: con D-046 un EROE possiede un'azione ambientale, e `Riva.FluidTrail` non puo' chiamarsi
 	 * `Action.CreateWater`. Un confronto per nome non sa esprimere «e' quell'azione con un nome d'eroe» —
 	 * un campo si', ed e' la stessa strada di `PropagationLimit`, che infatti funzionava gia'.
 	 */

@@ -15,7 +15,7 @@ Il pacchetto non è omogeneo: sono **due generazioni** di documenti sovrapposte.
 
 | File | Tipo | Stato rispetto al repository |
 |---|---|---|
-| `RT_Reaction_System_Master_Consolidation_v0.1.md` | master rivisto | ✅ **assorbito** — PR `#305`, `D-041`/`D-042`/`D-043`, CP 14.7 |
+| `RT_Reaction_System_Master_Consolidation_v0.1.md` | master rivisto | ✅ **assorbito** — PR `#305`, `D-047`/`D-048`/`D-049`, CP 14.7 |
 | `RefactorTactics_ReactionSystem_ReactionClash_...md` | kit | ✅ assorbito nella stessa PR |
 | `RefactorTactics_Move_Consolidation_Claude.md` | kit | ✅ assorbito — PR `#304` |
 | `RefactorTactics_BasicAttack_Consolidation_...md` | kit | 🔄 **in volo** — `adr-0007-attacco-base-per-eroe.md`, non committato |
@@ -102,16 +102,16 @@ cinque domande su quindici erano già risposte. Il pacchetto va letto sapendolo.
 
 ---
 
-## 5. Difetto del repository trovato durante l'audit — `D-039` non è propagata
+## 5. Difetto del repository trovato durante l'audit — `D-046` non è propagata
 
 Indipendente dal pacchetto, ma scoperto perché il Map Master §11 ripete l'affermazione vecchia.
 
-[`D-039`](../../decisions/RT_PDR_00_Decision_Log.md) (2026-08-09) stabilisce che **`Flux.ConductiveNode` *è*
+[`D-046`](../../decisions/RT_PDR_00_Decision_Log.md) (2026-08-09) stabilisce che **`Flux.ConductiveNode` *è*
 `Action.Electrify`**, ed è **cablata nel codice**:
 
 ```
 Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp:172
-// D-039: cablata su `Action.Electrify`.
+// D-046: cablata su `Action.Electrify`.
 ```
 
 Tre documenti dicono ancora l'opposto, in quattro punti:
@@ -334,7 +334,7 @@ quelli che le tre macchine fanno davvero.
 **Verifica di mutazione**: staccato `Visual.Map.HighCoverBlocks` dalla sua feature, `validate` esce `1`
 nominando esattamente quello scenario; ripristinato, `0`.
 
-### ✅ Difetto trovato durante il cluster — quattro `D-0xx` assegnati due volte, **chiuso**
+### 🟡 Difetto trovato durante il cluster — quattro `D-0xx` assegnati due volte
 
 Non viene dal pacchetto. Quattro ID del Decision Log nominavano due decisioni diverse:
 
@@ -346,31 +346,60 @@ Non viene dal pacchetto. Quattro ID del Decision Log nominavano due decisioni di
 | `D-043` | arco frontale e `TeamKnowledge` | grammatica `STAND · READ · SHIFT` | **entrambe**: 2 siti la prima (`RTPerceptionTests.cpp`), 5 la seconda |
 
 È la **sesta** collisione di contatore del progetto — il Decision Log ne conta cinque e ha già la regola:
-*chi arriva secondo rinumera, non contende*. La rinumerazione era stata **scritta** da una sessione parallela
-e **non era mai atterrata**: non era su nessun branch.
+*chi arriva secondo rinumera, non contende*.
 
-**Chiusa il 2026-08-09, decisa dall'autore.** Il criterio applicato è quello che il log aveva già enunciato
-per `D-040` — *cede il lato che nessuna macchina verifica* — e qui si misura col conteggio delle citazioni:
+**Chiusa il 2026-08-09 dalla PR [`#320`](https://github.com/DegrassiAaron/refactor-tactics-main/pull/320)**,
+di una sessione parallela, mentre questa la stava chiudendo con lo schema **opposto**. Ha mergiato per prima,
+quindi vale la sua e questa cede — è la regola applicata a sé stessa:
 
-| Vecchio | Nuovo | Decisione che si sposta | Citazioni aggiornate |
-|---|---|---|---|
-| `D-039` | **`D-047`** | `E21` → `E35` | 1 (`feature-registry.yaml`, nota di `RT-FEAT-CHAR-V02-ROSTER`) |
-| `D-041` | **`D-044`** | soglia d'udito | nessuna |
-| `D-042` | **`D-045`** | acqua bassa `+2` | nessuna |
-| `D-043` | **`D-046`** | arco frontale e `TeamKnowledge` | 2 (`RTPerceptionTests.cpp`, solo commenti) |
+| Vecchio | Nuovo su `main` | Decisione che si è spostata |
+|---|---|---|
+| `D-039` | **`D-046`** | azioni ambientali con owner nel roster |
+| `D-041` | **`D-047`** | `Brace` prepara una reazione |
+| `D-042` | **`D-048`** | Reaction Opportunity *contested* |
+| `D-043` | **`D-049`** | grammatica `STAND · READ · SHIFT` |
 
-Il contenuto delle quattro decisioni non cambia di una parola. **Prossimo ID libero: `D-048`.**
+A tenere l'ID è stato il lato **meno** citato — `E21`→`E35` tiene `D-039`, la soglia d'udito tiene `D-041` —
+cioè l'opposto del criterio «cede il lato che nessuna macchina verifica» enunciato per `D-040`. Il contenuto
+delle otto decisioni non cambia; **prossimo ID libero: `D-058`**, dopo le `D-050`…`D-057` del Time Bank.
 
-> Il caso `D-043` è l'unico che il conteggio non decideva da solo — 2 citazioni contro 5 — ed è anche il
-> motivo per cui la scelta è stata portata all'autore invece che dedotta. Una regola che funziona finché un
-> lato ha **zero** citazioni non è una regola: è una coincidenza che ha retto tre volte su quattro.
+#### ✅ La conseguenza: la propagazione, completata qui
+
+Spostare il lato **citato** significa che tutte le sue citazioni vanno riscritte. La `#320` ha coperto
+`docs/` — 42 riferimenti in 12 file — ma non `Source/` né `Scenarios/`, dove ne restavano **26**:
+
+| ID vecchio → nuovo | Riferimenti | Dove |
+|---|---|---|
+| `D-039` → **`D-046`** | 15 | commenti in 8 file di codice (`RTHeroCatalogLibrary`, `RTTurnManager`, `RTScenarioSession`, 4 test, `RTActionDef.h`) + 3 scenari-specifica |
+| `D-041` → **`D-047`** | 2 | `Scenarios/Spec/Brace/ProfileChangesResponse.json` |
+| `D-042`/`D-043` → **`D-048`/`D-049`** | 9 | i quattro `Scenarios/Spec/Clash/` |
+
+⚠️ **Non si risolveva con un search/replace**: i tre `D-043` di `RTPerceptionLibrary.h` e
+`RTPerceptionTests.cpp` sono rimasti **invariati**, perché quell'ID la decisione sulla percezione l'ha
+**conservato**. Sostituirli avrebbe rotto l'altra metà.
+
+Il diff su `Source/` è **interamente commenti**: nessun comportamento cambia.
+
+> È lo stesso difetto di §5 — una decisione presa e non propagata — nato lo stesso giorno, dallo stesso
+> contatore condiviso. La nota del Decision Log lo dice da due giorni: «fino a quando epic e decisioni si
+> numerano a mano, la collisione è una questione di quando, non di se». Questa volta ne sono nate due nello
+> stesso pomeriggio, e la seconda l'ha prodotta il tentativo di chiudere la prima.
+>
+> La regola operativa che ne esce: **una rinumerazione non è finita quando il log è coerente.** Un commento
+> di codice che rimanda a `D-039` per una decisione che ora è `D-046` è leggibile, plausibile e falso.
+
+#### E le righe della matrice hanno fatto lo stesso
+
+Anche `DOC_CONFLICT_MATRIX.md` aveva **`53`, `54`, `55` due volte**: le mie della PR `#312` e quelle del Time
+Bank della `#320`. Stesso contatore condiviso, stesso giorno, stessa forma. Rinumerate le seconde a
+**`60`–`62`**, per lo stesso criterio: la `#312` era atterrata prima e nessuno cita quelle righe per numero.
 
 ### ⬜ Resta da fare
 
-1. ✅ ~~Difetto `D-039` di §5~~ — **chiuso il 2026-08-09**: corretto alla sorgente (`wiki_note`), rigenerate
+1. ✅ ~~Difetto `D-046` di §5~~ — **chiuso il 2026-08-09**: corretto alla sorgente (`wiki_note`), rigenerate
    le due pagine derivate, riscritte a mano le due frasi in prosa che il generatore non raggiungeva.
-2. ✅ ~~La collisione dei quattro `D-0xx`~~ — **chiusa il 2026-08-09**, rinumerazione applicata e citazioni
-   allineate.
+2. ✅ ~~La collisione dei quattro `D-0xx`~~ — **chiusa il 2026-08-09** da una sessione parallela (`#320`).
+   Resta la **propagazione**: vedi il punto 7.
 3. **`INT-1`…`INT-4`** — le quattro domande di
    [`spec-interazioni-mappa-cp101.md`](../../gameplay/spec-interazioni-mappa-cp101.md) §12 vanno in
    [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md). `INT-3` è già lì sotto il nome `FAC-6`.
@@ -382,3 +411,4 @@ Il contenuto delle quattro decisioni non cambia di una parola. **Prossimo ID lib
    valore numerico duplicato fra normative, `roster/version mismatch` — vanno valutati uno per uno. Il terzo
    è il più interessante e il più costoso: sarebbe il gate che impedisce il difetto che il progetto ha già
    pagato cinque volte col conteggio dei test.
+7. **La propagazione della rinumerazione**, aperta e misurata — vedi la sezione qui sotto.

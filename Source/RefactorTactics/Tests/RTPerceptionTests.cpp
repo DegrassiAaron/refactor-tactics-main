@@ -14,8 +14,8 @@
  * vista piena fino a `VisionRange` **nell'arco frontale**, e consapevolezza a 360° **entro 2 celle**. La LOS
  * serve a entrambi — si vede attraverso l'aria, non attraverso i muri.
  *
- * Riferimenti: `docs/gameplay/brief-conoscenza-parziale.md`, D-046 (la conoscenza e' di SQUADRA, non una
- * relazione fra unita'). Nata come D-043 e rinumerata il 2026-08-09: quell'ID era assegnato due volte.
+ * Riferimenti: `docs/gameplay/brief-conoscenza-parziale.md`, D-043 (la conoscenza e' di SQUADRA, non una
+ * relazione fra unita').
  */
 
 namespace
@@ -244,7 +244,7 @@ bool FRTVisionTeamKnowledgeIsUnionTest::RunTest(const FString&)
 	TestEqual(TEXT("nessun osservatore, nessuna conoscenza"),
 		URTPerceptionLibrary::TeamVisibleCells(Map, {}).Num(), 0);
 
-	// La conoscenza e' di SQUADRA (D-046): quella dell'altra squadra e' un insieme SEPARATO, e il fatto che
+	// La conoscenza e' di SQUADRA (D-043): quella dell'altra squadra e' un insieme SEPARATO, e il fatto che
 	// A veda B non mette A dentro la conoscenza di B.
 	const FRTPerceiver Enemy = Watcher(FRTCellId(3, 0, 0), ERTHexDirection::E, 4);
 	const TArray<FRTCellId> Theirs = URTPerceptionLibrary::TeamVisibleCells(Map, { Enemy });

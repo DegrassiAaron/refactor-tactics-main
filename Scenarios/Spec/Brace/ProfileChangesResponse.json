@@ -5,9 +5,9 @@
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "SPECIFICA ESEGUIBILE di D-041. Due eroi dichiarano la STESSA azione — `Action.Brace` — e reagiscono in modo diverso, perche' la risposta viene dal loro Reaction Profile e non dall'azione. Bastion resta sulla cella (`Hold Ground`, la risposta universale); Riva, il cui profilo dichiara una risposta di scarto, non ci resta. Nessun `if CharacterId` nel resolver puo' produrre questo risultato: e' il dato a decidere.",
+  "_nota": "SPECIFICA ESEGUIBILE di D-047. Due eroi dichiarano la STESSA azione — `Action.Brace` — e reagiscono in modo diverso, perche' la risposta viene dal loro Reaction Profile e non dall'azione. Bastion resta sulla cella (`Hold Ground`, la risposta universale); Riva, il cui profilo dichiara una risposta di scarto, non ci resta. Nessun `if CharacterId` nel resolver puo' produrre questo risultato: e' il dato a decidere.",
 
-  "_nota_perche_esiste": "E' la prova che D-041 non e' un rename. Se `Brace` restasse un buff fisso, i due eroi finirebbero nella stessa cella con gli stessi HP e questo file sarebbe verde per il motivo sbagliato — quindi l'assertion che conta e' la DIFFERENZA fra i due, non il valore di uno solo.",
+  "_nota_perche_esiste": "E' la prova che D-047 non e' un rename. Se `Brace` restasse un buff fisso, i due eroi finirebbero nella stessa cella con gli stessi HP e questo file sarebbe verde per il motivo sbagliato — quindi l'assertion che conta e' la DIFFERENZA fra i due, non il valore di uno solo.",
 
   "_nota_da_completare": "Il turno 2 richiede un profilo di reazione a due risposte, che oggi nessun eroe dichiara: i profili concreti dei 4 eroi sono `CLASH-2` fra le domande aperte. Chi implementa E14.7 assegna il profilo a Riva e aggiunge l'assertion sulla sua cella finale, che deve differire da quella di partenza mentre quella di Bastion no.",
 
