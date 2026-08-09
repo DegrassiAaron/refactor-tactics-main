@@ -32,6 +32,26 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static int32 HexDistance(const FRTCellId& A, const FRTCellId& B);
 
+	/**
+	 * Direzione da From alla cella ADIACENTE To, sullo stesso layer. `false` (e OutDirection invariata) se le
+	 * due celle non sono adiacenti o stanno su layer diversi.
+	 *
+	 * Rigorosa di proposito: chi deriva un orientamento da due passi consecutivi di un percorso deve
+	 * accorgersi se quei passi non sono adiacenti, non ricevere la direzione approssimata piu' vicina.
+	 * Per la direzione verso una cella qualunque c'e' `DirectionTowards`.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static bool DirectionBetween(const FRTCellId& From, const FRTCellId& To, ERTHexDirection& OutDirection);
+
+	/**
+	 * Direzione da From verso una cella QUALUNQUE: il primo passo della linea From->To, cioe' la direzione
+	 * in cui ci si incamminerebbe. `false` se le due celle coincidono nel piano (distanza 0): non esiste
+	 * una direzione, e restituirne una arbitraria sarebbe un dato inventato.
+	 * Planare come `HexLine` e `HexDistance`: il Layer non entra nel calcolo.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static bool DirectionTowards(const FRTCellId& From, const FRTCellId& To, ERTHexDirection& OutDirection);
+
 	/** Centro-mondo della cella (pointy-top): X,Y dal piano assiale, Z = Origin.Z + Layer*LayerHeight. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static FVector AxialToWorld(const FRTCellId& Cell, const FVector& Origin, float HexSize, float LayerHeight);

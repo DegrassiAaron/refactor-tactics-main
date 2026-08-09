@@ -1,0 +1,29 @@
+{
+  "scenarioId": "Spec.Facing.DerivesFromMove",
+  "tags": ["facing", "movement", "core", "spec", "flux", "bastion"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "CP 16.1. Il facing e' STATO DI GIOCO e si deriva dall'ultimo passo del movimento reale: A1 parte a ovest guardando dove capita e cammina verso est, quindi finisce orientata a E. E' l'unico scenario che verifica l'orientamento attraverso il percorso vero (Intent -> Planning -> Snapshot -> Resolver), non chiamando la libreria: se il TurnManager smettesse di scrivere il facing, i test unitari resterebbero verdi e questo diventerebbe rosso.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Flux", "team": 0, "cell": [-2, 0, 0] },
+    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [3, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "A1", "move": [[-1, 0, 0], [0, 0, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell", "unit": "A1", "cell": [0, 0, 0] },
+    { "type": "UnitFacing", "unit": "A1", "value": "E" },
+    { "type": "UnitFacing", "unit": "B1", "value": "E" },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

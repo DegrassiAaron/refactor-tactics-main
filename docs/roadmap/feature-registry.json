@@ -500,21 +500,21 @@
       "kind": "gameplay",
       "release": "v0.1",
       "priority": "P1",
-      "status": "SPECIFIED",
-      "status_derived": "SPECIFIED",
+      "status": "INTEGRATED",
+      "status_derived": "INTEGRATED",
       "gates": {
         "spec": "done",
-        "data": "todo",
-        "runtime": "todo",
-        "log_debug": "todo",
-        "automation": "todo",
-        "scenario": "todo",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "partial"
       },
-      "gates_done": 1,
-      "gates_applicable": 8,
+      "gates_done": 6,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E16",
         "milestone": null,
@@ -528,18 +528,46 @@
         "RT-FEAT-MAP-HEXGRAPH",
         "RT-FEAT-MAP-COVER"
       ],
-      "completed_by": [],
+      "completed_by": [
+        "RT-FEAT-UI-PLANNING"
+      ],
       "owner_specs": [
         "docs/decisions/adr-0005-orientamento.md",
-        "docs/decisions/RT_PDR_00_Decision_Log.md"
+        "docs/decisions/RT_PDR_00_Decision_Log.md",
+        "docs/technical/spec-turnlog.md"
       ],
       "issues": [
         175,
         176,
-        177
+        177,
+        291
       ],
-      "tests": [],
-      "scenarios": [],
+      "tests": [
+        "RefactorTactics.Facing.LinearMoveDerivesDirection",
+        "RefactorTactics.Facing.BudgetMoveAllowsLastStepPlusMinusOne",
+        "RefactorTactics.Facing.RejectsIllegalDeclaredRotation",
+        "RefactorTactics.Facing.StationaryUnitRotatesFreely",
+        "RefactorTactics.Facing.ForcedMovementFacesSource",
+        "RefactorTactics.Facing.EnvironmentalDisplacementKeepsFacing",
+        "RefactorTactics.Facing.VoluntaryMoveWinsOverForced",
+        "RefactorTactics.Facing.DashThenBlastUsesLatestValue",
+        "RefactorTactics.Facing.TargetChangeWithinRoundReorients",
+        "RefactorTactics.Facing.RoundInheritsFinalFacing",
+        "RefactorTactics.Facing.TurnLogNamesConsumerAndReason",
+        "RefactorTactics.Facing.PermutationInvariant",
+        "RefactorTactics.Facing.IntentIsTeamFiltered",
+        "RefactorTactics.Combat.BackAttackIgnoresCover",
+        "RefactorTactics.Combat.FlankAttackKeepsCover",
+        "RefactorTactics.Combat.ShieldWorksFromAnyDirection"
+      ],
+      "scenarios": [
+        "Spec.Facing.DerivesFromMove",
+        "Spec.Facing.DashReorients",
+        "Spec.Facing.TargetingReorients",
+        "Spec.Facing.BackAttackIgnoresGuard",
+        "Spec.Facing.FrontAttackKeepsGuard",
+        "Spec.Facing.BraceHoldsFromBehind"
+      ],
       "scenarios_planned": [],
       "wiki_refs": [
         "docs/wiki/meccaniche/facing-e-direzionalita.md"

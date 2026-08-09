@@ -41,6 +41,19 @@ struct FRTHexSimUnit
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexSim")
 	int32 MoveCostModifier = 0;
 
+	/**
+	 * Orientamento AUTOREVOLE (CP 16.1): non lo yaw della mesh, ma il dato che decide da che lato si e'
+	 * scoperti e dove punta un cono. Entra nello snapshot perche' e' stato di gioco, quindi entra anche
+	 * nell'hash del replay attraverso le voci di TurnLog che lo registrano.
+	 *
+	 * Un solo campo, non sei: la timeline di D-020 e' la SEQUENZA delle scritture, e vive nel TurnLog. Tenere
+	 * qui i sei momenti significherebbe conservare cinque valori che nessuno rilegge, e doverli invalidare a
+	 * ogni cambio. Il valore qui e' sempre «il piu' recente», che e' esattamente cio' che D-020 chiede ai
+	 * consumatori di leggere. Il facing di fine round persiste in quello dopo perche' l'unita' lo porta con se'.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexSim")
+	ERTHexDirection Facing = ERTHexDirection::E;
+
 	FRTHexSimUnit() = default;
 	FRTHexSimUnit(int32 InUnitId, const FRTCellId& InCell, int32 InMoveBudget = 0, bool bInAlive = true)
 		: UnitId(InUnitId), Cell(InCell), bAlive(bInAlive), MoveBudget(InMoveBudget) {}

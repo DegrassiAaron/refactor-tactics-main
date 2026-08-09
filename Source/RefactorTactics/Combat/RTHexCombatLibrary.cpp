@@ -143,6 +143,23 @@ namespace
 	}
 }
 
+bool URTHexCombatLibrary::IsInFrontalArc(const FRTCellId& DefenderCell, ERTHexDirection Facing,
+	const FRTCellId& OriginCell)
+{
+	const int32 Distance = URTHexLibrary::HexDistance(DefenderCell, OriginCell);
+	if (Distance <= 0)
+	{
+		return true; // stessa cella: nessun lato da cui il colpo arrivi
+	}
+
+	// Il cono si costruisce verso il vicino nella direzione del facing, profondo quanto dista l'origine.
+	// PLANARE come `HexCone` e `HexDistance`: chi spara da un piano piu' alto sta comunque davanti o dietro,
+	// e l'origine si confronta proiettata sul layer del difensore invece di non essere mai trovata nel cono.
+	const FRTCellId Ahead = URTHexLibrary::Neighbor(DefenderCell, Facing);
+	const FRTCellId Projected(OriginCell.X, OriginCell.Y, DefenderCell.Layer);
+	return URTHexLibrary::HexCone(DefenderCell, Ahead, Distance).Contains(Projected);
+}
+
 int32 URTHexCombatLibrary::HexCoverDamageReduction(const URTHexMapAsset* Map, const FRTCellId& From,
 	const FRTCellId& Target, ERTAbilityShape Shape)
 {
@@ -293,7 +310,15 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 				// La copertura si applica QUI, sul singolo colpo: dipende da dove sta CHI lo subisce, non
 				// dall'intento — due bersagli della stessa azione possono essere riparati in modo diverso.
 				// Il danno si ferma a 0: il colpo resta avvenuto (trigger e marchi contano lo stesso).
-				const int32 Reduction = HexCoverDamageReduction(Map, Attacker.Cell, Other.Cell, Intent.Shape);
+				int32 Reduction = HexCoverDamageReduction(Map, Attacker.Cell, Other.Cell, Intent.Shape);
+
+				// CP 16.2: l'emisfero posteriore e' SCOPERTO. Un colpo che non arriva dall'arco frontale annulla
+				// la riduzione — non aggiunge danno. E' la differenza fra togliere una protezione e introdurre
+				// un bonus di fianco: il secondo avrebbe richiesto un numero nuovo da bilanciare, il primo no.
+				if (Reduction > 0 && !IsInFrontalArc(Other.Cell, Other.Facing, Attacker.Cell))
+				{
+					Reduction = 0;
+				}
 				Plan.Hits.Add(FRTHexAttackHit(Intent.AttackerId, u,
 					FMath::Max(0, Intent.Power - Reduction), IntentIdx));
 			}
