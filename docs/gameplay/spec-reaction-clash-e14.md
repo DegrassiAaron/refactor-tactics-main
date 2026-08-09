@@ -1,8 +1,8 @@
 # Reaction Profile e Reaction Clash — specifica di E14.7
 
 > **Stato**: owner documentale della capability *contested reaction*. Le decisioni di forma sono
-> [D-041](../decisions/RT_PDR_00_Decision_Log.md), [D-042](../decisions/RT_PDR_00_Decision_Log.md) e
-> [D-043](../decisions/RT_PDR_00_Decision_Log.md), prese dall'autore il **2026-08-09**.
+> [D-047](../decisions/RT_PDR_00_Decision_Log.md), [D-048](../decisions/RT_PDR_00_Decision_Log.md) e
+> [D-049](../decisions/RT_PDR_00_Decision_Log.md), prese dall'autore il **2026-08-09**.
 > **Dipende da**: [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) — questa spec ne è un'estensione,
 > non un secondo sistema di reazioni.
 > **Nessun runtime**: E14 non parte prima di E13, e questa specifica descrive come funzionerà, non come
@@ -18,7 +18,7 @@ contro spostarla, far scattare la trappola contro cambiare linea.
 Questa spec aggiunge quel caso e **una sola** cosa nuova al modello: la nozione di opportunity **contested**.
 Tutto il resto — snapshot per segmento, timeout puro, ordine totale, niente nesting — resta quello di ADR-0004.
 
-## 2. `Brace` è l'accesso al Reaction Profile — [D-041](../decisions/RT_PDR_00_Decision_Log.md)
+## 2. `Brace` è l'accesso al Reaction Profile — [D-047](../decisions/RT_PDR_00_Decision_Log.md)
 
 ### 2.1 Il significato
 
@@ -32,7 +32,7 @@ di lato, far scattare un dispositivo — senza che il sistema `Brace` sappia nul
 
 `Hold Ground` **è** il comportamento che il gioco ha già, non un rimpiazzo:
 
-| Proprietà di oggi | Dove vive | Dopo D-041 |
+| Proprietà di oggi | Dove vive | Dopo D-047 |
 |---|---|---|
 | −10 su **ogni** danno diretto fino al Cleanup | `RTCombatLibrary.h:112`, `RTTurnManager.cpp:2819` | esito di `Hold Ground` |
 | blocca la **prima** spinta, senza limite di distanza | `RTTurnManager.cpp:3033` | esito di `Hold Ground` |
@@ -46,7 +46,7 @@ Nessun numero di bilanciamento cambia. Cambia la **classificazione**: `Action.Br
 ### 2.3 Perché questo non contraddice ADR-0004 §2
 
 ADR-0004 elenca `Brace` fra le reazioni con «una sola risposta legale», che nel modello unificato è il caso
-degenere `AllowedResponses ≤ 1` — commit immediato, nessun boundary. La precisazione di D-041:
+degenere `AllowedResponses ≤ 1` — commit immediato, nessun boundary. La precisazione di D-047:
 
 > La cardinalità di `Brace` **non è 1 per natura**: è 1 **per il profilo base**. Un profilo d'eroe che
 > dichiara una seconda risposta legale porta la cardinalità a ≥ 2, e la finestra si apre **da sola**, con la
@@ -58,7 +58,7 @@ Non serve nessuna regola nuova, nessun enum di tipo, nessuna eccezione. `Counter
 ### 2.4 Il test che deve cadere
 
 `RefactorTactics.Reactions.Brace.IsNotAReaction` (`RTDefensiveReactionTests.cpp:162`) asserisce oggi
-`ReactionTrigger == ERTReactionTrigger::None`. È un test scritto per **pinnare** lo stato attuale, e D-041 lo
+`ReactionTrigger == ERTReactionTrigger::None`. È un test scritto per **pinnare** lo stato attuale, e D-047 lo
 supera. Va **sostituito**, mai cancellato in silenzio, dalla coppia:
 
 - `Reactions.Brace.BaseProfileHasSingleResponse` — col solo profilo base la cardinalità resta 1 e **nessun
@@ -66,7 +66,7 @@ supera. Va **sostituito**, mai cancellato in silenzio, dalla coppia:
 - `Reactions.Brace.RicherProfileOpensWindow` — un profilo con due risposte legali apre il boundary senza che
   il resolver conosca l'eroe.
 
-## 3. Reaction Clash — [D-042](../decisions/RT_PDR_00_Decision_Log.md)
+## 3. Reaction Clash — [D-048](../decisions/RT_PDR_00_Decision_Log.md)
 
 ### 3.1 Definizione
 
@@ -98,7 +98,7 @@ con le metriche di §9:
 
 Un Clash non apre un secondo boundary interattivo. Vale il §9 di ADR-0004 senza modifiche.
 
-## 4. Grammatica `STAND · READ · SHIFT` — [D-043](../decisions/RT_PDR_00_Decision_Log.md), `PROPOSED FOR PLAYTEST`
+## 4. Grammatica `STAND · READ · SHIFT` — [D-049](../decisions/RT_PDR_00_Decision_Log.md), `PROPOSED FOR PLAYTEST`
 
 ### 4.1 Le tre intenzioni
 

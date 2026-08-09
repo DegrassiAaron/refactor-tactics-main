@@ -239,7 +239,9 @@ features:
     owner_specs:
       - docs/gameplay/spec-decision-time-bank.md
       - docs/decisions/adr-0004-finestre-di-reazione.md
-    issues: []
+    # 319 = il checkpoint; 318 = la capability dell'harness senza cui gli scenari
+    # di questa feature non sono scrivibili (zero su otto, non sette).
+    issues: [319, 318]
     tests: []
     scenarios:
       # Nomi da confermare con l'owner della scenario map prima di scrivere i file:

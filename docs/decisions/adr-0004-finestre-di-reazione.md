@@ -9,7 +9,7 @@
 > una pausa correlata alla scelta altrui. La §6 è precisata: `Rilevato` è il requisito del **profilo Overwatch
 > visivo**, non di *ogni* reazione.
 >
-> ⚠️ **Emendamento 2026-08-09 — [D-041](RT_PDR_00_Decision_Log.md) e [D-042](RT_PDR_00_Decision_Log.md)**: la §2
+> ⚠️ **Emendamento 2026-08-09 — [D-047](RT_PDR_00_Decision_Log.md) e [D-048](RT_PDR_00_Decision_Log.md)**: la §2
 > è **precisata** (la cardinalità di `Brace` è 1 per il *profilo base*, non per natura) e la §7 è **emendata**
 > per la finestra **contested**, in cui entrambi i partecipanti sanno che la finestra esiste. Nessuna delle due
 > tocca il modello: la finestra continua a derivare dalla cardinalità delle risposte legali.
@@ -77,7 +77,7 @@ Reaction armata
 `Counter`, `Deflect`, `Brace`, `Shield`, `Cleanse` hanno **una sola risposta legale**: scattano o non scattano.
 Restano deterministiche e senza finestre. **I 24 test di E5 restano verdi senza cambiare comportamento atteso.**
 
-> **Precisazione 2026-08-09 — [D-041](RT_PDR_00_Decision_Log.md)**: la cardinalità di `Brace` è **1 per il
+> **Precisazione 2026-08-09 — [D-047](RT_PDR_00_Decision_Log.md)**: la cardinalità di `Brace` è **1 per il
 > profilo base**, non 1 per natura. `Brace` *arma* un Reaction Profile la cui risposta universale è
 > `Hold Ground` — che è esattamente il comportamento di oggi (−10 a ogni danno diretto, blocco della prima
 > spinta), quindi questa riga resta vera per ogni personaggio che non dichiari altro. Un profilo d'eroe che
@@ -152,7 +152,7 @@ ha una definizione e l'Overwatch sparerebbe a unità che la squadra non percepis
 - L'avversario **non riceve nulla**: né l'esistenza della finestra, né la sua durata, né l'esito prima che
   sia applicato.
 
-> **Emendamento 2026-08-09 — [D-042](RT_PDR_00_Decision_Log.md), finestra *contested***. La riga qui sopra
+> **Emendamento 2026-08-09 — [D-048](RT_PDR_00_Decision_Log.md), finestra *contested***. La riga qui sopra
 > presuppone **un solo** decisore. Quando due partecipanti hanno ciascuno ≥ 2 risposte legali allo stesso
 > boundary, l'opportunity è **contested** ed entrambi *sono* responder: l'esistenza della finestra è nota a
 > tutti e due **per costruzione**, e non è più deducibile — è dichiarata. Restano non inviate: le risposte
@@ -208,7 +208,7 @@ requisito** a «lo sistemeremo con la UI».
 `MaxPromptsPerReaction` limita le opportunity di **una** reaction; D20 riguarda il budget **aggregato**, che
 resta volutamente non limitato. I due non sono in contraddizione.
 
-> **Precisazione 2026-08-09 — [D-042](RT_PDR_00_Decision_Log.md)**: un boundary **contested** vale **un solo**
+> **Precisazione 2026-08-09 — [D-048](RT_PDR_00_Decision_Log.md)**: un boundary **contested** vale **un solo**
 > prompt, condiviso fra i due partecipanti. Il caso peggiore di questa tabella non cambia, e la soglia
 > d'allarme di **20 s** non va rimisurata da capo. Contarne due l'avrebbe raddoppiato proprio mentre il reveal
 > a scadenza fissa rende ogni finestra **incomprimibile**: con quella regola i `3 × 3,0 s = 9 s` diventano un

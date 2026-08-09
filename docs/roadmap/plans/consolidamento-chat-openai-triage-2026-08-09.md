@@ -15,7 +15,7 @@ Il pacchetto non è omogeneo: sono **due generazioni** di documenti sovrapposte.
 
 | File | Tipo | Stato rispetto al repository |
 |---|---|---|
-| `RT_Reaction_System_Master_Consolidation_v0.1.md` | master rivisto | ✅ **assorbito** — PR `#305`, `D-041`/`D-042`/`D-043`, CP 14.7 |
+| `RT_Reaction_System_Master_Consolidation_v0.1.md` | master rivisto | ✅ **assorbito** — PR `#305`, `D-047`/`D-048`/`D-049`, CP 14.7 |
 | `RefactorTactics_ReactionSystem_ReactionClash_...md` | kit | ✅ assorbito nella stessa PR |
 | `RefactorTactics_Move_Consolidation_Claude.md` | kit | ✅ assorbito — PR `#304` |
 | `RefactorTactics_BasicAttack_Consolidation_...md` | kit | 🔄 **in volo** — `adr-0007-attacco-base-per-eroe.md`, non committato |
@@ -102,16 +102,16 @@ cinque domande su quindici erano già risposte. Il pacchetto va letto sapendolo.
 
 ---
 
-## 5. Difetto del repository trovato durante l'audit — `D-039` non è propagata
+## 5. Difetto del repository trovato durante l'audit — `D-046` non è propagata
 
 Indipendente dal pacchetto, ma scoperto perché il Map Master §11 ripete l'affermazione vecchia.
 
-[`D-039`](../../decisions/RT_PDR_00_Decision_Log.md) (2026-08-09) stabilisce che **`Flux.ConductiveNode` *è*
+[`D-046`](../../decisions/RT_PDR_00_Decision_Log.md) (2026-08-09) stabilisce che **`Flux.ConductiveNode` *è*
 `Action.Electrify`**, ed è **cablata nel codice**:
 
 ```
 Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp:172
-// D-039: cablata su `Action.Electrify`.
+// D-046: cablata su `Action.Electrify`.
 ```
 
 Tre documenti dicono ancora l'opposto, in quattro punti:
@@ -298,7 +298,7 @@ le issue `HUD-PLN-01`. Registrato come riga **57** della matrice.
 
 ### ⬜ Resta da fare
 
-1. **Difetto `D-039`** di §5 — dopo il merge della sessione parallela, alla sorgente (`wiki_note` in
+1. **Difetto `D-046`** di §5 — dopo il merge della sessione parallela, alla sorgente (`wiki_note` in
    `feature-registry.yaml:1638`), con rigenerazione delle pagine derivate.
 2. **`INT-1`…`INT-4`** — le quattro domande dello spec vanno in `OPEN_DECISIONS.md` quando quel file torna
    libero. `INT-3` è già lì sotto il nome `FAC-6`.
