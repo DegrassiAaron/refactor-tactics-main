@@ -65,13 +65,28 @@ void ARTTurnManager::AddLogEvent(const FString& Message)
 	}
 }
 
-void ARTTurnManager::ApplyTerrainOnEnterEffects(const FRTHexSnapshot& Snapshot, ARTUnit* Unit, const TArray<FRTCellId>& Entered)
+TArray<FRTCellId> ARTTurnManager::CellsEnteredAlong(const TArray<FRTCellId>& Path)
 {
-	if (!Snapshot.Map || !Unit) { return; }
+	// La cella di PARTENZA non e' una cella «entrata»: l'unita' ci stava gia'. Confonderle farebbe applicare
+	// due volte gli effetti di quella cella — una all'arrivo e una alla partenza dello spostamento successivo —
+	// e per un fuoco significherebbe il doppio del danno dichiarato dal catalogo.
+	TArray<FRTCellId> Entered;
+	if (Path.Num() < 2) { return Entered; }
+	Entered.Reserve(Path.Num() - 1);
+	for (int32 I = 1; I < Path.Num(); ++I)
+	{
+		Entered.Add(Path[I]);
+	}
+	return Entered;
+}
+
+void ARTTurnManager::ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUnit* Unit, const TArray<FRTCellId>& Entered)
+{
+	if (!Map || !Unit) { return; }
 
 	for (const FRTCellId& Cell : Entered)
 	{
-		const FRTHexCellData* CellData = Snapshot.Map->FindCell(Cell);
+		const FRTHexCellData* CellData = Map->FindCell(Cell);
 		if (!CellData) { continue; }
 
 		// Gli effetti li DICHIARA il catalogo terreni, non uno switch qui: aggiungere un terreno pericoloso
@@ -1783,7 +1798,7 @@ void ARTTurnManager::ResolveDash()
 
 		Unit->Cell = Final;
 		Unit->SetVisualLocation(Unit->WorldForCell(Final, Origin, CellSize, LayerH));
-		ApplyTerrainOnEnterEffects(Snapshot, Unit, Resolved[i].Entered);
+		ApplyTerrainOnEnterEffects(Snapshot.Map, Unit, Resolved[i].Entered);
 		// Il movimento del turno e' finito qui: si scarta il percorso pianificato e la destinazione DIVENTA
 		// la cella d'arrivo dello scatto. Senza l'assegnazione il resolver del Move vedrebbe una `PlannedCell`
 		// diversa dalla posizione attuale e proverebbe comunque ad avvicinarcisi.
@@ -3116,9 +3131,9 @@ void ARTTurnManager::ResolveCombat()
 			AddLogEvent(FString::Printf(TEXT("Spinta: %s -> (q=%d,r=%d,L%d)"),
 				*T->GetName(), NewCell.X, NewCell.Y, NewCell.Layer));
 
-			// Celle attraversate dalla spinta (per l'animazione): la linea esagonale fra le due celle, i cui
-			// passi sono adiacenti per costruzione. Il danno da attraversamento del terreno quadrato non esiste
-			// piu' nella partita esagonale: torna con l'ambiente attivo (epic E8).
+			// Celle attraversate dalla spinta: la linea esagonale fra le due celle, i cui passi sono adiacenti
+			// per costruzione. Serve al playback E agli hazard — «lo spostamento forzato ignora il costo
+			// VOLONTARIO del terreno, non la geometria e non gli hazard» (spec-tassonomia-movimento §3).
 			const TArray<FRTCellId> KPath = URTHexLibrary::HexLine(OldCell, NewCell);
 
 			// Evento di movimento per il playback: la spinta scivola OldCell -> NewCell nella fase Blast.
@@ -3150,6 +3165,17 @@ void ARTTurnManager::ResolveCombat()
 			}
 
 			T->SetVisualLocation(T->WorldForCell(NewCell, HexOrigin, HexSize, HexLayerH));
+
+			// Gli hazard di OGNI cella attraversata, non solo di quella d'arrivo (#308). Chi viene spinto
+			// attraverso `asciutto -> fuoco -> fuoco -> asciutto` ha attraversato quelle due celle di fuoco e ne
+			// subisce le conseguenze, pur non avendo speso un solo punto movimento: il costo e' cio' che si paga
+			// per SCEGLIERE di passare, la geometria e' cio' che c'e'.
+			//
+			// Fino a qui `KPath` serviva solo all'animazione, e il commento diceva che il danno da
+			// attraversamento «torna con l'ambiente attivo (epic E8)». E8 e' atterrata e questo punto non e'
+			// stato ripassato: era un rinvio scaduto, non una decisione.
+			ApplyTerrainOnEnterEffects(Map, T, CellsEnteredAlong(KPath));
+
 			T->PlannedPath.Reset();      // path composita dalla vecchia cella non valida
 			T->PlannedWaypoints.Reset();
 			if (T->PlannedCell == OldCell) { T->PlannedCell = NewCell; } // niente move pianificato: resta spinto
@@ -3215,6 +3241,13 @@ void ARTTurnManager::ResolveCombat()
 			}
 
 			T->SetVisualLocation(T->WorldForCell(NewCell, HexOrigin, HexSize, HexLayerH));
+
+			// Gli hazard delle celle attraversate, come per la spinta (#308). La regola di
+			// `spec-tassonomia-movimento` §3 parla di spostamento FORZATO, non di spinta: trattare le due vie
+			// in modo diverso rifarebbe l'asimmetria `ModifyArc`/`DamageArc` corretta in #302, dove la stessa
+			// disciplina era mantenuta per una via di uscita e non per l'altra.
+			ApplyTerrainOnEnterEffects(Map, T, CellsEnteredAlong(PPath));
+
 			T->PlannedPath.Reset();
 			T->PlannedWaypoints.Reset();
 			if (T->PlannedCell == OldCell) { T->PlannedCell = NewCell; }
@@ -3431,7 +3464,7 @@ void ARTTurnManager::ResolveMovement()
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		Units[i]->PlaceOnCell(Resolved[i].Final, Origin, HexSize, LayerH);
-		ApplyTerrainOnEnterEffects(Snapshot, Units[i], Resolved[i].Entered);
+		ApplyTerrainOnEnterEffects(Snapshot.Map, Units[i], Resolved[i].Entered);
 	}
 
 	// Orientamento di fine Move (CP 16.1, `FacingFinalAfterMove` di D-020). Si deriva dalla rotta EFFETTIVA —

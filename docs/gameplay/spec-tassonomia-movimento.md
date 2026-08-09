@@ -81,6 +81,28 @@ Ne segue, e vale come regola:
 `PushResistance` resta una **soglia** e non una sottrazione ([D-038](../decisions/RT_PDR_00_Decision_Log.md)):
 chi la possiede regge le spinte fino a quel valore e cede intere a quelle più forti.
 
+> ✅ **Implementato il 2026-08-09** ([#308](https://github.com/DegrassiAaron/refactor-tactics-main/issues/308)).
+> La verifica ha dato **no**: gli hazard non si applicavano affatto — né alle celle intermedie né a quella
+> d'arrivo. La linea percorsa dalla spinta era calcolata «per l'animazione», e un commento nel resolver
+> rimandava il danno da attraversamento «all'ambiente attivo (epic E8)». E8 è atterrata — sei checkpoint
+> `INTEGRATED` — e quel punto non è stato ripassato: era un **rinvio scaduto**, non una decisione.
+>
+> Corretto per **entrambe** le vie dello spostamento forzato, spinta e trazione: la regola qui sopra parla di
+> spostamento *forzato*, e trattarle in modo diverso rifarebbe l'asimmetria `ModifyArc`/`DamageArc` corretta
+> in [#302](https://github.com/DegrassiAaron/refactor-tactics-main/issues/302), dove la stessa disciplina era
+> mantenuta per una via di uscita e non per l'altra.
+>
+> Test: `Actions.Push.CrossesHazardsOfEveryCell` — **misura differenziale**, la stessa scena due volte con la
+> sola cella di mezzo che cambia superficie, così il danno dell'azione che spinge esce dal conto da solo. La
+> cella d'arrivo **non** brucia, deliberatamente: con l'arrivo in fiamme il test passerebbe anche applicando
+> i soli effetti della destinazione, cioè col difetto mezzo corretto. E
+> `Actions.Push.DoesNotSpendTheVictimMove`, che rende osservabile il terzo punto della regola — una vittima
+> spinta nel Blast si muove comunque nel Move dello stesso turno.
+>
+> ⚠️ **Resta scoperto**: il danno da terreno non produce una voce di **TurnLog**, né per la spinta né per il
+> movimento volontario — solo una riga di combat log. Chi legge un replay vede la salute calare senza un
+> evento che lo spieghi. È preesistente e vale per entrambe le vie, quindi non è stato corretto qui.
+
 ## 4. Trigger geografici e trigger semantici
 
 Due domande diverse, che oggi il progetto tiene insieme e che conviene separare:
