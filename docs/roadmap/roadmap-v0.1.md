@@ -113,7 +113,7 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 **Suite automatica**: **si misura, non si cita — e da qui in avanti nemmeno si scrive.**
 
 <!-- RT_SUITE_COUNT:BEGIN -->
-**499 test unici in 71 file** — misurati su `5f83d22`.
+**507 test unici in 72 file** — misurati su `2683233`.
 
 Generato da `python scripts/feature_registry.py suite`: **non si aggiorna a mano**. Era scritto a mano in due documenti ed è divergito cinque volte.
 
@@ -128,15 +128,17 @@ Generato da `python scripts/feature_registry.py suite`: **non si aggiorna a mano
 | `Match*` (allestimento, formato, fine partita) | 27 | Le tre vie di fine partita e il `RoundLimit` da formato |
 | `Heroes.*` | 26 | I 4 eroi corrispondono al catalogo, trade-off delle varianti |
 | `TurnLog.*` | 22 | Hash permutazione-invariante, serializzazione versionata, checksum |
-| `Scenario.*` · `ScenarioIndex.*` | 54 | Harness: PASS/FAIL/ERROR/**BLOCKED**, identità e tag, niente bypass |
+| `Scenario.*` · `ScenarioIndex.*` | 55 | Harness: PASS/FAIL/ERROR/**BLOCKED**, identità e tag, niente bypass |
 | `Structures.*` | 18 | Porte come bordo (E9.3), ponti come arco (E9.4) |
 | `Playback.*` · `Preview.*` · `PlayerInput.*` · `ShowcaseRelay.*` · `Camera.*` | 23 | Presentazione e input: non decidono, riproducono |
 | `Unit.*` · `Turn.*` · `Simulation.*` · `Movement.*` | 18 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
-| `Cover.*` | 13 | Copertura bassa e alta, bordi, danno a struttura e distruzione |
+| `Cover.*` | 15 | Copertura bassa e alta, bordi, danno a struttura e distruzione |
 | `Catalog.*` | 9 | Invarianti del catalogo: solo interi, slot dichiarati, ID stabili |
 | `Pacing.*` | 7 | Pacing del turno misurato |
 | `Perf.*` | 2 | Path mediana **0,025 ms** · resolver **0,41 ms/turno** |
-| **totale** | **499** | |
+| **totale** | **502** | |
+
+> ⚠️ Test fuori da ogni area dichiarata: `RefactorTactics.IconCatalog.DuplicateIdIsValidationError`, `RefactorTactics.IconCatalog.EveryKeyResolves`, `RefactorTactics.IconCatalog.MissingKeyIsValidationError`, `RefactorTactics.IconCatalog.RequiredIdsFollowGameData`, `RefactorTactics.IconCatalog.UnknownKeyReturnsFallback`
 <!-- RT_SUITE_COUNT:END -->
 
 > Questo numero è già stato sbagliato quattro volte, e la storia vale più della cifra: due viste sono arrivate
