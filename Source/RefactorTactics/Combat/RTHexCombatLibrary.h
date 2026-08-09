@@ -245,6 +245,32 @@ public:
 		const FRTCellId& Target, ERTAbilityShape Shape);
 
 	/**
+	 * Il colpo `Hit` riassegnato a `NewTargetId`, con la geometria TARGET-DEPENDENT rivalidata su chi lo
+	 * incassa davvero (**D-017**). La usa `Action.Intercept`, l'unica reazione che cambia il bersaglio di un
+	 * attacco altrui: senza rivalidazione il colpo arriva all'intercettore portandosi dietro il muretto del
+	 * bersaglio originale, e il combat log mostra una copertura che davanti a lui non esiste.
+	 *
+	 * Cosa cambia e cosa no:
+	 * - INVARIANTI perche' indipendenti dal bersaglio: attaccante, intento, identita' e potenza DICHIARATA
+	 *   dell'azione. Redirigere un colpo non lo trasforma in un colpo diverso;
+	 * - RIVALIDATA perche' dipende da dove sta chi subisce: la copertura del bordo attraversato, cioe' la
+	 *   sola geometria target-dependent che la v0.1 esprima. LOS e traiettoria sono gia' condizioni di
+	 *   `URTReactionLibrary::FindInterceptableHit` (non si intercetta un colpo che non arriverebbe), il
+	 *   facing arrivera' con CP 16.2 e si aggiunge QUI, non in un secondo punto.
+	 *
+	 * Il danno si ricalcola dalla potenza dell'INTENTO, non per differenza sul `Power` gia' ridotto: un colpo
+	 * fermato a 0 dal clamp ha perso l'informazione su quanto valesse, e sottrarre la vecchia riduzione lo
+	 * restituirebbe piu' forte di com'era nato.
+	 *
+	 * Funzione PURA: non apre reaction opportunity, non tocca il piano. Chi la chiama sostituisce il colpo
+	 * quando ogni decisione dell'interposizione e' gia' stata presa (invariante #3, "raccogli poi applica").
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")
+	static FRTHexAttackHit RedirectHitTo(int32 NewTargetId, const FRTHexAttackHit& Hit,
+		const TArray<FRTHexCombatUnit>& Units, const TArray<FRTHexAttackIntent>& Intents,
+		const URTHexMapAsset* Map);
+
+	/**
 	 * Raccoglie i colpi a segno degli intenti del turno.
 	 *
 	 * Scarta l'intento se: id non validi, attaccante o bersaglio non vivi, stessa squadra, bersaglio oltre

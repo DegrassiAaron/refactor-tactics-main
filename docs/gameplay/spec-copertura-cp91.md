@@ -14,8 +14,15 @@
 > 5. il TurnLog spiega il **redirect** e il contesto difensivo effettivamente usato.
 >
 > Il motivo è di leggibilità prima che di simulazione: col vecchio comportamento il log poteva mostrare una
-> copertura **che davanti a B non esiste**. Serve un test discriminante con A e B a copertura diversa — vedi
-> le issue di migrazione.
+> copertura **che davanti a B non esiste**.
+>
+> ✅ **Implementata il 2026-08-09** (issue `#200`): `URTHexCombatLibrary::RedirectHitTo` ricalcola il danno
+> dalla potenza dichiarata dall'intento e dalla copertura del bordo davanti a **chi incassa**, nel punto in cui
+> `ARTTurnManager::ResolveCombat` applica la redirezione. Il test discriminante ha A e B a copertura diversa
+> **nei due versi** — `Cover.InterceptRecalculatesOnEffectiveTarget`; senza il caso simmetrico passerebbe anche
+> una rivalidazione che ignorasse sempre la copertura. `Cover.InterceptDoesNotOpenSecondOpportunity` fissa il
+> punto 3. Il **facing** del punto 2 non esiste ancora (CP 16.2): quando arriverà si aggiunge in quella stessa
+> funzione, non in un secondo punto.
 
 > 📌 **Stato di implementazione storico al 2026-08-07 (CP 9.1).** Numeri, conteggi di test ed esiti qui sotto fotografano
 > la chiusura del checkpoint. Lo **stato corrente** è posseduto da
