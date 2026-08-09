@@ -295,6 +295,29 @@ resta visibile invece di sparire.
 > l'unica verifica onesta del bank sono i test C++ di CP 14.8, che non passano dall'harness.
 > La capability ha un owner: issue **`#318`**, che dichiara le tre primitive minime (evento, ordine, contatore).
 
+> ✅ **Aggiornato il 2026-08-09** (`#318`, PR di `feat/318-assertion-turnlog`). Le prime due primitive
+> esistono: `LogEventCount` (con `value: 0` per l'assenza) e `LogEventOrder`. **I tre `Spec.Clash.*` sono
+> quindi scrivibili** — restano da scrivere, ed è lavoro di CP 14.7, non di #318.
+>
+> Per gli otto `Spec.TimeBank.*` l'affermazione «una sola capability li sblocca tutti» **non regge alla
+> verifica**, e va corretta qui prima che qualcuno la usi per pianificare:
+>
+> 1. il **contatore** manca ancora, e non per pigrizia: `docs/technical/spec-turnlog.md` — che questa mappa
+>    indica come owner del nome — **non contiene la parola `Bank`**, mentre §10 di
+>    [`../gameplay/spec-decision-time-bank.md`](../gameplay/spec-decision-time-bank.md) chiede **tre**
+>    contatori (`BankBeforeMs`, `BankConsumedMs`, `BankAfterMs`) e `FRTTurnLogEntry` ha **un solo** `Amount`.
+>    O tre voci, o un cambio di schema: è una decisione, non un'implementazione;
+> 2. §13 di quella stessa spec classifica i suoi scenari come **`golden`** (dati iniettati, test C++) o
+>    `funzionale` — **nessuno** al livello dell'harness. Se quella classificazione vale, la capability qui non
+>    li sblocca affatto;
+> 3. le due liste **divergono**: la spec ne elenca 13, questa mappa 8, e i due nomi `ClashCostsFullWindow` e
+>    `PrivacyNoBankLeak` **non esistono nella spec**, che a sua volta ne ha sette assenti da qui. La §13 lo
+>    dichiara pure — *«da confermare con l'owner prima di scriverli nella mappa»* — e sono stati scritti lo
+>    stesso.
+>
+> Riconciliare i tre punti è il presupposto di CP 14.8 ed è l'issue **`#361`**. Fino ad allora il conteggio
+> onesto è **tre** scenari sbloccati, non undici.
+
 Le **10 voci `PIE-STATE-*`** del registro sono la controparte umana di questi cinque: nascono ⏳ e restano ⏳
 finché E34 non esiste. Stanno nel registro perché il ciclo *docs → epic → scenario → PIE* resti chiuso, non
 perché siano eseguibili.
@@ -429,7 +452,9 @@ e stanno qui perché «tutte le feature della v0.1» non diventi un traguardo ch
 | **Fascia D mai atterrata** — 8 `Visual.*` descritti come scritti, 0 file | Il catalogo promette vetrine che non esistono; 4 temi vivono come `Spec.*` | §6.3, da riscrivere in `scenari-validazione-visiva.md` |
 | **`Visual.Reaction.*` esiste, `Spec` no** — il campo `reaction` nell'intent c'è ed è validato | Nessuno: è un buco **chiuso**, registrato perché la documentazione lo dichiarava aperto per una working copy indietro di qualche commit | `scenari-validazione-visiva.md` §8.2 |
 | **Nessuna assertion su punteggio e conoscenza** — mancano `TeamScoreEquals` e un modo di asserire sulla conoscenza di squadra | Due scenari-spec non potranno diventare verdi anche quando la capability atterra | `_nota_da_completare` di `Spec.Objective.*` e `Spec.Perception.*` |
-| **Nessuna assertion che legga il TurnLog** — le cinque esistenti leggono tutte lo **stato finale**: ordine degli eventi, hash e contatori del log sono fuori portata | **11 scenari** non scrivibili: 3 `Spec.Clash.*` (segretezza e reveal) e 8 `Spec.TimeBank.*` (tempo speso). Una sola capability li sblocca tutti | issue `#318` · §6.2 · `RTTestScenario.h` (`ERTAssertionKind`) |
+| ~~**Nessuna assertion che legga il TurnLog**~~ — ✅ **chiuso il 2026-08-09** (`#318`): `LogEventCount` e `LogEventOrder` leggono il log accumulato dalla sessione, e l'evento si nomina per nome | I tre `Spec.Clash.*` sono **scrivibili** (li scrive CP 14.7). Gli otto `Spec.TimeBank.*` **no**: manca il contatore, e prima serve la decisione su come tre valori in millisecondi entrano in un `FRTTurnLogEntry` che ha un solo `Amount` — vedi §6.2 | `test-automatico-unreal.md` §5.1 |
+| **Il contatore del log, e le due liste `Spec.TimeBank.*` che divergono** — `spec-turnlog.md` non nomina il bank; la spec del Time Bank §13 elenca **13** scenari `golden`, questa mappa **8** al livello dell'harness, e due nomi esistono solo qui | Gli 8 `Spec.TimeBank.*` restano non scrivibili, e non è chiaro se debbano esserlo: è una riconciliazione, non un'implementazione | issue `#361` · §6.2 · `spec-turnlog.md` (owner del nome) |
+| **Nessuna assertion sul determinismo** — e non deve esserci: `HashTurnLog` **ordina** prima di mescolare, quindi è invariante per permutazione e non vede l'ordine; un hash letterale in un JSON si romperebbe alla prima voce nuova del log | `Spec.Clash.Determinism` va scritto sull'ordine (`LogEventOrder`), non su un checksum. Il determinismo vero si verifica **eseguendo due volte**: è una proprietà del runner | `test-automatico-unreal.md` §5.1 |
 
 ## 10. Rapporto con gli altri documenti
 
