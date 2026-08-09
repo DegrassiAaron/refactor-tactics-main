@@ -17,7 +17,7 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 
 <!-- RT_SHORTLIST_SCENARIOS:BEGIN -->
 
-**57 scenari versionati** — misurati su `Scenarios/`: **47** eseguibili · **10** `BLOCKED` per una capability assente · **21** dichiarati `planned` nel registry e non ancora scritti.
+**57 scenari versionati** — misurati su `Scenarios/`: **47** eseguibili · **10** `BLOCKED` per una capability assente · **23** dichiarati `planned` nel registry e non ancora scritti.
 
 **Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `Cover` · `CreateCover` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `Reaction` · `Structures`.
 
@@ -42,8 +42,10 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 | `Spec.TimeBank.BotDrainsLikePlayer` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
 | `Spec.TimeBank.ClashCostsFullWindow` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
 | `Spec.TimeBank.DrainsAfterGrace` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
+| `Spec.TimeBank.ExhaustionKeepsResponsesLegal` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
 | `Spec.TimeBank.GraceDoesNotDrain` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
-| `Spec.TimeBank.PrivacyNoBankLeak` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
+| `Spec.TimeBank.NeverBelowZero` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
+| `Spec.TimeBank.PacketOrderInvariant` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
 | `Spec.TimeBank.ReplayReadsRecordedBank` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
 | `Spec.TimeBank.TimeoutCostsFullWindow` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
 | `Spec.TimeBank.TimeoutSpendsNoCharge` | `RT-FEAT-CORE-DECISION-TIME-BANK` |

@@ -244,17 +244,21 @@ features:
     issues: [319, 318]
     tests: []
     scenarios:
-      # Nomi da confermare con l'owner della scenario map prima di scrivere i file:
-      # la spec li dichiara requisiti di copertura, non identificatori.
+      # Riconciliati con la spec il 2026-08-09 (#361): sono i dieci scenari che l'harness puo' esprimere,
+      # cioe' i `golden` di spec-decision-time-bank.md §13 meno i due che ESTENDONO un test C++ esistente
+      # (`OverwatchTimeoutIsHold`, `HoldKeepsReactionArmed`). `PrivacyNoBankLeak` e' uscito: e' `funzionale`
+      # e vive in M10, non in v0.1.
       - planned:
           - Spec.TimeBank.GraceDoesNotDrain
           - Spec.TimeBank.DrainsAfterGrace
+          - Spec.TimeBank.NeverBelowZero
           - Spec.TimeBank.TimeoutCostsFullWindow
           - Spec.TimeBank.TimeoutSpendsNoCharge
           - Spec.TimeBank.ClashCostsFullWindow
           - Spec.TimeBank.BotDrainsLikePlayer
+          - Spec.TimeBank.ExhaustionKeepsResponsesLegal
           - Spec.TimeBank.ReplayReadsRecordedBank
-          - Spec.TimeBank.PrivacyNoBankLeak
+          - Spec.TimeBank.PacketOrderInvariant
     wiki_refs:
       - docs/wiki/game/reazioni-overwatch-e-previsioni.md
     wiki_note: >-

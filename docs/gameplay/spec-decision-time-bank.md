@@ -375,28 +375,40 @@ stesso residuo, altrimenti il replay diverge.
 
 ## 13. Copertura di verifica
 
-Nomi allineati alla tassonomia di [`scenario-map.md`](../technical/scenario-map.md) (`Spec.*`), da confermare
-con l'owner prima di scriverli nella mappa.
+Nomi allineati alla tassonomia di [`scenario-map.md`](../technical/scenario-map.md) (`Spec.*`).
+**Riconciliati con la mappa il 2026-08-09** (issue `#361`): prima di allora questa tabella diceva «da
+confermare con l'owner» e i nomi erano stati scritti nella mappa lo stesso, in numero e livello diversi.
+
+Il livello ora significa una cosa sola:
+
+- **`harness`** — file `Spec.TimeBank.*` eseguibile dal RT Scenario Test Harness. Sono **dieci**, e sono
+  diventati scrivibili quando `#318` ha dato all'harness le assertion che leggono il TurnLog e `#361` ha
+  deciso *come* il bank ci entra ([`spec-turnlog.md`](../technical/spec-turnlog.md) §4.2). Prima erano
+  classificati `golden` e non erano esprimibili in nessuna forma automatica.
+- **`estende`** — non è uno scenario nuovo: estende un test C++ che esiste già. Duplicarlo come file
+  produrrebbe due verità sullo stesso comportamento.
+- **`funzionale`** — verifica umana o di rete, fuori dalla portata dell'harness. `M10` = multiplayer, quindi
+  **non v0.1**: la v0.1 è offline contro bot, e uno scenario di latenza non ha dove girare.
 
 | Scenario | Verifica | Livello |
 |---|---|---|
-| `Spec.TimeBank.GraceDoesNotDrain` | lock dentro la grace ⇒ bank invariato | golden |
-| `Spec.TimeBank.DrainsAfterGrace` | lock a 2,4 s con grace 1,0 ⇒ consumo 1,4 s | golden |
-| `Spec.TimeBank.NeverBelowZero` | il floor regge anche con costi concatenati | golden |
-| `Spec.TimeBank.TimeoutCostsFullWindow` | il timeout costa `MaxWindow − Grace` (§4) | golden |
-| `Spec.TimeBank.TimeoutSpendsNoCharge` | allo scadere il bank cala **ma la charge no** e la reaction resta armata: è la §4.1 resa verificabile | golden |
+| `Spec.TimeBank.GraceDoesNotDrain` | lock dentro la grace ⇒ bank invariato | **harness** |
+| `Spec.TimeBank.DrainsAfterGrace` | lock a 2,4 s con grace 1,0 ⇒ consumo 1,4 s | **harness** |
+| `Spec.TimeBank.NeverBelowZero` | il floor regge anche con costi concatenati | **harness** |
+| `Spec.TimeBank.TimeoutCostsFullWindow` | il timeout costa `MaxWindow − Grace` (§4) | **harness** |
+| `Spec.TimeBank.TimeoutSpendsNoCharge` | allo scadere il bank cala **ma la charge no** e la reaction resta armata: è la §4.1 resa verificabile | **harness** |
 | `Spec.TimeBank.FallbackReachableWithinGrace` | dall'apertura del prompt al primo input possibile passa meno della grace, su mouse e su controller (§4.2) | funzionale · UI |
 | `Spec.TimeBank.DisconnectDoesNotDrain` | disconnessione conclamata ⇒ consumo 0 (§4.3) | funzionale |
-| `Spec.TimeBank.BotDrainsLikePlayer` | il bank del bot esiste e drena secondo la policy; nessun ramo `IsBot` nel percorso della Decision Window (§9.1) | golden |
-| `Spec.TimeBank.ExhaustionKeepsResponsesLegal` | a bank 0 le `AllowedResponses` sono invariate (§5) | golden |
-| `Spec.TimeBank.OverwatchTimeoutIsHold` | invariato rispetto a `Overwatch.TimeoutIsHold`: **estendere quel test, non duplicarlo** | golden |
-| `Spec.TimeBank.HoldKeepsReactionArmed` | idem con `Overwatch.HoldKeepsArmed` | golden |
-| `Spec.TimeBank.ReplayReadsRecordedBank` | il replay non ricalcola il residuo (§6) | golden |
-| `Spec.TimeBank.PacketOrderInvariant` | permutare l'ordine di arrivo non cambia esito né residui | golden |
+| `Spec.TimeBank.BotDrainsLikePlayer` | il bank del bot esiste e drena secondo la policy; nessun ramo `IsBot` nel percorso della Decision Window (§9.1) | **harness** |
+| `Spec.TimeBank.ExhaustionKeepsResponsesLegal` | a bank 0 le `AllowedResponses` sono invariate (§5) | **harness** |
+| `Spec.TimeBank.OverwatchTimeoutIsHold` | invariato rispetto a `Overwatch.TimeoutIsHold`: **estendere quel test, non duplicarlo** | estende |
+| `Spec.TimeBank.HoldKeepsReactionArmed` | idem con `Overwatch.HoldKeepsArmed` | estende |
+| `Spec.TimeBank.ReplayReadsRecordedBank` | il replay non ricalcola il residuo (§6) | **harness** |
+| `Spec.TimeBank.PacketOrderInvariant` | permutare l'ordine di arrivo non cambia esito né residui | **harness** |
 | `Spec.TimeBank.RejectsLateResponse` · `…RejectsWrongOwner` · `…IgnoresClientTiming` | validazione server (§8) | funzionale |
 | `Spec.TimeBank.LatencyIsNotCharged` | due client a RTT diverso che lockano allo stesso istante logico pagano lo stesso | funzionale · M10 |
 | `Spec.TimeBank.PrivacyNoBankLeak` | canary: vista avversaria identica con e senza finestra privata (§7) | funzionale · M10 |
-| `Spec.TimeBank.ClashCostsFullWindow` | in un Clash la wall-clock resta 3,0 s a prescindere dal bank (§1.1) | golden |
+| `Spec.TimeBank.ClashCostsFullWindow` | in un Clash la wall-clock resta 3,0 s a prescindere dal bank (§1.1) | **harness** |
 | `Spec.TimeBank.PacingScriptedMatch` | match scriptato: prompt totali, tempo di decisione, esaurimenti, timeout | funzionale |
 
 **Un test non va scritto**: nessun test che verifichi solo che una costante valga 30, 1 o 3. I valori sono

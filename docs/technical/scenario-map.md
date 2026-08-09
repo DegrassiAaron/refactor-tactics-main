@@ -255,16 +255,16 @@ I **nove** rimasti (l'elenco misurato è in
 > copre `Action.Ignite` né `Action.ModifyArc`, che per [D-046](../decisions/RT_PDR_00_Decision_Log.md)
 > restano senza owner in v0.1.
 
-### 6.2 Pianificati nel Feature Registry — non ancora scritti · **21**
+### 6.2 Pianificati nel Feature Registry — non ancora scritti · **23**
 
 Dichiarati in `feature-registry.yaml` sotto `scenarios: {planned: [...]}`, il che li fa comparire come
 **warning** in `feature_registry.py validate`. Il warning è il meccanismo: un piano che non diventa un file
 resta visibile invece di sparire.
 
-> ⚠️ **Erano dichiarati «13» e sono ventuno**, come la tabella qui sotto mostrava già: undici fra `Clash` e
-> `TimeBank`, cinque `State.*`, quattro `Team.*`, uno `Stress.*`. Il totale sbagliato è sopravvissuto perché
-> l'unico modo di accorgersene era sommare a mano una colonna che nessuno risomma. Ora lo conta
-> `feature_registry.py shortlist`.
+> ⚠️ **Erano dichiarati «13», poi ventuno, e oggi sono ventitré**: tredici fra `Clash` e `TimeBank`, cinque
+> `State.*`, quattro `Team.*`, uno `Stress.*`. I `TimeBank` sono passati da 8 a 10 con la riconciliazione di
+> `#361` (sotto). Il totale sbagliato era sopravvissuto perché l'unico modo di accorgersene era sommare a mano
+> una colonna che nessuno risomma. Ora lo conta `feature_registry.py shortlist`.
 
 | ScenarioId pianificato | Feature | Release |
 |---|---|---|
@@ -275,7 +275,7 @@ resta visibile invece di sparire.
 | `Team.Resonance.AuroraKwang.FrozenAnchor` | idem | v0.2 · richiede E35 |
 | `State.Riva.Flow` · `State.Flux.Charged` · `State.Bastion.Bulwark` · `State.Howitzer.Siege` · `State.MultiState.Stress` | `RT-FEAT-CHARACTER-STATE` | v0.4 · E34 (`#244`) |
 | `Spec.Clash.HiddenUntilReveal` · `Spec.Clash.RevealIsFixedDeadline` · `Spec.Clash.Determinism` | `RT-FEAT-REACTION-CLASH` | v0.1 · E14 · CP 14.7 |
-| `Spec.TimeBank.GraceDoesNotDrain` · `…DrainsAfterGrace` · `…TimeoutCostsFullWindow` · `…TimeoutSpendsNoCharge` · `…ClashCostsFullWindow` · `…BotDrainsLikePlayer` · `…ReplayReadsRecordedBank` · `…PrivacyNoBankLeak` | `RT-FEAT-CORE-DECISION-TIME-BANK` | v0.1 · E14 · CP 14.8 |
+| `Spec.TimeBank.GraceDoesNotDrain` · `…DrainsAfterGrace` · `…NeverBelowZero` · `…TimeoutCostsFullWindow` · `…TimeoutSpendsNoCharge` · `…ClashCostsFullWindow` · `…BotDrainsLikePlayer` · `…ExhaustionKeepsResponsesLegal` · `…ReplayReadsRecordedBank` · `…PacketOrderInvariant` | `RT-FEAT-CORE-DECISION-TIME-BANK` | v0.1 · E14 · CP 14.8 |
 
 > ⚠️ **I tre `Spec.Clash.*` non sono «da scrivere»: oggi sono *impossibili*.** È la stessa situazione già
 > incontrata dal facing prima di CP 16.1. `ERTAssertionKind` ha cinque assertion — `UnitAtCell`,
@@ -299,24 +299,29 @@ resta visibile invece di sparire.
 > esistono: `LogEventCount` (con `value: 0` per l'assenza) e `LogEventOrder`. **I tre `Spec.Clash.*` sono
 > quindi scrivibili** — restano da scrivere, ed è lavoro di CP 14.7, non di #318.
 >
-> Per gli otto `Spec.TimeBank.*` l'affermazione «una sola capability li sblocca tutti» **non regge alla
-> verifica**, e va corretta qui prima che qualcuno la usi per pianificare:
+> Per i `Spec.TimeBank.*` l'affermazione «una sola capability li sblocca tutti» **non reggeva alla verifica**.
+> I tre punti sono stati riconciliati il 2026-08-09 con l'issue **`#361`**, e il risultato è questo:
 >
-> 1. il **contatore** manca ancora, e non per pigrizia: `docs/technical/spec-turnlog.md` — che questa mappa
->    indica come owner del nome — **non contiene la parola `Bank`**, mentre §10 di
->    [`../gameplay/spec-decision-time-bank.md`](../gameplay/spec-decision-time-bank.md) chiede **tre**
->    contatori (`BankBeforeMs`, `BankConsumedMs`, `BankAfterMs`) e `FRTTurnLogEntry` ha **un solo** `Amount`.
->    O tre voci, o un cambio di schema: è una decisione, non un'implementazione;
-> 2. §13 di quella stessa spec classifica i suoi scenari come **`golden`** (dati iniettati, test C++) o
->    `funzionale` — **nessuno** al livello dell'harness. Se quella classificazione vale, la capability qui non
->    li sblocca affatto;
-> 3. le due liste **divergono**: la spec ne elenca 13, questa mappa 8, e i due nomi `ClashCostsFullWindow` e
->    `PrivacyNoBankLeak` **non esistono nella spec**, che a sua volta ne ha sette assenti da qui. La §13 lo
->    dichiara pure — *«da confermare con l'owner prima di scriverli nella mappa»* — e sono stati scritti lo
->    stesso.
+> 1. **il contatore ha un formato deciso.** `spec-turnlog.md` §4.2 dichiara una categoria `Decision` in coda a
+>    `ERTLogCategory` e **due** voci — `BankConsumed` e `BankAfter` — con il valore in `Amount`. Non tre:
+>    `BankBeforeMs` è la somma delle due voci adiacenti della stessa decisione, e ciò che §6 della spec del
+>    bank vieta è ricostruire il residuo sommando la *storia*, non leggere due numeri scritti accanto. Nessun
+>    campo nuovo in `FRTTurnLogEntry`, quindi il formato serializzato non cambia versione;
+> 2. **il livello è deciso e vale `harness`** per dieci scenari. §13 li classificava `golden` perché, quando
+>    fu scritta, un file non poteva verificarli: con `LogEventCount`/`LogEventOrder` (`#318`) e il contatore
+>    di cui sopra, possono — ed è la forma migliore, per la stessa ragione di §6.3. Due (`OverwatchTimeoutIsHold`,
+>    `HoldKeepsReactionArmed`) **estendono un test C++ esistente** e non diventano file: duplicarli darebbe due
+>    verità sullo stesso comportamento;
+> 3. **le liste non divergono più, e la divergenza era descritta male.** Misurata: §13 elenca **20 nomi** in 18
+>    righe (non 13), questa mappa ne elencava 8, e gli orfani erano **zero** — `ClashCostsFullWindow` e
+>    `PrivacyNoBankLeak` esistono entrambi nella spec. Mancavano invece qui `NeverBelowZero`,
+>    `ExhaustionKeepsResponsesLegal` e `PacketOrderInvariant`; ed era di troppo `PrivacyNoBankLeak`, che è
+>    `funzionale · M10` — multiplayer, quindi fuori dalla v0.1 offline.
 >
-> Riconciliare i tre punti è il presupposto di CP 14.8 ed è l'issue **`#361`**. Fino ad allora il conteggio
-> onesto è **tre** scenari sbloccati, non undici.
+> Conteggio onesto dopo la riconciliazione: **tredici** scenari sbloccati — i tre `Spec.Clash.*` e i dieci
+> `Spec.TimeBank.*` — e nessuno di essi è scritto. Li scrivono CP 14.7 e CP 14.8.
+> Resta da fare **l'assertion sul contatore** (`LogEventAmount` o equivalente), che ora ha un formato da
+> leggere e non è più bloccata da una decisione.
 
 Le **10 voci `PIE-STATE-*`** del registro sono la controparte umana di questi cinque: nascono ⏳ e restano ⏳
 finché E34 non esiste. Stanno nel registro perché il ciclo *docs → epic → scenario → PIE* resti chiuso, non
@@ -453,7 +458,8 @@ e stanno qui perché «tutte le feature della v0.1» non diventi un traguardo ch
 | **`Visual.Reaction.*` esiste, `Spec` no** — il campo `reaction` nell'intent c'è ed è validato | Nessuno: è un buco **chiuso**, registrato perché la documentazione lo dichiarava aperto per una working copy indietro di qualche commit | `scenari-validazione-visiva.md` §8.2 |
 | **Nessuna assertion su punteggio e conoscenza** — mancano `TeamScoreEquals` e un modo di asserire sulla conoscenza di squadra | Due scenari-spec non potranno diventare verdi anche quando la capability atterra | `_nota_da_completare` di `Spec.Objective.*` e `Spec.Perception.*` |
 | ~~**Nessuna assertion che legga il TurnLog**~~ — ✅ **chiuso il 2026-08-09** (`#318`): `LogEventCount` e `LogEventOrder` leggono il log accumulato dalla sessione, e l'evento si nomina per nome | I tre `Spec.Clash.*` sono **scrivibili** (li scrive CP 14.7). Gli otto `Spec.TimeBank.*` **no**: manca il contatore, e prima serve la decisione su come tre valori in millisecondi entrano in un `FRTTurnLogEntry` che ha un solo `Amount` — vedi §6.2 | `test-automatico-unreal.md` §5.1 |
-| **Il contatore del log, e le due liste `Spec.TimeBank.*` che divergono** — `spec-turnlog.md` non nomina il bank; la spec del Time Bank §13 elenca **13** scenari `golden`, questa mappa **8** al livello dell'harness, e due nomi esistono solo qui | Gli 8 `Spec.TimeBank.*` restano non scrivibili, e non è chiaro se debbano esserlo: è una riconciliazione, non un'implementazione | issue `#361` · §6.2 · `spec-turnlog.md` (owner del nome) |
+| ~~**Il contatore del log, e le due liste `Spec.TimeBank.*` che divergono**~~ — ✅ **chiuso il 2026-08-09** (`#361`): `spec-turnlog.md` §4.2 dichiara la categoria `Decision` e due voci (`BankConsumed`, `BankAfter`) con il valore in `Amount`; le liste sono riconciliate a **dieci** scenari `harness`. I conteggi della riga precedente erano sbagliati in entrambi i sensi: §13 elencava **20** nomi, non 13, e gli orfani erano **zero** | I dieci `Spec.TimeBank.*` sono **scrivibili** appena esiste l'assertion sul contatore, che ora ha un formato da leggere. Li scrive CP 14.8 | §6.2 · `spec-turnlog.md` §4.2 |
+| **L'assertion sul contatore del log** — `ERTAssertionKind` ha `LogEventCount` e `LogEventOrder`, nessuna che legga il **valore** di `Amount` di una voce | Senza, i dieci `Spec.TimeBank.*` restano non scrivibili — ma per mancanza di codice, non più di una decisione. In coda all'enum, come `UnitFacing` e `LogEventCount` prima di lei | CP 14.8 · `test-automatico-unreal.md` §5.1 |
 | **Nessuna assertion sul determinismo** — e non deve esserci: `HashTurnLog` **ordina** prima di mescolare, quindi è invariante per permutazione e non vede l'ordine; un hash letterale in un JSON si romperebbe alla prima voce nuova del log | `Spec.Clash.Determinism` va scritto sull'ordine (`LogEventOrder`), non su un checksum. Il determinismo vero si verifica **eseguendo due volte**: è una proprietà del runner | `test-automatico-unreal.md` §5.1 |
 
 ## 10. Rapporto con gli altri documenti
