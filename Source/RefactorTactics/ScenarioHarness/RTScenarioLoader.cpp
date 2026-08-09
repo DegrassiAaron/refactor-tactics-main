@@ -191,6 +191,11 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 							TEXT("unit"), TEXT("ability"), TEXT("target"), TEXT("targetCell"),
 							TEXT("dash"), TEXT("dashTo"), TEXT("reaction"), TEXT("move")
 						};
+						// Si RACCOGLIE e si ORDINA prima di riportare: `IntentObj->Values` e' una TMap, e con due
+						// chiavi sbagliate nello stesso intent il messaggio nominerebbe l'una o l'altra a seconda
+						// dell'ordine di hash. Un errore che cambia testo fra due esecuzioni identiche fa dubitare
+						// del file invece che di se' stesso.
+						TArray<FString> Unknown;
 						for (const TPair<FString, TSharedPtr<FJsonValue>>& Field : IntentObj->Values)
 						{
 							if (Field.Key.StartsWith(TEXT("_")))
@@ -199,11 +204,16 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 							}
 							if (!KnownIntentKeys.Contains(Field.Key))
 							{
-								OutError = FString::Printf(
-									TEXT("intent di '%s': chiave sconosciuta '%s' (previste: unit, ability, target, targetCell, dash, dashTo, reaction, move)"),
-									*Intent.UnitId, *Field.Key);
-								return false;
+								Unknown.Add(Field.Key);
 							}
+						}
+						if (Unknown.Num() > 0)
+						{
+							Unknown.Sort();
+							OutError = FString::Printf(
+								TEXT("intent di '%s': chiave sconosciuta '%s' (previste: unit, ability, target, targetCell, dash, dashTo, reaction, move)"),
+								*Intent.UnitId, *Unknown[0]);
+							return false;
 						}
 					}
 
