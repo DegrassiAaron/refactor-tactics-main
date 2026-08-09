@@ -30,7 +30,7 @@
 > Feature: `RT-FEAT-REACTION-CLASH` · Release: `v0.1` · Roadmap: `E14.7`  
 > Stato: **SPECIFIED** · Gate: `1/9`  
 > Scenario: `Spec.Clash.ReadBeatsStand`  
-> Decisa nella forma (D-042), **non implementata** e con la grammatica ancora in playtest.  
+> Decisa nella forma (D-048), **non implementata** e con la grammatica ancora in playtest.  
 > Verificato il `2026-08-09` su `ea26c0f`
 
 <!-- RT_FEATURE_STATUS:END RT-FEAT-REACTION-CLASH -->
