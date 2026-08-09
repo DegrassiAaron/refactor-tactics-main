@@ -331,20 +331,40 @@ URTHeroData* URTHeroCatalogLibrary::MakeBastion()
 		/*Range*/ 3, /*Cooldown*/ 0, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 24) }));
 
-	// Indice 1 — KineticPanel. Crea una copertura da 30 HP: NIENTE di questo e' rappresentabile. Le
-	// coperture non esistono in `FRTHexCellData` (E9), e `ERTActionEffect` non ha un modo di crearle. I
-	// numeri del catalogo terreni (`Structure.KineticPanel`: integrita' 30, protezione 10) stanno nei
-	// `Parameters` della VARIANTE, che e' dove il catalogo eroi li differenzia davvero.
-	// Fase Preparation: si costruisce prima che i colpi partano, altrimenti la copertura arriverebbe dopo
-	// aver incassato — cioe' non servirebbe a niente.
-	Bastion->Actions.Add(MakeHeroAction(TEXT("Bastion.KineticPanel"), ERTResolutionPhase::Preparation,
-		/*Priority*/ 30, /*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
+	// Indice 1 — KineticPanel (CP 9.5). E' `Action.CreateCover` con un nome d'eroe: stesso riuso che `Ram` fa
+	// di `Action.Charge` e `Interposition` di `Action.Intercept`. Fase, priorita', portata, fallback e
+	// soprattutto `StructureOp` vengono dal CORE — cablarli a mano qui significherebbe due cataloghi da tenere
+	// allineati, e il primo a cambiare romperebbe il secondo in silenzio.
+	//
+	// La fase resta `Preparation`, ed e' il core ad essersi allineato a questa (D-a, 2026-08-09): si costruisce
+	// prima che i colpi partano, altrimenti la copertura arriverebbe dopo aver incassato.
+	//
+	// **Portata 3, non piu' 1**: il numero e' quello che il catalogo azioni dichiara per `CreateCover`. Il
+	// prezzo e' un dato in piu' nel piano — a portata 1 il bordo si deduceva dalla coppia di celle, a 3 no —
+	// ed e' `PlannedCoverEdge`.
+	{
+		const FRTActionDef CoverDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.CreateCover"));
+		URTActionData* Panel = MakeHeroAction(TEXT("Bastion.KineticPanel"), CoverDef.ResolutionPhase,
+			CoverDef.Priority, CoverDef.RangeCells, /*Cooldown*/ 2, CoverDef.Fallback, CoverDef.Effects);
+		Panel->Def.StructureOp = CoverDef.StructureOp; // erige: e' il dato che il resolver legge
+		Bastion->Actions.Add(Panel);
+	}
 
-	// Indice 2 — Reconfigure. Sposta o ruota una copertura ESISTENTE: dipende dallo stesso sistema mancante
-	// di KineticPanel, piu' un bersaglio (la copertura) che non e' ne' un'unita' ne' una cella nel modello
-	// attuale. Fase Preparation per lo stesso motivo del pannello.
-	Bastion->Actions.Add(MakeHeroAction(TEXT("Bastion.Reconfigure"), ERTResolutionPhase::Preparation,
-		/*Priority*/ 31, /*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
+	// Indice 2 — Reconfigure (CP 9.5). Sposta o ruota una copertura ESISTENTE. A differenza del pannello NON
+	// eredita da un'azione core, e la ragione e' che oggi non ce n'e' una: spostare una copertura e' semantica
+	// di questa sola identita' in tutta la v0.1. Il dato (`StructureOp`) e' comunque quello condiviso, quindi
+	// il giorno in cui un gadget o uno scenario vorranno spostare, l'azione core si aggiunge senza toccare il
+	// resolver.
+	//
+	// **Portata 3** come il pannello: ruotare solo cio' che si ha addosso renderebbe l'abilita' un ripiego, e
+	// il catalogo non dichiara una portata diversa fra le due. Fase Preparation per lo stesso motivo del
+	// pannello: il campo si sistema PRIMA che i colpi partano.
+	{
+		URTActionData* Reconfigure = MakeHeroAction(TEXT("Bastion.Reconfigure"), ERTResolutionPhase::Preparation,
+			/*Priority*/ 76, /*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Cancel, {});
+		Reconfigure->Def.StructureOp = ERTStructureOp::MoveCover;
+		Bastion->Actions.Add(Reconfigure);
+	}
 
 	// Indice 3 — Ram. E' una CARICA: 20 danni + Push 1, gli stessi numeri di `Action.Charge` del catalogo
 	// azioni v0.1 §2 — non una coincidenza, e' la stessa azione con un nome d'eroe. Riuso identico di fase,
@@ -366,8 +386,10 @@ URTHeroData* URTHeroCatalogLibrary::MakeBastion()
 		/*Cooldown*/ 3));
 
 	// Variante di KineticPanel (vincolo v0.1: una sola abilita' fondamentale con variante per eroe).
-	// I due compromessi sono fatti di INTEGRITA' e DURATA, non di effetti: vivono in `Parameters` finche' E9
-	// non costruira' le strutture che li consumano.
+	// I due compromessi sono fatti di INTEGRITA' e DURATA, non di effetti, e vivono in `Parameters`.
+	// **Da CP 9.5 qualcuno li legge**: `ResolveCoverStructures` prende integrita' e durata dalla variante
+	// attiva dell'unita' (`ARTUnit::ActiveVariantId`) invece che dai valori base. Erano stati scritti qui
+	// dichiarando che sarebbero serviti a E9: e' successo.
 	FRTAbilityVariant Reinforced;
 	Reinforced.VariantId = TEXT("Bastion.KineticPanel.Reinforced");
 	Reinforced.DisplayName = FText::FromString(TEXT("Pannello rinforzato"));

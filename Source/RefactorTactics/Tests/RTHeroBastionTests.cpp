@@ -107,29 +107,35 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBastionPanelCreatesCoverTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTBastionPanelCreatesCoverTest::RunTest(const FString&)
 {
-	// Nome vincolante della DoD — ma **la copertura non esiste**: `FRTHexCellData` non ha coperture e
-	// `ERTActionEffect` non sa crearne (E9, issue #69/#73). Questo test verifica cio' che si PUO' verificare
-	// oggi — identita', fase, portata, cooldown — e fissa la proprieta' che rende il resto aggiungibile
-	// dopo: il pannello si prepara PRIMA che i colpi partano.
+	// **Aggiornato a CP 9.5 (2026-08-09)**: fino a qui questo test verificava un'abilita' a meta' — identita',
+	// fase, portata — e diceva a chiare lettere «il giorno in cui E9 lo aggiungera', questo test diventera'
+	// rosso, ed e' esattamente cio' che deve succedere». E' successo: il pannello ora erige una copertura.
 	URTHeroData* Bastion = URTHeroCatalogLibrary::MakeBastion();
 	const URTActionData* Panel = Bastion->Actions[1];
 
 	TestEqual(TEXT("KineticPanel: ActionId"), Panel->Def.ActionId, FName(TEXT("Bastion.KineticPanel")));
 	TestEqual(TEXT("KineticPanel: cooldown 2"), Panel->Def.CooldownTurns, 2);
-	TestEqual(TEXT("KineticPanel: si piazza su una cella adiacente"), Panel->Def.RangeCells, 1);
 
-	// Si costruisce nel Prep: una copertura che arrivasse dopo i colpi non proteggerebbe da nulla. E' la
-	// regola che sopravvivera' a E9 anche quando l'effetto sara' reale.
+	// I numeri vengono dal CORE, non da una seconda copia scritta a mano nel catalogo eroi: e' lo stesso riuso
+	// di `Ram` su `Action.Charge`. Il test lo confronta con il core invece che con la costante 3, cosi' se
+	// domani la portata cambia da una parte sola, cade.
+	const FRTActionDef CoreCover = URTCatalogLibrary::FindCoreAction(TEXT("Action.CreateCover"));
+	TestEqual(TEXT("KineticPanel: portata ereditata da Action.CreateCover"),
+		Panel->Def.RangeCells, CoreCover.RangeCells);
+	TestEqual(TEXT("e vale 3, come dichiara il catalogo azioni"), Panel->Def.RangeCells, 3);
+
+	// Si costruisce nel Prep: una copertura che arrivasse dopo i colpi non proteggerebbe da nulla.
 	TestTrue(TEXT("KineticPanel: si prepara prima del Blast"),
 		URTCatalogLibrary::MapResolutionPhase(Panel->Def.ResolutionPhase) == ERTMatchPhase::Prep);
 	TestTrue(TEXT("Reconfigure: anche"), URTCatalogLibrary::MapResolutionPhase(
 		Bastion->Actions[2]->Def.ResolutionPhase) == ERTMatchPhase::Prep);
 
-	// **Limite dichiarato, verificato come tale**: nessun effetto e' dichiarato, perche' non esiste un
-	// effetto che crei strutture. Il giorno in cui E9 lo aggiungera', questo test diventera' rosso — ed e'
-	// esattamente cio' che deve succedere: e' il promemoria che l'abilita' e' a meta'.
-	TestEqual(TEXT("KineticPanel: nessun effetto rappresentabile (E9)"), Panel->Def.Effects.Num(), 0);
-	TestEqual(TEXT("Reconfigure: nessun effetto rappresentabile (E9)"), Bastion->Actions[2]->Def.Effects.Num(), 0);
+	// L'abilita' non e' piu' inerte, e la prova NON e' che abbia acquistato effetti: `Effects` resta vuoto, ed
+	// e' corretto — il suo esito e' una modifica della MAPPA, che `FRTActionEffectSpec` non sa esprimere.
+	// Quel che e' cambiato e' che dichiara la propria operazione come dato, e il resolver la legge.
+	TestTrue(TEXT("KineticPanel: dichiara di erigere una copertura"),
+		Panel->Def.StructureOp == ERTStructureOp::CreateCover);
+	TestEqual(TEXT("KineticPanel: nessun effetto su unita', e non e' un limite"), Panel->Def.Effects.Num(), 0);
 
 	// `Interposition` non e' piu' in questa lista (CP 6.7): era «nessun effetto perche' E5 non c'e'», ed e'
 	// diventata «nessun effetto **proprio**, perche' interporsi non e' un effetto» — cambia CHI subisce un

@@ -51,18 +51,21 @@ scegliendo lo scenario e premendo Play, una voce C richiede di allestire, clicca
 
 | Classe | Quanti | Dove |
 |---|---:|---|
-| **A** — automatico | **20** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `RT_Showcase_Relay_v01` |
+| **A** — automatico | **21** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · `RT_Showcase_Relay_v01` |
 | **B** — automatico + occhio | **21** scenari ↔ **21** voci `PIE-VIS-*` | `Scenarios/Visual/` |
 | **C** — solo umano | **95** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima |
-| **D** — dichiarato | **8** scenari `Spec.*` ancora `BLOCKED` · **10** pianificati · **4** mai scritti | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
+| **D** — dichiarato | **7** scenari `Spec.*` ancora `BLOCKED` · **10** pianificati · **4** mai scritti | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
 
-Totale corpus versionato: **49** scenari (`A 20 + B 21 + D-bloccati 8`). Totale registro PIE: **116** voci
+Totale corpus versionato: **49** scenari (`A 21 + B 21 + D-bloccati 7`). Totale registro PIE: **116** voci
 (`B 21 + C 95`).
 
-> ⚠️ **La cartella non è la classe.** I sei `Spec.Facing.*` stanno in `Scenarios/Spec/` e sono di **classe A**:
-> `requires` è vuoto perché **E16 è chiusa**, quindi girano e giudicano da soli. È il meccanismo del corpus che
-> funziona come previsto — «si accendono da soli quando la capability atterra» — osservato per la prima volta
-> il 2026-08-09. Un file si classifica leggendo il suo `requires` e la disponibilità della capability, mai il
+> ⚠️ **La cartella non è la classe.** Sette scenari di `Scenarios/Spec/` sono di **classe A**: i sei
+> `Spec.Facing.*` e `Spec.Cover.TemporaryCoverExpires`. I primi hanno
+> `requires` vuoto perché **E16 è chiusa**; il settimo dichiara ancora `CreateCover`, ma quella capability è
+> **disponibile** da E9.5, quindi il runner non lo blocca più. È il meccanismo del corpus che funziona come
+> previsto — «si accendono da soli quando la capability atterra» — osservato due volte il 2026-08-09.
+> ⚠️ «Non più bloccato» **non vuol dire «verde»**: che le assertion tengano lo dice la suite, non questa
+> tabella. Un file si classifica leggendo il suo `requires` e la disponibilità della capability, mai il
 > percorso: le cartelle sono storage e non promettono nulla ([`scenario-index-e-tag.md`](scenario-index-e-tag.md) §2).
 
 ---
@@ -94,6 +97,7 @@ Il verdetto è l'assertion. Nessuna di queste righe compare nel registro PIE, ed
 | `Spec.Facing.FrontAttackKeepsGuard` | — | — | `Guard` riduce dentro l'arco frontale |
 | `Spec.Facing.BackAttackIgnoresGuard` | — | — | e **non** riduce da dietro: l'emisfero posteriore è scoperto (CP 16.2) |
 | `Spec.Facing.BraceHoldsFromBehind` | — | — | `Brace` invece tiene da ogni lato — è ciò che lo distingue da `Guard` |
+| `Spec.Cover.TemporaryCoverExpires` | r4 | 3 | una copertura temporanea **scade** — il terzo momento, quello che si dimentica. Acceso da E9.5 |
 | `RT_Showcase_Relay_v01` | RelayBasin | 5 | gli 8 turni della showcase — oggi **BLOCKED** su 5 capability (§6) |
 
 > ⚠️ `Movement.BasicFailsOnPurpose` è escluso da `EveryShippedScenarioRuns` e verificato **al contrario** da
@@ -189,7 +193,6 @@ utile: **`previewUnit` è presentazione e non cambia l'esito**, verificato da
 
 | ScenarioId | `requires` | Epic che lo accende |
 |---|---|---|
-| `Spec.Cover.TemporaryCoverExpires` | `CreateCover` | E9 · CP 9.5 (`#73`) |
 | `Spec.Environment.ElectricPropagation` | `EnvironmentalActionOwner` | — · `#282` (le abilità ambientali d'eroe hanno `Effects` vuoti) |
 | `Spec.Environment.WaterQuenchesFire` | `EnvironmentalActionOwner` | idem `#282` |
 | `Spec.Map.BridgeBreaksThePath` | `EnvironmentalActionOwner` | idem `#282` |
@@ -245,7 +248,7 @@ Nessun numero di questo documento va aggiornato a memoria. Tutti si ricalcolano:
 # Classe A + B + D-scritti — il corpus versionato
 find Scenarios -name '*.json' ! -name '_*' | wc -l                        # 49
 find Scenarios/Visual -name '*.json' | wc -l                              # 21  (B)
-find Scenarios/Spec   -name '*.json' | wc -l                              # 14  (8 in D + 6 accesi in A)
+find Scenarios/Spec   -name '*.json' | wc -l                              # 14  (7 in D + 7 accesi in A)
 
 # Registro PIE — verdi / parziali / aperte, e il totale
 awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);

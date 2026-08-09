@@ -1,6 +1,9 @@
 #include "Misc/AutomationTest.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Ability/RTEquipmentData.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 #include "Core/RTGameplayTags.h"
 #include "Engine/Engine.h"
 #include "Kismet/GameplayStatics.h"
@@ -8,6 +11,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexArcLibrary.h"
+#include "Map/RTHexCoverLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Pathfinding/RTHexPath.h"
 #include "Pathfinding/RTHexPathLibrary.h"
@@ -86,6 +90,63 @@ namespace
 		Caster->Abilities[3] = Action;
 		Caster->PlannedAbilityIndex = 3;
 		Caster->PlannedAttackTarget = Target;
+	}
+
+	/**
+	 * Pianifica un'azione che agisce su una STRUTTURA di bordo: bersaglio-CELLA (non unita') piu' il bordo, che
+	 * a portata 3 non e' derivabile dalla coppia di celle. E' la stessa forma che l'HUD dovra' produrre (E11).
+	 */
+	void PlanCoverAction(ARTUnit* Caster, const TCHAR* ActionId, const FRTCellId& TargetCell,
+		ERTHexDirection Edge)
+	{
+		URTActionData* Action = NewObject<URTActionData>(Caster);
+		Action->Def = URTCatalogLibrary::FindCoreAction(FName(ActionId));
+		Action->RangeCells = Action->Def.RangeCells;
+		Action->CooldownTurns = Action->Def.CooldownTurns;
+		Caster->Abilities[3] = Action;
+		Caster->PlannedAbilityIndex = 3;
+		Caster->PlannedAttackTarget = nullptr;
+		Caster->PlannedAttackCell = TargetCell;
+		Caster->bAttackTargetsCell = true;
+		Caster->PlannedCoverEdge = Edge;
+		Caster->bHasPlannedCoverEdge = true;
+	}
+
+	/**
+	 * Come `PlanCoverAction`, ma con un'abilita' d'EROE gia' costruita dal catalogo (e la sua variante attiva).
+	 * Serve perche' il pannello di Bastion non e' un'azione core: e' un'azione core con un nome d'eroe, e la
+	 * differenza va verificata su cio' che il giocatore usa davvero.
+	 */
+	void PlanHeroCoverAction(ARTUnit* Caster, URTActionData* HeroAction, const FRTCellId& TargetCell,
+		ERTHexDirection Edge, const FName& VariantId = NAME_None)
+	{
+		Caster->Abilities[3] = HeroAction;
+		Caster->PlannedAbilityIndex = 3;
+		Caster->PlannedAttackTarget = nullptr;
+		Caster->PlannedAttackCell = TargetCell;
+		Caster->bAttackTargetsCell = true;
+		Caster->PlannedCoverEdge = Edge;
+		Caster->bHasPlannedCoverEdge = true;
+		Caster->ActiveVariantId = VariantId;
+	}
+
+	/** Integrita' della copertura su quel bordo, o 0 se il bordo e' scoperto. */
+	int32 CoverIntegrityOn(const URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexDirection Edge)
+	{
+		const FRTHexCellData* Data = Map ? Map->FindCell(Cell) : nullptr;
+		const FRTHexCover* Entry = Data ? Data->CoverEntryOn(Edge) : nullptr;
+		return Entry ? Entry->Integrity : 0;
+	}
+
+	/** Quante voci di quell'esito ambientale ci sono nel TurnLog. */
+	int32 CountEnvOutcome(const ARTTurnManager* TM, ERTEnvironmentOutcome Outcome)
+	{
+		int32 N = 0;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Environment && E.Outcome == static_cast<uint8>(Outcome)) { ++N; }
+		}
+		return N;
 	}
 
 	void RunEnvTurn(ARTTurnManager* TM)
@@ -300,12 +361,26 @@ bool FRTEnvironmentActionsMatchCatalogTest::RunTest(const FString&)
 			URTCatalogLibrary::MapResolutionPhase(Arc.ResolutionPhase) == ERTMatchPhase::Blast);
 	}
 
-	// `Action.CreateCover` **non** e' qui, ed e' una decisione: le coperture non esistono nel modello dati
-	// (`FRTHexCellData` non ha bordi protetti) e costruirle e' l'epic E9. Un'azione che dichiarasse di creare
-	// una copertura senza che le coperture esistano sarebbe un'abilita' inerte — il difetto che questo
-	// checkpoint chiude altrove, non uno da aggiungere qui.
-	TestTrue(TEXT("CreateCover resta fuori finche' le coperture non esistono (E9)"),
-		URTCatalogLibrary::FindCoreAction(TEXT("Action.CreateCover")).ActionId.IsNone());
+	// `Action.CreateCover` **e' entrata** con CP 9.5 (2026-08-09). Fino a CP 9.4 restava fuori di proposito —
+	// un'azione che dichiara di creare una copertura mentre le coperture non esistono e' un'abilita' inerte —
+	// e ora il modello c'e' (formato v3, `FRTHexCover` per bordo) e qualcuno la consuma.
+	//
+	// **Fase `Prep`, non Blast**, contro la riga del catalogo azioni v0.1 che diceva Blast (D-a): eretta nel
+	// Blast arriverebbe dopo aver incassato i colpi di quel Blast. Non e' il caso di `ModifyArc` qui sopra,
+	// perche' quella cambia la TOPOLOGIA e il Move che segue deve vederla; una copertura bassa non tocca ne'
+	// grafo ne' vista.
+	{
+		const FRTActionDef Cover = URTCatalogLibrary::FindCoreAction(TEXT("Action.CreateCover"));
+		TestTrue(TEXT("CreateCover e' nel catalogo"), Cover.ActionId == FName(TEXT("Action.CreateCover")));
+		TestEqual(TEXT("CreateCover: portata 3"), Cover.RangeCells, 3);
+		TestEqual(TEXT("CreateCover: cooldown 2"), Cover.CooldownTurns, 2);
+		TestTrue(TEXT("CreateCover risolve in PREP, prima dei colpi che deve riparare"),
+			URTCatalogLibrary::MapResolutionPhase(Cover.ResolutionPhase) == ERTMatchPhase::Prep);
+		TestTrue(TEXT("e dichiara la sua operazione come DATO, non per ActionId"),
+			Cover.StructureOp == ERTStructureOp::CreateCover);
+		TestEqual(TEXT("nessun effetto su unita': il suo esito e' una modifica della mappa"),
+			Cover.Effects.Num(), 0);
+	}
 
 	const TArray<FString> Errors = URTCatalogLibrary::ValidateActions(URTCatalogLibrary::GetCoreActionCatalog());
 	for (const FString& Err : Errors) { AddError(Err); }
@@ -504,6 +579,409 @@ bool FRTBridgeDamagedInTurnTest::RunTest(const FString&)
 		}
 	}
 	TestEqual(TEXT("due voci, una per verso"), Logged, 2);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * CP 9.5 — il pannello nasce in PARTITA, ripara, e scade da solo.
+ *
+ * Il test gira un turno vero (`Intent -> Prep -> ... -> Cleanup`), non chiama `AddCover`: la libreria era gia'
+ * coperta dai test puri, ed e' esattamente la trappola in cui questo repository e' caduto a CP 9.4 — libreria
+ * verde, cablaggio scoperto. Quel che si verifica qui e' che il TurnManager la eriga davvero.
+ *
+ * **La durata parte dal turno in cui nasce**, al contrario del ponte temporaneo: `CreateCover` risolve in Prep,
+ * cioe' prima del Blast che la usa, quindi il turno dell'erezione e' gia' un turno in cui ha riparato qualcuno.
+ * Due turni di durata = protetta nel turno 1 e nel turno 2, scoperta dal 3.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKineticPanelTemporaryCoverTest,
+	"RefactorTactics.Structures.KineticPanel.TemporaryCover",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKineticPanelTemporaryCoverTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	const FRTCellId Home(0, 0);
+	const FRTCellId Shielded(1, 0); // la cella che riceve il pannello, adiacente a Home
+
+	ARTUnit* Builder = SpawnEnvUnit(World, 0, Home);
+	ARTUnit* Foe = SpawnEnvUnit(World, 1, FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Builder"), Builder) || !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	TestEqual(TEXT("all'inizio il bordo e' scoperto"),
+		URTHexCoverLibrary::CoverBetween(MapActor->MapAsset, Shielded, Home), ERTHexCoverType::None);
+
+	// Bordo W di (1,0): la faccia rivolta a chi lo erige.
+	PlanCoverAction(Builder, TEXT("Action.CreateCover"), Shielded, ERTHexDirection::W);
+	RunEnvTurn(TM); // turno 1: il pannello nasce, e ripara gia' questo turno
+
+	TestEqual(TEXT("la copertura c'e', ed e' bassa"),
+		URTHexCoverLibrary::CoverBetween(MapActor->MapAsset, Shielded, Home), ERTHexCoverType::Low);
+	TestEqual(TEXT("il TurnLog dice che e' stata eretta"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverCreated), 1);
+	if (const FRTHexCellData* Cell = MapActor->MapAsset->FindCell(Shielded))
+	{
+		const FRTHexCover* Entry = Cell->CoverEntryOn(ERTHexDirection::W);
+		TestNotNull(TEXT("la voce e' sul bordo dichiarato"), Entry);
+		if (Entry) { TestEqual(TEXT("integrita' 30, dal catalogo terreni"), Entry->Integrity, 30); }
+	}
+
+	// Turno 2: e' il SECONDO dei suoi due turni. Il pannello c'e' per tutta la fase in cui si combatte e cade
+	// nel Cleanup, a fine turno — che la scadenza cada qui e non nel turno 3 e' la prova che il turno di
+	// nascita e' stato contato, cioe' che il pannello non ha ricevuto un turno di grazia.
+	RunEnvTurn(TM);
+	TestEqual(TEXT("nel Cleanup del secondo turno scade"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverExpired), 1);
+	TestEqual(TEXT("e il bordo torna scoperto"),
+		URTHexCoverLibrary::CoverBetween(MapActor->MapAsset, Shielded, Home), ERTHexCoverType::None);
+
+	// Il TurnLog e' del TURNO (`TurnLog.Reset()` a ogni risoluzione): al terzo turno non resta traccia, e il
+	// campo non deve piu' cambiare da solo — una scadenza che si ripete sarebbe una voce fantasma nel replay.
+	RunEnvTurn(TM);
+	TestEqual(TEXT("non scade una seconda volta"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverExpired), 0);
+	TestEqual(TEXT("e il bordo resta scoperto"),
+		URTHexCoverLibrary::CoverBetween(MapActor->MapAsset, Shielded, Home), ERTHexCoverType::None);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * CP 9.5 — la portata dichiarata dal catalogo vale, e il bordo gia' riparato non ne accetta un secondo.
+ *
+ * La prima meta' e' il difetto che la issue #206 registra su `ModifyArc`: un'azione che dichiara `Range 3` e
+ * opera comunque non ha una portata. Qui si valida PRIMA di toccare la mappa, e il rifiuto e' una voce di
+ * TurnLog — il `Cancel` del catalogo reso visibile, perche' un'azione che sparisce in silenzio e'
+ * indistinguibile da un difetto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCreateCoverRejectsTest,
+	"RefactorTactics.Actions.CreateCover.RejectsOutOfRangeAndOccupied",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCreateCoverRejectsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	const FRTCellId Home(0, 0);
+	const FRTCellId TooFar(4, 0); // distanza 4 > portata 3
+
+	ARTUnit* Builder = SpawnEnvUnit(World, 0, Home);
+	ARTUnit* Foe = SpawnEnvUnit(World, 1, FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Builder"), Builder) || !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	PlanCoverAction(Builder, TEXT("Action.CreateCover"), TooFar, ERTHexDirection::W);
+	RunEnvTurn(TM);
+
+	TestEqual(TEXT("fuori portata: nessuna copertura"),
+		URTHexCoverLibrary::CoverBetween(MapActor->MapAsset, TooFar, FRTCellId(3, 0)), ERTHexCoverType::None);
+	TestEqual(TEXT("e il rifiuto e' registrato"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverRejected), 1);
+	TestEqual(TEXT("nessuna copertura eretta"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverCreated), 0);
+
+	// Ora dentro portata, ma su un bordo gia' riparato dal dato di mappa: stesso esito, ragione diversa.
+	const FRTCellId Near(1, 0);
+	URTHexCoverLibrary::AddCover(MapActor->MapAsset, Near, ERTHexDirection::W, ERTHexCoverType::Low, 30);
+
+	PlanCoverAction(Builder, TEXT("Action.CreateCover"), Near, ERTHexDirection::W);
+	RunEnvTurn(TM);
+
+	TestEqual(TEXT("il bordo resta quello di prima, non ne nasce un secondo"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverCreated), 0);
+	// Il TurnLog e' del turno, non della partita (`TurnLog.Reset()`): qui si conta il rifiuto di QUESTO turno.
+	TestEqual(TEXT("anche il bordo occupato produce un rifiuto leggibile"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverRejected), 1);
+	if (const FRTHexCellData* Cell = MapActor->MapAsset->FindCell(Near))
+	{
+		TestEqual(TEXT("una sola voce sul bordo"), Cell->Covers.Num(), 1);
+	}
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * CP 9.5 — `Bastion.KineticPanel` erige davvero, e la VARIANTE attiva decide integrita' e durata.
+ *
+ * Fino a qui i `Parameters` delle varianti erano una dichiarazione che nessun sistema leggeva, in tutto il
+ * progetto: il catalogo scriveva «45 per un turno solo» e «25 che non scade» e il gioco applicava sempre 30/2.
+ * Questo e' il test che rende il compromesso osservabile — e cade se qualcuno riporta i numeri a costanti.
+ *
+ * I due rami dimostrano cose diverse: il rinforzato che la durata viene letta (1 turno: cade nel Cleanup del
+ * turno stesso), l'adattivo che `DurationTurns = 0` significa «non scade da sola» e non «scade subito» — la
+ * lettura sbagliata piu' probabile, e quella che il campo non perdonerebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBastionPanelVariantAppliedTest,
+	"RefactorTactics.Heroes.Bastion.KineticPanelVariantApplied",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBastionPanelVariantAppliedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	const FRTCellId Home(0, 0);
+	const FRTCellId Reinforced(1, 0);
+	const FRTCellId Adaptive(0, 1);
+
+	// Due unita' invece di una che agisce due volte: il cooldown del pannello e' 2 turni, e aspettarlo
+	// renderebbe il test una storia lunga in cui la durata dell'adattivo si confonde con l'attesa.
+	ARTUnit* WithReinforced = SpawnEnvUnit(World, 0, Home);
+	ARTUnit* WithAdaptive = SpawnEnvUnit(World, 0, FRTCellId(2, 0));
+	ARTUnit* Foe = SpawnEnvUnit(World, 1, FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("con rinforzato"), WithReinforced) || !TestNotNull(TEXT("con adattivo"), WithAdaptive)
+		|| !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	// L'abilita' e' quella del catalogo eroi, non l'azione core: e' cio' che il giocatore ha in mano. Due
+	// istanze distinte, cosi' nessuno stato dell'una puo' spiegare il comportamento dell'altra.
+	URTActionData* PanelA = URTHeroCatalogLibrary::MakeBastion()->Actions[1];
+	URTActionData* PanelB = URTHeroCatalogLibrary::MakeBastion()->Actions[1];
+
+	PlanHeroCoverAction(WithReinforced, PanelA, Reinforced, ERTHexDirection::W,
+		TEXT("Bastion.KineticPanel.Reinforced"));
+	PlanHeroCoverAction(WithAdaptive, PanelB, Adaptive, ERTHexDirection::SW,
+		TEXT("Bastion.KineticPanel.Adaptive"));
+	RunEnvTurn(TM);
+
+	// I due parametri si verificano dove ciascuno e' osservabile, e non e' un ripiego: e' il compromesso
+	// stesso. Il rinforzato dura UN turno, quindi cade nel Cleanup del turno in cui nasce — la sua integrita'
+	// non esiste piu' a turno finito, e cercarla qui vorrebbe dire non aver capito che cosa si e' comprato.
+	//
+	// `DurationTurns` letto dalla variante: due pannelli eretti nello stesso turno, UNA sola scadenza.
+	TestEqual(TEXT("il rinforzato scade subito: dura 1, non 2"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverExpired), 1);
+	TestEqual(TEXT("ed e' il suo bordo a essere tornato scoperto"),
+		CoverIntegrityOn(MapActor->MapAsset, Reinforced, ERTHexDirection::W), 0);
+	TestEqual(TEXT("due pannelli eretti"), CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverCreated), 2);
+
+	// `Integrity` letto dalla variante: 25 non e' ne' il 30 di base ne' il 45 dell'altra.
+	TestEqual(TEXT("adattivo: integrita' 25, non i 30 di base"),
+		CoverIntegrityOn(MapActor->MapAsset, Adaptive, ERTHexDirection::SW), 25);
+
+	RunEnvTurn(TM);
+	RunEnvTurn(TM);
+	TestEqual(TEXT("durata 0 = non scade da sola: due turni dopo e' ancora li'"),
+		CoverIntegrityOn(MapActor->MapAsset, Adaptive, ERTHexDirection::SW), 25);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * CP 9.5 — `Bastion.Reconfigure` SPOSTA una copertura: non ne crea una seconda.
+ *
+ * E' il nome che la DoD vincola (`ReconfigureDoesNotDuplicate`), e il difetto che sorveglia e' preciso: una
+ * implementazione che «aggiunge sul bordo nuovo» senza togliere dal vecchio raddoppierebbe la protezione con
+ * un'azione che il catalogo descrive come una rotazione. Il test conta le voci, non guarda solo il bordo di
+ * arrivo — contare e' l'unico modo di accorgersi di una duplicazione.
+ *
+ * Verifica anche che l'integrita' VIAGGI con la copertura: spostare un pannello ammaccato non lo ripara.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBastionReconfigureTest,
+	"RefactorTactics.Heroes.Bastion.ReconfigureDoesNotDuplicate",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBastionReconfigureTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	const FRTCellId Home(0, 0);
+	const FRTCellId Panel(1, 0);
+
+	ARTUnit* Bastion = SpawnEnvUnit(World, 0, Home);
+	ARTUnit* Foe = SpawnEnvUnit(World, 1, FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Bastion"), Bastion) || !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	// Una copertura gia' in campo, ammaccata: 18 punti struttura invece di 30.
+	URTHexCoverLibrary::AddCover(MapActor->MapAsset, Panel, ERTHexDirection::W, ERTHexCoverType::Low, 18);
+
+	URTActionData* Reconfigure = URTHeroCatalogLibrary::MakeBastion()->Actions[2];
+	TestTrue(TEXT("Reconfigure dichiara di spostare"),
+		Reconfigure->Def.StructureOp == ERTStructureOp::MoveCover);
+
+	PlanHeroCoverAction(Bastion, Reconfigure, Panel, ERTHexDirection::E);
+	RunEnvTurn(TM);
+
+	const FRTHexCellData* Cell = MapActor->MapAsset->FindCell(Panel);
+	if (!TestNotNull(TEXT("la cella esiste"), Cell))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	TestEqual(TEXT("una sola copertura: spostata, non duplicata"), Cell->Covers.Num(), 1);
+	TestEqual(TEXT("ora sta sul bordo di destinazione"),
+		CoverIntegrityOn(MapActor->MapAsset, Panel, ERTHexDirection::E), 18);
+	TestEqual(TEXT("e il bordo di partenza e' scoperto"),
+		CoverIntegrityOn(MapActor->MapAsset, Panel, ERTHexDirection::W), 0);
+	TestEqual(TEXT("il TurnLog registra uno spostamento, non una creazione"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverMoved), 1);
+	TestEqual(TEXT("nessuna copertura eretta"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverCreated), 0);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * CP 9.5 — `Reconfigure` rifiuta invece di indovinare, e un rifiuto non fa sparire nulla.
+ *
+ * Due casi che una implementazione frettolosa sbaglia nello stesso modo — prendendo «la prima dell'array»:
+ * due coperture sulla stessa cella (quale si sposta?) e una destinazione gia' riparata. Il secondo e' il piu'
+ * pericoloso, perche' la via naturale — togli, poi aggiungi — cancella la copertura quando l'aggiunta
+ * fallisce. Qui si verifica che torni dov'era.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBastionReconfigureRefusesTest,
+	"RefactorTactics.Heroes.Bastion.ReconfigureRefusesInsteadOfGuessing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBastionReconfigureRefusesTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	const FRTCellId Home(0, 0);
+	const FRTCellId Two(1, 0);   // cella con DUE coperture
+	const FRTCellId One(0, 1);   // cella con una sola, ma destinazione occupata
+
+	ARTUnit* Bastion = SpawnEnvUnit(World, 0, Home);
+	ARTUnit* Foe = SpawnEnvUnit(World, 1, FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Bastion"), Bastion) || !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	URTHexCoverLibrary::AddCover(MapActor->MapAsset, Two, ERTHexDirection::W, ERTHexCoverType::Low, 30);
+	URTHexCoverLibrary::AddCover(MapActor->MapAsset, Two, ERTHexDirection::E, ERTHexCoverType::Low, 30);
+
+	URTActionData* Reconfigure = URTHeroCatalogLibrary::MakeBastion()->Actions[2];
+	PlanHeroCoverAction(Bastion, Reconfigure, Two, ERTHexDirection::NE);
+	RunEnvTurn(TM);
+
+	TestEqual(TEXT("ambiguo: rifiutato"), CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverRejected), 1);
+	TestEqual(TEXT("e nessuna delle due si e' mossa"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverMoved), 0);
+	if (const FRTHexCellData* Cell = MapActor->MapAsset->FindCell(Two))
+	{
+		TestEqual(TEXT("le due coperture sono ancora li'"), Cell->Covers.Num(), 2);
+	}
+
+	// Destinazione gia' riparata: il rifiuto non deve far sparire la copertura di partenza.
+	URTHexCoverLibrary::AddCover(MapActor->MapAsset, One, ERTHexDirection::W, ERTHexCoverType::Low, 22);
+	const FRTCellId NorthEast = URTHexLibrary::Neighbors(One)[static_cast<int32>(ERTHexDirection::NE)];
+	URTHexCoverLibrary::AddCover(MapActor->MapAsset, NorthEast,
+		ERTHexDirection::SW, ERTHexCoverType::Low, 30); // la faccia opposta del bordo NE di `One`
+
+	URTActionData* Second = URTHeroCatalogLibrary::MakeBastion()->Actions[2];
+	PlanHeroCoverAction(Bastion, Second, One, ERTHexDirection::NE);
+	RunEnvTurn(TM);
+
+	TestEqual(TEXT("destinazione occupata: rifiutato"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverRejected), 1);
+	TestEqual(TEXT("la copertura e' tornata dov'era, con la sua integrita'"),
+		CoverIntegrityOn(MapActor->MapAsset, One, ERTHexDirection::W), 22);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * CP 9.5 — `Gadget.PortableCover` erige la stessa copertura, in mano a chi non e' Bastion.
+ *
+ * E' la prova che `Action.CreateCover` e' semantica CONDIVISA e non l'abilita' di un eroe travestita: se il
+ * resolver riconoscesse il pannello per ActionId invece che per `StructureOp`, questo test sarebbe rosso — ed
+ * e' esattamente la ragione per cui il campo dati esiste.
+ *
+ * Il gadget conserva la semantica del core e sostituisce due cose: l'identita' nel TurnLog (chi legge il
+ * replay deve vedere il gadget) e il cooldown, che e' dell'oggetto — 3 turni contro i 2 del pannello d'eroe.
+ * E' lo svantaggio che il gadget dichiara, e senza uno dichiarato il validator lo rifiuterebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPortableCoverGadgetTest,
+	"RefactorTactics.Equipment.PortableCover.CreatesCover",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPortableCoverGadgetTest::RunTest(const FString&)
+{
+	URTEquipmentData* Gadget = URTCatalogLibrary::MakePortableCoverGadget();
+	if (!TestNotNull(TEXT("il gadget esiste"), Gadget)) { return false; }
+
+	// Passa il validator del catalogo: lo svantaggio e' dichiarato, non sottinteso.
+	TArray<const URTEquipmentData*> Set;
+	Set.Add(Gadget);
+	TestEqual(TEXT("il gadget e' valido a catalogo"), URTCatalogLibrary::ValidateEquipment(Set).Num(), 0);
+	TestEqual(TEXT("cooldown 3, come ogni gadget"), Gadget->CooldownTurns, 3);
+	TestFalse(TEXT("dichiara uno svantaggio"), Gadget->Drawback.IsEmpty());
+
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	const FRTCellId Home(0, 0);
+	const FRTCellId Target(1, 0);
+
+	// Un'unita' QUALUNQUE: non ha il kit di Bastion, ha solo il gadget.
+	ARTUnit* Carrier = SpawnEnvUnit(World, 0, Home);
+	ARTUnit* Foe = SpawnEnvUnit(World, 1, FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Carrier"), Carrier) || !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	URTActionData* FromGadget = URTCatalogLibrary::MakeEquipmentAction(Gadget, Carrier);
+	if (!TestNotNull(TEXT("il gadget concede un'azione"), FromGadget))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("nel TurnLog si leggera' il gadget"),
+		FromGadget->Def.ActionId, FName(TEXT("Gadget.PortableCover")));
+	TestEqual(TEXT("cooldown dell'oggetto, non dell'azione"), FromGadget->Def.CooldownTurns, 3);
+	TestTrue(TEXT("ma la semantica e' quella del core"),
+		FromGadget->Def.StructureOp == ERTStructureOp::CreateCover);
+
+	PlanHeroCoverAction(Carrier, FromGadget, Target, ERTHexDirection::W);
+	RunEnvTurn(TM);
+
+	TestEqual(TEXT("la copertura c'e', eretta da un gadget"),
+		CoverIntegrityOn(MapActor->MapAsset, Target, ERTHexDirection::W), 30);
+	TestEqual(TEXT("ed e' registrata come tale"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverCreated), 1);
+
+	bool bNamedGadget = false;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.ActionId == FName(TEXT("Gadget.PortableCover"))) { bNamedGadget = true; }
+	}
+	TestTrue(TEXT("il replay dice CHI l'ha eretta"), bNamedGadget);
 
 	DestroyEnvWorld(World);
 	return true;

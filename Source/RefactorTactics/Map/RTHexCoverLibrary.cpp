@@ -117,6 +117,79 @@ namespace
 	}
 }
 
+bool URTHexCoverLibrary::AddCover(URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexDirection Edge,
+	ERTHexCoverType Type, int32 Integrity)
+{
+	if (Map == nullptr || Type == ERTHexCoverType::None || Integrity <= 0)
+	{
+		return false; // una copertura senza tipo o senza punti struttura non e' una copertura
+	}
+
+	const FRTHexCellData* Existing = Map->FindCell(Cell);
+	if (Existing == nullptr)
+	{
+		return false; // fuori mappa: non si erige nulla nel vuoto
+	}
+	if (Existing->CoverEntryOn(Edge) != nullptr)
+	{
+		return false; // il bordo e' gia' riparato da questo lato
+	}
+
+	// L'altra faccia dello stesso bordo: se il vicino dichiara gia' una copertura, la barriera esiste. Il
+	// controllo passa dal vicino REALE della mappa, non da una direzione opposta calcolata, perche' l'inverso
+	// di una direzione esagonale e' una regola in piu' da tenere allineata a `Neighbors`.
+	const TArray<FRTCellId> Ring = URTHexLibrary::Neighbors(Cell);
+	const int32 EdgeIndex = static_cast<int32>(Edge);
+	if (Ring.IsValidIndex(EdgeIndex))
+	{
+		const FRTCellId Neighbor = Ring[EdgeIndex];
+		ERTHexDirection Backward = ERTHexDirection::E;
+		if (EdgeDirection(Neighbor, Cell, Backward))
+		{
+			if (const FRTHexCellData* Far = Map->FindCell(Neighbor))
+			{
+				if (Far->CoverEntryOn(Backward) != nullptr)
+				{
+					return false; // stessa barriera, gia' dichiarata dall'altro lato
+				}
+			}
+		}
+	}
+
+	FRTHexCellData Updated = *Existing;
+	Updated.Covers.Add(FRTHexCover(Edge, Type, Integrity));
+	// Ordine STABILE per bordo: l'array e' sparso e ci si scrive in partita, quindi senza questo due partite
+	// identiche potrebbero serializzare le stesse coperture in ordine diverso.
+	Updated.Covers.Sort([](const FRTHexCover& A, const FRTHexCover& B)
+	{
+		return static_cast<uint8>(A.Edge) < static_cast<uint8>(B.Edge);
+	});
+	Map->AddOrUpdateCell(Updated);
+	return true;
+}
+
+bool URTHexCoverLibrary::RemoveCover(URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexDirection Edge)
+{
+	const FRTHexCellData* Existing = Map ? Map->FindCell(Cell) : nullptr;
+	if (Existing == nullptr)
+	{
+		return false;
+	}
+
+	FRTHexCellData Updated = *Existing;
+	const int32 Removed = Updated.Covers.RemoveAll([Edge](const FRTHexCover& Cover)
+	{
+		return Cover.Edge == Edge;
+	});
+	if (Removed == 0)
+	{
+		return false; // niente da togliere: la revisione NON si tocca per un non-evento
+	}
+
+	Map->AddOrUpdateCell(Updated);
+	return true;
+}
+
 TArray<FRTCoverDamageResult> URTHexCoverLibrary::ApplyStructureDamage(URTHexMapAsset* Map,
 	const TArray<FRTStructureHit>& Hits)
 {

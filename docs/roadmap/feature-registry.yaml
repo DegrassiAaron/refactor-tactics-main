@@ -510,14 +510,14 @@ features:
     kind: gameplay
     release: v0.1
     priority: P2
-    status: IMPLEMENTING
+    status: INTEGRATED
     gates:
-      spec: partial
+      spec: done
       data: done
-      runtime: partial
+      runtime: done
       log_debug: done
-      automation: partial
-      scenario: partial
+      automation: done
+      scenario: done
       ui_wiki: partial
       packaged: todo
       network_privacy: na
@@ -527,25 +527,38 @@ features:
     dependencies:
       - RT-FEAT-MAP-COVER
     owner_specs:
+      - docs/gameplay/spec-coperture-temporanee-cp95.md
       - docs/gameplay/spec-copertura-alta-cp92.md
     issues: [73]
     tests:
       - RefactorTactics.Cover.Destruction
+      - RefactorTactics.Cover.AddCover
+      - RefactorTactics.Structures.KineticPanel
+      - RefactorTactics.Actions.CreateCover
+      - RefactorTactics.Heroes.Bastion.ReconfigureDoesNotDuplicate
+      - RefactorTactics.Heroes.Bastion.ReconfigureRefusesInsteadOfGuessing
+      - RefactorTactics.Heroes.Bastion.KineticPanelVariantApplied
+      - RefactorTactics.Equipment.PortableCover
     scenarios:
       - Spec.Cover.TemporaryCoverExpires
     wiki_refs:
       - docs/wiki/meccaniche/coperture.md
       - docs/characters/v0.1/bastion.md
     wiki_note: >-
-      La **distruzione** della copertura esiste; la **creazione temporanea** (CP 9.5) no.
+      Le coperture si **erigono, si spostano e scadono** in partita (CP 9.5). Resta da riscrivere la pagina
+      wiki delle coperture, che descrive solo il dato di mappa.
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      date: 2026-08-09
+      commit: b5e295a
     notes: >
-      La distruzione esiste; `Action.CreateCover` è a catalogo ma la copertura **temporanea** è
-      il residuo CP 9.5, rinviato da CP 8.5. `Spec.Cover.TemporaryCoverExpires` è una **specifica eseguibile**: esiste in `main` ma esce
-      `BLOCKED` finché la copertura temporanea non atterra. Per questo `scenario` è `partial` e non
-      `done` — uno scenario bloccato descrive la feature, non la dimostra.
+      Chiuso CP 9.5 il 2026-08-09: `Action.CreateCover` entra nel catalogo in fase **Prep** (D-040, il
+      catalogo azioni si allinea al catalogo eroi), l'operazione su struttura è un **dato**
+      (`ERTStructureOp`) e non tre `if` sull'ActionId — è ciò che permette a `Bastion.KineticPanel`,
+      `Bastion.Reconfigure` e `Gadget.PortableCover` di condividere la semantica. Primo consumatore
+      runtime delle **varianti di abilità** in tutto il progetto (`ARTUnit::ActiveVariantId`): i
+      `Parameters` erano dichiarati e non letti da nessuno. `Spec.Cover.TemporaryCoverExpires` passa da
+      `BLOCKED` a `PASS` su 4 turni — era una specifica eseguibile scritta prima dell'implementazione.
+      `ui_wiki` resta `partial`: il targeting per bordo nell'HUD è E11, e la pagina wiki non è aggiornata.
 
   - feature_id: RT-FEAT-MAP-INTERACTIVE-EDGES
     title: Porte e bordi commutabili

@@ -19,12 +19,12 @@
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-MAP-DYNAMIC-COVER -->
 
-> 🚧 **Parzialmente giocabile.** Il codice esiste ma la feature non è completa: i gate qui sotto dicono quanto manca. Blocco generato dal Feature Registry, non modificare a mano.  
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
 > Feature: `RT-FEAT-MAP-DYNAMIC-COVER` · Release: `v0.1` · Roadmap: `E9.5`  
-> Stato: **IMPLEMENTING** · Gate: `2/8`  
+> Stato: **INTEGRATED** · Gate: `6/8`  
 > Scenario: `Spec.Cover.TemporaryCoverExpires`  
-> La **distruzione** della copertura esiste; la **creazione temporanea** (CP 9.5) no.  
-> Verificato il `2026-08-08` su `2094b86`
+> Le coperture si **erigono, si spostano e scadono** in partita (CP 9.5). Resta da riscrivere la pagina wiki delle coperture, che descrive solo il dato di mappa.  
+> Verificato il `2026-08-09` su `b5e295a`
 
 <!-- RT_FEATURE_STATUS:END RT-FEAT-MAP-DYNAMIC-COVER -->
 

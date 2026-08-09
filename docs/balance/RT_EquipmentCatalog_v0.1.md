@@ -117,6 +117,16 @@ Le *varianti* citate qui sono varianti di **abilità** dell'eroe (una per eroe),
 | 3 | Cooldown dei gadget ripetuto per riga (tutti 3) | Dichiarato una volta sopra la tabella | Nessuna informazione persa |
 | 4 | Il gadget `Gadget.Sensor` non dichiara raggio né durata | Riportato come «rivela un'area», **non specificato** | Non si inventano numeri assenti dalla fonte |
 
-**Non specificato nel PDF** (da fissare in E7): raggio e durata di `Gadget.Sensor` · durata della copertura creata
-da `Gadget.PortableCover` (per `Action.CreateCover` è 2 turni: probabile ma non dichiarato) · se l'immunità di
+**Non specificato nel PDF** (da fissare in E7): raggio e durata di `Gadget.Sensor` · ~~durata della copertura creata
+da `Gadget.PortableCover`~~ · se l'immunità di
 `Gadget.Insulator` si consumi anche quando la propagazione non avrebbe fatto danno.
+
+> **Chiuso il 2026-08-09 (E9.5)** — `Gadget.PortableCover` è **costruito**, ed è l'unico gadget della v0.1 a
+> esserlo: concede `Action.CreateCover` (integrità 30, durata **2 turni**, la stessa dell'azione core, che era
+> «probabile ma non dichiarata»). Slot, loadout e validazione dell'insieme restano `#61`/`#63`.
+>
+> **Il suo svantaggio non è nel PDF e non è stato inventato.** Il validator ne esige uno dichiarato — un
+> equipaggiamento senza svantaggio è una scelta verticale — e allora si dichiara ciò che i cataloghi già
+> dicono: **cooldown 3** come ogni gadget (§2) contro il **2** del pannello d'eroe, più l'unico slot gadget
+> occupato. Chi non è Bastion può erigere pannelli, ma più di rado e rinunciando a medkit, isolante o sensore.
+> Se E7 vorrà uno svantaggio più caratterizzato, questo è il posto dove cambiarlo.

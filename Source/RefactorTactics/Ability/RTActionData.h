@@ -147,4 +147,23 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
 	TArray<FRTAbilityVariant> Variants;
+
+	/**
+	 * La variante con quell'id, o nullptr — anche per un id nullo, che significa «nessuna variante scelta»:
+	 * l'abilita' vale allora coi numeri del catalogo base.
+	 *
+	 * E' il primo consumatore runtime di `Variants` (CP 9.5). Fino a qui i `Parameters` erano una
+	 * dichiarazione che nessuno leggeva: il commento del catalogo lo diceva apertamente — «il giorno in cui E9
+	 * costruira' le strutture, questi numeri saranno gia' scritti nel posto giusto invece di essere stati
+	 * inventati allora».
+	 */
+	const FRTAbilityVariant* FindVariant(const FName& VariantId) const
+	{
+		if (VariantId.IsNone()) { return nullptr; }
+		for (const FRTAbilityVariant& Variant : Variants)
+		{
+			if (Variant.VariantId == VariantId) { return &Variant; }
+		}
+		return nullptr;
+	}
 };

@@ -51,6 +51,17 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 CooldownTurns = 0;
 
+	/**
+	 * Azione core che l'equipaggiamento CONCEDE a chi lo porta (`None` = non concede azioni, come una variante
+	 * d'arma che modifica soltanto numeri).
+	 *
+	 * E' un id e non una copia della definizione: un gadget che duplicasse i numeri dell'azione sarebbe un
+	 * secondo catalogo da tenere allineato, e il primo a cambiare romperebbe il secondo in silenzio — lo
+	 * stesso motivo per cui `Bastion.Ram` legge `Action.Charge` invece di riscriverlo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	FName GrantedActionId;
+
 	/** ID primario stabile: `RTEquipment:<EquipmentId>`; senza id ricade sul nome dell'asset. */
 	virtual FPrimaryAssetId GetPrimaryAssetId() const override
 	{

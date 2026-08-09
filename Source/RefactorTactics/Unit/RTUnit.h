@@ -151,6 +151,41 @@ public:
 	FRTCellId PlannedAttackCell;
 
 	/**
+	 * Variante di abilita' attiva su questa unita' (es. `Bastion.KineticPanel.Reinforced`). `None` = i numeri
+	 * del catalogo base.
+	 *
+	 * E' il **minimo** che rende consumabili i `Parameters` delle varianti, che fino a CP 9.5 nessuno leggeva:
+	 * il catalogo dichiarava due compromessi (45 punti struttura per un turno solo, oppure 25 con una
+	 * rotazione gratuita) senza che il gioco sapesse applicarli. CHI la sceglie, quando e con quale interfaccia
+	 * resta l'epic E7: qui c'e' il campo e il suo consumatore, non il loadout.
+	 *
+	 * Il vincolo di catalogo — una sola abilita' fondamentale con variante, per eroe — e' la ragione per cui
+	 * basta UN id per unita' invece di una mappa abilita -> variante.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Ability")
+	FName ActiveVariantId;
+
+	/**
+	 * Bordo bersagliato dalle azioni che agiscono su una STRUTTURA di bordo (CP 9.5: `Action.CreateCover`,
+	 * `Bastion.Reconfigure`). Valido solo con `bHasPlannedCoverEdge`.
+	 *
+	 * Serve un dato in piu' perche' una copertura sta su un BORDO, e una cella ne ha sei: con portata 3 la
+	 * coppia (chi la erige, cella bersaglio) non basta a determinarlo — a portata 1 sarebbe bastata, ma il
+	 * catalogo azioni dichiara 3. E' l'equivalente per i bordi di `PlannedAttackCell`, e come quello resta
+	 * scoperto sul lato HUD: puntare un bordo col mouse e' E11.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Plan")
+	ERTHexDirection PlannedCoverEdge = ERTHexDirection::E;
+
+	/**
+	 * Vero se il piano dichiara `PlannedCoverEdge`. Serve un flag e non basta un valore di riposo: le sei
+	 * direzioni sono tutte legittime, quindi nessuna puo' fare da «nessuna» senza diventare un caso speciale
+	 * che il giocatore non puo' dedurre.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Plan")
+	bool bHasPlannedCoverEdge = false;
+
+	/**
 	 * Vero se l'azione principale mira a `PlannedAttackCell` invece che a un'unita'.
 	 *
 	 * Serve un flag e non basta «target nullo»: nel resolver `TargetUnitId == INDEX_NONE` significa gia'

@@ -114,4 +114,29 @@ public:
 	 */
 	static TArray<FRTCoverDamageResult> ApplyStructureDamage(URTHexMapAsset* Map,
 		const TArray<FRTStructureHit>& Hits);
+
+	/**
+	 * ERIGE una copertura sul bordo `Edge` della cella `Cell` (CP 9.5). Vero solo se e' nata davvero.
+	 *
+	 * Rifiuta — senza toccare ne' hash ne' revisione — la mappa nulla, la cella che non esiste, un tipo `None`,
+	 * un'integrita' non positiva e un bordo GIA' occupato. «Non sovrapponibile» e' del catalogo
+	 * (`Action.CreateCover`) ed e' gia' un'invariante di `ValidateMap`: qui si fa valere anche in partita, e si
+	 * guarda ENTRAMBE le facce del bordo — una copertura dichiarata dal vicino e' la stessa barriera, e
+	 * aggiungerne una seconda produrrebbe un muro che regge il doppio.
+	 *
+	 * Passa da `AddOrUpdateCell`, che incrementa la revisione: e' il canale con cui cache di lookup e percorsi
+	 * si accorgono del cambiamento. La DURATA non e' qui: una libreria di mappa non conosce i turni — la tiene
+	 * `ARTTurnManager`, come per superfici e archi temporanei.
+	 */
+	static bool AddCover(URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexDirection Edge, ERTHexCoverType Type,
+		int32 Integrity);
+
+	/**
+	 * TOGLIE la copertura dal bordo `Edge` della cella `Cell`. Vero solo se ce n'era una.
+	 *
+	 * Toglie la faccia dichiarata da `Cell`: e' quella che `AddCover` ha creato, ed e' l'unica che puo'
+	 * esistere per una copertura eretta in partita. Una barriera disegnata a mano su entrambe le facce resta
+	 * dato di mappa, e non la si smonta da qui.
+	 */
+	static bool RemoveCover(URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexDirection Edge);
 };
