@@ -1,5 +1,9 @@
 # Spec — Dash come fase attiva (riposizionamento rapido)
 
+> Per il confronto **fra le famiglie** di movimento — cosa distingue Dash da Move, da uno spostamento forzato
+> e da un teletrasporto: [`spec-tassonomia-movimento.md`](spec-tassonomia-movimento.md). Questa pagina resta
+> l'owner del Dash.
+
 > `/sc:design` + implementazione del **2026-08-03**. Obiettivo: attivare la fase **Dash** (finora pass-through)
 > con un riposizionamento rapido che si risolve **prima del Blast**. Documentale + implementato in TDD dove la
 > logica è pura, wiring + PIE per Actor/UI. Ancorata al canone ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md)),
