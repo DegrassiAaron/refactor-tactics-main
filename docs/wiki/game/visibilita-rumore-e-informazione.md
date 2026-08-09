@@ -24,9 +24,9 @@
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-PERCEPTION-VISION -->
 
-> ⚠️ **Progettata, non implementata.** Questa pagina descrive una meccanica **decisa e documentata** che il gioco **non esegue ancora**: oggi non è giocabile. Blocco generato dal Feature Registry, non modificare a mano.  
+> 🚧 **Parzialmente giocabile.** Il codice esiste ma la feature non è completa: i gate qui sotto dicono quanto manca. Blocco generato dal Feature Registry, non modificare a mano.  
 > Feature: `RT-FEAT-PERCEPTION-VISION` · Release: `v0.1` · Roadmap: `E13.1, E13.2`  
-> Stato: **SPECIFIED** · Gate: `1/9`  
+> Stato: **IMPLEMENTING** · Gate: `3/9`  
 > Scenario: `—`  
 > Verificato il `2026-08-08` su `2094b86`
 
@@ -34,9 +34,9 @@
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE -->
 
-> ⚠️ **Progettata, non implementata.** Questa pagina descrive una meccanica **decisa e documentata** che il gioco **non esegue ancora**: oggi non è giocabile. Blocco generato dal Feature Registry, non modificare a mano.  
+> 🚧 **Parzialmente giocabile.** Il codice esiste ma la feature non è completa: i gate qui sotto dicono quanto manca. Blocco generato dal Feature Registry, non modificare a mano.  
 > Feature: `RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE` · Release: `v0.1` · Roadmap: `E13.1`  
-> Stato: **SPECIFIED** · Gate: `1/9`  
+> Stato: **IMPLEMENTING** · Gate: `3/9`  
 > Scenario: `—`  
 > Modello deciso per la v0.1; l'implementazione (E13, dopo E16) **non e' iniziata**: oggi la vista non decide nulla.  
 > Verificato il `2026-08-08` su `2094b86`

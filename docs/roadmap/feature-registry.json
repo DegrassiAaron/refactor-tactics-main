@@ -2326,20 +2326,20 @@
       "kind": "gameplay",
       "release": "v0.1",
       "priority": "P2",
-      "status": "SPECIFIED",
-      "status_derived": "SPECIFIED",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
       "gates": {
         "spec": "done",
-        "data": "partial",
-        "runtime": "todo",
+        "data": "done",
+        "runtime": "partial",
         "log_debug": "todo",
-        "automation": "todo",
+        "automation": "done",
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "todo",
         "network_privacy": "todo"
       },
-      "gates_done": 1,
+      "gates_done": 3,
       "gates_applicable": 9,
       "roadmap": {
         "epic": "E13",
@@ -2361,7 +2361,14 @@
         151,
         156
       ],
-      "tests": [],
+      "tests": [
+        "RefactorTactics.Vision.VisibleCellsRespectsSight",
+        "RefactorTactics.Vision.ConeUsesHexConePrimitive",
+        "RefactorTactics.Vision.AwarenessWithinTwoCellsIgnoresFacing",
+        "RefactorTactics.Vision.TeamKnowledgeIsUnion",
+        "RefactorTactics.Vision.SmokeCapsContactAtTwo",
+        "RefactorTactics.Vision.PermutationInvariant"
+      ],
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
@@ -2381,20 +2388,20 @@
       "kind": "gameplay",
       "release": "v0.1",
       "priority": "P2",
-      "status": "SPECIFIED",
-      "status_derived": "SPECIFIED",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
       "gates": {
         "spec": "done",
-        "data": "partial",
-        "runtime": "todo",
+        "data": "done",
+        "runtime": "partial",
         "log_debug": "todo",
-        "automation": "todo",
+        "automation": "done",
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "todo",
         "network_privacy": "todo"
       },
-      "gates_done": 1,
+      "gates_done": 3,
       "gates_applicable": 9,
       "roadmap": {
         "epic": "E13",
@@ -2417,7 +2424,14 @@
         156,
         157
       ],
-      "tests": [],
+      "tests": [
+        "RefactorTactics.Vision.VisibleCellsRespectsSight",
+        "RefactorTactics.Vision.ConeUsesHexConePrimitive",
+        "RefactorTactics.Vision.AwarenessWithinTwoCellsIgnoresFacing",
+        "RefactorTactics.Vision.TeamKnowledgeIsUnion",
+        "RefactorTactics.Vision.SmokeCapsContactAtTwo",
+        "RefactorTactics.Vision.PermutationInvariant"
+      ],
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
