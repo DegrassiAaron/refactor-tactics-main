@@ -174,6 +174,16 @@ Evidenza = i **nomi dei test**, che sono la prova di ciò che esiste:
 | **E15** Showcase «Il Relè» e golden replay | 🟡 **iniziata** | 2 test `ShowcaseRelay.*` — fixture stabile, scenario lite deterministico |
 | **E16** Orientamento e direzionalità | ✅ **chiusa** | 13 test `Facing.*` + 3 `Combat.*` direzionali + 5 scenari `Spec.Facing.*` — il facing è stato di gioco (derivato da Move e Dash, riorientato dal bersaglio, in snapshot, TurnLog e hash, filtrato per squadra) e la difesa direzionale annulla copertura bassa e `Guard` fuori dall'arco frontale, con la stessa `HexCone` che userà la vista. Resta fuori `FacingUsedByOverwatch`, che è E14 |
 | **E17** Validazione di stress 4v4 | ⏳ **assente** | dopo E15; **non** è un gate di release |
+| **E18** Predictive Action, thin slice | ⏳ **assente** | nessun test `Predictive.*`; l'unico artefatto è lo scenario-spec `Spec.Predictive.WhiffOnEmptyCell`, che esce `BLOCKED` su `PredictiveAction` |
+| **E19** Classe di mappa e composizione | 🟡 **parziale** | 5 test `MatchFormat.*` — il formato è un data asset validato, il fallback è **osservabile** e un asset non valido blocca il setup · ⏳ la mappa non dichiara ancora la propria **classe** né il formato le **unità per squadra** ([D-030](../decisions/RT_PDR_00_Decision_Log.md)) |
+| **E20** HUD Icon Language | 🟡 **parziale** | 5 test `IconCatalog.*` — ogni chiave risolve, l'ID duplicato e la chiave assente sono **errori di validazione**, la chiave sconosciuta cade sul fallback · ⏳ i widget non consumano ancora il catalogo |
+| **E21** Presentazione e leggibilità | 🟡 **parziale** | 4 test `Unit.*` (anello, colore di squadra, posa sul centro-cella, nome breve) + 4 `Camera.*` · ⏳ il grosso è **lavoro in editor** — mesh, animazioni, materiali — che non è testabile headless: vive nelle voci PIE della sessione C |
+
+> ⚠️ **Aggiunte il 2026-08-09.** Queste quattro righe **mancavano**: E18–E21 erano in §3 e in §5 ma non
+> in questa tabella, l'unica vista dello stato delle epic. Il buco non era visibile finché
+> `feature_registry.py shortlist` non ha dovuto leggere lo stato di ogni epic e ha dichiarato quali non
+> lo avevano. Due delle quattro non erano nemmeno «assenti»: **E19** ed **E20** hanno cinque test
+> ciascuna, e sarebbero rimaste a zero in ogni vista che le leggesse da qui.
 
 **Due cose vigenti che i documenti non dichiaravano.** Lo **scivolamento su ghiaccio** esiste ed è testato
 (`Terrain.Ice.*`), benché il catalogo terreni lo dicesse «rimandabile»: va documentato come vigente, non

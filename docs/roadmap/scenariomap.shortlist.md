@@ -17,7 +17,7 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 
 <!-- RT_SHORTLIST_SCENARIOS:BEGIN -->
 
-**54 scenari versionati** — misurati su `Scenarios/`: **44** eseguibili · **10** `BLOCKED` per una capability assente · **21** dichiarati `planned` nel registry e non ancora scritti.
+**56 scenari versionati** — misurati su `Scenarios/`: **46** eseguibili · **10** `BLOCKED` per una capability assente · **21** dichiarati `planned` nel registry e non ancora scritti.
 
 **Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `Cover` · `CreateCover` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `Reaction` · `Structures`.
 
@@ -69,31 +69,35 @@ corpus e i bloccati sono invece generati in §1 e vincono sempre.
 
 | Classe | Chi esegue | Chi giudica | Quanti *(owner, 2026-08-09)* |
 |:--:|---|---|---|
-| **A** | la macchina | l'assertion | **21** scenari *(→ 24: vedi sotto)* |
+| **A** | la macchina | l'assertion | **26** scenari |
 | **B** | la macchina | **una persona** che guarda | **21** scenari ↔ 21 voci `PIE-VIS-*` |
 | **C** | una persona | una persona | **95** voci PIE |
 | **D** | — | — | vedi §1: i `BLOCKED` e i `planned` sono misurati |
+| *fuori classe* | la macchina | una persona sceglie **quando** | 1 voce — `PIE-MUT-BASTION-SLOW` |
 
 In B l'assertion esiste comunque: garantisce che ciò che stai guardando sia lo **stato giusto**, perché uno
 scenario visivo senza assertion può mostrarti una bellissima animazione di un colpo che ha mancato.
 
-> ⚠️ **Due scarti che la misura di §1 ha trovato nell'owner** — da correggere là, non qui:
-> i tre scenari che chiedevano `EnvironmentalActionOwner` **non sono più bloccati** (la capability è
-> atterrata lo stesso giorno con `#282`), quindi la classe A è a **24** e i `BLOCKED` a **10**, non 12;
-> e i `planned` misurati nel registry sono **21**, non 13 — l'owner ne elencava ventuno sotto un totale di
-> tredici. È il difetto che il comando `shortlist` esiste per non far ripetere.
+> ✅ **I due scarti che la misura di §1 aveva trovato sono stati corretti nell'owner** il 2026-08-09:
+> la classe A passa da 21 a **24** (i tre `EnvironmentalActionOwner` si sono accesi con `#282`) e i
+> `planned` da 13 a **21** — erano ventuno elencati sotto un totale di tredici. Nello stesso pomeriggio
+> `#346` ne ha aggiunti due in `Scenarios/Combat/`, e la classe A è arrivata a **26**: le due correzioni
+> sono state calcolate su rami diversi e riconciliate al merge. Restano scritti a mano solo i conteggi
+> **A/B/C**, che dipendono da dove sta l'oracolo e non dai file.
 
 ---
 
-## 3. Classe A — automatico, nessun umano · 21
+## 3. Classe A — automatico, nessun umano · 26
 
 Eseguiti in blocco da `RefactorTactics.Scenario.EveryShippedScenarioRuns`, che **scopre il corpus dall'indice**:
 aggiungere un file basta perché venga eseguito. Nessuno di questi compare nel registro PIE, ed è corretto.
 
-**`Scenarios/Combat/` · 7** — il colpo diretto arriva (`BasicAttack`) · il muro ferma la **vista**, non il
+**`Scenarios/Combat/` · 9** — il colpo diretto arriva (`BasicAttack`) · il muro ferma la **vista**, non il
 passaggio (`BlockedByWall`) · lo scudo assorbe **e** restituisce (`CounterStrikesBack`) · l'AoE prende anche
 l'alleato (`FriendlyFire`) · la linea prende chi sta sulla traiettoria (`LineHitsThrough`) · il contrattacco
-richiede un'arma (`NoCounterWhenUnarmed`) · l'area prende gli alleati ma **non** chi la lancia (`SplashHitsAlliesNotSelf`).
+richiede un'arma (`NoCounterWhenUnarmed`) · l'area prende gli alleati ma **non** chi la lancia
+(`SplashHitsAlliesNotSelf`) · lo `Slow` del Blast accorcia il **Move dello stesso turno**
+(`BastionImpactShotSlows`) e il suo gemello di controllo lo dimostra per assenza (`MoveIsFullWithoutSlow`).
 
 **`Scenarios/Movement/` · 6** — il passo arriva sulla cella pianificata (`Basic`) · **`BasicFailsOnPurpose`** è
 l'unica prova che l'harness sappia dire «rosso» · una destinazione bloccata non produce percorso (`Blocked`) ·
@@ -104,6 +108,11 @@ chi cede la cella contesa e con quale reason (`Collision`) · due unità attrave
 (`DerivesFromMove`) · il Dash riscrive prima del Blast (`DashReorients`) · il bersaglio orienta prima di
 risolvere (`TargetingReorients`) · `Guard` riduce di fronte (`FrontAttackKeepsGuard`) e **non** da dietro
 (`BackAttackIgnoresGuard`) · `Brace` invece tiene da ogni lato (`BraceHoldsFromBehind`).
+
+**`EnvironmentalActionOwner` · 3** — accesi da `#282` il 2026-08-09, quando le azioni ambientali hanno avuto
+un **possessore**: la scarica corre sul grafo dell'acqua perché un eroe la innesca
+(`Spec.Environment.ElectricPropagation`) · l'acqua spegne le fiamme (`…WaterQuenchesFire`) · rompere un arco
+**annulla** il percorso invece di allungarlo (`Spec.Map.BridgeBreaksThePath`).
 
 **+2** — `Spec.Cover.TemporaryCoverExpires` (acceso da E9.5: una copertura temporanea **scade**) ·
 `RT_Showcase_Relay_v01` (gli 8 turni della showcase, oggi **BLOCKED** su 5 capability).

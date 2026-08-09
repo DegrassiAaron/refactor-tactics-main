@@ -141,14 +141,22 @@ budget **5 MP**, reazioni, terreni e obiettivi.
 **Lo stato delle epic non si duplica qui.** Una sola tabella `epic → stato → evidenza`, misurata, vive in
 [`roadmap-v0.1.md`](roadmap-v0.1.md) **§2.1**. Questa vista registra solo la **conseguenza sulle milestone**:
 
-| Milestone | Stato | Cosa la tiene aperta |
-|---|---|---|
-| **M6** Parità hex | ✅ | — |
-| **M7** Dismissione del quadrato | ✅ | — |
-| **M8** Presentazione e identità | 🟡 | Solo **presentazione**: personaggi animati, anelli, Ghost Timeline (E11), showcase (E15). Le regole degli eroi non hanno più abilità inerti. **Dal 2026-08-08 ha un'epic corrispondente**: [E21](roadmap-v0.1.md#e21--presentazione-e-leggibilità--p1), aperta perché il Feature Registry ha reso visibile che questo lavoro non stava in nessuna delle 20 |
-| **M9** Ambienti tattici ed editor | 🟡 | E8 ed **E9 sono chiuse** (E9.5, coperture temporanee, il 2026-08-09): restano gli obiettivi di **E10** e il residuo editor H5 |
-| **M10** Rete e privacy | ⏳ | Fuori dalla v0.1. E13 ed E14 la preparano; [D-021](../decisions/RT_PDR_00_Decision_Log.md) le aggiunge la **privacy temporale** |
-| **M11** Production readiness | ⏳ | E7 assente; E12 ha chiuso E12.1 ma non il packaging |
+⚠️ **Corretto il 2026-08-09: qui non c'è più una colonna «Stato».** Ne aveva una, e diceva **✅** per M6 ed
+M7 mentre la tabella *Stato attuale* — nello stesso file, cento righe sopra — diceva **🟡**. Non era una
+svista di battitura: la colonna rispondeva a *«resta lavoro di epic?»* ma si chiamava come lo stato della
+milestone, e le due domande hanno risposte diverse. Per M6 nessuna epic è aperta **e** il DoD non è
+raggiunto: le nove voci `PIE-HEXPLAY` sono tutte ⏳. Sincronizzare due colonne sarebbe stato il rimedio
+sbagliato allo stesso difetto — lo stato della milestone vive in *Stato attuale*, e qui resta solo ciò che
+questa vista sa davvero.
+
+| Milestone | Lavoro di epic residuo |
+|---|---|
+| **M6** Parità hex | **Nessuno**: E2 è chiusa. Ciò che la tiene aperta non è un'epic ma il **playtest** M6.8 — `PIE-HEXPLAY-1..9`, tutte ⏳ |
+| **M7** Dismissione del quadrato | **Nessuno**: E3 è chiusa. Restano i due KPI di M7.3 che richiedono rendering ed editor (FPS client, preview) |
+| **M8** Presentazione e identità | Solo **presentazione**: personaggi animati, anelli, Ghost Timeline (E11), showcase (E15). Le regole degli eroi non hanno più abilità inerti. **Dal 2026-08-08 ha un'epic corrispondente**: [E21](roadmap-v0.1.md#e21--presentazione-e-leggibilità--p1), aperta perché il Feature Registry ha reso visibile che questo lavoro non stava in nessuna delle 20 |
+| **M9** Ambienti tattici ed editor | E8 ed **E9 sono chiuse** (E9.5, coperture temporanee, il 2026-08-09): restano gli obiettivi di **E10** e il residuo editor H5 |
+| **M10** Rete e privacy | Fuori dalla v0.1. E13 ed E14 la preparano; [D-021](../decisions/RT_PDR_00_Decision_Log.md) le aggiunge la **privacy temporale** |
+| **M11** Production readiness | E7 assente; E12 ha chiuso E12.1 ma non il packaging |
 
 > **La lezione del 2026-08-07, che vale più della correzione.** M8 ed M9 erano dichiarate ⏳ qui mentre E4–E6
 > erano già chiuse nella vista di release: il lavoro era stato eseguito guardando *un* documento e chiudendo
