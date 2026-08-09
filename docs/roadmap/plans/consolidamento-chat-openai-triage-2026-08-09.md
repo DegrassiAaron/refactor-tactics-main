@@ -438,22 +438,38 @@ dalla riga 24.
    le due pagine derivate, riscritte a mano le due frasi in prosa che il generatore non raggiungeva.
 2. ✅ ~~La collisione dei quattro `D-0xx`~~ — **chiusa il 2026-08-09** da una sessione parallela (`#320`).
    Resta la **propagazione**: vedi il punto 7.
-3. **`INT-1`…`INT-4`** — le quattro domande di
-   [`spec-interazioni-mappa-cp101.md`](../../gameplay/spec-interazioni-mappa-cp101.md) §12 vanno in
-   [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md). `INT-3` è già lì sotto il nome `FAC-6`.
-4. **Characters & Roster** è l'unico cluster non consumato qui, e **non è libero**: una sessione parallela lo
-   sta lavorando sul branch `feat/315-basic-attack-profiles`, rebasato su `main` corrente, con `ADR-0007`,
-   i due scenari della coppia `Slow` e la suite in esecuzione. Non va duplicato.
-   > Storia utile: quel lavoro era finito in `stash@{0}` con l'etichetta **«scartato»** durante un
-   > fast-forward, e da lì sembrava perduto. Il branch locale `wip/basicattack-adr0007` ne conserva il
-   > recupero già riconciliato con `main` — inerte, da cancellare quando la loro PR atterra.
-   > ⚠️ I due scenari `Combat.BastionImpactShotSlows` e `Combat.MoveIsFullWithoutSlow` erano stati scritti
-   > una prima volta, sono rimasti non tracciati e sono stati **cancellati**: non sono in nessun commit,
-   > stash o oggetto pendente. Nel registry sono dichiarati `planned`.
-5. **`RT-FEAT-MAP-INTERACTIVE-EDGES`** e le feature di E10 vanno collegate a
-   [`spec-interazioni-mappa-cp101.md`](../../gameplay/spec-interazioni-mappa-cp101.md) come `owner_specs`.
+3. ✅ ~~`INT-1`…`INT-4`~~ — **chiuso da `#344`**: `INT-1`, `INT-2` e `INT-4` sono in
+   [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md); **`INT-3` non esiste**, perché era già `FAC-6` e il suo
+   owner è [ADR-0005](../../decisions/adr-0005-orientamento.md) — la spec di CP 10.1 ne è il primo
+   consumatore, non il proprietario. Il rimando è nei due sensi. Issue `#335`.
+4. ✅ ~~**Characters & Roster**~~ — **atterrato con `#346`** (`d5b36cf`), lavorato da una sessione parallela:
+   `ADR-0007`, la sezione *Profilo di attacco base* nel template applicata ai quattro eroi,
+   `Bastion.ImpactShot` 24 → 8 + `Status.Slow`, quattro scenari rimisurati e due nuovi.
+   **Verificato in modo indipendente** su worktree separato prima del merge: build pulita e **544/544
+   `Success`**, zero `Fail`; merge di prova contro `main` senza conflitti e senza regressioni su `#321`.
+   > Storia che vale la pena conservare: quel lavoro era finito in `stash@{0}` con l'etichetta
+   > **«scartato»** durante un fast-forward, e da lì sembrava perduto. Il recupero tentato è stato
+   > **abbandonato** quando si è scoperto che la sessione era ripartita altrove con una versione migliore —
+   > più recente di 22 commit e con i due scenari che al recupero mancavano.
+   > ⚠️ Quei due scenari erano stati scritti **una prima volta**, sono rimasti non tracciati e sono stati
+   > cancellati: non erano in nessun commit, stash o oggetto pendente. La seconda scrittura è quella che è
+   > atterrata. **Il lavoro non committato non è lavoro salvato**, nemmeno per un'ora.
+   >
+   > Resta aperto il **resto** del master `RT_Characters_Roster_Master_*` — fazioni, Signature Mechanics,
+   > Super/Cooldown v0.2, data model — che `ADR-0007` non tocca. Issue `#336`.
+5. ✅ ~~`RT-FEAT-MAP-INTERACTIVE-EDGES` e le feature di E10~~ — collegate a
+   [`spec-interazioni-mappa-cp101.md`](../../gameplay/spec-interazioni-mappa-cp101.md) fra i loro
+   `owner_specs`. Issue `#340`.
 6. I quattro controlli §16 non implementati — `issue senza feature`, `CURRENT`/`SUPERSEDED` simultanei,
    valore numerico duplicato fra normative, `roster/version mismatch` — vanno valutati uno per uno. Il terzo
    è il più interessante e il più costoso: sarebbe il gate che impedisce il difetto che il progetto ha già
    pagato cinque volte col conteggio dei test.
-7. **La propagazione della rinumerazione**, aperta e misurata — vedi la sezione qui sotto.
+7. ✅ ~~La propagazione della rinumerazione~~ — **chiusa**. `Source/` e `Scenarios/` in `#321` (26
+   riferimenti), il **registry** qui: cinque righe di `feature-registry.yaml` puntavano ancora ai numeri
+   pre-`#320` — `D-041`→`D-047`, `D-042`→`D-048` ×3, `D-043`→`D-049` — e da lì il generatore li propagava.
+   > Era il posto che entrambe le passate avevano saltato, ed è **il peggiore in cui saltarlo**: la yaml è
+   > la sorgente verificata dalla macchina, e tutto il resto ne è generato. Se n'è accorto il commit
+   > `ddba108`, la cui rigenerazione aveva riscritto `D-048` → `D-042` in
+   > [`reazioni-overwatch-e-previsioni.md`](../../wiki/game/reazioni-overwatch-e-previsioni.md),
+   > sostituendo un riferimento **corretto** con uno stantio — senza colpa di chi l'ha fatto: il generatore
+   > stava facendo esattamente il suo lavoro su una sorgente sbagliata.
