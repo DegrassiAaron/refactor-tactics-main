@@ -174,9 +174,23 @@ La corrispondenza segue le convenzioni già in uso nel clone:
 le pagine che vivono **solo** nel clone e non hanno una sorgente nel repository.
 
 Errori (bloccanti): id duplicato o malformato · epic, milestone o checkpoint inesistenti ·
-ScenarioId inesistente · owner spec inesistente · riferimento a un test che la suite non ha ·
-dipendenza verso un id inesistente · valori fuori dominio · `status` che diverge dai gate ·
-`last_verified` assente per stati `TESTABLE` o superiori · blocco generato per un id non nel registry.
+ScenarioId inesistente · **ScenarioId non rivendicato da nessuna feature** · owner spec inesistente ·
+riferimento a un test che la suite non ha · dipendenza verso un id inesistente · valori fuori dominio ·
+`status` che diverge dai gate · `last_verified` assente per stati `TESTABLE` o superiori · blocco generato
+per un id non nel registry.
+
+> **Lo scenario orfano è entrato il 2026-08-09**, e il controllo esisteva solo in un verso. Il registry
+> verificava «lo `ScenarioId` che dichiaro esiste davvero?» e non «esiste uno scenario che nessuno
+> dichiara?». Al momento dell'aggiunta erano **6 su 54**, fra cui `Visual.Map.HighCoverBlocks` e
+> `Spec.Environment.ElectricPropagation` — tutti documentati in
+> [`../technical/scenario-map.md`](../technical/scenario-map.md), tutti eseguiti, nessuno collegato a una
+> feature. Uno scenario che nessuno rivendica passa e non dimostra niente a nessuno: è la stessa famiglia
+> del dato che nessun consumatore legge.
+>
+> È un **errore** e non un avviso, per simmetria con «scenario dichiarato `planned` ma presente in
+> `Scenarios/`»: in entrambi i casi il registry sta dicendo qualcosa di falso sulla copertura, non
+> segnalando una lacuna. Se uno scenario davvero non appartiene a nessuna feature, la via d'uscita è
+> dichiararlo in `notes`, non lasciarlo muto.
 
 Warning (da vedere, non bloccanti): feature senza pagina Wiki · feature di gameplay testabile senza
 scenario che la dimostri · `SPECIFIED` senza issue né assegnazione · scenari dichiarati `planned`.

@@ -93,6 +93,8 @@
 | 57 | **Granularità delle feature UI** | il kit `RefactorTactics_HUD_Consolidation_Claude.md` §28 chiede di registrare **38** feature `HUD.*` (`HUD.Core`, `HUD.TimeBank`, `HUD.EventBanner`…); l'`RT_UI_UX_Master` §30 ne elenca 15 come `RT-FEAT-UI-*` | il registry ha **8** feature UI, e delle 15 del master **9 non esistono** — mentre le due che esistono e servono, `RT-FEAT-UI-ICON-LANGUAGE` ([D-031](decisions/RT_PDR_00_Decision_Log.md), E20) e `RT-FEAT-UI-SCENARIO-BROWSER`, il master **non le nomina** | [`roadmap/feature-registry.yaml`](roadmap/feature-registry.yaml) | `DUPLICATE` → **evitato** | ✅ 2026-08-09, chiuso in prevenzione come la riga 45. Un widget non è una feature: `HUD.EventBanner` e `HUD.ResolutionTimeline` sono due pezzi dello stesso comportamento già inventariato. Lo stesso pacchetto lo vieta (`RT_Governance_Master` §39: «non creare una seconda Feature Map») |
 | 58 | **`TEAM READY n/m` e «Fog of War» nel kit HUD** | il kit prescrive `Team Ready 2/3` come componente persistente (§3.5) e struttura tre milestone attorno alla **Fog of War** (§11, §30, §31) | il team-ready **non è implementato** nel build locale e non va simulato; e non è FoW, è **conoscenza parziale a tre livelli** con la mappa statica nota | [`technical/progettazione-hud.md`](technical/progettazione-hud.md) §17 · riga 13 di questa matrice | `CONFIRMED` | ✅ 2026-08-09. Il conflitto è **interno al pacchetto**: l'`RT_UI_UX_Master`, più recente, corregge il kit su entrambi i punti (`UI-READY-01`, §22) e coincide col repository. Quando due documenti dello stesso pacchetto divergono, prevale quello che concorda col canone — non il più dettagliato |
 
+| 59 | **Etichette di stato dei documenti** | `RT_Governance_Master` §2 propone otto stati — `CURRENT · AS_BUILT_REFERENCE · PROPOSAL · OPEN_DESIGN · HISTORICAL · RESEARCH · SUPERSEDED · ARCHIVE` — più owner, `last reviewed` e `superseded-by` | **sette** tag già in uso e motivati: `CANONICAL · CURRENT · AS-BUILT · DELIVERED PLAN · HISTORICAL · RESEARCH · OPEN` | [`README.md`](README.md) §«Come si classifica un documento» | `DUPLICATE` → **evitato** | ✅ 2026-08-09. Il repository ha due tag che il master non ha (`CANONICAL`, che dice **chi prevale**, e `DELIVERED PLAN`) e una regola che il master non formula: **un `AS-BUILT` superato non è un difetto da correggere** — riscriverlo falsificherebbe la storia, la correzione va nel `CURRENT` che possiede la regola. `SUPERSEDED` e `ARCHIVE` non servono come *tag di documento*: il primo è uno stato di **riga** di questa matrice, il secondo è una **cartella** |
+
 **Quarto passaggio, 2026-08-08 — Signature, profili e trasformazioni**: **+3 righe risolte** (45, 46, 47).
 La 45 è la prima chiusa **in prevenzione**: il duplicato non è mai entrato nella documentazione, perché
 l'audit per sinonimi è stato fatto prima di scrivere. Resta **1 `OPEN`** (riga 34, APNAP) e **0 `CONFLICT`**.
@@ -147,6 +149,17 @@ senza applicare nulla. L'unico `OPEN` resta la riga 34 e i `CONFLICT` restano **
 > 38 feature duplicate, due milestone costruite su un vocabolario (`Fog of War`) che il progetto ha già
 > respinto, e un componente HUD che finge uno stato di rete inesistente. Un consolidamento che si misura in
 > righe scritte avrebbe recepito tutto e peggiorato il documento.
+
+**Ottavo passaggio, 2026-08-09 — cluster Governance**: riga **59**, `DUPLICATE` evitato. Anche qui il
+pacchetto descriveva cose che il repository ha già — i **nove gate** del registry coincidono alla lettera —
+e il valore stava in **una sola** delle dodici verifiche proposte: *nessuno scenario senza feature*. Mancava
+davvero, ed erano **6 su 54**. Ora è un errore del validator, con verifica di mutazione.
+
+> Vale la pena registrare anche ciò che questo passaggio ha trovato **fuori** dal pacchetto, perché è la
+> stessa classe di difetto che la matrice insegue: **quattro `D-0xx` assegnati due volte** su `main`
+> (`D-039`, `D-041`, `D-042`, `D-043`). Non è un conflitto fra documenti — è un conflitto fra un documento e
+> **sé stesso**, quindi non prende una riga qui: aspetta l'autore, ed è descritto in
+> [`roadmap/plans/consolidamento-chat-openai-triage-2026-08-09.md`](roadmap/plans/consolidamento-chat-openai-triage-2026-08-09.md).
 
 > Restava una sola riga `OPEN`, ed è il difetto ricorrente di questo repository: una regola normativa
 > scritta, corretta, che **nessun consumatore runtime applica**. L'APNAP a sei gruppi vive nel canone e

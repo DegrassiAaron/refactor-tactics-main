@@ -8,8 +8,8 @@
 > Feature: `RT-FEAT-ENV-ELECTRIC` · Release: `v0.1` · Roadmap: `E8.3`  
 > Stato: **INTEGRATED** · Gate: `6/8`  
 > Scenario: `Visual.Combat.WaterElectric`  
-> Il sistema esiste ed e' testato, ma **nessun eroe della v0.1 ha `Action.Electrify` come abilita' normale**: la scarica arriva dall'ambiente e dalle interazioni, non da un kit.  
-> Verificato il `2026-08-08` su `2094b86`
+> Dal 2026-08-09 la scarica ha un **owner nel roster**: `Flux.ConductiveNode` **e'** `Action.Electrify` (D-039). Prima nessun eroe la possedeva e il motore era verde ma non innescabile in partita.  
+> Verificato il `2026-08-09` su `f1f85b1`
 
 <!-- RT_FEATURE_STATUS:END RT-FEAT-ENV-ELECTRIC -->
 
@@ -68,7 +68,15 @@ Un ponte spento o distrutto interrompe la catena.
 
 ## Stato reale del roster
 
-Il motore della propagazione è implementato e verificato, ma nessuno dei quattro eroi v0.1 possiede normalmente `Action.Electrify` nel proprio kit. L'interazione **`Wet → Flux.LinearDischarge`** è già una meccanica del roster. Riva è una possibile sorgente di `Wet`, ma Flux dipende dallo stato, non dall'identità di Riva.
+Dal **2026-08-09** la scarica ha un owner nel roster: `Flux.ConductiveNode` **è** `Action.Electrify`
+([D-039](../../decisions/RT_PDR_00_Decision_Log.md)). Fino a quel giorno il motore era implementato,
+verificato e **non innescabile in partita** — nessun eroe possedeva l'azione, quindi la propagazione arrivava
+solo dall'ambiente.
+
+L'altra via resta e non è cambiata: **`Wet → Flux.LinearDischarge`**, che ottiene `+8` contro un bersaglio
+bagnato. Riva è una possibile sorgente di `Wet`, ma il bonus dipende dallo **stato della cella**, non
+dall'identità di chi l'ha applicato — è la proprietà registrata da
+[D-029](../../decisions/RT_PDR_00_Decision_Log.md).
 
 ## Cosa deve ricordare il giocatore
 

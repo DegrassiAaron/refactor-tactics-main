@@ -693,7 +693,8 @@
         "RefactorTactics.HexMap.Cover*"
       ],
       "scenarios": [
-        "Visual.Map.LowCoverEdge"
+        "Visual.Map.LowCoverEdge",
+        "Visual.Map.HighCoverBlocks"
       ],
       "scenarios_planned": [],
       "wiki_refs": [
@@ -883,7 +884,8 @@
         "RefactorTactics.HexMove.ClimbsOnlyThroughTransition"
       ],
       "scenarios": [
-        "Visual.Map.MultiLevel"
+        "Visual.Map.MultiLevel",
+        "Spec.Map.BridgeBreaksThePath"
       ],
       "scenarios_planned": [],
       "wiki_refs": [
@@ -1085,7 +1087,8 @@
       ],
       "scenarios": [
         "Combat.BasicAttack",
-        "Movement.Basic"
+        "Movement.Basic",
+        "Visual.Combat.GuardReducesFirstHit"
       ],
       "scenarios_planned": [],
       "wiki_refs": [
@@ -2201,17 +2204,19 @@
         "RefactorTactics.Catalog.ValidatorRejectsUnboundedPropagation"
       ],
       "scenarios": [
-        "Visual.Combat.WaterElectric"
+        "Visual.Combat.WaterElectric",
+        "Visual.Combat.WaterElectricCoordinated",
+        "Spec.Environment.ElectricPropagation"
       ],
       "scenarios_planned": [],
       "wiki_refs": [
         "docs/wiki/meccaniche/acqua-e-elettricita.md",
         "docs/characters/v0.1/flux.md"
       ],
-      "wiki_note": "Il sistema esiste ed e' testato, ma **nessun eroe della v0.1 ha `Action.Electrify` come abilita' normale**: la scarica arriva dall'ambiente e dalle interazioni, non da un kit.",
+      "wiki_note": "Dal 2026-08-09 la scarica ha un **owner nel roster**: `Flux.ConductiveNode` **e'** `Action.Electrify` (D-039). Prima nessun eroe la possedeva e il motore era verde ma non innescabile in partita.",
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-09",
+        "commit": "f1f85b1"
       },
       "notes": "Limite di 3 passi, unicità per evento, ordine totale nel Cleanup. Dal CP 9.4 la scarica **risale** un ponte conduttivo: prima non saliva mai di layer."
     },
@@ -2265,7 +2270,8 @@
       ],
       "scenarios": [
         "Visual.Environment.FireOnEnter",
-        "Visual.Environment.WetExtinguishesFire"
+        "Visual.Environment.WetExtinguishesFire",
+        "Spec.Environment.WaterQuenchesFire"
       ],
       "scenarios_planned": [],
       "wiki_refs": [
