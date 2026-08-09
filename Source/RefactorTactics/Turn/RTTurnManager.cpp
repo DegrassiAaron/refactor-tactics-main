@@ -1906,9 +1906,20 @@ void ARTTurnManager::ResolveCombat()
 		AddLogEvent(FString::Printf(TEXT("%s: %s"), *Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Entry)));
 	}
 	// APPLICA: i bersagli si riscrivono solo ora, quando ogni decisione e' stata presa sullo stesso snapshot.
+	//
+	// Riscrivere il solo `TargetId` non basta (D-017): la copertura e' gia' dentro il `Power`, calcolata sul
+	// bordo davanti a chi era il bersaglio quando i colpi sono stati raccolti. Il colpo arriverebbe a chi si
+	// interpone protetto dal muretto di qualcun altro — e il combat log mostrerebbe una copertura che davanti
+	// a lui non esiste. `RedirectHitTo` rivalida la geometria target-dependent su chi il colpo lo incassa
+	// davvero, ed e' l'unico posto dove farlo: qui il redirect e' deciso e nessuna reazione e' ancora stata
+	// valutata sui colpi riscritti, quindi la rivalidazione non puo' aprire una seconda opportunity.
+	//
+	// E' la stessa disciplina dei bonus di coppia piu' sotto (`Flux.LinearDischarge` contro `Status.Wet`):
+	// cio' che dipende da CHI subisce si decide dopo l'Intercept, non prima.
 	for (int32 r = 0; r < RedirectHit.Num(); ++r)
 	{
-		Plan.Hits[RedirectHit[r]].TargetId = RedirectTo[r];
+		Plan.Hits[RedirectHit[r]] = URTHexCombatLibrary::RedirectHitTo(RedirectTo[r],
+			Plan.Hits[RedirectHit[r]], HexUnits, Intents, Map);
 	}
 
 	// Reazioni (CP 5.1): valutate sui colpi GIA' raccolti di `Plan.Hits`, dopo il filtro di Interrupt — lo

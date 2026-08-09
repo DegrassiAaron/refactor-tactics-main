@@ -186,6 +186,29 @@ int32 URTHexCombatLibrary::HexCoverDamageReduction(const URTHexMapAsset* Map, co
 	return 0;
 }
 
+FRTHexAttackHit URTHexCombatLibrary::RedirectHitTo(int32 NewTargetId, const FRTHexAttackHit& Hit,
+	const TArray<FRTHexCombatUnit>& Units, const TArray<FRTHexAttackIntent>& Intents,
+	const URTHexMapAsset* Map)
+{
+	FRTHexAttackHit Out = Hit;
+	Out.TargetId = NewTargetId;
+
+	if (!Units.IsValidIndex(NewTargetId) || !Units.IsValidIndex(Hit.AttackerId)
+		|| !Intents.IsValidIndex(Hit.IntentIndex))
+	{
+		// Niente da rivalidare: si conserva il colpo com'era. E' lo stesso fail-closed della raccolta —
+		// senza attaccante, bersaglio o intento la geometria non e' valutabile, e inventarne una sarebbe
+		// peggio che lasciare il dato che c'e'.
+		return Out;
+	}
+
+	const FRTHexAttackIntent& Intent = Intents[Hit.IntentIndex];
+	const int32 Reduction = HexCoverDamageReduction(Map, Units[Hit.AttackerId].Cell,
+		Units[NewTargetId].Cell, Intent.Shape);
+	Out.Power = FMath::Max(0, Intent.Power - Reduction);
+	return Out;
+}
+
 FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombatUnit>& Units,
 	const TArray<FRTHexAttackIntent>& Intents, const URTHexMapAsset* Map)
 {
