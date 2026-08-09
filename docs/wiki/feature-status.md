@@ -2,7 +2,7 @@
 
 > `GENERATO` · Vista del **Feature Registry** (`docs/roadmap/feature-registry.yaml` nel repository del gioco).
 > Non modificare a mano: si rigenera con `python scripts/feature_registry.py wiki`.
-> Feature tracciate: **80** · Ultimo audit completo: **2026-08-08** su `2094b86`.
+> Feature tracciate: **82** · Ultimo audit completo: **2026-08-08** su `2094b86`.
 
 Questa pagina dice **cosa esiste davvero**. Una meccanica descritta altrove nella Wiki e
 marcata qui come `SPECIFIED` o `DESIGNED` e' progettata, non giocabile: la Wiki racconta
@@ -126,11 +126,13 @@ il gioco che sara', questa tabella dice a che punto e'.
 
 | Feature | Titolo | Roadmap | Stato | Gate | Scenario |
 |---|---|---|---|---:|---|
+| `RT-FEAT-REACTION-CLASH` | Reaction Clash (opportunity contested) | E14.7 | **SPECIFIED** | 1/9 | `Spec.Clash.ReadBeatsStand` · `Spec.Clash.StandBeatsShift` |
 | `RT-FEAT-REACTION-FAST` | Fast Reaction con finestra limitata | E14.5, E14.6 | **SPECIFIED** | 1/9 | — |
 | `RT-FEAT-REACTION-FAST-ACTION` | Fast Action come continuazione della propria azione | E14.6 | **DESIGNED** | 0/9 | — |
 | `RT-FEAT-REACTION-OPPORTUNITY` | Modello Opportunity → Commit | E14.3 | **SPECIFIED** | 1/8 | — |
 | `RT-FEAT-REACTION-OVERWATCH` | Overwatch universale profilabile | E14.4 | **SPECIFIED** | 1/9 | `Spec.Overwatch.HoldThenFire` |
 | `RT-FEAT-REACTION-PREPARED` | Reazioni preparate in planning | E5.1, E5.2, E5.3, E5.4, E5.5 | **INTEGRATED** | 6/8 | `Combat.CounterStrikesBack` · `Combat.NoCounterWhenUnarmed` |
+| `RT-FEAT-REACTION-PROFILE` | Reaction Profile armato da Brace | E14.7 | **IMPLEMENTING** | 1/8 | `Visual.Combat.BraceReducesEveryHit` · `Spec.Facing.BraceHoldsFromBehind` |
 
 ### Tools
 
