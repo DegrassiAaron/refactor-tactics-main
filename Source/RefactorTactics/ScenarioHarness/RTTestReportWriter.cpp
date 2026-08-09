@@ -10,14 +10,18 @@
 
 namespace
 {
-	const TCHAR* KindToString(ERTAssertionKind Kind)
+	/**
+	 * Nome dell'assertion nel report, preso dall'ENUM invece che da uno switch scritto a mano.
+	 *
+	 * Lo switch precedente elencava due casi su cinque e restituiva `Unknown` per gli altri tre: un report che
+	 * diceva «Unknown» per ogni `UnitHpEquals` caduto. Una tabella scritta a mano diverge dall'enum che
+	 * descrive appena qualcuno aggiunge un valore — ed e' successo — quindi qui non ce n'e' piu' una.
+	 */
+	FString KindToString(ERTAssertionKind Kind)
 	{
-		switch (Kind)
-		{
-		case ERTAssertionKind::UnitAtCell:     return TEXT("UnitAtCell");
-		case ERTAssertionKind::TurnsCompleted: return TEXT("TurnsCompleted");
-		default:                               return TEXT("Unknown");
-		}
+		const UEnum* Enum = StaticEnum<ERTAssertionKind>();
+		const FString Name = Enum ? Enum->GetNameStringByValue(static_cast<int64>(Kind)) : FString();
+		return Name.IsEmpty() ? FString::Printf(TEXT("Unknown(%d)"), static_cast<int32>(Kind)) : Name;
 	}
 }
 
