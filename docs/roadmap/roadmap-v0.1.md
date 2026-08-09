@@ -1106,6 +1106,9 @@ pagine wiki illustrate. Stanno in [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md)
 un refactor invece di una fondazione. Le immagini sorgente sono in
 [`../src/media/hud/`](../src/media/hud/).
 
+**Rischi**: il catalogo semantico è utile solo se le chiavi sono **stabili**. Rinominare `Status.Wet` dopo che
+scenari e test lo usano costa quanto rinominare un'azione a catalogo.
+
 ---
 
 ### E21 — Presentazione e leggibilità · P1
@@ -1139,8 +1142,13 @@ Non dipende da E11: gli anelli e le mesh non passano dai widget.
 **Rischio dichiarato**: è l'unica epic della v0.1 il cui DoD **non è chiudibile in automation**. Tre voci
 PIE e un giudizio a schermo: va eseguita, non dedotta.
 
-**Rischi**: il catalogo semantico è utile solo se le chiavi sono **stabili**. Rinominare `Status.Wet` dopo che
-scenari e test lo usano costa quanto rinominare un'azione a catalogo.
+**Tracciata su GitHub** *(2026-08-09)*: epic [#286](https://github.com/DegrassiAaron/refactor-tactics-main/issues/286),
+con i tre checkpoint [#287](https://github.com/DegrassiAaron/refactor-tactics-main/issues/287),
+[#288](https://github.com/DegrassiAaron/refactor-tactics-main/issues/288) e
+[#289](https://github.com/DegrassiAaron/refactor-tactics-main/issues/289). Era l'**unica** epic della v0.1 senza issue: il buco è stato trovato
+incrociando le issue aperte con la §3 di questo file, ed esisteva perché l'epic è nata da una tabella
+generata invece che da una sessione di pianificazione. Il numero `E21` è stato conteso — vedi
+[D-039](../decisions/RT_PDR_00_Decision_Log.md).
 
 ---
 

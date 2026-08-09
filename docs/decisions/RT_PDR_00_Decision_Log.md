@@ -64,8 +64,19 @@ Regola di manutenzione #1: *ogni modifica a un requisito aggiunge o aggiorna una
 
 | **D-037** | **Ogni eroe del roster dichiara uno slot asset Paragon come base visuale. Lo slot non è l'identità.** v0.1: `Hero.Flux` → Paragon **Gadget** · `Hero.Riva` → **Phase** · `Hero.Bastion` → **Riktor** · `Hero.Vektor` → **Wraith**. v0.2: Steel, Aurora, Murdock e Kwang usano lo slot omonimo, ma il loro `RT Character ID` resta **TBD** — un nome che coincide non è un nome deciso. Chiude la voce «Mapping visuale Paragon → roster» di [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), aperta perché le guide asset descrivevano ancora Gideon/Sparrow. **Nessun rename nel gameplay**: `Hero.Flux` non diventa `Hero.Gadget`, e uno slot Paragon non crea un personaggio RefactorTactics. Si scrive sempre `Paragon.Gadget` o «slot Paragon Gadget», mai `Gadget` nudo: in questo repository `Gadget` è già una **categoria di equipaggiamento** (`ERTEquipmentSlot::Gadget`, `Gadget.Medkit`). Owner della tabella: [`../characters/paragon.md`](../characters/paragon.md) | **Consolidata** | Sblocca E21/M8: assegnare mesh e animazioni per eroe non richiede più una scelta. I 34 candidati restano un **candidate pool** senza release. `Lt. Belica` non era mappata su Flux in nessun documento: nessuno storico da preservare |
 
+| **D-039** | **`E21` è *Presentazione e leggibilità* della v0.1; il roster a 8 della v0.2 diventa `E35`.** Le due epic erano state numerate `E21` lo stesso giorno da due sessioni parallele — [`../roadmap/roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) §5 per la presentazione, [`../roadmap/roadmap-post-v0.1.md`](../roadmap/roadmap-post-v0.1.md) per il roster. Cede il **secondo**, e il criterio non è l'anzianità: il lato v0.1 è **verificato da una macchina** (`feature-registry.yaml` mappa `RT-FEAT-CHAR-PRESENTATION` su `E21.1`–`E21.3`, la §2.2 di `roadmap-v0.1.md` è generata da lì) ed è citato da [D-037](RT_PDR_00_Decision_Log.md) come «E21/M8»; il lato v0.2 viveva in **un solo file**, in quattro punti, senza issue né dato. Con l'epic si rinumerano i suoi checkpoint: `21.1`–`21.4` → `35.1`–`35.4`. **La numerazione delle epic resta continua ma non contigua per release**: E33 in v0.3, E34 in v0.4, E35 in v0.2 | **Consolidata** | Roadmap post-v0.1, `v0.1-issue-plan.md`, `roadmap-checkpoint.md`, `../archive/src/README.md`. Nessun runtime, nessun dato: è una collisione di contatore. Sblocca l'apertura delle issue di **E21** (epic + `E21.1`–`E21.3`), che era l'unica epic della v0.1 senza tracciamento su GitHub |
+
 ## Note
 
+- **D-039** (2026-08-09): è la **quarta** collisione di contatore del progetto — `D-028`/`D-029`,
+  `D-037`/`D-038`, e ora `E21`/`E21` — e la prima su un contatore che non è quello delle decisioni.
+  Vale la pena scriverlo perché la regola «chi arriva secondo rinumera» **non basta più** da sola: qui le due
+  sessioni sono atterrate lo stesso giorno e nessuna delle due era «seconda» in modo osservabile. Il criterio
+  che ha deciso è un altro, ed è generalizzabile: **cede il lato che nessuna macchina verifica**. Rinumerare
+  un'epic citata da `feature-registry.yaml` significa rigenerare il registry, la §2.2 della roadmap di
+  release e i blocchi Wiki; rinumerare un'epic che vive in un file solo è un search/replace in quattro punti.
+  Il contatore condiviso resta il difetto: fino a quando epic e decisioni si numerano a mano, la collisione è
+  una questione di quando, non di se.
 - **D-037** (2026-08-08): la decisione è **solo visuale**, e la riga più importante è quella che dice cosa
   *non* fa. Un asset Paragon che diventa il volto di un eroe non ne diventa il nome, il kit o la lore: la
   documentazione tiene tre concetti separati — identità RefactorTactics, slot asset Paragon, release — perché

@@ -213,7 +213,7 @@ diventa un impegno che nessuno ha preso.
 | `feature-registry.json` | **Generato**: consumatori automatici, mai a mano |
 | [`roadmap-checkpoint.md`](roadmap-checkpoint.md) | Vista di **esecuzione**: milestone e checkpoint |
 | [`roadmap-v0.1.md`](roadmap-v0.1.md) | Vista di **release**: epic, scope, gate della v0.1 |
-| [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate `G1`–`G14` della release |
+| [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate `G1`–`G15` della release (`G15` è questo registry) |
 | [`v0.1-issue-plan.md`](v0.1-issue-plan.md) | **Snapshot** delle issue: non è fonte di verità |
 | `docs/wiki/feature-status.md` | **Generata**: vista pubblica del registry |
 | `docs/characters/data/*.xlsx` → `15_Wiki_Feature_Refs` | **Generata**: riferimenti entità → feature, senza stato |
