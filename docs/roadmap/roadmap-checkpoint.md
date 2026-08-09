@@ -421,7 +421,7 @@ neutri (combat math, serializzazione, regole di fase). Il resto ha data di scade
 | [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md) | Modello azioni del catalogo v0.1 sulle macro-fasi di Atlas |
 | [`convenzioni-contenuti-ue.md`](../technical/convenzioni-contenuti-ue.md) | **Normativo**: struttura di `Content/`, naming, dipendenze fra cartelle, spostamenti |
 | *questo file* | **Esecuzione**: milestone, checkpoint, DoD, stato |
-| [`roadmap-editor.md`](roadmap-editor.md) | **Operativo in editor**: sedute di authoring e verifica (U1–U17), ordine e dipendenze verso i checkpoint |
+| [`editormap.shortlist.md`](editormap.shortlist.md) | **Operativo in editor**: sedute di authoring e verifica, ordine e dipendenze verso i checkpoint — **generata** da [`editor-sessions.yaml`](editor-sessions.yaml) |
 | [`hex-map-roadmap.md`](hex-map-roadmap.md) | **Dettaglio tecnico** della linea esagonale H0–H6.5 (consegnate) e del residuo editor H5 |
 | [`RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) | **Requisiti** di lungo periodo (fasi F0–F6, QA, rischi) — direzione, non scope |
 | [`test-manuali-pie.md`](../technical/test-manuali-pie.md) | Verifiche interattive in editor, per sessioni |
