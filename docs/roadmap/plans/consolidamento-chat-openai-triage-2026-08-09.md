@@ -1,6 +1,7 @@
 # Consolidamento `todo/consolidazione-chat-openai/` — triage
 
-> `CURRENT` · **Stato**: audit chiuso, **nessuna modifica normativa applicata** · **HEAD**: `75eb0f3` (`origin/main`)
+> `CURRENT` · **Stato**: audit chiuso · **quattro cluster su cinque consumati** (PR `#312`, `#317`, `#321` e
+> questa) · **HEAD dell'audit**: `75eb0f3`; l'esecuzione ha seguito `main` fino a `b7368b8`
 > **Sorgente auditata**: i 14 file di `todo/consolidazione-chat-openai/` (untracked, non versionati)
 > **Scopo**: classificare ogni affermazione dei sei *master* e dei due *kit* contro le source of truth reali,
 > **prima** di toccare Decision Log, ADR, Feature Registry, roadmap, Wiki o scenari.
@@ -394,6 +395,43 @@ Anche `DOC_CONFLICT_MATRIX.md` aveva **`53`, `54`, `55` due volte**: le mie dell
 Bank della `#320`. Stesso contatore condiviso, stesso giorno, stessa forma. Rinumerate le seconde a
 **`60`–`62`**, per lo stesso criterio: la `#312` era atterrata prima e nessuno cita quelle righe per numero.
 
+### ✅ Fatto in questa sessione — cluster **Scenarios / QA / Bots**
+
+L'ultimo del pacchetto, e il più assorbito dei tre. Il sorgente del bot —
+[`archive/src/handoff/2026-08-08-bot-ai-roadmap-e-test-pie.md`](../../archive/src/handoff/2026-08-08-bot-ai-roadmap-e-test-pie.md) —
+porta in testa **«✅ RECEPITO il 2026-08-08»**: il master ne è il riassunto, arrivato dopo.
+
+| Proposta del master | Dove esisteva già |
+|---|---|
+| §0 tutti i producer passano dallo stesso path; niente `SetActorLocation`/`ApplyDamage` | [`test-automatico-unreal.md`](../../technical/test-automatico-unreal.md) · [`test-e-diagnosi.md`](../../technical/test-e-diagnosi.md) · `AGENTS.md` — **tre** punti |
+| §6 execution mode Visual · Fast · Headless | `test-automatico-unreal.md`, con l'**equivalenza fra i tre come test** |
+| §5 `PrimaryCategory` | ✗ respinta — riga 54 |
+| §7 Scenario Registry, Stable ScenarioId | [`scenario-index-e-tag.md`](../../technical/scenario-index-e-tag.md) (`#209`) |
+| §9 relazione Feature ↔ Scenario obbligatoria | ✅ **resa eseguibile** dal cluster Governance: è il controllo dello scenario orfano |
+| §11 `result.json` strutturato · §14 determinismo | harness reale, `Simulation.DeterministicReplay` (100 iterazioni) |
+| §16 as-built CVar + GameMode, niente `ARTTestDirector` | riga **23-bis** di questa matrice, dal 2026-08-08 |
+| §17–§19 bot come producer di Intent, niente stato nascosto | [`avversario-bot.md`](../../wiki/game/avversario-bot.md) «Il bot non vede più di te» · `PIE-AI-02` · banner di [`h6-5-hex-bot-spec.md`](../../technical/h6-5-hex-bot-spec.md) |
+| §22 profilo del bot senza `if Hero ==` | `h6-5-hex-bot-spec.md` |
+| §25–§26 determinismo e decision trace | `avversario-bot.md` §«Se il bot fa una mossa che non capisci» |
+| §27 roadmap bot v0.1 → v1 → v2 | **E26** e **E28** di [`roadmap-post-v0.1.md`](../roadmap-post-v0.1.md) |
+| §33 `spec-bot-utility.md` square-grid da archiviare | già in `archive/gameplay/` |
+
+**Una** riga non aveva un documento corrente che la possedesse:
+
+| File | Che cosa |
+|---|---|
+| [`roadmap/roadmap-post-v0.1.md`](../roadmap-post-v0.1.md) — E26 | **invariante di difficoltà**: più difficile = più *ragionamento*, mai più *informazione*. Con il motivo per cui va scritta prima e non dopo, e il vincolo sull'errore intenzionale (deterministico, stream di seed dedicato) |
+| [`DOC_CONFLICT_MATRIX.md`](../../DOC_CONFLICT_MATRIX.md) | riga **63** — 14 feature `RT-FEAT-BOT-*`/`TEST-*` proposte contro le 2 reali |
+
+**Perché quella riga e non altre.** È la scorciatoia più economica che esista: rendere un bot «difficile»
+togliendogli la Team Knowledge costa cinque righe e funziona benissimo — e invalida ogni playtest fatto
+contro di lui. Ed è già una **promessa pubblicata**: «Il bot non vede più di te» è una sezione della Wiki,
+non una nota interna.
+
+**Non applicato**: le 14 feature di §30; la `PrimaryCategory` di §5; gli `AI.*`/`SCN-*` di §28; la roadmap
+`v0.1…v0.6` del Developer Toolkit (§1), che è una **numerazione parallela** a M6–M11 ed E1–E21 — vietata
+dalla riga 24.
+
 ### ⬜ Resta da fare
 
 1. ✅ ~~Difetto `D-046` di §5~~ — **chiuso il 2026-08-09**: corretto alla sorgente (`wiki_note`), rigenerate
@@ -403,8 +441,15 @@ Bank della `#320`. Stesso contatore condiviso, stesso giorno, stessa forma. Rinu
 3. **`INT-1`…`INT-4`** — le quattro domande di
    [`spec-interazioni-mappa-cp101.md`](../../gameplay/spec-interazioni-mappa-cp101.md) §12 vanno in
    [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md). `INT-3` è già lì sotto il nome `FAC-6`.
-4. **Cluster restanti**: Characters & Roster · Scenarios/QA/Bots. Il primo è quasi tutto già canonico; il
-   secondo tocca `BP_GameMode.uasset`.
+4. **Characters & Roster** è l'unico cluster non consumato qui, e **non è libero**: una sessione parallela lo
+   sta lavorando sul branch `feat/315-basic-attack-profiles`, rebasato su `main` corrente, con `ADR-0007`,
+   i due scenari della coppia `Slow` e la suite in esecuzione. Non va duplicato.
+   > Storia utile: quel lavoro era finito in `stash@{0}` con l'etichetta **«scartato»** durante un
+   > fast-forward, e da lì sembrava perduto. Il branch locale `wip/basicattack-adr0007` ne conserva il
+   > recupero già riconciliato con `main` — inerte, da cancellare quando la loro PR atterra.
+   > ⚠️ I due scenari `Combat.BastionImpactShotSlows` e `Combat.MoveIsFullWithoutSlow` erano stati scritti
+   > una prima volta, sono rimasti non tracciati e sono stati **cancellati**: non sono in nessun commit,
+   > stash o oggetto pendente. Nel registry sono dichiarati `planned`.
 5. **`RT-FEAT-MAP-INTERACTIVE-EDGES`** e le feature di E10 vanno collegate a
    [`spec-interazioni-mappa-cp101.md`](../../gameplay/spec-interazioni-mappa-cp101.md) come `owner_specs`.
 6. I quattro controlli §16 non implementati — `issue senza feature`, `CURRENT`/`SUPERSEDED` simultanei,
