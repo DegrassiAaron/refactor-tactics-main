@@ -1,6 +1,7 @@
 #include "Misc/AutomationTest.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Ability/RTEquipmentData.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Core/RTGameplayTags.h"
@@ -907,6 +908,80 @@ bool FRTBastionReconfigureRefusesTest::RunTest(const FString&)
 		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverRejected), 1);
 	TestEqual(TEXT("la copertura e' tornata dov'era, con la sua integrita'"),
 		CoverIntegrityOn(MapActor->MapAsset, One, ERTHexDirection::W), 22);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * CP 9.5 — `Gadget.PortableCover` erige la stessa copertura, in mano a chi non e' Bastion.
+ *
+ * E' la prova che `Action.CreateCover` e' semantica CONDIVISA e non l'abilita' di un eroe travestita: se il
+ * resolver riconoscesse il pannello per ActionId invece che per `StructureOp`, questo test sarebbe rosso — ed
+ * e' esattamente la ragione per cui il campo dati esiste.
+ *
+ * Il gadget conserva la semantica del core e sostituisce due cose: l'identita' nel TurnLog (chi legge il
+ * replay deve vedere il gadget) e il cooldown, che e' dell'oggetto — 3 turni contro i 2 del pannello d'eroe.
+ * E' lo svantaggio che il gadget dichiara, e senza uno dichiarato il validator lo rifiuterebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPortableCoverGadgetTest,
+	"RefactorTactics.Equipment.PortableCover.CreatesCover",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPortableCoverGadgetTest::RunTest(const FString&)
+{
+	URTEquipmentData* Gadget = URTCatalogLibrary::MakePortableCoverGadget();
+	if (!TestNotNull(TEXT("il gadget esiste"), Gadget)) { return false; }
+
+	// Passa il validator del catalogo: lo svantaggio e' dichiarato, non sottinteso.
+	TArray<const URTEquipmentData*> Set;
+	Set.Add(Gadget);
+	TestEqual(TEXT("il gadget e' valido a catalogo"), URTCatalogLibrary::ValidateEquipment(Set).Num(), 0);
+	TestEqual(TEXT("cooldown 3, come ogni gadget"), Gadget->CooldownTurns, 3);
+	TestFalse(TEXT("dichiara uno svantaggio"), Gadget->Drawback.IsEmpty());
+
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	const FRTCellId Home(0, 0);
+	const FRTCellId Target(1, 0);
+
+	// Un'unita' QUALUNQUE: non ha il kit di Bastion, ha solo il gadget.
+	ARTUnit* Carrier = SpawnEnvUnit(World, 0, Home);
+	ARTUnit* Foe = SpawnEnvUnit(World, 1, FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Carrier"), Carrier) || !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	URTActionData* FromGadget = URTCatalogLibrary::MakeEquipmentAction(Gadget, Carrier);
+	if (!TestNotNull(TEXT("il gadget concede un'azione"), FromGadget))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("nel TurnLog si leggera' il gadget"),
+		FromGadget->Def.ActionId, FName(TEXT("Gadget.PortableCover")));
+	TestEqual(TEXT("cooldown dell'oggetto, non dell'azione"), FromGadget->Def.CooldownTurns, 3);
+	TestTrue(TEXT("ma la semantica e' quella del core"),
+		FromGadget->Def.StructureOp == ERTStructureOp::CreateCover);
+
+	PlanHeroCoverAction(Carrier, FromGadget, Target, ERTHexDirection::W);
+	RunEnvTurn(TM);
+
+	TestEqual(TEXT("la copertura c'e', eretta da un gadget"),
+		CoverIntegrityOn(MapActor->MapAsset, Target, ERTHexDirection::W), 30);
+	TestEqual(TEXT("ed e' registrata come tale"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverCreated), 1);
+
+	bool bNamedGadget = false;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.ActionId == FName(TEXT("Gadget.PortableCover"))) { bNamedGadget = true; }
+	}
+	TestTrue(TEXT("il replay dice CHI l'ha eretta"), bNamedGadget);
 
 	DestroyEnvWorld(World);
 	return true;

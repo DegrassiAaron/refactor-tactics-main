@@ -120,6 +120,49 @@ TArray<FString> URTCatalogLibrary::ValidateActions(const TArray<FRTActionDef>& A
 	return Errors;
 }
 
+URTEquipmentData* URTCatalogLibrary::MakePortableCoverGadget()
+{
+	URTEquipmentData* Cover = NewObject<URTEquipmentData>();
+	Cover->EquipmentId = TEXT("Gadget.PortableCover");
+	Cover->DisplayName = FText::FromString(TEXT("Copertura portatile"));
+	Cover->Slot = ERTEquipmentSlot::Gadget;
+	Cover->Advantage = FText::FromString(
+		TEXT("erige una copertura bassa su un bordo, anche per chi non e' Bastion"));
+
+	// Lo svantaggio e' **obbligatorio** (regola di prodotto: senza, l'equipaggiamento e' una scelta verticale),
+	// e il catalogo equipaggiamento non ne dichiara uno specifico per questo gadget. Invece di inventare un
+	// numero si dichiara quello che i cataloghi gia' dicono: **cooldown 3** per ogni gadget, contro il 2 del
+	// pannello d'eroe, e l'unico slot gadget occupato. Chi non e' Bastion puo' erigere pannelli, ma piu' di
+	// rado e rinunciando a medkit, isolante o sensore.
+	Cover->Drawback = FText::FromString(
+		TEXT("ricarica 3 turni invece dei 2 del pannello d'eroe, e occupa l'unico slot gadget"));
+	Cover->CooldownTurns = 3; // catalogo equipaggiamento §2: «tutti i gadget hanno cooldown 3»
+	Cover->GrantedActionId = TEXT("Action.CreateCover");
+	return Cover;
+}
+
+URTActionData* URTCatalogLibrary::MakeEquipmentAction(const URTEquipmentData* Item, UObject* Outer)
+{
+	if (Item == nullptr || Item->GrantedActionId.IsNone())
+	{
+		return nullptr;
+	}
+
+	const FRTActionDef Core = FindCoreAction(Item->GrantedActionId);
+	if (Core.ActionId.IsNone())
+	{
+		return nullptr; // il gadget dichiara un'azione che il catalogo non ha: meglio nulla di un'azione muta
+	}
+
+	URTActionData* Action = NewObject<URTActionData>(Outer ? Outer : GetTransientPackage());
+	Action->Def = Core;
+	Action->Def.ActionId = Item->EquipmentId;   // nel TurnLog si legge il gadget, non l'azione generica
+	Action->Def.CooldownTurns = Item->CooldownTurns;
+	Action->RangeCells = Action->Def.RangeCells;
+	Action->CooldownTurns = Action->Def.CooldownTurns;
+	return Action;
+}
+
 TArray<FString> URTCatalogLibrary::ValidateEquipment(const TArray<const URTEquipmentData*>& Equipment)
 {
 	TArray<FString> Errors;
