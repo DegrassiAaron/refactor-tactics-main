@@ -922,19 +922,17 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 		// «SurfaceCreated» nel catalogo per due sole azioni sarebbe un dato che nessun'altra azione useria.
 		// Quando le azioni ambientali saranno molte (CP 8.5), il posto giusto e' quel campo.
 		{
+			// Dal DATO, non dal nome (D-039, #282). Il confronto per ActionId funzionava finche' le uniche
+			// azioni ambientali erano quelle del catalogo core; non appena un eroe ne possiede una — e
+			// `Riva.FluidTrail` non puo' chiamarsi `Action.CreateWater` — un `if` sul nome smette di poter
+			// esprimere «e' quell'azione». Stessa strada di `PropagationLimit`, che infatti gia' funzionava
+			// per l'eroe che aveva ereditato `Action.Electrify`.
+			const bool bCreatesSurface = Ability->Def.bCreatesSurface;
+			const ERTHexSurface Created = Ability->Def.SurfaceCreated;
+			// La CAUSA registrata nel TurnLog resta l'ActionId dell'abilita' usata: con un eroe owner e'
+			// `Riva.FluidTrail`, non `Action.CreateWater`. Chi legge il replay deve vedere CHI ha allagato,
+			// non la primitiva che c'e' sotto — l'identita' dell'eroe e' meta' del valore del log.
 			const FName EnvActionId = Ability->Def.ActionId;
-			ERTHexSurface Created = ERTHexSurface::Floor;
-			bool bCreatesSurface = false;
-			if (EnvActionId == FName(TEXT("Action.Ignite")))
-			{
-				Created = ERTHexSurface::Fire;
-				bCreatesSurface = true;
-			}
-			else if (EnvActionId == FName(TEXT("Action.CreateWater")))
-			{
-				Created = ERTHexSurface::ShallowWater;
-				bCreatesSurface = true;
-			}
 
 			if (bCreatesSurface)
 			{

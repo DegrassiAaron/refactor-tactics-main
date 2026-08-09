@@ -77,10 +77,23 @@ bool FRTFluxMatchesCatalogTest::RunTest(const FString&)
 	for (const FString& Err : Errors) { AddError(Err); }
 	TestEqual(TEXT("Flux e' strutturalmente valido"), Errors.Num(), 0);
 
-	// Limiti dichiarati che RESTANO: ConductiveNode e Overload non hanno gli effetti "cella conduttiva" e
-	// "interrupt dispositivi" (nessun sistema li consuma, E7/E8/E9). Qui si verifica solo che l'azione ESISTA
-	// come dato, non che l'effetto mancante sia presente — sarebbe l'errore opposto.
-	TestEqual(TEXT("ConductiveNode: nessun effetto rappresentabile ancora"), Flux->Actions[2]->Def.Effects.Num(), 0);
+	// ConductiveNode NON e' piu' un limite dichiarato: da D-039 (#282) e' cablata su `Action.Electrify`, e
+	// Flux e' il produttore di propagazione elettrica del roster. Il limite di prima era vero quando fu
+	// scritto — poi E8 ha chiuso, il modello di cella conduttiva e' esistito, e la dichiarazione onesta e'
+	// diventata un dato che nessuno leggeva.
+	const FRTActionDef ElectrifyDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Electrify"));
+	const URTActionData* ConductiveNode = Flux->Actions[2];
+	TestEqual(TEXT("ConductiveNode: portata dal core"), ConductiveNode->Def.RangeCells, ElectrifyDef.RangeCells);
+	TestTrue(TEXT("ConductiveNode: risolve nell'ambiente"),
+		ConductiveNode->Def.ResolutionPhase == ERTResolutionPhase::Environment);
+	// La PROPAGAZIONE e' il comportamento, non un dettaglio: senza, elettrificherebbe una cella sola e CP 8.3
+	// resterebbe non innescabile pur avendo un owner. E' l'assertion che distingue «ha l'azione» da «fa la cosa».
+	TestEqual(TEXT("ConductiveNode: propaga come il core"),
+		ConductiveNode->Def.PropagationLimit, ElectrifyDef.PropagationLimit);
+	TestTrue(TEXT("ConductiveNode: propaga davvero (limite > 1)"), ConductiveNode->Def.PropagationLimit > 1);
+
+	// Limite dichiarato che RESTA: "interrupt sui dispositivi" di Overload non e' rappresentabile (E7).
+	TestEqual(TEXT("Overload: solo il danno e' dichiarato"), Flux->Actions[3]->Def.Effects.Num(), 1);
 	return true;
 }
 

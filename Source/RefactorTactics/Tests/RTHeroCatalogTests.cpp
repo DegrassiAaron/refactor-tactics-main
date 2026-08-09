@@ -271,9 +271,19 @@ bool FRTHeroMobilitySlotTest::RunTest(const FString&)
 		}
 	}
 
-	// Senza questa riga il test resterebbe verde anche se il roster perdesse OGNI mobilita': un ciclo che non
-	// itera non fallisce mai. E' la differenza fra "la regola vale" e "non ho guardato".
-	TestTrue(TEXT("almeno una mobilita' senza danno esiste nel roster"), MobilityChecked > 0);
+	// Un ciclo che non itera non fallisce mai: senza una riga qui sotto, questo test resterebbe verde anche se
+	// il roster perdesse OGNI mobilita'. Prima la riga chiedeva `> 0`; dal 2026-08-09 chiede ESATTAMENTE zero,
+	// e va spiegato.
+	//
+	// D-039 (#282) ha cablato `Riva.FluidTrail` su `Action.CreateWater`: era l'unica mobilita' SENZA danno del
+	// roster, perche' `Vektor.PassingBlade` e' FastMovement ma fa 20 danni, cioe' una carica. La regola D-028
+	// e' quindi rimasta senza soggetto: vera, e oggi senza nessuno a cui applicarsi.
+	//
+	// Asserire lo stato attuale invece di rilassare la guardia: quando il roster v0.2 (Steel, Aurora, Murdock,
+	// Kwang) introdurra' una mobilita' pura, questa riga CADRA'. E' un promemoria che si fa sentire, non un
+	// vincolo — a quel punto si torna a `> 0` e il ciclo ricomincia a verificare la regola davvero.
+	TestEqual(TEXT("oggi nessuna mobilita' senza danno nel roster (D-039; la v0.2 la riportera')"),
+		MobilityChecked, 0);
 	return true;
 }
 
