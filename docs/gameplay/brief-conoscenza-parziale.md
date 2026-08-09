@@ -172,8 +172,14 @@ Lo slice li rispetta per costruzione, essendo offline e senza replica.
    > l'unica giocabile. Un bonus futuro richiede playtest e una decisione nuova, non il ripristino di questa.
 2. **Auto-visibilità**: un'unità vede sempre sé stessa e i propri alleati, ovunque siano? (Assunto sì, ma non è
    ovvio con la mappa multilivello: un alleato nel tunnel resta noto?)
-3. **Contatto mutuo**: se A vede B, B vede A? Con viste diverse (6 vs 5) a distanza 6 la relazione è
-   **asimmetrica**. Confermato come voluto, o si forza la simmetria per leggibilità?
+3. ~~**Contatto mutuo**: se A vede B, B vede A?~~ ✅ **Chiusa il 2026-08-09** — ed era **mal posta**.
+   Presupponeva una relazione fra **unità**, mentre il DoD dice `TeamKnowledge`: conoscenza **di squadra**.
+   Esistono due conoscenze separate, una per squadra, ognuna unione dei coni dei propri membri:
+   l'asimmetria non va decisa, **c'è già per costruzione**, e con la vista a cono (CP 16.1) è la norma
+   invece del caso di bordo. La domanda vera che vi si nascondeva dentro era di *presentazione*, ed è
+   stata decisa: il giocatore **non** sa di essere nell'arco frontale di un avversario
+   ([D-043](../decisions/RT_PDR_00_Decision_Log.md)) — sapere di essere osservati è informazione
+   sull'avversario (invariante #6), e aggirare deve pagare due volte.
 4. **Range delle azioni non verificate** (§4): controllo sistematico, o test che rende `range ≤ vista` un
    invariante del catalogo?
 
@@ -246,6 +252,18 @@ NoiseDelta = Noise_Mod − 1        (terreno libero = 0, come il «cemento» del
 Verifica incrociata: ghiaccio `Noise_Mod 2` → **+1**, che è esattamente il valore del documento (§8). Acqua
 bassa esce **+3** contro il +2 del documento, e la vegetazione **+1** contro il −2 (il documento la vuole
 silenziosa, il workbook rumorosa): due divergenze da chiudere prima di CP 13.3.
+
+> ✅ **Chiuse il 2026-08-09.** L'acqua bassa vale **`+2`** — vince il documento sorgente, il workbook resta
+> `RESEARCH` ([D-042](../decisions/RT_PDR_00_Decision_Log.md)): sprintarci fa 7 su 10, come un Dash su
+> terreno libero, e l'acqua costa già 2 MP, bagna e conduce. La divergenza sulla **vegetazione non è stata
+> decisa e non blocca nulla**: quel terreno non esiste nella v0.1 — le superfici sono otto
+> (`Floor · ShallowWater · Rough · Fire · Conductive · Ice · Void · Smoke`) e non lo comprendono.
+> Si deciderà quando la superficie esisterà.
+
+> ✅ **Soglia d'udito, decisa lo stesso giorno** ([D-041](../decisions/RT_PDR_00_Decision_Log.md)):
+> è una statistica **per eroe** che **compensa** la vista invece di seguirla — Flux 5 · Riva 3 ·
+> Bastion 3 · Vektor 5, soglia bassa = orecchio fine. Chi vede lontano sente meno. Va **aggiunta** a
+> `URTHeroData`, che oggi ha quattro statistiche e nessuna è l'udito.
 
 ### Decisioni
 
