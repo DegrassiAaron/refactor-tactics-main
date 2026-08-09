@@ -14,8 +14,10 @@
 > in quel caso punta al referto, non a un owner — perché non c'è nulla da possedere.
 >
 > ➕ **Dal 2026-08-10 ci sono anche i dodici sorgenti del pacchetto** `todo/consolidazione-chat-openai/` —
-> sette master, tre kit e tre documenti *meta* che riguardavano il progetto ChatGPT e non il repository. Il
-> tredicesimo, `RT_Common_Actions_Master_Consolidation_v0.1.md`, **non è qui**: non è ancora recepito.
+> **sei** master, tre kit e tre documenti *meta* che riguardavano il progetto ChatGPT e non il repository.
+> Il pacchetto ne conteneva quattordici: il settimo master,
+> `RT_Common_Actions_Master_Consolidation_v0.1.md`, **non è qui** perché non è ancora recepito, e il
+> quattordicesimo era il duplicato di un kit già archiviato.
 >
 > ⚠️ **Il conteggio era già sbagliato prima del 2026-08-09**: l'intestazione diceva «25» mentre le sue stesse
 > tabelle elencavano **26** righe. Il numero qui sopra è **misurato**
@@ -64,7 +66,7 @@ In caso di conflitto prevalgono [`../../product/piano-canonico-mvp.md`](../../pr
 
 ### Il pacchetto `consolidazione-chat-openai` — dodici sorgenti, un solo triage
 
-Sette master, tre kit di dettaglio e tre *meta*. Il referto comune è
+Sei master, tre kit di dettaglio e tre *meta* — dodici righe, contate sulla tabella. Il referto comune è
 [`consolidamento-chat-openai-triage-2026-08-09.md`](../../roadmap/plans/consolidamento-chat-openai-triage-2026-08-09.md):
 classifica ogni affermazione contro il canone **prima** che qualcuno la applichi, e la colonna qui sotto dice
 dove è finita quella parte che è sopravvissuta al filtro.
