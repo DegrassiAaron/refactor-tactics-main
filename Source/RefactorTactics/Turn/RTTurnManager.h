@@ -316,7 +316,9 @@ protected:
 
 	/**
 	 * Pass delle strutture di BORDO nella fase Prep (CP 9.5): raccoglie le richieste di `Action.CreateCover`,
-	 * le ordina e le applica a fase conclusa. Ritorna il numero di coperture erette davvero.
+	 * le ordina e le applica a fase conclusa. Ritorna quante operazioni hanno cambiato il campo davvero —
+	 * erezioni **e** spostamenti: e' il numero che accende il beat di Prep nel playback, e un turno in cui
+	 * l'unico evento e' una `Reconfigure` non deve restare muto per lo spettatore.
 	 *
 	 * Sta fuori da `ResolvePrep` (il motore azioni, che lavora su eventi verso UNITA') per la stessa ragione
 	 * per cui `ModifyArc` sta fuori dalla raccolta degli intenti del Blast: il suo esito e' una modifica della
