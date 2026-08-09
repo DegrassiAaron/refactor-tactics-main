@@ -137,6 +137,22 @@ namespace
 		return Map;
 	}
 
+	/**
+	 * Posizione della PRIMA occorrenza di un evento nel log, o `INDEX_NONE`.
+	 *
+	 * «Prima occorrenza» e non «una qualsiasi»: `LogEventOrder` chiede se una cosa e' successa prima di
+	 * un'altra, e con eventi ripetuti l'unica formulazione che non dipende da quale coppia si sceglie e'
+	 * confrontare i due esordi.
+	 */
+	int32 IndexOfScenarioLogEvent(const TArray<FRTTurnLogEntry>& Log, ERTLogCategory Category, uint8 Outcome)
+	{
+		for (int32 I = 0; I < Log.Num(); ++I)
+		{
+			if (Log[I].Category == Category && Log[I].Outcome == Outcome) { return I; }
+		}
+		return INDEX_NONE;
+	}
+
 	/** L'eroe del catalogo con quell'ID stabile, o nullptr. Il roster e' la fonte: nessun elenco duplicato. */
 	URTHeroData* FindScenarioHero(FName HeroId)
 	{
@@ -635,6 +651,11 @@ void FRTScenarioSession::Step(float DeltaSeconds, bool bPumpTurnManager)
 
 		if (!TM->IsResolving())
 		{
+			// Il TurnLog di QUESTO turno, prima che il prossimo `LockInAndResolve` lo azzeri. E' l'unico
+			// istante in cui e' completo e ancora esistente: leggerlo a scenario finito darebbe l'ultimo turno
+			// soltanto, e un'assertion su tre turni sarebbe verde per il motivo sbagliato.
+			ScenarioLog.Append(TM->GetTurnLog());
+
 			++TurnIndex;
 			Result.TurnsPlayed = TurnIndex;
 			if (TurnIndex >= Scenario.Turns.Num())
@@ -814,6 +835,48 @@ void FRTScenarioSession::Finish()
 				const int32 ActualIndex = FMath::Clamp(static_cast<int32>(Unit->Facing), 0, 5);
 				A.Actual = DirectionNames[ActualIndex];
 				A.bPassed = (ActualIndex == WantIndex);
+			}
+			break;
+		}
+		case ERTAssertionKind::LogEventCount:
+		{
+			const FString EventName = URTScenarioLoader::DescribeLogEvent(Exp.LogCategory, Exp.LogOutcome);
+			A.Description = FString::Printf(TEXT("LogEventCount(%s)"), *EventName);
+			A.Expected = FString::FromInt(Exp.Value);
+
+			int32 Found = 0;
+			for (const FRTTurnLogEntry& Entry : ScenarioLog)
+			{
+				if (Entry.Category == Exp.LogCategory && Entry.Outcome == Exp.LogOutcome) { ++Found; }
+			}
+			A.Actual = FString::FromInt(Found);
+			A.bPassed = (Found == Exp.Value);
+			break;
+		}
+		case ERTAssertionKind::LogEventOrder:
+		{
+			const FString FirstName = URTScenarioLoader::DescribeLogEvent(Exp.LogCategory, Exp.LogOutcome);
+			const FString ThenName = URTScenarioLoader::DescribeLogEvent(Exp.ThenCategory, Exp.ThenOutcome);
+			A.Description = FString::Printf(TEXT("LogEventOrder(%s prima di %s)"), *FirstName, *ThenName);
+			A.Expected = FString::Printf(TEXT("%s prima di %s"), *FirstName, *ThenName);
+
+			const int32 FirstAt = IndexOfScenarioLogEvent(ScenarioLog, Exp.LogCategory, Exp.LogOutcome);
+			const int32 ThenAt = IndexOfScenarioLogEvent(ScenarioLog, Exp.ThenCategory, Exp.ThenOutcome);
+
+			// Un evento ASSENTE non e' «fuori ordine»: e' un altro difetto, e dirlo cosi' evita di mandare a
+			// cercare un problema di sequenza dove il problema e' che l'evento non e' mai stato prodotto.
+			if (FirstAt == INDEX_NONE || ThenAt == INDEX_NONE)
+			{
+				A.Actual = FString::Printf(TEXT("%s%s%s"),
+					FirstAt == INDEX_NONE ? *FString::Printf(TEXT("%s assente"), *FirstName) : TEXT(""),
+					(FirstAt == INDEX_NONE && ThenAt == INDEX_NONE) ? TEXT(", ") : TEXT(""),
+					ThenAt == INDEX_NONE ? *FString::Printf(TEXT("%s assente"), *ThenName) : TEXT(""));
+				A.bPassed = false;
+			}
+			else
+			{
+				A.Actual = FString::Printf(TEXT("posizioni %d e %d su %d voci"), FirstAt, ThenAt, ScenarioLog.Num());
+				A.bPassed = (FirstAt < ThenAt);
 			}
 			break;
 		}

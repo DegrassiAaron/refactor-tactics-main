@@ -116,6 +116,21 @@ private:
 	/** Vedi `FRTTestResult::Notes`: cio' che e' successo e che spiega un risultato altrimenti muto. */
 	TArray<FString> Notes;
 
+	/**
+	 * TurnLog di TUTTO lo scenario, nell'ordine in cui e' stato scritto.
+	 *
+	 * Accumulato qui e non letto dal `TurnManager` a fine corsa perche' `ARTTurnManager::TurnLog` viene
+	 * AZZERATO a ogni `LockInAndResolve`: a scenario finito conterrebbe il solo ultimo turno, e un'assertion
+	 * su tre turni sarebbe verde o rossa per il motivo sbagliato. Le voci si appendono quando il turno ha
+	 * finito di risolvere, cioe' nell'unico istante in cui il log di quel turno e' completo e non ancora
+	 * sostituito.
+	 *
+	 * ORDINE DI SCRITTURA, non forma canonica: la forma canonica — quella serializzata e quella che entra in
+	 * `URTTurnLogLibrary::HashTurnLog` — e' ordinata, quindi l'hash e' invariante per permutazione e non sa
+	 * niente delle sequenze. `LogEventOrder` deve leggere questa.
+	 */
+	TArray<FRTTurnLogEntry> ScenarioLog;
+
 	/** Tetto di sicurezza sulla risoluzione di UN turno: fallire e' meglio che girare all'infinito. */
 	int32 ResolveTicks = 0;
 };

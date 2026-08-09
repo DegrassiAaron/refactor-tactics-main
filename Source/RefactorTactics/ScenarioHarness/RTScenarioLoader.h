@@ -44,6 +44,19 @@ public:
 	/** Radice degli scenari versionati: `<Progetto>/Scenarios/`. */
 	static FString ScenariosRoot();
 
+	/**
+	 * L'enum degli esiti che appartiene a una categoria del TurnLog: `ERTMoveOutcome` se `Move`,
+	 * `ERTEnvironmentOutcome` se `Environment`, e cosi' via. `nullptr` se la categoria non ne ha uno.
+	 *
+	 * Pubblica perche' la usano in due: il loader per tradurre i NOMI del JSON in valori, e la sessione per
+	 * ritradurli in nomi nei messaggi di fallimento. Con due copie, un esito aggiunto in coda comparirebbe da
+	 * una parte sola, e il report direbbe «esito 12» dove il file diceva `CoverExpired`.
+	 */
+	static const UEnum* OutcomeEnumForCategory(ERTLogCategory Category);
+
+	/** Nome leggibile di un evento del TurnLog: `Environment.BridgeRemoved`. Sconosciuto -> il valore grezzo. */
+	static FString DescribeLogEvent(ERTLogCategory Category, uint8 Outcome);
+
 	// Il percorso di uno scenario NON si calcola più dal suo ID: dal momento che l'ID è dichiarato dal file
 	// e le cartelle sono libere, l'unico modo di sapere dove vive è chiederlo all'indice
 	// (`URTScenarioIndex::ResolvePath`). Vedi `RTScenarioIndex.h` per il perché.

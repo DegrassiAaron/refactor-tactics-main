@@ -7,6 +7,7 @@
 #include "Misc/AutomationTest.h"
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
+#include "Turn/RTTurnLog.h" // gli esiti che le assertion sul log nominano per nome
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
@@ -179,6 +180,107 @@ bool FRTScenarioLoaderShippedScenariosTest::RunTest(const FString&)
 		TestEqual(FString::Printf(TEXT("%s: l'id risolve a questo file"), *Scenario.ScenarioId),
 			Resolved, FPaths::ConvertRelativePathToFull(File));
 	}
+	return true;
+}
+
+
+/**
+ * Le assertion sul TurnLog (#318): l'evento si nomina per NOME, e un nome sbagliato e' un ERRORE di scenario.
+ *
+ * Cio' che questo test sorveglia non e' il parsing in se' — sono venti righe — ma che i nomi si risolvano per
+ * RIFLESSIONE sull'enum invece che da una tabella scritta a mano. Con la tabella, aggiungere un esito al
+ * TurnLog lo renderebbe inscrivibile negli scenari finche' qualcuno non si ricorda di aggiornarla anche qui,
+ * e quel qualcuno non se ne ricorda: e' gia' successo in questo loader con la chiave `edge`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderLogAssertionsTest,
+	"RefactorTactics.Scenario.LoaderReadsLogAssertionsByName",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderLogAssertionsTest::RunTest(const FString&)
+{
+	auto Load = [](const TCHAR* ExpectJson, FRTTestScenario& Out, FString& Error)
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Test.LogAssertions",
+		  "mapRadius": 3,
+		  "units": [
+		    { "id": "A1", "hero": "Hero.Flux",    "team": 0, "cell": [-1, 0, 0] },
+		    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [1, 0, 0] }
+		  ],
+		  "turns": [ { "intents": [] } ],
+		  "expect": [ %s ]
+		})JSON"), ExpectJson);
+		return URTScenarioLoader::LoadFromString(Json, Out, Error);
+	};
+
+	// 1. Conteggio: nomi validi -> categoria ed esito risolti nei valori dell'enum.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(TEXT(R"({ "type": "LogEventCount", "category": "Environment", "outcome": "BridgeRemoved", "value": 0 })"),
+			Scenario, Error);
+		if (TestTrue(FString::Printf(TEXT("scenario valido (%s)"), *Error), bOk)
+			&& TestEqual(TEXT("una assertion"), Scenario.Expect.Num(), 1))
+		{
+			TestTrue(TEXT("kind LogEventCount"), Scenario.Expect[0].Kind == ERTAssertionKind::LogEventCount);
+			TestTrue(TEXT("categoria Environment"), Scenario.Expect[0].LogCategory == ERTLogCategory::Environment);
+			TestEqual(TEXT("esito BridgeRemoved"),
+				static_cast<int32>(Scenario.Expect[0].LogOutcome),
+				static_cast<int32>(ERTEnvironmentOutcome::BridgeRemoved));
+			TestEqual(TEXT("value 0 e' un conteggio legittimo: asserisce l'ASSENZA"), Scenario.Expect[0].Value, 0);
+		}
+	}
+
+	// 2. `value` assente = 1, cioe' «l'evento c'e'». E' il caso piu' comune e scriverlo ogni volta sarebbe rumore.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		if (Load(TEXT(R"({ "type": "LogEventCount", "category": "Facing", "outcome": "DerivedFromMove" })"), Scenario, Error)
+			&& TestEqual(TEXT("una assertion"), Scenario.Expect.Num(), 1))
+		{
+			TestEqual(TEXT("conteggio atteso implicito"), Scenario.Expect[0].Value, 1);
+		}
+	}
+
+	// 3. Ordine: due eventi, entrambi risolti.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(TEXT(R"({ "type": "LogEventOrder", "category": "Facing", "outcome": "UsedByBlast", "thenCategory": "Facing", "thenOutcome": "DerivedFromMove" })"),
+			Scenario, Error);
+		if (TestTrue(FString::Printf(TEXT("scenario valido (%s)"), *Error), bOk)
+			&& TestEqual(TEXT("una assertion"), Scenario.Expect.Num(), 1))
+		{
+			TestTrue(TEXT("kind LogEventOrder"), Scenario.Expect[0].Kind == ERTAssertionKind::LogEventOrder);
+			TestEqual(TEXT("primo evento"), static_cast<int32>(Scenario.Expect[0].LogOutcome),
+				static_cast<int32>(ERTFacingOutcome::UsedByBlast));
+			TestEqual(TEXT("secondo evento"), static_cast<int32>(Scenario.Expect[0].ThenOutcome),
+				static_cast<int32>(ERTFacingOutcome::DerivedFromMove));
+		}
+	}
+
+	// 4. Un esito che appartiene a UN'ALTRA categoria e' rifiutato. E' il caso che una tabella scritta a mano
+	//    sbaglierebbe piu' facilmente: `BridgeRemoved` esiste, ma non fra gli esiti di `Facing`.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(TEXT(R"({ "type": "LogEventCount", "category": "Facing", "outcome": "BridgeRemoved" })"),
+			Scenario, Error);
+		TestFalse(TEXT("esito di un'altra categoria: rifiutato"), bOk);
+		TestTrue(TEXT("e l'errore nomina la categoria, o si cerca il difetto nel posto sbagliato"),
+			Error.Contains(TEXT("Facing")));
+	}
+
+	// 5. Categoria inventata: rifiutata, con l'elenco di quelle previste.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(TEXT(R"({ "type": "LogEventCount", "category": "Meteo", "outcome": "Pioggia" })"),
+			Scenario, Error);
+		TestFalse(TEXT("categoria inesistente: rifiutata"), bOk);
+		TestTrue(TEXT("l'errore elenca le categorie previste"), Error.Contains(TEXT("Environment")));
+	}
+
 	return true;
 }
 
