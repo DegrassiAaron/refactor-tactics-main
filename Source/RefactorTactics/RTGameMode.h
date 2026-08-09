@@ -10,7 +10,9 @@ class ARTUnit;
 class ARTHexMapActor;
 class ARTTurnManager;
 class URTHeroData;
+class URTHexMapAsset;
 class URTMatchFormatData;
+struct FRTMatchRules;
 
 /**
  * Sorgente della mappa su cui allestire la partita. Le voci generate non richiedono asset: `Content/**` non e'
@@ -219,13 +221,17 @@ private:
 
 	/**
 	 * Risolve il formato di partita e lo consegna al `TurnManager`. Ritorna **false** se il formato e'
-	 * presente ma invalido — in quel caso la partita non va allestita.
+	 * presente ma invalido, oppure se non e' compatibile con la classe della mappa (CP 19.1) — in quel caso
+	 * la partita non va allestita.
 	 *
 	 * E' qui che vive la politica di ripiego, come per l'arena generata: la libreria pura rifiuta e basta,
 	 * l'Actor decide che farne e lo dichiara in Warning. Un ripiego silenzioso non produce una partita rotta,
 	 * produce numeri di playtest attribuiti a un formato che non era in vigore.
+	 *
+	 * `OutRules` esce valorizzato solo quando il ritorno e' `true`: l'allestimento legge da li' la
+	 * composizione (`UnitsPerTeam`, CP 19.2) invece di dichiararla per conto proprio.
 	 */
-	bool ApplyMatchFormat(ARTTurnManager* TurnManager);
+	bool ApplyMatchFormat(ARTTurnManager* TurnManager, const URTHexMapAsset* Map, FRTMatchRules& OutRules);
 
 	/**
 	 * Spawna l'eroe con l'`HeroId` dato. `Hero == nullptr` non spawna nulla (fail-closed): un'unita' con

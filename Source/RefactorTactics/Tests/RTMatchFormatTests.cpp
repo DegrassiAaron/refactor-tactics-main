@@ -152,4 +152,50 @@ bool FRTMatchFormatFallbackRulesAreValidTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * CP 19.2 — la composizione e' un campo del FORMATO, non una costante dell'orchestratore.
+ *
+ * `Format.Skirmish2v2` dichiara 2. Il valore attraversa `ResolveRules` e arriva alle regole in vigore: senza
+ * quel passaggio il campo esisterebbe sull'asset e nessuno lo leggerebbe, che e' il difetto ricorrente di
+ * questo repository — il dato senza consumatore.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMatchFormatDeclaresUnitsPerTeamTest,
+	"RefactorTactics.MatchFormat.DeclaresUnitsPerTeam",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMatchFormatDeclaresUnitsPerTeamTest::RunTest(const FString&)
+{
+	URTMatchFormatData* Skirmish = MakeValidFormat();
+	Skirmish->FormatId = FName(TEXT("Format.Skirmish2v2"));
+	Skirmish->UnitsPerTeam = 2;
+
+	FRTMatchRules Rules;
+	FString Reason;
+	TestTrue(TEXT("il formato si risolve"), URTMatchFormatLibrary::ResolveRules(Skirmish, Rules, Reason));
+	TestEqual(TEXT("Format.Skirmish2v2 dichiara 2 unita' per squadra"), Rules.UnitsPerTeam, 2);
+
+	// Un formato che ne dichiara quattro e' altrettanto legittimo: e' il 4v4 di E17, che smette di essere un
+	// ramo del `GameMode` e diventa un dato. Se questo non passasse, «formato dichiarato» sarebbe una parola.
+	URTMatchFormatData* Stress = MakeValidFormat();
+	Stress->FormatId = FName(TEXT("Format.Stress4v4"));
+	Stress->UnitsPerTeam = 4;
+	TestTrue(TEXT("anche un 4v4 si risolve"), URTMatchFormatLibrary::ResolveRules(Stress, Rules, Reason));
+	TestEqual(TEXT("con quattro unita' per squadra"), Rules.UnitsPerTeam, 4);
+
+	// Zero non e' «nessun limite» come per `ScoreToWin`: e' una squadra vuota, e il validator lo rifiuta
+	// nominando il campo.
+	URTMatchFormatData* Empty = MakeValidFormat();
+	Empty->UnitsPerTeam = 0;
+	const TArray<FString> Errors = URTMatchFormatLibrary::ValidateFormat(Empty);
+	TestTrue(TEXT("una composizione vuota e' un errore"), Errors.Num() > 0);
+
+	bool bNamesTheField = false;
+	for (const FString& E : Errors)
+	{
+		bNamesTheField = bNamesTheField || E.Contains(TEXT("UnitsPerTeam"));
+	}
+	TestTrue(TEXT("e l'errore nomina il campo colpevole"), bNamesTheField);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
