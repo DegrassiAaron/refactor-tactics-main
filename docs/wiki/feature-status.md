@@ -202,7 +202,7 @@ il gioco che sara', questa tabella dice a che punto e'.
 
 | Feature | Titolo | Roadmap | Stato | Gate | Scenario |
 |---|---|---|---|---:|---|
-| `RT-FEAT-ACTION-DELAYED` | Delayed Action ai boundary di fase | — | **DESIGNED** | 0/8 | — |
+| `RT-FEAT-ACTION-DELAYED` | Delayed Action ai boundary di fase | — | **DESIGNED** | 0/8 | `Spec.Movement.AntiDashTriggerIgnoresMove` · `Spec.Movement.TripwireOnCrossEdge` |
 | `RT-FEAT-ACTION-TRAPS` | Trappole e gambit tattici | — | **IDEA** | 0/8 | — |
 
 ### Gameplay

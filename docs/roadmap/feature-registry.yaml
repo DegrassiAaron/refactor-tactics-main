@@ -938,6 +938,11 @@ features:
     scenarios:
       - Visual.Movement.Charge
       - Visual.Movement.RoughRefusesCharge
+      # Scenario-SPECIFICA scritto prima (2026-08-10, dalla PR #306): `BLOCKED` sulla capability
+      # `Teleport`, che non esiste. Sta qui e non fra i trigger perche' la regola che dimostra e' sullo
+      # STILE di movimento — un teletrasporto non attraversa le celle intermedie, quindi non ne prende
+      # gli hazard — ed e' la riga piu' facile da sbagliare della tassonomia.
+      - Spec.Movement.TeleportSkipsIntermediateCells
     wiki_refs:
       - docs/wiki/game/azioni-e-movimento.md
     last_verified:
@@ -1158,9 +1163,17 @@ features:
       - RT-FEAT-CORE-DECISION-BOUNDARY
     owner_specs:
       - docs/gameplay/brief-delayed-actions.md
+      # I trigger su transizione (trap, tripwire) sono §6-bis di quel brief, decisi da D-013.
+      - docs/gameplay/spec-tassonomia-movimento.md
     issues: []
     tests: []
-    scenarios: []
+    scenarios:
+      # Scenari-SPECIFICA scritti prima dell'implementazione (2026-08-10, dalla PR #306): sono `BLOCKED`
+      # sulle capability `SemanticTrigger` e `SpatialTrigger`, che non esistono. Restano qui perche' un
+      # trigger su transizione senza scenario e' una regola che nessuno potra' dimostrare — ed e' il
+      # difetto che questo registry esiste per rendere visibile.
+      - Spec.Movement.AntiDashTriggerIgnoresMove
+      - Spec.Movement.TripwireOnCrossEdge
     wiki_refs: []
     last_verified:
       date: 2026-08-08
@@ -1168,6 +1181,10 @@ features:
     notes: >
       Brief di scope, **nessuna epic aperta**: la proposta (4 checkpoint, numero non assegnato)
       attende una decisione perché E14 non è iniziata. Registrata per non perderla, non promossa.
+      Dal 2026-08-10 ha due **scenari-specifica** che ne descrivono i trigger su transizione prima
+      che esistano: `AntiDashTriggerIgnoresMove` distingue il *come* ci si è mossi (Dash contro Move
+      sullo stesso bordo) e dipende da #307, `TripwireOnCrossEdge` distingue l'attraversare dal
+      comparire oltre. Entrambi `BLOCKED`, ed è la verità: le capability non esistono.
 
   - feature_id: RT-FEAT-ACTION-PREDICTIVE
     title: Predictive Action, thin slice
