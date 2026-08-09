@@ -297,12 +297,20 @@ Costruirli ora significherebbe scriverne la metà due volte.
 
 Nessuna è decidibile dai documenti. Vanno chiuse prima che E10 le incontri in codice.
 
-| ID | Domanda | Perché serve una risposta |
+**Vivono in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md)**, che è il posto delle cose che aspettano una
+persona — non qui. Questa sezione dice *quali sono* e *da quale paragrafo nascono*; il testo della domanda e
+il motivo per cui non si risolve leggendo stanno lì, una volta sola.
+
+| ID | Nasce da | In una riga |
 |---|---|---|
-| `INT-1` | Quali capability porta ciascun eroe v0.1? | §3. È un asse di bilanciamento, non un dettaglio di contenuto: decide quali eroi diventano obbligatori davanti a quali ostacoli |
-| `INT-2` | Un verbo può risolvere in una fase diversa dal Blast? | §7. `OpenDoor → Prep` renderebbe le porte attraversabili col Dash: cambia l'economia dello sfondamento |
-| `INT-3` | `Interact` **richiede** un facing verso l'elemento, oppure lo **impone**? | È già `FAC-6` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), e questo documento ne è il primo consumatore concreto |
-| `INT-4` | Il costo di un `Interact` dipende dal verbo? | Se sì, il verbo entra nell'action economy e non è più solo un payload (§6). Nessun numero va inventato prima della risposta |
+| `INT-1` | §3 | quali capability di interazione porta ciascun eroe della v0.1 |
+| `INT-2` | §7 | se un verbo può risolvere in una fase diversa dal Blast |
+| `INT-4` | §6 | se il costo di un `Interact` dipende dal verbo |
+
+**`INT-3` non esiste**, ed è deliberato: «`Interact` richiede o impone il facing?» era già `FAC-6` dal
+2026-08-08, il suo owner è [ADR-0005](../decisions/adr-0005-orientamento.md), e questo documento ne è il primo
+consumatore concreto — non il proprietario. Due ID per la stessa domanda si chiudono in momenti diversi, e il
+secondo resta aperto a mentire.
 
 ---
 
