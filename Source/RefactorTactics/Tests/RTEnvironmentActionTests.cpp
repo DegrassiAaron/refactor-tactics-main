@@ -265,6 +265,101 @@ bool FRTActionCreateWaterTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionMistVeilTest,
+	"RefactorTactics.Actions.MistVeil.CreatesSmokeAndCapsTargeting",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionMistVeilTest::RunTest(const FString&)
+{
+	// Issue #353. `Riva.MistVeil` dichiarava «crea fumo raggio 1» e non lo faceva: `Smoke` era l'unica delle
+	// otto superfici che nessuna azione sapeva creare. Il test non si ferma alla superficie — verifica anche
+	// il CAP di targeting, perche' e' quello l'effetto tattico, e una superficie dipinta che non cambia nulla
+	// sarebbe lo stesso difetto di prima con un colore in piu'.
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	ARTUnit* Caster = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Target = SpawnEnvUnit(World, 1, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Caster"), Caster) || !TestNotNull(TEXT("Target"), Target)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	// L'abilita' vera del catalogo, non una ricostruita nel test: la issue nasceva proprio da uno scarto fra
+	// cio' che il catalogo dichiarava e cio' che l'azione faceva.
+	URTHeroData* Riva = URTHeroCatalogLibrary::MakeRiva();
+	if (!TestNotNull(TEXT("Riva costruita"), Riva)) { DestroyEnvWorld(World); return false; }
+	URTActionData* MistVeil = Riva->Actions.IsValidIndex(3) ? Riva->Actions[3] : nullptr;
+	if (!TestNotNull(TEXT("MistVeil nel kit"), MistVeil)) { DestroyEnvWorld(World); return false; }
+
+	Caster->Abilities[3] = MistVeil;
+	Caster->PlannedAbilityIndex = 3;
+	Caster->PlannedAttackTarget = Target;
+	RunEnvTurn(TM);
+
+	auto SurfaceAt = [MapActor](const FRTCellId& Cell)
+	{
+		const FRTHexCellData* Data = MapActor->MapAsset ? MapActor->MapAsset->FindCell(Cell) : nullptr;
+		return Data ? Data->Surface : ERTHexSurface::Floor;
+	};
+
+	TestTrue(TEXT("la cella bersaglio si riempie di fumo"), SurfaceAt(FRTCellId(2, 0)) == ERTHexSurface::Smoke);
+	TestTrue(TEXT("e anche una adiacente (raggio 1)"), SurfaceAt(FRTCellId(3, 0)) == ERTHexSurface::Smoke);
+	TestTrue(TEXT("ma non una a due celle di distanza"), SurfaceAt(FRTCellId(4, 0)) != ERTHexSurface::Smoke);
+
+	// L'effetto TATTICO: sparare attraverso il fumo vale al massimo 2 celle, e la regola sta gia' nel
+	// terreno — `EffectiveTargetingRange` la legge dalla superficie della cella, non da uno stato dell'unita'.
+	// E' la ragione per cui il fumo funziona nell'istante in cui la cella cambia.
+	const int32 Effective = URTTerrainLibrary::EffectiveTargetingRange(MapActor->MapAsset,
+		FRTCellId(0, 0), FRTCellId(3, 0), /*RangeCells*/ 6);
+	TestEqual(TEXT("attraverso il fumo il targeting e' tagliato a 2"), Effective, 2);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionIgniteRadiusTest,
+	"RefactorTactics.Actions.Ignite.BurnsOnlyTheTargetCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionIgniteRadiusTest::RunTest(const FString&)
+{
+	// Controprova del raggio come DATO (#353): tre azioni creano superfici con due raggi diversi, e prima il
+	// resolver li indovinava da un `if` sul tipo di superficie. Se un giorno `SurfaceRadius` sparisse da
+	// `Action.Ignite`, il fuoco erediterebbe in silenzio il raggio di qualcun altro — e un fuoco che si allarga
+	// di una cella e' una modifica di bilanciamento fatta senza deciderla.
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	ARTUnit* Caster = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Target = SpawnEnvUnit(World, 1, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Caster"), Caster) || !TestNotNull(TEXT("Target"), Target)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	PlanEnvAction(Caster, TEXT("Action.Ignite"), Target);
+	RunEnvTurn(TM);
+
+	auto SurfaceAt = [MapActor](const FRTCellId& Cell)
+	{
+		const FRTHexCellData* Data = MapActor->MapAsset ? MapActor->MapAsset->FindCell(Cell) : nullptr;
+		return Data ? Data->Surface : ERTHexSurface::Floor;
+	};
+
+	TestTrue(TEXT("la cella bersaglio brucia"), SurfaceAt(FRTCellId(2, 0)) == ERTHexSurface::Fire);
+	TestTrue(TEXT("l'adiacente NO: il fuoco ha raggio 0"), SurfaceAt(FRTCellId(3, 0)) != ERTHexSurface::Fire);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionModifyArcTest,
 	"RefactorTactics.Actions.ModifyArc.BumpsChunkRevision",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
