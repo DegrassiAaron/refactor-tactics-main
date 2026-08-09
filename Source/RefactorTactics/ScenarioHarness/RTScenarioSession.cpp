@@ -44,6 +44,15 @@ namespace
 			TEXT("Cover"),             // E9 CP 9.1/9.2: coperture bassa e alta, distruzione
 			TEXT("Structures"),        // E9 CP 9.3: porte come bordo, revisione della mappa
 			TEXT("CreateCover"),       // E9 CP 9.5: coperture erette in partita, temporanee, spostabili
+			// D-039 (#282): un EROE possiede davvero un'azione ambientale. Non basta che il resolver la sappia
+			// risolvere — per mesi la sapeva, e nessuna unita' poteva innescarla. Oggi `Flux.ConductiveNode` e'
+			// `Action.Electrify` e `Riva.FluidTrail` e' `Action.CreateWater`.
+			//
+			// NON copre `Action.Ignite` ne' `Action.ModifyArc`: nessun eroe del roster le possiede, e D-039 ha
+			// deciso che restino senza owner in v0.1 (nessuna affinita' col fuoco; i ponti non appartengono a
+			// nessun kit). Uno scenario che chieda di accenderle deve restare BLOCKED, ed e' il motivo per cui
+			// questa capability non si chiama «Environment»: quella c'e' gia' e dice un'altra cosa.
+			TEXT("EnvironmentalActionOwner"),
 		};
 		// NON disponibile, e la riga che manca vale quanto quelle che ci sono:
 		//

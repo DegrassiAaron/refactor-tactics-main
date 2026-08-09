@@ -169,8 +169,19 @@ URTHeroData* URTHeroCatalogLibrary::MakeFlux()
 	// Effects vuoto e' la dichiarazione onesta: l'identita', la fase e il cooldown sono dati veri, l'effetto
 	// no. Range 0 (self) e' un segnaposto, non un numero di bilanciamento: arriva un range reale insieme
 	// all'effetto, non prima.
-	Flux->Actions.Add(MakeHeroAction(TEXT("Flux.ConductiveNode"), ERTResolutionPhase::Preparation, /*Priority*/ 35,
-		/*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
+	// D-039: cablata su `Action.Electrify`. Il commento qui sopra era vero quando fu scritto — E8 ha chiuso il
+	// 2026-08-07 e il modello di cella conduttiva ORA esiste, quindi la dichiarazione onesta di allora e'
+	// diventata un dato che nessuno legge: il resolver risolveva `Action.Electrify` e nessun eroe la possedeva
+	// (issue #282). Numeri dal CORE, non nuovi: portata 4, propagazione 3, fase Environment. Il cooldown resta
+	// quello dell'eroe (2), come per `Bastion.Ram`.
+	const FRTActionDef ElectrifyDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Electrify"));
+	URTActionData* ConductiveNode = MakeHeroAction(TEXT("Flux.ConductiveNode"), ElectrifyDef.ResolutionPhase,
+		ElectrifyDef.Priority, ElectrifyDef.RangeCells, /*Cooldown*/ 2, ElectrifyDef.Fallback,
+		ElectrifyDef.Effects);
+	// La propagazione e' IL comportamento, non un dettaglio: senza questa riga l'azione elettrificherebbe una
+	// cella sola e CP 8.3 resterebbe non innescabile pur avendo un owner.
+	ConductiveNode->Def.PropagationLimit = ElectrifyDef.PropagationLimit;
+	Flux->Actions.Add(ConductiveNode);
 
 	// Indice 3 — Overload. AoE 18 danni, raggio 1 (riuso il raggio di `Action.CircularAoE`, non un numero
 	// nuovo), portata 3. "Interrupt sui dispositivi" non e' rappresentabile: non esistono dispositivi/gadget
@@ -261,13 +272,24 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiva()
 	// l'acqua lasciata dietro non ha un modello da consumare.
 	// Lo slot va dichiarato: `MakeHeroAction` mette `Main` di default, e per una mobilita' che non fa danno
 	// sarebbe quello sbagliato (D-028). Chi lascia la scia si e' mosso, ma puo' ancora agire.
-	URTActionData* FluidTrail = MakeHeroAction(TEXT("Riva.FluidTrail"), ERTResolutionPhase::FastMovement,
-		/*Priority*/ 30, /*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop, {},
-		ERTAbilityShape::Single, /*AreaRadius*/ 0, ERTActionSlot::Movement);
-	// Lo stile va DICHIARATO, non lasciato al default: `ERTMovementStyle::None` non e' "non specificato", e'
-	// "non si muove", e la fase Dash lo instraderebbe sul pathfinding normale — cioe' una scia d'acqua che
-	// aggira gli ostacoli. Stessa provenienza di `Bastion.Ram`: lo stile viene dall'azione omologa (#142).
-	FluidTrail->Def.MovementStyle = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash")).MovementStyle;
+	// D-039: cablata su `Action.CreateWater`, e **smette di essere uno scatto**. E' un cambio di kit, non una
+	// precisazione: Riva perde la mobilita' rapida e guadagna l'unico produttore d'acqua del roster. Deciso
+	// cosi' perche' l'acqua e' il punto dell'abilita' — il nome lo dice — e perche' senza un produttore la
+	// combo acqua+elettricita' di Conflux, vetrina dichiarata della v0.1, era giocabile solo su mappe che
+	// l'acqua ce l'avevano gia'. La mobilita' rapida del roster resta a `Vektor.PassingBlade`.
+	//
+	// Numeri dal CORE: portata 4, fase Environment. Niente `MovementStyle`: non si muove piu', e lasciarlo
+	// sarebbe il tipo di residuo che poi qualcuno legge come intenzione.
+	const FRTActionDef CreateWaterDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.CreateWater"));
+	URTActionData* FluidTrail = MakeHeroAction(TEXT("Riva.FluidTrail"), CreateWaterDef.ResolutionPhase,
+		CreateWaterDef.Priority, CreateWaterDef.RangeCells, /*Cooldown*/ 2, CreateWaterDef.Fallback,
+		CreateWaterDef.Effects);
+	// La SUPERFICIE va copiata a mano: `MakeHeroAction` prende identita', fase, portata, ricarica, fallback ed
+	// effetti — non i campi di comportamento. Stessa trappola di `PropagationLimit` su `Flux.ConductiveNode` e
+	// di `MovementStyle` su `Bastion.Ram`: senza questa riga l'azione risolve, non fa niente, e nel log compare
+	// come «0 danni» — cioe' fallisce nel modo piu' silenzioso possibile.
+	FluidTrail->Def.bCreatesSurface = CreateWaterDef.bCreatesSurface;
+	FluidTrail->Def.SurfaceCreated = CreateWaterDef.SurfaceCreated;
 	Riva->Actions.Add(FluidTrail);
 
 	// Indice 3 — MistVeil. "Crea fumo raggio 1": nessun modello di cella (vision-blocking dinamico, E8/E9).

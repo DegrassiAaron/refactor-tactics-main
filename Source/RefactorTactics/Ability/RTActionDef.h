@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Map/RTHexCellData.h"
 #include "GameplayTagContainer.h"
 #include "Turn/RTActionEvent.h"
 #include "RTActionDef.generated.h"
@@ -231,6 +232,27 @@ struct FRTActionDef
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 PropagationLimit = 0;
+
+	/**
+	 * L'azione TRASFORMA la superficie della cella bersaglio (`Action.Ignite` -> Fire,
+	 * `Action.CreateWater` -> ShallowWater).
+	 *
+	 * Coppia flag+valore come `bTargetsCell`/`TargetCell`: l'enum delle superfici non ha un valore «nessuna»,
+	 * e `Floor` e' una superficie legittima, quindi non puo' fare da «non dichiarato».
+	 *
+	 * Prima il resolver sceglieva la superficie confrontando l'ActionId letterale
+	 * (`if (Id == "Action.CreateWater")`). Il commento di allora lo ammetteva e rimandava: «inventare un campo
+	 * SurfaceCreated per due sole azioni sarebbe un dato che nessun'altra azione userebbe; quando le azioni
+	 * ambientali saranno molte, il posto giusto e' quel campo». La condizione e' arrivata da un'altra
+	 * direzione: con D-039 un EROE possiede un'azione ambientale, e `Riva.FluidTrail` non puo' chiamarsi
+	 * `Action.CreateWater`. Un confronto per nome non sa esprimere «e' quell'azione con un nome d'eroe» —
+	 * un campo si', ed e' la stessa strada di `PropagationLimit`, che infatti funzionava gia'.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	bool bCreatesSurface = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	ERTHexSurface SurfaceCreated = ERTHexSurface::Floor;
 
 	/**
 	 * Effetti prodotti dall'azione, nell'ordine in cui si applicano. E' il campo che il registry traduce in

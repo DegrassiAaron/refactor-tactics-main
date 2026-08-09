@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "Ability/RTActionData.h"
+#include "Ability/RTCatalogLibrary.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Core/RTGameplayTags.h"
@@ -56,10 +57,18 @@ bool FRTRivaMatchesCatalogTest::RunTest(const FString&)
 	TestEqual(TEXT("PressureJet: nessuna ricarica (e' l'attacco base)"), PressureJet->Def.CooldownTurns, 0);
 	TestTrue(TEXT("PressureJet: forma a linea"), PressureJet->Shape == ERTAbilityShape::Line);
 
+	// FluidTrail NON e' piu' uno scatto (D-039, issue #282): e' il produttore d'acqua del roster, cablato su
+	// `Action.CreateWater`. Il cambio e' di kit, non di numeri — Riva perde la mobilita' rapida — e va scritto
+	// qui perche' questo test E' la documentazione vincolante del kit: se un giorno tornasse un Dash, deve
+	// cadere qualcosa.
 	const URTActionData* FluidTrail = Riva->Actions[2];
-	TestEqual(TEXT("FluidTrail: Dash 3"), FluidTrail->Def.RangeCells, 3);
+	const FRTActionDef WaterDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.CreateWater"));
+	TestEqual(TEXT("FluidTrail: portata dal core, non un numero nuovo"), FluidTrail->Def.RangeCells, WaterDef.RangeCells);
 	TestEqual(TEXT("FluidTrail: cooldown 2"), FluidTrail->Def.CooldownTurns, 2);
-	TestTrue(TEXT("FluidTrail: risolve nel Dash"), FluidTrail->Def.ResolutionPhase == ERTResolutionPhase::FastMovement);
+	TestTrue(TEXT("FluidTrail: risolve nell'ambiente"),
+		FluidTrail->Def.ResolutionPhase == ERTResolutionPhase::Environment);
+	// Nessun residuo dello scatto: uno stile di movimento rimasto verrebbe letto come intenzione.
+	TestTrue(TEXT("FluidTrail: non si muove piu'"), FluidTrail->Def.MovementStyle == ERTMovementStyle::None);
 
 	const URTActionData* MistVeil = Riva->Actions[3];
 	TestEqual(TEXT("MistVeil: cooldown 3"), MistVeil->Def.CooldownTurns, 3);
