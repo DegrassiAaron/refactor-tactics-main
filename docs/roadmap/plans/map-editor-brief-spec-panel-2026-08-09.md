@@ -119,16 +119,20 @@ Sei revisori, un focus ciascuno. Le citazioni sono ricostruzioni della metodolog
 
 > «§25 chiede tredici test di core: `CellId equality/hash`, `world ↔ grid mapping`, `graph neighbor validity`,
 > `movement cost lookup`, `bounded reachable-area query`, `A* point-to-point`, `stable tie-break`,
-> `GraphRevision invalidation`, `door state transition`, `map validation`. **Dieci su tredici esistono già**,
+> `GraphRevision invalidation`, `door state transition`, `map validation`. **Undici su tredici esistono già**,
 > e non a campione: `RefactorTactics.HexMap.*`, `HexSim.*`, `Hex.WorldToLayer`, `HexMap.Validate*`,
 > `RTHexDoorTests`. Chiedere di crearli produrrà o duplicati, o una sessione persa a scoprire che c'erano.»
 
-> «I tre che **non** esistono sono quelli che contano, ed è un peccato che il brief non li distingua:
-> ricostruzione del percorso dall'area raggiungibile, invalidazione osservata **da un client d'editor**, e
-> golden fixture di area raggiungibile con costi attesi. Il terzo è il più prezioso e il meno costoso: una
-> mappa fissa, un budget, un insieme atteso di celle con costo. Oggi il determinismo dell'area raggiungibile è
-> garantito dalla struttura del codice — costi interi, tie-break assoluto — ma non c'è un file che dica *quale*
-> sia la risposta giusta.»
+> «I due che mancano nell'elenco non sono lacune di copertura: `wall-derived transition blocking` non esiste
+> perché **i muri non esistono** (vedi C2), e `movement profile restrictions` è la collisione di nome di C4 —
+> il vincolo per profilo d'azione c'è (`Terrain.Rough.BlocksDash`), quello per archetipo d'unità è una feature
+> che nessuno ha deciso di volere. Nessuno dei due si risolve scrivendo un test.»
+
+> «Il buco vero il brief non lo elenca affatto, ed è a portata di mano: una **golden fixture di area
+> raggiungibile** — mappa fissa, budget, insieme atteso di celle con il loro costo. Oggi il determinismo
+> dell'area raggiungibile è garantito dalla *struttura* del codice — costi interi, tie-break assoluto — ma non
+> c'è un file che dica *quale* sia la risposta giusta. Con quello, la sonda di §9 nasce già verificabile invece
+> che verificata a occhio.»
 
 > «Nota di metodo su §25: *"Do not make screenshot comparison the primary correctness mechanism"* è corretto e
 > il progetto già lo applica — la classe B di `scenario-map.md` esiste proprio per dire che l'assertion resta
@@ -217,7 +221,7 @@ ricalcolo cancella la modifica. È la stessa classe di problema dei prefab, e va
 | §16 | Definizione di mappa versionata con hash e ID stabili | `URTHexMapAsset`, `FormatVersion=4`, hash nel replay |
 | §18 | LOS, facing a sei direzioni, geometria di Overwatch | `URTHexVisionLibrary::HasLineOfSight`, `HexLine`, `HexCone` (H6.4); facing = [ADR-0005](../../decisions/adr-0005-orientamento.md) |
 
-Undici dei tredici test di §25 ricadono in questa tabella.
+Undici dei tredici test chiesti da §25 esercitano codice di questa tabella, o le fondazioni H0 su cui poggia.
 
 ---
 
@@ -279,7 +283,7 @@ Misurati sul brief **come istruzione per questo repository**, non come memo di d
 | **Completezza** | 6/10 | Nessuna mappatura verso owner esistenti; nessuna soglia numerica; §24 non dice chi esegue |
 | **Testabilità** | 4/10 | §33 non ha un criterio falsificabile; §24 non ha fixture; gli esempi di §12 non hanno una mappa |
 | **Coerenza** | 4/10 | La §Purpose vieta i registry paralleli, §26/§28 li costruiscono; §5 semplifica un enum in produzione |
-| **Allineamento al canone** | 3/10 | 9 duplicati e 5 conflitti su 36 sezioni; il vocabolario dei terreni non esiste |
+| **Allineamento al canone** | 3/10 | 9 duplicati e 5 conflitti sulle 36 voci classificate; il vocabolario dei terreni non esiste |
 
 Come **memo di design** il voto sarebbe altro — la tesi «l'editor è un client dei servizi autorevoli, mai una
 seconda implementazione» è quella giusta, ed è la ragione per cui vale la pena archiviarlo invece di
