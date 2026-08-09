@@ -4,6 +4,8 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Ability/RTActionDef.h" // ERTMovementStyle: le direzioni legali sono una proprieta' dello STILE
 #include "Map/RTCellId.h"        // ERTHexDirection
+#include "Turn/RTHexSim.h"       // FRTHexSimUnit: il facing autorevole vive nello snapshot
+#include "Turn/RTTurnLog.h"      // ERTFacingOutcome: la timeline di D-020 e' la sequenza delle voci di log
 #include "RTFacingLibrary.generated.h"
 
 /**
@@ -79,4 +81,27 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Facing")
 	static ERTHexDirection FacingAfterDisplacement(const FRTCellId& LandedCell, const FRTCellId& SourceCell,
 		ERTDisplacementCause Cause, ERTHexDirection Current);
+
+	/**
+	 * Scrive il nuovo facing sull'unita' e ne registra la ragione nel TurnLog. Unico punto di scrittura: e'
+	 * questo che rende la timeline di D-020 ricostruibile, perche' nessuno puo' cambiare l'orientamento senza
+	 * lasciare la voce che dice quando e perche'.
+	 *
+	 * Scrivere lo STESSO valore che l'unita' ha gia' non produce nessuna voce: un non-cambiamento non e' un
+	 * evento, e riempirne il log renderebbe l'hash del replay sensibile a scritture che non decidono niente.
+	 * L'unica eccezione e' `DeclarationRejected`, che e' un esito osservabile proprio perche' NON cambia nulla.
+	 */
+	static void RecordFacingChange(FRTHexSimUnit& Unit, ERTHexDirection NewFacing, ERTFacingOutcome Reason,
+		ERTMatchPhase Phase, TArray<FRTTurnLogEntry>& Log);
+
+	/**
+	 * Legge il facing per un consumatore (Blast, Overwatch) registrando CHI ha letto e QUALE valore. Restituisce
+	 * sempre il valore autorevole piu' recente, cioe' quello sull'unita'.
+	 *
+	 * Esiste come funzione separata dalla lettura diretta del campo perche' la domanda a cui il replay deve
+	 * saper rispondere non e' «che facing aveva» ma «che facing ha USATO il Blast»: senza traccia della lettura,
+	 * un round con Dash e Blast nello stesso turno e' ambiguo.
+	 */
+	static ERTHexDirection ReadFacingForConsumer(const FRTHexSimUnit& Unit, ERTFacingOutcome Consumer,
+		ERTMatchPhase Phase, TArray<FRTTurnLogEntry>& Log);
 };

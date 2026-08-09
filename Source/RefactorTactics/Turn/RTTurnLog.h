@@ -14,7 +14,43 @@
  * gia' su disco.
  */
 UENUM(BlueprintType)
-enum class ERTLogCategory : uint8 { Move, Combat, Fallback, Reaction, Environment };
+enum class ERTLogCategory : uint8 { Move, Combat, Fallback, Reaction, Environment, Facing };
+
+/**
+ * Orientamento (CP 16.1): perche' il facing di un'unita' e' CAMBIATO, oppure quale consumatore l'ha LETTO.
+ *
+ * Le due cose stanno nello stesso enum perche' rispondono alla stessa domanda del replay: *quale valore
+ * valeva quando*. [D-020](../../../docs/decisions/RT_PDR_00_Decision_Log.md) stabilisce che il facing cambia
+ * piu' volte per round su una timeline nominata e che ogni consumatore legge il valore autorevole **piu'
+ * recente**: un solo campo per turno non basterebbe a ricostruire il round, perche' non direbbe se il Blast
+ * ha sparato prima o dopo la rotazione dello scatto.
+ *
+ * La DIREZIONE viaggia in `FRTTurnLogEntry::Amount` come valore di `ERTHexDirection` (0..5). E' un intero,
+ * quindi non rompe l'invariante #4 ne' il formato serializzato: `Amount` esiste gia' e per le altre categorie
+ * porta danni o celle percorse.
+ */
+UENUM(BlueprintType)
+enum class ERTFacingOutcome : uint8
+{
+	/** Derivato dall'ultimo passo del movimento: e' il `FacingFinalAfterMove` di D-020. */
+	DerivedFromMove,
+	/** Derivato dallo scatto (`FacingAfterDash`), che risolve prima del Blast. */
+	DerivedFromDash,
+	/** Rotazione dichiarata in planning e accettata. */
+	DeclaredInPlanning,
+	/** Rotazione dichiarata FUORI dall'insieme legale: rifiutata, il facing resta quello di prima. */
+	DeclarationRejected,
+	/** Un'azione con bersaglio ha orientato l'unita' PRIMA di risolvere (`FacingAfterPrepActionTargeting`). */
+	TargetingReoriented,
+	/** Spostamento forzato subito: girata verso la sorgente. */
+	TurnedToDisplacementSource,
+	/** Spostamento ambientale (ghiaccio, corrente): nessuna sorgente, orientamento invariato. */
+	KeptOnEnvironmentalDisplacement,
+	/** LETTURA: il combattimento della fase Blast ha usato questo valore. */
+	UsedByBlast,
+	/** LETTURA: l'Overwatch ha usato questo valore (il cono pianificato, E14). */
+	UsedByOverwatch
+};
 
 /**
  * Come una CELLA e' cambiata durante il turno (CP 8.4). La mappa e' un sistema di gioco: se una cella prende
@@ -141,7 +177,7 @@ struct FRTTurnLogEntry
 
 	/**
 	 * Valore dell'enum di categoria: `ERTMoveOutcome` se Move, `ERTCombatOutcome` se Combat, `ERTFallbackOutcome`
-	 * se Fallback, `ERTReactionOutcome` se Reaction. Intero: no float (#4).
+	 * se Fallback, `ERTReactionOutcome` se Reaction, `ERTFacingOutcome` se Facing. Intero: no float (#4).
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	uint8 Outcome = 0;
@@ -154,7 +190,7 @@ struct FRTTurnLogEntry
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	FRTCellId TgtCell;
 
-	/** Danno effettivo (Combat) o numero di celle percorse (Move). */
+	/** Danno effettivo (Combat), numero di celle percorse (Move) o direzione come `ERTHexDirection` (Facing). */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	int32 Amount = 0;
 

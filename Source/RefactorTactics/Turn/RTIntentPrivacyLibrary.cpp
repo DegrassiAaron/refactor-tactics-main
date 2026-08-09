@@ -31,13 +31,16 @@ TArray<FRTIntentView> URTIntentPrivacyLibrary::FilterForTeam(int32 ObserverTeamI
 		View.bDashing = Intent.bDashing;
 		View.DashCell = Intent.DashCell;
 		View.DashStyle = Intent.DashStyle;
+		View.Facing = Intent.Facing; // posa attuale: si vede guardando l'unita', non e' un piano
 
-		// Reazione e waypoint si copiano SOLO per un alleato. Non c'e' un ramo che li copia e poi li cancella:
-		// per chiunque altro restano semplicemente non valorizzati, rivelato o meno.
+		// Reazione, waypoint e rotazione DICHIARATA si copiano SOLO per un alleato. Non c'e' un ramo che li copia
+		// e poi li cancella: per chiunque altro restano semplicemente non valorizzati, rivelato o meno.
 		if (bIsAlly)
 		{
 			View.ReactionName = Intent.ReactionName;
 			View.PlannedWaypoints = Intent.PlannedWaypoints;
+			View.bDeclaresRotation = Intent.bDeclaresRotation;
+			View.DeclaredFacing = Intent.DeclaredFacing;
 		}
 
 		Views.Add(View);

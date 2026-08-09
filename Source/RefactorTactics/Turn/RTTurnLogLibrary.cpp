@@ -104,6 +104,39 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		return FString::Printf(TEXT("%s: %s"), *CellText(Entry.SrcCell), What);
 	}
 
+	// Orientamento: quando cambia, e chi lo ha letto (CP 16.1). Senza queste righe il combat log direbbe che
+	// un colpo e' arrivato alle spalle senza mai dire quando l'unita' si e' girata.
+	if (Entry.Category == ERTLogCategory::Facing)
+	{
+		static const TCHAR* DirectionNames[6] = { TEXT("E"), TEXT("NE"), TEXT("NW"), TEXT("W"), TEXT("SW"), TEXT("SE") };
+		const int32 DirIndex = FMath::Clamp(Entry.Amount, 0, 5);
+		const TCHAR* Dir = DirectionNames[DirIndex];
+
+		switch (static_cast<ERTFacingOutcome>(Entry.Outcome))
+		{
+		case ERTFacingOutcome::DerivedFromMove:
+			return FString::Printf(TEXT("%s: si orienta a %s (movimento)"), *CellText(Entry.SrcCell), Dir);
+		case ERTFacingOutcome::DerivedFromDash:
+			return FString::Printf(TEXT("%s: si orienta a %s (scatto)"), *CellText(Entry.SrcCell), Dir);
+		case ERTFacingOutcome::DeclaredInPlanning:
+			return FString::Printf(TEXT("%s: si gira a %s (dichiarata)"), *CellText(Entry.SrcCell), Dir);
+		case ERTFacingOutcome::DeclarationRejected:
+			return FString::Printf(TEXT("%s: rotazione illegale rifiutata, resta a %s"), *CellText(Entry.SrcCell), Dir);
+		case ERTFacingOutcome::TargetingReoriented:
+			return FString::Printf(TEXT("%s: si orienta a %s verso il bersaglio"), *CellText(Entry.SrcCell), Dir);
+		case ERTFacingOutcome::TurnedToDisplacementSource:
+			return FString::Printf(TEXT("%s: spinta, si gira a %s verso la sorgente"), *CellText(Entry.SrcCell), Dir);
+		case ERTFacingOutcome::KeptOnEnvironmentalDisplacement:
+			return FString::Printf(TEXT("%s: trascinata, resta a %s"), *CellText(Entry.SrcCell), Dir);
+		case ERTFacingOutcome::UsedByBlast:
+			return FString::Printf(TEXT("%s: il colpo usa l'orientamento %s"), *CellText(Entry.SrcCell), Dir);
+		case ERTFacingOutcome::UsedByOverwatch:
+			return FString::Printf(TEXT("%s: l'overwatch usa l'orientamento %s"), *CellText(Entry.SrcCell), Dir);
+		default:
+			return FString::Printf(TEXT("%s: orientamento %s"), *CellText(Entry.SrcCell), Dir);
+		}
+	}
+
 	// Combat: chi colpisce chi, con quale esito e quanto danno.
 	switch (static_cast<ERTCombatOutcome>(Entry.Outcome))
 	{

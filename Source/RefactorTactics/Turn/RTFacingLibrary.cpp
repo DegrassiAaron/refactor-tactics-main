@@ -109,3 +109,46 @@ ERTHexDirection URTFacingLibrary::FacingAfterDisplacement(const FRTCellId& Lande
 	}
 	return Current;
 }
+
+namespace
+{
+	/** Voce di TurnLog per l'orientamento: la direzione viaggia in `Amount`, la cella dell'unita' e' la chiave. */
+	FRTTurnLogEntry MakeFacingEntry(const FRTCellId& UnitCell, ERTHexDirection Direction, ERTFacingOutcome Reason,
+		ERTMatchPhase Phase)
+	{
+		FRTTurnLogEntry Entry;
+		Entry.Phase = Phase;
+		Entry.Category = ERTLogCategory::Facing;
+		Entry.Outcome = static_cast<uint8>(Reason);
+		Entry.SrcCell = UnitCell;
+		Entry.TgtCell = UnitCell; // non applicabile: per convenzione del formato vale SrcCell
+		Entry.Amount = static_cast<int32>(Direction);
+		return Entry;
+	}
+}
+
+void URTFacingLibrary::RecordFacingChange(FRTHexSimUnit& Unit, ERTHexDirection NewFacing, ERTFacingOutcome Reason,
+	ERTMatchPhase Phase, TArray<FRTTurnLogEntry>& Log)
+{
+	const bool bRejection = (Reason == ERTFacingOutcome::DeclarationRejected);
+	if (Unit.Facing == NewFacing && !bRejection)
+	{
+		return; // non e' successo niente: non c'e' niente da raccontare
+	}
+
+	// Il rifiuto si registra col facing CONSERVATO, non con quello chiesto: il log dice cosa vale, non cosa
+	// era stato domandato — e cio' che vale, dopo un rifiuto, e' l'orientamento di prima.
+	const ERTHexDirection Recorded = bRejection ? Unit.Facing : NewFacing;
+	if (!bRejection)
+	{
+		Unit.Facing = NewFacing;
+	}
+	Log.Add(MakeFacingEntry(Unit.Cell, Recorded, Reason, Phase));
+}
+
+ERTHexDirection URTFacingLibrary::ReadFacingForConsumer(const FRTHexSimUnit& Unit, ERTFacingOutcome Consumer,
+	ERTMatchPhase Phase, TArray<FRTTurnLogEntry>& Log)
+{
+	Log.Add(MakeFacingEntry(Unit.Cell, Unit.Facing, Consumer, Phase));
+	return Unit.Facing;
+}

@@ -72,6 +72,26 @@ struct FRTPlannedIntent
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Privacy")
 	ERTMovementStyle DashStyle = ERTMovementStyle::None;
 
+	/**
+	 * Orientamento ATTUALE dell'unita' (CP 16.1). Pubblico: e' una posa osservabile sul campo, non un piano —
+	 * chi guarda vede da che parte e' girata una figura, e nasconderlo non renderebbe il gioco piu' segreto,
+	 * solo meno leggibile di cio' che si ha davanti agli occhi.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Privacy")
+	ERTHexDirection Facing = ERTHexDirection::E;
+
+	/** Vero se il piano dichiara una rotazione (D-020): senza questo, `DeclaredFacing` non e' interpretabile. */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Privacy")
+	bool bDeclaresRotation = false;
+
+	/**
+	 * Rotazione dichiarata in planning e non ancora applicata: dove l'unita' GUARDERA'. E' un intento, quindi
+	 * appartiene alla stessa classe di `PlannedCell` — ma piu' vicina all'autoria del piano, perche' rivela
+	 * l'arco che il giocatore ha scelto di coprire prima che si veda. Un avversario non la riceve.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Privacy")
+	ERTHexDirection DeclaredFacing = ERTHexDirection::E;
+
 	FRTPlannedIntent() = default;
 };
 
@@ -130,6 +150,17 @@ struct FRTIntentView
 	/** Stile dello scatto: movimento, quindi esposto quanto `DashCell`. Vedi `FRTPlannedIntent::DashStyle`. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
 	ERTMovementStyle DashStyle = ERTMovementStyle::None;
+
+	/** Posa ATTUALE: pubblica, si vede guardando l'unita'. Valorizzata anche per un avversario rivelato. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
+	ERTHexDirection Facing = ERTHexDirection::E;
+
+	/** Rotazione dichiarata: SOLO per gli alleati, come i waypoint e la reazione. Per un avversario resta falso. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
+	bool bDeclaresRotation = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
+	ERTHexDirection DeclaredFacing = ERTHexDirection::E;
 
 	FRTIntentView() = default;
 };
