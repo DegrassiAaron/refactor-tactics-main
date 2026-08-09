@@ -145,7 +145,8 @@ namespace
 	 * La copertura bassa si mette sul bordo E — quello attraversato dal colpo in arrivo — della vittima,
 	 * dell'intercettore, o di nessuno dei due: e' l'unica differenza fra le tre partite.
 	 */
-	FItcCoverOutcome RunItcCoverScene(bool bCoverOnVictim, bool bCoverOnSaver)
+	FItcCoverOutcome RunItcCoverScene(bool bCoverOnVictim, bool bCoverOnSaver,
+		ERTHexDirection SaverFacing = ERTHexDirection::E)
 	{
 		FItcCoverOutcome Out;
 		UWorld* World = MakeItcWorld();
@@ -167,6 +168,7 @@ namespace
 
 		Saver->PlannedReactionAbility = AddItcAbility(Saver, TEXT("Action.Intercept"));
 		Saver->PlannedAbilityIndex = INDEX_NONE;
+		Saver->Facing = SaverFacing; // CP 16.2: da che lato e' scoperto CHI incassa
 
 		const int32 VictimHealth = Victim->Health;
 		const int32 SaverHealth = Saver->Health;
@@ -505,6 +507,34 @@ bool FRTInterceptRecalculatesCoverTest::RunTest(const FString&)
 	TestEqual(TEXT("il TurnLog registra sull'intercettore il danno pieno"), CoveredVictim.LoggedOnSaver, 25);
 	TestEqual(TEXT("e quello ridotto quando e' lui a essere riparato"),
 		CoveredSaver.LoggedOnSaver, 25 - Reduction);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterceptRevalidatesFacingTest,
+	"RefactorTactics.Cover.InterceptRevalidatesFacingOnEffectiveTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterceptRevalidatesFacingTest::RunTest(const FString&)
+{
+	// La geometria target-dependent di D-017 include l'ORIENTAMENTO da quando CP 16.2 esiste: l'emisfero
+	// posteriore e' scoperto, e un colpo fuori dall'arco frontale annulla la riduzione da copertura. Chi si
+	// interpone ha il proprio facing, non quello di chi stava per essere colpito — quindi la rivalidazione
+	// deve rileggere anche quello, o l'intercettore si porta dietro un riparo che il suo orientamento non
+	// gli concede.
+	const int32 Reduction = URTCombatLibrary::LowCoverDamageReduction;
+
+	// Riparato dal lato giusto E rivolto verso l'attaccante: il muretto vale.
+	const FItcCoverOutcome Facing = RunItcCoverScene(/*bCoverOnVictim=*/ false, /*bCoverOnSaver=*/ true,
+		ERTHexDirection::E);
+	TestEqual(TEXT("controllo: l'interposizione si e' attivata"), Facing.Activations, 1);
+	TestEqual(TEXT("frontale: la copertura di chi intercetta vale"), Facing.SaverDamage, 25 - Reduction);
+
+	// Stesso muretto, stessa cella, stesso colpo: cambia solo da che parte guarda chi incassa. L'attaccante
+	// e' a est, lui guarda a ovest — il colpo arriva alle spalle e la copertura non lo ripara.
+	const FItcCoverOutcome Rear = RunItcCoverScene(/*bCoverOnVictim=*/ false, /*bCoverOnSaver=*/ true,
+		ERTHexDirection::W);
+	TestEqual(TEXT("l'interposizione si e' attivata lo stesso"), Rear.Activations, 1);
+	TestEqual(TEXT("alle spalle: la copertura non ripara chi intercetta"), Rear.SaverDamage, 25);
+	TestEqual(TEXT("e il TurnLog registra il danno pieno"), Rear.LoggedOnSaver, 25);
 	return true;
 }
 
