@@ -141,6 +141,21 @@ public:
 	FRTCellId PlannedAttackCell;
 
 	/**
+	 * Variante di abilita' attiva su questa unita' (es. `Bastion.KineticPanel.Reinforced`). `None` = i numeri
+	 * del catalogo base.
+	 *
+	 * E' il **minimo** che rende consumabili i `Parameters` delle varianti, che fino a CP 9.5 nessuno leggeva:
+	 * il catalogo dichiarava due compromessi (45 punti struttura per un turno solo, oppure 25 con una
+	 * rotazione gratuita) senza che il gioco sapesse applicarli. CHI la sceglie, quando e con quale interfaccia
+	 * resta l'epic E7: qui c'e' il campo e il suo consumatore, non il loadout.
+	 *
+	 * Il vincolo di catalogo — una sola abilita' fondamentale con variante, per eroe — e' la ragione per cui
+	 * basta UN id per unita' invece di una mappa abilita -> variante.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Ability")
+	FName ActiveVariantId;
+
+	/**
 	 * Bordo bersagliato dalle azioni che agiscono su una STRUTTURA di bordo (CP 9.5: `Action.CreateCover`,
 	 * `Bastion.Reconfigure`). Valido solo con `bHasPlannedCoverEdge`.
 	 *

@@ -1249,8 +1249,26 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 
 		// Integrita' e durata del catalogo terreni (`Structure.KineticPanel`: 30 punti struttura) e del
 		// catalogo azioni (2 turni, come ogni altra modifica temporanea del campo).
-		Pending.Add({ TargetCell, Edge, FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low), /*Turns*/ 2,
-			Def.ActionId });
+		int32 Integrity = FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low);
+		int32 Turns = 2;
+
+		// La VARIANTE attiva sostituisce i due numeri, se li dichiara. E' il primo punto in cui i `Parameters`
+		// di una variante decidono qualcosa: il pannello rinforzato compra integrita' con la durata (45 per un
+		// turno solo), l'adattivo compra flessibilita' con l'integrita' (25, e `DurationTurns` 0 — non scade
+		// da sola). Non c'e' un ramo per eroe: si legge il dato di quell'abilita', qualunque sia.
+		if (const FRTAbilityVariant* Variant = Ability->FindVariant(Unit->ActiveVariantId))
+		{
+			if (const int32* Declared = Variant->Parameters.Find(TEXT("Integrity")))
+			{
+				Integrity = *Declared;
+			}
+			if (const int32* Declared = Variant->Parameters.Find(TEXT("DurationTurns")))
+			{
+				Turns = *Declared;
+			}
+		}
+
+		Pending.Add({ TargetCell, Edge, Integrity, Turns, Def.ActionId });
 	}
 
 	if (Pending.Num() == 0 && Rejections.Num() == 0)
@@ -1289,7 +1307,12 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 			continue;
 		}
 
-		DynamicCovers.Add({ Op.Cell, Op.Edge, Op.Turns });
+		// Durata 0 = **non scade da sola** (il pannello adattivo del catalogo eroi), come per i ponti: resta
+		// finche' qualcuno non l'abbatte. Non entra fra le temporanee, altrimenti il primo tick la toglierebbe.
+		if (Op.Turns > 0)
+		{
+			DynamicCovers.Add({ Op.Cell, Op.Edge, Op.Turns });
+		}
 
 		FRTTurnLogEntry Entry;
 		Entry.Phase = ERTMatchPhase::Prep;

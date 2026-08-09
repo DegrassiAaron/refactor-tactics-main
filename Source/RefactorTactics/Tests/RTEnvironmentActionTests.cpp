@@ -1,6 +1,8 @@
 #include "Misc/AutomationTest.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 #include "Core/RTGameplayTags.h"
 #include "Engine/Engine.h"
 #include "Kismet/GameplayStatics.h"
@@ -107,6 +109,32 @@ namespace
 		Caster->bAttackTargetsCell = true;
 		Caster->PlannedCoverEdge = Edge;
 		Caster->bHasPlannedCoverEdge = true;
+	}
+
+	/**
+	 * Come `PlanCoverAction`, ma con un'abilita' d'EROE gia' costruita dal catalogo (e la sua variante attiva).
+	 * Serve perche' il pannello di Bastion non e' un'azione core: e' un'azione core con un nome d'eroe, e la
+	 * differenza va verificata su cio' che il giocatore usa davvero.
+	 */
+	void PlanHeroCoverAction(ARTUnit* Caster, URTActionData* HeroAction, const FRTCellId& TargetCell,
+		ERTHexDirection Edge, const FName& VariantId = NAME_None)
+	{
+		Caster->Abilities[3] = HeroAction;
+		Caster->PlannedAbilityIndex = 3;
+		Caster->PlannedAttackTarget = nullptr;
+		Caster->PlannedAttackCell = TargetCell;
+		Caster->bAttackTargetsCell = true;
+		Caster->PlannedCoverEdge = Edge;
+		Caster->bHasPlannedCoverEdge = true;
+		Caster->ActiveVariantId = VariantId;
+	}
+
+	/** Integrita' della copertura su quel bordo, o 0 se il bordo e' scoperto. */
+	int32 CoverIntegrityOn(const URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexDirection Edge)
+	{
+		const FRTHexCellData* Data = Map ? Map->FindCell(Cell) : nullptr;
+		const FRTHexCover* Entry = Data ? Data->CoverEntryOn(Edge) : nullptr;
+		return Entry ? Entry->Integrity : 0;
 	}
 
 	/** Quante voci di quell'esito ambientale ci sono nel TurnLog. */
@@ -681,6 +709,78 @@ bool FRTCreateCoverRejectsTest::RunTest(const FString&)
 	{
 		TestEqual(TEXT("una sola voce sul bordo"), Cell->Covers.Num(), 1);
 	}
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * CP 9.5 — `Bastion.KineticPanel` erige davvero, e la VARIANTE attiva decide integrita' e durata.
+ *
+ * Fino a qui i `Parameters` delle varianti erano una dichiarazione che nessun sistema leggeva, in tutto il
+ * progetto: il catalogo scriveva «45 per un turno solo» e «25 che non scade» e il gioco applicava sempre 30/2.
+ * Questo e' il test che rende il compromesso osservabile — e cade se qualcuno riporta i numeri a costanti.
+ *
+ * I due rami dimostrano cose diverse: il rinforzato che la durata viene letta (1 turno: cade nel Cleanup del
+ * turno stesso), l'adattivo che `DurationTurns = 0` significa «non scade da sola» e non «scade subito» — la
+ * lettura sbagliata piu' probabile, e quella che il campo non perdonerebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBastionPanelVariantAppliedTest,
+	"RefactorTactics.Heroes.Bastion.KineticPanelVariantApplied",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBastionPanelVariantAppliedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	const FRTCellId Home(0, 0);
+	const FRTCellId Reinforced(1, 0);
+	const FRTCellId Adaptive(0, 1);
+
+	// Due unita' invece di una che agisce due volte: il cooldown del pannello e' 2 turni, e aspettarlo
+	// renderebbe il test una storia lunga in cui la durata dell'adattivo si confonde con l'attesa.
+	ARTUnit* WithReinforced = SpawnEnvUnit(World, 0, Home);
+	ARTUnit* WithAdaptive = SpawnEnvUnit(World, 0, FRTCellId(2, 0));
+	ARTUnit* Foe = SpawnEnvUnit(World, 1, FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("con rinforzato"), WithReinforced) || !TestNotNull(TEXT("con adattivo"), WithAdaptive)
+		|| !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	// L'abilita' e' quella del catalogo eroi, non l'azione core: e' cio' che il giocatore ha in mano. Due
+	// istanze distinte, cosi' nessuno stato dell'una puo' spiegare il comportamento dell'altra.
+	URTActionData* PanelA = URTHeroCatalogLibrary::MakeBastion()->Actions[1];
+	URTActionData* PanelB = URTHeroCatalogLibrary::MakeBastion()->Actions[1];
+
+	PlanHeroCoverAction(WithReinforced, PanelA, Reinforced, ERTHexDirection::W,
+		TEXT("Bastion.KineticPanel.Reinforced"));
+	PlanHeroCoverAction(WithAdaptive, PanelB, Adaptive, ERTHexDirection::SW,
+		TEXT("Bastion.KineticPanel.Adaptive"));
+	RunEnvTurn(TM);
+
+	// I due parametri si verificano dove ciascuno e' osservabile, e non e' un ripiego: e' il compromesso
+	// stesso. Il rinforzato dura UN turno, quindi cade nel Cleanup del turno in cui nasce — la sua integrita'
+	// non esiste piu' a turno finito, e cercarla qui vorrebbe dire non aver capito che cosa si e' comprato.
+	//
+	// `DurationTurns` letto dalla variante: due pannelli eretti nello stesso turno, UNA sola scadenza.
+	TestEqual(TEXT("il rinforzato scade subito: dura 1, non 2"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverExpired), 1);
+	TestEqual(TEXT("ed e' il suo bordo a essere tornato scoperto"),
+		CoverIntegrityOn(MapActor->MapAsset, Reinforced, ERTHexDirection::W), 0);
+	TestEqual(TEXT("due pannelli eretti"), CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverCreated), 2);
+
+	// `Integrity` letto dalla variante: 25 non e' ne' il 30 di base ne' il 45 dell'altra.
+	TestEqual(TEXT("adattivo: integrita' 25, non i 30 di base"),
+		CoverIntegrityOn(MapActor->MapAsset, Adaptive, ERTHexDirection::SW), 25);
+
+	RunEnvTurn(TM);
+	RunEnvTurn(TM);
+	TestEqual(TEXT("durata 0 = non scade da sola: due turni dopo e' ancora li'"),
+		CoverIntegrityOn(MapActor->MapAsset, Adaptive, ERTHexDirection::SW), 25);
 
 	DestroyEnvWorld(World);
 	return true;
