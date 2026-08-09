@@ -181,6 +181,32 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 					FRTScenarioIntent Intent;
 					IntentObj->TryGetStringField(TEXT("unit"), Intent.UnitId);
 
+					// Chiavi SCONOSCIUTE: rifiutate, non ignorate (CP 16.1). Prima di questo controllo il loader
+					// leggeva le chiavi note e passava oltre alle altre in silenzio: uno scenario che chiedeva
+					// qualcosa che l'harness non sa fare — un orientamento dichiarato, per dire — girava verde
+					// verificando tutto tranne cio' che gli premeva. Un test che passa senza verificare e' peggio
+					// di un test assente, perche' occupa il posto di quello vero.
+					{
+						static const TSet<FString> KnownIntentKeys = {
+							TEXT("unit"), TEXT("ability"), TEXT("target"), TEXT("targetCell"),
+							TEXT("dash"), TEXT("dashTo"), TEXT("reaction"), TEXT("move")
+						};
+						for (const TPair<FString, TSharedPtr<FJsonValue>>& Field : IntentObj->Values)
+						{
+							if (Field.Key.StartsWith(TEXT("_")))
+							{
+								continue; // `_nota` e simili: commenti, come altrove nel formato
+							}
+							if (!KnownIntentKeys.Contains(Field.Key))
+							{
+								OutError = FString::Printf(
+									TEXT("intent di '%s': chiave sconosciuta '%s' (previste: unit, ability, target, targetCell, dash, dashTo, reaction, move)"),
+									*Intent.UnitId, *Field.Key);
+								return false;
+							}
+						}
+					}
+
 					FString AbilityText;
 					if (IntentObj->TryGetStringField(TEXT("ability"), AbilityText) && !AbilityText.IsEmpty())
 					{
@@ -330,11 +356,40 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 				Obj->TryGetBoolField(TEXT("value"), bAlive);
 				Exp.Value = bAlive ? 1 : 0;
 			}
+			else if (Type == TEXT("UnitFacing"))
+			{
+				Exp.Kind = ERTAssertionKind::UnitFacing;
+				Obj->TryGetStringField(TEXT("unit"), Exp.UnitId);
+
+				// La direzione si scrive per NOME, non come indice: `3` non dice niente a chi legge lo scenario,
+				// e rinumerare l'enum renderebbe verdi gli scenari sbagliati.
+				FString DirectionText;
+				if (!Obj->TryGetStringField(TEXT("value"), DirectionText))
+				{
+					OutError = FString::Printf(TEXT("assertion UnitFacing su '%s': manca il campo value"), *Exp.UnitId);
+					return false;
+				}
+
+				static const TMap<FString, ERTHexDirection> ByName = {
+					{ TEXT("E"),  ERTHexDirection::E  }, { TEXT("NE"), ERTHexDirection::NE },
+					{ TEXT("NW"), ERTHexDirection::NW }, { TEXT("W"),  ERTHexDirection::W  },
+					{ TEXT("SW"), ERTHexDirection::SW }, { TEXT("SE"), ERTHexDirection::SE }
+				};
+				const ERTHexDirection* Found = ByName.Find(DirectionText.ToUpper());
+				if (!Found)
+				{
+					OutError = FString::Printf(
+						TEXT("assertion UnitFacing su '%s': direzione '%s' sconosciuta (previste: E, NE, NW, W, SW, SE)"),
+						*Exp.UnitId, *DirectionText);
+					return false;
+				}
+				Exp.Value = static_cast<int32>(*Found);
+			}
 			else
 			{
 				// Meglio rifiutare che ignorare: una assertion scritta male che venisse saltata in silenzio
 				// farebbe passare un test che non verifica nulla.
-				OutError = FString::Printf(TEXT("assertion sconosciuta: '%s' (previste: UnitAtCell, TurnsCompleted, UnitHpEquals, UnitAlive)"), *Type);
+				OutError = FString::Printf(TEXT("assertion sconosciuta: '%s' (previste: UnitAtCell, TurnsCompleted, UnitHpEquals, UnitAlive, UnitFacing)"), *Type);
 				return false;
 			}
 			OutScenario.Expect.Add(Exp);

@@ -82,7 +82,7 @@ il gioco che sara', questa tabella dice a che punto e'.
 |---|---|---|---|---:|---|
 | `RT-FEAT-MAP-COVER` | Copertura direzionale per bordo | E9.1, E9.2 | **INTEGRATED** | 6/8 | `Visual.Map.LowCoverEdge` |
 | `RT-FEAT-MAP-DYNAMIC-COVER` | Copertura modificabile e pannello cinetico | E9.5 | **IMPLEMENTING** | 2/8 | `Spec.Cover.TemporaryCoverExpires` |
-| `RT-FEAT-MAP-FACING` | Facing come stato di gioco autorevole | E16.1, E16.2 | **SPECIFIED** | 1/8 | — |
+| `RT-FEAT-MAP-FACING` | Facing come stato di gioco autorevole | E16.1, E16.2 | **IMPLEMENTING** | 5/9 | `Spec.Facing.DerivesFromMove` |
 | `RT-FEAT-MAP-HEXGRAPH` | FRTCellId e grafo esagonale multilivello | E2.1 | **RELEASE_READY** | 7/8 | `Visual.Map.MultiLevel` |
 | `RT-FEAT-MAP-HIGH-GROUND` | Altura senza bonus numerico alla vista | E9.1 | **INTEGRATED** | 6/8 | `Visual.Map.HighGroundNoBonus` |
 | `RT-FEAT-MAP-INTERACTIVE-EDGES` | Porte e bordi commutabili | E9.3 | **INTEGRATED** | 6/8 | `Visual.Map.ClosedDoor` |

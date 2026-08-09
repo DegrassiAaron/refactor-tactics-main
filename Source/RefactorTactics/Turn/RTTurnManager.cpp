@@ -19,6 +19,7 @@
 #include "Ability/RTActionData.h"
 #include "Bot/RTHexBotLibrary.h"
 #include "Core/RTGameplayTags.h"
+#include "Turn/RTFacingLibrary.h"
 #include "Turn/RTHexSimLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
@@ -2741,6 +2742,9 @@ FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) c
 		// applicato nel Blast (stesso turno) si riflette gia' sulla fase Move che segue, senza bisogno di
 		// ricordare "quando" e' stato applicato.
 		SimUnit.MoveCostModifier = OutUnits[i]->HasStatus(TAG_Status_Slow) ? 1 : 0;
+		// Orientamento (CP 16.1): lo snapshot lo porta perche' e' stato di gioco, e perche' il facing di fine
+		// round e' quello di inizio del round dopo senza nessun travaso esplicito.
+		SimUnit.Facing = OutUnits[i]->Facing;
 		SimUnits.Add(SimUnit);
 	}
 	return URTHexSimLibrary::MakeSnapshot(Map, SimUnits);
@@ -2873,6 +2877,32 @@ void ARTTurnManager::ResolveMovement()
 	{
 		Units[i]->PlaceOnCell(Resolved[i].Final, Origin, HexSize, LayerH);
 		ApplyTerrainOnEnterEffects(Snapshot, Units[i], Resolved[i].Entered);
+	}
+
+	// Orientamento di fine Move (CP 16.1, `FacingFinalAfterMove` di D-020). Si deriva dalla rotta EFFETTIVA —
+	// partenza piu' celle davvero attraversate — non dal percorso pianificato: un'unita' fermata a meta' strada
+	// da una cella contesa guarda dove e' arrivata, non dove voleva andare.
+	//
+	// Dopo `PlaceOnCell`, quindi la voce di log porta la cella finale come chiave. E' l'ultima scrittura del
+	// round: il Move risolve per ultimo, e questo valore persiste nel round successivo.
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		if (Resolved[i].Entered.Num() == 0)
+		{
+			continue; // chi non si e' mosso non deriva nessun orientamento
+		}
+
+		TArray<FRTCellId> Walked;
+		Walked.Reserve(Resolved[i].Entered.Num() + 1);
+		Walked.Add(Paths[i].Num() > 0 ? Paths[i][0] : Units[i]->Cell);
+		Walked.Append(Resolved[i].Entered);
+
+		FRTHexSimUnit Moved(i, Units[i]->Cell, /*InMoveBudget=*/ 0);
+		Moved.Facing = Units[i]->Facing;
+		const ERTHexDirection Derived = URTFacingLibrary::FacingFromPath(Walked, Moved.Facing);
+		URTFacingLibrary::RecordFacingChange(Moved, Derived, ERTFacingOutcome::DerivedFromMove,
+			ERTMatchPhase::Move, TurnLog);
+		Units[i]->Facing = Moved.Facing;
 	}
 
 	// NOTA (CP 8.1): il cross-damage delle celle attraversate esiste di nuovo, ma solo per i terreni che

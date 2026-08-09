@@ -383,17 +383,24 @@ features:
     kind: gameplay
     release: v0.1
     priority: P1
-    status: SPECIFIED
+    status: IMPLEMENTING
     gates:
       spec: done
-      data: todo
-      runtime: todo
-      log_debug: todo
-      automation: todo
-      scenario: todo
+      data: done
+      # partial e non done: il Move scrive il facing e lo snapshot lo porta, ma Dash, targeting di Prep e
+      # lettura del Blast non sono ancora cablati nel TurnManager (restano in CP 16.1, seconda meta').
+      runtime: partial
+      log_debug: done
+      automation: done
+      scenario: done
+      # La Wiki spiega il facing, il gioco non lo mostra ancora: la mesh interpola lo yaw ma non atterra
+      # sul valore logico a fine playback.
       ui_wiki: partial
       packaged: todo
-      network_privacy: na
+      # Era `na`, ed era sbagliato: il facing viaggia negli intent, quindi dovra' essere corretto in rete.
+      # `partial` perche' il filtro per squadra esiste ed e' testato (`Facing.IntentIsTeamFiltered`), ma
+      # nessuna verifica in rete e' possibile finche' la rete non c'e' (M10).
+      network_privacy: partial
     roadmap:
       epic: E16
       checkpoints: ["16.1", "16.2"]
@@ -403,9 +410,24 @@ features:
     owner_specs:
       - docs/decisions/adr-0005-orientamento.md
       - docs/decisions/RT_PDR_00_Decision_Log.md
+      - docs/technical/spec-turnlog.md
     issues: [175, 176, 177]
-    tests: []
-    scenarios: []
+    tests:
+      - RefactorTactics.Facing.LinearMoveDerivesDirection
+      - RefactorTactics.Facing.BudgetMoveAllowsLastStepPlusMinusOne
+      - RefactorTactics.Facing.RejectsIllegalDeclaredRotation
+      - RefactorTactics.Facing.StationaryUnitRotatesFreely
+      - RefactorTactics.Facing.ForcedMovementFacesSource
+      - RefactorTactics.Facing.EnvironmentalDisplacementKeepsFacing
+      - RefactorTactics.Facing.VoluntaryMoveWinsOverForced
+      - RefactorTactics.Facing.DashThenBlastUsesLatestValue
+      - RefactorTactics.Facing.TargetChangeWithinRoundReorients
+      - RefactorTactics.Facing.RoundInheritsFinalFacing
+      - RefactorTactics.Facing.TurnLogNamesConsumerAndReason
+      - RefactorTactics.Facing.PermutationInvariant
+      - RefactorTactics.Facing.IntentIsTeamFiltered
+    scenarios:
+      - Spec.Facing.DerivesFromMove
     wiki_refs:
       - docs/wiki/meccaniche/facing-e-direzionalita.md
     wiki_note: >-

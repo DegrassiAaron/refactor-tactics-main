@@ -500,21 +500,21 @@
       "kind": "gameplay",
       "release": "v0.1",
       "priority": "P1",
-      "status": "SPECIFIED",
-      "status_derived": "SPECIFIED",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
       "gates": {
         "spec": "done",
-        "data": "todo",
-        "runtime": "todo",
-        "log_debug": "todo",
-        "automation": "todo",
-        "scenario": "todo",
+        "data": "done",
+        "runtime": "partial",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "partial"
       },
-      "gates_done": 1,
-      "gates_applicable": 8,
+      "gates_done": 5,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E16",
         "milestone": null,
@@ -531,15 +531,32 @@
       "completed_by": [],
       "owner_specs": [
         "docs/decisions/adr-0005-orientamento.md",
-        "docs/decisions/RT_PDR_00_Decision_Log.md"
+        "docs/decisions/RT_PDR_00_Decision_Log.md",
+        "docs/technical/spec-turnlog.md"
       ],
       "issues": [
         175,
         176,
         177
       ],
-      "tests": [],
-      "scenarios": [],
+      "tests": [
+        "RefactorTactics.Facing.LinearMoveDerivesDirection",
+        "RefactorTactics.Facing.BudgetMoveAllowsLastStepPlusMinusOne",
+        "RefactorTactics.Facing.RejectsIllegalDeclaredRotation",
+        "RefactorTactics.Facing.StationaryUnitRotatesFreely",
+        "RefactorTactics.Facing.ForcedMovementFacesSource",
+        "RefactorTactics.Facing.EnvironmentalDisplacementKeepsFacing",
+        "RefactorTactics.Facing.VoluntaryMoveWinsOverForced",
+        "RefactorTactics.Facing.DashThenBlastUsesLatestValue",
+        "RefactorTactics.Facing.TargetChangeWithinRoundReorients",
+        "RefactorTactics.Facing.RoundInheritsFinalFacing",
+        "RefactorTactics.Facing.TurnLogNamesConsumerAndReason",
+        "RefactorTactics.Facing.PermutationInvariant",
+        "RefactorTactics.Facing.IntentIsTeamFiltered"
+      ],
+      "scenarios": [
+        "Spec.Facing.DerivesFromMove"
+      ],
       "scenarios_planned": [],
       "wiki_refs": [
         "docs/wiki/meccaniche/facing-e-direzionalita.md"
