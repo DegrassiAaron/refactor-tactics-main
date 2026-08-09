@@ -232,7 +232,7 @@ La discussione proponeva di rendere il bank pubblico per abilitare tattiche di p
 
 - [ADR-0004 §7-bis](../decisions/adr-0004-finestre-di-reazione.md) (**D-021**): il ritmo osservato non deve
   dipendere dal tempo di risposta di un altro giocatore. «Il canale non è il pacchetto, è la sua assenza.»
-- [`spec-reaction-clash-e14.md`](spec-reaction-clash-e14.md) §7.1 (**D-042**): nel Clash il reveal è a
+- [`spec-reaction-clash-e14.md`](spec-reaction-clash-e14.md) §7.1 (**D-048**): nel Clash il reveal è a
   **scadenza fissa** proprio perché *il momento del lock non sia osservabile*.
 
 Un bank pubblico prende quell'istante e lo trasforma in un numero **persistente, quantificato e archiviato**:
@@ -440,7 +440,7 @@ Decision Window, e il pacing ha il suo owner in `RT-FEAT-MATCH-PACING`.
 | `TB-R4b` | Spirale lag → timeout → bank a zero → altri timeout | §4.3 non-drenaggio su disconnessione | ⚠️ la soglia «lento vs disconnesso» è `TB-7`, aperta fino a M10 |
 | `TB-R5` | Bank troppo scarso ⇒ reazioni prive di senso a fine match | criterio di promozione §3.2 (residuo mediano 20–50 %) | variante refill resta disponibile |
 | `TB-R6` | Bank troppo generoso ⇒ obiettivo anti-stall mancato | scenario di pacing + p90 | — |
-| `TB-R7` | Il bank non aiuta dove serve di più (Clash) | §1.1, dichiarato | strutturale: è il prezzo della privacy temporale, già accettato da D-042 |
+| `TB-R7` | Il bank non aiuta dove serve di più (Clash) | §1.1, dichiarato | strutturale: è il prezzo della privacy temporale, già accettato da D-048 |
 
 ---
 
@@ -448,19 +448,24 @@ Decision Window, e il pacing ha il suo owner in `RT-FEAT-MATCH-PACING`.
 
 Da assegnare al **prossimo ID reale** al momento del merge — gli ID si prendono al merge, non in sessione.
 
-| # | Decisione | Stato |
-|---|---|---|
-| a | Esiste un Decision Time Bank per giocatore, condiviso fra tutte le Decision Window live. Entra in **v0.1** come CP 14.8, senza gate | **deciso** 2026-08-09 |
-| b | La singola finestra resta bounded a `FastReactionDuration`: il bank non la allunga mai | **deciso** |
-| c | Grace prima del consumo; a bank esaurito resta `ExhaustedGrace` | **deciso** (il valore resta `PROPOSED`) |
-| d | Il timeout costa `MaxWindow − Grace`, il massimo. **Precisazione** di ADR-0004 §3: il divieto di spesa su mancato input riguarda le risorse di **abilità**, non il budget temporale | **deciso** — da registrare come precisazione, non come emendamento |
-| e | Il bank residuo è **owner-only**; il bank pubblico è scartato per D-021/D-042 | **deciso** |
-| f | Il bank è un input canonico registrato, non ricalcolato dal timer; non contribuisce ad alcun hash perché è wall-clock, non regola (`RTMatchFormatData.h` §14) | **deciso** |
-| g | `InitialBank` è **derivato** da `RoundLimit × (MaxWindow − Grace)`, non un numero fisso | **deciso** |
-| h | Il bot possiede un bank e lo consuma secondo la policy del `DecisionProvider`: nessun ramo `IsBot` nel core | **deciso** |
-| i | I restanti valori numerici sono baseline di playtest con i criteri di promozione di §3.2 | `PROPOSED` |
+Registrate nel [Decision Log](../decisions/RT_PDR_00_Decision_Log.md) il 2026-08-09.
 
-Gli ID `D-nnn` si assegnano **al merge**, non ora: due sessioni parallele possono prendere lo stesso numero.
+| ID | Decisione | Stato |
+|---|---|---|
+| [`D-050`](../decisions/RT_PDR_00_Decision_Log.md) | Esiste un Decision Time Bank per giocatore, condiviso fra tutte le Decision Window live. Entra in **v0.1** come CP 14.8, senza gate | **Consolidata** |
+| [`D-051`](../decisions/RT_PDR_00_Decision_Log.md) | La singola finestra resta bounded a `FastReactionDuration` e le `AllowedResponses` non cambiano mai | **Consolidata** |
+| [`D-052`](../decisions/RT_PDR_00_Decision_Log.md) | Grace prima del consumo; a bank esaurito resta `ExhaustedGrace`, mai zero | **`PROPOSED FOR PLAYTEST`** nei valori |
+| [`D-053`](../decisions/RT_PDR_00_Decision_Log.md) | Il timeout costa `MaxWindow − Grace`, il massimo. **Precisazione** di ADR-0004 §3: il divieto di spesa su mancato input riguarda le risorse di **abilità**, non il budget temporale | **Consolidata** · matrice riga 54 |
+| [`D-054`](../decisions/RT_PDR_00_Decision_Log.md) | Il bank residuo è **owner-only**; il bank pubblico è registrato e scartato (D-021 · D-048) | **Consolidata** · matrice riga 55 |
+| [`D-055`](../decisions/RT_PDR_00_Decision_Log.md) | Input canonico registrato, non ricalcolato; fuori da ogni hash perché wall-clock e non regola | **Consolidata** *(per precedente)* |
+| [`D-056`](../decisions/RT_PDR_00_Decision_Log.md) | `InitialBank` **derivato** da `RoundLimit × (MaxWindow − Grace)` | **Consolidata** nella forma |
+| [`D-057`](../decisions/RT_PDR_00_Decision_Log.md) | Il bot possiede un bank: nessun ramo `IsBot` nella Decision Window | **Consolidata** |
+
+I restanti valori numerici restano baseline di playtest con i criteri di promozione di §3.2.
+
+> Gli ID sono partiti da **D-050** e non da D-044: al momento dell'assegnazione `docs/decisioni-movimento`
+> rivendicava già `D-044`–`D-045` e `wip/cp132-conoscenza-parziale` il `D-044`. Un ID va verificato contro i
+> **branch aperti**, non solo contro `main`.
 
 ---
 
