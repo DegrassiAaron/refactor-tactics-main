@@ -294,7 +294,10 @@
         "docs/gameplay/spec-decision-time-bank.md",
         "docs/decisions/adr-0004-finestre-di-reazione.md"
       ],
-      "issues": [],
+      "issues": [
+        319,
+        318
+      ],
       "tests": [],
       "scenarios": [],
       "scenarios_planned": [
