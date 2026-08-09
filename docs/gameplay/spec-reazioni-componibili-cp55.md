@@ -25,6 +25,13 @@
 > scattano. Restano deterministiche e senza finestre, e i test di questa spec continuano a valere **senza
 > modifiche al comportamento atteso**. Leggendo solo questo documento si potrebbe dedurre che E14 aggiunga un
 > secondo motore: **non lo fa**.
+>
+> **Precisazione 2026-08-09 — [D-041](../decisions/RT_PDR_00_Decision_Log.md)**: per `Brace` quella cardinalità
+> è 1 **per il profilo base**, non per natura. `Brace` arma un Reaction Profile la cui risposta universale
+> (`Hold Ground`) è esattamente il comportamento descritto qui, quindi **niente cambia in questa spec né nei
+> suoi test**. Un profilo d'eroe con una seconda risposta legale aprirebbe la finestra con la regola già
+> scritta sopra, senza aggiungerne una nuova. `Counter`, `Deflect`, `Shield` e `Cleanse` non hanno profili
+> alternativi e restano casi degeneri.
 
 ## 1. Obiettivo
 

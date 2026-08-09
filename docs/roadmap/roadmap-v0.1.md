@@ -254,10 +254,12 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE` — TeamKnowledge e informazione parziale | IMPLEMENTING | 3/9 |
 |  | `RT-FEAT-PERCEPTION-VISION` — Vista, facing e livelli di consapevolezza | IMPLEMENTING | 3/9 |
 | **E14** | `RT-FEAT-CORE-DECISION-BOUNDARY` — Risoluzione segmentata con Decision Boundary | SPECIFIED | 1/8 |
+|  | `RT-FEAT-REACTION-CLASH` — Reaction Clash (opportunity contested) | SPECIFIED | 1/9 |
 |  | `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | SPECIFIED | 1/9 |
 |  | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | DESIGNED | 0/9 |
 |  | `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | SPECIFIED | 1/8 |
 |  | `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | SPECIFIED | 1/9 |
+|  | `RT-FEAT-REACTION-PROFILE` — Reaction Profile armato da Brace | IMPLEMENTING | 1/8 |
 | **E15** | `RT-FEAT-TEST-GOLDEN` — Golden replay e showcase «Il Relè» | IMPLEMENTING | 3/8 |
 |  | `RT-FEAT-TEST-SCENARIO-HARNESS` — Scenario Test Harness automatizzato | INTEGRATED | 6/8 |
 | **E16** | `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole — completata da `RT-FEAT-UI-PLANNING` | INTEGRATED | 6/9 |
@@ -774,6 +776,13 @@ Decisione: [`adr-0004-finestre-di-reazione.md`](../decisions/adr-0004-finestre-d
 brief: [`brief-overwatch-reazioni.md`](../gameplay/brief-overwatch-reazioni.md). **Dipende da E13**: il trigger richiede
 livello `Rilevato`, non solo LOS. È **l'ultima epic della v0.1** e la **prima da tagliare** (§8).
 
+> **Baseline ed estensione (2026-08-09).** I CP **14.1–14.6** sono la baseline a un solo decisore: opportunity,
+> boundary, Overwatch, finestra, counterplay. Il **14.7** è l'estensione *contested*
+> ([D-041](../decisions/RT_PDR_00_Decision_Log.md)–[D-043](../decisions/RT_PDR_00_Decision_Log.md), owner
+> [`spec-reaction-clash-e14.md`](../gameplay/spec-reaction-clash-e14.md)) ed è **l'unico CP che può cadere da
+> solo**: se l'epic si accorcia esce per primo e la baseline resta intera. Non è un'epic nuova — riusa
+> opportunity, boundary e TurnLog di 14.3–14.5 — e non è un secondo sistema di reazioni.
+
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
 | **14.1** ✅ | **ADR-0004** — composizione dell'invariante #3 | Il turno è una sequenza di sotto-risoluzioni; ogni segmento ha snapshot proprio; l'input del giocatore entra nel TurnLog come dato; il timeout è una funzione pura. `piano-canonico-mvp.md §5/§8.2` e `spec-sequenza-turno.md` §3 aggiornati | Revisione documentale — **chiuso 2026-08-07** |
@@ -782,6 +791,7 @@ livello `Rilevato`, non solo LOS. È **l'ultima epic della v0.1** e la **prima d
 | **14.4** | Overwatch armato e trigger a micro-step | Zona controllata **riusando `FRTSuppressiveZone`** (nessuna seconda geometria), la cui direzione **nasce dal facing** dell'unità e non da un parametro dichiarato a parte *(ADR-0005 §4c: due sorgenti sarebbero due verità)*; trigger valutato a ogni micro-step con `TargetInsideArea ∧ LOS ∧ Rilevato ∧ ReactionStillArmed`; più bersagli nello stesso micro-step ⇒ **una** opportunity multi-bersaglio; ordine totale `ReactionPriority → AbilityPriority → UnitInitiative → StableUnitId → ReactionInstanceId`. **+ [D-012](../decisions/RT_PDR_00_Decision_Log.md)**: armare l'Overwatch **consuma lo slot dell'azione offensiva** (`Attack` \| `Ability` \| `Overwatch`), salvo eccezione dichiarata dall'abilità; il profilo è **dato per eroe** (area, arco, trigger e risposte legali), non un ramo nel resolver | `Overwatch.TriggersPerMicroStep`, `Overwatch.SimultaneousTargetsSingleOpportunity`, `Overwatch.RequiresDetection`, `Overwatch.OrderIsDeterministic`, `Overwatch.CompetesWithOffensiveAction`, `Overwatch.ProfileIsDataNotBranch` |
 | **14.5** ⚠️ | Finestra, commit e **primo consumatore** *(era `Vektor.InterceptShot`, vedi nota sotto)* | Finestra 3 s; `FIRE` consuma la charge e **tronca** il movimento residuo del bersaglio, `HOLD` mantiene armata la reaction; `Timeout → HOLD`; la decisione entra nel TurnLog e il **replay la riproduce**; la opportunity inviata al client non contiene trigger, percorsi né posizioni future; il **bot** decide con la sola opportunity sanitizzata; **prima misura di pacing** con `DecisionProvider` immediato (nessun timer reale) | `Overwatch.HoldKeepsArmed`, `Overwatch.TimeoutIsHold`, `Overwatch.DecisionIsReplayable`, `Overwatch.OpportunityLeaksNoFuture`, `Overwatch.FireTruncatesFutureMovement`, `Overwatch.InterruptionAffectsLaterCollision`, `Bot.DecidesWithoutFutureKnowledge` |
 | **14.6** | Counterplay, UI e misura reale | KO/Stun/Disarm/Forced Movement invalidano l'overwatch armato; UI `FIRE`/`HOLD` con countdown, **nessuna logica di gioco nel widget**, slow-motion come sola presentazione; durata della resolution **misurata e registrata** con 1/2/3 unità armate | `Overwatch.CancelledByStun`, `Overwatch.CancelledByForcedMovement`, `Overwatch.SlowMotionDoesNotChangeOutcome`; PIE `PIE-V01-OVERWATCH` |
+| **14.7** *(nuovo 2026-08-09)* | **Reaction Clash** — opportunity *contested* | `Brace` **arma un profilo** e non è più «un'azione che si dichiara e basta» ([D-041](../decisions/RT_PDR_00_Decision_Log.md)): `Hold Ground` è la risposta universale e **coincide col comportamento di oggi**, quindi nessun numero si muove e i due scenari restano verdi. Un'opportunity è **contested** quando *due* partecipanti hanno ciascuno ≥ 2 risposte legali — **derivato dalla cardinalità, nessun campo `Type`** (è il rischio (b) di questa epic). Scelta in cieco, **reveal a scadenza fissa** — la finestra dura sempre 3,0 s e non anticipa se entrambi lockano subito, perché il momento del lock è un canale ([D-042](../decisions/RT_PDR_00_Decision_Log.md), emenda ADR-0004 §7) — poi confronto deterministico. Il boundary contested vale **1 prompt**, quindi il caso peggiore di ADR-0004 §8 non cambia. Gli esiti si esprimono **solo** con `FRTActionEffectSpec`, mai callback. **Sostituire** `Reactions.Brace.IsNotAReaction`, che pinna la classificazione vecchia | `Reactions.Brace.BaseProfileHasSingleResponse`, `Reactions.Brace.RicherProfileOpensWindow`, `Clash.ContestedIsDerivedNotDeclared`, `Clash.RevealIsFixedDeadline`, `Clash.HiddenUntilReveal`, `Clash.TieAppliesOnce`, `Clash.CostConsumedOnLock`, `Clash.NoNestedWindow`, `Clash.Determinism`; scenari `Spec.Clash.*` |
 
 > ⚠️ **CP 14.5 cambia consumatore (2026-08-08).** `Vektor.InterceptShot` era il caso concreto scelto per la
 > prima finestra. Con [D-016](../decisions/RT_PDR_00_Decision_Log.md) quell'azione diventa una **Predictive

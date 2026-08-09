@@ -2,6 +2,28 @@
 
 > **Tipo:** guida giocatore, non normativa
 
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-REACTION-PROFILE -->
+
+> 🚧 **Parzialmente giocabile.** Il codice esiste ma la feature non è completa: i gate qui sotto dicono quanto manca. Blocco generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-REACTION-PROFILE` · Release: `v0.1` · Roadmap: `E14.7`  
+> Stato: **IMPLEMENTING** · Gate: `1/8`  
+> Scenario: `Visual.Combat.BraceReducesEveryHit`  
+> `Hold Ground` — la risposta base — funziona gia' in partita; i profili d'eroe che ne dichiarano altre no.  
+> Verificato il `2026-08-09` su `ea26c0f`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-REACTION-PROFILE -->
+
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-REACTION-CLASH -->
+
+> ⚠️ **Progettata, non implementata.** Questa pagina descrive una meccanica **decisa e documentata** che il gioco **non esegue ancora**: oggi non è giocabile. Blocco generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-REACTION-CLASH` · Release: `v0.1` · Roadmap: `E14.7`  
+> Stato: **SPECIFIED** · Gate: `1/9`  
+> Scenario: `Spec.Clash.ReadBeatsStand`  
+> Decisa nella forma (D-042), **non implementata** e con la grammatica ancora in playtest.  
+> Verificato il `2026-08-09` su `ea26c0f`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-REACTION-CLASH -->
+
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-REACTION-FAST-ACTION -->
 
 > ⚠️ **Progettata, non implementata.** Questa pagina descrive una meccanica **decisa e documentata** che il gioco **non esegue ancora**: oggi non è giocabile. Blocco generato dal Feature Registry, non modificare a mano.  
@@ -87,6 +109,17 @@ Esempio: un'interposizione che devia un attacco verso il difensore.
 
 Esempio tipico: Overwatch con `FIRE` oppure `HOLD`.
 
+### Reaction Clash
+
+È una Fast Reaction in cui **entrambi** avete una scelta che conta. Scegliete **in cieco**, nello stesso
+istante, e il gioco rivela le due scelte insieme.
+
+Serve a rendere giocabili bluff, lettura dell'avversario e bait: non «chi ha i numeri più alti», ma chi legge
+meglio l'altro.
+
+> Non ogni attacco apre un confronto. Se una delle due risposte è di fatto obbligata, non c'è niente da
+> leggere e la reazione si risolve da sola.
+
 ### Predictive Action
 
 È decisa **interamente nel Planning** e risolve più tardi. Non ricevi nuova informazione quando arriva il momento di risolverla.
@@ -122,6 +155,44 @@ Per la baseline di Overwatch:
 - trigger simultanei dello stesso micro-step vengono aggregati in una sola opportunity;
 - niente interrupt annidati nella v0.1.
 
+## Irrigidirsi prepara una reazione
+
+`Brace` non è solo «incasso meglio». Prepara il personaggio a **reagire**, e *come* reagisce dipende da lui.
+
+La risposta che hanno tutti è **tenere la posizione**: resti dove sei, incassi meglio e non ti spostano.
+Personaggi con un profilo più ricco convertono la stessa preparazione in qualcos'altro — parare, scartare di
+lato, far scattare un dispositivo.
+
+> Oggi in partita esiste la risposta base. I profili che ne aggiungono altre arrivano con le finestre di
+> reazione.
+
+## Quando due scelte si incontrano
+
+Nel confronto ogni risposta esprime una di tre intenzioni:
+
+| | Cosa fai |
+|---|---|
+| **Tieni** | mantieni posizione, linea, spazio |
+| **Leggi** | anticipi la mossa dell'altro |
+| **Sposti** | cambi angolo, geometria, vettore |
+
+E si battono in cerchio, come una morra:
+
+```text
+Leggi  batte  Tieni
+Tieni  batte  Sposti
+Sposti batte  Leggi
+```
+
+Il confronto dice solo **chi ha il vantaggio**. *Quanto* vale quel vantaggio lo decide la mossa che hai
+scelto: un difensore regge male una sconfitta ma vince poco, un duellante vince molto e perde male.
+
+> ⚠️ Questa grammatica è **in prova**: decisa come proposta da playtestare, non come regola definitiva.
+> I nomi delle mosse dei singoli personaggi non sono ancora stabiliti.
+
+Il reveal avviene **allo scadere del tempo**, sempre: nessuno dei due può capire dall'attesa quando l'altro
+ha deciso.
+
 ## Automatic, Conditional, FastSelect
 
 Non sono tre sistemi diversi:
@@ -135,3 +206,4 @@ Non sono tre sistemi diversi:
 - `docs/gameplay/spec-sequenza-turno.md`
 - `docs/gameplay/brief-azioni-generiche-overwatch.md`
 - `docs/decisions/adr-0004-finestre-di-reazione.md`
+- `docs/gameplay/spec-reaction-clash-e14.md`

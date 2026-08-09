@@ -8,6 +8,12 @@
 > **logica** — che resta globale, perché serve al determinismo — dalla **presentazione**, che non deve avere
 > una pausa correlata alla scelta altrui. La §6 è precisata: `Rilevato` è il requisito del **profilo Overwatch
 > visivo**, non di *ogni* reazione.
+>
+> ⚠️ **Emendamento 2026-08-09 — [D-041](RT_PDR_00_Decision_Log.md) e [D-042](RT_PDR_00_Decision_Log.md)**: la §2
+> è **precisata** (la cardinalità di `Brace` è 1 per il *profilo base*, non per natura) e la §7 è **emendata**
+> per la finestra **contested**, in cui entrambi i partecipanti sanno che la finestra esiste. Nessuna delle due
+> tocca il modello: la finestra continua a derivare dalla cardinalità delle risposte legali.
+> Owner dell'estensione: [`spec-reaction-clash-e14.md`](../gameplay/spec-reaction-clash-e14.md).
 > **Contesto sorgente**: `docs/archive/src/design/overwatch-e-fast-reaction.md` (19 sezioni)
 > **Brief**: [`brief-overwatch-reazioni.md`](../gameplay/brief-overwatch-reazioni.md) (decisioni D16–D22)
 > **Supera**: [ADR-0003](adr-0003-modello-azioni-v01.md) §4 riga «Stack di reazioni LIFO interattivo → scartato»
@@ -70,6 +76,14 @@ Reaction armata
 
 `Counter`, `Deflect`, `Brace`, `Shield`, `Cleanse` hanno **una sola risposta legale**: scattano o non scattano.
 Restano deterministiche e senza finestre. **I 24 test di E5 restano verdi senza cambiare comportamento atteso.**
+
+> **Precisazione 2026-08-09 — [D-041](RT_PDR_00_Decision_Log.md)**: la cardinalità di `Brace` è **1 per il
+> profilo base**, non 1 per natura. `Brace` *arma* un Reaction Profile la cui risposta universale è
+> `Hold Ground` — che è esattamente il comportamento di oggi (−10 a ogni danno diretto, blocco della prima
+> spinta), quindi questa riga resta vera per ogni personaggio che non dichiari altro. Un profilo d'eroe che
+> dichiara una **seconda** risposta legale porta la cardinalità a ≥ 2 e apre il boundary **con la regola qui
+> sopra**, senza aggiungerne una nuova. `Counter`, `Deflect`, `Shield` e `Cleanse` non hanno profili
+> alternativi e restano casi degeneri. Owner: [`spec-reaction-clash-e14.md`](../gameplay/spec-reaction-clash-e14.md) §2.
 
 `Reactions.NoResolverWait` conserva il suo significato, precisato: **il trigger resta puro** — è il *commit*
 che può richiedere input, ed è un passo distinto e successivo.
@@ -138,6 +152,18 @@ ha una definizione e l'Overwatch sparerebbe a unità che la squadra non percepis
 - L'avversario **non riceve nulla**: né l'esistenza della finestra, né la sua durata, né l'esito prima che
   sia applicato.
 
+> **Emendamento 2026-08-09 — [D-042](RT_PDR_00_Decision_Log.md), finestra *contested***. La riga qui sopra
+> presuppone **un solo** decisore. Quando due partecipanti hanno ciascuno ≥ 2 risposte legali allo stesso
+> boundary, l'opportunity è **contested** ed entrambi *sono* responder: l'esistenza della finestra è nota a
+> tutti e due **per costruzione**, e non è più deducibile — è dichiarata. Restano non inviate: le risposte
+> legali dell'altro, la sua scelta prima del reveal e **il momento in cui ha lockato**. Quest'ultimo è il
+> punto in cui §7-bis non basta: i due sono *dentro la stessa finestra*, quindi il buffering della
+> presentazione non chiude il canale. Lo chiude il **reveal a scadenza fissa** — la finestra dura sempre
+> `FastReactionDuration` e il reveal non anticipa quando entrambi lockano subito. Chi non partecipa continua
+> a non ricevere nulla. Costo dichiarato: ogni finestra contested spende **3,0 s pieni** di resolution;
+> **budget invariato**, perché un boundary contested vale **un solo** prompt condiviso (§8). Owner:
+> [`spec-reaction-clash-e14.md`](../gameplay/spec-reaction-clash-e14.md) §7.
+
 È l'unica delle quattro domande che non discende dagli invarianti: in tre secondi la coordinazione vocale non
 è realistica, quindi la visione dell'alleato serve alla **leggibilità**, non alla decisione. Se al playtest
 risultasse rumore inutile, si degrada a «vede solo il proprietario» senza toccare il modello.
@@ -181,6 +207,13 @@ requisito** a «lo sistemeremo con la UI».
 
 `MaxPromptsPerReaction` limita le opportunity di **una** reaction; D20 riguarda il budget **aggregato**, che
 resta volutamente non limitato. I due non sono in contraddizione.
+
+> **Precisazione 2026-08-09 — [D-042](RT_PDR_00_Decision_Log.md)**: un boundary **contested** vale **un solo**
+> prompt, condiviso fra i due partecipanti. Il caso peggiore di questa tabella non cambia, e la soglia
+> d'allarme di **20 s** non va rimisurata da capo. Contarne due l'avrebbe raddoppiato proprio mentre il reveal
+> a scadenza fissa rende ogni finestra **incomprimibile**: con quella regola i `3 × 3,0 s = 9 s` diventano un
+> **minimo garantito** invece di un massimo raggiunto solo per indecisione. È una misura di **CP 14.7**, non
+> una stima.
 
 ### 9. Cosa **non** cambia
 

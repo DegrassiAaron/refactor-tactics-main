@@ -1,0 +1,38 @@
+{
+  "scenarioId": "Spec.Clash.ReadBeatsStand",
+  "tags": ["spec", "reactions", "clash", "bastion", "vektor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "SPECIFICA ESEGUIBILE di E14.7 (D-042/D-043), non un test di oggi. Un lato della matrice: chi LEGGE batte chi TIENE. Vektor attacca impegnandosi sulla linea (STAND); Bastion ha armato `Action.Brace` e il suo profilo gli concede una seconda risposta legale oltre a `Hold Ground`, quindi l'opportunity e' CONTESTED. Bastion sceglie READ e vince il confronto: l'impatto e' ridotto e l'attaccante resta esposto.",
+
+  "_nota_perche_esiste": "Esce BLOCKED finche' `ReactionClash` non esiste, e va bene: e' la prassi di questo repository (vedi `Spec.Overwatch.HoldThenFire`). Il valore e' che la feature ha una forma eseguibile PRIMA di essere costruita — quando la capability atterra, il file si accende da solo e dice se la semantica e' quella concordata, invece di essere scritto dopo, quando l'implementazione e' gia' la sola descrizione di se stessa.",
+
+  "_nota_da_completare": "Gli intent del turno 2 sono volutamente vuoti: la sintassi con cui si dichiarera' una maneuver contested non esiste ancora, e inventarla qui creerebbe un formato che nessuno ha deciso. Chi implementa E14.7 riempie il turno e aggiunge l'assertion sugli HP di Bastion. Il valore atteso NON e' scritto qui perche' dipende dai payoff Win/Tie/Lose, che sono `CLASH-2` fra le domande aperte della spec.",
+
+  "units": [
+    { "id": "B1", "hero": "Hero.Bastion", "team": 0, "cell": [ 0, 0, 0] },
+    { "id": "V1", "hero": "Hero.Vektor",  "team": 1, "cell": [-3, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — avvicinamento. Gira sul gioco di oggi: Vektor si porta a distanza utile, Bastion tiene la cella.",
+      "intents": [
+        { "unit": "V1", "move": [[-2, 0, 0]] }
+      ]
+    },
+    {
+      "_turno": "T2 — il confronto. Bastion arma `Action.Brace` con un profilo a due risposte; Vektor attacca impegnandosi (STAND). Entrambi scelgono in cieco, il reveal e' a scadenza fissa, READ batte STAND.",
+      "requires": ["DecisionBoundary", "ReactionClash"],
+      "intents": []
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell",     "unit": "V1", "cell": [-2, 0, 0] },
+    { "type": "UnitAtCell",     "unit": "B1", "cell": [0, 0, 0] },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

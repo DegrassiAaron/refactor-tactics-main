@@ -10,7 +10,7 @@
     },
     "note": "Primo audit completo. La seed list dell'handoff del 2026-08-08 è stata confrontata voce per voce con Source/, Tests/, Scenarios/, docs/ e la Wiki: le voci che il repository non conferma sono marcate per quello che sono (SPECIFIED, DESIGNED, IDEA), non promosse a DONE.\n"
   },
-  "count": 80,
+  "count": 82,
   "features": [
     {
       "feature_id": "RT-FEAT-CORE-TURN",
@@ -1729,6 +1729,129 @@
         "commit": "2094b86"
       },
       "notes": "**Non implementata**: `grep -rn \"Overwatch\" Source/` fuori dai test non restituisce nulla. L'aggancio tecnico esiste (`FRTSuppressiveZone` in `RTOffensiveActionLibrary`, azione `Action.SuppressiveLine`) ma è zona di soppressione, non Overwatch. Due pagine Wiki la descrivono già: il blocco di stato generato lo dichiara. `Spec.Overwatch.HoldThenFire` è la **specifica eseguibile** della finestra — con gli intent del turno 2 volutamente vuoti, perché la sintassi di HOLD/FIRE non è ancora decisa — ed esce `BLOCKED`."
+    },
+    {
+      "feature_id": "RT-FEAT-REACTION-PROFILE",
+      "title": "Reaction Profile armato da Brace",
+      "area": "Reactions",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
+      "gates": {
+        "spec": "done",
+        "data": "partial",
+        "runtime": "partial",
+        "log_debug": "todo",
+        "automation": "partial",
+        "scenario": "partial",
+        "ui_wiki": "partial",
+        "packaged": "partial",
+        "network_privacy": "na"
+      },
+      "gates_done": 1,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E14",
+        "milestone": null,
+        "checkpoints": [
+          "14.7"
+        ],
+        "out_of_release_scope": ""
+      },
+      "dependencies": [
+        "RT-FEAT-REACTION-OPPORTUNITY",
+        "RT-FEAT-ACTION-GENERIC"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/gameplay/spec-reaction-clash-e14.md",
+        "docs/balance/RT_ActionCatalog_v0.1.md"
+      ],
+      "issues": [],
+      "tests": [
+        "RefactorTactics.Reactions.Brace.*"
+      ],
+      "scenarios": [
+        "Visual.Combat.BraceReducesEveryHit",
+        "Spec.Facing.BraceHoldsFromBehind",
+        "Spec.Brace.ProfileChangesResponse"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
+      ],
+      "wiki_note": "`Hold Ground` — la risposta base — funziona gia' in partita; i profili d'eroe che ne dichiarano altre no.",
+      "last_verified": {
+        "date": "2026-08-09",
+        "commit": "ea26c0f"
+      },
+      "notes": "D-041 cambia la **classificazione** di `Action.Brace`, non i suoi numeri: da «azione che si dichiara e basta» a azione di Prep che **arma un profilo**. `Hold Ground` coincide con il comportamento attuale (`RTCombatLibrary.h:112`, `RTTurnManager.cpp:2819` e `:3033`), quindi i due scenari restano verdi e nessun valore di bilanciamento si muove.\n**Un test scritto per pinnare lo stato attuale deve cadere**: `Reactions.Brace.IsNotAReaction` (`RTDefensiveReactionTests.cpp:162`) asserisce `ReactionTrigger == None`. Va **sostituito**, non cancellato in silenzio, da `Brace.BaseProfileHasSingleResponse` (col profilo base nessun boundary si apre: e' la garanzia che nulla di verde rallenta) e `Brace.RicherProfileOpensWindow`. Finche' la sostituzione non e' fatta, `automation` resta `partial` anche se la suite e' verde: e' verde sulla classificazione **vecchia**."
+    },
+    {
+      "feature_id": "RT-FEAT-REACTION-CLASH",
+      "title": "Reaction Clash (opportunity contested)",
+      "area": "Reactions",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P3",
+      "status": "SPECIFIED",
+      "status_derived": "SPECIFIED",
+      "gates": {
+        "spec": "done",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "partial",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "todo"
+      },
+      "gates_done": 1,
+      "gates_applicable": 9,
+      "roadmap": {
+        "epic": "E14",
+        "milestone": null,
+        "checkpoints": [
+          "14.7"
+        ],
+        "out_of_release_scope": ""
+      },
+      "dependencies": [
+        "RT-FEAT-REACTION-OPPORTUNITY",
+        "RT-FEAT-REACTION-FAST",
+        "RT-FEAT-REACTION-PROFILE",
+        "RT-FEAT-CORE-TURNLOG"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/gameplay/spec-reaction-clash-e14.md",
+        "docs/decisions/adr-0004-finestre-di-reazione.md"
+      ],
+      "issues": [],
+      "tests": [],
+      "scenarios": [
+        "Spec.Clash.ReadBeatsStand",
+        "Spec.Clash.StandBeatsShift",
+        "Spec.Clash.ShiftBeatsRead",
+        "Spec.Clash.TieAppliesOnce"
+      ],
+      "scenarios_planned": [
+        "Spec.Clash.HiddenUntilReveal",
+        "Spec.Clash.RevealIsFixedDeadline",
+        "Spec.Clash.Determinism"
+      ],
+      "wiki_refs": [
+        "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
+      ],
+      "wiki_note": "Decisa nella forma (D-042), **non implementata** e con la grammatica ancora in playtest.",
+      "last_verified": {
+        "date": "2026-08-09",
+        "commit": "ea26c0f"
+      },
+      "notes": "Ultima feature della v0.1 per priorita' (`P3`) dentro l'epic che e' gia' **la prima da tagliare**: se E14 si accorcia, questa esce per prima e la baseline single-responder resta intera.\n**Contested e' derivato, non dichiarato**: lo e' quando *due* partecipanti hanno ciascuno >= 2 risposte legali. Nessun campo `Type = Clash` — sarebbe una seconda verita' accanto alla cardinalita', lo stesso errore che il rischio (b) di E14 esiste per evitare.\n`network_privacy: todo` e non `na`: D-042 **emenda ADR-0004 §7** (in un Clash entrambi sanno che la finestra esiste) e chiude il canale temporale col reveal a **scadenza fissa**. Offline non e' verificabile, ma non e' nemmeno non applicabile.\nLa grammatica `STAND/READ/SHIFT` (D-043) e' `PROPOSED FOR PLAYTEST`: `spec: done` copre la **forma** dell'opportunity contested, che e' decisa; i payoff dei 4 eroi no."
     },
     {
       "feature_id": "RT-FEAT-REACTION-FAST-ACTION",
