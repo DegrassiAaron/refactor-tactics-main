@@ -164,7 +164,13 @@ La premessa del bot cambia **tre volte**. Questa spec è scritta sapendo quali s
 
 ## 8. Evidenza — i test che esistono oggi
 
-**26 test**, in due file. Sono l'unica prova di ciò che questa spec afferma.
+**25 test**, in due file — 18 + 7, contati sulle macro `IMPLEMENT_*_AUTOMATION_TEST`. Sono l'unica prova di
+ciò che questa spec afferma.
+
+> ⚠️ *Rettifica del 2026-08-10 (review post-merge)*: la prima stesura diceva «26 test … 18 + 8». I nomi
+> elencati nelle due tabelle erano già quelli giusti; sbagliati erano i **totali**, dedotti da un `sort -u`
+> invece che contati. In un documento la cui unica funzione è essere l'evidenza, un totale non misurato è il
+> difetto peggiore possibile.
 
 ### `Tests/RTHexBotTests.cpp` — `RefactorTactics.HexBot.*` (18, logica pura)
 
@@ -189,7 +195,7 @@ La premessa del bot cambia **tre volte**. Questa spec è scritta sapendo quali s
 | `KiteCellMaximizesDistance` | la fuga massimizza la distanza dalla minaccia |
 | `KiteCellStaysLegal` | la fuga non esce dalle celle raggiungibili |
 
-### `Tests/RTHexBotIntegrationTests.cpp` — `RefactorTactics.HexBotPlay.*` (8, su partita)
+### `Tests/RTHexBotIntegrationTests.cpp` — `RefactorTactics.HexBotPlay.*` (7, su partita)
 
 | Test | Cosa dimostra |
 |---|---|
