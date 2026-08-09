@@ -259,17 +259,37 @@ La stessa trappola è già registrata in [`spec-tassonomia-movimento.md`](../../
 §36: «dieci reason code nuovi → **duplicati**: sette esistono con altri nomi, in un enum serializzato nei
 replay». È la seconda volta.
 
-**7.2 — Il terreno che contiene lo stato transitorio.** §3 del brief è netto e ha ragione: *base surface* e
-*runtime state* non si combinano, altrimenti nasce `MetalWetElectrified`. Il repository dichiara la stessa
-regola — CP 8.2 ha `Wet`, `Burning`, `Electrified`, `Obscured` come **stati temporanei** separati.
+**7.2 — Il terreno che contiene lo stato transitorio.** §3 del brief è netto: *base surface* e *runtime state*
+non si combinano, altrimenti nasce `MetalWetElectrified`. La regola è giusta, e questo referto — nella sua
+prima stesura — l'aveva usata per accusare il repository di violarla, perché `ERTHexSurface` contiene `Fire` e
+`Smoke` mentre CP 8.2 ha `Burning` e `Obscured`.
 
-Ma `ERTHexSurface` contiene `Fire` e `Smoke`. Cioè due valori che *sono* stato transitorio, seduti nell'enum
-delle superfici permanenti, accanto a `Burning` e `Obscured` che sono la stessa cosa dall'altra parte del
-confine. **Qui il brief non contraddice il canone: lo critica, e la critica coglie.**
+> ⚠️ **Corretto il 2026-08-09, prima che qualcuno ci lavorasse sopra.** L'accusa era **falsa**, e lo si è
+> scoperto guardando dove ciascun valore è memorizzato invece di confrontare due elenchi. Vedi
+> [`D-059`](../../decisions/RT_PDR_00_Decision_Log.md).
 
-Questa è l'unica osservazione del documento che meriti una risposta dell'autore invece di una collocazione.
-Non è urgente — `Fire` e `Smoke` come superfici hanno test verdi e un catalogo — ma è il tipo di ambiguità
-che si paga quando qualcuno chiede «una cella `Fire` con stato `Burning` è ridondante o è un caso legale?».
+Il modello ha **tre** strati, non due:
+
+| Strato | Dove vive | Contiene |
+|---|---|---|
+| Superficie **corrente** della cella | `FRTHexCellData.Surface` (asset mappa) | `Fire`, `Smoke`, `ShallowWater`… — ciò che *tutti* leggono già: costi, Dash, ghiaccio, targeting, on-enter, conduttività |
+| Superficie **originale** + scadenza | `ARTTurnManager::DynamicSurfaces{Original, TurnsRemaining}` | stato **di partita**, non dato di mappa |
+| Stato dell'**unità** | `ARTUnit::StatusTurns` | `Status.Burning`, `Status.Obscured`, `Status.Wet` |
+
+`Fire` non *è* `Burning`: è la superficie che lo **produce** su chi entra
+(`MakeTerrain(Fire, …, {Damage 10, Status Burning 2})`). Cella e unità sono due oggetti, non due nomi per la
+stessa cosa — e la separazione base/transitorio che il brief chiedeva di introdurre **esiste già**, sul terzo
+strato: `Action.Ignite` mette `Fire` per due turni ricordando `Original`, `Action.CreateWater` lo spegne.
+`MetalWetElectrified` non può nascere perché la composizione avviene **fra strati**, mai dentro un enum.
+
+`RTHexCellData.h` e `RTTurnManager.h:246` argomentano per giunta *contro* la correzione che l'accusa
+implicava: un campo `BaseSurface` nella cella sarebbe «un secondo posto da consultare, cioè un secondo modello
+di verità», e la scadenza è stato di partita — «due partite sulla stessa arena non devono ereditarsi il
+fuoco».
+
+**La lezione è per chi scrive referti, non per il brief.** Il difetto di §3 e quello di §12 sono lo stesso:
+confrontare due *documenti* invece di guardare il codice. Il brief lo fa perché non ha il repository; io l'ho
+fatto avendocelo.
 
 ---
 
@@ -310,15 +330,15 @@ di query non serializzato. Collocazione naturale: **M9 CP 9.1**, dove il residuo
 Le altre cinque `PROPOSED` non hanno fretta e due (P5, P6) non hanno nemmeno un consumatore: registrarle come
 idee è più onesto che pianificarle.
 
-**Decisione che aspetta l'autore** — una sola, e non è nel brief per come è scritta:
+**Decisioni che aspettano l'autore: nessuna.** Questa sezione ne dichiarava una — `MED-1`, «`Fire` e `Smoke`
+sono superfici o stati?» — ed è stata **chiusa lo stesso giorno come mal posta**: vedi §7.2 e
+[`D-059`](../../decisions/RT_PDR_00_Decision_Log.md). Il brief non lascia dietro di sé alcuna scelta di
+modello che il repository non abbia già fatto.
 
-| ID | Domanda | Perché non è decidibile dai documenti |
-|---|---|---|
-| `MED-1` | `Fire` e `Smoke` restano **superfici**, o diventano solo **stati temporanei** su una superficie base? | Il canone li dichiara in entrambi i modi (CP 8.1 e CP 8.2) e il codice li tiene in `ERTHexSurface`. Non è una svista da correggere né una regola da dedurre: è una scelta di modello con un costo di migrazione del formato mappa |
-
-`MED-1` è **registrata** in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md), sezione *«modello dei terreni»*,
-che ne è l'owner. Qui resta il ragionamento (§7.2), non lo stato: se un giorno le due copie divergono, vale
-quella lì.
+Resta invece un **buco di implementazione**, che non è una decisione: `Riva.MistVeil` dichiara «crea fumo
+raggio 1» e non lo fa — `Smoke` è l'unica superficie del catalogo che nessuna azione sa creare
+(`bCreatesSurface` assente, `Range 0` dichiarato segnaposto). Il meccanismo esiste già ed è usato da `Ignite`
+e `CreateWater`: manca il collegamento. Tracciato nella issue `#353`, non qui.
 
 ---
 

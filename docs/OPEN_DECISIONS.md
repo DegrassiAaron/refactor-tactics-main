@@ -114,20 +114,24 @@ prima che E10 le incontri in codice.
 
 ---
 
-## Aperte — modello dei terreni, dalla spec panel del 2026-08-09
+## ✅ Chiusa il 2026-08-09 — `MED-1`, mal posta
 
-Origine: [`roadmap/plans/map-editor-brief-spec-panel-2026-08-09.md`](roadmap/plans/map-editor-brief-spec-panel-2026-08-09.md) §7.2.
-Il brief revisionato quel giorno contiene **una sola** osservazione che il canone non sa già chiudere — e non
-è una sua proposta: è una **critica al repository**, arrivata da fuori proprio perché da dentro sembra
-normale.
+Aperta e chiusa lo stesso giorno. Resta qui **solo come indice**: il contenuto vive in
+[`D-059`](decisions/RT_PDR_00_Decision_Log.md).
 
-| ID | Domanda | Perché serve una risposta |
+| Era | Perché non era una domanda | Dove vive ora |
 |---|---|---|
-| `MED-1` | `Fire` e `Smoke` restano **superfici**, o diventano solo **stati temporanei** sopra una superficie base? | Il canone li dichiara in **entrambi** i modi: `ERTHexSurface` li elenca fra le otto superfici di **CP 8.1**, e **CP 8.2** ha `Burning` e `Obscured` come stati temporanei con durata e scadenza nel Cleanup. Le due letture non si contraddicono su nessun test verde — si contraddicono sulla domanda che nessuno ha ancora posto: *una cella `Fire` con stato `Burning` è ridondante o è un caso legale?* La risposta decide se una superficie può essere creata e distrutta in partita (`Ignite` di CP 8.5 lo fa già) o se le otto sono un vocabolario permanente. **Non decidibile dai documenti**: è una scelta di modello, e la seconda opzione costa una migrazione del formato mappa (oggi `FormatVersion=4`) |
+| `MED-1` — «`Fire` e `Smoke` restano superfici o diventano stati temporanei?» | Presupponeva che `Fire`(cella) e `Burning`(unità) fossero lo **stesso asse**. Non lo sono: sono una coppia **produttore/consumatore** — la superficie applica lo status a chi entra. E la separazione base/transitorio che la domanda chiedeva di introdurre **esiste già**, su un terzo strato: `ARTTurnManager::DynamicSurfaces{Original, TurnsRemaining}` | [`D-059`](decisions/RT_PDR_00_Decision_Log.md) |
 
-> **Non è urgente e non blocca nulla oggi**: `Fire` e `Smoke` come superfici hanno catalogo, costi e test. È
-> registrata qui perché il costo di rispondere cresce con ogni regola che si appoggia all'ambiguità — ed è
-> l'unico modo per non riscoprirla al terzo brief esterno che la nota.
+> **Nota di metodo, la quarta della serie.** Come `OD-1`, `OD-4` e `PER-3`, la domanda era stata redatta
+> confrontando due **documenti** — l'elenco delle otto superfici di CP 8.1 e quello degli stati temporanei di
+> CP 8.2 — senza guardare **dove ciascun valore è memorizzato**. Il codice risponde in tre righe di header
+> (`RTHexCellData.h`, `RTTurnManager.h:246`, `RTUnit`), e per giunta argomenta *contro* la correzione che la
+> domanda implicava: un campo `BaseSurface` nella cella sarebbe «un secondo modello di verità», e la scadenza
+> è stato **di partita**, non dato di mappa.
+>
+> La lezione non è «verificare meglio»: è che un elenco di domande aperte redatto sui documenti misura ciò che
+> l'estensore non sapeva, non ciò che il progetto non ha deciso. Vale anche quando l'estensore sono io.
 
 ## Aperte — livello prodotto
 
