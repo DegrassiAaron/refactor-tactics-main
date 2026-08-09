@@ -1869,7 +1869,7 @@
         "log_debug": "todo",
         "automation": "todo",
         "scenario": "partial",
-        "ui_wiki": "todo",
+        "ui_wiki": "partial",
         "packaged": "todo",
         "network_privacy": "todo"
       },
