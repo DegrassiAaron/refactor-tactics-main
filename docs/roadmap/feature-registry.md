@@ -53,13 +53,13 @@ riferimenti del workbook. Se serve, si rinomina e si rigenera tutto nello stesso
 | `log_debug` | L'esito è osservabile: TurnLog, reason code, comando di debug |
 | `automation` | Test automatici pertinenti, verdi, che chiamano il gameplay reale |
 | `scenario` | Almeno uno scenario in `Scenarios/` la **dimostra** — vedi la nota qui sotto |
-| `ui_wiki` | È spiegata all'utente **e** leggibile in gioco — servono entrambe |
+| `ui_wiki` | È spiegata all'utente **e** leggibile in gioco — servono entrambe. Con una sola delle due: `partial` (regola 5) |
 | `packaged` | Verificata nella build packaged **della release corrente** |
 | `network_privacy` | Corretta in rete: autorità server e nessuna fuga di intento |
 
 Valori: `done` · `partial` · `todo` · `na`.
 
-Tre regole che vale la pena scrivere, perché sono i modi in cui questo schema si corrompe:
+Cinque regole che vale la pena scrivere, perché sono i modi in cui questo schema si corrompe:
 
 1. **`na` è una risposta, `partial` no.** Una feature offline dichiara `network_privacy: na`; una
    feature che *dovrà* funzionare online dichiara `todo`, anche se oggi non è verificabile. Marcare
@@ -76,6 +76,14 @@ Tre regole che vale la pena scrivere, perché sono i modi in cui questo schema s
    feature ha una forma eseguibile prima di essere costruita, e che il giorno in cui atterra si
    accendono da soli. Ma descrivere non è dimostrare: il gate resta `partial` finché lo scenario
    non passa davvero.
+5. **`ui_wiki` conta due metà, e una sola vale `partial`.** «Spiegata all'utente» e «leggibile in
+   gioco» sono indipendenti: una feature progettata ma non implementata può avere la pagina Wiki e
+   nessuna UI (`partial`), una feature interna può avere la UI e nessuna pagina (`partial` anche
+   lì). Il gate non dice *quale* metà manca — lo dicono `wiki_refs` e lo stato del runtime.
+   **Il blocco `RT_FEATURE_STATUS` da solo non è spiegazione**: è generato, e comparirebbe anche
+   su una pagina che della feature non parla. Serve testo che descriva la meccanica. Una pagina che
+   dichiara l'*assenza* della feature — «il bot non fa ancora giocate a due» — documenta ciò che
+   c'è oggi, non la feature futura: quel gate resta `todo`.
 
 ### 4.1 Quando un pezzo lo porta un'altra feature
 

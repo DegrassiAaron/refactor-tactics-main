@@ -1442,7 +1442,10 @@ features:
       # Quattro specifiche eseguibili in `Scenarios/Spec/Clash/`, tutte `BLOCKED` sul `requires`:
       # e' la prassi del repository, non un credito anticipato.
       scenario: partial
-      ui_wiki: todo
+      # `partial` e non `todo`: la pagina player-facing esiste e spiega la meccanica
+      # (`reazioni-overwatch-e-previsioni.md`, sezioni «Reaction Clash» e «Quando due scelte
+      # si incontrano»). Lo schema chiede spiegata **e** leggibile in gioco: la UI non c'e'.
+      ui_wiki: partial
       packaged: todo
       network_privacy: todo
     roadmap:
