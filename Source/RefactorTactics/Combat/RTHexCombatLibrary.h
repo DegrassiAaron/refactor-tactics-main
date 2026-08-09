@@ -245,6 +245,19 @@ public:
 		const FRTCellId& Target, ERTAbilityShape Shape);
 
 	/**
+	 * Quanto ripara DAVVERO la copertura chi incassa questo colpo: la riduzione del bordo attraversato
+	 * (CP 9.1), **annullata** se il colpo arriva fuori dal suo arco frontale (CP 16.2).
+	 *
+	 * Le due regole stanno in una funzione sola perche' rispondono a una domanda sola, e tenerle separate le
+	 * ha gia' fatte divergere: la redirezione di `Intercept` (D-017) rileggeva la copertura e non il facing,
+	 * cosi' chi si interponeva conservava un riparo che il proprio orientamento non gli concedeva. Ogni
+	 * consumatore chiama questa; nessuno ricompone i due pezzi per conto proprio.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")
+	static int32 EffectiveCoverReduction(const URTHexMapAsset* Map, const FRTHexCombatUnit& Attacker,
+		const FRTHexCombatUnit& Target, ERTAbilityShape Shape);
+
+	/**
 	 * Il colpo `Hit` riassegnato a `NewTargetId`, con la geometria TARGET-DEPENDENT rivalidata su chi lo
 	 * incassa davvero (**D-017**). La usa `Action.Intercept`, l'unica reazione che cambia il bersaglio di un
 	 * attacco altrui: senza rivalidazione il colpo arriva all'intercettore portandosi dietro il muretto del
@@ -253,10 +266,10 @@ public:
 	 * Cosa cambia e cosa no:
 	 * - INVARIANTI perche' indipendenti dal bersaglio: attaccante, intento, identita' e potenza DICHIARATA
 	 *   dell'azione. Redirigere un colpo non lo trasforma in un colpo diverso;
-	 * - RIVALIDATA perche' dipende da dove sta chi subisce: la copertura del bordo attraversato, cioe' la
-	 *   sola geometria target-dependent che la v0.1 esprima. LOS e traiettoria sono gia' condizioni di
-	 *   `URTReactionLibrary::FindInterceptableHit` (non si intercetta un colpo che non arriverebbe), il
-	 *   facing arrivera' con CP 16.2 e si aggiunge QUI, non in un secondo punto.
+	 * - RIVALIDATA perche' dipende da dove sta e da come guarda chi subisce: `EffectiveCoverReduction`, cioe'
+	 *   copertura del bordo attraversato **e** arco frontale (CP 16.2) — chi si interpone ha il proprio
+	 *   orientamento, non quello di chi stava per essere colpito. LOS e traiettoria sono gia' condizioni di
+	 *   `URTReactionLibrary::FindInterceptableHit`: non si intercetta un colpo che non arriverebbe.
 	 *
 	 * Il danno si ricalcola dalla potenza dell'INTENTO, non per differenza sul `Power` gia' ridotto: un colpo
 	 * fermato a 0 dal clamp ha perso l'informazione su quanto valesse, e sottrarre la vecchia riduzione lo

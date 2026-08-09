@@ -203,6 +203,21 @@ int32 URTHexCombatLibrary::HexCoverDamageReduction(const URTHexMapAsset* Map, co
 	return 0;
 }
 
+int32 URTHexCombatLibrary::EffectiveCoverReduction(const URTHexMapAsset* Map,
+	const FRTHexCombatUnit& Attacker, const FRTHexCombatUnit& Target, ERTAbilityShape Shape)
+{
+	const int32 Reduction = HexCoverDamageReduction(Map, Attacker.Cell, Target.Cell, Shape);
+
+	// CP 16.2: l'emisfero posteriore e' SCOPERTO. Un colpo che non arriva dall'arco frontale annulla la
+	// riduzione — non aggiunge danno. E' la differenza fra togliere una protezione e introdurre un bonus di
+	// fianco: il secondo avrebbe richiesto un numero nuovo da bilanciare, il primo no.
+	if (Reduction > 0 && !IsInFrontalArc(Target.Cell, Target.Facing, Attacker.Cell))
+	{
+		return 0;
+	}
+	return Reduction;
+}
+
 FRTHexAttackHit URTHexCombatLibrary::RedirectHitTo(int32 NewTargetId, const FRTHexAttackHit& Hit,
 	const TArray<FRTHexCombatUnit>& Units, const TArray<FRTHexAttackIntent>& Intents,
 	const URTHexMapAsset* Map)
@@ -220,8 +235,8 @@ FRTHexAttackHit URTHexCombatLibrary::RedirectHitTo(int32 NewTargetId, const FRTH
 	}
 
 	const FRTHexAttackIntent& Intent = Intents[Hit.IntentIndex];
-	const int32 Reduction = HexCoverDamageReduction(Map, Units[Hit.AttackerId].Cell,
-		Units[NewTargetId].Cell, Intent.Shape);
+	const int32 Reduction = EffectiveCoverReduction(Map, Units[Hit.AttackerId], Units[NewTargetId],
+		Intent.Shape);
 	Out.Power = FMath::Max(0, Intent.Power - Reduction);
 	return Out;
 }
@@ -333,15 +348,7 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 				// La copertura si applica QUI, sul singolo colpo: dipende da dove sta CHI lo subisce, non
 				// dall'intento — due bersagli della stessa azione possono essere riparati in modo diverso.
 				// Il danno si ferma a 0: il colpo resta avvenuto (trigger e marchi contano lo stesso).
-				int32 Reduction = HexCoverDamageReduction(Map, Attacker.Cell, Other.Cell, Intent.Shape);
-
-				// CP 16.2: l'emisfero posteriore e' SCOPERTO. Un colpo che non arriva dall'arco frontale annulla
-				// la riduzione — non aggiunge danno. E' la differenza fra togliere una protezione e introdurre
-				// un bonus di fianco: il secondo avrebbe richiesto un numero nuovo da bilanciare, il primo no.
-				if (Reduction > 0 && !IsInFrontalArc(Other.Cell, Other.Facing, Attacker.Cell))
-				{
-					Reduction = 0;
-				}
+				const int32 Reduction = EffectiveCoverReduction(Map, Attacker, Other, Intent.Shape);
 				Plan.Hits.Add(FRTHexAttackHit(Intent.AttackerId, u,
 					FMath::Max(0, Intent.Power - Reduction), IntentIdx));
 			}
