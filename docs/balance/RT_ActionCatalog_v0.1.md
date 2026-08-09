@@ -361,10 +361,29 @@ appena entrato nella cella.
 | `Action.CreateWater` | Crea acqua | Blast (+Cleanup) | 40/50 | 60 | 4 | acqua raggio 1 | 2 |
 | `Action.Ignite` | Incendia | Blast (+Cleanup) | 40/50 | 60 | 4 | fuoco su cella | 2 |
 | `Action.Electrify` | Elettrifica | **Cleanup** | 50 | 30 | 4 | propagazione elettrica | 2 |
-| `Action.CreateCover` | Crea copertura | Blast | 40 | 75 | 3 | copertura bassa | 2 |
+| `Action.CreateCover` | Crea copertura | **Prep** | 10 | 75 | 3 | copertura bassa | 2 |
 | `Action.ModifyArc` | Modifica arco | Blast | 40 | 75 | 3 | modifica collegamento | 2 |
 
+> **Allineamento 2026-08-09 — `Action.CreateCover` risolve in `Prep`, non nel Blast**
+> ([D-039](../decisions/RT_PDR_00_Decision_Log.md), E9.5).
+>
+> Questa riga diceva Blast mentre il [catalogo eroi](RT_HeroCatalog_v0.1.md) e il codice davano
+> `Bastion.KineticPanel` in Prep. Prevale **Prep**, e la ragione è che eretta nel Blast la copertura
+> arriverebbe **dopo** aver incassato i colpi di quel Blast — nel turno in cui la si paga non servirebbe a
+> nulla. Il precedente opposto di `ModifyArc` (portata *nel* Blast a E9.4) non si applica: riguarda la
+> **topologia**, e una copertura bassa non tocca né grafo né vista.
+>
+> Resta la portata **3** di questa riga: è il catalogo eroi ad essersi allineato, portando `KineticPanel` da 1
+> a 3. Il prezzo è che il **bordo** va dichiarato nel piano, perché a portata 3 non è più derivabile dalla
+> coppia (chi erige, cella bersaglio). Dettaglio in
+> [`spec-coperture-temporanee-cp95.md`](../gameplay/spec-coperture-temporanee-cp95.md).
+
 **Heal** — cura **20** HP, non supera la salute massima, non rimuove stati, può bersagliare se stessi.
+
+**Create Cover** — copertura **bassa** su un bordo dichiarato, integrità **30**, durata **2 turni**, non
+sovrapponibile. La variante di `Bastion.KineticPanel` sostituisce integrità e durata (rinforzato 45/1 turno ·
+adattivo 25 e non scade). Fuori portata, bordo non dichiarato o già riparato → `Cancel`, con la sua voce di
+TurnLog.
 
 **Create Water** — acqua superficiale, raggio 1, durata **2 turni**, applica `Wet` alle unità presenti.
 
