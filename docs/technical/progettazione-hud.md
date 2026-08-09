@@ -532,6 +532,59 @@ Se più target triggerano nello stesso micro-step:
 
 ---
 
+# 11-bis. Decision Time Bank
+
+> Aggiunta del **2026-08-09**. Il Time Bank è entrato in v0.1 come **CP 14.8**, e questo documento non lo
+> conosceva. **Owner dei requisiti**: [`../gameplay/spec-decision-time-bank.md`](../gameplay/spec-decision-time-bank.md) §11 — qui c'è
+> soltanto **come si presenta**, non che cosa deve fare. Nessun requisito si riscrive: se le due fonti
+> divergono, prevale lo spec.
+
+Il bank è una **riserva temporale per giocatore**, condivisa da tutte le Decision Window live della
+Resolution. Chi risponde in fretta la conserva, chi consuma la finestra intera la spende.
+
+Convive con il countdown della finestra, che resta l'informazione primaria:
+
+`⚡ OVERWATCH`
+
+`Vektor entered the controlled area`
+
+`2.4 s          ▓▓▓▓▓▓▓░░░  18.6 s`
+
+Il numero grande è la **finestra**, la barra è il **bank**. Non invertire la gerarchia: la decisione si prende
+sul primo, il secondo è contesto.
+
+## 11-bis.1 Tre trappole, in ordine di gravità
+
+**1 · Il bank non accorcia le finestre contested.** Nel Reaction Clash il reveal è a **scadenza fissa**: la
+finestra costa 3,0 s anche se entrambi lockano subito. Una UI che suggerisce «rispondi presto e il turno
+scorre» mente proprio sulla classe di finestre più costosa. Lì il bank è pressione strategica, non pacing.
+
+**2 · I numeri sono `PROPOSED FOR PLAYTEST`.** `InitialBankMs` (24 s in 2v2), `GraceMs` (1,0 s),
+`ExhaustedGraceMs` (0,75 s) hanno criteri di promozione dichiarati e **non vanno pubblicati come definitivi**,
+né qui né sulla Wiki. L'unico valore canonico è `MaxWindowMs`, che **è** `FastReactionDuration` = 3,0 s — e
+non prende un secondo nome.
+
+**3 · Il bank residuo è informazione del proprietario.** Non compare nel prompt dell'avversario, in nessuna
+forma e in nessuna granularità: quantizzare un delta correlato al tempo di lock non chiude il canale, lo
+attenua. Vale [D-021](../decisions/RT_PDR_00_Decision_Log.md) e ADR-0004 §7-bis.
+
+## 11-bis.2 Il requisito vincolante
+
+Fra i sei requisiti dello spec **uno solo è vincolante per la UI**, ed è il primo:
+
+> il fallback deve essere raggiungibile **entro la grace**: un tasto, nessuna conferma, nessuna animazione
+> bloccante, percorso equivalente su mouse, tastiera e controller.
+
+Con `GraceMs` a 1,0 s, un menu a due passi rende il fallback irraggiungibile e trasforma il bank in una tassa
+sull'interfaccia invece che una decisione. Gli altri cinque requisiti — distinguere **free** da **drain**,
+countdown sempre visibile, esaurimento comunicato con **forma o testo mai col solo colore** — sono già
+coerenti con §15.1 e §47-bis.
+
+Se il playtest mostra che le cifre peggiorano la lettura in tre secondi, si degrada la **presentazione** —
+barra senza numeri — non il requisito.
+
+---
+
 # 12. Delayed Action
 
 Delayed Action è concettualmente diversa dalla Fast Reaction.
@@ -764,6 +817,53 @@ Può mostrare, se autorizzato:
 - relazione con il target corrente.
 
 Non deve diventare un pannello permanente.
+
+---
+
+# 18-bis. Interaction Inspector
+
+> Aggiunta del **2026-08-09**, superficie UI di
+> [`../gameplay/spec-interazioni-mappa-cp101.md`](../gameplay/spec-interazioni-mappa-cp101.md) (**CP 10.1**). Owner della regola: quello spec.
+> Qui c'è solo la forma.
+
+Quando il giocatore seleziona un elemento interattivo — porta, consolle, ponte, obiettivo — l'inspector
+mostra **che cosa può chiedergli, e perché no**:
+
+`D1 — Porta di laboratorio`
+
+`Stato: chiusa`
+
+`[ APRI ]`
+
+`[ FORZA ]      richiede Force`
+
+`[ SOVRASCRIVI ] non disponibile`
+
+Tre corsie, non una lista piatta: **disponibile** · **disponibile a chi ha la capability** · **non
+disponibile**. È la distinzione che rende leggibile una mappa in cui la stessa porta offre opzioni diverse a
+unità diverse, e senza la quale il giocatore legge «bug» dove c'è «design».
+
+## 18-bis.1 Il rifiuto è informazione, ma non deve perdere informazione
+
+Il motivo si mostra sempre: un pulsante grigio senza spiegazione è un puzzle, non una scelta tattica. I reason
+code disponibili sono quelli dello spec (`MissingCapability`, `WrongState`, `OutOfRange`, `NotOwner`,
+`Blocked`, `Disabled`, `Destroyed`, `InsufficientResource`, `WrongPhase`).
+
+Con un vincolo che vale più dell'elenco, ed è lo stesso di §17:
+
+> **Nessun reason code può rivelare informazione che il Team Knowledge non possiede.**
+
+Se un elemento è governato da una consolle che la squadra non ha osservato, il rifiuto dice `Blocked`, non
+«controllato da S1». E il collegamento sorgente → bersaglio **non si replica al client per poi nasconderlo nel
+widget**: nascondere il widget non è sicurezza, qui come nel planning.
+
+## 18-bis.2 Che cosa non è
+
+Non è il `Target / Hover Inspector` di §18, che descrive **unità**. Non è un pannello permanente: vale la
+regola finale di §49 — compare sulla selezione e sparisce con essa.
+
+E non elenca i **verbi come azioni**: un verbo non consuma uno slot suo, è il modo in cui un `Interact` già
+speso si specializza. La Action Dock (§7) non cresce quando la mappa cresce.
 
 ---
 
@@ -1537,6 +1637,56 @@ Evitare:
 
 ---
 
+# 47-bis. Accessibilità
+
+> Aggiunta del **2026-08-09**. Il vincolo non è nuovo — «non affidarsi solo al colore» compare già in §15.1,
+> §16 e nella checklist §50 — ma era **sparso in tre punti** e non copriva il caso più stretto del gioco: la
+> finestra di reazione da 3,0 s. Questa sezione lo raccoglie e lo chiude.
+
+## 47-bis.1 Il colore non porta mai il significato da solo
+
+È la regola che governa tutte le altre. Ogni informazione codificata a colore deve essere leggibile anche da
+chi quel colore non lo distingue, attraverso almeno un secondo canale:
+
+| Informazione | Colore | Secondo canale obbligatorio |
+|---|---|---|
+| Certainty (§16) | opacità/tinta | **tratto**: pieno · tratteggiato · dissolto + `?` |
+| Warning (§15) | tre livelli | **icona e forma**, più il testo |
+| Squadra | palette | **posizione** e marker |
+| Stato di uno slot (§7.1) | overlay | **testo** e cooldown numerico |
+| Bank esaurito (§11-bis) | — | **forma o testo**, mai il solo colore |
+
+La verifica è meccanica e va fatta prima di dichiarare finita una schermata: **portarla in scala di grigi e
+rileggerla**. Se un'informazione sparisce, manca il secondo canale.
+
+## 47-bis.2 La finestra di reazione è il caso stretto
+
+Tre secondi sono il budget più severo dell'interfaccia, e ci si decide sotto pressione. Requisiti:
+
+- countdown **sempre visibile**, non un'animazione periferica;
+- lo stato urgente si distingue per **contrasto**, non per saturazione;
+- **poche opzioni**, come già dice §11.1;
+- nessun mini-gioco di precisione col mouse: il bersaglio si sceglie da un elenco, non mirando;
+- percorso **tastiera e controller equivalente** a quello del mouse — è già requisito vincolante del Time
+  Bank (§11-bis.2), e qui vale per ogni Decision Window.
+
+## 47-bis.3 Leggibilità e movimento
+
+- **1080p è la baseline**, non il caso limite: se un testo non si legge lì, non si legge;
+- niente testo di cooldown minuscolo dentro un'icona — se non c'è spazio, l'informazione va altrove;
+- **scala della UI** regolabile, e i pannelli devono reggerla senza sovrapporsi;
+- **rimappatura** degli input;
+- opzioni per **ridurre camera shake e motion**, e per l'**opacità degli overlay** (§24): chi fatica a
+  distinguere due layer sovrapposti deve poterne attenuare uno.
+
+## 47-bis.4 Che cosa questa sezione non promette
+
+Non è una dichiarazione di conformità WCAG né un audit: è l'insieme di vincoli che il progetto si dà e che
+la checklist di §50 verifica. Nessuno di questi punti è stato misurato su un giocatore reale — vanno nel
+playtest di leggibilità di **E21**, insieme al resto della presentazione.
+
+---
+
 # 48. Brief compatto per Claude Design — HUD only
 
 Usare la style guide PNG come riferimento visivo.
@@ -1633,7 +1783,8 @@ Una feature HUD è considerata pronta quando:
 - non espone planning avversario;
 - ha stati default/hover/selected/disabled dove necessari;
 - è leggibile a 1080p;
-- non usa solo il colore;
+- non usa solo il colore — e **regge la prova in scala di grigi** (§47-bis.1);
+- se apre una Decision Window, il percorso tastiera/controller è equivalente a quello del mouse (§47-bis.2);
 - non degrada sensibilmente Slate/UI performance;
 - è verificata in PIE e packaged build;
 - ha debug/view-model sufficiente a spiegare eventuali mismatch;

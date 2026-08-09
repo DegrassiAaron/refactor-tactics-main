@@ -260,6 +260,42 @@ I quattro rimasti hanno costi e rischi diversi:
 `OPEN_DECISIONS.md`, `BP_GameMode.uasset`, `RTHeroCatalogLibrary.cpp` — tutti nel diff della sessione
 parallela (§9.2).
 
+### ✅ Fatto in questa sessione — cluster **UI / UX**
+
+L'esito è diverso dal cluster precedente, e vale la pena dirlo prima dell'elenco: **il documento HUD del
+repository è più avanzato del pacchetto.** [`technical/progettazione-hud.md`](../../technical/progettazione-hud.md) ha **50 sezioni** e
+copre già, spesso con più precisione della fonte, tutto ciò che l'UI/UX Master e il kit HUD propongono come
+lavoro da fare:
+
+| Proposta del pacchetto | Dove esisteva già |
+|---|---|
+| Layer HUD, niente `WBP_TacticalHUD` monolitico | §4, §45 |
+| Ghost Timeline `PREP · DASH · BLAST · MOVE`, reaction come ramo | §8, §11 — e CP 11.5 con il test `Preview.ReactionIsNotAPhaseEntry` |
+| Action Ghost 3D presentation-only | §9, §9.1 |
+| Certainty grammar Confermato/Previsto/Incerto | §16, §16.1 |
+| Warning centralizzato con severità | §15, §15.1 |
+| **Outcome Explanation** | §14.1 — si chiama «WHY?» |
+| Overlay system con filtri | §24 |
+| Conoscenza parziale a livelli | §25 — e **non** la chiama «Fog of War» |
+| Sound overlay | §26 |
+| Notification feed | §27 |
+| Fast Reaction, target simultanei, timeout HOLD | §11.1, §11.2 |
+| Facing UI per stile di movimento | §10, §10.1 |
+| Combat Log da reason code | §14 |
+
+Restavano **quattro** buchi veri, e sono le uniche aggiunte:
+
+| File | Che cosa |
+|---|---|
+| [`technical/progettazione-hud.md`](../../technical/progettazione-hud.md) §11-bis | **Decision Time Bank**: il documento non lo conosceva, ed è entrato in v0.1 come CP 14.8 il giorno prima. Rimanda a [`gameplay/spec-decision-time-bank.md`](../../gameplay/spec-decision-time-bank.md) §11 per i requisiti e aggiunge le tre trappole di presentazione |
+| idem §18-bis | **Interaction Inspector**: la superficie UI di CP 10.1, che senza questa PR non esisteva da nessuna parte. Tre corsie (disponibile · richiede capability · non disponibile) e reason code che non perdono conoscenza |
+| idem §47-bis | **Accessibilità**: il vincolo «non solo colore» era in tre punti diversi e non copriva il caso più stretto — la finestra da 3,0 s. Raccolto, con la prova in scala di grigi come verifica meccanica |
+| idem §50 | checklist DoD: due voci nuove che rendono verificabili le prime due |
+
+**Non applicato** dal pacchetto, oltre ai conflitti di §3: le **38** feature `HUD.*` del kit e le 15
+`RT-FEAT-UI-*` del master (9 inesistenti, e ne omette 2 che esistono); gli scenari `SCN-HUD-001`/`HUD-001`;
+le issue `HUD-PLN-01`. Registrato come riga **57** della matrice.
+
 ### ⬜ Resta da fare
 
 1. **Difetto `D-039`** di §5 — dopo il merge della sessione parallela, alla sorgente (`wiki_note` in
