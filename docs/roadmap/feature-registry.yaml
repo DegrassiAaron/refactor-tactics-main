@@ -207,6 +207,64 @@ features:
       («snapshot a inizio segmento»). Nessun codice: `grep -rn "Overwatch" Source/` fuori dai test
       non restituisce nulla. Il resto di E14 non parte prima di E13.
 
+  - feature_id: RT-FEAT-CORE-DECISION-TIME-BANK
+    title: Decision Time Bank (budget di decisione per giocatore)
+    area: Core
+    kind: gameplay
+    release: v0.1
+    priority: P3
+    status: SPECIFIED
+    gates:
+      spec: done
+      data: todo
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: todo
+      ui_wiki: todo
+      packaged: todo
+      # Owner-only e canary di privacy: verificabile solo a M10, ma non e' `na` —
+      # il bank tocca il canale temporale che D-021 e D-042 chiudono.
+      network_privacy: todo
+    roadmap:
+      epic: E14
+      checkpoints: ["14.8"]
+    dependencies:
+      - RT-FEAT-CORE-DECISION-BOUNDARY
+      - RT-FEAT-CORE-TURNLOG
+      - RT-FEAT-REACTION-FAST
+      - RT-FEAT-MATCH-PACING
+    owner_specs:
+      - docs/gameplay/spec-decision-time-bank.md
+      - docs/decisions/adr-0004-finestre-di-reazione.md
+    issues: []
+    tests: []
+    scenarios:
+      # Nomi da confermare con l'owner della scenario map prima di scrivere i file:
+      # la spec li dichiara requisiti di copertura, non identificatori.
+      - planned:
+          - Spec.TimeBank.GraceDoesNotDrain
+          - Spec.TimeBank.DrainsAfterGrace
+          - Spec.TimeBank.TimeoutCostsFullWindow
+          - Spec.TimeBank.TimeoutSpendsNoCharge
+          - Spec.TimeBank.ClashCostsFullWindow
+          - Spec.TimeBank.BotDrainsLikePlayer
+          - Spec.TimeBank.ReplayReadsRecordedBank
+          - Spec.TimeBank.PrivacyNoBankLeak
+    wiki_refs: []
+    wiki_note: >-
+      Le **regole** sono decise (2026-08-09); i **valori** restano baseline di playtest.
+      La Wiki non deve pubblicarli come definitivi finché §3.2 non li promuove.
+    last_verified:
+      date: 2026-08-09
+      commit: 75eb0f3
+    notes: >
+      Sostituisce D20 («nessun cap aggregato, si misura al playtest») **prima** della misura che
+      l'avrebbe informata: rischio assunto e dichiarato in §2.1 della spec. I due rientri di
+      ADR-0004 §Revisione — cap per turno e `MaxPromptsPerReaction = 1` — restano validi e
+      compatibili col bank. CP 14.8 **non precede** CP 14.5/14.6: la prima misura arriva comunque
+      prima della taratura. Nessun codice: la feature nasce come specifica.
+
   - feature_id: RT-FEAT-CORE-PLAYBACK
     title: Playback della risoluzione
     area: Core
