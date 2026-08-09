@@ -47,6 +47,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	FRTCellId Cell;
 
+	/**
+	 * Orientamento AUTOREVOLE (CP 16.1): stato di gioco, non la rotazione della mesh.
+	 *
+	 * Convive con `bFaceMovementDirection`, che resta presentazione e continua a interpolare lo yaw: la
+	 * differenza e' che questo campo lo leggono le REGOLE, e a fine playback la mesh deve atterrare qui. Se
+	 * i due divergessero, il giocatore leggerebbe una cosa e ne subirebbe un'altra.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	ERTHexDirection Facing = ERTHexDirection::E;
+
 	/** Cella di destinazione pianificata per il turno corrente (default = cella attuale). */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Unit")
 	FRTCellId PlannedCell;

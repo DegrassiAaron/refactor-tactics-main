@@ -383,17 +383,25 @@ features:
     kind: gameplay
     release: v0.1
     priority: P1
-    status: SPECIFIED
+    status: INTEGRATED
     gates:
       spec: done
-      data: todo
-      runtime: todo
-      log_debug: todo
-      automation: todo
-      scenario: todo
+      data: done
+      # Consumatori reali: il Move e il Dash lo scrivono, un'azione con bersaglio riorienta prima di risolvere,
+      # il playback ci atterra sopra, e la difesa direzionale di CP 16.2 lo legge per decidere se la copertura
+      # protegge. L'unico momento di D-020 senza codice e' `FacingUsedByOverwatch`, che appartiene a E14.
+      runtime: done
+      log_debug: done
+      automation: done
+      scenario: done
+      # La Wiki lo spiega e la figura in campo e' girata dal lato giusto, ma il gioco non MOSTRA l'arco:
+      # niente indicatore del cono frontale in HUD, quindi «leggibile in gioco» non e' ancora vero.
       ui_wiki: partial
       packaged: todo
-      network_privacy: na
+      # Era `na`, ed era sbagliato: il facing viaggia negli intent, quindi dovra' essere corretto in rete.
+      # `partial` perche' il filtro per squadra esiste ed e' testato (`Facing.IntentIsTeamFiltered`), ma
+      # nessuna verifica in rete e' possibile finche' la rete non c'e' (M10).
+      network_privacy: partial
     roadmap:
       epic: E16
       checkpoints: ["16.1", "16.2"]
@@ -403,9 +411,37 @@ features:
     owner_specs:
       - docs/decisions/adr-0005-orientamento.md
       - docs/decisions/RT_PDR_00_Decision_Log.md
-    issues: [175, 176, 177]
-    tests: []
-    scenarios: []
+      - docs/technical/spec-turnlog.md
+    issues: [175, 176, 177, 291]
+    # La rotazione DICHIARATA (girarsi restando fermi) e' regola implementata ma senza produttore: nessun
+    # input la scrive. Il gate `runtime` resta `done` perche' l'orientamento DERIVATO — quello che un'unita'
+    # ha in quasi tutti i turni — e' cablato ovunque; il pezzo mancante e' input, ed e' tracciato in #291.
+    completed_by:
+      - RT-FEAT-UI-PLANNING
+    tests:
+      - RefactorTactics.Facing.LinearMoveDerivesDirection
+      - RefactorTactics.Facing.BudgetMoveAllowsLastStepPlusMinusOne
+      - RefactorTactics.Facing.RejectsIllegalDeclaredRotation
+      - RefactorTactics.Facing.StationaryUnitRotatesFreely
+      - RefactorTactics.Facing.ForcedMovementFacesSource
+      - RefactorTactics.Facing.EnvironmentalDisplacementKeepsFacing
+      - RefactorTactics.Facing.VoluntaryMoveWinsOverForced
+      - RefactorTactics.Facing.DashThenBlastUsesLatestValue
+      - RefactorTactics.Facing.TargetChangeWithinRoundReorients
+      - RefactorTactics.Facing.RoundInheritsFinalFacing
+      - RefactorTactics.Facing.TurnLogNamesConsumerAndReason
+      - RefactorTactics.Facing.PermutationInvariant
+      - RefactorTactics.Facing.IntentIsTeamFiltered
+      - RefactorTactics.Combat.BackAttackIgnoresCover
+      - RefactorTactics.Combat.FlankAttackKeepsCover
+      - RefactorTactics.Combat.ShieldWorksFromAnyDirection
+    scenarios:
+      - Spec.Facing.DerivesFromMove
+      - Spec.Facing.DashReorients
+      - Spec.Facing.TargetingReorients
+      - Spec.Facing.BackAttackIgnoresGuard
+      - Spec.Facing.FrontAttackKeepsGuard
+      - Spec.Facing.BraceHoldsFromBehind
     wiki_refs:
       - docs/wiki/meccaniche/facing-e-direzionalita.md
     wiki_note: >-
@@ -515,7 +551,7 @@ features:
       date: 2026-08-09
       commit: b5e295a
     notes: >
-      Chiuso CP 9.5 il 2026-08-09: `Action.CreateCover` entra nel catalogo in fase **Prep** (D-039, il
+      Chiuso CP 9.5 il 2026-08-09: `Action.CreateCover` entra nel catalogo in fase **Prep** (D-040, il
       catalogo azioni si allinea al catalogo eroi), l'operazione su struttura è un **dato**
       (`ERTStructureOp`) e non tre `if` sull'ActionId — è ciò che permette a `Bastion.KineticPanel`,
       `Bastion.Reconfigure` e `Gadget.PortableCover` di condividere la semantica. Primo consumatore
@@ -2258,7 +2294,11 @@ features:
       commit: 2094b86
     notes: >
       Quattro pagine Wiki e le righe `DATA_READY_v0.2` nel workbook esistono; **nessun dato di
-      gioco e nessuna epic**. È il caso tipico da non promuovere: la documentazione è avanti al
+      gioco**. L'epic esiste in `roadmap-post-v0.1.md` e si chiama **E35** dal 2026-08-09 (D-039: il
+      numero `E21` era stato assegnato lo stesso giorno anche a *Presentazione e leggibilita'* della
+      v0.1, che lo tiene perche' e' il lato verificato da questo registry). Il campo `roadmap.epic`
+      resta `null` di proposito: il validator conosce solo le epic della **roadmap di release**, e
+      assegnarne una qui farebbe comparire una feature v0.2 nella tabella §2.2 della v0.1. È il caso tipico da non promuovere: la documentazione è avanti al
       codice ed è corretto che lo sia, purché il blocco di stato lo dica.
 
   - feature_id: RT-FEAT-CHAR-PRESENTATION
@@ -2291,7 +2331,7 @@ features:
       - docs/decisions/adr-0001-skeletal-unit.md
       # Owner del mapping identità RT -> slot asset Paragon (D-037).
       - docs/characters/paragon.md
-    issues: []
+    issues: [286, 287, 288, 289]
     tests:
       - RefactorTactics.Unit.TeamColorFor
       - RefactorTactics.Unit.RingLocalZ
@@ -2305,7 +2345,8 @@ features:
     notes: >
       Il C++ (spawn con fallback, facing di presentazione, anello di team) è in `main`, il lavoro
       in editor no. Fino al 2026-08-08 era la milestone **M8** senza epic corrispondente nella vista
-      di release: **E21** chiude quel buco. Il gate `packaged` resta `todo` perché la build packaged
+      di release: **E21** chiude quel buco, e dal 2026-08-09 e' tracciata su GitHub (#286 + #287/#288/#289) —
+      era l'unica epic della v0.1 senza issue. Il gate `packaged` resta `todo` perché la build packaged
       mostra ancora i cilindri. **D-037** (2026-08-08) toglie l'ultimo ostacolo di decisione: ogni
       eroe ha uno slot asset Paragon dichiarato — Flux `Gadget`, Riva `Phase`, Bastion `Riktor`,
       Vektor `Wraith` — quindi assegnare mesh e animazioni non richiede più una scelta. Nessun gate

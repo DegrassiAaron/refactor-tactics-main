@@ -25,7 +25,7 @@ scriveva «nessun modello di struttura esiste» — e quella dichiarazione era v
 ### 2.1 La fase è `Prep`, e il catalogo azioni si è allineato al catalogo eroi
 
 `RT_ActionCatalog_v0.1.md` dava `Action.CreateCover` nel **Blast**; `RT_HeroCatalog_v0.1.md` e il codice
-davano `Bastion.KineticPanel` in **Prep**, con motivazione scritta. Prevale **Prep** ([D-039](../decisions/RT_PDR_00_Decision_Log.md)).
+davano `Bastion.KineticPanel` in **Prep**, con motivazione scritta. Prevale **Prep** ([D-040](../decisions/RT_PDR_00_Decision_Log.md)).
 
 Il precedente in senso opposto esiste ed è recente: E9.4 portò `Action.ModifyArc` **nel** Blast, perché
 «porte, muri e ponti cambiano tutti nello stesso momento e il Move che segue li vede». Non si applica qui, e

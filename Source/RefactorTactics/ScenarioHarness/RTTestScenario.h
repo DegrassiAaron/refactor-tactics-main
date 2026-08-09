@@ -49,7 +49,15 @@ enum class ERTAssertionKind : uint8
 	/** La salute dell'unita' e' esattamente il valore atteso: e' cosi' che si verifica un danno. */
 	UnitHpEquals,
 	/** L'unita' e' viva (`value` != 0) oppure abbattuta (`value` == 0). */
-	UnitAlive
+	UnitAlive,
+	/**
+	 * L'unita' guarda nella direzione attesa (`ERTHexDirection` per nome: `E`, `NE`, `NW`, `W`, `SW`, `SE`).
+	 *
+	 * Aggiunta IN CODA (CP 16.1): i valori precedenti non cambiano numero. Verifica il facing LOGICO — quello
+	 * che decide le regole — non lo yaw della mesh, che e' presentazione e puo' essere ancora a meta'
+	 * interpolazione quando lo scenario finisce.
+	 */
+	UnitFacing
 };
 
 /**

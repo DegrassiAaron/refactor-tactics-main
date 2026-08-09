@@ -19,6 +19,7 @@
 #include "Ability/RTActionData.h"
 #include "Bot/RTHexBotLibrary.h"
 #include "Core/RTGameplayTags.h"
+#include "Turn/RTFacingLibrary.h"
 #include "Turn/RTHexSimLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
@@ -1745,6 +1746,23 @@ void ARTTurnManager::ResolveDash()
 		const FRTCellId Final = Resolved[i].Final;
 		AddLogEvent(FString::Printf(TEXT("Scatto: %s -> (q=%d,r=%d,L%d)"), *Unit->GetName(), Final.X, Final.Y, Final.Layer));
 		Unit->ConsumeAbility(DashAbilityIdx[i]);
+
+		// `FacingAfterDash` (CP 16.1, D-020): lo scatto orienta, e il Blast che segue leggera' QUESTO valore.
+		// Derivato dalla rotta effettiva, prima di spostare l'unita', cosi' la partenza e' ancora quella vera.
+		if (Resolved[i].Entered.Num() > 0)
+		{
+			TArray<FRTCellId> Walked;
+			Walked.Reserve(Resolved[i].Entered.Num() + 1);
+			Walked.Add(Unit->Cell);
+			Walked.Append(Resolved[i].Entered);
+
+			FRTHexSimUnit Dashed(i, Unit->Cell, /*InMoveBudget=*/ 0);
+			Dashed.Facing = Unit->Facing;
+			URTFacingLibrary::RecordFacingChange(Dashed, URTFacingLibrary::FacingFromPath(Walked, Dashed.Facing),
+				ERTFacingOutcome::DerivedFromDash, ERTMatchPhase::Dash, TurnLog);
+			Unit->Facing = Dashed.Facing;
+		}
+
 		Unit->Cell = Final;
 		Unit->SetVisualLocation(Unit->WorldForCell(Final, Origin, CellSize, LayerH));
 		ApplyTerrainOnEnterEffects(Snapshot, Unit, Resolved[i].Entered);
@@ -1844,6 +1862,7 @@ void ARTTurnManager::ResolveCombat()
 		HexUnit.TeamId = Unit->TeamId;
 		HexUnit.Cell = Unit->Cell;
 		HexUnit.bAlive = Unit->IsAlive();
+		HexUnit.Facing = Unit->Facing; // CP 16.2: da che lato e' scoperta
 		HexUnits.Add(HexUnit);
 	}
 
@@ -2001,6 +2020,38 @@ void ARTTurnManager::ResolveCombat()
 		if (!Ability->Def.bAllowsReaction)
 		{
 			ReactionBlockedThisTurn.Add(Unit);
+		}
+
+		// D-020: un'azione con BERSAGLIO orienta chi la usa PRIMA che risolva. Non e' una proprieta' dichiarata
+		// per azione — e' la regola: si guarda cio' che si colpisce. Qui, e non nel Prep, perche' le azioni di
+		// Prep del vertical slice agiscono su chi le usa (`Instance.TargetUnitId = i`) e non hanno un bersaglio
+		// esterno verso cui girarsi.
+		//
+		// Conta la cella DICHIARATA nel piano, non il primo bersaglio che l'area colpira': l'orientamento e' una
+		// scelta del giocatore, e un'area che prende tre unita' non deve farlo dipendere dall'ordine di calcolo.
+		// `Unit->IsAlive()` e non solo il bersaglio: questo ciclo non filtra gli attaccanti morti (chi cade nel
+		// Dash ci arriva col piano ancora addosso) e il loro colpo viene scartato piu' avanti, da
+		// `CollectHexAttacks`, che salta le unita' non vive. Senza il guard un cadavere si girerebbe verso il
+		// bersaglio e lascerebbe la sua voce nel TurnLog: deterministica, ma rumore che entra nell'hash del replay.
+		if (Unit->IsAlive() && Target && Target->IsAlive() && Target != Unit)
+		{
+			ERTHexDirection TowardsTarget = Unit->Facing;
+			if (URTHexLibrary::DirectionTowards(Unit->Cell, Target->Cell, TowardsTarget))
+			{
+				FRTHexSimUnit Attacker(i, Unit->Cell, /*InMoveBudget=*/ 0);
+				Attacker.Facing = Unit->Facing;
+				URTFacingLibrary::RecordFacingChange(Attacker, TowardsTarget, ERTFacingOutcome::TargetingReoriented,
+					ERTMatchPhase::Blast, TurnLog);
+				Unit->Facing = Attacker.Facing;
+
+				// Anche nella copia del Blast: `HexUnits` e' stato costruito PRIMA di questo ciclo, e la difesa
+				// direzionale (CP 16.2) legge di li'. Senza questa riga, due unita' che si attaccano a vicenda
+				// nella stessa fase si girerebbero l'una verso l'altra e verrebbero comunque colpite alle spalle.
+				if (HexUnits.IsValidIndex(i))
+				{
+					HexUnits[i].Facing = Unit->Facing;
+				}
+			}
 		}
 
 		// Da qui si ragiona su ISTANZE, non su puntatori: e' l'istanza che si valida e su cui si applica il
@@ -2706,7 +2757,40 @@ void ARTTurnManager::ResolveCombat()
 		}
 		if (Units[i]->HasStatus(TAG_Status_Guarded))
 		{
-			FirstHitDelta[i] -= URTCombatLibrary::GuardFirstHitReduction;
+			// CP 16.2: la guardia copre il davanti. Se il colpo che la consuma arriva fuori dall'arco frontale
+			// non vale — si TOGLIE una protezione, non si aggiunge danno.
+			//
+			// Quale colpo la consuma lo decide `ApplyFirstHitDelta`: il PRIMO dell'array, che e' l'ordine
+			// canonico gia' fissato da `Plan.Hits`. Si guarda quello, non «un colpo qualsiasi da dietro»:
+			// altrimenti un attacco frontale perderebbe la guardia per colpa di un secondo colpo alle spalle
+			// che il delta non tocca nemmeno.
+			const FRTHexAttackHit* FirstHit = Plan.Hits.FindByPredicate(
+				[i](const FRTHexAttackHit& Hit) { return Hit.TargetId == i; });
+
+			bool bGuardHolds = true;
+			if (FirstHit && HexUnits.IsValidIndex(FirstHit->AttackerId))
+			{
+				bGuardHolds = URTHexCombatLibrary::IsInFrontalArc(
+					HexUnits[i].Cell, HexUnits[i].Facing, HexUnits[FirstHit->AttackerId].Cell);
+			}
+
+			if (bGuardHolds)
+			{
+				FirstHitDelta[i] -= URTCombatLibrary::GuardFirstHitReduction;
+			}
+			else
+			{
+				FRTTurnLogEntry Bypassed;
+				Bypassed.Phase = ERTMatchPhase::Blast;
+				Bypassed.Category = ERTLogCategory::Facing;
+				Bypassed.Outcome = static_cast<uint8>(ERTFacingOutcome::RearHitBypassedCover);
+				Bypassed.SrcCell = HexUnits[FirstHit->AttackerId].Cell;
+				Bypassed.TgtCell = HexUnits[i].Cell;
+				Bypassed.Amount = static_cast<int32>(HexUnits[i].Facing);
+				TurnLog.Add(Bypassed);
+				AddLogEvent(FString::Printf(TEXT("%s: %s"), *Units[i]->GetName(),
+					*URTTurnLogLibrary::DescribeEntry(Bypassed)));
+			}
 		}
 		// Riduzione dichiarata dalle reazioni attivate (`Action.Deflect` e le reazioni d'eroe che ne riusano
 		// la semantica): una reazione si attiva UNA volta, quindi vale sul colpo che l'ha innescata — stessa
@@ -2977,6 +3061,23 @@ void ARTTurnManager::ResolveCombat()
 			}
 
 			T->Cell = NewCell;
+
+			// Chi subisce una spinta si gira verso CHI l'ha spinto (CP 16.1, ADR-0005 §3). Con la cella nuova,
+			// quindi la voce di log porta la posizione in cui l'unita' e' finita.
+			//
+			// Un Move volontario successivo VINCE: risolve dopo, nella sua fase, e riscrive. Non serve un flag
+			// che ricordi «e' stata spinta» — e' l'ORDINE delle fasi a deciderlo, ed e' il motivo per cui
+			// `URTFacingLibrary` non tiene stato.
+			{
+				FRTHexSimUnit Pushed(0, NewCell, /*InMoveBudget=*/ 0);
+				Pushed.Facing = T->Facing;
+				const ERTHexDirection Turned = URTFacingLibrary::FacingAfterDisplacement(
+					NewCell, KnockFrom[T], ERTDisplacementCause::Forced, Pushed.Facing);
+				URTFacingLibrary::RecordFacingChange(Pushed, Turned,
+					ERTFacingOutcome::TurnedToDisplacementSource, ERTMatchPhase::Blast, TurnLog);
+				T->Facing = Pushed.Facing;
+			}
+
 			T->SetVisualLocation(T->WorldForCell(NewCell, HexOrigin, HexSize, HexLayerH));
 			T->PlannedPath.Reset();      // path composita dalla vecchia cella non valida
 			T->PlannedWaypoints.Reset();
@@ -3029,6 +3130,19 @@ void ARTTurnManager::ResolveCombat()
 			}
 
 			T->Cell = NewCell;
+
+			// Come la spinta: chi viene trascinato guarda chi lo tira. La sorgente e' `PullToward`, che e' gia'
+			// la cella verso cui si viene attirati — con la trazione le due cose coincidono.
+			{
+				FRTHexSimUnit Pulled(0, NewCell, /*InMoveBudget=*/ 0);
+				Pulled.Facing = T->Facing;
+				const ERTHexDirection Turned = URTFacingLibrary::FacingAfterDisplacement(
+					NewCell, PullToward[T], ERTDisplacementCause::Forced, Pulled.Facing);
+				URTFacingLibrary::RecordFacingChange(Pulled, Turned,
+					ERTFacingOutcome::TurnedToDisplacementSource, ERTMatchPhase::Blast, TurnLog);
+				T->Facing = Pulled.Facing;
+			}
+
 			T->SetVisualLocation(T->WorldForCell(NewCell, HexOrigin, HexSize, HexLayerH));
 			T->PlannedPath.Reset();
 			T->PlannedWaypoints.Reset();
@@ -3112,6 +3226,9 @@ FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) c
 		// applicato nel Blast (stesso turno) si riflette gia' sulla fase Move che segue, senza bisogno di
 		// ricordare "quando" e' stato applicato.
 		SimUnit.MoveCostModifier = OutUnits[i]->HasStatus(TAG_Status_Slow) ? 1 : 0;
+		// Orientamento (CP 16.1): lo snapshot lo porta perche' e' stato di gioco, e perche' il facing di fine
+		// round e' quello di inizio del round dopo senza nessun travaso esplicito.
+		SimUnit.Facing = OutUnits[i]->Facing;
 		SimUnits.Add(SimUnit);
 	}
 	return URTHexSimLibrary::MakeSnapshot(Map, SimUnits);
@@ -3244,6 +3361,32 @@ void ARTTurnManager::ResolveMovement()
 	{
 		Units[i]->PlaceOnCell(Resolved[i].Final, Origin, HexSize, LayerH);
 		ApplyTerrainOnEnterEffects(Snapshot, Units[i], Resolved[i].Entered);
+	}
+
+	// Orientamento di fine Move (CP 16.1, `FacingFinalAfterMove` di D-020). Si deriva dalla rotta EFFETTIVA —
+	// partenza piu' celle davvero attraversate — non dal percorso pianificato: un'unita' fermata a meta' strada
+	// da una cella contesa guarda dove e' arrivata, non dove voleva andare.
+	//
+	// Dopo `PlaceOnCell`, quindi la voce di log porta la cella finale come chiave. E' l'ultima scrittura del
+	// round: il Move risolve per ultimo, e questo valore persiste nel round successivo.
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		if (Resolved[i].Entered.Num() == 0)
+		{
+			continue; // chi non si e' mosso non deriva nessun orientamento
+		}
+
+		TArray<FRTCellId> Walked;
+		Walked.Reserve(Resolved[i].Entered.Num() + 1);
+		Walked.Add(Paths[i].Num() > 0 ? Paths[i][0] : Units[i]->Cell);
+		Walked.Append(Resolved[i].Entered);
+
+		FRTHexSimUnit Moved(i, Units[i]->Cell, /*InMoveBudget=*/ 0);
+		Moved.Facing = Units[i]->Facing;
+		const ERTHexDirection Derived = URTFacingLibrary::FacingFromPath(Walked, Moved.Facing);
+		URTFacingLibrary::RecordFacingChange(Moved, Derived, ERTFacingOutcome::DerivedFromMove,
+			ERTMatchPhase::Move, TurnLog);
+		Units[i]->Facing = Moved.Facing;
 	}
 
 	// NOTA (CP 8.1): il cross-damage delle celle attraversate esiste di nuovo, ma solo per i terreni che
@@ -3459,6 +3602,28 @@ void ARTTurnManager::FinishPlayback()
 			A.Unit->SetVisualLocation(A.Unit->WorldForCell(A.Unit->Cell, PBOrigin, PBCellSize, PBLayerHeight));
 		}
 	}
+	// La mesh ATTERRA sul facing logico (CP 16.1). Durante il playback lo yaw interpola verso la direzione di
+	// marcia, che e' presentazione; a fine risoluzione deve coincidere con il valore che le REGOLE useranno nel
+	// turno dopo — altrimenti il giocatore legge un orientamento e ne subisce un altro quando arriva la difesa
+	// direzionale (CP 16.2).
+	//
+	// Qui e non alla fine dell'animazione: `SkipPlayback` passa da questa funzione, quindi saltare la
+	// risoluzione non deve lasciare la figura girata dalla parte sbagliata.
+	{
+		TArray<AActor*> AllUnitsForFacing;
+		UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), AllUnitsForFacing);
+		for (AActor* UnitActor : AllUnitsForFacing)
+		{
+			ARTUnit* U = Cast<ARTUnit>(UnitActor);
+			if (!U || !U->IsAlive()) { continue; }
+
+			const FVector Here = U->WorldForCell(U->Cell, PBOrigin, PBCellSize, PBLayerHeight);
+			const FRTCellId Ahead = URTHexLibrary::Neighbor(U->Cell, U->Facing);
+			const FVector There = U->WorldForCell(Ahead, PBOrigin, PBCellSize, PBLayerHeight);
+			U->SetActorRotation(FRotator(0.f, URTPlaybackLibrary::DirectionYaw(Here, There), 0.f));
+		}
+	}
+
 	// Catch-all: nasconde eventuali eliminati non ancora mostrati (hazard di Cleanup, oppure skip del playback).
 	for (const FRTResolvedEvent& D : PlaybackDefeated)
 	{

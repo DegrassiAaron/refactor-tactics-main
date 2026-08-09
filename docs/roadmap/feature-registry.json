@@ -500,21 +500,21 @@
       "kind": "gameplay",
       "release": "v0.1",
       "priority": "P1",
-      "status": "SPECIFIED",
-      "status_derived": "SPECIFIED",
+      "status": "INTEGRATED",
+      "status_derived": "INTEGRATED",
       "gates": {
         "spec": "done",
-        "data": "todo",
-        "runtime": "todo",
-        "log_debug": "todo",
-        "automation": "todo",
-        "scenario": "todo",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "partial"
       },
-      "gates_done": 1,
-      "gates_applicable": 8,
+      "gates_done": 6,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E16",
         "milestone": null,
@@ -528,18 +528,46 @@
         "RT-FEAT-MAP-HEXGRAPH",
         "RT-FEAT-MAP-COVER"
       ],
-      "completed_by": [],
+      "completed_by": [
+        "RT-FEAT-UI-PLANNING"
+      ],
       "owner_specs": [
         "docs/decisions/adr-0005-orientamento.md",
-        "docs/decisions/RT_PDR_00_Decision_Log.md"
+        "docs/decisions/RT_PDR_00_Decision_Log.md",
+        "docs/technical/spec-turnlog.md"
       ],
       "issues": [
         175,
         176,
-        177
+        177,
+        291
       ],
-      "tests": [],
-      "scenarios": [],
+      "tests": [
+        "RefactorTactics.Facing.LinearMoveDerivesDirection",
+        "RefactorTactics.Facing.BudgetMoveAllowsLastStepPlusMinusOne",
+        "RefactorTactics.Facing.RejectsIllegalDeclaredRotation",
+        "RefactorTactics.Facing.StationaryUnitRotatesFreely",
+        "RefactorTactics.Facing.ForcedMovementFacesSource",
+        "RefactorTactics.Facing.EnvironmentalDisplacementKeepsFacing",
+        "RefactorTactics.Facing.VoluntaryMoveWinsOverForced",
+        "RefactorTactics.Facing.DashThenBlastUsesLatestValue",
+        "RefactorTactics.Facing.TargetChangeWithinRoundReorients",
+        "RefactorTactics.Facing.RoundInheritsFinalFacing",
+        "RefactorTactics.Facing.TurnLogNamesConsumerAndReason",
+        "RefactorTactics.Facing.PermutationInvariant",
+        "RefactorTactics.Facing.IntentIsTeamFiltered",
+        "RefactorTactics.Combat.BackAttackIgnoresCover",
+        "RefactorTactics.Combat.FlankAttackKeepsCover",
+        "RefactorTactics.Combat.ShieldWorksFromAnyDirection"
+      ],
+      "scenarios": [
+        "Spec.Facing.DerivesFromMove",
+        "Spec.Facing.DashReorients",
+        "Spec.Facing.TargetingReorients",
+        "Spec.Facing.BackAttackIgnoresGuard",
+        "Spec.Facing.FrontAttackKeepsGuard",
+        "Spec.Facing.BraceHoldsFromBehind"
+      ],
       "scenarios_planned": [],
       "wiki_refs": [
         "docs/wiki/meccaniche/facing-e-direzionalita.md"
@@ -677,7 +705,7 @@
         "date": "2026-08-09",
         "commit": "b5e295a"
       },
-      "notes": "Chiuso CP 9.5 il 2026-08-09: `Action.CreateCover` entra nel catalogo in fase **Prep** (D-039, il catalogo azioni si allinea al catalogo eroi), l'operazione su struttura è un **dato** (`ERTStructureOp`) e non tre `if` sull'ActionId — è ciò che permette a `Bastion.KineticPanel`, `Bastion.Reconfigure` e `Gadget.PortableCover` di condividere la semantica. Primo consumatore runtime delle **varianti di abilità** in tutto il progetto (`ARTUnit::ActiveVariantId`): i `Parameters` erano dichiarati e non letti da nessuno. `Spec.Cover.TemporaryCoverExpires` passa da `BLOCKED` a `PASS` su 4 turni — era una specifica eseguibile scritta prima dell'implementazione. `ui_wiki` resta `partial`: il targeting per bordo nell'HUD è E11, e la pagina wiki non è aggiornata."
+      "notes": "Chiuso CP 9.5 il 2026-08-09: `Action.CreateCover` entra nel catalogo in fase **Prep** (D-040, il catalogo azioni si allinea al catalogo eroi), l'operazione su struttura è un **dato** (`ERTStructureOp`) e non tre `if` sull'ActionId — è ciò che permette a `Bastion.KineticPanel`, `Bastion.Reconfigure` e `Gadget.PortableCover` di condividere la semantica. Primo consumatore runtime delle **varianti di abilità** in tutto il progetto (`ARTUnit::ActiveVariantId`): i `Parameters` erano dichiarati e non letti da nessuno. `Spec.Cover.TemporaryCoverExpires` passa da `BLOCKED` a `PASS` su 4 turni — era una specifica eseguibile scritta prima dell'implementazione. `ui_wiki` resta `partial`: il targeting per bordo nell'HUD è E11, e la pagina wiki non è aggiornata."
     },
     {
       "feature_id": "RT-FEAT-MAP-INTERACTIVE-EDGES",
@@ -3104,7 +3132,7 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "Quattro pagine Wiki e le righe `DATA_READY_v0.2` nel workbook esistono; **nessun dato di gioco e nessuna epic**. È il caso tipico da non promuovere: la documentazione è avanti al codice ed è corretto che lo sia, purché il blocco di stato lo dica."
+      "notes": "Quattro pagine Wiki e le righe `DATA_READY_v0.2` nel workbook esistono; **nessun dato di gioco**. L'epic esiste in `roadmap-post-v0.1.md` e si chiama **E35** dal 2026-08-09 (D-039: il numero `E21` era stato assegnato lo stesso giorno anche a *Presentazione e leggibilita'* della v0.1, che lo tiene perche' e' il lato verificato da questo registry). Il campo `roadmap.epic` resta `null` di proposito: il validator conosce solo le epic della **roadmap di release**, e assegnarne una qui farebbe comparire una feature v0.2 nella tabella §2.2 della v0.1. È il caso tipico da non promuovere: la documentazione è avanti al codice ed è corretto che lo sia, purché il blocco di stato lo dica."
     },
     {
       "feature_id": "RT-FEAT-CHAR-PRESENTATION",
@@ -3149,7 +3177,12 @@
         "docs/decisions/adr-0001-skeletal-unit.md",
         "docs/characters/paragon.md"
       ],
-      "issues": [],
+      "issues": [
+        286,
+        287,
+        288,
+        289
+      ],
       "tests": [
         "RefactorTactics.Unit.TeamColorFor",
         "RefactorTactics.Unit.RingLocalZ",
@@ -3165,7 +3198,7 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "Il C++ (spawn con fallback, facing di presentazione, anello di team) è in `main`, il lavoro in editor no. Fino al 2026-08-08 era la milestone **M8** senza epic corrispondente nella vista di release: **E21** chiude quel buco. Il gate `packaged` resta `todo` perché la build packaged mostra ancora i cilindri. **D-037** (2026-08-08) toglie l'ultimo ostacolo di decisione: ogni eroe ha uno slot asset Paragon dichiarato — Flux `Gadget`, Riva `Phase`, Bastion `Riktor`, Vektor `Wraith` — quindi assegnare mesh e animazioni non richiede più una scelta. Nessun gate si muove: la decisione è documentale, in editor non e' stato assegnato niente."
+      "notes": "Il C++ (spawn con fallback, facing di presentazione, anello di team) è in `main`, il lavoro in editor no. Fino al 2026-08-08 era la milestone **M8** senza epic corrispondente nella vista di release: **E21** chiude quel buco, e dal 2026-08-09 e' tracciata su GitHub (#286 + #287/#288/#289) — era l'unica epic della v0.1 senza issue. Il gate `packaged` resta `todo` perché la build packaged mostra ancora i cilindri. **D-037** (2026-08-08) toglie l'ultimo ostacolo di decisione: ogni eroe ha uno slot asset Paragon dichiarato — Flux `Gadget`, Riva `Phase`, Bastion `Riktor`, Vektor `Wraith` — quindi assegnare mesh e animazioni non richiede più una scelta. Nessun gate si muove: la decisione è documentale, in editor non e' stato assegnato niente."
     },
     {
       "feature_id": "RT-FEAT-CHAR-TRANSFORMATION",

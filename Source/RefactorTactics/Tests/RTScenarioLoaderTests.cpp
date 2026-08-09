@@ -112,6 +112,19 @@ bool FRTScenarioLoaderRejectsTest::RunTest(const FString&)
 	Rejects(TEXT(R"({"scenarioId":"X","version":99,"mapRadius":3,"units":[{"id":"A","hero":"Hero.Flux","team":0,"cell":[0,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		TEXT("non supportato"), TEXT("versione di formato futura"));
 
+	// Chiave di INTENT sconosciuta (CP 16.1). Prima veniva ignorata in silenzio, e uno scenario che chiedeva
+	// qualcosa che l'harness non sa fare girava verde verificando tutto tranne quello. Vale anche per un refuso
+	// su una chiave vera: `dashCell` al posto di `dashTo` e' l'errore che questo controllo coglie per primo.
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Flux","team":0,"cell":[0,0,0]}],"turns":[{"intents":[{"unit":"A","facing":"NE"}]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("chiave sconosciuta"), TEXT("chiave di intent inventata"));
+
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Bastion","team":0,"cell":[0,0,0]}],"turns":[{"intents":[{"unit":"A","dash":"Bastion.Ram","dashCell":[1,0,0]}]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("chiave sconosciuta"), TEXT("refuso su una chiave vera"));
+
+	// Una direzione inventata in UnitFacing non deve diventare «guarda a est» per arrotondamento.
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Flux","team":0,"cell":[0,0,0]}],"expect":[{"type":"UnitFacing","unit":"A","value":"NNE"}]})"),
+		TEXT("direzione 'NNE' sconosciuta"), TEXT("direzione di facing inventata"));
+
 	return true;
 }
 

@@ -365,7 +365,7 @@ appena entrato nella cella.
 | `Action.ModifyArc` | Modifica arco | Blast | 40 | 75 | 3 | modifica collegamento | 2 |
 
 > **Allineamento 2026-08-09 — `Action.CreateCover` risolve in `Prep`, non nel Blast**
-> ([D-039](../decisions/RT_PDR_00_Decision_Log.md), E9.5).
+> ([D-040](../decisions/RT_PDR_00_Decision_Log.md), E9.5).
 >
 > Questa riga diceva Blast mentre il [catalogo eroi](RT_HeroCatalog_v0.1.md) e il codice davano
 > `Bastion.KineticPanel` in Prep. Prevale **Prep**, e la ragione è che eretta nel Blast la copertura

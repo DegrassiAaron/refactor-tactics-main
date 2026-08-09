@@ -36,6 +36,13 @@ struct FRTHexCombatUnit
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
 	bool bAlive = true;
 
+	/**
+	 * Orientamento al momento del Blast (CP 16.2): decide da che lato l'unita' e' SCOPERTA. E' il valore
+	 * autorevole piu' recente della timeline di D-020 — quello scritto dallo scatto, se c'e' stato uno scatto.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	ERTHexDirection Facing = ERTHexDirection::E;
+
 	FRTHexCombatUnit() = default;
 };
 
@@ -217,6 +224,22 @@ public:
 	 * NOTA: e' una direzionalita' del BORDO. Il facing dell'unita' (ADR-0005) e' ortogonale e non la ruota:
 	 * un colpo fuori dall'arco frontale ANNULLERA' questa riduzione (CP 16.2), come regola additiva.
 	 */
+	/**
+	 * L'origine di un colpo sta nell'ARCO FRONTALE del difensore? (CP 16.2, ADR-0005 §4a)
+	 *
+	 * L'arco e' il ventaglio di 120 gradi `HexCone(DefenderCell, Neighbor(DefenderCell, Facing), Range)`: la
+	 * STESSA primitiva che usera' la vista a cono (CP 13.1). Una seconda geometria sarebbe una seconda verita',
+	 * e il giorno in cui una delle due cambiasse il gioco direbbe che vedi da una parte e ti difendi dall'altra.
+	 *
+	 * Il `Range` del cono e' la distanza dell'origine, cosi' l'arco copre esattamente fin dove serve: chiedere
+	 * un raggio fisso escluderebbe i colpi da lontano, che sono frontali quanto quelli vicini.
+	 *
+	 * Origine COINCIDENTE col difensore -> `true`: un colpo a distanza zero non ha un lato da cui arriva, e
+	 * negare la protezione sarebbe una scelta di bilanciamento mascherata da geometria.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")
+	static bool IsInFrontalArc(const FRTCellId& DefenderCell, ERTHexDirection Facing, const FRTCellId& OriginCell);
+
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")
 	static int32 HexCoverDamageReduction(const URTHexMapAsset* Map, const FRTCellId& From,
 		const FRTCellId& Target, ERTAbilityShape Shape);
