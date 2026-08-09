@@ -53,14 +53,15 @@
 
 ## Stato in numeri — 2026-08-09
 
-**115 voci**: ✅ **26 verdi** · 🟡 **21 parziali** (regola coperta da test, resta il visivo) · ⏳ **68 aperte**.
+**116 voci**: ✅ **26 verdi** · 🟡 **21 parziali** (regola coperta da test, resta il visivo) · ⏳ **69 aperte**.
 
 *(Rimisurate col comando qui sotto il **2026-08-09** **dopo il merge**, non prima: due rami hanno toccato
 questo file lo stesso giorno e ognuno aveva il **proprio** numero giusto — `114 (25/21/68)` da un lato, con le
 tre voci `PIE-VIS-GUARD`, `PIE-VIS-BRACE` e `PIE-VIS-COORD`; `112 (26/21/65)` dall'altro, con
 `PIE-PREVIEW-AREA` promossa a ✅ e `PIE-PREVIEW-PERSIST` aperta. **Nessuno dei due valeva più dopo l'unione.**
-È il difetto che questo documento ha già pagato quattro volte, e l'unica difesa è quella scritta qui sotto: si
-misura **dopo il merge**, col comando. `senza-marcatore` resta **0**.)*
+Poi è arrivata la chiusura di **E16** con `PIE-FACING-1`, e il numero è cambiato una **terza** volta nello
+stesso giorno. È il difetto che questo documento ha già pagato quattro volte, e l'unica difesa è quella
+scritta qui sotto: si misura **dopo il merge**, col comando. `senza-marcatore` resta **0**.)*
 
 > ⚠️ **Tre scenari visivi erano nel corpus senza una voce qui, ed è la classe di buco peggiore che questo
 > registro possa avere**: uno scenario eseguito, verde, e **mai guardato da nessuno** — cioè un file che
@@ -118,15 +119,17 @@ awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);
   docs/technical/test-manuali-pie.md
 ```
 
-Delle 68 aperte, **50 stanno negli otto gruppi qui sotto** (`1+9+9+4+3+1+2+21 = 50`). Le **18 mancanti** sono
+Delle 69 aperte, **50 stanno negli otto gruppi qui sotto** (`1+9+9+4+3+1+2+21 = 50`). Le **19 mancanti** sono
 7 voci aggiunte il 2026-08-08 da un'altra sessione, le **10** `PIE-STATE-*` di E34 — che non entrano in una
-sessione di verifica perché non sono eseguibili — e `PIE-PREVIEW-PERSIST`, aperta il 2026-08-09. Le lascio
+sessione di verifica perché non sono eseguibili — più `PIE-PREVIEW-PERSIST` e `PIE-FACING-1`, aperte il
+2026-08-09. Le lascio
 dichiarate invece di gonfiare una riga a caso, perché una somma che torna con sé stessa è il modo più facile
 di sembrare verificati senza esserlo (vedi la nota qui sopra). Chi le ha scritte sa dove vanno.
 
-**Otto delle diciotto sono nel subset `RELEASE-V01`** — `PIE-HEXPLAY-1/2/3/8`, `PIE-V01-HUD`, `PIE-V01-LOG`,
-`PIE-V01-INTENT`, `PIE-V01-ROSTER` — e questa è la conseguenza che vale la pena vedere: **il gate G9 dipende
-per metà da voci che nessuna seduta pianifica**. Assegnarle vale più che eseguirne una a caso.
+**Nove delle diciannove sono nel subset `RELEASE-V01`** — `PIE-HEXPLAY-1/2/3/8`, `PIE-V01-HUD`,
+`PIE-V01-LOG`, `PIE-V01-INTENT`, `PIE-V01-ROSTER`, `PIE-FACING-1` — e questa è la conseguenza che vale la pena
+vedere: **il gate G9 dipende per metà da voci che nessuna seduta pianifica**. Assegnarle vale più che
+eseguirne una a caso.
 
 > ⚠️ **Nota di metodo.** Fino al 2026-08-08 questa riga diceva «le **31** aperte in sei gruppi», con
 > una somma «verificata» di `2+9+9+4+4+1+2 = 31`, mentre poche righe sopra il conteggio **misurato** ne
@@ -163,24 +166,29 @@ gioco), le voci che producono **numeri di playtest** (G11 chiede di *avere* i nu
 corpus `Visual.*` (leggibilità, non consegnabilità: la regola è già coperta dalle assertion), e tutto ciò che
 appartiene a E34 o alla v0.2.
 
-**16 voci** — si contano col comando, non a memoria:
+**17 voci** — si contano col comando, non a memoria:
 
 ```bash
 # il marcatore compare anche nella prosa qui sopra: si conta la RIGA DI TABELLA, non la parola
-grep -c '^| \*\*PIE-[A-Za-z0-9.-]*\*\* `RELEASE-V01`' docs/technical/test-manuali-pie.md    # 16
+grep -c '^| \*\*PIE-[A-Za-z0-9.-]*\*\* `RELEASE-V01`' docs/technical/test-manuali-pie.md    # 17
 
 awk -F'|' '/RELEASE-V01/ && /^\| \*\*PIE-/ {s=$(NF-1);
   if (match(s, /✅|🟡|⏳/)) c[substr(s, RSTART, RLENGTH)]++ }
   END {printf "verde=%d parziale=%d aperta=%d\n", c["✅"], c["🟡"], c["⏳"]}' \
-  docs/technical/test-manuali-pie.md                              # 1 / 7 / 8 al 2026-08-09
+  docs/technical/test-manuali-pie.md                              # 2 / 7 / 8 al 2026-08-09
 ```
 
 Motivazione voce per voce e stato aggregato: [`scenario-map.md`](scenario-map.md) §8.
 
-**Otto delle sedici non stanno in nessuna seduta** — `PIE-HEXPLAY-1/2/3/8`, `PIE-V01-HUD`, `PIE-V01-LOG`,
-`PIE-V01-INTENT`, `PIE-V01-ROSTER` — e per la regola già scritta qui sotto («una voce che non sta in una
-seduta non viene eseguita mai») è la cosa da sistemare per prima: **assegnare le otto a una seduta vale più
-che eseguirne una a caso**.
+**Nove delle diciassette non stanno in nessuna seduta** — `PIE-HEXPLAY-1/2/3/8`, `PIE-V01-HUD`,
+`PIE-V01-LOG`, `PIE-V01-INTENT`, `PIE-V01-ROSTER`, `PIE-FACING-1` — e per la regola già scritta qui sotto
+(«una voce che non sta in una seduta non viene eseguita mai») è la cosa da sistemare per prima: **assegnarle
+a una seduta vale più che eseguirne una a caso**.
+
+`PIE-FACING-1` è entrata nel subset il 2026-08-09, con la chiusura di **E16**, e non per completezza: dal
+CP 16.2 l'emisfero posteriore è **scoperto**, quindi il facing decide il danno. Se l'orientamento che si vede
+non è quello che il resolver ha usato, il giocatore non può pianificare una difesa direzionale — è
+leggibilità minima nel senso più stretto, non presentazione.
 
 > Spostare una voce dentro o fuori è legittimo, purché la si sposti **qui e in `scenario-map.md` insieme** e
 > purché il motivo sia il criterio. Quello che non è legittimo è lasciarlo vuoto.
@@ -248,6 +256,7 @@ che eseguirne una a caso**.
 | **PIE-HEXPLAY-7** | Bot su hex | almeno un'unità con `bIsBotControlled` | Il bot propone **solo mosse legali** (mai celle occupate o fuori budget), preferisce le celle al riparo, il kiter mantiene la distanza e la mischia chiude; il log utility mostra celle in coordinate **assiali** `(q,r,L)` | ⏳ **eseguibile da CP 6.6**. Coperto headless da `RefactorTactics.HexBotPlay.*` (mosse legali, panico, supporto, tuning, scatto prudente); il PIE aggiunge il **giudizio sul comportamento**: gli score hanno senso guardando la partita? |
 | **PIE-HEXPLAY-8** `RELEASE-V01` | Multilivello: movimento via arco | mappa con due layer collegati da una transizione | Un percorso che usa scala/ponte **cambia layer**; il playback porta l'unità alla quota giusta (`LayerHeight`); rimuovendo l'arco i due layer tornano irraggiungibili (il path fallisce, non «teletrasporta») | 🟡 **coperto headless**: da `RefactorTactics.HexMove.ClimbsOnlyThroughTransition` (2026-08-06) e, con **CP 9.4** (2026-08-08), da `Structures.Bridge.RemovalBreaksPath` — il percorso fra i due layer **fallisce** (`NoPath`, nessuna cella restituita) e la cella oltre esiste ancora, quindi manca il collegamento e non la destinazione — e da `Structures.Bridge.NoTeleportOnRemoval`, che lo verifica su un **turno vero**: il ponte cade nel Blast e chi lo stava attraversando resta dov'era. Al PIE resta il **playback**: che l'unità salga alla quota giusta (`LayerHeight`) invece di scivolare sul piano, e che il crollo del ponte si veda |
 | **PIE-HEXPLAY-9** `RELEASE-V01` | HUD e anteprima piani su hex | partita hex avviata | Barre HP/scudo/energia, timer, fase e combat log invariati; l'anteprima dei piani (ciano), i marker dei waypoint, la preview dello scatto (magenta) e la traccia post-lock (grigia) seguono i **centri esagonali** e coincidono col percorso realmente eseguito; il combat log riporta i reason code con coordinate **assiali** `(q=..,r=..,L=..)`; **`Home`** ricentra la camera sulla mappa esagonale | ⏳ **eseguibile da CP 6.7** |
+| **PIE-FACING-1** `RELEASE-V01` | L'orientamento logico e quello che si vede sono lo stesso | partita hex avviata, un'unita' che si muove e una che attacca in un'altra direzione | A fine playback la mesh **guarda dove guarda la regola**: chi si e' mosso e' orientato lungo l'ultimo passo, chi ha attaccato verso il bersaglio. Premendo **Spazio** per saltare il playback l'esito e' lo **stesso** (lo snap passa da `FinishPlayback`, che il salto attraversa). Il combat log mostra le voci di orientamento con la direzione (`si orienta a NE (movimento)`), e quando un colpo arriva da dietro dice **perche'** la copertura non ha protetto | ⏳ **CP 16.1/16.2 (2026-08-09)**. Coperto headless da 13 test `Facing.*` e 5 scenari `Spec.Facing.*`, che pero' leggono il facing **logico**: al PIE resta l'unica cosa che nessun test vede, cioe' se la figura a schermo e il valore che decide le regole coincidono davvero. ⚠️ Manca un **indicatore dell'arco frontale** in HUD: senza, il giocatore non puo' sapere da dove e' scoperto prima di essere colpito — e' il motivo per cui il gate `ui_wiki` della feature resta `partial` |
 | **PIE-HEXPLAY-10** `RELEASE-V01` | Partita completa fino alla vittoria | partita hex avviata, almeno un'unità per squadra col bot | La partita arriva a una **conclusione**: una squadra viene eliminata, compare «PARTITA FINITA» e `R` riavvia. Durante i turni: nessuna unità sovrapposta o fuori mappa, nessun blocco della pianificazione. **Dato di riferimento** (misurato headless il 2026-08-06): bot contro bot la partita si decide al **turno 10**, dentro il limite di 12 del catalogo. Era **25** finché lo scudo di supporto non scadeva e si accumulava (issue `#96`, risolta) | ⏳ **eseguibile da CP 6.7**. Coperta headless da `RefactorTactics.HexMatch.PlaysToCompletion` (tenuta e invarianti); il PIE aggiunge il **giudizio sul ritmo**, che nessun test può dare |
 
 ### Contenuto della v0.1 (catalogo azioni, eroi, ambiente, strutture)

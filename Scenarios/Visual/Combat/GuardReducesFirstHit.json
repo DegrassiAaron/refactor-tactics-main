@@ -13,10 +13,12 @@
 
   "_nota_self": "L'intent non dichiara un bersaglio, ed e' corretto: un'azione di Prep risolve su chi la usa (`Instance.TargetUnitId = i` nel TurnManager), quindi non c'e' niente da bersagliare.",
 
+  "_nota_orientamento": "Da CP 16.2 la guardia copre il DAVANTI: entrambi gli attaccanti stanno a est, cioe' nell'arco frontale di B1, che guarda a est di partenza e non fa niente per girarsi. Prima F1 stava a (-2,0,0) e il primo colpo arrivava alle spalle — la guardia non sarebbe valsa, e questo scenario avrebbe misurato la difesa direzionale invece della regola «una volta sola» che dice di verificare. Il colpo alle spalle ha i suoi scenari: `Spec.Facing.BackAttackIgnoresGuard` e la sua coppia.",
+
   "units": [
-    { "id": "B1", "hero": "Hero.Bastion", "team": 0, "cell": [ 0, 0, 0] },
-    { "id": "F1", "hero": "Hero.Flux",    "team": 1, "cell": [-2, 0, 0] },
-    { "id": "V1", "hero": "Hero.Vektor",  "team": 1, "cell": [ 2, 0, 0] }
+    { "id": "B1", "hero": "Hero.Bastion", "team": 0, "cell": [0,  0, 0] },
+    { "id": "F1", "hero": "Hero.Flux",    "team": 1, "cell": [2, -1, 0] },
+    { "id": "V1", "hero": "Hero.Vektor",  "team": 1, "cell": [2,  0, 0] }
   ],
 
   "turns": [

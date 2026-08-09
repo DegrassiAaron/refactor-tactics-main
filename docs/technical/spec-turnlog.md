@@ -123,6 +123,41 @@ Il TurnLog è un `TArray<FRTTurnLogEntry>`, membro di `ARTTurnManager`, con gett
 **Priorità Combat (enum a valore singolo, deterministica):**
 `Lethal` > `ShieldAbsorbed` > `TerrainBonus` > `Hit`. (`NoLineOfSight` è un ramo distinto: attacco non applicato.)
 
+### 4.1 Categoria `Facing` — orientamento *(aggiunta il 2026-08-09, CP 16.1)*
+
+`ERTLogCategory` guadagna `Facing` **in coda**, con la stessa disciplina di `Fallback`, `Reaction` ed
+`Environment`: la categoria viaggia come `uint8`, nessun campo nuovo entra nella voce, quindi **il formato
+serializzato non cambia versione** e le tracce già scritte restano leggibili.
+
+```cpp
+UENUM(BlueprintType) enum class ERTFacingOutcome : uint8 {
+    DerivedFromMove,                  // FacingFinalAfterMove: derivato dall'ultimo passo
+    DerivedFromDash,                  // FacingAfterDash
+    DeclaredInPlanning,               // rotazione dichiarata e accettata
+    DeclarationRejected,              // dichiarata fuori dall'insieme legale: rifiutata
+    TargetingReoriented,              // FacingAfterPrepActionTargeting: bersaglio prima di risolvere
+    TurnedToDisplacementSource,       // spinta subita: girata verso la sorgente
+    KeptOnEnvironmentalDisplacement,  // trascinamento senza sorgente: invariato
+    UsedByBlast,                      // LETTURA: il colpo ha usato questo valore
+    UsedByOverwatch                   // LETTURA: l'overwatch ha usato questo valore (E14)
+};
+```
+
+**Perché scritture e letture stanno nello stesso enum.** [D-020](../decisions/RT_PDR_00_Decision_Log.md)
+stabilisce che il facing cambia più volte per round e che ogni consumatore legge il valore autorevole più
+recente. Un log di sole scritture direbbe *quando è cambiato* ma non *cosa ha usato il Blast*, e un round con
+scatto e colpo nella stessa sequenza resterebbe ambiguo. La domanda a cui il replay deve rispondere è una
+sola — *quale valore valeva quando* — e la risposta ha due forme: chi lo ha scritto e chi lo ha letto.
+
+**`Amount` porta la direzione**, come valore di `ERTHexDirection` (0..5). È un intero, quindi rispetta
+l'invariante #4 ed entra nell'hash del replay senza modifiche a `HashTurnLog`. La convenzione è la stessa già
+in uso: `Amount` è il payload numerico della categoria — danno per `Combat`, celle percorse per `Move`.
+
+**Un non-cambiamento non è un evento.** Riscrivere il facing che l'unità ha già non produce nessuna voce:
+altrimenti l'hash del replay diventerebbe sensibile a scritture che non decidono niente. L'unica eccezione è
+`DeclarationRejected`, che è osservabile **proprio perché** non cambia nulla — e registra la direzione
+**conservata**, non quella chiesta: il log dice cosa vale, non cosa era stato domandato.
+
 ---
 
 ## 5. Classificazione (il cuore testabile)

@@ -762,6 +762,30 @@ void FRTScenarioSession::Finish()
 			A.bPassed = (bIsAlive == bWantAlive);
 			break;
 		}
+		case ERTAssertionKind::UnitFacing:
+		{
+			static const TCHAR* DirectionNames[6] = { TEXT("E"), TEXT("NE"), TEXT("NW"), TEXT("W"), TEXT("SW"), TEXT("SE") };
+			const int32 WantIndex = FMath::Clamp(Exp.Value, 0, 5);
+			A.Description = FString::Printf(TEXT("UnitFacing(%s)"), *Exp.UnitId);
+			A.Expected = DirectionNames[WantIndex];
+
+			TWeakObjectPtr<ARTUnit>* Found = UnitsById.Find(Exp.UnitId);
+			const ARTUnit* Unit = Found ? Found->Get() : nullptr;
+			if (!Unit)
+			{
+				A.Actual = TEXT("unita' assente");
+				A.bPassed = false;
+			}
+			else
+			{
+				// Il facing LOGICO, non lo yaw dell'attore: e' il valore che le regole leggono, e l'unico che
+				// abbia senso confrontare quando il playback puo' essere ancora a meta' interpolazione.
+				const int32 ActualIndex = FMath::Clamp(static_cast<int32>(Unit->Facing), 0, 5);
+				A.Actual = DirectionNames[ActualIndex];
+				A.bPassed = (ActualIndex == WantIndex);
+			}
+			break;
+		}
 		default:
 			A.Description = TEXT("assertion non implementata");
 			A.bPassed = false;

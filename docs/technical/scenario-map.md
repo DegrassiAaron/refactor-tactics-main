@@ -25,7 +25,7 @@ verificabile, ed è la seconda volta che succede a G9: la formulazione precedent
 `PIE-V01-*`» quando il registro ne contava 74.
 
 La causa non è la distrazione: è che **la ripartizione fra automatico e umano non stava scritta da nessuna
-parte**. Vive implicita in quattro posti diversi — il corpus `Scenarios/`, le 115 voci del registro PIE, il
+parte**. Vive implicita in quattro posti diversi — il corpus `Scenarios/`, le 116 voci del registro PIE, il
 gate `scenario` del Feature Registry, e le fasce di `scenari-validazione-visiva.md` — e ricomporla a memoria
 produce ogni volta un numero diverso. Questo file la scrive una volta, con i comandi per rimisurarla.
 
@@ -51,13 +51,19 @@ scegliendo lo scenario e premendo Play, una voce C richiede di allestire, clicca
 
 | Classe | Quanti | Dove |
 |---|---:|---|
-| **A** — automatico | **14** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `RT_Showcase_Relay_v01` |
+| **A** — automatico | **20** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `RT_Showcase_Relay_v01` |
 | **B** — automatico + occhio | **21** scenari ↔ **21** voci `PIE-VIS-*` | `Scenarios/Visual/` |
-| **C** — solo umano | **94** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima |
-| **D** — dichiarato | **8** scenari `Spec.*` scritti · **10** pianificati · **8** mai scritti | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
+| **C** — solo umano | **95** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima |
+| **D** — dichiarato | **8** scenari `Spec.*` ancora `BLOCKED` · **10** pianificati · **4** mai scritti | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
 
-Totale corpus versionato: **43** scenari (`A 14 + B 21 + D-scritti 8`). Totale registro PIE: **115** voci
-(`B 21 + C 94`).
+Totale corpus versionato: **49** scenari (`A 20 + B 21 + D-bloccati 8`). Totale registro PIE: **116** voci
+(`B 21 + C 95`).
+
+> ⚠️ **La cartella non è la classe.** I sei `Spec.Facing.*` stanno in `Scenarios/Spec/` e sono di **classe A**:
+> `requires` è vuoto perché **E16 è chiusa**, quindi girano e giudicano da soli. È il meccanismo del corpus che
+> funziona come previsto — «si accendono da soli quando la capability atterra» — osservato per la prima volta
+> il 2026-08-09. Un file si classifica leggendo il suo `requires` e la disponibilità della capability, mai il
+> percorso: le cartelle sono storage e non promettono nulla ([`scenario-index-e-tag.md`](scenario-index-e-tag.md) §2).
 
 ---
 
@@ -82,6 +88,12 @@ Il verdetto è l'assertion. Nessuna di queste righe compare nel registro PIE, ed
 | `Movement.Collision` | r3 | 3 | chi cede la cella contesa, e con quale reason |
 | `Movement.LongWalk` | r5 | 3 | due unità attraversano l'arena su due turni |
 | `Movement.SwapRejectedByPlanning` | r3 | 3 | lo scambio diretto A↔B è rifiutato **in pianificazione**, non dal resolver |
+| `Spec.Facing.DerivesFromMove` | — | — | il `Move` fissa `FacingFinalAfterMove`, che **persiste** nel round dopo |
+| `Spec.Facing.DashReorients` | — | — | il Dash riscrive l'orientamento **prima** del Blast |
+| `Spec.Facing.TargetingReorients` | — | — | un'azione con bersaglio orienta l'unità *prima* di risolvere (D-020) |
+| `Spec.Facing.FrontAttackKeepsGuard` | — | — | `Guard` riduce dentro l'arco frontale |
+| `Spec.Facing.BackAttackIgnoresGuard` | — | — | e **non** riduce da dietro: l'emisfero posteriore è scoperto (CP 16.2) |
+| `Spec.Facing.BraceHoldsFromBehind` | — | — | `Brace` invece tiene da ogni lato — è ciò che lo distingue da `Guard` |
 | `RT_Showcase_Relay_v01` | RelayBasin | 5 | gli 8 turni della showcase — oggi **BLOCKED** su 5 capability (§6) |
 
 > ⚠️ `Movement.BasicFailsOnPurpose` è escluso da `EveryShippedScenarioRuns` e verificato **al contrario** da
@@ -136,7 +148,7 @@ Oppure `rt.Test.Scenario <Id>`. Nessun'altra preparazione: gli scenari portano a
 
 ## 5. Classe C — solo input umano
 
-94 voci del registro PIE che **nessuno scenario può sostituire**. La ripartizione qui sotto è per sezione del
+95 voci del registro PIE che **nessuno scenario può sostituire**. La ripartizione qui sotto è per sezione del
 registro — che è verificabile — con la ragione per cui serve una persona. Il dettaglio di ogni voce (esito
 atteso, stato, copertura headless già esistente) resta in [`test-manuali-pie.md`](test-manuali-pie.md), che
 ne è l'owner: qui non se ne ricopia nessuno, perché è esattamente la duplicazione che questo repository ha già
@@ -145,7 +157,7 @@ pagato quattro volte.
 | Sezione del registro | Voci | Perché serve una persona |
 |---|---:|---|
 | Checklist principale (materiali, editor mode, bot) | 31 | **Gesto e asset**: drag, gizmo, Undo, materiali da creare in editor. Un test può dire che `HandleClickOnCell` ha scelto la cella giusta, non che il mouse ci arrivi |
-| Partita su griglia esagonale (M6) | 15 | **Ciò che solo l'occhio vede**: unità centrate sui centri-cella, fluidità del playback, nessun residuo di griglia quadrata. La logica è coperta headless per 5 voci su 15 |
+| Partita su griglia esagonale (M6) | 16 | **Ciò che solo l'occhio vede**: unità centrate sui centri-cella, fluidità del playback, nessun residuo di griglia quadrata. La logica è coperta headless per 5 voci su 15 |
 | Contenuto della v0.1 | 18 | **Leggibilità e asset**: che il giocatore *capisca* dal log, che l'arancione del fuoco amico si **noti**, che l'asset mappa si editi a mano |
 | Strumenti di leggibilità | 2 | **Giudizio a schermo puro**: `PIE-PREVIEW-AREA` ha già trovato due difetti che nessun test poteva vedere — un contorno disegnato sotto il cilindro, e un linguaggio che parlava di celle mentre la domanda era sulle unità |
 | Scenario Test Harness | 6 | **Ciò che l'utente non deve dover fare**: «premo Play e parte da solo», e un esito che si legga **senza aprire l'Output Log** |
@@ -170,6 +182,10 @@ utile: **`previewUnit` è presentazione e non cambia l'esito**, verificato da
 `Scenarios/Spec/` contiene scenari che descrivono una feature **che non esiste**. Dichiarano la capability in
 `requires`, escono `BLOCKED` nominandola, e si accendono da soli quando atterra. `BLOCKED` è trattato
 **verde** da `EveryShippedScenarioRuns`: trattarlo come rosso renderebbe irrazionale scriverne in anticipo.
+
+> ✅ **Il meccanismo ha funzionato, e si è visto il 2026-08-09.** I sei `Spec.Facing.*` scritti per E16 hanno
+> `requires` **vuoto** da quando l'epic è chiusa: girano, giudicano, e sono di classe **A**. Nessuno ha dovuto
+> ricordarsi di «promuoverli» — è la differenza fra uno scenario-spec e una nota in un documento.
 
 | ScenarioId | `requires` | Epic che lo accende |
 |---|---|---|
@@ -227,9 +243,9 @@ Nessun numero di questo documento va aggiornato a memoria. Tutti si ricalcolano:
 
 ```bash
 # Classe A + B + D-scritti — il corpus versionato
-find Scenarios -name '*.json' ! -name '_*' | wc -l                        # 43
+find Scenarios -name '*.json' ! -name '_*' | wc -l                        # 49
 find Scenarios/Visual -name '*.json' | wc -l                              # 21  (B)
-find Scenarios/Spec   -name '*.json' | wc -l                              # 8   (D)
+find Scenarios/Spec   -name '*.json' | wc -l                              # 14  (8 in D + 6 accesi in A)
 
 # Registro PIE — verdi / parziali / aperte, e il totale
 awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);
@@ -242,7 +258,7 @@ echo "scenari: $(find Scenarios/Visual -name '*.json' | wc -l)  \
 voci: $(grep -c '^| \*\*PIE-VIS-' docs/technical/test-manuali-pie.md)"
 
 # Subset di release: deve valere quanto la tabella §8
-grep -c '^| \*\*PIE-[A-Za-z0-9.-]*\*\* `RELEASE-V01`' docs/technical/test-manuali-pie.md    # 16
+grep -c '^| \*\*PIE-[A-Za-z0-9.-]*\*\* `RELEASE-V01`' docs/technical/test-manuali-pie.md    # 17
 
 # ...e il suo stato, che è ciò che G9 deve poter leggere senza contare a mano
 awk -F'|' '/RELEASE-V01/ && /^\| \*\*PIE-/ {s=$(NF-1);
@@ -252,7 +268,7 @@ awk -F'|' '/RELEASE-V01/ && /^\| \*\*PIE-/ {s=$(NF-1);
 ```
 
 > ⚠️ Il conteggio del subset **non** si fa con `grep -c 'RELEASE-V01'` nudo: il marcatore compare anche nella
-> prosa che lo spiega, e quella forma dà **23**. È lo stesso difetto del comando di conteggio del registro
+> prosa che lo spiega, e quella forma dà **24**. È lo stesso difetto del comando di conteggio del registro
 > PIE, che per settimane ha cercato `✅` *ovunque* nella cella invece che come primo carattere — un comando
 > approssimativo mente con l'autorevolezza di una misura.
 
@@ -281,6 +297,7 @@ producono **numeri di playtest** (G11 chiede di *avere* i numeri, non di centrar
 | `PIE-HEXPLAY-6` | LOS esagonale, e che il giocatore capisca perché il colpo non parte | ⏳ |
 | `PIE-HEXPLAY-8` | **multilivello**: il movimento via arco, esplicitamente nominato da G10 | 🟡 |
 | `PIE-HEXPLAY-9` | HUD e anteprima piani sui centri esagonali | ⏳ |
+| `PIE-FACING-1` | l'orientamento che si **vede** è quello che il resolver ha **usato** | ⏳ |
 | `PIE-HEXPLAY-10` | **partita completa fino alla vittoria** — è G10 | ⏳ |
 | `PIE-CAM-START` | la partita si apre sulla propria squadra | ✅ |
 | `PIE-V01-MATCHEND` | **fine partita a tre vie**, a schermo, e `R` riavvia | ⏳ |
@@ -290,7 +307,7 @@ producono **numeri di playtest** (G11 chiede di *avere* i numeri, non di centrar
 | `PIE-V01-ROSTER` | i quattro eroi si sentono diversi da giocare | 🟡 |
 | `PIE-PREVIEW-AREA` | **leggibilità minima**: si capisce cosa si sta per colpire, prima del lock-in | ✅ |
 
-**16 voci: 2 verdi, 7 parziali, 7 aperte** — misurate col comando di §7, non contate a mano dalla tabella.
+**17 voci: 2 verdi, 7 parziali, 8 aperte** — misurate col comando di §7, non contate a mano dalla tabella.
 
 `PIE-PREVIEW-AREA` è passata a ✅ il 2026-08-09 dopo **tre** difetti, nessuno dei quali un test poteva vedere:
 un contorno disegnato sotto il cilindro, un linguaggio che parlava di celle mentre la domanda era sulle unità,
@@ -300,12 +317,16 @@ residuo di una voce che c'è già, e il criterio conta le capacità, non i difet
 playtest dice che l'avviso che svanisce rende la voce padre inaffidabile, allora entra: sarebbe una revisione
 del criterio, non una svista.
 
-Sette delle sedici stanno già in una seduta dichiarata del registro (la **D**, partita su hex, e la **G**,
-eseguibile subito). **Otto non stanno in nessuna**, e non è un dettaglio organizzativo: il registro lo dice da
+Otto delle diciassette stanno già in una seduta dichiarata del registro (la **D**, partita su hex, e la **G**,
+eseguibile subito). **Nove non stanno in nessuna**, e non è un dettaglio organizzativo: il registro lo dice da
 sé — «una voce che non sta in una seduta non viene eseguita mai». Sono `PIE-HEXPLAY-1/2/3/8`, `PIE-V01-HUD`,
-`PIE-V01-LOG`, `PIE-V01-INTENT`, `PIE-V01-ROSTER`: le prime quattro perché sono 🟡 e le sedute raggruppano le
-⏳, le altre quattro perché appartengono a E11, che non ha una seduta propria. **Assegnarle a una seduta è il
-prossimo passo naturale di G9**, e vale più di eseguirne una a caso.
+`PIE-V01-LOG`, `PIE-V01-INTENT`, `PIE-V01-ROSTER`, `PIE-FACING-1`: le prime quattro perché sono 🟡 e le sedute
+raggruppano le ⏳, le altre perché appartengono a E11 ed E16, che non hanno una seduta propria. **Assegnarle a
+una seduta è il prossimo passo naturale di G9**, e vale più di eseguirne una a caso.
+
+`PIE-FACING-1` è entrata col merge di E16, e non per completezza: dal CP 16.2 l'emisfero posteriore è
+**scoperto**, quindi il facing decide il danno. Un orientamento visibile diverso da quello che il resolver ha
+usato rende impianificabile la difesa direzionale — è leggibilità minima nel senso stretto, non presentazione.
 
 > ⚠️ Il registro descrive la **sessione D** in due modi che non coincidono — `PIE-HEXPLAY-1..9` nel titolo
 > della seduta, `HEXPLAY-4/4b/5/6/6b/6c/7/9/10` nella tabella dei gruppi. Finché divergono, «quante ne copre

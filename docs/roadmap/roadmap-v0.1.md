@@ -107,7 +107,7 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 | **Scenario Test Harness** | `ScenarioHarness/*` | ✅ 5 scenari, console `rt.Test.*`, auto-run via CVar, `result.json` |
 | **Conoscenza parziale (vista/udito)** | — | ⏳ la vista è una statistica a catalogo che non decide nulla (E13) |
 | **Finestre di reazione interattive** | — | ⏳ ADR-0004 accettato, nessun codice (E14) |
-| **Facing come stato di gioco** | — | ⏳ ADR-0005 + D-020 accettati, nessun codice (E16) |
+| **Facing come stato di gioco** | `Turn/RTFacingLibrary.*`, `Unit/RTUnit.h`, `Combat/RTHexCombatLibrary.*` | ✅ E16 chiusa il 2026-08-09: derivato da Move e Dash, riorientato dal bersaglio, in snapshot/TurnLog/hash, e l'emisfero posteriore annulla copertura e `Guard` |
 | **Scenario showcase e golden replay** | `Tests/` (`ShowcaseRelay.*`) | 🟡 **iniziata**: fixture stabile e scenario lite deterministico |
 
 **Suite automatica**: **si misura, non si cita — e da qui in avanti nemmeno si scrive.**
@@ -170,7 +170,7 @@ Evidenza = i **nomi dei test**, che sono la prova di ciò che esiste:
 | **E13** Conoscenza parziale: vista e udito | ⏳ **assente** | la vista è una statistica a catalogo che non decide nulla |
 | **E14** Overwatch e reazioni interattive | ⏳ **assente** | ADR-0004 accettato, nessun codice. Dipende da E13 |
 | **E15** Showcase «Il Relè» e golden replay | 🟡 **iniziata** | 2 test `ShowcaseRelay.*` — fixture stabile, scenario lite deterministico |
-| **E16** Orientamento e direzionalità | ⏳ **assente** | ADR-0005 + [D-020](../decisions/RT_PDR_00_Decision_Log.md) accettati, nessun codice |
+| **E16** Orientamento e direzionalità | ✅ **chiusa** | 13 test `Facing.*` + 3 `Combat.*` direzionali + 5 scenari `Spec.Facing.*` — il facing è stato di gioco (derivato da Move e Dash, riorientato dal bersaglio, in snapshot, TurnLog e hash, filtrato per squadra) e la difesa direzionale annulla copertura bassa e `Guard` fuori dall'arco frontale, con la stessa `HexCone` che userà la vista. Resta fuori `FacingUsedByOverwatch`, che è E14 |
 | **E17** Validazione di stress 4v4 | ⏳ **assente** | dopo E15; **non** è un gate di release |
 
 **Due cose vigenti che i documenti non dichiaravano.** Lo **scivolamento su ghiaccio** esiste ed è testato
@@ -179,9 +179,12 @@ costruito né rimosso. E i **10 test vincolanti del catalogo** (§6) **esistono 
 arrivati sono `Cover.DirectionalDamageReduction` e `Simulation.DeterministicReplay` con le sue 100 ripetizioni.
 
 **Stato in una riga**: il **contenuto** della v0.1 è costruito e testato (cataloghi, azioni, reazioni, eroi,
-ambiente, coperture) e gira su un solo substrato esagonale. Mancano la **conoscenza parziale** (E13), le
-**finestre di reazione** (E14), il **facing** (E16), l'**equipaggiamento** (E7) e la **leggibilità** (E11). Il
+ambiente, coperture, **orientamento**) e gira su un solo substrato esagonale. Mancano la **conoscenza
+parziale** (E13), le **finestre di reazione** (E14), l'**equipaggiamento** (E7) e la **leggibilità** (E11). Il
 collo di bottiglia non è il codice di gioco: è la **verifica interattiva** — CP 6.8 non è mai stato eseguito.
+
+> Con **E16 chiusa il 2026-08-09** il prerequisito di E13 non c'è più: la premessa del bot cambia **una sola
+> volta**, nell'ordine giusto, come chiedeva il registro dei rischi.
 
 ### 2.2 Le feature che le epic implementano — generata dal Feature Registry
 
@@ -255,7 +258,7 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | SPECIFIED | 1/9 |
 | **E15** | `RT-FEAT-TEST-GOLDEN` — Golden replay e showcase «Il Relè» | IMPLEMENTING | 3/8 |
 |  | `RT-FEAT-TEST-SCENARIO-HARNESS` — Scenario Test Harness automatizzato | INTEGRATED | 6/8 |
-| **E16** | `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole | SPECIFIED | 1/8 |
+| **E16** | `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole — completata da `RT-FEAT-UI-PLANNING` | INTEGRATED | 6/9 |
 | **E17** | `RT-FEAT-STRESS-4V4` — Validazione di stress 4v4 | SPECIFIED | 1/7 |
 | **E18** | `RT-FEAT-ACTION-PREDICTIVE` — Predictive Action, thin slice | SPECIFIED | 1/8 |
 | **E19** | `RT-FEAT-MATCH-FORMAT` — Formato di partita e classe di mappa | TESTABLE | 4/8 |

@@ -4,10 +4,11 @@
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-MAP-FACING -->
 
-> ⚠️ **Progettata, non implementata.** Questa pagina descrive una meccanica **decisa e documentata** che il gioco **non esegue ancora**: oggi non è giocabile. Blocco generato dal Feature Registry, non modificare a mano.  
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
 > Feature: `RT-FEAT-MAP-FACING` · Release: `v0.1` · Roadmap: `E16.1, E16.2`  
-> Stato: **SPECIFIED** · Gate: `1/8`  
-> Scenario: `—`  
+> Stato: **INTEGRATED** · Gate: `6/9`  
+> Scenario: `Spec.Facing.DerivesFromMove`  
+> I pezzi che mancano li porta: `RT-FEAT-UI-PLANNING`  
 > Decisione accettata (ADR-0005) ma **non implementata**: quello che leggi qui descrive come funzionera', non come funziona oggi.  
 > Verificato il `2026-08-08` su `2094b86`
 
