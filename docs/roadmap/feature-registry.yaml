@@ -3289,6 +3289,43 @@ features:
       `scripts/check-docs-symbols.py`. Da questa consegna include anche
       `scripts/feature_registry.py validate`, che verifica **questo** file.
 
+  - feature_id: RT-FEAT-TOOL-CONTROL-CENTER
+    title: Project Control Center — la UI web del registry
+    area: Tools
+    kind: tooling
+    release: future
+    priority: P3
+    status: DESIGNED
+    gates:
+      spec: partial
+      data: todo
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: na
+      ui_wiki: todo
+      packaged: na
+      network_privacy: na
+    roadmap: {}
+    dependencies:
+      - RT-FEAT-TOOL-VALIDATION
+    owner_specs:
+      - docs/roadmap/plans/project-control-center-spec.md
+    issues: []
+    tests: []
+    scenarios: []
+    wiki_refs: []
+    notes: >
+      Vista web read-only sopra gli artefatti generati dal registry: nessun dato nasce qui.
+      **Fuori dai 15 gate della v0.1** e senza epic: è tooling di processo, e collocarlo nella
+      roadmap di release lo farebbe competere con la consegna. `spec: partial` perché la spec è
+      in revisione (§9 registra quattro decisioni prese il 2026-08-10: pagina statica read-only,
+      relazioni qualificate rimandate, `My Editor Queue` come filtro derivato **anche** in
+      markdown, scrittura fuori scope). `data: todo` è il passo che sblocca il resto —
+      `project-graph.json`, perché oggi lo stato delle sedute e la diagnostica del validator
+      escono solo come markdown. `scenario`/`packaged`/`network_privacy` sono `na` per la stessa
+      ragione degli altri strumenti: non è gioco e non entra nel pacchetto.
+
   - feature_id: RT-FEAT-TOOL-DEBUG-CONSOLE
     title: Comandi console rt.Debug e rt.Test
     area: Tools

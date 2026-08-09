@@ -20,7 +20,15 @@
 #   critical           true = blocca la v0.1
 #   produces           cosa esce, in una riga (asset committato oppure verdetto)
 #   artifacts          path repo da verificare con `git ls-files`; vuoto se produce un verdetto
-#   unblocked_by       checkpoint/epic che devono avere il CODICE fatto (un 🟡 basta e anzi e' il caso normale)
+#   unblocked_by       checkpoint/epic/sedute che devono avere il CODICE fatto (un 🟡 basta e anzi e' il
+#                      caso normale). **Sempre prefissato**, perche' i due spazi di numerazione dei
+#                      checkpoint collidono su 20 numeri su 22: `6.3` e' «input hex» in M6 e «Riva» in E6.
+#                      Forme ammesse:  M6.3 (checkpoint di milestone, owner `roadmap-checkpoint.md`)
+#                                      E1.3 (checkpoint di epic,      owner `roadmap-v0.1.md` §2.2)
+#                                      E8   (epic intera,             owner `roadmap-v0.1.md` §2.1)
+#                                      U13  (un'altra seduta,         owner questo file)
+#                      La forma nuda `CP 6.3` e' vietata: non dice quale dei due spazi, e nessun comando
+#                      puo' risolverla. Corretta il 2026-08-10 su sette record.
 #   shares_setup_with  sedute con lo stesso allestimento: falle nella stessa apertura
 #   verifies           ID delle voci PIE (senza il marcatore `RELEASE-V01`)
 #   issues             numeri GitHub, dichiarati a mano: lo script non parla con la rete
@@ -110,7 +118,7 @@ sessions:
     artifacts:
       - Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap
       - Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset
-    unblocked_by: [CP 6.0]
+    unblocked_by: [M6.0]
     shares_setup_with: [U13]
     verifies:
       - PIE-HEX-MODE-E
@@ -169,7 +177,7 @@ sessions:
     critical: true
     produces: verdetto su allestimento e movimento
     artifacts: []
-    unblocked_by: [CP 6.1, CP 6.2]
+    unblocked_by: [M6.1, M6.2]
     shares_setup_with: [U3, U4, U5, U6]
     verifies: [PIE-HEXPLAY-1, PIE-HEXPLAY-4, PIE-HEXPLAY-5, PIE-CAM-START]
     issues: []
@@ -196,7 +204,7 @@ sessions:
     critical: true
     produces: verdetto su selezione, budget e anteprima del percorso
     artifacts: []
-    unblocked_by: [CP 6.3]
+    unblocked_by: [M6.3]
     shares_setup_with: [U2, U4, U5, U6]
     verifies: [PIE-HEXPLAY-2, PIE-HEXPLAY-3, PIE-HEXPLAY-3b, PIE-PREVIEW-PERSIST]
     issues: [33]
@@ -213,7 +221,7 @@ sessions:
     critical: true
     produces: verdetto su forme d'attacco, LOS esagonale e knockback
     artifacts: []
-    unblocked_by: [CP 6.4, CP 6.5]
+    unblocked_by: [M6.4, M6.5]
     shares_setup_with: [U2, U3, U5, U6]
     verifies: [PIE-HEXPLAY-6, PIE-HEXPLAY-6b, PIE-HEXPLAY-6c]
     issues: []
@@ -230,7 +238,7 @@ sessions:
     critical: true
     produces: verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale
     artifacts: []
-    unblocked_by: [CP 6.6, CP 6.7]
+    unblocked_by: [M6.6, M6.7]
     shares_setup_with: [U2, U3, U4, U6]
     verifies: [PIE-HEXPLAY-7, PIE-HEXPLAY-9, PIE-AI-01, PIE-AI-02, PIE-AI-03, PIE-AI-04, PIE-AI-05]
     issues: []
@@ -248,7 +256,7 @@ sessions:
     critical: true
     produces: chiusura di M6 / E2 — sessione D verde
     artifacts: []
-    unblocked_by: [CP 6.8]
+    unblocked_by: [M6.8]
     shares_setup_with: [U2, U3, U4, U5]
     verifies: [PIE-HEXPLAY-8, PIE-HEXPLAY-10, PIE-HEXPLAY-4b, PIE-FACING-1]
     issues: []
@@ -335,7 +343,7 @@ sessions:
     critical: true
     produces: il catalogo azioni della v0.1 come dati, non come codice
     artifacts: []
-    unblocked_by: [CP 1.3, CP 1.4]
+    unblocked_by: [E1.3, E1.4]
     shares_setup_with: []
     verifies: []
     issues: []

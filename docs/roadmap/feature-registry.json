@@ -10,7 +10,7 @@
     },
     "note": "Primo audit completo. La seed list dell'handoff del 2026-08-08 è stata confrontata voce per voce con Source/, Tests/, Scenarios/, docs/ e la Wiki: le voci che il repository non conferma sono marcate per quello che sono (SPECIFIED, DESIGNED, IDEA), non promosse a DONE.\n"
   },
-  "count": 84,
+  "count": 85,
   "features": [
     {
       "feature_id": "RT-FEAT-CORE-TURN",
@@ -4328,6 +4328,50 @@
         "commit": "2094b86"
       },
       "notes": "Validator di catalogo, mappa, terreni, formato e indice scenari, più il gate documentale `scripts/check-docs-symbols.py`. Da questa consegna include anche `scripts/feature_registry.py validate`, che verifica **questo** file."
+    },
+    {
+      "feature_id": "RT-FEAT-TOOL-CONTROL-CENTER",
+      "title": "Project Control Center — la UI web del registry",
+      "area": "Tools",
+      "kind": "tooling",
+      "release": "future",
+      "priority": "P3",
+      "status": "DESIGNED",
+      "status_derived": "DESIGNED",
+      "gates": {
+        "spec": "partial",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "na",
+        "ui_wiki": "todo",
+        "packaged": "na",
+        "network_privacy": "na"
+      },
+      "gates_done": 0,
+      "gates_applicable": 6,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": [],
+        "out_of_release_scope": ""
+      },
+      "dependencies": [
+        "RT-FEAT-TOOL-VALIDATION"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/roadmap/plans/project-control-center-spec.md"
+      ],
+      "issues": [],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {},
+      "notes": "Vista web read-only sopra gli artefatti generati dal registry: nessun dato nasce qui. **Fuori dai 15 gate della v0.1** e senza epic: è tooling di processo, e collocarlo nella roadmap di release lo farebbe competere con la consegna. `spec: partial` perché la spec è in revisione (§9 registra quattro decisioni prese il 2026-08-10: pagina statica read-only, relazioni qualificate rimandate, `My Editor Queue` come filtro derivato **anche** in markdown, scrittura fuori scope). `data: todo` è il passo che sblocca il resto — `project-graph.json`, perché oggi lo stato delle sedute e la diagnostica del validator escono solo come markdown. `scenario`/`packaged`/`network_privacy` sono `na` per la stessa ragione degli altri strumenti: non è gioco e non entra nel pacchetto."
     },
     {
       "feature_id": "RT-FEAT-TOOL-DEBUG-CONSOLE",

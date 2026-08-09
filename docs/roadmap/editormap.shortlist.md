@@ -59,16 +59,16 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 | | Seduta | Produce | Sbloccata da | Critico | Voci | Stato |
 |---|---|---|---|:--:|:--:|:--:|
 | **U18** | Verifiche senza preparazione | verdetto su tre voci che non attendono nulla | — | no | 1/3 | 🟡 |
-| **U1** | Mappa-arena hex | `DA_HexMap_Arena` e `L_HexArena`, committati | CP 6.0 | sì | 0/9 | ⏳ |
-| **U2** | Partita hex, primo giro | verdetto su allestimento e movimento | CP 6.1, CP 6.2 | sì | 1/4 | 🟡 |
-| **U3** | Input e pianificazione | verdetto su selezione, budget e anteprima del percorso | CP 6.3 | sì | 0/4 | 🟡 |
-| **U4** | Combat e linea di tiro | verdetto su forme d'attacco, LOS esagonale e knockback | CP 6.4, CP 6.5 | sì | 0/3 | ⏳ |
-| **U5** | Bot e HUD | verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale | CP 6.6, CP 6.7 | sì | 0/7 | ⏳ |
-| **U6** | Multilivello e partita completa | chiusura di M6 / E2 — sessione D verde | CP 6.8 | sì | 0/4 | 🟡 |
+| **U1** | Mappa-arena hex | `DA_HexMap_Arena` e `L_HexArena`, committati | M6.0 | sì | 0/9 | ⏳ |
+| **U2** | Partita hex, primo giro | verdetto su allestimento e movimento | M6.1, M6.2 | sì | 1/4 | 🟡 |
+| **U3** | Input e pianificazione | verdetto su selezione, budget e anteprima del percorso | M6.3 | sì | 0/4 | 🟡 |
+| **U4** | Combat e linea di tiro | verdetto su forme d'attacco, LOS esagonale e knockback | M6.4, M6.5 | sì | 0/3 | ⏳ |
+| **U5** | Bot e HUD | verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale | M6.6, M6.7 | sì | 0/7 | ⏳ |
+| **U6** | Multilivello e partita completa | chiusura di M6 / E2 — sessione D verde | M6.8 | sì | 0/4 | 🟡 |
 | **U7** | Personaggi Paragon | `BP_Unit_Guardian` (Gideon) e `BP_Unit_Ranger` (Sparrow), committati | — | no | 2/2 | 🟡 |
 | **U8** | Animazioni | `ABP_Gideon`, `ABP_Sparrow` e i montaggi Cast/Hit/Death | — | no | 0/2 | ⏳ |
 | **U9** | Leggibilita' e riferimento visivo | il video (o gli screenshot) di riferimento — DoD di milestone di M8 | — | no | 2/4 | 🟡 |
-| **U10** | Data asset delle azioni | il catalogo azioni della v0.1 come dati, non come codice | CP 1.3, CP 1.4 | sì | — | — |
+| **U10** | Data asset delle azioni | il catalogo azioni della v0.1 come dati, non come codice | E1.3, E1.4 | sì | — | — |
 | **U11** | I 4 eroi | i data asset di Flux, Riva, Bastion e Vektor, e lo spawn 2v2 che li usa | E6 | sì | 0/1 | 🟡 |
 | **U12** | Loadout | varianti arma, gadget e moduli reazione come dati — 1 + 1 + 1 per eroe | E7 | no | — | — |
 | **U13** | Arena v0.1 | l'arena estesa con quanto serve alle verifiche di contenuto | E8, E9, U1 | sì | 0/1 | ⏳ |
@@ -109,7 +109,7 @@ L'ordine non e' arbitrario:
 
 #### U1 · Mappa-arena hex ⏳
 
-**Sbloccata da**: CP 6.0 · **Preparazione condivisa con**: U13 · **Percorso critico**: sì
+**Sbloccata da**: M6.0 · **Preparazione condivisa con**: U13 · **Percorso critico**: sì
 **Produce**: `DA_HexMap_Arena` e `L_HexArena`, committati
 **Artefatti**: `Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap` ⏳ · `Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset` ⏳
 **Verifichi**: `PIE-HEX-MODE-E` ⏳ · `PIE-HEX-MODE-F` ⏳ · `PIE-HEX-MODE-G` ⏳ · `PIE-HEX-MODE-H` ⏳ · `PIE-HEX-MODE-L` ⏳ · `PIE-HEX-MODE-N` ⏳ · `PIE-HEX-MODE-O` ⏳ · `PIE-HEX-LAYER` ⏳ · `PIE-HEX-TRANS` ⏳
@@ -155,7 +155,7 @@ Nessuna guida copre ancora questa procedura, quindi i passi stanno qui.
 
 #### U2 · Partita hex, primo giro 🟡
 
-**Sbloccata da**: CP 6.1, CP 6.2 · **Preparazione condivisa con**: U3, U4, U5, U6 · **Percorso critico**: sì
+**Sbloccata da**: M6.1, M6.2 · **Preparazione condivisa con**: U3, U4, U5, U6 · **Percorso critico**: sì
 **Produce**: verdetto su allestimento e movimento
 **Verifichi**: `PIE-HEXPLAY-1` 🟡 · `PIE-HEXPLAY-4` ⏳ · `PIE-HEXPLAY-5` ⏳ · `PIE-CAM-START` ✅
 **Finita quando**: le voci hanno esito reale nel registro
@@ -175,7 +175,7 @@ transizione. Questa e' la preparazione condivisa da U2…U6: una apertura, cinqu
 
 #### U3 · Input e pianificazione 🟡
 
-**Sbloccata da**: CP 6.3 · **Preparazione condivisa con**: U2, U4, U5, U6 · **Percorso critico**: sì
+**Sbloccata da**: M6.3 · **Preparazione condivisa con**: U2, U4, U5, U6 · **Percorso critico**: sì
 **Produce**: verdetto su selezione, budget e anteprima del percorso
 **Verifichi**: `PIE-HEXPLAY-2` 🟡 · `PIE-HEXPLAY-3` 🟡 · `PIE-HEXPLAY-3b` 🟡 · `PIE-PREVIEW-PERSIST` ⏳
 **Finita quando**: le voci hanno esito reale nel registro
@@ -187,7 +187,7 @@ selezionata sia quella del layer giusto: le celle sovrapposte non devono confond
 
 #### U4 · Combat e linea di tiro ⏳
 
-**Sbloccata da**: CP 6.4, CP 6.5 · **Preparazione condivisa con**: U2, U3, U5, U6 · **Percorso critico**: sì
+**Sbloccata da**: M6.4, M6.5 · **Preparazione condivisa con**: U2, U3, U5, U6 · **Percorso critico**: sì
 **Produce**: verdetto su forme d'attacco, LOS esagonale e knockback
 **Verifichi**: `PIE-HEXPLAY-6` ⏳ · `PIE-HEXPLAY-6b` ⏳ · `PIE-HEXPLAY-6c` ⏳
 **Finita quando**: le voci hanno esito reale nel registro
@@ -199,7 +199,7 @@ una decisione di design dietro: **guardalo**, non solo verificarlo.
 
 #### U5 · Bot e HUD ⏳
 
-**Sbloccata da**: CP 6.6, CP 6.7 · **Preparazione condivisa con**: U2, U3, U4, U6 · **Percorso critico**: sì
+**Sbloccata da**: M6.6, M6.7 · **Preparazione condivisa con**: U2, U3, U4, U6 · **Percorso critico**: sì
 **Produce**: verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale
 **Verifichi**: `PIE-HEXPLAY-7` ⏳ · `PIE-HEXPLAY-9` ⏳ · `PIE-AI-01` ⏳ · `PIE-AI-02` ⏳ · `PIE-AI-03` ⏳ · `PIE-AI-04` ⏳ · `PIE-AI-05` ⏳
 **Finita quando**: le voci hanno esito reale e i pesi eventualmente modificati sono committati
@@ -212,7 +212,7 @@ dal quadrato: su hex vanno riguardati, non dati per buoni.
 
 #### U6 · Multilivello e partita completa 🟡
 
-**Sbloccata da**: CP 6.8 · **Preparazione condivisa con**: U2, U3, U4, U5 · **Percorso critico**: sì
+**Sbloccata da**: M6.8 · **Preparazione condivisa con**: U2, U3, U4, U5 · **Percorso critico**: sì
 **Produce**: chiusura di M6 / E2 — sessione D verde
 **Verifichi**: `PIE-HEXPLAY-8` 🟡 · `PIE-HEXPLAY-10` ⏳ · `PIE-HEXPLAY-4b` ⏳ · `PIE-FACING-1` ⏳
 **Finita quando**: le nove voci `PIE-HEXPLAY` sono verdi, rilette tutte insieme
@@ -280,7 +280,7 @@ non solo nell'overlay dell'editor.
 
 #### U10 · Data asset delle azioni —
 
-**Sbloccata da**: CP 1.3, CP 1.4 · **Percorso critico**: sì
+**Sbloccata da**: E1.3, E1.4 · **Percorso critico**: sì
 **Produce**: il catalogo azioni della v0.1 come dati, non come codice
 **Finita quando**: il validator di CP 1.4 rifiuta un asset volutamente invalido e accetta i tuoi
 **Sblocca**: U11

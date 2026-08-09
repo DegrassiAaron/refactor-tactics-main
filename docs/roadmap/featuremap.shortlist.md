@@ -20,12 +20,12 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 <!-- RT_SHORTLIST_FEATURES:BEGIN -->
 
-**84 feature** · v0.1 **70** · v0.2 **8** · future **6**.
+**85 feature** · v0.1 **70** · v0.2 **8** · future **7**.
 
 | Stato | Quante |
 |---|--:|
 | `IDEA` | 4 |
-| `DESIGNED` | 7 |
+| `DESIGNED` | 8 |
 | `SPECIFIED` | 14 |
 | `IMPLEMENTING` | 19 |
 | `TESTABLE` | 5 |
@@ -166,7 +166,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | v0.1 | SPECIFIED | 1/9 | E14 | Profilabile, non un'abilità d'eroe |
 | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | v0.1 | DESIGNED | 0/9 | E14 | Continuazione della **propria** azione, non risposta all'avversario |
 
-### Tools · 8
+### Tools · 9
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
@@ -177,6 +177,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-TEST-GOLDEN` — Golden replay e showcase «Il Relè» | v0.1 | IMPLEMENTING | 3/8 | E15 | Oggi `BLOCKED` su 5 capability |
 | `RT-FEAT-TOOL-BALANCE-GROUND` — Banco di prova del bilanciamento | v0.1 | IMPLEMENTING | 3/6 | E1 | Dove si misurano i numeri prima di scriverli a catalogo |
 | `RT-FEAT-TOOL-DEBUG-CONSOLE` — Comandi console rt.Debug e rt.Test | v0.1 | IMPLEMENTING | 3/6 | E11 | Ne esistono 2 su 8: senza, si debugga a occhio |
+| `RT-FEAT-TOOL-CONTROL-CENTER` — Project Control Center — la UI web del registry | future | DESIGNED | 0/6 | — | — |
 | `RT-FEAT-BOT-TACTICAL` — Bot tattico con conoscenza e reazioni | v0.2 | IDEA | 0/8 | — | Epic E26 |
 
 ### UI · 8
