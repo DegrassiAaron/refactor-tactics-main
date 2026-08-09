@@ -303,12 +303,14 @@
       "scenarios_planned": [
         "Spec.TimeBank.GraceDoesNotDrain",
         "Spec.TimeBank.DrainsAfterGrace",
+        "Spec.TimeBank.NeverBelowZero",
         "Spec.TimeBank.TimeoutCostsFullWindow",
         "Spec.TimeBank.TimeoutSpendsNoCharge",
         "Spec.TimeBank.ClashCostsFullWindow",
         "Spec.TimeBank.BotDrainsLikePlayer",
+        "Spec.TimeBank.ExhaustionKeepsResponsesLegal",
         "Spec.TimeBank.ReplayReadsRecordedBank",
-        "Spec.TimeBank.PrivacyNoBankLeak"
+        "Spec.TimeBank.PacketOrderInvariant"
       ],
       "wiki_refs": [
         "docs/wiki/game/reazioni-overwatch-e-previsioni.md"

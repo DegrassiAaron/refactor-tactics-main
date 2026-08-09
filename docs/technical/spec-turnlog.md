@@ -184,6 +184,44 @@ altrimenti l'hash del replay diventerebbe sensibile a scritture che non decidono
 `DeclarationRejected`, che è osservabile **proprio perché** non cambia nulla — e registra la direzione
 **conservata**, non quella chiesta: il log dice cosa vale, non cosa era stato domandato.
 
+### 4.2 Categoria `Decision` — il Decision Time Bank *(decisa il 2026-08-09, issue `#361`)*
+
+Questa spec è **owner dei nomi di evento e dei reason code**, e fino a oggi non conteneva la parola `Bank`:
+[`spec-decision-time-bank.md`](../gameplay/spec-decision-time-bank.md) §10 chiede tre contatori
+(`BankBeforeMs`, `BankConsumedMs`, `BankAfterMs`) e `FRTTurnLogEntry` ha **un solo** `Amount`. La domanda era
+aperta — *tre voci, o un campo nuovo?* — e bloccava CP 14.8. Ecco la risposta.
+
+**Due voci, non tre. Nessun campo nuovo.**
+
+```cpp
+UENUM(BlueprintType) enum class ERTDecisionOutcome : uint8 {
+    BankConsumed,   // Amount = millisecondi spesi da QUESTA decisione (0 dentro la grace)
+    BankAfter,      // Amount = millisecondi residui DOPO questa decisione
+    BankExhausted   // Amount = 0: il bank ha toccato il floor, le risposte restano legali (§5)
+};
+```
+
+`ERTLogCategory` guadagna `Decision` **in coda**, con la disciplina di `Facing` in §4.1: la categoria viaggia
+come `uint8`, `Amount` esiste già, quindi **il formato serializzato non cambia versione** e le tracce già
+scritte restano leggibili. È anche la regola di migrazione: si aggiunge in coda, non si rinumera — gli esiti
+già serializzati sono interi, e inserire un valore in mezzo farebbe raccontare ai replay un'altra partita.
+
+**Perché `BankBeforeMs` non entra.** Non è un taglio di comodo: il residuo *prima* è
+`BankAfter + BankConsumed` **della stessa decisione**, cioè la somma di due voci adiacenti. Ciò che §6 della
+spec del bank vieta è ricostruire il residuo **sommando la storia** dall'inizio della partita — quella sì
+sarebbe un ricalcolo, e divergerebbe al primo arrotondamento o alla prima voce persa. Leggere due numeri
+scritti uno accanto all'altro non lo è. Scrivere tre voci per ogni finestra triplicherebbe il volume del log
+per un valore che il log già contiene.
+
+**Perché non un campo nuovo in `FRTTurnLogEntry`.** Un campo si paga su **ogni** voce di ogni categoria — e
+le voci di movimento e combattimento sono la stragrande maggioranza — per un dato che riguarda solo le
+finestre di decisione. Il precedente è già stato preso due volte: `Facing` porta la direzione in `Amount`,
+`Fallback` ci porta il motivo. `Amount` è il payload numerico della categoria, e questa non fa eccezione.
+
+**Cosa questo NON decide.** L'identità della finestra (`DecisionId`, `OpportunityId`, owner) e
+`TimeoutReason`, che §10 elenca fra i requisiti informativi: sono identità e motivi, non contatori, e
+seguiranno la via delle opportunity — non quella di `Amount`. Restano aperti e sono lavoro di CP 14.7/14.8.
+
 ---
 
 ## 5. Classificazione (il cuore testabile)

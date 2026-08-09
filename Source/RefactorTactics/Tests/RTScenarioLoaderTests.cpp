@@ -281,6 +281,48 @@ bool FRTScenarioLoaderLogAssertionsTest::RunTest(const FString&)
 		TestTrue(TEXT("l'errore elenca le categorie previste"), Error.Contains(TEXT("Environment")));
 	}
 
+	// 6. VALORE (#361): la terza primitiva di #318, sbloccata dalla decisione di formato di `spec-turnlog.md`
+	//    §4.2. `Amount` e' il payload numerico di ogni categoria, quindi l'assertion non e' del solo bank.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(TEXT(R"({ "type": "LogEventAmount", "category": "Combat", "outcome": "Hit", "value": 24 })"),
+			Scenario, Error);
+		if (TestTrue(FString::Printf(TEXT("scenario valido (%s)"), *Error), bOk)
+			&& TestEqual(TEXT("una assertion"), Scenario.Expect.Num(), 1))
+		{
+			TestTrue(TEXT("kind LogEventAmount"), Scenario.Expect[0].Kind == ERTAssertionKind::LogEventAmount);
+			TestTrue(TEXT("categoria Combat"), Scenario.Expect[0].LogCategory == ERTLogCategory::Combat);
+			TestEqual(TEXT("il valore atteso arriva dal JSON"), Scenario.Expect[0].Value, 24);
+		}
+	}
+
+	// 7. `value` OBBLIGATORIO, al contrario di `LogEventCount`: li' l'omissione ha un default sensato
+	//    («l'evento c'e'»), qui sarebbe un numero inventato dal parser, e uno scenario passerebbe senza dire
+	//    cosa si aspettava.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(TEXT(R"({ "type": "LogEventAmount", "category": "Combat", "outcome": "Hit" })"),
+			Scenario, Error);
+		TestFalse(TEXT("senza 'value' l'assertion e' rifiutata"), bOk);
+		TestTrue(TEXT("e l'errore nomina il campo mancante"), Error.Contains(TEXT("value")));
+	}
+
+	// 8. Un valore NEGATIVO e' legittimo qui, mentre `LogEventCount` lo rifiuta: un conteggio non puo' essere
+	//    negativo, un `Amount` si' — una differenza di punteggio o un delta lo sono.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(TEXT(R"({ "type": "LogEventAmount", "category": "Combat", "outcome": "Hit", "value": -3 })"),
+			Scenario, Error);
+		if (TestTrue(FString::Printf(TEXT("un Amount negativo si scrive (%s)"), *Error), bOk)
+			&& TestEqual(TEXT("una assertion"), Scenario.Expect.Num(), 1))
+		{
+			TestEqual(TEXT("e arriva intatto"), Scenario.Expect[0].Value, -3);
+		}
+	}
+
 	return true;
 }
 

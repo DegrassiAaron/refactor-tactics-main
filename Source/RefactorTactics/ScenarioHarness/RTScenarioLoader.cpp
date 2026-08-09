@@ -562,11 +562,29 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 					return false;
 				}
 			}
+			else if (Type == TEXT("LogEventAmount"))
+			{
+				Exp.Kind = ERTAssertionKind::LogEventAmount;
+				if (!ParseScenarioLogEvent(Obj, TEXT("category"), TEXT("outcome"), Exp.LogCategory, Exp.LogOutcome, OutError))
+				{
+					return false;
+				}
+				// `value` e' OBBLIGATORIO, al contrario di `LogEventCount`: li' l'omissione ha un default
+				// sensato («l'evento c'e'»), qui non ce n'e' uno — un valore atteso implicito sarebbe un
+				// numero inventato dal parser, e uno scenario passerebbe senza dire cosa si aspettava.
+				int32 Amount = 0;
+				if (!Obj->TryGetNumberField(TEXT("value"), Amount))
+				{
+					OutError = TEXT("assertion LogEventAmount: manca 'value', il valore atteso di Amount");
+					return false;
+				}
+				Exp.Value = Amount;
+			}
 			else
 			{
 				// Meglio rifiutare che ignorare: una assertion scritta male che venisse saltata in silenzio
 				// farebbe passare un test che non verifica nulla.
-				OutError = FString::Printf(TEXT("assertion sconosciuta: '%s' (previste: UnitAtCell, TurnsCompleted, UnitHpEquals, UnitAlive, UnitFacing, LogEventCount, LogEventOrder)"), *Type);
+				OutError = FString::Printf(TEXT("assertion sconosciuta: '%s' (previste: UnitAtCell, TurnsCompleted, UnitHpEquals, UnitAlive, UnitFacing, LogEventCount, LogEventOrder, LogEventAmount)"), *Type);
 				return false;
 			}
 			OutScenario.Expect.Add(Exp);

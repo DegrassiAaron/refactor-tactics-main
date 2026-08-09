@@ -853,6 +853,29 @@ void FRTScenarioSession::Finish()
 			A.bPassed = (Found == Exp.Value);
 			break;
 		}
+		case ERTAssertionKind::LogEventAmount:
+		{
+			const FString EventName = URTScenarioLoader::DescribeLogEvent(Exp.LogCategory, Exp.LogOutcome);
+			A.Description = FString::Printf(TEXT("LogEventAmount(%s)"), *EventName);
+			A.Expected = FString::FromInt(Exp.Value);
+
+			// La PRIMA occorrenza: sommarle mescolerebbe finestre diverse in un numero solo, e il residuo di
+			// una decisione non e' la somma dei residui.
+			const int32 At = IndexOfScenarioLogEvent(ScenarioLog, Exp.LogCategory, Exp.LogOutcome);
+			if (At == INDEX_NONE)
+			{
+				// Assente non e' «vale zero»: dirlo cosi' manderebbe a cercare un valore sbagliato dove il
+				// problema e' che l'evento non e' mai stato prodotto. Stesso trattamento di `LogEventOrder`.
+				A.Actual = FString::Printf(TEXT("%s assente"), *EventName);
+				A.bPassed = false;
+			}
+			else
+			{
+				A.Actual = FString::FromInt(ScenarioLog[At].Amount);
+				A.bPassed = (ScenarioLog[At].Amount == Exp.Value);
+			}
+			break;
+		}
 		case ERTAssertionKind::LogEventOrder:
 		{
 			const FString FirstName = URTScenarioLoader::DescribeLogEvent(Exp.LogCategory, Exp.LogOutcome);
