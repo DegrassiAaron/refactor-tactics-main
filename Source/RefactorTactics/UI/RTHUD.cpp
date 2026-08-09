@@ -7,6 +7,7 @@
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnRules.h"
 #include "Combat/RTCombatLibrary.h"
+#include "Combat/RTHexCombatLibrary.h"
 #include "Core/RTGameplayTags.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
@@ -32,6 +33,50 @@ namespace
 	}
 }
 
+void ARTHUD::ComputePlannedHitMarks(const TArray<ARTUnit*>& Units, int32 PlayerTeamId,
+	TSet<FRTCellId>& OutHitCells, TSet<FRTCellId>& OutAllyHitCells)
+{
+	OutHitCells.Reset();
+	OutAllyHitCells.Reset();
+
+	for (const ARTUnit* Attacker : Units)
+	{
+		// Solo i piani DELLE PROPRIE unita': quelli avversari non si leggono, nemmeno per dedurne una cella
+		// (invariante #6). Non e' prudenza eccessiva — e' la stessa regola per cui l'HUD non disegna gli
+		// intenti nemici, e va rispettata anche dove il risultato sarebbe «solo» un colore.
+		if (!Attacker || !Attacker->IsAlive() || Attacker->TeamId != PlayerTeamId)
+		{
+			continue;
+		}
+		const URTActionData* Ability = Attacker->GetAbility(Attacker->PlannedAbilityIndex);
+		const ARTUnit* Target = Attacker->PlannedAttackTarget;
+		if (!Ability || !Target || !Target->IsAlive())
+		{
+			continue;
+		}
+
+		// Le stesse celle che decideranno l'esito: `HexHitCells` e' la funzione del resolver, non una copia.
+		const TArray<FRTCellId> Hit = URTHexCombatLibrary::HexHitCells(
+			Ability->Shape, Attacker->Cell, Target->Cell, Ability->RangeCells, Ability->AreaRadius);
+		OutHitCells.Append(TSet<FRTCellId>(Hit));
+
+		// Fuoco amico solo se l'azione puo' DAVVERO colpire i propri: segnalare un alleato che non subirebbe
+		// nulla insegna a ignorare il segnale.
+		if (!Ability->Def.bFriendlyFire)
+		{
+			continue;
+		}
+		for (const ARTUnit* Other : Units)
+		{
+			if (Other && Other != Attacker && Other->IsAlive() && Other->TeamId == Attacker->TeamId
+				&& Hit.Contains(Other->Cell))
+			{
+				OutAllyHitCells.Add(Other->Cell);
+			}
+		}
+	}
+}
+
 void ARTHUD::DrawHUD()
 {
 	Super::DrawHUD();
@@ -44,6 +89,19 @@ void ARTHUD::DrawHUD()
 	// Barre HP/scudo sopra ogni unita' viva.
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+
+	// Chi verrebbe colpito dai PIANI, non dall'anteprima dell'unita' selezionata: cosi' l'avviso di fuoco
+	// amico resta acceso anche mentre si seleziona qualcun altro per muoverlo, che e' esattamente il momento
+	// in cui prima spariva.
+	TArray<ARTUnit*> AllUnits;
+	AllUnits.Reserve(Actors.Num());
+	for (AActor* A : Actors)
+	{
+		if (ARTUnit* U = Cast<ARTUnit>(A)) { AllUnits.Add(U); }
+	}
+	TSet<FRTCellId> PlannedHitCells;
+	TSet<FRTCellId> PlannedAllyHitCells;
+	ComputePlannedHitMarks(AllUnits, /*PlayerTeamId=*/ 0, PlannedHitCells, PlannedAllyHitCells);
 	for (AActor* Actor : Actors)
 	{
 		const ARTUnit* Unit = Cast<ARTUnit>(Actor);
@@ -111,21 +169,18 @@ void ARTHUD::DrawHUD()
 		// non aggiunge un elemento nuovo da imparare.
 		FLinearColor NameColor = ARTUnit::TeamColorFor(Unit->TeamId,
 			FLinearColor(0.55f, 0.75f, 1.f, 1.f), FLinearColor(1.f, 0.62f, 0.55f, 1.f));
-		if (const ARTHexMapActor* HexMap = Cast<ARTHexMapActor>(
-				UGameplayStatics::GetActorOfClass(this, ARTHexMapActor::StaticClass())))
+		if (PlannedAllyHitCells.Contains(Unit->Cell))
 		{
-			if (HexMap->IsPreviewAllyHitCell(Unit->Cell))
-			{
-				// Fuoco amico: l'avviso deve essere piu' forte del colore di squadra, perche' e' l'unico caso
-				// in cui chi guarda potrebbe voler cambiare idea.
-				HeroName = TEXT("! ") + HeroName;
-				NameColor = FLinearColor(1.f, 0.6f, 0.12f, 1.f);
-			}
-			else if (HexMap->IsPreviewHitCell(Unit->Cell))
-			{
-				HeroName = TEXT("* ") + HeroName;
-				NameColor = FLinearColor(1.f, 0.35f, 0.3f, 1.f);
-			}
+			// Fuoco amico: l'avviso deve essere piu' forte del colore di squadra, perche' e' l'unico caso
+			// in cui chi guarda potrebbe voler cambiare idea. E deve restare finche' il piano esiste, non
+			// finche' l'unita' e' selezionata.
+			HeroName = TEXT("! ") + HeroName;
+			NameColor = FLinearColor(1.f, 0.6f, 0.12f, 1.f);
+		}
+		else if (PlannedHitCells.Contains(Unit->Cell))
+		{
+			HeroName = TEXT("* ") + HeroName;
+			NameColor = FLinearColor(1.f, 0.35f, 0.3f, 1.f);
 		}
 
 		float NameW = 0.f;
