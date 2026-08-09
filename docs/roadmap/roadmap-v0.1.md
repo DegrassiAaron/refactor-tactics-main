@@ -113,30 +113,30 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 **Suite automatica**: **si misura, non si cita — e da qui in avanti nemmeno si scrive.**
 
 <!-- RT_SUITE_COUNT:BEGIN -->
-**544 test unici in 76 file** — misurati su `45f8d24`.
+**573 test unici in 76 file** — misurati su `4a3fd20`.
 
 Generato da `python scripts/feature_registry.py suite`: **non si aggiorna a mano**. Era scritto a mano in due documenti ed è divergito cinque volte.
 
 | Area | Test | Cosa fissa |
 |---|---:|---|
-| `Hex*` (mappa, path, vision, bot, blast, move, match) | 88 | Coordinate, A\*, LOS, bot, partita completa |
-| `Actions.*` | 65 | Ordine per priorità, permutazione-invarianza, fallback, mappatura di fase |
+| `Hex*` (mappa, path, vision, bot, blast, move, match) | 99 | Coordinate, A\*, LOS, bot, partita completa |
+| `Actions.*` | 70 | Ordine per priorità, permutazione-invarianza, fallback, mappatura di fase |
 | `Terrain.*` · `Status.*` · `Environment.*` | 39 | Superfici, stati temporanei, propagazione elettrica, fuoco/acqua |
 | `Combat.*` · `HexCombat.*` | 39 | Danno dopo scudo, forme, LOS, niente fuoco amico |
 | `Reactions.*` | 27 | Attivazione singola, trigger puro, reazioni componibili, privacy |
-| `HexSim.*` | 27 | Snapshot, budget, collisioni simultanee, **replay divergence 0** |
-| `Match*` (allestimento, formato, fine partita) | 27 | Le tre vie di fine partita e il `RoundLimit` da formato |
-| `Heroes.*` | 29 | I 4 eroi corrispondono al catalogo, trade-off delle varianti |
-| `TurnLog.*` | 22 | Hash permutazione-invariante, serializzazione versionata, checksum |
-| `Scenario.*` · `ScenarioIndex.*` | 55 | Harness: PASS/FAIL/ERROR/**BLOCKED**, identità e tag, niente bypass |
-| `Structures.*` | 20 | Porte come bordo (E9.3), ponti come arco (E9.4) |
+| `HexSim.*` | 28 | Snapshot, budget, collisioni simultanee, **replay divergence 0** |
+| `Match*` (allestimento, formato, fine partita) | 29 | Le tre vie di fine partita e il `RoundLimit` da formato |
+| `Heroes.*` | 31 | I 4 eroi corrispondono al catalogo, trade-off delle varianti |
+| `TurnLog.*` | 24 | Hash permutazione-invariante, serializzazione versionata, checksum |
+| `Scenario.*` · `ScenarioIndex.*` | 56 | Harness: PASS/FAIL/ERROR/**BLOCKED**, identità e tag, niente bypass |
+| `Structures.*` | 21 | Porte come bordo (E9.3), ponti come arco (E9.4) |
 | `Playback.*` · `Preview.*` · `PlayerInput.*` · `ShowcaseRelay.*` · `Camera.*` | 23 | Presentazione e input: non decidono, riproducono |
-| `Unit.*` · `Turn.*` · `Simulation.*` · `Movement.*` | 18 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
+| `Unit.*` · `Turn.*` · `Simulation.*` · `Movement.*` | 19 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
 | `Cover.*` | 19 | Copertura bassa e alta, bordi, danno a struttura e distruzione |
 | `Catalog.*` | 9 | Invarianti del catalogo: solo interi, slot dichiarati, ID stabili |
 | `Pacing.*` | 7 | Pacing del turno misurato |
 | `Perf.*` | 2 | Path mediana **0,025 ms** · resolver **0,41 ms/turno** |
-| **totale** | **516** | |
+| **totale** | **542** | |
 
 > ⚠️ Test fuori da ogni area dichiarata: `RefactorTactics.Equipment.PortableCover.CreatesCover`, `RefactorTactics.Facing.BudgetMoveAllowsLastStepPlusMinusOne`, `RefactorTactics.Facing.DashThenBlastUsesLatestValue`, `RefactorTactics.Facing.EnvironmentalDisplacementKeepsFacing`, `RefactorTactics.Facing.ForcedMovementFacesSource`, `RefactorTactics.Facing.IntentIsTeamFiltered`, `RefactorTactics.Facing.LinearMoveDerivesDirection`, `RefactorTactics.Facing.PermutationInvariant`
 <!-- RT_SUITE_COUNT:END -->
@@ -287,7 +287,7 @@ silenzio.
 
 | Feature | Vista | Perché fuori scope |
 |---|---|---|
-| `RT-FEAT-TOOL-MAP-EDITOR` — Editor mode della mappa esagonale | M9 | Strumento d'editor: non entra nella build di gioco e non ha un gate di release. Tracciato da M9 e dalla [EditorMap](editormap.shortlist.md), non dalle epic della v0.1. |
+| `RT-FEAT-TOOL-MAP-EDITOR` — Editor mode della mappa esagonale | M9 | Strumento d'editor: non entra nella build di gioco e non ha un gate di release. Tracciato da M9 e dalla EditorMap, non dalle epic della v0.1. |
 | `RT-FEAT-UI-SCENARIO-BROWSER` — Selettore e indice degli scenari | — | Tooling di test nato dall'issue `#209`: serve a chi sviluppa, non è contenuto della release. Già costruito e coperto da test; nessun gate della v0.1 dipende da lui. |
 
 <!-- RT_FEATURE_BY_EPIC:END -->
@@ -1147,6 +1147,16 @@ copre già classi di mappa, durata, round, Planning/Ready, Fast Reaction e budge
 | **19.1** | `MapClass` sul dato mappa | La classe (`Skirmish` · `Standard` · `Operations`) è un campo di `URTHexMapAsset`: oggi è **implicita nel `FormatId`**, quindi una mappa non sa dire a quale classe appartiene e il controllo di coerenza formato↔mappa non è esprimibile. La simulazione **non ramifica** sulla classe: legge i parametri che essa porta | `MapClass.SliceIsSkirmish`, `MapClass.FormatAndMapAgree`, `MapClass.NotBranchedInSimulation` |
 | **19.2** | `UnitsPerTeam` nel formato | La composizione è un campo del formato, non un'assunzione del `GameMode`. `Format.Skirmish2v2` dichiara 2; E17 (stress 4v4) smette di essere un caso speciale e diventa un formato | `MatchFormat.DeclaresUnitsPerTeam`, `MatchFormat.GameModeHonoursComposition` |
 
+> ✅ **E19 chiusa il 2026-08-09** (`#215`, `#216`). `ERTMapClass` è un campo di `URTHexMapAsset`
+> (`CurrentFormatVersion` 5 → 6, default `Skirmish` — ciò che le mappe scritte prima già erano) e
+> `UnitsPerTeam` un campo del formato, che il `GameMode` **onora** invece di assumere: rifiuta se le
+> formazioni non lo rispettano, come già faceva col formato invalido. Il «non ramifica» non è una promessa
+> scritta: `MapClass.NotBranchedInSimulation` gioca due partite identiche che differiscono per la sola
+> classe e confronta l'hash del TurnLog.
+>
+> I tre test di migrazione del formato mappa **sono caduti** al bump di versione, ed era il loro lavoro:
+> pinnavano `CurrentFormatVersion == 5` perché un bump facesse rumore.
+
 **Fuori scope, dichiarato**: formato 3v3, classe Standard giocabile, Operations, selezione del formato da UI.
 Stanno in [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) (E24, E30). Fuori scope anche i **timer nel dato**:
 è una decisione già presa in senso contrario.
@@ -1177,6 +1187,16 @@ Reaction, Coordination, Certainty, Warning, Objective.
 | **20.1** | `URTIconCatalogData` | Le icone si risolvono per **chiave semantica** stabile (`UI.Icon.Status.Wet`, `UI.Icon.Phase.Blast`). Una chiave senza icona è un errore di validazione, non un widget vuoto; una chiave sconosciuta a runtime dà il missing-icon e una warning, mai il vuoto. L'insieme richiesto è **derivato dai dati di gioco** — tag `Status.*`, azioni core, fasi volontarie — non da una lista a mano | `IconCatalog.EveryKeyResolves`, `…MissingKeyIsValidationError`, `…UnknownKeyReturnsFallback`, `…DuplicateIdIsValidationError`, `…RequiredIdsFollowGameData` |
 | **20.2** | Categorie della v0.1 | Popolate le sole categorie che la v0.1 usa davvero: Identity, Action, Phase, Status, Certainty. Le altre sette restano dichiarate e vuote | `IconCatalog.V01CategoriesPopulated` |
 | **20.3** | I widget consumano il catalogo | Nessun widget di E11 referenzia una texture direttamente; l'HUD cambia icona cambiando il dato | `IconCatalog.NoDirectTextureInWidgets` + voce PIE `PIE-ICON-01` |
+
+> ✅ **CP 20.1 chiuso** — il codice esisteva dal 2026-08-09 (`1ca9bcd`, PR `#278`), ma la issue `#218` è
+> rimasta aperta perché quella PR la citava senza chiuderla. Verificato e chiuso lo stesso giorno: i cinque
+> test nominati sono verdi, il validator copre **sette** casi nominando la chiave colpevole, `RequiredIconIds()`
+> deriva l'insieme richiesto da `ERTMatchPhase`, `GetCoreActionCatalog()` e dai tag `Status.*` — non da una
+> lista scritta a mano — e la build `Shipping` passa.
+>
+> Il gate `runtime` del registry resta `partial` **di proposito**: il tipo e la libreria esistono e sono
+> testati, ma nessuno li consuma fuori dai test. I consumatori sono CP 20.3, e un dato senza consumatore non
+> è `done`.
 
 **Fuori scope, dichiarato**: le dodici categorie complete, world-space HUD, icone di fazione per il roster 8,
 pagine wiki illustrate. Stanno in [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) (E25).
