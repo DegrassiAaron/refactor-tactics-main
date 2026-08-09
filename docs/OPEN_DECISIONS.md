@@ -67,8 +67,12 @@ il registro deve dire **come** è andata a finire, non solo cosa manca.
 
 > **L'opzione scartata su `FAC-4` merita di essere ricordata**, perché il motivo non è di gusto: «facing =
 > direzione del **prossimo** passo» è stata esclusa perché il facing assunto è **pubblico** (ADR-0005 §5), quindi
-> un avversario che lo osservasse a metà movimento dedurrebbe il percorso futuro — che è esattamente ciò che
-> l'invariante **#6** e il test `Overwatch.OpportunityLeaksNoFuture` esistono per vietare.
+> un avversario che lo osservasse a metà movimento dedurrebbe il percorso futuro — contro l'invariante **#6** e
+> contro ADR-0004 §7-bis.
+>
+> ⚠️ *Rettifica del 2026-08-10*: qui era scritto «il test `Overwatch.OpportunityLeaksNoFuture` esiste per
+> vietare». Quel test **non esiste**: è pianificato in ADR-0004 per E14, che non è implementata. Il requisito
+> è dichiarato, la verifica no.
 
 ### Il modello — la proposta residua che cambierebbe ADR-0005
 
