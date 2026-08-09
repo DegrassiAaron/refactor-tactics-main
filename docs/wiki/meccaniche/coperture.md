@@ -19,7 +19,7 @@
 > Feature: `RT-FEAT-MAP-COVER` · Release: `v0.1` · Roadmap: `E9.1, E9.2`  
 > Stato: **INTEGRATED** · Gate: `6/8`  
 > Scenario: `Visual.Map.LowCoverEdge`  
-> Verificato il `2026-08-08` su `2094b86`
+> Verificato il `2026-08-09` su `3353266`
 
 <!-- RT_FEATURE_STATUS:END RT-FEAT-MAP-COVER -->
 
