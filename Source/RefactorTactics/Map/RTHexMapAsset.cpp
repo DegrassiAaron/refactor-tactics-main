@@ -492,6 +492,8 @@ void URTHexMapAsset::MigrateToCurrentFormat()
 	// v4 -> v5 (CP 9.4): gli archi guadagnano stato, integrita' e conduttivita'. I default sono quelli di un
 	// ponte SANO (`Active`, 40, non conduttivo): un arco letto da un asset vecchio non deve risultare spento,
 	// o la mappa cambierebbe significato solo per essere stata ricaricata.
+	// v5 -> v6 (CP 19.1): il formato guadagna la classe di mappa. Il default (`Skirmish`) e' cio' che una
+	// mappa scritta prima gia' era — il vertical slice e' 2v2 — quindi anche qui non c'e' niente da convertire.
 	// In nessuno dei due c'e' qualcosa da convertire — il campo nuovo nasce vuoto e una mappa che non lo usa
 	// si comporta esattamente come prima — quindi la migrazione si limita a dichiarare la versione. Il giorno
 	// in cui una migrazione dovra' TRASFORMARE dati, il posto e' questo, un `if (FormatVersion < N)` per

@@ -4,11 +4,10 @@
 > Verifiche che richiedono l'editor UE (PIE, mouse, asset) e **non** sono automatizzabili headless.
 > **Complementari** ai test Automation (suite integrata **bot + hex** su `main`, tutti verdi). Parte del DoD «playtest ogni incremento» (roadmap §QA).
 > Regola: una voce è ✅ **solo dopo** verifica reale in PIE — non «dovrebbe funzionare».
-> Per lavorarci in modo efficiente vedi **«Sessioni di verifica consigliate»** in fondo: le voci aperte sono
-> raggruppate per preparazione condivisa, così l'editor si apre una volta per gruppo invece che una per voce.
-> **Quale voce affrontare e quando** lo dice [`roadmap-editor.md`](../roadmap/roadmap-editor.md): questo file resta il
-> **registro** (esito atteso e stato), quello è la **sequenza** (sedute U1–U17, artefatti da creare, dipendenze
-> verso i checkpoint di codice).
+> **Quale voce affrontare e quando** lo dice la [**EditorMap**](../roadmap/editormap.shortlist.md): questo file
+> resta il **registro** (esito atteso e stato), quella è la **sequenza** — sedute, preparazione condivisa,
+> artefatti da creare, dipendenze verso i checkpoint di codice. Le voci aperte sono raggruppate lì per
+> preparazione, così l'editor si apre una volta per gruppo invece che una per voce.
 > **Chi esegue cosa** — quali verifiche una macchina fa da sola e quali richiedono per forza una persona — lo dice
 > [`scenario-map.md`](scenario-map.md), che dichiara anche il subset **`RELEASE-V01`** del gate G9 (vedi §*Subset di
 > release* qui sotto).
@@ -429,140 +428,26 @@ docs → epic → scenario → PIE resti chiuso, non perché siano eseguibili og
 > impedire che la Matrix 5 di [`../characters/matrici-stati-personaggio.md`](../characters/matrici-stati-personaggio.md)
 > resti con le colonne di validazione vuote quando gli stati diventeranno `PROTOTYPE`.
 
-## Sessioni di verifica consigliate
+## La sequenza: quale voce affrontare, e quando
 
-Le voci aperte non vanno affrontate una per una: molte condividono la stessa preparazione. Raggruppandole in
-**sei sessioni** si apre l'editor una volta sola per gruppo. Ordine consigliato: le sessioni **A** e **B** non
-dipendono da alcun asset da creare, la **C** sì; la **D** attende M6, la **E** la release v0.1 e la **F** si
-gioca *dopo* le altre, perché misura la partita finita.
+Questo file e' il **registro**: dice cosa verificare e com'e' andata. **Non** dice in che ordine, con quale
+preparazione condivisa, ne' quali asset creare prima — quella e' la
+[**EditorMap**](../roadmap/editormap.shortlist.md), generata da
+[`editor-sessions.yaml`](../roadmap/editor-sessions.yaml).
 
-### Sessione A — Editor Mode hex (nessun asset richiesto) → 13 voci
-`PIE-HEX-MODE-A/B/C/D/E/F/G/H/I/J/K/L/M/N/O` + `PIE-HEX`, `PIE-HEX-LAYER`, `PIE-HEX-TRANS`.
+> **Le sessioni A-G stavano qui, e sono state spostate** il 2026-08-10 (issue
+> [#371](https://github.com/DegrassiAaron/refactor-tactics-main/issues/371)). Raggruppavano le voci per
+> **preparazione condivisa** — meta' del lavoro di una seduta — mentre le sedute `U1`-`U17` della ritirata
+> `roadmap-editor.md` facevano l'altra meta' in un secondo file. Erano **lo stesso concetto modellato due
+> volte**, ed e' il modo in cui la divergenza e' gia' nata una volta. Ora sono un elenco solo, e i loro
+> conteggi non sono piu' scritti a mano: la sessione A dichiarava «13 voci» ed erano diciotto.
 
-1. Editor **chiuso**, ricompila il target Editor, poi apri `RefactorTactics.uproject`.
-2. Crea (o apri) un livello con un `ARTHexMapActor`; assegna un `URTHexMapAsset` a `MapAsset`; `DemoRadius > 0`
-   oppure `GenerateIntoAsset` per la griglia graybox → **PIE-HEX**.
-3. Attiva il mode **Hex Map** dalla toolbar Modes → **PIE-HEX-MODE-A**.
-4. Tool **Select**: click su celle, controlla il readout; cambia `ActiveLayer` → **PIE-HEX-MODE-B**;
-   attiva `bShowOverlay` → **PIE-HEX-MODE-M**.
-5. Tool **Paint**: click singolo (**C**), `Operation=Erase` (**D**), drag (**I**/**J**), `BrushRadius>0` (**K**),
-   cambia `Surface` e osserva il `MoveCost` precompilato dal catalogo (**O**). Dopo ogni prova un **Ctrl+Z** e
-   verifica il ripristino.
-6. Tool **Fill**: click su una regione (**N**), poi Ctrl+Z.
-7. Tool **Arch**: gli archi esistenti si disegnano (**F**); click From + gizmo + Commit (**E**); riclicca e cambia
-   tool per il ciclo di vita del gizmo (**G**); trascina in quota per lo snap cross-layer (**H**);
-   `Operation=Remove` e click su un arco (**L**).
-8. Con celle su due layer: `LayerView=ActiveOnly` vs `AllLayers` (**PIE-HEX-LAYER**), `Add/RemoveVerticalTransition`
-   dal pannello Details (**PIE-HEX-TRANS**).
+**Cosa serve da me**: non posso eseguire il PIE, che richiede l'editor interattivo. Posso compilare il target
+prima di ogni seduta, prepararti la sequenza esatta dei passi, e **leggere i log** dopo — incolla il percorso
+di `Saved/Logs/*.log` oppure dimmi cosa hai osservato, e aggiorno le voci con l'esito (aprendo un fix se
+emerge un difetto).
 
-### Sessione B — Turn loop quadrato, senza asset → 2 voci
-`PIE-P3`, `PIE-CP1.4`.
-
-Avvia il PIE sul livello del demo quadrato. Pianifica due unità verso la **stessa** cella e un attacco **attraverso
-un ostacolo**: il combat log deve mostrare «fermo (cella contesa)» e «nessuna linea di tiro» (**PIE-P3**). Muovi il
-mouse sulla griglia per l'evidenziazione della cella (**PIE-CP1.4**).
-
-### Sessione C — Personaggi e materiali (richiede asset creati in editor) → 6 voci
-`PIE-AS5`, `PIE-SEL`, `PIE-AS2`, `PIE-AS4a`, `PIE-AS4b`, `PIE-FACING`.
-
-Da fare **dopo** aver creato `M_TeamRing`, `M_SelectionRing`, `BP_Unit_*`, `ABP_*` e i montaggi
-(guida: [`guida-animazioni-paragon.md`](guida-animazioni-paragon.md)). Una sola partita in PIE le copre tutte:
-anello team (**AS5**) → selezione (**SEL**) → personaggio a terra (**AS2**) → corsa in fase Move (**AS4a**) →
-montaggi nel Blast (**AS4b**) → orientamento (**FACING**).
-
-### Sessione D — Partita su hex → 9 voci
-`PIE-HEXPLAY-1..9`. **Non ancora eseguibile**: attende **M6 — Parità hex** (`roadmap-checkpoint.md`), che le
-adotta come DoD del checkpoint 6.8. La mappa di prova va però preparata prima (vedi sotto): serve comunque
-alla Sessione A.
-
-### Sessione E — Contenuto della v0.1 → 17 voci
-
-> Le 4 voci di **durata, ritmo e scala** non stanno qui ma nella **sessione F**: si giocano su una partita
-> intera e cercano numeri, non difetti — mescolarle a questa sessione farebbe interrompere la partita a metà.
-
-`PIE-V01-*`. **Non ancora eseguibile**: attende la release **v0.1** ([`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md)), che le
-adotta come DoD del checkpoint **12.2** (issue [#82](https://github.com/DegrassiAaron/refactor-tactics-main/issues/82)).
-Le voci si aprono man mano che le epic chiudono, non tutte in fondo:
-
-1. Dopo **E6** (roster): `PIE-V01-ROSTER`.
-2. Dopo **E4** (motore azioni): `PIE-V01-COLL`, `PIE-V01-ROUGH`, `PIE-V01-DASHCOVER`, `PIE-V01-PUSH`, `PIE-V01-FALLBACK`.
-3. Dopo **E5** (reazioni): `PIE-V01-INTERCEPT`.
-4. Dopo **E8** (ambiente): `PIE-V01-ELEC`, `PIE-V01-FIREWATER`, `PIE-V01-FF`.
-5. Dopo **E9** (strutture): `PIE-V01-LOWCOVER`, `PIE-V01-DOOR`.
-6. Dopo **E11** (HUD e debug): `PIE-V01-HUD`, `PIE-V01-INTENT`, `PIE-V01-LOG`, `PIE-V01-DEBUG`, `PIE-V01-REPLAY`.
-
-La mappa di prova della sessione D basta anche qui, con due aggiunte: **una porta** su un passaggio strettoia
-(per `PIE-V01-DOOR`) e **una copertura bassa** su un bordo esposto (per `PIE-V01-LOWCOVER`).
-
-### Sessione F — Durata, ritmo e scala → 4 voci
-
-`PIE-V01-MATCHLEN`, `PIE-V01-READY`, `PIE-V01-OVERWATCH`, `PIE-V01-MAPSCALE`.
-
-**Non è una sessione di caccia ai difetti: è una sessione di misura.** Si gioca **una partita intera fino alla
-fine**, senza fermarsi a indagare, e si annotano i numeri. Serve un cronometro e `bRecordPacing` attivo sul
-`TurnManager` (il CSV finisce in `Saved/RT/`, fuori dal versionamento).
-
-1. **Prima della partita**: sulla mappa di prova, conta i Move necessari per attraversarla da spawn a spawn e
-   verifica che esistano **almeno due rotte** con trade-off diverso (**PIE-V01-MAPSCALE**).
-2. **Durante**: annota a che secondo dichiari Ready nei round tipici, e se il countdown esiste e si annulla
-   (**PIE-V01-READY** — oggi **no**, la voce resta ⏳ finché il countdown non è implementato).
-3. **A fine partita**: round giocati, durata a cronometro, round del primo contatto, via di fine
-   (**PIE-V01-MATCHLEN**).
-4. **Solo dopo E14**: ripeti con un'unità in Overwatch e giudica la finestra da 3 s (**PIE-V01-OVERWATCH**).
-
-I numeri raccolti vanno nella tabella KPI di [`v0.1-definition-of-done.md`](../roadmap/v0.1-definition-of-done.md) §4
-**con la riserva sul campione** (un solo giocatore, che è l'autore del gioco) e **con l'etichetta «2v2»**: i
-target di 25–30 min sono del 3v3 Standard, che in v0.1 non esiste.
-Bande di riferimento: [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §5–§9, §17.
-
-### Sessione G — Eseguibile subito, senza preparare niente → 3 voci
-
-`PIE-PREVIEW-AREA`, `PIE-V01-MATCHEND`, `PIE-TEST-CONSOLE`.
-
-**È la sola sessione che non attende nulla**: nessun asset da creare, nessun checkpoint da chiudere, nessuna
-mappa di prova. Basta premere Play sull'arena di ripiego. Le tre voci erano già nella checklist ma in nessuna
-sessione, e una voce che non sta in una seduta non viene eseguita mai — che è il motivo per cui questa
-sezione esiste.
-
-> ⚠️ **Prima di cominciare, controlla che `Scenario To Run` sia vuoto** (`BP_GameMode` → Class Defaults →
-> *RefactorTactics|Test*) e che `rt.Test.Scenario` in console sia vuota — quest'ultima **prevale** sulla
-> property e dura quanto il processo dell'editor. Con uno scenario impostato la partita normale non viene
-> allestita affatto, e tutte e tre queste voci diventano non eseguibili: niente unità tue, niente selezione,
-> niente barra abilità. È successo il 2026-08-08, uscendo da `PIE-SCEN-KEEP` che lascia la property valorizzata.
-
-L'ordine non è arbitrario:
-
-1. **PIE-PREVIEW-AREA** e **PIE-V01-MATCHEND** su una partita normale: la prima guarda l'anteprima della zona
-   colpita, la seconda che la partita arrivi a una conclusione e che `R` riavvii.
-2. **PIE-TEST-CONSOLE** per **ultima**, e non per gusto di ordine: `rt.Test.Run` **sostituisce la mappa** e
-   aggiunge unità alla partita in corso. Eseguirla prima lascerebbe le altre due su uno stato che non è
-   quello che dicono di verificare. Dopo, si riavvia con `R`.
-
-Le altre voci dell'harness (`TEST-AUTORUN`, `TEST-VISUAL`, `SCEN-FILTER`, `SCEN-KEEP`) sono verdi dal
-2026-08-08 e non tornano qui.
-
-### Mappa di prova consigliata (serve alle sessioni A, D, E ed F)
-
-Un solo asset copre quasi tutte le verifiche: esagono pieno di **raggio 4** sul layer 0, con
-- 2–3 celle `bBlocksMovement` (ostacoli di movimento),
-- 2–3 celle `bBlocksLineOfSight` **allineate** fra le due metà del campo (per la copertura: PIE-HEXPLAY-6),
-- una superficie a costo alto (Mud/Water) per vedere il budget mordere (PIE-HEXPLAY-3),
-- una piattaforma di 3–4 celle sul layer 1 collegata da **una** transizione (PIE-HEXPLAY-8, PIE-HEX-LAYER/TRANS).
-
-Per la sessione E servono in più: una cella `Terrain.Rough`, una zona d'acqua adiacente a una superficie
-conduttiva, una **porta** su un passaggio obbligato e una **copertura bassa** su un bordo esposto.
-
-Per la sessione **F** serve una cosa che le altre non richiedono: **due rotte distinte** fra gli spawn, con
-trade-off diverso — una più corta ed esposta, una più lunga e coperta. Con una sola rotta `PIE-V01-MAPSCALE`
-non è verificabile e la partita misurata dice poco: senza scelta di percorso, il tempo di contatto è una
-costante della mappa, non una decisione del giocatore. Un esagono r=4 è **Skirmish** per costruzione
-(~3–4 Move di attraversamento): va bene per misurare, **non** è la scala di una mappa Standard.
-
-### Cosa serve da me
-
-Non posso eseguire il PIE (richiede l'editor interattivo). Posso: compilare il target prima di ogni sessione,
-prepararti la sequenza esatta dei passi, e **leggere i log** dopo — incolla il percorso di `Saved/Logs/*.log`
-oppure dimmi cosa hai osservato e aggiorno le voci con l'esito (e apro un fix se emerge un difetto).
+## Note operative sulle singole voci
 
 > **PIE-CP1.4**: codice fatto (`c06ef51`), resta solo la verifica interattiva (evidenziazione cella-cursore).
 > Le altre voci hanno il **codice pronto**; manca solo la verifica interattiva (e, per AS.2/AS.4/AS.5, gli asset in editor).

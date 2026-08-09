@@ -307,7 +307,9 @@ bool FRTHexMapFormatMigrationTest::RunTest(const FString&)
 	Legacy->MigrateToCurrentFormat();
 
 	TestEqual(TEXT("versione portata alla corrente"), Legacy->FormatVersion, URTHexMapAsset::CurrentFormatVersion);
-	TestEqual(TEXT("la versione corrente e' la 5"), URTHexMapAsset::CurrentFormatVersion, 5);
+	// Il numero e' pinnato di proposito: un bump di formato deve far cadere un test, non passare inosservato.
+	// v6 (CP 19.1) aggiunge la classe di mappa; nessun dato precedente cambia significato.
+	TestEqual(TEXT("la versione corrente e' la 6"), URTHexMapAsset::CurrentFormatVersion, 6);
 	TestEqual(TEXT("nessuna cella persa"), Legacy->NumCells(), 3);
 	TestEqual(TEXT("nessuna transizione persa"), Legacy->Transitions.Num(), 2); // bidirezionale
 

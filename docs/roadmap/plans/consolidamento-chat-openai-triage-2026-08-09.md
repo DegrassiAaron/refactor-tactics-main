@@ -1,8 +1,12 @@
 # Consolidamento `todo/consolidazione-chat-openai/` — triage
 
-> `CURRENT` · **Stato**: audit chiuso · **quattro cluster su cinque consumati** (PR `#312`, `#317`, `#321` e
-> questa) · **HEAD dell'audit**: `75eb0f3`; l'esecuzione ha seguito `main` fino a `b7368b8`
-> **Sorgente auditata**: i 14 file di `todo/consolidazione-chat-openai/` (untracked, non versionati)
+> `CURRENT` · **Stato**: audit chiuso · **cinque cluster su cinque consumati** — PR `#312`, `#317`, `#321`,
+> questa, e `#349` che ha chiuso il residuo Characters (`#336`) il 2026-08-09.
+> ⬜ **Resta il master Common Actions**: la decisione che lo bloccava è presa (§8.2), il recepimento no.
+> **HEAD dell'audit**: `75eb0f3`; l'esecuzione ha seguito `main` fino a `b7368b8`
+> **Sorgente auditata**: i 14 file di `todo/consolidazione-chat-openai/`. **Dal 2026-08-10 sono versionati**:
+> dodici archiviati in [`archive/src/README.md`](../../archive/src/README.md) §pacchetto, uno era il duplicato
+> di un kit già archiviato, e Common Actions resta fuori finché nessun owner lo recepisce.
 > **Scopo**: classificare ogni affermazione dei sei *master* e dei due *kit* contro le source of truth reali,
 > **prima** di toccare Decision Log, ADR, Feature Registry, roadmap, Wiki o scenari.
 > **Regola applicata**: un handoff AI è l'ultima fonte della gerarchia. Dove contraddice un ADR o una `D-0xx`
@@ -19,17 +23,17 @@ Il pacchetto non è omogeneo: sono **due generazioni** di documenti sovrapposte.
 | `RT_Reaction_System_Master_Consolidation_v0.1.md` | master rivisto | ✅ **assorbito** — PR `#305`, `D-047`/`D-048`/`D-049`, CP 14.7 |
 | `RefactorTactics_ReactionSystem_ReactionClash_...md` | kit | ✅ assorbito nella stessa PR |
 | `RefactorTactics_Move_Consolidation_Claude.md` | kit | ✅ assorbito — PR `#304` |
-| `RefactorTactics_BasicAttack_Consolidation_...md` | kit | 🔄 **in volo** — `adr-0007-attacco-base-per-eroe.md`, non committato |
-| `RefactorTactics_Decision_Time_Bank_Claude_...md` | kit | 🔄 **in volo** — `spec-decision-time-bank.md` + conflict report, non committati |
-| `RT_Common_Actions_Master_Consolidation_v0.1.md` | master | ⬜ da consumare (resta tutto tranne Move e BasicAttack) |
-| `RT_Characters_Roster_Master_Consolidation_v0.1.md` | master | ⬜ da consumare |
-| `RT_Map_Environment_Master_Consolidation_v0.1.md` | master | ⬜ da consumare |
-| `RefactorTactics_Interactive_Map_Elements_...md` | kit | ⬜ da consumare (dettaglio del precedente) |
-| `RT_UI_UX_Master_Consolidation_v0.1.md` | master | ⬜ da consumare |
-| `RefactorTactics_HUD_Consolidation_Claude.md` | kit | ⬜ da consumare (dettaglio del precedente) |
-| `RT_Scenarios_QA_Bots_Master_Consolidation_v0.1.md` | master | ⬜ da consumare |
-| `RT_Governance_Master_Consolidation_v0.1.md` | master | ⬜ da consumare |
-| `RT_Chat_Cleanup_Tracker.md` (×2) · `RT_Final_Chat_Cleanup_Plan_v0.1.md` | meta | ⬜ riguardano il progetto ChatGPT, **non** il repository |
+| `RefactorTactics_BasicAttack_Consolidation_...md` | kit | ✅ assorbito — [ADR-0007](../../decisions/adr-0007-attacco-base-per-eroe.md) |
+| `RefactorTactics_Decision_Time_Bank_Claude_...md` | kit | ✅ assorbito — [`spec-decision-time-bank.md`](../../gameplay/spec-decision-time-bank.md) + conflict report |
+| `RT_Common_Actions_Master_Consolidation_v0.1.md` | master | ⬜ **l'unico rimasto** (resta tutto tranne Move e BasicAttack) — vedi §8.2 |
+| `RT_Characters_Roster_Master_Consolidation_v0.1.md` | master | ✅ consumato — PR `#321`, poi il residuo in `#349` (`#336`) |
+| `RT_Map_Environment_Master_Consolidation_v0.1.md` | master | ✅ consumato — [`spec-interazioni-mappa-cp101.md`](../../gameplay/spec-interazioni-mappa-cp101.md) |
+| `RefactorTactics_Interactive_Map_Elements_...md` | kit | ✅ consumato nella stessa sessione (dettaglio del precedente) |
+| `RT_UI_UX_Master_Consolidation_v0.1.md` | master | ✅ consumato — PR `#317` |
+| `RefactorTactics_HUD_Consolidation_Claude.md` | kit | ✅ consumato con riserva (dettaglio del precedente): 3 dei 7 conflitti nascono qui |
+| `RT_Scenarios_QA_Bots_Master_Consolidation_v0.1.md` | master | ✅ consumato — il più assorbito dei tre |
+| `RT_Governance_Master_Consolidation_v0.1.md` | master | ✅ consumato — PR `#312` |
+| `RT_Chat_Cleanup_Tracker.md` (×2) · `RT_Final_Chat_Cleanup_Plan_v0.1.md` | meta | ⬜ riguardano il progetto ChatGPT, **non** il repository — archiviati per provenienza |
 
 **I due `RT_Chat_Cleanup_Tracker` differiscono**: il secondo (`(1)`) è più recente — aggiunge Map e UI ai
 cluster completati e cinque conflitti che il primo non ha. Il primo va ignorato.

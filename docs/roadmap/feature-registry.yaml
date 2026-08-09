@@ -3201,11 +3201,11 @@ features:
       checkpoints: []
       out_of_release_scope: >-
         Strumento d'editor: non entra nella build di gioco e non ha un gate di release.
-        Tracciato da M9 e da `roadmap-editor.md`, non dalle epic della v0.1.
+        Tracciato da M9 e dalla EditorMap, non dalle epic della v0.1.
     dependencies:
       - RT-FEAT-MAP-HEXGRAPH
     owner_specs:
-      - docs/roadmap/roadmap-editor.md
+      - docs/roadmap/editormap.shortlist.md
       - docs/roadmap/hex-map-roadmap.md
     issues: []
     tests:
