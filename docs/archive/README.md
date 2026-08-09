@@ -19,7 +19,7 @@ La fonte di verità del progetto è:
 
 | Cartella / file | Cos'è |
 |---|---|
-| [`src/`](src/README.md) | **I 25 sorgenti recepiti** — `design/`, `handoff/`, `audit/`, spostati qui dal 2026-08-08. Hanno un indice proprio con la colonna «Recepito da» |
+| [`src/`](src/README.md) | **I 28 sorgenti recepiti** — `design/`, `handoff/`, `audit/`, spostati qui dal 2026-08-08. Hanno un indice proprio con la colonna «Recepito da». Dal 2026-08-09 include anche i sorgenti **revisionati e non applicati**, con l'esito in testa al file |
 | `pdr-v0.1/` | Snapshot PDF dei dodici PDR `v0.1`. Le sorgenti testuali vivono in Git (D-009); questi restano di consultazione |
 | `gameplay/` | Spec superate: terreni, knockback, bot utility, sequenza turno esplorativa |
 | `technical/` | Le versioni **a griglia quadrata** di mappa multilivello e pathfinding, superate dal pivot esagonale (ADR-0002) |
