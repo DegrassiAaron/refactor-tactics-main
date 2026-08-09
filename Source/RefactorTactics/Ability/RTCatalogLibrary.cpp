@@ -604,6 +604,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 			/*Range*/ 4, /*Cooldown*/ 2, ERTActionFallback::Cancel, {});
 		Ignite.bCreatesSurface = true;
 		Ignite.SurfaceCreated = ERTHexSurface::Fire;
+		Ignite.SurfaceRadius = 0; // la sola cella bersaglio: dichiarato, non lasciato al default
 		Catalog.Add(Ignite);
 	}
 	{
@@ -611,6 +612,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 			/*Priority*/ 60, /*Range*/ 4, /*Cooldown*/ 2, ERTActionFallback::Cancel, {});
 		CreateWater.bCreatesSurface = true;
 		CreateWater.SurfaceCreated = ERTHexSurface::ShallowWater;
+		CreateWater.SurfaceRadius = 1; // «acqua raggio 1» (catalogo azioni §6): era cablato nel resolver
 		Catalog.Add(CreateWater);
 	}
 

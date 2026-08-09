@@ -1004,9 +1004,11 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 				// La cella e' quella del bersaglio, come per la scarica: stesso limite dichiarato sul
 				// targeting per cella.
 				//
-				// L'acqua copre un RAGGIO 1 (catalogo azioni §6: «acqua raggio 1»), il fuoco la sola cella:
-				// il raggio e' dell'azione, non della meccanica, quindi si legge da qui e non dal terreno.
-				const int32 Radius = (Created == ERTHexSurface::ShallowWater) ? 1 : 0;
+				// Il raggio e' dell'AZIONE, non della superficie. Era `(Created == ShallowWater) ? 1 : 0`, cioe'
+				// il ramo che il commento qui sopra dichiara di voler evitare: con tre produttori — acqua 1,
+				// fuoco 0, fumo 1 (`Riva.MistVeil`, #353) — quel ramo dovrebbe indovinare quale superficie
+				// vuole quale area, e sbaglierebbe alla prima azione che allaga una cella sola.
+				const int32 Radius = FMath::Max(0, Ability->Def.SurfaceRadius);
 				// Ordine STABILE delle celle: `HexArea` restituisce gia' un'area ordinata, quindi le voci di
 				// TurnLog escono sempre nella stessa sequenza (#4).
 				for (const FRTCellId& Cell : URTHexLibrary::HexArea(Target->Cell, Radius))

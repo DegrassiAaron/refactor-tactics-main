@@ -4,6 +4,7 @@
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Core/RTGameplayTags.h"
+#include "Map/RTHexCellData.h" // ERTHexSurface: la superficie che MistVeil dichiara di creare
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -70,8 +71,23 @@ bool FRTRivaMatchesCatalogTest::RunTest(const FString&)
 	// Nessun residuo dello scatto: uno stile di movimento rimasto verrebbe letto come intenzione.
 	TestTrue(TEXT("FluidTrail: non si muove piu'"), FluidTrail->Def.MovementStyle == ERTMovementStyle::None);
 
+	// MistVeil crea DAVVERO il fumo (issue #353). Come per FluidTrail, questo test e' la documentazione
+	// vincolante del kit: se un giorno tornasse `Preparation`, o il flag sparisse, deve cadere qualcosa —
+	// perche' il modo in cui questa abilita' falliva era il piu' silenzioso possibile (risolveva, e non
+	// succedeva niente).
 	const URTActionData* MistVeil = Riva->Actions[3];
+	const FRTActionDef IgniteDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Ignite"));
 	TestEqual(TEXT("MistVeil: cooldown 3"), MistVeil->Def.CooldownTurns, 3);
+	TestTrue(TEXT("MistVeil: crea una superficie"), MistVeil->Def.bCreatesSurface);
+	TestTrue(TEXT("MistVeil: e' fumo"), MistVeil->Def.SurfaceCreated == ERTHexSurface::Smoke);
+	TestEqual(TEXT("MistVeil: raggio 1, come dice il catalogo"), MistVeil->Def.SurfaceRadius, 1);
+	// La fase e' il punto della issue: in `Preparation` non arrivava mai a `ResolveEnvironment`.
+	TestTrue(TEXT("MistVeil: risolve nell'ambiente, o non viene mai eseguita"),
+		MistVeil->Def.ResolutionPhase == ERTResolutionPhase::Environment);
+	TestEqual(TEXT("MistVeil: portata dal core, non un numero nuovo"),
+		MistVeil->Def.RangeCells, IgniteDef.RangeCells);
+	TestEqual(TEXT("MistVeil: priorita' dal core — ordina DENTRO la fase in cui e' andata a vivere"),
+		MistVeil->Def.Priority, IgniteDef.Priority);
 
 	// Riva e' un roster valido di per se'.
 	const TArray<FString> Errors = URTHeroCatalogLibrary::ValidateHeroes({ Riva });

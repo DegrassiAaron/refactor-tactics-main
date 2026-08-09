@@ -4,6 +4,7 @@
 #include "Ability/RTHeroData.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Core/RTGameplayTags.h"
+#include "Map/RTHexCellData.h" // ERTHexSurface: `Riva.MistVeil` nomina la superficie che crea
 
 namespace
 {
@@ -307,13 +308,33 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiva()
 	// come «0 danni» — cioe' fallisce nel modo piu' silenzioso possibile.
 	FluidTrail->Def.bCreatesSurface = CreateWaterDef.bCreatesSurface;
 	FluidTrail->Def.SurfaceCreated = CreateWaterDef.SurfaceCreated;
+	FluidTrail->Def.SurfaceRadius = CreateWaterDef.SurfaceRadius;
 	Riva->Actions.Add(FluidTrail);
 
-	// Indice 3 — MistVeil. "Crea fumo raggio 1": nessun modello di cella (vision-blocking dinamico, E8/E9).
-	// Range 0 come `Flux.ConductiveNode`: segnaposto dichiarato, non un numero di bilanciamento, perche'
-	// l'abilita' non ha ancora un effetto da mirare davvero.
-	Riva->Actions.Add(MakeHeroAction(TEXT("Riva.MistVeil"), ERTResolutionPhase::Preparation, /*Priority*/ 35,
-		/*Range*/ 0, /*Cooldown*/ 3, ERTActionFallback::Cancel, {}, ERTAbilityShape::Area, /*AreaRadius*/ 1));
+	// Indice 3 — MistVeil. Issue #353: dichiarava «crea fumo raggio 1» e non lo faceva. `Smoke` era l'unica
+	// delle otto superfici che nessuna azione sapeva creare, e il meccanismo esisteva gia' — mancava il
+	// collegamento, esattamente come per `MovementStyle` su `Bastion.Ram`.
+	//
+	// **Passa a `Environment`**, e non e' un dettaglio di implementazione: `ResolveEnvironment` — l'unico posto
+	// che crea superfici — processa solo le azioni la cui fase mappa su `Cleanup`, e in `Preparation` MistVeil
+	// non ci arrivava mai. Conseguenza di GIOCO dichiarata: il fumo si alza nel Cleanup, quindi copre il turno
+	// SEGUENTE. Si prepara un attraversamento, non si rompe una linea nell'istante. Stesso movimento che D-046
+	// ha fatto su `FluidTrail`, che ha adottato fase e portata del core.
+	//
+	// I numeri vengono dal CORE, non sono inventati qui: portata 4 e priorita' 60 sono quelle di entrambe le
+	// azioni ambientali (`Ignite`, `CreateWater`). La priorita' e' un ordinamento INTERNO alla fase — si
+	// confronta solo fra azioni della stessa — quindi il 35 scelto per il Prep non aveva piu' significato
+	// dove l'azione e' andata a vivere. Il cooldown 3 resta: e' del catalogo eroi.
+	const FRTActionDef IgniteDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Ignite"));
+	URTActionData* MistVeil = MakeHeroAction(TEXT("Riva.MistVeil"), IgniteDef.ResolutionPhase,
+		IgniteDef.Priority, IgniteDef.RangeCells, /*Cooldown*/ 3, ERTActionFallback::Cancel, {},
+		ERTAbilityShape::Area, /*AreaRadius*/ 1);
+	// La superficie va copiata a mano, come per `FluidTrail`: `MakeHeroAction` prende identita', fase, portata,
+	// ricarica, fallback ed effetti — non i campi di comportamento.
+	MistVeil->Def.bCreatesSurface = true;
+	MistVeil->Def.SurfaceCreated = ERTHexSurface::Smoke;
+	MistVeil->Def.SurfaceRadius = 1; // «crea fumo raggio 1», catalogo eroi
+	Riva->Actions.Add(MistVeil);
 
 	// Indice 4 — FlowReaction. `Reposition 1` dopo un attacco subito: e' una reazione che produce MOVIMENTO
 	// dentro un boundary di risoluzione, quindi il suo aggancio e' **E14** (ADR-0004, finestre di reazione),

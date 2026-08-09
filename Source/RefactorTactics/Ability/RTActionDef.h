@@ -270,6 +270,21 @@ struct FRTActionDef
 	ERTHexSurface SurfaceCreated = ERTHexSurface::Floor;
 
 	/**
+	 * Raggio dell'area DIPINTA attorno alla cella bersaglio: 0 = la sola cella, 1 = l'esagono pieno di raggio 1.
+	 *
+	 * E' un asse diverso da `URTActionData::AreaRadius`, che e' l'area degli EFFETTI sulle unita': `CreateWater`
+	 * non colpisce nessuno — forma `Single` — e allaga comunque sette celle. Tenerli separati costa un campo;
+	 * unificarli costerebbe la prima azione che danneggia un raggio e ne allaga un altro.
+	 *
+	 * Nasce con lo stesso argomento di `SurfaceCreated` (D-046): il resolver cablava
+	 * `(Created == ShallowWater) ? 1 : 0`, cioe' proprio il ramo che il commento accanto dichiarava di voler
+	 * evitare. Finche' i produttori erano due il ramo reggeva; con `Riva.MistVeil` (issue #353) i raggi
+	 * dichiarati diventano tre e il ramo dovrebbe indovinare quale superficie vuole quale area.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	int32 SurfaceRadius = 0;
+
+	/**
 	 * Effetti prodotti dall'azione, nell'ordine in cui si applicano. E' il campo che il registry traduce in
 	 * eventi: cambiare cosa fa un'azione significa cambiare QUESTO, non aggiungere un ramo nell'orchestratore.
 	 *
