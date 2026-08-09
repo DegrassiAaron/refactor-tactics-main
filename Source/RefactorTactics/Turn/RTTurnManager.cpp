@@ -1770,6 +1770,15 @@ void ARTTurnManager::ResolveDash()
 			URTFacingLibrary::RecordFacingChange(Dashed, URTFacingLibrary::FacingFromPath(Walked, Dashed.Facing),
 				ERTFacingOutcome::DerivedFromDash, ERTMatchPhase::Dash, TurnLog);
 			Unit->Facing = Dashed.Facing;
+
+			// Traccia per la rotazione dichiarata (#291): dopo uno scatto LINEARE la sola direzione legale e'
+			// quella del movimento, e a fine turno non sarebbe piu' deducibile — chi ha scattato arriva al Move
+			// con `PlannedCell` uguale alla cella attuale, indistinguibile da chi non si e' mosso.
+			if (const URTActionData* DashUsed = Unit->GetAbility(DashAbilityIdx[i]))
+			{
+				Unit->MovementStyleThisTurn = DashUsed->Def.MovementStyle;
+				Unit->WalkedThisTurn = Walked;
+			}
 		}
 
 		Unit->Cell = Final;
@@ -3449,6 +3458,46 @@ void ARTTurnManager::ResolveMovement()
 		URTFacingLibrary::RecordFacingChange(Moved, Derived, ERTFacingOutcome::DerivedFromMove,
 			ERTMatchPhase::Move, TurnLog);
 		Units[i]->Facing = Moved.Facing;
+
+		// Il Move e' a BUDGET: le rotazioni legali saranno tre (l'ultimo passo e le due adiacenti). Sovrascrive
+		// l'eventuale traccia dello scatto perche' il Move risolve dopo ed e' l'ultimo movimento del round.
+		Units[i]->MovementStyleThisTurn = ERTMovementStyle::Budget;
+		Units[i]->WalkedThisTurn = Walked;
+	}
+
+	// Rotazione DICHIARATA in pianificazione (D-020, #291). Ultimo passo del round, DOPO l'orientamento
+	// derivato: e' quello il `Current` su cui si misura la legalita' — «una accanto» vuol dire accanto a dove
+	// si e' arrivati, non a dove si era partiti. Chi non si e' mosso ha stile `None` e ruota libero: e' il caso
+	// «resto fermo e mi giro», che prima di questo passaggio non era esprimibile.
+	//
+	// Una dichiarazione ILLEGALE viene rifiutata, non corretta verso la legale piu' vicina: in una fase
+	// simultanea il giocatore non potrebbe accorgersi della correzione, e si ritroverebbe a subire un
+	// orientamento che non ha scelto. Il rifiuto lascia una voce nel TurnLog proprio perche' NON cambia nulla:
+	// senza, sarebbe indistinguibile da una dichiarazione mai fatta.
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		ARTUnit* Unit = Units[i];
+		if (!IsValid(Unit)) { continue; }
+		if (!Unit->bDeclaresPlannedFacing || !Unit->IsAlive())
+		{
+			Unit->ClearDeclaredFacing();
+			continue;
+		}
+
+		ERTHexDirection Applied = Unit->Facing;
+		const bool bLegal = URTFacingLibrary::TryApplyDeclaredFacing(Unit->MovementStyleThisTurn,
+			Unit->WalkedThisTurn, Unit->Facing, Unit->PlannedFacing, Applied);
+
+		FRTHexSimUnit Declaring(i, Unit->Cell, /*InMoveBudget=*/ 0);
+		Declaring.Facing = Unit->Facing;
+		URTFacingLibrary::RecordFacingChange(Declaring, Applied,
+			bLegal ? ERTFacingOutcome::DeclaredInPlanning : ERTFacingOutcome::DeclarationRejected,
+			ERTMatchPhase::Move, TurnLog);
+		Unit->Facing = Declaring.Facing;
+
+		AddLogEvent(FString::Printf(TEXT("%s: rotazione dichiarata %s"), *Unit->GetName(),
+			bLegal ? TEXT("applicata") : TEXT("RIFIUTATA (illegale per lo stile di movimento)")));
+		Unit->ClearDeclaredFacing();
 	}
 
 	// NOTA (CP 8.1): il cross-damage delle celle attraversate esiste di nuovo, ma solo per i terreni che

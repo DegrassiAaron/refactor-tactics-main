@@ -934,3 +934,151 @@ bool FRTKitDeclaredBothSlotsTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * CP 16.1 / D-020 — la ROTAZIONE DICHIARATA in un turno vero (#291).
+ *
+ * `URTFacingLibrary::TryApplyDeclaredFacing` esisteva ed era testata, ma **nessuno la chiamava**: in tutto il
+ * progetto la invocavano solo i test della libreria pura. Il caso «resto fermo e mi giro» non era esprimibile,
+ * e un'unita' che non si muoveva teneva l'orientamento del turno prima.
+ *
+ * Questi tre test coprono il CABLAGGIO, non le regole: che la dichiarazione arrivi dal piano al resolver, che
+ * un rifiuto sia osservabile nel TurnLog, e che una dichiarazione non sopravviva al proprio turno. E' il
+ * difetto ricorrente di questo repository — libreria coperta, cablaggio scoperto.
+ */
+namespace
+{
+	/** Quante voci di orientamento con quell'esito ci sono nel TurnLog. */
+	int32 CountFacingOutcome(const ARTTurnManager* TM, ERTFacingOutcome Outcome)
+	{
+		int32 N = 0;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Facing && E.Outcome == static_cast<uint8>(Outcome)) { ++N; }
+		}
+		return N;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMoveStationaryDeclaredRotationTest,
+	"RefactorTactics.HexMove.StationaryUnitAppliesDeclaredRotation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMoveStationaryDeclaredRotationTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 4);
+
+	ARTUnit* Sentry = SpawnHexUnit(World, 0, ERTArchetype::Guardian, FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, ERTArchetype::Guardian, FRTCellId(4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Sentry || !Foe) { DestroyHexMoveWorld(World); return false; }
+
+	Sentry->Facing = ERTHexDirection::E;
+	Sentry->PlannedCell = Sentry->Cell; // ferma: sei direzioni legali
+	Foe->PlannedCell = Foe->Cell;
+
+	// La dichiarazione: resto dove sono e mi giro a SW. Senza il consumo nel resolver questo campo non
+	// arriverebbe da nessuna parte e l'unita' finirebbe il turno guardando ancora a E.
+	Sentry->bDeclaresPlannedFacing = true;
+	Sentry->PlannedFacing = ERTHexDirection::SW;
+
+	RunTurn(TM);
+
+	TestTrue(TEXT("chi non si muove puo' girarsi: il facing e' quello dichiarato"),
+		Sentry->Facing == ERTHexDirection::SW);
+	TestTrue(TEXT("l'unita' non si e' spostata"), Sentry->Cell == FRTCellId(0, 0));
+	TestEqual(TEXT("e la dichiarazione e' registrata nel TurnLog"),
+		CountFacingOutcome(TM, ERTFacingOutcome::DeclaredInPlanning), 1);
+	TestEqual(TEXT("nessun rifiuto: era legale"),
+		CountFacingOutcome(TM, ERTFacingOutcome::DeclarationRejected), 0);
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMoveIllegalDeclaredRotationTest,
+	"RefactorTactics.HexMove.IllegalDeclaredRotationIsRejectedInPlayedTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMoveIllegalDeclaredRotationTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 4);
+
+	ARTUnit* Mover = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, ERTArchetype::Guardian, FRTCellId(0, 3));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
+
+	// Un passo a EST: dopo un Move a budget le direzioni legali sono l'ultimo passo e le due adiacenti nel
+	// ciclo — `E`, `NE`, `SE`. `W` e' l'opposta esatta, quindi illegale per costruzione e non per caso.
+	const FRTCellId Goal = URTHexLibrary::Neighbor(FRTCellId(0, 0), ERTHexDirection::E);
+	Mover->Facing = ERTHexDirection::NW; // di partenza: cosi' «rifiutata» non coincide con «invariata»
+	Mover->PlannedCell = Goal;
+	Foe->PlannedCell = Foe->Cell;
+
+	Mover->bDeclaresPlannedFacing = true;
+	Mover->PlannedFacing = ERTHexDirection::W;
+
+	RunTurn(TM);
+
+	TestTrue(TEXT("il movimento e' avvenuto"), Mover->Cell == Goal);
+	TestTrue(TEXT("la rotazione illegale NON e' stata applicata"), Mover->Facing != ERTHexDirection::W);
+	TestTrue(TEXT("e vale l'orientamento DERIVATO dal movimento, non quello di partenza"),
+		Mover->Facing == ERTHexDirection::E);
+	TestEqual(TEXT("il rifiuto e' osservabile: senza voce sarebbe indistinguibile da una dichiarazione mai fatta"),
+		CountFacingOutcome(TM, ERTFacingOutcome::DeclarationRejected), 1);
+	TestEqual(TEXT("e non e' stata registrata nessuna dichiarazione accolta"),
+		CountFacingOutcome(TM, ERTFacingOutcome::DeclaredInPlanning), 0);
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMoveDeclarationDoesNotSurviveTurnTest,
+	"RefactorTactics.HexMove.DeclaredRotationDoesNotSurviveItsTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMoveDeclarationDoesNotSurviveTurnTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 4);
+
+	ARTUnit* Sentry = SpawnHexUnit(World, 0, ERTArchetype::Guardian, FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, ERTArchetype::Guardian, FRTCellId(4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Sentry || !Foe) { DestroyHexMoveWorld(World); return false; }
+
+	Sentry->Facing = ERTHexDirection::E;
+	Sentry->PlannedCell = Sentry->Cell;
+	Foe->PlannedCell = Foe->Cell;
+	Sentry->bDeclaresPlannedFacing = true;
+	Sentry->PlannedFacing = ERTHexDirection::SW;
+
+	RunTurn(TM);
+	TestTrue(TEXT("primo turno: la rotazione si applica"), Sentry->Facing == ERTHexDirection::SW);
+	TestFalse(TEXT("e la dichiarazione e' consumata"), Sentry->bDeclaresPlannedFacing);
+
+	TestEqual(TEXT("registrata una volta, nel turno in cui e' stata fatta"),
+		CountFacingOutcome(TM, ERTFacingOutcome::DeclaredInPlanning), 1);
+
+	// Secondo turno senza dichiarare nulla. Una rotazione dichiarata e' un pezzo del PIANO, e i piani non
+	// sopravvivono al proprio turno: se questo campo restasse acceso, l'unita' continuerebbe a «ridichiarare»
+	// per sempre l'ultima direzione scelta, e in ogni TurnLog comparirebbe una decisione che nessuno ha preso.
+	//
+	// Il confronto e' con ZERO, non col conteggio del turno prima: `TurnLog` viene azzerato a ogni turno
+	// (`ARTTurnManager::LockInAndResolve`), quindi qui si legge il log del SOLO secondo turno.
+	Sentry->PlannedCell = Sentry->Cell;
+	Foe->PlannedCell = Foe->Cell;
+	RunTurn(TM);
+
+	TestTrue(TEXT("secondo turno: l'orientamento resta quello raggiunto"), Sentry->Facing == ERTHexDirection::SW);
+	TestEqual(TEXT("e nel log del secondo turno non c'e' nessuna dichiarazione"),
+		CountFacingOutcome(TM, ERTFacingOutcome::DeclaredInPlanning), 0);
+	TestEqual(TEXT("ne' un rifiuto: non e' stato dichiarato niente, non e' stato rifiutato niente"),
+		CountFacingOutcome(TM, ERTFacingOutcome::DeclarationRejected), 0);
+
+	DestroyHexMoveWorld(World);
+	return true;
+}

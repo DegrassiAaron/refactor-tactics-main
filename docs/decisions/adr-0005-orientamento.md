@@ -210,6 +210,23 @@ stabile, formato versionato) · **#6** rispettato (la rotazione **intesa** è fi
 | `Vision.ConeUsesHexConePrimitive` | la vista non ha una geometria propria |
 | `Vision.AwarenessWithinTwoCellsIgnoresFacing` | la consapevolezza ravvicinata vale in ogni direzione |
 | `Overwatch.ArcComesFromFacing` | la zona controllata non dichiara una direzione propria |
+| `HexMove.StationaryUnitAppliesDeclaredRotation` | **turno vero**: chi non si muove dichiara una direzione e la ottiene — il caso «resto fermo e mi giro» |
+| `HexMove.IllegalDeclaredRotationIsRejectedInPlayedTurn` | **turno vero**: una dichiarazione fuori dall'insieme legale lascia il facing **derivato** e produce `DeclarationRejected` nel TurnLog |
+| `HexMove.DeclaredRotationDoesNotSurviveItsTurn` | la dichiarazione è un pezzo del piano: consumata a fine Move, non si ridichiara da sola il turno dopo |
+
+> ⚠️ **Stato del cablaggio, 2026-08-09** ([#291](https://github.com/DegrassiAaron/refactor-tactics-main/issues/291)).
+> Fino a questa data i primi quattro test della tabella verificavano regole che **nessuno chiamava**:
+> `URTFacingLibrary::TryApplyDeclaredFacing` era invocata soltanto dai test della libreria pura, e la
+> rotazione dichiarata non aveva un produttore in nessun anello. Ora la catena esiste — campo su `ARTUnit`,
+> ingresso in `FRTPlannedIntent`, filtro per squadra, consumo nel `TurnManager` a fine Move con
+> `DeclaredInPlanning` / `DeclarationRejected` — e i tre test qui sopra la esercitano su un **turno giocato**.
+>
+> Resta scoperto **l'input**, che non è una regola: nessun comando permette al giocatore di dichiarare una
+> rotazione e il bot non ne dichiara. È lavoro di **E11**, e serve insieme al feedback visivo — senza
+> l'insieme legale mostrato, il giocatore non può sapere quali tre direzioni gli restano. Per la stessa
+> ragione l'harness **non** ha una chiave `facing`: gliela si darebbe solo per farlo diventare il primo
+> produttore del campo, cioè più capace del gioco. La capability `DeclaredRotation` è dichiarata **non
+> disponibile** in `RTScenarioSession.cpp`, accanto a `ReactionPlanning`, che ha la stessa forma.
 
 ## Perimetro — cosa questo ADR non decide *(nota 2026-08-08)*
 

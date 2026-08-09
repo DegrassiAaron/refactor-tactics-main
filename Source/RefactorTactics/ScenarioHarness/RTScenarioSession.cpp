@@ -65,6 +65,15 @@ namespace
 		//
 		// Il produttore nasce con le finestre di reazione (E14/S5-1). Fino ad allora un turno che chiede
 		// `ReactionPlanning` e' BLOCKED, che e' la verita' e costa una riga.
+		//
+		//   `DeclaredRotation` — dichiarare una ROTAZIONE in pianificazione (D-020). Dopo #291 la catena esiste
+		//   quasi tutta: il campo sta su `ARTUnit`, entra in `FRTPlannedIntent`, passa da `FilterForTeam`, e il
+		//   `TurnManager` lo consuma a fine Move producendo `DeclaredInPlanning` o `DeclarationRejected`. Manca
+		//   il solo anello che non e' una regola: l'INPUT. Nessun comando lo dichiara e il bot non lo usa, quindi
+		//   dare agli scenari una chiave `facing` renderebbe l'harness il primo produttore del campo — la stessa
+		//   asimmetria di `ReactionPlanning`, con lo stesso esito: verdi che dicono che il giocatore puo' girarsi
+		//   restando fermo, mentre non ha alcun modo di chiederlo. L'input e' lavoro di E11, e senza l'insieme
+		//   legale mostrato a schermo il giocatore non saprebbe nemmeno quali tre direzioni gli restano.
 		return Available.Contains(Capability);
 	}
 
