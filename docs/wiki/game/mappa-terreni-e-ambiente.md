@@ -18,7 +18,7 @@
 > Feature: `RT-FEAT-ENV-STEAM` · Release: `v0.1` · Roadmap: `E8.1`  
 > Stato: **INTEGRATED** · Gate: `6/8`  
 > Scenario: `Visual.Combat.SmokeCapsTargeting`  
-> Verificato il `2026-08-08` su `2094b86`
+> Verificato il `2026-08-09` su `4c50c07`
 
 <!-- RT_FEATURE_STATUS:END RT-FEAT-ENV-STEAM -->
 

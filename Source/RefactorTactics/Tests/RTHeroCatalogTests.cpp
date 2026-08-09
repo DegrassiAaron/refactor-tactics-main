@@ -139,6 +139,101 @@ bool FRTHeroBasicAttackByRangeBandTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroBasicAttackIsIndexZeroTest,
+	"RefactorTactics.Heroes.BasicAttackIsIndexZeroForEveryHero",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroBasicAttackIsIndexZeroTest::RunTest(const FString&)
+{
+	// ADR-0007 punto 6: «attacco base» e' una CONVENZIONE POSIZIONALE — `URTHeroData::Actions[0]` — e non un
+	// campo del dato. La convenzione e' dichiarata nel commento di `RTHeroData.h`, ma un commento non fallisce:
+	// finche' nessuno la fa valere, il primo eroe che mette una firma all'indice 0 la rompe in silenzio, e con
+	// essa ogni cosa che «l'attacco base» dovrebbe poter interrogare (§14 usage profile, §29 pick rate).
+	//
+	// Questo test e' il prezzo di NON aver aggiunto un campo di ruolo. Il giorno in cui un consumer runtime
+	// esiste davvero, il campo entra e questo test cambia forma — ma fino ad allora e' l'unica cosa che tiene
+	// la convenzione.
+	//
+	// Asserisce il CONTRATTO, non i numeri: danno e portata sono dell'eroe (li verificano le sue
+	// `*.MatchesCatalog`), qui conta che l'indice 0 sia un attacco base **utilizzabile e senza costo**.
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+	if (!TestEqual(TEXT("il roster v0.1 ha quattro eroi"), Roster.Num(), 4)) { return false; }
+
+	for (int32 i = 0; i < Roster.Num(); ++i)
+	{
+		const URTHeroData* Hero = Roster[i];
+		if (!TestNotNull(FString::Printf(TEXT("eroe #%d non nullo"), i), Hero)) { continue; }
+
+		const FString Who = Hero->HeroId.ToString();
+		if (!TestEqual(*FString::Printf(TEXT("%s: cinque azioni"), *Who), Hero->Actions.Num(), 5)) { continue; }
+
+		const URTActionData* Basic = Hero->Actions[0];
+		if (!TestNotNull(*FString::Printf(TEXT("%s: indice 0 presente"), *Who), Basic)) { continue; }
+
+		TestFalse(*FString::Printf(TEXT("%s: l'attacco base ha un ActionId stabile"), *Who),
+			Basic->Def.ActionId.IsNone());
+		TestEqual(*FString::Printf(TEXT("%s: risolve nella fase Attack"), *Who),
+			Basic->Def.ResolutionPhase, ERTResolutionPhase::Attack);
+		// Costo zero e nessuna ricarica: e' cio' che distingue l'attacco base dalle quattro fondamentali, ed
+		// e' anche la ragione per cui puo' essere «la scelta corretta» quando le firme sono in cooldown.
+		TestEqual(*FString::Printf(TEXT("%s: nessuna ricarica"), *Who), Basic->Def.CooldownTurns, 0);
+		TestEqual(*FString::Printf(TEXT("%s: occupa lo slot principale"), *Who),
+			Basic->Def.Slot, ERTActionSlot::Main);
+
+		// Almeno un effetto di danno: un attacco base che non fa male non e' un attacco. NON asserisce
+		// QUANTO — 8 (Bastion) e 22 (Flux) sono entrambi legittimi, ed e' il punto di ADR-0007.
+		bool bDealsDamage = false;
+		for (const FRTActionEffectSpec& Spec : Basic->Def.Effects)
+		{
+			if (Spec.Effect == ERTActionEffect::Damage && Spec.Amount > 0) { bDealsDamage = true; break; }
+		}
+		TestTrue(*FString::Printf(TEXT("%s: l'attacco base infligge danno"), *Who), bDealsDamage);
+
+		// L'indice 0 non deve portare varianti: quelle appartengono a UNA fondamentale (indici 1-4), e
+		// `ValidateHeroes` lo conta gia' escludendo lo 0. Se qualcuno ne mettesse una qui, il conteggio
+		// resterebbe verde e la regola sarebbe aggirata senza che nulla diventi rosso.
+		TestEqual(*FString::Printf(TEXT("%s: l'attacco base non dichiara varianti"), *Who),
+			Basic->Variants.Num(), 0);
+	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroBasicAttackDeclaresBaseTest,
+	"RefactorTactics.Heroes.BasicAttackDeclaresItsBaseAction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroBasicAttackDeclaresBaseTest::RunTest(const FString&)
+{
+	// D-033 chiede che un'azione generica con profilo sia spiegabile nel TurnLog come *azione base + profilo*.
+	// Perche' lo sia, il DATO deve dichiarare la relazione: `Bastion.ImpactShot` e' un'azione d'eroe, e chi
+	// legge una traccia non la risolve col catalogo core.
+	//
+	// Senza questo test, dimenticare `BaseActionId` su un eroe nuovo non romperebbe NIENTE — l'azione
+	// funziona, e solo la spiegabilita' si degrada in silenzio. E' il difetto tipico dei campi di sola
+	// documentazione: nessuno se ne accorge finche' non serve leggere una traccia.
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+	if (!TestEqual(TEXT("il roster v0.1 ha quattro eroi"), Roster.Num(), 4)) { return false; }
+
+	for (const URTHeroData* Hero : Roster)
+	{
+		if (!TestNotNull(TEXT("eroe non nullo"), Hero) || Hero->Actions.Num() < 5) { continue; }
+		const FString Who = Hero->HeroId.ToString();
+
+		TestEqual(*FString::Printf(TEXT("%s: l'attacco base dichiara Action.BasicAttack"), *Who),
+			Hero->Actions[0]->Def.BaseActionId, FName(TEXT("Action.BasicAttack")));
+
+		// Le quattro fondamentali NON sono profili di un'azione generica: sono abilita' proprie. Dichiararlo
+		// e' importante quanto il contrario — un `BaseActionId` messo dappertutto direbbe che tutto e' un
+		// profilo di qualcosa, cioe' non direbbe piu' niente.
+		for (int32 a = 1; a < Hero->Actions.Num(); ++a)
+		{
+			if (!Hero->Actions[a]) { continue; }
+			TestTrue(*FString::Printf(TEXT("%s: l'abilita' #%d non e' profilo di una generica"), *Who, a),
+				Hero->Actions[a]->Def.BaseActionId.IsNone());
+		}
+	}
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroExactlyOneVariantTest,
 	"RefactorTactics.Heroes.ExactlyOneVariantPerHero",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

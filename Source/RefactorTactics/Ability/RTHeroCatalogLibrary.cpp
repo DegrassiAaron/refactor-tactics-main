@@ -4,6 +4,7 @@
 #include "Ability/RTHeroData.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Core/RTGameplayTags.h"
+#include "Map/RTHexCellData.h" // ERTHexSurface: `Riva.MistVeil` nomina la superficie che crea
 
 namespace
 {
@@ -41,6 +42,23 @@ namespace
 			if (Spec.Effect == ERTActionEffect::Damage) { Action->Power = Spec.Amount; break; }
 		}
 
+		return Action;
+	}
+
+	/**
+	 * L'attacco base di un eroe: `MakeHeroAction` piu' la dichiarazione di CHE COSA e' un profilo.
+	 *
+	 * Esiste per un motivo solo, ed e' che la relazione stia in UN posto: senza, ogni eroe nuovo dovrebbe
+	 * ricordarsi di scrivere `BaseActionId` a mano, e chi se lo dimentica non rompe niente — l'azione
+	 * funziona, e solo il TurnLog smette di poter dire che quello e' un attacco base (D-033).
+	 * `RefactorTactics.Heroes.BasicAttackDeclaresItsBaseAction` lo fa valere sul roster.
+	 */
+	URTActionData* MakeHeroBasicAttack(const FName& Id, ERTResolutionPhase Phase, int32 Priority, int32 Range,
+		int32 Cooldown, ERTActionFallback Fallback, const TArray<FRTActionEffectSpec>& Effects,
+		ERTAbilityShape Shape = ERTAbilityShape::Single)
+	{
+		URTActionData* Action = MakeHeroAction(Id, Phase, Priority, Range, Cooldown, Fallback, Effects, Shape);
+		Action->Def.BaseActionId = TEXT("Action.BasicAttack");
 		return Action;
 	}
 }
@@ -152,7 +170,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeFlux()
 	// Indice 0 — ArcPulse, attacco base. 22 danni / range 4 e' ESATTAMENTE la fascia "medio raggio" del
 	// catalogo azioni v0.1 §1: non e' una coincidenza da verificare a mano, e' la stessa tabella.
 	const FRTActionDef ArcPulseDef = URTCatalogLibrary::MakeBasicAttack(4);
-	Flux->Actions.Add(MakeHeroAction(TEXT("Flux.ArcPulse"), ArcPulseDef.ResolutionPhase, ArcPulseDef.Priority,
+	Flux->Actions.Add(MakeHeroBasicAttack(TEXT("Flux.ArcPulse"), ArcPulseDef.ResolutionPhase, ArcPulseDef.Priority,
 		ArcPulseDef.RangeCells, ArcPulseDef.CooldownTurns, ArcPulseDef.Fallback, ArcPulseDef.Effects));
 
 	// Indice 1 — LinearDischarge. 24 danni in linea, range 5 (stessa portata di `Action.LineAttack`: nessuna
@@ -246,7 +264,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiva()
 	// `BasicAttackDamageForRange` (28/25/22/20): a differenza di `Flux.ArcPulse`, l'attacco base di Riva e'
 	// TEMATICO (linea, Wet, spinta), non generico per portata. Non si forza `MakeBasicAttack` su un numero
 	// che non gli appartiene. Range 5: stessa portata di `Flux.LinearDischarge` (stessa forma, stesso riuso).
-	Riva->Actions.Add(MakeHeroAction(TEXT("Riva.PressureJet"), ERTResolutionPhase::Attack, /*Priority*/ 50,
+	Riva->Actions.Add(MakeHeroBasicAttack(TEXT("Riva.PressureJet"), ERTResolutionPhase::Attack, /*Priority*/ 50,
 		/*Range*/ 5, /*Cooldown*/ 0, ERTActionFallback::AttackCell,
 		{
 			FRTActionEffectSpec(ERTActionEffect::Damage, 16),
@@ -290,13 +308,33 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiva()
 	// come «0 danni» — cioe' fallisce nel modo piu' silenzioso possibile.
 	FluidTrail->Def.bCreatesSurface = CreateWaterDef.bCreatesSurface;
 	FluidTrail->Def.SurfaceCreated = CreateWaterDef.SurfaceCreated;
+	FluidTrail->Def.SurfaceRadius = CreateWaterDef.SurfaceRadius;
 	Riva->Actions.Add(FluidTrail);
 
-	// Indice 3 — MistVeil. "Crea fumo raggio 1": nessun modello di cella (vision-blocking dinamico, E8/E9).
-	// Range 0 come `Flux.ConductiveNode`: segnaposto dichiarato, non un numero di bilanciamento, perche'
-	// l'abilita' non ha ancora un effetto da mirare davvero.
-	Riva->Actions.Add(MakeHeroAction(TEXT("Riva.MistVeil"), ERTResolutionPhase::Preparation, /*Priority*/ 35,
-		/*Range*/ 0, /*Cooldown*/ 3, ERTActionFallback::Cancel, {}, ERTAbilityShape::Area, /*AreaRadius*/ 1));
+	// Indice 3 — MistVeil. Issue #353: dichiarava «crea fumo raggio 1» e non lo faceva. `Smoke` era l'unica
+	// delle otto superfici che nessuna azione sapeva creare, e il meccanismo esisteva gia' — mancava il
+	// collegamento, esattamente come per `MovementStyle` su `Bastion.Ram`.
+	//
+	// **Passa a `Environment`**, e non e' un dettaglio di implementazione: `ResolveEnvironment` — l'unico posto
+	// che crea superfici — processa solo le azioni la cui fase mappa su `Cleanup`, e in `Preparation` MistVeil
+	// non ci arrivava mai. Conseguenza di GIOCO dichiarata: il fumo si alza nel Cleanup, quindi copre il turno
+	// SEGUENTE. Si prepara un attraversamento, non si rompe una linea nell'istante. Stesso movimento che D-046
+	// ha fatto su `FluidTrail`, che ha adottato fase e portata del core.
+	//
+	// I numeri vengono dal CORE, non sono inventati qui: portata 4 e priorita' 60 sono quelle di entrambe le
+	// azioni ambientali (`Ignite`, `CreateWater`). La priorita' e' un ordinamento INTERNO alla fase — si
+	// confronta solo fra azioni della stessa — quindi il 35 scelto per il Prep non aveva piu' significato
+	// dove l'azione e' andata a vivere. Il cooldown 3 resta: e' del catalogo eroi.
+	const FRTActionDef IgniteDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Ignite"));
+	URTActionData* MistVeil = MakeHeroAction(TEXT("Riva.MistVeil"), IgniteDef.ResolutionPhase,
+		IgniteDef.Priority, IgniteDef.RangeCells, /*Cooldown*/ 3, ERTActionFallback::Cancel, {},
+		ERTAbilityShape::Area, /*AreaRadius*/ 1);
+	// La superficie va copiata a mano, come per `FluidTrail`: `MakeHeroAction` prende identita', fase, portata,
+	// ricarica, fallback ed effetti — non i campi di comportamento.
+	MistVeil->Def.bCreatesSurface = true;
+	MistVeil->Def.SurfaceCreated = ERTHexSurface::Smoke;
+	MistVeil->Def.SurfaceRadius = 1; // «crea fumo raggio 1», catalogo eroi
+	Riva->Actions.Add(MistVeil);
 
 	// Indice 4 — FlowReaction. `Reposition 1` dopo un attacco subito: e' una reazione che produce MOVIMENTO
 	// dentro un boundary di risoluzione, quindi il suo aggancio e' **E14** (ADR-0004, finestre di reazione),
@@ -345,13 +383,27 @@ URTHeroData* URTHeroCatalogLibrary::MakeBastion()
 	// del roster e' vulnerabile a chi il movimento lo fa di mestiere.
 	Bastion->Weakness = TEXT("Affinity.Movement");
 
-	// Indice 0 — ImpactShot, attacco base. 24 danni / range 3 NON e' una fascia di
-	// `BasicAttackDamageForRange` (a range 3 la fascia da' 25): come `Riva.PressureJet`, l'attacco base e'
-	// dell'eroe, non della tabella generica. Un punto in meno del corto raggio standard, in cambio della
-	// stazza.
-	Bastion->Actions.Add(MakeHeroAction(TEXT("Bastion.ImpactShot"), ERTResolutionPhase::Attack, /*Priority*/ 50,
+	// Indice 0 — ImpactShot, attacco base. **8 danni / range 3** (ADR-0007). Come `Riva.PressureJet`, non e'
+	// una fascia di `BasicAttackDamageForRange`: l'attacco base e' dell'eroe, non della tabella generica.
+	//
+	// Fino al 2026-08-09 erano 24, ed era un numero motivato — la fascia corto raggio da' 25, e il catalogo
+	// ne toglieva uno «in cambio della stazza». Il problema non era il numero in se': era che rendeva
+	// `ImpactShot` l'attacco base PIU' FORTE del roster mentre il ruolo dichiarato di Bastion e'
+	// Utility/Emergency. 8 e' ancorato a `Riva.PressureJet` (16), che sta un gradino sopra: ne e' la meta'
+	// esatta. Basso, ma non finto: deve restare corretto premerlo per finire un bersaglio a pochi HP.
+	//
+	// Lo `Slow` e' la utility della famiglia, e delle cinque candidate era l'unica sia esprimibile sia
+	// coerente: `ERTStructureOp` non sa danneggiare una copertura, e uno `Status` si applica al BERSAGLIO,
+	// quindi «genera Guard su di se'» non e' rappresentabile. Durata 1 basta perche' il modificatore e'
+	// letto FRESCO a ogni snapshot (CP 4.7): applicato nel Blast si riflette gia' sulla fase Move dello
+	// STESSO turno, poi scade nel Cleanup. E' la risposta di Bastion a chi si muove di mestiere — cioe' alla
+	// sua stessa debolezza dichiarata, `Affinity.Movement`.
+	Bastion->Actions.Add(MakeHeroBasicAttack(TEXT("Bastion.ImpactShot"), ERTResolutionPhase::Attack, /*Priority*/ 50,
 		/*Range*/ 3, /*Cooldown*/ 0, ERTActionFallback::Cancel,
-		{ FRTActionEffectSpec(ERTActionEffect::Damage, 24) }));
+		{
+			FRTActionEffectSpec(ERTActionEffect::Damage, 8),
+			FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Slow, /*Turni*/ 1),
+		}));
 
 	// Indice 1 — KineticPanel (CP 9.5). E' `Action.CreateCover` con un nome d'eroe: stesso riuso che `Ram` fa
 	// di `Action.Charge` e `Interposition` di `Action.Intercept`. Fase, priorita', portata, fallback e
@@ -452,7 +504,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeVektor()
 
 	// Indice 0 — PulseShot, attacco base. 21 danni / range 4: come per Riva e Bastion, non e' la fascia
 	// generica (a range 4 darebbe 22). Un punto in meno del medio raggio, pagato in mobilita'.
-	Vektor->Actions.Add(MakeHeroAction(TEXT("Vektor.PulseShot"), ERTResolutionPhase::Attack, /*Priority*/ 50,
+	Vektor->Actions.Add(MakeHeroBasicAttack(TEXT("Vektor.PulseShot"), ERTResolutionPhase::Attack, /*Priority*/ 50,
 		/*Range*/ 4, /*Cooldown*/ 0, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 21) }));
 

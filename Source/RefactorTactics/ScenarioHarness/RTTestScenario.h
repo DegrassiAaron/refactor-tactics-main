@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Map/RTCellId.h"
+#include "Turn/RTTurnLog.h" // ERTLogCategory: un'assertion sul log parla il vocabolario del log
 #include "RTTestScenario.generated.h"
 
 /**
@@ -57,7 +58,31 @@ enum class ERTAssertionKind : uint8
 	 * che decide le regole — non lo yaw della mesh, che e' presentazione e puo' essere ancora a meta'
 	 * interpolazione quando lo scenario finisce.
 	 */
-	UnitFacing
+	UnitFacing,
+	/**
+	 * Quante volte un EVENTO compare nel TurnLog dello scenario. `value` e' il conteggio atteso, quindi `0`
+	 * asserisce l'ASSENZA — che e' meta' di cio' che serve alla segretezza: «prima del reveal non deve
+	 * esserci nessuna voce che dica quale scelta e' stata fatta».
+	 *
+	 * L'evento si nomina per NOME (`"category": "Environment", "outcome": "BridgeRemoved"`), come la
+	 * direzione di `UnitFacing` e per la stessa ragione: un indice non dice niente a chi legge lo scenario, e
+	 * rinumerare un enum renderebbe verdi gli scenari sbagliati. I nomi si risolvono per RIFLESSIONE
+	 * (`StaticEnum<>`), non da una tabella scritta a mano — quelle divergono, ed e' gia' successo in questo
+	 * file per l'elenco delle chiavi note.
+	 *
+	 * Aggiunta IN CODA: i valori precedenti non cambiano numero, come per `UnitFacing` a CP 16.1.
+	 */
+	LogEventCount,
+	/**
+	 * ORDINE RELATIVO di due eventi nel TurnLog: la prima occorrenza di `category`/`outcome` precede la prima
+	 * di `thenCategory`/`thenOutcome`.
+	 *
+	 * Legge il log nell'ordine in cui e' stato SCRITTO, che e' l'ordine di risoluzione. Non e' un dettaglio:
+	 * la forma canonica del log — quella serializzata e quella che entra in `HashTurnLog` — e' **ordinata**
+	 * (`URTTurnLogLibrary::SortTurnLog`), quindi l'hash e' invariante per permutazione e **non sa niente
+	 * dell'ordine**. Chi volesse verificare una sequenza guardando il checksum verificherebbe un'altra cosa.
+	 */
+	LogEventOrder
 };
 
 /**
@@ -237,9 +262,29 @@ struct FRTTestExpectation
 	UPROPERTY()
 	FRTCellId Cell;
 
-	/** Valore intero atteso (`TurnsCompleted`, `UnitHpEquals`, `UnitAlive`). */
+	/** Valore intero atteso (`TurnsCompleted`, `UnitHpEquals`, `UnitAlive`, `LogEventCount`). */
 	UPROPERTY()
 	int32 Value = 0;
+
+	/**
+	 * Evento del TurnLog: categoria e esito, gia' risolti dai nomi del JSON (`LogEventCount`, `LogEventOrder`).
+	 *
+	 * L'esito e' un `uint8` il cui significato dipende dalla categoria — `ERTMoveOutcome` se `Move`,
+	 * `ERTEnvironmentOutcome` se `Environment`, e cosi' via: e' la stessa convenzione di `FRTTurnLogEntry`,
+	 * non una scorciatoia dell'harness.
+	 */
+	UPROPERTY()
+	ERTLogCategory LogCategory = ERTLogCategory::Move;
+
+	UPROPERTY()
+	uint8 LogOutcome = 0;
+
+	/** Secondo evento, quello che deve venire DOPO (`LogEventOrder`). */
+	UPROPERTY()
+	ERTLogCategory ThenCategory = ERTLogCategory::Move;
+
+	UPROPERTY()
+	uint8 ThenOutcome = 0;
 };
 
 /** Scenario completo, come letto dal file. */

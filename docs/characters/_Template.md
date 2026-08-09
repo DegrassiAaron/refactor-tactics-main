@@ -55,6 +55,46 @@ regole** ma legge male il turno>
 
 > Le abilità sotto appartengono a questo personaggio. Le sinergie con altri eroi sono esempi derivati e vanno collegate alla [pagina sinergie](../wiki/game/sinergie-e-combinazioni.md), non modellate come abilità condivise.
 
+## Profilo di attacco base
+
+> **Sezione obbligatoria.** `BasicAttack` è una categoria universale con **payload dell'eroe**
+> ([ADR-0007](../decisions/adr-0007-attacco-base-per-eroe.md), che chiude per l'attacco base i profili
+> concreti lasciati aperti da [D-033](../decisions/RT_PDR_00_Decision_Log.md)). Il profilo va **dichiarato**,
+> non dedotto dai numeri: due eroi con lo stesso danno possono avere ruoli opposti, e un eroe il cui attacco
+> base non ha un ruolo dichiarato finisce per averne uno per caso.
+
+| Campo | Valore |
+| --- | --- |
+| Ability ID | `<Hero.Nome>` |
+| Famiglia | `Primary Weapon` · `Engine` · `Setup` · `Utility / Emergency` |
+| Danno / portata | <dal catalogo eroi, non da qui> |
+| Payload oltre il danno | <status, spinta, risorsa — oppure «nessuno», che è una risposta> |
+| Dipendenza dal base | ★☆☆☆☆ … ★★★★★ — **quanto spesso entra nel gioco normale**, NON quanto è forte |
+
+### Il test della falsa scelta
+
+> Un attacco base a danno basso non deve essere un pulsante finto. Se a una di queste domande non esiste una
+> risposta concreta, il profilo è una falsa scelta e va riprogettato — non documentato meglio.
+
+| Domanda | Risposta |
+| --- | --- |
+| Quando è la scelta corretta? | |
+| Quando è inferiore a un'abilità firma? | |
+| Che cosa risparmia (risorsa, cooldown, occasione)? | |
+| Che counterplay esiste? | |
+| Che cosa impara il giocatore usandolo? | |
+
+### Prove
+
+> Il profilo non è dimostrato da questa pagina: è dimostrato da qualcosa che **può diventare rosso**.
+> Se una riga è vuota, dirlo — una casella vuota è un'informazione, una casella inventata no.
+
+| Che cosa | Dove |
+| --- | --- |
+| Il payload è nel dato | <test di catalogo> |
+| L'effetto si vede in partita | <scenario> |
+| La famiglia è leggibile a schermo | <voce PIE, se applicabile> |
+
 ## Abilità
 
 ### <Nome skill>

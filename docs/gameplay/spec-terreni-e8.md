@@ -13,6 +13,13 @@
 > 🏃 **[D-015](../decisions/RT_PDR_00_Decision_Log.md)**: `Sprint` è un **profilo di `Move`**, non un Dash.
 > Dove la classificazione legacy lo tratta come azione di fase Dash, è **debito di migrazione** dichiarato:
 > nessun documento deve insegnare «Sprint = Dash».
+>
+> 🔥 **[D-059](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-09) — `Fire` e `Smoke` sono superfici, non
+> stati.** Leggere l'elenco degli 8 terreni accanto a quello degli stati temporanei di **CP 8.2** fa sembrare
+> che due valori siano dichiarati due volte: **non lo sono**. La superficie sta sulla **cella**, lo status
+> sull'**unità**, e la superficie *produce* lo status su chi entra; il transitorio ha un **terzo** strato,
+> `ARTTurnManager::DynamicSurfaces`, che ricorda l'originale e la scadenza. Corollario: nessun campo
+> `BaseSurface` nella cella, nessun `MetalWet` nell'enum. Due brief esterni ci sono già inciampati.
 
 > Brainstorming del **2026-08-06**. Fonti: [`RT_TerrainCatalog_v0.1.md`](../balance/RT_TerrainCatalog_v0.1.md)
 > (catalogo canonico) · [`v0.1-issue-plan.md`](../roadmap/v0.1-issue-plan.md) §E8 (issue `#64`, CP 8.1) · codice

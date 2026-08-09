@@ -853,7 +853,6 @@ bool FRTMoveNoGlobalRecomputeTest::RunTest(const FString&)
 	return true;
 }
 
-#endif // WITH_DEV_AUTOMATION_TESTS
 
 /**
  * Il motivo per cui un waypoint viene rifiutato va DETTO, non accorpato. Il messaggio
@@ -1051,3 +1050,5 @@ bool FRTHexLinearFilterTest::RunTest(const FString&)
 	}
 	return true;
 }
+
+#endif // WITH_DEV_AUTOMATION_TESTS

@@ -173,6 +173,36 @@ Il suo payoff cresce quando la squadra sfrutta le celle e gli stati che Riva ha 
 
 > **Ownership del kit:** le abilità di questa pagina appartengono esclusivamente a questo personaggio. Le sinergie con altri eroi sono esempi derivati da stati, superfici, geometria e altre regole comuni; non sono abilità condivise. Vedi [Sinergie e combinazioni](../../wiki/game/sinergie-e-combinazioni.md).
 
+## Profilo di attacco base
+
+| Campo | Valore |
+| --- | --- |
+| Ability ID | `Riva.PressureJet` |
+| Famiglia | **Setup** |
+| Danno / portata | 16 · range 5 · forma a linea |
+| Payload oltre il danno | `Status.Wet` 1 turno · `Push 1` |
+| Dipendenza dal base | ★★★☆☆ — è il suo strumento di preparazione, non la sua fonte di danno |
+
+> **È l'unico dei quattro che nasceva già conforme.** Quando ADR-0007 ha fissato le famiglie, `PressureJet`
+> non ha richiesto nessuna modifica: era già l'esempio che dimostrava la tesi.
+
+### Il test della falsa scelta
+
+| Domanda | Risposta |
+| --- | --- |
+| Quando è la scelta corretta? | Quando serve `Wet` su un bersaglio per la scarica elettrica **nello stesso Blast** · quando la spinta di 1 sposta qualcuno da una cella che gli serve |
+| Quando è inferiore a un'abilità firma? | Quando serve danno adesso: 16 è il secondo valore più basso del roster, e chi la gioca cercando DPS la sta usando male |
+| Che cosa risparmia? | Il cooldown delle sue abilità d'area, e il turno di Flux: la combo non richiede che nessuno dei due spenda una firma |
+| Che counterplay esiste? | Il tempo. `Wet` dura **1 turno** e `TickStatuses` lo rimuove nel Cleanup dello stesso turno ([D-036](../../decisions/RT_PDR_00_Decision_Log.md)): la finestra è un solo Blast, e chi conosce l'ordine di priorità sa quando è già passata |
+| Che cosa impara il giocatore? | Che il valore di un attacco è quello che **prepara**, non quello che toglie |
+
+### Prove
+
+| Che cosa | Dove |
+| --- | --- |
+| Il payload è nel dato | `RefactorTactics.Heroes.Riva.MatchesCatalog` |
+| L'effetto si vede in partita | `Visual.Combat.WaterElectricCoordinated` — il `Wet` non è osservabile direttamente (il runner non ha `UnitHasStatus`), quindi lo scenario lo prova con l'aritmetica: `100 − 16 − 32 = 52`, dove i 32 valgono solo se il bersaglio è bagnato. Senza `Wet` sarebbe 60, e lo scenario diventa rosso |
+
 ## Abilità
 
 ### Pressure Jet
@@ -269,31 +299,47 @@ Fluid Trail è un Dash lineare di 3 celle che dovrebbe lasciare acqua lungo il p
 
 #### Descrizione
 
-Mist Veil è un'azione di Prep che crea fumo in un'area di raggio 1. È pensata per modificare la leggibilità e le linee di visione del campo, non per infliggere danno.
+Mist Veil crea fumo in un'area di raggio 1 attorno al bersaglio. È pensata per modificare la leggibilità e le linee di visione del campo, non per infliggere danno.
 
 | Campo | Valore |
 | --- | --- |
 | Ability ID | `Riva.MistVeil` |
-| Categoria | Prep/AoE |
-| Priorità | 35 |
+| Categoria | Environment/AoE |
+| Priorità | 60 |
 | Costo risorsa | — |
 | Cooldown (turni) | 3 |
-| Range (hex) | 0 |
+| Range (hex) | 4 |
 | AoE Radius | 1 |
 | Danno base | 0 |
 | Control Strength | 0 |
-| Durata (turni) | 0 |
+| Durata (turni) | 2 |
 | Loss/Contact Policy | Fallback.Cancel |
-| Interazione terreno | Crea fumo raggio 1; range 0 è placeholder tecnico corrente |
+| Interazione terreno | Crea `Terrain.Smoke` raggio 1, per 2 turni; il cap di targeting a 2 celle vale appena la cella cambia |
 | Gameplay Tags | `Ability.Vision.Smoke` |
-| Implementation Status | PARTIAL |
+| Implementation Status | IMPLEMENTED |
 | Data Status | CANONICAL |
 
-> Effetto cella dinamico non completamente rappresentato nell'azione.
+> **Aggiornata il 2026-08-09 (issue `#353`).** Dichiarava «crea fumo raggio 1» e **non lo faceva**: `Smoke` era
+> l'unica delle otto superfici che nessuna azione sapeva creare. Tre valori di questa tabella sono cambiati come
+> conseguenza, e nessuno è stato inventato:
+>
+> - **Categoria e fase**: `Prep` → `Environment`. `ResolveEnvironment` — l'unico posto che crea superfici —
+>   processa solo le azioni che risolvono nel Cleanup; in Prep l'abilità non ci arrivava mai. Stesso movimento
+>   che [D-046](../../decisions/RT_PDR_00_Decision_Log.md) ha fatto su `FluidTrail`.
+> - **Range 0 → 4** e **priorità 35 → 60**: sono i valori di entrambe le azioni ambientali del core
+>   (`Action.Ignite`, `Action.CreateWater`). Il `range 0` era dichiarato «placeholder tecnico» e non è mai stato
+>   un numero di bilanciamento; la priorità ordina **dentro** la fase, quindi il 35 scelto per il Prep non aveva
+>   più significato dove l'azione è andata a vivere.
+> - **Durata 2 turni**: quella di ogni superficie dinamica, poi la cella torna alla superficie che aveva.
+>
+> **Conseguenza di gioco da conoscere**: il fumo si alza nel Cleanup, quindi copre il turno **seguente**. Si
+> prepara un attraversamento, non si rompe una linea nell'istante.
 
 #### Uso tattico e limiti
 
-L'effetto dinamico sulla cella è ancora `PARTIAL`; il range 0 corrente è un placeholder tecnico. Il valore tattico è proteggere un attraversamento, rompere una linea o preparare un cambio di posizione.
+Il valore tattico è proteggere un attraversamento o preparare un cambio di posizione. **Non** rompere una linea di tiro nell'istante: il fumo si alza nel Cleanup, quindi si gioca un turno prima di quando serve.
+
+Un limite resta, ed è dichiarato invece che nascosto: chi **si trova già** nella cella quando il fumo si alza non riceve `Status.Obscured`, che è applicato dagli `OnEnterEffects` a chi *entra*. Non cambia l'effetto tattico — il cap di targeting a 2 celle è letto dalla **superficie della cella** da combat, bot e percezione, quindi vale da subito per tutti — ma è la stessa asimmetria che `Action.CreateWater` risolve esplicitamente per `Wet`.
 
 ### Flow Reaction
 

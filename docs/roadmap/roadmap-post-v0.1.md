@@ -198,6 +198,26 @@ action scoring, reaction policy migliore, stress 4v4.
 **Rischi**: la belief map è il punto in cui un bot smette di essere deterministico per distrazione — il
 determinismo a parità di seed resta un gate, non un'aspirazione.
 
+> **Invariante di difficoltà — da fissare prima di scrivere il primo livello.**
+>
+> Una difficoltà più alta dà al bot **più ragionamento, mai più informazione**: più candidati valutati, pesi
+> diversi, orizzonte più lungo, reaction policy meno prudente. Non un accesso più ampio allo stato.
+>
+> Vale la pena scriverlo qui perché è la scorciatoia più economica che esista: rendere un bot «difficile»
+> togliendogli la Team Knowledge e lasciandogli leggere lo stato vero costa cinque righe e funziona
+> benissimo — finché qualcuno non lo scopre. A quel punto ha già invalidato ogni playtest fatto contro di
+> lui, ed è il playtest la ragione per cui il bot esiste.
+>
+> È anche la sola promessa che il gioco fa già al giocatore in prima persona:
+> [«Il bot non vede più di te»](../wiki/game/avversario-bot.md) è una **sezione della Wiki**, non una nota
+> interna. Un livello «Esperto» che bara la trasforma in una bugia pubblicata.
+>
+> Se un livello di difficoltà introduce errore intenzionale, quell'errore è **deterministico** e attinge a
+> uno stream di seed dedicato: non tocca l'RNG competitivo. Origine:
+> [`../archive/src/handoff/2026-08-08-bot-ai-roadmap-e-test-pie.md`](../archive/src/handoff/2026-08-08-bot-ai-roadmap-e-test-pie.md)
+> §1 e §24, recepito il 2026-08-08 tranne questa riga — che era l'unica senza un documento corrente che la
+> possedesse.
+
 ---
 
 ## v0.3 — «Informazione»

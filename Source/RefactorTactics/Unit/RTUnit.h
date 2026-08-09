@@ -4,6 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "GameplayTagContainer.h"
 #include "Core/RTTypes.h"
+#include "Ability/RTActionDef.h" // ERTMovementStyle: le rotazioni legali sono una proprieta' dello STILE
 #include "Selection/RTSelectable.h"
 #include "RTUnit.generated.h"
 
@@ -208,6 +209,42 @@ public:
 	 */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
 	TArray<FRTCellId> PlannedWaypoints;
+
+	/**
+	 * Rotazione DICHIARATA in pianificazione (D-020, #291): «finito il movimento, guarda di la'».
+	 *
+	 * Il flag separato dal valore ha la stessa ragione di `bAttackTargetsCell`: `E` e' una direzione legittima
+	 * e non puo' fare da «non dichiarato». Il resolver la consuma a fine Move — dopo l'orientamento derivato,
+	 * che e' il `Current` su cui si misura la legalita' — e la azzera: una dichiarazione vale per il turno in
+	 * cui e' stata fatta, come ogni altro pezzo del piano.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
+	bool bDeclaresPlannedFacing = false;
+
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
+	ERTHexDirection PlannedFacing = ERTHexDirection::E;
+
+	/**
+	 * Movimento EFFETTIVAMENTE eseguito in questo turno: stile e rotta percorsa. Da questi due dipende
+	 * l'insieme delle rotazioni legali (`URTFacingLibrary::LegalFacings`) — tre dopo un Move a budget, una
+	 * sola dopo uno scatto lineare, sei da fermo — e nessuno dei due e' deducibile a fine turno: chi ha
+	 * scattato ha `PlannedCell` uguale alla cella attuale esattamente come chi non si e' mosso.
+	 *
+	 * Scritti dalle fasi che muovono, letti solo dal consumo della rotazione dichiarata, azzerati con essa.
+	 */
+	UPROPERTY(Transient)
+	ERTMovementStyle MovementStyleThisTurn = ERTMovementStyle::None;
+
+	UPROPERTY(Transient)
+	TArray<FRTCellId> WalkedThisTurn;
+
+	/** Chiude il turno della rotazione: dichiarazione consumata e traccia del movimento scaricata. */
+	void ClearDeclaredFacing()
+	{
+		bDeclaresPlannedFacing = false;
+		MovementStyleThisTurn = ERTMovementStyle::None;
+		WalkedThisTurn.Reset();
+	}
 
 	/** Abilita' di scatto pianificata per il turno (INDEX_NONE = nessuno scatto). Si risolve in fase Dash. */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")

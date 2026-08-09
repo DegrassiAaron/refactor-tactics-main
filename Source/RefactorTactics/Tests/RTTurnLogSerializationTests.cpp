@@ -519,6 +519,106 @@ bool FRTTurnLogLegacyWithoutFormatIdTest::RunTest(const FString&)
 }
 
 /**
+ * Retrocompatibilita' del formato 4 (issue #354): una traccia scritta PRIMA che esistesse `BaseActionId`
+ * resta leggibile, e il campo resta vuoto — che e' esattamente cio' che quei byte dicevano. E' la meta'
+ * «vecchio -> nuovo» della verifica a due binari: qui il binario nuovo legge byte del vecchio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogLegacyWithoutBaseActionIdTest,
+	"RefactorTactics.TurnLog.LegacyVersionWithoutBaseActionIdIsReadable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogLegacyWithoutBaseActionIdTest::RunTest(const FString&)
+{
+	TArray<uint8> Bytes;
+	auto U16 = [&Bytes](uint16 V) { Bytes.Add(V & 0xFF); Bytes.Add((V >> 8) & 0xFF); };
+	auto U32 = [&Bytes](uint32 V)
+	{
+		Bytes.Add(V & 0xFF); Bytes.Add((V >> 8) & 0xFF); Bytes.Add((V >> 16) & 0xFF); Bytes.Add((V >> 24) & 0xFF);
+	};
+	auto Str = [&Bytes, &U16](const char* S)
+	{
+		const int32 Len = FCStringAnsi::Strlen(S);
+		U16(static_cast<uint16>(Len));
+		for (int32 i = 0; i < Len; ++i) { Bytes.Add(static_cast<uint8>(S[i])); }
+	};
+
+	U32(0x4C545452u); // 'RTTL'
+	U16(static_cast<uint16>(ERTTurnLogFormatVersion::WithFormatId)); // versione 4: ActionId si', BaseActionId no
+	U16(static_cast<uint16>(ERTLogTopology::Hex));
+	Str("Format.Skirmish2v2"); // FormatId (presente dalla 4)
+	U32(1);
+	Bytes.Add(static_cast<uint8>(ERTMatchPhase::Blast));
+	Bytes.Add(static_cast<uint8>(ERTLogCategory::Combat));
+	Bytes.Add(static_cast<uint8>(ERTCombatOutcome::Hit));
+	U32(0); U32(0); U32(0);
+	U32(1); U32(0); U32(0);
+	U32(8);
+	Str("Bastion.ImpactShot"); // ActionId c'e'; BaseActionId NON e' scritto: il formato 4 non lo prevede
+
+	uint32 H = 2166136261u;
+	for (const uint8 B : Bytes) { H ^= B; H *= 16777619u; }
+	U32(H);
+
+	TArray<FRTTurnLogEntry> Out;
+	TestTrue(TEXT("una traccia in versione 4 resta leggibile"),
+		URTTurnLogLibrary::DeserializeTurnLog(Bytes, Out, nullptr, nullptr));
+	if (!TestEqual(TEXT("una voce letta"), Out.Num(), 1)) { return false; }
+	TestEqual(TEXT("l'ActionId e' preservato"), Out[0].ActionId, FName(TEXT("Bastion.ImpactShot")));
+	// Il punto del test: NON inventare. Una traccia vecchia non sapeva che ImpactShot fosse un attacco base,
+	// e il loader non deve dedurlo — dedurlo significherebbe scrivere nella traccia un'informazione che quei
+	// byte non contenevano, cioe' esattamente il difetto che il versionamento esiste per evitare.
+	TestTrue(TEXT("BaseActionId resta VUOTO: non si inventa cio' che i byte non dicevano"),
+		Out[0].BaseActionId.IsNone());
+	// E la descrizione degrada senza rompersi: dice l'ActionId da solo, non «None · Bastion.ImpactShot».
+	TestEqual(TEXT("la descrizione ricade sul solo ActionId"),
+		URTTurnLogLibrary::DescribeActionIdentity(Out[0]), FString(TEXT("Bastion.ImpactShot")));
+	return true;
+}
+
+/**
+ * Il round-trip del campo nuovo, e la proprieta' che rende sicura tutta l'operazione: **l'hash non cambia**.
+ * `BaseActionId` e' una funzione di `ActionId`, quindi mescolarlo non distinguerebbe nulla di piu' — e
+ * avrebbe invalidato in blocco ogni hash golden. Se un giorno qualcuno lo aggiunge all'hash, questo test
+ * cade, ed e' il punto: la scelta e' deliberata e va ridiscussa, non cambiata di passaggio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogBaseActionIdRoundTripTest,
+	"RefactorTactics.TurnLog.BaseActionIdSurvivesRoundTripAndStaysOutOfHash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogBaseActionIdRoundTripTest::RunTest(const FString&)
+{
+	FRTTurnLogEntry E;
+	E.Phase = ERTMatchPhase::Blast;
+	E.Category = ERTLogCategory::Combat;
+	E.Outcome = static_cast<uint8>(ERTCombatOutcome::Hit);
+	E.Amount = 8;
+	E.ActionId = TEXT("Bastion.ImpactShot");
+
+	FRTTurnLogEntry WithBase = E;
+	WithBase.BaseActionId = TEXT("Action.BasicAttack");
+
+	// 1. Round-trip: il campo sopravvive alla serializzazione.
+	const TArray<uint8> Bytes = URTTurnLogLibrary::SerializeTurnLog({ WithBase }, ERTLogTopology::Hex, NAME_None);
+	TArray<FRTTurnLogEntry> Out;
+	TestTrue(TEXT("la traccia si rilegge"), URTTurnLogLibrary::DeserializeTurnLog(Bytes, Out, nullptr, nullptr));
+	if (!TestEqual(TEXT("una voce"), Out.Num(), 1)) { return false; }
+	TestEqual(TEXT("BaseActionId sopravvive"), Out[0].BaseActionId, FName(TEXT("Action.BasicAttack")));
+
+	// 2. L'hash NON cambia: e' cio' che tiene validi gli hash golden gia' registrati.
+	TestEqual(TEXT("l'hash e' lo stesso con e senza BaseActionId"),
+		URTTurnLogLibrary::HashTurnLog({ WithBase }), URTTurnLogLibrary::HashTurnLog({ E }));
+
+	// 3. La descrizione mostra la coppia (D-033), e non ripete se i due coincidono.
+	TestEqual(TEXT("azione base + profilo"),
+		URTTurnLogLibrary::DescribeActionIdentity(Out[0]),
+		FString(TEXT("Action.BasicAttack · Bastion.ImpactShot")));
+	FRTTurnLogEntry Generic = E;
+	Generic.ActionId = TEXT("Action.BasicAttack");
+	Generic.BaseActionId = TEXT("Action.BasicAttack");
+	TestEqual(TEXT("un'azione generica usata direttamente non si ripete due volte"),
+		URTTurnLogLibrary::DescribeActionIdentity(Generic), FString(TEXT("Action.BasicAttack")));
+	return true;
+}
+
+/**
  * Il confronto fra tracce verifica il FORMATO prima degli hash e fallisce dicendo *formato diverso*, non
  * *divergenza*: se l'hash non copre il formato, deve coprirlo la procedura di confronto, altrimenti il falso
  * "nessuna divergenza" (o il falso allarme) ricompare un piano piu' su — issue #185, spec §16.3.

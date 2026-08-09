@@ -38,8 +38,34 @@
 > **Serve una nuova versione di formato per questi valori? No** — e la ragione è nel codice, non nella prudenza:
 > i valori nuovi sono **accodati** e viaggiano come `uint8`, quindi le tracce già su disco restano leggibili.
 > Si incrementa `ERTTurnLogFormatVersion` solo quando cambia il **layout** di header o voce; l'ultimo
-> incremento è stato **v4 `WithFormatId`** (CP 10.3). Inserire un valore *in mezzo* rinumererebbe `Combat`,
+> incremento è **v5 `WithBaseActionId`** (issue #354). Inserire un valore *in mezzo* rinumererebbe `Combat`,
 > cioè riscriverebbe il significato dei file esistenti: quello sì richiederebbe una versione.
+
+## `BaseActionId`: perché sta nella voce, e perché non entra nell'hash
+
+Dal formato **v5** ogni voce porta `BaseActionId` accanto a `ActionId`: l'azione **generica** di cui quella è
+un profilo — `Action.BasicAttack` per `Bastion.ImpactShot`. Serve a
+[D-033](../decisions/RT_PDR_00_Decision_Log.md), che chiede che un'azione generica con profilo sia
+«spiegabile nel TurnLog come *azione base + profilo*».
+
+**Perché nella voce e non solo nel catalogo.** `Bastion.ImpactShot` è un'azione **d'eroe**: chi legge una
+traccia non la risolve con `FindCoreAction`, gli servirebbero i data asset del roster. Senza il campo nella
+voce la traccia non è spiegabile da sola.
+
+**Perché fuori dall'hash**, che è la parte da non cambiare per distrazione: `BaseActionId` è una **funzione**
+di `ActionId`, che nell'hash c'è già. Due tracce non possono differire solo per quel campo, quindi mescolarlo
+aggiungerebbe **zero** potere discriminante — e invaliderebbe in blocco ogni hash golden. È lo stesso
+ragionamento con cui `FormatId` è rimasto fuori (CP 10.3).
+
+> ⚠️ La condizione da ricontrollare, non una proprietà per sempre: **se un giorno `BaseActionId` smettesse di
+> essere derivabile da `ActionId`** — per esempio se la stessa azione potesse essere profilo di generiche
+> diverse a seconda del contesto — allora il campo dovrebbe entrare nell'hash, e gli hash golden andrebbero
+> rigenerati. `RefactorTactics.TurnLog.BaseActionIdSurvivesRoundTripAndStaysOutOfHash` fallisce se qualcuno
+> lo aggiunge: è lì perché la scelta venga *ridiscussa*, non cambiata di passaggio.
+
+Le tracce **v2, v3 e v4 restano leggibili**, col campo vuoto — e il loader non lo deduce dall'`ActionId`:
+quei byte non contenevano quell'informazione, e inventarla è il difetto che il versionamento esiste per
+evitare (`LegacyVersionWithoutBaseActionIdIsReadable`).
 >
 > Dettaglio delle regole di copertura: [`../gameplay/spec-copertura-cp91.md`](../gameplay/spec-copertura-cp91.md) ·
 > [`../gameplay/spec-copertura-alta-cp92.md`](../gameplay/spec-copertura-alta-cp92.md).
