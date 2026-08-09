@@ -55,8 +55,8 @@ l'attacco base entra nel decision making dell'eroe, **non** la sua potenza.
 occorrenza della stringa è `bChargedIntoTarget`, un bool locale della carica di *movimento*.
 
 Il motore elettrico di Flux **esiste e ha già un owner**: è `ConductiveNode`, cablata su `Action.Electrify`
-da [D-039](RT_PDR_00_Decision_Log.md). Spostare la generazione di carica sull'attacco base le darebbe un
-**secondo produttore**, cioè il contrario di quello che D-039 ha appena messo in ordine. La famiglia Engine
+da [D-046](RT_PDR_00_Decision_Log.md). Spostare la generazione di carica sull'attacco base le darebbe un
+**secondo produttore**, cioè il contrario di quello che D-046 ha appena messo in ordine. La famiglia Engine
 descrive quindi il **kit** di Flux, e in v0.1 non passa dal suo attacco base.
 
 **6. Il ruolo di «attacco base» resta la convenzione posizionale `URTHeroData::Actions[0]`**, resa esplicita

@@ -187,10 +187,10 @@ Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambien
 | Dipendenza dal base | ★★★☆☆ — colpo affidabile mentre le sue abilità sono in ricarica |
 
 > ⚠️ **La famiglia descrive il kit, non ancora l'attacco base.** Il motore elettrico di Flux **esiste** — è
-> `ConductiveNode`, cablata su `Action.Electrify` da [D-039](../../decisions/RT_PDR_00_Decision_Log.md) — ma
+> `ConductiveNode`, cablata su `Action.Electrify` da [D-046](../../decisions/RT_PDR_00_Decision_Log.md) — ma
 > non passa da `ArcPulse`, che in v0.1 fa solo danno. ADR-0007 ha rinviato il payload di carica sull'attacco
 > base per una ragione precisa: darebbe alla generazione elettrica un **secondo produttore**, cioè il
-> contrario di quello che D-039 ha appena messo in ordine. Nessuno stato `Charged` esiste nel codice.
+> contrario di quello che D-046 ha appena messo in ordine. Nessuno stato `Charged` esiste nel codice.
 >
 > Finché vale questo, **non dichiarare Flux «Engine Attack» come se fosse già così**: sarebbe uno stato che
 > il codice non sostiene.

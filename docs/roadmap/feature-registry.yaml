@@ -974,7 +974,7 @@ features:
       eroi» che **D-033** aveva lasciato aperti ([ADR-0007](../decisions/adr-0007-attacco-base-per-eroe.md)).
       Riva era già conforme (`PressureJet` 16 + `Wet` + `Push`); Vektor resta invariato, perché
       «Primary Weapon» è un profilo d'uso e non una promessa di potenza; Flux resta damage-only, e il
-      suo motore elettrico ha già un owner che non è l'attacco base (`ConductiveNode`, D-039).
+      suo motore elettrico ha già un owner che non è l'attacco base (`ConductiveNode`, D-046).
       **`data` è `done`**: `Bastion.ImpactShot` è passato a 8 danni + `Status.Slow` 1 turno.
       **`automation` resta `partial`** perché manca il test che faccia valere la convenzione
       `Actions[0]` su tutto il roster. **`log_debug` è `partial`** perché il TurnLog registra
