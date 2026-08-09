@@ -2,12 +2,14 @@
 
 > **Owner** del corpus di scenari che si aprono **per guardare**, non per far girare un'assertion.
 > L'identità e i tag stanno in [`scenario-index-e-tag.md`](scenario-index-e-tag.md); come si scrive ed esegue
-> uno scenario sta in [`test-e-diagnosi.md`](test-e-diagnosi.md). Qui c'è **quali scenari servono, cosa si
-> guarda in ciascuno, e cosa oggi non è guardabile**.
+> uno scenario sta in [`test-e-diagnosi.md`](test-e-diagnosi.md); **chi esegue cosa** — quali verifiche sono
+> automatiche e quali richiedono una persona — sta in [`scenario-map.md`](scenario-map.md), dove questo corpus
+> è la **classe B**. Qui c'è **quali scenari servono, cosa si guarda in ciascuno, e cosa oggi non è guardabile**.
 >
-> Definito il **2026-08-08**, issue `#231`. Stato: **17 scenari scritti** in `Scenarios/Visual/`, 17 voci
-> `PIE-VIS-*` in [`test-manuali-pie.md`](test-manuali-pie.md). Nessuno ancora eseguito in PIE: i valori
-> numerici vengono dal catalogo e dal codice, e il primo run li conferma.
+> Definito il **2026-08-08**, issue `#231`. Stato al **2026-08-09**: **21 scenari** in `Scenarios/Visual/`,
+> **21** voci `PIE-VIS-*` in [`test-manuali-pie.md`](test-manuali-pie.md) — corrispondenza 1:1, verificata col
+> comando di §9. Nessuno ancora eseguito in PIE: i valori numerici vengono dal catalogo e dal codice, e il
+> primo run li conferma.
 >
 > Le feature v0.1 che il corpus **non** può mostrare, e le estensioni di formato che servirebbero, sono
 > tracciate in `#233` — il dettaglio tecnico resta in §8.2.
@@ -234,20 +236,35 @@ Le tre avvertenze della fascia C, per non scoprirle scrivendo i file:
 
 ### Fascia D — dichiarati oggi, accesi domani
 
-Scritti adesso con `requires`, escono `Blocked` col nome della capability mancante. Il catalogo diventa così
-la lista viva di cosa manca, e ogni feature che atterra accende la sua vetrina invece di richiedere che
-qualcuno si ricordi di scriverla.
+> ⚠️ **Questa fascia non è mai atterrata come file, ed è stata riscritta il 2026-08-09.** Diceva «scritti
+> adesso con `requires`»: **nessuno degli otto file esiste**, verificato con
+> `grep -l '"requires"' Scenarios/Visual/**/*.json` — nel corpus visivo l'unico `requires` è `Reaction`, che è
+> disponibile. Quattro dei temi sono poi stati scritti come **`Spec.*`** (§6-bis), che è la forma migliore: una
+> specifica eseguibile invece di una vetrina cieca, perché la domanda «la regola è questa?» vale prima della
+> domanda «si vede?». I restanti quattro non esistono in nessuna forma.
+>
+> La colonna **Oggi** dice ora cosa c'è davvero. La tabella resta perché l'intenzione resta valida — quando
+> una capability atterra, la sua vetrina va scritta — ma **non promette più file che non ci sono**.
 
-| ID | `requires` | Cosa mostrerà | Origine |
-|---|---|---|---|
-| `Visual.Overwatch.HoldThenFire` | `DecisionBoundary` | la finestra live: HOLD scarta l'opportunità, FIRE la consuma e tronca il movimento | E14 · ADR-0004 |
-| `Visual.Predictive.Whiff` | `PredictiveAction` | il valore del turno **è** il colpo che manca: si è sparato a una previsione | showcase T2 |
-| `Visual.Facing.Cone` | `Facing` | il cono di controllo, e cosa ci entra | E14 |
-| `Visual.Objective.Relay` | `Objective` | il punto assegnato nel Cleanup, **dopo** ambiente e KO | E10 · `#75` |
-| `Visual.Intercept.Revalidation` | `InterceptRevalidation` | la geometria rivalidata sul bersaglio effettivo | D-017 |
-| `Visual.CoverWindow.OpenFireSeal` | `CoverWindow` | apro → sparo → richiudo, tre unità della stessa squadra | **v0.2** · E22 |
-| `Visual.Interaction.DoorGraph` | `Interaction` | la porta come oggetto logico: apertura, revisione del grafo, path che cambia | **v0.2** · E23 |
-| `Visual.Perception.Noise` | `Perception` | il rumore come **seconda fonte di informazione**, non come debuff | non in scope v0.1 |
+L'idea: uno scenario scritto adesso con `requires` esce `Blocked` col nome della capability mancante, il
+catalogo diventa la lista viva di cosa manca, e ogni feature che atterra accende la sua vetrina invece di
+richiedere che qualcuno si ricordi di scriverla.
+
+| ID | `requires` | Cosa mostrerà | Origine | **Oggi** |
+|---|---|---|---|---|
+| `Visual.Overwatch.HoldThenFire` | `DecisionBoundary` | la finestra live: HOLD scarta l'opportunità, FIRE la consuma e tronca il movimento | E14 · ADR-0004 | **coperto da `Spec.Overwatch.HoldThenFire`** |
+| `Visual.Predictive.Whiff` | `PredictiveAction` | il valore del turno **è** il colpo che manca: si è sparato a una previsione | showcase T2 | **coperto da `Spec.Predictive.WhiffOnEmptyCell`** |
+| `Visual.Objective.Relay` | `Objective` | il punto assegnato nel Cleanup, **dopo** ambiente e KO | E10 · `#75` | **coperto da `Spec.Objective.PointSurvivesKO`** |
+| `Visual.Perception.Noise` | `Perception` | il rumore come **seconda fonte di informazione**, non come debuff | non in scope v0.1 | **coperto da `Spec.Perception.HeardNotSeen`** |
+| `Visual.Facing.Cone` | `Facing` | il cono di controllo, e cosa ci entra | E16 · `#175` | ⏳ **non scritto** |
+| `Visual.Intercept.Revalidation` | `InterceptRevalidation` | la geometria rivalidata sul bersaglio effettivo | D-017 · `#200` | ⏳ **non scritto** |
+| `Visual.CoverWindow.OpenFireSeal` | `CoverWindow` | apro → sparo → richiudo, tre unità della stessa squadra | **v0.2** · E22 | ⏳ **non scritto** |
+| `Visual.Interaction.DoorGraph` | `Interaction` | la porta come oggetto logico: apertura, revisione del grafo, path che cambia | **v0.2** · E23 | ⏳ **non scritto** |
+
+Le prime quattro **non vanno riscritte come `Visual.*`**: sarebbero un secondo file sullo stesso soggetto, con
+le stesse assertion, che esce `BLOCKED` per la stessa ragione. Quando la capability atterra, lo `Spec.*`
+diventa verde e *allora* ha senso una vetrina — se il tema ha qualcosa da **mostrare** oltre che da affermare.
+`Visual.Facing.Cone` corregge anche un'attribuzione: il cono è **E16**, non E14 (E14 lo *consuma*).
 
 Le capability nuove (`CoverWindow`, `Interaction`, `Perception`) non vanno aggiunte a `IsCapabilityAvailable`
 finché il sistema non esiste: l'elenco sta nel codice apposta, perché dichiarare disponibile una capability
@@ -332,13 +349,16 @@ Il corpus è stato eseguito per la prima volta il 2026-08-08. Build `RefactorTac
 primo colpo; **cinque scenari su diciassette erano rossi**, e la ripartizione delle cause è la ragione per cui
 questo test valeva la pena.
 
-Stato finale, misurato:
+Stato finale, misurato **quel giorno** — è una fotografia, non un valore corrente:
 
 ```
-corpus eseguito: 28 PASS, 6 BLOCKED, 2 dichiarati expected-fail
+corpus eseguito: 28 PASS, 6 BLOCKED, 2 dichiarati expected-fail   (36 scenari, 2026-08-08)
 RefactorTactics.Scenario.EveryShippedScenarioRuns            Success
 RefactorTactics.Scenario.ExpectedFailScenariosReallyFail     Success
 ```
+
+> Il corpus è cresciuto a **43** scenari (`find Scenarios -name '*.json' ! -name '_*' | wc -l`, 2026-08-09):
+> la ripartizione PASS/BLOCKED va rimisurata eseguendo la suite, non dedotta da questa riga.
 
 **Tre erano difetti miei, con una causa sola.** Lo scatto si dichiara con `dash` + `dashTo`, non con
 `ability`: dopo [D-028] occupano slot diversi — lo scatto prende il movimento, l'abilità la principale, e
@@ -478,3 +498,17 @@ visiva*. Il conteggio è stato **rimisurato col comando del documento**, non agg
 `83 (25/21/37)` a `100 (25/21/54)`, con `senza-marcatore = 0`. Verdi e parziali non cambiano — le nuove
 nascono tutte ⏳ — e la ripartizione per gruppi passa a `2+9+9+4+3+1+2+17 = 47` delle 54 aperte, con le
 stesse 7 non assegnate di prima.
+
+> ⚠️ **La convenzione non bastava, e il 2026-08-09 si è vista la falla.** Tre scenari arrivati **dopo** quel
+> blocco — `Visual.Combat.GuardReducesFirstHit`, `Visual.Combat.BraceReducesEveryHit` e
+> `Visual.Combat.WaterElectricCoordinated` — erano nel corpus **senza voce PIE**: eseguiti, verdi, e mai
+> guardati da nessuno. È il modo peggiore in cui un file può mancare, perché *sembra* coperto due volte.
+> La regola era scritta qui e non la verificava nessun comando. Ora la verifica una riga, e il posto giusto
+> per eseguirla è **quando si aggiunge uno scenario `Visual.*`**:
+>
+> ```bash
+> echo "scenari: $(find Scenarios/Visual -name '*.json' | wc -l)  \
+> voci: $(grep -c '^| \*\*PIE-VIS-' docs/technical/test-manuali-pie.md)"
+> ```
+>
+> Al 2026-08-09: **21 e 21**. Registro PIE complessivo: `114 (25/21/68)`, `senza-marcatore = 0`.

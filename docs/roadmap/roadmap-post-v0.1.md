@@ -20,7 +20,7 @@ v0.1 o no. Questo file registra quella ripartizione una volta sola.
 
 | Sorgente | Alimenta |
 |---|---|
-| [`design/2026-08-08-roster-8-conflux-constrine.md`](../archive/src/design/2026-08-08-roster-8-conflux-constrine.md) | E21 |
+| [`design/2026-08-08-roster-8-conflux-constrine.md`](../archive/src/design/2026-08-08-roster-8-conflux-constrine.md) | E35 |
 | [`design/2026-08-08-cover-window-open-fire-seal.md`](../archive/src/design/2026-08-08-cover-window-open-fire-seal.md) | E22 |
 | [`design/2026-08-08-muri-porte-e-interazioni.md`](../archive/src/design/2026-08-08-muri-porte-e-interazioni.md) | E23 |
 | [`design/match-timing-e-scala-mappe.md`](../archive/src/design/match-timing-e-scala-mappe.md) | E19 (v0.1), E24, E30 |
@@ -32,8 +32,8 @@ v0.1 o no. Questo file registra quella ripartizione una volta sola.
 
 | Release | Nome | Tema | Epic | Formato di gioco |
 |---|---|---|---|---|
-| **v0.1** | Vertical slice | Il turno simultaneo funziona e si vede | E1–E20 | Skirmish 2v2 vs bot |
-| **v0.2** | Struttura e finestre | Il campo diventa manipolabile; roster 8 | E21–E26 | Standard 3v3 |
+| **v0.1** | Vertical slice | Il turno simultaneo funziona e si vede | E1–E21 | Skirmish 2v2 vs bot |
+| **v0.2** | Struttura e finestre | Il campo diventa manipolabile; roster 8 | E22–E26 · **E35** | Standard 3v3 |
 | **v0.3** | Informazione | Quello che non sai vale quanto quello che fai | E27–E29 · **E33** | Standard 3v3 |
 | **v0.4** | Operations | Partite lunghe su mappe grandi | E30–E32 · **E34** | Operations 4v4+ |
 
@@ -43,6 +43,21 @@ progressione, modding, editor mappe a runtime. Non si aprono epic per ciò che n
 > **Numerazione continua.** Le epic proseguono da E18 (ultima della v0.1) senza azzerarsi per release: un
 > riferimento a «E23» resta univoco per sempre. Le due epic **E19** ed **E20** appartengono alla **v0.1** pur
 > nascendo da sorgenti di questa roadmap — vedi [Cosa la v0.1 deve già rispettare](#cosa-la-v01-deve-già-rispettare).
+> Le release non sono più contigue nella numerazione, e non devono esserlo: **E33** sta in v0.3, **E34** ed
+> **E35** in v0.4 e v0.2. La contiguità è una comodità di lettura, l'univocità è un requisito.
+
+> ⚠️ **`E21` è stata assegnata due volte, e questo documento ha ceduto il numero** *(2026-08-09,
+> [D-039](../decisions/RT_PDR_00_Decision_Log.md))*. Lo stesso giorno — il 2026-08-08 — due sessioni parallele
+> hanno preso `E21`: qui per il roster a 8, e in [`roadmap-v0.1.md`](roadmap-v0.1.md) per *Presentazione e
+> leggibilità*, l'epic che il Feature Registry aveva appena reso visibile come buco della v0.1. È lo stesso
+> meccanismo che aveva già prodotto il doppio `D-028`: **il contatore condiviso si assegna al merge**, e
+> nessuna delle due sessioni poteva vedere l'altra.
+>
+> Il numero resta alla v0.1 perché lì è **verificato da una macchina**: `feature-registry.yaml` mappa
+> `RT-FEAT-CHAR-PRESENTATION` su `E21.1`–`E21.3`, la tabella §2.2 di `roadmap-v0.1.md` è **generata** da quel
+> dato, e il Decision Log ([D-037](../decisions/RT_PDR_00_Decision_Log.md)) cita «E21/M8» per gli slot Paragon.
+> Spostare quel lato avrebbe richiesto di rigenerare il registry e correggere una decisione consolidata; il
+> roster a 8 viveva invece in questo file soltanto, in quattro punti. **Il roster a 8 diventa E35.**
 
 ---
 
@@ -77,7 +92,7 @@ le porte diventano oggetti logici con stato, e il roster raddoppia. È la releas
 **Gate di release**: Standard 3v3 giocabile end-to-end su una mappa di classe Standard, roster 8 completo,
 Cover Window dimostrabile in scenario automatico, suite verde, replay deterministico.
 
-### E21 — Roster 8: Sentinel Directorate e Resonance · P0
+### E35 — Roster 8: Sentinel Directorate e Resonance · P0
 
 **Obiettivo**: portare il roster da 4 a 8 eroi aggiungendo le due fazioni v0.2, senza introdurre bonus di
 fazione né kit di coppia — [ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md) vale invariato.
@@ -87,10 +102,10 @@ Le schede esistono già come `DATA_SPEC`/`DESIGN_SPEC`: [`../characters/v0.2/`](
 
 | CP | Obiettivo | DoD misurabile |
 |---|---|---|
-| **21.1** | Sentinel Directorate — Steel, Murdock | I due `URTHeroData` esistono con azioni a catalogo; affinità *Protection → Fire Sector* emerge da meccaniche generiche, nessun `FactionSetBonus` |
-| **21.2** | Resonance — Aurora, Kwang | Idem per *Terrain Shaping → Anchor Geometry* |
-| **21.3** | Bilanciamento a 8 | `Heroes.RosterIsBalanced` esteso a 8: nessun eroe domina, le coppie di affinità restano simmetriche |
-| **21.4** | Wiki e cataloghi allineati | `../wiki/fazioni/` e `../balance/RT_HeroCatalog_v0.1.md` descrivono 8 eroi con i valori realmente a runtime |
+| **35.1** | Sentinel Directorate — Steel, Murdock | I due `URTHeroData` esistono con azioni a catalogo; affinità *Protection → Fire Sector* emerge da meccaniche generiche, nessun `FactionSetBonus` |
+| **35.2** | Resonance — Aurora, Kwang | Idem per *Terrain Shaping → Anchor Geometry* |
+| **35.3** | Bilanciamento a 8 | `Heroes.RosterIsBalanced` esteso a 8: nessun eroe domina, le coppie di affinità restano simmetriche |
+| **35.4** | Wiki e cataloghi allineati | `../wiki/fazioni/` e `../balance/RT_HeroCatalog_v0.1.md` descrivono 8 eroi con i valori realmente a runtime |
 
 **Dipendenze**: E6 (roster 4) chiusa. **Rischi**: il roster raddoppia la matrice di interazioni da testare —
 il costo non è lineare.
@@ -148,7 +163,7 @@ scenari, golden replay e mappe salvate.
 
 E20 popola cinque categorie su dodici — Identity, Action, Phase, Status, Certainty — e lascia le altre sette
 dichiarate e vuote. Questa epic le riempie **quando** il consumer esiste: Reaction dipende da E14, Information
-da E13/E27, le icone di fazione oltre le due canoniche da E21. Nessuna categoria fa nascere una feature di
+da E13/E27, le icone di fazione oltre le due canoniche da E35. Nessuna categoria fa nascere una feature di
 gameplay per poter mostrare un'icona.
 
 | CP | Obiettivo | DoD misurabile |
@@ -158,7 +173,7 @@ gameplay per poter mostrare un'icona.
 | **25.3** | Integrazione HUD, world-space, reaction, perception | Nessun widget referenzia una texture. Il DTO della Reaction UI non contiene trigger futuri, path avversari né dati dal `CanonicalIntentStore` — dimostrato da un test. Un contatto acustico resta un'area |
 | **25.4** | Accessibility, Wiki e documentazione | `Confirmed/Predicted/Uncertain` distinguibili in **grayscale**: la differenza è nella forma. Le pagine Wiki distinguono SPECIFICATO, DATO PRESENTE e CONSUMATO A RUNTIME, e non chiamano «implementato» un dato |
 
-**Dipendenze**: E20 (fondazione), poi E11, E14, E13/E27, E21 per i consumer.
+**Dipendenze**: E20 (fondazione), poi E11, E14, E13/E27, E35 per i consumer.
 **Fuori scope**: rifacimento dell'HUD della v0.1; authoring workflow completo, localization audit, theme
 variants, high-contrast pack ed export generato del catalogo, che restano post-v0.2.
 
@@ -257,7 +272,7 @@ prototipo è un cambio di profilo, valida `Stance` e `Configuration` senza tocca
 `Overdrive` ed `Environmental` richiedono override di abilità e movimento.
 
 **Perché qui e non prima.** Non per tema — la v0.4 è «Operations» — ma per dipendenze e priorità: serve il
-roster stabilizzato (**E21**), i profili reali (**E14**), e per la famiglia `Environmental` il canale
+roster stabilizzato (**E35**), i profili reali (**E14**), e per la famiglia `Environmental` il canale
 ambientale di **E27**. È anche la più cara in carico cognitivo, e il documento sorgente lo dice meglio di
 qualunque stima: *una buona trasformazione deve aumentare le decisioni strategiche più di quanto aumenti le
 informazioni da ricordare*.
