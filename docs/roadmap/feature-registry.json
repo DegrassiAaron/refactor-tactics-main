@@ -882,10 +882,12 @@
         "docs/technical/spec-mappa-multilivello.md"
       ],
       "issues": [
-        72
+        72,
+        206
       ],
       "tests": [
         "RefactorTactics.Structures.Bridge",
+        "RefactorTactics.Actions.ModifyArc.*",
         "RefactorTactics.HexMap.Arc*",
         "RefactorTactics.HexMap.VerticalTransition",
         "RefactorTactics.HexMap.ValidateTransitions",
@@ -903,10 +905,10 @@
       ],
       "wiki_note": "",
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-09",
+        "commit": "4a3fd20"
       },
-      "notes": "Un arco è additivo: romperlo annulla il percorso invece di allungarlo, perché fra due layer non c'è adiacenza di riserva. `Action.ModifyArc` risolve nel Blast e crea ponti temporanei e conduttivi."
+      "notes": "Un arco è additivo: romperlo annulla il percorso invece di allungarlo, perché fra due layer non c'è adiacenza di riserva. `Action.ModifyArc` risolve nel Blast e crea ponti temporanei e conduttivi — e dal 2026-08-09 (#206) misura la portata che dichiara: non passando da `ValidateInstance`, il controllo che ogni altra azione del Blast riceve gratis ha dovuto essere scritto, con il `Cancel` del catalogo reso visibile nel TurnLog."
     },
     {
       "feature_id": "RT-FEAT-MAP-HIGH-GROUND",
@@ -3854,17 +3856,18 @@
         216
       ],
       "tests": [
-        "RefactorTactics.MatchFormat.*"
+        "RefactorTactics.MatchFormat.*",
+        "RefactorTactics.MapClass.*"
       ],
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-09",
+        "commit": "0bbc4c5"
       },
-      "notes": "`URTMatchFormatData` **esiste già** con validator e fallback osservabile: E19 non lo costruisce, chiude due buchi misurati — `MapClass` sul dato mappa e `UnitsPerTeam` nel formato (D-030). I timer restano fuori dal formato per decisione (ADR-0005 §4c)."
+      "notes": "`URTMatchFormatData` **esiste già** con validator e fallback osservabile: E19 non lo costruisce, chiude due buchi misurati — `MapClass` sul dato mappa e `UnitsPerTeam` nel formato (D-030). Entrambi chiusi il 2026-08-09 (#215, #216): la mappa dichiara la propria classe, il formato dichiara la composizione, e il `GameMode` li onora invece di assumerli. `URTHexMapAsset::CurrentFormatVersion` passa a 6; la simulazione **non** ramifica sulla classe, e un test lo misura confrontando l'hash di due partite identiche. I timer restano fuori dal formato per decisione (ADR-0005 §4c)."
     },
     {
       "feature_id": "RT-FEAT-MATCH-PACING",
