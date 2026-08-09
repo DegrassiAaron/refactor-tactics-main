@@ -1390,7 +1390,7 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/balance/RT_HeroCatalog_v0.1.md"
+        "docs/gameplay/brief-super-e-cooldown.md"
       ],
       "issues": [],
       "tests": [
@@ -1406,7 +1406,7 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "Esiste la risorsa (energia, `UltimateReady`) ma non una categoria «super» con regole proprie. Nessuna epic della v0.1 la apre: la seed list la elenca, il repository la conferma solo come risorsa. Resta v0.2 senza epic assegnata."
+      "notes": "Esiste la risorsa (energia, `UltimateReady`) ma non una categoria «super» con regole proprie. Nessuna epic della v0.1 la apre: la seed list la elenca, il repository la conferma solo come risorsa. Resta v0.2 senza epic assegnata. Dal 2026-08-09 la **forma** ha un owner — `brief-super-e-cooldown.md` — che fissa un solo vincolo duro: una Super è una Ability Definition con gate e commit policy, **non un secondo motore**. L'owner precedente era `RT_HeroCatalog_v0.1.md`, che di Super non parla: era una riga con un owner che non possedeva. `spec` resta `partial` perché il brief fissa la forma e non i contenuti."
     },
     {
       "feature_id": "RT-FEAT-ACTION-DELAYED",
