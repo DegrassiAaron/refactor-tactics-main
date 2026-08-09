@@ -6,7 +6,7 @@
 
 > 🚧 **Parzialmente giocabile.** Il codice esiste ma la feature non è completa: i gate qui sotto dicono quanto manca. Blocco generato dal Feature Registry, non modificare a mano.  
 > Feature: `RT-FEAT-ACTION-BASIC-ATTACK-PROFILES` · Release: `v0.1` · Roadmap: `E4`  
-> Stato: **IMPLEMENTING** · Gate: `5/8`  
+> Stato: **IMPLEMENTING** · Gate: `6/8`  
 > Scenario: `Combat.BasicAttack`  
 > Verificato il `2026-08-09` su `8a43866`
 

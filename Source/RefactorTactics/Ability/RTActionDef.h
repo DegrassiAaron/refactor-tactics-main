@@ -177,6 +177,21 @@ struct FRTActionDef
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	FName ActionId;
 
+	/**
+	 * Di quale AZIONE GENERICA questa e' un profilo (es. `Bastion.ImpactShot` -> `Action.BasicAttack`).
+	 * `None` per le azioni che non sono profilo di niente — le generiche stesse, e le abilita' firma.
+	 *
+	 * Esiste perche' [D-033](../../../docs/decisions/RT_PDR_00_Decision_Log.md) chiede che un'azione generica
+	 * con profilo sia spiegabile **nel TurnLog** come *azione base + profilo*, e senza questo campo la
+	 * relazione non e' scritta da nessuna parte: `Bastion.ImpactShot` e' un'azione d'EROE, quindi un lettore
+	 * della traccia non la risolve nemmeno consultando il catalogo core.
+	 *
+	 * E' un dato e non una deduzione: dedurlo dal nome (`Hero.Qualcosa` = attacco base?) funzionerebbe finche'
+	 * un eroe non chiama diversamente la sua azione, cioe' fino al primo eroe nuovo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	FName BaseActionId;
+
 	/** Fase dichiarata (codice del catalogo); la macro-fase reale viene da URTCatalogLibrary::MapResolutionPhase. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	ERTResolutionPhase ResolutionPhase = ERTResolutionPhase::Attack;
