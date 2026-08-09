@@ -225,6 +225,7 @@ resta visibile invece di sparire.
 | `Team.Resonance.AuroraKwang.FrozenAnchor` | idem | v0.2 · richiede E35 |
 | `State.Riva.Flow` · `State.Flux.Charged` · `State.Bastion.Bulwark` · `State.Howitzer.Siege` · `State.MultiState.Stress` | `RT-FEAT-CHARACTER-STATE` | v0.4 · E34 (`#244`) |
 | `Spec.Clash.HiddenUntilReveal` · `Spec.Clash.RevealIsFixedDeadline` · `Spec.Clash.Determinism` | `RT-FEAT-REACTION-CLASH` | v0.1 · E14 · CP 14.7 |
+| `Spec.TimeBank.GraceDoesNotDrain` · `…DrainsAfterGrace` · `…TimeoutCostsFullWindow` · `…TimeoutSpendsNoCharge` · `…ClashCostsFullWindow` · `…BotDrainsLikePlayer` · `…ReplayReadsRecordedBank` · `…PrivacyNoBankLeak` | `RT-FEAT-CORE-DECISION-TIME-BANK` | v0.1 · E14 · CP 14.8 |
 
 > ⚠️ **I tre `Spec.Clash.*` non sono «da scrivere»: oggi sono *impossibili*.** È la stessa situazione già
 > incontrata dal facing prima di CP 16.1. `ERTAssertionKind` ha cinque assertion — `UnitAtCell`,
@@ -234,6 +235,14 @@ resta visibile invece di sparire.
 > `LogHash`. Servono **assertion nuove nell'harness** prima dei file, e finché non ci sono un file scritto
 > sarebbe verde per il motivo sbagliato. Gli altri quattro `Spec.Clash.*` esistono perché il loro esito è
 > osservabile nello stato finale.
+
+> ⚠️ **Gli otto `Spec.TimeBank.*` hanno lo stesso problema, ma per intero.** Nessuno dei tre riguarda una
+> posizione, una salute o un facing: riguardano **quanto tempo è stato speso**, cioè un valore che vive nel
+> TurnLog e non nello stato finale della mappa. Con le cinque assertion di oggi non se ne può scrivere
+> *nessuno* — non sette su otto, zero. Serve almeno un'assertion che legga un contatore del log
+> (`BankAfterMs`, o l'evento di consumo) prima che questi file abbiano senso, e la dipendenza è la stessa che
+> blocca i tre `Spec.Clash.*`: **una sola capability dell'harness sblocca undici scenari**. Finché non c'è,
+> l'unica verifica onesta del bank sono i test C++ di CP 14.8, che non passano dall'harness.
 
 Le **10 voci `PIE-STATE-*`** del registro sono la controparte umana di questi cinque: nascono ⏳ e restano ⏳
 finché E34 non esiste. Stanno nel registro perché il ciclo *docs → epic → scenario → PIE* resti chiuso, non
@@ -369,6 +378,7 @@ e stanno qui perché «tutte le feature della v0.1» non diventi un traguardo ch
 | **Fascia D mai atterrata** — 8 `Visual.*` descritti come scritti, 0 file | Il catalogo promette vetrine che non esistono; 4 temi vivono come `Spec.*` | §6.3, da riscrivere in `scenari-validazione-visiva.md` |
 | **`Visual.Reaction.*` esiste, `Spec` no** — il campo `reaction` nell'intent c'è ed è validato | Nessuno: è un buco **chiuso**, registrato perché la documentazione lo dichiarava aperto per una working copy indietro di qualche commit | `scenari-validazione-visiva.md` §8.2 |
 | **Nessuna assertion su punteggio e conoscenza** — mancano `TeamScoreEquals` e un modo di asserire sulla conoscenza di squadra | Due scenari-spec non potranno diventare verdi anche quando la capability atterra | `_nota_da_completare` di `Spec.Objective.*` e `Spec.Perception.*` |
+| **Nessuna assertion che legga il TurnLog** — le cinque esistenti leggono tutte lo **stato finale**: ordine degli eventi, hash e contatori del log sono fuori portata | **11 scenari** non scrivibili: 3 `Spec.Clash.*` (segretezza e reveal) e 8 `Spec.TimeBank.*` (tempo speso). Una sola capability li sblocca tutti | §6.2 · `RTTestScenario.h` (`ERTAssertionKind`) |
 
 ## 10. Rapporto con gli altri documenti
 

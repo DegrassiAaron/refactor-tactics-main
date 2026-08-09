@@ -2,6 +2,17 @@
 
 > **Tipo:** guida giocatore, non normativa
 
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CORE-DECISION-TIME-BANK -->
+
+> ⚠️ **Progettata, non implementata.** Questa pagina descrive una meccanica **decisa e documentata** che il gioco **non esegue ancora**: oggi non è giocabile. Blocco generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-CORE-DECISION-TIME-BANK` · Release: `v0.1` · Roadmap: `E14.8`  
+> Stato: **SPECIFIED** · Gate: `1/9`  
+> Scenario: `Spec.TimeBank.GraceDoesNotDrain (pianificato)`  
+> Le **regole** sono decise (2026-08-09); i **valori** restano baseline di playtest. La Wiki non deve pubblicarli come definitivi finché §3.2 non li promuove.  
+> Verificato il `2026-08-09` su `75eb0f3`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-CORE-DECISION-TIME-BANK -->
+
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-REACTION-PROFILE -->
 
 > 🚧 **Parzialmente giocabile.** Il codice esiste ma la feature non è completa: i gate qui sotto dicono quanto manca. Blocco generato dal Feature Registry, non modificare a mano.  
@@ -155,6 +166,34 @@ Per la baseline di Overwatch:
 - trigger simultanei dello stesso micro-step vengono aggregati in una sola opportunity;
 - niente interrupt annidati nella v0.1.
 
+## La tua riserva di tempo
+
+Le decisioni live sono brevi, ma sono tante: una catena di finestre può allungare la partita più di quanto
+valga. Per questo ogni giocatore ha una **riserva di tempo** che vale per tutto il match e che tutte le
+finestre condividono.
+
+Funziona così:
+
+- **rispondi subito** e non consumi nulla: c'è un margine iniziale, pensato per accorgerti che la finestra si
+  è aperta e leggere le opzioni;
+- **ci pensi più a lungo** e consumi il tempo oltre quel margine;
+- **lasci scadere** e paghi la finestra intera — è il costo più alto possibile.
+
+L'ultima riga è la più importante da capire: se vuoi tenere l'Overwatch armato, **premi `HOLD`**. Lasciar
+scadere dà lo stesso risultato ma ti costa tutta la finestra, perché il gioco non distingue chi ha scelto di
+aspettare da chi non c'era. Il fallback è sempre preselezionato: confermarlo è un tasto solo.
+
+Quando la riserva finisce non perdi le tue opzioni — restano tutte legali. Perdi il tempo *in più*: le
+finestre successive ti lasciano solo un margine molto breve, poi si applica la risposta di default.
+
+> La riserva è **tua e privata**: non vedi quella degli avversari e loro non vedono la tua. Non è una svista —
+> vedere quanto tempo ha speso un altro giocatore direbbe quando ha deciso, e quello è esattamente ciò che le
+> scelte in cieco esistono per nascondere.
+
+> ⏳ I valori — quanto dura la riserva, quanto è ampio il margine iniziale — sono **baseline di playtest**, non
+> numeri definitivi. La riserva iniziale non è un numero fisso: si ricava dalla lunghezza del formato, quindi
+> una partita più lunga ne ha di più.
+
 ## Irrigidirsi prepara una reazione
 
 `Brace` non è solo «incasso meglio». Prepara il personaggio a **reagire**, e *come* reagisce dipende da lui.
@@ -207,3 +246,4 @@ Non sono tre sistemi diversi:
 - `docs/gameplay/brief-azioni-generiche-overwatch.md`
 - `docs/decisions/adr-0004-finestre-di-reazione.md`
 - `docs/gameplay/spec-reaction-clash-e14.md`
+- `docs/gameplay/spec-decision-time-bank.md`
