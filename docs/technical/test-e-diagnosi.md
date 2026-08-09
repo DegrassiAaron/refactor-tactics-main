@@ -18,10 +18,46 @@
 | **Automation Test** | regole pure: geometria, path, LOS, danno, ordinamenti, serializzazione | sempre, a ogni modifica delle regole | secondi |
 | **Scenario Harness** | il turno *intero*: piano → snapshot → resolver → TurnLog, su più turni | quando tocchi il flusso di gioco o vuoi un caso riproducibile | secondi |
 | **PIE (test manuali)** | ciò che nessun test vede: che si **veda** a schermo e che il giocatore **capisca** | prima di chiudere una milestone | minuti, e serve una persona |
+| **Packaged** | che il gioco esista **fuori dall'editor**: compila in Shipping, cuoce, e una partita parte davvero | prima di una release (gate `packaged`, CP 12.5) | ~10 minuti, nessuna persona |
 
 La regola pratica: **se puoi verificarlo senza aprire l'editor, fallo senza aprire l'editor.** Le voci PIE
 esistono per ciò che resta — leggibilità, ritmo, giudizio — e sono elencate in
 [`test-manuali-pie.md`](test-manuali-pie.md).
+
+### Il livello packaged, e perché serve
+
+Ha trovato un difetto che nessun altro livello poteva trovare: il **2026-08-09** la build **Shipping era
+rotta in `main`** e la suite era verde. `RTHexSimTests.cpp` chiudeva `#if WITH_DEV_AUTOMATION_TESTS` a
+metà file, lasciando 197 righe di test fuori dalla guardia — invisibile in Editor, dove la guardia vale 1,
+fatale in Shipping, dove vale 0. La causa strutturale: **la suite gira sul target Editor, e il target Game
+non lo compila niente di automatico.**
+
+```bash
+# 1. i due target del gioco compilano? (secondi, ed e' il controllo che manca)
+Build.bat RefactorTactics Win64 Development -Project=<uproject> -WaitMutex
+Build.bat RefactorTactics Win64 Shipping    -Project=<uproject> -WaitMutex
+
+# 2. cuoce e si impacchetta?
+RunUAT.bat BuildCookRun -project=<uproject> -noP4 -platform=Win64 \
+  -clientconfig=Development -cook -build -stage -pak -archive \
+  -archivedirectory=<dir>/Packaged -utf8output
+
+# 3. il gioco pacchettizzato gira davvero? (smoke test, nessuna persona)
+Packaged/Windows/RefactorTactics.exe -nullrhi -unattended -nosound -abslog=<log>
+grep "LogRT" <log>     # deve mostrare la partita: board, turno, fase Move
+```
+
+> **Un worktree basta, e questo va detto perché il contrario sembra ovvio.** `Content/**/*.uasset` è
+> ignorato da `.gitignore`, quindi verrebbe da concludere che un worktree non abbia contenuti e non possa
+> cuocere. **Non è così**: i **7** asset che il gioco usa davvero sono stati aggiunti a forza al repository
+> (`git ls-files Content/`), e il cook è limitato a `+DirectoriesToAlwaysCook=(Path="/Game/RT")`.
+> `Content/FabAsset` — i 44 GB di pack Paragon — **non è referenziato da nulla** (né codice, né config, né
+> gli asset versionati) e **non viene cotto**: il `.pak` risultante pesa **10 MB**. Misurato il 2026-08-10 da
+> un worktree senza `FabAsset`: `BUILD SUCCESSFUL`, pacchetto 915 MB, partita 2v2 su 65 celle avviata e fase
+> Move risolta.
+>
+> Corollario pratico: **non serve nessun junction su `Content`**. Se una procedura ne chiede uno, è
+> ferma a prima che i 7 asset fossero versionati.
 
 ---
 
