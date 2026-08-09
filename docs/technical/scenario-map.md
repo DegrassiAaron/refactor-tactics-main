@@ -54,9 +54,9 @@ scegliendo lo scenario e premendo Play, una voce C richiede di allestire, clicca
 | **A** — automatico | **21** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · `RT_Showcase_Relay_v01` |
 | **B** — automatico + occhio | **21** scenari ↔ **21** voci `PIE-VIS-*` | `Scenarios/Visual/` |
 | **C** — solo umano | **95** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima |
-| **D** — dichiarato | **7** scenari `Spec.*` ancora `BLOCKED` · **10** pianificati · **4** mai scritti | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
+| **D** — dichiarato | **12** scenari `Spec.*` ancora `BLOCKED` · **13** pianificati · **4** mai scritti | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
 
-Totale corpus versionato: **49** scenari (`A 21 + B 21 + D-bloccati 7`). Totale registro PIE: **116** voci
+Totale corpus versionato: **54** scenari (`A 21 + B 21 + D-bloccati 12`). Totale registro PIE: **116** voci
 (`B 21 + C 95`).
 
 > ⚠️ **La cartella non è la classe.** Sette scenari di `Scenarios/Spec/` sono di **classe A**: i sei
@@ -200,6 +200,11 @@ utile: **`previewUnit` è presentazione e non cambia l'esito**, verificato da
 | `Spec.Overwatch.HoldThenFire` | `DecisionBoundary` `Facing` | E14 (`#152`) + E16 (`#175`) |
 | `Spec.Perception.HeardNotSeen` | `Perception` | E13 (`#151`) |
 | `Spec.Predictive.WhiffOnEmptyCell` | `PredictiveAction` | E18 (`#225`) |
+| `Spec.Brace.ProfileChangesResponse` | `DecisionBoundary` `ReactionClash` | E14 · CP 14.7 |
+| `Spec.Clash.ReadBeatsStand` | `DecisionBoundary` `ReactionClash` | E14 · CP 14.7 |
+| `Spec.Clash.StandBeatsShift` | `DecisionBoundary` `ReactionClash` | E14 · CP 14.7 |
+| `Spec.Clash.ShiftBeatsRead` | `DecisionBoundary` `ReactionClash` | E14 · CP 14.7 |
+| `Spec.Clash.TieAppliesOnce` | `DecisionBoundary` `ReactionClash` | E14 · CP 14.7 |
 
 > **`EnvironmentalActionOwner` è diversa dalle altre**, e la differenza è il punto: il sistema **esiste ed è
 > chiuso** (CP 8.3, 8.5, 9.4 sono verdi). Quello che manca è **chi possiede** le azioni. Tre scenari-spec su
@@ -219,6 +224,16 @@ resta visibile invece di sparire.
 | `Team.Sentinel.SteelMurdock.HoldTheLine` | idem | v0.2 · richiede E35 |
 | `Team.Resonance.AuroraKwang.FrozenAnchor` | idem | v0.2 · richiede E35 |
 | `State.Riva.Flow` · `State.Flux.Charged` · `State.Bastion.Bulwark` · `State.Howitzer.Siege` · `State.MultiState.Stress` | `RT-FEAT-CHARACTER-STATE` | v0.4 · E34 (`#244`) |
+| `Spec.Clash.HiddenUntilReveal` · `Spec.Clash.RevealIsFixedDeadline` · `Spec.Clash.Determinism` | `RT-FEAT-REACTION-CLASH` | v0.1 · E14 · CP 14.7 |
+
+> ⚠️ **I tre `Spec.Clash.*` non sono «da scrivere»: oggi sono *impossibili*.** È la stessa situazione già
+> incontrata dal facing prima di CP 16.1. `ERTAssertionKind` ha cinque assertion — `UnitAtCell`,
+> `TurnsCompleted`, `UnitHpEquals`, `UnitAlive`, `UnitFacing` — e leggono **tutte lo stato finale**; nessuna
+> legge il TurnLog, l'ordine degli eventi o un hash. Questi tre chiedono esattamente quello: che una scelta non
+> sia visibile *prima* di un certo evento, che il reveal non anticipi, che due run producano lo stesso
+> `LogHash`. Servono **assertion nuove nell'harness** prima dei file, e finché non ci sono un file scritto
+> sarebbe verde per il motivo sbagliato. Gli altri quattro `Spec.Clash.*` esistono perché il loro esito è
+> osservabile nello stato finale.
 
 Le **10 voci `PIE-STATE-*`** del registro sono la controparte umana di questi cinque: nascono ⏳ e restano ⏳
 finché E34 non esiste. Stanno nel registro perché il ciclo *docs → epic → scenario → PIE* resti chiuso, non
@@ -246,9 +261,9 @@ Nessun numero di questo documento va aggiornato a memoria. Tutti si ricalcolano:
 
 ```bash
 # Classe A + B + D-scritti — il corpus versionato
-find Scenarios -name '*.json' ! -name '_*' | wc -l                        # 49
+find Scenarios -name '*.json' ! -name '_*' | wc -l                        # 54
 find Scenarios/Visual -name '*.json' | wc -l                              # 21  (B)
-find Scenarios/Spec   -name '*.json' | wc -l                              # 14  (7 in D + 7 accesi in A)
+find Scenarios/Spec   -name '*.json' | wc -l                              # 19  (12 in D + 7 accesi in A)
 
 # Registro PIE — verdi / parziali / aperte, e il totale
 awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);

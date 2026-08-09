@@ -1,0 +1,40 @@
+{
+  "scenarioId": "Spec.Brace.ProfileChangesResponse",
+  "tags": ["spec", "reactions", "brace", "clash", "bastion", "riva"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "SPECIFICA ESEGUIBILE di D-041. Due eroi dichiarano la STESSA azione — `Action.Brace` — e reagiscono in modo diverso, perche' la risposta viene dal loro Reaction Profile e non dall'azione. Bastion resta sulla cella (`Hold Ground`, la risposta universale); Riva, il cui profilo dichiara una risposta di scarto, non ci resta. Nessun `if CharacterId` nel resolver puo' produrre questo risultato: e' il dato a decidere.",
+
+  "_nota_perche_esiste": "E' la prova che D-041 non e' un rename. Se `Brace` restasse un buff fisso, i due eroi finirebbero nella stessa cella con gli stessi HP e questo file sarebbe verde per il motivo sbagliato — quindi l'assertion che conta e' la DIFFERENZA fra i due, non il valore di uno solo.",
+
+  "_nota_da_completare": "Il turno 2 richiede un profilo di reazione a due risposte, che oggi nessun eroe dichiara: i profili concreti dei 4 eroi sono `CLASH-2` fra le domande aperte. Chi implementa E14.7 assegna il profilo a Riva e aggiunge l'assertion sulla sua cella finale, che deve differire da quella di partenza mentre quella di Bastion no.",
+
+  "units": [
+    { "id": "B1", "hero": "Hero.Bastion", "team": 0, "cell": [ 0, 0, 0] },
+    { "id": "R1", "hero": "Hero.Riva",    "team": 0, "cell": [ 0, 1, 0] },
+    { "id": "V1", "hero": "Hero.Vektor",  "team": 1, "cell": [-3, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — entrambi si irrigidiscono. Gira sul gioco di oggi: `Action.Brace` e' un'azione principale di Prep e il suo effetto base (-10 a ogni danno diretto, blocco della prima spinta) e' quello di sempre. Nessuna finestra si apre: col solo profilo base la cardinalita' resta 1.",
+      "intents": [
+        { "unit": "B1", "ability": "Action.Brace" },
+        { "unit": "R1", "ability": "Action.Brace" }
+      ]
+    },
+    {
+      "_turno": "T2 — la differenza. Con un profilo che dichiara una seconda risposta legale, la stessa preparazione produce reazioni diverse: Bastion tiene la cella, Riva scarta.",
+      "requires": ["DecisionBoundary", "ReactionClash"],
+      "intents": []
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell",     "unit": "B1", "cell": [0, 0, 0] },
+    { "type": "UnitAtCell",     "unit": "R1", "cell": [0, 1, 0] },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}
