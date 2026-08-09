@@ -804,8 +804,13 @@ void ARTTurnManager::TickDynamicArcs(URTHexMapAsset* Map)
 		DynamicArcs.RemoveAt(I);
 		if (!Map->RemoveTransition(From, To, /*bBothDirections*/ true))
 		{
-			continue; // gia' rimosso per altra via (distrutto in combattimento): niente da registrare
+			continue; // gia' tolto da un `ModifyArc`: niente da registrare
 		}
+		// NOTA (#302): questo ramo NON e' la rete di sicurezza per i ponti distrutti in combattimento, e
+		// crederlo e' costato un difetto. `DamageArc` non rimuove l'arco — lo marca `Destroyed` e lo lascia
+		// sulla mappa — quindi su un ponte crollato `RemoveTransition` RIUSCIREBBE, e da qui uscirebbe un
+		// `BridgeRemoved` per un evento mai avvenuto. Un ponte abbattuto non arriva piu' fin qui: la sua entry
+		// e' tolta da `DynamicArcs` nel momento del crollo.
 
 		FRTTurnLogEntry Entry;
 		Entry.Phase = ERTMatchPhase::Cleanup;
@@ -2547,6 +2552,27 @@ void ARTTurnManager::ResolveCombat()
 				Change.From.X, Change.From.Y, Change.From.Layer,
 				Change.To.X, Change.To.Y, Change.To.Layer,
 				Change.bBroken ? TEXT("crollato") : TEXT("danneggiato"), Change.RemainingIntegrity));
+
+			// Un ponte ABBATTUTO smette di essere anche un ponte TEMPORANEO. Senza questa riga l'entry
+			// sopravvive al proprio ponte, e non in modo innocuo: `DamageArc` non RIMUOVE l'arco, lo marca
+			// `Destroyed` e lo lascia sulla mappa, quindi alla scadenza del timer `TickDynamicArcs` chiama
+			// `RemoveTransition` e ci RIESCE — scrivendo un `BridgeRemoved` per un crollo avvenuto turni prima
+			// e portandosi via le macerie. Le macerie devono restare: e' su di esse che `SetArcState` esercita
+			// il proprio «terminale» (un ponte abbattuto non si riattiva).
+			//
+			// Stessa disciplina delle coperture (#301, `ApplyStructureDamage`): l'entry muore quando muore la
+			// struttura che rappresenta. `DamageArc` restituisce un `Change` per verso, quindi qui si passa due
+			// volte sulla stessa coppia: `RemoveAll` e' idempotente e la seconda non trova piu' nulla.
+			if (Change.State == ERTHexArcState::Destroyed)
+			{
+				const FRTCellId BrokenFrom = Change.From;
+				const FRTCellId BrokenTo = Change.To;
+				DynamicArcs.RemoveAll([&BrokenFrom, &BrokenTo](const FRTDynamicArc& Tracked)
+				{
+					return (Tracked.From == BrokenFrom && Tracked.To == BrokenTo)
+						|| (Tracked.From == BrokenTo && Tracked.To == BrokenFrom);
+				});
+			}
 		}
 	}
 

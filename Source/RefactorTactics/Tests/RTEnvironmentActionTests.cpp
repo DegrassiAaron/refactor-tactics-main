@@ -585,6 +585,86 @@ bool FRTBridgeDamagedInTurnTest::RunTest(const FString&)
 }
 
 /**
+ * Un ponte ABBATTUTO non deve lasciare un fantasma in `DynamicArcs`.
+ *
+ * `ARTTurnManager` tiene in `DynamicArcs` i ponti temporanei di `Action.ModifyArc`, per farli scadere. Quando
+ * uno viene distrutto in combattimento, pero', a occuparsene e' `URTHexArcLibrary::DamageArc` — che di quella
+ * lista non sa nulla. L'entry sopravvive al proprio ponte.
+ *
+ * E sopravvivere qui non e' innocuo, perche' `DamageArc` **non toglie** l'arco: lo marca `Destroyed` con
+ * integrita' 0 e lo lascia sulla mappa. Quindi alla scadenza del timer del fantasma `RemoveTransition`
+ * RIESCE, e fa due danni in uno: scrive nel TurnLog un `BridgeRemoved` per un crollo avvenuto due turni
+ * prima — una voce che descrive un evento mai accaduto — e si porta via le macerie, cancellando la prova
+ * che li' c'era un ponte abbattuto (`SetArcState` tratta `Destroyed` come terminale: «un ponte abbattuto non
+ * si riattiva», e senza arco non ha piu' niente su cui essere terminale).
+ *
+ * E' lo stesso fantasma corretto per le coperture in #301 — `DestroyedCoverLeavesNoGhost` e' il suo gemello —
+ * e la disciplina e' quella: l'entry muore quando muore la struttura che rappresenta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBridgeGhostTrackingTest,
+	"RefactorTactics.Structures.Bridge.DestroyedBridgeLeavesNoGhost",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBridgeGhostTrackingTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	const FRTCellId Ground(0, 0, 0);
+	const FRTCellId Upper(1, 0, 1);
+	MapActor->MapAsset->AddOrUpdateCell(FRTHexCellData(Upper));
+	MapActor->MapAsset->SortCells();
+
+	ARTUnit* Builder = SpawnEnvUnit(World, 0, Ground);
+	ARTUnit* Foe = SpawnEnvUnit(World, 1, Upper);
+	// Riserve lontane dal ponte: servono TRE turni, e una squadra annientata li interromperebbe prima che il
+	// timer del fantasma arrivi a scadere — il test finirebbe verde senza aver mai raggiunto il caso.
+	SpawnEnvUnit(World, 0, FRTCellId(-4, 0, 0));
+	SpawnEnvUnit(World, 1, FRTCellId(-3, 0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Builder"), Builder) || !TestNotNull(TEXT("Foe"), Foe)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	// Turno 1: il ponte nasce da `ModifyArc`, quindi e' TEMPORANEO e tracciato in `DynamicArcs` (2 turni,
+	// che cominciano dal prossimo).
+	PlanEnvAction(Builder, TEXT("Action.ModifyArc"), Foe);
+	RunEnvTurn(TM);
+	TestTrue(TEXT("il ponte esiste"),
+		URTHexArcLibrary::IsArcTraversable(MapActor->MapAsset, Ground, Upper));
+
+	// Turno 2: lo stesso costruttore lo abbatte. 40 e' `FRTHexEdge::DefaultIntegrity`: un colpo solo basta,
+	// e il ponte crolla PRIMA della propria scadenza naturale — che e' esattamente la condizione del difetto.
+	Builder->Abilities[0]->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 40));
+	Builder->PlannedAbilityIndex = 0;
+	Builder->PlannedAttackTarget = Foe;
+	RunEnvTurn(TM);
+
+	TestEqual(TEXT("il ponte e' crollato in combattimento, un evento per verso"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::BridgeDestroyed), 2);
+	TestFalse(TEXT("e non e' piu' percorribile"),
+		URTHexArcLibrary::IsArcTraversable(MapActor->MapAsset, Ground, Upper));
+
+	// Turno 3: e' adesso che scadeva il timer del ponte ormai crollato. Il fantasma agiva qui.
+	RunEnvTurn(TM);
+
+	const FRTHexEdge* Rubble = URTHexArcLibrary::FindArc(MapActor->MapAsset, Ground, Upper);
+	if (TestTrue(TEXT("le macerie restano: l'arco abbattuto e' ancora sulla mappa"), Rubble != nullptr))
+	{
+		TestTrue(TEXT("e sono ancora macerie, non un ponte tornato attivo"),
+			Rubble->State == ERTHexArcState::Destroyed);
+	}
+	TestEqual(TEXT("nessuna scadenza nel TurnLog: quel ponte era gia' crollato, non e' scaduto"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::BridgeRemoved), 0);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
  * CP 9.5 — il pannello nasce in PARTITA, ripara, e scade da solo.
  *
  * Il test gira un turno vero (`Intent -> Prep -> ... -> Cleanup`), non chiama `AddCover`: la libreria era gia'

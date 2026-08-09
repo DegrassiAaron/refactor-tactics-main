@@ -112,6 +112,20 @@ vicenda. Durata **2 turni**, la stessa delle altre modifiche ambientali del cata
 > spiegare niente. Lo ha scoperto `Structures.Bridge.TemporaryBridgeExpires`, che verifica **tre** turni
 > proprio per questo.
 
+> ⚠️ **Un secondo difetto, trovato dalla code review di #292 e corretto il 2026-08-09**
+> ([#302](https://github.com/DegrassiAaron/refactor-tactics-main/issues/302)). Un ponte temporaneo **distrutto
+> in combattimento** lasciava la propria entry in `DynamicArcs`: a toglierlo dalla mappa è `DamageArc`, che di
+> quella lista non sa nulla, mentre `ModifyArc` la ripuliva già. L'asimmetria non era innocua, perché
+> `DamageArc` **non rimuove** l'arco — lo marca `Destroyed` con integrità 0 e lo lascia dov'è. Quindi alla
+> scadenza del timer del fantasma `RemoveTransition` *riusciva*, e faceva due danni in uno: scriveva un
+> `BridgeRemoved` per un crollo avvenuto due turni prima, e si portava via le macerie. Corretto alla radice —
+> l'entry muore quando muore il ponte — con la stessa disciplina applicata alle coperture in #301.
+>
+> **Regola che ne discende, e che prima non era scritta da nessuna parte: le macerie restano.** Un arco
+> `Destroyed` sopravvive sulla mappa finché un `ModifyArc` non lo toglie; nessun timer se ne occupa, perché
+> nessun timer lo ha creato. È ciò che rende eseguibile il «terminale» di §5: `SetArcState` rifiuta di
+> riattivare un ponte abbattuto, e per rifiutarlo deve averlo ancora davanti.
+
 **Conduttivo.** `CollectElectricPropagation` camminava su `URTHexLibrary::Neighbors`, cioè i soli sei vicini
 planari: l'elettricità non attraversava **nessun** arco e non saliva mai di layer. Il BFS ora aggiunge anche gli
 archi uscenti che dichiarano la conduttività. Un ponte conduttivo diventa così un **rischio** oltre che una
@@ -184,6 +198,7 @@ significato. `SrcCell`/`TgtCell` sono le due celle collegate — nessun campo nu
 | `HexMap.ArcValidation` | un arco attivo a zero punti struttura è un dato incoerente |
 | `HexMap.ArcFormatMigration` | v4 → v5 non perde celle, coperture, porte né transizioni, e i default sono quelli di un ponte sano |
 | `Structures.Bridge.DamagedInPlayedTurn` | **turno vero**: `DamageStructure` raggiunge davvero l'arco, su entrambi i versi (aggiunto dopo la verifica di mutazione) |
+| `Structures.Bridge.DestroyedBridgeLeavesNoGhost` | **turno vero, tre turni**: un ponte temporaneo abbattuto in combattimento non lascia un'entry in `DynamicArcs` — alla data della sua scadenza le macerie sono ancora lì e il TurnLog non porta un `BridgeRemoved` mai avvenuto (#302, scritto **rosso prima** del fix) |
 
 Aggiornato **consapevolmente**, non fatto passare: `Actions.EnvironmentalSetMatchesCatalog` non elenca più
 `ModifyArc` fra le ambientali, e un blocco nuovo verifica che risolva nel **Blast**, col perché. Il cambio di
