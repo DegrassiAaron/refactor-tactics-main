@@ -350,11 +350,21 @@ URTHeroData* URTHeroCatalogLibrary::MakeBastion()
 		Bastion->Actions.Add(Panel);
 	}
 
-	// Indice 2 — Reconfigure. Sposta o ruota una copertura ESISTENTE: dipende dallo stesso sistema mancante
-	// di KineticPanel, piu' un bersaglio (la copertura) che non e' ne' un'unita' ne' una cella nel modello
-	// attuale. Fase Preparation per lo stesso motivo del pannello.
-	Bastion->Actions.Add(MakeHeroAction(TEXT("Bastion.Reconfigure"), ERTResolutionPhase::Preparation,
-		/*Priority*/ 31, /*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
+	// Indice 2 — Reconfigure (CP 9.5). Sposta o ruota una copertura ESISTENTE. A differenza del pannello NON
+	// eredita da un'azione core, e la ragione e' che oggi non ce n'e' una: spostare una copertura e' semantica
+	// di questa sola identita' in tutta la v0.1. Il dato (`StructureOp`) e' comunque quello condiviso, quindi
+	// il giorno in cui un gadget o uno scenario vorranno spostare, l'azione core si aggiunge senza toccare il
+	// resolver.
+	//
+	// **Portata 3** come il pannello: ruotare solo cio' che si ha addosso renderebbe l'abilita' un ripiego, e
+	// il catalogo non dichiara una portata diversa fra le due. Fase Preparation per lo stesso motivo del
+	// pannello: il campo si sistema PRIMA che i colpi partano.
+	{
+		URTActionData* Reconfigure = MakeHeroAction(TEXT("Bastion.Reconfigure"), ERTResolutionPhase::Preparation,
+			/*Priority*/ 76, /*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Cancel, {});
+		Reconfigure->Def.StructureOp = ERTStructureOp::MoveCover;
+		Bastion->Actions.Add(Reconfigure);
+	}
 
 	// Indice 3 — Ram. E' una CARICA: 20 danni + Push 1, gli stessi numeri di `Action.Charge` del catalogo
 	// azioni v0.1 §2 — non una coincidenza, e' la stessa azione con un nome d'eroe. Riuso identico di fase,

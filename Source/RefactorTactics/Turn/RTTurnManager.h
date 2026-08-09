@@ -296,8 +296,19 @@ protected:
 	{
 		FRTCellId Cell;
 		ERTHexDirection Edge = ERTHexDirection::E;
+		/** Turni che restano. **0 = non scade da sola** (pannello adattivo): il tick la salta. */
 		int32 TurnsRemaining = 0;
+		/**
+		 * Rotazioni ancora gratuite (pannello adattivo: 1). Una `Reconfigure` che ne consuma una non spende il
+		 * cooldown: e' il compromesso che il catalogo eroi dichiara in cambio di 25 punti struttura invece di 30.
+		 */
+		int32 FreeRotations = 0;
 	};
+	/**
+	 * Tutte le coperture erette IN PARTITA, anche quelle che non scadono: la lista non serve solo alla
+	 * scadenza, ma a sapere quali coperture sono «di partita» e quali erano gia' sulla mappa — e a portarsi
+	 * dietro le rotazioni gratuite quando una viene spostata.
+	 */
 	TArray<FRTDynamicCover> DynamicCovers;
 
 	/** Scadenza delle coperture temporanee, nel Cleanup: a zero turni il bordo torna scoperto, e si registra. */

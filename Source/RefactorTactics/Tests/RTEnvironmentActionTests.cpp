@@ -786,4 +786,130 @@ bool FRTBastionPanelVariantAppliedTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * CP 9.5 — `Bastion.Reconfigure` SPOSTA una copertura: non ne crea una seconda.
+ *
+ * E' il nome che la DoD vincola (`ReconfigureDoesNotDuplicate`), e il difetto che sorveglia e' preciso: una
+ * implementazione che «aggiunge sul bordo nuovo» senza togliere dal vecchio raddoppierebbe la protezione con
+ * un'azione che il catalogo descrive come una rotazione. Il test conta le voci, non guarda solo il bordo di
+ * arrivo — contare e' l'unico modo di accorgersi di una duplicazione.
+ *
+ * Verifica anche che l'integrita' VIAGGI con la copertura: spostare un pannello ammaccato non lo ripara.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBastionReconfigureTest,
+	"RefactorTactics.Heroes.Bastion.ReconfigureDoesNotDuplicate",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBastionReconfigureTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	const FRTCellId Home(0, 0);
+	const FRTCellId Panel(1, 0);
+
+	ARTUnit* Bastion = SpawnEnvUnit(World, 0, Home);
+	ARTUnit* Foe = SpawnEnvUnit(World, 1, FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Bastion"), Bastion) || !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	// Una copertura gia' in campo, ammaccata: 18 punti struttura invece di 30.
+	URTHexCoverLibrary::AddCover(MapActor->MapAsset, Panel, ERTHexDirection::W, ERTHexCoverType::Low, 18);
+
+	URTActionData* Reconfigure = URTHeroCatalogLibrary::MakeBastion()->Actions[2];
+	TestTrue(TEXT("Reconfigure dichiara di spostare"),
+		Reconfigure->Def.StructureOp == ERTStructureOp::MoveCover);
+
+	PlanHeroCoverAction(Bastion, Reconfigure, Panel, ERTHexDirection::E);
+	RunEnvTurn(TM);
+
+	const FRTHexCellData* Cell = MapActor->MapAsset->FindCell(Panel);
+	if (!TestNotNull(TEXT("la cella esiste"), Cell))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	TestEqual(TEXT("una sola copertura: spostata, non duplicata"), Cell->Covers.Num(), 1);
+	TestEqual(TEXT("ora sta sul bordo di destinazione"),
+		CoverIntegrityOn(MapActor->MapAsset, Panel, ERTHexDirection::E), 18);
+	TestEqual(TEXT("e il bordo di partenza e' scoperto"),
+		CoverIntegrityOn(MapActor->MapAsset, Panel, ERTHexDirection::W), 0);
+	TestEqual(TEXT("il TurnLog registra uno spostamento, non una creazione"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverMoved), 1);
+	TestEqual(TEXT("nessuna copertura eretta"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverCreated), 0);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * CP 9.5 — `Reconfigure` rifiuta invece di indovinare, e un rifiuto non fa sparire nulla.
+ *
+ * Due casi che una implementazione frettolosa sbaglia nello stesso modo — prendendo «la prima dell'array»:
+ * due coperture sulla stessa cella (quale si sposta?) e una destinazione gia' riparata. Il secondo e' il piu'
+ * pericoloso, perche' la via naturale — togli, poi aggiungi — cancella la copertura quando l'aggiunta
+ * fallisce. Qui si verifica che torni dov'era.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBastionReconfigureRefusesTest,
+	"RefactorTactics.Heroes.Bastion.ReconfigureRefusesInsteadOfGuessing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBastionReconfigureRefusesTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	const FRTCellId Home(0, 0);
+	const FRTCellId Two(1, 0);   // cella con DUE coperture
+	const FRTCellId One(0, 1);   // cella con una sola, ma destinazione occupata
+
+	ARTUnit* Bastion = SpawnEnvUnit(World, 0, Home);
+	ARTUnit* Foe = SpawnEnvUnit(World, 1, FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Bastion"), Bastion) || !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	URTHexCoverLibrary::AddCover(MapActor->MapAsset, Two, ERTHexDirection::W, ERTHexCoverType::Low, 30);
+	URTHexCoverLibrary::AddCover(MapActor->MapAsset, Two, ERTHexDirection::E, ERTHexCoverType::Low, 30);
+
+	URTActionData* Reconfigure = URTHeroCatalogLibrary::MakeBastion()->Actions[2];
+	PlanHeroCoverAction(Bastion, Reconfigure, Two, ERTHexDirection::NE);
+	RunEnvTurn(TM);
+
+	TestEqual(TEXT("ambiguo: rifiutato"), CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverRejected), 1);
+	TestEqual(TEXT("e nessuna delle due si e' mossa"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverMoved), 0);
+	if (const FRTHexCellData* Cell = MapActor->MapAsset->FindCell(Two))
+	{
+		TestEqual(TEXT("le due coperture sono ancora li'"), Cell->Covers.Num(), 2);
+	}
+
+	// Destinazione gia' riparata: il rifiuto non deve far sparire la copertura di partenza.
+	URTHexCoverLibrary::AddCover(MapActor->MapAsset, One, ERTHexDirection::W, ERTHexCoverType::Low, 22);
+	const FRTCellId NorthEast = URTHexLibrary::Neighbors(One)[static_cast<int32>(ERTHexDirection::NE)];
+	URTHexCoverLibrary::AddCover(MapActor->MapAsset, NorthEast,
+		ERTHexDirection::SW, ERTHexCoverType::Low, 30); // la faccia opposta del bordo NE di `One`
+
+	URTActionData* Second = URTHeroCatalogLibrary::MakeBastion()->Actions[2];
+	PlanHeroCoverAction(Bastion, Second, One, ERTHexDirection::NE);
+	RunEnvTurn(TM);
+
+	TestEqual(TEXT("destinazione occupata: rifiutato"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverRejected), 1);
+	TestEqual(TEXT("la copertura e' tornata dov'era, con la sua integrita'"),
+		CoverIntegrityOn(MapActor->MapAsset, One, ERTHexDirection::W), 22);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
