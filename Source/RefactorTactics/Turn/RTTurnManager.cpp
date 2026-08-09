@@ -2048,6 +2048,33 @@ void ARTTurnManager::ResolveCombat()
 			Unit->PlannedAbilityIndex = INDEX_NONE; // consumato nel turno, attivata o no
 			if (Unit->CanUseAbility(ArcAbilityIndex) && ArcTarget && ArcTarget->IsAlive())
 			{
+				// La PORTATA dichiarata dal catalogo si valida qui, prima di toccare la topologia (#206).
+				// `ModifyArc` non passa da `ValidateInstance` — si intercetta prima della raccolta degli
+				// intenti, due righe sopra — quindi il controllo che ogni altra azione del Blast riceve
+				// gratis va scritto: senza, un'azione che dichiara `Range 3` opera dall'altra parte della
+				// mappa, e non e' un'azione a portata, e' un'azione senza portata.
+				if (URTHexLibrary::HexDistance(Unit->Cell, ArcTarget->Cell) > PlannedNow->Def.RangeCells)
+				{
+					// Il fallback dichiarato a catalogo e' `Cancel`: nessun effetto, ma VISIBILE. Un'azione
+					// che sparisce in silenzio e' indistinguibile da un difetto — la stessa ragione per cui
+					// esiste `CoverRejected`. Il motivo viaggia in `Amount` come per ogni altro fallback.
+					FRTTurnLogEntry ArcRejected;
+					ArcRejected.Phase = ERTMatchPhase::Blast;
+					ArcRejected.Category = ERTLogCategory::Fallback;
+					ArcRejected.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+					ArcRejected.ActionId = PlannedNow->Def.ActionId;
+					ArcRejected.SrcCell = Unit->Cell;
+					ArcRejected.TgtCell = ArcTarget->Cell;
+					ArcRejected.Amount = static_cast<int32>(ERTActionInvalidReason::OutOfRange);
+					TurnLog.Add(ArcRejected);
+					AddLogEvent(FString::Printf(TEXT("%s: %s"),
+						*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(ArcRejected)));
+
+					// L'abilita' NON si consuma: il piano e' gia' stato azzerato sopra (si spende nel turno,
+					// attivata o no), ma il cooldown paga solo cio' che ha davvero toccato la mappa.
+					continue;
+				}
+
 				Unit->ConsumeAbility(ArcAbilityIndex);
 				PendingArcOps.Add({ Unit->Cell, ArcTarget->Cell });
 			}
