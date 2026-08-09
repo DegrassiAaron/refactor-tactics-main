@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "Ability/RTActionData.h"
 #include "Map/RTCellId.h"
 #include "Turn/RTHexSim.h"
 #include "RTHexBotLibrary.generated.h"
@@ -28,6 +29,22 @@ struct FRTHexBotPlan
 
 	/** HP+scudo del bersaglio (per riconoscere il colpo letale). */
 	UPROPERTY() int32 TargetHealth = 0;
+
+	/**
+	 * Forma dell'attacco pianificato, copiata dal contesto da BuildCandidates come gia' avviene per
+	 * AttackDamage. Sta QUI e non nel contesto perche' `ChooseBestPlan` confronta in una sola lista le
+	 * candidate di abilita' DIVERSE: un solo contesto descriverebbe la forma di una sola di esse.
+	 */
+	UPROPERTY() ERTAbilityShape Shape = ERTAbilityShape::Single;
+
+	/** Raggio dell'area, letto solo quando Shape e' Area. */
+	UPROPERTY() int32 AreaRadius = 0;
+
+	/** Gittata dichiarata dall'azione: serve alla profondita' del Cone. */
+	UPROPERTY() int32 RangeCells = 0;
+
+	/** Vero se l'attacco colpisce anche gli alleati (`FRTActionDef::bFriendlyFire`). */
+	UPROPERTY() bool bFriendlyFire = false;
 };
 
 /**
@@ -52,11 +69,36 @@ struct FRTHexBotContext
 	/** HP+scudo di ciascun nemico (parallelo a Enemies): serve a riconoscere il colpo letale. */
 	UPROPERTY() TArray<int32> EnemyHealth;
 
+	/**
+	 * Posizioni degli alleati vivi, ESCLUSO il bot che sta pianificando: `CollectHexAttacks` salta sempre
+	 * l'attaccante (`u == Intent.AttackerId`), quindi contarsi qui renderebbe il bot timido su un danno che
+	 * non subirebbe mai.
+	 */
+	UPROPERTY() TArray<FRTCellId> Allies;
+
+	/** HP+scudo di ciascun alleato (parallelo a Allies): serve a riconoscere il collaterale letale. */
+	UPROPERTY() TArray<int32> AllyHealth;
+
 	/** Gittata dell'attacco del bot. */
 	UPROPERTY() int32 AttackRange = 0;
 
 	/** Danno dell'attacco del bot. */
 	UPROPERTY() int32 AttackDamage = 0;
+
+	/**
+	 * Forma dell'attacco valutato: decide QUANTE celle prende, quindi quanti nemici in piu' e quanti alleati.
+	 * Con `Single` il calcolo resta quello di prima (una cella, un bersaglio).
+	 */
+	UPROPERTY() ERTAbilityShape AttackShape = ERTAbilityShape::Single;
+
+	/** Raggio dell'area, letto solo quando AttackShape e' Area. */
+	UPROPERTY() int32 AttackAreaRadius = 0;
+
+	/**
+	 * Vero se l'attacco valutato colpisce anche gli alleati (`FRTActionDef::bFriendlyFire`). Il bot deve
+	 * modellare il resolver, non un'idea del resolver: senza fuoco amico l'alleato nell'area non subisce nulla.
+	 */
+	UPROPERTY() bool bAttackFriendlyFire = false;
 
 	/** >0 = kiter (mantiene la distanza di sicurezza); 0 = mischia (chiude la distanza). */
 	UPROPERTY() int32 KiteStandoff = 0;
@@ -64,6 +106,13 @@ struct FRTHexBotContext
 	// Pesi interi (bilanciabili senza toccare la logica; invariante #4: niente float). Default: il kill domina.
 	UPROPERTY() int32 WKill = 10000;
 	UPROPERTY() int32 WDamage = 10;
+	/**
+	 * Peso del danno inflitto a un ALLEATO dal collaterale di un'area. Pari a WDamage per default: un punto
+	 * di danno al compagno annulla esattamente un punto di danno al nemico, quindi prendere due nemici e un
+	 * alleato resta conveniente e prenderne uno solo non lo e'. E' un peso, non un veto: si tara senza
+	 * toccare la logica.
+	 */
+	UPROPERTY() int32 WAllyDamage = 10;
 	UPROPERTY() int32 WThreat = 100;
 	UPROPERTY() int32 WKiteViolation = 50;
 	UPROPERTY() int32 WApproach = 10;

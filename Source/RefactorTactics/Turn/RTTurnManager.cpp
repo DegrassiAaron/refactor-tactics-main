@@ -171,6 +171,13 @@ void ARTTurnManager::PlanBots()
 			ARTUnit* Other = Units[j];
 			if (Other->TeamId == Bot->TeamId)
 			{
+				// Alleati: servono a pesare il collaterale di un'area (#213). Il bot NON si conta fra loro
+				// perche' `CollectHexAttacks` salta sempre l'attaccante.
+				if (Other != Bot)
+				{
+					Ctx.Allies.Add(Other->Cell);
+					Ctx.AllyHealth.Add(Other->Health + Other->Shield);
+				}
 				continue;
 			}
 			int32 EnemyReach = Other->AttackRange;
@@ -309,6 +316,15 @@ void ARTTurnManager::PlanBots()
 			FRTHexBotContext LocalCtx = Ctx;
 			LocalCtx.AttackRange = Range;
 			LocalCtx.AttackDamage = Damage;
+
+			// Forma dell'azione valutata: senza, ogni attacco verrebbe pesato come un colpo singolo e un'area
+			// non mostrerebbe ne' i nemici presi in piu' ne' il compagno investito (#213).
+			if (const URTActionData* ShapedAbility = (AbilityIndex != INDEX_NONE) ? Bot->GetAbility(AbilityIndex) : nullptr)
+			{
+				LocalCtx.AttackShape = ShapedAbility->Shape;
+				LocalCtx.AttackAreaRadius = ShapedAbility->AreaRadius;
+				LocalCtx.bAttackFriendlyFire = ShapedAbility->Def.bFriendlyFire;
+			}
 			for (const FRTHexBotPlan& Candidate : URTHexBotLibrary::BuildCandidates(Snap, BotIdx, LocalCtx))
 			{
 				if (bAttacksOnly && !Candidate.bHasAttack) { continue; }
