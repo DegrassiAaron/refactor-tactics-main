@@ -51,13 +51,25 @@ scegliendo lo scenario e premendo Play, una voce C richiede di allestire, clicca
 
 | Classe | Quanti | Dove |
 |---|---:|---|
-| **A** — automatico | **24** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · i tre `EnvironmentalActionOwner` · `RT_Showcase_Relay_v01` |
+| **A** — automatico | **26** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · i tre `EnvironmentalActionOwner` · `RT_Showcase_Relay_v01` |
 | **B** — automatico + occhio | **21** scenari ↔ **21** voci `PIE-VIS-*` | `Scenarios/Visual/` |
 | **C** — solo umano | **95** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima |
 | **D** — dichiarato | **9** scenari `Spec.*` ancora `BLOCKED` · **21** pianificati · **4** mai scritti | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
 
-Totale corpus versionato: **54** scenari (`A 24 + B 21 + D-bloccati 9`). Totale registro PIE: **116** voci
-(`B 21 + C 95`).
+Totale corpus versionato: **56** scenari (`A 26 + B 21 + D-bloccati 9`). Totale registro PIE: **117** voci
+(`B 21 + C 95 + 1 fuori classe`).
+
+> **Una voce non sta in nessuna delle quattro classi**, ed è meglio dirlo che forzarla dentro.
+> `PIE-MUT-BASTION-SLOW` (2026-08-09) è una **verifica di mutazione**: rompere il codice di proposito e
+> controllare che cada *esattamente* il test atteso. Non è C — non chiede mouse, editor né giudizio umano, e
+> una macchina la eseguirebbe da sola. Non è A — perché la macchina, da sola, **non può garantirsi la
+> precondizione**: che nessun altro processo UE tenga `UnrealEditor-RefactorTactics.dll`. Con la DLL bloccata
+> il link fallisce (`LNK1104`) e il test gira contro il binario vecchio, cioè **passa per il motivo
+> sbagliato**. Serve una persona che scelga il momento, non che guardi lo schermo.
+>
+> Il modello a quattro classi divide per *dove sta l'oracolo*. Questa voce dice che esiste un secondo asse —
+> **chi controlla le precondizioni** — e che finora coincideva col primo. Se ne arriva una seconda, vale la
+> pena farne una classe.
 
 > ⚠️ **Corretto il 2026-08-09, e non a occhio.** Questa tabella diceva `A 21` · `D-bloccati 12` ·
 > `13 pianificati`. Due numeri erano sbagliati e uno era invecchiato nello stesso giorno in cui è stato
@@ -68,6 +80,11 @@ Totale corpus versionato: **54** scenari (`A 24 + B 21 + D-bloccati 9`). Totale 
 >   che è il meccanismo del corpus che funziona (§6.1);
 > - i **pianificati erano ventuno**, non tredici: §6.2 ne elencava ventuno sotto un totale di tredici.
 >   Nessuno li aveva contati, perché contarli a mano è esattamente ciò che nessuno fa due volte.
+>
+> Nel frattempo `#346` ne ha aggiunti **due** in `Scenarios/Combat/` (`BastionImpactShotSlows` e il suo
+> gemello di controllo `MoveIsFullWithoutSlow`): la classe A arriva a **26** e il corpus a **56**. Le due
+> correzioni sono state calcolate su rami diversi nello stesso pomeriggio e riconciliate al merge — che è
+> il motivo per cui il totale ora si misura invece di sommarlo.
 >
 > Da qui in avanti i tre numeri si **misurano**: `python scripts/feature_registry.py shortlist` li scrive
 > in [`../roadmap/scenariomap.shortlist.md`](../roadmap/scenariomap.shortlist.md) §1 leggendo `Scenarios/`
@@ -103,6 +120,8 @@ Il verdetto è l'assertion. Nessuna di queste righe compare nel registro PIE, ed
 | `Combat.FriendlyFire` | r3 | 5 | l'AoE colpisce anche l'alleato — e porta `previewUnit` per il banco dell'anteprima |
 | `Combat.LineHitsThrough` | r4 | 4 | la linea prende chi sta sulla traiettoria prima del bersaglio |
 | `Combat.NoCounterWhenUnarmed` | r4 | 3 | il contrattacco richiede un'arma: niente reazione implicita |
+| `Combat.BastionImpactShotSlows` | r4 | 4 | lo `Slow` applicato nel **Blast** agisce sul **Move** dello stesso turno: il bersaglio si ferma due celle prima |
+| `Combat.MoveIsFullWithoutSlow` | r4 | 3 | il gemello di controllo: senza il colpo, le stesse quattro celle si percorrono tutte |
 | `Combat.SplashHitsAlliesNotSelf` | r4 | 5 | l'area prende gli alleati ma **non** chi la lancia |
 | `Movement.Basic` | r3 | 2 | il passo singolo arriva sulla cella pianificata |
 | `Movement.BasicFailsOnPurpose` | r3 | 1 | **`expected-fail`**: è l'unica prova che l'harness sappia dire «rosso» |

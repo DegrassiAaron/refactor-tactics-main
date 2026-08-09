@@ -345,13 +345,27 @@ URTHeroData* URTHeroCatalogLibrary::MakeBastion()
 	// del roster e' vulnerabile a chi il movimento lo fa di mestiere.
 	Bastion->Weakness = TEXT("Affinity.Movement");
 
-	// Indice 0 — ImpactShot, attacco base. 24 danni / range 3 NON e' una fascia di
-	// `BasicAttackDamageForRange` (a range 3 la fascia da' 25): come `Riva.PressureJet`, l'attacco base e'
-	// dell'eroe, non della tabella generica. Un punto in meno del corto raggio standard, in cambio della
-	// stazza.
+	// Indice 0 — ImpactShot, attacco base. **8 danni / range 3** (ADR-0007). Come `Riva.PressureJet`, non e'
+	// una fascia di `BasicAttackDamageForRange`: l'attacco base e' dell'eroe, non della tabella generica.
+	//
+	// Fino al 2026-08-09 erano 24, ed era un numero motivato — la fascia corto raggio da' 25, e il catalogo
+	// ne toglieva uno «in cambio della stazza». Il problema non era il numero in se': era che rendeva
+	// `ImpactShot` l'attacco base PIU' FORTE del roster mentre il ruolo dichiarato di Bastion e'
+	// Utility/Emergency. 8 e' ancorato a `Riva.PressureJet` (16), che sta un gradino sopra: ne e' la meta'
+	// esatta. Basso, ma non finto: deve restare corretto premerlo per finire un bersaglio a pochi HP.
+	//
+	// Lo `Slow` e' la utility della famiglia, e delle cinque candidate era l'unica sia esprimibile sia
+	// coerente: `ERTStructureOp` non sa danneggiare una copertura, e uno `Status` si applica al BERSAGLIO,
+	// quindi «genera Guard su di se'» non e' rappresentabile. Durata 1 basta perche' il modificatore e'
+	// letto FRESCO a ogni snapshot (CP 4.7): applicato nel Blast si riflette gia' sulla fase Move dello
+	// STESSO turno, poi scade nel Cleanup. E' la risposta di Bastion a chi si muove di mestiere — cioe' alla
+	// sua stessa debolezza dichiarata, `Affinity.Movement`.
 	Bastion->Actions.Add(MakeHeroAction(TEXT("Bastion.ImpactShot"), ERTResolutionPhase::Attack, /*Priority*/ 50,
 		/*Range*/ 3, /*Cooldown*/ 0, ERTActionFallback::Cancel,
-		{ FRTActionEffectSpec(ERTActionEffect::Damage, 24) }));
+		{
+			FRTActionEffectSpec(ERTActionEffect::Damage, 8),
+			FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Slow, /*Turni*/ 1),
+		}));
 
 	// Indice 1 — KineticPanel (CP 9.5). E' `Action.CreateCover` con un nome d'eroe: stesso riuso che `Ram` fa
 	// di `Action.Charge` e `Interposition` di `Action.Intercept`. Fase, priorita', portata, fallback e

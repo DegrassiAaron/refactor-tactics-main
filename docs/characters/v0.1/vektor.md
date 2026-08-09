@@ -173,6 +173,39 @@ Il controgioco consiste nel cambiare rotta, usare coperture e LOS per negare le 
 
 > **Ownership del kit:** le abilità di questa pagina appartengono esclusivamente a questo personaggio. Le sinergie con altri eroi sono esempi derivati da stati, superfici, geometria e altre regole comuni; non sono abilità condivise. Vedi [Sinergie e combinazioni](../../wiki/game/sinergie-e-combinazioni.md).
 
+## Profilo di attacco base
+
+| Campo | Valore |
+| --- | --- |
+| Ability ID | `Vektor.PulseShot` |
+| Famiglia | **Primary Weapon** |
+| Danno / portata | 21 · range 4 |
+| Payload oltre il danno | nessuno — ed è una risposta, non una lacuna |
+| Dipendenza dal base | ★★★★★ — il più alto del roster |
+
+> ⚠️ **«Primary» descrive quanto spesso lo usa, non quanto è forte.** Con 21 danni `PulseShot` è il **terzo**
+> del roster per danno e non è il più lungo (Riva arriva a 5): nessun numero lo rende «l'arma primaria».
+> A renderlo tale è il kit, che crea le occasioni in cui sparare è già la mossa giusta. ADR-0007 ha scelto
+> di **non** cambiare i numeri: alzarli contraddirebbe la motivazione scritta nel catalogo («−1 pagato in
+> mobilità»), e un payoff condizionale sulla geometria è una feature con dipendenze proprie, non un campo.
+
+### Il test della falsa scelta
+
+| Domanda | Risposta |
+| --- | --- |
+| Quando è la scelta corretta? | Ogni volta che c'è una linea pulita. È l'azione più frequente di Vektor, e il resto del kit serve a produrre quelle linee |
+| Quando è inferiore a un'abilità firma? | Quando conviene prima **costruire** la geometria — `PassingBlade` per attraversare, `Feint` per spostare la lettura dell'avversario — invece di sparare da dove si è |
+| Che cosa risparmia? | Tutto: costa zero e non ha ricarica. La domanda per Vektor non è «posso permettermelo» ma «è questo il momento» |
+| Che counterplay esiste? | La geometria. Una copertura bassa toglie 10 su 21, e chi gli nega gli angoli lo disinnesca senza toccarlo — è il motivo per cui la sua debolezza dichiarata è `Affinity.Structures` |
+| Che cosa impara il giocatore? | Che la bravura è nel posizionamento, non nel pulsante |
+
+### Prove
+
+| Che cosa | Dove |
+| --- | --- |
+| Il payload è nel dato | `RefactorTactics.Heroes.Vektor.MatchesCatalog` |
+| L'effetto si vede in partita | `Visual.Combat.Defeat` — 21 a turno per quattro turni · `Visual.Map.LowCoverEdge`, dove è **il suo** colpo a passare dal bordo riparato e a scendere da 21 a 11: è la misura della copertura, e regge solo perché il suo danno è più grande della riduzione |
+
 ## Abilità
 
 ### Pulse Shot
