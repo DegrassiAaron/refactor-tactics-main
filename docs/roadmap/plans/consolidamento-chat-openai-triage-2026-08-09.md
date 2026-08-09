@@ -334,9 +334,9 @@ quelli che le tre macchine fanno davvero.
 **Verifica di mutazione**: staccato `Visual.Map.HighCoverBlocks` dalla sua feature, `validate` esce `1`
 nominando esattamente quello scenario; ripristinato, `0`.
 
-### ⚠️ Difetto trovato durante il cluster — quattro `D-0xx` assegnati due volte
+### ✅ Difetto trovato durante il cluster — quattro `D-0xx` assegnati due volte, **chiuso**
 
-Non viene dal pacchetto. Su `main`, **oggi**, quattro ID del Decision Log nominano due decisioni diverse:
+Non viene dal pacchetto. Quattro ID del Decision Log nominavano due decisioni diverse:
 
 | ID | Prima occorrenza | Seconda occorrenza | Chi lo cita |
 |---|---|---|---|
@@ -347,16 +347,30 @@ Non viene dal pacchetto. Su `main`, **oggi**, quattro ID del Decision Log nomina
 
 È la **sesta** collisione di contatore del progetto — il Decision Log ne conta cinque e ha già la regola:
 *chi arriva secondo rinumera, non contende*. La rinumerazione era stata **scritta** da una sessione parallela
-(`D-044`…`D-047`, con nota «prossimo ID libero `D-048`») e **non è mai atterrata**: non è su nessun branch.
+e **non era mai atterrata**: non era su nessun branch.
 
-**Non l'ho applicata**: assegnare un ID è il contatore dell'autore, e `D-043` non si decide col conteggio
-delle citazioni perché è citato da entrambi i lati.
+**Chiusa il 2026-08-09, decisa dall'autore.** Il criterio applicato è quello che il log aveva già enunciato
+per `D-040` — *cede il lato che nessuna macchina verifica* — e qui si misura col conteggio delle citazioni:
+
+| Vecchio | Nuovo | Decisione che si sposta | Citazioni aggiornate |
+|---|---|---|---|
+| `D-039` | **`D-047`** | `E21` → `E35` | 1 (`feature-registry.yaml`, nota di `RT-FEAT-CHAR-V02-ROSTER`) |
+| `D-041` | **`D-044`** | soglia d'udito | nessuna |
+| `D-042` | **`D-045`** | acqua bassa `+2` | nessuna |
+| `D-043` | **`D-046`** | arco frontale e `TeamKnowledge` | 2 (`RTPerceptionTests.cpp`, solo commenti) |
+
+Il contenuto delle quattro decisioni non cambia di una parola. **Prossimo ID libero: `D-048`.**
+
+> Il caso `D-043` è l'unico che il conteggio non decideva da solo — 2 citazioni contro 5 — ed è anche il
+> motivo per cui la scelta è stata portata all'autore invece che dedotta. Una regola che funziona finché un
+> lato ha **zero** citazioni non è una regola: è una coincidenza che ha retto tre volte su quattro.
 
 ### ⬜ Resta da fare
 
 1. ✅ ~~Difetto `D-039` di §5~~ — **chiuso il 2026-08-09**: corretto alla sorgente (`wiki_note`), rigenerate
    le due pagine derivate, riscritte a mano le due frasi in prosa che il generatore non raggiungeva.
-2. ⚠️ **La collisione dei quattro `D-0xx`** qui sopra: aspetta l'autore.
+2. ✅ ~~La collisione dei quattro `D-0xx`~~ — **chiusa il 2026-08-09**, rinumerazione applicata e citazioni
+   allineate.
 3. **`INT-1`…`INT-4`** — le quattro domande di
    [`spec-interazioni-mappa-cp101.md`](../../gameplay/spec-interazioni-mappa-cp101.md) §12 vanno in
    [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md). `INT-3` è già lì sotto il nome `FAC-6`.

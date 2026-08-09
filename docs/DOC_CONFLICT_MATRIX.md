@@ -156,9 +156,14 @@ e il valore stava in **una sola** delle dodici verifiche proposte: *nessuno scen
 davvero, ed erano **6 su 54**. Ora è un errore del validator, con verifica di mutazione.
 
 > Vale la pena registrare anche ciò che questo passaggio ha trovato **fuori** dal pacchetto, perché è la
-> stessa classe di difetto che la matrice insegue: **quattro `D-0xx` assegnati due volte** su `main`
-> (`D-039`, `D-041`, `D-042`, `D-043`). Non è un conflitto fra documenti — è un conflitto fra un documento e
-> **sé stesso**, quindi non prende una riga qui: aspetta l'autore, ed è descritto in
+> stessa classe di difetto che la matrice insegue: **quattro `D-0xx` erano assegnati due volte** su `main`
+> (`D-039`, `D-041`, `D-042`, `D-043`) — la **sesta** collisione di contatore del progetto, e la prima
+> trovata da un audit invece che da chi la stava creando.
+>
+> Non prende una riga qui perché non è un conflitto fra documenti: è un conflitto fra un documento e **sé
+> stesso**. È stata **chiusa lo stesso giorno** dall'autore — `D-047`, `D-044`, `D-045`, `D-046`, con le tre
+> citazioni allineate e il prossimo ID libero dichiarato a `D-048`. Il racconto sta nelle note del
+> [Decision Log](decisions/RT_PDR_00_Decision_Log.md) e in
 > [`roadmap/plans/consolidamento-chat-openai-triage-2026-08-09.md`](roadmap/plans/consolidamento-chat-openai-triage-2026-08-09.md).
 
 > Restava una sola riga `OPEN`, ed è il difetto ricorrente di questo repository: una regola normativa
