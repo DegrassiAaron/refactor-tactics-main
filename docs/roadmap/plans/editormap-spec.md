@@ -3,7 +3,7 @@
 > **Stato**: Bozza in revisione (design) · **Data**: 2026-08-10 · **Branch**: da aprire
 > **Esito di**: `/sc:spec-panel` — panel Wiegers · Cockburn · Adzic · Fowler · Nygard · Crispin
 > **Sostituisce**: [`../roadmap-editor.md`](../roadmap-editor.md), ritirata il 2026-08-08 (17 sedute U1–U17)
-> **Non è approvata**: §8 elenca le decisioni che restano dell'autore.
+> **Non è approvata**: §8 registra le decisioni già prese con l'autore, §10 il piano di lavoro non ancora eseguito.
 
 ## 1. Il fatto che giustifica il documento
 
