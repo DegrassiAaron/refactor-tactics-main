@@ -1114,6 +1114,8 @@ SHORTLIST_DIR = os.path.join(REPO, "docs", "roadmap")
 DOD_V01 = os.path.join(REPO, "docs", "roadmap", "v0.1-definition-of-done.md")
 SCENARIO_SESSION_CPP = os.path.join(
     REPO, "Source", "RefactorTactics", "ScenarioHarness", "RTScenarioSession.cpp")
+EDITOR_SESSIONS_YAML = os.path.join(SHORTLIST_DIR, "editor-sessions.yaml")
+PIE_REGISTRY = os.path.join(REPO, "docs", "technical", "test-manuali-pie.md")
 
 SHORTLIST_MARKERS = {
     "epics": "RT_SHORTLIST_EPICS",
@@ -1121,6 +1123,7 @@ SHORTLIST_MARKERS = {
     "scenarios": "RT_SHORTLIST_SCENARIOS",
     "milestones": "RT_SHORTLIST_MILESTONES",
     "gates": "RT_SHORTLIST_MILESTONES_GATES",
+    "editor": "RT_SHORTLIST_EDITOR",
 }
 SHORTLIST_FILES = {
     "epics": os.path.join(SHORTLIST_DIR, "roadmap.shortlist.md"),
@@ -1128,6 +1131,7 @@ SHORTLIST_FILES = {
     "scenarios": os.path.join(SHORTLIST_DIR, "scenariomap.shortlist.md"),
     "milestones": os.path.join(SHORTLIST_DIR, "milestonemap.shortlist.md"),
     "gates": os.path.join(SHORTLIST_DIR, "milestonemap.shortlist.md"),
+    "editor": os.path.join(SHORTLIST_DIR, "editormap.shortlist.md"),
 }
 
 # I simboli di stato in uso nei documenti di roadmap. `⌫` dichiara «rimosso dal repo».
@@ -1470,14 +1474,216 @@ def render_shortlist_gates(_data):
     return wrap_block(marker, lines)
 
 
+def load_editor_sessions():
+    """Le sedute in editor. Sorgente dei DATI; `editormap.shortlist.md` ne e' la vista.
+
+    A differenza delle altre quattro shortlist, qui la prosa umana non va **preservata** dal
+    markdown: vive nello YAML, che e' la sorgente. Il generatore non ha nulla da restituire
+    perche' non ha nulla da distruggere.
+    """
+    if not os.path.isfile(EDITOR_SESSIONS_YAML):
+        return {}
+    try:
+        import yaml
+    except ImportError:
+        sys.exit("Serve PyYAML: pip install pyyaml")
+    with open(EDITOR_SESSIONS_YAML, encoding="utf-8") as fh:
+        return yaml.safe_load(fh) or {}
+
+
+def pie_entries():
+    """Ogni voce del registro PIE con il suo stato, misurato la' dove vive.
+
+    Il marcatore e' il **primo** glifo dell'ultima cella. Cercarlo ovunque nella cella conta
+    come verde una voce 🟡 il cui testo cita un ✅ nella propria storia: e' il difetto che il
+    comando `awk` del registro ha gia' pagato, ed e' per questo che usa `match` + `substr`.
+    """
+    entries = {}
+    if not os.path.isfile(PIE_REGISTRY):
+        return entries
+    text = open(PIE_REGISTRY, encoding="utf-8").read()
+    for line in text.split("\n"):
+        if not line.startswith("| **PIE-"):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) < 2:
+            continue
+        match = re.match(r"\*\*(PIE-[A-Za-z0-9.\-]+)\*\*", cells[0])
+        if not match:
+            continue
+        state = ""
+        for char in cells[-1]:
+            if char in STATUS_GLYPHS:
+                state = char
+                break
+        entries[match.group(1)] = state
+    return entries
+
+
+def tracked_artifacts(paths):
+    """Quali artefatti dichiarati sono davvero tracciati da git.
+
+    L'oracolo e' `git ls-files`, non l'esistenza del file su disco, e la ragione e' concreta:
+    `.gitignore` esclude `Content/**/*.uasset` e riammette i singoli file con un `!` esplicito.
+    Un asset creato in editor e non aggiunto all'allowlist **non viene tracciato da `git add`,
+    in silenzio** — e una seduta che lo desse per committato si dichiarerebbe finita senza esserlo.
+    """
+    paths = sorted(set(paths))
+    if not paths:
+        return set()
+    try:
+        import subprocess
+        out = subprocess.run(["git", "ls-files", "--"] + paths, cwd=REPO,
+                             capture_output=True, text=True, timeout=30)
+        return {line.strip().replace("\\", "/") for line in out.stdout.split("\n") if line.strip()}
+    except Exception:
+        return set()
+
+
+def session_state(session, pie, tracked):
+    """Stato DERIVATO di una seduta: dalle sue voci PIE e dai suoi artefatti in git.
+
+    Regola dura: un artefatto non tracciato impedisce il verde **qualunque cosa** dicano le voci.
+    Una seduta che non dichiara ne' voci ne' artefatti resta senza stato: e' un'informazione
+    onesta — il codice sotto non esiste ancora — non un buco da riempire con un simbolo inventato.
+    """
+    verifies = session.get("verifies") or []
+    artifacts = session.get("artifacts") or []
+    if not verifies and not artifacts:
+        return "—"
+    states = [pie.get(v, "") for v in verifies]
+    green = sum(1 for s in states if s == "✅")
+    partial = sum(1 for s in states if s == "🟡")
+    done_artifacts = [a for a in artifacts if a in tracked]
+    if green == len(verifies) and len(done_artifacts) == len(artifacts):
+        return "✅"
+    if green or partial or done_artifacts:
+        return "🟡"
+    return "⏳"
+
+
+def render_shortlist_editor(_data):
+    """La vista operativa in editor: sequenza, prerequisiti, artefatti, condizione di chiusura.
+
+    Le quattro cose che nessun altro documento dice. Tutto il resto — esito atteso delle voci,
+    stato delle feature, classificazione degli scenari — viene citato per ID e mai ripetuto:
+    e' la regola che ha fatto sopravvivere questa vista alla propria prima morte.
+    """
+    marker = SHORTLIST_MARKERS["editor"]
+    doc = load_editor_sessions()
+    sessions = doc.get("sessions") or []
+    if not sessions:
+        return wrap_block(marker, [
+            "> ⚠️ Nessuna seduta letta da `editor-sessions.yaml`: la sorgente manca o e' vuota."])
+
+    pie = pie_entries()
+    tracked = tracked_artifacts([a for s in sessions for a in (s.get("artifacts") or [])])
+    blocks = {b["id"]: b for b in (doc.get("meta", {}).get("blocks") or [])}
+
+    states = {s["id"]: session_state(s, pie, tracked) for s in sessions}
+    counts = {glyph: sum(1 for v in states.values() if v == glyph) for glyph in "✅🟡⏳"}
+    unknown = sum(1 for v in states.values() if v == "—")
+
+    summary = (f"**{len(sessions)} sedute** — ✅ **{counts['✅']}** · 🟡 **{counts['🟡']}** · "
+               f"⏳ **{counts['⏳']}**")
+    if unknown:
+        summary += (f" · **{unknown}** senza stato derivabile (non dichiarano ne' voci ne' "
+                    f"artefatti: il codice sotto non esiste ancora)")
+    lines = [
+        summary + ".",
+        "",
+        "Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di "
+        "[`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md) e da `git ls-files` "
+        "sugli artefatti. Un artefatto non tracciato impedisce il verde qualunque cosa dicano le voci.",
+        "",
+        "| | Seduta | Produce | Sbloccata da | Critico | Voci | Stato |",
+        "|---|---|---|---|:--:|:--:|:--:|",
+    ]
+    for session in sessions:
+        verifies = session.get("verifies") or []
+        green = sum(1 for v in verifies if pie.get(v) == "✅")
+        ratio = f"{green}/{len(verifies)}" if verifies else "—"
+        unblocked = ", ".join(session.get("unblocked_by") or []) or "—"
+        lines.append(
+            f"| **{session['id']}** | {session['title']} | {session.get('produces') or '—'} | "
+            f"{unblocked} | {'sì' if session.get('critical') else 'no'} | {ratio} | "
+            f"{states[session['id']]} |"
+        )
+
+    seen_blocks = []
+    for session in sessions:
+        block_id = session.get("block")
+        if block_id not in seen_blocks:
+            seen_blocks.append(block_id)
+            block = blocks.get(block_id, {})
+            lines += ["", f"### Blocco {block_id} — {block.get('title', '—')}"]
+            if block.get("note"):
+                lines += ["", f"*{block['note']}*"]
+        lines += ["", f"#### {session['id']} · {session['title']} {states[session['id']]}", ""]
+
+        head = [f"**Sbloccata da**: {', '.join(session.get('unblocked_by') or []) or '—'}"]
+        if session.get("shares_setup_with"):
+            head.append("**Preparazione condivisa con**: "
+                        + ", ".join(session["shares_setup_with"]))
+        head.append(f"**Percorso critico**: {'sì' if session.get('critical') else 'no'}")
+        lines.append(" · ".join(head))
+        lines.append(f"**Produce**: {session.get('produces') or '—'}")
+
+        artifacts = session.get("artifacts") or []
+        if artifacts:
+            lines.append("**Artefatti**: " + " · ".join(
+                f"`{a}` {'✅' if a in tracked else '⏳'}" for a in artifacts))
+        verifies = session.get("verifies") or []
+        if verifies:
+            lines.append("**Verifichi**: " + " · ".join(
+                f"`{v}` {pie.get(v) or '❓'}" for v in verifies))
+        if session.get("done_when"):
+            lines.append(f"**Finita quando**: {session['done_when']}")
+        if session.get("unblocks"):
+            lines.append(f"**Sblocca**: {', '.join(session['unblocks'])}")
+        if session.get("steps"):
+            lines += ["", session["steps"].rstrip()]
+        if session.get("notes"):
+            lines += ["", f"> {session['notes'].strip()}"]
+
+    declared = {v for s in sessions for v in (s.get("verifies") or [])}
+    ghosts = sorted(v for v in declared if v not in pie)
+    if ghosts:
+        lines += [
+            "",
+            "> ⚠️ **Voci dichiarate da una seduta e assenti dal registro**: "
+            + " · ".join(f"`{g}`" for g in ghosts)
+            + ". O l'ID e' scritto male in `editor-sessions.yaml`, o la voce e' stata rinominata "
+              "nel registro: in entrambi i casi quella verifica oggi non viene eseguita da nessuno.",
+        ]
+    orphans = sorted(v for v in pie if v not in declared)
+    if orphans:
+        groups = {}
+        for name in orphans:
+            # Famiglia, non ID: `PIE-BU2b` e `PIE-BU3c` sono la stessa cosa contata due volte.
+            family = re.match(r"PIE-([A-Za-z]+)", name)
+            prefix = f"PIE-{family.group(1)}" if family else name
+            groups[prefix] = groups.get(prefix, 0) + 1
+        lines += [
+            "",
+            f"> **{len(orphans)} voci del registro non stanno in nessuna seduta** — "
+            + " · ".join(f"`{p}-*` {n}" for p, n in sorted(groups.items()))
+            + ". Non e' per forza un difetto (le `PIE-VIS-*` hanno il proprio scenario, le "
+              "`PIE-STATE-*` verificano un sistema che non esiste), ma una voce che non sta in una "
+              "seduta non viene eseguita mai: e' la ragione per cui questo conteggio e' qui.",
+        ]
+    return wrap_block(marker, lines)
+
+
 def apply_shortlist(data, check=False):
-    """Riscrive i blocchi marcati nelle quattro shortlist. Fuori dai marcatori non tocca nulla."""
+    """Riscrive i blocchi marcati nelle cinque shortlist. Fuori dai marcatori non tocca nulla."""
     renderers = {
         "epics": render_shortlist_epics,
         "features": render_shortlist_features,
         "scenarios": render_shortlist_scenarios,
         "milestones": render_shortlist_milestones,
         "gates": render_shortlist_gates,
+        "editor": render_shortlist_editor,
     }
     changed, missing = [], []
     for key, path in SHORTLIST_FILES.items():
