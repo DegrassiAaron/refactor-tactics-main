@@ -2394,11 +2394,13 @@
         "docs/gameplay/spec-terreni-e8.md"
       ],
       "issues": [
-        64
+        64,
+        353
       ],
       "tests": [
         "RefactorTactics.Terrain.Smoke",
-        "RefactorTactics.Status.Obscured"
+        "RefactorTactics.Status.Obscured",
+        "RefactorTactics.Actions.MistVeil.CreatesSmokeAndCapsTargeting"
       ],
       "scenarios": [
         "Visual.Combat.SmokeCapsTargeting"
@@ -2409,10 +2411,10 @@
       ],
       "wiki_note": "",
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-09",
+        "commit": "4c50c07"
       },
-      "notes": "Nel repository è **fumo** (`Smoke` → `Obscured`), non vapore: la seed list dice «steam», il codice e il catalogo dicono `Smoke`. Nome allineato al codice, che è la fonte verificabile."
+      "notes": "Nel repository è **fumo** (`Smoke` → `Obscured`), non vapore: la seed list dice «steam», il codice e il catalogo dicono `Smoke`. Nome allineato al codice, che è la fonte verificabile. Dal 2026-08-09 (issue 353) il fumo si **crea in partita** e non solo si dipinge su una mappa: `Riva.MistVeil` è il suo produttore, con lo stesso meccanismo di `Ignite` e `CreateWater`. Resta noto e dichiarato in `docs/characters/v0.1/riva.md`: chi è **già** nella cella quando il fumo si alza non riceve `Status.Obscured`, che è un `OnEnterEffect` — il cap di targeting vale comunque, perché è letto dalla superficie della cella."
     },
     {
       "feature_id": "RT-FEAT-ENV-ICE",
@@ -4128,14 +4130,15 @@
       "scenarios": [
         "Movement.Basic",
         "Movement.BasicFailsOnPurpose",
-        "Combat.BasicAttack"
+        "Combat.BasicAttack",
+        "Spec.Harness.LogAssertionsReadTheTurnLog"
       ],
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-09",
+        "commit": "4c50c07"
       },
       "notes": "43 test. Percorso reale `Intent → Planning → Snapshot → Resolver → TurnLog`, console `rt.Test.*`, auto-run via CVar, `result.json` autosufficiente, e uno scenario che **deve** fallire (`Movement.BasicFailsOnPurpose`) perché la diagnosi sia dimostrata."
     },
