@@ -10,7 +10,7 @@
     },
     "note": "Primo audit completo. La seed list dell'handoff del 2026-08-08 è stata confrontata voce per voce con Source/, Tests/, Scenarios/, docs/ e la Wiki: le voci che il repository non conferma sono marcate per quello che sono (SPECIFIED, DESIGNED, IDEA), non promosse a DONE.\n"
   },
-  "count": 83,
+  "count": 84,
   "features": [
     {
       "feature_id": "RT-FEAT-CORE-TURN",
@@ -294,7 +294,10 @@
         "docs/gameplay/spec-decision-time-bank.md",
         "docs/decisions/adr-0004-finestre-di-reazione.md"
       ],
-      "issues": [],
+      "issues": [
+        319,
+        318
+      ],
       "tests": [],
       "scenarios": [],
       "scenarios_planned": [
@@ -693,7 +696,8 @@
         "RefactorTactics.HexMap.Cover*"
       ],
       "scenarios": [
-        "Visual.Map.LowCoverEdge"
+        "Visual.Map.LowCoverEdge",
+        "Visual.Map.HighCoverBlocks"
       ],
       "scenarios_planned": [],
       "wiki_refs": [
@@ -808,7 +812,8 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/gameplay/spec-porte-cp93.md"
+        "docs/gameplay/spec-porte-cp93.md",
+        "docs/gameplay/spec-interazioni-mappa-cp101.md"
       ],
       "issues": [
         71
@@ -883,7 +888,8 @@
         "RefactorTactics.HexMove.ClimbsOnlyThroughTransition"
       ],
       "scenarios": [
-        "Visual.Map.MultiLevel"
+        "Visual.Map.MultiLevel",
+        "Spec.Map.BridgeBreaksThePath"
       ],
       "scenarios_planned": [],
       "wiki_refs": [
@@ -1085,7 +1091,8 @@
       ],
       "scenarios": [
         "Combat.BasicAttack",
-        "Movement.Basic"
+        "Movement.Basic",
+        "Visual.Combat.GuardReducesFirstHit"
       ],
       "scenarios_planned": [],
       "wiki_refs": [
@@ -1163,6 +1170,73 @@
         "commit": "2094b86"
       },
       "notes": "**Sprint è un profilo di Move, non un Dash** (pin del canone): fase e stile sono dichiarati dal dato, non dedotti. Budget 5 MP con costi interi."
+    },
+    {
+      "feature_id": "RT-FEAT-ACTION-BASIC-ATTACK-PROFILES",
+      "title": "Profili di attacco base per eroe",
+      "area": "Actions",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
+      "gates": {
+        "spec": "partial",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
+        "ui_wiki": "done",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 6,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E4",
+        "milestone": null,
+        "checkpoints": [],
+        "out_of_release_scope": ""
+      },
+      "dependencies": [
+        "RT-FEAT-ACTION-ENGINE",
+        "RT-FEAT-ACTION-GENERIC",
+        "RT-FEAT-CHAR-V01-ROSTER",
+        "RT-FEAT-CORE-DETERMINISM",
+        "RT-FEAT-MAP-LOS",
+        "RT-FEAT-ENV-STATUS"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/decisions/adr-0007-attacco-base-per-eroe.md"
+      ],
+      "issues": [
+        315
+      ],
+      "tests": [
+        "RefactorTactics.Heroes.BasicAttackByRangeBand",
+        "RefactorTactics.Heroes.Bastion.MatchesCatalog",
+        "RefactorTactics.Heroes.BasicAttackIsIndexZeroForEveryHero",
+        "RefactorTactics.Heroes.BasicAttackDeclaresItsBaseAction",
+        "RefactorTactics.TurnLog.BaseActionIdSurvivesRoundTripAndStaysOutOfHash",
+        "RefactorTactics.TurnLog.LegacyVersionWithoutBaseActionIdIsReadable"
+      ],
+      "scenarios": [
+        "Combat.BasicAttack",
+        "Combat.BastionImpactShotSlows",
+        "Combat.MoveIsFullWithoutSlow"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/azioni-e-movimento.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-09",
+        "commit": "8a43866"
+      },
+      "notes": "Categoria universale, payload dell'eroe: chiude per `BasicAttack` i «profili concreti dei 4 eroi» che **D-033** aveva lasciato aperti ([ADR-0007](../decisions/adr-0007-attacco-base-per-eroe.md)). Riva era già conforme (`PressureJet` 16 + `Wet` + `Push`); Vektor resta invariato, perché «Primary Weapon» è un profilo d'uso e non una promessa di potenza; Flux resta damage-only, e il suo motore elettrico ha già un owner che non è l'attacco base (`ConductiveNode`, D-046). **`data` è `done`**: `Bastion.ImpactShot` è passato a 8 danni + `Status.Slow` 1 turno. **`automation` è `done`** da `BasicAttackIsIndexZeroForEveryHero`, che fa valere la convenzione `Actions[0]` sul roster invece di lasciarla in un commento — è il prezzo di NON aver aggiunto un campo di ruolo. **`log_debug` è `done`** dal 2026-08-09 (issue #354): `FRTActionDef::BaseActionId` dichiara di quale generica un'azione è profilo, la voce di TurnLog lo porta (formato **v5**) e `DescribeActionIdentity` rende la coppia — `Action.BasicAttack · Bastion.ImpactShot`. Il campo sta **fuori dall'hash**, perché è una funzione di `ActionId`: includerlo non distinguerebbe nulla di più e avrebbe invalidato ogni hash golden. Le tracce v2/v3/v4 restano leggibili, col campo vuoto. Era il consumer che ADR-0007 punto 6 aspettava: la sua regola non è violata, è soddisfatta."
     },
     {
       "feature_id": "RT-FEAT-ACTION-DASH-DISPLACEMENT",
@@ -1320,7 +1394,7 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/balance/RT_HeroCatalog_v0.1.md"
+        "docs/gameplay/brief-super-e-cooldown.md"
       ],
       "issues": [],
       "tests": [
@@ -1336,7 +1410,7 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "Esiste la risorsa (energia, `UltimateReady`) ma non una categoria «super» con regole proprie. Nessuna epic della v0.1 la apre: la seed list la elenca, il repository la conferma solo come risorsa. Resta v0.2 senza epic assegnata."
+      "notes": "Esiste la risorsa (energia, `UltimateReady`) ma non una categoria «super» con regole proprie. Nessuna epic della v0.1 la apre: la seed list la elenca, il repository la conferma solo come risorsa. Resta v0.2 senza epic assegnata. Dal 2026-08-09 la **forma** ha un owner — `brief-super-e-cooldown.md` — che fissa un solo vincolo duro: una Super è una Ability Definition con gate e commit policy, **non un secondo motore**. L'owner precedente era `RT_HeroCatalog_v0.1.md`, che di Super non parla: era una riga con un owner che non possedeva. `spec` resta `partial` perché il brief fissa la forma e non i contenuti."
     },
     {
       "feature_id": "RT-FEAT-ACTION-DELAYED",
@@ -1851,7 +1925,7 @@
         "date": "2026-08-09",
         "commit": "ea26c0f"
       },
-      "notes": "D-041 cambia la **classificazione** di `Action.Brace`, non i suoi numeri: da «azione che si dichiara e basta» a azione di Prep che **arma un profilo**. `Hold Ground` coincide con il comportamento attuale (`RTCombatLibrary.h:112`, `RTTurnManager.cpp:2819` e `:3033`), quindi i due scenari restano verdi e nessun valore di bilanciamento si muove.\n**Un test scritto per pinnare lo stato attuale deve cadere**: `Reactions.Brace.IsNotAReaction` (`RTDefensiveReactionTests.cpp:162`) asserisce `ReactionTrigger == None`. Va **sostituito**, non cancellato in silenzio, da `Brace.BaseProfileHasSingleResponse` (col profilo base nessun boundary si apre: e' la garanzia che nulla di verde rallenta) e `Brace.RicherProfileOpensWindow`. Finche' la sostituzione non e' fatta, `automation` resta `partial` anche se la suite e' verde: e' verde sulla classificazione **vecchia**."
+      "notes": "D-047 cambia la **classificazione** di `Action.Brace`, non i suoi numeri: da «azione che si dichiara e basta» a azione di Prep che **arma un profilo**. `Hold Ground` coincide con il comportamento attuale (`RTCombatLibrary.h:112`, `RTTurnManager.cpp:2819` e `:3033`), quindi i due scenari restano verdi e nessun valore di bilanciamento si muove.\n**Un test scritto per pinnare lo stato attuale deve cadere**: `Reactions.Brace.IsNotAReaction` (`RTDefensiveReactionTests.cpp:162`) asserisce `ReactionTrigger == None`. Va **sostituito**, non cancellato in silenzio, da `Brace.BaseProfileHasSingleResponse` (col profilo base nessun boundary si apre: e' la garanzia che nulla di verde rallenta) e `Brace.RicherProfileOpensWindow`. Finche' la sostituzione non e' fatta, `automation` resta `partial` anche se la suite e' verde: e' verde sulla classificazione **vecchia**."
     },
     {
       "feature_id": "RT-FEAT-REACTION-CLASH",
@@ -1910,12 +1984,12 @@
       "wiki_refs": [
         "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
       ],
-      "wiki_note": "Decisa nella forma (D-042), **non implementata** e con la grammatica ancora in playtest.",
+      "wiki_note": "Decisa nella forma (D-048), **non implementata** e con la grammatica ancora in playtest.",
       "last_verified": {
         "date": "2026-08-09",
         "commit": "ea26c0f"
       },
-      "notes": "Ultima feature della v0.1 per priorita' (`P3`) dentro l'epic che e' gia' **la prima da tagliare**: se E14 si accorcia, questa esce per prima e la baseline single-responder resta intera.\n**Contested e' derivato, non dichiarato**: lo e' quando *due* partecipanti hanno ciascuno >= 2 risposte legali. Nessun campo `Type = Clash` — sarebbe una seconda verita' accanto alla cardinalita', lo stesso errore che il rischio (b) di E14 esiste per evitare.\n`network_privacy: todo` e non `na`: D-042 **emenda ADR-0004 §7** (in un Clash entrambi sanno che la finestra esiste) e chiude il canale temporale col reveal a **scadenza fissa**. Offline non e' verificabile, ma non e' nemmeno non applicabile.\nLa grammatica `STAND/READ/SHIFT` (D-043) e' `PROPOSED FOR PLAYTEST`: `spec: done` copre la **forma** dell'opportunity contested, che e' decisa; i payoff dei 4 eroi no."
+      "notes": "Ultima feature della v0.1 per priorita' (`P3`) dentro l'epic che e' gia' **la prima da tagliare**: se E14 si accorcia, questa esce per prima e la baseline single-responder resta intera.\n**Contested e' derivato, non dichiarato**: lo e' quando *due* partecipanti hanno ciascuno >= 2 risposte legali. Nessun campo `Type = Clash` — sarebbe una seconda verita' accanto alla cardinalita', lo stesso errore che il rischio (b) di E14 esiste per evitare.\n`network_privacy: todo` e non `na`: D-048 **emenda ADR-0004 §7** (in un Clash entrambi sanno che la finestra esiste) e chiude il canale temporale col reveal a **scadenza fissa**. Offline non e' verificabile, ma non e' nemmeno non applicabile.\nLa grammatica `STAND/READ/SHIFT` (D-049) e' `PROPOSED FOR PLAYTEST`: `spec: done` copre la **forma** dell'opportunity contested, che e' decisa; i payoff dei 4 eroi no."
     },
     {
       "feature_id": "RT-FEAT-REACTION-FAST-ACTION",
@@ -2201,17 +2275,19 @@
         "RefactorTactics.Catalog.ValidatorRejectsUnboundedPropagation"
       ],
       "scenarios": [
-        "Visual.Combat.WaterElectric"
+        "Visual.Combat.WaterElectric",
+        "Visual.Combat.WaterElectricCoordinated",
+        "Spec.Environment.ElectricPropagation"
       ],
       "scenarios_planned": [],
       "wiki_refs": [
         "docs/wiki/meccaniche/acqua-e-elettricita.md",
         "docs/characters/v0.1/flux.md"
       ],
-      "wiki_note": "Il sistema esiste ed e' testato, ma **nessun eroe della v0.1 ha `Action.Electrify` come abilita' normale**: la scarica arriva dall'ambiente e dalle interazioni, non da un kit.",
+      "wiki_note": "Dal 2026-08-09 la scarica ha un **owner nel roster**: `Flux.ConductiveNode` **e'** `Action.Electrify` (D-046, nata come D-039). Prima nessun eroe la possedeva e il motore era verde ma non innescabile in partita.",
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-09",
+        "commit": "f1f85b1"
       },
       "notes": "Limite di 3 passi, unicità per evento, ordine totale nel Cleanup. Dal CP 9.4 la scarica **risale** un ponte conduttivo: prima non saliva mai di layer."
     },
@@ -2265,7 +2341,8 @@
       ],
       "scenarios": [
         "Visual.Environment.FireOnEnter",
-        "Visual.Environment.WetExtinguishesFire"
+        "Visual.Environment.WetExtinguishesFire",
+        "Spec.Environment.WaterQuenchesFire"
       ],
       "scenarios_planned": [],
       "wiki_refs": [
@@ -2317,11 +2394,13 @@
         "docs/gameplay/spec-terreni-e8.md"
       ],
       "issues": [
-        64
+        64,
+        353
       ],
       "tests": [
         "RefactorTactics.Terrain.Smoke",
-        "RefactorTactics.Status.Obscured"
+        "RefactorTactics.Status.Obscured",
+        "RefactorTactics.Actions.MistVeil.CreatesSmokeAndCapsTargeting"
       ],
       "scenarios": [
         "Visual.Combat.SmokeCapsTargeting"
@@ -2332,10 +2411,10 @@
       ],
       "wiki_note": "",
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-09",
+        "commit": "4c50c07"
       },
-      "notes": "Nel repository è **fumo** (`Smoke` → `Obscured`), non vapore: la seed list dice «steam», il codice e il catalogo dicono `Smoke`. Nome allineato al codice, che è la fonte verificabile."
+      "notes": "Nel repository è **fumo** (`Smoke` → `Obscured`), non vapore: la seed list dice «steam», il codice e il catalogo dicono `Smoke`. Nome allineato al codice, che è la fonte verificabile. Dal 2026-08-09 (issue 353) il fumo si **crea in partita** e non solo si dipinge su una mappa: `Riva.MistVeil` è il suo produttore, con lo stesso meccanismo di `Ignite` e `CreateWater`. Resta noto e dichiarato in `docs/characters/v0.1/riva.md`: chi è **già** nella cella quando il fumo si alza non riceve `Status.Obscured`, che è un `OnEnterEffect` — il cap di targeting vale comunque, perché è letto dalla superficie della cella."
     },
     {
       "feature_id": "RT-FEAT-ENV-ICE",
@@ -3640,7 +3719,8 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/product/showcase-v0.1.md"
+        "docs/product/showcase-v0.1.md",
+        "docs/gameplay/spec-interazioni-mappa-cp101.md"
       ],
       "issues": [
         24,
@@ -4050,14 +4130,15 @@
       "scenarios": [
         "Movement.Basic",
         "Movement.BasicFailsOnPurpose",
-        "Combat.BasicAttack"
+        "Combat.BasicAttack",
+        "Spec.Harness.LogAssertionsReadTheTurnLog"
       ],
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-09",
+        "commit": "4c50c07"
       },
       "notes": "43 test. Percorso reale `Intent → Planning → Snapshot → Resolver → TurnLog`, console `rt.Test.*`, auto-run via CVar, `result.json` autosufficiente, e uno scenario che **deve** fallire (`Movement.BasicFailsOnPurpose`) perché la diagnosi sia dimostrata."
     },

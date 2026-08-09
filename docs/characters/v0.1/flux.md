@@ -23,8 +23,8 @@
 > Feature: `RT-FEAT-ENV-ELECTRIC` · Release: `v0.1` · Roadmap: `E8.3`  
 > Stato: **INTEGRATED** · Gate: `6/8`  
 > Scenario: `Visual.Combat.WaterElectric`  
-> Il sistema esiste ed e' testato, ma **nessun eroe della v0.1 ha `Action.Electrify` come abilita' normale**: la scarica arriva dall'ambiente e dalle interazioni, non da un kit.  
-> Verificato il `2026-08-08` su `2094b86`
+> Dal 2026-08-09 la scarica ha un **owner nel roster**: `Flux.ConductiveNode` **e'** `Action.Electrify` (D-046, nata come D-039). Prima nessun eroe la possedeva e il motore era verde ma non innescabile in partita.  
+> Verificato il `2026-08-09` su `f1f85b1`
 
 <!-- RT_FEATURE_STATUS:END RT-FEAT-ENV-ELECTRIC -->
 
@@ -71,7 +71,7 @@ Tecnico della conduzione: fragile, controlla il campo e converte setup elettrici
 
 **Conduction** è il nucleo del gameplay di Flux. Il personaggio non ottiene il massimo valore sparando semplicemente al primo bersaglio disponibile: prepara invece condizioni conduttive e cerca il momento in cui trasformarle in pressione offensiva. La meccanica combina la **Carica Conduttiva** con stati e superfici che rendono l'elettricità più efficace, in particolare `Wet`.
 
-La Carica Conduttiva ha cap 4 e si rigenera di 1 tramite un'interazione elettrica; il valore iniziale non è ancora specificato. Nel kit v0.1 la parte più concreta della meccanica è `LinearDischarge`, che ottiene +8 danni contro un bersaglio `Wet`. `ConductiveNode` estende il concetto alle celle conduttive, ma la sua rappresentazione runtime è ancora parziale.
+La Carica Conduttiva ha cap 4 e si rigenera di 1 tramite un'interazione elettrica; il valore iniziale non è ancora specificato. Nel kit v0.1 la meccanica ha due facce concrete: `LinearDischarge`, che ottiene +8 danni contro un bersaglio `Wet`, e `ConductiveNode`, che dal **2026-08-09** **è** `Action.Electrify` ([D-046](../../decisions/RT_PDR_00_Decision_Log.md)) — la propagazione sul grafo conduttivo, prima verde nei test e non innescabile in partita perché nessun eroe la possedeva.
 
 Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambientale e mettere pressione su Flux prima che possa convertire il campo preparato in un vantaggio.
 
@@ -175,6 +175,46 @@ Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambien
 | RES_FLUX_CONDUCTIVE | Carica Conduttiva | 4 | — | 1 | Interazione elettrica | Abilità firma | Cap 4; start non specificato | Team-visible | CANONICAL_PARTIAL |
 
 > **Ownership del kit:** le abilità di questa pagina appartengono esclusivamente a questo personaggio. Le sinergie con altri eroi sono esempi derivati da stati, superfici, geometria e altre regole comuni; non sono abilità condivise. Vedi [Sinergie e combinazioni](../../wiki/game/sinergie-e-combinazioni.md).
+
+## Profilo di attacco base
+
+| Campo | Valore |
+| --- | --- |
+| Ability ID | `Flux.ArcPulse` |
+| Famiglia | **Engine** — *payload rinviato, vedi sotto* |
+| Danno / portata | 22 · range 4 |
+| Payload oltre il danno | **nessuno in v0.1** |
+| Dipendenza dal base | ★★★☆☆ — colpo affidabile mentre le sue abilità sono in ricarica |
+
+> ⚠️ **La famiglia descrive il kit, non ancora l'attacco base.** Il motore elettrico di Flux **esiste** — è
+> `ConductiveNode`, cablata su `Action.Electrify` da [D-046](../../decisions/RT_PDR_00_Decision_Log.md) — ma
+> non passa da `ArcPulse`, che in v0.1 fa solo danno. ADR-0007 ha rinviato il payload di carica sull'attacco
+> base per una ragione precisa: darebbe alla generazione elettrica un **secondo produttore**, cioè il
+> contrario di quello che D-046 ha appena messo in ordine. Nessuno stato `Charged` esiste nel codice.
+>
+> Finché vale questo, **non dichiarare Flux «Engine Attack» come se fosse già così**: sarebbe uno stato che
+> il codice non sostiene.
+
+> `ArcPulse` è anche l'**unico** attacco base del roster che prende i numeri dalla tabella a fasce condivisa
+> (`MakeBasicAttack(4)` → 22 a range 4). Gli altri tre sono dell'eroe.
+
+### Il test della falsa scelta
+
+| Domanda | Risposta |
+| --- | --- |
+| Quando è la scelta corretta? | Quando `LinearDischarge` e `Overload` sono in ricarica e serve pressione affidabile a medio raggio. A 22 danni non è affatto debole: dopo il nerf di Bastion è il **più alto** dei quattro attacchi base |
+| Quando è inferiore a un'abilità firma? | Quando il bersaglio è **bagnato**: lì `LinearDischarge` vale 24 + 8 = 32 contro 22, e sprecare la finestra di `Wet` su un attacco base è l'errore tipico della coppia con Riva |
+| Che cosa risparmia? | Il cooldown di `LinearDischarge` per il turno in cui l'acqua ci sarà davvero |
+| Che counterplay esiste? | Quello ordinario — coperture, angoli, distanza. Non ha un counterplay proprio, perché non ha ancora un payload proprio |
+| Che cosa impara il giocatore? | Che con Flux la domanda non è «quanto tolgo adesso» ma «l'acqua è già arrivata». L'attacco base è ciò che si fa **aspettando** che lo sia |
+
+### Prove
+
+| Che cosa | Dove |
+| --- | --- |
+| Il payload è nel dato | `RefactorTactics.Heroes.Flux.MatchesCatalog` · `RefactorTactics.Heroes.BasicAttackByRangeBand` — è l'unico legato alla fascia condivisa |
+| L'effetto si vede in partita | `Combat.BasicAttack` — 120 − 22 = 98 su Bastion |
+| Il payload di carica | ⏳ **non esiste** — dipende da `RT-FEAT-ENV-ELECTRIC`, non da questa pagina |
 
 ## Abilità
 

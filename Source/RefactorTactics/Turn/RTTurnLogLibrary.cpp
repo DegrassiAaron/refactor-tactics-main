@@ -28,6 +28,21 @@ void URTTurnLogLibrary::SortTurnLog(TArray<FRTTurnLogEntry>& Entries)
 	Entries.Sort([](const FRTTurnLogEntry& A, const FRTTurnLogEntry& B) { return EntryLess(A, B); });
 }
 
+FString URTTurnLogLibrary::DescribeActionIdentity(const FRTTurnLogEntry& Entry)
+{
+	// «azione base + profilo» quando la voce sa dirlo (D-033), altrimenti il solo ActionId. La forma con la
+	// barretta si legge in un colpo — `Action.BasicAttack · Bastion.ImpactShot` — e non richiede di sapere a
+	// memoria che ImpactShot e' un attacco base.
+	//
+	// Il caso `BaseActionId == ActionId` non produce «X · X»: un'azione generica usata direttamente e' il
+	// profilo di se stessa, e ripeterla due volte sarebbe rumore.
+	if (Entry.BaseActionId.IsNone() || Entry.BaseActionId == Entry.ActionId)
+	{
+		return Entry.ActionId.ToString();
+	}
+	return FString::Printf(TEXT("%s · %s"), *Entry.BaseActionId.ToString(), *Entry.ActionId.ToString());
+}
+
 FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 {
 	auto CellText = [](const FRTCellId& Cell)
@@ -99,7 +114,8 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		// l'abilita' spesa e il cooldown, non solo l'esito (CP 5.5).
 		if (!Entry.ActionId.IsNone())
 		{
-			return FString::Printf(TEXT("%s: %s (%s)"), *CellText(Entry.SrcCell), What, *Entry.ActionId.ToString());
+			return FString::Printf(TEXT("%s: %s (%s)"),
+				*CellText(Entry.SrcCell), What, *DescribeActionIdentity(Entry));
 		}
 		return FString::Printf(TEXT("%s: %s"), *CellText(Entry.SrcCell), What);
 	}
@@ -197,6 +213,12 @@ uint32 URTTurnLogLibrary::HashTurnLog(const TArray<FRTTurnLogEntry>& Entries)
 		{
 			Mix(static_cast<uint32>(Ch));
 		}
+		// `BaseActionId` NON entra, ed e' deliberato: e' una FUNZIONE di `ActionId`, che qui c'e' gia'.
+		// Due tracce non possono differire solo per quel campo, quindi mescolarlo aggiungerebbe zero potere
+		// discriminante — e invaliderebbe in blocco ogni hash golden. Stesso ragionamento di `FormatId`
+		// (CP 10.3). Se un giorno `BaseActionId` smettesse di essere derivabile da `ActionId`, questa riga
+		// di commento diventa falsa e il campo deve entrare: e' la condizione da ricontrollare, non una
+		// proprieta' per sempre.
 	}
 	return Hash;
 }
@@ -311,13 +333,13 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 	SortTurnLog(Canonical);
 
 	TArray<uint8> Out;
-	Out.Reserve(14 + Canonical.Num() * 33); // 31 byte a campi fissi + 2 di lunghezza dell'ActionId (hint)
+	Out.Reserve(14 + Canonical.Num() * 35); // 31 byte fissi + 2+2 di lunghezza per ActionId e BaseActionId
 
 	// Header: magic + versione + flags(topologia) + identita' del formato + conteggio (little-endian).
 	// Il FormatId sta DOPO i flags e prima del conteggio: le posizioni dei campi precedenti non si spostano,
 	// cosi' un lettore che ispeziona magic/versione/flags continua a trovarli dove sono sempre stati.
 	AppendU32LE(Out, RT_TURNLOG_MAGIC);
-	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithFormatId));
+	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithBaseActionId));
 	AppendU16LE(Out, static_cast<uint16>(Topology));
 	AppendStringUtf8(Out, FormatId.IsNone() ? FString() : FormatId.ToString());
 	AppendU32LE(Out, static_cast<uint32>(Canonical.Num()));
@@ -335,6 +357,9 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 		AppendI32LE(Out, E.TgtCell.Layer);
 		AppendI32LE(Out, E.Amount);
 		AppendStringUtf8(Out, E.ActionId.IsNone() ? FString() : E.ActionId.ToString());
+		// Subito dopo l'ActionId, con lo stesso schema: e' il suo complemento, e tenerli adiacenti
+		// significa che un lettore che sa saltare uno sa saltare anche l'altro.
+		AppendStringUtf8(Out, E.BaseActionId.IsNone() ? FString() : E.BaseActionId.ToString());
 	}
 
 	// Checksum FNV di tutto cio' che precede (header + voci), in coda: rileva la corruzione del contenuto.
@@ -356,13 +381,15 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	uint32 Magic = 0;
 	if (!ReadU32LE(Bytes, Pos, Magic) || Magic != RT_TURNLOG_MAGIC) { return false; }
 
-	// Versioni LEGGIBILI: la corrente e le due precedenti. La 2 non porta l'ActionId, la 3 non porta il
-	// FormatId, e in entrambi i casi il posto resta vuoto — leggerle e' onesto (quei byte non contenevano
-	// quell'informazione), inventarla no. Ogni altro valore e' rifiutato: interpretare byte di un formato
-	// ignoto produce un replay sbagliato in silenzio.
+	// Versioni LEGGIBILI: la corrente e le tre precedenti. La 2 non porta l'ActionId, la 3 non porta il
+	// FormatId, la 4 non porta il BaseActionId, e in ogni caso il posto resta vuoto — leggerle e' onesto
+	// (quei byte non contenevano quell'informazione), inventarla no. Ogni altro valore e' rifiutato:
+	// interpretare byte di un formato ignoto produce un replay sbagliato in silenzio.
 	uint16 Version = 0;
 	if (!ReadU16LE(Bytes, Pos, Version)) { return false; }
-	const bool bHasFormatId = (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithFormatId));
+	const bool bHasBaseActionId = (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithBaseActionId));
+	const bool bHasFormatId = bHasBaseActionId
+		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithFormatId));
 	const bool bHasActionId = bHasFormatId
 		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithActionId));
 	if (!bHasActionId && Version != static_cast<uint16>(ERTTurnLogFormatVersion::WithChecksum)) { return false; }
@@ -398,7 +425,8 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	// in coda possa smentirlo: il parser deve rifiutare, non morire. Il limite superiore vero e' il buffer
 	// che resta — ogni voce occupa almeno i suoi campi a dimensione fissa.
 	constexpr int32 FixedEntryBytes = 31;         // 3 uint8 + 7 int32
-	const int32 MinEntryBytes = bHasActionId ? FixedEntryBytes + 2 : FixedEntryBytes; // + lunghezza ActionId
+	// + 2 byte di lunghezza per ogni stringa presente nel formato: ActionId da v3, BaseActionId da v5.
+	const int32 MinEntryBytes = FixedEntryBytes + (bHasActionId ? 2 : 0) + (bHasBaseActionId ? 2 : 0);
 	const int32 Remaining = Bytes.Num() - Pos;
 	if (Remaining < 0 || Count > static_cast<uint32>(Remaining / MinEntryBytes))
 	{
@@ -438,6 +466,16 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 				return false;
 			}
 			E.ActionId = ActionId.IsEmpty() ? NAME_None : FName(*ActionId);
+		}
+		if (bHasBaseActionId)
+		{
+			FString BaseActionId;
+			if (!ReadStringUtf8(Bytes, Pos, BaseActionId))
+			{
+				OutEntries.Reset();
+				return false;
+			}
+			E.BaseActionId = BaseActionId.IsEmpty() ? NAME_None : FName(*BaseActionId);
 		}
 		OutEntries.Add(E);
 	}

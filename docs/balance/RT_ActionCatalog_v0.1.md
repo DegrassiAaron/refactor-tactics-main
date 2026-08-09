@@ -256,7 +256,7 @@ appena raggiunta.
 `Brace`, `Shield` e `Cleanse` sono azioni **Principali** che si dichiarano e basta, senza trigger. Stare nella
 stessa sezione del catalogo non le rende lo stesso tipo di cosa.
 
-> **Precisazione 2026-08-09 — [D-041](../decisions/RT_PDR_00_Decision_Log.md)**: `Brace` resta un'azione
+> **Precisazione 2026-08-09 — [D-047](../decisions/RT_PDR_00_Decision_Log.md)**: `Brace` resta un'azione
 > **Principale** di `Prep` con questi numeri, ma non è più «si dichiara e basta»: **arma un Reaction Profile**.
 > La risposta universale è `Hold Ground` e **coincide con l'effetto qui sotto** — anti-spinta e riduzione —
 > quindi la riga della tabella non cambia. Un profilo d'eroe che dichiarasse una seconda risposta legale

@@ -5,7 +5,7 @@
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "SPECIFICA ESEGUIBILE di E14.7 (D-042/D-043). Secondo lato della matrice: chi TIENE lo spazio batte chi lo CAMBIA. Riva prova a scartare di lato (SHIFT) contro un Bastion che controlla il varco impegnandosi (STAND): lo spazio e' gia' occupato, quindi lo scarto non trova geometria e Riva finisce lo scambio in svantaggio.",
+  "_nota": "SPECIFICA ESEGUIBILE di E14.7 (D-048/D-049). Secondo lato della matrice: chi TIENE lo spazio batte chi lo CAMBIA. Riva prova a scartare di lato (SHIFT) contro un Bastion che controlla il varco impegnandosi (STAND): lo spazio e' gia' occupato, quindi lo scarto non trova geometria e Riva finisce lo scambio in svantaggio.",
 
   "_nota_perche_esiste": "Come gli altri `Spec.Clash.*`: esce BLOCKED finche' `ReactionClash` non esiste. La matrice ha tre lati e ognuno ha il proprio file, cosi' un lato che si rompe nomina se stesso invece di far cadere un test unico che dice solo «matrice sbagliata».",
 

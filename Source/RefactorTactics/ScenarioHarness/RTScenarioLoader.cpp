@@ -4,6 +4,7 @@
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h" // un'azione di Prep risolve su se' e non dichiara un bersaglio
 #include "Turn/RTTurnRules.h"
+#include "Turn/RTReactionLibrary.h" // ERTReactionOutcome: vive fuori da RTTurnLog.h, ma e' un esito del log
 #include "Map/RTHexLibrary.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -28,6 +29,70 @@ namespace
 		return true;
 	}
 
+	/** I nomi di un enum, ordinati, per un messaggio d'errore che dica cosa era previsto. */
+	FString EnumNameList(const UEnum* Enum)
+	{
+		if (!Enum) { return FString(); }
+		TArray<FString> Names;
+		// `NumEnums() - 1`: l'ultimo e' il `_MAX` sintetico che UHT aggiunge, e non e' un valore scrivibile.
+		for (int32 I = 0; I < Enum->NumEnums() - 1; ++I)
+		{
+			Names.Add(Enum->GetNameStringByIndex(I));
+		}
+		Names.Sort();
+		return FString::Join(Names, TEXT(", "));
+	}
+
+	/**
+	 * Categoria ed esito di un evento del TurnLog, scritti per NOME nello scenario.
+	 *
+	 * I nomi si risolvono per RIFLESSIONE (`StaticEnum<>`), non da una tabella scritta a mano: le tabelle
+	 * scritte a mano divergono dall'enum che descrivono, ed e' gia' costato due test rossi in questo stesso
+	 * file (l'elenco delle chiavi note contro il parser che leggeva `edge`). Cosi' aggiungere un esito al
+	 * TurnLog lo rende scrivibile negli scenari senza toccare il loader.
+	 */
+	bool ParseScenarioLogEvent(const TSharedPtr<FJsonObject>& Obj, const TCHAR* CategoryField,
+		const TCHAR* OutcomeField, ERTLogCategory& OutCategory, uint8& OutOutcome, FString& OutError)
+	{
+		FString CategoryText;
+		if (!Obj->TryGetStringField(CategoryField, CategoryText))
+		{
+			OutError = FString::Printf(TEXT("assertion sul TurnLog: manca il campo %s"), CategoryField);
+			return false;
+		}
+
+		const UEnum* CategoryEnum = StaticEnum<ERTLogCategory>();
+		const int64 CategoryValue = CategoryEnum ? CategoryEnum->GetValueByNameString(CategoryText) : INDEX_NONE;
+		if (CategoryValue == INDEX_NONE)
+		{
+			OutError = FString::Printf(TEXT("assertion sul TurnLog: categoria '%s' sconosciuta (previste: %s)"),
+				*CategoryText, *EnumNameList(CategoryEnum));
+			return false;
+		}
+		OutCategory = static_cast<ERTLogCategory>(CategoryValue);
+
+		FString OutcomeText;
+		if (!Obj->TryGetStringField(OutcomeField, OutcomeText))
+		{
+			OutError = FString::Printf(TEXT("assertion sul TurnLog: manca il campo %s"), OutcomeField);
+			return false;
+		}
+
+		const UEnum* OutcomeEnum = URTScenarioLoader::OutcomeEnumForCategory(OutCategory);
+		const int64 OutcomeValue = OutcomeEnum ? OutcomeEnum->GetValueByNameString(OutcomeText) : INDEX_NONE;
+		if (OutcomeValue == INDEX_NONE)
+		{
+			// Il messaggio nomina la CATEGORIA: `BridgeRemoved` e' un esito legittimo, ma non di `Facing`, e
+			// senza quel dettaglio l'autore dello scenario cerca l'errore nel posto sbagliato.
+			OutError = FString::Printf(
+				TEXT("assertion sul TurnLog: esito '%s' sconosciuto per la categoria %s (previsti: %s)"),
+				*OutcomeText, *CategoryText, *EnumNameList(OutcomeEnum));
+			return false;
+		}
+		OutOutcome = static_cast<uint8>(OutcomeValue);
+		return true;
+	}
+
 	/** Gli HeroId che il catalogo conosce davvero. Nessun elenco scritto a mano: se il roster cambia, questa segue. */
 	TSet<FName> KnownHeroIds()
 	{
@@ -46,6 +111,41 @@ namespace
 FString URTScenarioLoader::ScenariosRoot()
 {
 	return FPaths::Combine(FPaths::ProjectDir(), TEXT("Scenarios"));
+}
+
+const UEnum* URTScenarioLoader::OutcomeEnumForCategory(ERTLogCategory Category)
+{
+	// La stessa corrispondenza dichiarata da `FRTTurnLogEntry::Outcome`, qui resa eseguibile. Una categoria
+	// nuova senza il suo caso non compila in silenzio: restituisce `nullptr`, e chi la nomina in uno scenario
+	// riceve «esito sconosciuto» invece di un confronto fra interi che passerebbe per caso.
+	switch (Category)
+	{
+	case ERTLogCategory::Move:        return StaticEnum<ERTMoveOutcome>();
+	case ERTLogCategory::Combat:      return StaticEnum<ERTCombatOutcome>();
+	case ERTLogCategory::Fallback:    return StaticEnum<ERTFallbackOutcome>();
+	case ERTLogCategory::Reaction:    return StaticEnum<ERTReactionOutcome>();
+	case ERTLogCategory::Environment: return StaticEnum<ERTEnvironmentOutcome>();
+	case ERTLogCategory::Facing:      return StaticEnum<ERTFacingOutcome>();
+	default:                          return nullptr;
+	}
+}
+
+FString URTScenarioLoader::DescribeLogEvent(ERTLogCategory Category, uint8 Outcome)
+{
+	const UEnum* CategoryEnum = StaticEnum<ERTLogCategory>();
+	const FString CategoryName = CategoryEnum
+		? CategoryEnum->GetNameStringByValue(static_cast<int64>(Category))
+		: FString::FromInt(static_cast<int32>(Category));
+
+	const UEnum* OutcomeEnum = OutcomeEnumForCategory(Category);
+	const FString OutcomeName = OutcomeEnum
+		? OutcomeEnum->GetNameStringByValue(static_cast<int64>(Outcome))
+		: FString();
+
+	// Un esito fuori dall'enum non e' impossibile: il campo e' un `uint8` e i log serializzati vecchi possono
+	// portarne uno che questa build non conosce piu'. Mostrarlo GREZZO e' l'unica risposta onesta.
+	return FString::Printf(TEXT("%s.%s"), *CategoryName,
+		OutcomeName.IsEmpty() ? *FString::Printf(TEXT("esito %d"), static_cast<int32>(Outcome)) : *OutcomeName);
 }
 
 bool URTScenarioLoader::LoadFromFile(const FString& FilePath, FRTTestScenario& OutScenario, FString& OutError)
@@ -431,11 +531,42 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 				}
 				Exp.Value = static_cast<int32>(*Found);
 			}
+			else if (Type == TEXT("LogEventCount"))
+			{
+				Exp.Kind = ERTAssertionKind::LogEventCount;
+				if (!ParseScenarioLogEvent(Obj, TEXT("category"), TEXT("outcome"), Exp.LogCategory, Exp.LogOutcome, OutError))
+				{
+					return false;
+				}
+				// Conteggio ATTESO, e `0` e' un valore legittimo — anzi e' quello che serve per asserire
+				// un'assenza. Assente del tutto = 1, cioe' «l'evento c'e'»: e' il caso piu' comune e scriverlo
+				// ogni volta sarebbe rumore.
+				int32 Count = 1;
+				Obj->TryGetNumberField(TEXT("value"), Count);
+				if (Count < 0)
+				{
+					OutError = TEXT("assertion LogEventCount: value non puo' essere negativo");
+					return false;
+				}
+				Exp.Value = Count;
+			}
+			else if (Type == TEXT("LogEventOrder"))
+			{
+				Exp.Kind = ERTAssertionKind::LogEventOrder;
+				if (!ParseScenarioLogEvent(Obj, TEXT("category"), TEXT("outcome"), Exp.LogCategory, Exp.LogOutcome, OutError))
+				{
+					return false;
+				}
+				if (!ParseScenarioLogEvent(Obj, TEXT("thenCategory"), TEXT("thenOutcome"), Exp.ThenCategory, Exp.ThenOutcome, OutError))
+				{
+					return false;
+				}
+			}
 			else
 			{
 				// Meglio rifiutare che ignorare: una assertion scritta male che venisse saltata in silenzio
 				// farebbe passare un test che non verifica nulla.
-				OutError = FString::Printf(TEXT("assertion sconosciuta: '%s' (previste: UnitAtCell, TurnsCompleted, UnitHpEquals, UnitAlive, UnitFacing)"), *Type);
+				OutError = FString::Printf(TEXT("assertion sconosciuta: '%s' (previste: UnitAtCell, TurnsCompleted, UnitHpEquals, UnitAlive, UnitFacing, LogEventCount, LogEventOrder)"), *Type);
 				return false;
 			}
 			OutScenario.Expect.Add(Exp);

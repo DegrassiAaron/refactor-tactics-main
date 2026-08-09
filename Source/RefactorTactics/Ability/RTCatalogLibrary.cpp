@@ -597,13 +597,14 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	//
 	// **Durata 2 turni** per entrambe, dal catalogo terreni §2 (fuoco) e dal catalogo azioni §6 (acqua).
 	// La superficie creata e' un DATO dell'azione, non un ramo nel resolver: cosi' un'abilita' d'eroe che
-	// copia questa definizione (D-039: `Riva.FluidTrail`) eredita il comportamento senza che nessuno debba
+	// copia questa definizione (D-046: `Riva.FluidTrail`) eredita il comportamento senza che nessuno debba
 	// aggiungere il suo nome a un `if`.
 	{
 		FRTActionDef Ignite = ShippedAction(TEXT("Action.Ignite"), ERTResolutionPhase::Environment, /*Priority*/ 60,
 			/*Range*/ 4, /*Cooldown*/ 2, ERTActionFallback::Cancel, {});
 		Ignite.bCreatesSurface = true;
 		Ignite.SurfaceCreated = ERTHexSurface::Fire;
+		Ignite.SurfaceRadius = 0; // la sola cella bersaglio: dichiarato, non lasciato al default
 		Catalog.Add(Ignite);
 	}
 	{
@@ -611,6 +612,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 			/*Priority*/ 60, /*Range*/ 4, /*Cooldown*/ 2, ERTActionFallback::Cancel, {});
 		CreateWater.bCreatesSurface = true;
 		CreateWater.SurfaceCreated = ERTHexSurface::ShallowWater;
+		CreateWater.SurfaceRadius = 1; // «acqua raggio 1» (catalogo azioni §6): era cablato nel resolver
 		Catalog.Add(CreateWater);
 	}
 

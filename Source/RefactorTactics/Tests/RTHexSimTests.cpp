@@ -551,6 +551,33 @@ bool FRTHexSimOrderIndependenceTest::RunTest(const FString&)
 // TurnLog e replay (H6.3)
 // ---------------------------------------------------------------------------------------------------------
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimMoveLogCauseTest,
+	"RefactorTactics.HexSim.MoveLogCarriesCause",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimMoveLogCauseTest::RunTest(const FString&)
+{
+	const TArray<TArray<FRTCellId>> Paths = SamplePaths();
+	const TArray<FRTHexMoveResult> Results = URTHexSimLibrary::ResolveHexPaths(Paths);
+
+	// La CAUSA di uno spostamento (#307): il log diceva CHE l'unita' si e' spostata e con quale esito, non
+	// PERCHE'. `ActionId` esiste gia' nella voce ed e' gia' serializzato e gia' nell'hash: valorizzarlo non
+	// tocca il formato, quindi il corpus golden di #178 puo' nascere senza attendere una migrazione.
+	const TArray<FRTTurnLogEntry> Log =
+		URTHexSimLibrary::BuildMoveLog(Paths, Results, /*CauseActionId*/ TEXT("Action.Move"));
+
+	TestTrue(TEXT("almeno una voce, o il ciclo non verifica nulla"), Log.Num() > 0);
+	for (const FRTTurnLogEntry& Entry : Log)
+	{
+		TestEqual(TEXT("ogni voce di movimento dichiara la propria causa"),
+			Entry.ActionId, FName(TEXT("Action.Move")));
+	}
+
+	// Senza causa dichiarata la voce resta com'era: le tracce gia' scritte non cambiano significato.
+	const TArray<FRTTurnLogEntry> Legacy = URTHexSimLibrary::BuildMoveLog(Paths, Results);
+	TestTrue(TEXT("senza causa l'ActionId resta vuoto"), Legacy.Num() > 0 && Legacy[0].ActionId.IsNone());
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimBuildMoveLogTest,
 	"RefactorTactics.HexSim.BuildMoveLogEntries",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -826,7 +853,6 @@ bool FRTMoveNoGlobalRecomputeTest::RunTest(const FString&)
 	return true;
 }
 
-#endif // WITH_DEV_AUTOMATION_TESTS
 
 /**
  * Il motivo per cui un waypoint viene rifiutato va DETTO, non accorpato. Il messaggio
@@ -1024,3 +1050,5 @@ bool FRTHexLinearFilterTest::RunTest(const FString&)
 	}
 	return true;
 }
+
+#endif // WITH_DEV_AUTOMATION_TESTS

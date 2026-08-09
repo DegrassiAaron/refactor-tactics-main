@@ -191,7 +191,12 @@ public:
 	 * (Phase/Category = Move, Outcome = ERTMoveOutcome, SrcCell = cella di PARTENZA del turno — chiave stabile
 	 * dell'unita', mai un pointer —, TgtCell = cella finale, Amount = celle percorse). L'invarianza per
 	 * permutazione e' garantita a valle da URTTurnLogLibrary::SortTurnLog/HashTurnLog.
+	 *
+	 * `CauseActionId` dichiara **perche'** l'unita' si e' spostata (#307): `Action.Move` per il movimento
+	 * volontario, l'ActionId dello scatto o dell'azione che spinge negli altri casi. Viaggia nel campo
+	 * `ActionId`, che esiste gia' nella voce, e' gia' serializzato e gia' entra nell'hash — quindi la causa
+	 * non costa una migrazione di formato. Omesso, la voce resta identica a prima.
 	 */
 	static TArray<FRTTurnLogEntry> BuildMoveLog(const TArray<TArray<FRTCellId>>& Paths,
-		const TArray<FRTHexMoveResult>& Results);
+		const TArray<FRTHexMoveResult>& Results, FName CauseActionId = NAME_None);
 };

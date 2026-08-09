@@ -13,11 +13,12 @@ Uso:
     python scripts/feature_registry.py validate           # gate: esce 1 se ci sono errori
     python scripts/feature_registry.py generate           # riscrive feature-registry.json
     python scripts/feature_registry.py wiki               # blocchi di stato + pagina Feature Status
+    python scripts/feature_registry.py shortlist          # le quattro viste corte di docs/roadmap/
     python scripts/feature_registry.py report             # tabella di audit (markdown su stdout)
 
 Opzioni comuni:
     --wiki-root PATH    radice del clone della Wiki (deploy flat), per validare i `wiki:` refs
-    --check             `generate`/`wiki` non scrivono: falliscono se l'output e' disallineato
+    --check             `generate`/`wiki`/`shortlist` non scrivono: falliscono se disallineati
 """
 import argparse
 import json
@@ -216,6 +217,7 @@ def validate(registry, wiki_root=None):
 
     id_set = set(ids)
     testable_or_more = set(STATUS_ORDER[STATUS_ORDER.index("TESTABLE"):])
+    claimed_scenarios = set()
 
     for feature in features:
         fid = feature.get("feature_id", "<senza id>")
@@ -310,6 +312,7 @@ def validate(registry, wiki_root=None):
                 errors.append(f"{where} test ref senza corrispondenza nella suite: {pattern}")
 
         present, planned = scenario_lists(feature)
+        claimed_scenarios.update(present)
         for sid in present:
             if sid not in scenarios:
                 errors.append(f"{where} ScenarioId inesistente: {sid}")
@@ -345,6 +348,25 @@ def validate(registry, wiki_root=None):
                 f"{where} {len(planned)} scenario/i dichiarati planned: "
                 + ", ".join(planned)
             )
+
+    # --- il verso opposto: nessuno scenario senza feature che lo rivendichi ---
+    #
+    # Il controllo sopra va da feature a scenario ("lo ScenarioId dichiarato esiste?"). Mancava
+    # quello inverso, e la conseguenza non e' teorica: al 2026-08-09 erano 6 su 54 gli scenari che
+    # nessuna feature rivendicava - fra cui `Visual.Map.HighCoverBlocks` e
+    # `Spec.Environment.ElectricPropagation`, entrambi documentati in `scenario-map.md` e nel corpus
+    # visuale. Uno scenario che nessuno rivendica si esegue, passa, e non dimostra niente a nessuno:
+    # e' la stessa famiglia del dato che nessun consumatore legge.
+    #
+    # Errore e non avviso, per simmetria con "scenario dichiarato planned ma presente": in entrambi
+    # i casi il registry sta dicendo qualcosa di falso sulla copertura, non segnalando una lacuna.
+    orphans = sorted(set(scenarios) - claimed_scenarios)
+    for sid in orphans:
+        errors.append(
+            f"ScenarioId non rivendicato da nessuna feature: {sid} — "
+            "aggiungilo agli `scenarios` della feature che dimostra, oppure spiega in `notes` "
+            "perche' non appartiene a nessuna"
+        )
 
     # --- riferimenti a feature dalle pagine gia' generate ---
     for page, fids in wiki_blocks_in_repo().items():
@@ -1071,6 +1093,419 @@ def render_audit(data):
 
 
 # ---------------------------------------------------------------------------
+# Shortlist — le quattro viste corte
+#
+# Una shortlist e' una vista corta di qualcosa che vive altrove: se ne ricopia lo stato a mano,
+# diverge come e' gia' successo quattro volte col conteggio dei test. Qui ogni numero e ogni
+# simbolo di stato arrivano dalla propria sorgente, misurati:
+#
+#   epic       -> `roadmap-v0.1.md` §2.1        (la sola vista dello stato delle epic)
+#   milestone  -> `roadmap-checkpoint.md`       (vista di esecuzione)
+#   gate       -> `v0.1-definition-of-done.md`  (§3, G1-G15)
+#   feature    -> `feature-registry.yaml`       (stato derivato dai gate)
+#   scenari    -> `Scenarios/` + `RTScenarioSession.cpp` (capability disponibili, dal CODICE)
+#
+# Cio' che NON e' derivabile — la riga di descrizione scritta da una persona — viene
+# **preservata** dal file esistente e reimpaginata. Una feature nuova compare con `—`: e' un
+# buco visibile, non una riga che sparisce.
+# ---------------------------------------------------------------------------
+
+SHORTLIST_DIR = os.path.join(REPO, "docs", "roadmap")
+DOD_V01 = os.path.join(REPO, "docs", "roadmap", "v0.1-definition-of-done.md")
+SCENARIO_SESSION_CPP = os.path.join(
+    REPO, "Source", "RefactorTactics", "ScenarioHarness", "RTScenarioSession.cpp")
+
+SHORTLIST_MARKERS = {
+    "epics": "RT_SHORTLIST_EPICS",
+    "features": "RT_SHORTLIST_FEATURES",
+    "scenarios": "RT_SHORTLIST_SCENARIOS",
+    "milestones": "RT_SHORTLIST_MILESTONES",
+    "gates": "RT_SHORTLIST_MILESTONES_GATES",
+}
+SHORTLIST_FILES = {
+    "epics": os.path.join(SHORTLIST_DIR, "roadmap.shortlist.md"),
+    "features": os.path.join(SHORTLIST_DIR, "featuremap.shortlist.md"),
+    "scenarios": os.path.join(SHORTLIST_DIR, "scenariomap.shortlist.md"),
+    "milestones": os.path.join(SHORTLIST_DIR, "milestonemap.shortlist.md"),
+    "gates": os.path.join(SHORTLIST_DIR, "milestonemap.shortlist.md"),
+}
+
+# I simboli di stato in uso nei documenti di roadmap. `⌫` dichiara «rimosso dal repo».
+STATUS_GLYPHS = "✅🟡⏳⌫"
+
+
+def epic_status():
+    """Stato per epic, letto da `roadmap-v0.1.md` §2.1 — che ne e' l'unico owner.
+
+    Non si deriva dai gate delle feature: sarebbe una seconda regola, e due regole sullo stesso
+    fatto sono il difetto che questo script esiste per non ripetere. Un'epic senza riga nella
+    tabella resta senza stato, che e' un'informazione: significa che l'owner non la copre.
+    """
+    if not os.path.isfile(ROADMAP_V01):
+        return {}
+    text = open(ROADMAP_V01, encoding="utf-8").read()
+    found = re.findall(r"^\| \*\*(E\d+)\*\*[^|]*\|\s*([" + STATUS_GLYPHS + r"])", text, re.M)
+    return {epic: glyph for epic, glyph in found}
+
+
+def milestone_status():
+    """Stato per milestone da `roadmap-checkpoint.md`, con le divergenze **dichiarate**.
+
+    Il file contiene due tabelle che parlano delle stesse milestone (`Stato attuale` e `Effetto
+    delle epic sulle milestone`). Quando divergono, la shortlist non sceglie in silenzio: riporta
+    la lettura piu' conservativa e nomina lo scarto, perche' la correzione va fatta nell'owner.
+    """
+    if not os.path.isfile(ROADMAP_CHECKPOINT):
+        return {}, []
+    text = open(ROADMAP_CHECKPOINT, encoding="utf-8").read()
+    found = re.findall(r"^\| \*\*(M\d+)\*\*[^|]*\|\s*([" + STATUS_GLYPHS + r"])", text, re.M)
+    seen, conflicts = {}, []
+    rank = {"⏳": 0, "🟡": 1, "✅": 2, "⌫": 3}
+    for milestone, glyph in found:
+        if milestone in seen and seen[milestone] != glyph:
+            conflicts.append((milestone, seen[milestone], glyph))
+            # Conservativo: fra due letture vince quella che dichiara meno lavoro finito.
+            if rank.get(glyph, 0) < rank.get(seen[milestone], 0):
+                seen[milestone] = glyph
+        else:
+            seen.setdefault(milestone, glyph)
+    return seen, conflicts
+
+
+def release_gates():
+    """I gate `G1`-`G15` dalla Definition of Done: id, richiesta e stato dichiarato."""
+    if not os.path.isfile(DOD_V01):
+        return []
+    text = open(DOD_V01, encoding="utf-8").read()
+    gates = []
+    for row in re.findall(r"^\| \*\*(G\d+)\*\* \|(.+)$", text, re.M):
+        gate_id, rest = row
+        cells = [c.strip() for c in rest.split("|")]
+        # `| id | richiesta | evidenza | stato |` — l'ultima cella piena e' lo stato.
+        cells = [c for c in cells if c]
+        request = cells[0] if cells else ""
+        state = ""
+        for cell in reversed(cells):
+            if any(g in cell for g in STATUS_GLYPHS):
+                state = cell
+                break
+        gates.append((gate_id, request, state))
+    return gates
+
+
+def available_capabilities():
+    """Le capability che il gioco possiede oggi, lette dal CODICE.
+
+    L'elenco sta in `RTScenarioSession.cpp` e non nei dati proprio perche' un JSON che dichiari
+    disponibile una capability inesistente produrrebbe il primo verde bugiardo. Questa funzione
+    lo misura li' per la stessa ragione: qualunque copia in un documento invecchia.
+    """
+    if not os.path.isfile(SCENARIO_SESSION_CPP):
+        return set()
+    text = open(SCENARIO_SESSION_CPP, encoding="utf-8", errors="replace").read()
+    block = re.search(r"static const TSet<FString> Available\s*=\s*\{(.*?)\};", text, re.S)
+    if not block:
+        return set()
+    return set(re.findall(r'TEXT\("([A-Za-z0-9_]+)"\)', block.group(1)))
+
+
+def scenario_corpus():
+    """Ogni scenario versionato con le capability che chiede.
+
+    `requires` puo' comparire a piu' livelli (scenario o singolo turno): si raccolgono tutti,
+    perche' basta un turno bloccato perche' lo scenario esca `BLOCKED`.
+    """
+    corpus = []
+    for root, _dirs, files in os.walk(SCENARIOS_DIR):
+        for name in sorted(files):
+            if not name.endswith(".json") or name.startswith("_"):
+                continue
+            path = os.path.join(root, name)
+            try:
+                with open(path, encoding="utf-8-sig") as fh:
+                    data = json.load(fh)
+            except (json.JSONDecodeError, OSError):
+                continue
+            sid = data.get("scenarioId")
+            if not sid:
+                continue
+            requires = set()
+
+            def collect(node):
+                if isinstance(node, dict):
+                    for key, value in node.items():
+                        if key == "requires" and isinstance(value, list):
+                            requires.update(str(v) for v in value)
+                        else:
+                            collect(value)
+                elif isinstance(node, list):
+                    for item in node:
+                        collect(item)
+
+            collect(data)
+            rel_path = os.path.relpath(path, REPO).replace("\\", "/")
+            corpus.append({"id": sid, "requires": sorted(requires), "path": rel_path})
+    return sorted(corpus, key=lambda s: s["id"])
+
+
+def preserved_column(path, marker, key_pattern):
+    """Le descrizioni scritte a mano nell'ultima colonna del blocco precedente.
+
+    Il generatore riscrive le colonne derivate e **restituisce** questa: e' l'unica parte che una
+    macchina non sa produrre, e cancellarla a ogni run renderebbe il comando inutilizzabile.
+    """
+    if not os.path.isfile(path):
+        return {}
+    text = open(path, encoding="utf-8").read()
+    block = re.search(
+        re.escape(f"<!-- {marker}:BEGIN -->") + r"(.*?)" + re.escape(f"<!-- {marker}:END -->"),
+        text, re.S)
+    if not block:
+        return {}
+    kept = {}
+    for line in block.group(1).split("\n"):
+        if not line.startswith("|") or line.startswith("|---"):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) < 2:
+            continue
+        key = None
+        for cell in cells:
+            match = re.search(key_pattern, cell)
+            if match:
+                key = match.group(1)
+                break
+        if key and cells[-1] and cells[-1] != "—":
+            kept[key] = cells[-1]
+    return kept
+
+
+def wrap_block(marker, lines):
+    return "\n".join([f"<!-- {marker}:BEGIN -->", ""] + lines + ["", f"<!-- {marker}:END -->"])
+
+
+def render_shortlist_epics(data):
+    marker = SHORTLIST_MARKERS["epics"]
+    kept = preserved_column(SHORTLIST_FILES["epics"], marker, r"\*\*(E\d+)\*\*")
+    statuses = epic_status()
+    by_epic = {}
+    for entry in data["features"]:
+        epic = entry["roadmap"].get("epic")
+        if epic:
+            by_epic.setdefault(epic, []).append(entry)
+    epics = sorted(set(statuses) | set(by_epic), key=lambda e: int(e[1:]))
+    lines = [
+        "| Epic | Stato | Feature | Gate | In una riga |",
+        "|---|:--:|--:|--:|---|",
+    ]
+    for epic in epics:
+        entries = by_epic.get(epic, [])
+        done = sum(e["gates_done"] for e in entries)
+        total = sum(e["gates_applicable"] for e in entries)
+        gates = f"{done}/{total}" if total else "—"
+        lines.append(
+            f"| **{epic}** | {statuses.get(epic, '—')} | {len(entries) or '—'} | {gates} | "
+            f"{kept.get(epic, '—')} |"
+        )
+    missing = [e for e in epics if e not in statuses]
+    lines.append("")
+    lines.append(
+        f"**{len(epics)} epic** · stato da [`roadmap-v0.1.md`](roadmap-v0.1.md) §2.1 · "
+        f"gate dal Feature Registry.")
+    if missing:
+        lines += [
+            "",
+            "> ⚠️ **Senza stato dichiarato nell'owner**: " + ", ".join(f"**{e}**" for e in missing) +
+            ". §2.1 non le copre — non è una svista di questa vista, è una riga che manca là.",
+        ]
+    return wrap_block(marker, lines)
+
+
+def render_shortlist_features(data):
+    marker = SHORTLIST_MARKERS["features"]
+    kept = preserved_column(SHORTLIST_FILES["features"], marker, r"`(RT-FEAT-[A-Z0-9-]+)`")
+    by_area = {}
+    for entry in data["features"]:
+        by_area.setdefault(entry["area"], []).append(entry)
+    counts = {}
+    for entry in data["features"]:
+        counts[entry["status"]] = counts.get(entry["status"], 0) + 1
+    releases = {}
+    for entry in data["features"]:
+        releases[entry["release"]] = releases.get(entry["release"], 0) + 1
+
+    lines = [
+        f"**{data['count']} feature** · "
+        + " · ".join(f"{rel} **{releases[rel]}**" for rel in ("v0.1", "v0.2", "future") if rel in releases)
+        + ".",
+        "",
+        "| Stato | Quante |",
+        "|---|--:|",
+    ]
+    for status in STATUS_ORDER:
+        if counts.get(status):
+            lines.append(f"| `{status}` | {counts[status]} |")
+    for status in sorted(s for s in counts if s in STATUS_OFF_SCALE):
+        lines.append(f"| `{status}` (fuori scala) | {counts[status]} |")
+
+    for area in sorted(by_area):
+        entries = sorted(by_area[area], key=lambda e: (-STATUS_ORDER.index(e["status"])
+                                                       if e["status"] in STATUS_ORDER else 0,
+                                                       e["feature_id"]))
+        lines += [
+            "",
+            f"### {area} · {len(entries)}",
+            "",
+            "| Feature | Rel. | Stato | Gate | Vista | Cosa fissa |",
+            "|---|:--:|:--:|--:|:--:|---|",
+        ]
+        for entry in entries:
+            roadmap = entry["roadmap"]
+            where = roadmap.get("epic") or roadmap.get("milestone") or (
+                "fuori scope" if roadmap.get("out_of_release_scope") else "—")
+            lines.append(
+                f"| `{entry['feature_id']}` — {entry['title']} | {entry['release']} | "
+                f"{entry['status']} | {entry['gates_done']}/{entry['gates_applicable']} | "
+                f"{where} | {kept.get(entry['feature_id'], '—')} |"
+            )
+    return wrap_block(marker, lines)
+
+
+def render_shortlist_scenarios(data):
+    marker = SHORTLIST_MARKERS["scenarios"]
+    available = available_capabilities()
+    corpus = scenario_corpus()
+    blocked, runnable = [], []
+    for scenario in corpus:
+        missing = [c for c in scenario["requires"] if c not in available]
+        (blocked if missing else runnable).append((scenario, missing))
+
+    planned = {}
+    for entry in data["features"]:
+        for sid in entry["scenarios_planned"]:
+            planned.setdefault(sid, entry["feature_id"])
+
+    lines = [
+        f"**{len(corpus)} scenari versionati** — misurati su `Scenarios/`: "
+        f"**{len(runnable)}** eseguibili · **{len(blocked)}** `BLOCKED` per una capability assente · "
+        f"**{len(planned)}** dichiarati `planned` nel registry e non ancora scritti.",
+        "",
+        "**Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non "
+        "nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): "
+        + " · ".join(f"`{c}`" for c in sorted(available)) + ".",
+    ]
+    if blocked:
+        lines += [
+            "",
+            "| Scenario `BLOCKED` | Capability che manca |",
+            "|---|---|",
+        ]
+        for scenario, missing in blocked:
+            lines.append(
+                f"| `{scenario['id']}` | " + " · ".join(f"`{c}`" for c in missing) + " |")
+    else:
+        lines += ["", "> ✅ **Nessuno scenario del corpus è `BLOCKED`**: ogni `requires` scritto "
+                      "trova la sua capability nel codice."]
+    if planned:
+        lines += [
+            "",
+            "| Pianificato, non scritto | Feature che lo chiede |",
+            "|---|---|",
+        ]
+        for sid in sorted(planned):
+            lines.append(f"| `{sid}` | `{planned[sid]}` |")
+    return wrap_block(marker, lines)
+
+
+def render_shortlist_milestones(data):
+    marker = SHORTLIST_MARKERS["milestones"]
+    kept = preserved_column(SHORTLIST_FILES["milestones"], marker, r"\*\*(M\d+)\*\*")
+    statuses, conflicts = milestone_status()
+    by_milestone = {}
+    for entry in data["features"]:
+        milestone = entry["roadmap"].get("milestone")
+        if milestone:
+            by_milestone.setdefault(milestone, []).append(entry)
+
+    lines = [
+        "| Milestone | Stato | Feature tracciate qui | In una riga |",
+        "|---|:--:|--:|---|",
+    ]
+    for milestone in sorted(set(statuses) | set(by_milestone), key=lambda m: int(m[1:])):
+        entries = by_milestone.get(milestone, [])
+        tracked = ", ".join(f"`{e['feature_id']}`" for e in sorted(
+            entries, key=lambda e: e["feature_id"])) or "—"
+        lines.append(
+            f"| **{milestone}** | {statuses.get(milestone, '—')} | {tracked} | "
+            f"{kept.get(milestone, '—')} |"
+        )
+    if conflicts:
+        lines += [
+            "",
+            "> ⚠️ **Divergenza nell'owner, non in questa vista.** "
+            "[`roadmap-checkpoint.md`](roadmap-checkpoint.md) dichiara la stessa milestone con due "
+            "simboli diversi in due tabelle: "
+            + " · ".join(f"**{m}** ({a} e {b})" for m, a, b in conflicts)
+            + ". Qui è riportata la lettura **più conservativa**; la correzione va fatta là.",
+        ]
+    return wrap_block(marker, lines)
+
+
+def render_shortlist_gates(_data):
+    """I gate `G1`-`G15`, letti dalla Definition of Done che ne e' l'owner."""
+    marker = SHORTLIST_MARKERS["gates"]
+    gates = release_gates()
+    if not gates:
+        return wrap_block(marker, ["> ⚠️ Nessun gate letto da `v0.1-definition-of-done.md` §3."])
+    green = sum(1 for _id, _req, state in gates if "✅" in state)
+    lines = [
+        f"**{len(gates)} gate** · verdi: **{green}**. Stato letto da "
+        f"[`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §3.",
+        "",
+        "| Gate | Cosa chiede | Stato |",
+        "|:--:|---|---|",
+    ]
+    for gate_id, request, state in gates:
+        lines.append(f"| **{gate_id}** | {request} | {state or '—'} |")
+    return wrap_block(marker, lines)
+
+
+def apply_shortlist(data, check=False):
+    """Riscrive i blocchi marcati nelle quattro shortlist. Fuori dai marcatori non tocca nulla."""
+    renderers = {
+        "epics": render_shortlist_epics,
+        "features": render_shortlist_features,
+        "scenarios": render_shortlist_scenarios,
+        "milestones": render_shortlist_milestones,
+        "gates": render_shortlist_gates,
+    }
+    changed, missing = [], []
+    for key, path in SHORTLIST_FILES.items():
+        marker = SHORTLIST_MARKERS[key]
+        if not os.path.isfile(path):
+            missing.append(f"{os.path.relpath(path, REPO)} non esiste")
+            continue
+        original = open(path, encoding="utf-8").read()
+        begin, end = f"<!-- {marker}:BEGIN -->", f"<!-- {marker}:END -->"
+        if begin not in original or end not in original:
+            missing.append(
+                f"{os.path.relpath(path, REPO)} non ha il blocco {marker}: nulla da generare")
+            continue
+        block = renderers[key](data)
+        pattern = re.compile(re.escape(begin) + r".*?" + re.escape(end), re.S)
+        text = pattern.sub(lambda _m: block, original)
+        if text != original:
+            # Un file puo' ospitare piu' blocchi (milestone e gate): si riporta una volta sola.
+            ref = os.path.relpath(path, REPO).replace("\\", "/")
+            if ref not in changed:
+                changed.append(ref)
+            if not check:
+                with open(path, "w", encoding="utf-8", newline="\n") as fh:
+                    fh.write(text)
+    return changed, missing
+
+
+# ---------------------------------------------------------------------------
 
 def write_if_needed(path, content, check):
     current = open(path, encoding="utf-8").read() if os.path.isfile(path) else None
@@ -1087,7 +1522,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("command",
                         choices=["validate", "generate", "wiki", "workbook", "suite",
-                                 "deploy", "report"])
+                                 "shortlist", "deploy", "report"])
     parser.add_argument("--wiki-root", help="radice del clone della Wiki (deploy flat)")
     parser.add_argument("--check", action="store_true", help="non scrivere: fallisci se disallineato")
     parser.add_argument("--write", action="store_true",
@@ -1160,6 +1595,20 @@ def main():
             print(f"aggiornato {ref}")
         if not changed:
             print("conteggio gia' allineato")
+        return 0
+
+    if args.command == "shortlist":
+        changed, missing = apply_shortlist(data, args.check)
+        for note in missing:
+            print(f"WARN  {note}")
+        if args.check and changed:
+            for ref in changed:
+                print(f"disallineato: {ref}")
+            return 1
+        for ref in changed:
+            print(f"aggiornato {ref}")
+        if not changed:
+            print("shortlist gia' allineate")
         return 0
 
     if args.command == "workbook":

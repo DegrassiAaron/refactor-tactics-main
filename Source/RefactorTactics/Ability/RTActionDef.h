@@ -177,6 +177,21 @@ struct FRTActionDef
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	FName ActionId;
 
+	/**
+	 * Di quale AZIONE GENERICA questa e' un profilo (es. `Bastion.ImpactShot` -> `Action.BasicAttack`).
+	 * `None` per le azioni che non sono profilo di niente — le generiche stesse, e le abilita' firma.
+	 *
+	 * Esiste perche' [D-033](../../../docs/decisions/RT_PDR_00_Decision_Log.md) chiede che un'azione generica
+	 * con profilo sia spiegabile **nel TurnLog** come *azione base + profilo*, e senza questo campo la
+	 * relazione non e' scritta da nessuna parte: `Bastion.ImpactShot` e' un'azione d'EROE, quindi un lettore
+	 * della traccia non la risolve nemmeno consultando il catalogo core.
+	 *
+	 * E' un dato e non una deduzione: dedurlo dal nome (`Hero.Qualcosa` = attacco base?) funzionerebbe finche'
+	 * un eroe non chiama diversamente la sua azione, cioe' fino al primo eroe nuovo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	FName BaseActionId;
+
 	/** Fase dichiarata (codice del catalogo); la macro-fase reale viene da URTCatalogLibrary::MapResolutionPhase. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	ERTResolutionPhase ResolutionPhase = ERTResolutionPhase::Attack;
@@ -244,7 +259,7 @@ struct FRTActionDef
 	 * (`if (Id == "Action.CreateWater")`). Il commento di allora lo ammetteva e rimandava: «inventare un campo
 	 * SurfaceCreated per due sole azioni sarebbe un dato che nessun'altra azione userebbe; quando le azioni
 	 * ambientali saranno molte, il posto giusto e' quel campo». La condizione e' arrivata da un'altra
-	 * direzione: con D-039 un EROE possiede un'azione ambientale, e `Riva.FluidTrail` non puo' chiamarsi
+	 * direzione: con D-046 un EROE possiede un'azione ambientale, e `Riva.FluidTrail` non puo' chiamarsi
 	 * `Action.CreateWater`. Un confronto per nome non sa esprimere «e' quell'azione con un nome d'eroe» —
 	 * un campo si', ed e' la stessa strada di `PropagationLimit`, che infatti funzionava gia'.
 	 */
@@ -253,6 +268,21 @@ struct FRTActionDef
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	ERTHexSurface SurfaceCreated = ERTHexSurface::Floor;
+
+	/**
+	 * Raggio dell'area DIPINTA attorno alla cella bersaglio: 0 = la sola cella, 1 = l'esagono pieno di raggio 1.
+	 *
+	 * E' un asse diverso da `URTActionData::AreaRadius`, che e' l'area degli EFFETTI sulle unita': `CreateWater`
+	 * non colpisce nessuno — forma `Single` — e allaga comunque sette celle. Tenerli separati costa un campo;
+	 * unificarli costerebbe la prima azione che danneggia un raggio e ne allaga un altro.
+	 *
+	 * Nasce con lo stesso argomento di `SurfaceCreated` (D-046): il resolver cablava
+	 * `(Created == ShallowWater) ? 1 : 0`, cioe' proprio il ramo che il commento accanto dichiarava di voler
+	 * evitare. Finche' i produttori erano due il ramo reggeva; con `Riva.MistVeil` (issue #353) i raggi
+	 * dichiarati diventano tre e il ramo dovrebbe indovinare quale superficie vuole quale area.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	int32 SurfaceRadius = 0;
 
 	/**
 	 * Effetti prodotti dall'azione, nell'ordine in cui si applicano. E' il campo che il registry traduce in

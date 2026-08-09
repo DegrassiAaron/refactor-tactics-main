@@ -265,6 +265,101 @@ bool FRTActionCreateWaterTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionMistVeilTest,
+	"RefactorTactics.Actions.MistVeil.CreatesSmokeAndCapsTargeting",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionMistVeilTest::RunTest(const FString&)
+{
+	// Issue #353. `Riva.MistVeil` dichiarava «crea fumo raggio 1» e non lo faceva: `Smoke` era l'unica delle
+	// otto superfici che nessuna azione sapeva creare. Il test non si ferma alla superficie — verifica anche
+	// il CAP di targeting, perche' e' quello l'effetto tattico, e una superficie dipinta che non cambia nulla
+	// sarebbe lo stesso difetto di prima con un colore in piu'.
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	ARTUnit* Caster = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Target = SpawnEnvUnit(World, 1, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Caster"), Caster) || !TestNotNull(TEXT("Target"), Target)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	// L'abilita' vera del catalogo, non una ricostruita nel test: la issue nasceva proprio da uno scarto fra
+	// cio' che il catalogo dichiarava e cio' che l'azione faceva.
+	URTHeroData* Riva = URTHeroCatalogLibrary::MakeRiva();
+	if (!TestNotNull(TEXT("Riva costruita"), Riva)) { DestroyEnvWorld(World); return false; }
+	URTActionData* MistVeil = Riva->Actions.IsValidIndex(3) ? Riva->Actions[3] : nullptr;
+	if (!TestNotNull(TEXT("MistVeil nel kit"), MistVeil)) { DestroyEnvWorld(World); return false; }
+
+	Caster->Abilities[3] = MistVeil;
+	Caster->PlannedAbilityIndex = 3;
+	Caster->PlannedAttackTarget = Target;
+	RunEnvTurn(TM);
+
+	auto SurfaceAt = [MapActor](const FRTCellId& Cell)
+	{
+		const FRTHexCellData* Data = MapActor->MapAsset ? MapActor->MapAsset->FindCell(Cell) : nullptr;
+		return Data ? Data->Surface : ERTHexSurface::Floor;
+	};
+
+	TestTrue(TEXT("la cella bersaglio si riempie di fumo"), SurfaceAt(FRTCellId(2, 0)) == ERTHexSurface::Smoke);
+	TestTrue(TEXT("e anche una adiacente (raggio 1)"), SurfaceAt(FRTCellId(3, 0)) == ERTHexSurface::Smoke);
+	TestTrue(TEXT("ma non una a due celle di distanza"), SurfaceAt(FRTCellId(4, 0)) != ERTHexSurface::Smoke);
+
+	// L'effetto TATTICO: sparare attraverso il fumo vale al massimo 2 celle, e la regola sta gia' nel
+	// terreno — `EffectiveTargetingRange` la legge dalla superficie della cella, non da uno stato dell'unita'.
+	// E' la ragione per cui il fumo funziona nell'istante in cui la cella cambia.
+	const int32 Effective = URTTerrainLibrary::EffectiveTargetingRange(MapActor->MapAsset,
+		FRTCellId(0, 0), FRTCellId(3, 0), /*RangeCells*/ 6);
+	TestEqual(TEXT("attraverso il fumo il targeting e' tagliato a 2"), Effective, 2);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionIgniteRadiusTest,
+	"RefactorTactics.Actions.Ignite.BurnsOnlyTheTargetCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionIgniteRadiusTest::RunTest(const FString&)
+{
+	// Controprova del raggio come DATO (#353): tre azioni creano superfici con due raggi diversi, e prima il
+	// resolver li indovinava da un `if` sul tipo di superficie. Se un giorno `SurfaceRadius` sparisse da
+	// `Action.Ignite`, il fuoco erediterebbe in silenzio il raggio di qualcun altro — e un fuoco che si allarga
+	// di una cella e' una modifica di bilanciamento fatta senza deciderla.
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	ARTUnit* Caster = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Target = SpawnEnvUnit(World, 1, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Caster"), Caster) || !TestNotNull(TEXT("Target"), Target)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	PlanEnvAction(Caster, TEXT("Action.Ignite"), Target);
+	RunEnvTurn(TM);
+
+	auto SurfaceAt = [MapActor](const FRTCellId& Cell)
+	{
+		const FRTHexCellData* Data = MapActor->MapAsset ? MapActor->MapAsset->FindCell(Cell) : nullptr;
+		return Data ? Data->Surface : ERTHexSurface::Floor;
+	};
+
+	TestTrue(TEXT("la cella bersaglio brucia"), SurfaceAt(FRTCellId(2, 0)) == ERTHexSurface::Fire);
+	TestTrue(TEXT("l'adiacente NO: il fuoco ha raggio 0"), SurfaceAt(FRTCellId(3, 0)) != ERTHexSurface::Fire);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionModifyArcTest,
 	"RefactorTactics.Actions.ModifyArc.BumpsChunkRevision",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -299,6 +394,12 @@ bool FRTActionModifyArcTest::RunTest(const FString&)
 	// Rigiocata sulla stessa coppia, l'azione CHIUDE quello che aveva aperto — «apri o chiudi» e' la stessa
 	// azione vista dai due lati, come una porta.
 	const int32 RevisionAfterOpen = MapActor->MapAsset->Revision;
+
+	// `Action.ModifyArc` ha COOLDOWN 2: al turno immediatamente successivo non e' ancora disponibile, e
+	// rigiocarla subito era uno scenario che in partita non esiste. Il test lo faceva lo stesso perche'
+	// `AbilityCooldowns` restava vuoto senza `BeginPlay` (#135); ora il cooldown c'e' e si aspetta il turno.
+	RunEnvTurn(TM);
+
 	PlanEnvAction(Caster, TEXT("Action.ModifyArc"), Target);
 	RunEnvTurn(TM);
 
@@ -579,6 +680,86 @@ bool FRTBridgeDamagedInTurnTest::RunTest(const FString&)
 		}
 	}
 	TestEqual(TEXT("due voci, una per verso"), Logged, 2);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * Un ponte ABBATTUTO non deve lasciare un fantasma in `DynamicArcs`.
+ *
+ * `ARTTurnManager` tiene in `DynamicArcs` i ponti temporanei di `Action.ModifyArc`, per farli scadere. Quando
+ * uno viene distrutto in combattimento, pero', a occuparsene e' `URTHexArcLibrary::DamageArc` — che di quella
+ * lista non sa nulla. L'entry sopravvive al proprio ponte.
+ *
+ * E sopravvivere qui non e' innocuo, perche' `DamageArc` **non toglie** l'arco: lo marca `Destroyed` con
+ * integrita' 0 e lo lascia sulla mappa. Quindi alla scadenza del timer del fantasma `RemoveTransition`
+ * RIESCE, e fa due danni in uno: scrive nel TurnLog un `BridgeRemoved` per un crollo avvenuto due turni
+ * prima — una voce che descrive un evento mai accaduto — e si porta via le macerie, cancellando la prova
+ * che li' c'era un ponte abbattuto (`SetArcState` tratta `Destroyed` come terminale: «un ponte abbattuto non
+ * si riattiva», e senza arco non ha piu' niente su cui essere terminale).
+ *
+ * E' lo stesso fantasma corretto per le coperture in #301 — `DestroyedCoverLeavesNoGhost` e' il suo gemello —
+ * e la disciplina e' quella: l'entry muore quando muore la struttura che rappresenta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBridgeGhostTrackingTest,
+	"RefactorTactics.Structures.Bridge.DestroyedBridgeLeavesNoGhost",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBridgeGhostTrackingTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	const FRTCellId Ground(0, 0, 0);
+	const FRTCellId Upper(1, 0, 1);
+	MapActor->MapAsset->AddOrUpdateCell(FRTHexCellData(Upper));
+	MapActor->MapAsset->SortCells();
+
+	ARTUnit* Builder = SpawnEnvUnit(World, 0, Ground);
+	ARTUnit* Foe = SpawnEnvUnit(World, 1, Upper);
+	// Riserve lontane dal ponte: servono TRE turni, e una squadra annientata li interromperebbe prima che il
+	// timer del fantasma arrivi a scadere — il test finirebbe verde senza aver mai raggiunto il caso.
+	SpawnEnvUnit(World, 0, FRTCellId(-4, 0, 0));
+	SpawnEnvUnit(World, 1, FRTCellId(-3, 0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Builder"), Builder) || !TestNotNull(TEXT("Foe"), Foe)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	// Turno 1: il ponte nasce da `ModifyArc`, quindi e' TEMPORANEO e tracciato in `DynamicArcs` (2 turni,
+	// che cominciano dal prossimo).
+	PlanEnvAction(Builder, TEXT("Action.ModifyArc"), Foe);
+	RunEnvTurn(TM);
+	TestTrue(TEXT("il ponte esiste"),
+		URTHexArcLibrary::IsArcTraversable(MapActor->MapAsset, Ground, Upper));
+
+	// Turno 2: lo stesso costruttore lo abbatte. 40 e' `FRTHexEdge::DefaultIntegrity`: un colpo solo basta,
+	// e il ponte crolla PRIMA della propria scadenza naturale — che e' esattamente la condizione del difetto.
+	Builder->Abilities[0]->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 40));
+	Builder->PlannedAbilityIndex = 0;
+	Builder->PlannedAttackTarget = Foe;
+	RunEnvTurn(TM);
+
+	TestEqual(TEXT("il ponte e' crollato in combattimento, un evento per verso"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::BridgeDestroyed), 2);
+	TestFalse(TEXT("e non e' piu' percorribile"),
+		URTHexArcLibrary::IsArcTraversable(MapActor->MapAsset, Ground, Upper));
+
+	// Turno 3: e' adesso che scadeva il timer del ponte ormai crollato. Il fantasma agiva qui.
+	RunEnvTurn(TM);
+
+	const FRTHexEdge* Rubble = URTHexArcLibrary::FindArc(MapActor->MapAsset, Ground, Upper);
+	if (TestTrue(TEXT("le macerie restano: l'arco abbattuto e' ancora sulla mappa"), Rubble != nullptr))
+	{
+		TestTrue(TEXT("e sono ancora macerie, non un ponte tornato attivo"),
+			Rubble->State == ERTHexArcState::Destroyed);
+	}
+	TestEqual(TEXT("nessuna scadenza nel TurnLog: quel ponte era gia' crollato, non e' scaduto"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::BridgeRemoved), 0);
 
 	DestroyEnvWorld(World);
 	return true;
@@ -899,6 +1080,10 @@ bool FRTBastionReconfigureRefusesTest::RunTest(const FString&)
 	const FRTCellId NorthEast = URTHexLibrary::Neighbors(One)[static_cast<int32>(ERTHexDirection::NE)];
 	URTHexCoverLibrary::AddCover(MapActor->MapAsset, NorthEast,
 		ERTHexDirection::SW, ERTHexCoverType::Low, 30); // la faccia opposta del bordo NE di `One`
+
+	// `Bastion.Reconfigure` ha COOLDOWN 2: come sopra, il secondo rifiuto va chiesto quando l'azione e'
+	// tornata disponibile, non al turno dopo (#135).
+	RunEnvTurn(TM);
 
 	URTActionData* Second = URTHeroCatalogLibrary::MakeBastion()->Actions[2];
 	PlanHeroCoverAction(Bastion, Second, One, ERTHexDirection::NE);

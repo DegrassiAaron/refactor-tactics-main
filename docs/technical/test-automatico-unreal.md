@@ -87,15 +87,54 @@ giorno in cui un RNG entrasse nel resolver, lo scenario debba già saperlo dichi
 
 ## 5. Assertion
 
-`ERTAssertionKind`, deliberatamente **due**:
+`ERTAssertionKind`. Nacquero **due**, e ognuna delle altre è arrivata quando uno scenario reale l'ha
+richiesta — mai prima. Si aggiungono sempre **in coda**: gli scenari sul disco riferiscono i valori
+dell'enum, e rinumerarli riscriverebbe il significato dei file già scritti.
 
-| Tipo | Verifica |
-|---|---|
-| `UnitAtCell` | l'unità indicata è sulla cella attesa a fine scenario |
-| `TurnsCompleted` | sono stati completati almeno N turni senza che la partita si interrompesse |
+| Tipo | Verifica | Arrivata con |
+|---|---|---|
+| `UnitAtCell` | l'unità indicata è sulla cella attesa a fine scenario | — |
+| `TurnsCompleted` | sono stati completati almeno N turni senza che la partita si interrompesse | — |
+| `UnitHpEquals` | la salute è esattamente il valore atteso: è così che si verifica un danno | — |
+| `UnitAlive` | l'unità è viva (`value` ≠ 0) oppure abbattuta | — |
+| `UnitFacing` | l'unità guarda nella direzione attesa, per **nome** (`E`, `NE`, …) | CP 16.1 |
+| `LogEventCount` | quante volte un evento compare nel TurnLog. `value: 0` asserisce l'**assenza** | [#318](https://github.com/DegrassiAaron/refactor-tactics-main/issues/318) |
+| `LogEventOrder` | la prima occorrenza di un evento **precede** la prima di un altro | [#318](https://github.com/DegrassiAaron/refactor-tactics-main/issues/318) |
 
-Non è una mancanza: il prompt stesso avvertiva di «non creare un mega-framework prematuramente». Le assertion
-si aggiungono quando uno scenario reale le richiede.
+### 5.1 Le due assertion che leggono il TurnLog
+
+Le prime cinque guardano tutte lo **stato finale**. Ordine degli eventi e contatori del log erano fuori
+portata, e con essi undici scenari già dichiarati nel Feature Registry.
+
+L'evento si nomina **per nome**, come la direzione di `UnitFacing`:
+
+```json
+{ "type": "LogEventCount", "category": "Facing", "outcome": "DeclarationRejected", "value": 0 }
+{ "type": "LogEventOrder", "category": "Combat", "outcome": "Hit",
+  "thenCategory": "Move", "thenOutcome": "Moved" }
+```
+
+`value` omesso vale **1**, cioè «l'evento c'è». I nomi si risolvono per **riflessione** sull'enum
+(`StaticEnum<>`), non da una tabella scritta a mano: un esito aggiunto al TurnLog diventa scrivibile negli
+scenari senza toccare il loader, e non c'è una seconda copia da tenere allineata — è la lezione della chiave
+`edge`, dove il parser che la leggeva e l'elenco che la rifiutava sono nati su rami diversi.
+
+Un esito che appartiene a un'**altra** categoria è un `ERROR`, non un confronto fra interi: `BridgeRemoved`
+esiste, ma non fra gli esiti di `Facing`, e il messaggio lo dice nominando la categoria.
+
+Due cose che vanno sapute, perché decidono cosa queste assertion possono e non possono verificare.
+
+**Il log si accumula nella sessione, non nel TurnManager.** `ARTTurnManager::TurnLog` viene **azzerato** a
+ogni `LockInAndResolve`: a scenario finito conterrebbe il solo ultimo turno. `FRTScenarioSession` appende le
+voci di ogni turno appena questo ha finito di risolvere, cioè nell'unico istante in cui il log di quel turno
+è completo e non ancora sostituito.
+
+**L'ordine è quello di scrittura, e l'hash non lo conosce.** La forma canonica del log — quella serializzata
+e quella che entra in `URTTurnLogLibrary::HashTurnLog` — è **ordinata** (`SortTurnLog`), quindi l'hash è
+invariante per permutazione. Chi volesse verificare una sequenza guardando il checksum verificherebbe
+un'altra cosa; e un'assertion su un hash **letterale** legherebbe ogni scenario al formato del log, dove la
+prima voce nuova li romperebbe tutti insieme. Il determinismo si verifica **eseguendo due volte**: è una
+proprietà del runner, non di uno scenario.
 
 Ogni risultato porta **`Expected` e `Actual`**, non un booleano. Un report che dice «fallita» senza dire cosa
 si aspettava costringe a rieseguire il test per capire — e a quel punto tanto varrebbe non averlo.

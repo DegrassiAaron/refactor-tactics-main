@@ -233,6 +233,23 @@ struct FRTTurnLogEntry
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	FName ActionId;
 
+	/**
+	 * L'azione GENERICA di cui `ActionId` e' un profilo (es. `Action.BasicAttack` per `Bastion.ImpactShot`).
+	 * `NAME_None` quando l'azione non e' profilo di niente, o quando chi ha scritto la voce non lo sapeva.
+	 *
+	 * Sta QUI e non solo nel catalogo perche' `Bastion.ImpactShot` e' un'azione d'EROE: chi legge una traccia
+	 * non la risolve consultando il catalogo core, gli servirebbero i data asset del roster. Senza questo
+	 * campo la traccia non e' spiegabile da sola, e [D-033](../../../docs/decisions/RT_PDR_00_Decision_Log.md)
+	 * chiede esattamente questo.
+	 *
+	 * ⚠️ **NON entra nell'hash**, ed e' una scelta con un argomento: `BaseActionId` e' una FUNZIONE di
+	 * `ActionId`, che nell'hash c'e' gia'. Due tracce non possono differire solo per questo campo, quindi
+	 * includerlo aggiungerebbe zero potere discriminante — e invaliderebbe in blocco ogni hash golden.
+	 * E' lo stesso ragionamento con cui `FormatId` e' rimasto fuori dall'hash (CP 10.3).
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	FName BaseActionId;
+
 	FRTTurnLogEntry() = default;
 };
 
@@ -257,7 +274,17 @@ enum class ERTTurnLogFormatVersion : uint16
 	 * nell'hash**: l'hash mescola i campi delle voci, e includervi un campo di contesto invaliderebbe in
 	 * blocco ogni hash golden. Le tracce in versione 3 restano LEGGIBILI, con `FormatId` neutro.
 	 */
-	WithFormatId = 4
+	WithFormatId = 4,
+	/**
+	 * + `BaseActionId` per voce (issue #354): l'azione generica di cui `ActionId` e' un profilo, scritta come
+	 * l'ActionId — lunghezza uint16 e byte UTF-8, subito dopo di esso. Serve a D-033, che chiede che una
+	 * traccia sia spiegabile come *azione base + profilo* senza dover caricare i data asset degli eroi.
+	 *
+	 * Le tracce in versione 2, 3 e 4 restano LEGGIBILI, con `BaseActionId` vuoto — che e' esattamente cio'
+	 * che quei byte dicevano. E **gli hash golden non cambiano**: il campo sta fuori dall'hash (vedi la
+	 * dichiarazione di `FRTTurnLogEntry::BaseActionId` per il perche').
+	 */
+	WithBaseActionId = 5
 };
 
 /**

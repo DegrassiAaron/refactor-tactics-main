@@ -8,6 +8,56 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+/**
+ * Il cooldown di un'abilita' viene registrato anche senza `BeginPlay` (#135).
+ *
+ * `AbilityCooldowns` e' un array PARALLELO ad `Abilities`, e veniva dimensionato solo in `ARTUnit::BeginPlay`
+ * e in `ConfigureFromHeroData`. I world di test non chiamano `World->BeginPlay()`, quindi per un'unita'
+ * configurata come archetipo l'array restava vuoto: `ConsumeAbility` trovava `IsValidIndex` falso e non
+ * scriveva nulla, `GetAbilityCooldown` rispondeva 0 — sempre, in ogni test della suite, comunque fosse
+ * scritto il codice sotto esame.
+ *
+ * Non e' solo un limite dell'infrastruttura: l'invariante «i cooldown sono paralleli al kit» vale ovunque il
+ * kit venga popolato, non nei soli due percorsi che si ricordavano di risincronizzarlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitArchetypeCooldownTest,
+	"RefactorTactics.Unit.ArchetypeKitRecordsCooldown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitArchetypeCooldownTest::RunTest(const FString&)
+{
+	ARTUnit* Unit = NewObject<ARTUnit>();
+	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
+	Unit->ConfigureAsArchetype(ERTArchetype::Guardian);
+
+	// L'abilita' la sceglie il KIT, non un indice scritto a mano: se i numeri dell'archetipo cambiano, il
+	// test resta valido invece di verificare la cosa sbagliata in silenzio.
+	int32 Index = INDEX_NONE;
+	int32 Declared = 0;
+	for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+	{
+		const URTActionData* Ability = Unit->GetAbility(i);
+		if (Ability && Ability->CooldownTurns > 0)
+		{
+			Index = i;
+			Declared = Ability->CooldownTurns;
+			break;
+		}
+	}
+	if (!TestTrue(TEXT("il kit dichiara almeno un'abilita' con cooldown"), Index != INDEX_NONE))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("prima del consumo il cooldown e' zero"), Unit->GetAbilityCooldown(Index), 0);
+
+	Unit->ConsumeAbility(Index);
+
+	TestEqual(TEXT("dopo il consumo il cooldown e' quello dichiarato dall'azione"),
+		Unit->GetAbilityCooldown(Index), Declared);
+	return true;
+}
+
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTeamColorForTest,
 	"RefactorTactics.Unit.TeamColorFor",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

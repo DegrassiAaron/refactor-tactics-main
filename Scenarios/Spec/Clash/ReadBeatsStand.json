@@ -5,7 +5,7 @@
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "SPECIFICA ESEGUIBILE di E14.7 (D-042/D-043), non un test di oggi. Un lato della matrice: chi LEGGE batte chi TIENE. Vektor attacca impegnandosi sulla linea (STAND); Bastion ha armato `Action.Brace` e il suo profilo gli concede una seconda risposta legale oltre a `Hold Ground`, quindi l'opportunity e' CONTESTED. Bastion sceglie READ e vince il confronto: l'impatto e' ridotto e l'attaccante resta esposto.",
+  "_nota": "SPECIFICA ESEGUIBILE di E14.7 (D-048/D-049), non un test di oggi. Un lato della matrice: chi LEGGE batte chi TIENE. Vektor attacca impegnandosi sulla linea (STAND); Bastion ha armato `Action.Brace` e il suo profilo gli concede una seconda risposta legale oltre a `Hold Ground`, quindi l'opportunity e' CONTESTED. Bastion sceglie READ e vince il confronto: l'impatto e' ridotto e l'attaccante resta esposto.",
 
   "_nota_perche_esiste": "Esce BLOCKED finche' `ReactionClash` non esiste, e va bene: e' la prassi di questo repository (vedi `Spec.Overwatch.HoldThenFire`). Il valore e' che la feature ha una forma eseguibile PRIMA di essere costruita — quando la capability atterra, il file si accende da solo e dice se la semantica e' quella concordata, invece di essere scritto dopo, quando l'implementazione e' gia' la sola descrizione di se stessa.",
 

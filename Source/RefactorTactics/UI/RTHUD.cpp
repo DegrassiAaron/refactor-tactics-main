@@ -265,6 +265,10 @@ void ARTHUD::DrawHUD()
 			Intent.PlannedWaypoints = Unit->PlannedWaypoints;
 			Intent.bDashing = (Unit->PlannedDashAbility != INDEX_NONE);
 			Intent.DashCell = Unit->PlannedDashCell;
+			// Rotazione dichiarata (D-020, #291): finora `bDeclaresRotation` e `DeclaredFacing` restavano ai
+			// default perche' nessuno li valorizzava, e `FilterForTeam` filtrava un campo sempre vuoto.
+			Intent.bDeclaresRotation = Unit->bDeclaresPlannedFacing;
+			Intent.DeclaredFacing = Unit->PlannedFacing;
 			if (const URTActionData* DashAb = Unit->GetAbility(Unit->PlannedDashAbility))
 			{
 				Intent.DashStyle = DashAb->Def.MovementStyle;

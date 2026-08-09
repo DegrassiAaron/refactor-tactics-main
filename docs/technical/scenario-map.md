@@ -51,19 +51,55 @@ scegliendo lo scenario e premendo Play, una voce C richiede di allestire, clicca
 
 | Classe | Quanti | Dove |
 |---|---:|---|
-| **A** — automatico | **21** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · `RT_Showcase_Relay_v01` |
+| **A** — automatico | **26** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · i tre `EnvironmentalActionOwner` · `RT_Showcase_Relay_v01` |
 | **B** — automatico + occhio | **21** scenari ↔ **21** voci `PIE-VIS-*` | `Scenarios/Visual/` |
 | **C** — solo umano | **95** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima |
-| **D** — dichiarato | **12** scenari `Spec.*` ancora `BLOCKED` · **13** pianificati · **4** mai scritti | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
+| **D** — dichiarato | **9** scenari `Spec.*` ancora `BLOCKED` · **21** pianificati · **4** mai scritti | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
 
-Totale corpus versionato: **54** scenari (`A 21 + B 21 + D-bloccati 12`). Totale registro PIE: **116** voci
-(`B 21 + C 95`).
+Totale corpus versionato: **56** scenari (`A 26 + B 21 + D-bloccati 9`). Totale registro PIE: **117** voci
+(`B 21 + C 95 + 1 fuori classe`).
 
-> ⚠️ **La cartella non è la classe.** Sette scenari di `Scenarios/Spec/` sono di **classe A**: i sei
-> `Spec.Facing.*` e `Spec.Cover.TemporaryCoverExpires`. I primi hanno
+> **Una voce non sta in nessuna delle quattro classi**, ed è meglio dirlo che forzarla dentro.
+> `PIE-MUT-BASTION-SLOW` (2026-08-09) è una **verifica di mutazione**: rompere il codice di proposito e
+> controllare che cada *esattamente* il test atteso. Non è C — non chiede mouse, editor né giudizio umano, e
+> una macchina la eseguirebbe da sola. Non è A — perché la macchina, da sola, **non può garantirsi la
+> precondizione**: che nessun altro processo UE tenga `UnrealEditor-RefactorTactics.dll`. Con la DLL bloccata
+> il link fallisce (`LNK1104`) e il test gira contro il binario vecchio, cioè **passa per il motivo
+> sbagliato**. Serve una persona che scelga il momento, non che guardi lo schermo.
+>
+> Il modello a quattro classi divide per *dove sta l'oracolo*. Questa voce dice che esiste un secondo asse —
+> **chi controlla le precondizioni** — e che finora coincideva col primo. Se ne arriva una seconda, vale la
+> pena farne una classe.
+
+> ⚠️ **Corretto il 2026-08-09, e non a occhio.** Questa tabella diceva `A 21` · `D-bloccati 12` ·
+> `13 pianificati`. Due numeri erano sbagliati e uno era invecchiato nello stesso giorno in cui è stato
+> scritto:
+>
+> - i **tre** scenari che chiedevano `EnvironmentalActionOwner` non sono più bloccati — la capability è
+>   atterrata con `#282` (`75b8264`), poche ore dopo questa pagina. Sono passati in classe **A** da soli,
+>   che è il meccanismo del corpus che funziona (§6.1);
+> - i **pianificati erano ventuno**, non tredici: §6.2 ne elencava ventuno sotto un totale di tredici.
+>   Nessuno li aveva contati, perché contarli a mano è esattamente ciò che nessuno fa due volte.
+>
+> Nel frattempo `#346` ne ha aggiunti **due** in `Scenarios/Combat/` (`BastionImpactShotSlows` e il suo
+> gemello di controllo `MoveIsFullWithoutSlow`): la classe A arriva a **26** e il corpus a **56**. Le due
+> correzioni sono state calcolate su rami diversi nello stesso pomeriggio e riconciliate al merge — che è
+> il motivo per cui il totale ora si misura invece di sommarlo.
+>
+> Da qui in avanti i tre numeri si **misurano**: `python scripts/feature_registry.py shortlist` li scrive
+> in [`../roadmap/scenariomap.shortlist.md`](../roadmap/scenariomap.shortlist.md) §1 leggendo `Scenarios/`
+> e le capability dichiarate in `RTScenarioSession.cpp`, e `shortlist --check` fallisce se divergono.
+> **La ripartizione A/B/C resta umana** — dipende da dove sta l'oracolo, non dai file — ed è il motivo per
+> cui questa pagina continua a esistere.
+
+> ⚠️ **La cartella non è la classe.** **Dieci** scenari di `Scenarios/Spec/` sono di **classe A**: i sei
+> `Spec.Facing.*`, `Spec.Cover.TemporaryCoverExpires` e i tre che chiedono `EnvironmentalActionOwner`
+> (`Spec.Environment.ElectricPropagation`, `Spec.Environment.WaterQuenchesFire`,
+> `Spec.Map.BridgeBreaksThePath`). I primi hanno
 > `requires` vuoto perché **E16 è chiusa**; il settimo dichiara ancora `CreateCover`, ma quella capability è
-> **disponibile** da E9.5, quindi il runner non lo blocca più. È il meccanismo del corpus che funziona come
-> previsto — «si accendono da soli quando la capability atterra» — osservato due volte il 2026-08-09.
+> **disponibile** da E9.5, quindi il runner non lo blocca più; gli ultimi tre si sono accesi con `#282`.
+> È il meccanismo del corpus che funziona come
+> previsto — «si accendono da soli quando la capability atterra» — osservato **tre** volte il 2026-08-09.
 > ⚠️ «Non più bloccato» **non vuol dire «verde»**: che le assertion tengano lo dice la suite, non questa
 > tabella. Un file si classifica leggendo il suo `requires` e la disponibilità della capability, mai il
 > percorso: le cartelle sono storage e non promettono nulla ([`scenario-index-e-tag.md`](scenario-index-e-tag.md) §2).
@@ -84,6 +120,8 @@ Il verdetto è l'assertion. Nessuna di queste righe compare nel registro PIE, ed
 | `Combat.FriendlyFire` | r3 | 5 | l'AoE colpisce anche l'alleato — e porta `previewUnit` per il banco dell'anteprima |
 | `Combat.LineHitsThrough` | r4 | 4 | la linea prende chi sta sulla traiettoria prima del bersaglio |
 | `Combat.NoCounterWhenUnarmed` | r4 | 3 | il contrattacco richiede un'arma: niente reazione implicita |
+| `Combat.BastionImpactShotSlows` | r4 | 4 | lo `Slow` applicato nel **Blast** agisce sul **Move** dello stesso turno: il bersaglio si ferma due celle prima |
+| `Combat.MoveIsFullWithoutSlow` | r4 | 3 | il gemello di controllo: senza il colpo, le stesse quattro celle si percorrono tutte |
 | `Combat.SplashHitsAlliesNotSelf` | r4 | 5 | l'area prende gli alleati ma **non** chi la lancia |
 | `Movement.Basic` | r3 | 2 | il passo singolo arriva sulla cella pianificata |
 | `Movement.BasicFailsOnPurpose` | r3 | 1 | **`expected-fail`**: è l'unica prova che l'harness sappia dire «rosso» |
@@ -98,6 +136,9 @@ Il verdetto è l'assertion. Nessuna di queste righe compare nel registro PIE, ed
 | `Spec.Facing.BackAttackIgnoresGuard` | — | — | e **non** riduce da dietro: l'emisfero posteriore è scoperto (CP 16.2) |
 | `Spec.Facing.BraceHoldsFromBehind` | — | — | `Brace` invece tiene da ogni lato — è ciò che lo distingue da `Guard` |
 | `Spec.Cover.TemporaryCoverExpires` | r4 | 3 | una copertura temporanea **scade** — il terzo momento, quello che si dimentica. Acceso da E9.5 |
+| `Spec.Environment.ElectricPropagation` | — | — | la scarica corre sul grafo dell'acqua **perché un eroe la innesca** — acceso da `#282` |
+| `Spec.Environment.WaterQuenchesFire` | — | — | l'acqua spegne le fiamme, e la fonte è un'azione di un eroe — idem `#282` |
+| `Spec.Map.BridgeBreaksThePath` | — | — | rompere un arco **annulla** il percorso invece di allungarlo — idem `#282` |
 | `RT_Showcase_Relay_v01` | RelayBasin | 5 | gli 8 turni della showcase — oggi **BLOCKED** su 5 capability (§6) |
 
 > ⚠️ `Movement.BasicFailsOnPurpose` è escluso da `EveryShippedScenarioRuns` e verificato **al contrario** da
@@ -187,15 +228,16 @@ utile: **`previewUnit` è presentazione e non cambia l'esito**, verificato da
 `requires`, escono `BLOCKED` nominandola, e si accendono da soli quando atterra. `BLOCKED` è trattato
 **verde** da `EveryShippedScenarioRuns`: trattarlo come rosso renderebbe irrazionale scriverne in anticipo.
 
-> ✅ **Il meccanismo ha funzionato, e si è visto il 2026-08-09.** I sei `Spec.Facing.*` scritti per E16 hanno
-> `requires` **vuoto** da quando l'epic è chiusa: girano, giudicano, e sono di classe **A**. Nessuno ha dovuto
-> ricordarsi di «promuoverli» — è la differenza fra uno scenario-spec e una nota in un documento.
+> ✅ **Il meccanismo ha funzionato, e si è visto tre volte il 2026-08-09.** I sei `Spec.Facing.*` scritti per
+> E16 hanno `requires` **vuoto** da quando l'epic è chiusa; `Spec.Cover.TemporaryCoverExpires` si è acceso con
+> E9.5; e i tre `EnvironmentalActionOwner` con `#282`. Girano, giudicano, e sono di classe **A**. Nessuno ha
+> dovuto ricordarsi di «promuoverli» — è la differenza fra uno scenario-spec e una nota in un documento.
+
+I **nove** rimasti (l'elenco misurato è in
+[`../roadmap/scenariomap.shortlist.md`](../roadmap/scenariomap.shortlist.md) §1, generato):
 
 | ScenarioId | `requires` | Epic che lo accende |
 |---|---|---|
-| `Spec.Environment.ElectricPropagation` | `EnvironmentalActionOwner` | — · `#282` (le abilità ambientali d'eroe hanno `Effects` vuoti) |
-| `Spec.Environment.WaterQuenchesFire` | `EnvironmentalActionOwner` | idem `#282` |
-| `Spec.Map.BridgeBreaksThePath` | `EnvironmentalActionOwner` | idem `#282` |
 | `Spec.Objective.PointSurvivesKO` | `Objective` | E10 · CP 10.2 (`#75`) |
 | `Spec.Overwatch.HoldThenFire` | `DecisionBoundary` `Facing` | E14 (`#152`) + E16 (`#175`) |
 | `Spec.Perception.HeardNotSeen` | `Perception` | E13 (`#151`) |
@@ -206,15 +248,23 @@ utile: **`previewUnit` è presentazione e non cambia l'esito**, verificato da
 | `Spec.Clash.ShiftBeatsRead` | `DecisionBoundary` `ReactionClash` | E14 · CP 14.7 |
 | `Spec.Clash.TieAppliesOnce` | `DecisionBoundary` `ReactionClash` | E14 · CP 14.7 |
 
-> **`EnvironmentalActionOwner` è diversa dalle altre**, e la differenza è il punto: il sistema **esiste ed è
-> chiuso** (CP 8.3, 8.5, 9.4 sono verdi). Quello che manca è **chi possiede** le azioni. Tre scenari-spec su
-> otto sono bloccati da una issue di cablaggio, non da un'epic da costruire.
+> **`EnvironmentalActionOwner` era diversa dalle altre**, e la differenza si è vista nell'esito: il sistema
+> **esisteva ed era chiuso** (CP 8.3, 8.5, 9.4 verdi), mancava solo **chi possiede** le azioni. Non era
+> un'epic da costruire ma una issue di cablaggio — `#282` — e infatti è l'unica delle cinque capability
+> mancanti che sia stata chiusa in giornata. Il confine resta dichiarato nel codice: la capability **non**
+> copre `Action.Ignite` né `Action.ModifyArc`, che per [D-046](../decisions/RT_PDR_00_Decision_Log.md)
+> restano senza owner in v0.1.
 
-### 6.2 Pianificati nel Feature Registry — non ancora scritti
+### 6.2 Pianificati nel Feature Registry — non ancora scritti · **21**
 
 Dichiarati in `feature-registry.yaml` sotto `scenarios: {planned: [...]}`, il che li fa comparire come
 **warning** in `feature_registry.py validate`. Il warning è il meccanismo: un piano che non diventa un file
 resta visibile invece di sparire.
+
+> ⚠️ **Erano dichiarati «13» e sono ventuno**, come la tabella qui sotto mostrava già: undici fra `Clash` e
+> `TimeBank`, cinque `State.*`, quattro `Team.*`, uno `Stress.*`. Il totale sbagliato è sopravvissuto perché
+> l'unico modo di accorgersene era sommare a mano una colonna che nessuno risomma. Ora lo conta
+> `feature_registry.py shortlist`.
 
 | ScenarioId pianificato | Feature | Release |
 |---|---|---|
@@ -243,6 +293,30 @@ resta visibile invece di sparire.
 > (`BankAfterMs`, o l'evento di consumo) prima che questi file abbiano senso, e la dipendenza è la stessa che
 > blocca i tre `Spec.Clash.*`: **una sola capability dell'harness sblocca undici scenari**. Finché non c'è,
 > l'unica verifica onesta del bank sono i test C++ di CP 14.8, che non passano dall'harness.
+> La capability ha un owner: issue **`#318`**, che dichiara le tre primitive minime (evento, ordine, contatore).
+
+> ✅ **Aggiornato il 2026-08-09** (`#318`, PR di `feat/318-assertion-turnlog`). Le prime due primitive
+> esistono: `LogEventCount` (con `value: 0` per l'assenza) e `LogEventOrder`. **I tre `Spec.Clash.*` sono
+> quindi scrivibili** — restano da scrivere, ed è lavoro di CP 14.7, non di #318.
+>
+> Per gli otto `Spec.TimeBank.*` l'affermazione «una sola capability li sblocca tutti» **non regge alla
+> verifica**, e va corretta qui prima che qualcuno la usi per pianificare:
+>
+> 1. il **contatore** manca ancora, e non per pigrizia: `docs/technical/spec-turnlog.md` — che questa mappa
+>    indica come owner del nome — **non contiene la parola `Bank`**, mentre §10 di
+>    [`../gameplay/spec-decision-time-bank.md`](../gameplay/spec-decision-time-bank.md) chiede **tre**
+>    contatori (`BankBeforeMs`, `BankConsumedMs`, `BankAfterMs`) e `FRTTurnLogEntry` ha **un solo** `Amount`.
+>    O tre voci, o un cambio di schema: è una decisione, non un'implementazione;
+> 2. §13 di quella stessa spec classifica i suoi scenari come **`golden`** (dati iniettati, test C++) o
+>    `funzionale` — **nessuno** al livello dell'harness. Se quella classificazione vale, la capability qui non
+>    li sblocca affatto;
+> 3. le due liste **divergono**: la spec ne elenca 13, questa mappa 8, e i due nomi `ClashCostsFullWindow` e
+>    `PrivacyNoBankLeak` **non esistono nella spec**, che a sua volta ne ha sette assenti da qui. La §13 lo
+>    dichiara pure — *«da confermare con l'owner prima di scriverli nella mappa»* — e sono stati scritti lo
+>    stesso.
+>
+> Riconciliare i tre punti è il presupposto di CP 14.8 ed è l'issue **`#361`**. Fino ad allora il conteggio
+> onesto è **tre** scenari sbloccati, non undici.
 
 Le **10 voci `PIE-STATE-*`** del registro sono la controparte umana di questi cinque: nascono ⏳ e restano ⏳
 finché E34 non esiste. Stanno nel registro perché il ciclo *docs → epic → scenario → PIE* resti chiuso, non
@@ -374,11 +448,13 @@ e stanno qui perché «tutte le feature della v0.1» non diventi un traguardo ch
 | Buco | Effetto sulla mappa | Owner |
 |---|---|---|
 | **Effetti muti** — `Wet`, `Burning`, reazione armata e cella conduttiva non emettono alcun evento | Due scenari di classe B non si possono scrivere (`Visual.Water.Wet`, `Visual.Conductive.Network`): si aprirebbero mostrando il terreno che c'era già | `scenari-validazione-visiva.md` §8.1 |
-| **Azioni core senza possessore** — `Electrify`, `Ignite`, `CreateWater`, `ModifyArc` non stanno nel kit di nessuno | Tre scenari di classe D restano `BLOCKED` su `EnvironmentalActionOwner` benché il sistema sia chiuso | issue `#282` |
+| ~~**Azioni core senza possessore**~~ — ✅ **chiuso il 2026-08-09** (`#282`, `75b8264`): `Flux.ConductiveNode` è `Action.Electrify` e `Riva.FluidTrail` è `Action.CreateWater` | I tre scenari sono passati in classe **A**. `Ignite` e `ModifyArc` restano **senza owner per decisione**, non per debito ([D-046](../decisions/RT_PDR_00_Decision_Log.md)): nessun eroe del roster ha affinità col fuoco, i ponti non appartengono a nessun kit | — |
 | **Fascia D mai atterrata** — 8 `Visual.*` descritti come scritti, 0 file | Il catalogo promette vetrine che non esistono; 4 temi vivono come `Spec.*` | §6.3, da riscrivere in `scenari-validazione-visiva.md` |
 | **`Visual.Reaction.*` esiste, `Spec` no** — il campo `reaction` nell'intent c'è ed è validato | Nessuno: è un buco **chiuso**, registrato perché la documentazione lo dichiarava aperto per una working copy indietro di qualche commit | `scenari-validazione-visiva.md` §8.2 |
 | **Nessuna assertion su punteggio e conoscenza** — mancano `TeamScoreEquals` e un modo di asserire sulla conoscenza di squadra | Due scenari-spec non potranno diventare verdi anche quando la capability atterra | `_nota_da_completare` di `Spec.Objective.*` e `Spec.Perception.*` |
-| **Nessuna assertion che legga il TurnLog** — le cinque esistenti leggono tutte lo **stato finale**: ordine degli eventi, hash e contatori del log sono fuori portata | **11 scenari** non scrivibili: 3 `Spec.Clash.*` (segretezza e reveal) e 8 `Spec.TimeBank.*` (tempo speso). Una sola capability li sblocca tutti | §6.2 · `RTTestScenario.h` (`ERTAssertionKind`) |
+| ~~**Nessuna assertion che legga il TurnLog**~~ — ✅ **chiuso il 2026-08-09** (`#318`): `LogEventCount` e `LogEventOrder` leggono il log accumulato dalla sessione, e l'evento si nomina per nome | I tre `Spec.Clash.*` sono **scrivibili** (li scrive CP 14.7). Gli otto `Spec.TimeBank.*` **no**: manca il contatore, e prima serve la decisione su come tre valori in millisecondi entrano in un `FRTTurnLogEntry` che ha un solo `Amount` — vedi §6.2 | `test-automatico-unreal.md` §5.1 |
+| **Il contatore del log, e le due liste `Spec.TimeBank.*` che divergono** — `spec-turnlog.md` non nomina il bank; la spec del Time Bank §13 elenca **13** scenari `golden`, questa mappa **8** al livello dell'harness, e due nomi esistono solo qui | Gli 8 `Spec.TimeBank.*` restano non scrivibili, e non è chiaro se debbano esserlo: è una riconciliazione, non un'implementazione | issue `#361` · §6.2 · `spec-turnlog.md` (owner del nome) |
+| **Nessuna assertion sul determinismo** — e non deve esserci: `HashTurnLog` **ordina** prima di mescolare, quindi è invariante per permutazione e non vede l'ordine; un hash letterale in un JSON si romperebbe alla prima voce nuova del log | `Spec.Clash.Determinism` va scritto sull'ordine (`LogEventOrder`), non su un checksum. Il determinismo vero si verifica **eseguendo due volte**: è una proprietà del runner | `test-automatico-unreal.md` §5.1 |
 
 ## 10. Rapporto con gli altri documenti
 

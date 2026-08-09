@@ -239,8 +239,16 @@ Fonte: `docs/archive/src/design/rumore-e-percezione-acustica.md` (33 sezioni). B
 
 **Perché costa poco.** Il rumore è il gemello acustico della visione e riusa *tutto*: `TeamKnowledge`, la
 privacy dell'invariante #6, i tre livelli UI confermato/previsto/incerto, la memoria dell'ultimo contatto
-(`LastHeard` ≡ `LastKnownContact`), il TurnLog sanitizzato per squadra. Non è un secondo sistema: è un
-**secondo canale che alimenta lo stesso modello**.
+(`LastHeard` ≡ `LastKnownContact`), il TurnLog e il filtro che lo precede all'uscita. Non è un secondo
+sistema: è un **secondo canale che alimenta lo stesso modello**.
+
+> ⚠️ **Corretto il 2026-08-09** ([#295](https://github.com/DegrassiAaron/refactor-tactics-main/issues/295)):
+> questa riga diceva «il TurnLog **sanitizzato per squadra**». Il TurnLog è **uno solo**
+> (`TArray<FRTTurnLogEntry> TurnLog` in `ARTTurnManager`) ed è la sorgente di
+> `URTTurnLogLibrary::HashTurnLog`: filtrarlo avrebbe reso il checksum del replay dipendente da **chi
+> guarda**, cioè non più un checksum. Ciò che si sanitizza è la **vista** che raggiunge un osservatore, con
+> la stessa disciplina degli intenti — `FRTPlannedIntent → FilterForTeam → FRTIntentView`, dove il DTO non
+> riceve i campi proibiti invece di nasconderli dopo averli spediti.
 
 **I dati esistono già.** Il workbook ha `Noise_Mod` su tutti i 17 terreni e `EQ_BREACH_CHARGE` dichiara
 «Rumore 10». Regola di derivazione proposta, coerente con quelle della visione:

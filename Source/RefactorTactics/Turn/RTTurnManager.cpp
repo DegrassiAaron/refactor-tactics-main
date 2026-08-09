@@ -820,8 +820,13 @@ void ARTTurnManager::TickDynamicArcs(URTHexMapAsset* Map)
 		DynamicArcs.RemoveAt(I);
 		if (!Map->RemoveTransition(From, To, /*bBothDirections*/ true))
 		{
-			continue; // gia' rimosso per altra via (distrutto in combattimento): niente da registrare
+			continue; // gia' tolto da un `ModifyArc`: niente da registrare
 		}
+		// NOTA (#302): questo ramo NON e' la rete di sicurezza per i ponti distrutti in combattimento, e
+		// crederlo e' costato un difetto. `DamageArc` non rimuove l'arco — lo marca `Destroyed` e lo lascia
+		// sulla mappa — quindi su un ponte crollato `RemoveTransition` RIUSCIREBBE, e da qui uscirebbe un
+		// `BridgeRemoved` per un evento mai avvenuto. Un ponte abbattuto non arriva piu' fin qui: la sua entry
+		// e' tolta da `DynamicArcs` nel momento del crollo.
 
 		FRTTurnLogEntry Entry;
 		Entry.Phase = ERTMatchPhase::Cleanup;
@@ -996,7 +1001,7 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 		// «SurfaceCreated» nel catalogo per due sole azioni sarebbe un dato che nessun'altra azione useria.
 		// Quando le azioni ambientali saranno molte (CP 8.5), il posto giusto e' quel campo.
 		{
-			// Dal DATO, non dal nome (D-039, #282). Il confronto per ActionId funzionava finche' le uniche
+			// Dal DATO, non dal nome (D-046, #282). Il confronto per ActionId funzionava finche' le uniche
 			// azioni ambientali erano quelle del catalogo core; non appena un eroe ne possiede una — e
 			// `Riva.FluidTrail` non puo' chiamarsi `Action.CreateWater` — un `if` sul nome smette di poter
 			// esprimere «e' quell'azione». Stessa strada di `PropagationLimit`, che infatti gia' funzionava
@@ -1015,9 +1020,11 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 				// La cella e' quella del bersaglio, come per la scarica: stesso limite dichiarato sul
 				// targeting per cella.
 				//
-				// L'acqua copre un RAGGIO 1 (catalogo azioni §6: «acqua raggio 1»), il fuoco la sola cella:
-				// il raggio e' dell'azione, non della meccanica, quindi si legge da qui e non dal terreno.
-				const int32 Radius = (Created == ERTHexSurface::ShallowWater) ? 1 : 0;
+				// Il raggio e' dell'AZIONE, non della superficie. Era `(Created == ShallowWater) ? 1 : 0`, cioe'
+				// il ramo che il commento qui sopra dichiara di voler evitare: con tre produttori — acqua 1,
+				// fuoco 0, fumo 1 (`Riva.MistVeil`, #353) — quel ramo dovrebbe indovinare quale superficie
+				// vuole quale area, e sbaglierebbe alla prima azione che allaga una cella sola.
+				const int32 Radius = FMath::Max(0, Ability->Def.SurfaceRadius);
 				// Ordine STABILE delle celle: `HexArea` restituisce gia' un'area ordinata, quindi le voci di
 				// TurnLog escono sempre nella stessa sequenza (#4).
 				for (const FRTCellId& Cell : URTHexLibrary::HexArea(Target->Cell, Radius))
@@ -1082,6 +1089,7 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 			Entry.Phase = ERTMatchPhase::Cleanup;
 			Entry.Category = ERTLogCategory::Combat;
 			Entry.ActionId = Ability->Def.ActionId; // identita' dell'azione: un danno senza causa e' inspiegabile
+			Entry.BaseActionId = Ability->Def.BaseActionId; // di quale generica e' un profilo (D-033, #354)
 			Entry.SrcCell = Caster->Cell;
 			Entry.TgtCell = Hit.Cell;
 			Entry.Amount = Hit.Damage;
@@ -1780,6 +1788,15 @@ void ARTTurnManager::ResolveDash()
 			URTFacingLibrary::RecordFacingChange(Dashed, URTFacingLibrary::FacingFromPath(Walked, Dashed.Facing),
 				ERTFacingOutcome::DerivedFromDash, ERTMatchPhase::Dash, TurnLog);
 			Unit->Facing = Dashed.Facing;
+
+			// Traccia per la rotazione dichiarata (#291): dopo uno scatto LINEARE la sola direzione legale e'
+			// quella del movimento, e a fine turno non sarebbe piu' deducibile — chi ha scattato arriva al Move
+			// con `PlannedCell` uguale alla cella attuale, indistinguibile da chi non si e' mosso.
+			if (const URTActionData* DashUsed = Unit->GetAbility(DashAbilityIdx[i]))
+			{
+				Unit->MovementStyleThisTurn = DashUsed->Def.MovementStyle;
+				Unit->WalkedThisTurn = Walked;
+			}
 		}
 
 		Unit->Cell = Final;
@@ -2311,6 +2328,7 @@ void ARTTurnManager::ResolveCombat()
 		Entry.SrcCell = Unit->Cell;
 		Entry.TgtCell = Unit->Cell;
 		Entry.ActionId = Reaction->Def.ActionId; // `Bastion.Interposition` non e' `Action.Intercept` (CP 5.5)
+		Entry.BaseActionId = Reaction->Def.BaseActionId; // vuoto finche' le reazioni non dichiarano un profilo
 
 		const int32 HitIdx = (Unit->CanUseAbility(ReactionIdx) && !ReactionBlockedThisTurn.Contains(Unit))
 			? URTReactionLibrary::FindInterceptableHit(i, Reaction->Def.RangeCells,
@@ -2394,6 +2412,7 @@ void ARTTurnManager::ResolveCombat()
 		Entry.SrcCell = Unit->Cell;
 		Entry.TgtCell = Unit->Cell;
 		Entry.ActionId = Reaction->Def.ActionId; // identita': `Vektor.Deflection` non e' `Action.Deflect` (CP 5.5)
+		Entry.BaseActionId = Reaction->Def.BaseActionId; // vuoto finche' le reazioni non dichiarano un profilo
 
 		const int32 TriggeredBy = URTReactionLibrary::FindTriggeringAttacker(
 			Reaction->Def.ReactionTrigger, i, Plan.Hits, Intents);
@@ -2563,6 +2582,27 @@ void ARTTurnManager::ResolveCombat()
 				Change.From.X, Change.From.Y, Change.From.Layer,
 				Change.To.X, Change.To.Y, Change.To.Layer,
 				Change.bBroken ? TEXT("crollato") : TEXT("danneggiato"), Change.RemainingIntegrity));
+
+			// Un ponte ABBATTUTO smette di essere anche un ponte TEMPORANEO. Senza questa riga l'entry
+			// sopravvive al proprio ponte, e non in modo innocuo: `DamageArc` non RIMUOVE l'arco, lo marca
+			// `Destroyed` e lo lascia sulla mappa, quindi alla scadenza del timer `TickDynamicArcs` chiama
+			// `RemoveTransition` e ci RIESCE — scrivendo un `BridgeRemoved` per un crollo avvenuto turni prima
+			// e portandosi via le macerie. Le macerie devono restare: e' su di esse che `SetArcState` esercita
+			// il proprio «terminale» (un ponte abbattuto non si riattiva).
+			//
+			// Stessa disciplina delle coperture (#301, `ApplyStructureDamage`): l'entry muore quando muore la
+			// struttura che rappresenta. `DamageArc` restituisce un `Change` per verso, quindi qui si passa due
+			// volte sulla stessa coppia: `RemoveAll` e' idempotente e la seconda non trova piu' nulla.
+			if (Change.State == ERTHexArcState::Destroyed)
+			{
+				const FRTCellId BrokenFrom = Change.From;
+				const FRTCellId BrokenTo = Change.To;
+				DynamicArcs.RemoveAll([&BrokenFrom, &BrokenTo](const FRTDynamicArc& Tracked)
+				{
+					return (Tracked.From == BrokenFrom && Tracked.To == BrokenTo)
+						|| (Tracked.From == BrokenTo && Tracked.To == BrokenFrom);
+				});
+			}
 		}
 	}
 
@@ -3358,7 +3398,9 @@ void ARTTurnManager::ResolveMovement()
 
 	// TurnLog dagli esiti: la chiave e' la cella di PARTENZA (Paths[i][0]), stabile perche' Cell cambia
 	// dopo PlaceOnCell. BuildMoveLog produce una voce per unita' nell'ordine dell'input.
-	TArray<FRTTurnLogEntry> MoveLog = URTHexSimLibrary::BuildMoveLog(Paths, Resolved);
+	// Causa dichiarata (#307): questo e' il movimento VOLONTARIO della fase Move. Scatto e spostamento
+	// forzato hanno altri produttori e dichiareranno la propria.
+	TArray<FRTTurnLogEntry> MoveLog = URTHexSimLibrary::BuildMoveLog(Paths, Resolved, TEXT("Action.Move"));
 	for (int32 i = 0; i < MoveLog.Num(); ++i)
 	{
 		// Il reason code della topologia sostituisce quello del resolver solo se l'unita' ha davvero percorso
@@ -3436,6 +3478,46 @@ void ARTTurnManager::ResolveMovement()
 		URTFacingLibrary::RecordFacingChange(Moved, Derived, ERTFacingOutcome::DerivedFromMove,
 			ERTMatchPhase::Move, TurnLog);
 		Units[i]->Facing = Moved.Facing;
+
+		// Il Move e' a BUDGET: le rotazioni legali saranno tre (l'ultimo passo e le due adiacenti). Sovrascrive
+		// l'eventuale traccia dello scatto perche' il Move risolve dopo ed e' l'ultimo movimento del round.
+		Units[i]->MovementStyleThisTurn = ERTMovementStyle::Budget;
+		Units[i]->WalkedThisTurn = Walked;
+	}
+
+	// Rotazione DICHIARATA in pianificazione (D-020, #291). Ultimo passo del round, DOPO l'orientamento
+	// derivato: e' quello il `Current` su cui si misura la legalita' — «una accanto» vuol dire accanto a dove
+	// si e' arrivati, non a dove si era partiti. Chi non si e' mosso ha stile `None` e ruota libero: e' il caso
+	// «resto fermo e mi giro», che prima di questo passaggio non era esprimibile.
+	//
+	// Una dichiarazione ILLEGALE viene rifiutata, non corretta verso la legale piu' vicina: in una fase
+	// simultanea il giocatore non potrebbe accorgersi della correzione, e si ritroverebbe a subire un
+	// orientamento che non ha scelto. Il rifiuto lascia una voce nel TurnLog proprio perche' NON cambia nulla:
+	// senza, sarebbe indistinguibile da una dichiarazione mai fatta.
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		ARTUnit* Unit = Units[i];
+		if (!IsValid(Unit)) { continue; }
+		if (!Unit->bDeclaresPlannedFacing || !Unit->IsAlive())
+		{
+			Unit->ClearDeclaredFacing();
+			continue;
+		}
+
+		ERTHexDirection Applied = Unit->Facing;
+		const bool bLegal = URTFacingLibrary::TryApplyDeclaredFacing(Unit->MovementStyleThisTurn,
+			Unit->WalkedThisTurn, Unit->Facing, Unit->PlannedFacing, Applied);
+
+		FRTHexSimUnit Declaring(i, Unit->Cell, /*InMoveBudget=*/ 0);
+		Declaring.Facing = Unit->Facing;
+		URTFacingLibrary::RecordFacingChange(Declaring, Applied,
+			bLegal ? ERTFacingOutcome::DeclaredInPlanning : ERTFacingOutcome::DeclarationRejected,
+			ERTMatchPhase::Move, TurnLog);
+		Unit->Facing = Declaring.Facing;
+
+		AddLogEvent(FString::Printf(TEXT("%s: rotazione dichiarata %s"), *Unit->GetName(),
+			bLegal ? TEXT("applicata") : TEXT("RIFIUTATA (illegale per lo stile di movimento)")));
+		Unit->ClearDeclaredFacing();
 	}
 
 	// NOTA (CP 8.1): il cross-damage delle celle attraversate esiste di nuovo, ma solo per i terreni che
