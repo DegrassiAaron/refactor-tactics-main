@@ -36,6 +36,16 @@ public:
 	 */
 	static TArray<FString> ValidateFormat(const URTMatchFormatData* Format);
 
+	/**
+	 * Errori dell'ACCOPPIATA formato/mappa (CP 19.1): una mappa disegnata per una classe diversa da quella che
+	 * il formato richiede. Sta a parte da `ValidateFormat` perche' e' una domanda diversa — l'asset formato puo'
+	 * essere perfettamente valido e restare sbagliato *per quella mappa* — e perche' i due sono validati in
+	 * momenti diversi: il formato quando si carica, l'accoppiata quando si allestisce.
+	 *
+	 * Array vuoto = accoppiata utilizzabile. `nullptr` produce un errore, non un crash.
+	 */
+	static TArray<FString> ValidateAgainstMap(const FRTMatchRules& Rules, const class URTHexMapAsset* Map);
+
 	/** Vero se le regole sono utilizzabili; in caso contrario `OutReason` elenca i motivi. */
 	static bool AreRulesUsable(const FRTMatchRules& Rules, FString& OutReason);
 
