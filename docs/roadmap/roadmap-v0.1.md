@@ -258,7 +258,7 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | SPECIFIED | 1/9 |
 | **E15** | `RT-FEAT-TEST-GOLDEN` — Golden replay e showcase «Il Relè» | IMPLEMENTING | 3/8 |
 |  | `RT-FEAT-TEST-SCENARIO-HARNESS` — Scenario Test Harness automatizzato | INTEGRATED | 6/8 |
-| **E16** | `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole | INTEGRATED | 6/9 |
+| **E16** | `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole — completata da `RT-FEAT-UI-PLANNING` | INTEGRATED | 6/9 |
 | **E17** | `RT-FEAT-STRESS-4V4` — Validazione di stress 4v4 | SPECIFIED | 1/7 |
 | **E18** | `RT-FEAT-ACTION-PREDICTIVE` — Predictive Action, thin slice | SPECIFIED | 1/8 |
 | **E19** | `RT-FEAT-MATCH-FORMAT` — Formato di partita e classe di mappa | TESTABLE | 4/8 |

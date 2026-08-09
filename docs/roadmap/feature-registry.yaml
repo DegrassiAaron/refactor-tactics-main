@@ -412,7 +412,12 @@ features:
       - docs/decisions/adr-0005-orientamento.md
       - docs/decisions/RT_PDR_00_Decision_Log.md
       - docs/technical/spec-turnlog.md
-    issues: [175, 176, 177]
+    issues: [175, 176, 177, 291]
+    # La rotazione DICHIARATA (girarsi restando fermi) e' regola implementata ma senza produttore: nessun
+    # input la scrive. Il gate `runtime` resta `done` perche' l'orientamento DERIVATO — quello che un'unita'
+    # ha in quasi tutti i turni — e' cablato ovunque; il pezzo mancante e' input, ed e' tracciato in #291.
+    completed_by:
+      - RT-FEAT-UI-PLANNING
     tests:
       - RefactorTactics.Facing.LinearMoveDerivesDirection
       - RefactorTactics.Facing.BudgetMoveAllowsLastStepPlusMinusOne
@@ -436,6 +441,7 @@ features:
       - Spec.Facing.TargetingReorients
       - Spec.Facing.BackAttackIgnoresGuard
       - Spec.Facing.FrontAttackKeepsGuard
+      - Spec.Facing.BraceHoldsFromBehind
     wiki_refs:
       - docs/wiki/meccaniche/facing-e-direzionalita.md
     wiki_note: >-

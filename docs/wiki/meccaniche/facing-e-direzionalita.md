@@ -8,6 +8,7 @@
 > Feature: `RT-FEAT-MAP-FACING` · Release: `v0.1` · Roadmap: `E16.1, E16.2`  
 > Stato: **INTEGRATED** · Gate: `6/9`  
 > Scenario: `Spec.Facing.DerivesFromMove`  
+> I pezzi che mancano li porta: `RT-FEAT-UI-PLANNING`  
 > Decisione accettata (ADR-0005) ma **non implementata**: quello che leggi qui descrive come funzionera', non come funziona oggi.  
 > Verificato il `2026-08-08` su `2094b86`
 

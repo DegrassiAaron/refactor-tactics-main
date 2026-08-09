@@ -528,7 +528,9 @@
         "RT-FEAT-MAP-HEXGRAPH",
         "RT-FEAT-MAP-COVER"
       ],
-      "completed_by": [],
+      "completed_by": [
+        "RT-FEAT-UI-PLANNING"
+      ],
       "owner_specs": [
         "docs/decisions/adr-0005-orientamento.md",
         "docs/decisions/RT_PDR_00_Decision_Log.md",
@@ -537,7 +539,8 @@
       "issues": [
         175,
         176,
-        177
+        177,
+        291
       ],
       "tests": [
         "RefactorTactics.Facing.LinearMoveDerivesDirection",
@@ -562,7 +565,8 @@
         "Spec.Facing.DashReorients",
         "Spec.Facing.TargetingReorients",
         "Spec.Facing.BackAttackIgnoresGuard",
-        "Spec.Facing.FrontAttackKeepsGuard"
+        "Spec.Facing.FrontAttackKeepsGuard",
+        "Spec.Facing.BraceHoldsFromBehind"
       ],
       "scenarios_planned": [],
       "wiki_refs": [

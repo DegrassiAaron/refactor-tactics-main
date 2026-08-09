@@ -170,30 +170,41 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCombatShieldWorksFromAnyDirectionTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTCombatShieldWorksFromAnyDirectionTest::RunTest(const FString&)
 {
-	// Lo scudo protegge la PERSONA, non un lato: assorbe uguale davanti e dietro. Se un giorno la difesa
-	// direzionale si estendesse agli scudi, questo test cadrebbe — ed e' il punto.
-	const int32 Damage = 30;
+	// Scudi, `Brace` e `Deflect` proteggono la PERSONA, non un lato. Il modo di verificarlo non e' chiamare
+	// due volte `ApplyDamage` con gli stessi argomenti — non ha un parametro di direzione, quindi confronterebbe
+	// una funzione con se' stessa e resterebbe verde qualunque cosa faccia il percorso di combattimento.
+	//
+	// Si passa invece da `CollectHexAttacks`, che e' dove la direzione conta davvero, e si verifica la regola
+	// nella forma in cui puo' essere smentita: **senza copertura, il facing non cambia il danno**. Se un giorno
+	// qualcuno estendesse la penalita' direzionale oltre copertura e `Guard`, questo test cadrebbe.
+	const FRTCellId Defender(2, 0, 0);
+	TArray<FRTHexAttackIntent> Intents;
+	Intents.Add(ArcIntent(0, 1, 30));
+
+	int32 FrontPower = -1;
+	int32 RearPower = -1;
+	for (int32 Pass = 0; Pass < 2; ++Pass)
+	{
+		const ERTHexDirection Facing = (Pass == 0) ? ERTHexDirection::W : ERTHexDirection::E;
+		TArray<FRTHexCombatUnit> Units;
+		Units.Add(ArcUnit(0, 0, FRTCellId(0, 0, 0), ERTHexDirection::E));
+		Units.Add(ArcUnit(1, 1, Defender, Facing));
+
+		URTHexMapAsset* Bare = MakeArcMap(3); // nessuna copertura: non c'e' protezione da togliere
+		const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Bare);
+		(Pass == 0 ? FrontPower : RearPower) = ArcPowerOn(Plan, 1);
+	}
+
+	TestEqual(TEXT("senza copertura il colpo frontale fa danno pieno"), FrontPower, 30);
+	TestEqual(TEXT("e quello alle spalle lo stesso: non c'e' bonus di fianco"), RearPower, FrontPower);
+
+	// Lo SCUDO assorbe dopo, in `ApplyDamage`, che non ha e non deve avere un parametro di direzione: il colpo
+	// che gli arriva e' identico nei due casi, quindi lo e' anche cio' che resta.
 	const int32 Shield = 12;
-
-	const FRTDamageResult Front = URTCombatLibrary::ApplyDamage(Damage, Shield, 90);
-	const FRTDamageResult Rear = URTCombatLibrary::ApplyDamage(Damage, Shield, 90);
-
-	TestEqual(TEXT("lo scudo assorbe uguale da ogni direzione"), Front.Health, Rear.Health);
-	TestEqual(TEXT("e lascia lo stesso residuo"), Front.Shield, Rear.Shield);
-	TestEqual(TEXT("il conto e' quello del catalogo"), Front.Health, 90 - (Damage - Shield));
-
-	// `Brace` (-10 su OGNI colpo) passa da `ApplyDamageDelta`, che non conosce direzioni: la regola
-	// direzionale tocca `HexCoverDamageReduction` e il delta di `Guard`, e nessuno dei due e' questo.
-	TArray<FRTAttack> Attacks;
-	FRTAttack Hit;
-	Hit.TargetIndex = 0;
-	Hit.Power = Damage;
-	Attacks.Add(Hit);
-
-	TArray<int32> BraceDelta;
-	BraceDelta.Init(-URTCombatLibrary::BraceDamageReduction, 1);
-	const TArray<FRTAttack> Braced = URTCombatResolver::ApplyDamageDelta(Attacks, BraceDelta);
-	TestEqual(TEXT("Brace riduce comunque"), Braced[0].Power, Damage - URTCombatLibrary::BraceDamageReduction);
+	const FRTDamageResult Front = URTCombatLibrary::ApplyDamage(FrontPower, Shield, 90);
+	const FRTDamageResult Rear = URTCombatLibrary::ApplyDamage(RearPower, Shield, 90);
+	TestEqual(TEXT("lo scudo lascia lo stesso residuo di HP"), Front.Health, Rear.Health);
+	TestEqual(TEXT("il conto e' quello del catalogo"), Front.Health, 90 - (30 - Shield));
 	return true;
 }
 

@@ -1658,7 +1658,11 @@ void ARTTurnManager::ResolveCombat()
 		//
 		// Conta la cella DICHIARATA nel piano, non il primo bersaglio che l'area colpira': l'orientamento e' una
 		// scelta del giocatore, e un'area che prende tre unita' non deve farlo dipendere dall'ordine di calcolo.
-		if (Target && Target->IsAlive() && Target != Unit)
+		// `Unit->IsAlive()` e non solo il bersaglio: questo ciclo non filtra gli attaccanti morti (chi cade nel
+		// Dash ci arriva col piano ancora addosso) e il loro colpo viene scartato piu' avanti, da
+		// `CollectHexAttacks`, che salta le unita' non vive. Senza il guard un cadavere si girerebbe verso il
+		// bersaglio e lascerebbe la sua voce nel TurnLog: deterministica, ma rumore che entra nell'hash del replay.
+		if (Unit->IsAlive() && Target && Target->IsAlive() && Target != Unit)
 		{
 			ERTHexDirection TowardsTarget = Unit->Facing;
 			if (URTHexLibrary::DirectionTowards(Unit->Cell, Target->Cell, TowardsTarget))
@@ -2686,6 +2690,23 @@ void ARTTurnManager::ResolveCombat()
 			}
 
 			T->Cell = NewCell;
+
+			// Chi subisce una spinta si gira verso CHI l'ha spinto (CP 16.1, ADR-0005 §3). Con la cella nuova,
+			// quindi la voce di log porta la posizione in cui l'unita' e' finita.
+			//
+			// Un Move volontario successivo VINCE: risolve dopo, nella sua fase, e riscrive. Non serve un flag
+			// che ricordi «e' stata spinta» — e' l'ORDINE delle fasi a deciderlo, ed e' il motivo per cui
+			// `URTFacingLibrary` non tiene stato.
+			{
+				FRTHexSimUnit Pushed(0, NewCell, /*InMoveBudget=*/ 0);
+				Pushed.Facing = T->Facing;
+				const ERTHexDirection Turned = URTFacingLibrary::FacingAfterDisplacement(
+					NewCell, KnockFrom[T], ERTDisplacementCause::Forced, Pushed.Facing);
+				URTFacingLibrary::RecordFacingChange(Pushed, Turned,
+					ERTFacingOutcome::TurnedToDisplacementSource, ERTMatchPhase::Blast, TurnLog);
+				T->Facing = Pushed.Facing;
+			}
+
 			T->SetVisualLocation(T->WorldForCell(NewCell, HexOrigin, HexSize, HexLayerH));
 			T->PlannedPath.Reset();      // path composita dalla vecchia cella non valida
 			T->PlannedWaypoints.Reset();
@@ -2738,6 +2759,19 @@ void ARTTurnManager::ResolveCombat()
 			}
 
 			T->Cell = NewCell;
+
+			// Come la spinta: chi viene trascinato guarda chi lo tira. La sorgente e' `PullToward`, che e' gia'
+			// la cella verso cui si viene attirati — con la trazione le due cose coincidono.
+			{
+				FRTHexSimUnit Pulled(0, NewCell, /*InMoveBudget=*/ 0);
+				Pulled.Facing = T->Facing;
+				const ERTHexDirection Turned = URTFacingLibrary::FacingAfterDisplacement(
+					NewCell, PullToward[T], ERTDisplacementCause::Forced, Pulled.Facing);
+				URTFacingLibrary::RecordFacingChange(Pulled, Turned,
+					ERTFacingOutcome::TurnedToDisplacementSource, ERTMatchPhase::Blast, TurnLog);
+				T->Facing = Pulled.Facing;
+			}
+
 			T->SetVisualLocation(T->WorldForCell(NewCell, HexOrigin, HexSize, HexLayerH));
 			T->PlannedPath.Reset();
 			T->PlannedWaypoints.Reset();
