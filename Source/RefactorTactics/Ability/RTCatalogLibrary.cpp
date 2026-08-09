@@ -576,6 +576,26 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.ModifyArc"), ERTResolutionPhase::Attack, /*Priority*/ 75,
 		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
 
+	// `CreateCover` — ERIGE una copertura bassa su un bordo (CP 9.5). Come `Ignite`, `CreateWater` e `ModifyArc`
+	// non dichiara `Effects`: il suo esito e' una modifica della MAPPA, che `FRTActionEffectSpec` non sa
+	// esprimere. Integrita' 30 e durata 2 turni vengono dal catalogo terreni (`Structure.KineticPanel`), e
+	// stanno nel resolver insieme alla nozione di turno.
+	//
+	// **Fase `Preparation`, non `Attack`** — e qui il catalogo azioni v0.1 (che diceva Blast) e' stato
+	// allineato al catalogo eroi, non viceversa (D-a, 2026-08-09). La ragione che porto' `ModifyArc` nel Blast
+	// a CP 9.4 — «porte, muri e ponti cambiano tutti nello stesso momento, e il Move che segue li vede» —
+	// riguarda la TOPOLOGIA: un arco o una porta cambiano il grafo, e un percorso gia' calcolato va troncato.
+	// Una copertura BASSA non tocca ne' il grafo ne' la vista (E9.1): riduce il danno. Non c'e' nessun percorso
+	// da invalidare, quindi l'uniformita' topologica non la riguarda — mentre la ragione opposta si': eretta
+	// nel Blast arriverebbe DOPO aver incassato i colpi di quel Blast, cioe' nel turno in cui la si paga non
+	// servirebbe a niente.
+	{
+		FRTActionDef CreateCover = ShippedAction(TEXT("Action.CreateCover"), ERTResolutionPhase::Preparation,
+			/*Priority*/ 75, /*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Cancel, {});
+		CreateCover.StructureOp = ERTStructureOp::CreateCover;
+		Catalog.Add(CreateCover);
+	}
+
 	// `Heal` — cura 20, portata 3, e **puo' bersagliare se stessi** (catalogo azioni §6). Priorita' 70: risolve
 	// DOPO gli attacchi (50-65), quindi cura le ferite di questo turno e non quelle del turno prima.
 	// A differenza delle ambientali risolve nel **Blast**: e' un'azione di supporto, non una modifica del campo.

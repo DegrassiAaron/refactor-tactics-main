@@ -8,6 +8,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexArcLibrary.h"
+#include "Map/RTHexCoverLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Pathfinding/RTHexPath.h"
 #include "Pathfinding/RTHexPathLibrary.h"
@@ -86,6 +87,37 @@ namespace
 		Caster->Abilities[3] = Action;
 		Caster->PlannedAbilityIndex = 3;
 		Caster->PlannedAttackTarget = Target;
+	}
+
+	/**
+	 * Pianifica un'azione che agisce su una STRUTTURA di bordo: bersaglio-CELLA (non unita') piu' il bordo, che
+	 * a portata 3 non e' derivabile dalla coppia di celle. E' la stessa forma che l'HUD dovra' produrre (E11).
+	 */
+	void PlanCoverAction(ARTUnit* Caster, const TCHAR* ActionId, const FRTCellId& TargetCell,
+		ERTHexDirection Edge)
+	{
+		URTActionData* Action = NewObject<URTActionData>(Caster);
+		Action->Def = URTCatalogLibrary::FindCoreAction(FName(ActionId));
+		Action->RangeCells = Action->Def.RangeCells;
+		Action->CooldownTurns = Action->Def.CooldownTurns;
+		Caster->Abilities[3] = Action;
+		Caster->PlannedAbilityIndex = 3;
+		Caster->PlannedAttackTarget = nullptr;
+		Caster->PlannedAttackCell = TargetCell;
+		Caster->bAttackTargetsCell = true;
+		Caster->PlannedCoverEdge = Edge;
+		Caster->bHasPlannedCoverEdge = true;
+	}
+
+	/** Quante voci di quell'esito ambientale ci sono nel TurnLog. */
+	int32 CountEnvOutcome(const ARTTurnManager* TM, ERTEnvironmentOutcome Outcome)
+	{
+		int32 N = 0;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Environment && E.Outcome == static_cast<uint8>(Outcome)) { ++N; }
+		}
+		return N;
 	}
 
 	void RunEnvTurn(ARTTurnManager* TM)
@@ -300,12 +332,26 @@ bool FRTEnvironmentActionsMatchCatalogTest::RunTest(const FString&)
 			URTCatalogLibrary::MapResolutionPhase(Arc.ResolutionPhase) == ERTMatchPhase::Blast);
 	}
 
-	// `Action.CreateCover` **non** e' qui, ed e' una decisione: le coperture non esistono nel modello dati
-	// (`FRTHexCellData` non ha bordi protetti) e costruirle e' l'epic E9. Un'azione che dichiarasse di creare
-	// una copertura senza che le coperture esistano sarebbe un'abilita' inerte — il difetto che questo
-	// checkpoint chiude altrove, non uno da aggiungere qui.
-	TestTrue(TEXT("CreateCover resta fuori finche' le coperture non esistono (E9)"),
-		URTCatalogLibrary::FindCoreAction(TEXT("Action.CreateCover")).ActionId.IsNone());
+	// `Action.CreateCover` **e' entrata** con CP 9.5 (2026-08-09). Fino a CP 9.4 restava fuori di proposito —
+	// un'azione che dichiara di creare una copertura mentre le coperture non esistono e' un'abilita' inerte —
+	// e ora il modello c'e' (formato v3, `FRTHexCover` per bordo) e qualcuno la consuma.
+	//
+	// **Fase `Prep`, non Blast**, contro la riga del catalogo azioni v0.1 che diceva Blast (D-a): eretta nel
+	// Blast arriverebbe dopo aver incassato i colpi di quel Blast. Non e' il caso di `ModifyArc` qui sopra,
+	// perche' quella cambia la TOPOLOGIA e il Move che segue deve vederla; una copertura bassa non tocca ne'
+	// grafo ne' vista.
+	{
+		const FRTActionDef Cover = URTCatalogLibrary::FindCoreAction(TEXT("Action.CreateCover"));
+		TestTrue(TEXT("CreateCover e' nel catalogo"), Cover.ActionId == FName(TEXT("Action.CreateCover")));
+		TestEqual(TEXT("CreateCover: portata 3"), Cover.RangeCells, 3);
+		TestEqual(TEXT("CreateCover: cooldown 2"), Cover.CooldownTurns, 2);
+		TestTrue(TEXT("CreateCover risolve in PREP, prima dei colpi che deve riparare"),
+			URTCatalogLibrary::MapResolutionPhase(Cover.ResolutionPhase) == ERTMatchPhase::Prep);
+		TestTrue(TEXT("e dichiara la sua operazione come DATO, non per ActionId"),
+			Cover.StructureOp == ERTStructureOp::CreateCover);
+		TestEqual(TEXT("nessun effetto su unita': il suo esito e' una modifica della mappa"),
+			Cover.Effects.Num(), 0);
+	}
 
 	const TArray<FString> Errors = URTCatalogLibrary::ValidateActions(URTCatalogLibrary::GetCoreActionCatalog());
 	for (const FString& Err : Errors) { AddError(Err); }
@@ -504,6 +550,137 @@ bool FRTBridgeDamagedInTurnTest::RunTest(const FString&)
 		}
 	}
 	TestEqual(TEXT("due voci, una per verso"), Logged, 2);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * CP 9.5 — il pannello nasce in PARTITA, ripara, e scade da solo.
+ *
+ * Il test gira un turno vero (`Intent -> Prep -> ... -> Cleanup`), non chiama `AddCover`: la libreria era gia'
+ * coperta dai test puri, ed e' esattamente la trappola in cui questo repository e' caduto a CP 9.4 — libreria
+ * verde, cablaggio scoperto. Quel che si verifica qui e' che il TurnManager la eriga davvero.
+ *
+ * **La durata parte dal turno in cui nasce**, al contrario del ponte temporaneo: `CreateCover` risolve in Prep,
+ * cioe' prima del Blast che la usa, quindi il turno dell'erezione e' gia' un turno in cui ha riparato qualcuno.
+ * Due turni di durata = protetta nel turno 1 e nel turno 2, scoperta dal 3.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKineticPanelTemporaryCoverTest,
+	"RefactorTactics.Structures.KineticPanel.TemporaryCover",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKineticPanelTemporaryCoverTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	const FRTCellId Home(0, 0);
+	const FRTCellId Shielded(1, 0); // la cella che riceve il pannello, adiacente a Home
+
+	ARTUnit* Builder = SpawnEnvUnit(World, 0, Home);
+	ARTUnit* Foe = SpawnEnvUnit(World, 1, FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Builder"), Builder) || !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	TestEqual(TEXT("all'inizio il bordo e' scoperto"),
+		URTHexCoverLibrary::CoverBetween(MapActor->MapAsset, Shielded, Home), ERTHexCoverType::None);
+
+	// Bordo W di (1,0): la faccia rivolta a chi lo erige.
+	PlanCoverAction(Builder, TEXT("Action.CreateCover"), Shielded, ERTHexDirection::W);
+	RunEnvTurn(TM); // turno 1: il pannello nasce, e ripara gia' questo turno
+
+	TestEqual(TEXT("la copertura c'e', ed e' bassa"),
+		URTHexCoverLibrary::CoverBetween(MapActor->MapAsset, Shielded, Home), ERTHexCoverType::Low);
+	TestEqual(TEXT("il TurnLog dice che e' stata eretta"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverCreated), 1);
+	if (const FRTHexCellData* Cell = MapActor->MapAsset->FindCell(Shielded))
+	{
+		const FRTHexCover* Entry = Cell->CoverEntryOn(ERTHexDirection::W);
+		TestNotNull(TEXT("la voce e' sul bordo dichiarato"), Entry);
+		if (Entry) { TestEqual(TEXT("integrita' 30, dal catalogo terreni"), Entry->Integrity, 30); }
+	}
+
+	// Turno 2: e' il SECONDO dei suoi due turni. Il pannello c'e' per tutta la fase in cui si combatte e cade
+	// nel Cleanup, a fine turno — che la scadenza cada qui e non nel turno 3 e' la prova che il turno di
+	// nascita e' stato contato, cioe' che il pannello non ha ricevuto un turno di grazia.
+	RunEnvTurn(TM);
+	TestEqual(TEXT("nel Cleanup del secondo turno scade"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverExpired), 1);
+	TestEqual(TEXT("e il bordo torna scoperto"),
+		URTHexCoverLibrary::CoverBetween(MapActor->MapAsset, Shielded, Home), ERTHexCoverType::None);
+
+	// Il TurnLog e' del TURNO (`TurnLog.Reset()` a ogni risoluzione): al terzo turno non resta traccia, e il
+	// campo non deve piu' cambiare da solo — una scadenza che si ripete sarebbe una voce fantasma nel replay.
+	RunEnvTurn(TM);
+	TestEqual(TEXT("non scade una seconda volta"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverExpired), 0);
+	TestEqual(TEXT("e il bordo resta scoperto"),
+		URTHexCoverLibrary::CoverBetween(MapActor->MapAsset, Shielded, Home), ERTHexCoverType::None);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * CP 9.5 — la portata dichiarata dal catalogo vale, e il bordo gia' riparato non ne accetta un secondo.
+ *
+ * La prima meta' e' il difetto che la issue #206 registra su `ModifyArc`: un'azione che dichiara `Range 3` e
+ * opera comunque non ha una portata. Qui si valida PRIMA di toccare la mappa, e il rifiuto e' una voce di
+ * TurnLog — il `Cancel` del catalogo reso visibile, perche' un'azione che sparisce in silenzio e'
+ * indistinguibile da un difetto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCreateCoverRejectsTest,
+	"RefactorTactics.Actions.CreateCover.RejectsOutOfRangeAndOccupied",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCreateCoverRejectsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	const FRTCellId Home(0, 0);
+	const FRTCellId TooFar(4, 0); // distanza 4 > portata 3
+
+	ARTUnit* Builder = SpawnEnvUnit(World, 0, Home);
+	ARTUnit* Foe = SpawnEnvUnit(World, 1, FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Builder"), Builder) || !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	PlanCoverAction(Builder, TEXT("Action.CreateCover"), TooFar, ERTHexDirection::W);
+	RunEnvTurn(TM);
+
+	TestEqual(TEXT("fuori portata: nessuna copertura"),
+		URTHexCoverLibrary::CoverBetween(MapActor->MapAsset, TooFar, FRTCellId(3, 0)), ERTHexCoverType::None);
+	TestEqual(TEXT("e il rifiuto e' registrato"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverRejected), 1);
+	TestEqual(TEXT("nessuna copertura eretta"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverCreated), 0);
+
+	// Ora dentro portata, ma su un bordo gia' riparato dal dato di mappa: stesso esito, ragione diversa.
+	const FRTCellId Near(1, 0);
+	URTHexCoverLibrary::AddCover(MapActor->MapAsset, Near, ERTHexDirection::W, ERTHexCoverType::Low, 30);
+
+	PlanCoverAction(Builder, TEXT("Action.CreateCover"), Near, ERTHexDirection::W);
+	RunEnvTurn(TM);
+
+	TestEqual(TEXT("il bordo resta quello di prima, non ne nasce un secondo"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverCreated), 0);
+	// Il TurnLog e' del turno, non della partita (`TurnLog.Reset()`): qui si conta il rifiuto di QUESTO turno.
+	TestEqual(TEXT("anche il bordo occupato produce un rifiuto leggibile"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverRejected), 1);
+	if (const FRTHexCellData* Cell = MapActor->MapAsset->FindCell(Near))
+	{
+		TestEqual(TEXT("una sola voce sul bordo"), Cell->Covers.Num(), 1);
+	}
 
 	DestroyEnvWorld(World);
 	return true;

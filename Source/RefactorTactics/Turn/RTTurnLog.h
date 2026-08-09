@@ -74,7 +74,12 @@ enum class ERTEnvironmentOutcome : uint8
 	/** Una copertura temporanea e' scaduta: da qui in poi quel bordo non ripara piu' nessuno. */
 	CoverExpired,
 	/** Una copertura e' stata SPOSTATA su un altro bordo (`Bastion.Reconfigure`): non ne nasce una seconda. */
-	CoverMoved
+	CoverMoved,
+	/**
+	 * La copertura non e' nata: bersaglio fuori portata, bordo non dichiarato o gia' riparato. E' il `Cancel`
+	 * che il catalogo dichiara, reso VISIBILE — un'azione che sparisce in silenzio e' indistinguibile da un bug.
+	 */
+	CoverRejected
 };
 
 /**

@@ -141,6 +141,26 @@ public:
 	FRTCellId PlannedAttackCell;
 
 	/**
+	 * Bordo bersagliato dalle azioni che agiscono su una STRUTTURA di bordo (CP 9.5: `Action.CreateCover`,
+	 * `Bastion.Reconfigure`). Valido solo con `bHasPlannedCoverEdge`.
+	 *
+	 * Serve un dato in piu' perche' una copertura sta su un BORDO, e una cella ne ha sei: con portata 3 la
+	 * coppia (chi la erige, cella bersaglio) non basta a determinarlo — a portata 1 sarebbe bastata, ma il
+	 * catalogo azioni dichiara 3. E' l'equivalente per i bordi di `PlannedAttackCell`, e come quello resta
+	 * scoperto sul lato HUD: puntare un bordo col mouse e' E11.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Plan")
+	ERTHexDirection PlannedCoverEdge = ERTHexDirection::E;
+
+	/**
+	 * Vero se il piano dichiara `PlannedCoverEdge`. Serve un flag e non basta un valore di riposo: le sei
+	 * direzioni sono tutte legittime, quindi nessuna puo' fare da «nessuna» senza diventare un caso speciale
+	 * che il giocatore non puo' dedurre.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Plan")
+	bool bHasPlannedCoverEdge = false;
+
+	/**
 	 * Vero se l'azione principale mira a `PlannedAttackCell` invece che a un'unita'.
 	 *
 	 * Serve un flag e non basta «target nullo»: nel resolver `TargetUnitId == INDEX_NONE` significa gia'
