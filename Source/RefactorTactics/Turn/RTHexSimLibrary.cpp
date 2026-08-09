@@ -656,7 +656,7 @@ TArray<FRTHexMoveResult> URTHexSimLibrary::ResolveHexPaths(const TArray<TArray<F
 }
 
 TArray<FRTTurnLogEntry> URTHexSimLibrary::BuildMoveLog(const TArray<TArray<FRTCellId>>& Paths,
-	const TArray<FRTHexMoveResult>& Results)
+	const TArray<FRTHexMoveResult>& Results, FName CauseActionId)
 {
 	TArray<FRTTurnLogEntry> Log;
 	const int32 N = FMath::Min(Paths.Num(), Results.Num());
@@ -676,6 +676,9 @@ TArray<FRTTurnLogEntry> URTHexSimLibrary::BuildMoveLog(const TArray<TArray<FRTCe
 		Entry.SrcCell = Start;
 		Entry.TgtCell = Results[i].Final;
 		Entry.Amount = Results[i].Entered.Num(); // celle effettivamente percorse
+		// PERCHE' si e' spostata (#307): il log diceva CHE e con quale esito, non per quale causa. Uno
+		// spostamento senza sorgente e' indistinguibile da un difetto del resolver.
+		Entry.ActionId = CauseActionId;
 		Log.Add(Entry);
 	}
 	return Log;
