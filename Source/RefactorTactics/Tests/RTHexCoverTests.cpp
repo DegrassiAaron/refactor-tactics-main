@@ -616,7 +616,10 @@ bool FRTCoverAddThenRemoveTest::RunTest(const FString&)
 {
 	TArray<FRTHexCombatUnit> Units;
 	Units.Add(CoverUnit(0, 0, FRTCellId(0, 0)));
-	Units.Add(CoverUnit(1, 1, FRTCellId(2, 0)));
+	// Il difensore GUARDA l'attaccante (a ovest): la copertura ripara solo l'arco frontale (CP 16.2), e senza
+	// dichiararlo questo test misurerebbe un colpo alle spalle invece della riduzione da riparo — che e'
+	// esattamente come si e' rotto quando E9.5 ed E16, sviluppate in parallelo, si sono incontrate su `main`.
+	Units.Add(CoverUnit(1, 1, FRTCellId(2, 0), ERTHexDirection::W));
 
 	TArray<FRTHexAttackIntent> Intents;
 	Intents.Add(CoverIntent(0, 1, ERTAbilityShape::Single, 5, 30));

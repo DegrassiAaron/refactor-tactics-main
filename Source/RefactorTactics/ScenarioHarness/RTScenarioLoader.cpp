@@ -189,7 +189,11 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 					{
 						static const TSet<FString> KnownIntentKeys = {
 							TEXT("unit"), TEXT("ability"), TEXT("target"), TEXT("targetCell"),
-							TEXT("dash"), TEXT("dashTo"), TEXT("reaction"), TEXT("move")
+							TEXT("dash"), TEXT("dashTo"), TEXT("reaction"), TEXT("move"),
+							// `edge` — bordo bersagliato dalle azioni su STRUTTURA (CP 9.5). Mancava, e la sua
+							// assenza e' costata due test rossi su `main`: il parser che lo LEGGE e questo elenco
+							// che lo RIFIUTAVA sono nati su rami diversi, e il merge testuale non poteva vederlo.
+							TEXT("edge")
 						};
 						// Si RACCOGLIE e si ORDINA prima di riportare: `IntentObj->Values` e' una TMap, e con due
 						// chiavi sbagliate nello stesso intent il messaggio nominerebbe l'una o l'altra a seconda
@@ -210,9 +214,15 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 						if (Unknown.Num() > 0)
 						{
 							Unknown.Sort();
+							// L'elenco delle chiavi attese si GENERA dal set, non si riscrive a mano: le due copie
+							// sono divergite alla prima aggiunta (`edge`), e un messaggio che elenca chiavi diverse
+							// da quelle accettate manda a cercare il difetto nel file invece che qui. Ordinato,
+							// perche' un `TSet` non ha ordine e il testo non deve cambiare fra due esecuzioni.
+							TArray<FString> Expected = KnownIntentKeys.Array();
+							Expected.Sort();
 							OutError = FString::Printf(
-								TEXT("intent di '%s': chiave sconosciuta '%s' (previste: unit, ability, target, targetCell, dash, dashTo, reaction, move)"),
-								*Intent.UnitId, *Unknown[0]);
+								TEXT("intent di '%s': chiave sconosciuta '%s' (previste: %s)"),
+								*Intent.UnitId, *Unknown[0], *FString::Join(Expected, TEXT(", ")));
 							return false;
 						}
 					}
