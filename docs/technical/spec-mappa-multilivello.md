@@ -115,6 +115,7 @@ editor**: il modulo runtime non dipende da UnrealEd.
 | A\*, archi percorribili, costi del cammino | [`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md) |
 | Regole di copertura e distruzione | [`../gameplay/spec-copertura-cp91.md`](../gameplay/spec-copertura-cp91.md) · [`../gameplay/spec-copertura-alta-cp92.md`](../gameplay/spec-copertura-alta-cp92.md) |
 | Superfici, stati, propagazione | [`../gameplay/spec-terreni-e8.md`](../gameplay/spec-terreni-e8.md) |
+| Chi può interagire con che cosa, e perché no | [`../gameplay/spec-interazioni-mappa-cp101.md`](../gameplay/spec-interazioni-mappa-cp101.md) |
 | LOS e forme di targeting | [`h6-4-hex-vision-spec.md`](h6-4-hex-vision-spec.md) (`AS-BUILT`, emendata da E9/E13) |
 | Percorsi e naming degli asset in `Content/` | [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) |
 | Stato di avanzamento | [`../roadmap/roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md) |

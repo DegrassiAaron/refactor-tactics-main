@@ -1,0 +1,272 @@
+# Consolidamento `todo/consolidazione-chat-openai/` — triage
+
+> `CURRENT` · **Stato**: audit chiuso, **nessuna modifica normativa applicata** · **HEAD**: `75eb0f3` (`origin/main`)
+> **Sorgente auditata**: i 14 file di `todo/consolidazione-chat-openai/` (untracked, non versionati)
+> **Scopo**: classificare ogni affermazione dei sei *master* e dei due *kit* contro le source of truth reali,
+> **prima** di toccare Decision Log, ADR, Feature Registry, roadmap, Wiki o scenari.
+> **Regola applicata**: un handoff AI è l'ultima fonte della gerarchia. Dove contraddice un ADR o una `D-0xx`
+> accettata, prevale il canone e la proposta si **registra**, non si applica.
+
+---
+
+## 1. Cosa contiene il pacchetto, e cosa è già stato assorbito
+
+Il pacchetto non è omogeneo: sono **due generazioni** di documenti sovrapposte.
+
+| File | Tipo | Stato rispetto al repository |
+|---|---|---|
+| `RT_Reaction_System_Master_Consolidation_v0.1.md` | master rivisto | ✅ **assorbito** — PR `#305`, `D-041`/`D-042`/`D-043`, CP 14.7 |
+| `RefactorTactics_ReactionSystem_ReactionClash_...md` | kit | ✅ assorbito nella stessa PR |
+| `RefactorTactics_Move_Consolidation_Claude.md` | kit | ✅ assorbito — PR `#304` |
+| `RefactorTactics_BasicAttack_Consolidation_...md` | kit | 🔄 **in volo** — `adr-0007-attacco-base-per-eroe.md`, non committato |
+| `RefactorTactics_Decision_Time_Bank_Claude_...md` | kit | 🔄 **in volo** — `spec-decision-time-bank.md` + conflict report, non committati |
+| `RT_Common_Actions_Master_Consolidation_v0.1.md` | master | ⬜ da consumare (resta tutto tranne Move e BasicAttack) |
+| `RT_Characters_Roster_Master_Consolidation_v0.1.md` | master | ⬜ da consumare |
+| `RT_Map_Environment_Master_Consolidation_v0.1.md` | master | ⬜ da consumare |
+| `RefactorTactics_Interactive_Map_Elements_...md` | kit | ⬜ da consumare (dettaglio del precedente) |
+| `RT_UI_UX_Master_Consolidation_v0.1.md` | master | ⬜ da consumare |
+| `RefactorTactics_HUD_Consolidation_Claude.md` | kit | ⬜ da consumare (dettaglio del precedente) |
+| `RT_Scenarios_QA_Bots_Master_Consolidation_v0.1.md` | master | ⬜ da consumare |
+| `RT_Governance_Master_Consolidation_v0.1.md` | master | ⬜ da consumare |
+| `RT_Chat_Cleanup_Tracker.md` (×2) · `RT_Final_Chat_Cleanup_Plan_v0.1.md` | meta | ⬜ riguardano il progetto ChatGPT, **non** il repository |
+
+**I due `RT_Chat_Cleanup_Tracker` differiscono**: il secondo (`(1)`) è più recente — aggiunge Map e UI ai
+cluster completati e cinque conflitti che il primo non ha. Il primo va ignorato.
+
+### La differenza che conta
+
+I **master** (`RT_*_Master_*`) sono stati scritti contro una fotografia del progetto ferma al **2026-08-08**.
+I **kit** (`RefactorTactics_*_Claude_*`) sono più vecchi ancora: HUD e Interactive Map precedono l'intero
+lavoro di governance. Fra il 2026-08-08 e oggi sono atterrate `D-039`…`D-047`, il `feature-registry.yaml`
+canonico e la decisione sull'identità degli scenari (`#209`).
+
+Conseguenza operativa: **il pacchetto non si applica, si filtra.** Diverse sue "decisioni" sono domande già
+chiuse, e almeno una applicherebbe a ritroso una tassonomia superata.
+
+---
+
+## 2. Sintesi della classificazione
+
+| Classificazione | Voci | Significato |
+|---|---|---|
+| `CURRENT` | 21 | il pacchetto riporta correttamente il canone |
+| `PROPOSED` | 14 | idea nuova, nessun conflitto: si registra o si costruisce |
+| `CONFLICT` | 7 | contraddice una decisione accettata |
+| `STALE` | 6 | usa una formulazione superata da una decisione più recente |
+| `DUPLICATE` | 5 | ridefinisce qualcosa che ha già un owner canonico |
+
+Tre osservazioni valgono più delle singole righe:
+
+1. **Sette dei nove "conflitti aperti" dichiarati dal tracker sono già chiusi nel repository.** Non erano
+   conflitti: erano voci che nessuno aveva riconciliato con il Decision Log. Vedi §4.
+2. **Il pacchetto propone cinque convenzioni di ID diverse**, nessuna delle quali è quella del progetto.
+   Applicarle creerebbe esattamente il registry parallelo che il Governance Master §39 vieta.
+3. **L'audit ha trovato un difetto reale del repository**, indipendente dal pacchetto: `D-039` è implementata
+   nel codice e **contraddetta da tre documenti**. Vedi §5.
+
+---
+
+## 3. Conflitti — le sette voci che contraddicono il canone
+
+| # | Tema | Cosa dice il pacchetto | Cosa dice HEAD | Fonte che prevale | Azione |
+|---|---|---|---|---|---|
+| 1 | **Tassonomia delle azioni generiche** | `ACTION-TAXONOMY-01`: «6 vs 8, baseline **8**», con `Guard` **e** `Activate` universali | **sette** voci: `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch`; `Activate` **assorbita** da `Interact` | [`D-025`](../../decisions/RT_PDR_00_Decision_Log.md) *(emenda `D-014`)* · [`DOC_CONFLICT_MATRIX` #27](../../DOC_CONFLICT_MATRIX.md) | **non applicare.** Il conflitto è già registrato e **chiuso**: il pacchetto lo riapre citando una `D-AUDIT-01` che non esiste nel Decision Log |
+| 2 | **Identità degli scenari** | Master Scenarios §5: una `PrimaryCategory` obbligatoria + `PurposeTags` secondari | **un asse solo**: `scenarioId` puntato + tag liberi, ID **staccato** dal percorso, indice che rifiuta gli ID ambigui | [`scenario-index-e-tag.md`](../../technical/scenario-index-e-tag.md), deciso 2026-08-08 (`#209`) | **non applicare.** La motivazione è scritta: separare tipologia e lente costringe a decidere per ogni parola in quale casella vive, e «la risposta onesta è spesso *entrambe*» |
+| 3 | **Vocabolario di status** | Governance §5 propone 13 status (`IMPLEMENTED`, `IMPLEMENTED_PARTIAL`, `DATA_SPEC`, `FUTURE`, `HISTORICAL`…) | 10 status, **derivati dai gate** con regola deterministica e verificati dal validator | [`feature-registry.yaml`](../feature-registry.yaml) intestazione | **non applicare**: romperebbe `feature_registry.py validate`. I **gate** invece coincidono alla lettera (9 su 9) — quella parte è `CURRENT` |
+| 4 | **`TEAM READY 2/3`** | Kit HUD §3.5 lo prescrive come componente persistente | «non simulare un falso stato `TEAM READY 1/2` finché non è realmente supportato» | [`progettazione-hud.md:341`](../../technical/progettazione-hud.md) · UI Master §15 `UI-READY-01` | **non applicare.** Il conflitto è **interno al pacchetto**: il master corregge il kit. Prevale il master, che coincide col repository |
+| 5 | **Fog of War** | Kit HUD §11/§30/§31 struttura tre milestone attorno alla «Fog of War» | **non è FoW**: conoscenza parziale a tre livelli, geometria statica **nota** | [`DOC_CONFLICT_MATRIX` #13](../../DOC_CONFLICT_MATRIX.md) · [`brief-conoscenza-parziale.md`](../../gameplay/brief-conoscenza-parziale.md) D1 | **rinominare in sede di recepimento.** Anche qui il Map Master §29 corregge il kit |
+| 6 | **Eleggibilità per nome d'eroe** | Kit HUD §15: `Eligible: Flux / Bastion` nel pannello interazione | le abilità hanno ownership singola, le sinergie sono **derivate**; nessuna dipendenza da `HeroId` | [`ADR-0006`](../../decisions/adr-0006-ownership-abilita-sinergie.md) · [`D-029`](../../decisions/RT_PDR_00_Decision_Log.md) | **non applicare.** Il modello corretto — capability, non nome — è nel Map Master §15-§18 e nel kit Interactive Map §3 |
+| 7 | **Schema della pagina personaggio** | Characters Master §20 propone 11 sezioni Wiki | il template ha 16 sezioni e un campo **obbligatorio** che il master non nomina: `Misplay / Failure State` | [`D-032`](../../decisions/RT_PDR_00_Decision_Log.md) · [`characters/_Template.md`](../../characters/_Template.md) | **non applicare** lo schema. Le 4 pagine v0.1 lo compilano già: sostituirlo perderebbe un criterio anti-clone |
+
+---
+
+## 4. I «conflitti aperti» del tracker — sette su nove erano già chiusi
+
+Il `RT_Chat_Cleanup_Tracker(1).md` elenca nove conflitti da non perdere. Confrontati con HEAD:
+
+| ID del tracker | Stato reale | Dove è chiuso |
+|---|---|---|
+| `ACTION-TAXONOMY-01` | ✅ **chiuso** — e il tracker propone la baseline **sbagliata** | [`D-025`](../../decisions/RT_PDR_00_Decision_Log.md) |
+| `ROSTER-01` | ✅ chiuso | [`D-037`](../../decisions/RT_PDR_00_Decision_Log.md) · [`DOC_CONFLICT_MATRIX` #12](../../DOC_CONFLICT_MATRIX.md) |
+| `BALANCE-WORKBOOK-01` | ✅ chiuso — il workbook **è** `RESEARCH` | [`D-023`](../../decisions/RT_PDR_00_Decision_Log.md) |
+| `HIGHGROUND-01` | ✅ chiuso — ed è una **feature con scenario**, non una lacuna | `RT-FEAT-MAP-HIGH-GROUND` (`INTEGRATED`) · `Visual.Map.HighGroundNoBonus` |
+| `TIMEBANK-01` | ✅ chiuso il 2026-08-09 | `spec-decision-time-bank.md` (CP 14.8) — *sessione parallela, non ancora committato* |
+| `UI-REACTION-01` | ✅ chiuso — la reaction **non** è una quinta fase | CP 11.5, test `Preview.ReactionIsNotAPhaseEntry` |
+| `UI-GHOST-PRIVACY-01` | ✅ chiuso | invariante **#6** · CP 11.2 |
+| `FACING-01` | 🟡 **realmente aperto**, e il tracker lo classifica bene | `FAC-1` in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md): le matrici `MoveEndPivotMaxSteps` per eroe restano proposal |
+| `NOISE-SCOPE-01` · `MAP-SCOPE-01` | 🟡 aperti come **scope**, non come contraddizione | `RT-FEAT-PERCEPTION-NOISE` è `SPECIFIED` (E13); ogni feature ambientale ha già uno status per riga |
+
+**Perché conta.** Un handoff che ripropone come aperte sette decisioni chiuse invita a ridecidere ciò che è
+stato deciso — è lo stesso difetto già registrato in `OPEN_DECISIONS.md` per il consolidamento facing, dove
+cinque domande su quindici erano già risposte. Il pacchetto va letto sapendolo.
+
+---
+
+## 5. Difetto del repository trovato durante l'audit — `D-039` non è propagata
+
+Indipendente dal pacchetto, ma scoperto perché il Map Master §11 ripete l'affermazione vecchia.
+
+[`D-039`](../../decisions/RT_PDR_00_Decision_Log.md) (2026-08-09) stabilisce che **`Flux.ConductiveNode` *è*
+`Action.Electrify`**, ed è **cablata nel codice**:
+
+```
+Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp:172
+// D-039: cablata su `Action.Electrify`.
+```
+
+Tre documenti dicono ancora l'opposto, in quattro punti:
+
+| File | Riga | Testo |
+|---|---|---|
+| [`feature-registry.yaml`](../feature-registry.yaml) | 1638 | `wiki_note`: «nessun eroe della v0.1 ha `Action.Electrify` come abilita' normale» |
+| [`wiki/meccaniche/acqua-e-elettricita.md`](../../wiki/meccaniche/acqua-e-elettricita.md) | 11 · 71 | stessa affermazione, propagata dal `wiki_note` e ripetuta in prosa |
+| [`characters/v0.1/flux.md`](../../characters/v0.1/flux.md) | 26 | stessa affermazione, nella pagina dell'eroe che **ora la possiede** |
+
+La riga 1638 è la **sorgente**: le altre sono propagazione. Il difetto è di classe nota — *dato che nessuno
+legge* rovesciato in *decisione che nessuno propaga* — e va corretto alla sorgente, non copia per copia.
+
+⚠️ **Non correggere in questa sessione senza coordinamento**: `feature-registry.yaml` è fra i file modificati
+dalla sessione parallela.
+
+---
+
+## 6. Cinque convenzioni di ID, nessuna delle quali è la nostra
+
+| Sorgente | ID proposti | Esiste nel repository? |
+|---|---|---|
+| Kit HUD §28 | **38** feature `HUD.Core`, `HUD.TimeBank`, … | ❌ nessuna. Il registry usa `RT-FEAT-UI-*` |
+| UI Master §30 | 15 `RT-FEAT-UI-*` | **6 sì, 9 no**; e ne **omette due che esistono** (`RT-FEAT-UI-ICON-LANGUAGE`, `RT-FEAT-UI-SCENARIO-BROWSER`) |
+| Scenarios Master §30 | 11 `RT-FEAT-BOT-*` | **2 sì** (`RT-FEAT-BOT-BASE`, `RT-FEAT-BOT-TACTICAL`), 9 no |
+| Kit Interactive Map §25 | 15 `MAP-INTERACTION-*` | ❌ nessuna. Esistono `RT-FEAT-MAP-*` (8 delle quali il Map Master cita **correttamente**) |
+| Scenari | `ACTION-001`, `MOVE-001`, `FACE-001`, `MAP-001`, `ENV-001`, `INTERACT-001`, `NOISE-001`, `HUD-001`, `SCN-HUD-001`, `MAP-INTERACT-001` | ❌ la convenzione è puntata: `Visual.Map.HighGroundNoBonus`, `Spec.Perception.HeardNotSeen` |
+
+Il registry canonico ha **83 feature**. Il pacchetto ne proporrebbe una settantina di nuove, quasi tutte
+ri-etichettature di capability già inventariate a granularità diversa.
+
+**Regola per il recepimento**: nessun `feature_id` nuovo senza aver prima cercato quello esistente; nessuno
+`ScenarioId` che non segua `scenario-index-e-tag.md`; nessun numero di issue inventato.
+
+Nota positiva, e non scontata: i **nove gate** del Governance Master §4 (`spec · data · runtime · log_debug ·
+automation · scenario · ui_wiki · packaged · network_privacy`) coincidono **alla lettera** con quelli del
+registry. Quella sezione si può citare, non riscrivere.
+
+---
+
+## 7. Cosa il pacchetto aggiunge davvero — le proposte che valgono
+
+Filtrato il rumore, resta materiale che il repository **non** ha:
+
+| # | Proposta | Dove vive oggi | Perché vale |
+|---|---|---|---|
+| 1 | **Modello capability/verb per gli elementi di mappa** — `Element → State · Capabilities · Verbs · Requirements · Effects` | nulla di equivalente; E10 CP 10.1 fa `Activate`/`Interact` su oggetto adiacente, senza grammatica | È la forma corretta della regola già decisa da `ADR-0006`: sostituisce il branch per eroe con un requisito dichiarato. Owner naturale: E9/E10 |
+| 2 | **State machine dichiarata per elemento** (`Generator: Off → Online → Overloaded → Destroyed`) | porte e ponti hanno spec proprie ([`spec-porte-cp93`](../../gameplay/spec-porte-cp93.md), [`spec-ponti-cp94`](../../gameplay/spec-ponti-cp94.md)), ma nessun modello comune | Generalizza due casi già costruiti invece di inventarne un terzo |
+| 3 | **Regola delle tre soluzioni** (un'affordance importante offre ≥3 approcci sensati) | assente | Guideline di level design con una motivazione verificabile: evita il personaggio obbligatorio. Da registrare come criterio, non come regola di runtime |
+| 4 | **Separazione griglia tattica / architettura fisica** con `AffectedTransitions[]` esplicite | [`spec-mappa-multilivello.md`](../../technical/spec-mappa-multilivello.md) copre il grafo, non il binding delle strutture | Impedisce che il resolver legga la geometria. ⚠️ ma vedi §8.1 sulla scala in metri |
+| 5 | ~~`Wet(unit) ≠ Conductive(cell)` come invariante nominata~~ | ✅ **ha già un nome**: è `D2` di [`spec-propagazione-elettrica-cp83.md`](../../gameplay/spec-propagazione-elettrica-cp83.md), «la conduzione è della CELLA, mai dello stato dell'unità», con il test `Environment.Propagation.StopsAtNonConductive` | **Scartata dopo verifica.** Il pacchetto propone `ENV-001` come sigla nuova: sarebbe un secondo identificatore per una regola che ne ha già uno — lo stesso difetto che `D-033` ha respinto per `GenericActionModifier` |
+| 6 | **Warning centralizzato con severità** `Info · Warning · Block` e sorgente dichiarata | CP 11.6 richiede che i warning vengano dai reason code, non ne classifica la severità | Completa un DoD già scritto |
+| 7 | **Outcome Explanation** — inspector dell'evento distinto dal Combat Log | CP 11.3 ha il log con reason code; non ha il «perché è fallita» | Estensione naturale, stesso dato |
+| 8 | **Acoustic mask e memoria sonora con decadimento** | `brief-conoscenza-parziale.md` copre `UltimoContatto`; il masking no | Coerente con `D-044`/`D-045`, che hanno appena fissato la scala 0–10 |
+| 9 | **Trigger geografici vs semantici** per le reaction (`EnemyEnterCell` vs `EnemyUsesSprint`) | `spec-tassonomia-movimento.md` ha i profili, non i trigger semantici | Materiale per E14, non per la v0.1 |
+
+---
+
+## 8. Le tre domande che richiedevano l'autore — chiuse il 2026-08-09
+
+Nessuna era decidibile dai documenti. Tutte e tre sono state decise dall'autore in sessione.
+
+### 8.1 · La scala della mappa si misura in metri?
+
+Il Map Master §2 introduce **`lato esagono ≈ 1,5 m`** come baseline di authoring.
+[`spec-durata-partita-e-scala-mappe.md`](../../gameplay/spec-durata-partita-e-scala-mappe.md) dichiara
+l'opposto in modo esplicito: «**Metrica primaria — non i metri, non il numero assoluto di celle**», e
+`D-030` ribadisce che il sorgente «non fissa un numero di celle».
+
+Non è una contraddizione piena — una scala di authoring per le mesh non è una metrica di design — ma è un
+**numero nuovo** in un documento che aveva deciso di non averne. O si dichiara come scala d'arte con quel
+nome, o non entra.
+
+> ✅ **Deciso il 2026-08-09 dall'autore: entra come *scala d'arte*, con quel nome.** Vive nella pipeline dei
+> contenuti, non nei documenti di design, e non diventa una metrica di progetto: la metrica primaria resta
+> **temporale**. Chi dimensiona una mesh ha un riferimento; chi dimensiona una mappa continua a contare i
+> Move. Owner: [`convenzioni-contenuti-ue.md`](../../technical/convenzioni-contenuti-ue.md).
+
+### 8.2 · `Activate` sopravvive come Stable ID: fino a quando?
+
+`D-025` ha chiuso la **semantica** (sette azioni, `Activate` assorbita), non la **migrazione**.
+Oggi convivono:
+
+- `Action.Activate` a catalogo, barrato ma vivo, «ancora consumato dal codice»;
+- CP 10.1 intitolato «`Activate` / `Interact`», con test `Objectives.ActivateAdjacentOnly`;
+- [`spec-motore-azioni-e4.md`](../../gameplay/spec-motore-azioni-e4.md) che parla ancora di «sei azioni fondamentali».
+
+Il pacchetto **spinge nella direzione sbagliata**: propone `Activate` come ottava azione universale. Prima di
+recepire il cluster Common Actions serve sapere se la migrazione degli Stable ID entra nella v0.1 o resta
+dichiarata. È la stessa domanda aperta di `DOC_CONFLICT_MATRIX` #27.
+
+> ✅ **Deciso il 2026-08-09 dall'autore: la migrazione resta *dichiarata*, i documenti si allineano.**
+> `Action.Activate` sopravvive come Stable ID consumato dal codice — cancellarlo è lavoro di codice, non di
+> documentazione, e non ha un checkpoint. Si correggono invece i testi che lo presentano come **azione
+> universale**, perché è lì che nasce il conflitto: un lettore che apre CP 10.1 o
+> [`spec-motore-azioni-e4.md`](../../gameplay/spec-motore-azioni-e4.md) legge una tassonomia superata da
+> `D-025`. La riga #27 di `DOC_CONFLICT_MATRIX` resta aperta **sulla sola migrazione**, che è ciò che
+> davvero manca.
+
+### 8.3 · Quale cluster si consolida per primo?
+
+I quattro rimasti hanno costi e rischi diversi:
+
+| Cluster | Costo | Rischio di collisione | Valore immediato |
+|---|---|---|---|
+| **Map & Environment** + Interactive Map | alto | basso | alto — sblocca la grammatica di E9/E10 |
+| **UI / UX** + HUD | alto | **medio** — tocca E11/E20, e il kit ha 3 dei 7 conflitti | medio |
+| **Characters & Roster** | medio | basso | basso — quasi tutto già canonico (`D-037`, `D-032`) |
+| **Scenarios / QA / Bots** | medio | **alto** — tocca `feature-registry.yaml` e `BP_GameMode.uasset`, entrambi modificati dalla sessione parallela | basso |
+| **Governance** | basso | basso | medio — ma va ridotto a ciò che il repository non ha già |
+
+> ✅ **Deciso il 2026-08-09 dall'autore: si parte da Map & Environment** (master + kit Interactive Map).
+> È il cluster che porta l'unica proposta strutturale del pacchetto — la grammatica capability/verb — e
+> l'unico che non tocca nessuno dei file in volo nella sessione parallela.
+
+---
+
+## 9. Vincoli operativi di questa sessione
+
+1. **Non assegnare `D-0xx` né numeri di ADR.** Una sessione parallela ha in volo `D-044`…`D-048` e
+   `ADR-0007`, non committati. Il progetto ha già avuto **cinque** collisioni di contatore: gli ID si
+   assegnano **al merge**, chi arriva secondo rinumera.
+2. **Non toccare** `feature-registry.yaml`, `feature-registry.json`, `RT_PDR_00_Decision_Log.md`,
+   `OPEN_DECISIONS.md`, `BP_GameMode.uasset`, `RTHeroCatalogLibrary.cpp` finché la sessione parallela non
+   ha mergiato: sono tutti nel suo diff.
+3. **Non cancellare** i file di `todo/`: contengono l'unica provenance di alcune proposte finché non sono
+   registrate. Il piano di cleanup delle chat riguarda il progetto ChatGPT, non il repository.
+4. Il lavoro procede su worktree; PR verso `main`.
+
+---
+
+## 10. Stato del lavoro
+
+### ✅ Fatto in questa sessione — cluster **Map & Environment**
+
+| File | Che cosa |
+|---|---|
+| [`gameplay/spec-interazioni-mappa-cp101.md`](../../gameplay/spec-interazioni-mappa-cp101.md) | **nuovo** — owner della grammatica delle interazioni: verbi dell'elemento, capability dell'unità, tre dimensioni dell'accesso, macchina a stati, reason code che non perdono, regola delle tre soluzioni. Nessun numero, nessun tipo nuovo, quattro domande registrate (`INT-1`…`INT-4`) |
+| [`roadmap/roadmap-v0.1.md`](../roadmap-v0.1.md) | CP 10.1 riscritta: titolo allineato a `D-025`, conseguenze topologiche dal Cleanup al **Blast**, link all'owner. Nota di tracciabilità sotto i rischi di E10 |
+| [`DOC_CONFLICT_MATRIX.md`](../../DOC_CONFLICT_MATRIX.md) | righe **53–56** + nota del sesto passaggio |
+| [`gameplay/spec-motore-azioni-e4.md`](../../gameplay/spec-motore-azioni-e4.md) | banner storico completato con `D-025`: diceva ancora «`Guard` non è più universale», superato |
+| [`technical/convenzioni-contenuti-ue.md`](../../technical/convenzioni-contenuti-ue.md) | §11-bis — la scala d'arte `≈ 1,5 m`, con il vincolo di §8.1: non è una metrica di design |
+| [`technical/spec-mappa-multilivello.md`](../../technical/spec-mappa-multilivello.md) | §7 rimanda al nuovo owner |
+
+**Non toccati di proposito**: `feature-registry.yaml`/`.json`, `RT_PDR_00_Decision_Log.md`,
+`OPEN_DECISIONS.md`, `BP_GameMode.uasset`, `RTHeroCatalogLibrary.cpp` — tutti nel diff della sessione
+parallela (§9.2).
+
+### ⬜ Resta da fare
+
+1. **Difetto `D-039`** di §5 — dopo il merge della sessione parallela, alla sorgente (`wiki_note` in
+   `feature-registry.yaml:1638`), con rigenerazione delle pagine derivate.
+2. **`INT-1`…`INT-4`** — le quattro domande dello spec vanno in `OPEN_DECISIONS.md` quando quel file torna
+   libero. `INT-3` è già lì sotto il nome `FAC-6`.
+3. **Cluster restanti**, uno per PR: UI/UX (+ HUD) · Characters & Roster · Scenarios/QA/Bots · Governance.
+   L'ordine di §8.3 resta valido.
+4. **`RT-FEAT-MAP-INTERACTIVE-EDGES`** e le feature di E10 andranno collegate al nuovo owner spec quando il
+   registry è di nuovo scrivibile.

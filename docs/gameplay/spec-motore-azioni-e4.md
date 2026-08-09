@@ -14,6 +14,7 @@
 > |---|---|
 > | [**D-014**](../decisions/RT_PDR_00_Decision_Log.md) | Generiche canoniche: `Wait · BasicAttack · Interact · Brace · Move · Overwatch`. `Activate` **assorbita da `Interact`**; `Guard` **non è più universale** (resta stance specifica) |
 > | [**D-015**](../decisions/RT_PDR_00_Decision_Log.md) | `Sneak · Normal · Sprint` sono **profili di `Move`**; `Sprint` **non è un Dash** |
+> | [**D-025**](../decisions/RT_PDR_00_Decision_Log.md) *(emenda D-014)* | **`Guard` torna universale**: l'elenco canonico è di **sette** voci — `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch`. `Activate` resta assorbita. Questa riga sostituisce metà della precedente: chi legge il banner deve trovare **sette**, non sei |
 >
 > Gli Stable ID `Action.Guard`, `Action.Activate` e `Action.Sprint` **restano nel codice** e sono consumati:
 > la nuova tassonomia è semantica di gameplay, **non un rename già fatto**. La migrazione è tracciata come
