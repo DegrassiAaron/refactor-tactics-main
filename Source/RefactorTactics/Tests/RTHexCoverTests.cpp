@@ -651,4 +651,46 @@ bool FRTCoverAddThenRemoveTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Una copertura eretta IN PARTITA non e' piu' forte di una disegnata: anche lei si aggira alle spalle.
+ *
+ * Questo test non c'era, e la sua assenza ha avuto un costo. E9.5 (coperture temporanee) ed E16 (facing) sono
+ * state sviluppate in parallelo e mergiate separatamente: entrambe verdi sulla propria base, il merge testuale
+ * pulito, e sull'unione due test rossi — perche' nessun test copriva il punto in cui le due regole si toccano.
+ * Il difetto e' stato scoperto ricompilando `main`, non da un test.
+ *
+ * Quel che si fissa qui e' che le due direzionalita' restano **ortogonali** (CP 9.1): la copertura e' del
+ * BORDO, l'arco frontale e' dell'UNITA', e la seconda annulla la prima senza che l'origine della copertura —
+ * dato di mappa o `Action.CreateCover` — cambi nulla.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverRuntimeCoverRearHitTest,
+	"RefactorTactics.Cover.AddCover.RearHitBypassesRuntimeCover",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCoverRuntimeCoverRearHitTest::RunTest(const FString&)
+{
+	TArray<FRTHexAttackIntent> Intents;
+	Intents.Add(CoverIntent(0, 1, ERTAbilityShape::Single, 5, 30));
+
+	// Stessa copertura, eretta a runtime sul bordo attraversato dal colpo: cambia SOLO dove guarda il difensore.
+	auto DamageWithFacing = [&Intents](ERTHexDirection Facing)
+	{
+		TArray<FRTHexCombatUnit> Units;
+		Units.Add(CoverUnit(0, 0, FRTCellId(0, 0)));
+		Units.Add(CoverUnit(1, 1, FRTCellId(2, 0), Facing));
+
+		URTHexMapAsset* Map = MakeCoverMap(3);
+		URTHexCoverLibrary::AddCover(Map, FRTCellId(2, 0), ERTHexDirection::W, ERTHexCoverType::Low, 30);
+		return CoverPowerOn(URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map), 1);
+	};
+
+	// L'attaccante e' a ovest: guardandolo, il riparo vale.
+	TestEqual(TEXT("difensore rivolto all'attaccante: la copertura vale"),
+		DamageWithFacing(ERTHexDirection::W), 30 - URTCombatLibrary::LowCoverDamageReduction);
+
+	// Di spalle, la stessa copertura non ripara — come una qualunque disegnata sulla mappa (CP 16.2).
+	TestEqual(TEXT("colpo alle spalle: la copertura eretta in partita non protegge"),
+		DamageWithFacing(ERTHexDirection::E), 30);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

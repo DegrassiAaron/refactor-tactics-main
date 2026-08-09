@@ -987,4 +987,79 @@ bool FRTPortableCoverGadgetTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Una copertura ABBATTUTA non deve portarsi dietro un fantasma che uccide la prossima.
+ *
+ * `ARTTurnManager` tiene in `DynamicCovers` le coperture erette in partita, per farle scadere. Quando una
+ * viene abbattuta in combattimento, pero', a toglierla dalla mappa e' `ApplyStructureDamage` — che di quella
+ * lista non sa nulla. L'entry sopravvive alla propria copertura, e siccome identifica il riparo con la sola
+ * coppia (cella, bordo), alla scadenza del suo timer rimuove **quello che trova su quel bordo**: se nel
+ * frattempo qualcuno ha riparato lo stesso varco, gli distrugge il pannello con un turno di anticipo e scrive
+ * nel TurnLog una scadenza che non e' avvenuta.
+ *
+ * Non e' un caso limite: due Bastion, o un Bastion e un alleato con `Gadget.PortableCover`, che rinforzano lo
+ * stesso passaggio sono gioco normale — i cooldown sono per unita', quindi il secondo non aspetta il primo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverGhostTrackingTest,
+	"RefactorTactics.Structures.KineticPanel.DestroyedCoverLeavesNoGhost",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCoverGhostTrackingTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	const FRTCellId Shielded(0, 0);        // la cella riparata
+	const FRTCellId Attacker(1, 0);        // oltre il bordo E: il colpo lo attraversa
+	const FRTCellId Builder(0, 1);
+	const FRTCellId SecondBuilder(-1, 0);
+
+	ARTUnit* First = SpawnEnvUnit(World, 0, Builder);
+	ARTUnit* Second = SpawnEnvUnit(World, 0, SecondBuilder);
+	ARTUnit* Breacher = SpawnEnvUnit(World, 1, Attacker);
+	ARTUnit* Defender = SpawnEnvUnit(World, 0, Shielded);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("First"), First) || !TestNotNull(TEXT("Second"), Second)
+		|| !TestNotNull(TEXT("Breacher"), Breacher) || !TestNotNull(TEXT("Defender"), Defender)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	// Turno 1: il primo erige (integrita' 30, durata 2) e il colpo la abbatte nello stesso Blast.
+	// La capacita' di sfondare si dichiara sull'istanza, come fa il test gemello dei ponti.
+	PlanCoverAction(First, TEXT("Action.CreateCover"), Shielded, ERTHexDirection::E);
+	Breacher->Abilities[0]->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 30));
+	Breacher->PlannedAbilityIndex = 0;
+	Breacher->PlannedAttackTarget = Defender;
+	RunEnvTurn(TM);
+
+	TestEqual(TEXT("il pannello e' stato abbattuto nel turno in cui e' nato"),
+		CoverIntegrityOn(MapActor->MapAsset, Shielded, ERTHexDirection::E), 0);
+
+	// Turno 2: un'ALTRA unita' ripara lo stesso varco. Il suo pannello deve durare i propri due turni.
+	PlanCoverAction(Second, TEXT("Action.CreateCover"), Shielded, ERTHexDirection::E);
+	RunEnvTurn(TM);
+
+	// E' QUESTO il turno che il difetto sbagliava: il timer del primo pannello — abbattuto un turno fa —
+	// scadeva proprio adesso e portava via il pannello appena eretto da un'altra unita'.
+	TestEqual(TEXT("il nuovo pannello e' in piedi: nessun fantasma lo ha portato via"),
+		CoverIntegrityOn(MapActor->MapAsset, Shielded, ERTHexDirection::E), 30);
+	TestEqual(TEXT("e nel TurnLog non c'e' una scadenza mai avvenuta"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverExpired), 0);
+
+	// Poi scade quando deve: eretto al turno 2 con durata 2, cade nel Cleanup del turno 3. La sua scadenza
+	// e' un evento legittimo — e verificarla qui distingue «non e' stato ucciso in anticipo» da «non muore
+	// mai», che sarebbe il difetto opposto.
+	RunEnvTurn(TM);
+	TestEqual(TEXT("alla propria scadenza, invece, se ne va"),
+		CoverIntegrityOn(MapActor->MapAsset, Shielded, ERTHexDirection::E), 0);
+	TestEqual(TEXT("e questa scadenza e' registrata"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverExpired), 1);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

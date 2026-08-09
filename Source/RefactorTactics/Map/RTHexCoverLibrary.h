@@ -120,9 +120,14 @@ public:
 	 *
 	 * Rifiuta — senza toccare ne' hash ne' revisione — la mappa nulla, la cella che non esiste, un tipo `None`,
 	 * un'integrita' non positiva e un bordo GIA' occupato. «Non sovrapponibile» e' del catalogo
-	 * (`Action.CreateCover`) ed e' gia' un'invariante di `ValidateMap`: qui si fa valere anche in partita, e si
-	 * guarda ENTRAMBE le facce del bordo — una copertura dichiarata dal vicino e' la stessa barriera, e
-	 * aggiungerne una seconda produrrebbe un muro che regge il doppio.
+	 * (`Action.CreateCover`), e qui il controllo guarda ENTRAMBE le facce del bordo: una copertura dichiarata
+	 * dal vicino e' la stessa barriera, e aggiungerne una seconda produrrebbe un muro che regge il doppio.
+	 *
+	 * **Piu' severo di `ValidateMap`, e va detto**: la validazione dell'asset rifiuta due coperture sullo
+	 * stesso bordo della STESSA cella (CP 9.1), ma non ha mai guardato la faccia opposta del vicino — quindi
+	 * una mappa disegnata a mano puo' ancora contenere il doppione che qui si rifiuta di creare. E'
+	 * un'asimmetria fra dato d'autore e dato di partita, non un'invariante gia' esistente che questa funzione
+	 * si limita a far valere.
 	 *
 	 * Passa da `AddOrUpdateCell`, che incrementa la revisione: e' il canale con cui cache di lookup e percorsi
 	 * si accorgono del cambiamento. La DURATA non e' qui: una libreria di mappa non conosce i turni — la tiene

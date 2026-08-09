@@ -1314,7 +1314,7 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		return static_cast<uint8>(A.Edge) < static_cast<uint8>(B.Edge);
 	});
 
-	int32 Erected = 0;
+	int32 Applied = 0;
 	for (const FRTPendingCoverOp& Op : Pending)
 	{
 		const TArray<FRTCellId> Ring = URTHexLibrary::Neighbors(Op.Cell);
@@ -1355,7 +1355,7 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		TurnLog.Add(Entry);
 		AddLogEvent(FString::Printf(TEXT("(q=%d,r=%d,L%d): copertura eretta (%d turni)"),
 			Op.Cell.X, Op.Cell.Y, Op.Cell.Layer, Op.Turns));
-		++Erected;
+		++Applied;
 	}
 
 	// Gli SPOSTAMENTI dopo le creazioni: agiscono su un campo gia' aggiornato, e l'ordine fra i due gruppi e'
@@ -1463,10 +1463,15 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		TurnLog.Add(Entry2);
 		AddLogEvent(FString::Printf(TEXT("(q=%d,r=%d,L%d): copertura spostata%s"),
 			Move.Cell.X, Move.Cell.Y, Move.Cell.Layer, bWasFree ? TEXT(" (rotazione gratuita)") : TEXT("")));
+		// Anche uno SPOSTAMENTO e' successo qualcosa. Contando solo le erezioni, un turno in cui l'unico
+		// evento e' una `Reconfigure` non accendeva il beat di Prep nel playback: il TurnLog lo registrava e
+		// lo spettatore non vedeva niente. E' la presentazione a tacere, non la regola — ma tacere resta il
+		// difetto che questo checkpoint dice di non voler commettere.
+		++Applied;
 	}
 
 	TurnLog.Append(Rejections);
-	return Erected;
+	return Applied;
 }
 
 void ARTTurnManager::ResolvePrep()
@@ -2490,6 +2495,25 @@ void ARTTurnManager::ResolveCombat()
 		AddLogEvent(FString::Printf(TEXT("Copertura (q=%d,r=%d,L%d) verso (q=%d,r=%d): %s (integrita' %d)"),
 			Change.Cell.X, Change.Cell.Y, Change.Cell.Layer, Change.Toward.X, Change.Toward.Y,
 			Change.bDestroyed ? TEXT("abbattuta") : TEXT("danneggiata"), Change.RemainingIntegrity));
+
+		// Una copertura abbattuta smette di essere anche una copertura TEMPORANEA (CP 9.5). Senza questa
+		// riga l'entry sopravvive al proprio riparo, e siccome identifica la barriera con la sola coppia
+		// (cella, bordo), alla scadenza del suo timer porterebbe via **quello che trova su quel bordo**: se
+		// nel frattempo qualcuno ha riparato lo stesso varco, gli distrugge il pannello in anticipo e scrive
+		// nel TurnLog una scadenza mai avvenuta. Due Bastion sullo stesso choke point bastano — i cooldown
+		// sono per unita', quindi il secondo non aspetta il primo.
+		if (Change.bDestroyed)
+		{
+			ERTHexDirection DestroyedEdge = ERTHexDirection::E;
+			if (URTHexCoverLibrary::EdgeDirection(Change.Cell, Change.Toward, DestroyedEdge))
+			{
+				const FRTCellId DestroyedCell = Change.Cell;
+				DynamicCovers.RemoveAll([&DestroyedCell, DestroyedEdge](const FRTDynamicCover& Tracked)
+				{
+					return Tracked.Cell == DestroyedCell && Tracked.Edge == DestroyedEdge;
+				});
+			}
+		}
 	}
 
 	// ARCHI (CP 9.4). Due pezzi, entrambi a fase conclusa:
