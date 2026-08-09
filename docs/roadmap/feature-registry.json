@@ -621,7 +621,8 @@
       ],
       "issues": [
         69,
-        70
+        70,
+        200
       ],
       "tests": [
         "RefactorTactics.Cover.*",
@@ -636,10 +637,10 @@
       ],
       "wiki_note": "",
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-09",
+        "commit": 3353266
       },
-      "notes": "Bassa (−10 al danno diretto dal lato riparato) e alta (nega vista, passo e proiettili nei due versi, si abbatte riaprendo LOS e grafo). Integrità e distruzione coperte."
+      "notes": "Bassa (−10 al danno diretto dal lato riparato) e alta (nega vista, passo e proiettili nei due versi, si abbatte riaprendo LOS e grafo). Integrità e distruzione coperte. Dal 2026-08-09 (D-017, #200) una redirezione di `Intercept` rivalida la copertura sul bersaglio effettivo: il colpo non conserva più il riparo di chi era il bersaglio quando i colpi sono stati raccolti."
     },
     {
       "feature_id": "RT-FEAT-MAP-DYNAMIC-COVER",
