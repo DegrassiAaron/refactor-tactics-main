@@ -401,7 +401,7 @@ Stato canonico verificato (`main` @ `ea26c0f` · `RTHeroCatalogLibrary.cpp` · `
 | Bastion | `Bastion.ImpactShot` | 3 | 24 | solo danno |
 
 Famiglia assegnata e **delta effettivamente richiesto** — decisioni chiuse il 2026-08-09 e registrate in
-[ADR-0007](docs/decisions/adr-0007-attacco-base-per-eroe.md), che chiude per `BasicAttack` i «profili
+[ADR-0007](../../../decisions/adr-0007-attacco-base-per-eroe.md), che chiude per `BasicAttack` i «profili
 concreti dei 4 eroi» lasciati aperti da **D-033**:
 
 | Personaggio | Famiglia | Conforme oggi? | Decisione |
@@ -473,7 +473,7 @@ Le tre strade sono alternative, non cumulabili:
 | **B — payoff condizionale** | un bonus quando il bersaglio è in una geometria dichiarata (linea controllata, esposto dopo setup) | serve un consumer runtime della condizione | è una feature con dipendenze, non un numero |
 | **C — delta numerico** | portare `PulseShot` sopra gli altri attacchi base | modifica di balance sul roster | tocca test e scenari che asseriscono 21 |
 
-> ✅ **DECISO — opzione A** (2026-08-09, [ADR-0007](docs/decisions/adr-0007-attacco-base-per-eroe.md)).
+> ✅ **DECISO — opzione A** (2026-08-09, [ADR-0007](../../../decisions/adr-0007-attacco-base-per-eroe.md)).
 > `PulseShot` resta 21 / r4: «Primary» è un **profilo d'uso**, non una promessa di potenza. B non è respinta,
 > è rinviata: richiede un consumer runtime della condizione, quindi un checkpoint proprio.
 
@@ -549,7 +549,7 @@ Aggiungerlo come dato riprodurrebbe esattamente il difetto che `ConductiveNode` 
 | **A — Flux resta damage-only in v0.1** | la famiglia Engine slitta; il registry dichiara `Engine (payload pending)`; nessuno scenario nuovo |
 | **B — il Charge entra come checkpoint proprio** | dipendenza esplicita da `RT-FEAT-ENV-ELECTRIC`: prima lo stato e il suo consumer, poi il payload dell'attacco base |
 
-> ✅ **DECISO — opzione A** (2026-08-09, [ADR-0007](docs/decisions/adr-0007-attacco-base-per-eroe.md)).
+> ✅ **DECISO — opzione A** (2026-08-09, [ADR-0007](../../../decisions/adr-0007-attacco-base-per-eroe.md)).
 > `ArcPulse` resta 22 / r4 damage-only. La famiglia Engine **slitta**: il Charge è una feature ambientale con
 > un costo che va deciso a parte, non un campo dell'attacco base.
 
@@ -711,7 +711,7 @@ zero e nessun cooldown, oggi **lo è per costruzione**.
 
 ### ✅ DECISO — opzione A, cambiano i numeri
 
-Decisione del 2026-08-09, registrata in [ADR-0007](docs/decisions/adr-0007-attacco-base-per-eroe.md).
+Decisione del 2026-08-09, registrata in [ADR-0007](../../../decisions/adr-0007-attacco-base-per-eroe.md).
 
 ```text
 Bastion.ImpactShot
@@ -1884,7 +1884,7 @@ Se queste frasi non esistono, non inventare un conflitto.
 # 33. DECISION LOG / ADR
 
 ✅ **FATTO** — registrata come **[ADR-0007 — Attacco base: categoria universale, payload
-dell'eroe](docs/decisions/adr-0007-attacco-base-per-eroe.md)** (2026-08-09), indicizzata in
+dell'eroe](../../../decisions/adr-0007-attacco-base-per-eroe.md)** (2026-08-09), indicizzata in
 `docs/README.md`.
 
 L'ADR **non** apre un framing nuovo: chiude per `BasicAttack` i «profili concreti dei 4 eroi» che **D-033**
