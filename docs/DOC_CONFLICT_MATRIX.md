@@ -95,6 +95,8 @@
 
 | 59 | **Etichette di stato dei documenti** | `RT_Governance_Master` §2 propone otto stati — `CURRENT · AS_BUILT_REFERENCE · PROPOSAL · OPEN_DESIGN · HISTORICAL · RESEARCH · SUPERSEDED · ARCHIVE` — più owner, `last reviewed` e `superseded-by` | **sette** tag già in uso e motivati: `CANONICAL · CURRENT · AS-BUILT · DELIVERED PLAN · HISTORICAL · RESEARCH · OPEN` | [`README.md`](README.md) §«Come si classifica un documento» | `DUPLICATE` → **evitato** | ✅ 2026-08-09. Il repository ha due tag che il master non ha (`CANONICAL`, che dice **chi prevale**, e `DELIVERED PLAN`) e una regola che il master non formula: **un `AS-BUILT` superato non è un difetto da correggere** — riscriverlo falsificherebbe la storia, la correzione va nel `CURRENT` che possiede la regola. `SUPERSEDED` e `ARCHIVE` non servono come *tag di documento*: il primo è uno stato di **riga** di questa matrice, il secondo è una **cartella** |
 
+| 63 | **Granularità delle feature Bot e Test** | `RT_Scenarios_QA_Bots_Master` §30 dichiara **14** feature con stato — 11 `RT-FEAT-BOT-*` (`…LEGAL-CANDIDATES`, `…SCORING`, `…BELIEF`, `…COUNTERFACTUAL`, `…DIFFICULTY`, …) più `RT-FEAT-UI-SCENARIO-CATEGORIES` | il registry ne ha **due** per il bot — `RT-FEAT-BOT-BASE` (`RELEASE_READY`) e `RT-FEAT-BOT-TACTICAL` (`IDEA`) — e la granularità fine vive dove serve davvero: **E26** e **E28** di [`roadmap/roadmap-post-v0.1.md`](roadmap/roadmap-post-v0.1.md) | [`roadmap/feature-registry.yaml`](roadmap/feature-registry.yaml) | `DUPLICATE` → **evitato** | ✅ 2026-08-09, stessa forma della riga 57. Uno strato di ragionamento non è una feature: `BELIEF` e `COUNTERFACTUAL` sono **passi di E28**, e promuoverli a inventario darebbe undici righe da mantenere per un sistema che oggi ha due file. Lo status proposto usa poi il vocabolario respinto dalla riga 55 |
+
 **Quarto passaggio, 2026-08-08 — Signature, profili e trasformazioni**: **+3 righe risolte** (45, 46, 47).
 La 45 è la prima chiusa **in prevenzione**: il duplicato non è mai entrato nella documentazione, perché
 l'audit per sinonimi è stato fatto prima di scrivere. Resta **1 `OPEN`** (riga 34, APNAP) e **0 `CONFLICT`**.
@@ -165,6 +167,21 @@ davvero, ed erano **6 su 54**. Ora è un errore del validator, con verifica di m
 > citazioni allineate e il prossimo ID libero dichiarato a `D-048`. Il racconto sta nelle note del
 > [Decision Log](decisions/RT_PDR_00_Decision_Log.md) e in
 > [`roadmap/plans/consolidamento-chat-openai-triage-2026-08-09.md`](roadmap/plans/consolidamento-chat-openai-triage-2026-08-09.md).
+
+**Nono passaggio, 2026-08-09 — cluster Scenarios/QA/Bots, l'ultimo del pacchetto**: riga **63**, `DUPLICATE`
+evitato. L'unico `OPEN` resta la riga 34 e i `CONFLICT` restano **zero**.
+
+> Terza volta su tre che il cluster risulta già assorbito, e questa in modo più netto delle altre: il
+> sorgente del bot — [`archive/src/handoff/2026-08-08-bot-ai-roadmap-e-test-pie.md`](archive/src/handoff/2026-08-08-bot-ai-roadmap-e-test-pie.md) —
+> era stato **recepito il 2026-08-08** con i cinque `PIE-AI-*`, la pagina Wiki
+> [`avversario-bot.md`](wiki/game/avversario-bot.md) e le epic **E26**/**E28**. Gli execution mode
+> Visual/Fast/Headless erano già in [`technical/test-automatico-unreal.md`](technical/test-automatico-unreal.md)
+> con l'equivalenza fra i tre **come test**; il divieto di scorciatoie nei test in tre punti; il vecchio
+> `spec-bot-utility.md` già in `archive/`.
+>
+> Una sola riga del master non aveva un documento corrente che la possedesse, ed è la più facile da
+> violare: **una difficoltà più alta dà più ragionamento, mai più informazione.** Ora vive in E26, cioè nel
+> punto in cui il primo livello di difficoltà verrà scritto.
 
 > Restava una sola riga `OPEN`, ed è il difetto ricorrente di questo repository: una regola normativa
 > scritta, corretta, che **nessun consumatore runtime applica**. L'APNAP a sei gruppi vive nel canone e
