@@ -1,0 +1,185 @@
+# Scenario map — shortlist del corpus
+
+> `GENERATA` · il blocco §1 lo riscrive `python scripts/feature_registry.py shortlist`, misurando
+> `Scenarios/` e le capability dichiarate in `RTScenarioSession.cpp`.
+> **Cosa è**: l'elenco corto di cosa si verifica da solo e cosa richiede una persona.
+> **Cosa non è**: l'owner. Il documento normativo — con la motivazione voce per voce e il subset
+> `RELEASE-V01` del gate `G9` — è [`../technical/scenario-map.md`](../technical/scenario-map.md).
+> Le regole di identità e tag stanno in
+> [`../technical/scenario-index-e-tag.md`](../technical/scenario-index-e-tag.md).
+
+⚠️ **La cartella non è la classe.** Uno scenario si classifica leggendo il suo `requires` e la disponibilità
+della capability, **mai** il percorso: le cartelle sono storage e non promettono nulla.
+
+---
+
+## 1. Il corpus, misurato
+
+<!-- RT_SHORTLIST_SCENARIOS:BEGIN -->
+
+**54 scenari versionati** — misurati su `Scenarios/`: **44** eseguibili · **10** `BLOCKED` per una capability assente · **21** dichiarati `planned` nel registry e non ancora scritti.
+
+**Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `Cover` · `CreateCover` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `Reaction` · `Structures`.
+
+| Scenario `BLOCKED` | Capability che manca |
+|---|---|
+| `RT_Showcase_Relay_v01` | `DecisionBoundary` · `Facing` · `InterceptRevalidation` · `Objective` · `PredictiveAction` |
+| `Spec.Brace.ProfileChangesResponse` | `DecisionBoundary` · `ReactionClash` |
+| `Spec.Clash.ReadBeatsStand` | `DecisionBoundary` · `ReactionClash` |
+| `Spec.Clash.ShiftBeatsRead` | `DecisionBoundary` · `ReactionClash` |
+| `Spec.Clash.StandBeatsShift` | `DecisionBoundary` · `ReactionClash` |
+| `Spec.Clash.TieAppliesOnce` | `DecisionBoundary` · `ReactionClash` |
+| `Spec.Objective.PointSurvivesKO` | `Objective` |
+| `Spec.Overwatch.HoldThenFire` | `DecisionBoundary` · `Facing` |
+| `Spec.Perception.HeardNotSeen` | `Perception` |
+| `Spec.Predictive.WhiffOnEmptyCell` | `PredictiveAction` |
+
+| Pianificato, non scritto | Feature che lo chiede |
+|---|---|
+| `Spec.Clash.Determinism` | `RT-FEAT-REACTION-CLASH` |
+| `Spec.Clash.HiddenUntilReveal` | `RT-FEAT-REACTION-CLASH` |
+| `Spec.Clash.RevealIsFixedDeadline` | `RT-FEAT-REACTION-CLASH` |
+| `Spec.TimeBank.BotDrainsLikePlayer` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
+| `Spec.TimeBank.ClashCostsFullWindow` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
+| `Spec.TimeBank.DrainsAfterGrace` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
+| `Spec.TimeBank.GraceDoesNotDrain` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
+| `Spec.TimeBank.PrivacyNoBankLeak` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
+| `Spec.TimeBank.ReplayReadsRecordedBank` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
+| `Spec.TimeBank.TimeoutCostsFullWindow` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
+| `Spec.TimeBank.TimeoutSpendsNoCharge` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
+| `State.Bastion.Bulwark` | `RT-FEAT-CHARACTER-STATE` |
+| `State.Flux.Charged` | `RT-FEAT-CHARACTER-STATE` |
+| `State.Howitzer.Siege` | `RT-FEAT-CHARACTER-STATE` |
+| `State.MultiState.Stress` | `RT-FEAT-CHARACTER-STATE` |
+| `State.Riva.Flow` | `RT-FEAT-CHARACTER-STATE` |
+| `Stress.4v4.CoreRoster` | `RT-FEAT-STRESS-4V4` |
+| `Team.Conflux.FluxRiva.ConductiveFlood` | `RT-FEAT-FACTION-SCENARIOS` |
+| `Team.Constrine.BastionVektor.OnlyExit` | `RT-FEAT-FACTION-SCENARIOS` |
+| `Team.Resonance.AuroraKwang.FrozenAnchor` | `RT-FEAT-FACTION-SCENARIOS` |
+| `Team.Sentinel.SteelMurdock.HoldTheLine` | `RT-FEAT-FACTION-SCENARIOS` |
+
+<!-- RT_SHORTLIST_SCENARIOS:END -->
+
+## 2. Le quattro classi in una riga
+
+Quanti stiano in **A** e quanti in **B** non è derivabile dai file — è **dove sta l'oracolo**, e lo decide
+una persona. I conteggi qui sotto sono quelli di
+[`../technical/scenario-map.md`](../technical/scenario-map.md), misurati il **2026-08-09**; il totale del
+corpus e i bloccati sono invece generati in §1 e vincono sempre.
+
+| Classe | Chi esegue | Chi giudica | Quanti *(owner, 2026-08-09)* |
+|:--:|---|---|---|
+| **A** | la macchina | l'assertion | **21** scenari *(→ 24: vedi sotto)* |
+| **B** | la macchina | **una persona** che guarda | **21** scenari ↔ 21 voci `PIE-VIS-*` |
+| **C** | una persona | una persona | **95** voci PIE |
+| **D** | — | — | vedi §1: i `BLOCKED` e i `planned` sono misurati |
+
+In B l'assertion esiste comunque: garantisce che ciò che stai guardando sia lo **stato giusto**, perché uno
+scenario visivo senza assertion può mostrarti una bellissima animazione di un colpo che ha mancato.
+
+> ⚠️ **Due scarti che la misura di §1 ha trovato nell'owner** — da correggere là, non qui:
+> i tre scenari che chiedevano `EnvironmentalActionOwner` **non sono più bloccati** (la capability è
+> atterrata lo stesso giorno con `#282`), quindi la classe A è a **24** e i `BLOCKED` a **10**, non 12;
+> e i `planned` misurati nel registry sono **21**, non 13 — l'owner ne elencava ventuno sotto un totale di
+> tredici. È il difetto che il comando `shortlist` esiste per non far ripetere.
+
+---
+
+## 3. Classe A — automatico, nessun umano · 21
+
+Eseguiti in blocco da `RefactorTactics.Scenario.EveryShippedScenarioRuns`, che **scopre il corpus dall'indice**:
+aggiungere un file basta perché venga eseguito. Nessuno di questi compare nel registro PIE, ed è corretto.
+
+**`Scenarios/Combat/` · 7** — il colpo diretto arriva (`BasicAttack`) · il muro ferma la **vista**, non il
+passaggio (`BlockedByWall`) · lo scudo assorbe **e** restituisce (`CounterStrikesBack`) · l'AoE prende anche
+l'alleato (`FriendlyFire`) · la linea prende chi sta sulla traiettoria (`LineHitsThrough`) · il contrattacco
+richiede un'arma (`NoCounterWhenUnarmed`) · l'area prende gli alleati ma **non** chi la lancia (`SplashHitsAlliesNotSelf`).
+
+**`Scenarios/Movement/` · 6** — il passo arriva sulla cella pianificata (`Basic`) · **`BasicFailsOnPurpose`** è
+l'unica prova che l'harness sappia dire «rosso» · una destinazione bloccata non produce percorso (`Blocked`) ·
+chi cede la cella contesa e con quale reason (`Collision`) · due unità attraversano l'arena su due turni
+(`LongWalk`) · lo scambio A↔B è rifiutato **in pianificazione** (`SwapRejectedByPlanning`).
+
+**`Spec.Facing.*` · 6** — accesi da soli alla chiusura di E16: il Move fissa il facing e **persiste**
+(`DerivesFromMove`) · il Dash riscrive prima del Blast (`DashReorients`) · il bersaglio orienta prima di
+risolvere (`TargetingReorients`) · `Guard` riduce di fronte (`FrontAttackKeepsGuard`) e **non** da dietro
+(`BackAttackIgnoresGuard`) · `Brace` invece tiene da ogni lato (`BraceHoldsFromBehind`).
+
+**+2** — `Spec.Cover.TemporaryCoverExpires` (acceso da E9.5: una copertura temporanea **scade**) ·
+`RT_Showcase_Relay_v01` (gli 8 turni della showcase, oggi **BLOCKED** su 5 capability).
+
+## 4. Classe B — automatico + occhio · 21
+
+Tutti in `Scenarios/Visual/`, uno per voce `PIE-VIS-*`. Si eseguono scegliendo lo scenario e premendo Play;
+l'oracolo è chi guarda.
+
+| Gruppo | Scenari | Cosa deve **vedersi** |
+|---|--:|---|
+| `Visual.Combat.*` | 8 | `Guard` toglie 15 al **primo** colpo, `Brace` 10 a **ogni** colpo · il KO mai prima del colpo · il piano rivalidato invece di un colpo a caso · Bastion incassa e non arretra · il fumo lascia **vedere** e non colpire · il bonus elettrico viene dal **terreno** |
+| `Visual.Environment.*` | 3 | Fuoco in **due** momenti distinti (ingresso e Cleanup) · il terzo passo su ghiaccio è **subìto** · `Wet` è un'**assenza**: i danni del Cleanup che non arrivano |
+| `Visual.Map.*` | 5 | La copertura è di un **bordo** e si vede quale · la barriera alta **nega**, la bassa **riduce** · due colpi identici dall'altura (nessun bonus, D-024) · la porta chiusa allunga il giro · l'**unica** transizione fra layer |
+| `Visual.Movement.*` | 2 | La carica si legge diversa dal passo · un rifiuto è **muto**: non deve accadere niente |
+| `Visual.Reaction.*` | 2 | 22 diventano 2 (`Deflection`) · il colpo **cambia destinatario** a mezz'aria (`Interposition`) |
+| `Visual.Core.PhaseOrder` | 1 | `Dash → Blast → Move` in tre momenti separati |
+
+## 5. Classe C — solo input umano · 95 voci PIE
+
+Nessuno scenario può sostituirle: richiedono mouse, editor, giudizio o cronometro.
+
+| Sezione del registro | Voci | Perché serve una persona |
+|---|--:|---|
+| Checklist principale (materiali, editor mode, bot) | 31 | **Gesto e asset**: drag, gizmo, Undo, materiali da creare in editor |
+| Partita su griglia esagonale (M6) | 16 | **Ciò che solo l'occhio vede**: unità centrate, fluidità del playback |
+| Contenuto della v0.1 | 18 | **Leggibilità**: che il giocatore *capisca* dal log |
+| Stati del personaggio (E34) | 10 | Nessuna: **verificano un sistema che non esiste** — classe D travestita da C |
+| Scenario Test Harness | 6 | «Premo Play e parte da solo», con esito leggibile senza aprire l'Output Log |
+| Durata, ritmo e scala | 5 | **Cronometro**: producono numeri di playtest, non superano gate |
+| Bot — leggibilità delle decisioni | 5 | **Il perché, non il cosa** |
+| Strumenti di leggibilità | 2 | Giudizio a schermo puro |
+| Formato e icone | 2 | Riconoscibilità alla dimensione reale dell'HUD |
+
+Registro: [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md).
+
+## 6. Classe D — dichiarato, non eseguibile
+
+### 6.1 Scritti e `BLOCKED` — **l'elenco è in §1**
+
+Descrivono una feature che **non esiste**, dichiarano la capability in `requires`, escono `BLOCKED`
+nominandola e **si accendono da soli** quando atterra. `BLOCKED` è trattato verde: trattarlo come rosso
+renderebbe irrazionale scriverne in anticipo.
+
+Chi li accende: `DecisionBoundary`/`ReactionClash` → **E14** (CP 14.7) · `Perception` → **E13** (`#151`) ·
+`PredictiveAction` → **E18** (`#225`) · `Objective` → **E10** (CP 10.2, `#75`).
+
+> ✅ **`EnvironmentalActionOwner` è atterrata il 2026-08-09** (`75b8264`, issue `#282`): non era un'epic da
+> costruire ma una issue di **cablaggio** — il sistema era chiuso, mancava *chi possiede* le azioni. I tre
+> scenari che la chiedevano si sono accesi da soli, e §1 lo misura. Il commento nel codice dichiara il
+> confine: la capability **non** copre `Action.Ignite` né `Action.ModifyArc`, che per D-046 restano senza
+> owner in v0.1.
+
+### 6.2 Pianificati, non ancora scritti — **l'elenco è in §1**
+
+Dichiarati in `feature-registry.yaml` sotto `scenarios: {planned: […]}`, dove compaiono come **warning** del
+validator — un piano che non diventa un file resta visibile invece di sparire.
+
+> ⚠️ **Gli 11 scenari `Spec.Clash.*` / `Spec.TimeBank.*` non sono «da scrivere»: oggi sono *impossibili*.**
+> `ERTAssertionKind` ha cinque assertion — `UnitAtCell`, `TurnsCompleted`, `UnitHpEquals`, `UnitAlive`,
+> `UnitFacing` — e leggono **tutte lo stato finale**. Questi chiedono l'ordine degli eventi, un hash e un
+> contatore del TurnLog. Serve prima una capability dell'harness: **una sola** ne sblocca undici.
+> Owner: issue **`#318`**.
+
+### 6.3 Dichiarati e mai scritti · 4
+
+La *fascia D* di [`../technical/scenari-validazione-visiva.md`](../technical/scenari-validazione-visiva.md)
+elenca 8 scenari `Visual.*` «scritti adesso»: **nessuno degli otto file esiste**. Quattro temi sono stati poi
+scritti come `Spec.*` — la forma migliore, una specifica eseguibile invece di una vetrina cieca. Restano
+scoperti `Visual.Facing.Cone`, `Visual.Intercept.Revalidation`, `Visual.CoverWindow.OpenFireSeal` e il quarto.
+
+---
+
+## 7. Le due cose da ricordare
+
+1. **«Non più bloccato» non vuol dire «verde».** Che le assertion tengano lo dice la suite, non una tabella.
+2. **Il meccanismo funziona**: i sei `Spec.Facing.*` e `Spec.Cover.TemporaryCoverExpires` si sono accesi da
+   soli il 2026-08-09, alla chiusura di E16 ed E9.5, senza che nessuno dovesse ricordarsi di promuoverli.
+   È la differenza fra uno scenario-spec e una nota in un documento.
