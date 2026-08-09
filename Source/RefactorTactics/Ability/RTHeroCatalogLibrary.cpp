@@ -169,7 +169,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeFlux()
 	// Effects vuoto e' la dichiarazione onesta: l'identita', la fase e il cooldown sono dati veri, l'effetto
 	// no. Range 0 (self) e' un segnaposto, non un numero di bilanciamento: arriva un range reale insieme
 	// all'effetto, non prima.
-	// D-039: cablata su `Action.Electrify`. Il commento qui sopra era vero quando fu scritto — E8 ha chiuso il
+	// D-046: cablata su `Action.Electrify`. Il commento qui sopra era vero quando fu scritto — E8 ha chiuso il
 	// 2026-08-07 e il modello di cella conduttiva ORA esiste, quindi la dichiarazione onesta di allora e'
 	// diventata un dato che nessuno legge: il resolver risolveva `Action.Electrify` e nessun eroe la possedeva
 	// (issue #282). Numeri dal CORE, non nuovi: portata 4, propagazione 3, fase Environment. Il cooldown resta
@@ -272,7 +272,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiva()
 	// l'acqua lasciata dietro non ha un modello da consumare.
 	// Lo slot va dichiarato: `MakeHeroAction` mette `Main` di default, e per una mobilita' che non fa danno
 	// sarebbe quello sbagliato (D-028). Chi lascia la scia si e' mosso, ma puo' ancora agire.
-	// D-039: cablata su `Action.CreateWater`, e **smette di essere uno scatto**. E' un cambio di kit, non una
+	// D-046: cablata su `Action.CreateWater`, e **smette di essere uno scatto**. E' un cambio di kit, non una
 	// precisazione: Riva perde la mobilita' rapida e guadagna l'unico produttore d'acqua del roster. Deciso
 	// cosi' perche' l'acqua e' il punto dell'abilita' — il nome lo dice — e perche' senza un produttore la
 	// combo acqua+elettricita' di Conflux, vetrina dichiarata della v0.1, era giocabile solo su mappe che

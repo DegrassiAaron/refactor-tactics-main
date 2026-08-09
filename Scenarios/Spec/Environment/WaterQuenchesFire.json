@@ -101,5 +101,5 @@
       "value": 3
     }
   ],
-  "_nota_owner": "D-039 (#282): l'owner adesso esiste. `Riva.FluidTrail` E' `Action.CreateWater` e ha smesso di essere uno scatto: Riva perde la mobilita' rapida e diventa l'unico produttore d'acqua del roster."
+  "_nota_owner": "D-046 (#282): l'owner adesso esiste. `Riva.FluidTrail` E' `Action.CreateWater` e ha smesso di essere uno scatto: Riva perde la mobilita' rapida e diventa l'unico produttore d'acqua del roster."
 }

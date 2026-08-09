@@ -5,7 +5,7 @@
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "SPECIFICA ESEGUIBILE di E14.7 (D-042/D-043). Terzo lato della matrice, quello che chiude il ciclo: chi CAMBIA geometria batte chi LEGGE. Vektor anticipa la mossa avversaria (READ) e prepara il contrattacco sulla linea prevista; Riva cambia vettore (SHIFT) e la lettura cade a vuoto — chi anticipa ha gia' impegnato la risposta e non puo' correggerla.",
+  "_nota": "SPECIFICA ESEGUIBILE di E14.7 (D-048/D-049). Terzo lato della matrice, quello che chiude il ciclo: chi CAMBIA geometria batte chi LEGGE. Vektor anticipa la mossa avversaria (READ) e prepara il contrattacco sulla linea prevista; Riva cambia vettore (SHIFT) e la lettura cade a vuoto — chi anticipa ha gia' impegnato la risposta e non puo' correggerla.",
 
   "_nota_perche_esiste": "Chiude il ciclo `READ > STAND > SHIFT > READ`. Senza questo file la matrice avrebbe due lati verificati su tre, ed e' proprio il terzo a renderla ciclica invece che gerarchica: un ordinamento con un vincitore assoluto sarebbe un sistema diverso.",
 

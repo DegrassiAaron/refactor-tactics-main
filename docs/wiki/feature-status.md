@@ -68,7 +68,7 @@ il gioco che sara', questa tabella dice a che punto e'.
 
 | Feature | Titolo | Roadmap | Stato | Gate | Scenario |
 |---|---|---|---|---:|---|
-| `RT-FEAT-ENV-ELECTRIC` | Propagazione elettrica sul grafo dell'acqua | E8.3 | **INTEGRATED** | 6/8 | `Visual.Combat.WaterElectric` |
+| `RT-FEAT-ENV-ELECTRIC` | Propagazione elettrica sul grafo dell'acqua | E8.3 | **INTEGRATED** | 6/8 | `Visual.Combat.WaterElectric` · `Visual.Combat.WaterElectricCoordinated` |
 | `RT-FEAT-ENV-FIRE` | Fuoco e terreno dinamico | E8.1, E8.4 | **INTEGRATED** | 6/8 | `Visual.Environment.FireOnEnter` · `Visual.Environment.WetExtinguishesFire` |
 | `RT-FEAT-ENV-ICE` | Ghiaccio e scivolamento | E8.1 | **INTEGRATED** | 6/8 | `Visual.Environment.IceSlide` |
 | `RT-FEAT-ENV-STATUS` | Stati temporanei legati alla cella | E8.2 | **INTEGRATED** | 6/8 | `Visual.Environment.FireOnEnter` |
@@ -81,7 +81,7 @@ il gioco che sara', questa tabella dice a che punto e'.
 
 | Feature | Titolo | Roadmap | Stato | Gate | Scenario |
 |---|---|---|---|---:|---|
-| `RT-FEAT-MAP-COVER` | Copertura direzionale per bordo | E9.1, E9.2 | **INTEGRATED** | 6/8 | `Visual.Map.LowCoverEdge` |
+| `RT-FEAT-MAP-COVER` | Copertura direzionale per bordo | E9.1, E9.2 | **INTEGRATED** | 6/8 | `Visual.Map.LowCoverEdge` · `Visual.Map.HighCoverBlocks` |
 | `RT-FEAT-MAP-DYNAMIC-COVER` | Copertura modificabile e pannello cinetico | E9.5 | **INTEGRATED** | 6/8 | `Spec.Cover.TemporaryCoverExpires` |
 | `RT-FEAT-MAP-FACING` | Facing come stato di gioco autorevole | E16.1, E16.2 | **INTEGRATED** | 6/9 | `Spec.Facing.DerivesFromMove` · `Spec.Facing.DashReorients` |
 | `RT-FEAT-MAP-HEXGRAPH` | FRTCellId e grafo esagonale multilivello | E2.1 | **RELEASE_READY** | 7/8 | `Visual.Map.MultiLevel` |
@@ -89,7 +89,7 @@ il gioco che sara', questa tabella dice a che punto e'.
 | `RT-FEAT-MAP-INTERACTIVE-EDGES` | Porte e bordi commutabili | E9.3 | **INTEGRATED** | 6/8 | `Visual.Map.ClosedDoor` |
 | `RT-FEAT-MAP-LOS` | LOS, targeting e traiettoria separati | E2.4 | **RELEASE_READY** | 6/7 | `Combat.BlockedByWall` · `Combat.LineHitsThrough` |
 | `RT-FEAT-MAP-PATHFINDING` | A* esagonale autorevole | E2.2 | **RELEASE_READY** | 6/7 | `Movement.Basic` · `Movement.Blocked` |
-| `RT-FEAT-MAP-SPECIAL-TRANSITIONS` | Ponti, archi e transizioni multilivello | E9.4 | **INTEGRATED** | 6/8 | `Visual.Map.MultiLevel` |
+| `RT-FEAT-MAP-SPECIAL-TRANSITIONS` | Ponti, archi e transizioni multilivello | E9.4 | **INTEGRATED** | 6/8 | `Visual.Map.MultiLevel` · `Spec.Map.BridgeBreaksThePath` |
 
 ### Networking
 

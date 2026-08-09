@@ -98,6 +98,17 @@ Regola di manutenzione #1: *ogni modifica a un requisito aggiunge o aggiorna una
   `D-042`→`D-048`, `D-043`→`D-049`) e la voce sulle azioni ambientali (`D-039`→`D-046`).
   **42 riferimenti riscritti in 12 file**, classificati per contesto e non con un search/replace globale:
   gli stessi quattro numeri erano usati dalle due serie, quindi sostituirli tutti avrebbe rotto l'altra metà.
+
+  > ⏳ **Completata il 2026-08-09, stesso giorno**: quella passata copriva `docs/`, non `Source/` né
+  > `Scenarios/`, dove restavano **26 riferimenti** ai numeri vecchi — 15 a `D-039` per la voce ambientale
+  > (commenti in 8 file di codice e 3 scenari-specifica), 2 a `D-041` in `Scenarios/Spec/Brace/`, 9 a
+  > `D-042`/`D-043` in `Scenarios/Spec/Clash/`. Classificati anche questi per contesto: i tre `D-043` di
+  > `RTPerceptionLibrary.h` e `RTPerceptionTests.cpp` sono rimasti **invariati**, perché quell'ID la
+  > decisione sulla percezione l'ha **conservato**.
+  >
+  > La lezione non è che la prima passata fosse incompleta: è che **una rinumerazione non è finita quando il
+  > log è coerente**. Un commento di codice che rimanda a `D-039` per una decisione che ora è `D-046` è
+  > leggibile, plausibile e falso — la stessa forma del difetto che questa nota registra.
   La lezione operativa non è nuova ma ora ha un costo misurato: finché epic e decisioni si numerano a mano,
   **un ID va verificato contro i branch aperti prima di scriverlo**, non solo contro `main`. Al momento di
   questa nota, `docs/decisioni-movimento` rivendicava già `D-044`–`D-045` e `wip/cp132-conoscenza-parziale`

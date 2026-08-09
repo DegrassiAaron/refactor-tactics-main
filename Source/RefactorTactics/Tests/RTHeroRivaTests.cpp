@@ -57,7 +57,7 @@ bool FRTRivaMatchesCatalogTest::RunTest(const FString&)
 	TestEqual(TEXT("PressureJet: nessuna ricarica (e' l'attacco base)"), PressureJet->Def.CooldownTurns, 0);
 	TestTrue(TEXT("PressureJet: forma a linea"), PressureJet->Shape == ERTAbilityShape::Line);
 
-	// FluidTrail NON e' piu' uno scatto (D-039, issue #282): e' il produttore d'acqua del roster, cablato su
+	// FluidTrail NON e' piu' uno scatto (D-046, issue #282): e' il produttore d'acqua del roster, cablato su
 	// `Action.CreateWater`. Il cambio e' di kit, non di numeri — Riva perde la mobilita' rapida — e va scritto
 	// qui perche' questo test E' la documentazione vincolante del kit: se un giorno tornasse un Dash, deve
 	// cadere qualcosa.

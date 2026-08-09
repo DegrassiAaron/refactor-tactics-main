@@ -597,7 +597,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	//
 	// **Durata 2 turni** per entrambe, dal catalogo terreni §2 (fuoco) e dal catalogo azioni §6 (acqua).
 	// La superficie creata e' un DATO dell'azione, non un ramo nel resolver: cosi' un'abilita' d'eroe che
-	// copia questa definizione (D-039: `Riva.FluidTrail`) eredita il comportamento senza che nessuno debba
+	// copia questa definizione (D-046: `Riva.FluidTrail`) eredita il comportamento senza che nessuno debba
 	// aggiungere il suo nome a un `if`.
 	{
 		FRTActionDef Ignite = ShippedAction(TEXT("Action.Ignite"), ERTResolutionPhase::Environment, /*Priority*/ 60,

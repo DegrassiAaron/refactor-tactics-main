@@ -296,13 +296,119 @@ Restavano **quattro** buchi veri, e sono le uniche aggiunte:
 `RT-FEAT-UI-*` del master (9 inesistenti, e ne omette 2 che esistono); gli scenari `SCN-HUD-001`/`HUD-001`;
 le issue `HUD-PLN-01`. Registrato come riga **57** della matrice.
 
+### ✅ Fatto in questa sessione — cluster **Governance**
+
+Come per l'UI, il pacchetto descrive in gran parte cose che il repository ha già, e spesso meglio:
+
+| Proposta del Governance Master | Dove esisteva già |
+|---|---|
+| §1 ordine di prevalenza | [`README.md`](../../README.md) §gerarchia — e la riga 35 della matrice ha già chiuso il paradosso «canone + emendamenti» |
+| §2 classificazione dei documenti (8 stati) | **7 tag**, con la motivazione: `CANONICAL · CURRENT · AS-BUILT · DELIVERED PLAN · HISTORICAL · RESEARCH · OPEN`. Il repository ha `CANONICAL` e `DELIVERED PLAN`, che il master non ha, e spiega **perché un `AS-BUILT` superato non è un difetto da correggere** |
+| §4 gate del Feature Registry | ✅ **coincidono alla lettera**, 9 su 9 |
+| §5 vocabolario di status | ✗ conflitto già registrato — riga 55 |
+| §7 «Feature Registry = inventory, Roadmap = delivery order» | è l'intestazione stessa di [`feature-registry.yaml`](../feature-registry.yaml): «lo stato vive QUI e in nessun altro posto» |
+| §13 Definition of Done globale | i gate, più [`v0.1-definition-of-done.md`](../v0.1-definition-of-done.md) |
+| §15 viste generate | `feature_registry.py generate · wiki · workbook`, con `--check` come gate |
+| §19 workbook `RESEARCH` | [`D-023`](../../decisions/RT_PDR_00_Decision_Log.md) |
+| §20–§23 cleanup, CORE, Control Center | riguardano il **progetto ChatGPT**, non il repository |
+
+Il valore era tutto in **§16, l'audit automatico documentale**: dodici controlli proposti, confrontati con
+quelli che le tre macchine fanno davvero.
+
+| Controllo §16 | Stato |
+|---|---|
+| `FeatureId` duplicati · roadmap ref stale · Wiki ref stale · `DONE` con gate mancanti | ✅ già nel validator |
+| link rotti | ✅ `check-docs-links.py` |
+| `ScenarioId` duplicati | ✅ `ScenarioIndex.DuplicateIdIsRejected` |
+| **scenario senza feature** | ❌ **mancava** → aggiunto |
+| `issue senza feature` · `CURRENT e SUPERSEDED simultanei` · `numeric value duplicato` · `roster/version mismatch` | ⬜ non implementati, e non tutti valgono il costo — vedi §12 |
+
+| File | Che cosa |
+|---|---|
+| [`scripts/feature_registry.py`](../../../scripts/feature_registry.py) | **controllo nuovo**: nessuno `ScenarioId` senza una feature che lo rivendichi. Errore, non avviso, per simmetria con «`planned` ma presente» |
+| [`roadmap/feature-registry.yaml`](../feature-registry.yaml) | i **6 scenari orfani** su 54 attaccati alla feature che dimostrano; `wiki_note` di `RT-FEAT-ENV-ELECTRIC` corretta (§5) |
+| [`roadmap/feature-registry.md`](../feature-registry.md) | il controllo nuovo documentato, con il perché è un errore |
+| `feature-registry.json` · `wiki/feature-status.md` · `wiki/meccaniche/acqua-e-elettricita.md` · `characters/v0.1/flux.md` | **rigenerati** dalla sorgente |
+| gli stessi due file, in prosa | le due frasi **scritte a mano** che ripetevano l'affermazione superata, che nessun generatore poteva raggiungere |
+
+**Verifica di mutazione**: staccato `Visual.Map.HighCoverBlocks` dalla sua feature, `validate` esce `1`
+nominando esattamente quello scenario; ripristinato, `0`.
+
+### 🟡 Difetto trovato durante il cluster — quattro `D-0xx` assegnati due volte
+
+Non viene dal pacchetto. Quattro ID del Decision Log nominavano due decisioni diverse:
+
+| ID | Prima occorrenza | Seconda occorrenza | Chi lo cita |
+|---|---|---|---|
+| `D-039` | azioni ambientali con owner nel roster | `E21` → `E35` | **9 siti**, tutti la prima (codice, test, harness, scenario JSON) |
+| `D-041` | soglia d'udito per eroe | `Brace` prepara una reazione | 5 siti, tutti la **seconda** (spec Reaction Clash, `Scenarios/Spec/Brace/`, registry) |
+| `D-042` | acqua bassa `+2` al rumore | Reaction Opportunity *contested* | 12 siti, tutti la **seconda** |
+| `D-043` | arco frontale e `TeamKnowledge` | grammatica `STAND · READ · SHIFT` | **entrambe**: 2 siti la prima (`RTPerceptionTests.cpp`), 5 la seconda |
+
+È la **sesta** collisione di contatore del progetto — il Decision Log ne conta cinque e ha già la regola:
+*chi arriva secondo rinumera, non contende*.
+
+**Chiusa il 2026-08-09 dalla PR [`#320`](https://github.com/DegrassiAaron/refactor-tactics-main/pull/320)**,
+di una sessione parallela, mentre questa la stava chiudendo con lo schema **opposto**. Ha mergiato per prima,
+quindi vale la sua e questa cede — è la regola applicata a sé stessa:
+
+| Vecchio | Nuovo su `main` | Decisione che si è spostata |
+|---|---|---|
+| `D-039` | **`D-046`** | azioni ambientali con owner nel roster |
+| `D-041` | **`D-047`** | `Brace` prepara una reazione |
+| `D-042` | **`D-048`** | Reaction Opportunity *contested* |
+| `D-043` | **`D-049`** | grammatica `STAND · READ · SHIFT` |
+
+A tenere l'ID è stato il lato **meno** citato — `E21`→`E35` tiene `D-039`, la soglia d'udito tiene `D-041` —
+cioè l'opposto del criterio «cede il lato che nessuna macchina verifica» enunciato per `D-040`. Il contenuto
+delle otto decisioni non cambia; **prossimo ID libero: `D-058`**, dopo le `D-050`…`D-057` del Time Bank.
+
+#### ✅ La conseguenza: la propagazione, completata qui
+
+Spostare il lato **citato** significa che tutte le sue citazioni vanno riscritte. La `#320` ha coperto
+`docs/` — 42 riferimenti in 12 file — ma non `Source/` né `Scenarios/`, dove ne restavano **26**:
+
+| ID vecchio → nuovo | Riferimenti | Dove |
+|---|---|---|
+| `D-039` → **`D-046`** | 15 | commenti in 8 file di codice (`RTHeroCatalogLibrary`, `RTTurnManager`, `RTScenarioSession`, 4 test, `RTActionDef.h`) + 3 scenari-specifica |
+| `D-041` → **`D-047`** | 2 | `Scenarios/Spec/Brace/ProfileChangesResponse.json` |
+| `D-042`/`D-043` → **`D-048`/`D-049`** | 9 | i quattro `Scenarios/Spec/Clash/` |
+
+⚠️ **Non si risolveva con un search/replace**: i tre `D-043` di `RTPerceptionLibrary.h` e
+`RTPerceptionTests.cpp` sono rimasti **invariati**, perché quell'ID la decisione sulla percezione l'ha
+**conservato**. Sostituirli avrebbe rotto l'altra metà.
+
+Il diff su `Source/` è **interamente commenti**: nessun comportamento cambia.
+
+> È lo stesso difetto di §5 — una decisione presa e non propagata — nato lo stesso giorno, dallo stesso
+> contatore condiviso. La nota del Decision Log lo dice da due giorni: «fino a quando epic e decisioni si
+> numerano a mano, la collisione è una questione di quando, non di se». Questa volta ne sono nate due nello
+> stesso pomeriggio, e la seconda l'ha prodotta il tentativo di chiudere la prima.
+>
+> La regola operativa che ne esce: **una rinumerazione non è finita quando il log è coerente.** Un commento
+> di codice che rimanda a `D-039` per una decisione che ora è `D-046` è leggibile, plausibile e falso.
+
+#### E le righe della matrice hanno fatto lo stesso
+
+Anche `DOC_CONFLICT_MATRIX.md` aveva **`53`, `54`, `55` due volte**: le mie della PR `#312` e quelle del Time
+Bank della `#320`. Stesso contatore condiviso, stesso giorno, stessa forma. Rinumerate le seconde a
+**`60`–`62`**, per lo stesso criterio: la `#312` era atterrata prima e nessuno cita quelle righe per numero.
+
 ### ⬜ Resta da fare
 
-1. **Difetto `D-046`** di §5 — dopo il merge della sessione parallela, alla sorgente (`wiki_note` in
-   `feature-registry.yaml:1638`), con rigenerazione delle pagine derivate.
-2. **`INT-1`…`INT-4`** — le quattro domande dello spec vanno in `OPEN_DECISIONS.md` quando quel file torna
-   libero. `INT-3` è già lì sotto il nome `FAC-6`.
-3. **Cluster restanti**, uno per PR: UI/UX (+ HUD) · Characters & Roster · Scenarios/QA/Bots · Governance.
-   L'ordine di §8.3 resta valido.
-4. **`RT-FEAT-MAP-INTERACTIVE-EDGES`** e le feature di E10 andranno collegate al nuovo owner spec quando il
-   registry è di nuovo scrivibile.
+1. ✅ ~~Difetto `D-046` di §5~~ — **chiuso il 2026-08-09**: corretto alla sorgente (`wiki_note`), rigenerate
+   le due pagine derivate, riscritte a mano le due frasi in prosa che il generatore non raggiungeva.
+2. ✅ ~~La collisione dei quattro `D-0xx`~~ — **chiusa il 2026-08-09** da una sessione parallela (`#320`).
+   Resta la **propagazione**: vedi il punto 7.
+3. **`INT-1`…`INT-4`** — le quattro domande di
+   [`spec-interazioni-mappa-cp101.md`](../../gameplay/spec-interazioni-mappa-cp101.md) §12 vanno in
+   [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md). `INT-3` è già lì sotto il nome `FAC-6`.
+4. **Cluster restanti**: Characters & Roster · Scenarios/QA/Bots. Il primo è quasi tutto già canonico; il
+   secondo tocca `BP_GameMode.uasset`.
+5. **`RT-FEAT-MAP-INTERACTIVE-EDGES`** e le feature di E10 vanno collegate a
+   [`spec-interazioni-mappa-cp101.md`](../../gameplay/spec-interazioni-mappa-cp101.md) come `owner_specs`.
+6. I quattro controlli §16 non implementati — `issue senza feature`, `CURRENT`/`SUPERSEDED` simultanei,
+   valore numerico duplicato fra normative, `roster/version mismatch` — vanno valutati uno per uno. Il terzo
+   è il più interessante e il più costoso: sarebbe il gate che impedisce il difetto che il progetto ha già
+   pagato cinque volte col conteggio dei test.
+7. **La propagazione della rinumerazione**, aperta e misurata — vedi la sezione qui sotto.

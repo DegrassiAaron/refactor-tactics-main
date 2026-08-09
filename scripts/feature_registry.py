@@ -216,6 +216,7 @@ def validate(registry, wiki_root=None):
 
     id_set = set(ids)
     testable_or_more = set(STATUS_ORDER[STATUS_ORDER.index("TESTABLE"):])
+    claimed_scenarios = set()
 
     for feature in features:
         fid = feature.get("feature_id", "<senza id>")
@@ -310,6 +311,7 @@ def validate(registry, wiki_root=None):
                 errors.append(f"{where} test ref senza corrispondenza nella suite: {pattern}")
 
         present, planned = scenario_lists(feature)
+        claimed_scenarios.update(present)
         for sid in present:
             if sid not in scenarios:
                 errors.append(f"{where} ScenarioId inesistente: {sid}")
@@ -345,6 +347,25 @@ def validate(registry, wiki_root=None):
                 f"{where} {len(planned)} scenario/i dichiarati planned: "
                 + ", ".join(planned)
             )
+
+    # --- il verso opposto: nessuno scenario senza feature che lo rivendichi ---
+    #
+    # Il controllo sopra va da feature a scenario ("lo ScenarioId dichiarato esiste?"). Mancava
+    # quello inverso, e la conseguenza non e' teorica: al 2026-08-09 erano 6 su 54 gli scenari che
+    # nessuna feature rivendicava - fra cui `Visual.Map.HighCoverBlocks` e
+    # `Spec.Environment.ElectricPropagation`, entrambi documentati in `scenario-map.md` e nel corpus
+    # visuale. Uno scenario che nessuno rivendica si esegue, passa, e non dimostra niente a nessuno:
+    # e' la stessa famiglia del dato che nessun consumatore legge.
+    #
+    # Errore e non avviso, per simmetria con "scenario dichiarato planned ma presente": in entrambi
+    # i casi il registry sta dicendo qualcosa di falso sulla copertura, non segnalando una lacuna.
+    orphans = sorted(set(scenarios) - claimed_scenarios)
+    for sid in orphans:
+        errors.append(
+            f"ScenarioId non rivendicato da nessuna feature: {sid} — "
+            "aggiungilo agli `scenarios` della feature che dimostra, oppure spiega in `notes` "
+            "perche' non appartiene a nessuna"
+        )
 
     # --- riferimenti a feature dalle pagine gia' generate ---
     for page, fids in wiki_blocks_in_repo().items():
