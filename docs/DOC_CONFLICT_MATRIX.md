@@ -85,6 +85,11 @@
 | 54 | **Costo del timeout su una risorsa** | [ADR-0004](decisions/adr-0004-finestre-di-reazione.md) §3: allo scadere non si spende, perché «un mancato input non deve spenderla» | il divieto copre le risorse di **abilità** (charge, cooldown, dispositivo). Il **budget temporale** non è una risorsa di abilità: il timeout lo consuma per intero (`MaxWindow − Grace`) | [`gameplay/spec-decision-time-bank.md`](gameplay/spec-decision-time-bank.md) §4.1 | `CONFIRMED` | Lettura **stretta** di §3, non emendamento: allo scadere continua a non spendersi alcuna charge e la reaction resta armata. Registrata qui perché la lettura non resti implicita. Vincolo che la rende equa: il fallback dev'essere preselezionato e raggiungibile **entro la grace** (spec §4.2), da misurare a CP 14.8 |
 | 55 | **Visibilità del tempo di decisione** | proposta del 2026-08-09: bank residuo **pubblico** agli avversari, per abilitare tattiche di pressione | **owner-only**. Un bank pubblico trasforma l'istante del lock in un valore persistente e archiviato: è il canale che [D-021](decisions/adr-0004-finestre-di-reazione.md) §7-bis e [D-042](gameplay/spec-reaction-clash-e14.md) §7.1 chiudono | invariante #6 · D-021 · D-042 | `CONFIRMED` | Proposta **registrata e scartata**, non ignorata: né `public live` né `public bucketed` decorrelano il delta. Verifica: canary di privacy, come per l'invariante #6 |
 
+| 53 | **Tassonomia riaperta dal pacchetto di consolidamento chat** | `RT_Chat_Cleanup_Tracker` e `RT_Common_Actions_Master` dichiarano aperto `ACTION-TAXONOMY-01` — «6 vs 8» — e propongono come baseline **otto** azioni universali con `Guard` **e** `Activate` distinte, citando una «D-AUDIT-01» che nel Decision Log **non esiste** | **sette** voci, `Activate` assorbita da `Interact`: la stessa cosa che la riga 42 aveva già deciso, sulle stesse due fonti | [D-025](decisions/RT_PDR_00_Decision_Log.md) | `CONFIRMED` | ✅ 2026-08-09. È la riga 42 che **torna** da una terza fonte, cinque giorni dopo: il pacchetto fotografa il progetto al 2026-08-08 e non ha visto `D-025`. Non si applica. Owner del triage: [`roadmap/plans/consolidamento-chat-openai-triage-2026-08-09.md`](roadmap/plans/consolidamento-chat-openai-triage-2026-08-09.md) §3 |
+| 54 | **Identità e classificazione degli scenari** | `RT_Scenarios_QA_Bots_Master` §5: una **`PrimaryCategory`** obbligatoria per scenario + `PurposeTags` secondari, e ID con trattino (`MAP-001`, `HUD-001`, `SCN-HUD-001`, `MAP-INTERACT-001`) | **un asse solo**: `scenarioId` puntato, tag liberi e incrociabili, ID **staccato** dal percorso, indice che rifiuta gli ID ambigui | [`technical/scenario-index-e-tag.md`](technical/scenario-index-e-tag.md) (`#209`, 2026-08-08) | `CONFIRMED` | ✅ 2026-08-09. La motivazione è già scritta nell'owner: separare tipologia e lente costringe a decidere per ogni parola in quale casella vive, e «la risposta onesta è spesso *entrambe*». Il pacchetto propone **cinque** convenzioni di ID diverse, nessuna delle quali è la nostra |
+| 55 | **Vocabolario di status del Feature Registry** | `RT_Governance_Master` §5 propone 13 status (`IMPLEMENTED`, `IMPLEMENTED_PARTIAL`, `DATA_SPEC`, `FUTURE`, `HISTORICAL`…) e i master li usano per dichiarare lo stato delle feature | 10 status, **derivati dai gate** con regola deterministica e verificati dal validator: se i gate non reggono lo stato dichiarato, `validate` fallisce | [`roadmap/feature-registry.yaml`](roadmap/feature-registry.yaml) | `CONFIRMED` | ✅ 2026-08-09. Adottarli romperebbe `feature_registry.py validate`. ⚠️ Nota utile: i **nove gate** dello stesso documento (`spec · data · runtime · log_debug · automation · scenario · ui_wiki · packaged · network_privacy`) coincidono **alla lettera** — quella parte si cita, non si riscrive |
+| 56 | **Fase delle conseguenze topologiche (CP 10.1)** | la DoD di CP 10.1 diceva «effetto risolto nel Blast, **conseguenze topologiche nel Cleanup**» | la topologia cambia **dentro il Blast**: `SetDoorState` è un effetto raccolto nel Blast e applicato a fase conclusa (CP 9.3), e `Action.ModifyArc` è passata dal Cleanup al Blast (CP 9.4) | [`gameplay/spec-porte-cp93.md`](gameplay/spec-porte-cp93.md) §5 · [`balance/RT_ActionCatalog_v0.1.md`](balance/RT_ActionCatalog_v0.1.md) | `SUPERSEDED` | ✅ corretto 2026-08-09. Difetto **interno**, non del pacchetto: la riga era stata scritta prima che E9 decidesse, ed era rimasta. Una topologia che cambia dopo il Move non può fermare un movimento — è il path fantasma che `TruncatePathToTopology` esiste per impedire |
+
 **Quarto passaggio, 2026-08-08 — Signature, profili e trasformazioni**: **+3 righe risolte** (45, 46, 47).
 La 45 è la prima chiusa **in prevenzione**: il duplicato non è mai entrato nella documentazione, perché
 l'audit per sinonimi è stato fatto prima di scrivere. Resta **1 `OPEN`** (riga 34, APNAP) e **0 `CONFLICT`**.
@@ -111,6 +116,21 @@ tutte con azione ⏳. L'unico `OPEN` resta la riga 34 e i `CONFLICT` restano **z
 > documento la può prendere al posto dell'autore. Registrarle come `CONFIRMED` significa che *oggi* vale
 > l'ADR, non che la domanda sia chiusa: la domanda vive in [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md), che è il
 > posto delle cose che aspettano una persona.
+
+**Sesto passaggio, 2026-08-09 — consolidamento del pacchetto `todo/consolidazione-chat-openai/`**: righe
+**53–56**. Tre `CONFIRMED` (il pacchetto contraddice il canone e il canone prevale) e **una `SUPERSEDED` che
+non viene dal pacchetto** (riga 56): l'audit ha trovato un difetto interno mentre cercava altro. L'unico
+`OPEN` resta la riga 34 e i `CONFLICT` restano **zero**.
+
+> La forma che si ripete qui è quella già nominata al quinto passaggio, con un aggravante nuovo: **il
+> pacchetto è una fotografia datata**. I sei *master* sono stati scritti contro il repository del 2026-08-08 e
+> i due *kit* rimasti sono più vecchi ancora, mentre nel frattempo sono atterrate `D-039`…`D-047`, il
+> `feature-registry.yaml` canonico e la decisione `#209` sull'identità degli scenari.
+>
+> La conseguenza pratica non è che il pacchetto sia sbagliato — contiene proposte che il repository non ha —
+> ma che **sette dei nove «conflitti aperti» che dichiara erano già chiusi**. Un handoff che ripropone come
+> aperte decisioni prese invita a ridecidere ciò che è stato deciso, e questa matrice esiste per rendere
+> quell'invito visibile invece che efficace.
 
 > Restava una sola riga `OPEN`, ed è il difetto ricorrente di questo repository: una regola normativa
 > scritta, corretta, che **nessun consumatore runtime applica**. L'APNAP a sei gruppi vive nel canone e

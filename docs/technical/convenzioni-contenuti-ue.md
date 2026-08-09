@@ -220,6 +220,31 @@ Gli asset si spostano **dal Content Browser o via API Editor**, mai da Esplora F
 
 **Non eliminare i redirector a mano dal file system.**
 
+## 11-bis. Scala d'arte: il lato dell'esagono
+
+Chi modella una mesh, una porta o un pezzo di architettura ha bisogno di un riferimento metrico. La scala di
+authoring adottata è:
+
+```text
+lato dell'esagono ≈ 1,5 m
+```
+
+Serve a dimensionare **mesh, proporzioni e architettura**, così che una porta sembri una porta accanto a
+un'unità e due strutture autorate da persone diverse combacino.
+
+> ⚠️ **Non è una metrica di design, e non va usata come tale.**
+> [`../gameplay/spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) è
+> esplicito: «Metrica primaria — **non i metri**, non il numero assoluto di celle». Una mappa si dimensiona
+> contando i **Move** necessari a raggiungere le zone rilevanti, non i metri quadrati; e
+> [`D-030`](../decisions/RT_PDR_00_Decision_Log.md) ribadisce che il canone non fissa un numero di celle.
+>
+> Le due cose convivono perché rispondono a domande diverse: *quanto è grande questo modello* è una domanda
+> d'arte, *quanto è grande questa mappa* è una domanda di design. La prima ha un metro, la seconda no.
+
+Non derivare da questo valore raggi d'abilità, portate o costi di movimento: quelli sono in celle, e la cella
+è l'unità del gioco. Deciso con l'autore il **2026-08-09**, in sede di consolidamento del cluster Map &
+Environment ([triage](../roadmap/plans/consolidamento-chat-openai-triage-2026-08-09.md) §8.1).
+
 ## 12. Checklist di chiusura
 
 - [ ] tutti gli asset proprietari sono sotto `/Game/RT`

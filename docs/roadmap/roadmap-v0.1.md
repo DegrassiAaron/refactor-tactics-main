@@ -672,7 +672,7 @@ migra, ma è **vuoto in partenza** (0 celle): va ridisegnato prima di poterlo us
 
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
-| **10.1** | `Activate` / `Interact` | Attivano un oggetto **adiacente**: porta, consolle, ascensore, generatore, sprinkler, ponte, obiettivo; effetto risolto nel Blast, conseguenze topologiche nel Cleanup | `Objectives.ActivateAdjacentOnly`, `Objectives.ActivateDoorChangesGraph` |
+| **10.1** | `Interact` sugli elementi di mappa | `Action.Interact` agisce su un elemento **adiacente**: porta, consolle, ponte, obiettivo. La legalità non dipende dal tipo di Actor ma da tre filtri indipendenti — **capability** dell'unità, **ownership** dell'elemento, **stato del mondo** — e il rifiuto porta un reason code che non rivela conoscenza assente. Effetto risolto nel **Blast**; le conseguenze topologiche avvengono **nello stesso Blast**, con incremento della revisione e invalidazione della cache. Owner della grammatica: [`spec-interazioni-mappa-cp101.md`](../gameplay/spec-interazioni-mappa-cp101.md) | `Objectives.ActivateAdjacentOnly`, `Objectives.ActivateDoorChangesGraph` + i test di §13 dello spec |
 | **10.2** | Obiettivo contestabile | Un obiettivo può essere contestato (anche con `Wait`); la verifica avviene nel **Cleanup**; contestazione paritaria = nessun progresso | `Objectives.ContestedNoProgress`, `Objectives.CheckedInCleanup` |
 | **10.3** | Fine partita | La partita termina per eliminazione della squadra **oppure** al raggiungimento dell'obiettivo **oppure** al **`RoundLimit`** (in tal caso vince chi ha più progresso; parità = pareggio dichiarato). Il limite è un **dato del formato di partita**, non una costante nel `TurnManager`: valore iniziale **12** per il 2v2 della v0.1, banda di riferimento **10–14** (hard cap 14–16). Cambiarlo **non** deve richiedere una ricompilazione né toccare le regole | `Match.EndsOnElimination`, `Match.EndsOnTurnLimit`, `Match.TieIsDeclared`, `Match.RoundLimitComesFromData` |
 
@@ -682,6 +682,16 @@ una modifica di regole coperta dall'ADR-0003: va riflessa in `piano-canonico-mvp
 chiudere il CP e il più costoso da disfare: il formato principale punta a 16–20 round
 ([`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §6) e la partita deve poter
 finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — vie che una costante non prevede.
+
+> **CP 10.1 riscritta il 2026-08-09**, e sono due correzioni distinte, nessuna delle quali cambia il design.
+> (a) Il titolo diceva «`Activate` / `Interact`»: [D-025](../decisions/RT_PDR_00_Decision_Log.md) ha assorbito
+> `Activate` in `Interact` e le azioni generiche sono **sette**. Lo Stable ID `Action.Activate` resta nel
+> codice — la **migrazione** è aperta (riga 27 di [`DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md)) — ma
+> il checkpoint non deve più presentarlo come azione universale.
+> (b) La DoD metteva le conseguenze topologiche nel **Cleanup**: superato da **CP 9.3**, dove `SetDoorState` è
+> un effetto raccolto nel Blast e applicato a fase conclusa, e da **CP 9.4**, che ha spostato `ModifyArc` dal
+> Cleanup al Blast. Una topologia che cambia dopo il Move non può fermare un movimento: è precisamente il
+> path fantasma che `TruncatePathToTopology` esiste per impedire.
 
 ---
 
