@@ -2922,8 +2922,10 @@ features:
     gates:
       spec: done
       # Nessun `DA_MatchFormat` esiste sul disco: il tipo e i suoi campi sono codice, l'asset d'autore no.
-      # La partita gira sul formato di RIPIEGO, che è osservabile per costruzione (D1).
-      data: partial
+      # Dal 2026-08-10 la partita gira sul formato SPEDITO `Format.Skirmish2v2` (#375), non più
+      # sul ripiego: il formato canonico della v0.1 non dipende da un `.uasset` che il repository
+      # non contiene.
+      data: done
       runtime: done
       log_debug: done
       automation: done
@@ -2955,6 +2957,13 @@ features:
       `URTHexMapAsset::CurrentFormatVersion` passa a 6; la simulazione **non** ramifica sulla
       classe, e un test lo misura confrontando l'hash di due partite identiche. I timer restano
       fuori dal formato per decisione (ADR-0005 §4c).
+      **2026-08-10 (#375)**: `Format.Skirmish2v2` è **spedito da C++**
+      (`URTMatchFormatLibrary::FindShippedFormat`), come le istanze di `URTActionData` e
+      `URTHeroData` — la CLASSE resta un data asset, e un asset assegnato al `GameMode` vince.
+      L'ordine è: asset ⇒ formato spedito ⇒ ripiego. `RoundLimit` **5** (deciso con l'utente);
+      `ScoreToWin` **0** perché **nessuno assegna punti** — `AddTeamScore` non ha chiamanti
+      runtime, e una soglia > 0 dichiarerebbe una vittoria irraggiungibile. Diventa un numero il
+      giorno in cui un obiettivo la alimenta.
 
   - feature_id: RT-FEAT-MATCH-PACING
     title: Pacing del turno e del match

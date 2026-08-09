@@ -219,14 +219,33 @@ bool ARTGameMode::ApplyMatchFormat(ARTTurnManager* TurnManager, const URTHexMapA
 			return false;
 		}
 	}
+	else if (const URTMatchFormatData* Shipped = URTMatchFormatLibrary::FindShippedFormat(ShippedFormatId))
+	{
+		// Nessun asset, ma un formato SPEDITO con quell'identita': si gioca quello. E' la stessa strada con
+		// cui eroi e azioni arrivano in partita senza che nessuno debba creare un `.uasset` in editor, ed e'
+		// cio' che separa una build pacchettizzata «che gira» da una «che gioca il formato della release».
+		if (!URTMatchFormatLibrary::ResolveRules(Shipped, Rules, Reason))
+		{
+			// Un formato spedito che non passa il proprio validator e' un difetto di CODICE, non di dato:
+			// rifiutare e' l'unica risposta onesta, perche' ripiegare lo nasconderebbe fino al playtest.
+			UE_LOG(LogRT, Error,
+				TEXT("[RT] Il formato spedito '%s' non e' valido: %s. Partita non allestita."),
+				*ShippedFormatId.ToString(), *Reason);
+			return false;
+		}
+		UE_LOG(LogRT, Log,
+			TEXT("[RT] Nessun MatchFormat assegnato: uso il formato SPEDITO '%s'. Assegna un "
+				 "URTMatchFormatData al GameMode per sovrascriverlo."),
+			*Rules.FormatId.ToString());
+	}
 	else
 	{
 		Rules = URTMatchFormatLibrary::MakeFallbackRules();
 		UE_LOG(LogRT, Warning,
-			TEXT("[RT] Nessun MatchFormat assegnato: uso il formato di RIPIEGO '%s' (RoundLimit %d, "
-				 "soglia obiettivo %d). Assegna un URTMatchFormatData al GameMode per giocare un formato "
-				 "dichiarato: le misure di playtest vanno attribuite al formato giusto."),
-			*Rules.FormatId.ToString(), Rules.RoundLimit, Rules.ScoreToWin);
+			TEXT("[RT] Nessun MatchFormat assegnato e nessun formato spedito per '%s': uso il RIPIEGO '%s' "
+				 "(RoundLimit %d, soglia obiettivo %d). Assegna un URTMatchFormatData al GameMode per giocare "
+				 "un formato dichiarato: le misure di playtest vanno attribuite al formato giusto."),
+			*ShippedFormatId.ToString(), *Rules.FormatId.ToString(), Rules.RoundLimit, Rules.ScoreToWin);
 	}
 
 	// CP 19.1: l'accoppiata formato/mappa si verifica QUI, prima di schierare. Un 3v3 Standard su una mappa
