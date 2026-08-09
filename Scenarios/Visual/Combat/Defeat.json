@@ -5,7 +5,7 @@
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "BANCO VFX per il KO. Due nemici colpiscono Flux con gli attacchi base per due turni: 24 (Bastion.ImpactShot) + 21 (Vektor.PulseShot) = 45 a turno, e i 90 HP di Flux finiscono ESATTAMENTE alla fine del secondo. Nessun cooldown in mezzo: entrambe le azioni hanno cooldown 0. Arena liscia e nessun terreno, perche' l'unica cosa da guardare qui e' l'eliminazione.",
+  "_nota": "BANCO VFX per il KO. Due nemici colpiscono Flux con gli attacchi base: 8 (Bastion.ImpactShot) + 21 (Vektor.PulseShot) = 29 a turno, e i 90 HP di Flux finiscono nel QUARTO. Nessun cooldown in mezzo: entrambe le azioni hanno cooldown 0. Arena liscia e nessun terreno, perche' l'unica cosa da guardare qui e' l'eliminazione. Fino ad ADR-0007 ImpactShot faceva 24, la somma era 45 e i 90 finivano ESATTAMENTE in due turni: quella coincidenza era una comodita' del banco, non una proprieta' del gioco, e con Bastion portato a 8 non c'e' piu'. Serviva scegliere fra allungare a quattro turni e cambiare le azioni: allungare conserva cio' che lo scenario deve mostrare — il KO con gli ATTACCHI BASE — mentre sostituirle avrebbe misurato altro.",
 
   "_nota_riva": "Riva sta in un angolo e non fa nulla, e non e' decorazione: senza di lei il team 0 verrebbe annientato con Flux e la partita finirebbe, portandosi via il secondo turno che questo scenario deve completare.",
 
@@ -20,14 +20,28 @@
 
   "turns": [
     {
-      "_turno": "T1 — 90 -> 45. Si guarda l'incassare: due colpi nello stesso Blast, e la barra che scende due volte.",
+      "_turno": "T1 — 90 -> 61. Si guarda l'incassare: due colpi nello stesso Blast, e la barra che scende due volte.",
       "intents": [
         { "unit": "B1", "ability": "Bastion.ImpactShot", "target": "F1" },
         { "unit": "V1", "ability": "Vektor.PulseShot",   "target": "F1" }
       ]
     },
     {
-      "_turno": "T2 — 45 -> 0. Stessi due colpi. Il secondo porta a zero: e' qui che si guarda il KO.",
+      "_turno": "T2 — 61 -> 32. Stessi due colpi, nessuna variazione: qui si guarda che la barra scenda in modo uguale a se stessa.",
+      "intents": [
+        { "unit": "B1", "ability": "Bastion.ImpactShot", "target": "F1" },
+        { "unit": "V1", "ability": "Vektor.PulseShot",   "target": "F1" }
+      ]
+    },
+    {
+      "_turno": "T3 — 32 -> 3. L'ultimo turno in cui Flux sopravvive, e per soli 3 HP: e' il fotogramma da guardare se il KO scattasse in anticipo.",
+      "intents": [
+        { "unit": "B1", "ability": "Bastion.ImpactShot", "target": "F1" },
+        { "unit": "V1", "ability": "Vektor.PulseShot",   "target": "F1" }
+      ]
+    },
+    {
+      "_turno": "T4 — 3 -> 0. Gia' il primo dei due colpi porta a zero: e' qui che si guarda il KO.",
       "intents": [
         { "unit": "B1", "ability": "Bastion.ImpactShot", "target": "F1" },
         { "unit": "V1", "ability": "Vektor.PulseShot",   "target": "F1" }
@@ -39,6 +53,6 @@
     { "type": "UnitAlive",     "unit": "F1", "value": false },
     { "type": "UnitAlive",     "unit": "R1", "value": true },
     { "type": "UnitHpEquals",  "unit": "R1", "value": 95 },
-    { "type": "TurnsCompleted", "value": 2 }
+    { "type": "TurnsCompleted", "value": 4 }
   ]
 }

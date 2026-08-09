@@ -137,7 +137,7 @@ nel vertical slice).
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
-| `Bastion.ImpactShot` | Colpo cinetico | attacco base | 24 danni, range 3 | 0 |
+| `Bastion.ImpactShot` | Colpo cinetico | attacco base | 8 danni, range 3, applica `Slow` | 0 |
 | `Bastion.KineticPanel` | Pannello cinetico | arco | crea una copertura da 30 HP | 2 |
 | `Bastion.Reconfigure` | Riconfigurazione | arco | sposta o ruota una copertura | 2 |
 | `Bastion.Ram` | Ariete | charge | 20 danni e `Push 1` | 2 |
@@ -257,6 +257,7 @@ spazio/movimento. La debolezza di ogni eroe è l'affinità di un altro — verif
 | 2 | «Debolezza» dichiarata fra gli elementi fissi | ~~Assente~~ → **fissata in E6** per tutti e quattro (CP 6.2–6.5), in due coppie simmetriche | Non è stata inventata: decisa esplicitamente eroe per eroe |
 | 3 | 4 eroi | ~~In codice esistono 2 archetipi~~ → **risolto in E6**: i quattro eroi sono in codice e in partita | Lo stato aggiornato è dichiarato in testa |
 | 4 | Cooldown di `Riva.PressureJet` non leggibile nella colonna | Assunto **0** (è l'attacco base per la sua colonna «Tipo: linea» a costo 0) | Coerente con gli altri attacchi base, tutti a CD 0 — assunzione **marcata** |
+| 5 | `Bastion.ImpactShot`: 24 danni | **8 danni + `Slow` 1 turno**, range 3 invariato ([ADR-0007](../decisions/adr-0007-attacco-base-per-eroe.md), 2026-08-09) | A 24 era l'attacco base **più forte del roster**, mentre il ruolo dichiarato di Bastion è Utility/Emergency: la contraddizione stava nei numeri, non nel ruolo. 8 è la metà esatta di `Riva.PressureJet` (16), che sta un gradino sopra. Lo `Slow` è l'unica delle utility candidate insieme esprimibile e coerente — `ERTStructureOp` non danneggia coperture, e uno `Status` si applica al bersaglio, quindi «genera Guard su di sé» non è rappresentabile |
 
 **Non specificato nel PDF** (da fissare in E6): debolezza di ciascun eroe (**tutte fissate**: Flux CP 6.2, Riva
 CP 6.3, Bastion CP 6.4, Vektor CP 6.5) ·

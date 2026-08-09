@@ -3,6 +3,7 @@
 #include "Ability/RTCatalogLibrary.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Core/RTGameplayTags.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -44,12 +45,26 @@ bool FRTBastionMatchesCatalogTest::RunTest(const FString&)
 	if (!TestEqual(TEXT("cinque azioni"), Bastion->Actions.Num(), 5)) { return false; }
 
 	const URTActionData* ImpactShot = Bastion->Actions[0];
-	TestEqual(TEXT("ImpactShot: 24 danni"), BastionEffectAmount(ImpactShot->Def.Effects, ERTActionEffect::Damage), 24);
+	TestEqual(TEXT("ImpactShot: 8 danni"), BastionEffectAmount(ImpactShot->Def.Effects, ERTActionEffect::Damage), 8);
 	TestEqual(TEXT("ImpactShot: range 3"), ImpactShot->Def.RangeCells, 3);
 	TestEqual(TEXT("ImpactShot: nessuna ricarica (e' l'attacco base)"), ImpactShot->Def.CooldownTurns, 0);
 
+	// ADR-0007: l'attacco base di Bastion appartiene alla famiglia Utility/Emergency, e la utility e' `Slow`.
+	// Senza questo assert il danno basso sarebbe indistinguibile da un nerf senza contropartita — cioe' dalla
+	// falsa scelta che la decisione esiste per evitare.
+	bool bFoundSlow = false;
+	for (const FRTActionEffectSpec& Spec : ImpactShot->Def.Effects)
+	{
+		if (Spec.Effect == ERTActionEffect::Status && Spec.StatusTag == TAG_Status_Slow)
+		{
+			bFoundSlow = true;
+			TestEqual(TEXT("lo Slow dura 1 turno"), Spec.StatusDuration, 1);
+		}
+	}
+	TestTrue(TEXT("ImpactShot: applica Status.Slow"), bFoundSlow);
+
 	// L'attacco base di Bastion NON viene dalla tabella a fasce: a range 3 la fascia darebbe 25, il catalogo
-	// eroi dice 24. Il test lo rende esplicito, cosi' la divergenza resta una scelta e non una svista.
+	// eroi dice 8. Il test lo rende esplicito, cosi' la divergenza resta una scelta e non una svista.
 	TestNotEqual(TEXT("non e' il danno generico della fascia corto raggio"),
 		BastionEffectAmount(ImpactShot->Def.Effects, ERTActionEffect::Damage),
 		URTCatalogLibrary::BasicAttackDamageForRange(3));

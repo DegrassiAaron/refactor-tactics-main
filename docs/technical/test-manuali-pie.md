@@ -53,7 +53,12 @@
 
 ## Stato in numeri — 2026-08-09
 
-**116 voci**: ✅ **26 verdi** · 🟡 **21 parziali** (regola coperta da test, resta il visivo) · ⏳ **69 aperte**.
+**117 voci**: ✅ **27 verdi** · 🟡 **21 parziali** (regola coperta da test, resta il visivo) · ⏳ **69 aperte**.
+
+*(Rimisurate col comando qui sotto il **2026-08-09**, dopo l'aggiunta di `PIE-MUT-BASTION-SLOW` — la prima
+voce del registro che **non** è una verifica visiva: è una verifica di mutazione, headless, rimasta fuori
+dall'automazione solo perché richiede una precondizione che nessuno script si garantisce da solo. Nata ⏳ e
+chiusa ✅ lo stesso giorno. `senza-marcatore` misurato: **0**.)*
 
 *(Rimisurate col comando qui sotto il **2026-08-09** **dopo il merge**, non prima: due rami hanno toccato
 questo file lo stesso giorno e ognuno aveva il **proprio** numero giusto — `114 (25/21/68)` da un lato, con le
@@ -122,7 +127,7 @@ awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);
 Delle 69 aperte, **50 stanno negli otto gruppi qui sotto** (`1+9+9+4+3+1+2+21 = 50`). Le **19 mancanti** sono
 7 voci aggiunte il 2026-08-08 da un'altra sessione, le **10** `PIE-STATE-*` di E34 — che non entrano in una
 sessione di verifica perché non sono eseguibili — più `PIE-PREVIEW-PERSIST` e `PIE-FACING-1`, aperte il
-2026-08-09. Le lascio
+2026-08-09. (`PIE-MUT-BASTION-SLOW` è nata e chiusa lo stesso giorno, quindi non compare qui.) Le lascio
 dichiarate invece di gonfiare una riga a caso, perché una somma che torna con sé stessa è il modo più facile
 di sembrare verificati senza esserlo (vedi la nota qui sopra). Chi le ha scritte sa dove vanno.
 
@@ -331,6 +336,32 @@ leggibilità minima nel senso più stretto, non presentazione.
 | **PIE-TEST-CONSOLE** | I comandi rispondono durante una partita | partita avviata (anche normale) | `rt.Test.List` elenca **8** scenari (i 6 `Movement.*` e i 2 `Combat.*`); `rt.Test.Run Movement.BasicFailsOnPurpose` stampa `FAIL` **con atteso e ottenuto** e il percorso del report; `rt.Test.DumpResult` ristampa l'ultimo `result.json`. ⚠️ Attenzione: eseguire uno scenario **sostituisce la mappa** e aggiunge unità alla partita in corso — è previsto (il runner riusa mappa e turn manager), ma dopo conviene riavviare con `R` | 🟡 **2026-08-08 — metà eseguita.** `rt.Test.List` ha risposto a schermo: l'utente ha visto i **9** scenari (i 6 `Movement.*`, i 2 `Combat.*` e `RT_Showcase_Relay_v01`). Il `FAIL` di `rt.Test.Run Movement.BasicFailsOnPurpose` è stato **prodotto** — `FAIL (0/1 assertion, 1 turni)`, `FALLITA UnitAtCell(A1): atteso (q=3,r=0,L=0), ottenuto (q=-2,r=0,L=0)`, più il percorso del report — ma **l'utente non l'ha visto a schermo**: l'overlay della console in PIE mostra poche righe e scorre via. ⚠️ **Questa voce chiede «i comandi rispondono», e una risposta che non si legge non risponde**: era stata segnata ✅ sulla prova nei log, ed è stata corretta a 🟡 su obiezione dell'utente — la prova nei log dice che il *codice* funziona, che è ciò che i test headless già coprono (`Scenario.RunnerDiagnosesFailure`, `ReportIsSelfSufficient`). Per chiudere serve che l'esito sia **leggibile senza aprire l'Output Log**: o si porta a schermo una riga di sintesi, o si dichiara qui che il medium legittimo è l'Output Log e la voce cambia richiesta. Il conteggio in questa riga era «4», fermo a prima degli scenari `Combat.*` |
 | **PIE-SCEN-FILTER** | I filtri restringono la tendina, **e la tendina si aggiorna** | `BP_GameMode` → Class Defaults → *RefactorTactics\|Test* | Con i filtri vuoti, `Scenario To Run` elenca tutti e 8 gli scenari. Impostando `Scenario Filter A = movement` la tendina scende a **6**; aggiungendo `Scenario Filter B = core` scende a **3** (`Movement.Basic`, `Movement.Collision`, `Movement.SwapRejectedByPlanning`). Il vocabolario dei due filtri contiene solo tag esistenti, con la voce vuota in testa | ✅ **2026-08-08** — verificato dall'utente in Editor: «la selezione filtra i possibili scenario to run». **Il rischio tecnico non si è materializzato**: `GetOptions` rivaluta l'elenco al cambio di un'altra property dello stesso actor, quindi il Details Panel ridisegna la tendina da solo. Nessuna `PostEditChangeProperty`, nessuna dipendenza `PropertyEditor` |
 | **PIE-SCEN-KEEP** | Filtrare **non perde** lo scenario selezionato | come sopra, con `Scenario To Run = Combat.BasicAttack` già salvato | Impostando `Scenario Filter A = movement` — che esclude `Combat.BasicAttack` dalla vista — la property **resta** su `Combat.BasicAttack`, e premendo Play parte quello. Il filtro è una vista, non un vincolo | ✅ **2026-08-08** — verificato dall'utente in Editor: «se cambio scelta, lo scenario to run non si resetta». Il combo box tiene il valore corrente anche quando i filtri lo escludono dalla vista, quindi la configurazione salvata nel `.uasset` non sembra né è andata persa. ⚠️ **Al termine svuota `Scenario To Run`** (prima voce della tendina) e Save: la property sopravvive alla sessione, e al Play successivo il GameMode esegue lo scenario e **non allestisce la partita normale** (`RTGameMode.cpp:136` fa `return`). Sintomo: schermo quasi nero, nessuna unità tua, **nessuna barra abilità** — perché la barra si disegna solo con un'unità selezionata. Diagnosi in un colpo: cerca `AUTO-RUN` nell'Output Log, la riga dice anche **da dove** viene lo scenario |
+
+### Verifiche di mutazione — rimaste fuori dall'headless per contesa sul binario
+
+> Queste voci **sarebbero** automatizzabili: non chiedono l'editor, il mouse o un asset. Stanno qui perché
+> richiedono una condizione che nessuno script può garantirsi da solo — che **nessun altro processo UE tenga
+> la DLL** — e quindi serve una persona che scelga il momento. Non sono verifiche visive: si eseguono da riga
+> di comando, e l'esito è un test rosso.
+>
+> **Perché esistono.** Un assert nuovo che nasce verde non ha ancora dimostrato di saper diventare rosso.
+> La regola del progetto è rompere il codice **una mutazione per volta** e controllare che cadano
+> *esattamente* i test attesi. La trappola è nota e documentata: una mutazione che non fa cadere niente può
+> voler dire «assert vacuo», ma anche **«la build non è arrivata al binario»** — e i due casi si distinguono
+> solo confrontando il timestamp della DLL con quello del sorgente.
+
+| ID | Cosa verificare | Precondizione | Esito atteso | Stato |
+|----|-----------------|---------------|--------------|-------|
+| **PIE-MUT-BASTION-SLOW** | L'assert su `Status.Slow` di `Bastion.ImpactShot` **sa diventare rosso** | Nessun `UnrealEditor`/`UnrealEditor-Cmd` in esecuzione (`Get-Process UnrealEditor-Cmd`): finché uno tiene `Binaries/Win64/UnrealEditor-RefactorTactics.dll`, il link fallisce con `LNK1104` e il test gira contro il binario vecchio. ⚠️ **Il processo che blocca non è l'Editor**: è il runner headless delle automation, visibile solo in Task Manager — «ho chiuso l'editor» non basta | Togliere la riga `FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Slow, 1)` da `RTHeroCatalogLibrary.cpp` (indice 0 di Bastion) · ricostruire · **verificare che `LastWriteTime` della DLL sia più recente del sorgente** — è questo il passo che rende la prova valida, non la scritta `Result: Succeeded` · eseguire `Automation RunTests RefactorTactics.Heroes`. Deve cadere **esattamente** `RefactorTactics.Heroes.Bastion.MatchesCatalog`, sull'assert «ImpactShot: applica Status.Slow», e **nient'altro**. Poi ripristinare la riga e ricostruire | ✅ **2026-08-09** — eseguita. DLL `20:35:57` contro sorgente `20:35:38` (mutazione **nel binario**, non solo su disco), poi `29 tests performed` con **un solo** rosso: `Heroes.Bastion.MatchesCatalog`, `Expected 'ImpactShot: applica Status.Slow' to be true`. Nient'altro è caduto: l'assert non è vacuo. Ripristinata e ricostruita, albero identico al commit. **Storia utile a chi ripete la prova**: due tentativi precedenti erano risultati «verdi» ed erano falsi negativi — nel primo la DLL era più vecchia del sorgente (`LNK1104`, file tenuto da un runner headless), nel secondo l'automation non partiva affatto (vedi la nota sotto) |
+
+> ⚠️ **Come lanciare il runner, e perché conta.** Un processo avviato con `Start-Process` (staccato, senza
+> console) viene **throttlato da UE come applicazione in background**: il motore gira a ~0,6 fps invece di
+> ~113, e l'automation controller non arriva mai a completare la discovery dei test — resta fermo dopo
+> `Ready to start automation`, senza errori, per un tempo indefinito. Sembra un blocco del message bus e non
+> lo è. Il sintomo si legge nel **contatore di frame** del log (`[2026.08.09-18.12.29:110][ 44]`): se avanza
+> di poche unità al secondo, è quello.
+>
+> Lanciare il runner **in diretta** (`& "…/UnrealEditor-Cmd.exe" …`), non con `Start-Process`.
 
 ### Durata, ritmo e scala — verifiche di *game feel*
 
@@ -606,7 +637,7 @@ oppure dimmi cosa hai osservato e aggiorno le voci con l'esito (e apro un fix se
 | **PIE-VIS-FIRE** | Danno da terreno in due momenti | `Visual.Environment.FireOnEnter` | All'ingresso in `(0,-2)` una reazione immediata (10 danni), e nel **Cleanup** una seconda, distinta, per `Burning` (8). Se le due usano la stessa animazione, una regola sparisce | ⏳ |
 | **PIE-VIS-ICE** | La scivolata non è un passo | `Visual.Environment.IceSlide` | Flux fa **due** passi voluti e **uno** subìto: il terzo, fino a `(-2,1)`, deve leggersi come perdita di controllo — non come un passo identico agli altri | ⏳ |
 | **PIE-VIS-WETFIRE** | L'acqua spegne le fiamme | `Visual.Environment.WetExtinguishesFire` | Al turno 2 il getto di Riva **spegne visibilmente** il fuoco addosso a Vektor. È un'assenza (i danni del Cleanup non arrivano): se le fiamme restano accese, il giocatore non sa che la regola è scattata | ⏳ |
-| **PIE-VIS-KO** | Eliminazione di un'unità | `Visual.Combat.Defeat` | Due colpi per turno, barra che scende due volte, e al secondo turno la rimozione. L'unità non deve sparire prima che il colpo sia arrivato | ⏳ |
+| **PIE-VIS-KO** | Eliminazione di un'unità | `Visual.Combat.Defeat` | Due colpi per turno, barra che scende due volte, e al **quarto** turno la rimozione. L'unità non deve sparire prima che il colpo sia arrivato. ⚠️ Erano **due** turni fino ad [ADR-0007](../decisions/adr-0007-attacco-base-per-eroe.md) (2026-08-09): `Bastion.ImpactShot` è passato da 24 a 8, la somma per turno da 45 a 29, e i 90 HP di Flux non finiscono più in due. La seduta dura quindi il doppio, ed è la stessa cosa da guardare | ⏳ |
 | **PIE-VIS-CHARGE** | La carica si distingue dal passo | `Visual.Movement.Charge` | Accelerazione, impatto e arresto **addosso** a Flux, più la spinta di 1. Confronto diretto con `Movement.LongWalk`: se si vedono uguali, la differenza fra Dash e Move non arriva | ⏳ |
 | **PIE-VIS-ROUGH** | Un rifiuto è muto | `Visual.Movement.RoughRefusesCharge` | La carica **non parte**: nessuno slancio accennato, nessun impatto mancato, nessuno si muove. Un rifiuto che sembra un'animazione interrotta suggerisce un bug dove c'è una regola | ⏳ |
 | **PIE-VIS-COMBO** | Acqua + elettricità dal **terreno** | `Visual.Combat.WaterElectric` | Vektor attraversa l'acqua in fase Dash e incassa la scarica potenziata. Si deve capire che il bonus viene dal **terreno bagnato**, non da chi ha bagnato (D-029): nessuna enfasi su un'unità che non c'è | ⏳ |

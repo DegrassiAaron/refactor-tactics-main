@@ -139,7 +139,7 @@ ostacoli `(-1,2)` `(1,-2)` `(2,1)` e la fascia Rough a costo 3 su `q=-2`.
 |---|---:|---:|---|---|
 | Flux | 90 | 5 | `Flux.ArcPulse` 22, r4 | `LinearDischarge` 24 r5 linea cd2 · `Overload` 18 AoE r1 |
 | Riva | 95 | 5 | `Riva.PressureJet` 16 + Wet(1) + Push 1, r5 linea | fallback `AttackCell` |
-| Bastion | 120 | 4 | `Bastion.ImpactShot` 24, r3 | PushResistance 1 · `Ram` = carica 20 + Push 1 |
+| Bastion | 120 | 4 | `Bastion.ImpactShot` 8 + Slow(1), r3 | PushResistance 1 · `Ram` = carica 20 + Push 1 |
 | Vektor | 100 | 6 | `Vektor.PulseShot` 21, r4 | il più mobile |
 
 I danni da terreno vengono dal catalogo terreni (Fire: 10 + `Burning`) e vanno confermati al primo run.
@@ -161,7 +161,7 @@ progetto a usare una fixture invece di un'arena generata.
 | `Movement.LongWalk` *(esiste)* | r5 | due unità attraversano l'arena, 3 celle per turno × 2 | passo, orientamento, velocità, camera che segue | *(già sue)* | già `animation` |
 | `Combat.BasicAttack` *(esiste)* | r4 | Flux `ArcPulse` su Bastion a distanza 2 | partenza, volo, impatto, numero di danno | `UnitHpEquals B1 98` | già `animation` |
 | `Visual.Environment.FireOnEnter` | RelayLite | Vektor `(0,-3)` → move `(0,-2)` Fire | **due** momenti: 10 danni all'ingresso, 8 nel Cleanup per `Burning` | `UnitHpEquals V1 82` · `UnitAtCell (0,-2,0)` | scritto |
-| `Visual.Combat.Defeat` | r4 | Flux `(-1,0)`; Bastion `ImpactShot` + Vektor `PulseShot` per **due turni** | l'unità che incassa, poi sparisce: 24+21=45 a turno, 90 esatti in due | `UnitAlive F1 false` · `TurnsCompleted 2` | scritto |
+| `Visual.Combat.Defeat` | r4 | Flux `(-1,0)`; Bastion `ImpactShot` + Vektor `PulseShot` per **quattro turni** | l'unità che incassa, poi sparisce: 8+21=29 a turno, KO nel quarto (ADR-0007; con ImpactShot a 24 erano 45 e bastavano due) | `UnitAlive F1 false` · `TurnsCompleted 4` | scritto |
 | `Visual.Movement.Charge` | r4 | Bastion `(3,0)` usa `Ram` su Flux `(1,0)` (distanza 2, portata 3) | la carica **si legge diversa** dal passo: accelerazione, impatto, arresto addosso | `UnitHpEquals F1 70` (90−20) | scritto |
 | `Visual.Environment.IceSlide` | RelayLite | Flux `(-2,4)` → move `(-2,3)` `(-2,2)` Ice, restano 3 MP | il passo extra deve leggersi come **scivolata**, non come un passo in più | `UnitAtCell F1 (-2,1,0)` | scritto |
 
@@ -210,7 +210,7 @@ fare, lo scenario non lo sa dire. Vedi §8.2.
 | ID | Fixture | Cosa guardi | Stato |
 |---|---|---|---|
 | `Visual.Environment.WetExtinguishesFire` | RelayLite | CP 8.4: l'acqua spegne le fiamme. Ciò che si guarda è un'**assenza** — gli 8 danni del Cleanup che non arrivano. 66, non 58 | scritto |
-| `Visual.Map.LowCoverEdge` | RelayBasin | due colpi simultanei sullo stesso bersaglio, **entità diverse**: la copertura è di un bordo. 90−14−21 = 55 | scritto |
+| `Visual.Map.LowCoverEdge` | RelayBasin | due colpi simultanei sullo stesso bersaglio, **entità diverse**: la copertura è di un bordo. 90−11−8 = 71. Da ADR-0007 è **Vektor** a tirare dal lato riparato: con ImpactShot a 8 contro una riduzione di 10 il danno si troncava a zero e lo scenario smetteva di misurare la grandezza della copertura | scritto |
 | `Visual.Map.ClosedDoor` | RelayBasin | Riva arriva **girando**: la porta è un bordo, e il percorso deve raccontare da sé perché è lungo | scritto |
 | `Visual.Map.HighGroundNoBonus` | RelayBasin | due Vektor identici, dalla cresta e dal piano: 21+21, nessun bonus (D-024) | scritto |
 | `Visual.Map.HighCoverBlocks` | **CoverYard** | la barriera **alta** nega vista *e* passo in un turno solo: il colpo non parte e il percorso gira | scritto |

@@ -51,13 +51,25 @@ scegliendo lo scenario e premendo Play, una voce C richiede di allestire, clicca
 
 | Classe | Quanti | Dove |
 |---|---:|---|
-| **A** — automatico | **21** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · `RT_Showcase_Relay_v01` |
+| **A** — automatico | **23** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · `RT_Showcase_Relay_v01` |
 | **B** — automatico + occhio | **21** scenari ↔ **21** voci `PIE-VIS-*` | `Scenarios/Visual/` |
 | **C** — solo umano | **95** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima |
 | **D** — dichiarato | **12** scenari `Spec.*` ancora `BLOCKED` · **13** pianificati · **4** mai scritti | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
 
-Totale corpus versionato: **54** scenari (`A 21 + B 21 + D-bloccati 12`). Totale registro PIE: **116** voci
-(`B 21 + C 95`).
+Totale corpus versionato: **56** scenari (`A 23 + B 21 + D-bloccati 12`). Totale registro PIE: **117** voci
+(`B 21 + C 95 + 1 fuori classe`).
+
+> **Una voce non sta in nessuna delle quattro classi**, ed è meglio dirlo che forzarla dentro.
+> `PIE-MUT-BASTION-SLOW` (2026-08-09) è una **verifica di mutazione**: rompere il codice di proposito e
+> controllare che cada *esattamente* il test atteso. Non è C — non chiede mouse, editor né giudizio umano, e
+> una macchina la eseguirebbe da sola. Non è A — perché la macchina, da sola, **non può garantirsi la
+> precondizione**: che nessun altro processo UE tenga `UnrealEditor-RefactorTactics.dll`. Con la DLL bloccata
+> il link fallisce (`LNK1104`) e il test gira contro il binario vecchio, cioè **passa per il motivo
+> sbagliato**. Serve una persona che scelga il momento, non che guardi lo schermo.
+>
+> Il modello a quattro classi divide per *dove sta l'oracolo*. Questa voce dice che esiste un secondo asse —
+> **chi controlla le precondizioni** — e che finora coincideva col primo. Se ne arriva una seconda, vale la
+> pena farne una classe.
 
 > ⚠️ **La cartella non è la classe.** Sette scenari di `Scenarios/Spec/` sono di **classe A**: i sei
 > `Spec.Facing.*` e `Spec.Cover.TemporaryCoverExpires`. I primi hanno
@@ -84,6 +96,8 @@ Il verdetto è l'assertion. Nessuna di queste righe compare nel registro PIE, ed
 | `Combat.FriendlyFire` | r3 | 5 | l'AoE colpisce anche l'alleato — e porta `previewUnit` per il banco dell'anteprima |
 | `Combat.LineHitsThrough` | r4 | 4 | la linea prende chi sta sulla traiettoria prima del bersaglio |
 | `Combat.NoCounterWhenUnarmed` | r4 | 3 | il contrattacco richiede un'arma: niente reazione implicita |
+| `Combat.BastionImpactShotSlows` | r4 | 4 | lo `Slow` applicato nel **Blast** agisce sul **Move** dello stesso turno: il bersaglio si ferma due celle prima |
+| `Combat.MoveIsFullWithoutSlow` | r4 | 3 | il gemello di controllo: senza il colpo, le stesse quattro celle si percorrono tutte |
 | `Combat.SplashHitsAlliesNotSelf` | r4 | 5 | l'area prende gli alleati ma **non** chi la lancia |
 | `Movement.Basic` | r3 | 2 | il passo singolo arriva sulla cella pianificata |
 | `Movement.BasicFailsOnPurpose` | r3 | 1 | **`expected-fail`**: è l'unica prova che l'harness sappia dire «rosso» |
