@@ -1,6 +1,7 @@
 #include "Misc/AutomationTest.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Combat/RTHexCombatLibrary.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
@@ -364,5 +365,92 @@ bool FRTHexBotDashAgreesWithResolverTest::RunTest(const FString&)
 	TestTrue(TEXT("la fuga non e' troncata dal costo del terreno"), Fled > Range / 2);
 
 	DestroyHexBotWorld(World);
+	return true;
+}
+
+/**
+ * Il piano del bot non investe il compagno (#213).
+ *
+ * Il secondo anello del cablaggio: `PlanBots` deve popolare `FRTHexBotContext::Allies` e passare la FORMA
+ * dell'azione, altrimenti ogni attacco viene pesato come un colpo singolo e il collaterale resta invisibile.
+ *
+ * La verifica e' sul comportamento osservabile e non sull'abilita' scelta: qualunque cosa il bot pianifichi,
+ * le celle investite non devono contenere il compagno. L'assert speculare — senza il compagno in mezzo il
+ * bot ATTACCA — impedisce che il test passi per il motivo sbagliato, cioe' un bot che non attacca mai.
+ */
+namespace
+{
+	/** Celle investite dal piano principale del bot, o vuoto se non ha pianificato un attacco. */
+	TArray<FRTCellId> PlannedHitCells(ARTUnit* Bot)
+	{
+		TArray<FRTCellId> Out;
+		if (!Bot || !Bot->PlannedAttackTarget || Bot->PlannedAbilityIndex == INDEX_NONE)
+		{
+			return Out;
+		}
+		const URTActionData* Ability = Bot->GetAbility(Bot->PlannedAbilityIndex);
+		if (!Ability)
+		{
+			return Out;
+		}
+		return URTHexCombatLibrary::HexHitCells(Ability->Shape, Bot->PlannedCell,
+			Bot->PlannedAttackTarget->Cell, Ability->RangeCells, Ability->AreaRadius);
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotSparesAllyTest,
+	"RefactorTactics.HexBotPlay.PlanDoesNotBlastDyingAlly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotSparesAllyTest::RunTest(const FString&)
+{
+	// --- Caso 1: il compagno morente sta fra il bot e il nemico ---
+	{
+		UWorld* World = MakeHexBotWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		SpawnHexBotMap(World, /*Radius=*/ 5);
+
+		ARTUnit* Bot = SpawnHexBotUnit(World, 1, ERTArchetype::Guardian, FRTCellId(0, 0), /*bBot*/ true);
+		ARTUnit* Ally = SpawnHexBotUnit(World, 1, ERTArchetype::Ranger, FRTCellId(1, 0), /*bBot*/ false);
+		ARTUnit* Foe = SpawnHexBotUnit(World, 0, ERTArchetype::Ranger, FRTCellId(2, 0), /*bBot*/ false);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Bot || !Ally || !Foe) { DestroyHexBotWorld(World); return false; }
+
+		// Morente: il collaterale sul compagno diventa LETALE, quindi il piano che lo investe e' nettamente
+		// peggiore di qualunque alternativa. Con HP pieni la penalita' proporzionale potrebbe pareggiare.
+		Ally->Health = 10;
+		Ally->Shield = 0;
+
+		TM->PlanBotsForTest();
+
+		const TArray<FRTCellId> Hit = PlannedHitCells(Bot);
+		TestFalse(TEXT("il piano del bot non investe il compagno morente"), Hit.Contains(Ally->Cell));
+
+		DestroyHexBotWorld(World);
+	}
+
+	// --- Caso 2 (speculare): stesso setup, compagno FUORI dalla traiettoria ---
+	{
+		UWorld* World = MakeHexBotWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		SpawnHexBotMap(World, /*Radius=*/ 5);
+
+		ARTUnit* Bot = SpawnHexBotUnit(World, 1, ERTArchetype::Guardian, FRTCellId(0, 0), /*bBot*/ true);
+		ARTUnit* Ally = SpawnHexBotUnit(World, 1, ERTArchetype::Ranger, FRTCellId(0, -4), /*bBot*/ false);
+		ARTUnit* Foe = SpawnHexBotUnit(World, 0, ERTArchetype::Ranger, FRTCellId(2, 0), /*bBot*/ false);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Bot || !Ally || !Foe) { DestroyHexBotWorld(World); return false; }
+
+		Ally->Health = 10;
+		Ally->Shield = 0;
+
+		TM->PlanBotsForTest();
+
+		// Se qui il bot non attaccasse, il caso 1 non proverebbe nulla: passerebbe perche' il bot non attacca
+		// mai, non perche' risparmia il compagno.
+		TestNotNull(TEXT("con il compagno fuori mira il bot attacca davvero"), Bot->PlannedAttackTarget.Get());
+
+		DestroyHexBotWorld(World);
+	}
+
 	return true;
 }

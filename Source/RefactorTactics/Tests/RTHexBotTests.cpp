@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Ability/RTActionData.h"
 #include "Bot/RTHexBotLibrary.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
@@ -43,6 +44,35 @@ namespace
 		Ctx.AttackRange = 3;
 		Ctx.AttackDamage = 30;
 		return Ctx;
+	}
+
+	/**
+	 * Contesto con attacco AD AREA di raggio 1 e fuoco amico attivo — il caso di `Flux.Overload` (#213).
+	 * Gittata nemica 0: nessuna minaccia sulla cella, cosi' il punteggio isola il collaterale.
+	 */
+	FRTHexBotContext MakeAreaCtx(const FRTCellId& Origin, const FRTCellId& Enemy, int32 Damage)
+	{
+		FRTHexBotContext Ctx = MakeCtx(Origin, Enemy, /*EnemyRange*/ 0, /*EnemyHealth*/ 100);
+		Ctx.AttackDamage = Damage;
+		Ctx.AttackShape = ERTAbilityShape::Area;
+		Ctx.AttackAreaRadius = 1;
+		Ctx.bAttackFriendlyFire = true;
+		return Ctx;
+	}
+
+	/** Piano con attacco AD AREA raggio 1 e fuoco amico: la forma viaggia col piano, non col contesto. */
+	FRTHexBotPlan MakeAreaPlan(const FRTCellId& Dest, int32 Damage, int32 TargetHealth)
+	{
+		FRTHexBotPlan P;
+		P.DestCell = Dest;
+		P.bHasAttack = true;
+		P.TargetIndex = 0;
+		P.AttackDamage = Damage;
+		P.TargetHealth = TargetHealth;
+		P.Shape = ERTAbilityShape::Area;
+		P.AreaRadius = 1;
+		P.bFriendlyFire = true;
+		return P;
 	}
 
 	FRTHexBotPlan MakePlan(const FRTCellId& Dest, bool bAttack = false, int32 Damage = 0, int32 TargetHealth = 0)
@@ -150,6 +180,181 @@ bool FRTHexBotElevationTest::RunTest(const FString&)
 	const int32 High = URTHexBotLibrary::ScorePlan(M, MakePlan(FRTCellId(1, 0, 2)), Ctx);
 	TestTrue(TEXT("la quota alta vale di piu'"), High > Ground);
 	TestEqual(TEXT("bonus proporzionale al layer"), High - Ground, 40);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Forma dell'attacco e collaterale (#213)
+//
+// ScorePlan valutava ogni attacco come se colpisse una cella sola: non contava i nemici in piu' presi da
+// un'area, ne' gli alleati che ci finiscono dentro. Con il fuoco amico attivo di default (2026-08-08) la
+// seconda meta' dell'omissione e' diventata dannosa, non solo conservativa.
+//
+// Il modello segue il resolver, non un'idea del resolver: `CollectHexAttacks` esclude SEMPRE l'attaccante
+// (`u == Intent.AttackerId`) e colpisce un alleato solo se l'azione dichiara `bFriendlyFire`.
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotAreaExtraEnemiesTest,
+	"RefactorTactics.HexBot.ScoreAreaCountsExtraEnemies",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotAreaExtraEnemiesTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeBotMap(4);
+	const FRTCellId Origin(0, 0);
+	const FRTCellId Target(2, 0);
+
+	// Un solo nemico nell'area.
+	const FRTHexBotContext One = MakeAreaCtx(Origin, Target, /*damage*/ 30);
+
+	// Un secondo nemico ADIACENTE al bersaglio: entra nell'esagono di raggio 1, ma non cambia MinDist
+	// (2 contro 3) ne' la minaccia (gittata 0), quindi l'unica differenza di punteggio e' il collaterale.
+	FRTHexBotContext Two = One;
+	Two.Enemies.Add(FRTCellId(3, 0));
+	Two.EnemyRanges.Add(0);
+	Two.EnemyHealth.Add(100);
+
+	const int32 ScoreOne = URTHexBotLibrary::ScorePlan(M, MakeAreaPlan(Origin, 30, 100), One);
+	const int32 ScoreTwo = URTHexBotLibrary::ScorePlan(M, MakeAreaPlan(Origin, 30, 100), Two);
+
+	TestTrue(TEXT("l'area che prende due nemici vale piu' di quella che ne prende uno"), ScoreTwo > ScoreOne);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotAreaPenalizesAllyTest,
+	"RefactorTactics.HexBot.ScoreAreaPenalizesAlly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotAreaPenalizesAllyTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeBotMap(4);
+	const FRTCellId Origin(0, 0);
+	const FRTCellId Target(2, 0);
+
+	const FRTHexBotContext Clean = MakeAreaCtx(Origin, Target, /*damage*/ 30);
+
+	FRTHexBotContext WithAlly = Clean;
+	WithAlly.Allies.Add(FRTCellId(3, 0)); // adiacente al bersaglio: dentro l'area
+	WithAlly.AllyHealth.Add(100);
+
+	const int32 ScoreClean = URTHexBotLibrary::ScorePlan(M, MakeAreaPlan(Origin, 30, 100), Clean);
+	const int32 ScoreAlly = URTHexBotLibrary::ScorePlan(M, MakeAreaPlan(Origin, 30, 100), WithAlly);
+
+	TestTrue(TEXT("prendere il compagno nell'area abbassa il punteggio"), ScoreAlly < ScoreClean);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotAllyPenaltyScalesTest,
+	"RefactorTactics.HexBot.ScoreAllyPenaltyScalesWithDamage",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotAllyPenaltyScalesTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeBotMap(4);
+	const FRTCellId Origin(0, 0);
+	const FRTCellId Target(2, 0);
+	const FRTCellId Ally(3, 0);
+
+	auto PenaltyForDamage = [&](int32 Damage)
+	{
+		const FRTHexBotContext Clean = MakeAreaCtx(Origin, Target, Damage);
+		FRTHexBotContext WithAlly = Clean;
+		WithAlly.Allies.Add(Ally);
+		WithAlly.AllyHealth.Add(100);
+
+		return URTHexBotLibrary::ScorePlan(M, MakeAreaPlan(Origin, Damage, 100), Clean)
+			- URTHexBotLibrary::ScorePlan(M, MakeAreaPlan(Origin, Damage, 100), WithAlly);
+	};
+
+	// La decisione di design e' PENALITA' PROPORZIONALE, non veto: ferire il compagno per prendere due
+	// nemici resta una scelta legittima, ma costa in proporzione a quanto lo si ferisce.
+	TestTrue(TEXT("la penalita' e' proporzionale al danno, non una costante"),
+		PenaltyForDamage(40) > PenaltyForDamage(20));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotNoFriendlyFireTest,
+	"RefactorTactics.HexBot.ScoreIgnoresAllyWithoutFriendlyFire",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotNoFriendlyFireTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeBotMap(4);
+	const FRTCellId Origin(0, 0);
+	const FRTCellId Target(2, 0);
+
+	const FRTHexBotContext Clean = MakeAreaCtx(Origin, Target, /*damage*/ 30);
+
+	FRTHexBotContext NoFire = Clean;
+	NoFire.bAttackFriendlyFire = false;
+	NoFire.Allies.Add(FRTCellId(3, 0));
+	NoFire.AllyHealth.Add(100);
+
+	FRTHexBotPlan NoFirePlan = MakeAreaPlan(Origin, 30, 100);
+	NoFirePlan.bFriendlyFire = false; // l'azione non colpisce gli alleati: il piano lo porta con se'
+
+	const int32 ScoreClean = URTHexBotLibrary::ScorePlan(M, MakeAreaPlan(Origin, 30, 100), Clean);
+	const int32 ScoreNoFire = URTHexBotLibrary::ScorePlan(M, NoFirePlan, NoFire);
+
+	// Il resolver non tocca l'alleato: penalizzarlo qui renderebbe il bot timido su un pericolo che non esiste.
+	TestEqual(TEXT("senza fuoco amico l'alleato nell'area non entra nel punteggio"), ScoreNoFire, ScoreClean);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotSingleShapeTest,
+	"RefactorTactics.HexBot.ScoreSingleShapeIgnoresNeighbours",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotSingleShapeTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeBotMap(4);
+	const FRTCellId Origin(0, 0);
+	const FRTCellId Target(2, 0);
+
+	// Forma Single: il vicino del bersaglio non viene colpito, ne' se nemico ne' se alleato.
+	FRTHexBotContext One = MakeCtx(Origin, Target, /*range*/ 0, /*hp*/ 100);
+	One.AttackDamage = 30;
+
+	FRTHexBotContext Two = One;
+	Two.Enemies.Add(FRTCellId(3, 0));
+	Two.EnemyRanges.Add(0);
+	Two.EnemyHealth.Add(100);
+
+	const int32 ScoreOne = URTHexBotLibrary::ScorePlan(M, MakePlan(Origin, true, 30, 100), One);
+	const int32 ScoreTwo = URTHexBotLibrary::ScorePlan(M, MakePlan(Origin, true, 30, 100), Two);
+
+	TestEqual(TEXT("Single non guadagna nulla dai vicini del bersaglio"), ScoreTwo, ScoreOne);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotCandidateShapeTest,
+	"RefactorTactics.HexBot.CandidatesCarryShape",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotCandidateShapeTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeBotMap(5);
+
+	TArray<FRTHexSimUnit> Units;
+	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), /*budget*/ 1));
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+
+	FRTHexBotContext Ctx = MakeAreaCtx(FRTCellId(0, 0), FRTCellId(1, 0), /*damage*/ 18);
+	Ctx.AttackRange = 3;
+
+	const TArray<FRTHexBotPlan> Candidates = URTHexBotLibrary::BuildCandidates(Snap, 1, Ctx);
+
+	// Il primo anello del cablaggio: la forma passa dal contesto AL PIANO. Se restasse nel contesto,
+	// ChooseBestPlan — che confronta in una lista sola le candidate di abilita' diverse — la applicherebbe
+	// a tutte.
+	int32 Attacks = 0;
+	for (const FRTHexBotPlan& P : Candidates)
+	{
+		if (!P.bHasAttack)
+		{
+			continue;
+		}
+		++Attacks;
+		TestEqual(TEXT("la candidata porta la forma dell'azione"), P.Shape, ERTAbilityShape::Area);
+		TestEqual(TEXT("la candidata porta il raggio dell'area"), P.AreaRadius, 1);
+		TestEqual(TEXT("la candidata porta la gittata"), P.RangeCells, 3);
+		TestTrue(TEXT("la candidata porta il fuoco amico"), P.bFriendlyFire);
+	}
+	TestTrue(TEXT("almeno una candidata con attacco, o il ciclo non verifica nulla"), Attacks > 0);
 	return true;
 }
 

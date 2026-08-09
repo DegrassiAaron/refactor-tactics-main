@@ -1,4 +1,5 @@
 #include "Bot/RTHexBotLibrary.h"
+#include "Combat/RTHexCombatLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexVisionLibrary.h"
@@ -10,12 +11,56 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 	int32 Score = 0;
 
 	// Focus-fire: danno inflitto, con bonus se il colpo uccide (danno >= HP+scudo del bersaglio).
+	//
+	// Il conto e' sulle celle che l'attacco INVESTE, non sul solo bersaglio: un'area di raggio 1 puo' prendere
+	// piu' nemici — e, da quando il fuoco amico e' attivo di default, anche i compagni (#213). La geometria
+	// viene dalla stessa `HexHitCells` che usa il resolver: il bot non stima una forma propria, legge quella.
 	if (Plan.bHasAttack)
 	{
-		Score += Context.WDamage * Plan.AttackDamage;
-		if (Plan.AttackDamage >= Plan.TargetHealth)
+		const FRTCellId AimCell = Context.Enemies.IsValidIndex(Plan.TargetIndex)
+			? Context.Enemies[Plan.TargetIndex]
+			: Plan.DestCell;
+		const TArray<FRTCellId> HitCells = URTHexCombatLibrary::HexHitCells(
+			Plan.Shape, Plan.DestCell, AimCell, Plan.RangeCells, Plan.AreaRadius);
+
+		for (int32 I = 0; I < Context.Enemies.Num(); ++I)
 		{
-			Score += Context.WKill;
+			if (!HitCells.Contains(Context.Enemies[I]))
+			{
+				continue;
+			}
+			Score += Context.WDamage * Plan.AttackDamage;
+
+			// Il bersaglio mirato porta gli HP dichiarati dal piano (contratto gia' in uso); i nemici presi
+			// "in piu'" dall'area li leggono dal contesto.
+			const int32 Health = (I == Plan.TargetIndex)
+				? Plan.TargetHealth
+				: (Context.EnemyHealth.IsValidIndex(I) ? Context.EnemyHealth[I] : MAX_int32);
+			if (Plan.AttackDamage >= Health)
+			{
+				Score += Context.WKill;
+			}
+		}
+
+		// Collaterale sugli alleati. PENALITA' PROPORZIONALE al danno, non veto (decisione 2026-08-09):
+		// ferire il compagno per prendere due nemici resta una scelta legittima del bot, ma costa in
+		// proporzione a quanto lo ferisce. Ucciderlo costa quanto vale un kill: e' il simmetrico di WKill.
+		if (Plan.bFriendlyFire)
+		{
+			for (int32 I = 0; I < Context.Allies.Num(); ++I)
+			{
+				if (!HitCells.Contains(Context.Allies[I]))
+				{
+					continue;
+				}
+				Score -= Context.WAllyDamage * Plan.AttackDamage;
+
+				const int32 AllyHp = Context.AllyHealth.IsValidIndex(I) ? Context.AllyHealth[I] : MAX_int32;
+				if (Plan.AttackDamage >= AllyHp)
+				{
+					Score -= Context.WKill;
+				}
+			}
 		}
 	}
 
@@ -144,6 +189,12 @@ TArray<FRTHexBotPlan> URTHexBotLibrary::BuildCandidates(const FRTHexSnapshot& Sn
 			Attack.TargetIndex = I;
 			Attack.AttackDamage = Context.AttackDamage;
 			Attack.TargetHealth = Context.EnemyHealth[I];
+			// La forma viaggia col piano: e' cio' che permette a ChooseBestPlan di confrontare candidate di
+			// abilita' diverse senza che una prenda la geometria dell'altra.
+			Attack.Shape = Context.AttackShape;
+			Attack.AreaRadius = Context.AttackAreaRadius;
+			Attack.RangeCells = Context.AttackRange;
+			Attack.bFriendlyFire = Context.bAttackFriendlyFire;
 			Out.Add(Attack);
 		}
 	}
