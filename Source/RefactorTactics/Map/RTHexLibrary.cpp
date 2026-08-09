@@ -66,6 +66,43 @@ int32 URTHexLibrary::HexDistance(const FRTCellId& A, const FRTCellId& B)
 	return (Dq + Dr + Ds) / 2;
 }
 
+bool URTHexLibrary::DirectionBetween(const FRTCellId& From, const FRTCellId& To, ERTHexDirection& OutDirection)
+{
+	if (From.Layer != To.Layer)
+	{
+		return false;
+	}
+
+	const int32 Dq = To.X - From.X;
+	const int32 Dr = To.Y - From.Y;
+	for (int32 I = 0; I < 6; ++I)
+	{
+		if (RT_HEX_DX[I] == Dq && RT_HEX_DY[I] == Dr)
+		{
+			OutDirection = static_cast<ERTHexDirection>(I);
+			return true;
+		}
+	}
+	return false;
+}
+
+bool URTHexLibrary::DirectionTowards(const FRTCellId& From, const FRTCellId& To, ERTHexDirection& OutDirection)
+{
+	if (HexDistance(From, To) <= 0)
+	{
+		return false;
+	}
+
+	// Il primo passo della linea e' per costruzione adiacente a From (HexLine produce celle consecutive
+	// adiacenti), quindi DirectionBetween lo riconosce sempre: una sola definizione di "verso dove".
+	const TArray<FRTCellId> Line = HexLine(From, To);
+	if (Line.Num() < 2)
+	{
+		return false;
+	}
+	return DirectionBetween(From, Line[1], OutDirection);
+}
+
 FVector URTHexLibrary::AxialToWorld(const FRTCellId& Cell, const FVector& Origin, float HexSize, float LayerHeight)
 {
 	const double Size = static_cast<double>(HexSize);
