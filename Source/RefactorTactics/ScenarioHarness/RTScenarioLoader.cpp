@@ -226,6 +226,32 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 						}
 					}
 
+					// Bordo bersagliato (CP 9.5): il nome della direzione, non il suo indice. Un numero nel JSON
+					// costringerebbe chi scrive lo scenario a ricordare che 0 e' E, e un errore di conteggio
+					// produrrebbe un pannello sul lato sbagliato con lo scenario comunque verde.
+					FString EdgeText;
+					if (IntentObj->TryGetStringField(TEXT("edge"), EdgeText) && !EdgeText.IsEmpty())
+					{
+						static const TMap<FString, ERTHexDirection> ByName = {
+							{ TEXT("E"),  ERTHexDirection::E },
+							{ TEXT("NE"), ERTHexDirection::NE },
+							{ TEXT("NW"), ERTHexDirection::NW },
+							{ TEXT("W"),  ERTHexDirection::W },
+							{ TEXT("SW"), ERTHexDirection::SW },
+							{ TEXT("SE"), ERTHexDirection::SE },
+						};
+						const ERTHexDirection* Found = ByName.Find(EdgeText.ToUpper());
+						if (Found == nullptr)
+						{
+							OutError = FString::Printf(
+								TEXT("intent di '%s': bordo '%s' sconosciuto (attesi E, NE, NW, W, SW, SE)"),
+								*Intent.UnitId, *EdgeText);
+							return false;
+						}
+						Intent.CoverEdge = *Found;
+						Intent.bHasCoverEdge = true;
+					}
+
 					FString DashText;
 					if (IntentObj->TryGetStringField(TEXT("dash"), DashText) && !DashText.IsEmpty())
 					{

@@ -163,6 +163,20 @@ struct FRTScenarioIntent
 	bool bTargetsCell = false;
 
 	/**
+	 * Bordo bersagliato dalle azioni che agiscono su una STRUTTURA di bordo (CP 9.5: erigere o spostare una
+	 * copertura). Nel JSON e' il nome della direzione: `"edge": "E"` .. `"SE"`.
+	 *
+	 * Serve perche' una copertura sta su un BORDO e una cella ne ha sei: la cella da sola non basta a dire
+	 * quale. Vale solo con `bHasCoverEdge`, per la stessa ragione per cui `TargetCell` ha il suo flag — `E` e'
+	 * una direzione legittima e non puo' fare da «non dichiarato».
+	 */
+	UPROPERTY()
+	ERTHexDirection CoverEdge = ERTHexDirection::E;
+
+	UPROPERTY()
+	bool bHasCoverEdge = false;
+
+	/**
 	 * `ActionId` della REAZIONE che l'unita' arma per questo turno (`Flux.ReactiveCapacitor`). Vuota = nessuna.
 	 *
 	 * Armare non e' agire: la reazione dichiara solo **cosa succedera' se** il trigger scatta durante la
