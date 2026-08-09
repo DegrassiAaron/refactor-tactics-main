@@ -183,8 +183,9 @@ Il controgioco consiste nel cambiare rotta, usare coperture e LOS per negare le 
 | Payload oltre il danno | nessuno — ed è una risposta, non una lacuna |
 | Dipendenza dal base | ★★★★★ — il più alto del roster |
 
-> ⚠️ **«Primary» descrive quanto spesso lo usa, non quanto è forte.** Con 21 danni `PulseShot` è il **terzo**
-> del roster per danno e non è il più lungo (Riva arriva a 5): nessun numero lo rende «l'arma primaria».
+> ⚠️ **«Primary» descrive quanto spesso lo usa, non quanto è forte.** Con 21 danni `PulseShot` non è il più
+> forte del roster — `Flux.ArcPulse` ne fa 22 — e non è il più lungo, perché Riva arriva a 5: **nessun numero
+> lo rende «l'arma primaria»**.
 > A renderlo tale è il kit, che crea le occasioni in cui sparare è già la mossa giusta. ADR-0007 ha scelto
 > di **non** cambiare i numeri: alzarli contraddirebbe la motivazione scritta nel catalogo («−1 pagato in
 > mobilità»), e un payoff condizionale sulla geometria è una feature con dipendenze proprie, non un campo.
