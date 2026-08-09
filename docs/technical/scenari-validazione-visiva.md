@@ -511,4 +511,4 @@ stesse 7 non assegnate di prima.
 > voci: $(grep -c '^| \*\*PIE-VIS-' docs/technical/test-manuali-pie.md)"
 > ```
 >
-> Al 2026-08-09: **21 e 21**. Registro PIE complessivo: `114 (25/21/68)`, `senza-marcatore = 0`.
+> Al 2026-08-09: **21 e 21**. Registro PIE complessivo: `115 (26/21/68)`, `senza-marcatore = 0`.

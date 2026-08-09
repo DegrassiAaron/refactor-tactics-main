@@ -25,7 +25,7 @@ verificabile, ed è la seconda volta che succede a G9: la formulazione precedent
 `PIE-V01-*`» quando il registro ne contava 74.
 
 La causa non è la distrazione: è che **la ripartizione fra automatico e umano non stava scritta da nessuna
-parte**. Vive implicita in quattro posti diversi — il corpus `Scenarios/`, le 114 voci del registro PIE, il
+parte**. Vive implicita in quattro posti diversi — il corpus `Scenarios/`, le 115 voci del registro PIE, il
 gate `scenario` del Feature Registry, e le fasce di `scenari-validazione-visiva.md` — e ricomporla a memoria
 produce ogni volta un numero diverso. Questo file la scrive una volta, con i comandi per rimisurarla.
 
@@ -53,11 +53,11 @@ scegliendo lo scenario e premendo Play, una voce C richiede di allestire, clicca
 |---|---:|---|
 | **A** — automatico | **14** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `RT_Showcase_Relay_v01` |
 | **B** — automatico + occhio | **21** scenari ↔ **21** voci `PIE-VIS-*` | `Scenarios/Visual/` |
-| **C** — solo umano | **93** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima |
+| **C** — solo umano | **94** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima |
 | **D** — dichiarato | **8** scenari `Spec.*` scritti · **10** pianificati · **8** mai scritti | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
 
-Totale corpus versionato: **43** scenari (`A 14 + B 21 + D-scritti 8`). Totale registro PIE: **114** voci
-(`B 21 + C 93`).
+Totale corpus versionato: **43** scenari (`A 14 + B 21 + D-scritti 8`). Totale registro PIE: **115** voci
+(`B 21 + C 94`).
 
 ---
 
@@ -136,7 +136,7 @@ Oppure `rt.Test.Scenario <Id>`. Nessun'altra preparazione: gli scenari portano a
 
 ## 5. Classe C — solo input umano
 
-93 voci del registro PIE che **nessuno scenario può sostituire**. La ripartizione qui sotto è per sezione del
+94 voci del registro PIE che **nessuno scenario può sostituire**. La ripartizione qui sotto è per sezione del
 registro — che è verificabile — con la ragione per cui serve una persona. Il dettaglio di ogni voce (esito
 atteso, stato, copertura headless già esistente) resta in [`test-manuali-pie.md`](test-manuali-pie.md), che
 ne è l'owner: qui non se ne ricopia nessuno, perché è esattamente la duplicazione che questo repository ha già
@@ -148,7 +148,7 @@ pagato quattro volte.
 | Partita su griglia esagonale (M6) | 15 | **Ciò che solo l'occhio vede**: unità centrate sui centri-cella, fluidità del playback, nessun residuo di griglia quadrata. La logica è coperta headless per 5 voci su 15 |
 | Contenuto della v0.1 | 18 | **Leggibilità e asset**: che il giocatore *capisca* dal log, che l'arancione del fuoco amico si **noti**, che l'asset mappa si editi a mano |
 | Strumenti di leggibilità | 2 | **Giudizio a schermo puro**: `PIE-PREVIEW-AREA` ha già trovato due difetti che nessun test poteva vedere — un contorno disegnato sotto il cilindro, e un linguaggio che parlava di celle mentre la domanda era sulle unità |
-| Scenario Test Harness | 5 | **Ciò che l'utente non deve dover fare**: «premo Play e parte da solo», e un esito che si legga **senza aprire l'Output Log** |
+| Scenario Test Harness | 6 | **Ciò che l'utente non deve dover fare**: «premo Play e parte da solo», e un esito che si legga **senza aprire l'Output Log** |
 | Durata, ritmo e scala | 5 | **Cronometro**: producono numeri di playtest, non superano gate. Si misura il **2v2** e lo si registra come tale |
 | Bot — leggibilità delle decisioni | 5 | **Il perché, non il cosa**: un test può dire che lo score era il più alto, non che la scelta sembrasse sensata a chi guarda |
 | Formato e icone | 2 | **Riconoscibilità alla dimensione reale** dell'HUD, e il caso di **errore** del formato |
@@ -288,9 +288,17 @@ producono **numeri di playtest** (G11 chiede di *avere* i numeri, non di centrar
 | `PIE-V01-LOG` | combat log con reason code leggibili | 🟡 |
 | `PIE-V01-INTENT` | intenti alleati e **nessun** intento avversario visibile | 🟡 |
 | `PIE-V01-ROSTER` | i quattro eroi si sentono diversi da giocare | 🟡 |
-| `PIE-PREVIEW-AREA` | **leggibilità minima**: si capisce cosa si sta per colpire, prima del lock-in | ⏳ |
+| `PIE-PREVIEW-AREA` | **leggibilità minima**: si capisce cosa si sta per colpire, prima del lock-in | ✅ |
 
-**16 voci: 1 verde, 7 parziali, 8 aperte** — misurate col comando di §7, non contate a mano dalla tabella.
+**16 voci: 2 verdi, 7 parziali, 7 aperte** — misurate col comando di §7, non contate a mano dalla tabella.
+
+`PIE-PREVIEW-AREA` è passata a ✅ il 2026-08-09 dopo **tre** difetti, nessuno dei quali un test poteva vedere:
+un contorno disegnato sotto il cilindro, un linguaggio che parlava di celle mentre la domanda era sulle unità,
+e una selezione che non selezionava. Lascia dietro `PIE-PREVIEW-PERSIST`, ⏳: l'avviso di fuoco amico spariva
+al cambio di selezione, cioè **proprio mentre** si finisce il turno. **Non l'ho messa nel subset** — è il
+residuo di una voce che c'è già, e il criterio conta le capacità, non i difetti aperti su di esse. Se il
+playtest dice che l'avviso che svanisce rende la voce padre inaffidabile, allora entra: sarebbe una revisione
+del criterio, non una svista.
 
 Sette delle sedici stanno già in una seduta dichiarata del registro (la **D**, partita su hex, e la **G**,
 eseguibile subito). **Otto non stanno in nessuna**, e non è un dettaglio organizzativo: il registro lo dice da
