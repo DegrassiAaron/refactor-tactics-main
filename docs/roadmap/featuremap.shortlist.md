@@ -27,9 +27,9 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `IDEA` | 4 |
 | `DESIGNED` | 7 |
 | `SPECIFIED` | 14 |
-| `IMPLEMENTING` | 18 |
+| `IMPLEMENTING` | 19 |
 | `TESTABLE` | 5 |
-| `INTEGRATED` | 20 |
+| `INTEGRATED` | 19 |
 | `RELEASE_READY` | 15 |
 | `DONE` | 1 |
 
@@ -115,10 +115,10 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-MAP-PATHFINDING` — A* esagonale autorevole | v0.1 | RELEASE_READY | 6/7 | E2 | Il percorso lo calcola l'autorità, il client mostra un'anteprima |
 | `RT-FEAT-MAP-COVER` — Copertura direzionale per bordo | v0.1 | INTEGRATED | 6/8 | E9 | La copertura è di un **bordo**: ripara da un lato solo |
 | `RT-FEAT-MAP-DYNAMIC-COVER` — Copertura modificabile e pannello cinetico | v0.1 | INTEGRATED | 6/8 | E9 | Si erige e si sposta in partita, e **scade** nel Cleanup |
-| `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole | v0.1 | INTEGRATED | 6/9 | E16 | Deriva da Move e Dash, entra in snapshot e hash, e da dietro annulla `Guard` |
 | `RT-FEAT-MAP-HIGH-GROUND` — Altura senza bonus numerico alla vista | v0.1 | INTEGRATED | 6/8 | E9 | **Nessun** bonus numerico in v0.1 (D-024): l'altura vale per la topologia |
 | `RT-FEAT-MAP-INTERACTIVE-EDGES` — Porte e bordi commutabili | v0.1 | INTEGRATED | 6/8 | E9 | Una porta chiusa toglie passo **e** linea di tiro con lo stesso `BlocksTraversal` |
 | `RT-FEAT-MAP-SPECIAL-TRANSITIONS` — Ponti, archi e transizioni multilivello | v0.1 | INTEGRATED | 6/8 | E9 | L'arco è **additivo**: romperlo annulla il percorso, non lo allunga |
+| `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole | v0.1 | IMPLEMENTING | 5/9 | E16 | Deriva da Move e Dash, entra in snapshot e hash, e da dietro annulla `Guard` |
 
 ### Networking · 3
 

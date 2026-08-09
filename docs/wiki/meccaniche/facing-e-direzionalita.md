@@ -4,9 +4,9 @@
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-MAP-FACING -->
 
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
+> 🚧 **Parzialmente giocabile.** Il codice esiste ma la feature non è completa: i gate qui sotto dicono quanto manca. Blocco generato dal Feature Registry, non modificare a mano.  
 > Feature: `RT-FEAT-MAP-FACING` · Release: `v0.1` · Roadmap: `E16.1, E16.2`  
-> Stato: **INTEGRATED** · Gate: `6/9`  
+> Stato: **IMPLEMENTING** · Gate: `5/9`  
 > Scenario: `Spec.Facing.DerivesFromMove`  
 > I pezzi che mancano li porta: `RT-FEAT-UI-PLANNING`  
 > Decisione accettata (ADR-0005) ma **non implementata**: quello che leggi qui descrive come funzionera', non come funziona oggi.  
@@ -31,20 +31,39 @@ La direzione di design è farlo contare per tre sistemi con **la stessa geometri
 Ti giri verso il bersaglio **prima** che l'azione risolva. Non spari guardando altrove, e quel nuovo
 orientamento **resta**: vale per tutto ciò che viene dopo nello stesso round.
 
-### Dash, Charge e Leap lineari
+Quanto puoi girarti alla fine di un movimento **dipende dal personaggio**, ed è misurato in *step* di 60°:
 
-Il facing deriva automaticamente dalla direzione del movimento.
+| Step | Quanto ti giri |
+|---:|---|
+| 0 | niente: resti come sei arrivato |
+| 1 | fino a 60° (la direzione dell'arrivo e le due adiacenti) |
+| 2 | fino a 120° |
+| 3 | fino a 180°: qualunque direzione |
 
-### Move normale / Sprint
+E ogni personaggio ha **due** valori, perché muoversi e scattare non sono la stessa cosa:
 
-Dopo l'ultimo passo il giocatore può scegliere fra **tre direzioni**:
+| Personaggio | Alla fine di un Move | Alla fine di un Dash |
+|---|---:|---:|
+| Flux | 2 | 2 |
+| Riva | 2 | 3 |
+| Bastion | 1 | 0 |
+| Vektor | 3 | 3 |
 
-- quella dell'ultimo passo;
-- le due direzioni adiacenti.
+Bastion è pesante: chiude una carica guardando dove è andato, e basta. Vektor si gira come vuole. Riva è
+fluida soprattutto quando scatta.
+
+> ⚠️ Sono **valori di partenza**, non bilanciamento definitivo: cambieranno col playtest.
 
 ### Unità ferma
 
-Se non si muove, può scegliere liberamente fra tutte le sei direzioni senza consumare uno slot d'azione.
+Se non si muove, **chiunque** può scegliere liberamente fra tutte le sei direzioni, senza consumare uno slot
+d'azione. Questo non dipende dal personaggio.
+
+### Mentre ti stai muovendo
+
+Durante il movimento guardi sempre **nella direzione dell'ultimo passo che hai fatto**. Conta: se qualcuno ti
+tiene sotto Overwatch e scatta a metà tragitto, il lato che gli offri è quello di *quel* momento, non quello
+in cui finirai. Girarti alla fine non cambia ciò che è già successo.
 
 ## Quando cambia, dentro il round
 
@@ -68,7 +87,11 @@ prevedi male, resti scoperto.
 ## Stessa cella, facing diverso
 
 Due percorsi che finiscono nello stesso esagono **non** ti lasciano nello stesso stato: entrando da un lato
-diverso, l'ultimo passo è diverso, e quindi lo sono le tre direzioni fra cui puoi scegliere.
+diverso, l'ultimo passo è diverso, e quindi lo sono le direzioni fra cui puoi scegliere.
+
+Per questo un percorso un po' più lungo può essere la mossa migliore: se ti fa entrare nella cella dal lato
+giusto, ci arrivi guardando dove serve. Quanto la cosa ti pesi dipende dal personaggio — Bastion, che alla
+fine di un Move si gira di un solo step, deve pianificare l'ingresso; Vektor no.
 
 Un percorso leggermente più lungo può valere di più, se ti fa arrivare guardando dalla parte giusta.
 
@@ -120,9 +143,11 @@ Alcune domande sono aperte e questa pagina non deve inventarne la risposta:
 - se una **reazione** possa girare chi reagisce;
 - se `Interact` richieda di essere già rivolti verso l'oggetto oppure ti ci giri;
 - se **stati alterati** o **terreni** (ghiaccio, condotti) possano limitare la rotazione;
-- se personaggi diversi debbano poter **girarsi di più o di meno** l'uno dell'altro.
+- se `Brace` debba proteggere **solo di fronte** invece che da ogni lato (oggi protegge da ogni lato).
 
-Sull'ultimo punto in particolare: oggi la rotazione dipende da **come ti sei mosso**, non da **chi sei**.
+> **Deciso il 2026-08-10**: «personaggi diversi si girano di più o di meno l'uno dall'altro» era una domanda
+> aperta, e la risposta è **sì**. La rotazione dipende ora da **chi sei**, non solo da come ti sei mosso —
+> vedi la tabella degli step qui sopra.
 
 ## Perché è ancora marcato “non implementato”
 
@@ -130,6 +155,7 @@ L'ADR è stato accettato, ma la roadmap indica ancora la catena **E16 → E13 �
 
 ## Fonti normative
 
-- `docs/decisions/adr-0005-orientamento.md` — decisione, con l'emendamento §2-bis
-- `docs/decisions/RT_PDR_00_Decision_Log.md` — **D-020**, il facing cambia più volte dentro il round
-- `docs/OPEN_DECISIONS.md` — `FAC-1`…`FAC-10`, le domande ancora aperte
+- `docs/decisions/adr-0005-orientamento.md` — decisione, con l'emendamento §2-bis · ⚠️ §1 e §3 **superate**
+- `docs/decisions/adr-0008-rotazione-e-policy-di-facing.md` — la rotazione come **capacità del personaggio**, il facing durante i micro-step, le policy dichiarative
+- `docs/decisions/RT_PDR_00_Decision_Log.md` — **D-020**, il facing cambia più volte dentro il round · **D-060**, il modello attuale
+- `docs/OPEN_DECISIONS.md` — le sei domande ancora aperte (`FAC-3`, `FAC-5`…`FAC-9`)

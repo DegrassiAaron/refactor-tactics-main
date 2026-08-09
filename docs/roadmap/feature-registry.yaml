@@ -450,14 +450,22 @@ features:
     kind: gameplay
     release: v0.1
     priority: P1
-    status: INTEGRATED
+    # INTEGRATED -> IMPLEMENTING il 2026-08-10, per crescita della spec (ADR-0008), non per regressione del
+    # codice. Nessun test e' diventato rosso: e' il metro ad essersi allungato. Vedi il commento su `runtime`.
+    status: IMPLEMENTING
     gates:
       spec: done
       data: done
       # Consumatori reali: il Move e il Dash lo scrivono, un'azione con bersaglio riorienta prima di risolvere,
       # il playback ci atterra sopra, e la difesa direzionale di CP 16.2 lo legge per decidere se la copertura
       # protegge. L'unico momento di D-020 senza codice e' `FacingUsedByOverwatch`, che appartiene a E14.
-      runtime: done
+      #
+      # `done` -> `partial` il 2026-08-10: non e' il runtime a essere regredito, e' la SPEC ad essere cresciuta.
+      # ADR-0008 aggiunge tre requisiti che nessuna riga di codice soddisfa: il budget di pivot per eroe
+      # (`MoveEndPivotMaxSteps`/`DashEndPivotMaxSteps` — `LegalFacings` oggi legge lo stile, non l'eroe), il
+      # facing durante i micro-step, e le policy dichiarative di facing. Lasciarlo `done` direbbe che la feature
+      # e' completa rispetto a una spec che non e' piu' quella.
+      runtime: partial
       log_debug: done
       automation: done
       scenario: done
@@ -477,9 +485,12 @@ features:
       - RT-FEAT-MAP-COVER
     owner_specs:
       - docs/decisions/adr-0005-orientamento.md
+      # ADR-0008 (2026-08-10) supera §1 e §3 di ADR-0005: budget di pivot per eroe, policy dichiarative di
+      # facing, e facing nei micro-step = ultimo passo compiuto. Nessuno dei tre e' implementato.
+      - docs/decisions/adr-0008-rotazione-e-policy-di-facing.md
       - docs/decisions/RT_PDR_00_Decision_Log.md
       - docs/technical/spec-turnlog.md
-    issues: [175, 176, 177, 291]
+    issues: [175, 176, 177, 291, 341, 339]
     # La rotazione DICHIARATA (girarsi restando fermi) e' regola implementata ma senza produttore: nessun
     # input la scrive. Il gate `runtime` resta `done` perche' l'orientamento DERIVATO — quello che un'unita'
     # ha in quasi tutti i turni — e' cablato ovunque; il pezzo mancante e' input, ed e' tracciato in #291.
@@ -3039,8 +3050,12 @@ features:
       - RT-FEAT-MAP-PATHFINDING
       - RT-FEAT-ACTION-ENGINE
     owner_specs:
+      # L'owner ATTIVO e' la spec di gameplay (2026-08-10, #202): descrive il bot com'e' oggi — aree, fuoco
+      # amico, penalita' sul collaterale, cella di fuga — e dichiara cosa NON sa ancora (Team Knowledge E13,
+      # facing E16, reazioni E14). La spec H6.5 resta come storia `AS-BUILT` e non si riscrive.
+      - docs/gameplay/spec-bot-hex.md
       - docs/technical/h6-5-hex-bot-spec.md
-    issues: [36]
+    issues: [36, 202]
     tests:
       - RefactorTactics.HexBot.*
       - RefactorTactics.HexBotPlay.*
@@ -3367,7 +3382,11 @@ features:
     dependencies: []
     owner_specs:
       - docs/technical/convenzioni-contenuti-ue.md
-    issues: [29]
+      # Gli ID stabili esistono e reggono; cio' che manca e' il ritiro dei TRE legacy (`Action.Guard`,
+      # `Action.Activate`, `Action.Sprint`), la cui tassonomia e' decisa da D-014/D-015 ma la cui migrazione
+      # non e' mai stata pianificata. Il piano esiste dal 2026-08-10 e non e' eseguito (#199).
+      - docs/technical/piano-migrazione-stable-id.md
+    issues: [29, 199]
     tests:
       - RefactorTactics.Catalog.IdsAreUnique
       - RefactorTactics.TurnLog.ActionIdRoundTrip
