@@ -31,8 +31,6 @@ un'epic** — cioè il lavoro che non è contenuto della release.
 | **M10** | ⏳ | `RT-FEAT-NET-AUTHORITY` | Rete e privacy: **fuori dalla v0.1**. E13/E14 la preparano; ADR-0004 le aggiunge N round-trip per turno |
 | **M11** | ⏳ | — | Production readiness: validator in CI, soak su packaged, replay audit, budget su mappa grande |
 
-> ⚠️ **Divergenza nell'owner, non in questa vista.** [`roadmap-checkpoint.md`](roadmap-checkpoint.md) dichiara la stessa milestone con due simboli diversi in due tabelle: **M6** (🟡 e ✅) · **M7** (🟡 e ✅). Qui è riportata la lettura **più conservativa**; la correzione va fatta là.
-
 <!-- RT_SHORTLIST_MILESTONES:END -->
 
 **Archiviate**: **M0–M5** (MVP quadrato, fase tutorial) e **H0–H6.5** (fondamenta esagonali). Non si

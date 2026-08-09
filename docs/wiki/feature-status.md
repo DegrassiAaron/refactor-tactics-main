@@ -2,7 +2,7 @@
 
 > `GENERATO` · Vista del **Feature Registry** (`docs/roadmap/feature-registry.yaml` nel repository del gioco).
 > Non modificare a mano: si rigenera con `python scripts/feature_registry.py wiki`.
-> Feature tracciate: **83** · Ultimo audit completo: **2026-08-08** su `2094b86`.
+> Feature tracciate: **84** · Ultimo audit completo: **2026-08-08** su `2094b86`.
 
 Questa pagina dice **cosa esiste davvero**. Una meccanica descritta altrove nella Wiki e
 marcata qui come `SPECIFIED` o `DESIGNED` e' progettata, non giocabile: la Wiki racconta
@@ -30,6 +30,7 @@ il gioco che sara', questa tabella dice a che punto e'.
 
 | Feature | Titolo | Roadmap | Stato | Gate | Scenario |
 |---|---|---|---|---:|---|
+| `RT-FEAT-ACTION-BASIC-ATTACK-PROFILES` | Profili di attacco base per eroe | E4 | **IMPLEMENTING** | 2/8 | `Combat.BasicAttack` · `Combat.BastionImpactShotSlows` |
 | `RT-FEAT-ACTION-COOLDOWNS` | Cooldown ed economia delle risorse | E4.4 | **TESTABLE** | 5/8 | — |
 | `RT-FEAT-ACTION-DASH-DISPLACEMENT` | Dash e spostamento forzato | E2.5, E2.5 | **RELEASE_READY** | 7/8 | `Visual.Combat.PushResistance` |
 | `RT-FEAT-ACTION-ENGINE` | Motore delle azioni a priorità intera | E4.1, E4.3, E4.8 | **RELEASE_READY** | 7/8 | `Movement.Collision` · `Movement.SwapRejectedByPlanning` |

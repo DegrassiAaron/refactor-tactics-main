@@ -10,7 +10,7 @@
     },
     "note": "Primo audit completo. La seed list dell'handoff del 2026-08-08 è stata confrontata voce per voce con Source/, Tests/, Scenarios/, docs/ e la Wiki: le voci che il repository non conferma sono marcate per quello che sono (SPECIFIED, DESIGNED, IDEA), non promosse a DONE.\n"
   },
-  "count": 83,
+  "count": 84,
   "features": [
     {
       "feature_id": "RT-FEAT-CORE-TURN",
@@ -812,7 +812,8 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/gameplay/spec-porte-cp93.md"
+        "docs/gameplay/spec-porte-cp93.md",
+        "docs/gameplay/spec-interazioni-mappa-cp101.md"
       ],
       "issues": [
         71
@@ -1171,6 +1172,69 @@
       "notes": "**Sprint è un profilo di Move, non un Dash** (pin del canone): fase e stile sono dichiarati dal dato, non dedotti. Budget 5 MP con costi interi."
     },
     {
+      "feature_id": "RT-FEAT-ACTION-BASIC-ATTACK-PROFILES",
+      "title": "Profili di attacco base per eroe",
+      "area": "Actions",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
+      "gates": {
+        "spec": "partial",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "partial",
+        "automation": "partial",
+        "scenario": "partial",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 2,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E4",
+        "milestone": null,
+        "checkpoints": [],
+        "out_of_release_scope": ""
+      },
+      "dependencies": [
+        "RT-FEAT-ACTION-ENGINE",
+        "RT-FEAT-ACTION-GENERIC",
+        "RT-FEAT-CHAR-V01-ROSTER",
+        "RT-FEAT-CORE-DETERMINISM",
+        "RT-FEAT-MAP-LOS",
+        "RT-FEAT-ENV-STATUS"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/decisions/adr-0007-attacco-base-per-eroe.md"
+      ],
+      "issues": [
+        315
+      ],
+      "tests": [
+        "RefactorTactics.Heroes.BasicAttackByRangeBand",
+        "RefactorTactics.Heroes.Bastion.MatchesCatalog"
+      ],
+      "scenarios": [
+        "Combat.BasicAttack",
+        "Combat.BastionImpactShotSlows",
+        "Combat.MoveIsFullWithoutSlow"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "docs/wiki/game/azioni-e-movimento.md"
+      ],
+      "wiki_note": "",
+      "last_verified": {
+        "date": "2026-08-09",
+        "commit": "d41d36c"
+      },
+      "notes": "Categoria universale, payload dell'eroe: chiude per `BasicAttack` i «profili concreti dei 4 eroi» che **D-033** aveva lasciato aperti ([ADR-0007](../decisions/adr-0007-attacco-base-per-eroe.md)). Riva era già conforme (`PressureJet` 16 + `Wet` + `Push`); Vektor resta invariato, perché «Primary Weapon» è un profilo d'uso e non una promessa di potenza; Flux resta damage-only, e il suo motore elettrico ha già un owner che non è l'attacco base (`ConductiveNode`, D-046). **`data` è `done`**: `Bastion.ImpactShot` è passato a 8 danni + `Status.Slow` 1 turno. **`automation` resta `partial`** perché manca il test che faccia valere la convenzione `Actions[0]` su tutto il roster. **`log_debug` è `partial`** perché il TurnLog registra l'`ActionId` ma non sa esprimere la coppia «azione base + profilo» che D-033 richiede: difetto ereditato, non introdotto qui."
+    },
+    {
       "feature_id": "RT-FEAT-ACTION-DASH-DISPLACEMENT",
       "title": "Dash e spostamento forzato",
       "area": "Actions",
@@ -1326,7 +1390,7 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/balance/RT_HeroCatalog_v0.1.md"
+        "docs/gameplay/brief-super-e-cooldown.md"
       ],
       "issues": [],
       "tests": [
@@ -1342,7 +1406,7 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "Esiste la risorsa (energia, `UltimateReady`) ma non una categoria «super» con regole proprie. Nessuna epic della v0.1 la apre: la seed list la elenca, il repository la conferma solo come risorsa. Resta v0.2 senza epic assegnata."
+      "notes": "Esiste la risorsa (energia, `UltimateReady`) ma non una categoria «super» con regole proprie. Nessuna epic della v0.1 la apre: la seed list la elenca, il repository la conferma solo come risorsa. Resta v0.2 senza epic assegnata. Dal 2026-08-09 la **forma** ha un owner — `brief-super-e-cooldown.md` — che fissa un solo vincolo duro: una Super è una Ability Definition con gate e commit policy, **non un secondo motore**. L'owner precedente era `RT_HeroCatalog_v0.1.md`, che di Super non parla: era una riga con un owner che non possedeva. `spec` resta `partial` perché il brief fissa la forma e non i contenuti."
     },
     {
       "feature_id": "RT-FEAT-ACTION-DELAYED",
@@ -1857,7 +1921,7 @@
         "date": "2026-08-09",
         "commit": "ea26c0f"
       },
-      "notes": "D-041 cambia la **classificazione** di `Action.Brace`, non i suoi numeri: da «azione che si dichiara e basta» a azione di Prep che **arma un profilo**. `Hold Ground` coincide con il comportamento attuale (`RTCombatLibrary.h:112`, `RTTurnManager.cpp:2819` e `:3033`), quindi i due scenari restano verdi e nessun valore di bilanciamento si muove.\n**Un test scritto per pinnare lo stato attuale deve cadere**: `Reactions.Brace.IsNotAReaction` (`RTDefensiveReactionTests.cpp:162`) asserisce `ReactionTrigger == None`. Va **sostituito**, non cancellato in silenzio, da `Brace.BaseProfileHasSingleResponse` (col profilo base nessun boundary si apre: e' la garanzia che nulla di verde rallenta) e `Brace.RicherProfileOpensWindow`. Finche' la sostituzione non e' fatta, `automation` resta `partial` anche se la suite e' verde: e' verde sulla classificazione **vecchia**."
+      "notes": "D-047 cambia la **classificazione** di `Action.Brace`, non i suoi numeri: da «azione che si dichiara e basta» a azione di Prep che **arma un profilo**. `Hold Ground` coincide con il comportamento attuale (`RTCombatLibrary.h:112`, `RTTurnManager.cpp:2819` e `:3033`), quindi i due scenari restano verdi e nessun valore di bilanciamento si muove.\n**Un test scritto per pinnare lo stato attuale deve cadere**: `Reactions.Brace.IsNotAReaction` (`RTDefensiveReactionTests.cpp:162`) asserisce `ReactionTrigger == None`. Va **sostituito**, non cancellato in silenzio, da `Brace.BaseProfileHasSingleResponse` (col profilo base nessun boundary si apre: e' la garanzia che nulla di verde rallenta) e `Brace.RicherProfileOpensWindow`. Finche' la sostituzione non e' fatta, `automation` resta `partial` anche se la suite e' verde: e' verde sulla classificazione **vecchia**."
     },
     {
       "feature_id": "RT-FEAT-REACTION-CLASH",
@@ -1916,12 +1980,12 @@
       "wiki_refs": [
         "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
       ],
-      "wiki_note": "Decisa nella forma (D-042), **non implementata** e con la grammatica ancora in playtest.",
+      "wiki_note": "Decisa nella forma (D-048), **non implementata** e con la grammatica ancora in playtest.",
       "last_verified": {
         "date": "2026-08-09",
         "commit": "ea26c0f"
       },
-      "notes": "Ultima feature della v0.1 per priorita' (`P3`) dentro l'epic che e' gia' **la prima da tagliare**: se E14 si accorcia, questa esce per prima e la baseline single-responder resta intera.\n**Contested e' derivato, non dichiarato**: lo e' quando *due* partecipanti hanno ciascuno >= 2 risposte legali. Nessun campo `Type = Clash` — sarebbe una seconda verita' accanto alla cardinalita', lo stesso errore che il rischio (b) di E14 esiste per evitare.\n`network_privacy: todo` e non `na`: D-042 **emenda ADR-0004 §7** (in un Clash entrambi sanno che la finestra esiste) e chiude il canale temporale col reveal a **scadenza fissa**. Offline non e' verificabile, ma non e' nemmeno non applicabile.\nLa grammatica `STAND/READ/SHIFT` (D-043) e' `PROPOSED FOR PLAYTEST`: `spec: done` copre la **forma** dell'opportunity contested, che e' decisa; i payoff dei 4 eroi no."
+      "notes": "Ultima feature della v0.1 per priorita' (`P3`) dentro l'epic che e' gia' **la prima da tagliare**: se E14 si accorcia, questa esce per prima e la baseline single-responder resta intera.\n**Contested e' derivato, non dichiarato**: lo e' quando *due* partecipanti hanno ciascuno >= 2 risposte legali. Nessun campo `Type = Clash` — sarebbe una seconda verita' accanto alla cardinalita', lo stesso errore che il rischio (b) di E14 esiste per evitare.\n`network_privacy: todo` e non `na`: D-048 **emenda ADR-0004 §7** (in un Clash entrambi sanno che la finestra esiste) e chiude il canale temporale col reveal a **scadenza fissa**. Offline non e' verificabile, ma non e' nemmeno non applicabile.\nLa grammatica `STAND/READ/SHIFT` (D-049) e' `PROPOSED FOR PLAYTEST`: `spec: done` copre la **forma** dell'opportunity contested, che e' decisa; i payoff dei 4 eroi no."
     },
     {
       "feature_id": "RT-FEAT-REACTION-FAST-ACTION",
@@ -3649,7 +3713,8 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/product/showcase-v0.1.md"
+        "docs/product/showcase-v0.1.md",
+        "docs/gameplay/spec-interazioni-mappa-cp101.md"
       ],
       "issues": [
         24,

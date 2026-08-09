@@ -97,6 +97,9 @@
 
 | 63 | **Granularità delle feature Bot e Test** | `RT_Scenarios_QA_Bots_Master` §30 dichiara **14** feature con stato — 11 `RT-FEAT-BOT-*` (`…LEGAL-CANDIDATES`, `…SCORING`, `…BELIEF`, `…COUNTERFACTUAL`, `…DIFFICULTY`, …) più `RT-FEAT-UI-SCENARIO-CATEGORIES` | il registry ne ha **due** per il bot — `RT-FEAT-BOT-BASE` (`RELEASE_READY`) e `RT-FEAT-BOT-TACTICAL` (`IDEA`) — e la granularità fine vive dove serve davvero: **E26** e **E28** di [`roadmap/roadmap-post-v0.1.md`](roadmap/roadmap-post-v0.1.md) | [`roadmap/feature-registry.yaml`](roadmap/feature-registry.yaml) | `DUPLICATE` → **evitato** | ✅ 2026-08-09, stessa forma della riga 57. Uno strato di ragionamento non è una feature: `BELIEF` e `COUNTERFACTUAL` sono **passi di E28**, e promuoverli a inventario darebbe undici righe da mantenere per un sistema che oggi ha due file. Lo status proposto usa poi il vocabolario respinto dalla riga 55 |
 
+| 64 | **Fazioni della v0.2** | `RT_Characters_Roster_Master` §7: «per v0.2 il mapping Conflux/Constrine non è sufficientemente confermato» → tabella con **`Faction: TBD`** per Steel, Aurora, Murdock, Kwang | le due fazioni v0.2 hanno **nomi e composizione decisi**: **Sentinel Directorate** (Steel, Murdock) e **Resonance** (Aurora, Kwang), con coppie di affinità dichiarate — *Protection → Fire Sector* e *Terrain Shaping → Anchor Geometry* | **E35** di [`roadmap/roadmap-post-v0.1.md`](roadmap/roadmap-post-v0.1.md) · schede in [`characters/v0.2/`](characters/v0.2) · [`wiki/fazioni/`](wiki/fazioni/index.md) | `SUPERSEDED` | ✅ 2026-08-09. Il master non sbaglia per disattenzione: cerca `Conflux`/`Constrine` anche per la v0.2 e non li trova, e conclude `TBD`. Ma le fazioni v0.2 **non sono quelle** — sono altre due, con quattro checkpoint e le schede scritte. Resta vero il pezzo che conta: nessun `FactionSetBonus`, l'affinità emerge da meccaniche generiche ([ADR-0006](decisions/adr-0006-ownership-abilita-sinergie.md)) |
+| 65 | **Owner della «Super Action»** | `RT-FEAT-ACTION-SUPERS` dichiarava `owner_specs: RT_HeroCatalog_v0.1.md`, che di Super **non parla**; il master §14–§16 propone un modello completo di Super e cooldown | esiste **la risorsa** (`URTCombatLibrary::IsUltimateReady`, predicato puro con un test) e **nessuna categoria**. La forma ha ora un owner: [`gameplay/brief-super-e-cooldown.md`](gameplay/brief-super-e-cooldown.md) | il brief, per la forma; i cataloghi per i numeri | `OPEN` → **risolto** | ✅ 2026-08-09. Era l'inverso del difetto della riga 5 di questo passaggio: non una spec senza consumatori, ma una **riga di registry con un owner che non possiede**. Il brief prende dal master i vincoli e **non** i contenuti: nessuna Super assegnata, nessun numero, nessuna epic |
+
 **Quarto passaggio, 2026-08-08 — Signature, profili e trasformazioni**: **+3 righe risolte** (45, 46, 47).
 La 45 è la prima chiusa **in prevenzione**: il duplicato non è mai entrato nella documentazione, perché
 l'audit per sinonimi è stato fatto prima di scrivere. Resta **1 `OPEN`** (riga 34, APNAP) e **0 `CONFLICT`**.
@@ -182,6 +185,18 @@ evitato. L'unico `OPEN` resta la riga 34 e i `CONFLICT` restano **zero**.
 > Una sola riga del master non aveva un documento corrente che la possedesse, ed è la più facile da
 > violare: **una difficoltà più alta dà più ragionamento, mai più informazione.** Ora vive in E26, cioè nel
 > punto in cui il primo livello di difficoltà verrà scritto.
+
+**Decimo passaggio, 2026-08-09 — residuo del cluster Characters**: righe **64–65**. Chiude il pacchetto
+`todo/consolidazione-chat-openai/`. L'unico `OPEN` resta la riga 34 e i `CONFLICT` restano **zero**.
+
+> Cinque cluster su cinque hanno avuto la stessa forma, e a questo punto è un dato e non un'impressione: il
+> repository era **avanti alla fonte** ogni volta, e il residuo utile è stato **una cosa per cluster** — la
+> grammatica capability/verb, il Time Bank nell'HUD, lo scenario orfano come errore, l'invariante di
+> difficoltà del bot, e qui il divieto del secondo motore per le Super.
+>
+> Le cinque hanno anche la stessa **natura**: sono tutte vincoli che verranno violati per primi, messi nel
+> punto in cui verranno violati. Non descrivono ciò che il gioco fa — impediscono la scorciatoia più comoda.
+> Un consolidamento che si misura in righe scritte le avrebbe seppellite sotto 67 feature duplicate.
 
 > Restava una sola riga `OPEN`, ed è il difetto ricorrente di questo repository: una regola normativa
 > scritta, corretta, che **nessun consumatore runtime applica**. L'APNAP a sei gruppi vive nel canone e

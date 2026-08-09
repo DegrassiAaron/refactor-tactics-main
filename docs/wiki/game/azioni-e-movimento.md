@@ -2,6 +2,16 @@
 
 > **Tipo:** guida giocatore, non normativa
 
+<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ACTION-BASIC-ATTACK-PROFILES -->
+
+> 🚧 **Parzialmente giocabile.** Il codice esiste ma la feature non è completa: i gate qui sotto dicono quanto manca. Blocco generato dal Feature Registry, non modificare a mano.  
+> Feature: `RT-FEAT-ACTION-BASIC-ATTACK-PROFILES` · Release: `v0.1` · Roadmap: `E4`  
+> Stato: **IMPLEMENTING** · Gate: `2/8`  
+> Scenario: `Combat.BasicAttack`  
+> Verificato il `2026-08-09` su `d41d36c`
+
+<!-- RT_FEATURE_STATUS:END RT-FEAT-ACTION-BASIC-ATTACK-PROFILES -->
+
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ACTION-SUPERS -->
 
 > 🚧 **Parzialmente giocabile.** Il codice esiste ma la feature non è completa: i gate qui sotto dicono quanto manca. Blocco generato dal Feature Registry, non modificare a mano.  
@@ -90,7 +100,33 @@ Rinunci a un'azione offensiva. Può comunque avere senso per mantenere posizione
 
 ### Basic Attack
 
-L'attacco base del personaggio. Danno, range e forma dipendono dall'eroe.
+L'attacco base del personaggio. Danno, range, forma **e ciò che lascia sul bersaglio** dipendono dall'eroe.
+
+È il comando più usato del gioco, ed è anche quello che si capisce peggio: «attacco base» suona come
+«l'abilità debole di riserva». Non lo è. È una **categoria universale** — stessa fase, stesso posto
+nell'economia del turno — a cui ogni personaggio dà un ruolo diverso.
+
+I ruoli sono quattro, e sapere quale ha in mano cambia come si gioca:
+
+| Ruolo | Che cosa vuol dire | Chi lo ha in v0.1 |
+|---|---|---|
+| **Arma primaria** | Lo userai spesso: è una parte vera della tua pressione, e il resto del kit serve a creare le occasioni in cui conviene premerlo | [Vektor](../../characters/v0.1/vektor.md) |
+| **Motore** | Non conta solo per il danno: alimenta o prepara una meccanica del personaggio | [Flux](../../characters/v0.1/flux.md) — *in v0.1 il motore elettrico passa dalle sue abilità, non dall'attacco base* |
+| **Preparazione** | Il danno è basso di proposito: serve a creare la condizione che qualcun altro sfrutta | [Riva](../../characters/v0.1/riva.md) — applica `Wet`, e la scarica di Flux vale di più su un bersaglio bagnato |
+| **Utilità / emergenza** | Danno modesto, ma resta la mossa giusta in situazioni precise: finire un bersaglio, rallentare chi passa, rispondere senza spendere niente | [Bastion](../../characters/v0.1/bastion.md) — applica `Slow` |
+
+**Danno basso non significa pulsante finto.** È la regola di design che tiene insieme le quattro famiglie: se
+l'attacco base di un personaggio è *sempre* la scelta sbagliata, è il profilo a essere rotto, non il
+giocatore ad avere torto. Ogni scheda personaggio dichiara quando il suo attacco base è corretto, quando non
+lo è, e che counterplay esiste — nella sezione *Profilo di attacco base*.
+
+Il rovescio vale altrettanto: un attacco base **forte** non autorizza a ignorare il resto del kit. Bastion
+faceva 24 danni fino al 2026-08-09, cioè più di chiunque altro, e quel numero contraddiceva tutto ciò che
+l'eroe è.
+
+> La regola sta in [ADR-0007](../../decisions/adr-0007-attacco-base-per-eroe.md); i numeri stanno nel
+> [catalogo eroi](../../balance/RT_HeroCatalog_v0.1.md). Questa pagina non è la fonte né dell'una né degli
+> altri: se divergono, hanno ragione loro.
 
 ### Interact
 

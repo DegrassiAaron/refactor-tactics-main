@@ -20,7 +20,7 @@ Legenda: ✅ chiusa · 🟡 parziale · ⏳ non iniziata · `—` nessuno stato 
 | **E1** | ✅ | 4 | 18/23 | ID stabili e Primary Data Asset: senza, ogni azione diventa codice hard-coded |
 | **E2** | ✅ | 6 | 40/46 | L'intero turno gira su esagoni — non si costruiscono 4 eroi sopra la griglia quadrata |
 | **E3** | ✅ | — | — | `FRTGridCoord`, `URTGridLibrary` e `ARTGridActor` non esistono più: doppia manutenzione = ambiguità su dove va scritta una regola |
-| **E4** | ✅ | 4 | 22/32 | Priorità intera intra-fase, fallback, collisioni senza bias di Player ID — regge azioni, reazioni, ambiente e obiettivi |
+| **E4** | ✅ | 5 | 24/40 | Priorità intera intra-fase, fallback, collisioni senza bias di Player ID — regge azioni, reazioni, ambiente e obiettivi |
 | **E5** | ✅ | 2 | 11/16 | Counter/Deflect/Brace/Shield/Cleanse/Intercept preparate in planning, una attivazione per turno, **nessuna attesa nel resolver** |
 | **E6** | ✅ | 1 | 6/8 | Flux, Riva, Bastion, Vektor da dati; **3 reazioni su 5** cablate, `InterceptShot`→E18 e `FlowReaction`→E14 |
 | **E7** | ⏳ | 1 | 1/8 | Scelta orizzontale: ogni variante ha uno svantaggio |
@@ -34,14 +34,12 @@ Legenda: ✅ chiusa · 🟡 parziale · ⏳ non iniziata · `—` nessuno stato 
 | **E15** | 🟡 | 2 | 9/16 | La prova integrata: fixture, scenario e golden replay a hash stabile. **Consuma** i sistemi, non li anticipa |
 | **E16** | ✅ | 1 | 6/9 | Il facing è **stato di gioco**: deriva da Move e Dash, entra in snapshot/TurnLog/hash, e da dietro annulla copertura e `Guard` |
 | **E17** | ⏳ | 1 | 1/7 | **Misura, non produzione**: dove si rompe il sistema con otto unità. Dopo E15; **non** è un gate di release |
-| **E18** | — | 1 | 1/8 | **Una sola** azione predittiva rende percepibile il pilastro. Non dipende da E13/E14 |
-| **E19** | — | 1 | 4/8 | Due buchi misurati: la mappa non dichiara la propria **classe**, il formato non dichiara le **unità per squadra** |
-| **E20** | — | 1 | 1/7 | Le icone come **catalogo semantico**, non texture nei widget: va fatto *mentre* E11 costruisce l'HUD |
-| **E21** | — | 1 | 1/7 | Il gioco smette di essere cilindri colorati — mesh, animazioni, anelli team/selezione |
+| **E18** | ⏳ | 1 | 1/8 | **Una sola** azione predittiva rende percepibile il pilastro. Non dipende da E13/E14 |
+| **E19** | 🟡 | 1 | 4/8 | Due buchi misurati: la mappa non dichiara la propria **classe**, il formato non dichiara le **unità per squadra** |
+| **E20** | 🟡 | 1 | 1/7 | Le icone come **catalogo semantico**, non texture nei widget: va fatto *mentre* E11 costruisce l'HUD |
+| **E21** | 🟡 | 1 | 1/7 | Il gioco smette di essere cilindri colorati — mesh, animazioni, anelli team/selezione |
 
 **21 epic** · stato da [`roadmap-v0.1.md`](roadmap-v0.1.md) §2.1 · gate dal Feature Registry.
-
-> ⚠️ **Senza stato dichiarato nell'owner**: **E18**, **E19**, **E20**, **E21**. §2.1 non le copre — non è una svista di questa vista, è una riga che manca là.
 
 <!-- RT_SHORTLIST_EPICS:END -->
 

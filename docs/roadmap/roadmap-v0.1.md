@@ -174,6 +174,16 @@ Evidenza = i **nomi dei test**, che sono la prova di ciò che esiste:
 | **E15** Showcase «Il Relè» e golden replay | 🟡 **iniziata** | 2 test `ShowcaseRelay.*` — fixture stabile, scenario lite deterministico |
 | **E16** Orientamento e direzionalità | ✅ **chiusa** | 13 test `Facing.*` + 3 `Combat.*` direzionali + 5 scenari `Spec.Facing.*` — il facing è stato di gioco (derivato da Move e Dash, riorientato dal bersaglio, in snapshot, TurnLog e hash, filtrato per squadra) e la difesa direzionale annulla copertura bassa e `Guard` fuori dall'arco frontale, con la stessa `HexCone` che userà la vista. Resta fuori `FacingUsedByOverwatch`, che è E14 |
 | **E17** Validazione di stress 4v4 | ⏳ **assente** | dopo E15; **non** è un gate di release |
+| **E18** Predictive Action, thin slice | ⏳ **assente** | nessun test `Predictive.*`; l'unico artefatto è lo scenario-spec `Spec.Predictive.WhiffOnEmptyCell`, che esce `BLOCKED` su `PredictiveAction` |
+| **E19** Classe di mappa e composizione | 🟡 **parziale** | 5 test `MatchFormat.*` — il formato è un data asset validato, il fallback è **osservabile** e un asset non valido blocca il setup · ⏳ la mappa non dichiara ancora la propria **classe** né il formato le **unità per squadra** ([D-030](../decisions/RT_PDR_00_Decision_Log.md)) |
+| **E20** HUD Icon Language | 🟡 **parziale** | 5 test `IconCatalog.*` — ogni chiave risolve, l'ID duplicato e la chiave assente sono **errori di validazione**, la chiave sconosciuta cade sul fallback · ⏳ i widget non consumano ancora il catalogo |
+| **E21** Presentazione e leggibilità | 🟡 **parziale** | 4 test `Unit.*` (anello, colore di squadra, posa sul centro-cella, nome breve) + 4 `Camera.*` · ⏳ il grosso è **lavoro in editor** — mesh, animazioni, materiali — che non è testabile headless: vive nelle voci PIE della sessione C |
+
+> ⚠️ **Aggiunte il 2026-08-09.** Queste quattro righe **mancavano**: E18–E21 erano in §3 e in §5 ma non
+> in questa tabella, l'unica vista dello stato delle epic. Il buco non era visibile finché
+> `feature_registry.py shortlist` non ha dovuto leggere lo stato di ogni epic e ha dichiarato quali non
+> lo avevano. Due delle quattro non erano nemmeno «assenti»: **E19** ed **E20** hanno cinque test
+> ciascuna, e sarebbero rimaste a zero in ogni vista che le leggesse da qui.
 
 **Due cose vigenti che i documenti non dichiaravano.** Lo **scivolamento su ghiaccio** esiste ed è testato
 (`Terrain.Ice.*`), benché il catalogo terreni lo dicesse «rimandabile»: va documentato come vigente, non
@@ -212,7 +222,8 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-MAP-HEXGRAPH` — FRTCellId e grafo esagonale multilivello | RELEASE_READY | 7/8 |
 |  | `RT-FEAT-MAP-LOS` — LOS, targeting e traiettoria separati | RELEASE_READY | 6/7 |
 |  | `RT-FEAT-MAP-PATHFINDING` — A* esagonale autorevole | RELEASE_READY | 6/7 |
-| **E4** | `RT-FEAT-ACTION-COOLDOWNS` — Cooldown ed economia delle risorse | TESTABLE | 5/8 |
+| **E4** | `RT-FEAT-ACTION-BASIC-ATTACK-PROFILES` — Profili di attacco base per eroe | IMPLEMENTING | 2/8 |
+|  | `RT-FEAT-ACTION-COOLDOWNS` — Cooldown ed economia delle risorse | TESTABLE | 5/8 |
 |  | `RT-FEAT-ACTION-ENGINE` — Motore delle azioni a priorità intera | RELEASE_READY | 7/8 |
 |  | `RT-FEAT-ACTION-GENERIC` — Azioni generiche del catalogo — completata da `RT-FEAT-REACTION-OVERWATCH`, `RT-FEAT-OBJECTIVE-SYSTEM` | IMPLEMENTING | 3/8 |
 |  | `RT-FEAT-ACTION-MOVE-PROFILES` — Profili di movimento (Move, Sprint, Charge) | RELEASE_READY | 7/8 |
@@ -540,6 +551,14 @@ finché CP 2.8 non è verde.**
 **Rischi**: è l'epic con la superficie più ampia. Il criterio di taglio è per **famiglia di azioni**
 (4.4 → 4.7), non «tutte insieme»: ogni CP deve chiudere con la suite verde.
 
+> **`RT-FEAT-ACTION-BASIC-ATTACK-PROFILES` non ha un checkpoint, ed è una scelta.** I profili di attacco base
+> per eroe ([ADR-0007](../decisions/adr-0007-attacco-base-per-eroe.md)) **riusano** la capability che CP 4.4
+> ha già consegnato: non aggiungono niente al motore, cambiano un dato e ne dichiarano il ruolo. Aprire un
+> `4.9` su un'epic già consegnata direbbe il falso — che manca un pezzo di motore — quando quello che manca è
+> copertura di scenario e Wiki. Lo stato vive nel **feature_id**, che è il posto giusto: `epic: E4` senza
+> checkpoint, gate `scenario` e `ui_wiki` a `partial`. Vale lo stesso criterio con cui `Sprint` è un profilo
+> di `Move` e non un Dash: **il contenitore segue la natura della cosa, non la comodità del tracciamento.**
+
 ---
 
 ### E5 — Reazioni · P1
@@ -584,7 +603,7 @@ turno**, senza attese nel resolver (invariante #3).
 | **6.1** | `URTHeroData` e statistiche | Salute, movimento (MP), range visivo, resistenza push, affinità ambientale, debolezza; attacco base per fascia (corpo a corpo 28/r1, corto 25/r3, medio 22/r4, lungo 20/r6) | `Heroes.StatsFromData`, `Heroes.BasicAttackByRangeBand` |
 | **6.2** | Flux — tecnico della conduzione | 90 HP, 5 MP, vista 6, affinità elettricità; `ArcPulse` (22, r4), `LinearDischarge` (24, +8 su Wet), `ConductiveNode`, `Overload` (18 + Interrupt dispositivi), `ReactiveCapacitor`; variante concentrata/ramificata | `Heroes.Flux.WetBonus`, `Heroes.Flux.VariantTradeoff` |
 | **6.3** | Riva — manipolatrice dell'acqua | 95 HP, 5 MP, vista 5, affinità acqua; `PressureJet` (16 + Wet + Push 1), `CircularTide` (cura 18 alleati / Wet nemici), `FluidTrail` (Dash 3 + acqua), `MistVeil` (fumo r1), `FlowReaction`; variante curativa/urto | `Heroes.Riva.TideHealsAlliesWetsEnemies` |
-| **6.4** | Bastion — architetto del campo | 120 HP, 4 MP, vista 5, resistenza push 1, affinità strutture; `ImpactShot` (24, r3), `KineticPanel` (copertura 30 HP), `Reconfigure`, `Ram` (Charge 20 + Push 1), `Interposition`; variante rinforzato/adattivo | `Heroes.Bastion.PanelCreatesCover`, `Heroes.Bastion.PushResistance` |
+| **6.4** | Bastion — architetto del campo | 120 HP, 4 MP, vista 5, resistenza push 1, affinità strutture; `ImpactShot` (8 + `Slow`, r3 — 24 fino ad [ADR-0007](../decisions/adr-0007-attacco-base-per-eroe.md)), `KineticPanel` (copertura 30 HP), `Reconfigure`, `Ram` (Charge 20 + Push 1), `Interposition`; variante rinforzato/adattivo | `Heroes.Bastion.PanelCreatesCover`, `Heroes.Bastion.PushResistance` |
 | **6.5** | Vektor — duellante predittivo | 100 HP, 6 MP, vista 6, affinità movimento; `PulseShot` (21, r4), `InterceptShot` (16 + stop movimento), `PassingBlade` (Dash 3, 20 attraversando), `Deflection` (−20), `Feint`; variante preciso/esteso | `Heroes.Vektor.InterceptShotStopsMovement` |
 | **6.6** | Selezione e spawn 2v2 | `ARTGameMode` spawna 4 eroi da `URTHeroData` (non più `RangerUnitClass`/`GuardianUnitClass` hard-coded); fallback visivo al cilindro se l'asset manca | Test d'integrazione (4 eroi distinti in `UWorld`); `PIE-V01-ROSTER` |
 | **6.7** ✅ *(chiuso 2026-08-07)* | Le reazioni degli eroi **funzionano in partita** | Quattro reazioni cablate sul motore E5 riusando la semantica core (CP 5.5): `Bastion.Interposition` → `Action.Intercept` (trigger `AllyHitByDirectAttack`, range 2), `Vektor.Deflection` → `Action.Deflect` (−20), `Flux.ReactiveCapacitor` → `Shield 15` **+** 10 all'attaccante, `Riva.FlowReaction` → **rinviata a E14** e dichiarata tale (produce movimento dentro un boundary). Ogni reazione occupa lo **slot `Reaction`** ed è soggetta a «una attivazione per turno». I commenti «arriva con E5» spariscono dal catalogo eroi e i test che oggi **fissano l'assenza** (`Effects.Num() == 0`) sono sostituiti da test di comportamento | `Heroes.BastionInterpositionRedirectsDirectHit`, `Heroes.BastionInterpositionUsesReactionSlot`, `Heroes.VektorDeflectionReducesDirectHit`, `Heroes.FluxReactiveCapacitorShieldsAndCounters` |

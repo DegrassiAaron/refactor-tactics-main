@@ -2,9 +2,9 @@
 
 > `HISTORICAL` · **Materiale NON autorevole** · **Primo lotto archiviato il 2026-08-08**
 >
-> I 26 documenti in questa cartella sono i **sorgenti** da cui è nata parte della documentazione normativa.
-> I primi 25 erano in [`../../src/`](../../src/); sono stati spostati qui quando un owner documentale li ha
-> recepiti. Restano per **provenienza**: servono a ricostruire *da dove* è nata una decisione, non a deciderla.
+> I **28** documenti in questa cartella sono i **sorgenti** da cui è nata parte della documentazione normativa.
+> Il primo lotto era in [`../../src/`](../../src/); ogni sorgente si sposta qui quando un owner documentale lo
+> ha recepito. Restano per **provenienza**: servono a ricostruire *da dove* è nata una decisione, non a deciderla.
 >
 > **Il testo originale non è stato riscritto.** Dove un sorgente conteneva un errore di fatto, la correzione è
 > una nota `⚠️` accanto all'affermazione, non una modifica del paragrafo.
@@ -12,6 +12,11 @@
 > ➕ **Dal 2026-08-09 la cartella accoglie anche i sorgenti *revisionati e non applicati***: un brief che il
 > canone contraddice si archivia con l'esito della revisione in testa, non si scarta. La colonna «Recepito da»
 > in quel caso punta al referto, non a un owner — perché non c'è nulla da possedere.
+>
+> ⚠️ **Il conteggio era già sbagliato prima del 2026-08-09**: l'intestazione diceva «25» mentre le sue stesse
+> tabelle elencavano **26** righe. Il numero qui sopra è **misurato**
+> (`ls docs/archive/src/{design,handoff,audit}/*.md | wc -l` → 15 + 11 + 2), non incrementato a mano — che è
+> il modo in cui era andato fuori sincrono.
 
 **Se cerchi la regola, non sei nel posto giusto**: la colonna «Recepito da» dice chi la possiede oggi.
 In caso di conflitto prevalgono [`../../product/piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md),
@@ -50,6 +55,7 @@ In caso di conflitto prevalgono [`../../product/piano-canonico-mvp.md`](../../pr
 | [`2026-08-08-bot-ai-roadmap-e-test-pie.md`](handoff/2026-08-08-bot-ai-roadmap-e-test-pie.md) | Bot AI tattica, test PIE, scenari | `PIE-AI-01…05` · [`avversario-bot.md`](../../wiki/game/avversario-bot.md) · **E26**/**E28** |
 | [`2026-08-08-tre-aggiunte-signature-mechanics.md`](handoff/2026-08-08-tre-aggiunte-signature-mechanics.md) | ConditionalIntent, GenericActionModifier, Misplay | D-032 · D-033 · D-034 — vedi il banner in testa al file: **una sola** delle tre era davvero assente |
 | [`2026-08-08-azioni-base-e-facing.md`](handoff/2026-08-08-azioni-base-e-facing.md) | Azioni base e facing: consolidamento | [ADR-0005](../../decisions/adr-0005-orientamento.md) copriva già il canone. Restano tre **proposte di modifica** (righe 50–52 della conflict matrix) e `FAC-4…FAC-10` in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) |
+| [`2026-08-09-attacco-base-per-eroe.md`](handoff/2026-08-09-attacco-base-per-eroe.md) | Profili di attacco base per eroe | [ADR-0007](../../decisions/adr-0007-attacco-base-per-eroe.md) · il documento porta **inline** le sezioni corrette (§9, §10–13, §15-bis, §24, §27, §28): tre valori su quattro della matrice originale contraddicevano il catalogo, e i nomi candidati collidevano con azioni gia' spedite |
 | [`2026-08-09-map-editor-roadmap.md`](handoff/2026-08-09-map-editor-roadmap.md) | Roadmap e consolidamento del Map Editor (v0.1–v0.5) | ⛔ **Revisionato e non applicato** — [`map-editor-brief-spec-panel-2026-08-09.md`](../../roadmap/plans/map-editor-brief-spec-panel-2026-08-09.md). 9 duplicati, 5 conflitti (muri vs **E23.1**, porte, terreni, profili di movimento). Sopravvive **una** proposta: la sonda di movimento nell'editor |
 
 ## `audit/` — stato della documentazione
