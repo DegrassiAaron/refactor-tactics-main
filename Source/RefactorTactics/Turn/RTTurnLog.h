@@ -62,7 +62,19 @@ enum class ERTEnvironmentOutcome : uint8
 	/** Un ponte ha incassato danno ed e' ancora in piedi; `Amount` e' l'integrita' RESIDUA. */
 	BridgeDamaged,
 	/** Un ponte e' crollato: e' l'evento che spiega perche' un percorso fra due layer non esiste piu'. */
-	BridgeDestroyed
+	BridgeDestroyed,
+	/**
+	 * Una copertura e' stata ERETTA in partita (CP 9.5): `SrcCell`/`TgtCell` sono le due celle del bordo, come
+	 * per ogni altro evento di struttura, e `Amount` i turni che durera' (0 = permanente).
+	 *
+	 * Aggiunto IN CODA: l'esito viaggia come `uint8` nel TurnLog serializzato, quindi inserirlo in mezzo
+	 * rinumererebbe gli eventi gia' scritti e i replay del corpus golden racconterebbero un'altra partita.
+	 */
+	CoverCreated,
+	/** Una copertura temporanea e' scaduta: da qui in poi quel bordo non ripara piu' nessuno. */
+	CoverExpired,
+	/** Una copertura e' stata SPOSTATA su un altro bordo (`Bastion.Reconfigure`): non ne nasce una seconda. */
+	CoverMoved
 };
 
 /**
