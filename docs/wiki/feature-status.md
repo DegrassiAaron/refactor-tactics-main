@@ -2,7 +2,7 @@
 
 > `GENERATO` · Vista del **Feature Registry** (`docs/roadmap/feature-registry.yaml` nel repository del gioco).
 > Non modificare a mano: si rigenera con `python scripts/feature_registry.py wiki`.
-> Feature tracciate: **82** · Ultimo audit completo: **2026-08-08** su `2094b86`.
+> Feature tracciate: **83** · Ultimo audit completo: **2026-08-08** su `2094b86`.
 
 Questa pagina dice **cosa esiste davvero**. Una meccanica descritta altrove nella Wiki e
 marcata qui come `SPECIFIED` o `DESIGNED` e' progettata, non giocabile: la Wiki racconta
@@ -50,6 +50,7 @@ il gioco che sara', questa tabella dice a che punto e'.
 | Feature | Titolo | Roadmap | Stato | Gate | Scenario |
 |---|---|---|---|---:|---|
 | `RT-FEAT-CORE-DECISION-BOUNDARY` | Risoluzione segmentata con Decision Boundary | E14.1, E14.2, E14.3 | **SPECIFIED** | 1/8 | — |
+| `RT-FEAT-CORE-DECISION-TIME-BANK` | Decision Time Bank (budget di decisione per giocatore) | E14.8 | **SPECIFIED** | 1/9 | _pianificato_ |
 | `RT-FEAT-CORE-DETERMINISM` | Snapshot e resolver deterministico | E12.1, E12.6 | **INTEGRATED** | 5/7 | `RT_Showcase_Relay_v01` |
 | `RT-FEAT-CORE-PLAYBACK` | Playback della risoluzione | E11.1 | **INTEGRATED** | 5/7 | `Visual.Core.PhaseOrder` · `Visual.Combat.Defeat` |
 | `RT-FEAT-CORE-TURN` | Pipeline del turno simultaneo | E2.2, E2.1 | **RELEASE_READY** | 7/8 | `Visual.Core.PhaseOrder` |
