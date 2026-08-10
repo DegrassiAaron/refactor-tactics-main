@@ -479,6 +479,22 @@ protected:
 	/** Revisione del grafo di mappa ADESSO: sale durante la risoluzione, quindi si legge a ogni emissione. */
 	int32 CurrentGraphRevision() const;
 
+	/**
+	 * Assegna a ogni unita' la sua identita' STABILE di partita, una volta sola (#405, [D-063]).
+	 *
+	 * Il progetto conosceva l'unita' solo come indice in `MakeCurrentSnapshot`: quello filtra i vivi e si
+	 * ricostruisce a ogni fase, quindi scala appena qualcuno muore — e `DestroyDefeatedUnits` distrugge pure
+	 * l'Actor, cosi' nemmeno il pointer sopravvive. Per una traccia che si rilegge a partita finita serve un
+	 * intero che non si muova: `ARTUnit::StableUnitId`, assegnato qui e mai piu' toccato.
+	 *
+	 * Idempotente: la seconda chiamata non fa niente. Un roster VUOTO non conta come costruito — congelarlo
+	 * darebbe identita' a nessuno e la negherebbe a chi arriva dopo.
+	 */
+	void EnsureMatchRoster();
+
+	/** Il roster di partita e' stato costruito: l'identita' delle unita' non si riassegna piu'. */
+	bool bMatchRosterBuilt = false;
+
 	FTimerHandle PlanningTimerHandle;
 
 protected:

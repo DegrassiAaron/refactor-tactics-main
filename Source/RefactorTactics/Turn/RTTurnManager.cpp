@@ -561,6 +561,11 @@ void ARTTurnManager::LockInAndResolve()
 		return; // gia' in risoluzione o non in pianificazione: ignora un secondo lock-in
 	}
 
+	// L'identita' di partita si fissa QUI, prima che il turno produca la sua prima voce di TurnLog (#405).
+	// Questo e' il punto comune ai due percorsi: il gioco ci arriva da `StartPlanningTimer`, lo Scenario
+	// Harness chiama `LockInAndResolve` direttamente senza passare dal timer.
+	EnsureMatchRoster();
+
 	// Sonda di pacing: chiude i tempi della pianificazione. Telemetria, nessun effetto sul turno.
 	{
 		const double Now = FPlatformTime::Seconds();
@@ -951,6 +956,69 @@ void ARTTurnManager::TickDynamicSurfaces(URTHexMapAsset* Map)
 		}
 		DynamicSurfaces.Remove(Cell);
 	}
+}
+
+namespace
+{
+	/**
+	 * Ordine TOTALE del roster di partita, sullo stato iniziale delle unita'.
+	 *
+	 * Non si usa l'ordine di `GetAllActorsOfClass`: quello e' l'ordine in cui il livello tiene gli Actor, che
+	 * non e' un dato di gioco. Se decidesse l'identita', due esecuzioni della stessa partita produrrebbero due
+	 * tracce diverse — la classe di difetto che `InstanceLess` e `EntryLess` esistono per impedire.
+	 *
+	 * L'ultimo confronto e' il NOME dell'Actor, e serve solo in un caso che il gioco non produce: due unita'
+	 * della stessa squadra sulla stessa cella all'inizio. Sta li' perche' un pareggio lo risolverebbe
+	 * altrimenti `TArray::Sort`, che non e' stabile — la stessa trappola gia' pagata con `EntryLess` (D-067).
+	 */
+	bool MatchRosterLess(const ARTUnit& A, const ARTUnit& B)
+	{
+		if (A.TeamId != B.TeamId)       { return A.TeamId < B.TeamId; }
+		if (A.Cell.X != B.Cell.X)       { return A.Cell.X < B.Cell.X; }
+		if (A.Cell.Y != B.Cell.Y)       { return A.Cell.Y < B.Cell.Y; }
+		if (A.Cell.Layer != B.Cell.Layer) { return A.Cell.Layer < B.Cell.Layer; }
+		return A.GetName().Compare(B.GetName()) < 0;
+	}
+}
+
+void ARTTurnManager::EnsureMatchRoster()
+{
+	if (bMatchRosterBuilt)
+	{
+		return; // l'identita' si assegna una volta: riassegnarla sarebbe il difetto che il campo deve evitare
+	}
+
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+
+	TArray<ARTUnit*> Roster;
+	Roster.Reserve(Actors.Num());
+	for (AActor* Actor : Actors)
+	{
+		if (ARTUnit* Unit = Cast<ARTUnit>(Actor))
+		{
+			// NON si filtra sui vivi, ed e' l'intero punto: filtrare e' cio' che fa scalare l'indice dello
+			// snapshot. Alla prima risoluzione sono comunque tutti vivi — il filtro sarebbe inutile adesso e
+			// dannoso come precedente.
+			Roster.Add(Unit);
+		}
+	}
+	if (Roster.Num() == 0)
+	{
+		// Nessuna unita' nel mondo: non si «costruisce» un roster vuoto, perche' congelarlo adesso darebbe
+		// identita' a nessuno e le negherebbe a chi arriva dopo. Si riprova alla risoluzione successiva.
+		return;
+	}
+
+	Roster.Sort([](const ARTUnit& A, const ARTUnit& B) { return MatchRosterLess(A, B); });
+
+	for (int32 i = 0; i < Roster.Num(); ++i)
+	{
+		// `+ 1`: lo `0` resta libero e significa «nessuna unita' dichiarata» ([D-063]), che e' cio' che dice
+		// una voce ambientale del TurnLog.
+		Roster[i]->StableUnitId = i + 1;
+	}
+	bMatchRosterBuilt = true;
 }
 
 int32 ARTTurnManager::CurrentGraphRevision() const
