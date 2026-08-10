@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
-#include "Ability/RTActionDef.h"
+#include "Turn/RTTurnRules.h"
 #include "RTReactionOpportunityTypes.generated.h"
 
 /**
@@ -22,9 +22,18 @@ struct FRTReactionOpportunityKey
 	UPROPERTY()
 	int32 TurnNumber = 0;
 
-	/** Macro-fase della risoluzione: due opportunity dello stesso turno in fasi diverse sono distinte. */
+	/**
+	 * Macro-fase del turno in cui l'opportunity si apre: due opportunity dello stesso turno in fasi diverse
+	 * sono distinte.
+	 *
+	 * E' `ERTMatchPhase` — `Planning · Prep · Dash · Blast · Move · Cleanup` — e **non** `ERTResolutionPhase`,
+	 * che il suo stesso owner dichiara non essere una macro-fase: quelli sono i codici `0/10/20/…` del
+	 * catalogo, cioe' la fase che un'AZIONE dichiara, con la conversione in
+	 * `URTCatalogLibrary::MapResolutionPhase` (e il codice 20 che si sdoppia). Un'opportunity nasce in una
+	 * fase del TURNO, non in una dichiarata da un'azione.
+	 */
 	UPROPERTY()
-	ERTResolutionPhase MacroPhase = ERTResolutionPhase::Snapshot;
+	ERTMatchPhase MacroPhase = ERTMatchPhase::Planning;
 
 	/**
 	 * Micro-step del movimento in cui l'opportunity nasce (CP 14.2).
@@ -41,9 +50,17 @@ struct FRTReactionOpportunityKey
 	UPROPERTY()
 	int32 OwnerId = INDEX_NONE;
 
-	/** La reaction che l'ha aperta (`Action.Counter`, `Action.Deflect`, ...). */
+	/**
+	 * La reaction che l'ha aperta (`Action.Counter`, `Action.Deflect`, ...).
+	 *
+	 * `FName` come `FRTActionDef::ActionId`, e non `FString`: il chiamante scrivera' `Def.ActionId` senza
+	 * conversione. Con una `FString` il caller avrebbe dovuto passare `ActionId.ToString()`, che restituisce
+	 * la casing dell'ISTANZA — e `FName` confronta senza distinguerla. Due punti del codice che l'engine
+	 * considera la stessa azione avrebbero prodotto due id diversi: esattamente «un identificatore che non e'
+	 * funzione del suo stato», il difetto che questo file esiste per impedire, spostato di un livello.
+	 */
 	UPROPERTY()
-	FString ReactionDefId;
+	FName ReactionDefId;
 
 	/**
 	 * Progressivo fra opportunity identiche in tutto il resto.

@@ -6,7 +6,7 @@
 // del resolver invece che come cio' che e': un identificatore che non e' una funzione del suo stato.
 
 #include "Misc/AutomationTest.h"
-#include "Ability/RTActionDef.h"
+#include "Turn/RTTurnRules.h"
 #include "Turn/RTReactionOpportunityTypes.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -18,7 +18,7 @@ namespace
 	{
 		FRTReactionOpportunityKey Key;
 		Key.TurnNumber = 3;
-		Key.MacroPhase = ERTResolutionPhase::Attack;
+		Key.MacroPhase = ERTMatchPhase::Blast;
 		Key.MicroStepIndex = 2;
 		Key.OwnerId = 7;
 		Key.ReactionDefId = TEXT("Action.Counter");
@@ -84,7 +84,7 @@ bool FRTOpportunityIdUsesEveryFieldTest::RunTest(const FString&)
 		DiffersFromBase(TEXT("TurnNumber"), K);
 	}
 	{
-		FRTReactionOpportunityKey K = Base; K.MacroPhase = ERTResolutionPhase::Control;
+		FRTReactionOpportunityKey K = Base; K.MacroPhase = ERTMatchPhase::Move;
 		DiffersFromBase(TEXT("MacroPhase"), K);
 	}
 	{
@@ -103,6 +103,42 @@ bool FRTOpportunityIdUsesEveryFieldTest::RunTest(const FString&)
 		FRTReactionOpportunityKey K = Base; K.Seq = 1;
 		DiffersFromBase(TEXT("Seq"), K);
 	}
+
+	return true;
+}
+
+/**
+ * Due `FName` che l'engine considera la stessa azione danno lo stesso id, qualunque sia la loro casing.
+ *
+ * `FName` confronta senza distinguere maiuscole e minuscole, ma `ToString()` restituisce la casing
+ * dell'ISTANZA. Senza normalizzazione, un chiamante che scrive `Action.Counter` e uno che scrive
+ * `action.counter` — per l'engine la stessa azione, `==` vero — produrrebbero due opportunity con id diversi,
+ * e il replay attribuirebbe a due opportunity distinte cio' che e' successo una volta sola.
+ *
+ * E' il difetto che il tipo `FName` risolve a meta': toglie l'ambiguita' dal CONFRONTO e la lascia nella
+ * SERIALIZZAZIONE.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOpportunityIdIgnoresActionIdCasingTest,
+	"RefactorTactics.Reactions.OpportunityIdIgnoresActionIdCasing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOpportunityIdIgnoresActionIdCasingTest::RunTest(const FString&)
+{
+	FRTReactionOpportunityKey Lower = MakeOpportunityKeyForIdTest();
+	Lower.ReactionDefId = FName(TEXT("action.counter"));
+
+	FRTReactionOpportunityKey Upper = MakeOpportunityKeyForIdTest();
+	Upper.ReactionDefId = FName(TEXT("ACTION.COUNTER"));
+
+	// La premessa del test: per l'engine sono la stessa azione. Se un giorno non lo fossero piu', questo
+	// assert cade per primo e dice perche', invece di lasciar fallire quello sotto senza spiegazione.
+	if (!TestTrue(TEXT("i due FName sono uguali per l'engine"), Lower.ReactionDefId == Upper.ReactionDefId))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("e quindi danno lo stesso OpportunityId"),
+		URTReactionOpportunityLibrary::DeriveOpportunityId(Lower),
+		URTReactionOpportunityLibrary::DeriveOpportunityId(Upper));
 
 	return true;
 }
