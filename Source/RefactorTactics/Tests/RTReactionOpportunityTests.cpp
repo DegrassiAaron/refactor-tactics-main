@@ -141,4 +141,58 @@ bool FRTSingleResponseCommitsWithoutWindowTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Il DTO non porta futuro: nessuna posizione, nessun trigger, nessuna opportunity altrui, nessun intento
+ * avversario (ADR-0004 §7, invariante #6).
+ *
+ * E' un test D'ARCHITETTURA e non di comportamento: interroga la reflection invece di eseguire il resolver,
+ * perche' cio' che va impedito non e' un valore sbagliato ma un CAMPO IN PIU'. Un test che leggesse i valori
+ * passerebbe felicemente accanto a un `FutureCells` lasciato vuoto quel giro.
+ *
+ * Il rosso di questo test si ottiene per MUTAZIONE — aggiungere un campo fuori elenco — e non scrivendolo
+ * prima dell'implementazione: sul DTO conforme passa per costruzione. Verificato cosi': aggiungendo un
+ * `UPROPERTY() FRTCellId PredictedCell` cade nominandolo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOpportunityLeaksNoFutureTest,
+	"RefactorTactics.Overwatch.OpportunityLeaksNoFuture",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOpportunityLeaksNoFutureTest::RunTest(const FString&)
+{
+	// Ogni campo che il DTO puo' avere, ed e' un ELENCO CHIUSO: chi ne aggiunge uno deve passare di qui e
+	// dichiarare perche' non e' informazione futura. La lista corta e' il punto — non un dettaglio da tenere
+	// aggiornato.
+	auto CheckClosedFieldSet = [this](UScriptStruct* Struct, const TCHAR* What, const TSet<FString>& Allowed)
+	{
+		if (!Struct)
+		{
+			AddError(FString::Printf(TEXT("%s: struct non risolta dalla reflection"), What));
+			return;
+		}
+
+		for (TFieldIterator<FProperty> It(Struct); It; ++It)
+		{
+			const FString Name = It->GetName();
+			if (!Allowed.Contains(Name))
+			{
+				AddError(FString::Printf(
+					TEXT("%s espone il campo '%s', che non e' nell'elenco chiuso: se e' informazione futura ")
+					TEXT("(posizione, trigger, opportunity altrui, intento avversario) non puo' stare nel DTO; ")
+					TEXT("se non lo e', va aggiunto qui con la ragione"),
+					What, *Name));
+			}
+		}
+	};
+
+	CheckClosedFieldSet(FRTReactionOpportunity::StaticStruct(), TEXT("FRTReactionOpportunity"),
+		{ TEXT("Key"), TEXT("AllowedResponses") });
+
+	// La chiave viaggia dentro il DTO, quindi il suo contenuto e' altrettanto esposto. `MicroStepIndex` e'
+	// passato: dice DOVE nella risoluzione ci si trova, non dove si andra'.
+	CheckClosedFieldSet(FRTReactionOpportunityKey::StaticStruct(), TEXT("FRTReactionOpportunityKey"),
+		{ TEXT("TurnNumber"), TEXT("MacroPhase"), TEXT("MicroStepIndex"),
+		  TEXT("OwnerId"), TEXT("ReactionDefId"), TEXT("Seq") });
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
