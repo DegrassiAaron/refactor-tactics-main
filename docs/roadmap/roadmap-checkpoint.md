@@ -406,8 +406,9 @@ neutri (combat math, serializzazione, regole di fase). Il resto ha data di scade
 |---|---|
 | [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) | **Canone**: decisioni vincolanti, invarianti, regole numeriche |
 | [`feature-registry.yaml`](feature-registry.yaml) · [`feature-registry.md`](feature-registry.md) | **Prodotto**: stato per *feature* (non per milestone né per epic), derivato da gate verificabili. Unica sorgente dello stato che Wiki e workbook leggono |
-| [`roadmap-v0.1.md`](roadmap-v0.1.md) | **Release v0.1**: 14 epic, 69 checkpoint, mappatura con queste milestone + **§2.1 stato misurato** |
-| [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate di release `G1`–`G14`, KPI, checklist di contenuto |
+| [`roadmap-v0.1.md`](roadmap-v0.1.md) | **Release v0.1**: 21 epic, 95 checkpoint, mappatura con queste milestone + **§2.1 stato misurato** |
+| [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) | **Release v0.2 → v0.4**: epic `E22`–`E35`. Non apre lavoro finché i gate della v0.1 non sono verdi |
+| [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate di release `G1`–`G15`, KPI, checklist di contenuto |
 | [`balance/`](../balance) | **Numeri vigenti v0.1**: cataloghi azioni, terreni, equipaggiamento, eroi, matrice di test |
 | [`spec-motore-azioni-e4.md`](../gameplay/spec-motore-azioni-e4.md) | **Proposta di design** del motore azioni (epic E4): modello, fette, rischi, domande aperte |
 | [`spec-stati-temporanei-cp82.md`](../gameplay/spec-stati-temporanei-cp82.md) | **Stati temporanei** (CP 8.2): durata legata alla cella, ordine del Cleanup, decisioni e difetti di cablaggio trovati |

@@ -187,6 +187,36 @@ public:
 		const TArray<bool>& bPassThrough = TArray<bool>());
 
 	/**
+	 * Apre una risoluzione di movimento SOSPENDIBILE (CP 14.2): stesso input dei due `ResolveHexPaths`, ma
+	 * restituisce lo stato invece del risultato.
+	 *
+	 * I tre membri di questa terna — `BeginHexMovement`, `ResolveNextHexMicroStep`, `FinishHexMovement` —
+	 * **sono** cio' che `ResolveHexPaths` esegue: non e' una seconda implementazione da tenere allineata, e
+	 * per questo «i due percorsi danno lo stesso risultato» e' una proprieta' del codice, non una speranza.
+	 *
+	 * Serve a un Overwatch interattivo, che deve poter fermare il movimento **dentro** il calcolo. Chi non ha
+	 * bisogno di fermarlo continua a chiamare `ResolveHexPaths` e non si accorge di nulla.
+	 */
+	static FRTMovementResolutionState BeginHexMovement(const TArray<TArray<FRTCellId>>& Paths,
+		const TArray<int32>& Priorities = TArray<int32>(), const TArray<bool>& bLinearMovers = TArray<bool>(),
+		const TArray<bool>& bPassThrough = TArray<bool>());
+
+	/**
+	 * Esegue UN microstep: tutte le unita' avanzano di una cella e si risolvono le collisioni.
+	 *
+	 * Ritorna **falso** quando nessuno si e' mosso, cioe' quando la risoluzione e' finita — ed e' allora che
+	 * gli `Outcome` vengono scritti, perche' il reason code finale dipende dalla posizione RAGGIUNTA e non si
+	 * puo' decidere a meta' strada. Chiamarlo ancora dopo la fine e' legale e non cambia nulla.
+	 *
+	 * Fra un microstep e il successivo lo stato e' consistente e si puo' leggere: e' il punto in cui un
+	 * decision boundary apre la sua finestra ([ADR-0004](../../../docs/decisions/adr-0004-finestre-di-reazione.md)).
+	 */
+	static bool ResolveNextHexMicroStep(FRTMovementResolutionState& State);
+
+	/** Esaurisce i microstep rimasti e restituisce i risultati. Su uno stato gia' finito non fa nulla. */
+	static TArray<FRTHexMoveResult> FinishHexMovement(FRTMovementResolutionState& State);
+
+	/**
 	 * Voci di TurnLog dagli esiti del movimento simultaneo: una per unita', nell'ordine dell'input
 	 * (Phase/Category = Move, Outcome = ERTMoveOutcome, SrcCell = cella di PARTENZA del turno — chiave stabile
 	 * dell'unita', mai un pointer —, TgtCell = cella finale, Amount = celle percorse). L'invarianza per

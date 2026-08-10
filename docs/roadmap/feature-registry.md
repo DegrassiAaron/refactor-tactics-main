@@ -138,11 +138,11 @@ completezza, e il controllo di coerenza li salta. Vanno usati con una `notes` ch
 
 ```bash
 python scripts/feature_registry.py validate    # gate: esce 1 se ci sono errori
-python scripts/feature_registry.py generate    # riscrive feature-registry.json
+python scripts/feature_registry.py generate    # feature-registry.json + project-graph.json
 python scripts/feature_registry.py wiki        # blocchi di stato + pagina Stato delle feature
                                                #   + tabella §2.2 di roadmap-v0.1.md
 python scripts/feature_registry.py workbook    # sheet 15_Wiki_Feature_Refs del workbook character
-python scripts/feature_registry.py shortlist   # le quattro viste corte di docs/roadmap/*.shortlist.md
+python scripts/feature_registry.py shortlist   # le cinque viste corte di docs/roadmap/*.shortlist.md
 python scripts/feature_registry.py report      # tabella di audit su stdout
 ```
 
@@ -150,12 +150,27 @@ python scripts/feature_registry.py report      # tabella di audit su stdout
 disallineato dalla sorgente. È la forma da usare in un gate automatico (**G15** della Definition of
 Done).
 
-### Le quattro shortlist
+### I due file generati
+
+`generate` scrive **due** artefatti, e la divisione è deliberata:
+
+| File | Contiene | Perché separato |
+|---|---|---|
+| [`feature-registry.json`](feature-registry.json) | le feature: gate, status derivato, riferimenti | è l'owner delle **feature** e ha già consumatori |
+| [`project-graph.json`](project-graph.json) | tutto il resto: diagnostica del validator, gate di release, epic/milestone/checkpoint, sedute in editor con stato e coda, voci `PIE-*`, corpus scenari, capability | allargare il primo a queste cose gli darebbe una seconda responsabilità — lo stesso errore evitato sul `.yaml` |
+
+`project-graph.json` **non ricalcola nulla**: è un secondo consumatore delle funzioni che alimentano le
+shortlist. Serve a chi non legge markdown — oggi il [Project Control Center](plans/project-control-center-spec.md),
+domani qualunque altro strumento. Non contiene il commit corrente **di proposito**: ce lo mettesse,
+`--check` fallirebbe dopo ogni commit e diventerebbe rumore da ignorare.
+
+### Le cinque shortlist
 
 `shortlist` riscrive i blocchi marcati di
 [`roadmap.shortlist.md`](roadmap.shortlist.md), [`featuremap.shortlist.md`](featuremap.shortlist.md),
-[`scenariomap.shortlist.md`](scenariomap.shortlist.md) e
-[`milestonemap.shortlist.md`](milestonemap.shortlist.md). Fuori dai marcatori non tocca niente.
+[`scenariomap.shortlist.md`](scenariomap.shortlist.md),
+[`milestonemap.shortlist.md`](milestonemap.shortlist.md) e
+[`editormap.shortlist.md`](editormap.shortlist.md). Fuori dai marcatori non tocca niente.
 
 Non inventa una seconda regola per lo stato: **ogni valore viene dal proprio owner**, misurato.
 
@@ -166,6 +181,14 @@ Non inventa una seconda regola per lo stato: **ogni valore viene dal proprio own
 | `RT_SHORTLIST_SCENARIOS` | corpus, `BLOCKED`, `planned` | `Scenarios/` + le capability di `RTScenarioSession.cpp` |
 | `RT_SHORTLIST_MILESTONES` | stato per milestone | [`roadmap-checkpoint.md`](roadmap-checkpoint.md) |
 | `RT_SHORTLIST_MILESTONES_GATES` | i gate `G1`–`G15` | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §3 |
+| `RT_SHORTLIST_EDITOR` | le sedute in editor + **My Editor Queue** | [`editor-sessions.yaml`](editor-sessions.yaml) · voci `PIE-*` · `git ls-files` sugli artefatti |
+
+**`My Editor Queue`** (`BLOCKING` · `READY` · `WAITING` · `DONE`) è derivata da tre campi che le sedute già
+dichiarano — `unblocked_by`, `critical`, e lo stato — senza aggiungerne uno. Le due regole di risoluzione
+sono diverse per un motivo: un **checkpoint** 🟡 conta come risolto (il codice è fatto, manca la verifica
+che porti tu), una **seduta** 🟡 no (l'artefatto è a metà, e chi lo estende non può partire). I riferimenti
+si scrivono prefissati — `M6.3`, `E1.3`, `E8`, `U13` — perché 20 numeri di checkpoint su 22 esistono in due
+spazi: la forma nuda `CP 6.3` non risolve, e la vista la segnala.
 
 **La colonna umana viene preservata.** L'ultima colonna di ogni tabella — la riga di descrizione — non è
 derivabile: il generatore la rilegge dal blocco precedente e la reimpagina. Una feature nuova compare con

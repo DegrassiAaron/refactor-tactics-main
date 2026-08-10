@@ -3,6 +3,13 @@
   "meta": {
     "registry_version": 1,
     "schema_version": 1,
+    "project": {
+      "github": {
+        "owner": "DegrassiAaron",
+        "repository": "refactor-tactics-main",
+        "branch": "main"
+      }
+    },
     "last_full_audit": {
       "date": "2026-08-08",
       "commit": "2094b86",
@@ -10,7 +17,14 @@
     },
     "note": "Primo audit completo. La seed list dell'handoff del 2026-08-08 è stata confrontata voce per voce con Source/, Tests/, Scenarios/, docs/ e la Wiki: le voci che il repository non conferma sono marcate per quello che sono (SPECIFIED, DESIGNED, IDEA), non promosse a DONE.\n"
   },
-  "count": 84,
+  "project": {
+    "github": {
+      "owner": "DegrassiAaron",
+      "repository": "refactor-tactics-main",
+      "branch": "main"
+    }
+  },
+  "count": 85,
   "features": [
     {
       "feature_id": "RT-FEAT-CORE-TURN",
@@ -1165,7 +1179,8 @@
       ],
       "scenarios": [
         "Visual.Movement.Charge",
-        "Visual.Movement.RoughRefusesCharge"
+        "Visual.Movement.RoughRefusesCharge",
+        "Spec.Movement.TeleportSkipsIntermediateCells"
       ],
       "scenarios_planned": [],
       "wiki_refs": [
@@ -1452,11 +1467,15 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/gameplay/brief-delayed-actions.md"
+        "docs/gameplay/brief-delayed-actions.md",
+        "docs/gameplay/spec-tassonomia-movimento.md"
       ],
       "issues": [],
       "tests": [],
-      "scenarios": [],
+      "scenarios": [
+        "Spec.Movement.AntiDashTriggerIgnoresMove",
+        "Spec.Movement.TripwireOnCrossEdge"
+      ],
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
@@ -1464,7 +1483,7 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "Brief di scope, **nessuna epic aperta**: la proposta (4 checkpoint, numero non assegnato) attende una decisione perché E14 non è iniziata. Registrata per non perderla, non promossa."
+      "notes": "Brief di scope, **nessuna epic aperta**: la proposta (4 checkpoint, numero non assegnato) attende una decisione perché E14 non è iniziata. Registrata per non perderla, non promossa. Dal 2026-08-10 ha due **scenari-specifica** che ne descrivono i trigger su transizione prima che esistano: `AntiDashTriggerIgnoresMove` distingue il *come* ci si è mossi (Dash contro Move sullo stesso bordo) e dipende da #307, `TripwireOnCrossEdge` distingue l'attraversare dal comparire oltre. Entrambi `BLOCKED`, ed è la verità: le capability non esistono."
     },
     {
       "feature_id": "RT-FEAT-ACTION-PREDICTIVE",
@@ -1473,20 +1492,20 @@
       "kind": "gameplay",
       "release": "v0.1",
       "priority": "P2",
-      "status": "SPECIFIED",
-      "status_derived": "SPECIFIED",
+      "status": "INTEGRATED",
+      "status_derived": "INTEGRATED",
       "gates": {
         "spec": "done",
-        "data": "partial",
-        "runtime": "todo",
-        "log_debug": "todo",
-        "automation": "todo",
-        "scenario": "partial",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
         "network_privacy": "na"
       },
-      "gates_done": 1,
+      "gates_done": 6,
       "gates_applicable": 8,
       "roadmap": {
         "epic": "E18",
@@ -1510,7 +1529,10 @@
         226,
         227
       ],
-      "tests": [],
+      "tests": [
+        "RefactorTactics.Predictive.*",
+        "RefactorTactics.Heroes.Vektor.InterceptShotIsPredictive"
+      ],
       "scenarios": [
         "Spec.Predictive.WhiffOnEmptyCell"
       ],
@@ -1521,10 +1543,10 @@
       ],
       "wiki_note": "",
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-10",
+        "commit": "800b83a"
       },
-      "notes": "`Vektor.InterceptShot` è la thin slice: decisa in Planning, risolta a un boundary deterministico, senza input live (D-016). A catalogo la reazione dichiara il rinvio; il framework di trap resta fuori. `Spec.Predictive.WhiffOnEmptyCell` è una **specifica eseguibile**: esce `BLOCKED` finché il boundary non esiste, quindi `scenario` resta `partial`."
+      "notes": "**Chiusa il 2026-08-10** con CP 18.1 (`#226`, PR `#386`) e CP 18.2 (`#227`, PR `#387`). `Vektor.InterceptShot` è la thin slice: decisa in Planning, risolta a un boundary deterministico, senza input live (D-016). Il rinvio a E14 è caduto per la ragione opposta a quella che l'aveva prodotto — non le serve una finestra — e la migrazione è un **dato** (`PredictiveTargeting`/`PredictionBoundary` su `FRTActionDef`, slot da `None` a `Main`), come lo era il rinvio. Il framework di trap resta fuori (`RT-FEAT-ACTION-TRAPS` resta `IDEA`). `Spec.Predictive.WhiffOnEmptyCell` era una **specifica eseguibile** `BLOCKED` e si è accesa da sola: oggi `PASS`, 4/4 assertion su 2 turni. Effetto misurato oltre l'epic: la showcase `RT_Showcase_Relay_v01` passa da **1 a 3 turni giocati** — il T2 chiedeva `PredictiveAction`, il T3 non chiedeva nulla — e ora si ferma sul T4 per `DecisionBoundary` (E14). `ui_wiki` resta `partial`: la pagina `reazioni-overwatch-e-previsioni.md` descrive ancora la previsione come non implementata, e riscriverla è lavoro di E11/E20 insieme all'HUD."
     },
     {
       "feature_id": "RT-FEAT-ACTION-TRAPS",
@@ -3831,7 +3853,7 @@
       "status_derived": "TESTABLE",
       "gates": {
         "spec": "done",
-        "data": "partial",
+        "data": "done",
         "runtime": "done",
         "log_debug": "done",
         "automation": "done",
@@ -3840,7 +3862,7 @@
         "packaged": "todo",
         "network_privacy": "na"
       },
-      "gates_done": 4,
+      "gates_done": 5,
       "gates_applicable": 8,
       "roadmap": {
         "epic": "E19",
@@ -3875,7 +3897,7 @@
         "date": "2026-08-09",
         "commit": "0bbc4c5"
       },
-      "notes": "`URTMatchFormatData` **esiste già** con validator e fallback osservabile: E19 non lo costruisce, chiude due buchi misurati — `MapClass` sul dato mappa e `UnitsPerTeam` nel formato (D-030). Entrambi chiusi il 2026-08-09 (#215, #216): la mappa dichiara la propria classe, il formato dichiara la composizione, e il `GameMode` li onora invece di assumerli. `URTHexMapAsset::CurrentFormatVersion` passa a 6; la simulazione **non** ramifica sulla classe, e un test lo misura confrontando l'hash di due partite identiche. I timer restano fuori dal formato per decisione (ADR-0005 §4c)."
+      "notes": "`URTMatchFormatData` **esiste già** con validator e fallback osservabile: E19 non lo costruisce, chiude due buchi misurati — `MapClass` sul dato mappa e `UnitsPerTeam` nel formato (D-030). Entrambi chiusi il 2026-08-09 (#215, #216): la mappa dichiara la propria classe, il formato dichiara la composizione, e il `GameMode` li onora invece di assumerli. `URTHexMapAsset::CurrentFormatVersion` passa a 6; la simulazione **non** ramifica sulla classe, e un test lo misura confrontando l'hash di due partite identiche. I timer restano fuori dal formato per decisione (ADR-0005 §4c). **2026-08-10 (#375)**: `Format.Skirmish2v2` è **spedito da C++** (`URTMatchFormatLibrary::FindShippedFormat`), come le istanze di `URTActionData` e `URTHeroData` — la CLASSE resta un data asset, e un asset assegnato al `GameMode` vince. L'ordine è: asset ⇒ formato spedito ⇒ ripiego. `RoundLimit` **5** (deciso con l'utente); `ScoreToWin` **0** perché **nessuno assegna punti** — `AddTeamScore` non ha chiamanti runtime, e una soglia > 0 dichiarerebbe una vittoria irraggiungibile. Diventa un numero il giorno in cui un obiettivo la alimenta."
     },
     {
       "feature_id": "RT-FEAT-MATCH-PACING",
@@ -4336,6 +4358,50 @@
         "commit": "2094b86"
       },
       "notes": "Validator di catalogo, mappa, terreni, formato e indice scenari, più il gate documentale `scripts/check-docs-symbols.py`. Da questa consegna include anche `scripts/feature_registry.py validate`, che verifica **questo** file."
+    },
+    {
+      "feature_id": "RT-FEAT-TOOL-CONTROL-CENTER",
+      "title": "Project Control Center — la UI web del registry",
+      "area": "Tools",
+      "kind": "tooling",
+      "release": "future",
+      "priority": "P3",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
+      "gates": {
+        "spec": "partial",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "partial",
+        "automation": "partial",
+        "scenario": "na",
+        "ui_wiki": "partial",
+        "packaged": "na",
+        "network_privacy": "na"
+      },
+      "gates_done": 2,
+      "gates_applicable": 6,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": [],
+        "out_of_release_scope": ""
+      },
+      "dependencies": [
+        "RT-FEAT-TOOL-VALIDATION"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/roadmap/plans/project-control-center-spec.md"
+      ],
+      "issues": [],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "last_verified": {},
+      "notes": "Vista web read-only sopra gli artefatti generati dal registry: nessun dato nasce qui. **Fuori dai 15 gate della v0.1** e senza epic: è tooling di processo, e collocarlo nella roadmap di release lo farebbe competere con la consegna. `spec: partial` perché la spec è in revisione (§9 registra quattro decisioni prese il 2026-08-10: pagina statica read-only, relazioni qualificate rimandate, `My Editor Queue` come filtro derivato **anche** in markdown, scrittura fuori scope). `data: partial` dal 2026-08-10: `project-graph.json` esiste e porta diagnostica, roadmap, sedute, PIE e scenari — manca il blocco di config `project.github` da cui derivare i link. `scenario`/`packaged`/`network_privacy` sono `na` per la stessa ragione degli altri strumenti: non è gioco e non entra nel pacchetto. La `My Editor Queue` è **già consegnata** in `editormap.shortlist.md`: non aspettava la pagina, ed è utile anche se la pagina non venisse mai scritta. `automation: partial` e non `done` perché i 18 test di `docs/control-center/graph.test.mjs` (`node --test`) coprono le funzioni pure — link, indice, riferimenti rotti, cicli, filtri — e **non** la UI: quella è stata verificata una volta con Playwright, non da una suite che gira da sola. `tests:` resta vuoto: quel campo dichiara pattern della suite Unreal, e un file `.mjs` non ne fa parte."
     },
     {
       "feature_id": "RT-FEAT-TOOL-DEBUG-CONSOLE",

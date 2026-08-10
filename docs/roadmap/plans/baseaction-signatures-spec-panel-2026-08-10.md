@@ -94,7 +94,7 @@ eroe» è una **guideline di design leggibile e verificabile a occhio**: si tien
 Forced Movement, devia lateralmente la traiettoria*. Ma nel roster `Vektor.Deflection` **esiste già** e
 l'attore persegue un obiettivo diverso: **subire meno danno**.»
 
-Evidenza — `Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp:534-539` (CP 6.7):
+Evidenza — `Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp:552-557` (CP 6.7):
 
 > «REAZIONE cablata sulla semantica di `Action.Deflect`: **−20 sul colpo diretto** che l'ha innescata…
 > Stessa famiglia di `Action.Guard` (−15 al primo colpo) ma con un trigger invece di una stance.»
@@ -107,7 +107,7 @@ una reazione che **è** riduzione danno. Due entità, un nome, semantiche oppost
 
 ### 2.5 MAGGIORE — `Flow` è già preso, con un trigger diverso
 
-`Riva.FlowReaction` esiste (`RTHeroCatalogLibrary.cpp:339-347`): `Reposition 1` **dopo un attacco
+`Riva.FlowReaction` esiste (`RTHeroCatalogLibrary.cpp:351-353`): `Reposition 1` **dopo un attacco
 subito**, dichiarata con slot `None` e nessun trigger perché il suo aggancio è E14. Il §11.2 propone
 `Flow` come risposta a **Forced Movement**. Stesso nome, stesso eroe, stessa famiglia (movimento
 reattivo), **trigger diverso**.

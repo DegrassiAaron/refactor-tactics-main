@@ -17,22 +17,24 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 
 <!-- RT_SHORTLIST_SCENARIOS:BEGIN -->
 
-**57 scenari versionati** — misurati su `Scenarios/`: **47** eseguibili · **10** `BLOCKED` per una capability assente · **29** dichiarati `planned` nel registry e non ancora scritti.
+**60 scenari versionati** — misurati su `Scenarios/`: **48** eseguibili · **12** `BLOCKED` per una capability assente · **29** dichiarati `planned` nel registry e non ancora scritti.
 
-**Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `Cover` · `CreateCover` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `Reaction` · `Structures`.
+**Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `Cover` · `CreateCover` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `PredictiveAction` · `Reaction` · `Structures`.
 
 | Scenario `BLOCKED` | Capability che manca |
 |---|---|
-| `RT_Showcase_Relay_v01` | `DecisionBoundary` · `Facing` · `InterceptRevalidation` · `Objective` · `PredictiveAction` |
+| `RT_Showcase_Relay_v01` | `DecisionBoundary` · `Facing` · `InterceptRevalidation` · `Objective` |
 | `Spec.Brace.ProfileChangesResponse` | `DecisionBoundary` · `ReactionClash` |
 | `Spec.Clash.ReadBeatsStand` | `DecisionBoundary` · `ReactionClash` |
 | `Spec.Clash.ShiftBeatsRead` | `DecisionBoundary` · `ReactionClash` |
 | `Spec.Clash.StandBeatsShift` | `DecisionBoundary` · `ReactionClash` |
 | `Spec.Clash.TieAppliesOnce` | `DecisionBoundary` · `ReactionClash` |
+| `Spec.Movement.AntiDashTriggerIgnoresMove` | `SemanticTrigger` |
+| `Spec.Movement.TeleportSkipsIntermediateCells` | `Teleport` |
+| `Spec.Movement.TripwireOnCrossEdge` | `SpatialTrigger` · `Teleport` |
 | `Spec.Objective.PointSurvivesKO` | `Objective` |
 | `Spec.Overwatch.HoldThenFire` | `DecisionBoundary` · `Facing` |
 | `Spec.Perception.HeardNotSeen` | `Perception` |
-| `Spec.Predictive.WhiffOnEmptyCell` | `PredictiveAction` |
 
 | Pianificato, non scritto | Feature che lo chiede |
 |---|---|

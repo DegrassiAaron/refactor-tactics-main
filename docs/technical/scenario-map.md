@@ -51,13 +51,22 @@ scegliendo lo scenario e premendo Play, una voce C richiede di allestire, clicca
 
 | Classe | Quanti | Dove |
 |---|---:|---|
-| **A** — automatico | **26** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · i tre `EnvironmentalActionOwner` · `RT_Showcase_Relay_v01` |
+| **A** — automatico | **27** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · `Spec.Predictive.WhiffOnEmptyCell` · i tre `EnvironmentalActionOwner` · `RT_Showcase_Relay_v01` |
 | **B** — automatico + occhio | **21** scenari ↔ **21** voci `PIE-VIS-*` | `Scenarios/Visual/` |
 | **C** — solo umano | **95** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima |
-| **D** — dichiarato | **9** scenari `Spec.*` ancora `BLOCKED` · **29** pianificati *(rimisurati il 2026-08-10)* · **4** mai scritti | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
+| **D** — dichiarato | **12** scenari `Spec.*` ancora `BLOCKED` · **29** pianificati · **4** mai scritti *(rimisurati il 2026-08-10)* | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
 
-Totale corpus versionato: **56** scenari (`A 26 + B 21 + D-bloccati 9`). Totale registro PIE: **117** voci
+Totale corpus versionato: **60** scenari (`A 27 + B 21 + D-bloccati 12`). Totale registro PIE: **117** voci
 (`B 21 + C 95 + 1 fuori classe`).
+
+> ⚠️ **Rimisurato il 2026-08-10, e il conteggio era rotto in due punti diversi.** La riga `A` diceva già
+> **27** mentre il totale sotto continuava a sommare `A 26`; la riga `D` diceva **9** bloccati e **21**
+> pianificati quando erano **12** e **29**. Le tre misure sopra — corpus, `Visual`, `Spec` — vengono dai
+> comandi della §7; il numero dei `planned` e la ripartizione eseguibili/bloccati vengono da
+> `feature_registry.py shortlist`, che li calcola dalla stessa sorgente invece di ricopiarli.
+> **Gli elenchi di dettaglio delle §3, §4 e §6.1 non sono stati rimisurati in questa sessione**: le tre PR
+> mergiate il 2026-08-10 hanno aggiunto scenari di movimento e predittivi che vanno ancora attribuiti alla
+> loro classe voce per voce. Il totale è vero, la sua scomposizione per file no.
 
 > **Una voce non sta in nessuna delle quattro classi**, ed è meglio dirlo che forzarla dentro.
 > `PIE-MUT-BASTION-SLOW` (2026-08-09) è una **verifica di mutazione**: rompere il codice di proposito e
@@ -241,7 +250,7 @@ I **nove** rimasti (l'elenco misurato è in
 | `Spec.Objective.PointSurvivesKO` | `Objective` | E10 · CP 10.2 (`#75`) |
 | `Spec.Overwatch.HoldThenFire` | `DecisionBoundary` `Facing` | E14 (`#152`) + E16 (`#175`) |
 | `Spec.Perception.HeardNotSeen` | `Perception` | E13 (`#151`) |
-| `Spec.Predictive.WhiffOnEmptyCell` | `PredictiveAction` | E18 (`#225`) |
+| ~~`Spec.Predictive.WhiffOnEmptyCell`~~ | ~~`PredictiveAction`~~ | ✅ **acceso il 2026-08-10** da E18 (`#225`): `PASS`, 4/4 assertion su 2 turni |
 | `Spec.Brace.ProfileChangesResponse` | `DecisionBoundary` `ReactionClash` | E14 · CP 14.7 |
 | `Spec.Clash.ReadBeatsStand` | `DecisionBoundary` `ReactionClash` | E14 · CP 14.7 |
 | `Spec.Clash.StandBeatsShift` | `DecisionBoundary` `ReactionClash` | E14 · CP 14.7 |

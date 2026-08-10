@@ -100,11 +100,18 @@ facing che l'unità assume soltanto perché sta camminando.
 
 #### Perché non le altre due opzioni
 
-- **Direzione del prossimo passo pianificato** — **scartata perché viola un invariante già testato**. Il facing
-  *assunto* è pubblico (ADR-0005 §5: «è una posa osservabile»), quindi un avversario che lo osservasse a metà
-  movimento dedurrebbe **dove l'unità sta per andare**. È esattamente ciò che
-  `Overwatch.OpportunityLeaksNoFuture` esiste per vietare — «la opportunity non contiene trigger, percorsi o
-  posizioni future» (ADR-0004, Verifica) — e ciò che l'invariante **#6** protegge.
+- **Direzione del prossimo passo pianificato** — **scartata perché viola un requisito di privacy già
+  dichiarato**. Il facing *assunto* è pubblico (ADR-0005 §5: «è una posa osservabile»), quindi un avversario
+  che lo osservasse a metà movimento dedurrebbe **dove l'unità sta per andare**. Contro l'invariante **#6** e
+  contro ADR-0004 §7-bis, che estende la privacy oltre il payload.
+
+  > ⚠️ **Precisazione, 2026-08-10 (review post-merge).** La prima stesura di questa riga diceva «viola un
+  > invariante **già testato**» e citava `Overwatch.OpportunityLeaksNoFuture` come se esistesse. **Non
+  > esiste**: è un test *pianificato* nella tabella Verifica di ADR-0004, che appartiene a **E14** e non è
+  > implementata — `grep -rl OpportunityLeaksNoFuture Source/` non restituisce nulla. L'argomento regge
+  > comunque, perché l'invariante #6 è canonico e il requisito è scritto; ma «testato» era falso, ed è
+  > precisamente il difetto — *una regola data per verificata che nessuno ha verificato* — che questa stessa
+  > PR apriva come riga 66 di `DOC_CONFLICT_MATRIX.md` a proposito di `FR-RESOLVE-02`.
 - **Facing invariato fino a fine Move** — scartata: contraddice D-020, per cui il facing cambia più volte dentro
   il round e ogni consumatore legge il valore autorevole più recente. Renderebbe inoltre l'aggiramento durante
   il movimento privo di effetto: un'unità che percorre un corridoio offrirebbe lo stesso lato all'Overwatch per
