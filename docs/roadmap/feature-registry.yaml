@@ -1307,7 +1307,6 @@ features:
       - RefactorTactics.HexMove.Dash*
       - RefactorTactics.HexCombat.Knockback*
       - RefactorTactics.HexSim.DashIsLinear
-      - RefactorTactics.HexBlast.KnockbackOnHexGrid
     scenarios:
       - Visual.Combat.PushResistance
     wiki_refs:

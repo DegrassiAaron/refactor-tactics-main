@@ -1597,8 +1597,7 @@
         "RefactorTactics.Actions.Pull",
         "RefactorTactics.HexMove.Dash*",
         "RefactorTactics.HexCombat.Knockback*",
-        "RefactorTactics.HexSim.DashIsLinear",
-        "RefactorTactics.HexBlast.KnockbackOnHexGrid"
+        "RefactorTactics.HexSim.DashIsLinear"
       ],
       "scenarios": [
         "Visual.Combat.PushResistance"
