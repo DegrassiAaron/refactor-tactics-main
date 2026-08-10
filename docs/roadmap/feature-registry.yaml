@@ -800,7 +800,7 @@ features:
       - docs/wiki/meccaniche/topologia-dinamica.md
     pie_refs: [PIE-V01-DOOR]
     wiki_note: >-
-      Dato, regole di blocco e mutazione del bordo sono implementati e testati; l'**interazione del giocatore** (`Interact`/`Activate`) arriva con E10.
+      Dato, regole di blocco e mutazione del bordo sono implementati e testati; l'**interazione del giocatore** (`Action.Interact`) arriva con E10.
     last_verified:
       date: 2026-08-08
       commit: 2094b86

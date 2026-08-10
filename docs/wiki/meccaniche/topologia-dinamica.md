@@ -18,7 +18,7 @@
 > Feature: `RT-FEAT-MAP-INTERACTIVE-EDGES` · Release: `v0.1` · Roadmap: `E9.3`  
 > Stato: **INTEGRATED** · Gate: `6/8`  
 > Scenario: `Visual.Map.ClosedDoor`  
-> Dato, regole di blocco e mutazione del bordo sono implementati e testati; l'**interazione del giocatore** (`Interact`/`Activate`) arriva con E10.  
+> Dato, regole di blocco e mutazione del bordo sono implementati e testati; l'**interazione del giocatore** (`Action.Interact`) arriva con E10.  
 > Verificato il `2026-08-08` su `2094b86`
 
 <!-- RT_FEATURE_STATUS:END RT-FEAT-MAP-INTERACTIVE-EDGES -->
