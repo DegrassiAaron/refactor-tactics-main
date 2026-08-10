@@ -1465,6 +1465,10 @@
       "state": "✅"
     },
     {
+      "id": "PIE-V01-ARENA",
+      "state": "⏳"
+    },
+    {
       "id": "PIE-V01-COLL",
       "state": "🟡"
     },
@@ -1832,6 +1836,28 @@
         "EnvironmentalActionOwner"
       ],
       "path": "Scenarios/Spec/Map/BridgeBreaksThePath.json"
+    },
+    {
+      "id": "Spec.Movement.AntiDashTriggerIgnoresMove",
+      "requires": [
+        "SemanticTrigger"
+      ],
+      "path": "Scenarios/Spec/Movement/AntiDashTriggerIgnoresMove.json"
+    },
+    {
+      "id": "Spec.Movement.TeleportSkipsIntermediateCells",
+      "requires": [
+        "Teleport"
+      ],
+      "path": "Scenarios/Spec/Movement/TeleportSkipsIntermediateCells.json"
+    },
+    {
+      "id": "Spec.Movement.TripwireOnCrossEdge",
+      "requires": [
+        "SpatialTrigger",
+        "Teleport"
+      ],
+      "path": "Scenarios/Spec/Movement/TripwireOnCrossEdge.json"
     },
     {
       "id": "Spec.Objective.PointSurvivesKO",
