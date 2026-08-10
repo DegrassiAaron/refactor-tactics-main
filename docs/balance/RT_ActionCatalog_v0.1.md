@@ -144,6 +144,9 @@ regola standard del vertical slice).
 **Guard** — riduce di **15** il primo danno diretto ricevuto · resiste a una spinta di 1 cella · termina nel
 Cleanup · **non** protegge dagli hazard ambientali già presenti.
 
+> In v0.1 «una spinta di 1 cella» significa **ogni** spinta del gioco: il catalogo non ha valori maggiori di 1.
+> È il motivo per cui sulla spinta `Guard` e `Brace` non si distinguono — [D-073](../decisions/RT_PDR_00_Decision_Log.md).
+
 **Interact** — agisce su un oggetto adiacente: porta · consolle · ascensore · generatore · sprinkler · ponte ·
 obiettivo. Assorbe ciò che il catalogo chiamava `Activate`: il bersaglio cambia, il gesto no.
 
@@ -323,9 +326,22 @@ avvenuto (conta per trigger e marchi) · non riflette · non funziona contro AoE
 movimento volontario** dell'eroe.
 
 > Tre precisazioni di implementazione (CP 5.2). Il **-10 vale su ogni colpo**, non solo sul primo: è un
-> meccanismo diverso da quello di `Guard`/`Deflect`, e usa una funzione diversa. L'**anti-spinta non ha limite
-> di distanza**, a differenza di `Guard` che regge solo 1 cella — è ciò che distingue le due. Il **blocco del
+> meccanismo diverso da quello di `Guard`/`Deflect`, e usa una funzione diversa. L'anti-spinta non ha limite
+> di distanza *nel codice*, ma **in v0.1 questo non è osservabile** — vedi la nota qui sotto. Il **blocco del
 > movimento** riusa `Status.Root`, quindi ferma anche lo scatto: chi si pianta per incassare non si riposiziona.
+
+> ⚠️ **L'anti-spinta non distingue `Brace` da `Guard` in v0.1** — [D-073](../decisions/RT_PDR_00_Decision_Log.md),
+> uscita **(B)** di [#400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/400).
+> Il catalogo v0.1 ha **un solo valore di spinta, `1`**, senza eccezioni: `Action.Push`, `Action.Charge`
+> (da cui `Bastion.Ram` eredita i suoi `20 danni + Push 1`), `Riva.PressureJet` e la variante
+> `Riva.CircularTide.Impact`. L'unico `Push 2` dell'intero progetto è `Guardian.Sweep`, che appartiene agli
+> **archetipi legacy** e non al roster. `Guard` resiste fino a 1 cella, quindi copre **per intero** lo
+> spazio degli spostamenti esistenti: sulla spinta le due difese danno lo stesso esito, sempre.
+> La clausola «senza limite di distanza» descriveva una regola che nessuno può osservare in partita, e questa
+> riga la sostituisce. **Ciò che davvero distingue le due è il danno**: `Guard` −15 sul solo primo colpo,
+> `Brace` −10 su ogni colpo — cioè *primo colpo pesante* contro *colpi ripetuti*, non *danno* contro
+> *spostamento*. Sul colpo singolo `Guard` domina. Il confine fra le due resta aperto come `BAL-1`.
+> La clausola torna osservabile solo se la v0.2 introduce una spinta `≥ 2`.
 
 **Shield** — applica **25** punti scudo, consumati prima della salute · scade nel Cleanup del turno · non protegge
 dagli effetti di controllo privi di danno.

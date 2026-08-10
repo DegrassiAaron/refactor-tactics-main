@@ -1805,6 +1805,14 @@ def editor_context():
     }
 
 
+# Come si stampa una seduta priva di `id`. La stringa e' la stessa che `validate` usa gia' per una
+# feature senza id (riga ~272): l'input malformato ha un nome solo in tutto il file. La variante
+# `_MD` esiste perche' le viste sono markdown, dove `<senza id>` nudo verrebbe letto come tag HTML e
+# sparirebbe dalla pagina — cioe' proprio la riga che serve a vedere il difetto.
+NO_SESSION_ID = "<senza id>"
+NO_SESSION_ID_MD = f"`{NO_SESSION_ID}`"
+
+
 def validate_editor_sessions(ctx=None):
     """`editor-sessions.yaml`: la seconda sorgente delle *map, con le stesse pretese della prima.
 
@@ -1926,7 +1934,13 @@ def validate_editor_sessions(ctx=None):
             claimed.setdefault(ref, []).append(session.get("id"))
     for ref, who in sorted(claimed.items()):
         if len(who) > 1:
-            warnings.append(f"voce PIE {ref} rivendicata da piu' sedute: {', '.join(who)}")
+            # `w or NO_SESSION_ID` e non `w`: l'accesso qui sopra era gia' `.get("id")` dalla PR #398,
+            # ma il `None` che ne esce arrivava intatto fino a questo `join` e lo faceva morire in
+            # `TypeError`. Correggere l'accesso senza correggere il consumatore aveva solo spostato
+            # il traceback di sette righe: `validate` continuava a non arrivare a stampare i tre
+            # errori che aveva gia' raccolto sulla stessa seduta.
+            warnings.append(f"voce PIE {ref} rivendicata da piu' sedute: "
+                            f"{', '.join(w or NO_SESSION_ID for w in who)}")
 
     return errors, warnings
 
@@ -1948,7 +1962,12 @@ def session_queue(sessions, states, checkpoints, epics, milestones):
     queue = {group: [] for group in QUEUE_GROUPS}
     unresolved = []
     for session in sessions:
-        sid = session["id"]
+        # `.get("id")` e non `s["id"]`, come in `editor_context` (vedi il commento sopra, PR #398):
+        # `validate` denuncia una seduta senza id, ma `shortlist` e `generate` morivano in `KeyError`
+        # sullo stesso input. Cioe' i due comandi che NON sono il gate crashavano proprio sul caso
+        # che il gate esiste per segnalare. Una chiave `None` attraversa `states`, `ratios` e
+        # `group_of` senza danno; a valle si stampa come NO_SESSION_ID.
+        sid = session.get("id")
         state = states.get(sid, "—")
         if state == "—":
             continue
@@ -2002,8 +2021,8 @@ def render_editor_queue(sessions, states, ratios):
             lines += ["- —", ""]
             continue
         for session, blockers in entries:
-            sid = session["id"]
-            head = f"- **{sid}** · {session['title']}"
+            sid = session.get("id")
+            head = f"- **{sid or NO_SESSION_ID_MD}** · {session.get('title')}"
             if group == "WAITING":
                 waits = ", ".join(
                     f"`{ref}`{'' if state is None else ' ' + state}" if state is not None
@@ -2048,7 +2067,7 @@ def render_shortlist_editor(_data):
     tracked = tracked_artifacts([a for s in sessions for a in (s.get("artifacts") or [])])
     blocks = {b["id"]: b for b in (doc.get("meta", {}).get("blocks") or [])}
 
-    states = {s["id"]: session_state(s, pie, tracked) for s in sessions}
+    states = {s.get("id"): session_state(s, pie, tracked) for s in sessions}
     counts = {glyph: sum(1 for v in states.values() if v == glyph) for glyph in "✅🟡⏳"}
     unknown = sum(1 for v in states.values() if v == "—")
 
@@ -2061,7 +2080,7 @@ def render_shortlist_editor(_data):
     for session in sessions:
         verifies = session.get("verifies") or []
         green = sum(1 for v in verifies if pie.get(v) == "✅")
-        ratios[session["id"]] = f"{green}/{len(verifies)}" if verifies else "—"
+        ratios[session.get("id")] = f"{green}/{len(verifies)}" if verifies else "—"
 
     lines = [
         summary + ".",
@@ -2083,10 +2102,12 @@ def render_shortlist_editor(_data):
         green = sum(1 for v in verifies if pie.get(v) == "✅")
         ratio = f"{green}/{len(verifies)}" if verifies else "—"
         unblocked = ", ".join(session.get("unblocked_by") or []) or "—"
+        sid = session.get("id")
         lines.append(
-            f"| **{session['id']}** | {session['title']} | {session.get('produces') or '—'} | "
+            f"| **{sid or NO_SESSION_ID_MD}** | {session.get('title')} | "
+            f"{session.get('produces') or '—'} | "
             f"{unblocked} | {'sì' if session.get('critical') else 'no'} | {ratio} | "
-            f"{states[session['id']]} |"
+            f"{states.get(sid, '—')} |"
         )
 
     seen_blocks = []
@@ -2098,7 +2119,9 @@ def render_shortlist_editor(_data):
             lines += ["", f"### Blocco {block_id} — {block.get('title', '—')}"]
             if block.get("note"):
                 lines += ["", f"*{block['note']}*"]
-        lines += ["", f"#### {session['id']} · {session['title']} {states[session['id']]}", ""]
+        sid = session.get("id")
+        lines += ["", f"#### {sid or NO_SESSION_ID_MD} · {session.get('title')} "
+                      f"{states.get(sid, '—')}", ""]
 
         head = [f"**Sbloccata da**: {', '.join(session.get('unblocked_by') or []) or '—'}"]
         if session.get("shares_setup_with"):
@@ -2178,11 +2201,11 @@ def build_graph(registry):
     epics = ctx["epics"]
     milestones, milestone_conflicts = ctx["milestones"], ctx["milestone_conflicts"]
     queue, unresolved = session_queue(sessions, states, checkpoints, epics, milestones)
-    group_of = {s["id"]: group for group in QUEUE_GROUPS for s, _b in queue[group]}
+    group_of = {s.get("id"): group for group in QUEUE_GROUPS for s, _b in queue[group]}
 
     graph_sessions = []
     for session in sessions:
-        sid = session["id"]
+        sid = session.get("id")
         prerequisites = []
         for ref in session.get("unblocked_by") or []:
             resolved, state, source = resolve_prerequisite(
@@ -2234,7 +2257,7 @@ def build_graph(registry):
         "milestones": milestones,
         "checkpoints": checkpoints,
         "editor_sessions": graph_sessions,
-        "editor_queue": {group: [s["id"] for s, _b in queue[group]] for group in QUEUE_GROUPS},
+        "editor_queue": {group: [s.get("id") for s, _b in queue[group]] for group in QUEUE_GROUPS},
         "pie_entries": [{"id": k, "state": v} for k, v in sorted(pie.items())],
         "scenarios": scenario_corpus(),
         "capabilities": sorted(available_capabilities()),

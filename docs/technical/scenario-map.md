@@ -288,9 +288,14 @@ Dichiarati in `feature-registry.yaml` sotto `scenarios: {planned: [...]}`, il ch
 **warning** in `feature_registry.py validate`. Il warning è il meccanismo: un piano che non diventa un file
 resta visibile invece di sparire.
 
-> ⚠️ **Erano dichiarati «13», poi ventuno, poi ventitré, e oggi sono trentotto**: tredici fra `Clash` e
-> `TimeBank`, dieci fra `State.*`/`Team.*`/`Stress.*`, sei fra `Brace` e `Overwatch`, cinque `Spec.Map.*`,
-> **quattro di `BAL-1`** (`Spec.Brace.*` e `Spec.Combat.*`).
+> ⚠️ **Erano dichiarati «13», poi ventuno, poi ventitré, poi trentotto, e oggi sono trentaquattro**: tredici
+> fra `Clash` e `TimeBank`, dieci fra `State.*`/`Team.*`/`Stress.*`, sei fra `Brace` e `Overwatch`, cinque
+> `Spec.Map.*`. **È la prima volta che il numero SCENDE**, e per due motivi diversi che vale la pena non
+> confondere: dei **quattro di `BAL-1`**, tre sono stati **scritti** il 2026-08-10 (`#401`, verdi al primo
+> run) e il quarto — `Spec.Brace.PushBeyondGuardThreshold` — è stato **cancellato**, non rinviato: chiedeva
+> una spinta di 2 che [D-073](../decisions/RT_PDR_00_Decision_Log.md) ha deciso di non introdurre, quindi
+> non ha più un soggetto. Un piano che sparisce perché la decisione l'ha reso privo di oggetto non è un
+> piano evaso.
 > I `TimeBank` sono passati da 8 a 10 con la riconciliazione di `#361` (sotto); i sei di Brace/Overwatch e i
 > cinque di `Spec.Map.*` arrivano dai triage del 2026-08-10, da **due rami diversi** — ed è così che il
 > numero è andato fuori sincrono un'altra volta: ogni ramo aveva ricalcolato il totale sulla **propria** base,
@@ -318,7 +323,6 @@ resta visibile invece di sparire.
 | `Spec.TimeBank.GraceDoesNotDrain` · `…DrainsAfterGrace` · `…NeverBelowZero` · `…TimeoutCostsFullWindow` · `…TimeoutSpendsNoCharge` · `…ClashCostsFullWindow` · `…BotDrainsLikePlayer` · `…ExhaustionKeepsResponsesLegal` · `…ReplayReadsRecordedBank` · `…PacketOrderInvariant` | `RT-FEAT-CORE-DECISION-TIME-BANK` | v0.1 · E14 · CP 14.8 |
 | `Spec.Map.WallCrossesCellStillStandable` · `…FootprintCollisionBlocksCell` · `…NinetyDegreeCornerBakesCorrectly` | `RT-FEAT-MAP-STANDABILITY` | v0.2 · E23 · CP 23.6 |
 | `Spec.Map.ValidCellsBlockedTransition` · `…DoorOpensTransition` | `RT-FEAT-MAP-TRANSITION-CLEARANCE` | v0.2 · E23 · CP 23.7 |
-| `Spec.Brace.GuardAndBraceOnMixedHit` · `.BraceWinsOnSecondHit` · `.PushBeyondGuardThreshold` · `Spec.Combat.BastionIgnoresAllPushes` | `RT-FEAT-ACTION-GENERIC` | v0.1 · E5 · CP 5.2 — `BAL-1` |
 
 > ⚠️ **I tre `Spec.Clash.*` non sono «da scrivere»: oggi sono *impossibili*.** È la stessa situazione già
 > incontrata dal facing prima di CP 16.1. `ERTAssertionKind` ha cinque assertion — `UnitAtCell`,
@@ -349,12 +353,14 @@ resta visibile invece di sparire.
 > danno andato a segno o no (`UnitHpEquals`). È un oracolo indiretto, e un test che misura la vista contando
 > ferite è più fragile di quanto sembri. Va deciso quando `MAP-2` si chiude.
 
-> ✅ **I quattro di `BAL-1` sono scrivibili oggi**, e uno solo ha una dipendenza. Oracolo (`UnitHpEquals`,
-> `UnitAtCell`) e fixture (`Riva.PressureJet`: 16 danni **e** `Push 1` nello stesso colpo) esistono entrambi.
-> L'eccezione è `Spec.Brace.PushBeyondGuardThreshold`, che chiede una spinta di 2: **nel gioco non esiste**
-> — il catalogo ha due soli effetti `Push`, entrambi di valore 1 — quindi quello scenario nasce **solo** se
-> la Fase 0 del [piano `BAL-1`](../roadmap/plans/bal-1-guard-brace-roadmap-2026-08-10.md) sceglie di
-> introdurne una. Con l'altra uscita, il file non si scrive e la clausola di `Brace` si riscrive invece.
+> ✅ **I `BAL-1` non sono più in questa lista: chiusi il 2026-08-10** (`#401`, `#402`). Tre scritti e verdi
+> al primo run — `Spec.Brace.GuardAndBraceOnMixedHit`, `Spec.Brace.BraceWinsOnSecondHit` e
+> `Spec.Combat.BastionIsPushedLikeAnyone`, quest'ultimo **rinominato** da `…BastionIgnoresAllPushes` perché
+> [D-074](../decisions/RT_PDR_00_Decision_Log.md) ha deciso dall'altra parte e il nome previsto avrebbe
+> significato il contrario del file. Il quarto, `Spec.Brace.PushBeyondGuardThreshold`, **non nasce**: chiedeva
+> una spinta di 2 che [D-073](../decisions/RT_PDR_00_Decision_Log.md) ha deciso di non introdurre, riscrivendo
+> invece la clausola di `Brace`. Oracolo e fixture erano quelli previsti — `UnitHpEquals`, `UnitAtCell` e
+> `Riva.PressureJet` (16 danni **e** `Push 1` nello stesso colpo) — e nessuna capability nuova è servita.
 >
 > Vale la pena notare **perché** questi quattro mancavano: `Guard` e `Brace` hanno ciascuno i propri scenari
 > e nessuno li guarda **insieme**. È la stessa forma del *dato senza consumatore*, ruotata — qui i

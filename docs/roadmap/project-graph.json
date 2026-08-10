@@ -39,7 +39,6 @@
       "[RT-FEAT-CORE-DECISION-TIME-BANK] 10 scenario/i dichiarati planned: Spec.TimeBank.GraceDoesNotDrain, Spec.TimeBank.DrainsAfterGrace, Spec.TimeBank.NeverBelowZero, Spec.TimeBank.TimeoutCostsFullWindow, Spec.TimeBank.TimeoutSpendsNoCharge, Spec.TimeBank.ClashCostsFullWindow, Spec.TimeBank.BotDrainsLikePlayer, Spec.TimeBank.ExhaustionKeepsResponsesLegal, Spec.TimeBank.ReplayReadsRecordedBank, Spec.TimeBank.PacketOrderInvariant",
       "[RT-FEAT-MAP-STANDABILITY] 3 scenario/i dichiarati planned: Spec.Map.WallCrossesCellStillStandable, Spec.Map.FootprintCollisionBlocksCell, Spec.Map.NinetyDegreeCornerBakesCorrectly",
       "[RT-FEAT-MAP-TRANSITION-CLEARANCE] 2 scenario/i dichiarati planned: Spec.Map.ValidCellsBlockedTransition, Spec.Map.DoorOpensTransition",
-      "[RT-FEAT-ACTION-GENERIC] 4 scenario/i dichiarati planned: Spec.Brace.GuardAndBraceOnMixedHit, Spec.Brace.BraceWinsOnSecondHit, Spec.Brace.PushBeyondGuardThreshold, Spec.Combat.BastionIgnoresAllPushes",
       "[RT-FEAT-ACTION-COOLDOWNS] feature di gameplay TESTABLE senza scenario che la dimostri",
       "[RT-FEAT-ACTION-DELAYED] nessuna pagina Wiki collegata",
       "[RT-FEAT-ACTION-TRAPS] nessuna pagina Wiki collegata",
@@ -1768,6 +1767,16 @@
       "path": "Scenarios/RT_Showcase_Relay_v01.json"
     },
     {
+      "id": "Spec.Brace.BraceWinsOnSecondHit",
+      "requires": [],
+      "path": "Scenarios/Spec/Brace/BraceWinsOnSecondHit.json"
+    },
+    {
+      "id": "Spec.Brace.GuardAndBraceOnMixedHit",
+      "requires": [],
+      "path": "Scenarios/Spec/Brace/GuardAndBraceOnMixedHit.json"
+    },
+    {
       "id": "Spec.Brace.ProfileChangesResponse",
       "requires": [
         "DecisionBoundary",
@@ -1806,6 +1815,11 @@
         "ReactionClash"
       ],
       "path": "Scenarios/Spec/Clash/TieAppliesOnce.json"
+    },
+    {
+      "id": "Spec.Combat.BastionIsPushedLikeAnyone",
+      "requires": [],
+      "path": "Scenarios/Spec/Combat/BastionIsPushedLikeAnyone.json"
     },
     {
       "id": "Spec.Cover.TemporaryCoverExpires",

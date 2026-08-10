@@ -1255,14 +1255,12 @@
       "scenarios": [
         "Combat.BasicAttack",
         "Movement.Basic",
-        "Visual.Combat.GuardReducesFirstHit"
-      ],
-      "scenarios_planned": [
+        "Visual.Combat.GuardReducesFirstHit",
         "Spec.Brace.GuardAndBraceOnMixedHit",
         "Spec.Brace.BraceWinsOnSecondHit",
-        "Spec.Brace.PushBeyondGuardThreshold",
-        "Spec.Combat.BastionIgnoresAllPushes"
+        "Spec.Combat.BastionIsPushedLikeAnyone"
       ],
+      "scenarios_planned": [],
       "wiki_refs": [
         "docs/wiki/game/azioni-e-movimento.md"
       ],

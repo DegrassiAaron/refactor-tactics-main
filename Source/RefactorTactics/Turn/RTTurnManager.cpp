@@ -3283,16 +3283,28 @@ void ARTTurnManager::ResolveCombat()
 
 			// `Action.Guard` regge una spinta di UNA cella: chi si e' piantato non arretra di un passo, ma una
 			// spinta piu' forte lo sposta comunque (la guardia non e' un'ancora, catalogo v0.1 §1).
+			// In v0.1 una spinta piu' forte NON ESISTE: il catalogo si ferma a 1, quindi questo ramo assorbe
+			// ogni spinta del gioco e il ramo `Braced` sotto non aggiunge copertura. Vedi il commento la'.
 			if (T->HasStatus(TAG_Status_Guarded) && KnockDist[T] <= URTCombatLibrary::GuardResistedPushDistance)
 			{
 				AddLogEvent(FString::Printf(TEXT("%s: in guardia, resiste alla spinta"), *T->GetName()));
 				continue;
 			}
 
-			// `Action.Brace` (CP 5.2) "impedisce la PRIMA spinta", senza limite di distanza: e' cio' che lo
-			// distingue da Guard, che regge solo un passo. "Prima" e non "tutte" e' rispettato per costruzione,
-			// non da un contatore: tutte le spinte del Blast si risolvono in questo unico passaggio, e un
-			// bersaglio spinto da 2+ attaccanti e' gia' escluso sopra (`*Pushes != 1`, forze contraddittorie).
+			// `Action.Brace` (CP 5.2) "impedisce la PRIMA spinta". "Prima" e non "tutte" e' rispettato per
+			// costruzione, non da un contatore: tutte le spinte del Blast si risolvono in questo unico
+			// passaggio, e un bersaglio spinto da 2+ attaccanti e' gia' escluso sopra (`*Pushes != 1`,
+			// forze contraddittorie).
+			//
+			// Il ramo non guarda `KnockDist`, quindi regge una spinta di qualunque distanza. ATTENZIONE:
+			// questo NON e' cio' che distingue `Brace` da `Guard` in v0.1, e il commento diceva il contrario
+			// fino al 2026-08-10. Il catalogo ha un solo valore di spinta, `1`, quindi il ramo `Guarded`
+			// sopra intercetta gia' OGNI spinta del gioco e questo ramo non vede mai un caso che quello non
+			// avrebbe retto. La differenza fra le due difese in v0.1 e' solo il danno (-15 sul primo colpo
+			// contro -10 su ogni colpo): D-073, uscita (B) di #400. Pinnato da
+			// `Spec.Brace.GuardAndBraceOnMixedHit` e `Spec.Brace.BraceWinsOnSecondHit`.
+			// Il ramo resta senza limite di distanza perche' e' gratis tenerlo corretto per una v0.2 che
+			// introduca una spinta >= 2; non perche' oggi si osservi.
 			if (T->HasStatus(TAG_Status_Braced))
 			{
 				AddLogEvent(FString::Printf(TEXT("%s: irrigidito, la spinta non lo sposta"), *T->GetName()));

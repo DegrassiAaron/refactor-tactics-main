@@ -384,7 +384,19 @@ URTHeroData* URTHeroCatalogLibrary::MakeBastion()
 	Bastion->MaxHealth = 120;
 	Bastion->MovePoints = 4;
 	Bastion->VisionRange = 5;
-	Bastion->PushResistance = 1; // l'unico del roster: compra HP e stabilita' con movimento e vista
+	// Era `1`, l'unico del roster, fino al 2026-08-10. Portato a `0` da D-074 (#402): siccome ogni spinta
+	// del gioco vale 1 e `PushResistance` e' una SOGLIA (D-038), il valore `1` non comprava "stabilita'" ma
+	// **immunita' totale a ogni spostamento, sempre, senza spendere un'azione** — e quella nessuno l'aveva
+	// decisa: era una conseguenza del catalogo, non una scelta. Per Bastion svuotava meta' di `Guard` e
+	// `Brace` (l'asse dello spostamento era gia' coperto dalla statistica) proprio sull'eroe su cui la
+	// scelta difensiva dovrebbe pesare di piu'.
+	// Cio' che il commento vecchio motivava — "compra HP e stabilita' con movimento e vista" — resta vero
+	// sugli HP (120, il piu' alto) e sui 4 MP: e' il prezzo, e non dipendeva da questo campo.
+	// ATTENZIONE: con questo `0` il roster v0.1 e' interamente a `0`, quindi `PushResistance` e' una
+	// meccanica DORMIENTE — modello e resolver (`RTTurnManager.cpp`, ramo `ERTActionEffect::Push`) la
+	// implementano, nessun contenuto la esercita. E' dichiarato, non dimenticato: si risveglia da sola il
+	// giorno in cui una v0.2 introduce una spinta >= 2 (rinviata con l'uscita (B) di #400, D-073).
+	Bastion->PushResistance = 0;
 	Bastion->Affinity = TEXT("Affinity.Structures");
 	// Simmetrica a Vektor (CP 6.5), come Flux/Riva fra loro: il roster chiude in due coppie. Il piu' lento
 	// del roster e' vulnerabile a chi il movimento lo fa di mestiere.

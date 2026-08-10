@@ -577,13 +577,20 @@ turno**, senza attese nel resolver (invariante #3).
 **Rischi**: è il punto di revisione dell'ADR-0003. Se il costo sfonda: degradare alle difensive di fase Prep
 (`Guard`/`Brace`/`Shield`) e rimandare `Counter`/`Intercept`/`Deflect` **fuori** dalla v0.1, aggiornando la DoD.
 
-> ⚠️ **Metà della DoD di CP 5.2 non è verificabile in partita** (misurato il 2026-08-10). *«`Brace` blocca la
-> prima spinta»* è implementato **senza limite di distanza**, e questo è ciò che lo distingue da `Guard`, che
-> regge un passo solo. Ma il catalogo eroi ha **due soli effetti `Push`, entrambi di valore 1**: la clausola
-> non è raggiungibile, e sul colpo singolo `Guard` **domina** `Brace` (1 danno contro 6, stessa immunità alla
-> spinta). Il trade-off che il giocatore incontra davvero è *primo colpo pesante* contro *colpi ripetuti*.
-> Non è un bug del resolver — è una DoD scritta per un gioco con spinte più forti di quelle che esistono.
-> Owner della domanda: `BAL-1` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), con roadmap e numeri in
+> ✅ **La DoD di CP 5.2 è stata riscritta, non evasa** (2026-08-10, `#400`/`#401`/`#402`). Diceva *«`Brace`
+> blocca la prima spinta **senza limite di distanza**»*, e quella era la clausola che lo distingueva da
+> `Guard`, che regge un passo solo. Ma ogni spinta del gioco vale **1**, quindi la clausola non era
+> raggiungibile in partita e sul colpo singolo `Guard` **dominava** `Brace` (1 danno contro 6, stessa
+> immunità alla spinta). Non era un bug del resolver: era una DoD scritta per un gioco con spinte più forti
+> di quelle che esistono. [D-073](../decisions/RT_PDR_00_Decision_Log.md) sceglie di riscrivere la clausola
+> invece di introdurre la spinta forte; [D-074](../decisions/RT_PDR_00_Decision_Log.md) toglie a Bastion la
+> resistenza nativa, che con quella premessa era immunità totale e gratuita.
+> Il trade-off vero — *primo colpo pesante* contro *colpi ripetuti* — ora è **pinnato** invece che descritto:
+> `Spec.Brace.GuardAndBraceOnMixedHit` (su un colpo `Guard` domina) e `Spec.Brace.BraceWinsOnSecondHit`
+> (su due colpi si rovescia: 12 contro 17), più `Spec.Combat.BastionIsPushedLikeAnyone`.
+> ⏳ **Resta aperta `BAL-1`** in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) — quale debba *essere* il
+> confine è una scelta di bilanciamento che si chiude con una partita (seduta **U20**, voce `PIE-BAL1`,
+> issue `#403`), non con questi scenari: loro dicono cosa succede, non cosa è divertente. Roadmap e numeri in
 > [`plans/bal-1-guard-brace-roadmap-2026-08-10.md`](plans/bal-1-guard-brace-roadmap-2026-08-10.md).
 
 > **CP 5.5 chiuso il 2026-08-07** (`#154`, 5 test nuovi) — dettaglio delle decisioni, dei limiti dichiarati e
