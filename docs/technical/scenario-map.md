@@ -54,7 +54,7 @@ scegliendo lo scenario e premendo Play, una voce C richiede di allestire, clicca
 | **A** — automatico | **27** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · `Spec.Predictive.WhiffOnEmptyCell` · i tre `EnvironmentalActionOwner` · `RT_Showcase_Relay_v01` |
 | **B** — automatico + occhio | **21** scenari ↔ **21** voci `PIE-VIS-*` | `Scenarios/Visual/` |
 | **C** — solo umano | **95** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima |
-| **D** — dichiarato | **9** scenari `Spec.*` ancora `BLOCKED` · **21** pianificati · **4** mai scritti | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
+| **D** — dichiarato | **9** scenari `Spec.*` ancora `BLOCKED` · **28** pianificati · **4** mai scritti | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
 
 Totale corpus versionato: **56** scenari (`A 26 + B 21 + D-bloccati 9`). Totale registro PIE: **117** voci
 (`B 21 + C 95 + 1 fuori classe`).
@@ -255,16 +255,19 @@ I **nove** rimasti (l'elenco misurato è in
 > copre `Action.Ignite` né `Action.ModifyArc`, che per [D-046](../decisions/RT_PDR_00_Decision_Log.md)
 > restano senza owner in v0.1.
 
-### 6.2 Pianificati nel Feature Registry — non ancora scritti · **23**
+### 6.2 Pianificati nel Feature Registry — non ancora scritti · **28**
 
 Dichiarati in `feature-registry.yaml` sotto `scenarios: {planned: [...]}`, il che li fa comparire come
 **warning** in `feature_registry.py validate`. Il warning è il meccanismo: un piano che non diventa un file
 resta visibile invece di sparire.
 
-> ⚠️ **Erano dichiarati «13», poi ventuno, e oggi sono ventitré**: tredici fra `Clash` e `TimeBank`, cinque
-> `State.*`, quattro `Team.*`, uno `Stress.*`. I `TimeBank` sono passati da 8 a 10 con la riconciliazione di
-> `#361` (sotto). Il totale sbagliato era sopravvissuto perché l'unico modo di accorgersene era sommare a mano
-> una colonna che nessuno risomma. Ora lo conta `feature_registry.py shortlist`.
+> ⚠️ **Erano dichiarati «13», poi ventuno, poi ventitré, e oggi sono ventotto**: tredici fra `Clash` e
+> `TimeBank`, cinque `State.*`, **cinque `Spec.Map.*`**, quattro `Team.*`, uno `Stress.*`. I `TimeBank` sono
+> passati da 8 a 10 con la riconciliazione di `#361` (sotto); i cinque `Spec.Map.*` entrano il 2026-08-10 con
+> [D-064](../decisions/RT_PDR_00_Decision_Log.md) (E23, v0.2). Il totale sbagliato era sopravvissuto perché
+> l'unico modo di accorgersene era sommare a mano una colonna che nessuno risomma. Ora lo conta
+> `feature_registry.py shortlist` — ed è così che si è visto che **la riga della §2 diceva ancora 21**
+> mentre questa diceva 23: due numeri sbagliati in due posti, nello stesso file.
 
 | ScenarioId pianificato | Feature | Release |
 |---|---|---|
@@ -276,6 +279,8 @@ resta visibile invece di sparire.
 | `State.Riva.Flow` · `State.Flux.Charged` · `State.Bastion.Bulwark` · `State.Howitzer.Siege` · `State.MultiState.Stress` | `RT-FEAT-CHARACTER-STATE` | v0.4 · E34 (`#244`) |
 | `Spec.Clash.HiddenUntilReveal` · `Spec.Clash.RevealIsFixedDeadline` · `Spec.Clash.Determinism` | `RT-FEAT-REACTION-CLASH` | v0.1 · E14 · CP 14.7 |
 | `Spec.TimeBank.GraceDoesNotDrain` · `…DrainsAfterGrace` · `…NeverBelowZero` · `…TimeoutCostsFullWindow` · `…TimeoutSpendsNoCharge` · `…ClashCostsFullWindow` · `…BotDrainsLikePlayer` · `…ExhaustionKeepsResponsesLegal` · `…ReplayReadsRecordedBank` · `…PacketOrderInvariant` | `RT-FEAT-CORE-DECISION-TIME-BANK` | v0.1 · E14 · CP 14.8 |
+| `Spec.Map.WallCrossesCellStillStandable` · `…FootprintCollisionBlocksCell` · `…NinetyDegreeCornerBakesCorrectly` | `RT-FEAT-MAP-STANDABILITY` | v0.2 · E23 · CP 23.6 |
+| `Spec.Map.ValidCellsBlockedTransition` · `…DoorOpensTransition` | `RT-FEAT-MAP-TRANSITION-CLEARANCE` | v0.2 · E23 · CP 23.7 |
 
 > ⚠️ **I tre `Spec.Clash.*` non sono «da scrivere»: oggi sono *impossibili*.** È la stessa situazione già
 > incontrata dal facing prima di CP 16.1. `ERTAssertionKind` ha cinque assertion — `UnitAtCell`,
@@ -294,6 +299,17 @@ resta visibile invece di sparire.
 > blocca i tre `Spec.Clash.*`: **una sola capability dell'harness sblocca undici scenari**. Finché non c'è,
 > l'unica verifica onesta del bank sono i test C++ di CP 14.8, che non passano dall'harness.
 > La capability ha un owner: issue **`#318`**, che dichiara le tre primitive minime (evento, ordine, contatore).
+
+> ✅ **I cinque `Spec.Map.*` sono il caso opposto, e vale la pena dirlo.** Non chiedono nessuna assertion
+> nuova: «l'unità è arrivata» e «l'unità è rimasta dov'era» si scrivono con `UnitAtCell`, che c'è. Quello che
+> manca è **il dato**, non l'oracolo — le celle cotte da geometria arrivano con CP 23.6/23.7, in v0.2. Sono
+> quindi `planned` per una ragione diversa dalle undici sopra, e non entrano nel conteggio di ciò che `#318`
+> sblocca.
+>
+> Con un'eccezione da non nascondere: `Spec.Map.NinetyDegreeCornerBakesCorrectly` verifica anche LOS e
+> traiettoria vicino all'angolo, e lì l'oracolo diretto non esiste — si osserverebbe **di rimbalzo**, dal
+> danno andato a segno o no (`UnitHpEquals`). È un oracolo indiretto, e un test che misura la vista contando
+> ferite è più fragile di quanto sembri. Va deciso quando `MAP-2` si chiude.
 
 > ✅ **Aggiornato il 2026-08-09** (`#318`, PR di `feat/318-assertion-turnlog`). Le prime due primitive
 > esistono: `LogEventCount` (con `value: 0` per l'assenza) e `LogEventOrder`. **I tre `Spec.Clash.*` sono
