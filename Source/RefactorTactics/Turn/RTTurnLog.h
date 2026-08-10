@@ -14,7 +14,33 @@
  * gia' su disco.
  */
 UENUM(BlueprintType)
-enum class ERTLogCategory : uint8 { Move, Combat, Fallback, Reaction, Environment, Facing };
+enum class ERTLogCategory : uint8 { Move, Combat, Fallback, Reaction, Environment, Facing, Predictive };
+
+/**
+ * Esito di una **Predictive Action** al suo boundary di risoluzione (E18 CP 18.1, [D-016]).
+ *
+ * Sono due e non tre: una previsione o coglie o va a vuoto. Il terzo caso — «in attesa che il giocatore
+ * decida» — appartiene alle finestre di reazione di E14, ed e' precisamente cio' che una Predictive Action
+ * NON fa: la decisione e' completa in Planning, e la Resolution non chiede piu' niente a nessuno.
+ *
+ * La cella BLOCCATA viaggia in `FRTTurnLogEntry::TgtCell`, e in `Amount` il danno inflitto (0 sul whiff).
+ * Cosi' una traccia dice sempre *dove* si e' scommesso, anche quando non e' successo niente — che e' il caso
+ * che serve leggere per capire il turno.
+ */
+UENUM(BlueprintType)
+enum class ERTPredictiveOutcome : uint8
+{
+	/** Un'unita' ostile e' entrata nella cella bloccata: il colpo risolve e le tronca il movimento. */
+	TriggerMatched,
+	/**
+	 * Nessuno e' entrato: la previsione era sbagliata e il colpo va a vuoto, applicando il fallback
+	 * DICHIARATO nel catalogo (`Cancel` ≡ fizzle per la thin slice).
+	 *
+	 * Il whiff e' registrato invece di essere taciuto perche' e' il `Misplay / Failure State` di D-032: il
+	 * costo di aver letto male il turno dev'essere leggibile, o la scommessa non si vede.
+	 */
+	PredictionWhiffed
+};
 
 /**
  * Orientamento (CP 16.1): perche' il facing di un'unita' e' CAMBIATO, oppure quale consumatore l'ha LETTO.
@@ -165,7 +191,17 @@ enum class ERTMoveOutcome : uint8
 	 * percorso, quindi lui classificherebbe `Moved` — vero sul percorso troncato, falso su cio' che l'unita'
 	 * aveva pianificato.
 	 */
-	BlockedByTopology
+	BlockedByTopology,
+	/**
+	 * Fermata da una **Predictive Action** andata a segno (E18 CP 18.1): l'unita' e' ENTRATA nella cella
+	 * bloccata e li' si e' fermata. Aggiunto in CODA, come `BlockedByTopology` prima: le tracce gia' scritte
+	 * non cambiano significato.
+	 *
+	 * Ha un valore proprio e non riusa `BlockedByUnit` perche' quello dice «c'era qualcuno», che qui e' falso:
+	 * la cella e' libera, e cio' che ha fermato l'unita' e' un colpo deciso un turno prima. Senza questa
+	 * distinzione il replay mostrerebbe un arresto senza causa — il difetto che #307 descrive per gli archi.
+	 */
+	StoppedByPrediction
 };
 
 /** Esito di un attacco nel turno. Priorita': Lethal > ShieldAbsorbed > TerrainBonus > Hit. */
