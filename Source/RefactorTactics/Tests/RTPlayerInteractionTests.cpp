@@ -17,6 +17,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 #include "EngineUtils.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -42,12 +44,12 @@ namespace
 		}
 	}
 
-	ARTUnit* SpawnInteractionUnit(UWorld* World, int32 TeamId, ERTArchetype Arch, const FRTCellId& Cell)
+	ARTUnit* SpawnInteractionUnit(UWorld* World, int32 TeamId, const URTHeroData* Hero, const FRTCellId& Cell)
 	{
 		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
-		U->ConfigureAsArchetype(Arch);
+		U->ConfigureFromHeroData(Hero);
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->bIsBotControlled = false;
 		U->DispatchBeginPlay();
@@ -75,7 +77,7 @@ bool FRTPlayerWaypointInteractionTest::RunTest(const FString&)
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
 	// Ranger: 5 punti movimento. Parte in una zona libera del quadrante destro.
-	ARTUnit* Unit = SpawnInteractionUnit(World, 0, ERTArchetype::Ranger, FRTCellId(2, -2, 0));
+	ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(2, -2, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("unita'"), Unit))
 	{
@@ -120,8 +122,15 @@ bool FRTPlayerWaypointInteractionTest::RunTest(const FString&)
 
     // Click ripetuti finche' il budget si esaurisce: a un certo punto il rifiuto e' per BUDGET, non per la cella.
 	{
+		// La lista dei click deve superare il budget di CHIUNQUE si stia muovendo: con quattro celle bastava
+		// il budget 5 del Ranger legacy, con 6 nessun click veniva piu' rifiutato e il test verificava il
+		// nulla. Si allunga finche' non eccede il budget effettivo.
 		int32 Rejected = 0;
-		const FRTCellId Far[] = { FRTCellId(4, -1, 0), FRTCellId(4, 0, 0), FRTCellId(3, 1, 0), FRTCellId(2, 2, 0) };
+		TArray<FRTCellId> Far = { FRTCellId(4, -1, 0), FRTCellId(4, 0, 0), FRTCellId(3, 1, 0), FRTCellId(2, 2, 0) };
+		for (int32 Q = 1; Far.Num() <= Unit->GetEffectiveMoveRange(); ++Q)
+		{
+			Far.Add(FRTCellId(2 - Q, 2 + Q, 0));
+		}
 		for (const FRTCellId& C : Far)
 		{
 			const int32 Before = Unit->PlannedWaypoints.Num();
@@ -151,7 +160,7 @@ bool FRTPlayerUndoInteractionTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Unit = SpawnInteractionUnit(World, 0, ERTArchetype::Ranger, FRTCellId(2, -2, 0));
+	ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(2, -2, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Unit) { DestroyInteractionWorld(World); return false; }
 	PC->SelectActorForTest(Unit);
@@ -180,62 +189,6 @@ bool FRTPlayerUndoInteractionTest::RunTest(const FString&)
 	return true;
 }
 
-/**
- * Lo scatto del giocatore e' LINEARE come quello che il resolver esegue: una cella raggiungibile sul grafo ma
- * NON in linea va rifiutata in pianificazione.
- *
- * Senza questo gate il piano verrebbe accettato e la fase Dash non muoverebbe nulla: il turno si perde in
- * silenzio, senza che nessuno dica perche'. E' lo stesso invariante che il bot ha da #140 ("non proporre mosse
- * che il resolver rifiuta"), qui applicato alla mano umana — diventato osservabile con #142, da quando lo
- * scatto degli archetipi dichiara `LinearDash` e non passa piu' dall'A*.
- */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerDashIsLinearTest,
-	"RefactorTactics.PlayerInput.DashRejectsNonLinearDestination",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTPlayerDashIsLinearTest::RunTest(const FString&)
-{
-	UWorld* World = MakeInteractionWorld();
-	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
-
-	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
-	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
-	MapActor->MapAsset = Arena;
-	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-
-	ARTUnit* Unit = SpawnInteractionUnit(World, 0, ERTArchetype::Ranger, FRTCellId(2, -2, 0));
-	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
-	if (!PC || !Unit) { DestroyInteractionWorld(World); return false; }
-
-	// Lo Scatto e' la quarta abilita' del Ranger (indice 3), portata 5, lineare.
-	const int32 DashIdx = 3;
-	const URTActionData* Dash = Unit->GetAbility(DashIdx);
-	if (!TestNotNull(TEXT("premessa: il Ranger ha lo scatto"), (void*)Dash))
-	{
-		DestroyInteractionWorld(World); return false;
-	}
-	TestTrue(TEXT("premessa: lo scatto e' lineare"),
-		URTMovementActionLibrary::IsLinear(Dash->Def.MovementStyle));
-	PC->SelectActorForTest(Unit);
-	Unit->SelectAbility(DashIdx);
-
-	// (3,-4) e' libera, dentro la mappa e a due passi sul grafo — ma NON e' su una delle sei direzioni.
-	const FRTCellId Oblique(3, -4, 0);
-	TestTrue(TEXT("premessa: la cella esiste ed e' libera"),
-		Arena->ContainsCell(Oblique) && !Arena->FindCell(Oblique)->bBlocksMovement);
-	PC->HandleClickOnCell(Oblique);
-	TestEqual(TEXT("una destinazione non allineata non diventa un piano di scatto"),
-		Unit->PlannedDashAbility, (int32)INDEX_NONE);
-
-	// Controprova: sulla stessa mappa, una cella ALLINEATA e libera viene accettata. Senza, il test passerebbe
-	// anche con un gate che rifiuta tutto.
-	const FRTCellId Aligned(0, 0, 0); // (2,-2) + 2 * direzione (-1,+1)
-	PC->HandleClickOnCell(Aligned);
-	TestEqual(TEXT("una destinazione in linea diventa un piano di scatto"), Unit->PlannedDashAbility, DashIdx);
-	TestTrue(TEXT("verso la cella cliccata"), Unit->PlannedDashCell == Aligned);
-
-	DestroyInteractionWorld(World);
-	return true;
-}
 
 /**
  * Con una CARICA selezionata, cliccare un nemico la pianifica contro di lui.
@@ -259,8 +212,8 @@ bool FRTPlayerChargeOnEnemyTest::RunTest(const FString&)
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
 	// Guardian e bersaglio allineati sull'asse q, a distanza 3: dentro la portata della Carica (4).
-	ARTUnit* Charger = SpawnInteractionUnit(World, 0, ERTArchetype::Guardian, FRTCellId(0, 0, 0));
-	ARTUnit* Enemy   = SpawnInteractionUnit(World, 1, ERTArchetype::Ranger,   FRTCellId(3, 0, 0));
+	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 0, 0));
+	ARTUnit* Enemy   = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(),   FRTCellId(3, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Charger || !Enemy) { DestroyInteractionWorld(World); return false; }
 
@@ -284,12 +237,71 @@ bool FRTPlayerChargeOnEnemyTest::RunTest(const FString&)
 		Charger->PlannedAbilityIndex, (int32)INDEX_NONE);
 
 	// Uno scatto che NON e' una carica si ferma davanti alle unita': puntarne una resta senza senso.
-	ARTUnit* Dasher = SpawnInteractionUnit(World, 0, ERTArchetype::Ranger, FRTCellId(-3, 0, 0));
+	ARTUnit* Dasher = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(-3, 0, 0));
 	PC->SelectActorForTest(Dasher);
 	Dasher->SelectAbility(3); // Scatto del Ranger: LinearDash
 	PC->HandleClickOnUnitForTest(Enemy);
 	TestEqual(TEXT("uno scatto non-carica sul nemico resta rifiutato"),
 		Dasher->PlannedDashAbility, (int32)INDEX_NONE);
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
+/**
+ * Lo scatto del giocatore e' LINEARE come quello che il resolver esegue: una cella raggiungibile sul grafo ma
+ * NON in linea va rifiutata in pianificazione.
+ *
+ * Senza questo gate il piano verrebbe accettato e la fase Dash non muoverebbe nulla: il turno si perde in
+ * silenzio, senza che nessuno dica perche'. E' lo stesso invariante che il bot ha da #140 ("non proporre mosse
+ * che il resolver rifiuta"), qui applicato alla mano umana — diventato osservabile con #142, da quando lo
+ * scatto degli archetipi dichiara `LinearDash` e non passa piu' dall'A*.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerDashIsLinearTest,
+	"RefactorTactics.PlayerInput.DashRejectsNonLinearDestination",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerDashIsLinearTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+	ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(2, -2, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!PC || !Unit) { DestroyInteractionWorld(World); return false; }
+
+	// La mobilita' rapida si CERCA: l'indice 3 era lo Scatto del Ranger legacy, e dopo la migrazione al
+	// roster e' `Vektor.Deflection`, una reazione. `FindDashAbilityIndex` legge la fase dal catalogo, che e'
+	// come il gioco stesso riconosce uno scatto (#142).
+	const int32 DashIdx = Unit->FindDashAbilityIndex();
+	const URTActionData* Dash = Unit->GetAbility(DashIdx);
+	if (!TestNotNull(TEXT("premessa: chi scatta ha una mobilita' rapida nel kit"), (void*)Dash))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+	TestTrue(TEXT("premessa: lo scatto e' lineare"),
+		URTMovementActionLibrary::IsLinear(Dash->Def.MovementStyle));
+	PC->SelectActorForTest(Unit);
+	Unit->SelectAbility(DashIdx);
+
+	// (3,-4) e' libera, dentro la mappa e a due passi sul grafo — ma NON e' su una delle sei direzioni.
+	const FRTCellId Oblique(3, -4, 0);
+	TestTrue(TEXT("premessa: la cella esiste ed e' libera"),
+		Arena->ContainsCell(Oblique) && !Arena->FindCell(Oblique)->bBlocksMovement);
+	PC->HandleClickOnCell(Oblique);
+	TestEqual(TEXT("una destinazione non allineata non diventa un piano di scatto"),
+		Unit->PlannedDashAbility, (int32)INDEX_NONE);
+
+	// Controprova: sulla stessa mappa, una cella ALLINEATA e libera viene accettata. Senza, il test passerebbe
+	// anche con un gate che rifiuta tutto.
+	const FRTCellId Aligned(0, 0, 0); // (2,-2) + 2 * direzione (-1,+1)
+	PC->HandleClickOnCell(Aligned);
+	TestEqual(TEXT("una destinazione in linea diventa un piano di scatto"), Unit->PlannedDashAbility, DashIdx);
+	TestTrue(TEXT("verso la cella cliccata"), Unit->PlannedDashCell == Aligned);
 
 	DestroyInteractionWorld(World);
 	return true;

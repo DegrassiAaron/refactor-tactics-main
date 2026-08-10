@@ -12,6 +12,8 @@
 #include "Map/RTHexLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 
 /**
  * Movimento end-to-end su griglia esagonale (CP 6.2): il turno passa dallo strato puro hex
@@ -55,14 +57,14 @@ namespace
 		return Actor;
 	}
 
-	ARTUnit* SpawnHexUnit(UWorld* World, int32 TeamId, ERTArchetype Arch, const FRTCellId& Cell)
+	ARTUnit* SpawnHexUnit(UWorld* World, int32 TeamId, const URTHeroData* Hero, const FRTCellId& Cell)
 	{
 		if (!World) { return nullptr; }
 		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false; // i piani li scriviamo noi: niente decisioni del bot in mezzo
-		U->ConfigureAsArchetype(Arch);
+		U->ConfigureFromHeroData(Hero);
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		return U;
@@ -105,8 +107,8 @@ bool FRTHexMoveReachesPlannedCellTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 4);
 
-	ARTUnit* Mover = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnHexUnit(World, 1, ERTArchetype::Guardian, FRTCellId(3, 0));
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
 
@@ -137,7 +139,7 @@ bool FRTHexMoveRejectsOutOfBudgetTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 4);
 
-	ARTUnit* Mover = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover) { DestroyHexMoveWorld(World); return false; }
 
@@ -180,22 +182,26 @@ bool FRTHexMoveBudgetCostsTest::RunTest(const FString&)
 	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
 	MapActor->MapAsset = Map;
 
-	ARTUnit* Mover = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
 	// Un avversario lontano e fermo: senza, la squadra 1 e' gia' eliminata e la partita finisce al primo
 	// turno (MatchEnded), quindi il secondo lock-in non risolverebbe nulla.
-	ARTUnit* Foe = SpawnHexUnit(World, 1, ERTArchetype::Guardian, FRTCellId(-5, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(-5, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
 	Foe->PlannedCell = Foe->Cell;
 
-	// Budget 5: sul corridoio costoso bastano per 2 celle (2+2=4), non per 3 (6 > 5).
+	// Sul corridoio costoso ogni cella vale 2: col budget B si arriva a B/2 celle e non a una in piu'.
+	// Era scritto «budget 5, quindi 2 celle e non 3»: i numeri del Ranger legacy. Derivarli tiene in piedi
+	// la proprieta' — e' il COSTO a fermare, non la distanza — con qualunque eroe cammini.
 	const int32 Budget = Mover->GetEffectiveMoveRange();
-	TestEqual(TEXT("il Ranger ha il budget standard"), Budget, 5);
+	const int32 Reachable = Budget / 2;
+	const FRTCellId TooFar(Reachable + 1, 0);
+	TestTrue(TEXT("premessa: la cella scelta costa piu' del budget"), 2 * (Reachable + 1) > Budget);
 
-	Mover->PlannedCell = FRTCellId(3, 0); // costo 6: oltre il budget
+	Mover->PlannedCell = TooFar;
 	RunTurn(TM);
-	TestTrue(TEXT("tre celle di terreno difficile costano piu' del budget: non ci arriva"),
-		!(Mover->Cell == FRTCellId(3, 0)));
+	TestTrue(TEXT("una cella di troppo di terreno difficile costa piu' del budget: non ci arriva"),
+		!(Mover->Cell == TooFar));
 	TestTrue(TEXT("resta comunque su una cella valida"), Map->ContainsCell(Mover->Cell));
 
 	// Alla stessa distanza sul lato NORMALE (ovest, costo 1) ci arriva invece senza problemi: e' il COSTO a
@@ -222,7 +228,7 @@ bool FRTHexDashReachesCellTest::RunTest(const FString&)
 	// Destinazione OBLIQUA (3,-3): distanza ESAGONALE 3, dentro la portata 5 dello scatto — ma distanza di
 	// Manhattan 6 e coordinate negative, quindi irraggiungibile per il pathfinding quadrato. E' il caso che
 	// distingue le due geometrie: se lo scatto girasse ancora sul quadrato, l'unita' resterebbe ferma.
-	ARTUnit* Runner = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Runner) { DestroyHexMoveWorld(World); return false; }
 
@@ -257,7 +263,7 @@ bool FRTHexDashRejectsOutOfBudgetTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 8);
 
-	ARTUnit* Runner = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Runner) { DestroyHexMoveWorld(World); return false; }
 
@@ -285,8 +291,8 @@ bool FRTHexMoveContestedCellTest::RunTest(const FString&)
 
 	// Due unita' equidistanti da una stessa cella: la contesa e' simultanea, nessuna delle due la ottiene.
 	const FRTCellId Contested(0, 0);
-	ARTUnit* A = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(1, 0));
-	ARTUnit* B = SpawnHexUnit(World, 1, ERTArchetype::Ranger, FRTCellId(-1, 0));
+	ARTUnit* A = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(1, 0));
+	ARTUnit* B = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(-1, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B) { DestroyHexMoveWorld(World); return false; }
 
@@ -332,8 +338,8 @@ bool FRTSprintAppliesExposedTest::RunTest(const FString&)
 
 	// Due Ranger: il tiro (25 danni, portata 6, bersaglio singolo) non spinge e non fa area, quindi l'unica
 	// differenza misurabile fra i due turni e' lo stato. Il Ranger non ha scudo: il danno si legge sugli HP.
-	ARTUnit* Runner = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(8, 0));
-	ARTUnit* Foe = SpawnHexUnit(World, 1, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(8, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Runner || !Foe) { DestroyHexMoveWorld(World); return false; }
 
@@ -358,10 +364,13 @@ bool FRTSprintAppliesExposedTest::RunTest(const FString&)
 		DestroyHexMoveWorld(World);
 		return false;
 	}
-	TestEqual(TEXT("chi ha sprintato incassa 25 + 5 dal primo colpo diretto"),
-		StartHealth - Runner->Health, 30);
+	// Il colpo pieno lo dichiara l'attacco base di chi spara: la proprieta' e' «Exposed aggiunge 5 al primo
+	// colpo diretto», non «il colpo fa 30». Prima erano 25 + 5, cioe' il danno del Ranger legacy.
+	const int32 FullHit = Foe->AttackPower;
+	TestEqual(TEXT("chi ha sprintato incassa FullHit + 5 dal primo colpo diretto"),
+		StartHealth - Runner->Health, FullHit + 5);
 
-	// Controprova: stessa unita', stessa Spazzata, ma senza Sprint -> il danno torna nominale.
+	// Controprova: stessa unita', stesso colpo, ma senza Sprint -> il danno torna nominale.
 	Runner->PlaceOnCell(FRTCellId(2, 0), FVector::ZeroVector, 100.f, 250.f);
 	Runner->ApplyCombatState(StartHealth, 0);
 	Runner->PlannedCell = Runner->Cell;
@@ -372,8 +381,8 @@ bool FRTSprintAppliesExposedTest::RunTest(const FString&)
 
 	RunTurn(TM);
 
-	TestEqual(TEXT("senza Sprint lo stesso colpo fa 25: il +5 viene dallo stato, non dall'attacco"),
-		StartHealth - Runner->Health, 25);
+	TestEqual(TEXT("senza Sprint lo stesso colpo arriva nominale: il +5 viene dallo stato, non dall'attacco"),
+		StartHealth - Runner->Health, FullHit);
 
 	DestroyHexMoveWorld(World);
 	return true;
@@ -394,8 +403,8 @@ bool FRTSprintConsumesSlotsTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 8);
 
-	ARTUnit* Runner = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnHexUnit(World, 1, ERTArchetype::Guardian, FRTCellId(6, 0));
+	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(6, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Runner || !Foe) { DestroyHexMoveWorld(World); return false; }
 
@@ -456,19 +465,23 @@ bool FRTIceSlidesInMatchTest::RunTest(const FString&)
 	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
 	MapActor->MapAsset = Map;
 
-	ARTUnit* Mover = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
 	// Un avversario fermo e lontano: senza, la squadra 1 e' gia' eliminata e il secondo lock-in non risolve.
-	ARTUnit* Foe = SpawnHexUnit(World, 1, ERTArchetype::Guardian, FRTCellId(-5, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(-5, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
 
-	if (!TestEqual(TEXT("il Ranger ha il budget standard"), Mover->GetEffectiveMoveRange(), 5))
+	// Il budget si legge: la soglia di scivolata e' «residuo >= 2», e serve un budget che permetta di
+	// osservare ENTRAMBI i lati — con residuo sufficiente scivola, con residuo 1 no. Era fissato a 5, il
+	// valore del Ranger legacy, e i due arrivi sotto erano calcolati su quello.
+	const int32 IceBudget = Mover->GetEffectiveMoveRange();
+	if (!TestTrue(TEXT("premessa: il budget distingue i due casi"), IceBudget >= 4))
 	{
 		DestroyHexMoveWorld(World);
 		return false;
 	}
 
-	// Arrivo su (2,0): costo 2, residuo 3 >= 2 -> scivola di una cella nella direzione d'ingresso (est).
+	// Arrivo su (2,0): costo 2, residuo IceBudget-2 >= 2 -> scivola di una cella nella direzione d'ingresso.
 	const int32 StartHealth = Mover->Health;
 	Mover->PlannedCell = FRTCellId(2, 0);
 	Foe->PlannedCell = Foe->Cell;
@@ -485,14 +498,30 @@ bool FRTIceSlidesInMatchTest::RunTest(const FString&)
 		Mover->Health, StartHealth - 10 - URTCombatLibrary::BurningCleanupDamage);
 	TestTrue(TEXT("Burning applicato dalla cella scivolata"), Mover->HasStatus(TAG_Status_Burning));
 
-	// Controprova: stesso ghiaccio, budget residuo insufficiente. Arrivo su (4,0) costa 4 dei 5 MP: resta 1,
+	// Controprova: stesso ghiaccio, budget residuo insufficiente. Arrivando a IceBudget-1 celle resta 1 MP,
 	// sotto la soglia di 2 -> nessuna scivolata. E' il BUDGET a muoverla, non la superficie da sola.
+	//
+	// La cella d'arrivo dev'essere GHIACCIO, e va marcata qui perche' la sua posizione dipende dal budget:
+	// la mappa dichiara ghiaccio su (2,0) e (4,0), scelte quando il budget era 5. Con un budget diverso
+	// l'arrivo cade su una cella normale, `ApplyIceSliding` esce alla prima riga (nessun `SlideCells`) e
+	// l'unita' si ferma li' perche' non c'e' ghiaccio — non perche' il residuo sia insufficiente. Il test
+	// resterebbe verde anche cancellando la soglia che esiste per verificare.
+	const FRTCellId NoSlideTarget(IceBudget - 1, 0);
+	{
+		FRTHexCellData IceData(NoSlideTarget);
+		IceData.Surface = ERTHexSurface::Ice;
+		Map->AddOrUpdateCell(IceData);
+		Map->SortCells();
+	}
+	const FRTHexCellData* ArrivalData = Map->FindCell(NoSlideTarget);
+	TestTrue(TEXT("premessa: la controprova arriva SU GHIACCIO"),
+		ArrivalData != nullptr && ArrivalData->Surface == ERTHexSurface::Ice);
 	Mover->PlaceOnCell(FRTCellId(0, 0), FVector::ZeroVector, 100.f, 250.f);
-	Mover->PlannedCell = FRTCellId(4, 0);
+	Mover->PlannedCell = NoSlideTarget;
 	Foe->PlannedCell = Foe->Cell;
 	RunTurn(TM);
 
-	TestTrue(TEXT("budget residuo < 2: si ferma sul ghiaccio senza scivolare"), Mover->Cell == FRTCellId(4, 0));
+	TestTrue(TEXT("budget residuo < 2: si ferma sul ghiaccio senza scivolare"), Mover->Cell == NoSlideTarget);
 
 	DestroyHexMoveWorld(World);
 	return true;
@@ -516,7 +545,7 @@ bool FRTTerrainFireDamagesAndBurnsOnEnterTest::RunTest(const FString&)
 	MapActor->MapAsset->AddOrUpdateCell(FireCell);
 	MapActor->MapAsset->SortCells();
 
-	ARTUnit* Mover = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover) { DestroyHexMoveWorld(World); return false; }
 
@@ -553,7 +582,7 @@ bool FRTTerrainFireDamagesOnDashTest::RunTest(const FString&)
 	MapActor->MapAsset->AddOrUpdateCell(FireCell);
 	MapActor->MapAsset->SortCells();
 
-	ARTUnit* Runner = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Runner) { DestroyHexMoveWorld(World); return false; }
 
@@ -598,11 +627,18 @@ bool FRTTerrainFireErodesTemporaryShieldTest::RunTest(const FString&)
 	MapActor->MapAsset->AddOrUpdateCell(FireCell);
 	MapActor->MapAsset->SortCells();
 
-	// Guardian: 20 di scudo base + 5 temporaneo = 25. I 10 danni del fuoco stanno tutti nello scudo.
-	ARTUnit* Mover = SpawnHexUnit(World, 0, ERTArchetype::Guardian, FRTCellId(0, 0));
+	// Scudo base + temporaneo: i 10 danni del fuoco stanno tutti nello scudo.
+	//
+	// Lo scudo base lo dichiara il TEST, non l'eroe: `ConfigureFromHeroData` non imposta `Shield` e nessun
+	// eroe del roster ne parte fornito — il Guardian legacy, con i suoi 20, era l'unico. La proprieta' in
+	// esame e' la CONTABILITA' (il temporaneo si consuma per primo, e anche il danno ambientale del Cleanup
+	// passa di li'), non da dove arriva lo scudo: darglielo qui la tiene verificabile.
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover) { DestroyHexMoveWorld(World); return false; }
 
+	constexpr int32 BaseShield = 20;
+	Mover->ApplyCombatState(Mover->Health, BaseShield);
 	const int32 StartHealth = Mover->Health;
 	Mover->AddTemporaryShield(5);
 	Mover->PlannedAbilityIndex = INDEX_NONE; // nessuna azione: l'unica fonte di danno e' il terreno
@@ -612,11 +648,12 @@ bool FRTTerrainFireErodesTemporaryShieldTest::RunTest(const FString&)
 	RunTurn(TM);
 
 	TestEqual(TEXT("gli HP non calano: il danno del terreno lo assorbe lo scudo"), Mover->Health, StartHealth);
-	// 25 - 10 (ingresso) - 8 (Burning nel Cleanup, CP 8.2) = 7, tutti di scudo BASE: i 5 temporanei sono stati
-	// consumati per primi, quindi ExpireTemporaryShield non ne toglie altri. Anche il danno ambientale del
-	// Cleanup passa dalla stessa contabilita': se ne saltasse una, questo numero sarebbe 12 o 2, non 7.
+	// (base + 5) - 10 (ingresso) - 8 (Burning nel Cleanup, CP 8.2), tutti di scudo BASE: i 5 temporanei sono
+	// stati consumati per primi, quindi ExpireTemporaryShield non ne toglie altri. Anche il danno ambientale
+	// del Cleanup passa dalla stessa contabilita': se ne saltasse una, questo numero sarebbe piu' alto o piu'
+	// basso di una delle due voci.
 	TestEqual(TEXT("resta lo scudo BASE non consumato, non uno in meno"),
-		Mover->Shield, 25 - 10 - URTCombatLibrary::BurningCleanupDamage);
+		Mover->Shield, (BaseShield + 5) - 10 - URTCombatLibrary::BurningCleanupDamage);
 
 	DestroyHexMoveWorld(World);
 	return true;
@@ -645,10 +682,10 @@ bool FRTTerrainStatusLogMatchesStateTest::RunTest(const FString&)
 	MapActor->MapAsset->AddOrUpdateCell(WaterCell);
 	MapActor->MapAsset->SortCells();
 
-	ARTUnit* Mover = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
 	// Il test dura due turni: senza un avversario vivo il primo Cleanup dichiara vinta la partita
 	// (`EvaluateOutcome(1, 0)`) e il secondo turno non verrebbe mai risolto. Sta fuori portata e fermo.
-	ARTUnit* Foe = SpawnHexUnit(World, 1, ERTArchetype::Guardian, FRTCellId(4, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
 
@@ -716,8 +753,8 @@ bool FRTMovePathBlockedTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 6);
 
-	ARTUnit* Mover = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
-	ARTUnit* Blocker = SpawnHexUnit(World, 1, ERTArchetype::Guardian, FRTCellId(2, 0));
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
+	ARTUnit* Blocker = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Blocker) { DestroyHexMoveWorld(World); return false; }
 
@@ -763,8 +800,8 @@ bool FRTMoveCellConflictTest::RunTest(const FString&)
 	SpawnHexMap(World, /*Radius=*/ 4);
 
 	const FRTCellId Contested(0, 0);
-	ARTUnit* A = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(-2, 0));
-	ARTUnit* B = SpawnHexUnit(World, 1, ERTArchetype::Ranger, FRTCellId(2, 0));
+	ARTUnit* A = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(-2, 0));
+	ARTUnit* B = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B) { DestroyHexMoveWorld(World); return false; }
 
@@ -793,58 +830,6 @@ bool FRTMoveCellConflictTest::RunTest(const FString&)
 }
 
 
-// =====================================================================================================
-// D-028 — lo scatto e' movimento: si schiva e si spara, oppure si spara e ci si muove.
-//
-// Sono le due meta' della stessa regola, e vanno verificate separate: un solo test che le mescola
-// passerebbe anche se il Dash consumasse gli slot sbagliati in modo compensato.
-// =====================================================================================================
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDashLeavesMainAvailableTest,
-	"RefactorTactics.Actions.Dash.LeavesMainAvailable",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTDashLeavesMainAvailableTest::RunTest(const FString&)
-{
-	// Schivo e sparo: lo scatto avvicina PRIMA del Blast, e l'attacco parte dalla posizione nuova.
-	//
-	// Questo test passava GIA' prima della migrazione degli slot, ed e' il fatto piu' importante di D-028: il
-	// gioco faceva la cosa giusta con la regola sbagliata scritta accanto (`Dash` dichiarato `Main`, e
-	// `ValidateActionSlots` mai chiamata in partita). Non e' un RED, e' caratterizzazione — esiste per
-	// impedire che la migrazione porti via il comportamento buono insieme alla regola cattiva.
-	UWorld* World = MakeHexMoveWorld();
-	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
-	SpawnHexMap(World, /*Radius=*/ 8);
-
-	ARTUnit* Runner = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnHexUnit(World, 1, ERTArchetype::Guardian, FRTCellId(8, 0));
-	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TM || !Runner || !Foe) { DestroyHexMoveWorld(World); return false; }
-
-	URTActionData* Dash = NewObject<URTActionData>(Runner);
-	Dash->DisplayName = FText::FromString(TEXT("Scatto"));
-	Dash->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
-	Runner->Abilities.Add(Dash);
-	const int32 DashIdx = Runner->Abilities.Num() - 1;
-
-	const int32 FoeBefore = Foe->Health + Foe->Shield;
-
-	// Da (0,0) il Guardian a (8,0) e' FUORI dalla portata 6 del Tiro. Dopo lo scatto di 3 celle e' a 5.
-	// Senza lo scatto il colpo non partirebbe: e' cio' che rende il test discriminante invece che decorativo.
-	Runner->PlannedDashAbility = DashIdx;
-	Runner->PlannedDashCell = FRTCellId(3, 0);
-	Runner->PlannedAbilityIndex = 0;
-	Runner->PlannedAttackTarget = Foe;
-	Foe->PlannedCell = Foe->Cell;
-
-	RunTurn(TM);
-
-	TestTrue(TEXT("lo scatto ha portato l'unita' a destinazione"), Runner->Cell == FRTCellId(3, 0));
-	TestTrue(TEXT("l'azione principale e' rimasta disponibile: il colpo e' arrivato"),
-		(Foe->Health + Foe->Shield) < FoeBefore);
-
-	DestroyHexMoveWorld(World);
-	return true;
-}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDashConsumesMovementTest,
 	"RefactorTactics.Actions.Dash.ConsumesTheMovement",
@@ -857,8 +842,8 @@ bool FRTDashConsumesMovementTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 8);
 
-	ARTUnit* Runner = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnHexUnit(World, 1, ERTArchetype::Guardian, FRTCellId(8, 0));
+	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(8, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Runner || !Foe) { DestroyHexMoveWorld(World); return false; }
 
@@ -902,10 +887,21 @@ bool FRTKitDeclaredBothSlotsTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 8);
 
-	ARTUnit* Runner = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnHexUnit(World, 1, ERTArchetype::Guardian, FRTCellId(8, 0));
+	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TM || !Runner || !Foe) { DestroyHexMoveWorld(World); return false; }
+	if (!TM || !Runner) { DestroyHexMoveWorld(World); return false; }
+
+	// Il bersaglio va messo DENTRO la portata dell'attacco base, misurata dalla cella d'arrivo dello scatto:
+	// e' l'unica posizione in cui «nessun colpo» dimostra qualcosa. Stava a (8,0), a distanza 5 dall'arrivo:
+	// con la portata 6 del Ranger legacy era un bersaglio legittimo, con la portata 4 del roster e' fuori
+	// tiro comunque — e il test sarebbe rimasto verde anche cancellando la gestione di `MovementAndMain`,
+	// che e' esattamente cio' che esiste per difendere.
+	constexpr int32 DashTo = 3;
+	const int32 ShotRange = Runner->AttackRange;
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(DashTo + ShotRange, 0));
+	if (!TestNotNull(TEXT("Foe"), Foe)) { DestroyHexMoveWorld(World); return false; }
+	TestTrue(TEXT("premessa: dalla cella d'arrivo il bersaglio E' a portata"),
+		URTHexLibrary::HexDistance(FRTCellId(DashTo, 0), Foe->Cell) <= ShotRange);
 
 	// Uno scatto identico ad `Action.Dash` TRANNE lo slot: e' il kit a dichiarare che costa tutto il turno.
 	URTActionData* Costly = NewObject<URTActionData>(Runner);
@@ -918,14 +914,14 @@ bool FRTKitDeclaredBothSlotsTest::RunTest(const FString&)
 	const int32 FoeBefore = Foe->Health + Foe->Shield;
 
 	Runner->PlannedDashAbility = Runner->Abilities.Num() - 1;
-	Runner->PlannedDashCell = FRTCellId(3, 0);
-	Runner->PlannedAbilityIndex = 0;          // il Tiro, che da (3,0) avrebbe il Guardian a portata
+	Runner->PlannedDashCell = FRTCellId(DashTo, 0);
+	Runner->PlannedAbilityIndex = 0;          // l'attacco base, che dalla cella d'arrivo avrebbe il bersaglio a portata
 	Runner->PlannedAttackTarget = Foe;
 	Foe->PlannedCell = Foe->Cell;
 
 	RunTurn(TM);
 
-	TestTrue(TEXT("lo scatto e' avvenuto"), Runner->Cell == FRTCellId(3, 0));
+	TestTrue(TEXT("lo scatto e' avvenuto"), Runner->Cell == FRTCellId(DashTo, 0));
 	// La differenza con `Action.Dash`, e l'unica cosa che questo test dimostra: qui il colpo NON parte.
 	TestEqual(TEXT("il kit ha dichiarato che costa anche la principale: nessun colpo"),
 		Foe->Health + Foe->Shield, FoeBefore);
@@ -969,8 +965,8 @@ bool FRTHexMoveStationaryDeclaredRotationTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 4);
 
-	ARTUnit* Sentry = SpawnHexUnit(World, 0, ERTArchetype::Guardian, FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnHexUnit(World, 1, ERTArchetype::Guardian, FRTCellId(4, 0));
+	ARTUnit* Sentry = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Sentry || !Foe) { DestroyHexMoveWorld(World); return false; }
 
@@ -1006,8 +1002,8 @@ bool FRTHexMoveIllegalDeclaredRotationTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 4);
 
-	ARTUnit* Mover = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnHexUnit(World, 1, ERTArchetype::Guardian, FRTCellId(0, 3));
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 3));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
 
@@ -1045,8 +1041,8 @@ bool FRTHexMoveDeclarationDoesNotSurviveTurnTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 4);
 
-	ARTUnit* Sentry = SpawnHexUnit(World, 0, ERTArchetype::Guardian, FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnHexUnit(World, 1, ERTArchetype::Guardian, FRTCellId(4, 0));
+	ARTUnit* Sentry = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Sentry || !Foe) { DestroyHexMoveWorld(World); return false; }
 
@@ -1102,8 +1098,8 @@ bool FRTHexMoveLogCauseInMatchTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 4);
 
-	ARTUnit* Mover = SpawnHexUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnHexUnit(World, 1, ERTArchetype::Guardian, FRTCellId(3, 0));
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
 
@@ -1128,6 +1124,70 @@ bool FRTHexMoveLogCauseInMatchTest::RunTest(const FString&)
 	// Senza questa, il ciclo sopra passerebbe su una lista vuota: un TurnLog senza voci Move renderebbe
 	// il test verde senza aver verificato nulla.
 	TestTrue(TEXT("il turno ha prodotto almeno una voce di movimento"), MoveEntries > 0);
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+// =====================================================================================================
+// D-028 — lo scatto e' movimento: si schiva e si spara, oppure si spara e ci si muove.
+//
+// Sono le due meta' della stessa regola, e vanno verificate separate: un solo test che le mescola
+// passerebbe anche se il Dash consumasse gli slot sbagliati in modo compensato.
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDashLeavesMainAvailableTest,
+	"RefactorTactics.Actions.Dash.LeavesMainAvailable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDashLeavesMainAvailableTest::RunTest(const FString&)
+{
+	// Schivo e sparo: lo scatto avvicina PRIMA del Blast, e l'attacco parte dalla posizione nuova.
+	//
+	// Questo test passava GIA' prima della migrazione degli slot, ed e' il fatto piu' importante di D-028: il
+	// gioco faceva la cosa giusta con la regola sbagliata scritta accanto (`Dash` dichiarato `Main`, e
+	// `ValidateActionSlots` mai chiamata in partita). Non e' un RED, e' caratterizzazione — esiste per
+	// impedire che la migrazione porti via il comportamento buono insieme alla regola cattiva.
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 8);
+
+	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Runner) { DestroyHexMoveWorld(World); return false; }
+
+	// Il bersaglio si posiziona sul CONFINE: fuori portata dalla partenza, dentro dopo lo scatto. Era a
+	// (8,0), a distanza 5 dall'arrivo — dentro la portata 6 del Ranger legacy, fuori dalla 4 del roster, e
+	// il colpo non partiva nemmeno dopo lo scatto. Derivandola, la premessa che rende il test discriminante
+	// («senza lo scatto il colpo non partirebbe») resta vera con qualunque eroe.
+	constexpr int32 DashTo = 3;
+	const int32 ShotRange = Runner->AttackRange;
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(DashTo + ShotRange, 0));
+	if (!TestNotNull(TEXT("Foe"), Foe)) { DestroyHexMoveWorld(World); return false; }
+	TestTrue(TEXT("premessa: dalla PARTENZA il bersaglio e' fuori portata"),
+		URTHexLibrary::HexDistance(FRTCellId(0, 0), Foe->Cell) > ShotRange);
+	TestTrue(TEXT("premessa: dopo lo scatto e' a portata"),
+		URTHexLibrary::HexDistance(FRTCellId(DashTo, 0), Foe->Cell) <= ShotRange);
+
+	URTActionData* Dash = NewObject<URTActionData>(Runner);
+	Dash->DisplayName = FText::FromString(TEXT("Scatto"));
+	Dash->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
+	Runner->Abilities.Add(Dash);
+	const int32 DashIdx = Runner->Abilities.Num() - 1;
+
+	const int32 FoeBefore = Foe->Health + Foe->Shield;
+
+	// Senza lo scatto il colpo non partirebbe: e' cio' che rende il test discriminante invece che decorativo.
+	Runner->PlannedDashAbility = DashIdx;
+	Runner->PlannedDashCell = FRTCellId(DashTo, 0);
+	Runner->PlannedAbilityIndex = 0;
+	Runner->PlannedAttackTarget = Foe;
+	Foe->PlannedCell = Foe->Cell;
+
+	RunTurn(TM);
+
+	TestTrue(TEXT("lo scatto ha portato l'unita' a destinazione"), Runner->Cell == FRTCellId(DashTo, 0));
+	TestTrue(TEXT("l'azione principale e' rimasta disponibile: il colpo e' arrivato"),
+		(Foe->Health + Foe->Shield) < FoeBefore);
 
 	DestroyHexMoveWorld(World);
 	return true;

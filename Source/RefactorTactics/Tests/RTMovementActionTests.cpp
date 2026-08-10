@@ -261,10 +261,10 @@ bool FRTMovementCatalogTest::RunTest(const FString&)
  * che si dimentica di dichiararlo NON e' un errore di compilazione — e' uno scatto che, in silenzio, torna a
  * usare il pathfinding del movimento normale (aggira gli ostacoli, attraversa `Rough`, sale di layer).
  *
- * La regola vale per TUTTI E TRE i cataloghi. In particolare per quello degli EROI: `ARTUnit::ConfigureAsArchetype`
- * non e' piu' un percorso di partita (Ranger e Guardian vivono ormai solo nei test), mentre `URTHeroData` e'
- * cio' che il GameMode schiera davvero — se la guardia guardasse altrove sarebbe verde mentre il buco e' aperto
- * proprio dove il gioco passa.
+ * La regola vale per ENTRAMBI i cataloghi rimasti — quello generico (`Action.*`) e quello degli EROI. Dal
+ * 2026-08-10 non ce n'e' un terzo: il catalogo dei due archetipi legacy e' stato rimosso, e con esso l'unico
+ * percorso di configurazione che nessuna partita esercitava. `URTHeroData` e' cio' che il GameMode schiera
+ * davvero — se la guardia guardasse altrove sarebbe verde mentre il buco e' aperto proprio dove il gioco passa.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFastMovementDeclaresStyleTest,
 	"RefactorTactics.Actions.EveryFastMovementDeclaresStyle",
@@ -272,7 +272,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFastMovementDeclaresStyleTest,
 bool FRTFastMovementDeclaresStyleTest::RunTest(const FString&)
 {
 	TArray<FRTActionDef> All = URTCatalogLibrary::GetCoreActionCatalog();
-	All.Append(URTCatalogLibrary::GetShippedActionCatalog());
 	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
 	{
 		if (!Hero) { continue; }
@@ -297,23 +296,45 @@ bool FRTFastMovementDeclaresStyleTest::RunTest(const FString&)
 	// Se il filtro non trovasse nulla, il test passerebbe senza provare niente.
 	TestTrue(TEXT("il catalogo contiene mobilita' rapide da verificare"), FastMovers > 0);
 
-	// Gli scatti degli archetipi sono LINEARI come le mobilita' omologhe del catalogo generico: e' il
-	// comportamento che CP 4.5 ha introdotto e che il default `None` stava annullando.
-	const FRTActionDef RangerDash = URTCatalogLibrary::FindShippedAction(TEXT("Ranger.Dash"));
-	TestTrue(TEXT("Ranger.Dash e' uno scatto lineare"), RangerDash.MovementStyle == ERTMovementStyle::LinearDash);
+	// Le mobilita' rapide sono LINEARI: e' il comportamento che CP 4.5 ha introdotto e che il default
+	// `None` stava annullando. Le due asserzioni stavano su `Ranger.Dash` e `Guardian.Charge`, cioe' sul
+	// catalogo dei due archetipi legacy, rimosso il 2026-08-10: verificavano lo stile su azioni che nessuna
+	// partita spediva. Ora stanno sul catalogo generico e sul roster, che sono cio' che il gioco usa.
+	const FRTActionDef CoreDash = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
+	TestTrue(TEXT("Action.Dash e' uno scatto lineare"), CoreDash.MovementStyle == ERTMovementStyle::LinearDash);
 
-	const FRTActionDef GuardianCharge = URTCatalogLibrary::FindShippedAction(TEXT("Guardian.Charge"));
-	TestTrue(TEXT("Guardian.Charge e' una carica"), GuardianCharge.MovementStyle == ERTMovementStyle::LinearCharge);
+	const FRTActionDef CoreCharge = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge"));
+	TestTrue(TEXT("Action.Charge e' una carica"), CoreCharge.MovementStyle == ERTMovementStyle::LinearCharge);
 
 	// Una carica si ferma ADDOSSO al nemico: senza effetti dichiarati l'impatto sarebbe un contatto da zero
-	// danni, cioe' una carica che non carica. Stessi numeri di `Action.Charge` (e' la stessa azione).
-	TestEqual(TEXT("Guardian.Charge dichiara due effetti"), GuardianCharge.Effects.Num(), 2);
-	if (GuardianCharge.Effects.Num() == 2)
+	// danni, cioe' una carica che non carica.
+	TestEqual(TEXT("Action.Charge dichiara due effetti"), CoreCharge.Effects.Num(), 2);
+	if (CoreCharge.Effects.Num() == 2)
 	{
 		TestTrue(TEXT("20 danni d'impatto"),
-			GuardianCharge.Effects[0].Effect == ERTActionEffect::Damage && GuardianCharge.Effects[0].Amount == 20);
+			CoreCharge.Effects[0].Effect == ERTActionEffect::Damage && CoreCharge.Effects[0].Amount == 20);
 		TestTrue(TEXT("e una spinta di 1"),
-			GuardianCharge.Effects[1].Effect == ERTActionEffect::Push && GuardianCharge.Effects[1].Amount == 1);
+			CoreCharge.Effects[1].Effect == ERTActionEffect::Push && CoreCharge.Effects[1].Amount == 1);
+	}
+
+	// L'eroe che quella carica la porta in partita: `Bastion.Ram` riusa `Action.Charge` per intero, ed e'
+	// il motivo per cui lo stile e' un dato e non un `if` sull'ActionId.
+	const URTHeroData* Bastion = nullptr;
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+	{
+		if (Hero && Hero->HeroId == TEXT("Hero.Bastion")) { Bastion = Hero; break; }
+	}
+	if (TestNotNull(TEXT("Bastion e' nel roster"), Bastion))
+	{
+		const URTActionData* Ram = nullptr;
+		for (const URTActionData* A : Bastion->Actions)
+		{
+			if (A && A->Def.ActionId == TEXT("Bastion.Ram")) { Ram = A; break; }
+		}
+		if (TestNotNull(TEXT("Bastion.Ram e' nel kit"), Ram))
+		{
+			TestTrue(TEXT("Bastion.Ram e' una carica"), Ram->Def.MovementStyle == ERTMovementStyle::LinearCharge);
+		}
 	}
 	return true;
 }

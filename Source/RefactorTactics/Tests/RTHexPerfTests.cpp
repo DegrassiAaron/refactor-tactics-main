@@ -11,6 +11,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 #include "HAL/PlatformTime.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 
 /**
  * Misura dei budget di performance (KPI del PDR: path < 2 ms, resolver < 100 ms/turno).
@@ -120,21 +122,21 @@ bool FRTHexResolverPerfTest::RunTest(const FString&)
 
 	// 2v2 come in partita, con il playback DISATTIVATO: qui si misura la risoluzione (logica autoritativa),
 	// non la sua riproduzione nel tempo, che e' presentazione.
-	auto Spawn = [World](int32 Team, ERTArchetype Arch, const FRTCellId& Cell)
+	auto Spawn = [World](int32 Team, const URTHeroData* Hero, const FRTCellId& Cell)
 	{
 		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
 		U->TeamId = Team;
-		U->ConfigureAsArchetype(Arch);
+		U->ConfigureFromHeroData(Hero);
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->bIsBotControlled = true;
 		U->DispatchBeginPlay();
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, 250.f);
 		return U;
 	};
-	Spawn(0, ERTArchetype::Ranger,   FRTCellId(-5, 2));
-	Spawn(0, ERTArchetype::Guardian, FRTCellId(-5, 3));
-	Spawn(1, ERTArchetype::Ranger,   FRTCellId(5, -2));
-	Spawn(1, ERTArchetype::Guardian, FRTCellId(5, -3));
+	Spawn(0, URTHeroCatalogLibrary::MakeVektor(),   FRTCellId(-5, 2));
+	Spawn(0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(-5, 3));
+	Spawn(1, URTHeroCatalogLibrary::MakeVektor(),   FRTCellId(5, -2));
+	Spawn(1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(5, -3));
 
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM) { DestroyPerfWorld(World); return false; }

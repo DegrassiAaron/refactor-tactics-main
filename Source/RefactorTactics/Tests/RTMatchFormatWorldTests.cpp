@@ -13,6 +13,8 @@
 #include "Unit/RTUnit.h"
 #include "Engine/Engine.h"
 #include "EngineUtils.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -81,7 +83,7 @@ namespace
 		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
-		U->ConfigureAsArchetype(ERTArchetype::Guardian);
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeBastion());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->DispatchBeginPlay();
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);

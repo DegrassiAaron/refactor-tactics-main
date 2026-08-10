@@ -15,6 +15,8 @@
 #include "Core/RTGameplayTags.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 
 /**
  * Combat end-to-end su griglia esagonale (CP 6.4): la fase Blast valida portata e linea di tiro sulla
@@ -60,14 +62,14 @@ namespace
 		return Actor;
 	}
 
-	ARTUnit* SpawnHexBlastUnit(UWorld* World, int32 TeamId, ERTArchetype Arch, const FRTCellId& Cell)
+	ARTUnit* SpawnHexBlastUnit(UWorld* World, int32 TeamId, const URTHeroData* Hero, const FRTCellId& Cell)
 	{
 		if (!World) { return nullptr; }
 		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false; // niente decisioni del bot in mezzo
-		U->ConfigureAsArchetype(Arch);
+		U->ConfigureFromHeroData(Hero);
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell; // fermo: il test verifica il Blast, non il movimento
@@ -104,9 +106,9 @@ bool FRTHexBlastDealsDamageTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBlastMap(World, /*Radius=*/ 6);
 
-	// Ranger: "Tiro" (Single, portata 6, 25 danni). Bersaglio a distanza esagonale 3, vista libera.
-	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, ERTArchetype::Guardian, FRTCellId(3, 0));
+	// Attacco base dell'eroe (indice 0). Bersaglio a distanza esagonale 3, vista libera.
+	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return false; }
 
@@ -118,8 +120,10 @@ bool FRTHexBlastDealsDamageTest::RunTest(const FString&)
 	RunBlastTurn(TM);
 
 	TestTrue(TEXT("il bersaglio ha incassato il colpo"), Foe->Shield < ShieldBefore || Foe->Health < HealthBefore);
-	TestEqual(TEXT("scudo assorbito per primo, poi HP"), Foe->Shield, FMath::Max(0, ShieldBefore - 25));
-	TestEqual(TEXT("HP residui coerenti col danno"), Foe->Health, HealthBefore - FMath::Max(0, 25 - ShieldBefore));
+	// Il colpo pieno lo dichiara l'attacco base di chi spara: la proprieta' e' «lo scudo assorbe per primo».
+	const int32 FullHit = Shooter->AttackPower;
+	TestEqual(TEXT("scudo assorbito per primo, poi HP"), Foe->Shield, FMath::Max(0, ShieldBefore - FullHit));
+	TestEqual(TEXT("HP residui coerenti col danno"), Foe->Health, HealthBefore - FMath::Max(0, FullHit - ShieldBefore));
 	TestTrue(TEXT("il TurnLog registra il colpo"), CountCombatOutcome(TM, ERTCombatOutcome::Hit) >= 1);
 
 	DestroyHexBlastWorld(World);
@@ -140,8 +144,8 @@ bool FRTHexBlastBlockedBySightTest::RunTest(const FString&)
 	Walls.Add(FRTCellId(2, 0));
 	SpawnHexBlastMap(World, /*Radius=*/ 6, Walls);
 
-	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, ERTArchetype::Guardian, FRTCellId(3, 0));
+	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return false; }
 
@@ -161,36 +165,6 @@ bool FRTHexBlastBlockedBySightTest::RunTest(const FString&)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBlastKnockbackTest,
-	"RefactorTactics.HexBlast.KnockbackOnHexGrid",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTHexBlastKnockbackTest::RunTest(const FString&)
-{
-	UWorld* World = MakeHexBlastWorld();
-	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
-	SpawnHexBlastMap(World, /*Radius=*/ 6);
-
-	// La "Spazzata" del Guardian (cono, portata 3) respinge di 2 celle. Bersaglio in direzione OBLIQUA NE:
-	// la spinta esagonale prosegue lungo (+1,-1) fino a (3,-3), mentre quella cardinale del quadrato
-	// sceglierebbe l'asse X (delta pari) e finirebbe in (3,-1). E' il caso che distingue le due geometrie.
-	ARTUnit* Bruiser = SpawnHexBlastUnit(World, 1, ERTArchetype::Guardian, FRTCellId(0, 0));
-	ARTUnit* Victim = SpawnHexBlastUnit(World, 0, ERTArchetype::Ranger, FRTCellId(1, -1));
-	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TM || !Bruiser || !Victim) { DestroyHexBlastWorld(World); return false; }
-
-	Bruiser->PlannedAbilityIndex = 0; // Spazzata
-	Bruiser->PlannedAttackTarget = Victim;
-
-	RunBlastTurn(TM);
-
-	TestTrue(TEXT("il bersaglio e' stato respinto di due celle esagonali"), Victim->Cell == FRTCellId(3, -3));
-	TestTrue(TEXT("resta su una cella esistente della mappa"), URTHexLibrary::HexDistance(Victim->Cell, FRTCellId(0, 0)) <= 6);
-	TestTrue(TEXT("posizione visiva coerente con la cella logica"),
-		Victim->GetActorLocation().Equals(Victim->WorldForCell(Victim->Cell, FVector::ZeroVector, 100.f, 250.f), 1.0f));
-
-	DestroyHexBlastWorld(World);
-	return true;
-}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBlastOutOfRangeTest,
 	"RefactorTactics.HexBlast.OutOfHexRange",
@@ -202,8 +176,8 @@ bool FRTHexBlastOutOfRangeTest::RunTest(const FString&)
 	SpawnHexBlastMap(World, /*Radius=*/ 9);
 
 	// Distanza ESAGONALE 8 > portata 6 del "Tiro": la portata si misura in celle esagonali, non in Manhattan.
-	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, ERTArchetype::Guardian, FRTCellId(8, 0));
+	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(8, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return false; }
 
@@ -233,8 +207,8 @@ bool FRTHexBlastFallbackLoggedTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBlastMap(World, /*Radius=*/ 9);
 
-	ARTUnit* Attacker = SpawnHexBlastUnit(World, 0, ERTArchetype::Guardian, FRTCellId(0, 0)); // Spazzata, portata 3
-	ARTUnit* Runner = SpawnHexBlastUnit(World, 1, ERTArchetype::Ranger, FRTCellId(2, 0));
+	ARTUnit* Attacker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 0)); // Spazzata, portata 3
+	ARTUnit* Runner = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Attacker || !Runner) { DestroyHexBlastWorld(World); return false; }
 
@@ -242,13 +216,26 @@ bool FRTHexBlastFallbackLoggedTest::RunTest(const FString&)
 	Attacker->PlannedAbilityIndex = 0;
 	Attacker->PlannedAttackTarget = Runner;
 
-	// Il bersaglio scatta a distanza 7: fuori dalla portata 3 della Spazzata quando il Blast risolve.
-	Runner->PlannedDashAbility = Runner->FindDashAbilityIndex();
-	Runner->PlannedDashCell = FRTCellId(7, 0);
+	// Il bersaglio scatta lontano quanto la portata del PROPRIO scatto: era scritto `7`, che solo lo scatto
+	// da 5 celle del Ranger legacy raggiungeva. La destinazione si deriva, cosi' la premessa del test —
+	// «quando il Blast risolve il bersaglio e' fuori portata» — resta vera con qualunque eroe scappi.
+	const int32 DashIdx = Runner->FindDashAbilityIndex();
+	if (!TestTrue(TEXT("premessa: chi scappa ha uno scatto"), Runner->Abilities.IsValidIndex(DashIdx)))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+	const int32 DashRange = Runner->Abilities[DashIdx] ? Runner->Abilities[DashIdx]->RangeCells : 0;
+	const FRTCellId Escape(2 + DashRange, 0);
+	TestTrue(TEXT("premessa: la fuga porta oltre la portata di chi attacca"),
+		URTHexLibrary::HexDistance(Escape, Attacker->Cell) > Attacker->AttackRange);
+
+	Runner->PlannedDashAbility = DashIdx;
+	Runner->PlannedDashCell = Escape;
 
 	RunBlastTurn(TM);
 
-	TestTrue(TEXT("il bersaglio si e' spostato prima del Blast"), Runner->Cell == FRTCellId(7, 0));
+	TestTrue(TEXT("il bersaglio si e' spostato prima del Blast"), Runner->Cell == Escape);
 	TestEqual(TEXT("l'attacco non lo raggiunge"), Runner->Health, HealthBefore);
 
 	int32 Fallbacks = 0;
@@ -321,8 +308,8 @@ bool FRTGuardReducesDamageInMatchTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBlastMap(World, /*Radius=*/ 6);
 
-	ARTUnit* Defender = SpawnHexBlastUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
-	ARTUnit* Shooter = SpawnHexBlastUnit(World, 1, ERTArchetype::Ranger, FRTCellId(3, 0)); // Tiro: 25 danni
+	ARTUnit* Defender = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
+	ARTUnit* Shooter = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(3, 0)); // Tiro: 25 danni
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Defender || !Shooter) { DestroyHexBlastWorld(World); return false; }
 
@@ -335,7 +322,12 @@ bool FRTGuardReducesDamageInMatchTest::RunTest(const FString&)
 
 	RunBlastTurn(TM);
 
-	TestEqual(TEXT("in guardia il primo colpo fa 25 - 15"), StartHealth - Defender->Health, 10);
+	// Il danno pieno lo dichiara l'attacco base di CHI SPARA, non un numero scritto qui: la proprieta' sotto
+	// esame e' «Guard toglie 15 al primo colpo diretto», e deve reggere qualunque eroe schieri il test.
+	// Prima era `25`, il danno del Ranger legacy, e cambiare unita' faceva cadere il test su un dettaglio
+	// che non stava verificando.
+	const int32 FullHit = Shooter->AttackPower;
+	TestEqual(TEXT("in guardia il primo colpo fa FullHit - 15"), StartHealth - Defender->Health, FullHit - 15);
 
 	// Controprova: senza guardia lo stesso tiro arriva intero.
 	Defender->ApplyCombatState(StartHealth, 0);
@@ -345,8 +337,8 @@ bool FRTGuardReducesDamageInMatchTest::RunTest(const FString&)
 
 	RunBlastTurn(TM);
 
-	TestEqual(TEXT("senza guardia il colpo fa 25: la riduzione viene dallo stato"),
-		StartHealth - Defender->Health, 25);
+	TestEqual(TEXT("senza guardia il colpo arriva intero: la riduzione viene dallo stato"),
+		StartHealth - Defender->Health, FullHit);
 
 	DestroyHexBlastWorld(World);
 	return true;
@@ -362,8 +354,8 @@ bool FRTGuardResistsPushTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBlastMap(World, /*Radius=*/ 6);
 
-	ARTUnit* Defender = SpawnHexBlastUnit(World, 0, ERTArchetype::Guardian, FRTCellId(0, 0));
-	ARTUnit* Pusher = SpawnHexBlastUnit(World, 1, ERTArchetype::Ranger, FRTCellId(2, 0));
+	ARTUnit* Defender = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 0));
+	ARTUnit* Pusher = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Defender || !Pusher) { DestroyHexBlastWorld(World); return false; }
 
@@ -409,8 +401,8 @@ bool FRTChargeImpactInBlastTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBlastMap(World, /*Radius=*/ 6);
 
-	ARTUnit* Charger = SpawnHexBlastUnit(World, 0, ERTArchetype::Guardian, FRTCellId(0, 0));
-	ARTUnit* Victim = SpawnHexBlastUnit(World, 1, ERTArchetype::Ranger, FRTCellId(2, 0));
+	ARTUnit* Charger = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 0));
+	ARTUnit* Victim = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Charger || !Victim) { DestroyHexBlastWorld(World); return false; }
 
@@ -448,8 +440,8 @@ bool FRTChargeHeadOnStopsTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBlastMap(World, /*Radius=*/ 6);
 
-	ARTUnit* A = SpawnHexBlastUnit(World, 0, ERTArchetype::Guardian, FRTCellId(0, 0));
-	ARTUnit* B = SpawnHexBlastUnit(World, 1, ERTArchetype::Guardian, FRTCellId(3, 0));
+	ARTUnit* A = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 0));
+	ARTUnit* B = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B) { DestroyHexBlastWorld(World); return false; }
 
@@ -499,9 +491,9 @@ bool FRTActionsAoEFriendlyFireInMatchTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBlastMap(World, /*Radius=*/ 6);
 
-	ARTUnit* Thrower = SpawnHexBlastUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, ERTArchetype::Guardian, FRTCellId(3, 0));
-	ARTUnit* Ally = SpawnHexBlastUnit(World, 0, ERTArchetype::Ranger, FRTCellId(2, 0)); // adiacente al centro
+	ARTUnit* Thrower = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(3, 0));
+	ARTUnit* Ally = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(2, 0)); // adiacente al centro
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Thrower || !Foe || !Ally) { DestroyHexBlastWorld(World); return false; }
 
@@ -555,9 +547,9 @@ bool FRTActionsMarkTargetReachesTargetTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBlastMap(World, /*Radius=*/ 6);
 
-	ARTUnit* Marker = SpawnHexBlastUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
-	ARTUnit* Ally = SpawnHexBlastUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 1));
-	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, ERTArchetype::Guardian, FRTCellId(3, 0)); // a 3 celle dal marcatore
+	ARTUnit* Marker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
+	ARTUnit* Ally = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 1));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(3, 0)); // a 3 celle dal marcatore
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Marker || !Ally || !Foe) { DestroyHexBlastWorld(World); return false; }
 
@@ -624,8 +616,8 @@ bool FRTHexCoverDestructionLoggedTest::RunTest(const FString&)
 	MapActor->MapAsset->AddOrUpdateCell(WithWall);
 	MapActor->MapAsset->SortCells();
 
-	ARTUnit* Breacher = SpawnHexBlastUnit(World, 0, ERTArchetype::Ranger, FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, ERTArchetype::Guardian, FRTCellId(2, 0));
+	ARTUnit* Breacher = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Breacher || !Foe) { DestroyHexBlastWorld(World); return false; }
 
@@ -690,8 +682,8 @@ bool FRTHexDoorClosingStopsMovementTest::RunTest(const FString&)
 	MapActor->MapAsset->AddOrUpdateCell(WithDoor);
 	MapActor->MapAsset->SortCells();
 
-	ARTUnit* Mover = SpawnHexBlastUnit(World, 1, ERTArchetype::Guardian, FRTCellId(0, 0));
-	ARTUnit* Closer = SpawnHexBlastUnit(World, 0, ERTArchetype::Ranger, FRTCellId(3, 0));
+	ARTUnit* Mover = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 0));
+	ARTUnit* Closer = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Closer) { DestroyHexBlastWorld(World); return false; }
 

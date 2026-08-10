@@ -27,7 +27,7 @@ bool FRTUnitArchetypeCooldownTest::RunTest(const FString&)
 {
 	ARTUnit* Unit = NewObject<ARTUnit>();
 	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
-	Unit->ConfigureAsArchetype(ERTArchetype::Guardian);
+	Unit->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeBastion());
 
 	// L'abilita' la sceglie il KIT, non un indice scritto a mano: se i numeri dell'archetipo cambiano, il
 	// test resta valido invece di verificare la cosa sbagliata in silenzio.

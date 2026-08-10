@@ -9,6 +9,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -59,13 +61,13 @@ namespace
 		return M;
 	}
 
-	ARTUnit* SpawnIdentityUnit(UWorld* World, int32 TeamId, ERTArchetype Arch, const FRTCellId& Cell)
+	ARTUnit* SpawnIdentityUnit(UWorld* World, int32 TeamId, const URTHeroData* Hero, const FRTCellId& Cell)
 	{
 		if (!World) { return nullptr; }
 		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
-		U->ConfigureAsArchetype(Arch);
+		U->ConfigureFromHeroData(Hero);
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->bIsBotControlled = true;
 		U->DispatchBeginPlay();
@@ -116,10 +118,10 @@ bool FRTUnitIdentitySurvivesDeathTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnIdentityMap(World, /*Radius=*/ 5);
 
-	SpawnIdentityUnit(World, 0, ERTArchetype::Ranger,   FRTCellId(-4, 2));
-	SpawnIdentityUnit(World, 0, ERTArchetype::Guardian, FRTCellId(-4, 3));
-	SpawnIdentityUnit(World, 1, ERTArchetype::Ranger,   FRTCellId(4, -2));
-	SpawnIdentityUnit(World, 1, ERTArchetype::Guardian, FRTCellId(4, -3));
+	SpawnIdentityUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(),   FRTCellId(-4, 2));
+	SpawnIdentityUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(-4, 3));
+	SpawnIdentityUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(),   FRTCellId(4, -2));
+	SpawnIdentityUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(4, -3));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyIdentityWorld(World); return false; }
 
@@ -182,12 +184,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitIdentityIgnoresSpawnOrderTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTUnitIdentityIgnoresSpawnOrderTest::RunTest(const FString&)
 {
-	struct FPlacement { int32 TeamId; ERTArchetype Arch; FRTCellId Cell; };
+	struct FPlacement { int32 TeamId; const URTHeroData* Hero; FRTCellId Cell; };
 	const TArray<FPlacement> Placements = {
-		{ 0, ERTArchetype::Ranger,   FRTCellId(-4, 2) },
-		{ 0, ERTArchetype::Guardian, FRTCellId(-4, 3) },
-		{ 1, ERTArchetype::Ranger,   FRTCellId(4, -2) },
-		{ 1, ERTArchetype::Guardian, FRTCellId(4, -3) },
+		{ 0, URTHeroCatalogLibrary::MakeVektor(),   FRTCellId(-4, 2) },
+		{ 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(-4, 3) },
+		{ 1, URTHeroCatalogLibrary::MakeVektor(),   FRTCellId(4, -2) },
+		{ 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(4, -3) },
 	};
 
 	// Chiave = la cella di PARTENZA, cioe' «chi e' questa unita'» in termini di piazzamento: i due mondi hanno
@@ -203,7 +205,7 @@ bool FRTUnitIdentityIgnoresSpawnOrderTest::RunTest(const FString&)
 		for (int32 i = 0; i < Placements.Num(); ++i)
 		{
 			const FPlacement& P = Placements[bReversed ? Placements.Num() - 1 - i : i];
-			if (ARTUnit* Unit = SpawnIdentityUnit(World, P.TeamId, P.Arch, P.Cell))
+			if (ARTUnit* Unit = SpawnIdentityUnit(World, P.TeamId, P.Hero, P.Cell))
 			{
 				PlacedAs.Add(Unit, P.Cell.ToString());
 			}
@@ -269,8 +271,8 @@ bool FRTUnitIdentityStartsAtOneTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnIdentityMap(World, /*Radius=*/ 4);
 
-	SpawnIdentityUnit(World, 0, ERTArchetype::Ranger,   FRTCellId(-3, 1));
-	SpawnIdentityUnit(World, 1, ERTArchetype::Guardian, FRTCellId(3, -1));
+	SpawnIdentityUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(),   FRTCellId(-3, 1));
+	SpawnIdentityUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(3, -1));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyIdentityWorld(World); return false; }
 
@@ -312,8 +314,8 @@ bool FRTUnitIdentityEnvironmentActorTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	URTHexMapAsset* Map = SpawnIdentityMap(World, /*Radius=*/ 4);
 
-	ARTUnit* A = SpawnIdentityUnit(World, 0, ERTArchetype::Ranger,   FRTCellId(-3, 1));
-	SpawnIdentityUnit(World, 1, ERTArchetype::Guardian, FRTCellId(3, -1));
+	ARTUnit* A = SpawnIdentityUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(),   FRTCellId(-3, 1));
+	SpawnIdentityUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(3, -1));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !Map) { DestroyIdentityWorld(World); return false; }
 
@@ -383,8 +385,8 @@ bool FRTTurnLogGraphRevisionRisesWithinTurnTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	URTHexMapAsset* Map = SpawnIdentityMap(World, /*Radius=*/ 4);
 
-	ARTUnit* A = SpawnIdentityUnit(World, 0, ERTArchetype::Ranger,   FRTCellId(-3, 1));
-	SpawnIdentityUnit(World, 1, ERTArchetype::Guardian, FRTCellId(3, -1));
+	ARTUnit* A = SpawnIdentityUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(),   FRTCellId(-3, 1));
+	SpawnIdentityUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(3, -1));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !Map) { DestroyIdentityWorld(World); return false; }
 

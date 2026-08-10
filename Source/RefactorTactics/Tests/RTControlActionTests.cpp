@@ -15,6 +15,8 @@
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -25,6 +27,33 @@
  */
 namespace
 {
+	/**
+	 * Una spinta di DUE celle, dichiarata qui e non pescata dal catalogo.
+	 *
+	 * Serviva `Guardian.Sweep`, l'unica azione del progetto con `Push 2`, ed e' sparita con gli archetipi
+	 * legacy il 2026-08-10: il roster v0.1 arriva a `Push 1`. Ma la regola sotto esame e' del RESOLVER —
+	 * cosa attraversa un bersaglio spinto oltre una cella, e cosa succede se quella intermedia brucia — e
+	 * con una spinta di una cella sola non esisterebbe **nessuna cella intermedia** da attraversare.
+	 *
+	 * Dichiararla nel test e' piu' onesto che tenere in vita un'azione di gioco per sostenere una verifica:
+	 * il catalogo dice cosa il gioco spedisce, questo dice cosa il motore deve saper fare.
+	 */
+	FRTActionDef MakePush2Def()
+	{
+		FRTActionDef Def;
+		Def.ActionId = TEXT("Test.Push2");
+		Def.ResolutionPhase = ERTResolutionPhase::Attack;
+		Def.Priority = 55;
+		Def.RangeCells = 3;
+		Def.CostMP = 0;
+		Def.CooldownTurns = 0;
+		Def.Fallback = ERTActionFallback::AttackCell;
+		Def.bCanBeInterrupted = true;
+		Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 30));
+		Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Push, 2));
+		return Def;
+	}
+
 	UWorld* MakeControlWorld()
 	{
 		UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
@@ -66,7 +95,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false; // i piani li scriviamo noi
-		U->ConfigureAsArchetype(ERTArchetype::Ranger); // stats/portata base qualunque: i test guardano il controllo
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeVektor()); // stats/portata base qualunque: i test guardano il controllo
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		return U;
@@ -259,13 +288,13 @@ bool FRTPushResistanceIsAThresholdTest::RunTest(const FString&)
 		Victim->PushResistance = C.Resistance;
 		const FRTCellId Before = Victim->Cell;
 
-		// `Guardian.Sweep` sta nel catalogo ARCHETIPI, non fra le azioni core: e' l'unica del progetto con
-		// `Push 2`, ed e' il motivo per cui questo test esiste.
+		// I casi con `Push 2` non hanno un'azione di gioco che li produca: il roster arriva a `Push 1`, e
+		// `Guardian.Sweep` e' sparita con gli archetipi legacy. La definizione la dichiara il test.
 		URTActionData* Ability = NewObject<URTActionData>(Mover);
 		Ability->Def = URTCatalogLibrary::FindCoreAction(FName(C.ActionId));
 		if (Ability->Def.ActionId.IsNone())
 		{
-			Ability->Def = URTCatalogLibrary::FindShippedAction(FName(C.ActionId));
+			Ability->Def = MakePush2Def();
 		}
 		Ability->RangeCells = Ability->Def.RangeCells;
 		Ability->Power = 0;
@@ -496,15 +525,17 @@ bool FRTInterruptSkipsNonInterruptibleTest::RunTest(const FString&)
 	Guarder->PlannedCell = Guarder->Cell;
 
 	const int32 HealthBefore = Guarder->Health;
-	Assailant->PlannedAbilityIndex = 0; // attacco base dell'archetipo (Ranger.Shot: 25 danni)
+	Assailant->PlannedAbilityIndex = 0; // attacco base dell'eroe (indice 0, catalogo v0.1)
 	Assailant->PlannedAttackTarget = Guarder;
 	Assailant->PlannedCell = Assailant->Cell;
 
 	RunControlTurn(TM);
 
+	// Il colpo pieno lo dichiara l'attacco base di chi colpisce: la proprieta' e' «Guard non e'
+	// interrompibile, quindi la sua riduzione si applica comunque», non «il colpo fa 25».
 	const int32 DamageTaken = HealthBefore - Guarder->Health;
-	TestEqual(TEXT("Guard non interrompibile: -15 al primo danno si applica comunque"),
-		DamageTaken, 25 - URTCombatLibrary::GuardFirstHitReduction);
+	TestEqual(TEXT("Guard non interrompibile: la riduzione al primo danno si applica comunque"),
+		DamageTaken, Assailant->AttackPower - URTCombatLibrary::GuardFirstHitReduction);
 	DestroyControlWorld(World);
 	return true;
 }
@@ -584,18 +615,28 @@ bool FRTSlowAppliesInLiveTurnTest::RunTest(const FString&)
 	Slower->PlannedAttackTarget = Mover;
 	Slower->PlannedCell = Slower->Cell;
 
-	// Budget 5 (Ranger di default), rallentato: ogni cella costa 2 invece di 1 -> arriva al massimo a 2 celle
-	// (costo 4), non a 5 come farebbe senza Slow.
-	TestEqual(TEXT("il Mover parte con budget 5"), Mover->GetEffectiveMoveRange(), 5);
-	Mover->PlannedWaypoints = { FRTCellId(1, 0), FRTCellId(2, 0), FRTCellId(3, 0), FRTCellId(4, 0), FRTCellId(5, 0) };
-	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0), FRTCellId(3, 0),
-		FRTCellId(4, 0), FRTCellId(5, 0) };
-	Mover->PlannedCell = FRTCellId(5, 0);
+	// Rallentato: ogni cella costa 2 invece di 1, quindi con budget B si arriva a B/2 celle invece che a B.
+	// Il budget si LEGGE dall'unita': era scritto 5, il valore del Ranger legacy, e la proprieta' sotto
+	// esame — «Slow raddoppia il costo per cella» — non dipende da quale eroe cammina.
+	const int32 Budget = Mover->GetEffectiveMoveRange();
+	const int32 MaxCells = Budget / 2;
+	TestTrue(TEXT("il budget basta a distinguere rallentato da non rallentato"), MaxCells >= 1 && MaxCells < Budget);
+
+	Mover->PlannedWaypoints.Reset();
+	Mover->PlannedPath.Reset();
+	Mover->PlannedPath.Add(FRTCellId(0, 0));
+	for (int32 Q = 1; Q <= Budget; ++Q)
+	{
+		Mover->PlannedWaypoints.Add(FRTCellId(Q, 0));
+		Mover->PlannedPath.Add(FRTCellId(Q, 0));
+	}
+	Mover->PlannedCell = FRTCellId(Budget, 0);
 	Mover->PlannedAbilityIndex = INDEX_NONE;
 
 	RunControlTurn(TM);
 
-	TestTrue(TEXT("rallentato: si ferma a 2 celle, non arriva a 5"), Mover->Cell == FRTCellId(2, 0));
+	TestTrue(FString::Printf(TEXT("rallentato: si ferma a %d celle, non arriva a %d"), MaxCells, Budget),
+		Mover->Cell == FRTCellId(MaxCells, 0));
 	DestroyControlWorld(World);
 	return true;
 }
@@ -658,10 +699,10 @@ bool FRTPushThroughFireTest::RunTest(const FString&)
 
 		Victim->PushResistance = 0;
 
-		// `Guardian.Sweep`: l'unica azione del progetto con `Push 2`, che e' cio' che serve — con una spinta
-		// di una cella sola non esisterebbe una cella INTERMEDIA da attraversare.
+		// Spinta di DUE celle: con una cella sola non esisterebbe una cella INTERMEDIA da attraversare,
+		// che e' precisamente cio' che questo test guarda.
 		URTActionData* Ability = NewObject<URTActionData>(Mover);
-		Ability->Def = URTCatalogLibrary::FindShippedAction(TEXT("Guardian.Sweep"));
+		Ability->Def = MakePush2Def();
 		Ability->RangeCells = Ability->Def.RangeCells;
 		Ability->Power = 0;
 		Mover->Abilities.Add(Ability);
@@ -735,7 +776,7 @@ bool FRTPushDoesNotSpendVictimMoveTest::RunTest(const FString&)
 	Victim->PushResistance = 0;
 
 	URTActionData* Ability = NewObject<URTActionData>(Mover);
-	Ability->Def = URTCatalogLibrary::FindShippedAction(TEXT("Guardian.Sweep"));
+	Ability->Def = MakePush2Def();
 	Ability->RangeCells = Ability->Def.RangeCells;
 	Ability->Power = 0;
 	Mover->Abilities.Add(Ability);

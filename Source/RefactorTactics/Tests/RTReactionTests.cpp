@@ -12,6 +12,8 @@
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -64,7 +66,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false; // i piani li scriviamo noi
-		U->ConfigureAsArchetype(ERTArchetype::Ranger); // attacco base a colpo singolo (Ranger.Shot, 25, range 6)
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeVektor()); // attacco base a colpo singolo (Ranger.Shot, 25, range 6)
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell; // fermo: i test guardano il Blast, non il movimento
@@ -72,9 +74,9 @@ namespace
 	}
 
 	/**
-	 * Sostituisce lo scatto del Ranger (indice 3, inutilizzato nei test qui sotto) con la reazione, invece di
-	 * accodarla con `Abilities.Add`: `AbilityCooldowns` (privato, parallelo a `Abilities`) e' dimensionato da
-	 * `ConfigureAsArchetype` sul conteggio ORIGINALE e non si allarga da solo — un'abilita' accodata dopo finirebbe
+	 * Sostituisce un'abilita' esistente (indice 3, inutilizzata nei test qui sotto) con la reazione, invece di
+	 * accodarla con `Abilities.Add`: `AbilityCooldowns` (privato, parallelo a `Abilities`) e' dimensionato dalla
+	 * configurazione sul conteggio ORIGINALE e non si allarga da solo — un'abilita' accodata dopo finirebbe
 	 * fuori indice, e `ConsumeAbility`/`GetAbilityCooldown` la ignorerebbero in silenzio (nessun cooldown
 	 * osservabile). Sovrascrivere un indice esistente resta dentro i limiti dell'array senza toccare codice
 	 * condiviso per un'esigenza solo di test.

@@ -7,6 +7,8 @@
 #include "Unit/RTUnit.h"
 #include "Turn/RTTurnRules.h"
 #include "UObject/UnrealType.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -203,31 +205,6 @@ bool FRTCatalogEquipmentTest::RunTest(const FString&)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogShippedTest,
-	"RefactorTactics.Catalog.ValidatorAcceptsShippedCatalog",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTCatalogShippedTest::RunTest(const FString&)
-{
-	// Il catalogo REALE del gioco: le azioni che ARTUnit crea per i due archetipi. Se una di esse perde
-	// l'ActionId, o un'azione di movimento cambia fallback, questo test diventa rosso — il documento e il
-	// codice non possono divergere in silenzio.
-	TArray<FRTActionDef> Shipped = URTCatalogLibrary::GetShippedActionCatalog();
-	TestTrue(TEXT("il catalogo spedito non e' vuoto"), Shipped.Num() > 0);
-
-	const TArray<FString> Errors = URTCatalogLibrary::ValidateActions(Shipped);
-	for (const FString& E : Errors) { AddError(E); }
-	TestEqual(TEXT("il catalogo spedito e' valido"), Errors.Num(), 0);
-
-	// Ogni azione del catalogo spedito deve avere una macro-fase sensata per il suo tipo.
-	for (const FRTActionDef& Def : Shipped)
-	{
-		const ERTMatchPhase Macro = URTCatalogLibrary::MapResolutionPhase(Def.ResolutionPhase);
-		TestTrue(FString::Printf(TEXT("%s risolve in una fase giocabile"), *Def.ActionId.ToString()),
-			Macro == ERTMatchPhase::Prep || Macro == ERTMatchPhase::Dash
-			|| Macro == ERTMatchPhase::Blast || Macro == ERTMatchPhase::Move);
-	}
-	return true;
-}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogCoreActionsTest,
 	"RefactorTactics.Catalog.ValidatorAcceptsCoreActions",
@@ -269,16 +246,27 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogMatchesAbilitiesTest,
 bool FRTCatalogMatchesAbilitiesTest::RunTest(const FString&)
 {
 	// Il catalogo non deve poter divergere dalle abilita' che il gioco assegna davvero: qui si confronta
-	// definizione e abilita' campo per campo, sui due archetipi.
-	const ERTArchetype Archetypes[] = { ERTArchetype::Ranger, ERTArchetype::Guardian };
-	for (const ERTArchetype Archetype : Archetypes)
+	// definizione e abilita' campo per campo, su TUTTO IL ROSTER.
+	//
+	// Prima girava sui due archetipi legacy, cioe' su unita' che nessuna partita schierava piu': verificava
+	// l'allineamento del catalogo su un percorso morto. Ora gira sui quattro eroi che il GameMode schiera
+	// davvero — due unita' in meno da cui dipendere, due in piu' che contano.
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
 	{
 		ARTUnit* Unit = NewObject<ARTUnit>();
 		if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
-		Unit->ConfigureAsArchetype(Archetype);
+		Unit->ConfigureFromHeroData(Hero);
 
-		TestTrue(TEXT("l'archetipo ha abilita'"), Unit->NumAbilities() > 0);
-		for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+		TestTrue(TEXT("l'eroe ha abilita'"), Unit->NumAbilities() > 0);
+
+		// Solo le azioni DELL'EROE, non le generiche che `ConfigureFromHeroData` accoda (D-025).
+		// L'invariante qui e' «la definizione di catalogo e i campi specchio dell'abilita' non divergono»,
+		// e vale per le azioni che il catalogo eroi costruisce con `MakeHeroAction`. Le sette generiche
+		// arrivano da `MakeGenericActions` e lasciano i campi legacy a zero: includerle non misurerebbe una
+		// divergenza del catalogo, misurerebbe che sono due costruttori diversi — cosa gia' vera per
+		// disegno. Il test degli archetipi guardava le loro quattro abilita' e nient'altro: stesso perimetro.
+		const int32 NumHeroActions = Hero ? Hero->Actions.Num() : 0;
+		for (int32 i = 0; i < NumHeroActions; ++i)
 		{
 			const URTActionData* Ability = Unit->GetAbility(i);
 			if (!Ability) { continue; }
@@ -314,7 +302,13 @@ bool FRTCatalogMatchesAbilitiesTest::RunTest(const FString&)
 
 			// Cio' che NON e' mobilita' si classifica dalla sua natura: un supporto su se stessi si prepara,
 			// tutto il resto colpisce.
-			if (!URTCatalogLibrary::IsFastMovement(Ability->Def))
+			// Le REAZIONI sono una terza categoria e non si classificano cosi': non sono mobilita' e non
+			// sono supporto su se stessi, ma nemmeno attacchi — risolvono quando il loro trigger scatta, non
+			// nella fase in cui colpisce chi le ha dichiarate. I due archetipi legacy non ne avevano
+			// (quattro slot: attacchi, barriera, carica), quindi «tutto il resto colpisce» reggeva; il roster
+			// ne ha, e senza questa esclusione il test chiederebbe la fase Blast a `Bastion.Interposition`.
+			if (!URTCatalogLibrary::IsFastMovement(Ability->Def)
+				&& Ability->Def.Slot != ERTActionSlot::Reaction)
 			{
 				if (Ability->bSelfTarget)
 				{
@@ -322,7 +316,23 @@ bool FRTCatalogMatchesAbilitiesTest::RunTest(const FString&)
 				}
 				else if (!bDeclaresMovement)
 				{
-					TestEqual(FString::Printf(TEXT("%s e' un attacco -> fase Blast"), *Name), Macro, ERTMatchPhase::Blast);
+					// «Tutto il resto colpisce» descriveva i quattro slot degli archetipi legacy. Un kit
+					// d'eroe ha almeno quattro categorie, e le ultime due non colpiscono affatto:
+					//   - si PREPARA senza essere supporto su se' — `Bastion.Reconfigure`, `Riva.FlowReaction`,
+					//     `Vektor.InterceptShot` (fase Prep);
+					//   - agisce sull'AMBIENTE — `Flux.ConductiveNode`, `Riva.FluidTrail`, `Riva.MistVeil`,
+					//     `Bastion.KineticPanel`, che ereditano la fase dalle azioni core d'ambiente e
+					//     risolvono nel Cleanup, dopo il Move, per colpire anche chi e' appena entrato.
+					// La proprieta' che regge tutte e' che l'azione risolva in una fase in cui si GIOCA:
+					// `Snapshot`, `Planning` e `MatchEnded` non sono destinazioni per un'azione dichiarata
+					// da un'unita' — ci finirebbe senza che nessuno la risolva.
+					//
+					// L'`ActionId` nel messaggio e non il `DisplayName`: le azioni d'eroe non lo valorizzano,
+					// e un fallimento diceva «' risolve in una fase giocabile'» senza dire di chi.
+					const FString Who = Ability->Def.ActionId.ToString();
+					TestTrue(FString::Printf(TEXT("%s risolve in una fase giocabile"), *Who),
+						Macro == ERTMatchPhase::Prep || Macro == ERTMatchPhase::Blast
+						|| Macro == ERTMatchPhase::Move || Macro == ERTMatchPhase::Cleanup);
 				}
 			}
 		}

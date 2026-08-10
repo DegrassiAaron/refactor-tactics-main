@@ -13,6 +13,8 @@
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -71,11 +73,23 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false;
-		U->ConfigureAsArchetype(ERTArchetype::Ranger); // Tiro: 25 danni, colpo singolo, portata 6
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeVektor()); // attacco base a colpo singolo
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell;
 		return U;
+	}
+
+	/**
+	 * Il colpo pieno dell'attacco base, letto dal catalogo invece che scritto nei test.
+	 *
+	 * Era `25`, il Tiro del Ranger legacy. Le proprieta' qui sotto — chi incassa al posto di chi, quale
+	 * copertura vale per chi si interpone — non dipendono da quanto fa quel colpo, ma ci si appoggiavano.
+	 */
+	int32 ItcFullHit()
+	{
+		const URTHeroData* Hero = URTHeroCatalogLibrary::MakeVektor();
+		return (Hero && Hero->Actions.Num() > 0 && Hero->Actions[0]) ? Hero->Actions[0]->Power : 0;
 	}
 
 	int32 AddItcAbility(ARTUnit* Unit, const TCHAR* ActionId, int32 SlotIndex = 3)
@@ -270,7 +284,7 @@ bool FRTInterceptTest::RunTest(const FString&)
 
 	TestEqual(TEXT("l'interposizione si e' attivata"), CountInterceptOutcome(TM, ERTReactionOutcome::Activated), 1);
 	TestEqual(TEXT("l'alleato protetto non incassa nulla"), Victim->Health, VictimHealth);
-	TestEqual(TEXT("l'intercettore incassa al posto suo"), SaverHealth - Saver->Health, 25);
+	TestEqual(TEXT("l'intercettore incassa al posto suo"), SaverHealth - Saver->Health, ItcFullHit());
 
 	// Il TurnLog deve dire da CHI a chi e' passato il colpo: un danno su un'unita' mai bersagliata sarebbe
 	// altrimenti inspiegabile nel replay.
@@ -483,7 +497,7 @@ bool FRTInterceptRecalculatesCoverTest::RunTest(const FString&)
 	const int32 Reduction = URTCombatLibrary::LowCoverDamageReduction;
 
 	const FItcCoverOutcome Bare = RunItcCoverScene(/*bCoverOnVictim=*/ false, /*bCoverOnSaver=*/ false);
-	TestEqual(TEXT("controllo: senza coperture l'intercettore incassa il colpo pieno"), Bare.SaverDamage, 25);
+	TestEqual(TEXT("controllo: senza coperture l'intercettore incassa il colpo pieno"), Bare.SaverDamage, ItcFullHit());
 	TestEqual(TEXT("controllo: l'interposizione si e' attivata"), Bare.Activations, 1);
 
 	// La vittima era riparata, l'intercettore no: il colpo che arriva a LUI e' pieno. E' il caso che il
@@ -491,7 +505,7 @@ bool FRTInterceptRecalculatesCoverTest::RunTest(const FString&)
 	const FItcCoverOutcome CoveredVictim = RunItcCoverScene(/*bCoverOnVictim=*/ true, /*bCoverOnSaver=*/ false);
 	TestEqual(TEXT("l'interposizione si e' attivata"), CoveredVictim.Activations, 1);
 	TestEqual(TEXT("la copertura del bersaglio ORIGINALE non protegge chi si interpone"),
-		CoveredVictim.SaverDamage, 25);
+		CoveredVictim.SaverDamage, ItcFullHit());
 	TestEqual(TEXT("il bersaglio protetto non incassa nulla"), CoveredVictim.VictimDamage, 0);
 
 	// Caso simmetrico, ed e' quello che rende il test discriminante: senza di lui passerebbe anche una
@@ -499,14 +513,14 @@ bool FRTInterceptRecalculatesCoverTest::RunTest(const FString&)
 	const FItcCoverOutcome CoveredSaver = RunItcCoverScene(/*bCoverOnVictim=*/ false, /*bCoverOnSaver=*/ true);
 	TestEqual(TEXT("l'interposizione si e' attivata"), CoveredSaver.Activations, 1);
 	TestEqual(TEXT("la copertura di CHI intercetta lo protegge davvero"),
-		CoveredSaver.SaverDamage, 25 - Reduction);
+		CoveredSaver.SaverDamage, ItcFullHit() - Reduction);
 	TestEqual(TEXT("il bersaglio protetto non incassa nulla"), CoveredSaver.VictimDamage, 0);
 
 	// Il TurnLog deve raccontare il contesto difensivo EFFETTIVAMENTE usato: il danno registrato sulla cella
 	// dell'intercettore e' quello rivalidato, non quello calcolato davanti alla vittima.
-	TestEqual(TEXT("il TurnLog registra sull'intercettore il danno pieno"), CoveredVictim.LoggedOnSaver, 25);
+	TestEqual(TEXT("il TurnLog registra sull'intercettore il danno pieno"), CoveredVictim.LoggedOnSaver, ItcFullHit());
 	TestEqual(TEXT("e quello ridotto quando e' lui a essere riparato"),
-		CoveredSaver.LoggedOnSaver, 25 - Reduction);
+		CoveredSaver.LoggedOnSaver, ItcFullHit() - Reduction);
 	return true;
 }
 
@@ -526,15 +540,15 @@ bool FRTInterceptRevalidatesFacingTest::RunTest(const FString&)
 	const FItcCoverOutcome Facing = RunItcCoverScene(/*bCoverOnVictim=*/ false, /*bCoverOnSaver=*/ true,
 		ERTHexDirection::E);
 	TestEqual(TEXT("controllo: l'interposizione si e' attivata"), Facing.Activations, 1);
-	TestEqual(TEXT("frontale: la copertura di chi intercetta vale"), Facing.SaverDamage, 25 - Reduction);
+	TestEqual(TEXT("frontale: la copertura di chi intercetta vale"), Facing.SaverDamage, ItcFullHit() - Reduction);
 
 	// Stesso muretto, stessa cella, stesso colpo: cambia solo da che parte guarda chi incassa. L'attaccante
 	// e' a est, lui guarda a ovest — il colpo arriva alle spalle e la copertura non lo ripara.
 	const FItcCoverOutcome Rear = RunItcCoverScene(/*bCoverOnVictim=*/ false, /*bCoverOnSaver=*/ true,
 		ERTHexDirection::W);
 	TestEqual(TEXT("l'interposizione si e' attivata lo stesso"), Rear.Activations, 1);
-	TestEqual(TEXT("alle spalle: la copertura non ripara chi intercetta"), Rear.SaverDamage, 25);
-	TestEqual(TEXT("e il TurnLog registra il danno pieno"), Rear.LoggedOnSaver, 25);
+	TestEqual(TEXT("alle spalle: la copertura non ripara chi intercetta"), Rear.SaverDamage, ItcFullHit());
+	TestEqual(TEXT("e il TurnLog registra il danno pieno"), Rear.LoggedOnSaver, ItcFullHit());
 	return true;
 }
 
@@ -550,7 +564,14 @@ bool FRTInterceptNoSecondOpportunityTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnItcMap(World);
 
-	ARTUnit* Attacker = SpawnItcUnit(World, 1, FRTCellId(5, 0));
+	// L'attaccante sta su un ASSE DIVERSO dai tre alleati, a distanza pari alla portata del proprio attacco
+	// base. Era a `(5,0)`, in fila con loro: distanza 5, che il Tiro del Ranger legacy (portata 6) copriva e
+	// l'attacco base del roster (portata 4) no — il colpo non partiva nemmeno, quindi non c'era niente da
+	// intercettare e il test passava... a zero interposizioni, cioe' misurando il contrario di cio' che dice.
+	// Su un altro asse la traiettoria non passa per il terzo alleato: la sua distanza dagli altri due — 3
+	// dalla vittima, 2 dall'intercettore — resta quella che il test richiede.
+	const int32 ShotRange = URTHeroCatalogLibrary::MakeVektor()->Actions[0]->RangeCells;
+	ARTUnit* Attacker = SpawnItcUnit(World, 1, FRTCellId(0, -ShotRange));
 	ARTUnit* Victim = SpawnItcUnit(World, 0, FRTCellId(0, 0));
 	ARTUnit* Saver = SpawnItcUnit(World, 0, FRTCellId(1, 0));  // a 1 dalla vittima: puo' intercettare
 	ARTUnit* Third = SpawnItcUnit(World, 0, FRTCellId(3, 0));  // a 3 dalla vittima, a 2 dall'intercettore
@@ -581,7 +602,7 @@ bool FRTInterceptNoSecondOpportunityTest::RunTest(const FString&)
 		CountInterceptOutcome(TM, ERTReactionOutcome::Activated), 1);
 	TestEqual(TEXT("il terzo alleato non aveva un colpo da intercettare"),
 		CountInterceptOutcome(TM, ERTReactionOutcome::NotTriggered), 1);
-	TestEqual(TEXT("incassa chi si e' interposto"), SaverHealth - Saver->Health, 25);
+	TestEqual(TEXT("incassa chi si e' interposto"), SaverHealth - Saver->Health, ItcFullHit());
 	TestEqual(TEXT("il terzo alleato non incassa nulla"), ThirdHealth - Third->Health, 0);
 	TestEqual(TEXT("il bersaglio originale non incassa nulla"), VictimHealth - Victim->Health, 0);
 	TestTrue(TEXT("la reazione del terzo alleato resta disponibile: non l'ha spesa"),

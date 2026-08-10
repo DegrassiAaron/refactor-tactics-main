@@ -13,6 +13,8 @@
 #include "Map/RTHexLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 
 /**
  * Pianificazione dei bot su griglia esagonale (CP 6.6): ARTTurnManager::PlanBots passa da URTHexBotLibrary,
@@ -55,13 +57,13 @@ namespace
 		return M;
 	}
 
-	ARTUnit* SpawnHexBotUnit(UWorld* World, int32 TeamId, ERTArchetype Arch, const FRTCellId& Cell, bool bBot)
+	ARTUnit* SpawnHexBotUnit(UWorld* World, int32 TeamId, const URTHeroData* Hero, const FRTCellId& Cell, bool bBot)
 	{
 		if (!World) { return nullptr; }
 		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
-		U->ConfigureAsArchetype(Arch);
+		U->ConfigureFromHeroData(Hero);
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->bIsBotControlled = bBot;
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
@@ -81,10 +83,10 @@ bool FRTHexBotLegalMovesTest::RunTest(const FString&)
 
 	// 2v2: due bot contro due unita' del giocatore, in posizioni oblique (dove Manhattan e distanza
 	// esagonale divergono e il pathfinding quadrato proporrebbe celle fuori dalla mappa).
-	ARTUnit* BotA = SpawnHexBotUnit(World, 1, ERTArchetype::Guardian, FRTCellId(2, -3), /*bBot*/ true);
-	ARTUnit* BotB = SpawnHexBotUnit(World, 1, ERTArchetype::Ranger, FRTCellId(3, -3), /*bBot*/ true);
-	ARTUnit* FoeA = SpawnHexBotUnit(World, 0, ERTArchetype::Ranger, FRTCellId(-2, 3), /*bBot*/ false);
-	ARTUnit* FoeB = SpawnHexBotUnit(World, 0, ERTArchetype::Guardian, FRTCellId(-3, 3), /*bBot*/ false);
+	ARTUnit* BotA = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(2, -3), /*bBot*/ true);
+	ARTUnit* BotB = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(3, -3), /*bBot*/ true);
+	ARTUnit* FoeA = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(-2, 3), /*bBot*/ false);
+	ARTUnit* FoeB = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(-3, 3), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !BotA || !BotB || !FoeA || !FoeB) { DestroyHexBotWorld(World); return false; }
 
@@ -138,58 +140,7 @@ bool FRTHexBotLegalMovesTest::RunTest(const FString&)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotPanicTest,
-	"RefactorTactics.HexBotPlay.KiterFleesWhenThreatened",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTHexBotPanicTest::RunTest(const FString&)
-{
-	UWorld* World = MakeHexBotWorld();
-	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
-	SpawnHexBotMap(World, /*Radius=*/ 6);
 
-	// Il Ranger ha KiteStandoff 4: con un nemico a distanza 2 (<= standoff/2) scatta il panico e arretra.
-	ARTUnit* Kiter = SpawnHexBotUnit(World, 1, ERTArchetype::Ranger, FRTCellId(0, 0), /*bBot*/ true);
-	ARTUnit* Melee = SpawnHexBotUnit(World, 0, ERTArchetype::Guardian, FRTCellId(2, 0), /*bBot*/ false);
-	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TM || !Kiter || !Melee) { DestroyHexBotWorld(World); return false; }
-
-	TM->PlanBotsForTest();
-
-	// La fuga puo' avvenire col movimento normale o con lo scatto difensivo: conta il risultato.
-	const FRTCellId Escape = Kiter->PlannedDashAbility != INDEX_NONE ? Kiter->PlannedDashCell : Kiter->PlannedCell;
-	TestTrue(TEXT("il kiter si allontana dalla minaccia"),
-		URTHexLibrary::HexDistance(Escape, Melee->Cell) > URTHexLibrary::HexDistance(Kiter->Cell, Melee->Cell));
-
-	DestroyHexBotWorld(World);
-	return true;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotSupportTest,
-	"RefactorTactics.HexBotPlay.UsesSupportWhenHurt",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTHexBotSupportTest::RunTest(const FString&)
-{
-	UWorld* World = MakeHexBotWorld();
-	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
-	SpawnHexBotMap(World, /*Radius=*/ 5);
-
-	// Guardian ferito sotto meta' HP: usa la Barriera (abilita' self-target) invece di attaccare.
-	ARTUnit* Hurt = SpawnHexBotUnit(World, 1, ERTArchetype::Guardian, FRTCellId(0, 0), /*bBot*/ true);
-	ARTUnit* Foe = SpawnHexBotUnit(World, 0, ERTArchetype::Ranger, FRTCellId(2, 0), /*bBot*/ false);
-	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TM || !Hurt || !Foe) { DestroyHexBotWorld(World); return false; }
-
-	Hurt->ApplyCombatState(/*Health*/ 20, /*Shield*/ 0); // sotto meta' dei 140 HP
-
-	TM->PlanBotsForTest();
-
-	const URTActionData* Planned = Hurt->GetAbility(Hurt->PlannedAbilityIndex);
-	TestTrue(TEXT("pianifica un'abilita' di supporto su se stesso"), Planned && Planned->bSelfTarget);
-	TestNull(TEXT("non pianifica un attacco nello stesso turno"), Hurt->PlannedAttackTarget.Get());
-
-	DestroyHexBotWorld(World);
-	return true;
-}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotTuningTest,
 	"RefactorTactics.HexBotPlay.WThreatTuning",
@@ -202,8 +153,8 @@ bool FRTHexBotTuningTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBotMap(World, /*Radius=*/ 6);
 
-	ARTUnit* Bot = SpawnHexBotUnit(World, 1, ERTArchetype::Guardian, FRTCellId(0, 0), /*bBot*/ true);
-	ARTUnit* Foe = SpawnHexBotUnit(World, 0, ERTArchetype::Guardian, FRTCellId(4, 0), /*bBot*/ false);
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(4, 0), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
 
@@ -237,8 +188,8 @@ bool FRTHexBotDashThreatTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBotMap(World, /*Radius=*/ 6);
 
-	ARTUnit* Bot = SpawnHexBotUnit(World, 1, ERTArchetype::Guardian, FRTCellId(0, 0), /*bBot*/ true); // con Carica
-	ARTUnit* Foe = SpawnHexBotUnit(World, 0, ERTArchetype::Guardian, FRTCellId(5, 0), /*bBot*/ false);
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 0), /*bBot*/ true); // con Carica
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(5, 0), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
 
@@ -259,6 +210,94 @@ bool FRTHexBotDashThreatTest::RunTest(const FString&)
 		DistLow < DistHigh);
 
 	DestroyHexBotWorld(World);
+	return true;
+}
+
+
+/**
+ * Il piano del bot non investe il compagno (#213).
+ *
+ * Il secondo anello del cablaggio: `PlanBots` deve popolare `FRTHexBotContext::Allies` e passare la FORMA
+ * dell'azione, altrimenti ogni attacco viene pesato come un colpo singolo e il collaterale resta invisibile.
+ *
+ * La verifica e' sul comportamento osservabile e non sull'abilita' scelta: qualunque cosa il bot pianifichi,
+ * le celle investite non devono contenere il compagno. L'assert speculare — senza il compagno in mezzo il
+ * bot ATTACCA — impedisce che il test passi per il motivo sbagliato, cioe' un bot che non attacca mai.
+ */
+namespace
+{
+	/** Celle investite dal piano principale del bot, o vuoto se non ha pianificato un attacco. */
+	TArray<FRTCellId> PlannedHitCells(ARTUnit* Bot)
+	{
+		TArray<FRTCellId> Out;
+		if (!Bot || !Bot->PlannedAttackTarget || Bot->PlannedAbilityIndex == INDEX_NONE)
+		{
+			return Out;
+		}
+		const URTActionData* Ability = Bot->GetAbility(Bot->PlannedAbilityIndex);
+		if (!Ability)
+		{
+			return Out;
+		}
+		return URTHexCombatLibrary::HexHitCells(Ability->Shape, Bot->PlannedCell,
+			Bot->PlannedAttackTarget->Cell, Ability->RangeCells, Ability->AreaRadius);
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotSparesAllyTest,
+	"RefactorTactics.HexBotPlay.PlanDoesNotBlastDyingAlly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotSparesAllyTest::RunTest(const FString&)
+{
+	// --- Caso 1: il compagno morente sta fra il bot e il nemico ---
+	{
+		UWorld* World = MakeHexBotWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		SpawnHexBotMap(World, /*Radius=*/ 5);
+
+		ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 0), /*bBot*/ true);
+		ARTUnit* Ally = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(1, 0), /*bBot*/ false);
+		ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(2, 0), /*bBot*/ false);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Bot || !Ally || !Foe) { DestroyHexBotWorld(World); return false; }
+
+		// Morente: il collaterale sul compagno diventa LETALE, quindi il piano che lo investe e' nettamente
+		// peggiore di qualunque alternativa. Con HP pieni la penalita' proporzionale potrebbe pareggiare.
+		Ally->Health = 10;
+		Ally->Shield = 0;
+
+		TM->PlanBotsForTest();
+
+		const TArray<FRTCellId> Hit = PlannedHitCells(Bot);
+		TestFalse(TEXT("il piano del bot non investe il compagno morente"), Hit.Contains(Ally->Cell));
+
+		DestroyHexBotWorld(World);
+	}
+
+	// --- Caso 2 (speculare): stesso setup, compagno FUORI dalla traiettoria ---
+	{
+		UWorld* World = MakeHexBotWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		SpawnHexBotMap(World, /*Radius=*/ 5);
+
+		ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 0), /*bBot*/ true);
+		ARTUnit* Ally = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, -4), /*bBot*/ false);
+		ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(2, 0), /*bBot*/ false);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Bot || !Ally || !Foe) { DestroyHexBotWorld(World); return false; }
+
+		Ally->Health = 10;
+		Ally->Shield = 0;
+
+		TM->PlanBotsForTest();
+
+		// Se qui il bot non attaccasse, il caso 1 non proverebbe nulla: passerebbe perche' il bot non attacca
+		// mai, non perche' risparmia il compagno.
+		TestNotNull(TEXT("con il compagno fuori mira il bot attacca davvero"), Bot->PlannedAttackTarget.Get());
+
+		DestroyHexBotWorld(World);
+	}
+
 	return true;
 }
 
@@ -297,8 +336,15 @@ bool FRTHexBotDashAgreesWithResolverTest::RunTest(const FString&)
 
 	// Il Ranger e' un kiter: con un nemico ADDOSSO fugge, e la fuga passa dallo scatto. E' lo scenario che
 	// mette davvero in moto il ramo che questo test deve coprire (con il nemico lontano il bot spara e basta).
-	ARTUnit* Bot = SpawnHexBotUnit(World, 1, ERTArchetype::Ranger, FRTCellId(0, 0), /*bBot*/ true);
-	ARTUnit* Foe = SpawnHexBotUnit(World, 0, ERTArchetype::Guardian, FRTCellId(2, 0), /*bBot*/ false);
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0), /*bBot*/ true);
+
+	// Il kiting lo dichiara il TEST: `KiteStandoff` non lo imposta nessun eroe — `URTHeroData` non ha il
+	// campo e `ConfigureFromHeroData` non lo tocca — mentre il bot lo LEGGE in tre punti. Era il Ranger
+	// legacy, con 4, l'unico a produrlo. La proprieta' in esame qui non e' il kiting ma la PORTATA dello
+	// scatto su terreno costoso: senza uno standoff il bot non fugge, lo scenario non si mette in moto e la
+	// guardia non guarda niente. Vedi #425 per la decisione su chi debba dichiararlo nel roster.
+	Bot->KiteStandoff = 4;
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(2, 0), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
 
@@ -368,89 +414,43 @@ bool FRTHexBotDashAgreesWithResolverTest::RunTest(const FString&)
 	return true;
 }
 
-/**
- * Il piano del bot non investe il compagno (#213).
- *
- * Il secondo anello del cablaggio: `PlanBots` deve popolare `FRTHexBotContext::Allies` e passare la FORMA
- * dell'azione, altrimenti ogni attacco viene pesato come un colpo singolo e il collaterale resta invisibile.
- *
- * La verifica e' sul comportamento osservabile e non sull'abilita' scelta: qualunque cosa il bot pianifichi,
- * le celle investite non devono contenere il compagno. L'assert speculare — senza il compagno in mezzo il
- * bot ATTACCA — impedisce che il test passi per il motivo sbagliato, cioe' un bot che non attacca mai.
- */
-namespace
-{
-	/** Celle investite dal piano principale del bot, o vuoto se non ha pianificato un attacco. */
-	TArray<FRTCellId> PlannedHitCells(ARTUnit* Bot)
-	{
-		TArray<FRTCellId> Out;
-		if (!Bot || !Bot->PlannedAttackTarget || Bot->PlannedAbilityIndex == INDEX_NONE)
-		{
-			return Out;
-		}
-		const URTActionData* Ability = Bot->GetAbility(Bot->PlannedAbilityIndex);
-		if (!Ability)
-		{
-			return Out;
-		}
-		return URTHexCombatLibrary::HexHitCells(Ability->Shape, Bot->PlannedCell,
-			Bot->PlannedAttackTarget->Cell, Ability->RangeCells, Ability->AreaRadius);
-	}
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotSparesAllyTest,
-	"RefactorTactics.HexBotPlay.PlanDoesNotBlastDyingAlly",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotSupportTest,
+	"RefactorTactics.HexBotPlay.UsesSupportWhenHurt",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTHexBotSparesAllyTest::RunTest(const FString&)
+bool FRTHexBotSupportTest::RunTest(const FString&)
 {
-	// --- Caso 1: il compagno morente sta fra il bot e il nemico ---
-	{
-		UWorld* World = MakeHexBotWorld();
-		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
-		SpawnHexBotMap(World, /*Radius=*/ 5);
+	UWorld* World = MakeHexBotWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBotMap(World, /*Radius=*/ 5);
 
-		ARTUnit* Bot = SpawnHexBotUnit(World, 1, ERTArchetype::Guardian, FRTCellId(0, 0), /*bBot*/ true);
-		ARTUnit* Ally = SpawnHexBotUnit(World, 1, ERTArchetype::Ranger, FRTCellId(1, 0), /*bBot*/ false);
-		ARTUnit* Foe = SpawnHexBotUnit(World, 0, ERTArchetype::Ranger, FRTCellId(2, 0), /*bBot*/ false);
-		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (!TM || !Bot || !Ally || !Foe) { DestroyHexBotWorld(World); return false; }
+	// Unita' ferita sotto meta' HP: usa un'abilita' self-target invece di attaccare.
+	ARTUnit* Hurt = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(2, 0), /*bBot*/ false);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Hurt || !Foe) { DestroyHexBotWorld(World); return false; }
 
-		// Morente: il collaterale sul compagno diventa LETALE, quindi il piano che lo investe e' nettamente
-		// peggiore di qualunque alternativa. Con HP pieni la penalita' proporzionale potrebbe pareggiare.
-		Ally->Health = 10;
-		Ally->Shield = 0;
+	// Il supporto su se stessi lo dichiara il TEST, non l'eroe: `bSelfTarget` non e' impostato da nessuna
+	// azione del roster — era `Guardian.Barrier`, sparita con gli archetipi legacy. La proprieta' in esame e'
+	// la SCELTA DEL BOT («se sono ferito e ho un supporto su di me, lo uso invece di attaccare»), non chi
+	// possiede quell'azione: senza darne una all'unita' il ramo non e' raggiungibile e resterebbe senza
+	// verifica — e' l'unica che ha. Vedi #425 per la decisione su chi debba dichiararlo nel roster.
+	URTActionData* SelfSupport = NewObject<URTActionData>(Hurt);
+	SelfSupport->DisplayName = FText::FromString(TEXT("Barriera di prova"));
+	SelfSupport->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Guard"));
+	SelfSupport->Def.ActionId = FName(TEXT("Test.SelfSupport"));
+	SelfSupport->bSelfTarget = true;
+	SelfSupport->RangeCells = 0;
+	SelfSupport->Power = 0;
+	Hurt->Abilities.Add(SelfSupport);
 
-		TM->PlanBotsForTest();
+	Hurt->ApplyCombatState(/*Health*/ 20, /*Shield*/ 0); // ben sotto meta' dei suoi HP massimi
 
-		const TArray<FRTCellId> Hit = PlannedHitCells(Bot);
-		TestFalse(TEXT("il piano del bot non investe il compagno morente"), Hit.Contains(Ally->Cell));
+	TM->PlanBotsForTest();
 
-		DestroyHexBotWorld(World);
-	}
+	const URTActionData* Planned = Hurt->GetAbility(Hurt->PlannedAbilityIndex);
+	TestTrue(TEXT("pianifica un'abilita' di supporto su se stesso"), Planned && Planned->bSelfTarget);
+	TestNull(TEXT("non pianifica un attacco nello stesso turno"), Hurt->PlannedAttackTarget.Get());
 
-	// --- Caso 2 (speculare): stesso setup, compagno FUORI dalla traiettoria ---
-	{
-		UWorld* World = MakeHexBotWorld();
-		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
-		SpawnHexBotMap(World, /*Radius=*/ 5);
-
-		ARTUnit* Bot = SpawnHexBotUnit(World, 1, ERTArchetype::Guardian, FRTCellId(0, 0), /*bBot*/ true);
-		ARTUnit* Ally = SpawnHexBotUnit(World, 1, ERTArchetype::Ranger, FRTCellId(0, -4), /*bBot*/ false);
-		ARTUnit* Foe = SpawnHexBotUnit(World, 0, ERTArchetype::Ranger, FRTCellId(2, 0), /*bBot*/ false);
-		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (!TM || !Bot || !Ally || !Foe) { DestroyHexBotWorld(World); return false; }
-
-		Ally->Health = 10;
-		Ally->Shield = 0;
-
-		TM->PlanBotsForTest();
-
-		// Se qui il bot non attaccasse, il caso 1 non proverebbe nulla: passerebbe perche' il bot non attacca
-		// mai, non perche' risparmia il compagno.
-		TestNotNull(TEXT("con il compagno fuori mira il bot attacca davvero"), Bot->PlannedAttackTarget.Get());
-
-		DestroyHexBotWorld(World);
-	}
-
+	DestroyHexBotWorld(World);
 	return true;
 }

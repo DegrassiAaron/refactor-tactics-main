@@ -99,7 +99,7 @@ namespace
 		return nullptr;
 	}
 
-	/** Unita' della showcase: eroe dal CATALOGO (non `ConfigureAsArchetype`, che e' ormai solo test-legacy). */
+	/** Unita' della showcase: eroe dal CATALOGO, l'unico percorso di configurazione. */
 	ARTUnit* SpawnShowcaseHero(UWorld* World, const FRTShowcaseSpawn& Spawn)
 	{
 		const URTHeroData* Hero = FindShowcaseHero(Spawn.HeroId);

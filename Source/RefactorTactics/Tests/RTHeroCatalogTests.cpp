@@ -59,8 +59,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroStatsFromDataTest,
 bool FRTHeroStatsFromDataTest::RunTest(const FString&)
 {
 	// Nome vincolante della DoD (CP 6.1): un'unita' configurata da `URTHeroData` porta ESATTAMENTE i valori
-	// dell'asset, non un numero scritto in ARTUnit — a differenza di `ConfigureAsArchetype`, che resta il
-	// percorso dei due archetipi legacy.
+	// dell'asset, non un numero scritto in ARTUnit. Dal 2026-08-10 e' anche l'unico modo di configurarla:
+	// `ConfigureAsArchetype`, che i numeri li aveva in C++, e' stata rimossa.
 	URTHeroData* Hero = MakeValidHero(TEXT("Hero.Test"));
 	Hero->MaxHealth = 123;
 	Hero->MovePoints = 7;
