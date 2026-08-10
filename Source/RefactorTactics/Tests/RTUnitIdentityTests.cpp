@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "Turn/RTTurnManager.h"
+#include "Turn/RTTurnLog.h"
 #include "Unit/RTUnit.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
@@ -44,7 +45,7 @@ namespace
 		}
 	}
 
-	void SpawnIdentityMap(UWorld* World, int32 Radius)
+	URTHexMapAsset* SpawnIdentityMap(UWorld* World, int32 Radius)
 	{
 		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
 		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
@@ -55,6 +56,7 @@ namespace
 
 		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
 		Actor->MapAsset = M;
+		return M;
 	}
 
 	ARTUnit* SpawnIdentityUnit(UWorld* World, int32 TeamId, ERTArchetype Arch, const FRTCellId& Cell)
@@ -284,6 +286,78 @@ bool FRTUnitIdentityStartsAtOneTest::RunTest(const FString&)
 		TestEqual(TEXT("il primo id e' 1, non 0"), Ids[0], 1);
 		TestEqual(TEXT("il secondo id e' 2"), Ids[1], 2);
 	}
+
+	DestroyIdentityWorld(World);
+	return true;
+}
+
+/**
+ * Chi CAUSA una trasformazione ambientale la dichiara; chi non la causa non se la prende (#405, [D-063]).
+ *
+ * Sono le due meta' della stessa regola, e vanno verificate insieme: se `UnitId = 0` deve significare
+ * «nessuna unita'», serve sia che una scadenza resti a zero, sia che una trasformazione VOLUTA non ci resti —
+ * altrimenti «zero» finirebbe per voler dire soltanto «voce ambientale», e l'informazione andrebbe persa.
+ *
+ * Il test costruisce la situazione invece di cercarla in uno scenario: nessuno scenario del corpus produce una
+ * scadenza ambientale — le azioni che creano superfici richiedono un eroe owner, e la durata di 2 turni supera
+ * la lunghezza degli scenari che le userebbero. Un test appoggiato a quelli sarebbe rimasto verde senza
+ * eseguire il criterio, che e' il modo peggiore di non verificare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitIdentityEnvironmentActorTest,
+	"RefactorTactics.UnitIdentity.EnvironmentDeclaresItsCauseOrNoOne",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitIdentityEnvironmentActorTest::RunTest(const FString&)
+{
+	UWorld* World = MakeIdentityWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	URTHexMapAsset* Map = SpawnIdentityMap(World, /*Radius=*/ 4);
+
+	ARTUnit* A = SpawnIdentityUnit(World, 0, ERTArchetype::Ranger,   FRTCellId(-3, 1));
+	SpawnIdentityUnit(World, 1, ERTArchetype::Guardian, FRTCellId(3, -1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !A || !Map) { DestroyIdentityWorld(World); return false; }
+
+	PlayOneTurn(TM); // il roster nasce qui: prima, `A` non ha ancora un'identita'
+	const int32 CauseId = A->StableUnitId;
+	if (!TestTrue(TEXT("l'unita' che causera' la trasformazione ha un'identita'"), CauseId > 0))
+	{
+		DestroyIdentityWorld(World); return false;
+	}
+
+	// Durata 1: cosi' il tick del Cleanup nel turno seguente la porta a zero e la superficie torna com'era.
+	const FRTCellId Burned(1, 0, 0);
+	const bool bApplied = TM->ApplyDynamicSurfaceForTest(Map, Burned, ERTHexSurface::Fire, /*Turns=*/ 1,
+		FName(TEXT("Action.Ignite")), A);
+	if (!TestTrue(TEXT("la superficie e' stata trasformata"), bApplied))
+	{
+		DestroyIdentityWorld(World); return false;
+	}
+
+	// META' 1 — la trasformazione VOLUTA porta il nome di chi l'ha voluta.
+	int32 ChangedWithCause = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category != ERTLogCategory::Environment) { continue; }
+		if (E.Outcome != static_cast<uint8>(ERTEnvironmentOutcome::SurfaceChanged)) { continue; }
+		if (E.UnitId == CauseId) { ++ChangedWithCause; }
+	}
+	TestEqual(TEXT("la trasformazione dichiara l'unita' che l'ha causata"), ChangedWithCause, 1);
+
+	// META' 2 — la SCADENZA, che nessuno ha causato, resta senza attore.
+	PlayOneTurn(TM); // il Cleanup di questo turno porta la durata a zero e ripristina
+
+	int32 Restored = 0;
+	int32 RestoredWithActor = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category != ERTLogCategory::Environment) { continue; }
+		if (E.Outcome != static_cast<uint8>(ERTEnvironmentOutcome::SurfaceRestored)) { continue; }
+		++Restored;
+		if (E.UnitId != 0) { ++RestoredWithActor; }
+	}
+	// Il conteggio e' pinnato: senza, il criterio sotto sarebbe verde anche se la scadenza non avvenisse mai.
+	TestEqual(TEXT("la superficie e' scaduta e la scadenza e' registrata"), Restored, 1);
+	TestEqual(TEXT("la scadenza non si attribuisce nessuna unita'"), RestoredWithActor, 0);
 
 	DestroyIdentityWorld(World);
 	return true;

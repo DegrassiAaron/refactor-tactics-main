@@ -239,10 +239,22 @@ bool FRTTurnLogProducerStampsContextTest::RunTest(const FString&)
 	}
 	TestEqual(TEXT("ogni voce del turno 1 dichiara il turno 1"), WrongTurn, 0);
 
-	// `UnitId` NON e' verificato qui, e non e' una svista: il progetto non ha un'identita' stabile per
-	// l'ISTANZA di unita'. Quella del simulatore e' l'indice in un array ricostruito a ogni snapshot e
-	// filtrato sui vivi, quindi scala quando qualcuno muore — in una traccia che si rilegge a partita finita
-	// significherebbe un'unita' diversa a ogni turno. Il campo resta a `0` finche' l'identita' non esiste.
+	// `UnitId` su una traccia vera: chi ha AGITO, non chi era su quella cella ([D-063]). Le voci di movimento
+	// e combattimento hanno sempre un attore — se dopo il wiring ne restasse una a `0`, sarebbe un sito di
+	// emissione che ha ereditato lo zero invece di dichiarare la propria unita', ed e' esattamente il difetto
+	// che il parametro obbligatorio di `AppendLogEntry` esiste per rendere impossibile.
+	int32 ActorlessCombat = 0;
+	int32 WithActor = 0;
+	for (const FRTTurnLogEntry& E : Entries)
+	{
+		const bool bHasActor = (E.Category == ERTLogCategory::Move || E.Category == ERTLogCategory::Combat);
+		if (bHasActor && E.UnitId <= 0) { ++ActorlessCombat; }
+		if (E.UnitId > 0) { ++WithActor; }
+	}
+	TestEqual(TEXT("nessuna voce di movimento o combattimento resta senza attore"), ActorlessCombat, 0);
+	TestTrue(TEXT("almeno una voce dichiara la propria unita' (altrimenti il test non prova niente)"),
+		WithActor > 0);
+
 	return true;
 }
 
