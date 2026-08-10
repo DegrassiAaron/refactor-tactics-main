@@ -62,22 +62,30 @@ Non conta *quanta parte* dell'esagono resta libera. Non esistono regole tipo «l
 
 Conta una cosa sola: **l'unità ci sta?**
 
+L'ingombro di un'unità è il **cerchio più grande che sta dentro l'esagono** — tocca i sei lati a metà, e lascia fuori i sei angoli.
+
 ```text
 Metti l'ingombro dell'unità sul centro della cella
    └── tocca il muro?
          SÌ  → cella non calpestabile
          NO  → cella calpestabile
+
+      ╱‾‾‾‾‾╲          l'ingombro ( ) lascia liberi
+     │  ( )  │         gli angoli dell'esagono
+      ╲_____╱
 ```
+
+Ed è la stessa larghezza che conta per **passare**: il corridoio che l'unità percorre da una cella all'altra è quello stesso cerchio, trascinato lungo il tragitto.
 
 ### Esempio 1 — il muro attraversa la cella, la cella resta buona
 
-Il muro taglia un angolo dell'esagono, ma passa lontano dal centro. L'unità ci sta comodamente.
+Il muro taglia un **angolo** dell'esagono, cioè la parte che l'ingombro non usa. L'unità ci sta comodamente.
 
 **Cella valida.** Il fatto che l'esagono sia visivamente «tagliato» non conta.
 
 ### Esempio 2 — il muro passa dal centro, la cella salta
 
-Qui il muro attraversa proprio il punto dove l'unità dovrebbe stare, o le passa così vicino da toccarla.
+Qui il muro entra nel **nucleo** della cella: tocca il cerchio, non solo un angolo.
 
 **Cella non valida.** Nessuna mezza cella, nessun «ci sto di sguincio».
 
@@ -135,6 +143,8 @@ Vedi [[Coperture|Meccanica-coperture]] e [[Collisioni|Meccanica-collisioni]].
 ## Lo stato di questa pagina
 
 Il **principio** descritto qui è deciso e non cambia: la griglia non vincola la geometria del mondo.
+
+Da quando l'ingombro è deciso — è il cerchio inscritto — la regola qui sopra è **definitiva**, non una proposta.
 
 Quello che **non esiste ancora** è la parte che lo mette in pratica sulle mappe — la calpestabilità ricavata automaticamente dalla forma dei muri e i passaggi chiusi che non sono coperture. È lavoro previsto per la **v0.2**, e i riquadri in cima alla pagina ne dicono lo stato aggiornato.
 

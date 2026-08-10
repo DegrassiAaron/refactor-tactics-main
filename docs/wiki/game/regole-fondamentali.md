@@ -8,7 +8,7 @@
 > Feature: `RT-FEAT-CORE-TURNLOG` · Release: `v0.1` · Roadmap: `E12.1, E12.6`  
 > Stato: **RELEASE_READY** · Gate: `6/7`  
 > Scenario: `Visual.Core.PhaseOrder`  
-> Verificato il `2026-08-08` su `2094b86`
+> Verificato il `2026-08-10` su `c634c50`
 
 <!-- RT_FEATURE_STATUS:END RT-FEAT-CORE-TURNLOG -->
 

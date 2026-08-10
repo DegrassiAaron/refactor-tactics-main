@@ -471,8 +471,9 @@ features:
       Registrata come DIREZIONE, non come lavoro pronto ([D-065](../decisions/RT_PDR_00_Decision_Log.md)).
       Oggi `bBlocksMovement` è scritto a mano sulla cella; qui diventerebbe l'esito di una cottura che
       intersecа il footprint dell'unità con la blocking geometry attorno al Cell Anchor. Il runtime continua
-      a leggere interi: la derivazione avviene in authoring, mai in query. Bloccata da `MAP-1`: senza la
-      clearance in metri non c'è niente da intersecare, e cuocere prima significa ricuocere.
+      a leggere interi: la derivazione avviene in authoring, mai in query. **Sbloccata da `D-071`**: il
+      footprint standard e' il **cerchio inscritto** (raggio = apotema della cella), zero numeri nuovi.
+      Un muro che taglia solo gli angoli lascia la cella valida; uno che entra nel nucleo la invalida.
 
   - feature_id: RT-FEAT-MAP-TRANSITION-CLEARANCE
     title: Validità della transizione distinta da quella della cella
@@ -515,7 +516,9 @@ features:
       copertura alta, perché gli adiacenti orizzontali sono calcolati e non archi ([D-013](../decisions/RT_PDR_00_Decision_Log.md)),
       e `FRTHexEdge` è riservato ai salti di layer. Un muro che blocca senza proteggere non ha un dato su cui
       appoggiarsi: o diventa una copertura che non copre, o `bBlocksMovement` su una cella calpestabile.
-      Include la *swept clearance* — la transizione verifica il corridoio attraversato, non i soli estremi.
+      Include la *swept clearance* — la transizione verifica il corridoio attraversato, non i soli estremi —
+      che per `D-071` usa **lo stesso raggio** del footprint. Costo dichiarato: il varco «ci passo ma non ci
+      sto» non e' modellabile, perche' calpestabile e attraversabile condividono la soglia.
 
   - feature_id: RT-FEAT-MAP-LOS
     title: LOS, targeting e traiettoria separati
@@ -1926,7 +1929,10 @@ features:
       expiration dichiarate sul dato, resistance/immunity/cleanse, reapply policy e prevenzione dei loop,
       reason code, validator. I due status nuovi del sorgente — `Suppressed` e `Dazed` — stanno **dentro**
       questa feature e non prima: `Suppressed` E' un DEGRADE, `Dazed` E' un INTERRUPT sulla scelta manuale.
-      Tre domande aperte prima della spec: `STA-1`, `STA-2`, `STA-3` in `OPEN_DECISIONS.md`.
+      **`STA-1` e `STA-2` sono chiuse da `D-072`**: primitive e severity si DERIVANO dal dato, nessun enum
+      dichiarato. Chiuderle ha pero' aperto cio' che serviva a entrambe — la **tassonomia delle capability**
+      (`STA-4`), primo lavoro del framework: senza, non si deriva ne' la primitiva ne' la severity. Resta
+      aperta anche `STA-3`.
 
   - feature_id: RT-FEAT-ENV-STATUS
     title: Stati temporanei legati alla cella
