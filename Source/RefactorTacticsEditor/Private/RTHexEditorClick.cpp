@@ -110,9 +110,16 @@ void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Acto
 		if (bActiveOnly && Cell.Id.Layer != ActiveLayer) { continue; }
 		const FVector Center = URTHexLibrary::AxialToWorld(Cell.Id, Origin, HexSize, LayerH);
 		DrawHexMarker(PDI, Center, HexSize * 0.85f, SurfaceColor(Cell.Surface));
+		// Due marcatori DISTINTI, come in partita (`ARTHexMapActor::DrawCellOverlay`): sono due regole diverse
+		// — dove non si passa e dove non si vede — e una cella puo' avere l'una, l'altra o entrambe. Stessi
+		// raggi del runtime, cosi' chi dipinge vede la mappa come la vedra' giocando.
+		if (Cell.bBlocksLineOfSight)
+		{
+			DrawHexMarker(PDI, Center, HexSize * 0.64f, URTHexLibrary::SightBlockerColor()); // giallo: non si vede attraverso
+		}
 		if (Cell.bBlocksMovement)
 		{
-			DrawHexMarker(PDI, Center, HexSize * 0.45f, URTHexLibrary::BlockedCellColor()); // esagono interno = bloccata
+			DrawHexMarker(PDI, Center, HexSize * 0.45f, URTHexLibrary::BlockedCellColor()); // rosso: non ci si passa
 		}
 	}
 }

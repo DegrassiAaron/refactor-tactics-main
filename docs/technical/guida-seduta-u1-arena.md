@@ -48,7 +48,19 @@ Editor Mode **Hex Map** → tool **Paint** → `BrushRadius = 4` → un click su
 
 Esagono pieno di raggio 4 sul layer 0: 61 celle.
 
-Con `bShowOverlay` attivo rileggi il risultato a colori mentre procedi.
+**Accendi `bShowOverlay`**: sta nel pannello **del tool** (Paint o Select), sezione `Hex | Overlay` — non
+sull'actor. Con l'overlay spento vedi solo mesh grigie e non distingui nulla.
+
+Acceso, ogni cella mostra fino a tre anelli concentrici:
+
+| Anello | Colore | Significato |
+|---|---|---|
+| esterno | colore della superficie | `Floor`, `Mud`, `Rough`, … |
+| medio | **giallo** | blocca la **vista** — ci si passa, non ci si vede attraverso |
+| interno | **rosso** | blocca il **movimento** |
+
+Sono marcatori distinti perché sono regole distinte, e una cella può averle entrambe. Finché dipingi solo
+`Floor` resteranno comunque tutte dello stesso colore: la varietà arriva coi terreni.
 
 ---
 

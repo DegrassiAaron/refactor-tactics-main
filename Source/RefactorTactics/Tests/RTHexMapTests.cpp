@@ -423,6 +423,31 @@ bool FRTHexMapCoverValidationTest::RunTest(const FString&)
 }
 
 /**
+ * I tre colori dell'overlay restano distinguibili fra loro.
+ *
+ * Sembra pedante finche' non si guarda a cosa servono: superficie, «non ci si passa» e «non ci si vede»
+ * sono tre regole diverse disegnate come tre anelli concentrici sulla stessa cella, in editor e in partita.
+ * Se due di quei colori collassassero, chi dipinge la mappa vedrebbe una regola al posto di un'altra — ed e'
+ * il modo in cui l'overlay smette di comunicare senza che nessun test cada.
+ *
+ * La tavolozza e' condivisa apposta fra editor e runtime: e' l'invariante che tiene le due viste d'accordo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexOverlayPaletteTest,
+	"RefactorTactics.HexMap.OverlayPaletteIsDistinguishable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexOverlayPaletteTest::RunTest(const FString&)
+{
+	const FColor Blocked = URTHexLibrary::BlockedCellColor();
+	const FColor Sight = URTHexLibrary::SightBlockerColor();
+	const FColor Floor = URTHexLibrary::SurfaceColor(ERTHexSurface::Floor);
+
+	TestTrue(TEXT("«non si passa» != «non si vede»"), Blocked != Sight);
+	TestTrue(TEXT("«non si passa» != pavimento"), Blocked != Floor);
+	TestTrue(TEXT("«non si vede» != pavimento"), Sight != Floor);
+	return true;
+}
+
+/**
  * Il pennello sa dipingere un muro, e sa toglierlo.
  *
  * Prima esisteva un solo verso: `ApplyBrush` preservava sempre `bBlocksLineOfSight` e nessuno strumento
