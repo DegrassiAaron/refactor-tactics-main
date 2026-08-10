@@ -1,0 +1,55 @@
+{
+  "scenarioId": "Spec.Brace.GuardAndBraceOnMixedHit",
+  "tags": ["spec", "combat", "brace", "guard", "bal-1", "riva", "vektor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 5,
+
+  "_nota": "SPECIFICA ESEGUIBILE del confine fra `Action.Guard` e `Action.Brace`, su un colpo che porta danno E spinta insieme. Tre difensori identici (Vektor, 90 HP, `PushResistance 0`) prendono lo stesso identico colpo — `Riva.PressureJet`: 16 danni, `Push 1`, forma a linea — con tre difese diverse: guardia, irrigidimento, niente. E' l'unica azione del gioco che porta i due effetti nello stesso colpo, ed e' per questo che la fixture e' lei.",
+
+  "_nota_perche_esiste": "#401. `Guard` e `Brace` avevano ciascuno i propri scenari (`Visual.Combat.GuardReducesFirstHit`, `Visual.Combat.BraceReducesEveryHit`) e NESSUNO li guardava insieme sullo stesso colpo: il confine fra le due difese poteva essere spostato da un commit senza che niente diventasse rosso. Qui i tre esiti stanno nello stesso file, quindi la DIFFERENZA e' l'oggetto dell'assertion, non un valore isolato.",
+
+  "_nota_numeri": "Danno: guardia 16-15=1 (`GuardFirstHitReduction`), irrigidimento 16-10=6 (`BraceDamageReduction`), niente 16. Su 90 HP: 89 / 84 / 74. Spinta: la guardia regge fino a 1 cella (`GuardResistedPushDistance`) e l'irrigidimento regge la prima spinta, quindi i primi due NON si spostano; il terzo arretra di una cella lungo la linea del colpo.",
+
+  "_nota_la_cosa_che_questo_file_dice_e_che_sorprende": "Sulla SPINTA le due difese danno lo stesso esito, sempre — e non e' un caso di questo scenario: il catalogo v0.1 ha un solo valore di spinta, `1`, quindi `GuardResistedPushDistance = 1` copre per intero lo spazio degli spostamenti esistenti. La clausola «senza limite di distanza» di `Brace` non e' raggiungibile in partita (D-074, uscita (B) di #400). Cio' che distingue davvero le due e' il danno, e su UN colpo `Guard` domina: 1 contro 6. Il rovescio — `Brace` che vince sui colpi ripetuti — sta in `Spec.Brace.BraceWinsOnSecondHit`, ed e' l'altra meta' della stessa specifica.",
+
+  "_nota_orientamento": "Da CP 16.2 la guardia copre il DAVANTI: ogni attaccante sta a EST del proprio difensore, cioe' nell'arco frontale di chi guarda a est di partenza e non fa niente per girarsi. Con gli attaccanti a ovest questo file avrebbe misurato la difesa direzionale (`Spec.Facing.BackAttackIgnoresGuard`) invece del confine Guard/Brace.",
+
+  "_nota_geometria": "Un attaccante DEDICATO per difensore, su tre righe separate. Non due attaccanti sullo stesso bersaglio: il resolver esclude dalla spinta i bersagli colpiti da 2+ attaccanti (`*Pushes != 1`, forze contraddittorie) e si misurerebbe QUELLA regola. Le tre linee non si incrociano e nessun alleato sta in mezzo, quindi la forma a linea colpisce solo il bersaglio dichiarato.",
+
+  "units": [
+    { "id": "DG", "hero": "Hero.Vektor", "team": 0, "cell": [0,  1, 0] },
+    { "id": "DB", "hero": "Hero.Vektor", "team": 0, "cell": [0,  0, 0] },
+    { "id": "DN", "hero": "Hero.Vektor", "team": 0, "cell": [0, -1, 0] },
+
+    { "id": "AG", "hero": "Hero.Riva",   "team": 1, "cell": [3,  1, 0] },
+    { "id": "AB", "hero": "Hero.Riva",   "team": 1, "cell": [3,  0, 0] },
+    { "id": "AN", "hero": "Hero.Riva",   "team": 1, "cell": [3, -1, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "Un solo turno: le tre difese e i tre colpi identici si risolvono nello stesso passaggio di Blast. `Action.Guard` e `Action.Brace` sono azioni principali di Prep e risolvono su chi le usa, quindi non dichiarano bersaglio.",
+      "intents": [
+        { "unit": "DG", "ability": "Action.Guard" },
+        { "unit": "DB", "ability": "Action.Brace" },
+
+        { "unit": "AG", "ability": "Riva.PressureJet", "target": "DG" },
+        { "unit": "AB", "ability": "Riva.PressureJet", "target": "DB" },
+        { "unit": "AN", "ability": "Riva.PressureJet", "target": "DN" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals", "unit": "DG", "value": 89 },
+    { "type": "UnitHpEquals", "unit": "DB", "value": 84 },
+    { "type": "UnitHpEquals", "unit": "DN", "value": 74 },
+
+    { "type": "UnitAtCell",   "unit": "DG", "cell": [ 0,  1, 0] },
+    { "type": "UnitAtCell",   "unit": "DB", "cell": [ 0,  0, 0] },
+    { "type": "UnitAtCell",   "unit": "DN", "cell": [-1, -1, 0] },
+
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}
