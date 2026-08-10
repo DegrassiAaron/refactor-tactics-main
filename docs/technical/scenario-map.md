@@ -264,7 +264,7 @@ resta visibile invece di sparire.
 > ⚠️ **Erano dichiarati «13», poi ventuno, poi ventitré, e oggi sono ventotto**: tredici fra `Clash` e
 > `TimeBank`, cinque `State.*`, **cinque `Spec.Map.*`**, quattro `Team.*`, uno `Stress.*`. I `TimeBank` sono
 > passati da 8 a 10 con la riconciliazione di `#361` (sotto); i cinque `Spec.Map.*` entrano il 2026-08-10 con
-> [D-064](../decisions/RT_PDR_00_Decision_Log.md) (E23, v0.2). Il totale sbagliato era sopravvissuto perché
+> [D-065](../decisions/RT_PDR_00_Decision_Log.md) (E23, v0.2). Il totale sbagliato era sopravvissuto perché
 > l'unico modo di accorgersene era sommare a mano una colonna che nessuno risomma. Ora lo conta
 > `feature_registry.py shortlist` — ed è così che si è visto che **la riga della §2 diceva ancora 21**
 > mentre questa diceva 23: due numeri sbagliati in due posti, nello stesso file.

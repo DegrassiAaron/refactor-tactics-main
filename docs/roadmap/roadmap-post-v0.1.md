@@ -146,7 +146,7 @@ fissarla (scenario 4 del sorgente).
 **Dipendenze**: E9. **Rischi**: gli ID stabili si decidono una volta — cambiarli dopo il primo cook invalida
 scenari, golden replay e mappe salvate.
 
-> **23.6 e 23.7 arrivano da [D-064](../decisions/RT_PDR_00_Decision_Log.md)**, che ha fissato il principio
+> **23.6 e 23.7 arrivano da [D-065](../decisions/RT_PDR_00_Decision_Log.md)**, che ha fissato il principio
 > — *la griglia non vincola la geometria del mondo; fra muro e dato autorevole sta una cottura* — dopo che
 > **due sorgenti indipendenti** l'avevano chiesto ([triage 2026-08-09](plans/map-editor-brief-spec-panel-2026-08-09.md) §4,
 > [conflict report 2026-08-10](plans/handoff-geometry-reazioni-conflict-report-2026-08-10.md) §4).

@@ -104,6 +104,17 @@ Regola di manutenzione #1: *ogni modifica a un requisito aggiunge o aggiorna una
   > `D-062` e `D-063` risultavano riservati da una sessione parallela. Se una serie atterra prima, questa
   > rinumera — chi arriva secondo rinumera, non contende.
 
+- **D-065 · D-066** (2026-08-10): **rinumerate da `D-064` · `D-065`**, contenuto invariato. È la **settima**
+  collisione di contatore, e la prima **prevista e assorbita senza danno**: la sessione aveva letto `D-061`
+  come ultimo su `main` e aveva saltato `D-062`/`D-063` proprio perché li vedeva non committati in un'altra
+  working copy — poi la PR [`#392`](https://github.com/DegrassiAaron/refactor-tactics-main/pull/392) è
+  atterrata durante il lavoro portandosi `D-064`. Applicata la regola della nota qui sopra: chi arriva
+  secondo rinumera.
+  > 💡 **La difesa che ha funzionato non è stata saltare due numeri**, che ha coperto solo il caso previsto.
+  > È stato **rileggere `main` dopo il push** invece di fidarsi dello stato letto a inizio sessione: la
+  > collisione è arrivata da una PR che a inizio sessione non esisteva, e nessuna scelta di ID poteva
+  > anticiparla. Il controllo utile è alla fine, non all'inizio.
+
 - **D-046 … D-049** (2026-08-09): **rinumerazione**, contenuto invariato. È la **sesta** collisione di
   contatore, e la prima a essere *arrivata in `main` senza che nessuno la rilevasse*: `D-039`, `D-041`,
   `D-042` e `D-043` esistevano **due volte ciascuna** in questa tabella. Due PR dello stesso giorno —

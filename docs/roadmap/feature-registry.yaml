@@ -445,7 +445,7 @@ features:
     wiki_note: >-
       La pagina Wiki spiega il **principio** (la griglia non vincola i muri); il dato cotto e la pipeline di cottura non esistono ancora.
     notes: >
-      Registrata come DIREZIONE, non come lavoro pronto ([D-064](../decisions/RT_PDR_00_Decision_Log.md)).
+      Registrata come DIREZIONE, non come lavoro pronto ([D-065](../decisions/RT_PDR_00_Decision_Log.md)).
       Oggi `bBlocksMovement` è scritto a mano sulla cella; qui diventerebbe l'esito di una cottura che
       intersecа il footprint dell'unità con la blocking geometry attorno al Cell Anchor. Il runtime continua
       a leggere interi: la derivazione avviene in authoring, mai in query. Bloccata da `MAP-1`: senza la
