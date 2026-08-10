@@ -26,6 +26,22 @@
  * `URTTurnLogLibrary::CompareSerializedTraces` esiste gia' e risponde al livello del FORMATO
  * (`Identical`/`FormatMismatch`/`TopologyMismatch`/`Divergence`/`Unreadable`). Qui si aggiunge il livello
  * sotto: quale voce, in quale fase, di quale azione.
+ *
+ * ⚠️ **SE QUESTI TEST SONO DIVENTATI ROSSI DOPO UN RITOCCO DI BILANCIAMENTO, non e' una regressione.**
+ * ([D-083](../../../docs/decisions/RT_PDR_00_Decision_Log.md), issue `#413`.)
+ *
+ * Il corpus golden e' protetto da una **convenzione**, non da un controllo: i file `.rttl` di `Golden/` vivono
+ * nello stesso repository delle regole, quindi cambiare una costante di combat o un'azione del catalogo li fa
+ * divergere: la convenzione e' che si **rigenerano nello stesso commit** che cambia la regola.
+ *
+ * Il rilevamento c'e' ed e' buono — la diagnosi qui sotto nomina turno, fase e `ActionId`. Cio' che manca e'
+ * l'**attribuzione**: un rebalance legittimo e un difetto del resolver si presentano **identici**, e a
+ * distinguerli e' solo chi ha il commit in mano. Sarebbe il mestiere di `ContentManifestHash`/`RulesVersion`,
+ * che D-083 ha rinviato alla v0.2 **con il perimetro gia' deciso** — entra cio' che il resolver legge — perche'
+ * in v0.1 quel «chi ha il commit in mano» c'e' sempre, ed e' una persona sola.
+ *
+ * L'innesco per costruirle: **quando un archivio esce dalla macchina che l'ha prodotto** (condivisione, bug
+ * report, CI che confronta run di build diverse). Li' l'attribuzione smette di essere locale.
  */
 namespace
 {
