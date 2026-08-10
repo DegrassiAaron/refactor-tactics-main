@@ -549,3 +549,39 @@ sessions:
     notes: >-
       L'invocazione esatta di `RunUAT BuildCookRun` si fissa alla prima esecuzione riuscita e si
       scrive qui: non va inventata a tavolino.
+
+  - id: U20
+    title: Confine fra Guard e Brace
+    block: 6
+    critical: false
+    produces: verdetto di leggibilita' — un dato per `BAL-1`, non un difetto da correggere
+    artifacts: []
+    unblocked_by: [E5.2]
+    shares_setup_with: []
+    verifies: [PIE-BAL1]
+    issues: []
+    done_when: la voce ha un esito reale nel registro, in un verso o nell'altro
+    unblocks: []
+    steps: |
+      **Non e' una caccia ai difetti: e' una domanda di leggibilita'.** Tre unita' con
+      `PushResistance = 0` (Flux, Riva, Vektor) — una in `Action.Guard`, una in `Action.Brace`, una
+      senza difesa — e una Riva avversaria che usa `Riva.PressureJet` su ciascuna nello stesso turno.
+      E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
+
+      1. Guarda il turno **senza leggere i numeri**. «Questo si e' piantato» dev'essere distinguibile
+         da «questo ha parato».
+      2. Solo dopo, controlla il log: 1 danno per chi e' in `Guard`, 6 per chi e' in `Brace`,
+         **nessuno dei due arretra**.
+      3. Ripeti con **due** colpi sullo stesso bersaglio: qui l'ordine si inverte (17 contro 12), ed
+         e' il solo caso in cui `Brace` conviene.
+
+      > ⚠️ **Non mettere due attaccanti sullo stesso bersaglio nello stesso passaggio**: il resolver
+      > esclude i bersagli spinti da 2+ attaccanti (forze contraddittorie). Misureresti quella
+      > regola, non questa.
+    notes: >-
+      Nasce dal piano `BAL-1` (`plans/bal-1-guard-brace-roadmap-2026-08-10.md` §6). **Non entra nel
+      subset `RELEASE-V01`**: `BAL-1` non blocca la consegna, e un gate che si allarga senza motivo
+      e' il difetto che G9 ha gia' avuto due volte. La seduta ha una voce sola di proposito — e' una
+      domanda che si risponde una volta, guardandola.
+      ⚠️ ID assegnato al merge: preso `U20` con `U19` come ultimo su `main`. Chi arriva secondo
+      rinumera, non contende.

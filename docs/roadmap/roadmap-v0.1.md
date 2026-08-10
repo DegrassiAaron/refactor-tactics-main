@@ -577,6 +577,15 @@ turno**, senza attese nel resolver (invariante #3).
 **Rischi**: è il punto di revisione dell'ADR-0003. Se il costo sfonda: degradare alle difensive di fase Prep
 (`Guard`/`Brace`/`Shield`) e rimandare `Counter`/`Intercept`/`Deflect` **fuori** dalla v0.1, aggiornando la DoD.
 
+> ⚠️ **Metà della DoD di CP 5.2 non è verificabile in partita** (misurato il 2026-08-10). *«`Brace` blocca la
+> prima spinta»* è implementato **senza limite di distanza**, e questo è ciò che lo distingue da `Guard`, che
+> regge un passo solo. Ma il catalogo eroi ha **due soli effetti `Push`, entrambi di valore 1**: la clausola
+> non è raggiungibile, e sul colpo singolo `Guard` **domina** `Brace` (1 danno contro 6, stessa immunità alla
+> spinta). Il trade-off che il giocatore incontra davvero è *primo colpo pesante* contro *colpi ripetuti*.
+> Non è un bug del resolver — è una DoD scritta per un gioco con spinte più forti di quelle che esistono.
+> Owner della domanda: `BAL-1` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), con roadmap e numeri in
+> [`plans/bal-1-guard-brace-roadmap-2026-08-10.md`](plans/bal-1-guard-brace-roadmap-2026-08-10.md).
+
 > **CP 5.5 chiuso il 2026-08-07** (`#154`, 5 test nuovi) — dettaglio delle decisioni, dei limiti dichiarati e
 > delle verifiche di mutazione in [`spec-reazioni-componibili-cp55.md`](../gameplay/spec-reazioni-componibili-cp55.md).
 > Il motore ora applica **tutti** gli effetti dichiarati da una reazione (prima leggeva il primo `Damage` e
