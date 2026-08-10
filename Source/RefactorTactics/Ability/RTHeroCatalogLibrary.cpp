@@ -508,15 +508,27 @@ URTHeroData* URTHeroCatalogLibrary::MakeVektor()
 		/*Range*/ 4, /*Cooldown*/ 0, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 21) }));
 
-	// Indice 1 — InterceptShot. 16 danni + stop del movimento a chi ENTRA nella cella controllata: il trigger
-	// e' d'ingresso su movimento, non «sono stato colpito», quindi appartiene a **E14** (ADR-0004) e non a E5.
-	// Cablarla sul motore di E5 duplicherebbe `FRTSuppressiveZone` (CP 4.6), che quel trigger ce l'ha gia'.
-	// Il rinvio e' dichiarato come DATO: slot `None`, nessun trigger — il pass delle reazioni non la raccoglie
-	// e non puo' registrare un'attivazione che non produce nulla.
-	Vektor->Actions.Add(MakeHeroAction(TEXT("Vektor.InterceptShot"), ERTResolutionPhase::Preparation,
+	// Indice 1 — InterceptShot. 16 danni + stop del movimento a chi ENTRA nella cella controllata.
+	//
+	// E' la thin slice della **Predictive Action** (E18, D-016). Fino al 2026-08-10 era dichiarata «rinviata a
+	// E14» come DATO — slot `None`, nessun trigger — perche' il suo trigger e' d'ingresso su movimento e
+	// cablarla sul motore delle reazioni di E5 avrebbe duplicato `FRTSuppressiveZone` (CP 4.6). Quel rinvio
+	// e' caduto per la ragione opposta a quella che lo aveva prodotto: **non le serve una finestra**. La cella
+	// si dichiara in Planning e si verifica a un boundary deterministico, quindi non c'e' niente da chiedere a
+	// nessuno durante la Resolution — che e' esattamente cio' che una Fast Reaction fa e questa no.
+	//
+	// Lo slot torna `Main`: e' un'azione dichiarata in pianificazione come le altre, non una reazione tenuta
+	// pronta. Portata 1 e' la cella ADIACENTE controllata; il cooldown 2 non cambia — chi scommette paga il
+	// cooldown anche quando sbaglia, ed e' la meta' del costo che rende il whiff una scelta.
+	URTActionData* InterceptShot = MakeHeroAction(TEXT("Vektor.InterceptShot"), ERTResolutionPhase::Preparation,
 		/*Priority*/ 30, /*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 16) }, ERTAbilityShape::Single, /*AreaRadius*/ 0,
-		ERTActionSlot::None, /*bInterruptible*/ false));
+		ERTActionSlot::Main, /*bInterruptible*/ false);
+	// I due campi che la rendono predittiva stanno nei DATI e non in un ramo del resolver: `LockCell` dice che
+	// la cella non si rivaluta, `MovementEntry` quando si guarda chi ci e' passato.
+	InterceptShot->Def.PredictiveTargeting = ERTPredictiveTargeting::LockCell;
+	InterceptShot->Def.PredictionBoundary = ERTPredictionBoundary::MovementEntry;
+	Vektor->Actions.Add(InterceptShot);
 
 	// Indice 2 — PassingBlade. `Dash 3` che colpisce per 20 le unita' ATTRAVERSATE: l'unica abilita'
 	// non-base di Vektor interamente rappresentabile. Stile `LinearDash` e non `LinearCharge`: la carica si
