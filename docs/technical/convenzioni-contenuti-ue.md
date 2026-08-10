@@ -503,6 +503,25 @@ prima: anche quelle venivano indicizzate come se fossero locali. Chi vuole recup
 > Risolve il problema pratico da cui nasce: **Fab installa dove vuole lui**, tipicamente `Content/<Pack>/`, e
 > quella non è la posizione voluta dal §1.
 
+**Perché serve un magazzino invece di scegliere la cartella: non si può.** Verificato sulla documentazione
+ufficiale il 2026-08-10 — di configurabile ci sono solo due cose, e nessuna è quella che servirebbe:
+
+| | Si sceglie? |
+|---|---|
+| **Quale progetto** riceve il pack | ✅ il popup di *Add to Project* |
+| **La cartella dentro `Content/`** | ❌ **no** — sempre `Content/<NomePack>/` |
+| La **cache** dei file scaricati | ✅ Vault Location nel Launcher; il Fab Window ha una propria *cache directory* |
+
+La cache è dove il Launcher tiene i file scaricati, **non** dove finiscono nel progetto: spostarla libera
+spazio, non cambia la destinazione. La documentazione del Fab Window descrive il download e le impostazioni
+di cache, e **nessun path di installazione**.
+
+∴ L'unica leva che Fab lascia è **quale progetto**. Il magazzino non è un giro largo: è l'unico punto in cui
+si può decidere, e da lì in poi comanda `Migrate`. Fonti:
+[Fab Window](https://dev.epicgames.com/documentation/en-us/unreal-engine/fab-window-in-unreal-engine) ·
+[thread sulla cartella della libreria](https://forums.unrealengine.com/t/how-to-change-fab-library-folder-in-unreal-engine/2116077),
+rimasto senza risposta definitiva.
+
 ⚠️ **Il punto su cui si sbaglia: `Migrate` PRESERVA il path virtuale.** Un asset che nel magazzino sta in
 `/Game/ParagonGideon/…` atterra in `Content/ParagonGideon/…` del progetto di destinazione, **non** in
 `Content/FabAsset/Paragon/`. Migrate copia con le dipendenze, non rimappa. Per questo il rename si fa **nel
