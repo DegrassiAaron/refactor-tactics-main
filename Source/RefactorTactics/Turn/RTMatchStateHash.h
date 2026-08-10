@@ -37,9 +37,16 @@ struct FRTUnitStateDigest
 /**
  * Checksum dello stato di fine partita (CP 12.1, issue #81).
  *
- * Copre ciò che il DoD chiede: unità, **stati**, **terreni modificati**, **strutture** e **progresso degli
- * obiettivi**. Prima copriva le sole unità, e due finali che differivano solo per il campo — una cella in
- * fiamme, una copertura eretta, un obiettivo conquistato — davano lo stesso hash.
+ * Copre unità, **stati**, **terreni modificati**, **strutture** e **progresso degli obiettivi**: prima
+ * copriva le sole unità, e due finali che differivano solo per il campo — una cella in fiamme, una copertura
+ * eretta, un obiettivo conquistato — davano lo stesso hash.
+ *
+ * ⚠️ **Cosa NON copre, e va saputo prima di fidarsene** (trovato in code review): copre il *valore corrente*
+ * di terreni e strutture, non la loro **scadenza**. `ARTTurnManager` tiene separati `DynamicSurfaces`,
+ * `DynamicArcs` e `DynamicCovers` — e' li' che vivono `TurnsRemaining` e, per le coperture, `FreeRotations`,
+ * che decide se la prossima `Reconfigure` e' gratis. Due finali con la stessa copertura ma diversa durata
+ * residua, o diverse rotazioni gratuite, danno oggi lo **stesso** hash: sono stati di gioco diversi che questo
+ * digest non distingue. Non e' ricostruibile dalla mappa, perche' quei dati per scelta non ci stanno.
  *
  * Perché conta oltre al DoD: il corpus golden di CP 12.6 (#178) confronta TurnLog **e** checksum. Un checksum
  * cieco all'ambiente avrebbe delegato tutta la copertura ambientale al solo TurnLog, senza dirlo.
