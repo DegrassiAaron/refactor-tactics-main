@@ -190,14 +190,18 @@ bool FRTHexMoveBudgetCostsTest::RunTest(const FString&)
 	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
 	Foe->PlannedCell = Foe->Cell;
 
-	// Budget 5: sul corridoio costoso bastano per 2 celle (2+2=4), non per 3 (6 > 5).
+	// Sul corridoio costoso ogni cella vale 2: col budget B si arriva a B/2 celle e non a una in piu'.
+	// Era scritto «budget 5, quindi 2 celle e non 3»: i numeri del Ranger legacy. Derivarli tiene in piedi
+	// la proprieta' — e' il COSTO a fermare, non la distanza — con qualunque eroe cammini.
 	const int32 Budget = Mover->GetEffectiveMoveRange();
-	TestEqual(TEXT("il Ranger ha il budget standard"), Budget, 5);
+	const int32 Reachable = Budget / 2;
+	const FRTCellId TooFar(Reachable + 1, 0);
+	TestTrue(TEXT("premessa: la cella scelta costa piu' del budget"), 2 * (Reachable + 1) > Budget);
 
-	Mover->PlannedCell = FRTCellId(3, 0); // costo 6: oltre il budget
+	Mover->PlannedCell = TooFar;
 	RunTurn(TM);
-	TestTrue(TEXT("tre celle di terreno difficile costano piu' del budget: non ci arriva"),
-		!(Mover->Cell == FRTCellId(3, 0)));
+	TestTrue(TEXT("una cella di troppo di terreno difficile costa piu' del budget: non ci arriva"),
+		!(Mover->Cell == TooFar));
 	TestTrue(TEXT("resta comunque su una cella valida"), Map->ContainsCell(Mover->Cell));
 
 	// Alla stessa distanza sul lato NORMALE (ovest, costo 1) ci arriva invece senza problemi: e' il COSTO a
@@ -467,13 +471,17 @@ bool FRTIceSlidesInMatchTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
 
-	if (!TestEqual(TEXT("il Ranger ha il budget standard"), Mover->GetEffectiveMoveRange(), 5))
+	// Il budget si legge: la soglia di scivolata e' «residuo >= 2», e serve un budget che permetta di
+	// osservare ENTRAMBI i lati — con residuo sufficiente scivola, con residuo 1 no. Era fissato a 5, il
+	// valore del Ranger legacy, e i due arrivi sotto erano calcolati su quello.
+	const int32 IceBudget = Mover->GetEffectiveMoveRange();
+	if (!TestTrue(TEXT("premessa: il budget distingue i due casi"), IceBudget >= 4))
 	{
 		DestroyHexMoveWorld(World);
 		return false;
 	}
 
-	// Arrivo su (2,0): costo 2, residuo 3 >= 2 -> scivola di una cella nella direzione d'ingresso (est).
+	// Arrivo su (2,0): costo 2, residuo IceBudget-2 >= 2 -> scivola di una cella nella direzione d'ingresso.
 	const int32 StartHealth = Mover->Health;
 	Mover->PlannedCell = FRTCellId(2, 0);
 	Foe->PlannedCell = Foe->Cell;
@@ -490,14 +498,15 @@ bool FRTIceSlidesInMatchTest::RunTest(const FString&)
 		Mover->Health, StartHealth - 10 - URTCombatLibrary::BurningCleanupDamage);
 	TestTrue(TEXT("Burning applicato dalla cella scivolata"), Mover->HasStatus(TAG_Status_Burning));
 
-	// Controprova: stesso ghiaccio, budget residuo insufficiente. Arrivo su (4,0) costa 4 dei 5 MP: resta 1,
+	// Controprova: stesso ghiaccio, budget residuo insufficiente. Arrivando a IceBudget-1 celle resta 1 MP,
 	// sotto la soglia di 2 -> nessuna scivolata. E' il BUDGET a muoverla, non la superficie da sola.
+	const FRTCellId NoSlideTarget(IceBudget - 1, 0);
 	Mover->PlaceOnCell(FRTCellId(0, 0), FVector::ZeroVector, 100.f, 250.f);
-	Mover->PlannedCell = FRTCellId(4, 0);
+	Mover->PlannedCell = NoSlideTarget;
 	Foe->PlannedCell = Foe->Cell;
 	RunTurn(TM);
 
-	TestTrue(TEXT("budget residuo < 2: si ferma sul ghiaccio senza scivolare"), Mover->Cell == FRTCellId(4, 0));
+	TestTrue(TEXT("budget residuo < 2: si ferma sul ghiaccio senza scivolare"), Mover->Cell == NoSlideTarget);
 
 	DestroyHexMoveWorld(World);
 	return true;

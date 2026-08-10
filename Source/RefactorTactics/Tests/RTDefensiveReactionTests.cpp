@@ -76,6 +76,13 @@ namespace
 		return U;
 	}
 
+	/** Il colpo pieno dell'attacco base, dal catalogo: era scritto `25`, il Tiro del Ranger legacy. */
+	int32 DefFullHit()
+	{
+		const URTHeroData* Hero = URTHeroCatalogLibrary::MakeVektor();
+		return (Hero && Hero->Actions.Num() > 0 && Hero->Actions[0]) ? Hero->Actions[0]->Power : 0;
+	}
+
 	/**
 	 * Sostituisce lo scatto del Ranger (indice 3) invece di accodare: `AbilityCooldowns` e' dimensionato sul
 	 * conteggio originale delle abilita' e non si allarga da solo. Specchia anche i campi legacy che
@@ -301,8 +308,8 @@ bool FRTDeflectReducesDamageTest::RunTest(const FString&)
 	RunDefTurn(TM);
 
 	TestEqual(TEXT("la reazione si e' attivata"), CountDefensiveReactionOutcome(TM, ERTReactionOutcome::Activated), 1);
-	TestEqual(TEXT("25 - 20 = 5 danni incassati"), Before - Reactor->Health,
-		25 - URTCombatLibrary::DeflectDamageReduction);
+	TestEqual(TEXT("Deflect toglie la sua riduzione al colpo pieno"), Before - Reactor->Health,
+		DefFullHit() - URTCombatLibrary::DeflectDamageReduction);
 	TestEqual(TEXT("non riflette: chi ha colpito non incassa nulla"), Attacker->Health, Attacker->MaxHealth);
 
 	DestroyDefWorld(World);
@@ -398,9 +405,10 @@ bool FRTBraceTest::RunTest(const FString&)
 
 	RunDefTurn(TM);
 
-	// DUE colpi da 25, ridotti ENTRAMBI di 10: 15 + 15 = 30. Con la meccanica "primo colpo" sarebbero 40.
-	TestEqual(TEXT("-10 su OGNI colpo, non solo sul primo"), Before - Bracer->Health,
-		2 * (25 - URTCombatLibrary::BraceDamageReduction));
+	// DUE colpi pieni, ridotti ENTRAMBI: con la meccanica "solo il primo" il totale sarebbe piu' alto di
+	// una riduzione. Il colpo pieno si legge dal catalogo, la proprieta' e' «Brace vale su ogni colpo».
+	TestEqual(TEXT("la riduzione vale su OGNI colpo, non solo sul primo"), Before - Bracer->Health,
+		2 * (DefFullHit() - URTCombatLibrary::BraceDamageReduction));
 	TestTrue(TEXT("il movimento volontario e' bloccato"), Bracer->Cell == FRTCellId(0, 0));
 
 	DestroyDefWorld(World);
