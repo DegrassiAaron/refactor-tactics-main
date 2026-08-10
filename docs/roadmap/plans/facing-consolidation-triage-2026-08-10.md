@@ -15,7 +15,7 @@ Il pacchetto si presenta come una lista di lavori da eseguire («Claude must: co
   ([#175](https://github.com/DegrassiAaron/refactor-tactics-main/issues/175), con CP 16.1 e CP 16.2);
 - aperto 14 issue `FACING-001…014` di cui **la maggior parte descrive codice che esiste**;
 - creato una pagina Wiki `Facing` che esiste già
-  ([`facing-e-direzionalita.md`](../../wiki/meccaniche/facing-e-direzionalita.md));
+  ([`facing-e-direzionalita.md`](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/facing-e-direzionalita));
 - spezzato `RT-FEAT-MAP-FACING` in **sedici** feature (§55), moltiplicando per sedici il posto in cui uno stato
   può divergere — il difetto che il feature registry esiste per impedire;
 - **rovesciato due decisioni canoniche** senza dichiararlo, perché la fonte non sa che esistono.
@@ -154,7 +154,7 @@ Le sezioni che la fonte elenca come «decisioni consolidate da questa chat» (§
 | §30-§32 copertura, muri, LOS separati dal facing | ADR-0002 · CP 9.x |
 | §34-§35 il facing futuro è privato, quello assunto è pubblico | ADR-0005 §5 · invariante **#6** |
 | §44 il TurnLog spiega i cambi di facing | `ERTFacingOutcome` · `RearHitBypassedCover` |
-| §51 pagina Wiki del facing | [`facing-e-direzionalita.md`](../../wiki/meccaniche/facing-e-direzionalita.md) |
+| §51 pagina Wiki del facing | [`facing-e-direzionalita.md`](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/facing-e-direzionalita) |
 | §53 epic | **E16** ([#175](https://github.com/DegrassiAaron/refactor-tactics-main/issues/175)), chiusa |
 
 ---

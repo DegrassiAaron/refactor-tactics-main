@@ -124,7 +124,7 @@ Tre documenti dicono ancora l'opposto, in quattro punti:
 | File | Riga | Testo |
 |---|---|---|
 | [`feature-registry.yaml`](../feature-registry.yaml) | 1638 | `wiki_note`: «nessun eroe della v0.1 ha `Action.Electrify` come abilita' normale» |
-| [`wiki/meccaniche/acqua-e-elettricita.md`](../../wiki/meccaniche/acqua-e-elettricita.md) | 11 · 71 | stessa affermazione, propagata dal `wiki_note` e ripetuta in prosa |
+| [`acqua-e-elettricita` (Wiki)](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/acqua-e-elettricita) | 11 · 71 | stessa affermazione, propagata dal `wiki_note` e ripetuta in prosa |
 | [`characters/v0.1/flux.md`](../../characters/v0.1/flux.md) | 26 | stessa affermazione, nella pagina dell'eroe che **ora la possiede** |
 
 La riga 1638 è la **sorgente**: le altre sono propagazione. Il difetto è di classe nota — *dato che nessuno
@@ -414,7 +414,7 @@ porta in testa **«✅ RECEPITO il 2026-08-08»**: il master ne è il riassunto,
 | §9 relazione Feature ↔ Scenario obbligatoria | ✅ **resa eseguibile** dal cluster Governance: è il controllo dello scenario orfano |
 | §11 `result.json` strutturato · §14 determinismo | harness reale, `Simulation.DeterministicReplay` (100 iterazioni) |
 | §16 as-built CVar + GameMode, niente `ARTTestDirector` | riga **23-bis** di questa matrice, dal 2026-08-08 |
-| §17–§19 bot come producer di Intent, niente stato nascosto | [`avversario-bot.md`](../../wiki/game/avversario-bot.md) «Il bot non vede più di te» · `PIE-AI-02` · banner di [`h6-5-hex-bot-spec.md`](../../technical/h6-5-hex-bot-spec.md) |
+| §17–§19 bot come producer di Intent, niente stato nascosto | [`avversario-bot.md`](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/avversario-bot) «Il bot non vede più di te» · `PIE-AI-02` · banner di [`h6-5-hex-bot-spec.md`](../../technical/h6-5-hex-bot-spec.md) |
 | §22 profilo del bot senza `if Hero ==` | `h6-5-hex-bot-spec.md` |
 | §25–§26 determinismo e decision trace | `avversario-bot.md` §«Se il bot fa una mossa che non capisci» |
 | §27 roadmap bot v0.1 → v1 → v2 | **E26** e **E28** di [`roadmap-post-v0.1.md`](../roadmap-post-v0.1.md) |
@@ -474,6 +474,6 @@ dalla riga 24.
    > Era il posto che entrambe le passate avevano saltato, ed è **il peggiore in cui saltarlo**: la yaml è
    > la sorgente verificata dalla macchina, e tutto il resto ne è generato. Se n'è accorto il commit
    > `ddba108`, la cui rigenerazione aveva riscritto `D-048` → `D-042` in
-   > [`reazioni-overwatch-e-previsioni.md`](../../wiki/game/reazioni-overwatch-e-previsioni.md),
+   > [`reazioni-overwatch-e-previsioni.md`](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/reazioni-overwatch-e-previsioni),
    > sostituendo un riferimento **corretto** con uno stantio — senza colpa di chi l'ha fatto: il generatore
    > stava facendo esattamente il suo lavoro su una sorgente sbagliata.

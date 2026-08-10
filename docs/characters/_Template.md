@@ -53,7 +53,7 @@ regole** ma legge male il turno>
 
 ## Ownership del kit
 
-> Le abilità sotto appartengono a questo personaggio. Le sinergie con altri eroi sono esempi derivati e vanno collegate alla [pagina sinergie](../wiki/game/sinergie-e-combinazioni.md), non modellate come abilità condivise.
+> Le abilità sotto appartengono a questo personaggio. Le sinergie con altri eroi sono esempi derivati e vanno collegate alla [pagina sinergie](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/sinergie-e-combinazioni), non modellate come abilità condivise.
 
 ## Profilo di attacco base
 

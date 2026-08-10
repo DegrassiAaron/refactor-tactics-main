@@ -54,4 +54,4 @@ Gli altri 34 slot sono conservati in `candidates/`: hanno Signature e dipendenze
 
 ## Regola sui kit
 
-Le abilità sono organizzate per **personaggio**, non per combinazione. Vedi [Sinergie e combinazioni](../wiki/game/sinergie-e-combinazioni.md) e [Fazioni](../wiki/fazioni/index.md).
+Le abilità sono organizzate per **personaggio**, non per combinazione. Vedi [Sinergie e combinazioni](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/sinergie-e-combinazioni) e [Fazioni](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/Fazioni).
