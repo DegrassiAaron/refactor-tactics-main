@@ -58,7 +58,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 ### My Editor Queue
 
-**BLOCKING** 8 · **READY** 4 · **WAITING** 4 · **DONE** 0. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
+**BLOCKING** 7 · **READY** 4 · **WAITING** 5 · **DONE** 0. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
 
 **BLOCKING** — *Blocca la v0.1, e si puo' fare adesso*
 
@@ -68,7 +68,6 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 - **U4** · Combat e linea di tiro — 0/3 voci verdi · sblocca U5, M6.4, M6.5
 - **U5** · Bot e HUD — 0/7 voci verdi · sblocca U6, M6.6, M6.7
 - **U6** · Multilivello e partita completa — 0/4 voci verdi · sblocca U16, U19, M6.8
-- **U11** · I 4 eroi — 0/1 voci verdi · sblocca U12
 - **U15** · HUD, intenti, log e comandi debug — 1/5 voci verdi · sblocca E11
 
 **READY** — *Si puo' fare adesso, fuori percorso critico*
@@ -80,6 +79,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 **WAITING** — *Aspetta codice*
 
+- **U11** · I 4 eroi — attende `U10` —
 - **U13** · Arena v0.1 — attende `U1` ⏳
 - **U14** · Ambiente in partita — attende `U13` ⏳
 - **U19** · Durata, ritmo e scala — attende `U6` 🟡, `U1` ⏳
@@ -104,8 +104,8 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 | **U8** | Animazioni | `ABP_Gideon`, `ABP_Sparrow` e i montaggi Cast/Hit/Death | — | no | 0/2 | ⏳ |
 | **U9** | Leggibilita' e riferimento visivo | il video (o gli screenshot) di riferimento — DoD di milestone di M8 | — | no | 2/4 | 🟡 |
 | **U10** | Data asset delle azioni | il catalogo azioni della v0.1 come dati, non come codice | E1.3, E1.4 | sì | — | — |
-| **U11** | I 4 eroi | i data asset di Flux, Riva, Bastion e Vektor, e lo spawn 2v2 che li usa | E6 | sì | 0/1 | 🟡 |
-| **U12** | Loadout | varianti arma, gadget e moduli reazione come dati — 1 + 1 + 1 per eroe | E7 | no | — | — |
+| **U11** | I 4 eroi | i data asset di Flux, Riva, Bastion e Vektor, e lo spawn 2v2 che li usa | E6, U10 | sì | 0/1 | 🟡 |
+| **U12** | Loadout | varianti arma, gadget e moduli reazione come dati — 1 + 1 + 1 per eroe | E7, U11 | no | — | — |
 | **U13** | Arena v0.1 | l'arena estesa con quanto serve alle verifiche di contenuto | E8, E9, U1 | sì | 0/1 | ⏳ |
 | **U14** | Ambiente in partita | verdetto sulle regole ambientali e strutturali | U13 | sì | 0/11 | 🟡 |
 | **U15** | HUD, intenti, log e comandi debug | verdetto su leggibilita' e osservabilita' | E11 | sì | 1/5 | 🟡 |
@@ -328,7 +328,7 @@ Il validator deve **rifiutare** ID duplicato, fallback mancante e variante senza
 
 #### U11 · I 4 eroi 🟡
 
-**Sbloccata da**: E6 · **Percorso critico**: sì
+**Sbloccata da**: E6, U10 · **Percorso critico**: sì
 **Produce**: i data asset di Flux, Riva, Bastion e Vektor, e lo spawn 2v2 che li usa
 **Verifichi**: `PIE-V01-ROSTER` 🟡
 **Finita quando**: i quattro asset sono tracciati da git e la voce ha esito reale
@@ -338,14 +338,14 @@ Un asset eroe per personaggio con statistiche distinte (90/95/120/100 HP, 5/5/4/
 partita per vedere che il bot gestisca MP diversi senza proporre mosse illegali.
 Asset mancante = fallback al cilindro, previsto.
 
-> `artifacts` resta vuoto finche' CP 1.3 non fissa prefisso e collocazione (vedi U10).
+> `artifacts` resta vuoto finche' CP 1.3 non fissa prefisso e collocazione (vedi U10). Dipende da **U10** e non solo da E6: `URTHeroData::Actions` e' un `TArray<TObjectPtr<URTActionData>>`, cioe' un puntatore diretto agli asset azione. Senza il catalogo di U10 il campo non e' popolabile, e i quattro eroi non si possono committare.
 
 #### U12 · Loadout —
 
-**Sbloccata da**: E7 · **Percorso critico**: no
+**Sbloccata da**: E7, U11 · **Percorso critico**: no
 **Produce**: varianti arma, gadget e moduli reazione come dati — 1 + 1 + 1 per eroe
 
-> *Provvisoria*: E7 e' l'epic che la roadmap v0.1 dichiara tagliabile per prima se il tempo stringe.
+> *Provvisoria*: E7 e' l'epic che la roadmap v0.1 dichiara tagliabile per prima se il tempo stringe. Dipende da **U11** per il contenuto, non per un puntatore: `URTEquipmentData` referenzia `GrantedActionId` (un `FName`) e non l'eroe, ma il loadout e' «1 + 1 + 1 **per eroe**» e senza i quattro asset eroe non c'e' niente su cui verificarlo.
 
 ### Blocco 5 — La mappa diventa un sistema
 

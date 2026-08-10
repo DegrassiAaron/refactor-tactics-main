@@ -38,6 +38,12 @@
 #                      parser. Attenzione: lo stesso lavoro puo' avere tre nomi — «misurazione dei
 #                      budget» e' E3.3 nella vista di release, M7.3 in quella di esecuzione ed E12.4
 #                      come gate: U16 li dichiara tutti e tre, e non e' un errore.
+#                      Verso un'ALTRA SEDUTA `unblocks` e' duale di `unblocked_by`: se `U10` sblocca
+#                      `U11`, allora `U11` e' sbloccata da `U10` e lo dichiara. L'unica eccezione e'
+#                      il setup condiviso — `U2..U6` e `U7..U9` si fanno nella stessa apertura, quindi
+#                      la catena e' ordine di lavoro e non un blocco, e la coda deve mostrarle insieme.
+#                      Fuori da quel caso l'asimmetria e' un difetto: la coda direbbe che una seduta
+#                      si puo' cominciare mentre la sua premessa non c'e'. Il validator lo verifica.
 #   steps              prosa umana; solo dove NESSUNA guida copre ancora la procedura
 #   notes              avvertenze e debiti noti
 #
@@ -368,7 +374,7 @@ sessions:
     critical: true
     produces: i data asset di Flux, Riva, Bastion e Vektor, e lo spawn 2v2 che li usa
     artifacts: []
-    unblocked_by: [E6]
+    unblocked_by: [E6, U10]
     shares_setup_with: []
     verifies: [PIE-V01-ROSTER]
     issues: []
@@ -378,7 +384,11 @@ sessions:
       Un asset eroe per personaggio con statistiche distinte (90/95/120/100 HP, 5/5/4/6 MP), poi una
       partita per vedere che il bot gestisca MP diversi senza proporre mosse illegali.
       Asset mancante = fallback al cilindro, previsto.
-    notes: "`artifacts` resta vuoto finche' CP 1.3 non fissa prefisso e collocazione (vedi U10)."
+    notes: >-
+      `artifacts` resta vuoto finche' CP 1.3 non fissa prefisso e collocazione (vedi U10).
+      Dipende da **U10** e non solo da E6: `URTHeroData::Actions` e' un `TArray<TObjectPtr<URTActionData>>`,
+      cioe' un puntatore diretto agli asset azione. Senza il catalogo di U10 il campo non e' popolabile,
+      e i quattro eroi non si possono committare.
 
   - id: U12
     title: Loadout
@@ -386,7 +396,7 @@ sessions:
     critical: false
     produces: varianti arma, gadget e moduli reazione come dati — 1 + 1 + 1 per eroe
     artifacts: []
-    unblocked_by: [E7]
+    unblocked_by: [E7, U11]
     shares_setup_with: []
     verifies: []
     issues: []
@@ -394,6 +404,9 @@ sessions:
     unblocks: []
     notes: >-
       *Provvisoria*: E7 e' l'epic che la roadmap v0.1 dichiara tagliabile per prima se il tempo stringe.
+      Dipende da **U11** per il contenuto, non per un puntatore: `URTEquipmentData` referenzia
+      `GrantedActionId` (un `FName`) e non l'eroe, ma il loadout e' «1 + 1 + 1 **per eroe**» e senza i
+      quattro asset eroe non c'e' niente su cui verificarlo.
 
   # --- Blocco 5 ---------------------------------------------------------------
 
