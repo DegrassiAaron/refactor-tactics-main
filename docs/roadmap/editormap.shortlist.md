@@ -52,7 +52,7 @@ quel documento già usa. Nessun simbolo nuovo. La seduta scende a 🟡 da sola.
 
 <!-- RT_SHORTLIST_EDITOR:BEGIN -->
 
-**20 sedute** — ✅ **0** · 🟡 **10** · ⏳ **7** · **3** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
+**20 sedute** — ✅ **0** · 🟡 **11** · ⏳ **6** · **3** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
 
 Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md) e da `git ls-files` sugli artefatti. Un artefatto non tracciato impedisce il verde qualunque cosa dicano le voci.
 
@@ -63,8 +63,8 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 **BLOCKING** — *Blocca la v0.1, e si puo' fare adesso*
 
 - **U1** · Mappa-arena hex — 0/7 voci verdi · sblocca U13, U19
-- **U2** · Partita hex, primo giro — 1/4 voci verdi · sblocca U3, M6.1, M6.2
-- **U3** · Input e pianificazione — 0/4 voci verdi · sblocca U4, M6.3
+- **U2** · Partita hex, primo giro — 3/4 voci verdi · sblocca U3, M6.1, M6.2
+- **U3** · Input e pianificazione — 1/4 voci verdi · sblocca U4, M6.3
 - **U4** · Combat e linea di tiro — 0/3 voci verdi · sblocca U5, M6.4, M6.5
 - **U5** · Bot e HUD — 0/7 voci verdi · sblocca U6, M6.6, M6.7
 - **U6** · Multilivello e partita completa — 0/4 voci verdi · sblocca U16, U19, M6.8
@@ -96,10 +96,10 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 |---|---|---|---|:--:|:--:|:--:|
 | **U18** | Verifiche senza prerequisiti | verdetto su cinque voci che non attendono nulla | — | no | 1/5 | 🟡 |
 | **U1** | Mappa-arena hex | `DA_HexMap_Arena` e `L_HexArena`, committati | M6.0 | sì | 0/7 | ⏳ |
-| **U2** | Partita hex, primo giro | verdetto su allestimento e movimento | M6.1, M6.2 | sì | 1/4 | 🟡 |
-| **U3** | Input e pianificazione | verdetto su selezione, budget e anteprima del percorso | M6.3 | sì | 0/4 | 🟡 |
+| **U2** | Partita hex, primo giro | verdetto su allestimento e movimento | M6.1, M6.2 | sì | 3/4 | 🟡 |
+| **U3** | Input e pianificazione | verdetto su selezione, budget e anteprima del percorso | M6.3 | sì | 1/4 | 🟡 |
 | **U4** | Combat e linea di tiro | verdetto su forme d'attacco, LOS esagonale e knockback | M6.4, M6.5 | sì | 0/3 | ⏳ |
-| **U5** | Bot e HUD | verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale | M6.6, M6.7 | sì | 0/7 | ⏳ |
+| **U5** | Bot e HUD | verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale | M6.6, M6.7 | sì | 0/7 | 🟡 |
 | **U6** | Multilivello e partita completa | chiusura di M6 / E2 — sessione D verde | M6.8 | sì | 0/4 | 🟡 |
 | **U7** | Personaggi Paragon | `BP_Unit_Guardian` (Gideon) e `BP_Unit_Ranger` (Sparrow), committati | — | no | 2/2 | 🟡 |
 | **U8** | Animazioni | `ABP_Gideon`, `ABP_Sparrow` e i montaggi Cast/Hit/Death | — | no | 0/2 | ⏳ |
@@ -212,7 +212,7 @@ Nessuna guida copre ancora questa procedura, quindi i passi stanno qui.
 
 **Sbloccata da**: M6.1, M6.2 · **Preparazione condivisa con**: U3, U4, U5, U6 · **Percorso critico**: sì
 **Produce**: verdetto su allestimento e movimento
-**Verifichi**: `PIE-HEXPLAY-1` 🟡 · `PIE-HEXPLAY-4` ⏳ · `PIE-HEXPLAY-5` ⏳ · `PIE-CAM-START` ✅
+**Verifichi**: `PIE-HEXPLAY-1` ✅ · `PIE-HEXPLAY-4` ⏳ · `PIE-HEXPLAY-5` ✅ · `PIE-CAM-START` ✅
 **Finita quando**: le voci hanno esito reale nel registro
 **Sblocca**: U3, M6.1, M6.2
 
@@ -232,7 +232,7 @@ transizione. Questa e' la preparazione condivisa da U2…U6: una apertura, cinqu
 
 **Sbloccata da**: M6.3 · **Preparazione condivisa con**: U2, U4, U5, U6 · **Percorso critico**: sì
 **Produce**: verdetto su selezione, budget e anteprima del percorso
-**Verifichi**: `PIE-HEXPLAY-2` 🟡 · `PIE-HEXPLAY-3` 🟡 · `PIE-HEXPLAY-3b` 🟡 · `PIE-PREVIEW-PERSIST` ⏳
+**Verifichi**: `PIE-HEXPLAY-2` 🟡 · `PIE-HEXPLAY-3` ✅ · `PIE-HEXPLAY-3b` 🟡 · `PIE-PREVIEW-PERSIST` ⏳
 **Finita quando**: le voci hanno esito reale nel registro
 **Sblocca**: U4, M6.3
 
@@ -261,11 +261,11 @@ ostacolo/unita'/bordo e l'annullamento fra spinte opposte. L'arresto anticipato 
 ostacolo a **due** celle non e' piu' osservabile da nessuna parte in partita, e resta coperto
 solo headless (`HexCombat.Knockback*`, che la spinta se la costruisce da solo).
 
-#### U5 · Bot e HUD ⏳
+#### U5 · Bot e HUD 🟡
 
 **Sbloccata da**: M6.6, M6.7 · **Preparazione condivisa con**: U2, U3, U4, U6 · **Percorso critico**: sì
 **Produce**: verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale
-**Verifichi**: `PIE-HEXPLAY-7` ⏳ · `PIE-HEXPLAY-9` ⏳ · `PIE-AI-01` ⏳ · `PIE-AI-02` ⏳ · `PIE-AI-03` ⏳ · `PIE-AI-04` ⏳ · `PIE-AI-05` ⏳
+**Verifichi**: `PIE-HEXPLAY-7` 🟡 · `PIE-HEXPLAY-9` ⏳ · `PIE-AI-01` ⏳ · `PIE-AI-02` ⏳ · `PIE-AI-03` ⏳ · `PIE-AI-04` ⏳ · `PIE-AI-05` ⏳
 **Finita quando**: le voci hanno esito reale e i pesi eventualmente modificati sono committati
 **Sblocca**: U6, M6.6, M6.7
 
@@ -278,13 +278,27 @@ dal quadrato: su hex vanno riguardati, non dati per buoni.
 
 **Sbloccata da**: M6.8 · **Preparazione condivisa con**: U2, U3, U4, U5 · **Percorso critico**: sì
 **Produce**: chiusura di M6 / E2 — sessione D verde
-**Verifichi**: `PIE-HEXPLAY-8` 🟡 · `PIE-HEXPLAY-10` ⏳ · `PIE-HEXPLAY-4b` ⏳ · `PIE-FACING-1` ⏳
+**Verifichi**: `PIE-HEXPLAY-8` 🟡 · `PIE-HEXPLAY-10` 🟡 · `PIE-HEXPLAY-4b` ⏳ · `PIE-FACING-1` ⏳
 **Finita quando**: le nove voci `PIE-HEXPLAY` sono verdi, rilette tutte insieme
 **Sblocca**: U16, U19, M6.8
 
 Percorso che usa la transizione fra layer 0 e 1 — l'unita' deve **cambiare quota**, non
-teletrasportarsi; rimuovi l'arco e verifica che il path **fallisca**. Poi una partita intera,
-dall'avvio alla vittoria, rileggendo `PIE-HEXPLAY-1..9` insieme.
+teletrasportarsi. Poi una partita intera, dall'avvio alla vittoria, rileggendo
+`PIE-HEXPLAY-1..9` insieme.
+
+⚠️ **«Rimuovi l'arco e verifica che il path fallisca» NON si fa in questa apertura** (corretto il
+2026-08-10): su `MapSource=GeneratedTestArena` la transizione e' creata da codice
+(`MakeTestArena`, `(1,0,0) -> (2,0,1)`) e non c'e' un asset da editare. Quella meta' vive su un
+asset mappa vero, cioe' **U1**/**U13**, ed e' comunque gia' coperta headless da
+`Structures.Bridge.RemovalBreaksPath` e `…NoTeleportOnRemoval`.
+
+**Prima esecuzione parziale il 2026-08-10** (esiti nel registro): la partita e' arrivata a
+conclusione ma **per scadenza dei round**, `Pareggio (round 5/5)` con una squadra in vantaggio
+2 contro 1 — quindi la chiusura **per eliminazione** che `PIE-HEXPLAY-10` descrive non e' stata
+vista. Il playtest ha fatto il suo mestiere: ha falsificato `RoundLimit 5`, che contraddiceva i
+**10-14** del 2v2 fissati da D-010, e il formato spedito e' passato a **12** nello stesso
+giorno. ⚠️ La partita completa va quindi **rigiocata col limite nuovo**: il ritmo misurato su
+5 round («un lampo») non descrive piu' il gioco.
 
 ### Blocco 3 — Presentazione (M8)
 

@@ -136,23 +136,36 @@ URTMatchFormatData* URTMatchFormatLibrary::FindShippedFormat(FName FormatId)
 
 	URTMatchFormatData* Format = NewObject<URTMatchFormatData>();
 	Format->FormatId = Skirmish2v2FormatId;
-	// RoundLimit 5 — deciso con l'utente il 2026-08-10. E' PIU' CORTO della partita misurata su CP 12.5, che
-	// era finita per eliminazione al round 6: con 5 round il limite diventa la via NORMALE di chiusura, non la
-	// rete di sicurezza. E' una scelta di ritmo, non un ripiego, e va riletta col primo playtest vero.
-	Format->RoundLimit = 5;
+	// RoundLimit 12 — allineato a **D-010**, che consolida `RoundLimit` **10-14 in 2v2** (16-20 in 3v3): 12 e'
+	// il centro dell'intervallo del formato che questo catalogo descrive. Portato qui da 5 il 2026-08-10.
+	//
+	// Il 5 precedente era un valore da test, e si dichiarava «una scelta di ritmo, non un ripiego»: era una
+	// motivazione scritta senza confrontarla con D-010, che diceva gia' il contrario. A falsificarla e' stato
+	// il primo playtest al PIE — partita 2v2 su `GeneratedTestArena` finita
+	// `Pareggio - allo scadere dei round (round 5/5)` con una squadra in vantaggio **2 contro 1** e il bot
+	// che gia' puntava l'ultimo superstite. Con 5 la via NORMALE di chiusura era il pareggio a vantaggio
+	// netto: un esito che nessuno vuole dichiarare come regola.
+	//
+	// ⚠️ `RoundLimit` non e' solo la fine della partita: **D-056** ne deriva `InitialBank`
+	// (`RoundLimit x (MaxWindow - Grace)`), quindi questo numero muove anche il time bank. La formula si tara
+	// a CP 14.6 e li' va riletta con 12, non con 5.
+	Format->RoundLimit = 12;
 	// `ExpectedRounds` non lo legge nessun codice di gioco: e' un target di design, e il suo unico lettore
-	// e' il validator, che rifiuta un formato in cui i round attesi superano il limite. Il default della
-	// classe e' 12 — pensato per il RoundLimit 12 del ripiego — e con un limite di 5 diventa una
-	// contraddizione: il formato dichiarerebbe una durata che non puo' raggiungere. Qui vale **5**, cioe' il
-	// limite stesso, e non e' un modo di far passare il validator: con RoundLimit 5 la partita misurata su
-	// CP 12.5 (finita per eliminazione al round 6) sarebbe scaduta prima, quindi il limite E' la fine attesa.
+	// e' il validator, che rifiuta un formato in cui i round attesi superano il limite.
+	//
+	// Vale **10**, e la scelta e' l'inversa di quella che c'era con RoundLimit 5. Li' i round attesi erano
+	// il limite stesso, perche' il limite ERA la fine attesa; con 12 la fine attesa torna a essere
+	// l'**eliminazione**, e il limite la rete di sicurezza dietro di essa. Il 10 e' il dato misurato
+	// headless il 2026-08-06 (bot contro bot: la partita si decide al turno 10), non un numero scelto a
+	// tavolino — ed e' lo stesso valore che `PIE-HEXPLAY-10` porta come dato di riferimento.
+	// Tenerlo uguale a 12 avrebbe dichiarato di nuovo che ci si aspetta di arrivare allo scadere.
 	// Soglia obiettivo ZERO, e non e' pigrizia: **nessuno assegna punti**. `ARTTurnManager::AddTeamScore`
 	// esiste e funziona, ma il suo unico chiamante in tutto il repository e' un test — nel runtime non ci sono
 	// obiettivi che producano punteggio. Una soglia > 0 dichiarerebbe una via di vittoria IRRAGGIUNGIBILE, cioe'
 	// il difetto ricorrente del progetto nella sua forma opposta: non un dato che nessuno legge, ma una soglia
 	// che nessuno alimenta. Lo zero dice il vero — in v0.1 si vince per eliminazione o al limite di round — e
 	// diventa un numero il giorno in cui un obiettivo chiama `AddTeamScore`.
-	Format->ExpectedRounds = 5;
+	Format->ExpectedRounds = 10;
 	Format->ScoreToWin = 0;
 	Format->UnitsPerTeam = 2;
 	Format->MapClass = ERTMapClass::Skirmish;
