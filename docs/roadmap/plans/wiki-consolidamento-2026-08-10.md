@@ -145,15 +145,20 @@ Nessuna riscrittura di contenuto.
   vince il nome già pubblicato, perché rinominarlo cambierebbe l'URL della pagina.
 - Questo documento committato come inventario.
 
-### Fase 1 — conformità, non sincronizzazione ✅ *(eseguita su questo branch)*
+### Fase 1 — conformità, non sincronizzazione ✅ *(chiusa, ma non da questo branch)*
 
-- `azioni-e-movimento.md`: sette azioni con `Guard`, e la sezione `### Guard` che mancava. Numeri
-  verificati su tre fonti indipendenti — D-025, `RT_ActionCatalog_v0.1.md` §135,
-  `RTCombatLibrary.h:59` (`GuardFirstHitReduction = 15`).
-- Aggiunta oltre lo stretto perimetro D-025: `Brace` diceva «numeri ancora da playtestare» mentre
-  catalogo e codice ne hanno di concreti (−10 a *ogni* danno, prima spinta senza limite di distanza).
-  Portati a monte con il rinvio esplicito a `BAL-1` / D-066, che tiene aperto il **confine** fra le due
-  azioni senza fingere che i valori non esistano.
+> **La violazione di D-025 è stata corretta da [#399](https://github.com/DegrassiAaron/refactor-tactics-main/pull/399)
+> mentre questo branch era aperto**, e meglio di come l'aveva corretta questo branch: stessi numeri, più
+> fatti — `Brace` costa il movimento volontario e regge anche da dietro, mentre `Guard` copre solo il
+> davanti — e una nota `BAL-1` più affilata, che dice *perché* oggi la differenza non si vede (nessuna
+> spinta del gioco supera una cella). Al merge ha vinto la versione di `main`; di questo branch resta
+> solo il conteggio esplicito «di **sette** voci» nell'introduzione.
+>
+> Vale la pena registrarlo: il difetto era reale e due lavori indipendenti l'hanno trovato lo stesso
+> giorno. Non è una duplicazione da evitare, è la conferma che era visibile.
+
+Restava da fare, ed è ciò che questo branch ha effettivamente prodotto: la **rassegna** delle altre
+pagine divergenti, per capire se il caso fosse isolato o sistemico.
 
 **Esito della rassegna sulle altre 21 pagine divergenti**: `azioni-e-movimento` era l'**unico** caso di
 correzione viva solo a valle. La restante prosa esclusiva del clone è di due tipi, e nessuno dei due è

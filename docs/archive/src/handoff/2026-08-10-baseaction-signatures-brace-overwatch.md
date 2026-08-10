@@ -1,6 +1,16 @@
 # RefactorTactics — Consolidamento Base Action Signatures, Brace e Overwatch
 ## Handoff operativo per Claude Code
 
+> 📦 **Archiviato il 2026-08-10 — recepito, non applicato.** L'esito del triage vive in
+> [`roadmap/plans/baseaction-signatures-spec-panel-2026-08-10.md`](../../../roadmap/plans/baseaction-signatures-spec-panel-2026-08-10.md),
+> e le domande che ne restano aperte in [`OPEN_DECISIONS.md`](../../../OPEN_DECISIONS.md) come `BAS-1`…`BAS-5`.
+> **Questo file non è autorità.** Tre dei suoi punti sono in conflitto con decisioni già consolidate — le otto
+> azioni universali del §3.2 (`Activate` è assorbita da `Interact`, D-014 e D-025), «Brace non riduce il
+> danno» del §10 (D-047: la risposta universale `Hold Ground` **riduce** −10, ed è in partita) e il
+> vocabolario `Base Action Signature` del §4 (D-033: si chiama **profilo**) — e il §14 è superato
+> dall'handoff pari-data sul lifecycle dell'Overwatch. Ciò che il triage ha tenuto sono le due tabelle dei
+> profili d'eroe. Leggilo per la **provenienza**, mai per la regola.
+
 **Data:** 2026-08-10  
 **Scope:** personaggi v0.1, azioni universali, Base Action Signature, Brace, Overwatch, Character Reaction Profiles, Feature Map, Scenario Map, Wiki, Roadmap, Epic/Issue GitHub.  
 **Roster v0.1 da preservare:** `Flux`, `Riva`, `Bastion`, `Vektor`.  

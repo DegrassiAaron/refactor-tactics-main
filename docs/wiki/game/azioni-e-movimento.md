@@ -134,25 +134,24 @@ Interazione con elementi della mappa come porte, console, ponti o obiettivi quan
 
 ### Guard
 
-Guardia: si dichiara nel **Prep** e vale per il turno. Toglie **15** al *primo* danno diretto che ricevi e
-regge una spinta di **1 cella**; una spinta più forte passa intera, perché la resistenza è una soglia e non
-una sottrazione ([D-038](../../decisions/RT_PDR_00_Decision_Log.md)).
+Ti metti in guardia. Il **primo** colpo diretto che ricevi nel turno fa **15 danni in meno**; dal secondo in poi incassi per intero. Reggi anche una spinta di **una cella** — non di più: la guardia non è un'ancora.
 
-La riduzione vale solo contro ciò che arriva nel tuo **arco frontale**: chi ti colpisce di lato o alle spalle
-la ignora — vedi [Facing e direzionalità](../meccaniche/facing-e-direzionalita.md).
+Copre il **davanti**. Un colpo che arriva alle spalle trova la guardia inutile, e questo è il motivo per cui il facing conta anche quando non ti muovi.
 
 ### Brace
 
-Irrigidimento: anche questa si dichiara nel **Prep**. Toglie **10** a *ogni* danno diretto del turno, non solo
-al primo, e blocca la **prima** spinta che subisci **senza limite di distanza**.
+Ti irrigidisci. Ogni colpo diretto del turno fa **10 danni in meno** — non solo il primo — e la **prima** spinta non ti sposta, a qualsiasi distanza. In cambio rinunci al movimento volontario.
 
-Guard e Brace non sono l'uno la versione debole dell'altro: sono due forme diverse della stessa difesa —
-*primo colpo forte* contro *ogni colpo, più a lungo*; *spinta corta* contro *spinta qualsiasi*.
+A differenza di `Guard`, `Brace` protegge la **persona** e non un lato: regge anche da dietro.
 
-> ⚠️ Se quel confine sia quello giusto è una **domanda di bilanciamento aperta** (`BAL-1` in
-> [OPEN_DECISIONS](../../OPEN_DECISIONS.md)): [D-066](../../decisions/RT_PDR_00_Decision_Log.md) ha misurato
-> il modello in vigore e ha rinviato la separazione «Guard = danno, Brace = spinta» al playtest. I numeri qui
-> sopra sono quelli che il gioco esegue oggi, non una promessa che non cambieranno.
+> ⚠️ **Il confine fra Guard e Brace è una domanda aperta, non una regola stabile.**
+> Sulla carta `Guard` è «reggo il colpo» e `Brace` è «non mi sposti». In partita, oggi, la differenza sullo
+> spostamento **non si vede**: nessuna spinta del gioco supera una cella, quindi entrambe la annullano, e
+> `Guard` resta avanti di 5 danni. `Brace` conviene solo se ti colpiscono **più di una volta** nello stesso
+> turno.
+>
+> È registrato come `BAL-1` e si chiude con un playtest, non con un documento. I numeri qui sopra sono quelli
+> in vigore adesso e possono cambiare.
 
 ### Move
 

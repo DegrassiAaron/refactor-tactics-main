@@ -2,7 +2,7 @@
 
 > `GENERATO` · Vista del **Feature Registry** (`docs/roadmap/feature-registry.yaml` nel repository del gioco).
 > Non modificare a mano: si rigenera con `python scripts/feature_registry.py wiki`.
-> Feature tracciate: **87** · Ultimo audit completo: **2026-08-08** su `2094b86`.
+> Feature tracciate: **88** · Ultimo audit completo: **2026-08-08** su `2094b86`.
 
 Questa pagina dice **cosa esiste davvero**. Una meccanica descritta altrove nella Wiki e
 marcata qui come `SPECIFIED` o `DESIGNED` e' progettata, non giocabile: la Wiki racconta
@@ -168,6 +168,7 @@ il gioco che sara', questa tabella dice a che punto e'.
 | Feature | Titolo | Roadmap | Stato | Gate | Scenario |
 |---|---|---|---|---:|---|
 | `RT-FEAT-ACTION-SUPERS` | Ultimate e azioni ad alto impegno | — | **IMPLEMENTING** | 0/8 | — |
+| `RT-FEAT-STATUS-FRAMEWORK` | Framework degli status — categorie, severity e primitive | — | **DESIGNED** | 0/8 | — |
 
 ### Characters
 
