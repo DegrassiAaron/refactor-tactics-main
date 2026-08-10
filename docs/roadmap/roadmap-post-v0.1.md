@@ -152,10 +152,17 @@ scenari, golden replay e mappe salvate.
 > [conflict report 2026-08-10](plans/handoff-geometry-reazioni-conflict-report-2026-08-10.md) §4).
 > Feature: `RT-FEAT-MAP-STANDABILITY`, `RT-FEAT-MAP-TRANSITION-CLEARANCE`, entrambe **DESIGNED**.
 >
-> ⚠️ **Due blocchi dichiarati, entrambi in [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md)**: `MAP-1` — la
-> clearance standard in metri, senza la quale non c'è niente da intersecare e cuocere significa ricuocere —
-> e `MAP-3` — la cottura **non è invertibile**, quindi una modifica a mano sul dato cotto sparisce al
-> ricalcolo successivo, in silenzio. Il secondo è un rischio di produzione registrato dal 2026-08-09 e non
+> ✅ **`MAP-1` è chiusa — [D-071](../decisions/RT_PDR_00_Decision_Log.md), 2026-08-10.** Il footprint
+> standard è il **cerchio inscritto** nell'esagono (raggio = **apotema**), e la *swept clearance* di 23.7 usa
+> **lo stesso raggio**. **Zero numeri nuovi**: l'apotema si deriva dal lato, già fissato, e la misura resta in
+> esagoni — che è ciò che tiene il dato autorevole intero.
+>
+> ⚠️ **Il limite che ne consegue, dichiarato adesso e non a mappa cotta**: con un raggio solo, *calpestabile*
+> e *attraversabile* condividono la soglia. Il varco «ci passo ma non ci sto» — cunicoli, porte strette —
+> **non è modellabile in v0.2**. Servirebbe un secondo numero, scartato di proposito.
+>
+> ⚠️ **Resta un blocco**: `MAP-3` — la cottura **non è invertibile**, quindi una modifica a mano sul dato
+> cotto sparisce al ricalcolo successivo, in silenzio. Rischio di produzione registrato dal 2026-08-09 e non
 > ancora chiuso.
 
 ### E24 — Formato Standard 3v3 · P1
