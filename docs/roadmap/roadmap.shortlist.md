@@ -35,7 +35,7 @@ Legenda: ✅ chiusa · 🟡 parziale · ⏳ non iniziata · `—` nessuno stato 
 | **E16** | ✅ | 1 | 5/9 | Il facing è **stato di gioco**: deriva da Move e Dash, entra in snapshot/TurnLog/hash, e da dietro annulla copertura e `Guard` |
 | **E17** | ⏳ | 1 | 1/7 | **Misura, non produzione**: dove si rompe il sistema con otto unità. Dopo E15; **non** è un gate di release |
 | **E18** | ⏳ | 1 | 1/8 | **Una sola** azione predittiva rende percepibile il pilastro. Non dipende da E13/E14 |
-| **E19** | 🟡 | 1 | 4/8 | Due buchi misurati: la mappa non dichiara la propria **classe**, il formato non dichiara le **unità per squadra** |
+| **E19** | 🟡 | 1 | 5/8 | Due buchi misurati: la mappa non dichiara la propria **classe**, il formato non dichiara le **unità per squadra** |
 | **E20** | 🟡 | 1 | 1/7 | Le icone come **catalogo semantico**, non texture nei widget: va fatto *mentre* E11 costruisce l'HUD |
 | **E21** | 🟡 | 1 | 1/7 | Il gioco smette di essere cilindri colorati — mesh, animazioni, anelli team/selezione |
 

@@ -1051,4 +1051,185 @@ bool FRTHexLinearFilterTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// CP 14.2 — il resolver a microstep e quello in blocco sono lo stesso codice
+// ---------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** Le configurazioni che hanno gia' un test dedicato in questo file, piu' i casi degeneri. */
+	TArray<TArray<TArray<FRTCellId>>> StepperCases()
+	{
+		TArray<TArray<TArray<FRTCellId>>> Cases;
+
+		// Nessuna unita': il caso che rompe i cicli scritti male.
+		Cases.Add({});
+
+		// Una sola unita' che non si muove (path di una cella).
+		Cases.Add({ { FRTCellId(0, 0) } });
+
+		// Corsa libera, nessuna interazione.
+		Cases.Add({ { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) } });
+
+		// Destinazione contesa: entrambe restano.
+		Cases.Add({
+			{ FRTCellId(0, 0), FRTCellId(1, 0) },
+			{ FRTCellId(2, 0), FRTCellId(1, 0) } });
+
+		// Scambio diretto fra due non-lineari: consentito.
+		Cases.Add({
+			{ FRTCellId(0, 0), FRTCellId(1, 0) },
+			{ FRTCellId(1, 0), FRTCellId(0, 0) } });
+
+		// Coda: chi sta davanti si ferma per contesa, chi segue lo trova fermo al microstep dopo.
+		Cases.Add({
+			{ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) },
+			{ FRTCellId(1, 0), FRTCellId(2, 0) },
+			{ FRTCellId(3, 0), FRTCellId(2, 0) } });
+
+		// Percorsi di lunghezza diversa: chi finisce prima diventa un ostacolo fermo per chi continua.
+		Cases.Add({
+			{ FRTCellId(0, 0), FRTCellId(1, 0) },
+			{ FRTCellId(-2, 0), FRTCellId(-1, 0), FRTCellId(0, 0), FRTCellId(1, 0) } });
+
+		return Cases;
+	}
+
+	bool SameResults(const TArray<FRTHexMoveResult>& A, const TArray<FRTHexMoveResult>& B)
+	{
+		if (A.Num() != B.Num()) { return false; }
+		for (int32 i = 0; i < A.Num(); ++i)
+		{
+			if (A[i].Final != B[i].Final || A[i].Outcome != B[i].Outcome) { return false; }
+			if (A[i].Entered.Num() != B[i].Entered.Num()) { return false; }
+			for (int32 k = 0; k < A[i].Entered.Num(); ++k)
+			{
+				if (A[i].Entered[k] != B[i].Entered[k]) { return false; }
+			}
+		}
+		return true;
+	}
+}
+
+/**
+ * CP 14.2 — **nessun comportamento cambia**: guidare i microstep a mano produce esattamente cio' che produce
+ * `ResolveHexPaths`, che di quei microstep e' il wrapper.
+ *
+ * Il test ha valore anche sapendo che condividono il codice: e' il gate che cadrebbe il giorno in cui qualcuno
+ * ne scrivesse una seconda copia "solo per il caso interattivo" — che e' il modo in cui i due algoritmi di
+ * collisione nascono davvero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimStepperMatchesBatchTest,
+	"RefactorTactics.Movement.StepperMatchesBatchResolver",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimStepperMatchesBatchTest::RunTest(const FString&)
+{
+	const TArray<TArray<TArray<FRTCellId>>> Cases = StepperCases();
+	for (int32 c = 0; c < Cases.Num(); ++c)
+	{
+		const TArray<TArray<FRTCellId>>& Paths = Cases[c];
+
+		const TArray<FRTHexMoveResult> Batch = URTHexSimLibrary::ResolveHexPaths(Paths);
+
+		FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths);
+		int32 Guard = 0;
+		while (URTHexSimLibrary::ResolveNextHexMicroStep(State) && Guard++ < 64) {}
+		TestTrue(FString::Printf(TEXT("caso %d: la risoluzione termina"), c), State.bFinished);
+
+		TestTrue(FString::Printf(TEXT("caso %d: stepper == batch"), c), SameResults(State.Results, Batch));
+	}
+
+	// Il caso con priorita' e mobilita' lineari passa dallo stesso confronto: il ramo di CP 4.8 e' il piu'
+	// facile da dimenticare in un refactoring del ciclo.
+	{
+		TArray<TArray<FRTCellId>> Paths;
+		Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0) });
+		Paths.Add({ FRTCellId(2, 0), FRTCellId(1, 0) });
+		const TArray<int32> Priorities = { 50, 10 };
+		const TArray<bool> Linear = { false, true };
+
+		const TArray<FRTHexMoveResult> Batch = URTHexSimLibrary::ResolveHexPaths(Paths, Priorities, Linear);
+
+		FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, Priorities, Linear);
+		const TArray<FRTHexMoveResult> Stepped = URTHexSimLibrary::FinishHexMovement(State);
+
+		TestTrue(TEXT("con priorita': stepper == batch"), SameResults(Stepped, Batch));
+		TestTrue(TEXT("e la priorita' piu' bassa ha vinto la cella"),
+			Batch.Num() == 2 && Batch[1].Final == FRTCellId(1, 0));
+	}
+
+	return true;
+}
+
+/**
+ * CP 14.2 — il punto fisso resta monotono: permutare le richieste non cambia l'esito di nessuna.
+ *
+ * E' l'invariante #3 letto sul resolver a passi. Un microstep che dipendesse dall'ordine dell'array
+ * produrrebbe partite diverse a parita' di piani, e la divergenza si vedrebbe solo nel replay.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimStepperPermutationTest,
+	"RefactorTactics.Movement.StepperIsDeterministicUnderPermutation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimStepperPermutationTest::RunTest(const FString&)
+{
+	// Tre unita' che interagiscono: A e C contendono la cella di mezzo, B la attraversa in coda.
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) });   // A
+	Paths.Add({ FRTCellId(-1, 0), FRTCellId(0, 0), FRTCellId(1, 0) });  // B
+	Paths.Add({ FRTCellId(2, 0), FRTCellId(1, 0) });                    // C
+
+	FRTMovementResolutionState Direct = URTHexSimLibrary::BeginHexMovement(Paths);
+	const TArray<FRTHexMoveResult> Reference = URTHexSimLibrary::FinishHexMovement(Direct);
+
+	// Le sei permutazioni di tre elementi, riportate all'ordine originale prima del confronto.
+	const int32 Perms[6][3] = { {0,1,2}, {0,2,1}, {1,0,2}, {1,2,0}, {2,0,1}, {2,1,0} };
+	for (int32 p = 0; p < 6; ++p)
+	{
+		TArray<TArray<FRTCellId>> Shuffled;
+		for (int32 k = 0; k < 3; ++k) { Shuffled.Add(Paths[Perms[p][k]]); }
+
+		FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Shuffled);
+		const TArray<FRTHexMoveResult> Out = URTHexSimLibrary::FinishHexMovement(State);
+
+		for (int32 k = 0; k < 3; ++k)
+		{
+			const int32 Original = Perms[p][k];
+			TestTrue(FString::Printf(TEXT("perm %d: unita' %d finisce dove deve"), p, Original),
+				Out[k].Final == Reference[Original].Final);
+			TestTrue(FString::Printf(TEXT("perm %d: unita' %d con lo stesso motivo"), p, Original),
+				Out[k].Outcome == Reference[Original].Outcome);
+		}
+	}
+
+	return true;
+}
+
+/**
+ * CP 14.2 — lo stato SOPRAVVIVE al chiamante: e' la ragione per cui `FRTMovementResolutionState` copia gli
+ * input invece di referenziarli.
+ *
+ * Senza la copia questo test leggerebbe memoria morta, ed e' esattamente cio' che accadrebbe a una finestra di
+ * reazione aperta fra due microstep — il caso d'uso per cui il checkpoint esiste.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimStepperOwnsInputTest,
+	"RefactorTactics.Movement.StepperOwnsItsInput",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimStepperOwnsInputTest::RunTest(const FString&)
+{
+	FRTMovementResolutionState State;
+	{
+		TArray<TArray<FRTCellId>> Ephemeral;
+		Ephemeral.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) });
+		State = URTHexSimLibrary::BeginHexMovement(Ephemeral);
+		URTHexSimLibrary::ResolveNextHexMicroStep(State);
+	}   // gli input escono di scope QUI, a risoluzione iniziata
+
+	const TArray<FRTHexMoveResult> Out = URTHexSimLibrary::FinishHexMovement(State);
+	TestTrue(TEXT("il movimento si completa dopo la morte dell'input"),
+		Out.Num() == 1 && Out[0].Final == FRTCellId(2, 0));
+	TestTrue(TEXT("con l'esito giusto"), Out.Num() == 1 && Out[0].Outcome == ERTMoveOutcome::Moved);
+	TestTrue(TEXT("e ha richiesto piu' di un microstep"), State.MicroStepIndex >= 2);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -17,7 +17,7 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 
 <!-- RT_SHORTLIST_SCENARIOS:BEGIN -->
 
-**57 scenari versionati** — misurati su `Scenarios/`: **47** eseguibili · **10** `BLOCKED` per una capability assente · **23** dichiarati `planned` nel registry e non ancora scritti.
+**60 scenari versionati** — misurati su `Scenarios/`: **47** eseguibili · **13** `BLOCKED` per una capability assente · **23** dichiarati `planned` nel registry e non ancora scritti.
 
 **Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `Cover` · `CreateCover` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `Reaction` · `Structures`.
 
@@ -29,6 +29,9 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 | `Spec.Clash.ShiftBeatsRead` | `DecisionBoundary` · `ReactionClash` |
 | `Spec.Clash.StandBeatsShift` | `DecisionBoundary` · `ReactionClash` |
 | `Spec.Clash.TieAppliesOnce` | `DecisionBoundary` · `ReactionClash` |
+| `Spec.Movement.AntiDashTriggerIgnoresMove` | `SemanticTrigger` |
+| `Spec.Movement.TeleportSkipsIntermediateCells` | `Teleport` |
+| `Spec.Movement.TripwireOnCrossEdge` | `SpatialTrigger` · `Teleport` |
 | `Spec.Objective.PointSurvivesKO` | `Objective` |
 | `Spec.Overwatch.HoldThenFire` | `DecisionBoundary` · `Facing` |
 | `Spec.Perception.HeardNotSeen` | `Perception` |

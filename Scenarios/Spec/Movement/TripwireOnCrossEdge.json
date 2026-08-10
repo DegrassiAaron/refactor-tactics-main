@@ -1,0 +1,47 @@
+{
+  "scenarioId": "Spec.Movement.TripwireOnCrossEdge",
+  "tags": ["spec", "movement", "reactions", "triggers"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 5,
+
+  "_nota": "SPECIFICA ESEGUIBILE del trigger GEOGRAFICO sull'attraversamento di un bordo (docs/gameplay/spec-tassonomia-movimento.md §4). Il filo scatta per chiunque **attraversi** quel bordo — camminando, scattando o **spinto** — e non scatta per chi vi **compare oltre** senza attraversarlo, cioe' per un teletrasporto.",
+
+  "_nota_perche_esiste": "E' il complemento di `Spec.Movement.AntiDashTriggerIgnoresMove`, e insieme coprono le due meta' del modello: quello e' semantico e discrimina sul COME, questo e' geografico e non discrimina affatto — tranne che sul fatto fisico dell'attraversamento. La riga che conta e' la terza: **lo spostamento forzato attraversa davvero**, quindi il filo scatta anche se la vittima non ha scelto di passare (§3, «ignora il costo volontario, non la geometria»).",
+
+  "_nota_da_completare": "Chi implementa: dichiara la capability `SpatialTrigger`, piazza il filo sul bordo fra (0,0) e (1,0) e riempie i tre turni. Il quarto — il teletrasporto che non scatta — dipende anche dalla capability `Teleport` e va tenuto separato: se il teletrasporto non esiste ancora, i primi tre turni valgono da soli e il quarto resta BLOCKED.",
+
+  "units": [
+    { "id": "F1", "hero": "Hero.Flux",   "team": 0, "cell": [-2, 0, 0] },
+    { "id": "R1", "hero": "Hero.Riva",   "team": 0, "cell": [-2, 1, 0] },
+    { "id": "V1", "hero": "Hero.Vektor", "team": 1, "cell": [ 3, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — Flux attraversa il bordo con un MOVE: il filo scatta.",
+      "requires": ["SpatialTrigger"],
+      "intents": []
+    },
+    {
+      "_turno": "T2 — Riva attraversa lo stesso bordo con un DASH: scatta comunque. Il trigger geografico non guarda il tipo di movimento.",
+      "requires": ["SpatialTrigger"],
+      "intents": []
+    },
+    {
+      "_turno": "T3 — un'unita' viene SPINTA attraverso il bordo. Scatta: chi e' spostato contro la propria volonta' ha comunque attraversato.",
+      "requires": ["SpatialTrigger"],
+      "intents": []
+    },
+    {
+      "_turno": "T4 — un'unita' si teletrasporta oltre il bordo. NON scatta: non lo ha attraversato, e' comparsa dall'altra parte.",
+      "requires": ["SpatialTrigger", "Teleport"],
+      "intents": []
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAlive", "unit": "V1", "value": true },
+    { "type": "TurnsCompleted", "value": 0 }
+  ]
+}

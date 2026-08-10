@@ -264,6 +264,10 @@ bool FRTMatchFormatFallbackObservableTest::RunTest(const FString&)
 
 	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
 	GameMode->MatchFormat = nullptr; // formato assente: e' il caso che D1 dichiara giocabile
+	// ...e ANCHE nessun formato spedito: dal 2026-08-10 (#375) l'assenza dell'asset non basta piu' a far
+	// ripiegare, perche' il GameMode risolve `Format.Skirmish2v2` dal catalogo C++. Il ripiego copre ora
+	// l'id SCONOSCIUTO — che e' il caso che resta davvero scoperto, ed e' quello che questo test misura.
+	GameMode->ShippedFormatId = FName(TEXT("Format.NonEsiste"));
 	GameMode->SetupHexMatch(MapActor);
 
 	// La partita c'e' (D1: non ci si rifiuta di partire)...
@@ -273,6 +277,41 @@ bool FRTMatchFormatFallbackObservableTest::RunTest(const FString&)
 	TestEqual(TEXT("il formato in vigore e' quello di ripiego"),
 		TurnManager->GetMatchRules().FormatId, URTMatchFormatLibrary::FallbackFormatId);
 	TestEqual(TEXT("con il RoundLimit del ripiego"), TurnManager->GetMatchRules().RoundLimit, 12);
+
+	DestroyFormatWorld(World);
+	return true;
+}
+
+/**
+ * Senza asset assegnato si gioca il formato SPEDITO, non il ripiego (#375). E' la meta' che mancava: CP 12.5
+ * ha misurato una build pacchettizzata che girava su `Format.Fallback` proprio perche' nessuno aveva creato
+ * un `.uasset` in editor, e il formato canonico della v0.1 non puo' dipendere da quel passo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMatchFormatShippedInMatchTest,
+	"RefactorTactics.MatchFormat.ShippedFormatPlaysWithoutAsset",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMatchFormatShippedInMatchTest::RunTest(const FString&)
+{
+	UWorld* World = MakeFormatWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTHexMapActor* MapActor = SpawnFormatMap(World);
+	ARTTurnManager* TurnManager = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	GameMode->MatchFormat = nullptr; // nessun asset: e' il caso normale del repository, che non ne contiene
+	GameMode->SetupHexMatch(MapActor);
+
+	TestTrue(TEXT("la partita si allestisce"), CountUnits(World) > 0);
+
+	const FRTMatchRules& Rules = TurnManager->GetMatchRules();
+	TestEqual(TEXT("gioca il formato SPEDITO, non il ripiego"),
+		Rules.FormatId, URTMatchFormatLibrary::Skirmish2v2FormatId);
+	TestNotEqual(TEXT("e l'identita' NON e' quella riservata al ripiego"),
+		Rules.FormatId, URTMatchFormatLibrary::FallbackFormatId);
+	// I numeri decisi il 2026-08-10: se qualcuno li cambia nel catalogo, questo test lo dice.
+	TestEqual(TEXT("RoundLimit 5"), Rules.RoundLimit, 5);
+	TestEqual(TEXT("due unita' per squadra"), Rules.UnitsPerTeam, 2);
 
 	DestroyFormatWorld(World);
 	return true;

@@ -92,7 +92,7 @@ La v0.1 non si chiude perché «sembra pronta»: si chiude quando questi sono **
 
 <!-- RT_SHORTLIST_MILESTONES_GATES:BEGIN -->
 
-**15 gate** · verdi: **0**. Stato letto da [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §3.
+**15 gate** · verdi: **1**. Stato letto da [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §3.
 
 | Gate | Cosa chiede | Stato |
 |:--:|---|---|
@@ -107,8 +107,8 @@ La v0.1 non si chiude perché «sembra pronta»: si chiude quando questi sono **
 | **G9** | Il **subset `RELEASE-V01`** delle verifiche manuali è eseguito | ⏳ **2 verdi · 7 parziali · 8 aperte** (2026-08-09) |
 | **G10** | Partita completa 2v2 su mappa multilivello, dall'avvio alla vittoria | ⏳ |
 | **G11** | KPI misurati e registrati (anche fuori target) | ⏳ |
-| **G12** | Packaging Windows Development **e** Shipping | ⏳ |
-| **G13** | Partita giocabile **senza editor** dalla build packaged | ⏳ |
+| **G12** | Packaging Windows Development **e** Shipping | ✅ **2026-08-10** (CP 12.5): Development 916 MB · Shipping 569 MB, entrambi `BUILD SUCCESSFUL` |
+| **G13** | Partita giocabile **senza editor** dalla build packaged | 🟡 **2026-08-10**: partita completa fino alla vittoria sul pacchetto Development (`round 6/12`, per eliminazione, zero crash) — ma sull'**arena di test**. Riserva sotto |
 | **G14** | Documentazione allineata | ⏳ |
 | **G15** | Tracciabilità delle feature verificabile | ⏳ |
 

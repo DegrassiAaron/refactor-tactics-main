@@ -1,6 +1,6 @@
 # RefactorTactics — Context Index
 
-> `CURRENT` · **Tipo**: indice di navigazione per assistenti/agent · **Ultimo aggiornamento**: 2026-08-08
+> `CURRENT` · **Tipo**: indice di navigazione per assistenti/agent · **Ultimo aggiornamento**: 2026-08-10
 >
 > Questo file dice **quale contesto caricare e in che ordine**. Non è una nuova fonte normativa e non duplica le regole: per ogni concetto rimanda al suo owner.
 >
@@ -146,6 +146,20 @@ Carica:
 5. test e codice che provano lo stato
 
 Non usare un handoff come prova che una feature sia implementata.
+
+**Per orientarti prima di leggere**: `docs/roadmap/project-graph.json` è il grafo del progetto in forma
+macchina — diagnostica, gate di release, epic/milestone/checkpoint, sedute in editor, voci PIE, scenari —
+generato insieme a `feature-registry.json` da `python scripts/feature_registry.py generate`. Serve a sapere
+**dove guardare**; gli owner qui sopra restano l'autorità. La sua vista umana è
+`docs/control-center/` (`python -m http.server`, poi `/docs/control-center/`).
+
+⚠️ Entrambi sono **generati**: se il `.yaml` è più recente, sono vecchi. Nel dubbio, `generate --check`.
+
+### Riferimenti a checkpoint
+
+`CP 6.3` **non è risolvibile**: 20 numeri di checkpoint su 22 esistono in due spazi — `6.3` è «input hex»
+in **M6** e «Riva» in **E6**. Scrivi sempre la forma prefissata: `M6.3` (owner `roadmap-checkpoint.md`),
+`E1.3` (owner `roadmap-v0.1.md` §2.2), `E8` (epic intera), `U13` (seduta in editor).
 
 ### Turni / action engine / reazioni
 

@@ -56,6 +56,28 @@ public:
 	static bool ResolveRules(const URTMatchFormatData* Format, FRTMatchRules& OutRules, FString& OutReason);
 
 	/**
+	 * I formati SPEDITI col gioco, per identita' stabile. Ritorna `nullptr` per un id sconosciuto — il
+	 * chiamante decide se ripiegare o rifiutare, come per `URTCatalogLibrary::FindCoreAction`.
+	 *
+	 * Perche' in C++ e non come `.uasset`: e' lo stesso posto in cui vivono le istanze di `URTActionData` e
+	 * `URTHeroData` (`URTCatalogLibrary`, `URTHeroCatalogLibrary`). La CLASSE resta un data asset — un
+	 * designer puo' crearne uno e assegnarlo al GameMode, e quello vince — ma il formato canonico della v0.1
+	 * non puo' dipendere da un file che qualcuno deve ricordarsi di creare in editor: senza, il gioco
+	 * pacchettizzato gira sul RIPIEGO, ed e' esattamente cio' che CP 12.5 ha misurato.
+	 *
+	 * Oggi ne contiene **uno**: `Format.Skirmish2v2`. Gli altri entrano quando un checkpoint li consuma —
+	 * la stessa regola (D2) che tiene i campi della spec fuori da `URTMatchFormatData` finche' non hanno
+	 * un lettore.
+	 */
+	static URTMatchFormatData* FindShippedFormat(FName FormatId);
+
+	/** Gli id dei formati spediti, per i test e per la validazione dei dati. */
+	static TArray<FName> ShippedFormatIds();
+
+	/** Identita' del formato canonico della v0.1: 2v2 Skirmish. */
+	static const FName Skirmish2v2FormatId;
+
+	/**
 	 * Regole di RIPIEGO, valide secondo lo stesso validator: `RoundLimit` 12, cioe' il valore iniziale del
 	 * 2v2 v0.1 (spec §6), e l'identita' riservata `FallbackFormatId`.
 	 *

@@ -1,0 +1,2010 @@
+{
+  "_generated": "NON EDITARE: generato da scripts/feature_registry.py generate, misurando le sorgenti citate in `sources`",
+  "sources": {
+    "features": "docs/roadmap/feature-registry.yaml",
+    "editor_sessions": "docs/roadmap/editor-sessions.yaml",
+    "pie_registry": "docs/technical/test-manuali-pie.md",
+    "release_gates": "docs/roadmap/v0.1-definition-of-done.md",
+    "epics": "docs/roadmap/roadmap-v0.1.md",
+    "milestones": "docs/roadmap/roadmap-checkpoint.md",
+    "scenarios": "Scenarios/"
+  },
+  "meta": {
+    "registry_version": 1,
+    "schema_version": 1,
+    "project": {
+      "github": {
+        "owner": "DegrassiAaron",
+        "repository": "refactor-tactics-main",
+        "branch": "main"
+      }
+    },
+    "last_full_audit": {
+      "date": "2026-08-08",
+      "commit": "2094b86",
+      "suite": "490 test unici in 69 file"
+    },
+    "note": "Primo audit completo. La seed list dell'handoff del 2026-08-08 è stata confrontata voce per voce con Source/, Tests/, Scenarios/, docs/ e la Wiki: le voci che il repository non conferma sono marcate per quello che sono (SPECIFIED, DESIGNED, IDEA), non promosse a DONE.\n"
+  },
+  "project": {
+    "github": {
+      "owner": "DegrassiAaron",
+      "repository": "refactor-tactics-main",
+      "branch": "main"
+    }
+  },
+  "diagnostics": {
+    "errors": [],
+    "warnings": [
+      "[RT-FEAT-CORE-DECISION-TIME-BANK] 10 scenario/i dichiarati planned: Spec.TimeBank.GraceDoesNotDrain, Spec.TimeBank.DrainsAfterGrace, Spec.TimeBank.NeverBelowZero, Spec.TimeBank.TimeoutCostsFullWindow, Spec.TimeBank.TimeoutSpendsNoCharge, Spec.TimeBank.ClashCostsFullWindow, Spec.TimeBank.BotDrainsLikePlayer, Spec.TimeBank.ExhaustionKeepsResponsesLegal, Spec.TimeBank.ReplayReadsRecordedBank, Spec.TimeBank.PacketOrderInvariant",
+      "[RT-FEAT-ACTION-COOLDOWNS] feature di gameplay TESTABLE senza scenario che la dimostri",
+      "[RT-FEAT-ACTION-DELAYED] nessuna pagina Wiki collegata",
+      "[RT-FEAT-ACTION-TRAPS] nessuna pagina Wiki collegata",
+      "[RT-FEAT-ACTION-EQUIPMENT] nessuna pagina Wiki collegata",
+      "[RT-FEAT-REACTION-CLASH] 3 scenario/i dichiarati planned: Spec.Clash.HiddenUntilReveal, Spec.Clash.RevealIsFixedDeadline, Spec.Clash.Determinism",
+      "[RT-FEAT-ENV-ICE-ENGINE] nessuna pagina Wiki collegata",
+      "[RT-FEAT-UI-ICON-LANGUAGE] nessuna pagina Wiki collegata",
+      "[RT-FEAT-UI-SCENARIO-BROWSER] nessuna pagina Wiki collegata",
+      "[RT-FEAT-CHAR-TRANSFORMATION] nessuna pagina Wiki collegata",
+      "[RT-FEAT-CHAR-AUXILIARY-UNITS] nessuna pagina Wiki collegata",
+      "[RT-FEAT-FACTION-SCENARIOS] 4 scenario/i dichiarati planned: Team.Conflux.FluxRiva.ConductiveFlood, Team.Constrine.BastionVektor.OnlyExit, Team.Sentinel.SteelMurdock.HoldTheLine, Team.Resonance.AuroraKwang.FrozenAnchor",
+      "[RT-FEAT-MATCH-FORMAT] nessuna pagina Wiki collegata",
+      "[RT-FEAT-MATCH-PACING] nessuna pagina Wiki collegata",
+      "[RT-FEAT-STRESS-4V4] nessuna pagina Wiki collegata",
+      "[RT-FEAT-STRESS-4V4] 1 scenario/i dichiarati planned: Stress.4v4.CoreRoster",
+      "[RT-FEAT-TEST-SCENARIO-HARNESS] nessuna pagina Wiki collegata",
+      "[RT-FEAT-TEST-GOLDEN] nessuna pagina Wiki collegata",
+      "[RT-FEAT-TOOL-MAP-EDITOR] nessuna pagina Wiki collegata",
+      "[RT-FEAT-TOOL-VALIDATION] nessuna pagina Wiki collegata",
+      "[RT-FEAT-TOOL-CONTROL-CENTER] nessuna pagina Wiki collegata",
+      "[RT-FEAT-TOOL-DEBUG-CONSOLE] nessuna pagina Wiki collegata",
+      "[RT-FEAT-TOOL-BALANCE-GROUND] nessuna pagina Wiki collegata",
+      "[RT-FEAT-DATA-STABLE-IDS] nessuna pagina Wiki collegata",
+      "[RT-FEAT-DATA-ASSET-PIPELINE] nessuna pagina Wiki collegata",
+      "[RT-FEAT-DATA-HASH] nessuna pagina Wiki collegata",
+      "[RT-FEAT-NET-PRIVATE-PLANNING] feature di gameplay TESTABLE senza scenario che la dimostri",
+      "[RT-FEAT-NET-AUTHORITY] nessuna pagina Wiki collegata",
+      "[RT-FEAT-NET-DEDICATED] nessuna pagina Wiki collegata",
+      "[RT-FEAT-PROD-PERFORMANCE] nessuna pagina Wiki collegata",
+      "[RT-FEAT-PROD-PACKAGED] nessuna pagina Wiki collegata",
+      "[RT-FEAT-INTENT-CONDITIONAL] nessuna pagina Wiki collegata",
+      "[RT-FEAT-INTENT-CONDITIONAL] SPECIFIED senza issue ne' assegnazione in roadmap",
+      "[RT-FEAT-CHARACTER-STATE] nessuna pagina Wiki collegata",
+      "[RT-FEAT-CHARACTER-STATE] 5 scenario/i dichiarati planned: State.Riva.Flow, State.Flux.Charged, State.Bastion.Bulwark, State.Howitzer.Siege, State.MultiState.Stress"
+    ],
+    "unresolved_prerequisites": [],
+    "milestone_conflicts": []
+  },
+  "release_gates": [
+    {
+      "id": "G1",
+      "request": "Build Game + Editor senza warning nuovi",
+      "state": "⏳"
+    },
+    {
+      "id": "G2",
+      "request": "Suite automation completa verde",
+      "state": "⏳"
+    },
+    {
+      "id": "G3",
+      "request": "I 10 test nominati dal catalogo esistono con quei nomi",
+      "state": "⏳"
+    },
+    {
+      "id": "G4",
+      "request": "Determinismo: 100 ripetizioni, checksum identico",
+      "state": "⏳"
+    },
+    {
+      "id": "G5",
+      "request": "Nessun gameplay quadrato residuo",
+      "state": "⏳"
+    },
+    {
+      "id": "G6",
+      "request": "ID stabili e unici per azioni, terreni, equipaggiamento, eroi",
+      "state": "⏳"
+    },
+    {
+      "id": "G7",
+      "request": "Nessun float in costi, priorità, danni",
+      "state": "⏳"
+    },
+    {
+      "id": "G8",
+      "request": "Nessun intento avversario replicato",
+      "state": "⏳"
+    },
+    {
+      "id": "G9",
+      "request": "Il **subset `RELEASE-V01`** delle verifiche manuali è eseguito",
+      "state": "⏳ **2 verdi · 7 parziali · 8 aperte** (2026-08-09)"
+    },
+    {
+      "id": "G10",
+      "request": "Partita completa 2v2 su mappa multilivello, dall'avvio alla vittoria",
+      "state": "⏳"
+    },
+    {
+      "id": "G11",
+      "request": "KPI misurati e registrati (anche fuori target)",
+      "state": "⏳"
+    },
+    {
+      "id": "G12",
+      "request": "Packaging Windows Development **e** Shipping",
+      "state": "✅ **2026-08-10** (CP 12.5): Development 916 MB · Shipping 569 MB, entrambi `BUILD SUCCESSFUL`"
+    },
+    {
+      "id": "G13",
+      "request": "Partita giocabile **senza editor** dalla build packaged",
+      "state": "🟡 **2026-08-10**: partita completa fino alla vittoria sul pacchetto Development (`round 6/12`, per eliminazione, zero crash) — ma sull'**arena di test**. Riserva sotto"
+    },
+    {
+      "id": "G14",
+      "request": "Documentazione allineata",
+      "state": "⏳"
+    },
+    {
+      "id": "G15",
+      "request": "Tracciabilità delle feature verificabile",
+      "state": "⏳"
+    }
+  ],
+  "epics": {
+    "E1": "✅",
+    "E2": "✅",
+    "E3": "✅",
+    "E4": "✅",
+    "E5": "✅",
+    "E6": "✅",
+    "E7": "⏳",
+    "E8": "✅",
+    "E9": "✅",
+    "E10": "🟡",
+    "E11": "🟡",
+    "E12": "🟡",
+    "E13": "⏳",
+    "E14": "⏳",
+    "E15": "🟡",
+    "E16": "✅",
+    "E17": "⏳",
+    "E18": "⏳",
+    "E19": "🟡",
+    "E20": "🟡",
+    "E21": "🟡"
+  },
+  "milestones": {
+    "M6": "🟡",
+    "M7": "🟡",
+    "M8": "🟡",
+    "M9": "🟡",
+    "M10": "⏳",
+    "M11": "⏳"
+  },
+  "checkpoints": {
+    "M6.0": "✅",
+    "M6.1": "🟡",
+    "M6.2": "🟡",
+    "M6.3": "🟡",
+    "M6.4": "🟡",
+    "M6.5": "🟡",
+    "M6.6": "🟡",
+    "M6.7": "🟡",
+    "M6.8": "🟡",
+    "M7.1": "🟡",
+    "M7.2": "✅",
+    "M7.3": "🟡",
+    "M7.4": "✅",
+    "M8.1": "⏳",
+    "M8.2": "⏳",
+    "M8.3": "⏳",
+    "M9.1": "⏳",
+    "M9.2": "⏳",
+    "M9.3": "⏳",
+    "M10.1": "⏳",
+    "M10.2": "⏳",
+    "M10.3": "⏳",
+    "E1.1": "⏳",
+    "E1.2": "⏳",
+    "E1.3": "⏳",
+    "E1.4": "⏳",
+    "E2.1": "⏳",
+    "E2.2": "⏳",
+    "E2.3": "⏳",
+    "E2.4": "⏳",
+    "E2.5": "⏳",
+    "E2.6": "⏳",
+    "E2.7": "⏳",
+    "E2.8": "⏳",
+    "E3.1": "⏳",
+    "E3.2": "⏳",
+    "E3.3": "⏳",
+    "E4.1": "⏳",
+    "E4.2": "⏳",
+    "E4.3": "⏳",
+    "E4.4": "⏳",
+    "E4.5": "⏳",
+    "E4.6": "⏳",
+    "E4.7": "⏳",
+    "E4.8": "⏳",
+    "E5.1": "⏳",
+    "E5.2": "⏳",
+    "E5.3": "⏳",
+    "E5.4": "⏳",
+    "E5.5": "✅",
+    "E6.1": "⏳",
+    "E6.2": "⏳",
+    "E6.3": "⏳",
+    "E6.4": "⏳",
+    "E6.5": "⏳",
+    "E6.6": "⏳",
+    "E6.7": "✅",
+    "E7.1": "⏳",
+    "E7.2": "⏳",
+    "E7.3": "⏳",
+    "E7.4": "⏳",
+    "E8.1": "⏳",
+    "E8.2": "⏳",
+    "E8.3": "✅",
+    "E8.4": "✅",
+    "E8.5": "✅",
+    "E9.1": "✅",
+    "E9.2": "✅",
+    "E9.3": "✅",
+    "E9.4": "✅",
+    "E9.5": "✅",
+    "E10.1": "⏳",
+    "E10.2": "⏳",
+    "E10.3": "⏳",
+    "E11.1": "⏳",
+    "E11.2": "⏳",
+    "E11.3": "⏳",
+    "E11.4": "⏳",
+    "E11.5": "⏳",
+    "E11.6": "⏳",
+    "E12.1": "✅",
+    "E12.2": "⏳",
+    "E12.3": "⏳",
+    "E12.4": "⏳",
+    "E12.5": "⏳",
+    "E12.6": "⏳",
+    "E13.1": "⏳",
+    "E13.2": "⏳",
+    "E13.3": "⏳",
+    "E13.4": "⏳",
+    "E13.5": "⏳",
+    "E14.1": "✅",
+    "E14.2": "⏳",
+    "E14.3": "⏳",
+    "E14.4": "⏳",
+    "E14.5": "⏳",
+    "E14.6": "⏳",
+    "E14.7": "⏳",
+    "E14.8": "⏳",
+    "E15.1": "⏳",
+    "E15.2": "⏳",
+    "E15.3": "⏳",
+    "E15.4": "⏳",
+    "E15.5": "⏳",
+    "E16.1": "⏳",
+    "E16.2": "⏳",
+    "E17.1": "⏳",
+    "E17.2": "⏳",
+    "E17.3": "⏳",
+    "E18.1": "⏳",
+    "E18.2": "⏳",
+    "E19.1": "⏳",
+    "E19.2": "⏳",
+    "E20.1": "⏳",
+    "E20.2": "⏳",
+    "E20.3": "⏳",
+    "E21.1": "⏳",
+    "E21.2": "⏳",
+    "E21.3": "⏳"
+  },
+  "editor_sessions": [
+    {
+      "id": "U18",
+      "title": "Verifiche senza preparazione",
+      "block": 1,
+      "critical": false,
+      "state": "🟡",
+      "queue_group": "READY",
+      "produces": "verdetto su tre voci che non attendono nulla",
+      "artifacts": [],
+      "unblocked_by": [],
+      "unblocks": [],
+      "shares_setup_with": [],
+      "verifies": [
+        {
+          "id": "PIE-PREVIEW-AREA",
+          "state": "✅"
+        },
+        {
+          "id": "PIE-V01-MATCHEND",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-TEST-CONSOLE",
+          "state": "🟡"
+        }
+      ],
+      "issues": [],
+      "done_when": "le tre voci hanno esito reale nel registro"
+    },
+    {
+      "id": "U1",
+      "title": "Mappa-arena hex",
+      "block": 1,
+      "critical": true,
+      "state": "⏳",
+      "queue_group": "BLOCKING",
+      "produces": "`DA_HexMap_Arena` e `L_HexArena`, committati",
+      "artifacts": [
+        {
+          "path": "Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap",
+          "tracked": false
+        },
+        {
+          "path": "Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset",
+          "tracked": false
+        }
+      ],
+      "unblocked_by": [
+        {
+          "ref": "M6.0",
+          "resolved": true,
+          "state": "✅",
+          "kind": "checkpoint"
+        }
+      ],
+      "unblocks": [
+        "U13",
+        "U19"
+      ],
+      "shares_setup_with": [
+        "U13"
+      ],
+      "verifies": [
+        {
+          "id": "PIE-HEX-MODE-E",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-HEX-MODE-F",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-HEX-MODE-G",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-HEX-MODE-H",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-HEX-MODE-L",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-HEX-MODE-N",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-HEX-MODE-O",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-HEX-LAYER",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-HEX-TRANS",
+          "state": "⏳"
+        }
+      ],
+      "issues": [],
+      "done_when": "i due asset sono tracciati da git e le nove voci hanno un esito reale"
+    },
+    {
+      "id": "U2",
+      "title": "Partita hex, primo giro",
+      "block": 2,
+      "critical": true,
+      "state": "🟡",
+      "queue_group": "BLOCKING",
+      "produces": "verdetto su allestimento e movimento",
+      "artifacts": [],
+      "unblocked_by": [
+        {
+          "ref": "M6.1",
+          "resolved": true,
+          "state": "🟡",
+          "kind": "checkpoint"
+        },
+        {
+          "ref": "M6.2",
+          "resolved": true,
+          "state": "🟡",
+          "kind": "checkpoint"
+        }
+      ],
+      "unblocks": [
+        "U3",
+        "M6.1",
+        "M6.2"
+      ],
+      "shares_setup_with": [
+        "U3",
+        "U4",
+        "U5",
+        "U6"
+      ],
+      "verifies": [
+        {
+          "id": "PIE-HEXPLAY-1",
+          "state": "🟡"
+        },
+        {
+          "id": "PIE-HEXPLAY-4",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-HEXPLAY-5",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-CAM-START",
+          "state": "✅"
+        }
+      ],
+      "issues": [],
+      "done_when": "le voci hanno esito reale nel registro"
+    },
+    {
+      "id": "U3",
+      "title": "Input e pianificazione",
+      "block": 2,
+      "critical": true,
+      "state": "🟡",
+      "queue_group": "BLOCKING",
+      "produces": "verdetto su selezione, budget e anteprima del percorso",
+      "artifacts": [],
+      "unblocked_by": [
+        {
+          "ref": "M6.3",
+          "resolved": true,
+          "state": "🟡",
+          "kind": "checkpoint"
+        }
+      ],
+      "unblocks": [
+        "U4",
+        "M6.3"
+      ],
+      "shares_setup_with": [
+        "U2",
+        "U4",
+        "U5",
+        "U6"
+      ],
+      "verifies": [
+        {
+          "id": "PIE-HEXPLAY-2",
+          "state": "🟡"
+        },
+        {
+          "id": "PIE-HEXPLAY-3",
+          "state": "🟡"
+        },
+        {
+          "id": "PIE-HEXPLAY-3b",
+          "state": "🟡"
+        },
+        {
+          "id": "PIE-PREVIEW-PERSIST",
+          "state": "⏳"
+        }
+      ],
+      "issues": [
+        33
+      ],
+      "done_when": "le voci hanno esito reale nel registro"
+    },
+    {
+      "id": "U4",
+      "title": "Combat e linea di tiro",
+      "block": 2,
+      "critical": true,
+      "state": "⏳",
+      "queue_group": "BLOCKING",
+      "produces": "verdetto su forme d'attacco, LOS esagonale e knockback",
+      "artifacts": [],
+      "unblocked_by": [
+        {
+          "ref": "M6.4",
+          "resolved": true,
+          "state": "🟡",
+          "kind": "checkpoint"
+        },
+        {
+          "ref": "M6.5",
+          "resolved": true,
+          "state": "🟡",
+          "kind": "checkpoint"
+        }
+      ],
+      "unblocks": [
+        "U5",
+        "M6.4",
+        "M6.5"
+      ],
+      "shares_setup_with": [
+        "U2",
+        "U3",
+        "U5",
+        "U6"
+      ],
+      "verifies": [
+        {
+          "id": "PIE-HEXPLAY-6",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-HEXPLAY-6b",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-HEXPLAY-6c",
+          "state": "⏳"
+        }
+      ],
+      "issues": [],
+      "done_when": "le voci hanno esito reale nel registro"
+    },
+    {
+      "id": "U5",
+      "title": "Bot e HUD",
+      "block": 2,
+      "critical": true,
+      "state": "⏳",
+      "queue_group": "BLOCKING",
+      "produces": "verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale",
+      "artifacts": [],
+      "unblocked_by": [
+        {
+          "ref": "M6.6",
+          "resolved": true,
+          "state": "🟡",
+          "kind": "checkpoint"
+        },
+        {
+          "ref": "M6.7",
+          "resolved": true,
+          "state": "🟡",
+          "kind": "checkpoint"
+        }
+      ],
+      "unblocks": [
+        "U6",
+        "M6.6",
+        "M6.7"
+      ],
+      "shares_setup_with": [
+        "U2",
+        "U3",
+        "U4",
+        "U6"
+      ],
+      "verifies": [
+        {
+          "id": "PIE-HEXPLAY-7",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-HEXPLAY-9",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-AI-01",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-AI-02",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-AI-03",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-AI-04",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-AI-05",
+          "state": "⏳"
+        }
+      ],
+      "issues": [],
+      "done_when": "le voci hanno esito reale e i pesi eventualmente modificati sono committati"
+    },
+    {
+      "id": "U6",
+      "title": "Multilivello e partita completa",
+      "block": 2,
+      "critical": true,
+      "state": "🟡",
+      "queue_group": "BLOCKING",
+      "produces": "chiusura di M6 / E2 — sessione D verde",
+      "artifacts": [],
+      "unblocked_by": [
+        {
+          "ref": "M6.8",
+          "resolved": true,
+          "state": "🟡",
+          "kind": "checkpoint"
+        }
+      ],
+      "unblocks": [
+        "U16",
+        "U19",
+        "M6.8"
+      ],
+      "shares_setup_with": [
+        "U2",
+        "U3",
+        "U4",
+        "U5"
+      ],
+      "verifies": [
+        {
+          "id": "PIE-HEXPLAY-8",
+          "state": "🟡"
+        },
+        {
+          "id": "PIE-HEXPLAY-10",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-HEXPLAY-4b",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-FACING-1",
+          "state": "⏳"
+        }
+      ],
+      "issues": [],
+      "done_when": "le nove voci `PIE-HEXPLAY` sono verdi, rilette tutte insieme"
+    },
+    {
+      "id": "U7",
+      "title": "Personaggi Paragon",
+      "block": 3,
+      "critical": false,
+      "state": "🟡",
+      "queue_group": "READY",
+      "produces": "`BP_Unit_Guardian` (Gideon) e `BP_Unit_Ranger` (Sparrow), committati",
+      "artifacts": [
+        {
+          "path": "Content/RT/Characters/Gideon/Blueprints/BP_Unit_Guardian.uasset",
+          "tracked": false
+        },
+        {
+          "path": "Content/RT/Characters/Sparrow/Blueprints/BP_Unit_Ranger.uasset",
+          "tracked": false
+        }
+      ],
+      "unblocked_by": [],
+      "unblocks": [
+        "U8"
+      ],
+      "shares_setup_with": [
+        "U8",
+        "U9"
+      ],
+      "verifies": [
+        {
+          "id": "PIE-AS2",
+          "state": "✅"
+        },
+        {
+          "id": "PIE-FACING",
+          "state": "✅"
+        }
+      ],
+      "issues": [],
+      "done_when": "i Blueprint sono tracciati da git e le due voci hanno esito reale sui BP nuovi"
+    },
+    {
+      "id": "U8",
+      "title": "Animazioni",
+      "block": 3,
+      "critical": false,
+      "state": "⏳",
+      "queue_group": "READY",
+      "produces": "`ABP_Gideon`, `ABP_Sparrow` e i montaggi Cast/Hit/Death",
+      "artifacts": [
+        {
+          "path": "Content/RT/Characters/Gideon/Blueprints/ABP_Gideon.uasset",
+          "tracked": false
+        },
+        {
+          "path": "Content/RT/Characters/Sparrow/Blueprints/ABP_Sparrow.uasset",
+          "tracked": false
+        }
+      ],
+      "unblocked_by": [],
+      "unblocks": [
+        "U9"
+      ],
+      "shares_setup_with": [
+        "U7",
+        "U9"
+      ],
+      "verifies": [
+        {
+          "id": "PIE-AS4a",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-AS4b",
+          "state": "⏳"
+        }
+      ],
+      "issues": [],
+      "done_when": "gli asset sono tracciati da git e le due voci hanno esito reale"
+    },
+    {
+      "id": "U9",
+      "title": "Leggibilita' e riferimento visivo",
+      "block": 3,
+      "critical": false,
+      "state": "🟡",
+      "queue_group": "READY",
+      "produces": "il video (o gli screenshot) di riferimento — DoD di milestone di M8",
+      "artifacts": [],
+      "unblocked_by": [],
+      "unblocks": [
+        "M8.1",
+        "M8.2",
+        "M8.3"
+      ],
+      "shares_setup_with": [
+        "U7",
+        "U8"
+      ],
+      "verifies": [
+        {
+          "id": "PIE-AS5",
+          "state": "✅"
+        },
+        {
+          "id": "PIE-SEL",
+          "state": "✅"
+        },
+        {
+          "id": "PIE-ICON-01",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-FMT-01",
+          "state": "⏳"
+        }
+      ],
+      "issues": [],
+      "done_when": "nessun cilindro in campo (salvo asset mancanti) e il riferimento visivo e' nel repo"
+    },
+    {
+      "id": "U10",
+      "title": "Data asset delle azioni",
+      "block": 4,
+      "critical": true,
+      "state": "—",
+      "queue_group": null,
+      "produces": "il catalogo azioni della v0.1 come dati, non come codice",
+      "artifacts": [],
+      "unblocked_by": [
+        {
+          "ref": "E1.3",
+          "resolved": false,
+          "state": "⏳",
+          "kind": "checkpoint"
+        },
+        {
+          "ref": "E1.4",
+          "resolved": false,
+          "state": "⏳",
+          "kind": "checkpoint"
+        }
+      ],
+      "unblocks": [
+        "U11"
+      ],
+      "shares_setup_with": [],
+      "verifies": [],
+      "issues": [],
+      "done_when": "il validator di CP 1.4 rifiuta un asset volutamente invalido e accetta i tuoi"
+    },
+    {
+      "id": "U11",
+      "title": "I 4 eroi",
+      "block": 4,
+      "critical": true,
+      "state": "🟡",
+      "queue_group": "BLOCKING",
+      "produces": "i data asset di Flux, Riva, Bastion e Vektor, e lo spawn 2v2 che li usa",
+      "artifacts": [],
+      "unblocked_by": [
+        {
+          "ref": "E6",
+          "resolved": true,
+          "state": "✅",
+          "kind": "epic"
+        }
+      ],
+      "unblocks": [
+        "U12"
+      ],
+      "shares_setup_with": [],
+      "verifies": [
+        {
+          "id": "PIE-V01-ROSTER",
+          "state": "🟡"
+        }
+      ],
+      "issues": [],
+      "done_when": "i quattro asset sono tracciati da git e la voce ha esito reale"
+    },
+    {
+      "id": "U12",
+      "title": "Loadout",
+      "block": 4,
+      "critical": false,
+      "state": "—",
+      "queue_group": null,
+      "produces": "varianti arma, gadget e moduli reazione come dati — 1 + 1 + 1 per eroe",
+      "artifacts": [],
+      "unblocked_by": [
+        {
+          "ref": "E7",
+          "resolved": false,
+          "state": "⏳",
+          "kind": "epic"
+        }
+      ],
+      "unblocks": [],
+      "shares_setup_with": [],
+      "verifies": [],
+      "issues": [],
+      "done_when": ""
+    },
+    {
+      "id": "U13",
+      "title": "Arena v0.1",
+      "block": 5,
+      "critical": true,
+      "state": "⏳",
+      "queue_group": "WAITING",
+      "produces": "l'arena estesa con quanto serve alle verifiche di contenuto",
+      "artifacts": [],
+      "unblocked_by": [
+        {
+          "ref": "E8",
+          "resolved": true,
+          "state": "✅",
+          "kind": "epic"
+        },
+        {
+          "ref": "E9",
+          "resolved": true,
+          "state": "✅",
+          "kind": "epic"
+        },
+        {
+          "ref": "U1",
+          "resolved": false,
+          "state": "⏳",
+          "kind": "seduta"
+        }
+      ],
+      "unblocks": [
+        "U14"
+      ],
+      "shares_setup_with": [
+        "U1"
+      ],
+      "verifies": [
+        {
+          "id": "PIE-V01-COVEREDIT",
+          "state": "⏳"
+        }
+      ],
+      "issues": [],
+      "done_when": ""
+    },
+    {
+      "id": "U14",
+      "title": "Ambiente in partita",
+      "block": 5,
+      "critical": true,
+      "state": "🟡",
+      "queue_group": "WAITING",
+      "produces": "verdetto sulle regole ambientali e strutturali",
+      "artifacts": [],
+      "unblocked_by": [
+        {
+          "ref": "U13",
+          "resolved": false,
+          "state": "⏳",
+          "kind": "seduta"
+        }
+      ],
+      "unblocks": [],
+      "shares_setup_with": [],
+      "verifies": [
+        {
+          "id": "PIE-V01-COLL",
+          "state": "🟡"
+        },
+        {
+          "id": "PIE-V01-ROUGH",
+          "state": "🟡"
+        },
+        {
+          "id": "PIE-V01-DASHCOVER",
+          "state": "🟡"
+        },
+        {
+          "id": "PIE-V01-PUSH",
+          "state": "🟡"
+        },
+        {
+          "id": "PIE-V01-ELEC",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-V01-FIREWATER",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-V01-LOWCOVER",
+          "state": "🟡"
+        },
+        {
+          "id": "PIE-V01-INTERCEPT",
+          "state": "🟡"
+        },
+        {
+          "id": "PIE-V01-FF",
+          "state": "🟡"
+        },
+        {
+          "id": "PIE-V01-FALLBACK",
+          "state": "🟡"
+        },
+        {
+          "id": "PIE-V01-DOOR",
+          "state": "🟡"
+        }
+      ],
+      "issues": [],
+      "done_when": "le undici voci hanno esito reale nel registro"
+    },
+    {
+      "id": "U15",
+      "title": "HUD, intenti, log e comandi debug",
+      "block": 6,
+      "critical": true,
+      "state": "🟡",
+      "queue_group": "BLOCKING",
+      "produces": "verdetto su leggibilita' e osservabilita'",
+      "artifacts": [],
+      "unblocked_by": [
+        {
+          "ref": "E11",
+          "resolved": true,
+          "state": "🟡",
+          "kind": "epic"
+        }
+      ],
+      "unblocks": [
+        "E11"
+      ],
+      "shares_setup_with": [],
+      "verifies": [
+        {
+          "id": "PIE-V01-HUD",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-V01-INTENT",
+          "state": "🟡"
+        },
+        {
+          "id": "PIE-V01-LOG",
+          "state": "🟡"
+        },
+        {
+          "id": "PIE-V01-DEBUG",
+          "state": "🟡"
+        },
+        {
+          "id": "PIE-DEBUG-CELLS",
+          "state": "✅"
+        }
+      ],
+      "issues": [],
+      "done_when": "le voci hanno esito reale nel registro"
+    },
+    {
+      "id": "U19",
+      "title": "Durata, ritmo e scala",
+      "block": 6,
+      "critical": true,
+      "state": "⏳",
+      "queue_group": "WAITING",
+      "produces": "numeri di playtest — non difetti",
+      "artifacts": [],
+      "unblocked_by": [
+        {
+          "ref": "U6",
+          "resolved": false,
+          "state": "🟡",
+          "kind": "seduta"
+        },
+        {
+          "ref": "U1",
+          "resolved": false,
+          "state": "⏳",
+          "kind": "seduta"
+        }
+      ],
+      "unblocks": [],
+      "shares_setup_with": [],
+      "verifies": [
+        {
+          "id": "PIE-V01-MATCHLEN",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-V01-READY",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-V01-OVERWATCH",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-V01-MAPSCALE",
+          "state": "⏳"
+        }
+      ],
+      "issues": [],
+      "done_when": "le quattro voci hanno un numero registrato, anche fuori target"
+    },
+    {
+      "id": "U16",
+      "title": "Misura dei KPI",
+      "block": 6,
+      "critical": true,
+      "state": "🟡",
+      "queue_group": "WAITING",
+      "produces": "numeri reali nella tabella KPI",
+      "artifacts": [],
+      "unblocked_by": [
+        {
+          "ref": "U6",
+          "resolved": false,
+          "state": "🟡",
+          "kind": "seduta"
+        }
+      ],
+      "unblocks": [
+        "E3.3",
+        "M7.3",
+        "E12.4"
+      ],
+      "shares_setup_with": [],
+      "verifies": [
+        {
+          "id": "PIE-V01-REPLAY",
+          "state": "🟡"
+        }
+      ],
+      "issues": [],
+      "done_when": "i quattro KPI hanno un valore misurato, anche fuori target"
+    },
+    {
+      "id": "U17",
+      "title": "Release v0.1",
+      "block": 6,
+      "critical": true,
+      "state": "—",
+      "queue_group": null,
+      "produces": "build Windows Development e Shipping, e una partita giocata senza editor",
+      "artifacts": [],
+      "unblocked_by": [
+        {
+          "ref": "E12",
+          "resolved": true,
+          "state": "🟡",
+          "kind": "epic"
+        }
+      ],
+      "unblocks": [],
+      "shares_setup_with": [],
+      "verifies": [],
+      "issues": [],
+      "done_when": "BUILD SUCCESSFUL su entrambe le configurazioni e una partita conclusa dalla packaged"
+    }
+  ],
+  "editor_queue": {
+    "BLOCKING": [
+      "U1",
+      "U2",
+      "U3",
+      "U4",
+      "U5",
+      "U6",
+      "U11",
+      "U15"
+    ],
+    "READY": [
+      "U18",
+      "U7",
+      "U8",
+      "U9"
+    ],
+    "WAITING": [
+      "U13",
+      "U14",
+      "U19",
+      "U16"
+    ],
+    "DONE": []
+  },
+  "pie_entries": [
+    {
+      "id": "PIE-AI-01",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-AI-02",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-AI-03",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-AI-04",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-AI-05",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-AS2",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-AS4a",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-AS4b",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-AS5",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-BU2",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-BU2b",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-BU3",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-BU3c",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-CAM-START",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-CP1.4",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-DEBUG-CELLS",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-FACING",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-FACING-1",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-FMT-01",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEX",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-HEX-LAYER",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEX-MODE-A",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-HEX-MODE-B",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-HEX-MODE-C",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-HEX-MODE-D",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-HEX-MODE-E",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEX-MODE-F",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEX-MODE-G",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEX-MODE-H",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEX-MODE-I",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-HEX-MODE-J",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-HEX-MODE-K",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-HEX-MODE-L",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEX-MODE-M",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-HEX-MODE-N",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEX-MODE-O",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEX-TRANS",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEXPLAY-1",
+      "state": "🟡"
+    },
+    {
+      "id": "PIE-HEXPLAY-10",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEXPLAY-2",
+      "state": "🟡"
+    },
+    {
+      "id": "PIE-HEXPLAY-3",
+      "state": "🟡"
+    },
+    {
+      "id": "PIE-HEXPLAY-3b",
+      "state": "🟡"
+    },
+    {
+      "id": "PIE-HEXPLAY-4",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEXPLAY-4b",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEXPLAY-5",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEXPLAY-6",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEXPLAY-6b",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEXPLAY-6c",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEXPLAY-7",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEXPLAY-8",
+      "state": "🟡"
+    },
+    {
+      "id": "PIE-HEXPLAY-9",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-ICON-01",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-MP4",
+      "state": "🟡"
+    },
+    {
+      "id": "PIE-MUT-ACTIONS-ZERO",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-MUT-BASTION-SLOW",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-P3",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-PREVIEW-AREA",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-PREVIEW-PERSIST",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-SCEN-FILTER",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-SCEN-KEEP",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-SEL",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-STATE-01",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-STATE-02",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-STATE-03",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-STATE-04",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-STATE-05",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-STATE-06",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-STATE-07",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-STATE-08",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-STATE-09",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-STATE-10",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-TEST-AUTORUN",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-TEST-CONSOLE",
+      "state": "🟡"
+    },
+    {
+      "id": "PIE-TEST-VISUAL",
+      "state": "✅"
+    },
+    {
+      "id": "PIE-V01-ARENA",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-V01-COLL",
+      "state": "🟡"
+    },
+    {
+      "id": "PIE-V01-COVEREDIT",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-V01-DASHCOVER",
+      "state": "🟡"
+    },
+    {
+      "id": "PIE-V01-DEBUG",
+      "state": "🟡"
+    },
+    {
+      "id": "PIE-V01-DOOR",
+      "state": "🟡"
+    },
+    {
+      "id": "PIE-V01-ELEC",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-V01-FALLBACK",
+      "state": "🟡"
+    },
+    {
+      "id": "PIE-V01-FF",
+      "state": "🟡"
+    },
+    {
+      "id": "PIE-V01-FIREWATER",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-V01-HUD",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-V01-INTENT",
+      "state": "🟡"
+    },
+    {
+      "id": "PIE-V01-INTERCEPT",
+      "state": "🟡"
+    },
+    {
+      "id": "PIE-V01-LOG",
+      "state": "🟡"
+    },
+    {
+      "id": "PIE-V01-LOWCOVER",
+      "state": "🟡"
+    },
+    {
+      "id": "PIE-V01-MAPSCALE",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-V01-MATCHEND",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-V01-MATCHLEN",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-V01-OVERWATCH",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-V01-PUSH",
+      "state": "🟡"
+    },
+    {
+      "id": "PIE-V01-READY",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-V01-REPLAY",
+      "state": "🟡"
+    },
+    {
+      "id": "PIE-V01-ROSTER",
+      "state": "🟡"
+    },
+    {
+      "id": "PIE-V01-ROUGH",
+      "state": "🟡"
+    },
+    {
+      "id": "PIE-VIS-BRACE",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-VIS-CHARGE",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-VIS-COMBO",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-VIS-COORD",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-VIS-COVER",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-VIS-DEFLECT",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-VIS-DOOR",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-VIS-FALLBACK",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-VIS-FIRE",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-VIS-GUARD",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-VIS-HIGH",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-VIS-HIGHCOVER",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-VIS-ICE",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-VIS-INTERPOSE",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-VIS-KO",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-VIS-LEVEL",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-VIS-PHASES",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-VIS-PUSH",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-VIS-ROUGH",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-VIS-SMOKE",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-VIS-WETFIRE",
+      "state": "⏳"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "Combat.BasicAttack",
+      "requires": [],
+      "path": "Scenarios/Combat/BasicAttack.json"
+    },
+    {
+      "id": "Combat.BastionImpactShotSlows",
+      "requires": [],
+      "path": "Scenarios/Combat/BastionImpactShotSlows.json"
+    },
+    {
+      "id": "Combat.BlockedByWall",
+      "requires": [],
+      "path": "Scenarios/Combat/BlockedByWall.json"
+    },
+    {
+      "id": "Combat.CounterStrikesBack",
+      "requires": [
+        "Reaction"
+      ],
+      "path": "Scenarios/Combat/CounterStrikesBack.json"
+    },
+    {
+      "id": "Combat.FriendlyFire",
+      "requires": [],
+      "path": "Scenarios/Combat/FriendlyFire.json"
+    },
+    {
+      "id": "Combat.LineHitsThrough",
+      "requires": [],
+      "path": "Scenarios/Combat/LineHitsThrough.json"
+    },
+    {
+      "id": "Combat.MoveIsFullWithoutSlow",
+      "requires": [],
+      "path": "Scenarios/Combat/MoveIsFullWithoutSlow.json"
+    },
+    {
+      "id": "Combat.NoCounterWhenUnarmed",
+      "requires": [],
+      "path": "Scenarios/Combat/NoCounterWhenUnarmed.json"
+    },
+    {
+      "id": "Combat.SplashHitsAlliesNotSelf",
+      "requires": [],
+      "path": "Scenarios/Combat/SplashHitsAlliesNotSelf.json"
+    },
+    {
+      "id": "Movement.Basic",
+      "requires": [],
+      "path": "Scenarios/Movement/Basic.json"
+    },
+    {
+      "id": "Movement.BasicFailsOnPurpose",
+      "requires": [],
+      "path": "Scenarios/Movement/BasicFailsOnPurpose.json"
+    },
+    {
+      "id": "Movement.Blocked",
+      "requires": [],
+      "path": "Scenarios/Movement/Blocked.json"
+    },
+    {
+      "id": "Movement.Collision",
+      "requires": [],
+      "path": "Scenarios/Movement/Collision.json"
+    },
+    {
+      "id": "Movement.LongWalk",
+      "requires": [],
+      "path": "Scenarios/Movement/LongWalk.json"
+    },
+    {
+      "id": "Movement.SwapRejectedByPlanning",
+      "requires": [],
+      "path": "Scenarios/Movement/SwapRejectedByPlanning.json"
+    },
+    {
+      "id": "RT_Showcase_Relay_v01",
+      "requires": [
+        "DecisionBoundary",
+        "Facing",
+        "InterceptRevalidation",
+        "Objective",
+        "PredictiveAction"
+      ],
+      "path": "Scenarios/RT_Showcase_Relay_v01.json"
+    },
+    {
+      "id": "Spec.Brace.ProfileChangesResponse",
+      "requires": [
+        "DecisionBoundary",
+        "ReactionClash"
+      ],
+      "path": "Scenarios/Spec/Brace/ProfileChangesResponse.json"
+    },
+    {
+      "id": "Spec.Clash.ReadBeatsStand",
+      "requires": [
+        "DecisionBoundary",
+        "ReactionClash"
+      ],
+      "path": "Scenarios/Spec/Clash/ReadBeatsStand.json"
+    },
+    {
+      "id": "Spec.Clash.ShiftBeatsRead",
+      "requires": [
+        "DecisionBoundary",
+        "ReactionClash"
+      ],
+      "path": "Scenarios/Spec/Clash/ShiftBeatsRead.json"
+    },
+    {
+      "id": "Spec.Clash.StandBeatsShift",
+      "requires": [
+        "DecisionBoundary",
+        "ReactionClash"
+      ],
+      "path": "Scenarios/Spec/Clash/StandBeatsShift.json"
+    },
+    {
+      "id": "Spec.Clash.TieAppliesOnce",
+      "requires": [
+        "DecisionBoundary",
+        "ReactionClash"
+      ],
+      "path": "Scenarios/Spec/Clash/TieAppliesOnce.json"
+    },
+    {
+      "id": "Spec.Cover.TemporaryCoverExpires",
+      "requires": [
+        "CreateCover"
+      ],
+      "path": "Scenarios/Spec/Cover/TemporaryCoverExpires.json"
+    },
+    {
+      "id": "Spec.Environment.ElectricPropagation",
+      "requires": [
+        "EnvironmentalActionOwner"
+      ],
+      "path": "Scenarios/Spec/Environment/ElectricPropagation.json"
+    },
+    {
+      "id": "Spec.Environment.WaterQuenchesFire",
+      "requires": [
+        "EnvironmentalActionOwner"
+      ],
+      "path": "Scenarios/Spec/Environment/WaterQuenchesFire.json"
+    },
+    {
+      "id": "Spec.Facing.BackAttackIgnoresGuard",
+      "requires": [],
+      "path": "Scenarios/Spec/Facing/BackAttackIgnoresGuard.json"
+    },
+    {
+      "id": "Spec.Facing.BraceHoldsFromBehind",
+      "requires": [],
+      "path": "Scenarios/Spec/Facing/BraceHoldsFromBehind.json"
+    },
+    {
+      "id": "Spec.Facing.DashReorients",
+      "requires": [],
+      "path": "Scenarios/Spec/Facing/DashReorients.json"
+    },
+    {
+      "id": "Spec.Facing.DerivesFromMove",
+      "requires": [],
+      "path": "Scenarios/Spec/Facing/DerivesFromMove.json"
+    },
+    {
+      "id": "Spec.Facing.FrontAttackKeepsGuard",
+      "requires": [],
+      "path": "Scenarios/Spec/Facing/FrontAttackKeepsGuard.json"
+    },
+    {
+      "id": "Spec.Facing.TargetingReorients",
+      "requires": [],
+      "path": "Scenarios/Spec/Facing/TargetingReorients.json"
+    },
+    {
+      "id": "Spec.Harness.LogAssertionsReadTheTurnLog",
+      "requires": [],
+      "path": "Scenarios/Spec/Harness/LogAssertionsReadTheTurnLog.json"
+    },
+    {
+      "id": "Spec.Map.BridgeBreaksThePath",
+      "requires": [
+        "EnvironmentalActionOwner"
+      ],
+      "path": "Scenarios/Spec/Map/BridgeBreaksThePath.json"
+    },
+    {
+      "id": "Spec.Movement.AntiDashTriggerIgnoresMove",
+      "requires": [
+        "SemanticTrigger"
+      ],
+      "path": "Scenarios/Spec/Movement/AntiDashTriggerIgnoresMove.json"
+    },
+    {
+      "id": "Spec.Movement.TeleportSkipsIntermediateCells",
+      "requires": [
+        "Teleport"
+      ],
+      "path": "Scenarios/Spec/Movement/TeleportSkipsIntermediateCells.json"
+    },
+    {
+      "id": "Spec.Movement.TripwireOnCrossEdge",
+      "requires": [
+        "SpatialTrigger",
+        "Teleport"
+      ],
+      "path": "Scenarios/Spec/Movement/TripwireOnCrossEdge.json"
+    },
+    {
+      "id": "Spec.Objective.PointSurvivesKO",
+      "requires": [
+        "Objective"
+      ],
+      "path": "Scenarios/Spec/Objective/PointSurvivesKO.json"
+    },
+    {
+      "id": "Spec.Overwatch.HoldThenFire",
+      "requires": [
+        "DecisionBoundary",
+        "Facing"
+      ],
+      "path": "Scenarios/Spec/Overwatch/HoldThenFire.json"
+    },
+    {
+      "id": "Spec.Perception.HeardNotSeen",
+      "requires": [
+        "Perception"
+      ],
+      "path": "Scenarios/Spec/Perception/HeardNotSeen.json"
+    },
+    {
+      "id": "Spec.Predictive.WhiffOnEmptyCell",
+      "requires": [
+        "PredictiveAction"
+      ],
+      "path": "Scenarios/Spec/Predictive/WhiffOnEmptyCell.json"
+    },
+    {
+      "id": "Visual.Combat.BraceReducesEveryHit",
+      "requires": [],
+      "path": "Scenarios/Visual/Combat/BraceReducesEveryHit.json"
+    },
+    {
+      "id": "Visual.Combat.Defeat",
+      "requires": [],
+      "path": "Scenarios/Visual/Combat/Defeat.json"
+    },
+    {
+      "id": "Visual.Combat.FallbackTargetMoved",
+      "requires": [],
+      "path": "Scenarios/Visual/Combat/FallbackTargetMoved.json"
+    },
+    {
+      "id": "Visual.Combat.GuardReducesFirstHit",
+      "requires": [],
+      "path": "Scenarios/Visual/Combat/GuardReducesFirstHit.json"
+    },
+    {
+      "id": "Visual.Combat.PushResistance",
+      "requires": [],
+      "path": "Scenarios/Visual/Combat/PushResistance.json"
+    },
+    {
+      "id": "Visual.Combat.SmokeCapsTargeting",
+      "requires": [],
+      "path": "Scenarios/Visual/Combat/SmokeCapsTargeting.json"
+    },
+    {
+      "id": "Visual.Combat.WaterElectric",
+      "requires": [],
+      "path": "Scenarios/Visual/Combat/WaterElectric.json"
+    },
+    {
+      "id": "Visual.Combat.WaterElectricCoordinated",
+      "requires": [],
+      "path": "Scenarios/Visual/Combat/WaterElectricCoordinated.json"
+    },
+    {
+      "id": "Visual.Core.PhaseOrder",
+      "requires": [],
+      "path": "Scenarios/Visual/Core/PhaseOrder.json"
+    },
+    {
+      "id": "Visual.Environment.FireOnEnter",
+      "requires": [],
+      "path": "Scenarios/Visual/Environment/FireOnEnter.json"
+    },
+    {
+      "id": "Visual.Environment.IceSlide",
+      "requires": [],
+      "path": "Scenarios/Visual/Environment/IceSlide.json"
+    },
+    {
+      "id": "Visual.Environment.WetExtinguishesFire",
+      "requires": [],
+      "path": "Scenarios/Visual/Environment/WetExtinguishesFire.json"
+    },
+    {
+      "id": "Visual.Map.ClosedDoor",
+      "requires": [],
+      "path": "Scenarios/Visual/Map/ClosedDoor.json"
+    },
+    {
+      "id": "Visual.Map.HighCoverBlocks",
+      "requires": [],
+      "path": "Scenarios/Visual/Map/HighCoverBlocks.json"
+    },
+    {
+      "id": "Visual.Map.HighGroundNoBonus",
+      "requires": [],
+      "path": "Scenarios/Visual/Map/HighGroundNoBonus.json"
+    },
+    {
+      "id": "Visual.Map.LowCoverEdge",
+      "requires": [],
+      "path": "Scenarios/Visual/Map/LowCoverEdge.json"
+    },
+    {
+      "id": "Visual.Map.MultiLevel",
+      "requires": [],
+      "path": "Scenarios/Visual/Map/MultiLevel.json"
+    },
+    {
+      "id": "Visual.Movement.Charge",
+      "requires": [],
+      "path": "Scenarios/Visual/Movement/Charge.json"
+    },
+    {
+      "id": "Visual.Movement.RoughRefusesCharge",
+      "requires": [],
+      "path": "Scenarios/Visual/Movement/RoughRefusesCharge.json"
+    },
+    {
+      "id": "Visual.Reaction.Deflection",
+      "requires": [
+        "Reaction"
+      ],
+      "path": "Scenarios/Visual/Reaction/Deflection.json"
+    },
+    {
+      "id": "Visual.Reaction.Interposition",
+      "requires": [
+        "Reaction"
+      ],
+      "path": "Scenarios/Visual/Reaction/Interposition.json"
+    }
+  ],
+  "capabilities": [
+    "Cover",
+    "CreateCover",
+    "Environment",
+    "EnvironmentalActionOwner",
+    "FixtureReference",
+    "Reaction",
+    "Structures"
+  ]
+}

@@ -27,6 +27,32 @@ TAutoConsoleVariable<FString> CVarRTTestScenario(
 	TEXT("Scenario da eseguire automaticamente all'avvio della partita (es. Movement.Basic). Vuoto = partita normale."),
 	ECVF_Default);
 
+/**
+ * `rt.Map.Source` scavalca la proprieta' `MapSource` del GameMode, con la stessa regola di
+ * `rt.Test.Scenario`: la proprieta' e' la configurazione persistente, la console variable e' l'intento di
+ * chi lancia adesso.
+ *
+ * Esiste per una ragione misurata: la proprieta' vive nei Class Defaults di `BP_GameMode`, cioe' in un
+ * `.uasset`. Cambiarla richiede l'editor — e CP 12.5 ha misurato una build pacchettizzata che girava
+ * sull'arena di PROVA senza che ci fosse modo di dirle altro da fuori. Con questa variabile la scelta si
+ * fa da riga di comando, che e' quanto serve a una verifica automatica e a una sessione di playtest.
+ *
+ * Valori accettati: i nomi dell'enum `ERTMapSource` (`LevelAsset`, `GeneratedTestArena`, ...), senza
+ * distinzione fra maiuscole e minuscole. Un valore sconosciuto NON ripiega in silenzio: il GameMode lo
+ * dichiara e tiene la proprieta', perche' una mappa scelta per sbaglio e' un playtest buttato.
+ *
+ * ⚠️ **Da riga di comando serve `-dpcvars=`, non `-ExecCmds=`** — misurato sul pacchettizzato il
+ * 2026-08-10. `-ExecCmds` gira DOPO l'inizializzazione, quando il GameMode ha gia' allestito la
+ * partita: la variabile viene impostata e non serve a niente, senza un errore che lo dica.
+ *
+ *     RefactorTactics.exe -dpcvars=rt.Map.Source=LevelAsset
+ */
+TAutoConsoleVariable<FString> CVarRTMapSource(
+	TEXT("rt.Map.Source"),
+	TEXT(""),
+	TEXT("Sorgente della mappa, scavalca MapSource del GameMode (es. LevelAsset). Vuoto = usa la proprieta'."),
+	ECVF_Default);
+
 namespace
 {
 	/** Ultimo esito, per `rt.Test.DumpResult` senza argomenti. Solo diagnostica: non decide nulla. */

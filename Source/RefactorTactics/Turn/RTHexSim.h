@@ -92,6 +92,67 @@ struct FRTHexMoveResult
 };
 
 /**
+ * Stato di una risoluzione di movimento SOSPENDIBILE fra un microstep e l'altro (CP 14.2).
+ *
+ * Esiste per una ragione sola: un Overwatch interattivo deve poter fermare il movimento **dentro** il calcolo.
+ * Se la finestra si aprisse a movimento concluso, il futuro sarebbe gia' stato calcolato con uno stato che il
+ * colpo avrebbe dovuto cambiare — e il prompt mostrerebbe una scelta gia' irrilevante.
+ *
+ * NON e' una USTRUCT, come `FRTHexSnapshot` qui sotto e per una ragione affine: `TArray<TArray<>>` non e'
+ * esponibile a UPROPERTY, e questo e' stato interno di un calcolo, non un dato di gioco che qualcuno debba
+ * ispezionare da Blueprint.
+ *
+ * **Gli input sono COPIATI, non referenziati.** E' il punto della struttura: un resolver che restituisce il
+ * controllo non puo' dipendere dalla vita di variabili locali del chiamante, che fra un microstep e il
+ * successivo puo' essere uscito dal proprio scope — o aver aperto una finestra di reazione durata un turno di
+ * orologio. I percorsi di una partita 2v2 sono poche decine di celle: la copia costa meno di un dangling.
+ */
+struct FRTMovementResolutionState
+{
+	/** Percorsi pianificati, uno per unita'. Indice = identita' dell'unita' per tutta la risoluzione. */
+	TArray<TArray<FRTCellId>> Paths;
+
+	/** Precedenza sulla cella contesa (CP 4.8). Vuoto = tutti a parita', com'era prima delle priorita'. */
+	TArray<int32> Priorities;
+
+	/** Chi si muove in linea (`Action.Charge` e affini): due lineari non si attraversano, si scontrano. */
+	TArray<bool> bLinearMovers;
+
+	/** Chi ATTRAVERSA le unita' ferme, tranne che sulla propria cella finale. */
+	TArray<bool> bPassThrough;
+
+	/** Posizione corrente di ogni unita'. */
+	TArray<FRTCellId> Pos;
+
+	/** Indice raggiunto dentro il proprio `Paths[i]`. */
+	TArray<int32> Prog;
+
+	/** Percorso esaurito, o nessun movimento da fare. */
+	TArray<bool> Done;
+
+	/**
+	 * Motivo del PRIMO congelamento, e solo di quello: un microstep successivo bloccherebbe la stessa unita'
+	 * per un motivo diverso e piu' recente, ma meno vero. La memoria vive nello stato perche' e' proprio cio'
+	 * che un resolver a passi non puo' ricalcolare guardando l'ultimo passo.
+	 */
+	TArray<ERTMoveOutcome> BlockReason;
+
+	/** Il motivo di `BlockReason[i]` e' stato fissato e non si sovrascrive. */
+	TArray<bool> ReasonLocked;
+
+	/** Risultato in costruzione: `Entered` cresce a ogni microstep, `Outcome` si scrive alla fine. */
+	TArray<FRTHexMoveResult> Results;
+
+	/** Quanti microstep sono stati eseguiti. Diagnostico: nessuna regola lo legge. */
+	int32 MicroStepIndex = 0;
+
+	/** Vero quando l'ultimo microstep non ha mosso nessuno: da qui in poi `Results` non cambia piu'. */
+	bool bFinished = false;
+
+	int32 Num() const { return Paths.Num(); }
+};
+
+/**
  * Stato CONGELATO a inizio fase per la risoluzione su griglia esagonale ("raccogli poi applica", invariante #3).
  *
  * NON e' una USTRUCT e NON va conservata oltre la fase che la produce: contiene un puntatore non-UPROPERTY

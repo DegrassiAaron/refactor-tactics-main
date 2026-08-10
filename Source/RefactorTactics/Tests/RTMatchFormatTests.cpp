@@ -124,6 +124,44 @@ bool FRTMatchFormatRefusesWithoutFormatTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMatchFormatShippedIsValidTest,
+	"RefactorTactics.MatchFormat.ShippedSkirmish2v2IsValid",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMatchFormatShippedIsValidTest::RunTest(const FString&)
+{
+	// Il formato canonico della v0.1 vive in C++ come eroi e azioni (#375), non in un `.uasset` che qualcuno
+	// deve ricordarsi di creare: senza, il pacchettizzato gira sul ripiego, ed e' cio' che CP 12.5 ha misurato.
+	URTMatchFormatData* Shipped =
+		URTMatchFormatLibrary::FindShippedFormat(URTMatchFormatLibrary::Skirmish2v2FormatId);
+	if (!TestNotNull(TEXT("Format.Skirmish2v2 e' spedito col gioco"), Shipped)) { return false; }
+
+	TestEqual(TEXT("identita'"), Shipped->FormatId, URTMatchFormatLibrary::Skirmish2v2FormatId);
+	TestNotEqual(TEXT("e NON e' l'identita' del ripiego"),
+		Shipped->FormatId, URTMatchFormatLibrary::FallbackFormatId);
+	TestEqual(TEXT("RoundLimit 5 (deciso 2026-08-10)"), Shipped->RoundLimit, 5);
+	// Il default della classe e' 12: con un limite di 5 il validator lo rifiuta, ed e' giusto che lo faccia.
+	TestEqual(TEXT("ExpectedRounds entro il limite"), Shipped->ExpectedRounds, 5);
+	TestEqual(TEXT("due unita' per squadra: e' il 2v2 del vertical slice"), Shipped->UnitsPerTeam, 2);
+	TestEqual(TEXT("classe di mappa Skirmish"), Shipped->MapClass, ERTMapClass::Skirmish);
+
+	// La soglia e' ZERO perche' nessuno assegna punti: `AddTeamScore` non ha chiamanti runtime. Se un giorno
+	// un obiettivo la alimentera', questo assert cade — ed e' il momento in cui la soglia va scelta davvero,
+	// non prima. Fissarla a un numero adesso dichiarerebbe una via di vittoria irraggiungibile.
+	TestEqual(TEXT("soglia obiettivo 0 finche' nessuno assegna punti"), Shipped->ScoreToWin, 0);
+
+	// Deve superare lo STESSO validator degli asset dei designer: un formato spedito che non passa la propria
+	// validazione e' un difetto di codice, e il gioco lo rifiuterebbe all'avvio.
+	const TArray<FString> Errors = URTMatchFormatLibrary::ValidateFormat(Shipped);
+	TestEqual(TEXT("il formato spedito e' valido secondo il suo validator"), Errors.Num(), 0);
+	for (const FString& E : Errors) { AddError(E); }
+
+	// Un id sconosciuto non produce un formato inventato: ritorna nullptr e decide il chiamante.
+	TestNull(TEXT("un id sconosciuto non e' spedito"),
+		URTMatchFormatLibrary::FindShippedFormat(FName(TEXT("Format.NonEsiste"))));
+	TestEqual(TEXT("un solo formato spedito in v0.1"), URTMatchFormatLibrary::ShippedFormatIds().Num(), 1);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMatchFormatFallbackRulesAreValidTest,
 	"RefactorTactics.MatchFormat.FallbackRulesAreValid",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

@@ -277,7 +277,7 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 | **E16** | `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole — completata da `RT-FEAT-UI-PLANNING` | IMPLEMENTING | 5/9 |
 | **E17** | `RT-FEAT-STRESS-4V4` — Validazione di stress 4v4 | SPECIFIED | 1/7 |
 | **E18** | `RT-FEAT-ACTION-PREDICTIVE` — Predictive Action, thin slice | SPECIFIED | 1/8 |
-| **E19** | `RT-FEAT-MATCH-FORMAT` — Formato di partita e classe di mappa | TESTABLE | 4/8 |
+| **E19** | `RT-FEAT-MATCH-FORMAT` — Formato di partita e classe di mappa | TESTABLE | 5/8 |
 | **E20** | `RT-FEAT-UI-ICON-LANGUAGE` — HUD Icon Language | IMPLEMENTING | 1/7 |
 | **E21** | `RT-FEAT-CHAR-PRESENTATION` — Presentazione dei personaggi (mesh, animazioni, anelli) | IMPLEMENTING | 1/7 |
 
@@ -316,7 +316,7 @@ silenzio.
 | **E16** | Orientamento e direzionalità | P1 | 2 | L'orientamento smette di essere presentazione: decide difesa, percezione e reazioni con una sola primitiva (`HexCone`). È **prerequisito di E13**. ⚠️ **«Zero numeri nuovi» non vale più dal 2026-08-10**: [ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md) accetta la rotazione come **capacità del personaggio** e introduce **otto** numeri (2 per eroe). Il vanto era di ADR-0005, che su questo è superato |
 | **E17** | Validazione di stress 4v4 | P3 | 3 | Misura, non produzione: dove si rompe il sistema con **otto unità** (resolver, leggibilità, prompt di reazione, TurnLog). Mirror del roster core, **dopo E15**. Non decide il formato principale ([D-011](../decisions/RT_PDR_00_Decision_Log.md)) |
 | **E18** | Predictive Action — thin slice | P2 | 2 | Il pilastro della **predizione** diventa percepibile con **una sola** azione: decisa in Planning, risolta a un boundary deterministico, **senza input live** ([D-016](../decisions/RT_PDR_00_Decision_Log.md)). Il framework di trap resta fuori |
-| **E19** | Classe di mappa e composizione | P2 | 2 | `URTMatchFormatData` **esiste già**: restano due buchi misurati — la mappa non dichiara la propria **classe** (implicita nel `FormatId`) e il formato non dichiara le **unità per squadra** ([D-030](../decisions/RT_PDR_00_Decision_Log.md)) |
+| **E19** | Classe di mappa e composizione | P2 | 2 | `URTMatchFormatData` **esiste già**, e i due buchi misurati sono **chiusi** (2026-08-09, `#215`/`#216`): la mappa dichiara la propria `MapClass` e il formato dichiara `UnitsPerTeam`, entrambi con consumatori runtime. Dal 2026-08-10 `Format.Skirmish2v2` è **spedito da C++** (`#375`), come le istanze di azioni ed eroi: il formato canonico non dipende più da un `.uasset` che il repository non contiene. **Lo stato autorevole è in [`feature-registry.yaml`](feature-registry.yaml) (`RT-FEAT-MATCH-FORMAT`)**, non in questa riga |
 | **E20** | HUD Icon Language | P2 | 3 | Le icone sono un **catalogo semantico**, non texture referenziate nei widget: E11 costruisce l'HUD adesso, e riscrivere ogni widget dopo costa più del file di dati in più ([D-031](../decisions/RT_PDR_00_Decision_Log.md)) |
 | **E21** | Presentazione e leggibilità | P1 | 3 | Il gioco smette di essere cilindri colorati. Era l'unico lavoro **dentro** lo scope di release che nessuna epic copriva: viveva solo nella milestone M8, e il Feature Registry lo ha reso visibile il 2026-08-08 |
 
