@@ -15,6 +15,8 @@ Uso:
     python scripts/feature_registry.py wiki               # blocchi di stato nel repo (docs/characters/)
     python scripts/feature_registry.py shortlist          # le cinque viste corte di docs/roadmap/
     python scripts/feature_registry.py report             # tabella di audit (markdown su stdout)
+    python scripts/feature_registry.py suite --run-log Saved/Logs/RefactorTactics.log
+                                                         # gate: ESEGUITI vs DICHIARATI, esce 1 se mancano (#486)
     python scripts/feature_registry.py deploy --wiki-root PATH --write   # blocchi + Stato-delle-feature nel clone
                                                                  # (senza --write e' sola lettura)
 
@@ -988,6 +990,51 @@ SUITE_AREAS = [
     ("`Pacing.*`", ("Pacing",), "Pacing del turno misurato"),
     ("`Perf.*`", ("Perf",), "Path mediana **0,025 ms** · resolver **0,41 ms/turno**"),
 ]
+
+
+def run_log_filter(text):
+    """Il filtro con cui la run e' stata lanciata, letto dal log.
+
+    Serve perche' il confronto dichiarati/eseguiti ha senso solo **a parita' di perimetro**: una run
+    lanciata con `RunTests RefactorTactics.HexMap` non deve risultare mancante di 600 test.
+    UE scrive la riga `LogInit: Command Line:` con l'`-ExecCmds` completo, e i comandi si separano con
+    `;` o `+` — entrambi visti nei log di questo repository.
+    """
+    match = re.search(r"Automation\s+RunTests\s+([^\";+\r\n]+)", text)
+    if not match:
+        return None
+    return match.group(1).strip()
+
+
+def run_log_executed(text):
+    """I test che la run ha DAVVERO eseguito, dal log dell'automation."""
+    return set(re.findall(r"Test Completed\..*?Path=\{([^}]+)\}", text))
+
+
+def suite_run_diff(log_path):
+    """Confronta i test DICHIARATI nei sorgenti con quelli ESEGUITI da una run.
+
+    Il conteggio canonico del repository misura i nomi nei `.cpp`; il verde della CI riguarda quelli
+    eseguiti, e i due possono divergere **senza che nulla lo dica**: e' il difetto di `#486`, misurato
+    su un worktree ricostruito in modo incrementale, dove la suite riportava 632 e poi 633
+    `Test Completed` con zero falliti su 634 dichiarati. I mancanti non erano `Fail` ne' `Skipped`:
+    non comparivano affatto.
+
+    Ritorna `(scope, executed, missing, extra)`. `missing` e' un ERRORE — un test che nessuno ha
+    eseguito non e' ne' rosso ne' verde, e' invisibile. `extra` e' un avviso: un test eseguito che i
+    sorgenti non dichiarano **dove il contatore guarda** (`Source/RefactorTactics/Tests/`), quindi
+    dice che il perimetro del contatore e' piu' stretto della realta'.
+    """
+    with open(log_path, encoding="utf-8", errors="replace") as fh:
+        text = fh.read()
+
+    executed = run_log_executed(text)
+    prefix = run_log_filter(text) or "RefactorTactics"
+    # Il filtro di UE e' per prefisso: `RunTests RefactorTactics.HexMap` prende anche
+    # `RefactorTactics.HexMapActor`. Riprodurlo qui, o il gate accuserebbe assenze che non esistono.
+    scope = {name for name in known_tests() if name.startswith(prefix)}
+
+    return scope, executed, sorted(scope - executed), sorted(executed - scope)
 
 
 def suite_breakdown():
@@ -2380,6 +2427,9 @@ def main():
     parser.add_argument("--check", action="store_true", help="non scrivere: fallisci se disallineato")
     parser.add_argument("--write", action="store_true",
                         help="`deploy`: scrive davvero nel clone della Wiki (default: sola lettura)")
+    parser.add_argument("--run-log", metavar="PATH",
+                        help="`suite`: log di una run dell'automation. Confronta ESEGUITI e DICHIARATI "
+                             "nello stesso perimetro ed esce 1 se qualcuno manca (#486)")
     args = parser.parse_args()
 
     registry = load_registry()
@@ -2455,6 +2505,31 @@ def main():
 
     if args.command == "suite":
         count, files = suite_measure()
+
+        # `--run-log`: il conteggio smette di essere un numero solo e diventa «N eseguiti su M
+        # dichiarati». Non tocca i documenti generati — misura una RUN, che non e' uno stato del
+        # repository — e non richiede `--check`: se un test dichiarato non e' stato eseguito, la
+        # domanda non e' se scrivere un file, e' che la run non vale.
+        if args.run_log:
+            if not os.path.isfile(args.run_log):
+                print(f"log non trovato: {args.run_log}")
+                return 1
+            scope, executed, missing, extra = suite_run_diff(args.run_log)
+            print(f"run: {len(executed)} eseguiti su {len(scope)} dichiarati nel perimetro")
+            for name in extra:
+                print(f"WARN  eseguito ma non dichiarato in Source/RefactorTactics/Tests/: {name}")
+            if not executed:
+                print("nessun test eseguito: la run e' morta prima, oppure il filtro non prende nulla")
+                return 1
+            if missing:
+                for name in missing:
+                    print(f"MANCANTE dichiarato e non eseguito: {name}")
+                print(f"{len(missing)} test dichiarati non sono stati eseguiti: la run non e' completa,")
+                print("e zero falliti non vuol dire zero buchi (#486).")
+                return 1
+            print("nessun buco: ogni test dichiarato nel perimetro e' stato eseguito")
+            return 0
+
         changed = apply_suite_count(args.check)
         print(f"suite: {count} test unici in {files} file su {current_head()}")
         if args.check and changed:

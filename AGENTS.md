@@ -165,6 +165,11 @@ validazione · serializzazione/replay · privacy intenti.
 - In Fast/Headless niente attese di planning, animazioni o 3 secondi reali: il decision boundary viene risolto
   dalla test policy.
 - **Non hardcodare il numero totale dei test nei documenti**: misuralo sul branch/HEAD quando serve.
+- **Un numero di test in una PR sono due numeri**: «N eseguiti su M dichiarati». Una run può eseguirne meno
+  di quanti ne esistono restando verde (`#486`): verifica con
+  `python scripts/feature_registry.py suite --run-log Saved/Logs/RefactorTactics.log`, che esce 1 sui buchi.
+  Vale soprattutto prima di dichiarare una **verifica di mutazione**: se il test atteso non era in lista, il
+  suo «non è caduto» non significa niente.
 - Le verifiche PIE/Editor non sono verdi finché qualcuno non le ha realmente eseguite.
 
 DoD applicabile: compila Game+Editor · test mirati + regressione pertinente · determinismo/authority/privacy
