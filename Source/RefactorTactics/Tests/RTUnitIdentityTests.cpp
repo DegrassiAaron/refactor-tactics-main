@@ -385,8 +385,8 @@ bool FRTTurnLogGraphRevisionRisesWithinTurnTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	URTHexMapAsset* Map = SpawnIdentityMap(World, /*Radius=*/ 4);
 
-	ARTUnit* A = SpawnIdentityUnit(World, 0, ERTArchetype::Ranger,   FRTCellId(-3, 1));
-	SpawnIdentityUnit(World, 1, ERTArchetype::Guardian, FRTCellId(3, -1));
+	ARTUnit* A = SpawnIdentityUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(),   FRTCellId(-3, 1));
+	SpawnIdentityUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(3, -1));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !Map) { DestroyIdentityWorld(World); return false; }
 
