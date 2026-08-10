@@ -167,8 +167,8 @@ Evidenza = i **nomi dei test**, che sono la prova di ciò che esiste:
 | **E8** Terreni, stati e ambiente | ✅ **chiusa** | 39 test `Terrain.*` · `Status.*` · `Environment.*` — superfici, stati temporanei, propagazione elettrica, fuoco/acqua, terreno dinamico |
 | **E9** Coperture e strutture | ✅ **chiusa** | 15 test `Cover.*` — bassa (riduzione per bordo, decade dal lato sbagliato), alta (nega vista **e** passo nei due versi), distruzione con revisione e riapertura della LOS · 10 test `Structures.Door.*` + 3 `HexMap.Door*` — la porta è un **bordo** (formato mappa **v4**), letta dallo stesso `BlocksTraversal` di muri e coperture, e un movimento già pianificato si **ferma** davanti a una porta chiusa a metà turno · 7 test `Structures.Bridge.*` + 3 `HexMap.Arc*` — il ponte è un **arco**, non un bordo (CP 9.4) · **CP 9.5 (2026-08-09)**: le coperture si **erigono e si spostano in partita** e scadono nel Cleanup — `Structures.KineticPanel.*`, `Actions.CreateCover.*`, `Heroes.Bastion.{KineticPanelVariantApplied, Reconfigure*}`, `Equipment.PortableCover.*`, e `Spec.Cover.TemporaryCoverExpires` da `BLOCKED` a `PASS` |
 | **E10** Obiettivi dinamici e fine partita | 🟡 **CP 10.3 chiuso** | 27 test `Match*.*` — fine partita a tre vie, `RoundLimit` da formato, pareggio dichiarato, fallback di formato osservabile · ⏳ nessun oggetto da attivare in mappa |
-| **E11** HUD, log e debug | 🟡 **parziale** | 4 `Preview.*`, 4 `PlayerInput.*`, 8 `Playback.*`; console `rt.Debug.DrawCells` e `rt.Debug.Pacing` esistono · ⏳ Ghost Timeline (CP 11.5/11.6) |
-| **E12** Determinismo, QA e release | 🟡 **CP 12.1 chiuso** | 4 `Simulation.*` — replay deterministico su **100 ripetizioni**, checksum stabile per permutazioni, corpus golden che rifiuta un formato diverso · 13 `Scenario.*` (harness) · 2 `Perf.*` · ⏳ packaged build (CP 12.3/12.5) |
+| **E11** HUD, log e debug | 🟡 **CP 11.3 chiuso nel codice** | 4 `Preview.*`, 4 `PlayerInput.*`, 8 `Playback.*`; console `rt.Debug.DrawCells` e `rt.Debug.Pacing` esistono · **CP 11.3 (2026-08-10, `#79`)**: le voci di combattimento non sono più **anonime** — portano `ActionId` e `BaseActionId`, quindi con due attaccanti nello stesso Blast il replay sa attribuire il colpo (`TurnLog.CombatEntryNamesItsAction`, `TurnLog.BasicAttackLogsBaseAndProfile`) · ⏳ Ghost Timeline (CP 11.5/11.6) · ⏳ comandi `rt.Debug.*` (CP 11.4) |
+| **E12** Determinismo, QA e release | 🟡 **CP 12.1 chiuso** | 4 `Simulation.*` — replay deterministico su **100 ripetizioni**, checksum stabile per permutazioni, corpus golden che rifiuta un formato diverso · 13 `Scenario.*` (harness) · 2 `Perf.*` · **2026-08-10 (`#307`)**: il TurnLog registra la **causa** di ogni spostamento — scatto e spinta lasciavano il replay senza spiegazione, ora hanno voce propria (`TurnLog.DisplacementHasCauseAndSource`, `TurnLog.DashIsDistinguishableFromMove`) · ⏳ packaged build (CP 12.3/12.5) |
 | **E13** Conoscenza parziale: vista e udito | ⏳ **assente** | la vista è una statistica a catalogo che non decide nulla |
 | **E14** Overwatch e reazioni interattive | ⏳ **assente** | ADR-0004 accettato, nessun codice. Dipende da E13 |
 | **E15** Showcase «Il Relè» e golden replay | 🟡 **iniziata** | 2 test `ShowcaseRelay.*` — fixture stabile, scenario lite deterministico |
@@ -577,6 +577,15 @@ turno**, senza attese nel resolver (invariante #3).
 **Rischi**: è il punto di revisione dell'ADR-0003. Se il costo sfonda: degradare alle difensive di fase Prep
 (`Guard`/`Brace`/`Shield`) e rimandare `Counter`/`Intercept`/`Deflect` **fuori** dalla v0.1, aggiornando la DoD.
 
+> ⚠️ **Metà della DoD di CP 5.2 non è verificabile in partita** (misurato il 2026-08-10). *«`Brace` blocca la
+> prima spinta»* è implementato **senza limite di distanza**, e questo è ciò che lo distingue da `Guard`, che
+> regge un passo solo. Ma il catalogo eroi ha **due soli effetti `Push`, entrambi di valore 1**: la clausola
+> non è raggiungibile, e sul colpo singolo `Guard` **domina** `Brace` (1 danno contro 6, stessa immunità alla
+> spinta). Il trade-off che il giocatore incontra davvero è *primo colpo pesante* contro *colpi ripetuti*.
+> Non è un bug del resolver — è una DoD scritta per un gioco con spinte più forti di quelle che esistono.
+> Owner della domanda: `BAL-1` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), con roadmap e numeri in
+> [`plans/bal-1-guard-brace-roadmap-2026-08-10.md`](plans/bal-1-guard-brace-roadmap-2026-08-10.md).
+
 > **CP 5.5 chiuso il 2026-08-07** (`#154`, 5 test nuovi) — dettaglio delle decisioni, dei limiti dichiarati e
 > delle verifiche di mutazione in [`spec-reazioni-componibili-cp55.md`](../gameplay/spec-reazioni-componibili-cp55.md).
 > Il motore ora applica **tutti** gli effetti dichiarati da una reazione (prima leggeva il primo `Damage` e
@@ -601,10 +610,10 @@ turno**, senza attese nel resolver (invariante #3).
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
 | **6.1** | `URTHeroData` e statistiche | Salute, movimento (MP), range visivo, resistenza push, affinità ambientale, debolezza; attacco base per fascia (corpo a corpo 28/r1, corto 25/r3, medio 22/r4, lungo 20/r6) | `Heroes.StatsFromData`, `Heroes.BasicAttackByRangeBand` |
-| **6.2** | Flux — tecnico della conduzione | 90 HP, 5 MP, vista 6, affinità elettricità; `ArcPulse` (22, r4), `LinearDischarge` (24, +8 su Wet), `ConductiveNode`, `Overload` (18 + Interrupt dispositivi), `ReactiveCapacitor`; variante concentrata/ramificata | `Heroes.Flux.WetBonus`, `Heroes.Flux.VariantTradeoff` |
+| **6.2** | Flux — tecnico della conduzione | 90 HP, 5 MP, vista 7 *(era 6: D-073, `#131`)*, affinità elettricità; `ArcPulse` (22, r4), `LinearDischarge` (24, +8 su Wet), `ConductiveNode`, `Overload` (18 + Interrupt dispositivi), `ReactiveCapacitor`; variante concentrata/ramificata | `Heroes.Flux.WetBonus`, `Heroes.Flux.VariantTradeoff` |
 | **6.3** | Riva — manipolatrice dell'acqua | 95 HP, 5 MP, vista 5, affinità acqua; `PressureJet` (16 + Wet + Push 1), `CircularTide` (cura 18 alleati / Wet nemici), `FluidTrail` (Dash 3 + acqua), `MistVeil` (fumo r1), `FlowReaction`; variante curativa/urto | `Heroes.Riva.TideHealsAlliesWetsEnemies` |
 | **6.4** | Bastion — architetto del campo | 120 HP, 4 MP, vista 5, resistenza push 1, affinità strutture; `ImpactShot` (8 + `Slow`, r3 — 24 fino ad [ADR-0007](../decisions/adr-0007-attacco-base-per-eroe.md)), `KineticPanel` (copertura 30 HP), `Reconfigure`, `Ram` (Charge 20 + Push 1), `Interposition`; variante rinforzato/adattivo | `Heroes.Bastion.PanelCreatesCover`, `Heroes.Bastion.PushResistance` |
-| **6.5** | Vektor — duellante predittivo | 100 HP, 6 MP, vista 6, affinità movimento; `PulseShot` (21, r4), `InterceptShot` (16 + stop movimento), `PassingBlade` (Dash 3, 20 attraversando), `Deflection` (−20), `Feint`; variante preciso/esteso | `Heroes.Vektor.InterceptShotStopsMovement` |
+| **6.5** | Vektor — duellante predittivo | 90 HP *(era 100: D-069, `#131`)*, 6 MP, vista 6, affinità movimento; `PulseShot` (21, r4), `InterceptShot` (16 + stop movimento), `PassingBlade` (Dash 3, 20 attraversando), `Deflection` (−20), `Feint`; variante preciso/esteso | `Heroes.Vektor.InterceptShotStopsMovement` |
 | **6.6** | Selezione e spawn 2v2 | `ARTGameMode` spawna 4 eroi da `URTHeroData` (non più `RangerUnitClass`/`GuardianUnitClass` hard-coded); fallback visivo al cilindro se l'asset manca | Test d'integrazione (4 eroi distinti in `UWorld`); `PIE-V01-ROSTER` |
 | **6.7** ✅ *(chiuso 2026-08-07)* | Le reazioni degli eroi **funzionano in partita** | Quattro reazioni cablate sul motore E5 riusando la semantica core (CP 5.5): `Bastion.Interposition` → `Action.Intercept` (trigger `AllyHitByDirectAttack`, range 2), `Vektor.Deflection` → `Action.Deflect` (−20), `Flux.ReactiveCapacitor` → `Shield 15` **+** 10 all'attaccante, `Riva.FlowReaction` → **rinviata a E14** e dichiarata tale (produce movimento dentro un boundary). Ogni reazione occupa lo **slot `Reaction`** ed è soggetta a «una attivazione per turno». I commenti «arriva con E5» spariscono dal catalogo eroi e i test che oggi **fissano l'assenza** (`Effects.Num() == 0`) sono sostituiti da test di comportamento | `Heroes.BastionInterpositionRedirectsDirectHit`, `Heroes.BastionInterpositionUsesReactionSlot`, `Heroes.VektorDeflectionReducesDirectHit`, `Heroes.FluxReactiveCapacitorShieldsAndCounters` |
 
@@ -704,9 +713,9 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 
 > **CP 10.1 riscritta il 2026-08-09**, e sono due correzioni distinte, nessuna delle quali cambia il design.
 > (a) Il titolo diceva «`Activate` / `Interact`»: [D-025](../decisions/RT_PDR_00_Decision_Log.md) ha assorbito
-> `Activate` in `Interact` e le azioni generiche sono **sette**. Lo Stable ID `Action.Activate` resta nel
-> codice — la **migrazione** è aperta (riga 27 di [`DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md)) — ma
-> il checkpoint non deve più presentarlo come azione universale.
+> `Activate` in `Interact` e le azioni generiche sono **sette**. ✅ **Dal 2026-08-10 (`#199`) lo Stable ID non
+> è più nel catalogo**: `Action.Activate` è stata ritirata e il suo ID viene **reindirizzato in lettura** a
+> `Action.Interact`, così le tracce già scritte restano interpretabili. CP 10.1 costruisce su una sola azione.
 > (b) La DoD metteva le conseguenze topologiche nel **Cleanup**: superato da **CP 9.3**, dove `SetDoorState` è
 > un effetto raccolto nel Blast e applicato a fase conclusa, e da **CP 9.4**, che ha spostato `ModifyArc` dal
 > Cleanup al Blast. Una topologia che cambia dopo il Move non può fermare un movimento: è precisamente il
@@ -720,7 +729,7 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 |---|---|---|---|
 | **11.1** | HUD di partita | Barre HP/scudo/energia, timer di planning, fase corrente, slot occupati (movimento/principale/reazione), cooldown residui per azione | `PIE-V01-HUD` |
 | **11.2** | Intenti alleati e certezza | Gli intenti **alleati** sono mostrati con tre livelli: **confermato** (collegamento certo), **previsto** (valido nello snapshot corrente), **incerto** (una cella potrebbe cambiare durante il movimento); nessun intento avversario mostrato né replicato. **Grammatica visiva** *(2026-08-07)*: confermato = linea piena · previsto = tratteggiata + icona di squadra · incerto = dissolto + `?`. La classificazione arriva dal resolver: la UI **non ricalcola il perché**. Finché **E13** non esiste, l'incertezza da **visibilità** non si mostra — un `?` che finge un sistema assente è peggio di nessun `?` | `UI.IntentCertaintyClassification`; `PIE-V01-INTENT` |
-| **11.3** | Combat log con reason code | Ogni esito del TurnLog compare nel log con coordinate assiali `(q,r,L)`, `ActionId`, `Priority` e `ValidationResult`; i fallback applicati sono espliciti | `UI.LogContainsReasonAndCoords`; `PIE-V01-LOG` |
+| **11.3** ✅ *(codice)* | Combat log con reason code | Ogni esito del TurnLog compare nel log con coordinate assiali `(q,r,L)`, `ActionId`, `Priority` e `ValidationResult`; i fallback applicati sono espliciti. **2026-08-10 (`#79`)**: coordinate ✅ · `ActionId` ✅ — le voci `Combat` erano **anonime** · fallback e `ValidationResult` ✅ · **`Priority` ✅** (formato **v7**, `spec-turnlog.md` §4.4): era stata rimandata perché la `v6` era rivendicata da un altro ramo, ed è stata presa dopo aver verificato **tutti** i branch remoti. ⏳ resta la sola verifica interattiva | `TurnLog.CombatEntryNamesItsAction`, `TurnLog.BasicAttackLogsBaseAndProfile`, `TurnLog.PrioritySurvivesRoundTripAndStaysOutOfHash`; ⏳ `PIE-V01-LOG` |
 | **11.4** | Comandi `rt.Debug.*` | `rt.Debug.DrawGrid`, `DrawPaths`, `DrawCover`, `DrawIntent`, `DrawResolution`, `DumpSnapshot`, `DumpTurnLog`, `VerifyReplay` esistono e funzionano in PIE e in build Development; le celle mostrano `CellId`, `TerrainId`, `TraversalCost`, `OccupantId`, `HazardTags`, `CoverEdges`, `ChunkRevision` | `Debug.VerifyReplayDetectsDivergence` (test che introduce una divergenza e verifica che il comando la rilevi); `PIE-V01-DEBUG` |
 | **11.5** *(nuovo 2026-08-07)* | **Ghost Timeline**: preview del piano per fase | Un *Action Ghost* per fase (Prep · Dash · Blast · Move) mostra **dove** sarà l'unità e **da dove** agirà, non solo la destinazione. View model con una entry per fase (`Phase`, `UnitId`, `ActionId`, `PreviewOrigin`, `PreviewDestination`, `Facing`, `PoseId`, `TargetCells`, `AffectedCells`, `Certainty`) e **`ReactionPreview` separata dalla lista delle fasi** — la reaction non è una quinta fase. Origine, destinazione, celle bersaglio e area **coincidono con quelle che userebbe il resolver**: stesso A\*, stesso snapshot, nessuna seconda implementazione delle regole. Budget di presentazione: pooling di mesh/decal, nessun Actor persistente per preview, aggiornamento a frequenza limitata (**non** ogni Tick) | `Preview.GhostMatchesResolverPath`, `Preview.HitCellsMatchCombatShape`, `Preview.ReactionIsNotAPhaseEntry`, `Preview.ClearedWhenPlanIsCancelled` |
 | **11.6** *(nuovo 2026-08-07)* | **Scrubbing** delle fasi e ramo condizionale della reaction | Selezionando una fase il suo ghost si evidenzia e gli altri si attenuano, con origine, bersaglio, linea, AoE e copertura rilevante in evidenza; i **warning** (alleato sulla traiettoria, esposizione, collisione possibile) arrivano dallo stesso strato che produce i reason code del TurnLog — **mai** ricalcolati nel widget — e sono marcati *previsto*/*incerto*, mai *confermato*; la reaction armata compare come **ramo con `?`** accanto alla timeline | `Preview.AllyInAreaIsFlagged`, `Preview.WarningsComeFromResolverReasons`, `Preview.ArmedReactionRendersAsBranch`; `PIE-V01-GHOSTS` |
@@ -854,6 +863,19 @@ livello `Rilevato`, non solo LOS. È **l'ultima epic della v0.1** e la **prima d
 | **14.7** *(nuovo 2026-08-09)* | **Reaction Clash** — opportunity *contested* | `Brace` **arma un profilo** e non è più «un'azione che si dichiara e basta» ([D-047](../decisions/RT_PDR_00_Decision_Log.md)): `Hold Ground` è la risposta universale e **coincide col comportamento di oggi**, quindi nessun numero si muove e i due scenari restano verdi. Un'opportunity è **contested** quando *due* partecipanti hanno ciascuno ≥ 2 risposte legali — **derivato dalla cardinalità, nessun campo `Type`** (è il rischio (b) di questa epic). Scelta in cieco, **reveal a scadenza fissa** — la finestra dura sempre 3,0 s e non anticipa se entrambi lockano subito, perché il momento del lock è un canale ([D-048](../decisions/RT_PDR_00_Decision_Log.md), emenda ADR-0004 §7) — poi confronto deterministico. Il boundary contested vale **1 prompt**, quindi il caso peggiore di ADR-0004 §8 non cambia. Gli esiti si esprimono **solo** con `FRTActionEffectSpec`, mai callback. **Sostituire** `Reactions.Brace.IsNotAReaction`, che pinna la classificazione vecchia | `Reactions.Brace.BaseProfileHasSingleResponse`, `Reactions.Brace.RicherProfileOpensWindow`, `Clash.ContestedIsDerivedNotDeclared`, `Clash.RevealIsFixedDeadline`, `Clash.HiddenUntilReveal`, `Clash.TieAppliesOnce`, `Clash.CostConsumedOnLock`, `Clash.NoNestedWindow`, `Clash.Determinism`; scenari `Spec.Clash.*` |
 | **14.8** *(nuovo 2026-08-09)* | **Decision Time Bank** — budget di decisione per giocatore | Una risorsa temporale **per giocatore**, condivisa da tutte le Decision Window live: dentro la `Grace` non consuma, oltre consuma il tempo effettivo, e allo scadere costa `MaxWindow − Grace` per intero. `InitialBank` è **derivato** — `RoundLimit × (MaxWindow − Grace)`, 24 s in 2v2 — non un numero fisso. La singola finestra **resta 3,0 s**: il bank non la allunga mai e non tocca mai le `AllowedResponses`. È **wall-clock, non regola**: sta accanto a `PlanningSeconds` e non entra in `URTMatchFormatData` né in alcun hash (`RTMatchFormatData.h`). Il residuo è un **input canonico registrato**: il replay lo legge dal TurnLog, non lo ricalcola. Visibilità **owner-only** — un bank pubblico riaprirebbe il canale che [D-021](../decisions/RT_PDR_00_Decision_Log.md) e [D-048](../decisions/RT_PDR_00_Decision_Log.md) chiudono. Il **bot ha un bank** e lo consuma per policy: nessun ramo `IsBot` nella Decision Window. Vincolo che rende equo il costo pieno del timeout: il fallback è **preselezionato e raggiungibile entro la grace**, apparizione del prompt inclusa — **da misurare**, non da assumere. **Sostituisce D20** («nessun cap aggregato») prima della misura che l'avrebbe informata: rischio dichiarato, e i due rientri di ADR-0004 §Revisione restano validi. **Non precede 14.5/14.6**: la prima misura arriva prima della taratura. Owner: [`spec-decision-time-bank.md`](../gameplay/spec-decision-time-bank.md) | `TimeBank.GraceDoesNotDrain`, `TimeBank.DrainsAfterGrace`, `TimeBank.TimeoutCostsFullWindow`, `TimeBank.TimeoutSpendsNoCharge`, `TimeBank.NeverBelowZero`, `TimeBank.ClashCostsFullWindow`, `TimeBank.BotDrainsLikePlayer`, `TimeBank.ReplayReadsRecordedBank`, `TimeBank.PacketOrderInvariant`; UI `TimeBank.FallbackReachableWithinGrace`; scenari `Spec.TimeBank.*` |
 
+> ⏳ **CP 14.4 e CP 14.7 hanno il meccanismo, non il contenuto (2026-08-10).** Entrambi dichiarano che il
+> profilo è un **dato per eroe** — `Overwatch.ProfileIsDataNotBranch` per il primo,
+> [D-047](../decisions/RT_PDR_00_Decision_Log.md) per il secondo — ma **quali** siano i quattro profili non è
+> deciso da nessuna parte. Il sorgente `CLAUDE_Consolidamento_BaseAction_Signatures_Brace_Overwatch_2026-08-10.md`
+> ne propone due tabelle complete (`Grounding · Flow · Anchor · Deflection` per `Brace`;
+> `Conductive · Pressure · Frontline · Predictive` per `Overwatch`); il triage in
+> [`plans/baseaction-signatures-spec-panel-2026-08-10.md`](plans/baseaction-signatures-spec-panel-2026-08-10.md)
+> le ha verificate contro il canone e ha registrato cinque domande **`BAS-1`…`BAS-5`** in
+> [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) — fra cui due **collisioni di nome** con reazioni già cablate
+> in CP 6.7. Nessun DoD cambia: i sei scenari corrispondenti sono `planned`, e restano tali finché la
+> decisione non arriva. **`BAS-5` è chiusa** dal triage sul lifecycle (sotto): il post-Overwatch è
+> `Watch → EndWatchStage → Reposition`, non un Move a budget ridotto.
+
 > ⚠️ **CP 14.5 cambia consumatore (2026-08-08).** `Vektor.InterceptShot` era il caso concreto scelto per la
 > prima finestra. Con [D-016](../decisions/RT_PDR_00_Decision_Log.md) quell'azione diventa una **Predictive
 > Action** — decisa in Planning, risolta a un boundary, **senza input live** — quindi **non le serve una
@@ -873,6 +895,19 @@ armata, senza cap aggregato (decisione D20). La soglia d'allarme di ADR-0004 è 
 anticipata al CP 14.5 con decisioni immediate, così il pacing si scopre prima di costruire la UI.
 (b) **Non** costruire la policy `AutoCommit/PromptOwner` proposta dal documento di integrazione: è la stessa
 cosa di `AllowedResponses ≤ 1` (ADR-0004 §2), che la deriva dai dati invece di aggiungere un enum parallelo.
+
+> 📉 **Il rischio (a) si riduce di un terzo se la cadence diventa *once-per-target* (2026-08-10).** Il
+> sorgente sul lifecycle dell'Overwatch propone che un'Overwatch offra **al massimo un'opportunity per
+> bersaglio distinto** per Reaction Instance — HOLD su un bersaglio non riapre per quello stesso bersaglio,
+> nemmeno se esce e rientra. In **2v2** i bersagli avversari sono **due**, quindi il caso peggiore passa da
+> `3 × 3 s = 9 s` a `2 × 3 s = **6 s**`, e `MaxPromptsPerReaction = 3` diventa **irraggiungibile** da una
+> singola Overwatch. Il valore **non va cambiato** — il formato competitivo non è deciso
+> ([D-011](../decisions/RT_PDR_00_Decision_Log.md)) e in 3v3 il terzo prompt torna possibile — ma il rientro
+> `MaxPromptsPerReaction = 1` che ADR-0004 §Revisione teneva pronto diventa molto meno probabile che serva.
+> ⚠️ **È un conto, non una misura**: quella di CP 14.5 va fatta comunque. La cadence ha già la sua specifica
+> eseguibile in `Spec.Overwatch.HoldThenFire`, dove Vektor fa `HOLD` su Flux e `FIRE` su Riva — due bersagli
+> diversi. Triage: [`plans/overwatch-runtime-lifecycle-triage-2026-08-10.md`](plans/overwatch-runtime-lifecycle-triage-2026-08-10.md);
+> costo e nome del ciclo Watch/Reposition restano `OW-1`/`OW-2` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md).
 
 ---
 

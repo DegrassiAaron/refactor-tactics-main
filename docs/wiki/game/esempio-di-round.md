@@ -8,7 +8,7 @@
 > Feature: `RT-FEAT-UI-COMBAT-LOG` · Release: `v0.1` · Roadmap: `E11.3`  
 > Stato: **RELEASE_READY** · Gate: `6/7`  
 > Scenario: `Visual.Core.PhaseOrder`  
-> Verificato il `2026-08-08` su `2094b86`
+> Verificato il `2026-08-10` su `c634c50`
 
 <!-- RT_FEATURE_STATUS:END RT-FEAT-UI-COMBAT-LOG -->
 

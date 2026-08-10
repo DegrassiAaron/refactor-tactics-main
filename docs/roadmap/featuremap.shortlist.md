@@ -20,12 +20,12 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 <!-- RT_SHORTLIST_FEATURES:BEGIN -->
 
-**87 feature** · v0.1 **70** · v0.2 **10** · future **7**.
+**88 feature** · v0.1 **70** · v0.2 **11** · future **7**.
 
 | Stato | Quante |
 |---|--:|
 | `IDEA` | 4 |
-| `DESIGNED` | 9 |
+| `DESIGNED` | 10 |
 | `SPECIFIED` | 13 |
 | `IMPLEMENTING` | 20 |
 | `TESTABLE` | 5 |
@@ -33,7 +33,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RELEASE_READY` | 15 |
 | `DONE` | 1 |
 
-### Actions · 11
+### Actions · 12
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
@@ -42,11 +42,12 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-ACTION-MOVE-PROFILES` — Profili di movimento (Move, Sprint, Charge) | v0.1 | RELEASE_READY | 7/8 | E4 | **Sprint è un profilo di Move, non un Dash** |
 | `RT-FEAT-ACTION-PREDICTIVE` — Predictive Action, thin slice | v0.1 | INTEGRATED | 6/8 | E18 | Decisa in Planning, risolta a un boundary, **senza input live** |
 | `RT-FEAT-ACTION-COOLDOWNS` — Cooldown ed economia delle risorse | v0.1 | TESTABLE | 5/8 | E4 | ⚠️ non verificabile finché i world di test non chiamano `BeginPlay()` (`#135`) |
-| `RT-FEAT-ACTION-BASIC-ATTACK-PROFILES` — Profili di attacco base per eroe | v0.1 | IMPLEMENTING | 6/8 | E4 | — |
+| `RT-FEAT-ACTION-BASIC-ATTACK-PROFILES` — Profili di attacco base per eroe | v0.1 | IMPLEMENTING | 6/8 | E4 | Un eroe resta riconoscibile **anche senza usare le sue speciali**; e un attacco base debole non è un pulsante finto |
 | `RT-FEAT-ACTION-EQUIPMENT` — Equipaggiamento e loadout | v0.1 | IMPLEMENTING | 1/8 | E7 | Scelta orizzontale: ogni variante ha uno svantaggio |
 | `RT-FEAT-ACTION-GENERIC` — Azioni generiche del catalogo | v0.1 | IMPLEMENTING | 3/8 | E4 | Le sette di D-025: `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch` |
 | `RT-FEAT-ACTION-SUPERS` — Ultimate e azioni ad alto impegno | v0.2 | IMPLEMENTING | 0/8 | — | Fuori dal contenuto della v0.1 |
 | `RT-FEAT-ACTION-DELAYED` — Delayed Action ai boundary di fase | future | DESIGNED | 0/8 | — | Brief scritto, **nessuna epic aperta**: attende una decisione di scope |
+| `RT-FEAT-STATUS-FRAMEWORK` — Framework degli status — categorie, severity e primitive | v0.2 | DESIGNED | 0/8 | — | — |
 | `RT-FEAT-ACTION-TRAPS` — Trappole e gambit tattici | future | IDEA | 0/8 | — | Solo un nome |
 
 ### Characters · 5

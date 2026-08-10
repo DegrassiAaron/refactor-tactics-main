@@ -9,6 +9,27 @@
 
 ---
 
+## ✅ Chiuse il 2026-08-10 — footprint della cella e derivazione degli status
+
+Tre voci decise dall'autore. Restano qui **solo come indice**: il contenuto vive nel Decision Log.
+
+| Era | Decisione presa | Dove vive ora |
+|---|---|---|
+| `MAP-1` | Il footprint standard è il **cerchio inscritto** nell'esagono (raggio = apotema), e la *swept clearance* della transizione usa **lo stesso raggio**. **Zero numeri nuovi**: l'apotema si deriva dal lato, già fissato. Si misura in **esagoni**, non in metri | [`D-071`](decisions/RT_PDR_00_Decision_Log.md) — **E23.6/23.7** |
+| `STA-1` | Le sei primitive **non sono un enum**: si derivano da ciò che lo status dichiara. Stesso argomento con cui è stato respinto l'enum di policy dell'Overwatch — un campo accanto al comportamento è una seconda verità | [`D-072`](decisions/RT_PDR_00_Decision_Log.md) |
+| `STA-2` | La severity `C0`–`C3` si **conta** dalle capability toccate. Così la regola anti-stun-lock diventa **un test** invece di una revisione | [`D-072`](decisions/RT_PDR_00_Decision_Log.md) |
+
+> ⚠️ **Chiudere `STA-1` e `STA-2` ha aperto ciò che serviva a entrambe.** Nessuna delle due derivazioni è
+> possibile senza una **tassonomia esplicita delle capability** — l'elenco di cosa un effetto può togliere e
+> con quale granularità. Non esiste, e non è un dettaglio implementativo: è il dato da cui *entrambe* leggono.
+> È il primo lavoro del framework, prima delle primitive e prima dei due status nuovi. Tracciata come
+> `STA-4` qui sotto.
+>
+> `MAP-1` invece non ne ha aperte: ha **chiuso** anche il rischio che qualcuno introducesse un secondo
+> numero per il corridoio.
+
+---
+
 ## ✅ Chiuse il 2026-08-07 — sessione `/sc:brainstorm`
 
 Le cinque voci `OD-1`…`OD-5` aperte dalla revisione documentale sono state decise. Restano qui **solo come
@@ -135,6 +156,32 @@ prima che E10 le incontri in codice.
 
 ---
 
+<<<<<<< HEAD
+## Aperte — profili d'eroe di `Brace` e `Overwatch`, dal consolidamento del 2026-08-10
+
+Origine: [`roadmap/plans/baseaction-signatures-spec-panel-2026-08-10.md`](roadmap/plans/baseaction-signatures-spec-panel-2026-08-10.md),
+triage del sorgente omonimo. Il **meccanismo** è deciso da entrambi i lati — [D-047](decisions/RT_PDR_00_Decision_Log.md)
+per `Brace`, [D-012](decisions/RT_PDR_00_Decision_Log.md)/[D-014](decisions/RT_PDR_00_Decision_Log.md) e
+**CP 14.4** per `Overwatch`, con il profilo dichiarato «dato per eroe, non ramo nel resolver». Quello che manca
+è il **contenuto**: quali siano i quattro profili. Vanno decise prima che E14 li incontri in codice.
+
+| ID | Domanda | Perché serve una risposta |
+|---|---|---|
+| `BAS-1` | I quattro profili `Brace` — Flux `Grounding`, Riva `Flow`, Bastion `Anchor`, Vektor `Deflection` — entrano nel canone come contenuto di **CP 14.7**? | D-047 stabilisce che un profilo con **≥ 2 risposte legali** apre la finestra: questi ne dichiarano due o tre, quindi non sono contenuto neutro — decidono **quante finestre si aprono** in una resolution, che è il rischio di pacing dichiarato di E14 |
+| `BAS-2` | I quattro profili `Overwatch` — `Conductive`, `Pressure`, `Frontline`, `Predictive` — entrano come contenuto di **CP 14.4**? | Le geometrie proposte (settore medio · medio-corto · corto-largo frontale · stretto-lungo) sono esprimibili con `FRTSuppressiveZone` e col facing come impone CP 14.4, ma **nessun catalogo le contiene**. Senza, `Overwatch.ProfileIsDataNotBranch` non ha un secondo profilo da confrontare col primo |
+| `BAS-3` | `Vektor.Deflection`: un nome, **due semantiche**. Si rinomina il profilo `Brace`, si rinomina la reazione, o si unificano? | `Vektor.Deflection` esiste già cablata (`RTHeroCatalogLibrary.cpp:557`, CP 6.7) ed è **−20 sul colpo diretto**, cioè riduzione danno — esattamente ciò che il §10 del sorgente vieta al `Brace`. Due entità con lo stesso nome e semantiche opposte non si separano da sole al momento dell'implementazione |
+| `BAS-4` | `Riva.Flow`: il profilo `Brace` è la **promozione** di `Riva.FlowReaction`, o una terza cosa? | «Flow» per Riva è già scritto **due volte, in due accezioni**: `Riva.FlowReaction` (`RTHeroCatalogLibrary.cpp:351`) è `Reposition 1` **dopo un attacco subito**, rinviata a E14 con slot `None`; `State.Riva.Flow` è un candidato *stance* post-v0.1 (`RT-FEAT-CHARACTER-STATE`, E34, `PROPOSED`). Il profilo proposto risponde invece al **Forced Movement**. «Riva colpita ma non spostata» distingue il primo caso dal terzo, e oggi nessun documento dice quale dei due accade |
+| ~~`BAS-5`~~ | ~~Dopo l'`Overwatch`: **Move con budget ridotto**, o **Watch Stage + Reposition** pianificato?~~ **Chiusa come domanda il 2026-08-10**: prevale il modello **Watch → EndWatchStage → Reposition**. Non per la data — è la stessa — ma perché il sorgente gemello si dichiara superato su questo punto (§34 e §48 elencano «vecchio post-Overwatch Normal/Sneak Move» fra ciò da correggere), e perché è l'unico dei due modelli che dice **dove si trova** il personaggio quando l'Overwatch finisce. Restano aperti il suo **costo** (`OW-1`) e il suo **nome** (`OW-2`): vedi [`roadmap/plans/overwatch-runtime-lifecycle-triage-2026-08-10.md`](roadmap/plans/overwatch-runtime-lifecycle-triage-2026-08-10.md) |
+
+> **Le affinità di interazione per eroe non aprono una voce nuova.** Il §17 del sorgente (Flux → generatori e
+> pannelli, Riva → valvole e pompe, Bastion → cover, porte e barricate, Vektor → standard) **ricalca** le
+> assegnazioni già registrate in **`INT-1`**. Non è una domanda nuova: è una **proposta di risposta** a una
+> già aperta, e va valutata lì. Vale la stessa regola che tiene fuori `INT-3`.
+>
+> Il §17 la fonda però su `Activate` come azione distinta da `Interact` — che [D-014](decisions/RT_PDR_00_Decision_Log.md)
+> e [D-025](decisions/RT_PDR_00_Decision_Log.md) hanno già escluso. Letta come affinità di `Interact`, la
+> proposta regge senza modifiche di sostanza.
+=======
 ## Aperte — geometria, clearance e confine Guard/Brace, dal consolidamento del 2026-08-10
 
 Origine: [conflict report dell'handoff geometria](roadmap/plans/handoff-geometry-reazioni-conflict-report-2026-08-10.md).
@@ -144,11 +191,66 @@ residuo.
 
 | ID | Domanda | Perché serve una risposta |
 |---|---|---|
-| `MAP-1` | Quanto vale la **clearance standard** di un'unità, in metri? | Non si parte da zero: [`technical/convenzioni-contenuti-ue.md`](technical/convenzioni-contenuti-ue.md) §11-bis fissa **lato dell'esagono ≈ 1,5 m**, quindi il numero è vincolato, non libero. Serve perché è il parametro che decide quali celle sono calpestabili quando un muro le attraversa: sceglierlo dopo aver cotto una mappa significa ricuocerla. Blocca **E23**, non la v0.1 |
 | `MAP-2` | Che succede quando la **linea di tiro sfiora l'angolo** di un muro? | È il caso che la geometria arbitraria crea e la griglia allineata non aveva: con muri a 90° che tagliano le celle, `HasLineOfSight` incontra tangenze che oggi non esistono. La risposta decide anche i corner case di proiettile e copertura, che sono lo stesso problema visto dal lato del danno. Va decisa **con una fixture in mano**, non per principio |
 | `MAP-3` | La **cottura non è invertibile**: cosa succede se qualcuno modifica a mano il dato cotto? | Registrato come rischio il 2026-08-09 e ancora aperto. Se si edita `bBlocksMovement` su una cella cotta, il prossimo ricalcolo cancella la modifica **in silenzio** — stessa classe di problema dei prefab. Le uscite sono tre (vietare l'edit, marcare la cella come «sganciata», o rinunciare al ricalcolo automatico) e nessuna è deducibile dai documenti |
-| `BAL-1` | `Guard` e `Brace` devono separarsi in **danno contro spinta**? | [D-066](decisions/RT_PDR_00_Decision_Log.md) ha misurato il modello in vigore: entrambi fanno entrambe le cose, e differiscono per *forma* (primo colpo forte vs ogni colpo; spinta di 1 cella vs spinta qualsiasi). La proposta di separarli è coerente e cambierebbe **quattro valori a catalogo**. È bilanciamento: si chiude con una partita, non con un documento. ⚠️ Il test che la deciderebbe — *danno misto + spinta sullo stesso colpo* — **non esiste**: oggi i due lati sono verificati separatamente |
+| `BAL-1` | `Guard` e `Brace` devono separarsi in **danno contro spinta**? | [D-066](decisions/RT_PDR_00_Decision_Log.md) ha misurato il modello in vigore: entrambi fanno entrambe le cose, e differiscono per *forma* (primo colpo forte vs ogni colpo; spinta di 1 cella vs spinta qualsiasi). È bilanciamento: si chiude con una partita, non con un documento. ⚠️ **Non è ancora decidibile**, e il motivo è più stretto di quanto sembrasse: **nessuna spinta del gioco supera 1** — due soli effetti `Push` a catalogo, entrambi di valore 1 — quindi la clausola «senza limite di distanza» di `Brace` **non è osservabile** e sul colpo singolo `Guard` domina. Roadmap, numeri e issue: [`bal-1-guard-brace-roadmap-2026-08-10.md`](roadmap/plans/bal-1-guard-brace-roadmap-2026-08-10.md). Issue [#400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/400) (prerequisito), [#401](https://github.com/DegrassiAaron/refactor-tactics-main/issues/401) (scenari), [#403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/403) (decisione) |
+| `BAL-2` | `PushResistance = 1` nativo di **Bastion** è voluto in questa forma? | Conseguenza della stessa causa di `BAL-1`, ed è per questo che è registrata accanto: la resistenza è una **soglia** ([D-038](decisions/RT_PDR_00_Decision_Log.md)) e ogni spinta vale 1, quindi Bastion è **immune a ogni spostamento del gioco, sempre, senza spendere nulla**. Il catalogo motiva la statistica («compra HP e stabilità con movimento e vista»), non l'immunità **totale**, che nessuno ha dichiarato. Va decisa in un verso o nell'altro e **pinnata**, perché oggi non la guarda nessuno. Issue [#402](https://github.com/DegrassiAaron/refactor-tactics-main/issues/402) |
 | `ECO-1` | `Guard` e `Brace` competono con il **Main Commitment**, o hanno un'altra economia? | [D-012](decisions/RT_PDR_00_Decision_Log.md) copre `Attack \| Ability \| Overwatch` e **non** dice nulla di `Guard` e `Brace`, che a catalogo occupano l'azione principale ma non compaiono in quella regola. La domanda si porta dietro la matrice Sprint/Sneak proposta dal sorgente (`Brace` e `Overwatch` senza Sprint), che **non è canonica** e non va resa tale senza playtest |
+>>>>>>> origin/main
+
+---
+
+## Il ciclo Watch/Withdraw — tre voci chiuse il 2026-08-10, una aperta
+
+Origine: [`roadmap/plans/overwatch-runtime-lifecycle-triage-2026-08-10.md`](roadmap/plans/overwatch-runtime-lifecycle-triage-2026-08-10.md).
+Il **modello** era già deciso da `BAS-5` sopra — `Watch → EndWatchStage → Withdraw` — e gran parte del sorgente
+era già canone-compatibile: la cadence *once-per-target* ha persino uno scenario che la esprime da prima
+(`Spec.Overwatch.HoldThenFire`, dove Vektor fa `HOLD` su Flux e `FIRE` su Riva). Restavano aperti **quanto
+costa** e **come si chiama**: entrambi decisi dall'autore il 2026-08-10 in [D-070](decisions/RT_PDR_00_Decision_Log.md).
+
+### ✅ Chiuse il 2026-08-10 — [D-070](decisions/RT_PDR_00_Decision_Log.md), decise dall'autore in sessione
+
+Tre voci su quattro. Restano qui, barrate, perché il registro deve dire **come** è andata a finire.
+
+| ID | Esito | Dove vive ora |
+|---|---|---|
+| ~~`OW-1`~~ | **Sì, costa anche il movimento** — ma non con `ERTActionSlot::MovementAndMain`: l'Overwatch occupa lo slot **principale** e **riserva** quello di movimento al solo `Withdraw`, dichiarato in Planning. Il divieto di `Dash` diventa una **conseguenza** dello slot impegnato, non una regola da scrivere e testare | [D-070](decisions/RT_PDR_00_Decision_Log.md) |
+| ~~`OW-2`~~ | **`Withdraw`**. Scartati `Fallback` (collide con `ERTActionFallback`), `Disengage` (evoca attacchi di opportunità inesistenti), `Retreat` (implica una direzione). `Action.Reposition` resta dov'è: nessuna rinumerazione di catalogo, codice, kit e test | idem |
+| ~~`OW-3`~~ | **2 MP**, ancorati ad `Action.Reposition` — l'unica altra mobilità breve del catalogo — invece di un numero scelto a intuito. Owner: [`balance/RT_ActionCatalog_v0.1.md`](balance/RT_ActionCatalog_v0.1.md) §2.1 | idem |
+
+> **L'opzione scartata su `OW-1` merita di essere ricordata**, perché il motivo non è estetico. `Action.Sprint`
+> sembrava il precedente perfetto — è l'unica azione che consuma movimento **e** principale — ma
+> [D-028](decisions/RT_PDR_00_Decision_Log.md) glielo sta **togliendo**, e il catalogo lo dichiara già
+> «occupa il **solo slot movimento**» con ⚠️ sul codice non ancora allineato. Adottare `MovementAndMain` per
+> l'Overwatch l'avrebbe resa l'unica utente di uno slot che il canone sta svuotando, riaprendo di fatto una
+> decisione chiusa. La formulazione scelta ottiene lo stesso effetto di gioco — niente Dash, movimento corto e
+> tardivo — **senza** che un'azione si prenda due slot.
+
+### Ancora aperta
+
+| ID | Domanda | Perché serve una risposta |
+|---|---|---|
+| `OW-4` | Gli objective che dipendono dalla **posizione finale** si valutano dopo lo Stage B? | Il sorgente (§17) chiede di verificarlo contro il canone, e il canone **non dice nulla**: è una lacuna, non un conflitto. Con due stage di movimento nella stessa fase, «posizione finale» smette di essere ovvia. ⏳ **Non è di E14 e non è urgente**: misurato il 2026-08-10, gli objective oggi sono **solo** un motivo di fine partita (`ERTMatchEndReason::Objective`) e il punto d'ingresso per il progresso è dichiarato per **CP 10.2**. Nessun objective di posizione esiste, quindi la domanda non ha ancora un consumatore |
+
+> **Quattro punti del sorgente NON aprono una voce: sono già compatibili** e possono entrare nel DoD di E14
+> senza altre decisioni — la cadence `OncePerTargetPerReactionInstance` (§21), `MaxPrompts` che conta
+> opportunity distinte e non passi (§24, precisa [ADR-0004](decisions/adr-0004-finestre-di-reazione.md) §8),
+> l'eligibility valutata **post-transition** (§20), e la distinzione fra **hard cancel** e **soft eligibility
+> block** (§9) — che CP 14.6 oggi non fa, e che serve perché `NoLOS` e `Stun` non possono produrre lo stesso
+> reason code terminale.
+
+---
+
+## Aperte — framework degli status, dal quarto sorgente del 2026-08-10
+
+Origine: [triage dell'handoff Status/Control](roadmap/plans/handoff-status-control-triage-2026-08-10.md).
+Il repository ha **undici** status implementati e **nessun framework** che li governi. Queste tre vanno
+decise **prima** di scrivere la spec owner, perché ognuna cambia la forma del dato, non un valore.
+
+| ID | Domanda | Perché serve una risposta |
+|---|---|---|
+| `STA-3` | `Suppressed` e `Dazed` entrano nella **v0.1** o restano nel framework? | Il sorgente li mette nel set ridotto del vertical slice, ma **nessuno dei quattro kit li produce oggi**: sarebbero due status senza consumatore, il difetto ricorrente di questo repository. Entrano quando un'abilità li applica, non prima |
+| `STA-4` | Qual è la **tassonomia delle capability** — l'elenco di cosa un effetto può togliere, e con quale granularità? | Aperta **da** [`D-072`](decisions/RT_PDR_00_Decision_Log.md), ed è il prerequisito di tutto il resto: senza, non si deriva né la primitiva (`STA-1`) né la severity (`STA-2`), che sono le due cose appena decise. La granularità è la parte non ovvia — «movimento» è una capability sola o si divide in `Move`/`Sprint`/`Dash`/`Climb`? Da questa scelta dipende se `Suppressed` conta come `C1` o `C2`, cioè **il gate anti-stun-lock cambia di significato**. Va decisa guardando le azioni che esistono, non a tavolino |
 
 ---
 

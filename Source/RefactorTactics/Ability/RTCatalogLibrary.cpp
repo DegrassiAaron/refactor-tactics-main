@@ -76,6 +76,22 @@ TArray<FString> URTCatalogLibrary::ValidateActions(const TArray<FRTActionDef>& A
 		else
 		{
 			Seen.Add(Action.ActionId);
+			// Stable ID RITIRATO usato per DICHIARARE un'azione (#199, fetta 2). Il redirect di
+			// `ResolveLegacyActionId` esiste per la LETTURA — una traccia gia' su disco deve restare
+			// interpretabile — e non per la scrittura: un'azione nuova che si chiama con un nome ritirato
+			// ricrea la doppia verita' che la migrazione ha appena tolto.
+			//
+			// L'errore **nomina l'erede**, e non e' cortesia: senza, chi lo incontra sa che qualcosa e'
+			// vietato e non cosa scrivere al suo posto — e la risposta sta in una tabella che non ha motivo
+			// di conoscere.
+			const FName Heir = ResolveLegacyActionId(Action.ActionId);
+			if (Heir != Action.ActionId)
+			{
+				Errors.Add(FString::Printf(
+					TEXT("%s: Stable ID RITIRATO — usa `%s`. Il vecchio ID resta valido solo in LETTURA, ")
+					TEXT("per le tracce gia' scritte (D-014: gli Stable ID legacy non si cancellano)"),
+					*Where, *Heir.ToString()));
+			}
 		}
 
 		if (Action.Priority < 0)
@@ -322,12 +338,19 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Guarded, /*Turni*/ 1) },
 		/*bInterruptible*/ false, ERTActionSlot::Main));
 
-	// `Action.Activate` e `Action.Interact` — portata 1: solo oggetti ADIACENTI. Nessun effetto dichiarato
-	// finche' non esistono oggetti da attivare (porte, consolle, ponti, obiettivi): quelli sono E9/E10. Qui
-	// entrano identita', fase, priorita' e il vincolo di adiacenza, che e' gia' una regola verificabile.
-	Catalog.Add(ShippedAction(TEXT("Action.Activate"), ERTResolutionPhase::Attack, /*Priority*/ 70,
-		/*Range*/ 1, /*Cooldown*/ 0, ERTActionFallback::Cancel, {},
-		/*bInterruptible*/ true, ERTActionSlot::Main));
+	// `Action.Interact` — portata 1: solo oggetti ADIACENTI. Nessun effetto dichiarato finche' non esistono
+	// oggetti da attivare (porte, consolle, ponti, obiettivi): quelli sono E9/E10. Qui entrano identita',
+	// fase, priorita' e il vincolo di adiacenza, che e' gia' una regola verificabile.
+	//
+	// `Action.Activate` NON E' PIU' NEL CATALOGO (#199). [D-014] la dichiarava «assorbita semanticamente da
+	// `Interact`» e [D-025] lo ha confermato scegliendo le sette generiche senza di lei: il catalogo la
+	// spediva comunque, cioe' due azioni per una cosa sola — la doppia verita' runtime che l'issue vieta.
+	// Toglierla ORA costa una riga; dopo CP 10.1, quando gli oggetti interagibili esisteranno davvero, il
+	// costo sarebbe ogni consumatore scritto nel frattempo.
+	//
+	// Lo Stable ID **non si cancella**: vedi `ResolveLegacyActionId`, che lo reindirizza in lettura. D-014
+	// lo chiede esplicitamente — «gli Stable ID legacy non si cancellano» — perche' entrano nel TurnLog
+	// serializzato, e una traccia gia' scritta deve restare interpretabile.
 	Catalog.Add(ShippedAction(TEXT("Action.Interact"), ERTResolutionPhase::Attack, /*Priority*/ 80,
 		/*Range*/ 1, /*Cooldown*/ 0, ERTActionFallback::Cancel, {},
 		/*bInterruptible*/ true, ERTActionSlot::Main));
@@ -763,11 +786,37 @@ TArray<FString> URTCatalogLibrary::ValidateActionSlots(const TArray<FRTActionDef
 	return Errors;
 }
 
+FName URTCatalogLibrary::ResolveLegacyActionId(const FName& ActionId)
+{
+	// Stable ID ritirati e il loro erede (#199). La tabella e' l'unico posto dove un ID morto sopravvive:
+	// non risolve un'azione, dice **da chi farsi rispondere**.
+	//
+	// Perche' esiste: gli ActionId entrano nel TurnLog SERIALIZZATO (formato v3 in poi). Una traccia scritta
+	// quando `Action.Activate` era nel catalogo resta su disco, e chi la rilegge deve poterla interpretare —
+	// cancellare l'ID renderebbe illeggibile un file valido. E' la richiesta letterale di [D-014]: «gli
+	// Stable ID legacy non si cancellano».
+	//
+	// Si reindirizza in LETTURA soltanto. Nessun produttore scrive piu' `Action.Activate`: il catalogo non la
+	// contiene, quindi nessun intento puo' nominarla. Se un giorno la tabella crescesse abbastanza da meritare
+	// un dato invece di una funzione, il posto e' il catalogo — non un secondo `if` sparso altrove.
+	static const TMap<FName, FName> Retired = {
+		// [D-014] + [D-025]: «attivare un dispositivo» **e'** un'interazione, non una seconda azione.
+		{ FName(TEXT("Action.Activate")), FName(TEXT("Action.Interact")) },
+	};
+
+	const FName* Heir = Retired.Find(ActionId);
+	return Heir ? *Heir : ActionId;
+}
+
 FRTActionDef URTCatalogLibrary::FindCoreAction(const FName& ActionId)
 {
+	// Il redirect sta QUI e non nei chiamanti: e' l'unico ingresso del catalogo per ID, quindi e' l'unico
+	// punto in cui un ID ritirato puo' essere tradotto una volta per tutti. Metterlo nei chiamanti
+	// significherebbe che chi ne dimentica uno riapre il buco in silenzio.
+	const FName Resolved = ResolveLegacyActionId(ActionId);
 	for (const FRTActionDef& Def : GetCoreActionCatalog())
 	{
-		if (Def.ActionId == ActionId) { return Def; }
+		if (Def.ActionId == Resolved) { return Def; }
 	}
 	return FRTActionDef();
 }

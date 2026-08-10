@@ -31,7 +31,10 @@ bool URTTurnLogLibrary::EntryLess(const FRTTurnLogEntry& A, const FRTTurnLogEntr
 	// pareggiano su `ActionId` pareggiano anche su di lui e non c'e' niente da spareggiare.
 	if (A.TurnNumber != B.TurnNumber)     { return A.TurnNumber < B.TurnNumber; }
 	if (A.GraphRevision != B.GraphRevision) { return A.GraphRevision < B.GraphRevision; }
-	return A.UnitId < B.UnitId;
+	if (A.UnitId != B.UnitId)             { return A.UnitId < B.UnitId; }
+	// `Priority` (v7) chiude l'ordine per la stessa ragione dei tre campi qui sopra: e' SCRITTO da
+	// `SerializeTurnLog`, e un campo scritto che il confronto non guarda lascia due voci a pari merito.
+	return A.Priority < B.Priority;
 }
 
 void URTTurnLogLibrary::SortTurnLog(TArray<FRTTurnLogEntry>& Entries)
@@ -74,15 +77,27 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		// La cella e' LIBERA: a fermarla e' stato un colpo deciso un turno prima (E18). Dirlo «occupata»
 		// manderebbe il giocatore a cercare un'unita' che non c'e'.
 		case ERTMoveOutcome::StoppedByPrediction: Reason = TEXT("fermo: colto da una previsione"); break;
+		// Subito, non scelto (#307): «si muove» direbbe una cosa falsa di un'unita' che e' stata spinta.
+		case ERTMoveOutcome::Displaced:         Reason = TEXT("spostata"); break;
 		default:                                Reason = TEXT("resta"); break;
 		}
 
-		if (static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Moved)
+		// PERCHE' si e' mossa (#307): l'azione che ha causato lo spostamento, quando la voce la dichiara.
+		// `Action.Move` compreso — un movimento volontario e uno scatto vanno distinti, e sono la stessa
+		// categoria di voce con `ActionId` diverso.
+		const FString Cause = Entry.ActionId.IsNone()
+			? FString()
+			: (Entry.Priority != 0
+				? FString::Printf(TEXT(" (%s, p%d)"), *DescribeActionIdentity(Entry), Entry.Priority)
+				: FString::Printf(TEXT(" (%s)"), *DescribeActionIdentity(Entry)));
+
+		if (static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Moved
+			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Displaced)
 		{
-			return FString::Printf(TEXT("%s %s -> %s (%d celle)"),
-				Reason, *CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount);
+			return FString::Printf(TEXT("%s %s -> %s (%d celle)%s"),
+				Reason, *CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount, *Cause);
 		}
-		return FString::Printf(TEXT("%s %s"), Reason, *CellText(Entry.SrcCell));
+		return FString::Printf(TEXT("%s %s%s"), Reason, *CellText(Entry.SrcCell), *Cause);
 	}
 
 	// Fallback: cosa e' successo all'azione che non era piu' eseguibile. Il motivo per cui non lo era viaggia
@@ -188,27 +203,41 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 	}
 
 	// Combat: chi colpisce chi, con quale esito e quanto danno.
+	//
+	// CON CHE COSA (CP 11.3, #79): il nome dell'azione si accoda fra parentesi quando la voce lo porta, con la
+	// stessa forma «base · profilo» delle reazioni. Va in coda e non in testa perche' cio' che il giocatore
+	// cerca per primo e' l'esito — «22 danni, eliminata» — e il nome e' la risposta alla domanda successiva.
+	// Le voci senza identita' restano ESATTAMENTE la stringa di prima: le righe gia' verificate non cambiano.
+	// Con che cosa, e **con quale precedenza** (CP 11.3, formato v7). La priorita' compare solo quando la
+	// voce la dichiara: `p0` su ogni riga sarebbe rumore su tracce scritte prima della v7, dove lo zero
+	// significa «non dichiarata» e non «priorita' zero».
+	const FString Tail = Entry.ActionId.IsNone()
+		? FString()
+		: (Entry.Priority != 0
+			? FString::Printf(TEXT(" (%s, p%d)"), *DescribeActionIdentity(Entry), Entry.Priority)
+			: FString::Printf(TEXT(" (%s)"), *DescribeActionIdentity(Entry)));
+
 	switch (static_cast<ERTCombatOutcome>(Entry.Outcome))
 	{
 	case ERTCombatOutcome::NoLineOfSight:
-		return FString::Printf(TEXT("%s -> %s: nessuna linea di tiro"),
-			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell));
+		return FString::Printf(TEXT("%s -> %s: nessuna linea di tiro%s"),
+			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), *Tail);
 
 	case ERTCombatOutcome::ShieldAbsorbed:
-		return FString::Printf(TEXT("%s -> %s: %d assorbiti dallo scudo"),
-			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount);
+		return FString::Printf(TEXT("%s -> %s: %d assorbiti dallo scudo%s"),
+			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount, *Tail);
 
 	case ERTCombatOutcome::Lethal:
-		return FString::Printf(TEXT("%s -> %s: %d danni, eliminata"),
-			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount);
+		return FString::Printf(TEXT("%s -> %s: %d danni, eliminata%s"),
+			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount, *Tail);
 
 	case ERTCombatOutcome::TerrainBonus:
-		return FString::Printf(TEXT("%s -> %s: %d danni (bonus posizione)"),
-			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount);
+		return FString::Printf(TEXT("%s -> %s: %d danni (bonus posizione)%s"),
+			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount, *Tail);
 
 	default:
-		return FString::Printf(TEXT("%s -> %s: %d danni"),
-			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount);
+		return FString::Printf(TEXT("%s -> %s: %d danni%s"),
+			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount, *Tail);
 	}
 }
 
@@ -411,7 +440,7 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 	// Il FormatId sta DOPO i flags e prima del conteggio: le posizioni dei campi precedenti non si spostano,
 	// cosi' un lettore che ispeziona magic/versione/flags continua a trovarli dove sono sempre stati.
 	AppendU32LE(Out, RT_TURNLOG_MAGIC);
-	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithUnitId));
+	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithPriority));
 	AppendU16LE(Out, static_cast<uint16>(Topology));
 	AppendStringUtf8(Out, FormatId.IsNone() ? FString() : FormatId.ToString());
 	AppendU32LE(Out, static_cast<uint32>(Canonical.Num()));
@@ -438,6 +467,7 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 		AppendI32LE(Out, E.UnitId);
 		AppendI32LE(Out, E.TurnNumber);
 		AppendI32LE(Out, E.GraphRevision);
+		AppendI32LE(Out, E.Priority); // v7: in CODA, i campi precedenti non si spostano
 	}
 
 	// Checksum FNV di tutto cio' che precede (header + voci), in coda: rileva la corruzione del contenuto.
@@ -465,7 +495,9 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	// altro valore e' rifiutato: interpretare byte di un formato ignoto produce un replay sbagliato in silenzio.
 	uint16 Version = 0;
 	if (!ReadU16LE(Bytes, Pos, Version)) { return false; }
-	const bool bHasUnitId = (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithUnitId));
+	const bool bHasPriority = (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithPriority));
+	const bool bHasUnitId = bHasPriority
+		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithUnitId));
 	const bool bHasBaseActionId = bHasUnitId
 		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithBaseActionId));
 	const bool bHasFormatId = bHasBaseActionId
@@ -506,9 +538,9 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	// che resta — ogni voce occupa almeno i suoi campi a dimensione fissa.
 	constexpr int32 FixedEntryBytes = 31;         // 3 uint8 + 7 int32
 	// + 2 byte di lunghezza per ogni stringa presente nel formato: ActionId da v3, BaseActionId da v5.
-	// + 12 byte fissi per UnitId, TurnNumber e GraphRevision da v6.
+	// + 12 byte fissi per UnitId, TurnNumber e GraphRevision da v6, + 4 per Priority da v7.
 	const int32 MinEntryBytes = FixedEntryBytes + (bHasActionId ? 2 : 0) + (bHasBaseActionId ? 2 : 0)
-		+ (bHasUnitId ? 12 : 0);
+		+ (bHasUnitId ? 12 : 0) + (bHasPriority ? 4 : 0);
 	const int32 Remaining = Bytes.Num() - Pos;
 	if (Remaining < 0 || Count > static_cast<uint32>(Remaining / MinEntryBytes))
 	{
@@ -570,6 +602,18 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 		}
 		// Sotto la v6 i tre campi restano a 0: nessuna unita' dedotta dalla cella, nessun turno inventato,
 		// nessuna revisione di grafo attribuita a una traccia che non la dichiarava.
+		if (bHasPriority)
+		{
+			if (!ReadI32LE(Bytes, Pos, E.Priority))
+			{
+				OutEntries.Reset();
+				return false;
+			}
+		}
+		// Sotto la v7 `Priority` resta 0, e NON si deduce dall'`ActionId` consultando il catalogo — che pure
+		// sarebbe possibile. Sarebbe la stessa inferenza che D-063 ha dichiarato non valida per l'unita': il
+		// catalogo di oggi puo' non essere quello con cui la traccia fu scritta, e una priorita' inventata
+		// racconterebbe un ordine di risoluzione che quel turno non ha avuto.
 		OutEntries.Add(E);
 	}
 

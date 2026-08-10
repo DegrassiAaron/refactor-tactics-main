@@ -105,10 +105,19 @@ Si arma in pianificazione, apre una finestra di **3,0 s** con `FIRE`/`HOLD` e `T
 > **Da non confondere**: armare l'Overwatch costa l'**azione principale**; lo **slot reazione** preparato è
 > un'altra cosa e resta indipendente. Un eroe può avere entrambi.
 
-**`Action.Activate` è assorbita da `Action.Interact`** ([D-014](../decisions/RT_PDR_00_Decision_Log.md)):
-erano la stessa cosa con due nomi — «attiva un dispositivo» è un'interazione. La riga **resta barrata invece
-di sparire** perché lo Stable ID `Action.Activate` **è ancora consumato** dal codice: cancellarlo in una PR
-documentale romperebbe test e replay. La migrazione è tracciata come issue.
+**`Action.Activate` è assorbita da `Action.Interact`** ([D-014](../decisions/RT_PDR_00_Decision_Log.md),
+confermata da [D-025](../decisions/RT_PDR_00_Decision_Log.md)): erano la stessa cosa con due nomi — «attiva un
+dispositivo» è un'interazione.
+
+> ✅ **Migrazione eseguita il 2026-08-10 (`#199`).** Il catalogo **non spedisce più** `Action.Activate`: da
+> quella data il codice ha una sola azione di interazione. Lo Stable ID **non è stato cancellato** — D-014 lo
+> vieta perché gli ActionId entrano nel TurnLog serializzato — ma **reindirizzato in lettura** a
+> `Action.Interact` da `URTCatalogLibrary::ResolveLegacyActionId`, così una traccia scritta prima resta
+> interpretabile. Verificato da `RefactorTactics.Actions.RetiredStableIdRedirectsToHeir`.
+>
+> La riga qui sopra **resta barrata invece di sparire**: la tabella è il catalogo *storico* delle identità, e
+> un ID ritirato che scompare dal documento è un ID che nessuno saprà più leggere quando lo incontra in un
+> replay vecchio.
 
 **`Action.Guard` resta fra le universali** ([D-025](../decisions/RT_PDR_00_Decision_Log.md)): ha già tre
 consumatori — questo catalogo, l'interazione con `Status.Root`, e la difesa direzionale di
@@ -156,6 +165,23 @@ Blast. Cambiano distanza, rumore ed esposizione — non l'economia del turno.
 | `MovementMode.Sneak` | **non specificato** | Costo, portata e rumore **non sono definiti da nessuna fonte corrente**. Non si inventano: [issue di bilanciamento](../OPEN_DECISIONS.md) |
 | `MovementMode.Move` | **5 MP** | il profilo neutro |
 | `MovementMode.Sprint` | **8 MP** | conserva un trade-off reale, vedi sotto |
+| `MovementMode.Withdraw` | **2 MP** | **non si sceglie**: lo impone l'`Overwatch` ([D-070](../decisions/RT_PDR_00_Decision_Log.md)) |
+
+**`Withdraw` è il ripiegamento dopo la sorveglianza**, e sta qui perché è un profilo del movimento normale —
+stesso slot, stessa macro-fase — non una mobilità rapida. Tre cose lo distinguono dagli altri tre:
+
+- **non è una scelta libera**: chi arma l'`Overwatch` riserva lo slot movimento a questo profilo, e lo dichiara
+  in Planning insieme a settore e facing. È anche la ragione per cui armare l'Overwatch **esclude il `Dash`**:
+  lo slot è già impegnato, non serve una regola apposta;
+- **risolve nello Stage B della `Move`**, cioè **dopo** che tutti gli altri si sono mossi. La priorità spaziale
+  tardiva è parte del prezzo: una cella occupata nel frattempo **non** si libera, il percorso **non** si
+  ricalcola, e il ripiegamento si ferma all'ultima cella valida;
+- **2 MP** è ancorato ad `Action.Reposition` (2 celle, §2.2) — l'unica altra mobilità breve del catalogo —
+  invece di essere scelto a intuito. Resta da playtest come ogni valore di questa tabella.
+
+> **Perché non si chiama `Reposition`.** Quel nome è già di un'azione viva: scatto lineare di 2 celle in
+> macro-fase **`Dash`** (§2.2), concesso anche da `Riva.FlowReaction` e `Vektor.Feint`. Due entità con lo
+> stesso nome in due fasi diverse si pagano a ogni lettura del TurnLog, non una volta sola.
 
 **`Sprint` non è un `Dash`.** È il profilo lungo del movimento normale, quindi risolve dopo il Blast: non
 permette di sparare da un'altra posizione nello stesso turno, che è precisamente ciò che un `Dash` fa.

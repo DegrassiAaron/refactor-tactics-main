@@ -201,7 +201,23 @@ enum class ERTMoveOutcome : uint8
 	 * la cella e' libera, e cio' che ha fermato l'unita' e' un colpo deciso un turno prima. Senza questa
 	 * distinzione il replay mostrerebbe un arresto senza causa — il difetto che #307 descrive per gli archi.
 	 */
-	StoppedByPrediction
+	StoppedByPrediction,
+	/**
+	 * Spostamento SUBITO, non scelto: una spinta (`Push`) o una trazione (`Pull`) l'ha portata altrove
+	 * (#307). Aggiunto in CODA, come `BlockedByTopology` e `StoppedByPrediction` prima: l'esito viaggia come
+	 * `uint8` nel formato serializzato, quindi i log gia' scritti non cambiano significato.
+	 *
+	 * Ha un valore proprio e non riusa `Moved` perche' quello dice «e' andata dove voleva», che qui e' falso:
+	 * l'unita' non aveva pianificato nulla di tutto cio'. Distinguerli e' il punto dell'issue — senza,
+	 * un'unita' che si ritrova due celle piu' in la' e' indistinguibile da un difetto del resolver.
+	 *
+	 * **Perche' non serve un campo «sorgente».** Chi ha spinto si ricostruisce dal log stesso, senza allargare
+	 * il formato: la voce di categoria `Combat` dello stesso Blast che ha `TgtCell` uguale a `SrcCell` di
+	 * questa e lo stesso `ActionId` porta in `SrcCell` la cella dell'attaccante. La chiave regge perche' una
+	 * cella ospita al piu' un'unita': il bersaglio identifica il colpo in modo univoco. `ActionId` dice
+	 * **con quale azione**, ed e' scritto qui direttamente.
+	 */
+	Displaced
 };
 
 /** Esito di un attacco nel turno. Priorita': Lethal > ShieldAbsorbed > TerrainBonus > Hit. */
@@ -266,8 +282,14 @@ struct FRTTurnLogEntry
 	 * `Bastion.Interposition` e `Action.Intercept` produrrebbero voci IDENTICHE, e un replay non potrebbe piu'
 	 * dire quale abilita' e' scattata. E' l'ActionId del catalogo, cioe' la chiave stabile: non cambia mai.
 	 *
-	 * Oggi lo popolano le voci di categoria `Reaction`. Le altre categorie lo lasciano vuoto — completare i
-	 * reason code delle voci di combattimento e' CP 11.3, e riempirlo a meta' qui direbbe meno del nulla.
+	 * Dal 2026-08-10 (CP 11.3, `#79`) lo popolano **anche le voci di combattimento** — colpi pianificati,
+	 * contrattacchi e attacchi fermati dalla copertura — piu' le voci di movimento di `Move`, `Dash` e
+	 * `Displaced` (`#307`). Prima lo riempivano solo le voci `Reaction`, e questo commento diceva che
+	 * completare le altre era «lavoro di CP 11.3»: quel lavoro e' questo.
+	 *
+	 * Restano legittimamente vuote le voci che **non hanno** un'azione dietro: gli eventi ambientali che
+	 * nessuno ha causato, e le voci di categoria `Facing` che registrano una LETTURA e non una scelta.
+	 * `NAME_None` li' non e' un buco, e' la verita'.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	FName ActionId;
@@ -334,6 +356,25 @@ struct FRTTurnLogEntry
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	int32 GraphRevision = 0;
 
+	/**
+	 * Priorita' intra-fase dell'azione che ha prodotto la voce (CP 11.3, `#79`). `0` = non dichiarata.
+	 *
+	 * E' il numero che decide **in che ordine** due azioni della stessa fase risolvono (motore di E4:
+	 * priorita' intera, nessun bias di Player ID). Senza, una traccia dice *cosa* e' successo e non permette
+	 * di ricostruire *perche' in quell'ordine* — che e' la domanda di ogni turno in cui due unita' agiscono
+	 * insieme e una vince la contesa.
+	 *
+	 * ⚠️ **NON entra nell'hash**: e' una FUNZIONE di `ActionId`, che nell'hash c'e' gia' — stesso argomento
+	 * di `BaseActionId`. **Entra invece in `EntryLess`**, perche' viene SCRITTO: vedi la dichiarazione di
+	 * `ERTTurnLogFormatVersion::WithPriority` per il perche' le due cose non si contraddicono.
+	 *
+	 * Il valore viene dal catalogo (`FRTActionDef::Priority`), non e' ricalcolato qui: chi legge la traccia
+	 * non deve caricare i data asset del roster per sapere in che ordine il turno ha risolto — la stessa
+	 * ragione per cui `BaseActionId` sta nella voce e non solo nel catalogo.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	int32 Priority = 0;
+
 	FRTTurnLogEntry() = default;
 };
 
@@ -389,7 +430,30 @@ enum class ERTTurnLogFormatVersion : uint16
 	 * renderebbe i byte dipendenti dall'ordine d'inserimento — cioe' romperebbe `D-SR-1` e il test
 	 * `SerializeCanonicalPermutationInvariant`. Quel valore appartiene all'header del Replay Archive.
 	 */
-	WithUnitId = 6
+	WithUnitId = 6,
+	/**
+	 * + `Priority` per voce (CP 11.3, `#79`): **un** int32 in coda, dopo i tre della v6. I campi precedenti
+	 * non si spostano.
+	 *
+	 * Chiude l'ultima voce di codice del DoD di CP 11.3 — «ogni voce riporta `ActionId`, `Priority`,
+	 * coordinate assiali, bersaglio e `ValidationResult`». Era stata rimandata di proposito il 2026-08-10:
+	 * la `v6` era gia' rivendicata da un altro ramo, e **due formati con lo stesso numero** sono il difetto
+	 * peggiore possibile per un file versionato, perche' il loader sceglie l'interpretazione dal numero e non
+	 * ha modo di accorgersi dello scambio. La `v7` e' stata presa dopo aver verificato **tutti** i branch
+	 * remoti, non solo `main`: e' il controllo che [D-070] ha reso obbligatorio.
+	 *
+	 * Le tracce dalla 2 alla 6 restano LEGGIBILI, con `Priority = 0`.
+	 *
+	 * ⚠️ **NON entra nell'hash**, stesso argomento di `BaseActionId`: la priorita' e' una **funzione**
+	 * dell'`ActionId`, che nell'hash c'e' gia'. Due tracce non possono differire solo per questo campo, quindi
+	 * includerlo aggiungerebbe zero potere discriminante e invaliderebbe in blocco ogni hash golden.
+	 *
+	 * ⚠️ **Entra invece in `EntryLess`**, e non e' una contraddizione: l'hash risponde a «due tracce sono la
+	 * stessa partita?», l'ordinamento a «quale voce scrivo prima nel file». Un campo SCRITTO che il confronto
+	 * non guarda lascia due voci a pari merito, dove a decidere resta `TArray::Sort`, che non e' stabile —
+	 * due inserimenti diversi produrrebbero due file diversi con lo stesso contenuto, rompendo `D-SR-1`.
+	 */
+	WithPriority = 7
 };
 
 /**

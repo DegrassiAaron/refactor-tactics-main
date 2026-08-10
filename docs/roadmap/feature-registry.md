@@ -54,7 +54,7 @@ riferimenti del workbook. Se serve, si rinomina e si rigenera tutto nello stesso
 | `automation` | Test automatici pertinenti, verdi, che chiamano il gameplay reale |
 | `scenario` | Almeno uno scenario in `Scenarios/` la **dimostra** — vedi la nota qui sotto |
 | `ui_wiki` | È spiegata all'utente **e** leggibile in gioco — servono entrambe. Con una sola delle due: `partial` (regola 5) |
-| `packaged` | Verificata nella build packaged **della release corrente** |
+| `packaged` | Verificata nella build packaged **della release corrente** — chi lo dimostra sta in `pie_refs` (regola 6) |
 | `network_privacy` | Corretta in rete: autorità server e nessuna fuga di intento |
 
 Valori: `done` · `partial` · `todo` · `na`.
@@ -84,6 +84,34 @@ Cinque regole che vale la pena scrivere, perché sono i modi in cui questo schem
    su una pagina che della feature non parla. Serve testo che descriva la meccanica. Una pagina che
    dichiara l'*assenza* della feature — «il bot non fa ancora giocate a due» — documenta ciò che
    c'è oggi, non la feature futura: quel gate resta `todo`.
+
+   Corollario aggiunto il 2026-08-10, perché l'avviso «nessuna pagina Wiki collegata» contraddiceva
+   questa stessa regola: la Wiki è rivolta a chi gioca, e `wiki_refs` vuoto è **legittimo** per una
+   feature `tooling`, `data` o `infra`. L'avviso ora vale solo per `gameplay`, `ui` e `content` — le
+   sole categorie che la Wiki documenta, come i dati già dicevano (60 pagine collegate, nessuna a
+   una feature interna). Restava invece scoperto il caso opposto, che ora è un **errore**:
+   `ui_wiki: done` dichiara entrambe le metà, quindi senza `wiki_refs` afferma una spiegazione che
+   non esiste.
+
+6. **`packaged` dice che una persona ha verificato; `pie_refs` dice quale verifica.** Il gate vale
+   `done` quando la feature è stata provata nella build packaged, e la prova è una voce `PIE-*` di
+   [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md). Fino al 2026-08-10 quel
+   legame **non era un dato**: viveva nel corpo delle issue GitHub, fuori dal repository. La
+   conseguenza è la stessa famiglia del dato che nessun consumatore legge, al contrario — il giorno
+   in cui `PIE-V01-HUD` diventa ✅, nessuno sa che quattro feature possono avanzare il gate.
+
+   Ora il validator lo deriva: `packaged: done` con una voce citata non ✅ è un **errore**, e tutte
+   le voci ✅ con il gate ancora `partial`/`todo` è un **avviso** che il gate può avanzare. Il campo
+   è opzionale — assente significa «non ancora mappato», non «nessuna verifica manuale».
+
+   **Come si assegna, e come non si assegna.** L'origine è la sezione «Test / verifica» dell'issue
+   che la feature dichiara, ma quella citazione è un indizio, non una prova: quando più feature
+   dichiarano la stessa issue, il criterio meccanico attacca la stessa voce a tutte. È costato tre
+   legami falsi, trovati in review — `PIE-V01-HUD` verifica barre, timer, slot e cooldown, quindi
+   dimostra l'HUD di planning, non la camera tattica né il playback della risoluzione. Prima di
+   scrivere un legame si legge il **testo della voce** e si verifica che parli di quella feature.
+   Una stessa voce può legittimamente dimostrarne più d'una; non lo fa per il solo fatto che l'issue
+   è condivisa.
 
 ### 4.1 Quando un pezzo lo porta un'altra feature
 
@@ -146,9 +174,9 @@ python scripts/feature_registry.py shortlist   # le cinque viste corte di docs/r
 python scripts/feature_registry.py report      # tabella di audit su stdout
 ```
 
-`generate`, `wiki`, `workbook` e `shortlist` accettano `--check`: non scrivono e falliscono se l'output è
-disallineato dalla sorgente. È la forma da usare in un gate automatico (**G15** della Definition of
-Done).
+`generate`, `wiki`, `workbook`, `shortlist` e `deploy` accettano `--check`: non scrivono e falliscono se
+l'output è disallineato dalla sorgente. È la forma da usare in un gate automatico (**G15** della Definition
+of Done).
 
 ### I due file generati
 
@@ -203,22 +231,56 @@ non ha stato nell'owner (**E18**–**E21** in §2.1) lo dichiara invece di dedur
 
 ```bash
 python scripts/feature_registry.py deploy --wiki-root <path>          # sola lettura: elenca
+python scripts/feature_registry.py deploy --wiki-root <path> --check  # gate: esce 1 se disallineato
 python scripts/feature_registry.py deploy --wiki-root <path> --write  # scrive davvero
 ```
 
-La Wiki di GitHub è un **repository separato** (`refactor-tactics-main.wiki`, branch `master`, file
-flat) e **pubblico**. Per questo `deploy` è in sola lettura di default: scrivere lì è un'azione che si
-chiede, non che si assume — tanto più che altre sessioni possono avere quel clone in lavorazione.
+La Wiki di GitHub è un **repository separato** (`refactor-tactics-main.wiki`, branch `master`) e
+**pubblico**. Per questo `deploy` è in sola lettura di default: scrivere lì è un'azione che si chiede,
+non che si assume — tanto più che altre sessioni possono avere quel clone in lavorazione.
 
-La corrispondenza segue le convenzioni già in uso nel clone:
+#### Piatto è il namespace, non il filesystem
 
-| Sorgente | Pagina Wiki |
-|---|---|
-| `docs/wiki/game/<x>.md` | `<x>.md` |
-| `docs/wiki/meccaniche/<x>.md` | `Meccanica-<x>.md` |
-| `docs/wiki/fazioni/<x>.md` | `Fazione-<X>.md` (`index` → `Fazioni.md`) |
-| `docs/characters/v0.1\|v0.2/<x>.md` | `Personaggio-<x>.md` |
-| `docs/wiki/feature-status.md` | `Stato-delle-feature.md` |
+Fino al 2026-08-10 il deploy appiattiva tutto in root con un prefisso nel nome
+(`Meccanica-coperture.md`), perché `DEPLOY.md` dichiarava che «la GitHub Wiki non ha gerarchia».
+**Verificato, ed era sbagliato a metà**: le pagine in sottocartella *sono* servite e compaiono nel menu
+*Pages*. Ciò che è piatto è il **namespace degli URL** — l'indirizzo è il solo nome del file, il
+percorso non ci entra.
+
+Tre conseguenze, tutte vincolanti:
+
+1. i nomi delle pagine devono restare **globalmente unici**, anche fra cartelle diverse;
+2. i `[[link]]` sono **per nome**, mai per percorso: i link markdown relativi a `cartella/pagina.md`
+   non funzionano in modo affidabile;
+3. le immagini con path relativo — quelle che puntano dentro `images/` — **non risentono** dello
+   spostamento, perché la base relativa è l'URL della pagina, che è piatto, e non la posizione del
+   file. Misurato: l'asset risponde `200` sia da `raw.githubusercontent.com/wiki/…` sia da
+   `/wiki/images/…`.
+
+La corrispondenza sorgente → clone segue quindi le cartelle della sorgente:
+
+| Sorgente | Pagina Wiki | URL |
+|---|---|---|
+| `docs/wiki/game/<x>.md` | `Guida/<x>.md` | `/wiki/<x>` |
+| `docs/wiki/meccaniche/<x>.md` | `Meccaniche/<x>.md` (`index` → `Meccaniche.md`) | `/wiki/<x>` |
+| `docs/wiki/fazioni/<x>.md` | `Fazioni/<x>.md` (`index` → `Fazioni.md`) | `/wiki/<x>` |
+| `docs/characters/v0.1\|v0.2/<x>.md` | `Personaggi/<x>.md` | `/wiki/<x>` |
+| `docs/characters/index.md` · `paragon.md` | `Personaggi.md` · `Personaggi/paragon.md` | |
+| `docs/wiki/feature-status.md` | `Stato-delle-feature.md` | |
+
+Le pagine **indice restano in root** accanto a `Home`: sono hub, e soprattutto tre `index.md` in tre
+cartelle diverse collidono — non possono chiamarsi tutte `index`.
+
+Il confronto con le pagine del clone è **ricorsivo** e **case-sensitive** anche su Windows, dove
+`os.path.isfile` non distingue le maiuscole. Senza la ricorsione le pagine in cartella risultano
+assenti in blocco (misurato: 35 su 35); senza il case, un nome sbagliato nelle sole maiuscole passa in
+locale e salta in silenzio i blocchi di quella pagina su un filesystem case-sensitive — è così che
+`Sinergie-e-Combinazioni.md` è rimasta scoperta fino al 2026-08-10.
+
+**Una sorgente che non raggiunge il clone è un errore, non un avviso.** Il gate `ui_wiki` della feature
+afferma «spiegata all'utente», ma il lettore legge la Wiki *pubblicata*: se la pagina lì non esiste, il
+registry sta dichiarando una copertura falsa invece di segnalare una lacuna — stessa famiglia dello
+scenario orfano, e per la stessa ragione è bloccante.
 
 `validate --wiki-root <path>` verifica anche i riferimenti nella forma `wiki:<PageName>`, quelli per
 le pagine che vivono **solo** nel clone e non hanno una sorgente nel repository.

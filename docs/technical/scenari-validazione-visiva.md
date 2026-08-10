@@ -140,7 +140,7 @@ ostacoli `(-1,2)` `(1,-2)` `(2,1)` e la fascia Rough a costo 3 su `q=-2`.
 | Flux | 90 | 5 | `Flux.ArcPulse` 22, r4 | `LinearDischarge` 24 r5 linea cd2 · `Overload` 18 AoE r1 |
 | Riva | 95 | 5 | `Riva.PressureJet` 16 + Wet(1) + Push 1, r5 linea | fallback `AttackCell` |
 | Bastion | 120 | 4 | `Bastion.ImpactShot` 8 + Slow(1), r3 | PushResistance 1 · `Ram` = carica 20 + Push 1 |
-| Vektor | 100 | 6 | `Vektor.PulseShot` 21, r4 | il più mobile |
+| Vektor | 90 | 6 | `Vektor.PulseShot` 21, r4 | il più mobile |
 
 I danni da terreno vengono dal catalogo terreni (Fire: 10 + `Burning`) e vanno confermati al primo run.
 

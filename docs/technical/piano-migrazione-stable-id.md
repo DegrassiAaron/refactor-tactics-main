@@ -4,9 +4,10 @@
 > **Consegue da**: [D-014 e D-015](../decisions/RT_PDR_00_Decision_Log.md) — la **tassonomia** è decisa, la **migrazione** no
 > **Issue**: [#199](https://github.com/DegrassiAaron/refactor-tactics-main/issues/199) · **Milestone**: v0.1 · Gate di release
 >
-> ⚠️ **Questo documento pianifica una migrazione, non la esegue.** Alla data in cui è scritto nessun ID è stato
-> rinominato o deprecato. Chi lo legge cercando lo stato del codice deve fidarsi della §1, che è misurata, non
-> della §3, che è un piano.
+> ⚠️ **Questo documento pianificava una migrazione. Dal 2026-08-10 ne esegue una parte.** Le fette **1** e **3**
+> sono atterrate, la **4** è stata **cancellata da [D-025]** e la **5** è stata **decisa** da [D-068]. Chi lo
+> legge cercando lo stato del codice deve fidarsi della §3, che ora dichiara cosa è fatto, e della §1, che
+> resta la misura di partenza.
 
 ## 1. Stato misurato — 2026-08-10
 
@@ -50,14 +51,20 @@ di fase**, non la meccanica.
 Ogni fetta chiude con la suite verde. Nessuna fetta rinomina un ID: gli Stable ID entrano nel **TurnLog
 serializzato**, quindi si deprecano e si redirigono, non si rinominano.
 
-| # | Fetta | Tocca la serializzazione? | Dipendenze |
-|---:|---|---|---|
-| 1 | **Tabella di redirect** `legacy → canonico`, in una sede unica, con i tre ID mappati e nessun consumatore ancora cambiato | no | — |
-| 2 | **Validator**: un ID legacy usato in un contesto nuovo produce un errore diagnostico che *nomina* l'ID e il sostituto | no | 1 |
-| 3 | `Action.Activate` → assorbita da `Interact` (2 file di codice, 1 di test: la fetta più piccola, e per questo la prima delle tre) | sì, in lettura | 1, 2 |
-| 4 | `Action.Guard` → capacità/stance specifica, non fondamentale universale | sì, in lettura | 1, 2 |
-| 5 | `Action.Sprint` → `MoveProfile.Sprint`: cambia **famiglia e nome**, non la meccanica (vedi §2) | sì, in lettura | 1, 2 |
-| 6 | **Test di migrazione**: un TurnLog scritto col vocabolario vecchio si rilegge col nuovo e produce lo stesso stato | sì | 3, 4, 5 |
+| # | Fetta | Stato | Tocca la serializzazione? | Dipendenze |
+|---:|---|:--|---|---|
+| 1 | **Tabella di redirect** `legacy → canonico`, in una sede unica | ✅ **2026-08-10** — `URTCatalogLibrary::ResolveLegacyActionId`, chiamata da `FindCoreAction`, che è **l'unico ingresso del catalogo per ID** | no | — |
+| 2 | **Validator**: un ID legacy usato in un contesto nuovo produce un errore diagnostico che *nomina* l'ID e il sostituto | ✅ **2026-08-10** — `ValidateActions` rifiuta un'azione **dichiarata** con un ID ritirato e nomina l'erede. Il redirect vale in **lettura**; in scrittura ricreerebbe la doppia verità appena tolta. Test: `Catalog.ValidatorRejectsRetiredStableId` | no | 1 |
+| 3 | `Action.Activate` → assorbita da `Interact` | ✅ **2026-08-10** — fuori dal catalogo spedito, ID reindirizzato in lettura. Test: `Actions.RetiredStableIdRedirectsToHeir` | sì, in lettura | 1 |
+| 4 | ~~`Action.Guard` → capacità/stance specifica~~ | ❌ **CANCELLATA** — la fetta era già superata quando il piano è stato scritto: [D-025] **emenda D-014** e riporta `Guard` fra le **sette generiche universali**, per i suoi tre consumatori (catalogo, `Status.Root`, difesa direzionale di ADR-0005 §4a). Non c'è niente da migrare | — | — |
+| 5 | `Action.Sprint` → `MoveProfile.Sprint` | ✅ **DECISA 2026-08-10** — [D-068]: **resta** `Action.Sprint` in fase `FastMovement`, con la motivazione scritta. La rinomina non avviene. Test: `Actions.SprintIsAMoveProfileResolvedPreBlast`, scritto per **cadere** se la fase viene migrata | no | — |
+| 6 | **Test di migrazione**: un TurnLog scritto col vocabolario vecchio si rilegge col nuovo e produce lo stesso stato | ✅ **2026-08-10** — `TurnLog.RetiredActionIdIsStillReadableFromDisk`: la traccia si rilegge, l'ID **resta scritto com'era** (il loader non riscrive), il catalogo risponde con l'erede, e l'hash è riproducibile | sì | 3 |
+
+> **Quanto è cambiato il piano.** Delle tre migrazioni previste ne resta **una**, ed è la più piccola. Non
+> perché il lavoro sia stato tagliato: due delle tre erano **decisioni già prese altrove** che il piano non
+> aveva incrociato — `Guard` da [D-025], che è più recente di D-014 e lo emenda; `Sprint` da una domanda che
+> il DoD stesso ammetteva di poter chiudere scrivendo. Il rischio «medio-alto» della §6 era in larga parte il
+> costo di non aver letto la decisione più recente.
 
 **La regola che tiene insieme le fette 3–5**: il redirect si applica in **lettura**, mai in scrittura. Un
 replay registrato prima della migrazione continua a valere; uno registrato dopo usa il vocabolario nuovo. Non
@@ -67,42 +74,57 @@ esiste un momento in cui due ID sono entrambi autorevoli.
 col **nuovo**, confrontare un digest dei soli campi preesistenti. Un test in memoria non tocca la
 serializzazione e non dimostra nulla di ciò che questa migrazione rischia.
 
-## 4. La finestra che conviene non sprecare
+## 4. La finestra — **chiusa il 2026-08-09, e non è costata nulla**
 
-**Il corpus golden non esiste ancora.** `Source/RefactorTactics/Tests/Golden/` non è presente nel repository, e
-la issue che lo crea — [#178](https://github.com/DegrassiAaron/refactor-tactics-main/issues/178), CP 12.6 — è
-**aperta e in lavorazione**.
+> ⚠️ **Questa sezione era sbagliata dal giorno dopo.** Diceva: *«Il corpus golden non esiste ancora»*, e
+> raccomandava di concordare l'ordine fra `#178` e `#199` perché *«la via che costa di più è la terza, cioè non
+> decidere»*.
 
-Questo inverte il verso del rischio dichiarato dalla issue #199:
+**`#178` è atterrata** (CP 12.6): `Source/RefactorTactics/Tests/Golden/` esiste, con `Movement.Basic` e
+`Movement.Collision`. Quindi è successa proprio la terza via — il corpus è nato mentre la migrazione era ferma
+— e **non si è pagata due volte**, per una ragione che il piano non poteva prevedere e che vale registrare:
 
-- **oggi** la voce di DoD «i golden restano validi, oppure la PR dichiara perché cambiano» è **vacua**: non c'è
-  nulla da invalidare, e le fette 3–5 non hanno un corpus da migrare;
-- **dopo la chiusura di #178** quella voce diventa vincolante, e ogni fetta che tocchi un ID dovrà rigenerare
-  il corpus dichiarando *perché* l'esito è cambiato — che è precisamente il lavoro che #178 vuole rendere
-  difficile, e giustamente.
+**il corpus congelato non contiene nessuno dei tre ID legacy.** Sono due scenari di movimento puro. La fetta 3
+è atterrata senza toccare un solo byte del corpus, e il DoD «i golden restano validi, oppure la PR dichiara
+perché cambiano» si chiude sulla **prima** via, con la prova: suite **596/596** dopo la migrazione, i due test
+golden compresi.
 
-**Raccomandazione operativa**: chi lavora #178 e chi lavora #199 dovrebbero concordare l'ordine. Le due vie
-sensate sono *migrare prima e congelare dopo*, oppure *congelare ora e mettere in conto una rigenerazione
-motivata*. La via che costa di più è la terza, cioè non decidere: il corpus nasce con gli ID vecchi mentre la
-migrazione è in corso, e si paga due volte.
-
-Nessuna delle due scelte è presa qui: questo documento la segnala a chi ha il contesto.
+**Cosa se ne impara**, dato che la prossima volta la fortuna può mancare: il rischio non era «il corpus
+esiste», era «il corpus contiene l'ID che stai migrando». È una domanda a cui si risponde con un `grep`, non
+con un coordinamento fra due issue.
 
 ## 5. Definition of Done della issue — stato al 2026-08-10
 
 | Voce | Stato | Dove |
 |---|---|---|
-| Nessuna doppia verità runtime: un solo ID autorevole per azione | ⏳ da fare | fette 3–5 |
-| `Sprint` non risolve più in `ResolveDash`, **oppure** è documentato perché lo fa | ✅ **fatto** | §2 di questo documento |
-| Validator aggiornato | ⏳ da fare | fetta 2 |
-| Test di migrazione o redirect per la serializzazione persistente | ⏳ da fare | fetta 6 |
-| Golden TurnLog: o restano validi, o la PR dichiara perché cambiano | ⚠️ **vacuo oggi** | §4 — il corpus non esiste ancora |
+| Nessuna doppia verità runtime: un solo ID autorevole per azione | ✅ **fatto** per `Activate` (fuori dal catalogo, redirect in lettura) · per `Guard` **non si applica** (D-025) · per `Sprint` **non si applica** (D-068) | fette 3–5 |
+| `Sprint` non risolve più in `ResolveDash`, **oppure** è documentato perché lo fa | ✅ **fatto**, e ora è una **decisione** — [D-068], non solo una nota | §2 + `Actions.SprintIsAMoveProfileResolvedPreBlast` |
+| Validator aggiornato | ✅ **fatto** | fetta 2 — `Catalog.ValidatorRejectsRetiredStableId` |
+| Test di migrazione o redirect per la serializzazione persistente | ✅ **fatto** | fetta 6 — vedi §7 sul perché il test è equivalente a usare due binari |
+| Golden TurnLog: o restano validi, o la PR dichiara perché cambiano | ✅ **restano validi**, e c'è la prova — vedi §4 | §4 |
 | Nessun documento insegna «`Sprint` = `Dash`» | ✅ già fatto lato docs | — |
 
-## 6. Rischio
+## 6. Rischio — **rivisto al ribasso**
 
-**Medio-alto**, come dichiarato dalla issue, e concentrato nelle fette 5 e 6: `Action.Sprint` è il più diffuso
-dei tre (9 file di codice) ed è l'unico la cui migrazione cambia **famiglia**, non solo nome.
+Era dichiarato **medio-alto** e concentrato nelle fette 5 e 6, perché `Action.Sprint` è il più diffuso dei tre
+e l'unico a cambiare famiglia. **Quella fetta non si esegue più** ([D-068]), e la 4 è cancellata da [D-025].
 
-Attenuanti reali: la meccanica non cambia (§2), il corpus golden non esiste ancora (§4), e le fette 3 e 4 sono
-piccole abbastanza da esercitare il meccanismo di redirect prima che tocchi l'ID che conta.
+Il rischio residuo è **basso** e sta tutto nella fetta 6: dimostrare che un `.rttl` scritto quando
+`Action.Activate` era nel catalogo si rilegge ancora. È il caso che il redirect esiste per servire, ed è
+l'unico che i test attuali **non** coprono — la verifica in memoria non tocca la serializzazione.
+
+## 7. La «verifica a due binari», e perché un binario solo è bastato
+
+Il piano chiedeva: *«scrivere il log col binario **vecchio**, rileggerlo col **nuovo**, confrontare un digest
+dei soli campi preesistenti»*. Il test scritto usa un binario solo. **Non è una scorciatoia**, ed è l'unico
+punto del piano che vale la pena spiegare invece di dichiarare.
+
+Il formato **non è cambiato per gli `ActionId`** da quando `Action.Activate` era a catalogo: dalla `v3` in poi
+l'ID è lunghezza `uint16` + byte UTF-8, e nessuna versione successiva — `v4` FormatId, `v5` BaseActionId,
+`v6` UnitId, `v7` Priority — ha toccato quella posizione o quella codifica. I byte che il serializzatore
+di oggi produce per `Action.Activate` sono **gli stessi byte** che il binario di allora avrebbe scritto: non
+una simulazione, la stessa sequenza. Ciò che il test verifica è il **lettore di oggi** su quei byte, che è
+esattamente la domanda della fetta 6.
+
+La verifica a due binari resta necessaria quando cambia **la forma** dei byte, non il loro contenuto — ed è il
+motivo per cui la regola generale sta in piedi anche se qui non si applica.

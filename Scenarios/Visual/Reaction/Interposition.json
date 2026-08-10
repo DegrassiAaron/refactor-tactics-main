@@ -5,7 +5,7 @@
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "La reazione che cambia CHI subisce un colpo altrui. Flux spara a Vektor; Bastion, che sta a una cella da lui, ha armato `Bastion.Interposition` e diventa lui il bersaglio. Vektor resta a 100 pieni senza aver fatto nulla, Bastion scende a 98 senza che nessun intent lo avesse messo sulla linea di tiro.",
+  "_nota": "La reazione che cambia CHI subisce un colpo altrui. Flux spara a Vektor; Bastion, che sta a una cella da lui, ha armato `Bastion.Interposition` e diventa lui il bersaglio. Vektor resta a 90 pieni senza aver fatto nulla, Bastion scende a 98 senza che nessun intent lo avesse messo sulla linea di tiro.",
 
   "_nota_presentazione": "E' il caso piu' difficile da rendere leggibile di tutto il corpus: a schermo il proiettile deve **cambiare destinatario** a mezz'aria, o la scena si legge come «Flux ha sbagliato mira». Il colpo parte verso Vektor perche' quello era il piano, e finisce su Bastion perche' una reazione e' scattata: entrambe le meta' devono vedersi, altrimenti la reazione sembra un bug di targeting.",
 
@@ -28,7 +28,7 @@
   ],
 
   "expect": [
-    { "type": "UnitHpEquals",  "unit": "V1", "value": 100 },
+    { "type": "UnitHpEquals",  "unit": "V1", "value":  90 },
     { "type": "UnitHpEquals",  "unit": "B1", "value":  98 },
     { "type": "TurnsCompleted", "value": 1 }
   ]

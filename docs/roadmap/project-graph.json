@@ -39,36 +39,22 @@
       "[RT-FEAT-CORE-DECISION-TIME-BANK] 10 scenario/i dichiarati planned: Spec.TimeBank.GraceDoesNotDrain, Spec.TimeBank.DrainsAfterGrace, Spec.TimeBank.NeverBelowZero, Spec.TimeBank.TimeoutCostsFullWindow, Spec.TimeBank.TimeoutSpendsNoCharge, Spec.TimeBank.ClashCostsFullWindow, Spec.TimeBank.BotDrainsLikePlayer, Spec.TimeBank.ExhaustionKeepsResponsesLegal, Spec.TimeBank.ReplayReadsRecordedBank, Spec.TimeBank.PacketOrderInvariant",
       "[RT-FEAT-MAP-STANDABILITY] 3 scenario/i dichiarati planned: Spec.Map.WallCrossesCellStillStandable, Spec.Map.FootprintCollisionBlocksCell, Spec.Map.NinetyDegreeCornerBakesCorrectly",
       "[RT-FEAT-MAP-TRANSITION-CLEARANCE] 2 scenario/i dichiarati planned: Spec.Map.ValidCellsBlockedTransition, Spec.Map.DoorOpensTransition",
+      "[RT-FEAT-ACTION-GENERIC] 4 scenario/i dichiarati planned: Spec.Brace.GuardAndBraceOnMixedHit, Spec.Brace.BraceWinsOnSecondHit, Spec.Brace.PushBeyondGuardThreshold, Spec.Combat.BastionIgnoresAllPushes",
       "[RT-FEAT-ACTION-COOLDOWNS] feature di gameplay TESTABLE senza scenario che la dimostri",
       "[RT-FEAT-ACTION-DELAYED] nessuna pagina Wiki collegata",
       "[RT-FEAT-ACTION-TRAPS] nessuna pagina Wiki collegata",
       "[RT-FEAT-ACTION-EQUIPMENT] nessuna pagina Wiki collegata",
+      "[RT-FEAT-REACTION-OVERWATCH] 3 scenario/i dichiarati planned: Spec.Overwatch.ConductiveDischargeUsesStandardConduction, Spec.Overwatch.PressurePushChangesResolvedPath, Spec.Overwatch.FrontlineFollowsFacing",
+      "[RT-FEAT-REACTION-PROFILE] 3 scenario/i dichiarati planned: Spec.Brace.AnchorResistsDisplacement, Spec.Brace.FlowRedirectsToLegalHexOnly, Spec.Brace.DeflectOffersOnlyLegalSides",
       "[RT-FEAT-REACTION-CLASH] 3 scenario/i dichiarati planned: Spec.Clash.HiddenUntilReveal, Spec.Clash.RevealIsFixedDeadline, Spec.Clash.Determinism",
+      "[RT-FEAT-STATUS-FRAMEWORK] nessuna pagina Wiki collegata",
       "[RT-FEAT-ENV-ICE-ENGINE] nessuna pagina Wiki collegata",
       "[RT-FEAT-UI-ICON-LANGUAGE] nessuna pagina Wiki collegata",
-      "[RT-FEAT-UI-SCENARIO-BROWSER] nessuna pagina Wiki collegata",
       "[RT-FEAT-CHAR-TRANSFORMATION] nessuna pagina Wiki collegata",
       "[RT-FEAT-CHAR-AUXILIARY-UNITS] nessuna pagina Wiki collegata",
       "[RT-FEAT-FACTION-SCENARIOS] 4 scenario/i dichiarati planned: Team.Conflux.FluxRiva.ConductiveFlood, Team.Constrine.BastionVektor.OnlyExit, Team.Sentinel.SteelMurdock.HoldTheLine, Team.Resonance.AuroraKwang.FrozenAnchor",
-      "[RT-FEAT-MATCH-FORMAT] nessuna pagina Wiki collegata",
-      "[RT-FEAT-MATCH-PACING] nessuna pagina Wiki collegata",
-      "[RT-FEAT-STRESS-4V4] nessuna pagina Wiki collegata",
       "[RT-FEAT-STRESS-4V4] 1 scenario/i dichiarati planned: Stress.4v4.CoreRoster",
-      "[RT-FEAT-TEST-SCENARIO-HARNESS] nessuna pagina Wiki collegata",
-      "[RT-FEAT-TEST-GOLDEN] nessuna pagina Wiki collegata",
-      "[RT-FEAT-TOOL-MAP-EDITOR] nessuna pagina Wiki collegata",
-      "[RT-FEAT-TOOL-VALIDATION] nessuna pagina Wiki collegata",
-      "[RT-FEAT-TOOL-CONTROL-CENTER] nessuna pagina Wiki collegata",
-      "[RT-FEAT-TOOL-DEBUG-CONSOLE] nessuna pagina Wiki collegata",
-      "[RT-FEAT-TOOL-BALANCE-GROUND] nessuna pagina Wiki collegata",
-      "[RT-FEAT-DATA-STABLE-IDS] nessuna pagina Wiki collegata",
-      "[RT-FEAT-DATA-ASSET-PIPELINE] nessuna pagina Wiki collegata",
-      "[RT-FEAT-DATA-HASH] nessuna pagina Wiki collegata",
       "[RT-FEAT-NET-PRIVATE-PLANNING] feature di gameplay TESTABLE senza scenario che la dimostri",
-      "[RT-FEAT-NET-AUTHORITY] nessuna pagina Wiki collegata",
-      "[RT-FEAT-NET-DEDICATED] nessuna pagina Wiki collegata",
-      "[RT-FEAT-PROD-PERFORMANCE] nessuna pagina Wiki collegata",
-      "[RT-FEAT-PROD-PACKAGED] nessuna pagina Wiki collegata",
       "[RT-FEAT-INTENT-CONDITIONAL] nessuna pagina Wiki collegata",
       "[RT-FEAT-INTENT-CONDITIONAL] SPECIFIED senza issue ne' assegnazione in roadmap",
       "[RT-FEAT-CHARACTER-STATE] nessuna pagina Wiki collegata",
@@ -262,7 +248,7 @@
     "E10.3": "⏳",
     "E11.1": "⏳",
     "E11.2": "⏳",
-    "E11.3": "⏳",
+    "E11.3": "✅",
     "E11.4": "⏳",
     "E11.5": "⏳",
     "E11.6": "⏳",
@@ -1154,6 +1140,34 @@
       "verifies": [],
       "issues": [],
       "done_when": "BUILD SUCCESSFUL su entrambe le configurazioni e una partita conclusa dalla packaged"
+    },
+    {
+      "id": "U20",
+      "title": "Confine fra Guard e Brace",
+      "block": 6,
+      "critical": false,
+      "state": "⏳",
+      "queue_group": "WAITING",
+      "produces": "verdetto di leggibilita' — un dato per `BAL-1`, non un difetto da correggere",
+      "artifacts": [],
+      "unblocked_by": [
+        {
+          "ref": "E5.2",
+          "resolved": false,
+          "state": "⏳",
+          "kind": "checkpoint"
+        }
+      ],
+      "unblocks": [],
+      "shares_setup_with": [],
+      "verifies": [
+        {
+          "id": "PIE-BAL1",
+          "state": "⏳"
+        }
+      ],
+      "issues": [],
+      "done_when": "la voce ha un esito reale nel registro, in un verso o nell'altro"
     }
   ],
   "editor_queue": {
@@ -1177,7 +1191,8 @@
       "U13",
       "U14",
       "U19",
-      "U16"
+      "U16",
+      "U20"
     ],
     "DONE": []
   },
@@ -1217,6 +1232,10 @@
     {
       "id": "PIE-AS5",
       "state": "✅"
+    },
+    {
+      "id": "PIE-BAL1",
+      "state": "⏳"
     },
     {
       "id": "PIE-BU2",

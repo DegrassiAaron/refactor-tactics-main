@@ -54,10 +54,19 @@ scegliendo lo scenario e premendo Play, una voce C richiede di allestire, clicca
 | **A** — automatico | **27** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · `Spec.Predictive.WhiffOnEmptyCell` · i tre `EnvironmentalActionOwner` · `RT_Showcase_Relay_v01` |
 | **B** — automatico + occhio | **21** scenari ↔ **21** voci `PIE-VIS-*` | `Scenarios/Visual/` |
 | **C** — solo umano | **95** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima |
-| **D** — dichiarato | **9** scenari `Spec.*` ancora `BLOCKED` · **28** pianificati · **4** mai scritti | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
+| **D** — dichiarato | **12** scenari `Spec.*` ancora `BLOCKED` · **38** pianificati · **4** mai scritti *(rimisurati il 2026-08-10)* | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
 
-Totale corpus versionato: **56** scenari (`A 26 + B 21 + D-bloccati 9`). Totale registro PIE: **117** voci
+Totale corpus versionato: **60** scenari (`A 27 + B 21 + D-bloccati 12`). Totale registro PIE: **117** voci
 (`B 21 + C 95 + 1 fuori classe`).
+
+> ⚠️ **Rimisurato il 2026-08-10, e il conteggio era rotto in due punti diversi.** La riga `A` diceva già
+> **27** mentre il totale sotto continuava a sommare `A 26`; la riga `D` diceva **9** bloccati e **21**
+> pianificati quando erano **12** e **29**. Le tre misure sopra — corpus, `Visual`, `Spec` — vengono dai
+> comandi della §7; il numero dei `planned` e la ripartizione eseguibili/bloccati vengono da
+> `feature_registry.py shortlist`, che li calcola dalla stessa sorgente invece di ricopiarli.
+> **Gli elenchi di dettaglio delle §3, §4 e §6.1 non sono stati rimisurati in questa sessione**: le tre PR
+> mergiate il 2026-08-10 hanno aggiunto scenari di movimento e predittivi che vanno ancora attribuiti alla
+> loro classe voce per voce. Il totale è vero, la sua scomposizione per file no.
 
 > **Una voce non sta in nessuna delle quattro classi**, ed è meglio dirlo che forzarla dentro.
 > `PIE-MUT-BASTION-SLOW` (2026-08-09) è una **verifica di mutazione**: rompere il codice di proposito e
@@ -103,6 +112,24 @@ Totale corpus versionato: **56** scenari (`A 26 + B 21 + D-bloccati 9`). Totale 
 > ⚠️ «Non più bloccato» **non vuol dire «verde»**: che le assertion tengano lo dice la suite, non questa
 > tabella. Un file si classifica leggendo il suo `requires` e la disponibilità della capability, mai il
 > percorso: le cartelle sono storage e non promettono nulla ([`scenario-index-e-tag.md`](scenario-index-e-tag.md) §2).
+
+> 🔁 **Il corpus si rimisura quando cambia un numero di bilanciamento — 2026-08-10, `#131`.**
+> Vektor è sceso da 100 a 90 HP ([D-069](../decisions/RT_PDR_00_Decision_Log.md)) e **11 scenari** sono
+> diventati rossi in blocco, tutti con lo **stesso** delta di −10 su un'unità Vektor: `Combat.LineHitsThrough`,
+> `Combat.SplashHitsAlliesNotSelf`, `Spec.Environment.{ElectricPropagation, WaterQuenchesFire}`,
+> `Visual.Combat.{PushResistance, WaterElectric, WaterElectricCoordinated}`,
+> `Visual.Environment.{FireOnEnter, WetExtinguishesFire}`, `Visual.Reaction.{Deflection, Interposition}`.
+>
+> **Non è un difetto e non è una classe nuova**: è il corpus che fa il suo mestiere. Vale però registrare
+> due cose per la prossima volta.
+>
+> 1. **La forma del rosso è la diagnosi.** Undici fallimenti con delta identico su un'unica unità dicono
+>    «una statistica è cambiata», non «undici regole si sono rotte». Un delta *disomogeneo* avrebbe voluto
+>    dire l'opposto, e sarebbe stato il momento di fermarsi.
+> 2. **La prosa scade insieme ai numeri.** Sei di quegli undici file spiegano l'aritmetica a parole
+>    (*«100 − 10 − 8 = 82»*, *«Vektor resta a 100 pieni»*). Correggere solo le `expect` avrebbe lasciato una
+>    spiegazione che contraddice l'assertion accanto — e la spiegazione è **metà** del valore di uno scenario
+>    `Visual.*`, che esiste per dire a una persona cosa deve vedere. Sono state corrette entrambe.
 
 ---
 
@@ -255,19 +282,27 @@ I **nove** rimasti (l'elenco misurato è in
 > copre `Action.Ignite` né `Action.ModifyArc`, che per [D-046](../decisions/RT_PDR_00_Decision_Log.md)
 > restano senza owner in v0.1.
 
-### 6.2 Pianificati nel Feature Registry — non ancora scritti · **28**
+### 6.2 Pianificati nel Feature Registry — non ancora scritti · **38**
 
 Dichiarati in `feature-registry.yaml` sotto `scenarios: {planned: [...]}`, il che li fa comparire come
 **warning** in `feature_registry.py validate`. Il warning è il meccanismo: un piano che non diventa un file
 resta visibile invece di sparire.
 
-> ⚠️ **Erano dichiarati «13», poi ventuno, poi ventitré, e oggi sono ventotto**: tredici fra `Clash` e
-> `TimeBank`, cinque `State.*`, **cinque `Spec.Map.*`**, quattro `Team.*`, uno `Stress.*`. I `TimeBank` sono
-> passati da 8 a 10 con la riconciliazione di `#361` (sotto); i cinque `Spec.Map.*` entrano il 2026-08-10 con
-> [D-065](../decisions/RT_PDR_00_Decision_Log.md) (E23, v0.2). Il totale sbagliato era sopravvissuto perché
-> l'unico modo di accorgersene era sommare a mano una colonna che nessuno risomma. Ora lo conta
-> `feature_registry.py shortlist` — ed è così che si è visto che **la riga della §2 diceva ancora 21**
-> mentre questa diceva 23: due numeri sbagliati in due posti, nello stesso file.
+> ⚠️ **Erano dichiarati «13», poi ventuno, poi ventitré, e oggi sono trentotto**: tredici fra `Clash` e
+> `TimeBank`, dieci fra `State.*`/`Team.*`/`Stress.*`, sei fra `Brace` e `Overwatch`, cinque `Spec.Map.*`,
+> **quattro di `BAL-1`** (`Spec.Brace.*` e `Spec.Combat.*`).
+> I `TimeBank` sono passati da 8 a 10 con la riconciliazione di `#361` (sotto); i sei di Brace/Overwatch e i
+> cinque di `Spec.Map.*` arrivano dai triage del 2026-08-10, da **due rami diversi** — ed è così che il
+> numero è andato fuori sincrono un'altra volta: ogni ramo aveva ricalcolato il totale sulla **propria** base,
+> uno diceva 28 e l'altro 29, e nessuno dei due era giusto sull'unione.
+>
+> **Si rimisura con il generatore, non con un comando scritto a mano.** Il `python -c` che questa nota portava
+> prima **sottoconta**: cammina solo le voci `- planned:` in forma di lista e non vede la forma `planned:` a
+> chiave nuda, che nel registry esiste in tre punti. Dava **24** dove il vero numero è **34**.
+>
+> ```bash
+> python scripts/feature_registry.py shortlist   # scrive il numero in scenariomap.shortlist.md
+> ```
 
 | ScenarioId pianificato | Feature | Release |
 |---|---|---|
@@ -278,9 +313,12 @@ resta visibile invece di sparire.
 | `Team.Resonance.AuroraKwang.FrozenAnchor` | idem | v0.2 · richiede E35 |
 | `State.Riva.Flow` · `State.Flux.Charged` · `State.Bastion.Bulwark` · `State.Howitzer.Siege` · `State.MultiState.Stress` | `RT-FEAT-CHARACTER-STATE` | v0.4 · E34 (`#244`) |
 | `Spec.Clash.HiddenUntilReveal` · `Spec.Clash.RevealIsFixedDeadline` · `Spec.Clash.Determinism` | `RT-FEAT-REACTION-CLASH` | v0.1 · E14 · CP 14.7 |
+| `Spec.Brace.AnchorResistsDisplacement` · `…FlowRedirectsToLegalHexOnly` · `…DeflectOffersOnlyLegalSides` | `RT-FEAT-REACTION-PROFILE` | v0.1 · E14 · CP 14.7 |
+| `Spec.Overwatch.ConductiveDischargeUsesStandardConduction` · `…PressurePushChangesResolvedPath` · `…FrontlineFollowsFacing` | `RT-FEAT-REACTION-OVERWATCH` | v0.1 · E14 · CP 14.4 |
 | `Spec.TimeBank.GraceDoesNotDrain` · `…DrainsAfterGrace` · `…NeverBelowZero` · `…TimeoutCostsFullWindow` · `…TimeoutSpendsNoCharge` · `…ClashCostsFullWindow` · `…BotDrainsLikePlayer` · `…ExhaustionKeepsResponsesLegal` · `…ReplayReadsRecordedBank` · `…PacketOrderInvariant` | `RT-FEAT-CORE-DECISION-TIME-BANK` | v0.1 · E14 · CP 14.8 |
 | `Spec.Map.WallCrossesCellStillStandable` · `…FootprintCollisionBlocksCell` · `…NinetyDegreeCornerBakesCorrectly` | `RT-FEAT-MAP-STANDABILITY` | v0.2 · E23 · CP 23.6 |
 | `Spec.Map.ValidCellsBlockedTransition` · `…DoorOpensTransition` | `RT-FEAT-MAP-TRANSITION-CLEARANCE` | v0.2 · E23 · CP 23.7 |
+| `Spec.Brace.GuardAndBraceOnMixedHit` · `.BraceWinsOnSecondHit` · `.PushBeyondGuardThreshold` · `Spec.Combat.BastionIgnoresAllPushes` | `RT-FEAT-ACTION-GENERIC` | v0.1 · E5 · CP 5.2 — `BAL-1` |
 
 > ⚠️ **I tre `Spec.Clash.*` non sono «da scrivere»: oggi sono *impossibili*.** È la stessa situazione già
 > incontrata dal facing prima di CP 16.1. `ERTAssertionKind` ha cinque assertion — `UnitAtCell`,
@@ -311,9 +349,28 @@ resta visibile invece di sparire.
 > danno andato a segno o no (`UnitHpEquals`). È un oracolo indiretto, e un test che misura la vista contando
 > ferite è più fragile di quanto sembri. Va deciso quando `MAP-2` si chiude.
 
+> ✅ **I quattro di `BAL-1` sono scrivibili oggi**, e uno solo ha una dipendenza. Oracolo (`UnitHpEquals`,
+> `UnitAtCell`) e fixture (`Riva.PressureJet`: 16 danni **e** `Push 1` nello stesso colpo) esistono entrambi.
+> L'eccezione è `Spec.Brace.PushBeyondGuardThreshold`, che chiede una spinta di 2: **nel gioco non esiste**
+> — il catalogo ha due soli effetti `Push`, entrambi di valore 1 — quindi quello scenario nasce **solo** se
+> la Fase 0 del [piano `BAL-1`](../roadmap/plans/bal-1-guard-brace-roadmap-2026-08-10.md) sceglie di
+> introdurne una. Con l'altra uscita, il file non si scrive e la clausola di `Brace` si riscrive invece.
+>
+> Vale la pena notare **perché** questi quattro mancavano: `Guard` e `Brace` hanno ciascuno i propri scenari
+> e nessuno li guarda **insieme**. È la stessa forma del *dato senza consumatore*, ruotata — qui i
+> consumatori ci sono, manca il test che li confronta.
+
 > ✅ **Aggiornato il 2026-08-09** (`#318`, PR di `feat/318-assertion-turnlog`). Le prime due primitive
 > esistono: `LogEventCount` (con `value: 0` per l'assenza) e `LogEventOrder`. **I tre `Spec.Clash.*` sono
 > quindi scrivibili** — restano da scrivere, ed è lavoro di CP 14.7, non di #318.
+
+> ⚠️ **I sei `Spec.Brace.*` / `Spec.Overwatch.*` del 2026-08-10 sono bloccati da altro, e la differenza
+> conta.** Non aspettano una capability dell'harness — un anti-displacement e una lista di risposte legali si
+> osservano benissimo con `UnitAtCell` — aspettano una **decisione**: quali siano i quattro profili di `Brace`
+> e di `Overwatch` è `BAS-1` e `BAS-2` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md). Scriverli prima
+> significherebbe fissare in un file eseguibile un contenuto che nessuno ha approvato, ed è il modo più
+> efficace di far sembrare decisa una proposta. Sono in **classe D per scelta**, non per debito tecnico.
+> Origine e triage: [`../roadmap/plans/baseaction-signatures-spec-panel-2026-08-10.md`](../roadmap/plans/baseaction-signatures-spec-panel-2026-08-10.md).
 >
 > Per i `Spec.TimeBank.*` l'affermazione «una sola capability li sblocca tutti» **non reggeva alla verifica**.
 > I tre punti sono stati riconciliati il 2026-08-09 con l'issue **`#361`**, e il risultato è questo:

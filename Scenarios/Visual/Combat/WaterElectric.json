@@ -5,7 +5,7 @@
   "seed": 0,
   "fixture": "RelayLite",
 
-  "_nota": "La combo firma acqua+elettricita', nell'unica forma in cui il gioco di oggi la sa eseguire. Vektor scatta dentro la spina d'acqua a (0,0) in fase **Dash**; il terreno gli applica `Status.Wet` all'ingresso; il Blast arriva DOPO, e la scarica di Flux trova un bersaglio bagnato: 24 + 8 = 32. Vektor 100 -> 68.",
+  "_nota": "La combo firma acqua+elettricita', nell'unica forma in cui il gioco di oggi la sa eseguire. Vektor scatta dentro la spina d'acqua a (0,0) in fase **Dash**; il terreno gli applica `Status.Wet` all'ingresso; il Blast arriva DOPO, e la scarica di Flux trova un bersaglio bagnato: 24 + 8 = 32. Vektor 90 -> 58.",
 
   "_nota_ordine": "Non e' un dettaglio di allestimento, e' LA regola: il bonus si applica leggendo `HasStatus(Wet)` quando i colpi vengono preparati. Solo cio' che bagna PRIMA del Blast conta — e prima del Blast c'e' il Dash, non il Move.",
 
@@ -27,7 +27,7 @@
 
   "expect": [
     { "type": "UnitAtCell",    "unit": "V1", "cell": [0, 0, 0] },
-    { "type": "UnitHpEquals",  "unit": "V1", "value": 68 },
+    { "type": "UnitHpEquals",  "unit": "V1", "value": 58 },
     { "type": "TurnsCompleted", "value": 1 }
   ]
 }

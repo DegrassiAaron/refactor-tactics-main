@@ -27,6 +27,26 @@ class URTHexMapAsset;
  * La CELLA invece e' catturata in pianificazione e non si tocca piu': e' il dato che rende la previsione una
  * scommessa invece di un ordine.
  */
+/**
+ * Cosa ha spostato un'unita' contro la sua volonta' (`#307`), raccolto durante il Blast e consumato quando la
+ * spinta o la trazione si applicano.
+ *
+ * **Una struct e non tre mappe parallele**, e la ragione e' un difetto vero: la prima stesura teneva
+ * `ActionId` e `BaseActionId` in due `TMap` distinte **condivise fra spinta e trazione**, e con entrambe sullo
+ * stesso bersaglio la seconda `Add` sovrascriveva la prima — una voce finiva per dichiarare l'attaccante
+ * sbagliato. Trovato in code review, corretto separando le mappe per effetto. Tenere i campi INSIEME toglie
+ * la classe di errore a monte: non esiste piu' un modo di disallinearli fra loro.
+ */
+struct FRTDisplacementCause
+{
+	/** Azione che ha prodotto lo spostamento (`Action.Push`, `Guardian.Sweep`, …). */
+	FName ActionId;
+	/** Generica di cui `ActionId` e' un profilo, quando la dichiara (D-033). */
+	FName BaseActionId;
+	/** Priorita' intra-fase dell'azione (CP 11.3): con quale precedenza ha risolto. */
+	int32 Priority = 0;
+};
+
 USTRUCT()
 struct FRTArmedPrediction
 {
@@ -316,6 +336,20 @@ protected:
 	 */
 	void ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TArray<int32>& Amounts,
 		const TArray<FRTCellId>& Sources, const TArray<ARTUnit*>& Healers);
+
+	/**
+	 * Voce di TurnLog per uno spostamento SUBITO — spinta o trazione (#307). Chiamata dai due punti che
+	 * spostano un'unita' contro la sua volonta', che scrivono la stessa voce: l'esito e' `Displaced` per
+	 * entrambi, e a distinguerli sono le celle (allontanarsi dalla sorgente o avvicinarsi).
+	 *
+	 * Una funzione e non due blocchi copiati perche' la differenza fra i due call site e' zero: un secondo
+	 * blocco identico e' esattamente il posto dove, fra sei mesi, una correzione viene applicata a uno solo.
+	 *
+	 * `Steps` e' quante celle sono state attraversate — la lunghezza della linea meno la partenza — e finisce
+	 * in `Amount`, dove le voci di movimento portano gia' quel numero.
+	 */
+	void AppendDisplacementEntry(const ARTUnit* Target, const FRTCellId& From, const FRTCellId& To, int32 Steps,
+		const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget);
 
 	/**
 	 * Modifiche TEMPORANEE alla mappa (CP 8.4): fuoco acceso, acqua creata. Il terreno dinamico vive in due

@@ -18,7 +18,7 @@ Uso:
 
 Opzioni comuni:
     --wiki-root PATH    radice del clone della Wiki (deploy flat), per validare i `wiki:` refs
-    --check             `generate`/`wiki`/`shortlist` non scrivono: falliscono se disallineati
+    --check             `generate`/`wiki`/`shortlist`/`deploy` non scrivono: falliscono se disallineati
 """
 import argparse
 import json
@@ -48,6 +48,16 @@ GATE_VALUES = {"done", "partial", "todo", "na"}
 RELEASES = {"v0.1", "v0.2", "future"}
 PRIORITIES = {"P0", "P1", "P2", "P3"}
 KINDS = {"gameplay", "ui", "tooling", "data", "infra", "content"}
+
+# I `kind` che la Wiki documenta davvero. La Wiki e' rivolta a chi gioca — meccaniche, personaggi,
+# fazioni — e non parla del map editor ne' dell'asset pipeline: e' una scelta gia' presa e gia'
+# visibile nei dati, non una regola nuova. Al 2026-08-10 le 60 feature con una pagina sono tutte
+# `gameplay`, `ui` o `content`, e nessuna delle 18 `tooling`/`data`/`infra` ne ha una.
+# Pretenderla da loro produceva 18 avvisi su 27 che non si sarebbero chiusi mai — e la regola 5 di
+# `feature-registry.md` gia' dichiara legittimo quel caso: «una feature interna puo' avere la UI e
+# nessuna pagina (`partial` anche li')». Un avviso che contraddice il proprio owner documentale non
+# denuncia una lacuna: insegna a ignorare anche gli altri avvisi.
+WIKI_DOCUMENTED_KINDS = {"gameplay", "ui", "content"}
 
 # Ordine di maturita'. `DEFERRED` e `BLOCKED` sono fuori scala: dichiarano una decisione,
 # non un grado di completezza, e per questo il controllo di coerenza li salta.
@@ -225,9 +235,14 @@ def git_remote_slug():
         return None
 
 
-def validate(registry, wiki_root=None):
+def validate(registry, wiki_root=None, editor_ctx=None):
     errors, warnings = [], []
     features = registry.get("features") or []
+
+    # Misurato una volta e riusato: qui per `pie_refs`, e piu' sotto da `validate_editor_sessions`.
+    # Chi ha gia' il contesto (`build_graph`) lo passa e non si rilegge nulla.
+    editor_ctx = editor_ctx or editor_context()
+    pie_registry = editor_ctx["pie"]
 
     github = github_config(registry)
     missing = [k for k in ("owner", "repository", "branch") if not github.get(k)]
@@ -364,14 +379,51 @@ def validate(registry, wiki_root=None):
         for ref in feature.get("wiki_refs") or []:
             if ref.startswith("wiki:"):
                 if wiki_root:
-                    page = os.path.join(wiki_root, ref[len("wiki:"):] + ".md")
-                    if not os.path.isfile(page):
+                    if not wiki_page_by_name(wiki_root, ref[len("wiki:"):]):
                         errors.append(f"{where} pagina Wiki inesistente nel clone: {ref}")
             elif not os.path.isfile(os.path.join(REPO, ref)):
                 errors.append(f"{where} pagina Wiki sorgente inesistente: {ref}")
 
+        # --- il gate `packaged` e la verifica che lo dimostra ---
+        #
+        # `packaged` dice «verificata nella build packaged della release corrente», e chi la verifica
+        # e' una voce `PIE-*` eseguita da una persona. Fino al 2026-08-10 quel legame non era un
+        # dato: viveva nel corpo delle issue GitHub («Verifica PIE `PIE-V01-HUD`»), fuori dal
+        # repository e fuori da ogni controllo. La conseguenza non e' teorica — il giorno in cui
+        # `PIE-V01-HUD` diventa verde, nessuno sa che quattro feature possono avanzare il gate.
+        pie_refs = feature.get("pie_refs") or []
+        for ref in pie_refs:
+            if ref not in pie_registry:
+                errors.append(f"{where} voce PIE inesistente nel registro: {ref}")
+        # Tutte le voci, comprese quelle che il registro non conosce: una voce inesistente vale
+        # `None`, che non e' verde. Filtrarle qui — `if r in pie_registry` — le avrebbe rese
+        # invisibili a questi due controlli, e una lista `[voce_verde, voce_inesistente]` avrebbe
+        # dato «tutte verdi»: il gate sarebbe potuto restare `done` senza che nessuno lo negasse,
+        # e l'avviso «puo' avanzare» sarebbe comparso su una prova che non esiste.
+        cited = [pie_registry.get(r) for r in pie_refs]
+        if gates.get("packaged") == "done" and pie_refs and not all(s == "✅" for s in cited):
+            aperte = [r for r in pie_refs if pie_registry.get(r) not in ("✅",)]
+            errors.append(
+                f"{where} gate packaged=done ma le voci che lo dimostrano non sono verdi: "
+                + ", ".join(f"{r} {pie_registry.get(r) or '❓'}" for r in aperte)
+                + " — il gate afferma una verifica che il registro PIE non conferma")
+        if gates.get("packaged") in ("partial", "todo") and pie_refs and all(s == "✅" for s in cited):
+            warnings.append(
+                f"{where} tutte le voci PIE che la dimostrano sono verdi ({', '.join(pie_refs)}) "
+                f"ma il gate packaged e' ancora {gates.get('packaged')}: puo' avanzare")
+
+        # `ui_wiki` conta due meta' (regola 5 di `feature-registry.md`): «spiegata all'utente» e
+        # «leggibile in gioco». `done` le dichiara ENTRAMBE, quindi senza una pagina collegata il
+        # gate afferma qualcosa che nessun dato sostiene. `partial` invece e' legittimo senza
+        # pagina — e' precisamente il caso «la UI c'e', la pagina no» che la regola prevede.
+        if gates.get("ui_wiki") == "done" and not (feature.get("wiki_refs") or []):
+            errors.append(
+                f"{where} gate ui_wiki=done ma nessuna wiki_refs: `done` dichiara entrambe le meta' "
+                "(spiegata all'utente e leggibile in gioco) e la prima non ha nulla che la dimostri. "
+                "Collega la pagina, oppure il gate e' `partial`")
+
         # --- warning: lacune che non rompono nulla ma vanno viste ---
-        if not (feature.get("wiki_refs") or []):
+        if feature.get("kind") in WIKI_DOCUMENTED_KINDS and not (feature.get("wiki_refs") or []):
             warnings.append(f"{where} nessuna pagina Wiki collegata")
         if status in testable_or_more and feature.get("kind") == "gameplay" and not present:
             warnings.append(f"{where} feature di gameplay {status} senza scenario che la dimostri")
@@ -409,7 +461,7 @@ def validate(registry, wiki_root=None):
                 errors.append(f"[{page}] blocco di stato per FeatureId inesistente: {fid}")
 
     # --- l'altra sorgente delle *map, con le stesse pretese di questa ---
-    session_errors, session_warnings = validate_editor_sessions()
+    session_errors, session_warnings = validate_editor_sessions(editor_ctx)
     errors += session_errors
     warnings += session_warnings
 
@@ -485,6 +537,7 @@ def build_json(registry):
             "scenarios_planned": planned,
             "wiki_refs": feature.get("wiki_refs") or [],
             "wiki_note": (feature.get("wiki_note") or "").strip(),
+            "pie_refs": feature.get("pie_refs") or [],
             "last_verified": jsonable(feature.get("last_verified") or {}),
             "notes": (feature.get("notes") or "").strip(),
         })
@@ -673,26 +726,39 @@ def apply_wiki_blocks(data, check=False):
     return changed, stale
 
 
+# Le pagine `game/` prendono il nome del file. Dove il clone ha gia' pubblicato un nome diverso vince
+# il clone: rinominare una pagina della GitHub Wiki ne cambia l'**URL pubblico**, e un link esterno o
+# un segnalibro smetterebbe di funzionare per una questione di sole maiuscole.
 def deploy_name(source_ref):
-    """Nome della pagina nel clone della Wiki, che e' un repo separato con file **flat**.
+    """Percorso della pagina nel clone della Wiki, che e' un repository separato.
 
-    La convenzione e' quella gia' in uso nel clone (`DEPLOY.md`): le cartelle della sorgente
-    diventano un prefisso nel nome, perche' la GitHub Wiki non ha gerarchia.
+    **Il presupposto precedente era sbagliato a meta'.** Fino al 2026-08-10 questa funzione
+    appiattiva tutto in root con un prefisso nel nome (`Meccanica-coperture.md`), perche' `DEPLOY.md`
+    dichiarava che «la GitHub Wiki non ha gerarchia». Verificato: le pagine in sottocartella **sono
+    servite** e compaiono nel menu *Pages*. Cio' che e' piatto e' il **namespace degli URL** — l'URL
+    e' il solo nome del file, il percorso non ci entra — quindi i nomi devono restare **globalmente
+    unici**, anche fra cartelle diverse.
+
+    Ne segue che le cartelle della sorgente possono diventare cartelle anche qui, e il prefisso
+    ridondante sparisce. I `[[link]]` restano per **nome**, mai per percorso.
+
+    Le pagine indice restano in root accanto a `Home`: sono hub, e `index.md` in tre cartelle diverse
+    collidere*bbe* — tre pagine non possono chiamarsi tutte `index`.
     """
     ref = source_ref.replace("\\", "/")
     stem = os.path.splitext(os.path.basename(ref))[0]
     if ref.startswith("docs/wiki/game/"):
-        return stem + ".md"
+        return "Guida/" + stem + ".md"
     if ref.startswith("docs/wiki/meccaniche/"):
-        return "Meccanica-" + stem + ".md"
+        return "Meccaniche.md" if stem == "index" else "Meccaniche/" + stem + ".md"
     if ref.startswith("docs/wiki/fazioni/"):
-        if stem == "index":
-            return "Fazioni.md"
-        return "Fazione-" + "-".join(p.capitalize() for p in stem.split("-")) + ".md"
+        return "Fazioni.md" if stem == "index" else "Fazioni/" + stem + ".md"
     if ref.startswith("docs/characters/v0."):
-        return "Personaggio-" + stem + ".md"
+        return "Personaggi/" + stem + ".md"
     if ref == "docs/characters/index.md":
         return "Personaggi.md"
+    if ref == "docs/characters/paragon.md":
+        return "Personaggi/paragon.md"
     if ref == "docs/wiki/feature-status.md":
         return "Stato-delle-feature.md"
     return None
@@ -715,12 +781,45 @@ def strip_manual_status(text):
     return re.sub(r"\n{3,}", "\n\n", "\n".join(kept))
 
 
+def wiki_pages(wiki_root):
+    """I percorsi delle pagine presenti nel clone, per un confronto **case-sensitive** e ricorsivo.
+
+    Case-sensitive perche' `os.path.isfile` su Windows non distingue le maiuscole: un nome di deploy
+    sbagliato nel solo case passerebbe qui e fallirebbe su un filesystem case-sensitive, saltando in
+    silenzio i blocchi di quella pagina.
+
+    Ricorsivo perche' dal 2026-08-10 le pagine stanno in cartelle: un `os.listdir` non ricorsivo le
+    dichiarerebbe tutte assenti in blocco.
+    """
+    found = set()
+    for root, dirs, files in os.walk(wiki_root):
+        dirs[:] = [d for d in dirs if d != ".git"]
+        for name in files:
+            if name.endswith(".md"):
+                rel = os.path.relpath(os.path.join(root, name), wiki_root)
+                found.add(rel.replace("\\", "/"))
+    return found
+
+
+def wiki_page_by_name(wiki_root, page_name):
+    """Il percorso della pagina con questo **nome**, che nella Wiki e' l'unita' di indirizzamento.
+
+    I riferimenti `wiki:<PageName>` nominano la pagina, non il file: dopo il passaggio alle cartelle
+    non si puo' piu' assumere che stia in root.
+    """
+    for rel in wiki_pages(wiki_root):
+        if os.path.splitext(os.path.basename(rel))[0] == page_name:
+            return os.path.join(wiki_root, rel)
+    return None
+
+
 def apply_wiki_deploy(data, wiki_root, check=True):
     """Porta i blocchi generati nel clone della Wiki. Di norma si esegue con `--check`.
 
     Il clone e' un **altro repository**, pubblico, che altre sessioni possono avere in lavorazione:
     scriverci e' un'azione che si chiede, non si assume.
     """
+    pages = wiki_pages(wiki_root)
     by_page = {}
     for entry in data["features"]:
         for ref in entry["wiki_refs"]:
@@ -735,8 +834,10 @@ def apply_wiki_deploy(data, wiki_root, check=True):
             missing.append(f"{ref}: nessuna pagina di deploy corrispondente")
             continue
         path = os.path.join(wiki_root, name)
-        if not os.path.isfile(path):
-            missing.append(f"{ref} -> {name}: la pagina non esiste nel clone")
+        if name not in pages:
+            near = next((p for p in pages if p.lower() == name.lower()), None)
+            detail = f" (nel clone c'e' `{near}`: differisce solo nel case)" if near else ""
+            missing.append(f"{ref} -> {name}: la pagina non esiste nel clone{detail}")
             continue
         original = open(path, encoding="utf-8").read()
         text = strip_manual_status(original)
@@ -1674,7 +1775,37 @@ SESSION_FIELDS = {"id", "title", "block", "critical", "produces", "artifacts", "
                   "steps", "notes"}
 
 
-def validate_editor_sessions():
+def editor_context():
+    """Tutto cio' che serve per ragionare sulle sedute, misurato una volta sola.
+
+    Sono sei letture non banali — il registro PIE, `git ls-files` sugli artefatti (un sottoprocesso),
+    e tre file di roadmap riletti a colpi di regex. `validate` e `build_graph` le vogliono entrambi,
+    e `build_graph` chiama `validate`: senza questo contesto condiviso lo stesso lavoro si fa due
+    volte per ogni `generate`.
+
+    Non e' una cache: e' un parametro. Una cache di modulo avrebbe legato il risultato alla vita del
+    processo, e la prima cosa che si rompe e' la verifica di mutazione — che muta il file e
+    richiama. Qui chi vuole una misura fresca chiama di nuovo `editor_context()`.
+    """
+    doc = load_editor_sessions()
+    sessions = doc.get("sessions") or []
+    pie = pie_entries()
+    tracked = tracked_artifacts([a for s in sessions for a in (s.get("artifacts") or [])])
+    milestones, milestone_conflicts = milestone_status()
+    return {
+        "doc": doc,
+        "sessions": sessions,
+        "pie": pie,
+        "tracked": tracked,
+        "states": {s.get("id"): session_state(s, pie, tracked) for s in sessions},
+        "checkpoints": checkpoint_status(),
+        "epics": epic_status(),
+        "milestones": milestones,
+        "milestone_conflicts": milestone_conflicts,
+    }
+
+
+def validate_editor_sessions(ctx=None):
     """`editor-sessions.yaml`: la seconda sorgente delle *map, con le stesse pretese della prima.
 
     Fino al 2026-08-10 questo file non passava di qui. I suoi controlli esistevano — voci `PIE-*`
@@ -1703,8 +1834,16 @@ def validate_editor_sessions():
     scusava proprio la dipendenza piu' documentata del file. Due sedute di blocchi diversi non si
     fanno nella stessa apertura, quindi li' la dualita' si pretende sempre.
     """
-    doc = load_editor_sessions()
-    sessions = doc.get("sessions") or []
+    # Il contesto arriva da fuori quando chi chiama lo ha gia' misurato (`build_graph`), e viene
+    # calcolato qui quando nessuno lo ha fatto. Le sei letture costano un sottoprocesso git e tre
+    # riletture di roadmap: farle due volte per `generate` era lavoro doppio senza guadagno.
+    # `.get("id")` e non `s["id"]` in `editor_context`: una seduta senza id e' precisamente uno dei
+    # difetti che questa funzione esiste per denunciare, e con l'accesso diretto morirebbe prima di
+    # arrivare alla riga che lo dice. Un validator che va in traceback sul caso che deve segnalare
+    # non lo segnala.
+    ctx = ctx or editor_context()
+    doc = ctx["doc"]
+    sessions = ctx["sessions"]
     if not sessions:
         return [], []
 
@@ -1714,16 +1853,11 @@ def validate_editor_sessions():
     by_id = {s.get("id"): s for s in sessions}
     blocks = {b.get("id") for b in (doc.get("meta", {}).get("blocks") or [])}
 
-    pie = pie_entries()
-    tracked = tracked_artifacts([a for s in sessions for a in (s.get("artifacts") or [])])
-    # `.get("id")` e non `s["id"]`: una seduta senza id e' precisamente uno dei difetti che questa
-    # funzione esiste per denunciare, e con l'accesso diretto morirebbe qui — su un KeyError, prima
-    # di arrivare alla riga che lo dice. Un validator che va in traceback sul caso che deve
-    # segnalare non lo segnala.
-    states = {s.get("id"): session_state(s, pie, tracked) for s in sessions}
-    checkpoints = checkpoint_status()
-    epics = epic_status()
-    milestones, _conflicts = milestone_status()
+    pie = ctx["pie"]
+    states = ctx["states"]
+    checkpoints = ctx["checkpoints"]
+    epics = ctx["epics"]
+    milestones = ctx["milestones"]
 
     for sid in sorted({i for i in ids if ids.count(i) > 1}):
         errors.append(f"[{sid}] seduta duplicata: l'id non si riusa mai")
@@ -2031,15 +2165,18 @@ def build_graph(registry):
     Fuori di proposito: il commit corrente. Metterlo dentro farebbe fallire `--check` dopo ogni
     commit, trasformando un gate utile in rumore da ignorare. La provenienza la tiene git.
     """
-    errors, warnings = validate(registry)
-    pie = pie_entries()
-    doc = load_editor_sessions()
-    sessions = doc.get("sessions") or []
-    tracked = tracked_artifacts([a for s in sessions for a in (s.get("artifacts") or [])])
-    states = {s["id"]: session_state(s, pie, tracked) for s in sessions}
-    checkpoints = checkpoint_status()
-    epics = epic_status()
-    milestones, milestone_conflicts = milestone_status()
+    # Una misura sola, condivisa con `validate`: le sei letture sotto includono un sottoprocesso
+    # `git ls-files` e tre riletture di roadmap, e prima venivano fatte due volte per ogni
+    # `generate` — una qui e una dentro `validate`.
+    ctx = editor_context()
+    errors, warnings = validate(registry, editor_ctx=ctx)
+    pie = ctx["pie"]
+    sessions = ctx["sessions"]
+    tracked = ctx["tracked"]
+    states = ctx["states"]
+    checkpoints = ctx["checkpoints"]
+    epics = ctx["epics"]
+    milestones, milestone_conflicts = ctx["milestones"], ctx["milestone_conflicts"]
     queue, unresolved = session_queue(sessions, states, checkpoints, epics, milestones)
     group_of = {s["id"]: group for group in QUEUE_GROUPS for s, _b in queue[group]}
 
@@ -2278,14 +2415,23 @@ def main():
             print(f"--wiki-root non e' una directory: {args.wiki_root}")
             return 1
         changed, missing = apply_wiki_deploy(data, args.wiki_root, check=not args.write)
+        # Una sorgente che non raggiunge il clone e' un **errore**, non un avviso: il gate `ui_wiki`
+        # della feature dice «spiegata all'utente», ma il lettore legge la Wiki pubblicata e li' la
+        # pagina non c'e'. Il registry sta affermando una copertura falsa, non segnalando una lacuna —
+        # stessa famiglia dello scenario orfano, che per questo e' bloccante (vedi feature-registry.md).
         for note in missing:
-            print(f"WARN  {note}")
+            print(f"ERROR {note}")
         verb = "aggiornata" if args.write else "da aggiornare"
         for name in changed:
             print(f"{verb}: {name}")
         print(f"\npagine {verb}: {len(changed)}")
         if not args.write and changed:
             print("sola lettura: aggiungi --write per scrivere nel clone della Wiki")
+        if missing:
+            print(f"sorgenti che non raggiungono il clone: {len(missing)} — il deploy e' incompleto")
+            return 1
+        if args.check and changed:
+            return 1
         return 0
 
     if args.command == "report":
