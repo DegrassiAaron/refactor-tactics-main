@@ -220,6 +220,20 @@ Tre voci su quattro. Restano qui, barrate, perché il registro deve dire **come*
 
 ---
 
+## Aperte — framework degli status, dal quarto sorgente del 2026-08-10
+
+Origine: [triage dell'handoff Status/Control](roadmap/plans/handoff-status-control-triage-2026-08-10.md).
+Il repository ha **undici** status implementati e **nessun framework** che li governi. Queste tre vanno
+decise **prima** di scrivere la spec owner, perché ognuna cambia la forma del dato, non un valore.
+
+| ID | Domanda | Perché serve una risposta |
+|---|---|---|
+| `STA-1` | Le sei primitive (`MODIFY`, `DEGRADE`, `RESTRICT`, `INTERRUPT`, `CONVERT`, `CONSUME`) sono un **enum** o **emergono dai dati**? | Non è una preferenza di stile: il repository ha già **respinto** un enum di policy per l'Overwatch, perché sarebbe stato una «seconda verità» accanto ad `AllowedResponses` ([`brief-azioni-generiche-overwatch.md`](gameplay/brief-azioni-generiche-overwatch.md) §5). La stessa obiezione si applica qui — se una primitiva è deducibile da cosa l'effetto tocca, dichiararla a parte crea due verità che divergono al primo status nuovo |
+| `STA-2` | La severity `C0`–`C3` è **dichiarata** sul dato o **derivata** da quante capability l'effetto rimuove? | Derivarla rende impossibile dichiarare `C1` su un effetto che ne toglie tre — cioè rende il gate anti-stun-lock (§6 del sorgente) **verificabile da una macchina** invece che da una revisione. Dichiararla è più semplice e più fragile. È la stessa scelta già fatta per `status` nel Feature Registry, dove il valore è **derivato dai gate** e il validator lo verifica |
+| `STA-3` | `Suppressed` e `Dazed` entrano nella **v0.1** o restano nel framework? | Il sorgente li mette nel set ridotto del vertical slice, ma **nessuno dei quattro kit li produce oggi**: sarebbero due status senza consumatore, il difetto ricorrente di questo repository. Entrano quando un'abilità li applica, non prima |
+
+---
+
 ## ✅ Chiusa il 2026-08-09 — `MED-1`, mal posta
 
 Aperta e chiusa lo stesso giorno. Resta qui **solo come indice**: il contenuto vive in
