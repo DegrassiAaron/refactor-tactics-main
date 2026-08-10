@@ -566,3 +566,102 @@ ERTTraceComparison URTTurnLogLibrary::CompareSerializedTraces(const TArray<uint8
 		? ERTTraceComparison::Identical
 		: ERTTraceComparison::Divergence;
 }
+
+namespace
+{
+	/** Nome della fase per la diagnosi. Switch esplicito, come gli altri di questo file. */
+	const TCHAR* GoldenPhaseName(ERTMatchPhase Phase)
+	{
+		switch (Phase)
+		{
+		case ERTMatchPhase::Planning:   return TEXT("Planning");
+		case ERTMatchPhase::Prep:       return TEXT("Prep");
+		case ERTMatchPhase::Dash:       return TEXT("Dash");
+		case ERTMatchPhase::Blast:      return TEXT("Blast");
+		case ERTMatchPhase::Move:       return TEXT("Move");
+		case ERTMatchPhase::Cleanup:    return TEXT("Cleanup");
+		case ERTMatchPhase::MatchEnded: return TEXT("MatchEnded");
+		default:                        return TEXT("?");
+		}
+	}
+
+	/**
+	 * Uguaglianza secondo l'ORDINE TOTALE che governa hash e serializzazione, non campo per campo a mano.
+	 *
+	 * Cosi' la diagnosi considera divergenza esattamente cio' che `HashTurnLog` considera: un campo fuori da
+	 * `EntryLess` — `BaseActionId`, tenuto deliberatamente fuori dall'hash perche' e' una funzione di
+	 * `ActionId` — non produce un falso allarme qui.
+	 */
+	bool GoldenEntriesMatch(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B)
+	{
+		return !URTTurnLogLibrary::EntryLess(A, B) && !URTTurnLogLibrary::EntryLess(B, A);
+	}
+}
+
+FString URTTurnLogLibrary::DescribeFirstDivergence(int32 TurnNumber, const TArray<FRTTurnLogEntry>& Golden,
+	const TArray<FRTTurnLogEntry>& Actual)
+{
+	const int32 Common = FMath::Min(Golden.Num(), Actual.Num());
+	for (int32 i = 0; i < Common; ++i)
+	{
+		if (GoldenEntriesMatch(Golden[i], Actual[i]))
+		{
+			continue;
+		}
+
+		// Turno, fase e ActionId sono cio' che il DoD di CP 12.6 chiede per nome; la descrizione delle due
+		// voci evita il viaggio di ritorno al codice per capire cosa sia cambiato.
+		//
+		// L'ActionId si nomina DA ENTRAMBE le parti quando differisce, e non e' un dettaglio estetico:
+		// `DescribeEntry` non lo stampa per le voci `Move`, quindi una regressione che cambia SOLO l'azione
+		// produceva «atteso [X], trovato [X]» — due stringhe identiche accanto alla parola «diverge». Trovato
+		// con la verifica di mutazione, che e' esattamente il caso per cui serve.
+		const bool bSameAction = Golden[i].ActionId == Actual[i].ActionId;
+		const FString ActionText = bSameAction
+			? FString::Printf(TEXT("azione '%s'"), *Golden[i].ActionId.ToString())
+			: FString::Printf(TEXT("azione attesa '%s', trovata '%s'"),
+				*Golden[i].ActionId.ToString(), *Actual[i].ActionId.ToString());
+
+		const FString GoldenText = DescribeEntry(Golden[i]);
+		const FString ActualText = DescribeEntry(Actual[i]);
+
+		// Se le due descrizioni COINCIDONO, il campo che diverge e' uno che `DescribeEntry` non stampa per
+		// quella categoria — `TgtCell` fuori da `Moved`, per dirne uno. Mostrare «atteso [X], trovato [X]»
+		// farebbe concludere che il confronto e' rotto: e' successo con l'ActionId, trovato in mutazione, e
+		// qui si chiude la CLASSE invece del singolo caso. I campi grezzi non sono belli da leggere, ma
+		// rispondono alla sola domanda che conta quando la prosa non basta.
+		FString RawDetail;
+		if (GoldenText.Equals(ActualText))
+		{
+			auto RawOf = [](const FRTTurnLogEntry& E)
+			{
+				return FString::Printf(TEXT("outcome=%u amount=%d src=(%d,%d,%d) tgt=(%d,%d,%d)"),
+					E.Outcome, E.Amount,
+					E.SrcCell.X, E.SrcCell.Y, E.SrcCell.Layer,
+					E.TgtCell.X, E.TgtCell.Y, E.TgtCell.Layer);
+			};
+			RawDetail = FString::Printf(TEXT(" — campi: atteso {%s}, trovato {%s}"),
+				*RawOf(Golden[i]), *RawOf(Actual[i]));
+		}
+
+		return FString::Printf(
+			TEXT("turno %d, voce %d: fase %s, %s — atteso [%s], trovato [%s]%s"),
+			TurnNumber, i, GoldenPhaseName(Golden[i].Phase), *ActionText,
+			*GoldenText, *ActualText, *RawDetail);
+	}
+
+	// Stesse voci fin dove entrambe arrivano, ma una delle due finisce prima: e' una divergenza, e va detta
+	// invece di leggere fuori dall'array. La prima voce in piu' (o in meno) e' la piu' informativa.
+	if (Golden.Num() != Actual.Num())
+	{
+		const bool bMissing = Actual.Num() < Golden.Num();
+		const FRTTurnLogEntry& Odd = bMissing ? Golden[Common] : Actual[Common];
+		return FString::Printf(
+			TEXT("turno %d: %d voci attese, %d trovate — la prima %s e' in fase %s, azione '%s' [%s]"),
+			TurnNumber, Golden.Num(), Actual.Num(),
+			bMissing ? TEXT("MANCANTE") : TEXT("IN PIU'"),
+			GoldenPhaseName(Odd.Phase), *Odd.ActionId.ToString(), *DescribeEntry(Odd));
+	}
+
+	return FString();
+}

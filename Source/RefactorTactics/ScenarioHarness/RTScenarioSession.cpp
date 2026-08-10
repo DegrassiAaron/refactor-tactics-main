@@ -1,5 +1,6 @@
 #include "ScenarioHarness/RTScenarioSession.h"
 #include "Turn/RTMatchStateHash.h"
+#include "Turn/RTTurnLogLibrary.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "Ability/RTHeroCatalogLibrary.h"
@@ -664,6 +665,17 @@ void FRTScenarioSession::Step(float DeltaSeconds, bool bPumpTurnManager)
 			// istante in cui e' completo e ancora esistente: leggerlo a scenario finito darebbe l'ultimo turno
 			// soltanto, e un'assertion su tre turni sarebbe verde per il motivo sbagliato.
 			ScenarioLog.Append(TM->GetTurnLog());
+
+			// La stessa traccia, serializzata e tenuta SEPARATA per turno: e' cio' che il corpus golden
+			// confronta (CP 12.6, #178). `ScenarioLog` accumula tutto di seguito e perde i confini, che sono
+			// esattamente l'informazione con cui una divergenza dice «turno 3».
+			//
+			// Senza `FormatId`: il turn manager non lo espone, e una traccia che dichiara un formato non e'
+			// confrontabile con una che non lo fa (`GoldenCorpusRejectsFormatMismatch`). Meglio nessun formato
+			// da entrambe le parti che un formato inventato da una sola.
+			FRTTurnTrace Trace;
+			Trace.Bytes = URTTurnLogLibrary::SerializeTurnLog(TM->GetTurnLog(), ERTLogTopology::Hex);
+			Result.TurnTraces.Add(Trace);
 
 			++TurnIndex;
 			Result.TurnsPlayed = TurnIndex;
