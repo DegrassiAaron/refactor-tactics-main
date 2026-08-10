@@ -738,7 +738,7 @@ void ARTTurnManager::ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TA
 		Entry.SrcCell = Sources.IsValidIndex(h) ? Sources[h] : HealTarget->Cell;
 		Entry.TgtCell = HealTarget->Cell;
 		Entry.Amount = Restored; // quanto e' stato curato DAVVERO: a salute piena la voce dice zero
-		TurnLog.Add(Entry);
+		AppendLogEntry(Entry);
 		AddLogEvent(FString::Printf(TEXT("%s: +%d salute"), *HealTarget->GetName(), Restored));
 	}
 }
@@ -770,7 +770,7 @@ bool ARTTurnManager::ApplyDynamicSurface(URTHexMapAsset* Map, const FRTCellId& C
 	{
 		Entry.Outcome = static_cast<uint8>(ERTEnvironmentOutcome::SurfaceRejected);
 		Entry.Amount = 0;
-		TurnLog.Add(Entry);
+		AppendLogEntry(Entry);
 		AddLogEvent(FString::Printf(TEXT("(q=%d,r=%d,L%d): non prende fuoco"), Cell.X, Cell.Y, Cell.Layer));
 		return false;
 	}
@@ -799,7 +799,7 @@ bool ARTTurnManager::ApplyDynamicSurface(URTHexMapAsset* Map, const FRTCellId& C
 	Entry.Outcome = static_cast<uint8>(
 		bExtinguishes ? ERTEnvironmentOutcome::SurfaceExtinguished : ERTEnvironmentOutcome::SurfaceChanged);
 	Entry.Amount = Turns;
-	TurnLog.Add(Entry);
+	AppendLogEntry(Entry);
 	AddLogEvent(FString::Printf(TEXT("(q=%d,r=%d,L%d): %s (%d turni)"), Cell.X, Cell.Y, Cell.Layer,
 		bExtinguishes ? TEXT("il fuoco si spegne") : TEXT("la superficie cambia"), Turns));
 	return true;
@@ -852,7 +852,7 @@ void ARTTurnManager::TickDynamicArcs(URTHexMapAsset* Map)
 		Entry.SrcCell = From;
 		Entry.TgtCell = To;
 		Entry.Amount = 0;
-		TurnLog.Add(Entry);
+		AppendLogEntry(Entry);
 		AddLogEvent(FString::Printf(TEXT("Il ponte (q=%d,r=%d,L%d) -> (q=%d,r=%d,L%d) e' scaduto"),
 			From.X, From.Y, From.Layer, To.X, To.Y, To.Layer));
 	}
@@ -905,7 +905,7 @@ void ARTTurnManager::TickDynamicCovers(URTHexMapAsset* Map)
 		Entry.SrcCell = Cell;
 		Entry.TgtCell = Toward;
 		Entry.Amount = 0;
-		TurnLog.Add(Entry);
+		AppendLogEntry(Entry);
 		AddLogEvent(FString::Printf(TEXT("La copertura (q=%d,r=%d,L%d) e' scaduta"),
 			Cell.X, Cell.Y, Cell.Layer));
 	}
@@ -945,12 +945,40 @@ void ARTTurnManager::TickDynamicSurfaces(URTHexMapAsset* Map)
 			Entry.SrcCell = Cell;
 			Entry.TgtCell = Cell;
 			Entry.Amount = 0;
-			TurnLog.Add(Entry);
+			AppendLogEntry(Entry);
 			AddLogEvent(FString::Printf(TEXT("(q=%d,r=%d,L%d): la superficie torna com'era"),
 				Cell.X, Cell.Y, Cell.Layer));
 		}
 		DynamicSurfaces.Remove(Cell);
 	}
+}
+
+int32 ARTTurnManager::CurrentGraphRevision() const
+{
+	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
+	{
+		if (const URTHexMapAsset* Asset = HexMap->MapAsset)
+		{
+			return Asset->Revision;
+		}
+	}
+	// Nessuna mappa autorevole: `0` dice «non dichiarata», che e' vero, invece di un numero inventato.
+	return 0;
+}
+
+void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry)
+{
+	Entry.TurnNumber = TurnNumber;
+	// Letta ADESSO e non a inizio turno: una porta che si apre o un ponte che crolla la fanno salire in mezzo
+	// alla risoluzione, ed e' esattamente la ragione per cui il campo sta nella voce e non nell'header.
+	Entry.GraphRevision = CurrentGraphRevision();
+	// `UnitId` NON si stampa qui, e non e' una dimenticanza: il progetto non ha un'identita' stabile per
+	// l'istanza di unita'. Quella del simulatore e' l'INDICE in un array ricostruito a ogni snapshot e
+	// filtrato sui vivi (`MakeCurrentSnapshot`), quindi scala quando qualcuno muore: scriverla in una traccia
+	// che si rilegge a partita finita darebbe un id il cui significato cambia da un turno all'altro.
+	// Il campo resta a `0` — «nessuna unita' dichiarata» — finche' un'identita' stabile non esiste.
+	// L'UNICO `TurnLog.Add` del file: ogni altro sito passa da qui.
+	TurnLog.Add(Entry);
 }
 
 void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
@@ -1113,7 +1141,7 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 				!Victim->IsAlive() ? ERTCombatOutcome::Lethal
 				: (Result.Health == Victim->MaxHealth || Hit.Damage <= 0) ? ERTCombatOutcome::ShieldAbsorbed
 				: ERTCombatOutcome::Hit);
-			TurnLog.Add(Entry);
+			AppendLogEntry(Entry);
 
 			AddLogEvent(FString::Printf(TEXT("%s: %d danni da %s (%d %s)"),
 				*Victim->GetName(), Hit.Damage, *Ability->Def.ActionId.ToString(),
@@ -1390,7 +1418,7 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		Entry.SrcCell = Op.Cell;
 		Entry.TgtCell = Toward;
 		Entry.Amount = Op.Turns;
-		TurnLog.Add(Entry);
+		AppendLogEntry(Entry);
 		AddLogEvent(FString::Printf(TEXT("(q=%d,r=%d,L%d): copertura eretta (%d turni)"),
 			Op.Cell.X, Op.Cell.Y, Op.Cell.Layer, Op.Turns));
 		++Applied;
@@ -1498,7 +1526,7 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		Entry2.SrcCell = Move.Cell;
 		Entry2.TgtCell = Toward;
 		Entry2.Amount = MovedIntegrity; // l'integrita' viaggia con la copertura: spostarla non la ripara
-		TurnLog.Add(Entry2);
+		AppendLogEntry(Entry2);
 		AddLogEvent(FString::Printf(TEXT("(q=%d,r=%d,L%d): copertura spostata%s"),
 			Move.Cell.X, Move.Cell.Y, Move.Cell.Layer, bWasFree ? TEXT(" (rotazione gratuita)") : TEXT("")));
 		// Anche uno SPOSTAMENTO e' successo qualcosa. Contando solo le erezioni, un turno in cui l'unico
@@ -1508,7 +1536,9 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		++Applied;
 	}
 
-	TurnLog.Append(Rejections);
+	// In blocco, ma una per una: `Append` bypasserebbe il contesto della v6, ed e' la seconda porta
+	// d'ingresso al TurnLog che l'helper deve presidiare quanto la prima.
+	for (FRTTurnLogEntry& Rejected : Rejections) { AppendLogEntry(Rejected); }
 	return Applied;
 }
 
@@ -2101,7 +2131,7 @@ void ARTTurnManager::ResolveCombat()
 					ArcRejected.SrcCell = Unit->Cell;
 					ArcRejected.TgtCell = ArcTarget->Cell;
 					ArcRejected.Amount = static_cast<int32>(ERTActionInvalidReason::OutOfRange);
-					TurnLog.Add(ArcRejected);
+					AppendLogEntry(ArcRejected);
 					AddLogEvent(FString::Printf(TEXT("%s: %s"),
 						*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(ArcRejected)));
 
@@ -2219,7 +2249,7 @@ void ARTTurnManager::ResolveCombat()
 			FallbackEntry.SrcCell = Unit->Cell;
 			FallbackEntry.TgtCell = Instance.TargetCell;
 			FallbackEntry.Amount = static_cast<int32>(Reason);
-			TurnLog.Add(FallbackEntry);
+			AppendLogEntry(FallbackEntry);
 			AddLogEvent(FString::Printf(TEXT("%s: %s"),
 				*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(FallbackEntry)));
 
@@ -2438,7 +2468,7 @@ void ARTTurnManager::ResolveCombat()
 			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::NotTriggered);
 		}
 
-		TurnLog.Add(Entry);
+		AppendLogEntry(Entry);
 		AddLogEvent(FString::Printf(TEXT("%s: %s"), *Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Entry)));
 	}
 	// APPLICA: i bersagli si riscrivono solo ora, quando ogni decisione e' stata presa sullo stesso snapshot.
@@ -2554,7 +2584,7 @@ void ARTTurnManager::ResolveCombat()
 			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::NotTriggered);
 		}
 
-		TurnLog.Add(Entry);
+		AppendLogEntry(Entry);
 		AddLogEvent(FString::Printf(TEXT("%s: %s"), *Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Entry)));
 	}
 
@@ -2574,7 +2604,7 @@ void ARTTurnManager::ResolveCombat()
 		NoLos.SrcCell = HexUnits[Blocked.AttackerId].Cell;
 		NoLos.TgtCell = bTargetsUnit ? HexUnits[Blocked.TargetId].Cell : Blocked.TargetCell;
 		NoLos.Amount = 0;
-		TurnLog.Add(NoLos);
+		AppendLogEntry(NoLos);
 		AddLogEvent(FString::Printf(TEXT("%s (%s -> %s)"), *URTTurnLogLibrary::DescribeEntry(NoLos),
 			*Units[Blocked.AttackerId]->GetName(),
 			bTargetsUnit ? *Units[Blocked.TargetId]->GetName() : TEXT("cella")));
@@ -2601,7 +2631,7 @@ void ARTTurnManager::ResolveCombat()
 		Entry.SrcCell = Change.Cell;
 		Entry.TgtCell = Change.Toward;
 		Entry.Amount = Change.RemainingIntegrity;
-		TurnLog.Add(Entry);
+		AppendLogEntry(Entry);
 		AddLogEvent(FString::Printf(TEXT("Copertura (q=%d,r=%d,L%d) verso (q=%d,r=%d): %s (integrita' %d)"),
 			Change.Cell.X, Change.Cell.Y, Change.Cell.Layer, Change.Toward.X, Change.Toward.Y,
 			Change.bDestroyed ? TEXT("abbattuta") : TEXT("danneggiata"), Change.RemainingIntegrity));
@@ -2654,7 +2684,7 @@ void ARTTurnManager::ResolveCombat()
 			Entry.SrcCell = Change.From;
 			Entry.TgtCell = Change.To;
 			Entry.Amount = Change.RemainingIntegrity;
-			TurnLog.Add(Entry);
+			AppendLogEntry(Entry);
 			AddLogEvent(FString::Printf(TEXT("Ponte (q=%d,r=%d,L%d) -> (q=%d,r=%d,L%d): %s (integrita' %d)"),
 				Change.From.X, Change.From.Y, Change.From.Layer,
 				Change.To.X, Change.To.Y, Change.To.Layer,
@@ -2728,7 +2758,7 @@ void ARTTurnManager::ResolveCombat()
 		Entry.SrcCell = Op.From;
 		Entry.TgtCell = Op.To;
 		Entry.Amount = bRemoved ? 0 : 2; // turni di durata del ponte creato
-		TurnLog.Add(Entry);
+		AppendLogEntry(Entry);
 		AddLogEvent(FString::Printf(TEXT("Collegamento %s: (q=%d,r=%d,L%d) -> (q=%d,r=%d,L%d)"),
 			bRemoved ? TEXT("rimosso") : TEXT("creato"),
 			Op.From.X, Op.From.Y, Op.From.Layer, Op.To.X, Op.To.Y, Op.To.Layer));
@@ -2749,7 +2779,7 @@ void ARTTurnManager::ResolveCombat()
 		Entry.SrcCell = Change.Cell;
 		Entry.TgtCell = Change.Toward;
 		Entry.Amount = static_cast<int32>(Change.State);
-		TurnLog.Add(Entry);
+		AppendLogEntry(Entry);
 		AddLogEvent(FString::Printf(TEXT("Porta (q=%d,r=%d,L%d) verso (q=%d,r=%d): %s"),
 			Change.Cell.X, Change.Cell.Y, Change.Cell.Layer, Change.Toward.X, Change.Toward.Y,
 			Change.bBlocking ? TEXT("chiusa") : TEXT("aperta")));
@@ -2953,7 +2983,7 @@ void ARTTurnManager::ResolveCombat()
 				Bypassed.SrcCell = HexUnits[FirstHit->AttackerId].Cell;
 				Bypassed.TgtCell = HexUnits[i].Cell;
 				Bypassed.Amount = static_cast<int32>(HexUnits[i].Facing);
-				TurnLog.Add(Bypassed);
+				AppendLogEntry(Bypassed);
 				AddLogEvent(FString::Printf(TEXT("%s: %s"), *Units[i]->GetName(),
 					*URTTurnLogLibrary::DescribeEntry(Bypassed)));
 			}
@@ -3144,7 +3174,7 @@ void ARTTurnManager::ResolveCombat()
 		E.SrcCell = AttackSrc[a];
 		E.TgtCell = Units[Idx]->Cell;
 		E.Amount = BeforeHP[Idx] - AfterHP[Idx];
-		TurnLog.Add(E);
+		AppendLogEntry(E);
 	}
 
 	for (int32 i = 0; i < Units.Num(); ++i)
@@ -3496,7 +3526,7 @@ void ARTTurnManager::ResolvePredictiveBoundary(const TArray<ARTUnit*>& Units, TA
 
 			Entry.Outcome = static_cast<uint8>(ERTPredictiveOutcome::TriggerMatched);
 			Entry.Amount = Armed.Damage;
-			TurnLog.Add(Entry);
+			AppendLogEntry(Entry);
 
 			AddLogEvent(FString::Printf(TEXT("%s: previsione azzeccata, %d danni a %s"),
 				*Shooter->GetName(), Armed.Damage, *Victim->GetName()));
@@ -3505,7 +3535,7 @@ void ARTTurnManager::ResolvePredictiveBoundary(const TArray<ARTUnit*>& Units, TA
 		{
 			Entry.Outcome = static_cast<uint8>(ERTPredictiveOutcome::PredictionWhiffed);
 			Entry.Amount = 0;
-			TurnLog.Add(Entry);
+			AppendLogEntry(Entry);
 
 			// Il whiff si SENTE: e' il `Misplay / Failure State` di D-032, e tacerlo lo renderebbe
 			// indistinguibile da un turno in cui nessuno ha dichiarato niente.
@@ -3612,7 +3642,9 @@ void ARTTurnManager::ResolveMovement()
 			MoveLog[i].Outcome = static_cast<uint8>(ERTMoveOutcome::BlockedByTopology);
 		}
 	}
-	TurnLog.Append(MoveLog);
+	// In blocco, ma una per una: `Append` bypasserebbe il contesto della v6, ed e' la seconda porta
+	// d'ingresso al TurnLog che l'helper deve presidiare quanto la prima.
+	for (FRTTurnLogEntry& Rejected : MoveLog) { AppendLogEntry(Rejected); }
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		// Il combat log mostra il REASON CODE del TurnLog, con le coordinate assiali: cosi' quel che il

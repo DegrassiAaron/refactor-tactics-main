@@ -467,6 +467,18 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Turn")
 	int32 TurnNumber = 1;
 
+	/**
+	 * Aggiunge una voce al TurnLog stampandoci i campi di CONTESTO della v6 (#405): turno e revisione del
+	 * grafo. Ogni emissione passa di qui — se un sito chiamasse `TurnLog.Add` direttamente, la sua voce
+	 * nascerebbe senza contesto e nessun test se ne accorgerebbe.
+	 *
+	 * `UnitId` resta fuori: il progetto non ha un'identita' stabile per l'ISTANZA di unita' (vedi il corpo).
+	 */
+	void AppendLogEntry(FRTTurnLogEntry& Entry);
+
+	/** Revisione del grafo di mappa ADESSO: sale durante la risoluzione, quindi si legge a ogni emissione. */
+	int32 CurrentGraphRevision() const;
+
 	FTimerHandle PlanningTimerHandle;
 
 protected:

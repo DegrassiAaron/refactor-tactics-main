@@ -13,6 +13,7 @@
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
+#include "Turn/RTTurnLogLibrary.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Algo/Reverse.h"
@@ -189,6 +190,59 @@ bool FRTSimulationHashDistinguishesStatesTest::RunTest(const FString&)
 	const FRTTestResult WithoutMove = RunIsolated(Still);
 
 	TestNotEqual(TEXT("posizioni finali diverse -> hash diversi"), WithMove.StateHash, WithoutMove.StateHash);
+	return true;
+}
+
+/**
+ * I campi di contesto della v6 sono VALORIZZATI su una partita vera (#405).
+ *
+ * Il formato li porta dal merge di #396, ma per un po' nessuno li ha scritti: `ARTTurnManager` popolava solo
+ * i sette campi preesistenti, e ogni traccia reale li portava a `0`. Un campo che nessuno produce e' peggio
+ * di un campo assente — sembra una capacita' e non lo e'.
+ *
+ * Il test gira sul percorso di gioco REALE (Scenario Harness -> resolver -> TurnLog serializzato) e legge la
+ * traccia del primo turno cosi' come finirebbe in un corpus golden. Non costruisce voci a mano: verificare i
+ * campi su una voce fabbricata dal test direbbe solo che la struct ha dei membri.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogProducerStampsContextTest,
+	"RefactorTactics.TurnLog.ProducerStampsContextOnRealMatch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogProducerStampsContextTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadDeterminismScenario(*this, TEXT("Movement.Basic"), Scenario)) { return false; }
+
+	const FRTTestResult Result = RunIsolated(Scenario);
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("esecuzione fallita: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	if (!TestTrue(TEXT("lo scenario ha prodotto almeno una traccia"), Result.TurnTraces.Num() > 0))
+	{
+		return false;
+	}
+
+	TArray<FRTTurnLogEntry> Entries;
+	if (!TestTrue(TEXT("la traccia del turno 1 si rilegge"),
+		URTTurnLogLibrary::DeserializeTurnLog(Result.TurnTraces[0].Bytes, Entries)))
+	{
+		return false;
+	}
+	if (!TestTrue(TEXT("il turno 1 ha prodotto voci"), Entries.Num() > 0)) { return false; }
+
+	// Il numero di turno e' un dato di CONTESTO: vale per ogni voce, comprese quelle ambientali.
+	int32 WrongTurn = 0;
+	for (const FRTTurnLogEntry& E : Entries)
+	{
+		if (E.TurnNumber != 1) { ++WrongTurn; }
+	}
+	TestEqual(TEXT("ogni voce del turno 1 dichiara il turno 1"), WrongTurn, 0);
+
+	// `UnitId` NON e' verificato qui, e non e' una svista: il progetto non ha un'identita' stabile per
+	// l'ISTANZA di unita'. Quella del simulatore e' l'indice in un array ricostruito a ogni snapshot e
+	// filtrato sui vivi, quindi scala quando qualcuno muore — in una traccia che si rilegge a partita finita
+	// significherebbe un'unita' diversa a ogni turno. Il campo resta a `0` finche' l'identita' non esiste.
 	return true;
 }
 
