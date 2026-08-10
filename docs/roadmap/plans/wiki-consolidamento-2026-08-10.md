@@ -68,6 +68,12 @@ ma il clone traccia `Sinergie-e-Combinazioni.md`. Su Windows `os.path.isfile` è
 cosa passa inosservata; su un filesystem case-sensitive la pagina risulterebbe **assente** e verrebbe
 saltata in silenzio, insieme ai suoi blocchi di stato.
 
+> 🔗 **Esecuzione tracciata da [`#422`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/422)**
+> *(aperta il 2026-08-10)*. Fino a quel giorno questo piano non aveva una issue: esisteva la diagnosi e non
+> il lavoro. Misura di controllo alla data di apertura, dopo che `#411` ha reso `deploy --check` un gate
+> vero: i **blocchi generati** sono allineati, la **prosa** no — **18 pagine su 31 appaiate** divergono
+> ancora. Il gate è stato riparato per ciò che copre, e continua a dire «allineato» guardando solo quello.
+
 ## B. Il criterio deciso
 
 Nessuna delle due copie «vince». Il contenuto si separa per **natura**, e ogni classe prende una
