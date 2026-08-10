@@ -37,7 +37,7 @@ il gioco che sara', questa tabella dice a che punto e'.
 | `RT-FEAT-ACTION-EQUIPMENT` | Equipaggiamento e loadout | E7.1, E7.2, E7.3, E7.4 | **IMPLEMENTING** | 1/8 | — |
 | `RT-FEAT-ACTION-GENERIC` | Azioni generiche del catalogo | E4.4, E4.6, E4.7 | **IMPLEMENTING** | 3/8 | `Combat.BasicAttack` · `Movement.Basic` |
 | `RT-FEAT-ACTION-MOVE-PROFILES` | Profili di movimento (Move, Sprint, Charge) | E4.2, E4.5 | **RELEASE_READY** | 7/8 | `Visual.Movement.Charge` · `Visual.Movement.RoughRefusesCharge` |
-| `RT-FEAT-ACTION-PREDICTIVE` | Predictive Action, thin slice | E18.1, E18.2 | **SPECIFIED** | 1/8 | `Spec.Predictive.WhiffOnEmptyCell` |
+| `RT-FEAT-ACTION-PREDICTIVE` | Predictive Action, thin slice | E18.1, E18.2 | **INTEGRATED** | 6/8 | `Spec.Predictive.WhiffOnEmptyCell` |
 
 ### Characters
 
