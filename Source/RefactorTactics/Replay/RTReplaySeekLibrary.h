@@ -26,8 +26,11 @@ enum class ERTReplaySeekResult : uint8
  * Posizione nella riproduzione di una sequenza di TurnLog: quale traccia, e quale voce dentro di essa.
  *
  * Non e' lo stato del gioco, ed e' deliberato: un cursore non ricalcola niente. Il confine
- * `ReplayPlayer`/`ReplayVerifier` (rischio `REPLAY-04`, ADR in #412) dice che chi riproduce non chiama il
- * resolver — qui la regola e' vera **per costruzione**, perche' questa libreria non ha modo di farlo.
+ * `ReplayPlayer`/`ReplayVerifier` — chi riproduce non chiama il resolver — e' il rischio `REPLAY-04` del risk
+ * register, e **l'ADR che dovra' fissarlo non esiste ancora**: `#412` e' una issue di decisione aperta, e in
+ * `docs/decisions/` ci sono gli ADR 0001–0008 e nessuno sul replay. Qui la regola vale comunque **per
+ * costruzione**, perche' questa libreria non ha modo di chiamare il resolver: non e' conformita' a una
+ * decisione presa, e' l'assenza della possibilita' di violarla.
  */
 USTRUCT(BlueprintType)
 struct FRTReplayCursor
@@ -60,7 +63,9 @@ struct FRTReplayCursor
  * Il seek alla **fase** funziona per una ragione precisa e non per fortuna: `Phase` e' la PRIMA chiave di
  * `EntryLess` e `ERTMatchPhase` e' dichiarato in ordine cronologico (`RTTurnRules.h`), quindi dentro una
  * traccia canonica le voci di una fase sono contigue e le fasi si susseguono nell'ordine in cui sono state
- * giocate. Il **turno** invece non e' un intervallo contiguo: in `EntryLess` sta dopo la fase, quindi
+ * giocate. ⚠️ In pratica le fasi osservabili sono **cinque**: nessun punto del resolver emette voci con
+ * `Planning` o `MatchEnded`, quindi un seek a quelle due risponde sempre `PhaseNotFound` — corretto, ma
+ * sorprendente se non lo si sa. Il **turno** invece non e' un intervallo contiguo: in `EntryLess` sta dopo la fase, quindi
  * concatenare piu' turni in un solo array li mescolerebbe. Per questo l'unita' del seek al turno e' la
  * traccia, che e' gia' l'unita' del TurnLog (`FRTTurnLogEntry::TurnNumber` e' costante per traccia).
  *
@@ -102,9 +107,14 @@ public:
 	 * Avanza il cursore di UNA voce, saltando alla traccia successiva quando la corrente e' esaurita.
 	 * `false` = la sequenza e' finita e il cursore non si e' mosso.
 	 *
-	 * E' il playback lineare, ed esiste in produzione e non nei test perche' e' meta' del contratto del
+	 * E' la scansione lineare, ed esiste in produzione e non nei test perche' e' meta' del contratto del
 	 * seek: «saltare al turno N» ha senso solo se produce **la stessa posizione** che si otterrebbe
-	 * riproducendo. Senza le due funzioni nello stesso posto, l'equivalenza non sarebbe verificabile.
+	 * scorrendo. Senza le due funzioni nello stesso posto, l'equivalenza non sarebbe verificabile.
+	 *
+	 * ⚠️ Non si chiama «playback» di proposito: in questo progetto la parola e' gia' presa dalla
+	 * PRESENTAZIONE — `URTPlaybackLibrary` e il playback di `ARTTurnManager`, che interpolano e misurano
+	 * durate — e `spec-turnlog.md` §13 la dichiara «struttura sorella, **non riusata**». Qui non c'e' nulla
+	 * di temporale: si avanza di un indice.
 	 */
 	static bool AdvanceOneEntry(const TArray<TArray<FRTTurnLogEntry>>& Sequence, FRTReplayCursor& Cursor);
 };

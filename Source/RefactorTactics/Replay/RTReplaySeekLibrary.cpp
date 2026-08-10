@@ -20,6 +20,15 @@ ERTReplaySeekResult URTReplaySeekLibrary::SeekToPhase(const TArray<FRTTurnLogEnt
 ERTReplaySeekResult URTReplaySeekLibrary::SeekToTurn(const TArray<TArray<FRTTurnLogEntry>>& Sequence,
 	int32 TurnNumber, FRTReplayCursor& OutCursor)
 {
+	// `0` non e' un turno: e' il sentinella «non dichiarato» delle tracce pre-v6 (i turni veri partono da 1,
+	// `ARTTurnManager::TurnNumber`). Senza questo rifiuto la richiesta combacerebbe con il buco e il seek
+	// risponderebbe «trovato», trasformando l'assenza del dato in una posizione — l'opposto del fail-closed,
+	// e la smentita di cio' che l'header di questa funzione promette.
+	if (TurnNumber <= 0)
+	{
+		return ERTReplaySeekResult::TurnNotFound;
+	}
+
 	for (int32 TraceIndex = 0; TraceIndex < Sequence.Num(); ++TraceIndex)
 	{
 		const TArray<FRTTurnLogEntry>& Trace = Sequence[TraceIndex];

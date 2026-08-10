@@ -54,8 +54,8 @@ namespace
 		return Seq;
 	}
 
-	/** Playback lineare: avanza una voce per volta finche' il cursore punta al bersaglio. E' l'oracolo. */
-	bool PlayUntil(const TArray<TArray<FRTTurnLogEntry>>& Seq, FRTReplayCursor& Cursor,
+	/** Scansione lineare: avanza una voce per volta finche' il cursore punta al bersaglio. E' l'oracolo. */
+	bool AdvanceUntil(const TArray<TArray<FRTTurnLogEntry>>& Seq, FRTReplayCursor& Cursor,
 		TFunctionRef<bool(const FRTTurnLogEntry&)> IsTarget)
 	{
 		int32 Budget = 0;
@@ -117,46 +117,46 @@ bool FRTReplaySeekEmptyPhaseTest::RunTest(const FString&)
 	return true;
 }
 
-// L'ORACOLO di #415: saltare al turno N e riprodurre fino al turno N devono dare la stessa posizione.
+// L'ORACOLO di #415: saltare al turno N e scorrere fino al turno N devono dare la stessa posizione.
 // Se le due divergono, il seek non e' una scorciatoia: e' un'altra cosa.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplaySeekTurnEquivalenceTest,
-	"RefactorTactics.Replay.Seek.TurnEqualsLinearPlayback",
+	"RefactorTactics.Replay.Seek.TurnEqualsLinearScan",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTReplaySeekTurnEquivalenceTest::RunTest(const FString&)
 {
 	const TArray<TArray<FRTTurnLogEntry>> Seq = MakeSequence();
 
 	FRTReplayCursor Played;
-	const bool bReached = PlayUntil(Seq, Played,
+	const bool bReached = AdvanceUntil(Seq, Played,
 		[](const FRTTurnLogEntry& E) { return E.TurnNumber == 3; });
-	TestTrue(TEXT("il playback lineare arriva al turno 3"), bReached);
+	TestTrue(TEXT("la scansione lineare arriva al turno 3"), bReached);
 
 	FRTReplayCursor Sought;
 	TestEqual(TEXT("il turno 3 esiste"),
 		URTReplaySeekLibrary::SeekToTurn(Seq, 3, Sought), ERTReplaySeekResult::Found);
 
-	TestTrue(TEXT("seek e playback lasciano il cursore nello stesso punto"), Played == Sought);
+	TestTrue(TEXT("seek e scansione lasciano il cursore nello stesso punto"), Played == Sought);
 	return true;
 }
 
 // Stessa equivalenza, un livello piu' fine: la fase dentro il turno.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplaySeekPhaseEquivalenceTest,
-	"RefactorTactics.Replay.Seek.PhaseEqualsLinearPlayback",
+	"RefactorTactics.Replay.Seek.PhaseEqualsLinearScan",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTReplaySeekPhaseEquivalenceTest::RunTest(const FString&)
 {
 	const TArray<TArray<FRTTurnLogEntry>> Seq = MakeSequence();
 
 	FRTReplayCursor Played;
-	const bool bReached = PlayUntil(Seq, Played, [](const FRTTurnLogEntry& E)
+	const bool bReached = AdvanceUntil(Seq, Played, [](const FRTTurnLogEntry& E)
 		{ return E.TurnNumber == 2 && E.Phase == ERTMatchPhase::Move; });
-	TestTrue(TEXT("il playback lineare arriva al Move del turno 2"), bReached);
+	TestTrue(TEXT("la scansione lineare arriva al Move del turno 2"), bReached);
 
 	FRTReplayCursor Sought;
 	TestEqual(TEXT("il Move del turno 2 esiste"),
 		URTReplaySeekLibrary::SeekToTurnPhase(Seq, 2, ERTMatchPhase::Move, Sought), ERTReplaySeekResult::Found);
 
-	TestTrue(TEXT("seek e playback lasciano il cursore nello stesso punto"), Played == Sought);
+	TestTrue(TEXT("seek e scansione lasciano il cursore nello stesso punto"), Played == Sought);
 	return true;
 }
 
@@ -181,8 +181,9 @@ bool FRTReplaySeekMissingTurnTest::RunTest(const FString&)
 }
 
 // Compatibilita': una traccia scritta prima del formato v6 dichiara `TurnNumber = 0`. Non e' indirizzabile
-// per turno, e questo E' l'esito corretto — dedurre il turno dalla posizione nell'array sarebbe la stessa
-// inferenza che D-063 ha dichiarato non valida per l'identita' dell'unita'.
+// per turno, e questo E' l'esito corretto — dedurre il turno dalla posizione nell'array sarebbe un'inferenza
+// ANALOGA a quella che D-063 ha dichiarato non valida per l'identita' dell'unita' (li' era la cella al posto
+// di `UnitId`; D-063 non parla di turni, quindi qui vale l'analogia e non la citazione).
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplaySeekLegacyTraceTest,
 	"RefactorTactics.Replay.Seek.TraceWithoutTurnNumberIsNotAddressable",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -196,8 +197,19 @@ bool FRTReplaySeekLegacyTraceTest::RunTest(const FString&)
 	Seq.Add(Legacy);
 
 	FRTReplayCursor Cursor;
+	Cursor.TraceIndex = 5;
+	Cursor.EntryIndex = 5;
+
 	TestEqual(TEXT("una traccia v5 non risponde al turno 1"),
 		URTReplaySeekLibrary::SeekToTurn(Seq, 1, Cursor), ERTReplaySeekResult::TurnNotFound);
+
+	// Il caso che rende vera la frase «non indirizzabile per turno»: chiedere PROPRIO `0`. Senza questo
+	// assert il sentinella «turno non dichiarato» combacerebbe con la richiesta e il seek risponderebbe
+	// «trovato», trasformando l'assenza del dato in una posizione — cioe' l'opposto del fail-closed.
+	// I turni veri partono da 1 (`ARTTurnManager::TurnNumber`), quindi `0` non e' un turno: e' un buco.
+	TestEqual(TEXT("e nemmeno al turno 0, che non e' un turno ma il sentinella del campo assente"),
+		URTReplaySeekLibrary::SeekToTurn(Seq, 0, Cursor), ERTReplaySeekResult::TurnNotFound);
+	TestEqual(TEXT("il cursore non e' stato toccato nemmeno li'"), Cursor.TraceIndex, 5);
 
 	int32 Index = -1;
 	TestEqual(TEXT("ma la fase resta indirizzabile: non dipende dal turno dichiarato"),
