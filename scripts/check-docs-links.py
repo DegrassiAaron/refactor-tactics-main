@@ -216,11 +216,21 @@ def main():
 
 
 def _wiki_root_arg():
-    """`--wiki-root <path>`, se passato. Il clone e' un altro repository: non si indovina."""
-    if "--wiki-root" not in sys.argv:
-        return None
-    i = sys.argv.index("--wiki-root")
-    return sys.argv[i + 1] if i + 1 < len(sys.argv) else ""
+    """`--wiki-root <path>` o `--wiki-root=<path>`, se passato. Il clone e' un altro repository:
+    non si indovina.
+
+    **Entrambe le forme, e non e' pedanteria.** La prima versione riconosceva solo i due token
+    separati: `--wiki-root=/path` finiva in `sys.argv` come un token solo, `"--wiki-root" in
+    sys.argv` era falso, e il controllo sul clone veniva **saltato in silenzio** — stesso output e
+    stesso exit 0 del caso «flag non passato». Cioe' esattamente il fallimento che questo gate esiste
+    per impedire, causato dalla sintassi con cui lo si invoca.
+    """
+    for i, arg in enumerate(sys.argv):
+        if arg == "--wiki-root":
+            return sys.argv[i + 1] if i + 1 < len(sys.argv) else ""
+        if arg.startswith("--wiki-root="):
+            return arg[len("--wiki-root="):]
+    return None
 
 
 def _parents(path):
@@ -253,13 +263,21 @@ def check_wiki_clone(wiki_root):
     # Con un dict solo, due pagine omonime ne lasciano una fuori dalla scansione — proprio nel caso
     # in cui qualcosa e' gia' andato storto. Verificato per mutazione: con un `Guida/coperture.md`
     # duplicato, la versione a dict sola segnalava il duplicato e non apriva nessuno dei due file.
-    pagine, tutte, problemi = {}, [], []
+    #
+    # `asset` esiste per lo stesso motivo per cui `wiki_pages()` in `feature_registry.py` e'
+    # case-sensitive: `os.path.isfile` su Windows **non distingue le maiuscole**, quindi un
+    # `images/Factions/Conflux.png` passerebbe qui e servirebbe un 404 sulla Wiki, che gira su un
+    # filesystem case-sensitive. E' la stessa trappola che aveva lasciato scoperta
+    # `Sinergie-e-Combinazioni.md` fino a PR #411. Verificato per mutazione: con `os.path.isfile` il
+    # gate usciva 0 su quel riferimento.
+    pagine, tutte, asset, problemi = {}, [], set(), []
     for base, dirs, files in os.walk(wiki_root):
         dirs[:] = [d for d in dirs if d != ".git"]
         for name in sorted(files):
+            relp = os.path.relpath(os.path.join(base, name), wiki_root).replace("\\", "/")
+            asset.add(relp)
             if not name.endswith(".md"):
                 continue
-            relp = os.path.relpath(os.path.join(base, name), wiki_root).replace("\\", "/")
             stem = os.path.splitext(name)[0]
             if stem in pagine:
                 problemi.append(f"nome duplicato: {relp} e {pagine[stem]} — stesso URL /wiki/{stem}")
@@ -286,8 +304,10 @@ def check_wiki_clone(wiki_root):
             if src.startswith("../") or src.startswith("/"):
                 problemi.append(f"{relp}:{riga} immagine con path relativo alla cartella: {src} — "
                                 "sulla Wiki la base e' la radice, non il file")
-            elif not os.path.isfile(os.path.join(wiki_root, src.replace("/", os.sep))):
-                problemi.append(f"{relp}:{riga} immagine inesistente: {src}")
+            elif src not in asset:
+                vicino = next((a for a in asset if a.lower() == src.lower()), None)
+                dettaglio = f" (nel clone c'e' `{vicino}`: differisce solo nel case)" if vicino else ""
+                problemi.append(f"{relp}:{riga} immagine inesistente: {src}{dettaglio}")
 
     print(f"\nClone della Wiki: {len(tutte)} pagine · {wiki_root}")
     if not problemi:

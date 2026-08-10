@@ -15,7 +15,8 @@ Uso:
     python scripts/feature_registry.py wiki               # blocchi di stato nel repo (docs/characters/)
     python scripts/feature_registry.py shortlist          # le cinque viste corte di docs/roadmap/
     python scripts/feature_registry.py report             # tabella di audit (markdown su stdout)
-    python scripts/feature_registry.py deploy --wiki-root PATH   # blocchi + Stato-delle-feature nel clone
+    python scripts/feature_registry.py deploy --wiki-root PATH --write   # blocchi + Stato-delle-feature nel clone
+                                                                 # (senza --write e' sola lettura)
 
 Opzioni comuni:
     --wiki-root PATH    radice del clone della Wiki. Dal 2026-08-10 (D-076) il clone e' la **fonte**
@@ -239,11 +240,6 @@ def git_remote_slug():
 def validate(registry, wiki_root=None, editor_ctx=None):
     errors, warnings = [], []
     features = registry.get("features") or []
-    # Prima di D-076 ogni `wiki_refs` era un file nel repository e si verificava sempre. Ora le
-    # pagine di gioco vivono nel clone: senza `--wiki-root` **nessuno** di quei riferimenti viene
-    # controllato, e un `validate` verde direbbe una cosa che non ha guardato. Un avviso solo,
-    # alla fine, col numero: e' l'unica cosa che diventa visibile quando la premessa cade.
-    unchecked_wiki_refs = set()
 
     # Misurato una volta e riusato: qui per `pie_refs`, e piu' sotto da `validate_editor_sessions`.
     # Chi ha gia' il contesto (`build_graph`) lo passa e non si rilegge nulla.
@@ -384,11 +380,12 @@ def validate(registry, wiki_root=None, editor_ctx=None):
 
         for ref in feature.get("wiki_refs") or []:
             if ref.startswith("wiki:"):
-                if wiki_root:
-                    if not wiki_page_by_name(wiki_root, ref[len("wiki:"):]):
-                        errors.append(f"{where} pagina Wiki inesistente nel clone: {ref}")
-                else:
-                    unchecked_wiki_refs.add(ref)
+                # Senza `wiki_root` il clone non e' leggibile e il riferimento non si controlla.
+                # Non e' un errore — non tutti hanno il clone accanto — ma nemmeno un silenzio: il
+                # comando `validate` conta questi ref e lo dice, perche' un verde su qualcosa che
+                # non e' stato aperto e' peggio di un rosso.
+                if wiki_root and not wiki_page_by_name(wiki_root, ref[len("wiki:"):]):
+                    errors.append(f"{where} pagina Wiki inesistente nel clone: {ref}")
             elif not os.path.isfile(os.path.join(REPO, ref)):
                 errors.append(f"{where} pagina Wiki sorgente inesistente: {ref}")
 
@@ -462,11 +459,12 @@ def validate(registry, wiki_root=None, editor_ctx=None):
             "perche' non appartiene a nessuna"
         )
 
-    # NB: `unchecked_wiki_refs` **non** entra fra i warning. I warning finiscono in
-    # `project-graph.json`, che e' versionato e ha un `--check`: un avviso che dipende dalla
-    # presenza di `--wiki-root` renderebbe il file generato diverso a seconda di come lo lanci, e il
-    # `--check` rosso a giorni alterni. Questo avviso descrive quanto ha guardato **l'esecuzione**,
-    # non lo stato del progetto: lo stampa il comando `validate`, che sa con che flag e' partito.
+    # NB: «quanti riferimenti `wiki:` non ho potuto verificare» **non** entra fra i warning, e per
+    # questo non si calcola qui. I warning finiscono in `project-graph.json`, che e' versionato e ha
+    # un `--check`: un avviso che dipende dalla presenza di `--wiki-root` renderebbe il file generato
+    # diverso a seconda di come lo lanci, e il `--check` rosso a giorni alterni. Quell'avviso
+    # descrive quanto ha guardato **l'esecuzione**, non lo stato del progetto: lo calcola e lo stampa
+    # il comando `validate`, che sa con che flag e' partito.
 
     # --- riferimenti a feature dalle pagine gia' generate ---
     for page, fids in wiki_blocks_in_repo().items():
@@ -742,24 +740,16 @@ def apply_wiki_blocks(data, check=False):
     return changed, stale
 
 
-# Le pagine `game/` prendono il nome del file. Dove il clone ha gia' pubblicato un nome diverso vince
-# il clone: rinominare una pagina della GitHub Wiki ne cambia l'**URL pubblico**, e un link esterno o
-# un segnalibro smetterebbe di funzionare per una questione di sole maiuscole.
+# Rinominare una pagina della GitHub Wiki ne cambia l'**URL pubblico**, e un link esterno o un
+# segnalibro smette di funzionare anche per una questione di sole maiuscole: dove il clone ha gia'
+# pubblicato un nome, vince il clone.
 def deploy_name(source_ref, wiki_root=None):
     """Percorso della pagina nel clone della Wiki, che e' un repository separato.
 
-    **Il presupposto precedente era sbagliato a meta'.** Fino al 2026-08-10 questa funzione
-    appiattiva tutto in root con un prefisso nel nome (`Meccanica-coperture.md`), perche' `DEPLOY.md`
-    dichiarava che «la GitHub Wiki non ha gerarchia». Verificato: le pagine in sottocartella **sono
-    servite** e compaiono nel menu *Pages*. Cio' che e' piatto e' il **namespace degli URL** — l'URL
-    e' il solo nome del file, il percorso non ci entra — quindi i nomi devono restare **globalmente
-    unici**, anche fra cartelle diverse.
-
-    Ne segue che le cartelle della sorgente possono diventare cartelle anche qui, e il prefisso
-    ridondante sparisce. I `[[link]]` restano per **nome**, mai per percorso.
-
-    Le pagine indice restano in root accanto a `Home`: sono hub, e `index.md` in tre cartelle diverse
-    collidere*bbe* — tre pagine non possono chiamarsi tutte `index`.
+    Cio' che e' piatto nella GitHub Wiki e' il **namespace degli URL**, non il filesystem: l'URL e'
+    il solo nome del file, il percorso non ci entra. Quindi i nomi restano **globalmente unici**
+    anche fra cartelle diverse, e i `[[link]]` sono per **nome**, mai per percorso. Le pagine indice
+    stanno in root accanto a `Home`, perche' tre `index.md` in tre cartelle non possono convivere.
 
     **Dal 2026-08-10 (D-076) esistono due forme di ref, e non sono simmetriche.**
 
@@ -831,8 +821,16 @@ def wiki_page_by_name(wiki_root, page_name):
 
     I riferimenti `wiki:<PageName>` nominano la pagina, non il file: dopo il passaggio alle cartelle
     non si puo' piu' assumere che stia in root.
+
+    **L'iterazione e' ordinata, e non e' cosmesi.** `wiki_pages()` restituisce un `set`, il cui
+    ordine in CPython non e' stabile fra run diversi. Finche' D-076 non e' atterrata questa funzione
+    serviva solo a un controllo booleano di esistenza e il percorso restituito veniva scartato; ora
+    decide **in quale file** scrivere il blocco di stato e come classificare una riga del workbook.
+    Con due pagine omonime — che `check-docs-links.py --wiki-root` segnala come errore, perche' si
+    contendono lo stesso URL — un ordine casuale farebbe scrivere in un file diverso a run diverse,
+    senza che nulla lo dica. E' la stessa regola che il progetto applica a `TMap`/`TSet` in C++.
     """
-    for rel in wiki_pages(wiki_root):
+    for rel in sorted(wiki_pages(wiki_root)):
         if os.path.splitext(os.path.basename(rel))[0] == page_name:
             return os.path.join(wiki_root, rel)
     return None
