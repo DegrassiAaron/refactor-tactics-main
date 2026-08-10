@@ -590,11 +590,21 @@ FString URTTurnLogLibrary::DescribeFirstDivergence(int32 TurnNumber, const TArra
 		}
 
 		// Turno, fase e ActionId sono cio' che il DoD di CP 12.6 chiede per nome; la descrizione delle due
-		// voci e' quello che evita il viaggio di ritorno al codice per capire cosa sia cambiato.
+		// voci evita il viaggio di ritorno al codice per capire cosa sia cambiato.
+		//
+		// L'ActionId si nomina DA ENTRAMBE le parti quando differisce, e non e' un dettaglio estetico:
+		// `DescribeEntry` non lo stampa per le voci `Move`, quindi una regressione che cambia SOLO l'azione
+		// produceva «atteso [X], trovato [X]» — due stringhe identiche accanto alla parola «diverge». Trovato
+		// con la verifica di mutazione, che e' esattamente il caso per cui serve.
+		const bool bSameAction = Golden[i].ActionId == Actual[i].ActionId;
+		const FString ActionText = bSameAction
+			? FString::Printf(TEXT("azione '%s'"), *Golden[i].ActionId.ToString())
+			: FString::Printf(TEXT("azione attesa '%s', trovata '%s'"),
+				*Golden[i].ActionId.ToString(), *Actual[i].ActionId.ToString());
+
 		return FString::Printf(
-			TEXT("turno %d, voce %d: fase %s, azione '%s' — atteso [%s], trovato [%s]"),
-			TurnNumber, i, GoldenPhaseName(Golden[i].Phase),
-			*Golden[i].ActionId.ToString(),
+			TEXT("turno %d, voce %d: fase %s, %s — atteso [%s], trovato [%s]"),
+			TurnNumber, i, GoldenPhaseName(Golden[i].Phase), *ActionText,
 			*DescribeEntry(Golden[i]), *DescribeEntry(Actual[i]));
 	}
 

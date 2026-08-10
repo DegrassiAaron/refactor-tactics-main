@@ -1,6 +1,17 @@
 #include "Misc/AutomationTest.h"
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnLogLibrary.h"
+#include "ScenarioHarness/RTScenarioIndex.h"
+#include "ScenarioHarness/RTScenarioLoader.h"
+#include "ScenarioHarness/RTScenarioRunner.h"
+#include "ScenarioHarness/RTTestScenario.h"
+#include "ScenarioHarness/RTTestResult.h"
+#include "HAL/IConsoleManager.h"
+#include "HAL/FileManager.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Engine/Engine.h"
+#include "Engine/World.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -72,6 +83,20 @@ bool FRTGoldenCorpusDivergenceTest::RunTest(const FString&)
 		TestTrue(TEXT("la diagnosi dice l'ACTIONID"), Diag.Contains(TEXT("Vektor.PulseShot")));
 	}
 
+	// Divergenza SOLO nell'azione, su una voce di movimento. E' il caso che la verifica di mutazione ha
+	// scoperto: `DescribeEntry` non stampa l'ActionId per le voci `Move`, quindi la diagnosi mostrava «atteso
+	// [X], trovato [X]» — due stringhe identiche accanto alla parola «diverge». Chi legge conclude che il
+	// confronto e' rotto, e ha ragione.
+	{
+		TArray<FRTTurnLogEntry> Actual = Golden;
+		Actual[2].ActionId = FName(TEXT("Action.Sprint"));
+
+		const FString Diag = URTTurnLogLibrary::DescribeFirstDivergence(/*TurnNumber*/ 2, Golden, Actual);
+
+		TestTrue(TEXT("nomina l'azione ATTESA"), Diag.Contains(TEXT("Action.Move")));
+		TestTrue(TEXT("e quella TROVATA"), Diag.Contains(TEXT("Action.Sprint")));
+	}
+
 	// La PRIMA divergenza, non l'ultima: chi legge parte dalla causa piu' probabile.
 	{
 		TArray<FRTTurnLogEntry> Actual = Golden;
@@ -100,6 +125,162 @@ bool FRTGoldenCorpusDivergenceTest::RunTest(const FString&)
 			URTTurnLogLibrary::DescribeFirstDivergence(/*TurnNumber*/ 7, Golden, Longer).IsEmpty());
 	}
 
+	return true;
+}
+
+
+// ---------------------------------------------------------------------------------------------------------
+// Il corpus vero: partite di riferimento su disco
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Rigenerazione del corpus: **esplicita, mai automatica** (DoD di CP 12.6).
+ *
+ * Un corpus che si riscrive da solo quando non torna non e' un corpus: e' un test che si adegua a qualunque
+ * regressione. Con questa a 1 i file vengono riscritti e il confronto NON viene fatto; la PR che li rigenera
+ * dichiara *perche'* l'esito e' cambiato.
+ *
+ *   UnrealEditor-Cmd.exe <progetto> -ExecCmds="rt.Test.RegenerateGolden 1; Automation RunTests RefactorTactics.Simulation.GoldenCorpusMatches; Quit" -nullrhi
+ */
+static TAutoConsoleVariable<int32> CVarRegenerateGolden(
+	TEXT("rt.Test.RegenerateGolden"),
+	0,
+	TEXT("1 = riscrive il corpus golden invece di confrontarlo. Mai in automatico: la PR dichiara il perche'."),
+	ECVF_Default);
+
+namespace
+{
+	/** Radice del corpus. Sta nel SORGENTE, accanto ai test che lo leggono, non in Content. */
+	FString GoldenRoot()
+	{
+		return FPaths::Combine(FPaths::ProjectDir(), TEXT("Source/RefactorTactics/Tests/Golden"));
+	}
+
+	FString GoldenTurnPath(const FString& ScenarioId, int32 TurnNumber)
+	{
+		return FPaths::Combine(GoldenRoot(), ScenarioId, FString::Printf(TEXT("turn-%02d.rttl"), TurnNumber));
+	}
+
+	UWorld* MakeGoldenWorld()
+	{
+		UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+		if (World && GEngine)
+		{
+			FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+			Ctx.SetCurrentWorld(World);
+		}
+		return World;
+	}
+
+	void DestroyGoldenWorld(UWorld* World)
+	{
+		if (World && GEngine)
+		{
+			GEngine->DestroyWorldContext(World);
+			World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+		}
+	}
+
+	/** Le partite di riferimento. Poche e deterministiche: un corpus lento non viene eseguito. */
+	const TCHAR* GoldenScenarioIds[] = { TEXT("Movement.Collision"), TEXT("Movement.Basic") };
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGoldenCorpusMatchesTest,
+	"RefactorTactics.Simulation.GoldenCorpusMatches",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGoldenCorpusMatchesTest::RunTest(const FString&)
+{
+	const bool bRegenerate = CVarRegenerateGolden.GetValueOnAnyThread() != 0;
+
+	for (const TCHAR* ScenarioId : GoldenScenarioIds)
+	{
+		FString Error;
+		const FString Path = URTScenarioIndex::ResolvePath(ScenarioId, Error);
+		FRTTestScenario Scenario;
+		if (Path.IsEmpty() || !URTScenarioLoader::LoadFromFile(Path, Scenario, Error))
+		{
+			AddError(FString::Printf(TEXT("scenario '%s' non caricabile: %s"), ScenarioId, *Error));
+			continue;
+		}
+
+		UWorld* World = MakeGoldenWorld();
+		if (!World)
+		{
+			AddError(TEXT("world di prova non creato"));
+			continue;
+		}
+		const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+		DestroyGoldenWorld(World);
+
+		// Uno scenario che non gira produrrebbe zero tracce, e un confronto su zero tracce e' verde per il
+		// motivo sbagliato.
+		if (Result.Outcome == ERTTestOutcome::Error || Result.Outcome == ERTTestOutcome::Blocked)
+		{
+			AddError(FString::Printf(TEXT("'%s' non eseguibile (%s): %s%s"),
+				ScenarioId, *Result.OutcomeString(), *Result.ErrorMessage, *Result.BlockedReason));
+			continue;
+		}
+		if (!TestTrue(FString::Printf(TEXT("'%s' ha prodotto almeno un turno"), ScenarioId),
+			Result.TurnTraces.Num() > 0))
+		{
+			continue;
+		}
+
+		for (int32 i = 0; i < Result.TurnTraces.Num(); ++i)
+		{
+			const int32 TurnNumber = i + 1;
+			const FString TurnPath = GoldenTurnPath(ScenarioId, TurnNumber);
+			const TArray<uint8>& Fresh = Result.TurnTraces[i].Bytes;
+
+			if (bRegenerate)
+			{
+				if (!FFileHelper::SaveArrayToFile(Fresh, *TurnPath))
+				{
+					AddError(FString::Printf(TEXT("corpus non scrivibile: %s"), *TurnPath));
+				}
+				continue;
+			}
+
+			TArray<uint8> Golden;
+			if (!FFileHelper::LoadFileToArray(Golden, *TurnPath))
+			{
+				AddError(FString::Printf(
+					TEXT("manca la traccia di riferimento %s — rigenerala con `rt.Test.RegenerateGolden 1`, ")
+					TEXT("e dichiara nella PR perche' l'esito e' cambiato"), *TurnPath));
+				continue;
+			}
+
+			const ERTTraceComparison Verdict = URTTurnLogLibrary::CompareSerializedTraces(Golden, Fresh);
+			if (Verdict == ERTTraceComparison::Identical)
+			{
+				continue;
+			}
+
+			// Il verdetto dice CHE COSA e' successo; la diagnosi dice DOVE. Un corpus che si limita al primo
+			// finisce rigenerato invece che letto.
+			FString Detail;
+			TArray<FRTTurnLogEntry> GoldenEntries;
+			TArray<FRTTurnLogEntry> FreshEntries;
+			if (URTTurnLogLibrary::DeserializeTurnLog(Golden, GoldenEntries)
+				&& URTTurnLogLibrary::DeserializeTurnLog(Fresh, FreshEntries))
+			{
+				Detail = URTTurnLogLibrary::DescribeFirstDivergence(TurnNumber, GoldenEntries, FreshEntries);
+			}
+
+			AddError(FString::Printf(TEXT("'%s' diverge dal corpus (%s). %s"),
+				ScenarioId,
+				Verdict == ERTTraceComparison::Divergence ? TEXT("divergenza")
+					: Verdict == ERTTraceComparison::FormatMismatch ? TEXT("formato diverso")
+					: Verdict == ERTTraceComparison::TopologyMismatch ? TEXT("topologia diversa")
+					: TEXT("traccia illeggibile"),
+				Detail.IsEmpty() ? TEXT("(nessuna differenza voce per voce: e' il contesto a divergere)") : *Detail));
+		}
+	}
+
+	if (bRegenerate)
+	{
+		AddWarning(TEXT("corpus RIGENERATO: nessun confronto eseguito. Dichiara nella PR perche' l'esito e' cambiato."));
+	}
 	return true;
 }
 
