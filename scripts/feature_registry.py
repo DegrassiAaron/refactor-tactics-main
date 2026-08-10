@@ -396,14 +396,19 @@ def validate(registry, wiki_root=None, editor_ctx=None):
         for ref in pie_refs:
             if ref not in pie_registry:
                 errors.append(f"{where} voce PIE inesistente nel registro: {ref}")
-        cited = [pie_registry.get(r) for r in pie_refs if r in pie_registry]
-        if gates.get("packaged") == "done" and cited and not all(s == "✅" for s in cited):
+        # Tutte le voci, comprese quelle che il registro non conosce: una voce inesistente vale
+        # `None`, che non e' verde. Filtrarle qui — `if r in pie_registry` — le avrebbe rese
+        # invisibili a questi due controlli, e una lista `[voce_verde, voce_inesistente]` avrebbe
+        # dato «tutte verdi»: il gate sarebbe potuto restare `done` senza che nessuno lo negasse,
+        # e l'avviso «puo' avanzare» sarebbe comparso su una prova che non esiste.
+        cited = [pie_registry.get(r) for r in pie_refs]
+        if gates.get("packaged") == "done" and pie_refs and not all(s == "✅" for s in cited):
             aperte = [r for r in pie_refs if pie_registry.get(r) not in ("✅",)]
             errors.append(
                 f"{where} gate packaged=done ma le voci che lo dimostrano non sono verdi: "
                 + ", ".join(f"{r} {pie_registry.get(r) or '❓'}" for r in aperte)
                 + " — il gate afferma una verifica che il registro PIE non conferma")
-        if gates.get("packaged") in ("partial", "todo") and cited and all(s == "✅" for s in cited):
+        if gates.get("packaged") in ("partial", "todo") and pie_refs and all(s == "✅" for s in cited):
             warnings.append(
                 f"{where} tutte le voci PIE che la dimostrano sono verdi ({', '.join(pie_refs)}) "
                 f"ma il gate packaged e' ancora {gates.get('packaged')}: puo' avanzare")
