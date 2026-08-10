@@ -155,7 +155,7 @@ nel vertical slice).
 
 | Statistica | Valore |
 |---|---:|
-| Salute | 100 |
+| Salute | 90 — *era 100, abbassata da [D-069](../decisions/RT_PDR_00_Decision_Log.md) (`#131`)* |
 | Movimento | 6 MP |
 | Range visivo | 6 |
 | Resistenza Push | 0 |
@@ -183,7 +183,7 @@ nel vertical slice).
 | Flux | 90 | 5 | 6 | 0 | elettricità | fragile, trasforma l'acqua altrui in danno |
 | Riva | 95 | 5 | 5 | 0 | acqua | prepara il terreno agli altri e cura |
 | Bastion | 120 | 4 | 5 | 1 | strutture | cambia la forma della mappa, lento |
-| Vektor | 100 | 6 | 6 | 0 | movimento | punisce chi si muove, il più mobile |
+| Vektor | 90 | 6 | 6 | 0 | movimento | punisce chi si muove, il più mobile |
 
 ### 5.1 Percezione e risorsa firma — consolidato il 2026-08-07
 
@@ -216,15 +216,25 @@ Stealth 2, Tracking 1): si parte piatti e si differenzia col playtest.
 > Quali di questi parametri diventino statistiche per eroe, e con quali valori, si decide in **E13**: qui non
 > si scrive un numero che nessun sistema legge.
 
-Nessun eroe domina in ogni parametro: Bastion compra HP e resistenza con **movimento** e vista; Vektor compra
-mobilità con l'assenza di difese; Flux ha il danno combo più alto ma la salute più bassa.
+Bastion compra HP e resistenza con **movimento** e vista; Vektor compra mobilità con **salute**; Riva sta in
+mezzo; Flux ha il danno combo più alto.
 
-> ⚠️ **Verificato in CP 6.5, e non è del tutto vero sulle statistiche**: sulle sole quattro statistiche base
-> **Vektor domina Flux e Riva** — è migliore o pari ovunque, e strettamente migliore in salute *e* movimento
-> (100/6/6/0 contro 90/5/6/0 e 95/5/5/0). L'affermazione qui sopra regge solo considerando il pacchetto
-> completo (statistiche **+ abilità**): Flux compensa col bonus combo più alto del roster (+8 su `Wet`), Riva
-> con la cura ad area. Sono i numeri del PDF, mantenuti invariati; il ribilanciamento è **E11**, tracciato
-> nella issue dedicata.
+> ✅ **Aggiornato il 2026-08-10 ([D-069](../decisions/RT_PDR_00_Decision_Log.md), `#131`): Vektor 100 → 90.**
+> La frase qui sopra diceva che Vektor «compra mobilità con l'assenza di difese» mentre sulle quattro
+> statistiche base **non comprava nulla**: a 100/6/6/0 era migliore o pari ovunque rispetto a Flux (90/5/6/0)
+> *e* a Riva (95/5/5/0), e strettamente migliore in salute **e** movimento. Adesso il costo è un numero.
+>
+> ⚠️ **Resta un residuo, ed è dichiarato**: su **Flux** la dominanza **non** è finita. A parità di salute (90)
+> e vista (6), Vektor ha **+1 punto movimento** e nient'altro cambia — quindi è ancora ≥ ovunque e > in
+> movimento. Eliminarla richiede una **seconda leva su Flux**, che è una decisione di bilanciamento distinta e
+> oggi senza playtest a sostegno: `#131` resta **aperta** su quella metà.
+>
+> Il confine fra le due metà non vive solo qui: `RefactorTactics.Heroes.RosterIsBalanced` **vieta** il ritorno
+> della dominanza su Riva (`TestFalse`) e **asserisce** quella residua su Flux (`TestTrue`). La seconda riga è
+> scritta per diventare rossa il giorno in cui il residuo sparisce, così la correzione non passa inosservata.
+>
+> La compensazione nelle **abilità** resta com'era e non era in discussione: Flux ha il bonus combo più alto
+> del roster (+8 su `Wet`), Riva la cura ad area.
 
 **Debolezza dichiarata**: il PDF elenca «debolezza» fra gli elementi fissi di ogni eroe ma **non la esplicita**
 per nessuno dei quattro. Va fissata in E6 e scritta qui: senza, l'identità resta metà. **Flux**: fissata in

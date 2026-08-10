@@ -715,6 +715,28 @@ void ARTTurnManager::LockInAndResolve()
 	ConcludeTurn();
 }
 
+void ARTTurnManager::AppendDisplacementEntry(const ARTUnit* Target, const FRTCellId& From, const FRTCellId& To,
+	int32 Steps, const TMap<ARTUnit*, FName>& CauseById, const TMap<ARTUnit*, FName>& CauseByBaseId)
+{
+	FRTTurnLogEntry Entry;
+	// Fase `Blast`: lo spostamento forzato avviene dove avviene il colpo che lo produce, non nella fase Move.
+	// E' quello che rende leggibile «sono stato spostato PRIMA di potermi muovere».
+	Entry.Phase = ERTMatchPhase::Blast;
+	Entry.Category = ERTLogCategory::Move;
+	Entry.Outcome = static_cast<uint8>(ERTMoveOutcome::Displaced);
+	Entry.SrcCell = From;
+	Entry.TgtCell = To;
+	Entry.Amount = FMath::Max(0, Steps);
+
+	// La chiave delle due mappe e' il puntatore non-const del bersaglio: qui si arriva con un const, e
+	// `const_cast` sul solo scopo di CERCARE non muta nulla — la mappa e' const anch'essa.
+	ARTUnit* Key = const_cast<ARTUnit*>(Target);
+	if (const FName* Cause = CauseById.Find(Key))         { Entry.ActionId = *Cause; }
+	if (const FName* Base  = CauseByBaseId.Find(Key))     { Entry.BaseActionId = *Base; }
+
+	TurnLog.Add(Entry);
+}
+
 void ARTTurnManager::ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TArray<int32>& Amounts,
 	const TArray<FRTCellId>& Sources)
 {
@@ -1822,6 +1844,29 @@ void ARTTurnManager::ResolveDash()
 		ARTUnit* Unit = Units[i];
 		const FRTCellId Final = Resolved[i].Final;
 		AddLogEvent(FString::Printf(TEXT("Scatto: %s -> (q=%d,r=%d,L%d)"), *Unit->GetName(), Final.X, Final.Y, Final.Layer));
+
+		// Lo SCATTO nel TurnLog (#307). Fino a qui la fase Dash non lasciava nessuna voce di movimento: il
+		// replay vedeva un'unita' comparire altrove fra un turno e l'altro, e chi leggeva la traccia non
+		// poteva distinguere uno scatto da un Move — perche' il Move c'era e lo scatto no.
+		//
+		// La voce e' la stessa del movimento volontario e si distingue per due campi che ci sono gia':
+		// `Phase = Dash` (quando) e `ActionId` (con quale mobilita'). Nessun esito nuovo: `ERTMoveOutcome`
+		// descrive gia' cosa e' successo alla rotta, e uno scatto bloccato da una collisione e' bloccato
+		// esattamente come un passo.
+		if (const URTActionData* DashDef = Unit->GetAbility(DashAbilityIdx[i]))
+		{
+			FRTTurnLogEntry DashEntry;
+			DashEntry.Phase = ERTMatchPhase::Dash;
+			DashEntry.Category = ERTLogCategory::Move;
+			DashEntry.Outcome = static_cast<uint8>(Resolved[i].Outcome);
+			DashEntry.SrcCell = Unit->Cell; // cella di PARTENZA: `Unit->Cell` non e' ancora stata riscritta
+			DashEntry.TgtCell = Final;
+			DashEntry.Amount = Resolved[i].Entered.Num();
+			DashEntry.ActionId = DashDef->Def.ActionId;
+			DashEntry.BaseActionId = DashDef->Def.BaseActionId;
+			TurnLog.Add(DashEntry);
+		}
+
 		Unit->ConsumeAbility(DashAbilityIdx[i]);
 
 		// `FacingAfterDash` (CP 16.1, D-020): lo scatto orienta, e il Blast che segue leggera' QUESTO valore.
@@ -2470,6 +2515,12 @@ void ARTTurnManager::ResolveCombat()
 	TArray<int32> DeflectDelta;       // riduzione del danno per bersaglio, DICHIARATA dalle reazioni attivate
 	TArray<FRTAttack> CounterAttacks; // colpi di ritorno delle reazioni attivate, accodati ai colpi veri
 	TArray<FRTCellId> CounterAttackSrc; // parallelo a CounterAttacks: cella di chi contrattacca, per il TurnLog
+	// Identita' della REAZIONE che ha prodotto il colpo di ritorno (CP 11.3, #79). Senza, un contrattacco
+	// finiva nel log indistinguibile da un attacco pianificato: due voci di combattimento identiche per un
+	// colpo scelto in planning e uno arrivato di rimbalzo. Qui l'ActionId c'e' — e' `Reaction->Def.ActionId`,
+	// lo stesso che la voce di categoria `Reaction` porta gia' da CP 5.5.
+	TArray<FName> CounterActionId;
+	TArray<FName> CounterBaseActionId;
 	DeflectDelta.Init(0, Units.Num());
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
@@ -2521,6 +2572,8 @@ void ARTTurnManager::ResolveCombat()
 					// comunque il proprio danno").
 					CounterAttacks.Add(FRTAttack(Event.TargetUnitId, Event.Amount));
 					CounterAttackSrc.Add(Unit->Cell);
+					CounterActionId.Add(Reaction->Def.ActionId);
+					CounterBaseActionId.Add(Reaction->Def.BaseActionId);
 					AddLogEvent(FString::Printf(TEXT("%s: contrattacco su %s (%d)"),
 						*Unit->GetName(), *EffectTarget->GetName(), Event.Amount));
 					break;
@@ -2574,6 +2627,17 @@ void ARTTurnManager::ResolveCombat()
 		NoLos.SrcCell = HexUnits[Blocked.AttackerId].Cell;
 		NoLos.TgtCell = bTargetsUnit ? HexUnits[Blocked.TargetId].Cell : Blocked.TargetCell;
 		NoLos.Amount = 0;
+		// QUALE azione e' stata fermata (CP 11.3, #79). `Plan.BlockedIntents` indicizza `Intents`, e
+		// `IntentDefs` gli e' parallelo per costruzione: entrambi crescono negli stessi due punti, quelli
+		// degli intenti pianificati e degli impatti di carica.
+		//
+		// Serve piu' qui che altrove: un attacco che non avviene lascia SOLO questa voce, e senza il nome
+		// «nessuna linea di tiro» non dice se a mancare il colpo e' stata l'ultimate o l'attacco base.
+		if (IntentDefs.IsValidIndex(BlockedIdx))
+		{
+			NoLos.ActionId = IntentDefs[BlockedIdx].ActionId;
+			NoLos.BaseActionId = IntentDefs[BlockedIdx].BaseActionId;
+		}
 		TurnLog.Add(NoLos);
 		AddLogEvent(FString::Printf(TEXT("%s (%s -> %s)"), *URTTurnLogLibrary::DescribeEntry(NoLos),
 			*Units[Blocked.AttackerId]->GetName(),
@@ -2999,7 +3063,24 @@ void ARTTurnManager::ResolveCombat()
 	TMap<ARTUnit*, FRTCellId> PullToward;
 	TMap<ARTUnit*, int32> PullDist;
 	TMap<ARTUnit*, int32> PullCount;
+	// CON QUALE azione ogni bersaglio e' stato spostato (#307), spinta e trazione insieme: il TurnLog non
+	// distingue le due nel campo `ActionId` — a distinguerle sono `SrcCell`/`TgtCell`, che dicono se si e'
+	// allontanato o avvicinato. Una mappa sola perche' un bersaglio spinto da 2+ attaccanti non si sposta
+	// affatto (forze contraddittorie): il caso ambiguo non arriva mai a scrivere una voce.
+	TMap<ARTUnit*, FName> DisplaceBy;
+	TMap<ARTUnit*, FName> DisplaceByBase;
 	AttackSrc.Reserve(Plan.Hits.Num());
+	// IDENTITA' dell'azione per ogni colpo, paralleli ad `Attacks`/`AttackSrc` (CP 11.3, #79). Fino a qui le
+	// voci di combattimento uscivano ANONIME: `ERTCombatOutcome` diceva «22 danni, eliminata» senza dire da
+	// cosa. Con due attaccanti nello stesso Blast il replay non poteva attribuire il colpo, e la coppia
+	// «azione base + profilo» di D-033 restava scritta nel catalogo e assente dalla traccia.
+	//
+	// Non e' un campo nuovo: `ActionId` e `BaseActionId` esistono gia' nella voce, sono gia' serializzati
+	// (formato v3 e v5) e il primo entra gia' nell'hash. Riempirli non muove la versione del formato.
+	TArray<FName> AttackActionId;
+	TArray<FName> AttackBaseActionId;
+	AttackActionId.Reserve(Plan.Hits.Num());
+	AttackBaseActionId.Reserve(Plan.Hits.Num());
 	for (const FRTHexAttackHit& Hit : Plan.Hits)
 	{
 		ARTUnit* Attacker = Units[Hit.AttackerId];
@@ -3007,6 +3088,10 @@ void ARTTurnManager::ResolveCombat()
 		const URTActionData* Ability = IntentAbility.IsValidIndex(Hit.IntentIndex) ? IntentAbility[Hit.IntentIndex] : nullptr;
 		const bool bHasDef = IntentDefs.IsValidIndex(Hit.IntentIndex);
 		AttackSrc.Add(HexUnits[Hit.AttackerId].Cell);
+		// `NAME_None` quando l'intento non ha una definizione: e' la stessa convenzione del campo, «non
+		// dichiarata», e vale meno di un nome inventato qui.
+		AttackActionId.Add(bHasDef ? IntentDefs[Hit.IntentIndex].ActionId : NAME_None);
+		AttackBaseActionId.Add(bHasDef ? IntentDefs[Hit.IntentIndex].BaseActionId : NAME_None);
 
 		// Effetti COLLATERALI del colpo (stato, spinta) dagli EVENTI dichiarati dall'azione, non da flag
 		// letti qui: e' il motore azioni (epic E4). Il danno resta separato perche' segue una regola sua —
@@ -3055,12 +3140,20 @@ void ARTTurnManager::ResolveCombat()
 					KnockFrom.Add(Victim, HexUnits[Hit.AttackerId].Cell);
 					KnockDist.Add(Victim, Event.Amount);
 					KnockCount.FindOrAdd(Victim)++;
+					DisplaceBy.Add(Victim, IntentDefs.IsValidIndex(Hit.IntentIndex)
+						? IntentDefs[Hit.IntentIndex].ActionId : NAME_None);
+					DisplaceByBase.Add(Victim, IntentDefs.IsValidIndex(Hit.IntentIndex)
+						? IntentDefs[Hit.IntentIndex].BaseActionId : NAME_None);
 					break;
 
 				case ERTActionEffect::Pull:
 					PullToward.Add(Victim, HexUnits[Hit.AttackerId].Cell);
 					PullDist.Add(Victim, Event.Amount);
 					PullCount.FindOrAdd(Victim)++;
+					DisplaceBy.Add(Victim, IntentDefs.IsValidIndex(Hit.IntentIndex)
+						? IntentDefs[Hit.IntentIndex].ActionId : NAME_None);
+					DisplaceByBase.Add(Victim, IntentDefs.IsValidIndex(Hit.IntentIndex)
+						? IntentDefs[Hit.IntentIndex].BaseActionId : NAME_None);
 					break;
 
 				default:
@@ -3098,6 +3191,8 @@ void ARTTurnManager::ResolveCombat()
 	// l'attacco pianificato a consumare quei delta, non un contrattacco arrivato di rimbalzo.
 	Attacks.Append(CounterAttacks);
 	AttackSrc.Append(CounterAttackSrc);
+	AttackActionId.Append(CounterActionId);
+	AttackBaseActionId.Append(CounterBaseActionId);
 
 	if (Attacks.Num() == 0)
 	{
@@ -3144,6 +3239,12 @@ void ARTTurnManager::ResolveCombat()
 		E.SrcCell = AttackSrc[a];
 		E.TgtCell = Units[Idx]->Cell;
 		E.Amount = BeforeHP[Idx] - AfterHP[Idx];
+		// CHI ha colpito, e di quale azione generica e' un profilo (CP 11.3 · D-033). Gli array sono paralleli
+		// ad `Attacks` per costruzione: `AttackSrc` lo era gia', questi due sono stati riempiti e accodati
+		// negli stessi due punti. `IsValidIndex` non e' difesa contro un bug ipotetico — e' che `Attacks`
+		// passa da `ApplyDamageDelta`, e un giorno un delta potrebbe non conservare la cardinalita'.
+		if (AttackActionId.IsValidIndex(a))     { E.ActionId = AttackActionId[a]; }
+		if (AttackBaseActionId.IsValidIndex(a)) { E.BaseActionId = AttackBaseActionId[a]; }
 		TurnLog.Add(E);
 	}
 
@@ -3215,6 +3316,11 @@ void ARTTurnManager::ResolveCombat()
 			// per costruzione. Serve al playback E agli hazard — «lo spostamento forzato ignora il costo
 			// VOLONTARIO del terreno, non la geometria e non gli hazard» (spec-tassonomia-movimento §3).
 			const TArray<FRTCellId> KPath = URTHexLibrary::HexLine(OldCell, NewCell);
+
+			// La SPINTA nel TurnLog (#307). Prima esisteva solo come riga di combat log — una stringa per
+			// l'HUD, non una voce di traccia: il replay registrava il danno e taceva lo spostamento, e chi
+			// rileggeva il file vedeva l'unita' altrove senza nulla che lo spiegasse.
+			AppendDisplacementEntry(T, OldCell, NewCell, KPath.Num() - 1, DisplaceBy, DisplaceByBase);
 
 			// Evento di movimento per il playback: la spinta scivola OldCell -> NewCell nella fase Blast.
 			{
@@ -3297,6 +3403,11 @@ void ARTTurnManager::ResolveCombat()
 				*T->GetName(), NewCell.X, NewCell.Y, NewCell.Layer));
 
 			const TArray<FRTCellId> PPath = URTHexLibrary::HexLine(OldCell, NewCell);
+
+			// La TRAZIONE nel TurnLog (#307), stessa voce della spinta. Le due si distinguono senza un esito
+			// dedicato: `SrcCell -> TgtCell` si avvicina alla sorgente invece di allontanarsene, e la sorgente
+			// e' quella del colpo che porta lo stesso `ActionId`.
+			AppendDisplacementEntry(T, OldCell, NewCell, PPath.Num() - 1, DisplaceBy, DisplaceByBase);
 			{
 				FRTResolvedEvent Ev;
 				Ev.Phase = ERTMatchPhase::Blast;

@@ -201,7 +201,23 @@ enum class ERTMoveOutcome : uint8
 	 * la cella e' libera, e cio' che ha fermato l'unita' e' un colpo deciso un turno prima. Senza questa
 	 * distinzione il replay mostrerebbe un arresto senza causa — il difetto che #307 descrive per gli archi.
 	 */
-	StoppedByPrediction
+	StoppedByPrediction,
+	/**
+	 * Spostamento SUBITO, non scelto: una spinta (`Push`) o una trazione (`Pull`) l'ha portata altrove
+	 * (#307). Aggiunto in CODA, come `BlockedByTopology` e `StoppedByPrediction` prima: l'esito viaggia come
+	 * `uint8` nel formato serializzato, quindi i log gia' scritti non cambiano significato.
+	 *
+	 * Ha un valore proprio e non riusa `Moved` perche' quello dice «e' andata dove voleva», che qui e' falso:
+	 * l'unita' non aveva pianificato nulla di tutto cio'. Distinguerli e' il punto dell'issue — senza,
+	 * un'unita' che si ritrova due celle piu' in la' e' indistinguibile da un difetto del resolver.
+	 *
+	 * **Perche' non serve un campo «sorgente».** Chi ha spinto si ricostruisce dal log stesso, senza allargare
+	 * il formato: la voce di categoria `Combat` dello stesso Blast che ha `TgtCell` uguale a `SrcCell` di
+	 * questa e lo stesso `ActionId` porta in `SrcCell` la cella dell'attaccante. La chiave regge perche' una
+	 * cella ospita al piu' un'unita': il bersaglio identifica il colpo in modo univoco. `ActionId` dice
+	 * **con quale azione**, ed e' scritto qui direttamente.
+	 */
+	Displaced
 };
 
 /** Esito di un attacco nel turno. Priorita': Lethal > ShieldAbsorbed > TerrainBonus > Hit. */

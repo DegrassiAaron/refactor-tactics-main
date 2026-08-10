@@ -302,6 +302,20 @@ protected:
 		const TArray<FRTCellId>& Sources);
 
 	/**
+	 * Voce di TurnLog per uno spostamento SUBITO — spinta o trazione (#307). Chiamata dai due punti che
+	 * spostano un'unita' contro la sua volonta', che scrivono la stessa voce: l'esito e' `Displaced` per
+	 * entrambi, e a distinguerli sono le celle (allontanarsi dalla sorgente o avvicinarsi).
+	 *
+	 * Una funzione e non due blocchi copiati perche' la differenza fra i due call site e' zero: un secondo
+	 * blocco identico e' esattamente il posto dove, fra sei mesi, una correzione viene applicata a uno solo.
+	 *
+	 * `Steps` e' quante celle sono state attraversate — la lunghezza della linea meno la partenza — e finisce
+	 * in `Amount`, dove le voci di movimento portano gia' quel numero.
+	 */
+	void AppendDisplacementEntry(const ARTUnit* Target, const FRTCellId& From, const FRTCellId& To, int32 Steps,
+		const TMap<ARTUnit*, FName>& CauseById, const TMap<ARTUnit*, FName>& CauseByBaseId);
+
+	/**
 	 * Modifiche TEMPORANEE alla mappa (CP 8.4): fuoco acceso, acqua creata. Il terreno dinamico vive in due
 	 * pezzi, e la divisione non e' casuale:
 	 * - la superficie **corrente** sta nella mappa, perche' e' cio' che tutti leggono gia' (costi, Dash,

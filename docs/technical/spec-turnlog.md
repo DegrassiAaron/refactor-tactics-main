@@ -222,6 +222,63 @@ finestre di decisione. Il precedente è già stato preso due volte: `Facing` por
 `TimeoutReason`, che §10 elenca fra i requisiti informativi: sono identità e motivi, non contatori, e
 seguiranno la via delle opportunity — non quella di `Amount`. Restano aperti e sono lavoro di CP 14.7/14.8.
 
+### 4.3 La **causa** di un esito *(2026-08-10, CP 11.3 `#79` + `#307`)*
+
+Fino a qui il TurnLog rispondeva bene a *cosa è successo* e male a *perché*. Due buchi misurati:
+
+1. **Le voci `Combat` erano anonime.** `ActionId` esisteva dal formato v3 ma lo popolavano solo le voci
+   `Reaction`: una riga diceva «22 danni, eliminata» senza dire da cosa. Con due attaccanti nello stesso
+   Blast il replay non poteva attribuire il colpo — ed è la ragione per cui `BaseActionId` (v5) esisteva nel
+   dato e non si vedeva mai in un colpo vero, lasciando aperto il gate `log_debug` di [D-033].
+2. **Gli spostamenti non volontari non lasciavano traccia.** Una spinta produceva una riga di *combat log* —
+   una stringa per l'HUD, che non finisce nel file — e uno **scatto** non produceva nemmeno quella: la fase
+   Dash non scriveva movimento. Chi rileggeva una traccia vedeva un'unità altrove senza nulla che lo
+   spiegasse.
+
+**Nessun campo nuovo, nessuna versione nuova di formato.** La causa viaggia in `ActionId`/`BaseActionId`, che
+esistono, sono serializzati e il primo entra già nell'hash; il nuovo esito di movimento è un valore **in
+coda** a un enum già serializzato come `uint8`.
+
+```cpp
+UENUM(BlueprintType) enum class ERTMoveOutcome : uint8 {
+    /* … valori esistenti, invariati … */
+    Displaced          // spostamento SUBITO: spinta o trazione, non scelto da chi lo subisce
+};
+```
+
+| Causa dello spostamento | Come si legge |
+|---|---|
+| Movimento volontario | `Category=Move`, `Phase=Move`, `ActionId=Action.Move` |
+| Scatto | `Category=Move`, **`Phase=Dash`**, `ActionId` = la mobilità usata |
+| Spinta / trazione | `Category=Move`, `Phase=Blast`, **`Outcome=Displaced`**, `ActionId` = l'azione che l'ha causata |
+| Reazione | *nessun produttore in v0.1* — nessuna reazione del catalogo dichiara `Push`/`Pull`. Quando esisterà, userà lo stesso campo |
+
+**Chi ha spinto, senza un campo «sorgente».** `#307` chiedeva anche l'identità di chi spinge. Non è un campo:
+è un **giunto** fra due voci dello stesso Blast.
+
+```text
+Combat.TgtCell == Displaced.SrcCell   &&   Combat.ActionId == Displaced.ActionId
+⇒  Combat.SrcCell è la cella di chi ha spinto
+```
+
+La chiave regge perché **una cella ospita al più un'unità**: il bersaglio identifica il colpo in modo univoco,
+anche con più attaccanti che usano la stessa azione nello stesso turno. È la stessa proprietà su cui si regge
+`SrcCell` come «chiave stabile dell'unità nel turno». Verificato da
+`RefactorTactics.TurnLog.DisplacementHasCauseAndSource`, che ricostruisce la sorgente **dal log**, non dallo
+stato del mondo.
+
+> ⚠️ **Il limite, dichiarato**: il giunto richiede che l'azione che spinge produca anche una voce `Combat`.
+> Vale per tutto il catalogo v0.1 — la spinta è un effetto di un colpo — ma un'azione futura che spostasse
+> **senza colpire** lascerebbe una voce `Displaced` senza sorgente ricostruibile. Il campo `ActionId` direbbe
+> comunque *con che cosa*, e sarebbe quello il momento per decidere se serve di più.
+
+**Cosa resta fuori, e perché.** Il DoD di CP 11.3 chiede anche la **priorità** in ogni voce. Non è qui: è un
+campo nuovo, cioè una versione nuova del formato — e la `v6` è già presa dalla PR
+[`#396`](https://github.com/DegrassiAaron/refactor-tactics-main/pull/396), in volo su un altro ramo. Prenderla
+in due avrebbe prodotto due formati con lo stesso numero, che è il difetto peggiore possibile per un file
+versionato. La priorità è comunque una **funzione** di `ActionId`, che ora c'è: quando il prossimo incremento
+di formato atterrerà, il campo può viaggiare con quello.
+
 ---
 
 ## 5. Classificazione (il cuore testabile)

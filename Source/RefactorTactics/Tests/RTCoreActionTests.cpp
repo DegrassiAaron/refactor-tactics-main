@@ -40,7 +40,9 @@ bool FRTCoreActionsMatchDocumentTest::RunTest(const FString&)
 		{ TEXT("Action.Move"),        ERTMatchPhase::Move,   50, ERTActionFallback::Stop,   ERTActionSlot::Movement },
 		{ TEXT("Action.BasicAttack"), ERTMatchPhase::Blast,  50, ERTActionFallback::Cancel, ERTActionSlot::Main },
 		{ TEXT("Action.Guard"),       ERTMatchPhase::Prep,   40, ERTActionFallback::Cancel, ERTActionSlot::Main },
-		{ TEXT("Action.Activate"),    ERTMatchPhase::Blast,  70, ERTActionFallback::Cancel, ERTActionSlot::Main },
+		// `Action.Activate` non e' piu' qui (#199): [D-025] la dichiara assorbita da `Interact`, e il
+		// catalogo non spedisce piu' due azioni per una cosa sola. Il suo Stable ID vive in
+		// `Actions.RetiredStableIdRedirectsToHeir`, che e' dove la migrazione e' verificata.
 		{ TEXT("Action.Interact"),    ERTMatchPhase::Blast,  80, ERTActionFallback::Cancel, ERTActionSlot::Main },
 	};
 
@@ -62,8 +64,7 @@ bool FRTCoreActionsMatchDocumentTest::RunTest(const FString&)
 	TestTrue(TEXT("il movimento normale segue gli attacchi"),
 		static_cast<uint8>(ERTMatchPhase::Move) > static_cast<uint8>(ERTMatchPhase::Blast));
 
-	// `Activate` e `Interact` agiscono solo su cio' che e' ADIACENTE.
-	TestEqual(TEXT("Activate: solo adiacente"), CoreActionDef(TEXT("Action.Activate")).RangeCells, 1);
+	// `Interact` agisce solo su cio' che e' ADIACENTE. (`Activate` non esiste piu': #199.)
 	TestEqual(TEXT("Interact: solo adiacente"), CoreActionDef(TEXT("Action.Interact")).RangeCells, 1);
 
 	// L'intero catalogo generico passa dal validator, nuove voci comprese.
@@ -228,15 +229,90 @@ bool FRTInteractIsInertTest::RunTest(const FString&)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActivateIsInertTest,
-	"RefactorTactics.Actions.Activate.IsInertUntilImplemented",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRetiredStableIdTest,
+	"RefactorTactics.Actions.RetiredStableIdRedirectsToHeir",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTActivateIsInertTest::RunTest(const FString&)
+bool FRTRetiredStableIdTest::RunTest(const FString&)
 {
-	// Stessa condizione di `Action.Interact`, stessa issue: le due azioni condividono il commento
-	// nel catalogo («portata 1: solo oggetti ADIACENTI. Nessun effetto dichiarato») e lo stesso
-	// vuoto. Test separato perche' E10.1 potrebbe implementarne una prima dell'altra.
-	TestActionIsInert(*this, TEXT("Action.Activate"));
+	// #199 — la migrazione di `Action.Activate`, decisa da [D-014] e confermata da [D-025].
+	//
+	// Sostituisce `Actions.Activate.IsInertUntilImplemented`: quel test verificava che l'azione non facesse
+	// nulla, e ora l'azione non c'e'. Le due meta' della migrazione vanno verificate INSIEME, perche' una
+	// sola sarebbe un difetto — sparire senza redirect rompe le tracce, restare col redirect e' la doppia
+	// verita' che l'issue vieta.
+
+	// 1. NON e' piu' nel catalogo spedito: una cosa sola, una azione sola.
+	const TArray<FRTActionDef> Core = URTCatalogLibrary::GetCoreActionCatalog();
+	bool bStillShipped = false;
+	for (const FRTActionDef& Def : Core)
+	{
+		if (Def.ActionId == FName(TEXT("Action.Activate"))) { bStillShipped = true; break; }
+	}
+	TestFalse(TEXT("Action.Activate non e' piu' nel catalogo generico"), bStillShipped);
+
+	// 2. Ma l'ID resta INTERPRETABILE: una traccia scritta prima della migrazione deve restare leggibile.
+	TestEqual(TEXT("l'ID ritirato si risolve nell'erede"),
+		URTCatalogLibrary::ResolveLegacyActionId(TEXT("Action.Activate")), FName(TEXT("Action.Interact")));
+
+	// 3. E il redirect passa dall'ingresso vero del catalogo, non solo dalla tabella: chi cerca l'ID morto
+	//    ottiene la definizione dell'erede, con l'identita' dell'erede — non un'azione muta.
+	const FRTActionDef Redirected = URTCatalogLibrary::FindCoreAction(TEXT("Action.Activate"));
+	TestEqual(TEXT("FindCoreAction risponde con Interact"), Redirected.ActionId, FName(TEXT("Action.Interact")));
+	TestEqual(TEXT("...e con la sua portata di adiacenza"), Redirected.RangeCells, 1);
+
+	// 4. Un ID che non e' ritirato passa invariato: la tabella traduce le voci che ha, non tutto cio' che
+	//    riceve. Senza questo caso, un redirect troppo largo passerebbe inosservato.
+	TestEqual(TEXT("un ID vivo non viene tradotto"),
+		URTCatalogLibrary::ResolveLegacyActionId(TEXT("Action.Move")), FName(TEXT("Action.Move")));
+	TestEqual(TEXT("un ID inesistente resta se stesso"),
+		URTCatalogLibrary::ResolveLegacyActionId(TEXT("Action.NonEsiste")), FName(TEXT("Action.NonEsiste")));
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSprintIsAMoveProfileTest,
+	"RefactorTactics.Actions.SprintIsAMoveProfileResolvedPreBlast",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSprintIsAMoveProfileTest::RunTest(const FString&)
+{
+	// #199, seconda voce — `Action.Sprint`. Il DoD ammetteva due vie: migrare la fase, **oppure** scrivere
+	// perche' resta dov'e'. E' stata scelta la seconda, e questo test e' la forma eseguibile di quella
+	// motivazione: senza, «documentato» sarebbe una frase in un file che nessuno ricontrolla.
+	//
+	// COSA DICE IL CANONE. [D-015]: «`Sneak · Normal · Sprint` sono profili della famiglia `Move`» e
+	// «**`Sprint` non e' un Dash**». [D-028]: `Sprint` e' «solo movimento», cioe' slot Movimento.
+	//
+	// COSA SIGNIFICA ESSERE UN PROFILO DI MOVE, in termini verificabili: lo STILE (percorso a budget, con
+	// pathfinding, non una linea retta) e lo SLOT (movimento, non principale). Entrambi sono veri qui sotto.
+	const FRTActionDef Sprint = URTCatalogLibrary::FindCoreAction(TEXT("Action.Sprint"));
+	if (!TestTrue(TEXT("Action.Sprint e' nel catalogo"), Sprint.ActionId == FName(TEXT("Action.Sprint"))))
+	{
+		return false;
+	}
+	const FRTActionDef Move = URTCatalogLibrary::FindCoreAction(TEXT("Action.Move"));
+
+	TestTrue(TEXT("D-015: Sprint ha lo stile del Move (budget), non quello di un Dash (lineare)"),
+		Sprint.MovementStyle == Move.MovementStyle && Sprint.MovementStyle == ERTMovementStyle::Budget);
+	TestTrue(TEXT("D-028: Sprint spende lo slot MOVIMENTO, non il principale"),
+		Sprint.Slot == ERTActionSlot::Movement && Sprint.Slot == Move.Slot);
+
+	// LA DIVERGENZA, DICHIARATA. La fase resta `FastMovement`, cioe' PRIMA del Blast, mentre il Move normale
+	// e' «l'ultima fase volontaria». Non e' una svista: D-015 mette nella stessa frase «Sprint non e' un
+	// Dash» e «`Dash/Charge/Leap/Blink/Reposition` restano mobilita' speciali pre-Blast» — cioe' distingue
+	// la FAMIGLIA (Move) dal MOMENTO (rapido), e Sprint e' l'unico caso in cui le due non coincidono.
+	//
+	// Migrare la fase e' una decisione di GIOCO, non un allineamento: cambierebbe chi incassa il Blast di
+	// questo turno, quando `Status.Exposed` si applica, e la misura del bot (#149). D-028 avverte che senza
+	// costo di slot lo Sprint rischia gia' di essere «un Move migliore»: spostarlo dopo il Blast toglierebbe
+	// l'ultimo prezzo che paga, cioe' l'esposizione.
+	//
+	// Questo assert e' scritto per CADERE il giorno in cui quella decisione viene presa: chi migra la fase
+	// trova qui la riga da cambiare e il perche' era com'era.
+	TestTrue(TEXT("#199: Sprint resta pre-Blast (fase rapida) — divergenza DICHIARATA, non una svista"),
+		Sprint.ResolutionPhase == ERTResolutionPhase::FastMovement);
+	TestTrue(TEXT("...mentre il Move normale resta l'ultima fase volontaria"),
+		Move.ResolutionPhase == ERTResolutionPhase::NormalMovement);
+
 	return true;
 }
 
