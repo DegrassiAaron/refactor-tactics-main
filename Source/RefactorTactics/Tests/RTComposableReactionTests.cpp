@@ -113,7 +113,19 @@ namespace
 		return nullptr;
 	}
 
-	constexpr int32 CompBasicAttackDamage = 25; // attacco base del Ranger, colpo singolo
+	/**
+	 * Il danno dell'attacco base di chi colpisce, LETTO dall'unita' invece che scritto qui.
+	 *
+	 * Era `25`, l'attacco del Ranger legacy: un numero che il test non stava verificando ma da cui
+	 * dipendeva. Le proprieta' sotto esame sono «lo scudo della reazione assorbe» e «Deflect toglie 20»,
+	 * e devono reggere qualunque eroe schieri lo scenario.
+	 */
+	int32 CompBasicAttackDamage()
+	{
+		// Lo stesso eroe che `SpawnCompUnit` schiera: il numero viene dal catalogo, non da qui.
+		const URTHeroData* Hero = URTHeroCatalogLibrary::MakeVektor();
+		return (Hero && Hero->Actions.Num() > 0 && Hero->Actions[0]) ? Hero->Actions[0]->Power : 0;
+	}
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMultiEffectReactionTest,
@@ -164,7 +176,7 @@ bool FRTMultiEffectReactionTest::RunTest(const FString&)
 	// Lo scudo vale sul colpo che ha innescato la reazione, come il -20 di Deflect: altrimenti scadrebbe nel
 	// Cleanup dello stesso turno senza aver protetto da nulla.
 	TestEqual(TEXT("lo scudo della reazione assorbe parte del colpo"),
-		ReactorBefore - Reactor->Health, CompBasicAttackDamage - ShieldAmount);
+		ReactorBefore - Reactor->Health, CompBasicAttackDamage() - ShieldAmount);
 	TestEqual(TEXT("e il secondo effetto colpisce comunque l'attaccante"),
 		AttackerBefore - Attacker->Health, CounterAmount);
 
@@ -287,8 +299,8 @@ bool FRTNoHeroBranchInResolverTest::RunTest(const FString&)
 	const int32 HeroDamage = RunDeflectScenario(TEXT("Vektor.Deflection"));
 	const int32 OtherDamage = RunDeflectScenario(TEXT("Zzz.PermutedIdentity"));
 
-	TestEqual(TEXT("la riduzione arriva dai dati: 25 - 20"),
-		CoreDamage, CompBasicAttackDamage - URTCombatLibrary::DeflectDamageReduction);
+	TestEqual(TEXT("la riduzione arriva dai dati, non dall'ActionId"),
+		CoreDamage, CompBasicAttackDamage() - URTCombatLibrary::DeflectDamageReduction);
 	TestEqual(TEXT("un ActionId d'eroe non cambia l'esito"), HeroDamage, CoreDamage);
 	TestEqual(TEXT("nemmeno un ActionId arbitrario"), OtherDamage, CoreDamage);
 

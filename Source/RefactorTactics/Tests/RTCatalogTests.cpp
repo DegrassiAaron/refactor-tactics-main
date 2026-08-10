@@ -258,7 +258,15 @@ bool FRTCatalogMatchesAbilitiesTest::RunTest(const FString&)
 		Unit->ConfigureFromHeroData(Hero);
 
 		TestTrue(TEXT("l'eroe ha abilita'"), Unit->NumAbilities() > 0);
-		for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+
+		// Solo le azioni DELL'EROE, non le generiche che `ConfigureFromHeroData` accoda (D-025).
+		// L'invariante qui e' «la definizione di catalogo e i campi specchio dell'abilita' non divergono»,
+		// e vale per le azioni che il catalogo eroi costruisce con `MakeHeroAction`. Le sette generiche
+		// arrivano da `MakeGenericActions` e lasciano i campi legacy a zero: includerle non misurerebbe una
+		// divergenza del catalogo, misurerebbe che sono due costruttori diversi — cosa gia' vera per
+		// disegno. Il test degli archetipi guardava le loro quattro abilita' e nient'altro: stesso perimetro.
+		const int32 NumHeroActions = Hero ? Hero->Actions.Num() : 0;
+		for (int32 i = 0; i < NumHeroActions; ++i)
 		{
 			const URTActionData* Ability = Unit->GetAbility(i);
 			if (!Ability) { continue; }

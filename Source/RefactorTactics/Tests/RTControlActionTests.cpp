@@ -525,15 +525,17 @@ bool FRTInterruptSkipsNonInterruptibleTest::RunTest(const FString&)
 	Guarder->PlannedCell = Guarder->Cell;
 
 	const int32 HealthBefore = Guarder->Health;
-	Assailant->PlannedAbilityIndex = 0; // attacco base dell'archetipo (Ranger.Shot: 25 danni)
+	Assailant->PlannedAbilityIndex = 0; // attacco base dell'eroe (indice 0, catalogo v0.1)
 	Assailant->PlannedAttackTarget = Guarder;
 	Assailant->PlannedCell = Assailant->Cell;
 
 	RunControlTurn(TM);
 
+	// Il colpo pieno lo dichiara l'attacco base di chi colpisce: la proprieta' e' «Guard non e'
+	// interrompibile, quindi la sua riduzione si applica comunque», non «il colpo fa 25».
 	const int32 DamageTaken = HealthBefore - Guarder->Health;
-	TestEqual(TEXT("Guard non interrompibile: -15 al primo danno si applica comunque"),
-		DamageTaken, 25 - URTCombatLibrary::GuardFirstHitReduction);
+	TestEqual(TEXT("Guard non interrompibile: la riduzione al primo danno si applica comunque"),
+		DamageTaken, Assailant->AttackPower - URTCombatLibrary::GuardFirstHitReduction);
 	DestroyControlWorld(World);
 	return true;
 }
@@ -613,18 +615,28 @@ bool FRTSlowAppliesInLiveTurnTest::RunTest(const FString&)
 	Slower->PlannedAttackTarget = Mover;
 	Slower->PlannedCell = Slower->Cell;
 
-	// Budget 5 (Ranger di default), rallentato: ogni cella costa 2 invece di 1 -> arriva al massimo a 2 celle
-	// (costo 4), non a 5 come farebbe senza Slow.
-	TestEqual(TEXT("il Mover parte con budget 5"), Mover->GetEffectiveMoveRange(), 5);
-	Mover->PlannedWaypoints = { FRTCellId(1, 0), FRTCellId(2, 0), FRTCellId(3, 0), FRTCellId(4, 0), FRTCellId(5, 0) };
-	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0), FRTCellId(3, 0),
-		FRTCellId(4, 0), FRTCellId(5, 0) };
-	Mover->PlannedCell = FRTCellId(5, 0);
+	// Rallentato: ogni cella costa 2 invece di 1, quindi con budget B si arriva a B/2 celle invece che a B.
+	// Il budget si LEGGE dall'unita': era scritto 5, il valore del Ranger legacy, e la proprieta' sotto
+	// esame — «Slow raddoppia il costo per cella» — non dipende da quale eroe cammina.
+	const int32 Budget = Mover->GetEffectiveMoveRange();
+	const int32 MaxCells = Budget / 2;
+	TestTrue(TEXT("il budget basta a distinguere rallentato da non rallentato"), MaxCells >= 1 && MaxCells < Budget);
+
+	Mover->PlannedWaypoints.Reset();
+	Mover->PlannedPath.Reset();
+	Mover->PlannedPath.Add(FRTCellId(0, 0));
+	for (int32 Q = 1; Q <= Budget; ++Q)
+	{
+		Mover->PlannedWaypoints.Add(FRTCellId(Q, 0));
+		Mover->PlannedPath.Add(FRTCellId(Q, 0));
+	}
+	Mover->PlannedCell = FRTCellId(Budget, 0);
 	Mover->PlannedAbilityIndex = INDEX_NONE;
 
 	RunControlTurn(TM);
 
-	TestTrue(TEXT("rallentato: si ferma a 2 celle, non arriva a 5"), Mover->Cell == FRTCellId(2, 0));
+	TestTrue(FString::Printf(TEXT("rallentato: si ferma a %d celle, non arriva a %d"), MaxCells, Budget),
+		Mover->Cell == FRTCellId(MaxCells, 0));
 	DestroyControlWorld(World);
 	return true;
 }
