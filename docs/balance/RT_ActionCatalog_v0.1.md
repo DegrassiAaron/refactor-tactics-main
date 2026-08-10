@@ -332,10 +332,12 @@ movimento volontario** dell'eroe.
 
 > ⚠️ **L'anti-spinta non distingue `Brace` da `Guard` in v0.1** — [D-074](../decisions/RT_PDR_00_Decision_Log.md),
 > uscita **(B)** di [#400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/400).
-> Il catalogo v0.1 ha **un solo valore di spinta, `1`**, senza eccezioni: `Action.Push`, `Action.Charge`
-> (da cui `Bastion.Ram` eredita i suoi `20 danni + Push 1`), `Riva.PressureJet` e la variante
-> `Riva.CircularTide.Impact`. L'unico `Push 2` dell'intero progetto è `Guardian.Sweep`, che appartiene agli
-> **archetipi legacy** e non al roster. `Guard` resiste fino a 1 cella, quindi copre **per intero** lo
+> Il catalogo ha **un solo valore di spinta, `1`**: `Action.Push`, `Action.Charge` (da cui `Bastion.Ram`
+> eredita i suoi `20 danni + Push 1`), `Riva.PressureJet` e la variante `Riva.CircularTide.Impact`.
+> L'elenco è **esaustivo e senza eccezioni in tutto il progetto**: l'ultimo `Push 2` era `Guardian.Sweep`, ed
+> è sparito insieme agli archetipi legacy (`#426`, 2026-08-10) — quando questa nota è stata scritta esisteva
+> ancora, fuori dal roster, e la riga lo dichiarava come eccezione. Ora nessuna azione, in nessun catalogo,
+> spinge di più di una cella. `Guard` resiste fino a 1 cella, quindi copre **per intero** lo
 > spazio degli spostamenti esistenti: sulla spinta le due difese danno lo stesso esito, sempre.
 > La clausola «senza limite di distanza» descriveva una regola che nessuno può osservare in partita, e questa
 > riga la sostituisce. **Ciò che davvero distingue le due è il danno**: `Guard` −15 sul solo primo colpo,
