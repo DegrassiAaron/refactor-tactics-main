@@ -76,8 +76,12 @@ meta:
     - id: 3
       title: Presentazione (M8)
       note: >-
-        Sbloccato da subito: il C++ e' gia' in `main`. Fuori percorso critico: nessuna di queste
-        sedute blocca la v0.1.
+        Sbloccato da subito: il C++ e' gia' in `main`. ⚠️ **Dal 2026-08-10 e' percorso critico**, e
+        prima diceva l'opposto — «nessuna di queste sedute blocca la v0.1». Era un disallineamento col
+        canone, non una scelta: **E21 «Presentazione e leggibilita'»** e' P1 e sta **dentro** lo scope
+        di release (`v0.1 = E1-E21`), e queste tre sedute sono il suo lavoro in editor. Confermato
+        dall'autore: per la v0.1 i modelli e le animazioni dei personaggi ci devono essere. Il
+        `done_when` di U9 — **nessun cilindro in campo** — e' il modo in cui lo si verifica.
     - id: 4
       title: Il contenuto diventa dati
       note: >-
@@ -267,7 +271,7 @@ sessions:
     verifies: [PIE-HEXPLAY-7, PIE-HEXPLAY-9, PIE-AI-01, PIE-AI-02, PIE-AI-03, PIE-AI-04, PIE-AI-05]
     issues: []
     done_when: le voci hanno esito reale e i pesi eventualmente modificati sono committati
-    unblocks: [U6, M6.6, M6.7]
+    unblocks: [U6, U19, M6.6, M6.7]
     steps: |
       Partita con almeno un'unita' `bIsBotControlled`; il log utility deve mostrare coordinate
       **assiali** `(q,r,L)`. Poi taratura: `TurnManager` nel World Outliner → Details ▸ *Bot*; i pesi
@@ -310,7 +314,7 @@ sessions:
   - id: U7
     title: Personaggi Paragon
     block: 3
-    critical: false
+    critical: true
     produces: "`BP_Unit_Guardian` (Gideon) e `BP_Unit_Ranger` (Sparrow), committati"
     artifacts:
       - Content/RT/Characters/Gideon/Blueprints/BP_Unit_Guardian.uasset
@@ -336,7 +340,7 @@ sessions:
   - id: U8
     title: Animazioni
     block: 3
-    critical: false
+    critical: true
     produces: "`ABP_Gideon`, `ABP_Sparrow` e i montaggi Cast/Hit/Death"
     artifacts:
       - Content/RT/Characters/Gideon/Blueprints/ABP_Gideon.uasset
@@ -346,7 +350,7 @@ sessions:
     verifies: [PIE-AS4a, PIE-AS4b]
     issues: []
     done_when: gli asset sono tracciati da git e le due voci hanno esito reale
-    unblocks: [U9]
+    unblocks: [U9, U19]
     steps: |
       Procedura completa in `guida-animazioni-paragon.md` §AS.4a (locomozione Idle↔Run pilotata dai
       delegate, **non** da `GetVelocity`) e §AS.4b (montaggi via eventi C++), piu' la sezione
@@ -355,7 +359,7 @@ sessions:
   - id: U9
     title: Leggibilita' e riferimento visivo
     block: 3
-    critical: false
+    critical: true
     produces: il video (o gli screenshot) di riferimento — DoD di milestone di M8
     artifacts: []
     unblocked_by: []
@@ -510,7 +514,7 @@ sessions:
     critical: true
     produces: numeri di playtest — non difetti
     artifacts: []
-    unblocked_by: [U6, U1]
+    unblocked_by: [U6, U1, U5, U8]
     shares_setup_with: []
     verifies: [PIE-V01-MATCHLEN, PIE-V01-READY, PIE-V01-OVERWATCH, PIE-V01-MAPSCALE]
     issues: []
@@ -520,6 +524,19 @@ sessions:
       **Non e' una seduta di caccia ai difetti: e' una seduta di misura.** Si gioca **una partita
       intera fino alla fine**, senza fermarsi a indagare, e si annotano i numeri. Serve un cronometro
       e `bRecordPacing` attivo sul `TurnManager` (il CSV finisce in `Saved/RT/`, fuori dal versionamento).
+
+      ⚠️ **Non anticiparla** (deciso con l'autore il 2026-08-10). Aspetta **due** condizioni, ed e' il
+      motivo per cui `U5` e `U8` sono fra i suoi prerequisiti:
+
+      1. **Il bot gioca bene abbastanza** — cioe' il bot della v0.1 con i **pesi utility ritarati sulla
+         scala esagonale**, che e' esattamente il prodotto di `U5`. Non serve E26 *Tactical Bot v1*, che
+         e' post-v0.1: il gate e' la taratura, non la nuova architettura.
+      2. **In campo ci sono personaggi, non cilindri** — i modelli di `U7` e le animazioni di `U8`.
+
+      La ragione e' che questa seduta misura **ritmo e leggibilita' percepiti**, e nessuno dei due si
+      misura su cilindri mossi da un bot non tarato: si otterrebbero numeri veri di una partita che non
+      e' quella che si spedisce. Una misura presa troppo presto e' peggio di una misura assente, perche'
+      finisce nella tabella KPI e sembra un dato.
 
       1. **Prima della partita**: conta i Move per attraversare la mappa da spawn a spawn e verifica
          che esistano **almeno due rotte** con trade-off diverso (`PIE-V01-MAPSCALE`, e vedi U1 passo 7).

@@ -58,7 +58,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 ### My Editor Queue
 
-**BLOCKING** 7 · **READY** 4 · **WAITING** 6 · **DONE** 0. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
+**BLOCKING** 10 · **READY** 1 · **WAITING** 6 · **DONE** 0. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
 
 **BLOCKING** — *Blocca la v0.1, e si puo' fare adesso*
 
@@ -66,23 +66,23 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 - **U2** · Partita hex, primo giro — 3/4 voci verdi · sblocca U3, M6.1, M6.2
 - **U3** · Input e pianificazione — 1/4 voci verdi · sblocca U4, M6.3
 - **U4** · Combat e linea di tiro — 0/3 voci verdi · sblocca U5, M6.4, M6.5
-- **U5** · Bot e HUD — 0/7 voci verdi · sblocca U6, M6.6, M6.7
+- **U5** · Bot e HUD — 0/7 voci verdi · sblocca U6, U19, M6.6, M6.7
 - **U6** · Multilivello e partita completa — 0/4 voci verdi · sblocca U16, U19, M6.8
+- **U7** · Personaggi Paragon — 2/2 voci verdi · sblocca U8
+- **U8** · Animazioni — 0/2 voci verdi · sblocca U9, U19
+- **U9** · Leggibilita' e riferimento visivo — 2/4 voci verdi · sblocca M8.1, M8.2, M8.3
 - **U15** · HUD, intenti, log e comandi debug — 1/5 voci verdi · sblocca E11
 
 **READY** — *Si puo' fare adesso, fuori percorso critico*
 
 - **U18** · Verifiche senza preparazione — 1/3 voci verdi
-- **U7** · Personaggi Paragon — 2/2 voci verdi · sblocca U8
-- **U8** · Animazioni — 0/2 voci verdi · sblocca U9
-- **U9** · Leggibilita' e riferimento visivo — 2/4 voci verdi · sblocca M8.1, M8.2, M8.3
 
 **WAITING** — *Aspetta codice*
 
 - **U11** · I 4 eroi — attende `U10` —
 - **U13** · Arena v0.1 — attende `U1` ⏳
 - **U14** · Ambiente in partita — attende `U13` ⏳
-- **U19** · Durata, ritmo e scala — attende `U6` 🟡, `U1` ⏳
+- **U19** · Durata, ritmo e scala — attende `U6` 🟡, `U1` ⏳, `U5` 🟡, `U8` ⏳
 - **U16** · Misura dei KPI — attende `U6` 🟡
 - **U20** · Confine fra Guard e Brace — attende `E5.2` ⏳
 
@@ -101,16 +101,16 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 | **U4** | Combat e linea di tiro | verdetto su forme d'attacco, LOS esagonale e knockback | M6.4, M6.5 | sì | 0/3 | ⏳ |
 | **U5** | Bot e HUD | verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale | M6.6, M6.7 | sì | 0/7 | 🟡 |
 | **U6** | Multilivello e partita completa | chiusura di M6 / E2 — sessione D verde | M6.8 | sì | 0/4 | 🟡 |
-| **U7** | Personaggi Paragon | `BP_Unit_Guardian` (Gideon) e `BP_Unit_Ranger` (Sparrow), committati | — | no | 2/2 | 🟡 |
-| **U8** | Animazioni | `ABP_Gideon`, `ABP_Sparrow` e i montaggi Cast/Hit/Death | — | no | 0/2 | ⏳ |
-| **U9** | Leggibilita' e riferimento visivo | il video (o gli screenshot) di riferimento — DoD di milestone di M8 | — | no | 2/4 | 🟡 |
+| **U7** | Personaggi Paragon | `BP_Unit_Guardian` (Gideon) e `BP_Unit_Ranger` (Sparrow), committati | — | sì | 2/2 | 🟡 |
+| **U8** | Animazioni | `ABP_Gideon`, `ABP_Sparrow` e i montaggi Cast/Hit/Death | — | sì | 0/2 | ⏳ |
+| **U9** | Leggibilita' e riferimento visivo | il video (o gli screenshot) di riferimento — DoD di milestone di M8 | — | sì | 2/4 | 🟡 |
 | **U10** | Data asset delle azioni | il catalogo azioni della v0.1 come dati, non come codice | E1.3, E1.4 | sì | — | — |
 | **U11** | I 4 eroi | i data asset di Flux, Riva, Bastion e Vektor, e lo spawn 2v2 che li usa | E6, U10 | sì | 0/1 | 🟡 |
 | **U12** | Loadout | varianti arma, gadget e moduli reazione come dati — 1 + 1 + 1 per eroe | E7, U11 | no | — | — |
 | **U13** | Arena v0.1 | l'arena estesa con quanto serve alle verifiche di contenuto | E8, E9, U1 | sì | 0/1 | ⏳ |
 | **U14** | Ambiente in partita | verdetto sulle regole ambientali e strutturali | U13 | sì | 0/11 | 🟡 |
 | **U15** | HUD, intenti, log e comandi debug | verdetto su leggibilita' e osservabilita' | E11 | sì | 1/5 | 🟡 |
-| **U19** | Durata, ritmo e scala | numeri di playtest — non difetti | U6, U1 | sì | 0/4 | ⏳ |
+| **U19** | Durata, ritmo e scala | numeri di playtest — non difetti | U6, U1, U5, U8 | sì | 0/4 | ⏳ |
 | **U16** | Misura dei KPI | numeri reali nella tabella KPI | U6 | sì | 0/1 | 🟡 |
 | **U17** | Release v0.1 | build Windows Development e Shipping, e una partita giocata senza editor | E12 | sì | — | — |
 | **U20** | Confine fra Guard e Brace | verdetto di leggibilita' — un dato per `BAL-1`, non un difetto da correggere | E5.2 | no | 0/1 | ⏳ |
@@ -249,7 +249,7 @@ solo headless (`HexCombat.Knockback*`, che la spinta se la costruisce da solo).
 **Produce**: verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale
 **Verifichi**: `PIE-HEXPLAY-7` 🟡 · `PIE-HEXPLAY-9` ⏳ · `PIE-AI-01` ⏳ · `PIE-AI-02` ⏳ · `PIE-AI-03` ⏳ · `PIE-AI-04` ⏳ · `PIE-AI-05` ⏳
 **Finita quando**: le voci hanno esito reale e i pesi eventualmente modificati sono committati
-**Sblocca**: U6, M6.6, M6.7
+**Sblocca**: U6, U19, M6.6, M6.7
 
 Partita con almeno un'unita' `bIsBotControlled`; il log utility deve mostrare coordinate
 **assiali** `(q,r,L)`. Poi taratura: `TurnManager` nel World Outliner → Details ▸ *Bot*; i pesi
@@ -284,11 +284,11 @@ giorno. ⚠️ La partita completa va quindi **rigiocata col limite nuovo**: il 
 
 ### Blocco 3 — Presentazione (M8)
 
-*Sbloccato da subito: il C++ e' gia' in `main`. Fuori percorso critico: nessuna di queste sedute blocca la v0.1.*
+*Sbloccato da subito: il C++ e' gia' in `main`. ⚠️ **Dal 2026-08-10 e' percorso critico**, e prima diceva l'opposto — «nessuna di queste sedute blocca la v0.1». Era un disallineamento col canone, non una scelta: **E21 «Presentazione e leggibilita'»** e' P1 e sta **dentro** lo scope di release (`v0.1 = E1-E21`), e queste tre sedute sono il suo lavoro in editor. Confermato dall'autore: per la v0.1 i modelli e le animazioni dei personaggi ci devono essere. Il `done_when` di U9 — **nessun cilindro in campo** — e' il modo in cui lo si verifica.*
 
 #### U7 · Personaggi Paragon 🟡
 
-**Sbloccata da**: — · **Preparazione condivisa con**: U8, U9 · **Percorso critico**: no
+**Sbloccata da**: — · **Preparazione condivisa con**: U8, U9 · **Percorso critico**: sì
 **Produce**: `BP_Unit_Guardian` (Gideon) e `BP_Unit_Ranger` (Sparrow), committati
 **Artefatti**: `Content/RT/Characters/Gideon/Blueprints/BP_Unit_Guardian.uasset` ⏳ · `Content/RT/Characters/Sparrow/Blueprints/BP_Unit_Ranger.uasset` ⏳
 **Verifichi**: `PIE-AS2` ✅ · `PIE-FACING` ✅
@@ -306,12 +306,12 @@ e tieni `VisualZOffset=0`.
 
 #### U8 · Animazioni ⏳
 
-**Sbloccata da**: — · **Preparazione condivisa con**: U7, U9 · **Percorso critico**: no
+**Sbloccata da**: — · **Preparazione condivisa con**: U7, U9 · **Percorso critico**: sì
 **Produce**: `ABP_Gideon`, `ABP_Sparrow` e i montaggi Cast/Hit/Death
 **Artefatti**: `Content/RT/Characters/Gideon/Blueprints/ABP_Gideon.uasset` ⏳ · `Content/RT/Characters/Sparrow/Blueprints/ABP_Sparrow.uasset` ⏳
 **Verifichi**: `PIE-AS4a` ⏳ · `PIE-AS4b` ⏳
 **Finita quando**: gli asset sono tracciati da git e le due voci hanno esito reale
-**Sblocca**: U9
+**Sblocca**: U9, U19
 
 Procedura completa in `guida-animazioni-paragon.md` §AS.4a (locomozione Idle↔Run pilotata dai
 delegate, **non** da `GetVelocity`) e §AS.4b (montaggi via eventi C++), piu' la sezione
@@ -319,7 +319,7 @@ delegate, **non** da `GetVelocity`) e §AS.4b (montaggi via eventi C++), piu' la
 
 #### U9 · Leggibilita' e riferimento visivo 🟡
 
-**Sbloccata da**: — · **Preparazione condivisa con**: U7, U8 · **Percorso critico**: no
+**Sbloccata da**: — · **Preparazione condivisa con**: U7, U8 · **Percorso critico**: sì
 **Produce**: il video (o gli screenshot) di riferimento — DoD di milestone di M8
 **Verifichi**: `PIE-AS5` ✅ · `PIE-SEL` ✅ · `PIE-ICON-01` ⏳ · `PIE-FMT-01` ⏳
 **Finita quando**: nessun cilindro in campo (salvo asset mancanti) e il riferimento visivo e' nel repo
@@ -414,7 +414,7 @@ l'abitudine sbagliata).
 
 #### U19 · Durata, ritmo e scala ⏳
 
-**Sbloccata da**: U6, U1 · **Percorso critico**: sì
+**Sbloccata da**: U6, U1, U5, U8 · **Percorso critico**: sì
 **Produce**: numeri di playtest — non difetti
 **Verifichi**: `PIE-V01-MATCHLEN` ⏳ · `PIE-V01-READY` ⏳ · `PIE-V01-OVERWATCH` ⏳ · `PIE-V01-MAPSCALE` ⏳
 **Finita quando**: le quattro voci hanno un numero registrato, anche fuori target
@@ -422,6 +422,19 @@ l'abitudine sbagliata).
 **Non e' una seduta di caccia ai difetti: e' una seduta di misura.** Si gioca **una partita
 intera fino alla fine**, senza fermarsi a indagare, e si annotano i numeri. Serve un cronometro
 e `bRecordPacing` attivo sul `TurnManager` (il CSV finisce in `Saved/RT/`, fuori dal versionamento).
+
+⚠️ **Non anticiparla** (deciso con l'autore il 2026-08-10). Aspetta **due** condizioni, ed e' il
+motivo per cui `U5` e `U8` sono fra i suoi prerequisiti:
+
+1. **Il bot gioca bene abbastanza** — cioe' il bot della v0.1 con i **pesi utility ritarati sulla
+   scala esagonale**, che e' esattamente il prodotto di `U5`. Non serve E26 *Tactical Bot v1*, che
+   e' post-v0.1: il gate e' la taratura, non la nuova architettura.
+2. **In campo ci sono personaggi, non cilindri** — i modelli di `U7` e le animazioni di `U8`.
+
+La ragione e' che questa seduta misura **ritmo e leggibilita' percepiti**, e nessuno dei due si
+misura su cilindri mossi da un bot non tarato: si otterrebbero numeri veri di una partita che non
+e' quella che si spedisce. Una misura presa troppo presto e' peggio di una misura assente, perche'
+finisce nella tabella KPI e sembra un dato.
 
 1. **Prima della partita**: conta i Move per attraversare la mappa da spawn a spawn e verifica
    che esistano **almeno due rotte** con trade-off diverso (`PIE-V01-MAPSCALE`, e vedi U1 passo 7).
