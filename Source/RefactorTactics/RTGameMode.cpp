@@ -18,6 +18,8 @@
 
 /** Definita in Test/RTTestConsole.cpp: scenario da eseguire all'avvio invece della partita normale. */
 extern TAutoConsoleVariable<FString> CVarRTTestScenario;
+/** Definita in ScenarioHarness/RTTestConsole.cpp: scavalca `MapSource` da riga di comando. */
+extern TAutoConsoleVariable<FString> CVarRTMapSource;
 #include "Turn/RTMatchFormatData.h"
 #include "Turn/RTMatchFormatLibrary.h"
 #include "RefactorTactics.h"
@@ -139,6 +141,42 @@ void ARTGameMode::BeginPlay()
 	SetupHexMatch(HexMap);
 }
 
+ERTMapSource ARTGameMode::ResolveMapSource() const
+{
+	// Stessa regola di `ResolveScenarioToRun`: il piu' specifico vince. La proprieta' e' la configurazione
+	// persistente del progetto, la console variable e' l'intento di chi lancia adesso — e serve perche' la
+	// proprieta' vive in un `.uasset`, quindi cambiarla richiede l'editor.
+	const FString FromConsole = CVarRTMapSource.GetValueOnGameThread().TrimStartAndEnd();
+	if (FromConsole.IsEmpty())
+	{
+		return MapSource;
+	}
+
+	const UEnum* Enum = StaticEnum<ERTMapSource>();
+	const int64 Value = Enum ? Enum->GetValueByNameString(FromConsole) : INDEX_NONE;
+	if (Value == INDEX_NONE)
+	{
+		// Fail-closed sul VALORE, non sulla partita: si gioca con la proprieta' e si dice perche'. Ripiegare in
+		// silenzio farebbe girare un playtest sulla mappa sbagliata credendo di averla scelta.
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] rt.Map.Source='%s' non e' un valore di ERTMapSource: ignorata, uso la proprieta' del "
+				 "GameMode. Valori validi: LevelAsset, GeneratedTestArena, GeneratedDemoArena."),
+			*FromConsole);
+		return MapSource;
+	}
+
+	const ERTMapSource Resolved = static_cast<ERTMapSource>(Value);
+	if (Resolved != MapSource)
+	{
+		// Non in silenzio, per la stessa ragione di `rt.Test.Scenario`: una console variable dura quanto il
+		// processo, e continuerebbe a scavalcare la proprieta' a ogni Play senza che nulla lo dica.
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] La console variable rt.Map.Source='%s' SCAVALCA la proprieta' MapSource del GameMode."),
+			*FromConsole);
+	}
+	return Resolved;
+}
+
 void ARTGameMode::ApplyMapSource(ARTHexMapActor* HexMap)
 {
 	if (!HexMap)
@@ -146,7 +184,7 @@ void ARTGameMode::ApplyMapSource(ARTHexMapActor* HexMap)
 		return;
 	}
 
-	switch (MapSource)
+	switch (ResolveMapSource())
 	{
 	case ERTMapSource::GeneratedTestArena:
 		// Scelta esplicita: prevale anche su una mappa d'autore presente nel livello. Va dichiarato, non subito.
