@@ -82,6 +82,10 @@
         "docs/wiki/game/esempio-di-round.md"
       ],
       "wiki_note": "",
+      "pie_refs": [
+        "PIE-HEXPLAY-4",
+        "PIE-HEXPLAY-5"
+      ],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -143,6 +147,7 @@
         "docs/wiki/game/regole-fondamentali.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -203,6 +208,7 @@
         "docs/wiki/game/regole-fondamentali.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -261,6 +267,7 @@
         "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -330,6 +337,7 @@
         "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
       ],
       "wiki_note": "Le **regole** sono decise (2026-08-09); i **valori** restano baseline di playtest. La Wiki non deve pubblicarli come definitivi finché §3.2 non li promuove.",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-09",
         "commit": "75eb0f3"
@@ -388,6 +396,9 @@
         "docs/wiki/game/esempio-di-round.md"
       ],
       "wiki_note": "",
+      "pie_refs": [
+        "PIE-V01-HUD"
+      ],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -446,6 +457,9 @@
         "docs/wiki/game/mappa-terreni-e-ambiente.md"
       ],
       "wiki_note": "",
+      "pie_refs": [
+        "PIE-HEXPLAY-1"
+      ],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -508,6 +522,10 @@
         "docs/wiki/game/azioni-e-movimento.md"
       ],
       "wiki_note": "",
+      "pie_refs": [
+        "PIE-HEXPLAY-4",
+        "PIE-HEXPLAY-5"
+      ],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -564,6 +582,7 @@
         "docs/wiki/meccaniche/griglia-e-geometria.md"
       ],
       "wiki_note": "La pagina Wiki spiega il **principio** (la griglia non vincola i muri); il dato cotto e la pipeline di cottura non esistono ancora.",
+      "pie_refs": [],
       "last_verified": {},
       "notes": "Registrata come DIREZIONE, non come lavoro pronto ([D-065](../decisions/RT_PDR_00_Decision_Log.md)). Oggi `bBlocksMovement` è scritto a mano sulla cella; qui diventerebbe l'esito di una cottura che intersecа il footprint dell'unità con la blocking geometry attorno al Cell Anchor. Il runtime continua a leggere interi: la derivazione avviene in authoring, mai in query. Bloccata da `MAP-1`: senza la clearance in metri non c'è niente da intersecare, e cuocere prima significa ricuocere."
     },
@@ -617,6 +636,7 @@
         "docs/wiki/meccaniche/griglia-e-geometria.md"
       ],
       "wiki_note": "Il caso «due celle valide, passaggio chiuso» è già spiegabile; il dato che lo esprime senza passare da una copertura non esiste ancora.",
+      "pie_refs": [],
       "last_verified": {},
       "notes": "Il buco misurato: `Cell A` valida ∧ `Cell B` valida ∧ `A→B` chiusa oggi si esprime **solo** con una copertura alta, perché gli adiacenti orizzontali sono calcolati e non archi ([D-013](../decisions/RT_PDR_00_Decision_Log.md)), e `FRTHexEdge` è riservato ai salti di layer. Un muro che blocca senza proteggere non ha un dato su cui appoggiarsi: o diventa una copertura che non copre, o `bBlocksMovement` su una cella calpestabile. Include la *swept clearance* — la transizione verifica il corridoio attraversato, non i soli estremi."
     },
@@ -676,6 +696,10 @@
         "docs/wiki/game/combattimento-e-targeting.md"
       ],
       "wiki_note": "Vista e targeting esistono; la **percezione** completa (chi sa cosa, E13) e' un altro sistema e non c'e' ancora.",
+      "pie_refs": [
+        "PIE-HEXPLAY-6",
+        "PIE-HEXPLAY-6b"
+      ],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -765,6 +789,7 @@
         "docs/wiki/meccaniche/facing-e-direzionalita.md"
       ],
       "wiki_note": "Decisione accettata (ADR-0005) ma **non implementata**: quello che leggi qui descrive come funzionera', non come funziona oggi.",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -829,6 +854,7 @@
         "docs/wiki/meccaniche/coperture.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-09",
         "commit": 3353266
@@ -895,6 +921,7 @@
         "docs/characters/v0.1/bastion.md"
       ],
       "wiki_note": "Le coperture si **erigono, si spostano e scadono** in partita (CP 9.5). Resta da riscrivere la pagina wiki delle coperture, che descrive solo il dato di mappa.",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-09",
         "commit": "b5e295a"
@@ -956,6 +983,9 @@
         "docs/wiki/meccaniche/topologia-dinamica.md"
       ],
       "wiki_note": "Dato, regole di blocco e mutazione del bordo sono implementati e testati; l'**interazione del giocatore** (`Interact`/`Activate`) arriva con E10.",
+      "pie_refs": [
+        "PIE-V01-DOOR"
+      ],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -1024,6 +1054,9 @@
         "docs/wiki/meccaniche/topologia-dinamica.md"
       ],
       "wiki_note": "",
+      "pie_refs": [
+        "PIE-HEXPLAY-8"
+      ],
       "last_verified": {
         "date": "2026-08-09",
         "commit": "4a3fd20"
@@ -1080,6 +1113,7 @@
         "docs/wiki/game/mappa-terreni-e-ambiente.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -1151,6 +1185,7 @@
         "docs/wiki/meccaniche/collisioni.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -1226,6 +1261,7 @@
         "docs/wiki/game/azioni-e-movimento.md"
       ],
       "wiki_note": "Quattro azioni generiche su sette sono complete: `Wait`, `Move`, `BasicAttack`, `Guard`. `Brace` funziona ma come reazione; `Interact` è a catalogo **senza effetto**; `Overwatch` non esiste ancora.",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -1293,6 +1329,7 @@
         "docs/wiki/game/azioni-e-movimento.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -1360,6 +1397,7 @@
         "docs/wiki/game/azioni-e-movimento.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-09",
         "commit": "8a43866"
@@ -1427,6 +1465,10 @@
         "docs/wiki/meccaniche/collisioni.md"
       ],
       "wiki_note": "",
+      "pie_refs": [
+        "PIE-HEXPLAY-4b",
+        "PIE-HEXPLAY-6c"
+      ],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -1483,6 +1525,7 @@
         "docs/wiki/game/azioni-e-movimento.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -1534,6 +1577,7 @@
         "docs/wiki/game/azioni-e-movimento.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -1585,6 +1629,7 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -1648,6 +1693,7 @@
         "docs/characters/v0.1/vektor.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-10",
         "commit": "800b83a"
@@ -1693,6 +1739,7 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -1754,6 +1801,7 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -1826,6 +1874,7 @@
         "docs/characters/v0.1/vektor.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -1881,6 +1930,7 @@
         "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -1936,6 +1986,9 @@
         "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
       ],
       "wiki_note": "",
+      "pie_refs": [
+        "PIE-V01-OVERWATCH"
+      ],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -1997,6 +2050,7 @@
         "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
       ],
       "wiki_note": "Le reazioni **preparate** esistono e funzionano in partita; l'**Overwatch interattivo** di questa pagina non e' implementato.",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -2056,6 +2110,7 @@
         "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
       ],
       "wiki_note": "`Hold Ground` — la risposta base — funziona gia' in partita; i profili d'eroe che ne dichiarano altre no.",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-09",
         "commit": "ea26c0f"
@@ -2120,6 +2175,7 @@
         "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
       ],
       "wiki_note": "Decisa nella forma (D-048), **non implementata** e con la grammatica ancora in playtest.",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-09",
         "commit": "ea26c0f"
@@ -2173,6 +2229,9 @@
         "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
       ],
       "wiki_note": "",
+      "pie_refs": [
+        "PIE-V01-OVERWATCH"
+      ],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -2235,6 +2294,7 @@
         "docs/wiki/game/mappa-terreni-e-ambiente.md"
       ],
       "wiki_note": "Gli otto terreni sono implementati e testati; strutture e interazioni continuano a essere estese.",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -2293,6 +2353,7 @@
         "docs/wiki/meccaniche/fuoco-e-stati.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -2357,6 +2418,7 @@
         "docs/characters/v0.1/riva.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -2420,6 +2482,7 @@
         "docs/characters/v0.1/flux.md"
       ],
       "wiki_note": "Dal 2026-08-09 la scarica ha un **owner nel roster**: `Flux.ConductiveNode` **e'** `Action.Electrify` (D-046, nata come D-039). Prima nessun eroe la possedeva e il motore era verde ma non innescabile in partita.",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-09",
         "commit": "f1f85b1"
@@ -2484,6 +2547,7 @@
         "docs/wiki/meccaniche/fuoco-e-stati.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -2545,6 +2609,7 @@
         "docs/wiki/game/mappa-terreni-e-ambiente.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-09",
         "commit": "4c50c07"
@@ -2602,6 +2667,7 @@
         "docs/wiki/game/mappa-terreni-e-ambiente.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -2649,6 +2715,7 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -2714,6 +2781,7 @@
         "docs/characters/v0.1/riva.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -2776,6 +2844,7 @@
         "docs/wiki/game/visibilita-rumore-e-informazione.md"
       ],
       "wiki_note": "Modello deciso per la v0.1; l'implementazione (E13, dopo E16) **non e' iniziata**: oggi la vista non decide nulla.",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -2839,6 +2908,7 @@
         "docs/wiki/game/visibilita-rumore-e-informazione.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -2895,6 +2965,7 @@
         "docs/wiki/game/visibilita-rumore-e-informazione.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -2948,6 +3019,7 @@
         "docs/wiki/game/visibilita-rumore-e-informazione.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -2999,6 +3071,9 @@
         "docs/wiki/game/come-si-gioca.md"
       ],
       "wiki_note": "",
+      "pie_refs": [
+        "PIE-V01-HUD"
+      ],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -3060,6 +3135,9 @@
         "docs/wiki/game/come-si-gioca.md"
       ],
       "wiki_note": "",
+      "pie_refs": [
+        "PIE-V01-HUD"
+      ],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -3116,6 +3194,7 @@
         "docs/wiki/game/come-si-gioca.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -3174,6 +3253,9 @@
         "docs/wiki/game/come-si-gioca.md"
       ],
       "wiki_note": "",
+      "pie_refs": [
+        "PIE-V01-INTENT"
+      ],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -3237,6 +3319,10 @@
         "docs/wiki/game/combattimento-e-targeting.md"
       ],
       "wiki_note": "",
+      "pie_refs": [
+        "PIE-V01-HUD",
+        "PIE-V01-INTENT"
+      ],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -3295,6 +3381,9 @@
         "docs/wiki/game/esempio-di-round.md"
       ],
       "wiki_note": "",
+      "pie_refs": [
+        "PIE-V01-LOG"
+      ],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -3358,6 +3447,7 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-09",
         "commit": "1ca9bcd"
@@ -3413,6 +3503,7 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -3492,6 +3583,9 @@
         "docs/characters/index.md"
       ],
       "wiki_note": "",
+      "pie_refs": [
+        "PIE-V01-ROSTER"
+      ],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -3544,6 +3638,7 @@
         "docs/characters/v0.2/kwang.md"
       ],
       "wiki_note": "Pagina di **progetto**: nessun dato di gioco e nessuna epic aperta per questo personaggio.",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -3610,6 +3705,7 @@
         "docs/characters/index.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -3655,6 +3751,7 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -3703,6 +3800,7 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -3756,6 +3854,7 @@
         "docs/wiki/fazioni/resonance.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -3811,6 +3910,7 @@
         "docs/wiki/fazioni/index.md"
       ],
       "wiki_note": "Gli scenari di fazione sono **dichiarati ma non esistono** in `Scenarios/`: non si possono ancora giocare.",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -3875,6 +3975,7 @@
         "docs/wiki/game/obiettivi-e-fine-partita.md"
       ],
       "wiki_note": "La partita **puo' finire** per obiettivo, ma in mappa **non esiste ancora un oggetto da attivare**: manca il consumatore, non la regola.",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -3934,6 +4035,7 @@
         "docs/wiki/game/obiettivi-e-fine-partita.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -3991,6 +4093,7 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-09",
         "commit": "0bbc4c5"
@@ -4045,6 +4148,7 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -4104,6 +4208,7 @@
       ],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -4165,6 +4270,9 @@
         "docs/wiki/game/avversario-bot.md"
       ],
       "wiki_note": "",
+      "pie_refs": [
+        "PIE-HEXPLAY-7"
+      ],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -4214,6 +4322,7 @@
         "docs/wiki/game/avversario-bot.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -4274,6 +4383,7 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-09",
         "commit": "4c50c07"
@@ -4341,6 +4451,7 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -4394,6 +4505,7 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -4451,6 +4563,7 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -4498,6 +4611,7 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {},
       "notes": "Vista web read-only sopra gli artefatti generati dal registry: nessun dato nasce qui. **Fuori dai 15 gate della v0.1** e senza epic: è tooling di processo, e collocarlo nella roadmap di release lo farebbe competere con la consegna. `spec: partial` perché la spec è in revisione (§9 registra quattro decisioni prese il 2026-08-10: pagina statica read-only, relazioni qualificate rimandate, `My Editor Queue` come filtro derivato **anche** in markdown, scrittura fuori scope). `data: partial` dal 2026-08-10: `project-graph.json` esiste e porta diagnostica, roadmap, sedute, PIE e scenari — manca il blocco di config `project.github` da cui derivare i link. `scenario`/`packaged`/`network_privacy` sono `na` per la stessa ragione degli altri strumenti: non è gioco e non entra nel pacchetto. La `My Editor Queue` è **già consegnata** in `editormap.shortlist.md`: non aspettava la pagina, ed è utile anche se la pagina non venisse mai scritta. `automation: partial` e non `done` perché i 18 test di `docs/control-center/graph.test.mjs` (`node --test`) coprono le funzioni pure — link, indice, riferimenti rotti, cicli, filtri — e **non** la UI: quella è stata verificata una volta con Playwright, non da una suite che gira da sola. `tests:` resta vuoto: quel campo dichiara pattern della suite Unreal, e un file `.mjs` non ne fa parte."
     },
@@ -4549,6 +4663,9 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [
+        "PIE-V01-DEBUG"
+      ],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -4605,6 +4722,7 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -4661,6 +4779,7 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -4717,6 +4836,7 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -4776,6 +4896,7 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -4833,6 +4954,7 @@
         "docs/wiki/game/come-si-gioca.md"
       ],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -4882,6 +5004,7 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -4927,6 +5050,7 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -4982,6 +5106,7 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -5034,6 +5159,7 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -5081,6 +5207,7 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {},
       "notes": "D-034, epic **E33** in `roadmap-post-v0.1.md`. Non e' un sistema nuovo: e' la condizione dichiarata in planning che D-012 ha gia' ammesso per il regime `Conditional` dell'Overwatch, spostata dal profilo di reazione all'intento. Un predicato, due rami, nessun nesting, lista chiusa e validata — altrimenti la finestra di reazione rientra dalla porta di servizio come mini-linguaggio di scripting. **Bloccata dai boundary**: `EvaluationBoundary` e' il campo `boundary` che oggi non esiste in `FRTActionDef`."
     },
@@ -5149,6 +5276,7 @@
       ],
       "wiki_refs": [],
       "wiki_note": "",
+      "pie_refs": [],
       "last_verified": {},
       "notes": "D-035, epic **E34** in `roadmap-post-v0.1.md`. Cinque famiglie — Stance, Form, Overdrive, Environmental, Configuration — su un'infrastruttura sola. **Meta' potrebbe non servire**: uno Stance e' un profilo commutabile in Planning (D-033), e i profili esistono gia' come concetto. **Nessuna trasformazione nella v0.1** e nessun eroe ha uno stato assegnato: le candidature Light/Medium/Signature per ~40 personaggi stanno in `matrici-stati-personaggio.md`, nessuna oltre PROPOSED. L'unica REJECTED e' `Vektor Siege`, respinta nel merito: Slancio recupera muovendosi, e una forma che toglie il Dash spegne la meccanica firma."
     }
