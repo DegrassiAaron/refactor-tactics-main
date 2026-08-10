@@ -20,7 +20,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 <!-- RT_SHORTLIST_FEATURES:BEGIN -->
 
-**91 feature** · v0.1 **70** · v0.2 **11** · future **10**.
+**92 feature** · v0.1 **70** · v0.2 **12** · future **10**.
 
 | Stato | Quante |
 |---|--:|
@@ -29,7 +29,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `SPECIFIED` | 13 |
 | `IMPLEMENTING` | 20 |
 | `TESTABLE` | 5 |
-| `INTEGRATED` | 20 |
+| `INTEGRATED` | 21 |
 | `RELEASE_READY` | 15 |
 | `DONE` | 1 |
 
@@ -60,7 +60,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-CHAR-V02-ROSTER` — Roster v0.2 — Steel, Aurora, Murdock, Kwang | v0.2 | DESIGNED | 0/8 | — | Epic E35 |
 | `RT-FEAT-CHAR-TRANSFORMATION` — Stati di personaggio, stance e trasformazioni | v0.2 | IDEA | 0/8 | — | Le 10 voci `PIE-STATE-*` sono la sua controparte umana, e restano ⏳ |
 
-### Core · 6
+### Core · 7
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
@@ -68,6 +68,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-CORE-TURNLOG` — TurnLog, reason code, hash e replay | v0.1 | RELEASE_READY | 6/7 | E12 | Ogni esito è spiegato da un reason code; l'hash è permutazione-invariante |
 | `RT-FEAT-CORE-DETERMINISM` — Snapshot e resolver deterministico | v0.1 | INTEGRATED | 5/7 | E12 | Stessa snapshot + stesso seed ⇒ stesso risultato, 100 ripetizioni |
 | `RT-FEAT-CORE-PLAYBACK` — Playback della risoluzione | v0.1 | INTEGRATED | 5/7 | E11 | La presentazione **riproduce**, non decide (invariante #1) |
+| `RT-FEAT-REPLAY-ARCHIVE` — Replay Archive — recorder, Player e indice delle partite | v0.2 | INTEGRATED | 4/6 | E12 | — |
 | `RT-FEAT-CORE-DECISION-BOUNDARY` — Risoluzione segmentata con Decision Boundary | v0.1 | SPECIFIED | 1/8 | E14 | Il turno diventa una sequenza di sotto-risoluzioni con un punto di decisione |
 | `RT-FEAT-CORE-DECISION-TIME-BANK` — Decision Time Bank (budget di decisione per giocatore) | v0.1 | SPECIFIED | 1/9 | E14 | Quanto tempo di reazione ha un giocatore, e cosa costa un timeout |
 

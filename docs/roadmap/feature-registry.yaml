@@ -201,6 +201,50 @@ features:
       nel combat log del giocatore. Dal 2026-08-10 (#420, D-079) anche lo spostamento forzato **annullato**
       lascia una voce, con la causa in `Amount`: il gemello `Pull` resta scoperto ed è issue propria.
 
+  - feature_id: RT-FEAT-REPLAY-ARCHIVE
+    title: Replay Archive — recorder, Player e indice delle partite
+    area: Core
+    kind: tooling
+    release: v0.2
+    priority: P2
+    status: INTEGRATED
+    gates:
+      spec: done
+      data: na
+      runtime: done
+      log_debug: done
+      automation: done
+      scenario: na
+      ui_wiki: todo
+      packaged: todo
+      network_privacy: na
+    roadmap:
+      epic: E12
+      checkpoints: []
+    dependencies:
+      - RT-FEAT-CORE-TURNLOG
+    owner_specs:
+      - docs/technical/spec-turnlog-serialize.md
+      - docs/decisions/adr-0009-replay-logico-canonico.md
+    issues: [415, 469, 470, 471, 416, 490]
+    tests:
+      - RefactorTactics.Replay.*
+    scenarios: []
+    wiki_refs: []
+    last_verified:
+      date: 2026-08-10
+      commit: b9c096c
+    notes: >
+      26 test misurati su `RefactorTactics.Replay` (2026-08-10, suite 656/656 verde). Una partita allestita
+      registra da sola il proprio archivio — `ARTGameMode` avvia, `ARTTurnManager` scrive il turno appena
+      risolto e chiude il manifest a fine partita — e il checksum di fine partita ha ora **un solo produttore**
+      (D-084, #490). Il Player (#470) riproduce senza ricalcolare e vive dove il resolver non è raggiungibile:
+      con i suoi tre test il rischio `REPLAY-04` del risk register si chiude. L'indice `history.rtindex` (#416)
+      elenca le partite senza aprire nessun archivio, verificato cancellandoli. ⚠️ `ui_wiki` e `packaged` sono
+      `todo` e non è una svista: **nessuna UI** apre un replay (è R6, #472) e la registrazione non è ancora
+      stata verificata sul pacchettizzato. `scenario: na` — l'archivio non è una regola di gioco: si verifica
+      con l'automation, e uno scenario non aggiungerebbe niente.
+
   - feature_id: RT-FEAT-CORE-DECISION-BOUNDARY
     title: Risoluzione segmentata con Decision Boundary
     area: Core

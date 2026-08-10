@@ -260,6 +260,7 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-MATCH-PACING` — Pacing del turno e del match | TESTABLE | 5/8 |
 |  | `RT-FEAT-PROD-PACKAGED` — Verifica su build packaged | IMPLEMENTING | 2/6 |
 |  | `RT-FEAT-PROD-PERFORMANCE` — Budget di performance misurati | IMPLEMENTING | 3/6 |
+|  | `RT-FEAT-REPLAY-ARCHIVE` — Replay Archive — recorder, Player e indice delle partite | INTEGRATED | 4/6 |
 | **E13** | `RT-FEAT-PERCEPTION-MEMORY` — Memoria del contatto e ultima posizione nota | SPECIFIED | 1/9 |
 |  | `RT-FEAT-PERCEPTION-NOISE` — Rumore e percezione acustica | SPECIFIED | 1/9 |
 |  | `RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE` — TeamKnowledge e informazione parziale | IMPLEMENTING | 3/9 |

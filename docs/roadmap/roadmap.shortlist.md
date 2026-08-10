@@ -28,7 +28,7 @@ Legenda: ✅ chiusa · 🟡 parziale · ⏳ non iniziata · `—` nessuno stato 
 | **E9** | ✅ | 5 | 30/40 | Copertura per **bordo**, porte come bordo (mappa v4), ponti come **arco** (v5), pannello cinetico temporaneo |
 | **E10** | 🟡 | 2 | 9/16 | Fine partita a tre vie ✅; ⏳ **nessun oggetto da attivare** in mappa |
 | **E11** | 🟡 | 8 | 28/56 | Preview, input e playback esistono; ⏳ **Ghost Timeline** e i comandi `rt.Debug.*` completi |
-| **E12** | 🟡 | 6 | 26/41 | Replay deterministico su 100 ripetizioni ✅; ⏳ **packaged build**. Senza checksum e packaged non è v0.1 |
+| **E12** | 🟡 | 7 | 30/47 | Replay deterministico su 100 ripetizioni ✅; ⏳ **packaged build**. Senza checksum e packaged non è v0.1 |
 | **E13** | ⏳ | 4 | 8/36 | Oggi la vista è una statistica a catalogo che **non decide nulla**; il rumore è il secondo canale |
 | **E14** | ⏳ | 8 | 7/69 | `Opportunity → Commit`, Fast Reaction 3,0 s, `Timeout → HOLD`, Clash, Time Bank. ADR-0004 accettato, **nessun codice** |
 | **E15** | 🟡 | 2 | 9/16 | La prova integrata: fixture, scenario e golden replay a hash stabile. **Consuma** i sistemi, non li anticipa |
