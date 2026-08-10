@@ -245,14 +245,26 @@ seguiranno la via delle opportunity — non quella di `Amount`. Restano aperti e
 *«Ranger → Bot: 45 (bonus di cella)»*, *«Ranger → Bot: nessuna linea di tiro»*). *(L'esempio diceva «altura
 +danno»: la quota non dà danno, [D-024](../decisions/RT_PDR_00_Decision_Log.md).)*
 
-**Ordinamento del TurnLog** (deterministico, invariante #3/§5.1): **fase → categoria → `SrcCell`** (StableTieBreak
-per-coord). Non dipende **mai** dall'ordine d'inserimento nel container.
+**Ordinamento del TurnLog** (deterministico, invariante #3/§5.1): **fase → categoria → `SrcCell` → `TgtCell` →
+`Outcome` → `Amount` → `ActionId` → `TurnNumber` → `GraphRevision` → `UnitId`**. Non dipende **mai**
+dall'ordine d'inserimento nel container.
+
+> ⚠️ **La regola che tiene in piedi la precedente**: ogni campo che il formato serializzato **scrive** deve
+> stare in questa catena, o due voci che pareggiano su tutto il resto restano a pari merito e a decidere
+> l'ordine resta un sort **non stabile**. Unica eccezione: un campo che non può produrre pareggi perché
+> funzione di un altro già presente — `BaseActionId` rispetto ad `ActionId`.
+> Vedi [D-067](../decisions/RT_PDR_00_Decision_Log.md).
 
 ---
 
 ## 7. Determinismo & invarianti
 
 - **Chiave unità = cella di partenza del turno** (max 1/cella ⇒ univoca), **mai** pointer/spawn-order.
+  ⚠️ **Emendato dal 2026-08-10 ([D-063](../decisions/RT_PDR_00_Decision_Log.md))**: resta la chiave di
+  **ordinamento**, non è più la chiave di **identità**. La cella non identifica l'attore in tre casi presenti
+  nel codice — le voci **ambientali** non hanno un'unità; l'**interposizione** scrive la cella del *protetto*;
+  dopo un **Dash** la cella in fase Blast non è più quella di partenza. L'identità la porta `UnitId`
+  (formato **v6**, `0` = nessuna unità), che resta **fuori dall'hash**.
 - **Nessun float** nel log/ordinamento; `Outcome` intero (invariante #4).
 - **Permutazione-invarianza** (cardine): permutare l'array di path / attacchi **non cambia** il TurnLog.
 - Il TurnLog è **additivo**: i test esistenti restano verdi (estensioni con campi a default).
@@ -318,6 +330,8 @@ Slice successivo — **serializzazione versionata** — ✅ **fatto** (`SR`, mer
 **Prese (2026-08-03):**
 - **D-TL-1** — TurnLog come struttura autoritativa separata (`FRTTurnLogEntry`), non estensione di `FRTResolvedEvent`.
 - **D-TL-2** — chiave unità = cella di partenza del turno (permutazione-invariante).
+  **Emendata il 2026-08-10** da [D-063](../decisions/RT_PDR_00_Decision_Log.md): chiave di ordinamento sì,
+  di identità no — vedi §7.
 - **D-TL-3** — outcome esposti da funzioni pure (resolver + `URTCombatLibrary`); l'Actor è collettore.
 - **D-TL-4** — scope = Movimento + Combat; hash di replay e hazard/status rimandati.
 - **D-TL-5** — reason codes **allineati al codice reale** (§2): Move {Stayed, Moved, BlockedContested, BlockedByUnit};
