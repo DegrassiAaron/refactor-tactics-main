@@ -2,7 +2,7 @@
 
 > `GENERATO` · Vista del **Feature Registry** (`docs/roadmap/feature-registry.yaml` nel repository del gioco).
 > Non modificare a mano: si rigenera con `python scripts/feature_registry.py wiki`.
-> Feature tracciate: **88** · Ultimo audit completo: **2026-08-08** su `2094b86`.
+> Feature tracciate: **91** · Ultimo audit completo: **2026-08-08** su `2094b86`.
 
 Questa pagina dice **cosa esiste davvero**. Una meccanica descritta altrove nella Wiki e
 marcata qui come `SPECIFIED` o `DESIGNED` e' progettata, non giocabile: la Wiki racconta
@@ -219,6 +219,14 @@ il gioco che sara', questa tabella dice a che punto e'.
 |---|---|---|---|---:|---|
 | `RT-FEAT-CHARACTER-STATE` | Character State / Configuration System | — | **SPECIFIED** | 1/9 | _pianificato_ |
 | `RT-FEAT-INTENT-CONDITIONAL` | Conditional Intent — un intento con una biforcazione | — | **SPECIFIED** | 1/9 | — |
+
+### Map
+
+| Feature | Titolo | Roadmap | Stato | Gate | Scenario |
+|---|---|---|---|---:|---|
+| `RT-FEAT-MAP-STRUCTURAL` | Strutture: integrita', crolli a catena e macerie | — | **IDEA** | 0/8 | — |
+| `RT-FEAT-MAP-VERTICALITY` | Verticalita': vault, drop, salita e cadute | — | **IDEA** | 0/8 | — |
+| `RT-FEAT-MAP-WATER-DYNAMICS` | Acqua tattica: profondita', flooding e corrente | — | **IDEA** | 0/8 | — |
 
 ### Networking
 
