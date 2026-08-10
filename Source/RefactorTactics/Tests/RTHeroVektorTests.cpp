@@ -255,7 +255,7 @@ bool FRTHeroRosterTest::RunTest(const FString&)
 	//
 	// Le due leve che l'hanno chiusa, e perche' proprio quelle:
 	//   Vektor 100 -> 90 HP  ([D-069]) — toglie la dominanza su Riva
-	//   Flux    6 -> 7 vista ([D-071]) — toglie quella su Flux, che il calo di Vektor NON aveva risolto
+	//   Flux    6 -> 7 vista ([D-073]) — toglie quella su Flux, che il calo di Vektor NON aveva risolto
 	//
 	// Le alternative scartate, misurate e non intuite: dare 6 MP a Flux o toglierne uno a Vektor rende i due
 	// profili IDENTICI, e il ciclo di distinguibilita' qui sopra sarebbe caduto — un test rotto per ripararne

@@ -160,7 +160,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeFlux()
 	Flux->DisplayName = FText::FromString(TEXT("Flux"));
 	Flux->MaxHealth = 90;
 	Flux->MovePoints = 5;
-	// 6 -> 7 (#131, [D-071]). E' la seconda meta' del lavoro cominciato con Vektor 100->90: quel calo aveva
+	// 6 -> 7 (#131, [D-073]). E' la seconda meta' del lavoro cominciato con Vektor 100->90: quel calo aveva
 	// tolto la dominanza su Riva e lasciato quella su **Flux**, dove a parita' di salute e vista Vektor
 	// restava avanti di un punto movimento.
 	//

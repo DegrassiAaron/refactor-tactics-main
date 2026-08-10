@@ -67,7 +67,7 @@ nel vertical slice).
 |---|---:|
 | Salute | 90 |
 | Movimento | 5 MP |
-| Range visivo | 7 — *era 6, alzata da [D-071](../decisions/RT_PDR_00_Decision_Log.md) (`#131`): è l'unico del roster che vede oltre il raggio 6* |
+| Range visivo | 7 — *era 6, alzata da [D-073](../decisions/RT_PDR_00_Decision_Log.md) (`#131`): è l'unico del roster che vede oltre il raggio 6* |
 | Resistenza Push | 0 |
 | Affinità | elettricità |
 | Debolezza | acqua (`Affinity.Water`) — decisa in CP 6.2, non nel PDF: stesso identificatore dell'affinità di Riva |
@@ -224,7 +224,7 @@ mezzo; Flux ha il danno combo più alto.
 > statistiche base **non comprava nulla**: a 100/6/6/0 era migliore o pari ovunque rispetto a Flux (90/5/6/0)
 > *e* a Riva (95/5/5/0), e strettamente migliore in salute **e** movimento. Adesso il costo è un numero.
 >
-> ✅ **Chiusa il 2026-08-10 con la seconda leva: Flux 6 → 7 di vista ([D-071](../decisions/RT_PDR_00_Decision_Log.md)).**
+> ✅ **Chiusa il 2026-08-10 con la seconda leva: Flux 6 → 7 di vista ([D-073](../decisions/RT_PDR_00_Decision_Log.md)).**
 > Il calo di Vektor aveva tolto la dominanza su Riva e lasciato quella su Flux, dove a parità di salute e
 > vista Vektor restava avanti di un punto movimento. Con la vista 7 Flux ha qualcosa di strettamente
 > migliore, e **nessun eroe domina più nessun altro** sulle quattro statistiche base.
