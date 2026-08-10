@@ -1,6 +1,6 @@
 # Decisioni aperte
 
-> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-09
+> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-10
 > **Cosa è**: l'elenco di ciò che **aspetta una persona**. Nessuna di queste voci può essere chiusa
 > deducendola dai documenti: o mancano i dati, o due fonti si contraddicono senza gerarchia.
 > **Cosa non è**: il registro delle decisioni prese — quello è il
@@ -128,6 +128,33 @@ prima che E10 le incontri in codice.
 >
 > Registrarla due volte sarebbe costato più della duplicazione: due ID per la stessa domanda si chiudono in
 > momenti diversi, e il secondo resta aperto a mentire.
+
+---
+
+## Aperte — profili d'eroe di `Brace` e `Overwatch`, dal consolidamento del 2026-08-10
+
+Origine: [`roadmap/plans/baseaction-signatures-spec-panel-2026-08-10.md`](roadmap/plans/baseaction-signatures-spec-panel-2026-08-10.md),
+triage del sorgente omonimo. Il **meccanismo** è deciso da entrambi i lati — [D-047](decisions/RT_PDR_00_Decision_Log.md)
+per `Brace`, [D-012](decisions/RT_PDR_00_Decision_Log.md)/[D-014](decisions/RT_PDR_00_Decision_Log.md) e
+**CP 14.4** per `Overwatch`, con il profilo dichiarato «dato per eroe, non ramo nel resolver». Quello che manca
+è il **contenuto**: quali siano i quattro profili. Vanno decise prima che E14 li incontri in codice.
+
+| ID | Domanda | Perché serve una risposta |
+|---|---|---|
+| `BAS-1` | I quattro profili `Brace` — Flux `Grounding`, Riva `Flow`, Bastion `Anchor`, Vektor `Deflection` — entrano nel canone come contenuto di **CP 14.7**? | D-047 stabilisce che un profilo con **≥ 2 risposte legali** apre la finestra: questi ne dichiarano due o tre, quindi non sono contenuto neutro — decidono **quante finestre si aprono** in una resolution, che è il rischio di pacing dichiarato di E14 |
+| `BAS-2` | I quattro profili `Overwatch` — `Conductive`, `Pressure`, `Frontline`, `Predictive` — entrano come contenuto di **CP 14.4**? | Le geometrie proposte (settore medio · medio-corto · corto-largo frontale · stretto-lungo) sono esprimibili con `FRTSuppressiveZone` e col facing come impone CP 14.4, ma **nessun catalogo le contiene**. Senza, `Overwatch.ProfileIsDataNotBranch` non ha un secondo profilo da confrontare col primo |
+| `BAS-3` | `Vektor.Deflection`: un nome, **due semantiche**. Si rinomina il profilo `Brace`, si rinomina la reazione, o si unificano? | `Vektor.Deflection` esiste già cablata (`RTHeroCatalogLibrary.cpp:539`, CP 6.7) ed è **−20 sul colpo diretto**, cioè riduzione danno — esattamente ciò che il §10 del sorgente vieta al `Brace`. Due entità con lo stesso nome e semantiche opposte non si separano da sole al momento dell'implementazione |
+| `BAS-4` | `Riva.Flow`: il profilo `Brace` è la **promozione** di `Riva.FlowReaction`, o una terza cosa? | «Flow» per Riva è già scritto **due volte, in due accezioni**: `Riva.FlowReaction` (`RTHeroCatalogLibrary.cpp:345`) è `Reposition 1` **dopo un attacco subito**, rinviata a E14 con slot `None`; `State.Riva.Flow` è un candidato *stance* post-v0.1 (`RT-FEAT-CHARACTER-STATE`, E34, `PROPOSED`). Il profilo proposto risponde invece al **Forced Movement**. «Riva colpita ma non spostata» distingue il primo caso dal terzo, e oggi nessun documento dice quale dei due accade |
+| `BAS-5` | Dopo l'`Overwatch`: **Move con budget ridotto**, o **Watch Stage + Reposition** pianificato? | Due sorgenti **pari-data** (2026-08-10) propongono modelli diversi, e il gemello — `CLAUDE_Overwatch_Runtime_Lifecycle_Watch_Reposition_Consolidation_2026-08-10.md` — si dichiara più recente e cita il primo fra i propri input. Nessuno dei due è canone: finché non lo è, lo scenario `CHAR-BASE-008` del sorgente resta senza forma e la feature `PostUseMovement` non si apre |
+
+> **Le affinità di interazione per eroe non aprono una voce nuova.** Il §17 del sorgente (Flux → generatori e
+> pannelli, Riva → valvole e pompe, Bastion → cover, porte e barricate, Vektor → standard) **ricalca** le
+> assegnazioni già registrate in **`INT-1`**. Non è una domanda nuova: è una **proposta di risposta** a una
+> già aperta, e va valutata lì. Vale la stessa regola che tiene fuori `INT-3`.
+>
+> Il §17 la fonda però su `Activate` come azione distinta da `Interact` — che [D-014](decisions/RT_PDR_00_Decision_Log.md)
+> e [D-025](decisions/RT_PDR_00_Decision_Log.md) hanno già escluso. Letta come affinità di `Interact`, la
+> proposta regge senza modifiche di sostanza.
 
 ---
 

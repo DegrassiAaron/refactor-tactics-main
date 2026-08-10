@@ -54,7 +54,7 @@ scegliendo lo scenario e premendo Play, una voce C richiede di allestire, clicca
 | **A** — automatico | **26** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · i tre `EnvironmentalActionOwner` · `RT_Showcase_Relay_v01` |
 | **B** — automatico + occhio | **21** scenari ↔ **21** voci `PIE-VIS-*` | `Scenarios/Visual/` |
 | **C** — solo umano | **95** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima |
-| **D** — dichiarato | **9** scenari `Spec.*` ancora `BLOCKED` · **21** pianificati · **4** mai scritti | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
+| **D** — dichiarato | **9** scenari `Spec.*` ancora `BLOCKED` · **29** pianificati *(rimisurati il 2026-08-10)* · **4** mai scritti | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
 
 Totale corpus versionato: **56** scenari (`A 26 + B 21 + D-bloccati 9`). Totale registro PIE: **117** voci
 (`B 21 + C 95 + 1 fuori classe`).
@@ -255,16 +255,24 @@ I **nove** rimasti (l'elenco misurato è in
 > copre `Action.Ignite` né `Action.ModifyArc`, che per [D-046](../decisions/RT_PDR_00_Decision_Log.md)
 > restano senza owner in v0.1.
 
-### 6.2 Pianificati nel Feature Registry — non ancora scritti · **23**
+### 6.2 Pianificati nel Feature Registry — non ancora scritti · **29**
 
 Dichiarati in `feature-registry.yaml` sotto `scenarios: {planned: [...]}`, il che li fa comparire come
 **warning** in `feature_registry.py validate`. Il warning è il meccanismo: un piano che non diventa un file
 resta visibile invece di sparire.
 
-> ⚠️ **Erano dichiarati «13», poi ventuno, e oggi sono ventitré**: tredici fra `Clash` e `TimeBank`, cinque
-> `State.*`, quattro `Team.*`, uno `Stress.*`. I `TimeBank` sono passati da 8 a 10 con la riconciliazione di
-> `#361` (sotto). Il totale sbagliato era sopravvissuto perché l'unico modo di accorgersene era sommare a mano
-> una colonna che nessuno risomma. Ora lo conta `feature_registry.py shortlist`.
+> ⚠️ **Erano dichiarati «13», poi ventuno, poi ventitré, e oggi sono ventinove**: tredici fra `Clash` e
+> `TimeBank`, sei fra `Brace` e `Overwatch`, cinque `State.*`, quattro `Team.*`, uno `Stress.*`. I `TimeBank`
+> sono passati da 8 a 10 con la riconciliazione di `#361` (sotto); i sei nuovi arrivano dal triage del
+> 2026-08-10. Il totale sbagliato era sopravvissuto perché l'unico modo di accorgersene era sommare a mano
+> una colonna che nessuno risomma — ed è successo di nuovo: la §2 ha continuato a dire «21» per un giorno
+> dopo che questa sezione diceva «23». Si rimisura, non si deduce:
+>
+> ```bash
+> python -c "import yaml; d=yaml.safe_load(open('docs/roadmap/feature-registry.yaml',encoding='utf-8')); \
+> print(sum(len(x.get('planned') or []) for f in d['features'] for x in (f.get('scenarios') or []) \
+> if isinstance(x, dict)))"    # 29
+> ```
 
 | ScenarioId pianificato | Feature | Release |
 |---|---|---|
@@ -275,6 +283,8 @@ resta visibile invece di sparire.
 | `Team.Resonance.AuroraKwang.FrozenAnchor` | idem | v0.2 · richiede E35 |
 | `State.Riva.Flow` · `State.Flux.Charged` · `State.Bastion.Bulwark` · `State.Howitzer.Siege` · `State.MultiState.Stress` | `RT-FEAT-CHARACTER-STATE` | v0.4 · E34 (`#244`) |
 | `Spec.Clash.HiddenUntilReveal` · `Spec.Clash.RevealIsFixedDeadline` · `Spec.Clash.Determinism` | `RT-FEAT-REACTION-CLASH` | v0.1 · E14 · CP 14.7 |
+| `Spec.Brace.AnchorResistsDisplacement` · `…FlowRedirectsToLegalHexOnly` · `…DeflectOffersOnlyLegalSides` | `RT-FEAT-REACTION-PROFILE` | v0.1 · E14 · CP 14.7 |
+| `Spec.Overwatch.ConductiveDischargeUsesStandardConduction` · `…PressurePushChangesResolvedPath` · `…FrontlineFollowsFacing` | `RT-FEAT-REACTION-OVERWATCH` | v0.1 · E14 · CP 14.4 |
 | `Spec.TimeBank.GraceDoesNotDrain` · `…DrainsAfterGrace` · `…NeverBelowZero` · `…TimeoutCostsFullWindow` · `…TimeoutSpendsNoCharge` · `…ClashCostsFullWindow` · `…BotDrainsLikePlayer` · `…ExhaustionKeepsResponsesLegal` · `…ReplayReadsRecordedBank` · `…PacketOrderInvariant` | `RT-FEAT-CORE-DECISION-TIME-BANK` | v0.1 · E14 · CP 14.8 |
 
 > ⚠️ **I tre `Spec.Clash.*` non sono «da scrivere»: oggi sono *impossibili*.** È la stessa situazione già
@@ -298,6 +308,14 @@ resta visibile invece di sparire.
 > ✅ **Aggiornato il 2026-08-09** (`#318`, PR di `feat/318-assertion-turnlog`). Le prime due primitive
 > esistono: `LogEventCount` (con `value: 0` per l'assenza) e `LogEventOrder`. **I tre `Spec.Clash.*` sono
 > quindi scrivibili** — restano da scrivere, ed è lavoro di CP 14.7, non di #318.
+
+> ⚠️ **I sei `Spec.Brace.*` / `Spec.Overwatch.*` del 2026-08-10 sono bloccati da altro, e la differenza
+> conta.** Non aspettano una capability dell'harness — un anti-displacement e una lista di risposte legali si
+> osservano benissimo con `UnitAtCell` — aspettano una **decisione**: quali siano i quattro profili di `Brace`
+> e di `Overwatch` è `BAS-1` e `BAS-2` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md). Scriverli prima
+> significherebbe fissare in un file eseguibile un contenuto che nessuno ha approvato, ed è il modo più
+> efficace di far sembrare decisa una proposta. Sono in **classe D per scelta**, non per debito tecnico.
+> Origine e triage: [`../roadmap/plans/baseaction-signatures-spec-panel-2026-08-10.md`](../roadmap/plans/baseaction-signatures-spec-panel-2026-08-10.md).
 >
 > Per i `Spec.TimeBank.*` l'affermazione «una sola capability li sblocca tutti» **non reggeva alla verifica**.
 > I tre punti sono stati riconciliati il 2026-08-09 con l'issue **`#361`**, e il risultato è questo:
