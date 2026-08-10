@@ -36,8 +36,8 @@ const feature = (over = {}) => ({
 test('i link si derivano dalla config, non sono scritti a mano', () => {
   assert.equal(issueUrl(PROJECT, 142),
     'https://github.com/DegrassiAaron/refactor-tactics-main/issues/142');
-  assert.equal(docUrl(PROJECT, 'docs/wiki/meccaniche/overwatch.md'),
-    'https://github.com/DegrassiAaron/refactor-tactics-main/blob/main/docs/wiki/meccaniche/overwatch.md');
+  assert.equal(docUrl(PROJECT, 'docs/characters/v0.1/flux.md'),
+    'https://github.com/DegrassiAaron/refactor-tactics-main/blob/main/docs/characters/v0.1/flux.md');
 });
 
 test('senza config non si inventa un URL: null, cosi la UI puo dirlo', () => {
@@ -51,10 +51,15 @@ test('il branch dichiarato entra nel link', () => {
   assert.match(docUrl(onDev, 'docs/x.md'), /\/blob\/dev\//);
 });
 
+// Gli esempi usano i due casi che esistono davvero dopo D-076: le pagine di gioco vivono solo nel
+// clone (`wiki:`), il catalogo eroi resta nel repository. Il vecchio esempio citava
+// `docs/wiki/meccaniche/overwatch.md` e `wiki:Meccanica-overwatch`: il primo e' un percorso
+// cancellato, il secondo un nome col prefisso che le pagine non hanno piu' dal 2026-08-10.
 test('`wiki:Page` va alla Wiki, un path va al blob: non sono la stessa cosa', () => {
-  assert.equal(wikiRefUrl(PROJECT, 'wiki:Meccanica-overwatch'),
-    'https://github.com/DegrassiAaron/refactor-tactics-main/wiki/Meccanica-overwatch');
-  assert.match(wikiRefUrl(PROJECT, 'docs/wiki/x.md'), /\/blob\/main\/docs\/wiki\/x\.md$/);
+  assert.equal(wikiRefUrl(PROJECT, 'wiki:overwatch'),
+    'https://github.com/DegrassiAaron/refactor-tactics-main/wiki/overwatch');
+  assert.match(wikiRefUrl(PROJECT, 'docs/characters/v0.1/flux.md'),
+    /\/blob\/main\/docs\/characters\/v0\.1\/flux\.md$/);
 });
 
 // --- Chiavi di checkpoint -------------------------------------------------------------------------

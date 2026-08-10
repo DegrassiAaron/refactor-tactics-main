@@ -1,4 +1,4 @@
-> ✅ **RECEPITO il 2026-08-08.** Le quattro fazioni sono già in [`../../../wiki/fazioni/index.md`](../../../wiki/fazioni/index.md):
+> ✅ **RECEPITO il 2026-08-08.** Le quattro fazioni sono già in [`Fazioni` (Wiki)](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/Fazioni):
 > **Conflux** (Flux, Riva) e **Constrine** (Bastion, Vektor) per la v0.1; **Sentinel Directorate** (Steel,
 > Murdock) e **Resonance** (Aurora, Kwang) per la v0.2. Le schede dei quattro personaggi v0.2 esistono come
 > `DATA_SPEC` in [`../../../characters/v0.2/`](../../../characters/v0.2/).

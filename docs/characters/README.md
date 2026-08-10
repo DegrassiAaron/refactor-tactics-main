@@ -34,7 +34,7 @@ equipaggiamento.
 
 ## Ownership dei kit
 
-Ogni abilità appartiene a un singolo personaggio/definizione. Le sinergie sono esempi esterni al kit: [Sinergie e combinazioni](../wiki/game/sinergie-e-combinazioni.md).
+Ogni abilità appartiene a un singolo personaggio/definizione. Le sinergie sono esempi esterni al kit: [Sinergie e combinazioni](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/sinergie-e-combinazioni).
 
 ## Matrici di design
 

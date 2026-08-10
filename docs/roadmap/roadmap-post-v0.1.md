@@ -98,7 +98,7 @@ Cover Window dimostrabile in scenario automatico, suite verde, replay determinis
 fazione né kit di coppia — [ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md) vale invariato.
 
 Le schede esistono già come `DATA_SPEC`/`DESIGN_SPEC`: [`../characters/v0.2/`](../characters/v0.2/) e
-[`../wiki/fazioni/`](../wiki/fazioni/index.md). Questa epic le porta a runtime.
+[`Fazioni` (Wiki)](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/Fazioni). Questa epic le porta a runtime.
 
 | CP | Obiettivo | DoD misurabile |
 |---|---|---|
@@ -230,7 +230,7 @@ determinismo a parità di seed resta un gate, non un'aspirazione.
 > lui, ed è il playtest la ragione per cui il bot esiste.
 >
 > È anche la sola promessa che il gioco fa già al giocatore in prima persona:
-> [«Il bot non vede più di te»](../wiki/game/avversario-bot.md) è una **sezione della Wiki**, non una nota
+> [«Il bot non vede più di te»](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/avversario-bot) è una **sezione della Wiki**, non una nota
 > interna. Un livello «Esperto» che bara la trasforma in una bugia pubblicata.
 >
 > Se un livello di difficoltà introduce errore intenzionale, quell'errore è **deterministico** e attinge a

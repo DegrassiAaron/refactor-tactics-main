@@ -21,6 +21,11 @@ incollare altrove, con i path relativi alla **destinazione**, non a chi lo conti
 Uso:
     python scripts/check-docs-links.py             # dalla radice del repo
     python scripts/check-docs-links.py --known     # elenca il debito dichiarato e la sua ragione
+    python scripts/check-docs-links.py --wiki-root <clone>   # anche i [[link]] della Wiki pubblicata
+
+Dal 2026-08-10 (D-076) le pagine di gioco non stanno piu' in `docs/wiki/` ma nel clone, che e' un
+repository separato: `--wiki-root` estende il gate a quell'area, che altrimenti non la controlla
+piu' nessuno — e senza dirlo, perche' `git ls-files` semplicemente non elenca quei file.
 
 Esce con codice 1 se un link e' rotto, se un'etichetta mente, se un target esiste solo in locale,
 oppure se una voce di DEBITO_NOTO non e' piu' vera.
@@ -210,6 +215,14 @@ def main():
     return 1
 
 
+def _wiki_root_arg():
+    """`--wiki-root <path>`, se passato. Il clone e' un altro repository: non si indovina."""
+    if "--wiki-root" not in sys.argv:
+        return None
+    i = sys.argv.index("--wiki-root")
+    return sys.argv[i + 1] if i + 1 < len(sys.argv) else ""
+
+
 def _parents(path):
     """Tutte le directory che contengono `path`, in forma relativa al repo."""
     d = os.path.dirname(path)
@@ -218,5 +231,81 @@ def _parents(path):
         d = os.path.dirname(d)
 
 
+WIKILINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
+WIKI_IMG_RE = re.compile(r"!\[[^\]]*\]\(([^)]+)\)")
+
+
+def check_wiki_clone(wiki_root):
+    """Gli stessi controlli, sul clone della Wiki — che e' un **altro repository**.
+
+    Serve da D-076: le pagine di gioco non stanno piu' in `docs/wiki/`, quindi `git ls-files` non le
+    vede piu' e questo gate perderebbe l'area intera senza dire nulla. Un checker che smette di
+    controllare qualcosa resta verde: e' il modo peggiore di perdere copertura.
+
+    Tre regole, tutte specifiche di come la Wiki indirizza:
+
+      - un `[[Nome|slug]]` risolve **per nome**, non per percorso: l'URL e' il solo basename;
+      - i nomi devono essere globalmente unici, altrimenti due pagine si contendono lo stesso URL;
+      - le immagini si risolvono dalla **radice** del clone, perche' la base relativa e' l'URL della
+        pagina, che e' piatto — non la posizione del file su disco.
+    """
+    # Due strutture e non una: `pagine` risolve i `[[link]]` per nome, `tutte` tiene **ogni** file.
+    # Con un dict solo, due pagine omonime ne lasciano una fuori dalla scansione — proprio nel caso
+    # in cui qualcosa e' gia' andato storto. Verificato per mutazione: con un `Guida/coperture.md`
+    # duplicato, la versione a dict sola segnalava il duplicato e non apriva nessuno dei due file.
+    pagine, tutte, problemi = {}, [], []
+    for base, dirs, files in os.walk(wiki_root):
+        dirs[:] = [d for d in dirs if d != ".git"]
+        for name in sorted(files):
+            if not name.endswith(".md"):
+                continue
+            relp = os.path.relpath(os.path.join(base, name), wiki_root).replace("\\", "/")
+            stem = os.path.splitext(name)[0]
+            if stem in pagine:
+                problemi.append(f"nome duplicato: {relp} e {pagine[stem]} — stesso URL /wiki/{stem}")
+            pagine[stem] = relp
+            tutte.append(relp)
+
+    for relp in sorted(tutte):
+        text = open(os.path.join(wiki_root, relp), encoding="utf-8", errors="replace").read()
+        fences = _fence_spans(text)
+        for m in WIKILINK_RE.finditer(text):
+            if any(a <= m.start() < b for a, b in fences):
+                continue
+            # `[[Etichetta|slug]]`: il bersaglio e' l'ultimo campo. Il backslash e' l'escape della
+            # pipe dentro le celle di tabella, dove `|` chiuderebbe la colonna.
+            target = m.group(1).split("|")[-1].replace("\\", "").strip()
+            if target not in pagine:
+                riga = text[: m.start()].count("\n") + 1
+                problemi.append(f"{relp}:{riga} [[{m.group(1)}]] -> pagina inesistente: {target}")
+        for m in WIKI_IMG_RE.finditer(text):
+            src = m.group(1)
+            if src.startswith(SKIP_SCHEMES) or any(a <= m.start() < b for a, b in fences):
+                continue
+            riga = text[: m.start()].count("\n") + 1
+            if src.startswith("../") or src.startswith("/"):
+                problemi.append(f"{relp}:{riga} immagine con path relativo alla cartella: {src} — "
+                                "sulla Wiki la base e' la radice, non il file")
+            elif not os.path.isfile(os.path.join(wiki_root, src.replace("/", os.sep))):
+                problemi.append(f"{relp}:{riga} immagine inesistente: {src}")
+
+    print(f"\nClone della Wiki: {len(tutte)} pagine · {wiki_root}")
+    if not problemi:
+        print("OK — ogni [[link]] risolve, ogni immagine esiste, nessun nome duplicato.")
+        return 0
+    print(f"FALLITO — {len(problemi)} problemi nel clone:\n")
+    for p in problemi:
+        print(f"  {p}")
+    return 1
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    code = main()
+    root = _wiki_root_arg()
+    if root is not None:
+        if not root or not os.path.isdir(root):
+            print(f"\n--wiki-root non e' una directory: {root or '(mancante)'}", file=sys.stderr)
+            code = code or 2
+        else:
+            code = check_wiki_clone(root) or code
+    sys.exit(code)

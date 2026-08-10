@@ -200,7 +200,7 @@ alternative L/M/S non scelte → **mai** player-facing.
 |---|---|:--:|:--:|---|
 | Il framework esiste come direzione | `PROPOSED` | ❌ | ❌ | — |
 | Candidate per personaggio (L/M/S) | `PROPOSED`/`IDEA` | ❌ | ❌ | solo design |
-| **Profilo** di azione generica (fisso per eroe) | ✅ deciso ([D-033](../decisions/RT_PDR_00_Decision_Log.md)) | ✅ | ✅ | [`../wiki/game/azioni-e-movimento.md`](../wiki/game/azioni-e-movimento.md) |
+| **Profilo** di azione generica (fisso per eroe) | ✅ deciso ([D-033](../decisions/RT_PDR_00_Decision_Log.md)) | ✅ | ✅ | [`azioni-e-movimento` (Wiki)](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/azioni-e-movimento) |
 
 **Al 2026-08-08 nella wiki non entra nulla di trasformazioni.** L'unica riga pubblicata è il *profilo*, che è
 una decisione consolidata e non una trasformazione — ed è già online. È l'applicazione letterale della regola:
