@@ -357,6 +357,21 @@ struct FRTActionDef
 	bool bCanBeInterrupted = true;
 
 	/**
+	 * L'azione si applica a CHI LA USA: nessun bersaglio da scegliere, nessuna portata da validare.
+	 *
+	 * Lo dichiara il catalogo perche' e' una proprieta' dell'azione, non una deduzione: `Action.Guard` e
+	 * `Action.Brace` hanno gia' `Range (self) 0` e applicano il proprio stato a chi le pianifica, ma finche'
+	 * il flag non esisteva nel `Def` nessuno dei tre consumatori lo sapeva — il giocatore chiedeva un
+	 * bersaglio per un'azione che non ne ha, il bot le valutava fra le candidate d'ATTACCO (con `Power` 0),
+	 * e il ramo «se ferito usa un supporto» non trovava mai niente da usare.
+	 *
+	 * Dedurlo da `RangeCells == 0` sarebbe stato sbagliato: anche `Action.Wait` ha portata 0 e non e' un
+	 * supporto su di se'.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	bool bSelfTarget = false;
+
+	/**
 	 * L'azione colpisce anche gli ALLEATI di chi la usa. **Default vero** (decisione dell'autore, 2026-08-08):
 	 * il fuoco amico e' attivo di base, non l'eccezione di una singola azione. Chi piazza un'area lo fa
 	 * sapendo dove sono i suoi.

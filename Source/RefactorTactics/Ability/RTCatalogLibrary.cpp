@@ -297,6 +297,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*Range (self)*/ 0, /*Cooldown*/ 0, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Guarded, /*Turni*/ 1) },
 		/*bInterruptible*/ false, ERTActionSlot::Main));
+	Catalog.Last().bSelfTarget = true; // si va in guardia su se' stessi: nessun bersaglio da scegliere
 
 	// `Action.Interact` — portata 1: solo oggetti ADIACENTI. Nessun effetto dichiarato finche' non esistono
 	// oggetti da attivare (porte, consolle, ponti, obiettivi): quelli sono E9/E10. Qui entrano identita',
@@ -482,6 +483,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Braced, /*Turni*/ 1),
 		  FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Root, /*Turni*/ 1) },
 		/*bInterruptible*/ false, ERTActionSlot::Main));
+	Catalog.Last().bSelfTarget = true; // come Guard: lo stato lo prende chi la pianifica
 
 	// `Shield` — azione PRINCIPALE di Prep: 25 punti di scudo TEMPORANEO, consumati prima della salute e
 	// scaduti nel Cleanup. Stesso identico meccanismo di `Guardian.Barrier` (che ne da' 40): `ResolvePrep`
@@ -802,6 +804,10 @@ TArray<URTActionData*> URTCatalogLibrary::MakeGenericActions(UObject* Outer)
 		}
 		URTActionData* Action = NewObject<URTActionData>(Outer);
 		Action->Def = Def;
+		// Campi SPECCHIO: `ARTPlayerController` e `ARTTurnManager` leggono ancora questi, non il `Def`.
+		// Senza, un'azione generica arriva nel kit con portata 0 e `bSelfTarget` falso qualunque cosa il
+		// catalogo dichiari — ed e' il motivo per cui Guard e Brace chiedevano un bersaglio che non hanno.
+		Action->bSelfTarget = Def.bSelfTarget;
 		Actions.Add(Action);
 	}
 	return Actions;
