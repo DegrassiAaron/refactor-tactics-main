@@ -357,6 +357,13 @@ un ordine di risoluzione mai avvenuto. Per la stessa ragione il combat log non s
 > funzione di un altro già presente — `BaseActionId` rispetto ad `ActionId`.
 > Vedi [D-067](../decisions/RT_PDR_00_Decision_Log.md).
 
+> ⚠️ **La posizione di `fase` in testa alla catena ha un consumatore**, dal 2026-08-10 (`#415`): il seek per
+> fase di `URTReplaySeekLibrary` poggia sul fatto che `Phase` è la **prima** chiave e che `ERTMatchPhase`
+> è dichiarato in ordine cronologico (`RTTurnRules.h`) — insieme, le due cose rendono le voci di una fase
+> **contigue** e le fasi ordinate come si sono giocate. Spostare `fase` più in basso non romperebbe nessun
+> hash e nessun test di serializzazione: romperebbe il seek, ed è per questo che il vincolo è scritto qui
+> e non solo là.
+
 ---
 
 ## 7. Determinismo & invarianti
