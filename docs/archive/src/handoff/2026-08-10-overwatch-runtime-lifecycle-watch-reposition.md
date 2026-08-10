@@ -1,6 +1,20 @@
 # RefactorTactics — Overwatch Runtime Lifecycle, Watch Stage e Reposition
 ## Handoff operativo per Claude Code
 
+> 📦 **Archiviato il 2026-08-10 — recepito, non applicato.** L'esito del triage vive in
+> [`roadmap/plans/overwatch-runtime-lifecycle-triage-2026-08-10.md`](../../../roadmap/plans/overwatch-runtime-lifecycle-triage-2026-08-10.md),
+> e ciò che resta aperto in [`OPEN_DECISIONS.md`](../../../OPEN_DECISIONS.md) come `OW-1`…`OW-4`.
+> **Questo file non è autorità**, ma a differenza del gemello sulle Base Action **non è stato superato**: il
+> suo modello `Watch → EndWatchStage → Reposition` chiude `BAS-5` e prevale sul «Move a budget ridotto».
+> Quattro delle sue regole sono già canone-compatibili — cadence *once-per-target*, `MaxPrompts` che conta
+> opportunity distinte, eligibility post-transition, hard cancel ≠ soft block.
+>
+> ⚠️ **Tre cose non vanno prese alla lettera.** `Reposition` (§12) è un nome **già occupato**:
+> `Action.Reposition` è uno scatto di 2 celle in fase **Dash** (`RTCatalogLibrary.cpp:365`). Gli
+> ScenarioId `REACT-001…011` (§40) sono uno schema **già respinto** il 2026-08-08 perché era un terzo
+> formato. E **sette** degli undici feature ID del §36 non esistono nel registry. Leggilo per la
+> **provenienza** e per il modello, mai per gli identificatori.
+
 **Data:** 2026-08-10  
 **Scope:** consolidamento dell'ultimo focus su Overwatch, lifecycle runtime, timing nella Move Phase, trigger per micro-step, HOLD/FIRE, simultaneità, counterplay pre-Watch, Reposition post-Overwatch, privacy, test, Wiki, Feature Map, Scenario Map, Roadmap, Epic/Issue GitHub.  
 **Baseline tecnica documentale:** Unreal Engine 5.8; verificare e bloccare la patch/toolchain effettive del repository prima di implementare.  

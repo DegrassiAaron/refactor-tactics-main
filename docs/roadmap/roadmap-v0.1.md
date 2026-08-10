@@ -864,7 +864,8 @@ livello `Rilevato`, non solo LOS. È **l'ultima epic della v0.1** e la **prima d
 > le ha verificate contro il canone e ha registrato cinque domande **`BAS-1`…`BAS-5`** in
 > [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) — fra cui due **collisioni di nome** con reazioni già cablate
 > in CP 6.7. Nessun DoD cambia: i sei scenari corrispondenti sono `planned`, e restano tali finché la
-> decisione non arriva.
+> decisione non arriva. **`BAS-5` è chiusa** dal triage sul lifecycle (sotto): il post-Overwatch è
+> `Watch → EndWatchStage → Reposition`, non un Move a budget ridotto.
 
 > ⚠️ **CP 14.5 cambia consumatore (2026-08-08).** `Vektor.InterceptShot` era il caso concreto scelto per la
 > prima finestra. Con [D-016](../decisions/RT_PDR_00_Decision_Log.md) quell'azione diventa una **Predictive
@@ -885,6 +886,19 @@ armata, senza cap aggregato (decisione D20). La soglia d'allarme di ADR-0004 è 
 anticipata al CP 14.5 con decisioni immediate, così il pacing si scopre prima di costruire la UI.
 (b) **Non** costruire la policy `AutoCommit/PromptOwner` proposta dal documento di integrazione: è la stessa
 cosa di `AllowedResponses ≤ 1` (ADR-0004 §2), che la deriva dai dati invece di aggiungere un enum parallelo.
+
+> 📉 **Il rischio (a) si riduce di un terzo se la cadence diventa *once-per-target* (2026-08-10).** Il
+> sorgente sul lifecycle dell'Overwatch propone che un'Overwatch offra **al massimo un'opportunity per
+> bersaglio distinto** per Reaction Instance — HOLD su un bersaglio non riapre per quello stesso bersaglio,
+> nemmeno se esce e rientra. In **2v2** i bersagli avversari sono **due**, quindi il caso peggiore passa da
+> `3 × 3 s = 9 s` a `2 × 3 s = **6 s**`, e `MaxPromptsPerReaction = 3` diventa **irraggiungibile** da una
+> singola Overwatch. Il valore **non va cambiato** — il formato competitivo non è deciso
+> ([D-011](../decisions/RT_PDR_00_Decision_Log.md)) e in 3v3 il terzo prompt torna possibile — ma il rientro
+> `MaxPromptsPerReaction = 1` che ADR-0004 §Revisione teneva pronto diventa molto meno probabile che serva.
+> ⚠️ **È un conto, non una misura**: quella di CP 14.5 va fatta comunque. La cadence ha già la sua specifica
+> eseguibile in `Spec.Overwatch.HoldThenFire`, dove Vektor fa `HOLD` su Flux e `FIRE` su Riva — due bersagli
+> diversi. Triage: [`plans/overwatch-runtime-lifecycle-triage-2026-08-10.md`](plans/overwatch-runtime-lifecycle-triage-2026-08-10.md);
+> costo e nome del ciclo Watch/Reposition restano `OW-1`/`OW-2` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md).
 
 ---
 
