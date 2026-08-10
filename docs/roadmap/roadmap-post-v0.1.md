@@ -140,9 +140,23 @@ fissarla (scenario 4 del sorgente).
 | **23.3** | Stable ID e binding | Gli ID sono stabili attraverso il cook; binding duplicati o in conflitto sono errori di validazione, non comportamenti impliciti (§5.3, §8.2) |
 | **23.4** | Interaction graph | Chi può agire su cosa è un grafo dato, con cardinalità dichiarata (§8.1, §8.3) |
 | **23.5** | Leggibilità | Etichette tattiche, hover sorgente→bersagli e bersaglio→controllori; **mai il solo colore** a distinguere uno stato (§12.4) |
+| **23.6** | Standability cotta da geometria | Il muro sta dove vuole — 90°, obliquo, a metà cella — e la calpestabilità è l'esito di `Footprint @ CellAnchor ∩ blocking geometry`, calcolato **in cottura**. Il runtime continua a leggere `bBlocksMovement`. Scenari: `Spec.Map.WallCrossesCellStillStandable`, `.FootprintCollisionBlocksCell`, `.NinetyDegreeCornerBakesCorrectly` |
+| **23.7** | La transizione è un dato, non un corollario della cella | `Cell A` valida ∧ `Cell B` valida ∧ `A→B` chiusa è esprimibile **senza** inventare una copertura che non copre. Include la *swept clearance*: si verifica il corridoio attraversato, non i soli estremi. Scenari: `Spec.Map.ValidCellsBlockedTransition`, `.DoorOpensTransition` |
 
 **Dipendenze**: E9. **Rischi**: gli ID stabili si decidono una volta — cambiarli dopo il primo cook invalida
 scenari, golden replay e mappe salvate.
+
+> **23.6 e 23.7 arrivano da [D-065](../decisions/RT_PDR_00_Decision_Log.md)**, che ha fissato il principio
+> — *la griglia non vincola la geometria del mondo; fra muro e dato autorevole sta una cottura* — dopo che
+> **due sorgenti indipendenti** l'avevano chiesto ([triage 2026-08-09](plans/map-editor-brief-spec-panel-2026-08-09.md) §4,
+> [conflict report 2026-08-10](plans/handoff-geometry-reazioni-conflict-report-2026-08-10.md) §4).
+> Feature: `RT-FEAT-MAP-STANDABILITY`, `RT-FEAT-MAP-TRANSITION-CLEARANCE`, entrambe **DESIGNED**.
+>
+> ⚠️ **Due blocchi dichiarati, entrambi in [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md)**: `MAP-1` — la
+> clearance standard in metri, senza la quale non c'è niente da intersecare e cuocere significa ricuocere —
+> e `MAP-3` — la cottura **non è invertibile**, quindi una modifica a mano sul dato cotto sparisce al
+> ricalcolo successivo, in silenzio. Il secondo è un rischio di produzione registrato dal 2026-08-09 e non
+> ancora chiuso.
 
 ### E24 — Formato Standard 3v3 · P1
 

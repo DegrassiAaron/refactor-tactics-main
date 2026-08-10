@@ -676,4 +676,347 @@ bool FRTGoldenCorpusFormatMismatchTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * D-062, il test che rende il secondo hash una verifica invece che un ornamento.
+ *
+ * `HashTurnLog` ordina prima di mescolare, quindi un riordino delle emissioni gli e' invisibile: oggi un ciclo
+ * che iterasse una `TMap` cambierebbe la traccia lasciando ogni hash identico, e nessun golden se ne
+ * accorgerebbe. `HashTurnLogOrdered` guarda l'ordine di append, che e' l'ordine in cui il resolver ha
+ * davvero emesso.
+ *
+ * Le DUE asserzioni servono entrambe: la prima fissa il contratto vecchio (che resta), la seconda quello
+ * nuovo. Senza la prima, un'implementazione che rompesse la permutazione-invarianza passerebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogOrderedHashDetectsReorderingTest,
+	"RefactorTactics.TurnLog.OrderedHashDetectsReordering",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogOrderedHashDetectsReorderingTest::RunTest(const FString&)
+{
+	const TArray<FRTTurnLogEntry> Straight = SampleLog();
+	TArray<FRTTurnLogEntry> Reordered = Straight;
+	Algo::Reverse(Reordered); // stesse voci, ordine di emissione diverso
+
+	TestEqual(TEXT("l'hash canonico resta cieco all'ordine (contratto invariato)"),
+		URTTurnLogLibrary::HashTurnLog(Reordered), URTTurnLogLibrary::HashTurnLog(Straight));
+	TestNotEqual(TEXT("l'hash ORDINATO vede il riordino"),
+		URTTurnLogLibrary::HashTurnLogOrdered(Reordered), URTTurnLogLibrary::HashTurnLogOrdered(Straight));
+	return true;
+}
+
+/**
+ * Controprova: l'hash ordinato non e' una costante travestita da verifica, e non e' l'hash canonico con un
+ * altro nome. Su una traccia gia' in forma canonica i due COINCIDONO — non e' un difetto, e' la definizione —
+ * ma su una traccia emessa in altro ordine devono divergere. Senza questo test, `HashTurnLogOrdered` potrebbe
+ * delegare a `HashTurnLog` e il test qui sopra sarebbe l'unico a saperlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogOrderedHashIsNotTheCanonicalOneTest,
+	"RefactorTactics.TurnLog.OrderedHashIsNotTheCanonicalOne",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogOrderedHashIsNotTheCanonicalOneTest::RunTest(const FString&)
+{
+	TArray<FRTTurnLogEntry> Canonical = SampleLog();
+	URTTurnLogLibrary::SortTurnLog(Canonical);
+	TestEqual(TEXT("su una traccia gia' canonica i due hash coincidono"),
+		URTTurnLogLibrary::HashTurnLogOrdered(Canonical), URTTurnLogLibrary::HashTurnLog(Canonical));
+
+	TArray<FRTTurnLogEntry> Emitted = Canonical;
+	Algo::Reverse(Emitted);
+	TestNotEqual(TEXT("su una traccia emessa in altro ordine, no"),
+		URTTurnLogLibrary::HashTurnLogOrdered(Emitted), URTTurnLogLibrary::HashTurnLog(Emitted));
+	return true;
+}
+
+/**
+ * Il limite di D-062, fissato da un test perche' altrimenti qualcuno scrivera' un «ricalcola dal file e
+ * confronta» che passa sempre.
+ *
+ * `D-SR-1` scrive i byte in forma CANONICA (ordinata): la serializzazione **perde** l'ordine di emissione.
+ * Quindi l'hash ordinato non e' ricalcolabile da un file — va calcolato prima di serializzare e conservato
+ * altrove (l'header del Replay Archive, quando esistera'). Qui si pretende esattamente questo: il round-trip
+ * preserva l'hash canonico e NON quello ordinato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogOrderedHashIsLostBySerializationTest,
+	"RefactorTactics.TurnLog.OrderedHashIsLostBySerialization",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogOrderedHashIsLostBySerializationTest::RunTest(const FString&)
+{
+	// Un log deliberatamente NON in forma canonica: se lo fosse, il test passerebbe per il motivo sbagliato.
+	TArray<FRTTurnLogEntry> Emitted = SampleLog();
+	Algo::Reverse(Emitted);
+	TArray<FRTTurnLogEntry> Canonical = Emitted;
+	URTTurnLogLibrary::SortTurnLog(Canonical);
+	if (!TestTrue(TEXT("il log di prova NON e' gia' in forma canonica"),
+		URTTurnLogLibrary::HashTurnLogOrdered(Emitted) != URTTurnLogLibrary::HashTurnLogOrdered(Canonical)))
+	{
+		return false;
+	}
+
+	const uint32 OrderedBefore = URTTurnLogLibrary::HashTurnLogOrdered(Emitted);
+
+	TArray<FRTTurnLogEntry> Restored;
+	if (!TestTrue(TEXT("round-trip riuscito"), URTTurnLogLibrary::DeserializeTurnLog(
+		URTTurnLogLibrary::SerializeTurnLog(Emitted), Restored)))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("il round-trip preserva l'hash canonico"),
+		URTTurnLogLibrary::HashTurnLog(Restored), URTTurnLogLibrary::HashTurnLog(Emitted));
+	TestNotEqual(TEXT("ma NON quello ordinato: i byte tornano in forma canonica"),
+		URTTurnLogLibrary::HashTurnLogOrdered(Restored), OrderedBefore);
+	return true;
+}
+
+/**
+ * D-063: `UnitId` e `TurnNumber` sopravvivono al round-trip (formato v6).
+ *
+ * Servono perche' la cella NON identifica l'attore in tre casi reali: le voci ambientali non hanno un'unita',
+ * l'interposizione scrive la cella del PROTETTO, e dopo un Dash la cella in fase Blast non e' piu' quella di
+ * partenza. `UnitId = 0` significa «nessuna unita'», ed e' cio' che una voce ambientale dice davvero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogUnitIdAndTurnRoundTripTest,
+	"RefactorTactics.TurnLog.UnitIdAndTurnRoundTrip",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogUnitIdAndTurnRoundTripTest::RunTest(const FString&)
+{
+	TArray<FRTTurnLogEntry> Log;
+	FRTTurnLogEntry Acted = MakeSerEntry(ERTMatchPhase::Blast, ERTLogCategory::Combat,
+		static_cast<uint8>(ERTCombatOutcome::Hit), FRTCellId(0, 0), FRTCellId(1, 0), 8);
+	Acted.UnitId = 7;
+	Acted.TurnNumber = 9;
+	Log.Add(Acted);
+
+	// Voce ambientale: nessuna unita' l'ha prodotta, e il campo deve poterlo dire.
+	FRTTurnLogEntry Ambient = MakeSerEntry(ERTMatchPhase::Cleanup, ERTLogCategory::Move,
+		static_cast<uint8>(ERTMoveOutcome::Stayed), FRTCellId(3, 3), FRTCellId(3, 3), 0);
+	Ambient.UnitId = 0;
+	Ambient.TurnNumber = 9;
+	Log.Add(Ambient);
+
+	TArray<FRTTurnLogEntry> Restored;
+	if (!TestTrue(TEXT("round-trip riuscito"), URTTurnLogLibrary::DeserializeTurnLog(
+		URTTurnLogLibrary::SerializeTurnLog(Log), Restored)))
+	{
+		return false;
+	}
+	if (!TestEqual(TEXT("due voci lette"), Restored.Num(), 2)) { return false; }
+
+	// Le voci tornano in forma canonica: si cerca per contenuto, non per indice.
+	const FRTTurnLogEntry* Combat = Restored.FindByPredicate(
+		[](const FRTTurnLogEntry& E) { return E.Category == ERTLogCategory::Combat; });
+	const FRTTurnLogEntry* Env = Restored.FindByPredicate(
+		[](const FRTTurnLogEntry& E) { return E.Category == ERTLogCategory::Move; });
+	if (!TestTrue(TEXT("entrambe le voci ritrovate"), Combat != nullptr && Env != nullptr)) { return false; }
+
+	TestEqual(TEXT("UnitId preservato"), Combat->UnitId, 7);
+	TestEqual(TEXT("TurnNumber preservato"), Combat->TurnNumber, 9);
+	TestEqual(TEXT("una voce ambientale resta senza unita'"), Env->UnitId, 0);
+	return true;
+}
+
+/**
+ * D-063: i due campi nuovi restano FUORI dall'hash, come `FormatId` (v4) e `BaseActionId` (v5).
+ *
+ * Il criterio e' sempre lo stesso: un campo entra nell'hash se e solo se due tracce possono differire SOLO
+ * per quel campo. `UnitId` e `TurnNumber` servono a rendere la traccia spiegabile, non a discriminarla —
+ * e includerli invaliderebbe in blocco ogni hash golden, che e' cio' che la regola esiste per impedire.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogHashIgnoresUnitIdAndTurnTest,
+	"RefactorTactics.TurnLog.HashIgnoresUnitIdAndTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogHashIgnoresUnitIdAndTurnTest::RunTest(const FString&)
+{
+	const TArray<FRTTurnLogEntry> Plain = SampleLog();
+
+	TArray<FRTTurnLogEntry> Attributed = Plain;
+	for (int32 i = 0; i < Attributed.Num(); ++i)
+	{
+		Attributed[i].UnitId = i + 1;
+		Attributed[i].TurnNumber = 4;
+	}
+
+	TestEqual(TEXT("attribuire le voci non cambia l'hash canonico"),
+		URTTurnLogLibrary::HashTurnLog(Attributed), URTTurnLogLibrary::HashTurnLog(Plain));
+	TestEqual(TEXT("ne' quello ordinato"),
+		URTTurnLogLibrary::HashTurnLogOrdered(Attributed), URTTurnLogLibrary::HashTurnLogOrdered(Plain));
+	return true;
+}
+
+/**
+ * Retrocompatibilita' del formato 5: una traccia scritta prima che esistessero `UnitId` e `TurnNumber` resta
+ * leggibile, e i due campi restano neutri. Non si inventa cio' che quei byte non dicevano — in particolare
+ * NON si deduce l'unita' dalla cella, che e' esattamente l'inferenza che D-063 ha dichiarato non valida.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogLegacyWithoutUnitIdTest,
+	"RefactorTactics.TurnLog.LegacyVersionWithoutUnitIdIsReadable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogLegacyWithoutUnitIdTest::RunTest(const FString&)
+{
+	TArray<uint8> Bytes;
+	auto U16 = [&Bytes](uint16 V) { Bytes.Add(V & 0xFF); Bytes.Add((V >> 8) & 0xFF); };
+	auto U32 = [&Bytes](uint32 V)
+	{
+		Bytes.Add(V & 0xFF); Bytes.Add((V >> 8) & 0xFF); Bytes.Add((V >> 16) & 0xFF); Bytes.Add((V >> 24) & 0xFF);
+	};
+	auto Str = [&Bytes, &U16](const char* S)
+	{
+		const int32 Len = FCStringAnsi::Strlen(S);
+		U16(static_cast<uint16>(Len));
+		for (int32 i = 0; i < Len; ++i) { Bytes.Add(static_cast<uint8>(S[i])); }
+	};
+
+	U32(0x4C545452u); // 'RTTL'
+	U16(static_cast<uint16>(ERTTurnLogFormatVersion::WithBaseActionId)); // v5: UnitId/TurnNumber non esistono
+	U16(static_cast<uint16>(ERTLogTopology::Hex));
+	Str("Format.Skirmish2v2");
+	U32(1);
+	Bytes.Add(static_cast<uint8>(ERTMatchPhase::Blast));
+	Bytes.Add(static_cast<uint8>(ERTLogCategory::Combat));
+	Bytes.Add(static_cast<uint8>(ERTCombatOutcome::Hit));
+	U32(2); U32(2); U32(0);  // SrcCell: una cella c'e', ma non dice CHI
+	U32(3); U32(3); U32(0);
+	U32(12);
+	Str("Bastion.ImpactShot");
+	Str("Action.BasicAttack");
+
+	uint32 H = 2166136261u;
+	for (const uint8 B : Bytes) { H ^= B; H *= 16777619u; }
+	U32(H);
+
+	TArray<FRTTurnLogEntry> Out;
+	TestTrue(TEXT("una traccia in versione 5 resta leggibile"),
+		URTTurnLogLibrary::DeserializeTurnLog(Bytes, Out, nullptr, nullptr));
+	if (!TestEqual(TEXT("una voce letta"), Out.Num(), 1)) { return false; }
+	TestEqual(TEXT("l'ActionId e' preservato"), Out[0].ActionId, FName(TEXT("Bastion.ImpactShot")));
+	TestEqual(TEXT("nessuna unita' dedotta dalla cella"), Out[0].UnitId, 0);
+	TestEqual(TEXT("nessun turno inventato"), Out[0].TurnNumber, 0);
+	return true;
+}
+
+/**
+ * La forma canonica deve essere definita su OGNI campo che il serializzatore scrive.
+ *
+ * `D-SR-1` promette byte permutazione-invarianti, e la promessa regge solo se `EntryLess` e' un ordine
+ * TOTALE sui campi serializzati. Se ne resta fuori uno, due voci che pareggiano su tutto il resto restano
+ * a pari merito e il loro ordine lo decide `TArray::Sort`, che non e' stabile: due inserimenti diversi
+ * producono due file diversi con lo stesso contenuto. E' il difetto che `UnitId` ha introdotto arrivando
+ * nella v6 senza entrare nel confronto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogCanonicalOrderCoversSerializedFieldsTest,
+	"RefactorTactics.TurnLog.CanonicalOrderCoversSerializedFields",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogCanonicalOrderCoversSerializedFieldsTest::RunTest(const FString&)
+{
+	// Due voci identiche in TUTTO tranne l'unita' che le ha prodotte: e' il pareggio che scopre il difetto.
+	FRTTurnLogEntry First = MakeSerEntry(ERTMatchPhase::Blast, ERTLogCategory::Combat,
+		static_cast<uint8>(ERTCombatOutcome::Hit), FRTCellId(1, 1), FRTCellId(2, 2), 10);
+	First.UnitId = 1;
+	FRTTurnLogEntry Second = First;
+	Second.UnitId = 2;
+
+	TArray<FRTTurnLogEntry> Ascending;
+	Ascending.Add(First);
+	Ascending.Add(Second);
+	TArray<FRTTurnLogEntry> Descending;
+	Descending.Add(Second);
+	Descending.Add(First);
+
+	TestTrue(TEXT("stessi byte a prescindere dall'ordine d'inserimento, anche a pari merito"),
+		URTTurnLogLibrary::SerializeTurnLog(Ascending) == URTTurnLogLibrary::SerializeTurnLog(Descending));
+
+	// E l'ordine deve essere ANTISIMMETRICO, non solo deterministico: due voci diverse non sono mai «uguali».
+	TestTrue(TEXT("A < B sull'unita'"), URTTurnLogLibrary::EntryLess(First, Second));
+	TestFalse(TEXT("e non B < A"), URTTurnLogLibrary::EntryLess(Second, First));
+	return true;
+}
+
+/**
+ * `GraphRevision` ENTRA nell'hash, al contrario di `UnitId` e `TurnNumber`.
+ *
+ * Il criterio e' quello di sempre: due tracce possono differire SOLO per questo campo — stessi eventi, ma
+ * grafo modificato in un turno precedente — e sono due partite diverse. Un movimento validato su un grafo
+ * e uno validato su un altro non sono lo stesso evento, anche quando le celle coincidono.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogGraphRevisionEntersHashTest,
+	"RefactorTactics.TurnLog.GraphRevisionEntersTheHash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogGraphRevisionEntersHashTest::RunTest(const FString&)
+{
+	TArray<FRTTurnLogEntry> Before = SampleLog();
+	TArray<FRTTurnLogEntry> After = Before;
+	for (FRTTurnLogEntry& E : Before) { E.GraphRevision = 4; }
+	for (FRTTurnLogEntry& E : After)  { E.GraphRevision = 5; }
+
+	TestNotEqual(TEXT("grafo diverso -> hash diverso"),
+		URTTurnLogLibrary::HashTurnLog(After), URTTurnLogLibrary::HashTurnLog(Before));
+
+	// Controprova: a parita' di revisione l'hash non si muove, cioe' il campo non e' rumore.
+	TArray<FRTTurnLogEntry> SameAsBefore = SampleLog();
+	for (FRTTurnLogEntry& E : SameAsBefore) { E.GraphRevision = 4; }
+	TestEqual(TEXT("stessa revisione -> stesso hash"),
+		URTTurnLogLibrary::HashTurnLog(SameAsBefore), URTTurnLogLibrary::HashTurnLog(Before));
+	return true;
+}
+
+/** `GraphRevision` sopravvive al round-trip, come gli altri campi della v6. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogGraphRevisionRoundTripTest,
+	"RefactorTactics.TurnLog.GraphRevisionRoundTrip",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogGraphRevisionRoundTripTest::RunTest(const FString&)
+{
+	TArray<FRTTurnLogEntry> Log;
+	FRTTurnLogEntry Moved = MakeSerEntry(ERTMatchPhase::Move, ERTLogCategory::Move,
+		static_cast<uint8>(ERTMoveOutcome::Moved), FRTCellId(0, 0), FRTCellId(1, 0), 1);
+	Moved.UnitId = 3;
+	Moved.TurnNumber = 9;
+	Moved.GraphRevision = 12; // il ponte e' crollato due eventi fa: il movimento e' stato validato su QUESTO grafo
+	Log.Add(Moved);
+
+	TArray<FRTTurnLogEntry> Restored;
+	if (!TestTrue(TEXT("round-trip riuscito"), URTTurnLogLibrary::DeserializeTurnLog(
+		URTTurnLogLibrary::SerializeTurnLog(Log), Restored)))
+	{
+		return false;
+	}
+	if (!TestEqual(TEXT("una voce letta"), Restored.Num(), 1)) { return false; }
+	TestEqual(TEXT("GraphRevision preservata"), Restored[0].GraphRevision, 12);
+	TestEqual(TEXT("e gli altri campi della v6 con lei"), Restored[0].UnitId, 3);
+	return true;
+}
+
+/**
+ * La diagnosi della prima divergenza deve considerare divergenza **esattamente cio' che l'hash considera**.
+ *
+ * `GoldenEntriesMatch` confrontava le voci con `EntryLess`, e finche' i campi di `EntryLess` coincidevano con
+ * quelli dell'hash la promessa reggeva. Da quando `UnitId` e `TurnNumber` sono entrati nell'ordinamento — e
+ * NON nell'hash — `EntryLess` discrimina di piu': una voce che differisce solo per l'unita' verrebbe indicata
+ * come «prima divergenza» pur essendo identica per l'hash, e siccome ne' `DescribeEntry` ne' il fallback dei
+ * campi grezzi stampano `UnitId`, la diagnosi mostrerebbe due stringhe uguali — la stessa illusione di
+ * «confronto rotto» gia' corretta una volta per l'`ActionId`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogDivergenceIgnoresNonHashedFieldsTest,
+	"RefactorTactics.TurnLog.FirstDivergenceIgnoresFieldsOutsideTheHash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogDivergenceIgnoresNonHashedFieldsTest::RunTest(const FString&)
+{
+	TArray<FRTTurnLogEntry> Golden = SampleLog();
+	TArray<FRTTurnLogEntry> Actual = Golden;
+	// Stessa identica traccia per l'hash: cambia solo CHI ha agito e in quale turno, che l'hash non guarda.
+	for (int32 i = 0; i < Actual.Num(); ++i)
+	{
+		Actual[i].UnitId = i + 1;
+		Actual[i].TurnNumber = 7;
+	}
+
+	if (!TestEqual(TEXT("premessa: per l'hash le due tracce sono identiche"),
+		URTTurnLogLibrary::HashTurnLog(Actual), URTTurnLogLibrary::HashTurnLog(Golden)))
+	{
+		return false;
+	}
+
+	const FString Diagnosis = URTTurnLogLibrary::DescribeFirstDivergence(1, Golden, Actual);
+	TestEqual(TEXT("nessuna divergenza da riportare: l'hash non vede quei campi"), Diagnosis, FString());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
