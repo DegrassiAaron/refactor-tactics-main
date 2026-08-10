@@ -312,9 +312,14 @@ Restano da fare:
 1. **implementare** `D-062` e `D-063` — formato **v6**, con il test di riordino che rende il secondo hash
    verificato invece che decorativo. Prima di [`#178`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/178),
    o il corpus golden nasce sul formato vecchio;
-2. ADR sul replay logico canonico — sarebbe il **numero 0009** (gli 0001–0008 esistono), ma il numero si
-   assegna **al merge**: due sessioni parallele hanno già collisionato su un ID in questo repository, e ne
-   sta girando una adesso su questo stesso branch. Vale anche per `D-062`/`D-063`;
+2. ~~ADR sul replay logico canonico~~ — **fatto il 2026-08-10**:
+   [ADR-0009](../../decisions/adr-0009-replay-logico-canonico.md), che chiude
+   [#412](https://github.com/DegrassiAaron/refactor-tactics-main/issues/412). Il numero **0009** era quello
+   previsto qui ed è stato confermato al merge controllando **tutti** i branch remoti, non solo `main`. La
+   domanda si è rivelata mal posta come aut-aut: il repository conteneva già **entrambi** i comportamenti e
+   li chiamava con lo stesso nome — `Simulation.DeterministicReplay` ri-simula, `URTReplaySeekLibrary`
+   riproduce. L'ADR li separa in due prodotti con due autorità, e rende il confine impossibile per
+   **struttura** invece che per test — cosa che `#415` aveva già fatto senza saperlo;
 3. le sette issue nuove del §6, dopo il punto 1;
 4. `RT-FEAT-CORE-DECISION-BOUNDARY`: aggiungere la dipendenza verso il replay (§5.2);
 5. sanare lo stato di [`#81`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/81) (§6).
