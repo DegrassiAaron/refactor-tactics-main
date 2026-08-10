@@ -2680,6 +2680,7 @@ features:
       - RefactorTactics.HexMatch.TurnLogExplainsTheTurn
       - RefactorTactics.TurnLog.CombatEntryNamesItsAction
       - RefactorTactics.TurnLog.BasicAttackLogsBaseAndProfile
+      - RefactorTactics.TurnLog.PrioritySurvivesRoundTripAndStaysOutOfHash
     scenarios:
       - Visual.Core.PhaseOrder
     wiki_refs:
@@ -3729,6 +3730,8 @@ features:
       - RefactorTactics.Unit.ShortHeroNameFromStableId
       - RefactorTactics.ScenarioIndex.IdIsIndependentOfPath
       - RefactorTactics.Actions.RetiredStableIdRedirectsToHeir
+      - RefactorTactics.Catalog.ValidatorRejectsRetiredStableId
+      - RefactorTactics.TurnLog.RetiredActionIdIsStillReadableFromDisk
     scenarios: []
     wiki_refs: []
     last_verified:

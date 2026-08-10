@@ -226,7 +226,12 @@ public:
 	 * volontario, l'ActionId dello scatto o dell'azione che spinge negli altri casi. Viaggia nel campo
 	 * `ActionId`, che esiste gia' nella voce, e' gia' serializzato e gia' entra nell'hash — quindi la causa
 	 * non costa una migrazione di formato. Omesso, la voce resta identica a prima.
+	 *
+	 * `CausePriority` e' la priorita' intra-fase della stessa azione (CP 11.3, formato **v7**): con quale
+	 * precedenza quel movimento ha risolto rispetto agli altri della fase. Viene dal catalogo e non e'
+	 * ricalcolata qui — chi legge la traccia non deve caricare i data asset per sapere in che ordine il
+	 * turno ha risolto. Omessa vale `0`, che nel formato significa «non dichiarata».
 	 */
 	static TArray<FRTTurnLogEntry> BuildMoveLog(const TArray<TArray<FRTCellId>>& Paths,
-		const TArray<FRTHexMoveResult>& Results, FName CauseActionId = NAME_None);
+		const TArray<FRTHexMoveResult>& Results, FName CauseActionId = NAME_None, int32 CausePriority = 0);
 };

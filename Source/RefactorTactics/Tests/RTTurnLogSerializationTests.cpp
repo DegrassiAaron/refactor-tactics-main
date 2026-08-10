@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "Turn/RTTurnLogLibrary.h"
+#include "Ability/RTCatalogLibrary.h" // #199: il redirect degli Stable ID ritirati vive nel catalogo
 #include "Turn/RTTurnLog.h"
 #include "Core/RTTypes.h"
 #include "Algo/Reverse.h"
@@ -1016,6 +1017,195 @@ bool FRTTurnLogDivergenceIgnoresNonHashedFieldsTest::RunTest(const FString&)
 
 	const FString Diagnosis = URTTurnLogLibrary::DescribeFirstDivergence(1, Golden, Actual);
 	TestEqual(TEXT("nessuna divergenza da riportare: l'hash non vede quei campi"), Diagnosis, FString());
+	return true;
+}
+
+/**
+ * `Priority` sopravvive al round-trip e **resta fuori dall'hash** (CP 11.3, `#79`, formato **v7**).
+ *
+ * Stesso criterio di `BaseActionId`: la priorita' e' una FUNZIONE dell'`ActionId`, che nell'hash c'e' gia',
+ * quindi mescolarla non distinguerebbe nulla di piu' e avrebbe invalidato in blocco ogni hash golden.
+ * Se un giorno qualcuno la aggiunge all'hash, questo test cade — ed e' il punto: la scelta e' deliberata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogPriorityRoundTripTest,
+	"RefactorTactics.TurnLog.PrioritySurvivesRoundTripAndStaysOutOfHash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogPriorityRoundTripTest::RunTest(const FString&)
+{
+	FRTTurnLogEntry E;
+	E.Phase = ERTMatchPhase::Blast;
+	E.Category = ERTLogCategory::Combat;
+	E.Outcome = static_cast<uint8>(ERTCombatOutcome::Hit);
+	E.SrcCell = FRTCellId(0, 0);
+	E.TgtCell = FRTCellId(2, 0);
+	E.Amount = 21;
+	E.ActionId = FName(TEXT("Vektor.PulseShot"));
+	E.BaseActionId = FName(TEXT("Action.BasicAttack"));
+	E.Priority = 50;
+
+	TArray<FRTTurnLogEntry> In{ E };
+	TArray<uint8> Bytes = URTTurnLogLibrary::SerializeTurnLog(In, ERTLogTopology::Hex, NAME_None);
+
+	TArray<FRTTurnLogEntry> Out;
+	if (!TestTrue(TEXT("round-trip riuscito"),
+		URTTurnLogLibrary::DeserializeTurnLog(Bytes, Out, nullptr, nullptr))) { return false; }
+	if (!TestEqual(TEXT("una voce"), Out.Num(), 1)) { return false; }
+	TestEqual(TEXT("la priorita' sopravvive alla serializzazione"), Out[0].Priority, 50);
+
+	// FUORI dall'hash: due tracce identiche tranne la priorita' hanno lo STESSO hash.
+	FRTTurnLogEntry Other = E;
+	Other.Priority = 99;
+	TArray<FRTTurnLogEntry> OtherLog{ Other };
+	TestEqual(TEXT("la priorita' NON entra nell'hash: e' funzione dell'ActionId, che c'e' gia'"),
+		URTTurnLogLibrary::HashTurnLog(In), URTTurnLogLibrary::HashTurnLog(OtherLog));
+
+	// DENTRO l'ordinamento, invece: e' un campo SCRITTO, e un campo scritto che il confronto non guarda
+	// lascia due voci a pari merito — dove decide `TArray::Sort`, che non e' stabile.
+	TestTrue(TEXT("la priorita' entra in EntryLess: la forma canonica resta definita"),
+		URTTurnLogLibrary::EntryLess(In[0], OtherLog[0]));
+
+	return true;
+}
+
+/**
+ * Una traccia in versione **6** resta leggibile dopo l'arrivo della v7, con `Priority = 0`.
+ *
+ * E lo zero **non si riempie consultando il catalogo**, che pure sarebbe possibile: sarebbe la stessa
+ * inferenza che [D-063] ha dichiarato non valida per l'unita'. Il catalogo di oggi puo' non essere quello con
+ * cui la traccia fu scritta, e una priorita' dedotta racconterebbe un ordine di risoluzione mai avvenuto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogLegacyWithoutPriorityTest,
+	"RefactorTactics.TurnLog.LegacyVersionWithoutPriorityIsReadable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogLegacyWithoutPriorityTest::RunTest(const FString&)
+{
+	TArray<uint8> Bytes;
+	auto U16 = [&Bytes](uint16 V) { Bytes.Add(V & 0xFF); Bytes.Add((V >> 8) & 0xFF); };
+	auto U32 = [&Bytes](uint32 V)
+	{
+		Bytes.Add(V & 0xFF); Bytes.Add((V >> 8) & 0xFF); Bytes.Add((V >> 16) & 0xFF); Bytes.Add((V >> 24) & 0xFF);
+	};
+	auto Str = [&Bytes, &U16](const char* S)
+	{
+		const int32 Len = FCStringAnsi::Strlen(S);
+		U16(static_cast<uint16>(Len));
+		for (int32 i = 0; i < Len; ++i) { Bytes.Add(static_cast<uint8>(S[i])); }
+	};
+
+	U32(0x4C545452u); // 'RTTL'
+	U16(static_cast<uint16>(ERTTurnLogFormatVersion::WithUnitId)); // versione 6: tutto tranne Priority
+	U16(static_cast<uint16>(ERTLogTopology::Hex));
+	Str("Format.Skirmish2v2");
+	U32(1);
+	Bytes.Add(static_cast<uint8>(ERTMatchPhase::Blast));
+	Bytes.Add(static_cast<uint8>(ERTLogCategory::Combat));
+	Bytes.Add(static_cast<uint8>(ERTCombatOutcome::Hit));
+	U32(0); U32(0); U32(0);
+	U32(2); U32(0); U32(0);
+	U32(21);
+	Str("Vektor.PulseShot");
+	Str("Action.BasicAttack");
+	U32(3); U32(1); U32(0); // UnitId, TurnNumber, GraphRevision — la v6 li ha; Priority no
+
+	uint32 H = 2166136261u;
+	for (const uint8 B : Bytes) { H ^= B; H *= 16777619u; }
+	U32(H);
+
+	TArray<FRTTurnLogEntry> Out;
+	TestTrue(TEXT("una traccia in versione 6 resta leggibile dopo la v7"),
+		URTTurnLogLibrary::DeserializeTurnLog(Bytes, Out, nullptr, nullptr));
+	if (!TestEqual(TEXT("una voce letta"), Out.Num(), 1)) { return false; }
+	TestEqual(TEXT("i campi della v6 sono preservati"), Out[0].UnitId, 3);
+	TestEqual(TEXT("Priority resta 0: non si deduce dal catalogo"), Out[0].Priority, 0);
+	// E la riga leggibile non mostra «p0»: zero significa «non dichiarata», non «priorita' zero».
+	TestFalse(TEXT("il combat log non stampa una priorita' che la traccia non aveva"),
+		URTTurnLogLibrary::DescribeEntry(Out[0]).Contains(TEXT("p0")));
+	return true;
+}
+
+/**
+ * `#199` **fetta 6** — la verifica che il piano di migrazione chiamava «a due binari»: un TurnLog scritto col
+ * vocabolario VECCHIO si rilegge col binario nuovo e conserva l'informazione.
+ *
+ * **Perche' questo test e' equivalente a usare davvero due binari, e non una scorciatoia.** Il formato non e'
+ * cambiato per gli ActionId da quando `Action.Activate` era a catalogo: dalla v3 in poi l'ID e' lunghezza
+ * `uint16` + byte UTF-8, e nessuna versione successiva ha toccato quella posizione. I byte prodotti qui per
+ * `Action.Activate` sono percio' **gli stessi byte** che il binario di allora avrebbe scritto — non una
+ * simulazione: la stessa sequenza. Cio' che il test verifica e' il LETTORE di oggi su quei byte.
+ *
+ * Il punto non e' che l'ID sopravviva — quello lo fa qualunque stringa. E' che sopravviva **senza essere
+ * riscritto**: il redirect vive nella lettura del CATALOGO, non nel loader. Una traccia dice cio' che disse.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogRetiredActionIdSurvivesOnDiskTest,
+	"RefactorTactics.TurnLog.RetiredActionIdIsStillReadableFromDisk",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogRetiredActionIdSurvivesOnDiskTest::RunTest(const FString&)
+{
+	// Una voce col vocabolario di prima della migrazione.
+	FRTTurnLogEntry Old;
+	Old.Phase = ERTMatchPhase::Blast;
+	Old.Category = ERTLogCategory::Combat;
+	Old.Outcome = static_cast<uint8>(ERTCombatOutcome::Hit);
+	Old.SrcCell = FRTCellId(0, 0);
+	Old.TgtCell = FRTCellId(1, 0);
+	Old.Amount = 0;
+	Old.ActionId = FName(TEXT("Action.Activate")); // ID RITIRATO il 2026-08-10
+
+	TArray<FRTTurnLogEntry> In{ Old };
+	const TArray<uint8> Bytes = URTTurnLogLibrary::SerializeTurnLog(In, ERTLogTopology::Hex, NAME_None);
+
+	TArray<FRTTurnLogEntry> Out;
+	if (!TestTrue(TEXT("la traccia col vocabolario vecchio si rilegge"),
+		URTTurnLogLibrary::DeserializeTurnLog(Bytes, Out, nullptr, nullptr))) { return false; }
+	if (!TestEqual(TEXT("una voce"), Out.Num(), 1)) { return false; }
+
+	// 1. Il loader NON riscrive: la traccia conserva l'ID che aveva. Se il redirect fosse nel loader, qui
+	//    leggeremmo `Action.Interact` e avremmo perso l'informazione di cosa il turno dichiaro' davvero.
+	TestEqual(TEXT("#199: l'ID ritirato resta scritto com'era, il loader non lo riscrive"),
+		Out[0].ActionId, FName(TEXT("Action.Activate")));
+
+	// 2. Ma resta INTERPRETABILE: chi vuole sapere che azione fosse la ottiene dal catalogo, che reindirizza.
+	TestEqual(TEXT("#199: e resta interpretabile — il catalogo risponde con l'erede"),
+		URTCatalogLibrary::FindCoreAction(Out[0].ActionId).ActionId, FName(TEXT("Action.Interact")));
+
+	// 3. L'hash della traccia vecchia e' RIPRODUCIBILE: la migrazione non ha invalidato i replay esistenti.
+	TestEqual(TEXT("#199: l'hash della traccia vecchia non e' cambiato con la migrazione"),
+		URTTurnLogLibrary::HashTurnLog(In), URTTurnLogLibrary::HashTurnLog(Out));
+
+	return true;
+}
+
+/**
+ * `#199` **fetta 2** — il validator rifiuta uno Stable ID ritirato usato per DICHIARARE un'azione, e nomina
+ * l'erede. Il redirect vale in lettura; in scrittura ricreerebbe la doppia verita' appena rimossa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTValidatorRejectsRetiredIdTest,
+	"RefactorTactics.Catalog.ValidatorRejectsRetiredStableId",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTValidatorRejectsRetiredIdTest::RunTest(const FString&)
+{
+	// Un'azione per il resto valida, col solo difetto di chiamarsi con un ID ritirato.
+	FRTActionDef Retired = URTCatalogLibrary::FindCoreAction(TEXT("Action.Interact"));
+	Retired.ActionId = FName(TEXT("Action.Activate"));
+
+	const TArray<FString> Errors = URTCatalogLibrary::ValidateActions({ Retired });
+	if (!TestTrue(TEXT("#199: il validator rifiuta l'ID ritirato"), Errors.Num() > 0)) { return false; }
+
+	// L'errore deve NOMINARE l'erede: senza, chi lo incontra sa che qualcosa e' vietato e non cosa scrivere.
+	bool bNamesHeir = false;
+	for (const FString& Err : Errors)
+	{
+		if (Err.Contains(TEXT("Action.Activate")) && Err.Contains(TEXT("Action.Interact")))
+		{
+			bNamesHeir = true; break;
+		}
+	}
+	TestTrue(TEXT("#199: e l'errore nomina l'erede, non solo il divieto"), bNamesHeir);
+
+	// Il catalogo vero resta valido: la regola nuova non introduce falsi positivi.
+	const TArray<FString> CoreErrors = URTCatalogLibrary::ValidateActions(URTCatalogLibrary::GetCoreActionCatalog());
+	for (const FString& Err : CoreErrors) { AddError(Err); }
+	TestEqual(TEXT("il catalogo spedito resta valido"), CoreErrors.Num(), 0);
 	return true;
 }
 

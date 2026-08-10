@@ -716,7 +716,7 @@ void ARTTurnManager::LockInAndResolve()
 }
 
 void ARTTurnManager::AppendDisplacementEntry(const ARTUnit* Target, const FRTCellId& From, const FRTCellId& To,
-	int32 Steps, const TMap<ARTUnit*, FName>& CauseById, const TMap<ARTUnit*, FName>& CauseByBaseId)
+	int32 Steps, const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget)
 {
 	FRTTurnLogEntry Entry;
 	// Fase `Blast`: lo spostamento forzato avviene dove avviene il colpo che lo produce, non nella fase Move.
@@ -731,8 +731,12 @@ void ARTTurnManager::AppendDisplacementEntry(const ARTUnit* Target, const FRTCel
 	// La chiave delle due mappe e' il puntatore non-const del bersaglio: qui si arriva con un const, e
 	// `const_cast` sul solo scopo di CERCARE non muta nulla — la mappa e' const anch'essa.
 	ARTUnit* Key = const_cast<ARTUnit*>(Target);
-	if (const FName* Cause = CauseById.Find(Key))         { Entry.ActionId = *Cause; }
-	if (const FName* Base  = CauseByBaseId.Find(Key))     { Entry.BaseActionId = *Base; }
+	if (const FRTDisplacementCause* Cause = CauseByTarget.Find(Key))
+	{
+		Entry.ActionId = Cause->ActionId;
+		Entry.BaseActionId = Cause->BaseActionId;
+		Entry.Priority = Cause->Priority;
+	}
 
 	TurnLog.Add(Entry);
 }
@@ -1864,6 +1868,7 @@ void ARTTurnManager::ResolveDash()
 			DashEntry.Amount = Resolved[i].Entered.Num();
 			DashEntry.ActionId = DashDef->Def.ActionId;
 			DashEntry.BaseActionId = DashDef->Def.BaseActionId;
+			DashEntry.Priority = DashDef->Def.Priority;
 			TurnLog.Add(DashEntry);
 		}
 
@@ -2521,6 +2526,7 @@ void ARTTurnManager::ResolveCombat()
 	// lo stesso che la voce di categoria `Reaction` porta gia' da CP 5.5.
 	TArray<FName> CounterActionId;
 	TArray<FName> CounterBaseActionId;
+	TArray<int32> CounterPriority;
 	DeflectDelta.Init(0, Units.Num());
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
@@ -2574,6 +2580,7 @@ void ARTTurnManager::ResolveCombat()
 					CounterAttackSrc.Add(Unit->Cell);
 					CounterActionId.Add(Reaction->Def.ActionId);
 					CounterBaseActionId.Add(Reaction->Def.BaseActionId);
+					CounterPriority.Add(Reaction->Def.Priority);
 					AddLogEvent(FString::Printf(TEXT("%s: contrattacco su %s (%d)"),
 						*Unit->GetName(), *EffectTarget->GetName(), Event.Amount));
 					break;
@@ -2637,6 +2644,7 @@ void ARTTurnManager::ResolveCombat()
 		{
 			NoLos.ActionId = IntentDefs[BlockedIdx].ActionId;
 			NoLos.BaseActionId = IntentDefs[BlockedIdx].BaseActionId;
+			NoLos.Priority = IntentDefs[BlockedIdx].Priority;
 		}
 		TurnLog.Add(NoLos);
 		AddLogEvent(FString::Printf(TEXT("%s (%s -> %s)"), *URTTurnLogLibrary::DescribeEntry(NoLos),
@@ -3072,10 +3080,8 @@ void ARTTurnManager::ResolveCombat()
 	// scrivendo due voci. Con una chiave sola la seconda `Add` sovrascrive la prima, e la voce della spinta
 	// finirebbe per dichiarare l'azione di chi ha TIRATO. Su una PR che esiste per rendere il TurnLog
 	// attribuibile sarebbe stato il difetto peggiore possibile: una causa scritta, precisa e falsa.
-	TMap<ARTUnit*, FName> PushCauseBy;
-	TMap<ARTUnit*, FName> PushCauseByBase;
-	TMap<ARTUnit*, FName> PullCauseBy;
-	TMap<ARTUnit*, FName> PullCauseByBase;
+	TMap<ARTUnit*, FRTDisplacementCause> PushCause;
+	TMap<ARTUnit*, FRTDisplacementCause> PullCause;
 	AttackSrc.Reserve(Plan.Hits.Num());
 	// IDENTITA' dell'azione per ogni colpo, paralleli ad `Attacks`/`AttackSrc` (CP 11.3, #79). Fino a qui le
 	// voci di combattimento uscivano ANONIME: `ERTCombatOutcome` diceva «22 danni, eliminata» senza dire da
@@ -3086,8 +3092,12 @@ void ARTTurnManager::ResolveCombat()
 	// (formato v3 e v5) e il primo entra gia' nell'hash. Riempirli non muove la versione del formato.
 	TArray<FName> AttackActionId;
 	TArray<FName> AttackBaseActionId;
+	// PRIORITA' intra-fase del colpo (CP 11.3, `#79`, formato v7): il numero che ha deciso in che ORDINE le
+	// azioni della stessa fase hanno risolto. Viene dal catalogo, non e' ricalcolato qui.
+	TArray<int32> AttackPriority;
 	AttackActionId.Reserve(Plan.Hits.Num());
 	AttackBaseActionId.Reserve(Plan.Hits.Num());
+	AttackPriority.Reserve(Plan.Hits.Num());
 	for (const FRTHexAttackHit& Hit : Plan.Hits)
 	{
 		ARTUnit* Attacker = Units[Hit.AttackerId];
@@ -3099,6 +3109,7 @@ void ARTTurnManager::ResolveCombat()
 		// dichiarata», e vale meno di un nome inventato qui.
 		AttackActionId.Add(bHasDef ? IntentDefs[Hit.IntentIndex].ActionId : NAME_None);
 		AttackBaseActionId.Add(bHasDef ? IntentDefs[Hit.IntentIndex].BaseActionId : NAME_None);
+		AttackPriority.Add(bHasDef ? IntentDefs[Hit.IntentIndex].Priority : 0);
 
 		// Effetti COLLATERALI del colpo (stato, spinta) dagli EVENTI dichiarati dall'azione, non da flag
 		// letti qui: e' il motore azioni (epic E4). Il danno resta separato perche' segue una regola sua —
@@ -3147,20 +3158,20 @@ void ARTTurnManager::ResolveCombat()
 					KnockFrom.Add(Victim, HexUnits[Hit.AttackerId].Cell);
 					KnockDist.Add(Victim, Event.Amount);
 					KnockCount.FindOrAdd(Victim)++;
-					PushCauseBy.Add(Victim, IntentDefs.IsValidIndex(Hit.IntentIndex)
-						? IntentDefs[Hit.IntentIndex].ActionId : NAME_None);
-					PushCauseByBase.Add(Victim, IntentDefs.IsValidIndex(Hit.IntentIndex)
-						? IntentDefs[Hit.IntentIndex].BaseActionId : NAME_None);
+					PushCause.Add(Victim, bHasDef
+						? FRTDisplacementCause{ IntentDefs[Hit.IntentIndex].ActionId,
+							IntentDefs[Hit.IntentIndex].BaseActionId, IntentDefs[Hit.IntentIndex].Priority }
+						: FRTDisplacementCause{});
 					break;
 
 				case ERTActionEffect::Pull:
 					PullToward.Add(Victim, HexUnits[Hit.AttackerId].Cell);
 					PullDist.Add(Victim, Event.Amount);
 					PullCount.FindOrAdd(Victim)++;
-					PullCauseBy.Add(Victim, IntentDefs.IsValidIndex(Hit.IntentIndex)
-						? IntentDefs[Hit.IntentIndex].ActionId : NAME_None);
-					PullCauseByBase.Add(Victim, IntentDefs.IsValidIndex(Hit.IntentIndex)
-						? IntentDefs[Hit.IntentIndex].BaseActionId : NAME_None);
+					PullCause.Add(Victim, bHasDef
+						? FRTDisplacementCause{ IntentDefs[Hit.IntentIndex].ActionId,
+							IntentDefs[Hit.IntentIndex].BaseActionId, IntentDefs[Hit.IntentIndex].Priority }
+						: FRTDisplacementCause{});
 					break;
 
 				default:
@@ -3200,6 +3211,7 @@ void ARTTurnManager::ResolveCombat()
 	AttackSrc.Append(CounterAttackSrc);
 	AttackActionId.Append(CounterActionId);
 	AttackBaseActionId.Append(CounterBaseActionId);
+	AttackPriority.Append(CounterPriority);
 
 	if (Attacks.Num() == 0)
 	{
@@ -3252,6 +3264,7 @@ void ARTTurnManager::ResolveCombat()
 		// passa da `ApplyDamageDelta`, e un giorno un delta potrebbe non conservare la cardinalita'.
 		if (AttackActionId.IsValidIndex(a))     { E.ActionId = AttackActionId[a]; }
 		if (AttackBaseActionId.IsValidIndex(a)) { E.BaseActionId = AttackBaseActionId[a]; }
+		if (AttackPriority.IsValidIndex(a))     { E.Priority = AttackPriority[a]; }
 		TurnLog.Add(E);
 	}
 
@@ -3327,7 +3340,7 @@ void ARTTurnManager::ResolveCombat()
 			// La SPINTA nel TurnLog (#307). Prima esisteva solo come riga di combat log — una stringa per
 			// l'HUD, non una voce di traccia: il replay registrava il danno e taceva lo spostamento, e chi
 			// rileggeva il file vedeva l'unita' altrove senza nulla che lo spiegasse.
-			AppendDisplacementEntry(T, OldCell, NewCell, KPath.Num() - 1, PushCauseBy, PushCauseByBase);
+			AppendDisplacementEntry(T, OldCell, NewCell, KPath.Num() - 1, PushCause);
 
 			// Evento di movimento per il playback: la spinta scivola OldCell -> NewCell nella fase Blast.
 			{
@@ -3414,7 +3427,7 @@ void ARTTurnManager::ResolveCombat()
 			// La TRAZIONE nel TurnLog (#307), stessa voce della spinta. Le due si distinguono senza un esito
 			// dedicato: `SrcCell -> TgtCell` si avvicina alla sorgente invece di allontanarsene, e la sorgente
 			// e' quella del colpo che porta lo stesso `ActionId`.
-			AppendDisplacementEntry(T, OldCell, NewCell, PPath.Num() - 1, PullCauseBy, PullCauseByBase);
+			AppendDisplacementEntry(T, OldCell, NewCell, PPath.Num() - 1, PullCause);
 			{
 				FRTResolvedEvent Ev;
 				Ev.Phase = ERTMatchPhase::Blast;
@@ -3718,7 +3731,8 @@ void ARTTurnManager::ResolveMovement()
 	// dopo PlaceOnCell. BuildMoveLog produce una voce per unita' nell'ordine dell'input.
 	// Causa dichiarata (#307): questo e' il movimento VOLONTARIO della fase Move. Scatto e spostamento
 	// forzato hanno altri produttori e dichiareranno la propria.
-	TArray<FRTTurnLogEntry> MoveLog = URTHexSimLibrary::BuildMoveLog(Paths, Resolved, TEXT("Action.Move"));
+	TArray<FRTTurnLogEntry> MoveLog = URTHexSimLibrary::BuildMoveLog(Paths, Resolved, TEXT("Action.Move"),
+		URTCatalogLibrary::FindCoreAction(TEXT("Action.Move")).Priority);
 	for (int32 i = 0; i < MoveLog.Num(); ++i)
 	{
 		// Il reason code della topologia sostituisce quello del resolver solo se l'unita' ha davvero percorso

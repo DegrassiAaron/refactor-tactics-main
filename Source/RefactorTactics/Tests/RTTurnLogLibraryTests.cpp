@@ -21,7 +21,11 @@ namespace
 	}
 }
 
-// EntryLess: ordine TOTALE -> distingue anche l'ultimo campo (Amount), antisimmetrico.
+// EntryLess: ordine TOTALE -> distingue anche l'ULTIMO campo della catena, antisimmetrico.
+// L'ultimo non e' piu' `Amount` da un pezzo: dopo di lui vengono `ActionId`, poi `TurnNumber`,
+// `GraphRevision` e `UnitId` (v6, D-063/D-067), e da ultimo `Priority` (v7, #79). La catena
+// autorevole sta in `spec-turnlog.md` §6 — qui si cita, non si duplica, perche' un elenco copiato
+// e' esattamente cio' che e' invecchiato tre volte.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogEntryLessTest,
 	"RefactorTactics.TurnLog.EntryLessTotalOrder",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
