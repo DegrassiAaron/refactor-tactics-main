@@ -3063,12 +3063,19 @@ void ARTTurnManager::ResolveCombat()
 	TMap<ARTUnit*, FRTCellId> PullToward;
 	TMap<ARTUnit*, int32> PullDist;
 	TMap<ARTUnit*, int32> PullCount;
-	// CON QUALE azione ogni bersaglio e' stato spostato (#307), spinta e trazione insieme: il TurnLog non
-	// distingue le due nel campo `ActionId` — a distinguerle sono `SrcCell`/`TgtCell`, che dicono se si e'
-	// allontanato o avvicinato. Una mappa sola perche' un bersaglio spinto da 2+ attaccanti non si sposta
-	// affatto (forze contraddittorie): il caso ambiguo non arriva mai a scrivere una voce.
-	TMap<ARTUnit*, FName> DisplaceBy;
-	TMap<ARTUnit*, FName> DisplaceByBase;
+	// CON QUALE azione ogni bersaglio e' stato spostato (#307). **Due mappe, non una condivisa**, e per la
+	// stessa ragione per cui `KnockFrom`/`KnockDist` e `PullToward`/`PullDist` sono gia' separate qui sopra.
+	//
+	// Una mappa sola sembrava bastare perche' «un bersaglio spinto da 2+ attaccanti non si sposta affatto»,
+	// ma quel filtro conta le spinte e le trazioni SEPARATAMENTE: un bersaglio con una spinta da A e una
+	// trazione da B ha `KnockCount == 1` e `PullCount == 1`, passa entrambi i filtri e **si sposta due volte**,
+	// scrivendo due voci. Con una chiave sola la seconda `Add` sovrascrive la prima, e la voce della spinta
+	// finirebbe per dichiarare l'azione di chi ha TIRATO. Su una PR che esiste per rendere il TurnLog
+	// attribuibile sarebbe stato il difetto peggiore possibile: una causa scritta, precisa e falsa.
+	TMap<ARTUnit*, FName> PushCauseBy;
+	TMap<ARTUnit*, FName> PushCauseByBase;
+	TMap<ARTUnit*, FName> PullCauseBy;
+	TMap<ARTUnit*, FName> PullCauseByBase;
 	AttackSrc.Reserve(Plan.Hits.Num());
 	// IDENTITA' dell'azione per ogni colpo, paralleli ad `Attacks`/`AttackSrc` (CP 11.3, #79). Fino a qui le
 	// voci di combattimento uscivano ANONIME: `ERTCombatOutcome` diceva «22 danni, eliminata» senza dire da
@@ -3140,9 +3147,9 @@ void ARTTurnManager::ResolveCombat()
 					KnockFrom.Add(Victim, HexUnits[Hit.AttackerId].Cell);
 					KnockDist.Add(Victim, Event.Amount);
 					KnockCount.FindOrAdd(Victim)++;
-					DisplaceBy.Add(Victim, IntentDefs.IsValidIndex(Hit.IntentIndex)
+					PushCauseBy.Add(Victim, IntentDefs.IsValidIndex(Hit.IntentIndex)
 						? IntentDefs[Hit.IntentIndex].ActionId : NAME_None);
-					DisplaceByBase.Add(Victim, IntentDefs.IsValidIndex(Hit.IntentIndex)
+					PushCauseByBase.Add(Victim, IntentDefs.IsValidIndex(Hit.IntentIndex)
 						? IntentDefs[Hit.IntentIndex].BaseActionId : NAME_None);
 					break;
 
@@ -3150,9 +3157,9 @@ void ARTTurnManager::ResolveCombat()
 					PullToward.Add(Victim, HexUnits[Hit.AttackerId].Cell);
 					PullDist.Add(Victim, Event.Amount);
 					PullCount.FindOrAdd(Victim)++;
-					DisplaceBy.Add(Victim, IntentDefs.IsValidIndex(Hit.IntentIndex)
+					PullCauseBy.Add(Victim, IntentDefs.IsValidIndex(Hit.IntentIndex)
 						? IntentDefs[Hit.IntentIndex].ActionId : NAME_None);
-					DisplaceByBase.Add(Victim, IntentDefs.IsValidIndex(Hit.IntentIndex)
+					PullCauseByBase.Add(Victim, IntentDefs.IsValidIndex(Hit.IntentIndex)
 						? IntentDefs[Hit.IntentIndex].BaseActionId : NAME_None);
 					break;
 
@@ -3320,7 +3327,7 @@ void ARTTurnManager::ResolveCombat()
 			// La SPINTA nel TurnLog (#307). Prima esisteva solo come riga di combat log — una stringa per
 			// l'HUD, non una voce di traccia: il replay registrava il danno e taceva lo spostamento, e chi
 			// rileggeva il file vedeva l'unita' altrove senza nulla che lo spiegasse.
-			AppendDisplacementEntry(T, OldCell, NewCell, KPath.Num() - 1, DisplaceBy, DisplaceByBase);
+			AppendDisplacementEntry(T, OldCell, NewCell, KPath.Num() - 1, PushCauseBy, PushCauseByBase);
 
 			// Evento di movimento per il playback: la spinta scivola OldCell -> NewCell nella fase Blast.
 			{
@@ -3407,7 +3414,7 @@ void ARTTurnManager::ResolveCombat()
 			// La TRAZIONE nel TurnLog (#307), stessa voce della spinta. Le due si distinguono senza un esito
 			// dedicato: `SrcCell -> TgtCell` si avvicina alla sorgente invece di allontanarsene, e la sorgente
 			// e' quella del colpo che porta lo stesso `ActionId`.
-			AppendDisplacementEntry(T, OldCell, NewCell, PPath.Num() - 1, DisplaceBy, DisplaceByBase);
+			AppendDisplacementEntry(T, OldCell, NewCell, PPath.Num() - 1, PullCauseBy, PullCauseByBase);
 			{
 				FRTResolvedEvent Ev;
 				Ev.Phase = ERTMatchPhase::Blast;

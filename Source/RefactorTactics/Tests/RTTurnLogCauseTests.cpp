@@ -172,8 +172,14 @@ bool FRTCombatEntryNamesItsActionTest::RunTest(const FString&)
 		return false;
 	}
 
-	// Le voci si cercano per CELLA del bersaglio: e' la chiave stabile dell'unita' nel turno, e ce n'e' al
-	// piu' una per cella.
+	// Le voci si cercano per CELLA del bersaglio, e la portata di questa affermazione va detta con
+	// precisione: vale **dentro un singolo Blast**, dove le celle sono quelle dello stesso snapshot e una
+	// cella ospita al piu' un'unita'.
+	//
+	// NON e' «la cella e' l'identita' dell'unita' nel turno»: [D-063] ha ritirato quella formulazione — non
+	// regge per le voci ambientali, per l'interposizione (che scrive la cella del protetto) e dopo un Dash —
+	// e ha introdotto `UnitId` proprio per questo. Qui la cella basta perche' il confronto non attraversa
+	// nessuna fase; copiare questo pattern fuori da un singolo Blast sarebbe sbagliato.
 	const FRTTurnLogEntry* Pushed = Combat.FindByPredicate([](const FRTTurnLogEntry& E)
 	{
 		return E.TgtCell == FRTCellId(1, 0);
@@ -287,6 +293,87 @@ bool FRTDisplacementHasCauseAndSourceTest::RunTest(const FString&)
 	const FString Described = URTTurnLogLibrary::DescribeEntry(*Displaced);
 	TestTrue(FString::Printf(TEXT("il combat log distingue subito da scelto: %s"), *Described),
 		Described.Contains(TEXT("spostata")) && Described.Contains(TEXT("Action.Push")));
+
+	DestroyCauseWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPushAndPullKeepTheirOwnCauseTest,
+	"RefactorTactics.TurnLog.PushAndPullKeepTheirOwnCause",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPushAndPullKeepTheirOwnCauseTest::RunTest(const FString&)
+{
+	// REGRESSIONE trovata in code review sulla PR di `#307`, non da questi test — che usavano un attaccante
+	// solo per bersaglio e quindi non potevano vederla.
+	//
+	// Il caso: lo stesso bersaglio subisce una SPINTA da un attaccante e una TRAZIONE da un altro nello
+	// stesso Blast. Il filtro «forze contraddittorie» conta le due cose SEPARATAMENTE (`KnockCount` e
+	// `PullCount`), quindi entrambe passano e il bersaglio si sposta due volte, scrivendo due voci.
+	//
+	// La prima versione teneva le cause in **una mappa sola** chiavata sul bersaglio: la seconda `Add`
+	// sovrascriveva la prima e una delle due voci dichiarava l'azione dell'attaccante sbagliato. Una causa
+	// scritta, precisa e falsa — su un lavoro che esiste per rendere il TurnLog attribuibile e' il difetto
+	// peggiore possibile, peggio dell'assenza di causa da cui si partiva.
+	UWorld* World = MakeCauseWorld();
+	if (!TestNotNull(TEXT("World"), World)) { return false; }
+	SpawnCauseMap(World);
+
+	// Geometria: il bersaglio in mezzo, spingitore e trattore su lati opposti, entrambi adiacenti
+	// (`Action.Push` ha portata 1, `Action.Pull` 2).
+	ARTUnit* Pusher = SpawnCauseUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Victim = SpawnCauseUnit(World, 1, FRTCellId(1, 0));
+	ARTUnit* Puller = SpawnCauseUnit(World, 0, FRTCellId(1, -2));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	if (!TestNotNull(TEXT("Pusher"), Pusher) || !TestNotNull(TEXT("Victim"), Victim)
+		|| !TestNotNull(TEXT("Puller"), Puller) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyCauseWorld(World);
+		return false;
+	}
+
+	Victim->PushResistance = 0;
+
+	const int32 PushIdx = AddCoreAbility(Pusher, TEXT("Action.Push"));
+	Pusher->PlannedAbilityIndex = PushIdx;
+	Pusher->PlannedAttackTarget = Victim;
+
+	const int32 PullIdx = AddCoreAbility(Puller, TEXT("Action.Pull"));
+	Puller->PlannedAbilityIndex = PullIdx;
+	Puller->PlannedAttackTarget = Victim;
+
+	Victim->PlannedCell = Victim->Cell;
+
+	RunCauseTurn(TM);
+
+	// Le voci di spostamento del turno. Se il gioco ne produce una sola (perche' uno dei due effetti non e'
+	// arrivato) il test non ha niente da discriminare e lo dice, invece di passare per finta.
+	TArray<FRTTurnLogEntry> Displacements;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Move
+			&& static_cast<ERTMoveOutcome>(E.Outcome) == ERTMoveOutcome::Displaced)
+		{
+			Displacements.Add(E);
+		}
+	}
+
+	if (!TestTrue(FString::Printf(TEXT("servono DUE spostamenti per discriminare, trovati %d"),
+		Displacements.Num()), Displacements.Num() == 2))
+	{
+		DestroyCauseWorld(World);
+		return false;
+	}
+
+	// L'invariante: le due voci NON possono dichiarare la stessa causa. Con la mappa condivisa erano
+	// identiche, ed e' questa riga che cadeva.
+	TestTrue(TEXT("#307: spinta e trazione dichiarano cause DIVERSE, non la stessa sovrascritta"),
+		Displacements[0].ActionId != Displacements[1].ActionId);
+
+	// E le due cause sono esattamente quelle giocate, non due nomi qualsiasi.
+	TSet<FName> Causes;
+	for (const FRTTurnLogEntry& E : Displacements) { Causes.Add(E.ActionId); }
+	TestTrue(TEXT("una voce e' della spinta"), Causes.Contains(FName(TEXT("Action.Push"))));
+	TestTrue(TEXT("l'altra e' della trazione"), Causes.Contains(FName(TEXT("Action.Pull"))));
 
 	DestroyCauseWorld(World);
 	return true;

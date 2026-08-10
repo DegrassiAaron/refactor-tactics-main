@@ -73,7 +73,10 @@ enum class ERTActionEffect : uint8
 	 * colpo (`URTHexCombatLibrary::CollectHexAttacks`) e lo applica a fase conclusa
 	 * (`URTHexDoorLibrary::ApplyDoorOps`), cosi' l'ordine degli ordini non cambia l'esito.
 	 *
-	 * Non e' un'azione di catalogo: l'azione che apre e chiude porte e' CP 10.1 (`Action.Activate`).
+	 * Non e' un'azione di catalogo: l'azione che apre e chiude porte e' CP 10.1 (`Action.Interact`).
+	 * Diceva `Action.Activate` fino a `#199`, che l'ha ritirata: [D-014] la dichiarava «assorbita
+	 * semanticamente da `Interact`» e [D-025] lo ha confermato. Lo Stable ID resta interpretabile in lettura
+	 * (`URTCatalogLibrary::ResolveLegacyActionId`), ma non e' piu' il nome di un'azione che qualcuno userera'.
 	 */
 	SetDoorState
 };

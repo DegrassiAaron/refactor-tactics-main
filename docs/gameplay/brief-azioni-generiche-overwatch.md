@@ -21,11 +21,14 @@
 > [ADR-0005](../decisions/adr-0005-orientamento.md) §4a. L'elenco canonico è di **sette** voci.
 > L'economia `Attack | Ability | Overwatch` **non cambia**.
 >
-> ⚠️ **La tassonomia è chiusa, la migrazione no.** `Action.Activate` e `Action.Sprint`
-> **esistono e sono consumati** — misurato: `Action.Sprint` in 9 file di codice e 6 di test. Cancellarli o
-> rinominarli qui romperebbe test e replay: la migrazione è tracciata come issue, con Stable ID/replay safety
-> e validator fra i requisiti. `Action.Guard` **non fa più parte di questa migrazione**: dopo D-025 è di nuovo
-> uno Stable ID canonico, non un residuo.
+> ✅ **La migrazione è chiusa per due voci su tre, il 2026-08-10 (`#199`).**
+> `Action.Activate` **non è più nel catalogo**: ritirata, con lo Stable ID reindirizzato in lettura a
+> `Action.Interact` (D-014 vieta di cancellarlo — entra nel TurnLog serializzato).
+> `Action.Sprint` **resta**, ed è una decisione ([D-068](../decisions/RT_PDR_00_Decision_Log.md)), non un
+> arretrato: è profilo di `Move` per stile e per slot, e la fase rapida è il suo prezzo, non un'incoerenza.
+> `Action.Guard` **non faceva parte della migrazione**: dopo D-025 è di nuovo uno Stable ID canonico.
+> Resta aperto il **validator** (fetta 2) e la verifica a due binari su un `.rttl` (fetta 6):
+> [`../technical/piano-migrazione-stable-id.md`](../technical/piano-migrazione-stable-id.md).
 >
 > Restano **tunable**, non bloccanti: costi MP, rumore, exposure, eventuale costo extra di slot dello Sprint,
 > differenze di profilo per eroe. Vivono nei cataloghi, e **non vanno inventati** in un consolidamento
@@ -81,7 +84,7 @@ Wait · Move · Basic Attack · Guard · Brace · Interact · Overwatch
 
 Non sostituiscono l'identità dei kit: sono il linguaggio che il resolver riusa. `Interact` in particolare è già
 il punto di contatto previsto con porte, ponti, console e obiettivi — cioè con **E9** ed **E10**, dove
-`Action.Activate`/`Action.Interact` esistono già come identità a catalogo senza nulla da attivare.
+`Action.Interact` esiste già come identità a catalogo senza nulla da attivare. *(Era «`Action.Activate`/`Action.Interact`»: dal 2026-08-10 l'azione è una sola — `#199`.)*
 
 ## 3. `Move` come famiglia, non come tre abilità
 

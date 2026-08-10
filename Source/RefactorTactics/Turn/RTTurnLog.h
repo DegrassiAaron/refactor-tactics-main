@@ -282,8 +282,14 @@ struct FRTTurnLogEntry
 	 * `Bastion.Interposition` e `Action.Intercept` produrrebbero voci IDENTICHE, e un replay non potrebbe piu'
 	 * dire quale abilita' e' scattata. E' l'ActionId del catalogo, cioe' la chiave stabile: non cambia mai.
 	 *
-	 * Oggi lo popolano le voci di categoria `Reaction`. Le altre categorie lo lasciano vuoto — completare i
-	 * reason code delle voci di combattimento e' CP 11.3, e riempirlo a meta' qui direbbe meno del nulla.
+	 * Dal 2026-08-10 (CP 11.3, `#79`) lo popolano **anche le voci di combattimento** — colpi pianificati,
+	 * contrattacchi e attacchi fermati dalla copertura — piu' le voci di movimento di `Move`, `Dash` e
+	 * `Displaced` (`#307`). Prima lo riempivano solo le voci `Reaction`, e questo commento diceva che
+	 * completare le altre era «lavoro di CP 11.3»: quel lavoro e' questo.
+	 *
+	 * Restano legittimamente vuote le voci che **non hanno** un'azione dietro: gli eventi ambientali che
+	 * nessuno ha causato, e le voci di categoria `Facing` che registrano una LETTURA e non una scelta.
+	 * `NAME_None` li' non e' un buco, e' la verita'.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	FName ActionId;
