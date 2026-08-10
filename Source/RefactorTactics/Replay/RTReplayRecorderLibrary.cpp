@@ -101,12 +101,22 @@ bool URTReplayRecorderLibrary::ManifestFromJson(const FString& Json, FRTReplayMa
 	}
 
 	double Version = 0.0;
-	if (!Root->TryGetNumberField(K_VERSION, Version)
-		|| static_cast<uint16>(Version) != static_cast<uint16>(ERTReplayManifestVersion::Initial))
+	if (!Root->TryGetNumberField(K_VERSION, Version))
 	{
-		// Fail-closed: una versione che non conosciamo si rifiuta invece di interpretarne i campi.
-		// E' la convenzione che `DeserializeTurnLog` applica al formato binario, e cio' che ADR-0009 §4
-		// chiede al Player in apertura.
+		return false;
+	}
+
+	// ⚠️ **Un INTERVALLO, non un'uguaglianza** (`#471`). L'uguaglianza sembrava fail-closed ed era anche
+	// altro: il giorno in cui `Current` fosse salito a `2`, ogni archivio gia' scritto sarebbe diventato
+	// illeggibile — cioe' il formato avrebbe rotto la retrocompatibilita' al primo campo aggiunto, che e'
+	// esattamente cio' che il TurnLog ha evitato per cinque versioni di fila accodando i campi in coda.
+	//
+	// Sotto `Initial` non c'e' niente da leggere, sopra `Current` c'e' un formato che questo binario non
+	// conosce: entrambi si rifiutano invece di interpretare campi arbitrari (ADR-0009 §4).
+	const uint16 Letta = static_cast<uint16>(Version);
+	if (Letta < static_cast<uint16>(ERTReplayManifestVersion::Initial)
+		|| Letta > static_cast<uint16>(ERTReplayManifestVersion::Current))
+	{
 		return false;
 	}
 
