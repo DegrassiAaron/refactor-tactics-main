@@ -64,7 +64,7 @@ l'unica cosa che, decisa dopo, costringe a rigenerare il corpus golden.
 
 | # | Tema | Cosa dice l'handoff | Cosa dice HEAD | Stato | Azione |
 |---|---|---|---|---|---|
-| 1 | Replay ≠ video, ≠ network replay UE (§2, §17) | il replay canonico è logico: snapshot + intenti + decisioni + TurnLog + hash | nessun documento lo afferma; il progetto lo *pratica* ma non lo ha mai deciso | `PROPOSED` | **ADR** — è il contributo più forte del pacchetto |
+| 1 | Replay ≠ video, ≠ network replay UE (§2, §17) | il replay canonico è logico: snapshot + intenti + decisioni + TurnLog + hash | nessun documento lo affermava; il progetto lo *praticava* senza averlo mai deciso | ✅ **DECISO** ([ADR-0009](../../decisions/adr-0009-replay-logico-canonico.md) §0) | era il contributo più forte del pacchetto, ed è la premessa senza cui il resto dell'ADR non si capisce |
 | 2 | Formula del determinismo (§3.2) | stessa snapshot + intenti + decisioni + seed ⇒ stesso stato | invariante #4 + CP 12.1 chiuso: `Simulation.DeterministicReplay`, 100 ripetizioni | `CURRENT` | — |
 | 3 | `RulesVersion`, `ContentManifestHash`, `ResolverConfigHash` nella formula | esistono, vanno registrati nell'header | **zero occorrenze in `Source/`**. `RT-FEAT-DATA-HASH` è RELEASE_READY, ma i suoi test dicono di cosa parla: `HexMap.*Hash*` e `TurnLog.Hash*` — **geometria della mappa e traccia**, nessun manifest di regole o cataloghi | `STALE` | costruirli è lavoro nuovo, non «consolidamento» |
 | 4 | `uint64 StateHash / LogHash` (§9) | hash a 64 bit | tutti gli hash sono **uint32 FNV-1a**: `HashTurnLog`, `FRTTestResult::StateHash`, `URTHexMapAsset::ComputeHash` | `CONFLICT` | allargare a 64 bit invalida in blocco ogni hash golden: se si fa, si fa **prima** di `#178` |
@@ -188,7 +188,7 @@ va posta per ciascun campo nuovo, **prima** di generare il corpus.
 
 Al netto di tutto, quattro contributi che nessun documento del repository ha oggi:
 
-1. **Il replay canonico è logico** (§2, §17) — mai deciso, sempre praticato. È materiale da ADR.
+1. **Il replay canonico è logico** (§2, §17) — era mai deciso e sempre praticato; ✅ deciso il 2026-08-10 da [ADR-0009](../../decisions/adr-0009-replay-logico-canonico.md) §0.
 2. **Gli intent non bastano più** (§4) — con Decision Boundary e Fast Reaction lo snapshot + intenti non
    ricostruisce il turno. Ha una conseguenza **immediata**: `RT-FEAT-CORE-DECISION-BOUNDARY` non dichiara
    la dipendenza verso il determinismo del replay, e dovrebbe.

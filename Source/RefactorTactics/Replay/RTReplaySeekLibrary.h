@@ -27,10 +27,13 @@ enum class ERTReplaySeekResult : uint8
  *
  * Non e' lo stato del gioco, ed e' deliberato: un cursore non ricalcola niente. Il confine
  * `ReplayPlayer`/`ReplayVerifier` — chi riproduce non chiama il resolver — e' il rischio `REPLAY-04` del risk
- * register, e **l'ADR che dovra' fissarlo non esiste ancora**: `#412` e' una issue di decisione aperta, e in
- * `docs/decisions/` ci sono gli ADR 0001–0008 e nessuno sul replay. Qui la regola vale comunque **per
- * costruzione**, perche' questa libreria non ha modo di chiamare il resolver: non e' conformita' a una
- * decisione presa, e' l'assenza della possibilita' di violarla.
+ * register, ed e' fissato da [ADR-0009](../../../docs/decisions/adr-0009-replay-logico-canonico.md) §3
+ * ([D-078](../../../docs/decisions/RT_PDR_00_Decision_Log.md), `#412`): questa libreria e' **Player**.
+ *
+ * Qui la regola non vale per conformita' ma **per costruzione** — non c'e' modo di chiamare il resolver da
+ * qui — ed e' l'ordine giusto: l'ADR ha preso questo file come precedente, chiedendo la separazione
+ * strutturale come requisito e il test d'architettura solo come rete. Un test si aggira con un `#include`;
+ * una dipendenza che non esiste no.
  */
 USTRUCT(BlueprintType)
 struct FRTReplayCursor

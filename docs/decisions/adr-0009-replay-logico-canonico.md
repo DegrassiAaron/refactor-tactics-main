@@ -28,6 +28,14 @@ Due cose diverse con lo stesso nome sono due cose che prima o poi qualcuno scamb
 
 ## Decisione
 
+### 0. Il replay è **logico**, e va detto perché nessuno l'aveva mai scritto
+
+Il replay di RefactorTactics **non è un video** e **non è il network replay di Unreal**: è la
+ricostruzione di una partita da `snapshot + intenti + decisioni + TurnLog + hash`. Il progetto lo pratica
+da sempre — l'intero `CP 12.1` poggia su questo — ma nessun documento lo affermava, ed è la premessa senza
+la quale il resto di questo ADR non si capisce: se il replay fosse un filmato, la domanda «chi può
+calcolare» non esisterebbe.
+
 ### 1. Tre attori, e cosa ottiene ciascuno
 
 | Attore | Goal | Cosa ottiene in v0.1 |

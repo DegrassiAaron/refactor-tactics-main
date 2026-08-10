@@ -13,8 +13,11 @@
 
 Origine: [conflict report replay](roadmap/plans/replay-system-conflict-report-2026-08-10.md) §9.
 Le tre domande erano già issue su GitHub ma **non erano elencate qui**, dove vive ciò che aspetta una
-persona: questa sezione colma il buco. Finché restano aperte, **R1** (Replay Archive e Recorder), **R2**
-(serializzazione e compatibilità) e **R3** (Replay Player) non sono nemmeno specificabili.
+persona: questa sezione colma il buco.
+
+**Due su tre sono state decise il 2026-08-10** (sotto), e con esse **R1** (Replay Archive e Recorder) e
+**R3** (Replay Player) diventano specificabili. Resta bloccata solo **R2** (serializzazione e
+compatibilità), che dipende dall'unica domanda ancora aperta.
 
 | ID | Domanda | Perché serve una risposta |
 |---|---|---|
@@ -209,7 +212,6 @@ prima che E10 le incontri in codice.
 
 ---
 
-<<<<<<< HEAD
 ## Aperte — profili d'eroe di `Brace` e `Overwatch`, dal consolidamento del 2026-08-10
 
 Origine: [`roadmap/plans/baseaction-signatures-spec-panel-2026-08-10.md`](roadmap/plans/baseaction-signatures-spec-panel-2026-08-10.md),
@@ -234,7 +236,6 @@ per `Brace`, [D-012](decisions/RT_PDR_00_Decision_Log.md)/[D-014](decisions/RT_P
 > Il §17 la fonda però su `Activate` come azione distinta da `Interact` — che [D-014](decisions/RT_PDR_00_Decision_Log.md)
 > e [D-025](decisions/RT_PDR_00_Decision_Log.md) hanno già escluso. Letta come affinità di `Interact`, la
 > proposta regge senza modifiche di sostanza.
-=======
 ## Aperte — geometria, clearance e confine Guard/Brace, dal consolidamento del 2026-08-10
 
 Origine: [conflict report dell'handoff geometria](roadmap/plans/handoff-geometry-reazioni-conflict-report-2026-08-10.md).
@@ -248,7 +249,6 @@ residuo.
 | `MAP-3` | La **cottura non è invertibile**: cosa succede se qualcuno modifica a mano il dato cotto? | Registrato come rischio il 2026-08-09 e ancora aperto. Se si edita `bBlocksMovement` su una cella cotta, il prossimo ricalcolo cancella la modifica **in silenzio** — stessa classe di problema dei prefab. Le uscite sono tre (vietare l'edit, marcare la cella come «sganciata», o rinunciare al ricalcolo automatico) e nessuna è deducibile dai documenti |
 | `BAL-1` | `Guard` e `Brace` devono separarsi in **danno contro spinta**? | [D-066](decisions/RT_PDR_00_Decision_Log.md) ha misurato il modello in vigore: entrambi fanno entrambe le cose, e differiscono per *forma* (primo colpo forte vs ogni colpo; spinta di 1 cella vs spinta qualsiasi). È bilanciamento: si chiude con una partita, non con un documento. ✅ **La Fase 0 è decisa** ([D-074](decisions/RT_PDR_00_Decision_Log.md), 2026-08-10, issue [#400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/400)): si accetta che in v0.1 ogni spinta valga 1 e si **riscrive** la clausola «senza limite di distanza» invece di introdurre una spinta `≥ 2`. Conseguenza sulle opzioni ancora in campo: restano lo **status quo** e l'**ibrido** (separare le magnitudini); l'opzione *«`Guard` solo danno, `Brace` solo spostamento»* è **preclusa**, perché senza spinta forte lascerebbe `Brace` senza mestiere. ✅ Gli scenari che servono a decidere esistono e sono verdi ([#401](https://github.com/DegrassiAaron/refactor-tactics-main/issues/401)): `Spec.Brace.GuardAndBraceOnMixedHit` e `Spec.Brace.BraceWinsOnSecondHit` pinnano il trade-off reale — *primo colpo pesante* (`Guard` 1 danno) contro *colpi ripetuti* (`Brace` 12 contro 17 su due colpi). ⏳ **Resta l'unica parte che richiede l'autore**: la seduta editor **U20** (voce `PIE-BAL1`) e la scelta fra le due opzioni superstiti. Roadmap e numeri: [`bal-1-guard-brace-roadmap-2026-08-10.md`](roadmap/plans/bal-1-guard-brace-roadmap-2026-08-10.md). Issue [#403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/403) (decisione) |
 | `ECO-1` | `Guard` e `Brace` competono con il **Main Commitment**, o hanno un'altra economia? | [D-012](decisions/RT_PDR_00_Decision_Log.md) copre `Attack \| Ability \| Overwatch` e **non** dice nulla di `Guard` e `Brace`, che a catalogo occupano l'azione principale ma non compaiono in quella regola. La domanda si porta dietro la matrice Sprint/Sneak proposta dal sorgente (`Brace` e `Overwatch` senza Sprint), che **non è canonica** e non va resa tale senza playtest |
->>>>>>> origin/main
 
 ---
 
