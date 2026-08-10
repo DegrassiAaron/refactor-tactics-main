@@ -3,6 +3,11 @@
 *.uasset binary
 *.umap   binary
 
+# Corpus golden di TurnLog (CP 12.6): byte grezzi con checksum in coda. Senza questa riga git decide con
+# l'EURISTICA — «e' testo se non vedo NUL nei primi 8000 byte» — e su una traccia che per caso non ne contiene
+# applicherebbe la conversione CRLF, corrompendo il corpus in modo che si vede solo dopo un clone pulito.
+*.rttl   binary
+
 # Normalizzazione fine riga per i sorgenti testuali
 *.cpp text
 *.h   text
