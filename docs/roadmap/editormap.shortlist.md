@@ -62,7 +62,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 **BLOCKING** — *Blocca la v0.1, e si puo' fare adesso*
 
-- **U1** · Mappa-arena hex — 0/9 voci verdi · sblocca U13, U19
+- **U1** · Mappa-arena hex — 0/7 voci verdi · sblocca U13, U19
 - **U2** · Partita hex, primo giro — 1/4 voci verdi · sblocca U3, M6.1, M6.2
 - **U3** · Input e pianificazione — 0/4 voci verdi · sblocca U4, M6.3
 - **U4** · Combat e linea di tiro — 0/3 voci verdi · sblocca U5, M6.4, M6.5
@@ -72,7 +72,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 **READY** — *Si puo' fare adesso, fuori percorso critico*
 
-- **U18** · Verifiche senza preparazione — 1/3 voci verdi
+- **U18** · Verifiche senza prerequisiti — 1/5 voci verdi
 - **U7** · Personaggi Paragon — 2/2 voci verdi · sblocca U8
 - **U8** · Animazioni — 0/2 voci verdi · sblocca U9
 - **U9** · Leggibilita' e riferimento visivo — 2/4 voci verdi · sblocca M8.1, M8.2, M8.3
@@ -94,8 +94,8 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 | | Seduta | Produce | Sbloccata da | Critico | Voci | Stato |
 |---|---|---|---|:--:|:--:|:--:|
-| **U18** | Verifiche senza preparazione | verdetto su tre voci che non attendono nulla | — | no | 1/3 | 🟡 |
-| **U1** | Mappa-arena hex | `DA_HexMap_Arena` e `L_HexArena`, committati | M6.0 | sì | 0/9 | ⏳ |
+| **U18** | Verifiche senza prerequisiti | verdetto su cinque voci che non attendono nulla | — | no | 1/5 | 🟡 |
+| **U1** | Mappa-arena hex | `DA_HexMap_Arena` e `L_HexArena`, committati | M6.0 | sì | 0/7 | ⏳ |
 | **U2** | Partita hex, primo giro | verdetto su allestimento e movimento | M6.1, M6.2 | sì | 1/4 | 🟡 |
 | **U3** | Input e pianificazione | verdetto su selezione, budget e anteprima del percorso | M6.3 | sì | 0/4 | 🟡 |
 | **U4** | Combat e linea di tiro | verdetto su forme d'attacco, LOS esagonale e knockback | M6.4, M6.5 | sì | 0/3 | ⏳ |
@@ -119,20 +119,23 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 *Nessuna di queste attende codice. ⚠️ **Il banco di prova non si costruisce piu' a mano**: `MapSource = GeneratedTestArena` genera gia' esagono r=4, ostacoli, muro che blocca la vista, fango a costo 3, piattaforma sul layer 1 e una transizione — quindi le sedute della parita' hex non aspettano U1. Costruire una mappa serve a verificare **gli strumenti**, e a preparare il contenuto della v0.1.*
 
-#### U18 · Verifiche senza preparazione 🟡
+#### U18 · Verifiche senza prerequisiti 🟡
 
 **Sbloccata da**: — · **Percorso critico**: no
-**Produce**: verdetto su tre voci che non attendono nulla
-**Verifichi**: `PIE-PREVIEW-AREA` ✅ · `PIE-V01-MATCHEND` ⏳ · `PIE-TEST-CONSOLE` 🟡
-**Finita quando**: le tre voci hanno esito reale nel registro
+**Produce**: verdetto su cinque voci che non attendono nulla
+**Verifichi**: `PIE-PREVIEW-AREA` ✅ · `PIE-V01-MATCHEND` ⏳ · `PIE-TEST-CONSOLE` 🟡 · `PIE-HEX-LAYER` ⏳ · `PIE-HEX-TRANS` ⏳
+**Finita quando**: le cinque voci hanno esito reale nel registro
 
-**E' la sola seduta che non attende nulla**: nessun asset da creare, nessun checkpoint da
-chiudere, nessuna mappa di prova. Basta premere Play sull'arena di ripiego.
+**E' la sola seduta che non attende nulla**: nessun checkpoint da chiudere, nessuna seduta
+prima, nessun artefatto da committare. *Senza prerequisiti* non vuol dire *senza allestimento*:
+le prime tre voci si fanno premendo Play sull'arena di ripiego, le ultime due in editor, su un
+asset **generato e usa-e-getta** — nessuna mappa da costruire a mano, e niente che finisca in
+git.
 
-> ⚠️ **Prima di cominciare, controlla che `Scenario To Run` sia vuoto** (`BP_GameMode` →
-> Class Defaults → *RefactorTactics|Test*) e che `rt.Test.Scenario` in console sia vuota —
-> quest'ultima **prevale** sulla property e dura quanto il processo dell'editor. Con uno
-> scenario impostato la partita normale non viene allestita affatto e tutte e tre le voci
+> ⚠️ **Prima delle tre voci in Play, controlla che `Scenario To Run` sia vuoto**
+> (`BP_GameMode` → Class Defaults → *RefactorTactics|Test*) e che `rt.Test.Scenario` in console
+> sia vuota — quest'ultima **prevale** sulla property e dura quanto il processo dell'editor. Con
+> uno scenario impostato la partita normale non viene allestita affatto e tutte e tre le voci
 > diventano non eseguibili. E' successo il 2026-08-08, uscendo da `PIE-SCEN-KEEP`.
 
 L'ordine non e' arbitrario:
@@ -141,19 +144,22 @@ L'ordine non e' arbitrario:
 2. `PIE-TEST-CONSOLE` per **ultima**, e non per gusto di ordine: `rt.Test.Run` **sostituisce
    la mappa** e aggiunge unita' alla partita in corso. Eseguirla prima lascerebbe le altre due
    su uno stato che non e' quello che dicono di verificare. Dopo, si riavvia con `R`.
+3. `PIE-HEX-LAYER` e `PIE-HEX-TRANS` in coda, sull'**editor** e non in Play: servono un
+   `ARTHexMapActor` con celle su >=2 layer, che si ottiene con `GenerateIntoAsset` —
+   `ActiveLayer=0`, poi `ActiveLayer=1`. Nessuna mappa da costruire a mano.
 
-> Nasce dalla sessione G del registro (2026-08-08), che non aveva una seduta corrispondente: le tre voci erano nella checklist ma in nessuna seduta, e una voce che non sta in una seduta non viene eseguita mai.
+> Nasce dalla sessione G del registro (2026-08-08), che non aveva una seduta corrispondente: le tre voci erano nella checklist ma in nessuna seduta, e una voce che non sta in una seduta non viene eseguita mai. **Dal 2026-08-10 ne ospita cinque**: `PIE-HEX-LAYER` e `PIE-HEX-TRANS` erano in U1, ma le loro precondizioni nel registro citano un asset *generato* (`GenerateIntoAsset`, due celle sovrapposte) e non l'arena — stavano su una seduta del percorso critico senza dipenderne. Issue 450. Nello stesso passaggio il titolo e' cambiato da «senza preparazione» a «senza prerequisiti»: le due voci nuove un allestimento ce l'hanno — generano celle su due layer in editor — e il vecchio titolo sarebbe diventato falso per due voci su cinque. Cio' che accomuna le cinque non e' l'assenza di allestimento ma l'assenza di **attese**: nessuna dipende da codice mancante o da una seduta prima.
 
 #### U1 · Mappa-arena hex ⏳
 
 **Sbloccata da**: M6.0 · **Preparazione condivisa con**: U13 · **Percorso critico**: sì
 **Produce**: `DA_HexMap_Arena` e `L_HexArena`, committati
 **Artefatti**: `Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap` ⏳ · `Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset` ⏳
-**Verifichi**: `PIE-HEX-MODE-E` ⏳ · `PIE-HEX-MODE-F` ⏳ · `PIE-HEX-MODE-G` ⏳ · `PIE-HEX-MODE-H` ⏳ · `PIE-HEX-MODE-L` ⏳ · `PIE-HEX-MODE-N` ⏳ · `PIE-HEX-MODE-O` ⏳ · `PIE-HEX-LAYER` ⏳ · `PIE-HEX-TRANS` ⏳
-**Finita quando**: i due asset sono tracciati da git e le nove voci hanno un esito reale
+**Verifichi**: `PIE-HEX-MODE-E` ⏳ · `PIE-HEX-MODE-F` ⏳ · `PIE-HEX-MODE-G` ⏳ · `PIE-HEX-MODE-H` ⏳ · `PIE-HEX-MODE-L` ⏳ · `PIE-HEX-MODE-N` ⏳ · `PIE-HEX-MODE-O` ⏳
+**Finita quando**: i due asset sono tracciati da `git ls-files`, le sette voci hanno un esito reale, e l'arena soddisfa i tre criteri dei passi 3, 4 e 7
 **Sblocca**: U13, U19
 
-**Costruire una mappa e' il modo di esercitare gli strumenti**: le nove voci qui sopra verificano
+**Costruire una mappa e' il modo di esercitare gli strumenti**: le sette voci qui sopra verificano
 il mode, non il terreno. Il banco di prova della parita' hex arriva invece da
 `MapSource = GeneratedTestArena` e **non va costruito a mano** — U2…U6 non aspettano questa seduta.
 L'asset serve al contenuto della v0.1: e' quello che U13 estende e U19 misura.
@@ -170,21 +176,33 @@ Nessuna guida copre ancora questa procedura, quindi i passi stanno qui.
    pieno di raggio 4 sul layer 0.
 3. 2–3 celle con `bBlocksMovement` e 2–3 celle con `bBlocksLineOfSight` **allineate** fra le due
    meta' del campo — servono a `PIE-HEXPLAY-6`, che senza copertura non dimostra niente.
+   **Criterio**: esistono >=2 celle `bBlocksLineOfSight` tali che il segmento fra i due spawn ne
+   attraversi almeno una. «Allineate» e' una condizione sul segmento, non un giudizio a occhio.
 4. Una zona a costo alto (Mud o Water) col tool **Fill**: e' quella che fa mordere il budget in
    `PIE-HEXPLAY-3`.
+   **Criterio**: la zona rende il percorso piu' breve **non percorribile** nel budget Move di un
+   turno — e' cio' che `PIE-HEXPLAY-3` chiama «far mordere il budget». Una zona costosa che si
+   aggira senza rinunciare a nulla non e' una scelta.
 5. Piattaforma di 3–4 celle sul layer 1 (`ActiveLayer=1`), collegata al layer 0 da **una sola**
    transizione, creata col tool **Arch**.
 6. `bShowOverlay` attivo per rileggere il risultato a colori prima di salvare.
 7. **Due rotte distinte** fra gli spawn, con trade-off diverso — una piu' corta ed esposta, una
    piu' lunga e coperta. Senza scelta di percorso il tempo di contatto e' una costante della
    mappa, non una decisione del giocatore, e `PIE-V01-MAPSCALE` (U19) non e' verificabile.
+   **Criterio** — e' qui che si scrive, non in U19, perche' e' questa seduta a produrre l'arena:
+   due percorsi minimi fra gli spawn che **non condividono celle** oltre agli estremi, di costo
+   entro un fattore **1,5** l'uno dall'altro, e con un numero **diverso** di celle esposte alla
+   LOS avversaria. Senza le tre condizioni insieme «trade-off» non e' misurabile: due rotte
+   gemelle, o una lunga il doppio, non mettono davanti a una decisione.
 
 > ⚠️ **`git add` su un `.uasset` non basta.** `.gitignore` esclude `Content/**/*.uasset` e
-> `Content/**/*.umap`, e riammette i singoli file con un `!` esplicito (oggi dieci). I due
-> artefatti di questa seduta vanno **aggiunti all'allowlist** — altrimenti `git add` non fa
-> nulla, senza errore, e la seduta non si chiude mai senza che si capisca perche'.
+> `Content/**/*.umap`, e riammette i singoli file con un `!` esplicito. I due artefatti di questa
+> seduta sono gia' **in allowlist** dal 2026-08-10 (issue 449), aggiunti *prima* che gli asset
+> esistano: senza, `git add` non fa nulla, senza errore, e la seduta non si chiude mai senza che
+> si capisca perche'. L'oracolo e' `git check-ignore -q <file>` → **exit 1**; con `-v` il comando
+> esce `0` anche sulle regole di negazione e non distingue i due casi.
 
-> **Debito noto**: `FRTHexCellData` oggi non ha il campo cover; E9 / CP 9.1 incrementa la versione del formato. Quest'arena andra' **migrata** in U13, non ricostruita. Costruirla dopo E9 eviterebbe la migrazione ma lascerebbe M6 senza banco di prova: costo accettato consapevolmente.
+> **Debito noto**: `FRTHexCellData` oggi non ha il campo cover; E9 / CP 9.1 incrementa la versione del formato. Quest'arena andra' **migrata** in U13, non ricostruita. Costruirla dopo E9 eviterebbe la migrazione ma lascerebbe M6 senza banco di prova: costo accettato consapevolmente. **Alza la posta**: `DA_HexMap_Sandbox.uasset` pesa 1396 byte, cioe' e' di fatto vuoto — questa sara' la prima mappa con contenuto reale del repository, e in U13 il primo soggetto vero della migrazione di formato.
 
 ### Blocco 2 — Parita' hex (M6 / E2)
 
@@ -410,7 +428,10 @@ intera fino alla fine**, senza fermarsi a indagare, e si annotano i numeri. Serv
 e `bRecordPacing` attivo sul `TurnManager` (il CSV finisce in `Saved/RT/`, fuori dal versionamento).
 
 1. **Prima della partita**: conta i Move per attraversare la mappa da spawn a spawn e verifica
-   che esistano **almeno due rotte** con trade-off diverso (`PIE-V01-MAPSCALE`, e vedi U1 passo 7).
+   che esistano **almeno due rotte** con trade-off diverso (`PIE-V01-MAPSCALE`). Il criterio e'
+   definito in **U1 passo 7** — non condividono celle oltre agli estremi, costo entro un fattore
+   1,5, numero diverso di celle esposte — e qui si **misura**, non si ridefinisce: U1 produce
+   l'arena, questa seduta la cronometra.
 2. **Durante**: a che secondo dichiari Ready nei round tipici, e se il countdown esiste e si
    annulla (`PIE-V01-READY`).
 3. **A fine partita**: round giocati, durata a cronometro, round del primo contatto, via di fine.
