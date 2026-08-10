@@ -1090,6 +1090,27 @@ def render_suite_count():
     return "\n".join(lines)
 
 
+SUITE_MEASURED_ON = re.compile(r"— misurati su `[^`]*`\.")
+
+
+def suite_substance(block):
+    """Il blocco senza il commit su cui la misura e' stata presa.
+
+    `--check` deve confrontare la **sostanza** — conteggio, file, ripartizione per area — e non il
+    commit corrente, altrimenti il gate e' rosso ovunque tranne che sul commit esatto in cui e' stato
+    rigenerato: cioe' mai su `main`, perche' un merge sposta `HEAD` (`#488`).
+
+    Un allarme che suona sempre non lo guarda piu' nessuno, ed e' il motivo per cui il conteggio ha
+    potuto restare fermo a 573 test mentre erano 634: lo strumento *stava gia' segnalando*,
+    indistinguibile dal rumore che produceva a ogni commit.
+
+    La riga `misurati su ...` **resta scritta**: e' l'unica cosa che rende il numero verificabile. Non
+    e' confrontata, ed e' corretto — quando la sostanza non cambia, il commit registrato indica pur
+    sempre un albero in cui quel numero era vero.
+    """
+    return SUITE_MEASURED_ON.sub("— misurati su `<commit>`.", block)
+
+
 def apply_suite_count(check=False):
     block = render_suite_count()
     pattern = re.compile(
@@ -1100,6 +1121,12 @@ def apply_suite_count(check=False):
             continue
         original = open(path, encoding="utf-8").read()
         if SUITE_MARKER_BEGIN not in original:
+            continue
+        found = pattern.search(original)
+        # Confronto sulla sostanza anche in SCRITTURA, non solo con `--check`: senza, `suite`
+        # produrrebbe un diff su ogni branch — rumore in ogni PR che lo tocca — e il commit
+        # registrato inseguirebbe `HEAD` invece di dire dove la misura e' stata presa.
+        if found and suite_substance(found.group(0)) == suite_substance(block):
             continue
         text = pattern.sub(lambda _m: block, original)
         if text != original:
