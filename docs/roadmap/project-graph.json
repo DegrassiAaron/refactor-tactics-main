@@ -297,12 +297,12 @@
   "editor_sessions": [
     {
       "id": "U18",
-      "title": "Verifiche senza preparazione",
+      "title": "Verifiche senza prerequisiti",
       "block": 1,
       "critical": false,
       "state": "🟡",
       "queue_group": "READY",
-      "produces": "verdetto su tre voci che non attendono nulla",
+      "produces": "verdetto su cinque voci che non attendono nulla",
       "artifacts": [],
       "unblocked_by": [],
       "unblocks": [],
@@ -319,10 +319,20 @@
         {
           "id": "PIE-TEST-CONSOLE",
           "state": "🟡"
+        },
+        {
+          "id": "PIE-HEX-LAYER",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-HEX-TRANS",
+          "state": "⏳"
         }
       ],
-      "issues": [],
-      "done_when": "le tre voci hanno esito reale nel registro"
+      "issues": [
+        450
+      ],
+      "done_when": "le cinque voci hanno esito reale nel registro"
     },
     {
       "id": "U1",
@@ -385,18 +395,14 @@
         {
           "id": "PIE-HEX-MODE-O",
           "state": "⏳"
-        },
-        {
-          "id": "PIE-HEX-LAYER",
-          "state": "⏳"
-        },
-        {
-          "id": "PIE-HEX-TRANS",
-          "state": "⏳"
         }
       ],
-      "issues": [],
-      "done_when": "i due asset sono tracciati da git e le nove voci hanno un esito reale"
+      "issues": [
+        449,
+        450,
+        451
+      ],
+      "done_when": "i due asset sono tracciati da `git ls-files`, le sette voci hanno un esito reale, e l'arena soddisfa i tre criteri dei passi 3, 4 e 7"
     },
     {
       "id": "U2",
