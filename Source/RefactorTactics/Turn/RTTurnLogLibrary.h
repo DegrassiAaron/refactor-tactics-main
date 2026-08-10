@@ -38,8 +38,17 @@ class REFACTORTACTICS_API URTTurnLogLibrary : public UBlueprintFunctionLibrary
 public:
 	/**
 	 * Ordine TOTALE deterministico fra due voci: Phase -> Category -> SrcCell(X,Y,Layer) ->
-	 * TgtCell(X,Y,Layer) -> Outcome -> Amount. Vero se A precede B. Con un ordine totale, riordinare
-	 * un insieme di voci da' sempre la stessa sequenza, indipendentemente dall'ordine d'inserimento.
+	 * TgtCell(X,Y,Layer) -> Outcome -> Amount -> ActionId -> TurnNumber -> GraphRevision -> UnitId.
+	 * Vero se A precede B. Con un ordine totale, riordinare un insieme di voci da' sempre la stessa
+	 * sequenza, indipendentemente dall'ordine d'inserimento.
+	 *
+	 * La catena copre OGNI campo che `SerializeTurnLog` scrive, e deve continuare a farlo: un campo scritto
+	 * che il confronto non guarda lascia due voci a pari merito, e a decidere l'ordine resta un sort non
+	 * stabile — cioe' due file diversi con lo stesso contenuto. Unica eccezione: `BaseActionId`, che e'
+	 * funzione di `ActionId` e non puo' produrre pareggi.
+	 *
+	 * ⚠️ NON coincide con i campi dell'hash: `UnitId` e `TurnNumber` stanno qui e non in `MixEntryFields`.
+	 * Chi vuole «uguali per l'hash» non usi questa funzione (vedi `GoldenEntriesMatch`).
 	 */
 	static bool EntryLess(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B);
 
@@ -141,7 +150,8 @@ public:
 	 * solo «hash diverso» costringe chi legge a ricostruire da capo *dove*, ed e' cosi' che un corpus finisce
 	 * rigenerato invece che letto.
 	 *
-	 * Il TURNO non e' un campo della voce (il TurnLog e' per turno) e viene quindi passato dal chiamante, che
+	 * Il TURNO viene passato dal chiamante e non letto da `FRTTurnLogEntry::TurnNumber` (che dal formato v6
+	 * esiste, ma nessun produttore lo valorizza e le tracce < v6 lo portano a `0`): il chiamante lo sa, che
 	 * lo conosce: nel corpus e' il file da cui la traccia di riferimento e' stata letta.
 	 *
 	 * Riporta la PRIMA differenza e non tutte: dopo la prima, le successive sono spesso conseguenze.

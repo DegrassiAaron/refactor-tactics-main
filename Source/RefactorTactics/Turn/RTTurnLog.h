@@ -223,8 +223,11 @@ enum class ERTCombatOutcome : uint8
 
 /**
  * Voce del TurnLog: un esito autoritativo del turno con il suo reason code. Osservabilita' separata
- * dalla presentazione (non e' FRTResolvedEvent). Deterministica: la chiave dell'unita' e' la sua cella
- * di partenza del turno (max 1 unita'/cella), mai un pointer.
+ * dalla presentazione (non e' FRTResolvedEvent). Deterministica: mai un pointer, mai l'ordine di spawn.
+ *
+ * ⚠️ La cella di partenza resta la chiave di ORDINAMENTO, non l'identita' dell'unita': non regge per le
+ * voci ambientali, per l'interposizione (che scrive la cella del protetto) e dopo un Dash. L'identita' la
+ * porta `UnitId` dal formato v6 (D-063).
  */
 USTRUCT(BlueprintType)
 struct FRTTurnLogEntry
@@ -367,13 +370,19 @@ enum class ERTTurnLogFormatVersion : uint16
 	 */
 	WithBaseActionId = 5,
 	/**
-	 * + `UnitId` e `TurnNumber` per voce (D-063): due int32 in coda alla voce, dopo `BaseActionId`. I campi
-	 * precedenti non si spostano, quindi un lettore che sa saltare le stringhe trova tutto dov'era.
+	 * + `UnitId` e `TurnNumber` (D-063) e `GraphRevision` ([D-067](../../../docs/decisions/RT_PDR_00_Decision_Log.md)):
+	 * **tre** int32 in coda alla voce, dopo `BaseActionId`. I campi precedenti non si spostano, quindi un
+	 * lettore che sa saltare le stringhe trova tutto dov'era.
 	 *
-	 * Le tracce dalla 2 alla 5 restano LEGGIBILI, con i due campi a `0` — che e' esattamente cio' che quei
+	 * Le tracce dalla 2 alla 5 restano LEGGIBILI, con i tre campi a `0` — che e' esattamente cio' che quei
 	 * byte dicevano: `UnitId = 0` significa «nessuna unita'», e dedurre l'unita' dalla cella sarebbe
-	 * l'inferenza che D-063 ha dichiarato non valida. E **gli hash golden non cambiano**: entrambi i campi
-	 * stanno fuori dall'hash (vedi `MixEntryFields`).
+	 * l'inferenza che D-063 ha dichiarato non valida.
+	 *
+	 * ⚠️ **Gli hash golden CAMBIANO**, e va detto perche' la stesura precedente affermava il contrario:
+	 * `UnitId` e `TurnNumber` restano fuori dall'hash, ma `GraphRevision` vi entra (D-067), e un passo FNV
+	 * in piu' cambia il valore di **ogni** traccia anche mescolando `0`. Il corpus golden non si rompe per
+	 * un'altra ragione — confronta tracce ricalcolate su entrambi i lati, non costanti pinnate — non perche'
+	 * gli hash siano rimasti quelli.
 	 *
 	 * ⚠️ L'hash ordinato di D-062 **non e' qui, ed e' deliberato**: i byte sono in forma canonica (`D-SR-1`),
 	 * quindi la serializzazione perde l'ordine di emissione e un hash dell'ordine scritto in questo header

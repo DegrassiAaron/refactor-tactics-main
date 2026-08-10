@@ -568,7 +568,8 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 				return false;
 			}
 		}
-		// Sotto la v6 i due campi restano a 0: nessuna unita' dedotta dalla cella, nessun turno inventato.
+		// Sotto la v6 i tre campi restano a 0: nessuna unita' dedotta dalla cella, nessun turno inventato,
+		// nessuna revisione di grafo attribuita a una traccia che non la dichiarava.
 		OutEntries.Add(E);
 	}
 
@@ -658,15 +659,24 @@ namespace
 	}
 
 	/**
-	 * Uguaglianza secondo l'ORDINE TOTALE che governa hash e serializzazione, non campo per campo a mano.
+	 * Uguaglianza secondo i campi che entrano nell'HASH, non campo per campo a mano.
 	 *
-	 * Cosi' la diagnosi considera divergenza esattamente cio' che `HashTurnLog` considera: un campo fuori da
-	 * `EntryLess` — `BaseActionId`, tenuto deliberatamente fuori dall'hash perche' e' una funzione di
-	 * `ActionId` — non produce un falso allarme qui.
+	 * Cosi' la diagnosi considera divergenza esattamente cio' che `HashTurnLog` considera, che e' l'unica
+	 * regola con cui ha senso confrontarsi: `DescribeFirstDivergence` viene chiamata *dopo* che l'hash ha
+	 * dichiarato una divergenza, e deve indicare **dove** quell'hash e' cambiato.
+	 *
+	 * ⚠️ Confrontava con `EntryLess`, ed era corretto finche' i campi dell'ordinamento coincidevano con
+	 * quelli dell'hash. Non e' piu' vero: `UnitId` e `TurnNumber` sono entrati in `EntryLess` per chiudere
+	 * la forma canonica della serializzazione (D-067) e restano fuori dall'hash (D-063). Con `EntryLess`
+	 * questa funzione discriminerebbe **piu'** dell'hash e si fermerebbe su una voce identica per l'hash —
+	 * per giunta mostrando due descrizioni uguali, perche' quei campi nessuno li stampa.
+	 *
+	 * Passa dalla `HashTurnLogOrdered` di una voce sola invece di elencare i campi a mano: cosi' l'elenco
+	 * resta uno solo (`MixEntryFields`) e non puo' divergere in silenzio da quello vero.
 	 */
 	bool GoldenEntriesMatch(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B)
 	{
-		return !URTTurnLogLibrary::EntryLess(A, B) && !URTTurnLogLibrary::EntryLess(B, A);
+		return URTTurnLogLibrary::HashTurnLogOrdered({ A }) == URTTurnLogLibrary::HashTurnLogOrdered({ B });
 	}
 }
 

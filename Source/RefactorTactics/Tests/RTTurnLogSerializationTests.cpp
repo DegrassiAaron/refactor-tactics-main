@@ -984,4 +984,39 @@ bool FRTTurnLogGraphRevisionRoundTripTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * La diagnosi della prima divergenza deve considerare divergenza **esattamente cio' che l'hash considera**.
+ *
+ * `GoldenEntriesMatch` confrontava le voci con `EntryLess`, e finche' i campi di `EntryLess` coincidevano con
+ * quelli dell'hash la promessa reggeva. Da quando `UnitId` e `TurnNumber` sono entrati nell'ordinamento — e
+ * NON nell'hash — `EntryLess` discrimina di piu': una voce che differisce solo per l'unita' verrebbe indicata
+ * come «prima divergenza» pur essendo identica per l'hash, e siccome ne' `DescribeEntry` ne' il fallback dei
+ * campi grezzi stampano `UnitId`, la diagnosi mostrerebbe due stringhe uguali — la stessa illusione di
+ * «confronto rotto» gia' corretta una volta per l'`ActionId`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogDivergenceIgnoresNonHashedFieldsTest,
+	"RefactorTactics.TurnLog.FirstDivergenceIgnoresFieldsOutsideTheHash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogDivergenceIgnoresNonHashedFieldsTest::RunTest(const FString&)
+{
+	TArray<FRTTurnLogEntry> Golden = SampleLog();
+	TArray<FRTTurnLogEntry> Actual = Golden;
+	// Stessa identica traccia per l'hash: cambia solo CHI ha agito e in quale turno, che l'hash non guarda.
+	for (int32 i = 0; i < Actual.Num(); ++i)
+	{
+		Actual[i].UnitId = i + 1;
+		Actual[i].TurnNumber = 7;
+	}
+
+	if (!TestEqual(TEXT("premessa: per l'hash le due tracce sono identiche"),
+		URTTurnLogLibrary::HashTurnLog(Actual), URTTurnLogLibrary::HashTurnLog(Golden)))
+	{
+		return false;
+	}
+
+	const FString Diagnosis = URTTurnLogLibrary::DescribeFirstDivergence(1, Golden, Actual);
+	TestEqual(TEXT("nessuna divergenza da riportare: l'hash non vede quei campi"), Diagnosis, FString());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

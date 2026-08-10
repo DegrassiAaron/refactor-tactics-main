@@ -279,7 +279,7 @@ iterasse una `TMap` cambierebbe la traccia lasciando ogni hash identico.
 |---|---|---|
 | 3 | **`ContentManifestHash` / `RulesVersion` si costruiscono ora o alla v0.2?** | Senza, la regola «un replay v1 non va ricalcolato con regole v2» (§8) non è implementabile, e il corpus golden è protetto solo dal fatto che i cataloghi cambiano di rado |
 | 4 | **L'unità persistente è la partita (§7) o il turno?** | Con 6–12 turni la differenza in storage è trascurabile, ma il turno è già l'unità del TurnLog serializzato esistente |
-*(La #5, sui campi di movimento, è stata **chiusa** il 2026-08-10 da [D-065](../../decisions/RT_PDR_00_Decision_Log.md):
+*(La #5, sui campi di movimento, è stata **chiusa** il 2026-08-10 da [D-067](../../decisions/RT_PDR_00_Decision_Log.md):
 `GraphRevision` entra ed è **nell'hash**; `TransitionId` **non esiste e non si inventa** — `FRTHexEdge` è
 `From`/`To`/`Cost`/`Kind` senza ID, perché l'identità di un bordo è la coppia di celle, che la voce porta già.
 Il costo di movimento resta fuori. Nel farlo è emerso un difetto di D-063: `UnitId` e `TurnNumber` erano

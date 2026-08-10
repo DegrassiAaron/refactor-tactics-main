@@ -253,7 +253,7 @@ dall'ordine d'inserimento nel container.
 > stare in questa catena, o due voci che pareggiano su tutto il resto restano a pari merito e a decidere
 > l'ordine resta un sort **non stabile**. Unica eccezione: un campo che non può produrre pareggi perché
 > funzione di un altro già presente — `BaseActionId` rispetto ad `ActionId`.
-> Vedi [D-065](../decisions/RT_PDR_00_Decision_Log.md).
+> Vedi [D-067](../decisions/RT_PDR_00_Decision_Log.md).
 
 ---
 
