@@ -35,13 +35,24 @@ compatibilità), che dipende dall'unica domanda ancora aperta.
 ## Aperte — geometria, acqua e strutture, dal quinto sorgente del 2026-08-10
 
 Origine: [triage `FULL CHAT CONSOLIDATION`](roadmap/plans/triage-grid-geometry-water-2026-08-10.md).
-Tre domande, tutte da rispondere **prima** della spec del blocco corrispondente.
+Erano **tre**; `GEO-3` è chiusa il 2026-08-10 (sotto). Le **due** rimaste vanno risposte **prima** della
+spec del blocco corrispondente, e nessuna delle due blocca la v0.1.
 
 | ID | Domanda | Perché serve una risposta |
 |---|---|---|
 | [`GEO-1`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/429) | `WaterDepth` è un **campo della cella accanto a `Surface`**, oppure una **superficie composta**? | Il sorgente lo dà come asse ortogonale — una cella può essere `ShallowWater` e cambiare profondità durante il match. Il repository ha **otto superfici piatte** (CP 8.1) che non cambiano mai. La scelta decide se CP 8.1 si **estende** o si **riscrive**, e con essa i costi di movimento, la conduzione elettrica e il formato della mappa |
 | [`GEO-2`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/430) | Come si chiama lo **slot strutturale** della §40, dato che `Gadget.BreachCharge` esiste già? | Il sorgente lo chiama `Breach`, ma nel repository `BreachCharge` è l'**oggetto che lo aprirebbe** (35 danni a struttura, E7). Due entità con lo stesso nome, una che agisce sull'altra, si pagano a ogni lettura del TurnLog — è lo stesso costo che ha fatto scartare `Reposition` in [D-070](decisions/RT_PDR_00_Decision_Log.md) |
-| [`GEO-3`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/431) | Le §22–§27 (move end semantics, grafo causale, provenance, credit) come si riconciliano col **TurnLog v6**? | Non è una domanda di design ma di **sequenza**: il TurnLog v6 e i reason code sono atterrati lo stesso giorno ([D-062](decisions/RT_PDR_00_Decision_Log.md), [D-063](decisions/RT_PDR_00_Decision_Log.md), [D-067](decisions/RT_PDR_00_Decision_Log.md)). Va guardata da chi ha quel codice in mano, non consolidata al buio da un triage documentale |
+
+---
+
+### ✅ Chiusa il 2026-08-10 — `GEO-3`
+
+Non serviva l'autore: serviva **chi ha in mano il TurnLog v6**, che è il motivo per cui il triage l'aveva
+lasciata fuori. Resta qui **solo come indice**: il contenuto vive nel Decision Log.
+
+| Era | Decisione presa | Dove vive ora |
+|---|---|---|
+| `GEO-3` | Il modello causale delle §22–§27 **non entra** nel v6: presuppone un `EventId` per voce, che non esiste. Tre rinvii con l'innesco dichiarato — cause contribuenti, dedup, provenance — e **una risposta piena**: un `EventId` sarebbe **identità**, quindi resterebbe fuori dall'hash come `UnitId` e `TurnNumber` | [`D-080`](decisions/RT_PDR_00_Decision_Log.md) · owner [`spec-turnlog.md`](technical/spec-turnlog.md) §12-bis |
 
 ---
 
