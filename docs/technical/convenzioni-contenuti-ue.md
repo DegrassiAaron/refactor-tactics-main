@@ -495,7 +495,46 @@ prima: anche quelle venivano indicizzate come se fossero locali. Chi vuole recup
    **Content Browser** (o lo script di B.3), che riscrive i riferimenti.
 3. Se serve **solo una parte** di un pack, l'alternativa migliore è il **Migrate** da un progetto-magazzino:
    porta l'asset e **solo le sue dipendenze**. `ParagonGideon` pesa 2,74 GB, ma a un `BP_Unit` servono mesh,
-   scheletro, poche animazioni e i relativi materiali.
+   scheletro, poche animazioni e i relativi materiali. Procedura in **B.2a**, che è la via **scelta**
+   (decisione utente, 2026-08-10) per i pack che servono a `U7`/`U8`.
+
+## B.2a Procedura: magazzino + Migrate (via scelta dal 2026-08-10)
+
+> Risolve il problema pratico da cui nasce: **Fab installa dove vuole lui**, tipicamente `Content/<Pack>/`, e
+> quella non è la posizione voluta dal §1.
+
+⚠️ **Il punto su cui si sbaglia: `Migrate` PRESERVA il path virtuale.** Un asset che nel magazzino sta in
+`/Game/ParagonGideon/…` atterra in `Content/ParagonGideon/…` del progetto di destinazione, **non** in
+`Content/FabAsset/Paragon/`. Migrate copia con le dipendenze, non rimappa. Per questo il rename si fa **nel
+magazzino, prima** di migrare: là un errore costa un nuovo download, nel progetto vero costa il danno.
+
+**Una volta sola** — creare il magazzino: progetto UE **Blank**, senza starter content, fuori dal repository
+(es. `D:\UE_FabVault\`).
+
+> Non è il vault di B.2b. Quello era **linkato con junction** e il progetto ne dipendeva in permanenza; questo
+> è solo una **sorgente di copia**: dopo il Migrate gli asset stanno nel progetto e il magazzino si può
+> cancellare. La ragione per cui il vault fu abbandonato — la dipendenza da un percorso esterno — qui non si
+> presenta.
+
+**Per ogni pack**:
+
+1. Fab → *Add to Project* → il magazzino. Il pack atterra in `FabVault/Content/<Pack>/`.
+2. Apri il magazzino e sposta `/Game/<Pack>/` → `/Game/FabAsset/Paragon/<Pack>/` **dal Content Browser**
+   (che riscrive i riferimenti — mai da Esplora File, punto 2 qui sopra).
+3. Seleziona **solo ciò che serve**: SkeletalMesh, Skeleton, PhysicsAsset, le animazioni che userai,
+   materiali e texture. **Niente `SoundCue`, niente `DialogueWave`.**
+4. Tasto destro → **Migrate…** → cartella `Content/` del progetto vero.
+
+Il punto 3 non è solo economia di spazio: è **anche** ciò che dovrebbe evitare la perdita di B.3 punto 1,
+perché sparivano i `DialogueWave` *referenziati dai `SoundCue`* e qui non si porta né gli uni né gli altri.
+
+> ⚠️ **Questa parte è un'inferenza, non una misura**: la via magazzino+Migrate non è ancora stata eseguita in
+> questo progetto. Alla prima esecuzione **contare i file sul disco prima e dopo** e confrontare gli elenchi —
+> e non fidarsi del conteggio dell'asset registry, che in B.3 dichiarava `1655` mentre sul disco i file erano
+> `1350`. Se la perdita si ripresenta anche senza audio nel set, correggere questa nota invece di lasciarla.
+
+**Guadagno collaterale**: si porta ciò che serve invece dell'intero pack, quindi l'asset registry non indicizza
+peso inutile a ogni avvio — il costo descritto in B.1b.
 
 ## B.2b Storia: il vault esterno (2026-08-05 → 2026-08-06)
 
@@ -555,6 +594,29 @@ Il secondo è il rename del path virtuale `/Game/<Pack>` → `/Game/FabAsset/Par
 
 Verifica di correttezza, non di conteggio: un asset a destinazione deve citare **solo** `/Game/FabAsset/…`.
 Se cita ancora il path vecchio è stato spostato, non rinominato.
+
+## B.3b Quali pack sono davvero danneggiati — e cosa significa «danneggiato»
+
+Più documenti ripetono che *«Gideon, Sparrow e altri 3 pack sono stati danneggiati dalla migrazione del
+2026-08-06 e vanno riscaricati da Fab»*. ⚠️ **Gli «altri 3» non sono nominati da nessuna parte**: l'avviso
+non è azionabile, e va completato quando i pack vengono identificati. Registrato il 2026-08-10.
+
+Misura sul disco, stessa data:
+
+| Pack | File | Dimensione | Riferimento |
+|---|---:|---:|---|
+| `ParagonGideon` | 1.700 | 2,6 GB | 2,74 GB dichiarati in B.2 punto 3 |
+| `ParagonSparrow` | 1.508 | 2,82 GB | — |
+| `ParagonDekker` | 1.604 | 1,56 GB | 1.310 asset dai riferimenti rotti (B.3 punto 4) |
+
+**«Danneggiato» qui non vuol dire «assente»**: mancano ~140 MB su Gideon, coerenti con i `DialogueWave`
+persi (B.3 punto 1), e su Dekker il problema sono i **riferimenti rotti**. Le due cause hanno rimedi diversi
+e solo la seconda è irrecuperabile senza riscaricare.
+
+Conseguenza pratica, prima di riscaricare 2,6 GB: **la perdita documentata è audio, non geometria**. Un
+`BP_Unit` usa SkeletalMesh, Skeleton, PhysicsAsset, animazioni e materiali — la parte che quella migrazione
+non ha toccato. Apri il pack nel Content Browser e verifica *quegli* asset: se si aprono puliti, il download
+non serve. Se invece servisse, la via è **B.2a**.
 
 ## B.4 Regola operativa
 
