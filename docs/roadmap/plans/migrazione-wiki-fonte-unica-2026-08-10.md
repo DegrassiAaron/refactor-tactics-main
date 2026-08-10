@@ -1,9 +1,23 @@
 # Migrazione — `docs/wiki/` sparisce, il clone diventa la fonte
 
-> `CURRENT` · **Creato**: 2026-08-10 · **Decisione**: [D-076](../../decisions/RT_PDR_00_Decision_Log.md)
+> `DONE` · **Creato**: 2026-08-10 · **Eseguito**: 2026-08-10 · **Decisione**: [D-076](../../decisions/RT_PDR_00_Decision_Log.md)
 > **Owner di una sola domanda**: cosa deve succedere **prima** che `docs/wiki/` si possa cancellare.
 >
-> ⚠️ **Non cancellare `docs/wiki/` finché la §2 non è chiusa.** Contiene 270 righe che il clone non ha.
+> ✅ **Eseguito nei quattro passi.** Cosa è andato diversamente da come è scritto qui sotto:
+>
+> - **223 righe su 13 pagine, non 270 su 16.** Due commit dello stesso giorno (`6c8392e`, `ce0d4db`)
+>   avevano già portato nel clone parte del delta: `avversario-bot`, `che-cose-refactortactics`,
+>   `griglia-e-geometria` e `topologia-dinamica` erano già allineate. Il resto del divario misurato
+>   era **riformulazione**: il clone dice le stesse cose più per esteso.
+> - **Su tre pagine il clone era più *indietro*, non più povero**, e lì si è sostituito invece di
+>   aggiungere: `facing-e-direzionalita` (la regola delle «tre direzioni» e una domanda che
+>   ADR-0008/D-060 hanno chiuso), `acqua-e-elettricita` (D-046), `Meccaniche.md` (voce mancante).
+> - **I `wiki_refs` erano 68, non 69.**
+> - ⚠️ **`docs/wiki/` non è sparita del tutto**: restano le 14 infografiche v0.1, il loro zip e tre
+>   manifest. Il clone pubblica la **v0.2** — verificato per hash, **zero** immagini in comune — e
+>   cancellarle avrebbe distrutto l'unica copia fuori dalla storia di git. La loro pulizia è lavoro
+>   aperto già registrato in [`wiki-consolidamento-2026-08-10.md`](wiki-consolidamento-2026-08-10.md)
+>   §D, con un owner diverso da questa migrazione.
 
 ## 1. La decisione e come ci si è arrivati
 

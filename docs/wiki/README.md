@@ -1,43 +1,32 @@
-# RefactorTactics Wiki
+# `docs/wiki/` — solo asset, nessuna pagina
 
-Questa cartella contiene la **documentazione orientata al giocatore** di RefactorTactics.
+> `CURRENT` · **Aggiornato**: 2026-08-10 · **Decisione**: [D-076](../decisions/RT_PDR_00_Decision_Log.md)
 
-> **Importante:** queste pagine spiegano il gioco in forma leggibile, ma **non sono normative**. In caso di conflitto prevalgono, nell'ordine, il piano canonico, gli ADR, la roadmap e i cataloghi di bilanciamento della repository.
+**Le pagine della Wiki non sono più qui.** La fonte è il clone pubblicato
+`refactor-tactics-main.wiki`: una sola copia, che è anche quella che il giocatore legge. Il
+repository ne aveva due e divergevano su 37 pagine su 43, in entrambe le direzioni, perché il deploy
+sincronizzava soltanto i blocchi `RT_FEATURE_STATUS` e mai il corpo.
 
-## Da dove iniziare
+Per modificare una pagina si edita il clone. Per aggiornare i blocchi di stato:
 
-1. [Che cos'è RefactorTactics](game/che-cose-refactortactics.md)
-2. [Come si gioca](game/come-si-gioca.md)
-3. [Regole fondamentali](game/regole-fondamentali.md)
-4. [Struttura del round](game/struttura-del-round.md)
-5. [Esempio di un round](game/esempio-di-round.md)
-6. [Personaggi](../characters/index.md)
+```
+python scripts/feature_registry.py deploy --wiki-root <clone> --write
+```
 
-## Approfondimenti
+## Perché questa cartella esiste ancora
 
-- [Azioni e movimento](game/azioni-e-movimento.md)
-- [Combattimento e targeting](game/combattimento-e-targeting.md)
-- [Mappa, terreni e ambiente](game/mappa-terreni-e-ambiente.md)
-- [Reazioni, Overwatch e predizione](game/reazioni-overwatch-e-previsioni.md)
-- [Visibilità, rumore e informazione](game/visibilita-rumore-e-informazione.md)
-- [Obiettivi e fine partita](game/obiettivi-e-fine-partita.md)
-- [FAQ](game/faq.md)
-- [Glossario](game/glossario.md)
+Contiene materiale che **non è duplicato nel clone**, e che quindi la cancellazione avrebbe perso:
 
-## Stato della Wiki
+| Cosa | Stato |
+|---|---|
+| `RefactorTactics_Wiki_Infographics_v0.1/` (14 PNG) + `.zip` | Il clone pubblica la **v0.2**, con altri nomi e altri contenuti: verificato per hash, **zero** immagini in comune. Queste sono la v0.1, e non esistono altrove |
+| `wiki-manifest-v0.5.json` · `v0.6` · `v0.7` | Tre manifest in parallelo, nessuno dichiarato vincente |
 
-La v0.1 corrente è un **vertical slice 2v2 offline contro bot** su griglia esagonale. Alcuni sistemi descritti qui sono già implementati, altri sono regole decise ma ancora in costruzione. Ogni pagina lo dichiara esplicitamente.
-## Manuale delle meccaniche
+La loro pulizia è **lavoro aperto già registrato** in
+[`wiki-consolidamento-2026-08-10.md`](../roadmap/plans/wiki-consolidamento-2026-08-10.md), §D — non
+è parte di D-076, che riguarda la doppia sorgente delle **pagine**. Restano qui finché quella
+decisione non è presa: cancellarli di iniziativa avrebbe risolto un problema altrui distruggendo
+l'unica copia fuori dalla storia di git.
 
-Per consultare una regola specifica durante una partita o un playtest:
-
-- [Indice delle meccaniche](meccaniche/index.md)
-- [Coperture](meccaniche/coperture.md) · [Porte](meccaniche/porte.md) · [Ponti](meccaniche/ponti.md)
-- [Acqua + elettricità](meccaniche/acqua-e-elettricita.md) · [Fuoco e stati](meccaniche/fuoco-e-stati.md)
-- [Facing](meccaniche/facing-e-direzionalita.md) · [Overwatch](meccaniche/overwatch.md)
-- [Collisioni](meccaniche/collisioni.md) · [Obiettivi](meccaniche/obiettivi-dinamici.md)
-
-
-## Ownership delle abilità
-
-Le abilità sono organizzate per **personaggio**, non per combinazione. Le interazioni appartengono ai sistemi; le sinergie sono esempi derivati. Vedi [Sinergie e combinazioni](game/sinergie-e-combinazioni.md).
+Le immagini delle fazioni sono invece sparite da qui perché erano **identiche** a quelle del clone —
+duplicati veri, verificati per hash.

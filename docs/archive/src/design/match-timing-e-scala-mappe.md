@@ -1,6 +1,6 @@
 > ✅ **RECEPITO il 2026-08-08.** Owner normativo: [`../../../gameplay/spec-durata-partita-e-scala-mappe.md`](../../../gameplay/spec-durata-partita-e-scala-mappe.md)
 > (classi di mappa, durata, round, Planning/Ready, Fast Reaction, budget del round) e la wiki
-> [`../../../wiki/game/obiettivi-e-fine-partita.md`](../../../wiki/game/obiettivi-e-fine-partita.md).
+> [`obiettivi-e-fine-partita` (Wiki)](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/obiettivi-e-fine-partita).
 > Decisione: [D-030](../../../decisions/RT_PDR_00_Decision_Log.md). Le **due sole** parti non ancora nel codice —
 > classe di mappa sul dato mappa e `UnitsPerTeam` nel formato — sono **E19** di
 > [`../../../roadmap/roadmap-v0.1.md`](../../../roadmap/roadmap-v0.1.md); Standard 3v3 e Operations sono E24/E30 in
