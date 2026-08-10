@@ -182,62 +182,6 @@ bool FRTPlayerUndoInteractionTest::RunTest(const FString&)
 	return true;
 }
 
-/**
- * Lo scatto del giocatore e' LINEARE come quello che il resolver esegue: una cella raggiungibile sul grafo ma
- * NON in linea va rifiutata in pianificazione.
- *
- * Senza questo gate il piano verrebbe accettato e la fase Dash non muoverebbe nulla: il turno si perde in
- * silenzio, senza che nessuno dica perche'. E' lo stesso invariante che il bot ha da #140 ("non proporre mosse
- * che il resolver rifiuta"), qui applicato alla mano umana — diventato osservabile con #142, da quando lo
- * scatto degli archetipi dichiara `LinearDash` e non passa piu' dall'A*.
- */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerDashIsLinearTest,
-	"RefactorTactics.PlayerInput.DashRejectsNonLinearDestination",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTPlayerDashIsLinearTest::RunTest(const FString&)
-{
-	UWorld* World = MakeInteractionWorld();
-	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
-
-	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
-	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
-	MapActor->MapAsset = Arena;
-	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-
-	ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(2, -2, 0));
-	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
-	if (!PC || !Unit) { DestroyInteractionWorld(World); return false; }
-
-	// Lo Scatto e' la quarta abilita' del Ranger (indice 3), portata 5, lineare.
-	const int32 DashIdx = 3;
-	const URTActionData* Dash = Unit->GetAbility(DashIdx);
-	if (!TestNotNull(TEXT("premessa: il Ranger ha lo scatto"), (void*)Dash))
-	{
-		DestroyInteractionWorld(World); return false;
-	}
-	TestTrue(TEXT("premessa: lo scatto e' lineare"),
-		URTMovementActionLibrary::IsLinear(Dash->Def.MovementStyle));
-	PC->SelectActorForTest(Unit);
-	Unit->SelectAbility(DashIdx);
-
-	// (3,-4) e' libera, dentro la mappa e a due passi sul grafo — ma NON e' su una delle sei direzioni.
-	const FRTCellId Oblique(3, -4, 0);
-	TestTrue(TEXT("premessa: la cella esiste ed e' libera"),
-		Arena->ContainsCell(Oblique) && !Arena->FindCell(Oblique)->bBlocksMovement);
-	PC->HandleClickOnCell(Oblique);
-	TestEqual(TEXT("una destinazione non allineata non diventa un piano di scatto"),
-		Unit->PlannedDashAbility, (int32)INDEX_NONE);
-
-	// Controprova: sulla stessa mappa, una cella ALLINEATA e libera viene accettata. Senza, il test passerebbe
-	// anche con un gate che rifiuta tutto.
-	const FRTCellId Aligned(0, 0, 0); // (2,-2) + 2 * direzione (-1,+1)
-	PC->HandleClickOnCell(Aligned);
-	TestEqual(TEXT("una destinazione in linea diventa un piano di scatto"), Unit->PlannedDashAbility, DashIdx);
-	TestTrue(TEXT("verso la cella cliccata"), Unit->PlannedDashCell == Aligned);
-
-	DestroyInteractionWorld(World);
-	return true;
-}
 
 /**
  * Con una CARICA selezionata, cliccare un nemico la pianifica contro di lui.

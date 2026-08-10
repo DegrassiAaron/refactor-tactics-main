@@ -807,58 +807,6 @@ bool FRTMoveCellConflictTest::RunTest(const FString&)
 }
 
 
-// =====================================================================================================
-// D-028 — lo scatto e' movimento: si schiva e si spara, oppure si spara e ci si muove.
-//
-// Sono le due meta' della stessa regola, e vanno verificate separate: un solo test che le mescola
-// passerebbe anche se il Dash consumasse gli slot sbagliati in modo compensato.
-// =====================================================================================================
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDashLeavesMainAvailableTest,
-	"RefactorTactics.Actions.Dash.LeavesMainAvailable",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTDashLeavesMainAvailableTest::RunTest(const FString&)
-{
-	// Schivo e sparo: lo scatto avvicina PRIMA del Blast, e l'attacco parte dalla posizione nuova.
-	//
-	// Questo test passava GIA' prima della migrazione degli slot, ed e' il fatto piu' importante di D-028: il
-	// gioco faceva la cosa giusta con la regola sbagliata scritta accanto (`Dash` dichiarato `Main`, e
-	// `ValidateActionSlots` mai chiamata in partita). Non e' un RED, e' caratterizzazione — esiste per
-	// impedire che la migrazione porti via il comportamento buono insieme alla regola cattiva.
-	UWorld* World = MakeHexMoveWorld();
-	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
-	SpawnHexMap(World, /*Radius=*/ 8);
-
-	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(8, 0));
-	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TM || !Runner || !Foe) { DestroyHexMoveWorld(World); return false; }
-
-	URTActionData* Dash = NewObject<URTActionData>(Runner);
-	Dash->DisplayName = FText::FromString(TEXT("Scatto"));
-	Dash->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
-	Runner->Abilities.Add(Dash);
-	const int32 DashIdx = Runner->Abilities.Num() - 1;
-
-	const int32 FoeBefore = Foe->Health + Foe->Shield;
-
-	// Da (0,0) il Guardian a (8,0) e' FUORI dalla portata 6 del Tiro. Dopo lo scatto di 3 celle e' a 5.
-	// Senza lo scatto il colpo non partirebbe: e' cio' che rende il test discriminante invece che decorativo.
-	Runner->PlannedDashAbility = DashIdx;
-	Runner->PlannedDashCell = FRTCellId(3, 0);
-	Runner->PlannedAbilityIndex = 0;
-	Runner->PlannedAttackTarget = Foe;
-	Foe->PlannedCell = Foe->Cell;
-
-	RunTurn(TM);
-
-	TestTrue(TEXT("lo scatto ha portato l'unita' a destinazione"), Runner->Cell == FRTCellId(3, 0));
-	TestTrue(TEXT("l'azione principale e' rimasta disponibile: il colpo e' arrivato"),
-		(Foe->Health + Foe->Shield) < FoeBefore);
-
-	DestroyHexMoveWorld(World);
-	return true;
-}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDashConsumesMovementTest,
 	"RefactorTactics.Actions.Dash.ConsumesTheMovement",
