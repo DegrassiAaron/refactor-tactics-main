@@ -140,6 +140,26 @@ public:
 	static URTHexMapAsset* MakeCoverYardArena(UObject* Outer);
 
 	/**
+	 * **Arena della v0.1** — il layout che soddisfa i tre criteri del `done_when` di U1
+	 * (`docs/roadmap/editor-sessions.yaml`, passi 3, 4 e 7), verificati da
+	 * `URTArenaCriteriaLibrary` e non a occhio.
+	 *
+	 * Esagono pieno di raggio 4 sul layer 0, con:
+	 * - una **barriera centrale** che blocca passo e vista, cosi' la mappa ha due vie invece di un corridoio;
+	 * - una **fascia di fango** trasversale che ogni via deve attraversare — se si aggirasse non sarebbe una
+	 *   scelta ma un dettaglio;
+	 * - un **muro** che scherma la via meridionale dallo spawn orientale, cosi' la rotta piu' cara e' anche
+	 *   la piu' coperta: e' cio' che rende le due vie un trade-off invece che una migliore e una peggiore.
+	 *
+	 * Non sostituisce `MakeTestArena`, che resta il banco della parita' hex: quella esercita le regole, questa
+	 * e' il contenuto della v0.1. `MakeTestArena` infatti soddisfa **uno** dei tre criteri, e non e' un
+	 * difetto — non era stata costruita per questo.
+	 *
+	 * `Outer` nullo -> nullptr.
+	 */
+	static URTHexMapAsset* MakeArenaV01(UObject* Outer);
+
+	/**
 	 * **Fixture di mappa per nome**: `RelayBasin`, `RelayLite`, `TestArena`, `DemoArena`, `CoverYard`.
 	 *
 	 * E' il punto d'ingresso che permette a uno scenario di **riferire** una geometria invece di duplicarla.
