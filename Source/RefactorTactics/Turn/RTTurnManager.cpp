@@ -147,12 +147,35 @@ void ARTTurnManager::PlanBots()
 		Bot->PlannedPath.Reset();       // il bot pianifica destinazioni, non percorsi a waypoint
 		Bot->PlannedWaypoints.Reset();
 
-		// Difesa: se ferito (sotto meta' HP) e ha un'abilita' di supporto pronta, la usa e salta il turno.
+		// Difesa: se ferito (sotto meta' HP) e ha un'abilita' che lo RIMETTE IN PIEDI, la usa e salta il turno.
+		//
+		// «Supporto» qui significa curare o schermare, non genericamente «agire su di se'»: il filtro era
+		// `bSelfTarget` e basta, e finche' nessuna azione dichiarava quel flag la differenza non si vedeva.
+		// Appena `Action.Guard` e `Action.Brace` l'hanno dichiarato — sono generiche, quindi le ha OGNI eroe —
+		// un bot sotto meta' HP entrava qui ogni turno: Guard ha cooldown 0, quindi e' sempre pronta, e il
+		// `continue` gli fa saltare l'attacco. Risultato: il bot ferito si mette in guardia per sempre e la
+		// partita non finisce (`HexMatch.PlaysToCompletion`).
+		//
+		// Il ramo era scritto per `Guardian.Barrier`, che di cooldown ne aveva 3 e dava 40 di scudo. Chiedere
+		// un effetto curativo lo riporta a quel significato senza dipendere dai cooldown, che sono
+		// bilanciamento e cambiano.
 		bool bUsedSupport = false;
 		for (int32 A = 0; A < Bot->NumAbilities(); ++A)
 		{
 			const URTActionData* Ab = Bot->GetAbility(A);
-			if (Ab && Ab->bSelfTarget && Bot->CanUseAbility(A) && Bot->Health * 2 < Bot->MaxHealth)
+			bool bRestores = false;
+			if (Ab)
+			{
+				for (const FRTActionEffectSpec& Spec : Ab->Def.Effects)
+				{
+					if (Spec.Effect == ERTActionEffect::Heal || Spec.Effect == ERTActionEffect::Shield)
+					{
+						bRestores = true;
+						break;
+					}
+				}
+			}
+			if (Ab && Ab->bSelfTarget && bRestores && Bot->CanUseAbility(A) && Bot->Health * 2 < Bot->MaxHealth)
 			{
 				Bot->PlannedAbilityIndex = A;
 				bUsedSupport = true;

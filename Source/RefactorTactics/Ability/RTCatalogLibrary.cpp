@@ -176,6 +176,17 @@ URTActionData* URTCatalogLibrary::MakeEquipmentAction(const URTEquipmentData* It
 	Action->Def.CooldownTurns = Item->CooldownTurns;
 	Action->RangeCells = Action->Def.RangeCells;
 	Action->CooldownTurns = Action->Def.CooldownTurns;
+	// Stessi campi specchio di `MakeGenericActions`, e per la stessa ragione: `URTActionData` li ha a 5 e 30
+	// (default legacy dell'MVP quadrato), quindi non copiarli fa entrare nel kit un gadget con portata e
+	// potenza inventate. Oggi l'unico equipaggiamento concede `Action.CreateCover` e non si nota; il giorno
+	// che ne concedesse una self-target — `Guard`, `Brace` — il gadget la porterebbe come azione d'attacco
+	// da 30 danni, che e' esattamente il difetto appena chiuso per gli eroi.
+	Action->bSelfTarget = Action->Def.bSelfTarget;
+	Action->Power = 0;
+	for (const FRTActionEffectSpec& Spec : Action->Def.Effects)
+	{
+		if (Spec.Effect == ERTActionEffect::Damage) { Action->Power = Spec.Amount; break; }
+	}
 	return Action;
 }
 
@@ -297,6 +308,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*Range (self)*/ 0, /*Cooldown*/ 0, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Guarded, /*Turni*/ 1) },
 		/*bInterruptible*/ false, ERTActionSlot::Main));
+	Catalog.Last().bSelfTarget = true; // si va in guardia su se' stessi: nessun bersaglio da scegliere
 
 	// `Action.Interact` — portata 1: solo oggetti ADIACENTI. Nessun effetto dichiarato finche' non esistono
 	// oggetti da attivare (porte, consolle, ponti, obiettivi): quelli sono E9/E10. Qui entrano identita',
@@ -482,6 +494,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Braced, /*Turni*/ 1),
 		  FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Root, /*Turni*/ 1) },
 		/*bInterruptible*/ false, ERTActionSlot::Main));
+	Catalog.Last().bSelfTarget = true; // come Guard: lo stato lo prende chi la pianifica
 
 	// `Shield` — azione PRINCIPALE di Prep: 25 punti di scudo TEMPORANEO, consumati prima della salute e
 	// scaduti nel Cleanup. Stesso identico meccanismo di `Guardian.Barrier` (che ne da' 40): `ResolvePrep`
@@ -802,6 +815,18 @@ TArray<URTActionData*> URTCatalogLibrary::MakeGenericActions(UObject* Outer)
 		}
 		URTActionData* Action = NewObject<URTActionData>(Outer);
 		Action->Def = Def;
+		// Campi SPECCHIO allineati al catalogo. `ARTPlayerController` e `ARTTurnManager` leggono ancora
+		// questi e non il `Def`, e i loro default sono quelli legacy dell'MVP quadrato: `RangeCells` 5 e
+		// `Power` 30. Senza questa propagazione ogni azione generica entrava nel kit con portata 5 e potenza
+		// 30 QUALUNQUE cosa il catalogo dichiarasse — e il bot valutava `Action.Wait`, che di portata ne ha
+		// 0 e di danno nessuno, fra le candidate d'ATTACCO come un colpo da 30 a distanza 5.
+		Action->RangeCells = Def.RangeCells;
+		Action->bSelfTarget = Def.bSelfTarget;
+		Action->Power = 0;
+		for (const FRTActionEffectSpec& Spec : Def.Effects)
+		{
+			if (Spec.Effect == ERTActionEffect::Damage) { Action->Power = Spec.Amount; break; }
+		}
 		Actions.Add(Action);
 	}
 	return Actions;
