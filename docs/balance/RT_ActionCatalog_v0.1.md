@@ -105,10 +105,19 @@ Si arma in pianificazione, apre una finestra di **3,0 s** con `FIRE`/`HOLD` e `T
 > **Da non confondere**: armare l'Overwatch costa l'**azione principale**; lo **slot reazione** preparato è
 > un'altra cosa e resta indipendente. Un eroe può avere entrambi.
 
-**`Action.Activate` è assorbita da `Action.Interact`** ([D-014](../decisions/RT_PDR_00_Decision_Log.md)):
-erano la stessa cosa con due nomi — «attiva un dispositivo» è un'interazione. La riga **resta barrata invece
-di sparire** perché lo Stable ID `Action.Activate` **è ancora consumato** dal codice: cancellarlo in una PR
-documentale romperebbe test e replay. La migrazione è tracciata come issue.
+**`Action.Activate` è assorbita da `Action.Interact`** ([D-014](../decisions/RT_PDR_00_Decision_Log.md),
+confermata da [D-025](../decisions/RT_PDR_00_Decision_Log.md)): erano la stessa cosa con due nomi — «attiva un
+dispositivo» è un'interazione.
+
+> ✅ **Migrazione eseguita il 2026-08-10 (`#199`).** Il catalogo **non spedisce più** `Action.Activate`: da
+> quella data il codice ha una sola azione di interazione. Lo Stable ID **non è stato cancellato** — D-014 lo
+> vieta perché gli ActionId entrano nel TurnLog serializzato — ma **reindirizzato in lettura** a
+> `Action.Interact` da `URTCatalogLibrary::ResolveLegacyActionId`, così una traccia scritta prima resta
+> interpretabile. Verificato da `RefactorTactics.Actions.RetiredStableIdRedirectsToHeir`.
+>
+> La riga qui sopra **resta barrata invece di sparire**: la tabella è il catalogo *storico* delle identità, e
+> un ID ritirato che scompare dal documento è un ID che nessuno saprà più leggere quando lo incontra in un
+> replay vecchio.
 
 **`Action.Guard` resta fra le universali** ([D-025](../decisions/RT_PDR_00_Decision_Log.md)): ha già tre
 consumatori — questo catalogo, l'interazione con `Status.Root`, e la difesa direzionale di

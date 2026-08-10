@@ -74,15 +74,24 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		// La cella e' LIBERA: a fermarla e' stato un colpo deciso un turno prima (E18). Dirlo «occupata»
 		// manderebbe il giocatore a cercare un'unita' che non c'e'.
 		case ERTMoveOutcome::StoppedByPrediction: Reason = TEXT("fermo: colto da una previsione"); break;
+		// Subito, non scelto (#307): «si muove» direbbe una cosa falsa di un'unita' che e' stata spinta.
+		case ERTMoveOutcome::Displaced:         Reason = TEXT("spostata"); break;
 		default:                                Reason = TEXT("resta"); break;
 		}
 
-		if (static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Moved)
+		// PERCHE' si e' mossa (#307): l'azione che ha causato lo spostamento, quando la voce la dichiara.
+		// `Action.Move` compreso — un movimento volontario e uno scatto vanno distinti, e sono la stessa
+		// categoria di voce con `ActionId` diverso.
+		const FString Cause = Entry.ActionId.IsNone()
+			? FString() : FString::Printf(TEXT(" (%s)"), *DescribeActionIdentity(Entry));
+
+		if (static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Moved
+			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Displaced)
 		{
-			return FString::Printf(TEXT("%s %s -> %s (%d celle)"),
-				Reason, *CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount);
+			return FString::Printf(TEXT("%s %s -> %s (%d celle)%s"),
+				Reason, *CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount, *Cause);
 		}
-		return FString::Printf(TEXT("%s %s"), Reason, *CellText(Entry.SrcCell));
+		return FString::Printf(TEXT("%s %s%s"), Reason, *CellText(Entry.SrcCell), *Cause);
 	}
 
 	// Fallback: cosa e' successo all'azione che non era piu' eseguibile. Il motivo per cui non lo era viaggia
@@ -188,27 +197,35 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 	}
 
 	// Combat: chi colpisce chi, con quale esito e quanto danno.
+	//
+	// CON CHE COSA (CP 11.3, #79): il nome dell'azione si accoda fra parentesi quando la voce lo porta, con la
+	// stessa forma «base · profilo» delle reazioni. Va in coda e non in testa perche' cio' che il giocatore
+	// cerca per primo e' l'esito — «22 danni, eliminata» — e il nome e' la risposta alla domanda successiva.
+	// Le voci senza identita' restano ESATTAMENTE la stringa di prima: le righe gia' verificate non cambiano.
+	const FString Tail = Entry.ActionId.IsNone()
+		? FString() : FString::Printf(TEXT(" (%s)"), *DescribeActionIdentity(Entry));
+
 	switch (static_cast<ERTCombatOutcome>(Entry.Outcome))
 	{
 	case ERTCombatOutcome::NoLineOfSight:
-		return FString::Printf(TEXT("%s -> %s: nessuna linea di tiro"),
-			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell));
+		return FString::Printf(TEXT("%s -> %s: nessuna linea di tiro%s"),
+			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), *Tail);
 
 	case ERTCombatOutcome::ShieldAbsorbed:
-		return FString::Printf(TEXT("%s -> %s: %d assorbiti dallo scudo"),
-			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount);
+		return FString::Printf(TEXT("%s -> %s: %d assorbiti dallo scudo%s"),
+			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount, *Tail);
 
 	case ERTCombatOutcome::Lethal:
-		return FString::Printf(TEXT("%s -> %s: %d danni, eliminata"),
-			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount);
+		return FString::Printf(TEXT("%s -> %s: %d danni, eliminata%s"),
+			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount, *Tail);
 
 	case ERTCombatOutcome::TerrainBonus:
-		return FString::Printf(TEXT("%s -> %s: %d danni (bonus posizione)"),
-			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount);
+		return FString::Printf(TEXT("%s -> %s: %d danni (bonus posizione)%s"),
+			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount, *Tail);
 
 	default:
-		return FString::Printf(TEXT("%s -> %s: %d danni"),
-			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount);
+		return FString::Printf(TEXT("%s -> %s: %d danni%s"),
+			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount, *Tail);
 	}
 }
 

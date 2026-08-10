@@ -113,6 +113,24 @@ Totale corpus versionato: **60** scenari (`A 27 + B 21 + D-bloccati 12`). Totale
 > tabella. Un file si classifica leggendo il suo `requires` e la disponibilità della capability, mai il
 > percorso: le cartelle sono storage e non promettono nulla ([`scenario-index-e-tag.md`](scenario-index-e-tag.md) §2).
 
+> 🔁 **Il corpus si rimisura quando cambia un numero di bilanciamento — 2026-08-10, `#131`.**
+> Vektor è sceso da 100 a 90 HP ([D-069](../decisions/RT_PDR_00_Decision_Log.md)) e **11 scenari** sono
+> diventati rossi in blocco, tutti con lo **stesso** delta di −10 su un'unità Vektor: `Combat.LineHitsThrough`,
+> `Combat.SplashHitsAlliesNotSelf`, `Spec.Environment.{ElectricPropagation, WaterQuenchesFire}`,
+> `Visual.Combat.{PushResistance, WaterElectric, WaterElectricCoordinated}`,
+> `Visual.Environment.{FireOnEnter, WetExtinguishesFire}`, `Visual.Reaction.{Deflection, Interposition}`.
+>
+> **Non è un difetto e non è una classe nuova**: è il corpus che fa il suo mestiere. Vale però registrare
+> due cose per la prossima volta.
+>
+> 1. **La forma del rosso è la diagnosi.** Undici fallimenti con delta identico su un'unica unità dicono
+>    «una statistica è cambiata», non «undici regole si sono rotte». Un delta *disomogeneo* avrebbe voluto
+>    dire l'opposto, e sarebbe stato il momento di fermarsi.
+> 2. **La prosa scade insieme ai numeri.** Sei di quegli undici file spiegano l'aritmetica a parole
+>    (*«100 − 10 − 8 = 82»*, *«Vektor resta a 100 pieni»*). Correggere solo le `expect` avrebbe lasciato una
+>    spiegazione che contraddice l'assertion accanto — e la spiegazione è **metà** del valore di uno scenario
+>    `Visual.*`, che esiste per dire a una persona cosa deve vedere. Sono state corrette entrambe.
+
 ---
 
 ## 3. Classe A — automatico, nessun umano

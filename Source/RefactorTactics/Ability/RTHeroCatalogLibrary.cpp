@@ -500,7 +500,14 @@ URTHeroData* URTHeroCatalogLibrary::MakeVektor()
 	URTHeroData* Vektor = NewObject<URTHeroData>();
 	Vektor->HeroId = TEXT("Hero.Vektor");
 	Vektor->DisplayName = FText::FromString(TEXT("Vektor"));
-	Vektor->MaxHealth = 100;
+	// 100 -> 90 (#131). A 100 HP Vektor DOMINAVA Flux (90/5/6/0) e Riva (95/5/5/0) sulle quattro statistiche
+	// base: migliore o pari ovunque, strettamente migliore in salute e movimento. Il catalogo §5 scriveva
+	// «Vektor compra mobilita' con l'assenza di difese», che sui numeri era falso — non pagava nulla.
+	//
+	// ⚠️ 90 toglie la dominanza su **Riva** (-5 HP), NON quella su Flux: a parita' di HP e vista resta +1 MP.
+	// Non e' una svista, e' il perimetro della decisione presa: il costo di Vektor diventa visibile, ma il
+	// confronto Flux/Vektor resta da chiudere e vive in `#131`, che non si chiude qui.
+	Vektor->MaxHealth = 90;
 	Vektor->MovePoints = 6; // il piu' mobile del roster: e' cio' che compra con l'assenza di difese
 	Vektor->VisionRange = 6;
 	Vektor->PushResistance = 0;
