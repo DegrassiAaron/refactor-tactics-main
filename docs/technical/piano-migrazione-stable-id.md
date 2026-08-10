@@ -104,6 +104,15 @@ con un coordinamento fra due issue.
 | Golden TurnLog: o restano validi, o la PR dichiara perché cambiano | ✅ **restano validi**, e c'è la prova — vedi §4 | §4 |
 | Nessun documento insegna «`Sprint` = `Dash`» | ✅ già fatto lato docs | — |
 
+## 6. Rischio — **rivisto al ribasso**
+
+Era dichiarato **medio-alto** e concentrato nelle fette 5 e 6, perché `Action.Sprint` è il più diffuso dei tre
+e l'unico a cambiare famiglia. **Quella fetta non si esegue più** ([D-068]), e la 4 è cancellata da [D-025].
+
+Il rischio residuo è **basso** e sta tutto nella fetta 6: dimostrare che un `.rttl` scritto quando
+`Action.Activate` era nel catalogo si rilegge ancora. È il caso che il redirect esiste per servire, ed è
+l'unico che i test attuali **non** coprono — la verifica in memoria non tocca la serializzazione.
+
 ## 7. La «verifica a due binari», e perché un binario solo è bastato
 
 Il piano chiedeva: *«scrivere il log col binario **vecchio**, rileggerlo col **nuovo**, confrontare un digest
@@ -119,12 +128,3 @@ esattamente la domanda della fetta 6.
 
 La verifica a due binari resta necessaria quando cambia **la forma** dei byte, non il loro contenuto — ed è il
 motivo per cui la regola generale sta in piedi anche se qui non si applica.
-
-## 6. Rischio — **rivisto al ribasso**
-
-Era dichiarato **medio-alto** e concentrato nelle fette 5 e 6, perché `Action.Sprint` è il più diffuso dei tre
-e l'unico a cambiare famiglia. **Quella fetta non si esegue più** ([D-068]), e la 4 è cancellata da [D-025].
-
-Il rischio residuo è **basso** e sta tutto nella fetta 6: dimostrare che un `.rttl` scritto quando
-`Action.Activate` era nel catalogo si rilegge ancora. È il caso che il redirect esiste per servire, ed è
-l'unico che i test attuali **non** coprono — la verifica in memoria non tocca la serializzazione.

@@ -344,8 +344,11 @@ un ordine di risoluzione mai avvenuto. Per la stessa ragione il combat log non s
 +danno»: la quota non dà danno, [D-024](../decisions/RT_PDR_00_Decision_Log.md).)*
 
 **Ordinamento del TurnLog** (deterministico, invariante #3/§5.1): **fase → categoria → `SrcCell` → `TgtCell` →
-`Outcome` → `Amount` → `ActionId` → `TurnNumber` → `GraphRevision` → `UnitId`**. Non dipende **mai**
-dall'ordine d'inserimento nel container.
+`Outcome` → `Amount` → `ActionId` → `TurnNumber` → `GraphRevision` → `UnitId` → `Priority`**. Non dipende
+**mai** dall'ordine d'inserimento nel container.
+
+> `Priority` chiude la catena dalla **v7** (`#79`). L'ha aggiunta la stessa modifica che ha introdotto il
+> campo, e per la regola qui sotto — non per simmetria: è un campo **scritto**, quindi doveva entrarci.
 
 > ⚠️ **La regola che tiene in piedi la precedente**: ogni campo che il formato serializzato **scrive** deve
 > stare in questa catena, o due voci che pareggiano su tutto il resto restano a pari merito e a decidere
