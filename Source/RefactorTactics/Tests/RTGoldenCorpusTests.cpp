@@ -97,6 +97,24 @@ bool FRTGoldenCorpusDivergenceTest::RunTest(const FString&)
 		TestTrue(TEXT("e quella TROVATA"), Diag.Contains(TEXT("Action.Sprint")));
 	}
 
+	// Divergenza su un campo che `DescribeEntry` NON stampa per quella categoria: qui `TgtCell` su una voce
+	// di movimento che non e' `Moved` (il ramo «fermo: …» stampa solo la cella di partenza). Senza il
+	// fallback sui campi grezzi la diagnosi direbbe «atteso [X], trovato [X]» — la stessa forma del difetto
+	// trovato con l'ActionId, in un altro punto.
+	{
+		TArray<FRTTurnLogEntry> Base = Golden;
+		Base[2].Outcome = static_cast<uint8>(ERTMoveOutcome::BlockedByUnit);
+
+		TArray<FRTTurnLogEntry> Actual = Base;
+		Actual[2].TgtCell = FRTCellId(9, 9);
+
+		const FString Diag = URTTurnLogLibrary::DescribeFirstDivergence(/*TurnNumber*/ 4, Base, Actual);
+
+		TestFalse(TEXT("una divergenza va descritta"), Diag.IsEmpty());
+		TestTrue(TEXT("quando la prosa non distingue, mostra i campi grezzi"), Diag.Contains(TEXT("campi:")));
+		TestTrue(TEXT("e il campo che diverge e' leggibile"), Diag.Contains(TEXT("tgt=(9,9,0)")));
+	}
+
 	// La PRIMA divergenza, non l'ultima: chi legge parte dalla causa piu' probabile.
 	{
 		TArray<FRTTurnLogEntry> Actual = Golden;

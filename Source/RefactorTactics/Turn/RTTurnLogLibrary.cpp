@@ -622,10 +622,32 @@ FString URTTurnLogLibrary::DescribeFirstDivergence(int32 TurnNumber, const TArra
 			: FString::Printf(TEXT("azione attesa '%s', trovata '%s'"),
 				*Golden[i].ActionId.ToString(), *Actual[i].ActionId.ToString());
 
+		const FString GoldenText = DescribeEntry(Golden[i]);
+		const FString ActualText = DescribeEntry(Actual[i]);
+
+		// Se le due descrizioni COINCIDONO, il campo che diverge e' uno che `DescribeEntry` non stampa per
+		// quella categoria — `TgtCell` fuori da `Moved`, per dirne uno. Mostrare «atteso [X], trovato [X]»
+		// farebbe concludere che il confronto e' rotto: e' successo con l'ActionId, trovato in mutazione, e
+		// qui si chiude la CLASSE invece del singolo caso. I campi grezzi non sono belli da leggere, ma
+		// rispondono alla sola domanda che conta quando la prosa non basta.
+		FString RawDetail;
+		if (GoldenText.Equals(ActualText))
+		{
+			auto RawOf = [](const FRTTurnLogEntry& E)
+			{
+				return FString::Printf(TEXT("outcome=%u amount=%d src=(%d,%d,%d) tgt=(%d,%d,%d)"),
+					E.Outcome, E.Amount,
+					E.SrcCell.X, E.SrcCell.Y, E.SrcCell.Layer,
+					E.TgtCell.X, E.TgtCell.Y, E.TgtCell.Layer);
+			};
+			RawDetail = FString::Printf(TEXT(" — campi: atteso {%s}, trovato {%s}"),
+				*RawOf(Golden[i]), *RawOf(Actual[i]));
+		}
+
 		return FString::Printf(
-			TEXT("turno %d, voce %d: fase %s, %s — atteso [%s], trovato [%s]"),
+			TEXT("turno %d, voce %d: fase %s, %s — atteso [%s], trovato [%s]%s"),
 			TurnNumber, i, GoldenPhaseName(Golden[i].Phase), *ActionText,
-			*DescribeEntry(Golden[i]), *DescribeEntry(Actual[i]));
+			*GoldenText, *ActualText, *RawDetail);
 	}
 
 	// Stesse voci fin dove entrambe arrivano, ma una delle due finisce prima: e' una divergenza, e va detta
