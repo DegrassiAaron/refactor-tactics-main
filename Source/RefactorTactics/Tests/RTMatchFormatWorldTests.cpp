@@ -311,8 +311,13 @@ bool FRTMatchFormatShippedInMatchTest::RunTest(const FString&)
 		Rules.FormatId, URTMatchFormatLibrary::Skirmish2v2FormatId);
 	TestNotEqual(TEXT("e l'identita' NON e' quella riservata al ripiego"),
 		Rules.FormatId, URTMatchFormatLibrary::FallbackFormatId);
-	// I numeri decisi il 2026-08-10: se qualcuno li cambia nel catalogo, questo test lo dice.
-	TestEqual(TEXT("RoundLimit 5"), Rules.RoundLimit, 5);
+	// I numeri del catalogo: se qualcuno li cambia, questo test lo dice. Ha gia' fatto il suo mestiere una
+	// volta — era `RoundLimit 5` fino al 2026-08-10, ed e' caduto quando il valore e' salito a 12 per
+	// allinearsi a D-010 (10-14 in 2v2).
+	// ⚠️ Da qui in poi il RoundLimit **non distingue piu'** questo formato dal ripiego, che vale 12 anche lui:
+	// a separarli resta la sola identita', verificata dalle due asserzioni qui sopra. Non e' una perdita di
+	// copertura — il numero non era un discriminante affidabile — ma chi legge deve saperlo.
+	TestEqual(TEXT("RoundLimit 12, allineato a D-010"), Rules.RoundLimit, 12);
 	TestEqual(TEXT("due unita' per squadra"), Rules.UnitsPerTeam, 2);
 
 	DestroyFormatWorld(World);

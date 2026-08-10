@@ -138,9 +138,15 @@ bool FRTMatchFormatShippedIsValidTest::RunTest(const FString&)
 	TestEqual(TEXT("identita'"), Shipped->FormatId, URTMatchFormatLibrary::Skirmish2v2FormatId);
 	TestNotEqual(TEXT("e NON e' l'identita' del ripiego"),
 		Shipped->FormatId, URTMatchFormatLibrary::FallbackFormatId);
-	TestEqual(TEXT("RoundLimit 5 (deciso 2026-08-10)"), Shipped->RoundLimit, 5);
-	// Il default della classe e' 12: con un limite di 5 il validator lo rifiuta, ed e' giusto che lo faccia.
-	TestEqual(TEXT("ExpectedRounds entro il limite"), Shipped->ExpectedRounds, 5);
+	// 12 e' il centro dei **10-14 in 2v2** che D-010 consolida. Era 5 fino al 2026-08-10: un valore da test
+	// che contraddiceva quella decisione, falsificato dal primo playtest al PIE (partita chiusa in pareggio
+	// allo scadere dei round con una squadra in vantaggio 2 contro 1).
+	TestEqual(TEXT("RoundLimit 12, allineato a D-010"), Shipped->RoundLimit, 12);
+	// I round ATTESI stanno sotto il limite, e non ci coincidono: con 12 la fine attesa torna a essere
+	// l'eliminazione — 10 e' il dato misurato headless il 2026-08-06 — e il limite la rete dietro di essa.
+	// Il validator rifiuta solo il caso opposto, round attesi OLTRE il limite.
+	TestEqual(TEXT("ExpectedRounds 10, sotto il limite e non uguale"), Shipped->ExpectedRounds, 10);
+	TestTrue(TEXT("i round attesi restano entro il limite"), Shipped->ExpectedRounds <= Shipped->RoundLimit);
 	TestEqual(TEXT("due unita' per squadra: e' il 2v2 del vertical slice"), Shipped->UnitsPerTeam, 2);
 	TestEqual(TEXT("classe di mappa Skirmish"), Shipped->MapClass, ERTMapClass::Skirmish);
 

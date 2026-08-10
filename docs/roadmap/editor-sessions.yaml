@@ -288,8 +288,22 @@ sessions:
     unblocks: [U16, U19, M6.8]
     steps: |
       Percorso che usa la transizione fra layer 0 e 1 — l'unita' deve **cambiare quota**, non
-      teletrasportarsi; rimuovi l'arco e verifica che il path **fallisca**. Poi una partita intera,
-      dall'avvio alla vittoria, rileggendo `PIE-HEXPLAY-1..9` insieme.
+      teletrasportarsi. Poi una partita intera, dall'avvio alla vittoria, rileggendo
+      `PIE-HEXPLAY-1..9` insieme.
+
+      ⚠️ **«Rimuovi l'arco e verifica che il path fallisca» NON si fa in questa apertura** (corretto il
+      2026-08-10): su `MapSource=GeneratedTestArena` la transizione e' creata da codice
+      (`MakeTestArena`, `(1,0,0) -> (2,0,1)`) e non c'e' un asset da editare. Quella meta' vive su un
+      asset mappa vero, cioe' **U1**/**U13**, ed e' comunque gia' coperta headless da
+      `Structures.Bridge.RemovalBreaksPath` e `…NoTeleportOnRemoval`.
+
+      **Prima esecuzione parziale il 2026-08-10** (esiti nel registro): la partita e' arrivata a
+      conclusione ma **per scadenza dei round**, `Pareggio (round 5/5)` con una squadra in vantaggio
+      2 contro 1 — quindi la chiusura **per eliminazione** che `PIE-HEXPLAY-10` descrive non e' stata
+      vista. Il playtest ha fatto il suo mestiere: ha falsificato `RoundLimit 5`, che contraddiceva i
+      **10-14** del 2v2 fissati da D-010, e il formato spedito e' passato a **12** nello stesso
+      giorno. ⚠️ La partita completa va quindi **rigiocata col limite nuovo**: il ritmo misurato su
+      5 round («un lampo») non descrive piu' il gioco.
 
   # --- Blocco 3 ---------------------------------------------------------------
 
