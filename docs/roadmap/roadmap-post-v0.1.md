@@ -257,7 +257,7 @@ indipendente e può procedere in parallelo: descrive lo status, non ciò che lo 
 
 | CP | Obiettivo | DoD misurabile |
 |---|---|---|
-| **36.1** | Tassonomia delle capability | Esiste l'elenco esplicito di cosa un effetto può togliere, con la granularità decisa guardando le azioni che esistono. Chiude [`STA-4`](../OPEN_DECISIONS.md). Senza, 36.3 e 36.4 non hanno da cosa derivare |
+| **36.1** | Tassonomia delle capability | Esiste l'elenco esplicito di cosa un effetto può togliere, su **due assi** — *disponibilità dell'azione* e *modifica della regola* (cover, targeting, payoff) — e copre le **33 azioni core + 20 d'eroe**, non le sole sette generiche. Parte da `ERTActionSlot` e `ERTMovementStyle`, che **esistono già**: la domanda è se bastino, vadano raffinati o affiancati. Chiude [`STA-4`](../OPEN_DECISIONS.md). Senza, 36.3 e 36.4 non hanno da cosa derivare |
 | **36.2** | Il dato dello status | Categoria (`Modifier`/`Control`/`Environment`/`Stance`/`Reaction`/`Special`) e **polarità** separata; `StackPolicy` ed expiration dichiarate **sul dato**, non nel codice che le applica. Le durate sono boundary di fase, non secondi |
 | **36.3** | Le sei primitive, derivate | `MODIFY` · `DEGRADE` · `RESTRICT` · `INTERRUPT` · `CONVERT` · `CONSUME` si **leggono** da ciò che lo status dichiara: chi dichiara `Sprint → Move` *è* un `DEGRADE`. Un test verifica che la lettura sia totale — nessuno status resta senza primitiva derivabile |
 | **36.4** | Severity contata, anti-stun-lock come test | `C0`–`C3` si contano dalle capability toccate (0 · degrada · una categoria · due o più). La regola *«nessuno status comune e ripetibile toglie insieme Movement, Main Action e Reaction»* smette di essere una revisione umana e **diventa un test** |
@@ -267,9 +267,39 @@ indipendente e può procedere in parallelo: descrive lo status, non ciò che lo 
 **Dipendenze**: `RT-FEAT-ENV-STATUS` (E8, chiusa) e `RT-FEAT-ACTION-ENGINE` (E4, chiusa). **Non** dipende da
 E14: la metà su Brace/Overwatch del sorgente era già decisa altrove.
 
-**Rischi**: la granularità di 36.1 è la scelta non ovvia — «movimento» è una capability sola o si divide in
-`Move`/`Sprint`/`Dash`/`Climb`? Da lì dipende se `Suppressed` conta `C1` o `C2`, cioè **il gate anti-stun-lock
-cambia di significato**.
+**Rischi**: la granularità di 36.1 è la scelta non ovvia — «movimento» è una capability sola o si divide nei
+profili e nelle azioni che esistono davvero (`Move` · `Sneak` · `Sprint` · `Dash` · `Leap` · `Charge` ·
+`Reposition`)? Da lì dipende se `Suppressed` conta `C1` o `C2`, cioè **il gate anti-stun-lock cambia di
+significato**.
+
+> 🧭 **Anche 36.1 parte da qualcosa che esiste, e ignorarlo costerebbe una terza verità** *(spec panel del
+> 2026-08-10 su [#436](https://github.com/DegrassiAaron/refactor-tactics-main/issues/436))*.
+>
+> | Cosa gira già | Valori |
+> |---|---|
+> | `ERTActionSlot` (`RTActionDef.h`) | `None` · `Movement` · `Main` · `MovementAndMain` · `Reaction` |
+> | `ERTMovementStyle` (`RTActionDef.h`) | `None` · `Budget` · `LinearDash` · `LinearCharge` · `LinearLeap` · `LinearPass` |
+>
+> La regola anti-stun-lock di 36.4 dice *«nessuno status toglie insieme **Movement**, **Main Action** e
+> **Reaction**»*: sono **tre dei cinque valori di `ERTActionSlot`**, alla lettera. La tassonomia grossolana
+> non manca — spedisce, e il `TurnLog` la usa. Scrivere `capability:` accanto a `Slot` sarebbe esattamente la
+> **seconda verità** che [`D-072`](../decisions/RT_PDR_00_Decision_Log.md) ha appena respinto per le primitive.
+>
+> Due avvertenze che il checkpoint deve risolvere, non ereditare:
+>
+> - **`ERTActionSlot::MovementAndMain` non ha produttori.** [`D-028`](../decisions/RT_PDR_00_Decision_Log.md)
+>   ne ha tolto l'unico utente (`Action.Sprint`), [`D-070`](../decisions/RT_PDR_00_Decision_Log.md) ha
+>   **rifiutato** di adottarlo per l'Overwatch, e il ramo del resolver resta vivo solo grazie a un'azione
+>   sintetica in un test. È però la definizione operativa di un `C3` — «togli movimento *e* principale» —
+>   quindi il primo hard control lo rianima per inerzia se nessuno decide.
+> - **Non tutti gli status tolgono un'azione.** `Exposed` toglie uno *step di copertura*, `Obscured` cambia
+>   l'*eleggibilità di targeting*, `Marked` abilita un *payoff altrui*: tre degli undici non si esprimono su
+>   uno slot. È il motivo dei due assi — ed è anche la tesi dell'epic, *«le regole che puoi sfruttare sono
+>   cambiate»*, non «hai un'azione in meno».
+>
+> `Climb` **non è un candidato**, perché non esiste come azione: cambiare layer è `Move` attraverso un arco di
+> transizione (`RefactorTactics.HexMove.ClimbsOnlyThroughTransition`). `Sneak` invece esiste come profilo ma
+> è **senza numeri** — costo, portata e rumore non definiti da nessuna fonte corrente.
 
 > 🧭 **Tre pezzi di 36.5 esistono già, e l'epic li estende invece di costruirli** *(misurato il 2026-08-10)*.
 > Il sorgente §21–§23 li elenca come mancanti, e per uno dei tre è falso:
