@@ -21,6 +21,26 @@
 #   tests        : pattern di nome test, con `*` finale ammesso; devono matchare test reali
 #   scenarios    : ScenarioId dichiarati nei file di `Scenarios/`; `planned:` per quelli non ancora in repo
 #   wiki_refs    : `docs/wiki/...md` (pagina sorgente) oppure `wiki:<PageName>` (solo nel repo Wiki)
+#   pie_refs     : le voci `PIE-*` di `docs/technical/test-manuali-pie.md` che dimostrano il gate
+#                  `packaged`. È il legame che fino al 2026-08-10 **non era un dato**: viveva nel
+#                  corpo delle issue GitHub («Verifica PIE `PIE-V01-HUD`»), fuori dal repository e
+#                  fuori da ogni controllo — così il giorno in cui una voce diventa ✅ nessuno sa
+#                  quali gate possono avanzare. I legami presenti sono stati estratti dalla
+#                  sezione «Test / verifica» delle issue che ciascuna feature già dichiara in
+#                  `issues:`, non assegnati a intuito. Il campo è **opzionale**: assente significa
+#                  «non ancora mappato», non «nessuna verifica manuale».
+#                  ⚠️ **L'estrazione dalle issue non basta da sola**, ed è costata tre legami falsi
+#                  in code review: quando più feature dichiarano la STESSA issue, il metodo attacca
+#                  la stessa voce a tutte, anche a quelle che non c'entrano. `PIE-V01-HUD` (issue
+#                  #77) verifica barre, timer, slot e cooldown: dimostra `RT-FEAT-UI-PLANNING`, non
+#                  la camera tattica né il playback della risoluzione. Un legame va tenuto solo se
+#                  il **testo della voce** verifica quella feature — la citazione condivisa è
+#                  l'indizio, non la prova.
+#                  Il validator ne deriva due cose: `packaged: done` con una voce non ✅ è un
+#                  **errore** (il gate afferma una verifica che il registro non conferma), e tutte
+#                  le voci ✅ con il gate ancora `partial`/`todo` è un **avviso**: può avanzare.
+#                  Una stessa voce può dimostrare più feature — `PIE-V01-HUD` ne serve quattro,
+#                  perché quattro feature dichiarano la stessa issue #77.
 #   roadmap      : `epic` + `checkpoints` per la vista di release (roadmap-v0.1.md);
 #                  `milestone` per il lavoro che vive solo nella vista di esecuzione
 #                  (roadmap-checkpoint.md). I due spazi di numerazione **collidono** — CP 10.1
@@ -91,6 +111,7 @@ features:
     wiki_refs:
       - docs/wiki/game/struttura-del-round.md
       - docs/wiki/game/esempio-di-round.md
+    pie_refs: [PIE-HEXPLAY-4, PIE-HEXPLAY-5]
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -359,6 +380,7 @@ features:
       - Visual.Map.MultiLevel
     wiki_refs:
       - docs/wiki/game/mappa-terreni-e-ambiente.md
+    pie_refs: [PIE-HEXPLAY-1]
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -402,11 +424,98 @@ features:
       - Visual.Map.MultiLevel
     wiki_refs:
       - docs/wiki/game/azioni-e-movimento.md
+    pie_refs: [PIE-HEXPLAY-4, PIE-HEXPLAY-5]
     last_verified:
       date: 2026-08-08
       commit: 2094b86
     notes: >
       Costi interi, ordine stabile, mediana misurata 0,025 ms su mappa r=12 (CP 7.3).
+
+  - feature_id: RT-FEAT-MAP-STANDABILITY
+    title: Standability derivata da anchor, footprint e clearance
+    area: Map
+    kind: gameplay
+    release: v0.2
+    priority: P2
+    status: DESIGNED
+    gates:
+      spec: partial
+      data: todo
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: todo
+      ui_wiki: partial
+      packaged: todo
+      network_privacy: na
+    roadmap:
+      epic: null
+      checkpoints: []
+    dependencies:
+      - RT-FEAT-MAP-HEXGRAPH
+      - RT-FEAT-TOOL-MAP-EDITOR
+    owner_specs:
+      - docs/roadmap/plans/handoff-geometry-reazioni-conflict-report-2026-08-10.md
+    issues: [324]
+    tests: []
+    scenarios:
+      - planned:
+          - Spec.Map.WallCrossesCellStillStandable
+          - Spec.Map.FootprintCollisionBlocksCell
+          - Spec.Map.NinetyDegreeCornerBakesCorrectly
+    wiki_refs:
+      - docs/wiki/meccaniche/griglia-e-geometria.md
+    wiki_note: >-
+      La pagina Wiki spiega il **principio** (la griglia non vincola i muri); il dato cotto e la pipeline di cottura non esistono ancora.
+    notes: >
+      Registrata come DIREZIONE, non come lavoro pronto ([D-065](../decisions/RT_PDR_00_Decision_Log.md)).
+      Oggi `bBlocksMovement` è scritto a mano sulla cella; qui diventerebbe l'esito di una cottura che
+      intersecа il footprint dell'unità con la blocking geometry attorno al Cell Anchor. Il runtime continua
+      a leggere interi: la derivazione avviene in authoring, mai in query. Bloccata da `MAP-1`: senza la
+      clearance in metri non c'è niente da intersecare, e cuocere prima significa ricuocere.
+
+  - feature_id: RT-FEAT-MAP-TRANSITION-CLEARANCE
+    title: Validità della transizione distinta da quella della cella
+    area: Map
+    kind: gameplay
+    release: v0.2
+    priority: P2
+    status: DESIGNED
+    gates:
+      spec: partial
+      data: todo
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: todo
+      ui_wiki: partial
+      packaged: todo
+      network_privacy: na
+    roadmap:
+      epic: null
+      checkpoints: []
+    dependencies:
+      - RT-FEAT-MAP-STANDABILITY
+      - RT-FEAT-MAP-PATHFINDING
+      - RT-FEAT-MAP-INTERACTIVE-EDGES
+    owner_specs:
+      - docs/roadmap/plans/handoff-geometry-reazioni-conflict-report-2026-08-10.md
+    issues: [324]
+    tests: []
+    scenarios:
+      - planned:
+          - Spec.Map.ValidCellsBlockedTransition
+          - Spec.Map.DoorOpensTransition
+    wiki_refs:
+      - docs/wiki/meccaniche/griglia-e-geometria.md
+    wiki_note: >-
+      Il caso «due celle valide, passaggio chiuso» è già spiegabile; il dato che lo esprime senza passare da una copertura non esiste ancora.
+    notes: >
+      Il buco misurato: `Cell A` valida ∧ `Cell B` valida ∧ `A→B` chiusa oggi si esprime **solo** con una
+      copertura alta, perché gli adiacenti orizzontali sono calcolati e non archi ([D-013](../decisions/RT_PDR_00_Decision_Log.md)),
+      e `FRTHexEdge` è riservato ai salti di layer. Un muro che blocca senza proteggere non ha un dato su cui
+      appoggiarsi: o diventa una copertura che non copre, o `bBlocksMovement` su una cella calpestabile.
+      Include la *swept clearance* — la transizione verifica il corridoio attraversato, non i soli estremi.
 
   - feature_id: RT-FEAT-MAP-LOS
     title: LOS, targeting e traiettoria separati
@@ -444,6 +553,7 @@ features:
       - Visual.Combat.SmokeCapsTargeting
     wiki_refs:
       - docs/wiki/game/combattimento-e-targeting.md
+    pie_refs: [PIE-HEXPLAY-6, PIE-HEXPLAY-6b]
     wiki_note: >-
       Vista e targeting esistono; la **percezione** completa (chi sa cosa, E13) e' un altro sistema e non c'e' ancora.
     last_verified:
@@ -685,6 +795,7 @@ features:
     wiki_refs:
       - docs/wiki/meccaniche/porte.md
       - docs/wiki/meccaniche/topologia-dinamica.md
+    pie_refs: [PIE-V01-DOOR]
     wiki_note: >-
       Dato, regole di blocco e mutazione del bordo sono implementati e testati; l'**interazione del giocatore** (`Interact`/`Activate`) arriva con E10.
     last_verified:
@@ -736,6 +847,7 @@ features:
     wiki_refs:
       - docs/wiki/meccaniche/ponti.md
       - docs/wiki/meccaniche/topologia-dinamica.md
+    pie_refs: [PIE-HEXPLAY-8]
     last_verified:
       date: 2026-08-09
       commit: 4a3fd20
@@ -1061,6 +1173,7 @@ features:
     wiki_refs:
       - docs/wiki/game/azioni-e-movimento.md
       - docs/wiki/meccaniche/collisioni.md
+    pie_refs: [PIE-HEXPLAY-4b, PIE-HEXPLAY-6c]
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -1436,6 +1549,7 @@ features:
     scenarios: []
     wiki_refs:
       - docs/wiki/game/reazioni-overwatch-e-previsioni.md
+    pie_refs: [PIE-V01-OVERWATCH]
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -1683,6 +1797,7 @@ features:
     scenarios: []
     wiki_refs:
       - docs/wiki/game/reazioni-overwatch-e-previsioni.md
+    pie_refs: [PIE-V01-OVERWATCH]
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -2326,6 +2441,7 @@ features:
       - Visual.Core.PhaseOrder
     wiki_refs:
       - docs/wiki/game/come-si-gioca.md
+    pie_refs: [PIE-V01-HUD]
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -2403,6 +2519,7 @@ features:
     scenarios: []
     wiki_refs:
       - docs/wiki/game/come-si-gioca.md
+    pie_refs: [PIE-V01-INTENT]
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -2445,6 +2562,7 @@ features:
       - Combat.SplashHitsAlliesNotSelf
     wiki_refs:
       - docs/wiki/game/combattimento-e-targeting.md
+    pie_refs: [PIE-V01-INTENT]
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -2484,6 +2602,7 @@ features:
       - Visual.Core.PhaseOrder
     wiki_refs:
       - docs/wiki/game/esempio-di-round.md
+    pie_refs: [PIE-V01-LOG]
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -2622,6 +2741,7 @@ features:
       - docs/characters/v0.1/bastion.md
       - docs/characters/v0.1/vektor.md
       - docs/characters/index.md
+    pie_refs: [PIE-V01-ROSTER]
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -3151,6 +3271,7 @@ features:
       - RT_Showcase_Relay_v01
     wiki_refs:
       - docs/wiki/game/avversario-bot.md
+    pie_refs: [PIE-HEXPLAY-7]
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -3441,6 +3562,7 @@ features:
       - RefactorTactics.Pacing.CsvRowMatchesHeader
     scenarios: []
     wiki_refs: []
+    pie_refs: [PIE-V01-DEBUG]
     last_verified:
       date: 2026-08-08
       commit: 2094b86

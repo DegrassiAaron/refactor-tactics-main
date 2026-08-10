@@ -27,9 +27,27 @@ struct FRTAssertionResult
 };
 
 /**
+ * Traccia serializzata di UN turno (CP 12.6, #178).
+ *
+ * Un array per turno e non un buffer unico per la partita: il corpus golden deve poter dire «turno 3», e il
+ * `FRTTurnLogEntry` non porta il numero di turno — il TurnLog e' per turno, e aggiungerglielo sarebbe una
+ * migrazione di formato per un dato che il chiamante gia' conosce.
+ *
+ * I byte sono quelli di `URTTurnLogLibrary::SerializeTurnLog`, checksum in coda incluso: e' il «TurnLog **e**
+ * checksum» che il DoD chiede di confrontare, e `CompareSerializedTraces` verifica entrambi.
+ *
+ * Struct C++ semplice come `FRTTestResult` che la contiene: questo header non passa da UHT.
+ */
+struct FRTTurnTrace
+{
+	TArray<uint8> Bytes;
+};
+
+/**
  * Risultato completo di una esecuzione. E' cio' che finisce in `result.json` e che Claude Code legge per
  * dire PASS/FAIL e diagnosticare la causa senza aprire migliaia di righe di log Unreal.
  */
+
 struct FRTTestResult
 {
 	FString ScenarioId;
@@ -67,6 +85,14 @@ struct FRTTestResult
 	 * 0 quando lo scenario non è stato eseguito (`Error`): un hash su nessuno stato sarebbe un numero finto.
 	 */
 	uint32 StateHash = 0;
+
+	/**
+	 * Traccia serializzata di ogni turno giocato, nell'ordine in cui sono stati giocati (CP 12.6, #178).
+	 *
+	 * Vive qui e non in un meccanismo separato perche' il DoD chiede **un solo sistema**: il golden replay
+	 * della showcase (#170, CP 15.4) usa questo stesso, non un secondo che gli somiglia.
+	 */
+	TArray<FRTTurnTrace> TurnTraces;
 
 	/**
 	 * Cose accadute durante l'esecuzione che non sono ne' assertion ne' errori, ma senza le quali un

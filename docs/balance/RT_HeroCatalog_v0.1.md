@@ -76,7 +76,7 @@ nel vertical slice).
 |---|---|---|---|---:|
 | `Flux.ArcPulse` | Impulso ad arco | attacco base | 22 danni, range 4 | 0 |
 | `Flux.LinearDischarge` | Scarica lineare | linea | 24 danni, **+8 su bersaglio `Wet`** | 2 |
-| `Flux.ConductiveNode` | Nodo conduttore | cella | rende conduttiva una cella per 2 turni | 2 |
+| `Flux.ConductiveNode` | Nodo conduttore | cella | **è `Action.Electrify`**: scarica sul grafo conduttivo, range 4, propagazione 3 ([D-064](../decisions/RT_PDR_00_Decision_Log.md)) | 2 |
 | `Flux.Overload` | Sovraccarico | AoE | 18 danni, `Interrupt` sui dispositivi | 3 |
 | `Flux.ReactiveCapacitor` | Capacitore reattivo | reazione | scudo 15 e 10 danni all'attaccante | 3 |
 

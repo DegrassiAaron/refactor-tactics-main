@@ -60,6 +60,21 @@ interrogarle.
 Una copertura appartiene a **uno dei sei lati**, non alla cella: un muretto ti protegge da nord e non da sud, e
 modellarlo come proprietà della cella renderebbe la direzionalità impossibile da esprimere.
 
+> ⚠️ **Questa riga parla del dato, non del mondo — e la distinzione va tenuta.** Due triage indipendenti
+> ([2026-08-09](../roadmap/plans/map-editor-brief-spec-panel-2026-08-09.md) §4,
+> [2026-08-10](../roadmap/plans/handoff-geometry-reazioni-conflict-report-2026-08-10.md) §4) hanno letto
+> «copertura sui bordi» come se dicesse *«i muri devono seguire i lati dell'esagono»*. **Non lo dice, e quella
+> regola non esiste in nessun documento canonico.** Un muro può attraversare una cella a 90°, tagliarla a
+> metà, non essere allineato a niente: la griglia si sovrappone alla geometria, non viceversa.
+>
+> Ciò che sta sul bordo è l'**effetto tattico cotto** — perché la direzionalità dev'essere esprimibile con
+> interi, dentro un hash che tiene fermo il KPI *replay divergence = 0*. Il muro visivo è authoring; il bordo
+> è il dato autorevole; la cottura sta in mezzo, ed è **E23**.
+>
+> Il caso che questo modello **non** copre ancora è il muro che blocca il passaggio *senza essere una
+> copertura* — nessuna riduzione, nessuna integrità. Oggi si modella male, e la separazione fra *validità
+> della cella* e *validità della transizione* che serve a coprirlo è in E23.
+
 - **Bassa** — non chiude il bordo: riduce il danno di chi la usa (CP 9.1). La riduzione **decade** se il colpo
   arriva fuori dall'arco frontale ([ADR-0005](../decisions/adr-0005-orientamento.md) §4a).
 - **Alta** — **chiude il bordo**: `URTHexCoverLibrary::BlocksTraversal` è consultato **sia** da

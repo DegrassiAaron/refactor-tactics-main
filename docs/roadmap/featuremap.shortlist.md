@@ -20,12 +20,12 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 <!-- RT_SHORTLIST_FEATURES:BEGIN -->
 
-**85 feature** · v0.1 **70** · v0.2 **8** · future **7**.
+**87 feature** · v0.1 **70** · v0.2 **10** · future **7**.
 
 | Stato | Quante |
 |---|--:|
 | `IDEA` | 4 |
-| `DESIGNED` | 7 |
+| `DESIGNED` | 9 |
 | `SPECIFIED` | 13 |
 | `IMPLEMENTING` | 20 |
 | `TESTABLE` | 5 |
@@ -106,7 +106,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-CHARACTER-STATE` — Character State / Configuration System | future | SPECIFIED | 1/9 | — | Epic E34, `#244` |
 | `RT-FEAT-INTENT-CONDITIONAL` — Conditional Intent — un intento con una biforcazione | future | SPECIFIED | 1/9 | — | Un intento con **una** biforcazione — epic E33, `#330` |
 
-### Map · 9
+### Map · 11
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
@@ -119,6 +119,8 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-MAP-INTERACTIVE-EDGES` — Porte e bordi commutabili | v0.1 | INTEGRATED | 6/8 | E9 | Una porta chiusa toglie passo **e** linea di tiro con lo stesso `BlocksTraversal` |
 | `RT-FEAT-MAP-SPECIAL-TRANSITIONS` — Ponti, archi e transizioni multilivello | v0.1 | INTEGRATED | 6/8 | E9 | L'arco è **additivo**: romperlo annulla il percorso, non lo allunga |
 | `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole | v0.1 | IMPLEMENTING | 5/9 | E16 | Deriva da Move e Dash, entra in snapshot e hash, e da dietro annulla `Guard` |
+| `RT-FEAT-MAP-STANDABILITY` — Standability derivata da anchor, footprint e clearance | v0.2 | DESIGNED | 0/8 | — | — |
+| `RT-FEAT-MAP-TRANSITION-CLEARANCE` — Validità della transizione distinta da quella della cella | v0.2 | DESIGNED | 0/8 | — | — |
 
 ### Networking · 3
 

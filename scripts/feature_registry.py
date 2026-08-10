@@ -49,6 +49,16 @@ RELEASES = {"v0.1", "v0.2", "future"}
 PRIORITIES = {"P0", "P1", "P2", "P3"}
 KINDS = {"gameplay", "ui", "tooling", "data", "infra", "content"}
 
+# I `kind` che la Wiki documenta davvero. La Wiki e' rivolta a chi gioca — meccaniche, personaggi,
+# fazioni — e non parla del map editor ne' dell'asset pipeline: e' una scelta gia' presa e gia'
+# visibile nei dati, non una regola nuova. Al 2026-08-10 le 60 feature con una pagina sono tutte
+# `gameplay`, `ui` o `content`, e nessuna delle 18 `tooling`/`data`/`infra` ne ha una.
+# Pretenderla da loro produceva 18 avvisi su 27 che non si sarebbero chiusi mai — e la regola 5 di
+# `feature-registry.md` gia' dichiara legittimo quel caso: «una feature interna puo' avere la UI e
+# nessuna pagina (`partial` anche li')». Un avviso che contraddice il proprio owner documentale non
+# denuncia una lacuna: insegna a ignorare anche gli altri avvisi.
+WIKI_DOCUMENTED_KINDS = {"gameplay", "ui", "content"}
+
 # Ordine di maturita'. `DEFERRED` e `BLOCKED` sono fuori scala: dichiarano una decisione,
 # non un grado di completezza, e per questo il controllo di coerenza li salta.
 STATUS_ORDER = [
@@ -225,9 +235,14 @@ def git_remote_slug():
         return None
 
 
-def validate(registry, wiki_root=None):
+def validate(registry, wiki_root=None, editor_ctx=None):
     errors, warnings = [], []
     features = registry.get("features") or []
+
+    # Misurato una volta e riusato: qui per `pie_refs`, e piu' sotto da `validate_editor_sessions`.
+    # Chi ha gia' il contesto (`build_graph`) lo passa e non si rilegge nulla.
+    editor_ctx = editor_ctx or editor_context()
+    pie_registry = editor_ctx["pie"]
 
     github = github_config(registry)
     missing = [k for k in ("owner", "repository", "branch") if not github.get(k)]
@@ -370,8 +385,46 @@ def validate(registry, wiki_root=None):
             elif not os.path.isfile(os.path.join(REPO, ref)):
                 errors.append(f"{where} pagina Wiki sorgente inesistente: {ref}")
 
+        # --- il gate `packaged` e la verifica che lo dimostra ---
+        #
+        # `packaged` dice «verificata nella build packaged della release corrente», e chi la verifica
+        # e' una voce `PIE-*` eseguita da una persona. Fino al 2026-08-10 quel legame non era un
+        # dato: viveva nel corpo delle issue GitHub («Verifica PIE `PIE-V01-HUD`»), fuori dal
+        # repository e fuori da ogni controllo. La conseguenza non e' teorica — il giorno in cui
+        # `PIE-V01-HUD` diventa verde, nessuno sa che quattro feature possono avanzare il gate.
+        pie_refs = feature.get("pie_refs") or []
+        for ref in pie_refs:
+            if ref not in pie_registry:
+                errors.append(f"{where} voce PIE inesistente nel registro: {ref}")
+        # Tutte le voci, comprese quelle che il registro non conosce: una voce inesistente vale
+        # `None`, che non e' verde. Filtrarle qui — `if r in pie_registry` — le avrebbe rese
+        # invisibili a questi due controlli, e una lista `[voce_verde, voce_inesistente]` avrebbe
+        # dato «tutte verdi»: il gate sarebbe potuto restare `done` senza che nessuno lo negasse,
+        # e l'avviso «puo' avanzare» sarebbe comparso su una prova che non esiste.
+        cited = [pie_registry.get(r) for r in pie_refs]
+        if gates.get("packaged") == "done" and pie_refs and not all(s == "✅" for s in cited):
+            aperte = [r for r in pie_refs if pie_registry.get(r) not in ("✅",)]
+            errors.append(
+                f"{where} gate packaged=done ma le voci che lo dimostrano non sono verdi: "
+                + ", ".join(f"{r} {pie_registry.get(r) or '❓'}" for r in aperte)
+                + " — il gate afferma una verifica che il registro PIE non conferma")
+        if gates.get("packaged") in ("partial", "todo") and pie_refs and all(s == "✅" for s in cited):
+            warnings.append(
+                f"{where} tutte le voci PIE che la dimostrano sono verdi ({', '.join(pie_refs)}) "
+                f"ma il gate packaged e' ancora {gates.get('packaged')}: puo' avanzare")
+
+        # `ui_wiki` conta due meta' (regola 5 di `feature-registry.md`): «spiegata all'utente» e
+        # «leggibile in gioco». `done` le dichiara ENTRAMBE, quindi senza una pagina collegata il
+        # gate afferma qualcosa che nessun dato sostiene. `partial` invece e' legittimo senza
+        # pagina — e' precisamente il caso «la UI c'e', la pagina no» che la regola prevede.
+        if gates.get("ui_wiki") == "done" and not (feature.get("wiki_refs") or []):
+            errors.append(
+                f"{where} gate ui_wiki=done ma nessuna wiki_refs: `done` dichiara entrambe le meta' "
+                "(spiegata all'utente e leggibile in gioco) e la prima non ha nulla che la dimostri. "
+                "Collega la pagina, oppure il gate e' `partial`")
+
         # --- warning: lacune che non rompono nulla ma vanno viste ---
-        if not (feature.get("wiki_refs") or []):
+        if feature.get("kind") in WIKI_DOCUMENTED_KINDS and not (feature.get("wiki_refs") or []):
             warnings.append(f"{where} nessuna pagina Wiki collegata")
         if status in testable_or_more and feature.get("kind") == "gameplay" and not present:
             warnings.append(f"{where} feature di gameplay {status} senza scenario che la dimostri")
@@ -407,6 +460,11 @@ def validate(registry, wiki_root=None):
         for fid in fids:
             if fid not in id_set:
                 errors.append(f"[{page}] blocco di stato per FeatureId inesistente: {fid}")
+
+    # --- l'altra sorgente delle *map, con le stesse pretese di questa ---
+    session_errors, session_warnings = validate_editor_sessions(editor_ctx)
+    errors += session_errors
+    warnings += session_warnings
 
     return errors, warnings
 
@@ -480,6 +538,7 @@ def build_json(registry):
             "scenarios_planned": planned,
             "wiki_refs": feature.get("wiki_refs") or [],
             "wiki_note": (feature.get("wiki_note") or "").strip(),
+            "pie_refs": feature.get("pie_refs") or [],
             "last_verified": jsonable(feature.get("last_verified") or {}),
             "notes": (feature.get("notes") or "").strip(),
         })
@@ -1664,6 +1723,167 @@ def resolve_prerequisite(ref, sessions_state, checkpoints, epics, milestones):
     return False, None, None
 
 
+SESSION_FIELDS = {"id", "title", "block", "critical", "produces", "artifacts", "unblocked_by",
+                  "shares_setup_with", "verifies", "issues", "done_when", "unblocks",
+                  "steps", "notes"}
+
+
+def editor_context():
+    """Tutto cio' che serve per ragionare sulle sedute, misurato una volta sola.
+
+    Sono sei letture non banali — il registro PIE, `git ls-files` sugli artefatti (un sottoprocesso),
+    e tre file di roadmap riletti a colpi di regex. `validate` e `build_graph` le vogliono entrambi,
+    e `build_graph` chiama `validate`: senza questo contesto condiviso lo stesso lavoro si fa due
+    volte per ogni `generate`.
+
+    Non e' una cache: e' un parametro. Una cache di modulo avrebbe legato il risultato alla vita del
+    processo, e la prima cosa che si rompe e' la verifica di mutazione — che muta il file e
+    richiama. Qui chi vuole una misura fresca chiama di nuovo `editor_context()`.
+    """
+    doc = load_editor_sessions()
+    sessions = doc.get("sessions") or []
+    pie = pie_entries()
+    tracked = tracked_artifacts([a for s in sessions for a in (s.get("artifacts") or [])])
+    milestones, milestone_conflicts = milestone_status()
+    return {
+        "doc": doc,
+        "sessions": sessions,
+        "pie": pie,
+        "tracked": tracked,
+        "states": {s.get("id"): session_state(s, pie, tracked) for s in sessions},
+        "checkpoints": checkpoint_status(),
+        "epics": epic_status(),
+        "milestones": milestones,
+        "milestone_conflicts": milestone_conflicts,
+    }
+
+
+def validate_editor_sessions(ctx=None):
+    """`editor-sessions.yaml`: la seconda sorgente delle *map, con le stesse pretese della prima.
+
+    Fino al 2026-08-10 questo file non passava di qui. I suoi controlli esistevano — voci `PIE-*`
+    fantasma, prerequisiti che non risolvono — ma vivevano dentro il **generatore** e finivano come
+    ⚠️ stampati in fondo alla pagina generata. Un avviso dentro la vista che dovrebbe denunciare non
+    ferma nessuno e non fa fallire niente: e' la stessa famiglia del dato che nessun consumatore
+    legge. Qui diventano exit code.
+
+    La regola meno ovvia e' la dualita' di `unblocks`:
+
+    - `X.unblocked_by` cita la seduta `Y`  ⇒  `Y.unblocks` deve citare `X`, sempre. Chi porta una
+      dipendenza deve sapere cosa sblocca: e' la motivazione che la coda stampa per farla adesso.
+    - `Y.unblocks` cita la seduta `X`      ⇒  `X.unblocked_by` deve citare `Y`, **salvo** setup
+      condiviso **nello stesso blocco**. `U2..U6` (blocco 2) e `U7..U9` (blocco 3) si fanno nella
+      stessa apertura di editor: li' la catena e' ordine di lavoro e la coda deve mostrarle
+      insieme, non metterne quattro in WAITING.
+
+    Senza l'eccezione questo controllo avrebbe segnalato sei casi legittimi e sarebbe stato
+    disattivato al primo passaggio — cioe' non varrebbe piu' nemmeno per il settimo.
+
+    Il vincolo «stesso blocco» non e' decorativo, ed e' costato un falso negativo in review:
+    `shares_setup_with` e dipendenza dura **non si escludono**. `U13` (blocco 5) estende l'asset
+    che `U1` (blocco 1) committa — l'esempio che l'header del file usa per definire `unblocked_by`
+    — e le due condividono anche l'allestimento. Con l'eccezione scritta sul solo setup condiviso,
+    togliere `U1` dagli `unblocked_by` di `U13` non produceva **nessun** errore: il controllo
+    scusava proprio la dipendenza piu' documentata del file. Due sedute di blocchi diversi non si
+    fanno nella stessa apertura, quindi li' la dualita' si pretende sempre.
+    """
+    # Il contesto arriva da fuori quando chi chiama lo ha gia' misurato (`build_graph`), e viene
+    # calcolato qui quando nessuno lo ha fatto. Le sei letture costano un sottoprocesso git e tre
+    # riletture di roadmap: farle due volte per `generate` era lavoro doppio senza guadagno.
+    # `.get("id")` e non `s["id"]` in `editor_context`: una seduta senza id e' precisamente uno dei
+    # difetti che questa funzione esiste per denunciare, e con l'accesso diretto morirebbe prima di
+    # arrivare alla riga che lo dice. Un validator che va in traceback sul caso che deve segnalare
+    # non lo segnala.
+    ctx = ctx or editor_context()
+    doc = ctx["doc"]
+    sessions = ctx["sessions"]
+    if not sessions:
+        return [], []
+
+    errors, warnings = [], []
+    ids = [s.get("id") for s in sessions]
+    id_set = set(ids)
+    by_id = {s.get("id"): s for s in sessions}
+    blocks = {b.get("id") for b in (doc.get("meta", {}).get("blocks") or [])}
+
+    pie = ctx["pie"]
+    states = ctx["states"]
+    checkpoints = ctx["checkpoints"]
+    epics = ctx["epics"]
+    milestones = ctx["milestones"]
+
+    for sid in sorted({i for i in ids if ids.count(i) > 1}):
+        errors.append(f"[{sid}] seduta duplicata: l'id non si riusa mai")
+
+    for session in sessions:
+        sid = session.get("id") or "<senza id>"
+        where = f"[{sid}]"
+
+        if not re.fullmatch(r"U\d+", sid):
+            errors.append(f"{where} id non conforme a U<n>")
+        if session.get("block") not in blocks:
+            errors.append(f"{where} block {session.get('block')!r} assente da meta.blocks: "
+                          "la vista lo stamperebbe senza titolo")
+        for field in session:
+            if field not in SESSION_FIELDS:
+                errors.append(f"{where} campo non documentato nell'header del file: {field}")
+
+        for field in ("unblocked_by", "unblocks"):
+            for ref in session.get(field) or []:
+                _resolved, _state, source = resolve_prerequisite(
+                    ref, states, checkpoints, epics, milestones)
+                if source is None:
+                    errors.append(
+                        f"{where} {field}: {ref!r} non risolve. Le forme ammesse sono prefissate "
+                        "(`M6.3`, `E1.3`, `E8`, `U13`): la forma nuda `CP 6.3` non dice quale dei "
+                        "due spazi di numerazione, e 20 numeri su 22 collidono")
+
+        for ref in session.get("shares_setup_with") or []:
+            if ref not in id_set:
+                errors.append(f"{where} shares_setup_with verso una seduta inesistente: {ref}")
+            elif sid not in (by_id[ref].get("shares_setup_with") or []):
+                errors.append(f"{where} shares_setup_with cita {ref}, ma {ref} non ricambia: "
+                              "lo stesso allestimento non puo' esserlo per una sola delle due")
+
+        for ref in session.get("unblocked_by") or []:
+            if ref in id_set and sid not in (by_id[ref].get("unblocks") or []):
+                errors.append(f"{where} dichiara di dipendere da {ref}, ma {ref}.unblocks non cita "
+                              f"{sid}: la coda perde la ragione per fare {ref} adesso")
+
+        for ref in session.get("unblocks") or []:
+            if ref not in id_set:
+                continue
+            if sid in (by_id[ref].get("unblocked_by") or []):
+                continue
+            if (ref in (session.get("shares_setup_with") or [])
+                    and by_id[ref].get("block") == session.get("block")):
+                continue  # stessa apertura, stesso blocco: ordine di lavoro, non un blocco
+            shared = ref in (session.get("shares_setup_with") or [])
+            perche = ("condividono il setup ma stanno in blocchi diversi, quindi non e' la stessa "
+                      "apertura di editor" if shared else "non condividono il setup")
+            errors.append(
+                f"{where} dichiara di sbloccare {ref}, ma {ref} non lo dichiara fra i suoi "
+                f"unblocked_by e le due {perche}. O {ref} dipende davvero da {sid} — e allora lo "
+                f"deve dire, o la coda lo mostrera' pronto senza la sua premessa — oppure {sid} "
+                f"non lo sblocca")
+
+        for ref in session.get("verifies") or []:
+            if ref not in pie:
+                errors.append(f"{where} voce PIE inesistente nel registro: {ref} — o l'id e' "
+                              "scritto male, o la voce e' stata rinominata: in entrambi i casi "
+                              "quella verifica non la esegue nessuno")
+
+    claimed = {}
+    for session in sessions:
+        for ref in session.get("verifies") or []:
+            claimed.setdefault(ref, []).append(session.get("id"))
+    for ref, who in sorted(claimed.items()):
+        if len(who) > 1:
+            warnings.append(f"voce PIE {ref} rivendicata da piu' sedute: {', '.join(who)}")
+
+    return errors, warnings
+
+
 QUEUE_GROUPS = ["BLOCKING", "READY", "WAITING", "DONE"]
 
 
@@ -1898,15 +2118,18 @@ def build_graph(registry):
     Fuori di proposito: il commit corrente. Metterlo dentro farebbe fallire `--check` dopo ogni
     commit, trasformando un gate utile in rumore da ignorare. La provenienza la tiene git.
     """
-    errors, warnings = validate(registry)
-    pie = pie_entries()
-    doc = load_editor_sessions()
-    sessions = doc.get("sessions") or []
-    tracked = tracked_artifacts([a for s in sessions for a in (s.get("artifacts") or [])])
-    states = {s["id"]: session_state(s, pie, tracked) for s in sessions}
-    checkpoints = checkpoint_status()
-    epics = epic_status()
-    milestones, milestone_conflicts = milestone_status()
+    # Una misura sola, condivisa con `validate`: le sei letture sotto includono un sottoprocesso
+    # `git ls-files` e tre riletture di roadmap, e prima venivano fatte due volte per ogni
+    # `generate` — una qui e una dentro `validate`.
+    ctx = editor_context()
+    errors, warnings = validate(registry, editor_ctx=ctx)
+    pie = ctx["pie"]
+    sessions = ctx["sessions"]
+    tracked = ctx["tracked"]
+    states = ctx["states"]
+    checkpoints = ctx["checkpoints"]
+    epics = ctx["epics"]
+    milestones, milestone_conflicts = ctx["milestones"], ctx["milestone_conflicts"]
     queue, unresolved = session_queue(sessions, states, checkpoints, epics, milestones)
     group_of = {s["id"]: group for group in QUEUE_GROUPS for s, _b in queue[group]}
 
