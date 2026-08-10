@@ -15,6 +15,45 @@
 class ARTUnit;
 class URTHexMapAsset;
 
+/**
+ * Un colpo PREDITTIVO armato in Prep e in attesa del boundary del Move (E18 CP 18.2).
+ *
+ * Porta il TIRATORE come pointer e non come indice, ed e' l'unica deroga alla disciplina «l'identita' e' un
+ * intero» che vale dentro una fase: fra la Prep e il Move c'e' lo scatto, e le unita' si spostano. Un indice
+ * catturato nella Prep punterebbe a un'altra unita' al momento di risolvere, perche' gli array del Move sono
+ * ricostruiti da zero. Al boundary il pointer torna un indice con `IndexOfByKey`, ed e' li' che ridiventa la
+ * chiave stabile che il TurnLog richiede.
+ *
+ * La CELLA invece e' catturata in pianificazione e non si tocca piu': e' il dato che rende la previsione una
+ * scommessa invece di un ordine.
+ */
+USTRUCT()
+struct FRTArmedPrediction
+{
+	GENERATED_BODY()
+
+	UPROPERTY(Transient)
+	TObjectPtr<ARTUnit> Shooter = nullptr;
+
+	/** La cella dichiarata in Planning. Non viene rivalutata al boundary. */
+	UPROPERTY()
+	FRTCellId LockedCell;
+
+	/** Identita' dell'azione, per il TurnLog: fra due previsioni cambia l'abilita' spesa, non solo l'esito. */
+	UPROPERTY()
+	FName ActionId;
+
+	/** L'azione generica di cui `ActionId` e' un profilo (D-033), quando ne ha una. */
+	UPROPERTY()
+	FName BaseActionId;
+
+	/** Danno da applicare a chi viene colto. Viene dagli `Effects` del catalogo, non da un numero qui. */
+	UPROPERTY()
+	int32 Damage = 0;
+
+	FRTArmedPrediction() = default;
+};
+
 // Delegate per la presentazione in Blueprint (camera/VFX/SFX): il playback riproduce eventi gia' risolti.
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRTPhasePlaybackSignature, ERTMatchPhase, Phase);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRTUnitPlaybackSignature, ARTUnit*, Unit);
@@ -233,6 +272,26 @@ protected:
 	 * muore prende un reason code diverso nel TurnLog — quindi e' dichiarato, non lasciato al caso.
 	 */
 	void ResolveEnvironment(URTHexMapAsset* Map);
+
+	/**
+	 * Colpi predittivi armati nella Prep di QUESTO turno, consumati al boundary del Move (E18).
+	 *
+	 * Vive sul TurnManager e non sull'unita' perche' la Prep azzera `PlannedAbilityIndex` appena consuma
+	 * l'abilita': dopo quel punto il piano non esiste piu', e la previsione dev'essere gia' stata catturata.
+	 * Si svuota a ogni Move, quindi un colpo non sopravvive al proprio turno.
+	 */
+	UPROPERTY(Transient)
+	TArray<FRTArmedPrediction> ArmedPredictions;
+
+	/**
+	 * Risolve i colpi predittivi armati contro le rotte appena calcolate, e TRONCA il movimento di chi viene
+	 * colto (E18 CP 18.2). Modifica `Resolved` in luogo: chiamata prima che il TurnLog sia costruito.
+	 *
+	 * La decisione sta nello strato PURO (`URTPredictiveLibrary`); qui restano solo le tre cose che il mondo
+	 * possiede — chi e' ostile a chi, il danno sulle unita' vere, e le voci di log. Tenerle separate e' cio'
+	 * che permette a `Predictive.PermutationInvariant` di esistere come test senza un `UWorld`.
+	 */
+	void ResolvePredictiveBoundary(const TArray<ARTUnit*>& Units, TArray<FRTHexMoveResult>& Resolved);
 
 	/**
 	 * Applica le cure raccolte da `ResolveCombat` (CP 8.5). Chiamata da DUE punti — dopo i danni, e nel ramo

@@ -36,6 +36,16 @@ public:
 	 */
 	static TArray<FString> ValidateFormat(const URTMatchFormatData* Format);
 
+	/**
+	 * Errori dell'ACCOPPIATA formato/mappa (CP 19.1): una mappa disegnata per una classe diversa da quella che
+	 * il formato richiede. Sta a parte da `ValidateFormat` perche' e' una domanda diversa — l'asset formato puo'
+	 * essere perfettamente valido e restare sbagliato *per quella mappa* — e perche' i due sono validati in
+	 * momenti diversi: il formato quando si carica, l'accoppiata quando si allestisce.
+	 *
+	 * Array vuoto = accoppiata utilizzabile. `nullptr` produce un errore, non un crash.
+	 */
+	static TArray<FString> ValidateAgainstMap(const FRTMatchRules& Rules, const class URTHexMapAsset* Map);
+
 	/** Vero se le regole sono utilizzabili; in caso contrario `OutReason` elenca i motivi. */
 	static bool AreRulesUsable(const FRTMatchRules& Rules, FString& OutReason);
 
@@ -44,6 +54,28 @@ public:
 	 * compila `OutReason` e **non tocca** `OutRules` — il chiamante non allestisce a meta'.
 	 */
 	static bool ResolveRules(const URTMatchFormatData* Format, FRTMatchRules& OutRules, FString& OutReason);
+
+	/**
+	 * I formati SPEDITI col gioco, per identita' stabile. Ritorna `nullptr` per un id sconosciuto — il
+	 * chiamante decide se ripiegare o rifiutare, come per `URTCatalogLibrary::FindCoreAction`.
+	 *
+	 * Perche' in C++ e non come `.uasset`: e' lo stesso posto in cui vivono le istanze di `URTActionData` e
+	 * `URTHeroData` (`URTCatalogLibrary`, `URTHeroCatalogLibrary`). La CLASSE resta un data asset — un
+	 * designer puo' crearne uno e assegnarlo al GameMode, e quello vince — ma il formato canonico della v0.1
+	 * non puo' dipendere da un file che qualcuno deve ricordarsi di creare in editor: senza, il gioco
+	 * pacchettizzato gira sul RIPIEGO, ed e' esattamente cio' che CP 12.5 ha misurato.
+	 *
+	 * Oggi ne contiene **uno**: `Format.Skirmish2v2`. Gli altri entrano quando un checkpoint li consuma —
+	 * la stessa regola (D2) che tiene i campi della spec fuori da `URTMatchFormatData` finche' non hanno
+	 * un lettore.
+	 */
+	static URTMatchFormatData* FindShippedFormat(FName FormatId);
+
+	/** Gli id dei formati spediti, per i test e per la validazione dei dati. */
+	static TArray<FName> ShippedFormatIds();
+
+	/** Identita' del formato canonico della v0.1: 2v2 Skirmish. */
+	static const FName Skirmish2v2FormatId;
 
 	/**
 	 * Regole di RIPIEGO, valide secondo lo stesso validator: `RoundLimit` 12, cioe' il valore iniziale del

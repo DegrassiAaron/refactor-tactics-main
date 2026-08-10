@@ -18,6 +18,8 @@
 
 /** Definita in Test/RTTestConsole.cpp: scenario da eseguire all'avvio invece della partita normale. */
 extern TAutoConsoleVariable<FString> CVarRTTestScenario;
+/** Definita in ScenarioHarness/RTTestConsole.cpp: scavalca `MapSource` da riga di comando. */
+extern TAutoConsoleVariable<FString> CVarRTMapSource;
 #include "Turn/RTMatchFormatData.h"
 #include "Turn/RTMatchFormatLibrary.h"
 #include "RefactorTactics.h"
@@ -139,6 +141,42 @@ void ARTGameMode::BeginPlay()
 	SetupHexMatch(HexMap);
 }
 
+ERTMapSource ARTGameMode::ResolveMapSource() const
+{
+	// Stessa regola di `ResolveScenarioToRun`: il piu' specifico vince. La proprieta' e' la configurazione
+	// persistente del progetto, la console variable e' l'intento di chi lancia adesso — e serve perche' la
+	// proprieta' vive in un `.uasset`, quindi cambiarla richiede l'editor.
+	const FString FromConsole = CVarRTMapSource.GetValueOnGameThread().TrimStartAndEnd();
+	if (FromConsole.IsEmpty())
+	{
+		return MapSource;
+	}
+
+	const UEnum* Enum = StaticEnum<ERTMapSource>();
+	const int64 Value = Enum ? Enum->GetValueByNameString(FromConsole) : INDEX_NONE;
+	if (Value == INDEX_NONE)
+	{
+		// Fail-closed sul VALORE, non sulla partita: si gioca con la proprieta' e si dice perche'. Ripiegare in
+		// silenzio farebbe girare un playtest sulla mappa sbagliata credendo di averla scelta.
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] rt.Map.Source='%s' non e' un valore di ERTMapSource: ignorata, uso la proprieta' del "
+				 "GameMode. Valori validi: LevelAsset, GeneratedTestArena, GeneratedDemoArena."),
+			*FromConsole);
+		return MapSource;
+	}
+
+	const ERTMapSource Resolved = static_cast<ERTMapSource>(Value);
+	if (Resolved != MapSource)
+	{
+		// Non in silenzio, per la stessa ragione di `rt.Test.Scenario`: una console variable dura quanto il
+		// processo, e continuerebbe a scavalcare la proprieta' a ogni Play senza che nulla lo dica.
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] La console variable rt.Map.Source='%s' SCAVALCA la proprieta' MapSource del GameMode."),
+			*FromConsole);
+	}
+	return Resolved;
+}
+
 void ARTGameMode::ApplyMapSource(ARTHexMapActor* HexMap)
 {
 	if (!HexMap)
@@ -146,7 +184,7 @@ void ARTGameMode::ApplyMapSource(ARTHexMapActor* HexMap)
 		return;
 	}
 
-	switch (MapSource)
+	switch (ResolveMapSource())
 	{
 	case ERTMapSource::GeneratedTestArena:
 		// Scelta esplicita: prevale anche su una mappa d'autore presente nel livello. Va dichiarato, non subito.
@@ -201,7 +239,7 @@ void ARTGameMode::ApplyMapSource(ARTHexMapActor* HexMap)
 	}
 }
 
-bool ARTGameMode::ApplyMatchFormat(ARTTurnManager* TurnManager)
+bool ARTGameMode::ApplyMatchFormat(ARTTurnManager* TurnManager, const URTHexMapAsset* Map, FRTMatchRules& OutRules)
 {
 	FRTMatchRules Rules;
 	FString Reason;
@@ -219,15 +257,50 @@ bool ARTGameMode::ApplyMatchFormat(ARTTurnManager* TurnManager)
 			return false;
 		}
 	}
+	else if (const URTMatchFormatData* Shipped = URTMatchFormatLibrary::FindShippedFormat(ShippedFormatId))
+	{
+		// Nessun asset, ma un formato SPEDITO con quell'identita': si gioca quello. E' la stessa strada con
+		// cui eroi e azioni arrivano in partita senza che nessuno debba creare un `.uasset` in editor, ed e'
+		// cio' che separa una build pacchettizzata «che gira» da una «che gioca il formato della release».
+		if (!URTMatchFormatLibrary::ResolveRules(Shipped, Rules, Reason))
+		{
+			// Un formato spedito che non passa il proprio validator e' un difetto di CODICE, non di dato:
+			// rifiutare e' l'unica risposta onesta, perche' ripiegare lo nasconderebbe fino al playtest.
+			UE_LOG(LogRT, Error,
+				TEXT("[RT] Il formato spedito '%s' non e' valido: %s. Partita non allestita."),
+				*ShippedFormatId.ToString(), *Reason);
+			return false;
+		}
+		UE_LOG(LogRT, Log,
+			TEXT("[RT] Nessun MatchFormat assegnato: uso il formato SPEDITO '%s'. Assegna un "
+				 "URTMatchFormatData al GameMode per sovrascriverlo."),
+			*Rules.FormatId.ToString());
+	}
 	else
 	{
 		Rules = URTMatchFormatLibrary::MakeFallbackRules();
 		UE_LOG(LogRT, Warning,
-			TEXT("[RT] Nessun MatchFormat assegnato: uso il formato di RIPIEGO '%s' (RoundLimit %d, "
-				 "soglia obiettivo %d). Assegna un URTMatchFormatData al GameMode per giocare un formato "
-				 "dichiarato: le misure di playtest vanno attribuite al formato giusto."),
-			*Rules.FormatId.ToString(), Rules.RoundLimit, Rules.ScoreToWin);
+			TEXT("[RT] Nessun MatchFormat assegnato e nessun formato spedito per '%s': uso il RIPIEGO '%s' "
+				 "(RoundLimit %d, soglia obiettivo %d). Assegna un URTMatchFormatData al GameMode per giocare "
+				 "un formato dichiarato: le misure di playtest vanno attribuite al formato giusto."),
+			*ShippedFormatId.ToString(), *Rules.FormatId.ToString(), Rules.RoundLimit, Rules.ScoreToWin);
 	}
+
+	// CP 19.1: l'accoppiata formato/mappa si verifica QUI, prima di schierare. Un 3v3 Standard su una mappa
+	// disegnata per il 2v2 non e' una partita piu' stretta, e' una partita sbagliata — e scoprirlo al terzo
+	// turno costa un playtest. Vale anche per il ripiego: se il livello porta una mappa Operations, il 2v2 di
+	// ripiego non e' la partita giusta da avviarci sopra.
+	const TArray<FString> Mismatch = URTMatchFormatLibrary::ValidateAgainstMap(Rules, Map);
+	if (Mismatch.Num() > 0)
+	{
+		UE_LOG(LogRT, Error,
+			TEXT("[RT] Formato e mappa non combaciano: %s. Partita non allestita: assegna una mappa della "
+				 "classe richiesta, oppure un formato disegnato per questa mappa."),
+			*FString::Join(Mismatch, TEXT("; ")));
+		return false;
+	}
+
+	OutRules = Rules;
 
 	if (!TurnManager)
 	{
@@ -239,8 +312,9 @@ bool ARTGameMode::ApplyMatchFormat(ARTTurnManager* TurnManager)
 	}
 
 	TurnManager->SetMatchRules(Rules);
-	UE_LOG(LogRT, Log, TEXT("[RT] Formato di partita in vigore: '%s' (RoundLimit %d, soglia obiettivo %d)"),
-		*Rules.FormatId.ToString(), Rules.RoundLimit, Rules.ScoreToWin);
+	UE_LOG(LogRT, Log,
+		TEXT("[RT] Formato di partita in vigore: '%s' (RoundLimit %d, soglia obiettivo %d, %d unita' per squadra)"),
+		*Rules.FormatId.ToString(), Rules.RoundLimit, Rules.ScoreToWin, Rules.UnitsPerTeam);
 	return true;
 }
 
@@ -255,8 +329,10 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 
 	// Le regole di formato prima delle unita': se il formato e' invalido non si allestisce nulla, e la mappa
 	// resta a schermo con il motivo nel log (stesso trattamento delle celle di partenza insufficienti).
+	FRTMatchRules Rules;
 	if (!ApplyMatchFormat(
-			Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()))))
+			Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass())),
+			HexMap->MapAsset, Rules))
 	{
 		return;
 	}
@@ -267,12 +343,18 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 		return;
 	}
 
+	// La composizione la dichiara il FORMATO (CP 19.2), non l'orchestratore: finche' il `2` viveva qui, «2v2»
+	// era una proprieta' del codice di allestimento, e lo stress 4v4 di E17 doveva essere un caso speciale del
+	// `GameMode` invece di un formato che dichiara 4.
 	const URTHexMapAsset* Map = HexMap->MapAsset;
-	const TArray<FRTCellId> Start = URTMatchSetupLibrary::PickStartCells(Map, /*NumPerTeam=*/ 2, /*Layer=*/ 0);
-	if (Start.Num() != 4)
+	const int32 CellsNeeded = Rules.UnitsPerTeam * 2;
+	const TArray<FRTCellId> Start = URTMatchSetupLibrary::PickStartCells(Map, Rules.UnitsPerTeam, /*Layer=*/ 0);
+	if (Start.Num() != CellsNeeded)
 	{
 		UE_LOG(LogRT, Warning,
-			TEXT("[RT] Mappa esagonale senza celle percorribili sufficienti: partita non allestita"));
+			TEXT("[RT] Mappa esagonale senza celle percorribili sufficienti: il formato '%s' ne chiede %d "
+				 "(%d per squadra) e la mappa ne offre %d. Partita non allestita."),
+			*Rules.FormatId.ToString(), CellsNeeded, Rules.UnitsPerTeam, Start.Num());
 		return;
 	}
 
@@ -299,6 +381,22 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 	TSet<FName> Spawned;
 	int32 CellIndex = 0;
 	const TArray<const TArray<FName>*> Formations = { &Team0Heroes, &Team1Heroes };
+
+	// La formazione deve dichiarare tanti eroi quanti il formato ne schiera (CP 19.2). Senza questo controllo
+	// il formato direbbe 4 e il campo ne vedrebbe 2: la partita girerebbe, e il numero dichiarato sarebbe un
+	// dato che nessuno onora — il difetto ricorrente di questo repository.
+	for (int32 TeamId = 0; TeamId < Formations.Num(); ++TeamId)
+	{
+		if (Formations[TeamId]->Num() != Rules.UnitsPerTeam)
+		{
+			UE_LOG(LogRT, Error,
+				TEXT("[RT] Il formato '%s' schiera %d unita' per squadra, ma la formazione della squadra %d ne "
+					 "dichiara %d. Partita non allestita: allinea Team%dHeroes al formato, o il formato alla "
+					 "formazione."),
+				*Rules.FormatId.ToString(), Rules.UnitsPerTeam, TeamId, Formations[TeamId]->Num(), TeamId);
+			return;
+		}
+	}
 
 	for (int32 TeamId = 0; TeamId < Formations.Num(); ++TeamId)
 	{

@@ -7,6 +7,7 @@
 #include "Turn/RTActionFallbackLibrary.h"
 #include "Turn/RTMovementActionLibrary.h"
 #include "Turn/RTReactionLibrary.h"
+#include "Turn/RTPredictiveLibrary.h" // boundary della Predictive Action (E18): la decisione sta nel puro
 #include "Ability/RTCatalogLibrary.h"
 #include "Combat/RTCombatResolver.h"
 #include "Combat/RTCombatLibrary.h"
@@ -1550,6 +1551,40 @@ void ARTTurnManager::ResolvePrep()
 		if (!Ability || !Unit->CanUseAbility(Index)) { continue; }
 		if (URTCatalogLibrary::MapResolutionPhase(Ability->Def.ResolutionPhase) != ERTMatchPhase::Prep) { continue; }
 
+		// PREDITTIVA (E18 CP 18.2): si ARMA qui e risolve al boundary del Move, quindi NON entra fra le
+		// istanze che producono eventi adesso. Tenercela dentro le farebbe tradurre il proprio `Damage` in un
+		// evento verso se stessa — oggi innocuo perche' la Prep ignora il danno, ma sarebbe un difetto latente
+		// in attesa che qualcuno aggiunga quel `case`. Meglio che l'esclusione sia dichiarata.
+		if (Ability->Def.PredictiveTargeting != ERTPredictiveTargeting::None)
+		{
+			// Senza una cella dichiarata non c'e' previsione: il piano e' incompleto e l'azione non si arma.
+			// Non e' un errore da segnalare qui — la validazione del piano sta a monte — ma non si finge
+			// nemmeno che una previsione senza bersaglio sia stata fatta.
+			if (Unit->bAttackTargetsCell)
+			{
+				FRTArmedPrediction Armed;
+				Armed.Shooter = Unit;
+				Armed.LockedCell = Unit->PlannedAttackCell;
+				Armed.ActionId = Ability->Def.ActionId;
+				Armed.BaseActionId = Ability->Def.BaseActionId;
+				// Il danno viene dagli EFFECTS del catalogo, non da un numero scritto qui: cambiare quanto
+				// fa `InterceptShot` deve restare una modifica ai dati.
+				for (const FRTActionEffectSpec& Effect : Ability->Def.Effects)
+				{
+					if (Effect.Effect == ERTActionEffect::Damage) { Armed.Damage += Effect.Amount; }
+				}
+				ArmedPredictions.Add(Armed);
+				bPrepActiveThisTurn = true; // armare e' un beat di Prep osservabile
+			}
+
+			// L'abilita' e' comunque SPESA: chi ha scommesso ha pagato il cooldown, che la previsione sia
+			// giusta o no. E' la meta' del costo che rende il whiff una scelta e non un tentativo gratuito.
+			Unit->ConsumeAbility(Index);
+			Unit->PlannedAbilityIndex = INDEX_NONE;
+			Unit->PlannedAttackTarget = nullptr;
+			continue;
+		}
+
 		FRTActionInstance Instance;
 		Instance.Def = Ability->Def;
 		Instance.SourceUnitId = i;
@@ -2048,6 +2083,33 @@ void ARTTurnManager::ResolveCombat()
 			Unit->PlannedAbilityIndex = INDEX_NONE; // consumato nel turno, attivata o no
 			if (Unit->CanUseAbility(ArcAbilityIndex) && ArcTarget && ArcTarget->IsAlive())
 			{
+				// La PORTATA dichiarata dal catalogo si valida qui, prima di toccare la topologia (#206).
+				// `ModifyArc` non passa da `ValidateInstance` — si intercetta prima della raccolta degli
+				// intenti, due righe sopra — quindi il controllo che ogni altra azione del Blast riceve
+				// gratis va scritto: senza, un'azione che dichiara `Range 3` opera dall'altra parte della
+				// mappa, e non e' un'azione a portata, e' un'azione senza portata.
+				if (URTHexLibrary::HexDistance(Unit->Cell, ArcTarget->Cell) > PlannedNow->Def.RangeCells)
+				{
+					// Il fallback dichiarato a catalogo e' `Cancel`: nessun effetto, ma VISIBILE. Un'azione
+					// che sparisce in silenzio e' indistinguibile da un difetto — la stessa ragione per cui
+					// esiste `CoverRejected`. Il motivo viaggia in `Amount` come per ogni altro fallback.
+					FRTTurnLogEntry ArcRejected;
+					ArcRejected.Phase = ERTMatchPhase::Blast;
+					ArcRejected.Category = ERTLogCategory::Fallback;
+					ArcRejected.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+					ArcRejected.ActionId = PlannedNow->Def.ActionId;
+					ArcRejected.SrcCell = Unit->Cell;
+					ArcRejected.TgtCell = ArcTarget->Cell;
+					ArcRejected.Amount = static_cast<int32>(ERTActionInvalidReason::OutOfRange);
+					TurnLog.Add(ArcRejected);
+					AddLogEvent(FString::Printf(TEXT("%s: %s"),
+						*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(ArcRejected)));
+
+					// L'abilita' NON si consuma: il piano e' gia' stato azzerato sopra (si spende nel turno,
+					// attivata o no), ma il cooldown paga solo cio' che ha davvero toccato la mappa.
+					continue;
+				}
+
 				Unit->ConsumeAbility(ArcAbilityIndex);
 				PendingArcOps.Add({ Unit->Cell, ArcTarget->Cell });
 			}
@@ -3356,6 +3418,102 @@ FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) c
 	return URTHexSimLibrary::MakeSnapshot(Map, SimUnits);
 }
 
+void ARTTurnManager::ResolvePredictiveBoundary(const TArray<ARTUnit*>& Units, TArray<FRTHexMoveResult>& Resolved)
+{
+	if (ArmedPredictions.Num() == 0)
+	{
+		return;
+	}
+
+	// I colpi armati diventano dati puri: il pointer del tiratore ridiventa un INDICE, e l'ostilita' — che
+	// e' l'unica cosa che il mondo sa e lo strato puro no — si risolve qui, una volta sola.
+	TArray<FRTPredictiveShot> Shots;
+	TArray<int32> ArmedIndexForShot; // per ritrovare l'armamento a cui ogni esito appartiene
+	for (int32 a = 0; a < ArmedPredictions.Num(); ++a)
+	{
+		const FRTArmedPrediction& Armed = ArmedPredictions[a];
+		ARTUnit* Shooter = Armed.Shooter.Get();
+		if (!IsValid(Shooter) || !Shooter->IsAlive())
+		{
+			continue; // chi e' caduto nel Blast non spara: il colpo muore con lui, in silenzio
+		}
+
+		const int32 ShooterIdx = Units.IndexOfByKey(Shooter);
+		if (ShooterIdx == INDEX_NONE)
+		{
+			continue;
+		}
+
+		FRTPredictiveShot Shot;
+		Shot.SourceUnitId = ShooterIdx;
+		Shot.LockedCell = Armed.LockedCell;
+		Shot.ActionId = Armed.ActionId;
+		for (int32 u = 0; u < Units.Num(); ++u)
+		{
+			if (IsValid(Units[u]) && Units[u]->TeamId != Shooter->TeamId)
+			{
+				Shot.Hostiles.Add(u);
+			}
+		}
+		ArmedIndexForShot.Add(a);
+		Shots.Add(Shot);
+	}
+
+	// Ripulisce SEMPRE, anche quando nessun colpo e' sopravvissuto: una previsione non vale due turni.
+	const TArray<FRTArmedPrediction> Snapshot = ArmedPredictions;
+	ArmedPredictions.Reset();
+
+	if (Shots.Num() == 0)
+	{
+		return;
+	}
+
+	const TArray<FRTPredictiveResolution> Outcomes = URTPredictiveLibrary::ResolvePredictions(Shots, Resolved);
+	URTPredictiveLibrary::ApplyPredictionsToMoves(Outcomes, Resolved);
+
+	for (const FRTPredictiveResolution& Outcome : Outcomes)
+	{
+		if (!ArmedIndexForShot.IsValidIndex(Outcome.ShotIndex)) { continue; }
+		const FRTArmedPrediction& Armed = Snapshot[ArmedIndexForShot[Outcome.ShotIndex]];
+		ARTUnit* Shooter = Armed.Shooter.Get();
+		if (!IsValid(Shooter)) { continue; }
+
+		FRTTurnLogEntry Entry;
+		Entry.Phase = ERTMatchPhase::Move;
+		Entry.Category = ERTLogCategory::Predictive;
+		Entry.ActionId = Armed.ActionId;
+		Entry.BaseActionId = Armed.BaseActionId;
+		Entry.SrcCell = Shooter->Cell;
+		// La cella BLOCCATA anche sul whiff: e' li' che si e' scommesso, ed e' l'informazione che serve per
+		// capire il turno. Una voce che dicesse solo «a vuoto» non insegnerebbe niente a chi legge il replay.
+		Entry.TgtCell = Armed.LockedCell;
+
+		if (Outcome.bMatched && Units.IsValidIndex(Outcome.VictimUnitId))
+		{
+			ARTUnit* Victim = Units[Outcome.VictimUnitId];
+			const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Armed.Damage, Victim->Shield, Victim->Health);
+			Victim->ApplyCombatState(Result.Health, Result.Shield);
+
+			Entry.Outcome = static_cast<uint8>(ERTPredictiveOutcome::TriggerMatched);
+			Entry.Amount = Armed.Damage;
+			TurnLog.Add(Entry);
+
+			AddLogEvent(FString::Printf(TEXT("%s: previsione azzeccata, %d danni a %s"),
+				*Shooter->GetName(), Armed.Damage, *Victim->GetName()));
+		}
+		else
+		{
+			Entry.Outcome = static_cast<uint8>(ERTPredictiveOutcome::PredictionWhiffed);
+			Entry.Amount = 0;
+			TurnLog.Add(Entry);
+
+			// Il whiff si SENTE: e' il `Misplay / Failure State` di D-032, e tacerlo lo renderebbe
+			// indistinguibile da un turno in cui nessuno ha dichiarato niente.
+			AddLogEvent(FString::Printf(TEXT("%s: previsione a vuoto, nessuno e' entrato"), *Shooter->GetName()));
+		}
+	}
+}
+
 void ARTTurnManager::ResolveMovement()
 {
 	UWorld* World = GetWorld();
@@ -3427,7 +3585,16 @@ void ARTTurnManager::ResolveMovement()
 		Paths.Add(Path);
 	}
 
-	const TArray<FRTHexMoveResult> Resolved = URTHexSimLibrary::ResolveHexPaths(Paths);
+	TArray<FRTHexMoveResult> Resolved = URTHexSimLibrary::ResolveHexPaths(Paths);
+
+	// BOUNDARY DELLA PREDICTIVE ACTION (E18 CP 18.2). Sta QUI — dopo che le rotte sono calcolate, prima che
+	// il log sia costruito e le posizioni applicate — perche' e' l'unico punto in cui esistono entrambe le
+	// informazioni che servono: chi ha ATTRAVERSATO una cella e chi ci si e' fermato. Un controllo sulla sola
+	// posizione finale mancherebbe chi ci passa sopra e prosegue, che e' il caso normale.
+	//
+	// Il troncamento avviene prima di `BuildMoveLog` proprio perche' il log dica la verita': una voce Move
+	// costruita sulla rotta piena racconterebbe un movimento che non e' avvenuto.
+	ResolvePredictiveBoundary(Units, Resolved);
 
 	// TurnLog dagli esiti: la chiave e' la cella di PARTENZA (Paths[i][0]), stabile perche' Cell cambia
 	// dopo PlaceOnCell. BuildMoveLog produce una voce per unita' nell'ordine dell'input.

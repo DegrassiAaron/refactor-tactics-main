@@ -33,6 +33,15 @@
 meta:
   registry_version: 1
   schema_version: 1
+  # Da qui si derivano TUTTI i link verso GitHub: issue, milestone, PR, file del repository.
+  # Sta scritto una volta sola perche' un URL completo copiato in una vista e' la stessa bugia
+  # con la data sbagliata di uno stato copiato. Il validator confronta questi valori col remote
+  # `origin` quando c'e', e avvisa se divergono — su un fork e' un avviso, non un errore.
+  project:
+    github:
+      owner: DegrassiAaron
+      repository: refactor-tactics-main
+      branch: main
   last_full_audit:
     date: 2026-08-08
     commit: 2094b86
@@ -244,17 +253,21 @@ features:
     issues: [319, 318]
     tests: []
     scenarios:
-      # Nomi da confermare con l'owner della scenario map prima di scrivere i file:
-      # la spec li dichiara requisiti di copertura, non identificatori.
+      # Riconciliati con la spec il 2026-08-09 (#361): sono i dieci scenari che l'harness puo' esprimere,
+      # cioe' i `golden` di spec-decision-time-bank.md §13 meno i due che ESTENDONO un test C++ esistente
+      # (`OverwatchTimeoutIsHold`, `HoldKeepsReactionArmed`). `PrivacyNoBankLeak` e' uscito: e' `funzionale`
+      # e vive in M10, non in v0.1.
       - planned:
           - Spec.TimeBank.GraceDoesNotDrain
           - Spec.TimeBank.DrainsAfterGrace
+          - Spec.TimeBank.NeverBelowZero
           - Spec.TimeBank.TimeoutCostsFullWindow
           - Spec.TimeBank.TimeoutSpendsNoCharge
           - Spec.TimeBank.ClashCostsFullWindow
           - Spec.TimeBank.BotDrainsLikePlayer
+          - Spec.TimeBank.ExhaustionKeepsResponsesLegal
           - Spec.TimeBank.ReplayReadsRecordedBank
-          - Spec.TimeBank.PrivacyNoBankLeak
+          - Spec.TimeBank.PacketOrderInvariant
     wiki_refs:
       - docs/wiki/game/reazioni-overwatch-e-previsioni.md
     wiki_note: >-
@@ -446,14 +459,22 @@ features:
     kind: gameplay
     release: v0.1
     priority: P1
-    status: INTEGRATED
+    # INTEGRATED -> IMPLEMENTING il 2026-08-10, per crescita della spec (ADR-0008), non per regressione del
+    # codice. Nessun test e' diventato rosso: e' il metro ad essersi allungato. Vedi il commento su `runtime`.
+    status: IMPLEMENTING
     gates:
       spec: done
       data: done
       # Consumatori reali: il Move e il Dash lo scrivono, un'azione con bersaglio riorienta prima di risolvere,
       # il playback ci atterra sopra, e la difesa direzionale di CP 16.2 lo legge per decidere se la copertura
       # protegge. L'unico momento di D-020 senza codice e' `FacingUsedByOverwatch`, che appartiene a E14.
-      runtime: done
+      #
+      # `done` -> `partial` il 2026-08-10: non e' il runtime a essere regredito, e' la SPEC ad essere cresciuta.
+      # ADR-0008 aggiunge tre requisiti che nessuna riga di codice soddisfa: il budget di pivot per eroe
+      # (`MoveEndPivotMaxSteps`/`DashEndPivotMaxSteps` — `LegalFacings` oggi legge lo stile, non l'eroe), il
+      # facing durante i micro-step, e le policy dichiarative di facing. Lasciarlo `done` direbbe che la feature
+      # e' completa rispetto a una spec che non e' piu' quella.
+      runtime: partial
       log_debug: done
       automation: done
       scenario: done
@@ -473,9 +494,12 @@ features:
       - RT-FEAT-MAP-COVER
     owner_specs:
       - docs/decisions/adr-0005-orientamento.md
+      # ADR-0008 (2026-08-10) supera §1 e §3 di ADR-0005: budget di pivot per eroe, policy dichiarative di
+      # facing, e facing nei micro-step = ultimo passo compiuto. Nessuno dei tre e' implementato.
+      - docs/decisions/adr-0008-rotazione-e-policy-di-facing.md
       - docs/decisions/RT_PDR_00_Decision_Log.md
       - docs/technical/spec-turnlog.md
-    issues: [175, 176, 177, 291]
+    issues: [175, 176, 177, 291, 341, 339]
     # La rotazione DICHIARATA (girarsi restando fermi) e' regola implementata ma senza produttore: nessun
     # input la scrive. Il gate `runtime` resta `done` perche' l'orientamento DERIVATO — quello che un'unita'
     # ha in quasi tutti i turni — e' cablato ovunque; il pezzo mancante e' input, ed e' tracciato in #291.
@@ -697,9 +721,10 @@ features:
     owner_specs:
       - docs/gameplay/spec-ponti-cp94.md
       - docs/technical/spec-mappa-multilivello.md
-    issues: [72]
+    issues: [72, 206]
     tests:
       - RefactorTactics.Structures.Bridge
+      - RefactorTactics.Actions.ModifyArc.*
       - RefactorTactics.HexMap.Arc*
       - RefactorTactics.HexMap.VerticalTransition
       - RefactorTactics.HexMap.ValidateTransitions
@@ -712,12 +737,14 @@ features:
       - docs/wiki/meccaniche/ponti.md
       - docs/wiki/meccaniche/topologia-dinamica.md
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      date: 2026-08-09
+      commit: 4a3fd20
     notes: >
       Un arco è additivo: romperlo annulla il percorso invece di allungarlo, perché fra due layer
       non c'è adiacenza di riserva. `Action.ModifyArc` risolve nel Blast e crea ponti temporanei
-      e conduttivi.
+      e conduttivi — e dal 2026-08-09 (#206) misura la portata che dichiara: non passando da
+      `ValidateInstance`, il controllo che ogni altra azione del Blast riceve gratis ha dovuto
+      essere scritto, con il `Cancel` del catalogo reso visibile nel TurnLog.
 
   - feature_id: RT-FEAT-MAP-HIGH-GROUND
     title: Altura senza bonus numerico alla vista
@@ -920,6 +947,11 @@ features:
     scenarios:
       - Visual.Movement.Charge
       - Visual.Movement.RoughRefusesCharge
+      # Scenario-SPECIFICA scritto prima (2026-08-10, dalla PR #306): `BLOCKED` sulla capability
+      # `Teleport`, che non esiste. Sta qui e non fra i trigger perche' la regola che dimostra e' sullo
+      # STILE di movimento — un teletrasporto non attraversa le celle intermedie, quindi non ne prende
+      # gli hazard — ed e' la riga piu' facile da sbagliare della tassonomia.
+      - Spec.Movement.TeleportSkipsIntermediateCells
     wiki_refs:
       - docs/wiki/game/azioni-e-movimento.md
     last_verified:
@@ -1140,9 +1172,17 @@ features:
       - RT-FEAT-CORE-DECISION-BOUNDARY
     owner_specs:
       - docs/gameplay/brief-delayed-actions.md
+      # I trigger su transizione (trap, tripwire) sono §6-bis di quel brief, decisi da D-013.
+      - docs/gameplay/spec-tassonomia-movimento.md
     issues: []
     tests: []
-    scenarios: []
+    scenarios:
+      # Scenari-SPECIFICA scritti prima dell'implementazione (2026-08-10, dalla PR #306): sono `BLOCKED`
+      # sulle capability `SemanticTrigger` e `SpatialTrigger`, che non esistono. Restano qui perche' un
+      # trigger su transizione senza scenario e' una regola che nessuno potra' dimostrare — ed e' il
+      # difetto che questo registry esiste per rendere visibile.
+      - Spec.Movement.AntiDashTriggerIgnoresMove
+      - Spec.Movement.TripwireOnCrossEdge
     wiki_refs: []
     last_verified:
       date: 2026-08-08
@@ -1150,6 +1190,10 @@ features:
     notes: >
       Brief di scope, **nessuna epic aperta**: la proposta (4 checkpoint, numero non assegnato)
       attende una decisione perché E14 non è iniziata. Registrata per non perderla, non promossa.
+      Dal 2026-08-10 ha due **scenari-specifica** che ne descrivono i trigger su transizione prima
+      che esistano: `AntiDashTriggerIgnoresMove` distingue il *come* ci si è mossi (Dash contro Move
+      sullo stesso bordo) e dipende da #307, `TripwireOnCrossEdge` distingue l'attraversare dal
+      comparire oltre. Entrambi `BLOCKED`, ed è la verità: le capability non esistono.
 
   - feature_id: RT-FEAT-ACTION-PREDICTIVE
     title: Predictive Action, thin slice
@@ -1157,14 +1201,14 @@ features:
     kind: gameplay
     release: v0.1
     priority: P2
-    status: SPECIFIED
+    status: INTEGRATED
     gates:
       spec: done
-      data: partial
-      runtime: todo
-      log_debug: todo
-      automation: todo
-      scenario: partial
+      data: done
+      runtime: done
+      log_debug: done
+      automation: done
+      scenario: done
       ui_wiki: partial
       packaged: todo
       network_privacy: na
@@ -1177,20 +1221,30 @@ features:
     owner_specs:
       - docs/decisions/RT_PDR_00_Decision_Log.md
     issues: [225, 226, 227]
-    tests: []
+    tests:
+      - RefactorTactics.Predictive.*
+      - RefactorTactics.Heroes.Vektor.InterceptShotIsPredictive
     scenarios:
       - Spec.Predictive.WhiffOnEmptyCell
     wiki_refs:
       - docs/wiki/game/reazioni-overwatch-e-previsioni.md
       - docs/characters/v0.1/vektor.md
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      date: 2026-08-10
+      commit: 800b83a
     notes: >
+      **Chiusa il 2026-08-10** con CP 18.1 (`#226`, PR `#386`) e CP 18.2 (`#227`, PR `#387`).
       `Vektor.InterceptShot` è la thin slice: decisa in Planning, risolta a un boundary
-      deterministico, senza input live (D-016). A catalogo la reazione dichiara il rinvio; il
-      framework di trap resta fuori. `Spec.Predictive.WhiffOnEmptyCell` è una **specifica eseguibile**:
-      esce `BLOCKED` finché il boundary non esiste, quindi `scenario` resta `partial`.
+      deterministico, senza input live (D-016). Il rinvio a E14 è caduto per la ragione opposta a
+      quella che l'aveva prodotto — non le serve una finestra — e la migrazione è un **dato**
+      (`PredictiveTargeting`/`PredictionBoundary` su `FRTActionDef`, slot da `None` a `Main`), come
+      lo era il rinvio. Il framework di trap resta fuori (`RT-FEAT-ACTION-TRAPS` resta `IDEA`).
+      `Spec.Predictive.WhiffOnEmptyCell` era una **specifica eseguibile** `BLOCKED` e si è accesa da
+      sola: oggi `PASS`, 4/4 assertion su 2 turni. Effetto misurato oltre l'epic: la showcase
+      `RT_Showcase_Relay_v01` passa da **1 a 3 turni giocati** — il T2 chiedeva `PredictiveAction`,
+      il T3 non chiedeva nulla — e ora si ferma sul T4 per `DecisionBoundary` (E14).
+      `ui_wiki` resta `partial`: la pagina `reazioni-overwatch-e-previsioni.md` descrive ancora la
+      previsione come non implementata, e riscriverla è lavoro di E11/E20 insieme all'HUD.
 
   - feature_id: RT-FEAT-ACTION-TRAPS
     title: Trappole e gambit tattici
@@ -2903,7 +2957,11 @@ features:
     status: TESTABLE
     gates:
       spec: done
-      data: partial
+      # Nessun `DA_MatchFormat` esiste sul disco: il tipo e i suoi campi sono codice, l'asset d'autore no.
+      # Dal 2026-08-10 la partita gira sul formato SPEDITO `Format.Skirmish2v2` (#375), non più
+      # sul ripiego: il formato canonico della v0.1 non dipende da un `.uasset` che il repository
+      # non contiene.
+      data: done
       runtime: done
       log_debug: done
       automation: done
@@ -2921,15 +2979,27 @@ features:
     issues: [214, 215, 216]
     tests:
       - RefactorTactics.MatchFormat.*
+      - RefactorTactics.MapClass.*
     scenarios: []
     wiki_refs: []
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      date: 2026-08-09
+      commit: 0bbc4c5
     notes: >
       `URTMatchFormatData` **esiste già** con validator e fallback osservabile: E19 non lo
       costruisce, chiude due buchi misurati — `MapClass` sul dato mappa e `UnitsPerTeam` nel
-      formato (D-030). I timer restano fuori dal formato per decisione (ADR-0005 §4c).
+      formato (D-030). Entrambi chiusi il 2026-08-09 (#215, #216): la mappa dichiara la propria
+      classe, il formato dichiara la composizione, e il `GameMode` li onora invece di assumerli.
+      `URTHexMapAsset::CurrentFormatVersion` passa a 6; la simulazione **non** ramifica sulla
+      classe, e un test lo misura confrontando l'hash di due partite identiche. I timer restano
+      fuori dal formato per decisione (ADR-0005 §4c).
+      **2026-08-10 (#375)**: `Format.Skirmish2v2` è **spedito da C++**
+      (`URTMatchFormatLibrary::FindShippedFormat`), come le istanze di `URTActionData` e
+      `URTHeroData` — la CLASSE resta un data asset, e un asset assegnato al `GameMode` vince.
+      L'ordine è: asset ⇒ formato spedito ⇒ ripiego. `RoundLimit` **5** (deciso con l'utente);
+      `ScoreToWin` **0** perché **nessuno assegna punti** — `AddTeamScore` non ha chiamanti
+      runtime, e una soglia > 0 dichiarerebbe una vittoria irraggiungibile. Diventa un numero il
+      giorno in cui un obiettivo la alimenta.
 
   - feature_id: RT-FEAT-MATCH-PACING
     title: Pacing del turno e del match
@@ -3035,8 +3105,12 @@ features:
       - RT-FEAT-MAP-PATHFINDING
       - RT-FEAT-ACTION-ENGINE
     owner_specs:
+      # L'owner ATTIVO e' la spec di gameplay (2026-08-10, #202): descrive il bot com'e' oggi — aree, fuoco
+      # amico, penalita' sul collaterale, cella di fuga — e dichiara cosa NON sa ancora (Team Knowledge E13,
+      # facing E16, reazioni E14). La spec H6.5 resta come storia `AS-BUILT` e non si riscrive.
+      - docs/gameplay/spec-bot-hex.md
       - docs/technical/h6-5-hex-bot-spec.md
-    issues: [36]
+    issues: [36, 202]
     tests:
       - RefactorTactics.HexBot.*
       - RefactorTactics.HexBotPlay.*
@@ -3197,11 +3271,11 @@ features:
       checkpoints: []
       out_of_release_scope: >-
         Strumento d'editor: non entra nella build di gioco e non ha un gate di release.
-        Tracciato da M9 e da `roadmap-editor.md`, non dalle epic della v0.1.
+        Tracciato da M9 e dalla EditorMap, non dalle epic della v0.1.
     dependencies:
       - RT-FEAT-MAP-HEXGRAPH
     owner_specs:
-      - docs/roadmap/roadmap-editor.md
+      - docs/roadmap/editormap.shortlist.md
       - docs/roadmap/hex-map-roadmap.md
     issues: []
     tests:
@@ -3259,6 +3333,50 @@ features:
       Validator di catalogo, mappa, terreni, formato e indice scenari, più il gate documentale
       `scripts/check-docs-symbols.py`. Da questa consegna include anche
       `scripts/feature_registry.py validate`, che verifica **questo** file.
+
+  - feature_id: RT-FEAT-TOOL-CONTROL-CENTER
+    title: Project Control Center — la UI web del registry
+    area: Tools
+    kind: tooling
+    release: future
+    priority: P3
+    status: IMPLEMENTING
+    gates:
+      spec: partial
+      data: done
+      runtime: done
+      log_debug: partial
+      automation: partial
+      scenario: na
+      ui_wiki: partial
+      packaged: na
+      network_privacy: na
+    roadmap: {}
+    dependencies:
+      - RT-FEAT-TOOL-VALIDATION
+    owner_specs:
+      - docs/roadmap/plans/project-control-center-spec.md
+    issues: []
+    tests: []
+    scenarios: []
+    wiki_refs: []
+    notes: >
+      Vista web read-only sopra gli artefatti generati dal registry: nessun dato nasce qui.
+      **Fuori dai 15 gate della v0.1** e senza epic: è tooling di processo, e collocarlo nella
+      roadmap di release lo farebbe competere con la consegna. `spec: partial` perché la spec è
+      in revisione (§9 registra quattro decisioni prese il 2026-08-10: pagina statica read-only,
+      relazioni qualificate rimandate, `My Editor Queue` come filtro derivato **anche** in
+      markdown, scrittura fuori scope). `data: partial` dal 2026-08-10: `project-graph.json`
+      esiste e porta diagnostica, roadmap, sedute, PIE e scenari — manca il blocco di config
+      `project.github` da cui derivare i link. `scenario`/`packaged`/`network_privacy` sono `na`
+      per la stessa ragione degli altri strumenti: non è gioco e non entra nel pacchetto.
+      La `My Editor Queue` è **già consegnata** in `editormap.shortlist.md`: non aspettava la
+      pagina, ed è utile anche se la pagina non venisse mai scritta.
+      `automation: partial` e non `done` perché i 18 test di `docs/control-center/graph.test.mjs`
+      (`node --test`) coprono le funzioni pure — link, indice, riferimenti rotti, cicli, filtri —
+      e **non** la UI: quella è stata verificata una volta con Playwright, non da una suite che
+      gira da sola. `tests:` resta vuoto: quel campo dichiara pattern della suite Unreal, e un
+      file `.mjs` non ne fa parte.
 
   - feature_id: RT-FEAT-TOOL-DEBUG-CONSOLE
     title: Comandi console rt.Debug e rt.Test
@@ -3363,7 +3481,11 @@ features:
     dependencies: []
     owner_specs:
       - docs/technical/convenzioni-contenuti-ue.md
-    issues: [29]
+      # Gli ID stabili esistono e reggono; cio' che manca e' il ritiro dei TRE legacy (`Action.Guard`,
+      # `Action.Activate`, `Action.Sprint`), la cui tassonomia e' decisa da D-014/D-015 ma la cui migrazione
+      # non e' mai stata pianificata. Il piano esiste dal 2026-08-10 e non e' eseguito (#199).
+      - docs/technical/piano-migrazione-stable-id.md
+    issues: [29, 199]
     tests:
       - RefactorTactics.Catalog.IdsAreUnique
       - RefactorTactics.TurnLog.ActionIdRoundTrip

@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
+#include "Map/RTHexMapAsset.h"
 #include "RTMatchFormatData.generated.h"
 
 /**
@@ -36,6 +37,22 @@ struct FRTMatchRules
 	/** Punteggio che chiude la partita per obiettivo. **0 = via disattivata** (nessuna soglia in vigore). */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Match")
 	int32 ScoreToWin = 0;
+
+	/**
+	 * Unita' per squadra (CP 19.2). E' il formato a dichiarare la composizione, non il `GameMode`: finche' il
+	 * numero viveva in una `UPROPERTY` dell'orchestratore, «2v2» era una proprieta' del codice che allestisce
+	 * la partita, e lo stress 4v4 di E17 doveva essere un caso speciale invece di un formato.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Match")
+	int32 UnitsPerTeam = 0;
+
+	/**
+	 * Classe di mappa che questo formato richiede. Il validator la confronta con quella dichiarata dalla
+	 * mappa: un 3v3 Standard su una mappa disegnata per il 2v2 non e' una partita piu' stretta, e' una
+	 * partita sbagliata — e va rifiutata all'allestimento, non scoperta al terzo turno.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Match")
+	ERTMapClass MapClass = ERTMapClass::Skirmish;
 
 	FRTMatchRules() = default;
 };
@@ -78,4 +95,17 @@ public:
 	/** Punteggio obiettivo che chiude la partita. 0 = nessuna vittoria per obiettivo in questo formato. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Match")
 	int32 ScoreToWin = 0;
+
+	/**
+	 * Unita' per squadra (CP 19.2). `Format.Skirmish2v2` dichiara **2**.
+	 *
+	 * Con questo campo E17 (stress 4v4) smette di essere un ramo del `GameMode` e diventa un formato che
+	 * dichiara 4: la differenza fra le due partite sta nel DATO, non in un `if` dell'orchestratore.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Match")
+	int32 UnitsPerTeam = 2;
+
+	/** Classe di mappa richiesta (CP 19.1): il validator rifiuta l'accoppiata sbagliata. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Match")
+	ERTMapClass MapClass = ERTMapClass::Skirmish;
 };

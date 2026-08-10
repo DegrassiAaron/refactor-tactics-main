@@ -8,6 +8,7 @@
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTMatchFormatData.h"
 #include "Turn/RTMatchFormatLibrary.h"
+#include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 #include "Engine/Engine.h"
@@ -263,6 +264,10 @@ bool FRTMatchFormatFallbackObservableTest::RunTest(const FString&)
 
 	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
 	GameMode->MatchFormat = nullptr; // formato assente: e' il caso che D1 dichiara giocabile
+	// ...e ANCHE nessun formato spedito: dal 2026-08-10 (#375) l'assenza dell'asset non basta piu' a far
+	// ripiegare, perche' il GameMode risolve `Format.Skirmish2v2` dal catalogo C++. Il ripiego copre ora
+	// l'id SCONOSCIUTO — che e' il caso che resta davvero scoperto, ed e' quello che questo test misura.
+	GameMode->ShippedFormatId = FName(TEXT("Format.NonEsiste"));
 	GameMode->SetupHexMatch(MapActor);
 
 	// La partita c'e' (D1: non ci si rifiuta di partire)...
@@ -272,6 +277,41 @@ bool FRTMatchFormatFallbackObservableTest::RunTest(const FString&)
 	TestEqual(TEXT("il formato in vigore e' quello di ripiego"),
 		TurnManager->GetMatchRules().FormatId, URTMatchFormatLibrary::FallbackFormatId);
 	TestEqual(TEXT("con il RoundLimit del ripiego"), TurnManager->GetMatchRules().RoundLimit, 12);
+
+	DestroyFormatWorld(World);
+	return true;
+}
+
+/**
+ * Senza asset assegnato si gioca il formato SPEDITO, non il ripiego (#375). E' la meta' che mancava: CP 12.5
+ * ha misurato una build pacchettizzata che girava su `Format.Fallback` proprio perche' nessuno aveva creato
+ * un `.uasset` in editor, e il formato canonico della v0.1 non puo' dipendere da quel passo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMatchFormatShippedInMatchTest,
+	"RefactorTactics.MatchFormat.ShippedFormatPlaysWithoutAsset",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMatchFormatShippedInMatchTest::RunTest(const FString&)
+{
+	UWorld* World = MakeFormatWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTHexMapActor* MapActor = SpawnFormatMap(World);
+	ARTTurnManager* TurnManager = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	GameMode->MatchFormat = nullptr; // nessun asset: e' il caso normale del repository, che non ne contiene
+	GameMode->SetupHexMatch(MapActor);
+
+	TestTrue(TEXT("la partita si allestisce"), CountUnits(World) > 0);
+
+	const FRTMatchRules& Rules = TurnManager->GetMatchRules();
+	TestEqual(TEXT("gioca il formato SPEDITO, non il ripiego"),
+		Rules.FormatId, URTMatchFormatLibrary::Skirmish2v2FormatId);
+	TestNotEqual(TEXT("e l'identita' NON e' quella riservata al ripiego"),
+		Rules.FormatId, URTMatchFormatLibrary::FallbackFormatId);
+	// I numeri decisi il 2026-08-10: se qualcuno li cambia nel catalogo, questo test lo dice.
+	TestEqual(TEXT("RoundLimit 5"), Rules.RoundLimit, 5);
+	TestEqual(TEXT("due unita' per squadra"), Rules.UnitsPerTeam, 2);
 
 	DestroyFormatWorld(World);
 	return true;
@@ -304,6 +344,220 @@ bool FRTMatchFormatInvalidBlocksSetupTest::RunTest(const FString&)
 
 	TestEqual(TEXT("nessuna unita' allestita"), CountUnits(World), 0);
 	TestEqual(TEXT("e nessuna regola applicata"), TurnManager->GetMatchRules().RoundLimit, 0);
+
+	DestroyFormatWorld(World);
+	return true;
+}
+
+/**
+ * CP 19.2 — la composizione arriva dal FORMATO, e il `GameMode` la onora invece di dichiararla per conto
+ * proprio. Finche' il `2` viveva in `SetupHexMatch`, «2v2» era una proprieta' del codice di allestimento: lo
+ * stress 4v4 di E17 doveva essere un ramo del `GameMode` invece di un formato che dichiara 4.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMatchFormatGameModeHonoursCompositionTest,
+	"RefactorTactics.MatchFormat.GameModeHonoursComposition",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMatchFormatGameModeHonoursCompositionTest::RunTest(const FString&)
+{
+	UWorld* World = MakeFormatWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTHexMapActor* MapActor = SpawnFormatMap(World, /*Radius=*/ 4);
+	ARTTurnManager* TurnManager = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+
+	// 1. Il formato del vertical slice: 2 per squadra, formazioni da due eroi. Si allestisce.
+	URTMatchFormatData* Skirmish = MakeFormatAsset(/*RoundLimit=*/ 12, TEXT("Format.Skirmish2v2"));
+	Skirmish->UnitsPerTeam = 2;
+	GameMode->MatchFormat = Skirmish;
+	GameMode->SetupHexMatch(MapActor);
+
+	TestEqual(TEXT("la composizione dichiarata raggiunge le regole in vigore"),
+		TurnManager->GetMatchRules().UnitsPerTeam, 2);
+	TestEqual(TEXT("e in campo ci sono due squadre da due"), CountUnits(World), 4);
+
+	DestroyFormatWorld(World);
+
+	// 2. Un formato che ne schiera TRE con formazioni da due: il `GameMode` rifiuta invece di allestire una
+	//    partita che contraddice il proprio formato. E' la stessa disciplina del formato invalido.
+	UWorld* World2 = MakeFormatWorld();
+	if (!TestNotNull(TEXT("secondo world"), World2)) { return false; }
+
+	ARTHexMapActor* MapActor2 = SpawnFormatMap(World2, /*Radius=*/ 4);
+	World2->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GameMode2 = World2->SpawnActor<ARTGameMode>();
+
+	URTMatchFormatData* Three = MakeFormatAsset(/*RoundLimit=*/ 12, TEXT("Format.Test3v3"));
+	Three->UnitsPerTeam = 3;
+	GameMode2->MatchFormat = Three;
+
+	AddExpectedError(TEXT("schiera 3 unita' per squadra"), EAutomationExpectedErrorFlags::Contains, 1);
+	GameMode2->SetupHexMatch(MapActor2);
+
+	TestEqual(TEXT("formazione e formato in disaccordo: nessuna unita' in campo"), CountUnits(World2), 0);
+
+	DestroyFormatWorld(World2);
+	return true;
+}
+
+/**
+ * CP 19.1 — l'accoppiata formato/mappa si verifica all'allestimento. Un formato disegnato per una classe di
+ * mappa diversa non e' una partita piu' stretta: e' una partita sbagliata, e va rifiutata prima, non scoperta
+ * al terzo turno.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapClassFormatAndMapAgreeTest,
+	"RefactorTactics.MapClass.FormatAndMapAgree",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapClassFormatAndMapAgreeTest::RunTest(const FString&)
+{
+	UWorld* World = MakeFormatWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTHexMapActor* MapActor = SpawnFormatMap(World, /*Radius=*/ 4);
+	ARTTurnManager* TurnManager = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+
+	// La mappa e' Skirmish (default, ed e' cio' che una mappa del vertical slice e').
+	TestTrue(TEXT("la mappa di prova e' Skirmish"), MapActor->MapAsset->MapClass == ERTMapClass::Skirmish);
+
+	// Un formato Standard sopra: la validazione pura lo rifiuta...
+	FRTMatchRules StandardRules;
+	StandardRules.FormatId = FName(TEXT("Format.Standard3v3"));
+	StandardRules.RoundLimit = 14;
+	StandardRules.UnitsPerTeam = 3;
+	StandardRules.MapClass = ERTMapClass::Standard;
+
+	const TArray<FString> Errors = URTMatchFormatLibrary::ValidateAgainstMap(StandardRules, MapActor->MapAsset);
+	TestEqual(TEXT("l'accoppiata sbagliata e' un errore, non un avvio silenzioso"), Errors.Num(), 1);
+	if (Errors.Num() == 1)
+	{
+		// Il messaggio deve nominare ENTRAMBE le classi: chi legge deve sapere cosa cambiare.
+		TestTrue(TEXT("e l'errore nomina la classe richiesta"), Errors[0].Contains(TEXT("Standard")));
+		TestTrue(TEXT("e quella trovata"), Errors[0].Contains(TEXT("Skirmish")));
+	}
+
+	// ...e l'allestimento non parte.
+	URTMatchFormatData* Standard = MakeFormatAsset(/*RoundLimit=*/ 14, TEXT("Format.Standard3v3"));
+	Standard->UnitsPerTeam = 3;
+	Standard->MapClass = ERTMapClass::Standard;
+	GameMode->MatchFormat = Standard;
+
+	AddExpectedError(TEXT("Formato e mappa non combaciano"), EAutomationExpectedErrorFlags::Contains, 1);
+	GameMode->SetupHexMatch(MapActor);
+
+	TestEqual(TEXT("nessuna unita' allestita"), CountUnits(World), 0);
+	TestEqual(TEXT("e nessuna regola applicata"), TurnManager->GetMatchRules().RoundLimit, 0);
+
+	// La stessa mappa con il formato della sua classe si allestisce: il rifiuto e' dell'accoppiata, non della
+	// mappa. Senza questa meta' il test sarebbe verde anche se il validator rifiutasse tutto.
+	URTMatchFormatData* Skirmish = MakeFormatAsset(/*RoundLimit=*/ 12, TEXT("Format.Skirmish2v2"));
+	Skirmish->UnitsPerTeam = 2;
+	Skirmish->MapClass = ERTMapClass::Skirmish;
+	GameMode->MatchFormat = Skirmish;
+	GameMode->SetupHexMatch(MapActor);
+
+	TestTrue(TEXT("la stessa mappa col formato giusto si allestisce"), CountUnits(World) > 0);
+
+	DestroyFormatWorld(World);
+	return true;
+}
+
+/**
+ * CP 19.1 — **la simulazione non ramifica sulla classe**. Non e' una proprieta' che si legge dal codice: si
+ * misura eseguendo due partite identiche che differiscono per la sola classe, e confrontando la traccia.
+ *
+ * Se un giorno qualcuno scrivesse `if (MapClass == Operations)` nel resolver, questo test cadrebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapClassNotBranchedInSimulationTest,
+	"RefactorTactics.MapClass.NotBranchedInSimulation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapClassNotBranchedInSimulationTest::RunTest(const FString&)
+{
+	auto PlayAndHash = [](ERTMapClass Class, uint32& OutLogHash, int32& OutRounds) -> UWorld*
+	{
+		UWorld* W = MakeFormatWorld();
+		if (!W) { return nullptr; }
+
+		ARTHexMapActor* MapActor = SpawnFormatMap(W, /*Radius=*/ 5);
+		MapActor->MapAsset->MapClass = Class;
+
+		SpawnFormatUnit(W, 0, FRTCellId(-4, 2));
+		SpawnFormatUnit(W, 1, FRTCellId(4, -2));
+
+		ARTTurnManager* TM = W->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		FRTMatchRules Rules;
+		Rules.FormatId = FName(TEXT("Format.BranchTest"));
+		Rules.RoundLimit = 3;
+		Rules.UnitsPerTeam = 2;
+		Rules.MapClass = Class;
+		TM->SetMatchRules(Rules);
+
+		OutRounds = 0;
+		while (TM->GetPhase() != ERTMatchPhase::MatchEnded && OutRounds < 10)
+		{
+			PlayEmptyRound(TM);
+			++OutRounds;
+		}
+
+		OutLogHash = URTTurnLogLibrary::HashTurnLog(TM->GetTurnLog());
+		return W;
+	};
+
+	uint32 HashSkirmish = 0, HashOperations = 0;
+	int32 RoundsSkirmish = 0, RoundsOperations = 0;
+
+	UWorld* A = PlayAndHash(ERTMapClass::Skirmish, HashSkirmish, RoundsSkirmish);
+	if (!TestNotNull(TEXT("prima partita"), A)) { return false; }
+	DestroyFormatWorld(A);
+
+	UWorld* B = PlayAndHash(ERTMapClass::Operations, HashOperations, RoundsOperations);
+	if (!TestNotNull(TEXT("seconda partita"), B)) { return false; }
+	DestroyFormatWorld(B);
+
+	TestEqual(TEXT("stessa durata"), RoundsOperations, RoundsSkirmish);
+	TestEqual(TEXT("e la stessa traccia: la classe non entra in una sola decisione del turno"),
+		HashOperations, HashSkirmish);
+
+	return true;
+}
+
+/**
+ * CP 19.1 — la classe del vertical slice e' `Skirmish`, e lo e' **per default**: una mappa scritta prima che
+ * il campo esistesse (`FormatVersion` 5) non deve cambiare significato solo per essere stata ricaricata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapClassSliceIsSkirmishTest,
+	"RefactorTactics.MapClass.SliceIsSkirmish",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapClassSliceIsSkirmishTest::RunTest(const FString&)
+{
+	UWorld* World = MakeFormatWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	// Una mappa appena creata: il default e' la classe del vertical slice.
+	ARTHexMapActor* MapActor = SpawnFormatMap(World, /*Radius=*/ 2);
+	TestTrue(TEXT("una mappa nuova nasce Skirmish"), MapActor->MapAsset->MapClass == ERTMapClass::Skirmish);
+
+	// Verifica a due binari, la meta' che un test in memoria puo' davvero fare: una mappa scritta con il
+	// formato PRECEDENTE (v5, senza il campo) migra a v6 senza che la classe cambi da sotto — il default e'
+	// cio' che quelle mappe gia' erano, non un valore nuovo che si porta dietro un significato nuovo.
+	URTHexMapAsset* Legacy = NewObject<URTHexMapAsset>();
+	Legacy->FormatVersion = 5;
+	Legacy->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, 0)));
+	Legacy->SortCells();
+	const int32 CellsBefore = Legacy->NumCells();
+
+	Legacy->MigrateToCurrentFormat();
+
+	TestEqual(TEXT("la migrazione porta la versione avanti"),
+		Legacy->FormatVersion, URTHexMapAsset::CurrentFormatVersion);
+	TestTrue(TEXT("e la classe di una mappa vecchia resta Skirmish"), Legacy->MapClass == ERTMapClass::Skirmish);
+	TestEqual(TEXT("senza toccare i campi che c'erano gia'"), Legacy->NumCells(), CellsBefore);
+
+	// Il formato di RIPIEGO dichiara la stessa classe: la partita che si avvia senza formato e' quella del
+	// vertical slice, non una partita di classe indefinita.
+	const FRTMatchRules Fallback = URTMatchFormatLibrary::MakeFallbackRules();
+	TestTrue(TEXT("il ripiego e' Skirmish"), Fallback.MapClass == ERTMapClass::Skirmish);
+	TestEqual(TEXT("e schiera due unita' per squadra"), Fallback.UnitsPerTeam, 2);
 
 	DestroyFormatWorld(World);
 	return true;

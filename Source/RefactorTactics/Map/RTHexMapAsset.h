@@ -12,6 +12,30 @@ DECLARE_MULTICAST_DELEGATE(FRTHexMapAssetChanged);
 #endif
 
 /**
+ * Classe di mappa (CP 19.1): per QUALE formato quella mappa e' stata disegnata.
+ *
+ * Non e' una difficolta' ne' un tema: e' la scala. Una mappa Skirmish ha le distanze del 2v2 e i suoi tempi di
+ * attraversamento; metterci dentro un 3v3 Standard non e' «piu' difficile», e' un'altra partita.
+ *
+ * **La simulazione non ramifica su questo valore.** Nessun `if (MapClass == ...)` nel resolver: la classe serve
+ * al VALIDATOR — che rifiuta l'accoppiata sbagliata prima dell'allestimento — e ai parametri che il formato
+ * porta con se'. Il giorno in cui una regola dipendesse dalla classe, dipenderebbe da un parametro dichiarato
+ * dal formato, non dall'enum.
+ *
+ * Aggiungere valori solo IN CODA: il valore viaggia serializzato nell'asset mappa.
+ */
+UENUM(BlueprintType)
+enum class ERTMapClass : uint8
+{
+	/** Scala del 2v2: e' la classe del vertical slice v0.1. */
+	Skirmish,
+	/** Scala del 3v3 competitivo (v0.2, E24): baseline del formato Standard. */
+	Standard,
+	/** Scala delle mappe a obiettivi multipli e logistica (v0.4, E30). */
+	Operations
+};
+
+/**
  * Asset AUTOREVOLE e serializzato di una mappa esagonale (formato dati, non decorazione visiva).
  * Le celle sono conservate in un array con ORDINE STABILE (Layer, X, Y); una cache Id->indice velocizza l'accesso
  * runtime senza essere il formato autorevole. Nessun Actor per cella. Coerente con gli invarianti (determinismo).
@@ -32,12 +56,24 @@ public:
 	 * v3 (CP 9.1): coperture per bordo di cella (`FRTHexCellData::Covers`).
 	 * v4 (CP 9.3): porte per bordo di cella (`FRTHexCellData::Doors`).
 	 * v5 (CP 9.4): stato, integrita' e conduttivita' sugli archi (`FRTHexEdge`).
+	 * v6 (CP 19.1): classe di mappa (`MapClass`). Nessun dato esistente cambia significato: una mappa scritta
+	 *     prima e' `Skirmish`, che e' la classe del vertical slice, cioe' cio' che quelle mappe gia' erano.
 	 */
-	static constexpr int32 CurrentFormatVersion = 5;
+	static constexpr int32 CurrentFormatVersion = 6;
 
 	/** Versione del formato con cui l'asset e' stato scritto; `MigrateToCurrentFormat` la porta avanti. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	int32 FormatVersion = CurrentFormatVersion;
+
+	/**
+	 * Per quale formato questa mappa e' stata disegnata (CP 19.1).
+	 *
+	 * NON entra in `ComputeHash`: l'hash risponde alla domanda «la stessa geometria produce la stessa
+	 * partita?», e la classe non tocca la geometria ne' il comportamento — cambiarla non cambia un solo esito
+	 * di turno. Ci finisce indirettamente `FormatVersion`, com'e' gia' successo a v3, v4 e v5.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	ERTMapClass MapClass = ERTMapClass::Skirmish;
 
 	/** Dimensione dell'esagono (cm), usata per axial<->world. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexMap")

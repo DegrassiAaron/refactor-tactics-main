@@ -61,7 +61,9 @@ definita in due posti, è un difetto: apri una issue invece di aggiornarne una s
 | Overwatch | [`gameplay/brief-overwatch-reazioni.md`](gameplay/brief-overwatch-reazioni.md) | ⏳ E14 |
 | Delayed Actions e boundary nominati | [`gameplay/brief-delayed-actions.md`](gameplay/brief-delayed-actions.md) | ⏳ nessuna epic |
 | Griglia esagonale e coordinate | [`decisions/adr-0002-griglia-esagonale.md`](decisions/adr-0002-griglia-esagonale.md) | ✅ |
-| Orientamento e direzionalità | [`decisions/adr-0005-orientamento.md`](decisions/adr-0005-orientamento.md) | ⏳ E16 |
+| Orientamento e direzionalità | [`decisions/adr-0005-orientamento.md`](decisions/adr-0005-orientamento.md) · [ADR-0008](decisions/adr-0008-rotazione-e-policy-di-facing.md) | ⏳ E16 · ADR-0008 (2026-08-10) **supera** §1 e §3 di ADR-0005: la rotazione è una **capacità del personaggio** in step, e il facing nei micro-step è quello dell'**ultimo passo compiuto** |
+| **Il bot** — politica, utility, candidate | [`gameplay/spec-bot-hex.md`](gameplay/spec-bot-hex.md) | ✅ spec **attiva** (2026-08-10, [#202](https://github.com/DegrassiAaron/refactor-tactics-main/issues/202)) · ⚠️ dichiara ciò che il bot **non** sa ancora: niente Team Knowledge (⏳ E13), niente facing (⏳ E16), niente reazioni (⏳ E14) · storia in [`technical/h6-5-hex-bot-spec.md`](technical/h6-5-hex-bot-spec.md) (`AS-BUILT`) |
+| Migrazione degli Stable ID legacy | [`technical/piano-migrazione-stable-id.md`](technical/piano-migrazione-stable-id.md) | ⏳ **piano, non eseguito** ([#199](https://github.com/DegrassiAaron/refactor-tactics-main/issues/199)) · tassonomia decisa da [D-014](decisions/RT_PDR_00_Decision_Log.md)/[D-015](decisions/RT_PDR_00_Decision_Log.md) |
 | Mappa come grafo tattico, multilivello | [`technical/spec-mappa-multilivello.md`](technical/spec-mappa-multilivello.md) · [`technical/spec-pathfinding-pf3-pf4.md`](technical/spec-pathfinding-pf3-pf4.md) | ✅ |
 | Terreni, stati e propagazione | [`gameplay/spec-terreni-e8.md`](gameplay/spec-terreni-e8.md) + spec CP 8.2/8.3/8.4 | ✅ E8 |
 | Conoscenza parziale: vista **e** udito | [`gameplay/brief-conoscenza-parziale.md`](gameplay/brief-conoscenza-parziale.md) | ⏳ E13 |
@@ -143,30 +145,30 @@ python scripts/feature_registry.py suite      # rimisura e riscrive il blocco qu
 ```
 
 <!-- RT_SUITE_COUNT:BEGIN -->
-**544 test unici in 76 file** — misurati su `45f8d24`.
+**573 test unici in 76 file** — misurati su `4a3fd20`.
 
 Generato da `python scripts/feature_registry.py suite`: **non si aggiorna a mano**. Era scritto a mano in due documenti ed è divergito cinque volte.
 
 | Area | Test | Cosa fissa |
 |---|---:|---|
-| `Hex*` (mappa, path, vision, bot, blast, move, match) | 88 | Coordinate, A\*, LOS, bot, partita completa |
-| `Actions.*` | 65 | Ordine per priorità, permutazione-invarianza, fallback, mappatura di fase |
+| `Hex*` (mappa, path, vision, bot, blast, move, match) | 99 | Coordinate, A\*, LOS, bot, partita completa |
+| `Actions.*` | 70 | Ordine per priorità, permutazione-invarianza, fallback, mappatura di fase |
 | `Terrain.*` · `Status.*` · `Environment.*` | 39 | Superfici, stati temporanei, propagazione elettrica, fuoco/acqua |
 | `Combat.*` · `HexCombat.*` | 39 | Danno dopo scudo, forme, LOS, niente fuoco amico |
 | `Reactions.*` | 27 | Attivazione singola, trigger puro, reazioni componibili, privacy |
-| `HexSim.*` | 27 | Snapshot, budget, collisioni simultanee, **replay divergence 0** |
-| `Match*` (allestimento, formato, fine partita) | 27 | Le tre vie di fine partita e il `RoundLimit` da formato |
-| `Heroes.*` | 29 | I 4 eroi corrispondono al catalogo, trade-off delle varianti |
-| `TurnLog.*` | 22 | Hash permutazione-invariante, serializzazione versionata, checksum |
-| `Scenario.*` · `ScenarioIndex.*` | 55 | Harness: PASS/FAIL/ERROR/**BLOCKED**, identità e tag, niente bypass |
-| `Structures.*` | 20 | Porte come bordo (E9.3), ponti come arco (E9.4) |
+| `HexSim.*` | 28 | Snapshot, budget, collisioni simultanee, **replay divergence 0** |
+| `Match*` (allestimento, formato, fine partita) | 29 | Le tre vie di fine partita e il `RoundLimit` da formato |
+| `Heroes.*` | 31 | I 4 eroi corrispondono al catalogo, trade-off delle varianti |
+| `TurnLog.*` | 24 | Hash permutazione-invariante, serializzazione versionata, checksum |
+| `Scenario.*` · `ScenarioIndex.*` | 56 | Harness: PASS/FAIL/ERROR/**BLOCKED**, identità e tag, niente bypass |
+| `Structures.*` | 21 | Porte come bordo (E9.3), ponti come arco (E9.4) |
 | `Playback.*` · `Preview.*` · `PlayerInput.*` · `ShowcaseRelay.*` · `Camera.*` | 23 | Presentazione e input: non decidono, riproducono |
-| `Unit.*` · `Turn.*` · `Simulation.*` · `Movement.*` | 18 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
+| `Unit.*` · `Turn.*` · `Simulation.*` · `Movement.*` | 19 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
 | `Cover.*` | 19 | Copertura bassa e alta, bordi, danno a struttura e distruzione |
 | `Catalog.*` | 9 | Invarianti del catalogo: solo interi, slot dichiarati, ID stabili |
 | `Pacing.*` | 7 | Pacing del turno misurato |
 | `Perf.*` | 2 | Path mediana **0,025 ms** · resolver **0,41 ms/turno** |
-| **totale** | **516** | |
+| **totale** | **542** | |
 
 > ⚠️ Test fuori da ogni area dichiarata: `RefactorTactics.Equipment.PortableCover.CreatesCover`, `RefactorTactics.Facing.BudgetMoveAllowsLastStepPlusMinusOne`, `RefactorTactics.Facing.DashThenBlastUsesLatestValue`, `RefactorTactics.Facing.EnvironmentalDisplacementKeepsFacing`, `RefactorTactics.Facing.ForcedMovementFacesSource`, `RefactorTactics.Facing.IntentIsTeamFiltered`, `RefactorTactics.Facing.LinearMoveDerivesDirection`, `RefactorTactics.Facing.PermutationInvariant`
 <!-- RT_SUITE_COUNT:END -->

@@ -8,7 +8,7 @@
 > Feature: `RT-FEAT-MAP-SPECIAL-TRANSITIONS` · Release: `v0.1` · Roadmap: `E9.4`  
 > Stato: **INTEGRATED** · Gate: `6/8`  
 > Scenario: `Visual.Map.MultiLevel`  
-> Verificato il `2026-08-08` su `2094b86`
+> Verificato il `2026-08-09` su `4a3fd20`
 
 <!-- RT_FEATURE_STATUS:END RT-FEAT-MAP-SPECIAL-TRANSITIONS -->
 

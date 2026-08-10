@@ -100,11 +100,19 @@ dell'enum, e rinumerarli riscriverebbe il significato dei file già scritti.
 | `UnitFacing` | l'unità guarda nella direzione attesa, per **nome** (`E`, `NE`, …) | CP 16.1 |
 | `LogEventCount` | quante volte un evento compare nel TurnLog. `value: 0` asserisce l'**assenza** | [#318](https://github.com/DegrassiAaron/refactor-tactics-main/issues/318) |
 | `LogEventOrder` | la prima occorrenza di un evento **precede** la prima di un altro | [#318](https://github.com/DegrassiAaron/refactor-tactics-main/issues/318) |
+| `LogEventAmount` | il **valore** di `Amount` della prima voce che corrisponde. `value` è obbligatorio | [#361](https://github.com/DegrassiAaron/refactor-tactics-main/issues/361) |
 
-### 5.1 Le due assertion che leggono il TurnLog
+### 5.1 Le tre assertion che leggono il TurnLog
 
 Le prime cinque guardano tutte lo **stato finale**. Ordine degli eventi e contatori del log erano fuori
 portata, e con essi undici scenari già dichiarati nel Feature Registry.
+
+La terza è arrivata dopo, e non per dimenticanza: `LogEventAmount` legge un numero, e finché non fu deciso
+**quale** numero il Decision Time Bank scrive nel log ([`spec-turnlog.md`](spec-turnlog.md) §4.2, issue
+`#361`) l'assertion sarebbe stata scritta due volte. Non è però un'assertion del bank: `Amount` è il payload
+numerico di **ogni** categoria — danno per `Combat`, celle percorse per `Move`, direzione per `Facing` — e
+questa primitiva le serve tutte. `LogEventCount` dice *che* il colpo è avvenuto; `LogEventAmount` dice
+*quanto* ha tolto.
 
 L'evento si nomina **per nome**, come la direzione di `UnitFacing`:
 
@@ -112,9 +120,15 @@ L'evento si nomina **per nome**, come la direzione di `UnitFacing`:
 { "type": "LogEventCount", "category": "Facing", "outcome": "DeclarationRejected", "value": 0 }
 { "type": "LogEventOrder", "category": "Combat", "outcome": "Hit",
   "thenCategory": "Move", "thenOutcome": "Moved" }
+{ "type": "LogEventAmount", "category": "Combat", "outcome": "Hit", "value": 22 }
 ```
 
-`value` omesso vale **1**, cioè «l'evento c'è». I nomi si risolvono per **riflessione** sull'enum
+Per `LogEventCount`, `value` omesso vale **1**, cioè «l'evento c'è». Per `LogEventAmount` `value` è invece
+**obbligatorio**: lì un default sarebbe un numero inventato dal parser, e uno scenario passerebbe senza dire
+cosa si aspettava. `LogEventAmount` accetta valori **negativi**, che un conteggio non può avere.
+
+Un evento **assente** fa fallire `LogEventAmount` dicendo che è assente, non confrontando uno zero: un difetto
+di produzione non va fatto sembrare un difetto di valore. È lo stesso trattamento di `LogEventOrder`. I nomi si risolvono per **riflessione** sull'enum
 (`StaticEnum<>`), non da una tabella scritta a mano: un esito aggiunto al TurnLog diventa scrivibile negli
 scenari senza toccare il loader, e non c'è una seconda copia da tenere allineata — è la lezione della chiave
 `edge`, dove il parser che la leggeva e l'elenco che la rifiutava sono nati su rami diversi.

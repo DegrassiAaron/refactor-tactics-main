@@ -53,16 +53,35 @@ invita a ridecidere ciò che è stato deciso:
 | §38.15 — «Dash azione base» player-facing vs tassonomia tecnica | [D-015](decisions/RT_PDR_00_Decision_Log.md) + [D-028](decisions/RT_PDR_00_Decision_Log.md) + [`balance/RT_ActionCatalog_v0.1.md`](balance/RT_ActionCatalog_v0.1.md) §2.2: `Dash` è **mobilità speciale in fase Dash**, slot movimento. Che la Wiki lo presenti come azione base non è un conflitto: la Wiki è **dichiaratamente non normativa** (invariante #12) |
 | §38.5/§38.6 — valori di rotazione per personaggio | Non sono valori mancanti: sono un **modello diverso**. Vedi `FAC-1` |
 
-### Il modello — tre proposte che cambiano ADR-0005
+### ✅ Chiuse il 2026-08-10 — [ADR-0008](decisions/adr-0008-rotazione-e-policy-di-facing.md)
 
-Righe **50–52** di [`DOC_CONFLICT_MATRIX.md`](DOC_CONFLICT_MATRIX.md). Oggi prevale l'ADR; queste voci
-esistono perché la proposta è coerente e nessun documento può accettarla al posto dell'autore.
+Quattro delle dieci voci sono state decise dall'autore e non sono più aperte. Restano qui, barrate, perché
+il registro deve dire **come** è andata a finire, non solo cosa manca.
+
+| ID | Esito | Dove vive ora |
+|---|---|---|
+| ~~`FAC-1`~~ | **Accettata**: la rotazione è una **capacità del personaggio** in step (0–3). Otto numeri nuovi (2 × 4 eroi), valori iniziali da §23.1 dell'handoff, dichiarati **non** bilanciati | [ADR-0008](decisions/adr-0008-rotazione-e-policy-di-facing.md) §1 — supera ADR-0005 §1 |
+| ~~`FAC-2`~~ | **Accettata**: policy dichiarative per azione ed effetto, **con default** che riproducono D-020 e ADR-0005 §3 — un'azione che non dichiara nulla si comporta come oggi | [ADR-0008](decisions/adr-0008-rotazione-e-policy-di-facing.md) §3 — supera ADR-0005 §3 |
+| ~~`FAC-4`~~ | **Decisa**: il facing al boundary `k` è la direzione dell'**ultimo passo compiuto**, cioè `FacingFromPath` sul prefisso del percorso. Il pivot finale si applica dopo e **non** retroattivamente | [ADR-0008](decisions/adr-0008-rotazione-e-policy-di-facing.md) §2 |
+| ~~`FAC-10`~~ | **Risolta** distinguendo i due termini: **pivot** = la capacità di ruotare, **rotazione dichiarata** = l'atto di sceglierla in planning. Il codice aveva già scelto `Declared*` per il secondo | [ADR-0008](decisions/adr-0008-rotazione-e-policy-di-facing.md) §4 |
+
+> **L'opzione scartata su `FAC-4` merita di essere ricordata**, perché il motivo non è di gusto: «facing =
+> direzione del **prossimo** passo» è stata esclusa perché il facing assunto è **pubblico** (ADR-0005 §5), quindi
+> un avversario che lo osservasse a metà movimento dedurrebbe il percorso futuro — contro l'invariante **#6** e
+> contro ADR-0004 §7-bis.
+>
+> ⚠️ *Rettifica del 2026-08-10*: qui era scritto «il test `Overwatch.OpportunityLeaksNoFuture` esiste per
+> vietare». Quel test **non esiste**: è pianificato in ADR-0004 per E14, che non è implementata. Il requisito
+> è dichiarato, la verifica no.
+
+### Il modello — la proposta residua che cambierebbe ADR-0005
+
+Riga **52** di [`DOC_CONFLICT_MATRIX.md`](DOC_CONFLICT_MATRIX.md). Oggi prevale l'ADR; la voce
+esiste perché la proposta è coerente e nessun documento può accettarla al posto dell'autore.
 
 | ID | Domanda | Cosa cambierebbe |
 |---|---|---|
-| `FAC-1` | La rotazione è **derivata dal movimento** (canone) o è una **capacità del personaggio** misurata in step? | L'handoff propone `MoveEndPivotMaxSteps`/`DashEndPivotMaxSteps` per eroe. Il pregio dichiarato di ADR-0005 è **zero numeri nuovi**: questo ne aggiunge due per eroe, cioè un asse di bilanciamento. In cambio dà a Bastion e Vektor un'identità di movimento che oggi non hanno. **Non decidibile dai documenti**: serve l'autore |
-| `FAC-2` | Le regole universali D-020 / ADR-0005 §3 vanno sostituite da **policy dichiarative** per azione e per effetto? | Un enum per azione è più espressivo e va compilato per **ogni** azione del catalogo. Il costo si paga se esiste un caso reale che la regola universale sbaglia: **nessuno è stato prodotto** dall'handoff. Finché non esiste, la regola unica costa meno ed è già testabile |
-| `FAC-3` | `Brace` deve diventare **direzionale**? | ADR-0005 §4a dice il contrario in modo esplicito: `Deflect`, `Brace`, `Shield` proteggono la **persona**, non un lato. Cambiarlo è una modifica di §4a, e il test `Combat.ShieldWorksFromAnyDirection` (CP 16.2) esiste per impedire che accada per deriva |
+| `FAC-3` | `Brace` deve diventare **direzionale**? | ADR-0005 §4a dice il contrario in modo esplicito: `Deflect`, `Brace`, `Shield` proteggono la **persona**, non un lato. Cambiarlo è una modifica di §4a, e il test `Combat.ShieldWorksFromAnyDirection` (CP 16.2) esiste per impedire che accada per deriva. ⚠️ **Dal 2026-08-10**: con `FAC-2` accettata, `FAC-3` avrebbe una sede naturale in cui esprimersi — una policy di facing dichiarata su `Brace` — il che ne abbassa il **costo**, non ne cambia il **merito** |
 
 ### Le lacune — cose che il canone non dice affatto
 
@@ -70,13 +89,11 @@ Queste **non** contraddicono nessuna decisione: sono buchi. Vanno decise prima c
 
 | ID | Domanda | Perché serve una risposta |
 |---|---|---|
-| `FAC-4` | Qual è il facing dell'unità **durante** i micro-step di un Move? | È la lacuna più urgente, ed è una conseguenza diretta di D-020. Overwatch, reazioni e cover direzionale si valutano a un boundary che cade **dentro** il movimento: se il facing intermedio non è definito, non è definito nemmeno cosa legge il trigger. ADR-0005 copre l'inizio e la fine del Move, non il mezzo. Blocca il DoD «snapshot e TurnLog dicono *quale* facing ha usato ciascun consumatore» |
-| `FAC-5` | Una **reazione** può ruotare l'unità che reagisce? | D-020 nomina `FacingUsedByOverwatch` come valore **letto**, mai scritto. Se una Return Fire ruota verso l'attaccante, il facing cambia a metà round e i consumatori successivi lo ereditano: è una regola nuova, non una precisazione |
+| `FAC-5` | Una **reazione** può ruotare l'unità che reagisce? | D-020 nomina `FacingUsedByOverwatch` come valore **letto**, mai scritto. Se una Return Fire ruota verso l'attaccante, il facing cambia a metà round e i consumatori successivi lo ereditano: è una regola nuova, non una precisazione. ⚠️ **Dal 2026-08-10**: ADR-0008 §2 stabilisce che il pivot finale **non è retroattivo**, quindi una rotazione da reazione non riscriverebbe i boundary già passati — il che circoscrive il danno, ma non risponde alla domanda |
 | `FAC-6` | `Interact` **richiede** un facing verso l'oggetto, oppure lo **impone**? | `Interact` è universale ([D-025](decisions/RT_PDR_00_Decision_Log.md)) e assorbe `Activate`: la risposta tocca porte, console e valvole di E9, non un solo dispositivo. ⏳ **Dal 2026-08-09 ha un consumatore concreto**: [`gameplay/spec-interazioni-mappa-cp101.md`](gameplay/spec-interazioni-mappa-cp101.md) §12, dove «girarsi verso la porta» smette di essere ipotetico — la domanda resta qui, l'owner resta [ADR-0005](decisions/adr-0005-orientamento.md) |
 | `FAC-7` | Quali **status** limitano la rotazione, separatamente dal movimento? | Oggi nessuno: `Status.Root` interagisce con `Guard`, non col facing. Distinguere «non può muoversi» da «non può girarsi» è una scelta di design, non un dettaglio implementativo |
 | `FAC-8` | Il **terreno** può limitare la rotazione (ghiaccio, condotti, scale)? | Fuori v0.1 — ma il ghiaccio esiste già in E8 e in `Visual/Environment/IceSlide`, quindi la domanda va registrata prima che qualcuno la risolva localmente in una spec di terreno |
-| `FAC-9` | Il pathfinding deve diventare **orientation-aware** — stato `(CellId, Facing)` invece di `CellId`? | Fuori v0.1, e va tenuto fuori finché non c'è una misura: moltiplica per sei lo spazio degli stati di A\*, contro i budget già dichiarati in [`technical/spec-pathfinding.md`](technical/spec-pathfinding.md). Il ripiego dichiarato dall'handoff — path geometrico, facing derivato, pivot validato alla fine — **è** già il modello di ADR-0005 |
-| `FAC-10` | Come si chiama la rotazione in posto? | Il canone dice «rotazione dichiarata», l'handoff dice `Pivot`, la Wiki non usa nessuno dei due. Non è pedanteria: `Reposition` è **già** una mobilità speciale a catalogo, quindi il vocabolario della rotazione va scelto una volta prima che tre documenti ne usino tre |
+| `FAC-9` | Il pathfinding deve diventare **orientation-aware** — stato `(CellId, Facing)` invece di `CellId`? | Fuori v0.1, e va tenuto fuori finché non c'è una misura: moltiplica per sei lo spazio degli stati di A\*, contro i budget già dichiarati in [`technical/spec-pathfinding.md`](technical/spec-pathfinding.md). Il ripiego dichiarato dall'handoff — path geometrico, facing derivato, pivot validato alla fine — **è** già il modello di ADR-0005. ⚠️ **Dal 2026-08-10 la pressione aumenta**: con `FAC-1` accettata la cella d'arrivo vale diversamente a seconda del lato da cui la si raggiunge, quindi la **preview** deve mostrare il facing ottenibile. Resta fuori v0.1, ma non più «senza motivo» |
 
 > **Nota di metodo.** Filtrare le quindici domande contro il canone ne ha chiuse cinque senza discussione, e
 > ne ha riqualificata una sesta: «quali valori di rotazione per ogni eroe» non è un valore mancante, è la
@@ -84,10 +101,14 @@ Queste **non** contraddicono nessuna decisione: sono buchi. Vanno decise prima c
 > domande aperte redatto senza verificare il repository misura ciò che l'estensore non sapeva, non ciò che il
 > progetto non ha deciso.
 >
-> Le **dieci** voci qui sopra sono il residuo dopo la verifica — sette dall'elenco §38, tre (`FAC-1`…`FAC-3`)
-> promosse da proposte che l'handoff dava per acquisite. `FAC-4` è l'unica che blocca lavoro costruibile oggi:
-> le altre nove possono aspettare, ma non oltre l'apertura di E16, perché a quel punto il codice risponderà
-> per conto suo.
+> Le **dieci** voci erano il residuo dopo la verifica — sette dall'elenco §38, tre (`FAC-1`…`FAC-3`)
+> promosse da proposte che l'handoff dava per acquisite.
+>
+> **Aggiornamento 2026-08-10.** Quattro sono state decise ([ADR-0008](decisions/adr-0008-rotazione-e-policy-di-facing.md)):
+> `FAC-1`, `FAC-2`, `FAC-4` e `FAC-10`. **Ne restano sei** — `FAC-3` e `FAC-5`…`FAC-9`. Con `FAC-4` chiusa non
+> c'è più una voce che blocchi lavoro costruibile: `CP 14.2`, `CP 14.4` e `CP 14.7` hanno la definizione che
+> aspettavano. Le sei rimaste possono attendere, ma la scadenza dichiarata non cambia — **non oltre l'apertura
+> di E16 in codice**, perché a quel punto il codice risponderà per conto suo.
 
 ---
 
@@ -170,7 +191,7 @@ la **vegetazione**, che non e' fra le otto superfici della v0.1. Una domanda sen
 
 | Tema | Stato |
 |---|---|
-| **Che ne è del Move pianificato se l'unità viene spostata prima della fase Move** | ⏳ **aperta il 2026-08-09**. Pianifico `H5 → H6 → H7`, una spinta nel Blast mi porta in `G5`, poi comincia il Move. Tre modelli: **A** annulla il Move (semplice e deterministico, ma una spinta di una cella annulla un turno), **B** ricalcola il percorso verso la destinazione (**escluso**: contraddice *«mai auto-reroute»*, già in vigore), **C** riesegue la sequenza di direzioni dalla nuova origine (conserva l'intenzione, ma è complesso con porte e layer). **Baseline da testare: A; alternativa C.** Criterio di uscita dichiarato: si decide dopo scenario **e** playtest, e il segnale che A è troppo punitivo è un Move annullato più di una volta ogni due round. Owner: [`gameplay/spec-tassonomia-movimento.md`](gameplay/spec-tassonomia-movimento.md) §5 |
+| ~~**Che ne è del Move pianificato se l'unità viene spostata prima della fase Move**~~ | ✅ **Chiusa il 2026-08-10 da [D-045](decisions/RT_PDR_00_Decision_Log.md)**: `Model A` — se l'origine effettiva differisce da quella pianificata, **il Move decade**. `B` (ricalcolo verso la stessa destinazione) resta **escluso** perché contraddice *«mai auto-reroute»*; `C` (riesecuzione delle direzioni dalla nuova origine) è l'alternativa da provare **dopo**. **Baseline rivedibile**, con criterio di uscita quantificato: Move annullato più di **una volta ogni due round** → si prova `C`. Owner: [`gameplay/spec-tassonomia-movimento.md`](gameplay/spec-tassonomia-movimento.md) §5 |
 | **Con quali valori si tara il Decision Time Bank?** | ⏳ **aperta il 2026-08-09**. *Non* è più aperto **se** costruirlo: entra in **v0.1** come **CP 14.8**, senza gate — owner [`gameplay/spec-decision-time-bank.md`](gameplay/spec-decision-time-bank.md), audit di provenienza [`roadmap/plans/decision-time-bank-conflict-report-2026-08-09.md`](roadmap/plans/decision-time-bank-conflict-report-2026-08-09.md). Il bank è un cap aggregato per un costo che [ADR-0004](decisions/adr-0004-finestre-di-reazione.md) §8 aveva deciso di **misurare prima di contenere** (`D20`, nessun cap): quel rischio è ora **assunto in senso opposto e dichiarato** (spec §2.1), e i due rientri di ADR-0004 §Revisione — *cap aggregato condiviso* e `MaxPromptsPerReaction = 1` — restano validi e compatibili. Resta aperta la **taratura**: `InitialBank` è derivato (`RoundLimit × (MaxWindow − Grace)` → 24 s in 2v2), `Grace` 1,0 s ed `ExhaustedGrace` 0,75 s sono `PROPOSED FOR PLAYTEST` con i criteri di uscita di §3.2. Prima misura utile **CP 14.6**, che CP 14.8 non precede. Metrica che decide: `ReactionDecisionSeconds`, separata da `ResolutionPlaybackSeconds`. Restano aperte anche `TB-5` e `TB-7` (policy di rete, M10): vivono nella spec §17, **non si duplicano qui** |
 
 ## Assunzioni da bloccare

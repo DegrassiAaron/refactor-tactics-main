@@ -44,8 +44,39 @@ RunUAT.bat BuildCookRun -project=<uproject> -noP4 -platform=Win64 \
 
 # 3. il gioco pacchettizzato gira davvero? (smoke test, nessuna persona)
 Packaged/Windows/RefactorTactics.exe -nullrhi -unattended -nosound -abslog=<log>
-grep "LogRT" <log>     # deve mostrare la partita: board, turno, fase Move
+grep "Partita finita" <log>   # la partita si gioca DA SOLA: i bot giocano entrambe le squadre
 ```
+
+**Scegliere la mappa da fuori**, senza aprire l'editor:
+
+```bash
+RefactorTactics.exe -dpcvars=rt.Map.Source=LevelAsset   # oppure GeneratedTestArena, GeneratedDemoArena
+```
+
+`rt.Map.Source` scavalca la proprieta' `MapSource` del `GameMode`, che vive nei Class Defaults di
+`BP_GameMode` — cioe' in un `.uasset` che senza editor non si tocca. Un valore sconosciuto **non** ripiega
+in silenzio: il GameMode lo dichiara e tiene la proprieta'.
+
+> ⚠️ **Serve `-dpcvars=`, non `-ExecCmds=`.** `-ExecCmds` gira **dopo** l'inizializzazione, quando il
+> GameMode ha gia' allestito la partita: la variabile viene impostata e non serve a niente, **senza un
+> errore che lo dica**. Misurato sul pacchettizzato il 2026-08-10 — il log continuava a dire
+> `MapSource=GeneratedTestArena` mentre la riga di comando chiedeva `LevelAsset`.
+
+**Tre insidie, tutte costate tempo la prima volta:**
+
+- **`-clientconfig=Development -clientconfig=Shipping` non fa due configurazioni**: la seconda viene
+  ignorata in silenzio e ti ritrovi con un solo binario. Il separatore e' `+`, oppure si fanno due passate.
+- **Il cook Shipping non produce log.** `UE_LOG` a livello `Display` e' compilato fuori, quindi `-abslog`
+  resta vuoto e sembra che il gioco non parta. La partita si verifica sul pacchetto **Development**; per
+  Shipping ci si ferma a «il processo gira» (CPU e RAM, non il log).
+- **`Packaged/Windows/RefactorTactics.exe` e' un launcher stub da 168 KB.** Lanciarlo da' un processo a
+  ~7 MB di RAM e 0 CPU, che sembra bloccato. Il binario vero sta in
+  `Packaged/Windows/RefactorTactics/Binaries/Win64/`.
+
+E una che e' dell'ambiente, non della ricetta: se un'altra sessione sta compilando, UAT esce con
+**`Error_SDKNotFound`** — codice fuorviante, perche' la causa vera sta tre righe piu' su nel log:
+`A conflicting instance of ... UnrealBuildTool_Mutex ... is already running` -> `Failed (ConflictingInstance)`.
+Rimedio: `-ubtargs="-WaitMutex"`, che aspetta invece di fallire.
 
 > **Un worktree basta, e questo va detto perché il contrario sembra ovvio.** `Content/**/*.uasset` è
 > ignorato da `.gitignore`, quindi verrebbe da concludere che un worktree non abbia contenuti e non possa

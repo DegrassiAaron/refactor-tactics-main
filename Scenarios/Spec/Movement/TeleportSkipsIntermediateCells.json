@@ -1,0 +1,43 @@
+{
+  "scenarioId": "Spec.Movement.TeleportSkipsIntermediateCells",
+  "tags": ["spec", "movement", "teleport"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 5,
+
+  "_nota": "SPECIFICA ESEGUIBILE della riga piu' facile da sbagliare della tassonomia del movimento: un teletrasporto NON attraversa le celle intermedie. Chi compare in D non e' passato per B e C, quindi non ne prende gli hazard, non ne scatta le trappole e non ne attraversa i bordi. Regola in docs/gameplay/spec-tassonomia-movimento.md §2.",
+
+  "_nota_perche_esiste": "**Il teletrasporto non esiste in v0.1**: nessuna azione del catalogo lo produce, e la matrice della tassonomia lo dichiara apertamente. Questo file esiste comunque, e prima, perche' e' il caso in cui la scorciatoia implementativa e' piu' tentante — far percorrere al teletrasporto lo stesso codice del movimento, cambiando solo la velocita' — e produrrebbe un teletrasporto che brucia chi lo usa. Scritto dopo, sarebbe scritto sull'implementazione che gia' c'e'.",
+
+  "_nota_da_completare": "Chi implementa il teletrasporto: dichiara la capability `Teleport` in `IsCapabilityAvailable`, riempie l'intent del turno 2 con l'azione reale, e aggiunge le due assertion che contano — gli HP di chi arriva (**invariati**: non ha attraversato il fuoco) e la sua cella finale. La corsia di fuoco fra origine e destinazione e' gia' preparata negli override.",
+
+  "_nota_aritmetica_attesa": "Flux parte da (-2,0) con 90 HP. Fra lui e la destinazione (2,0) ci sono due celle in fiamme, (0,0) e (1,0). Un MOVE attraverso quella corsia costerebbe il danno da fuoco di entrambe; un TELEPORT no. L'assertion finale deve dire **90**: e' l'intero contenuto informativo di questo scenario.",
+
+  "cells": [
+    { "cell": [0, 0, 0], "surface": "Fire" },
+    { "cell": [1, 0, 0], "surface": "Fire" }
+  ],
+
+  "units": [
+    { "id": "F1", "hero": "Hero.Flux",   "team": 0, "cell": [-2, 0, 0] },
+    { "id": "V1", "hero": "Hero.Vektor", "team": 1, "cell": [ 4, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — nessuno si muove: fissa lo stato di partenza e prova che Flux e' a 90 HP prima di qualunque cosa.",
+      "intents": []
+    },
+    {
+      "_turno": "T2 — Flux si teletrasporta oltre la corsia di fuoco, da (-2,0) a (2,0). Non attraversa (0,0) ne' (1,0).",
+      "requires": ["Teleport"],
+      "intents": []
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals", "unit": "F1", "value": 90 },
+    { "type": "UnitAlive",    "unit": "F1", "value": true },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

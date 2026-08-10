@@ -113,30 +113,30 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 **Suite automatica**: **si misura, non si cita — e da qui in avanti nemmeno si scrive.**
 
 <!-- RT_SUITE_COUNT:BEGIN -->
-**544 test unici in 76 file** — misurati su `45f8d24`.
+**573 test unici in 76 file** — misurati su `4a3fd20`.
 
 Generato da `python scripts/feature_registry.py suite`: **non si aggiorna a mano**. Era scritto a mano in due documenti ed è divergito cinque volte.
 
 | Area | Test | Cosa fissa |
 |---|---:|---|
-| `Hex*` (mappa, path, vision, bot, blast, move, match) | 88 | Coordinate, A\*, LOS, bot, partita completa |
-| `Actions.*` | 65 | Ordine per priorità, permutazione-invarianza, fallback, mappatura di fase |
+| `Hex*` (mappa, path, vision, bot, blast, move, match) | 99 | Coordinate, A\*, LOS, bot, partita completa |
+| `Actions.*` | 70 | Ordine per priorità, permutazione-invarianza, fallback, mappatura di fase |
 | `Terrain.*` · `Status.*` · `Environment.*` | 39 | Superfici, stati temporanei, propagazione elettrica, fuoco/acqua |
 | `Combat.*` · `HexCombat.*` | 39 | Danno dopo scudo, forme, LOS, niente fuoco amico |
 | `Reactions.*` | 27 | Attivazione singola, trigger puro, reazioni componibili, privacy |
-| `HexSim.*` | 27 | Snapshot, budget, collisioni simultanee, **replay divergence 0** |
-| `Match*` (allestimento, formato, fine partita) | 27 | Le tre vie di fine partita e il `RoundLimit` da formato |
-| `Heroes.*` | 29 | I 4 eroi corrispondono al catalogo, trade-off delle varianti |
-| `TurnLog.*` | 22 | Hash permutazione-invariante, serializzazione versionata, checksum |
-| `Scenario.*` · `ScenarioIndex.*` | 55 | Harness: PASS/FAIL/ERROR/**BLOCKED**, identità e tag, niente bypass |
-| `Structures.*` | 20 | Porte come bordo (E9.3), ponti come arco (E9.4) |
+| `HexSim.*` | 28 | Snapshot, budget, collisioni simultanee, **replay divergence 0** |
+| `Match*` (allestimento, formato, fine partita) | 29 | Le tre vie di fine partita e il `RoundLimit` da formato |
+| `Heroes.*` | 31 | I 4 eroi corrispondono al catalogo, trade-off delle varianti |
+| `TurnLog.*` | 24 | Hash permutazione-invariante, serializzazione versionata, checksum |
+| `Scenario.*` · `ScenarioIndex.*` | 56 | Harness: PASS/FAIL/ERROR/**BLOCKED**, identità e tag, niente bypass |
+| `Structures.*` | 21 | Porte come bordo (E9.3), ponti come arco (E9.4) |
 | `Playback.*` · `Preview.*` · `PlayerInput.*` · `ShowcaseRelay.*` · `Camera.*` | 23 | Presentazione e input: non decidono, riproducono |
-| `Unit.*` · `Turn.*` · `Simulation.*` · `Movement.*` | 18 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
+| `Unit.*` · `Turn.*` · `Simulation.*` · `Movement.*` | 19 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
 | `Cover.*` | 19 | Copertura bassa e alta, bordi, danno a struttura e distruzione |
 | `Catalog.*` | 9 | Invarianti del catalogo: solo interi, slot dichiarati, ID stabili |
 | `Pacing.*` | 7 | Pacing del turno misurato |
 | `Perf.*` | 2 | Path mediana **0,025 ms** · resolver **0,41 ms/turno** |
-| **totale** | **516** | |
+| **totale** | **542** | |
 
 > ⚠️ Test fuori da ogni area dichiarata: `RefactorTactics.Equipment.PortableCover.CreatesCover`, `RefactorTactics.Facing.BudgetMoveAllowsLastStepPlusMinusOne`, `RefactorTactics.Facing.DashThenBlastUsesLatestValue`, `RefactorTactics.Facing.EnvironmentalDisplacementKeepsFacing`, `RefactorTactics.Facing.ForcedMovementFacesSource`, `RefactorTactics.Facing.IntentIsTeamFiltered`, `RefactorTactics.Facing.LinearMoveDerivesDirection`, `RefactorTactics.Facing.PermutationInvariant`
 <!-- RT_SUITE_COUNT:END -->
@@ -172,9 +172,9 @@ Evidenza = i **nomi dei test**, che sono la prova di ciò che esiste:
 | **E13** Conoscenza parziale: vista e udito | ⏳ **assente** | la vista è una statistica a catalogo che non decide nulla |
 | **E14** Overwatch e reazioni interattive | ⏳ **assente** | ADR-0004 accettato, nessun codice. Dipende da E13 |
 | **E15** Showcase «Il Relè» e golden replay | 🟡 **iniziata** | 2 test `ShowcaseRelay.*` — fixture stabile, scenario lite deterministico |
-| **E16** Orientamento e direzionalità | ✅ **chiusa** | 13 test `Facing.*` + 3 `Combat.*` direzionali + 5 scenari `Spec.Facing.*` — il facing è stato di gioco (derivato da Move e Dash, riorientato dal bersaglio, in snapshot, TurnLog e hash, filtrato per squadra) e la difesa direzionale annulla copertura bassa e `Guard` fuori dall'arco frontale, con la stessa `HexCone` che userà la vista. Resta fuori `FacingUsedByOverwatch`, che è E14 |
+| **E16** Orientamento e direzionalità | ✅ **chiusa** | 13 test `Facing.*` + 3 `Combat.*` direzionali + 5 scenari `Spec.Facing.*` — il facing è stato di gioco (derivato da Move e Dash, riorientato dal bersaglio, in snapshot, TurnLog e hash, filtrato per squadra) e la difesa direzionale annulla copertura bassa e `Guard` fuori dall'arco frontale, con la stessa `HexCone` che userà la vista. Resta fuori `FacingUsedByOverwatch`, che è E14. ⚠️ **2026-08-10**: l'epic **resta chiusa** — i suoi due checkpoint sono stati consegnati e i loro DoD reggono — ma [ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md) ha **allungato la spec** oltre ciò che E16 aveva costruito (budget di pivot per eroe, facing nei micro-step, policy dichiarative). Per questo `RT-FEAT-MAP-FACING` torna `IMPLEMENTING`: non è E16 a essere stata riaperta, è il metro a essersi spostato. Il lavoro nuovo va assegnato, e non ha ancora un checkpoint |
 | **E17** Validazione di stress 4v4 | ⏳ **assente** | dopo E15; **non** è un gate di release |
-| **E18** Predictive Action, thin slice | ⏳ **assente** | nessun test `Predictive.*`; l'unico artefatto è lo scenario-spec `Spec.Predictive.WhiffOnEmptyCell`, che esce `BLOCKED` su `PredictiveAction` |
+| **E18** Predictive Action, thin slice | ✅ **chiusa 2026-08-10** | 7 test `Predictive.*` + `Heroes.Vektor.InterceptShotIsPredictive` — boundary **puro** e permutazione-invariante, whiff col fallback dichiarato, `InterceptShot` migrata da reazione rinviata a predittiva · `Spec.Predictive.WhiffOnEmptyCell` da `BLOCKED` a **`PASS`** · la showcase passa da **1 a 3** turni giocati |
 | **E19** Classe di mappa e composizione | 🟡 **parziale** | 5 test `MatchFormat.*` — il formato è un data asset validato, il fallback è **osservabile** e un asset non valido blocca il setup · ⏳ la mappa non dichiara ancora la propria **classe** né il formato le **unità per squadra** ([D-030](../decisions/RT_PDR_00_Decision_Log.md)) |
 | **E20** HUD Icon Language | 🟡 **parziale** | 5 test `IconCatalog.*` — ogni chiave risolve, l'ID duplicato e la chiave assente sono **errori di validazione**, la chiave sconosciuta cade sul fallback · ⏳ i widget non consumano ancora il catalogo |
 | **E21** Presentazione e leggibilità | 🟡 **parziale** | 4 test `Unit.*` (anello, colore di squadra, posa sul centro-cella, nome breve) + 4 `Camera.*` · ⏳ il grosso è **lavoro in editor** — mesh, animazioni, materiali — che non è testabile headless: vive nelle voci PIE della sessione C |
@@ -274,10 +274,10 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-REACTION-PROFILE` — Reaction Profile armato da Brace | IMPLEMENTING | 1/8 |
 | **E15** | `RT-FEAT-TEST-GOLDEN` — Golden replay e showcase «Il Relè» | IMPLEMENTING | 3/8 |
 |  | `RT-FEAT-TEST-SCENARIO-HARNESS` — Scenario Test Harness automatizzato | INTEGRATED | 6/8 |
-| **E16** | `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole — completata da `RT-FEAT-UI-PLANNING` | INTEGRATED | 6/9 |
+| **E16** | `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole — completata da `RT-FEAT-UI-PLANNING` | IMPLEMENTING | 5/9 |
 | **E17** | `RT-FEAT-STRESS-4V4` — Validazione di stress 4v4 | SPECIFIED | 1/7 |
-| **E18** | `RT-FEAT-ACTION-PREDICTIVE` — Predictive Action, thin slice | SPECIFIED | 1/8 |
-| **E19** | `RT-FEAT-MATCH-FORMAT` — Formato di partita e classe di mappa | TESTABLE | 4/8 |
+| **E18** | `RT-FEAT-ACTION-PREDICTIVE` — Predictive Action, thin slice | INTEGRATED | 6/8 |
+| **E19** | `RT-FEAT-MATCH-FORMAT` — Formato di partita e classe di mappa | TESTABLE | 5/8 |
 | **E20** | `RT-FEAT-UI-ICON-LANGUAGE` — HUD Icon Language | IMPLEMENTING | 1/7 |
 | **E21** | `RT-FEAT-CHAR-PRESENTATION` — Presentazione dei personaggi (mesh, animazioni, anelli) | IMPLEMENTING | 1/7 |
 
@@ -287,7 +287,7 @@ silenzio.
 
 | Feature | Vista | Perché fuori scope |
 |---|---|---|
-| `RT-FEAT-TOOL-MAP-EDITOR` — Editor mode della mappa esagonale | M9 | Strumento d'editor: non entra nella build di gioco e non ha un gate di release. Tracciato da M9 e da `roadmap-editor.md`, non dalle epic della v0.1. |
+| `RT-FEAT-TOOL-MAP-EDITOR` — Editor mode della mappa esagonale | M9 | Strumento d'editor: non entra nella build di gioco e non ha un gate di release. Tracciato da M9 e dalla EditorMap, non dalle epic della v0.1. |
 | `RT-FEAT-UI-SCENARIO-BROWSER` — Selettore e indice degli scenari | — | Tooling di test nato dall'issue `#209`: serve a chi sviluppa, non è contenuto della release. Già costruito e coperto da test; nessun gate della v0.1 dipende da lui. |
 
 <!-- RT_FEATURE_BY_EPIC:END -->
@@ -313,10 +313,10 @@ silenzio.
 | **E13** | Conoscenza parziale — vista e udito | P2 | 5 | La vista è una statistica a catalogo che non decide nulla; il rumore è il suo gemello e i dati esistono già |
 | **E14** | Overwatch e reazioni interattive | P2 | 6 | Bait, bluff e commitment non sono recuperabili con reazioni dichiarate; l'aggancio (`SuppressiveLine`, `InterceptShot`) esiste già |
 | **E15** | Showcase «Il Relè» e golden replay | P1 | 5 | La prova integrata che le regole generali producono una partita: fixture, scenario e replay a hash stabile — consumer dei sistemi, mai codice speciale |
-| **E16** | Orientamento e direzionalità | P1 | 2 | L'orientamento smette di essere presentazione: decide difesa, percezione e reazioni con una sola primitiva (`HexCone`) e **zero numeri nuovi**. È **prerequisito di E13** |
+| **E16** | Orientamento e direzionalità | P1 | 2 | L'orientamento smette di essere presentazione: decide difesa, percezione e reazioni con una sola primitiva (`HexCone`). È **prerequisito di E13**. ⚠️ **«Zero numeri nuovi» non vale più dal 2026-08-10**: [ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md) accetta la rotazione come **capacità del personaggio** e introduce **otto** numeri (2 per eroe). Il vanto era di ADR-0005, che su questo è superato |
 | **E17** | Validazione di stress 4v4 | P3 | 3 | Misura, non produzione: dove si rompe il sistema con **otto unità** (resolver, leggibilità, prompt di reazione, TurnLog). Mirror del roster core, **dopo E15**. Non decide il formato principale ([D-011](../decisions/RT_PDR_00_Decision_Log.md)) |
 | **E18** | Predictive Action — thin slice | P2 | 2 | Il pilastro della **predizione** diventa percepibile con **una sola** azione: decisa in Planning, risolta a un boundary deterministico, **senza input live** ([D-016](../decisions/RT_PDR_00_Decision_Log.md)). Il framework di trap resta fuori |
-| **E19** | Classe di mappa e composizione | P2 | 2 | `URTMatchFormatData` **esiste già**: restano due buchi misurati — la mappa non dichiara la propria **classe** (implicita nel `FormatId`) e il formato non dichiara le **unità per squadra** ([D-030](../decisions/RT_PDR_00_Decision_Log.md)) |
+| **E19** | Classe di mappa e composizione | P2 | 2 | `URTMatchFormatData` **esiste già**, e i due buchi misurati sono **chiusi** (2026-08-09, `#215`/`#216`): la mappa dichiara la propria `MapClass` e il formato dichiara `UnitsPerTeam`, entrambi con consumatori runtime. Dal 2026-08-10 `Format.Skirmish2v2` è **spedito da C++** (`#375`), come le istanze di azioni ed eroi: il formato canonico non dipende più da un `.uasset` che il repository non contiene. **Lo stato autorevole è in [`feature-registry.yaml`](feature-registry.yaml) (`RT-FEAT-MATCH-FORMAT`)**, non in questa riga |
 | **E20** | HUD Icon Language | P2 | 3 | Le icone sono un **catalogo semantico**, non texture referenziate nei widget: E11 costruisce l'HUD adesso, e riscrivere ogni widget dopo costa più del file di dati in più ([D-031](../decisions/RT_PDR_00_Decision_Log.md)) |
 | **E21** | Presentazione e leggibilità | P1 | 3 | Il gioco smette di essere cilindri colorati. Era l'unico lavoro **dentro** lo scope di release che nessuna epic copriva: viveva solo nella milestone M8, e il Feature Registry lo ha reso visibile il 2026-08-08 |
 
@@ -761,23 +761,30 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 | **12.4** | KPI misurati | FPS client, path mediana, preview completa, resolver per turno **misurati e registrati** (anche se fuori target); replay divergence = 0; intent leak = 0. **In più** (2026-08-07): le metriche di **durata** — `RoundsPlayed`, `MatchDurationSeconds`, `PlanningDurationSeconds`, `ResolutionPlaybackSeconds`, `ReadyAtSeconds`, `FirstEnemyContactRound` — raccolte sul **2v2** e dichiarate come tali, **non** confrontate con le bande del 3v3 Standard che non esiste in v0.1 | Tabella KPI di `v0.1-definition-of-done.md` compilata con numeri reali · metriche in [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §17 |
 | **12.5** | Release interna v0.1 | Packaging Windows **Development** e **Shipping** dal codice solo-hex; una partita completa giocata **senza editor**, dall'avvio alla vittoria | `RunUAT BuildCookRun` → BUILD SUCCESSFUL + avvio e partita verificati |
 
-> **Metà di CP 12.5 è già verificata, e le due mancanze sono note** (2026-08-10, misurate da un worktree).
-> `RunUAT BuildCookRun` esce **`BUILD SUCCESSFUL`**: pacchetto 915 MB, `.pak` 10 MB, e il binario avvia una
-> partita 2v2 su 65 celle con 4 eroi — pianificazione, lock-in e fase Move risolti **senza editor**. La
-> ricetta completa sta in [`../technical/test-e-diagnosi.md`](../technical/test-e-diagnosi.md) §1.
+> **Il DoD di CP 12.5 è soddisfatto alla lettera** (2026-08-10, misurato da un worktree):
 >
-> **Cosa manca davvero**, e non è il packaging:
+> | Richiesta del DoD | Esito |
+> |---|---|
+> | Packaging Windows **Development** | ✅ `BUILD SUCCESSFUL` · pacchetto 916 MB · `.pak` 10 MB |
+> | Packaging Windows **Shipping** | ✅ `BUILD SUCCESSFUL` · 569 MB · binario 159 MB, avviato e attivo (223 MB RAM) |
+> | Partita completa **senza editor**, fino alla vittoria | ✅ `Partita finita: Vince il team 1 (rosso) - per eliminazione (round 6/12)` — 6 turni, zero crash |
+>
+> Ricetta in [`../technical/test-e-diagnosi.md`](../technical/test-e-diagnosi.md) §1. Note operative: il
+> **cook Shipping non produce log** (`UE_LOG` a livello `Display` è compilato fuori), quindi la partita si
+> verifica sul pacchetto **Development**; e lanciare `Packaged/Windows/RefactorTactics.exe` avvia il
+> **launcher stub** da 168 KB — il binario vero sta in `RefactorTactics/Binaries/Win64/`.
+>
+> ⚠️ **Ma il checkpoint si chiama «Release interna v0.1», e questo non lo è ancora.** Restano due mancanze,
+> ed è la ragione per cui il gate `packaged` delle feature resta chiuso:
 >
 > 1. **Nessun `MatchFormat` assegnato.** Il pacchettizzato ripiega su `Format.Fallback` (RoundLimit 12,
->    soglia obiettivo 0) e lo dichiara come `Warning`. Una release che parte su un formato di ripiego non è
->    la release.
+>    soglia obiettivo 0) e lo dichiara come `Warning`. La partita verificata è finita 6/12 **per
+>    eliminazione**: la via a punti non è mai stata esercitata, perché la soglia obiettivo è 0.
 > 2. **Il gioco parte sulla mappa di PROVA.** `MapSource=GeneratedTestArena` genera 65 celle con ostacoli:
->    è l'arena di test, non un livello di gioco. `L_Prototype` si carica, ma è vuoto per costruzione — la
->    board la allestisce il GameMode a runtime.
+>    è l'arena di test, non un livello di gioco.
 >
-> Entrambe sono **dati**, non codice: nessuna delle due richiede build. Sono ciò che separa «il gioco si
-> pacchettizza» da «la release esiste», ed è la ragione per cui il gate `packaged` resta chiuso.
-> Manca inoltre la partita **fino alla vittoria**, che resta una verifica umana.
+> Entrambe sono **dati, non codice**: nessuna richiede una build. Sono ciò che separa «il gioco si
+> pacchettizza» — ora dimostrato — da «la release esiste».
 | **12.6** | **Corpus golden di TurnLog** *(nuovo, 2026-08-07)* | Un insieme di partite di riferimento serializzate su file sotto `Source/RefactorTactics/Tests/Golden/`; un test le riesegue e confronta **TurnLog e checksum**; una divergenza fallisce indicando turno, fase e `ActionId`. Rigenerabili con un flag esplicito, **mai** in automatico | `Simulation.GoldenCorpusMatches`, `Simulation.GoldenCorpusDetectsDivergence` (divergenza introdotta apposta) |
 
 > **CP 12.1 e 12.6 sono il sistema di test del combattimento scelto il 2026-08-07.** Il *fuzzing deterministico*
@@ -1140,6 +1147,16 @@ copre già classi di mappa, durata, round, Planning/Ready, Fast Reaction e budge
 | **19.1** | `MapClass` sul dato mappa | La classe (`Skirmish` · `Standard` · `Operations`) è un campo di `URTHexMapAsset`: oggi è **implicita nel `FormatId`**, quindi una mappa non sa dire a quale classe appartiene e il controllo di coerenza formato↔mappa non è esprimibile. La simulazione **non ramifica** sulla classe: legge i parametri che essa porta | `MapClass.SliceIsSkirmish`, `MapClass.FormatAndMapAgree`, `MapClass.NotBranchedInSimulation` |
 | **19.2** | `UnitsPerTeam` nel formato | La composizione è un campo del formato, non un'assunzione del `GameMode`. `Format.Skirmish2v2` dichiara 2; E17 (stress 4v4) smette di essere un caso speciale e diventa un formato | `MatchFormat.DeclaresUnitsPerTeam`, `MatchFormat.GameModeHonoursComposition` |
 
+> ✅ **E19 chiusa il 2026-08-09** (`#215`, `#216`). `ERTMapClass` è un campo di `URTHexMapAsset`
+> (`CurrentFormatVersion` 5 → 6, default `Skirmish` — ciò che le mappe scritte prima già erano) e
+> `UnitsPerTeam` un campo del formato, che il `GameMode` **onora** invece di assumere: rifiuta se le
+> formazioni non lo rispettano, come già faceva col formato invalido. Il «non ramifica» non è una promessa
+> scritta: `MapClass.NotBranchedInSimulation` gioca due partite identiche che differiscono per la sola
+> classe e confronta l'hash del TurnLog.
+>
+> I tre test di migrazione del formato mappa **sono caduti** al bump di versione, ed era il loro lavoro:
+> pinnavano `CurrentFormatVersion == 5` perché un bump facesse rumore.
+
 **Fuori scope, dichiarato**: formato 3v3, classe Standard giocabile, Operations, selezione del formato da UI.
 Stanno in [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) (E24, E30). Fuori scope anche i **timer nel dato**:
 è una decisione già presa in senso contrario.
@@ -1170,6 +1187,16 @@ Reaction, Coordination, Certainty, Warning, Objective.
 | **20.1** | `URTIconCatalogData` | Le icone si risolvono per **chiave semantica** stabile (`UI.Icon.Status.Wet`, `UI.Icon.Phase.Blast`). Una chiave senza icona è un errore di validazione, non un widget vuoto; una chiave sconosciuta a runtime dà il missing-icon e una warning, mai il vuoto. L'insieme richiesto è **derivato dai dati di gioco** — tag `Status.*`, azioni core, fasi volontarie — non da una lista a mano | `IconCatalog.EveryKeyResolves`, `…MissingKeyIsValidationError`, `…UnknownKeyReturnsFallback`, `…DuplicateIdIsValidationError`, `…RequiredIdsFollowGameData` |
 | **20.2** | Categorie della v0.1 | Popolate le sole categorie che la v0.1 usa davvero: Identity, Action, Phase, Status, Certainty. Le altre sette restano dichiarate e vuote | `IconCatalog.V01CategoriesPopulated` |
 | **20.3** | I widget consumano il catalogo | Nessun widget di E11 referenzia una texture direttamente; l'HUD cambia icona cambiando il dato | `IconCatalog.NoDirectTextureInWidgets` + voce PIE `PIE-ICON-01` |
+
+> ✅ **CP 20.1 chiuso** — il codice esisteva dal 2026-08-09 (`1ca9bcd`, PR `#278`), ma la issue `#218` è
+> rimasta aperta perché quella PR la citava senza chiuderla. Verificato e chiuso lo stesso giorno: i cinque
+> test nominati sono verdi, il validator copre **sette** casi nominando la chiave colpevole, `RequiredIconIds()`
+> deriva l'insieme richiesto da `ERTMatchPhase`, `GetCoreActionCatalog()` e dai tag `Status.*` — non da una
+> lista scritta a mano — e la build `Shipping` passa.
+>
+> Il gate `runtime` del registry resta `partial` **di proposito**: il tipo e la libreria esistono e sono
+> testati, ma nessuno li consuma fuori dai test. I consumatori sono CP 20.3, e un dato senza consumatore non
+> è `done`.
 
 **Fuori scope, dichiarato**: le dodici categorie complete, world-space HUD, icone di fazione per il roster 8,
 pagine wiki illustrate. Stanno in [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) (E25).
@@ -1376,6 +1403,6 @@ Rilevati confrontando `roadmap-checkpoint.md` con il repository (2026-08-05):
 | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate di release, KPI, checklist trasversale |
 | [`v0.1-issue-plan.md`](v0.1-issue-plan.md) | Titoli e body delle issue (e mappa issue ↔ checkpoint) |
 | [`roadmap-checkpoint.md`](roadmap-checkpoint.md) | **Esecuzione**: stato delle milestone M6–M11 |
-| [`roadmap-editor.md`](roadmap-editor.md) | **Operativo in editor**: sedute di authoring e verifica (U1–U17) |
+| [`editormap.shortlist.md`](editormap.shortlist.md) | **Operativo in editor**: sedute di authoring e verifica, generata da [`editor-sessions.yaml`](editor-sessions.yaml) |
 | [`test-manuali-pie.md`](../technical/test-manuali-pie.md) | Verifiche interattive, sessioni A–E |
 | `docs/balance/` | Cataloghi azioni/terreni/equipaggiamento/eroi/test (creati in CP 1.2) |
