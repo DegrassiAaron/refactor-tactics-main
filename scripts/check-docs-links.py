@@ -293,9 +293,20 @@ def check_wiki_clone(wiki_root):
             # `[[Etichetta|slug]]`: il bersaglio e' l'ultimo campo. Il backslash e' l'escape della
             # pipe dentro le celle di tabella, dove `|` chiuderebbe la colonna.
             target = m.group(1).split("|")[-1].replace("\\", "").strip()
+            riga = text[: m.start()].count("\n") + 1
             if target not in pagine:
-                riga = text[: m.start()].count("\n") + 1
                 problemi.append(f"{relp}:{riga} [[{m.group(1)}]] -> pagina inesistente: {target}")
+            # Dentro una cella di tabella la `|` va escapata, perche' GitHub taglia la riga in
+            # colonne **prima** di riconoscere il wikilink: `[[Conflux|conflux]]` diventa due celle,
+            # `[[Conflux` e `conflux]]`, e il link non esiste piu'. Verificato sulla Wiki pubblicata:
+            # la tabella «Mappa del roster» di `Fazioni` mostrava il nome della fazione spezzato in
+            # due colonne. Erano 66 righe su 14 pagine, tutte con il link risolvibile — per questo il
+            # controllo qui sopra le dichiarava a posto e nessuno se ne accorgeva.
+            if text[: m.start()].rsplit("\n", 1)[-1].lstrip().startswith("|") and "\\|" not in m.group(1):
+                if "|" in m.group(1):
+                    problemi.append(
+                        f"{relp}:{riga} [[{m.group(1)}]] e' in una cella di tabella e la pipe non e' "
+                        "escapata: scrivi `[[Etichetta\\|slug]]`, altrimenti la riga si spezza")
         for m in WIKI_IMG_RE.finditer(text):
             src = m.group(1)
             if src.startswith(SKIP_SCHEMES) or any(a <= m.start() < b for a, b in fences):
