@@ -284,13 +284,6 @@ public:
 	TArray<FGameplayTag> PlannedCleansePriority;
 
 	/**
-	 * Distanza di sicurezza per il kiting del bot: se un nemico si avvicina sotto questa soglia
-	 * e non c'e' un attacco disponibile, il bot arretra. 0 = non fa kiting (mischia).
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
-	int32 KiteStandoff = 0;
-
-	/**
 	 * Imposta statistiche e azioni interamente da `URTHeroData` (CP 6.1, epic E6): nessun numero scritto qui.
 	 *
 	 * E' l'UNICA via per configurare un'unita'. Fino al 2026-08-10 ne esisteva una seconda,

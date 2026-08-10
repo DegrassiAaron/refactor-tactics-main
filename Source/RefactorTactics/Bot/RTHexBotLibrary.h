@@ -137,6 +137,28 @@ class REFACTORTACTICS_API URTHexBotLibrary : public UBlueprintFunctionLibrary
 
 public:
 	/**
+	 * Distanza di sicurezza del kiting, DERIVATA dalla portata dell'attacco base. `0` = mischia.
+	 *
+	 * Il kiting e' un comportamento del BOT, non una caratteristica dell'eroe: un'unita' che muovi tu non lo
+	 * consulta mai — dove andare lo decidi tu. Per questo il numero non sta piu' su `ARTUnit` (dove i due
+	 * archetipi legacy lo scrivevano insieme alle statistiche) ne' su `URTHeroData`: un campo sull'eroe
+	 * direbbe «Riva tiene le distanze» anche quando Riva la guidi tu, dove non significa niente.
+	 *
+	 * La regola riproduce i due archetipi che il comportamento lo producevano: `Ranger` aveva portata 6 e
+	 * standoff 4, `Guardian` portata 3 e standoff 0. Chi colpisce da lontano ha qualcosa da guadagnare a
+	 * restare lontano; chi colpisce da vicino no, e arretrare gli costerebbe soltanto il turno.
+	 *
+	 * Sul roster v0.1 l'unica kiter e' Riva (`PressureJet`, portata 5 -> standoff 3). Flux e Vektor (4) e
+	 * Bastion (3) chiudono la distanza. Se la soglia va spostata, e' questa riga: il resto del bot legge
+	 * `FRTHexBotContext::KiteStandoff` e non sa da dove venga.
+	 */
+	static int32 DeriveKiteStandoff(int32 AttackRangeCells)
+	{
+		constexpr int32 KiterMinRange = 5;
+		return AttackRangeCells >= KiterMinRange ? AttackRangeCells - 2 : 0;
+	}
+
+	/**
 	 * Utility score (intero) di una candidata: focus-fire (danno + bonus se uccide), meno la minaccia subita
 	 * nella cella di destinazione (solo dai nemici che hanno gittata E linea di vista: la copertura protegge),
 	 * meno la penalita' di posizionamento (kiter sotto standoff / mischia lontana), piu' il bonus di quota.
