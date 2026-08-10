@@ -122,8 +122,15 @@ bool FRTPlayerWaypointInteractionTest::RunTest(const FString&)
 
     // Click ripetuti finche' il budget si esaurisce: a un certo punto il rifiuto e' per BUDGET, non per la cella.
 	{
+		// La lista dei click deve superare il budget di CHIUNQUE si stia muovendo: con quattro celle bastava
+		// il budget 5 del Ranger legacy, con 6 nessun click veniva piu' rifiutato e il test verificava il
+		// nulla. Si allunga finche' non eccede il budget effettivo.
 		int32 Rejected = 0;
-		const FRTCellId Far[] = { FRTCellId(4, -1, 0), FRTCellId(4, 0, 0), FRTCellId(3, 1, 0), FRTCellId(2, 2, 0) };
+		TArray<FRTCellId> Far = { FRTCellId(4, -1, 0), FRTCellId(4, 0, 0), FRTCellId(3, 1, 0), FRTCellId(2, 2, 0) };
+		for (int32 Q = 1; Far.Num() <= Unit->GetEffectiveMoveRange(); ++Q)
+		{
+			Far.Add(FRTCellId(2 - Q, 2 + Q, 0));
+		}
 		for (const FRTCellId& C : Far)
 		{
 			const int32 Before = Unit->PlannedWaypoints.Num();

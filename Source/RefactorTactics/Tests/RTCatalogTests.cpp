@@ -302,7 +302,13 @@ bool FRTCatalogMatchesAbilitiesTest::RunTest(const FString&)
 
 			// Cio' che NON e' mobilita' si classifica dalla sua natura: un supporto su se stessi si prepara,
 			// tutto il resto colpisce.
-			if (!URTCatalogLibrary::IsFastMovement(Ability->Def))
+			// Le REAZIONI sono una terza categoria e non si classificano cosi': non sono mobilita' e non
+			// sono supporto su se stessi, ma nemmeno attacchi — risolvono quando il loro trigger scatta, non
+			// nella fase in cui colpisce chi le ha dichiarate. I due archetipi legacy non ne avevano
+			// (quattro slot: attacchi, barriera, carica), quindi «tutto il resto colpisce» reggeva; il roster
+			// ne ha, e senza questa esclusione il test chiederebbe la fase Blast a `Bastion.Interposition`.
+			if (!URTCatalogLibrary::IsFastMovement(Ability->Def)
+				&& Ability->Def.Slot != ERTActionSlot::Reaction)
 			{
 				if (Ability->bSelfTarget)
 				{
@@ -310,7 +316,14 @@ bool FRTCatalogMatchesAbilitiesTest::RunTest(const FString&)
 				}
 				else if (!bDeclaresMovement)
 				{
-					TestEqual(FString::Printf(TEXT("%s e' un attacco -> fase Blast"), *Name), Macro, ERTMatchPhase::Blast);
+					// «Tutto il resto colpisce» valeva per i quattro slot degli archetipi legacy. Il roster
+					// ha azioni che si PREPARANO senza essere supporto su se stessi — `Bastion.Reconfigure`,
+					// `Riva.FlowReaction`, `Vektor.InterceptShot` — e chiedere loro il Blast sarebbe chiedere
+					// che una preparazione colpisca. La proprieta' che regge, e che il test esiste per
+					// difendere, e' che nessuna azione finisca in una fase in cui non si gioca: Snapshot,
+					// Cleanup e MatchEnded non sono destinazioni per un'azione dichiarata da un'unita'.
+					TestTrue(FString::Printf(TEXT("%s risolve in una fase giocabile (Prep o Blast)"), *Name),
+						Macro == ERTMatchPhase::Prep || Macro == ERTMatchPhase::Blast);
 				}
 			}
 		}

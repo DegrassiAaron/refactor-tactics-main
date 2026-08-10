@@ -548,7 +548,7 @@ bool FRTInterceptRevalidatesFacingTest::RunTest(const FString&)
 		ERTHexDirection::W);
 	TestEqual(TEXT("l'interposizione si e' attivata lo stesso"), Rear.Activations, 1);
 	TestEqual(TEXT("alle spalle: la copertura non ripara chi intercetta"), Rear.SaverDamage, ItcFullHit());
-	TestEqual(TEXT("e il TurnLog registra il danno pieno"), Rear.LoggedOnSaver, 25);
+	TestEqual(TEXT("e il TurnLog registra il danno pieno"), Rear.LoggedOnSaver, ItcFullHit());
 	return true;
 }
 

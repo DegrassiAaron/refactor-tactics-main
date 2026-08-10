@@ -612,11 +612,18 @@ bool FRTTerrainFireErodesTemporaryShieldTest::RunTest(const FString&)
 	MapActor->MapAsset->AddOrUpdateCell(FireCell);
 	MapActor->MapAsset->SortCells();
 
-	// Guardian: 20 di scudo base + 5 temporaneo = 25. I 10 danni del fuoco stanno tutti nello scudo.
+	// Scudo base + temporaneo: i 10 danni del fuoco stanno tutti nello scudo.
+	//
+	// Lo scudo base lo dichiara il TEST, non l'eroe: `ConfigureFromHeroData` non imposta `Shield` e nessun
+	// eroe del roster ne parte fornito — il Guardian legacy, con i suoi 20, era l'unico. La proprieta' in
+	// esame e' la CONTABILITA' (il temporaneo si consuma per primo, e anche il danno ambientale del Cleanup
+	// passa di li'), non da dove arriva lo scudo: darglielo qui la tiene verificabile.
 	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover) { DestroyHexMoveWorld(World); return false; }
 
+	constexpr int32 BaseShield = 20;
+	Mover->ApplyCombatState(Mover->Health, BaseShield);
 	const int32 StartHealth = Mover->Health;
 	Mover->AddTemporaryShield(5);
 	Mover->PlannedAbilityIndex = INDEX_NONE; // nessuna azione: l'unica fonte di danno e' il terreno
@@ -626,11 +633,12 @@ bool FRTTerrainFireErodesTemporaryShieldTest::RunTest(const FString&)
 	RunTurn(TM);
 
 	TestEqual(TEXT("gli HP non calano: il danno del terreno lo assorbe lo scudo"), Mover->Health, StartHealth);
-	// 25 - 10 (ingresso) - 8 (Burning nel Cleanup, CP 8.2) = 7, tutti di scudo BASE: i 5 temporanei sono stati
-	// consumati per primi, quindi ExpireTemporaryShield non ne toglie altri. Anche il danno ambientale del
-	// Cleanup passa dalla stessa contabilita': se ne saltasse una, questo numero sarebbe 12 o 2, non 7.
+	// (base + 5) - 10 (ingresso) - 8 (Burning nel Cleanup, CP 8.2), tutti di scudo BASE: i 5 temporanei sono
+	// stati consumati per primi, quindi ExpireTemporaryShield non ne toglie altri. Anche il danno ambientale
+	// del Cleanup passa dalla stessa contabilita': se ne saltasse una, questo numero sarebbe piu' alto o piu'
+	// basso di una delle due voci.
 	TestEqual(TEXT("resta lo scudo BASE non consumato, non uno in meno"),
-		Mover->Shield, 25 - 10 - URTCombatLibrary::BurningCleanupDamage);
+		Mover->Shield, (BaseShield + 5) - 10 - URTCombatLibrary::BurningCleanupDamage);
 
 	DestroyHexMoveWorld(World);
 	return true;
