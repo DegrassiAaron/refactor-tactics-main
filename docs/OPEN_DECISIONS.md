@@ -32,26 +32,18 @@ compatibilità), che dipende dall'unica domanda ancora aperta.
 
 ---
 
-## Aperte — geometria, acqua e strutture, dal quinto sorgente del 2026-08-10
+## ✅ Chiuse il 2026-08-10 — geometria, acqua e strutture, dal quinto sorgente
 
 Origine: [triage `FULL CHAT CONSOLIDATION`](roadmap/plans/triage-grid-geometry-water-2026-08-10.md).
-Erano **tre**; `GEO-3` è chiusa il 2026-08-10 (sotto). Le **due** rimaste vanno risposte **prima** della
-spec del blocco corrispondente, e nessuna delle due blocca la v0.1.
-
-| ID | Domanda | Perché serve una risposta |
-|---|---|---|
-| [`GEO-1`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/429) | `WaterDepth` è un **campo della cella accanto a `Surface`**, oppure una **superficie composta**? | Il sorgente lo dà come asse ortogonale — una cella può essere `ShallowWater` e cambiare profondità durante il match. Il repository ha **otto superfici piatte** (CP 8.1) che non cambiano mai. La scelta decide se CP 8.1 si **estende** o si **riscrive**, e con essa i costi di movimento, la conduzione elettrica e il formato della mappa |
-| [`GEO-2`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/430) | Come si chiama lo **slot strutturale** della §40, dato che `Gadget.BreachCharge` esiste già? | Il sorgente lo chiama `Breach`, ma nel repository `BreachCharge` è l'**oggetto che lo aprirebbe** (35 danni a struttura, E7). Due entità con lo stesso nome, una che agisce sull'altra, si pagano a ogni lettura del TurnLog — è lo stesso costo che ha fatto scartare `Reposition` in [D-070](decisions/RT_PDR_00_Decision_Log.md) |
-
----
-
-### ✅ Chiusa il 2026-08-10 — `GEO-3`
-
-Non serviva l'autore: serviva **chi ha in mano il TurnLog v6**, che è il motivo per cui il triage l'aveva
-lasciata fuori. Resta qui **solo come indice**: il contenuto vive nel Decision Log.
+Erano **tre**, e nessuna bloccava la v0.1. **Tutte e tre chiuse lo stesso giorno**, e nessuna ha richiesto
+l'autore: due si sono decise **misurando il repository** invece di ragionare a tavolino, la terza rispondendo
+col codice in mano — che era la condizione che il triage stesso poneva. Restano qui **solo come indice**: il
+contenuto vive nel Decision Log.
 
 | Era | Decisione presa | Dove vive ora |
 |---|---|---|
+| `GEO-1` | La profondità dell'acqua è una **superficie**, non un asse. ⚠️ La domanda poggiava su una premessa falsa: `ShallowWater` **cambia** — `Action.CreateWater` la crea a runtime da CP 8.4, quindi il *flooding* esiste già come cambio di superficie. L'asse costerebbe una **versione del formato mappa**, per un'espressività che nessuna regola consuma | [`D-081`](decisions/RT_PDR_00_Decision_Log.md) · owner [`spec-terreni-e8.md`](gameplay/spec-terreni-e8.md) §6-ter |
+| `GEO-2` | Lo slot strutturale si chiama **`Bulkhead`**, verificato libero con `git grep`: zero occorrenze. Scartati `StructuralSlot` (`Slot` è l'economia del turno), `Panel` (collide con `Bastion.KineticPanel`, che è *copertura*) e `Section` (termine Unreal per le mesh) | [`D-082`](decisions/RT_PDR_00_Decision_Log.md) · owner [triage](roadmap/plans/triage-grid-geometry-water-2026-08-10.md) §3 |
 | `GEO-3` | Il modello causale delle §22–§27 **non entra** nel v6: presuppone un `EventId` per voce, che non esiste. Tre rinvii con l'innesco dichiarato — cause contribuenti, dedup, provenance — e **una risposta piena**: un `EventId` sarebbe **identità**, quindi resterebbe fuori dall'hash come `UnitId` e `TurnNumber` | [`D-080`](decisions/RT_PDR_00_Decision_Log.md) · owner [`spec-turnlog.md`](technical/spec-turnlog.md) §12-bis |
 
 ---
