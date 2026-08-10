@@ -130,6 +130,10 @@ il registro deve dire **come** è andata a finire, non solo cosa manca.
 > ⚠️ *Rettifica del 2026-08-10*: qui era scritto «il test `Overwatch.OpportunityLeaksNoFuture` esiste per
 > vietare». Quel test **non esiste**: è pianificato in ADR-0004 per E14, che non è implementata. Il requisito
 > è dichiarato, la verifica no.
+>
+> ✅ *Aggiornamento dello stesso giorno (CP 14.3, PR #494)*: il test **è atterrato** — difende però la **forma
+> del DTO** (nessun campo fuori da un elenco chiuso, via reflection), non il facing intermedio. Per questa
+> voce il requisito resta dichiarato e la verifica specifica ancora no.
 
 ### Il modello — la proposta residua che cambierebbe ADR-0005
 
