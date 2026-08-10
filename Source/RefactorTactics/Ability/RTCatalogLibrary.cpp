@@ -176,6 +176,17 @@ URTActionData* URTCatalogLibrary::MakeEquipmentAction(const URTEquipmentData* It
 	Action->Def.CooldownTurns = Item->CooldownTurns;
 	Action->RangeCells = Action->Def.RangeCells;
 	Action->CooldownTurns = Action->Def.CooldownTurns;
+	// Stessi campi specchio di `MakeGenericActions`, e per la stessa ragione: `URTActionData` li ha a 5 e 30
+	// (default legacy dell'MVP quadrato), quindi non copiarli fa entrare nel kit un gadget con portata e
+	// potenza inventate. Oggi l'unico equipaggiamento concede `Action.CreateCover` e non si nota; il giorno
+	// che ne concedesse una self-target — `Guard`, `Brace` — il gadget la porterebbe come azione d'attacco
+	// da 30 danni, che e' esattamente il difetto appena chiuso per gli eroi.
+	Action->bSelfTarget = Action->Def.bSelfTarget;
+	Action->Power = 0;
+	for (const FRTActionEffectSpec& Spec : Action->Def.Effects)
+	{
+		if (Spec.Effect == ERTActionEffect::Damage) { Action->Power = Spec.Amount; break; }
+	}
 	return Action;
 }
 
