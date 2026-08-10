@@ -253,7 +253,7 @@ determinismo. Le verifiche che restano umane vanno nel registro PIE, non qui —
 
 ---
 
-## 9. Domande per l'autore — due chiuse, due aperte
+## 9. Domande per l'autore — tre chiuse, una aperta
 
 ### Chiuse il 2026-08-10
 
@@ -278,7 +278,18 @@ iterasse una `TMap` cambierebbe la traccia lasciando ogni hash identico.
 | # | Domanda | Perché blocca |
 |---|---|---|
 | 3 | **`ContentManifestHash` / `RulesVersion` si costruiscono ora o alla v0.2?** | Senza, la regola «un replay v1 non va ricalcolato con regole v2» (§8) non è implementabile, e il corpus golden è protetto solo dal fatto che i cataloghi cambiano di rado |
-| 4 | **L'unità persistente è la partita (§7) o il turno?** | Con 6–12 turni la differenza in storage è trascurabile, ma il turno è già l'unità del TurnLog serializzato esistente |
+
+*(La #4, sull'unità persistente, è stata **chiusa** il 2026-08-10 da
+[D-077](../../decisions/RT_PDR_00_Decision_Log.md), decisa dall'autore in sessione: **manifest per partita +
+traccia per turno**, e la partita identificata da un `FGuid` generato all'avvio, **fuori da ogni hash**. La
+domanda era posta come un aut-aut e la risposta sta a due livelli: il turno resta l'unità delle tracce, come
+questo §9 osservava, ma un contenitore serve lo stesso — non per lo storage, che è irrilevante, bensì perché
+`D-062` aveva già assegnato a `HashTurnLogOrdered` un «header del Replay Archive» che non esisteva. Nel
+deciderlo è emerso che l'identità della partita non esisteva affatto: `MatchId`, `GameId` e `SessionId` hanno
+**zero occorrenze** in tutto `Source/`, test inclusi — ed è lo stesso vuoto che
+[#405](https://github.com/DegrassiAaron/refactor-tactics-main/issues/405) aveva trovato un piano più giù per
+l'identità dell'**unità**. L'id non poteva essere «il seed»: nel progetto non esiste un RNG.)*
+
 *(La #5, sui campi di movimento, è stata **chiusa** il 2026-08-10 da [D-067](../../decisions/RT_PDR_00_Decision_Log.md):
 `GraphRevision` entra ed è **nell'hash**; `TransitionId` **non esiste e non si inventa** — `FRTHexEdge` è
 `From`/`To`/`Cost`/`Kind` senza ID, perché l'identità di un bordo è la coppia di celle, che la voce porta già.
