@@ -578,7 +578,14 @@ protected:
 	/** Istante d'inizio in UTC, per la riga dell'indice (`#416`). Il manifest porta una durata, non un inizio. */
 	FDateTime ReplayStartedUtc = FDateTime(0);
 
-	/** Checksum di fine partita congelato prima di `DestroyDefeatedUnits`. `false` = non ancora calcolato. */
+	/**
+	 * Checksum di fine partita congelato prima di `DestroyDefeatedUnits`. `false` = non ancora calcolato.
+	 *
+	 * ⚠️ Si congela SEMPRE a fine partita, anche senza registrazione: e' una proprieta' della partita, non
+	 * della sua osservazione. Legarlo al recorder faceva dare alla stessa identica partita due checksum
+	 * diversi a seconda che si stesse registrando — il difetto che `Producer.RecordingDoesNotChangeTheMatch`
+	 * ha trovato la prima volta che e' girato.
+	 */
 	bool bFinalStateHashFrozen = false;
 	uint32 FrozenFinalStateHash = 0;
 

@@ -735,6 +735,20 @@ void ARTTurnManager::LockInAndResolve()
 	MatchState.RoundNumber = TurnNumber;
 	PendingResult = URTTurnRules::EvaluateMatchEnd(MatchState, MatchRules);
 
+	// FINE PARTITA: il checksum si congela QUI, e la sua semantica non dipende da chi lo guarda. Il momento e'
+	// deciso da `#490` — dopo il Cleanup e **prima** di `DestroyDefeatedUnits`, che in `ConcludeTurn` cancella
+	// dal mondo chi e' caduto in questo turno: senza questo istante `bAlive` non varrebbe mai `false` in una
+	// partita vera, e due finali diversi per chi e' rimasto in piedi darebbero lo stesso hash.
+	//
+	// ⚠️ Sta fuori dal ramo della registrazione, e la prima stesura sbagliava proprio qui: congelandolo solo
+	// quando si registrava, la STESSA partita dava due checksum diversi a seconda che il recorder fosse acceso
+	// — cioe' l'osservazione alterava l'osservato, che e' il criterio che `#469` chiede di non violare.
+	if (PendingResult.Outcome != ERTMatchOutcome::InProgress && !bFinalStateHashFrozen)
+	{
+		FrozenFinalStateHash = ComputeMatchStateHashNow();
+		bFinalStateHashFrozen = true;
+	}
+
 	// ARCHIVIO REPLAY (#469): la traccia del turno va su disco ADESSO, prima del playback e prima che
 	// `ConcludeTurn` distrugga chi e' caduto. Il TurnLog qui e' gia' in forma canonica (`SortTurnLog`, poche
 	// righe sopra) e la partita e' gia' stata giudicata (`PendingResult`), quindi il recorder trova tutto
@@ -1168,13 +1182,9 @@ void ARTTurnManager::RecordResolvedTurn()
 		return;
 	}
 
-	// FINE PARTITA. Il checksum si congela QUI e non in `ConcludeTurn`, dove `DestroyDefeatedUnits` ha gia'
-	// cancellato dal mondo chi e' caduto in questo turno: senza questo momento, `bAlive` non varrebbe MAI
-	// `false` in una partita vera e due finali diversi per chi e' rimasto in piedi darebbero lo stesso hash
-	// (`#490`, deciso il 2026-08-10).
-	FrozenFinalStateHash = ComputeMatchStateHashNow();
-	bFinalStateHashFrozen = true;
-
+	// FINE PARTITA: il checksum e' gia' stato congelato dal chiamante, nel momento che `#490` prescrive. Qui
+	// lo si SCRIVE e basta — ricalcolarlo adesso darebbe lo stesso numero solo per caso, e il giorno in cui
+	// non lo desse piu' l'archivio porterebbe un checksum che nessun'altra strada sa riprodurre.
 	const float WallClock = static_cast<float>(FPlatformTime::Seconds() - ReplayStartRealSeconds);
 	if (!URTReplayRecorderLibrary::CloseMatch(ReplaysRoot, ReplayManifest, PendingResult.Outcome,
 			static_cast<int64>(FrozenFinalStateHash), WallClock))

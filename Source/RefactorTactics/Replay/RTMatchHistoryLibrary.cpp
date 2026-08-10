@@ -20,29 +20,29 @@ namespace
 	 */
 	constexpr int32 RT_HISTORY_VERSION = 1;
 
-	const TCHAR* K_VERSION   = TEXT("Version");
-	const TCHAR* K_ENTRIES   = TEXT("Matches");
-	const TCHAR* K_MATCH_ID  = TEXT("MatchId");
-	const TCHAR* K_STARTED   = TEXT("StartedUtc");
-	const TCHAR* K_FORMAT_ID = TEXT("FormatId");
-	const TCHAR* K_HEX       = TEXT("HexTopology");
-	const TCHAR* K_OUTCOME   = TEXT("Outcome");
-	const TCHAR* K_TURNS     = TEXT("TurnCount");
-	const TCHAR* K_WALLCLOCK = TEXT("WallClockSeconds");
-	const TCHAR* K_COMPLETE  = TEXT("ReplayComplete");
+	const TCHAR* KH_VERSION   = TEXT("Version");
+	const TCHAR* KH_ENTRIES   = TEXT("Matches");
+	const TCHAR* KH_MATCH_ID  = TEXT("MatchId");
+	const TCHAR* KH_STARTED   = TEXT("StartedUtc");
+	const TCHAR* KH_FORMAT_ID = TEXT("FormatId");
+	const TCHAR* KH_HEX       = TEXT("HexTopology");
+	const TCHAR* KH_OUTCOME   = TEXT("Outcome");
+	const TCHAR* KH_TURNS     = TEXT("TurnCount");
+	const TCHAR* KH_WALLCLOCK = TEXT("WallClockSeconds");
+	const TCHAR* KH_COMPLETE  = TEXT("ReplayComplete");
 
 	TSharedRef<FJsonObject> EntryToJson(const FRTMatchHistoryEntry& E)
 	{
 		const TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
-		O->SetStringField(K_MATCH_ID, E.MatchId.ToString(EGuidFormats::Digits));
+		O->SetStringField(KH_MATCH_ID, E.MatchId.ToString(EGuidFormats::Digits));
 		// ISO-8601: si legge a occhio in un file di diagnosi, e non dipende dal locale di chi lo ha scritto.
-		O->SetStringField(K_STARTED, E.StartedUtc.ToIso8601());
-		O->SetStringField(K_FORMAT_ID, E.FormatId.ToString());
-		O->SetBoolField(K_HEX, E.bHexTopology);
-		O->SetNumberField(K_OUTCOME, static_cast<double>(static_cast<uint8>(E.Outcome)));
-		O->SetNumberField(K_TURNS, E.TurnCount);
-		O->SetNumberField(K_WALLCLOCK, E.WallClockSeconds);
-		O->SetBoolField(K_COMPLETE, E.bReplayComplete);
+		O->SetStringField(KH_STARTED, E.StartedUtc.ToIso8601());
+		O->SetStringField(KH_FORMAT_ID, E.FormatId.ToString());
+		O->SetBoolField(KH_HEX, E.bHexTopology);
+		O->SetNumberField(KH_OUTCOME, static_cast<double>(static_cast<uint8>(E.Outcome)));
+		O->SetNumberField(KH_TURNS, E.TurnCount);
+		O->SetNumberField(KH_WALLCLOCK, E.WallClockSeconds);
+		O->SetBoolField(KH_COMPLETE, E.bReplayComplete);
 		return O;
 	}
 
@@ -54,35 +54,35 @@ namespace
 		}
 
 		FString IdText;
-		if (!O->TryGetStringField(K_MATCH_ID, IdText) || !FGuid::Parse(IdText, Out.MatchId))
+		if (!O->TryGetStringField(KH_MATCH_ID, IdText) || !FGuid::Parse(IdText, Out.MatchId))
 		{
 			// Una riga senza identita' non e' una riga incompleta: e' una riga che non indicizza niente.
 			return false;
 		}
 
 		FString Started;
-		if (O->TryGetStringField(K_STARTED, Started))
+		if (O->TryGetStringField(KH_STARTED, Started))
 		{
 			FDateTime::ParseIso8601(*Started, Out.StartedUtc);
 		}
 
 		FString FormatText;
-		if (O->TryGetStringField(K_FORMAT_ID, FormatText)) { Out.FormatId = FName(*FormatText); }
-		O->TryGetBoolField(K_HEX, Out.bHexTopology);
+		if (O->TryGetStringField(KH_FORMAT_ID, FormatText)) { Out.FormatId = FName(*FormatText); }
+		O->TryGetBoolField(KH_HEX, Out.bHexTopology);
 
 		double Outcome = 0.0;
-		if (O->TryGetNumberField(K_OUTCOME, Outcome))
+		if (O->TryGetNumberField(KH_OUTCOME, Outcome))
 		{
 			Out.Outcome = static_cast<ERTMatchOutcome>(static_cast<uint8>(Outcome));
 		}
 
 		double Turns = 0.0;
-		if (O->TryGetNumberField(K_TURNS, Turns)) { Out.TurnCount = static_cast<int32>(Turns); }
+		if (O->TryGetNumberField(KH_TURNS, Turns)) { Out.TurnCount = static_cast<int32>(Turns); }
 
 		double Wall = 0.0;
-		if (O->TryGetNumberField(K_WALLCLOCK, Wall)) { Out.WallClockSeconds = static_cast<float>(Wall); }
+		if (O->TryGetNumberField(KH_WALLCLOCK, Wall)) { Out.WallClockSeconds = static_cast<float>(Wall); }
 
-		O->TryGetBoolField(K_COMPLETE, Out.bReplayComplete);
+		O->TryGetBoolField(KH_COMPLETE, Out.bReplayComplete);
 		return true;
 	}
 }
@@ -133,7 +133,7 @@ bool URTMatchHistoryLibrary::AppendOrUpdate(const FString& ReplaysRoot, const FR
 	}
 
 	const TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
-	Root->SetNumberField(K_VERSION, RT_HISTORY_VERSION);
+	Root->SetNumberField(KH_VERSION, RT_HISTORY_VERSION);
 
 	TArray<TSharedPtr<FJsonValue>> Values;
 	Values.Reserve(Entries.Num());
@@ -141,7 +141,7 @@ bool URTMatchHistoryLibrary::AppendOrUpdate(const FString& ReplaysRoot, const FR
 	{
 		Values.Add(MakeShared<FJsonValueObject>(EntryToJson(E)));
 	}
-	Root->SetArrayField(K_ENTRIES, Values);
+	Root->SetArrayField(KH_ENTRIES, Values);
 
 	FString Json;
 	const TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer =
@@ -187,7 +187,7 @@ bool URTMatchHistoryLibrary::LoadIndex(const FString& ReplaysRoot, TArray<FRTMat
 	}
 
 	double Version = 0.0;
-	if (!Root->TryGetNumberField(K_VERSION, Version)
+	if (!Root->TryGetNumberField(KH_VERSION, Version)
 		|| static_cast<int32>(Version) < 1
 		|| static_cast<int32>(Version) > RT_HISTORY_VERSION)
 	{
@@ -197,7 +197,7 @@ bool URTMatchHistoryLibrary::LoadIndex(const FString& ReplaysRoot, TArray<FRTMat
 	}
 
 	const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
-	if (!Root->TryGetArrayField(K_ENTRIES, Values) || Values == nullptr)
+	if (!Root->TryGetArrayField(KH_ENTRIES, Values) || Values == nullptr)
 	{
 		return false;
 	}
