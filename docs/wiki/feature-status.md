@@ -2,7 +2,7 @@
 
 > `GENERATO` · Vista del **Feature Registry** (`docs/roadmap/feature-registry.yaml` nel repository del gioco).
 > Non modificare a mano: si rigenera con `python scripts/feature_registry.py wiki`.
-> Feature tracciate: **85** · Ultimo audit completo: **2026-08-08** su `2094b86`.
+> Feature tracciate: **87** · Ultimo audit completo: **2026-08-08** su `2094b86`.
 
 Questa pagina dice **cosa esiste davvero**. Una meccanica descritta altrove nella Wiki e
 marcata qui come `SPECIFIED` o `DESIGNED` e' progettata, non giocabile: la Wiki racconta
@@ -189,6 +189,13 @@ il gioco che sara', questa tabella dice a che punto e'.
 |---|---|---|---|---:|---|
 | `RT-FEAT-FACTION-SCENARIOS` | Scenari di cooperazione per fazione | — | **DESIGNED** | 0/7 | _pianificato_ |
 | `RT-FEAT-FACTION-SYSTEM` | Fazioni, identità e iconografia | — | **DESIGNED** | 0/7 | — |
+
+### Map
+
+| Feature | Titolo | Roadmap | Stato | Gate | Scenario |
+|---|---|---|---|---:|---|
+| `RT-FEAT-MAP-STANDABILITY` | Standability derivata da anchor, footprint e clearance | — | **DESIGNED** | 0/8 | _pianificato_ |
+| `RT-FEAT-MAP-TRANSITION-CLEARANCE` | Validità della transizione distinta da quella della cella | — | **DESIGNED** | 0/8 | _pianificato_ |
 
 ### Tools
 

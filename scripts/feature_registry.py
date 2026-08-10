@@ -408,6 +408,11 @@ def validate(registry, wiki_root=None):
             if fid not in id_set:
                 errors.append(f"[{page}] blocco di stato per FeatureId inesistente: {fid}")
 
+    # --- l'altra sorgente delle *map, con le stesse pretese di questa ---
+    session_errors, session_warnings = validate_editor_sessions()
+    errors += session_errors
+    warnings += session_warnings
+
     return errors, warnings
 
 
@@ -1662,6 +1667,134 @@ def resolve_prerequisite(ref, sessions_state, checkpoints, epics, milestones):
             return False, None, None
         return state in ("✅", "🟡"), state, "milestone"
     return False, None, None
+
+
+SESSION_FIELDS = {"id", "title", "block", "critical", "produces", "artifacts", "unblocked_by",
+                  "shares_setup_with", "verifies", "issues", "done_when", "unblocks",
+                  "steps", "notes"}
+
+
+def validate_editor_sessions():
+    """`editor-sessions.yaml`: la seconda sorgente delle *map, con le stesse pretese della prima.
+
+    Fino al 2026-08-10 questo file non passava di qui. I suoi controlli esistevano — voci `PIE-*`
+    fantasma, prerequisiti che non risolvono — ma vivevano dentro il **generatore** e finivano come
+    ⚠️ stampati in fondo alla pagina generata. Un avviso dentro la vista che dovrebbe denunciare non
+    ferma nessuno e non fa fallire niente: e' la stessa famiglia del dato che nessun consumatore
+    legge. Qui diventano exit code.
+
+    La regola meno ovvia e' la dualita' di `unblocks`:
+
+    - `X.unblocked_by` cita la seduta `Y`  ⇒  `Y.unblocks` deve citare `X`, sempre. Chi porta una
+      dipendenza deve sapere cosa sblocca: e' la motivazione che la coda stampa per farla adesso.
+    - `Y.unblocks` cita la seduta `X`      ⇒  `X.unblocked_by` deve citare `Y`, **salvo** setup
+      condiviso **nello stesso blocco**. `U2..U6` (blocco 2) e `U7..U9` (blocco 3) si fanno nella
+      stessa apertura di editor: li' la catena e' ordine di lavoro e la coda deve mostrarle
+      insieme, non metterne quattro in WAITING.
+
+    Senza l'eccezione questo controllo avrebbe segnalato sei casi legittimi e sarebbe stato
+    disattivato al primo passaggio — cioe' non varrebbe piu' nemmeno per il settimo.
+
+    Il vincolo «stesso blocco» non e' decorativo, ed e' costato un falso negativo in review:
+    `shares_setup_with` e dipendenza dura **non si escludono**. `U13` (blocco 5) estende l'asset
+    che `U1` (blocco 1) committa — l'esempio che l'header del file usa per definire `unblocked_by`
+    — e le due condividono anche l'allestimento. Con l'eccezione scritta sul solo setup condiviso,
+    togliere `U1` dagli `unblocked_by` di `U13` non produceva **nessun** errore: il controllo
+    scusava proprio la dipendenza piu' documentata del file. Due sedute di blocchi diversi non si
+    fanno nella stessa apertura, quindi li' la dualita' si pretende sempre.
+    """
+    doc = load_editor_sessions()
+    sessions = doc.get("sessions") or []
+    if not sessions:
+        return [], []
+
+    errors, warnings = [], []
+    ids = [s.get("id") for s in sessions]
+    id_set = set(ids)
+    by_id = {s.get("id"): s for s in sessions}
+    blocks = {b.get("id") for b in (doc.get("meta", {}).get("blocks") or [])}
+
+    pie = pie_entries()
+    tracked = tracked_artifacts([a for s in sessions for a in (s.get("artifacts") or [])])
+    # `.get("id")` e non `s["id"]`: una seduta senza id e' precisamente uno dei difetti che questa
+    # funzione esiste per denunciare, e con l'accesso diretto morirebbe qui — su un KeyError, prima
+    # di arrivare alla riga che lo dice. Un validator che va in traceback sul caso che deve
+    # segnalare non lo segnala.
+    states = {s.get("id"): session_state(s, pie, tracked) for s in sessions}
+    checkpoints = checkpoint_status()
+    epics = epic_status()
+    milestones, _conflicts = milestone_status()
+
+    for sid in sorted({i for i in ids if ids.count(i) > 1}):
+        errors.append(f"[{sid}] seduta duplicata: l'id non si riusa mai")
+
+    for session in sessions:
+        sid = session.get("id") or "<senza id>"
+        where = f"[{sid}]"
+
+        if not re.fullmatch(r"U\d+", sid):
+            errors.append(f"{where} id non conforme a U<n>")
+        if session.get("block") not in blocks:
+            errors.append(f"{where} block {session.get('block')!r} assente da meta.blocks: "
+                          "la vista lo stamperebbe senza titolo")
+        for field in session:
+            if field not in SESSION_FIELDS:
+                errors.append(f"{where} campo non documentato nell'header del file: {field}")
+
+        for field in ("unblocked_by", "unblocks"):
+            for ref in session.get(field) or []:
+                _resolved, _state, source = resolve_prerequisite(
+                    ref, states, checkpoints, epics, milestones)
+                if source is None:
+                    errors.append(
+                        f"{where} {field}: {ref!r} non risolve. Le forme ammesse sono prefissate "
+                        "(`M6.3`, `E1.3`, `E8`, `U13`): la forma nuda `CP 6.3` non dice quale dei "
+                        "due spazi di numerazione, e 20 numeri su 22 collidono")
+
+        for ref in session.get("shares_setup_with") or []:
+            if ref not in id_set:
+                errors.append(f"{where} shares_setup_with verso una seduta inesistente: {ref}")
+            elif sid not in (by_id[ref].get("shares_setup_with") or []):
+                errors.append(f"{where} shares_setup_with cita {ref}, ma {ref} non ricambia: "
+                              "lo stesso allestimento non puo' esserlo per una sola delle due")
+
+        for ref in session.get("unblocked_by") or []:
+            if ref in id_set and sid not in (by_id[ref].get("unblocks") or []):
+                errors.append(f"{where} dichiara di dipendere da {ref}, ma {ref}.unblocks non cita "
+                              f"{sid}: la coda perde la ragione per fare {ref} adesso")
+
+        for ref in session.get("unblocks") or []:
+            if ref not in id_set:
+                continue
+            if sid in (by_id[ref].get("unblocked_by") or []):
+                continue
+            if (ref in (session.get("shares_setup_with") or [])
+                    and by_id[ref].get("block") == session.get("block")):
+                continue  # stessa apertura, stesso blocco: ordine di lavoro, non un blocco
+            shared = ref in (session.get("shares_setup_with") or [])
+            perche = ("condividono il setup ma stanno in blocchi diversi, quindi non e' la stessa "
+                      "apertura di editor" if shared else "non condividono il setup")
+            errors.append(
+                f"{where} dichiara di sbloccare {ref}, ma {ref} non lo dichiara fra i suoi "
+                f"unblocked_by e le due {perche}. O {ref} dipende davvero da {sid} — e allora lo "
+                f"deve dire, o la coda lo mostrera' pronto senza la sua premessa — oppure {sid} "
+                f"non lo sblocca")
+
+        for ref in session.get("verifies") or []:
+            if ref not in pie:
+                errors.append(f"{where} voce PIE inesistente nel registro: {ref} — o l'id e' "
+                              "scritto male, o la voce e' stata rinominata: in entrambi i casi "
+                              "quella verifica non la esegue nessuno")
+
+    claimed = {}
+    for session in sessions:
+        for ref in session.get("verifies") or []:
+            claimed.setdefault(ref, []).append(session.get("id"))
+    for ref, who in sorted(claimed.items()):
+        if len(who) > 1:
+            warnings.append(f"voce PIE {ref} rivendicata da piu' sedute: {', '.join(who)}")
+
+    return errors, warnings
 
 
 QUEUE_GROUPS = ["BLOCKING", "READY", "WAITING", "DONE"]

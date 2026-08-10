@@ -408,6 +408,92 @@ features:
     notes: >
       Costi interi, ordine stabile, mediana misurata 0,025 ms su mappa r=12 (CP 7.3).
 
+  - feature_id: RT-FEAT-MAP-STANDABILITY
+    title: Standability derivata da anchor, footprint e clearance
+    area: Map
+    kind: gameplay
+    release: v0.2
+    priority: P2
+    status: DESIGNED
+    gates:
+      spec: partial
+      data: todo
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: todo
+      ui_wiki: partial
+      packaged: todo
+      network_privacy: na
+    roadmap:
+      epic: null
+      checkpoints: []
+    dependencies:
+      - RT-FEAT-MAP-HEXGRAPH
+      - RT-FEAT-TOOL-MAP-EDITOR
+    owner_specs:
+      - docs/roadmap/plans/handoff-geometry-reazioni-conflict-report-2026-08-10.md
+    issues: [324]
+    tests: []
+    scenarios:
+      - planned:
+          - Spec.Map.WallCrossesCellStillStandable
+          - Spec.Map.FootprintCollisionBlocksCell
+          - Spec.Map.NinetyDegreeCornerBakesCorrectly
+    wiki_refs:
+      - docs/wiki/meccaniche/griglia-e-geometria.md
+    wiki_note: >-
+      La pagina Wiki spiega il **principio** (la griglia non vincola i muri); il dato cotto e la pipeline di cottura non esistono ancora.
+    notes: >
+      Registrata come DIREZIONE, non come lavoro pronto ([D-065](../decisions/RT_PDR_00_Decision_Log.md)).
+      Oggi `bBlocksMovement` è scritto a mano sulla cella; qui diventerebbe l'esito di una cottura che
+      intersecа il footprint dell'unità con la blocking geometry attorno al Cell Anchor. Il runtime continua
+      a leggere interi: la derivazione avviene in authoring, mai in query. Bloccata da `MAP-1`: senza la
+      clearance in metri non c'è niente da intersecare, e cuocere prima significa ricuocere.
+
+  - feature_id: RT-FEAT-MAP-TRANSITION-CLEARANCE
+    title: Validità della transizione distinta da quella della cella
+    area: Map
+    kind: gameplay
+    release: v0.2
+    priority: P2
+    status: DESIGNED
+    gates:
+      spec: partial
+      data: todo
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: todo
+      ui_wiki: partial
+      packaged: todo
+      network_privacy: na
+    roadmap:
+      epic: null
+      checkpoints: []
+    dependencies:
+      - RT-FEAT-MAP-STANDABILITY
+      - RT-FEAT-MAP-PATHFINDING
+      - RT-FEAT-MAP-INTERACTIVE-EDGES
+    owner_specs:
+      - docs/roadmap/plans/handoff-geometry-reazioni-conflict-report-2026-08-10.md
+    issues: [324]
+    tests: []
+    scenarios:
+      - planned:
+          - Spec.Map.ValidCellsBlockedTransition
+          - Spec.Map.DoorOpensTransition
+    wiki_refs:
+      - docs/wiki/meccaniche/griglia-e-geometria.md
+    wiki_note: >-
+      Il caso «due celle valide, passaggio chiuso» è già spiegabile; il dato che lo esprime senza passare da una copertura non esiste ancora.
+    notes: >
+      Il buco misurato: `Cell A` valida ∧ `Cell B` valida ∧ `A→B` chiusa oggi si esprime **solo** con una
+      copertura alta, perché gli adiacenti orizzontali sono calcolati e non archi ([D-013](../decisions/RT_PDR_00_Decision_Log.md)),
+      e `FRTHexEdge` è riservato ai salti di layer. Un muro che blocca senza proteggere non ha un dato su cui
+      appoggiarsi: o diventa una copertura che non copre, o `bBlocksMovement` su una cella calpestabile.
+      Include la *swept clearance* — la transizione verifica il corridoio attraversato, non i soli estremi.
+
   - feature_id: RT-FEAT-MAP-LOS
     title: LOS, targeting e traiettoria separati
     area: Map
