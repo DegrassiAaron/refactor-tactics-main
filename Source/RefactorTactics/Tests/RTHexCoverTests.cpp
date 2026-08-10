@@ -693,4 +693,37 @@ bool FRTCoverRuntimeCoverRearHitTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * Il risultato del danno a una struttura dice CHI ha colpito (#405).
+ *
+ * L'informazione esisteva gia' in ingresso — `FRTStructureHit::AttackerId`, con il commento «serve al TurnLog,
+ * non al calcolo» — e si perdeva in uscita: il chiamante iterava i risultati e non aveva piu' modo di sapere
+ * chi avesse prodotto quale. Cosi' la voce di copertura danneggiata era l'unica del combattimento a non poter
+ * nominare il proprio attore, e finiva nel TurnLog con `UnitId = 0`, cioe' dichiarando «nessuno».
+ *
+ * Resta un INDICE e non un Actor: lo strato non smette di essere puro per questo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverDamageCarriesAttackerTest,
+	"RefactorTactics.Cover.Destruction.ResultCarriesAttacker",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCoverDamageCarriesAttackerTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeWalledMap();
+	const TArray<FRTHexCombatUnit> Units = WalledUnits();
+	TArray<FRTHexAttackIntent> Intents;
+	Intents.Add(CoverBreachIntent(/*AttackerId*/ 0, /*TargetId*/ 1, /*Power*/ 35, /*StructurePower*/ 20));
+
+	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
+	if (!TestEqual(TEXT("un bordo colpito"), Plan.StructureHits.Num(), 1)) { return false; }
+	// Precondizione, non ridondanza: se l'hit non portasse l'attaccante, il test sotto verificherebbe la
+	// propagazione di un dato che non c'e' e passerebbe per il motivo sbagliato.
+	TestEqual(TEXT("l'hit dichiara l'attaccante"), Plan.StructureHits[0].AttackerId, 0);
+
+	const TArray<FRTCoverDamageResult> Changes = URTHexCoverLibrary::ApplyStructureDamage(Map, Plan.StructureHits);
+	if (!TestEqual(TEXT("una struttura cambiata"), Changes.Num(), 1)) { return false; }
+	TestEqual(TEXT("e il risultato porta lo stesso attaccante"), Changes[0].AttackerId, 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
