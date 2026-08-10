@@ -17,10 +17,21 @@ bool URTTurnLogLibrary::EntryLess(const FRTTurnLogEntry& A, const FRTTurnLogEntr
 	if (A.TgtCell.Layer != B.TgtCell.Layer) { return A.TgtCell.Layer < B.TgtCell.Layer; }
 	if (A.Outcome != B.Outcome)             { return A.Outcome < B.Outcome; }
 	if (A.Amount != B.Amount)               { return A.Amount < B.Amount; }
-	// Ultimo campo, ultimo tie-break. Confronto LESSICOGRAFICO (`FName::Compare`), mai `FastLess`: quello
-	// ordina per indice nella name table, che dipende dall'ordine in cui i nomi sono stati creati nel processo
-	// — due esecuzioni della stessa partita darebbero due ordini diversi, cioe' due hash diversi (#4).
-	return A.ActionId.Compare(B.ActionId) < 0;
+	// Confronto LESSICOGRAFICO (`FName::Compare`), mai `FastLess`: quello ordina per indice nella name table,
+	// che dipende dall'ordine in cui i nomi sono stati creati nel processo — due esecuzioni della stessa
+	// partita darebbero due ordini diversi, cioe' due hash diversi (#4).
+	if (A.ActionId != B.ActionId) { return A.ActionId.Compare(B.ActionId) < 0; }
+
+	// I campi della v6 chiudono l'ordine. NON e' un dettaglio estetico: `SerializeTurnLog` li SCRIVE, e un
+	// campo scritto che il confronto non guarda lascia due voci a pari merito — dove a decidere l'ordine
+	// resta `TArray::Sort`, che non e' stabile. Due inserimenti diversi produrrebbero due file diversi con
+	// lo stesso contenuto, cioe' esattamente cio' che `D-SR-1` promette non accada.
+	//
+	// `BaseActionId` resta fuori e non e' un'omissione: e' una FUNZIONE di `ActionId`, quindi due voci che
+	// pareggiano su `ActionId` pareggiano anche su di lui e non c'e' niente da spareggiare.
+	if (A.TurnNumber != B.TurnNumber)     { return A.TurnNumber < B.TurnNumber; }
+	if (A.GraphRevision != B.GraphRevision) { return A.GraphRevision < B.GraphRevision; }
+	return A.UnitId < B.UnitId;
 }
 
 void URTTurnLogLibrary::SortTurnLog(TArray<FRTTurnLogEntry>& Entries)
@@ -218,20 +229,26 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 	}
 }
 
-uint32 URTTurnLogLibrary::HashTurnLog(const TArray<FRTTurnLogEntry>& Entries)
+namespace
 {
-	// Ordina prima di mescolare: stesso insieme di voci -> stessa sequenza -> stesso hash (permutazione-invariante).
-	TArray<FRTTurnLogEntry> Sorted = Entries;
-	SortTurnLog(Sorted);
+	constexpr uint32 RT_FNV_OFFSET_BASIS = 2166136261u;
+	constexpr uint32 RT_FNV_PRIME        = 16777619u;
 
-	uint32 Hash = 2166136261u; // FNV-1a offset basis (32 bit)
-	auto Mix = [&Hash](uint32 V)
+	/**
+	 * Mescola i CAMPI di una voce in un FNV-1a a 32 bit.
+	 *
+	 * Estratto perche' i due hash del TurnLog — `HashTurnLog` (canonico) e `HashTurnLogOrdered` — devono
+	 * mescolare **esattamente gli stessi campi**: l'unica differenza fra loro e' il sort davanti. Se i due
+	 * elenchi di campi divergessero, i due hash risponderebbero a domande diverse da quelle documentate e
+	 * nessun test se ne accorgerebbe.
+	 */
+	void MixEntryFields(uint32& Hash, const FRTTurnLogEntry& E)
 	{
-		Hash ^= V;
-		Hash *= 16777619u; // FNV-1a prime (32 bit)
-	};
-	for (const FRTTurnLogEntry& E : Sorted)
-	{
+		auto Mix = [&Hash](uint32 V)
+		{
+			Hash ^= V;
+			Hash *= RT_FNV_PRIME;
+		};
 		Mix(static_cast<uint32>(E.Phase));
 		Mix(static_cast<uint32>(E.Category));
 		Mix(static_cast<uint32>(E.Outcome));
@@ -256,6 +273,40 @@ uint32 URTTurnLogLibrary::HashTurnLog(const TArray<FRTTurnLogEntry>& Entries)
 		// (CP 10.3). Se un giorno `BaseActionId` smettesse di essere derivabile da `ActionId`, questa riga
 		// di commento diventa falsa e il campo deve entrare: e' la condizione da ricontrollare, non una
 		// proprieta' per sempre.
+		//
+		// `GraphRevision` ENTRA: due tracce possono differire SOLO per lei — stessi eventi, ma grafo modificato
+		// in un turno precedente — e sono due partite diverse. Un movimento validato su un grafo e uno
+		// validato su un altro non sono lo stesso evento, anche quando le celle coincidono.
+		Mix(static_cast<uint32>(E.GraphRevision));
+		// `UnitId` e `TurnNumber` NON entrano, per lo stesso criterio (D-063): servono a rendere la traccia
+		// spiegabile — chi ha agito, in quale turno — non a discriminarla. Includerli invaliderebbe in blocco
+		// ogni hash golden senza aggiungere potere discriminante.
+	}
+}
+
+uint32 URTTurnLogLibrary::HashTurnLog(const TArray<FRTTurnLogEntry>& Entries)
+{
+	// Ordina prima di mescolare: stesso insieme di voci -> stessa sequenza -> stesso hash (permutazione-invariante).
+	TArray<FRTTurnLogEntry> Sorted = Entries;
+	SortTurnLog(Sorted);
+
+	uint32 Hash = RT_FNV_OFFSET_BASIS;
+	for (const FRTTurnLogEntry& E : Sorted)
+	{
+		MixEntryFields(Hash, E);
+	}
+	return Hash;
+}
+
+uint32 URTTurnLogLibrary::HashTurnLogOrdered(const TArray<FRTTurnLogEntry>& Entries)
+{
+	// NESSUN sort: le voci si mescolano nell'ordine in cui il resolver le ha emesse. E' l'UNICA differenza
+	// con `HashTurnLog` — stessi campi, stesso FNV — ed e' cio' che rende visibile un riordino delle
+	// emissioni, che all'hash canonico e' invisibile per costruzione.
+	uint32 Hash = RT_FNV_OFFSET_BASIS;
+	for (const FRTTurnLogEntry& E : Entries)
+	{
+		MixEntryFields(Hash, E);
 	}
 	return Hash;
 }
@@ -370,13 +421,14 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 	SortTurnLog(Canonical);
 
 	TArray<uint8> Out;
-	Out.Reserve(14 + Canonical.Num() * 35); // 31 byte fissi + 2+2 di lunghezza per ActionId e BaseActionId
+	// 31 byte fissi + 2+2 di lunghezza per ActionId e BaseActionId + 12 per i tre interi della v6.
+	Out.Reserve(14 + Canonical.Num() * 47);
 
 	// Header: magic + versione + flags(topologia) + identita' del formato + conteggio (little-endian).
 	// Il FormatId sta DOPO i flags e prima del conteggio: le posizioni dei campi precedenti non si spostano,
 	// cosi' un lettore che ispeziona magic/versione/flags continua a trovarli dove sono sempre stati.
 	AppendU32LE(Out, RT_TURNLOG_MAGIC);
-	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithBaseActionId));
+	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithUnitId));
 	AppendU16LE(Out, static_cast<uint16>(Topology));
 	AppendStringUtf8(Out, FormatId.IsNone() ? FString() : FormatId.ToString());
 	AppendU32LE(Out, static_cast<uint32>(Canonical.Num()));
@@ -397,6 +449,12 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 		// Subito dopo l'ActionId, con lo stesso schema: e' il suo complemento, e tenerli adiacenti
 		// significa che un lettore che sa saltare uno sa saltare anche l'altro.
 		AppendStringUtf8(Out, E.BaseActionId.IsNone() ? FString() : E.BaseActionId.ToString());
+		// In coda alla voce (v6): i campi precedenti non si spostano. Interi, non stringhe — l'identita' di
+		// un'unita' e' un numero, e passare da `FName` costerebbe una tabella dei nomi in un formato che
+		// esiste per essere confrontabile byte-per-byte.
+		AppendI32LE(Out, E.UnitId);
+		AppendI32LE(Out, E.TurnNumber);
+		AppendI32LE(Out, E.GraphRevision);
 	}
 
 	// Checksum FNV di tutto cio' che precede (header + voci), in coda: rileva la corruzione del contenuto.
@@ -418,13 +476,15 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	uint32 Magic = 0;
 	if (!ReadU32LE(Bytes, Pos, Magic) || Magic != RT_TURNLOG_MAGIC) { return false; }
 
-	// Versioni LEGGIBILI: la corrente e le tre precedenti. La 2 non porta l'ActionId, la 3 non porta il
-	// FormatId, la 4 non porta il BaseActionId, e in ogni caso il posto resta vuoto — leggerle e' onesto
-	// (quei byte non contenevano quell'informazione), inventarla no. Ogni altro valore e' rifiutato:
-	// interpretare byte di un formato ignoto produce un replay sbagliato in silenzio.
+	// Versioni LEGGIBILI: la corrente e le quattro precedenti. La 2 non porta l'ActionId, la 3 non porta il
+	// FormatId, la 4 non porta il BaseActionId, la 5 non porta UnitId/TurnNumber, e in ogni caso il posto
+	// resta vuoto — leggerle e' onesto (quei byte non contenevano quell'informazione), inventarla no. Ogni
+	// altro valore e' rifiutato: interpretare byte di un formato ignoto produce un replay sbagliato in silenzio.
 	uint16 Version = 0;
 	if (!ReadU16LE(Bytes, Pos, Version)) { return false; }
-	const bool bHasBaseActionId = (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithBaseActionId));
+	const bool bHasUnitId = (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithUnitId));
+	const bool bHasBaseActionId = bHasUnitId
+		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithBaseActionId));
 	const bool bHasFormatId = bHasBaseActionId
 		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithFormatId));
 	const bool bHasActionId = bHasFormatId
@@ -463,7 +523,9 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	// che resta — ogni voce occupa almeno i suoi campi a dimensione fissa.
 	constexpr int32 FixedEntryBytes = 31;         // 3 uint8 + 7 int32
 	// + 2 byte di lunghezza per ogni stringa presente nel formato: ActionId da v3, BaseActionId da v5.
-	const int32 MinEntryBytes = FixedEntryBytes + (bHasActionId ? 2 : 0) + (bHasBaseActionId ? 2 : 0);
+	// + 12 byte fissi per UnitId, TurnNumber e GraphRevision da v6.
+	const int32 MinEntryBytes = FixedEntryBytes + (bHasActionId ? 2 : 0) + (bHasBaseActionId ? 2 : 0)
+		+ (bHasUnitId ? 12 : 0);
 	const int32 Remaining = Bytes.Num() - Pos;
 	if (Remaining < 0 || Count > static_cast<uint32>(Remaining / MinEntryBytes))
 	{
@@ -514,6 +576,17 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 			}
 			E.BaseActionId = BaseActionId.IsEmpty() ? NAME_None : FName(*BaseActionId);
 		}
+		if (bHasUnitId)
+		{
+			if (!ReadI32LE(Bytes, Pos, E.UnitId) || !ReadI32LE(Bytes, Pos, E.TurnNumber)
+				|| !ReadI32LE(Bytes, Pos, E.GraphRevision))
+			{
+				OutEntries.Reset();
+				return false;
+			}
+		}
+		// Sotto la v6 i tre campi restano a 0: nessuna unita' dedotta dalla cella, nessun turno inventato,
+		// nessuna revisione di grafo attribuita a una traccia che non la dichiarava.
 		OutEntries.Add(E);
 	}
 
@@ -603,15 +676,24 @@ namespace
 	}
 
 	/**
-	 * Uguaglianza secondo l'ORDINE TOTALE che governa hash e serializzazione, non campo per campo a mano.
+	 * Uguaglianza secondo i campi che entrano nell'HASH, non campo per campo a mano.
 	 *
-	 * Cosi' la diagnosi considera divergenza esattamente cio' che `HashTurnLog` considera: un campo fuori da
-	 * `EntryLess` — `BaseActionId`, tenuto deliberatamente fuori dall'hash perche' e' una funzione di
-	 * `ActionId` — non produce un falso allarme qui.
+	 * Cosi' la diagnosi considera divergenza esattamente cio' che `HashTurnLog` considera, che e' l'unica
+	 * regola con cui ha senso confrontarsi: `DescribeFirstDivergence` viene chiamata *dopo* che l'hash ha
+	 * dichiarato una divergenza, e deve indicare **dove** quell'hash e' cambiato.
+	 *
+	 * ⚠️ Confrontava con `EntryLess`, ed era corretto finche' i campi dell'ordinamento coincidevano con
+	 * quelli dell'hash. Non e' piu' vero: `UnitId` e `TurnNumber` sono entrati in `EntryLess` per chiudere
+	 * la forma canonica della serializzazione (D-067) e restano fuori dall'hash (D-063). Con `EntryLess`
+	 * questa funzione discriminerebbe **piu'** dell'hash e si fermerebbe su una voce identica per l'hash —
+	 * per giunta mostrando due descrizioni uguali, perche' quei campi nessuno li stampa.
+	 *
+	 * Passa dalla `HashTurnLogOrdered` di una voce sola invece di elencare i campi a mano: cosi' l'elenco
+	 * resta uno solo (`MixEntryFields`) e non puo' divergere in silenzio da quello vero.
 	 */
 	bool GoldenEntriesMatch(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B)
 	{
-		return !URTTurnLogLibrary::EntryLess(A, B) && !URTTurnLogLibrary::EntryLess(B, A);
+		return URTTurnLogLibrary::HashTurnLogOrdered({ A }) == URTTurnLogLibrary::HashTurnLogOrdered({ B });
 	}
 }
 

@@ -261,11 +261,26 @@ Combat.TgtCell == Displaced.SrcCell   &&   Combat.ActionId == Displaced.ActionId
 ⇒  Combat.SrcCell è la cella di chi ha spinto
 ```
 
-La chiave regge perché **una cella ospita al più un'unità**: il bersaglio identifica il colpo in modo univoco,
-anche con più attaccanti che usano la stessa azione nello stesso turno. È la stessa proprietà su cui si regge
-`SrcCell` come «chiave stabile dell'unità nel turno». Verificato da
+La chiave regge perché **una cella ospita al più un'unità** e perché **entrambi i lati del giunto sono celle
+dello stesso Blast**: la voce `Combat` porta la cella del bersaglio *prima* che le posizioni siano applicate,
+che è esattamente la `SrcCell` della voce di spostamento. Verificato da
 `RefactorTactics.TurnLog.DisplacementHasCauseAndSource`, che ricostruisce la sorgente **dal log**, non dallo
 stato del mondo.
+
+> ⚠️ **Il giunto è sulla cella, e [D-063] ha appena scritto che la cella non è un'identità.** Le due cose
+> convivono, ma vale dire perché. D-063 introduce `UnitId` (formato v6) proprio perché `D-TL-2` — «chiave
+> unità = cella di partenza del turno» — **non regge come chiave di identità**, e ne elenca i controesempi:
+> voci ambientali senza unità, l'interposizione che scrive la cella del protetto, e la cella che dopo un Dash
+> non è più quella di partenza. Tutti e tre riguardano l'uso della cella **attraverso le fasi**.
+>
+> Il giunto qui non attraversa nulla: confronta due voci **della stessa fase**, scritte sullo stesso snapshot.
+> È il caso in cui la cella è ancora una chiave esatta.
+>
+> **Resta comunque la scelta peggiore delle due disponibili**, e il motivo per cui non si usa `UnitId` è
+> misurato, non di principio: alla data di questa modifica **nessun produttore di voci lo popola** — il campo
+> è atterrato col formato, i produttori sono un passo successivo. Riempirlo qui avrebbe reso queste due voci
+> le uniche del log ad averlo, cioè una seconda convenzione. **Quando i produttori arriveranno, questo giunto
+> va spostato su `UnitId`**: stessa semantica, chiave esatta anche fuori dalla fase.
 
 > ⚠️ **Il limite, dichiarato**: il giunto richiede che l'azione che spinge produca anche una voce `Combat`.
 > Vale per tutto il catalogo v0.1 — la spinta è un effetto di un colpo — ma un'azione futura che spostasse
@@ -302,14 +317,26 @@ di formato atterrerà, il campo può viaggiare con quello.
 *«Ranger → Bot: 45 (bonus di cella)»*, *«Ranger → Bot: nessuna linea di tiro»*). *(L'esempio diceva «altura
 +danno»: la quota non dà danno, [D-024](../decisions/RT_PDR_00_Decision_Log.md).)*
 
-**Ordinamento del TurnLog** (deterministico, invariante #3/§5.1): **fase → categoria → `SrcCell`** (StableTieBreak
-per-coord). Non dipende **mai** dall'ordine d'inserimento nel container.
+**Ordinamento del TurnLog** (deterministico, invariante #3/§5.1): **fase → categoria → `SrcCell` → `TgtCell` →
+`Outcome` → `Amount` → `ActionId` → `TurnNumber` → `GraphRevision` → `UnitId`**. Non dipende **mai**
+dall'ordine d'inserimento nel container.
+
+> ⚠️ **La regola che tiene in piedi la precedente**: ogni campo che il formato serializzato **scrive** deve
+> stare in questa catena, o due voci che pareggiano su tutto il resto restano a pari merito e a decidere
+> l'ordine resta un sort **non stabile**. Unica eccezione: un campo che non può produrre pareggi perché
+> funzione di un altro già presente — `BaseActionId` rispetto ad `ActionId`.
+> Vedi [D-067](../decisions/RT_PDR_00_Decision_Log.md).
 
 ---
 
 ## 7. Determinismo & invarianti
 
 - **Chiave unità = cella di partenza del turno** (max 1/cella ⇒ univoca), **mai** pointer/spawn-order.
+  ⚠️ **Emendato dal 2026-08-10 ([D-063](../decisions/RT_PDR_00_Decision_Log.md))**: resta la chiave di
+  **ordinamento**, non è più la chiave di **identità**. La cella non identifica l'attore in tre casi presenti
+  nel codice — le voci **ambientali** non hanno un'unità; l'**interposizione** scrive la cella del *protetto*;
+  dopo un **Dash** la cella in fase Blast non è più quella di partenza. L'identità la porta `UnitId`
+  (formato **v6**, `0` = nessuna unità), che resta **fuori dall'hash**.
 - **Nessun float** nel log/ordinamento; `Outcome` intero (invariante #4).
 - **Permutazione-invarianza** (cardine): permutare l'array di path / attacchi **non cambia** il TurnLog.
 - Il TurnLog è **additivo**: i test esistenti restano verdi (estensioni con campi a default).
@@ -375,6 +402,8 @@ Slice successivo — **serializzazione versionata** — ✅ **fatto** (`SR`, mer
 **Prese (2026-08-03):**
 - **D-TL-1** — TurnLog come struttura autoritativa separata (`FRTTurnLogEntry`), non estensione di `FRTResolvedEvent`.
 - **D-TL-2** — chiave unità = cella di partenza del turno (permutazione-invariante).
+  **Emendata il 2026-08-10** da [D-063](../decisions/RT_PDR_00_Decision_Log.md): chiave di ordinamento sì,
+  di identità no — vedi §7.
 - **D-TL-3** — outcome esposti da funzioni pure (resolver + `URTCombatLibrary`); l'Actor è collettore.
 - **D-TL-4** — scope = Movimento + Combat; hash di replay e hazard/status rimandati.
 - **D-TL-5** — reason codes **allineati al codice reale** (§2): Move {Stayed, Moved, BlockedContested, BlockedByUnit};

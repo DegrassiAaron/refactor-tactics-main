@@ -46,29 +46,11 @@
       "[RT-FEAT-REACTION-CLASH] 3 scenario/i dichiarati planned: Spec.Clash.HiddenUntilReveal, Spec.Clash.RevealIsFixedDeadline, Spec.Clash.Determinism",
       "[RT-FEAT-ENV-ICE-ENGINE] nessuna pagina Wiki collegata",
       "[RT-FEAT-UI-ICON-LANGUAGE] nessuna pagina Wiki collegata",
-      "[RT-FEAT-UI-SCENARIO-BROWSER] nessuna pagina Wiki collegata",
       "[RT-FEAT-CHAR-TRANSFORMATION] nessuna pagina Wiki collegata",
       "[RT-FEAT-CHAR-AUXILIARY-UNITS] nessuna pagina Wiki collegata",
       "[RT-FEAT-FACTION-SCENARIOS] 4 scenario/i dichiarati planned: Team.Conflux.FluxRiva.ConductiveFlood, Team.Constrine.BastionVektor.OnlyExit, Team.Sentinel.SteelMurdock.HoldTheLine, Team.Resonance.AuroraKwang.FrozenAnchor",
-      "[RT-FEAT-MATCH-FORMAT] nessuna pagina Wiki collegata",
-      "[RT-FEAT-MATCH-PACING] nessuna pagina Wiki collegata",
-      "[RT-FEAT-STRESS-4V4] nessuna pagina Wiki collegata",
       "[RT-FEAT-STRESS-4V4] 1 scenario/i dichiarati planned: Stress.4v4.CoreRoster",
-      "[RT-FEAT-TEST-SCENARIO-HARNESS] nessuna pagina Wiki collegata",
-      "[RT-FEAT-TEST-GOLDEN] nessuna pagina Wiki collegata",
-      "[RT-FEAT-TOOL-MAP-EDITOR] nessuna pagina Wiki collegata",
-      "[RT-FEAT-TOOL-VALIDATION] nessuna pagina Wiki collegata",
-      "[RT-FEAT-TOOL-CONTROL-CENTER] nessuna pagina Wiki collegata",
-      "[RT-FEAT-TOOL-DEBUG-CONSOLE] nessuna pagina Wiki collegata",
-      "[RT-FEAT-TOOL-BALANCE-GROUND] nessuna pagina Wiki collegata",
-      "[RT-FEAT-DATA-STABLE-IDS] nessuna pagina Wiki collegata",
-      "[RT-FEAT-DATA-ASSET-PIPELINE] nessuna pagina Wiki collegata",
-      "[RT-FEAT-DATA-HASH] nessuna pagina Wiki collegata",
       "[RT-FEAT-NET-PRIVATE-PLANNING] feature di gameplay TESTABLE senza scenario che la dimostri",
-      "[RT-FEAT-NET-AUTHORITY] nessuna pagina Wiki collegata",
-      "[RT-FEAT-NET-DEDICATED] nessuna pagina Wiki collegata",
-      "[RT-FEAT-PROD-PERFORMANCE] nessuna pagina Wiki collegata",
-      "[RT-FEAT-PROD-PACKAGED] nessuna pagina Wiki collegata",
       "[RT-FEAT-INTENT-CONDITIONAL] nessuna pagina Wiki collegata",
       "[RT-FEAT-INTENT-CONDITIONAL] SPECIFIED senza issue ne' assegnazione in roadmap",
       "[RT-FEAT-CHARACTER-STATE] nessuna pagina Wiki collegata",
@@ -837,7 +819,7 @@
       "block": 4,
       "critical": true,
       "state": "🟡",
-      "queue_group": "BLOCKING",
+      "queue_group": "WAITING",
       "produces": "i data asset di Flux, Riva, Bastion e Vektor, e lo spawn 2v2 che li usa",
       "artifacts": [],
       "unblocked_by": [
@@ -846,6 +828,12 @@
           "resolved": true,
           "state": "✅",
           "kind": "epic"
+        },
+        {
+          "ref": "U10",
+          "resolved": false,
+          "state": "—",
+          "kind": "seduta"
         }
       ],
       "unblocks": [
@@ -876,6 +864,12 @@
           "resolved": false,
           "state": "⏳",
           "kind": "epic"
+        },
+        {
+          "ref": "U11",
+          "resolved": false,
+          "state": "🟡",
+          "kind": "seduta"
         }
       ],
       "unblocks": [],
@@ -1152,7 +1146,6 @@
       "U4",
       "U5",
       "U6",
-      "U11",
       "U15"
     ],
     "READY": [
@@ -1162,6 +1155,7 @@
       "U9"
     ],
     "WAITING": [
+      "U11",
       "U13",
       "U14",
       "U19",
