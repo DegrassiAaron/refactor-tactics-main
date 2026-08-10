@@ -78,8 +78,8 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/struttura-del-round.md",
-        "docs/wiki/game/esempio-di-round.md"
+        "wiki:struttura-del-round",
+        "wiki:esempio-di-round"
       ],
       "wiki_note": "",
       "pie_refs": [
@@ -144,7 +144,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/regole-fondamentali.md"
+        "wiki:regole-fondamentali"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -206,7 +206,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/regole-fondamentali.md"
+        "wiki:regole-fondamentali"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -265,7 +265,7 @@
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
+        "wiki:reazioni-overwatch-e-previsioni"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -335,7 +335,7 @@
         "Spec.TimeBank.PacketOrderInvariant"
       ],
       "wiki_refs": [
-        "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
+        "wiki:reazioni-overwatch-e-previsioni"
       ],
       "wiki_note": "Le **regole** sono decise (2026-08-09); i **valori** restano baseline di playtest. La Wiki non deve pubblicarli come definitivi finché §3.2 non li promuove.",
       "pie_refs": [],
@@ -394,7 +394,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/esempio-di-round.md"
+        "wiki:esempio-di-round"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -453,7 +453,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/mappa-terreni-e-ambiente.md"
+        "wiki:mappa-terreni-e-ambiente"
       ],
       "wiki_note": "",
       "pie_refs": [
@@ -518,7 +518,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/azioni-e-movimento.md"
+        "wiki:azioni-e-movimento"
       ],
       "wiki_note": "",
       "pie_refs": [
@@ -578,7 +578,7 @@
         "Spec.Map.NinetyDegreeCornerBakesCorrectly"
       ],
       "wiki_refs": [
-        "docs/wiki/meccaniche/griglia-e-geometria.md"
+        "wiki:griglia-e-geometria"
       ],
       "wiki_note": "La pagina Wiki spiega il **principio** (la griglia non vincola i muri); il dato cotto e la pipeline di cottura non esistono ancora.",
       "pie_refs": [],
@@ -632,7 +632,7 @@
         "Spec.Map.DoorOpensTransition"
       ],
       "wiki_refs": [
-        "docs/wiki/meccaniche/griglia-e-geometria.md"
+        "wiki:griglia-e-geometria"
       ],
       "wiki_note": "Il caso «due celle valide, passaggio chiuso» è già spiegabile; il dato che lo esprime senza passare da una copertura non esiste ancora.",
       "pie_refs": [],
@@ -831,7 +831,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/combattimento-e-targeting.md"
+        "wiki:combattimento-e-targeting"
       ],
       "wiki_note": "Vista e targeting esistono; la **percezione** completa (chi sa cosa, E13) e' un altro sistema e non c'e' ancora.",
       "pie_refs": [
@@ -924,7 +924,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/meccaniche/facing-e-direzionalita.md"
+        "wiki:facing-e-direzionalita"
       ],
       "wiki_note": "Decisione accettata (ADR-0005) ma **non implementata**: quello che leggi qui descrive come funzionera', non come funziona oggi.",
       "pie_refs": [],
@@ -989,7 +989,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/meccaniche/coperture.md"
+        "wiki:coperture"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -1055,7 +1055,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/meccaniche/coperture.md",
+        "wiki:coperture",
         "docs/characters/v0.1/bastion.md"
       ],
       "wiki_note": "Le coperture si **erigono, si spostano e scadono** in partita (CP 9.5). Resta da riscrivere la pagina wiki delle coperture, che descrive solo il dato di mappa.",
@@ -1117,8 +1117,8 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/meccaniche/porte.md",
-        "docs/wiki/meccaniche/topologia-dinamica.md"
+        "wiki:porte",
+        "wiki:topologia-dinamica"
       ],
       "wiki_note": "Dato, regole di blocco e mutazione del bordo sono implementati e testati; l'**interazione del giocatore** (`Action.Interact`) arriva con E10.",
       "pie_refs": [
@@ -1188,8 +1188,8 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/meccaniche/ponti.md",
-        "docs/wiki/meccaniche/topologia-dinamica.md"
+        "wiki:ponti",
+        "wiki:topologia-dinamica"
       ],
       "wiki_note": "",
       "pie_refs": [
@@ -1248,7 +1248,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/mappa-terreni-e-ambiente.md"
+        "wiki:mappa-terreni-e-ambiente"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -1319,8 +1319,8 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/azioni-e-movimento.md",
-        "docs/wiki/meccaniche/collisioni.md"
+        "wiki:azioni-e-movimento",
+        "wiki:collisioni"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -1401,7 +1401,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/azioni-e-movimento.md"
+        "wiki:azioni-e-movimento"
       ],
       "wiki_note": "Quattro azioni generiche su sette sono complete: `Wait`, `Move`, `BasicAttack`, `Guard`. `Brace` funziona ma come reazione; `Interact` è a catalogo **senza effetto**; `Overwatch` non esiste ancora.",
       "pie_refs": [],
@@ -1469,7 +1469,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/azioni-e-movimento.md"
+        "wiki:azioni-e-movimento"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -1538,7 +1538,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/azioni-e-movimento.md"
+        "wiki:azioni-e-movimento"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -1604,8 +1604,8 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/azioni-e-movimento.md",
-        "docs/wiki/meccaniche/collisioni.md"
+        "wiki:azioni-e-movimento",
+        "wiki:collisioni"
       ],
       "wiki_note": "",
       "pie_refs": [
@@ -1665,7 +1665,7 @@
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/azioni-e-movimento.md"
+        "wiki:azioni-e-movimento"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -1717,7 +1717,7 @@
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/azioni-e-movimento.md"
+        "wiki:azioni-e-movimento"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -1832,7 +1832,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/reazioni-overwatch-e-previsioni.md",
+        "wiki:reazioni-overwatch-e-previsioni",
         "docs/characters/v0.1/vektor.md"
       ],
       "wiki_note": "",
@@ -2012,7 +2012,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/reazioni-overwatch-e-previsioni.md",
+        "wiki:reazioni-overwatch-e-previsioni",
         "docs/characters/v0.1/bastion.md",
         "docs/characters/v0.1/vektor.md"
       ],
@@ -2070,7 +2070,7 @@
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
+        "wiki:reazioni-overwatch-e-previsioni"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -2126,7 +2126,7 @@
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
+        "wiki:reazioni-overwatch-e-previsioni"
       ],
       "wiki_note": "",
       "pie_refs": [
@@ -2193,8 +2193,8 @@
         "Spec.Overwatch.FrontlineFollowsFacing"
       ],
       "wiki_refs": [
-        "docs/wiki/meccaniche/overwatch.md",
-        "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
+        "wiki:overwatch",
+        "wiki:reazioni-overwatch-e-previsioni"
       ],
       "wiki_note": "Le reazioni **preparate** esistono e funzionano in partita; l'**Overwatch interattivo** di questa pagina non e' implementato.",
       "pie_refs": [],
@@ -2258,7 +2258,7 @@
         "Spec.Brace.DeflectOffersOnlyLegalSides"
       ],
       "wiki_refs": [
-        "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
+        "wiki:reazioni-overwatch-e-previsioni"
       ],
       "wiki_note": "`Hold Ground` — la risposta base — funziona gia' in partita; i profili d'eroe che ne dichiarano altre no.",
       "pie_refs": [],
@@ -2323,7 +2323,7 @@
         "Spec.Clash.Determinism"
       ],
       "wiki_refs": [
-        "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
+        "wiki:reazioni-overwatch-e-previsioni"
       ],
       "wiki_note": "Decisa nella forma (D-048), **non implementata** e con la grammatica ancora in playtest.",
       "pie_refs": [],
@@ -2377,7 +2377,7 @@
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
+        "wiki:reazioni-overwatch-e-previsioni"
       ],
       "wiki_note": "",
       "pie_refs": [
@@ -2442,7 +2442,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/mappa-terreni-e-ambiente.md"
+        "wiki:mappa-terreni-e-ambiente"
       ],
       "wiki_note": "Gli otto terreni sono implementati e testati; strutture e interazioni continuano a essere estese.",
       "pie_refs": [],
@@ -2556,7 +2556,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/meccaniche/fuoco-e-stati.md"
+        "wiki:fuoco-e-stati"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -2620,7 +2620,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/meccaniche/acqua-e-elettricita.md",
+        "wiki:acqua-e-elettricita",
         "docs/characters/v0.1/riva.md"
       ],
       "wiki_note": "",
@@ -2684,7 +2684,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/meccaniche/acqua-e-elettricita.md",
+        "wiki:acqua-e-elettricita",
         "docs/characters/v0.1/flux.md"
       ],
       "wiki_note": "Dal 2026-08-09 la scarica ha un **owner nel roster**: `Flux.ConductiveNode` **e'** `Action.Electrify` (D-046, nata come D-039). Prima nessun eroe la possedeva e il motore era verde ma non innescabile in partita.",
@@ -2750,7 +2750,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/meccaniche/fuoco-e-stati.md"
+        "wiki:fuoco-e-stati"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -2812,7 +2812,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/mappa-terreni-e-ambiente.md"
+        "wiki:mappa-terreni-e-ambiente"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -2870,7 +2870,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/mappa-terreni-e-ambiente.md"
+        "wiki:mappa-terreni-e-ambiente"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -2982,7 +2982,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/sinergie-e-combinazioni.md",
+        "wiki:sinergie-e-combinazioni",
         "docs/characters/v0.1/flux.md",
         "docs/characters/v0.1/riva.md"
       ],
@@ -3047,7 +3047,7 @@
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/visibilita-rumore-e-informazione.md"
+        "wiki:visibilita-rumore-e-informazione"
       ],
       "wiki_note": "Modello deciso per la v0.1; l'implementazione (E13, dopo E16) **non e' iniziata**: oggi la vista non decide nulla.",
       "pie_refs": [],
@@ -3111,7 +3111,7 @@
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/visibilita-rumore-e-informazione.md"
+        "wiki:visibilita-rumore-e-informazione"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -3168,7 +3168,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/visibilita-rumore-e-informazione.md"
+        "wiki:visibilita-rumore-e-informazione"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -3222,7 +3222,7 @@
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/visibilita-rumore-e-informazione.md"
+        "wiki:visibilita-rumore-e-informazione"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -3274,7 +3274,7 @@
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/come-si-gioca.md"
+        "wiki:come-si-gioca"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -3336,7 +3336,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/come-si-gioca.md"
+        "wiki:come-si-gioca"
       ],
       "wiki_note": "",
       "pie_refs": [
@@ -3395,7 +3395,7 @@
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/come-si-gioca.md"
+        "wiki:come-si-gioca"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -3454,7 +3454,7 @@
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/come-si-gioca.md"
+        "wiki:come-si-gioca"
       ],
       "wiki_note": "",
       "pie_refs": [
@@ -3520,7 +3520,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/combattimento-e-targeting.md"
+        "wiki:combattimento-e-targeting"
       ],
       "wiki_note": "",
       "pie_refs": [
@@ -3584,7 +3584,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/esempio-di-round.md"
+        "wiki:esempio-di-round"
       ],
       "wiki_note": "",
       "pie_refs": [
@@ -4053,11 +4053,11 @@
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/fazioni/index.md",
-        "docs/wiki/fazioni/conflux.md",
-        "docs/wiki/fazioni/constrine.md",
-        "docs/wiki/fazioni/sentinel-directorate.md",
-        "docs/wiki/fazioni/resonance.md"
+        "wiki:Fazioni",
+        "wiki:conflux",
+        "wiki:constrine",
+        "wiki:sentinel-directorate",
+        "wiki:resonance"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -4113,7 +4113,7 @@
         "Team.Resonance.AuroraKwang.FrozenAnchor"
       ],
       "wiki_refs": [
-        "docs/wiki/fazioni/index.md"
+        "wiki:Fazioni"
       ],
       "wiki_note": "Gli scenari di fazione sono **dichiarati ma non esistono** in `Scenarios/`: non si possono ancora giocare.",
       "pie_refs": [],
@@ -4177,8 +4177,8 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/meccaniche/obiettivi-dinamici.md",
-        "docs/wiki/game/obiettivi-e-fine-partita.md"
+        "wiki:obiettivi-dinamici",
+        "wiki:obiettivi-e-fine-partita"
       ],
       "wiki_note": "La partita **puo' finire** per obiettivo, ma in mappa **non esiste ancora un oggetto da attivare**: manca il consumatore, non la regola.",
       "pie_refs": [],
@@ -4238,7 +4238,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/obiettivi-e-fine-partita.md"
+        "wiki:obiettivi-e-fine-partita"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -4473,7 +4473,7 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/avversario-bot.md"
+        "wiki:avversario-bot"
       ],
       "wiki_note": "",
       "pie_refs": [
@@ -4525,7 +4525,7 @@
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/avversario-bot.md"
+        "wiki:avversario-bot"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -5160,7 +5160,7 @@
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/wiki/game/come-si-gioca.md"
+        "wiki:come-si-gioca"
       ],
       "wiki_note": "",
       "pie_refs": [],

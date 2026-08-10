@@ -37,6 +37,7 @@
     "errors": [],
     "warnings": [
       "[RT-FEAT-CORE-DECISION-TIME-BANK] 10 scenario/i dichiarati planned: Spec.TimeBank.GraceDoesNotDrain, Spec.TimeBank.DrainsAfterGrace, Spec.TimeBank.NeverBelowZero, Spec.TimeBank.TimeoutCostsFullWindow, Spec.TimeBank.TimeoutSpendsNoCharge, Spec.TimeBank.ClashCostsFullWindow, Spec.TimeBank.BotDrainsLikePlayer, Spec.TimeBank.ExhaustionKeepsResponsesLegal, Spec.TimeBank.ReplayReadsRecordedBank, Spec.TimeBank.PacketOrderInvariant",
+      "[RT-FEAT-MAP-HEXGRAPH] tutte le voci PIE che la dimostrano sono verdi (PIE-HEXPLAY-1) ma il gate packaged e' ancora partial: puo' avanzare",
       "[RT-FEAT-MAP-STANDABILITY] 3 scenario/i dichiarati planned: Spec.Map.WallCrossesCellStillStandable, Spec.Map.FootprintCollisionBlocksCell, Spec.Map.NinetyDegreeCornerBakesCorrectly",
       "[RT-FEAT-MAP-TRANSITION-CLEARANCE] 2 scenario/i dichiarati planned: Spec.Map.ValidCellsBlockedTransition, Spec.Map.DoorOpensTransition",
       "[RT-FEAT-MAP-WATER-DYNAMICS] nessuna pagina Wiki collegata",
@@ -297,12 +298,12 @@
   "editor_sessions": [
     {
       "id": "U18",
-      "title": "Verifiche senza preparazione",
+      "title": "Verifiche senza prerequisiti",
       "block": 1,
       "critical": false,
       "state": "🟡",
       "queue_group": "READY",
-      "produces": "verdetto su tre voci che non attendono nulla",
+      "produces": "verdetto su cinque voci che non attendono nulla",
       "artifacts": [],
       "unblocked_by": [],
       "unblocks": [],
@@ -319,10 +320,20 @@
         {
           "id": "PIE-TEST-CONSOLE",
           "state": "🟡"
+        },
+        {
+          "id": "PIE-HEX-LAYER",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-HEX-TRANS",
+          "state": "⏳"
         }
       ],
-      "issues": [],
-      "done_when": "le tre voci hanno esito reale nel registro"
+      "issues": [
+        450
+      ],
+      "done_when": "le cinque voci hanno esito reale nel registro"
     },
     {
       "id": "U1",
@@ -385,18 +396,14 @@
         {
           "id": "PIE-HEX-MODE-O",
           "state": "⏳"
-        },
-        {
-          "id": "PIE-HEX-LAYER",
-          "state": "⏳"
-        },
-        {
-          "id": "PIE-HEX-TRANS",
-          "state": "⏳"
         }
       ],
-      "issues": [],
-      "done_when": "i due asset sono tracciati da git e le nove voci hanno un esito reale"
+      "issues": [
+        449,
+        450,
+        451
+      ],
+      "done_when": "i due asset sono tracciati da `git ls-files`, le sette voci hanno un esito reale, e l'arena soddisfa i tre criteri dei passi 3, 4 e 7"
     },
     {
       "id": "U2",
@@ -435,7 +442,7 @@
       "verifies": [
         {
           "id": "PIE-HEXPLAY-1",
-          "state": "🟡"
+          "state": "✅"
         },
         {
           "id": "PIE-HEXPLAY-4",
@@ -443,7 +450,7 @@
         },
         {
           "id": "PIE-HEXPLAY-5",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-CAM-START",
@@ -487,7 +494,7 @@
         },
         {
           "id": "PIE-HEXPLAY-3",
-          "state": "🟡"
+          "state": "✅"
         },
         {
           "id": "PIE-HEXPLAY-3b",
@@ -559,7 +566,7 @@
       "title": "Bot e HUD",
       "block": 2,
       "critical": true,
-      "state": "⏳",
+      "state": "🟡",
       "queue_group": "BLOCKING",
       "produces": "verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale",
       "artifacts": [],
@@ -591,7 +598,7 @@
       "verifies": [
         {
           "id": "PIE-HEXPLAY-7",
-          "state": "⏳"
+          "state": "🟡"
         },
         {
           "id": "PIE-HEXPLAY-9",
@@ -656,7 +663,7 @@
         },
         {
           "id": "PIE-HEXPLAY-10",
-          "state": "⏳"
+          "state": "🟡"
         },
         {
           "id": "PIE-HEXPLAY-4b",
@@ -1353,11 +1360,11 @@
     },
     {
       "id": "PIE-HEXPLAY-1",
-      "state": "🟡"
+      "state": "✅"
     },
     {
       "id": "PIE-HEXPLAY-10",
-      "state": "⏳"
+      "state": "🟡"
     },
     {
       "id": "PIE-HEXPLAY-2",
@@ -1365,7 +1372,7 @@
     },
     {
       "id": "PIE-HEXPLAY-3",
-      "state": "🟡"
+      "state": "✅"
     },
     {
       "id": "PIE-HEXPLAY-3b",
@@ -1381,7 +1388,7 @@
     },
     {
       "id": "PIE-HEXPLAY-5",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-HEXPLAY-6",
@@ -1397,7 +1404,7 @@
     },
     {
       "id": "PIE-HEXPLAY-7",
-      "state": "⏳"
+      "state": "🟡"
     },
     {
       "id": "PIE-HEXPLAY-8",

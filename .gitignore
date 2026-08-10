@@ -90,6 +90,10 @@ Content/**/*.txt
 !Content/RT/Characters/Shared/Materials/M_TeamRing.uasset
 !Content/RT/Maps/Dev/L_DevSandbox/L_DevSandbox.umap
 !Content/RT/Maps/Dev/L_DevSandbox/Data/DA_HexMap_Sandbox.uasset
+# L'arena della seduta U1 — riammessa *prima* che l'asset esista, perche' altrimenti `git add`
+# non fa nulla e non segnala nulla, e la seduta si chiude senza che gli artefatti entrino.
+!Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap
+!Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset
 
 # Scratch dello sviluppo assistito (subagent-driven-development): mai versionato
 .superpowers/

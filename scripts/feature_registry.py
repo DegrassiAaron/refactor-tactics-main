@@ -12,12 +12,15 @@ sbagliata. Qui la copia e' generata, e il generatore fallisce se la sorgente non
 Uso:
     python scripts/feature_registry.py validate           # gate: esce 1 se ci sono errori
     python scripts/feature_registry.py generate           # feature-registry.json + project-graph.json
-    python scripts/feature_registry.py wiki               # blocchi di stato + pagina Feature Status
+    python scripts/feature_registry.py wiki               # blocchi di stato nel repo (docs/characters/)
     python scripts/feature_registry.py shortlist          # le cinque viste corte di docs/roadmap/
     python scripts/feature_registry.py report             # tabella di audit (markdown su stdout)
+    python scripts/feature_registry.py deploy --wiki-root PATH --write   # blocchi + Stato-delle-feature nel clone
+                                                                 # (senza --write e' sola lettura)
 
 Opzioni comuni:
-    --wiki-root PATH    radice del clone della Wiki (deploy flat), per validare i `wiki:` refs
+    --wiki-root PATH    radice del clone della Wiki. Dal 2026-08-10 (D-076) il clone e' la **fonte**
+                        delle pagine di gioco: i ref `wiki:<PageName>` si risolvono solo li'.
     --check             `generate`/`wiki`/`shortlist`/`deploy` non scrivono: falliscono se disallineati
 """
 import argparse
@@ -37,7 +40,6 @@ ROADMAP_V01 = os.path.join(REPO, "docs", "roadmap", "roadmap-v0.1.md")
 ROADMAP_CHECKPOINT = os.path.join(REPO, "docs", "roadmap", "roadmap-checkpoint.md")
 TESTS_DIR = os.path.join(REPO, "Source", "RefactorTactics", "Tests")
 SCENARIOS_DIR = os.path.join(REPO, "Scenarios")
-WIKI_STATUS_PAGE = os.path.join(REPO, "docs", "wiki", "feature-status.md")
 
 FEATURE_ID_RE = re.compile(r"^RT-FEAT-[A-Z0-9]+(-[A-Z0-9]+)*$")
 GATE_NAMES = [
@@ -378,9 +380,12 @@ def validate(registry, wiki_root=None, editor_ctx=None):
 
         for ref in feature.get("wiki_refs") or []:
             if ref.startswith("wiki:"):
-                if wiki_root:
-                    if not wiki_page_by_name(wiki_root, ref[len("wiki:"):]):
-                        errors.append(f"{where} pagina Wiki inesistente nel clone: {ref}")
+                # Senza `wiki_root` il clone non e' leggibile e il riferimento non si controlla.
+                # Non e' un errore — non tutti hanno il clone accanto — ma nemmeno un silenzio: il
+                # comando `validate` conta questi ref e lo dice, perche' un verde su qualcosa che
+                # non e' stato aperto e' peggio di un rosso.
+                if wiki_root and not wiki_page_by_name(wiki_root, ref[len("wiki:"):]):
+                    errors.append(f"{where} pagina Wiki inesistente nel clone: {ref}")
             elif not os.path.isfile(os.path.join(REPO, ref)):
                 errors.append(f"{where} pagina Wiki sorgente inesistente: {ref}")
 
@@ -454,6 +459,13 @@ def validate(registry, wiki_root=None, editor_ctx=None):
             "perche' non appartiene a nessuna"
         )
 
+    # NB: «quanti riferimenti `wiki:` non ho potuto verificare» **non** entra fra i warning, e per
+    # questo non si calcola qui. I warning finiscono in `project-graph.json`, che e' versionato e ha
+    # un `--check`: un avviso che dipende dalla presenza di `--wiki-root` renderebbe il file generato
+    # diverso a seconda di come lo lanci, e il `--check` rosso a giorni alterni. Quell'avviso
+    # descrive quanto ha guardato **l'esecuzione**, non lo stato del progetto: lo calcola e lo stampa
+    # il comando `validate`, che sa con che flag e' partito.
+
     # --- riferimenti a feature dalle pagine gia' generate ---
     for page, fids in wiki_blocks_in_repo().items():
         for fid in fids:
@@ -471,7 +483,9 @@ def validate(registry, wiki_root=None, editor_ctx=None):
 def wiki_blocks_in_repo():
     """Pagine del repo che contengono gia' un blocco generato, con i FeatureId citati."""
     found = {}
-    for base in ("docs/wiki", "docs/characters"):
+    # Solo `docs/characters/`: da D-076 le pagine di gioco stanno nel clone, e i loro blocchi li
+    # verifica `deploy`.
+    for base in ("docs/characters",):
         root_dir = os.path.join(REPO, base)
         for root, _dirs, files in os.walk(root_dir):
             for name in files:
@@ -726,41 +740,42 @@ def apply_wiki_blocks(data, check=False):
     return changed, stale
 
 
-# Le pagine `game/` prendono il nome del file. Dove il clone ha gia' pubblicato un nome diverso vince
-# il clone: rinominare una pagina della GitHub Wiki ne cambia l'**URL pubblico**, e un link esterno o
-# un segnalibro smetterebbe di funzionare per una questione di sole maiuscole.
-def deploy_name(source_ref):
+# Rinominare una pagina della GitHub Wiki ne cambia l'**URL pubblico**, e un link esterno o un
+# segnalibro smette di funzionare anche per una questione di sole maiuscole: dove il clone ha gia'
+# pubblicato un nome, vince il clone.
+def deploy_name(source_ref, wiki_root=None):
     """Percorso della pagina nel clone della Wiki, che e' un repository separato.
 
-    **Il presupposto precedente era sbagliato a meta'.** Fino al 2026-08-10 questa funzione
-    appiattiva tutto in root con un prefisso nel nome (`Meccanica-coperture.md`), perche' `DEPLOY.md`
-    dichiarava che «la GitHub Wiki non ha gerarchia». Verificato: le pagine in sottocartella **sono
-    servite** e compaiono nel menu *Pages*. Cio' che e' piatto e' il **namespace degli URL** — l'URL
-    e' il solo nome del file, il percorso non ci entra — quindi i nomi devono restare **globalmente
-    unici**, anche fra cartelle diverse.
+    Cio' che e' piatto nella GitHub Wiki e' il **namespace degli URL**, non il filesystem: l'URL e'
+    il solo nome del file, il percorso non ci entra. Quindi i nomi restano **globalmente unici**
+    anche fra cartelle diverse, e i `[[link]]` sono per **nome**, mai per percorso. Le pagine indice
+    stanno in root accanto a `Home`, perche' tre `index.md` in tre cartelle non possono convivere.
 
-    Ne segue che le cartelle della sorgente possono diventare cartelle anche qui, e il prefisso
-    ridondante sparisce. I `[[link]]` restano per **nome**, mai per percorso.
+    **Dal 2026-08-10 (D-076) esistono due forme di ref, e non sono simmetriche.**
 
-    Le pagine indice restano in root accanto a `Home`: sono hub, e `index.md` in tre cartelle diverse
-    collidere*bbe* — tre pagine non possono chiamarsi tutte `index`.
+    `wiki:<PageName>` nomina una pagina che vive **solo** nel clone: `docs/wiki/` e' stata cancellata
+    e il clone e' la fonte. Il nome non dice la cartella — e' voluto: sopravvive a una
+    riorganizzazione delle cartelle, che e' esattamente cio' che e' successo il 2026-08-10 quando 89
+    pagine sono uscite dalla root. Risolverlo richiede quindi di **guardare nel clone**, e senza
+    `wiki_root` la funzione non puo' rispondere: restituisce `None` invece di tirare a indovinare.
+
+    `docs/characters/...md` resta un percorso nel repository, perche' quelle pagine **restano** qui:
+    sono il catalogo degli eroi, referenziato da cataloghi, ADR e test. Il clone ne e' solo il
+    deploy.
     """
     ref = source_ref.replace("\\", "/")
+    if ref.startswith("wiki:"):
+        if not wiki_root:
+            return None
+        path = wiki_page_by_name(wiki_root, ref[len("wiki:"):])
+        return os.path.relpath(path, wiki_root).replace("\\", "/") if path else None
     stem = os.path.splitext(os.path.basename(ref))[0]
-    if ref.startswith("docs/wiki/game/"):
-        return "Guida/" + stem + ".md"
-    if ref.startswith("docs/wiki/meccaniche/"):
-        return "Meccaniche.md" if stem == "index" else "Meccaniche/" + stem + ".md"
-    if ref.startswith("docs/wiki/fazioni/"):
-        return "Fazioni.md" if stem == "index" else "Fazioni/" + stem + ".md"
     if ref.startswith("docs/characters/v0."):
         return "Personaggi/" + stem + ".md"
     if ref == "docs/characters/index.md":
         return "Personaggi.md"
     if ref == "docs/characters/paragon.md":
         return "Personaggi/paragon.md"
-    if ref == "docs/wiki/feature-status.md":
-        return "Stato-delle-feature.md"
     return None
 
 
@@ -806,8 +821,16 @@ def wiki_page_by_name(wiki_root, page_name):
 
     I riferimenti `wiki:<PageName>` nominano la pagina, non il file: dopo il passaggio alle cartelle
     non si puo' piu' assumere che stia in root.
+
+    **L'iterazione e' ordinata, e non e' cosmesi.** `wiki_pages()` restituisce un `set`, il cui
+    ordine in CPython non e' stabile fra run diversi. Finche' D-076 non e' atterrata questa funzione
+    serviva solo a un controllo booleano di esistenza e il percorso restituito veniva scartato; ora
+    decide **in quale file** scrivere il blocco di stato e come classificare una riga del workbook.
+    Con due pagine omonime — che `check-docs-links.py --wiki-root` segnala come errore, perche' si
+    contendono lo stesso URL — un ordine casuale farebbe scrivere in un file diverso a run diverse,
+    senza che nulla lo dica. E' la stessa regola che il progetto applica a `TMap`/`TSet` in C++.
     """
-    for rel in wiki_pages(wiki_root):
+    for rel in sorted(wiki_pages(wiki_root)):
         if os.path.splitext(os.path.basename(rel))[0] == page_name:
             return os.path.join(wiki_root, rel)
     return None
@@ -823,13 +846,11 @@ def apply_wiki_deploy(data, wiki_root, check=True):
     by_page = {}
     for entry in data["features"]:
         for ref in entry["wiki_refs"]:
-            if ref.startswith("wiki:"):
-                continue
             by_page.setdefault(ref, []).append(entry)
 
     changed, missing = [], []
     for ref, entries in sorted(by_page.items()):
-        name = deploy_name(ref)
+        name = deploy_name(ref, wiki_root)
         if not name:
             missing.append(f"{ref}: nessuna pagina di deploy corrispondente")
             continue
@@ -855,16 +876,18 @@ def apply_wiki_deploy(data, wiki_root, check=True):
                 with open(path, "w", encoding="utf-8", newline="\n") as fh:
                     fh.write(text)
 
-    status_source = os.path.join(REPO, "docs", "wiki", "feature-status.md")
-    if os.path.isfile(status_source):
-        target = os.path.join(wiki_root, "Stato-delle-feature.md")
-        content = open(status_source, encoding="utf-8").read()
-        current = open(target, encoding="utf-8").read() if os.path.isfile(target) else None
-        if current != content:
-            changed.append("Stato-delle-feature.md")
-            if not check:
-                with open(target, "w", encoding="utf-8", newline="\n") as fh:
-                    fh.write(content)
+    # La pagina di stato non ha piu' una sorgente nel repository. Fino a D-076 viveva in
+    # `docs/wiki/feature-status.md`: il comando `wiki` la generava li', il deploy la **copiava** nel
+    # clone, e fra i due passaggi c'era una finestra in cui la copia pubblicata era vecchia senza che
+    # nulla lo dicesse. Ora si genera direttamente qui: una copia sola, nessuna finestra.
+    target = os.path.join(wiki_root, "Stato-delle-feature.md")
+    content = render_status_page(data)
+    current = open(target, encoding="utf-8").read() if os.path.isfile(target) else None
+    if current != content:
+        changed.append("Stato-delle-feature.md")
+        if not check:
+            with open(target, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(content)
     return changed, missing
 
 
@@ -1134,27 +1157,53 @@ CHARACTERS_WORKBOOK = os.path.join(
 REFS_SHEET = "15_Wiki_Feature_Refs"
 
 
-def wiki_entity_id(ref):
-    """Entita' della Wiki a cui una pagina corrisponde, per il workbook."""
+def wiki_entity_id(ref, wiki_root=None):
+    """Entita' della Wiki a cui una pagina corrisponde, per il workbook.
+
+    La famiglia dell'entita' (`Faction` / `Mechanic` / `Guide`) e' la **cartella** che contiene la
+    pagina, non il suo nome. Fino a D-076 la cartella stava nel ref (`docs/wiki/meccaniche/...`);
+    ora i ref sono `wiki:<PageName>` e la cartella vive solo nel clone, quindi serve `wiki_root`.
+
+    Senza, restituisce `None` e la relazione sparisce dal foglio. Il chiamante deve accorgersene e
+    fermarsi: un workbook con **meno righe** e nessun errore e' il modo in cui una copertura finta
+    passa inosservata.
+    """
     ref = ref.replace("\\", "/")
     stem = os.path.splitext(os.path.basename(ref))[0]
     if ref.startswith("docs/characters/v0.") and stem != "index":
         return "Hero." + stem.capitalize()
-    if ref.startswith("docs/wiki/fazioni/") and stem != "index":
-        return "Faction." + "".join(p.capitalize() for p in stem.split("-"))
-    if ref.startswith("docs/wiki/meccaniche/"):
-        return "Mechanic." + "".join(p.capitalize() for p in stem.split("-"))
-    if ref.startswith("docs/wiki/game/"):
-        return "Guide." + "".join(p.capitalize() for p in stem.split("-"))
+    if ref.startswith("wiki:"):
+        page = ref[len("wiki:"):]
+        path = wiki_page_by_name(wiki_root, page) if wiki_root else None
+        if not path:
+            return None
+        rel = os.path.relpath(path, wiki_root).replace("\\", "/")
+        folder = rel.split("/")[0] if "/" in rel else ""
+        stem = os.path.splitext(os.path.basename(rel))[0]
+        prefix = {"Fazioni": "Faction.", "Meccaniche": "Mechanic.", "Guida": "Guide."}.get(folder)
+        if not prefix:
+            return None
+        return prefix + "".join(p.capitalize() for p in stem.split("-"))
     return None
 
 
-def feature_refs_rows(data):
-    """Relazioni entita' Wiki → FeatureId, derivate dal registry. Nessuno stato: solo riferimenti."""
-    rows = []
+def feature_refs_rows(data, wiki_root=None):
+    """Relazioni entita' Wiki → FeatureId, derivate dal registry. Nessuno stato: solo riferimenti.
+
+    Restituisce anche i ref `wiki:` che **non** si sono risolti. Ignorarli produrrebbe un foglio piu'
+    corto senza un errore: la firma li rende visibili al chiamante, che decide se fermarsi.
+    """
+    rows, unresolved = [], []
     for entry in data["features"]:
         for ref in entry["wiki_refs"]:
-            entity = wiki_entity_id(ref)
+            # «Non e' un'entita'» e «non si risolve» sono due cose diverse, e confonderle costa in
+            # entrambi i versi. Le pagine indice (`Fazioni`, `Meccaniche`) stanno in root del clone
+            # e non sono entita' del workbook — non lo erano nemmeno prima di D-076. Una pagina che
+            # invece **non esiste** nel clone e' un ref rotto, e va detto.
+            if ref.startswith("wiki:") and not (wiki_root and wiki_page_by_name(wiki_root, ref[len("wiki:"):])):
+                unresolved.append(ref)
+                continue
+            entity = wiki_entity_id(ref, wiki_root)
             if not entity:
                 continue
             if entity.startswith("Faction."):
@@ -1169,10 +1218,10 @@ def feature_refs_rows(data):
         for sid in entry["scenarios_planned"]:
             if sid.startswith("Team."):
                 rows.append(("Scenario." + sid, entry["feature_id"], "validates", "pianificato"))
-    return sorted(set(rows))
+    return sorted(set(rows)), sorted(set(unresolved))
 
 
-def apply_workbook(data, check=False):
+def apply_workbook(data, check=False, wiki_root=None):
     """Riscrive la sheet delle relazioni nel workbook di character authoring.
 
     Il workbook **non** tiene lo stato: quello vive nel registry. Qui stanno solo i riferimenti,
@@ -1186,7 +1235,16 @@ def apply_workbook(data, check=False):
     if not os.path.isfile(CHARACTERS_WORKBOOK):
         return None, f"workbook non trovato: {CHARACTERS_WORKBOOK}"
 
-    rows = feature_refs_rows(data)
+    rows, unresolved = feature_refs_rows(data, wiki_root)
+    # Le pagine di gioco vivono nel clone (D-076): senza `--wiki-root` non si risolvono, e il foglio
+    # perderebbe in silenzio le relazioni `Guide.*`, `Mechanic.*` e `Faction.*` — le tre famiglie su
+    # quattro. Meglio non scrivere nulla che scrivere una copertura dimezzata.
+    if unresolved:
+        return None, (
+            f"{len(unresolved)} riferimenti `wiki:` non risolti"
+            + ("" if wiki_root else " (manca --wiki-root)")
+            + ": " + ", ".join(unresolved[:5]) + ("…" if len(unresolved) > 5 else "")
+        )
     workbook = openpyxl.load_workbook(CHARACTERS_WORKBOOK)
     existing = []
     if REFS_SHEET in workbook.sheetnames:
@@ -2340,6 +2398,15 @@ def main():
             print(f"WARN  {warning}")
         for error in errors:
             print(f"ERROR {error}")
+        # Fuori dal conteggio dei warning, perche' non e' una lacuna del progetto: dice quanto ha
+        # potuto guardare *questa* esecuzione. Senza, un validate senza `--wiki-root` sarebbe verde
+        # su riferimenti che non ha aperto — da D-076 sono tutte le pagine di gioco.
+        if not args.wiki_root:
+            unchecked = {r for f in registry.get("features") or []
+                         for r in (f.get("wiki_refs") or []) if r.startswith("wiki:")}
+            if unchecked:
+                print(f"NOTA  {len(unchecked)} riferimenti `wiki:` non verificati: passa "
+                      "--wiki-root <clone> perche' la loro esistenza venga controllata")
         print(f"\nerrori: {len(errors)} · warning: {len(warnings)}")
         return 1 if errors else 0
 
@@ -2364,27 +2431,25 @@ def main():
             return 1
         return 0
 
+    # `wiki` scrive **nel repository**, e dopo D-076 nel repository restano solo `docs/characters/` e
+    # il blocco della roadmap: le pagine di gioco vivono nel clone e le aggiorna `deploy`. La pagina
+    # `Stato-delle-feature` e' passata anch'essa al deploy, che la genera direttamente dove si legge.
     if args.command == "wiki":
         changed, stale = apply_wiki_blocks(data, args.check)
-        page_changed = write_if_needed(WIKI_STATUS_PAGE, render_status_page(data), args.check)
         roadmap_changed = apply_roadmap_block(data, args.check)
         for note in stale:
             print(f"WARN  {note}")
-        if args.check and (changed or page_changed or roadmap_changed):
+        if args.check and (changed or roadmap_changed):
             for ref in changed:
                 print(f"disallineato: {ref}")
-            if page_changed:
-                print(f"disallineato: {os.path.relpath(WIKI_STATUS_PAGE, REPO)}")
             if roadmap_changed:
                 print(f"disallineato: {os.path.relpath(ROADMAP_V01, REPO)}")
             return 1
         for ref in changed:
             print(f"aggiornato {ref}")
-        if page_changed:
-            print(f"aggiornato {os.path.relpath(WIKI_STATUS_PAGE, REPO)}")
         if roadmap_changed:
             print(f"aggiornato {os.path.relpath(ROADMAP_V01, REPO)}")
-        if not (changed or page_changed or roadmap_changed):
+        if not (changed or roadmap_changed):
             print("pagine gia' allineate")
         return 0
 
@@ -2417,7 +2482,7 @@ def main():
         return 0
 
     if args.command == "workbook":
-        rows, error = apply_workbook(data, args.check)
+        rows, error = apply_workbook(data, args.check, args.wiki_root)
         if error:
             print(error)
             return 1

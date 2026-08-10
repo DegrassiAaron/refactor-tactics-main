@@ -171,7 +171,7 @@ Il controgioco consiste nel cambiare rotta, usare coperture e LOS per negare le 
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | RES_VEKTOR_MOMENTUM | Slancio | 4 | — | 1 | Movimento eseguito | Abilità firma | Cap 4; start non specificato | Team-visible | CANONICAL_PARTIAL |
 
-> **Ownership del kit:** le abilità di questa pagina appartengono esclusivamente a questo personaggio. Le sinergie con altri eroi sono esempi derivati da stati, superfici, geometria e altre regole comuni; non sono abilità condivise. Vedi [Sinergie e combinazioni](../../wiki/game/sinergie-e-combinazioni.md).
+> **Ownership del kit:** le abilità di questa pagina appartengono esclusivamente a questo personaggio. Le sinergie con altri eroi sono esempi derivati da stati, superfici, geometria e altre regole comuni; non sono abilità condivise. Vedi [Sinergie e combinazioni](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/sinergie-e-combinazioni).
 
 ## Profilo di attacco base
 

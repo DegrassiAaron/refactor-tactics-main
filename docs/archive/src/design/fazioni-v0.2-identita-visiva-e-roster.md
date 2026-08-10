@@ -3,8 +3,8 @@
 > un'autorità (`AGENTS.md`: `docs/src/` non è fonte normativa per default). Gli owner normativi
 > dell'ownership dei contenuti sono ora
 > [`../../../gameplay/spec-ownership-abilita-interazioni-sinergie.md`](../../../gameplay/spec-ownership-abilita-interazioni-sinergie.md)
-> e le pagine Wiki [`../../../wiki/fazioni/index.md`](../../../wiki/fazioni/index.md) ·
-> [`../../../wiki/game/sinergie-e-combinazioni.md`](../../../wiki/game/sinergie-e-combinazioni.md).
+> e le pagine Wiki [`Fazioni` (Wiki)](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/Fazioni) ·
+> [`sinergie-e-combinazioni` (Wiki)](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/sinergie-e-combinazioni).
 >
 > **Non c'è deriva da correggere qui**: il divieto di `SameFactionDamageBonus` / `SameFactionArmorBonus` /
 > `FactionSetBonus` (§3) e la regola «la cooperazione emerge dalle normali meccaniche» sono esattamente ciò che
