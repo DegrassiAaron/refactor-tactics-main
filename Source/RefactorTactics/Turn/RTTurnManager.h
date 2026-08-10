@@ -6,6 +6,7 @@
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTResolvedEvent.h"
 #include "Turn/RTTurnLog.h"
+#include "Replay/RTReplayManifest.h"
 #include "Ability/RTActionDef.h" // FRTActionDef: l'impatto della carica porta con se' la definizione
 #include "Turn/RTHexSim.h" // FRTHexSnapshot: restituito per valore da MakeCurrentSnapshot
 #include "Turn/RTPacing.h" // FRTPacingSample: telemetria, canale separato dal TurnLog
@@ -190,6 +191,46 @@ public:
 
 	/** Esiti autoritativi dell'ultimo turno risolto (Movimento + Combat), ordinati deterministicamente. */
 	const TArray<FRTTurnLogEntry>& GetTurnLog() const { return TurnLog; }
+
+	/**
+	 * Registrazione del replay (`#469`). Per il replay il TurnManager **non scrive**: passa il TurnLog a
+	 * `URTReplayRecorderLibrary` e non tocca il disco.
+	 *
+	 * ⚠️ La frase vale per il replay e non per la classe: `AppendPacingRow` scrive gia' i CSV di pacing in
+	 * `Saved/RT/`, e lo fa da `ClosePacingSample`, **una riga sopra** la registrazione dentro `ConcludeTurn`.
+	 * Dirlo in assoluto sarebbe falso a una riga di distanza.
+	 *
+	 * Non contraddice [ADR-0009](../../../docs/decisions/adr-0009-replay-logico-canonico.md) §3: quel confine
+	 * dice che chi **riproduce** non chiama il resolver. Qui e' il contrario — e' il resolver che consegna a
+	 * chi scrive, e scrivere non e' riprodurre.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Replay")
+	bool bRecordReplay = true;
+
+	/**
+	 * Radice degli archivi. Vuota = `Saved/Replays`. E' **configurazione**, non un ramo «se test»: un test
+	 * che deve scrivere altrove imposta un parametro, non attiva un percorso di codice diverso da quello
+	 * che gira in partita.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Replay")
+	FString ReplaysRootOverride;
+
+	/**
+	 * Avvia la registrazione: genera il `MatchId` e fissa il formato. **Va chiamata da chi allestisce una
+	 * partita vera** — il GameMode — e non da `BeginPlay`.
+	 *
+	 * Due ragioni, entrambe misurate: `BeginPlay` gira anche per i 27 file di test e per lo
+	 * `ScenarioHarness` che spawnano un TurnManager, e registrare li' significherebbe far scrivere su disco
+	 * centinaia di test che non l'hanno chiesto; e il GameMode spawna il TurnManager **prima** di risolvere
+	 * il formato (`ApplyMatchFormat`), quindi a `BeginPlay` `MatchRules.FormatId` non e' ancora quello vero.
+	 *
+	 * Finche' non viene chiamata, `RecordTurnToReplay` e `CloseReplayArchive` non fanno nulla: la
+	 * registrazione e' spenta per assenza di identita', non per un flag da ricordarsi.
+	 */
+	void BeginReplayRecording();
+
+	/** Identita' della registrazione in corso. Non valida finche' `BeginReplayRecording` non e' stata chiamata. */
+	FGuid GetReplayMatchId() const { return ReplayManifest.MatchId; }
 
 	/** Rotte effettivamente percorse nell'ultima risoluzione (viz post-lock del percorso eseguito). */
 	const TArray<TArray<FRTCellId>>& GetLastMoveRoutes() const { return LastMoveRoutes; }
@@ -520,6 +561,18 @@ protected:
 
 	/** TurnLog dell'ultimo turno risolto (osservabilita' autoritativa; ordinato in LockInAndResolve). */
 	TArray<FRTTurnLogEntry> TurnLog;
+
+	/** Stato della registrazione in corso: id, hash per turno, chiusura. Lo tiene il manifest stesso. */
+	FRTReplayManifest ReplayManifest;
+
+	/** Scrive la traccia del turno appena risolto. Silenziosa se la registrazione e' spenta. */
+	void RecordTurnToReplay();
+
+	/** Chiude l'archivio a partita finita. Silenziosa se la registrazione e' spenta o non e' mai partita. */
+	void CloseReplayArchive();
+
+	/** La radice effettiva: l'override se c'e', altrimenti `Saved/Replays`. */
+	FString ResolveReplaysRoot() const;
 
 	/** Rotte (celle) percorse da ogni unita' che si e' mossa nell'ultima risoluzione. */
 	TArray<TArray<FRTCellId>> LastMoveRoutes;

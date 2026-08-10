@@ -31,6 +31,7 @@
 #include "TimerManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Replay/RTReplayRecorderLibrary.h"
 #include "Misc/DateTime.h"
 #include "HAL/FileManager.h"
 
@@ -44,6 +45,11 @@ ARTTurnManager::ARTTurnManager()
 void ARTTurnManager::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// ⚠️ La registrazione NON parte da sola qui, ed e' deliberato: `BeginPlay` gira anche per i 27 file di
+	// test e per lo `ScenarioHarness` che spawnano un TurnManager a mano, e farli scrivere su disco
+	// sarebbe un effetto collaterale che nessuno ha chiesto. La avvia chi allestisce una partita vera —
+	// il GameMode — con `BeginReplayRecording()`.
 	StartPlanningTimer();
 }
 
@@ -1319,6 +1325,12 @@ void ARTTurnManager::ConcludeTurn()
 	// decide la partita e' proprio quello che non verrebbe mai misurato.
 	ClosePacingSample();
 
+	// La traccia del turno appena risolto va su disco ADESSO, non a fine partita: un archivio serve
+	// soprattutto quando la partita non arriva alla fine. `TurnNumber` e' ancora quello del turno chiuso —
+	// l'incremento avviene piu' sotto, e invertire i due ordini scriverebbe ogni traccia col numero
+	// sbagliato.
+	RecordTurnToReplay();
+
 	// Morte visiva differita: ora che il playback ha mostrato le eliminazioni, rimuovi gli Actor morti
 	// (prima del prossimo turno, cosi' non figurano piu' come bersagli/ostacoli).
 	DestroyDefeatedUnits();
@@ -1337,6 +1349,11 @@ void ARTTurnManager::ConcludeTurn()
 			Team0Score,
 			Team1Score,
 			*MatchRules.FormatId.ToString()));
+
+		// La partita e' finita: l'archivio si chiude, e da qui in poi dichiara di essere completo. Se
+		// questa riga non venisse mai eseguita — crash, uscita — il manifest resterebbe non chiuso, ed e'
+		// esattamente cosi' che un archivio parziale si riconosce.
+		CloseReplayArchive();
 		return; // niente nuovo turno
 	}
 
@@ -1374,6 +1391,65 @@ void ARTTurnManager::AddTeamScore(int32 TeamId, int32 Points)
 
 	AddLogEvent(FString::Printf(TEXT("Obiettivo: team %d +%d (ora %d-%d)"),
 		TeamId, Points, Team0Score, Team1Score));
+}
+
+void ARTTurnManager::BeginReplayRecording()
+{
+	if (!bRecordReplay)
+	{
+		return;
+	}
+
+	ReplayManifest = FRTReplayManifest();
+	ReplayManifest.MatchId = FGuid::NewGuid();
+	// Il formato si legge ADESSO e non a `BeginPlay`: il GameMode spawna il TurnManager prima di risolvere
+	// il formato di partita (`ApplyMatchFormat`), quindi a quel punto `MatchRules.FormatId` non e' ancora
+	// quello vero. Un manifest che dichiara il formato sbagliato e' peggio di uno che non lo dichiara.
+	ReplayManifest.FormatId = MatchRules.FormatId;
+	ReplayManifest.bHexTopology = true; // un solo substrato: `FRTCellId` e' esagonale (ADR-0002)
+}
+
+FString ARTTurnManager::ResolveReplaysRoot() const
+{
+	return ReplaysRootOverride.IsEmpty()
+		? FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Replays"))
+		: ReplaysRootOverride;
+}
+
+void ARTTurnManager::RecordTurnToReplay()
+{
+	if (!bRecordReplay || !ReplayManifest.MatchId.IsValid())
+	{
+		return;
+	}
+
+	// Il TurnManager non sa scrivere: consegna la traccia a chi lo fa. Non riordina e non serializza —
+	// `SortTurnLog` ha gia' fissato l'ordine canonico, e la serializzazione e' della libreria del TurnLog.
+	if (!URTReplayRecorderLibrary::RecordTurn(ResolveReplaysRoot(), ReplayManifest, TurnNumber, TurnLog))
+	{
+		// Non e' un errore di gioco: la partita continua anche se il disco no. Ma va DETTO, o un archivio
+		// che non c'e' si scopre solo quando qualcuno prova a riaprirlo.
+		AddLogEvent(FString::Printf(TEXT("Replay: il turno %d non e' stato registrato"), TurnNumber));
+	}
+}
+
+void ARTTurnManager::CloseReplayArchive()
+{
+	if (!bRecordReplay || !ReplayManifest.MatchId.IsValid() || ReplayManifest.bClosed)
+	{
+		return;
+	}
+
+	// ⚠️ `FinalStateHash` resta 0: il checksum di fine partita non ha ancora un produttore, e la ragione
+	// non e' una svista ma una decisione aperta — `FRTUnitStateDigest::Id` entra nell'hash ed e' oggi la
+	// chiave del file di scenario, che una partita non ha (issue #490). Il campo e' dichiarato non
+	// calcolato dal manifest stesso, che e' meglio di un numero inventato: `0` qui significa «nessuno l'ha
+	// scritto», ed e' esattamente cio' che e' vero.
+	if (!URTReplayRecorderLibrary::CloseMatch(ResolveReplaysRoot(), ReplayManifest,
+		PendingResult.Outcome, /*FinalStateHash*/ 0, /*WallClockSeconds*/ 0.f))
+	{
+		AddLogEvent(TEXT("Replay: l'archivio non e' stato chiuso"));
+	}
 }
 
 void ARTTurnManager::DestroyDefeatedUnits()

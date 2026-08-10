@@ -330,11 +330,23 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 	// Le regole di formato prima delle unita': se il formato e' invalido non si allestisce nulla, e la mappa
 	// resta a schermo con il motivo nel log (stesso trattamento delle celle di partenza insufficienti).
 	FRTMatchRules Rules;
-	if (!ApplyMatchFormat(
-			Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass())),
-			HexMap->MapAsset, Rules))
+	ARTTurnManager* TurnManager =
+		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
+	if (!ApplyMatchFormat(TurnManager, HexMap->MapAsset, Rules))
 	{
 		return;
+	}
+
+	// La registrazione del replay comincia QUI e non nel `BeginPlay` del TurnManager (`#469`): questo e' il
+	// punto in cui si sa che si sta allestendo una PARTITA — i test e lo `ScenarioHarness` spawnano un
+	// TurnManager senza passare di qua, e non devono scrivere archivi. Ed e' dopo `ApplyMatchFormat`, quindi
+	// il formato che finisce nel manifest e' quello vero.
+	//
+	// E' la stessa divisione di responsabilita' che questo file gia' pratica: il GameMode sceglie COSA
+	// allestire, il turn manager non sa nulla di chi lo osserva.
+	if (TurnManager)
+	{
+		TurnManager->BeginReplayRecording();
 	}
 
 	// Il livello puo' avere unita' gia' posate a mano: in quel caso l'allestimento automatico non interviene.
