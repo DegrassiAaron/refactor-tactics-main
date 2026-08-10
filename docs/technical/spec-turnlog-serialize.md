@@ -23,18 +23,24 @@ e porta il KPI «Replay divergence = 0» a ✅ (traccia salvabile, ricaricabile 
   e il marcatore `ERTLogTopology` nei flags dell'header distingue i due) + `Amount` (int32). Nessun float.
 - `URTTurnLogLibrary::{EntryLess, SortTurnLog, HashTurnLog}` (FNV-1a 32-bit, permutazione-invariante) `ff5e079`.
 
-> ⚠️ **Allineamento 2026-08-08 — il formato è avanzato a `v4`.** Questa sezione descrive la **v2**, che era il
-> formato al momento della stesura. Da allora `ERTTurnLogFormatVersion` è cresciuto **due volte**, sempre in
-> modo retrocompatibile:
+> ⚠️ **Allineamento 2026-08-10 — il formato in codice è `v5`, e la `v6` è decisa ma non scritta.** Questa
+> sezione descrive la **v2**, che era il formato al momento della stesura. Da allora `ERTTurnLogFormatVersion`
+> è cresciuto **tre volte**, sempre in modo retrocompatibile:
 >
-> | Versione | Cosa aggiunge | Le tracce precedenti |
-> |---|---|---|
-> | `Initial = 1` | header + voci, senza checksum | mai persistita su file |
-> | `WithChecksum = 2` | checksum FNV del payload in coda | — |
-> | `WithActionId = 3` | `ActionId` per voce (CP 5.5): `uint16` di lunghezza + byte UTF-8 in coda alla voce — **primo campo a lunghezza variabile** | leggibili, `ActionId` vuoto: che è esattamente ciò che quei byte dicevano |
-> | `WithFormatId = 4` | `FormatId` nell'**header** (CP 10.3), dopo i flags. Sta nell'header perché nelle voci sarebbe una costante ripetuta N volte, e **non entra nell'hash**: includervi un campo di contesto invaliderebbe in blocco ogni hash golden | leggibili, `FormatId` neutro |
+> | Versione | Cosa aggiunge | Nell'hash | Le tracce precedenti |
+> |---|---|---|---|
+> | `Initial = 1` | header + voci, senza checksum | — | mai persistita su file |
+> | `WithChecksum = 2` | checksum FNV del payload in coda | — | — |
+> | `WithActionId = 3` | `ActionId` per voce (CP 5.5): `uint16` di lunghezza + byte UTF-8 in coda alla voce — **primo campo a lunghezza variabile** | **sì** | leggibili, `ActionId` vuoto: che è esattamente ciò che quei byte dicevano |
+> | `WithFormatId = 4` | `FormatId` nell'**header** (CP 10.3), dopo i flags. Sta nell'header perché nelle voci sarebbe una costante ripetuta N volte | no | leggibili, `FormatId` neutro |
+> | `WithBaseActionId = 5` | `BaseActionId` per voce ([#354](https://github.com/DegrassiAaron/refactor-tactics-main/issues/354)): l'azione generica di cui `ActionId` è un profilo, scritta come l'ActionId | no — è una **funzione** di `ActionId`, che c'è già | leggibili, `BaseActionId` vuoto |
+> | **`v6` — decisa, non implementata** | `UnitId` e `TurnNumber` per voce ([D-063](../decisions/RT_PDR_00_Decision_Log.md)) + un campo d'header per l'**hash ordinato** ([D-062](../decisions/RT_PDR_00_Decision_Log.md)) | no | leggibili, campi neutri (`UnitId = 0` = nessuna unità) |
 >
-> Quindi «il loader accetta solo v2» **non vale più**: accetta v2, v3 e v4, e rifiuta le versioni sconosciute
+> **Il criterio è sempre lo stesso, ed è quello che protegge il corpus golden**: un campo entra nell'hash **se
+> e solo se** due tracce possono differire *solo* per quel campo. Un campo di contesto o derivabile che vi
+> entrasse invaliderebbe in blocco ogni hash già prodotto.
+>
+> Quindi «il loader accetta solo v2» **non vale più**: accetta da v2 in su, e rifiuta le versioni sconosciute
 > invece di interpretare byte arbitrari (invariante #4).
 >
 > **Aggiungere una categoria o un outcome non richiede una nuova versione**, e non è prudenza: i valori nuovi
@@ -99,6 +105,11 @@ guidati da un **RED reale**; bounds-check, caso vuoto, file mancante/corrotto = 
 ## 6. Decisioni
 
 - **D-SR-1** — **forma canonica** (ordinata) → byte permutazione-invarianti; replay confrontabili byte-per-byte.
+  ⚠️ **Conseguenza di [D-062](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-10)**: siccome i byte sono
+  **ordinati**, la serializzazione **perde l'ordine di append**. L'hash ordinato quindi **non è ricalcolabile
+  da un file**: si calcola in memoria prima di scrivere e viaggia come **valore nell'header**. Il verificatore
+  lo confronta con quello prodotto dalla ri-simulazione, mai con uno ricalcolato dal file — un «ricalcola e
+  confronta» sui byte salvati confronterebbe l'ordine canonico con sé stesso e passerebbe sempre.
 - **D-SR-2** — **little-endian esplicito** (non `FArchive`) per determinismo/portabilità.
 - **D-SR-3** — versione `uint16` **non-UENUM**; loader **fail-closed** su versioni ignote.
 - **D-SR-4** — **checksum FNV del payload in coda** (`WithChecksum = 2`): rileva la corruzione del contenuto
