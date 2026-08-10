@@ -292,9 +292,23 @@ bool FRTHexBotSparesAllyTest::RunTest(const FString&)
 
 		TM->PlanBotsForTest();
 
-		// Se qui il bot non attaccasse, il caso 1 non proverebbe nulla: passerebbe perche' il bot non attacca
+		// Se qui il bot non offendesse, il caso 1 non proverebbe nulla: passerebbe perche' il bot non attacca
 		// mai, non perche' risparmia il compagno.
-		TestNotNull(TEXT("con il compagno fuori mira il bot attacca davvero"), Bot->PlannedAttackTarget.Get());
+		//
+		// «Offende» comprende la CARICA, e non e' un dettaglio: Bastion ha `Ram` (20 danni piu' spinta) oltre
+		// a `ImpactShot` (8), quindi caricare vale di piu' e l'utility la sceglie — `score=90` contro `80`.
+		// La carica pero' passa da `PlannedDashAbility`, non da `PlannedAttackTarget`, e guardare solo il
+		// secondo faceva sembrare passivo un bot che stava scegliendo la mossa piu' aggressiva che aveva.
+		//
+		// L'asserzione stretta ha retto finche' fra le candidate c'era `Action.Wait` con 30 danni fittizi a
+		// portata 5 (i default legacy di `URTActionData`, che `MakeGenericActions` non sovrascriveva): quella
+		// vinceva sempre ed era un attacco «normale», quindi `PlannedAttackTarget` risultava valorizzato.
+		const bool bChargesTarget = Bot->PlannedDashAbility != INDEX_NONE
+			&& Bot->Abilities.IsValidIndex(Bot->PlannedDashAbility)
+			&& Bot->Abilities[Bot->PlannedDashAbility]
+			&& Bot->Abilities[Bot->PlannedDashAbility]->Def.MovementStyle == ERTMovementStyle::LinearCharge;
+		TestTrue(TEXT("con il compagno fuori mira il bot offende davvero (attacco o carica)"),
+			Bot->PlannedAttackTarget.Get() != nullptr || bChargesTarget);
 
 		DestroyHexBotWorld(World);
 	}
