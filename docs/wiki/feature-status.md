@@ -168,7 +168,7 @@ il gioco che sara', questa tabella dice a che punto e'.
 | Feature | Titolo | Roadmap | Stato | Gate | Scenario |
 |---|---|---|---|---:|---|
 | `RT-FEAT-ACTION-SUPERS` | Ultimate e azioni ad alto impegno | — | **IMPLEMENTING** | 0/8 | — |
-| `RT-FEAT-STATUS-FRAMEWORK` | Framework degli status — categorie, severity e primitive | — | **DESIGNED** | 0/8 | — |
+| `RT-FEAT-STATUS-FRAMEWORK` | Framework degli status — categorie, severity e primitive | fuori scope | **DESIGNED** | 0/8 | — |
 
 ### Characters
 

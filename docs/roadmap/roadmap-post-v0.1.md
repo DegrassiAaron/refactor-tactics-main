@@ -33,7 +33,7 @@ v0.1 o no. Questo file registra quella ripartizione una volta sola.
 | Release | Nome | Tema | Epic | Formato di gioco |
 |---|---|---|---|---|
 | **v0.1** | Vertical slice | Il turno simultaneo funziona e si vede | E1–E21 | Skirmish 2v2 vs bot |
-| **v0.2** | Struttura e finestre | Il campo diventa manipolabile; roster 8 | E22–E26 · **E35** | Standard 3v3 |
+| **v0.2** | Struttura e finestre | Il campo diventa manipolabile; roster 8 | E22–E26 · **E35** · **E36** | Standard 3v3 |
 | **v0.3** | Informazione | Quello che non sai vale quanto quello che fai | E27–E29 · **E33** | Standard 3v3 |
 | **v0.4** | Operations | Partite lunghe su mappe grandi | E30–E32 · **E34** | Operations 4v4+ |
 
@@ -238,6 +238,97 @@ determinismo a parità di seed resta un gate, non un'aspirazione.
 > [`../archive/src/handoff/2026-08-08-bot-ai-roadmap-e-test-pie.md`](../archive/src/handoff/2026-08-08-bot-ai-roadmap-e-test-pie.md)
 > §1 e §24, recepito il 2026-08-08 tranne questa riga — che era l'unica senza un documento corrente che la
 > possedesse.
+
+### E36 — Framework degli status: capability, primitive e severity · P2
+
+**Obiettivo**: dare agli undici status esistenti il livello che oggi non c'è. Non aggiungerne un dodicesimo:
+rendere il dodicesimo economico.
+
+Misurato su `Source/` (`TAG_Status_*`, 2026-08-10): `Braced` · `Burning` · `Electrified` · `Exposed` ·
+`Guarded` · `Marked` · `Obscured` · `Reveal` · `Root` · `Slow` · `Wet`. **Undici status, zero framework** —
+ogni effetto è cablato dove serve. Funziona, ed è esattamente il motivo per cui il dodicesimo costerà come i
+primi undici messi insieme.
+
+L'ordine dei checkpoint non è una preferenza di stile: **`36.1` è il prerequisito di `36.3` e `36.4`**, e per
+transitività di `36.6`, che ne valida le derivazioni. [`D-072`](../decisions/RT_PDR_00_Decision_Log.md) ha
+deciso che primitive e severity si **derivano** dal dato invece di essere dichiarate — nessun campo
+`primitive:`, nessun campo `severity:` — e derivarle richiede di sapere prima *da cosa*. `36.2` è invece
+indipendente e può procedere in parallelo: descrive lo status, non ciò che lo status toglie.
+
+| CP | Obiettivo | DoD misurabile |
+|---|---|---|
+| **36.1** | Tassonomia delle capability | Esiste l'elenco esplicito di cosa un effetto può togliere, su **due assi** — *disponibilità dell'azione* e *modifica della regola* (cover, targeting, payoff) — e copre le **33 azioni core + 20 d'eroe**, non le sole sette generiche. Parte da `ERTActionSlot` e `ERTMovementStyle`, che **esistono già**: la domanda è se bastino, vadano raffinati o affiancati. Chiude [`STA-4`](../OPEN_DECISIONS.md). Senza, 36.3 e 36.4 non hanno da cosa derivare |
+| **36.2** | Il dato dello status | Categoria (`Modifier`/`Control`/`Environment`/`Stance`/`Reaction`/`Special`) e **polarità** separata; `StackPolicy` ed expiration dichiarate **sul dato**, non nel codice che le applica. Le durate sono boundary di fase, non secondi |
+| **36.3** | Le sei primitive, derivate | `MODIFY` · `DEGRADE` · `RESTRICT` · `INTERRUPT` · `CONVERT` · `CONSUME` si **leggono** da ciò che lo status dichiara: chi dichiara `Sprint → Move` *è* un `DEGRADE`. Un test verifica che la lettura sia totale — nessuno status resta senza primitiva derivabile |
+| **36.4** | Severity contata, anti-stun-lock come test | `C0`–`C3` si contano dalle capability toccate (0 · degrada · una categoria · due o più). La regola *«nessuno status comune e ripetibile toglie insieme Movement, Main Action e Reaction»* smette di essere una revisione umana e **diventa un test** |
+| **36.5** | Applicazione: degrada, nega, riprova | Pipeline unica con esito `Full`/`Degraded`/`Rejected`, e danno e status risolti **separatamente** — un'abilità fa danno anche se il control viene resistito. **Resistance** generalizza `PushResistance` da scalare su un dominio solo a profilo che **degrada** (`Root → Slow`); **Immunity** **nega**; `Action.Cleanse` passa dalla lista esplicita di tag alla **categoria**, conservando fail-closed e scelta del giocatore. La reapply policy impedisce di rinfrescare all'infinito lo stesso control con lo stesso setup |
+| **36.6** | Reason code, TurnLog e validator | Gli eventi status hanno reason code stabili nel `TurnLog`, e il validator rifiuta i casi del §53 del sorgente: `C2` senza durata, `C3` senza gate, status senza `StackPolicy` o expiration, tag `Cleanse` sconosciuto, resistenza senza regola di degradazione, self-loop e cicli di conversione |
+
+**Dipendenze**: `RT-FEAT-ENV-STATUS` (E8, chiusa) e `RT-FEAT-ACTION-ENGINE` (E4, chiusa). **Non** dipende da
+E14: la metà su Brace/Overwatch del sorgente era già decisa altrove.
+
+**Rischi**: la granularità di 36.1 è la scelta non ovvia — «movimento» è una capability sola o si divide nei
+profili e nelle azioni che esistono davvero (`Move` · `Sneak` · `Sprint` · `Dash` · `Leap` · `Charge` ·
+`Reposition`)? Da lì dipende se `Suppressed` conta `C1` o `C2`, cioè **il gate anti-stun-lock cambia di
+significato**.
+
+> 🧭 **Anche 36.1 parte da qualcosa che esiste, e ignorarlo costerebbe una terza verità** *(spec panel del
+> 2026-08-10 su [#436](https://github.com/DegrassiAaron/refactor-tactics-main/issues/436))*.
+>
+> | Cosa gira già | Valori |
+> |---|---|
+> | `ERTActionSlot` (`RTActionDef.h`) | `None` · `Movement` · `Main` · `MovementAndMain` · `Reaction` |
+> | `ERTMovementStyle` (`RTActionDef.h`) | `None` · `Budget` · `LinearDash` · `LinearCharge` · `LinearLeap` · `LinearPass` |
+>
+> La regola anti-stun-lock di 36.4 dice *«nessuno status toglie insieme **Movement**, **Main Action** e
+> **Reaction**»*: sono **tre dei cinque valori di `ERTActionSlot`**, alla lettera. La tassonomia grossolana
+> non manca — spedisce, e il `TurnLog` la usa. Scrivere `capability:` accanto a `Slot` sarebbe esattamente la
+> **seconda verità** che [`D-072`](../decisions/RT_PDR_00_Decision_Log.md) ha appena respinto per le primitive.
+>
+> Due avvertenze che il checkpoint deve risolvere, non ereditare:
+>
+> - **`ERTActionSlot::MovementAndMain` non ha produttori.** [`D-028`](../decisions/RT_PDR_00_Decision_Log.md)
+>   ne ha tolto l'unico utente (`Action.Sprint`), [`D-070`](../decisions/RT_PDR_00_Decision_Log.md) ha
+>   **rifiutato** di adottarlo per l'Overwatch, e il ramo del resolver resta vivo solo grazie a un'azione
+>   sintetica in un test. È però la definizione operativa di un `C3` — «togli movimento *e* principale» —
+>   quindi il primo hard control lo rianima per inerzia se nessuno decide.
+> - **Non tutti gli status tolgono un'azione.** `Exposed` toglie uno *step di copertura*, `Obscured` cambia
+>   l'*eleggibilità di targeting*, `Marked` abilita un *payoff altrui*: tre degli undici non si esprimono su
+>   uno slot. È il motivo dei due assi — ed è anche la tesi dell'epic, *«le regole che puoi sfruttare sono
+>   cambiate»*, non «hai un'azione in meno».
+>
+> `Climb` **non è un candidato**, perché non esiste come azione: cambiare layer è `Move` attraverso un arco di
+> transizione (`RefactorTactics.HexMove.ClimbsOnlyThroughTransition`). `Sneak` invece esiste come profilo ma
+> è **senza numeri** — costo, portata e rumore non definiti da nessuna fonte corrente.
+
+> 🧭 **Tre pezzi di 36.5 esistono già, e l'epic li estende invece di costruirli** *(misurato il 2026-08-10)*.
+> Il sorgente §21–§23 li elenca come mancanti, e per uno dei tre è falso:
+>
+> | Il sorgente chiede | Cosa gira già | Cosa manca davvero |
+> |---|---|---|
+> | Cleanse per categoria | **`Action.Cleanse`**, azione principale in Blast (priorità 25, CP 5.2): rimuove **un solo** stato dalla lista che il *giocatore* dichiara in `PlannedCleansePriority`, fail-closed se non ne trova. Più `Reaction.Cleanse` a catalogo equipaggiamento | Il salto dal **tag esplicito** alla **categoria** — che è ciò che rende `Cleanse.Control` scrivibile senza elencare gli status uno per uno |
+> | Resistance che degrada | **`PushResistance`** su `URTHeroData` e `GuardResistedPushDistance`: una resistenza reale, ma su **un dominio solo** e come **scalare**, non come regola di degradazione | La generalizzazione: `Root → Slow` è una *conversione*, non una sottrazione, e nessun dato oggi la sa esprimere |
+> | Immunity che nega | **Niente.** `grep -rn "Immun" Source/` è vuoto | Tutto — ed è l'unico dei tre che nasce da zero |
+>
+> Vale la pena scriverlo perché il costo dei tre non è lo stesso, e un'epic che li tratta allo stesso modo
+> stima male: due sono estensioni di un meccanismo vivo con i suoi test, uno è una feature nuova.
+
+> ⚠️ **`Suppressed` e `Dazed` non sono un checkpoint di questa epic, e non è una dimenticanza.**
+> Il sorgente li mette nel set ridotto del vertical slice, ma **nessuno dei quattro kit li produce oggi**:
+> entrerebbero come due status senza consumatore, che è il difetto ricorrente di questo repository. Entrano
+> quando un'abilità li applica — [`STA-3`](../OPEN_DECISIONS.md), aperta. Quando entreranno saranno due casi
+> del framework, non due eccezioni: `Suppressed` **è** un `DEGRADE`, `Dazed` **è** un `INTERRUPT` sulla scelta
+> manuale della reazione.
+
+**Tracciata su GitHub** *(2026-08-10)*: epic [#435](https://github.com/DegrassiAaron/refactor-tactics-main/issues/435),
+con sei checkpoint [#436](https://github.com/DegrassiAaron/refactor-tactics-main/issues/436)–[#441](https://github.com/DegrassiAaron/refactor-tactics-main/issues/441)
+collegati **anche come sub-issue native**, non solo dalla task list del corpo — E36 è la prima epic del
+repository a usarle.
+
+Origine: [`../archive/src/handoff/2026-08-10-status-control-brace-overwatch.md`](../archive/src/handoff/2026-08-10-status-control-brace-overwatch.md)
+§2–§28 e §52–§54, filtrato da
+[`plans/handoff-status-control-triage-2026-08-10.md`](plans/handoff-status-control-triage-2026-08-10.md).
+Feature Registry: `RT-FEAT-STATUS-FRAMEWORK`.
 
 ---
 

@@ -207,6 +207,13 @@ ciò che questa spec afferma.
 | `PlanDoesNotBlastDyingAlly` | il collaterale non uccide il compagno |
 | `WThreatTuning` | la scala di `WThreat` è esercitata, non assunta |
 
+> **Da dove viene lo standoff.** Il kiting è un comportamento del **bot**, non una caratteristica
+> dell'eroe: un'unità che muove il giocatore non lo consulta mai. Per questo lo standoff non è un campo
+> di `URTHeroData` né di `ARTUnit` — lo **deriva il bot** dalla portata dell'attacco base, con
+> `URTHexBotLibrary::DeriveKiteStandoff`. La regola riproduce i due archetipi che il comportamento lo
+> producevano (portata 6 → standoff 4, portata 3 → 0), e sul roster v0.1 rende kiter la sola **Riva**
+> (`PressureJet`, portata 5 → standoff 3): Flux e Vektor (4) e Bastion (3) chiudono la distanza.
+
 > **Cosa i test non coprono**, e va detto: nessuno di essi esercita conoscenza parziale, facing o reazioni —
 > perché nessuna delle tre esiste ancora nel bot (§6). I verdi di `HexBotPlay.*` provano che il bot gioca
 > **legalmente**, non che gioca **bene**: il bilanciamento è misurato altrove ed è aperto ([#149](https://github.com/DegrassiAaron/refactor-tactics-main/issues/149)).

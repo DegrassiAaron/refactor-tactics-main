@@ -234,12 +234,14 @@ Attacco attraverso una cella che blocca la vista, poi da una cella di lato; osta
 **altro layer** (regola di elevazione). Il knockback a 6 direzioni e' l'unico punto di M6 con
 una decisione di design dietro: **guardalo**, non solo verificarlo.
 
-Per la spinta usa **Riva** (`PressureJet`) o **Bastion** (`Ram`), non il Guardian: fino al
-2026-08-10 `PIE-HEXPLAY-6c` chiedeva `Guardian.Sweep` (knockback 2), un archetipo legacy che
-nessun eroe della v0.1 ha — la voce **non era eseguibile** come scritta (#410). Ora e' sul
-roster, ma con `Push 1`: si osservano la direzione esagonale, il blocco contro ostacolo/unita'/
-bordo e l'annullamento fra spinte opposte. L'arresto anticipato contro un ostacolo a **due**
-celle non e' piu' osservabile qui e resta coperto solo headless (`HexCombat.Knockback*`).
+Per la spinta usa **Riva** (`PressureJet`) o **Bastion** (`Ram`). Fino al 2026-08-10
+`PIE-HEXPLAY-6c` chiedeva `Guardian.Sweep` (knockback 2), un archetipo legacy che nessun eroe
+della v0.1 aveva — la voce **non era eseguibile** come scritta (#410); quell'azione e' poi
+sparita del tutto con gli archetipi (#426), ed era l'ultimo `Push 2` del progetto. Ora la voce
+e' sul roster, ma con `Push 1`: si osservano la direzione esagonale, il blocco contro
+ostacolo/unita'/bordo e l'annullamento fra spinte opposte. L'arresto anticipato contro un
+ostacolo a **due** celle non e' piu' osservabile da nessuna parte in partita, e resta coperto
+solo headless (`HexCombat.Knockback*`, che la spinta se la costruisce da solo).
 
 #### U5 · Bot e HUD ⏳
 

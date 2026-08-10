@@ -19,7 +19,16 @@
   quali è stato **esplicitamente respinto** ieri.
 - **§2–§28, §52–§54 — Status e Control**: è la parte con contenuto reale. Il repository ha **undici status
   implementati** ma **nessun framework** che li governi: niente categorie, niente severity, niente primitive
-  riusabili, niente stacking policy dichiarata, niente resistenza/immunità/cleanse.
+  riusabili, niente stacking policy dichiarata.
+
+> ⚠️ **Correzione del 2026-08-10, aperta E36.** Questo triage scriveva anche *«niente resistenza/immunità/
+> cleanse»*, e su due dei tre era sbagliato. **`Action.Cleanse` è un'azione principale che gira in partita**
+> — Blast, priorità 25, CP 5.2 — e `PushResistance` è una resistenza reale, anche se su un dominio solo.
+> Solo l'**Immunity** non esiste (`grep -rn "Immun" Source/` è vuoto). Il difetto di metodo è quello noto:
+> ho cercato il *livello* (un framework di resistenza) e ho concluso che mancasse la *cosa* — mentre la cosa
+> c'era, cablata dove serviva, che è esattamente la tesi di questo documento applicata contro di sé.
+> Conseguenza pratica: `E36.5` **estende** due meccanismi vivi e ne costruisce uno solo da zero. Dettaglio in
+> [`roadmap-post-v0.1.md` § E36](../roadmap-post-v0.1.md).
 
 **Non risolve `MAP-1`.** Non nomina mai clearance, footprint o calpestabilità.
 
@@ -62,7 +71,7 @@ Quindi il sorgente aggiunge **due status** e — molto più importante — **il 
 | §5–§6 | Severity `C0`–`C3` e la regola anti-stun-lock |
 | §14–§15 | Stacking policy ed expiration dichiarate **sul dato**, non nel codice |
 | §16–§20 | Pipeline di applicazione, successo parziale, danno e status risolti separatamente |
-| §21–§23 | Resistance (degrada), Immunity (nega), Cleanse per categoria |
+| §21–§23 | Resistance come **regola di degradazione** (oggi solo `PushResistance`, scalare e su un dominio); **Immunity** (assente del tutto); Cleanse per **categoria** (oggi `Action.Cleanse` esiste ma opera su una lista esplicita di tag) |
 | §26–§27 | Reapply policy e prevenzione dei loop di conversione |
 | §28 | Reason code e eventi TurnLog degli status |
 | §53 | Validator/lint: 16 regole |
@@ -122,6 +131,9 @@ mischiare C++ e consolidamento documentale.
 
 - **`RT-FEAT-STATUS-FRAMEWORK`** — categorie, severity, primitive, stacking, durate, resistance/immunity/
   cleanse, reason code, validator. Stato **`DESIGNED`**: la direzione è scritta, la spec owner no.
+  **L'epic è arrivata dopo**: [`E36`](../roadmap-post-v0.1.md), v0.2, sei checkpoint, aperta il 2026-08-10.
+  `36.1` è la tassonomia delle capability e non è il primo per comodità: è il prerequisito di `36.3` e `36.4`,
+  che `D-072` ha reso **derivazioni** invece di campi.
 - I **due status nuovi** (`Suppressed`, `Dazed`) restano *dentro* quella feature: non hanno senso senza le
   primitive che li esprimono — `Suppressed` **è** un `DEGRADE`, `Dazed` **è** un `INTERRUPT` sulla scelta
   manuale.

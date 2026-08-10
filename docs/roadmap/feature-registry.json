@@ -2478,7 +2478,7 @@
         "epic": null,
         "milestone": null,
         "checkpoints": [],
-        "out_of_release_scope": ""
+        "out_of_release_scope": "L'epic esiste e si chiama **E36** (`roadmap-post-v0.1.md`, v0.2, sei checkpoint), ma `roadmap.epic` resta `null` per la stessa ragione di `RT-FEAT-CHAR-V02-ROSTER`/E35: il validator conosce solo le epic della **roadmap di release**, e assegnarne una qui farebbe comparire una feature v0.2 nella tabella §2.2 della v0.1. Nessun gate della v0.1 dipende da questo framework — gli undici status che la v0.1 usa girano gia' senza."
       },
       "dependencies": [
         "RT-FEAT-ENV-STATUS",
@@ -2486,9 +2486,18 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/roadmap/plans/handoff-status-control-triage-2026-08-10.md"
+        "docs/roadmap/plans/handoff-status-control-triage-2026-08-10.md",
+        "docs/roadmap/roadmap-post-v0.1.md"
       ],
-      "issues": [],
+      "issues": [
+        435,
+        436,
+        437,
+        438,
+        439,
+        440,
+        441
+      ],
       "tests": [],
       "scenarios": [],
       "scenarios_planned": [],
@@ -2496,7 +2505,7 @@
       "wiki_note": "Nessuna pagina: il framework non esiste ancora, e una pagina che lo descrivesse sarebbe la Wiki che promette ciò che il gioco non fa.",
       "pie_refs": [],
       "last_verified": {},
-      "notes": "Il repository ha **undici** status implementati (`TAG_Status_*`: Braced, Burning, Electrified, Exposed, Guarded, Marked, Obscured, Reveal, Root, Slow, Wet) e **nessun livello che li governi**: ogni effetto e' cablato dove serve. Funziona, ed e' esattamente il motivo per cui il dodicesimo costera' come i primi undici messi insieme. Mancano: categoria e polarita', severity C0-C3, le sei primitive riusabili (MODIFY, DEGRADE, RESTRICT, INTERRUPT, CONVERT, CONSUME), stacking policy ed expiration dichiarate sul dato, resistance/immunity/cleanse, reapply policy e prevenzione dei loop, reason code, validator. I due status nuovi del sorgente — `Suppressed` e `Dazed` — stanno **dentro** questa feature e non prima: `Suppressed` E' un DEGRADE, `Dazed` E' un INTERRUPT sulla scelta manuale. **`STA-1` e `STA-2` sono chiuse da `D-072`**: primitive e severity si DERIVANO dal dato, nessun enum dichiarato. Chiuderle ha pero' aperto cio' che serviva a entrambe — la **tassonomia delle capability** (`STA-4`), primo lavoro del framework: senza, non si deriva ne' la primitiva ne' la severity. Resta aperta anche `STA-3`."
+      "notes": "Il repository ha **undici** status implementati (`TAG_Status_*`: Braced, Burning, Electrified, Exposed, Guarded, Marked, Obscured, Reveal, Root, Slow, Wet) e **nessun livello che li governi**: ogni effetto e' cablato dove serve. Funziona, ed e' esattamente il motivo per cui il dodicesimo costera' come i primi undici messi insieme. Mancano: categoria e polarita', severity C0-C3, le sei primitive riusabili (MODIFY, DEGRADE, RESTRICT, INTERRUPT, CONVERT, CONSUME), stacking policy ed expiration dichiarate sul dato, reapply policy e prevenzione dei loop, reason code, validator. I due status nuovi del sorgente — `Suppressed` e `Dazed` — stanno **dentro** questa feature e non prima: `Suppressed` E' un DEGRADE, `Dazed` E' un INTERRUPT sulla scelta manuale. **`STA-1` e `STA-2` sono chiuse da `D-072`**: primitive e severity si DERIVANO dal dato, nessun enum dichiarato. Chiuderle ha pero' aperto cio' che serviva a entrambe — la **tassonomia delle capability** (`STA-4`), primo lavoro del framework: senza, non si deriva ne' la primitiva ne' la severity. Resta aperta anche `STA-3`.\n**Epic `E36` aperta il 2026-08-10**, v0.2, sei checkpoint in `roadmap-post-v0.1.md`. L'ordine non e' stilistico: `36.1` E' `STA-4`, ed e' il prerequisito di `36.3` (primitive) e `36.4` (severity), che `D-072` ha reso derivazioni invece di campi.\n⚠️ **Correzione misurata aprendo l'epic**: il triage elencava fra i mancanti anche «resistance/immunity/cleanse», e su due dei tre era sbagliato. **`Action.Cleanse` gira in partita** (azione principale, Blast, priorita' 25, CP 5.2: rimuove UN solo stato dalla lista che il giocatore dichiara in `PlannedCleansePriority`, fail-closed) e **`PushResistance`** e' una resistenza reale su un dominio solo. Assente e' la sola **Immunity**. Quindi `36.5` **estende** due meccanismi vivi e ne costruisce uno da zero — il costo dei tre non e' lo stesso.\n**Nessuno scenario `planned`, ed e' deliberato**: il vocabolario di ogni scenario del framework — quale capability un effetto toglie — e' esattamente cio' che `36.1` deve ancora decidere. Stessa ragione per cui `RT-FEAT-REACTION-OVERWATCH` non dichiara i venti scenari del suo sorgente. Gli scenari status che il sorgente §59 propone e che il repository gia' soddisfa non entrano come `planned` perche' non sono da fare: `Wet` che spegne `Burning` e' `Spec.Environment.WaterQuenchesFire`, e «`Wet` non conduce» e' gia' fissato in `RTElectricPropagationTests` e `RTTerrainTests` — la conduzione dipende dalla cella (`bConductsElectricity`), non dallo stato dell'unita'."
     },
     {
       "feature_id": "RT-FEAT-ENV-STATUS",
