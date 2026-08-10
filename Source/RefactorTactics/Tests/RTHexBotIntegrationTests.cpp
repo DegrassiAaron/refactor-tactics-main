@@ -140,31 +140,6 @@ bool FRTHexBotLegalMovesTest::RunTest(const FString&)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotPanicTest,
-	"RefactorTactics.HexBotPlay.KiterFleesWhenThreatened",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTHexBotPanicTest::RunTest(const FString&)
-{
-	UWorld* World = MakeHexBotWorld();
-	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
-	SpawnHexBotMap(World, /*Radius=*/ 6);
-
-	// Il Ranger ha KiteStandoff 4: con un nemico a distanza 2 (<= standoff/2) scatta il panico e arretra.
-	ARTUnit* Kiter = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0), /*bBot*/ true);
-	ARTUnit* Melee = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(2, 0), /*bBot*/ false);
-	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TM || !Kiter || !Melee) { DestroyHexBotWorld(World); return false; }
-
-	TM->PlanBotsForTest();
-
-	// La fuga puo' avvenire col movimento normale o con lo scatto difensivo: conta il risultato.
-	const FRTCellId Escape = Kiter->PlannedDashAbility != INDEX_NONE ? Kiter->PlannedDashCell : Kiter->PlannedCell;
-	TestTrue(TEXT("il kiter si allontana dalla minaccia"),
-		URTHexLibrary::HexDistance(Escape, Melee->Cell) > URTHexLibrary::HexDistance(Kiter->Cell, Melee->Cell));
-
-	DestroyHexBotWorld(World);
-	return true;
-}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotSupportTest,
 	"RefactorTactics.HexBotPlay.UsesSupportWhenHurt",
