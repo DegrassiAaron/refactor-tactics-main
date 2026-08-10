@@ -63,13 +63,13 @@ namespace
 		return M;
 	}
 
-	ARTUnit* SpawnHexMatchUnit(UWorld* World, int32 TeamId, ERTArchetype Arch, const FRTCellId& Cell)
+	ARTUnit* SpawnHexMatchUnit(UWorld* World, int32 TeamId, const URTHeroData* Hero, const FRTCellId& Cell)
 	{
 		if (!World) { return nullptr; }
 		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
-		U->ConfigureAsArchetype(Arch);
+		U->ConfigureFromHeroData(Hero);
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->bIsBotControlled = true; // 2v2 bot contro bot: nessuna mano umana, la partita si gioca da sola
 		// Senza BeginPlay i cooldown non vengono inizializzati (`AbilityCooldowns` resta vuoto) e OGNI abilita'
@@ -101,10 +101,10 @@ bool FRTHexFullMatchTest::RunTest(const FString&)
 	URTHexMapAsset* Map = SpawnHexMatchMap(World, /*Radius=*/ 5);
 
 	// 2v2 su lati opposti dell'arena, in diagonale (dove la distanza esagonale conta davvero).
-	ARTUnit* A1 = SpawnHexMatchUnit(World, 0, ERTArchetype::Ranger,   FRTCellId(-4, 2));
-	ARTUnit* A2 = SpawnHexMatchUnit(World, 0, ERTArchetype::Guardian, FRTCellId(-4, 3));
-	ARTUnit* B1 = SpawnHexMatchUnit(World, 1, ERTArchetype::Ranger,   FRTCellId(4, -2));
-	ARTUnit* B2 = SpawnHexMatchUnit(World, 1, ERTArchetype::Guardian, FRTCellId(4, -3));
+	ARTUnit* A1 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(),   FRTCellId(-4, 2));
+	ARTUnit* A2 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(-4, 3));
+	ARTUnit* B1 = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(),   FRTCellId(4, -2));
+	ARTUnit* B2 = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(4, -3));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A1 || !A2 || !B1 || !B2) { DestroyHexMatchWorld(World); return false; }
 
@@ -160,8 +160,8 @@ bool FRTHexMatchLogTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMatchMap(World, /*Radius=*/ 4);
 
-	ARTUnit* A = SpawnHexMatchUnit(World, 0, ERTArchetype::Ranger, FRTCellId(-3, 1));
-	ARTUnit* B = SpawnHexMatchUnit(World, 1, ERTArchetype::Guardian, FRTCellId(3, -1));
+	ARTUnit* A = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(-3, 1));
+	ARTUnit* B = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(3, -1));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B) { DestroyHexMatchWorld(World); return false; }
 
@@ -210,10 +210,10 @@ bool FRTHexBothTeamsActTest::RunTest(const FString&)
 
 	// Tutti e quattro sullo stesso lato dei muri centrali, a portata reciproca: qui si vuole che gli attacchi
 	// siano LEGALI, non provare la copertura (quella e' HexVision/PIE-HEXPLAY-6).
-	ARTUnit* A_Shooter = SpawnHexMatchUnit(World, 0, ERTArchetype::Ranger,   FRTCellId(1, 1));
-	ARTUnit* A_Mover   = SpawnHexMatchUnit(World, 0, ERTArchetype::Guardian, FRTCellId(1, 2));
-	ARTUnit* B_Shooter = SpawnHexMatchUnit(World, 1, ERTArchetype::Ranger,   FRTCellId(3, 0));
-	ARTUnit* B_Mover   = SpawnHexMatchUnit(World, 1, ERTArchetype::Guardian, FRTCellId(4, 0));
+	ARTUnit* A_Shooter = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(),   FRTCellId(1, 1));
+	ARTUnit* A_Mover   = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(1, 2));
+	ARTUnit* B_Shooter = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(),   FRTCellId(3, 0));
+	ARTUnit* B_Mover   = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A_Shooter || !A_Mover || !B_Shooter || !B_Mover)
 	{
@@ -312,10 +312,10 @@ bool FRTHexArenaAnomalyTest::RunTest(const FString&)
 	if (!TestEqual(TEXT("quattro celle di partenza"), Start.Num(), 4)) { DestroyHexMatchWorld(World); return false; }
 
 	TArray<ARTUnit*> Units;
-	Units.Add(SpawnHexMatchUnit(World, 0, ERTArchetype::Ranger,   Start[0]));
-	Units.Add(SpawnHexMatchUnit(World, 0, ERTArchetype::Guardian, Start[1]));
-	Units.Add(SpawnHexMatchUnit(World, 1, ERTArchetype::Ranger,   Start[2]));
-	Units.Add(SpawnHexMatchUnit(World, 1, ERTArchetype::Guardian, Start[3]));
+	Units.Add(SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(),   Start[0]));
+	Units.Add(SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), Start[1]));
+	Units.Add(SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(),   Start[2]));
+	Units.Add(SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), Start[3]));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || Units.Contains(nullptr)) { DestroyHexMatchWorld(World); return false; }
 
@@ -390,8 +390,8 @@ bool FRTHexClimbViaTransitionTest::RunTest(const FString&)
 	const FRTCellId Platform(2, 0, 1);  // la piattaforma, un layer sopra
 
 	// Uno scalatore e un avversario lontano (serve solo a non far finire la partita al primo turno).
-	ARTUnit* Climber = SpawnHexMatchUnit(World, 0, ERTArchetype::Ranger, Ground);
-	ARTUnit* Idle    = SpawnHexMatchUnit(World, 1, ERTArchetype::Guardian, FRTCellId(-4, 0));
+	ARTUnit* Climber = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), Ground);
+	ARTUnit* Idle    = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Climber || !Idle) { DestroyHexMatchWorld(World); return false; }
 	Climber->bIsBotControlled = false;
@@ -460,8 +460,8 @@ bool FRTHexDashBlockedTest::RunTest(const FString&)
 	TestTrue(TEXT("premessa: la cella intermedia esiste ed e' libera"),
 		FreeData != nullptr && !FreeData->bBlocksMovement);
 
-	ARTUnit* Dasher = SpawnHexMatchUnit(World, 0, ERTArchetype::Ranger, From);
-	ARTUnit* Idle   = SpawnHexMatchUnit(World, 1, ERTArchetype::Guardian, FRTCellId(-4, 0));
+	ARTUnit* Dasher = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), From);
+	ARTUnit* Idle   = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Dasher || !Idle) { DestroyHexMatchWorld(World); return false; }
 	Dasher->bIsBotControlled = false;
@@ -590,8 +590,8 @@ bool FRTHexGuardianChargeImpactTest::RunTest(const FString&)
 	SpawnHexMatchMap(World, /*Radius=*/ 5);
 
 	// Guardian e bersaglio allineati sull'asse q: fra loro due celle libere, poi il nemico.
-	ARTUnit* Charger = SpawnHexMatchUnit(World, 0, ERTArchetype::Guardian, FRTCellId(0, 0));
-	ARTUnit* Target  = SpawnHexMatchUnit(World, 1, ERTArchetype::Ranger,   FRTCellId(3, 0));
+	ARTUnit* Charger = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 0));
+	ARTUnit* Target  = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(),   FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Charger || !Target) { DestroyHexMatchWorld(World); return false; }
 	Charger->bIsBotControlled = false; // i piani li scrive il test, non l'utility del bot
@@ -650,8 +650,8 @@ bool FRTHexBotDashExecutableTest::RunTest(const FString&)
 	Map->SortCells();
 
 	// Un kiter bot (ha lo Scatto) e un avversario che gli si avvicina: e' la situazione che innesca il dash.
-	ARTUnit* Bot   = SpawnHexMatchUnit(World, 1, ERTArchetype::Ranger,   FRTCellId(0, 0));
-	ARTUnit* Enemy = SpawnHexMatchUnit(World, 0, ERTArchetype::Guardian, FRTCellId(2, 0));
+	ARTUnit* Bot   = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(),   FRTCellId(0, 0));
+	ARTUnit* Enemy = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bot || !Enemy) { DestroyHexMatchWorld(World); return false; }
 	Enemy->bIsBotControlled = false;

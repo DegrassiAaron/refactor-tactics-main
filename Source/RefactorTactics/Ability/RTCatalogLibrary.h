@@ -94,20 +94,13 @@ public:
 	static URTActionData* MakeEquipmentAction(const URTEquipmentData* Item, UObject* Outer);
 
 	/**
-	 * Il catalogo di azioni realmente SPEDITO dal gioco: le definizioni che `ARTUnit` assegna agli archetipi.
-	 * Serve al test che tiene allineati documento e codice — se un'azione perde l'ActionId o cambia fallback,
-	 * il validator lo scopre in CI invece che in partita.
-	 */
-	static TArray<FRTActionDef> GetShippedActionCatalog();
-
-	/** Definizione spedita con l'ActionId dato, o una definizione vuota se l'ID non e' nel catalogo. */
-	static FRTActionDef FindShippedAction(const FName& ActionId);
-
-	/**
-	 * Le azioni GENERICHE del catalogo v0.1 (`Action.*`), quelle che non appartengono a un eroe. Lista
-	 * separata da `GetShippedActionCatalog` perche' le due hanno regole diverse: quella spedita e' vincolata
-	 * a cio' che `ARTUnit::ConfigureAsArchetype` assegna davvero (test di allineamento), questa e' il
-	 * catalogo delle azioni che chiunque puo' dichiarare.
+	 * Le azioni GENERICHE del catalogo v0.1 (`Action.*`), quelle che non appartengono a un eroe.
+	 *
+	 * Fino al 2026-08-10 conviveva con `GetShippedActionCatalog`, il catalogo dei due archetipi legacy
+	 * (`Ranger.*`, `Guardian.*`) con le loro otto azioni. Quel catalogo esisteva per tenere allineate le
+	 * definizioni a cio' che `ARTUnit::ConfigureAsArchetype` assegnava davvero — ma quel percorso era
+	 * uscito dalla partita a CP 6.6, quindi l'allineamento era verificato su unita' che nessuno schierava.
+	 * Le azioni degli eroi vivono in `URTHeroCatalogLibrary`, e sono quelle che il gioco spedisce.
 	 *
 	 * Contiene le azioni fondamentali (§1), le mobilita' (§2) e le offensive (§3) del catalogo v0.1.
 	 * Controllo, supporto e ambiente arrivano con CP 4.7 e le epic E8/E9.

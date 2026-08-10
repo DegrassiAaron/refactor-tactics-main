@@ -233,46 +233,6 @@ namespace
 	}
 }
 
-TArray<FRTActionDef> URTCatalogLibrary::GetShippedActionCatalog()
-{
-	// Le azioni che il gioco assegna DAVVERO agli archetipi (ARTUnit::ConfigureAsArchetype). Sono la fonte
-	// dei loro `Def`: una sola verita' fra codice e catalogo. Gli ID seguono la convenzione del catalogo v0.1
-	// per le abilita' d'eroe (`<Eroe>.<Abilita>`), non quella delle azioni generiche (`Action.*`).
-	TArray<FRTActionDef> Catalog;
-
-	// Ranger — kiter a lunga gittata.
-	Catalog.Add(ShippedAction(TEXT("Ranger.Shot"),        ERTResolutionPhase::Attack,       50, 6, 0, ERTActionFallback::Cancel,     { { ERTActionEffect::Damage, 25 } }));
-	Catalog.Add(ShippedAction(TEXT("Ranger.PreciseShot"), ERTResolutionPhase::Attack,       60, 7, 2, ERTActionFallback::Cancel,     { { ERTActionEffect::Damage, 40 } }));
-	Catalog.Add(ShippedAction(TEXT("Ranger.Burst"),       ERTResolutionPhase::Attack,       65, 6, 0, ERTActionFallback::AttackCell, { { ERTActionEffect::Damage, 50 }, { ERTActionEffect::Status, TAG_Status_Slow, 2 } }));
-	// Lo scatto del Ranger e' un `Action.Dash` con la portata dell'archetipo: LINEARE, come ogni mobilita'
-	// rapida del catalogo (§2). Senza lo stile dichiarato ricadrebbe sul pathfinding del movimento normale —
-	// aggirerebbe gli ostacoli e attraverserebbe il terreno che nega lo scatto (#142).
-	Catalog.Add(ShippedAction(TEXT("Ranger.Dash"),        ERTResolutionPhase::FastMovement, 30, 5, 2, ERTActionFallback::Stop,       {},
-		/*bInterruptible*/ true, ERTActionSlot::Movement, ERTMovementStyle::LinearDash));
-
-	// Guardian — mischia resistente.
-	Catalog.Add(ShippedAction(TEXT("Guardian.Sweep"),   ERTResolutionPhase::Attack,       55, 3, 0, ERTActionFallback::AttackCell, { { ERTActionEffect::Damage, 30 }, { ERTActionEffect::Push, 2 } }));
-	Catalog.Add(ShippedAction(TEXT("Guardian.Barrier"), ERTResolutionPhase::Preparation,  35, 0, 3, ERTActionFallback::Cancel,     { { ERTActionEffect::Shield, 40 } }, /*bInterruptible*/ false));
-	Catalog.Add(ShippedAction(TEXT("Guardian.Quake"),   ERTResolutionPhase::Attack,       65, 3, 0, ERTActionFallback::AttackCell, { { ERTActionEffect::Damage, 40 }, { ERTActionEffect::Status, TAG_Status_Root, 2 } }));
-	// La Carica del Guardian e' `Action.Charge` con la portata dell'archetipo: si ferma ADDOSSO al primo
-	// nemico sulla traiettoria e lo colpisce. Gli effetti sono gli stessi della carica generica (20 danni piu'
-	// una spinta di 1) perche' e' la stessa azione: una `LinearCharge` senza effetti sarebbe un contatto da
-	// zero danni, cioe' una carica che non carica.
-	Catalog.Add(ShippedAction(TEXT("Guardian.Charge"),  ERTResolutionPhase::FastMovement, 35, 4, 3, ERTActionFallback::Stop,
-		{ { ERTActionEffect::Damage, 20 }, { ERTActionEffect::Push, 1 } },
-		/*bInterruptible*/ true, ERTActionSlot::Main, ERTMovementStyle::LinearCharge));
-
-	return Catalog;
-}
-
-FRTActionDef URTCatalogLibrary::FindShippedAction(const FName& ActionId)
-{
-	for (const FRTActionDef& Def : GetShippedActionCatalog())
-	{
-		if (Def.ActionId == ActionId) { return Def; }
-	}
-	return FRTActionDef();
-}
 
 TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 {

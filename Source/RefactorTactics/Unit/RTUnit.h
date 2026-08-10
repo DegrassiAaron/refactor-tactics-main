@@ -14,14 +14,6 @@ class UMaterialInterface;
 class URTActionData;
 class URTHeroData;
 
-/** Archetipi dell'unita' con statistiche e abilita' distinte. */
-UENUM(BlueprintType)
-enum class ERTArchetype : uint8
-{
-	Ranger,   // fragile, lunga gittata, mobile
-	Guardian  // resistente, corta gittata, lento
-};
-
 /**
  * Unita' segnaposto per il demo: una mesh su una cella, colorata per team e selezionabile.
  * E' un marker minimale (niente statistiche/abilita' qui): quelle arrivano in M2/M3.
@@ -275,9 +267,6 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
 	TArray<FGameplayTag> PlannedCleansePriority;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
-	ERTArchetype Archetype = ERTArchetype::Ranger;
-
 	/**
 	 * Distanza di sicurezza per il kiting del bot: se un nemico si avvicina sotto questa soglia
 	 * e non c'e' un attacco disponibile, il bot arretra. 0 = non fa kiting (mischia).
@@ -285,14 +274,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	int32 KiteStandoff = 0;
 
-	/** Imposta statistiche e abilita' in base all'archetipo (chiamare prima di FinishSpawning). */
-	void ConfigureAsArchetype(ERTArchetype InArchetype);
-
 	/**
-	 * Imposta statistiche e azioni interamente da `URTHeroData` (CP 6.1, epic E6): nessun numero scritto qui,
-	 * a differenza di `ConfigureAsArchetype` che resta il percorso dei due archetipi legacy finche' CP 6.6 non
-	 * sposta lo spawn sui quattro eroi. `Hero == nullptr` non configura nulla (fail-closed, come il resto del
-	 * motore azioni: un'unita' senza dati non e' un'unita' con numeri a caso).
+	 * Imposta statistiche e azioni interamente da `URTHeroData` (CP 6.1, epic E6): nessun numero scritto qui.
+	 *
+	 * E' l'UNICA via per configurare un'unita'. Fino al 2026-08-10 ne esisteva una seconda,
+	 * `ConfigureAsArchetype`, con le statistiche dei due archetipi scritte in C++: era gia' fuori da ogni
+	 * partita — il GameMode schiera i quattro eroi da CP 6.6 — e sopravviveva solo perche' 24 file di test
+	 * la usavano per costruire «un'unita' qualunque». Un secondo percorso di configurazione che nessuna
+	 * partita esercita e' un motore parallelo con numeri propri: i test che lo usavano misuravano un gioco
+	 * che non esisteva piu'.
+	 *
+	 * `Hero == nullptr` non configura nulla (fail-closed, come il resto del motore azioni: un'unita' senza
+	 * dati non e' un'unita' con numeri a caso).
 	 */
 	void ConfigureFromHeroData(const URTHeroData* Hero);
 

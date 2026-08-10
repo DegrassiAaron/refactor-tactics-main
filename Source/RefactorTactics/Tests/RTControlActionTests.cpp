@@ -15,6 +15,8 @@
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -25,6 +27,33 @@
  */
 namespace
 {
+	/**
+	 * Una spinta di DUE celle, dichiarata qui e non pescata dal catalogo.
+	 *
+	 * Serviva `Guardian.Sweep`, l'unica azione del progetto con `Push 2`, ed e' sparita con gli archetipi
+	 * legacy il 2026-08-10: il roster v0.1 arriva a `Push 1`. Ma la regola sotto esame e' del RESOLVER —
+	 * cosa attraversa un bersaglio spinto oltre una cella, e cosa succede se quella intermedia brucia — e
+	 * con una spinta di una cella sola non esisterebbe **nessuna cella intermedia** da attraversare.
+	 *
+	 * Dichiararla nel test e' piu' onesto che tenere in vita un'azione di gioco per sostenere una verifica:
+	 * il catalogo dice cosa il gioco spedisce, questo dice cosa il motore deve saper fare.
+	 */
+	FRTActionDef MakePush2Def()
+	{
+		FRTActionDef Def;
+		Def.ActionId = TEXT("Test.Push2");
+		Def.ResolutionPhase = ERTResolutionPhase::Attack;
+		Def.Priority = 55;
+		Def.RangeCells = 3;
+		Def.CostMP = 0;
+		Def.CooldownTurns = 0;
+		Def.Fallback = ERTActionFallback::AttackCell;
+		Def.bCanBeInterrupted = true;
+		Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 30));
+		Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Push, 2));
+		return Def;
+	}
+
 	UWorld* MakeControlWorld()
 	{
 		UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
@@ -66,7 +95,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false; // i piani li scriviamo noi
-		U->ConfigureAsArchetype(ERTArchetype::Ranger); // stats/portata base qualunque: i test guardano il controllo
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeVektor()); // stats/portata base qualunque: i test guardano il controllo
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		return U;
@@ -259,13 +288,13 @@ bool FRTPushResistanceIsAThresholdTest::RunTest(const FString&)
 		Victim->PushResistance = C.Resistance;
 		const FRTCellId Before = Victim->Cell;
 
-		// `Guardian.Sweep` sta nel catalogo ARCHETIPI, non fra le azioni core: e' l'unica del progetto con
-		// `Push 2`, ed e' il motivo per cui questo test esiste.
+		// I casi con `Push 2` non hanno un'azione di gioco che li produca: il roster arriva a `Push 1`, e
+		// `Guardian.Sweep` e' sparita con gli archetipi legacy. La definizione la dichiara il test.
 		URTActionData* Ability = NewObject<URTActionData>(Mover);
 		Ability->Def = URTCatalogLibrary::FindCoreAction(FName(C.ActionId));
 		if (Ability->Def.ActionId.IsNone())
 		{
-			Ability->Def = URTCatalogLibrary::FindShippedAction(FName(C.ActionId));
+			Ability->Def = MakePush2Def();
 		}
 		Ability->RangeCells = Ability->Def.RangeCells;
 		Ability->Power = 0;
@@ -658,10 +687,10 @@ bool FRTPushThroughFireTest::RunTest(const FString&)
 
 		Victim->PushResistance = 0;
 
-		// `Guardian.Sweep`: l'unica azione del progetto con `Push 2`, che e' cio' che serve — con una spinta
-		// di una cella sola non esisterebbe una cella INTERMEDIA da attraversare.
+		// Spinta di DUE celle: con una cella sola non esisterebbe una cella INTERMEDIA da attraversare,
+		// che e' precisamente cio' che questo test guarda.
 		URTActionData* Ability = NewObject<URTActionData>(Mover);
-		Ability->Def = URTCatalogLibrary::FindShippedAction(TEXT("Guardian.Sweep"));
+		Ability->Def = MakePush2Def();
 		Ability->RangeCells = Ability->Def.RangeCells;
 		Ability->Power = 0;
 		Mover->Abilities.Add(Ability);
@@ -735,7 +764,7 @@ bool FRTPushDoesNotSpendVictimMoveTest::RunTest(const FString&)
 	Victim->PushResistance = 0;
 
 	URTActionData* Ability = NewObject<URTActionData>(Mover);
-	Ability->Def = URTCatalogLibrary::FindShippedAction(TEXT("Guardian.Sweep"));
+	Ability->Def = MakePush2Def();
 	Ability->RangeCells = Ability->Def.RangeCells;
 	Ability->Power = 0;
 	Mover->Abilities.Add(Ability);

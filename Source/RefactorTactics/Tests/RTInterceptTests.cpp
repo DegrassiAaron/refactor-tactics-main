@@ -13,6 +13,8 @@
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -71,7 +73,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false;
-		U->ConfigureAsArchetype(ERTArchetype::Ranger); // Tiro: 25 danni, colpo singolo, portata 6
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeVektor()); // Tiro: 25 danni, colpo singolo, portata 6
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell;

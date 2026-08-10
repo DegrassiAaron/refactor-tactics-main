@@ -12,6 +12,8 @@
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -64,7 +66,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false; // i piani li scriviamo noi
-		U->ConfigureAsArchetype(ERTArchetype::Ranger); // attacco base a colpo singolo (Ranger.Shot, 25, range 6)
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeVektor()); // attacco base a colpo singolo (Ranger.Shot, 25, range 6)
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell; // fermo: i test guardano il Blast, non il movimento

@@ -13,6 +13,8 @@
 #include "Map/RTHexLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 
 /**
  * Pianificazione dei bot su griglia esagonale (CP 6.6): ARTTurnManager::PlanBots passa da URTHexBotLibrary,
@@ -55,13 +57,13 @@ namespace
 		return M;
 	}
 
-	ARTUnit* SpawnHexBotUnit(UWorld* World, int32 TeamId, ERTArchetype Arch, const FRTCellId& Cell, bool bBot)
+	ARTUnit* SpawnHexBotUnit(UWorld* World, int32 TeamId, const URTHeroData* Hero, const FRTCellId& Cell, bool bBot)
 	{
 		if (!World) { return nullptr; }
 		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
-		U->ConfigureAsArchetype(Arch);
+		U->ConfigureFromHeroData(Hero);
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->bIsBotControlled = bBot;
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
@@ -81,10 +83,10 @@ bool FRTHexBotLegalMovesTest::RunTest(const FString&)
 
 	// 2v2: due bot contro due unita' del giocatore, in posizioni oblique (dove Manhattan e distanza
 	// esagonale divergono e il pathfinding quadrato proporrebbe celle fuori dalla mappa).
-	ARTUnit* BotA = SpawnHexBotUnit(World, 1, ERTArchetype::Guardian, FRTCellId(2, -3), /*bBot*/ true);
-	ARTUnit* BotB = SpawnHexBotUnit(World, 1, ERTArchetype::Ranger, FRTCellId(3, -3), /*bBot*/ true);
-	ARTUnit* FoeA = SpawnHexBotUnit(World, 0, ERTArchetype::Ranger, FRTCellId(-2, 3), /*bBot*/ false);
-	ARTUnit* FoeB = SpawnHexBotUnit(World, 0, ERTArchetype::Guardian, FRTCellId(-3, 3), /*bBot*/ false);
+	ARTUnit* BotA = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(2, -3), /*bBot*/ true);
+	ARTUnit* BotB = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(3, -3), /*bBot*/ true);
+	ARTUnit* FoeA = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(-2, 3), /*bBot*/ false);
+	ARTUnit* FoeB = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(-3, 3), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !BotA || !BotB || !FoeA || !FoeB) { DestroyHexBotWorld(World); return false; }
 
@@ -148,8 +150,8 @@ bool FRTHexBotPanicTest::RunTest(const FString&)
 	SpawnHexBotMap(World, /*Radius=*/ 6);
 
 	// Il Ranger ha KiteStandoff 4: con un nemico a distanza 2 (<= standoff/2) scatta il panico e arretra.
-	ARTUnit* Kiter = SpawnHexBotUnit(World, 1, ERTArchetype::Ranger, FRTCellId(0, 0), /*bBot*/ true);
-	ARTUnit* Melee = SpawnHexBotUnit(World, 0, ERTArchetype::Guardian, FRTCellId(2, 0), /*bBot*/ false);
+	ARTUnit* Kiter = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Melee = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(2, 0), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Kiter || !Melee) { DestroyHexBotWorld(World); return false; }
 
@@ -174,8 +176,8 @@ bool FRTHexBotSupportTest::RunTest(const FString&)
 	SpawnHexBotMap(World, /*Radius=*/ 5);
 
 	// Guardian ferito sotto meta' HP: usa la Barriera (abilita' self-target) invece di attaccare.
-	ARTUnit* Hurt = SpawnHexBotUnit(World, 1, ERTArchetype::Guardian, FRTCellId(0, 0), /*bBot*/ true);
-	ARTUnit* Foe = SpawnHexBotUnit(World, 0, ERTArchetype::Ranger, FRTCellId(2, 0), /*bBot*/ false);
+	ARTUnit* Hurt = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(2, 0), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Hurt || !Foe) { DestroyHexBotWorld(World); return false; }
 
@@ -202,8 +204,8 @@ bool FRTHexBotTuningTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBotMap(World, /*Radius=*/ 6);
 
-	ARTUnit* Bot = SpawnHexBotUnit(World, 1, ERTArchetype::Guardian, FRTCellId(0, 0), /*bBot*/ true);
-	ARTUnit* Foe = SpawnHexBotUnit(World, 0, ERTArchetype::Guardian, FRTCellId(4, 0), /*bBot*/ false);
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(4, 0), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
 
@@ -237,8 +239,8 @@ bool FRTHexBotDashThreatTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBotMap(World, /*Radius=*/ 6);
 
-	ARTUnit* Bot = SpawnHexBotUnit(World, 1, ERTArchetype::Guardian, FRTCellId(0, 0), /*bBot*/ true); // con Carica
-	ARTUnit* Foe = SpawnHexBotUnit(World, 0, ERTArchetype::Guardian, FRTCellId(5, 0), /*bBot*/ false);
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 0), /*bBot*/ true); // con Carica
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(5, 0), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
 
@@ -297,8 +299,8 @@ bool FRTHexBotDashAgreesWithResolverTest::RunTest(const FString&)
 
 	// Il Ranger e' un kiter: con un nemico ADDOSSO fugge, e la fuga passa dallo scatto. E' lo scenario che
 	// mette davvero in moto il ramo che questo test deve coprire (con il nemico lontano il bot spara e basta).
-	ARTUnit* Bot = SpawnHexBotUnit(World, 1, ERTArchetype::Ranger, FRTCellId(0, 0), /*bBot*/ true);
-	ARTUnit* Foe = SpawnHexBotUnit(World, 0, ERTArchetype::Guardian, FRTCellId(2, 0), /*bBot*/ false);
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(2, 0), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
 
@@ -409,9 +411,9 @@ bool FRTHexBotSparesAllyTest::RunTest(const FString&)
 		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 		SpawnHexBotMap(World, /*Radius=*/ 5);
 
-		ARTUnit* Bot = SpawnHexBotUnit(World, 1, ERTArchetype::Guardian, FRTCellId(0, 0), /*bBot*/ true);
-		ARTUnit* Ally = SpawnHexBotUnit(World, 1, ERTArchetype::Ranger, FRTCellId(1, 0), /*bBot*/ false);
-		ARTUnit* Foe = SpawnHexBotUnit(World, 0, ERTArchetype::Ranger, FRTCellId(2, 0), /*bBot*/ false);
+		ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 0), /*bBot*/ true);
+		ARTUnit* Ally = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(1, 0), /*bBot*/ false);
+		ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(2, 0), /*bBot*/ false);
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Bot || !Ally || !Foe) { DestroyHexBotWorld(World); return false; }
 
@@ -434,9 +436,9 @@ bool FRTHexBotSparesAllyTest::RunTest(const FString&)
 		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 		SpawnHexBotMap(World, /*Radius=*/ 5);
 
-		ARTUnit* Bot = SpawnHexBotUnit(World, 1, ERTArchetype::Guardian, FRTCellId(0, 0), /*bBot*/ true);
-		ARTUnit* Ally = SpawnHexBotUnit(World, 1, ERTArchetype::Ranger, FRTCellId(0, -4), /*bBot*/ false);
-		ARTUnit* Foe = SpawnHexBotUnit(World, 0, ERTArchetype::Ranger, FRTCellId(2, 0), /*bBot*/ false);
+		ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 0), /*bBot*/ true);
+		ARTUnit* Ally = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, -4), /*bBot*/ false);
+		ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(2, 0), /*bBot*/ false);
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Bot || !Ally || !Foe) { DestroyHexBotWorld(World); return false; }
 

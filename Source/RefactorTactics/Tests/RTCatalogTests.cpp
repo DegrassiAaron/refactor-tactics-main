@@ -7,6 +7,8 @@
 #include "Unit/RTUnit.h"
 #include "Turn/RTTurnRules.h"
 #include "UObject/UnrealType.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -203,31 +205,6 @@ bool FRTCatalogEquipmentTest::RunTest(const FString&)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogShippedTest,
-	"RefactorTactics.Catalog.ValidatorAcceptsShippedCatalog",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTCatalogShippedTest::RunTest(const FString&)
-{
-	// Il catalogo REALE del gioco: le azioni che ARTUnit crea per i due archetipi. Se una di esse perde
-	// l'ActionId, o un'azione di movimento cambia fallback, questo test diventa rosso — il documento e il
-	// codice non possono divergere in silenzio.
-	TArray<FRTActionDef> Shipped = URTCatalogLibrary::GetShippedActionCatalog();
-	TestTrue(TEXT("il catalogo spedito non e' vuoto"), Shipped.Num() > 0);
-
-	const TArray<FString> Errors = URTCatalogLibrary::ValidateActions(Shipped);
-	for (const FString& E : Errors) { AddError(E); }
-	TestEqual(TEXT("il catalogo spedito e' valido"), Errors.Num(), 0);
-
-	// Ogni azione del catalogo spedito deve avere una macro-fase sensata per il suo tipo.
-	for (const FRTActionDef& Def : Shipped)
-	{
-		const ERTMatchPhase Macro = URTCatalogLibrary::MapResolutionPhase(Def.ResolutionPhase);
-		TestTrue(FString::Printf(TEXT("%s risolve in una fase giocabile"), *Def.ActionId.ToString()),
-			Macro == ERTMatchPhase::Prep || Macro == ERTMatchPhase::Dash
-			|| Macro == ERTMatchPhase::Blast || Macro == ERTMatchPhase::Move);
-	}
-	return true;
-}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogCoreActionsTest,
 	"RefactorTactics.Catalog.ValidatorAcceptsCoreActions",
@@ -269,15 +246,18 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogMatchesAbilitiesTest,
 bool FRTCatalogMatchesAbilitiesTest::RunTest(const FString&)
 {
 	// Il catalogo non deve poter divergere dalle abilita' che il gioco assegna davvero: qui si confronta
-	// definizione e abilita' campo per campo, sui due archetipi.
-	const ERTArchetype Archetypes[] = { ERTArchetype::Ranger, ERTArchetype::Guardian };
-	for (const ERTArchetype Archetype : Archetypes)
+	// definizione e abilita' campo per campo, su TUTTO IL ROSTER.
+	//
+	// Prima girava sui due archetipi legacy, cioe' su unita' che nessuna partita schierava piu': verificava
+	// l'allineamento del catalogo su un percorso morto. Ora gira sui quattro eroi che il GameMode schiera
+	// davvero — due unita' in meno da cui dipendere, due in piu' che contano.
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
 	{
 		ARTUnit* Unit = NewObject<ARTUnit>();
 		if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
-		Unit->ConfigureAsArchetype(Archetype);
+		Unit->ConfigureFromHeroData(Hero);
 
-		TestTrue(TEXT("l'archetipo ha abilita'"), Unit->NumAbilities() > 0);
+		TestTrue(TEXT("l'eroe ha abilita'"), Unit->NumAbilities() > 0);
 		for (int32 i = 0; i < Unit->NumAbilities(); ++i)
 		{
 			const URTActionData* Ability = Unit->GetAbility(i);

@@ -12,6 +12,8 @@
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -73,7 +75,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false; // i piani li scriviamo noi
-		U->ConfigureAsArchetype(ERTArchetype::Ranger);
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeVektor());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		return U;
