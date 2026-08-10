@@ -51,9 +51,15 @@ esattamente il difetto da cui è nata U18.
 `git add` che non fa nulla, senza errore. Poi dice *"oggi dieci"*. Ne ho contate **sette**.»
 
 ```
-$ grep -c '^!Content.*\.\(uasset\|umap\)$' .gitignore
+$ git show a7d26e1:.gitignore | grep -c '^!Content.*\.\(uasset\|umap\)$'
 7
 ```
+
+> **Il comando è pinnato al commit apposta.** Sul `main` di oggi lo stesso `grep` senza `git show`
+> restituisce **9**: U1-A ne aggiunge due. Un transcript che dicesse `7` sarebbe falso il giorno dopo il
+> merge — cioè l'errore che questo paragrafo denuncia, commesso dal paragrafo stesso. Il numero vero da
+> ricordare non è né 7 né 9: è che **il conteggio non va scritto in prosa**, ed è per questo che U1-A lo
+> rimuove invece di aggiornarlo.
 
 «Un numero sbagliato dentro un avviso non è un dettaglio: è l'avviso che perde credito. E c'è un problema
 più grande di forma. Quel passo **non è lavoro da editor**: è una riga in `.gitignore`, si fa headless, in

@@ -72,7 +72,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 **READY** — *Si puo' fare adesso, fuori percorso critico*
 
-- **U18** · Verifiche senza preparazione — 1/5 voci verdi
+- **U18** · Verifiche senza prerequisiti — 1/5 voci verdi
 - **U7** · Personaggi Paragon — 2/2 voci verdi · sblocca U8
 - **U8** · Animazioni — 0/2 voci verdi · sblocca U9
 - **U9** · Leggibilita' e riferimento visivo — 2/4 voci verdi · sblocca M8.1, M8.2, M8.3
@@ -94,7 +94,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 | | Seduta | Produce | Sbloccata da | Critico | Voci | Stato |
 |---|---|---|---|:--:|:--:|:--:|
-| **U18** | Verifiche senza preparazione | verdetto su cinque voci che non attendono nulla | — | no | 1/5 | 🟡 |
+| **U18** | Verifiche senza prerequisiti | verdetto su cinque voci che non attendono nulla | — | no | 1/5 | 🟡 |
 | **U1** | Mappa-arena hex | `DA_HexMap_Arena` e `L_HexArena`, committati | M6.0 | sì | 0/7 | ⏳ |
 | **U2** | Partita hex, primo giro | verdetto su allestimento e movimento | M6.1, M6.2 | sì | 1/4 | 🟡 |
 | **U3** | Input e pianificazione | verdetto su selezione, budget e anteprima del percorso | M6.3 | sì | 0/4 | 🟡 |
@@ -119,20 +119,23 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 *Nessuna di queste attende codice. ⚠️ **Il banco di prova non si costruisce piu' a mano**: `MapSource = GeneratedTestArena` genera gia' esagono r=4, ostacoli, muro che blocca la vista, fango a costo 3, piattaforma sul layer 1 e una transizione — quindi le sedute della parita' hex non aspettano U1. Costruire una mappa serve a verificare **gli strumenti**, e a preparare il contenuto della v0.1.*
 
-#### U18 · Verifiche senza preparazione 🟡
+#### U18 · Verifiche senza prerequisiti 🟡
 
 **Sbloccata da**: — · **Percorso critico**: no
 **Produce**: verdetto su cinque voci che non attendono nulla
 **Verifichi**: `PIE-PREVIEW-AREA` ✅ · `PIE-V01-MATCHEND` ⏳ · `PIE-TEST-CONSOLE` 🟡 · `PIE-HEX-LAYER` ⏳ · `PIE-HEX-TRANS` ⏳
 **Finita quando**: le cinque voci hanno esito reale nel registro
 
-**E' la sola seduta che non attende nulla**: nessun asset da creare, nessun checkpoint da
-chiudere, nessuna mappa di prova. Basta premere Play sull'arena di ripiego.
+**E' la sola seduta che non attende nulla**: nessun checkpoint da chiudere, nessuna seduta
+prima, nessun artefatto da committare. *Senza prerequisiti* non vuol dire *senza allestimento*:
+le prime tre voci si fanno premendo Play sull'arena di ripiego, le ultime due in editor, su un
+asset **generato e usa-e-getta** — nessuna mappa da costruire a mano, e niente che finisca in
+git.
 
-> ⚠️ **Prima di cominciare, controlla che `Scenario To Run` sia vuoto** (`BP_GameMode` →
-> Class Defaults → *RefactorTactics|Test*) e che `rt.Test.Scenario` in console sia vuota —
-> quest'ultima **prevale** sulla property e dura quanto il processo dell'editor. Con uno
-> scenario impostato la partita normale non viene allestita affatto e tutte e tre le voci
+> ⚠️ **Prima delle tre voci in Play, controlla che `Scenario To Run` sia vuoto**
+> (`BP_GameMode` → Class Defaults → *RefactorTactics|Test*) e che `rt.Test.Scenario` in console
+> sia vuota — quest'ultima **prevale** sulla property e dura quanto il processo dell'editor. Con
+> uno scenario impostato la partita normale non viene allestita affatto e tutte e tre le voci
 > diventano non eseguibili. E' successo il 2026-08-08, uscendo da `PIE-SCEN-KEEP`.
 
 L'ordine non e' arbitrario:
@@ -145,7 +148,7 @@ L'ordine non e' arbitrario:
    `ARTHexMapActor` con celle su >=2 layer, che si ottiene con `GenerateIntoAsset` —
    `ActiveLayer=0`, poi `ActiveLayer=1`. Nessuna mappa da costruire a mano.
 
-> Nasce dalla sessione G del registro (2026-08-08), che non aveva una seduta corrispondente: le tre voci erano nella checklist ma in nessuna seduta, e una voce che non sta in una seduta non viene eseguita mai. **Dal 2026-08-10 ne ospita cinque**: `PIE-HEX-LAYER` e `PIE-HEX-TRANS` erano in U1, ma le loro precondizioni nel registro citano un asset *generato* (`GenerateIntoAsset`, due celle sovrapposte) e non l'arena — stavano su una seduta del percorso critico senza dipenderne. Issue 450.
+> Nasce dalla sessione G del registro (2026-08-08), che non aveva una seduta corrispondente: le tre voci erano nella checklist ma in nessuna seduta, e una voce che non sta in una seduta non viene eseguita mai. **Dal 2026-08-10 ne ospita cinque**: `PIE-HEX-LAYER` e `PIE-HEX-TRANS` erano in U1, ma le loro precondizioni nel registro citano un asset *generato* (`GenerateIntoAsset`, due celle sovrapposte) e non l'arena — stavano su una seduta del percorso critico senza dipenderne. Issue 450. Nello stesso passaggio il titolo e' cambiato da «senza preparazione» a «senza prerequisiti»: le due voci nuove un allestimento ce l'hanno — generano celle su due layer in editor — e il vecchio titolo sarebbe diventato falso per due voci su cinque. Cio' che accomuna le cinque non e' l'assenza di allestimento ma l'assenza di **attese**: nessuna dipende da codice mancante o da una seduta prima.
 
 #### U1 · Mappa-arena hex ⏳
 

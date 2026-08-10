@@ -93,7 +93,7 @@ sessions:
   # --- Blocco 1 ---------------------------------------------------------------
 
   - id: U18
-    title: Verifiche senza preparazione
+    title: Verifiche senza prerequisiti
     block: 1
     critical: false
     produces: verdetto su cinque voci che non attendono nulla
@@ -110,13 +110,16 @@ sessions:
     done_when: le cinque voci hanno esito reale nel registro
     unblocks: []
     steps: |
-      **E' la sola seduta che non attende nulla**: nessun asset da creare, nessun checkpoint da
-      chiudere, nessuna mappa di prova. Basta premere Play sull'arena di ripiego.
+      **E' la sola seduta che non attende nulla**: nessun checkpoint da chiudere, nessuna seduta
+      prima, nessun artefatto da committare. *Senza prerequisiti* non vuol dire *senza allestimento*:
+      le prime tre voci si fanno premendo Play sull'arena di ripiego, le ultime due in editor, su un
+      asset **generato e usa-e-getta** — nessuna mappa da costruire a mano, e niente che finisca in
+      git.
 
-      > ⚠️ **Prima di cominciare, controlla che `Scenario To Run` sia vuoto** (`BP_GameMode` →
-      > Class Defaults → *RefactorTactics|Test*) e che `rt.Test.Scenario` in console sia vuota —
-      > quest'ultima **prevale** sulla property e dura quanto il processo dell'editor. Con uno
-      > scenario impostato la partita normale non viene allestita affatto e tutte e tre le voci
+      > ⚠️ **Prima delle tre voci in Play, controlla che `Scenario To Run` sia vuoto**
+      > (`BP_GameMode` → Class Defaults → *RefactorTactics|Test*) e che `rt.Test.Scenario` in console
+      > sia vuota — quest'ultima **prevale** sulla property e dura quanto il processo dell'editor. Con
+      > uno scenario impostato la partita normale non viene allestita affatto e tutte e tre le voci
       > diventano non eseguibili. E' successo il 2026-08-08, uscendo da `PIE-SCEN-KEEP`.
 
       L'ordine non e' arbitrario:
@@ -134,7 +137,11 @@ sessions:
       non viene eseguita mai. **Dal 2026-08-10 ne ospita cinque**: `PIE-HEX-LAYER` e `PIE-HEX-TRANS`
       erano in U1, ma le loro precondizioni nel registro citano un asset *generato*
       (`GenerateIntoAsset`, due celle sovrapposte) e non l'arena — stavano su una seduta del percorso
-      critico senza dipenderne. Issue 450.
+      critico senza dipenderne. Issue 450. Nello stesso passaggio il titolo e' cambiato da «senza
+      preparazione» a «senza prerequisiti»: le due voci nuove un allestimento ce l'hanno — generano
+      celle su due layer in editor — e il vecchio titolo sarebbe diventato falso per due voci su
+      cinque. Cio' che accomuna le cinque non e' l'assenza di allestimento ma l'assenza di
+      **attese**: nessuna dipende da codice mancante o da una seduta prima.
 
   - id: U1
     title: Mappa-arena hex
