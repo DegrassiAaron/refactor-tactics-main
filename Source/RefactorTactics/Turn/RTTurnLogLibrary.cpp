@@ -181,20 +181,26 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 	}
 }
 
-uint32 URTTurnLogLibrary::HashTurnLog(const TArray<FRTTurnLogEntry>& Entries)
+namespace
 {
-	// Ordina prima di mescolare: stesso insieme di voci -> stessa sequenza -> stesso hash (permutazione-invariante).
-	TArray<FRTTurnLogEntry> Sorted = Entries;
-	SortTurnLog(Sorted);
+	constexpr uint32 RT_FNV_OFFSET_BASIS = 2166136261u;
+	constexpr uint32 RT_FNV_PRIME        = 16777619u;
 
-	uint32 Hash = 2166136261u; // FNV-1a offset basis (32 bit)
-	auto Mix = [&Hash](uint32 V)
+	/**
+	 * Mescola i CAMPI di una voce in un FNV-1a a 32 bit.
+	 *
+	 * Estratto perche' i due hash del TurnLog — `HashTurnLog` (canonico) e `HashTurnLogOrdered` — devono
+	 * mescolare **esattamente gli stessi campi**: l'unica differenza fra loro e' il sort davanti. Se i due
+	 * elenchi di campi divergessero, i due hash risponderebbero a domande diverse da quelle documentate e
+	 * nessun test se ne accorgerebbe.
+	 */
+	void MixEntryFields(uint32& Hash, const FRTTurnLogEntry& E)
 	{
-		Hash ^= V;
-		Hash *= 16777619u; // FNV-1a prime (32 bit)
-	};
-	for (const FRTTurnLogEntry& E : Sorted)
-	{
+		auto Mix = [&Hash](uint32 V)
+		{
+			Hash ^= V;
+			Hash *= RT_FNV_PRIME;
+		};
 		Mix(static_cast<uint32>(E.Phase));
 		Mix(static_cast<uint32>(E.Category));
 		Mix(static_cast<uint32>(E.Outcome));
@@ -219,6 +225,36 @@ uint32 URTTurnLogLibrary::HashTurnLog(const TArray<FRTTurnLogEntry>& Entries)
 		// (CP 10.3). Se un giorno `BaseActionId` smettesse di essere derivabile da `ActionId`, questa riga
 		// di commento diventa falsa e il campo deve entrare: e' la condizione da ricontrollare, non una
 		// proprieta' per sempre.
+		//
+		// `UnitId` e `TurnNumber` NON entrano, per lo stesso criterio (D-063): servono a rendere la traccia
+		// spiegabile — chi ha agito, in quale turno — non a discriminarla. Includerli invaliderebbe in blocco
+		// ogni hash golden senza aggiungere potere discriminante.
+	}
+}
+
+uint32 URTTurnLogLibrary::HashTurnLog(const TArray<FRTTurnLogEntry>& Entries)
+{
+	// Ordina prima di mescolare: stesso insieme di voci -> stessa sequenza -> stesso hash (permutazione-invariante).
+	TArray<FRTTurnLogEntry> Sorted = Entries;
+	SortTurnLog(Sorted);
+
+	uint32 Hash = RT_FNV_OFFSET_BASIS;
+	for (const FRTTurnLogEntry& E : Sorted)
+	{
+		MixEntryFields(Hash, E);
+	}
+	return Hash;
+}
+
+uint32 URTTurnLogLibrary::HashTurnLogOrdered(const TArray<FRTTurnLogEntry>& Entries)
+{
+	// NESSUN sort: le voci si mescolano nell'ordine in cui il resolver le ha emesse. E' l'UNICA differenza
+	// con `HashTurnLog` — stessi campi, stesso FNV — ed e' cio' che rende visibile un riordino delle
+	// emissioni, che all'hash canonico e' invisibile per costruzione.
+	uint32 Hash = RT_FNV_OFFSET_BASIS;
+	for (const FRTTurnLogEntry& E : Entries)
+	{
+		MixEntryFields(Hash, E);
 	}
 	return Hash;
 }
@@ -333,13 +369,14 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 	SortTurnLog(Canonical);
 
 	TArray<uint8> Out;
-	Out.Reserve(14 + Canonical.Num() * 35); // 31 byte fissi + 2+2 di lunghezza per ActionId e BaseActionId
+	// 31 byte fissi + 2+2 di lunghezza per ActionId e BaseActionId + 8 per UnitId/TurnNumber (v6).
+	Out.Reserve(14 + Canonical.Num() * 43);
 
 	// Header: magic + versione + flags(topologia) + identita' del formato + conteggio (little-endian).
 	// Il FormatId sta DOPO i flags e prima del conteggio: le posizioni dei campi precedenti non si spostano,
 	// cosi' un lettore che ispeziona magic/versione/flags continua a trovarli dove sono sempre stati.
 	AppendU32LE(Out, RT_TURNLOG_MAGIC);
-	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithBaseActionId));
+	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithUnitId));
 	AppendU16LE(Out, static_cast<uint16>(Topology));
 	AppendStringUtf8(Out, FormatId.IsNone() ? FString() : FormatId.ToString());
 	AppendU32LE(Out, static_cast<uint32>(Canonical.Num()));
@@ -360,6 +397,11 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 		// Subito dopo l'ActionId, con lo stesso schema: e' il suo complemento, e tenerli adiacenti
 		// significa che un lettore che sa saltare uno sa saltare anche l'altro.
 		AppendStringUtf8(Out, E.BaseActionId.IsNone() ? FString() : E.BaseActionId.ToString());
+		// In coda alla voce (v6): i campi precedenti non si spostano. Interi, non stringhe — l'identita' di
+		// un'unita' e' un numero, e passare da `FName` costerebbe una tabella dei nomi in un formato che
+		// esiste per essere confrontabile byte-per-byte.
+		AppendI32LE(Out, E.UnitId);
+		AppendI32LE(Out, E.TurnNumber);
 	}
 
 	// Checksum FNV di tutto cio' che precede (header + voci), in coda: rileva la corruzione del contenuto.
@@ -381,13 +423,15 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	uint32 Magic = 0;
 	if (!ReadU32LE(Bytes, Pos, Magic) || Magic != RT_TURNLOG_MAGIC) { return false; }
 
-	// Versioni LEGGIBILI: la corrente e le tre precedenti. La 2 non porta l'ActionId, la 3 non porta il
-	// FormatId, la 4 non porta il BaseActionId, e in ogni caso il posto resta vuoto — leggerle e' onesto
-	// (quei byte non contenevano quell'informazione), inventarla no. Ogni altro valore e' rifiutato:
-	// interpretare byte di un formato ignoto produce un replay sbagliato in silenzio.
+	// Versioni LEGGIBILI: la corrente e le quattro precedenti. La 2 non porta l'ActionId, la 3 non porta il
+	// FormatId, la 4 non porta il BaseActionId, la 5 non porta UnitId/TurnNumber, e in ogni caso il posto
+	// resta vuoto — leggerle e' onesto (quei byte non contenevano quell'informazione), inventarla no. Ogni
+	// altro valore e' rifiutato: interpretare byte di un formato ignoto produce un replay sbagliato in silenzio.
 	uint16 Version = 0;
 	if (!ReadU16LE(Bytes, Pos, Version)) { return false; }
-	const bool bHasBaseActionId = (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithBaseActionId));
+	const bool bHasUnitId = (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithUnitId));
+	const bool bHasBaseActionId = bHasUnitId
+		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithBaseActionId));
 	const bool bHasFormatId = bHasBaseActionId
 		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithFormatId));
 	const bool bHasActionId = bHasFormatId
@@ -426,7 +470,9 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	// che resta — ogni voce occupa almeno i suoi campi a dimensione fissa.
 	constexpr int32 FixedEntryBytes = 31;         // 3 uint8 + 7 int32
 	// + 2 byte di lunghezza per ogni stringa presente nel formato: ActionId da v3, BaseActionId da v5.
-	const int32 MinEntryBytes = FixedEntryBytes + (bHasActionId ? 2 : 0) + (bHasBaseActionId ? 2 : 0);
+	// + 8 byte fissi per UnitId e TurnNumber da v6.
+	const int32 MinEntryBytes = FixedEntryBytes + (bHasActionId ? 2 : 0) + (bHasBaseActionId ? 2 : 0)
+		+ (bHasUnitId ? 8 : 0);
 	const int32 Remaining = Bytes.Num() - Pos;
 	if (Remaining < 0 || Count > static_cast<uint32>(Remaining / MinEntryBytes))
 	{
@@ -477,6 +523,15 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 			}
 			E.BaseActionId = BaseActionId.IsEmpty() ? NAME_None : FName(*BaseActionId);
 		}
+		if (bHasUnitId)
+		{
+			if (!ReadI32LE(Bytes, Pos, E.UnitId) || !ReadI32LE(Bytes, Pos, E.TurnNumber))
+			{
+				OutEntries.Reset();
+				return false;
+			}
+		}
+		// Sotto la v6 i due campi restano a 0: nessuna unita' dedotta dalla cella, nessun turno inventato.
 		OutEntries.Add(E);
 	}
 

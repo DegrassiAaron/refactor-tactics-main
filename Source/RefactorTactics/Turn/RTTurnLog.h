@@ -250,6 +250,31 @@ struct FRTTurnLogEntry
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	FName BaseActionId;
 
+	/**
+	 * IDENTITA' dell'unita' che ha prodotto la voce. `0` = nessuna unita' (voci ambientali).
+	 *
+	 * Esiste perche' `D-TL-2` — «chiave unita' = cella di partenza del turno» — **non regge** come chiave di
+	 * identita', e il codice lo dimostra in tre punti: le voci ambientali non hanno un'unita' e `SrcCell` e' la
+	 * cella che cambia superficie; l'interposizione scrive nel campo la cella del **protetto**, non dell'attore;
+	 * e dopo un Dash la cella in fase Blast non e' piu' quella di partenza. La cella resta ottima chiave di
+	 * **ordinamento** (`EntryLess`), che e' l'uso per cui D-TL-2 e' stata scritta.
+	 *
+	 * ⚠️ **NON entra nell'hash** ([D-063](../../../docs/decisions/RT_PDR_00_Decision_Log.md)): serve a rendere
+	 * la traccia spiegabile, non a discriminarla. Stesso ragionamento di `FormatId` e `BaseActionId`.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	int32 UnitId = 0;
+
+	/**
+	 * Turno in cui la voce e' stata emessa. `0` = non dichiarato (tracce scritte prima del formato v6).
+	 *
+	 * Il TurnLog vive per turno, quindi il numero e' una costante per traccia — ma una traccia estratta dal suo
+	 * contenitore, che e' esattamente cio' che un replay archive fa, senza questo campo non saprebbe piu' dirlo.
+	 * ⚠️ **NON entra nell'hash**, per la stessa ragione di `UnitId`.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	int32 TurnNumber = 0;
+
 	FRTTurnLogEntry() = default;
 };
 
@@ -284,7 +309,22 @@ enum class ERTTurnLogFormatVersion : uint16
 	 * che quei byte dicevano. E **gli hash golden non cambiano**: il campo sta fuori dall'hash (vedi la
 	 * dichiarazione di `FRTTurnLogEntry::BaseActionId` per il perche').
 	 */
-	WithBaseActionId = 5
+	WithBaseActionId = 5,
+	/**
+	 * + `UnitId` e `TurnNumber` per voce (D-063): due int32 in coda alla voce, dopo `BaseActionId`. I campi
+	 * precedenti non si spostano, quindi un lettore che sa saltare le stringhe trova tutto dov'era.
+	 *
+	 * Le tracce dalla 2 alla 5 restano LEGGIBILI, con i due campi a `0` — che e' esattamente cio' che quei
+	 * byte dicevano: `UnitId = 0` significa «nessuna unita'», e dedurre l'unita' dalla cella sarebbe
+	 * l'inferenza che D-063 ha dichiarato non valida. E **gli hash golden non cambiano**: entrambi i campi
+	 * stanno fuori dall'hash (vedi `MixEntryFields`).
+	 *
+	 * ⚠️ L'hash ordinato di D-062 **non e' qui, ed e' deliberato**: i byte sono in forma canonica (`D-SR-1`),
+	 * quindi la serializzazione perde l'ordine di emissione e un hash dell'ordine scritto in questo header
+	 * renderebbe i byte dipendenti dall'ordine d'inserimento — cioe' romperebbe `D-SR-1` e il test
+	 * `SerializeCanonicalPermutationInvariant`. Quel valore appartiene all'header del Replay Archive.
+	 */
+	WithUnitId = 6
 };
 
 /**

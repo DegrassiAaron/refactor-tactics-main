@@ -73,6 +73,22 @@ public:
 	static uint32 HashTurnLog(const TArray<FRTTurnLogEntry>& Entries);
 
 	/**
+	 * Hash intero del TurnLog SENSIBILE ALL'ORDINE DI APPEND: mescola le voci come sono arrivate, senza
+	 * ordinarle. Stessi campi di `HashTurnLog`, stesso FNV-1a: cambia solo che non c'e' il sort davanti.
+	 *
+	 * Esiste perche' `HashTurnLog` e' cieco al riordino **per scelta**, e quella cecita' lascia scoperto un
+	 * difetto reale: un ciclo che iterasse una `TMap` cambierebbe la sequenza emessa dal resolver senza
+	 * cambiare un solo hash, e nessun corpus golden se ne accorgerebbe. I due hash rispondono a domande
+	 * diverse e servono entrambi ([D-062](../../../docs/decisions/RT_PDR_00_Decision_Log.md)).
+	 *
+	 * ⚠️ **Non e' ricalcolabile da un file.** `SerializeTurnLog` scrive in forma canonica (ordinata), quindi
+	 * i byte perdono l'ordine di emissione: questo hash si calcola sulla traccia IN MEMORIA, prima di
+	 * serializzare, e chi lo vuole conservare lo mette nel proprio header — non in quello del TurnLog, che
+	 * deve restare permutazione-invariante (`D-SR-1`, e il test `SerializeCanonicalPermutationInvariant`).
+	 */
+	static uint32 HashTurnLogOrdered(const TArray<FRTTurnLogEntry>& Entries);
+
+	/**
 	 * Serializza il TurnLog in un buffer binario VERSIONATO e in forma CANONICA (ordina con SortTurnLog
 	 * prima di scrivere -> byte permutazione-invarianti, come l'hash). Header: magic + versione +
 	 * topologia (flags) + conteggio; poi ogni voce come interi little-endian espliciti (invariante #4).
