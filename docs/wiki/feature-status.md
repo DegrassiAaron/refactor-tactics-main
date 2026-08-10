@@ -223,4 +223,4 @@ il gioco che sara', questa tabella dice a che punto e'.
 
 | Feature | Titolo | Roadmap | Stato | Gate | Scenario |
 |---|---|---|---|---:|---|
-| `RT-FEAT-TOOL-CONTROL-CENTER` | Project Control Center — la UI web del registry | — | **DESIGNED** | 0/6 | — |
+| `RT-FEAT-TOOL-CONTROL-CENTER` | Project Control Center — la UI web del registry | — | **IMPLEMENTING** | 2/6 | — |

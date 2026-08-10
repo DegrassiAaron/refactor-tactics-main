@@ -4,8 +4,9 @@
 > **Esito di**: `/sc:spec-panel --mode critique` — panel Wiegers · Cockburn · Adzic · Fowler · Newman · Nygard · Crispin
 > **Fonte**: [`../../src/RefactorTactics_Project_Control_Center_Claude.md`](../../src/RefactorTactics_Project_Control_Center_Claude.md), handoff dell'autore
 > **Tracciata da**: `RT-FEAT-TOOL-CONTROL-CENTER` nel registry — `release: future`, fuori dai gate della v0.1.
-> **§9 è decisa** (2026-08-10, con l'autore); di **§11 sono eseguiti i passi 1, 2 e 7** — il contratto dati,
-> il suo gate e la `My Editor Queue`. **Nessuna riga di pagina è stata scritta**: i passi 4–6 e 8 restano.
+> **§9 è decisa** (2026-08-10, con l'autore); di **§11 sono eseguiti i passi 1–8**: contratto dati, gate,
+> config, pagina, filtri, viste, coda e test. Resta il **9** — `CONTEXT_INDEX.md` e i puntatori di ingresso.
+> **Implementazione**: [`../../control-center/`](../../control-center/README.md).
 
 ## 1. Perché l'handoff non si applica alla lettera
 
@@ -167,7 +168,7 @@ sono il contenuto.
 | **R-8** | Da una feature si raggiunge in un clic: issue, scenari, test, spec owner, Wiki, epic/milestone, sedute in editor | navigazione manuale su `RT-FEAT-REACTION-OVERWATCH` |
 | **R-9** | Esistono le relazioni **inverse**: da uno scenario alle feature che valida; da una seduta alle feature che sblocca | navigazione manuale in entrambi i versi |
 | **R-10** | I filtri di §14 della fonte operano sui campi reali del registry, senza campi nuovi | ogni filtro corrisponde a una chiave del JSON |
-| **R-11** | La pagina funziona anche offline sul file locale, non solo su GitHub | apertura con il `.json` del working tree |
+| **R-11** | La pagina legge il **working tree**, senza rete | servita da `python -m http.server`; da `file://` il browser blocca `fetch` e i moduli ES, e la pagina lo gestisce chiedendo i due `.json` con un selettore |
 
 `R-1` è quello che conta: è la traduzione operativa di §2, e il solo criterio che rende questa pagina diversa
 dalla vista che è già morta una volta.
@@ -256,13 +257,13 @@ viene mai scritta**.
 |--:|---|---|
 | 1 | ✅ **2026-08-10** — `project-graph.json` generato da `generate`: diagnostica, gate di release, epic/milestone/checkpoint, sedute, voci PIE, corpus scenari, capability | il file esiste; due run consecutive → `git diff` vuoto |
 | 2 | ✅ **2026-08-10** — `--check` sul nuovo artefatto, come per le shortlist | verificato per mutazione: una riga aggiunta a mano → exit 1, file nominato |
-| 3 | Blocco di config `project.github` — owner, repo, branch — in un solo posto | nessun URL assoluto altrove |
-| 4 | Pagina v0.1 read-only: testata + Overview + banner di staleness | apre da file locale (R-11) e da GitHub |
-| 5 | Feature Map con filtri e detail drawer | i filtri di §14 operano; `RT-FEAT-*` raggiungibile in un clic |
-| 6 | Roadmap, Scenario Map, Editor Map come viste dello stesso grafo | relazioni inverse navigabili (R-9) |
+| 3 | ✅ **2026-08-10** — `meta.project.github` nel registry, propagato nei due JSON; il validator lo confronta col remote | nessun URL assoluto fuori dalla funzione che li costruisce |
+| 4 | ✅ **2026-08-10** — `docs/control-center/index.html`: testata, Overview, banner di staleness | verificata in Chromium: testata, 8 statistiche, gate di release, console pulita |
+| 5 | ✅ **2026-08-10** — Feature Map con dieci filtri, ricerca e detail drawer | 85 card; filtro release e ricerca `#164` verificati; il drawer apre in un clic |
+| 6 | ✅ **2026-08-10** — Roadmap, Scenario Map, Editor Map, coda e diagnostica | verso inverso verificato: da uno scenario si apre la feature che lo dichiara |
 | 7 | ✅ **2026-08-10** — `My Editor Queue` in `render_shortlist_editor()` (**D-C**): i quattro gruppi anche in markdown | 8 `BLOCKING` · 4 `READY` · 4 `WAITING` · 0 `DONE`, derivati; le due regole di risoluzione verificate per mutazione |
-| 8 | Test: parsing, unicità, derivazione link, riferimenti rotti, cicli, filtri | fixture con `issue: 99999` → marcata rotta |
-| 9 | Aggiornare `feature-registry.md`, `CONTEXT_INDEX.md`, e i puntatori | `check-docs-links.py` verde |
+| 8 | ✅ **2026-08-10** — 18 test `node --test`: link, chiavi, indice, riferimenti rotti, cicli, filtri, staleness, e 5 sul contratto reale | verdi; il gruppo «contratto» ha trovato un difetto vero in `checkpoint_status()` |
+| 9 | ⏳ `CONTEXT_INDEX.md` e i puntatori di ingresso | `check-docs-links.py` verde |
 
 I passi 1–3 e il **7** sono lavoro Python nel repository, misurabile, e **non aspettano la pagina**: dopo
 D-C il `My Editor Queue` è una sezione derivata della EditorMap, utile anche se il Control Center non venisse

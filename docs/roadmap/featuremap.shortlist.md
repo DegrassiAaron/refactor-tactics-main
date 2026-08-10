@@ -25,9 +25,9 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | Stato | Quante |
 |---|--:|
 | `IDEA` | 4 |
-| `DESIGNED` | 8 |
+| `DESIGNED` | 7 |
 | `SPECIFIED` | 14 |
-| `IMPLEMENTING` | 19 |
+| `IMPLEMENTING` | 20 |
 | `TESTABLE` | 5 |
 | `INTEGRATED` | 19 |
 | `RELEASE_READY` | 15 |
@@ -176,8 +176,8 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-TOOL-MAP-EDITOR` — Editor mode della mappa esagonale | v0.1 | TESTABLE | 4/6 | M9 | **Fuori** dalla vista di release: non entra nella build di gioco |
 | `RT-FEAT-TEST-GOLDEN` — Golden replay e showcase «Il Relè» | v0.1 | IMPLEMENTING | 3/8 | E15 | Oggi `BLOCKED` su 5 capability |
 | `RT-FEAT-TOOL-BALANCE-GROUND` — Banco di prova del bilanciamento | v0.1 | IMPLEMENTING | 3/6 | E1 | Dove si misurano i numeri prima di scriverli a catalogo |
+| `RT-FEAT-TOOL-CONTROL-CENTER` — Project Control Center — la UI web del registry | future | IMPLEMENTING | 2/6 | — | — |
 | `RT-FEAT-TOOL-DEBUG-CONSOLE` — Comandi console rt.Debug e rt.Test | v0.1 | IMPLEMENTING | 3/6 | E11 | Ne esistono 2 su 8: senza, si debugga a occhio |
-| `RT-FEAT-TOOL-CONTROL-CENTER` — Project Control Center — la UI web del registry | future | DESIGNED | 0/6 | — | — |
 | `RT-FEAT-BOT-TACTICAL` — Bot tattico con conoscenza e reazioni | v0.2 | IDEA | 0/8 | — | Epic E26 |
 
 ### UI · 8

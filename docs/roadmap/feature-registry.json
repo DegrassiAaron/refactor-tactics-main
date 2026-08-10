@@ -3,12 +3,26 @@
   "meta": {
     "registry_version": 1,
     "schema_version": 1,
+    "project": {
+      "github": {
+        "owner": "DegrassiAaron",
+        "repository": "refactor-tactics-main",
+        "branch": "main"
+      }
+    },
     "last_full_audit": {
       "date": "2026-08-08",
       "commit": "2094b86",
       "suite": "490 test unici in 69 file"
     },
     "note": "Primo audit completo. La seed list dell'handoff del 2026-08-08 è stata confrontata voce per voce con Source/, Tests/, Scenarios/, docs/ e la Wiki: le voci che il repository non conferma sono marcate per quello che sono (SPECIFIED, DESIGNED, IDEA), non promosse a DONE.\n"
+  },
+  "project": {
+    "github": {
+      "owner": "DegrassiAaron",
+      "repository": "refactor-tactics-main",
+      "branch": "main"
+    }
   },
   "count": 85,
   "features": [
@@ -4336,20 +4350,20 @@
       "kind": "tooling",
       "release": "future",
       "priority": "P3",
-      "status": "DESIGNED",
-      "status_derived": "DESIGNED",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
       "gates": {
         "spec": "partial",
-        "data": "partial",
-        "runtime": "todo",
-        "log_debug": "todo",
-        "automation": "todo",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "partial",
+        "automation": "partial",
         "scenario": "na",
-        "ui_wiki": "todo",
+        "ui_wiki": "partial",
         "packaged": "na",
         "network_privacy": "na"
       },
-      "gates_done": 0,
+      "gates_done": 2,
       "gates_applicable": 6,
       "roadmap": {
         "epic": null,
@@ -4371,7 +4385,7 @@
       "wiki_refs": [],
       "wiki_note": "",
       "last_verified": {},
-      "notes": "Vista web read-only sopra gli artefatti generati dal registry: nessun dato nasce qui. **Fuori dai 15 gate della v0.1** e senza epic: è tooling di processo, e collocarlo nella roadmap di release lo farebbe competere con la consegna. `spec: partial` perché la spec è in revisione (§9 registra quattro decisioni prese il 2026-08-10: pagina statica read-only, relazioni qualificate rimandate, `My Editor Queue` come filtro derivato **anche** in markdown, scrittura fuori scope). `data: partial` dal 2026-08-10: `project-graph.json` esiste e porta diagnostica, roadmap, sedute, PIE e scenari — manca il blocco di config `project.github` da cui derivare i link. `scenario`/`packaged`/`network_privacy` sono `na` per la stessa ragione degli altri strumenti: non è gioco e non entra nel pacchetto. La `My Editor Queue` è **già consegnata** in `editormap.shortlist.md`: non aspettava la pagina, ed è utile anche se la pagina non venisse mai scritta."
+      "notes": "Vista web read-only sopra gli artefatti generati dal registry: nessun dato nasce qui. **Fuori dai 15 gate della v0.1** e senza epic: è tooling di processo, e collocarlo nella roadmap di release lo farebbe competere con la consegna. `spec: partial` perché la spec è in revisione (§9 registra quattro decisioni prese il 2026-08-10: pagina statica read-only, relazioni qualificate rimandate, `My Editor Queue` come filtro derivato **anche** in markdown, scrittura fuori scope). `data: partial` dal 2026-08-10: `project-graph.json` esiste e porta diagnostica, roadmap, sedute, PIE e scenari — manca il blocco di config `project.github` da cui derivare i link. `scenario`/`packaged`/`network_privacy` sono `na` per la stessa ragione degli altri strumenti: non è gioco e non entra nel pacchetto. La `My Editor Queue` è **già consegnata** in `editormap.shortlist.md`: non aspettava la pagina, ed è utile anche se la pagina non venisse mai scritta. `automation: partial` e non `done` perché i 18 test di `docs/control-center/graph.test.mjs` (`node --test`) coprono le funzioni pure — link, indice, riferimenti rotti, cicli, filtri — e **non** la UI: quella è stata verificata una volta con Playwright, non da una suite che gira da sola. `tests:` resta vuoto: quel campo dichiara pattern della suite Unreal, e un file `.mjs` non ne fa parte."
     },
     {
       "feature_id": "RT-FEAT-TOOL-DEBUG-CONSOLE",

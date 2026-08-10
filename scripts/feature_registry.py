@@ -208,9 +208,39 @@ def gate_progress(gates):
 # Validazione
 # ---------------------------------------------------------------------------
 
+def github_config(registry):
+    """`owner`/`repository`/`branch` da cui si derivano tutti i link verso GitHub."""
+    return ((registry.get("meta") or {}).get("project") or {}).get("github") or {}
+
+
+def git_remote_slug():
+    """`owner/repo` del remote `origin`, se c'e'. Legge la config locale, non la rete."""
+    try:
+        import subprocess
+        out = subprocess.run(["git", "remote", "get-url", "origin"], cwd=REPO,
+                             capture_output=True, text=True, timeout=10)
+        match = re.search(r"[:/]([^/:]+)/([^/]+?)(?:\.git)?\s*$", out.stdout.strip())
+        return f"{match.group(1)}/{match.group(2)}" if match else None
+    except Exception:
+        return None
+
+
 def validate(registry, wiki_root=None):
     errors, warnings = [], []
     features = registry.get("features") or []
+
+    github = github_config(registry)
+    missing = [k for k in ("owner", "repository", "branch") if not github.get(k)]
+    if missing:
+        errors.append("meta.project.github incompleto: mancano " + ", ".join(missing)
+                      + " — senza questi nessun link a GitHub e' derivabile")
+    else:
+        slug = git_remote_slug()
+        declared = f"{github['owner']}/{github['repository']}"
+        if slug and slug.lower() != declared.lower():
+            # Avviso e non errore: su un fork la divergenza e' legittima, e un gate che fallisce
+            # su ogni fork verrebbe disattivato — cioe' non varrebbe piu' nemmeno qui.
+            warnings.append(f"meta.project.github dichiara {declared} ma il remote e' {slug}")
     tests = known_tests()
     scenarios = known_scenarios()
     epics, checkpoints, milestones = known_roadmap_refs()
@@ -457,6 +487,7 @@ def build_json(registry):
         "_generated": "NON EDITARE: generato da docs/roadmap/feature-registry.yaml "
                       "con scripts/feature_registry.py generate",
         "meta": jsonable(registry.get("meta") or {}),
+        "project": jsonable((registry.get("meta") or {}).get("project") or {}),
         "count": len(features),
         "features": features,
     }
@@ -1584,8 +1615,11 @@ def checkpoint_status():
             status.setdefault(f"M{num}", glyph or "⏳")
     if os.path.isfile(ROADMAP_V01):
         text = open(ROADMAP_V01, encoding="utf-8").read()
+        # Due forme convivono nell'owner: la nuda `| **6.7** |` (94 righe) e la prefissata
+        # `| **E21.1** |`, convenzione dal 2026-08-08 (3 righe). Leggerne una sola lascia dei
+        # checkpoint senza stato, e una feature che li cita sembra citare il nulla.
         for num, glyph in re.findall(
-                r"^\| \*\*(\d+\.\d+)\*\*\s*([" + STATUS_GLYPHS + r"])?", text, re.M):
+                r"^\| \*\*E?(\d+\.\d+)\*\*\s*([" + STATUS_GLYPHS + r"])?", text, re.M):
             # In `roadmap-v0.1.md` ogni checkpoint appartiene all'epic che ne apre il numero:
             # `6.7` e' E6.7 per costruzione, e la forma prefissata lo rende dicibile.
             status.setdefault(f"E{num}", glyph or "⏳")
@@ -1916,6 +1950,7 @@ def build_graph(registry):
             "scenarios": "Scenarios/",
         },
         "meta": jsonable(registry.get("meta") or {}),
+        "project": jsonable((registry.get("meta") or {}).get("project") or {}),
         "diagnostics": {
             "errors": errors,
             "warnings": warnings,

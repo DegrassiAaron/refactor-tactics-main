@@ -33,6 +33,15 @@
 meta:
   registry_version: 1
   schema_version: 1
+  # Da qui si derivano TUTTI i link verso GitHub: issue, milestone, PR, file del repository.
+  # Sta scritto una volta sola perche' un URL completo copiato in una vista e' la stessa bugia
+  # con la data sbagliata di uno stato copiato. Il validator confronta questi valori col remote
+  # `origin` quando c'e', e avvisa se divergono — su un fork e' un avviso, non un errore.
+  project:
+    github:
+      owner: DegrassiAaron
+      repository: refactor-tactics-main
+      branch: main
   last_full_audit:
     date: 2026-08-08
     commit: 2094b86
@@ -3295,15 +3304,15 @@ features:
     kind: tooling
     release: future
     priority: P3
-    status: DESIGNED
+    status: IMPLEMENTING
     gates:
       spec: partial
-      data: partial
-      runtime: todo
-      log_debug: todo
-      automation: todo
+      data: done
+      runtime: done
+      log_debug: partial
+      automation: partial
       scenario: na
-      ui_wiki: todo
+      ui_wiki: partial
       packaged: na
       network_privacy: na
     roadmap: {}
@@ -3327,6 +3336,11 @@ features:
       per la stessa ragione degli altri strumenti: non è gioco e non entra nel pacchetto.
       La `My Editor Queue` è **già consegnata** in `editormap.shortlist.md`: non aspettava la
       pagina, ed è utile anche se la pagina non venisse mai scritta.
+      `automation: partial` e non `done` perché i 18 test di `docs/control-center/graph.test.mjs`
+      (`node --test`) coprono le funzioni pure — link, indice, riferimenti rotti, cicli, filtri —
+      e **non** la UI: quella è stata verificata una volta con Playwright, non da una suite che
+      gira da sola. `tests:` resta vuoto: quel campo dichiara pattern della suite Unreal, e un
+      file `.mjs` non ne fa parte.
 
   - feature_id: RT-FEAT-TOOL-DEBUG-CONSOLE
     title: Comandi console rt.Debug e rt.Test

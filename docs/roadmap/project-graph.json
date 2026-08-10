@@ -12,12 +12,26 @@
   "meta": {
     "registry_version": 1,
     "schema_version": 1,
+    "project": {
+      "github": {
+        "owner": "DegrassiAaron",
+        "repository": "refactor-tactics-main",
+        "branch": "main"
+      }
+    },
     "last_full_audit": {
       "date": "2026-08-08",
       "commit": "2094b86",
       "suite": "490 test unici in 69 file"
     },
     "note": "Primo audit completo. La seed list dell'handoff del 2026-08-08 è stata confrontata voce per voce con Source/, Tests/, Scenarios/, docs/ e la Wiki: le voci che il repository non conferma sono marcate per quello che sono (SPECIFIED, DESIGNED, IDEA), non promosse a DONE.\n"
+  },
+  "project": {
+    "github": {
+      "owner": "DegrassiAaron",
+      "repository": "refactor-tactics-main",
+      "branch": "main"
+    }
   },
   "diagnostics": {
     "errors": [],
@@ -285,7 +299,10 @@
     "E19.2": "⏳",
     "E20.1": "⏳",
     "E20.2": "⏳",
-    "E20.3": "⏳"
+    "E20.3": "⏳",
+    "E21.1": "⏳",
+    "E21.2": "⏳",
+    "E21.3": "⏳"
   },
   "editor_sessions": [
     {
