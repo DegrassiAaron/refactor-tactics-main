@@ -24,7 +24,7 @@
       "branch": "main"
     }
   },
-  "count": 87,
+  "count": 88,
   "features": [
     {
       "feature_id": "RT-FEAT-CORE-TURN",
@@ -1254,7 +1254,12 @@
         "Movement.Basic",
         "Visual.Combat.GuardReducesFirstHit"
       ],
-      "scenarios_planned": [],
+      "scenarios_planned": [
+        "Spec.Brace.GuardAndBraceOnMixedHit",
+        "Spec.Brace.BraceWinsOnSecondHit",
+        "Spec.Brace.PushBeyondGuardThreshold",
+        "Spec.Combat.BastionIgnoresAllPushes"
+      ],
       "wiki_refs": [
         "docs/wiki/game/azioni-e-movimento.md"
       ],
@@ -2042,7 +2047,11 @@
       "scenarios": [
         "Spec.Overwatch.HoldThenFire"
       ],
-      "scenarios_planned": [],
+      "scenarios_planned": [
+        "Spec.Overwatch.ConductiveDischargeUsesStandardConduction",
+        "Spec.Overwatch.PressurePushChangesResolvedPath",
+        "Spec.Overwatch.FrontlineFollowsFacing"
+      ],
       "wiki_refs": [
         "docs/wiki/meccaniche/overwatch.md",
         "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
@@ -2053,7 +2062,7 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "**Non implementata**: `grep -rn \"Overwatch\" Source/` fuori dai test non restituisce nulla. L'aggancio tecnico esiste (`FRTSuppressiveZone` in `RTOffensiveActionLibrary`, azione `Action.SuppressiveLine`) ma è zona di soppressione, non Overwatch. Due pagine Wiki la descrivono già: il blocco di stato generato lo dichiara. `Spec.Overwatch.HoldThenFire` è la **specifica eseguibile** della finestra — con gli intent del turno 2 volutamente vuoti, perché la sintassi di HOLD/FIRE non è ancora decisa — ed esce `BLOCKED`."
+      "notes": "**Non implementata**: `grep -rn \"Overwatch\" Source/` fuori dai test non restituisce nulla. L'aggancio tecnico esiste (`FRTSuppressiveZone` in `RTOffensiveActionLibrary`, azione `Action.SuppressiveLine`) ma è zona di soppressione, non Overwatch. Due pagine Wiki la descrivono già: il blocco di stato generato lo dichiara. `Spec.Overwatch.HoldThenFire` è la **specifica eseguibile** della finestra — con gli intent del turno 2 volutamente vuoti, perché la sintassi di HOLD/FIRE non è ancora decisa — ed esce `BLOCKED`.\n**Il `data` resta `partial` per una ragione precisa (2026-08-10)**: CP 14.4 impone che il profilo sia un dato per eroe — area, arco, trigger e risposte legali — e il test che lo pinna (`Overwatch.ProfileIsDataNotBranch`) ha bisogno di **due** profili diversi da confrontare. **Nessun catalogo ne contiene uno.** Le quattro geometrie proposte — Flux settore medio, Riva medio-corto, Bastion corto-largo frontale, Vektor stretto-lungo — sono `BAS-2` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md): il meccanismo è deciso, il contenuto no.\n**Il lifecycle ha un modello, dal 2026-08-10**: `Watch → EndWatchStage → Reposition`. L'owner resta **fermo** durante lo Stage A della Move Phase e poi esegue un Move limitato **pianificato in Planning** — mai scelto dopo aver visto dove sono finiti gli avversari. Chiude `BAS-5`; triage in [`plans/overwatch-runtime-lifecycle-triage-2026-08-10.md`](plans/overwatch-runtime-lifecycle-triage-2026-08-10.md). Quattro punti sono gia' canone-compatibili e possono entrare nel DoD di CP 14.4/14.5 senza altre decisioni: cadence `OncePerTargetPerReactionInstance`, `MaxPrompts` che conta opportunity distinte (precisa ADR-0004 §8), eligibility **post-transition**, e la distinzione fra **hard cancel** e **soft eligibility block** — che CP 14.6 oggi non fa, e che serve perche' `NoLOS` e `Stun` non possono produrre lo stesso reason code terminale.\n**Costo e nome decisi il 2026-08-10** (`D-070`): armare l'Overwatch spende l'azione principale e **riserva** lo slot movimento a `Withdraw` — 2 MP, dichiarato in Planning, risolto nello **Stage B** dopo tutti gli altri. Il divieto di `Dash` e' una **conseguenza** dello slot impegnato, non una regola a se'; e il nome non e' `Reposition`, che e' gia' un'azione viva in fase Dash. Nessuno scenario nuovo e' ancora dichiarato: il §40 del sorgente ne elenca venti, e diventano `planned` quando E14 ha una forma eseguibile per HOLD/FIRE — la stessa ragione per cui `Spec.Overwatch.HoldThenFire` esce `BLOCKED`."
     },
     {
       "feature_id": "RT-FEAT-REACTION-PROFILE",
@@ -2103,7 +2112,11 @@
         "Spec.Facing.BraceHoldsFromBehind",
         "Spec.Brace.ProfileChangesResponse"
       ],
-      "scenarios_planned": [],
+      "scenarios_planned": [
+        "Spec.Brace.AnchorResistsDisplacement",
+        "Spec.Brace.FlowRedirectsToLegalHexOnly",
+        "Spec.Brace.DeflectOffersOnlyLegalSides"
+      ],
       "wiki_refs": [
         "docs/wiki/game/reazioni-overwatch-e-previsioni.md"
       ],
@@ -2113,7 +2126,7 @@
         "date": "2026-08-09",
         "commit": "ea26c0f"
       },
-      "notes": "D-047 cambia la **classificazione** di `Action.Brace`, non i suoi numeri: da «azione che si dichiara e basta» a azione di Prep che **arma un profilo**. `Hold Ground` coincide con il comportamento attuale (`RTCombatLibrary.h:112`, `RTTurnManager.cpp:2819` e `:3033`), quindi i due scenari restano verdi e nessun valore di bilanciamento si muove.\n**Un test scritto per pinnare lo stato attuale deve cadere**: `Reactions.Brace.IsNotAReaction` (`RTDefensiveReactionTests.cpp:162`) asserisce `ReactionTrigger == None`. Va **sostituito**, non cancellato in silenzio, da `Brace.BaseProfileHasSingleResponse` (col profilo base nessun boundary si apre: e' la garanzia che nulla di verde rallenta) e `Brace.RicherProfileOpensWindow`. Finche' la sostituzione non e' fatta, `automation` resta `partial` anche se la suite e' verde: e' verde sulla classificazione **vecchia**."
+      "notes": "D-047 cambia la **classificazione** di `Action.Brace`, non i suoi numeri: da «azione che si dichiara e basta» a azione di Prep che **arma un profilo**. `Hold Ground` coincide con il comportamento attuale (`RTCombatLibrary.h:112`, `RTTurnManager.cpp:2819` e `:3033`), quindi i due scenari restano verdi e nessun valore di bilanciamento si muove.\n**Un test scritto per pinnare lo stato attuale deve cadere**: `Reactions.Brace.IsNotAReaction` (`RTDefensiveReactionTests.cpp:162`) asserisce `ReactionTrigger == None`. Va **sostituito**, non cancellato in silenzio, da `Brace.BaseProfileHasSingleResponse` (col profilo base nessun boundary si apre: e' la garanzia che nulla di verde rallenta) e `Brace.RicherProfileOpensWindow`. Finche' la sostituzione non e' fatta, `automation` resta `partial` anche se la suite e' verde: e' verde sulla classificazione **vecchia**.\n**`data` resta `partial` anche dopo il triage del 2026-08-10**, e il motivo si e' precisato: i quattro profili concreti — Flux `Grounding`, Riva `Flow`, Bastion `Anchor`, Vektor `Deflection` — sono proposti da un sorgente ma **non decisi** (`BAS-1` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md)). Due dei quattro nomi sono gia' occupati nel roster con semantica **diversa**: `Vektor.Deflection` e' riduzione danno (−20 sul colpo, `RTHeroCatalogLibrary.cpp:557`) proprio dove il profilo `Brace` dovrebbe essere anti-displacement, e `Riva.FlowReaction` reagisce a un **colpo subito**, non a un Forced Movement. Sono `BAS-3` e `BAS-4`: collisioni di nome, non dettagli di naming — vanno sciolte prima di CP 14.7, non durante."
     },
     {
       "feature_id": "RT-FEAT-REACTION-CLASH",
@@ -2298,6 +2311,52 @@
         "commit": "2094b86"
       },
       "notes": "Il costo per cella viene dal catalogo, non da costanti nel codice. Base comune di tutte le feature ambientali: non era una voce separata della seed list ma le altre dipendono da lei."
+    },
+    {
+      "feature_id": "RT-FEAT-STATUS-FRAMEWORK",
+      "title": "Framework degli status — categorie, severity e primitive",
+      "area": "Actions",
+      "kind": "gameplay",
+      "release": "v0.2",
+      "priority": "P2",
+      "status": "DESIGNED",
+      "status_derived": "DESIGNED",
+      "gates": {
+        "spec": "partial",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 0,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": [],
+        "out_of_release_scope": ""
+      },
+      "dependencies": [
+        "RT-FEAT-ENV-STATUS",
+        "RT-FEAT-ACTION-ENGINE"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/roadmap/plans/handoff-status-control-triage-2026-08-10.md"
+      ],
+      "issues": [],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "Nessuna pagina: il framework non esiste ancora, e una pagina che lo descrivesse sarebbe la Wiki che promette ciò che il gioco non fa.",
+      "pie_refs": [],
+      "last_verified": {},
+      "notes": "Il repository ha **undici** status implementati (`TAG_Status_*`: Braced, Burning, Electrified, Exposed, Guarded, Marked, Obscured, Reveal, Root, Slow, Wet) e **nessun livello che li governi**: ogni effetto e' cablato dove serve. Funziona, ed e' esattamente il motivo per cui il dodicesimo costera' come i primi undici messi insieme. Mancano: categoria e polarita', severity C0-C3, le sei primitive riusabili (MODIFY, DEGRADE, RESTRICT, INTERRUPT, CONVERT, CONSUME), stacking policy ed expiration dichiarate sul dato, resistance/immunity/cleanse, reapply policy e prevenzione dei loop, reason code, validator. I due status nuovi del sorgente — `Suppressed` e `Dazed` — stanno **dentro** questa feature e non prima: `Suppressed` E' un DEGRADE, `Dazed` E' un INTERRUPT sulla scelta manuale. Tre domande aperte prima della spec: `STA-1`, `STA-2`, `STA-3` in `OPEN_DECISIONS.md`."
     },
     {
       "feature_id": "RT-FEAT-ENV-STATUS",

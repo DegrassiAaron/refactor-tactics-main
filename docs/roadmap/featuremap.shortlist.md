@@ -20,12 +20,12 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 <!-- RT_SHORTLIST_FEATURES:BEGIN -->
 
-**87 feature** · v0.1 **70** · v0.2 **10** · future **7**.
+**88 feature** · v0.1 **70** · v0.2 **11** · future **7**.
 
 | Stato | Quante |
 |---|--:|
 | `IDEA` | 4 |
-| `DESIGNED` | 9 |
+| `DESIGNED` | 10 |
 | `SPECIFIED` | 13 |
 | `IMPLEMENTING` | 20 |
 | `TESTABLE` | 5 |
@@ -33,7 +33,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RELEASE_READY` | 15 |
 | `DONE` | 1 |
 
-### Actions · 11
+### Actions · 12
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
@@ -47,6 +47,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-ACTION-GENERIC` — Azioni generiche del catalogo | v0.1 | IMPLEMENTING | 3/8 | E4 | Le sette di D-025: `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch` |
 | `RT-FEAT-ACTION-SUPERS` — Ultimate e azioni ad alto impegno | v0.2 | IMPLEMENTING | 0/8 | — | Fuori dal contenuto della v0.1 |
 | `RT-FEAT-ACTION-DELAYED` — Delayed Action ai boundary di fase | future | DESIGNED | 0/8 | — | Brief scritto, **nessuna epic aperta**: attende una decisione di scope |
+| `RT-FEAT-STATUS-FRAMEWORK` — Framework degli status — categorie, severity e primitive | v0.2 | DESIGNED | 0/8 | — | — |
 | `RT-FEAT-ACTION-TRAPS` — Trappole e gambit tattici | future | IDEA | 0/8 | — | Solo un nome |
 
 ### Characters · 5

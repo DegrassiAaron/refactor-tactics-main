@@ -18,7 +18,7 @@ Uso:
 
 Opzioni comuni:
     --wiki-root PATH    radice del clone della Wiki (deploy flat), per validare i `wiki:` refs
-    --check             `generate`/`wiki`/`shortlist` non scrivono: falliscono se disallineati
+    --check             `generate`/`wiki`/`shortlist`/`deploy` non scrivono: falliscono se disallineati
 """
 import argparse
 import json
@@ -727,6 +727,14 @@ def apply_wiki_blocks(data, check=False):
     return changed, stale
 
 
+# Le pagine `game/` prendono il nome del file. Dove il clone ha gia' pubblicato un nome diverso vince
+# il clone: rinominare una pagina della GitHub Wiki ne cambia l'**URL pubblico**, e un link esterno o
+# un segnalibro smetterebbe di funzionare per una questione di sole maiuscole.
+GAME_PAGE_EXCEPTIONS = {
+    "sinergie-e-combinazioni": "Sinergie-e-Combinazioni.md",
+}
+
+
 def deploy_name(source_ref):
     """Nome della pagina nel clone della Wiki, che e' un repo separato con file **flat**.
 
@@ -736,7 +744,7 @@ def deploy_name(source_ref):
     ref = source_ref.replace("\\", "/")
     stem = os.path.splitext(os.path.basename(ref))[0]
     if ref.startswith("docs/wiki/game/"):
-        return stem + ".md"
+        return GAME_PAGE_EXCEPTIONS.get(stem, stem + ".md")
     if ref.startswith("docs/wiki/meccaniche/"):
         return "Meccanica-" + stem + ".md"
     if ref.startswith("docs/wiki/fazioni/"):
@@ -769,12 +777,23 @@ def strip_manual_status(text):
     return re.sub(r"\n{3,}", "\n\n", "\n".join(kept))
 
 
+def wiki_pages(wiki_root):
+    """I nomi delle pagine realmente presenti nel clone, per un confronto **case-sensitive**.
+
+    Serve perche' `os.path.isfile` su Windows non distingue le maiuscole: un nome di deploy sbagliato
+    nel solo case passerebbe qui e fallirebbe su un filesystem case-sensitive, saltando in silenzio i
+    blocchi di quella pagina. E' esattamente come `Sinergie-e-Combinazioni.md` e' rimasta scoperta.
+    """
+    return {name for name in os.listdir(wiki_root) if name.endswith(".md")}
+
+
 def apply_wiki_deploy(data, wiki_root, check=True):
     """Porta i blocchi generati nel clone della Wiki. Di norma si esegue con `--check`.
 
     Il clone e' un **altro repository**, pubblico, che altre sessioni possono avere in lavorazione:
     scriverci e' un'azione che si chiede, non si assume.
     """
+    pages = wiki_pages(wiki_root)
     by_page = {}
     for entry in data["features"]:
         for ref in entry["wiki_refs"]:
@@ -789,8 +808,10 @@ def apply_wiki_deploy(data, wiki_root, check=True):
             missing.append(f"{ref}: nessuna pagina di deploy corrispondente")
             continue
         path = os.path.join(wiki_root, name)
-        if not os.path.isfile(path):
-            missing.append(f"{ref} -> {name}: la pagina non esiste nel clone")
+        if name not in pages:
+            near = next((p for p in pages if p.lower() == name.lower()), None)
+            detail = f" (nel clone c'e' `{near}`: differisce solo nel case)" if near else ""
+            missing.append(f"{ref} -> {name}: la pagina non esiste nel clone{detail}")
             continue
         original = open(path, encoding="utf-8").read()
         text = strip_manual_status(original)
@@ -2368,14 +2389,23 @@ def main():
             print(f"--wiki-root non e' una directory: {args.wiki_root}")
             return 1
         changed, missing = apply_wiki_deploy(data, args.wiki_root, check=not args.write)
+        # Una sorgente che non raggiunge il clone e' un **errore**, non un avviso: il gate `ui_wiki`
+        # della feature dice «spiegata all'utente», ma il lettore legge la Wiki pubblicata e li' la
+        # pagina non c'e'. Il registry sta affermando una copertura falsa, non segnalando una lacuna —
+        # stessa famiglia dello scenario orfano, che per questo e' bloccante (vedi feature-registry.md).
         for note in missing:
-            print(f"WARN  {note}")
+            print(f"ERROR {note}")
         verb = "aggiornata" if args.write else "da aggiornare"
         for name in changed:
             print(f"{verb}: {name}")
         print(f"\npagine {verb}: {len(changed)}")
         if not args.write and changed:
             print("sola lettura: aggiungi --write per scrivere nel clone della Wiki")
+        if missing:
+            print(f"sorgenti che non raggiungono il clone: {len(missing)} — il deploy e' incompleto")
+            return 1
+        if args.check and changed:
+            return 1
         return 0
 
     if args.command == "report":

@@ -997,6 +997,16 @@ features:
       - Combat.BasicAttack
       - Movement.Basic
       - Visual.Combat.GuardReducesFirstHit
+      # `Guard` e `Brace` sono verificati SEPARATAMENTE, ed e' il difetto che tiene aperta `BAL-1`:
+      # nessuno scenario li guarda insieme sullo stesso colpo, quindi il loro confine puo' spostarsi
+      # senza che nulla diventi rosso. I quattro qui sotto lo chiudono e non richiedono capability
+      # nuove dell'harness — bastano `UnitHpEquals` e `UnitAtCell`, e la fixture (`Riva.PressureJet`,
+      # 16 danni + Push 1 nello stesso colpo) e' gia' a catalogo.
+      - planned:
+          - Spec.Brace.GuardAndBraceOnMixedHit
+          - Spec.Brace.BraceWinsOnSecondHit
+          - Spec.Brace.PushBeyondGuardThreshold
+          - Spec.Combat.BastionIgnoresAllPushes
     wiki_refs:
       - docs/wiki/game/azioni-e-movimento.md
     wiki_note: >-
@@ -1596,6 +1606,14 @@ features:
       - RefactorTactics.Actions.SuppressiveLine
     scenarios:
       - Spec.Overwatch.HoldThenFire
+      # Dichiarati dal triage del 2026-08-10 (`plans/baseaction-signatures-spec-panel-2026-08-10.md`):
+      # sono i tre scenari `CHAR-BASE-*` del sorgente che NON erano gia' coperti, rinominati sulla
+      # convenzione reale. `CHAR-BASE-006` non entra: **e'** `Spec.Overwatch.HoldThenFire`, gia' sopra.
+      # `CHAR-BASE-008` (post-Overwatch) non entra: dipende da `BAS-5`, ancora aperta.
+      - planned:
+          - Spec.Overwatch.ConductiveDischargeUsesStandardConduction
+          - Spec.Overwatch.PressurePushChangesResolvedPath
+          - Spec.Overwatch.FrontlineFollowsFacing
     wiki_refs:
       - docs/wiki/meccaniche/overwatch.md
       - docs/wiki/game/reazioni-overwatch-e-previsioni.md
@@ -1611,6 +1629,30 @@ features:
       descrivono già: il blocco di stato generato lo dichiara. `Spec.Overwatch.HoldThenFire` è la
       **specifica eseguibile** della finestra — con gli intent del turno 2 volutamente vuoti, perché
       la sintassi di HOLD/FIRE non è ancora decisa — ed esce `BLOCKED`.
+
+      **Il `data` resta `partial` per una ragione precisa (2026-08-10)**: CP 14.4 impone che il profilo
+      sia un dato per eroe — area, arco, trigger e risposte legali — e il test che lo pinna
+      (`Overwatch.ProfileIsDataNotBranch`) ha bisogno di **due** profili diversi da confrontare.
+      **Nessun catalogo ne contiene uno.** Le quattro geometrie proposte — Flux settore medio,
+      Riva medio-corto, Bastion corto-largo frontale, Vektor stretto-lungo — sono `BAS-2` in
+      [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md): il meccanismo è deciso, il contenuto no.
+
+      **Il lifecycle ha un modello, dal 2026-08-10**: `Watch → EndWatchStage → Reposition`. L'owner resta
+      **fermo** durante lo Stage A della Move Phase e poi esegue un Move limitato **pianificato in Planning**
+      — mai scelto dopo aver visto dove sono finiti gli avversari. Chiude `BAS-5`; triage in
+      [`plans/overwatch-runtime-lifecycle-triage-2026-08-10.md`](plans/overwatch-runtime-lifecycle-triage-2026-08-10.md).
+      Quattro punti sono gia' canone-compatibili e possono entrare nel DoD di CP 14.4/14.5 senza altre
+      decisioni: cadence `OncePerTargetPerReactionInstance`, `MaxPrompts` che conta opportunity distinte
+      (precisa ADR-0004 §8), eligibility **post-transition**, e la distinzione fra **hard cancel** e **soft
+      eligibility block** — che CP 14.6 oggi non fa, e che serve perche' `NoLOS` e `Stun` non possono
+      produrre lo stesso reason code terminale.
+
+      **Costo e nome decisi il 2026-08-10** (`D-070`): armare l'Overwatch spende l'azione principale e
+      **riserva** lo slot movimento a `Withdraw` — 2 MP, dichiarato in Planning, risolto nello **Stage B**
+      dopo tutti gli altri. Il divieto di `Dash` e' una **conseguenza** dello slot impegnato, non una regola
+      a se'; e il nome non e' `Reposition`, che e' gia' un'azione viva in fase Dash. Nessuno scenario nuovo
+      e' ancora dichiarato: il §40 del sorgente ne elenca venti, e diventano `planned` quando E14 ha una
+      forma eseguibile per HOLD/FIRE — la stessa ragione per cui `Spec.Overwatch.HoldThenFire` esce `BLOCKED`.
 
   - feature_id: RT-FEAT-REACTION-PROFILE
     title: Reaction Profile armato da Brace
@@ -1650,6 +1692,15 @@ features:
       - Visual.Combat.BraceReducesEveryHit
       - Spec.Facing.BraceHoldsFromBehind
       - Spec.Brace.ProfileChangesResponse
+      # Dichiarati dal triage del 2026-08-10 (`plans/baseaction-signatures-spec-panel-2026-08-10.md`).
+      # `Spec.Brace.ProfileChangesResponse` sopra e' il caso GENERICO — un profilo cambia le risposte;
+      # questi tre sono i profili CONCRETI, e restano `planned` finche' `BAS-1` non li decide.
+      # `CHAR-BASE-009` (Guard != Brace) non entra: il suo posto e' il test unit
+      # `Reactions.Brace.BaseProfileHasSingleResponse`, gia' previsto dal DoD di CP 14.7.
+      - planned:
+          - Spec.Brace.AnchorResistsDisplacement
+          - Spec.Brace.FlowRedirectsToLegalHexOnly
+          - Spec.Brace.DeflectOffersOnlyLegalSides
     wiki_refs:
       - docs/wiki/game/reazioni-overwatch-e-previsioni.md
     wiki_note: >-
@@ -1669,6 +1720,15 @@ features:
       apre: e' la garanzia che nulla di verde rallenta) e `Brace.RicherProfileOpensWindow`. Finche' la
       sostituzione non e' fatta, `automation` resta `partial` anche se la suite e' verde: e' verde sulla
       classificazione **vecchia**.
+
+      **`data` resta `partial` anche dopo il triage del 2026-08-10**, e il motivo si e' precisato: i quattro
+      profili concreti — Flux `Grounding`, Riva `Flow`, Bastion `Anchor`, Vektor `Deflection` — sono
+      proposti da un sorgente ma **non decisi** (`BAS-1` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md)).
+      Due dei quattro nomi sono gia' occupati nel roster con semantica **diversa**: `Vektor.Deflection` e'
+      riduzione danno (−20 sul colpo, `RTHeroCatalogLibrary.cpp:557`) proprio dove il profilo `Brace`
+      dovrebbe essere anti-displacement, e `Riva.FlowReaction` reagisce a un **colpo subito**, non a un
+      Forced Movement. Sono `BAS-3` e `BAS-4`: collisioni di nome, non dettagli di naming — vanno sciolte
+      prima di CP 14.7, non durante.
 
   - feature_id: RT-FEAT-REACTION-CLASH
     title: Reaction Clash (opportunity contested)
@@ -1825,6 +1885,48 @@ features:
     notes: >
       Il costo per cella viene dal catalogo, non da costanti nel codice. Base comune di tutte le
       feature ambientali: non era una voce separata della seed list ma le altre dipendono da lei.
+
+  - feature_id: RT-FEAT-STATUS-FRAMEWORK
+    title: Framework degli status — categorie, severity e primitive
+    area: Actions
+    kind: gameplay
+    release: v0.2
+    priority: P2
+    status: DESIGNED
+    gates:
+      spec: partial
+      data: todo
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: todo
+      ui_wiki: todo
+      packaged: todo
+      network_privacy: na
+    roadmap:
+      epic: null
+      checkpoints: []
+    dependencies:
+      - RT-FEAT-ENV-STATUS
+      - RT-FEAT-ACTION-ENGINE
+    owner_specs:
+      - docs/roadmap/plans/handoff-status-control-triage-2026-08-10.md
+    issues: []
+    tests: []
+    scenarios: []
+    wiki_refs: []
+    wiki_note: >-
+      Nessuna pagina: il framework non esiste ancora, e una pagina che lo descrivesse sarebbe la Wiki che promette ciò che il gioco non fa.
+    notes: >
+      Il repository ha **undici** status implementati (`TAG_Status_*`: Braced, Burning, Electrified,
+      Exposed, Guarded, Marked, Obscured, Reveal, Root, Slow, Wet) e **nessun livello che li governi**:
+      ogni effetto e' cablato dove serve. Funziona, ed e' esattamente il motivo per cui il dodicesimo
+      costera' come i primi undici messi insieme. Mancano: categoria e polarita', severity C0-C3, le sei
+      primitive riusabili (MODIFY, DEGRADE, RESTRICT, INTERRUPT, CONVERT, CONSUME), stacking policy ed
+      expiration dichiarate sul dato, resistance/immunity/cleanse, reapply policy e prevenzione dei loop,
+      reason code, validator. I due status nuovi del sorgente — `Suppressed` e `Dazed` — stanno **dentro**
+      questa feature e non prima: `Suppressed` E' un DEGRADE, `Dazed` E' un INTERRUPT sulla scelta manuale.
+      Tre domande aperte prima della spec: `STA-1`, `STA-2`, `STA-3` in `OPEN_DECISIONS.md`.
 
   - feature_id: RT-FEAT-ENV-STATUS
     title: Stati temporanei legati alla cella
