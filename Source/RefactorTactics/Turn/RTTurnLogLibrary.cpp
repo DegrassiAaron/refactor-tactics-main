@@ -79,6 +79,22 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		case ERTMoveOutcome::StoppedByPrediction: Reason = TEXT("fermo: colto da una previsione"); break;
 		// Subito, non scelto (#307): «si muove» direbbe una cosa falsa di un'unita' che e' stata spinta.
 		case ERTMoveOutcome::Displaced:         Reason = TEXT("spostata"); break;
+		// Spinta annullata (#420). Il testo NON e' costante: il valore di questa voce sta tutto nel dire
+		// QUALE dei sei modi di non muoversi si e' verificato, e «fermo: spinta annullata» ne direbbe zero.
+		case ERTMoveOutcome::DisplacementResisted:
+			switch (static_cast<ERTDisplacementBlockReason>(Entry.Amount))
+			{
+			case ERTDisplacementBlockReason::Guarded:        Reason = TEXT("spinta retta: in guardia"); break;
+			case ERTDisplacementBlockReason::Braced:         Reason = TEXT("spinta retta: irrigidito"); break;
+			case ERTDisplacementBlockReason::OpposingForces: Reason = TEXT("spinta annullata: forze opposte"); break;
+			case ERTDisplacementBlockReason::NoDestination:  Reason = TEXT("spinta annullata: nessuna uscita"); break;
+			case ERTDisplacementBlockReason::ContestedDestination:
+				Reason = TEXT("spinta annullata: destinazione contesa"); break;
+			// Un valore aggiunto in coda e non ancora tradotto qui: si legge lo stesso, senza mentire su quale
+			// sia. Il `default` di sopra direbbe «resta», che e' la parola dell'esito sbagliato.
+			default:                                         Reason = TEXT("spinta annullata"); break;
+			}
+			break;
 		default:                                Reason = TEXT("resta"); break;
 		}
 

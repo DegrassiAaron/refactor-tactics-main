@@ -775,6 +775,36 @@ void ARTTurnManager::AppendDisplacementEntry(const ARTUnit* Target, const FRTCel
 	AppendLogEntry(Entry, Target);
 }
 
+void ARTTurnManager::AppendDisplacementResistedEntry(const ARTUnit* Target, ERTDisplacementBlockReason Reason,
+	const TMap<ARTUnit*, FRTDisplacementCause>* CauseByTarget)
+{
+	if (!Target) { return; }
+
+	FRTTurnLogEntry Entry;
+	// Stessa fase e stessa categoria della voce positiva (#307): lo spostamento MANCATO appartiene al Blast
+	// che l'avrebbe prodotto, non alla fase Move. Un lettore che filtra il Blast li trova insieme, ed e' la
+	// condizione perche' «spinto e spostato» e «spinto e fermo» si confrontino sulla stessa riga di tempo.
+	Entry.Phase = ERTMatchPhase::Blast;
+	Entry.Category = ERTLogCategory::Move;
+	Entry.Outcome = static_cast<uint8>(ERTMoveOutcome::DisplacementResisted);
+	Entry.SrcCell = Target->Cell;
+	Entry.TgtCell = Target->Cell; // non si e' mossa: dirlo, non lasciarlo dedurre dall'assenza di una voce
+	Entry.Amount = static_cast<int32>(Reason);
+
+	ARTUnit* Key = const_cast<ARTUnit*>(Target);
+	if (CauseByTarget)
+	{
+		if (const FRTDisplacementCause* Cause = CauseByTarget->Find(Key))
+		{
+			Entry.ActionId = Cause->ActionId;
+			Entry.BaseActionId = Cause->BaseActionId;
+			Entry.Priority = Cause->Priority;
+		}
+	}
+
+	AppendLogEntry(Entry, Target);
+}
+
 void ARTTurnManager::ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TArray<int32>& Amounts,
 	const TArray<FRTCellId>& Sources, const TArray<ARTUnit*>& Healers)
 {
@@ -3322,7 +3352,15 @@ void ARTTurnManager::ResolveCombat()
 					// nessuno lo avesse deciso.
 					if (Victim && Event.Amount <= Victim->PushResistance)
 					{
-						break; // spinta assorbita: non si registra, quindi non c'e' niente da risolvere
+						// Spinta assorbita: non si registra, quindi non c'e' niente da risolvere.
+						//
+						// ⚠️ E' il SESTO modo di non muoversi, e l'unico che `#420` ha lasciato senza voce di
+						// TurnLog: `PushResistance` vale `0` su tutto il roster dopo D-075, quindi un
+						// `AppendDisplacementResistedEntry` qui sarebbe codice che nessuna partita attraversa e
+						// un valore di `ERTDisplacementBlockReason` che nessun test puo' coprire. Se la
+						// meccanica si risveglia, la voce va scritta QUI, con un valore nuovo in coda
+						// all'enum — non riusando `NoDestination`, che dice una cosa diversa.
+						break;
 					}
 					KnockFrom.Add(Victim, HexUnits[Hit.AttackerId].Cell);
 					KnockDist.Add(Victim, Event.Amount);
@@ -3462,6 +3500,17 @@ void ARTTurnManager::ResolveCombat()
 		for (ARTUnit* T : Units)
 		{
 			const int32* Pushes = KnockCount.Find(T);
+
+			// FORZE CONTRADDITTORIE (#420): spinto da due o piu' attaccanti, resta fermo. Non e' una difesa —
+			// e' la geometria del turno — e fino a qui non lasciava traccia da nessuna parte, ne' nel combat
+			// log ne' nel file. La voce si scrive PRIMA del `continue` che scarta il bersaglio.
+			if (Pushes && *Pushes > 1 && IsValid(T) && T->IsAlive())
+			{
+				// Nessuna causa: `PushCause` conserva UN attaccante su due, e nominarlo direbbe che a fermare
+				// l'unita' e' stata quella azione. Ne sono servite due, ed e' proprio il punto dell'esito.
+				AppendDisplacementResistedEntry(T, ERTDisplacementBlockReason::OpposingForces, nullptr);
+			}
+
 			if (!Pushes || *Pushes != 1 || !IsValid(T) || !T->IsAlive()) { continue; }
 
 			// `Action.Guard` regge una spinta di UNA cella: chi si e' piantato non arretra di un passo, ma una
@@ -3471,6 +3520,9 @@ void ARTTurnManager::ResolveCombat()
 			if (T->HasStatus(TAG_Status_Guarded) && KnockDist[T] <= URTCombatLibrary::GuardResistedPushDistance)
 			{
 				AddLogEvent(FString::Printf(TEXT("%s: in guardia, resiste alla spinta"), *T->GetName()));
+				// La stringa sopra e' per l'HUD e non finisce nel file (#420): la voce di TurnLog e' questa, ed
+				// e' cio' che permette a un replay di dire QUALE difesa ha retto invece del solo «non si e' mosso».
+				AppendDisplacementResistedEntry(T, ERTDisplacementBlockReason::Guarded, &PushCause);
 				continue;
 			}
 
@@ -3491,12 +3543,20 @@ void ARTTurnManager::ResolveCombat()
 			if (T->HasStatus(TAG_Status_Braced))
 			{
 				AddLogEvent(FString::Printf(TEXT("%s: irrigidito, la spinta non lo sposta"), *T->GetName()));
+				AppendDisplacementResistedEntry(T, ERTDisplacementBlockReason::Braced, &PushCause);
 				continue;
 			}
 
 			const FRTCellId Dest = URTHexCombatLibrary::HexKnockbackDestination(
 				KnockFrom[T], T->Cell, KnockDist[T], Map, KOccupied);
 			if (Dest != T->Cell) { KTargets.Add(T); KFinal.Add(Dest); }
+			else
+			{
+				// DESTINAZIONE IMPOSSIBILE (#420): bordo mappa, ostacolo o unita' subito dietro. La spinta e'
+				// stata risolta e non ha dove andare — non e' una difesa, e finora era muta come le altre due
+				// cause geometriche.
+				AppendDisplacementResistedEntry(T, ERTDisplacementBlockReason::NoDestination, &PushCause);
+			}
 		}
 		for (int32 a = 0; a < KTargets.Num(); ++a)
 		{
@@ -3506,7 +3566,14 @@ void ARTTurnManager::ResolveCombat()
 			{
 				if (a != b && KFinal[a] == KFinal[b]) { bContested = true; break; }
 			}
-			if (bContested) { continue; }
+			if (bContested)
+			{
+				// Il SESTO modo di non muoversi, che `#420` non contava: due bersagli spinti verso la stessa
+				// cella restano entrambi fermi. Era il piu' muto dei sei — nemmeno una riga di combat log.
+				AppendDisplacementResistedEntry(KTargets[a], ERTDisplacementBlockReason::ContestedDestination,
+					&PushCause);
+				continue;
+			}
 
 			ARTUnit* T = KTargets[a];
 			const FRTCellId OldCell = T->Cell;

@@ -179,6 +179,11 @@ sola — *quale valore valeva quando* — e la risposta ha due forme: chi lo ha 
 l'invariante #4 ed entra nell'hash del replay senza modifiche a `HashTurnLog`. La convenzione è la stessa già
 in uso: `Amount` è il payload numerico della categoria — danno per `Combat`, celle percorse per `Move`.
 
+⚠️ Dal 2026-08-10 il payload si legge guardando **anche `Outcome`**, non la sola `Category`: le voci `Move`
+con esito `DisplacementResisted` portano in `Amount` un `ERTDisplacementBlockReason` e non un numero di celle
+([D-079](../decisions/RT_PDR_00_Decision_Log.md)). Non è un'eccezione nuova — `Fallback` fa già così — ma è la
+prima volta che una **stessa categoria** ha due letture, e chi scrive un lettore deve saperlo.
+
 **Un non-cambiamento non è un evento.** Riscrivere il facing che l'unità ha già non produce nessuna voce:
 altrimenti l'hash del replay diventerebbe sensibile a scritture che non decidono niente. L'unica eccezione è
 `DeclarationRejected`, che è osservabile **proprio perché** non cambia nulla — e registra la direzione
@@ -242,7 +247,8 @@ coda** a un enum già serializzato come `uint8`.
 ```cpp
 UENUM(BlueprintType) enum class ERTMoveOutcome : uint8 {
     /* … valori esistenti, invariati … */
-    Displaced          // spostamento SUBITO: spinta o trazione, non scelto da chi lo subisce
+    Displaced,            // spostamento SUBITO: spinta o trazione, non scelto da chi lo subisce
+    DisplacementResisted  // spostamento forzato ANNULLATO: la spinta c'è stata, l'unità è rimasta (#420)
 };
 ```
 
@@ -252,7 +258,38 @@ UENUM(BlueprintType) enum class ERTMoveOutcome : uint8 {
 | Scatto | `Category=Move`, **`Phase=Dash`**, `ActionId` = la mobilità usata |
 | Spinta / trazione | `Category=Move`, `Phase=Blast`, **`Outcome=Displaced`**, `ActionId` = l'azione che l'ha causata |
 | Reazione | *nessun produttore in v0.1* — nessuna reazione del catalogo dichiara `Push`/`Pull`. Quando esisterà, userà lo stesso campo |
-| Spinta **resistita** | ⏳ *nessuna voce*: `Guard`, `Brace` e `PushResistance` che reggono lasciano solo una riga di combat log, che non finisce nel file. Asimmetria nota, aperta in [`#420`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/420) — e non è ovvio che vada chiusa come `Displaced`, perché lì la posizione **non cambia** |
+| Spinta **annullata** | `Category=Move`, `Phase=Blast`, **`Outcome=DisplacementResisted`**, `SrcCell == TgtCell`, e il **perché** in `Amount` — vedi sotto |
+
+### La spinta che non sposta ([D-079](../decisions/RT_PDR_00_Decision_Log.md), `#420`)
+
+`#307` ha spiegato lo spostamento **avvenuto** e ha lasciato muto quello **mancato**, che è il caso su cui il
+giocatore fa la domanda: *perché non si è mosso, se l'ho colpito?*. I modi di non muoversi sono **sei**, e
+prima di `#420` due lasciavano una riga di combat log (che non finisce nel file) e quattro **niente affatto**.
+
+Un valore proprio e non `Stayed`: quello dice «non pianificava movimento», che qui è vero e irrilevante.
+
+Il **perché** viaggia in `Amount` come `ERTDisplacementBlockReason`. Non è un'invenzione di questa voce: è la
+disciplina che le voci `Fallback` già usano, dove `Amount` porta `ERTActionInvalidReason`. Il campo è libero
+per costruzione — le celle percorse sono zero — e riusarlo evita un campo nuovo, cioè una **versione di
+formato**, per un dato che esiste su un solo esito.
+
+| Valore | Quando | Difesa? |
+|---|---|:--:|
+| `Guarded` | `Action.Guard` regge (soglia `GuardResistedPushDistance`) | sì |
+| `Braced` | `Action.Brace` regge (prima spinta, qualunque distanza) | sì |
+| `OpposingForces` | spinto da **due o più** attaccanti nello stesso Blast | no |
+| `NoDestination` | bordo mappa, ostacolo o unità subito dietro | no |
+| `ContestedDestination` | due bersagli spinti verso la **stessa** cella | no |
+
+⚠️ **`PushResistance` non ha un valore**, ed è deliberato: [D-075](../decisions/RT_PDR_00_Decision_Log.md) l'ha
+portata a `0` su tutto il roster, quindi un produttore su quel ramo sarebbe codice che nessuna partita
+attraversa e un valore che nessun test può coprire. Il punto in cui andrà scritto porta già il commento.
+
+⚠️ Con `OpposingForces` la voce **non nomina l'azione**: gli attaccanti sono due, e `PushCause` ne conserva
+uno solo. Scriverlo direbbe a un replay che a fermare l'unità è stata *quella* spinta.
+
+⚠️ Il **gemello `Pull`** ha la stessa forma e **non è coperto**: `*Pulls != 1`, destinazione impossibile e
+destinazione contesa restano mute. È issue propria, come `#420` dichiara.
 
 **Chi ha spinto, senza un campo «sorgente».** `#307` chiedeva anche l'identità di chi spinge. Non è un campo:
 è un **giunto** fra due voci dello stesso Blast.

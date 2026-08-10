@@ -352,6 +352,26 @@ protected:
 		const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget);
 
 	/**
+	 * Voce di TurnLog per uno spostamento forzato ANNULLATO (#420): la spinta e' stata registrata, risolta, e
+	 * l'unita' e' rimasta dov'era. Il gemello negativo di `AppendDisplacementEntry`, e con la stessa forma —
+	 * fase `Blast`, categoria `Move`, causa presa dalla stessa mappa.
+	 *
+	 * Le celle sono entrambe quella dell'unita': non si e' spostata, e la voce lo dice invece di lasciarlo
+	 * dedurre. Il PERCHE' viaggia in `Amount` come `ERTDisplacementBlockReason` — vedi il commento dell'enum.
+	 *
+	 * Chiamata da cinque punti del ciclo di knockback, che sono i cinque modi RAGGIUNGIBILI di non muoversi.
+	 * Il sesto (`PushResistance`) e' dormiente per D-075 e non ha produttore: aggiungerlo darebbe un valore di
+	 * enum che nessun test puo' coprire.
+	 *
+	 * `CauseByTarget` e' un PUNTATORE e non un riferimento perche' un call site su cinque non ha una causa
+	 * sola da nominare: con `OpposingForces` gli attaccanti sono due o piu', e la mappa ne conserva uno solo —
+	 * l'ultimo scritto. Scriverlo direbbe a un replay che a fermare l'unita' e' stata QUELLA azione, che e'
+	 * falso. `nullptr` lascia `ActionId` vuoto, che e' la verita' disponibile.
+	 */
+	void AppendDisplacementResistedEntry(const ARTUnit* Target, ERTDisplacementBlockReason Reason,
+		const TMap<ARTUnit*, FRTDisplacementCause>* CauseByTarget);
+
+	/**
 	 * Modifiche TEMPORANEE alla mappa (CP 8.4): fuoco acceso, acqua creata. Il terreno dinamico vive in due
 	 * pezzi, e la divisione non e' casuale:
 	 * - la superficie **corrente** sta nella mappa, perche' e' cio' che tutti leggono gia' (costi, Dash,
