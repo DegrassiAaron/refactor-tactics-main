@@ -411,10 +411,28 @@ public:
 	 */
 	void RevokeCellBoundStatusesNotIn(const TSet<FGameplayTag>& Sustained);
 
-	/** Range di movimento tenendo conto degli status (Root/Slow). */
+	/**
+	 * Range di movimento tenendo conto degli status: **solo `Root`**, che lo azzera.
+	 *
+	 * `Slow` non passa piu' da qui da CP 4.7: e' un costo **per cella** nel pathfinding
+	 * (`ARTTurnManager::MakeCurrentSnapshot` -> `MoveCostModifier`), non una riduzione flat del budget.
+	 * Il corpo della funzione lo dice gia'.
+	 */
 	int32 GetEffectiveMoveRange() const;
 
-	/** Portata effettiva dello SCATTO con gli status (Root azzera -> niente scatto, Slow dimezza). */
+	/**
+	 * Portata effettiva dello SCATTO con gli status: **solo `Root`** la azzera.
+	 *
+	 * `Slow` NON la tocca, ed e' deliberato: vale «+1 al costo di OGNI cella attraversata» (catalogo v0.1
+	 * §5), quindi morde il movimento a budget (`Action.Move`, `Action.Sprint`) e non le mobilita' lineari
+	 * (`Dash`/`Charge`/`Leap`/`Reposition`), che un costo per cella non ce l'hanno. Il corpo della funzione
+	 * lo dice gia'.
+	 *
+	 * ⚠️ Fino al 2026-08-10 questa riga diceva «Slow dimezza», ed era **falsa**: il dimezzamento era il
+	 * meccanismo che `Ranger.Burst` applicava allo stesso stato **prima di CP 4.7**, sopravvissuto alla
+	 * propria sostituzione. Il codice era corretto da allora; a mentire era il commento. Trovata dallo spec
+	 * panel su CP 36.3, che da questa firma avrebbe dovuto DERIVARE la primitiva di `Slow`.
+	 */
 	int32 GetEffectiveDashRange(int32 BaseRange) const;
 
 private:
