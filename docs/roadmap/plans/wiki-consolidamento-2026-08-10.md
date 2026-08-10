@@ -192,9 +192,12 @@ un backport:
 
 - `deploy --write` diventa l'**unico** modo di scrivere nel clone, su ramo e mai su `master` diretto:
   il clone è un repository pubblico che altre sessioni possono avere in lavorazione.
-- Pulizia di `docs/wiki/`: `RefactorTactics_Wiki_Infographics_v0.1.zip` è **tracciato in git**, le sue
-  14 PNG non sono quelle usate dal clone (che usa `images/wiki/**` con altri nomi), e convivono tre
-  manifest in parallelo (`v0.5`, `v0.6`, `v0.7`).
+- ~~Pulizia di `docs/wiki/`~~ — **chiuso il 2026-08-10: le infografiche restano.** Erano il residuo
+  della cancellazione di D-076, e la domanda era se archiviarle. Decisione dell'autore: si tengono
+  dove sono. Le 14 PNG della v0.1 e il loro zip **non** sono quelle pubblicate nel clone, che usa la
+  v0.2 sotto `images/wiki/**`: verificato per hash, **zero** immagini in comune. Restano anche i tre
+  manifest (`v0.5`, `v0.6`, `v0.7`). Owner della spiegazione:
+  [`docs/wiki/README.md`](../../wiki/README.md).
 - Documento owner del processo Wiki in `docs/technical/`, che oggi non esiste.
 
 ## E. Controlli che mancano
