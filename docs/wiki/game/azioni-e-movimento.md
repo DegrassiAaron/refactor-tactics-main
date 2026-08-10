@@ -86,10 +86,10 @@
 
 ## Le azioni generiche
 
-La grammatica comune del gioco è:
+La grammatica comune del gioco è di **sette** voci:
 
 ```text
-Wait · BasicAttack · Interact · Brace · Move · Overwatch
+Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch
 ```
 
 Il kit di un personaggio aggiunge abilità specifiche sopra questa base.
@@ -132,9 +132,27 @@ l'eroe è.
 
 Interazione con elementi della mappa come porte, console, ponti o obiettivi quando le relative regole lo permettono.
 
+### Guard
+
+Guardia: si dichiara nel **Prep** e vale per il turno. Toglie **15** al *primo* danno diretto che ricevi e
+regge una spinta di **1 cella**; una spinta più forte passa intera, perché la resistenza è una soglia e non
+una sottrazione ([D-038](../../decisions/RT_PDR_00_Decision_Log.md)).
+
+La riduzione vale solo contro ciò che arriva nel tuo **arco frontale**: chi ti colpisce di lato o alle spalle
+la ignora — vedi [Facing e direzionalità](../meccaniche/facing-e-direzionalita.md).
+
 ### Brace
 
-Azione difensiva universale prevista dal modello. I numeri definitivi sono ancora da playtestare.
+Irrigidimento: anche questa si dichiara nel **Prep**. Toglie **10** a *ogni* danno diretto del turno, non solo
+al primo, e blocca la **prima** spinta che subisci **senza limite di distanza**.
+
+Guard e Brace non sono l'uno la versione debole dell'altro: sono due forme diverse della stessa difesa —
+*primo colpo forte* contro *ogni colpo, più a lungo*; *spinta corta* contro *spinta qualsiasi*.
+
+> ⚠️ Se quel confine sia quello giusto è una **domanda di bilanciamento aperta** (`BAL-1` in
+> [OPEN_DECISIONS](../../OPEN_DECISIONS.md)): [D-066](../../decisions/RT_PDR_00_Decision_Log.md) ha misurato
+> il modello in vigore e ha rinviato la separazione «Guard = danno, Brace = spinta» al playtest. I numeri qui
+> sopra sono quelli che il gioco esegue oggi, non una promessa che non cambieranno.
 
 ### Move
 

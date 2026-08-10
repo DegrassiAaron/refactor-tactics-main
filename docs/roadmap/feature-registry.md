@@ -146,9 +146,9 @@ python scripts/feature_registry.py shortlist   # le cinque viste corte di docs/r
 python scripts/feature_registry.py report      # tabella di audit su stdout
 ```
 
-`generate`, `wiki`, `workbook` e `shortlist` accettano `--check`: non scrivono e falliscono se l'output è
-disallineato dalla sorgente. È la forma da usare in un gate automatico (**G15** della Definition of
-Done).
+`generate`, `wiki`, `workbook`, `shortlist` e `deploy` accettano `--check`: non scrivono e falliscono se
+l'output è disallineato dalla sorgente. È la forma da usare in un gate automatico (**G15** della Definition
+of Done).
 
 ### I due file generati
 
@@ -203,6 +203,7 @@ non ha stato nell'owner (**E18**–**E21** in §2.1) lo dichiara invece di dedur
 
 ```bash
 python scripts/feature_registry.py deploy --wiki-root <path>          # sola lettura: elenca
+python scripts/feature_registry.py deploy --wiki-root <path> --check  # gate: esce 1 se disallineato
 python scripts/feature_registry.py deploy --wiki-root <path> --write  # scrive davvero
 ```
 
@@ -219,6 +220,20 @@ La corrispondenza segue le convenzioni già in uso nel clone:
 | `docs/wiki/fazioni/<x>.md` | `Fazione-<X>.md` (`index` → `Fazioni.md`) |
 | `docs/characters/v0.1\|v0.2/<x>.md` | `Personaggio-<x>.md` |
 | `docs/wiki/feature-status.md` | `Stato-delle-feature.md` |
+
+Le eccezioni stanno in `GAME_PAGE_EXCEPTIONS`: dove il clone ha già pubblicato un nome diverso dalla
+convenzione, **vince il clone** — rinominare una pagina della GitHub Wiki ne cambia l'URL pubblico.
+Oggi ce n'è una: `game/sinergie-e-combinazioni.md` → `Sinergie-e-Combinazioni.md`.
+
+Il confronto con le pagine del clone è **case-sensitive** anche su Windows, dove `os.path.isfile` non
+distingue le maiuscole. Senza, un nome sbagliato nel solo case passerebbe in locale e salterebbe in
+silenzio i blocchi di quella pagina su un filesystem case-sensitive: è come
+`Sinergie-e-Combinazioni.md` è rimasta scoperta fino al 2026-08-10.
+
+**Una sorgente che non raggiunge il clone è un errore, non un avviso.** Il gate `ui_wiki` della feature
+afferma «spiegata all'utente», ma il lettore legge la Wiki *pubblicata*: se la pagina lì non esiste, il
+registry sta dichiarando una copertura falsa invece di segnalare una lacuna — stessa famiglia dello
+scenario orfano, e per la stessa ragione è bloccante.
 
 `validate --wiki-root <path>` verifica anche i riferimenti nella forma `wiki:<PageName>`, quelli per
 le pagine che vivono **solo** nel clone e non hanno una sorgente nel repository.
