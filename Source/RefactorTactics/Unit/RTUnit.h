@@ -29,6 +29,22 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	int32 TeamId = 0;
 
+	/**
+	 * Identita' STABILE di questa istanza per tutta la partita (#405, [D-063]). Parte da `1`: lo `0` resta
+	 * libero e significa «nessuna unita' dichiarata», che e' cio' che dice una voce ambientale del TurnLog.
+	 *
+	 * Non e' l'identita' del SIMULATORE, ed e' la ragione per cui questo campo esiste: quella e' l'indice in
+	 * `MakeCurrentSnapshot`, che filtra i vivi e viene ricostruito a ogni fase — quindi scala appena qualcuno
+	 * muore. Peggio: `DestroyDefeatedUnits` distrugge l'Actor a fine turno, quindi nemmeno il pointer
+	 * sopravvive alla partita. Una traccia che si rilegge a partita finita ha bisogno di un intero che non si
+	 * muova, ed e' questo.
+	 *
+	 * La assegna `ARTTurnManager::EnsureMatchRoster()` una volta sola, alla prima risoluzione. Chi crea
+	 * l'unita' non deve valorizzarla: sarebbe una seconda sorgente di identita', e diverrebbero due.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	int32 StableUnitId = 0;
+
 	/** Numero massimo di celle percorribili in un turno (distanza di Manhattan). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	int32 MoveRange = 4;

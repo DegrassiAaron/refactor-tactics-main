@@ -76,6 +76,22 @@ TArray<FString> URTCatalogLibrary::ValidateActions(const TArray<FRTActionDef>& A
 		else
 		{
 			Seen.Add(Action.ActionId);
+			// Stable ID RITIRATO usato per DICHIARARE un'azione (#199, fetta 2). Il redirect di
+			// `ResolveLegacyActionId` esiste per la LETTURA — una traccia gia' su disco deve restare
+			// interpretabile — e non per la scrittura: un'azione nuova che si chiama con un nome ritirato
+			// ricrea la doppia verita' che la migrazione ha appena tolto.
+			//
+			// L'errore **nomina l'erede**, e non e' cortesia: senza, chi lo incontra sa che qualcosa e'
+			// vietato e non cosa scrivere al suo posto — e la risposta sta in una tabella che non ha motivo
+			// di conoscere.
+			const FName Heir = ResolveLegacyActionId(Action.ActionId);
+			if (Heir != Action.ActionId)
+			{
+				Errors.Add(FString::Printf(
+					TEXT("%s: Stable ID RITIRATO — usa `%s`. Il vecchio ID resta valido solo in LETTURA, ")
+					TEXT("per le tracce gia' scritte (D-014: gli Stable ID legacy non si cancellano)"),
+					*Where, *Heir.ToString()));
+			}
 		}
 
 		if (Action.Priority < 0)

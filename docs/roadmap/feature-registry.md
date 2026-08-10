@@ -235,27 +235,46 @@ python scripts/feature_registry.py deploy --wiki-root <path> --check  # gate: es
 python scripts/feature_registry.py deploy --wiki-root <path> --write  # scrive davvero
 ```
 
-La Wiki di GitHub è un **repository separato** (`refactor-tactics-main.wiki`, branch `master`, file
-flat) e **pubblico**. Per questo `deploy` è in sola lettura di default: scrivere lì è un'azione che si
-chiede, non che si assume — tanto più che altre sessioni possono avere quel clone in lavorazione.
+La Wiki di GitHub è un **repository separato** (`refactor-tactics-main.wiki`, branch `master`) e
+**pubblico**. Per questo `deploy` è in sola lettura di default: scrivere lì è un'azione che si chiede,
+non che si assume — tanto più che altre sessioni possono avere quel clone in lavorazione.
 
-La corrispondenza segue le convenzioni già in uso nel clone:
+#### Piatto è il namespace, non il filesystem
 
-| Sorgente | Pagina Wiki |
-|---|---|
-| `docs/wiki/game/<x>.md` | `<x>.md` |
-| `docs/wiki/meccaniche/<x>.md` | `Meccanica-<x>.md` |
-| `docs/wiki/fazioni/<x>.md` | `Fazione-<X>.md` (`index` → `Fazioni.md`) |
-| `docs/characters/v0.1\|v0.2/<x>.md` | `Personaggio-<x>.md` |
-| `docs/wiki/feature-status.md` | `Stato-delle-feature.md` |
+Fino al 2026-08-10 il deploy appiattiva tutto in root con un prefisso nel nome
+(`Meccanica-coperture.md`), perché `DEPLOY.md` dichiarava che «la GitHub Wiki non ha gerarchia».
+**Verificato, ed era sbagliato a metà**: le pagine in sottocartella *sono* servite e compaiono nel menu
+*Pages*. Ciò che è piatto è il **namespace degli URL** — l'indirizzo è il solo nome del file, il
+percorso non ci entra.
 
-Le eccezioni stanno in `GAME_PAGE_EXCEPTIONS`: dove il clone ha già pubblicato un nome diverso dalla
-convenzione, **vince il clone** — rinominare una pagina della GitHub Wiki ne cambia l'URL pubblico.
-Oggi ce n'è una: `game/sinergie-e-combinazioni.md` → `Sinergie-e-Combinazioni.md`.
+Tre conseguenze, tutte vincolanti:
 
-Il confronto con le pagine del clone è **case-sensitive** anche su Windows, dove `os.path.isfile` non
-distingue le maiuscole. Senza, un nome sbagliato nel solo case passerebbe in locale e salterebbe in
-silenzio i blocchi di quella pagina su un filesystem case-sensitive: è come
+1. i nomi delle pagine devono restare **globalmente unici**, anche fra cartelle diverse;
+2. i `[[link]]` sono **per nome**, mai per percorso: i link markdown relativi a `cartella/pagina.md`
+   non funzionano in modo affidabile;
+3. le immagini con path relativo — quelle che puntano dentro `images/` — **non risentono** dello
+   spostamento, perché la base relativa è l'URL della pagina, che è piatto, e non la posizione del
+   file. Misurato: l'asset risponde `200` sia da `raw.githubusercontent.com/wiki/…` sia da
+   `/wiki/images/…`.
+
+La corrispondenza sorgente → clone segue quindi le cartelle della sorgente:
+
+| Sorgente | Pagina Wiki | URL |
+|---|---|---|
+| `docs/wiki/game/<x>.md` | `Guida/<x>.md` | `/wiki/<x>` |
+| `docs/wiki/meccaniche/<x>.md` | `Meccaniche/<x>.md` (`index` → `Meccaniche.md`) | `/wiki/<x>` |
+| `docs/wiki/fazioni/<x>.md` | `Fazioni/<x>.md` (`index` → `Fazioni.md`) | `/wiki/<x>` |
+| `docs/characters/v0.1\|v0.2/<x>.md` | `Personaggi/<x>.md` | `/wiki/<x>` |
+| `docs/characters/index.md` · `paragon.md` | `Personaggi.md` · `Personaggi/paragon.md` | |
+| `docs/wiki/feature-status.md` | `Stato-delle-feature.md` | |
+
+Le pagine **indice restano in root** accanto a `Home`: sono hub, e soprattutto tre `index.md` in tre
+cartelle diverse collidono — non possono chiamarsi tutte `index`.
+
+Il confronto con le pagine del clone è **ricorsivo** e **case-sensitive** anche su Windows, dove
+`os.path.isfile` non distingue le maiuscole. Senza la ricorsione le pagine in cartella risultano
+assenti in blocco (misurato: 35 su 35); senza il case, un nome sbagliato nelle sole maiuscole passa in
+locale e salta in silenzio i blocchi di quella pagina su un filesystem case-sensitive — è così che
 `Sinergie-e-Combinazioni.md` è rimasta scoperta fino al 2026-08-10.
 
 **Una sorgente che non raggiunge il clone è un errore, non un avviso.** Il gate `ui_wiki` della feature

@@ -195,7 +195,8 @@
       ],
       "issues": [
         81,
-        178
+        178,
+        307
       ],
       "tests": [
         "RefactorTactics.TurnLog.*"
@@ -210,8 +211,8 @@
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-10",
+        "commit": "c634c50"
       },
       "notes": "22 test: ordine totale, hash permutazione-invariante, serializzazione versionata con checksum, I/O su file, letture legacy. `DescribeEntry` porta i reason code nel combat log del giocatore."
     },
@@ -582,7 +583,7 @@
       "wiki_note": "La pagina Wiki spiega il **principio** (la griglia non vincola i muri); il dato cotto e la pipeline di cottura non esistono ancora.",
       "pie_refs": [],
       "last_verified": {},
-      "notes": "Registrata come DIREZIONE, non come lavoro pronto ([D-065](../decisions/RT_PDR_00_Decision_Log.md)). Oggi `bBlocksMovement` è scritto a mano sulla cella; qui diventerebbe l'esito di una cottura che intersecа il footprint dell'unità con la blocking geometry attorno al Cell Anchor. Il runtime continua a leggere interi: la derivazione avviene in authoring, mai in query. Bloccata da `MAP-1`: senza la clearance in metri non c'è niente da intersecare, e cuocere prima significa ricuocere."
+      "notes": "Registrata come DIREZIONE, non come lavoro pronto ([D-065](../decisions/RT_PDR_00_Decision_Log.md)). Oggi `bBlocksMovement` è scritto a mano sulla cella; qui diventerebbe l'esito di una cottura che intersecа il footprint dell'unità con la blocking geometry attorno al Cell Anchor. Il runtime continua a leggere interi: la derivazione avviene in authoring, mai in query. **Sbloccata da `D-071`**: il footprint standard e' il **cerchio inscritto** (raggio = apotema della cella), zero numeri nuovi. Un muro che taglia solo gli angoli lascia la cella valida; uno che entra nel nucleo la invalida."
     },
     {
       "feature_id": "RT-FEAT-MAP-TRANSITION-CLEARANCE",
@@ -636,7 +637,7 @@
       "wiki_note": "Il caso «due celle valide, passaggio chiuso» è già spiegabile; il dato che lo esprime senza passare da una copertura non esiste ancora.",
       "pie_refs": [],
       "last_verified": {},
-      "notes": "Il buco misurato: `Cell A` valida ∧ `Cell B` valida ∧ `A→B` chiusa oggi si esprime **solo** con una copertura alta, perché gli adiacenti orizzontali sono calcolati e non archi ([D-013](../decisions/RT_PDR_00_Decision_Log.md)), e `FRTHexEdge` è riservato ai salti di layer. Un muro che blocca senza proteggere non ha un dato su cui appoggiarsi: o diventa una copertura che non copre, o `bBlocksMovement` su una cella calpestabile. Include la *swept clearance* — la transizione verifica il corridoio attraversato, non i soli estremi."
+      "notes": "Il buco misurato: `Cell A` valida ∧ `Cell B` valida ∧ `A→B` chiusa oggi si esprime **solo** con una copertura alta, perché gli adiacenti orizzontali sono calcolati e non archi ([D-013](../decisions/RT_PDR_00_Decision_Log.md)), e `FRTHexEdge` è riservato ai salti di layer. Un muro che blocca senza proteggere non ha un dato su cui appoggiarsi: o diventa una copertura che non copre, o `bBlocksMovement` su una cella calpestabile. Include la *swept clearance* — la transizione verifica il corridoio attraversato, non i soli estremi — che per `D-071` usa **lo stesso raggio** del footprint. Costo dichiarato: il varco «ci passo ma non ci sto» non e' modellabile, perche' calpestabile e attraversabile condividono la soglia."
     },
     {
       "feature_id": "RT-FEAT-MAP-LOS",
@@ -980,7 +981,7 @@
         "docs/wiki/meccaniche/porte.md",
         "docs/wiki/meccaniche/topologia-dinamica.md"
       ],
-      "wiki_note": "Dato, regole di blocco e mutazione del bordo sono implementati e testati; l'**interazione del giocatore** (`Interact`/`Activate`) arriva con E10.",
+      "wiki_note": "Dato, regole di blocco e mutazione del bordo sono implementati e testati; l'**interazione del giocatore** (`Action.Interact`) arriva con E10.",
       "pie_refs": [
         "PIE-V01-DOOR"
       ],
@@ -1236,7 +1237,8 @@
       "issues": [
         45,
         47,
-        48
+        48,
+        199
       ],
       "tests": [
         "RefactorTactics.Actions.Wait",
@@ -1244,7 +1246,8 @@
         "RefactorTactics.Actions.BasicAttack",
         "RefactorTactics.Actions.Guard",
         "RefactorTactics.Actions.Interact.IsInertUntilImplemented",
-        "RefactorTactics.Actions.Activate.IsInertUntilImplemented",
+        "RefactorTactics.Actions.RetiredStableIdRedirectsToHeir",
+        "RefactorTactics.Actions.SprintIsAMoveProfileResolvedPreBlast",
         "RefactorTactics.Actions.CoreActionsMatchCatalog",
         "RefactorTactics.Actions.ControlActionsMatchCatalog",
         "RefactorTactics.Actions.OffensiveActionsMatchCatalog"
@@ -1388,7 +1391,8 @@
         "RefactorTactics.Heroes.BasicAttackIsIndexZeroForEveryHero",
         "RefactorTactics.Heroes.BasicAttackDeclaresItsBaseAction",
         "RefactorTactics.TurnLog.BaseActionIdSurvivesRoundTripAndStaysOutOfHash",
-        "RefactorTactics.TurnLog.LegacyVersionWithoutBaseActionIdIsReadable"
+        "RefactorTactics.TurnLog.LegacyVersionWithoutBaseActionIdIsReadable",
+        "RefactorTactics.TurnLog.BasicAttackLogsBaseAndProfile"
       ],
       "scenarios": [
         "Combat.BasicAttack",
@@ -2356,7 +2360,7 @@
       "wiki_note": "Nessuna pagina: il framework non esiste ancora, e una pagina che lo descrivesse sarebbe la Wiki che promette ciò che il gioco non fa.",
       "pie_refs": [],
       "last_verified": {},
-      "notes": "Il repository ha **undici** status implementati (`TAG_Status_*`: Braced, Burning, Electrified, Exposed, Guarded, Marked, Obscured, Reveal, Root, Slow, Wet) e **nessun livello che li governi**: ogni effetto e' cablato dove serve. Funziona, ed e' esattamente il motivo per cui il dodicesimo costera' come i primi undici messi insieme. Mancano: categoria e polarita', severity C0-C3, le sei primitive riusabili (MODIFY, DEGRADE, RESTRICT, INTERRUPT, CONVERT, CONSUME), stacking policy ed expiration dichiarate sul dato, resistance/immunity/cleanse, reapply policy e prevenzione dei loop, reason code, validator. I due status nuovi del sorgente — `Suppressed` e `Dazed` — stanno **dentro** questa feature e non prima: `Suppressed` E' un DEGRADE, `Dazed` E' un INTERRUPT sulla scelta manuale. Tre domande aperte prima della spec: `STA-1`, `STA-2`, `STA-3` in `OPEN_DECISIONS.md`."
+      "notes": "Il repository ha **undici** status implementati (`TAG_Status_*`: Braced, Burning, Electrified, Exposed, Guarded, Marked, Obscured, Reveal, Root, Slow, Wet) e **nessun livello che li governi**: ogni effetto e' cablato dove serve. Funziona, ed e' esattamente il motivo per cui il dodicesimo costera' come i primi undici messi insieme. Mancano: categoria e polarita', severity C0-C3, le sei primitive riusabili (MODIFY, DEGRADE, RESTRICT, INTERRUPT, CONVERT, CONSUME), stacking policy ed expiration dichiarate sul dato, resistance/immunity/cleanse, reapply policy e prevenzione dei loop, reason code, validator. I due status nuovi del sorgente — `Suppressed` e `Dazed` — stanno **dentro** questa feature e non prima: `Suppressed` E' un DEGRADE, `Dazed` E' un INTERRUPT sulla scelta manuale. **`STA-1` e `STA-2` sono chiuse da `D-072`**: primitive e severity si DERIVANO dal dato, nessun enum dichiarato. Chiuderle ha pero' aperto cio' che serviva a entrambe — la **tassonomia delle capability** (`STA-4`), primo lavoro del framework: senza, non si deriva ne' la primitiva ne' la severity. Resta aperta anche `STA-3`."
     },
     {
       "feature_id": "RT-FEAT-ENV-STATUS",
@@ -3425,7 +3429,10 @@
       ],
       "tests": [
         "RefactorTactics.TurnLog.DescribeEntry",
-        "RefactorTactics.HexMatch.TurnLogExplainsTheTurn"
+        "RefactorTactics.HexMatch.TurnLogExplainsTheTurn",
+        "RefactorTactics.TurnLog.CombatEntryNamesItsAction",
+        "RefactorTactics.TurnLog.BasicAttackLogsBaseAndProfile",
+        "RefactorTactics.TurnLog.PrioritySurvivesRoundTripAndStaysOutOfHash"
       ],
       "scenarios": [
         "Visual.Core.PhaseOrder"
@@ -3439,8 +3446,8 @@
         "PIE-V01-LOG"
       ],
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-10",
+        "commit": "c634c50"
       },
       "notes": "Quel che il giocatore legge e quel che il replay registra sono la stessa cosa: una sola funzione pura (`DescribeEntry`) produce entrambi."
     },
@@ -4034,7 +4041,7 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "La partita **finisce** per obiettivo, ma **non esiste un oggetto da attivare in mappa**: `Action.Activate` e `Action.Interact` sono a catalogo con portata 1 e nessun effetto dichiarato, e **nessun test le esercita** (il validator ha rifiutato un riferimento a `Actions.Activate` che non esiste). È il caso «dato senza consumatore»: `runtime` resta `partial` finché CP 10.2 non porta l'obiettivo contestabile."
+      "notes": "La partita **finisce** per obiettivo, ma **non esiste un oggetto da attivare in mappa**: `Action.Interact` è a catalogo con portata 1 e nessun effetto dichiarato. È il caso «dato senza consumatore»: `runtime` resta `partial` finché CP 10.2 non porta l'obiettivo contestabile. Dal 2026-08-10 (#199) l'azione è **una sola**: `Action.Activate` è uscita dal catalogo (D-014 + D-025), quindi CP 10.1 non deve più implementarne due."
     },
     {
       "feature_id": "RT-FEAT-MATCH-END-CONDITIONS",
@@ -4827,7 +4834,10 @@
         "RefactorTactics.Catalog.IdsAreUnique",
         "RefactorTactics.TurnLog.ActionIdRoundTrip",
         "RefactorTactics.Unit.ShortHeroNameFromStableId",
-        "RefactorTactics.ScenarioIndex.IdIsIndependentOfPath"
+        "RefactorTactics.ScenarioIndex.IdIsIndependentOfPath",
+        "RefactorTactics.Actions.RetiredStableIdRedirectsToHeir",
+        "RefactorTactics.Catalog.ValidatorRejectsRetiredStableId",
+        "RefactorTactics.TurnLog.RetiredActionIdIsStillReadableFromDisk"
       ],
       "scenarios": [],
       "scenarios_planned": [],
@@ -4835,8 +4845,8 @@
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-10",
+        "commit": "c634c50"
       },
       "notes": "`ActionId`, `HeroId`, `ScenarioId`, `FormatId`: identità dichiarate e indipendenti dal percorso o dal titolo. È il presupposto anche dei `feature_id` di questo registry."
     },

@@ -9,6 +9,27 @@
 
 ---
 
+## ✅ Chiuse il 2026-08-10 — footprint della cella e derivazione degli status
+
+Tre voci decise dall'autore. Restano qui **solo come indice**: il contenuto vive nel Decision Log.
+
+| Era | Decisione presa | Dove vive ora |
+|---|---|---|
+| `MAP-1` | Il footprint standard è il **cerchio inscritto** nell'esagono (raggio = apotema), e la *swept clearance* della transizione usa **lo stesso raggio**. **Zero numeri nuovi**: l'apotema si deriva dal lato, già fissato. Si misura in **esagoni**, non in metri | [`D-071`](decisions/RT_PDR_00_Decision_Log.md) — **E23.6/23.7** |
+| `STA-1` | Le sei primitive **non sono un enum**: si derivano da ciò che lo status dichiara. Stesso argomento con cui è stato respinto l'enum di policy dell'Overwatch — un campo accanto al comportamento è una seconda verità | [`D-072`](decisions/RT_PDR_00_Decision_Log.md) |
+| `STA-2` | La severity `C0`–`C3` si **conta** dalle capability toccate. Così la regola anti-stun-lock diventa **un test** invece di una revisione | [`D-072`](decisions/RT_PDR_00_Decision_Log.md) |
+
+> ⚠️ **Chiudere `STA-1` e `STA-2` ha aperto ciò che serviva a entrambe.** Nessuna delle due derivazioni è
+> possibile senza una **tassonomia esplicita delle capability** — l'elenco di cosa un effetto può togliere e
+> con quale granularità. Non esiste, e non è un dettaglio implementativo: è il dato da cui *entrambe* leggono.
+> È il primo lavoro del framework, prima delle primitive e prima dei due status nuovi. Tracciata come
+> `STA-4` qui sotto.
+>
+> `MAP-1` invece non ne ha aperte: ha **chiuso** anche il rischio che qualcuno introducesse un secondo
+> numero per il corridoio.
+
+---
+
 ## ✅ Chiuse il 2026-08-07 — sessione `/sc:brainstorm`
 
 Le cinque voci `OD-1`…`OD-5` aperte dalla revisione documentale sono state decise. Restano qui **solo come
@@ -170,7 +191,6 @@ residuo.
 
 | ID | Domanda | Perché serve una risposta |
 |---|---|---|
-| `MAP-1` | Quanto vale la **clearance standard** di un'unità, in metri? | Non si parte da zero: [`technical/convenzioni-contenuti-ue.md`](technical/convenzioni-contenuti-ue.md) §11-bis fissa **lato dell'esagono ≈ 1,5 m**, quindi il numero è vincolato, non libero. Serve perché è il parametro che decide quali celle sono calpestabili quando un muro le attraversa: sceglierlo dopo aver cotto una mappa significa ricuocerla. Blocca **E23**, non la v0.1 |
 | `MAP-2` | Che succede quando la **linea di tiro sfiora l'angolo** di un muro? | È il caso che la geometria arbitraria crea e la griglia allineata non aveva: con muri a 90° che tagliano le celle, `HasLineOfSight` incontra tangenze che oggi non esistono. La risposta decide anche i corner case di proiettile e copertura, che sono lo stesso problema visto dal lato del danno. Va decisa **con una fixture in mano**, non per principio |
 | `MAP-3` | La **cottura non è invertibile**: cosa succede se qualcuno modifica a mano il dato cotto? | Registrato come rischio il 2026-08-09 e ancora aperto. Se si edita `bBlocksMovement` su una cella cotta, il prossimo ricalcolo cancella la modifica **in silenzio** — stessa classe di problema dei prefab. Le uscite sono tre (vietare l'edit, marcare la cella come «sganciata», o rinunciare al ricalcolo automatico) e nessuna è deducibile dai documenti |
 | `BAL-1` | `Guard` e `Brace` devono separarsi in **danno contro spinta**? | [D-066](decisions/RT_PDR_00_Decision_Log.md) ha misurato il modello in vigore: entrambi fanno entrambe le cose, e differiscono per *forma* (primo colpo forte vs ogni colpo; spinta di 1 cella vs spinta qualsiasi). È bilanciamento: si chiude con una partita, non con un documento. ⚠️ **Non è ancora decidibile**, e il motivo è più stretto di quanto sembrasse: **nessuna spinta del gioco supera 1** — due soli effetti `Push` a catalogo, entrambi di valore 1 — quindi la clausola «senza limite di distanza» di `Brace` **non è osservabile** e sul colpo singolo `Guard` domina. Roadmap, numeri e issue: [`bal-1-guard-brace-roadmap-2026-08-10.md`](roadmap/plans/bal-1-guard-brace-roadmap-2026-08-10.md). Issue [#400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/400) (prerequisito), [#401](https://github.com/DegrassiAaron/refactor-tactics-main/issues/401) (scenari), [#403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/403) (decisione) |
@@ -229,9 +249,8 @@ decise **prima** di scrivere la spec owner, perché ognuna cambia la forma del d
 
 | ID | Domanda | Perché serve una risposta |
 |---|---|---|
-| `STA-1` | Le sei primitive (`MODIFY`, `DEGRADE`, `RESTRICT`, `INTERRUPT`, `CONVERT`, `CONSUME`) sono un **enum** o **emergono dai dati**? | Non è una preferenza di stile: il repository ha già **respinto** un enum di policy per l'Overwatch, perché sarebbe stato una «seconda verità» accanto ad `AllowedResponses` ([`brief-azioni-generiche-overwatch.md`](gameplay/brief-azioni-generiche-overwatch.md) §5). La stessa obiezione si applica qui — se una primitiva è deducibile da cosa l'effetto tocca, dichiararla a parte crea due verità che divergono al primo status nuovo |
-| `STA-2` | La severity `C0`–`C3` è **dichiarata** sul dato o **derivata** da quante capability l'effetto rimuove? | Derivarla rende impossibile dichiarare `C1` su un effetto che ne toglie tre — cioè rende il gate anti-stun-lock (§6 del sorgente) **verificabile da una macchina** invece che da una revisione. Dichiararla è più semplice e più fragile. È la stessa scelta già fatta per `status` nel Feature Registry, dove il valore è **derivato dai gate** e il validator lo verifica |
 | `STA-3` | `Suppressed` e `Dazed` entrano nella **v0.1** o restano nel framework? | Il sorgente li mette nel set ridotto del vertical slice, ma **nessuno dei quattro kit li produce oggi**: sarebbero due status senza consumatore, il difetto ricorrente di questo repository. Entrano quando un'abilità li applica, non prima |
+| `STA-4` | Qual è la **tassonomia delle capability** — l'elenco di cosa un effetto può togliere, e con quale granularità? | Aperta **da** [`D-072`](decisions/RT_PDR_00_Decision_Log.md), ed è il prerequisito di tutto il resto: senza, non si deriva né la primitiva (`STA-1`) né la severity (`STA-2`), che sono le due cose appena decise. La granularità è la parte non ovvia — «movimento» è una capability sola o si divide in `Move`/`Sprint`/`Dash`/`Climb`? Da questa scelta dipende se `Suppressed` conta come `C1` o `C2`, cioè **il gate anti-stun-lock cambia di significato**. Va decisa guardando le azioni che esistono, non a tavolino |
 
 ---
 

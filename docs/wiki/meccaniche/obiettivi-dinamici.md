@@ -17,7 +17,7 @@
 
 Gli obiettivi danno alla partita un motivo per **muoversi e contestare spazio**. Sono particolarmente importanti in un gioco con coperture e Overwatch: senza una pressione esterna, aspettare potrebbe diventare troppo conveniente.
 
-## Interact / Activate
+## Interact
 
 Il design di E10.1 prevede che un'unità possa interagire con un oggetto **adiacente** durante il Blast.
 
@@ -31,7 +31,9 @@ Gli oggetti previsti includono:
 - ponti;
 - obiettivi.
 
-Il fatto che `Action.Interact/Activate` esista nel catalogo non significa che tutti questi oggetti siano già giocabili: E10 è ancora assente dalla build corrente.
+Il fatto che `Action.Interact` esista nel catalogo non significa che tutti questi oggetti siano già giocabili: E10 è ancora assente dalla build corrente.
+
+> **L'azione è una sola.** Fino al 2026-08-10 il catalogo ne spediva due, `Interact` e `Activate`, e questa pagina le nominava entrambe. `Action.Activate` è stata **ritirata**: «attivare un dispositivo» *è* un'interazione, e tenerle separate era una doppia verità senza differenza. Lo Stable ID vecchio non è stato cancellato — resta interpretabile nelle tracce già registrate — ma non è più il nome di un'azione che qualcuno userà.
 
 ## Obiettivo contestabile
 

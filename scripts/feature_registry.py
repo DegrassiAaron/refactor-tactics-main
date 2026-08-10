@@ -379,8 +379,7 @@ def validate(registry, wiki_root=None, editor_ctx=None):
         for ref in feature.get("wiki_refs") or []:
             if ref.startswith("wiki:"):
                 if wiki_root:
-                    page = os.path.join(wiki_root, ref[len("wiki:"):] + ".md")
-                    if not os.path.isfile(page):
+                    if not wiki_page_by_name(wiki_root, ref[len("wiki:"):]):
                         errors.append(f"{where} pagina Wiki inesistente nel clone: {ref}")
             elif not os.path.isfile(os.path.join(REPO, ref)):
                 errors.append(f"{where} pagina Wiki sorgente inesistente: {ref}")
@@ -730,31 +729,36 @@ def apply_wiki_blocks(data, check=False):
 # Le pagine `game/` prendono il nome del file. Dove il clone ha gia' pubblicato un nome diverso vince
 # il clone: rinominare una pagina della GitHub Wiki ne cambia l'**URL pubblico**, e un link esterno o
 # un segnalibro smetterebbe di funzionare per una questione di sole maiuscole.
-GAME_PAGE_EXCEPTIONS = {
-    "sinergie-e-combinazioni": "Sinergie-e-Combinazioni.md",
-}
-
-
 def deploy_name(source_ref):
-    """Nome della pagina nel clone della Wiki, che e' un repo separato con file **flat**.
+    """Percorso della pagina nel clone della Wiki, che e' un repository separato.
 
-    La convenzione e' quella gia' in uso nel clone (`DEPLOY.md`): le cartelle della sorgente
-    diventano un prefisso nel nome, perche' la GitHub Wiki non ha gerarchia.
+    **Il presupposto precedente era sbagliato a meta'.** Fino al 2026-08-10 questa funzione
+    appiattiva tutto in root con un prefisso nel nome (`Meccanica-coperture.md`), perche' `DEPLOY.md`
+    dichiarava che «la GitHub Wiki non ha gerarchia». Verificato: le pagine in sottocartella **sono
+    servite** e compaiono nel menu *Pages*. Cio' che e' piatto e' il **namespace degli URL** — l'URL
+    e' il solo nome del file, il percorso non ci entra — quindi i nomi devono restare **globalmente
+    unici**, anche fra cartelle diverse.
+
+    Ne segue che le cartelle della sorgente possono diventare cartelle anche qui, e il prefisso
+    ridondante sparisce. I `[[link]]` restano per **nome**, mai per percorso.
+
+    Le pagine indice restano in root accanto a `Home`: sono hub, e `index.md` in tre cartelle diverse
+    collidere*bbe* — tre pagine non possono chiamarsi tutte `index`.
     """
     ref = source_ref.replace("\\", "/")
     stem = os.path.splitext(os.path.basename(ref))[0]
     if ref.startswith("docs/wiki/game/"):
-        return GAME_PAGE_EXCEPTIONS.get(stem, stem + ".md")
+        return "Guida/" + stem + ".md"
     if ref.startswith("docs/wiki/meccaniche/"):
-        return "Meccanica-" + stem + ".md"
+        return "Meccaniche.md" if stem == "index" else "Meccaniche/" + stem + ".md"
     if ref.startswith("docs/wiki/fazioni/"):
-        if stem == "index":
-            return "Fazioni.md"
-        return "Fazione-" + "-".join(p.capitalize() for p in stem.split("-")) + ".md"
+        return "Fazioni.md" if stem == "index" else "Fazioni/" + stem + ".md"
     if ref.startswith("docs/characters/v0."):
-        return "Personaggio-" + stem + ".md"
+        return "Personaggi/" + stem + ".md"
     if ref == "docs/characters/index.md":
         return "Personaggi.md"
+    if ref == "docs/characters/paragon.md":
+        return "Personaggi/paragon.md"
     if ref == "docs/wiki/feature-status.md":
         return "Stato-delle-feature.md"
     return None
@@ -778,13 +782,35 @@ def strip_manual_status(text):
 
 
 def wiki_pages(wiki_root):
-    """I nomi delle pagine realmente presenti nel clone, per un confronto **case-sensitive**.
+    """I percorsi delle pagine presenti nel clone, per un confronto **case-sensitive** e ricorsivo.
 
-    Serve perche' `os.path.isfile` su Windows non distingue le maiuscole: un nome di deploy sbagliato
-    nel solo case passerebbe qui e fallirebbe su un filesystem case-sensitive, saltando in silenzio i
-    blocchi di quella pagina. E' esattamente come `Sinergie-e-Combinazioni.md` e' rimasta scoperta.
+    Case-sensitive perche' `os.path.isfile` su Windows non distingue le maiuscole: un nome di deploy
+    sbagliato nel solo case passerebbe qui e fallirebbe su un filesystem case-sensitive, saltando in
+    silenzio i blocchi di quella pagina.
+
+    Ricorsivo perche' dal 2026-08-10 le pagine stanno in cartelle: un `os.listdir` non ricorsivo le
+    dichiarerebbe tutte assenti in blocco.
     """
-    return {name for name in os.listdir(wiki_root) if name.endswith(".md")}
+    found = set()
+    for root, dirs, files in os.walk(wiki_root):
+        dirs[:] = [d for d in dirs if d != ".git"]
+        for name in files:
+            if name.endswith(".md"):
+                rel = os.path.relpath(os.path.join(root, name), wiki_root)
+                found.add(rel.replace("\\", "/"))
+    return found
+
+
+def wiki_page_by_name(wiki_root, page_name):
+    """Il percorso della pagina con questo **nome**, che nella Wiki e' l'unita' di indirizzamento.
+
+    I riferimenti `wiki:<PageName>` nominano la pagina, non il file: dopo il passaggio alle cartelle
+    non si puo' piu' assumere che stia in root.
+    """
+    for rel in wiki_pages(wiki_root):
+        if os.path.splitext(os.path.basename(rel))[0] == page_name:
+            return os.path.join(wiki_root, rel)
+    return None
 
 
 def apply_wiki_deploy(data, wiki_root, check=True):
