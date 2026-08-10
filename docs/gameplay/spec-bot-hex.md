@@ -195,17 +195,34 @@ ciò che questa spec afferma.
 | `KiteCellMaximizesDistance` | la fuga massimizza la distanza dalla minaccia |
 | `KiteCellStaysLegal` | la fuga non esce dalle celle raggiungibili |
 
-### `Tests/RTHexBotIntegrationTests.cpp` — `RefactorTactics.HexBotPlay.*` (7, su partita)
+### `Tests/RTHexBotIntegrationTests.cpp` — `RefactorTactics.HexBotPlay.*` (6, su partita)
 
 | Test | Cosa dimostra |
 |---|---|
 | `PlansOnlyLegalMoves` | in partita vera il bot non produce mosse illegali |
 | `DashPlanIsExecutableOnCostlyTerrain` | lo scatto pianificato è eseguibile dove il terreno costa di più |
 | `DashRespectsThreat` | lo scatto non ignora l'esposizione |
-| `KiterFleesWhenThreatened` | il kiter rinuncia al tiro per non farsi raggiungere |
 | `UsesSupportWhenHurt` | il supporto entra quando serve |
 | `PlanDoesNotBlastDyingAlly` | il collaterale non uccide il compagno |
 | `WThreatTuning` | la scala di `WThreat` è esercitata, non assunta |
+
+> ⚠️ **La fuga del kiter non ha più una verifica in partita.** `KiterFleesWhenThreatened` stava in questa
+> tabella fino al 2026-08-10 ed è stato rimosso con i due archetipi legacy: era il `Ranger`, con
+> `KiteStandoff = 4`, l'unica unità che accendesse quel ramo. **Nessun eroe del roster dichiara uno
+> standoff** — `URTHeroData` non ha il campo e `ConfigureFromHeroData` non lo tocca — quindi in partita il
+> kiting non si attiva e la verifica end-to-end non è scrivibile senza costruire lo scenario a mano.
+>
+> Quel che resta coperto è la **logica**, ai tre test di funzione pura qui sopra: `ScoreKiterVsMelee`
+> (il kiter è penalizzato sotto lo standoff), `KiteCellMaximizesDistance` e `KiteCellStaysLegal`. Le
+> formule di §4 e la `BestKiteCell` di §5 sono quindi verificate; quello che nessuno verifica più è che
+> il bot ci **arrivi** in una partita vera. Gli altri due test che questa tabella cita e che dipendono
+> dalla stessa mancanza — `DashPlanIsExecutableOnCostlyTerrain` e `UsesSupportWhenHurt` — sopravvivono
+> perché dichiarano nel test il dato che il roster non dà (`KiteStandoff` e `bSelfTarget`), e lo
+> dichiarano con un commento che rimanda qui.
+>
+> La decisione — se il kiting debba restare, e in tal caso da dove venga lo standoff — è aperta in
+> [#425](https://github.com/DegrassiAaron/refactor-tactics-main/issues/425). Finché non è presa, questa
+> sezione descrive un comportamento che il gioco implementa e non esercita.
 
 > **Cosa i test non coprono**, e va detto: nessuno di essi esercita conoscenza parziale, facing o reazioni —
 > perché nessuna delle tre esiste ancora nel bot (§6). I verdi di `HexBotPlay.*` provano che il bot gioca
