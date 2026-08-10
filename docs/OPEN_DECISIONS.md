@@ -67,8 +67,12 @@ il registro deve dire **come** è andata a finire, non solo cosa manca.
 
 > **L'opzione scartata su `FAC-4` merita di essere ricordata**, perché il motivo non è di gusto: «facing =
 > direzione del **prossimo** passo» è stata esclusa perché il facing assunto è **pubblico** (ADR-0005 §5), quindi
-> un avversario che lo osservasse a metà movimento dedurrebbe il percorso futuro — che è esattamente ciò che
-> l'invariante **#6** e il test `Overwatch.OpportunityLeaksNoFuture` esistono per vietare.
+> un avversario che lo osservasse a metà movimento dedurrebbe il percorso futuro — contro l'invariante **#6** e
+> contro ADR-0004 §7-bis.
+>
+> ⚠️ *Rettifica del 2026-08-10*: qui era scritto «il test `Overwatch.OpportunityLeaksNoFuture` esiste per
+> vietare». Quel test **non esiste**: è pianificato in ADR-0004 per E14, che non è implementata. Il requisito
+> è dichiarato, la verifica no.
 
 ### Il modello — la proposta residua che cambierebbe ADR-0005
 
@@ -187,7 +191,7 @@ la **vegetazione**, che non e' fra le otto superfici della v0.1. Una domanda sen
 
 | Tema | Stato |
 |---|---|
-| **Che ne è del Move pianificato se l'unità viene spostata prima della fase Move** | ⏳ **aperta il 2026-08-09**. Pianifico `H5 → H6 → H7`, una spinta nel Blast mi porta in `G5`, poi comincia il Move. Tre modelli: **A** annulla il Move (semplice e deterministico, ma una spinta di una cella annulla un turno), **B** ricalcola il percorso verso la destinazione (**escluso**: contraddice *«mai auto-reroute»*, già in vigore), **C** riesegue la sequenza di direzioni dalla nuova origine (conserva l'intenzione, ma è complesso con porte e layer). **Baseline da testare: A; alternativa C.** Criterio di uscita dichiarato: si decide dopo scenario **e** playtest, e il segnale che A è troppo punitivo è un Move annullato più di una volta ogni due round. Owner: [`gameplay/spec-tassonomia-movimento.md`](gameplay/spec-tassonomia-movimento.md) §5 |
+| ~~**Che ne è del Move pianificato se l'unità viene spostata prima della fase Move**~~ | ✅ **Chiusa il 2026-08-10 da [D-045](decisions/RT_PDR_00_Decision_Log.md)**: `Model A` — se l'origine effettiva differisce da quella pianificata, **il Move decade**. `B` (ricalcolo verso la stessa destinazione) resta **escluso** perché contraddice *«mai auto-reroute»*; `C` (riesecuzione delle direzioni dalla nuova origine) è l'alternativa da provare **dopo**. **Baseline rivedibile**, con criterio di uscita quantificato: Move annullato più di **una volta ogni due round** → si prova `C`. Owner: [`gameplay/spec-tassonomia-movimento.md`](gameplay/spec-tassonomia-movimento.md) §5 |
 | **Con quali valori si tara il Decision Time Bank?** | ⏳ **aperta il 2026-08-09**. *Non* è più aperto **se** costruirlo: entra in **v0.1** come **CP 14.8**, senza gate — owner [`gameplay/spec-decision-time-bank.md`](gameplay/spec-decision-time-bank.md), audit di provenienza [`roadmap/plans/decision-time-bank-conflict-report-2026-08-09.md`](roadmap/plans/decision-time-bank-conflict-report-2026-08-09.md). Il bank è un cap aggregato per un costo che [ADR-0004](decisions/adr-0004-finestre-di-reazione.md) §8 aveva deciso di **misurare prima di contenere** (`D20`, nessun cap): quel rischio è ora **assunto in senso opposto e dichiarato** (spec §2.1), e i due rientri di ADR-0004 §Revisione — *cap aggregato condiviso* e `MaxPromptsPerReaction = 1` — restano validi e compatibili. Resta aperta la **taratura**: `InitialBank` è derivato (`RoundLimit × (MaxWindow − Grace)` → 24 s in 2v2), `Grace` 1,0 s ed `ExhaustedGrace` 0,75 s sono `PROPOSED FOR PLAYTEST` con i criteri di uscita di §3.2. Prima misura utile **CP 14.6**, che CP 14.8 non precede. Metrica che decide: `ReactionDecisionSeconds`, separata da `ResolutionPlaybackSeconds`. Restano aperte anche `TB-5` e `TB-7` (policy di rete, M10): vivono nella spec §17, **non si duplicano qui** |
 
 ## Assunzioni da bloccare

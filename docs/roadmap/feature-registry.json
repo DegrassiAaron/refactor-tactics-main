@@ -1179,7 +1179,8 @@
       ],
       "scenarios": [
         "Visual.Movement.Charge",
-        "Visual.Movement.RoughRefusesCharge"
+        "Visual.Movement.RoughRefusesCharge",
+        "Spec.Movement.TeleportSkipsIntermediateCells"
       ],
       "scenarios_planned": [],
       "wiki_refs": [
@@ -1466,11 +1467,15 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/gameplay/brief-delayed-actions.md"
+        "docs/gameplay/brief-delayed-actions.md",
+        "docs/gameplay/spec-tassonomia-movimento.md"
       ],
       "issues": [],
       "tests": [],
-      "scenarios": [],
+      "scenarios": [
+        "Spec.Movement.AntiDashTriggerIgnoresMove",
+        "Spec.Movement.TripwireOnCrossEdge"
+      ],
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
@@ -1478,7 +1483,7 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "Brief di scope, **nessuna epic aperta**: la proposta (4 checkpoint, numero non assegnato) attende una decisione perché E14 non è iniziata. Registrata per non perderla, non promossa."
+      "notes": "Brief di scope, **nessuna epic aperta**: la proposta (4 checkpoint, numero non assegnato) attende una decisione perché E14 non è iniziata. Registrata per non perderla, non promossa. Dal 2026-08-10 ha due **scenari-specifica** che ne descrivono i trigger su transizione prima che esistano: `AntiDashTriggerIgnoresMove` distingue il *come* ci si è mossi (Dash contro Move sullo stesso bordo) e dipende da #307, `TripwireOnCrossEdge` distingue l'attraversare dal comparire oltre. Entrambi `BLOCKED`, ed è la verità: le capability non esistono."
     },
     {
       "feature_id": "RT-FEAT-ACTION-PREDICTIVE",
@@ -3837,7 +3842,7 @@
       "status_derived": "TESTABLE",
       "gates": {
         "spec": "done",
-        "data": "partial",
+        "data": "done",
         "runtime": "done",
         "log_debug": "done",
         "automation": "done",
@@ -3846,7 +3851,7 @@
         "packaged": "todo",
         "network_privacy": "na"
       },
-      "gates_done": 4,
+      "gates_done": 5,
       "gates_applicable": 8,
       "roadmap": {
         "epic": "E19",
@@ -3881,7 +3886,7 @@
         "date": "2026-08-09",
         "commit": "0bbc4c5"
       },
-      "notes": "`URTMatchFormatData` **esiste già** con validator e fallback osservabile: E19 non lo costruisce, chiude due buchi misurati — `MapClass` sul dato mappa e `UnitsPerTeam` nel formato (D-030). Entrambi chiusi il 2026-08-09 (#215, #216): la mappa dichiara la propria classe, il formato dichiara la composizione, e il `GameMode` li onora invece di assumerli. `URTHexMapAsset::CurrentFormatVersion` passa a 6; la simulazione **non** ramifica sulla classe, e un test lo misura confrontando l'hash di due partite identiche. I timer restano fuori dal formato per decisione (ADR-0005 §4c)."
+      "notes": "`URTMatchFormatData` **esiste già** con validator e fallback osservabile: E19 non lo costruisce, chiude due buchi misurati — `MapClass` sul dato mappa e `UnitsPerTeam` nel formato (D-030). Entrambi chiusi il 2026-08-09 (#215, #216): la mappa dichiara la propria classe, il formato dichiara la composizione, e il `GameMode` li onora invece di assumerli. `URTHexMapAsset::CurrentFormatVersion` passa a 6; la simulazione **non** ramifica sulla classe, e un test lo misura confrontando l'hash di due partite identiche. I timer restano fuori dal formato per decisione (ADR-0005 §4c). **2026-08-10 (#375)**: `Format.Skirmish2v2` è **spedito da C++** (`URTMatchFormatLibrary::FindShippedFormat`), come le istanze di `URTActionData` e `URTHeroData` — la CLASSE resta un data asset, e un asset assegnato al `GameMode` vince. L'ordine è: asset ⇒ formato spedito ⇒ ripiego. `RoundLimit` **5** (deciso con l'utente); `ScoreToWin` **0** perché **nessuno assegna punti** — `AddTeamScore` non ha chiamanti runtime, e una soglia > 0 dichiarerebbe una vittoria irraggiungibile. Diventa un numero il giorno in cui un obiettivo la alimenta."
     },
     {
       "feature_id": "RT-FEAT-MATCH-PACING",

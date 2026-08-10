@@ -7,6 +7,30 @@
 #include "Map/RTHexLibrary.h"
 #include "Engine/Engine.h"
 #include "EngineUtils.h"
+#include "HAL/IConsoleManager.h"
+
+/** Definita in ScenarioHarness/RTTestConsole.cpp. */
+extern TAutoConsoleVariable<FString> CVarRTMapSource;
+
+namespace
+{
+	/**
+	 * Imposta `rt.Map.Source` per la durata di uno scope e la RIPRISTINA uscendo.
+	 *
+	 * Una console variable dura quanto il processo: lasciarla impostata scavalcherebbe la proprieta' in ogni
+	 * test successivo, e il rosso comparirebbe altrove — dove nessuno lo collega a questo file.
+	 */
+	struct FRTMapSourceCVarGuard
+	{
+		FString Previous;
+		explicit FRTMapSourceCVarGuard(const TCHAR* Value)
+			: Previous(CVarRTMapSource.GetValueOnGameThread())
+		{
+			CVarRTMapSource->Set(Value, ECVF_SetByCode);
+		}
+		~FRTMapSourceCVarGuard() { CVarRTMapSource->Set(*Previous, ECVF_SetByCode); }
+	};
+}
 
 namespace
 {
@@ -221,6 +245,51 @@ bool FRTGameModeNoSetupOnTinyMapTest::RunTest(const FString&)
  * cui si gioca. Le voci generate valgono anche se il livello porta una mappa d'autore — sceglierle
  * esplicitamente significa volerle, e il log lo dichiara — mentre il default resta la mappa del livello.
  */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGameModeMapSourceConsoleOverrideTest,
+	"RefactorTactics.MatchSetup.MapSourceConsoleVariableOverridesProperty",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGameModeMapSourceConsoleOverrideTest::RunTest(const FString&)
+{
+	// La proprieta' `MapSource` vive nei Class Defaults di `BP_GameMode`, cioe' in un `.uasset`: cambiarla
+	// richiede l'editor. `rt.Map.Source` la scavalca da riga di comando — ed e' cio' che serve a verificare
+	// una build pacchettizzata senza aprire l'editor (CP 12.5).
+	UWorld* World = MakeSetupWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	URTHexMapAsset* Authored = MakeHexMap(/*Radius=*/ 2);
+	MapActor->MapAsset = Authored;
+
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	// La proprieta' dice «arena generata», come fa oggi il Blueprint...
+	GameMode->MapSource = ERTMapSource::GeneratedTestArena;
+
+	{
+		// ...ma la console variable dice «mappa del livello», e vince.
+		FRTMapSourceCVarGuard Guard(TEXT("LevelAsset"));
+		GameMode->SetupHexMatch(MapActor);
+		// Confronto sul CONTENUTO e non sul puntatore: da CP 8.4 la partita lavora su una COPIA della mappa
+		// d'autore, perche' il terreno dinamico la modifica e l'asset su disco non deve cambiare.
+		TestTrue(TEXT("la console variable vince: la mappa in uso e' quella d'autore"),
+			MapActor->MapAsset && MapActor->MapAsset->ComputeHash() == Authored->ComputeHash());
+	}
+
+	// Un valore sconosciuto NON ripiega in silenzio su un default arbitrario: tiene la proprieta'.
+	{
+		MapActor->MapAsset = Authored;
+		FRTMapSourceCVarGuard Guard(TEXT("NonEsiste"));
+		TestEqual(TEXT("un valore sconosciuto lascia in vigore la proprieta'"),
+			GameMode->ResolveMapSource(), ERTMapSource::GeneratedTestArena);
+	}
+
+	// E svuotandola si torna alla proprieta', senza residui fra un Play e l'altro.
+	TestEqual(TEXT("senza console variable vale la proprieta'"),
+		GameMode->ResolveMapSource(), ERTMapSource::GeneratedTestArena);
+
+	DestroySetupWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGameModeMapSourceTestArenaTest,
 	"RefactorTactics.MatchSetup.MapSourceTestArenaWinsOverLevelAsset",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

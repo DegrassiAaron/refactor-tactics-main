@@ -60,6 +60,9 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		case ERTMoveOutcome::BlockedByUnit:     Reason = TEXT("fermo: cella occupata"); break;
 		case ERTMoveOutcome::BlockedByPriority: Reason = TEXT("fermo: precedenza avversa"); break;
 		case ERTMoveOutcome::BlockedByImpact:   Reason = TEXT("fermo: scontro frontale"); break;
+		// La cella e' LIBERA: a fermarla e' stato un colpo deciso un turno prima (E18). Dirlo «occupata»
+		// manderebbe il giocatore a cercare un'unita' che non c'e'.
+		case ERTMoveOutcome::StoppedByPrediction: Reason = TEXT("fermo: colto da una previsione"); break;
 		default:                                Reason = TEXT("resta"); break;
 		}
 
@@ -118,6 +121,23 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 				*CellText(Entry.SrcCell), What, *DescribeActionIdentity(Entry));
 		}
 		return FString::Printf(TEXT("%s: %s"), *CellText(Entry.SrcCell), What);
+	}
+
+	// Previsione: dove si e' scommesso, e se la scommessa ha pagato (E18 CP 18.1). Il whiff ha una riga
+	// propria perche' e' il caso da leggere: senza, un turno in cui non succede niente sarebbe indistinguibile
+	// da un turno in cui l'azione non e' mai stata dichiarata.
+	if (Entry.Category == ERTLogCategory::Predictive)
+	{
+		const FString Who = Entry.ActionId.IsNone()
+			? FString(TEXT("previsione")) : DescribeActionIdentity(Entry);
+
+		if (static_cast<ERTPredictiveOutcome>(Entry.Outcome) == ERTPredictiveOutcome::TriggerMatched)
+		{
+			return FString::Printf(TEXT("%s -> %s: previsione azzeccata, %d danni e movimento troncato (%s)"),
+				*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount, *Who);
+		}
+		return FString::Printf(TEXT("%s -> %s: previsione a vuoto, nessuno e' entrato (%s)"),
+			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), *Who);
 	}
 
 	// Orientamento: quando cambia, e chi lo ha letto (CP 16.1). Senza queste righe il combat log direbbe che

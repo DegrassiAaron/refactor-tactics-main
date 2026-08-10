@@ -125,6 +125,45 @@ bool URTMatchFormatLibrary::ResolveRules(const URTMatchFormatData* Format, FRTMa
 	return true;
 }
 
+const FName URTMatchFormatLibrary::Skirmish2v2FormatId = FName(TEXT("Format.Skirmish2v2"));
+
+URTMatchFormatData* URTMatchFormatLibrary::FindShippedFormat(FName FormatId)
+{
+	if (FormatId != Skirmish2v2FormatId)
+	{
+		return nullptr; // id sconosciuto: decide il chiamante, qui non si inventa un formato
+	}
+
+	URTMatchFormatData* Format = NewObject<URTMatchFormatData>();
+	Format->FormatId = Skirmish2v2FormatId;
+	// RoundLimit 5 — deciso con l'utente il 2026-08-10. E' PIU' CORTO della partita misurata su CP 12.5, che
+	// era finita per eliminazione al round 6: con 5 round il limite diventa la via NORMALE di chiusura, non la
+	// rete di sicurezza. E' una scelta di ritmo, non un ripiego, e va riletta col primo playtest vero.
+	Format->RoundLimit = 5;
+	// `ExpectedRounds` non lo legge nessun codice di gioco: e' un target di design, e il suo unico lettore
+	// e' il validator, che rifiuta un formato in cui i round attesi superano il limite. Il default della
+	// classe e' 12 — pensato per il RoundLimit 12 del ripiego — e con un limite di 5 diventa una
+	// contraddizione: il formato dichiarerebbe una durata che non puo' raggiungere. Qui vale **5**, cioe' il
+	// limite stesso, e non e' un modo di far passare il validator: con RoundLimit 5 la partita misurata su
+	// CP 12.5 (finita per eliminazione al round 6) sarebbe scaduta prima, quindi il limite E' la fine attesa.
+	// Soglia obiettivo ZERO, e non e' pigrizia: **nessuno assegna punti**. `ARTTurnManager::AddTeamScore`
+	// esiste e funziona, ma il suo unico chiamante in tutto il repository e' un test — nel runtime non ci sono
+	// obiettivi che producano punteggio. Una soglia > 0 dichiarerebbe una via di vittoria IRRAGGIUNGIBILE, cioe'
+	// il difetto ricorrente del progetto nella sua forma opposta: non un dato che nessuno legge, ma una soglia
+	// che nessuno alimenta. Lo zero dice il vero — in v0.1 si vince per eliminazione o al limite di round — e
+	// diventa un numero il giorno in cui un obiettivo chiama `AddTeamScore`.
+	Format->ExpectedRounds = 5;
+	Format->ScoreToWin = 0;
+	Format->UnitsPerTeam = 2;
+	Format->MapClass = ERTMapClass::Skirmish;
+	return Format;
+}
+
+TArray<FName> URTMatchFormatLibrary::ShippedFormatIds()
+{
+	return { Skirmish2v2FormatId };
+}
+
 FRTMatchRules URTMatchFormatLibrary::MakeFallbackRules()
 {
 	FRTMatchRules Rules;

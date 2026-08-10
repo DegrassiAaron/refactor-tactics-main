@@ -453,42 +453,26 @@ TArray<FRTCellId> URTHexSimLibrary::TruncatePathToTopology(const FRTHexSnapshot&
 
 namespace
 {
-	TArray<FRTHexMoveResult> ResolveHexPathsInternal(const TArray<TArray<FRTCellId>>& Paths,
-		const TArray<int32>& Priorities, const TArray<bool>& bLinearMovers,
-		const TArray<bool>& bPassThrough)
+	// Un solo microstep, letto e scritto sullo STATO invece che sulle variabili locali di un ciclo. Il corpo
+	// e' rimasto quello che era: CP 14.2 sposta il confine della funzione, non una riga di regola.
+	bool StepHexMovement(FRTMovementResolutionState& State)
 	{
-		const int32 N = Paths.Num();
-		TArray<FRTHexMoveResult> Results;
-		Results.SetNum(N);
+		const int32 N = State.Num();
 
 		// Priorita' 0 (parita' con tutti) e non-lineare per chi non ha un valore dichiarato: con entrambi gli
 		// array vuoti l'esito e' identico alla variante senza priorita'.
-		auto PriorityOf = [&Priorities](int32 i) { return Priorities.IsValidIndex(i) ? Priorities[i] : 0; };
-		auto IsLinearMover = [&bLinearMovers](int32 i) { return bLinearMovers.IsValidIndex(i) && bLinearMovers[i]; };
-		auto PassesThrough = [&bPassThrough](int32 i) { return bPassThrough.IsValidIndex(i) && bPassThrough[i]; };
+		auto PriorityOf = [&State](int32 i) { return State.Priorities.IsValidIndex(i) ? State.Priorities[i] : 0; };
+		auto IsLinearMover = [&State](int32 i) { return State.bLinearMovers.IsValidIndex(i) && State.bLinearMovers[i]; };
+		auto PassesThrough = [&State](int32 i) { return State.bPassThrough.IsValidIndex(i) && State.bPassThrough[i]; };
 
-		TArray<FRTCellId> Pos;  Pos.SetNum(N);   // posizione corrente
-		TArray<int32> Prog;     Prog.SetNum(N);  // indice raggiunto nel path
-		TArray<bool> Done;      Done.SetNum(N);  // path esaurito / nessun movimento
-		for (int32 i = 0; i < N; ++i)
-		{
-			Pos[i] = Paths[i].Num() > 0 ? Paths[i][0] : FRTCellId();
-			Prog[i] = 0;
-			Done[i] = Paths[i].Num() <= 1;
-			Results[i].Final = Pos[i];
-		}
+		const TArray<TArray<FRTCellId>>& Paths = State.Paths;
+		TArray<FRTCellId>& Pos = State.Pos;
+		TArray<int32>& Prog = State.Prog;
+		TArray<bool>& Done = State.Done;
+		TArray<ERTMoveOutcome>& BlockReason = State.BlockReason;
+		TArray<bool>& ReasonLocked = State.ReasonLocked;
+		TArray<FRTHexMoveResult>& Results = State.Results;
 
-		// Motivo del PRIMO congelamento per unita' (reason code del TurnLog): resta quello, anche se un
-		// microstep successivo la bloccherebbe per un motivo diverso. Senza questa "memoria", una Move che
-		// perde la cella contesa contro una Charge con priorita' migliore (CP 4.8) — e la RITENTA al
-		// microstep successivo, perche' non e' mai arrivata a destinazione — la troverebbe occupata dalla
-		// Charge ormai ferma li', e il motivo diventerebbe "cella occupata" invece di "priorita' avversa":
-		// vero all'ULTIMO microstep, ma non la causa reale per cui non e' mai entrata.
-		TArray<ERTMoveOutcome> BlockReason; BlockReason.Init(ERTMoveOutcome::BlockedByUnit, N);
-		TArray<bool> ReasonLocked; ReasonLocked.Init(false, N);
-
-		// Microstep sincroni: tutti avanzano di una cella, si risolvono le collisioni, si ripete.
-		while (true)
 		{
 			TArray<FRTCellId> Target; Target.SetNum(N);
 			TArray<bool> Moving;      Moving.SetNum(N);
@@ -617,42 +601,106 @@ namespace
 				}
 				bAnyMoved = true;
 			}
-			if (!bAnyMoved)
-			{
-				break;
-			}
+			++State.MicroStepIndex;
+			return bAnyMoved;
 		}
+	}
 
-		// Reason code finale: dipende solo da Final/Paths -> indipendente dall'ordine.
-		for (int32 i = 0; i < N; ++i)
+	// Reason code finale: dipende solo da Final/Paths -> indipendente dall'ordine, e quindi anche da QUANTI
+	// microstep sono serviti e da dove il chiamante li ha interrotti.
+	void FinalizeHexMovementOutcomes(FRTMovementResolutionState& State)
+	{
+		for (int32 i = 0; i < State.Num(); ++i)
 		{
-			if (Paths[i].Num() <= 1)
+			if (State.Paths[i].Num() <= 1)
 			{
-				Results[i].Outcome = ERTMoveOutcome::Stayed;
+				State.Results[i].Outcome = ERTMoveOutcome::Stayed;
 			}
-			else if (Results[i].Final == Paths[i].Last())
+			else if (State.Results[i].Final == State.Paths[i].Last())
 			{
-				Results[i].Outcome = ERTMoveOutcome::Moved;
+				State.Results[i].Outcome = ERTMoveOutcome::Moved;
 			}
 			else
 			{
-				Results[i].Outcome = BlockReason[i];
+				State.Results[i].Outcome = State.BlockReason[i];
 			}
 		}
-
-		return Results;
 	}
+}
+
+FRTMovementResolutionState URTHexSimLibrary::BeginHexMovement(const TArray<TArray<FRTCellId>>& Paths,
+	const TArray<int32>& Priorities, const TArray<bool>& bLinearMovers, const TArray<bool>& bPassThrough)
+{
+	FRTMovementResolutionState State;
+	State.Paths = Paths;
+	State.Priorities = Priorities;
+	State.bLinearMovers = bLinearMovers;
+	State.bPassThrough = bPassThrough;
+
+	const int32 N = Paths.Num();
+	State.Results.SetNum(N);
+	State.Pos.SetNum(N);
+	State.Prog.SetNum(N);
+	State.Done.SetNum(N);
+	for (int32 i = 0; i < N; ++i)
+	{
+		State.Pos[i] = Paths[i].Num() > 0 ? Paths[i][0] : FRTCellId();
+		State.Prog[i] = 0;
+		State.Done[i] = Paths[i].Num() <= 1;
+		State.Results[i].Final = State.Pos[i];
+	}
+
+	// Motivo del PRIMO congelamento per unita' (reason code del TurnLog): resta quello, anche se un
+	// microstep successivo la bloccherebbe per un motivo diverso. Senza questa "memoria", una Move che
+	// perde la cella contesa contro una Charge con priorita' migliore (CP 4.8) - e la RITENTA al
+	// microstep successivo, perche' non e' mai arrivata a destinazione - la troverebbe occupata dalla
+	// Charge ormai ferma li', e il motivo diventerebbe "cella occupata" invece di "priorita' avversa":
+	// vero all'ULTIMO microstep, ma non la causa reale per cui non e' mai entrata.
+	State.BlockReason.Init(ERTMoveOutcome::BlockedByUnit, N);
+	State.ReasonLocked.Init(false, N);
+
+	return State;
+}
+
+bool URTHexSimLibrary::ResolveNextHexMicroStep(FRTMovementResolutionState& State)
+{
+	if (State.bFinished)
+	{
+		// Idempotente dopo la fine: chiamarlo ancora non muove nulla e non riscrive `Results`. Serve a chi
+		// pilota il ciclo da fuori - una finestra di reazione - e non ha modo di sapere se era l'ultimo giro.
+		return false;
+	}
+
+	const bool bAnyMoved = StepHexMovement(State);
+	if (!bAnyMoved)
+	{
+		State.bFinished = true;
+		FinalizeHexMovementOutcomes(State);
+	}
+	return bAnyMoved;
+}
+
+TArray<FRTHexMoveResult> URTHexSimLibrary::FinishHexMovement(FRTMovementResolutionState& State)
+{
+	// Chi salta il ciclo e chiede il risultato subito ottiene comunque una risposta coerente: il movimento si
+	// esaurisce, non resta a meta'. Senza, un chiamante distratto leggerebbe `Outcome` non ancora scritti.
+	while (ResolveNextHexMicroStep(State)) {}
+	return State.Results;
 }
 
 TArray<FRTHexMoveResult> URTHexSimLibrary::ResolveHexPaths(const TArray<TArray<FRTCellId>>& Paths)
 {
-	return ResolveHexPathsInternal(Paths, TArray<int32>(), TArray<bool>(), TArray<bool>());
+	return ResolveHexPaths(Paths, TArray<int32>(), TArray<bool>(), TArray<bool>());
 }
 
 TArray<FRTHexMoveResult> URTHexSimLibrary::ResolveHexPaths(const TArray<TArray<FRTCellId>>& Paths,
 	const TArray<int32>& Priorities, const TArray<bool>& bLinearMovers, const TArray<bool>& bPassThrough)
 {
-	return ResolveHexPathsInternal(Paths, Priorities, bLinearMovers, bPassThrough);
+	// `initialize -> while(!finished) step -> result`: la via a passi e quella in blocco sono LO STESSO
+	// codice, non due algoritmi che qualcuno dovra' tenere allineati. E' la condizione per cui CP 14.2 puo'
+	// dichiarare "nessun comportamento cambia" invece di sperarlo.
+	FRTMovementResolutionState State = BeginHexMovement(Paths, Priorities, bLinearMovers, bPassThrough);
+	return FinishHexMovement(State);
 }
 
 TArray<FRTTurnLogEntry> URTHexSimLibrary::BuildMoveLog(const TArray<TArray<FRTCellId>>& Paths,

@@ -103,7 +103,7 @@ il gioco che sara', questa tabella dice a che punto e'.
 | Feature | Titolo | Roadmap | Stato | Gate | Scenario |
 |---|---|---|---|---:|---|
 | `RT-FEAT-MATCH-END-CONDITIONS` | Fine partita a tre vie | E10.3 | **RELEASE_READY** | 7/8 | `Visual.Combat.Defeat` · `RT_Showcase_Relay_v01` |
-| `RT-FEAT-MATCH-FORMAT` | Formato di partita e classe di mappa | E19.1, E19.2 | **TESTABLE** | 4/8 | — |
+| `RT-FEAT-MATCH-FORMAT` | Formato di partita e classe di mappa | E19.1, E19.2 | **TESTABLE** | 5/8 | — |
 | `RT-FEAT-MATCH-PACING` | Pacing del turno e del match | E12.4 | **TESTABLE** | 5/8 | — |
 | `RT-FEAT-OBJECTIVE-SYSTEM` | Obiettivi dinamici in mappa | E10.1, E10.2 | **IMPLEMENTING** | 2/8 | `Spec.Objective.PointSurvivesKO` |
 | `RT-FEAT-STRESS-4V4` | Validazione di stress 4v4 | E17.1, E17.2, E17.3 | **SPECIFIED** | 1/7 | _pianificato_ |
@@ -202,7 +202,7 @@ il gioco che sara', questa tabella dice a che punto e'.
 
 | Feature | Titolo | Roadmap | Stato | Gate | Scenario |
 |---|---|---|---|---:|---|
-| `RT-FEAT-ACTION-DELAYED` | Delayed Action ai boundary di fase | — | **DESIGNED** | 0/8 | — |
+| `RT-FEAT-ACTION-DELAYED` | Delayed Action ai boundary di fase | — | **DESIGNED** | 0/8 | `Spec.Movement.AntiDashTriggerIgnoresMove` · `Spec.Movement.TripwireOnCrossEdge` |
 | `RT-FEAT-ACTION-TRAPS` | Trappole e gambit tattici | — | **IDEA** | 0/8 | — |
 
 ### Gameplay

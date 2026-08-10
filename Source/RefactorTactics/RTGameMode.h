@@ -104,6 +104,20 @@ public:
 	TObjectPtr<URTMatchFormatData> MatchFormat;
 
 	/**
+	 * Quale formato SPEDITO usare quando `MatchFormat` non e' assegnato (issue #375).
+	 *
+	 * L'ordine e': asset assegnato ⇒ formato spedito con questa identita' ⇒ ripiego. Il ripiego non sparisce,
+	 * arretra: copre l'id sconosciuto, non piu' l'assenza di un file che qualcuno doveva creare in editor.
+	 *
+	 * Serve perche' il formato canonico della v0.1 non puo' dipendere da un `.uasset` che il repository non
+	 * contiene: CP 12.5 ha misurato una build pacchettizzata che girava sul RIPIEGO proprio per questo.
+	 * Svuotare il campo riporta al comportamento precedente, ed e' il modo di verificare che il ripiego
+	 * funzioni ancora.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Match")
+	FName ShippedFormatId = FName(TEXT("Format.Skirmish2v2"));
+
+	/**
 	 * Primo filtro della tendina degli scenari: un tag fra quelli realmente presenti nei file. Vuoto = non
 	 * restringe nulla.
 	 *
@@ -184,6 +198,13 @@ public:
 
 	/** Lo scenario da eseguire: la console variable prevale sulla proprietà, altrimenti vale la proprietà. Vuoto = partita normale. */
 	FString ResolveScenarioToRun() const;
+
+	/**
+	 * La sorgente mappa in vigore: `rt.Map.Source` se impostata e valida, altrimenti la proprieta'.
+	 * Il piu' specifico vince, come per `ResolveScenarioToRun` — e un valore sconosciuto non ripiega in
+	 * silenzio, perche' un playtest sulla mappa sbagliata e' un playtest buttato.
+	 */
+	ERTMapSource ResolveMapSource() const;
 
 	/** Sessione dello scenario in corso, fatta avanzare un passo per frame da `Tick`. Nulla = nessuno scenario. */
 	TSharedPtr<class FRTScenarioSession> ScenarioSession;

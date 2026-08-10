@@ -103,6 +103,25 @@ chi la possiede regge le spinte fino a quel valore e cede intere a quelle più f
 > movimento volontario — solo una riga di combat log. Chi legge un replay vede la salute calare senza un
 > evento che lo spieghi. È preesistente e vale per entrambe le vie, quindi non è stato corretto qui.
 
+## 3-bis. Quanto ci si può girare alla fine — non è una regola del movimento
+
+Il facing **deriva** dal movimento (ADR-0005 §1 come emendata); *quanto* lo si possa correggere dopo è una
+**statistica dell'eroe**, non una proprietà dello stile di mobilità.
+
+La regola, la scala in step e i valori per personaggio vivono in
+[**ADR-0008**](../decisions/adr-0008-rotazione-e-policy-di-facing.md) §1 ([D-060](../decisions/RT_PDR_00_Decision_Log.md)),
+che su questo **supera** ADR-0005 §1. Non si duplicano qui: due tabelle degli stessi numeri sono due verità
+in attesa di divergere.
+
+Ciò che riguarda *questa* spec è la conseguenza sul movimento: **la stessa cella d'arrivo vale diversamente a
+seconda del lato da cui la si raggiunge**, perché l'ultimo passo decide l'orientamento di partenza e il
+budget di pivot decide quanto lo si può correggere. Un percorso più lungo può quindi essere la mossa
+migliore. Per un eroe con pivot 0 alla fine di un Dash, l'ingresso **è** l'orientamento.
+
+E durante il movimento — ADR-0008 §2 — il facing a ogni micro-step è quello dell'**ultimo passo compiuto**: è
+ciò che leggono Overwatch, reazioni e cover direzionale ai boundary che cadono dentro il Move. Il pivot finale
+si applica dopo, e **non retroattivamente**.
+
 ## 4. Trigger geografici e trigger semantici
 
 Due domande diverse, che oggi il progetto tiene insieme e che conviene separare:
@@ -134,9 +153,24 @@ Owner dell'Overwatch: [`brief-azioni-generiche-overwatch.md`](brief-azioni-gener
 [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md). Questa sezione dice **quale forma** deve avere il
 trigger, non come si risolve la finestra.
 
-## 5. Domanda aperta — il Move pianificato quando l'unità viene spostata prima
+## 5. Il Move pianificato quando l'unità viene spostata prima
 
-**Non decisa.** Registrata in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md).
+**Decisa il 2026-08-10**: [D-045](../decisions/RT_PDR_00_Decision_Log.md) adotta **`Model A`** come baseline
+della v0.1, esplicitamente rivedibile.
+
+> Pianifico `H5 → H6 → H7`; una spinta nel Blast mi porta in `G5`; poi comincia il Move.
+> **Se l'origine effettiva è diversa da quella su cui il percorso era stato pianificato, il Move decade.**
+
+Le due alternative sono respinte per ragioni diverse:
+
+- **`B`** — ricalcolare il percorso verso la stessa destinazione — è **escluso**, non rinviato: contraddice
+  *«mai auto-reroute durante la risoluzione»*, già in vigore. Un percorso inventato dal computer cambia
+  esposizione all'Overwatch, rumore, hazard e linea di tiro che il giocatore aveva scelto;
+- **`C`** — rieseguire la sequenza di direzioni dalla nuova origine — conserva meglio l'intenzione, ma è
+  complesso con porte e layer ed è il modello da provare **dopo**, non per primo.
+
+**Criterio di uscita, quantificato**: se in playtest un Move viene annullato più di **una volta ogni due
+round**, si prova `C`. È ciò che rende la revisione un fatto misurabile invece che un'opinione.
 
 Il caso: pianifico `H5 → H6 → H7`; nel Blast una spinta mi porta in `G5`; poi comincia la fase Move.
 
@@ -168,7 +202,7 @@ succederà al prossimo kit.
 |---|---|---|
 | §2 ordine delle fasi | **già canone** | [`spec-sequenza-turno.md`](spec-sequenza-turno.md) |
 | §7 «Sprint non è Dash» | **già deciso** ([D-015](../decisions/RT_PDR_00_Decision_Log.md)); migrazione aperta nella issue `#199` | catalogo azioni |
-| §18 facing derivato dal movimento — *«design candidate, da non bloccare»* | ⚠️ **superato dai fatti**: epic **E16 chiusa**, [ADR-0005](../decisions/adr-0005-orientamento.md), 13 test `Facing.*`, 5 scenari `Spec.Facing.*` | ADR-0005 |
+| §18 facing: derivazione **e** limite di pivot | **da distinguere**, e la prima stesura di questa riga sbagliava dandolo per «superato dai fatti». La *derivazione dal movimento* è canone (E16 chiusa, 13 test `Facing.*`, 5 scenari `Spec.Facing.*`). Il *limite di rotazione* **non lo era**: ADR-0005 lo dichiarava fuori perimetro e viveva come `FAC-1`, in attesa dell'autore. È stato **recepito** il 2026-08-10: la rotazione è una capacità del personaggio, misurata in step, con due valori per eroe — [ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md) §1, [D-060](../decisions/RT_PDR_00_Decision_Log.md) | [ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md), che **supera** ADR-0005 §1 |
 | §2 e §11 «`Dash → Attack → Move` può essere legale» | ⚠️ **contraddice** [D-028](../decisions/RT_PDR_00_Decision_Log.md): lo scatto **occupa lo slot movimento**, quindi la sequenza non è legale come regola generale — si sceglie *schivo e sparo* **oppure** *sparo e muovo*. Un eroe può dichiararla come eccezione **nel proprio kit**; il ruleset no | [`spec-dash.md`](spec-dash.md) |
 | §19 collisioni (contesa e swap bloccano entrambi) | **già implementato** | `ERTMoveOutcome::BlockedContested` |
 | §23 mai auto-reroute | **già implementato** | `TruncatePathToTopology` |
