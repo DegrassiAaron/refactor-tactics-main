@@ -17,13 +17,13 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 
 <!-- RT_SHORTLIST_SCENARIOS:BEGIN -->
 
-**60 scenari versionati** — misurati su `Scenarios/`: **47** eseguibili · **13** `BLOCKED` per una capability assente · **23** dichiarati `planned` nel registry e non ancora scritti.
+**60 scenari versionati** — misurati su `Scenarios/`: **48** eseguibili · **12** `BLOCKED` per una capability assente · **23** dichiarati `planned` nel registry e non ancora scritti.
 
-**Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `Cover` · `CreateCover` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `Reaction` · `Structures`.
+**Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `Cover` · `CreateCover` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `PredictiveAction` · `Reaction` · `Structures`.
 
 | Scenario `BLOCKED` | Capability che manca |
 |---|---|
-| `RT_Showcase_Relay_v01` | `DecisionBoundary` · `Facing` · `InterceptRevalidation` · `Objective` · `PredictiveAction` |
+| `RT_Showcase_Relay_v01` | `DecisionBoundary` · `Facing` · `InterceptRevalidation` · `Objective` |
 | `Spec.Brace.ProfileChangesResponse` | `DecisionBoundary` · `ReactionClash` |
 | `Spec.Clash.ReadBeatsStand` | `DecisionBoundary` · `ReactionClash` |
 | `Spec.Clash.ShiftBeatsRead` | `DecisionBoundary` · `ReactionClash` |
@@ -35,7 +35,6 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 | `Spec.Objective.PointSurvivesKO` | `Objective` |
 | `Spec.Overwatch.HoldThenFire` | `DecisionBoundary` · `Facing` |
 | `Spec.Perception.HeardNotSeen` | `Perception` |
-| `Spec.Predictive.WhiffOnEmptyCell` | `PredictiveAction` |
 
 | Pianificato, non scritto | Feature che lo chiede |
 |---|---|
@@ -92,7 +91,7 @@ scenario visivo senza assertion può mostrarti una bellissima animazione di un c
 
 ---
 
-## 3. Classe A — automatico, nessun umano · 26
+## 3. Classe A — automatico, nessun umano · 27
 
 Eseguiti in blocco da `RefactorTactics.Scenario.EveryShippedScenarioRuns`, che **scopre il corpus dall'indice**:
 aggiungere un file basta perché venga eseguito. Nessuno di questi compare nel registro PIE, ed è corretto.
@@ -119,8 +118,10 @@ un **possessore**: la scarica corre sul grafo dell'acqua perché un eroe la inne
 (`Spec.Environment.ElectricPropagation`) · l'acqua spegne le fiamme (`…WaterQuenchesFire`) · rompere un arco
 **annulla** il percorso invece di allungarlo (`Spec.Map.BridgeBreaksThePath`).
 
-**+2** — `Spec.Cover.TemporaryCoverExpires` (acceso da E9.5: una copertura temporanea **scade**) ·
-`RT_Showcase_Relay_v01` (gli 8 turni della showcase, oggi **BLOCKED** su 5 capability).
+**+3** — `Spec.Cover.TemporaryCoverExpires` (acceso da E9.5: una copertura temporanea **scade**) ·
+`Spec.Predictive.WhiffOnEmptyCell` (acceso da E18: la previsione **sbagliata** trova il vuoto, ed è il
+turno in cui *non* succede niente a dimostrare che si sta scommettendo) · `RT_Showcase_Relay_v01`
+(gli 8 turni della showcase, oggi **BLOCKED** su 4 capability, arrivata a **3 turni giocati**).
 
 ## 4. Classe B — automatico + occhio · 21
 
@@ -163,7 +164,16 @@ nominandola e **si accendono da soli** quando atterra. `BLOCKED` è trattato ver
 renderebbe irrazionale scriverne in anticipo.
 
 Chi li accende: `DecisionBoundary`/`ReactionClash` → **E14** (CP 14.7) · `Perception` → **E13** (`#151`) ·
-`PredictiveAction` → **E18** (`#225`) · `Objective` → **E10** (CP 10.2, `#75`).
+`Objective` → **E10** (CP 10.2, `#75`).
+
+> ✅ **`PredictiveAction` è atterrata il 2026-08-10** (E18, issue `#225`): `Spec.Predictive.WhiffOnEmptyCell`
+> si è acceso da solo ed è **`PASS`**, 4/4 assertion su 2 turni. È la terza volta che il meccanismo funziona
+> dopo i sei `Spec.Facing.*` e `Spec.Cover.TemporaryCoverExpires`, e la prima in cui uno scenario-specifica
+> arriva col proprio *«completare»* già scritto dentro: il campo `_nota_da_completare` diceva a chi
+> implementava quale assertion mancava e come dichiarare la previsione. Ha risparmiato la domanda.
+>
+> Nello stesso movimento `RT_Showcase_Relay_v01` è passato da **1 a 3 turni giocati** — restava `BLOCKED`
+> sul T2, che chiedeva proprio questa capability, e il T3 non chiedeva nulla. Resta `BLOCKED`, ora sul T4.
 
 > ✅ **`EnvironmentalActionOwner` è atterrata il 2026-08-09** (`75b8264`, issue `#282`): non era un'epic da
 > costruire ma una issue di **cablaggio** — il sistema era chiuso, mancava *chi possiede* le azioni. I tre

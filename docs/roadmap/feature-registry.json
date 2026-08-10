@@ -1492,20 +1492,20 @@
       "kind": "gameplay",
       "release": "v0.1",
       "priority": "P2",
-      "status": "SPECIFIED",
-      "status_derived": "SPECIFIED",
+      "status": "INTEGRATED",
+      "status_derived": "INTEGRATED",
       "gates": {
         "spec": "done",
-        "data": "partial",
-        "runtime": "todo",
-        "log_debug": "todo",
-        "automation": "todo",
-        "scenario": "partial",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
         "network_privacy": "na"
       },
-      "gates_done": 1,
+      "gates_done": 6,
       "gates_applicable": 8,
       "roadmap": {
         "epic": "E18",
@@ -1529,7 +1529,10 @@
         226,
         227
       ],
-      "tests": [],
+      "tests": [
+        "RefactorTactics.Predictive.*",
+        "RefactorTactics.Heroes.Vektor.InterceptShotIsPredictive"
+      ],
       "scenarios": [
         "Spec.Predictive.WhiffOnEmptyCell"
       ],
@@ -1540,10 +1543,10 @@
       ],
       "wiki_note": "",
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-10",
+        "commit": "800b83a"
       },
-      "notes": "`Vektor.InterceptShot` è la thin slice: decisa in Planning, risolta a un boundary deterministico, senza input live (D-016). A catalogo la reazione dichiara il rinvio; il framework di trap resta fuori. `Spec.Predictive.WhiffOnEmptyCell` è una **specifica eseguibile**: esce `BLOCKED` finché il boundary non esiste, quindi `scenario` resta `partial`."
+      "notes": "**Chiusa il 2026-08-10** con CP 18.1 (`#226`, PR `#386`) e CP 18.2 (`#227`, PR `#387`). `Vektor.InterceptShot` è la thin slice: decisa in Planning, risolta a un boundary deterministico, senza input live (D-016). Il rinvio a E14 è caduto per la ragione opposta a quella che l'aveva prodotto — non le serve una finestra — e la migrazione è un **dato** (`PredictiveTargeting`/`PredictionBoundary` su `FRTActionDef`, slot da `None` a `Main`), come lo era il rinvio. Il framework di trap resta fuori (`RT-FEAT-ACTION-TRAPS` resta `IDEA`). `Spec.Predictive.WhiffOnEmptyCell` era una **specifica eseguibile** `BLOCKED` e si è accesa da sola: oggi `PASS`, 4/4 assertion su 2 turni. Effetto misurato oltre l'epic: la showcase `RT_Showcase_Relay_v01` passa da **1 a 3 turni giocati** — il T2 chiedeva `PredictiveAction`, il T3 non chiedeva nulla — e ora si ferma sul T4 per `DecisionBoundary` (E14). `ui_wiki` resta `partial`: la pagina `reazioni-overwatch-e-previsioni.md` descrive ancora la previsione come non implementata, e riscriverla è lavoro di E11/E20 insieme all'HUD."
     },
     {
       "feature_id": "RT-FEAT-ACTION-TRAPS",
