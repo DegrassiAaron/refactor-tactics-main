@@ -33,7 +33,11 @@
 #   verifies           ID delle voci PIE (senza il marcatore `RELEASE-V01`)
 #   issues             numeri GitHub, dichiarati a mano: lo script non parla con la rete
 #   done_when          condizione osservabile, non impressione
-#   unblocks           sedute e checkpoint a valle
+#   unblocks           sedute e checkpoint a valle. **Stesse forme di `unblocked_by`**: la coda le
+#                      stampa, e un `CP 6.1` stampato e' ambiguo per chi legge esattamente come per un
+#                      parser. Attenzione: lo stesso lavoro puo' avere tre nomi — «misurazione dei
+#                      budget» e' E3.3 nella vista di release, M7.3 in quella di esecuzione ed E12.4
+#                      come gate: U16 li dichiara tutti e tre, e non e' un errore.
 #   steps              prosa umana; solo dove NESSUNA guida copre ancora la procedura
 #   notes              avvertenze e debiti noti
 #
@@ -182,7 +186,7 @@ sessions:
     verifies: [PIE-HEXPLAY-1, PIE-HEXPLAY-4, PIE-HEXPLAY-5, PIE-CAM-START]
     issues: []
     done_when: le voci hanno esito reale nel registro
-    unblocks: [U3, CP 6.1, CP 6.2]
+    unblocks: [U3, M6.1, M6.2]
     steps: |
       **Non aspetta U1**: il terreno lo fornisce `MapSource = GeneratedTestArena`, che genera gia'
       esagono r=4, ostacoli, muro che blocca la vista, fango a costo 3, piattaforma sul layer 1 e una
@@ -209,7 +213,7 @@ sessions:
     verifies: [PIE-HEXPLAY-2, PIE-HEXPLAY-3, PIE-HEXPLAY-3b, PIE-PREVIEW-PERSIST]
     issues: [33]
     done_when: le voci hanno esito reale nel registro
-    unblocks: [U4, CP 6.3]
+    unblocks: [U4, M6.3]
     steps: |
       Selezioni un'unita', muovi il mouse sulla griglia, provi una cella **valida**, una **oltre il
       budget**, una **bloccata** e una **occupata**. Su mappa multilivello controlla che la cella
@@ -226,7 +230,7 @@ sessions:
     verifies: [PIE-HEXPLAY-6, PIE-HEXPLAY-6b, PIE-HEXPLAY-6c]
     issues: []
     done_when: le voci hanno esito reale nel registro
-    unblocks: [U5, CP 6.4, CP 6.5]
+    unblocks: [U5, M6.4, M6.5]
     steps: |
       Attacco attraverso una cella che blocca la vista, poi da una cella di lato; ostacolo su un
       **altro layer** (regola di elevazione). Il knockback a 6 direzioni e' l'unico punto di M6 con
@@ -243,7 +247,7 @@ sessions:
     verifies: [PIE-HEXPLAY-7, PIE-HEXPLAY-9, PIE-AI-01, PIE-AI-02, PIE-AI-03, PIE-AI-04, PIE-AI-05]
     issues: []
     done_when: le voci hanno esito reale e i pesi eventualmente modificati sono committati
-    unblocks: [U6, CP 6.6, CP 6.7]
+    unblocks: [U6, M6.6, M6.7]
     steps: |
       Partita con almeno un'unita' `bIsBotControlled`; il log utility deve mostrare coordinate
       **assiali** `(q,r,L)`. Poi taratura: `TurnManager` nel World Outliner → Details ▸ *Bot*; i pesi
@@ -261,7 +265,7 @@ sessions:
     verifies: [PIE-HEXPLAY-8, PIE-HEXPLAY-10, PIE-HEXPLAY-4b, PIE-FACING-1]
     issues: []
     done_when: le nove voci `PIE-HEXPLAY` sono verdi, rilette tutte insieme
-    unblocks: [U16, U19, CP 6.8]
+    unblocks: [U16, U19, M6.8]
     steps: |
       Percorso che usa la transizione fra layer 0 e 1 — l'unita' deve **cambiare quota**, non
       teletrasportarsi; rimuovi l'arco e verifica che il path **fallisca**. Poi una partita intera,
@@ -325,7 +329,7 @@ sessions:
     verifies: [PIE-AS5, PIE-SEL, PIE-ICON-01, PIE-FMT-01]
     issues: []
     done_when: nessun cilindro in campo (salvo asset mancanti) e il riferimento visivo e' nel repo
-    unblocks: [CP 8.1, CP 8.2, CP 8.3]
+    unblocks: [M8.1, M8.2, M8.3]
     steps: |
       Assegna `M_TeamRing` e `M_SelectionRing` — esistono gia' in
       `/Game/RT/Characters/Shared/Materials/` — sui Blueprint nuovi; il colore lo imposta il codice
@@ -499,7 +503,7 @@ sessions:
     verifies: [PIE-V01-REPLAY]
     issues: []
     done_when: i quattro KPI hanno un valore misurato, anche fuori target
-    unblocks: [CP 3.3, CP 7.3, CP 12.4]
+    unblocks: [E3.3, M7.3, E12.4]
     steps: |
       Nessuna guida copre questa procedura, quindi i passi stanno qui.
 

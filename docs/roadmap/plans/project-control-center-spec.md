@@ -4,7 +4,8 @@
 > **Esito di**: `/sc:spec-panel --mode critique` — panel Wiegers · Cockburn · Adzic · Fowler · Newman · Nygard · Crispin
 > **Fonte**: [`../../src/RefactorTactics_Project_Control_Center_Claude.md`](../../src/RefactorTactics_Project_Control_Center_Claude.md), handoff dell'autore
 > **Tracciata da**: `RT-FEAT-TOOL-CONTROL-CENTER` nel registry — `release: future`, fuori dai gate della v0.1.
-> **§9 è decisa** (2026-08-10, con l'autore); **§11 non è eseguita**: nessuno dei nove passi è stato fatto.
+> **§9 è decisa** (2026-08-10, con l'autore); di **§11 sono eseguiti i passi 1, 2 e 7** — il contratto dati,
+> il suo gate e la `My Editor Queue`. **Nessuna riga di pagina è stata scritta**: i passi 4–6 e 8 restano.
 
 ## 1. Perché l'handoff non si applica alla lettera
 
@@ -253,13 +254,13 @@ viene mai scritta**.
 
 | # | Passo | Esito osservabile |
 |--:|---|---|
-| 1 | `project-graph.json` generato da `generate`: diagnostica, epic/milestone, sedute, voci PIE, corpus scenari | il file esiste; due run consecutive → `git diff` vuoto |
-| 2 | `--check` sul nuovo artefatto, come per le shortlist | modificarlo a mano fa uscire il comando ≠ 0 |
+| 1 | ✅ **2026-08-10** — `project-graph.json` generato da `generate`: diagnostica, gate di release, epic/milestone/checkpoint, sedute, voci PIE, corpus scenari, capability | il file esiste; due run consecutive → `git diff` vuoto |
+| 2 | ✅ **2026-08-10** — `--check` sul nuovo artefatto, come per le shortlist | verificato per mutazione: una riga aggiunta a mano → exit 1, file nominato |
 | 3 | Blocco di config `project.github` — owner, repo, branch — in un solo posto | nessun URL assoluto altrove |
 | 4 | Pagina v0.1 read-only: testata + Overview + banner di staleness | apre da file locale (R-11) e da GitHub |
 | 5 | Feature Map con filtri e detail drawer | i filtri di §14 operano; `RT-FEAT-*` raggiungibile in un clic |
 | 6 | Roadmap, Scenario Map, Editor Map come viste dello stesso grafo | relazioni inverse navigabili (R-9) |
-| 7 | `My Editor Queue` in `render_shortlist_editor()` (**D-C**): i quattro gruppi anche in markdown | i gruppi sono derivati, non dichiarati; `shortlist --check` verde |
+| 7 | ✅ **2026-08-10** — `My Editor Queue` in `render_shortlist_editor()` (**D-C**): i quattro gruppi anche in markdown | 8 `BLOCKING` · 4 `READY` · 4 `WAITING` · 0 `DONE`, derivati; le due regole di risoluzione verificate per mutazione |
 | 8 | Test: parsing, unicità, derivazione link, riferimenti rotti, cicli, filtri | fixture con `issue: 99999` → marcata rotta |
 | 9 | Aggiornare `feature-registry.md`, `CONTEXT_INDEX.md`, e i puntatori | `check-docs-links.py` verde |
 

@@ -56,6 +56,41 @@ quel documento già usa. Nessun simbolo nuovo. La seduta scende a 🟡 da sola.
 
 Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md) e da `git ls-files` sugli artefatti. Un artefatto non tracciato impedisce il verde qualunque cosa dicano le voci.
 
+### My Editor Queue
+
+**BLOCKING** 8 · **READY** 4 · **WAITING** 4 · **DONE** 0. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
+
+**BLOCKING** — *Blocca la v0.1, e si puo' fare adesso*
+
+- **U1** · Mappa-arena hex — 0/9 voci verdi · sblocca U13, U19
+- **U2** · Partita hex, primo giro — 1/4 voci verdi · sblocca U3, M6.1, M6.2
+- **U3** · Input e pianificazione — 0/4 voci verdi · sblocca U4, M6.3
+- **U4** · Combat e linea di tiro — 0/3 voci verdi · sblocca U5, M6.4, M6.5
+- **U5** · Bot e HUD — 0/7 voci verdi · sblocca U6, M6.6, M6.7
+- **U6** · Multilivello e partita completa — 0/4 voci verdi · sblocca U16, U19, M6.8
+- **U11** · I 4 eroi — 0/1 voci verdi · sblocca U12
+- **U15** · HUD, intenti, log e comandi debug — 1/5 voci verdi · sblocca E11
+
+**READY** — *Si puo' fare adesso, fuori percorso critico*
+
+- **U18** · Verifiche senza preparazione — 1/3 voci verdi
+- **U7** · Personaggi Paragon — 2/2 voci verdi · sblocca U8
+- **U8** · Animazioni — 0/2 voci verdi · sblocca U9
+- **U9** · Leggibilita' e riferimento visivo — 2/4 voci verdi · sblocca M8.1, M8.2, M8.3
+
+**WAITING** — *Aspetta codice*
+
+- **U13** · Arena v0.1 — attende `U1` ⏳
+- **U14** · Ambiente in partita — attende `U13` ⏳
+- **U19** · Durata, ritmo e scala — attende `U6` 🟡, `U1` ⏳
+- **U16** · Misura dei KPI — attende `U6` 🟡
+
+**DONE** — *Finite*
+
+- —
+
+### Tutte le sedute
+
 | | Seduta | Produce | Sbloccata da | Critico | Voci | Stato |
 |---|---|---|---|:--:|:--:|:--:|
 | **U18** | Verifiche senza preparazione | verdetto su tre voci che non attendono nulla | — | no | 1/3 | 🟡 |
@@ -159,7 +194,7 @@ Nessuna guida copre ancora questa procedura, quindi i passi stanno qui.
 **Produce**: verdetto su allestimento e movimento
 **Verifichi**: `PIE-HEXPLAY-1` 🟡 · `PIE-HEXPLAY-4` ⏳ · `PIE-HEXPLAY-5` ⏳ · `PIE-CAM-START` ✅
 **Finita quando**: le voci hanno esito reale nel registro
-**Sblocca**: U3, CP 6.1, CP 6.2
+**Sblocca**: U3, M6.1, M6.2
 
 **Non aspetta U1**: il terreno lo fornisce `MapSource = GeneratedTestArena`, che genera gia'
 esagono r=4, ostacoli, muro che blocca la vista, fango a costo 3, piattaforma sul layer 1 e una
@@ -179,7 +214,7 @@ transizione. Questa e' la preparazione condivisa da U2…U6: una apertura, cinqu
 **Produce**: verdetto su selezione, budget e anteprima del percorso
 **Verifichi**: `PIE-HEXPLAY-2` 🟡 · `PIE-HEXPLAY-3` 🟡 · `PIE-HEXPLAY-3b` 🟡 · `PIE-PREVIEW-PERSIST` ⏳
 **Finita quando**: le voci hanno esito reale nel registro
-**Sblocca**: U4, CP 6.3
+**Sblocca**: U4, M6.3
 
 Selezioni un'unita', muovi il mouse sulla griglia, provi una cella **valida**, una **oltre il
 budget**, una **bloccata** e una **occupata**. Su mappa multilivello controlla che la cella
@@ -191,7 +226,7 @@ selezionata sia quella del layer giusto: le celle sovrapposte non devono confond
 **Produce**: verdetto su forme d'attacco, LOS esagonale e knockback
 **Verifichi**: `PIE-HEXPLAY-6` ⏳ · `PIE-HEXPLAY-6b` ⏳ · `PIE-HEXPLAY-6c` ⏳
 **Finita quando**: le voci hanno esito reale nel registro
-**Sblocca**: U5, CP 6.4, CP 6.5
+**Sblocca**: U5, M6.4, M6.5
 
 Attacco attraverso una cella che blocca la vista, poi da una cella di lato; ostacolo su un
 **altro layer** (regola di elevazione). Il knockback a 6 direzioni e' l'unico punto di M6 con
@@ -203,7 +238,7 @@ una decisione di design dietro: **guardalo**, non solo verificarlo.
 **Produce**: verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale
 **Verifichi**: `PIE-HEXPLAY-7` ⏳ · `PIE-HEXPLAY-9` ⏳ · `PIE-AI-01` ⏳ · `PIE-AI-02` ⏳ · `PIE-AI-03` ⏳ · `PIE-AI-04` ⏳ · `PIE-AI-05` ⏳
 **Finita quando**: le voci hanno esito reale e i pesi eventualmente modificati sono committati
-**Sblocca**: U6, CP 6.6, CP 6.7
+**Sblocca**: U6, M6.6, M6.7
 
 Partita con almeno un'unita' `bIsBotControlled`; il log utility deve mostrare coordinate
 **assiali** `(q,r,L)`. Poi taratura: `TurnManager` nel World Outliner → Details ▸ *Bot*; i pesi
@@ -216,7 +251,7 @@ dal quadrato: su hex vanno riguardati, non dati per buoni.
 **Produce**: chiusura di M6 / E2 — sessione D verde
 **Verifichi**: `PIE-HEXPLAY-8` 🟡 · `PIE-HEXPLAY-10` ⏳ · `PIE-HEXPLAY-4b` ⏳ · `PIE-FACING-1` ⏳
 **Finita quando**: le nove voci `PIE-HEXPLAY` sono verdi, rilette tutte insieme
-**Sblocca**: U16, U19, CP 6.8
+**Sblocca**: U16, U19, M6.8
 
 Percorso che usa la transizione fra layer 0 e 1 — l'unita' deve **cambiare quota**, non
 teletrasportarsi; rimuovi l'arco e verifica che il path **fallisca**. Poi una partita intera,
@@ -263,7 +298,7 @@ delegate, **non** da `GetVelocity`) e §AS.4b (montaggi via eventi C++), piu' la
 **Produce**: il video (o gli screenshot) di riferimento — DoD di milestone di M8
 **Verifichi**: `PIE-AS5` ✅ · `PIE-SEL` ✅ · `PIE-ICON-01` ⏳ · `PIE-FMT-01` ⏳
 **Finita quando**: nessun cilindro in campo (salvo asset mancanti) e il riferimento visivo e' nel repo
-**Sblocca**: CP 8.1, CP 8.2, CP 8.3
+**Sblocca**: M8.1, M8.2, M8.3
 
 Assegna `M_TeamRing` e `M_SelectionRing` — esistono gia' in
 `/Game/RT/Characters/Shared/Materials/` — sui Blueprint nuovi; il colore lo imposta il codice
@@ -378,7 +413,7 @@ e `bRecordPacing` attivo sul `TurnManager` (il CSV finisce in `Saved/RT/`, fuori
 **Produce**: numeri reali nella tabella KPI
 **Verifichi**: `PIE-V01-REPLAY` 🟡
 **Finita quando**: i quattro KPI hanno un valore misurato, anche fuori target
-**Sblocca**: CP 3.3, CP 7.3, CP 12.4
+**Sblocca**: E3.3, M7.3, E12.4
 
 Nessuna guida copre questa procedura, quindi i passi stanno qui.
 

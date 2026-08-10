@@ -3298,7 +3298,7 @@ features:
     status: DESIGNED
     gates:
       spec: partial
-      data: todo
+      data: partial
       runtime: todo
       log_debug: todo
       automation: todo
@@ -3321,10 +3321,12 @@ features:
       roadmap di release lo farebbe competere con la consegna. `spec: partial` perché la spec è
       in revisione (§9 registra quattro decisioni prese il 2026-08-10: pagina statica read-only,
       relazioni qualificate rimandate, `My Editor Queue` come filtro derivato **anche** in
-      markdown, scrittura fuori scope). `data: todo` è il passo che sblocca il resto —
-      `project-graph.json`, perché oggi lo stato delle sedute e la diagnostica del validator
-      escono solo come markdown. `scenario`/`packaged`/`network_privacy` sono `na` per la stessa
-      ragione degli altri strumenti: non è gioco e non entra nel pacchetto.
+      markdown, scrittura fuori scope). `data: partial` dal 2026-08-10: `project-graph.json`
+      esiste e porta diagnostica, roadmap, sedute, PIE e scenari — manca il blocco di config
+      `project.github` da cui derivare i link. `scenario`/`packaged`/`network_privacy` sono `na`
+      per la stessa ragione degli altri strumenti: non è gioco e non entra nel pacchetto.
+      La `My Editor Queue` è **già consegnata** in `editormap.shortlist.md`: non aspettava la
+      pagina, ed è utile anche se la pagina non venisse mai scritta.
 
   - feature_id: RT-FEAT-TOOL-DEBUG-CONSOLE
     title: Comandi console rt.Debug e rt.Test
