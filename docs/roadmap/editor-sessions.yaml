@@ -1,0 +1,533 @@
+# Sedute in editor — la sorgente della EditorMap
+#
+# Owner dei DATI delle sedute U*. La vista leggibile e' `editormap.shortlist.md`, GENERATA da
+# `python scripts/feature_registry.py shortlist`: non si modifica a mano.
+#
+# Regola che questo file esiste per far rispettare (R-6 della spec):
+#   qui si citano gli **ID** delle voci PIE, mai il loro esito atteso.
+#   L'esito atteso vive in `docs/technical/test-manuali-pie.md`, che ne resta l'unico owner.
+#   Se ti trovi a scrivere qui cosa dovrebbe succedere, stai scrivendo nel file sbagliato.
+#
+# Cosa e' derivato e non va scritto qui:
+#   - lo stato della seduta       -> dalle voci `verifies` + `git ls-files` su `artifacts`
+#   - lo stato delle voci PIE     -> da `test-manuali-pie.md`
+#   - lo stato di checkpoint/epic -> da `roadmap-checkpoint.md` e `roadmap-v0.1.md`
+#
+# Campi:
+#   id                 stabile, mai riusato per un'altra seduta
+#   title              una riga
+#   block              raggruppamento tematico, nell'ordine in cui compare nella vista
+#   critical           true = blocca la v0.1
+#   produces           cosa esce, in una riga (asset committato oppure verdetto)
+#   artifacts          path repo da verificare con `git ls-files`; vuoto se produce un verdetto
+#   unblocked_by       checkpoint/epic/sedute che devono avere il CODICE fatto (un 🟡 basta e anzi e' il
+#                      caso normale). **Sempre prefissato**, perche' i due spazi di numerazione dei
+#                      checkpoint collidono su 20 numeri su 22: `6.3` e' «input hex» in M6 e «Riva» in E6.
+#                      Forme ammesse:  M6.3 (checkpoint di milestone, owner `roadmap-checkpoint.md`)
+#                                      E1.3 (checkpoint di epic,      owner `roadmap-v0.1.md` §2.2)
+#                                      E8   (epic intera,             owner `roadmap-v0.1.md` §2.1)
+#                                      U13  (un'altra seduta,         owner questo file)
+#                      La forma nuda `CP 6.3` e' vietata: non dice quale dei due spazi, e nessun comando
+#                      puo' risolverla. Corretta il 2026-08-10 su sette record.
+#   shares_setup_with  sedute con lo stesso allestimento: falle nella stessa apertura
+#   verifies           ID delle voci PIE (senza il marcatore `RELEASE-V01`)
+#   issues             numeri GitHub, dichiarati a mano: lo script non parla con la rete
+#   done_when          condizione osservabile, non impressione
+#   unblocks           sedute e checkpoint a valle. **Stesse forme di `unblocked_by`**: la coda le
+#                      stampa, e un `CP 6.1` stampato e' ambiguo per chi legge esattamente come per un
+#                      parser. Attenzione: lo stesso lavoro puo' avere tre nomi — «misurazione dei
+#                      budget» e' E3.3 nella vista di release, M7.3 in quella di esecuzione ed E12.4
+#                      come gate: U16 li dichiara tutti e tre, e non e' un errore.
+#   steps              prosa umana; solo dove NESSUNA guida copre ancora la procedura
+#   notes              avvertenze e debiti noti
+#
+# Le sedute dei blocchi 5 e 6 dichiarano meno campi: il codice sotto non esiste ancora e
+# inventarne il DoD sarebbe una metrica falsa. Si completano quando la loro epic si apre.
+
+meta:
+  source_of: docs/roadmap/editormap.shortlist.md
+  registry: docs/technical/test-manuali-pie.md
+  issue: 371
+  blocks:
+    - id: 1
+      title: Eseguibile oggi
+      note: >-
+        Nessuna di queste attende codice. ⚠️ **Il banco di prova non si costruisce piu' a mano**:
+        `MapSource = GeneratedTestArena` genera gia' esagono r=4, ostacoli, muro che blocca la vista,
+        fango a costo 3, piattaforma sul layer 1 e una transizione — quindi le sedute della parita' hex
+        non aspettano U1. Costruire una mappa serve a verificare **gli strumenti**, e a preparare il
+        contenuto della v0.1.
+    - id: 2
+      title: Parita' hex (M6 / E2)
+      note: >-
+        Ogni seduta segue il checkpoint di codice che la abilita. L'ordine e' quello del codice,
+        non una scelta.
+    - id: 3
+      title: Presentazione (M8)
+      note: >-
+        Sbloccato da subito: il C++ e' gia' in `main`. Fuori percorso critico: nessuna di queste
+        sedute blocca la v0.1.
+    - id: 4
+      title: Il contenuto diventa dati
+      note: >-
+        Grana media: il codice sotto e' specificato ma non scritto. Da rivedere all'apertura di E1 ed E6.
+    - id: 5
+      title: La mappa diventa un sistema
+      note: "Grana grossa: dipende da E8 ed E9."
+    - id: 6
+      title: Chiusura della v0.1
+
+sessions:
+
+  # --- Blocco 1 ---------------------------------------------------------------
+
+  - id: U18
+    title: Verifiche senza preparazione
+    block: 1
+    critical: false
+    produces: verdetto su tre voci che non attendono nulla
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: []
+    verifies: [PIE-PREVIEW-AREA, PIE-V01-MATCHEND, PIE-TEST-CONSOLE]
+    issues: []
+    done_when: le tre voci hanno esito reale nel registro
+    unblocks: []
+    steps: |
+      **E' la sola seduta che non attende nulla**: nessun asset da creare, nessun checkpoint da
+      chiudere, nessuna mappa di prova. Basta premere Play sull'arena di ripiego.
+
+      > ⚠️ **Prima di cominciare, controlla che `Scenario To Run` sia vuoto** (`BP_GameMode` →
+      > Class Defaults → *RefactorTactics|Test*) e che `rt.Test.Scenario` in console sia vuota —
+      > quest'ultima **prevale** sulla property e dura quanto il processo dell'editor. Con uno
+      > scenario impostato la partita normale non viene allestita affatto e tutte e tre le voci
+      > diventano non eseguibili. E' successo il 2026-08-08, uscendo da `PIE-SCEN-KEEP`.
+
+      L'ordine non e' arbitrario:
+
+      1. `PIE-PREVIEW-AREA` e `PIE-V01-MATCHEND` su una partita normale.
+      2. `PIE-TEST-CONSOLE` per **ultima**, e non per gusto di ordine: `rt.Test.Run` **sostituisce
+         la mappa** e aggiunge unita' alla partita in corso. Eseguirla prima lascerebbe le altre due
+         su uno stato che non e' quello che dicono di verificare. Dopo, si riavvia con `R`.
+    notes: >-
+      Nasce dalla sessione G del registro (2026-08-08), che non aveva una seduta corrispondente:
+      le tre voci erano nella checklist ma in nessuna seduta, e una voce che non sta in una seduta
+      non viene eseguita mai.
+
+  - id: U1
+    title: Mappa-arena hex
+    block: 1
+    critical: true
+    produces: "`DA_HexMap_Arena` e `L_HexArena`, committati"
+    artifacts:
+      - Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap
+      - Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset
+    unblocked_by: [M6.0]
+    shares_setup_with: [U13]
+    verifies:
+      - PIE-HEX-MODE-E
+      - PIE-HEX-MODE-F
+      - PIE-HEX-MODE-G
+      - PIE-HEX-MODE-H
+      - PIE-HEX-MODE-L
+      - PIE-HEX-MODE-N
+      - PIE-HEX-MODE-O
+      - PIE-HEX-LAYER
+      - PIE-HEX-TRANS
+    issues: []
+    done_when: i due asset sono tracciati da git e le nove voci hanno un esito reale
+    unblocks: [U13, U19]
+    steps: |
+      **Costruire una mappa e' il modo di esercitare gli strumenti**: le nove voci qui sopra verificano
+      il mode, non il terreno. Il banco di prova della parita' hex arriva invece da
+      `MapSource = GeneratedTestArena` e **non va costruito a mano** — U2…U6 non aspettano questa seduta.
+      L'asset serve al contenuto della v0.1: e' quello che U13 estende e U19 misura.
+
+      Nessuna guida copre ancora questa procedura, quindi i passi stanno qui.
+
+      1. Livello nuovo in `/Game/RT/Maps/Dev/L_HexArena/`, con un `ARTHexMapActor`; l'asset mappa in
+         `.../L_HexArena/Data/DA_HexMap_Arena` (stessa forma di `L_DevSandbox`,
+         `convenzioni-contenuti-ue.md` §5).
+         *Perche' non estendere `DA_HexMap_Sandbox`*: il sandbox resta il banco per prove distruttive,
+         l'arena e' la mappa **stabile** su cui girano le verifiche — se la stessa mappa fa entrambe
+         le cose, un esperimento invalida una verifica e non te ne accorgi.
+      2. Editor Mode **Hex Map** → tool **Paint**, `BrushRadius=4`, un click sull'origine: esagono
+         pieno di raggio 4 sul layer 0.
+      3. 2–3 celle con `bBlocksMovement` e 2–3 celle con `bBlocksLineOfSight` **allineate** fra le due
+         meta' del campo — servono a `PIE-HEXPLAY-6`, che senza copertura non dimostra niente.
+      4. Una zona a costo alto (Mud o Water) col tool **Fill**: e' quella che fa mordere il budget in
+         `PIE-HEXPLAY-3`.
+      5. Piattaforma di 3–4 celle sul layer 1 (`ActiveLayer=1`), collegata al layer 0 da **una sola**
+         transizione, creata col tool **Arch**.
+      6. `bShowOverlay` attivo per rileggere il risultato a colori prima di salvare.
+      7. **Due rotte distinte** fra gli spawn, con trade-off diverso — una piu' corta ed esposta, una
+         piu' lunga e coperta. Senza scelta di percorso il tempo di contatto e' una costante della
+         mappa, non una decisione del giocatore, e `PIE-V01-MAPSCALE` (U19) non e' verificabile.
+
+      > ⚠️ **`git add` su un `.uasset` non basta.** `.gitignore` esclude `Content/**/*.uasset` e
+      > `Content/**/*.umap`, e riammette i singoli file con un `!` esplicito (oggi dieci). I due
+      > artefatti di questa seduta vanno **aggiunti all'allowlist** — altrimenti `git add` non fa
+      > nulla, senza errore, e la seduta non si chiude mai senza che si capisca perche'.
+    notes: >-
+      **Debito noto**: `FRTHexCellData` oggi non ha il campo cover; E9 / CP 9.1 incrementa la versione
+      del formato. Quest'arena andra' **migrata** in U13, non ricostruita. Costruirla dopo E9
+      eviterebbe la migrazione ma lascerebbe M6 senza banco di prova: costo accettato consapevolmente.
+
+  # --- Blocco 2 ---------------------------------------------------------------
+
+  - id: U2
+    title: Partita hex, primo giro
+    block: 2
+    critical: true
+    produces: verdetto su allestimento e movimento
+    artifacts: []
+    unblocked_by: [M6.1, M6.2]
+    shares_setup_with: [U3, U4, U5, U6]
+    verifies: [PIE-HEXPLAY-1, PIE-HEXPLAY-4, PIE-HEXPLAY-5, PIE-CAM-START]
+    issues: []
+    done_when: le voci hanno esito reale nel registro
+    unblocks: [U3, M6.1, M6.2]
+    steps: |
+      **Non aspetta U1**: il terreno lo fornisce `MapSource = GeneratedTestArena`, che genera gia'
+      esagono r=4, ostacoli, muro che blocca la vista, fango a costo 3, piattaforma sul layer 1 e una
+      transizione. Questa e' la preparazione condivisa da U2…U6: una apertura, cinque sedute.
+
+      1. `RTGameMode` come GameMode Override sul livello (`debug-vs-unreal.md` §2).
+      2. Play. Le unita' sono **cilindri**: i `BP_Unit_*` non esistono in `Content/` e il fallback e'
+         previsto — non e' un difetto.
+      3. Due unita' verso la stessa cella, lock-in con **Spazio** → contesa.
+      4. Ripeti con lo **scambio diretto A↔B**: e' l'unico caso che i test headless non coprono.
+    notes: >-
+      La verifica «se compare una griglia quadrata c'e' un `ARTGridActor` posato a mano» **non esiste
+      piu'**: `ARTGridActor` e' stato rimosso dal codice al CP 7.2, quindi non puo' comparire in un
+      livello. La nota della vista ritirata era gia' superata quando fu archiviata.
+
+  - id: U3
+    title: Input e pianificazione
+    block: 2
+    critical: true
+    produces: verdetto su selezione, budget e anteprima del percorso
+    artifacts: []
+    unblocked_by: [M6.3]
+    shares_setup_with: [U2, U4, U5, U6]
+    verifies: [PIE-HEXPLAY-2, PIE-HEXPLAY-3, PIE-HEXPLAY-3b, PIE-PREVIEW-PERSIST]
+    issues: [33]
+    done_when: le voci hanno esito reale nel registro
+    unblocks: [U4, M6.3]
+    steps: |
+      Selezioni un'unita', muovi il mouse sulla griglia, provi una cella **valida**, una **oltre il
+      budget**, una **bloccata** e una **occupata**. Su mappa multilivello controlla che la cella
+      selezionata sia quella del layer giusto: le celle sovrapposte non devono confondersi.
+
+  - id: U4
+    title: Combat e linea di tiro
+    block: 2
+    critical: true
+    produces: verdetto su forme d'attacco, LOS esagonale e knockback
+    artifacts: []
+    unblocked_by: [M6.4, M6.5]
+    shares_setup_with: [U2, U3, U5, U6]
+    verifies: [PIE-HEXPLAY-6, PIE-HEXPLAY-6b, PIE-HEXPLAY-6c]
+    issues: []
+    done_when: le voci hanno esito reale nel registro
+    unblocks: [U5, M6.4, M6.5]
+    steps: |
+      Attacco attraverso una cella che blocca la vista, poi da una cella di lato; ostacolo su un
+      **altro layer** (regola di elevazione). Il knockback a 6 direzioni e' l'unico punto di M6 con
+      una decisione di design dietro: **guardalo**, non solo verificarlo.
+
+  - id: U5
+    title: Bot e HUD
+    block: 2
+    critical: true
+    produces: verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale
+    artifacts: []
+    unblocked_by: [M6.6, M6.7]
+    shares_setup_with: [U2, U3, U4, U6]
+    verifies: [PIE-HEXPLAY-7, PIE-HEXPLAY-9, PIE-AI-01, PIE-AI-02, PIE-AI-03, PIE-AI-04, PIE-AI-05]
+    issues: []
+    done_when: le voci hanno esito reale e i pesi eventualmente modificati sono committati
+    unblocks: [U6, M6.6, M6.7]
+    steps: |
+      Partita con almeno un'unita' `bIsBotControlled`; il log utility deve mostrare coordinate
+      **assiali** `(q,r,L)`. Poi taratura: `TurnManager` nel World Outliner → Details ▸ *Bot*; i pesi
+      hanno effetto **dal turno successivo senza ricompilare** (voce `PIE-BU2b`). I default vengono
+      dal quadrato: su hex vanno riguardati, non dati per buoni.
+
+  - id: U6
+    title: Multilivello e partita completa
+    block: 2
+    critical: true
+    produces: chiusura di M6 / E2 — sessione D verde
+    artifacts: []
+    unblocked_by: [M6.8]
+    shares_setup_with: [U2, U3, U4, U5]
+    verifies: [PIE-HEXPLAY-8, PIE-HEXPLAY-10, PIE-HEXPLAY-4b, PIE-FACING-1]
+    issues: []
+    done_when: le nove voci `PIE-HEXPLAY` sono verdi, rilette tutte insieme
+    unblocks: [U16, U19, M6.8]
+    steps: |
+      Percorso che usa la transizione fra layer 0 e 1 — l'unita' deve **cambiare quota**, non
+      teletrasportarsi; rimuovi l'arco e verifica che il path **fallisca**. Poi una partita intera,
+      dall'avvio alla vittoria, rileggendo `PIE-HEXPLAY-1..9` insieme.
+
+  # --- Blocco 3 ---------------------------------------------------------------
+
+  - id: U7
+    title: Personaggi Paragon
+    block: 3
+    critical: false
+    produces: "`BP_Unit_Guardian` (Gideon) e `BP_Unit_Ranger` (Sparrow), committati"
+    artifacts:
+      - Content/RT/Characters/Gideon/Blueprints/BP_Unit_Guardian.uasset
+      - Content/RT/Characters/Sparrow/Blueprints/BP_Unit_Ranger.uasset
+    unblocked_by: []
+    shares_setup_with: [U8, U9]
+    verifies: [PIE-AS2, PIE-FACING]
+    issues: []
+    done_when: i Blueprint sono tracciati da git e le due voci hanno esito reale sui BP nuovi
+    unblocks: [U8]
+    steps: |
+      I 26 pack Paragon sono in `Content/FabAsset/Paragon/` — path `/Game/FabAsset/Paragon/<Pack>/…`,
+      non `/Game/<Pack>/…` (`convenzioni-contenuti-ue.md` appendice B).
+      Procedura: `guida-animazioni-paragon.md` §AS.3 e §AS.4 punto 4.
+      Collocazione: `/Game/RT/Characters/<CharacterId>/Blueprints/` (§5); i pack di terze parti
+      restano **fuori** da `/Game/RT`. Assegna le classi a `GuardianUnitClass` / `RangerUnitClass`
+      e tieni `VisualZOffset=0`.
+    notes: >-
+      ⚠️ Gideon, Sparrow e altri 3 pack sono stati danneggiati dalla migrazione del 2026-08-06 e
+      **vanno riscaricati da Fab** prima di usarli. I pack non sono nel repo (`/Content/FabAsset/`
+      e' ignorato): chi clona se li scarica.
+
+  - id: U8
+    title: Animazioni
+    block: 3
+    critical: false
+    produces: "`ABP_Gideon`, `ABP_Sparrow` e i montaggi Cast/Hit/Death"
+    artifacts:
+      - Content/RT/Characters/Gideon/Blueprints/ABP_Gideon.uasset
+      - Content/RT/Characters/Sparrow/Blueprints/ABP_Sparrow.uasset
+    unblocked_by: []
+    shares_setup_with: [U7, U9]
+    verifies: [PIE-AS4a, PIE-AS4b]
+    issues: []
+    done_when: gli asset sono tracciati da git e le due voci hanno esito reale
+    unblocks: [U9]
+    steps: |
+      Procedura completa in `guida-animazioni-paragon.md` §AS.4a (locomozione Idle↔Run pilotata dai
+      delegate, **non** da `GetVelocity`) e §AS.4b (montaggi via eventi C++), piu' la sezione
+      «Ripetere per il Ranger» per il duplicato.
+
+  - id: U9
+    title: Leggibilita' e riferimento visivo
+    block: 3
+    critical: false
+    produces: il video (o gli screenshot) di riferimento — DoD di milestone di M8
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U7, U8]
+    verifies: [PIE-AS5, PIE-SEL, PIE-ICON-01, PIE-FMT-01]
+    issues: []
+    done_when: nessun cilindro in campo (salvo asset mancanti) e il riferimento visivo e' nel repo
+    unblocks: [M8.1, M8.2, M8.3]
+    steps: |
+      Assegna `M_TeamRing` e `M_SelectionRing` — esistono gia' in
+      `/Game/RT/Characters/Shared/Materials/` — sui Blueprint nuovi; il colore lo imposta il codice
+      sul MID, un solo materiale basta per entrambi gli anelli. Poi tara la camera sulla scala
+      esagonale (`Camera Pitch`, `Default Arm Length` sul `RTCameraPawn`, effetto immediato anche a
+      PIE avviato) e giudica a schermo se i colori delle superfici sono leggibili **in partita**,
+      non solo nell'overlay dell'editor.
+    notes: "`PIE-AS5` e `PIE-SEL` sono gia' verdi sui cilindri: qui si **riverificano** sugli skeletal."
+
+  # --- Blocco 4 ---------------------------------------------------------------
+
+  - id: U10
+    title: Data asset delle azioni
+    block: 4
+    critical: true
+    produces: il catalogo azioni della v0.1 come dati, non come codice
+    artifacts: []
+    unblocked_by: [E1.3, E1.4]
+    shares_setup_with: []
+    verifies: []
+    issues: []
+    done_when: il validator di CP 1.4 rifiuta un asset volutamente invalido e accetta i tuoi
+    unblocks: [U11]
+    steps: |
+      Oggi in `Content/` non esiste **nessun** data asset di abilita': le abilita' sono di fatto
+      hard-coded (`roadmap-v0.1.md` §9 punto 3). Questa seduta chiude quel buco.
+      Il validator deve **rifiutare** ID duplicato, fallback mancante e variante senza svantaggio.
+    notes: >-
+      **Conflitto da risolvere in CP 1.3, non qui.** `roadmap-v0.1.md` CP 1.3 chiede asset `PDA_*`;
+      `convenzioni-contenuti-ue.md` §6 — documento **normativo** — assegna `DA_` ai Data Asset.
+      Finche' non e' deciso, `artifacts` resta vuoto: un path scritto qui sarebbe una terza opinione.
+
+  - id: U11
+    title: I 4 eroi
+    block: 4
+    critical: true
+    produces: i data asset di Flux, Riva, Bastion e Vektor, e lo spawn 2v2 che li usa
+    artifacts: []
+    unblocked_by: [E6]
+    shares_setup_with: []
+    verifies: [PIE-V01-ROSTER]
+    issues: []
+    done_when: i quattro asset sono tracciati da git e la voce ha esito reale
+    unblocks: [U12]
+    steps: |
+      Un asset eroe per personaggio con statistiche distinte (90/95/120/100 HP, 5/5/4/6 MP), poi una
+      partita per vedere che il bot gestisca MP diversi senza proporre mosse illegali.
+      Asset mancante = fallback al cilindro, previsto.
+    notes: "`artifacts` resta vuoto finche' CP 1.3 non fissa prefisso e collocazione (vedi U10)."
+
+  - id: U12
+    title: Loadout
+    block: 4
+    critical: false
+    produces: varianti arma, gadget e moduli reazione come dati — 1 + 1 + 1 per eroe
+    artifacts: []
+    unblocked_by: [E7]
+    shares_setup_with: []
+    verifies: []
+    issues: []
+    done_when: null
+    unblocks: []
+    notes: >-
+      *Provvisoria*: E7 e' l'epic che la roadmap v0.1 dichiara tagliabile per prima se il tempo stringe.
+
+  # --- Blocco 5 ---------------------------------------------------------------
+
+  - id: U13
+    title: Arena v0.1
+    block: 5
+    critical: true
+    produces: l'arena estesa con quanto serve alle verifiche di contenuto
+    artifacts: []
+    unblocked_by: [E8, E9, U1]
+    shares_setup_with: [U1]
+    verifies: [PIE-V01-COVEREDIT]
+    issues: []
+    done_when: null
+    unblocks: [U14]
+    steps: |
+      Estende l'artefatto di U1 con: una cella `Terrain.Rough`, una zona d'acqua adiacente a una
+      superficie conduttiva, una **porta** su un passaggio obbligato, una **copertura bassa** su un
+      bordo esposto.
+    notes: >-
+      Qui avviene la **migrazione di formato** annunciata in U1: `FRTHexCellData` guadagna il campo
+      cover e la versione dell'asset sale. `DA_HexMap_Arena` e `DA_HexMap_Sandbox` vanno entrambi
+      **migrati, non ricostruiti**.
+
+  - id: U14
+    title: Ambiente in partita
+    block: 5
+    critical: true
+    produces: verdetto sulle regole ambientali e strutturali
+    artifacts: []
+    unblocked_by: [U13]
+    shares_setup_with: []
+    verifies:
+      - PIE-V01-COLL
+      - PIE-V01-ROUGH
+      - PIE-V01-DASHCOVER
+      - PIE-V01-PUSH
+      - PIE-V01-ELEC
+      - PIE-V01-FIREWATER
+      - PIE-V01-LOWCOVER
+      - PIE-V01-INTERCEPT
+      - PIE-V01-FF
+      - PIE-V01-FALLBACK
+      - PIE-V01-DOOR
+    issues: []
+    done_when: le undici voci hanno esito reale nel registro
+    unblocks: []
+    notes: >-
+      Le voci si aprono gradualmente man mano che E4, E5, E8 ed E9 chiudono: non tutte insieme.
+
+  # --- Blocco 6 ---------------------------------------------------------------
+
+  - id: U15
+    title: HUD, intenti, log e comandi debug
+    block: 6
+    critical: true
+    produces: verdetto su leggibilita' e osservabilita'
+    artifacts: []
+    unblocked_by: [E11]
+    shares_setup_with: []
+    verifies: [PIE-V01-HUD, PIE-V01-INTENT, PIE-V01-LOG, PIE-V01-DEBUG, PIE-DEBUG-CELLS]
+    issues: []
+    done_when: le voci hanno esito reale nel registro
+    unblocks: [E11]
+    steps: |
+      Il punto che merita attenzione non e' l'HUD: e' che `rt.Debug.DrawIntent` **non deve** rivelare
+      gli intenti avversari (invariante #6, oggi banale perche' offline — ma e' ora che si crea
+      l'abitudine sbagliata).
+
+  - id: U19
+    title: Durata, ritmo e scala
+    block: 6
+    critical: true
+    produces: numeri di playtest — non difetti
+    artifacts: []
+    unblocked_by: [U6, U1]
+    shares_setup_with: []
+    verifies: [PIE-V01-MATCHLEN, PIE-V01-READY, PIE-V01-OVERWATCH, PIE-V01-MAPSCALE]
+    issues: []
+    done_when: le quattro voci hanno un numero registrato, anche fuori target
+    unblocks: []
+    steps: |
+      **Non e' una seduta di caccia ai difetti: e' una seduta di misura.** Si gioca **una partita
+      intera fino alla fine**, senza fermarsi a indagare, e si annotano i numeri. Serve un cronometro
+      e `bRecordPacing` attivo sul `TurnManager` (il CSV finisce in `Saved/RT/`, fuori dal versionamento).
+
+      1. **Prima della partita**: conta i Move per attraversare la mappa da spawn a spawn e verifica
+         che esistano **almeno due rotte** con trade-off diverso (`PIE-V01-MAPSCALE`, e vedi U1 passo 7).
+      2. **Durante**: a che secondo dichiari Ready nei round tipici, e se il countdown esiste e si
+         annulla (`PIE-V01-READY`).
+      3. **A fine partita**: round giocati, durata a cronometro, round del primo contatto, via di fine.
+      4. **Solo dopo E14**: ripeti con un'unita' in Overwatch e giudica la finestra da 3 s.
+    notes: >-
+      I numeri vanno nella tabella KPI di `v0.1-definition-of-done.md` §4 **con la riserva sul
+      campione** (un solo giocatore, che e' l'autore) e **con l'etichetta 2v2**: i target di 25–30 min
+      sono del 3v3 Standard, che in v0.1 non esiste. Un esagono r=4 e' **Skirmish** per costruzione.
+      Nasce dalla sessione F del registro, che nessuna seduta U copriva.
+
+  - id: U16
+    title: Misura dei KPI
+    block: 6
+    critical: true
+    produces: numeri reali nella tabella KPI
+    artifacts: []
+    unblocked_by: [U6]
+    shares_setup_with: []
+    verifies: [PIE-V01-REPLAY]
+    issues: []
+    done_when: i quattro KPI hanno un valore misurato, anche fuori target
+    unblocks: [E3.3, M7.3, E12.4]
+    steps: |
+      Nessuna guida copre questa procedura, quindi i passi stanno qui.
+
+      1. Partita in PIE sull'arena, `stat unit` e `stat game` dalla console → FPS client (target 60).
+      2. Unreal Insights per path, preview e resolver (target: path mediana < 2 ms, preview < 50 ms,
+         resolver < 100 ms/turno).
+      3. `rt.Debug.DumpTurnLog` + `rt.Debug.VerifyReplay` per replay divergence = 0.
+      4. I numeri vanno **registrati anche se fuori target**: un valore misurato vale piu' di un ⏳.
+    notes: >-
+      Distinta da U19: qui si misurano KPI **tecnici** (frame, millisecondi, determinismo), la' il
+      *game feel* (durata, ritmo, scala). Mescolarle farebbe interrompere la partita a meta'.
+
+  - id: U17
+    title: Release v0.1
+    block: 6
+    critical: true
+    produces: build Windows Development e Shipping, e una partita giocata senza editor
+    artifacts: []
+    unblocked_by: [E12]
+    shares_setup_with: []
+    verifies: []
+    issues: []
+    done_when: BUILD SUCCESSFUL su entrambe le configurazioni e una partita conclusa dalla packaged
+    unblocks: []
+    notes: >-
+      L'invocazione esatta di `RunUAT BuildCookRun` si fissa alla prima esecuzione riuscita e si
+      scrive qui: non va inventata a tavolino.

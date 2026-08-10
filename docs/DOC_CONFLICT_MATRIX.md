@@ -55,7 +55,7 @@
 | 31 | **`HighGround` e vista** | «bonus visuale» non quantificato · poi `Sight_Mod = +1/+2/−1` (workbook) | **nessun bonus numerico** in v0.1 | [D-018](decisions/RT_PDR_00_Decision_Log.md) | `SUPERSEDED` | ✅ chiusa nel verso opposto: il numero veniva dal workbook, non da un playtest |
 | 32 | **«Fast Action»** | usato per l'azione dichiarata in Planning che risolve dopo | quello è **Delayed/Predictive**; `Fast Action` è una scelta **live** | [D-019](decisions/RT_PDR_00_Decision_Log.md) | `DUPLICATE` | ✅ glossario corretto in `spec-durata-partita-e-scala-mappe.md` |
 | 33 | **Finestre live nell'MVP** | `spec-sequenza-turno.md` §4/§5: «non implementare, serve il multiplayer» | **in scope** (E14); il gate a due condizioni è caduto | [ADR-0004](decisions/adr-0004-finestre-di-reazione.md) | `SUPERSEDED` | ✅ il divieto **rimosso**: il documento diceva sì in §2 e no in §4 |
-| 34 | **APNAP a sei gruppi** | canone §5.1: ordine totale per effetti simultanei, `FR-RESOLVE-01` | **non implementato**: l'ordine reale è a 5 chiavi sulle *azioni* | codice (`RTActionQueueLibrary`) | **`OPEN`** | ⚠️ regola normativa **senza consumer** — decidere se costruirla o riscrivere §5.1 |
+| 34 | **APNAP a sei gruppi** | canone §5.1: ordine totale per effetti simultanei, `FR-RESOLVE-01` | l'ordine in vigore è a 5 chiavi sulle *azioni*; la partizione a sei gruppi sugli *effetti* è **gated**, trigger `CP 14.3` | §5.1 riscritta (2026-08-10) · [#201](https://github.com/DegrassiAaron/refactor-tactics-main/issues/201) | `SUPERSEDED` | ✅ chiusa riscrivendo il canone: `FR-RESOLVE-01` **declassato**, non cancellato — la domanda resta tracciata con un trigger nominato |
 
 | 35 | **Gerarchia Canone/ADR** | «il canone prevale su tutto», ma ADR-0004/0005 *correggevano* il canone | un ADR accettato è **recepito nel canone nello stesso commit**: nessuno stato «canone + emendamenti» | [`README.md`](README.md) §gerarchia | `CONFIRMED` | ✅ chiuso 2026-08-08 — era un paradosso di governance, non un conflitto di contenuto |
 | 36 | **Quando cambia il facing** | facing = presentazione; oppure «cambia solo dopo il Move» | l'unità **si orienta verso il target/direzione prima che l'azione risolva**; il `Move`, ultimo, fissa il facing finale, che persiste nel round dopo | [D-020](decisions/RT_PDR_00_Decision_Log.md) · [ADR-0005](decisions/adr-0005-orientamento.md) | `SUPERSEDED` | ⏳ E16 · servono i test di sequenza `Dash → Blast`, cambio bersaglio, cono Overwatch, `Move` finale |
@@ -100,6 +100,8 @@
 | 64 | **Fazioni della v0.2** | `RT_Characters_Roster_Master` §7: «per v0.2 il mapping Conflux/Constrine non è sufficientemente confermato» → tabella con **`Faction: TBD`** per Steel, Aurora, Murdock, Kwang | le due fazioni v0.2 hanno **nomi e composizione decisi**: **Sentinel Directorate** (Steel, Murdock) e **Resonance** (Aurora, Kwang), con coppie di affinità dichiarate — *Protection → Fire Sector* e *Terrain Shaping → Anchor Geometry* | **E35** di [`roadmap/roadmap-post-v0.1.md`](roadmap/roadmap-post-v0.1.md) · schede in [`characters/v0.2/`](characters/v0.2) · [`wiki/fazioni/`](wiki/fazioni/index.md) | `SUPERSEDED` | ✅ 2026-08-09. Il master non sbaglia per disattenzione: cerca `Conflux`/`Constrine` anche per la v0.2 e non li trova, e conclude `TBD`. Ma le fazioni v0.2 **non sono quelle** — sono altre due, con quattro checkpoint e le schede scritte. Resta vero il pezzo che conta: nessun `FactionSetBonus`, l'affinità emerge da meccaniche generiche ([ADR-0006](decisions/adr-0006-ownership-abilita-sinergie.md)) |
 | 65 | **Owner della «Super Action»** | `RT-FEAT-ACTION-SUPERS` dichiarava `owner_specs: RT_HeroCatalog_v0.1.md`, che di Super **non parla**; il master §14–§16 propone un modello completo di Super e cooldown | esiste **la risorsa** (`URTCombatLibrary::IsUltimateReady`, predicato puro con un test) e **nessuna categoria**. La forma ha ora un owner: [`gameplay/brief-super-e-cooldown.md`](gameplay/brief-super-e-cooldown.md) | il brief, per la forma; i cataloghi per i numeri | `OPEN` → **risolto** | ✅ 2026-08-09. Era l'inverso del difetto della riga 5 di questo passaggio: non una spec senza consumatori, ma una **riga di registry con un owner che non possiede**. Il brief prende dal master i vincoli e **non** i contenuti: nessuna Super assegnata, nessun numero, nessuna epic |
 
+| 66 | **`FR-RESOLVE-02` — State-Based Actions** | canone §5.1: la morte a HP≤0 e la scadenza degli status sono controllate **fra un effetto e il successivo**, e un bersaglio morto invalida gli effetti pendenti che lo riguardano | **nessuna sede esplicita nel codice**: nessun `StateBased`, nessun `CheckDeaths`; il danno si applica con `URTCombatLibrary::ApplyDamage` durante la risoluzione e gli abbattuti si rimuovono a **fine turno** (`DestroyDefeatedUnits`) | §5.1.C (2026-08-10) · [#201](https://github.com/DegrassiAaron/refactor-tactics-main/issues/201) | **`OPEN`** | ⚠️ aperta il 2026-08-10 **misurando, non deducendo**: non è dimostrato che sia violata, ma nemmeno che sia rispettata. È la stessa forma della riga 34 — regola normativa di cui nessuno ha verificato il consumatore — trovata mentre si chiudeva quella. Va misurata prima di `CP 14.3`, dove le reazioni rendono osservabile l'ordine |
+
 **Quarto passaggio, 2026-08-08 — Signature, profili e trasformazioni**: **+3 righe risolte** (45, 46, 47).
 La 45 è la prima chiusa **in prevenzione**: il duplicato non è mai entrato nella documentazione, perché
 l'audit per sinonimi è stato fatto prima di scrivere. Resta **1 `OPEN`** (riga 34, APNAP) e **0 `CONFLICT`**.
@@ -114,6 +116,20 @@ cambiano**: D-029 era un conflitto fra documenti, non fra documento e codice.
 
 **Quinto passaggio, 2026-08-08 — consolidamento azioni base e facing**: righe **50–52**, tutte `CONFIRMED`,
 tutte con azione ⏳. L'unico `OPEN` resta la riga 34 e i `CONFLICT` restano **zero**.
+
+**Sesto passaggio, 2026-08-10 — facing, APNAP e stable ID** ([#341](https://github.com/DegrassiAaron/refactor-tactics-main/issues/341),
+[#339](https://github.com/DegrassiAaron/refactor-tactics-main/issues/339),
+[#201](https://github.com/DegrassiAaron/refactor-tactics-main/issues/201)):
+
+- la riga **34** passa da `OPEN` a `SUPERSEDED` — il §5.1 è riscritto separando ciò che è in vigore da ciò che
+  è gated, e `FR-RESOLVE-01` è **declassato con un trigger nominato** (`CP 14.3`) invece che cancellato;
+- le righe **50** e **51** (`FAC-1`, `FAC-2`) sono **accettate** dall'autore e recepite in
+  [ADR-0008](decisions/adr-0008-rotazione-e-policy-di-facing.md); la **52** (`FAC-3`) resta aperta;
+- si apre la riga **66**, trovata mentre si chiudeva la 34.
+
+**Il conteggio degli `OPEN` non migliora — e va detto così**: era 1, resta 1. Chiudere la riga 34 ha fatto
+emergere che la regola accanto aveva lo stesso difetto e nessuno l'aveva misurata. Un riepilogo che dicesse
+«zero `OPEN`» sarebbe più bello e meno vero. `CONFLICT`: **zero**.
 
 > Le tre righe nuove hanno una forma che il documento non aveva ancora incontrato, e vale la pena nominarla:
 > la fonte più **recente** è anche la **meno autorevole**. Un handoff AI è l'ultima voce della gerarchia di

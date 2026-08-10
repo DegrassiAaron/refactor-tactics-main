@@ -32,10 +32,10 @@ Legenda: ✅ chiusa · 🟡 parziale · ⏳ non iniziata · `—` nessuno stato 
 | **E13** | ⏳ | 4 | 8/36 | Oggi la vista è una statistica a catalogo che **non decide nulla**; il rumore è il secondo canale |
 | **E14** | ⏳ | 8 | 7/69 | `Opportunity → Commit`, Fast Reaction 3,0 s, `Timeout → HOLD`, Clash, Time Bank. ADR-0004 accettato, **nessun codice** |
 | **E15** | 🟡 | 2 | 9/16 | La prova integrata: fixture, scenario e golden replay a hash stabile. **Consuma** i sistemi, non li anticipa |
-| **E16** | ✅ | 1 | 6/9 | Il facing è **stato di gioco**: deriva da Move e Dash, entra in snapshot/TurnLog/hash, e da dietro annulla copertura e `Guard` |
+| **E16** | ✅ | 1 | 5/9 | Il facing è **stato di gioco**: deriva da Move e Dash, entra in snapshot/TurnLog/hash, e da dietro annulla copertura e `Guard` |
 | **E17** | ⏳ | 1 | 1/7 | **Misura, non produzione**: dove si rompe il sistema con otto unità. Dopo E15; **non** è un gate di release |
-| **E18** | ⏳ | 1 | 1/8 | **Una sola** azione predittiva rende percepibile il pilastro. Non dipende da E13/E14 |
-| **E19** | 🟡 | 1 | 4/8 | Due buchi misurati: la mappa non dichiara la propria **classe**, il formato non dichiara le **unità per squadra** |
+| **E18** | ✅ | 1 | 6/8 | **Una sola** azione predittiva rende percepibile il pilastro. Non dipende da E13/E14 |
+| **E19** | 🟡 | 1 | 5/8 | Due buchi misurati: la mappa non dichiara la propria **classe**, il formato non dichiara le **unità per squadra** |
 | **E20** | 🟡 | 1 | 1/7 | Le icone come **catalogo semantico**, non texture nei widget: va fatto *mentre* E11 costruisce l'HUD |
 | **E21** | 🟡 | 1 | 1/7 | Il gioco smette di essere cilindri colorati — mesh, animazioni, anelli team/selezione |
 

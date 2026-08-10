@@ -20,14 +20,14 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 <!-- RT_SHORTLIST_FEATURES:BEGIN -->
 
-**84 feature** · v0.1 **70** · v0.2 **8** · future **6**.
+**85 feature** · v0.1 **70** · v0.2 **8** · future **7**.
 
 | Stato | Quante |
 |---|--:|
 | `IDEA` | 4 |
 | `DESIGNED` | 7 |
-| `SPECIFIED` | 14 |
-| `IMPLEMENTING` | 18 |
+| `SPECIFIED` | 13 |
+| `IMPLEMENTING` | 20 |
 | `TESTABLE` | 5 |
 | `INTEGRATED` | 20 |
 | `RELEASE_READY` | 15 |
@@ -40,12 +40,12 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-ACTION-DASH-DISPLACEMENT` — Dash e spostamento forzato | v0.1 | RELEASE_READY | 7/8 | E2 | Spinte opposte si annullano, la contesa resta ferma |
 | `RT-FEAT-ACTION-ENGINE` — Motore delle azioni a priorità intera | v0.1 | RELEASE_READY | 7/8 | E4 | Ordine per priorità, permutazione-invarianza, nessun bias di Player ID |
 | `RT-FEAT-ACTION-MOVE-PROFILES` — Profili di movimento (Move, Sprint, Charge) | v0.1 | RELEASE_READY | 7/8 | E4 | **Sprint è un profilo di Move, non un Dash** |
+| `RT-FEAT-ACTION-PREDICTIVE` — Predictive Action, thin slice | v0.1 | INTEGRATED | 6/8 | E18 | Decisa in Planning, risolta a un boundary, **senza input live** |
 | `RT-FEAT-ACTION-COOLDOWNS` — Cooldown ed economia delle risorse | v0.1 | TESTABLE | 5/8 | E4 | ⚠️ non verificabile finché i world di test non chiamano `BeginPlay()` (`#135`) |
 | `RT-FEAT-ACTION-BASIC-ATTACK-PROFILES` — Profili di attacco base per eroe | v0.1 | IMPLEMENTING | 6/8 | E4 | — |
 | `RT-FEAT-ACTION-EQUIPMENT` — Equipaggiamento e loadout | v0.1 | IMPLEMENTING | 1/8 | E7 | Scelta orizzontale: ogni variante ha uno svantaggio |
 | `RT-FEAT-ACTION-GENERIC` — Azioni generiche del catalogo | v0.1 | IMPLEMENTING | 3/8 | E4 | Le sette di D-025: `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch` |
 | `RT-FEAT-ACTION-SUPERS` — Ultimate e azioni ad alto impegno | v0.2 | IMPLEMENTING | 0/8 | — | Fuori dal contenuto della v0.1 |
-| `RT-FEAT-ACTION-PREDICTIVE` — Predictive Action, thin slice | v0.1 | SPECIFIED | 1/8 | E18 | Decisa in Planning, risolta a un boundary, **senza input live** |
 | `RT-FEAT-ACTION-DELAYED` — Delayed Action ai boundary di fase | future | DESIGNED | 0/8 | — | Brief scritto, **nessuna epic aperta**: attende una decisione di scope |
 | `RT-FEAT-ACTION-TRAPS` — Trappole e gambit tattici | future | IDEA | 0/8 | — | Solo un nome |
 
@@ -115,10 +115,10 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-MAP-PATHFINDING` — A* esagonale autorevole | v0.1 | RELEASE_READY | 6/7 | E2 | Il percorso lo calcola l'autorità, il client mostra un'anteprima |
 | `RT-FEAT-MAP-COVER` — Copertura direzionale per bordo | v0.1 | INTEGRATED | 6/8 | E9 | La copertura è di un **bordo**: ripara da un lato solo |
 | `RT-FEAT-MAP-DYNAMIC-COVER` — Copertura modificabile e pannello cinetico | v0.1 | INTEGRATED | 6/8 | E9 | Si erige e si sposta in partita, e **scade** nel Cleanup |
-| `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole | v0.1 | INTEGRATED | 6/9 | E16 | Deriva da Move e Dash, entra in snapshot e hash, e da dietro annulla `Guard` |
 | `RT-FEAT-MAP-HIGH-GROUND` — Altura senza bonus numerico alla vista | v0.1 | INTEGRATED | 6/8 | E9 | **Nessun** bonus numerico in v0.1 (D-024): l'altura vale per la topologia |
 | `RT-FEAT-MAP-INTERACTIVE-EDGES` — Porte e bordi commutabili | v0.1 | INTEGRATED | 6/8 | E9 | Una porta chiusa toglie passo **e** linea di tiro con lo stesso `BlocksTraversal` |
 | `RT-FEAT-MAP-SPECIAL-TRANSITIONS` — Ponti, archi e transizioni multilivello | v0.1 | INTEGRATED | 6/8 | E9 | L'arco è **additivo**: romperlo annulla il percorso, non lo allunga |
+| `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole | v0.1 | IMPLEMENTING | 5/9 | E16 | Deriva da Move e Dash, entra in snapshot e hash, e da dietro annulla `Guard` |
 
 ### Networking · 3
 
@@ -133,7 +133,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
 | `RT-FEAT-MATCH-END-CONDITIONS` — Fine partita a tre vie | v0.1 | RELEASE_READY | 7/8 | E10 | Eliminazione · obiettivo · `RoundLimit`, con pareggio **dichiarato** |
-| `RT-FEAT-MATCH-FORMAT` — Formato di partita e classe di mappa | v0.1 | TESTABLE | 4/8 | E19 | `URTMatchFormatData` esiste: mancano classe di mappa e unità per squadra |
+| `RT-FEAT-MATCH-FORMAT` — Formato di partita e classe di mappa | v0.1 | TESTABLE | 5/8 | E19 | `URTMatchFormatData` esiste: mancano classe di mappa e unità per squadra |
 | `RT-FEAT-MATCH-PACING` — Pacing del turno e del match | v0.1 | TESTABLE | 5/8 | E12 | Percentili misurati sul giocatore, non stimati |
 | `RT-FEAT-OBJECTIVE-SYSTEM` — Obiettivi dinamici in mappa | v0.1 | IMPLEMENTING | 2/8 | E10 | La partita **finisce** per obiettivo, ma non c'è **nulla da attivare** |
 | `RT-FEAT-STRESS-4V4` — Validazione di stress 4v4 | v0.1 | SPECIFIED | 1/7 | E17 | Misura dove si rompe il sistema con 8 unità. **Non** decide il formato |
@@ -166,7 +166,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | v0.1 | SPECIFIED | 1/9 | E14 | Profilabile, non un'abilità d'eroe |
 | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | v0.1 | DESIGNED | 0/9 | E14 | Continuazione della **propria** azione, non risposta all'avversario |
 
-### Tools · 8
+### Tools · 9
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
@@ -176,6 +176,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-TOOL-MAP-EDITOR` — Editor mode della mappa esagonale | v0.1 | TESTABLE | 4/6 | M9 | **Fuori** dalla vista di release: non entra nella build di gioco |
 | `RT-FEAT-TEST-GOLDEN` — Golden replay e showcase «Il Relè» | v0.1 | IMPLEMENTING | 3/8 | E15 | Oggi `BLOCKED` su 5 capability |
 | `RT-FEAT-TOOL-BALANCE-GROUND` — Banco di prova del bilanciamento | v0.1 | IMPLEMENTING | 3/6 | E1 | Dove si misurano i numeri prima di scriverli a catalogo |
+| `RT-FEAT-TOOL-CONTROL-CENTER` — Project Control Center — la UI web del registry | future | IMPLEMENTING | 2/6 | — | — |
 | `RT-FEAT-TOOL-DEBUG-CONSOLE` — Comandi console rt.Debug e rt.Test | v0.1 | IMPLEMENTING | 3/6 | E11 | Ne esistono 2 su 8: senza, si debugga a occhio |
 | `RT-FEAT-BOT-TACTICAL` — Bot tattico con conoscenza e reazioni | v0.2 | IDEA | 0/8 | — | Epic E26 |
 

@@ -162,6 +162,50 @@ enum class ERTMovementStyle : uint8
 };
 
 /**
+ * COME un'azione **predittiva** sceglie il proprio bersaglio (E18 CP 18.1, [D-016]). E' un dato del catalogo
+ * per la stessa ragione di `MovementStyle`: la thin slice ne usa una sola forma, ma il giorno in cui una
+ * seconda azione prevede un BORDO invece di una cella, la differenza dev'essere un valore e non un `if`
+ * sull'ActionId dentro il resolver.
+ */
+UENUM(BlueprintType)
+enum class ERTPredictiveTargeting : uint8
+{
+	/** L'azione non e' predittiva: risolve su cio' che trova, come tutte le altre. */
+	None,
+	/**
+	 * Una CELLA dichiarata in Planning e **bloccata**: non viene mai rivalutata al momento della risoluzione.
+	 *
+	 * Il blocco e' l'intera meccanica, non un dettaglio d'implementazione. Un'azione che al boundary cercasse
+	 * il bersaglio piu' vicino colpirebbe sempre, e non sarebbe piu' una previsione ma un ordine: la
+	 * scommessa — e quindi il counterplay — sparirebbe insieme alla possibilita' di sbagliarla.
+	 */
+	LockCell
+};
+
+/**
+ * QUANDO un'azione predittiva verifica la propria previsione (E18 CP 18.1).
+ *
+ * Il boundary e' **deterministico e senza attesa**: non e' una finestra in cui qualcuno decide, e' un punto
+ * dell'ordine di risoluzione in cui si guarda cos'e' successo. E' la linea che separa E18 da E14 — la Fast
+ * Reaction chiede, la Predictive Action ha gia' chiesto tutto in Planning.
+ */
+UENUM(BlueprintType)
+enum class ERTPredictionBoundary : uint8
+{
+	/** Nessun boundary: l'azione non e' predittiva. */
+	None,
+	/**
+	 * Fine del calcolo delle rotte del Move, prima che le posizioni finali vengano applicate: si guarda chi ha
+	 * ATTRAVERSATO la cella bloccata, non chi ci e' rimasto sopra.
+	 *
+	 * Attraversare e restare sono due cose diverse, e la differenza e' osservabile: un'unita' che passa sulla
+	 * cella e prosegue verrebbe mancata da un controllo sulla sola posizione finale. Il boundary sta **dopo**
+	 * `ResolveHexPaths` e **prima** del piazzamento proprio perche' li' esistono entrambe le informazioni.
+	 */
+	MovementEntry
+};
+
+/**
  * Definizione di un'azione del catalogo v0.1: la parte di dati comune a ogni azione, indipendente dai suoi
  * effetti. Solo INTERI (invariante #4): niente float in costi, priorita', portata o cooldown — il test
  * `RefactorTactics.Catalog.NoFloatInIntegerFields` lo verifica per reflection, non a occhio.
@@ -330,6 +374,28 @@ struct FRTActionDef
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	bool bFriendlyFire = true;
+
+	/**
+	 * Come l'azione sceglie il bersaglio della propria PREVISIONE (E18 CP 18.1). `None` per tutto il resto,
+	 * che e' quasi tutto il catalogo.
+	 *
+	 * Sta qui e non in un secondo sistema perche' una Predictive Action non ha bisogno di un motore proprio:
+	 * la coda azioni esistente la ordina come qualunque altra, e il fallback usa `ERTActionFallback`, che c'e'
+	 * gia'. Un sottosistema parallelo avrebbe dovuto reimplementare priorita', slot e interruzioni — e sarebbe
+	 * divergito al primo cambiamento.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	ERTPredictiveTargeting PredictiveTargeting = ERTPredictiveTargeting::None;
+
+	/**
+	 * A quale boundary la previsione viene verificata. `None` quando l'azione non e' predittiva.
+	 *
+	 * Due campi e non uno perche' sono due assi indipendenti: COSA si blocca e QUANDO si guarda. Un'azione
+	 * futura potra' bloccare una cella e risolvere al Blast invece che al Move, e la coppia lo esprime senza
+	 * aggiungere un valore combinato per ogni incrocio.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	ERTPredictionBoundary PredictionBoundary = ERTPredictionBoundary::None;
 
 	FRTActionDef() = default;
 };

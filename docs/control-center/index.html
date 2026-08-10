@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RefactorTactics — Project Control Center</title>
+<!--
+  Vista READ-ONLY sopra gli artefatti generati da `scripts/feature_registry.py generate`.
+  Nessun dato nasce qui: nessuno stato viene calcolato, nessuna percentuale inventata, nessuna
+  scrittura verso GitHub. Se una vista chiede un valore che il generatore non produce, si
+  estende il generatore — non questa pagina.
+  Come si apre: `python -m http.server` dalla radice del repository, poi
+  http://localhost:8000/docs/control-center/ . Vedi README.md.
+-->
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel2: #1e222b; --line: #2b303b;
+    --fg: #e6e9ef; --dim: #99a1b3; --accent: #6ea8fe; --ok: #4ec98a;
+    --warn: #e0b050; --bad: #e06c75; --todo: #6b7382;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f6f7f9; --panel: #fff; --panel2: #eef0f4; --line: #d8dce4;
+      --fg: #1b1f27; --dim: #5a6273; --accent: #1a5fd0; --ok: #1c8f5a;
+      --warn: #9a6b00; --bad: #c0392b; --todo: #8a92a0;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, .mono { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: .92em; }
+  header { padding: 14px 20px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .title { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  .title h1 { margin: 0; font-size: 17px; letter-spacing: .2px; }
+  .src { color: var(--dim); font-size: 12px; }
+  .banner { margin: 10px 20px 0; padding: 10px 12px; border-radius: 6px;
+    border: 1px solid var(--line); background: var(--panel2); }
+  .banner.bad { border-color: var(--bad); }
+  nav { display: flex; gap: 2px; padding: 0 12px; background: var(--panel);
+    border-bottom: 1px solid var(--line); overflow-x: auto; }
+  nav button { background: none; border: 0; border-bottom: 2px solid transparent;
+    color: var(--dim); padding: 10px 14px; font: inherit; cursor: pointer; white-space: nowrap; }
+  nav button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+  main { padding: 16px 20px 60px; max-width: 1500px; }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  select, input[type="search"] { background: var(--panel); color: var(--fg);
+    border: 1px solid var(--line); border-radius: 5px; padding: 6px 8px; font: inherit; }
+  input[type="search"] { min-width: 240px; }
+  .cards { display: grid; gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 11px 13px; cursor: pointer; }
+  .card:hover { border-color: var(--accent); }
+  .card h3 { margin: 0 0 2px; font-size: 13px; }
+  .fid { color: var(--dim); font-size: 11px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 7px; }
+  .tag { font-size: 11px; padding: 1px 7px; border-radius: 99px;
+    background: var(--panel2); color: var(--dim); border: 1px solid var(--line); }
+  .gates { display: flex; gap: 2px; margin-top: 8px; }
+  .g { flex: 1; height: 5px; border-radius: 2px; background: var(--todo); }
+  .g.done { background: var(--ok); } .g.partial { background: var(--warn); }
+  .g.na { background: var(--line); }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 9px; border-bottom: 1px solid var(--line);
+    vertical-align: top; }
+  th { color: var(--dim); font-weight: 600; font-size: 12px; }
+  tbody tr:hover { background: var(--panel); }
+  .stats { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
+    margin-bottom: 18px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 11px 13px; }
+  .stat .n { font-size: 22px; font-weight: 600; }
+  .stat .l { color: var(--dim); font-size: 12px; }
+  h2 { font-size: 14px; margin: 22px 0 9px; }
+  .queue { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+  .qbox { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 11px; }
+  .qbox h3 { margin: 0 0 8px; font-size: 12px; letter-spacing: .4px; }
+  .qbox li { margin-bottom: 5px; cursor: pointer; }
+  .qbox ul { margin: 0; padding-left: 17px; }
+  .BLOCKING h3 { color: var(--bad); } .READY h3 { color: var(--ok); }
+  .WAITING h3 { color: var(--warn); } .DONE h3 { color: var(--dim); }
+  #drawer { position: fixed; top: 0; right: 0; width: min(560px, 100%); height: 100%;
+    background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto;
+    padding: 18px 20px 60px; transform: translateX(100%); transition: transform .16s ease;
+    box-shadow: -8px 0 26px #0006; }
+  #drawer.open { transform: none; }
+  /* Gli id delle feature sono lunghi e non hanno spazi: senza questo escono dal pannello. */
+  #drawer, #drawer dd, #drawer .pill, #drawer a { overflow-wrap: anywhere; }
+  /* I chip sono adiacenti senza spazi: senza un contenitore flex la riga non ha nessun punto
+     in cui andare a capo, e una lista di id lunghi esce dal pannello. */
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  #drawer h2 { margin-top: 0; font-size: 16px; }
+  #drawer dt { color: var(--dim); font-size: 11px; text-transform: uppercase;
+    letter-spacing: .5px; margin-top: 13px; }
+  #drawer dd { margin: 3px 0 0; }
+  .close { position: absolute; top: 12px; right: 16px; background: none; border: 0;
+    color: var(--dim); font-size: 22px; cursor: pointer; }
+  .broken { color: var(--bad); border-bottom: 1px dotted var(--bad); cursor: help; }
+  .muted { color: var(--dim); }
+  .pill { display: inline-block; margin: 2px 4px 2px 0; padding: 2px 8px; border-radius: 5px;
+    background: var(--panel2); border: 1px solid var(--line); font-size: 12px; cursor: pointer; }
+  .load { max-width: 640px; margin: 40px auto; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <div class="title">
+    <h1>RefactorTactics — Project Control Center</h1>
+    <span class="src" id="source">caricamento…</span>
+  </div>
+</header>
+<div id="banners"></div>
+<nav id="tabs"></nav>
+<main id="view"><p class="muted">Caricamento degli artefatti…</p></main>
+<aside id="drawer"><button class="close" title="Chiudi">×</button><div id="drawerBody"></div></aside>
+
+<script type="module">
+import {
+  githubBase, issueUrl, milestoneUrl, docUrl, wikiRefUrl, epicCheckpointKey, roadmapContainer,
+  buildIndex, brokenRefs, dependencyCycles, filterFeatures, sessionsForFeature, stalenessVerdict,
+} from './graph.js';
+
+const $ = (sel) => document.querySelector(sel);
+const el = (tag, props = {}, kids = []) => {
+  const node = Object.assign(document.createElement(tag), props);
+  for (const k of [].concat(kids)) node.append(k);
+  return node;
+};
+const esc = (s) => String(s ?? '');
+
+let REG = null, GRAPH = null, INDEX = null, BROKEN = [], PROJECT = null;
+let tab = 'overview';
+const filters = {};
+
+// --- Caricamento ---------------------------------------------------------------------------
+
+async function load() {
+  try {
+    const [reg, graph] = await Promise.all([
+      fetch('../roadmap/feature-registry.json').then((r) => r.json()),
+      fetch('../roadmap/project-graph.json').then((r) => r.json()),
+    ]);
+    boot(reg, graph);
+  } catch (err) {
+    offerFilePicker(err);
+  }
+}
+
+/**
+ * Aperta da `file://` il fetch relativo e' bloccato dal browser. Invece di dire «errore», la
+ * pagina chiede i due file: e' lo stesso dato, e chi la apre cosi' vuole vedere il proprio
+ * working tree, non il repository remoto.
+ */
+function offerFilePicker(err) {
+  const input = el('input', { type: 'file', multiple: true, accept: '.json' });
+  input.addEventListener('change', async () => {
+    const byName = {};
+    for (const file of input.files) byName[file.name] = JSON.parse(await file.text());
+    const reg = byName['feature-registry.json'];
+    const graph = byName['project-graph.json'];
+    if (reg && graph) boot(reg, graph);
+    else alert('Servono entrambi: feature-registry.json e project-graph.json');
+  });
+  $('#view').replaceChildren(el('div', { className: 'load' }, [
+    el('p', { textContent: 'Non riesco a leggere gli artefatti da qui.' }),
+    el('p', { className: 'muted', innerHTML:
+      'Il modo previsto è servire il repository: <code>python -m http.server</code> dalla radice, '
+      + 'poi <code>localhost:8000/docs/control-center/</code>.<br>'
+      + 'Altrimenti seleziona i due file da <code>docs/roadmap/</code>:' }),
+    input,
+    el('p', { className: 'muted mono', textContent: String(err && err.message || err) }),
+  ]));
+}
+
+function boot(reg, graph) {
+  REG = reg; GRAPH = graph;
+  PROJECT = reg.project || graph.project || {};
+  INDEX = buildIndex(REG, GRAPH);
+  BROKEN = brokenRefs(REG, GRAPH, INDEX);
+  renderSource();
+  renderTabs();
+  render();
+  checkStaleness();
+}
+
+// --- Testata e staleness (R-4) --------------------------------------------------------------
+
+function renderSource() {
+  const base = githubBase(PROJECT);
+  const audit = (REG.meta && REG.meta.last_full_audit) || {};
+  const bits = [
+    base ? `${base.owner}/${base.repository} @ ${base.branch}` : 'config GitHub assente',
+    `${REG.count} feature`,
+    audit.date ? `audit ${audit.date} (${audit.commit || '—'})` : 'audit non dichiarato',
+    `caricato ${new Date().toLocaleTimeString('it-IT')}`,
+  ];
+  $('#source').textContent = bits.join(' · ');
+}
+
+/**
+ * Il repository non ha CI: `generate` lo lancia una persona. Se il `.yaml` e' stato toccato dopo
+ * l'ultimo `generate`, quello che vedi e' vecchio — e senza questo avviso sembrerebbe fresco.
+ */
+async function checkStaleness() {
+  const base = githubBase(PROJECT);
+  if (!base) return;
+  const head = async (path) => {
+    const url = `https://api.github.com/repos/${base.owner}/${base.repository}/commits`
+      + `?path=${encodeURIComponent(path)}&sha=${base.branch}&per_page=1`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+    const [commit] = await res.json();
+    return commit && { sha: commit.sha.slice(0, 7), date: commit.commit.committer.date };
+  };
+  try {
+    const [y, j] = await Promise.all([
+      head('docs/roadmap/feature-registry.yaml'),
+      head('docs/roadmap/project-graph.json'),
+    ]);
+    const verdict = stalenessVerdict(y, j);
+    if (!verdict.known) return;
+    if (verdict.stale) {
+      banner(`⚠️ Il registry è stato modificato dopo l'ultima rigenerazione — `
+        + `sorgente <code>${verdict.yamlSha}</code> del ${verdict.yamlDate.toLocaleString('it-IT')}, `
+        + `grafo <code>${verdict.jsonSha}</code> del ${verdict.jsonDate.toLocaleString('it-IT')}. `
+        + `I dati mostrati possono essere vecchi: <code>python scripts/feature_registry.py generate</code>.`,
+        true);
+    } else {
+      $('#source').textContent += ` · grafo ${verdict.jsonSha} allineato`;
+    }
+  } catch (err) {
+    $('#source').textContent += ' · freschezza non verificabile (offline o rate limit)';
+  }
+}
+
+function banner(html, bad = false) {
+  $('#banners').append(el('div', { className: `banner${bad ? ' bad' : ''}`, innerHTML: html }));
+}
+
+// --- Tab -----------------------------------------------------------------------------------
+
+const TABS = [
+  ['overview', 'Overview'], ['roadmap', 'Roadmap'], ['features', 'Feature Map'],
+  ['scenarios', 'Scenario Map'], ['editor', 'Editor Map'], ['queue', 'My Editor Queue'],
+  ['warnings', 'Diagnostica'],
+];
+
+function renderTabs() {
+  $('#tabs').replaceChildren(...TABS.map(([id, label]) => {
+    const b = el('button', { textContent: label });
+    b.setAttribute('aria-selected', String(id === tab));
+    b.onclick = () => { tab = id; renderTabs(); render(); };
+    return b;
+  }));
+}
+
+function render() {
+  const view = $('#view');
+  view.replaceChildren();
+  ({ overview, roadmap, features, scenarios, editor, queue, warnings })[tab](view);
+}
+
+// --- Overview ------------------------------------------------------------------------------
+
+function overview(view) {
+  const feats = REG.features;
+  const gatesDone = feats.reduce((n, f) => n + f.gates_done, 0);
+  const gatesTot = feats.reduce((n, f) => n + f.gates_applicable, 0);
+  const done = feats.filter((f) => f.status === 'DONE' || f.status === 'RELEASE_READY').length;
+  const blocked = feats.filter((f) => f.status === 'BLOCKED').length;
+  const issues = new Set(feats.flatMap((f) => f.issues)).size;
+  const gates = GRAPH.release_gates || [];
+  const green = gates.filter((g) => g.state.startsWith('✅')).length;
+  const q = GRAPH.editor_queue || {};
+
+  view.append(el('div', { className: 'stats' }, [
+    stat(`${done}/${feats.length}`, 'feature RELEASE_READY o DONE'),
+    stat(`${gatesDone}/${gatesTot}`, 'gate delle feature (esclusi «na»)'),
+    stat(`${green}/${gates.length}`, 'gate di release verdi'),
+    stat(String(issues), 'issue citate dalle feature'),
+    stat(String(blocked), 'feature BLOCKED', blocked ? 'bad' : null),
+    stat(String((q.BLOCKING || []).length), 'sedute che bloccano la v0.1',
+      (q.BLOCKING || []).length ? 'warn' : null),
+    stat(String(GRAPH.diagnostics.warnings.length), 'warning del validator', 'warn'),
+    stat(String(BROKEN.length), 'riferimenti rotti', BROKEN.length ? 'bad' : null),
+  ]));
+
+  view.append(el('h2', { textContent: 'Gate di release' }));
+  view.append(table(['#', 'Gate', 'Stato'], gates.map((g) => [
+    el('span', { className: 'mono', textContent: g.id }), stripMd(g.request), stripMd(g.state),
+  ])));
+
+  view.append(el('h2', { textContent: 'Perché non è Done — i gate più mancanti' }));
+  const missing = {};
+  for (const f of feats) {
+    for (const [gate, value] of Object.entries(f.gates)) {
+      if (value === 'todo' || value === 'partial') missing[gate] = (missing[gate] || 0) + 1;
+    }
+  }
+  view.append(table(['Gate', 'Feature che non lo hanno chiuso'],
+    Object.entries(missing).sort((a, b) => b[1] - a[1]).map(([gate, n]) => {
+      const link = el('span', { className: 'pill', textContent: `${gate} · ${n}` });
+      link.onclick = () => { tab = 'features'; filters.gate = gate; renderTabs(); render(); };
+      return [link, `${n} feature`];
+    })));
+}
+
+const stat = (n, l, kind) => el('div', { className: 'stat' }, [
+  el('div', { className: 'n', textContent: n,
+    style: kind === 'bad' ? 'color:var(--bad)' : kind === 'warn' ? 'color:var(--warn)' : '' }),
+  el('div', { className: 'l', textContent: l }),
+]);
+
+// --- Roadmap -------------------------------------------------------------------------------
+
+function roadmap(view) {
+  const rows = [];
+  const containers = [
+    ...Object.entries(GRAPH.epics).map(([id, s]) => [id, s, 'epic']),
+    ...Object.entries(GRAPH.milestones).map(([id, s]) => [id, s, 'milestone']),
+  ].sort((a, b) => a[2].localeCompare(b[2]) || num(a[0]) - num(b[0]));
+  for (const [id, state, kind] of containers) {
+    const fids = INDEX.featuresByContainer.get(id) || [];
+    const cps = Object.entries(GRAPH.checkpoints)
+      .filter(([key]) => key.startsWith(`${id}.`))
+      .map(([key, st]) => chip(`${key} ${st}`, () => openCheckpoint(key)));
+    rows.push([
+      el('strong', { textContent: id }), kind, state || '—',
+      el('span', { className: 'chips' }, fids.map((fid) => chip(fid, () => openFeature(fid)))),
+      el('span', { className: 'chips' }, cps),
+    ]);
+  }
+  view.append(el('h2', { textContent: 'Epic e milestone' }));
+  view.append(table(['', 'Tipo', 'Stato', 'Feature', 'Checkpoint'], rows));
+}
+
+const num = (s) => parseInt(String(s).replace(/\D/g, ''), 10) || 0;
+
+// --- Feature Map ---------------------------------------------------------------------------
+
+function features(view) {
+  const feats = REG.features;
+  const uniq = (fn) => [...new Set(feats.map(fn).filter(Boolean))].sort();
+  view.append(el('div', { className: 'filters' }, [
+    select('release', 'Release', uniq((f) => f.release)),
+    select('area', 'Area', uniq((f) => f.area)),
+    select('kind', 'Kind', uniq((f) => f.kind)),
+    select('priority', 'Priorità', uniq((f) => f.priority)),
+    select('status', 'Status', uniq((f) => f.status)),
+    select('container', 'Epic/Milestone', uniq(roadmapContainer)),
+    select('gate', 'Gate mancante', Object.keys(feats[0].gates)),
+    select('blocked', 'Bloccata', ['yes', 'no']),
+    select('editor', 'Richiede editor', ['yes']),
+    select('scenarioReady', 'Scenari', ['yes', 'planned']),
+    search(),
+  ]));
+  const shown = filterFeatures(feats, filters, INDEX);
+  view.append(el('p', { className: 'muted',
+    textContent: `${shown.length} di ${feats.length} feature` }));
+  view.append(el('div', { className: 'cards' }, shown.map(featureCard)));
+}
+
+function featureCard(f) {
+  const card = el('div', { className: 'card' }, [
+    el('div', { className: 'fid mono', textContent: f.feature_id }),
+    el('h3', { textContent: f.title }),
+    el('div', { className: 'row' }, [
+      tag(f.status), tag(`${f.gates_done}/${f.gates_applicable} gate`), tag(f.release),
+      tag(f.priority), roadmapContainer(f) ? tag(roadmapContainer(f)) : '',
+    ]),
+    el('div', { className: 'gates', title: Object.entries(f.gates)
+      .map(([k, v]) => `${k}: ${v}`).join('\n') },
+      Object.values(f.gates).map((v) => el('div', { className: `g ${v}` }))),
+  ]);
+  card.onclick = () => openFeature(f.feature_id);
+  return card;
+}
+
+// --- Scenario Map --------------------------------------------------------------------------
+
+function scenarios(view) {
+  const caps = new Set(GRAPH.capabilities || []);
+  const rows = (GRAPH.scenarios || []).map((s) => {
+    const missing = (s.requires || []).filter((r) => !caps.has(r));
+    const fids = INDEX.featuresByScenario.get(s.id) || [];
+    return [
+      el('span', { className: 'mono', textContent: s.id }),
+      missing.length
+        ? el('span', { className: 'broken', title: 'capability assenti nel harness',
+            textContent: `mancano ${missing.join(', ')}` })
+        : el('span', { className: 'muted', textContent: 'capability presenti' }),
+      el('span', { className: 'chips' }, fids.map((fid) => chip(fid, () => openFeature(fid)))),
+      link(docUrl(PROJECT, s.path), s.path),
+    ];
+  });
+  view.append(el('p', { className: 'muted', textContent:
+    `${rows.length} scenari · ${caps.size} capability dichiarate dal harness. `
+    + `«Mancano» significa che lo scenario esce BLOCKED: è una specifica eseguibile scritta prima `
+    + `della capability, non necessariamente un difetto.` }));
+  view.append(table(['Scenario', 'Capability', 'Feature che lo dichiarano', 'File'], rows));
+
+  const planned = REG.features.filter((f) => (f.scenarios_planned || []).length);
+  if (planned.length) {
+    view.append(el('h2', { textContent: 'Scenari pianificati (non ancora in repository)' }));
+    view.append(table(['Feature', 'Scenari'], planned.map((f) => [
+      chip(f.feature_id, () => openFeature(f.feature_id)),
+      f.scenarios_planned.join(' · '),
+    ])));
+  }
+}
+
+// --- Editor Map ----------------------------------------------------------------------------
+
+function editor(view) {
+  view.append(table(
+    ['', 'Seduta', 'Stato', 'Coda', 'Critico', 'Produce', 'Attende', 'Sblocca'],
+    (GRAPH.editor_sessions || []).map((s) => [
+      el('strong', { textContent: s.id }), s.title, s.state, s.queue_group || '—',
+      s.critical ? 'sì' : 'no', stripMd(s.produces),
+      el('span', { className: 'chips' }, (s.unblocked_by || []).map((p) => p.kind
+        ? chip(`${p.ref} ${p.state || ''}`, () => openCheckpoint(p.ref))
+        : el('span', { className: 'broken', title: 'riferimento che non risolve',
+            textContent: p.ref }))),
+      el('span', { className: 'chips' }, (s.unblocks || []).map((r) => chip(r, () => openRef(r)))),
+    ])));
+}
+
+function queue(view) {
+  const q = GRAPH.editor_queue || {};
+  const note = {
+    BLOCKING: 'Blocca la v0.1, e si può fare adesso',
+    READY: 'Si può fare adesso, fuori percorso critico',
+    WAITING: 'Aspetta codice', DONE: 'Finite',
+  };
+  view.append(el('p', { className: 'muted', textContent:
+    'Derivata dai campi delle sedute: un checkpoint 🟡 conta come risolto — gli manca la verifica '
+    + 'che porti tu — una seduta 🟡 no, perché a metà non ha prodotto il suo artefatto.' }));
+  view.append(el('div', { className: 'queue' }, Object.keys(note).map((group) => el(
+    'div', { className: `qbox ${group}` }, [
+      el('h3', { textContent: `${group} · ${(q[group] || []).length}` }),
+      el('div', { className: 'muted', style: 'font-size:12px;margin-bottom:6px',
+        textContent: note[group] }),
+      el('ul', {}, (q[group] || []).map((sid) => {
+        const s = INDEX.sessionById.get(sid);
+        const li = el('li', { textContent: `${sid} · ${s ? s.title : ''}` });
+        li.onclick = () => openSession(sid);
+        return li;
+      })),
+    ]))));
+}
+
+// --- Diagnostica ---------------------------------------------------------------------------
+
+function warnings(view) {
+  const d = GRAPH.diagnostics;
+  view.append(el('p', { className: 'muted', textContent:
+    `${d.errors.length} errori · ${d.warnings.length} warning dal validator, `
+    + `più ${BROKEN.length} riferimenti che non risolvono dentro gli artefatti.` }));
+
+  if (BROKEN.length) {
+    view.append(el('h2', { textContent: 'Riferimenti che non risolvono' }));
+    view.append(table(['Da', 'Tipo', 'Riferimento'], BROKEN.map((b) => [
+      chip(b.from, () => openRef(b.from)), b.kind,
+      el('span', { className: 'broken', textContent: b.ref }),
+    ])));
+  }
+  const cycles = dependencyCycles(REG);
+  if (cycles.length) {
+    view.append(el('h2', { textContent: 'Cicli fra dipendenze' }));
+    view.append(table(['Ciclo'], cycles.map((c) => [c.join(' → ')])));
+  }
+  for (const [label, items] of [['Errori', d.errors], ['Warning', d.warnings]]) {
+    if (!items.length) continue;
+    view.append(el('h2', { textContent: `${label} del validator` }));
+    // La classe si ricava dal testo dopo `[RT-FEAT-…]`, con i numeri normalizzati: senza questo
+    // «3 scenari planned» e «4 scenari planned» diventano due classi, e il raggruppamento —
+    // che serve a vedere quale difetto e' sistemico — non raggruppa piu' niente.
+    const groups = {};
+    for (const line of items) {
+      const kind = (line.match(/\]\s*(.+?)(?::|$)/) || [null, line])[1]
+        .replace(/\b\d+\b/g, 'N').slice(0, 70);
+      (groups[kind] = groups[kind] || []).push(line);
+    }
+    view.append(table(['Classe', 'N', 'Voci'],
+      Object.entries(groups).sort((a, b) => b[1].length - a[1].length).map(([kind, lines]) => [
+        kind, String(lines.length),
+        el('details', {}, [el('summary', { textContent: 'mostra' }),
+          el('div', { className: 'mono', style: 'white-space:pre-wrap',
+            textContent: lines.join('\n') })]),
+      ])));
+  }
+}
+
+// --- Drawer (R-8, R-9) ----------------------------------------------------------------------
+
+function openRef(ref) {
+  if (INDEX.featureById.has(ref)) return openFeature(ref);
+  if (INDEX.sessionById.has(ref)) return openSession(ref);
+  return openCheckpoint(ref);
+}
+
+function openFeature(fid) {
+  const f = INDEX.featureById.get(fid);
+  if (!f) return;
+  const container = roadmapContainer(f);
+  const dl = el('dl');
+  const add = (label, node) => { dl.append(el('dt', { textContent: label }), el('dd', {}, node)); };
+
+  add('Stato', `${f.status}${f.status_derived && f.status_derived !== f.status
+    ? ` (derivato: ${f.status_derived})` : ''} — ${f.gates_done}/${f.gates_applicable} gate`);
+  add('Gate', el('div', {}, Object.entries(f.gates).map(([k, v]) =>
+    el('div', { innerHTML: `<span class="muted">${k}</span> — ${v}` }))));
+  add('Classificazione', `${f.area} · ${f.kind} · ${f.release} · ${f.priority}`);
+  if (container) add('Roadmap', chip(container, () => { tab = 'roadmap'; renderTabs(); render(); }));
+  if ((f.roadmap.checkpoints || []).length) {
+    add('Checkpoint', el('span', { className: 'chips' }, f.roadmap.checkpoints.map((cp) => {
+      const key = epicCheckpointKey(cp);
+      const state = GRAPH.checkpoints[key];
+      return state === undefined
+        ? el('span', { className: 'broken', textContent: key })
+        : chip(`${key} ${state}`, () => openCheckpoint(key));
+    })));
+  }
+  if (f.issues.length) add('Issue', el('span', { className: 'chips' }, f.issues.map((n) =>
+    link(issueUrl(PROJECT, n), `#${n}`))));
+  if (f.dependencies.length) add('Dipende da', refs(f.dependencies));
+  const dependents = INDEX.dependents.get(fid) || [];
+  if (dependents.length) add('Da cui dipendono', refs(dependents));
+  if (f.completed_by.length) add('Completata da', refs(f.completed_by));
+  const completes = INDEX.completes.get(fid) || [];
+  if (completes.length) add('Completa', refs(completes));
+  if (f.scenarios.length) add('Scenari', el('span', { className: 'chips' }, f.scenarios.map((s) =>
+    INDEX.scenarioById.has(s)
+      ? link(docUrl(PROJECT, INDEX.scenarioById.get(s).path), s)
+      : el('span', { className: 'broken', textContent: s }))));
+  if (f.scenarios_planned.length) add('Scenari pianificati',
+    el('span', { className: 'muted', textContent: f.scenarios_planned.join(' · ') }));
+  const sessions = sessionsForFeature(f, INDEX);
+  if (sessions.length) add('Sedute in editor che passano per i suoi checkpoint',
+    el('span', { className: 'chips' }, sessions.map((sid) => chip(sid, () => openSession(sid)))));
+  if (f.tests.length) add('Test', el('span', { className: 'mono muted',
+    textContent: f.tests.join(' · ') }));
+  if (f.owner_specs.length) add('Spec owner', el('span', { className: 'chips' }, f.owner_specs.map((p) =>
+    link(docUrl(PROJECT, p), p))));
+  if (f.wiki_refs.length) add('Wiki', el('span', { className: 'chips' }, f.wiki_refs.map((r) =>
+    link(wikiRefUrl(PROJECT, r), r))));
+  if (f.last_verified && f.last_verified.date) {
+    add('Ultima verifica', `${f.last_verified.date} · ${f.last_verified.commit || '—'}`);
+  }
+  if (f.notes) add('Note', el('div', { className: 'muted', textContent: f.notes }));
+
+  showDrawer(f.title, f.feature_id, dl);
+}
+
+function openSession(sid) {
+  const s = INDEX.sessionById.get(sid);
+  if (!s) return;
+  const dl = el('dl');
+  const add = (label, node) => { dl.append(el('dt', { textContent: label }), el('dd', {}, node)); };
+  add('Stato', `${s.state} · coda ${s.queue_group || '—'} · ${s.critical
+    ? 'percorso critico' : 'fuori percorso critico'}`);
+  if (s.produces) add('Produce', stripMd(s.produces));
+  if (s.artifacts.length) add('Artefatti', el('div', {}, s.artifacts.map((a) =>
+    el('div', {}, [link(docUrl(PROJECT, a.path), a.path), ' ', a.tracked ? '✅' : '⏳']))));
+  if (s.unblocked_by.length) add('Attende', el('span', { className: 'chips' }, s.unblocked_by.map((p) => p.kind
+    ? chip(`${p.ref} ${p.state || ''}`, () => openCheckpoint(p.ref))
+    : el('span', { className: 'broken', textContent: p.ref }))));
+  if (s.unblocks.length) add('Sblocca', el('span', { className: 'chips' }, s.unblocks.map((r) =>
+    chip(r, () => openRef(r)))));
+  if (s.shares_setup_with.length) add('Preparazione condivisa con',
+    el('span', { className: 'chips' }, s.shares_setup_with.map((r) => chip(r, () => openSession(r)))));
+  if (s.verifies.length) add('Verifica', el('div', {}, s.verifies.map((v) =>
+    el('span', { className: 'pill', textContent: `${v.id} ${v.state || '❓'}` }))));
+  if (s.issues.length) add('Issue', el('span', { className: 'chips' }, s.issues.map((n) =>
+    link(issueUrl(PROJECT, n), `#${n}`))));
+  if (s.done_when) add('Finita quando', s.done_when);
+  const feats = INDEX.featuresBySession.get(sid) || [];
+  if (feats.length) add('Feature che passano per gli stessi checkpoint', refs(feats));
+  showDrawer(s.title, sid, dl);
+}
+
+function openCheckpoint(key) {
+  const state = GRAPH.checkpoints[key] ?? GRAPH.epics[key] ?? GRAPH.milestones[key];
+  const dl = el('dl');
+  const add = (label, node) => { dl.append(el('dt', { textContent: label }), el('dd', {}, node)); };
+  add('Stato dichiarato dal suo owner', state === undefined
+    ? el('span', { className: 'broken', textContent: 'non risolve' }) : state);
+  const feats = [...(INDEX.featuresByCheckpoint.get(key) || []),
+                 ...(INDEX.featuresByContainer.get(key) || [])];
+  if (feats.length) add('Feature', refs([...new Set(feats)]));
+  const sessions = (GRAPH.editor_sessions || []).filter((s) =>
+    (s.unblocks || []).includes(key) || (s.unblocked_by || []).some((p) => p.ref === key));
+  if (sessions.length) add('Sedute collegate',
+    el('span', { className: 'chips' }, sessions.map((s) => chip(s.id, () => openSession(s.id)))));
+  const owner = key.startsWith('M') ? 'docs/roadmap/roadmap-checkpoint.md'
+                                    : 'docs/roadmap/roadmap-v0.1.md';
+  add('Owner del suo stato', link(docUrl(PROJECT, owner), owner));
+  showDrawer(key, 'checkpoint', dl);
+}
+
+function showDrawer(title, subtitle, body) {
+  $('#drawerBody').replaceChildren(
+    el('div', { className: 'fid mono', textContent: subtitle }),
+    el('h2', { textContent: title }), body);
+  $('#drawer').classList.add('open');
+}
+$('#drawer .close').onclick = () => $('#drawer').classList.remove('open');
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') $('#drawer').classList.remove('open');
+});
+
+// --- Utility di rendering --------------------------------------------------------------------
+
+function table(head, rows) {
+  return el('table', {}, [
+    el('thead', {}, el('tr', {}, head.map((h) => el('th', { textContent: h })))),
+    el('tbody', {}, rows.map((cells) => el('tr', {}, cells.map((c) => el('td', {},
+      typeof c === 'string' ? document.createTextNode(c) : c))))),
+  ]);
+}
+const tag = (text) => el('span', { className: 'tag', textContent: esc(text) });
+function chip(text, onclick) {
+  const c = el('span', { className: 'pill', textContent: esc(text) });
+  c.onclick = (e) => { e.stopPropagation(); onclick(); };
+  return c;
+}
+const refs = (ids) => el('span', { className: 'chips' }, ids.map((id) => INDEX.featureById.has(id)
+  ? chip(id, () => openFeature(id))
+  : el('span', { className: 'broken', title: 'feature inesistente', textContent: id })));
+function link(href, text) {
+  if (!href) return el('span', { className: 'broken', title: 'config GitHub assente',
+    textContent: esc(text) });
+  return el('a', { href, target: '_blank', rel: 'noopener', textContent: esc(text),
+    style: 'margin-right:8px' });
+}
+/** I dati vengono da markdown: qui si toglie l'enfasi, non si interpreta HTML. */
+const stripMd = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, '$1').replace(/`/g, '');
+
+function select(key, label, options) {
+  const s = el('select');
+  s.append(el('option', { value: '', textContent: label }));
+  for (const o of options) s.append(el('option', { value: o, textContent: o,
+    selected: filters[key] === o }));
+  s.onchange = () => { filters[key] = s.value || undefined; render(); };
+  return s;
+}
+function search() {
+  const i = el('input', { type: 'search', placeholder: 'Feature, titolo, #issue, scenario, spec…',
+    value: filters.text || '' });
+  i.oninput = () => { filters.text = i.value; render(); };
+  return i;
+}
+
+load();
+</script>
+</body>
+</html>

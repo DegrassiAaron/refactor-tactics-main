@@ -82,7 +82,30 @@ enum class ERTAssertionKind : uint8
 	 * (`URTTurnLogLibrary::SortTurnLog`), quindi l'hash e' invariante per permutazione e **non sa niente
 	 * dell'ordine**. Chi volesse verificare una sequenza guardando il checksum verificherebbe un'altra cosa.
 	 */
-	LogEventOrder
+	LogEventOrder,
+	/**
+	 * VALORE di `Amount` della prima voce che corrisponde a `category`/`outcome`.
+	 *
+	 * E' la terza primitiva prevista da `#318`, ed e' rimasta indietro finche' non e' esistito un formato da
+	 * leggere: `#361` lo ha deciso, e `spec-turnlog.md` §4.2 lo dichiara — il Decision Time Bank scrive
+	 * `Decision/BankConsumed` e `Decision/BankAfter` con i millisecondi in `Amount`.
+	 *
+	 * Non e' un'assertion per il bank: `Amount` e' il payload numerico di OGNI categoria — danno per `Combat`,
+	 * celle percorse per `Move`, direzione per `Facing` — quindi questa primitiva serve tutte allo stesso modo.
+	 * Era gia' possibile verificare che un colpo fosse avvenuto (`LogEventCount`); ora si puo' verificare
+	 * QUANTO ha tolto.
+	 *
+	 * La PRIMA voce, non la somma: sommarle mescolerebbe finestre diverse in un numero solo, e il residuo di
+	 * una decisione non e' la somma dei residui. Chi vuole la seconda occorrenza usa un evento piu' specifico
+	 * — e se un giorno servisse davvero, si aggiunge un indice, non si cambia il significato di questa.
+	 *
+	 * Un evento ASSENTE fallisce dicendo che e' assente, non confrontando uno zero: e' lo stesso trattamento
+	 * che `LogEventOrder` riserva agli eventi mancanti, e per la stessa ragione — un difetto di produzione non
+	 * va fatto sembrare un difetto di valore.
+	 *
+	 * Aggiunta IN CODA: i valori precedenti non cambiano numero, come `UnitFacing` a CP 16.1 e le due di `#318`.
+	 */
+	LogEventAmount
 };
 
 /**
@@ -262,7 +285,7 @@ struct FRTTestExpectation
 	UPROPERTY()
 	FRTCellId Cell;
 
-	/** Valore intero atteso (`TurnsCompleted`, `UnitHpEquals`, `UnitAlive`, `LogEventCount`). */
+	/** Valore intero atteso (`TurnsCompleted`, `UnitHpEquals`, `UnitAlive`, `LogEventCount`, `LogEventAmount`). */
 	UPROPERTY()
 	int32 Value = 0;
 

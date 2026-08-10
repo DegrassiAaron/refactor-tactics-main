@@ -10,7 +10,9 @@ class ARTUnit;
 class ARTHexMapActor;
 class ARTTurnManager;
 class URTHeroData;
+class URTHexMapAsset;
 class URTMatchFormatData;
+struct FRTMatchRules;
 
 /**
  * Sorgente della mappa su cui allestire la partita. Le voci generate non richiedono asset: `Content/**` non e'
@@ -102,6 +104,20 @@ public:
 	TObjectPtr<URTMatchFormatData> MatchFormat;
 
 	/**
+	 * Quale formato SPEDITO usare quando `MatchFormat` non e' assegnato (issue #375).
+	 *
+	 * L'ordine e': asset assegnato ⇒ formato spedito con questa identita' ⇒ ripiego. Il ripiego non sparisce,
+	 * arretra: copre l'id sconosciuto, non piu' l'assenza di un file che qualcuno doveva creare in editor.
+	 *
+	 * Serve perche' il formato canonico della v0.1 non puo' dipendere da un `.uasset` che il repository non
+	 * contiene: CP 12.5 ha misurato una build pacchettizzata che girava sul RIPIEGO proprio per questo.
+	 * Svuotare il campo riporta al comportamento precedente, ed e' il modo di verificare che il ripiego
+	 * funzioni ancora.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Match")
+	FName ShippedFormatId = FName(TEXT("Format.Skirmish2v2"));
+
+	/**
 	 * Primo filtro della tendina degli scenari: un tag fra quelli realmente presenti nei file. Vuoto = non
 	 * restringe nulla.
 	 *
@@ -183,6 +199,13 @@ public:
 	/** Lo scenario da eseguire: la console variable prevale sulla proprietà, altrimenti vale la proprietà. Vuoto = partita normale. */
 	FString ResolveScenarioToRun() const;
 
+	/**
+	 * La sorgente mappa in vigore: `rt.Map.Source` se impostata e valida, altrimenti la proprieta'.
+	 * Il piu' specifico vince, come per `ResolveScenarioToRun` — e un valore sconosciuto non ripiega in
+	 * silenzio, perche' un playtest sulla mappa sbagliata e' un playtest buttato.
+	 */
+	ERTMapSource ResolveMapSource() const;
+
 	/** Sessione dello scenario in corso, fatta avanzare un passo per frame da `Tick`. Nulla = nessuno scenario. */
 	TSharedPtr<class FRTScenarioSession> ScenarioSession;
 
@@ -219,13 +242,17 @@ private:
 
 	/**
 	 * Risolve il formato di partita e lo consegna al `TurnManager`. Ritorna **false** se il formato e'
-	 * presente ma invalido — in quel caso la partita non va allestita.
+	 * presente ma invalido, oppure se non e' compatibile con la classe della mappa (CP 19.1) — in quel caso
+	 * la partita non va allestita.
 	 *
 	 * E' qui che vive la politica di ripiego, come per l'arena generata: la libreria pura rifiuta e basta,
 	 * l'Actor decide che farne e lo dichiara in Warning. Un ripiego silenzioso non produce una partita rotta,
 	 * produce numeri di playtest attribuiti a un formato che non era in vigore.
+	 *
+	 * `OutRules` esce valorizzato solo quando il ritorno e' `true`: l'allestimento legge da li' la
+	 * composizione (`UnitsPerTeam`, CP 19.2) invece di dichiararla per conto proprio.
 	 */
-	bool ApplyMatchFormat(ARTTurnManager* TurnManager);
+	bool ApplyMatchFormat(ARTTurnManager* TurnManager, const URTHexMapAsset* Map, FRTMatchRules& OutRules);
 
 	/**
 	 * Spawna l'eroe con l'`HeroId` dato. `Hero == nullptr` non spawna nulla (fail-closed): un'unita' con

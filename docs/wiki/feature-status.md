@@ -2,7 +2,7 @@
 
 > `GENERATO` · Vista del **Feature Registry** (`docs/roadmap/feature-registry.yaml` nel repository del gioco).
 > Non modificare a mano: si rigenera con `python scripts/feature_registry.py wiki`.
-> Feature tracciate: **84** · Ultimo audit completo: **2026-08-08** su `2094b86`.
+> Feature tracciate: **85** · Ultimo audit completo: **2026-08-08** su `2094b86`.
 
 Questa pagina dice **cosa esiste davvero**. Una meccanica descritta altrove nella Wiki e
 marcata qui come `SPECIFIED` o `DESIGNED` e' progettata, non giocabile: la Wiki racconta
@@ -37,7 +37,7 @@ il gioco che sara', questa tabella dice a che punto e'.
 | `RT-FEAT-ACTION-EQUIPMENT` | Equipaggiamento e loadout | E7.1, E7.2, E7.3, E7.4 | **IMPLEMENTING** | 1/8 | — |
 | `RT-FEAT-ACTION-GENERIC` | Azioni generiche del catalogo | E4.4, E4.6, E4.7 | **IMPLEMENTING** | 3/8 | `Combat.BasicAttack` · `Movement.Basic` |
 | `RT-FEAT-ACTION-MOVE-PROFILES` | Profili di movimento (Move, Sprint, Charge) | E4.2, E4.5 | **RELEASE_READY** | 7/8 | `Visual.Movement.Charge` · `Visual.Movement.RoughRefusesCharge` |
-| `RT-FEAT-ACTION-PREDICTIVE` | Predictive Action, thin slice | E18.1, E18.2 | **SPECIFIED** | 1/8 | `Spec.Predictive.WhiffOnEmptyCell` |
+| `RT-FEAT-ACTION-PREDICTIVE` | Predictive Action, thin slice | E18.1, E18.2 | **INTEGRATED** | 6/8 | `Spec.Predictive.WhiffOnEmptyCell` |
 
 ### Characters
 
@@ -84,7 +84,7 @@ il gioco che sara', questa tabella dice a che punto e'.
 |---|---|---|---|---:|---|
 | `RT-FEAT-MAP-COVER` | Copertura direzionale per bordo | E9.1, E9.2 | **INTEGRATED** | 6/8 | `Visual.Map.LowCoverEdge` · `Visual.Map.HighCoverBlocks` |
 | `RT-FEAT-MAP-DYNAMIC-COVER` | Copertura modificabile e pannello cinetico | E9.5 | **INTEGRATED** | 6/8 | `Spec.Cover.TemporaryCoverExpires` |
-| `RT-FEAT-MAP-FACING` | Facing come stato di gioco autorevole | E16.1, E16.2 | **INTEGRATED** | 6/9 | `Spec.Facing.DerivesFromMove` · `Spec.Facing.DashReorients` |
+| `RT-FEAT-MAP-FACING` | Facing come stato di gioco autorevole | E16.1, E16.2 | **IMPLEMENTING** | 5/9 | `Spec.Facing.DerivesFromMove` · `Spec.Facing.DashReorients` |
 | `RT-FEAT-MAP-HEXGRAPH` | FRTCellId e grafo esagonale multilivello | E2.1 | **RELEASE_READY** | 7/8 | `Visual.Map.MultiLevel` |
 | `RT-FEAT-MAP-HIGH-GROUND` | Altura senza bonus numerico alla vista | E9.1 | **INTEGRATED** | 6/8 | `Visual.Map.HighGroundNoBonus` |
 | `RT-FEAT-MAP-INTERACTIVE-EDGES` | Porte e bordi commutabili | E9.3 | **INTEGRATED** | 6/8 | `Visual.Map.ClosedDoor` |
@@ -103,7 +103,7 @@ il gioco che sara', questa tabella dice a che punto e'.
 | Feature | Titolo | Roadmap | Stato | Gate | Scenario |
 |---|---|---|---|---:|---|
 | `RT-FEAT-MATCH-END-CONDITIONS` | Fine partita a tre vie | E10.3 | **RELEASE_READY** | 7/8 | `Visual.Combat.Defeat` · `RT_Showcase_Relay_v01` |
-| `RT-FEAT-MATCH-FORMAT` | Formato di partita e classe di mappa | E19.1, E19.2 | **TESTABLE** | 4/8 | — |
+| `RT-FEAT-MATCH-FORMAT` | Formato di partita e classe di mappa | E19.1, E19.2 | **TESTABLE** | 5/8 | — |
 | `RT-FEAT-MATCH-PACING` | Pacing del turno e del match | E12.4 | **TESTABLE** | 5/8 | — |
 | `RT-FEAT-OBJECTIVE-SYSTEM` | Obiettivi dinamici in mappa | E10.1, E10.2 | **IMPLEMENTING** | 2/8 | `Spec.Objective.PointSurvivesKO` |
 | `RT-FEAT-STRESS-4V4` | Validazione di stress 4v4 | E17.1, E17.2, E17.3 | **SPECIFIED** | 1/7 | _pianificato_ |
@@ -202,7 +202,7 @@ il gioco che sara', questa tabella dice a che punto e'.
 
 | Feature | Titolo | Roadmap | Stato | Gate | Scenario |
 |---|---|---|---|---:|---|
-| `RT-FEAT-ACTION-DELAYED` | Delayed Action ai boundary di fase | — | **DESIGNED** | 0/8 | — |
+| `RT-FEAT-ACTION-DELAYED` | Delayed Action ai boundary di fase | — | **DESIGNED** | 0/8 | `Spec.Movement.AntiDashTriggerIgnoresMove` · `Spec.Movement.TripwireOnCrossEdge` |
 | `RT-FEAT-ACTION-TRAPS` | Trappole e gambit tattici | — | **IDEA** | 0/8 | — |
 
 ### Gameplay
@@ -218,3 +218,9 @@ il gioco che sara', questa tabella dice a che punto e'.
 |---|---|---|---|---:|---|
 | `RT-FEAT-NET-AUTHORITY` | Multiplayer con autorità server | M10 | **SPECIFIED** | 1/8 | — |
 | `RT-FEAT-NET-DEDICATED` | Dedicated server | — | **IDEA** | 0/8 | — |
+
+### Tools
+
+| Feature | Titolo | Roadmap | Stato | Gate | Scenario |
+|---|---|---|---|---:|---|
+| `RT-FEAT-TOOL-CONTROL-CENTER` | Project Control Center — la UI web del registry | — | **IMPLEMENTING** | 2/6 | — |
