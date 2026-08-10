@@ -565,3 +565,72 @@ bool FRTHexChargeImpactTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Lo scatto non entra in una cella che blocca il movimento: si FERMA nell'ultima cella libera della
+ * traiettoria (`Fallback.Stop`). Copre headless la parte verificabile di PIE-V01-DASHCOVER.
+ *
+ * Aggiornato con #142: da quando `Ranger.Dash` dichiara `LinearDash`, lo scatto non passa piu' dall'A' sul
+ * grafo, quindi il muro non si aggira. Il test asseriva «l'unita' resta dov'era» e partiva da (2,3), che sulla
+ * mappa di prova (esagono di raggio 4) **non esiste**: l'unita' restava ferma perche' il pathfinding falliva
+ * sempre, non perche' la cella fosse bloccata. Ora la partenza e' una cella vera e la traiettoria e' reale.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexDashBlockedTest,
+	"RefactorTactics.HexMove.DashRefusesBlockedDestination",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexDashBlockedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	if (!TestNotNull(TEXT("arena di prova"), Arena)) { DestroyHexMatchWorld(World); return false; }
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+
+	// (2,1) e' uno degli ostacoli della mappa di prova. Da (0,3) ci si arriva in LINEA (direzione q+1/r-1) in
+	// due celle: la prima, (1,2), e' libera — e' li' che lo scatto deve fermarsi.
+	const FRTCellId Blocked(2, 1, 0);
+	const FRTCellId From(0, 3, 0);
+	const FRTCellId LastFree(1, 2, 0);
+	const FRTHexCellData* BlockedData = Arena->FindCell(Blocked);
+	TestTrue(TEXT("premessa: la cella di prova blocca il movimento"),
+		BlockedData != nullptr && BlockedData->bBlocksMovement);
+
+	// Premessa che mancava: senza celle vere il test misurerebbe un pathfinding fallito, non un muro.
+	TestTrue(TEXT("premessa: la cella di partenza esiste"), Arena->ContainsCell(From));
+	const FRTHexCellData* FreeData = Arena->FindCell(LastFree);
+	TestTrue(TEXT("premessa: la cella intermedia esiste ed e' libera"),
+		FreeData != nullptr && !FreeData->bBlocksMovement);
+
+	ARTUnit* Dasher = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), From);
+	ARTUnit* Idle   = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Dasher || !Idle) { DestroyHexMatchWorld(World); return false; }
+	Dasher->bIsBotControlled = false;
+	Idle->bIsBotControlled = false;
+
+	// La mobilita' rapida si CERCA, non si assume all'indice 3: quello era lo Scatto del Ranger legacy, e
+	// dopo la migrazione al roster l'indice 3 di Vektor e' `Deflection`, una reazione — le premesse qui sotto
+	// fallivano su un'abilita' che non c'entra. `FindDashAbilityIndex` interroga la fase del catalogo, che e'
+	// il modo in cui il gioco stesso riconosce uno scatto (#142).
+	const int32 DashIdx = Dasher->FindDashAbilityIndex();
+	const URTActionData* Dash = Dasher->GetAbility(DashIdx);
+	if (!TestNotNull(TEXT("premessa: chi scatta ha una mobilita' rapida nel kit"), (void*)Dash)) { DestroyHexMatchWorld(World); return false; }
+	TestTrue(TEXT("premessa: e' un'abilita' di mobilita' rapida"),
+		URTCatalogLibrary::IsFastMovement(Dash->Def));
+	TestTrue(TEXT("premessa: ed e' LINEARE (altrimenti il muro si aggirerebbe)"),
+		URTMovementActionLibrary::IsLinear(Dash->Def.MovementStyle));
+	TestTrue(TEXT("premessa: la cella bloccata e' entro la portata dello scatto"),
+		URTHexLibrary::HexDistance(From, Blocked) <= Dash->Def.RangeCells);
+
+	Dasher->PlannedDashAbility = DashIdx;
+	Dasher->PlannedDashCell = Blocked;
+	PlayOneTurn(TM);
+
+	TestTrue(TEXT("lo scatto non entra nella cella bloccata"), Dasher->Cell != Blocked);
+	// `Fallback.Stop`: ci si ferma nell'ultima cella valida della traiettoria, non si annulla e non si aggira.
+	TestEqual(TEXT("si ferma davanti al muro"), Dasher->Cell.ToString(), LastFree.ToString());
+
+	DestroyHexMatchWorld(World);
+	return true;
+}

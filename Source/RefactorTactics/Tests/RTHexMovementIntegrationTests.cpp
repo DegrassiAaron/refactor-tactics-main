@@ -1128,3 +1128,67 @@ bool FRTHexMoveLogCauseInMatchTest::RunTest(const FString&)
 	DestroyHexMoveWorld(World);
 	return true;
 }
+
+// =====================================================================================================
+// D-028 — lo scatto e' movimento: si schiva e si spara, oppure si spara e ci si muove.
+//
+// Sono le due meta' della stessa regola, e vanno verificate separate: un solo test che le mescola
+// passerebbe anche se il Dash consumasse gli slot sbagliati in modo compensato.
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDashLeavesMainAvailableTest,
+	"RefactorTactics.Actions.Dash.LeavesMainAvailable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDashLeavesMainAvailableTest::RunTest(const FString&)
+{
+	// Schivo e sparo: lo scatto avvicina PRIMA del Blast, e l'attacco parte dalla posizione nuova.
+	//
+	// Questo test passava GIA' prima della migrazione degli slot, ed e' il fatto piu' importante di D-028: il
+	// gioco faceva la cosa giusta con la regola sbagliata scritta accanto (`Dash` dichiarato `Main`, e
+	// `ValidateActionSlots` mai chiamata in partita). Non e' un RED, e' caratterizzazione — esiste per
+	// impedire che la migrazione porti via il comportamento buono insieme alla regola cattiva.
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 8);
+
+	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Runner) { DestroyHexMoveWorld(World); return false; }
+
+	// Il bersaglio si posiziona sul CONFINE: fuori portata dalla partenza, dentro dopo lo scatto. Era a
+	// (8,0), a distanza 5 dall'arrivo — dentro la portata 6 del Ranger legacy, fuori dalla 4 del roster, e
+	// il colpo non partiva nemmeno dopo lo scatto. Derivandola, la premessa che rende il test discriminante
+	// («senza lo scatto il colpo non partirebbe») resta vera con qualunque eroe.
+	constexpr int32 DashTo = 3;
+	const int32 ShotRange = Runner->AttackRange;
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(DashTo + ShotRange, 0));
+	if (!TestNotNull(TEXT("Foe"), Foe)) { DestroyHexMoveWorld(World); return false; }
+	TestTrue(TEXT("premessa: dalla PARTENZA il bersaglio e' fuori portata"),
+		URTHexLibrary::HexDistance(FRTCellId(0, 0), Foe->Cell) > ShotRange);
+	TestTrue(TEXT("premessa: dopo lo scatto e' a portata"),
+		URTHexLibrary::HexDistance(FRTCellId(DashTo, 0), Foe->Cell) <= ShotRange);
+
+	URTActionData* Dash = NewObject<URTActionData>(Runner);
+	Dash->DisplayName = FText::FromString(TEXT("Scatto"));
+	Dash->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
+	Runner->Abilities.Add(Dash);
+	const int32 DashIdx = Runner->Abilities.Num() - 1;
+
+	const int32 FoeBefore = Foe->Health + Foe->Shield;
+
+	// Senza lo scatto il colpo non partirebbe: e' cio' che rende il test discriminante invece che decorativo.
+	Runner->PlannedDashAbility = DashIdx;
+	Runner->PlannedDashCell = FRTCellId(DashTo, 0);
+	Runner->PlannedAbilityIndex = 0;
+	Runner->PlannedAttackTarget = Foe;
+	Foe->PlannedCell = Foe->Cell;
+
+	RunTurn(TM);
+
+	TestTrue(TEXT("lo scatto ha portato l'unita' a destinazione"), Runner->Cell == FRTCellId(DashTo, 0));
+	TestTrue(TEXT("l'azione principale e' rimasta disponibile: il colpo e' arrivato"),
+		(Foe->Health + Foe->Shield) < FoeBefore);
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
