@@ -24,9 +24,6 @@
 #include "Turn/RTHexSimLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
-#include "Replay/RTMatchHistoryLibrary.h" // indice delle partite: una riga per partita, fuori dagli archivi (#416)
-#include "Replay/RTReplayRecorderLibrary.h" // archivio replay: il recorder scrive, questo file gli passa i turni
-#include "Turn/RTMatchStateHash.h" // checksum di fine partita: un solo produttore (#490)
 #include "Unit/RTUnit.h"
 #include "Core/RTTypes.h"
 #include "RefactorTactics.h"
@@ -34,7 +31,9 @@
 #include "TimerManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Replay/RTMatchHistoryLibrary.h" // indice delle partite: una riga per partita, fuori dagli archivi (#416)
 #include "Replay/RTReplayRecorderLibrary.h"
+#include "Turn/RTMatchStateHash.h"
 #include "Misc/DateTime.h"
 #include "HAL/FileManager.h"
 
@@ -741,16 +740,6 @@ void ARTTurnManager::LockInAndResolve()
 	MatchState.RoundNumber = TurnNumber;
 	PendingResult = URTTurnRules::EvaluateMatchEnd(MatchState, MatchRules);
 
-	// FINE PARTITA: il checksum si congela QUI, e la sua semantica non dipende da chi lo guarda. Il momento e'
-	// deciso da `D-084` (`#490`) — dopo il Cleanup e **prima** di `DestroyDefeatedUnits`, che `ConcludeTurn`
-	// chiama subito dopo: senza questo istante `bAlive` non varrebbe mai `false` in una partita vera, e due
-	// finali diversi per chi e' rimasto in piedi darebbero lo stesso hash.
-	//
-	// ⚠️ Sta fuori dal ramo della registrazione, e la prima stesura sbagliava proprio qui: congelandolo solo
-	// quando si registrava, la STESSA partita dava due checksum diversi a seconda che il recorder fosse acceso
-	// — cioe' l'osservazione alterava l'osservato, che e' il criterio che `#469` chiede di non violare.
-	FreezeFinalStateHashIfMatchEnded();
-
 	// Il playback di QUESTO turno parte da zero anche se non verra' riprodotto: senza, il ramo senza
 	// playback lascerebbe il valore del turno precedente e la misura leggerebbe una durata mai avvenuta.
 	PlaybackElapsedTotal = 0.f;
@@ -1128,61 +1117,6 @@ void ARTTurnManager::EnsureMatchRoster()
 	bMatchRosterBuilt = true;
 }
 
-void ARTTurnManager::FreezeFinalStateHashIfMatchEnded()
-{
-	if (PendingResult.Outcome == ERTMatchOutcome::InProgress || bFinalStateHashFrozen)
-	{
-		return;
-	}
-
-	FrozenFinalStateHash = ComputeMatchStateHashNow();
-	bFinalStateHashFrozen = true;
-}
-
-uint32 ARTTurnManager::ComputeMatchStateHashNow() const
-{
-	TArray<FRTUnitStateDigest> UnitStates;
-
-	TArray<AActor*> Actors;
-	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
-	UnitStates.Reserve(Actors.Num());
-	for (const AActor* Actor : Actors)
-	{
-		const ARTUnit* Unit = Cast<ARTUnit>(Actor);
-		if (!Unit)
-		{
-			continue;
-		}
-
-		// NON si filtra sui vivi: chi e' caduto in questo turno esiste ancora nel mondo e deve entrare nel
-		// digest con `bAlive = false`. E' l'intero motivo per cui il calcolo sta prima di `ConcludeTurn`.
-		FRTUnitStateDigest Digest;
-		Digest.StableUnitId = Unit->StableUnitId;
-		Digest.Cell = Unit->Cell;
-		Digest.Health = Unit->Health;
-		Digest.Shield = Unit->Shield;
-		Digest.Energy = Unit->Energy;
-		Digest.bAlive = Unit->IsAlive();
-		Digest.Statuses = Unit->GetActiveStatusNames();
-		UnitStates.Add(Digest);
-	}
-
-	const ARTHexMapActor* MapActor = ARTHexMapActor::FindInWorld(GetWorld());
-	const URTHexMapAsset* Map = MapActor ? MapActor->MapAsset : nullptr;
-
-	// Punteggi indicizzati per TeamId: la v0.1 e' 2v2, e il giudice della fine partita li tiene qui.
-	const TArray<int32> TeamScores = { Team0Score, Team1Score };
-
-	return URTMatchStateHashLibrary::HashMatchState(Map, UnitStates, TeamScores);
-}
-
-uint32 ARTTurnManager::GetOrComputeFinalStateHash() const
-{
-	// A partita finita vince sempre il valore congelato: ricalcolarlo dopo `DestroyDefeatedUnits` darebbe un
-	// numero diverso per lo stesso finale, ed e' precisamente la divergenza che `#490` chiudeva.
-	return bFinalStateHashFrozen ? FrozenFinalStateHash : ComputeMatchStateHashNow();
-}
-
 int32 ARTTurnManager::CurrentGraphRevision() const
 {
 	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
@@ -1399,6 +1333,12 @@ void ARTTurnManager::ConcludeTurn()
 	// sbagliato.
 	RecordTurnToReplay();
 
+	// ⚠️ Il checksum di fine partita si cattura QUI, **prima** che le unita' morte vengano distrutte: dopo,
+	// una caduta non esisterebbe piu' e `bAlive = false` non comparirebbe mai in una partita vera — due
+	// finali diversi per chi e' rimasto in piedi darebbero lo stesso hash. E' la decisione presa con
+	// [D-084], insieme all'identita' che il digest usa.
+	CaptureFinalStateHash();
+
 	// Morte visiva differita: ora che il playback ha mostrato le eliminazioni, rimuovi gli Actor morti
 	// (prima del prossimo turno, cosi' non figurano piu' come bersagli/ostacoli).
 	DestroyDefeatedUnits();
@@ -1461,6 +1401,46 @@ void ARTTurnManager::AddTeamScore(int32 TeamId, int32 Points)
 		TeamId, Points, Team0Score, Team1Score));
 }
 
+void ARTTurnManager::CaptureFinalStateHash()
+{
+	if (!bRecordReplay || !ReplayManifest.MatchId.IsValid() || ReplayManifest.bClosed)
+	{
+		return;
+	}
+
+	// Si cattura a ogni turno e non solo all'ultimo: l'ultimo non si sa quale sia finche' non e' passato, e
+	// un turno che chiude la partita per eliminazione lo scopre solo dopo aver risolto. In cambio il valore
+	// c'e' sempre, anche quando la partita finisce in un ramo che non avevamo previsto.
+	//
+	// ⚠️ **Il KPI di pacing non misura questo costo**, ed e' bene saperlo prima che diventi un problema:
+	// `Perf.TurnResolverMedian` spawna un TurnManager senza chiamare `BeginReplayRecording`, quindi la
+	// guardia qui sopra manda la funzione a vuoto e il tempo per turno che quel test pubblica **esclude**
+	// l'hash. Oggi la spesa e' trascurabile — un hash su mappa e unita' di una partita 2v2 — ma se la mappa
+	// crescesse, la rete che dovrebbe accorgersene non copre questo percorso.
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+
+	TArray<ARTUnit*> Units;
+	Units.Reserve(Actors.Num());
+	for (AActor* Actor : Actors)
+	{
+		if (ARTUnit* Unit = Cast<ARTUnit>(Actor))
+		{
+			Units.Add(Unit);
+		}
+	}
+
+	FVector Origin; float CellSize = 0.f; float LayerH = 0.f;
+	const URTHexMapAsset* Map = GetHexContext(Origin, CellSize, LayerH);
+
+	TArray<int32> TeamScores;
+	TeamScores.Add(GetTeamScore(0));
+	TeamScores.Add(GetTeamScore(1));
+
+	PendingFinalStateHash = static_cast<int64>(URTMatchStateHashLibrary::HashMatchState(
+		Map, URTMatchStateHashLibrary::BuildUnitDigests(Units), TeamScores));
+}
+
 void ARTTurnManager::BeginReplayRecording()
 {
 	if (!bRecordReplay)
@@ -1476,7 +1456,7 @@ void ARTTurnManager::BeginReplayRecording()
 	ReplayManifest.FormatId = MatchRules.FormatId;
 	ReplayManifest.bHexTopology = true; // un solo substrato: `FRTCellId` e' esagonale (ADR-0002)
 
-	// L'UNICO tempo reale che tocca l'archivio: da qui esce la durata nel manifest, e la data nell'indice.
+	// L'UNICO tempo reale che tocca l'archivio: da qui esce la durata nel manifest e la data nell'indice.
 	// Nessuno dei due entra in un hash.
 	ReplayStartRealSeconds = FPlatformTime::Seconds();
 	ReplayStartedUtc = FDateTime::UtcNow();
@@ -1519,21 +1499,20 @@ void ARTTurnManager::CloseReplayArchive()
 		return;
 	}
 
-	// Il checksum di fine partita ADESSO ha un produttore: `#490` e' stata decisa (`D-084`,
-	// `FRTUnitStateDigest::StableUnitId`) e `FreezeFinalStateHashIfMatchEnded` lo ha gia' congelato nel
-	// momento giusto — prima di `DestroyDefeatedUnits`, che ha girato poche righe fa. Qui lo si SCRIVE e
-	// basta: ricalcolarlo adesso darebbe un numero diverso, perche' chi e' caduto in questo turno e' gia'
-	// stato distrutto.
+	// Il checksum e' quello catturato in `CaptureFinalStateHash`, PRIMA che le unita' morte sparissero: qui
+	// non si puo' piu' calcolare, perche' `DestroyDefeatedUnits` e' gia' passato.
+	// La DURATA si misura adesso: nasce in `BeginReplayRecording` e finisce qui. E' l'unico tempo reale che
+	// l'archivio porta, e vive in un campo che non entra in nessun hash.
 	const float WallClock = static_cast<float>(FPlatformTime::Seconds() - ReplayStartRealSeconds);
 	if (!URTReplayRecorderLibrary::CloseMatch(ResolveReplaysRoot(), ReplayManifest,
-		PendingResult.Outcome, static_cast<int64>(FrozenFinalStateHash), WallClock))
+		PendingResult.Outcome, PendingFinalStateHash, WallClock))
 	{
 		AddLogEvent(TEXT("Replay: l'archivio non e' stato chiuso"));
 	}
 
-	// La riga della lista si completa con quello che il manifest dice ADESSO. Se la chiusura e' fallita,
-	// `bClosed` e' rimasto `false` e l'indice lo riporta: la lista non promette una partita intera che il
-	// disco non ha.
+	// La riga della lista si completa con quello che il manifest dice ADESSO: esito, turni, durata e la
+	// disponibilita' del replay, che e' la chiusura stessa. Se la chiusura e' fallita, `bClosed` e' rimasto
+	// `false` e l'indice lo riporta — la lista non promette una partita intera che il disco non ha.
 	URTMatchHistoryLibrary::AppendOrUpdate(ResolveReplaysRoot(),
 		URTMatchHistoryLibrary::EntryFromManifest(ReplayManifest, ReplayStartedUtc));
 }

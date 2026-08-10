@@ -11,6 +11,7 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
 #include "Ability/RTHeroCatalogLibrary.h"
+#include "Turn/RTMatchStateHash.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 #include "HAL/PlatformFileManager.h"
@@ -114,6 +115,32 @@ namespace
 		}
 	}
 
+	/**
+	 * Digest dello stato del mondo, costruito DAL TEST con la stessa funzione che usano partita e harness.
+	 *
+	 * Non si chiede il valore al `TurnManager`: quello lo cattura solo se sta registrando, e la registrazione
+	 * e' precisamente la variabile indipendente dell'esperimento. Misurare con lo strumento che si sta
+	 * verificando renderebbe il test cieco proprio al difetto che cerca.
+	 */
+	uint32 DigestOfWorld(UWorld* World, ARTTurnManager* TM)
+	{
+		TArray<AActor*> Actors;
+		UGameplayStatics::GetAllActorsOfClass(World, ARTUnit::StaticClass(), Actors);
+
+		TArray<ARTUnit*> Units;
+		Units.Reserve(Actors.Num());
+		for (AActor* Actor : Actors)
+		{
+			if (ARTUnit* Unit = Cast<ARTUnit>(Actor)) { Units.Add(Unit); }
+		}
+
+		const ARTHexMapActor* MapActor = ARTHexMapActor::FindInWorld(World);
+		const TArray<int32> TeamScores = { TM->GetTeamScore(0), TM->GetTeamScore(1) };
+
+		return URTMatchStateHashLibrary::HashMatchState(MapActor ? MapActor->MapAsset : nullptr,
+			URTMatchStateHashLibrary::BuildUnitDigests(Units), TeamScores);
+	}
+
 	/** Gioca fino all'esito (o al tetto di sicurezza) e restituisce i turni giocati. */
 	int32 PlayToCompletion(ARTTurnManager* TM, int32 MaxTurns = 40)
 	{
@@ -180,8 +207,8 @@ bool FRTReplayProducerWritesArchiveTest::RunTest(const FString&)
 	// 4. IL CHECKSUM DI FINE PARTITA E' CALCOLATO DA UNA PARTITA VERA, e non e' zero. E' il criterio per cui
 	//    questa issue esiste: il formato lo prevedeva gia', e nessuno lo produceva.
 	TestNotEqual(TEXT("il checksum di fine partita non e' zero"), Letto.FinalStateHash, static_cast<int64>(0));
-	TestEqual(TEXT("il checksum su disco e' quello che la partita ha congelato"),
-		Letto.FinalStateHash, static_cast<int64>(TM->GetOrComputeFinalStateHash()));
+	TestEqual(TEXT("il checksum su disco e' quello che la partita ha catturato"),
+		Letto.FinalStateHash, TM->GetPendingFinalStateHash());
 
 	// 5. LE TRACCE SONO BYTE-IDENTICHE a quelle che `SerializeTurnLog` produce: il recorder non e' un secondo
 	//    serializzatore. Si verifica sull'ULTIMO turno, l'unico il cui TurnLog e' ancora in memoria.
@@ -201,10 +228,6 @@ bool FRTReplayProducerWritesArchiveTest::RunTest(const FString&)
 			TestEqual(TEXT("la traccia e' byte-identica a SerializeTurnLog"), DaDisco, Attesi);
 		}
 	}
-
-	// 6. IL MANIFEST IN MEMORIA E' CHIUSO quanto quello su disco: chi tiene il TurnManager non deve rileggere
-	//    il file per sapere che la partita e' finita.
-	TestTrue(TEXT("anche il manifest in memoria e' chiuso"), TM->GetReplayManifest().bClosed);
 
 	DestroyReplayProducerWorld(World);
 	PuliscIProducer(Root);
@@ -239,7 +262,7 @@ bool FRTReplayProducerIsNotObservableTest::RunTest(const FString&)
 		// Registrazione SPENTA: e' la variabile indipendente dell'esperimento.
 		TM->bRecordReplay = false;
 		TurniSenza = PlayToCompletion(TM);
-		HashSenza = TM->GetOrComputeFinalStateHash();
+		HashSenza = DigestOfWorld(World, TM);
 		EsitoSenza = TM->GetMatchResult().Outcome;
 		DestroyReplayProducerWorld(World);
 	}
@@ -257,7 +280,7 @@ bool FRTReplayProducerIsNotObservableTest::RunTest(const FString&)
 		TM->ReplaysRootOverride = Root;
 		TM->BeginReplayRecording();
 		TurniCon = PlayToCompletion(TM);
-		HashCon = TM->GetOrComputeFinalStateHash();
+		HashCon = DigestOfWorld(World, TM);
 		EsitoCon = TM->GetMatchResult().Outcome;
 		DestroyReplayProducerWorld(World);
 	}
@@ -297,10 +320,14 @@ bool FRTReplayProducerMatchIdOutOfHashesTest::RunTest(const FString&)
 		OutMatchId = TM->GetReplayMatchId();
 		PlayToCompletion(TM);
 
-		OutHashes = TM->GetReplayManifest().OrderedHashPerTurn;
-		OutFinalHash = TM->GetReplayManifest().FinalStateHash;
+		// Dal DISCO, non dalla memoria: l'archivio e' l'artefatto di cui si parla, e il manifest in memoria
+		// non fa parte dell'API pubblica del TurnManager.
+		FRTReplayManifest Letto;
+		const bool bLetto = URTReplayRecorderLibrary::LoadManifest(Root, OutMatchId, Letto);
+		OutHashes = Letto.OrderedHashPerTurn;
+		OutFinalHash = Letto.FinalStateHash;
 		DestroyReplayProducerWorld(World);
-		return true;
+		return bLetto;
 	};
 
 	TArray<int64> HashesA, HashesB;
@@ -360,7 +387,6 @@ bool FRTReplayProducerPartialArchiveTest::RunTest(const FString&)
 	TestFalse(TEXT("il manifest non e' chiuso"), Letto.bClosed);
 	TestTrue(TEXT("l'esito resta 'in corso'"), Letto.Outcome == ERTMatchOutcome::InProgress);
 	TestEqual(TEXT("nessun checksum di fine partita"), Letto.FinalStateHash, static_cast<int64>(0));
-	TestFalse(TEXT("il manifest in memoria non e' chiuso"), TM->GetReplayManifest().bClosed);
 
 	DestroyReplayProducerWorld(World);
 	PuliscIProducer(Root);

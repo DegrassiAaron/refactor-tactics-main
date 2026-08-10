@@ -11,7 +11,6 @@
 #include "Turn/RTHexSim.h" // FRTHexSnapshot: restituito per valore da MakeCurrentSnapshot
 #include "Turn/RTPacing.h" // FRTPacingSample: telemetria, canale separato dal TurnLog
 #include "Map/RTHexCellData.h" // ERTHexSurface: il terreno dinamico ricorda la superficie originale (CP 8.4)
-#include "Replay/RTReplayManifest.h" // FRTReplayManifest: header dell'archivio scritto durante la partita (#469)
 #include "RTTurnManager.generated.h"
 
 class ARTUnit;
@@ -233,25 +232,11 @@ public:
 	/** Identita' della registrazione in corso. Non valida finche' `BeginReplayRecording` non e' stata chiamata. */
 	FGuid GetReplayMatchId() const { return ReplayManifest.MatchId; }
 
+	/** Ultimo checksum di stato catturato. `0` = mai calcolato (registrazione spenta, o nessun turno risolto). */
+	int64 GetPendingFinalStateHash() const { return PendingFinalStateHash; }
+
 	/** Rotte effettivamente percorse nell'ultima risoluzione (viz post-lock del percorso eseguito). */
 	const TArray<TArray<FRTCellId>>& GetLastMoveRoutes() const { return LastMoveRoutes; }
-
-	/** Manifest dell'archivio in corso (o dell'ultimo chiuso). Vuoto se non si e' mai registrato. */
-	const FRTReplayManifest& GetReplayManifest() const { return ReplayManifest; }
-
-	/**
-	 * Checksum dello stato di partita, calcolato QUI e in nessun altro posto (`#490`).
-	 *
-	 * A partita finita restituisce il valore congelato nel momento giusto — dopo il Cleanup e **prima** di
-	 * `DestroyDefeatedUnits`, cosi' chi e' caduto nell'ultimo turno entra nel digest con `bAlive = false`
-	 * invece di sparire. Se la partita non e' finita lo calcola sullo stato corrente.
-	 *
-	 * ⚠️ **Limite dichiarato**: copre le unita' che esistono ancora nel mondo. Chi e' stato eliminato nei turni
-	 * PRECEDENTI e' gia' stato distrutto da `DestroyDefeatedUnits` e non entra nel digest — il checksum
-	 * distingue due finali per lo stato di chi c'e', non per la storia di chi non c'e' piu'. Quella la racconta
-	 * la traccia.
-	 */
-	uint32 GetOrComputeFinalStateHash() const;
 
 	// --- Sonda di pacing (TELEMETRIA: nessun ritorno verso il gameplay) --------------------------
 	/**
@@ -589,6 +574,17 @@ protected:
 	/** Chiude l'archivio a partita finita. Silenziosa se la registrazione e' spenta o non e' mai partita. */
 	void CloseReplayArchive();
 
+	/**
+	 * Calcola il checksum dello stato e lo conserva, per la chiusura dell'archivio.
+	 *
+	 * Va chiamata **prima** di `DestroyDefeatedUnits` ([D-084]): dopo, le unita' cadute non esistono piu' e
+	 * il digest non potrebbe piu' distinguere «tre vivi e un caduto» da «tre vivi e basta».
+	 */
+	void CaptureFinalStateHash();
+
+	/** L'ultimo checksum catturato, usato alla chiusura. `0` = mai calcolato. */
+	int64 PendingFinalStateHash = 0;
+
 	/** La radice effettiva: l'override se c'e', altrimenti `Saved/Replays`. */
 	FString ResolveReplaysRoot() const;
 
@@ -600,28 +596,6 @@ protected:
 
 	/** Istante d'inizio in UTC, per la riga dell'indice (`#416`). Il manifest porta una durata, non un inizio. */
 	FDateTime ReplayStartedUtc = FDateTime(0);
-
-	/**
-	 * Checksum di fine partita congelato prima di `DestroyDefeatedUnits`. `false` = non ancora calcolato.
-	 *
-	 * ⚠️ Si congela SEMPRE a fine partita, anche senza registrazione: e' una proprieta' della partita, non
-	 * della sua osservazione. Legarlo al recorder faceva dare alla stessa identica partita due checksum
-	 * diversi a seconda che si stesse registrando — il difetto che `Producer.RecordingDoesNotChangeTheMatch`
-	 * ha trovato la prima volta che e' girato.
-	 */
-	bool bFinalStateHashFrozen = false;
-	uint32 FrozenFinalStateHash = 0;
-
-	/**
-	 * Congela il checksum di fine partita, se la partita e' finita e non lo si e' gia' fatto.
-	 *
-	 * Va chiamata **prima** di `DestroyDefeatedUnits` (`D-084`, `#490`): dopo, chi e' caduto nell'ultimo turno
-	 * e' gia' sparito dal mondo e `bAlive` non varrebbe mai `false` in una partita vera.
-	 */
-	void FreezeFinalStateHashIfMatchEnded();
-
-	/** Costruisce il digest delle unita' presenti nel mondo (anche di chi e' caduto e non e' ancora distrutto). */
-	uint32 ComputeMatchStateHashNow() const;
 
 	/** Rotte (celle) percorse da ogni unita' che si e' mossa nell'ultima risoluzione. */
 	TArray<TArray<FRTCellId>> LastMoveRoutes;
