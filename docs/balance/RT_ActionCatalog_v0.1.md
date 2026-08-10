@@ -156,7 +156,7 @@ Blast. Cambiano distanza, rumore ed esposizione — non l'economia del turno.
 | `MovementMode.Sneak` | **non specificato** | Costo, portata e rumore **non sono definiti da nessuna fonte corrente**. Non si inventano: [issue di bilanciamento](../OPEN_DECISIONS.md) |
 | `MovementMode.Move` | **5 MP** | il profilo neutro |
 | `MovementMode.Sprint` | **8 MP** | conserva un trade-off reale, vedi sotto |
-| `MovementMode.Withdraw` | **2 MP** | **non si sceglie**: lo impone l'`Overwatch` ([D-067](../decisions/RT_PDR_00_Decision_Log.md)) |
+| `MovementMode.Withdraw` | **2 MP** | **non si sceglie**: lo impone l'`Overwatch` ([D-070](../decisions/RT_PDR_00_Decision_Log.md)) |
 
 **`Withdraw` è il ripiegamento dopo la sorveglianza**, e sta qui perché è un profilo del movimento normale —
 stesso slot, stessa macro-fase — non una mobilità rapida. Tre cose lo distinguono dagli altri tre:

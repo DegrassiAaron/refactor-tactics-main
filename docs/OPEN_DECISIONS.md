@@ -168,15 +168,15 @@ Origine: [`roadmap/plans/overwatch-runtime-lifecycle-triage-2026-08-10.md`](road
 Il **modello** era già deciso da `BAS-5` sopra — `Watch → EndWatchStage → Withdraw` — e gran parte del sorgente
 era già canone-compatibile: la cadence *once-per-target* ha persino uno scenario che la esprime da prima
 (`Spec.Overwatch.HoldThenFire`, dove Vektor fa `HOLD` su Flux e `FIRE` su Riva). Restavano aperti **quanto
-costa** e **come si chiama**: entrambi decisi dall'autore il 2026-08-10 in [D-067](decisions/RT_PDR_00_Decision_Log.md).
+costa** e **come si chiama**: entrambi decisi dall'autore il 2026-08-10 in [D-070](decisions/RT_PDR_00_Decision_Log.md).
 
-### ✅ Chiuse il 2026-08-10 — [D-067](decisions/RT_PDR_00_Decision_Log.md), decise dall'autore in sessione
+### ✅ Chiuse il 2026-08-10 — [D-070](decisions/RT_PDR_00_Decision_Log.md), decise dall'autore in sessione
 
 Tre voci su quattro. Restano qui, barrate, perché il registro deve dire **come** è andata a finire.
 
 | ID | Esito | Dove vive ora |
 |---|---|---|
-| ~~`OW-1`~~ | **Sì, costa anche il movimento** — ma non con `ERTActionSlot::MovementAndMain`: l'Overwatch occupa lo slot **principale** e **riserva** quello di movimento al solo `Withdraw`, dichiarato in Planning. Il divieto di `Dash` diventa una **conseguenza** dello slot impegnato, non una regola da scrivere e testare | [D-067](decisions/RT_PDR_00_Decision_Log.md) |
+| ~~`OW-1`~~ | **Sì, costa anche il movimento** — ma non con `ERTActionSlot::MovementAndMain`: l'Overwatch occupa lo slot **principale** e **riserva** quello di movimento al solo `Withdraw`, dichiarato in Planning. Il divieto di `Dash` diventa una **conseguenza** dello slot impegnato, non una regola da scrivere e testare | [D-070](decisions/RT_PDR_00_Decision_Log.md) |
 | ~~`OW-2`~~ | **`Withdraw`**. Scartati `Fallback` (collide con `ERTActionFallback`), `Disengage` (evoca attacchi di opportunità inesistenti), `Retreat` (implica una direzione). `Action.Reposition` resta dov'è: nessuna rinumerazione di catalogo, codice, kit e test | idem |
 | ~~`OW-3`~~ | **2 MP**, ancorati ad `Action.Reposition` — l'unica altra mobilità breve del catalogo — invece di un numero scelto a intuito. Owner: [`balance/RT_ActionCatalog_v0.1.md`](balance/RT_ActionCatalog_v0.1.md) §2.1 | idem |
 

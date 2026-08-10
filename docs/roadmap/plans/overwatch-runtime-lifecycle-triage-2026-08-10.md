@@ -183,7 +183,7 @@ Il resto — staging Watch/Reposition, budget, divieto di Dash — dipende da `O
 ## 4. Decisioni aperte
 
 **Aggiornamento del 2026-08-10**: tre delle quattro sono state **decise dall'autore** in sessione e vivono in
-[D-067](../../decisions/RT_PDR_00_Decision_Log.md). Restano qui per la provenienza.
+[D-070](../../decisions/RT_PDR_00_Decision_Log.md). Restano qui per la provenienza.
 
 | ID | Domanda | Esito |
 |---|---|---|

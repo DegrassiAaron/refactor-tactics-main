@@ -1518,7 +1518,7 @@ features:
       eligibility block** — che CP 14.6 oggi non fa, e che serve perche' `NoLOS` e `Stun` non possono
       produrre lo stesso reason code terminale.
 
-      **Costo e nome decisi il 2026-08-10** (`D-067`): armare l'Overwatch spende l'azione principale e
+      **Costo e nome decisi il 2026-08-10** (`D-070`): armare l'Overwatch spende l'azione principale e
       **riserva** lo slot movimento a `Withdraw` — 2 MP, dichiarato in Planning, risolto nello **Stage B**
       dopo tutti gli altri. Il divieto di `Dash` e' una **conseguenza** dello slot impegnato, non una regola
       a se'; e il nome non e' `Reposition`, che e' gia' un'azione viva in fase Dash. Nessuno scenario nuovo
