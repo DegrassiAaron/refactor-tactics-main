@@ -10,6 +10,7 @@
 #include "Turn/RTHexSim.h" // FRTHexSnapshot: restituito per valore da MakeCurrentSnapshot
 #include "Turn/RTPacing.h" // FRTPacingSample: telemetria, canale separato dal TurnLog
 #include "Map/RTHexCellData.h" // ERTHexSurface: il terreno dinamico ricorda la superficie originale (CP 8.4)
+#include "Replay/RTReplayManifest.h" // FRTReplayManifest: header dell'archivio scritto durante la partita (#469)
 #include "RTTurnManager.generated.h"
 
 class ARTUnit;
@@ -193,6 +194,43 @@ public:
 
 	/** Rotte effettivamente percorse nell'ultima risoluzione (viz post-lock del percorso eseguito). */
 	const TArray<TArray<FRTCellId>>& GetLastMoveRoutes() const { return LastMoveRoutes; }
+
+	// --- Archivio replay (#469) ----------------------------------------------------------------
+	/**
+	 * Comincia a registrare l'archivio della partita sotto `ReplaysRoot`: da qui in poi OGNI turno risolto
+	 * finisce su disco mentre la partita e' in corso, e la fine partita chiude il manifest.
+	 *
+	 * La chiama chi allestisce una partita vera (`ARTGameMode::SetupHexMatch`), non il `BeginPlay` di questo
+	 * Actor: cosi' i test che pilotano il `TurnManager` direttamente non scrivono niente, e chi vuole l'archivio
+	 * lo chiede su una radice propria. Per il giocatore resta «senza chiedere nulla a mano», che e' il criterio.
+	 *
+	 * Il `MatchId` nasce qui — un `FGuid` che identifica la REGISTRAZIONE e non il contenuto (`D-077`), fuori
+	 * da ogni hash. Registrare due volte la stessa partita da' due archivi distinti, ed e' corretto.
+	 *
+	 * ⚠️ Idempotente: una seconda chiamata NON riavvia la registrazione. Riavviarla perderebbe i turni gia'
+	 * scritti dietro un `MatchId` nuovo, cioe' produrrebbe due archivi parziali della stessa partita.
+	 */
+	void StartReplayRecording(const FString& ReplaysRoot);
+
+	/** Se vero, i turni stanno finendo su disco. Diventa falso quando il manifest viene chiuso. */
+	bool IsRecordingReplay() const { return bRecordingReplay; }
+
+	/** Manifest dell'archivio in corso (o dell'ultimo chiuso). Vuoto se non si e' mai registrato. */
+	const FRTReplayManifest& GetReplayManifest() const { return ReplayManifest; }
+
+	/**
+	 * Checksum dello stato di partita, calcolato QUI e in nessun altro posto (`#490`).
+	 *
+	 * A partita finita restituisce il valore congelato nel momento giusto — dopo il Cleanup e **prima** di
+	 * `DestroyDefeatedUnits`, cosi' chi e' caduto nell'ultimo turno entra nel digest con `bAlive = false`
+	 * invece di sparire. Se la partita non e' finita lo calcola sullo stato corrente.
+	 *
+	 * ⚠️ **Limite dichiarato**: copre le unita' che esistono ancora nel mondo. Chi e' stato eliminato nei turni
+	 * PRECEDENTI e' gia' stato distrutto da `DestroyDefeatedUnits` e non entra nel digest — il checksum
+	 * distingue due finali per lo stato di chi c'e', non per la storia di chi non c'e' piu'. Quella la racconta
+	 * la traccia.
+	 */
+	uint32 GetOrComputeFinalStateHash() const;
 
 	// --- Sonda di pacing (TELEMETRIA: nessun ritorno verso il gameplay) --------------------------
 	/**
@@ -520,6 +558,41 @@ protected:
 
 	/** TurnLog dell'ultimo turno risolto (osservabilita' autoritativa; ordinato in LockInAndResolve). */
 	TArray<FRTTurnLogEntry> TurnLog;
+
+	// --- Archivio replay (#469): stato della registrazione in corso ----------------------------
+	/** Radice degli archivi passata da chi ha avviato la registrazione. Vuota = non si registra. */
+	FString ReplaysRoot;
+
+	/** Header della partita registrata: lo aggiorna `RecordTurn` a ogni turno e lo chiude `CloseMatch`. */
+	FRTReplayManifest ReplayManifest;
+
+	/** Falso appena il manifest e' chiuso: un archivio chiuso non riceve altri turni. */
+	bool bRecordingReplay = false;
+
+	/**
+	 * Istante reale di inizio registrazione, per la durata nel manifest. E' l'UNICO tempo reale che tocca
+	 * l'archivio, e finisce in un campo che non entra in nessun hash.
+	 */
+	double ReplayStartRealSeconds = 0.0;
+
+	/** Istante d'inizio in UTC, per la riga dell'indice (`#416`). Il manifest porta una durata, non un inizio. */
+	FDateTime ReplayStartedUtc = FDateTime(0);
+
+	/** Checksum di fine partita congelato prima di `DestroyDefeatedUnits`. `false` = non ancora calcolato. */
+	bool bFinalStateHashFrozen = false;
+	uint32 FrozenFinalStateHash = 0;
+
+	/**
+	 * Scrive la traccia del turno appena risolto e, se la partita e' finita, chiude il manifest.
+	 *
+	 * Chiamata alla fine di `LockInAndResolve` e non da `ConcludeTurn`: il playback sta in mezzo, e un turno
+	 * risolto che si perde perche' il gioco muore mentre lo si guarda e' esattamente il caso per cui l'archivio
+	 * esiste. Il TurnLog qui e' gia' in forma canonica (`SortTurnLog`), quindi il recorder non ordina niente.
+	 */
+	void RecordResolvedTurn();
+
+	/** Costruisce il digest delle unita' presenti nel mondo (anche di chi e' caduto e non e' ancora distrutto). */
+	uint32 ComputeMatchStateHashNow() const;
 
 	/** Rotte (celle) percorse da ogni unita' che si e' mossa nell'ultima risoluzione. */
 	TArray<TArray<FRTCellId>> LastMoveRoutes;
