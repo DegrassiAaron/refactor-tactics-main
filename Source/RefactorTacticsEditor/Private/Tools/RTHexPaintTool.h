@@ -44,6 +44,16 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Hex|Pennello")
 	bool bBlocksMovement = false;
 
+	/**
+	 * Blocca la linea di tiro (copertura/muro). Il pennello lo scrive **sempre**, come `bBlocksMovement`:
+	 * dipingere con il flag spento su una cella che lo aveva lo toglie, o il muro sarebbe irreversibile.
+	 *
+	 * Nota: non implica `bBlocksMovement`. Una cella che blocca solo la vista si attraversa — ed e' esattamente
+	 * cio' che serve a una rotta coperta ma percorribile (U1 passo 7).
+	 */
+	UPROPERTY(EditAnywhere, Category = "Hex|Pennello")
+	bool bBlocksLineOfSight = false;
+
 	/** Raggio del pennello (celle): 0 = una cella; N = esagono pieno di raggio N (HexArea). */
 	UPROPERTY(EditAnywhere, Category = "Hex|Pennello", meta = (ClampMin = "0", ClampMax = "8"))
 	int32 BrushRadius = 0;

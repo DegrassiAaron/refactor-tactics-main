@@ -54,7 +54,13 @@ Con `bShowOverlay` attivo rileggi il risultato a colori mentre procedi.
 
 ## 3. La copertura — *criterio 1*
 
-2–3 celle con `bBlocksMovement` e 2–3 celle con `bBlocksLineOfSight`.
+2–3 celle con `bBlocksMovement` e 2–3 celle con `bBlocksLineOfSight`, entrambe dal pannello del **pennello**.
+
+> `bBlocksLineOfSight` è arrivato nella palette il 2026-08-10
+> ([#474](https://github.com/DegrassiAaron/refactor-tactics-main/issues/474)): prima **nessuno strumento
+> dell'Editor Mode sapeva scriverlo** e l'unica strada era editare l'array `Cells` a mano nel Data Asset. Il
+> pennello lo tratta come `bBlocksMovement` — lo scrive sempre, quindi ridipingere con il flag spento
+> **toglie** il muro.
 
 **Il criterio non conta le celle, chiede che la vista sia interrotta**: servono **≥2 celle**
 `bBlocksLineOfSight` sul segmento fra i due spawn, e la linea di tiro fra i due deve risultare bloccata.
