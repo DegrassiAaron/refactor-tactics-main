@@ -182,16 +182,22 @@ URTHeroData* URTHeroCatalogLibrary::MakeFlux()
 		/*Range*/ 5, /*Cooldown*/ 2, ERTActionFallback::AttackCell,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 24) }, ERTAbilityShape::Line));
 
-	// Indice 2 — ConductiveNode. "Rende conduttiva una cella per 2 turni": nessun modello di conduttivita' di
-	// cella esiste (ne' in FRTHexCellData ne' in FRTActionEffectSpec, che applica stati solo alle UNITA').
-	// Effects vuoto e' la dichiarazione onesta: l'identita', la fase e il cooldown sono dati veri, l'effetto
-	// no. Range 0 (self) e' un segnaposto, non un numero di bilanciamento: arriva un range reale insieme
-	// all'effetto, non prima.
-	// D-046: cablata su `Action.Electrify`. Il commento qui sopra era vero quando fu scritto — E8 ha chiuso il
-	// 2026-08-07 e il modello di cella conduttiva ORA esiste, quindi la dichiarazione onesta di allora e'
-	// diventata un dato che nessuno legge: il resolver risolveva `Action.Electrify` e nessun eroe la possedeva
-	// (issue #282). Numeri dal CORE, non nuovi: portata 4, propagazione 3, fase Environment. Il cooldown resta
-	// quello dell'eroe (2), come per `Bastion.Ram`.
+	// Indice 2 — ConductiveNode. Cablata su `Action.Electrify` da D-046 (issue #282): numeri dal CORE, non
+	// nuovi — portata 4, propagazione 3, fase Environment. Il cooldown resta quello dell'eroe (2), come per
+	// `Bastion.Ram`.
+	//
+	// Fino al 2026-08-10 qui c'era scritto che «nessun modello di conduttivita' di cella esiste» e che
+	// `Effects` vuoto era la dichiarazione onesta. Era vero quando fu scritto e ha smesso di esserlo con E8
+	// (chiusa il 2026-08-07): il terreno dinamico esiste, `ARTTurnManager::ApplyDynamicSurface` cambia la
+	// superficie di una cella per N turni, ed `ERTHexSurface::Conductive` e' gia' dichiarata
+	// `bConductsElectricity` nel catalogo terreni. Anche `Range 0` non e' piu' un segnaposto: la portata
+	// arriva dal core insieme all'effetto, come il commento vecchio prometteva.
+	//
+	// ⚠️ Resta aperto un punto che NON e' un commento da correggere: il PDF descrive l'azione come «rende
+	// conduttiva una cella per 2 turni», mentre D-046 le ha dato la semantica di `Action.Electrify` — che
+	// propaga una scarica sul grafo dell'acqua, non trasforma la superficie. Sono due effetti diversi, non
+	// due nomi dello stesso. Quale dei due sia l'azione vera e' una decisione di design, tracciata su #207:
+	// sceglierla qui di iniziativa fisserebbe nel codice una risposta che nessuno ha dato.
 	const FRTActionDef ElectrifyDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Electrify"));
 	URTActionData* ConductiveNode = MakeHeroAction(TEXT("Flux.ConductiveNode"), ElectrifyDef.ResolutionPhase,
 		ElectrifyDef.Priority, ElectrifyDef.RangeCells, /*Cooldown*/ 2, ElectrifyDef.Fallback,
