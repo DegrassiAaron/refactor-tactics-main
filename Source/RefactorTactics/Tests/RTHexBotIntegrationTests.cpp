@@ -15,6 +15,7 @@
 #include "Engine/Engine.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Bot/RTHexBotLibrary.h"
 
 /**
  * Pianificazione dei bot su griglia esagonale (CP 6.6): ARTTurnManager::PlanBots passa da URTHexBotLibrary,
@@ -334,31 +335,43 @@ bool FRTHexBotDashAgreesWithResolverTest::RunTest(const FString&)
 	}
 	Map->SortCells();
 
-	// Il Ranger e' un kiter: con un nemico ADDOSSO fugge, e la fuga passa dallo scatto. E' lo scenario che
-	// mette davvero in moto il ramo che questo test deve coprire (con il nemico lontano il bot spara e basta).
-	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0), /*bBot*/ true);
+	// Un kiter con un nemico ADDOSSO fugge, e la fuga passa dallo scatto. E' lo scenario che mette davvero in
+	// moto il ramo che questo test deve coprire (col nemico lontano il bot spara e basta).
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeRiva(), FRTCellId(0, 0), /*bBot*/ true);
 
-	// Il kiting lo dichiara il TEST: `KiteStandoff` non lo imposta nessun eroe — `URTHeroData` non ha il
-	// campo e `ConfigureFromHeroData` non lo tocca — mentre il bot lo LEGGE in tre punti. Era il Ranger
-	// legacy, con 4, l'unico a produrlo. La proprieta' in esame qui non e' il kiting ma la PORTATA dello
-	// scatto su terreno costoso: senza uno standoff il bot non fugge, lo scenario non si mette in moto e la
-	// guardia non guarda niente. Vedi #425 per la decisione su chi debba dichiararlo nel roster.
-	Bot->KiteStandoff = 4;
-	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(2, 0), /*bBot*/ false);
+	// Lo standoff non si dichiara piu' qui: il bot lo DERIVA dalla portata dell'attacco base, e Riva —
+	// `PressureJet`, portata 5 — e' l'unica kiter del roster. Lo scenario e' «il kiter fugge», quindi senza
+	// un'unita' che il kiting lo produca davvero il bot resterebbe fermo e questa guardia non guarderebbe
+	// niente. La premessa qui sotto lo verifica invece di darlo per scontato.
+	// ADDOSSO davvero: a distanza 1 la violazione dello standoff e' massima, e la ritirata immediata scatta
+	// (soglia: meta' standoff). Stava a 2, che con lo standoff 4 del Ranger legacy era dentro la soglia;
+	// con i 3 di Riva non lo e' piu', e il bot si sarebbe limitato a riguadagnare UNA cella — comportamento
+	// corretto, ma non lo scenario che questo test deve coprire.
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(1, 0), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
 
-	// Lo scatto dell'archetipo dichiara di essere LINEARE: e' il ramo che il consolidamento ha unificato.
-	// La linearita' si VERIFICA sul dato del catalogo, non si impone qui: imponendola (come faceva questo
-	// test fino a #142) la guardia sarebbe rimasta verde anche se `Ranger.Dash` fosse tornato senza stile.
+	// Lo scenario chiede un'unita' che sia kiter E abbia uno scatto, e nel roster v0.1 nessuno e' entrambe
+	// le cose: Riva e' l'unica kiter (portata 5) ma il suo kit non ha mobilita' rapide, Vektor ha
+	// `PassingBlade` ma con portata 4 non e' kiter. Lo scatto glielo da' il test, dal catalogo GENERICO —
+	// non e' un numero inventato, e' `Action.Dash` cosi' come lo spedisce il gioco.
+	URTActionData* Sprint = NewObject<URTActionData>(Bot);
+	Sprint->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
+	Sprint->RangeCells = Sprint->Def.RangeCells;
+	Sprint->Power = 0;
+	Bot->Abilities.Add(Sprint);
+
+	// Lo scatto dichiara di essere LINEARE: e' il ramo che il consolidamento ha unificato. La linearita' si
+	// VERIFICA sul dato del catalogo, non si impone qui: imponendola (come faceva questo test fino a #142)
+	// la guardia sarebbe rimasta verde anche se lo scatto fosse tornato senza stile.
 	const int32 DashIdx = Bot->FindDashAbilityIndex();
-	if (!TestTrue(TEXT("l'archetipo ha un'abilita' di scatto"), DashIdx != INDEX_NONE))
+	if (!TestTrue(TEXT("premessa: chi fugge ha una mobilita' rapida"), DashIdx != INDEX_NONE))
 	{
 		DestroyHexBotWorld(World);
 		return false;
 	}
 	URTActionData* DashAb = Bot->GetAbility(DashIdx);
-	if (!TestTrue(TEXT("premessa: lo scatto dell'archetipo e' lineare"),
+	if (!TestTrue(TEXT("premessa: lo scatto e' lineare"),
 		DashAb && URTMovementActionLibrary::IsLinear(DashAb->Def.MovementStyle)))
 	{
 		DestroyHexBotWorld(World);
@@ -450,6 +463,54 @@ bool FRTHexBotSupportTest::RunTest(const FString&)
 	const URTActionData* Planned = Hurt->GetAbility(Hurt->PlannedAbilityIndex);
 	TestTrue(TEXT("pianifica un'abilita' di supporto su se stesso"), Planned && Planned->bSelfTarget);
 	TestNull(TEXT("non pianifica un attacco nello stesso turno"), Hurt->PlannedAttackTarget.Get());
+
+	DestroyHexBotWorld(World);
+	return true;
+}
+
+/**
+ * La fuga del kiter, in partita. Torna dopo la rimozione degli archetipi legacy (#426): l'unita' non e' piu'
+ * il `Ranger` con `KiteStandoff = 4` scritto addosso, ma **Riva**, che lo standoff se lo guadagna dalla
+ * portata del proprio attacco base — `PressureJet` tira a 5, e `DeriveKiteStandoff` ne fa 3.
+ *
+ * E' la differenza che conta: prima il comportamento esisteva perche' un archetipo lo dichiarava, adesso
+ * perche' un eroe del roster ha i numeri per produrlo. Se un domani nessuno li avesse piu', questo test
+ * diventerebbe rosso invece di restare verde su un'unita' inventata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotPanicTest,
+	"RefactorTactics.HexBotPlay.KiterFleesWhenThreatened",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotPanicTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBotWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBotMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Kiter = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeRiva(), FRTCellId(0, 0), /*bBot*/ true);
+
+	// La minaccia si posiziona a meta' dello standoff DERIVATO, che e' la soglia della ritirata immediata.
+	// Era a distanza 2, calcolata sullo standoff 4 del Ranger legacy: Riva ne ha 3, quindi la soglia e' 1 e
+	// a distanza 2 il panico non sarebbe scattato — il test avrebbe misurato un bot che sta fermo.
+	const int32 Standoff = URTHexBotLibrary::DeriveKiteStandoff(Kiter->AttackRange);
+	if (!TestTrue(TEXT("premessa: chi fugge e' un kiter (standoff derivato > 0)"), Standoff > 0))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+	ARTUnit* Melee = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(),
+		FRTCellId(FMath::Max(1, Standoff / 2), 0), /*bBot*/ false);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Melee) { DestroyHexBotWorld(World); return false; }
+
+	TestTrue(TEXT("premessa: la minaccia e' entro meta' standoff"),
+		URTHexLibrary::HexDistance(Kiter->Cell, Melee->Cell) <= Standoff / 2);
+
+	TM->PlanBotsForTest();
+
+	// La fuga puo' avvenire col movimento normale o con lo scatto difensivo: conta il risultato.
+	const FRTCellId Escape = Kiter->PlannedDashAbility != INDEX_NONE ? Kiter->PlannedDashCell : Kiter->PlannedCell;
+	TestTrue(TEXT("il kiter si allontana dalla minaccia"),
+		URTHexLibrary::HexDistance(Escape, Melee->Cell) > URTHexLibrary::HexDistance(Kiter->Cell, Melee->Cell));
 
 	DestroyHexBotWorld(World);
 	return true;

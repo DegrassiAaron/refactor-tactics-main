@@ -169,7 +169,9 @@ void ARTTurnManager::PlanBots()
 		// dall'ordine di enumerazione degli Actor.
 		FRTHexBotContext Ctx;
 		Ctx.Origin = Bot->Cell;
-		Ctx.KiteStandoff = Bot->KiteStandoff;
+		// Il kiting lo DERIVA il bot dalla portata dell'attacco base: e' un comportamento dell'IA, non una
+		// caratteristica dell'unita' (che quando la muove il giocatore non lo consulta mai).
+		Ctx.KiteStandoff = URTHexBotLibrary::DeriveKiteStandoff(Bot->AttackRange);
 
 
 		Ctx.WKill = WKill;
@@ -289,9 +291,10 @@ void ARTTurnManager::PlanBots()
 		};
 
 		// Priorita' ritirata: se un nemico e' molto vicino (meta' dello standoff), il kiter fugge SUBITO,
-		// rinunciando al tiro. Guardia del bot quadrato, conservata: e' una scelta di archetipo, non utility.
-		const bool bKiter = Bot->KiteStandoff > 0;
-		if (bKiter && Nearest && NearestDistance <= Bot->KiteStandoff / 2)
+		// rinunciando al tiro. Guardia del bot quadrato, conservata: non passa dalla utility.
+		const int32 Standoff = URTHexBotLibrary::DeriveKiteStandoff(Bot->AttackRange);
+		const bool bKiter = Standoff > 0;
+		if (bKiter && Nearest && NearestDistance <= Standoff / 2)
 		{
 			if (bDashReady)
 			{
