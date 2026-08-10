@@ -44,10 +44,10 @@ public:
 	 * `ReactiveCapacitor` e' **cablata** (CP 6.7): reazione sulla semantica di `Action.Counter` con due
 	 * effetti propri — scudo 15 a se' e 10 danni all'attaccante.
 	 *
-	 * `ConductiveNode` e' **cablata** da D-046 (#282) sulla semantica di `Action.Electrify`, con portata e
-	 * propagazione dal core: non e' piu' fra i limiti dichiarati, e il modello di cella conduttiva esiste da
-	 * E8. Resta aperto su #207 *quale* dei due effetti sia l'azione vera — propagare una scarica o trasformare
-	 * la superficie — perche' il PDF dice la seconda e il cablaggio fa la prima.
+	 * `ConductiveNode` **e'** `Action.Electrify`: cablata da D-046 (#282) e confermata definitiva da D-064
+	 * (#207), che dichiara obsoleto il PDF in cui «rende conduttiva una cella per 2 turni». L'azione LEGGE il
+	 * grafo conduttivo — acqua e superfici `Conductive` — e non lo crea. Portata e propagazione vengono dal
+	 * core, quindi `Range 0` non e' piu' un segnaposto in attesa di un numero.
 	 *
 	 * Limite dichiarato che resta (nessun sistema a valle esiste ancora, quindi l'effetto non e'
 	 * rappresentabile): `Overload` non ha un modello di "dispositivo interrompibile" (E7, gadget). L'azione
