@@ -54,14 +54,24 @@ struct FRTReplayManifest
 	bool bHexTopology = true;
 
 	/**
-	 * `HashTurnLogOrdered` di ogni turno, in ordine di turno. E' il posto che `D-062` gli aveva assegnato:
-	 * non e' ricalcolabile dai byte della traccia, perche' quelli sono in forma canonica (`D-SR-1`) e hanno
-	 * perso l'ordine di append.
+	 * `HashTurnLogOrdered` di ogni turno, in ordine di turno. `D-062` gli aveva assegnato «l'header del
+	 * Replay Archive», e `D-077` ha dato a quell'header questa forma: non e' ricalcolabile dai byte della
+	 * traccia, perche' quelli sono in forma canonica (`D-SR-1`) e hanno perso l'ordine di append.
+	 *
+	 * `int64` e non `uint32` perche' `UPROPERTY` non supporta `uint32`: i valori sono hash a 32 bit senza
+	 * segno, e l'allargamento e' una zero-extension che li preserva — `0xFFFFFFFF` diventa `4294967295`.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Replay")
 	TArray<int64> OrderedHashPerTurn;
 
-	/** Checksum dello stato di fine partita. `0` = non calcolato — vedi `bClosed`. */
+	/**
+	 * Checksum dello stato di fine partita. `0` = non calcolato — vedi `bClosed`.
+	 *
+	 * ⚠️ Il tipo e' `int64` per lo stesso vincolo di `UPROPERTY`, ma il valore che ci arriva e' un **uint32**:
+	 * `HashMatchState` ritorna 32 bit. Se un giorno il checksum diventasse davvero a 64 bit, questo campo
+	 * andrebbe scritto nel JSON come **stringa**, perche' oltre 2^53 un numero JSON e' un double e comincia
+	 * ad arrotondare in silenzio.
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Replay")
 	int64 FinalStateHash = 0;
 

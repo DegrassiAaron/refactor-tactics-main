@@ -25,6 +25,33 @@ namespace
 	const TCHAR* K_WALLCLOCK = TEXT("WallClockSeconds");
 	const TCHAR* K_CLOSED    = TEXT("Closed");
 	const TCHAR* K_TURNS     = TEXT("TurnCount");
+
+	/**
+	 * Scrive il manifest su un temporaneo e poi lo sposta sopra il definitivo.
+	 *
+	 * Il manifest viene riscritto a OGNI turno, e senza questo passaggio un crash a meta' scrittura
+	 * corromperebbe un file che dopo il turno precedente era valido — mentre tutte le tracce su disco
+	 * restano intatte. Sarebbe il fallimento peggiore possibile per un componente che esiste proprio per
+	 * sopravvivere ai crash: l'archivio diventerebbe illeggibile nel momento in cui serve.
+	 */
+	bool ScriviManifestAtomico(const FString& Dir, const FString& Json)
+	{
+		const FString Finale = FPaths::Combine(Dir, RT_MANIFEST_FILE);
+		const FString Temporaneo = Finale + TEXT(".tmp");
+
+		if (!FFileHelper::SaveStringToFile(Json, *Temporaneo))
+		{
+			return false;
+		}
+		// `Move` con sovrascrittura: il file definitivo passa dal contenuto vecchio a quello nuovo senza
+		// stati intermedi visibili a chi legge.
+		if (!IFileManager::Get().Move(*Finale, *Temporaneo, /*bReplace*/ true))
+		{
+			IFileManager::Get().Delete(*Temporaneo, /*RequireExists*/ false);
+			return false;
+		}
+		return true;
+	}
 }
 
 FString URTReplayRecorderLibrary::ManifestToJson(const FRTReplayManifest& Manifest)
@@ -144,6 +171,14 @@ FString URTReplayRecorderLibrary::MatchDirectory(const FString& ReplaysRoot, con
 bool URTReplayRecorderLibrary::RecordTurn(const FString& ReplaysRoot, FRTReplayManifest& Manifest,
 	int32 TurnNumber, const TArray<FRTTurnLogEntry>& Entries)
 {
+	// I turni si registrano in sequenza, dall'1. Un turno ripetuto o saltato farebbe divergere il numero di
+	// hash nel manifest da quello dei file su disco, e da quel momento il manifest descriverebbe un archivio
+	// che non esiste — senza che nulla se ne accorga. Rifiutare qui costa una riga; accorgersene dopo, no.
+	if (TurnNumber != Manifest.OrderedHashPerTurn.Num() + 1)
+	{
+		return false;
+	}
+
 	const FString Dir = MatchDirectory(ReplaysRoot, Manifest.MatchId);
 	IPlatformFile& PF = FPlatformFileManager::Get().GetPlatformFile();
 	if (!PF.CreateDirectoryTree(*Dir))
@@ -163,31 +198,50 @@ bool URTReplayRecorderLibrary::RecordTurn(const FString& ReplaysRoot, FRTReplayM
 		return false;
 	}
 
-	// L'hash ORDINATO, che e' il motivo per cui il manifest esiste (`D-062`): non e' ricalcolabile dai byte
-	// appena scritti, perche' quelli sono in forma canonica e hanno perso l'ordine di append.
-	Manifest.OrderedHashPerTurn.Add(static_cast<int64>(URTTurnLogLibrary::HashTurnLogOrdered(Entries)));
-	Manifest.TurnCount = Manifest.OrderedHashPerTurn.Num();
+	// ⚠️ Si lavora su una COPIA e si assegna solo a scrittura riuscita. Mutare prima renderebbe il manifest
+	// in memoria piu' avanti del disco su un fallimento — e chi ritenta si ritroverebbe un hash in piu' per
+	// lo stesso turno. La regola vale doppio qui, perche' l'invariante di questa classe e' proprio che lo
+	// stato del manifest dica la verita' su cosa e' stato scritto.
+	FRTReplayManifest Aggiornato = Manifest;
+
+	// L'hash ORDINATO, che e' il motivo per cui il manifest esiste (`D-062` gli assegna «l'header del Replay
+	// Archive»; la forma per-turno e' di `D-077`): non e' ricalcolabile dai byte appena scritti, perche'
+	// quelli sono in forma canonica e hanno perso l'ordine di append.
+	Aggiornato.OrderedHashPerTurn.Add(static_cast<int64>(URTTurnLogLibrary::HashTurnLogOrdered(Entries)));
+	Aggiornato.TurnCount = Aggiornato.OrderedHashPerTurn.Num();
 
 	// Il manifest si riscrive a ogni turno, ancora NON chiuso: e' cosi' che una partita interrotta lascia
 	// un archivio parziale e leggibile invece di niente.
-	return FFileHelper::SaveStringToFile(ManifestToJson(Manifest), *FPaths::Combine(Dir, RT_MANIFEST_FILE));
+	if (!ScriviManifestAtomico(Dir, ManifestToJson(Aggiornato)))
+	{
+		return false;
+	}
+
+	Manifest = Aggiornato;
+	return true;
 }
 
 bool URTReplayRecorderLibrary::CloseMatch(const FString& ReplaysRoot, FRTReplayManifest& Manifest,
 	ERTMatchOutcome Outcome, int64 FinalStateHash, float WallClockSeconds)
 {
-	Manifest.Outcome = Outcome;
-	Manifest.FinalStateHash = FinalStateHash;
-	Manifest.WallClockSeconds = WallClockSeconds;
-	Manifest.bClosed = true;
+	// Come in `RecordTurn`: si prepara una copia e la si adotta solo a scrittura riuscita. Qui il rischio e'
+	// il piu' grave di tutti — un `bClosed = true` in memoria dopo una chiusura FALLITA direbbe «partita
+	// completa» mentre il disco dice il contrario, cioe' romperebbe l'invariante che regge l'intero design.
+	FRTReplayManifest Chiuso = Manifest;
+	Chiuso.Outcome = Outcome;
+	Chiuso.FinalStateHash = FinalStateHash;
+	Chiuso.WallClockSeconds = WallClockSeconds;
+	Chiuso.bClosed = true;
 
-	const FString Dir = MatchDirectory(ReplaysRoot, Manifest.MatchId);
+	const FString Dir = MatchDirectory(ReplaysRoot, Chiuso.MatchId);
 	IPlatformFile& PF = FPlatformFileManager::Get().GetPlatformFile();
-	if (!PF.CreateDirectoryTree(*Dir))
+	if (!PF.CreateDirectoryTree(*Dir) || !ScriviManifestAtomico(Dir, ManifestToJson(Chiuso)))
 	{
 		return false;
 	}
-	return FFileHelper::SaveStringToFile(ManifestToJson(Manifest), *FPaths::Combine(Dir, RT_MANIFEST_FILE));
+
+	Manifest = Chiuso;
+	return true;
 }
 
 bool URTReplayRecorderLibrary::LoadManifest(const FString& ReplaysRoot, const FGuid& MatchId,

@@ -15,7 +15,7 @@
  *                   turn-001.rtlog      <- SerializeTurnLog, invariato
  * ```
  *
- * **Scrive e basta.** Non decide, non calcola esiti, non ordina — l'ordine canonico e' gia' di `SortTurnLog`,
+ * **Scrive, e sa rileggere il proprio formato.** Non decide, non calcola esiti, non ordina — l'ordine canonico e' gia' di `SortTurnLog`,
  * e il recorder che riordinasse produrrebbe byte diversi dalla traccia che la partita ha risolto. Per la
  * stessa ragione la traccia la serializza `SerializeTurnLog` e non un secondo serializzatore scritto qui:
  * e' l'unico modo di rendere vero il criterio «byte-identiche», invece di sperarlo.
@@ -23,6 +23,12 @@
  * ⚠️ **Il recorder sta dal lato di chi produce, non di chi riproduce**, e non contraddice
  * [ADR-0009](../../../docs/decisions/adr-0009-replay-logico-canonico.md) §3: quel confine dice che chi
  * **riproduce** non chiama il resolver. Scrivere non e' riprodurre, e questa libreria non riproduce niente.
+ *
+ * ⚠️ **La rilettura che c'e' qui e' del FORMATO, non della partita.** `ManifestFromJson` e `LoadManifest`
+ * servono a chi ha scritto — per riprendere, per diagnosticare, e ai test — e non fanno di questa classe un
+ * Player: aprire un archivio per **riprodurlo** e' R3, e quando arrivera' usera' queste funzioni invece di
+ * riscriverle. Se un giorno il Player dovesse vivere in un modulo separato dal produttore, e' questa la
+ * coppia da spostare per prima.
  *
  * Libreria pura di funzioni statiche: nessun Actor, nessun World, nessuno stato nascosto fra una chiamata e
  * l'altra. Il chiamante tiene il manifest e lo passa; cosi' i test girano senza una partita.
