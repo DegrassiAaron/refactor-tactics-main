@@ -316,14 +316,23 @@ bool FRTCatalogMatchesAbilitiesTest::RunTest(const FString&)
 				}
 				else if (!bDeclaresMovement)
 				{
-					// «Tutto il resto colpisce» valeva per i quattro slot degli archetipi legacy. Il roster
-					// ha azioni che si PREPARANO senza essere supporto su se stessi — `Bastion.Reconfigure`,
-					// `Riva.FlowReaction`, `Vektor.InterceptShot` — e chiedere loro il Blast sarebbe chiedere
-					// che una preparazione colpisca. La proprieta' che regge, e che il test esiste per
-					// difendere, e' che nessuna azione finisca in una fase in cui non si gioca: Snapshot,
-					// Cleanup e MatchEnded non sono destinazioni per un'azione dichiarata da un'unita'.
-					TestTrue(FString::Printf(TEXT("%s risolve in una fase giocabile (Prep o Blast)"), *Name),
-						Macro == ERTMatchPhase::Prep || Macro == ERTMatchPhase::Blast);
+					// «Tutto il resto colpisce» descriveva i quattro slot degli archetipi legacy. Un kit
+					// d'eroe ha almeno quattro categorie, e le ultime due non colpiscono affatto:
+					//   - si PREPARA senza essere supporto su se' — `Bastion.Reconfigure`, `Riva.FlowReaction`,
+					//     `Vektor.InterceptShot` (fase Prep);
+					//   - agisce sull'AMBIENTE — `Flux.ConductiveNode`, `Riva.FluidTrail`, `Riva.MistVeil`,
+					//     `Bastion.KineticPanel`, che ereditano la fase dalle azioni core d'ambiente e
+					//     risolvono nel Cleanup, dopo il Move, per colpire anche chi e' appena entrato.
+					// La proprieta' che regge tutte e' che l'azione risolva in una fase in cui si GIOCA:
+					// `Snapshot`, `Planning` e `MatchEnded` non sono destinazioni per un'azione dichiarata
+					// da un'unita' — ci finirebbe senza che nessuno la risolva.
+					//
+					// L'`ActionId` nel messaggio e non il `DisplayName`: le azioni d'eroe non lo valorizzano,
+					// e un fallimento diceva «' risolve in una fase giocabile'» senza dire di chi.
+					const FString Who = Ability->Def.ActionId.ToString();
+					TestTrue(FString::Printf(TEXT("%s risolve in una fase giocabile"), *Who),
+						Macro == ERTMatchPhase::Prep || Macro == ERTMatchPhase::Blast
+						|| Macro == ERTMatchPhase::Move || Macro == ERTMatchPhase::Cleanup);
 				}
 			}
 		}

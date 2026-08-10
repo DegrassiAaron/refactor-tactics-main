@@ -564,7 +564,14 @@ bool FRTInterceptNoSecondOpportunityTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnItcMap(World);
 
-	ARTUnit* Attacker = SpawnItcUnit(World, 1, FRTCellId(5, 0));
+	// L'attaccante sta su un ASSE DIVERSO dai tre alleati, a distanza pari alla portata del proprio attacco
+	// base. Era a `(5,0)`, in fila con loro: distanza 5, che il Tiro del Ranger legacy (portata 6) copriva e
+	// l'attacco base del roster (portata 4) no — il colpo non partiva nemmeno, quindi non c'era niente da
+	// intercettare e il test passava... a zero interposizioni, cioe' misurando il contrario di cio' che dice.
+	// Su un altro asse la traiettoria non passa per il terzo alleato: la sua distanza dagli altri due — 3
+	// dalla vittima, 2 dall'intercettore — resta quella che il test richiede.
+	const int32 ShotRange = URTHeroCatalogLibrary::MakeVektor()->Actions[0]->RangeCells;
+	ARTUnit* Attacker = SpawnItcUnit(World, 1, FRTCellId(0, -ShotRange));
 	ARTUnit* Victim = SpawnItcUnit(World, 0, FRTCellId(0, 0));
 	ARTUnit* Saver = SpawnItcUnit(World, 0, FRTCellId(1, 0));  // a 1 dalla vittima: puo' intercettare
 	ARTUnit* Third = SpawnItcUnit(World, 0, FRTCellId(3, 0));  // a 3 dalla vittima, a 2 dall'intercettore

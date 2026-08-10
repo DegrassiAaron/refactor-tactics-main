@@ -425,8 +425,8 @@ bool FRTHexClimbViaTransitionTest::RunTest(const FString&)
 
 
 /**
- * Un EROE del catalogo scatta in partita. E' il percorso che il gioco usa davvero (`ARTUnit::ConfigureFromHeroData`,
- * il GameMode schiera i quattro eroi): `ConfigureAsArchetype` sopravvive solo nei test.
+ * Un EROE del catalogo scatta in partita: `ARTUnit::ConfigureFromHeroData` e' l'unico percorso di
+ * configurazione, ed e' quello che il GameMode usa per schierare i quattro eroi.
  *
  * Il gate «questa e' un'azione di scatto» legge la fase del catalogo (#142), quindi le azioni d'eroe — che il
  * flag legacy non l'hanno mai avuto — sono ora pianificabili. Questo test verifica che, una volta pianificate,

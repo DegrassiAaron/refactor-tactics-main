@@ -74,9 +74,9 @@ namespace
 	}
 
 	/**
-	 * Sostituisce lo scatto del Ranger (indice 3, inutilizzato nei test qui sotto) con la reazione, invece di
-	 * accodarla con `Abilities.Add`: `AbilityCooldowns` (privato, parallelo a `Abilities`) e' dimensionato da
-	 * `ConfigureAsArchetype` sul conteggio ORIGINALE e non si allarga da solo — un'abilita' accodata dopo finirebbe
+	 * Sostituisce un'abilita' esistente (indice 3, inutilizzata nei test qui sotto) con la reazione, invece di
+	 * accodarla con `Abilities.Add`: `AbilityCooldowns` (privato, parallelo a `Abilities`) e' dimensionato dalla
+	 * configurazione sul conteggio ORIGINALE e non si allarga da solo — un'abilita' accodata dopo finirebbe
 	 * fuori indice, e `ConsumeAbility`/`GetAbilityCooldown` la ignorerebbero in silenzio (nessun cooldown
 	 * osservabile). Sovrascrivere un indice esistente resta dentro i limiti dell'array senza toccare codice
 	 * condiviso per un'esigenza solo di test.

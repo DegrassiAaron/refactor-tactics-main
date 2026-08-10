@@ -261,10 +261,10 @@ bool FRTMovementCatalogTest::RunTest(const FString&)
  * che si dimentica di dichiararlo NON e' un errore di compilazione — e' uno scatto che, in silenzio, torna a
  * usare il pathfinding del movimento normale (aggira gli ostacoli, attraversa `Rough`, sale di layer).
  *
- * La regola vale per TUTTI E TRE i cataloghi. In particolare per quello degli EROI: `ARTUnit::ConfigureAsArchetype`
- * non e' piu' un percorso di partita (Ranger e Guardian vivono ormai solo nei test), mentre `URTHeroData` e'
- * cio' che il GameMode schiera davvero — se la guardia guardasse altrove sarebbe verde mentre il buco e' aperto
- * proprio dove il gioco passa.
+ * La regola vale per ENTRAMBI i cataloghi rimasti — quello generico (`Action.*`) e quello degli EROI. Dal
+ * 2026-08-10 non ce n'e' un terzo: il catalogo dei due archetipi legacy e' stato rimosso, e con esso l'unico
+ * percorso di configurazione che nessuna partita esercitava. `URTHeroData` e' cio' che il GameMode schiera
+ * davvero — se la guardia guardasse altrove sarebbe verde mentre il buco e' aperto proprio dove il gioco passa.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFastMovementDeclaresStyleTest,
 	"RefactorTactics.Actions.EveryFastMovementDeclaresStyle",
