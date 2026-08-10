@@ -245,8 +245,15 @@ seguiranno la via delle opportunity — non quella di `Amount`. Restano aperti e
 *«Ranger → Bot: 45 (bonus di cella)»*, *«Ranger → Bot: nessuna linea di tiro»*). *(L'esempio diceva «altura
 +danno»: la quota non dà danno, [D-024](../decisions/RT_PDR_00_Decision_Log.md).)*
 
-**Ordinamento del TurnLog** (deterministico, invariante #3/§5.1): **fase → categoria → `SrcCell`** (StableTieBreak
-per-coord). Non dipende **mai** dall'ordine d'inserimento nel container.
+**Ordinamento del TurnLog** (deterministico, invariante #3/§5.1): **fase → categoria → `SrcCell` → `TgtCell` →
+`Outcome` → `Amount` → `ActionId` → `TurnNumber` → `GraphRevision` → `UnitId`**. Non dipende **mai**
+dall'ordine d'inserimento nel container.
+
+> ⚠️ **La regola che tiene in piedi la precedente**: ogni campo che il formato serializzato **scrive** deve
+> stare in questa catena, o due voci che pareggiano su tutto il resto restano a pari merito e a decidere
+> l'ordine resta un sort **non stabile**. Unica eccezione: un campo che non può produrre pareggi perché
+> funzione di un altro già presente — `BaseActionId` rispetto ad `ActionId`.
+> Vedi [D-064](../decisions/RT_PDR_00_Decision_Log.md).
 
 ---
 

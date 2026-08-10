@@ -17,10 +17,21 @@ bool URTTurnLogLibrary::EntryLess(const FRTTurnLogEntry& A, const FRTTurnLogEntr
 	if (A.TgtCell.Layer != B.TgtCell.Layer) { return A.TgtCell.Layer < B.TgtCell.Layer; }
 	if (A.Outcome != B.Outcome)             { return A.Outcome < B.Outcome; }
 	if (A.Amount != B.Amount)               { return A.Amount < B.Amount; }
-	// Ultimo campo, ultimo tie-break. Confronto LESSICOGRAFICO (`FName::Compare`), mai `FastLess`: quello
-	// ordina per indice nella name table, che dipende dall'ordine in cui i nomi sono stati creati nel processo
-	// — due esecuzioni della stessa partita darebbero due ordini diversi, cioe' due hash diversi (#4).
-	return A.ActionId.Compare(B.ActionId) < 0;
+	// Confronto LESSICOGRAFICO (`FName::Compare`), mai `FastLess`: quello ordina per indice nella name table,
+	// che dipende dall'ordine in cui i nomi sono stati creati nel processo — due esecuzioni della stessa
+	// partita darebbero due ordini diversi, cioe' due hash diversi (#4).
+	if (A.ActionId != B.ActionId) { return A.ActionId.Compare(B.ActionId) < 0; }
+
+	// I campi della v6 chiudono l'ordine. NON e' un dettaglio estetico: `SerializeTurnLog` li SCRIVE, e un
+	// campo scritto che il confronto non guarda lascia due voci a pari merito — dove a decidere l'ordine
+	// resta `TArray::Sort`, che non e' stabile. Due inserimenti diversi produrrebbero due file diversi con
+	// lo stesso contenuto, cioe' esattamente cio' che `D-SR-1` promette non accada.
+	//
+	// `BaseActionId` resta fuori e non e' un'omissione: e' una FUNZIONE di `ActionId`, quindi due voci che
+	// pareggiano su `ActionId` pareggiano anche su di lui e non c'e' niente da spareggiare.
+	if (A.TurnNumber != B.TurnNumber)     { return A.TurnNumber < B.TurnNumber; }
+	if (A.GraphRevision != B.GraphRevision) { return A.GraphRevision < B.GraphRevision; }
+	return A.UnitId < B.UnitId;
 }
 
 void URTTurnLogLibrary::SortTurnLog(TArray<FRTTurnLogEntry>& Entries)
@@ -246,6 +257,10 @@ namespace
 		// di commento diventa falsa e il campo deve entrare: e' la condizione da ricontrollare, non una
 		// proprieta' per sempre.
 		//
+		// `GraphRevision` ENTRA: due tracce possono differire SOLO per lei — stessi eventi, ma grafo modificato
+		// in un turno precedente — e sono due partite diverse. Un movimento validato su un grafo e uno
+		// validato su un altro non sono lo stesso evento, anche quando le celle coincidono.
+		Mix(static_cast<uint32>(E.GraphRevision));
 		// `UnitId` e `TurnNumber` NON entrano, per lo stesso criterio (D-063): servono a rendere la traccia
 		// spiegabile — chi ha agito, in quale turno — non a discriminarla. Includerli invaliderebbe in blocco
 		// ogni hash golden senza aggiungere potere discriminante.
@@ -389,8 +404,8 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 	SortTurnLog(Canonical);
 
 	TArray<uint8> Out;
-	// 31 byte fissi + 2+2 di lunghezza per ActionId e BaseActionId + 8 per UnitId/TurnNumber (v6).
-	Out.Reserve(14 + Canonical.Num() * 43);
+	// 31 byte fissi + 2+2 di lunghezza per ActionId e BaseActionId + 12 per i tre interi della v6.
+	Out.Reserve(14 + Canonical.Num() * 47);
 
 	// Header: magic + versione + flags(topologia) + identita' del formato + conteggio (little-endian).
 	// Il FormatId sta DOPO i flags e prima del conteggio: le posizioni dei campi precedenti non si spostano,
@@ -422,6 +437,7 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 		// esiste per essere confrontabile byte-per-byte.
 		AppendI32LE(Out, E.UnitId);
 		AppendI32LE(Out, E.TurnNumber);
+		AppendI32LE(Out, E.GraphRevision);
 	}
 
 	// Checksum FNV di tutto cio' che precede (header + voci), in coda: rileva la corruzione del contenuto.
@@ -490,9 +506,9 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	// che resta — ogni voce occupa almeno i suoi campi a dimensione fissa.
 	constexpr int32 FixedEntryBytes = 31;         // 3 uint8 + 7 int32
 	// + 2 byte di lunghezza per ogni stringa presente nel formato: ActionId da v3, BaseActionId da v5.
-	// + 8 byte fissi per UnitId e TurnNumber da v6.
+	// + 12 byte fissi per UnitId, TurnNumber e GraphRevision da v6.
 	const int32 MinEntryBytes = FixedEntryBytes + (bHasActionId ? 2 : 0) + (bHasBaseActionId ? 2 : 0)
-		+ (bHasUnitId ? 8 : 0);
+		+ (bHasUnitId ? 12 : 0);
 	const int32 Remaining = Bytes.Num() - Pos;
 	if (Remaining < 0 || Count > static_cast<uint32>(Remaining / MinEntryBytes))
 	{
@@ -545,7 +561,8 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 		}
 		if (bHasUnitId)
 		{
-			if (!ReadI32LE(Bytes, Pos, E.UnitId) || !ReadI32LE(Bytes, Pos, E.TurnNumber))
+			if (!ReadI32LE(Bytes, Pos, E.UnitId) || !ReadI32LE(Bytes, Pos, E.TurnNumber)
+				|| !ReadI32LE(Bytes, Pos, E.GraphRevision))
 			{
 				OutEntries.Reset();
 				return false;

@@ -893,4 +893,95 @@ bool FRTTurnLogLegacyWithoutUnitIdTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * La forma canonica deve essere definita su OGNI campo che il serializzatore scrive.
+ *
+ * `D-SR-1` promette byte permutazione-invarianti, e la promessa regge solo se `EntryLess` e' un ordine
+ * TOTALE sui campi serializzati. Se ne resta fuori uno, due voci che pareggiano su tutto il resto restano
+ * a pari merito e il loro ordine lo decide `TArray::Sort`, che non e' stabile: due inserimenti diversi
+ * producono due file diversi con lo stesso contenuto. E' il difetto che `UnitId` ha introdotto arrivando
+ * nella v6 senza entrare nel confronto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogCanonicalOrderCoversSerializedFieldsTest,
+	"RefactorTactics.TurnLog.CanonicalOrderCoversSerializedFields",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogCanonicalOrderCoversSerializedFieldsTest::RunTest(const FString&)
+{
+	// Due voci identiche in TUTTO tranne l'unita' che le ha prodotte: e' il pareggio che scopre il difetto.
+	FRTTurnLogEntry First = MakeSerEntry(ERTMatchPhase::Blast, ERTLogCategory::Combat,
+		static_cast<uint8>(ERTCombatOutcome::Hit), FRTCellId(1, 1), FRTCellId(2, 2), 10);
+	First.UnitId = 1;
+	FRTTurnLogEntry Second = First;
+	Second.UnitId = 2;
+
+	TArray<FRTTurnLogEntry> Ascending;
+	Ascending.Add(First);
+	Ascending.Add(Second);
+	TArray<FRTTurnLogEntry> Descending;
+	Descending.Add(Second);
+	Descending.Add(First);
+
+	TestTrue(TEXT("stessi byte a prescindere dall'ordine d'inserimento, anche a pari merito"),
+		URTTurnLogLibrary::SerializeTurnLog(Ascending) == URTTurnLogLibrary::SerializeTurnLog(Descending));
+
+	// E l'ordine deve essere ANTISIMMETRICO, non solo deterministico: due voci diverse non sono mai «uguali».
+	TestTrue(TEXT("A < B sull'unita'"), URTTurnLogLibrary::EntryLess(First, Second));
+	TestFalse(TEXT("e non B < A"), URTTurnLogLibrary::EntryLess(Second, First));
+	return true;
+}
+
+/**
+ * `GraphRevision` ENTRA nell'hash, al contrario di `UnitId` e `TurnNumber`.
+ *
+ * Il criterio e' quello di sempre: due tracce possono differire SOLO per questo campo — stessi eventi, ma
+ * grafo modificato in un turno precedente — e sono due partite diverse. Un movimento validato su un grafo
+ * e uno validato su un altro non sono lo stesso evento, anche quando le celle coincidono.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogGraphRevisionEntersHashTest,
+	"RefactorTactics.TurnLog.GraphRevisionEntersTheHash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogGraphRevisionEntersHashTest::RunTest(const FString&)
+{
+	TArray<FRTTurnLogEntry> Before = SampleLog();
+	TArray<FRTTurnLogEntry> After = Before;
+	for (FRTTurnLogEntry& E : Before) { E.GraphRevision = 4; }
+	for (FRTTurnLogEntry& E : After)  { E.GraphRevision = 5; }
+
+	TestNotEqual(TEXT("grafo diverso -> hash diverso"),
+		URTTurnLogLibrary::HashTurnLog(After), URTTurnLogLibrary::HashTurnLog(Before));
+
+	// Controprova: a parita' di revisione l'hash non si muove, cioe' il campo non e' rumore.
+	TArray<FRTTurnLogEntry> SameAsBefore = SampleLog();
+	for (FRTTurnLogEntry& E : SameAsBefore) { E.GraphRevision = 4; }
+	TestEqual(TEXT("stessa revisione -> stesso hash"),
+		URTTurnLogLibrary::HashTurnLog(SameAsBefore), URTTurnLogLibrary::HashTurnLog(Before));
+	return true;
+}
+
+/** `GraphRevision` sopravvive al round-trip, come gli altri campi della v6. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogGraphRevisionRoundTripTest,
+	"RefactorTactics.TurnLog.GraphRevisionRoundTrip",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogGraphRevisionRoundTripTest::RunTest(const FString&)
+{
+	TArray<FRTTurnLogEntry> Log;
+	FRTTurnLogEntry Moved = MakeSerEntry(ERTMatchPhase::Move, ERTLogCategory::Move,
+		static_cast<uint8>(ERTMoveOutcome::Moved), FRTCellId(0, 0), FRTCellId(1, 0), 1);
+	Moved.UnitId = 3;
+	Moved.TurnNumber = 9;
+	Moved.GraphRevision = 12; // il ponte e' crollato due eventi fa: il movimento e' stato validato su QUESTO grafo
+	Log.Add(Moved);
+
+	TArray<FRTTurnLogEntry> Restored;
+	if (!TestTrue(TEXT("round-trip riuscito"), URTTurnLogLibrary::DeserializeTurnLog(
+		URTTurnLogLibrary::SerializeTurnLog(Log), Restored)))
+	{
+		return false;
+	}
+	if (!TestEqual(TEXT("una voce letta"), Restored.Num(), 1)) { return false; }
+	TestEqual(TEXT("GraphRevision preservata"), Restored[0].GraphRevision, 12);
+	TestEqual(TEXT("e gli altri campi della v6 con lei"), Restored[0].UnitId, 3);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -311,6 +311,26 @@ struct FRTTurnLogEntry
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	int32 TurnNumber = 0;
 
+	/**
+	 * Revisione del grafo di mappa in vigore quando la voce e' stata emessa. `0` = non dichiarata.
+	 *
+	 * `URTHexMapAsset::Revision` sale a ogni modifica strutturale, e sale **durante** la risoluzione: una
+	 * porta che si apre, una superficie che cambia, un ponte che crolla. Senza questo campo una traccia non
+	 * puo' dire su QUALE grafo un movimento e' stato validato — che e' esattamente la domanda del caso
+	 * «un'unita' ha attraversato un muro», dove il muro potrebbe essere caduto due eventi prima.
+	 *
+	 * ⚠️ **ENTRA nell'hash**, al contrario di `UnitId` e `TurnNumber`, e per lo stesso criterio: due tracce
+	 * POSSONO differire solo per questo campo — stessi eventi, grafo diverso perche' modificato in un turno
+	 * precedente — e sono due partite diverse. Entrando nell'hash entra anche in `EntryLess`: un campo
+	 * serializzato che l'ordinamento non guarda lascia la forma canonica indefinita fra due voci a pari merito.
+	 *
+	 * Non esiste un `TransitionId` che lo accompagni, ed e' deliberato: `FRTHexEdge` e' `From`/`To`/`Cost`/`Kind`
+	 * **senza ID**, perche' nel progetto l'identita' di un bordo E' la coppia di celle — che questa voce porta
+	 * gia' in `SrcCell`/`TgtCell`.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	int32 GraphRevision = 0;
+
 	FRTTurnLogEntry() = default;
 };
 

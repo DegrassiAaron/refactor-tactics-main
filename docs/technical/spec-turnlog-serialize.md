@@ -34,7 +34,16 @@ e porta il KPI «Replay divergence = 0» a ✅ (traccia salvabile, ricaricabile 
 > | `WithActionId = 3` | `ActionId` per voce (CP 5.5): `uint16` di lunghezza + byte UTF-8 in coda alla voce — **primo campo a lunghezza variabile** | **sì** | leggibili, `ActionId` vuoto: che è esattamente ciò che quei byte dicevano |
 > | `WithFormatId = 4` | `FormatId` nell'**header** (CP 10.3), dopo i flags. Sta nell'header perché nelle voci sarebbe una costante ripetuta N volte | no | leggibili, `FormatId` neutro |
 > | `WithBaseActionId = 5` | `BaseActionId` per voce ([#354](https://github.com/DegrassiAaron/refactor-tactics-main/issues/354)): l'azione generica di cui `ActionId` è un profilo, scritta come l'ActionId | no — è una **funzione** di `ActionId`, che c'è già | leggibili, `BaseActionId` vuoto |
-> | `WithUnitId = 6` | `UnitId` e `TurnNumber` per voce ([D-063](../decisions/RT_PDR_00_Decision_Log.md)): due int32 in coda alla voce, dopo `BaseActionId` | no — rendono la traccia **spiegabile**, non la discriminano | leggibili, campi a `0` (`UnitId = 0` = nessuna unità) |
+> | `WithUnitId = 6` | `UnitId`, `TurnNumber` ([D-063](../decisions/RT_PDR_00_Decision_Log.md)) e `GraphRevision` ([D-064](../decisions/RT_PDR_00_Decision_Log.md)): tre int32 in coda alla voce, dopo `BaseActionId` | i primi due **no** — rendono la traccia spiegabile, non la discriminano. `GraphRevision` **sì**: due tracce possono differire solo per lei, ed è un'altra partita | leggibili, campi a `0` (`UnitId = 0` = nessuna unità) |
+>
+> ⚠️ **Ogni campo che questo formato SCRIVE deve stare anche in `EntryLess`.** La forma canonica è definita
+> dall'ordinamento: un campo serializzato che il confronto non guarda lascia due voci a pari merito, e
+> l'ordine fra loro lo decide `TArray::Sort`, che **non è stabile** — due inserimenti diversi produrrebbero
+> due file diversi con lo stesso contenuto. È esattamente ciò che `D-SR-1` promette non accada, ed è successo:
+> `UnitId` e `TurnNumber` sono arrivati nella v6 senza entrare nel confronto. Corretto in
+> [D-064](../decisions/RT_PDR_00_Decision_Log.md), pinnato da `TurnLog.CanonicalOrderCoversSerializedFields`.
+> L'unica eccezione legittima è un campo che **non può produrre pareggi** perché funzione di un altro:
+> `BaseActionId` è funzione di `ActionId`, e per questo resta fuori.
 >
 > ⚠️ **L'hash ordinato di [D-062](../decisions/RT_PDR_00_Decision_Log.md) NON è in questo formato, ed è
 > deliberato.** La prima stesura di D-062 diceva di metterlo nell'header: sarebbe stato un errore, perché i
