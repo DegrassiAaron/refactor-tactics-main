@@ -1,4 +1,5 @@
 #include "ScenarioHarness/RTScenarioSession.h"
+#include "Turn/RTMatchStateHash.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "Ability/RTHeroCatalogLibrary.h"
@@ -718,35 +719,44 @@ void FRTScenarioSession::Finish()
 		}
 	}
 
-	// Digest dello stato finale (FNV-1a, stesso idioma di `URTTurnLogLibrary::HashTurnLog`). Le unita' si
-	// ordinano per ID di scenario: l'ID viene dal file ed e' stabile, l'ordine di `TMap` no.
+	// Digest dello stato finale. Copre unita', STATI, TERRENI MODIFICATI, STRUTTURE e PROGRESSO OBIETTIVI:
+	// il DoD di CP 12.1 li chiedeva tutti, e fino al 2026-08-10 ne copriva solo il primo — due finali che
+	// differivano per una cella in fiamme o una copertura eretta davano lo stesso hash (issue #81).
+	//
+	// Il calcolo vive in `URTMatchStateHashLibrary` e non piu' qui: una funzione che prende DATI si verifica
+	// con un test diretto (`Simulation.ChecksumCoversEnvironment`), un blocco dentro `Finish()` no.
 	{
-		TArray<FString> Ids;
-		UnitsById.GetKeys(Ids);
-		Ids.Sort();
-
-		uint32 Hash = 2166136261u;
-		auto Mix = [&Hash](uint32 V) { Hash ^= V; Hash *= 16777619u; };
-		for (const FString& Id : Ids)
+		TArray<FRTUnitStateDigest> UnitStates;
+		UnitStates.Reserve(UnitsById.Num());
+		for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)
 		{
-			const ARTUnit* Unit = UnitsById[Id].Get();
+			const ARTUnit* Unit = Pair.Value.Get();
 			if (!Unit)
 			{
 				continue;
 			}
-			for (const TCHAR Ch : Id)
-			{
-				Mix(static_cast<uint32>(Ch));
-			}
-			Mix(static_cast<uint32>(Unit->Cell.X));
-			Mix(static_cast<uint32>(Unit->Cell.Y));
-			Mix(static_cast<uint32>(Unit->Cell.Layer));
-			Mix(static_cast<uint32>(Unit->Health));
-			Mix(static_cast<uint32>(Unit->Shield));
-			Mix(static_cast<uint32>(Unit->Energy));
-			Mix(Unit->IsAlive() ? 1u : 0u);
+			// `Digest` e non `State`: la sessione ha gia' un membro `State` (la sua macchina a stati), e
+			// nasconderlo e' un warning trattato come errore.
+			FRTUnitStateDigest Digest;
+			Digest.Id = Pair.Key;
+			Digest.Cell = Unit->Cell;
+			Digest.Health = Unit->Health;
+			Digest.Shield = Unit->Shield;
+			Digest.Energy = Unit->Energy;
+			Digest.bAlive = Unit->IsAlive();
+			Digest.Statuses = Unit->GetActiveStatusNames();
+			UnitStates.Add(Digest);
 		}
-		Result.StateHash = Hash;
+
+		// Punteggi indicizzati per TeamId: la v0.1 e' 2v2, e il giudice della fine partita li tiene qui.
+		TArray<int32> TeamScores;
+		if (const ARTTurnManager* TM = TurnManager.Get())
+		{
+			TeamScores.Add(TM->GetTeamScore(0));
+			TeamScores.Add(TM->GetTeamScore(1));
+		}
+
+		Result.StateHash = URTMatchStateHashLibrary::HashMatchState(Map, UnitStates, TeamScores);
 	}
 
 	for (const FRTTestExpectation& Exp : Scenario.Expect)

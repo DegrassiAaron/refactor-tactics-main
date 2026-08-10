@@ -369,6 +369,16 @@ public:
 	bool HasStatus(FGameplayTag Tag) const;
 
 	/**
+	 * Stati attivi in forma ORDINATA e senza duplicati: quelli a durata (`StatusTurns`) piu' quelli legati
+	 * alla cella (`CellBoundStatuses`), che sullo stesso tag possono coesistere.
+	 *
+	 * Serve al checksum di fine partita (CP 12.1): `HasStatus` risponde su un tag per volta, e un checksum
+	 * non puo' indovinare quali chiedere. L'ordine e' parte del contratto — le due sorgenti sono `TMap` e
+	 * `TSet`, la cui iterazione non e' deterministica (invariante #4), quindi enumerarle a valle non basta.
+	 */
+	TArray<FName> GetActiveStatusNames() const;
+
+	/**
 	 * Applica `Status.Marked` registrando la SQUADRA del marcatore (CP 8.2).
 	 *
 	 * Il catalogo promette "+6 al prossimo attacco **alleato**": senza sapere chi ha marcato, il marchio
