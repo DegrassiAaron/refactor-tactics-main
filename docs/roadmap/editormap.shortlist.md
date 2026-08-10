@@ -101,8 +101,8 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 | **U4** | Combat e linea di tiro | verdetto su forme d'attacco, LOS esagonale e knockback | M6.4, M6.5 | sì | 0/3 | ⏳ |
 | **U5** | Bot e HUD | verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale | M6.6, M6.7 | sì | 0/7 | 🟡 |
 | **U6** | Multilivello e partita completa | chiusura di M6 / E2 — sessione D verde | M6.8 | sì | 0/4 | 🟡 |
-| **U7** | Personaggi Paragon | `BP_Unit_Guardian` (Gideon) e `BP_Unit_Ranger` (Sparrow), committati | — | sì | 2/2 | 🟡 |
-| **U8** | Animazioni | `ABP_Gideon`, `ABP_Sparrow` e i montaggi Cast/Hit/Death | — | sì | 0/2 | ⏳ |
+| **U7** | Personaggi Paragon | i quattro Blueprint-unita' del roster v0.1, committati | — | sì | 2/2 | 🟡 |
+| **U8** | Animazioni | gli anim BP dei quattro eroi e i montaggi Cast/Hit/Death | — | sì | 0/2 | ⏳ |
 | **U9** | Leggibilita' e riferimento visivo | il video (o gli screenshot) di riferimento — DoD di milestone di M8 | — | sì | 2/4 | 🟡 |
 | **U10** | Data asset delle azioni | il catalogo azioni della v0.1 come dati, non come codice | E1.3, E1.4 | sì | — | — |
 | **U11** | I 4 eroi | i data asset di Flux, Riva, Bastion e Vektor, e lo spawn 2v2 che li usa | E6, U10 | sì | 0/1 | 🟡 |
@@ -307,33 +307,65 @@ giorno. ⚠️ La partita completa va quindi **rigiocata col limite nuovo**: il 
 #### U7 · Personaggi Paragon 🟡
 
 **Sbloccata da**: — · **Preparazione condivisa con**: U8, U9 · **Percorso critico**: sì
-**Produce**: `BP_Unit_Guardian` (Gideon) e `BP_Unit_Ranger` (Sparrow), committati
-**Artefatti**: `Content/RT/Characters/Gideon/Blueprints/BP_Unit_Guardian.uasset` ⏳ · `Content/RT/Characters/Sparrow/Blueprints/BP_Unit_Ranger.uasset` ⏳
+**Produce**: i quattro Blueprint-unita' del roster v0.1, committati
+**Artefatti**: `Content/RT/Characters/Flux/Blueprints/BP_Unit_Flux.uasset` ⏳ · `Content/RT/Characters/Riva/Blueprints/BP_Unit_Riva.uasset` ⏳ · `Content/RT/Characters/Bastion/Blueprints/BP_Unit_Bastion.uasset` ⏳ · `Content/RT/Characters/Vektor/Blueprints/BP_Unit_Vektor.uasset` ⏳
 **Verifichi**: `PIE-AS2` ✅ · `PIE-FACING` ✅
-**Finita quando**: i Blueprint sono tracciati da git e le due voci hanno esito reale sui BP nuovi
+**Finita quando**: i quattro Blueprint sono tracciati da git e le due voci hanno esito reale sui BP nuovi
 **Sblocca**: U8
 
-I 26 pack Paragon sono in `Content/FabAsset/Paragon/` — path `/Game/FabAsset/Paragon/<Pack>/…`,
-non `/Game/<Pack>/…` (`convenzioni-contenuti-ue.md` appendice B).
-Procedura: `guida-animazioni-paragon.md` §AS.3 e §AS.4 punto 4.
-Collocazione: `/Game/RT/Characters/<CharacterId>/Blueprints/` (§5); i pack di terze parti
-restano **fuori** da `/Game/RT`. Assegna le classi a `GuardianUnitClass` / `RangerUnitClass`
-e tieni `VisualZOffset=0`.
+**Un Blueprint per EROE, non per archetipo.** La base visuale di ciascuno la fissa **D-037**
+(tabella owner in `docs/characters/paragon.md`):
 
-> ⚠️ Gideon, Sparrow e altri 3 pack sono stati danneggiati dalla migrazione del 2026-08-06 e **vanno riscaricati da Fab** prima di usarli. I pack non sono nel repo (`/Content/FabAsset/` e' ignorato): chi clona se li scarica.
+| Eroe | `HeroId` | Base visuale |
+|---|---|---|
+| Flux | `Hero.Flux` | `Paragon.Gadget` |
+| Riva | `Hero.Riva` | `Paragon.Phase` |
+| Bastion | `Hero.Bastion` | `Paragon.Riktor` |
+| Vektor | `Hero.Vektor` | `Paragon.Wraith` |
+
+Si scrive **`Paragon.Gadget`, mai `Gadget` nudo**: `Gadget` e' gia' una categoria di
+equipaggiamento (`ERTEquipmentSlot::Gadget`), e il nome nudo e' ambiguo.
+
+1. I pack stanno in `Content/FabAsset/Paragon/` — path `/Game/FabAsset/Paragon/<Pack>/…`, mai
+   `/Game/<Pack>/…` (`convenzioni-contenuti-ue.md` appendice B).
+2. Un Blueprint per eroe in `/Game/RT/Characters/<Eroe>/Blueprints/BP_Unit_<Eroe>` (§5: ogni
+   personaggio e' autonomo). I pack di terze parti restano **fuori** da `/Game/RT`.
+3. Registra ciascuno in **`HeroUnitClasses`** del `RTGameMode` — una `TMap` che ha per chiave
+   l'`HeroId` (`Hero.Flux`, …). Chiave assente o classe nulla = fallback al cilindro
+   (`ARTUnit::StaticClass()`), che e' previsto e non un difetto.
+4. Tieni `VisualZOffset=0`. Procedura: `guida-animazioni-paragon.md` §AS.3 e §AS.4 punto 4.
+
+> ⚠️ **Riscritta il 2026-08-10, era obsoleta su tre punti insieme**: chiedeva `BP_Unit_Guardian`
+> (Gideon) e `BP_Unit_Ranger` (Sparrow) da assegnare a `GuardianUnitClass`/`RangerUnitClass`.
+> Gli **archetipi** Guardian/Ranger sono stati rimossi, quei due campi **non esistono piu'** nel
+> codice (oggi c'e' `HeroUnitClasses`, per `HeroId`), e Gideon/Sparrow in `paragon.md` sono
+> *Candidate*: nessuno dei due e' la base visuale di un eroe della v0.1. Seguendola si sarebbero
+> costruiti due Blueprint che il gioco non istanzia.
+
+> ⚠️ **`ParagonGadget` non e' sul disco** (verificato il 2026-08-10): serve a **Flux** ed e' l'unico dei quattro che manca — Phase, Riktor e Wraith ci sono. Va scaricato con la procedura `convenzioni-contenuti-ue.md` **B.2a** (magazzino + Migrate), non installandolo nel progetto. I pack non sono nel repo (`/Content/FabAsset/` e' ignorato): chi clona se li scarica. ⚠️ L'avviso «Gideon, Sparrow e altri 3 pack danneggiati, da riscaricare» **non riguarda questa seduta** e per Gideon e' risultato **falso** (B.3b). Prima di riscaricare un pack, misuralo.
 
 #### U8 · Animazioni ⏳
 
 **Sbloccata da**: — · **Preparazione condivisa con**: U7, U9 · **Percorso critico**: sì
-**Produce**: `ABP_Gideon`, `ABP_Sparrow` e i montaggi Cast/Hit/Death
-**Artefatti**: `Content/RT/Characters/Gideon/Blueprints/ABP_Gideon.uasset` ⏳ · `Content/RT/Characters/Sparrow/Blueprints/ABP_Sparrow.uasset` ⏳
+**Produce**: gli anim BP dei quattro eroi e i montaggi Cast/Hit/Death
+**Artefatti**: `Content/RT/Characters/Flux/Animation/ABP_Flux.uasset` ⏳ · `Content/RT/Characters/Riva/Animation/ABP_Riva.uasset` ⏳ · `Content/RT/Characters/Bastion/Animation/ABP_Bastion.uasset` ⏳ · `Content/RT/Characters/Vektor/Animation/ABP_Vektor.uasset` ⏳
 **Verifichi**: `PIE-AS4a` ⏳ · `PIE-AS4b` ⏳
-**Finita quando**: gli asset sono tracciati da git e le due voci hanno esito reale
+**Finita quando**: i quattro anim BP sono tracciati da git e le due voci hanno esito reale
 **Sblocca**: U9, U19
 
 Procedura completa in `guida-animazioni-paragon.md` §AS.4a (locomozione Idle↔Run pilotata dai
-delegate, **non** da `GetVelocity`) e §AS.4b (montaggi via eventi C++), piu' la sezione
-«Ripetere per il Ranger» per il duplicato.
+delegate, **non** da `GetVelocity`) e §AS.4b (montaggi via eventi C++), poi si ripete per gli
+altri tre eroi.
+
+**Il nome segue l'EROE, non il pack**: `ABP_Flux`, non `ABP_Gadget`, e la collocazione e'
+`/Game/RT/Characters/<Eroe>/Animation/` — non `Blueprints/`, che ospita i `BP_Unit_*`. La regola
+e' scritta in `convenzioni-contenuti-ue.md` §A: *«l'anim BP appartiene al personaggio di gioco,
+non al pack Paragon di origine»*, perche' il nome del pack lega l'asset a **una mesh
+sostituibile** — ed e' esattamente cio' che e' successo quando gli archetipi sono stati rimossi.
+
+> ⚠️ **Riscritta il 2026-08-10 insieme a U7**: chiedeva `ABP_Gideon` e `ABP_Sparrow` in
+> `Blueprints/`, cioe' due anim BP intitolati a pack che non sono la base visuale di nessun eroe
+> della v0.1, nella cartella sbagliata.
 
 #### U9 · Leggibilita' e riferimento visivo 🟡
 

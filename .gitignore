@@ -94,6 +94,17 @@ Content/**/*.txt
 # non fa nulla e non segnala nulla, e la seduta si chiude senza che gli artefatti entrino.
 !Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap
 !Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset
+# I Blueprint-unita' e gli anim BP del roster v0.1 — sedute U7 e U8. Stessa ragione dell'arena qui
+# sopra: riammessi PRIMA che esistano. Un solo nome per eroe, mai per pack Paragon (D-037): la base
+# visuale e' sostituibile, l'eroe no.
+!Content/RT/Characters/Flux/Blueprints/BP_Unit_Flux.uasset
+!Content/RT/Characters/Riva/Blueprints/BP_Unit_Riva.uasset
+!Content/RT/Characters/Bastion/Blueprints/BP_Unit_Bastion.uasset
+!Content/RT/Characters/Vektor/Blueprints/BP_Unit_Vektor.uasset
+!Content/RT/Characters/Flux/Animation/ABP_Flux.uasset
+!Content/RT/Characters/Riva/Animation/ABP_Riva.uasset
+!Content/RT/Characters/Bastion/Animation/ABP_Bastion.uasset
+!Content/RT/Characters/Vektor/Animation/ABP_Vektor.uasset
 
 # Scratch dello sviluppo assistito (subagent-driven-development): mai versionato
 .superpowers/
