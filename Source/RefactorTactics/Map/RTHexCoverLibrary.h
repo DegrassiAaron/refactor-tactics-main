@@ -60,6 +60,16 @@ struct FRTCoverDamageResult
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
 	bool bDestroyed = false;
+
+	/**
+	 * Chi ha colpito, propagato da `FRTStructureHit` (#405). Serve al TurnLog e non al calcolo, come nell'hit
+	 * da cui viene: senza, l'informazione esiste in ingresso e si perde in uscita, e la voce di copertura
+	 * danneggiata resta l'unica del combattimento che non sa dire chi l'ha prodotta.
+	 *
+	 * E' un INDICE, non un Actor: lo strato resta puro (stessa disciplina di `AttackerId`).
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	int32 AttackerId = INDEX_NONE;
 };
 
 /**

@@ -2805,11 +2805,10 @@ void ARTTurnManager::ResolveCombat()
 		Entry.SrcCell = Change.Cell;
 		Entry.TgtCell = Change.Toward;
 		Entry.Amount = Change.RemainingIntegrity;
-		// Nessun attore dichiarato, e non e' una dimenticanza: `ApplyStructureDamage` e' uno strato PURO che
-		// prende celle e restituisce celle — `FRTStructureHit` non porta l'attaccante, e `FRTCoverDamageResult`
-		// nemmeno. Ricavarlo da `Change.Cell` sarebbe la deduzione dalla cella che [D-063] dichiara
-		// inaffidabile. Meglio `0` («nessuna unita' dichiarata») che un id indovinato.
-		AppendLogEntry(Entry, nullptr);
+		// L'attaccante arriva col risultato: `FRTStructureHit` lo dichiarava gia' — «serve al TurnLog, non al
+		// calcolo» — e ora `FRTCoverDamageResult` lo propaga. Resta un indice fino a qui, quindi lo strato di
+		// mappa non ha mai visto un Actor.
+		AppendLogEntry(Entry, Units.IsValidIndex(Change.AttackerId) ? Units[Change.AttackerId] : nullptr);
 		AddLogEvent(FString::Printf(TEXT("Copertura (q=%d,r=%d,L%d) verso (q=%d,r=%d): %s (integrita' %d)"),
 			Change.Cell.X, Change.Cell.Y, Change.Cell.Layer, Change.Toward.X, Change.Toward.Y,
 			Change.bDestroyed ? TEXT("abbattuta") : TEXT("danneggiata"), Change.RemainingIntegrity));
@@ -2957,8 +2956,10 @@ void ARTTurnManager::ResolveCombat()
 		Entry.SrcCell = Change.Cell;
 		Entry.TgtCell = Change.Toward;
 		Entry.Amount = static_cast<int32>(Change.State);
-		// Come per le coperture: `ApplyDoorOps` lavora su celle e `FRTDoorOp` non porta l'unita'.
-		AppendLogEntry(Entry, nullptr);
+		// Come per le coperture, e per la stessa via: l'intento conosce chi agisce, `FRTDoorOp` lo porta e il
+		// cambio lo restituisce. Aprire una porta e' un'azione deliberata: se restasse a `0` sarebbe l'unica
+		// del turno a dichiarare «nessuna unita'».
+		AppendLogEntry(Entry, Units.IsValidIndex(Change.ActorId) ? Units[Change.ActorId] : nullptr);
 		AddLogEvent(FString::Printf(TEXT("Porta (q=%d,r=%d,L%d) verso (q=%d,r=%d): %s"),
 			Change.Cell.X, Change.Cell.Y, Change.Cell.Layer, Change.Toward.X, Change.Toward.Y,
 			Change.bBlocking ? TEXT("chiusa") : TEXT("aperta")));

@@ -28,9 +28,13 @@ struct FRTDoorOp
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
 	ERTHexDoorState State = ERTHexDoorState::Closed;
 
+	/** Chi apre o chiude, come indice (#405). Il TurnLog lo legge; il calcolo della porta lo ignora. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	int32 ActorId = INDEX_NONE;
+
 	FRTDoorOp() = default;
-	FRTDoorOp(const FRTCellId& InFrom, const FRTCellId& InTo, ERTHexDoorState InState)
-		: From(InFrom), To(InTo), State(InState) {}
+	FRTDoorOp(const FRTCellId& InFrom, const FRTCellId& InTo, ERTHexDoorState InState, int32 InActorId = INDEX_NONE)
+		: From(InFrom), To(InTo), State(InState), ActorId(InActorId) {}
 };
 
 /** Cosa e' cambiato su un bordo dopo un ordine: le voci che il chiamante scrive nel TurnLog. */
@@ -53,6 +57,10 @@ struct FRTDoorChange
 	/** Vero se il bordo, dopo il cambio, nega passo e vista. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
 	bool bBlocking = false;
+
+	/** Chi ha agito, propagato da `FRTDoorOp` (#405). Indice, non Actor: lo strato resta puro. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	int32 ActorId = INDEX_NONE;
 };
 
 /**

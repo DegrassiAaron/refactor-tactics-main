@@ -363,4 +363,69 @@ bool FRTUnitIdentityEnvironmentActorTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * `GraphRevision` sale DENTRO il turno, e due voci a cavallo di un evento strutturale la portano diversa.
+ *
+ * E' il criterio che giustifica la scelta di [D-067]: il campo sta nella VOCE e non nell'header proprio
+ * perche' `URTHexMapAsset::Revision` cambia durante la risoluzione — una porta che si apre, una superficie che
+ * si trasforma, un ponte che crolla. Finche' nessun test lo osservava, quella scelta era dichiarata e non
+ * verificata: leggere la revisione una volta a inizio turno avrebbe prodotto tracce identiche e nessun rosso.
+ *
+ * Ed e' esattamente la mutazione che questo test uccide.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogGraphRevisionRisesWithinTurnTest,
+	"RefactorTactics.TurnLog.GraphRevisionRisesWithinTheTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogGraphRevisionRisesWithinTurnTest::RunTest(const FString&)
+{
+	UWorld* World = MakeIdentityWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	URTHexMapAsset* Map = SpawnIdentityMap(World, /*Radius=*/ 4);
+
+	ARTUnit* A = SpawnIdentityUnit(World, 0, ERTArchetype::Ranger,   FRTCellId(-3, 1));
+	SpawnIdentityUnit(World, 1, ERTArchetype::Guardian, FRTCellId(3, -1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !A || !Map) { DestroyIdentityWorld(World); return false; }
+
+	PlayOneTurn(TM);
+
+	// Due eventi strutturali nello STESSO turno, su celle diverse: ognuno tocca la mappa e ne alza la
+	// revisione prima di emettere la propria voce.
+	const int32 RevisionBefore = Map->Revision;
+	TM->ApplyDynamicSurfaceForTest(Map, FRTCellId(1, 0, 0), ERTHexSurface::Fire, /*Turns=*/ 3,
+		FName(TEXT("Action.Ignite")), A);
+	TM->ApplyDynamicSurfaceForTest(Map, FRTCellId(2, 0, 0), ERTHexSurface::Fire, /*Turns=*/ 3,
+		FName(TEXT("Action.Ignite")), A);
+
+	if (!TestTrue(TEXT("i due eventi hanno alzato la revisione della mappa"), Map->Revision > RevisionBefore + 1))
+	{
+		DestroyIdentityWorld(World); return false;
+	}
+
+	// Le due voci prodotte, nello stesso turno.
+	TArray<int32> Revisions;
+	TArray<int32> Turns;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category != ERTLogCategory::Environment) { continue; }
+		if (E.Outcome != static_cast<uint8>(ERTEnvironmentOutcome::SurfaceChanged)) { continue; }
+		Revisions.Add(E.GraphRevision);
+		Turns.Add(E.TurnNumber);
+	}
+
+	if (!TestEqual(TEXT("due voci di trasformazione registrate"), Revisions.Num(), 2))
+	{
+		DestroyIdentityWorld(World); return false;
+	}
+	// Stesso turno: senza questo, due revisioni diverse si spiegherebbero banalmente con due turni diversi e il
+	// test non direbbe niente sul PER-VOCE.
+	TestEqual(TEXT("le due voci appartengono allo stesso turno"), Turns[0], Turns[1]);
+	TestNotEqual(TEXT("e portano revisioni del grafo DIVERSE"), Revisions[0], Revisions[1]);
+	TestTrue(TEXT("la revisione cresce, non oscilla"), Revisions[1] > Revisions[0]);
+
+	DestroyIdentityWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

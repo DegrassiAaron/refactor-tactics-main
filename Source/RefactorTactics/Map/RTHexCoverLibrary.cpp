@@ -215,8 +215,15 @@ TArray<FRTCoverDamageResult> URTHexCoverLibrary::ApplyStructureDamage(URTHexMapA
 
 		// Le due facce sono la STESSA barriera vista dai due lati: se la mappa le dichiara entrambe, il colpo
 		// le scala insieme — altrimenti un muro disegnato due volte reggerebbe il doppio.
+		const int32 FirstFromThisHit = Changes.Num();
 		DamageFace(Map, Hit.From, Forward, Hit.To, Hit.Amount, Changes);
 		DamageFace(Map, Hit.To, Backward, Hit.From, Hit.Amount, Changes);
+		// L'attaccante viaggia con l'esito (#405). Marcato QUI e non dentro `DamageFace`, che non ha bisogno
+		// di conoscerlo: il danno lo calcola l'integrita', non chi l'ha inflitto.
+		for (int32 c = FirstFromThisHit; c < Changes.Num(); ++c)
+		{
+			Changes[c].AttackerId = Hit.AttackerId;
+		}
 	}
 
 	// Ordine canonico: da qui escono voci di TurnLog, e due esecuzioni della stessa partita devono scriverle

@@ -200,6 +200,9 @@ TArray<FRTDoorChange> URTHexDoorLibrary::ApplyDoorOps(URTHexMapAsset* Map, const
 		if (Restriction(Op.State) > Restriction(Existing->State))
 		{
 			Existing->State = Op.State;
+			// L'attore segue lo STATO: se questa richiesta ha vinto la fusione, la porta l'ha chiusa lei. Lasciare
+			// l'attore precedente attribuirebbe l'esito a chi e' stato scavalcato.
+			Existing->ActorId = Op.ActorId;
 		}
 	}
 
@@ -211,7 +214,14 @@ TArray<FRTDoorChange> URTHexDoorLibrary::ApplyDoorOps(URTHexMapAsset* Map, const
 
 	for (const FRTDoorOp& Op : Merged)
 	{
+		const int32 FirstFromThisOp = Changes.Num();
 		Changes.Append(SetDoorState(Map, Op.From, Op.To, Op.State));
+		// Chi ha chiesto il cambio viaggia con l'esito (#405). `SetDoorState` resta ignaro dell'attore: apre e
+		// chiude allo stesso modo per chiunque.
+		for (int32 c = FirstFromThisOp; c < Changes.Num(); ++c)
+		{
+			Changes[c].ActorId = Op.ActorId;
+		}
 	}
 	return Changes;
 }
