@@ -179,20 +179,37 @@ residuo.
 
 ---
 
-## Aperte — costo e nome del ciclo Watch/Reposition, dal consolidamento del 2026-08-10
+## Il ciclo Watch/Withdraw — tre voci chiuse il 2026-08-10, una aperta
 
 Origine: [`roadmap/plans/overwatch-runtime-lifecycle-triage-2026-08-10.md`](roadmap/plans/overwatch-runtime-lifecycle-triage-2026-08-10.md).
-Il **modello** è deciso da `BAS-5` sopra — `Watch → EndWatchStage → Reposition` — e gran parte del sorgente è
-già canone-compatibile: la cadence *once-per-target* ha persino uno scenario che la esprime da prima
-(`Spec.Overwatch.HoldThenFire`, dove Vektor fa `HOLD` su Flux e `FIRE` su Riva). Quello che resta aperto non
-è il funzionamento: è **quanto costa** e **come si chiama**.
+Il **modello** era già deciso da `BAS-5` sopra — `Watch → EndWatchStage → Withdraw` — e gran parte del sorgente
+era già canone-compatibile: la cadence *once-per-target* ha persino uno scenario che la esprime da prima
+(`Spec.Overwatch.HoldThenFire`, dove Vektor fa `HOLD` su Flux e `FIRE` su Riva). Restavano aperti **quanto
+costa** e **come si chiama**: entrambi decisi dall'autore il 2026-08-10 in [D-070](decisions/RT_PDR_00_Decision_Log.md).
+
+### ✅ Chiuse il 2026-08-10 — [D-070](decisions/RT_PDR_00_Decision_Log.md), decise dall'autore in sessione
+
+Tre voci su quattro. Restano qui, barrate, perché il registro deve dire **come** è andata a finire.
+
+| ID | Esito | Dove vive ora |
+|---|---|---|
+| ~~`OW-1`~~ | **Sì, costa anche il movimento** — ma non con `ERTActionSlot::MovementAndMain`: l'Overwatch occupa lo slot **principale** e **riserva** quello di movimento al solo `Withdraw`, dichiarato in Planning. Il divieto di `Dash` diventa una **conseguenza** dello slot impegnato, non una regola da scrivere e testare | [D-070](decisions/RT_PDR_00_Decision_Log.md) |
+| ~~`OW-2`~~ | **`Withdraw`**. Scartati `Fallback` (collide con `ERTActionFallback`), `Disengage` (evoca attacchi di opportunità inesistenti), `Retreat` (implica una direzione). `Action.Reposition` resta dov'è: nessuna rinumerazione di catalogo, codice, kit e test | idem |
+| ~~`OW-3`~~ | **2 MP**, ancorati ad `Action.Reposition` — l'unica altra mobilità breve del catalogo — invece di un numero scelto a intuito. Owner: [`balance/RT_ActionCatalog_v0.1.md`](balance/RT_ActionCatalog_v0.1.md) §2.1 | idem |
+
+> **L'opzione scartata su `OW-1` merita di essere ricordata**, perché il motivo non è estetico. `Action.Sprint`
+> sembrava il precedente perfetto — è l'unica azione che consuma movimento **e** principale — ma
+> [D-028](decisions/RT_PDR_00_Decision_Log.md) glielo sta **togliendo**, e il catalogo lo dichiara già
+> «occupa il **solo slot movimento**» con ⚠️ sul codice non ancora allineato. Adottare `MovementAndMain` per
+> l'Overwatch l'avrebbe resa l'unica utente di uno slot che il canone sta svuotando, riaprendo di fatto una
+> decisione chiusa. La formulazione scelta ottiene lo stesso effetto di gioco — niente Dash, movimento corto e
+> tardivo — **senza** che un'azione si prenda due slot.
+
+### Ancora aperta
 
 | ID | Domanda | Perché serve una risposta |
 |---|---|---|
-| `OW-1` | Armare l'`Overwatch` costa **anche** il movimento — Move ridotto **e** divieto di Dash — oltre all'azione principale? | [D-012](decisions/RT_PDR_00_Decision_Log.md) dice `Attack \| Ability \| Overwatch`, cioè lo slot **principale**; [D-028](decisions/RT_PDR_00_Decision_Log.md) tiene il movimento in uno slot separato e ci mette dentro `Dash · Leap · Reposition`. Col canone di oggi si può armare l'Overwatch **e** dashare. Il sorgente ne fa pagare tre (azione, Move pieno, priorità spaziale tardiva) e lo dichiara *core trade-off*: è bilanciamento, non precisazione. ⚠️ La motivazione strutturale che porta (se l'owner si sposta, la `WatchOrigin` pianificata non è più la sua cella) giustifica **cancellare l'Overwatch**, non **vietare il Dash** in planning — sono due design con conseguenze diverse sul bluff |
-| `OW-2` | Il Move post-Watch **come si chiama**? | `Action.Reposition` **esiste già**: linea retta di **2 celle** in fase **Dash** (`RTCatalogLibrary.cpp:365`, [catalogo](balance/RT_ActionCatalog_v0.1.md) §2.2), slot Movimento, cablata in `RTMovementActionLibrary` fra le mobilità lineari e concessa da `Riva.FlowReaction` e `Vektor.Feint`. Il sorgente usa lo stesso nome per un profilo di **Move** pre-pianificato nello Stage B. Rinominare l'azione esistente costa catalogo, codice, due kit e test; tenerne due in due fasi diverse costa **ogni volta che qualcuno legge il TurnLog** |
-| `OW-3` | Il budget del Move post-Watch | `OPEN_BALANCE` dichiarato dal sorgente stesso (§12), e giustamente: nessun numero va inventato prima del playtest. Dipende da `OW-1`: se l'Overwatch costa già il Dash, un budget troppo stretto la rende una scelta a perdere |
-| `OW-4` | Gli objective che dipendono dalla **posizione finale** si valutano dopo lo Stage B? | Il sorgente (§17) chiede di verificarlo contro il canone, e il canone **non dice nulla**: è una lacuna, non un conflitto. Con due stage di movimento nella stessa fase, «posizione finale» smette di essere ovvia |
+| `OW-4` | Gli objective che dipendono dalla **posizione finale** si valutano dopo lo Stage B? | Il sorgente (§17) chiede di verificarlo contro il canone, e il canone **non dice nulla**: è una lacuna, non un conflitto. Con due stage di movimento nella stessa fase, «posizione finale» smette di essere ovvia. ⏳ **Non è di E14 e non è urgente**: misurato il 2026-08-10, gli objective oggi sono **solo** un motivo di fine partita (`ERTMatchEndReason::Objective`) e il punto d'ingresso per il progresso è dichiarato per **CP 10.2**. Nessun objective di posizione esiste, quindi la domanda non ha ancora un consumatore |
 
 > **Quattro punti del sorgente NON aprono una voce: sono già compatibili** e possono entrare nel DoD di E14
 > senza altre decisioni — la cadence `OncePerTargetPerReactionInstance` (§21), `MaxPrompts` che conta

@@ -1632,10 +1632,12 @@ features:
       eligibility block** — che CP 14.6 oggi non fa, e che serve perche' `NoLOS` e `Stun` non possono
       produrre lo stesso reason code terminale.
 
-      Restano aperti il **costo** (`OW-1`: l'Overwatch toglie anche il movimento?) e il **nome** (`OW-2`:
-      `Action.Reposition` e' gia' presa — 2 celle in fase Dash, `RTCatalogLibrary.cpp:365`). Nessuno scenario
-      nuovo e' stato dichiarato: il §40 del sorgente ne elenca venti, e diventeranno `planned` quando
-      `OW-1`/`OW-2` avranno una risposta, non prima.
+      **Costo e nome decisi il 2026-08-10** (`D-070`): armare l'Overwatch spende l'azione principale e
+      **riserva** lo slot movimento a `Withdraw` — 2 MP, dichiarato in Planning, risolto nello **Stage B**
+      dopo tutti gli altri. Il divieto di `Dash` e' una **conseguenza** dello slot impegnato, non una regola
+      a se'; e il nome non e' `Reposition`, che e' gia' un'azione viva in fase Dash. Nessuno scenario nuovo
+      e' ancora dichiarato: il §40 del sorgente ne elenca venti, e diventano `planned` quando E14 ha una
+      forma eseguibile per HOLD/FIRE — la stessa ragione per cui `Spec.Overwatch.HoldThenFire` esce `BLOCKED`.
 
   - feature_id: RT-FEAT-REACTION-PROFILE
     title: Reaction Profile armato da Brace
