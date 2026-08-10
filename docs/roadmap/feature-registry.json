@@ -213,7 +213,7 @@
       "pie_refs": [],
       "last_verified": {
         "date": "2026-08-10",
-        "commit": "f56d95b"
+        "commit": "51b5afa"
       },
       "notes": "48 test misurati su `RefactorTactics.TurnLog` (2026-08-10): ordine totale, hash permutazione-invariante, serializzazione versionata con checksum, I/O su file, letture legacy. `DescribeEntry` porta i reason code nel combat log del giocatore. Dal 2026-08-10 (#420, D-079) anche lo spostamento forzato **annullato** lascia una voce, con la causa in `Amount`: il gemello `Pull` resta scoperto ed è issue propria."
     },
