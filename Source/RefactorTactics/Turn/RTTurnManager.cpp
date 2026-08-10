@@ -34,6 +34,7 @@
 #include "TimerManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Replay/RTReplayRecorderLibrary.h"
 #include "Misc/DateTime.h"
 #include "HAL/FileManager.h"
 
@@ -47,6 +48,11 @@ ARTTurnManager::ARTTurnManager()
 void ARTTurnManager::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// ⚠️ La registrazione NON parte da sola qui, ed e' deliberato: `BeginPlay` gira anche per i 27 file di
+	// test e per lo `ScenarioHarness` che spawnano un TurnManager a mano, e farli scrivere su disco
+	// sarebbe un effetto collaterale che nessuno ha chiesto. La avvia chi allestisce una partita vera —
+	// il GameMode — con `BeginReplayRecording()`.
 	StartPlanningTimer();
 }
 
@@ -736,24 +742,14 @@ void ARTTurnManager::LockInAndResolve()
 	PendingResult = URTTurnRules::EvaluateMatchEnd(MatchState, MatchRules);
 
 	// FINE PARTITA: il checksum si congela QUI, e la sua semantica non dipende da chi lo guarda. Il momento e'
-	// deciso da `#490` — dopo il Cleanup e **prima** di `DestroyDefeatedUnits`, che in `ConcludeTurn` cancella
-	// dal mondo chi e' caduto in questo turno: senza questo istante `bAlive` non varrebbe mai `false` in una
-	// partita vera, e due finali diversi per chi e' rimasto in piedi darebbero lo stesso hash.
+	// deciso da `D-084` (`#490`) — dopo il Cleanup e **prima** di `DestroyDefeatedUnits`, che `ConcludeTurn`
+	// chiama subito dopo: senza questo istante `bAlive` non varrebbe mai `false` in una partita vera, e due
+	// finali diversi per chi e' rimasto in piedi darebbero lo stesso hash.
 	//
 	// ⚠️ Sta fuori dal ramo della registrazione, e la prima stesura sbagliava proprio qui: congelandolo solo
 	// quando si registrava, la STESSA partita dava due checksum diversi a seconda che il recorder fosse acceso
 	// — cioe' l'osservazione alterava l'osservato, che e' il criterio che `#469` chiede di non violare.
-	if (PendingResult.Outcome != ERTMatchOutcome::InProgress && !bFinalStateHashFrozen)
-	{
-		FrozenFinalStateHash = ComputeMatchStateHashNow();
-		bFinalStateHashFrozen = true;
-	}
-
-	// ARCHIVIO REPLAY (#469): la traccia del turno va su disco ADESSO, prima del playback e prima che
-	// `ConcludeTurn` distrugga chi e' caduto. Il TurnLog qui e' gia' in forma canonica (`SortTurnLog`, poche
-	// righe sopra) e la partita e' gia' stata giudicata (`PendingResult`), quindi il recorder trova tutto
-	// quello che gli serve e non calcola niente per conto proprio.
-	RecordResolvedTurn();
+	FreezeFinalStateHashIfMatchEnded();
 
 	// Il playback di QUESTO turno parte da zero anche se non verra' riprodotto: senza, il ramo senza
 	// playback lascerebbe il valore del turno precedente e la misura leggerebbe una durata mai avvenuta.
@@ -1132,76 +1128,15 @@ void ARTTurnManager::EnsureMatchRoster()
 	bMatchRosterBuilt = true;
 }
 
-void ARTTurnManager::StartReplayRecording(const FString& InReplaysRoot)
+void ARTTurnManager::FreezeFinalStateHashIfMatchEnded()
 {
-	if (bRecordingReplay)
-	{
-		// Riavviare la registrazione a meta' partita produrrebbe DUE archivi parziali della stessa partita:
-		// i turni gia' scritti resterebbero sotto il vecchio `MatchId`, e nessuno dei due sarebbe completo.
-		return;
-	}
-
-	ReplaysRoot = InReplaysRoot;
-
-	ReplayManifest = FRTReplayManifest();
-	ReplayManifest.MatchId = FGuid::NewGuid(); // identita' della REGISTRAZIONE, fuori da ogni hash (`D-077`)
-	ReplayManifest.FormatId = MatchRules.FormatId;
-	ReplayManifest.bHexTopology = true; // il substrato quadrato non esiste piu': dirlo, non dedurlo
-
-	ReplayStartRealSeconds = FPlatformTime::Seconds();
-	ReplayStartedUtc = FDateTime::UtcNow();
-	bRecordingReplay = true;
-
-	// La partita entra nella lista ADESSO e non alla fine (`#416`): se entrasse alla fine, una partita
-	// interrotta non comparirebbe da nessuna parte pur avendo lasciato un archivio riproducibile su disco.
-	// La riga si completa alla chiusura — `AppendOrUpdate` aggiorna la stessa, non ne accoda una seconda.
-	URTMatchHistoryLibrary::AppendOrUpdate(ReplaysRoot,
-		URTMatchHistoryLibrary::EntryFromManifest(ReplayManifest, ReplayStartedUtc));
-
-	UE_LOG(LogRT, Log, TEXT("[RT] Archivio replay: registro la partita %s sotto '%s'"),
-		*ReplayManifest.MatchId.ToString(EGuidFormats::DigitsWithHyphens), *ReplaysRoot);
-}
-
-void ARTTurnManager::RecordResolvedTurn()
-{
-	if (!bRecordingReplay)
+	if (PendingResult.Outcome == ERTMatchOutcome::InProgress || bFinalStateHashFrozen)
 	{
 		return;
 	}
 
-	if (!URTReplayRecorderLibrary::RecordTurn(ReplaysRoot, ReplayManifest, TurnNumber, TurnLog))
-	{
-		// Non si smette di giocare perche' il disco non risponde, e non si finge che sia andata: il manifest
-		// resta senza l'hash di questo turno, quindi l'archivio si dichiara gia' da solo incompleto.
-		UE_LOG(LogRT, Warning, TEXT("[RT] Archivio replay: turno %d non scritto (partita %s)"),
-			TurnNumber, *ReplayManifest.MatchId.ToString(EGuidFormats::DigitsWithHyphens));
-	}
-
-	if (PendingResult.Outcome == ERTMatchOutcome::InProgress)
-	{
-		return;
-	}
-
-	// FINE PARTITA: il checksum e' gia' stato congelato dal chiamante, nel momento che `#490` prescrive. Qui
-	// lo si SCRIVE e basta — ricalcolarlo adesso darebbe lo stesso numero solo per caso, e il giorno in cui
-	// non lo desse piu' l'archivio porterebbe un checksum che nessun'altra strada sa riprodurre.
-	const float WallClock = static_cast<float>(FPlatformTime::Seconds() - ReplayStartRealSeconds);
-	if (!URTReplayRecorderLibrary::CloseMatch(ReplaysRoot, ReplayManifest, PendingResult.Outcome,
-			static_cast<int64>(FrozenFinalStateHash), WallClock))
-	{
-		UE_LOG(LogRT, Warning, TEXT("[RT] Archivio replay: manifest della partita %s non chiuso"),
-			*ReplayManifest.MatchId.ToString(EGuidFormats::DigitsWithHyphens));
-	}
-
-	// La riga della lista si completa con quello che il manifest dice ADESSO: esito, turni, durata, e la
-	// disponibilita' del replay, che e' la chiusura stessa. Se la chiusura e' fallita, `bClosed` e' rimasto
-	// `false` e l'indice lo riporta — la lista non promette una partita intera che il disco non ha.
-	URTMatchHistoryLibrary::AppendOrUpdate(ReplaysRoot,
-		URTMatchHistoryLibrary::EntryFromManifest(ReplayManifest, ReplayStartedUtc));
-
-	// Chiuso o no, non si registra piu': un turno scritto dopo la chiusura sarebbe una traccia che il manifest
-	// non conta, cioe' un archivio che mente sul proprio numero di turni.
-	bRecordingReplay = false;
+	FrozenFinalStateHash = ComputeMatchStateHashNow();
+	bFinalStateHashFrozen = true;
 }
 
 uint32 ARTTurnManager::ComputeMatchStateHashNow() const
@@ -1458,6 +1393,12 @@ void ARTTurnManager::ConcludeTurn()
 	// decide la partita e' proprio quello che non verrebbe mai misurato.
 	ClosePacingSample();
 
+	// La traccia del turno appena risolto va su disco ADESSO, non a fine partita: un archivio serve
+	// soprattutto quando la partita non arriva alla fine. `TurnNumber` e' ancora quello del turno chiuso —
+	// l'incremento avviene piu' sotto, e invertire i due ordini scriverebbe ogni traccia col numero
+	// sbagliato.
+	RecordTurnToReplay();
+
 	// Morte visiva differita: ora che il playback ha mostrato le eliminazioni, rimuovi gli Actor morti
 	// (prima del prossimo turno, cosi' non figurano piu' come bersagli/ostacoli).
 	DestroyDefeatedUnits();
@@ -1476,6 +1417,11 @@ void ARTTurnManager::ConcludeTurn()
 			Team0Score,
 			Team1Score,
 			*MatchRules.FormatId.ToString()));
+
+		// La partita e' finita: l'archivio si chiude, e da qui in poi dichiara di essere completo. Se
+		// questa riga non venisse mai eseguita — crash, uscita — il manifest resterebbe non chiuso, ed e'
+		// esattamente cosi' che un archivio parziale si riconosce.
+		CloseReplayArchive();
 		return; // niente nuovo turno
 	}
 
@@ -1513,6 +1459,83 @@ void ARTTurnManager::AddTeamScore(int32 TeamId, int32 Points)
 
 	AddLogEvent(FString::Printf(TEXT("Obiettivo: team %d +%d (ora %d-%d)"),
 		TeamId, Points, Team0Score, Team1Score));
+}
+
+void ARTTurnManager::BeginReplayRecording()
+{
+	if (!bRecordReplay)
+	{
+		return;
+	}
+
+	ReplayManifest = FRTReplayManifest();
+	ReplayManifest.MatchId = FGuid::NewGuid();
+	// Il formato si legge ADESSO e non a `BeginPlay`: il GameMode spawna il TurnManager prima di risolvere
+	// il formato di partita (`ApplyMatchFormat`), quindi a quel punto `MatchRules.FormatId` non e' ancora
+	// quello vero. Un manifest che dichiara il formato sbagliato e' peggio di uno che non lo dichiara.
+	ReplayManifest.FormatId = MatchRules.FormatId;
+	ReplayManifest.bHexTopology = true; // un solo substrato: `FRTCellId` e' esagonale (ADR-0002)
+
+	// L'UNICO tempo reale che tocca l'archivio: da qui esce la durata nel manifest, e la data nell'indice.
+	// Nessuno dei due entra in un hash.
+	ReplayStartRealSeconds = FPlatformTime::Seconds();
+	ReplayStartedUtc = FDateTime::UtcNow();
+
+	// La partita entra nella lista ADESSO e non alla fine (`#416`): se entrasse alla fine, una partita
+	// interrotta non comparirebbe da nessuna parte pur avendo lasciato un archivio riproducibile su disco.
+	// La riga si completa alla chiusura — `AppendOrUpdate` aggiorna la stessa, non ne accoda una seconda.
+	URTMatchHistoryLibrary::AppendOrUpdate(ResolveReplaysRoot(),
+		URTMatchHistoryLibrary::EntryFromManifest(ReplayManifest, ReplayStartedUtc));
+}
+
+FString ARTTurnManager::ResolveReplaysRoot() const
+{
+	return ReplaysRootOverride.IsEmpty()
+		? FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Replays"))
+		: ReplaysRootOverride;
+}
+
+void ARTTurnManager::RecordTurnToReplay()
+{
+	if (!bRecordReplay || !ReplayManifest.MatchId.IsValid())
+	{
+		return;
+	}
+
+	// Il TurnManager non sa scrivere: consegna la traccia a chi lo fa. Non riordina e non serializza —
+	// `SortTurnLog` ha gia' fissato l'ordine canonico, e la serializzazione e' della libreria del TurnLog.
+	if (!URTReplayRecorderLibrary::RecordTurn(ResolveReplaysRoot(), ReplayManifest, TurnNumber, TurnLog))
+	{
+		// Non e' un errore di gioco: la partita continua anche se il disco no. Ma va DETTO, o un archivio
+		// che non c'e' si scopre solo quando qualcuno prova a riaprirlo.
+		AddLogEvent(FString::Printf(TEXT("Replay: il turno %d non e' stato registrato"), TurnNumber));
+	}
+}
+
+void ARTTurnManager::CloseReplayArchive()
+{
+	if (!bRecordReplay || !ReplayManifest.MatchId.IsValid() || ReplayManifest.bClosed)
+	{
+		return;
+	}
+
+	// Il checksum di fine partita ADESSO ha un produttore: `#490` e' stata decisa (`D-084`,
+	// `FRTUnitStateDigest::StableUnitId`) e `FreezeFinalStateHashIfMatchEnded` lo ha gia' congelato nel
+	// momento giusto — prima di `DestroyDefeatedUnits`, che ha girato poche righe fa. Qui lo si SCRIVE e
+	// basta: ricalcolarlo adesso darebbe un numero diverso, perche' chi e' caduto in questo turno e' gia'
+	// stato distrutto.
+	const float WallClock = static_cast<float>(FPlatformTime::Seconds() - ReplayStartRealSeconds);
+	if (!URTReplayRecorderLibrary::CloseMatch(ResolveReplaysRoot(), ReplayManifest,
+		PendingResult.Outcome, static_cast<int64>(FrozenFinalStateHash), WallClock))
+	{
+		AddLogEvent(TEXT("Replay: l'archivio non e' stato chiuso"));
+	}
+
+	// La riga della lista si completa con quello che il manifest dice ADESSO. Se la chiusura e' fallita,
+	// `bClosed` e' rimasto `false` e l'indice lo riporta: la lista non promette una partita intera che il
+	// disco non ha.
+	URTMatchHistoryLibrary::AppendOrUpdate(ResolveReplaysRoot(),
+		URTMatchHistoryLibrary::EntryFromManifest(ReplayManifest, ReplayStartedUtc));
 }
 
 void ARTTurnManager::DestroyDefeatedUnits()

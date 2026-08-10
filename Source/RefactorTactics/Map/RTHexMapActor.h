@@ -71,6 +71,16 @@ public:
 	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap")
 	void ClearAsset();
 
+	/**
+	 * [Editor] Scrive nell'asset l'**arena della v0.1**: il layout che soddisfa i tre criteri del `done_when`
+	 * di U1, verificati da `RefactorTactics.Arena.ArenaV01MeetsAllThreeCriteria` e non a occhio.
+	 *
+	 * **Sostituisce** il contenuto dell'asset (svuota prima): serve a partire da un layout corretto, non a
+	 * fondersi con quello che c'era. Dopo, `rt.Arena.Check` deve dare tre `[ok]`.
+	 */
+	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap")
+	void GenerateArenaV01IntoAsset();
+
 	/** [Editor] Esegue il validator sull'asset e logga gli errori. */
 	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap")
 	void ValidateAsset();

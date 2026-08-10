@@ -6,6 +6,7 @@
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTResolvedEvent.h"
 #include "Turn/RTTurnLog.h"
+#include "Replay/RTReplayManifest.h"
 #include "Ability/RTActionDef.h" // FRTActionDef: l'impatto della carica porta con se' la definizione
 #include "Turn/RTHexSim.h" // FRTHexSnapshot: restituito per valore da MakeCurrentSnapshot
 #include "Turn/RTPacing.h" // FRTPacingSample: telemetria, canale separato dal TurnLog
@@ -192,28 +193,48 @@ public:
 	/** Esiti autoritativi dell'ultimo turno risolto (Movimento + Combat), ordinati deterministicamente. */
 	const TArray<FRTTurnLogEntry>& GetTurnLog() const { return TurnLog; }
 
+	/**
+	 * Registrazione del replay (`#469`). Per il replay il TurnManager **non scrive**: passa il TurnLog a
+	 * `URTReplayRecorderLibrary` e non tocca il disco.
+	 *
+	 * ⚠️ La frase vale per il replay e non per la classe: `AppendPacingRow` scrive gia' i CSV di pacing in
+	 * `Saved/RT/`, e lo fa da `ClosePacingSample`, **una riga sopra** la registrazione dentro `ConcludeTurn`.
+	 * Dirlo in assoluto sarebbe falso a una riga di distanza.
+	 *
+	 * Non contraddice [ADR-0009](../../../docs/decisions/adr-0009-replay-logico-canonico.md) §3: quel confine
+	 * dice che chi **riproduce** non chiama il resolver. Qui e' il contrario — e' il resolver che consegna a
+	 * chi scrive, e scrivere non e' riprodurre.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Replay")
+	bool bRecordReplay = true;
+
+	/**
+	 * Radice degli archivi. Vuota = `Saved/Replays`. E' **configurazione**, non un ramo «se test»: un test
+	 * che deve scrivere altrove imposta un parametro, non attiva un percorso di codice diverso da quello
+	 * che gira in partita.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Replay")
+	FString ReplaysRootOverride;
+
+	/**
+	 * Avvia la registrazione: genera il `MatchId` e fissa il formato. **Va chiamata da chi allestisce una
+	 * partita vera** — il GameMode — e non da `BeginPlay`.
+	 *
+	 * Due ragioni, entrambe misurate: `BeginPlay` gira anche per i 27 file di test e per lo
+	 * `ScenarioHarness` che spawnano un TurnManager, e registrare li' significherebbe far scrivere su disco
+	 * centinaia di test che non l'hanno chiesto; e il GameMode spawna il TurnManager **prima** di risolvere
+	 * il formato (`ApplyMatchFormat`), quindi a `BeginPlay` `MatchRules.FormatId` non e' ancora quello vero.
+	 *
+	 * Finche' non viene chiamata, `RecordTurnToReplay` e `CloseReplayArchive` non fanno nulla: la
+	 * registrazione e' spenta per assenza di identita', non per un flag da ricordarsi.
+	 */
+	void BeginReplayRecording();
+
+	/** Identita' della registrazione in corso. Non valida finche' `BeginReplayRecording` non e' stata chiamata. */
+	FGuid GetReplayMatchId() const { return ReplayManifest.MatchId; }
+
 	/** Rotte effettivamente percorse nell'ultima risoluzione (viz post-lock del percorso eseguito). */
 	const TArray<TArray<FRTCellId>>& GetLastMoveRoutes() const { return LastMoveRoutes; }
-
-	// --- Archivio replay (#469) ----------------------------------------------------------------
-	/**
-	 * Comincia a registrare l'archivio della partita sotto `ReplaysRoot`: da qui in poi OGNI turno risolto
-	 * finisce su disco mentre la partita e' in corso, e la fine partita chiude il manifest.
-	 *
-	 * La chiama chi allestisce una partita vera (`ARTGameMode::SetupHexMatch`), non il `BeginPlay` di questo
-	 * Actor: cosi' i test che pilotano il `TurnManager` direttamente non scrivono niente, e chi vuole l'archivio
-	 * lo chiede su una radice propria. Per il giocatore resta «senza chiedere nulla a mano», che e' il criterio.
-	 *
-	 * Il `MatchId` nasce qui — un `FGuid` che identifica la REGISTRAZIONE e non il contenuto (`D-077`), fuori
-	 * da ogni hash. Registrare due volte la stessa partita da' due archivi distinti, ed e' corretto.
-	 *
-	 * ⚠️ Idempotente: una seconda chiamata NON riavvia la registrazione. Riavviarla perderebbe i turni gia'
-	 * scritti dietro un `MatchId` nuovo, cioe' produrrebbe due archivi parziali della stessa partita.
-	 */
-	void StartReplayRecording(const FString& ReplaysRoot);
-
-	/** Se vero, i turni stanno finendo su disco. Diventa falso quando il manifest viene chiuso. */
-	bool IsRecordingReplay() const { return bRecordingReplay; }
 
 	/** Manifest dell'archivio in corso (o dell'ultimo chiuso). Vuoto se non si e' mai registrato. */
 	const FRTReplayManifest& GetReplayManifest() const { return ReplayManifest; }
@@ -559,18 +580,20 @@ protected:
 	/** TurnLog dell'ultimo turno risolto (osservabilita' autoritativa; ordinato in LockInAndResolve). */
 	TArray<FRTTurnLogEntry> TurnLog;
 
-	// --- Archivio replay (#469): stato della registrazione in corso ----------------------------
-	/** Radice degli archivi passata da chi ha avviato la registrazione. Vuota = non si registra. */
-	FString ReplaysRoot;
-
-	/** Header della partita registrata: lo aggiorna `RecordTurn` a ogni turno e lo chiude `CloseMatch`. */
+	/** Stato della registrazione in corso: id, hash per turno, chiusura. Lo tiene il manifest stesso. */
 	FRTReplayManifest ReplayManifest;
 
-	/** Falso appena il manifest e' chiuso: un archivio chiuso non riceve altri turni. */
-	bool bRecordingReplay = false;
+	/** Scrive la traccia del turno appena risolto. Silenziosa se la registrazione e' spenta. */
+	void RecordTurnToReplay();
+
+	/** Chiude l'archivio a partita finita. Silenziosa se la registrazione e' spenta o non e' mai partita. */
+	void CloseReplayArchive();
+
+	/** La radice effettiva: l'override se c'e', altrimenti `Saved/Replays`. */
+	FString ResolveReplaysRoot() const;
 
 	/**
-	 * Istante reale di inizio registrazione, per la durata nel manifest. E' l'UNICO tempo reale che tocca
+	 * Istante reale d'inizio registrazione, per la durata nel manifest. E' l'UNICO tempo reale che tocca
 	 * l'archivio, e finisce in un campo che non entra in nessun hash.
 	 */
 	double ReplayStartRealSeconds = 0.0;
@@ -590,13 +613,12 @@ protected:
 	uint32 FrozenFinalStateHash = 0;
 
 	/**
-	 * Scrive la traccia del turno appena risolto e, se la partita e' finita, chiude il manifest.
+	 * Congela il checksum di fine partita, se la partita e' finita e non lo si e' gia' fatto.
 	 *
-	 * Chiamata alla fine di `LockInAndResolve` e non da `ConcludeTurn`: il playback sta in mezzo, e un turno
-	 * risolto che si perde perche' il gioco muore mentre lo si guarda e' esattamente il caso per cui l'archivio
-	 * esiste. Il TurnLog qui e' gia' in forma canonica (`SortTurnLog`), quindi il recorder non ordina niente.
+	 * Va chiamata **prima** di `DestroyDefeatedUnits` (`D-084`, `#490`): dopo, chi e' caduto nell'ultimo turno
+	 * e' gia' sparito dal mondo e `bAlive` non varrebbe mai `false` in una partita vera.
 	 */
-	void RecordResolvedTurn();
+	void FreezeFinalStateHashIfMatchEnded();
 
 	/** Costruisce il digest delle unita' presenti nel mondo (anche di chi e' caduto e non e' ancora distrutto). */
 	uint32 ComputeMatchStateHashNow() const;

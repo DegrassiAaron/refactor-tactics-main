@@ -148,10 +148,10 @@ bool FRTReplayProducerWritesArchiveTest::RunTest(const FString&)
 	ARTTurnManager* TM = SetUpMatch(World);
 	if (!TM) { DestroyReplayProducerWorld(World); return false; }
 
-	TM->StartReplayRecording(Root);
-	TestTrue(TEXT("la registrazione e' partita"), TM->IsRecordingReplay());
+	TM->ReplaysRootOverride = Root;
+	TM->BeginReplayRecording();
 
-	const FGuid MatchId = TM->GetReplayManifest().MatchId;
+	const FGuid MatchId = TM->GetReplayMatchId();
 	TestTrue(TEXT("il MatchId e' stato generato"), MatchId.IsValid());
 
 	const int32 TurnsPlayed = PlayToCompletion(TM);
@@ -202,9 +202,9 @@ bool FRTReplayProducerWritesArchiveTest::RunTest(const FString&)
 		}
 	}
 
-	// 6. LA REGISTRAZIONE E' FINITA con la partita: un turno scritto dopo la chiusura sarebbe una traccia che
-	//    il manifest non conta.
-	TestFalse(TEXT("a partita finita non si registra piu'"), TM->IsRecordingReplay());
+	// 6. IL MANIFEST IN MEMORIA E' CHIUSO quanto quello su disco: chi tiene il TurnManager non deve rileggere
+	//    il file per sapere che la partita e' finita.
+	TestTrue(TEXT("anche il manifest in memoria e' chiuso"), TM->GetReplayManifest().bClosed);
 
 	DestroyReplayProducerWorld(World);
 	PuliscIProducer(Root);
@@ -236,10 +236,11 @@ bool FRTReplayProducerIsNotObservableTest::RunTest(const FString&)
 		ARTTurnManager* TM = SetUpMatch(World);
 		if (!TM) { DestroyReplayProducerWorld(World); return false; }
 
+		// Registrazione SPENTA: e' la variabile indipendente dell'esperimento.
+		TM->bRecordReplay = false;
 		TurniSenza = PlayToCompletion(TM);
 		HashSenza = TM->GetOrComputeFinalStateHash();
 		EsitoSenza = TM->GetMatchResult().Outcome;
-		TestFalse(TEXT("nessuna registrazione attiva"), TM->IsRecordingReplay());
 		DestroyReplayProducerWorld(World);
 	}
 
@@ -253,7 +254,8 @@ bool FRTReplayProducerIsNotObservableTest::RunTest(const FString&)
 		ARTTurnManager* TM = SetUpMatch(World);
 		if (!TM) { DestroyReplayProducerWorld(World); return false; }
 
-		TM->StartReplayRecording(Root);
+		TM->ReplaysRootOverride = Root;
+		TM->BeginReplayRecording();
 		TurniCon = PlayToCompletion(TM);
 		HashCon = TM->GetOrComputeFinalStateHash();
 		EsitoCon = TM->GetMatchResult().Outcome;
@@ -290,8 +292,9 @@ bool FRTReplayProducerMatchIdOutOfHashesTest::RunTest(const FString&)
 		ARTTurnManager* TM = SetUpMatch(World);
 		if (!TM) { DestroyReplayProducerWorld(World); return false; }
 
-		TM->StartReplayRecording(Root);
-		OutMatchId = TM->GetReplayManifest().MatchId;
+		TM->ReplaysRootOverride = Root;
+		TM->BeginReplayRecording();
+		OutMatchId = TM->GetReplayMatchId();
 		PlayToCompletion(TM);
 
 		OutHashes = TM->GetReplayManifest().OrderedHashPerTurn;
@@ -335,8 +338,9 @@ bool FRTReplayProducerPartialArchiveTest::RunTest(const FString&)
 	ARTTurnManager* TM = SetUpMatch(World);
 	if (!TM) { DestroyReplayProducerWorld(World); return false; }
 
-	TM->StartReplayRecording(Root);
-	const FGuid MatchId = TM->GetReplayManifest().MatchId;
+	TM->ReplaysRootOverride = Root;
+	TM->BeginReplayRecording();
+	const FGuid MatchId = TM->GetReplayMatchId();
 
 	// Due turni e basta: la partita non e' finita, e nessuno chiude niente.
 	PlayOneTurn(TM);
@@ -356,7 +360,7 @@ bool FRTReplayProducerPartialArchiveTest::RunTest(const FString&)
 	TestFalse(TEXT("il manifest non e' chiuso"), Letto.bClosed);
 	TestTrue(TEXT("l'esito resta 'in corso'"), Letto.Outcome == ERTMatchOutcome::InProgress);
 	TestEqual(TEXT("nessun checksum di fine partita"), Letto.FinalStateHash, static_cast<int64>(0));
-	TestTrue(TEXT("la registrazione e' ancora attiva"), TM->IsRecordingReplay());
+	TestFalse(TEXT("il manifest in memoria non e' chiuso"), TM->GetReplayManifest().bClosed);
 
 	DestroyReplayProducerWorld(World);
 	PuliscIProducer(Root);

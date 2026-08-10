@@ -21,18 +21,6 @@ extern TAutoConsoleVariable<FString> CVarRTTestScenario;
 /** Definita in ScenarioHarness/RTTestConsole.cpp: scavalca `MapSource` da riga di comando. */
 extern TAutoConsoleVariable<FString> CVarRTMapSource;
 
-/**
- * Interruttore dell'archivio replay (#469). Acceso: una partita allestita si registra da sola.
- *
- * Esiste per spegnerlo, non per accenderlo — durante una sessione di lavoro in PIE si fanno decine di partite
- * di mezzo minuto, e ognuna lascerebbe la sua cartella. La v0.1 non ha retention (nessuno cancella gli
- * archivi), quindi il modo di non accumularli e' non scriverli.
- */
-static TAutoConsoleVariable<int32> CVarRTReplayRecord(
-	TEXT("rt.Replay.Record"),
-	1,
-	TEXT("1 = una partita allestita registra il proprio archivio sotto Saved/Replays (default). 0 = non registra."),
-	ECVF_Default);
 #include "Turn/RTMatchFormatData.h"
 #include "Turn/RTMatchFormatLibrary.h"
 #include "RefactorTactics.h"
@@ -343,11 +331,23 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 	// Le regole di formato prima delle unita': se il formato e' invalido non si allestisce nulla, e la mappa
 	// resta a schermo con il motivo nel log (stesso trattamento delle celle di partenza insufficienti).
 	FRTMatchRules Rules;
-	if (!ApplyMatchFormat(
-			Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass())),
-			HexMap->MapAsset, Rules))
+	ARTTurnManager* TurnManager =
+		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
+	if (!ApplyMatchFormat(TurnManager, HexMap->MapAsset, Rules))
 	{
 		return;
+	}
+
+	// La registrazione del replay comincia QUI e non nel `BeginPlay` del TurnManager (`#469`): questo e' il
+	// punto in cui si sa che si sta allestendo una PARTITA — i test e lo `ScenarioHarness` spawnano un
+	// TurnManager senza passare di qua, e non devono scrivere archivi. Ed e' dopo `ApplyMatchFormat`, quindi
+	// il formato che finisce nel manifest e' quello vero.
+	//
+	// E' la stessa divisione di responsabilita' che questo file gia' pratica: il GameMode sceglie COSA
+	// allestire, il turn manager non sa nulla di chi lo osserva.
+	if (TurnManager)
+	{
+		TurnManager->BeginReplayRecording();
 	}
 
 	// Il livello puo' avere unita' gia' posate a mano: in quel caso l'allestimento automatico non interviene.
@@ -445,21 +445,6 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 	UE_LOG(LogRT, Log, TEXT("[RT] Board 2v2 esagonale avviata su %d celle con %d eroi"),
 		Map ? Map->NumCells() : 0, Spawned.Num());
 
-	// ARCHIVIO REPLAY (#469): la partita e' allestita, quindi da qui in poi si registra. Non lo chiede
-	// nessuno a mano, ed e' il criterio della issue: se registrare fosse un gesto, l'unica partita che
-	// interessa davvero — quella in cui e' successo qualcosa di strano — sarebbe proprio quella non registrata.
-	//
-	// L'avvio sta QUI e non nel `BeginPlay` del `TurnManager` perche' e' questo il punto in cui esiste una
-	// partita: un `TurnManager` costruito da un test unitario non ha ne' formato ne' unita', e scriverebbe
-	// archivi vuoti a ogni esecuzione della suite.
-	if (CVarRTReplayRecord.GetValueOnGameThread() != 0)
-	{
-		if (ARTTurnManager* TurnManager =
-				Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass())))
-		{
-			TurnManager->StartReplayRecording(FPaths::ProjectSavedDir() / TEXT("Replays"));
-		}
-	}
 }
 
 ARTUnit* ARTGameMode::SpawnHero(int32 TeamId, const URTHeroData* Hero, const FRTCellId& InCell,

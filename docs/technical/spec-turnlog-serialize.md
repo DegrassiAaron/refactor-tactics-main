@@ -152,11 +152,27 @@ costruzione, e così l'hash del quadrato resta invariato. Vedi [`h6-hex-sim-spec
 `D-077` nomina **questo documento** come owner del formato dell'archivio, e da oggi l'archivio esiste.
 
 ```
-Replays/<MatchId>/
+Saved/Replays/<MatchId>/
   match.rtmanifest    <- header di partita, JSON
   turn-001.rtlog      <- SerializeTurnLog, byte invariati rispetto al §3
   turn-002.rtlog
 ```
+
+**Chi scrive, e quando** (dal 2026-08-10, seconda fetta di `#469`): `ARTTurnManager` consegna la traccia a
+`URTReplayRecorderLibrary` in `ConcludeTurn`, **prima** di `DestroyDefeatedUnits` e **prima** di
+`++TurnNumber` — invertire l'ordine scriverebbe ogni traccia col numero sbagliato. L'archivio si chiude nel
+ramo di fine partita.
+
+**La registrazione la avvia il GameMode**, non il `BeginPlay` del TurnManager, con `BeginReplayRecording()`
+dopo `ApplyMatchFormat`. Due ragioni, entrambe misurate: `BeginPlay` gira anche per i test e per lo
+`ScenarioHarness` che spawnano un TurnManager — farli scrivere su disco sarebbe un effetto collaterale che
+nessuno ha chiesto — e a quel punto `MatchRules.FormatId` **non è ancora quello vero**, perché il GameMode
+risolve il formato dopo aver spawnato il manager.
+
+| Parametro | Effetto |
+|---|---|
+| `bRecordReplay` | interruttore; con la registrazione già avviata, spegnerlo la ferma |
+| `ReplaysRootOverride` | radice alternativa. Vuota = `Saved/Replays`. È **configurazione**, non un ramo «se test» |
 
 **Le tracce non cambiano.** Il recorder chiama `SerializeTurnLog` e ne scrive il risultato: non c'è un
 secondo serializzatore, ed è l'unico modo di rendere *vero* il criterio «byte-identiche» invece di
@@ -173,7 +189,7 @@ convenzione del formato binario: rifiutare invece di interpretare campi arbitrar
 | `MatchId` | `FGuid` generato all'avvio. **Fuori da ogni hash** (`D-077`): identifica la registrazione, non il contenuto |
 | `FormatId` · `HexTopology` | la stessa identità che l'header della traccia porta |
 | `OrderedHashPerTurn` | `HashTurnLogOrdered` per turno — la casa che `D-062` gli aveva assegnato e che prima non esisteva |
-| `FinalStateHash` | checksum di fine partita; `0` finché non è calcolato |
+| `FinalStateHash` | checksum di fine partita (`D-084`); `0` = non calcolato — vale per un archivio parziale, non per uno chiuso |
 | `Outcome` · `WallClockSeconds` | il wall-clock vive **solo** qui, mai in un campo che entri in un hash |
 | `Closed` · `TurnCount` | vedi sotto |
 
@@ -187,6 +203,18 @@ convenzione del formato binario: rifiutare invece di interpretare campi arbitrar
 **Cosa non c'è ancora**: i campi di compatibilità `ContentManifestHash`/`RulesVersion`, **rinviati alla v0.2**
 da `D-083` (issue `#413`). Il manifest è versionato, quindi li accoglierà senza rompere gli archivi scritti
 prima.
+
+**Il checksum di fine partita ha un produttore, e uno solo.** `FinalStateHash` era `0` anche a partita finita
+finché `#490` restava aperta; `D-084` l'ha chiusa e ora lo scrive `ARTTurnManager`, che è anche l'unico a
+costruire il digest — l'harness degli scenari ne **legge** il risultato invece di ricostruirlo, perché due
+produttori dello stesso numero sono due numeri.
+
+> ⚠️ **Il momento del calcolo è parte del contratto**: il valore si congela alla fine della risoluzione del
+> turno che decide la partita, **prima** che `ConcludeTurn` chiami `DestroyDefeatedUnits`. Dopo, chi è caduto
+> nell'ultimo turno non esiste più nel mondo e `bAlive` non varrebbe mai `false` in una partita vera.
+> Il congelamento avviene **anche senza registrazione**: è una proprietà della partita, non della sua
+> osservazione — legarlo al recorder faceva dare alla stessa identica partita due checksum diversi a seconda
+> che si stesse registrando, e `Replay.Producer.RecordingDoesNotChangeTheMatch` lo ha trovato.
 
 ### 7-bis.1 Compatibilità del manifest — la regola, e l'errore che nascondeva (`#471`)
 
