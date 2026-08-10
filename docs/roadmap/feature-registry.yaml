@@ -1792,6 +1792,48 @@ features:
       Il costo per cella viene dal catalogo, non da costanti nel codice. Base comune di tutte le
       feature ambientali: non era una voce separata della seed list ma le altre dipendono da lei.
 
+  - feature_id: RT-FEAT-STATUS-FRAMEWORK
+    title: Framework degli status — categorie, severity e primitive
+    area: Actions
+    kind: gameplay
+    release: v0.2
+    priority: P2
+    status: DESIGNED
+    gates:
+      spec: partial
+      data: todo
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: todo
+      ui_wiki: todo
+      packaged: todo
+      network_privacy: na
+    roadmap:
+      epic: null
+      checkpoints: []
+    dependencies:
+      - RT-FEAT-ENV-STATUS
+      - RT-FEAT-ACTION-ENGINE
+    owner_specs:
+      - docs/roadmap/plans/handoff-status-control-triage-2026-08-10.md
+    issues: []
+    tests: []
+    scenarios: []
+    wiki_refs: []
+    wiki_note: >-
+      Nessuna pagina: il framework non esiste ancora, e una pagina che lo descrivesse sarebbe la Wiki che promette ciò che il gioco non fa.
+    notes: >
+      Il repository ha **undici** status implementati (`TAG_Status_*`: Braced, Burning, Electrified,
+      Exposed, Guarded, Marked, Obscured, Reveal, Root, Slow, Wet) e **nessun livello che li governi**:
+      ogni effetto e' cablato dove serve. Funziona, ed e' esattamente il motivo per cui il dodicesimo
+      costera' come i primi undici messi insieme. Mancano: categoria e polarita', severity C0-C3, le sei
+      primitive riusabili (MODIFY, DEGRADE, RESTRICT, INTERRUPT, CONVERT, CONSUME), stacking policy ed
+      expiration dichiarate sul dato, resistance/immunity/cleanse, reapply policy e prevenzione dei loop,
+      reason code, validator. I due status nuovi del sorgente — `Suppressed` e `Dazed` — stanno **dentro**
+      questa feature e non prima: `Suppressed` E' un DEGRADE, `Dazed` E' un INTERRUPT sulla scelta manuale.
+      Tre domande aperte prima della spec: `STA-1`, `STA-2`, `STA-3` in `OPEN_DECISIONS.md`.
+
   - feature_id: RT-FEAT-ENV-STATUS
     title: Stati temporanei legati alla cella
     area: Environment
