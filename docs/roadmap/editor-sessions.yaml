@@ -39,11 +39,16 @@
 #                      budget» e' E3.3 nella vista di release, M7.3 in quella di esecuzione ed E12.4
 #                      come gate: U16 li dichiara tutti e tre, e non e' un errore.
 #                      Verso un'ALTRA SEDUTA `unblocks` e' duale di `unblocked_by`: se `U10` sblocca
-#                      `U11`, allora `U11` e' sbloccata da `U10` e lo dichiara. L'unica eccezione e'
-#                      il setup condiviso — `U2..U6` e `U7..U9` si fanno nella stessa apertura, quindi
-#                      la catena e' ordine di lavoro e non un blocco, e la coda deve mostrarle insieme.
+#                      `U11`, allora `U11` e' sbloccata da `U10` e lo dichiara. L'unica eccezione e' il
+#                      setup condiviso **nello stesso blocco** — `U2..U6` (blocco 2) e `U7..U9`
+#                      (blocco 3) si fanno nella stessa apertura, quindi la catena e' ordine di lavoro
+#                      e non un blocco, e la coda deve mostrarle insieme.
 #                      Fuori da quel caso l'asimmetria e' un difetto: la coda direbbe che una seduta
 #                      si puo' cominciare mentre la sua premessa non c'e'. Il validator lo verifica.
+#                      «Stesso blocco» e' la parte che conta: condividere l'allestimento NON esclude
+#                      la dipendenza dura. `U13` estende l'asset che `U1` committa **e** ne condivide
+#                      il setup; scusare ogni coppia col setto condiviso avrebbe reso invisibile
+#                      proprio quella dipendenza. Blocchi diversi = aperture diverse.
 #   steps              prosa umana; solo dove NESSUNA guida copre ancora la procedura
 #   notes              avvertenze e debiti noti
 #

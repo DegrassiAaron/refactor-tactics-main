@@ -1688,11 +1688,20 @@ def validate_editor_sessions():
     - `X.unblocked_by` cita la seduta `Y`  ⇒  `Y.unblocks` deve citare `X`, sempre. Chi porta una
       dipendenza deve sapere cosa sblocca: e' la motivazione che la coda stampa per farla adesso.
     - `Y.unblocks` cita la seduta `X`      ⇒  `X.unblocked_by` deve citare `Y`, **salvo** setup
-      condiviso. `U2..U6` e `U7..U9` si fanno nella stessa apertura di editor: li' la catena e'
-      ordine di lavoro e la coda deve mostrarle insieme, non metterne quattro in WAITING.
+      condiviso **nello stesso blocco**. `U2..U6` (blocco 2) e `U7..U9` (blocco 3) si fanno nella
+      stessa apertura di editor: li' la catena e' ordine di lavoro e la coda deve mostrarle
+      insieme, non metterne quattro in WAITING.
 
     Senza l'eccezione questo controllo avrebbe segnalato sei casi legittimi e sarebbe stato
     disattivato al primo passaggio — cioe' non varrebbe piu' nemmeno per il settimo.
+
+    Il vincolo «stesso blocco» non e' decorativo, ed e' costato un falso negativo in review:
+    `shares_setup_with` e dipendenza dura **non si escludono**. `U13` (blocco 5) estende l'asset
+    che `U1` (blocco 1) committa — l'esempio che l'header del file usa per definire `unblocked_by`
+    — e le due condividono anche l'allestimento. Con l'eccezione scritta sul solo setup condiviso,
+    togliere `U1` dagli `unblocked_by` di `U13` non produceva **nessun** errore: il controllo
+    scusava proprio la dipendenza piu' documentata del file. Due sedute di blocchi diversi non si
+    fanno nella stessa apertura, quindi li' la dualita' si pretende sempre.
     """
     doc = load_editor_sessions()
     sessions = doc.get("sessions") or []
@@ -1707,7 +1716,11 @@ def validate_editor_sessions():
 
     pie = pie_entries()
     tracked = tracked_artifacts([a for s in sessions for a in (s.get("artifacts") or [])])
-    states = {s["id"]: session_state(s, pie, tracked) for s in sessions}
+    # `.get("id")` e non `s["id"]`: una seduta senza id e' precisamente uno dei difetti che questa
+    # funzione esiste per denunciare, e con l'accesso diretto morirebbe qui — su un KeyError, prima
+    # di arrivare alla riga che lo dice. Un validator che va in traceback sul caso che deve
+    # segnalare non lo segnala.
+    states = {s.get("id"): session_state(s, pie, tracked) for s in sessions}
     checkpoints = checkpoint_status()
     epics = epic_status()
     milestones, _conflicts = milestone_status()
@@ -1755,13 +1768,17 @@ def validate_editor_sessions():
                 continue
             if sid in (by_id[ref].get("unblocked_by") or []):
                 continue
-            if ref in (session.get("shares_setup_with") or []):
-                continue  # stessa apertura: ordine di lavoro, non un blocco
+            if (ref in (session.get("shares_setup_with") or [])
+                    and by_id[ref].get("block") == session.get("block")):
+                continue  # stessa apertura, stesso blocco: ordine di lavoro, non un blocco
+            shared = ref in (session.get("shares_setup_with") or [])
+            perche = ("condividono il setup ma stanno in blocchi diversi, quindi non e' la stessa "
+                      "apertura di editor" if shared else "non condividono il setup")
             errors.append(
                 f"{where} dichiara di sbloccare {ref}, ma {ref} non lo dichiara fra i suoi "
-                f"unblocked_by e le due non condividono il setup. O {ref} dipende davvero da {sid} "
-                f"— e allora lo deve dire, o la coda lo mostrera' pronto senza la sua premessa — "
-                f"oppure {sid} non lo sblocca")
+                f"unblocked_by e le due {perche}. O {ref} dipende davvero da {sid} — e allora lo "
+                f"deve dire, o la coda lo mostrera' pronto senza la sua premessa — oppure {sid} "
+                f"non lo sblocca")
 
         for ref in session.get("verifies") or []:
             if ref not in pie:
