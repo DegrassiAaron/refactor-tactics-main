@@ -87,36 +87,71 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVektorInterceptShotStopsMovementTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTVektorInterceptShotStopsMovementTest::RunTest(const FString&)
 {
-	// Nome vincolante della DoD. Il motore delle reazioni ora esiste (E5, CP 5.5) e le altre tre reazioni
-	// d'eroe sono cablate (CP 6.7) — **questa no, ed e' una decisione**: il suo trigger e' d'ingresso su
-	// movimento, quindi appartiene a E14 (ADR-0004). Cablarla qui duplicherebbe `FRTSuppressiveZone`, e
-	// "fermare il movimento" resta comunque fuori da `ERTActionEffect`. Il test verifica cio' che il dato
-	// dichiara oggi, incluso il rinvio: slot `None` e nessun trigger, cosi' il pass delle reazioni non la
-	// raccoglie e non puo' registrare un'attivazione senza effetti.
+	// Nome vincolante della DoD di CP 6.4. Fino al 2026-08-10 questo test verificava un LIMITE — «lo stop del
+	// movimento non e' rappresentabile, l'azione e' rinviata a E14» — ed era la verita' del suo momento. E18
+	// CP 18.2 l'ha superata: lo stop ora esiste come esito del boundary predittivo
+	// (`ERTMoveOutcome::StoppedByPrediction`), quindi il nome del test e' finalmente descrittivo invece che
+	// aspirazionale. Le assertion sono state SOSTITUITE, non cancellate: la domanda «questa azione ferma
+	// davvero chi entra?» resta quella, ed e' cambiata la risposta.
 	const URTActionData* Intercept = URTHeroCatalogLibrary::MakeVektor()->Actions[1];
 
 	TestEqual(TEXT("InterceptShot: 16 danni"),
 		VektorEffectAmount(Intercept->Def.Effects, ERTActionEffect::Damage), 16);
 	TestEqual(TEXT("InterceptShot: cooldown 2"), Intercept->Def.CooldownTurns, 2);
 
-	// Si PREPARA (non si esegue): risolve nel Prep, non occupa l'azione principale, e non e' interrompibile —
-	// una reazione gia' pronta non si annulla.
-	TestTrue(TEXT("si prepara nel Prep"),
+	// Si dichiara nel Prep e si verifica al Move: la fase resta quella, e non e' interrompibile — un colpo
+	// gia' armato su una cella non si annulla.
+	TestTrue(TEXT("si arma nel Prep"),
 		URTCatalogLibrary::MapResolutionPhase(Intercept->Def.ResolutionPhase) == ERTMatchPhase::Prep);
-	TestTrue(TEXT("non consuma l'azione principale"), Intercept->Def.Slot == ERTActionSlot::None);
-	TestFalse(TEXT("una reazione preparata non si interrompe"), Intercept->Def.bCanBeInterrupted);
-	// Il rinvio a E14 e' un DATO, non un commento: senza trigger, il pass delle reazioni non la vede.
-	TestTrue(TEXT("rinviata a E14: nessun trigger dichiarato"),
-		Intercept->Def.ReactionTrigger == ERTReactionTrigger::None);
+	TestFalse(TEXT("una previsione armata non si interrompe"), Intercept->Def.bCanBeInterrupted);
 
-    // Limite dichiarato: lo STOP del movimento non e' rappresentabile. Il parente gia' costruito e'
-	// `Action.SuppressiveLine` (CP 4.6), che ferma chi entra in una cella controllata: quando E5 arrivera',
-	// l'aggancio e' quello. Qui si verifica che quel meccanismo esista gia' e faccia la cosa giusta, cosi'
-	// InterceptShot avra' dove attaccarsi invece di reinventarlo.
+	// Lo STOP e' rappresentabile: c'e' un esito di movimento che lo dice, e non riusa `BlockedByUnit` —
+	// la cella e' libera, e mandare il giocatore a cercare un'unita' che non c'e' sarebbe una bugia.
+	TestTrue(TEXT("lo stop del movimento ha un esito proprio nel TurnLog"),
+		ERTMoveOutcome::StoppedByPrediction != ERTMoveOutcome::BlockedByUnit);
+
+	// `Action.SuppressiveLine` (CP 4.6) resta il parente: ferma anch'essa chi entra in una cella controllata.
+	// Restano due azioni distinte — quella controlla una LINEA valutata nel Blast, questa una cella dichiarata
+	// e verificata al Move — ma condividono la semantica, e il giorno in cui una delle due cambiasse regola
+	// senza l'altra sarebbe un difetto da vedere.
 	const FRTActionDef Suppressive = URTCatalogLibrary::FindCoreAction(TEXT("Action.SuppressiveLine"));
-	TestFalse(TEXT("Action.SuppressiveLine esiste (l'aggancio per E5)"), Suppressive.ActionId.IsNone());
-	TestTrue(TEXT("e si prepara anch'essa nel Prep"),
+	TestFalse(TEXT("Action.SuppressiveLine esiste ancora"), Suppressive.ActionId.IsNone());
+	TestTrue(TEXT("e si arma anch'essa nel Prep"),
 		URTCatalogLibrary::MapResolutionPhase(Suppressive.ResolutionPhase) == ERTMatchPhase::Prep);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVektorInterceptShotIsPredictiveTest,
+	"RefactorTactics.Heroes.Vektor.InterceptShotIsPredictive",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTVektorInterceptShotIsPredictiveTest::RunTest(const FString&)
+{
+	// La MIGRAZIONE di classificazione di D-016, verificata sul dato. Il rinvio a E14 era dichiarato nei dati
+	// (slot `None`, nessun trigger) proprio perche' un commento non si puo' verificare: per lo stesso motivo
+	// la sua fine dev'essere un dato, e non la sparizione di quelle righe.
+	const URTActionData* Intercept = URTHeroCatalogLibrary::MakeVektor()->Actions[1];
+
+	TestEqual(TEXT("identita' invariata: e' una migrazione, non un'azione nuova"),
+		Intercept->Def.ActionId, FName(TEXT("Vektor.InterceptShot")));
+
+	TestTrue(TEXT("la cella si blocca in Planning"),
+		Intercept->Def.PredictiveTargeting == ERTPredictiveTargeting::LockCell);
+	TestTrue(TEXT("e si verifica al boundary del Move"),
+		Intercept->Def.PredictionBoundary == ERTPredictionBoundary::MovementEntry);
+
+	// Lo slot torna `Main`: e' un'azione dichiarata in pianificazione, non una reazione tenuta pronta. Se
+	// restasse `None` non consumerebbe nulla, e prevedere sarebbe gratis.
+	TestTrue(TEXT("occupa l'azione principale: prevedere costa il turno"),
+		Intercept->Def.Slot == ERTActionSlot::Main);
+
+	// Il fallback del whiff e' DICHIARATO nel catalogo: `Cancel` = fizzle. Non e' scelto dal resolver, che
+	// e' cio' che tiene la Predictive Action dentro il motore azioni invece che accanto ad esso.
+	TestTrue(TEXT("il whiff usa il fallback dichiarato"), Intercept->Def.Fallback == ERTActionFallback::Cancel);
+
+	// E NON e' una reazione: nessun trigger, nessuno slot reazione. Le due classificazioni si escludono, e
+	// tenerle entrambe produrrebbe un'azione valutata due volte da due pass diversi.
+	TestTrue(TEXT("non e' una reazione"), Intercept->Def.Slot != ERTActionSlot::Reaction
+		&& Intercept->Def.ReactionTrigger == ERTReactionTrigger::None);
 	return true;
 }
 

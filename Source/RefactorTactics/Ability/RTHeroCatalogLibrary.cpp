@@ -182,16 +182,22 @@ URTHeroData* URTHeroCatalogLibrary::MakeFlux()
 		/*Range*/ 5, /*Cooldown*/ 2, ERTActionFallback::AttackCell,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 24) }, ERTAbilityShape::Line));
 
-	// Indice 2 — ConductiveNode. "Rende conduttiva una cella per 2 turni": nessun modello di conduttivita' di
-	// cella esiste (ne' in FRTHexCellData ne' in FRTActionEffectSpec, che applica stati solo alle UNITA').
-	// Effects vuoto e' la dichiarazione onesta: l'identita', la fase e il cooldown sono dati veri, l'effetto
-	// no. Range 0 (self) e' un segnaposto, non un numero di bilanciamento: arriva un range reale insieme
-	// all'effetto, non prima.
-	// D-046: cablata su `Action.Electrify`. Il commento qui sopra era vero quando fu scritto — E8 ha chiuso il
-	// 2026-08-07 e il modello di cella conduttiva ORA esiste, quindi la dichiarazione onesta di allora e'
-	// diventata un dato che nessuno legge: il resolver risolveva `Action.Electrify` e nessun eroe la possedeva
-	// (issue #282). Numeri dal CORE, non nuovi: portata 4, propagazione 3, fase Environment. Il cooldown resta
-	// quello dell'eroe (2), come per `Bastion.Ram`.
+	// Indice 2 — ConductiveNode. Cablata su `Action.Electrify` da D-046 (issue #282): numeri dal CORE, non
+	// nuovi — portata 4, propagazione 3, fase Environment. Il cooldown resta quello dell'eroe (2), come per
+	// `Bastion.Ram`.
+	//
+	// Fino al 2026-08-10 qui c'era scritto che «nessun modello di conduttivita' di cella esiste» e che
+	// `Effects` vuoto era la dichiarazione onesta. Era vero quando fu scritto e ha smesso di esserlo con E8
+	// (chiusa il 2026-08-07): il terreno dinamico esiste, `ARTTurnManager::ApplyDynamicSurface` cambia la
+	// superficie di una cella per N turni, ed `ERTHexSurface::Conductive` e' gia' dichiarata
+	// `bConductsElectricity` nel catalogo terreni. Anche `Range 0` non e' piu' un segnaposto: la portata
+	// arriva dal core insieme all'effetto, come il commento vecchio prometteva.
+	//
+	// ⚠️ Resta aperto un punto che NON e' un commento da correggere: il PDF descrive l'azione come «rende
+	// conduttiva una cella per 2 turni», mentre D-046 le ha dato la semantica di `Action.Electrify` — che
+	// propaga una scarica sul grafo dell'acqua, non trasforma la superficie. Sono due effetti diversi, non
+	// due nomi dello stesso. Quale dei due sia l'azione vera e' una decisione di design, tracciata su #207:
+	// sceglierla qui di iniziativa fisserebbe nel codice una risposta che nessuno ha dato.
 	const FRTActionDef ElectrifyDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Electrify"));
 	URTActionData* ConductiveNode = MakeHeroAction(TEXT("Flux.ConductiveNode"), ElectrifyDef.ResolutionPhase,
 		ElectrifyDef.Priority, ElectrifyDef.RangeCells, /*Cooldown*/ 2, ElectrifyDef.Fallback,
@@ -508,15 +514,27 @@ URTHeroData* URTHeroCatalogLibrary::MakeVektor()
 		/*Range*/ 4, /*Cooldown*/ 0, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 21) }));
 
-	// Indice 1 — InterceptShot. 16 danni + stop del movimento a chi ENTRA nella cella controllata: il trigger
-	// e' d'ingresso su movimento, non «sono stato colpito», quindi appartiene a **E14** (ADR-0004) e non a E5.
-	// Cablarla sul motore di E5 duplicherebbe `FRTSuppressiveZone` (CP 4.6), che quel trigger ce l'ha gia'.
-	// Il rinvio e' dichiarato come DATO: slot `None`, nessun trigger — il pass delle reazioni non la raccoglie
-	// e non puo' registrare un'attivazione che non produce nulla.
-	Vektor->Actions.Add(MakeHeroAction(TEXT("Vektor.InterceptShot"), ERTResolutionPhase::Preparation,
+	// Indice 1 — InterceptShot. 16 danni + stop del movimento a chi ENTRA nella cella controllata.
+	//
+	// E' la thin slice della **Predictive Action** (E18, D-016). Fino al 2026-08-10 era dichiarata «rinviata a
+	// E14» come DATO — slot `None`, nessun trigger — perche' il suo trigger e' d'ingresso su movimento e
+	// cablarla sul motore delle reazioni di E5 avrebbe duplicato `FRTSuppressiveZone` (CP 4.6). Quel rinvio
+	// e' caduto per la ragione opposta a quella che lo aveva prodotto: **non le serve una finestra**. La cella
+	// si dichiara in Planning e si verifica a un boundary deterministico, quindi non c'e' niente da chiedere a
+	// nessuno durante la Resolution — che e' esattamente cio' che una Fast Reaction fa e questa no.
+	//
+	// Lo slot torna `Main`: e' un'azione dichiarata in pianificazione come le altre, non una reazione tenuta
+	// pronta. Portata 1 e' la cella ADIACENTE controllata; il cooldown 2 non cambia — chi scommette paga il
+	// cooldown anche quando sbaglia, ed e' la meta' del costo che rende il whiff una scelta.
+	URTActionData* InterceptShot = MakeHeroAction(TEXT("Vektor.InterceptShot"), ERTResolutionPhase::Preparation,
 		/*Priority*/ 30, /*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 16) }, ERTAbilityShape::Single, /*AreaRadius*/ 0,
-		ERTActionSlot::None, /*bInterruptible*/ false));
+		ERTActionSlot::Main, /*bInterruptible*/ false);
+	// I due campi che la rendono predittiva stanno nei DATI e non in un ramo del resolver: `LockCell` dice che
+	// la cella non si rivaluta, `MovementEntry` quando si guarda chi ci e' passato.
+	InterceptShot->Def.PredictiveTargeting = ERTPredictiveTargeting::LockCell;
+	InterceptShot->Def.PredictionBoundary = ERTPredictionBoundary::MovementEntry;
+	Vektor->Actions.Add(InterceptShot);
 
 	// Indice 2 — PassingBlade. `Dash 3` che colpisce per 20 le unita' ATTRAVERSATE: l'unica abilita'
 	// non-base di Vektor interamente rappresentabile. Stile `LinearDash` e non `LinearCharge`: la carica si

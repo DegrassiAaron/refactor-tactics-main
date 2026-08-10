@@ -646,9 +646,15 @@ bool FRTScenarioBlockedTurnTest::RunTest(const FString&)
 	}
 
 	// Turno 1: eseguibile. Turno 2: chiede una capability che non esiste.
+	//
+	// Era `PredictiveAction` fino al 2026-08-10, quando E18 l'ha resa disponibile e questo test ha iniziato a
+	// dire PASS — cioe' aveva smesso di verificare il BLOCKED. E' il rischio di ogni test che usi una
+	// capability mancante come esempio: prima o poi quella capability arriva. `Perception` e' la scelta con
+	// l'orizzonte piu' lungo (E13, `#151`, non iniziata), ma non e' eterna: quando atterrera', questa riga
+	// andra' spostata di nuovo, non cancellata.
 	Scenario.Turns.Add(FRTScenarioTurn());
 	FRTScenarioTurn Blocked;
-	Blocked.Requires.Add(TEXT("PredictiveAction"));
+	Blocked.Requires.Add(TEXT("Perception"));
 	Scenario.Turns.Add(Blocked);
 
 	// L'assertion e' sul turno GIOCATO, non su quelli bloccati: e' cio' che rende l'esito un BLOCKED con
@@ -664,7 +670,7 @@ bool FRTScenarioBlockedTurnTest::RunTest(const FString&)
 		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Blocked));
 	TestEqual(TEXT("il turno 1 e' stato giocato davvero"), Result.TurnsPlayed, 1);
 	TestTrue(TEXT("il motivo nomina la capability mancante"),
-		Result.BlockedReason.Contains(TEXT("PredictiveAction")));
+		Result.BlockedReason.Contains(TEXT("Perception")));
 	TestEqual(TEXT("BLOCKED si legge come tale nel report"), Result.OutcomeString(), FString(TEXT("BLOCKED")));
 
 	return true;
@@ -701,11 +707,18 @@ bool FRTScenarioShowcaseRelayV01Test::RunTest(const FString&)
 	const FRTTestResult Result = URTScenarioRunner::RunById(World, TEXT("RT_Showcase_Relay_v01"), ReportDir);
 	DestroyShowcaseWorld(World);
 
-	// Il turno 1 gira attraverso il resolver normale; il turno 2 chiede la Predictive Action, che non c'e'.
+	// ⚠️ **Il nome del test e' storico, il numero no.** Nasceva quando lo showcase arrivava a UN turno: il
+	// T2 chiedeva la Predictive Action e li' si fermava. Con E18 CP 18.2 (2026-08-10) quella capability
+	// esiste, il T2 gira, il T3 non chiedeva nulla — e lo showcase arriva a **tre**. L'ID resta invariato
+	// perche' e' l'exit gate della tranche S2-1 nella roadmap, e perche' la DOMANDA non e' cambiata: quanto
+	// lontano arriva oggi, e cosa lo ferma. E' la risposta che si muove, ed e' giusto che si muova — ogni
+	// capability che atterra ne accende un altro pezzo. Il numero e' pinnato apposta: se scendesse, sarebbe
+	// una regressione da vedere subito.
 	TestEqual(TEXT("si ferma sul primo turno non supportato"),
 		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Blocked));
-	TestEqual(TEXT("il turno 1 e' stato giocato"), Result.TurnsPlayed, 1);
-	TestTrue(TEXT("dichiara cosa lo blocca"), Result.BlockedReason.Contains(TEXT("PredictiveAction")));
+	TestEqual(TEXT("arriva a tre turni: T1 e T3 non chiedono nulla, T2 lo apre E18"), Result.TurnsPlayed, 3);
+	// Ora lo ferma il T4, che chiede la finestra di reazione: `DecisionBoundary` e' E14, non iniziata.
+	TestTrue(TEXT("dichiara cosa lo blocca"), Result.BlockedReason.Contains(TEXT("DecisionBoundary")));
 
 	// Le assertion del turno 1 sono state valutate e sono passate: un BLOCKED non le nasconde.
 	TestTrue(TEXT("il turno 1 ha assertion valutate"), Result.Assertions.Num() > 0);
@@ -724,7 +737,7 @@ bool FRTScenarioShowcaseRelayV01Test::RunTest(const FString&)
 			TestTrue(TEXT("il report dichiara l'esito BLOCKED"), Json.Contains(TEXT("BLOCKED")));
 			// Il motivo sta accanto all'esito: «BLOCKED» da solo direbbe che non tutto e' pronto, che si
 			// sapeva gia'. Il valore e' nel nome della capability.
-			TestTrue(TEXT("il report nomina la capability mancante"), Json.Contains(TEXT("PredictiveAction")));
+			TestTrue(TEXT("il report nomina la capability mancante"), Json.Contains(TEXT("DecisionBoundary")));
 			TestTrue(TEXT("il report distingue blockedReason da error"), Json.Contains(TEXT("blockedReason")));
 		}
 	}

@@ -2,7 +2,7 @@
 
 > `GENERATO` · Vista del **Feature Registry** (`docs/roadmap/feature-registry.yaml` nel repository del gioco).
 > Non modificare a mano: si rigenera con `python scripts/feature_registry.py wiki`.
-> Feature tracciate: **84** · Ultimo audit completo: **2026-08-08** su `2094b86`.
+> Feature tracciate: **85** · Ultimo audit completo: **2026-08-08** su `2094b86`.
 
 Questa pagina dice **cosa esiste davvero**. Una meccanica descritta altrove nella Wiki e
 marcata qui come `SPECIFIED` o `DESIGNED` e' progettata, non giocabile: la Wiki racconta
@@ -218,3 +218,9 @@ il gioco che sara', questa tabella dice a che punto e'.
 |---|---|---|---|---:|---|
 | `RT-FEAT-NET-AUTHORITY` | Multiplayer con autorità server | M10 | **SPECIFIED** | 1/8 | — |
 | `RT-FEAT-NET-DEDICATED` | Dedicated server | — | **IDEA** | 0/8 | — |
+
+### Tools
+
+| Feature | Titolo | Roadmap | Stato | Gate | Scenario |
+|---|---|---|---|---:|---|
+| `RT-FEAT-TOOL-CONTROL-CENTER` | Project Control Center — la UI web del registry | — | **IMPLEMENTING** | 2/6 | — |

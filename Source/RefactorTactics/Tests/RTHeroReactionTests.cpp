@@ -320,10 +320,16 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroReactionsAreDeclaredTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHeroReactionsAreDeclaredTest::RunTest(const FString&)
 {
-	// Cinque reazioni a catalogo: TRE cablate qui, DUE rinviate a E14 (`Vektor.InterceptShot` e
-	// `Riva.FlowReaction`: trigger d'ingresso su movimento e movimento reattivo, ADR-0004). Il rinvio e'
-	// dichiarato *come dato* — slot `None`, nessun trigger — non lasciato all'interpretazione di chi legge:
-	// una reazione a meta' con lo slot giusto verrebbe raccolta dal pass e non farebbe nulla, in silenzio.
+	// Cinque reazioni a catalogo: TRE cablate qui, UNA rinviata a E14 (`Riva.FlowReaction`: movimento
+	// reattivo, ADR-0004). Il rinvio e' dichiarato *come dato* — slot `None`, nessun trigger — non lasciato
+	// all'interpretazione di chi legge: una reazione a meta' con lo slot giusto verrebbe raccolta dal pass e
+	// non farebbe nulla, in silenzio.
+	//
+	// ⚠️ **La quinta e' USCITA da questo elenco il 2026-08-10** (E18 CP 18.2, D-016): `Vektor.InterceptShot`
+	// non e' piu' «rinviata», e' diventata una **Predictive Action**. La sua verifica sta sotto, e afferma il
+	// contrario di quella che c'era prima: non «nessuno la raccoglie», ma «la raccoglie il boundary del Move».
+	// Il test non e' stato cancellato perche' la domanda che poneva resta viva — *chi valuta questa azione?* —
+	// ed e' cambiata la risposta, non la domanda.
 	URTHeroData* Flux = URTHeroCatalogLibrary::MakeFlux();
 	URTHeroData* Riva = URTHeroCatalogLibrary::MakeRiva();
 	URTHeroData* Bastion = URTHeroCatalogLibrary::MakeBastion();
@@ -351,8 +357,7 @@ bool FRTHeroReactionsAreDeclaredTest::RunTest(const FString&)
 
 	struct FDeferred { const URTActionData* Action; const TCHAR* Id; };
 	const FDeferred Deferred[] = {
-		{ Vektor->Actions[1], TEXT("Vektor.InterceptShot") },
-		{ Riva->Actions[4],   TEXT("Riva.FlowReaction") },
+		{ Riva->Actions[4], TEXT("Riva.FlowReaction") },
 	};
 	for (const FDeferred& D : Deferred)
 	{
@@ -362,6 +367,19 @@ bool FRTHeroReactionsAreDeclaredTest::RunTest(const FString&)
 		TestTrue(FString::Printf(TEXT("%s: e non dichiara un trigger che nessuno valuterebbe"), D.Id),
 			D.Action->Def.ReactionTrigger == ERTReactionTrigger::None);
 	}
+
+	// La MIGRATA. Il rinvio si chiude dichiarando chi la valuta, non togliendo la riga: se `InterceptShot`
+	// tornasse senza trigger E senza campi predittivi, sarebbe di nuovo un'azione che nessuno raccoglie — e
+	// nessun test se ne accorgerebbe. Questa e' la verifica che il buco non si riapra in silenzio.
+	const URTActionData* Intercept = Vektor->Actions[1];
+	TestEqual(TEXT("Vektor.InterceptShot: identita'"), Intercept->Def.ActionId, FName(TEXT("Vektor.InterceptShot")));
+	TestTrue(TEXT("non e' una reazione: non occupa lo slot Reazione"),
+		Intercept->Def.Slot != ERTActionSlot::Reaction);
+	TestTrue(TEXT("e non dichiara un trigger di reazione"),
+		Intercept->Def.ReactionTrigger == ERTReactionTrigger::None);
+	TestTrue(TEXT("ma NON e' piu' orfana: e' predittiva, e il boundary del Move la valuta"),
+		Intercept->Def.PredictiveTargeting == ERTPredictiveTargeting::LockCell
+		&& Intercept->Def.PredictionBoundary == ERTPredictionBoundary::MovementEntry);
 
 	// Il roster resta strutturalmente valido: il cablaggio non ha cambiato il numero di azioni ne' le varianti.
 	const TArray<const URTHeroData*> Roster = { Flux, Riva, Bastion, Vektor };
