@@ -172,8 +172,8 @@ features:
     wiki_refs:
       - docs/wiki/game/regole-fondamentali.md
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      date: 2026-08-10
+      commit: c634c50
     notes: >
       22 test: ordine totale, hash permutazione-invariante, serializzazione versionata con checksum,
       I/O su file, letture legacy. `DescribeEntry` porta i reason code nel combat log del giocatore.
@@ -2545,8 +2545,8 @@ features:
     wiki_refs:
       - docs/wiki/game/esempio-di-round.md
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      date: 2026-08-10
+      commit: c634c50
     notes: >
       Quel che il giocatore legge e quel che il replay registra sono la stessa cosa: una sola
       funzione pura (`DescribeEntry`) produce entrambi.
@@ -3588,8 +3588,8 @@ features:
     scenarios: []
     wiki_refs: []
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      date: 2026-08-10
+      commit: c634c50
     notes: >
       `ActionId`, `HeroId`, `ScenarioId`, `FormatId`: identità dichiarate e indipendenti dal
       percorso o dal titolo. È il presupposto anche dei `feature_id` di questo registry.
