@@ -44,10 +44,15 @@ public:
 	 * `ReactiveCapacitor` e' **cablata** (CP 6.7): reazione sulla semantica di `Action.Counter` con due
 	 * effetti propri — scudo 15 a se' e 10 danni all'attaccante.
 	 *
-	 * Limiti dichiarati (nessun sistema a valle esiste ancora, quindi l'effetto non e' rappresentabile):
-	 * `ConductiveNode` non ha un modello di "cella conduttiva" (E8/E9); `Overload` non ha un modello di
-	 * "dispositivo interrompibile" (E7, gadget). Ogni azione esiste comunque come DATO, con la sua identita',
-	 * portata e cooldown dal catalogo — solo l'effetto aggiuntivo resta un numero non ancora consumato.
+	 * `ConductiveNode` e' **cablata** da D-046 (#282) sulla semantica di `Action.Electrify`, con portata e
+	 * propagazione dal core: non e' piu' fra i limiti dichiarati, e il modello di cella conduttiva esiste da
+	 * E8. Resta aperto su #207 *quale* dei due effetti sia l'azione vera — propagare una scarica o trasformare
+	 * la superficie — perche' il PDF dice la seconda e il cablaggio fa la prima.
+	 *
+	 * Limite dichiarato che resta (nessun sistema a valle esiste ancora, quindi l'effetto non e'
+	 * rappresentabile): `Overload` non ha un modello di "dispositivo interrompibile" (E7, gadget). L'azione
+	 * esiste comunque come DATO, con la sua identita', portata e cooldown dal catalogo — solo l'effetto
+	 * aggiuntivo resta un numero non ancora consumato.
 	 */
 	static URTHeroData* MakeFlux();
 
