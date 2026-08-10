@@ -9,6 +9,26 @@
 
 ---
 
+## Aperte — archivio replay, dal conflict report del 2026-08-10
+
+Origine: [conflict report replay](roadmap/plans/replay-system-conflict-report-2026-08-10.md) §9.
+Le tre domande erano già issue su GitHub ma **non erano elencate qui**, dove vive ciò che aspetta una
+persona: questa sezione colma il buco. Finché restano aperte, **R1** (Replay Archive e Recorder), **R2**
+(serializzazione e compatibilità) e **R3** (Replay Player) non sono nemmeno specificabili.
+
+| ID | Domanda | Perché serve una risposta |
+|---|---|---|
+| [`#412`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/412) | Quale artefatto è **autorevole** quando si riproduce una partita, e dove passa il confine `ReplayPlayer`/`ReplayVerifier`? | Riprodurre la traccia e ri-simulare dagli intent sono due prodotti con due garanzie diverse, e il repository non dichiara quale sia «il replay». Il confine va scritto come **invariante**: è il rischio `REPLAY-04`, e oggi nessun test se ne accorgerebbe se qualcuno lo attraversasse. Chiude scrivendo un **ADR** — che non esiste ancora: in `docs/decisions/` ci sono gli ADR 0001–0008 |
+| [`#413`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/413) | `ContentManifestHash` e `RulesVersion` si costruiscono **ora o alla v0.2**? E cosa entra nel manifest? | Senza, la regola «un replay v1 non va ricalcolato con regole v2» non è implementabile: i tre nomi hanno **zero occorrenze** in `Source/` e `Config/`. Il corpus golden è protetto solo dal fatto che i cataloghi cambiano di rado — che è una statistica, non una garanzia. La domanda secondaria è metà della risposta: un manifest che copre troppo poco dà falsi verdi, uno che copre troppo rende incompatibile ogni ritocco di bilanciamento |
+
+### ✅ Chiusa il 2026-08-10 — [D-077](decisions/RT_PDR_00_Decision_Log.md), decisa dall'autore in sessione
+
+| ID | Domanda | Risposta |
+|---|---|---|
+| [`#414`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/414) | L'archivio è per **partita** o per **turno**, e cosa identifica una partita? | **Entrambe le cose, a due livelli**: un **manifest per partita** più una **traccia per turno**. Le tracce restano come sono (`SaveTurnLogToFile` ne salva già una per file); il manifest è la casa che [D-062](decisions/RT_PDR_00_Decision_Log.md) aveva già assegnato a `HashTurnLogOrdered`, ed è lo stesso artefatto che l'indice di [#416](https://github.com/DegrassiAaron/refactor-tactics-main/issues/416) chiede. L'identità è un **`FGuid` generato all'avvio**, **fuori da ogni hash**: identifica la registrazione, non il contenuto |
+
+---
+
 ## Aperte — geometria, acqua e strutture, dal quinto sorgente del 2026-08-10
 
 Origine: [triage `FULL CHAT CONSOLIDATION`](roadmap/plans/triage-grid-geometry-water-2026-08-10.md).

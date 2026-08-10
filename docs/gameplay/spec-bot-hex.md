@@ -229,5 +229,5 @@ bot legge il **catalogo**, non i nomi.
 - Codice: `Source/RefactorTactics/Bot/RTHexBotLibrary.{h,cpp}` · consumatore: `ARTTurnManager::PlanBots`
 - Storia: [`../technical/h6-5-hex-bot-spec.md`](../technical/h6-5-hex-bot-spec.md) (`AS-BUILT` H6.5)
 - Architettura: [`../technical/architettura-codice.md`](../technical/architettura-codice.md)
-- Wiki, lato giocatore: [`../wiki/game/avversario-bot.md`](../wiki/game/avversario-bot.md)
+- Wiki, lato giocatore: [`avversario-bot` (Wiki)](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/avversario-bot)
 - Decisioni che lo vincoleranno: [ADR-0005](../decisions/adr-0005-orientamento.md) · [ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md) · [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md)

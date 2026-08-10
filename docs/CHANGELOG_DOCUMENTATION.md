@@ -98,7 +98,7 @@ L'handoff proponeva tre concetti come nuovi: `ConditionalIntent`, `GenericAction
 | [`gameplay/brief-stati-personaggio-e-trasformazioni.md`](gameplay/brief-stati-personaggio-e-trasformazioni.md) | **nuovo** — owner del Character State System: cinque famiglie, complexity budget, anti-pattern |
 | [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-032…D-035**. Nessun ADR: due sono schema documentale, due sono rinvii |
 | [`roadmap/roadmap-post-v0.1.md`](roadmap/roadmap-post-v0.1.md) | Epic **E33** (v0.3) ed **E34** (v0.4) |
-| [`wiki/game/azioni-e-movimento.md`](wiki/game/azioni-e-movimento.md) | Nota player-facing sui profili. **Nessuna feature futura pubblicizzata** |
+| [`azioni-e-movimento` (Wiki)](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/azioni-e-movimento) | Nota player-facing sui profili. **Nessuna feature futura pubblicizzata** |
 | `docs/src/` → `docs/archive/src/` | **25 sorgenti spostati**; ~130 link riscritti in 23 file |
 | [`archive/README.md`](archive/README.md) | Indicava come fonti `docs/design/piano-canonico-mvp.md` e `docs/design/roadmap-checkpoint.md`: **quella cartella non esiste** |
 
