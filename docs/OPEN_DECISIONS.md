@@ -150,7 +150,7 @@ per `Brace`, [D-012](decisions/RT_PDR_00_Decision_Log.md)/[D-014](decisions/RT_P
 | `BAS-2` | I quattro profili `Overwatch` — `Conductive`, `Pressure`, `Frontline`, `Predictive` — entrano come contenuto di **CP 14.4**? | Le geometrie proposte (settore medio · medio-corto · corto-largo frontale · stretto-lungo) sono esprimibili con `FRTSuppressiveZone` e col facing come impone CP 14.4, ma **nessun catalogo le contiene**. Senza, `Overwatch.ProfileIsDataNotBranch` non ha un secondo profilo da confrontare col primo |
 | `BAS-3` | `Vektor.Deflection`: un nome, **due semantiche**. Si rinomina il profilo `Brace`, si rinomina la reazione, o si unificano? | `Vektor.Deflection` esiste già cablata (`RTHeroCatalogLibrary.cpp:557`, CP 6.7) ed è **−20 sul colpo diretto**, cioè riduzione danno — esattamente ciò che il §10 del sorgente vieta al `Brace`. Due entità con lo stesso nome e semantiche opposte non si separano da sole al momento dell'implementazione |
 | `BAS-4` | `Riva.Flow`: il profilo `Brace` è la **promozione** di `Riva.FlowReaction`, o una terza cosa? | «Flow» per Riva è già scritto **due volte, in due accezioni**: `Riva.FlowReaction` (`RTHeroCatalogLibrary.cpp:351`) è `Reposition 1` **dopo un attacco subito**, rinviata a E14 con slot `None`; `State.Riva.Flow` è un candidato *stance* post-v0.1 (`RT-FEAT-CHARACTER-STATE`, E34, `PROPOSED`). Il profilo proposto risponde invece al **Forced Movement**. «Riva colpita ma non spostata» distingue il primo caso dal terzo, e oggi nessun documento dice quale dei due accade |
-| `BAS-5` | Dopo l'`Overwatch`: **Move con budget ridotto**, o **Watch Stage + Reposition** pianificato? | Due sorgenti **pari-data** (2026-08-10) propongono modelli diversi, e il gemello — `CLAUDE_Overwatch_Runtime_Lifecycle_Watch_Reposition_Consolidation_2026-08-10.md` — si dichiara più recente e cita il primo fra i propri input. Nessuno dei due è canone: finché non lo è, lo scenario `CHAR-BASE-008` del sorgente resta senza forma e la feature `PostUseMovement` non si apre |
+| ~~`BAS-5`~~ | ~~Dopo l'`Overwatch`: **Move con budget ridotto**, o **Watch Stage + Reposition** pianificato?~~ **Chiusa come domanda il 2026-08-10**: prevale il modello **Watch → EndWatchStage → Reposition**. Non per la data — è la stessa — ma perché il sorgente gemello si dichiara superato su questo punto (§34 e §48 elencano «vecchio post-Overwatch Normal/Sneak Move» fra ciò da correggere), e perché è l'unico dei due modelli che dice **dove si trova** il personaggio quando l'Overwatch finisce. Restano aperti il suo **costo** (`OW-1`) e il suo **nome** (`OW-2`): vedi [`roadmap/plans/overwatch-runtime-lifecycle-triage-2026-08-10.md`](roadmap/plans/overwatch-runtime-lifecycle-triage-2026-08-10.md) |
 
 > **Le affinità di interazione per eroe non aprono una voce nuova.** Il §17 del sorgente (Flux → generatori e
 > pannelli, Riva → valvole e pompe, Bastion → cover, porte e barricate, Vektor → standard) **ricalca** le
@@ -176,6 +176,30 @@ residuo.
 | `BAL-1` | `Guard` e `Brace` devono separarsi in **danno contro spinta**? | [D-066](decisions/RT_PDR_00_Decision_Log.md) ha misurato il modello in vigore: entrambi fanno entrambe le cose, e differiscono per *forma* (primo colpo forte vs ogni colpo; spinta di 1 cella vs spinta qualsiasi). La proposta di separarli è coerente e cambierebbe **quattro valori a catalogo**. È bilanciamento: si chiude con una partita, non con un documento. ⚠️ Il test che la deciderebbe — *danno misto + spinta sullo stesso colpo* — **non esiste**: oggi i due lati sono verificati separatamente |
 | `ECO-1` | `Guard` e `Brace` competono con il **Main Commitment**, o hanno un'altra economia? | [D-012](decisions/RT_PDR_00_Decision_Log.md) copre `Attack \| Ability \| Overwatch` e **non** dice nulla di `Guard` e `Brace`, che a catalogo occupano l'azione principale ma non compaiono in quella regola. La domanda si porta dietro la matrice Sprint/Sneak proposta dal sorgente (`Brace` e `Overwatch` senza Sprint), che **non è canonica** e non va resa tale senza playtest |
 >>>>>>> origin/main
+
+---
+
+## Aperte — costo e nome del ciclo Watch/Reposition, dal consolidamento del 2026-08-10
+
+Origine: [`roadmap/plans/overwatch-runtime-lifecycle-triage-2026-08-10.md`](roadmap/plans/overwatch-runtime-lifecycle-triage-2026-08-10.md).
+Il **modello** è deciso da `BAS-5` sopra — `Watch → EndWatchStage → Reposition` — e gran parte del sorgente è
+già canone-compatibile: la cadence *once-per-target* ha persino uno scenario che la esprime da prima
+(`Spec.Overwatch.HoldThenFire`, dove Vektor fa `HOLD` su Flux e `FIRE` su Riva). Quello che resta aperto non
+è il funzionamento: è **quanto costa** e **come si chiama**.
+
+| ID | Domanda | Perché serve una risposta |
+|---|---|---|
+| `OW-1` | Armare l'`Overwatch` costa **anche** il movimento — Move ridotto **e** divieto di Dash — oltre all'azione principale? | [D-012](decisions/RT_PDR_00_Decision_Log.md) dice `Attack \| Ability \| Overwatch`, cioè lo slot **principale**; [D-028](decisions/RT_PDR_00_Decision_Log.md) tiene il movimento in uno slot separato e ci mette dentro `Dash · Leap · Reposition`. Col canone di oggi si può armare l'Overwatch **e** dashare. Il sorgente ne fa pagare tre (azione, Move pieno, priorità spaziale tardiva) e lo dichiara *core trade-off*: è bilanciamento, non precisazione. ⚠️ La motivazione strutturale che porta (se l'owner si sposta, la `WatchOrigin` pianificata non è più la sua cella) giustifica **cancellare l'Overwatch**, non **vietare il Dash** in planning — sono due design con conseguenze diverse sul bluff |
+| `OW-2` | Il Move post-Watch **come si chiama**? | `Action.Reposition` **esiste già**: linea retta di **2 celle** in fase **Dash** (`RTCatalogLibrary.cpp:365`, [catalogo](balance/RT_ActionCatalog_v0.1.md) §2.2), slot Movimento, cablata in `RTMovementActionLibrary` fra le mobilità lineari e concessa da `Riva.FlowReaction` e `Vektor.Feint`. Il sorgente usa lo stesso nome per un profilo di **Move** pre-pianificato nello Stage B. Rinominare l'azione esistente costa catalogo, codice, due kit e test; tenerne due in due fasi diverse costa **ogni volta che qualcuno legge il TurnLog** |
+| `OW-3` | Il budget del Move post-Watch | `OPEN_BALANCE` dichiarato dal sorgente stesso (§12), e giustamente: nessun numero va inventato prima del playtest. Dipende da `OW-1`: se l'Overwatch costa già il Dash, un budget troppo stretto la rende una scelta a perdere |
+| `OW-4` | Gli objective che dipendono dalla **posizione finale** si valutano dopo lo Stage B? | Il sorgente (§17) chiede di verificarlo contro il canone, e il canone **non dice nulla**: è una lacuna, non un conflitto. Con due stage di movimento nella stessa fase, «posizione finale» smette di essere ovvia |
+
+> **Quattro punti del sorgente NON aprono una voce: sono già compatibili** e possono entrare nel DoD di E14
+> senza altre decisioni — la cadence `OncePerTargetPerReactionInstance` (§21), `MaxPrompts` che conta
+> opportunity distinte e non passi (§24, precisa [ADR-0004](decisions/adr-0004-finestre-di-reazione.md) §8),
+> l'eligibility valutata **post-transition** (§20), e la distinzione fra **hard cancel** e **soft eligibility
+> block** (§9) — che CP 14.6 oggi non fa, e che serve perché `NoLOS` e `Stun` non possono produrre lo stesso
+> reason code terminale.
 
 ---
 
