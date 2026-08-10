@@ -110,8 +110,15 @@ bool FRTReplayRecordingIntegrationTest::RunTest(const FString&)
 	TM->ReplaysRootOverride = Root; // configurazione, non un ramo «se test»: la radice e' un parametro
 	TM->DispatchBeginPlay();
 
+	TestFalse(TEXT("dopo il solo BeginPlay la registrazione NON e' partita"),
+		TM->GetReplayMatchId().IsValid());
+
+	// Quello che fa il GameMode dopo aver risolto il formato: e' li' che si sa di stare allestendo una
+	// partita vera, e non nel BeginPlay di un attore che anche i test spawnano.
+	TM->BeginReplayRecording();
+
 	const FGuid MatchId = TM->GetReplayMatchId();
-	TestTrue(TEXT("la partita ha un id appena comincia"), MatchId.IsValid());
+	TestTrue(TEXT("ora la partita ha un id"), MatchId.IsValid());
 
 	PlayOneRecTurn(TM);
 	PlayOneRecTurn(TM);
@@ -146,6 +153,46 @@ bool FRTReplayRecordingIntegrationTest::RunTest(const FString&)
 
 	DestroyRecWorld(World);
 	if (PF.DirectoryExists(*Root)) { PF.DeleteDirectoryRecursively(*Root); }
+	return true;
+}
+
+/**
+ * Un TurnManager che nessuno ha avviato NON scrive niente.
+ *
+ * E' il caso dei 27 file di test e dello `ScenarioHarness`, che spawnano un TurnManager a mano: se la
+ * registrazione partisse dal `BeginPlay`, ognuno di loro lascerebbe archivi in `Saved/Replays` a ogni run —
+ * un effetto collaterale che nessuno ha chiesto, e che si scopre solo guardando la cartella. Il difetto
+ * c'era davvero: quattro archivi trovati dopo una singola esecuzione della suite.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayNoRecordingWithoutStartTest,
+	"RefactorTactics.Replay.Recording.UnstartedManagerWritesNothing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayNoRecordingWithoutStartTest::RunTest(const FString&)
+{
+	const FString Root = FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("RecUnstarted"));
+	IPlatformFile& PF = FPlatformFileManager::Get().GetPlatformFile();
+	if (PF.DirectoryExists(*Root)) { PF.DeleteDirectoryRecursively(*Root); }
+
+	UWorld* World = MakeRecWorld();
+	if (!TestNotNull(TEXT("mondo creato"), World)) { return false; }
+
+	SpawnRecMap(World, /*Radius=*/ 4);
+	SpawnRecUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(-2, 0, 0));
+	SpawnRecUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(2, 0, 0));
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	if (!TestNotNull(TEXT("TurnManager"), TM)) { DestroyRecWorld(World); return false; }
+
+	TM->ReplaysRootOverride = Root;
+	TM->DispatchBeginPlay();   // e nessuna `BeginReplayRecording`: e' il caso di ogni test del repository
+
+	PlayOneRecTurn(TM);
+	PlayOneRecTurn(TM);
+
+	TestFalse(TEXT("nessun id di registrazione"), TM->GetReplayMatchId().IsValid());
+	TestFalse(TEXT("e nessuna cartella di archivi creata"), PF.DirectoryExists(*Root));
+
+	DestroyRecWorld(World);
 	return true;
 }
 

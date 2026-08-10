@@ -152,11 +152,27 @@ costruzione, e così l'hash del quadrato resta invariato. Vedi [`h6-hex-sim-spec
 `D-077` nomina **questo documento** come owner del formato dell'archivio, e da oggi l'archivio esiste.
 
 ```
-Replays/<MatchId>/
+Saved/Replays/<MatchId>/
   match.rtmanifest    <- header di partita, JSON
   turn-001.rtlog      <- SerializeTurnLog, byte invariati rispetto al §3
   turn-002.rtlog
 ```
+
+**Chi scrive, e quando** (dal 2026-08-10, seconda fetta di `#469`): `ARTTurnManager` consegna la traccia a
+`URTReplayRecorderLibrary` in `ConcludeTurn`, **prima** di `DestroyDefeatedUnits` e **prima** di
+`++TurnNumber` — invertire l'ordine scriverebbe ogni traccia col numero sbagliato. L'archivio si chiude nel
+ramo di fine partita.
+
+**La registrazione la avvia il GameMode**, non il `BeginPlay` del TurnManager, con `BeginReplayRecording()`
+dopo `ApplyMatchFormat`. Due ragioni, entrambe misurate: `BeginPlay` gira anche per i test e per lo
+`ScenarioHarness` che spawnano un TurnManager — farli scrivere su disco sarebbe un effetto collaterale che
+nessuno ha chiesto — e a quel punto `MatchRules.FormatId` **non è ancora quello vero**, perché il GameMode
+risolve il formato dopo aver spawnato il manager.
+
+| Parametro | Effetto |
+|---|---|
+| `bRecordReplay` | interruttore; con la registrazione già avviata, spegnerlo la ferma |
+| `ReplaysRootOverride` | radice alternativa. Vuota = `Saved/Replays`. È **configurazione**, non un ramo «se test» |
 
 **Le tracce non cambiano.** Il recorder chiama `SerializeTurnLog` e ne scrive il risultato: non c'è un
 secondo serializzatore, ed è l'unico modo di rendere *vero* il criterio «byte-identiche» invece di

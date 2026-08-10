@@ -46,16 +46,10 @@ void ARTTurnManager::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// L'identita' della registrazione nasce con la partita (`D-077`): un `FGuid` che identifica QUESTA
-	// esecuzione, non il suo contenuto. Sta fuori da ogni hash, come il wall-clock.
-	if (bRecordReplay)
-	{
-		ReplayManifest = FRTReplayManifest();
-		ReplayManifest.MatchId = FGuid::NewGuid();
-		ReplayManifest.FormatId = MatchRules.FormatId;
-		ReplayManifest.bHexTopology = true; // un solo substrato: `FRTCellId` e' esagonale (ADR-0002)
-	}
-
+	// ⚠️ La registrazione NON parte da sola qui, ed e' deliberato: `BeginPlay` gira anche per i 27 file di
+	// test e per lo `ScenarioHarness` che spawnano un TurnManager a mano, e farli scrivere su disco
+	// sarebbe un effetto collaterale che nessuno ha chiesto. La avvia chi allestisce una partita vera —
+	// il GameMode — con `BeginReplayRecording()`.
 	StartPlanningTimer();
 }
 
@@ -1397,6 +1391,22 @@ void ARTTurnManager::AddTeamScore(int32 TeamId, int32 Points)
 
 	AddLogEvent(FString::Printf(TEXT("Obiettivo: team %d +%d (ora %d-%d)"),
 		TeamId, Points, Team0Score, Team1Score));
+}
+
+void ARTTurnManager::BeginReplayRecording()
+{
+	if (!bRecordReplay)
+	{
+		return;
+	}
+
+	ReplayManifest = FRTReplayManifest();
+	ReplayManifest.MatchId = FGuid::NewGuid();
+	// Il formato si legge ADESSO e non a `BeginPlay`: il GameMode spawna il TurnManager prima di risolvere
+	// il formato di partita (`ApplyMatchFormat`), quindi a quel punto `MatchRules.FormatId` non e' ancora
+	// quello vero. Un manifest che dichiara il formato sbagliato e' peggio di uno che non lo dichiara.
+	ReplayManifest.FormatId = MatchRules.FormatId;
+	ReplayManifest.bHexTopology = true; // un solo substrato: `FRTCellId` e' esagonale (ADR-0002)
 }
 
 FString ARTTurnManager::ResolveReplaysRoot() const
