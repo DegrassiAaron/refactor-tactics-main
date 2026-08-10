@@ -500,7 +500,22 @@ bool FRTIceSlidesInMatchTest::RunTest(const FString&)
 
 	// Controprova: stesso ghiaccio, budget residuo insufficiente. Arrivando a IceBudget-1 celle resta 1 MP,
 	// sotto la soglia di 2 -> nessuna scivolata. E' il BUDGET a muoverla, non la superficie da sola.
+	//
+	// La cella d'arrivo dev'essere GHIACCIO, e va marcata qui perche' la sua posizione dipende dal budget:
+	// la mappa dichiara ghiaccio su (2,0) e (4,0), scelte quando il budget era 5. Con un budget diverso
+	// l'arrivo cade su una cella normale, `ApplyIceSliding` esce alla prima riga (nessun `SlideCells`) e
+	// l'unita' si ferma li' perche' non c'e' ghiaccio — non perche' il residuo sia insufficiente. Il test
+	// resterebbe verde anche cancellando la soglia che esiste per verificare.
 	const FRTCellId NoSlideTarget(IceBudget - 1, 0);
+	{
+		FRTHexCellData IceData(NoSlideTarget);
+		IceData.Surface = ERTHexSurface::Ice;
+		Map->AddOrUpdateCell(IceData);
+		Map->SortCells();
+	}
+	const FRTHexCellData* ArrivalData = Map->FindCell(NoSlideTarget);
+	TestTrue(TEXT("premessa: la controprova arriva SU GHIACCIO"),
+		ArrivalData != nullptr && ArrivalData->Surface == ERTHexSurface::Ice);
 	Mover->PlaceOnCell(FRTCellId(0, 0), FVector::ZeroVector, 100.f, 250.f);
 	Mover->PlannedCell = NoSlideTarget;
 	Foe->PlannedCell = Foe->Cell;
@@ -873,9 +888,20 @@ bool FRTKitDeclaredBothSlotsTest::RunTest(const FString&)
 	SpawnHexMap(World, /*Radius=*/ 8);
 
 	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(8, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TM || !Runner || !Foe) { DestroyHexMoveWorld(World); return false; }
+	if (!TM || !Runner) { DestroyHexMoveWorld(World); return false; }
+
+	// Il bersaglio va messo DENTRO la portata dell'attacco base, misurata dalla cella d'arrivo dello scatto:
+	// e' l'unica posizione in cui «nessun colpo» dimostra qualcosa. Stava a (8,0), a distanza 5 dall'arrivo:
+	// con la portata 6 del Ranger legacy era un bersaglio legittimo, con la portata 4 del roster e' fuori
+	// tiro comunque — e il test sarebbe rimasto verde anche cancellando la gestione di `MovementAndMain`,
+	// che e' esattamente cio' che esiste per difendere.
+	constexpr int32 DashTo = 3;
+	const int32 ShotRange = Runner->AttackRange;
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(DashTo + ShotRange, 0));
+	if (!TestNotNull(TEXT("Foe"), Foe)) { DestroyHexMoveWorld(World); return false; }
+	TestTrue(TEXT("premessa: dalla cella d'arrivo il bersaglio E' a portata"),
+		URTHexLibrary::HexDistance(FRTCellId(DashTo, 0), Foe->Cell) <= ShotRange);
 
 	// Uno scatto identico ad `Action.Dash` TRANNE lo slot: e' il kit a dichiarare che costa tutto il turno.
 	URTActionData* Costly = NewObject<URTActionData>(Runner);
@@ -888,14 +914,14 @@ bool FRTKitDeclaredBothSlotsTest::RunTest(const FString&)
 	const int32 FoeBefore = Foe->Health + Foe->Shield;
 
 	Runner->PlannedDashAbility = Runner->Abilities.Num() - 1;
-	Runner->PlannedDashCell = FRTCellId(3, 0);
-	Runner->PlannedAbilityIndex = 0;          // il Tiro, che da (3,0) avrebbe il Guardian a portata
+	Runner->PlannedDashCell = FRTCellId(DashTo, 0);
+	Runner->PlannedAbilityIndex = 0;          // l'attacco base, che dalla cella d'arrivo avrebbe il bersaglio a portata
 	Runner->PlannedAttackTarget = Foe;
 	Foe->PlannedCell = Foe->Cell;
 
 	RunTurn(TM);
 
-	TestTrue(TEXT("lo scatto e' avvenuto"), Runner->Cell == FRTCellId(3, 0));
+	TestTrue(TEXT("lo scatto e' avvenuto"), Runner->Cell == FRTCellId(DashTo, 0));
 	// La differenza con `Action.Dash`, e l'unica cosa che questo test dimostra: qui il colpo NON parte.
 	TestEqual(TEXT("il kit ha dichiarato che costa anche la principale: nessun colpo"),
 		Foe->Health + Foe->Shield, FoeBefore);
