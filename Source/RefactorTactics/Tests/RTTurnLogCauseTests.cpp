@@ -515,4 +515,297 @@ bool FRTBasicAttackProfilePairInLogTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Lo spostamento MANCATO** — `#420`. `#307` ha spiegato la spinta che sposta e ha lasciato muta quella che
+ * non sposta: cinque modi diversi di restare fermi, indistinguibili nel file, e due dei cinque senza nemmeno
+ * una riga di combat log. Un sesto — la destinazione contesa — non lasciava proprio nulla.
+ *
+ * I quattro test qui sotto girano tutti su un turno vero e coprono i quattro modi RAGGIUNGIBILI dal gioco
+ * come lo si gioca oggi. Il quinto (`PushResistance`) non e' testato **e non ha produttore**: D-075 l'ha
+ * portata a `0` su tutto il roster, e un test che gliela rimettesse a mano verificherebbe un ramo che nessuna
+ * partita attraversa — esattamente il verde che `RefactorTactics.Actions.PushResistanceIsAThreshold` gia'
+ * produce, e che D-075 nota non essere diventato rosso quando il dato e' sparito.
+ */
+namespace
+{
+	/** Le voci `Move` con esito `DisplacementResisted`, nell'ordine in cui il turno le ha scritte. */
+	TArray<FRTTurnLogEntry> ResistedEntries(const ARTTurnManager* TM)
+	{
+		TArray<FRTTurnLogEntry> Out;
+		for (const FRTTurnLogEntry& E : EntriesOfCategory(TM, ERTLogCategory::Move))
+		{
+			if (static_cast<ERTMoveOutcome>(E.Outcome) == ERTMoveOutcome::DisplacementResisted) { Out.Add(E); }
+		}
+		return Out;
+	}
+
+	/** Prepara una spinta: `Pusher` spinge `Victim`, nessuno dei due si muove di sua volonta'. */
+	void PlanPushOn(ARTUnit* Pusher, ARTUnit* Victim)
+	{
+		if (!Pusher || !Victim) { return; }
+		Pusher->PlannedAbilityIndex = AddCoreAbility(Pusher, TEXT("Action.Push"));
+		Pusher->PlannedAttackTarget = Victim;
+		Pusher->PlannedCell = Pusher->Cell;
+		Victim->PushResistance = 0; // la soglia dorme dopo D-075: azzerarla e' dichiararlo, non aggirarlo
+		Victim->PlannedCell = Victim->Cell;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOpposingPushesLeaveATraceTest,
+	"RefactorTactics.TurnLog.OpposingPushesLeaveATrace",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOpposingPushesLeaveATraceTest::RunTest(const FString&)
+{
+	// CASO 4 di `#420`: due attaccanti spingono lo stesso bersaglio nello stesso Blast, le forze si annullano.
+	// Non e' una difesa — il bersaglio non ha fatto nulla — ed era muto in entrambi i canali.
+	UWorld* World = MakeCauseWorld();
+	if (!TestNotNull(TEXT("World"), World)) { return false; }
+	SpawnCauseMap(World);
+
+	ARTUnit* Left = SpawnCauseUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Victim = SpawnCauseUnit(World, 1, FRTCellId(1, 0));
+	ARTUnit* Right = SpawnCauseUnit(World, 0, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	if (!TestNotNull(TEXT("Left"), Left) || !TestNotNull(TEXT("Victim"), Victim)
+		|| !TestNotNull(TEXT("Right"), Right) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyCauseWorld(World);
+		return false;
+	}
+
+	PlanPushOn(Left, Victim);
+	PlanPushOn(Right, Victim);
+
+	RunCauseTurn(TM);
+
+	if (!TestTrue(TEXT("premessa: le due spinte si annullano e il bersaglio resta"),
+		Victim->Cell == FRTCellId(1, 0)))
+	{
+		DestroyCauseWorld(World);
+		return false;
+	}
+
+	const TArray<FRTTurnLogEntry> Resisted = ResistedEntries(TM);
+	if (!TestEqual(TEXT("#420: lo spostamento annullato lascia UNA voce nel TurnLog"), Resisted.Num(), 1))
+	{
+		DestroyCauseWorld(World);
+		return false;
+	}
+
+	TestEqual(TEXT("#420: e dice PERCHE' — forze opposte, non una difesa"),
+		static_cast<ERTDisplacementBlockReason>(Resisted[0].Amount),
+		ERTDisplacementBlockReason::OpposingForces);
+	TestTrue(TEXT("le due celle coincidono: e' la forma di «non si e' spostata»"),
+		Resisted[0].SrcCell == FRTCellId(1, 0) && Resisted[0].TgtCell == FRTCellId(1, 0));
+	TestTrue(TEXT("registrata nel Blast, dove sarebbe avvenuto lo spostamento"),
+		Resisted[0].Phase == ERTMatchPhase::Blast);
+
+	// L'azione resta VUOTA di proposito: gli attaccanti sono due, e nominarne uno direbbe che a fermare il
+	// bersaglio e' stata quella spinta. Ne sono servite due, ed e' il contenuto stesso dell'esito.
+	TestTrue(TEXT("#420: con due attaccanti la voce non ne nomina uno solo"), Resisted[0].ActionId.IsNone());
+
+	const FString Described = URTTurnLogLibrary::DescribeEntry(Resisted[0]);
+	TestTrue(FString::Printf(TEXT("la riga leggibile dice la causa: %s"), *Described),
+		Described.Contains(TEXT("forze opposte")));
+
+	DestroyCauseWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPushWithoutDestinationLeavesATraceTest,
+	"RefactorTactics.TurnLog.PushWithoutDestinationLeavesATrace",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPushWithoutDestinationLeavesATraceTest::RunTest(const FString&)
+{
+	// CASO 5 di `#420`: la spinta arriva, e non ha dove mandare il bersaglio. Il bordo mappa lo dimostra
+	// senza fabbricare dati — la mappa ha raggio 6, quindi (7,0) non esiste.
+	UWorld* World = MakeCauseWorld();
+	if (!TestNotNull(TEXT("World"), World)) { return false; }
+	SpawnCauseMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Pusher = SpawnCauseUnit(World, 0, FRTCellId(5, 0));
+	ARTUnit* Victim = SpawnCauseUnit(World, 1, FRTCellId(6, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	if (!TestNotNull(TEXT("Pusher"), Pusher) || !TestNotNull(TEXT("Victim"), Victim)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyCauseWorld(World);
+		return false;
+	}
+
+	PlanPushOn(Pusher, Victim);
+
+	RunCauseTurn(TM);
+
+	if (!TestTrue(TEXT("premessa: contro il bordo il bersaglio non si sposta"),
+		Victim->Cell == FRTCellId(6, 0)))
+	{
+		DestroyCauseWorld(World);
+		return false;
+	}
+
+	const TArray<FRTTurnLogEntry> Resisted = ResistedEntries(TM);
+	if (!TestEqual(TEXT("#420: anche senza destinazione la spinta lascia una voce"), Resisted.Num(), 1))
+	{
+		DestroyCauseWorld(World);
+		return false;
+	}
+
+	TestEqual(TEXT("#420: la causa e' geometrica, non difensiva"),
+		static_cast<ERTDisplacementBlockReason>(Resisted[0].Amount),
+		ERTDisplacementBlockReason::NoDestination);
+
+	// Qui l'attaccante e' UNO: la voce puo' nominare l'azione, e lo fa. E' la differenza col caso 4.
+	TestEqual(TEXT("#420: con un attaccante solo la voce dice con quale azione"),
+		Resisted[0].ActionId, FName(TEXT("Action.Push")));
+
+	const FString Described = URTTurnLogLibrary::DescribeEntry(Resisted[0]);
+	TestTrue(FString::Printf(TEXT("la riga leggibile non dice «resta»: %s"), *Described),
+		Described.Contains(TEXT("nessuna uscita")) && !Described.Contains(TEXT("celle")));
+
+	DestroyCauseWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGuardAndBraceAreDistinguishableInTheLogTest,
+	"RefactorTactics.TurnLog.GuardAndBraceAreDistinguishableInTheLog",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGuardAndBraceAreDistinguishableInTheLogTest::RunTest(const FString&)
+{
+	// CASI 1 e 2 di `#420`. Le due difese emettevano una riga di combat log — una stringa per l'HUD, che non
+	// finisce nel file — quindi nel TurnLog erano la stessa identica assenza. Qui devono essere due voci
+	// diverse, nello stesso turno: che e' l'unico modo di dimostrare che il file le distingue.
+	//
+	// ⚠️ NON e' il confine di bilanciamento `BAL-1` (#403): quello riguarda il danno, e D-074 ha stabilito che
+	// ogni spinta del gioco vale 1. Qui si verifica solo che la TRACCIA dica quale difesa ha agito.
+	UWorld* World = MakeCauseWorld();
+	if (!TestNotNull(TEXT("World"), World)) { return false; }
+	SpawnCauseMap(World);
+
+	ARTUnit* PusherA = SpawnCauseUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Guarder = SpawnCauseUnit(World, 1, FRTCellId(1, 0));
+	ARTUnit* PusherB = SpawnCauseUnit(World, 0, FRTCellId(0, 2));
+	ARTUnit* Bracer = SpawnCauseUnit(World, 1, FRTCellId(1, 2));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	if (!TestNotNull(TEXT("PusherA"), PusherA) || !TestNotNull(TEXT("Guarder"), Guarder)
+		|| !TestNotNull(TEXT("PusherB"), PusherB) || !TestNotNull(TEXT("Bracer"), Bracer)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyCauseWorld(World);
+		return false;
+	}
+
+	PlanPushOn(PusherA, Guarder);
+	PlanPushOn(PusherB, Bracer);
+
+	// Le difese si pianificano, non si iniettano: `Action.Guard` e `Action.Brace` sono azioni di controllo che
+	// risolvono prima del knockback, quindi lo stato c'e' quando la spinta lo interroga. `PlanPushOn` ha gia'
+	// scritto `PlannedCell`; qui si aggiunge l'abilita' e la si sceglie.
+	Guarder->PlannedAbilityIndex = AddCoreAbility(Guarder, TEXT("Action.Guard"));
+	Bracer->PlannedAbilityIndex = AddCoreAbility(Bracer, TEXT("Action.Brace"));
+
+	RunCauseTurn(TM);
+
+	if (!TestTrue(TEXT("premessa: entrambe le difese reggono e nessuno dei due si sposta"),
+		Guarder->Cell == FRTCellId(1, 0) && Bracer->Cell == FRTCellId(1, 2)))
+	{
+		DestroyCauseWorld(World);
+		return false;
+	}
+
+	const TArray<FRTTurnLogEntry> Resisted = ResistedEntries(TM);
+	if (!TestEqual(TEXT("#420: due difese, due voci"), Resisted.Num(), 2))
+	{
+		DestroyCauseWorld(World);
+		return false;
+	}
+
+	const FRTTurnLogEntry* GuardEntry = Resisted.FindByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.SrcCell == FRTCellId(1, 0);
+	});
+	const FRTTurnLogEntry* BraceEntry = Resisted.FindByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.SrcCell == FRTCellId(1, 2);
+	});
+	if (!TestTrue(TEXT("una voce per ciascun difensore, riconoscibile dalla propria cella"),
+		GuardEntry != nullptr && BraceEntry != nullptr))
+	{
+		DestroyCauseWorld(World);
+		return false;
+	}
+
+	// Il cuore: due reason code DIVERSI. Prima di `#420` erano la stessa assenza di voce.
+	TestEqual(TEXT("#420: la guardia si dichiara"),
+		static_cast<ERTDisplacementBlockReason>(GuardEntry->Amount), ERTDisplacementBlockReason::Guarded);
+	TestEqual(TEXT("#420: l'irrigidimento si dichiara, e non e' lo stesso valore"),
+		static_cast<ERTDisplacementBlockReason>(BraceEntry->Amount), ERTDisplacementBlockReason::Braced);
+
+	const FString GuardText = URTTurnLogLibrary::DescribeEntry(*GuardEntry);
+	const FString BraceText = URTTurnLogLibrary::DescribeEntry(*BraceEntry);
+	TestTrue(FString::Printf(TEXT("e il giocatore legge due frasi diverse: «%s» / «%s»"),
+		*GuardText, *BraceText),
+		GuardText.Contains(TEXT("in guardia")) && BraceText.Contains(TEXT("irrigidito")));
+
+	DestroyCauseWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTContestedPushDestinationLeavesATraceTest,
+	"RefactorTactics.TurnLog.ContestedPushDestinationLeavesATrace",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTContestedPushDestinationLeavesATraceTest::RunTest(const FString&)
+{
+	// Il SESTO modo di non muoversi, che `#420` non contava perche' vive nel secondo ciclo del knockback: due
+	// bersagli spinti verso la STESSA cella restano entrambi fermi, perche' l'esito non deve dipendere da
+	// quale dei due si risolve prima. Era il piu' muto dei sei — nemmeno una riga di combat log.
+	UWorld* World = MakeCauseWorld();
+	if (!TestNotNull(TEXT("World"), World)) { return false; }
+	SpawnCauseMap(World);
+
+	// Geometria: (0,0) e' libera, e le due spinte puntano entrambe li' da lati opposti.
+	ARTUnit* PusherA = SpawnCauseUnit(World, 0, FRTCellId(-2, 0));
+	ARTUnit* VictimA = SpawnCauseUnit(World, 1, FRTCellId(-1, 0));
+	ARTUnit* PusherB = SpawnCauseUnit(World, 0, FRTCellId(2, 0));
+	ARTUnit* VictimB = SpawnCauseUnit(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	if (!TestNotNull(TEXT("PusherA"), PusherA) || !TestNotNull(TEXT("VictimA"), VictimA)
+		|| !TestNotNull(TEXT("PusherB"), PusherB) || !TestNotNull(TEXT("VictimB"), VictimB)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyCauseWorld(World);
+		return false;
+	}
+
+	PlanPushOn(PusherA, VictimA);
+	PlanPushOn(PusherB, VictimB);
+
+	RunCauseTurn(TM);
+
+	if (!TestTrue(TEXT("premessa: la destinazione comune blocca entrambe le spinte"),
+		VictimA->Cell == FRTCellId(-1, 0) && VictimB->Cell == FRTCellId(1, 0)))
+	{
+		DestroyCauseWorld(World);
+		return false;
+	}
+
+	const TArray<FRTTurnLogEntry> Resisted = ResistedEntries(TM);
+	if (!TestEqual(TEXT("#420: due bersagli fermati, due voci"), Resisted.Num(), 2))
+	{
+		DestroyCauseWorld(World);
+		return false;
+	}
+
+	for (const FRTTurnLogEntry& E : Resisted)
+	{
+		TestEqual(TEXT("#420: la causa e' la destinazione contesa"),
+			static_cast<ERTDisplacementBlockReason>(E.Amount),
+			ERTDisplacementBlockReason::ContestedDestination);
+		TestTrue(TEXT("le due celle coincidono"), E.SrcCell == E.TgtCell);
+	}
+
+	DestroyCauseWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

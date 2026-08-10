@@ -64,7 +64,7 @@ l'unica cosa che, decisa dopo, costringe a rigenerare il corpus golden.
 
 | # | Tema | Cosa dice l'handoff | Cosa dice HEAD | Stato | Azione |
 |---|---|---|---|---|---|
-| 1 | Replay ≠ video, ≠ network replay UE (§2, §17) | il replay canonico è logico: snapshot + intenti + decisioni + TurnLog + hash | nessun documento lo afferma; il progetto lo *pratica* ma non lo ha mai deciso | `PROPOSED` | **ADR** — è il contributo più forte del pacchetto |
+| 1 | Replay ≠ video, ≠ network replay UE (§2, §17) | il replay canonico è logico: snapshot + intenti + decisioni + TurnLog + hash | nessun documento lo affermava; il progetto lo *praticava* senza averlo mai deciso | ✅ **DECISO** ([ADR-0009](../../decisions/adr-0009-replay-logico-canonico.md) §0) | era il contributo più forte del pacchetto, ed è la premessa senza cui il resto dell'ADR non si capisce |
 | 2 | Formula del determinismo (§3.2) | stessa snapshot + intenti + decisioni + seed ⇒ stesso stato | invariante #4 + CP 12.1 chiuso: `Simulation.DeterministicReplay`, 100 ripetizioni | `CURRENT` | — |
 | 3 | `RulesVersion`, `ContentManifestHash`, `ResolverConfigHash` nella formula | esistono, vanno registrati nell'header | **zero occorrenze in `Source/`**. `RT-FEAT-DATA-HASH` è RELEASE_READY, ma i suoi test dicono di cosa parla: `HexMap.*Hash*` e `TurnLog.Hash*` — **geometria della mappa e traccia**, nessun manifest di regole o cataloghi | `STALE` | costruirli è lavoro nuovo, non «consolidamento» |
 | 4 | `uint64 StateHash / LogHash` (§9) | hash a 64 bit | tutti gli hash sono **uint32 FNV-1a**: `HashTurnLog`, `FRTTestResult::StateHash`, `URTHexMapAsset::ComputeHash` | `CONFLICT` | allargare a 64 bit invalida in blocco ogni hash golden: se si fa, si fa **prima** di `#178` |
@@ -188,7 +188,7 @@ va posta per ciascun campo nuovo, **prima** di generare il corpus.
 
 Al netto di tutto, quattro contributi che nessun documento del repository ha oggi:
 
-1. **Il replay canonico è logico** (§2, §17) — mai deciso, sempre praticato. È materiale da ADR.
+1. **Il replay canonico è logico** (§2, §17) — era mai deciso e sempre praticato; ✅ deciso il 2026-08-10 da [ADR-0009](../../decisions/adr-0009-replay-logico-canonico.md) §0.
 2. **Gli intent non bastano più** (§4) — con Decision Boundary e Fast Reaction lo snapshot + intenti non
    ricostruisce il turno. Ha una conseguenza **immediata**: `RT-FEAT-CORE-DECISION-BOUNDARY` non dichiara
    la dipendenza verso il determinismo del replay, e dovrebbe.
@@ -253,7 +253,7 @@ determinismo. Le verifiche che restano umane vanno nel registro PIE, non qui —
 
 ---
 
-## 9. Domande per l'autore — tre chiuse, una aperta
+## 9. Domande per l'autore — tutte chiuse
 
 ### Chiuse il 2026-08-10
 
@@ -261,6 +261,7 @@ determinismo. Le verifiche che restano umane vanno nel registro PIE, non qui —
 |---|---|---|---|
 | 1 | L'ordine degli eventi entra nel contratto? (§4.1) | **Sì, con un secondo hash affiancato.** `HashTurnLog` resta invariato; `HashTurnLogOrdered` mescola nell'ordine di append | [D-062](../../decisions/RT_PDR_00_Decision_Log.md) |
 | 2 | Lo schema di `FRTTurnLogEntry` si estende? (§4.2) | **Sì: `UnitId` e `TurnNumber`, entrambi fuori dall'hash** (formato v6). `D-TL-2` emendata | [D-063](../../decisions/RT_PDR_00_Decision_Log.md) |
+| 3 | `ContentManifestHash` / `RulesVersion` ora o alla v0.2? (§8) | **Alla v0.2, con il perimetro deciso ora.** ⚠️ Misurando, il rischio del rinvio si è rivelato diverso da come questo §9 lo poneva: il corpus golden vive **nello stesso repository delle regole**, quindi un ritocco di bilanciamento lo fa diventare **rosso**, e `CompareSerializedTraces` nomina già turno, fase e `ActionId`. Ciò che manca non è il **rilevamento** — c'è — ma l'**attribuzione**: un rebalance legittimo e una regressione si presentano identici. Perimetro: **entra ciò che il resolver legge** | [D-083](../../decisions/RT_PDR_00_Decision_Log.md) |
 
 **L'elemento che ha deciso la #1** è emerso dopo la stesura di §4.1 e la corregge in meglio: l'ordine è
 **già canonico a monte**. `InstanceLess` (`RTActionQueueLibrary.cpp:10-31`) impone alla coda l'ordine totale
@@ -272,12 +273,6 @@ permutazione-invariante: il costo che §4.1 attribuiva all'opzione (b) non esist
 Il che sposta il valore del secondo hash: non è soprattutto diagnostica, è **una verifica che oggi manca**.
 L'ordine della *coda* è testato; l'ordine di *append* nel TurnLog non lo osserva nessun hash — un ciclo che
 iterasse una `TMap` cambierebbe la traccia lasciando ogni hash identico.
-
-### Ancora aperte
-
-| # | Domanda | Perché blocca |
-|---|---|---|
-| 3 | **`ContentManifestHash` / `RulesVersion` si costruiscono ora o alla v0.2?** | Senza, la regola «un replay v1 non va ricalcolato con regole v2» (§8) non è implementabile, e il corpus golden è protetto solo dal fatto che i cataloghi cambiano di rado |
 
 *(La #4, sull'unità persistente, è stata **chiusa** il 2026-08-10 da
 [D-077](../../decisions/RT_PDR_00_Decision_Log.md), decisa dall'autore in sessione: **manifest per partita +
@@ -312,9 +307,14 @@ Restano da fare:
 1. **implementare** `D-062` e `D-063` — formato **v6**, con il test di riordino che rende il secondo hash
    verificato invece che decorativo. Prima di [`#178`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/178),
    o il corpus golden nasce sul formato vecchio;
-2. ADR sul replay logico canonico — sarebbe il **numero 0009** (gli 0001–0008 esistono), ma il numero si
-   assegna **al merge**: due sessioni parallele hanno già collisionato su un ID in questo repository, e ne
-   sta girando una adesso su questo stesso branch. Vale anche per `D-062`/`D-063`;
+2. ~~ADR sul replay logico canonico~~ — **fatto il 2026-08-10**:
+   [ADR-0009](../../decisions/adr-0009-replay-logico-canonico.md), che chiude
+   [#412](https://github.com/DegrassiAaron/refactor-tactics-main/issues/412). Il numero **0009** era quello
+   previsto qui ed è stato confermato al merge controllando **tutti** i branch remoti, non solo `main`. La
+   domanda si è rivelata mal posta come aut-aut: il repository conteneva già **entrambi** i comportamenti e
+   li chiamava con lo stesso nome — `Simulation.DeterministicReplay` ri-simula, `URTReplaySeekLibrary`
+   riproduce. L'ADR li separa in due prodotti con due autorità, e rende il confine impossibile per
+   **struttura** invece che per test — cosa che `#415` aveva già fatto senza saperlo;
 3. le sette issue nuove del §6, dopo il punto 1;
 4. `RT-FEAT-CORE-DECISION-BOUNDARY`: aggiungere la dipendenza verso il replay (§5.2);
 5. sanare lo stato di [`#81`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/81) (§6).

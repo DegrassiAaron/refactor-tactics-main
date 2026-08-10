@@ -109,8 +109,12 @@ public:
 	/** Inizia una pennellata: Modify() una volta (stato pre-pennellata per l'undo). Nessuna transazione (la apre il caller). */
 	void BeginStroke();
 
-	/** Dipinge una cella dentro una pennellata: crea/aggiorna (preserva Height/LOS). Vero se applicata. Niente Sort/Dirty/refresh. */
-	bool PaintCellInStroke(const FRTCellId& Id, ERTHexSurface Surface, int32 MoveCost, bool bBlocksMovement);
+	/**
+	 * Dipinge una cella dentro una pennellata: crea/aggiorna. Vero se applicata. Niente Sort/Dirty/refresh.
+	 * `InBlocksLineOfSight` non passato preserva il flag della vista (comportamento storico); passato lo scrive.
+	 */
+	bool PaintCellInStroke(const FRTCellId& Id, ERTHexSurface Surface, int32 MoveCost, bool bBlocksMovement,
+		TOptional<bool> InBlocksLineOfSight = TOptional<bool>());
 
 	/** Cancella una cella dentro una pennellata. Vero se esisteva ed è stata rimossa. Niente Sort/Dirty/refresh. */
 	bool EraseCellInStroke(const FRTCellId& Id);
@@ -119,11 +123,19 @@ public:
 	void EndStroke();
 
 	/**
-	 * Logica pura del 'pennello': se Existing != nullptr parte da esso (PRESERVA Height e bBlocksLineOfSight),
-	 * altrimenti da una cella nuova con l'Id dato; applica Surface/MoveCost/bBlocksMovement. Non muta l'asset.
+	 * Logica pura del 'pennello': se Existing != nullptr parte da esso (PRESERVA sempre Height), altrimenti da
+	 * una cella nuova con l'Id dato; applica Surface/MoveCost/bBlocksMovement. Non muta l'asset.
+	 *
+	 * `InBlocksLineOfSight` **non passato** preserva `bBlocksLineOfSight` — il comportamento storico, pinnato da
+	 * `RefactorTactics.HexMap.ApplyBrushMerge`, e il default. **Passato**, lo scrive.
+	 *
+	 * L'asimmetria con `bBlocksMovement` (che si scrive sempre) nasceva dal fatto che nessuno strumento
+	 * dell'editor sapeva impostare il flag della vista: preservarlo era l'unico modo di non perderlo per
+	 * sempre. Da quando il pennello lo espone, chi vuole scriverlo lo chiede.
 	 */
 	static FRTHexCellData ApplyBrush(const FRTHexCellData* Existing, const FRTCellId& Id,
-		ERTHexSurface Surface, int32 MoveCost, bool bBlocksMovement);
+		ERTHexSurface Surface, int32 MoveCost, bool bBlocksMovement,
+		TOptional<bool> InBlocksLineOfSight = TOptional<bool>());
 
 	/** Rimuove la cella con l'Id dato; vero se esisteva. */
 	bool RemoveCell(const FRTCellId& Id);

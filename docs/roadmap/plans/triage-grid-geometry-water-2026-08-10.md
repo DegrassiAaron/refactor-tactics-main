@@ -70,6 +70,24 @@ un ponte**, nemmeno se adiacente.
 Da verificare al momento della spec: il modello a slot ha bisogno di un nome che non collida con l'oggetto
 che li apre.
 
+> ✅ **Verificato e deciso il 2026-08-10** — `GEO-2`, [D-082](../../decisions/RT_PDR_00_Decision_Log.md).
+> Lo slot si chiama **`Bulkhead`**, verificato libero con `git grep` in `Source/`, `docs/balance/` e nei
+> cataloghi: **zero occorrenze**. La frase diventa *«la `BreachCharge` apre un `Bulkhead`»*, che si legge in
+> un modo solo, e il verbo `breach` resta libero come **azione** invece di essere consumato da un sostantivo.
+>
+> **Perché non gli altri tre candidati**, con la stessa disciplina di [D-070](../../decisions/RT_PDR_00_Decision_Log.md)
+> — la ragione dello scarto si scrive, o si riproporrà:
+>
+> | Candidato | Scartato perché |
+> |---|---|
+> | `StructuralSlot` | **`Slot` è già preso, e da una cosa che non c'entra**: `ERTActionSlot` è l'economia del turno (`Main`, `Movement`, `None`), quella su cui `#149` misura il bilanciamento della carica. Due «slot» in due domini diversi si pagano a ogni lettura, che è esattamente il costo che `D-070` esiste per evitare |
+> | `Panel` | Collide con **`Bastion.KineticPanel`**, il pannello cinetico temporaneo di E9 (CP 9.5) — e quello è *copertura*, cioè la cosa più vicina a uno slot strutturale che il gioco già abbia. La collisione sarebbe la peggiore possibile: due entità simili con lo stesso nome |
+> | `Section` | Libero nel repository, ma è il termine con cui **Unreal** nomina le sezioni di una mesh (`SectionIndex`): il primo lavoro sulla presentazione delle strutture lo troverebbe già occupato dall'engine |
+>
+> ⚠️ Il nome è **solo il nome**: il modello §40 (integrità, stati, slot adiacenti, riparazione) resta da
+> specificare quando `RT-FEAT-MAP-STRUCTURAL` esce da `IDEA`. Questa decisione toglie un ostacolo alla spec,
+> non la scrive.
+
 ## 4. Triage per blocchi
 
 | § | Blocco | Esito |

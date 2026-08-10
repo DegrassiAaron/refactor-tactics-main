@@ -9,36 +9,39 @@
 
 ---
 
-## Aperte — archivio replay, dal conflict report del 2026-08-10
+## ✅ Chiuse — archivio replay, dal conflict report del 2026-08-10
 
 Origine: [conflict report replay](roadmap/plans/replay-system-conflict-report-2026-08-10.md) §9.
 Le tre domande erano già issue su GitHub ma **non erano elencate qui**, dove vive ciò che aspetta una
-persona: questa sezione colma il buco. Finché restano aperte, **R1** (Replay Archive e Recorder), **R2**
-(serializzazione e compatibilità) e **R3** (Replay Player) non sono nemmeno specificabili.
+persona: questa sezione colma il buco.
 
-| ID | Domanda | Perché serve una risposta |
-|---|---|---|
-| [`#412`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/412) | Quale artefatto è **autorevole** quando si riproduce una partita, e dove passa il confine `ReplayPlayer`/`ReplayVerifier`? | Riprodurre la traccia e ri-simulare dagli intent sono due prodotti con due garanzie diverse, e il repository non dichiara quale sia «il replay». Il confine va scritto come **invariante**: è il rischio `REPLAY-04`, e oggi nessun test se ne accorgerebbe se qualcuno lo attraversasse. Chiude scrivendo un **ADR** — che non esiste ancora: in `docs/decisions/` ci sono gli ADR 0001–0008 |
-| [`#413`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/413) | `ContentManifestHash` e `RulesVersion` si costruiscono **ora o alla v0.2**? E cosa entra nel manifest? | Senza, la regola «un replay v1 non va ricalcolato con regole v2» non è implementabile: i tre nomi hanno **zero occorrenze** in `Source/` e `Config/`. Il corpus golden è protetto solo dal fatto che i cataloghi cambiano di rado — che è una statistica, non una garanzia. La domanda secondaria è metà della risposta: un manifest che copre troppo poco dà falsi verdi, uno che copre troppo rende incompatibile ogni ritocco di bilanciamento |
+✅ **Tutte e tre decise il 2026-08-10**, e con esse **R1** (Replay Archive e Recorder), **R2**
+(serializzazione e compatibilità) e **R3** (Replay Player) diventano specificabili. La sezione resta come
+**indice**: il contenuto vive nel Decision Log.
 
-### ✅ Chiusa il 2026-08-10 — [D-077](decisions/RT_PDR_00_Decision_Log.md), decisa dall'autore in sessione
+### Le tre risposte
 
 | ID | Domanda | Risposta |
 |---|---|---|
-| [`#414`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/414) | L'archivio è per **partita** o per **turno**, e cosa identifica una partita? | **Entrambe le cose, a due livelli**: un **manifest per partita** più una **traccia per turno**. Le tracce restano come sono (`SaveTurnLogToFile` ne salva già una per file); il manifest è la casa che [D-062](decisions/RT_PDR_00_Decision_Log.md) aveva già assegnato a `HashTurnLogOrdered`, ed è lo stesso artefatto che l'indice di [#416](https://github.com/DegrassiAaron/refactor-tactics-main/issues/416) chiede. L'identità è un **`FGuid` generato all'avvio**, **fuori da ogni hash**: identifica la registrazione, non il contenuto |
+| [`#412`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/412) | Quale artefatto è **autorevole**, e dove passa il confine `ReplayPlayer`/`ReplayVerifier`? | [**ADR-0009**](decisions/adr-0009-replay-logico-canonico.md): **due prodotti, perimetri disgiunti**. Il **Player** ha per autorità la *traccia* e non calcola nulla; il **Verifier** ha per autorità il *resolver*, ri-simula e produce un verdetto, mai una presentazione. Il confine è reso **impossibile dalla struttura** (il Player vive dove il resolver non è raggiungibile — è già così in `#415`), con un test negativo come rete. A runtime il Player **non verifica**: rifiuta in apertura ciò che non sa leggere, e la verifica vive offline |
+| [`#414`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/414) | L'archivio è per **partita** o per **turno**, e cosa identifica una partita? | [**D-077**](decisions/RT_PDR_00_Decision_Log.md): **entrambe le cose, a due livelli** — un **manifest per partita** più una **traccia per turno**. Le tracce restano come sono (`SaveTurnLogToFile` ne salva già una per file); il manifest è la casa che [D-062](decisions/RT_PDR_00_Decision_Log.md) aveva già assegnato a `HashTurnLogOrdered`, ed è lo stesso artefatto che l'indice di [#416](https://github.com/DegrassiAaron/refactor-tactics-main/issues/416) chiede. L'identità è un **`FGuid` generato all'avvio**, **fuori da ogni hash**: identifica la registrazione, non il contenuto |
+| [`#413`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/413) | `ContentManifestHash` e `RulesVersion` si costruiscono **ora o alla v0.2**? E cosa entra nel manifest? | [**D-083**](decisions/RT_PDR_00_Decision_Log.md): **alla v0.2**, ma con il **perimetro deciso ora**. ⚠️ Misurando, il rischio del rinvio si è rivelato più piccolo di come la domanda lo poneva: il corpus golden vive **nello stesso repository delle regole**, quindi un ritocco di bilanciamento lo fa diventare **rosso**, con turno, fase e `ActionId` già nominati da `CompareSerializedTraces`. Ciò che manca non è il **rilevamento**, è l'**attribuzione**: un rebalance legittimo e una regressione si presentano identici. Perimetro: **entra ciò che il resolver legge** — catalogo azioni, catalogo eroi, costanti di combat, config del resolver; **fuori** presentazione, HUD, icone e la mappa, che ha già il suo hash |
 
 ---
 
-## Aperte — geometria, acqua e strutture, dal quinto sorgente del 2026-08-10
+## ✅ Chiuse il 2026-08-10 — geometria, acqua e strutture, dal quinto sorgente
 
 Origine: [triage `FULL CHAT CONSOLIDATION`](roadmap/plans/triage-grid-geometry-water-2026-08-10.md).
-Tre domande, tutte da rispondere **prima** della spec del blocco corrispondente.
+Erano **tre**, e nessuna bloccava la v0.1. **Tutte e tre chiuse lo stesso giorno**, e nessuna ha richiesto
+l'autore: due si sono decise **misurando il repository** invece di ragionare a tavolino, la terza rispondendo
+col codice in mano — che era la condizione che il triage stesso poneva. Restano qui **solo come indice**: il
+contenuto vive nel Decision Log.
 
-| ID | Domanda | Perché serve una risposta |
+| Era | Decisione presa | Dove vive ora |
 |---|---|---|
-| [`GEO-1`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/429) | `WaterDepth` è un **campo della cella accanto a `Surface`**, oppure una **superficie composta**? | Il sorgente lo dà come asse ortogonale — una cella può essere `ShallowWater` e cambiare profondità durante il match. Il repository ha **otto superfici piatte** (CP 8.1) che non cambiano mai. La scelta decide se CP 8.1 si **estende** o si **riscrive**, e con essa i costi di movimento, la conduzione elettrica e il formato della mappa |
-| [`GEO-2`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/430) | Come si chiama lo **slot strutturale** della §40, dato che `Gadget.BreachCharge` esiste già? | Il sorgente lo chiama `Breach`, ma nel repository `BreachCharge` è l'**oggetto che lo aprirebbe** (35 danni a struttura, E7). Due entità con lo stesso nome, una che agisce sull'altra, si pagano a ogni lettura del TurnLog — è lo stesso costo che ha fatto scartare `Reposition` in [D-070](decisions/RT_PDR_00_Decision_Log.md) |
-| [`GEO-3`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/431) | Le §22–§27 (move end semantics, grafo causale, provenance, credit) come si riconciliano col **TurnLog v6**? | Non è una domanda di design ma di **sequenza**: il TurnLog v6 e i reason code sono atterrati lo stesso giorno ([D-062](decisions/RT_PDR_00_Decision_Log.md), [D-063](decisions/RT_PDR_00_Decision_Log.md), [D-067](decisions/RT_PDR_00_Decision_Log.md)). Va guardata da chi ha quel codice in mano, non consolidata al buio da un triage documentale |
+| `GEO-1` | La profondità dell'acqua è una **superficie**, non un asse. ⚠️ La domanda poggiava su una premessa falsa: `ShallowWater` **cambia** — `Action.CreateWater` la crea a runtime da CP 8.4, quindi il *flooding* esiste già come cambio di superficie. L'asse costerebbe una **versione del formato mappa**, per un'espressività che nessuna regola consuma | [`D-081`](decisions/RT_PDR_00_Decision_Log.md) · owner [`spec-terreni-e8.md`](gameplay/spec-terreni-e8.md) §6-ter |
+| `GEO-2` | Lo slot strutturale si chiama **`Bulkhead`**, verificato libero con `git grep`: zero occorrenze. Scartati `StructuralSlot` (`Slot` è l'economia del turno), `Panel` (collide con `Bastion.KineticPanel`, che è *copertura*) e `Section` (termine Unreal per le mesh) | [`D-082`](decisions/RT_PDR_00_Decision_Log.md) · owner [triage](roadmap/plans/triage-grid-geometry-water-2026-08-10.md) §3 |
+| `GEO-3` | Il modello causale delle §22–§27 **non entra** nel v6: presuppone un `EventId` per voce, che non esiste. Tre rinvii con l'innesco dichiarato — cause contribuenti, dedup, provenance — e **una risposta piena**: un `EventId` sarebbe **identità**, quindi resterebbe fuori dall'hash come `UnitId` e `TurnNumber` | [`D-080`](decisions/RT_PDR_00_Decision_Log.md) · owner [`spec-turnlog.md`](technical/spec-turnlog.md) §12-bis |
 
 ---
 
@@ -209,7 +212,6 @@ prima che E10 le incontri in codice.
 
 ---
 
-<<<<<<< HEAD
 ## Aperte — profili d'eroe di `Brace` e `Overwatch`, dal consolidamento del 2026-08-10
 
 Origine: [`roadmap/plans/baseaction-signatures-spec-panel-2026-08-10.md`](roadmap/plans/baseaction-signatures-spec-panel-2026-08-10.md),
@@ -234,7 +236,6 @@ per `Brace`, [D-012](decisions/RT_PDR_00_Decision_Log.md)/[D-014](decisions/RT_P
 > Il §17 la fonda però su `Activate` come azione distinta da `Interact` — che [D-014](decisions/RT_PDR_00_Decision_Log.md)
 > e [D-025](decisions/RT_PDR_00_Decision_Log.md) hanno già escluso. Letta come affinità di `Interact`, la
 > proposta regge senza modifiche di sostanza.
-=======
 ## Aperte — geometria, clearance e confine Guard/Brace, dal consolidamento del 2026-08-10
 
 Origine: [conflict report dell'handoff geometria](roadmap/plans/handoff-geometry-reazioni-conflict-report-2026-08-10.md).
@@ -248,7 +249,6 @@ residuo.
 | `MAP-3` | La **cottura non è invertibile**: cosa succede se qualcuno modifica a mano il dato cotto? | Registrato come rischio il 2026-08-09 e ancora aperto. Se si edita `bBlocksMovement` su una cella cotta, il prossimo ricalcolo cancella la modifica **in silenzio** — stessa classe di problema dei prefab. Le uscite sono tre (vietare l'edit, marcare la cella come «sganciata», o rinunciare al ricalcolo automatico) e nessuna è deducibile dai documenti |
 | `BAL-1` | `Guard` e `Brace` devono separarsi in **danno contro spinta**? | [D-066](decisions/RT_PDR_00_Decision_Log.md) ha misurato il modello in vigore: entrambi fanno entrambe le cose, e differiscono per *forma* (primo colpo forte vs ogni colpo; spinta di 1 cella vs spinta qualsiasi). È bilanciamento: si chiude con una partita, non con un documento. ✅ **La Fase 0 è decisa** ([D-074](decisions/RT_PDR_00_Decision_Log.md), 2026-08-10, issue [#400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/400)): si accetta che in v0.1 ogni spinta valga 1 e si **riscrive** la clausola «senza limite di distanza» invece di introdurre una spinta `≥ 2`. Conseguenza sulle opzioni ancora in campo: restano lo **status quo** e l'**ibrido** (separare le magnitudini); l'opzione *«`Guard` solo danno, `Brace` solo spostamento»* è **preclusa**, perché senza spinta forte lascerebbe `Brace` senza mestiere. ✅ Gli scenari che servono a decidere esistono e sono verdi ([#401](https://github.com/DegrassiAaron/refactor-tactics-main/issues/401)): `Spec.Brace.GuardAndBraceOnMixedHit` e `Spec.Brace.BraceWinsOnSecondHit` pinnano il trade-off reale — *primo colpo pesante* (`Guard` 1 danno) contro *colpi ripetuti* (`Brace` 12 contro 17 su due colpi). ⏳ **Resta l'unica parte che richiede l'autore**: la seduta editor **U20** (voce `PIE-BAL1`) e la scelta fra le due opzioni superstiti. Roadmap e numeri: [`bal-1-guard-brace-roadmap-2026-08-10.md`](roadmap/plans/bal-1-guard-brace-roadmap-2026-08-10.md). Issue [#403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/403) (decisione) |
 | `ECO-1` | `Guard` e `Brace` competono con il **Main Commitment**, o hanno un'altra economia? | [D-012](decisions/RT_PDR_00_Decision_Log.md) copre `Attack \| Ability \| Overwatch` e **non** dice nulla di `Guard` e `Brace`, che a catalogo occupano l'azione principale ma non compaiono in quella regola. La domanda si porta dietro la matrice Sprint/Sneak proposta dal sorgente (`Brace` e `Overwatch` senza Sprint), che **non è canonica** e non va resa tale senza playtest |
->>>>>>> origin/main
 
 ---
 

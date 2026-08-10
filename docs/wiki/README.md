@@ -15,18 +15,21 @@ python scripts/feature_registry.py deploy --wiki-root <clone> --write
 
 ## Perché questa cartella esiste ancora
 
-Contiene materiale che **non è duplicato nel clone**, e che quindi la cancellazione avrebbe perso:
+**Decisione dell'autore, 2026-08-10: gli asset restano qui.** La domanda — se archiviarli dopo la
+cancellazione delle pagine — è chiusa, e l'item corrispondente in
+[`wiki-consolidamento-2026-08-10.md`](../roadmap/plans/wiki-consolidamento-2026-08-10.md) §"Fase 3"
+non è più aperto.
 
-| Cosa | Stato |
+Contiene materiale che **non è duplicato nel clone**:
+
+| Cosa | Perché resta |
 |---|---|
 | `RefactorTactics_Wiki_Infographics_v0.1/` (14 PNG) + `.zip` | Il clone pubblica la **v0.2**, con altri nomi e altri contenuti: verificato per hash, **zero** immagini in comune. Queste sono la v0.1, e non esistono altrove |
 | `wiki-manifest-v0.5.json` · `v0.6` · `v0.7` | Tre manifest in parallelo, nessuno dichiarato vincente |
 
-La loro pulizia è **lavoro aperto già registrato** in
-[`wiki-consolidamento-2026-08-10.md`](../roadmap/plans/wiki-consolidamento-2026-08-10.md), §D — non
-è parte di D-076, che riguarda la doppia sorgente delle **pagine**. Restano qui finché quella
-decisione non è presa: cancellarli di iniziativa avrebbe risolto un problema altrui distruggendo
-l'unica copia fuori dalla storia di git.
+I nomi si somigliano (`05_Reazioni_e_Decision_Boundary.png` qui,
+`04_reazioni-decision-boundary.png` nel clone) e questo rende facile crederli duplicati: non lo sono.
+Prima di toglierne uno, confronta per **hash**, non per nome.
 
 Le immagini delle fazioni sono invece sparite da qui perché erano **identiche** a quelle del clone —
-duplicati veri, verificati per hash.
+duplicati veri, verificati allo stesso modo.

@@ -15,7 +15,10 @@ Uso:
     python scripts/feature_registry.py wiki               # blocchi di stato nel repo (docs/characters/)
     python scripts/feature_registry.py shortlist          # le cinque viste corte di docs/roadmap/
     python scripts/feature_registry.py report             # tabella di audit (markdown su stdout)
-    python scripts/feature_registry.py deploy --wiki-root PATH   # blocchi + Stato-delle-feature nel clone
+    python scripts/feature_registry.py suite --run-log Saved/Logs/RefactorTactics.log
+                                                         # gate: ESEGUITI vs DICHIARATI, esce 1 se mancano (#486)
+    python scripts/feature_registry.py deploy --wiki-root PATH --write   # blocchi + Stato-delle-feature nel clone
+                                                                 # (senza --write e' sola lettura)
 
 Opzioni comuni:
     --wiki-root PATH    radice del clone della Wiki. Dal 2026-08-10 (D-076) il clone e' la **fonte**
@@ -239,11 +242,6 @@ def git_remote_slug():
 def validate(registry, wiki_root=None, editor_ctx=None):
     errors, warnings = [], []
     features = registry.get("features") or []
-    # Prima di D-076 ogni `wiki_refs` era un file nel repository e si verificava sempre. Ora le
-    # pagine di gioco vivono nel clone: senza `--wiki-root` **nessuno** di quei riferimenti viene
-    # controllato, e un `validate` verde direbbe una cosa che non ha guardato. Un avviso solo,
-    # alla fine, col numero: e' l'unica cosa che diventa visibile quando la premessa cade.
-    unchecked_wiki_refs = set()
 
     # Misurato una volta e riusato: qui per `pie_refs`, e piu' sotto da `validate_editor_sessions`.
     # Chi ha gia' il contesto (`build_graph`) lo passa e non si rilegge nulla.
@@ -384,11 +382,12 @@ def validate(registry, wiki_root=None, editor_ctx=None):
 
         for ref in feature.get("wiki_refs") or []:
             if ref.startswith("wiki:"):
-                if wiki_root:
-                    if not wiki_page_by_name(wiki_root, ref[len("wiki:"):]):
-                        errors.append(f"{where} pagina Wiki inesistente nel clone: {ref}")
-                else:
-                    unchecked_wiki_refs.add(ref)
+                # Senza `wiki_root` il clone non e' leggibile e il riferimento non si controlla.
+                # Non e' un errore — non tutti hanno il clone accanto — ma nemmeno un silenzio: il
+                # comando `validate` conta questi ref e lo dice, perche' un verde su qualcosa che
+                # non e' stato aperto e' peggio di un rosso.
+                if wiki_root and not wiki_page_by_name(wiki_root, ref[len("wiki:"):]):
+                    errors.append(f"{where} pagina Wiki inesistente nel clone: {ref}")
             elif not os.path.isfile(os.path.join(REPO, ref)):
                 errors.append(f"{where} pagina Wiki sorgente inesistente: {ref}")
 
@@ -462,11 +461,12 @@ def validate(registry, wiki_root=None, editor_ctx=None):
             "perche' non appartiene a nessuna"
         )
 
-    # NB: `unchecked_wiki_refs` **non** entra fra i warning. I warning finiscono in
-    # `project-graph.json`, che e' versionato e ha un `--check`: un avviso che dipende dalla
-    # presenza di `--wiki-root` renderebbe il file generato diverso a seconda di come lo lanci, e il
-    # `--check` rosso a giorni alterni. Questo avviso descrive quanto ha guardato **l'esecuzione**,
-    # non lo stato del progetto: lo stampa il comando `validate`, che sa con che flag e' partito.
+    # NB: «quanti riferimenti `wiki:` non ho potuto verificare» **non** entra fra i warning, e per
+    # questo non si calcola qui. I warning finiscono in `project-graph.json`, che e' versionato e ha
+    # un `--check`: un avviso che dipende dalla presenza di `--wiki-root` renderebbe il file generato
+    # diverso a seconda di come lo lanci, e il `--check` rosso a giorni alterni. Quell'avviso
+    # descrive quanto ha guardato **l'esecuzione**, non lo stato del progetto: lo calcola e lo stampa
+    # il comando `validate`, che sa con che flag e' partito.
 
     # --- riferimenti a feature dalle pagine gia' generate ---
     for page, fids in wiki_blocks_in_repo().items():
@@ -742,24 +742,16 @@ def apply_wiki_blocks(data, check=False):
     return changed, stale
 
 
-# Le pagine `game/` prendono il nome del file. Dove il clone ha gia' pubblicato un nome diverso vince
-# il clone: rinominare una pagina della GitHub Wiki ne cambia l'**URL pubblico**, e un link esterno o
-# un segnalibro smetterebbe di funzionare per una questione di sole maiuscole.
+# Rinominare una pagina della GitHub Wiki ne cambia l'**URL pubblico**, e un link esterno o un
+# segnalibro smette di funzionare anche per una questione di sole maiuscole: dove il clone ha gia'
+# pubblicato un nome, vince il clone.
 def deploy_name(source_ref, wiki_root=None):
     """Percorso della pagina nel clone della Wiki, che e' un repository separato.
 
-    **Il presupposto precedente era sbagliato a meta'.** Fino al 2026-08-10 questa funzione
-    appiattiva tutto in root con un prefisso nel nome (`Meccanica-coperture.md`), perche' `DEPLOY.md`
-    dichiarava che «la GitHub Wiki non ha gerarchia». Verificato: le pagine in sottocartella **sono
-    servite** e compaiono nel menu *Pages*. Cio' che e' piatto e' il **namespace degli URL** — l'URL
-    e' il solo nome del file, il percorso non ci entra — quindi i nomi devono restare **globalmente
-    unici**, anche fra cartelle diverse.
-
-    Ne segue che le cartelle della sorgente possono diventare cartelle anche qui, e il prefisso
-    ridondante sparisce. I `[[link]]` restano per **nome**, mai per percorso.
-
-    Le pagine indice restano in root accanto a `Home`: sono hub, e `index.md` in tre cartelle diverse
-    collidere*bbe* — tre pagine non possono chiamarsi tutte `index`.
+    Cio' che e' piatto nella GitHub Wiki e' il **namespace degli URL**, non il filesystem: l'URL e'
+    il solo nome del file, il percorso non ci entra. Quindi i nomi restano **globalmente unici**
+    anche fra cartelle diverse, e i `[[link]]` sono per **nome**, mai per percorso. Le pagine indice
+    stanno in root accanto a `Home`, perche' tre `index.md` in tre cartelle non possono convivere.
 
     **Dal 2026-08-10 (D-076) esistono due forme di ref, e non sono simmetriche.**
 
@@ -831,8 +823,16 @@ def wiki_page_by_name(wiki_root, page_name):
 
     I riferimenti `wiki:<PageName>` nominano la pagina, non il file: dopo il passaggio alle cartelle
     non si puo' piu' assumere che stia in root.
+
+    **L'iterazione e' ordinata, e non e' cosmesi.** `wiki_pages()` restituisce un `set`, il cui
+    ordine in CPython non e' stabile fra run diversi. Finche' D-076 non e' atterrata questa funzione
+    serviva solo a un controllo booleano di esistenza e il percorso restituito veniva scartato; ora
+    decide **in quale file** scrivere il blocco di stato e come classificare una riga del workbook.
+    Con due pagine omonime — che `check-docs-links.py --wiki-root` segnala come errore, perche' si
+    contendono lo stesso URL — un ordine casuale farebbe scrivere in un file diverso a run diverse,
+    senza che nulla lo dica. E' la stessa regola che il progetto applica a `TMap`/`TSet` in C++.
     """
-    for rel in wiki_pages(wiki_root):
+    for rel in sorted(wiki_pages(wiki_root)):
         if os.path.splitext(os.path.basename(rel))[0] == page_name:
             return os.path.join(wiki_root, rel)
     return None
@@ -992,6 +992,51 @@ SUITE_AREAS = [
 ]
 
 
+def run_log_filter(text):
+    """Il filtro con cui la run e' stata lanciata, letto dal log.
+
+    Serve perche' il confronto dichiarati/eseguiti ha senso solo **a parita' di perimetro**: una run
+    lanciata con `RunTests RefactorTactics.HexMap` non deve risultare mancante di 600 test.
+    UE scrive la riga `LogInit: Command Line:` con l'`-ExecCmds` completo, e i comandi si separano con
+    `;` o `+` — entrambi visti nei log di questo repository.
+    """
+    match = re.search(r"Automation\s+RunTests\s+([^\";+\r\n]+)", text)
+    if not match:
+        return None
+    return match.group(1).strip()
+
+
+def run_log_executed(text):
+    """I test che la run ha DAVVERO eseguito, dal log dell'automation."""
+    return set(re.findall(r"Test Completed\..*?Path=\{([^}]+)\}", text))
+
+
+def suite_run_diff(log_path):
+    """Confronta i test DICHIARATI nei sorgenti con quelli ESEGUITI da una run.
+
+    Il conteggio canonico del repository misura i nomi nei `.cpp`; il verde della CI riguarda quelli
+    eseguiti, e i due possono divergere **senza che nulla lo dica**: e' il difetto di `#486`, misurato
+    su un worktree ricostruito in modo incrementale, dove la suite riportava 632 e poi 633
+    `Test Completed` con zero falliti su 634 dichiarati. I mancanti non erano `Fail` ne' `Skipped`:
+    non comparivano affatto.
+
+    Ritorna `(scope, executed, missing, extra)`. `missing` e' un ERRORE — un test che nessuno ha
+    eseguito non e' ne' rosso ne' verde, e' invisibile. `extra` e' un avviso: un test eseguito che i
+    sorgenti non dichiarano **dove il contatore guarda** (`Source/RefactorTactics/Tests/`), quindi
+    dice che il perimetro del contatore e' piu' stretto della realta'.
+    """
+    with open(log_path, encoding="utf-8", errors="replace") as fh:
+        text = fh.read()
+
+    executed = run_log_executed(text)
+    prefix = run_log_filter(text) or "RefactorTactics"
+    # Il filtro di UE e' per prefisso: `RunTests RefactorTactics.HexMap` prende anche
+    # `RefactorTactics.HexMapActor`. Riprodurlo qui, o il gate accuserebbe assenze che non esistono.
+    scope = {name for name in known_tests() if name.startswith(prefix)}
+
+    return scope, executed, sorted(scope - executed), sorted(executed - scope)
+
+
 def suite_breakdown():
     """Conteggio per area. Solleva se un test non rientra in nessuna categoria dichiarata."""
     names = known_tests()
@@ -1045,6 +1090,27 @@ def render_suite_count():
     return "\n".join(lines)
 
 
+SUITE_MEASURED_ON = re.compile(r"— misurati su `[^`]*`\.")
+
+
+def suite_substance(block):
+    """Il blocco senza il commit su cui la misura e' stata presa.
+
+    `--check` deve confrontare la **sostanza** — conteggio, file, ripartizione per area — e non il
+    commit corrente, altrimenti il gate e' rosso ovunque tranne che sul commit esatto in cui e' stato
+    rigenerato: cioe' mai su `main`, perche' un merge sposta `HEAD` (`#488`).
+
+    Un allarme che suona sempre non lo guarda piu' nessuno, ed e' il motivo per cui il conteggio ha
+    potuto restare fermo a 573 test mentre erano 634: lo strumento *stava gia' segnalando*,
+    indistinguibile dal rumore che produceva a ogni commit.
+
+    La riga `misurati su ...` **resta scritta**: e' l'unica cosa che rende il numero verificabile. Non
+    e' confrontata, ed e' corretto — quando la sostanza non cambia, il commit registrato indica pur
+    sempre un albero in cui quel numero era vero.
+    """
+    return SUITE_MEASURED_ON.sub("— misurati su `<commit>`.", block)
+
+
 def apply_suite_count(check=False):
     block = render_suite_count()
     pattern = re.compile(
@@ -1055,6 +1121,12 @@ def apply_suite_count(check=False):
             continue
         original = open(path, encoding="utf-8").read()
         if SUITE_MARKER_BEGIN not in original:
+            continue
+        found = pattern.search(original)
+        # Confronto sulla sostanza anche in SCRITTURA, non solo con `--check`: senza, `suite`
+        # produrrebbe un diff su ogni branch — rumore in ogni PR che lo tocca — e il commit
+        # registrato inseguirebbe `HEAD` invece di dire dove la misura e' stata presa.
+        if found and suite_substance(found.group(0)) == suite_substance(block):
             continue
         text = pattern.sub(lambda _m: block, original)
         if text != original:
@@ -2382,6 +2454,9 @@ def main():
     parser.add_argument("--check", action="store_true", help="non scrivere: fallisci se disallineato")
     parser.add_argument("--write", action="store_true",
                         help="`deploy`: scrive davvero nel clone della Wiki (default: sola lettura)")
+    parser.add_argument("--run-log", metavar="PATH",
+                        help="`suite`: log di una run dell'automation. Confronta ESEGUITI e DICHIARATI "
+                             "nello stesso perimetro ed esce 1 se qualcuno manca (#486)")
     args = parser.parse_args()
 
     registry = load_registry()
@@ -2457,6 +2532,31 @@ def main():
 
     if args.command == "suite":
         count, files = suite_measure()
+
+        # `--run-log`: il conteggio smette di essere un numero solo e diventa «N eseguiti su M
+        # dichiarati». Non tocca i documenti generati — misura una RUN, che non e' uno stato del
+        # repository — e non richiede `--check`: se un test dichiarato non e' stato eseguito, la
+        # domanda non e' se scrivere un file, e' che la run non vale.
+        if args.run_log:
+            if not os.path.isfile(args.run_log):
+                print(f"log non trovato: {args.run_log}")
+                return 1
+            scope, executed, missing, extra = suite_run_diff(args.run_log)
+            print(f"run: {len(executed)} eseguiti su {len(scope)} dichiarati nel perimetro")
+            for name in extra:
+                print(f"WARN  eseguito ma non dichiarato in Source/RefactorTactics/Tests/: {name}")
+            if not executed:
+                print("nessun test eseguito: la run e' morta prima, oppure il filtro non prende nulla")
+                return 1
+            if missing:
+                for name in missing:
+                    print(f"MANCANTE dichiarato e non eseguito: {name}")
+                print(f"{len(missing)} test dichiarati non sono stati eseguiti: la run non e' completa,")
+                print("e zero falliti non vuol dire zero buchi (#486).")
+                return 1
+            print("nessun buco: ogni test dichiarato nel perimetro e' stato eseguito")
+            return 0
+
         changed = apply_suite_count(args.check)
         print(f"suite: {count} test unici in {files} file su {current_head()}")
         if args.check and changed:

@@ -217,7 +217,72 @@ enum class ERTMoveOutcome : uint8
 	 * cella ospita al piu' un'unita': il bersaglio identifica il colpo in modo univoco. `ActionId` dice
 	 * **con quale azione**, ed e' scritto qui direttamente.
 	 */
-	Displaced
+	Displaced,
+	/**
+	 * Spostamento forzato ANNULLATO: la spinta e' stata registrata e risolta, e l'unita' e' rimasta dov'era
+	 * (#420). Aggiunto in CODA, come i tre valori sopra: l'esito viaggia come `uint8` nel formato
+	 * serializzato, quindi le tracce gia' scritte non cambiano significato.
+	 *
+	 * **Perche' un valore proprio e non `Stayed`.** `Stayed` dice «non pianificava movimento», che qui e'
+	 * vero e irrilevante: la voce non esiste per raccontare cosa l'unita' voleva fare, ma per rispondere alla
+	 * domanda che il giocatore pone davvero — *perche' non si e' mosso, se l'ho colpito?*. Senza questa voce
+	 * il TurnLog e' asimmetrico: `#307` ha spiegato lo spostamento AVVENUTO e ha lasciato muto quello
+	 * MANCATO, che e' il caso piu' frequente e l'unico su cui si sospetta un difetto del resolver.
+	 *
+	 * **Il PERCHE' viaggia in `Amount`**, come `ERTDisplacementBlockReason`. Non e' un'invenzione di questa
+	 * voce: e' la stessa disciplina delle voci `Fallback`, dove `Amount` porta gia' `ERTActionInvalidReason`.
+	 * Il campo e' libero per costruzione — le celle percorse sono zero, ed e' esattamente cio' che la voce
+	 * dichiara — e riusarlo evita un campo nuovo, cioe' una versione di formato, per un dato che esiste solo
+	 * su un esito.
+	 *
+	 * `SrcCell` e `TgtCell` sono la stessa cella: e' la forma leggibile di «non si e' spostata».
+	 */
+	DisplacementResisted
+};
+
+/**
+ * PERCHE' uno spostamento forzato non ha spostato nessuno (#420). Viaggia in `FRTTurnLogEntry::Amount`
+ * delle voci con esito `ERTMoveOutcome::DisplacementResisted`.
+ *
+ * Le cinque cause **non** sono tutte difese, e la tassonomia lo dice: due sono decisioni dell'unita'
+ * (`Guarded`, `Braced`), tre sono geometria del turno (`OpposingForces`, `NoDestination`,
+ * `ContestedDestination`). Distinguerle e' il punto: un giocatore che legge «la guardia ha retto» impara una
+ * regola, uno che legge «non si e' mosso» impara che il gioco e' rotto.
+ *
+ * ⚠️ **`PushResistance` non e' qui, e non e' una dimenticanza.** E' la terza resistenza sulla carta
+ * (`RTTurnManager.cpp`, ramo `ERTActionEffect::Push`), ma [D-075](../../../docs/decisions/RT_PDR_00_Decision_Log.md)
+ * l'ha portata a `0` su tutto il roster: nessun eroe la possiede, quindi un produttore su quel ramo sarebbe
+ * codice non coperto **per costruzione** e un valore di enum che nessun test puo' raggiungere. Quando la
+ * meccanica si risveglia, il valore si aggiunge in coda insieme al suo produttore e al suo test — e il punto
+ * in cui va scritto porta gia' il commento che lo dice.
+ *
+ * Come per `ERTMoveOutcome`, i valori nuovi si aggiungono **in coda**: viaggiano come `int32` in `Amount`,
+ * ma il lettore li interpreta per posizione.
+ */
+UENUM(BlueprintType)
+enum class ERTDisplacementBlockReason : uint8
+{
+	/** `Action.Guard` ha retto: la guardia assorbe le spinte fino a `GuardResistedPushDistance` celle. */
+	Guarded,
+	/** `Action.Brace` ha retto: il primo spostamento del turno non sposta, a qualunque distanza. */
+	Braced,
+	/**
+	 * Spinto da DUE o piu' attaccanti nello stesso Blast: le forze si annullano e la contesa resta ferma.
+	 * Non e' una difesa — l'unita' non ha fatto nulla — ed e' la ragione per cui questo enum non si chiama
+	 * `...ResistReason`.
+	 */
+	OpposingForces,
+	/** Nessuna destinazione: bordo mappa, ostacolo o unita' subito dietro. La spinta non ha dove andare. */
+	NoDestination,
+	/**
+	 * Due bersagli spinti verso la STESSA cella nello stesso Blast: restano entrambi fermi, perche' l'esito
+	 * non deve dipendere da quale dei due si risolve prima.
+	 *
+	 * ⚠️ Questo caso non era nell'elenco di `#420`, che ne contava cinque: e' emerso leggendo il secondo
+	 * ciclo del knockback, dove `bContested` faceva `continue` senza scrivere ne' una riga di combat log ne'
+	 * una voce. Era il piu' muto dei sei.
+	 */
+	ContestedDestination
 };
 
 /** Esito di un attacco nel turno. Priorita': Lethal > ShieldAbsorbed > TerrainBonus > Hit. */
@@ -271,7 +336,14 @@ struct FRTTurnLogEntry
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	FRTCellId TgtCell;
 
-	/** Danno effettivo (Combat), numero di celle percorse (Move) o direzione come `ERTHexDirection` (Facing). */
+	/**
+	 * Danno effettivo (Combat), numero di celle percorse (Move) o direzione come `ERTHexDirection` (Facing).
+	 *
+	 * Su alcuni esiti porta un REASON CODE invece di una quantita', perche' la quantita' li' non esiste:
+	 * `ERTActionInvalidReason` sulle voci `Fallback`, e `ERTDisplacementBlockReason` sulle voci `Move` con
+	 * esito `DisplacementResisted` (#420), dove le celle percorse sono zero per definizione. Il campo si
+	 * legge sempre guardando prima `Category` e `Outcome` — non e' un intero con un significato solo.
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	int32 Amount = 0;
 

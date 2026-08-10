@@ -27,8 +27,12 @@ Dal 2026-08-10 (D-076) le pagine di gioco non stanno piu' in `docs/wiki/` ma nel
 repository separato: `--wiki-root` estende il gate a quell'area, che altrimenti non la controlla
 piu' nessuno — e senza dirlo, perche' `git ls-files` semplicemente non elenca quei file.
 
+Piu' una quinta, che non riguarda i link ma vive qui perche' questo e' l'unico gate che **legge** i
+documenti: i **marker di conflitto git** rimasti dentro un file. Vedi `CONFLITTO_RE` per il perche' sta
+in questo script e per quale dei tre marker e' deliberatamente escluso.
+
 Esce con codice 1 se un link e' rotto, se un'etichetta mente, se un target esiste solo in locale,
-oppure se una voce di DEBITO_NOTO non e' piu' vera.
+se un documento contiene marker di conflitto, oppure se una voce di DEBITO_NOTO non e' piu' vera.
 
 Cosa NON controlla, deliberatamente:
   - gli **ancoraggi** (`#sezione`): la slugificazione di GitHub su titoli con accenti, emoji e codice
@@ -55,6 +59,17 @@ LINK_RE = re.compile(r'(!?)\[(`?)([^\]]*?)(`?)\]\(\s*<?([^)>\s]+)>?(?:\s+"[^"]*"
 SKIP_SCHEMES = ("http://", "https://", "mailto:", "ftp://", "tel:", "data:")
 
 FENCE_RE = re.compile(r"^([ \t]*)(`{3,}|~{3,}).*?^\1?\2[ \t]*$", re.M | re.S)
+
+# Marker di conflitto git rimasti in un documento. Aggiunto il 2026-08-10, dopo che tre di essi hanno
+# vissuto in `docs/OPEN_DECISIONS.md` su `main` per cinque ore e mezza, 117 commit e 34 PR mergiate:
+# li ha introdotti un merge risolto a mano (`cc5f0e5`) e non li ha visti nessuno, perche' i `.md` sono
+# l'unico formato del repository che nessun parser attraversa. Un marker in un `.cpp` non compila, uno
+# in `feature-registry.yaml` fa fallire il validator; uno in un documento si legge come testo.
+#
+# Cerca SOLO le due righe che in Markdown non significano niente. La terza — sette segni di uguale —
+# e' deliberatamente esclusa: e' anche la sottolineatura di un titolo **Setext**, e un gate che sbaglia
+# viene disattivato al terzo falso positivo. Se ci sono le altre due, il conflitto c'e' comunque.
+CONFLITTO_RE = re.compile(r"^(?:<{7}|>{7}) ", re.M)
 
 
 def _fence_spans(text):
@@ -121,7 +136,7 @@ def main():
         return 2
     tracked_dirs = {d for p in tracked for d in _parents(p)}
 
-    rotti, etichette, non_versionati = [], [], []
+    rotti, etichette, non_versionati, conflitti = [], [], [], []
     controllati = 0
     debito_visto = {k: 0 for k in DEBITO_NOTO}
 
@@ -133,6 +148,13 @@ def main():
             continue
         base = os.path.dirname(abs_src)
         fences = _fence_spans(text)
+
+        # Dentro un blocco recintato un marker e' un esempio, non un residuo: stessa esenzione dei link.
+        for m in CONFLITTO_RE.finditer(text):
+            if any(a <= m.start() < b for a, b in fences):
+                continue
+            riga = text[: m.start()].count("\n") + 1
+            conflitti.append((src, riga, text[m.start():].split("\n", 1)[0][:40]))
 
         for m in LINK_RE.finditer(text):
             _, _, label, _, target = m.groups()
@@ -179,13 +201,22 @@ def main():
     print(f"Link relativi controllati: {controllati} · file markdown versionati: "
           f"{sum(1 for f in tracked if f.endswith('.md'))}")
 
-    if not (rotti or etichette or non_versionati or stale):
+    if not (rotti or etichette or non_versionati or stale or conflitti):
         tollerati = sum(debito_visto.values())
         coda = f" ({tollerati} rotti tollerati come debito dichiarato)" if tollerati else ""
         print(f"OK — ogni link risolve, ogni etichetta dice il vero{coda}.")
         return 0
 
     print()
+    # Per primo: gli altri difetti rendono un documento impreciso, questo lo rende rotto.
+    if conflitti:
+        print(f"FALLITO — {len(conflitti)} marker di conflitto git rimasti in un documento:\n")
+        for f, n, testo in conflitti:
+            print(f"  {f}:{n}\n      {testo}")
+        print("\n  Un merge e' stato risolto a meta' e committato. Apri il file, tieni cio' che serve")
+        print("  di entrambi i lati — spesso sono due sezioni diverse che devono coesistere, non due")
+        print("  versioni della stessa — e togli le righe di marcatura.\n")
+
     if rotti:
         print(f"FALLITO — {len(rotti)} link a un target inesistente:\n")
         for f, n, t in rotti:
@@ -216,11 +247,21 @@ def main():
 
 
 def _wiki_root_arg():
-    """`--wiki-root <path>`, se passato. Il clone e' un altro repository: non si indovina."""
-    if "--wiki-root" not in sys.argv:
-        return None
-    i = sys.argv.index("--wiki-root")
-    return sys.argv[i + 1] if i + 1 < len(sys.argv) else ""
+    """`--wiki-root <path>` o `--wiki-root=<path>`, se passato. Il clone e' un altro repository:
+    non si indovina.
+
+    **Entrambe le forme, e non e' pedanteria.** La prima versione riconosceva solo i due token
+    separati: `--wiki-root=/path` finiva in `sys.argv` come un token solo, `"--wiki-root" in
+    sys.argv` era falso, e il controllo sul clone veniva **saltato in silenzio** — stesso output e
+    stesso exit 0 del caso «flag non passato». Cioe' esattamente il fallimento che questo gate esiste
+    per impedire, causato dalla sintassi con cui lo si invoca.
+    """
+    for i, arg in enumerate(sys.argv):
+        if arg == "--wiki-root":
+            return sys.argv[i + 1] if i + 1 < len(sys.argv) else ""
+        if arg.startswith("--wiki-root="):
+            return arg[len("--wiki-root="):]
+    return None
 
 
 def _parents(path):
@@ -253,13 +294,21 @@ def check_wiki_clone(wiki_root):
     # Con un dict solo, due pagine omonime ne lasciano una fuori dalla scansione — proprio nel caso
     # in cui qualcosa e' gia' andato storto. Verificato per mutazione: con un `Guida/coperture.md`
     # duplicato, la versione a dict sola segnalava il duplicato e non apriva nessuno dei due file.
-    pagine, tutte, problemi = {}, [], []
+    #
+    # `asset` esiste per lo stesso motivo per cui `wiki_pages()` in `feature_registry.py` e'
+    # case-sensitive: `os.path.isfile` su Windows **non distingue le maiuscole**, quindi un
+    # `images/Factions/Conflux.png` passerebbe qui e servirebbe un 404 sulla Wiki, che gira su un
+    # filesystem case-sensitive. E' la stessa trappola che aveva lasciato scoperta
+    # `Sinergie-e-Combinazioni.md` fino a PR #411. Verificato per mutazione: con `os.path.isfile` il
+    # gate usciva 0 su quel riferimento.
+    pagine, tutte, asset, problemi = {}, [], set(), []
     for base, dirs, files in os.walk(wiki_root):
         dirs[:] = [d for d in dirs if d != ".git"]
         for name in sorted(files):
+            relp = os.path.relpath(os.path.join(base, name), wiki_root).replace("\\", "/")
+            asset.add(relp)
             if not name.endswith(".md"):
                 continue
-            relp = os.path.relpath(os.path.join(base, name), wiki_root).replace("\\", "/")
             stem = os.path.splitext(name)[0]
             if stem in pagine:
                 problemi.append(f"nome duplicato: {relp} e {pagine[stem]} — stesso URL /wiki/{stem}")
@@ -275,9 +324,20 @@ def check_wiki_clone(wiki_root):
             # `[[Etichetta|slug]]`: il bersaglio e' l'ultimo campo. Il backslash e' l'escape della
             # pipe dentro le celle di tabella, dove `|` chiuderebbe la colonna.
             target = m.group(1).split("|")[-1].replace("\\", "").strip()
+            riga = text[: m.start()].count("\n") + 1
             if target not in pagine:
-                riga = text[: m.start()].count("\n") + 1
                 problemi.append(f"{relp}:{riga} [[{m.group(1)}]] -> pagina inesistente: {target}")
+            # Dentro una cella di tabella la `|` va escapata, perche' GitHub taglia la riga in
+            # colonne **prima** di riconoscere il wikilink: `[[Conflux|conflux]]` diventa due celle,
+            # `[[Conflux` e `conflux]]`, e il link non esiste piu'. Verificato sulla Wiki pubblicata:
+            # la tabella «Mappa del roster» di `Fazioni` mostrava il nome della fazione spezzato in
+            # due colonne. Erano 66 righe su 14 pagine, tutte con il link risolvibile — per questo il
+            # controllo qui sopra le dichiarava a posto e nessuno se ne accorgeva.
+            if text[: m.start()].rsplit("\n", 1)[-1].lstrip().startswith("|") and "\\|" not in m.group(1):
+                if "|" in m.group(1):
+                    problemi.append(
+                        f"{relp}:{riga} [[{m.group(1)}]] e' in una cella di tabella e la pipe non e' "
+                        "escapata: scrivi `[[Etichetta\\|slug]]`, altrimenti la riga si spezza")
         for m in WIKI_IMG_RE.finditer(text):
             src = m.group(1)
             if src.startswith(SKIP_SCHEMES) or any(a <= m.start() < b for a, b in fences):
@@ -286,8 +346,10 @@ def check_wiki_clone(wiki_root):
             if src.startswith("../") or src.startswith("/"):
                 problemi.append(f"{relp}:{riga} immagine con path relativo alla cartella: {src} — "
                                 "sulla Wiki la base e' la radice, non il file")
-            elif not os.path.isfile(os.path.join(wiki_root, src.replace("/", os.sep))):
-                problemi.append(f"{relp}:{riga} immagine inesistente: {src}")
+            elif src not in asset:
+                vicino = next((a for a in asset if a.lower() == src.lower()), None)
+                dettaglio = f" (nel clone c'e' `{vicino}`: differisce solo nel case)" if vicino else ""
+                problemi.append(f"{relp}:{riga} immagine inesistente: {src}{dettaglio}")
 
     print(f"\nClone della Wiki: {len(tutte)} pagine · {wiki_root}")
     if not problemi:

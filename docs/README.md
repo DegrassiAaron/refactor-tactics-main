@@ -71,6 +71,7 @@ definita in due posti, è un difetto: apri una issue invece di aggiornarne una s
 | Pacing del turno misurato | [`gameplay/spec-pacing-turno.md`](gameplay/spec-pacing-turno.md) | ✅ |
 | Privacy dell'intento | invariante #6 + `URTIntentPrivacyLibrary` | ✅ offline |
 | TurnLog, reason code, serializzazione | [`technical/spec-turnlog.md`](technical/spec-turnlog.md) · [`technical/spec-turnlog-serialize.md`](technical/spec-turnlog-serialize.md) | ✅ |
+| Replay — cosa è autorevole e chi può calcolare | [`decisions/adr-0009-replay-logico-canonico.md`](decisions/adr-0009-replay-logico-canonico.md) | ⏳ **decisione presa, R1/R3 da implementare** (2026-08-10) · due prodotti: il **Player** riproduce la traccia e non calcola, il **Verifier** ri-simula e non presenta · forma dell'archivio in [D-077](decisions/RT_PDR_00_Decision_Log.md) |
 | HUD e leggibilità | [`technical/progettazione-hud.md`](technical/progettazione-hud.md) · [`technical/brief-planning-visuale.md`](technical/brief-planning-visuale.md) | ⏳ E11 |
 | Mappa delle classi C++ | [`technical/architettura-codice.md`](technical/architettura-codice.md) | ✅ |
 | Struttura di `Content/`, naming asset | [`technical/convenzioni-contenuti-ue.md`](technical/convenzioni-contenuti-ue.md) | ✅ **normativo** |
@@ -145,32 +146,32 @@ python scripts/feature_registry.py suite      # rimisura e riscrive il blocco qu
 ```
 
 <!-- RT_SUITE_COUNT:BEGIN -->
-**573 test unici in 76 file** — misurati su `4a3fd20`.
+**642 test unici in 85 file** — misurati su `e6ece62`.
 
 Generato da `python scripts/feature_registry.py suite`: **non si aggiorna a mano**. Era scritto a mano in due documenti ed è divergito cinque volte.
 
 | Area | Test | Cosa fissa |
 |---|---:|---|
 | `Hex*` (mappa, path, vision, bot, blast, move, match) | 99 | Coordinate, A\*, LOS, bot, partita completa |
-| `Actions.*` | 70 | Ordine per priorità, permutazione-invarianza, fallback, mappatura di fase |
+| `Actions.*` | 71 | Ordine per priorità, permutazione-invarianza, fallback, mappatura di fase |
 | `Terrain.*` · `Status.*` · `Environment.*` | 39 | Superfici, stati temporanei, propagazione elettrica, fuoco/acqua |
 | `Combat.*` · `HexCombat.*` | 39 | Danno dopo scudo, forme, LOS, niente fuoco amico |
 | `Reactions.*` | 27 | Attivazione singola, trigger puro, reazioni componibili, privacy |
 | `HexSim.*` | 28 | Snapshot, budget, collisioni simultanee, **replay divergence 0** |
-| `Match*` (allestimento, formato, fine partita) | 29 | Le tre vie di fine partita e il `RoundLimit` da formato |
-| `Heroes.*` | 31 | I 4 eroi corrispondono al catalogo, trade-off delle varianti |
-| `TurnLog.*` | 24 | Hash permutazione-invariante, serializzazione versionata, checksum |
+| `Match*` (allestimento, formato, fine partita) | 32 | Le tre vie di fine partita e il `RoundLimit` da formato |
+| `Heroes.*` | 32 | I 4 eroi corrispondono al catalogo, trade-off delle varianti |
+| `TurnLog.*` | 48 | Hash permutazione-invariante, serializzazione versionata, checksum |
 | `Scenario.*` · `ScenarioIndex.*` | 56 | Harness: PASS/FAIL/ERROR/**BLOCKED**, identità e tag, niente bypass |
 | `Structures.*` | 21 | Porte come bordo (E9.3), ponti come arco (E9.4) |
 | `Playback.*` · `Preview.*` · `PlayerInput.*` · `ShowcaseRelay.*` · `Camera.*` | 23 | Presentazione e input: non decidono, riproducono |
-| `Unit.*` · `Turn.*` · `Simulation.*` · `Movement.*` | 19 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
-| `Cover.*` | 19 | Copertura bassa e alta, bordi, danno a struttura e distruzione |
+| `Unit.*` · `Turn.*` · `Simulation.*` · `Movement.*` | 26 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
+| `Cover.*` | 20 | Copertura bassa e alta, bordi, danno a struttura e distruzione |
 | `Catalog.*` | 9 | Invarianti del catalogo: solo interi, slot dichiarati, ID stabili |
 | `Pacing.*` | 7 | Pacing del turno misurato |
 | `Perf.*` | 2 | Path mediana **0,025 ms** · resolver **0,41 ms/turno** |
-| **totale** | **542** | |
+| **totale** | **579** | |
 
-> ⚠️ Test fuori da ogni area dichiarata: `RefactorTactics.Equipment.PortableCover.CreatesCover`, `RefactorTactics.Facing.BudgetMoveAllowsLastStepPlusMinusOne`, `RefactorTactics.Facing.DashThenBlastUsesLatestValue`, `RefactorTactics.Facing.EnvironmentalDisplacementKeepsFacing`, `RefactorTactics.Facing.ForcedMovementFacesSource`, `RefactorTactics.Facing.IntentIsTeamFiltered`, `RefactorTactics.Facing.LinearMoveDerivesDirection`, `RefactorTactics.Facing.PermutationInvariant`
+> ⚠️ Test fuori da ogni area dichiarata: `RefactorTactics.Arena.CostBiteNeedsExpensiveCellAndOverBudget`, `RefactorTactics.Arena.CoverageNeedsBlockedSightNotJustBlockingCells`, `RefactorTactics.Arena.DerivedSpawnsMatchMatchSetup`, `RefactorTactics.Arena.GeneratedTestArenaIsMeasurable`, `RefactorTactics.Arena.TwoRoutesNeedDisjointSimilarCostDifferentExposure`, `RefactorTactics.Arena.VerdictIsIndependentOfCellOrder`, `RefactorTactics.Door.ChangeCarriesActor`, `RefactorTactics.Equipment.PortableCover.CreatesCover`
 <!-- RT_SUITE_COUNT:END -->
 
 ---

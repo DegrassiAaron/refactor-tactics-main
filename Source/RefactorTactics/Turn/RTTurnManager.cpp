@@ -31,6 +31,7 @@
 #include "TimerManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Replay/RTReplayRecorderLibrary.h"
 #include "Misc/DateTime.h"
 #include "HAL/FileManager.h"
 
@@ -44,6 +45,11 @@ ARTTurnManager::ARTTurnManager()
 void ARTTurnManager::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// ⚠️ La registrazione NON parte da sola qui, ed e' deliberato: `BeginPlay` gira anche per i 27 file di
+	// test e per lo `ScenarioHarness` che spawnano un TurnManager a mano, e farli scrivere su disco
+	// sarebbe un effetto collaterale che nessuno ha chiesto. La avvia chi allestisce una partita vera —
+	// il GameMode — con `BeginReplayRecording()`.
 	StartPlanningTimer();
 }
 
@@ -147,12 +153,35 @@ void ARTTurnManager::PlanBots()
 		Bot->PlannedPath.Reset();       // il bot pianifica destinazioni, non percorsi a waypoint
 		Bot->PlannedWaypoints.Reset();
 
-		// Difesa: se ferito (sotto meta' HP) e ha un'abilita' di supporto pronta, la usa e salta il turno.
+		// Difesa: se ferito (sotto meta' HP) e ha un'abilita' che lo RIMETTE IN PIEDI, la usa e salta il turno.
+		//
+		// «Supporto» qui significa curare o schermare, non genericamente «agire su di se'»: il filtro era
+		// `bSelfTarget` e basta, e finche' nessuna azione dichiarava quel flag la differenza non si vedeva.
+		// Appena `Action.Guard` e `Action.Brace` l'hanno dichiarato — sono generiche, quindi le ha OGNI eroe —
+		// un bot sotto meta' HP entrava qui ogni turno: Guard ha cooldown 0, quindi e' sempre pronta, e il
+		// `continue` gli fa saltare l'attacco. Risultato: il bot ferito si mette in guardia per sempre e la
+		// partita non finisce (`HexMatch.PlaysToCompletion`).
+		//
+		// Il ramo era scritto per `Guardian.Barrier`, che di cooldown ne aveva 3 e dava 40 di scudo. Chiedere
+		// un effetto curativo lo riporta a quel significato senza dipendere dai cooldown, che sono
+		// bilanciamento e cambiano.
 		bool bUsedSupport = false;
 		for (int32 A = 0; A < Bot->NumAbilities(); ++A)
 		{
 			const URTActionData* Ab = Bot->GetAbility(A);
-			if (Ab && Ab->bSelfTarget && Bot->CanUseAbility(A) && Bot->Health * 2 < Bot->MaxHealth)
+			bool bRestores = false;
+			if (Ab)
+			{
+				for (const FRTActionEffectSpec& Spec : Ab->Def.Effects)
+				{
+					if (Spec.Effect == ERTActionEffect::Heal || Spec.Effect == ERTActionEffect::Shield)
+					{
+						bRestores = true;
+						break;
+					}
+				}
+			}
+			if (Ab && Ab->bSelfTarget && bRestores && Bot->CanUseAbility(A) && Bot->Health * 2 < Bot->MaxHealth)
 			{
 				Bot->PlannedAbilityIndex = A;
 				bUsedSupport = true;
@@ -752,6 +781,36 @@ void ARTTurnManager::AppendDisplacementEntry(const ARTUnit* Target, const FRTCel
 	AppendLogEntry(Entry, Target);
 }
 
+void ARTTurnManager::AppendDisplacementResistedEntry(const ARTUnit* Target, ERTDisplacementBlockReason Reason,
+	const TMap<ARTUnit*, FRTDisplacementCause>* CauseByTarget)
+{
+	if (!Target) { return; }
+
+	FRTTurnLogEntry Entry;
+	// Stessa fase e stessa categoria della voce positiva (#307): lo spostamento MANCATO appartiene al Blast
+	// che l'avrebbe prodotto, non alla fase Move. Un lettore che filtra il Blast li trova insieme, ed e' la
+	// condizione perche' «spinto e spostato» e «spinto e fermo» si confrontino sulla stessa riga di tempo.
+	Entry.Phase = ERTMatchPhase::Blast;
+	Entry.Category = ERTLogCategory::Move;
+	Entry.Outcome = static_cast<uint8>(ERTMoveOutcome::DisplacementResisted);
+	Entry.SrcCell = Target->Cell;
+	Entry.TgtCell = Target->Cell; // non si e' mossa: dirlo, non lasciarlo dedurre dall'assenza di una voce
+	Entry.Amount = static_cast<int32>(Reason);
+
+	ARTUnit* Key = const_cast<ARTUnit*>(Target);
+	if (CauseByTarget)
+	{
+		if (const FRTDisplacementCause* Cause = CauseByTarget->Find(Key))
+		{
+			Entry.ActionId = Cause->ActionId;
+			Entry.BaseActionId = Cause->BaseActionId;
+			Entry.Priority = Cause->Priority;
+		}
+	}
+
+	AppendLogEntry(Entry, Target);
+}
+
 void ARTTurnManager::ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TArray<int32>& Amounts,
 	const TArray<FRTCellId>& Sources, const TArray<ARTUnit*>& Healers)
 {
@@ -1266,6 +1325,12 @@ void ARTTurnManager::ConcludeTurn()
 	// decide la partita e' proprio quello che non verrebbe mai misurato.
 	ClosePacingSample();
 
+	// La traccia del turno appena risolto va su disco ADESSO, non a fine partita: un archivio serve
+	// soprattutto quando la partita non arriva alla fine. `TurnNumber` e' ancora quello del turno chiuso —
+	// l'incremento avviene piu' sotto, e invertire i due ordini scriverebbe ogni traccia col numero
+	// sbagliato.
+	RecordTurnToReplay();
+
 	// Morte visiva differita: ora che il playback ha mostrato le eliminazioni, rimuovi gli Actor morti
 	// (prima del prossimo turno, cosi' non figurano piu' come bersagli/ostacoli).
 	DestroyDefeatedUnits();
@@ -1284,6 +1349,11 @@ void ARTTurnManager::ConcludeTurn()
 			Team0Score,
 			Team1Score,
 			*MatchRules.FormatId.ToString()));
+
+		// La partita e' finita: l'archivio si chiude, e da qui in poi dichiara di essere completo. Se
+		// questa riga non venisse mai eseguita — crash, uscita — il manifest resterebbe non chiuso, ed e'
+		// esattamente cosi' che un archivio parziale si riconosce.
+		CloseReplayArchive();
 		return; // niente nuovo turno
 	}
 
@@ -1321,6 +1391,65 @@ void ARTTurnManager::AddTeamScore(int32 TeamId, int32 Points)
 
 	AddLogEvent(FString::Printf(TEXT("Obiettivo: team %d +%d (ora %d-%d)"),
 		TeamId, Points, Team0Score, Team1Score));
+}
+
+void ARTTurnManager::BeginReplayRecording()
+{
+	if (!bRecordReplay)
+	{
+		return;
+	}
+
+	ReplayManifest = FRTReplayManifest();
+	ReplayManifest.MatchId = FGuid::NewGuid();
+	// Il formato si legge ADESSO e non a `BeginPlay`: il GameMode spawna il TurnManager prima di risolvere
+	// il formato di partita (`ApplyMatchFormat`), quindi a quel punto `MatchRules.FormatId` non e' ancora
+	// quello vero. Un manifest che dichiara il formato sbagliato e' peggio di uno che non lo dichiara.
+	ReplayManifest.FormatId = MatchRules.FormatId;
+	ReplayManifest.bHexTopology = true; // un solo substrato: `FRTCellId` e' esagonale (ADR-0002)
+}
+
+FString ARTTurnManager::ResolveReplaysRoot() const
+{
+	return ReplaysRootOverride.IsEmpty()
+		? FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Replays"))
+		: ReplaysRootOverride;
+}
+
+void ARTTurnManager::RecordTurnToReplay()
+{
+	if (!bRecordReplay || !ReplayManifest.MatchId.IsValid())
+	{
+		return;
+	}
+
+	// Il TurnManager non sa scrivere: consegna la traccia a chi lo fa. Non riordina e non serializza —
+	// `SortTurnLog` ha gia' fissato l'ordine canonico, e la serializzazione e' della libreria del TurnLog.
+	if (!URTReplayRecorderLibrary::RecordTurn(ResolveReplaysRoot(), ReplayManifest, TurnNumber, TurnLog))
+	{
+		// Non e' un errore di gioco: la partita continua anche se il disco no. Ma va DETTO, o un archivio
+		// che non c'e' si scopre solo quando qualcuno prova a riaprirlo.
+		AddLogEvent(FString::Printf(TEXT("Replay: il turno %d non e' stato registrato"), TurnNumber));
+	}
+}
+
+void ARTTurnManager::CloseReplayArchive()
+{
+	if (!bRecordReplay || !ReplayManifest.MatchId.IsValid() || ReplayManifest.bClosed)
+	{
+		return;
+	}
+
+	// ⚠️ `FinalStateHash` resta 0: il checksum di fine partita non ha ancora un produttore, e la ragione
+	// non e' una svista ma una decisione aperta — `FRTUnitStateDigest::Id` entra nell'hash ed e' oggi la
+	// chiave del file di scenario, che una partita non ha (issue #490). Il campo e' dichiarato non
+	// calcolato dal manifest stesso, che e' meglio di un numero inventato: `0` qui significa «nessuno l'ha
+	// scritto», ed e' esattamente cio' che e' vero.
+	if (!URTReplayRecorderLibrary::CloseMatch(ResolveReplaysRoot(), ReplayManifest,
+		PendingResult.Outcome, /*FinalStateHash*/ 0, /*WallClockSeconds*/ 0.f))
+	{
+		AddLogEvent(TEXT("Replay: l'archivio non e' stato chiuso"));
+	}
 }
 
 void ARTTurnManager::DestroyDefeatedUnits()
@@ -3299,7 +3428,15 @@ void ARTTurnManager::ResolveCombat()
 					// nessuno lo avesse deciso.
 					if (Victim && Event.Amount <= Victim->PushResistance)
 					{
-						break; // spinta assorbita: non si registra, quindi non c'e' niente da risolvere
+						// Spinta assorbita: non si registra, quindi non c'e' niente da risolvere.
+						//
+						// ⚠️ E' il SESTO modo di non muoversi, e l'unico che `#420` ha lasciato senza voce di
+						// TurnLog: `PushResistance` vale `0` su tutto il roster dopo D-075, quindi un
+						// `AppendDisplacementResistedEntry` qui sarebbe codice che nessuna partita attraversa e
+						// un valore di `ERTDisplacementBlockReason` che nessun test puo' coprire. Se la
+						// meccanica si risveglia, la voce va scritta QUI, con un valore nuovo in coda
+						// all'enum — non riusando `NoDestination`, che dice una cosa diversa.
+						break;
 					}
 					KnockFrom.Add(Victim, HexUnits[Hit.AttackerId].Cell);
 					KnockDist.Add(Victim, Event.Amount);
@@ -3439,6 +3576,17 @@ void ARTTurnManager::ResolveCombat()
 		for (ARTUnit* T : Units)
 		{
 			const int32* Pushes = KnockCount.Find(T);
+
+			// FORZE CONTRADDITTORIE (#420): spinto da due o piu' attaccanti, resta fermo. Non e' una difesa —
+			// e' la geometria del turno — e fino a qui non lasciava traccia da nessuna parte, ne' nel combat
+			// log ne' nel file. La voce si scrive PRIMA del `continue` che scarta il bersaglio.
+			if (Pushes && *Pushes > 1 && IsValid(T) && T->IsAlive())
+			{
+				// Nessuna causa: `PushCause` conserva UN attaccante su due, e nominarlo direbbe che a fermare
+				// l'unita' e' stata quella azione. Ne sono servite due, ed e' proprio il punto dell'esito.
+				AppendDisplacementResistedEntry(T, ERTDisplacementBlockReason::OpposingForces, nullptr);
+			}
+
 			if (!Pushes || *Pushes != 1 || !IsValid(T) || !T->IsAlive()) { continue; }
 
 			// `Action.Guard` regge una spinta di UNA cella: chi si e' piantato non arretra di un passo, ma una
@@ -3448,6 +3596,9 @@ void ARTTurnManager::ResolveCombat()
 			if (T->HasStatus(TAG_Status_Guarded) && KnockDist[T] <= URTCombatLibrary::GuardResistedPushDistance)
 			{
 				AddLogEvent(FString::Printf(TEXT("%s: in guardia, resiste alla spinta"), *T->GetName()));
+				// La stringa sopra e' per l'HUD e non finisce nel file (#420): la voce di TurnLog e' questa, ed
+				// e' cio' che permette a un replay di dire QUALE difesa ha retto invece del solo «non si e' mosso».
+				AppendDisplacementResistedEntry(T, ERTDisplacementBlockReason::Guarded, &PushCause);
 				continue;
 			}
 
@@ -3468,12 +3619,20 @@ void ARTTurnManager::ResolveCombat()
 			if (T->HasStatus(TAG_Status_Braced))
 			{
 				AddLogEvent(FString::Printf(TEXT("%s: irrigidito, la spinta non lo sposta"), *T->GetName()));
+				AppendDisplacementResistedEntry(T, ERTDisplacementBlockReason::Braced, &PushCause);
 				continue;
 			}
 
 			const FRTCellId Dest = URTHexCombatLibrary::HexKnockbackDestination(
 				KnockFrom[T], T->Cell, KnockDist[T], Map, KOccupied);
 			if (Dest != T->Cell) { KTargets.Add(T); KFinal.Add(Dest); }
+			else
+			{
+				// DESTINAZIONE IMPOSSIBILE (#420): bordo mappa, ostacolo o unita' subito dietro. La spinta e'
+				// stata risolta e non ha dove andare — non e' una difesa, e finora era muta come le altre due
+				// cause geometriche.
+				AppendDisplacementResistedEntry(T, ERTDisplacementBlockReason::NoDestination, &PushCause);
+			}
 		}
 		for (int32 a = 0; a < KTargets.Num(); ++a)
 		{
@@ -3483,7 +3642,14 @@ void ARTTurnManager::ResolveCombat()
 			{
 				if (a != b && KFinal[a] == KFinal[b]) { bContested = true; break; }
 			}
-			if (bContested) { continue; }
+			if (bContested)
+			{
+				// Il SESTO modo di non muoversi, che `#420` non contava: due bersagli spinti verso la stessa
+				// cella restano entrambi fermi. Era il piu' muto dei sei — nemmeno una riga di combat log.
+				AppendDisplacementResistedEntry(KTargets[a], ERTDisplacementBlockReason::ContestedDestination,
+					&PushCause);
+				continue;
+			}
 
 			ARTUnit* T = KTargets[a];
 			const FRTCellId OldCell = T->Cell;
