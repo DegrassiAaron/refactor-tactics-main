@@ -61,7 +61,10 @@ Tecnico della conduzione: fragile, controlla il campo e converte setup elettrici
 | Dipendenze tecniche | Wet, electric propagation, device interactions |
 | Player question | Come preparo la conduzione migliore? |
 
-> **Nota bilanciamento:** Canonico v0.1. 90 HP, 5 MP, vista 6; bonus +8 di LinearDischarge contro Wet.
+> **Nota bilanciamento:** Canonico v0.1. 90 HP, 5 MP, **vista 7**; bonus +8 di LinearDischarge contro Wet.
+> La vista è salita da 6 a 7 il 2026-08-10 ([D-073](../../decisions/RT_PDR_00_Decision_Log.md), `#131`): è ciò
+> che toglie a Vektor la dominanza statistica su Flux, e rende Flux **l'unico del roster a vedere oltre il
+> raggio 6**.
 
 > **Nota su `Water-Electric Combo`:** è un'etichetta storica della meccanica secondaria. Indica l'interazione sistemica acqua/Wet ↔ elettricità, **non** una coppia obbligatoria Flux+Riva.
 

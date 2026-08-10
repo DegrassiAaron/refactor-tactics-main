@@ -94,7 +94,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBastionPushResistanceTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTBastionPushResistanceTest::RunTest(const FString&)
 {
-	// Nome vincolante della DoD. **Il senso del test si e' rovesciato il 2026-08-10** (D-074, #402): fino a
+	// Nome vincolante della DoD. **Il senso del test si e' rovesciato il 2026-08-10** (D-075, #402): fino a
 	// qui pinnava `PushResistance = 1` come cio' che Bastion compra col movimento piu' basso. Ma siccome
 	// ogni spinta del gioco vale 1 e la resistenza e' una soglia (D-038), quel valore rendeva Bastion immune
 	// a OGNI spostamento, sempre, gratis — non era la statistica dichiarata, era un'immunita' che nessuno

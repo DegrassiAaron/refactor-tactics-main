@@ -981,7 +981,7 @@
         "docs/wiki/meccaniche/porte.md",
         "docs/wiki/meccaniche/topologia-dinamica.md"
       ],
-      "wiki_note": "Dato, regole di blocco e mutazione del bordo sono implementati e testati; l'**interazione del giocatore** (`Interact`/`Activate`) arriva con E10.",
+      "wiki_note": "Dato, regole di blocco e mutazione del bordo sono implementati e testati; l'**interazione del giocatore** (`Action.Interact`) arriva con E10.",
       "pie_refs": [
         "PIE-V01-DOOR"
       ],
@@ -3429,7 +3429,8 @@
         "RefactorTactics.TurnLog.DescribeEntry",
         "RefactorTactics.HexMatch.TurnLogExplainsTheTurn",
         "RefactorTactics.TurnLog.CombatEntryNamesItsAction",
-        "RefactorTactics.TurnLog.BasicAttackLogsBaseAndProfile"
+        "RefactorTactics.TurnLog.BasicAttackLogsBaseAndProfile",
+        "RefactorTactics.TurnLog.PrioritySurvivesRoundTripAndStaysOutOfHash"
       ],
       "scenarios": [
         "Visual.Core.PhaseOrder"
@@ -4832,7 +4833,9 @@
         "RefactorTactics.TurnLog.ActionIdRoundTrip",
         "RefactorTactics.Unit.ShortHeroNameFromStableId",
         "RefactorTactics.ScenarioIndex.IdIsIndependentOfPath",
-        "RefactorTactics.Actions.RetiredStableIdRedirectsToHeir"
+        "RefactorTactics.Actions.RetiredStableIdRedirectsToHeir",
+        "RefactorTactics.Catalog.ValidatorRejectsRetiredStableId",
+        "RefactorTactics.TurnLog.RetiredActionIdIsStillReadableFromDisk"
       ],
       "scenarios": [],
       "scenarios_planned": [],

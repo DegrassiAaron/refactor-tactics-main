@@ -145,7 +145,7 @@ regola standard del vertical slice).
 Cleanup · **non** protegge dagli hazard ambientali già presenti.
 
 > In v0.1 «una spinta di 1 cella» significa **ogni** spinta del gioco: il catalogo non ha valori maggiori di 1.
-> È il motivo per cui sulla spinta `Guard` e `Brace` non si distinguono — [D-073](../decisions/RT_PDR_00_Decision_Log.md).
+> È il motivo per cui sulla spinta `Guard` e `Brace` non si distinguono — [D-074](../decisions/RT_PDR_00_Decision_Log.md).
 
 **Interact** — agisce su un oggetto adiacente: porta · consolle · ascensore · generatore · sprinkler · ponte ·
 obiettivo. Assorbe ciò che il catalogo chiamava `Activate`: il bersaglio cambia, il gesto no.
@@ -330,7 +330,7 @@ movimento volontario** dell'eroe.
 > di distanza *nel codice*, ma **in v0.1 questo non è osservabile** — vedi la nota qui sotto. Il **blocco del
 > movimento** riusa `Status.Root`, quindi ferma anche lo scatto: chi si pianta per incassare non si riposiziona.
 
-> ⚠️ **L'anti-spinta non distingue `Brace` da `Guard` in v0.1** — [D-073](../decisions/RT_PDR_00_Decision_Log.md),
+> ⚠️ **L'anti-spinta non distingue `Brace` da `Guard` in v0.1** — [D-074](../decisions/RT_PDR_00_Decision_Log.md),
 > uscita **(B)** di [#400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/400).
 > Il catalogo v0.1 ha **un solo valore di spinta, `1`**, senza eccezioni: `Action.Push`, `Action.Charge`
 > (da cui `Bastion.Ram` eredita i suoi `20 danni + Push 1`), `Riva.PressureJet` e la variante

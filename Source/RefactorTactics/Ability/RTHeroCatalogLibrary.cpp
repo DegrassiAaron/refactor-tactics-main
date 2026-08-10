@@ -160,7 +160,18 @@ URTHeroData* URTHeroCatalogLibrary::MakeFlux()
 	Flux->DisplayName = FText::FromString(TEXT("Flux"));
 	Flux->MaxHealth = 90;
 	Flux->MovePoints = 5;
-	Flux->VisionRange = 6;
+	// 6 -> 7 (#131, [D-073]). E' la seconda meta' del lavoro cominciato con Vektor 100->90: quel calo aveva
+	// tolto la dominanza su Riva e lasciato quella su **Flux**, dove a parita' di salute e vista Vektor
+	// restava avanti di un punto movimento.
+	//
+	// La leva e' la VISTA e non il movimento, per due ragioni misurate. Dare 6 MP a Flux (o toglierne uno a
+	// Vektor) renderebbe i due profili IDENTICI sulle quattro statistiche base, e `RosterIsBalanced` verifica
+	// che nessuna coppia li condivida: si sarebbe rotto un test per ripararne un altro. E una resistenza alla
+	// spinta NEGATIVA per Vektor sarebbe stata un numero senza effetto — `PushResistance` e' una SOGLIA, e le
+	// spinte del catalogo valgono almeno 1, quindi -1 e 0 si comportano allo stesso modo.
+	//
+	// Con 7, Flux diventa l'unico che vede oltre l'esagono di raggio 6: identita' vera, non compensazione.
+	Flux->VisionRange = 7;
 	Flux->PushResistance = 0;
 	Flux->Affinity = TEXT("Affinity.Electricity");
 	// Debolezza acqua: stesso identificatore che Riva (CP 6.3) usera' come sua affinita', cosi' la combo
@@ -384,7 +395,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeBastion()
 	Bastion->MaxHealth = 120;
 	Bastion->MovePoints = 4;
 	Bastion->VisionRange = 5;
-	// Era `1`, l'unico del roster, fino al 2026-08-10. Portato a `0` da D-074 (#402): siccome ogni spinta
+	// Era `1`, l'unico del roster, fino al 2026-08-10. Portato a `0` da D-075 (#402): siccome ogni spinta
 	// del gioco vale 1 e `PushResistance` e' una SOGLIA (D-038), il valore `1` non comprava "stabilita'" ma
 	// **immunita' totale a ogni spostamento, sempre, senza spendere un'azione** — e quella nessuno l'aveva
 	// decisa: era una conseguenza del catalogo, non una scelta. Per Bastion svuotava meta' di `Guard` e
@@ -395,7 +406,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeBastion()
 	// ATTENZIONE: con questo `0` il roster v0.1 e' interamente a `0`, quindi `PushResistance` e' una
 	// meccanica DORMIENTE — modello e resolver (`RTTurnManager.cpp`, ramo `ERTActionEffect::Push`) la
 	// implementano, nessun contenuto la esercita. E' dichiarato, non dimenticato: si risveglia da sola il
-	// giorno in cui una v0.2 introduce una spinta >= 2 (rinviata con l'uscita (B) di #400, D-073).
+	// giorno in cui una v0.2 introduce una spinta >= 2 (rinviata con l'uscita (B) di #400, D-074).
 	Bastion->PushResistance = 0;
 	Bastion->Affinity = TEXT("Affinity.Structures");
 	// Simmetrica a Vektor (CP 6.5), come Flux/Riva fra loro: il roster chiude in due coppie. Il piu' lento

@@ -293,7 +293,7 @@ resta visibile invece di sparire.
 > `Spec.Map.*`. **È la prima volta che il numero SCENDE**, e per due motivi diversi che vale la pena non
 > confondere: dei **quattro di `BAL-1`**, tre sono stati **scritti** il 2026-08-10 (`#401`, verdi al primo
 > run) e il quarto — `Spec.Brace.PushBeyondGuardThreshold` — è stato **cancellato**, non rinviato: chiedeva
-> una spinta di 2 che [D-073](../decisions/RT_PDR_00_Decision_Log.md) ha deciso di non introdurre, quindi
+> una spinta di 2 che [D-074](../decisions/RT_PDR_00_Decision_Log.md) ha deciso di non introdurre, quindi
 > non ha più un soggetto. Un piano che sparisce perché la decisione l'ha reso privo di oggetto non è un
 > piano evaso.
 > I `TimeBank` sono passati da 8 a 10 con la riconciliazione di `#361` (sotto); i sei di Brace/Overwatch e i
@@ -356,9 +356,9 @@ resta visibile invece di sparire.
 > ✅ **I `BAL-1` non sono più in questa lista: chiusi il 2026-08-10** (`#401`, `#402`). Tre scritti e verdi
 > al primo run — `Spec.Brace.GuardAndBraceOnMixedHit`, `Spec.Brace.BraceWinsOnSecondHit` e
 > `Spec.Combat.BastionIsPushedLikeAnyone`, quest'ultimo **rinominato** da `…BastionIgnoresAllPushes` perché
-> [D-074](../decisions/RT_PDR_00_Decision_Log.md) ha deciso dall'altra parte e il nome previsto avrebbe
+> [D-075](../decisions/RT_PDR_00_Decision_Log.md) ha deciso dall'altra parte e il nome previsto avrebbe
 > significato il contrario del file. Il quarto, `Spec.Brace.PushBeyondGuardThreshold`, **non nasce**: chiedeva
-> una spinta di 2 che [D-073](../decisions/RT_PDR_00_Decision_Log.md) ha deciso di non introdurre, riscrivendo
+> una spinta di 2 che [D-074](../decisions/RT_PDR_00_Decision_Log.md) ha deciso di non introdurre, riscrivendo
 > invece la clausola di `Brace`. Oracolo e fixture erano quelli previsti — `UnitHpEquals`, `UnitAtCell` e
 > `Riva.PressureJet` (16 danni **e** `Push 1` nello stesso colpo) — e nessuna capability nuova è servita.
 >

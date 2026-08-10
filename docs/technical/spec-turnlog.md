@@ -252,6 +252,7 @@ UENUM(BlueprintType) enum class ERTMoveOutcome : uint8 {
 | Scatto | `Category=Move`, **`Phase=Dash`**, `ActionId` = la mobilità usata |
 | Spinta / trazione | `Category=Move`, `Phase=Blast`, **`Outcome=Displaced`**, `ActionId` = l'azione che l'ha causata |
 | Reazione | *nessun produttore in v0.1* — nessuna reazione del catalogo dichiara `Push`/`Pull`. Quando esisterà, userà lo stesso campo |
+| Spinta **resistita** | ⏳ *nessuna voce*: `Guard`, `Brace` e `PushResistance` che reggono lasciano solo una riga di combat log, che non finisce nel file. Asimmetria nota, aperta in [`#420`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/420) — e non è ovvio che vada chiusa come `Displaced`, perché lì la posizione **non cambia** |
 
 **Chi ha spinto, senza un campo «sorgente».** `#307` chiedeva anche l'identità di chi spinge. Non è un campo:
 è un **giunto** fra due voci dello stesso Blast.
@@ -287,12 +288,38 @@ stato del mondo.
 > **senza colpire** lascerebbe una voce `Displaced` senza sorgente ricostruibile. Il campo `ActionId` direbbe
 > comunque *con che cosa*, e sarebbe quello il momento per decidere se serve di più.
 
-**Cosa resta fuori, e perché.** Il DoD di CP 11.3 chiede anche la **priorità** in ogni voce. Non è qui: è un
-campo nuovo, cioè una versione nuova del formato — e la `v6` è già presa dalla PR
-[`#396`](https://github.com/DegrassiAaron/refactor-tactics-main/pull/396), in volo su un altro ramo. Prenderla
-in due avrebbe prodotto due formati con lo stesso numero, che è il difetto peggiore possibile per un file
-versionato. La priorità è comunque una **funzione** di `ActionId`, che ora c'è: quando il prossimo incremento
-di formato atterrerà, il campo può viaggiare con quello.
+### 4.4 `Priority` — formato **v7** *(2026-08-10, CP 11.3 `#79`)*
+
+Il DoD di CP 11.3 chiede la **priorità** in ogni voce. Nella prima passata non c'era, e la ragione era di
+coordinamento e non di design: è un campo nuovo, cioè una versione nuova del formato, e la `v6` era già
+rivendicata da un altro ramo. Due formati con lo stesso numero sono il difetto peggiore possibile per un file
+versionato — il loader sceglie l'interpretazione dal numero e non ha modo di accorgersi dello scambio.
+
+La `v6` è poi atterrata come `WithUnitId` ([D-063]). La **`v7` è stata presa dopo aver verificato tutti i
+branch remoti**, non solo `main`: è il controllo che [D-070] ha reso obbligatorio dopo l'ottava collisione di
+contatore.
+
+```cpp
+UENUM(BlueprintType) enum class ERTTurnLogFormatVersion : uint16 {
+    /* … */
+    WithUnitId   = 6,
+    WithPriority = 7   // + un int32 in coda alla voce, dopo i tre della v6
+};
+```
+
+**Fuori dall'hash, dentro l'ordinamento** — e le due cose non si contraddicono, perché rispondono a domande
+diverse:
+
+| | `Priority` | Perché |
+|---|:--:|---|
+| `HashTurnLog` | **no** | È una **funzione** di `ActionId`, che nell'hash c'è già: due tracce non possono differire solo per questo campo, quindi mescolarlo aggiunge zero potere discriminante e invaliderebbe ogni hash golden. Stesso argomento di `BaseActionId` |
+| `EntryLess` | **sì** | È un campo **scritto**. Un campo scritto che il confronto non guarda lascia due voci a pari merito, dove decide `TArray::Sort` — che non è stabile. Due inserimenti diversi produrrebbero due file diversi con lo stesso contenuto, rompendo `D-SR-1` |
+
+**Le tracce dalla 2 alla 6 restano leggibili**, con `Priority = 0`. E lo zero **non si riempie consultando il
+catalogo**, che pure sarebbe possibile: è la stessa inferenza che D-063 ha dichiarato non valida per l'unità —
+il catalogo di oggi può non essere quello con cui la traccia fu scritta, e una priorità dedotta racconterebbe
+un ordine di risoluzione mai avvenuto. Per la stessa ragione il combat log non stampa `p0`: zero significa
+*«non dichiarata»*, non *«priorità zero»*.
 
 ---
 
@@ -318,8 +345,11 @@ di formato atterrerà, il campo può viaggiare con quello.
 +danno»: la quota non dà danno, [D-024](../decisions/RT_PDR_00_Decision_Log.md).)*
 
 **Ordinamento del TurnLog** (deterministico, invariante #3/§5.1): **fase → categoria → `SrcCell` → `TgtCell` →
-`Outcome` → `Amount` → `ActionId` → `TurnNumber` → `GraphRevision` → `UnitId`**. Non dipende **mai**
-dall'ordine d'inserimento nel container.
+`Outcome` → `Amount` → `ActionId` → `TurnNumber` → `GraphRevision` → `UnitId` → `Priority`**. Non dipende
+**mai** dall'ordine d'inserimento nel container.
+
+> `Priority` chiude la catena dalla **v7** (`#79`). L'ha aggiunta la stessa modifica che ha introdotto il
+> campo, e per la regola qui sotto — non per simmetria: è un campo **scritto**, quindi doveva entrarci.
 
 > ⚠️ **La regola che tiene in piedi la precedente**: ogni campo che il formato serializzato **scrive** deve
 > stare in questa catena, o due voci che pareggiano su tutto il resto restano a pari merito e a decidere

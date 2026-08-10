@@ -800,7 +800,7 @@ features:
       - docs/wiki/meccaniche/topologia-dinamica.md
     pie_refs: [PIE-V01-DOOR]
     wiki_note: >-
-      Dato, regole di blocco e mutazione del bordo sono implementati e testati; l'**interazione del giocatore** (`Interact`/`Activate`) arriva con E10.
+      Dato, regole di blocco e mutazione del bordo sono implementati e testati; l'**interazione del giocatore** (`Action.Interact`) arriva con E10.
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -1007,11 +1007,11 @@ features:
       - Spec.Brace.GuardAndBraceOnMixedHit
       - Spec.Brace.BraceWinsOnSecondHit
       # Rinominato da `Spec.Combat.BastionIgnoresAllPushes`, che e' il nome previsto dal piano `BAL-1` e
-      # dalla DoD di #402: D-074 ha deciso dall'altra parte (`PushResistance` 1 -> 0), quindi quel nome
+      # dalla DoD di #402: D-075 ha deciso dall'altra parte (`PushResistance` 1 -> 0), quindi quel nome
       # avrebbe significato il contrario di cio' che il file verifica.
       - Spec.Combat.BastionIsPushedLikeAnyone
       # Il quarto NON si scrive, e non e' un rinvio: `Spec.Brace.PushBeyondGuardThreshold` chiedeva una
-      # spinta di 2 per far cedere `Guard` e mostrare la clausola di `Brace`. D-073 (uscita (B) di #400)
+      # spinta di 2 per far cedere `Guard` e mostrare la clausola di `Brace`. D-074 (uscita (B) di #400)
       # ha deciso di NON introdurla e di riscrivere invece la clausola: senza quel numero lo scenario non
       # ha soggetto. Rinasce solo se una v0.2 introduce la spinta forte.
     wiki_refs:
@@ -2684,6 +2684,7 @@ features:
       - RefactorTactics.HexMatch.TurnLogExplainsTheTurn
       - RefactorTactics.TurnLog.CombatEntryNamesItsAction
       - RefactorTactics.TurnLog.BasicAttackLogsBaseAndProfile
+      - RefactorTactics.TurnLog.PrioritySurvivesRoundTripAndStaysOutOfHash
     scenarios:
       - Visual.Core.PhaseOrder
     wiki_refs:
@@ -3733,6 +3734,8 @@ features:
       - RefactorTactics.Unit.ShortHeroNameFromStableId
       - RefactorTactics.ScenarioIndex.IdIsIndependentOfPath
       - RefactorTactics.Actions.RetiredStableIdRedirectsToHeir
+      - RefactorTactics.Catalog.ValidatorRejectsRetiredStableId
+      - RefactorTactics.TurnLog.RetiredActionIdIsStillReadableFromDisk
     scenarios: []
     wiki_refs: []
     last_verified:

@@ -7,7 +7,7 @@
 
   "_nota": "L'ALTRA META' di `Spec.Brace.GuardAndBraceOnMixedHit`, e l'unico posto dove il trade-off vero fra le due difese diventa rosso se cambia. Su UN colpo `Guard` domina (1 danno contro 6); su DUE colpi nello stesso turno si rovescia, perche' il -15 della guardia vale una volta sola e il -10 dell'irrigidimento vale su ogni colpo. Guardia: 1 + 16 = 17. Irrigidimento: 6 + 6 = 12.",
 
-  "_nota_perche_esiste": "#401. Il trade-off che il giocatore incontra davvero non e' *danno* contro *spostamento* — quello non e' osservabile in v0.1, vedi D-073 — ma *primo colpo pesante* contro *colpi ripetuti*. Finche' nessun file lo pinnava, la frase era prosa: si poteva azzerare `BraceDamageReduction` o farlo valere solo sul primo colpo senza che una suite verde se ne accorgesse.",
+  "_nota_perche_esiste": "#401. Il trade-off che il giocatore incontra davvero non e' *danno* contro *spostamento* — quello non e' osservabile in v0.1, vedi D-074 — ma *primo colpo pesante* contro *colpi ripetuti*. Finche' nessun file lo pinnava, la frase era prosa: si poteva azzerare `BraceDamageReduction` o farlo valere solo sul primo colpo senza che una suite verde se ne accorgesse.",
 
   "_nota_perche_due_colpi_nello_stesso_turno": "Non due turni. `Guard` e `Brace` scadono nel Cleanup, quindi con due turni il difensore ridichiarerebbe la guardia e riprenderebbe il -15 anche sul secondo colpo (1 + 1 = 2): il confronto misurerebbe la durata, non la regola «una volta sola». I due colpi devono stare nello STESSO turno perche' la differenza esista.",
 

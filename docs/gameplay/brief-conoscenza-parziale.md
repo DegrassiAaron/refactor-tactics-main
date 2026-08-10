@@ -43,7 +43,7 @@ Lo slice adotta **tre stati** invece di cinque: `Nascosto`, `ContattoIncerto`, `
 | **D2** | La visibilità è **vista derivata**: funzione pura di `(stato unità, mappa)` | Non entra nel checksum né nel formato serializzato; ricalcolabile e testabile headless. Coerente con l'invariante #4 |
 | **D3** | L'**ultimo contatto** è memoria, e vive in un campo **per squadra nello snapshot**, con versione di formato incrementata | L'unica cosa non deducibile dallo stato corrente. Esplicito e nel TurnLog invece che in un componente a lato che potrebbe divergere dal replay |
 | **D4** | La visibilità si ricalcola ai **confini di fase**, non a ogni micro-step | Il Dash precede il Blast: riposizionarsi *può* ancora aprire o chiudere una linea prima degli attacchi — il 90% del valore tattico, senza toccare «raccogli poi applica» (invariante #3) |
-| **D5** | Il **targeting** è limitato alla conoscenza **di squadra**, non individuale | È la «copertura informativa»: chi ha vista 6 estende la portata utile di chi ha vista 5. Emerge dai numeri esistenti, senza una regola nuova |
+| **D5** | Il **targeting** è limitato alla conoscenza **di squadra**, non individuale | È la «copertura informativa»: chi vede più lontano estende la portata utile di chi vede meno. Emerge dai numeri esistenti, senza una regola nuova |
 | **D6** | Il **bot** pianifica sulla **stessa** conoscenza parziale | In un 2v2 offline, nascondersi da un avversario onnisciente è teatro. È la voce più costosa dello slice ed è deliberata |
 | **D7** | ~~Nessuna finestra~~ → ~~finestra come presentazione~~ → **finestra interattiva vera** (rivista **due volte** il 2026-08-07) | **Superata da D16–D22** in [`brief-overwatch-reazioni.md`](brief-overwatch-reazioni.md). Il documento sorgente sull'Overwatch, emerso dopo, mostra che il bait/bluff non è recuperabile con condizioni dichiarate: se dichiaro «spara al primo che entra», il tank brucia sempre la reaction. La via (b) di `spec-sequenza-turno.md` §3 riconcilia la finestra con l'invariante #3 **per composizione** (sequenza di sotto-risoluzioni). ✅ Formalizzata in [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) |
 | **D8** | Il vertical slice è **Flux · Riva · Bastion · Vektor**; i 4 archetipi Paragon del workbook tornano `Candidate` | I cataloghi `.md` sono il canone (regola «`.md` > `.pdf`»); il workbook allinea roster e scale |
@@ -55,7 +55,7 @@ Lo slice adotta **tre stati** invece di cinque: `Nascosto`, `ContattoIncerto`, `
 
 **In scope**
 
-- Raggio di vista per eroe (`Vista` del catalogo: Flux 6, Riva 5, Bastion 5, Vektor 6) che **decide qualcosa**.
+- Raggio di vista per eroe (`Vista` del catalogo: Flux **7**, Riva 5, Bastion 5, Vektor 6) che **decide qualcosa**.
 - Celle visibili per unità = `HexDistance ≤ Vista` **e** `HasLineOfSight`; conoscenza di squadra = unione.
 - Tre stati di contatto: `Nascosto`, `ContattoIncerto`, `Rilevato`, più `UltimoContatto` (persistenza **1 turno**).
 - **Canale acustico**: eventi di rumore, propagazione intera sul grafo, soglia d'udito, contatto `Incerto` (§12).
@@ -74,7 +74,7 @@ rivela · zona di raggiungibilità prevista nell'HUD · jamming e relay.
 
 | Azione | Range | Vista di chi la usa |
 |---|---:|---:|
-| `Flux.ArcPulse` | 4 | 6 |
+| `Flux.ArcPulse` | 4 | 7 |
 | `Vektor.PulseShot` | 4 | 6 |
 | `Bastion.ImpactShot` | 3 | 5 |
 | `Action.LineAttack` | 5 | ≥ 5 |
@@ -82,9 +82,20 @@ rivela · zona di raggiungibilità prevista nell'HUD · jamming e relay.
 Nessuna azione **verificata** supera la vista del proprietario: il vincolo `range ≤ vista` è già soddisfatto,
 quindi D5 **non riduce la gittata di nessuno**. Morde solo su bersagli non ancora noti, che è il suo scopo.
 
-Il delta vista 6 vs 5 vale **informazione**, non danno: a distanza 6 nessuna azione del roster arriva, quindi
-la vista lunga concede *anticipo di un turno*, non un colpo gratis. Questo evita di aggravare la dominanza di
-Vektor su Flux e Riva già registrata in CP 6.5 di [`RT_HeroCatalog_v0.1.md`](../balance/RT_HeroCatalog_v0.1.md).
+Il delta di vista vale **informazione**, non danno: oltre il raggio 5 nessuna azione del roster arriva, quindi
+la vista lunga concede *anticipo*, non un colpo gratis. L'argomento non cambia con la distanza — vale a 6 come
+a 7, perché dipende dal fatto che **nessuna** azione ci arrivi.
+
+> ⚠️ **Aggiornato il 2026-08-10.** Questo paragrafo diceva «il delta **vista 6 vs 5**» e chiudeva con
+> *«questo evita di aggravare la dominanza di Vektor su Flux e Riva già registrata in CP 6.5»*. Entrambe le
+> affermazioni sono superate: dopo [D-073](../decisions/RT_PDR_00_Decision_Log.md) Flux ha **vista 7**, quindi
+> lo scarto massimo è di **due** punti, e la dominanza non è più «da evitare di aggravare» — **non esiste
+> più** (`#131` chiusa: nessun eroe domina nessun altro sulle quattro statistiche base).
+>
+> Vale però registrare che la vista è diventata **la leva** con cui quella dominanza è stata tolta. Finché
+> E13 non esiste la vista non decide nulla, quindi il cambio è stato a costo zero; **quando E13 arriverà,
+> questo brief è il posto in cui ricontrollare** che due punti di scarto informativo siano un vantaggio
+> proporzionato e non un secondo asse di dominanza per un'altra strada.
 
 > **Assunzione dichiarata**: i range di `PrecisionAttack`, `HeavyAttack`, `CircularAoE`, `SuppressiveLine`,
 > `MarkTarget`, `Push`, `Pull` e `Heal` **non** sono esposti nelle tabelle del catalogo azioni e non sono stati
