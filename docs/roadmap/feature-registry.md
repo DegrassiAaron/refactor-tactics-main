@@ -54,7 +54,7 @@ riferimenti del workbook. Se serve, si rinomina e si rigenera tutto nello stesso
 | `automation` | Test automatici pertinenti, verdi, che chiamano il gameplay reale |
 | `scenario` | Almeno uno scenario in `Scenarios/` la **dimostra** — vedi la nota qui sotto |
 | `ui_wiki` | È spiegata all'utente **e** leggibile in gioco — servono entrambe. Con una sola delle due: `partial` (regola 5) |
-| `packaged` | Verificata nella build packaged **della release corrente** |
+| `packaged` | Verificata nella build packaged **della release corrente** — chi lo dimostra sta in `pie_refs` (regola 6) |
 | `network_privacy` | Corretta in rete: autorità server e nessuna fuga di intento |
 
 Valori: `done` · `partial` · `todo` · `na`.
@@ -84,6 +84,34 @@ Cinque regole che vale la pena scrivere, perché sono i modi in cui questo schem
    su una pagina che della feature non parla. Serve testo che descriva la meccanica. Una pagina che
    dichiara l'*assenza* della feature — «il bot non fa ancora giocate a due» — documenta ciò che
    c'è oggi, non la feature futura: quel gate resta `todo`.
+
+   Corollario aggiunto il 2026-08-10, perché l'avviso «nessuna pagina Wiki collegata» contraddiceva
+   questa stessa regola: la Wiki è rivolta a chi gioca, e `wiki_refs` vuoto è **legittimo** per una
+   feature `tooling`, `data` o `infra`. L'avviso ora vale solo per `gameplay`, `ui` e `content` — le
+   sole categorie che la Wiki documenta, come i dati già dicevano (60 pagine collegate, nessuna a
+   una feature interna). Restava invece scoperto il caso opposto, che ora è un **errore**:
+   `ui_wiki: done` dichiara entrambe le metà, quindi senza `wiki_refs` afferma una spiegazione che
+   non esiste.
+
+6. **`packaged` dice che una persona ha verificato; `pie_refs` dice quale verifica.** Il gate vale
+   `done` quando la feature è stata provata nella build packaged, e la prova è una voce `PIE-*` di
+   [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md). Fino al 2026-08-10 quel
+   legame **non era un dato**: viveva nel corpo delle issue GitHub, fuori dal repository. La
+   conseguenza è la stessa famiglia del dato che nessun consumatore legge, al contrario — il giorno
+   in cui `PIE-V01-HUD` diventa ✅, nessuno sa che quattro feature possono avanzare il gate.
+
+   Ora il validator lo deriva: `packaged: done` con una voce citata non ✅ è un **errore**, e tutte
+   le voci ✅ con il gate ancora `partial`/`todo` è un **avviso** che il gate può avanzare. Il campo
+   è opzionale — assente significa «non ancora mappato», non «nessuna verifica manuale».
+
+   **Come si assegna, e come non si assegna.** L'origine è la sezione «Test / verifica» dell'issue
+   che la feature dichiara, ma quella citazione è un indizio, non una prova: quando più feature
+   dichiarano la stessa issue, il criterio meccanico attacca la stessa voce a tutte. È costato tre
+   legami falsi, trovati in review — `PIE-V01-HUD` verifica barre, timer, slot e cooldown, quindi
+   dimostra l'HUD di planning, non la camera tattica né il playback della risoluzione. Prima di
+   scrivere un legame si legge il **testo della voce** e si verifica che parli di quella feature.
+   Una stessa voce può legittimamente dimostrarne più d'una; non lo fa per il solo fatto che l'issue
+   è condivisa.
 
 ### 4.1 Quando un pezzo lo porta un'altra feature
 

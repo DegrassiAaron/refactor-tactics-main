@@ -223,8 +223,11 @@ enum class ERTCombatOutcome : uint8
 
 /**
  * Voce del TurnLog: un esito autoritativo del turno con il suo reason code. Osservabilita' separata
- * dalla presentazione (non e' FRTResolvedEvent). Deterministica: la chiave dell'unita' e' la sua cella
- * di partenza del turno (max 1 unita'/cella), mai un pointer.
+ * dalla presentazione (non e' FRTResolvedEvent). Deterministica: mai un pointer, mai l'ordine di spawn.
+ *
+ * ⚠️ La cella di partenza resta la chiave di ORDINAMENTO, non l'identita' dell'unita': non regge per le
+ * voci ambientali, per l'interposizione (che scrive la cella del protetto) e dopo un Dash. L'identita' la
+ * porta `UnitId` dal formato v6 (D-063).
  */
 USTRUCT(BlueprintType)
 struct FRTTurnLogEntry
@@ -286,6 +289,51 @@ struct FRTTurnLogEntry
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	FName BaseActionId;
 
+	/**
+	 * IDENTITA' dell'unita' che ha prodotto la voce. `0` = nessuna unita' (voci ambientali).
+	 *
+	 * Esiste perche' `D-TL-2` — «chiave unita' = cella di partenza del turno» — **non regge** come chiave di
+	 * identita', e il codice lo dimostra in tre punti: le voci ambientali non hanno un'unita' e `SrcCell` e' la
+	 * cella che cambia superficie; l'interposizione scrive nel campo la cella del **protetto**, non dell'attore;
+	 * e dopo un Dash la cella in fase Blast non e' piu' quella di partenza. La cella resta ottima chiave di
+	 * **ordinamento** (`EntryLess`), che e' l'uso per cui D-TL-2 e' stata scritta.
+	 *
+	 * ⚠️ **NON entra nell'hash** ([D-063](../../../docs/decisions/RT_PDR_00_Decision_Log.md)): serve a rendere
+	 * la traccia spiegabile, non a discriminarla. Stesso ragionamento di `FormatId` e `BaseActionId`.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	int32 UnitId = 0;
+
+	/**
+	 * Turno in cui la voce e' stata emessa. `0` = non dichiarato (tracce scritte prima del formato v6).
+	 *
+	 * Il TurnLog vive per turno, quindi il numero e' una costante per traccia — ma una traccia estratta dal suo
+	 * contenitore, che e' esattamente cio' che un replay archive fa, senza questo campo non saprebbe piu' dirlo.
+	 * ⚠️ **NON entra nell'hash**, per la stessa ragione di `UnitId`.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	int32 TurnNumber = 0;
+
+	/**
+	 * Revisione del grafo di mappa in vigore quando la voce e' stata emessa. `0` = non dichiarata.
+	 *
+	 * `URTHexMapAsset::Revision` sale a ogni modifica strutturale, e sale **durante** la risoluzione: una
+	 * porta che si apre, una superficie che cambia, un ponte che crolla. Senza questo campo una traccia non
+	 * puo' dire su QUALE grafo un movimento e' stato validato — che e' esattamente la domanda del caso
+	 * «un'unita' ha attraversato un muro», dove il muro potrebbe essere caduto due eventi prima.
+	 *
+	 * ⚠️ **ENTRA nell'hash**, al contrario di `UnitId` e `TurnNumber`, e per lo stesso criterio: due tracce
+	 * POSSONO differire solo per questo campo — stessi eventi, grafo diverso perche' modificato in un turno
+	 * precedente — e sono due partite diverse. Entrando nell'hash entra anche in `EntryLess`: un campo
+	 * serializzato che l'ordinamento non guarda lascia la forma canonica indefinita fra due voci a pari merito.
+	 *
+	 * Non esiste un `TransitionId` che lo accompagni, ed e' deliberato: `FRTHexEdge` e' `From`/`To`/`Cost`/`Kind`
+	 * **senza ID**, perche' nel progetto l'identita' di un bordo E' la coppia di celle — che questa voce porta
+	 * gia' in `SrcCell`/`TgtCell`.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	int32 GraphRevision = 0;
+
 	FRTTurnLogEntry() = default;
 };
 
@@ -320,7 +368,28 @@ enum class ERTTurnLogFormatVersion : uint16
 	 * che quei byte dicevano. E **gli hash golden non cambiano**: il campo sta fuori dall'hash (vedi la
 	 * dichiarazione di `FRTTurnLogEntry::BaseActionId` per il perche').
 	 */
-	WithBaseActionId = 5
+	WithBaseActionId = 5,
+	/**
+	 * + `UnitId` e `TurnNumber` (D-063) e `GraphRevision` ([D-067](../../../docs/decisions/RT_PDR_00_Decision_Log.md)):
+	 * **tre** int32 in coda alla voce, dopo `BaseActionId`. I campi precedenti non si spostano, quindi un
+	 * lettore che sa saltare le stringhe trova tutto dov'era.
+	 *
+	 * Le tracce dalla 2 alla 5 restano LEGGIBILI, con i tre campi a `0` — che e' esattamente cio' che quei
+	 * byte dicevano: `UnitId = 0` significa «nessuna unita'», e dedurre l'unita' dalla cella sarebbe
+	 * l'inferenza che D-063 ha dichiarato non valida.
+	 *
+	 * ⚠️ **Gli hash golden CAMBIANO**, e va detto perche' la stesura precedente affermava il contrario:
+	 * `UnitId` e `TurnNumber` restano fuori dall'hash, ma `GraphRevision` vi entra (D-067), e un passo FNV
+	 * in piu' cambia il valore di **ogni** traccia anche mescolando `0`. Il corpus golden non si rompe per
+	 * un'altra ragione — confronta tracce ricalcolate su entrambi i lati, non costanti pinnate — non perche'
+	 * gli hash siano rimasti quelli.
+	 *
+	 * ⚠️ L'hash ordinato di D-062 **non e' qui, ed e' deliberato**: i byte sono in forma canonica (`D-SR-1`),
+	 * quindi la serializzazione perde l'ordine di emissione e un hash dell'ordine scritto in questo header
+	 * renderebbe i byte dipendenti dall'ordine d'inserimento — cioe' romperebbe `D-SR-1` e il test
+	 * `SerializeCanonicalPermutationInvariant`. Quel valore appartiene all'header del Replay Archive.
+	 */
+	WithUnitId = 6
 };
 
 /**

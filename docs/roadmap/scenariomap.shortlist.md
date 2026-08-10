@@ -17,7 +17,7 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 
 <!-- RT_SHORTLIST_SCENARIOS:BEGIN -->
 
-**60 scenari versionati** — misurati su `Scenarios/`: **48** eseguibili · **12** `BLOCKED` per una capability assente · **32** dichiarati `planned` nel registry e non ancora scritti.
+**60 scenari versionati** — misurati su `Scenarios/`: **48** eseguibili · **12** `BLOCKED` per una capability assente · **38** dichiarati `planned` nel registry e non ancora scritti.
 
 **Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `Cover` · `CreateCover` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `PredictiveAction` · `Reaction` · `Structures`.
 
@@ -38,7 +38,10 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 
 | Pianificato, non scritto | Feature che lo chiede |
 |---|---|
+| `Spec.Brace.AnchorResistsDisplacement` | `RT-FEAT-REACTION-PROFILE` |
 | `Spec.Brace.BraceWinsOnSecondHit` | `RT-FEAT-ACTION-GENERIC` |
+| `Spec.Brace.DeflectOffersOnlyLegalSides` | `RT-FEAT-REACTION-PROFILE` |
+| `Spec.Brace.FlowRedirectsToLegalHexOnly` | `RT-FEAT-REACTION-PROFILE` |
 | `Spec.Brace.GuardAndBraceOnMixedHit` | `RT-FEAT-ACTION-GENERIC` |
 | `Spec.Brace.PushBeyondGuardThreshold` | `RT-FEAT-ACTION-GENERIC` |
 | `Spec.Clash.Determinism` | `RT-FEAT-REACTION-CLASH` |
@@ -50,6 +53,9 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 | `Spec.Map.NinetyDegreeCornerBakesCorrectly` | `RT-FEAT-MAP-STANDABILITY` |
 | `Spec.Map.ValidCellsBlockedTransition` | `RT-FEAT-MAP-TRANSITION-CLEARANCE` |
 | `Spec.Map.WallCrossesCellStillStandable` | `RT-FEAT-MAP-STANDABILITY` |
+| `Spec.Overwatch.ConductiveDischargeUsesStandardConduction` | `RT-FEAT-REACTION-OVERWATCH` |
+| `Spec.Overwatch.FrontlineFollowsFacing` | `RT-FEAT-REACTION-OVERWATCH` |
+| `Spec.Overwatch.PressurePushChangesResolvedPath` | `RT-FEAT-REACTION-OVERWATCH` |
 | `Spec.TimeBank.BotDrainsLikePlayer` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
 | `Spec.TimeBank.ClashCostsFullWindow` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
 | `Spec.TimeBank.DrainsAfterGrace` | `RT-FEAT-CORE-DECISION-TIME-BANK` |

@@ -863,6 +863,19 @@ livello `Rilevato`, non solo LOS. È **l'ultima epic della v0.1** e la **prima d
 | **14.7** *(nuovo 2026-08-09)* | **Reaction Clash** — opportunity *contested* | `Brace` **arma un profilo** e non è più «un'azione che si dichiara e basta» ([D-047](../decisions/RT_PDR_00_Decision_Log.md)): `Hold Ground` è la risposta universale e **coincide col comportamento di oggi**, quindi nessun numero si muove e i due scenari restano verdi. Un'opportunity è **contested** quando *due* partecipanti hanno ciascuno ≥ 2 risposte legali — **derivato dalla cardinalità, nessun campo `Type`** (è il rischio (b) di questa epic). Scelta in cieco, **reveal a scadenza fissa** — la finestra dura sempre 3,0 s e non anticipa se entrambi lockano subito, perché il momento del lock è un canale ([D-048](../decisions/RT_PDR_00_Decision_Log.md), emenda ADR-0004 §7) — poi confronto deterministico. Il boundary contested vale **1 prompt**, quindi il caso peggiore di ADR-0004 §8 non cambia. Gli esiti si esprimono **solo** con `FRTActionEffectSpec`, mai callback. **Sostituire** `Reactions.Brace.IsNotAReaction`, che pinna la classificazione vecchia | `Reactions.Brace.BaseProfileHasSingleResponse`, `Reactions.Brace.RicherProfileOpensWindow`, `Clash.ContestedIsDerivedNotDeclared`, `Clash.RevealIsFixedDeadline`, `Clash.HiddenUntilReveal`, `Clash.TieAppliesOnce`, `Clash.CostConsumedOnLock`, `Clash.NoNestedWindow`, `Clash.Determinism`; scenari `Spec.Clash.*` |
 | **14.8** *(nuovo 2026-08-09)* | **Decision Time Bank** — budget di decisione per giocatore | Una risorsa temporale **per giocatore**, condivisa da tutte le Decision Window live: dentro la `Grace` non consuma, oltre consuma il tempo effettivo, e allo scadere costa `MaxWindow − Grace` per intero. `InitialBank` è **derivato** — `RoundLimit × (MaxWindow − Grace)`, 24 s in 2v2 — non un numero fisso. La singola finestra **resta 3,0 s**: il bank non la allunga mai e non tocca mai le `AllowedResponses`. È **wall-clock, non regola**: sta accanto a `PlanningSeconds` e non entra in `URTMatchFormatData` né in alcun hash (`RTMatchFormatData.h`). Il residuo è un **input canonico registrato**: il replay lo legge dal TurnLog, non lo ricalcola. Visibilità **owner-only** — un bank pubblico riaprirebbe il canale che [D-021](../decisions/RT_PDR_00_Decision_Log.md) e [D-048](../decisions/RT_PDR_00_Decision_Log.md) chiudono. Il **bot ha un bank** e lo consuma per policy: nessun ramo `IsBot` nella Decision Window. Vincolo che rende equo il costo pieno del timeout: il fallback è **preselezionato e raggiungibile entro la grace**, apparizione del prompt inclusa — **da misurare**, non da assumere. **Sostituisce D20** («nessun cap aggregato») prima della misura che l'avrebbe informata: rischio dichiarato, e i due rientri di ADR-0004 §Revisione restano validi. **Non precede 14.5/14.6**: la prima misura arriva prima della taratura. Owner: [`spec-decision-time-bank.md`](../gameplay/spec-decision-time-bank.md) | `TimeBank.GraceDoesNotDrain`, `TimeBank.DrainsAfterGrace`, `TimeBank.TimeoutCostsFullWindow`, `TimeBank.TimeoutSpendsNoCharge`, `TimeBank.NeverBelowZero`, `TimeBank.ClashCostsFullWindow`, `TimeBank.BotDrainsLikePlayer`, `TimeBank.ReplayReadsRecordedBank`, `TimeBank.PacketOrderInvariant`; UI `TimeBank.FallbackReachableWithinGrace`; scenari `Spec.TimeBank.*` |
 
+> ⏳ **CP 14.4 e CP 14.7 hanno il meccanismo, non il contenuto (2026-08-10).** Entrambi dichiarano che il
+> profilo è un **dato per eroe** — `Overwatch.ProfileIsDataNotBranch` per il primo,
+> [D-047](../decisions/RT_PDR_00_Decision_Log.md) per il secondo — ma **quali** siano i quattro profili non è
+> deciso da nessuna parte. Il sorgente `CLAUDE_Consolidamento_BaseAction_Signatures_Brace_Overwatch_2026-08-10.md`
+> ne propone due tabelle complete (`Grounding · Flow · Anchor · Deflection` per `Brace`;
+> `Conductive · Pressure · Frontline · Predictive` per `Overwatch`); il triage in
+> [`plans/baseaction-signatures-spec-panel-2026-08-10.md`](plans/baseaction-signatures-spec-panel-2026-08-10.md)
+> le ha verificate contro il canone e ha registrato cinque domande **`BAS-1`…`BAS-5`** in
+> [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) — fra cui due **collisioni di nome** con reazioni già cablate
+> in CP 6.7. Nessun DoD cambia: i sei scenari corrispondenti sono `planned`, e restano tali finché la
+> decisione non arriva. **`BAS-5` è chiusa** dal triage sul lifecycle (sotto): il post-Overwatch è
+> `Watch → EndWatchStage → Reposition`, non un Move a budget ridotto.
+
 > ⚠️ **CP 14.5 cambia consumatore (2026-08-08).** `Vektor.InterceptShot` era il caso concreto scelto per la
 > prima finestra. Con [D-016](../decisions/RT_PDR_00_Decision_Log.md) quell'azione diventa una **Predictive
 > Action** — decisa in Planning, risolta a un boundary, **senza input live** — quindi **non le serve una
@@ -882,6 +895,19 @@ armata, senza cap aggregato (decisione D20). La soglia d'allarme di ADR-0004 è 
 anticipata al CP 14.5 con decisioni immediate, così il pacing si scopre prima di costruire la UI.
 (b) **Non** costruire la policy `AutoCommit/PromptOwner` proposta dal documento di integrazione: è la stessa
 cosa di `AllowedResponses ≤ 1` (ADR-0004 §2), che la deriva dai dati invece di aggiungere un enum parallelo.
+
+> 📉 **Il rischio (a) si riduce di un terzo se la cadence diventa *once-per-target* (2026-08-10).** Il
+> sorgente sul lifecycle dell'Overwatch propone che un'Overwatch offra **al massimo un'opportunity per
+> bersaglio distinto** per Reaction Instance — HOLD su un bersaglio non riapre per quello stesso bersaglio,
+> nemmeno se esce e rientra. In **2v2** i bersagli avversari sono **due**, quindi il caso peggiore passa da
+> `3 × 3 s = 9 s` a `2 × 3 s = **6 s**`, e `MaxPromptsPerReaction = 3` diventa **irraggiungibile** da una
+> singola Overwatch. Il valore **non va cambiato** — il formato competitivo non è deciso
+> ([D-011](../decisions/RT_PDR_00_Decision_Log.md)) e in 3v3 il terzo prompt torna possibile — ma il rientro
+> `MaxPromptsPerReaction = 1` che ADR-0004 §Revisione teneva pronto diventa molto meno probabile che serva.
+> ⚠️ **È un conto, non una misura**: quella di CP 14.5 va fatta comunque. La cadence ha già la sua specifica
+> eseguibile in `Spec.Overwatch.HoldThenFire`, dove Vektor fa `HOLD` su Flux e `FIRE` su Riva — due bersagli
+> diversi. Triage: [`plans/overwatch-runtime-lifecycle-triage-2026-08-10.md`](plans/overwatch-runtime-lifecycle-triage-2026-08-10.md);
+> costo e nome del ciclo Watch/Reposition restano `OW-1`/`OW-2` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md).
 
 ---
 
