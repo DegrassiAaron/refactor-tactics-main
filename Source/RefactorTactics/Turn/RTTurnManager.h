@@ -232,6 +232,9 @@ public:
 	/** Identita' della registrazione in corso. Non valida finche' `BeginReplayRecording` non e' stata chiamata. */
 	FGuid GetReplayMatchId() const { return ReplayManifest.MatchId; }
 
+	/** Ultimo checksum di stato catturato. `0` = mai calcolato (registrazione spenta, o nessun turno risolto). */
+	int64 GetPendingFinalStateHash() const { return PendingFinalStateHash; }
+
 	/** Rotte effettivamente percorse nell'ultima risoluzione (viz post-lock del percorso eseguito). */
 	const TArray<TArray<FRTCellId>>& GetLastMoveRoutes() const { return LastMoveRoutes; }
 
@@ -570,6 +573,17 @@ protected:
 
 	/** Chiude l'archivio a partita finita. Silenziosa se la registrazione e' spenta o non e' mai partita. */
 	void CloseReplayArchive();
+
+	/**
+	 * Calcola il checksum dello stato e lo conserva, per la chiusura dell'archivio.
+	 *
+	 * Va chiamata **prima** di `DestroyDefeatedUnits` ([D-084]): dopo, le unita' cadute non esistono piu' e
+	 * il digest non potrebbe piu' distinguere «tre vivi e un caduto» da «tre vivi e basta».
+	 */
+	void CaptureFinalStateHash();
+
+	/** L'ultimo checksum catturato, usato alla chiusura. `0` = mai calcolato. */
+	int64 PendingFinalStateHash = 0;
 
 	/** La radice effettiva: l'override se c'e', altrimenti `Saved/Replays`. */
 	FString ResolveReplaysRoot() const;

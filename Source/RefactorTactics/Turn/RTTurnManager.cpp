@@ -32,6 +32,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Replay/RTReplayRecorderLibrary.h"
+#include "Turn/RTMatchStateHash.h"
 #include "Misc/DateTime.h"
 #include "HAL/FileManager.h"
 
@@ -1331,6 +1332,12 @@ void ARTTurnManager::ConcludeTurn()
 	// sbagliato.
 	RecordTurnToReplay();
 
+	// ⚠️ Il checksum di fine partita si cattura QUI, **prima** che le unita' morte vengano distrutte: dopo,
+	// una caduta non esisterebbe piu' e `bAlive = false` non comparirebbe mai in una partita vera — due
+	// finali diversi per chi e' rimasto in piedi darebbero lo stesso hash. E' la decisione presa con
+	// [D-084], insieme all'identita' che il digest usa.
+	CaptureFinalStateHash();
+
 	// Morte visiva differita: ora che il playback ha mostrato le eliminazioni, rimuovi gli Actor morti
 	// (prima del prossimo turno, cosi' non figurano piu' come bersagli/ostacoli).
 	DestroyDefeatedUnits();
@@ -1393,6 +1400,41 @@ void ARTTurnManager::AddTeamScore(int32 TeamId, int32 Points)
 		TeamId, Points, Team0Score, Team1Score));
 }
 
+void ARTTurnManager::CaptureFinalStateHash()
+{
+	if (!bRecordReplay || !ReplayManifest.MatchId.IsValid() || ReplayManifest.bClosed)
+	{
+		return;
+	}
+
+	// Si cattura a ogni turno e non solo all'ultimo: l'ultimo non si sa quale sia finche' non e' passato, e
+	// un turno che chiude la partita per eliminazione lo scopre solo dopo aver risolto. Costa un hash per
+	// turno — la stessa spesa che l'harness fa a fine scenario — e in cambio il valore c'e' sempre, anche
+	// quando la partita finisce in un ramo che non avevamo previsto.
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+
+	TArray<ARTUnit*> Units;
+	Units.Reserve(Actors.Num());
+	for (AActor* Actor : Actors)
+	{
+		if (ARTUnit* Unit = Cast<ARTUnit>(Actor))
+		{
+			Units.Add(Unit);
+		}
+	}
+
+	FVector Origin; float CellSize = 0.f; float LayerH = 0.f;
+	const URTHexMapAsset* Map = GetHexContext(Origin, CellSize, LayerH);
+
+	TArray<int32> TeamScores;
+	TeamScores.Add(GetTeamScore(0));
+	TeamScores.Add(GetTeamScore(1));
+
+	PendingFinalStateHash = static_cast<int64>(URTMatchStateHashLibrary::HashMatchState(
+		Map, URTMatchStateHashLibrary::BuildUnitDigests(Units), TeamScores));
+}
+
 void ARTTurnManager::BeginReplayRecording()
 {
 	if (!bRecordReplay)
@@ -1440,13 +1482,10 @@ void ARTTurnManager::CloseReplayArchive()
 		return;
 	}
 
-	// ⚠️ `FinalStateHash` resta 0: il checksum di fine partita non ha ancora un produttore, e la ragione
-	// non e' una svista ma una decisione aperta — `FRTUnitStateDigest::Id` entra nell'hash ed e' oggi la
-	// chiave del file di scenario, che una partita non ha (issue #490). Il campo e' dichiarato non
-	// calcolato dal manifest stesso, che e' meglio di un numero inventato: `0` qui significa «nessuno l'ha
-	// scritto», ed e' esattamente cio' che e' vero.
+	// Il checksum e' quello catturato in `CaptureFinalStateHash`, PRIMA che le unita' morte sparissero: qui
+	// non si puo' piu' calcolare, perche' `DestroyDefeatedUnits` e' gia' passato.
 	if (!URTReplayRecorderLibrary::CloseMatch(ResolveReplaysRoot(), ReplayManifest,
-		PendingResult.Outcome, /*FinalStateHash*/ 0, /*WallClockSeconds*/ 0.f))
+		PendingResult.Outcome, PendingFinalStateHash, /*WallClockSeconds*/ 0.f))
 	{
 		AddLogEvent(TEXT("Replay: l'archivio non e' stato chiuso"));
 	}

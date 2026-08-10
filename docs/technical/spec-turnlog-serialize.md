@@ -189,7 +189,7 @@ convenzione del formato binario: rifiutare invece di interpretare campi arbitrar
 | `MatchId` | `FGuid` generato all'avvio. **Fuori da ogni hash** (`D-077`): identifica la registrazione, non il contenuto |
 | `FormatId` · `HexTopology` | la stessa identità che l'header della traccia porta |
 | `OrderedHashPerTurn` | `HashTurnLogOrdered` per turno — la casa che `D-062` gli aveva assegnato e che prima non esisteva |
-| `FinalStateHash` | checksum di fine partita; `0` finché non è calcolato |
+| `FinalStateHash` | checksum di fine partita, calcolato da una partita reale ([D-084](../decisions/RT_PDR_00_Decision_Log.md)). Catturato **prima** che le unità cadute vengano distrutte, o `bAlive = false` non comparirebbe mai. `0` = mai calcolato |
 | `Outcome` · `WallClockSeconds` | il wall-clock vive **solo** qui, mai in un campo che entri in un hash |
 | `Closed` · `TurnCount` | vedi sotto |
 

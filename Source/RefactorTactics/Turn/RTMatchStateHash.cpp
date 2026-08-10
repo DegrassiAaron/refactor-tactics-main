@@ -1,4 +1,5 @@
 #include "Turn/RTMatchStateHash.h"
+#include "Unit/RTUnit.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
@@ -27,14 +28,12 @@ uint32 URTMatchStateHashLibrary::HashMatchState(const URTHexMapAsset* Map,
 	// --- Unità -------------------------------------------------------------------------------------------
 	// In ordine di Id: l'Id viene dallo scenario ed è stabile, l'ordine dell'array no.
 	TArray<FRTUnitStateDigest> SortedUnits = Units;
-	SortedUnits.Sort([](const FRTUnitStateDigest& A, const FRTUnitStateDigest& B) { return A.Id < B.Id; });
+	SortedUnits.Sort([](const FRTUnitStateDigest& A, const FRTUnitStateDigest& B) { return A.UnitId < B.UnitId; });
 
 	for (const FRTUnitStateDigest& U : SortedUnits)
 	{
-		for (const TCHAR Ch : U.Id)
-		{
-			Mix(static_cast<uint32>(Ch));
-		}
+		// L'identita' e' un intero da D-084: si mescola come tale, non piu' carattere per carattere.
+		Mix(static_cast<uint32>(U.UnitId));
 		MixCell(U.Cell);
 		Mix(static_cast<uint32>(U.Health));
 		Mix(static_cast<uint32>(U.Shield));
@@ -128,4 +127,32 @@ uint32 URTMatchStateHashLibrary::HashMatchState(const URTHexMapAsset* Map,
 	}
 
 	return Hash;
+}
+
+TArray<FRTUnitStateDigest> URTMatchStateHashLibrary::BuildUnitDigests(const TArray<ARTUnit*>& Units)
+{
+	TArray<FRTUnitStateDigest> Digests;
+	Digests.Reserve(Units.Num());
+
+	for (const ARTUnit* Unit : Units)
+	{
+		if (!Unit)
+		{
+			continue; // un puntatore morto non e' un'unita' caduta: e' un'assenza, e non ha stato da mescolare
+		}
+
+		FRTUnitStateDigest Digest;
+		Digest.UnitId = Unit->StableUnitId;
+		Digest.Cell = Unit->Cell;
+		Digest.Health = Unit->Health;
+		Digest.Shield = Unit->Shield;
+		Digest.Energy = Unit->Energy;
+		// NON si filtra sui vivi: una caduta entra con `bAlive = false`, ed e' il motivo per cui quel campo
+		// esiste. Senza, «tre vivi e un caduto» e «tre vivi e basta» darebbero lo stesso hash.
+		Digest.bAlive = Unit->IsAlive();
+		Digest.Statuses = Unit->GetActiveStatusNames();
+		Digests.Add(Digest);
+	}
+
+	return Digests;
 }

@@ -151,6 +151,12 @@ bool FRTReplayRecordingIntegrationTest::RunTest(const FString&)
 	TestNotEqual(TEXT("e non sono a zero: una partita vera ha prodotto voci"),
 		Manifest.OrderedHashPerTurn[0], (int64)0);
 
+	// Il checksum di fine partita e' calcolato da una PARTITA, non dall'harness: e' l'ultimo acceptance
+	// criterion di #469, quello che ha richiesto D-084 per essere soddisfacibile. Si legge dal manager
+	// perche' l'archivio non e' ancora chiuso — la partita e' in corso.
+	TestNotEqual(TEXT("il checksum di stato e' stato calcolato, e non e' zero"),
+		TM->GetPendingFinalStateHash(), (int64)0);
+
 	DestroyRecWorld(World);
 	if (PF.DirectoryExists(*Root)) { PF.DeleteDirectoryRecursively(*Root); }
 	return true;

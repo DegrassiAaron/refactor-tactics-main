@@ -5,6 +5,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTMatchStateHash.h"
+#include "Unit/RTUnit.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "ScenarioHarness/RTTestScenario.h"
 #include "ScenarioHarness/RTTestResult.h"
@@ -43,7 +44,7 @@ namespace
 	TArray<FRTUnitStateDigest> BaseUnits()
 	{
 		FRTUnitStateDigest U;
-		U.Id = TEXT("hero.a");
+		U.UnitId = 1;
 		U.Cell = FRTCellId(0, 0);
 		U.Health = 100;
 		U.Shield = 0;
@@ -264,6 +265,48 @@ bool FRTChecksumSeesMapWiringTest::RunTest(const FString&)
 	// Le unità finiscono identiche in entrambe: l'unica differenza è il pannello sulla mappa. Se il digest
 	// non ricevesse la mappa, i due hash coinciderebbero.
 	TestNotEqual(TEXT("una copertura eretta in partita cambia il checksum"), WithCover, Plain);
+	return true;
+}
+
+// `BuildUnitDigests` e' la SOLA costruzione del digest, usata dall'harness e dalla partita (D-084). Due
+// costruzioni divergenti darebbero hash diversi per lo stesso stato, e nessuno se ne accorgerebbe finche'
+// qualcuno non prova a confrontare un corpus con una partita vera.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDigestUsesStableUnitIdTest,
+	"RefactorTactics.Simulation.DigestUsesStableUnitIdAndKeepsTheDead",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDigestUsesStableUnitIdTest::RunTest(const FString&)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+
+	ARTUnit* Viva = World->SpawnActor<ARTUnit>();
+	ARTUnit* Caduta = World->SpawnActor<ARTUnit>();
+	if (!Viva || !Caduta) { World->DestroyWorld(false); return false; }
+
+	Viva->StableUnitId = 3;
+	Viva->Health = 40;
+	Caduta->StableUnitId = 7;
+	Caduta->Health = 0; // caduta, ma ancora presente: e' il caso che `bAlive` esiste per rappresentare
+
+	const TArray<ARTUnit*> Unita = { Viva, Caduta };
+	const TArray<FRTUnitStateDigest> Digests = URTMatchStateHashLibrary::BuildUnitDigests(Unita);
+
+	if (!TestEqual(TEXT("un digest per unita', morte comprese"), Digests.Num(), 2))
+	{
+		World->DestroyWorld(false);
+		return false;
+	}
+
+	// L'identita' e' `StableUnitId`, non una stringa di scenario: e' l'intero fatto di D-084.
+	const bool bTreCiSta = Digests.ContainsByPredicate(
+		[](const FRTUnitStateDigest& D) { return D.UnitId == 3 && D.bAlive; });
+	const bool bSetteCiSta = Digests.ContainsByPredicate(
+		[](const FRTUnitStateDigest& D) { return D.UnitId == 7 && !D.bAlive; });
+
+	TestTrue(TEXT("l'unita' viva porta il proprio StableUnitId"), bTreCiSta);
+	TestTrue(TEXT("la caduta c'e', e dichiara di non essere viva"), bSetteCiSta);
+
+	World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
 	return true;
 }
 
