@@ -9,26 +9,23 @@
 
 ---
 
-## Aperte — archivio replay, dal conflict report del 2026-08-10
+## ✅ Chiuse — archivio replay, dal conflict report del 2026-08-10
 
 Origine: [conflict report replay](roadmap/plans/replay-system-conflict-report-2026-08-10.md) §9.
 Le tre domande erano già issue su GitHub ma **non erano elencate qui**, dove vive ciò che aspetta una
 persona: questa sezione colma il buco.
 
-**Due su tre sono state decise il 2026-08-10** (sotto), e con esse **R1** (Replay Archive e Recorder) e
-**R3** (Replay Player) diventano specificabili. Resta bloccata solo **R2** (serializzazione e
-compatibilità), che dipende dall'unica domanda ancora aperta.
+✅ **Tutte e tre decise il 2026-08-10**, e con esse **R1** (Replay Archive e Recorder), **R2**
+(serializzazione e compatibilità) e **R3** (Replay Player) diventano specificabili. La sezione resta come
+**indice**: il contenuto vive nel Decision Log.
 
-| ID | Domanda | Perché serve una risposta |
-|---|---|---|
-| [`#413`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/413) | `ContentManifestHash` e `RulesVersion` si costruiscono **ora o alla v0.2**? E cosa entra nel manifest? | Senza, la regola «un replay v1 non va ricalcolato con regole v2» non è implementabile: i tre nomi hanno **zero occorrenze** in `Source/` e `Config/`. Il corpus golden è protetto solo dal fatto che i cataloghi cambiano di rado — che è una statistica, non una garanzia. La domanda secondaria è metà della risposta: un manifest che copre troppo poco dà falsi verdi, uno che copre troppo rende incompatibile ogni ritocco di bilanciamento. ⚠️ [ADR-0009](decisions/adr-0009-replay-logico-canonico.md) §4 dice **che** un archivio incompatibile va rifiutato in apertura, e rimanda qui per **quali campi** rendano «incompatibile» una condizione misurabile |
-
-### ✅ Chiuse il 2026-08-10 — decise dall'autore in sessione
+### Le tre risposte
 
 | ID | Domanda | Risposta |
 |---|---|---|
 | [`#412`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/412) | Quale artefatto è **autorevole**, e dove passa il confine `ReplayPlayer`/`ReplayVerifier`? | [**ADR-0009**](decisions/adr-0009-replay-logico-canonico.md): **due prodotti, perimetri disgiunti**. Il **Player** ha per autorità la *traccia* e non calcola nulla; il **Verifier** ha per autorità il *resolver*, ri-simula e produce un verdetto, mai una presentazione. Il confine è reso **impossibile dalla struttura** (il Player vive dove il resolver non è raggiungibile — è già così in `#415`), con un test negativo come rete. A runtime il Player **non verifica**: rifiuta in apertura ciò che non sa leggere, e la verifica vive offline |
 | [`#414`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/414) | L'archivio è per **partita** o per **turno**, e cosa identifica una partita? | [**D-077**](decisions/RT_PDR_00_Decision_Log.md): **entrambe le cose, a due livelli** — un **manifest per partita** più una **traccia per turno**. Le tracce restano come sono (`SaveTurnLogToFile` ne salva già una per file); il manifest è la casa che [D-062](decisions/RT_PDR_00_Decision_Log.md) aveva già assegnato a `HashTurnLogOrdered`, ed è lo stesso artefatto che l'indice di [#416](https://github.com/DegrassiAaron/refactor-tactics-main/issues/416) chiede. L'identità è un **`FGuid` generato all'avvio**, **fuori da ogni hash**: identifica la registrazione, non il contenuto |
+| [`#413`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/413) | `ContentManifestHash` e `RulesVersion` si costruiscono **ora o alla v0.2**? E cosa entra nel manifest? | [**D-083**](decisions/RT_PDR_00_Decision_Log.md): **alla v0.2**, ma con il **perimetro deciso ora**. ⚠️ Misurando, il rischio del rinvio si è rivelato più piccolo di come la domanda lo poneva: il corpus golden vive **nello stesso repository delle regole**, quindi un ritocco di bilanciamento lo fa diventare **rosso**, con turno, fase e `ActionId` già nominati da `CompareSerializedTraces`. Ciò che manca non è il **rilevamento**, è l'**attribuzione**: un rebalance legittimo e una regressione si presentano identici. Perimetro: **entra ciò che il resolver legge** — catalogo azioni, catalogo eroi, costanti di combat, config del resolver; **fuori** presentazione, HUD, icone e la mappa, che ha già il suo hash |
 
 ---
 

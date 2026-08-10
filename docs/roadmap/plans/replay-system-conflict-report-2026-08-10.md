@@ -253,7 +253,7 @@ determinismo. Le verifiche che restano umane vanno nel registro PIE, non qui —
 
 ---
 
-## 9. Domande per l'autore — tre chiuse, una aperta
+## 9. Domande per l'autore — tutte chiuse
 
 ### Chiuse il 2026-08-10
 
@@ -261,6 +261,7 @@ determinismo. Le verifiche che restano umane vanno nel registro PIE, non qui —
 |---|---|---|---|
 | 1 | L'ordine degli eventi entra nel contratto? (§4.1) | **Sì, con un secondo hash affiancato.** `HashTurnLog` resta invariato; `HashTurnLogOrdered` mescola nell'ordine di append | [D-062](../../decisions/RT_PDR_00_Decision_Log.md) |
 | 2 | Lo schema di `FRTTurnLogEntry` si estende? (§4.2) | **Sì: `UnitId` e `TurnNumber`, entrambi fuori dall'hash** (formato v6). `D-TL-2` emendata | [D-063](../../decisions/RT_PDR_00_Decision_Log.md) |
+| 3 | `ContentManifestHash` / `RulesVersion` ora o alla v0.2? (§8) | **Alla v0.2, con il perimetro deciso ora.** ⚠️ Misurando, il rischio del rinvio si è rivelato diverso da come questo §9 lo poneva: il corpus golden vive **nello stesso repository delle regole**, quindi un ritocco di bilanciamento lo fa diventare **rosso**, e `CompareSerializedTraces` nomina già turno, fase e `ActionId`. Ciò che manca non è il **rilevamento** — c'è — ma l'**attribuzione**: un rebalance legittimo e una regressione si presentano identici. Perimetro: **entra ciò che il resolver legge** | [D-083](../../decisions/RT_PDR_00_Decision_Log.md) |
 
 **L'elemento che ha deciso la #1** è emerso dopo la stesura di §4.1 e la corregge in meglio: l'ordine è
 **già canonico a monte**. `InstanceLess` (`RTActionQueueLibrary.cpp:10-31`) impone alla coda l'ordine totale
@@ -272,12 +273,6 @@ permutazione-invariante: il costo che §4.1 attribuiva all'opzione (b) non esist
 Il che sposta il valore del secondo hash: non è soprattutto diagnostica, è **una verifica che oggi manca**.
 L'ordine della *coda* è testato; l'ordine di *append* nel TurnLog non lo osserva nessun hash — un ciclo che
 iterasse una `TMap` cambierebbe la traccia lasciando ogni hash identico.
-
-### Ancora aperte
-
-| # | Domanda | Perché blocca |
-|---|---|---|
-| 3 | **`ContentManifestHash` / `RulesVersion` si costruiscono ora o alla v0.2?** | Senza, la regola «un replay v1 non va ricalcolato con regole v2» (§8) non è implementabile, e il corpus golden è protetto solo dal fatto che i cataloghi cambiano di rado |
 
 *(La #4, sull'unità persistente, è stata **chiusa** il 2026-08-10 da
 [D-077](../../decisions/RT_PDR_00_Decision_Log.md), decisa dall'autore in sessione: **manifest per partita +
