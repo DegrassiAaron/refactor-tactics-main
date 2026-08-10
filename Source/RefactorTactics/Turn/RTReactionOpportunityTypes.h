@@ -56,6 +56,35 @@ struct FRTReactionOpportunityKey
 };
 
 /**
+ * Una opportunity di reazione: chi puo' rispondere, e **quali risposte gli sono legali** (ADR-0004 §2).
+ *
+ * La cardinalita' di `AllowedResponses` e' l'unico discriminante fra i due regimi, e non esiste un secondo
+ * criterio: `≤ 1` e' il caso degenere — le reazioni E5 di oggi, che scattano o non scattano — e `≥ 2` apre il
+ * decision boundary. Un modello solo, con E5 conservata dentro, invece di due da mantenere.
+ */
+USTRUCT()
+struct FRTReactionOpportunity
+{
+	GENERATED_BODY()
+
+	/** Identita' dell'opportunity: vedi `FRTReactionOpportunityKey`. */
+	UPROPERTY()
+	FRTReactionOpportunityKey Key;
+
+	/**
+	 * Le risposte legali per il possessore, gia' filtrate.
+	 *
+	 * ⚠️ Vuoto e singleton **non** sono lo stesso caso per chi legge — nessuna risposta legale contro una sola
+	 * — ma per la regola del boundary lo sono: in entrambi non c'e' niente da scegliere. Il conteggio si fa
+	 * qui e non sul catalogo: [D-047](../../../docs/decisions/RT_PDR_00_Decision_Log.md) precisa che la
+	 * cardinalita' di `Brace` e' 1 **per il profilo base**, non per natura, e un profilo d'eroe che dichiari
+	 * una seconda risposta apre il boundary con questa stessa regola invece di aggiungerne una nuova.
+	 */
+	UPROPERTY()
+	TArray<FString> AllowedResponses;
+};
+
+/**
  * Derivazione dell'identita' di una opportunity. Funzioni pure: nessuno stato, nessun accesso al mondo.
  */
 UCLASS()
@@ -64,6 +93,15 @@ class REFACTORTACTICS_API URTReactionOpportunityLibrary : public UBlueprintFunct
 	GENERATED_BODY()
 
 public:
+	/**
+	 * Vero se questa opportunity richiede un decision boundary; falso se si committa immediatamente.
+	 *
+	 * E' la regola di ADR-0004 §2 e nient'altro: `AllowedResponses.Num() >= 2`. Sta in una funzione pura, e
+	 * non dentro il resolver, perche' il resolver possa chiederla senza che nessuno possa risponderle
+	 * diversamente altrove — due punti che decidono «serve una finestra?» sono due regole.
+	 */
+	static bool RequiresDecisionBoundary(const FRTReactionOpportunity& Opportunity);
+
 	/**
 	 * Id stabile e ispezionabile derivato dai sei campi di `Key`.
 	 *

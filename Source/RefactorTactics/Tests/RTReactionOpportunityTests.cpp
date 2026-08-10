@@ -107,4 +107,38 @@ bool FRTOpportunityIdUsesEveryFieldTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * La cardinalita' delle risposte legali decide il regime, e nient'altro (ADR-0004 §2).
+ *
+ * Le tre cardinalita' stanno in un test solo perche' sono **una** proprieta' — la soglia — e verificarne una
+ * meta' non direbbe niente: con il solo caso `≤ 1` passerebbe un'implementazione che non apre MAI il
+ * boundary, con il solo `≥ 2` una che lo apre SEMPRE. E' lo stesso motivo per cui
+ * `Combat.BastionImpactShotSlows` ha un gemello di controllo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSingleResponseCommitsWithoutWindowTest,
+	"RefactorTactics.Reactions.SingleResponseCommitsWithoutWindow",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSingleResponseCommitsWithoutWindowTest::RunTest(const FString&)
+{
+	FRTReactionOpportunity Opportunity;
+	Opportunity.Key = MakeOpportunityKeyForIdTest();
+
+	// Nessuna risposta legale: non c'e' niente da scegliere, quindi niente da chiedere.
+	TestFalse(TEXT("zero risposte non aprono un boundary"),
+		URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opportunity));
+
+	// Una sola risposta: il CASO DEGENERE, cioe' le reazioni E5 di oggi. `Counter`, `Deflect`, `Shield`,
+	// `Cleanse` e il profilo base di `Brace` scattano o non scattano, e restano deterministiche.
+	Opportunity.AllowedResponses = { TEXT("Hold Ground") };
+	TestFalse(TEXT("una sola risposta si committa senza finestra"),
+		URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opportunity));
+
+	// Due risposte: qui e solo qui nasce una scelta, e quindi una finestra.
+	Opportunity.AllowedResponses = { TEXT("Hold Ground"), TEXT("Fire") };
+	TestTrue(TEXT("due risposte aprono il decision boundary"),
+		URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opportunity));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

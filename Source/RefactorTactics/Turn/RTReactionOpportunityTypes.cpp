@@ -18,3 +18,11 @@ FString URTReactionOpportunityLibrary::DeriveOpportunityId(const FRTReactionOppo
 		*Key.ReactionDefId,
 		Key.Seq);
 }
+
+bool URTReactionOpportunityLibrary::RequiresDecisionBoundary(const FRTReactionOpportunity& Opportunity)
+{
+	// ADR-0004 §2, e nient'altro. La soglia e' `>= 2` e non `> 0`: una sola risposta legale non e' una scelta,
+	// quindi non c'e' niente da chiedere e il commit e' immediato — e' il caso degenere in cui vivono le
+	// reazioni E5 (`Counter`, `Deflect`, `Shield`, `Cleanse`, e `Brace` col suo profilo base).
+	return Opportunity.AllowedResponses.Num() >= 2;
+}
