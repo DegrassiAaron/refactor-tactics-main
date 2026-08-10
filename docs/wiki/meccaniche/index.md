@@ -6,6 +6,7 @@ Questa sezione è il **manuale di riferimento** della Wiki: una pagina per ogni 
 
 ## Campo di battaglia
 
+- [Griglia esagonale e geometria del mondo](griglia-e-geometria.md)
 - [Coperture](coperture.md)
 - [Porte](porte.md)
 - [Ponti e collegamenti tra layer](ponti.md)
