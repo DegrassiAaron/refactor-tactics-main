@@ -257,19 +257,32 @@ Tre conseguenze, tutte vincolanti:
    file. Misurato: l'asset risponde `200` sia da `raw.githubusercontent.com/wiki/…` sia da
    `/wiki/images/…`.
 
-La corrispondenza sorgente → clone segue quindi le cartelle della sorgente:
+Un `wiki_refs` ha quindi **due forme**, e la differenza non è di stile:
 
-| Sorgente | Pagina Wiki | URL |
+| Forma | Dove vive la pagina | Come si risolve |
 |---|---|---|
-| `docs/wiki/game/<x>.md` | `Guida/<x>.md` | `/wiki/<x>` |
-| `docs/wiki/meccaniche/<x>.md` | `Meccaniche/<x>.md` (`index` → `Meccaniche.md`) | `/wiki/<x>` |
-| `docs/wiki/fazioni/<x>.md` | `Fazioni/<x>.md` (`index` → `Fazioni.md`) | `/wiki/<x>` |
+| `wiki:<PageName>` | **solo nel clone** — le pagine di gioco, dopo D-076 | cercando il nome nel clone: serve `--wiki-root` |
+| `docs/characters/…md` | **nel repository**, con deploy verso il clone | `deploy_name`, tabella qui sotto |
+
+`wiki:<PageName>` nomina la pagina, **non** il suo percorso. È voluto: sopravvive a una
+riorganizzazione delle cartelle, che è precisamente ciò che è successo il 2026-08-10 quando 89
+pagine sono uscite dalla root del clone. Il prezzo è che senza `--wiki-root` quei riferimenti non si
+possono verificare — e `validate` lo dice invece di tacerlo.
+
+Il catalogo eroi resta invece nel repository, perché non è una sorgente Wiki: lo referenziano
+cataloghi, ADR e test. Il clone ne è solo il deploy.
+
+| Sorgente nel repo | Pagina Wiki | URL |
+|---|---|---|
 | `docs/characters/v0.1\|v0.2/<x>.md` | `Personaggi/<x>.md` | `/wiki/<x>` |
 | `docs/characters/index.md` · `paragon.md` | `Personaggi.md` · `Personaggi/paragon.md` | |
-| `docs/wiki/feature-status.md` | `Stato-delle-feature.md` | |
 
 Le pagine **indice restano in root** accanto a `Home`: sono hub, e soprattutto tre `index.md` in tre
 cartelle diverse collidono — non possono chiamarsi tutte `index`.
+
+`Stato-delle-feature.md` non ha più una sorgente: la genera `deploy` direttamente nel clone. Fino a
+D-076 esisteva come `docs/wiki/feature-status.md`, il comando `wiki` la scriveva lì e il deploy la
+copiava — con una finestra, fra i due, in cui la copia pubblicata era vecchia e nulla lo diceva.
 
 Il confronto con le pagine del clone è **ricorsivo** e **case-sensitive** anche su Windows, dove
 `os.path.isfile` non distingue le maiuscole. Senza la ricorsione le pagine in cartella risultano
@@ -317,9 +330,10 @@ Ogni pagina referenziata da `wiki_refs` riceve un blocco delimitato:
 <!-- RT_FEATURE_STATUS:END RT-FEAT-REACTION-OVERWATCH -->
 ```
 
-**Non si edita a mano**: `wiki` lo riscrive. Una pagina può averne più d'uno (la pagina di Flux ne ha
-tre: roster, elettricità, interazioni sistemiche). Il blocco va dopo il titolo e la citazione
-introduttiva, prima del corpo.
+**Non si edita a mano.** Chi lo riscrive dipende da dove vive la pagina: `wiki` per quelle nel
+repository (`docs/characters/`), `deploy --wiki-root` per quelle che vivono nel clone. Una pagina può
+averne più d'uno (la pagina di Flux ne ha tre: roster, elettricità, interazioni sistemiche). Il
+blocco va dopo il titolo e la citazione introduttiva, prima del corpo.
 
 Un blocco che cita un `feature_id` non più nel registry è un **errore**; un blocco per una feature
 che il registry non referenzia più su quella pagina è un **warning** (`wiki` lo segnala, non lo
@@ -349,8 +363,8 @@ diventa un impegno che nessuno ha preso.
 | [`roadmap-v0.1.md`](roadmap-v0.1.md) | Vista di **release**: epic, scope, gate della v0.1 |
 | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate `G1`–`G15` della release (`G15` è questo registry) |
 | [`v0.1-issue-plan.md`](v0.1-issue-plan.md) | **Snapshot** delle issue: non è fonte di verità |
-| `docs/wiki/feature-status.md` | **Generata**: vista pubblica del registry |
-| `docs/characters/data/*.xlsx` → `15_Wiki_Feature_Refs` | **Generata**: riferimenti entità → feature, senza stato |
+| `Stato-delle-feature.md` nel clone della Wiki | **Generata** da `deploy`: vista pubblica del registry |
+| `docs/characters/data/*.xlsx` → `15_Wiki_Feature_Refs` | **Generata**: riferimenti entità → feature, senza stato (richiede `--wiki-root`) |
 
 Il workbook di bilanciamento (`docs/balance/*.xlsx`) **non** entra in questa catena: contiene target e
 metodi di misura, non stato di implementazione. Non c'era niente da deduplicare.

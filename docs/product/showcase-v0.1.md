@@ -305,7 +305,7 @@ evento; la scivolata su ghiaccio è deterministica; `EnvironmentChanged` nel Tur
 > sequenza vale con qualunque altra sorgente d'acqua autorizzata. Lo scenario **dimostra** la cooperazione:
 > non la implementa e non introduce regole competitive proprie
 > ([ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md) ·
-> [`../wiki/game/sinergie-e-combinazioni.md`](../wiki/game/sinergie-e-combinazioni.md)).
+> [`sinergie-e-combinazioni` (Wiki)](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/sinergie-e-combinazioni)).
 
 ### Turno 8 — l'obiettivo batte il KO
 

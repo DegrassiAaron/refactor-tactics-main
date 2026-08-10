@@ -20,7 +20,7 @@
 #   kind         : gameplay | ui | tooling | data | infra | content
 #   tests        : pattern di nome test, con `*` finale ammesso; devono matchare test reali
 #   scenarios    : ScenarioId dichiarati nei file di `Scenarios/`; `planned:` per quelli non ancora in repo
-#   wiki_refs    : `docs/wiki/...md` (pagina sorgente) oppure `wiki:<PageName>` (solo nel repo Wiki)
+#   wiki_refs    : `wiki:<PageName>` (pagina del clone, D-076) oppure `docs/characters/...md`
 #   pie_refs     : le voci `PIE-*` di `docs/technical/test-manuali-pie.md` che dimostrano il gate
 #                  `packaged`. È il legame che fino al 2026-08-10 **non era un dato**: viveva nel
 #                  corpo delle issue GitHub («Verifica PIE `PIE-V01-HUD`»), fuori dal repository e
@@ -109,8 +109,8 @@ features:
     scenarios:
       - Visual.Core.PhaseOrder
     wiki_refs:
-      - docs/wiki/game/struttura-del-round.md
-      - docs/wiki/game/esempio-di-round.md
+      - wiki:struttura-del-round
+      - wiki:esempio-di-round
     pie_refs: [PIE-HEXPLAY-4, PIE-HEXPLAY-5]
     last_verified:
       date: 2026-08-08
@@ -152,7 +152,7 @@ features:
     scenarios:
       - RT_Showcase_Relay_v01
     wiki_refs:
-      - docs/wiki/game/regole-fondamentali.md
+      - wiki:regole-fondamentali
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -191,7 +191,7 @@ features:
     scenarios:
       - Visual.Core.PhaseOrder
     wiki_refs:
-      - docs/wiki/game/regole-fondamentali.md
+      - wiki:regole-fondamentali
     last_verified:
       date: 2026-08-10
       commit: c634c50
@@ -228,7 +228,7 @@ features:
     tests: []
     scenarios: []
     wiki_refs:
-      - docs/wiki/game/reazioni-overwatch-e-previsioni.md
+      - wiki:reazioni-overwatch-e-previsioni
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -290,7 +290,7 @@ features:
           - Spec.TimeBank.ReplayReadsRecordedBank
           - Spec.TimeBank.PacketOrderInvariant
     wiki_refs:
-      - docs/wiki/game/reazioni-overwatch-e-previsioni.md
+      - wiki:reazioni-overwatch-e-previsioni
     wiki_note: >-
       Le **regole** sono decise (2026-08-09); i **valori** restano baseline di playtest.
       La Wiki non deve pubblicarli come definitivi finché §3.2 non li promuove.
@@ -335,7 +335,7 @@ features:
       - Visual.Core.PhaseOrder
       - Visual.Combat.Defeat
     wiki_refs:
-      - docs/wiki/game/esempio-di-round.md
+      - wiki:esempio-di-round
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -379,7 +379,7 @@ features:
     scenarios:
       - Visual.Map.MultiLevel
     wiki_refs:
-      - docs/wiki/game/mappa-terreni-e-ambiente.md
+      - wiki:mappa-terreni-e-ambiente
     pie_refs: [PIE-HEXPLAY-1]
     last_verified:
       date: 2026-08-08
@@ -423,7 +423,7 @@ features:
       - Movement.LongWalk
       - Visual.Map.MultiLevel
     wiki_refs:
-      - docs/wiki/game/azioni-e-movimento.md
+      - wiki:azioni-e-movimento
     pie_refs: [PIE-HEXPLAY-4, PIE-HEXPLAY-5]
     last_verified:
       date: 2026-08-08
@@ -464,7 +464,7 @@ features:
           - Spec.Map.FootprintCollisionBlocksCell
           - Spec.Map.NinetyDegreeCornerBakesCorrectly
     wiki_refs:
-      - docs/wiki/meccaniche/griglia-e-geometria.md
+      - wiki:griglia-e-geometria
     wiki_note: >-
       La pagina Wiki spiega il **principio** (la griglia non vincola i muri); il dato cotto e la pipeline di cottura non esistono ancora.
     notes: >
@@ -508,7 +508,7 @@ features:
           - Spec.Map.ValidCellsBlockedTransition
           - Spec.Map.DoorOpensTransition
     wiki_refs:
-      - docs/wiki/meccaniche/griglia-e-geometria.md
+      - wiki:griglia-e-geometria
     wiki_note: >-
       Il caso «due celle valide, passaggio chiuso» è già spiegabile; il dato che lo esprime senza passare da una copertura non esiste ancora.
     notes: >
@@ -673,7 +673,7 @@ features:
       - Combat.LineHitsThrough
       - Visual.Combat.SmokeCapsTargeting
     wiki_refs:
-      - docs/wiki/game/combattimento-e-targeting.md
+      - wiki:combattimento-e-targeting
     pie_refs: [PIE-HEXPLAY-6, PIE-HEXPLAY-6b]
     wiki_note: >-
       Vista e targeting esistono; la **percezione** completa (chi sa cosa, E13) e' un altro sistema e non c'e' ancora.
@@ -761,7 +761,7 @@ features:
       - Spec.Facing.FrontAttackKeepsGuard
       - Spec.Facing.BraceHoldsFromBehind
     wiki_refs:
-      - docs/wiki/meccaniche/facing-e-direzionalita.md
+      - wiki:facing-e-direzionalita
     wiki_note: >-
       Decisione accettata (ADR-0005) ma **non implementata**: quello che leggi qui descrive come funzionera', non come funziona oggi.
     last_verified:
@@ -815,7 +815,7 @@ features:
       - Visual.Map.LowCoverEdge
       - Visual.Map.HighCoverBlocks
     wiki_refs:
-      - docs/wiki/meccaniche/coperture.md
+      - wiki:coperture
     last_verified:
       date: 2026-08-09
       commit: 3353266
@@ -863,7 +863,7 @@ features:
     scenarios:
       - Spec.Cover.TemporaryCoverExpires
     wiki_refs:
-      - docs/wiki/meccaniche/coperture.md
+      - wiki:coperture
       - docs/characters/v0.1/bastion.md
     wiki_note: >-
       Le coperture si **erigono, si spostano e scadono** in partita (CP 9.5). Resta da riscrivere la pagina
@@ -914,8 +914,8 @@ features:
     scenarios:
       - Visual.Map.ClosedDoor
     wiki_refs:
-      - docs/wiki/meccaniche/porte.md
-      - docs/wiki/meccaniche/topologia-dinamica.md
+      - wiki:porte
+      - wiki:topologia-dinamica
     pie_refs: [PIE-V01-DOOR]
     wiki_note: >-
       Dato, regole di blocco e mutazione del bordo sono implementati e testati; l'**interazione del giocatore** (`Action.Interact`) arriva con E10.
@@ -966,8 +966,8 @@ features:
       - Visual.Map.MultiLevel
       - Spec.Map.BridgeBreaksThePath
     wiki_refs:
-      - docs/wiki/meccaniche/ponti.md
-      - docs/wiki/meccaniche/topologia-dinamica.md
+      - wiki:ponti
+      - wiki:topologia-dinamica
     pie_refs: [PIE-HEXPLAY-8]
     last_verified:
       date: 2026-08-09
@@ -1010,7 +1010,7 @@ features:
     scenarios:
       - Visual.Map.HighGroundNoBonus
     wiki_refs:
-      - docs/wiki/game/mappa-terreni-e-ambiente.md
+      - wiki:mappa-terreni-e-ambiente
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -1061,8 +1061,8 @@ features:
       - Movement.SwapRejectedByPlanning
       - Visual.Combat.FallbackTargetMoved
     wiki_refs:
-      - docs/wiki/game/azioni-e-movimento.md
-      - docs/wiki/meccaniche/collisioni.md
+      - wiki:azioni-e-movimento
+      - wiki:collisioni
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -1133,7 +1133,7 @@ features:
       # ha deciso di NON introdurla e di riscrivere invece la clausola: senza quel numero lo scenario non
       # ha soggetto. Rinasce solo se una v0.2 introduce la spinta forte.
     wiki_refs:
-      - docs/wiki/game/azioni-e-movimento.md
+      - wiki:azioni-e-movimento
     wiki_note: >-
       Quattro azioni generiche su sette sono complete: `Wait`, `Move`, `BasicAttack`, `Guard`.
       `Brace` funziona ma come reazione; `Interact` è a catalogo **senza effetto**; `Overwatch` non
@@ -1204,7 +1204,7 @@ features:
       # gli hazard — ed e' la riga piu' facile da sbagliare della tassonomia.
       - Spec.Movement.TeleportSkipsIntermediateCells
     wiki_refs:
-      - docs/wiki/game/azioni-e-movimento.md
+      - wiki:azioni-e-movimento
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -1254,7 +1254,7 @@ features:
       - Combat.BastionImpactShotSlows
       - Combat.MoveIsFullWithoutSlow
     wiki_refs:
-      - docs/wiki/game/azioni-e-movimento.md
+      - wiki:azioni-e-movimento
     last_verified:
       date: 2026-08-09
       commit: 8a43866
@@ -1310,8 +1310,8 @@ features:
     scenarios:
       - Visual.Combat.PushResistance
     wiki_refs:
-      - docs/wiki/game/azioni-e-movimento.md
-      - docs/wiki/meccaniche/collisioni.md
+      - wiki:azioni-e-movimento
+      - wiki:collisioni
     pie_refs: [PIE-HEXPLAY-4b, PIE-HEXPLAY-6c]
     last_verified:
       date: 2026-08-08
@@ -1350,7 +1350,7 @@ features:
       - RefactorTactics.Combat.GainEnergyClampsToMax
     scenarios: []
     wiki_refs:
-      - docs/wiki/game/azioni-e-movimento.md
+      - wiki:azioni-e-movimento
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -1387,7 +1387,7 @@ features:
       - RefactorTactics.Combat.UltimateReadyAtFullEnergy
     scenarios: []
     wiki_refs:
-      - docs/wiki/game/azioni-e-movimento.md
+      - wiki:azioni-e-movimento
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -1479,7 +1479,7 @@ features:
     scenarios:
       - Spec.Predictive.WhiffOnEmptyCell
     wiki_refs:
-      - docs/wiki/game/reazioni-overwatch-e-previsioni.md
+      - wiki:reazioni-overwatch-e-previsioni
       - docs/characters/v0.1/vektor.md
     last_verified:
       date: 2026-08-10
@@ -1609,7 +1609,7 @@ features:
       - Visual.Reaction.Deflection
       - Visual.Reaction.Interposition
     wiki_refs:
-      - docs/wiki/game/reazioni-overwatch-e-previsioni.md
+      - wiki:reazioni-overwatch-e-previsioni
       - docs/characters/v0.1/bastion.md
       - docs/characters/v0.1/vektor.md
     last_verified:
@@ -1651,7 +1651,7 @@ features:
     tests: []
     scenarios: []
     wiki_refs:
-      - docs/wiki/game/reazioni-overwatch-e-previsioni.md
+      - wiki:reazioni-overwatch-e-previsioni
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -1687,7 +1687,7 @@ features:
     tests: []
     scenarios: []
     wiki_refs:
-      - docs/wiki/game/reazioni-overwatch-e-previsioni.md
+      - wiki:reazioni-overwatch-e-previsioni
     pie_refs: [PIE-V01-OVERWATCH]
     last_verified:
       date: 2026-08-08
@@ -1739,8 +1739,8 @@ features:
           - Spec.Overwatch.PressurePushChangesResolvedPath
           - Spec.Overwatch.FrontlineFollowsFacing
     wiki_refs:
-      - docs/wiki/meccaniche/overwatch.md
-      - docs/wiki/game/reazioni-overwatch-e-previsioni.md
+      - wiki:overwatch
+      - wiki:reazioni-overwatch-e-previsioni
     wiki_note: >-
       Le reazioni **preparate** esistono e funzionano in partita; l'**Overwatch interattivo** di questa pagina non e' implementato.
     last_verified:
@@ -1826,7 +1826,7 @@ features:
           - Spec.Brace.FlowRedirectsToLegalHexOnly
           - Spec.Brace.DeflectOffersOnlyLegalSides
     wiki_refs:
-      - docs/wiki/game/reazioni-overwatch-e-previsioni.md
+      - wiki:reazioni-overwatch-e-previsioni
     wiki_note: >-
       `Hold Ground` — la risposta base — funziona gia' in partita; i profili d'eroe che ne dichiarano altre no.
     last_verified:
@@ -1903,7 +1903,7 @@ features:
           - Spec.Clash.RevealIsFixedDeadline
           - Spec.Clash.Determinism
     wiki_refs:
-      - docs/wiki/game/reazioni-overwatch-e-previsioni.md
+      - wiki:reazioni-overwatch-e-previsioni
     wiki_note: >-
       Decisa nella forma (D-048), **non implementata** e con la grammatica ancora in playtest.
     last_verified:
@@ -1952,7 +1952,7 @@ features:
     tests: []
     scenarios: []
     wiki_refs:
-      - docs/wiki/game/reazioni-overwatch-e-previsioni.md
+      - wiki:reazioni-overwatch-e-previsioni
     pie_refs: [PIE-V01-OVERWATCH]
     last_verified:
       date: 2026-08-08
@@ -2000,7 +2000,7 @@ features:
     scenarios:
       - Visual.Movement.RoughRefusesCharge
     wiki_refs:
-      - docs/wiki/game/mappa-terreni-e-ambiente.md
+      - wiki:mappa-terreni-e-ambiente
     wiki_note: >-
       Gli otto terreni sono implementati e testati; strutture e interazioni continuano a essere estese.
     last_verified:
@@ -2112,7 +2112,7 @@ features:
     scenarios:
       - Visual.Environment.FireOnEnter
     wiki_refs:
-      - docs/wiki/meccaniche/fuoco-e-stati.md
+      - wiki:fuoco-e-stati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -2154,7 +2154,7 @@ features:
     scenarios:
       - Visual.Environment.WetExtinguishesFire
     wiki_refs:
-      - docs/wiki/meccaniche/acqua-e-elettricita.md
+      - wiki:acqua-e-elettricita
       - docs/characters/v0.1/riva.md
     last_verified:
       date: 2026-08-08
@@ -2198,7 +2198,7 @@ features:
       - Visual.Combat.WaterElectricCoordinated
       - Spec.Environment.ElectricPropagation
     wiki_refs:
-      - docs/wiki/meccaniche/acqua-e-elettricita.md
+      - wiki:acqua-e-elettricita
       - docs/characters/v0.1/flux.md
     wiki_note: >-
       Dal 2026-08-09 la scarica ha un **owner nel roster**: `Flux.ConductiveNode` **e'** `Action.Electrify` (D-046, nata come D-039). Prima nessun eroe la possedeva e il motore era verde ma non innescabile in partita.
@@ -2244,7 +2244,7 @@ features:
       - Visual.Environment.WetExtinguishesFire
       - Spec.Environment.WaterQuenchesFire
     wiki_refs:
-      - docs/wiki/meccaniche/fuoco-e-stati.md
+      - wiki:fuoco-e-stati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -2285,7 +2285,7 @@ features:
     scenarios:
       - Visual.Combat.SmokeCapsTargeting
     wiki_refs:
-      - docs/wiki/game/mappa-terreni-e-ambiente.md
+      - wiki:mappa-terreni-e-ambiente
     last_verified:
       date: 2026-08-09
       commit: 4c50c07
@@ -2328,7 +2328,7 @@ features:
     scenarios:
       - Visual.Environment.IceSlide
     wiki_refs:
-      - docs/wiki/game/mappa-terreni-e-ambiente.md
+      - wiki:mappa-terreni-e-ambiente
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -2408,7 +2408,7 @@ features:
       - Visual.Combat.WaterElectric
       - Visual.Environment.WetExtinguishesFire
     wiki_refs:
-      - docs/wiki/game/sinergie-e-combinazioni.md
+      - wiki:sinergie-e-combinazioni
       - docs/characters/v0.1/flux.md
       - docs/characters/v0.1/riva.md
     last_verified:
@@ -2460,7 +2460,7 @@ features:
       - RefactorTactics.Vision.PermutationInvariant
     scenarios: []
     wiki_refs:
-      - docs/wiki/game/visibilita-rumore-e-informazione.md
+      - wiki:visibilita-rumore-e-informazione
     wiki_note: >-
       Modello deciso per la v0.1; l'implementazione (E13, dopo E16) **non e' iniziata**: oggi la vista non decide nulla.
     last_verified:
@@ -2509,7 +2509,7 @@ features:
       - RefactorTactics.Vision.PermutationInvariant
     scenarios: []
     wiki_refs:
-      - docs/wiki/game/visibilita-rumore-e-informazione.md
+      - wiki:visibilita-rumore-e-informazione
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -2547,7 +2547,7 @@ features:
     scenarios:
       - Spec.Perception.HeardNotSeen
     wiki_refs:
-      - docs/wiki/game/visibilita-rumore-e-informazione.md
+      - wiki:visibilita-rumore-e-informazione
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -2584,7 +2584,7 @@ features:
     tests: []
     scenarios: []
     wiki_refs:
-      - docs/wiki/game/visibilita-rumore-e-informazione.md
+      - wiki:visibilita-rumore-e-informazione
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -2624,7 +2624,7 @@ features:
     tests: []
     scenarios: []
     wiki_refs:
-      - docs/wiki/game/come-si-gioca.md
+      - wiki:come-si-gioca
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -2667,7 +2667,7 @@ features:
       - Movement.SwapRejectedByPlanning
       - Visual.Core.PhaseOrder
     wiki_refs:
-      - docs/wiki/game/come-si-gioca.md
+      - wiki:come-si-gioca
     pie_refs: [PIE-V01-HUD]
     last_verified:
       date: 2026-08-08
@@ -2705,7 +2705,7 @@ features:
     tests: []
     scenarios: []
     wiki_refs:
-      - docs/wiki/game/come-si-gioca.md
+      - wiki:come-si-gioca
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -2745,7 +2745,7 @@ features:
       - RefactorTactics.Reactions.IntentViewSkipsDeadAndKeepsOrder
     scenarios: []
     wiki_refs:
-      - docs/wiki/game/come-si-gioca.md
+      - wiki:come-si-gioca
     pie_refs: [PIE-V01-INTENT]
     last_verified:
       date: 2026-08-08
@@ -2788,7 +2788,7 @@ features:
       - Combat.FriendlyFire
       - Combat.SplashHitsAlliesNotSelf
     wiki_refs:
-      - docs/wiki/game/combattimento-e-targeting.md
+      - wiki:combattimento-e-targeting
     pie_refs: [PIE-V01-INTENT]
     last_verified:
       date: 2026-08-08
@@ -2831,7 +2831,7 @@ features:
     scenarios:
       - Visual.Core.PhaseOrder
     wiki_refs:
-      - docs/wiki/game/esempio-di-round.md
+      - wiki:esempio-di-round
     pie_refs: [PIE-V01-LOG]
     last_verified:
       date: 2026-08-10
@@ -3181,11 +3181,11 @@ features:
     tests: []
     scenarios: []
     wiki_refs:
-      - docs/wiki/fazioni/index.md
-      - docs/wiki/fazioni/conflux.md
-      - docs/wiki/fazioni/constrine.md
-      - docs/wiki/fazioni/sentinel-directorate.md
-      - docs/wiki/fazioni/resonance.md
+      - wiki:Fazioni
+      - wiki:conflux
+      - wiki:constrine
+      - wiki:sentinel-directorate
+      - wiki:resonance
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -3229,7 +3229,7 @@ features:
         - Team.Sentinel.SteelMurdock.HoldTheLine
         - Team.Resonance.AuroraKwang.FrozenAnchor
     wiki_refs:
-      - docs/wiki/fazioni/index.md
+      - wiki:Fazioni
     wiki_note: >-
       Gli scenari di fazione sono **dichiarati ma non esistono** in `Scenarios/`: non si possono ancora giocare.
     last_verified:
@@ -3277,8 +3277,8 @@ features:
     scenarios:
       - Spec.Objective.PointSurvivesKO
     wiki_refs:
-      - docs/wiki/meccaniche/obiettivi-dinamici.md
-      - docs/wiki/game/obiettivi-e-fine-partita.md
+      - wiki:obiettivi-dinamici
+      - wiki:obiettivi-e-fine-partita
     wiki_note: >-
       La partita **puo' finire** per obiettivo, ma in mappa **non esiste ancora un oggetto da attivare**: manca il consumatore, non la regola.
     last_verified:
@@ -3323,7 +3323,7 @@ features:
       - Visual.Combat.Defeat
       - RT_Showcase_Relay_v01
     wiki_refs:
-      - docs/wiki/game/obiettivi-e-fine-partita.md
+      - wiki:obiettivi-e-fine-partita
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -3500,7 +3500,7 @@ features:
     scenarios:
       - RT_Showcase_Relay_v01
     wiki_refs:
-      - docs/wiki/game/avversario-bot.md
+      - wiki:avversario-bot
     pie_refs: [PIE-HEXPLAY-7]
     last_verified:
       date: 2026-08-08
@@ -3538,7 +3538,7 @@ features:
     tests: []
     scenarios: []
     wiki_refs:
-      - docs/wiki/game/avversario-bot.md
+      - wiki:avversario-bot
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -3998,7 +3998,7 @@ features:
       - RefactorTactics.Combat.PlayerControlsOwnUnitsOnly
     scenarios: []
     wiki_refs:
-      - docs/wiki/game/come-si-gioca.md
+      - wiki:come-si-gioca
     last_verified:
       date: 2026-08-08
       commit: 2094b86
