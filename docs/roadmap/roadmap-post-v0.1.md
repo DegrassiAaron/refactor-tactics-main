@@ -258,10 +258,10 @@ indipendente e può procedere in parallelo: descrive lo status, non ciò che lo 
 | CP | Obiettivo | DoD misurabile |
 |---|---|---|
 | **36.1** | Tassonomia delle capability | Esiste l'elenco esplicito di cosa un effetto può togliere, su **due assi** — *disponibilità dell'azione* e *modifica della regola* (cover, targeting, payoff) — e copre le **33 azioni core + 20 d'eroe**, non le sole sette generiche. Parte da `ERTActionSlot` e `ERTMovementStyle`, che **esistono già**: la domanda è se bastino, vadano raffinati o affiancati. Chiude [`STA-4`](../OPEN_DECISIONS.md). Senza, 36.3 e 36.4 non hanno da cosa derivare |
-| **36.2** | Il dato dello status | Categoria (`Modifier`/`Control`/`Environment`/`Stance`/`Reaction`/`Special`) e **polarità** separata; `StackPolicy` ed expiration dichiarate **sul dato**, non nel codice che le applica. Le durate sono boundary di fase, non secondi |
-| **36.3** | Le sei primitive, derivate | `MODIFY` · `DEGRADE` · `RESTRICT` · `INTERRUPT` · `CONVERT` · `CONSUME` si **leggono** da ciò che lo status dichiara: chi dichiara `Sprint → Move` *è* un `DEGRADE`. Un test verifica che la lettura sia totale — nessuno status resta senza primitiva derivabile |
-| **36.4** | Severity contata, anti-stun-lock come test | `C0`–`C3` si contano dalle capability toccate (0 · degrada · una categoria · due o più). La regola *«nessuno status comune e ripetibile toglie insieme Movement, Main Action e Reaction»* smette di essere una revisione umana e **diventa un test** |
-| **36.5** | Applicazione: degrada, nega, riprova | Pipeline unica con esito `Full`/`Degraded`/`Rejected`, e danno e status risolti **separatamente** — un'abilità fa danno anche se il control viene resistito. **Resistance** generalizza `PushResistance` da scalare su un dominio solo a profilo che **degrada** (`Root → Slow`); **Immunity** **nega**; `Action.Cleanse` passa dalla lista esplicita di tag alla **categoria**, conservando fail-closed e scelta del giocatore. La reapply policy impedisce di rinfrescare all'infinito lo stesso control con lo stesso setup |
+| **36.2** | Il dato dello status | Categoria (`Modifier`/`Control`/`Environment`/`Stance`/`Reaction`/`Special`) e **polarità** separata; `StackPolicy` ed expiration dichiarate **sul dato**. ⚠️ Non parte da zero e non basta un campo: `ApplyStatus` implementa già un `Refresh` con `max()`, e uno status può avere **due sorgenti insieme** — a termine (`StatusTurns`) e legato alla cella (`CellBoundStatuses`) — che su `Wet` coesistono. Il modello deve reggere anche il payload di `Marked` (la squadra che ha marcato) e scegliere fra le **due codifiche** di «finché sulla cella»: `0` a catalogo, `-1` a runtime |
+| **36.3** | Le sei primitive, derivate | `MODIFY` · `DEGRADE` · `RESTRICT` · `INTERRUPT` · `CONVERT` · `CONSUME` si **leggono** da ciò che lo status dichiara: chi dichiara `Sprint → Move` *è* un `DEGRADE`. Un test verifica che la lettura sia totale. ⚠️ **`INTERRUPT` va rinominata**: `Action.Interrupt` è un'azione viva. `CONVERT` non ha oggi alcuna istanza. E `Slow` è **già** un `MODIFY` conforme (`MoveCostModifier = 1`, costo intero) |
+| **36.4** | Severity contata, anti-stun-lock come test | `C0`–`C3` si contano dalle capability toccate (0 · degrada · una categoria · due o più). La regola *«nessuno status comune e ripetibile toglie insieme Movement, Main Action e Reaction»* smette di essere una revisione umana e **diventa un test**. ⚠️ `Root` **non** ha una severity attesa a priori: azzera Move **e** le mobilità lineari, quindi esce `C2` o `C3` a seconda di come `36.1` divide il movimento — è il **collaudo** della tassonomia, non il suo giudice |
+| **36.5** | Applicazione: degrada, nega, riprova | Pipeline unica con esito `Full`/`Degraded`/`Rejected`, e danno e status risolti **separatamente**. **Resistance** generalizza la resistenza **viva** — quella di `Action.Guard` (`GuardResistedPushDistance`), non `PushResistance`, che [`D-075`](../decisions/RT_PDR_00_Decision_Log.md) ha reso **dormiente**; **Immunity** **nega**; `Action.Cleanse` passa dal tag esplicito alla **categoria**, conservando fail-closed e scelta del giocatore. La pipeline deve **assorbire** il rifiuto implicito già presente in `ApplyStatus`, non affiancarlo |
 | **36.6** | Reason code, TurnLog e validator | Un **nuovo** `ERTLogCategory::Status` e un **nuovo** `ERTStatusOutcome`, seguendo il pattern per categoria del `TurnLog` — non riusando gli enum di esito altrui. Porta una **`v8`** del formato, con le tre decisioni che il precedente impone: rivendicare il numero verificando **tutti** i branch remoti, dire se `StatusId` entra nell'**hash** (e dichiarare in anticipo il rebaseline dei golden) e, separatamente, se entra in **`EntryLess`**. Le regole del §53 **estendono** `RefactorTactics.Catalog.Validator*` |
 
 **Dipendenze**: `RT-FEAT-ENV-STATUS` (E8, chiusa) e `RT-FEAT-ACTION-ENGINE` (E4, chiusa). **Non** dipende da
@@ -333,6 +333,28 @@ significato**.
 > soggetto: nel repository non esiste alcuna conversione status→status — `Wet` che spegne `Burning` è una
 > `RemoveStatus`, e il `CONVERT` ambientale è fuori scope in 36.3 perché `Cold`/`Ice`/`Frozen` non esistono.
 > Una regola senza istanza violabile non può avere il test rosso che il checkpoint stesso pretende.
+
+> 🧭 **Il pattern, su sei checkpoint su sei** *(spec panel del 2026-08-10, `#436`–`#441`)*.
+>
+> Ogni checkpoint di questa epic nominava un meccanismo che **il repository ha già**, con un nome o una forma
+> diversa — e nessuno lo citava. Vale la pena scriverlo qui perché è la firma del difetto, non un incidente:
+>
+> | CP | Cosa esisteva già e non era nominato |
+> |---|---|
+> | `36.1` | `ERTActionSlot` · `ERTMovementStyle` |
+> | `36.2` | `Refresh` con `max()` in `ApplyStatus`; **due sorgenti** per lo stesso status; il payload di `Marked` |
+> | `36.3` | **`Action.Interrupt`**, che occupa il nome della primitiva; `Slow` già `MODIFY` conforme |
+> | `36.4` | `Root` azzera anche le mobilità lineari — la severity non è nota a priori |
+> | `36.5` | `Action.Cleanse` · `GuardResistedPushDistance` · il rifiuto implicito di `ApplyStatus` |
+> | `36.6` | `ERTLogCategory` + un `Outcome` per categoria; `Catalog.Validator*`; il formato a `v7` |
+>
+> La lezione non è «cercare meglio»: è che **un framework si scrive contro ciò che c'è**, e ciò che c'è in
+> questo repository è cablato dove serve — quindi non si trova cercando il nome del framework, ma il nome del
+> **meccanismo**. `Cleanse`, `Immun`, `Resist`, `Interrupt`: quattro `grep` che valgono più di una lettura del
+> sorgente. È lo stesso corollario che
+> [`plans/handoff-status-control-triage-2026-08-10.md`](plans/handoff-status-control-triage-2026-08-10.md) §8
+> aveva già scritto — *«quando un sorgente propone un nome, cercarlo in `Source/` prima di tutto il resto»* —
+> e che `36.3` ha violato comunque.
 
 > 🧭 **Tre pezzi di 36.5 esistono già, e l'epic li estende invece di costruirli** *(misurato il 2026-08-10)*.
 > Il sorgente §21–§23 li elenca come mancanti, e per uno dei tre è falso:
