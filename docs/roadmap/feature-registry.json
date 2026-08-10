@@ -1254,7 +1254,12 @@
         "Movement.Basic",
         "Visual.Combat.GuardReducesFirstHit"
       ],
-      "scenarios_planned": [],
+      "scenarios_planned": [
+        "Spec.Brace.GuardAndBraceOnMixedHit",
+        "Spec.Brace.BraceWinsOnSecondHit",
+        "Spec.Brace.PushBeyondGuardThreshold",
+        "Spec.Combat.BastionIgnoresAllPushes"
+      ],
       "wiki_refs": [
         "docs/wiki/game/azioni-e-movimento.md"
       ],
@@ -2349,6 +2354,7 @@
       "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "Nessuna pagina: il framework non esiste ancora, e una pagina che lo descrivesse sarebbe la Wiki che promette ciò che il gioco non fa.",
+      "pie_refs": [],
       "last_verified": {},
       "notes": "Il repository ha **undici** status implementati (`TAG_Status_*`: Braced, Burning, Electrified, Exposed, Guarded, Marked, Obscured, Reveal, Root, Slow, Wet) e **nessun livello che li governi**: ogni effetto e' cablato dove serve. Funziona, ed e' esattamente il motivo per cui il dodicesimo costera' come i primi undici messi insieme. Mancano: categoria e polarita', severity C0-C3, le sei primitive riusabili (MODIFY, DEGRADE, RESTRICT, INTERRUPT, CONVERT, CONSUME), stacking policy ed expiration dichiarate sul dato, resistance/immunity/cleanse, reapply policy e prevenzione dei loop, reason code, validator. I due status nuovi del sorgente — `Suppressed` e `Dazed` — stanno **dentro** questa feature e non prima: `Suppressed` E' un DEGRADE, `Dazed` E' un INTERRUPT sulla scelta manuale. Tre domande aperte prima della spec: `STA-1`, `STA-2`, `STA-3` in `OPEN_DECISIONS.md`."
     },

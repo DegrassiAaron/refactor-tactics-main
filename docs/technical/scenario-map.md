@@ -54,7 +54,7 @@ scegliendo lo scenario e premendo Play, una voce C richiede di allestire, clicca
 | **A** — automatico | **27** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · `Spec.Predictive.WhiffOnEmptyCell` · i tre `EnvironmentalActionOwner` · `RT_Showcase_Relay_v01` |
 | **B** — automatico + occhio | **21** scenari ↔ **21** voci `PIE-VIS-*` | `Scenarios/Visual/` |
 | **C** — solo umano | **95** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima |
-| **D** — dichiarato | **12** scenari `Spec.*` ancora `BLOCKED` · **34** pianificati · **4** mai scritti *(rimisurati il 2026-08-10)* | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
+| **D** — dichiarato | **12** scenari `Spec.*` ancora `BLOCKED` · **38** pianificati · **4** mai scritti *(rimisurati il 2026-08-10)* | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
 
 Totale corpus versionato: **60** scenari (`A 27 + B 21 + D-bloccati 12`). Totale registro PIE: **117** voci
 (`B 21 + C 95 + 1 fuori classe`).
@@ -264,14 +264,15 @@ I **nove** rimasti (l'elenco misurato è in
 > copre `Action.Ignite` né `Action.ModifyArc`, che per [D-046](../decisions/RT_PDR_00_Decision_Log.md)
 > restano senza owner in v0.1.
 
-### 6.2 Pianificati nel Feature Registry — non ancora scritti · **34**
+### 6.2 Pianificati nel Feature Registry — non ancora scritti · **38**
 
 Dichiarati in `feature-registry.yaml` sotto `scenarios: {planned: [...]}`, il che li fa comparire come
 **warning** in `feature_registry.py validate`. Il warning è il meccanismo: un piano che non diventa un file
 resta visibile invece di sparire.
 
-> ⚠️ **Erano dichiarati «13», poi ventuno, poi ventitré, e oggi sono trentaquattro**: tredici fra `Clash` e
-> `TimeBank`, dieci fra `State.*`/`Team.*`/`Stress.*`, sei fra `Brace` e `Overwatch`, cinque `Spec.Map.*`.
+> ⚠️ **Erano dichiarati «13», poi ventuno, poi ventitré, e oggi sono trentotto**: tredici fra `Clash` e
+> `TimeBank`, dieci fra `State.*`/`Team.*`/`Stress.*`, sei fra `Brace` e `Overwatch`, cinque `Spec.Map.*`,
+> **quattro di `BAL-1`** (`Spec.Brace.*` e `Spec.Combat.*`).
 > I `TimeBank` sono passati da 8 a 10 con la riconciliazione di `#361` (sotto); i sei di Brace/Overwatch e i
 > cinque di `Spec.Map.*` arrivano dai triage del 2026-08-10, da **due rami diversi** — ed è così che il
 > numero è andato fuori sincrono un'altra volta: ogni ramo aveva ricalcolato il totale sulla **propria** base,
@@ -299,6 +300,7 @@ resta visibile invece di sparire.
 | `Spec.TimeBank.GraceDoesNotDrain` · `…DrainsAfterGrace` · `…NeverBelowZero` · `…TimeoutCostsFullWindow` · `…TimeoutSpendsNoCharge` · `…ClashCostsFullWindow` · `…BotDrainsLikePlayer` · `…ExhaustionKeepsResponsesLegal` · `…ReplayReadsRecordedBank` · `…PacketOrderInvariant` | `RT-FEAT-CORE-DECISION-TIME-BANK` | v0.1 · E14 · CP 14.8 |
 | `Spec.Map.WallCrossesCellStillStandable` · `…FootprintCollisionBlocksCell` · `…NinetyDegreeCornerBakesCorrectly` | `RT-FEAT-MAP-STANDABILITY` | v0.2 · E23 · CP 23.6 |
 | `Spec.Map.ValidCellsBlockedTransition` · `…DoorOpensTransition` | `RT-FEAT-MAP-TRANSITION-CLEARANCE` | v0.2 · E23 · CP 23.7 |
+| `Spec.Brace.GuardAndBraceOnMixedHit` · `.BraceWinsOnSecondHit` · `.PushBeyondGuardThreshold` · `Spec.Combat.BastionIgnoresAllPushes` | `RT-FEAT-ACTION-GENERIC` | v0.1 · E5 · CP 5.2 — `BAL-1` |
 
 > ⚠️ **I tre `Spec.Clash.*` non sono «da scrivere»: oggi sono *impossibili*.** È la stessa situazione già
 > incontrata dal facing prima di CP 16.1. `ERTAssertionKind` ha cinque assertion — `UnitAtCell`,
@@ -328,6 +330,17 @@ resta visibile invece di sparire.
 > traiettoria vicino all'angolo, e lì l'oracolo diretto non esiste — si osserverebbe **di rimbalzo**, dal
 > danno andato a segno o no (`UnitHpEquals`). È un oracolo indiretto, e un test che misura la vista contando
 > ferite è più fragile di quanto sembri. Va deciso quando `MAP-2` si chiude.
+
+> ✅ **I quattro di `BAL-1` sono scrivibili oggi**, e uno solo ha una dipendenza. Oracolo (`UnitHpEquals`,
+> `UnitAtCell`) e fixture (`Riva.PressureJet`: 16 danni **e** `Push 1` nello stesso colpo) esistono entrambi.
+> L'eccezione è `Spec.Brace.PushBeyondGuardThreshold`, che chiede una spinta di 2: **nel gioco non esiste**
+> — il catalogo ha due soli effetti `Push`, entrambi di valore 1 — quindi quello scenario nasce **solo** se
+> la Fase 0 del [piano `BAL-1`](../roadmap/plans/bal-1-guard-brace-roadmap-2026-08-10.md) sceglie di
+> introdurne una. Con l'altra uscita, il file non si scrive e la clausola di `Brace` si riscrive invece.
+>
+> Vale la pena notare **perché** questi quattro mancavano: `Guard` e `Brace` hanno ciascuno i propri scenari
+> e nessuno li guarda **insieme**. È la stessa forma del *dato senza consumatore*, ruotata — qui i
+> consumatori ci sono, manca il test che li confronta.
 
 > ✅ **Aggiornato il 2026-08-09** (`#318`, PR di `feat/318-assertion-turnlog`). Le prime due primitive
 > esistono: `LogEventCount` (con `value: 0` per l'assenza) e `LogEventOrder`. **I tre `Spec.Clash.*` sono

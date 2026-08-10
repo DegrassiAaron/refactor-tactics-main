@@ -993,6 +993,16 @@ features:
       - Combat.BasicAttack
       - Movement.Basic
       - Visual.Combat.GuardReducesFirstHit
+      # `Guard` e `Brace` sono verificati SEPARATAMENTE, ed e' il difetto che tiene aperta `BAL-1`:
+      # nessuno scenario li guarda insieme sullo stesso colpo, quindi il loro confine puo' spostarsi
+      # senza che nulla diventi rosso. I quattro qui sotto lo chiudono e non richiedono capability
+      # nuove dell'harness — bastano `UnitHpEquals` e `UnitAtCell`, e la fixture (`Riva.PressureJet`,
+      # 16 danni + Push 1 nello stesso colpo) e' gia' a catalogo.
+      - planned:
+          - Spec.Brace.GuardAndBraceOnMixedHit
+          - Spec.Brace.BraceWinsOnSecondHit
+          - Spec.Brace.PushBeyondGuardThreshold
+          - Spec.Combat.BastionIgnoresAllPushes
     wiki_refs:
       - docs/wiki/game/azioni-e-movimento.md
     wiki_note: >-

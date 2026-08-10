@@ -52,13 +52,13 @@ quel documento già usa. Nessun simbolo nuovo. La seduta scende a 🟡 da sola.
 
 <!-- RT_SHORTLIST_EDITOR:BEGIN -->
 
-**19 sedute** — ✅ **0** · 🟡 **10** · ⏳ **6** · **3** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
+**20 sedute** — ✅ **0** · 🟡 **10** · ⏳ **7** · **3** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
 
 Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md) e da `git ls-files` sugli artefatti. Un artefatto non tracciato impedisce il verde qualunque cosa dicano le voci.
 
 ### My Editor Queue
 
-**BLOCKING** 7 · **READY** 4 · **WAITING** 5 · **DONE** 0. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
+**BLOCKING** 7 · **READY** 4 · **WAITING** 6 · **DONE** 0. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
 
 **BLOCKING** — *Blocca la v0.1, e si puo' fare adesso*
 
@@ -84,6 +84,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 - **U14** · Ambiente in partita — attende `U13` ⏳
 - **U19** · Durata, ritmo e scala — attende `U6` 🟡, `U1` ⏳
 - **U16** · Misura dei KPI — attende `U6` 🟡
+- **U20** · Confine fra Guard e Brace — attende `E5.2` ⏳
 
 **DONE** — *Finite*
 
@@ -112,6 +113,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 | **U19** | Durata, ritmo e scala | numeri di playtest — non difetti | U6, U1 | sì | 0/4 | ⏳ |
 | **U16** | Misura dei KPI | numeri reali nella tabella KPI | U6 | sì | 0/1 | 🟡 |
 | **U17** | Release v0.1 | build Windows Development e Shipping, e una partita giocata senza editor | E12 | sì | — | — |
+| **U20** | Confine fra Guard e Brace | verdetto di leggibilita' — un dato per `BAL-1`, non un difetto da correggere | E5.2 | no | 0/1 | ⏳ |
 
 ### Blocco 1 — Eseguibile oggi
 
@@ -432,6 +434,31 @@ Nessuna guida copre questa procedura, quindi i passi stanno qui.
 **Finita quando**: BUILD SUCCESSFUL su entrambe le configurazioni e una partita conclusa dalla packaged
 
 > L'invocazione esatta di `RunUAT BuildCookRun` si fissa alla prima esecuzione riuscita e si scrive qui: non va inventata a tavolino.
+
+#### U20 · Confine fra Guard e Brace ⏳
+
+**Sbloccata da**: E5.2 · **Percorso critico**: no
+**Produce**: verdetto di leggibilita' — un dato per `BAL-1`, non un difetto da correggere
+**Verifichi**: `PIE-BAL1` ⏳
+**Finita quando**: la voce ha un esito reale nel registro, in un verso o nell'altro
+
+**Non e' una caccia ai difetti: e' una domanda di leggibilita'.** Tre unita' con
+`PushResistance = 0` (Flux, Riva, Vektor) — una in `Action.Guard`, una in `Action.Brace`, una
+senza difesa — e una Riva avversaria che usa `Riva.PressureJet` su ciascuna nello stesso turno.
+E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
+
+1. Guarda il turno **senza leggere i numeri**. «Questo si e' piantato» dev'essere distinguibile
+   da «questo ha parato».
+2. Solo dopo, controlla il log: 1 danno per chi e' in `Guard`, 6 per chi e' in `Brace`,
+   **nessuno dei due arretra**.
+3. Ripeti con **due** colpi sullo stesso bersaglio: qui l'ordine si inverte (17 contro 12), ed
+   e' il solo caso in cui `Brace` conviene.
+
+> ⚠️ **Non mettere due attaccanti sullo stesso bersaglio nello stesso passaggio**: il resolver
+> esclude i bersagli spinti da 2+ attaccanti (forze contraddittorie). Misureresti quella
+> regola, non questa.
+
+> Nasce dal piano `BAL-1` (`plans/bal-1-guard-brace-roadmap-2026-08-10.md` §6). **Non entra nel subset `RELEASE-V01`**: `BAL-1` non blocca la consegna, e un gate che si allarga senza motivo e' il difetto che G9 ha gia' avuto due volte. La seduta ha una voce sola di proposito — e' una domanda che si risponde una volta, guardandola. ⚠️ ID assegnato al merge: preso `U20` con `U19` come ultimo su `main`. Chi arriva secondo rinumera, non contende.
 
 > **54 voci del registro non stanno in nessuna seduta** — `PIE-BU-*` 4 · `PIE-CP-*` 1 · `PIE-HEX-*` 9 · `PIE-MP-*` 1 · `PIE-MUT-*` 2 · `PIE-P-*` 1 · `PIE-SCEN-*` 2 · `PIE-STATE-*` 10 · `PIE-TEST-*` 2 · `PIE-V-*` 1 · `PIE-VIS-*` 21. Non e' per forza un difetto (le `PIE-VIS-*` hanno il proprio scenario, le `PIE-STATE-*` verificano un sistema che non esiste), ma una voce che non sta in una seduta non viene eseguita mai: e' la ragione per cui questo conteggio e' qui.
 

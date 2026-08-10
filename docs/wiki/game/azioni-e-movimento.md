@@ -89,7 +89,7 @@
 La grammatica comune del gioco è:
 
 ```text
-Wait · BasicAttack · Interact · Brace · Move · Overwatch
+Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch
 ```
 
 Il kit di un personaggio aggiunge abilità specifiche sopra questa base.
@@ -132,9 +132,26 @@ l'eroe è.
 
 Interazione con elementi della mappa come porte, console, ponti o obiettivi quando le relative regole lo permettono.
 
+### Guard
+
+Ti metti in guardia. Il **primo** colpo diretto che ricevi nel turno fa **15 danni in meno**; dal secondo in poi incassi per intero. Reggi anche una spinta di **una cella** — non di più: la guardia non è un'ancora.
+
+Copre il **davanti**. Un colpo che arriva alle spalle trova la guardia inutile, e questo è il motivo per cui il facing conta anche quando non ti muovi.
+
 ### Brace
 
-Azione difensiva universale prevista dal modello. I numeri definitivi sono ancora da playtestare.
+Ti irrigidisci. Ogni colpo diretto del turno fa **10 danni in meno** — non solo il primo — e la **prima** spinta non ti sposta, a qualsiasi distanza. In cambio rinunci al movimento volontario.
+
+A differenza di `Guard`, `Brace` protegge la **persona** e non un lato: regge anche da dietro.
+
+> ⚠️ **Il confine fra Guard e Brace è una domanda aperta, non una regola stabile.**
+> Sulla carta `Guard` è «reggo il colpo» e `Brace` è «non mi sposti». In partita, oggi, la differenza sullo
+> spostamento **non si vede**: nessuna spinta del gioco supera una cella, quindi entrambe la annullano, e
+> `Guard` resta avanti di 5 danni. `Brace` conviene solo se ti colpiscono **più di una volta** nello stesso
+> turno.
+>
+> È registrato come `BAL-1` e si chiude con un playtest, non con un documento. I numeri qui sopra sono quelli
+> in vigore adesso e possono cambiare.
 
 ### Move
 
