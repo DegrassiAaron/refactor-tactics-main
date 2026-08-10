@@ -140,6 +140,24 @@ void ARTGameMode::BeginPlay()
 	}
 
 	SetupHexMatch(HexMap);
+
+	// La registrazione del replay comincia QUI (`#469`), e la posizione e' stata corretta due volte perche'
+	// «dove si sa che e' una partita vera» e' piu' stretto di quanto sembri:
+	//
+	//  - non nel `BeginPlay` del TurnManager: lo spawnano a mano ventisette file di test e lo
+	//    `ScenarioHarness`, e li avremmo fatti scrivere archivi tutti;
+	//  - non dentro `SetupHexMatch`: **`RTHeroSpawnTests` lo chiama direttamente**, perche' verifica lo
+	//    spawn del roster attraverso il percorso vero — e cosi' due test lasciavano un `history.rtindex`
+	//    nella `Saved/` del progetto a ogni run.
+	//
+	// Qui invece ci si arriva **solo** avviando il gioco: `SetupHexMatch` ha questo unico chiamante in
+	// produzione, e il ramo dello scenario e' gia' uscito con un `return` piu' sopra. Dopo `SetupHexMatch`
+	// anche il formato e' risolto, quindi il manifest nasce con quello vero.
+	if (ARTTurnManager* TurnManager =
+			Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass())))
+	{
+		TurnManager->BeginReplayRecording();
+	}
 }
 
 ERTMapSource ARTGameMode::ResolveMapSource() const
@@ -336,18 +354,6 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 	if (!ApplyMatchFormat(TurnManager, HexMap->MapAsset, Rules))
 	{
 		return;
-	}
-
-	// La registrazione del replay comincia QUI e non nel `BeginPlay` del TurnManager (`#469`): questo e' il
-	// punto in cui si sa che si sta allestendo una PARTITA — i test e lo `ScenarioHarness` spawnano un
-	// TurnManager senza passare di qua, e non devono scrivere archivi. Ed e' dopo `ApplyMatchFormat`, quindi
-	// il formato che finisce nel manifest e' quello vero.
-	//
-	// E' la stessa divisione di responsabilita' che questo file gia' pratica: il GameMode sceglie COSA
-	// allestire, il turn manager non sa nulla di chi lo osserva.
-	if (TurnManager)
-	{
-		TurnManager->BeginReplayRecording();
 	}
 
 	// Il livello puo' avere unita' gia' posate a mano: in quel caso l'allestimento automatico non interviene.

@@ -4,6 +4,7 @@
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnLogLibrary.h"
 #include "Unit/RTUnit.h"
+#include "RTGameMode.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
@@ -222,6 +223,45 @@ bool FRTReplayNoRecordingWithoutStartTest::RunTest(const FString&)
 
 	TestFalse(TEXT("nessun id di registrazione"), TM->GetReplayMatchId().IsValid());
 	TestFalse(TEXT("e nessuna cartella di archivi creata"), PF.DirectoryExists(*Root));
+
+	DestroyRecWorld(World);
+	return true;
+}
+
+/**
+ * Allestire una partita NON e' avviarla: `SetupHexMatch` chiamata da sola non registra niente.
+ *
+ * Il difetto e' gia' tornato una volta. La prima correzione aveva spostato l'avvio della registrazione dal
+ * `BeginPlay` del TurnManager dentro `SetupHexMatch`, credendo che quello fosse «il punto in cui si sa che
+ * e' una partita vera». Non lo era: `RTHeroSpawnTests` chiama `SetupHexMatch` **direttamente**, perche'
+ * verifica lo spawn del roster attraverso il percorso vero — e cosi' due test lasciavano un
+ * `history.rtindex` nella `Saved/` del progetto a ogni esecuzione della suite.
+ *
+ * Ora l'avvio sta dopo `SetupHexMatch` dentro `BeginPlay`, dove ci si arriva solo giocando. Questo test
+ * pinna la distinzione, cosi' non serve accorgersene una terza volta guardando una cartella.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplaySetupWithoutBeginPlayTest,
+	"RefactorTactics.Replay.Recording.SetupAloneStartsNoRecording",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplaySetupWithoutBeginPlayTest::RunTest(const FString&)
+{
+	UWorld* World = MakeRecWorld();
+	if (!TestNotNull(TEXT("mondo creato"), World)) { return false; }
+
+	SpawnRecMap(World, /*Radius=*/ 4);
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TM || !GameMode) { DestroyRecWorld(World); return false; }
+
+	ARTHexMapActor* HexMap = Cast<ARTHexMapActor>(
+		UGameplayStatics::GetActorOfClass(World, ARTHexMapActor::StaticClass()));
+	if (!TestNotNull(TEXT("mappa nel mondo"), HexMap)) { DestroyRecWorld(World); return false; }
+
+	// Il percorso di `RTHeroSpawnTests`: si allestisce, non si gioca.
+	GameMode->SetupHexMatch(HexMap);
+
+	TestFalse(TEXT("allestire non avvia la registrazione"), TM->GetReplayMatchId().IsValid());
 
 	DestroyRecWorld(World);
 	return true;
