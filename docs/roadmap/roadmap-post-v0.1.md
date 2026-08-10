@@ -262,7 +262,7 @@ indipendente e può procedere in parallelo: descrive lo status, non ciò che lo 
 | **36.3** | Le sei primitive, derivate | `MODIFY` · `DEGRADE` · `RESTRICT` · `INTERRUPT` · `CONVERT` · `CONSUME` si **leggono** da ciò che lo status dichiara: chi dichiara `Sprint → Move` *è* un `DEGRADE`. Un test verifica che la lettura sia totale — nessuno status resta senza primitiva derivabile |
 | **36.4** | Severity contata, anti-stun-lock come test | `C0`–`C3` si contano dalle capability toccate (0 · degrada · una categoria · due o più). La regola *«nessuno status comune e ripetibile toglie insieme Movement, Main Action e Reaction»* smette di essere una revisione umana e **diventa un test** |
 | **36.5** | Applicazione: degrada, nega, riprova | Pipeline unica con esito `Full`/`Degraded`/`Rejected`, e danno e status risolti **separatamente** — un'abilità fa danno anche se il control viene resistito. **Resistance** generalizza `PushResistance` da scalare su un dominio solo a profilo che **degrada** (`Root → Slow`); **Immunity** **nega**; `Action.Cleanse` passa dalla lista esplicita di tag alla **categoria**, conservando fail-closed e scelta del giocatore. La reapply policy impedisce di rinfrescare all'infinito lo stesso control con lo stesso setup |
-| **36.6** | Reason code, TurnLog e validator | Gli eventi status hanno reason code stabili nel `TurnLog`, e il validator rifiuta i casi del §53 del sorgente: `C2` senza durata, `C3` senza gate, status senza `StackPolicy` o expiration, tag `Cleanse` sconosciuto, resistenza senza regola di degradazione, self-loop e cicli di conversione |
+| **36.6** | Reason code, TurnLog e validator | Un **nuovo** `ERTLogCategory::Status` e un **nuovo** `ERTStatusOutcome`, seguendo il pattern per categoria del `TurnLog` — non riusando gli enum di esito altrui. Porta una **`v8`** del formato, con le tre decisioni che il precedente impone: rivendicare il numero verificando **tutti** i branch remoti, dire se `StatusId` entra nell'**hash** (e dichiarare in anticipo il rebaseline dei golden) e, separatamente, se entra in **`EntryLess`**. Le regole del §53 **estendono** `RefactorTactics.Catalog.Validator*` |
 
 **Dipendenze**: `RT-FEAT-ENV-STATUS` (E8, chiusa) e `RT-FEAT-ACTION-ENGINE` (E4, chiusa). **Non** dipende da
 E14: la metà su Brace/Overwatch del sorgente era già decisa altrove.
@@ -300,6 +300,39 @@ significato**.
 > `Climb` **non è un candidato**, perché non esiste come azione: cambiare layer è `Move` attraverso un arco di
 > transizione (`RefactorTactics.HexMove.ClimbsOnlyThroughTransition`). `Sneak` invece esiste come profilo ma
 > è **senza numeri** — costo, portata e rumore non definiti da nessuna fonte corrente.
+
+> 🧭 **E 36.6 parte dal pattern opposto: qui NON si riusa** *(spec panel del 2026-08-10 su
+> [#441](https://github.com/DegrassiAaron/refactor-tactics-main/issues/441))*.
+>
+> La voce di `TurnLog` porta `ERTLogCategory` (`Move · Combat · Fallback · Reaction · Environment · Facing ·
+> Predictive`) e **un solo `uint8 Outcome`**, che *è l'enum della propria categoria* — `ERTMoveOutcome` se
+> `Move`, `ERTCombatOutcome` se `Combat`, e così via. Una famiglia **per categoria** non è una seconda verità:
+> **è** l'architettura, e il byte è condiviso proprio perché il discriminatore lo disambigua. Riusare
+> `ERTCombatOutcome` per una transizione di status romperebbe quel contratto.
+>
+> È la lezione di 36.1 applicata al contrario, e vale la pena scriverlo: là il concetto era **lo stesso**
+> (`Slot` e «capability»), quindi duplicarlo era il difetto; qui i concetti sono **diversi** e il pattern
+> chiede di aggiungere.
+>
+> **La domanda costosa è il formato.** Il `TurnLog` è a **`v7`** (`WithPriority`); uno `StatusId` per voce è
+> una **`v8`**, e il precedente impone tre decisioni distinte:
+>
+> - **Rivendicare il numero** verificando **tutti i branch remoti**, non solo `main` — il commento della `v7`
+>   racconta perché: la `v6` era già presa da un altro ramo, e *«due formati con lo stesso numero»* sono il
+>   caso peggiore, perché il loader sceglie dal numero e non può accorgersi dello scambio
+>   ([`D-070`](../decisions/RT_PDR_00_Decision_Log.md)).
+> - **`StatusId` entra nell'hash?** `GraphRevision` sì ([`D-067`](../decisions/RT_PDR_00_Decision_Log.md)),
+>   `Priority` e `BaseActionId` no — ma quelli sono *funzioni* di campi già presenti, e uno `StatusId` non lo
+>   è: due tracce che differiscono solo per quale status è stato applicato **sono partite diverse**. Se entra,
+>   **ogni hash golden cambia**, e il rebaseline va dichiarato prima, non scoperto in CI.
+> - **Entra in `EntryLess`?** Domanda **separata**: `Priority` sta fuori dall'hash e **dentro** l'ordinamento,
+>   o due voci restano a pari merito e `TArray::Sort`, che non è stabile, rompe `D-SR-1`.
+>
+> Due avvertenze di perimetro. Il validator **estende** `RefactorTactics.Catalog.Validator*` — la famiglia
+> esiste e `RT-FEAT-TOOL-VALIDATION` è `DONE`. E le due regole sui **cicli di conversione** oggi non hanno
+> soggetto: nel repository non esiste alcuna conversione status→status — `Wet` che spegne `Burning` è una
+> `RemoveStatus`, e il `CONVERT` ambientale è fuori scope in 36.3 perché `Cold`/`Ice`/`Frozen` non esistono.
+> Una regola senza istanza violabile non può avere il test rosso che il checkpoint stesso pretende.
 
 > 🧭 **Tre pezzi di 36.5 esistono già, e l'epic li estende invece di costruirli** *(misurato il 2026-08-10)*.
 > Il sorgente §21–§23 li elenca come mancanti, e per uno dei tre è falso:
