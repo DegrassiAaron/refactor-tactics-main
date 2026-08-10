@@ -396,9 +396,7 @@
         "docs/wiki/game/esempio-di-round.md"
       ],
       "wiki_note": "",
-      "pie_refs": [
-        "PIE-V01-HUD"
-      ],
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -3071,9 +3069,7 @@
         "docs/wiki/game/come-si-gioca.md"
       ],
       "wiki_note": "",
-      "pie_refs": [
-        "PIE-V01-HUD"
-      ],
+      "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
@@ -3320,7 +3316,6 @@
       ],
       "wiki_note": "",
       "pie_refs": [
-        "PIE-V01-HUD",
         "PIE-V01-INTENT"
       ],
       "last_verified": {

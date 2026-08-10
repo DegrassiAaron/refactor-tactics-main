@@ -25,10 +25,17 @@
 #                  `packaged`. È il legame che fino al 2026-08-10 **non era un dato**: viveva nel
 #                  corpo delle issue GitHub («Verifica PIE `PIE-V01-HUD`»), fuori dal repository e
 #                  fuori da ogni controllo — così il giorno in cui una voce diventa ✅ nessuno sa
-#                  quali gate possono avanzare. I 18 legami presenti sono stati estratti dalla
+#                  quali gate possono avanzare. I legami presenti sono stati estratti dalla
 #                  sezione «Test / verifica» delle issue che ciascuna feature già dichiara in
 #                  `issues:`, non assegnati a intuito. Il campo è **opzionale**: assente significa
 #                  «non ancora mappato», non «nessuna verifica manuale».
+#                  ⚠️ **L'estrazione dalle issue non basta da sola**, ed è costata tre legami falsi
+#                  in code review: quando più feature dichiarano la STESSA issue, il metodo attacca
+#                  la stessa voce a tutte, anche a quelle che non c'entrano. `PIE-V01-HUD` (issue
+#                  #77) verifica barre, timer, slot e cooldown: dimostra `RT-FEAT-UI-PLANNING`, non
+#                  la camera tattica né il playback della risoluzione. Un legame va tenuto solo se
+#                  il **testo della voce** verifica quella feature — la citazione condivisa è
+#                  l'indizio, non la prova.
 #                  Il validator ne deriva due cose: `packaged: done` con una voce non ✅ è un
 #                  **errore** (il gate afferma una verifica che il registro non conferma), e tutte
 #                  le voci ✅ con il gate ancora `partial`/`todo` è un **avviso**: può avanzare.
@@ -329,7 +336,6 @@ features:
       - Visual.Combat.Defeat
     wiki_refs:
       - docs/wiki/game/esempio-di-round.md
-    pie_refs: [PIE-V01-HUD]
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -2359,7 +2365,6 @@ features:
     scenarios: []
     wiki_refs:
       - docs/wiki/game/come-si-gioca.md
-    pie_refs: [PIE-V01-HUD]
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -2524,7 +2529,7 @@ features:
       - Combat.SplashHitsAlliesNotSelf
     wiki_refs:
       - docs/wiki/game/combattimento-e-targeting.md
-    pie_refs: [PIE-V01-HUD, PIE-V01-INTENT]
+    pie_refs: [PIE-V01-INTENT]
     last_verified:
       date: 2026-08-08
       commit: 2094b86

@@ -102,8 +102,16 @@ Cinque regole che vale la pena scrivere, perché sono i modi in cui questo schem
 
    Ora il validator lo deriva: `packaged: done` con una voce citata non ✅ è un **errore**, e tutte
    le voci ✅ con il gate ancora `partial`/`todo` è un **avviso** che il gate può avanzare. Il campo
-   è opzionale — assente significa «non ancora mappato», non «nessuna verifica manuale» — e una
-   stessa voce può dimostrare più feature, perché più feature possono dichiarare la stessa issue.
+   è opzionale — assente significa «non ancora mappato», non «nessuna verifica manuale».
+
+   **Come si assegna, e come non si assegna.** L'origine è la sezione «Test / verifica» dell'issue
+   che la feature dichiara, ma quella citazione è un indizio, non una prova: quando più feature
+   dichiarano la stessa issue, il criterio meccanico attacca la stessa voce a tutte. È costato tre
+   legami falsi, trovati in review — `PIE-V01-HUD` verifica barre, timer, slot e cooldown, quindi
+   dimostra l'HUD di planning, non la camera tattica né il playback della risoluzione. Prima di
+   scrivere un legame si legge il **testo della voce** e si verifica che parli di quella feature.
+   Una stessa voce può legittimamente dimostrarne più d'una; non lo fa per il solo fatto che l'issue
+   è condivisa.
 
 ### 4.1 Quando un pezzo lo porta un'altra feature
 
