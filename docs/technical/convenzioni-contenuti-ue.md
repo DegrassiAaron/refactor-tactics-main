@@ -609,14 +609,37 @@ Misura sul disco, stessa data:
 | `ParagonSparrow` | 1.508 | 2,82 GB | — |
 | `ParagonDekker` | 1.604 | 1,56 GB | 1.310 asset dai riferimenti rotti (B.3 punto 4) |
 
-**«Danneggiato» qui non vuol dire «assente»**: mancano ~140 MB su Gideon, coerenti con i `DialogueWave`
-persi (B.3 punto 1), e su Dekker il problema sono i **riferimenti rotti**. Le due cause hanno rimedi diversi
-e solo la seconda è irrecuperabile senza riscaricare.
+**«Danneggiato» qui non vuol dire «assente»**: su Dekker il problema sono i **riferimenti rotti**, su altri
+pack i `DialogueWave` persi (B.3 punto 1). Le due cause hanno rimedi diversi, e solo la seconda è
+irrecuperabile senza riscaricare.
 
-Conseguenza pratica, prima di riscaricare 2,6 GB: **la perdita documentata è audio, non geometria**. Un
-`BP_Unit` usa SkeletalMesh, Skeleton, PhysicsAsset, animazioni e materiali — la parte che quella migrazione
-non ha toccato. Apri il pack nel Content Browser e verifica *quegli* asset: se si aprono puliti, il download
-non serve. Se invece servisse, la via è **B.2a**.
+### ✅ `ParagonGideon` NON è danneggiato — verificato il 2026-08-10
+
+L'avviso è stato **messo alla prova** confrontando il pack in `FabAsset/` con un download fresco da Fab,
+fatto lo stesso giorno proprio perché quell'avviso lo prescriveva:
+
+| | in `FabAsset/Paragon/` | download fresco |
+|---|---:|---:|
+| File | 1.700 | 1.700 |
+| File audio-dialogo | 205 | 205 |
+| Dimensione | 2,6 GB | 2,73 GB |
+
+**Nessun file mancante e nessun `DialogueWave` perso.** E la verifica che conta — quella prescritta in fondo
+a B.3 — dà il risultato giusto: su 25 `.uasset` campionati, **25 citano `/Game/FabAsset/Paragon/` e zero il
+path vecchio**. Il pack è rinominato correttamente, non spostato. L'utente ha poi confermato a schermo che
+gli asset si aprono.
+
+Restano 130 MB di differenza, che **non sono contenuto assente**: gli asset a destinazione sono stati
+risalvati dal rename, quindi ricompressi. Un delta di dimensione, da solo, non è una prova di danno.
+
+⚠️ **Conseguenza sull'avviso**: per Gideon era **falso**, e ha fatto scaricare 2,73 GB inutili. Non
+propagarlo agli altri pack senza misurarli: `ParagonSparrow` e i tre mai nominati sono **non verificati**, non
+«danneggiati». Il metodo per verificarli è quello qui sopra — conteggio file, conteggio audio, e il campione
+sui path citati — e costa pochi minuti contro un download da gigabyte.
+
+Conseguenza pratica generale: **la perdita documentata è audio, non geometria**. Un `BP_Unit` usa
+SkeletalMesh, Skeleton, PhysicsAsset, animazioni e materiali. Verifica *quegli* asset prima di riscaricare;
+se poi il download serve davvero, la via è **B.2a**.
 
 ## B.4 Regola operativa
 
