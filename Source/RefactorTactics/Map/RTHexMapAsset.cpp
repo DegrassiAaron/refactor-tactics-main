@@ -59,9 +59,11 @@ void URTHexMapAsset::BeginStroke()
 	Modify();
 }
 
-bool URTHexMapAsset::PaintCellInStroke(const FRTCellId& Id, ERTHexSurface Surface, int32 MoveCost, bool bBlocksMovement)
+bool URTHexMapAsset::PaintCellInStroke(const FRTCellId& Id, ERTHexSurface Surface, int32 MoveCost,
+	bool bBlocksMovement, TOptional<bool> InBlocksLineOfSight)
 {
-	AddOrUpdateCell(URTHexMapAsset::ApplyBrush(FindCell(Id), Id, Surface, MoveCost, bBlocksMovement));
+	AddOrUpdateCell(URTHexMapAsset::ApplyBrush(FindCell(Id), Id, Surface, MoveCost, bBlocksMovement,
+		InBlocksLineOfSight));
 	return true;
 }
 
@@ -81,13 +83,20 @@ void URTHexMapAsset::EndStroke()
 }
 
 FRTHexCellData URTHexMapAsset::ApplyBrush(const FRTHexCellData* Existing, const FRTCellId& Id,
-	ERTHexSurface Surface, int32 MoveCost, bool bBlocksMovement)
+	ERTHexSurface Surface, int32 MoveCost, bool bBlocksMovement, TOptional<bool> InBlocksLineOfSight)
 {
 	FRTHexCellData Cell = Existing ? *Existing : FRTHexCellData(Id);
 	Cell.Id = Id; // garantisce l'Id (anche se Existing arrivasse con Id diverso)
 	Cell.Surface = Surface;
 	Cell.MoveCost = MoveCost;
 	Cell.bBlocksMovement = bBlocksMovement;
+	// Non passato = preserva, che e' il comportamento storico e resta quello di default: `ApplyBrushMerge` lo
+	// pinna. Passato = scrive, ed e' cio' che permette al pennello di dipingere un muro invece di doverlo
+	// scrivere a mano nell'asset.
+	if (InBlocksLineOfSight.IsSet())
+	{
+		Cell.bBlocksLineOfSight = InBlocksLineOfSight.GetValue();
+	}
 	return Cell;
 }
 

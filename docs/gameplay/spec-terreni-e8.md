@@ -257,6 +257,40 @@ nella PR**: `Fire`/`Burning` funziona (durata 2, valore fisso, non serve il mode
   meccanismo di vista modificabile per quota.
 - Scivolamento su `Ice` dopo uno **Scatto** (solo il Move normale lo innesca in CP 8.1, vedi §5.2).
 
+## 6-ter. La profondità dell'acqua è una **superficie**, non un asse — `GEO-1` ([D-081](../decisions/RT_PDR_00_Decision_Log.md))
+
+Il [quinto handoff](../archive/src/handoff/2026-08-10-full-grid-geometry-walls-water.md) dà l'acqua come
+**asse ortogonale** alla superficie (`WaterDepth = None | Shallow | Deep | Impassable`), con la profondità
+che cambia durante il match. `#429` chiedeva se CP 8.1 si **estende** o si **riscrive**.
+
+⚠️ **La domanda poggiava su una premessa misurabile e falsa.** La issue diceva che `ShallowWater` «non cambia
+mai». Cambia: `Action.CreateWater` (CP 8.4) la **crea a runtime** attraverso `ApplyDynamicSurface`, che
+ricorda la superficie originale, conta i turni e scrive nel TurnLog sia l'applicazione sia il ritorno. Il
+*flooding* che l'handoff chiede come proprietà nuova di un asse **esiste già**, come cambio di superficie.
+
+Da qui la scelta: **superficie composta.** `DeepWater` e `ImpassableWater` si aggiungono in coda all'enum
+quando una feature le chiede, e riusano il meccanismo che esiste.
+
+| | Cosa costa davvero |
+|---|---|
+| **Asse separato** | `FRTHexCellData` acquista un campo → **versione del formato mappa** e migrazione degli asset salvati. E `ApplyDynamicSurface` ricorda **una** superficie originale per cella: una profondità dinamica vorrebbe la **propria** macchina a stati accanto, non un campo in più |
+| **Superficie composta** *(scelta)* | Zero migrazione, zero formato nuovo, e il produttore del flooding è già scritto. Il costo è l'esplosione combinatoria — che però si paga **al secondo asse**, non al primo |
+
+**L'espressività persa non è nuova e non la paga nessuno.** L'argomento dell'asse è «`Ice` su acqua profonda
+è esprimibile». Ma il repository non sa esprimere nemmeno `Ice` su `ShallowWater`, perché sono entrambe
+superfici — e nessuna feature lo chiede: `RT-FEAT-MAP-WATER-DYNAMICS` è `IDEA`, e i profili `Swim`,
+`Amphibious`, `Hover` non esistono.
+
+**Quando si riapre.** Due inneschi, entrambi osservabili e non a discrezione:
+
+1. compare un **secondo** asse ortogonale davvero indipendente dalla superficie (non «acqua profonda» ma, per
+   dire, una temperatura che si combina con tutte e otto);
+2. un profilo di movimento deve leggere la **profondità** senza leggere la superficie — cioè la
+   composizione smette di essere un dettaglio di rappresentazione.
+
+Finché nessuno dei due scatta, l'asse è un campo di formato pagato in anticipo per un'espressività che
+nessuna regola consuma.
+
 ## 7. Piano di test
 
 Richiesti dal DoD (`v0.1-issue-plan.md` §CP 8.1):

@@ -64,8 +64,12 @@ bool URTHexPaintTool::ApplyBrushAt(ARTHexMapActor* Actor, const FRTCellId& Cente
 		{
 			EnsureStrokeOpen();
 		}
+		// Il flag della vista si passa SEMPRE: il pennello lo scrive come scrive `bBlocksMovement`, cosi'
+		// dipingere con il flag spento su una cella che lo aveva lo toglie. Senza, il muro sarebbe
+		// irreversibile dall'editor — il difetto opposto a quello che questa property risolve.
 		const bool bApplied = bPaint
-			? Map->PaintCellInStroke(C, Properties->Surface, Properties->MoveCost, Properties->bBlocksMovement)
+			? Map->PaintCellInStroke(C, Properties->Surface, Properties->MoveCost, Properties->bBlocksMovement,
+				TOptional<bool>(Properties->bBlocksLineOfSight))
 			: Map->EraseCellInStroke(C);
 		PaintedThisStroke.Add(C);
 		bAnyChanged = bAnyChanged || bApplied;

@@ -122,9 +122,9 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole | v0.1 | IMPLEMENTING | 5/9 | E16 | Deriva da Move e Dash, entra in snapshot e hash, e da dietro annulla `Guard` |
 | `RT-FEAT-MAP-STANDABILITY` — Standability derivata da anchor, footprint e clearance | v0.2 | DESIGNED | 0/8 | — | — |
 | `RT-FEAT-MAP-TRANSITION-CLEARANCE` — Validità della transizione distinta da quella della cella | v0.2 | DESIGNED | 0/8 | — | — |
-| `RT-FEAT-MAP-STRUCTURAL` — Strutture: integrita', crolli a catena e macerie | future | IDEA | 0/8 | — | — |
+| `RT-FEAT-MAP-STRUCTURAL` — Strutture: integrita', crolli a catena e macerie | future | IDEA | 0/8 | — | Lo slot si chiama **`Bulkhead`** (D-082): il verbo *breach* resta un'azione, e `BreachCharge` è ciò che lo apre |
 | `RT-FEAT-MAP-VERTICALITY` — Verticalita': vault, drop, salita e cadute | future | IDEA | 0/8 | — | — |
-| `RT-FEAT-MAP-WATER-DYNAMICS` — Acqua tattica: profondita', flooding e corrente | future | IDEA | 0/8 | — | — |
+| `RT-FEAT-MAP-WATER-DYNAMICS` — Acqua tattica: profondita', flooding e corrente | future | IDEA | 0/8 | — | La profondità è una **superficie**, non un asse (D-081): il flooding esiste già come cambio di superficie |
 
 ### Networking · 3
 

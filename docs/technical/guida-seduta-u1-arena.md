@@ -48,13 +48,31 @@ Editor Mode **Hex Map** → tool **Paint** → `BrushRadius = 4` → un click su
 
 Esagono pieno di raggio 4 sul layer 0: 61 celle.
 
-Con `bShowOverlay` attivo rileggi il risultato a colori mentre procedi.
+**Accendi `bShowOverlay`**: sta nel pannello **del tool** (Paint o Select), sezione `Hex | Overlay` — non
+sull'actor. Con l'overlay spento vedi solo mesh grigie e non distingui nulla.
+
+Acceso, ogni cella mostra fino a tre anelli concentrici:
+
+| Anello | Colore | Significato |
+|---|---|---|
+| esterno | colore della superficie | `Floor`, `Mud`, `Rough`, … |
+| medio | **giallo** | blocca la **vista** — ci si passa, non ci si vede attraverso |
+| interno | **rosso** | blocca il **movimento** |
+
+Sono marcatori distinti perché sono regole distinte, e una cella può averle entrambe. Finché dipingi solo
+`Floor` resteranno comunque tutte dello stesso colore: la varietà arriva coi terreni.
 
 ---
 
 ## 3. La copertura — *criterio 1*
 
-2–3 celle con `bBlocksMovement` e 2–3 celle con `bBlocksLineOfSight`.
+2–3 celle con `bBlocksMovement` e 2–3 celle con `bBlocksLineOfSight`, entrambe dal pannello del **pennello**.
+
+> `bBlocksLineOfSight` è arrivato nella palette il 2026-08-10
+> ([#474](https://github.com/DegrassiAaron/refactor-tactics-main/issues/474)): prima **nessuno strumento
+> dell'Editor Mode sapeva scriverlo** e l'unica strada era editare l'array `Cells` a mano nel Data Asset. Il
+> pennello lo tratta come `bBlocksMovement` — lo scrive sempre, quindi ridipingere con il flag spento
+> **toglie** il muro.
 
 **Il criterio non conta le celle, chiede che la vista sia interrotta**: servono **≥2 celle**
 `bBlocksLineOfSight` sul segmento fra i due spawn, e la linea di tiro fra i due deve risultare bloccata.
