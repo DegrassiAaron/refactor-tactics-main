@@ -26,7 +26,8 @@ uint32 URTMatchStateHashLibrary::HashMatchState(const URTHexMapAsset* Map,
 	};
 
 	// --- Unità -------------------------------------------------------------------------------------------
-	// In ordine di Id: l'Id viene dallo scenario ed è stabile, l'ordine dell'array no.
+	// In ordine di `UnitId`: l'identita' e' stabile ([D-084]: e' `ARTUnit::StableUnitId`), l'ordine
+	// dell'array no — arriva da `GetAllActorsOfClass` o da una `TMap`, e nessuno dei due e' deterministico.
 	TArray<FRTUnitStateDigest> SortedUnits = Units;
 	SortedUnits.Sort([](const FRTUnitStateDigest& A, const FRTUnitStateDigest& B) { return A.UnitId < B.UnitId; });
 

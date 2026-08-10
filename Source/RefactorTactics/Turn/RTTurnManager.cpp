@@ -1408,9 +1408,14 @@ void ARTTurnManager::CaptureFinalStateHash()
 	}
 
 	// Si cattura a ogni turno e non solo all'ultimo: l'ultimo non si sa quale sia finche' non e' passato, e
-	// un turno che chiude la partita per eliminazione lo scopre solo dopo aver risolto. Costa un hash per
-	// turno — la stessa spesa che l'harness fa a fine scenario — e in cambio il valore c'e' sempre, anche
-	// quando la partita finisce in un ramo che non avevamo previsto.
+	// un turno che chiude la partita per eliminazione lo scopre solo dopo aver risolto. In cambio il valore
+	// c'e' sempre, anche quando la partita finisce in un ramo che non avevamo previsto.
+	//
+	// ⚠️ **Il KPI di pacing non misura questo costo**, ed e' bene saperlo prima che diventi un problema:
+	// `Perf.TurnResolverMedian` spawna un TurnManager senza chiamare `BeginReplayRecording`, quindi la
+	// guardia qui sopra manda la funzione a vuoto e il tempo per turno che quel test pubblica **esclude**
+	// l'hash. Oggi la spesa e' trascurabile — un hash su mappa e unita' di una partita 2v2 — ma se la mappa
+	// crescesse, la rete che dovrebbe accorgersene non copre questo percorso.
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
 

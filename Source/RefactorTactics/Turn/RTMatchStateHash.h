@@ -35,6 +35,14 @@ struct FRTUnitStateDigest
 	 * squadra sulla stessa cella, che una partita legale non produce. È funzione dello **stato iniziale**,
 	 * quindi due mondi che allestiscono la stessa situazione assegnano gli stessi id.
 	 *
+	 * ⚠️ **Qui l'identità ENTRA nell'hash, mentre nel TurnLog resta fuori (D-063) — e non è una
+	 * contraddizione**: è lo stesso criterio applicato a due oggetti diversi. Un campo entra nell'hash *se e
+	 * solo se* due oggetti possono differire **solo** per quello. Due **tracce** non possono: l'unità che ha
+	 * agito è già determinata dagli eventi, e `UnitId` serve a renderli spiegabili. Due **stati finali** sì:
+	 * «l'unità 3 viva con 40 HP e la 7 caduta» e «la 7 viva con 40 HP e la 3 caduta» sono finali diversi, e
+	 * l'unica cosa che li distingue è l'identità. Toglierla renderebbe indistinguibili due partite finite in
+	 * modo opposto.
+	 *
 	 * ⚠️ Vale `0` finché `EnsureMatchRoster` non ha girato, cioè prima della **prima risoluzione**. Uno
 	 * scenario che finisce senza risolvere nemmeno un turno ha tutti gli id a `0`: l'hash resta definito, ma
 	 * perde il potere di distinguere le unità fra loro. Non è un caso da difendere qui — è un caso in cui

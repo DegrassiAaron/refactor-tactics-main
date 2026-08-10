@@ -278,6 +278,11 @@ bool FRTDigestUsesStableUnitIdTest::RunTest(const FString&)
 {
 	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
 	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	// Il contesto va registrato come fa ogni altro test del repository: qui sarebbe probabilmente inerte —
+	// si spawna e si legge, senza toccare il mondo — ma «probabilmente» e' il motivo per cui una convenzione
+	// seguita da venticinque file non si rompe in uno solo.
+	FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+	Ctx.SetCurrentWorld(World);
 
 	ARTUnit* Viva = World->SpawnActor<ARTUnit>();
 	ARTUnit* Caduta = World->SpawnActor<ARTUnit>();
@@ -293,6 +298,7 @@ bool FRTDigestUsesStableUnitIdTest::RunTest(const FString&)
 
 	if (!TestEqual(TEXT("un digest per unita', morte comprese"), Digests.Num(), 2))
 	{
+		GEngine->DestroyWorldContext(World);
 		World->DestroyWorld(false);
 		return false;
 	}
@@ -306,6 +312,7 @@ bool FRTDigestUsesStableUnitIdTest::RunTest(const FString&)
 	TestTrue(TEXT("l'unita' viva porta il proprio StableUnitId"), bTreCiSta);
 	TestTrue(TEXT("la caduta c'e', e dichiara di non essere viva"), bSetteCiSta);
 
+	GEngine->DestroyWorldContext(World);
 	World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
 	return true;
 }
