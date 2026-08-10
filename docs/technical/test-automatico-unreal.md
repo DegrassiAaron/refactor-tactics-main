@@ -175,7 +175,7 @@ delle assertion con expected/actual, e **`StateHash`**.
 
 ### 7.1 `StateHash` e il gate di determinismo
 
-Digest dello stato finale — posizione, salute, scudo, energia di ogni unità viva — usato dal gate di
+Digest dello stato finale — posizione, salute, scudo, energia e stati di ogni unità, **anche di quelle cadute** (entrano con `bAlive = false`, [D-084](../decisions/RT_PDR_00_Decision_Log.md)) — usato dal gate di
 determinismo (CP 12.1): **stesso scenario ⇒ stesso hash**, su qualunque numero di ripetizioni.
 
 È **permutazione-invariante per costruzione**: le unità si ordinano prima di essere mescolate nell'hash.

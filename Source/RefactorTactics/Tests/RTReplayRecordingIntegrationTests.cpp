@@ -151,6 +151,37 @@ bool FRTReplayRecordingIntegrationTest::RunTest(const FString&)
 	TestNotEqual(TEXT("e non sono a zero: una partita vera ha prodotto voci"),
 		Manifest.OrderedHashPerTurn[0], (int64)0);
 
+	// Il checksum di stato esiste gia' a partita in corso: si cattura a ogni turno.
+	TestNotEqual(TEXT("il checksum di stato e' stato calcolato, e non e' zero"),
+		TM->GetPendingFinalStateHash(), (int64)0);
+
+	// E ora fino alla FINE, perche' l'acceptance criterion di #469 parla del checksum **nel manifest** di
+	// una partita reale — non di un valore in memoria a meta' strada. Verificare il proxy sarebbe stato
+	// piu' comodo e avrebbe lasciato scoperto proprio il tratto che chiude la issue.
+	int32 Giri = 0;
+	while (TM->GetPhase() != ERTMatchPhase::MatchEnded && Giri < 60)
+	{
+		PlayOneRecTurn(TM);
+		++Giri;
+	}
+	if (!TestTrue(TEXT("la partita si decide entro il limite"), TM->GetPhase() == ERTMatchPhase::MatchEnded))
+	{
+		DestroyRecWorld(World);
+		return false;
+	}
+
+	FRTReplayManifest Chiuso;
+	if (!TestTrue(TEXT("il manifest della partita finita si rilegge"),
+		URTReplayRecorderLibrary::LoadManifest(Root, MatchId, Chiuso)))
+	{
+		DestroyRecWorld(World);
+		return false;
+	}
+	TestTrue(TEXT("ora l'archivio si dichiara chiuso"), Chiuso.bClosed);
+	TestNotEqual(TEXT("e porta il checksum di fine partita, calcolato da una partita vera"),
+		Chiuso.FinalStateHash, (int64)0);
+	TestNotEqual(TEXT("con un esito, non «in corso»"), Chiuso.Outcome, ERTMatchOutcome::InProgress);
+
 	DestroyRecWorld(World);
 	if (PF.DirectoryExists(*Root)) { PF.DeleteDirectoryRecursively(*Root); }
 	return true;
