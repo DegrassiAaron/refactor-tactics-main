@@ -47,6 +47,21 @@ Packaged/Windows/RefactorTactics.exe -nullrhi -unattended -nosound -abslog=<log>
 grep "Partita finita" <log>   # la partita si gioca DA SOLA: i bot giocano entrambe le squadre
 ```
 
+**Scegliere la mappa da fuori**, senza aprire l'editor:
+
+```bash
+RefactorTactics.exe -dpcvars=rt.Map.Source=LevelAsset   # oppure GeneratedTestArena, GeneratedDemoArena
+```
+
+`rt.Map.Source` scavalca la proprieta' `MapSource` del `GameMode`, che vive nei Class Defaults di
+`BP_GameMode` — cioe' in un `.uasset` che senza editor non si tocca. Un valore sconosciuto **non** ripiega
+in silenzio: il GameMode lo dichiara e tiene la proprieta'.
+
+> ⚠️ **Serve `-dpcvars=`, non `-ExecCmds=`.** `-ExecCmds` gira **dopo** l'inizializzazione, quando il
+> GameMode ha gia' allestito la partita: la variabile viene impostata e non serve a niente, **senza un
+> errore che lo dica**. Misurato sul pacchettizzato il 2026-08-10 — il log continuava a dire
+> `MapSource=GeneratedTestArena` mentre la riga di comando chiedeva `LevelAsset`.
+
 **Tre insidie, tutte costate tempo la prima volta:**
 
 - **`-clientconfig=Development -clientconfig=Shipping` non fa due configurazioni**: la seconda viene

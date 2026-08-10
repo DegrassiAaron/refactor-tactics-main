@@ -199,6 +199,13 @@ public:
 	/** Lo scenario da eseguire: la console variable prevale sulla proprietà, altrimenti vale la proprietà. Vuoto = partita normale. */
 	FString ResolveScenarioToRun() const;
 
+	/**
+	 * La sorgente mappa in vigore: `rt.Map.Source` se impostata e valida, altrimenti la proprieta'.
+	 * Il piu' specifico vince, come per `ResolveScenarioToRun` — e un valore sconosciuto non ripiega in
+	 * silenzio, perche' un playtest sulla mappa sbagliata e' un playtest buttato.
+	 */
+	ERTMapSource ResolveMapSource() const;
+
 	/** Sessione dello scenario in corso, fatta avanzare un passo per frame da `Tick`. Nulla = nessuno scenario. */
 	TSharedPtr<class FRTScenarioSession> ScenarioSession;
 
