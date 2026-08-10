@@ -252,6 +252,7 @@ UENUM(BlueprintType) enum class ERTMoveOutcome : uint8 {
 | Scatto | `Category=Move`, **`Phase=Dash`**, `ActionId` = la mobilità usata |
 | Spinta / trazione | `Category=Move`, `Phase=Blast`, **`Outcome=Displaced`**, `ActionId` = l'azione che l'ha causata |
 | Reazione | *nessun produttore in v0.1* — nessuna reazione del catalogo dichiara `Push`/`Pull`. Quando esisterà, userà lo stesso campo |
+| Spinta **resistita** | ⏳ *nessuna voce*: `Guard`, `Brace` e `PushResistance` che reggono lasciano solo una riga di combat log, che non finisce nel file. Asimmetria nota, aperta in [`#420`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/420) — e non è ovvio che vada chiusa come `Displaced`, perché lì la posizione **non cambia** |
 
 **Chi ha spinto, senza un campo «sorgente».** `#307` chiedeva anche l'identità di chi spinge. Non è un campo:
 è un **giunto** fra due voci dello stesso Blast.
