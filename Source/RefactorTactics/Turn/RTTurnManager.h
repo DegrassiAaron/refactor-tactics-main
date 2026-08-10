@@ -102,6 +102,19 @@ public:
 	/** Hook per i test d'integrazione headless: invoca la pianificazione dei bot senza timer/playback. */
 	void PlanBotsForTest() { PlanBots(); }
 
+	/**
+	 * Hook per i test: applica una modifica temporanea di superficie dichiarandone l'autore.
+	 *
+	 * Serve perche' la scadenza ambientale — la voce che deve restare senza attore (#405) — nessuno scenario
+	 * del corpus la produce: le azioni ambientali richiedono un eroe owner e le durate superano la lunghezza
+	 * degli scenari. Senza questo hook il criterio resterebbe scritto e mai eseguito.
+	 */
+	bool ApplyDynamicSurfaceForTest(URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexSurface NewSurface,
+		int32 Turns, const FName& CauseActionId, const ARTUnit* Cause)
+	{
+		return ApplyDynamicSurface(Map, Cell, NewSurface, Turns, CauseActionId, Cause);
+	}
+
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	ERTMatchPhase GetPhase() const { return Phase; }
 
@@ -317,9 +330,12 @@ protected:
 	 * Applica le cure raccolte da `ResolveCombat` (CP 8.5). Chiamata da DUE punti — dopo i danni, e nel ramo
 	 * "nessun colpo in questo turno" — perche' una cura fuori da uno scontro e' il caso normale di un
 	 * supporto, non un'eccezione: con un solo call site la cura sparirebbe in silenzio quando nessuno attacca.
+	 *
+	 * `Healers` e' parallelo a `Targets`: chi CURA, che il TurnLog deve poter nominare (#405). Non si deduce
+	 * da `Sources` — quella e' una cella, e una cella non e' un'unita' ([D-063]).
 	 */
 	void ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TArray<int32>& Amounts,
-		const TArray<FRTCellId>& Sources);
+		const TArray<FRTCellId>& Sources, const TArray<ARTUnit*>& Healers);
 
 	/**
 	 * Voce di TurnLog per uno spostamento SUBITO — spinta o trazione (#307). Chiamata dai due punti che
@@ -427,7 +443,7 @@ protected:
 	 * com'era.
 	 */
 	bool ApplyDynamicSurface(URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexSurface NewSurface, int32 Turns,
-		const FName& CauseActionId);
+		const FName& CauseActionId, const ARTUnit* Cause);
 
 	/** Scadenza delle modifiche temporanee, nel Cleanup: a zero turni la cella torna com'era, e si registra. */
 	void TickDynamicSurfaces(URTHexMapAsset* Map);
@@ -500,6 +516,37 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Turn")
 	int32 TurnNumber = 1;
+
+	/**
+	 * Aggiunge una voce al TurnLog stampandoci i campi di CONTESTO della v6 (#405): turno, revisione del grafo
+	 * e identita' dell'attore. Ogni emissione passa di qui — se un sito chiamasse `TurnLog.Add` direttamente,
+	 * la sua voce nascerebbe senza contesto e nessun test se ne accorgerebbe.
+	 *
+	 * `Actor` e' chi ha AGITO, e va passato esplicitamente perche' dalla voce non si deduce: l'interposizione
+	 * scrive in `SrcCell` la cella del protetto, e dopo un Dash la cella dell'attore non e' piu' quella di
+	 * partenza. `nullptr` per le voci ambientali, che un'unita' non ce l'hanno — ed e' un valore da scegliere,
+	 * non da subire: il parametro non ha default apposta.
+	 */
+	void AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor);
+
+	/** Revisione del grafo di mappa ADESSO: sale durante la risoluzione, quindi si legge a ogni emissione. */
+	int32 CurrentGraphRevision() const;
+
+	/**
+	 * Assegna a ogni unita' la sua identita' STABILE di partita, una volta sola (#405, [D-063]).
+	 *
+	 * Il progetto conosceva l'unita' solo come indice in `MakeCurrentSnapshot`: quello filtra i vivi e si
+	 * ricostruisce a ogni fase, quindi scala appena qualcuno muore — e `DestroyDefeatedUnits` distrugge pure
+	 * l'Actor, cosi' nemmeno il pointer sopravvive. Per una traccia che si rilegge a partita finita serve un
+	 * intero che non si muova: `ARTUnit::StableUnitId`, assegnato qui e mai piu' toccato.
+	 *
+	 * Idempotente: la seconda chiamata non fa niente. Un roster VUOTO non conta come costruito — congelarlo
+	 * darebbe identita' a nessuno e la negherebbe a chi arriva dopo.
+	 */
+	void EnsureMatchRoster();
+
+	/** Il roster di partita e' stato costruito: l'identita' delle unita' non si riassegna piu'. */
+	bool bMatchRosterBuilt = false;
 
 	FTimerHandle PlanningTimerHandle;
 
