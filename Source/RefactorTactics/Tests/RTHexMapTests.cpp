@@ -3,6 +3,7 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexLibrary.h"
+#include "Map/RTHexVisionLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -418,6 +419,80 @@ bool FRTHexMapCoverValidationTest::RunTest(const FString&)
 	// Il valore di catalogo e' 30: sta nel dato (default della struct), non in un numero scritto altrove.
 	TestEqual(TEXT("integrita' di catalogo della copertura bassa"),
 		FRTHexCover(ERTHexDirection::W).Integrity, 30);
+	return true;
+}
+
+/**
+ * Il pennello sa dipingere un muro, e sa toglierlo.
+ *
+ * Prima esisteva un solo verso: `ApplyBrush` preservava sempre `bBlocksLineOfSight` e nessuno strumento
+ * dell'editor lo scriveva, quindi una cella che blocca la vista si poteva ottenere solo editando l'array
+ * `Cells` a mano nel Data Asset. Il passo 3 di U1 ne chiede due, e U13 ne aggiunge altre.
+ *
+ * Il flag si verifica sull'**effetto**, non sul campo: leggere `bBlocksLineOfSight` direbbe solo che il dato
+ * e' stato scritto, non che la linea di tiro sia davvero interrotta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBrushLineOfSightTest,
+	"RefactorTactics.HexMap.BrushWritesAndClearsLineOfSight",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBrushLineOfSightTest::RunTest(const FString&)
+{
+	const FRTCellId Id(1, 0, 0);
+
+	// 1. Non passato: preserva. E' il contratto storico, quello che `ApplyBrushMerge` pinna.
+	{
+		FRTHexCellData Existing(Id);
+		Existing.bBlocksLineOfSight = true;
+		const FRTHexCellData Painted = URTHexMapAsset::ApplyBrush(&Existing, Id, ERTHexSurface::Fire, 5, true);
+		TestTrue(TEXT("senza il parametro il muro resta"), Painted.bBlocksLineOfSight);
+	}
+
+	// 2. Passato true su una cella che non lo aveva: scrive.
+	{
+		FRTHexCellData Existing(Id);
+		Existing.bBlocksLineOfSight = false;
+		const FRTHexCellData Painted = URTHexMapAsset::ApplyBrush(&Existing, Id, ERTHexSurface::Floor, 1, false,
+			TOptional<bool>(true));
+		TestTrue(TEXT("il pennello alza il flag"), Painted.bBlocksLineOfSight);
+	}
+
+	// 3. Passato false su una cella che lo aveva: TOGLIE. Senza questo verso il muro sarebbe irreversibile
+	//    dall'editor, che e' il difetto opposto a quello risolto.
+	{
+		FRTHexCellData Existing(Id);
+		Existing.bBlocksLineOfSight = true;
+		const FRTHexCellData Painted = URTHexMapAsset::ApplyBrush(&Existing, Id, ERTHexSurface::Floor, 1, false,
+			TOptional<bool>(false));
+		TestFalse(TEXT("il pennello abbassa il flag"), Painted.bBlocksLineOfSight);
+	}
+
+	// 4. L'effetto vero: dopo una pennellata la linea di tiro e' interrotta, e ridipingendo torna libera.
+	//    Il muro NON blocca il passo: `bBlocksMovement` resta false, ed e' cio' che serve a una rotta coperta
+	//    ma percorribile.
+	{
+		URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+		for (const FRTCellId& C : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 3))
+		{
+			Map->AddOrUpdateCell(FRTHexCellData(C));
+		}
+		Map->SortCells();
+
+		const FRTCellId From(-2, 0, 0);
+		const FRTCellId To(2, 0, 0);
+		TestTrue(TEXT("prima: vista libera"), URTHexVisionLibrary::HasLineOfSight(Map, From, To));
+
+		Map->BeginStroke();
+		Map->PaintCellInStroke(Id, ERTHexSurface::Floor, 1, /*bBlocksMovement=*/ false, TOptional<bool>(true));
+		Map->EndStroke();
+		TestFalse(TEXT("dopo la pennellata: vista interrotta"), URTHexVisionLibrary::HasLineOfSight(Map, From, To));
+		TestFalse(TEXT("e il passo resta libero"), Map->FindCell(Id)->bBlocksMovement);
+
+		Map->BeginStroke();
+		Map->PaintCellInStroke(Id, ERTHexSurface::Floor, 1, /*bBlocksMovement=*/ false, TOptional<bool>(false));
+		Map->EndStroke();
+		TestTrue(TEXT("ridipinto senza flag: vista di nuovo libera"),
+			URTHexVisionLibrary::HasLineOfSight(Map, From, To));
+	}
 	return true;
 }
 
