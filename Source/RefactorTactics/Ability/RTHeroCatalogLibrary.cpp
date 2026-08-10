@@ -160,7 +160,18 @@ URTHeroData* URTHeroCatalogLibrary::MakeFlux()
 	Flux->DisplayName = FText::FromString(TEXT("Flux"));
 	Flux->MaxHealth = 90;
 	Flux->MovePoints = 5;
-	Flux->VisionRange = 6;
+	// 6 -> 7 (#131, [D-071]). E' la seconda meta' del lavoro cominciato con Vektor 100->90: quel calo aveva
+	// tolto la dominanza su Riva e lasciato quella su **Flux**, dove a parita' di salute e vista Vektor
+	// restava avanti di un punto movimento.
+	//
+	// La leva e' la VISTA e non il movimento, per due ragioni misurate. Dare 6 MP a Flux (o toglierne uno a
+	// Vektor) renderebbe i due profili IDENTICI sulle quattro statistiche base, e `RosterIsBalanced` verifica
+	// che nessuna coppia li condivida: si sarebbe rotto un test per ripararne un altro. E una resistenza alla
+	// spinta NEGATIVA per Vektor sarebbe stata un numero senza effetto — `PushResistance` e' una SOGLIA, e le
+	// spinte del catalogo valgono almeno 1, quindi -1 e 0 si comportano allo stesso modo.
+	//
+	// Con 7, Flux diventa l'unico che vede oltre l'esagono di raggio 6: identita' vera, non compensazione.
+	Flux->VisionRange = 7;
 	Flux->PushResistance = 0;
 	Flux->Affinity = TEXT("Affinity.Electricity");
 	// Debolezza acqua: stesso identificatore che Riva (CP 6.3) usera' come sua affinita', cosi' la combo

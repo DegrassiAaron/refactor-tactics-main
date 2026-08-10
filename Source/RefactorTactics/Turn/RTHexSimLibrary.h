@@ -228,5 +228,5 @@ public:
 	 * non costa una migrazione di formato. Omesso, la voce resta identica a prima.
 	 */
 	static TArray<FRTTurnLogEntry> BuildMoveLog(const TArray<TArray<FRTCellId>>& Paths,
-		const TArray<FRTHexMoveResult>& Results, FName CauseActionId = NAME_None);
+		const TArray<FRTHexMoveResult>& Results, FName CauseActionId = NAME_None, int32 CausePriority = 0);
 };

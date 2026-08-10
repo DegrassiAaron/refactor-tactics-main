@@ -248,19 +248,36 @@ bool FRTHeroRosterTest::RunTest(const FString&)
 		return bWeaklyBetter && bStrictlyBetterSomewhere;
 	};
 
-	TestFalse(TEXT("#131: Vektor non domina piu' Riva sulle statistiche base"),
-		DominatesOnBaseStats(VektorInRoster, RivaInRoster));
-
-	// ⚠️ RESIDUO DICHIARATO, non una dimenticanza: su **Flux** la dominanza RESTA. A parita' di salute (90) e
-	// vista (6), Vektor ha +1 punto movimento e nient'altro cambia — resta >= ovunque e > in movimento.
+	// ✅ **`#131` CHIUSA il 2026-08-10.** Non piu' due assert su due coppie scelte a mano: la proprieta' vale
+	// per **ogni** coppia del roster, quindi si verifica su ogni coppia. E' la forma che regge quando il
+	// roster crescera' a otto (E35): un eroe nuovo che dominasse qualcuno fa cadere questo test da solo,
+	// senza che nessuno debba ricordarsi di aggiungere una riga.
 	//
-	// Il test lo asserisce nella forma vera invece di tacerlo: finche' vale, questa riga e' la prova che
-	// `#131` non e' chiusa; il giorno in cui una seconda leva su Flux la elimina, e' questa riga a diventare
-	// rossa e a chiedere di essere promossa a `TestFalse` come quella di Riva sopra.
-	TestTrue(TEXT("#131 APERTA: Vektor domina ancora Flux sulle statistiche base (+1 MP a parita' del resto)"),
-		DominatesOnBaseStats(VektorInRoster, FluxInRoster));
-	TestTrue(TEXT("...e la compensazione di Flux resta nelle abilita': il bonus combo piu' alto del roster"),
+	// Le due leve che l'hanno chiusa, e perche' proprio quelle:
+	//   Vektor 100 -> 90 HP  ([D-069]) — toglie la dominanza su Riva
+	//   Flux    6 -> 7 vista ([D-071]) — toglie quella su Flux, che il calo di Vektor NON aveva risolto
+	//
+	// Le alternative scartate, misurate e non intuite: dare 6 MP a Flux o toglierne uno a Vektor rende i due
+	// profili IDENTICI, e il ciclo di distinguibilita' qui sopra sarebbe caduto — un test rotto per ripararne
+	// un altro. Una `PushResistance` negativa per Vektor non ha effetto osservabile, perche' e' una SOGLIA e
+	// le spinte valgono almeno 1.
+	for (int32 i = 0; i < Roster.Num(); ++i)
+	{
+		for (int32 j = 0; j < Roster.Num(); ++j)
+		{
+			if (i == j) { continue; }
+			TestFalse(FString::Printf(TEXT("#131: %s non domina %s sulle statistiche base"),
+				*Roster[i]->HeroId.ToString(), *Roster[j]->HeroId.ToString()),
+				DominatesOnBaseStats(Roster[i], Roster[j]));
+		}
+	}
+
+	// La compensazione nelle abilita' resta com'era, e non era in discussione: `#131` riguardava la scheda
+	// statistiche, dove il costo di ogni eroe ora e' visibile.
+	TestTrue(TEXT("Flux conserva il bonus combo piu' alto del roster"),
 		URTCombatLibrary::FluxWetDischargeBonus > 0);
+	TestTrue(TEXT("e Flux e' l'unico a vedere oltre il raggio 6"),
+		FluxInRoster->VisionRange > VektorInRoster->VisionRange);
 
 	// Le affinita' sono tutte diverse: quattro identita' ambientali, non due coppie di gemelli.
 	TSet<FName> Affinities;

@@ -54,11 +54,11 @@ serializzato**, quindi si deprecano e si redirigono, non si rinominano.
 | # | Fetta | Stato | Tocca la serializzazione? | Dipendenze |
 |---:|---|:--|---|---|
 | 1 | **Tabella di redirect** `legacy → canonico`, in una sede unica | ✅ **2026-08-10** — `URTCatalogLibrary::ResolveLegacyActionId`, chiamata da `FindCoreAction`, che è **l'unico ingresso del catalogo per ID** | no | — |
-| 2 | **Validator**: un ID legacy usato in un contesto nuovo produce un errore diagnostico che *nomina* l'ID e il sostituto | ⏳ da fare | no | 1 |
+| 2 | **Validator**: un ID legacy usato in un contesto nuovo produce un errore diagnostico che *nomina* l'ID e il sostituto | ✅ **2026-08-10** — `ValidateActions` rifiuta un'azione **dichiarata** con un ID ritirato e nomina l'erede. Il redirect vale in **lettura**; in scrittura ricreerebbe la doppia verità appena tolta. Test: `Catalog.ValidatorRejectsRetiredStableId` | no | 1 |
 | 3 | `Action.Activate` → assorbita da `Interact` | ✅ **2026-08-10** — fuori dal catalogo spedito, ID reindirizzato in lettura. Test: `Actions.RetiredStableIdRedirectsToHeir` | sì, in lettura | 1 |
 | 4 | ~~`Action.Guard` → capacità/stance specifica~~ | ❌ **CANCELLATA** — la fetta era già superata quando il piano è stato scritto: [D-025] **emenda D-014** e riporta `Guard` fra le **sette generiche universali**, per i suoi tre consumatori (catalogo, `Status.Root`, difesa direzionale di ADR-0005 §4a). Non c'è niente da migrare | — | — |
 | 5 | `Action.Sprint` → `MoveProfile.Sprint` | ✅ **DECISA 2026-08-10** — [D-068]: **resta** `Action.Sprint` in fase `FastMovement`, con la motivazione scritta. La rinomina non avviene. Test: `Actions.SprintIsAMoveProfileResolvedPreBlast`, scritto per **cadere** se la fase viene migrata | no | — |
-| 6 | **Test di migrazione**: un TurnLog scritto col vocabolario vecchio si rilegge col nuovo e produce lo stesso stato | ⏳ da fare — ma il **perimetro si è ridotto a un ID solo** (`Action.Activate`), perché 4 e 5 non migrano nulla | sì | 3 |
+| 6 | **Test di migrazione**: un TurnLog scritto col vocabolario vecchio si rilegge col nuovo e produce lo stesso stato | ✅ **2026-08-10** — `TurnLog.RetiredActionIdIsStillReadableFromDisk`: la traccia si rilegge, l'ID **resta scritto com'era** (il loader non riscrive), il catalogo risponde con l'erede, e l'hash è riproducibile | sì | 3 |
 
 > **Quanto è cambiato il piano.** Delle tre migrazioni previste ne resta **una**, ed è la più piccola. Non
 > perché il lavoro sia stato tagliato: due delle tre erano **decisioni già prese altrove** che il piano non
@@ -99,10 +99,26 @@ con un coordinamento fra due issue.
 |---|---|---|
 | Nessuna doppia verità runtime: un solo ID autorevole per azione | ✅ **fatto** per `Activate` (fuori dal catalogo, redirect in lettura) · per `Guard` **non si applica** (D-025) · per `Sprint` **non si applica** (D-068) | fette 3–5 |
 | `Sprint` non risolve più in `ResolveDash`, **oppure** è documentato perché lo fa | ✅ **fatto**, e ora è una **decisione** — [D-068], non solo una nota | §2 + `Actions.SprintIsAMoveProfileResolvedPreBlast` |
-| Validator aggiornato | ⏳ da fare | fetta 2 |
-| Test di migrazione o redirect per la serializzazione persistente | 🟡 **parziale**: il redirect è verificato in memoria (`Actions.RetiredStableIdRedirectsToHeir`); manca la **verifica a due binari** su un file `.rttl` scritto col vocabolario vecchio | fetta 6 |
+| Validator aggiornato | ✅ **fatto** | fetta 2 — `Catalog.ValidatorRejectsRetiredStableId` |
+| Test di migrazione o redirect per la serializzazione persistente | ✅ **fatto** | fetta 6 — vedi §7 sul perché il test è equivalente a usare due binari |
 | Golden TurnLog: o restano validi, o la PR dichiara perché cambiano | ✅ **restano validi**, e c'è la prova — vedi §4 | §4 |
 | Nessun documento insegna «`Sprint` = `Dash`» | ✅ già fatto lato docs | — |
+
+## 7. La «verifica a due binari», e perché un binario solo è bastato
+
+Il piano chiedeva: *«scrivere il log col binario **vecchio**, rileggerlo col **nuovo**, confrontare un digest
+dei soli campi preesistenti»*. Il test scritto usa un binario solo. **Non è una scorciatoia**, ed è l'unico
+punto del piano che vale la pena spiegare invece di dichiarare.
+
+Il formato **non è cambiato per gli `ActionId`** da quando `Action.Activate` era a catalogo: dalla `v3` in poi
+l'ID è lunghezza `uint16` + byte UTF-8, e nessuna versione successiva — `v4` FormatId, `v5` BaseActionId,
+`v6` UnitId, `v7` Priority — ha toccato quella posizione o quella codifica. I byte che il serializzatore
+di oggi produce per `Action.Activate` sono **gli stessi byte** che il binario di allora avrebbe scritto: non
+una simulazione, la stessa sequenza. Ciò che il test verifica è il **lettore di oggi** su quei byte, che è
+esattamente la domanda della fetta 6.
+
+La verifica a due binari resta necessaria quando cambia **la forma** dei byte, non il loro contenuto — ed è il
+motivo per cui la regola generale sta in piedi anche se qui non si applica.
 
 ## 6. Rischio — **rivisto al ribasso**
 

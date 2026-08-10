@@ -34,7 +34,7 @@ bool FRTFluxMatchesCatalogTest::RunTest(const FString&)
 	TestEqual(TEXT("HeroId"), Flux->HeroId, FName(TEXT("Hero.Flux")));
 	TestEqual(TEXT("salute"), Flux->MaxHealth, 90);
 	TestEqual(TEXT("movimento"), Flux->MovePoints, 5);
-	TestEqual(TEXT("vista"), Flux->VisionRange, 6);
+	TestEqual(TEXT("vista"), Flux->VisionRange, 7); // 6 -> 7 (#131, D-071): toglie l'ultima dominanza
 	TestEqual(TEXT("resistenza push"), Flux->PushResistance, 0);
 	TestEqual(TEXT("affinita'"), Flux->Affinity, FName(TEXT("Affinity.Electricity")));
 	TestFalse(TEXT("la debolezza e' dichiarata (non NAME_None)"), Flux->Weakness.IsNone());
