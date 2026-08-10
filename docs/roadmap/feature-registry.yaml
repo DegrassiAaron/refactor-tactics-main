@@ -555,14 +555,15 @@ features:
     wiki_note: >-
       Nessuna pagina: la profondita' dell'acqua non esiste come asse, e una pagina la prometterebbe.
     notes: >
-      `WaterDepth` (None/Shallow/Deep/Impassable) e' un asse ORTOGONALE alla superficie, non una nona
-      superficie: una cella puo' essere `ShallowWater` e cambiare profondita' durante il match. Oggi
-      `ShallowWater` e' una delle otto superfici di CP 8.1 e non cambia mai. Misurato: `WaterDepth` e
-      `Flooding` hanno ZERO occorrenze nel repository. Include flooding deterministico, corrente
-      (`WaterFlowDirection`/`Strength`) che produce ForcedMovement, e profili Swim/Amphibious/Hover.
-      Tocca il resolver, non solo la mappa: una corrente che sposta e' displacement, con catene e
-      collisioni. La propagazione elettrica su rete d'acqua che il sorgente chiede ESISTE GIA'
-      (CP 8.3, BFS, `StopsAtNonConductive`). Aperta: `GEO-1`.
+      ✅ `GEO-1` CHIUSA il 2026-08-10 da D-081 (#429): la profondita' e' una SUPERFICIE COMPOSTA, non un
+      asse. `DeepWater`/`ImpassableWater` si aggiungeranno in coda all'enum quando una feature le chiedera'.
+      Il sorgente la dava come asse ortogonale, e la premessa di quella lettura era falsa: `ShallowWater`
+      CAMBIA — `Action.CreateWater` la crea a runtime da CP 8.4 tramite `ApplyDynamicSurface`, che ricorda
+      la superficie originale e conta i turni. Il flooding esiste gia' come cambio di superficie. Restano
+      da specificare: corrente (`WaterFlowDirection`/`Strength`) che produce ForcedMovement, e i profili
+      Swim/Amphibious/Hover, che non esistono. Tocca il resolver e non solo la mappa: una corrente che
+      sposta e' displacement, con catene e collisioni. La propagazione elettrica su rete d'acqua che il
+      sorgente chiede ESISTE GIA' (CP 8.3, BFS, `StopsAtNonConductive`). Nessuna domanda aperta.
 
   - feature_id: RT-FEAT-MAP-STRUCTURAL
     title: "Strutture: integrita', crolli a catena e macerie"
@@ -594,14 +595,17 @@ features:
     scenarios: []
     wiki_refs: []
     wiki_note: >-
-      Nessuna pagina finche' il nome non e' deciso: chiamare `Breach` due cose diverse e' peggio di tacere.
+      Nessuna pagina finche' non c'e' una spec: il nome ora c'e' (`Bulkhead`, D-082), il modello no.
     notes: >
-      Slot strutturali con integrita' e stati, dipendenze fra strutture, crolli immediati e telegrafati,
-      macerie come nuovo terreno, e il vincolo di connettivita' della mappa (niente soft-lock involontari).
-      E' il blocco piu' autonomo dei tre: non dipende da acqua ne' da verticalita'.
-      Collisione di nome da risolvere PRIMA della spec: il sorgente chiama `Breach` lo slot, ma
-      `Gadget.BreachCharge` esiste gia' ed e' l'oggetto che lo aprirebbe — 35 danni a struttura, E7.
-      Aperta: `GEO-2`.
+      ✅ `GEO-2` CHIUSA il 2026-08-10 da D-082 (#430): lo slot si chiama `Bulkhead`, verificato libero con
+      `git grep` in Source/, docs/balance/ e nei cataloghi. Scartati `StructuralSlot` (`Slot` e' gia'
+      l'economia del turno, `ERTActionSlot`), `Panel` (collide con `Bastion.KineticPanel`, che e'
+      copertura) e `Section` (termine Unreal per le sezioni di mesh). La collisione col
+      `Gadget.BreachCharge` di E7 — 35 danni a struttura, l'oggetto che lo APRE — e' risolta: il verbo
+      breach resta libero come azione. Resta da specificare il MODELLO: slot strutturali con integrita' e
+      stati, dipendenze fra strutture, crolli immediati e telegrafati, macerie come nuovo terreno, e il
+      vincolo di connettivita' della mappa (niente soft-lock involontari). E' il blocco piu' autonomo dei
+      tre: non dipende da acqua ne' da verticalita'. Nessuna domanda aperta.
 
   - feature_id: RT-FEAT-MAP-VERTICALITY
     title: "Verticalita': vault, drop, salita e cadute"
