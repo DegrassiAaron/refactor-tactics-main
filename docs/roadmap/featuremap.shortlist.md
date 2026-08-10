@@ -20,11 +20,11 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 <!-- RT_SHORTLIST_FEATURES:BEGIN -->
 
-**88 feature** · v0.1 **70** · v0.2 **11** · future **7**.
+**91 feature** · v0.1 **70** · v0.2 **11** · future **10**.
 
 | Stato | Quante |
 |---|--:|
-| `IDEA` | 4 |
+| `IDEA` | 7 |
 | `DESIGNED` | 10 |
 | `SPECIFIED` | 13 |
 | `IMPLEMENTING` | 20 |
@@ -107,7 +107,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-CHARACTER-STATE` — Character State / Configuration System | future | SPECIFIED | 1/9 | — | Epic E34, `#244` |
 | `RT-FEAT-INTENT-CONDITIONAL` — Conditional Intent — un intento con una biforcazione | future | SPECIFIED | 1/9 | — | Un intento con **una** biforcazione — epic E33, `#330` |
 
-### Map · 11
+### Map · 14
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
@@ -122,6 +122,9 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole | v0.1 | IMPLEMENTING | 5/9 | E16 | Deriva da Move e Dash, entra in snapshot e hash, e da dietro annulla `Guard` |
 | `RT-FEAT-MAP-STANDABILITY` — Standability derivata da anchor, footprint e clearance | v0.2 | DESIGNED | 0/8 | — | — |
 | `RT-FEAT-MAP-TRANSITION-CLEARANCE` — Validità della transizione distinta da quella della cella | v0.2 | DESIGNED | 0/8 | — | — |
+| `RT-FEAT-MAP-STRUCTURAL` — Strutture: integrita', crolli a catena e macerie | future | IDEA | 0/8 | — | — |
+| `RT-FEAT-MAP-VERTICALITY` — Verticalita': vault, drop, salita e cadute | future | IDEA | 0/8 | — | — |
+| `RT-FEAT-MAP-WATER-DYNAMICS` — Acqua tattica: profondita', flooding e corrente | future | IDEA | 0/8 | — | — |
 
 ### Networking · 3
 

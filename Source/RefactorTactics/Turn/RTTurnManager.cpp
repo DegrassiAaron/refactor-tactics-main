@@ -2805,11 +2805,10 @@ void ARTTurnManager::ResolveCombat()
 		Entry.SrcCell = Change.Cell;
 		Entry.TgtCell = Change.Toward;
 		Entry.Amount = Change.RemainingIntegrity;
-		// Nessun attore dichiarato, e non e' una dimenticanza: `ApplyStructureDamage` e' uno strato PURO che
-		// prende celle e restituisce celle — `FRTStructureHit` non porta l'attaccante, e `FRTCoverDamageResult`
-		// nemmeno. Ricavarlo da `Change.Cell` sarebbe la deduzione dalla cella che [D-063] dichiara
-		// inaffidabile. Meglio `0` («nessuna unita' dichiarata») che un id indovinato.
-		AppendLogEntry(Entry, nullptr);
+		// L'attaccante arriva col risultato: `FRTStructureHit` lo dichiarava gia' — «serve al TurnLog, non al
+		// calcolo» — e ora `FRTCoverDamageResult` lo propaga. Resta un indice fino a qui, quindi lo strato di
+		// mappa non ha mai visto un Actor.
+		AppendLogEntry(Entry, Units.IsValidIndex(Change.AttackerId) ? Units[Change.AttackerId] : nullptr);
 		AddLogEvent(FString::Printf(TEXT("Copertura (q=%d,r=%d,L%d) verso (q=%d,r=%d): %s (integrita' %d)"),
 			Change.Cell.X, Change.Cell.Y, Change.Cell.Layer, Change.Toward.X, Change.Toward.Y,
 			Change.bDestroyed ? TEXT("abbattuta") : TEXT("danneggiata"), Change.RemainingIntegrity));
@@ -2957,8 +2956,10 @@ void ARTTurnManager::ResolveCombat()
 		Entry.SrcCell = Change.Cell;
 		Entry.TgtCell = Change.Toward;
 		Entry.Amount = static_cast<int32>(Change.State);
-		// Come per le coperture: `ApplyDoorOps` lavora su celle e `FRTDoorOp` non porta l'unita'.
-		AppendLogEntry(Entry, nullptr);
+		// Come per le coperture, e per la stessa via: l'intento conosce chi agisce, `FRTDoorOp` lo porta e il
+		// cambio lo restituisce. Aprire una porta e' un'azione deliberata: se restasse a `0` sarebbe l'unica
+		// del turno a dichiarare «nessuna unita'».
+		AppendLogEntry(Entry, Units.IsValidIndex(Change.ActorId) ? Units[Change.ActorId] : nullptr);
 		AddLogEvent(FString::Printf(TEXT("Porta (q=%d,r=%d,L%d) verso (q=%d,r=%d): %s"),
 			Change.Cell.X, Change.Cell.Y, Change.Cell.Layer, Change.Toward.X, Change.Toward.Y,
 			Change.bBlocking ? TEXT("chiusa") : TEXT("aperta")));
@@ -3439,16 +3440,28 @@ void ARTTurnManager::ResolveCombat()
 
 			// `Action.Guard` regge una spinta di UNA cella: chi si e' piantato non arretra di un passo, ma una
 			// spinta piu' forte lo sposta comunque (la guardia non e' un'ancora, catalogo v0.1 §1).
+			// In v0.1 una spinta piu' forte NON ESISTE: il catalogo si ferma a 1, quindi questo ramo assorbe
+			// ogni spinta del gioco e il ramo `Braced` sotto non aggiunge copertura. Vedi il commento la'.
 			if (T->HasStatus(TAG_Status_Guarded) && KnockDist[T] <= URTCombatLibrary::GuardResistedPushDistance)
 			{
 				AddLogEvent(FString::Printf(TEXT("%s: in guardia, resiste alla spinta"), *T->GetName()));
 				continue;
 			}
 
-			// `Action.Brace` (CP 5.2) "impedisce la PRIMA spinta", senza limite di distanza: e' cio' che lo
-			// distingue da Guard, che regge solo un passo. "Prima" e non "tutte" e' rispettato per costruzione,
-			// non da un contatore: tutte le spinte del Blast si risolvono in questo unico passaggio, e un
-			// bersaglio spinto da 2+ attaccanti e' gia' escluso sopra (`*Pushes != 1`, forze contraddittorie).
+			// `Action.Brace` (CP 5.2) "impedisce la PRIMA spinta". "Prima" e non "tutte" e' rispettato per
+			// costruzione, non da un contatore: tutte le spinte del Blast si risolvono in questo unico
+			// passaggio, e un bersaglio spinto da 2+ attaccanti e' gia' escluso sopra (`*Pushes != 1`,
+			// forze contraddittorie).
+			//
+			// Il ramo non guarda `KnockDist`, quindi regge una spinta di qualunque distanza. ATTENZIONE:
+			// questo NON e' cio' che distingue `Brace` da `Guard` in v0.1, e il commento diceva il contrario
+			// fino al 2026-08-10. Il catalogo ha un solo valore di spinta, `1`, quindi il ramo `Guarded`
+			// sopra intercetta gia' OGNI spinta del gioco e questo ramo non vede mai un caso che quello non
+			// avrebbe retto. La differenza fra le due difese in v0.1 e' solo il danno (-15 sul primo colpo
+			// contro -10 su ogni colpo): D-074, uscita (B) di #400. Pinnato da
+			// `Spec.Brace.GuardAndBraceOnMixedHit` e `Spec.Brace.BraceWinsOnSecondHit`.
+			// Il ramo resta senza limite di distanza perche' e' gratis tenerlo corretto per una v0.2 che
+			// introduca una spinta >= 2; non perche' oggi si osservi.
 			if (T->HasStatus(TAG_Status_Braced))
 			{
 				AddLogEvent(FString::Printf(TEXT("%s: irrigidito, la spinta non lo sposta"), *T->GetName()));

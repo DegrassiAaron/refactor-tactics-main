@@ -488,4 +488,30 @@ bool FRTDoorMigrationTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * Il cambio di stato di una porta dice CHI l'ha voluto (#405).
+ *
+ * Stessa forma del danno alle strutture: l'intento conosce l'attore, e senza propagarlo la voce di TurnLog
+ * «porta aperta» resterebbe l'unica azione deliberata del turno a dichiarare «nessuna unita'».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDoorChangeCarriesActorTest,
+	"RefactorTactics.Door.ChangeCarriesActor",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDoorChangeCarriesActorTest::RunTest(const FString&)
+{
+	const FRTCellId A(0, 0, 0);
+	const FRTCellId B(1, 0, 0);
+	URTHexMapAsset* Map = MakeDoorMap(2);
+	PutDoor(Map, A, ERTHexDirection::E, ERTHexDoorState::Closed);
+
+	TArray<FRTDoorOp> Ops;
+	Ops.Add(FRTDoorOp(A, B, ERTHexDoorState::Open, /*ActorId*/ 3));
+
+	const TArray<FRTDoorChange> Changes = URTHexDoorLibrary::ApplyDoorOps(Map, Ops);
+	if (!TestEqual(TEXT("un cambio di porta"), Changes.Num(), 1)) { return false; }
+	TestEqual(TEXT("il cambio porta l'attore che l'ha chiesto"), Changes[0].ActorId, 3);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

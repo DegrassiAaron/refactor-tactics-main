@@ -321,7 +321,7 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 			FRTCellId DoorFrom, DoorTo;
 			if (FirstDoorEdge(Map, Attacker.Cell, AimCell, DoorFrom, DoorTo))
 			{
-				Plan.DoorOps.Add(FRTDoorOp(DoorFrom, DoorTo, Intent.DoorState));
+				Plan.DoorOps.Add(FRTDoorOp(DoorFrom, DoorTo, Intent.DoorState, Intent.AttackerId));
 			}
 		}
 		if (!URTHexVisionLibrary::HasLineOfSight(Map, Attacker.Cell, AimCell))

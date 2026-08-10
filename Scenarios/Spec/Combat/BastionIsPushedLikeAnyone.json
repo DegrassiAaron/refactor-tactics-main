@@ -1,0 +1,46 @@
+{
+  "scenarioId": "Spec.Combat.BastionIsPushedLikeAnyone",
+  "tags": ["spec", "combat", "push", "bal-2", "bastion", "vektor", "riva"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 5,
+
+  "_nota": "Bastion e Vektor prendono lo stesso colpo — `Riva.PressureJet`, 16 danni e `Push 1` — e arretrano ENTRAMBI di una cella. E' la specifica eseguibile di D-075 (#402): dal 2026-08-10 nessun eroe del roster ha resistenza nativa alla spinta.",
+
+  "_nota_perche_esiste": "Fino a qui Bastion aveva `PushResistance = 1`, l'unico del roster. Siccome ogni spinta del gioco vale 1 e la resistenza e' una SOGLIA (D-038), quel valore non comprava «stabilita'»: lo rendeva immune a OGNI spostamento del gioco, sempre, senza spendere un'azione. Nessun documento dichiarava quell'immunita' — era una conseguenza del catalogo, non una scelta — e svuotava meta' di `Guard` e `Brace` proprio sull'eroe su cui la scelta difensiva dovrebbe pesare di piu'. Questo file pinna l'esito nell'altro verso, cosi' che rimettere una resistenza nativa senza passare da una decisione diventi rosso.",
+
+  "_nota_il_nome": "Il piano `BAL-1` e la DoD di #402 chiamavano questo scenario `Spec.Combat.BastionIgnoresAllPushes`. Rinominato quando la decisione e' caduta dall'altra parte: un file che si chiama «ignora ogni spinta» e asserisce che viene spostato e' esattamente il nome che significa il contrario di cio' che verifica, e si paga la seconda volta che qualcuno lo legge di fretta.",
+
+  "_nota_meccanica_dormiente": "`PushResistance` resta nel modello e nel resolver (ramo `ERTActionEffect::Push` di `RTTurnManager`), con ZERO utenti nel roster: e' dormiente per scelta, non morta. La regola della soglia resta pinnata dal test unitario `RefactorTactics.Actions.PushResistanceIsAThreshold`, che si costruisce il valore da solo invece di prenderlo da un eroe — ed e' per questo che quel test non e' diventato rosso con questa decisione. Si risveglia da sola se una v0.2 introduce una spinta >= 2.",
+
+  "_nota_geometria": "Attaccante dedicato per bersaglio, due righe separate, colpo da EST lungo la riga: l'arretramento e' la cella successiva della stessa riga, che e' l'unico caso in cui la destinazione e' scrivibile a mano senza fissarla dal primo run. Nessuna difesa dichiarata: se uno dei due si mettesse in guardia questo file misurerebbe `GuardResistedPushDistance` invece della resistenza nativa.",
+
+  "units": [
+    { "id": "B1", "hero": "Hero.Bastion", "team": 0, "cell": [0,  0, 0] },
+    { "id": "V1", "hero": "Hero.Vektor",  "team": 0, "cell": [0, -2, 0] },
+
+    { "id": "A1", "hero": "Hero.Riva",    "team": 1, "cell": [3,  0, 0] },
+    { "id": "A2", "hero": "Hero.Riva",    "team": 1, "cell": [3, -2, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "Un colpo a testa, nello stesso passaggio di Blast.",
+      "intents": [
+        { "unit": "A1", "ability": "Riva.PressureJet", "target": "B1" },
+        { "unit": "A2", "ability": "Riva.PressureJet", "target": "V1" }
+      ]
+    }
+  ],
+
+  "_nota_hp": "Il danno e' identico e non e' il punto: 120-16=104 per Bastion, 90-16=74 per Vektor. Sta nelle assertion perche' un colpo che non arriva spiegherebbe una cella ferma nel modo sbagliato.",
+
+  "expect": [
+    { "type": "UnitAtCell",   "unit": "B1", "cell": [-1,  0, 0] },
+    { "type": "UnitAtCell",   "unit": "V1", "cell": [-1, -2, 0] },
+    { "type": "UnitHpEquals", "unit": "B1", "value": 104 },
+    { "type": "UnitHpEquals", "unit": "V1", "value": 74 },
+
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

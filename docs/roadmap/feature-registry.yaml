@@ -520,6 +520,124 @@ features:
       che per `D-071` usa **lo stesso raggio** del footprint. Costo dichiarato: il varco «ci passo ma non ci
       sto» non e' modellabile, perche' calpestabile e attraversabile condividono la soglia.
 
+  - feature_id: RT-FEAT-MAP-WATER-DYNAMICS
+    title: "Acqua tattica: profondita', flooding e corrente"
+    area: Map
+    kind: gameplay
+    release: future
+    priority: P3
+    status: IDEA
+    gates:
+      spec: todo
+      data: todo
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: todo
+      ui_wiki: todo
+      packaged: todo
+      network_privacy: na
+    roadmap:
+      epic: null
+      checkpoints: []
+    dependencies:
+      - RT-FEAT-ENV-TERRAIN
+      - RT-FEAT-ENV-WATER
+      - RT-FEAT-MAP-HEXGRAPH
+    owner_specs:
+      - docs/roadmap/plans/triage-grid-geometry-water-2026-08-10.md
+    issues: []
+    tests: []
+    scenarios: []
+    wiki_refs: []
+    wiki_note: >-
+      Nessuna pagina: la profondita' dell'acqua non esiste come asse, e una pagina la prometterebbe.
+    notes: >
+      `WaterDepth` (None/Shallow/Deep/Impassable) e' un asse ORTOGONALE alla superficie, non una nona
+      superficie: una cella puo' essere `ShallowWater` e cambiare profondita' durante il match. Oggi
+      `ShallowWater` e' una delle otto superfici di CP 8.1 e non cambia mai. Misurato: `WaterDepth` e
+      `Flooding` hanno ZERO occorrenze nel repository. Include flooding deterministico, corrente
+      (`WaterFlowDirection`/`Strength`) che produce ForcedMovement, e profili Swim/Amphibious/Hover.
+      Tocca il resolver, non solo la mappa: una corrente che sposta e' displacement, con catene e
+      collisioni. La propagazione elettrica su rete d'acqua che il sorgente chiede ESISTE GIA'
+      (CP 8.3, BFS, `StopsAtNonConductive`). Aperta: `GEO-1`.
+
+  - feature_id: RT-FEAT-MAP-STRUCTURAL
+    title: "Strutture: integrita', crolli a catena e macerie"
+    area: Map
+    kind: gameplay
+    release: future
+    priority: P3
+    status: IDEA
+    gates:
+      spec: todo
+      data: todo
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: todo
+      ui_wiki: todo
+      packaged: todo
+      network_privacy: na
+    roadmap:
+      epic: null
+      checkpoints: []
+    dependencies:
+      - RT-FEAT-MAP-COVER
+      - RT-FEAT-MAP-INTERACTIVE-EDGES
+    owner_specs:
+      - docs/roadmap/plans/triage-grid-geometry-water-2026-08-10.md
+    issues: []
+    tests: []
+    scenarios: []
+    wiki_refs: []
+    wiki_note: >-
+      Nessuna pagina finche' il nome non e' deciso: chiamare `Breach` due cose diverse e' peggio di tacere.
+    notes: >
+      Slot strutturali con integrita' e stati, dipendenze fra strutture, crolli immediati e telegrafati,
+      macerie come nuovo terreno, e il vincolo di connettivita' della mappa (niente soft-lock involontari).
+      E' il blocco piu' autonomo dei tre: non dipende da acqua ne' da verticalita'.
+      Collisione di nome da risolvere PRIMA della spec: il sorgente chiama `Breach` lo slot, ma
+      `Gadget.BreachCharge` esiste gia' ed e' l'oggetto che lo aprirebbe — 35 danni a struttura, E7.
+      Aperta: `GEO-2`.
+
+  - feature_id: RT-FEAT-MAP-VERTICALITY
+    title: "Verticalita': vault, drop, salita e cadute"
+    area: Map
+    kind: gameplay
+    release: future
+    priority: P3
+    status: IDEA
+    gates:
+      spec: todo
+      data: todo
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: todo
+      ui_wiki: todo
+      packaged: todo
+      network_privacy: na
+    roadmap:
+      epic: null
+      checkpoints: []
+    dependencies:
+      - RT-FEAT-MAP-SPECIAL-TRANSITIONS
+      - RT-FEAT-MAP-HEXGRAPH
+    owner_specs:
+      - docs/roadmap/plans/triage-grid-geometry-water-2026-08-10.md
+    issues: []
+    tests: []
+    scenarios: []
+    wiki_refs: []
+    wiki_note: >-
+      Nessuna pagina: la verticalita' oggi e' solo topologia fra layer; il traversal descritto non esiste.
+    notes: >
+      Vault su muretto, drop volontario, salita verticale, cadute forzate da pavimento distrutto, push
+      contro i bordi, lethal drop e displacement a catena. I Layer esistono gia' (`FRTCellId.Layer`,
+      transizioni fra layer) ed e' su quelli che poggia; il resto no — `Vault` non compare in `Source/`.
+      Il knockback esiste (CP 4.8) ma non conosce i bordi ne' le quote.
+
   - feature_id: RT-FEAT-MAP-LOS
     title: LOS, targeting e traiettoria separati
     area: Map
@@ -1000,16 +1118,20 @@ features:
       - Combat.BasicAttack
       - Movement.Basic
       - Visual.Combat.GuardReducesFirstHit
-      # `Guard` e `Brace` sono verificati SEPARATAMENTE, ed e' il difetto che tiene aperta `BAL-1`:
-      # nessuno scenario li guarda insieme sullo stesso colpo, quindi il loro confine puo' spostarsi
-      # senza che nulla diventi rosso. I quattro qui sotto lo chiudono e non richiedono capability
-      # nuove dell'harness — bastano `UnitHpEquals` e `UnitAtCell`, e la fixture (`Riva.PressureJet`,
-      # 16 danni + Push 1 nello stesso colpo) e' gia' a catalogo.
-      - planned:
-          - Spec.Brace.GuardAndBraceOnMixedHit
-          - Spec.Brace.BraceWinsOnSecondHit
-          - Spec.Brace.PushBeyondGuardThreshold
-          - Spec.Combat.BastionIgnoresAllPushes
+      # `Guard` e `Brace` erano verificati SEPARATAMENTE, ed era il difetto che teneva aperta `BAL-1`:
+      # nessuno scenario li guardava insieme sullo stesso colpo, quindi il loro confine poteva spostarsi
+      # senza che nulla diventasse rosso. Scritti il 2026-08-10 (#401), verdi al primo run.
+      # Fixture: `Riva.PressureJet`, l'unica azione del gioco con danno E spinta nello stesso colpo.
+      - Spec.Brace.GuardAndBraceOnMixedHit
+      - Spec.Brace.BraceWinsOnSecondHit
+      # Rinominato da `Spec.Combat.BastionIgnoresAllPushes`, che e' il nome previsto dal piano `BAL-1` e
+      # dalla DoD di #402: D-075 ha deciso dall'altra parte (`PushResistance` 1 -> 0), quindi quel nome
+      # avrebbe significato il contrario di cio' che il file verifica.
+      - Spec.Combat.BastionIsPushedLikeAnyone
+      # Il quarto NON si scrive, e non e' un rinvio: `Spec.Brace.PushBeyondGuardThreshold` chiedeva una
+      # spinta di 2 per far cedere `Guard` e mostrare la clausola di `Brace`. D-074 (uscita (B) di #400)
+      # ha deciso di NON introdurla e di riscrivere invece la clausola: senza quel numero lo scenario non
+      # ha soggetto. Rinasce solo se una v0.2 introduce la spinta forte.
     wiki_refs:
       - docs/wiki/game/azioni-e-movimento.md
     wiki_note: >-

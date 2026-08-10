@@ -94,16 +94,20 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBastionPushResistanceTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTBastionPushResistanceTest::RunTest(const FString&)
 {
-	// Nome vincolante della DoD. La resistenza push 1 e' l'unica del roster: e' cio' che Bastion compra con
-	// il movimento piu' basso (4 MP) e la vista corta, ed e' la prova che nessun eroe domina in ogni
-	// parametro (gate di chiusura dell'epic E6).
+	// Nome vincolante della DoD. **Il senso del test si e' rovesciato il 2026-08-10** (D-075, #402): fino a
+	// qui pinnava `PushResistance = 1` come cio' che Bastion compra col movimento piu' basso. Ma siccome
+	// ogni spinta del gioco vale 1 e la resistenza e' una soglia (D-038), quel valore rendeva Bastion immune
+	// a OGNI spostamento, sempre, gratis — non era la statistica dichiarata, era un'immunita' che nessuno
+	// aveva deciso. Ora il test pinna il roster **tutto a zero**, ed e' l'unico posto che diventa rosso se
+	// qualcuno rimette una resistenza nativa senza passare da una decisione.
 	URTHeroData* Bastion = URTHeroCatalogLibrary::MakeBastion();
-	TestEqual(TEXT("Bastion resiste a una spinta di 1"), Bastion->PushResistance, 1);
-
 	URTHeroData* Flux = URTHeroCatalogLibrary::MakeFlux();
 	URTHeroData* Riva = URTHeroCatalogLibrary::MakeRiva();
+	URTHeroData* Vektor = URTHeroCatalogLibrary::MakeVektor();
+	TestEqual(TEXT("Bastion non ha piu' resistenza nativa"), Bastion->PushResistance, 0);
 	TestEqual(TEXT("Flux non resiste"), Flux->PushResistance, 0);
 	TestEqual(TEXT("Riva non resiste"), Riva->PushResistance, 0);
+	TestEqual(TEXT("Vektor non resiste"), Vektor->PushResistance, 0);
 
 	// Il prezzo, in dati: piu' salute di tutti, ma il movimento piu' basso finora.
 	TestTrue(TEXT("piu' salute di Flux e Riva"),
@@ -111,9 +115,14 @@ bool FRTBastionPushResistanceTest::RunTest(const FString&)
 	TestTrue(TEXT("ma meno movimento"),
 		Bastion->MovePoints < Flux->MovePoints && Bastion->MovePoints < Riva->MovePoints);
 
-	// Limite dichiarato: `PushResistance` e' un DATO senza consumatore. Il resolver applica oggi solo la
-	// resistenza temporanea di `Status.Guarded` (`URTCombatLibrary::GuardResistedPushDistance`), non quella
-	// base dell'eroe — vale da CP 6.1, e questo test verifica il dato, non il suo effetto in partita.
+	// Il commento che stava qui diceva `PushResistance` "un DATO senza consumatore", e che il resolver
+	// applicava solo `GuardResistedPushDistance`. **Era invecchiato**: il ramo `ERTActionEffect::Push` di
+	// `RTTurnManager.cpp` la consuma da quando D-038 e' stata cablata. Rimosso il 2026-08-10 con #402.
+	//
+	// Il limite vero e' un altro, e vale la pena scriverlo: il campo ha oggi **zero utenti nel roster**.
+	// La meccanica e' dormiente per scelta (vedi `MakeBastion`), non morta — e questo test misura il dato,
+	// mentre l'effetto in partita e' pinnato da `Spec.Combat.BastionIgnoresAllPushes`, che verifica che
+	// Bastion venga spostato come chiunque altro.
 	return true;
 }
 
