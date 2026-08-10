@@ -401,3 +401,76 @@ TArray<FRTShowcaseSpawn> URTMatchSetupLibrary::GetShowcaseRelayLiteSpawns()
 		FRTShowcaseSpawn(TEXT("Hero.Vektor"),  /*TeamId=*/ 1, FRTCellId( 5, -3, 0)),
 	};
 }
+
+URTHexMapAsset* URTMatchSetupLibrary::MakeArenaV01(UObject* Outer)
+{
+	if (Outer == nullptr)
+	{
+		return nullptr;
+	}
+
+	URTHexMapAsset* Arena = NewObject<URTHexMapAsset>(Outer);
+
+	// Esagono pieno di raggio 4: 61 celle. Gli spawn li derivera' PickStartCells dai due estremi dell'ordine
+	// stabile (X, Y), quindi cadranno su (-4,0) e (4,0): l'asse su cui e' costruito tutto il resto.
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 4))
+	{
+		Arena->AddOrUpdateCell(MakeShowcaseTerrainCell(Id, ERTHexSurface::Floor));
+	}
+
+	auto SetCell = [Arena](const FRTCellId& Id, bool bBlocksMovement, bool bBlocksSight, ERTHexSurface Surface)
+	{
+		if (!Arena->ContainsCell(Id)) { return; }
+		FRTHexCellData Cell = *Arena->FindCell(Id);
+		Cell.bBlocksMovement = bBlocksMovement;
+		Cell.bBlocksLineOfSight = bBlocksSight;
+		Cell.Surface = Surface;
+		Cell.MoveCost = URTTerrainLibrary::FindTerrainDef(Surface).MoveCost;
+		Arena->AddOrUpdateCell(Cell);
+	};
+
+	// 1. Barriera verticale con DUE SOLE PORTE. E' la struttura che rende la mappa una scelta invece di un
+	//    campo aperto: senza, il pathfinding trova due varianti della stessa strada a nord e la meta' sud non
+	//    la percorre nessuno — misurato, non supposto.
+	const int32 NorthGate = -3;
+	const int32 SouthGate = 3;
+	for (int32 R = -4; R <= 4; ++R)
+	{
+		if (R == NorthGate || R == SouthGate) { continue; }
+		SetCell(FRTCellId(0, R, 0), /*Move=*/ true, /*Sight=*/ true, ERTHexSurface::Floor);
+	}
+
+	// 2. Spalle della barriera sull'asse degli spawn: portano a due il numero di celle che bloccano la vista
+	//    sul segmento, che e' cio' che il criterio della copertura pretende (una sola non basta).
+	SetCell(FRTCellId(-1, 0, 0), /*Move=*/ true, /*Sight=*/ true, ERTHexSurface::Floor);
+	SetCell(FRTCellId( 1, 0, 0), /*Move=*/ true, /*Sight=*/ true, ERTHexSurface::Floor);
+
+	// 3. Fango su ENTRAMBE le porte: qualunque via si scelga, il budget morde. Una zona costosa che si aggira
+	//    senza rinunciare a nulla non e' una scelta, e l'A* la eviterebbe rendendola invisibile al criterio.
+	SetCell(FRTCellId(0, NorthGate, 0), /*Move=*/ false, /*Sight=*/ false, ERTHexSurface::Rough);
+	SetCell(FRTCellId(0, SouthGate, 0), /*Move=*/ false, /*Sight=*/ false, ERTHexSurface::Rough);
+
+	// 4. Schermo davanti alla via MERIDIONALE: blocca la VISTA e non il passo.
+	//
+	//    E' la correzione di un errore misurato: con lo schermo che bloccava anche il movimento, il corridoio
+	//    sud-orientale spariva e restava una rotta sola. Una cella che blocca solo la vista si attraversa — ed
+	//    e' esattamente cio' che serve a una rotta coperta ma percorribile.
+	//
+	//    Nasconde il TRATTO CENTRALE della via, non il suo sbocco: le ultime celle prima dello spawn avversario
+	//    saranno viste comunque, e va bene — l'esposizione si misura in frazione, non sull'ultima cella.
+	for (int32 Q = 2; Q <= 3; ++Q)
+	{
+		SetCell(FRTCellId(Q, 1, 0), /*Move=*/ false, /*Sight=*/ true, ERTHexSurface::Floor);
+	}
+
+	// 5. Terreno accidentato sulla via meridionale, quella che lo schermo tiene nascosta.
+	//    Mette le due rotte nel verso giusto: chi vuole restare coperto paga, chi ha fretta si espone. Senza,
+	//    la via coperta sarebbe anche la piu' economica — e due rotte di cui una domina non sono un trade-off.
+	for (int32 Q = 1; Q <= 2; ++Q)
+	{
+		SetCell(FRTCellId(Q, 2, 0), /*Move=*/ false, /*Sight=*/ false, ERTHexSurface::Rough);
+	}
+
+	Arena->SortCells();
+	return Arena;
+}
