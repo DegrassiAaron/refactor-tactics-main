@@ -20,6 +20,7 @@
 extern TAutoConsoleVariable<FString> CVarRTTestScenario;
 /** Definita in ScenarioHarness/RTTestConsole.cpp: scavalca `MapSource` da riga di comando. */
 extern TAutoConsoleVariable<FString> CVarRTMapSource;
+
 #include "Turn/RTMatchFormatData.h"
 #include "Turn/RTMatchFormatLibrary.h"
 #include "RefactorTactics.h"
@@ -443,6 +444,7 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 
 	UE_LOG(LogRT, Log, TEXT("[RT] Board 2v2 esagonale avviata su %d celle con %d eroi"),
 		Map ? Map->NumCells() : 0, Spawned.Num());
+
 }
 
 ARTUnit* ARTGameMode::SpawnHero(int32 TeamId, const URTHeroData* Hero, const FRTCellId& InCell,

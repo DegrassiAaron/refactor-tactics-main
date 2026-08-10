@@ -31,6 +31,7 @@
 #include "TimerManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Replay/RTMatchHistoryLibrary.h" // indice delle partite: una riga per partita, fuori dagli archivi (#416)
 #include "Replay/RTReplayRecorderLibrary.h"
 #include "Turn/RTMatchStateHash.h"
 #include "Misc/DateTime.h"
@@ -1454,6 +1455,17 @@ void ARTTurnManager::BeginReplayRecording()
 	// quello vero. Un manifest che dichiara il formato sbagliato e' peggio di uno che non lo dichiara.
 	ReplayManifest.FormatId = MatchRules.FormatId;
 	ReplayManifest.bHexTopology = true; // un solo substrato: `FRTCellId` e' esagonale (ADR-0002)
+
+	// L'UNICO tempo reale che tocca l'archivio: da qui esce la durata nel manifest e la data nell'indice.
+	// Nessuno dei due entra in un hash.
+	ReplayStartRealSeconds = FPlatformTime::Seconds();
+	ReplayStartedUtc = FDateTime::UtcNow();
+
+	// La partita entra nella lista ADESSO e non alla fine (`#416`): se entrasse alla fine, una partita
+	// interrotta non comparirebbe da nessuna parte pur avendo lasciato un archivio riproducibile su disco.
+	// La riga si completa alla chiusura — `AppendOrUpdate` aggiorna la stessa, non ne accoda una seconda.
+	URTMatchHistoryLibrary::AppendOrUpdate(ResolveReplaysRoot(),
+		URTMatchHistoryLibrary::EntryFromManifest(ReplayManifest, ReplayStartedUtc));
 }
 
 FString ARTTurnManager::ResolveReplaysRoot() const
@@ -1489,11 +1501,20 @@ void ARTTurnManager::CloseReplayArchive()
 
 	// Il checksum e' quello catturato in `CaptureFinalStateHash`, PRIMA che le unita' morte sparissero: qui
 	// non si puo' piu' calcolare, perche' `DestroyDefeatedUnits` e' gia' passato.
+	// La DURATA si misura adesso: nasce in `BeginReplayRecording` e finisce qui. E' l'unico tempo reale che
+	// l'archivio porta, e vive in un campo che non entra in nessun hash.
+	const float WallClock = static_cast<float>(FPlatformTime::Seconds() - ReplayStartRealSeconds);
 	if (!URTReplayRecorderLibrary::CloseMatch(ResolveReplaysRoot(), ReplayManifest,
-		PendingResult.Outcome, PendingFinalStateHash, /*WallClockSeconds*/ 0.f))
+		PendingResult.Outcome, PendingFinalStateHash, WallClock))
 	{
 		AddLogEvent(TEXT("Replay: l'archivio non e' stato chiuso"));
 	}
+
+	// La riga della lista si completa con quello che il manifest dice ADESSO: esito, turni, durata e la
+	// disponibilita' del replay, che e' la chiusura stessa. Se la chiusura e' fallita, `bClosed` e' rimasto
+	// `false` e l'indice lo riporta — la lista non promette una partita intera che il disco non ha.
+	URTMatchHistoryLibrary::AppendOrUpdate(ResolveReplaysRoot(),
+		URTMatchHistoryLibrary::EntryFromManifest(ReplayManifest, ReplayStartedUtc));
 }
 
 void ARTTurnManager::DestroyDefeatedUnits()

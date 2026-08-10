@@ -588,6 +588,15 @@ protected:
 	/** La radice effettiva: l'override se c'e', altrimenti `Saved/Replays`. */
 	FString ResolveReplaysRoot() const;
 
+	/**
+	 * Istante reale d'inizio registrazione, per la durata nel manifest. E' l'UNICO tempo reale che tocca
+	 * l'archivio, e finisce in un campo che non entra in nessun hash.
+	 */
+	double ReplayStartRealSeconds = 0.0;
+
+	/** Istante d'inizio in UTC, per la riga dell'indice (`#416`). Il manifest porta una durata, non un inizio. */
+	FDateTime ReplayStartedUtc = FDateTime(0);
+
 	/** Rotte (celle) percorse da ogni unita' che si e' mossa nell'ultima risoluzione. */
 	TArray<TArray<FRTCellId>> LastMoveRoutes;
 
