@@ -737,38 +737,14 @@ void FRTScenarioSession::Finish()
 	//
 	// Il calcolo vive in `URTMatchStateHashLibrary` e non piu' qui: una funzione che prende DATI si verifica
 	// con un test diretto (`Simulation.ChecksumCoversEnvironment`), un blocco dentro `Finish()` no.
+	// ⚠️ **Il digest NON si costruisce piu' qui** (`#490`). Lo costruisce il `TurnManager`, che e' l'unico
+	// produttore: finche' l'harness ne aveva una copia propria, l'identita' dell'unita' veniva dalla chiave
+	// del file di scenario (`"F1"`) mentre in una partita vera non esiste nessun file — lo stesso identico
+	// stato finale dava due hash diversi, e il checksum nel manifest di `#469` non sarebbe stato confrontabile
+	// con nulla. Due produttori dello stesso numero sono due numeri.
+	if (const ARTTurnManager* TM = TurnManager.Get())
 	{
-		TArray<FRTUnitStateDigest> UnitStates;
-		UnitStates.Reserve(UnitsById.Num());
-		for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)
-		{
-			const ARTUnit* Unit = Pair.Value.Get();
-			if (!Unit)
-			{
-				continue;
-			}
-			// `Digest` e non `State`: la sessione ha gia' un membro `State` (la sua macchina a stati), e
-			// nasconderlo e' un warning trattato come errore.
-			FRTUnitStateDigest Digest;
-			Digest.Id = Pair.Key;
-			Digest.Cell = Unit->Cell;
-			Digest.Health = Unit->Health;
-			Digest.Shield = Unit->Shield;
-			Digest.Energy = Unit->Energy;
-			Digest.bAlive = Unit->IsAlive();
-			Digest.Statuses = Unit->GetActiveStatusNames();
-			UnitStates.Add(Digest);
-		}
-
-		// Punteggi indicizzati per TeamId: la v0.1 e' 2v2, e il giudice della fine partita li tiene qui.
-		TArray<int32> TeamScores;
-		if (const ARTTurnManager* TM = TurnManager.Get())
-		{
-			TeamScores.Add(TM->GetTeamScore(0));
-			TeamScores.Add(TM->GetTeamScore(1));
-		}
-
-		Result.StateHash = URTMatchStateHashLibrary::HashMatchState(Map, UnitStates, TeamScores);
+		Result.StateHash = TM->GetOrComputeFinalStateHash();
 	}
 
 	for (const FRTTestExpectation& Exp : Scenario.Expect)

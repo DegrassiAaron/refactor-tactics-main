@@ -25,16 +25,15 @@ uint32 URTMatchStateHashLibrary::HashMatchState(const URTHexMapAsset* Map,
 	};
 
 	// --- Unità -------------------------------------------------------------------------------------------
-	// In ordine di Id: l'Id viene dallo scenario ed è stabile, l'ordine dell'array no.
+	// In ordine di `StableUnitId`: l'identità è assegnata una volta sola da `EnsureMatchRoster` e non si muove
+	// per tutta la partita, l'ordine dell'array sì (`GetAllActorsOfClass` non è ordinato).
 	TArray<FRTUnitStateDigest> SortedUnits = Units;
-	SortedUnits.Sort([](const FRTUnitStateDigest& A, const FRTUnitStateDigest& B) { return A.Id < B.Id; });
+	SortedUnits.Sort([](const FRTUnitStateDigest& A, const FRTUnitStateDigest& B)
+		{ return A.StableUnitId < B.StableUnitId; });
 
 	for (const FRTUnitStateDigest& U : SortedUnits)
 	{
-		for (const TCHAR Ch : U.Id)
-		{
-			Mix(static_cast<uint32>(Ch));
-		}
+		Mix(static_cast<uint32>(U.StableUnitId));
 		MixCell(U.Cell);
 		Mix(static_cast<uint32>(U.Health));
 		Mix(static_cast<uint32>(U.Shield));

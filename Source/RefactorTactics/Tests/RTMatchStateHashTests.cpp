@@ -43,7 +43,7 @@ namespace
 	TArray<FRTUnitStateDigest> BaseUnits()
 	{
 		FRTUnitStateDigest U;
-		U.Id = TEXT("hero.a");
+		U.StableUnitId = 1;
 		U.Cell = FRTCellId(0, 0);
 		U.Health = 100;
 		U.Shield = 0;
@@ -127,6 +127,62 @@ bool FRTChecksumCoversEnvironmentTest::RunTest(const FString&)
 			URTMatchStateHashLibrary::HashMatchState(Map, OneOrder, NoScore),
 			URTMatchStateHashLibrary::HashMatchState(Map, Different, NoScore));
 	}
+
+	return true;
+}
+
+/**
+ * L'identità che entra nel checksum è `StableUnitId`, e discrimina (`#490`).
+ *
+ * Era la chiave del file di scenario, una `FString`: l'harness scriveva `"F1"`, una partita vera non ha un
+ * file da cui prenderla, e lo stesso identico stato finale dava due hash diversi. Il campo è passato a
+ * `int32` perché il tipo è il posto in cui la decisione si fa rispettare.
+ *
+ * ⚠️ Il caso che conta è il **secondo**: se l'identità uscisse dall'hash (opzione C di `#490`), due unità che
+ * si scambiano cella e salute diventerebbero indistinguibili — e sono stati di gioco diversi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChecksumIdentityTest,
+	"RefactorTactics.Simulation.ChecksumIdentityIsStableUnitId",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChecksumIdentityTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeStateHashMap();
+	const TArray<int32> NoScore = { 0, 0 };
+
+	FRTUnitStateDigest A;
+	A.StableUnitId = 1;
+	A.Cell = FRTCellId(0, 0);
+	A.Health = 100;
+
+	FRTUnitStateDigest B;
+	B.StableUnitId = 2;
+	B.Cell = FRTCellId(1, 0);
+	B.Health = 40;
+
+	const uint32 Baseline = URTMatchStateHashLibrary::HashMatchState(Map, { A, B }, NoScore);
+
+	// 1. L'ORDINE dell'array non conta: `GetAllActorsOfClass` non è ordinato, e due esecuzioni della stessa
+	//    partita non devono dare hash diversi solo per l'ordine in cui il mondo ha restituito gli Actor.
+	TestEqual(TEXT("permutare le unita' non cambia il checksum"),
+		URTMatchStateHashLibrary::HashMatchState(Map, { B, A }, NoScore), Baseline);
+
+	// 2. L'identità DISCRIMINA: A e B si scambiano cella e salute. Nessun altro campo cambia, la somma degli
+	//    stati è identica, e i due finali devono restare distinguibili.
+	FRTUnitStateDigest SwappedA = A;
+	FRTUnitStateDigest SwappedB = B;
+	SwappedA.Cell = B.Cell;
+	SwappedA.Health = B.Health;
+	SwappedB.Cell = A.Cell;
+	SwappedB.Health = A.Health;
+
+	TestNotEqual(TEXT("scambiare cella e salute fra due unita' cambia il checksum"),
+		URTMatchStateHashLibrary::HashMatchState(Map, { SwappedA, SwappedB }, NoScore), Baseline);
+
+	// 3. Due identità diverse non collidono: cambiare SOLO l'id cambia l'hash.
+	FRTUnitStateDigest Renamed = B;
+	Renamed.StableUnitId = 3;
+	TestNotEqual(TEXT("un'identita' diversa cambia il checksum"),
+		URTMatchStateHashLibrary::HashMatchState(Map, { A, Renamed }, NoScore), Baseline);
 
 	return true;
 }

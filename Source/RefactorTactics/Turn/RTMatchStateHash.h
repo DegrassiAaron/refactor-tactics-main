@@ -18,8 +18,19 @@ struct FRTUnitStateDigest
 {
 	GENERATED_BODY()
 
-	/** Identità stabile dell'unità nello scenario: viene dal file, non dall'ordine di spawn. */
-	UPROPERTY() FString Id;
+	/**
+	 * Identità stabile dell'unità: `ARTUnit::StableUnitId` ([D-063], `#405`), la stessa in una partita vera e
+	 * in uno scenario dell'harness.
+	 *
+	 * ⚠️ **Era una `FString` presa dal file di scenario, e per questo i due mondi non erano confrontabili**
+	 * (`#490`): l'harness scriveva `"F1"`, una partita reale non ha un file da cui prenderlo, e lo stesso
+	 * identico stato finale dava due hash diversi. Il tipo è `int32` perché è il posto in cui la decisione si
+	 * fa rispettare: con una stringa, la chiave del file può sempre rientrare da una porta laterale.
+	 *
+	 * Discrimina davvero, e non è il caso di [D-063] «la cella non è l'identità»: due unità che si scambiano
+	 * cella e salute sono stati diversi, e senza l'identità sarebbero indistinguibili.
+	 */
+	UPROPERTY() int32 StableUnitId = 0;
 
 	UPROPERTY() FRTCellId Cell;
 	UPROPERTY() int32 Health = 0;
