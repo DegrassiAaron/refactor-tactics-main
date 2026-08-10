@@ -26,8 +26,8 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 |---|--:|
 | `IDEA` | 7 |
 | `DESIGNED` | 10 |
-| `SPECIFIED` | 13 |
-| `IMPLEMENTING` | 20 |
+| `SPECIFIED` | 12 |
+| `IMPLEMENTING` | 21 |
 | `TESTABLE` | 5 |
 | `INTEGRATED` | 21 |
 | `RELEASE_READY` | 15 |
@@ -166,10 +166,10 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
 | `RT-FEAT-REACTION-PREPARED` — Reazioni preparate in planning | v0.1 | INTEGRATED | 6/8 | E5 | Una attivazione per turno, **nessuna attesa nel resolver** |
+| `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | v0.1 | IMPLEMENTING | 3/9 | E14 | Il modello unico di tutte le finestre; mai annidate |
 | `RT-FEAT-REACTION-PROFILE` — Reaction Profile armato da Brace | v0.1 | IMPLEMENTING | 1/8 | E14 | `Brace` non è solo riduzione danno: arma un profilo di risposta |
 | `RT-FEAT-REACTION-CLASH` — Reaction Clash (opportunity contested) | v0.1 | SPECIFIED | 1/9 | E14 | Due opportunity contese: chi vince, e una sola volta |
 | `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | v0.1 | SPECIFIED | 1/9 | E14 | Finestra **3,0 s**, `Timeout → HOLD`; Fast/Headless risponde subito via policy |
-| `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | v0.1 | SPECIFIED | 1/8 | E14 | Il modello unico di tutte le finestre; mai annidate |
 | `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | v0.1 | SPECIFIED | 1/9 | E14 | Profilabile, non un'abilità d'eroe |
 | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | v0.1 | DESIGNED | 0/9 | E14 | Continuazione della **propria** azione, non risposta all'avversario |
 
