@@ -143,15 +143,16 @@ senza motivo è il difetto che G9 ha già avuto due volte.
 
 ## 7. Issue
 
-| Ordine | Titolo | Blocca | DoD |
+| # | Titolo | Bloccata da | DoD in una riga |
 |---|---|---|---|
-| 1 | Ogni spinta del gioco vale 1: la clausola «senza limite di distanza» di `Brace` non è osservabile | — | Fase 0 decisa (A o B). Se (B): clausola riscritta a catalogo **e** nel commento del codice, così che le due letture non divergano |
-| 2 | `Guard` e `Brace` sono verificati separatamente: il confine può spostarsi senza rossi | 1 | I 4 scenari in `Scenarios/Spec/`, verdi, con i numeri della §1.3 pinnati |
-| 3 | Bastion è immune a ogni spostamento del gioco senza spendere nulla | — | Deciso se `PushResistance = 1` nativo è voluto in questa forma; scenario che lo pinna in un verso o nell'altro |
-| 4 | `BAL-1`: decidere il confine fra `Guard` e `Brace` | 1, 2 | Playtest eseguito, opzione scelta, `D-0nn` scritta, `BAL-1` rimossa da `OPEN_DECISIONS.md` |
-| 5 | Applicare la decisione `BAL-1` alle costanti di combat | 4 | Costanti aggiornate, i 4 scenari aggiornati e verdi, catalogo §135 allineato |
+| [**#400**](https://github.com/DegrassiAaron/refactor-tactics-main/issues/400) | Ogni spinta del gioco vale 1: la clausola «senza limite di distanza» di `Brace` non è osservabile | — | Fase 0 decisa (A o B). Se (B): clausola riscritta a catalogo **e** nel commento del codice, così che le due letture non divergano |
+| [**#401**](https://github.com/DegrassiAaron/refactor-tactics-main/issues/401) | `Guard` e `Brace` sono verificati separatamente: il confine può spostarsi senza rossi | #400 | I 4 scenari in `Scenarios/Spec/`, verdi, con i numeri della §1.3 pinnati |
+| [**#402**](https://github.com/DegrassiAaron/refactor-tactics-main/issues/402) | Bastion è immune a ogni spostamento del gioco senza spendere nulla | — | Deciso se `PushResistance = 1` nativo è voluto in questa forma; scenario che lo pinna in un verso o nell'altro |
+| [**#403**](https://github.com/DegrassiAaron/refactor-tactics-main/issues/403) | `BAL-1`: decidere il confine fra `Guard` e `Brace` | #400, #401 | Playtest eseguito, opzione scelta, `D-0nn` scritta, `BAL-1` rimossa da `OPEN_DECISIONS.md` |
+| [**#404**](https://github.com/DegrassiAaron/refactor-tactics-main/issues/404) | Applicare la decisione `BAL-1` alle costanti di combat | #403 | Costanti aggiornate, i 4 scenari aggiornati e verdi, catalogo §135 allineato |
 
-Le prime tre non richiedono l'autore e possono partire subito. La **4** è l'unica che lo richiede davvero.
+**#400**, **#401** e **#402** non richiedono l'autore e possono partire subito. La **#403** è l'unica che lo
+richiede davvero — ed è anche l'unica che non si chiude scrivendo.
 
 ## 8. Perché questo piano esiste in questa forma
 
