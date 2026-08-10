@@ -9,6 +9,7 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexLibrary.h"
+#include "Turn/RTMatchSetupLibrary.h"
 
 namespace RTHexEditor
 {
@@ -121,6 +122,24 @@ void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Acto
 		{
 			DrawHexMarker(PDI, Center, HexSize * 0.45f, URTHexLibrary::BlockedCellColor()); // rosso: non ci si passa
 		}
+	}
+
+	// Celle di PARTENZA, calcolate con la stessa funzione che allestisce la partita. Non sono un dato della
+	// mappa: si spostano da sole appena una cella viene aggiunta o resa impercorribile, e senza vederle si
+	// disegna una mappa senza sapere da dove partono le squadre — lo si scopre dal log a lavoro finito.
+	//
+	// Anello ESTERNO (1.0), piu' largo del contorno di superficie: non compete con i marcatori di regola, che
+	// stanno tutti dentro.
+	const int32 NumPerTeam = 2; // la v0.1 e' 2v2; il resto della scala e' un problema del formato, non dell'overlay
+	const TArray<FRTCellId> Starts = URTMatchSetupLibrary::PickStartCells(Map, NumPerTeam, ActiveLayer);
+	for (int32 I = 0; I < Starts.Num(); ++I)
+	{
+		if (bActiveOnly && Starts[I].Layer != ActiveLayer) { continue; }
+		const FVector Center = URTHexLibrary::AxialToWorld(Starts[I], Origin, HexSize, LayerH);
+		const FColor Color = (I < NumPerTeam)
+			? URTHexLibrary::SpawnTeam0Color()
+			: URTHexLibrary::SpawnTeam1Color();
+		DrawHexMarker(PDI, Center, HexSize * 1.0f, Color);
 	}
 }
 } // namespace RTHexEditor

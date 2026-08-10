@@ -99,6 +99,16 @@ public:
 	/** Colore del marcatore delle celle che bloccano la LINEA DI VISTA (esagono interno, distinto dal blocco). */
 	static FColor SightBlockerColor();
 
+	/**
+	 * Colori delle celle di PARTENZA delle due squadre (anello esterno, piu' largo del contorno di superficie).
+	 *
+	 * Non sono una proprieta' della mappa: `URTMatchSetupLibrary::PickStartCells` le DERIVA dalle celle
+	 * percorribili, quindi si spostano da sole appena si aggiunge o toglie una cella. Mostrarle e' l'unico modo
+	 * di accorgersene mentre si dipinge, invece che dal log a lavoro finito.
+	 */
+	static FColor SpawnTeam0Color();
+	static FColor SpawnTeam1Color();
+
 	static FVector CellsCentroidWorld(const TArray<FRTCellId>& Cells, const FVector& Origin, float HexSize,
 		float LayerHeight);
 
