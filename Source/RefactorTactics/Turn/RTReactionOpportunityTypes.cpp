@@ -12,11 +12,17 @@ FString URTReactionOpportunityLibrary::DeriveOpportunityId(const FRTReactionOppo
 	// regole prima che al formato. Un valore nuovo va comunque aggiunto in CODA: gli id gia' registrati non
 	// devono cambiare significato.
 	//
-	// `ReactionDefId` viene NORMALIZZATO a minuscole, e non e' cosmesi. `FName` confronta senza distinguere la
-	// casing, ma `ToString()` restituisce quella dell'istanza: senza `ToLower()`, due punti del codice che
-	// l'engine considera la stessa azione produrrebbero due id diversi, cioe' proprio l'identificatore
-	// non-funzione-del-proprio-stato che questo file esiste per impedire. Pinnato da
-	// `OpportunityIdIgnoresActionIdCasing`.
+	// `ReactionDefId` viene normalizzato a minuscole. ⚠️ **In questa build e' un no-op, misurato**: una code
+	// review aveva segnalato che `FName::ToString()` restituisce la casing dell'ISTANZA — quindi due punti del
+	// codice che l'engine considera la stessa azione avrebbero prodotto due id diversi. Verificato: qui
+	// `ToString()` restituisce gia' minuscolo, e un test costruito per dimostrare la divergenza non e' riuscito
+	// nemmeno a costruirne la premessa (`ToString() != ToString().ToLower()` era falso). Il test e' stato
+	// rimosso invece che tenuto verde: non poteva fallire.
+	//
+	// La chiamata resta perche' e' gratis e la premessa della review tornerebbe VERA con
+	// `WITH_CASE_PRESERVING_NAME` attivo — e in quel caso l'id dipenderebbe dalla casing del primo chiamante,
+	// cioe' dall'ordine di caricamento. Non e' pinnata da un test, e va detto: in questa configurazione la
+	// premessa non e' costruibile.
 	return FString::Printf(TEXT("T%d|P%d|M%d|U%d|%s|S%d"),
 		Key.TurnNumber,
 		static_cast<int32>(Key.MacroPhase),

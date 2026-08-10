@@ -2070,7 +2070,6 @@
       "tests": [
         "RefactorTactics.Reactions.OpportunityIdIsDerivedNotRandom",
         "RefactorTactics.Reactions.OpportunityIdUsesEveryField",
-        "RefactorTactics.Reactions.OpportunityIdIgnoresActionIdCasing",
         "RefactorTactics.Reactions.SingleResponseCommitsWithoutWindow",
         "RefactorTactics.Overwatch.OpportunityLeaksNoFuture"
       ],
@@ -2085,7 +2084,7 @@
         "date": "2026-08-10",
         "commit": "822ed35"
       },
-      "notes": "ADR-0004 accettato; il modello unificato contiene E5 come caso `AllowedResponses ≤ 1`. CP 14.3 ha consegnato chiave, derivazione dell'id, soglia del boundary e privacy del DTO. ⚠️ I cinque test vanno elencati QUI e non lasciati al prefisso `Reactions.*`: quel prefisso appartiene a RT-FEAT-REACTION-PREPARED, e `feature_registry.py` fa prefix matching — senza questo elenco la suite E5 passerebbe da 27 a 32 e nessuno saprebbe piu' dire se e' regredita o se e' semplicemente atterrato CP 14.3. E' la voce di DoD «suite E5 invariata» che perde il proprio strumento di misura. `runtime: partial` e non `done`: la regola esiste ed e' pura, ma NESSUN chiamante di produzione la invoca — il wiring in `ResolveCombat` e' rimandato a CP 14.4, dove le opportunity hanno finalmente un lettore. `log_debug: todo` per la stessa ragione: niente serializza ancora l'id, quindi «serializzazione stabile dentro l'hash del replay» e' consegnata nella forma e non ancora nei fatti. Non parte prima di E13: il trigger richiede livello «Rilevato», non solo LOS."
+      "notes": "ADR-0004 accettato; il modello unificato contiene E5 come caso `AllowedResponses ≤ 1`. CP 14.3 ha consegnato chiave, derivazione dell'id, soglia del boundary e privacy del DTO. ⚠️ I quattro test vanno elencati QUI e non lasciati al prefisso `Reactions.*`: quel prefisso appartiene a RT-FEAT-REACTION-PREPARED, e `feature_registry.py` fa prefix matching — senza questo elenco la suite E5 passerebbe da 27 a 31 e nessuno saprebbe piu' dire se e' regredita o se e' semplicemente atterrato CP 14.3. E' la voce di DoD «suite E5 invariata» che perde il proprio strumento di misura. `runtime: partial` e non `done`: la regola esiste ed e' pura, ma NESSUN chiamante di produzione la invoca — il wiring in `ResolveCombat` e' rimandato a CP 14.4, dove le opportunity hanno finalmente un lettore. `log_debug: todo` per la stessa ragione: niente serializza ancora l'id, quindi «serializzazione stabile dentro l'hash del replay» e' consegnata nella forma e non ancora nei fatti. Non parte prima di E13: il trigger richiede livello «Rilevato», non solo LOS."
     },
     {
       "feature_id": "RT-FEAT-REACTION-FAST",

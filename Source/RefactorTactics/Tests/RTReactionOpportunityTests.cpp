@@ -108,42 +108,6 @@ bool FRTOpportunityIdUsesEveryFieldTest::RunTest(const FString&)
 }
 
 /**
- * Due `FName` che l'engine considera la stessa azione danno lo stesso id, qualunque sia la loro casing.
- *
- * `FName` confronta senza distinguere maiuscole e minuscole, ma `ToString()` restituisce la casing
- * dell'ISTANZA. Senza normalizzazione, un chiamante che scrive `Action.Counter` e uno che scrive
- * `action.counter` — per l'engine la stessa azione, `==` vero — produrrebbero due opportunity con id diversi,
- * e il replay attribuirebbe a due opportunity distinte cio' che e' successo una volta sola.
- *
- * E' il difetto che il tipo `FName` risolve a meta': toglie l'ambiguita' dal CONFRONTO e la lascia nella
- * SERIALIZZAZIONE.
- */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOpportunityIdIgnoresActionIdCasingTest,
-	"RefactorTactics.Reactions.OpportunityIdIgnoresActionIdCasing",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTOpportunityIdIgnoresActionIdCasingTest::RunTest(const FString&)
-{
-	FRTReactionOpportunityKey Lower = MakeOpportunityKeyForIdTest();
-	Lower.ReactionDefId = FName(TEXT("action.counter"));
-
-	FRTReactionOpportunityKey Upper = MakeOpportunityKeyForIdTest();
-	Upper.ReactionDefId = FName(TEXT("ACTION.COUNTER"));
-
-	// La premessa del test: per l'engine sono la stessa azione. Se un giorno non lo fossero piu', questo
-	// assert cade per primo e dice perche', invece di lasciar fallire quello sotto senza spiegazione.
-	if (!TestTrue(TEXT("i due FName sono uguali per l'engine"), Lower.ReactionDefId == Upper.ReactionDefId))
-	{
-		return false;
-	}
-
-	TestEqual(TEXT("e quindi danno lo stesso OpportunityId"),
-		URTReactionOpportunityLibrary::DeriveOpportunityId(Lower),
-		URTReactionOpportunityLibrary::DeriveOpportunityId(Upper));
-
-	return true;
-}
-
-/**
  * La cardinalita' delle risposte legali decide il regime, e nient'altro (ADR-0004 §2).
  *
  * Le tre cardinalita' stanno in un test solo perche' sono **una** proprieta' — la soglia — e verificarne una

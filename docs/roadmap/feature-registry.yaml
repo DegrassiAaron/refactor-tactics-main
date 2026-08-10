@@ -1657,7 +1657,6 @@ features:
     tests:
       - RefactorTactics.Reactions.OpportunityIdIsDerivedNotRandom
       - RefactorTactics.Reactions.OpportunityIdUsesEveryField
-      - RefactorTactics.Reactions.OpportunityIdIgnoresActionIdCasing
       - RefactorTactics.Reactions.SingleResponseCommitsWithoutWindow
       - RefactorTactics.Overwatch.OpportunityLeaksNoFuture
     scenarios: []
@@ -1669,9 +1668,9 @@ features:
     notes: >
       ADR-0004 accettato; il modello unificato contiene E5 come caso `AllowedResponses ≤ 1`.
       CP 14.3 ha consegnato chiave, derivazione dell'id, soglia del boundary e privacy del DTO.
-      ⚠️ I cinque test vanno elencati QUI e non lasciati al prefisso `Reactions.*`: quel prefisso
+      ⚠️ I quattro test vanno elencati QUI e non lasciati al prefisso `Reactions.*`: quel prefisso
       appartiene a RT-FEAT-REACTION-PREPARED, e `feature_registry.py` fa prefix matching — senza
-      questo elenco la suite E5 passerebbe da 27 a 32 e nessuno saprebbe piu' dire se e' regredita
+      questo elenco la suite E5 passerebbe da 27 a 31 e nessuno saprebbe piu' dire se e' regredita
       o se e' semplicemente atterrato CP 14.3. E' la voce di DoD «suite E5 invariata» che perde il
       proprio strumento di misura.
       `runtime: partial` e non `done`: la regola esiste ed e' pura, ma NESSUN chiamante di
