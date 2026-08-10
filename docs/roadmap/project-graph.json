@@ -837,7 +837,7 @@
       "block": 4,
       "critical": true,
       "state": "🟡",
-      "queue_group": "BLOCKING",
+      "queue_group": "WAITING",
       "produces": "i data asset di Flux, Riva, Bastion e Vektor, e lo spawn 2v2 che li usa",
       "artifacts": [],
       "unblocked_by": [
@@ -846,6 +846,12 @@
           "resolved": true,
           "state": "✅",
           "kind": "epic"
+        },
+        {
+          "ref": "U10",
+          "resolved": false,
+          "state": "—",
+          "kind": "seduta"
         }
       ],
       "unblocks": [
@@ -876,6 +882,12 @@
           "resolved": false,
           "state": "⏳",
           "kind": "epic"
+        },
+        {
+          "ref": "U11",
+          "resolved": false,
+          "state": "🟡",
+          "kind": "seduta"
         }
       ],
       "unblocks": [],
@@ -1152,7 +1164,6 @@
       "U4",
       "U5",
       "U6",
-      "U11",
       "U15"
     ],
     "READY": [
@@ -1162,6 +1173,7 @@
       "U9"
     ],
     "WAITING": [
+      "U11",
       "U13",
       "U14",
       "U19",
