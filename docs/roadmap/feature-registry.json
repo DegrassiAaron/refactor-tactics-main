@@ -24,7 +24,7 @@
       "branch": "main"
     }
   },
-  "count": 88,
+  "count": 91,
   "features": [
     {
       "feature_id": "RT-FEAT-CORE-TURN",
@@ -638,6 +638,145 @@
       "pie_refs": [],
       "last_verified": {},
       "notes": "Il buco misurato: `Cell A` valida ∧ `Cell B` valida ∧ `A→B` chiusa oggi si esprime **solo** con una copertura alta, perché gli adiacenti orizzontali sono calcolati e non archi ([D-013](../decisions/RT_PDR_00_Decision_Log.md)), e `FRTHexEdge` è riservato ai salti di layer. Un muro che blocca senza proteggere non ha un dato su cui appoggiarsi: o diventa una copertura che non copre, o `bBlocksMovement` su una cella calpestabile. Include la *swept clearance* — la transizione verifica il corridoio attraversato, non i soli estremi — che per `D-071` usa **lo stesso raggio** del footprint. Costo dichiarato: il varco «ci passo ma non ci sto» non e' modellabile, perche' calpestabile e attraversabile condividono la soglia."
+    },
+    {
+      "feature_id": "RT-FEAT-MAP-WATER-DYNAMICS",
+      "title": "Acqua tattica: profondita', flooding e corrente",
+      "area": "Map",
+      "kind": "gameplay",
+      "release": "future",
+      "priority": "P3",
+      "status": "IDEA",
+      "status_derived": "IDEA",
+      "gates": {
+        "spec": "todo",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 0,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": [],
+        "out_of_release_scope": ""
+      },
+      "dependencies": [
+        "RT-FEAT-ENV-TERRAIN",
+        "RT-FEAT-ENV-WATER",
+        "RT-FEAT-MAP-HEXGRAPH"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/roadmap/plans/triage-grid-geometry-water-2026-08-10.md"
+      ],
+      "issues": [],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "Nessuna pagina: la profondita' dell'acqua non esiste come asse, e una pagina la prometterebbe.",
+      "pie_refs": [],
+      "last_verified": {},
+      "notes": "`WaterDepth` (None/Shallow/Deep/Impassable) e' un asse ORTOGONALE alla superficie, non una nona superficie: una cella puo' essere `ShallowWater` e cambiare profondita' durante il match. Oggi `ShallowWater` e' una delle otto superfici di CP 8.1 e non cambia mai. Misurato: `WaterDepth` e `Flooding` hanno ZERO occorrenze nel repository. Include flooding deterministico, corrente (`WaterFlowDirection`/`Strength`) che produce ForcedMovement, e profili Swim/Amphibious/Hover. Tocca il resolver, non solo la mappa: una corrente che sposta e' displacement, con catene e collisioni. La propagazione elettrica su rete d'acqua che il sorgente chiede ESISTE GIA' (CP 8.3, BFS, `StopsAtNonConductive`). Aperta: `GEO-1`."
+    },
+    {
+      "feature_id": "RT-FEAT-MAP-STRUCTURAL",
+      "title": "Strutture: integrita', crolli a catena e macerie",
+      "area": "Map",
+      "kind": "gameplay",
+      "release": "future",
+      "priority": "P3",
+      "status": "IDEA",
+      "status_derived": "IDEA",
+      "gates": {
+        "spec": "todo",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 0,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": [],
+        "out_of_release_scope": ""
+      },
+      "dependencies": [
+        "RT-FEAT-MAP-COVER",
+        "RT-FEAT-MAP-INTERACTIVE-EDGES"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/roadmap/plans/triage-grid-geometry-water-2026-08-10.md"
+      ],
+      "issues": [],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "Nessuna pagina finche' il nome non e' deciso: chiamare `Breach` due cose diverse e' peggio di tacere.",
+      "pie_refs": [],
+      "last_verified": {},
+      "notes": "Slot strutturali con integrita' e stati, dipendenze fra strutture, crolli immediati e telegrafati, macerie come nuovo terreno, e il vincolo di connettivita' della mappa (niente soft-lock involontari). E' il blocco piu' autonomo dei tre: non dipende da acqua ne' da verticalita'. Collisione di nome da risolvere PRIMA della spec: il sorgente chiama `Breach` lo slot, ma `Gadget.BreachCharge` esiste gia' ed e' l'oggetto che lo aprirebbe — 35 danni a struttura, E7. Aperta: `GEO-2`."
+    },
+    {
+      "feature_id": "RT-FEAT-MAP-VERTICALITY",
+      "title": "Verticalita': vault, drop, salita e cadute",
+      "area": "Map",
+      "kind": "gameplay",
+      "release": "future",
+      "priority": "P3",
+      "status": "IDEA",
+      "status_derived": "IDEA",
+      "gates": {
+        "spec": "todo",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "na"
+      },
+      "gates_done": 0,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": [],
+        "out_of_release_scope": ""
+      },
+      "dependencies": [
+        "RT-FEAT-MAP-SPECIAL-TRANSITIONS",
+        "RT-FEAT-MAP-HEXGRAPH"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/roadmap/plans/triage-grid-geometry-water-2026-08-10.md"
+      ],
+      "issues": [],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "Nessuna pagina: la verticalita' oggi e' solo topologia fra layer; il traversal descritto non esiste.",
+      "pie_refs": [],
+      "last_verified": {},
+      "notes": "Vault su muretto, drop volontario, salita verticale, cadute forzate da pavimento distrutto, push contro i bordi, lethal drop e displacement a catena. I Layer esistono gia' (`FRTCellId.Layer`, transizioni fra layer) ed e' su quelli che poggia; il resto no — `Vault` non compare in `Source/`. Il knockback esiste (CP 4.8) ma non conosce i bordi ne' le quote."
     },
     {
       "feature_id": "RT-FEAT-MAP-LOS",
