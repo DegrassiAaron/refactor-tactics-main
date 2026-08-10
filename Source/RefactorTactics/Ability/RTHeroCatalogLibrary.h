@@ -85,9 +85,10 @@ public:
 	 * vista 6, resistenza push 0, affinita' movimento, debolezza strutture — simmetrica a Bastion, che chiude
 	 * il roster in due coppie (Flux↔Riva, Bastion↔Vektor).
 	 *
-	 * Delle sue **due reazioni**, `Deflection` e' cablata (CP 6.7, semantica di `Action.Deflect`) mentre
-	 * `InterceptShot` e' **rinviata a E14**: il suo trigger e' d'ingresso su movimento, e cablarla sul motore
-	 * di E5 duplicherebbe `FRTSuppressiveZone`.
+	 * `Deflection` e' cablata (CP 6.7, semantica di `Action.Deflect`). `InterceptShot` **non e' piu' una
+	 * reazione**: dal 2026-08-10 (E18 CP 18.2, D-016) e' una **Predictive Action** — cella dichiarata in
+	 * Planning, verificata al boundary del Move, nessun input durante la Resolution. Il rinvio a E14 e'
+	 * caduto per la ragione opposta a quella che l'aveva prodotto: non le serve una finestra interattiva.
 	 *
 	 * Limiti dichiarati: `Feint` marca una CELLA e concede un `Reposition`, e nessuna delle due meta' e' un
 	 * `ERTActionEffect` (gli stati si applicano alle unita', il movimento passa da `ERTMovementStyle`).

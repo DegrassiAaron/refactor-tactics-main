@@ -53,6 +53,14 @@ namespace
 			// nessun kit). Uno scenario che chieda di accenderle deve restare BLOCKED, ed e' il motivo per cui
 			// questa capability non si chiama «Environment»: quella c'e' gia' e dice un'altra cosa.
 			TEXT("EnvironmentalActionOwner"),
+			// E18 CP 18.2 (D-016): `Vektor.InterceptShot` e' una Predictive Action — cella dichiarata in
+			// Planning, verificata al boundary del Move, nessun input durante la Resolution.
+			//
+			// Si dichiara disponibile senza il problema che tiene fuori `ReactionPlanning` e `DeclaredRotation`:
+			// qui l'harness NON e' il primo produttore del campo. Una previsione si dichiara con `targetCell`
+			// su un'azione principale, che e' la stessa strada di qualunque AoE — un canale che il gioco ha
+			// gia', non uno aperto per gli scenari. Il verde dice quindi qualcosa di vero sul giocatore.
+			TEXT("PredictiveAction"),
 		};
 		// NON disponibile, e la riga che manca vale quanto quelle che ci sono:
 		//
