@@ -156,6 +156,23 @@ Blast. Cambiano distanza, rumore ed esposizione — non l'economia del turno.
 | `MovementMode.Sneak` | **non specificato** | Costo, portata e rumore **non sono definiti da nessuna fonte corrente**. Non si inventano: [issue di bilanciamento](../OPEN_DECISIONS.md) |
 | `MovementMode.Move` | **5 MP** | il profilo neutro |
 | `MovementMode.Sprint` | **8 MP** | conserva un trade-off reale, vedi sotto |
+| `MovementMode.Withdraw` | **2 MP** | **non si sceglie**: lo impone l'`Overwatch` ([D-067](../decisions/RT_PDR_00_Decision_Log.md)) |
+
+**`Withdraw` è il ripiegamento dopo la sorveglianza**, e sta qui perché è un profilo del movimento normale —
+stesso slot, stessa macro-fase — non una mobilità rapida. Tre cose lo distinguono dagli altri tre:
+
+- **non è una scelta libera**: chi arma l'`Overwatch` riserva lo slot movimento a questo profilo, e lo dichiara
+  in Planning insieme a settore e facing. È anche la ragione per cui armare l'Overwatch **esclude il `Dash`**:
+  lo slot è già impegnato, non serve una regola apposta;
+- **risolve nello Stage B della `Move`**, cioè **dopo** che tutti gli altri si sono mossi. La priorità spaziale
+  tardiva è parte del prezzo: una cella occupata nel frattempo **non** si libera, il percorso **non** si
+  ricalcola, e il ripiegamento si ferma all'ultima cella valida;
+- **2 MP** è ancorato ad `Action.Reposition` (2 celle, §2.2) — l'unica altra mobilità breve del catalogo —
+  invece di essere scelto a intuito. Resta da playtest come ogni valore di questa tabella.
+
+> **Perché non si chiama `Reposition`.** Quel nome è già di un'azione viva: scatto lineare di 2 celle in
+> macro-fase **`Dash`** (§2.2), concesso anche da `Riva.FlowReaction` e `Vektor.Feint`. Due entità con lo
+> stesso nome in due fasi diverse si pagano a ogni lettura del TurnLog, non una volta sola.
 
 **`Sprint` non è un `Dash`.** È il profilo lungo del movimento normale, quindi risolve dopo il Blast: non
 permette di sparare da un'altra posizione nello stesso turno, che è precisamente ciò che un `Dash` fa.

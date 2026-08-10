@@ -182,12 +182,22 @@ Il resto — staging Watch/Reposition, budget, divieto di Dash — dipende da `O
 
 ## 4. Decisioni aperte
 
-| ID | Domanda | Perché non si chiude da sola |
+**Aggiornamento del 2026-08-10**: tre delle quattro sono state **decise dall'autore** in sessione e vivono in
+[D-067](../../decisions/RT_PDR_00_Decision_Log.md). Restano qui per la provenienza.
+
+| ID | Domanda | Esito |
 |---|---|---|
-| **`OW-1`** | Armare l'Overwatch costa **anche** il movimento (Move ridotto + niente Dash), oltre all'azione principale? | **D-012** dice `Attack \| Ability \| Overwatch` — lo slot **principale**; **D-028** tiene il movimento separato. Il sorgente ne fa pagare tre e lo chiama *core trade-off*: è una scelta di bilanciamento, non una precisazione |
-| **`OW-2`** | Il Move post-Watch **come si chiama**, visto che `Action.Reposition` è occupata da uno scatto di 2 celle in fase Dash? | Rinominare l'azione esistente costa catalogo, `RTMovementActionLibrary`, due kit d'eroe e i test; tenere due `Reposition` in due fasi diverse costa ogni volta che qualcuno legge il TurnLog |
-| **`OW-3`** | Il budget del Move post-Watch | `OPEN_BALANCE` dichiarato dal sorgente stesso (§12), e giustamente: nessun numero va inventato |
-| **`OW-4`** | Gli objective che dipendono dalla posizione finale si valutano dopo Stage B? | Il sorgente (§17) chiede esplicitamente di verificarlo contro il canone — e il canone su questo **non dice nulla**: è una lacuna, non un conflitto |
+| ~~`OW-1`~~ | Armare l'Overwatch costa **anche** il movimento? | ✅ **Sì**, ma senza `MovementAndMain`: occupa lo slot **principale** e **riserva** quello di movimento al solo `Withdraw`. Il divieto di Dash è una **conseguenza**, non una regola nuova |
+| ~~`OW-2`~~ | Il Move post-Watch come si chiama? | ✅ **`Withdraw`**. `Action.Reposition` resta dov'è |
+| ~~`OW-3`~~ | Il suo budget | ✅ **2 MP**, ancorati ad `Action.Reposition` |
+| **`OW-4`** | Gli objective che dipendono dalla posizione finale si valutano dopo Stage B? | ⏳ **aperta, ma non è di E14**: gli objective oggi sono solo un motivo di fine partita, e il punto d'ingresso per il progresso è dichiarato per **CP 10.2**. Nessun objective di posizione esiste: la domanda non ha ancora un consumatore |
+
+> **L'ancoraggio che ho proposto per primo era sbagliato, e vale più della risposta.** Avevo indicato
+> `ERTActionSlot::MovementAndMain` come «meccanismo già esistente», citando `Action.Sprint` che lo usa. Ma
+> **D-028 lo sta togliendo proprio a Sprint** — il catalogo lo dichiara già «occupa il solo slot movimento»,
+> con ⚠️ sul codice non allineato. Sprint ne è l'**unico** utente: adottarlo per l'Overwatch l'avrebbe resa
+> l'unica utente di uno slot in via di dismissione, riaprendo una decisione chiusa. «Il meccanismo esiste» non
+> basta: va guardato **in che direzione si sta muovendo**.
 
 > **`BAS-5` si chiude qui come domanda**, e la risposta è: **prevale il modello Watch/Reposition**. Non perché
 > sia più recente — la data è la stessa — ma perché il sorgente gemello lo dichiara superato (§34, §48) e
