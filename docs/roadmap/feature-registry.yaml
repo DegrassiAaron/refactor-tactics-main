@@ -185,7 +185,7 @@ features:
     owner_specs:
       - docs/technical/spec-turnlog.md
       - docs/technical/spec-turnlog-serialize.md
-    issues: [81, 178, 307]
+    issues: [81, 178, 307, 420]
     tests:
       - RefactorTactics.TurnLog.*
     scenarios:
@@ -194,10 +194,12 @@ features:
       - wiki:regole-fondamentali
     last_verified:
       date: 2026-08-10
-      commit: c634c50
+      commit: f56d95b
     notes: >
-      22 test: ordine totale, hash permutazione-invariante, serializzazione versionata con checksum,
-      I/O su file, letture legacy. `DescribeEntry` porta i reason code nel combat log del giocatore.
+      48 test misurati su `RefactorTactics.TurnLog` (2026-08-10): ordine totale, hash permutazione-invariante,
+      serializzazione versionata con checksum, I/O su file, letture legacy. `DescribeEntry` porta i reason code
+      nel combat log del giocatore. Dal 2026-08-10 (#420, D-079) anche lo spostamento forzato **annullato**
+      lascia una voce, con la causa in `Amount`: il gemello `Pull` resta scoperto ed è issue propria.
 
   - feature_id: RT-FEAT-CORE-DECISION-BOUNDARY
     title: Risoluzione segmentata con Decision Boundary
