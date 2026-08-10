@@ -1206,8 +1206,12 @@ features:
                     (`Actions.Interact.IsInertUntilImplemented`), scritto per **cadere** il giorno
                     in cui l'effetto arriva: verificato per mutazione il 2026-08-09 — dando un
                     effetto a `Interact` cade quel test e solo quello.
-        · `Overwatch` **non esiste**: `grep -rn "Overwatch" Source/` fuori dai test non
-                    restituisce nulla. Lo porta E14.4.
+        · `Overwatch` **non è ancora un'azione**, ma dal 2026-08-10 non è più «non esiste»: E14.4
+                    ha portato `BuildOverwatchTriggers`, che costruisce le opportunity lungo i
+                    micro-step. Resta fuori dal runtime della partita per la stessa ragione di
+                    `Interact` — nessun ramo del resolver lo esegue — e il consumatore è E14.5.
+                    La riga precedente citava un `grep` che oggi restituisce codice: aggiornata
+                    perché una nota che descrive un'assenza smette di essere vera senza avvisare.
 
       I gate restano `partial` perché la feature davvero non è completa; `completed_by` dice
       **chi** la completa, così la stessa mancanza non viene contata due volte.
@@ -1769,13 +1773,18 @@ features:
     kind: gameplay
     release: v0.1
     priority: P2
-    status: SPECIFIED
+    status: IMPLEMENTING
     gates:
       spec: done
       data: partial
-      runtime: todo
+      # `partial` e non `done`: il costruttore dei trigger esiste e i suoi test passano, ma NESSUNO
+      # lo chiama in partita — `ARTTurnManager` non produce ancora opportunity. E' la regola 2 dello
+      # schema, quella che questo progetto ha gia' pagato con `Marked` a catalogo e gli `Effects`
+      # vuoti delle reazioni d'eroe: un dato senza consumatore e' `partial`. Il consumatore e' CP 14.5.
+      runtime: partial
+      # Niente raggiunge il TurnLog: la decisione registrata (`OpportunityId`, `Response`) e' CP 14.5.
       log_debug: todo
-      automation: todo
+      automation: done
       scenario: partial
       ui_wiki: partial
       packaged: todo
@@ -1793,6 +1802,13 @@ features:
     issues: [164]
     tests:
       - RefactorTactics.Actions.SuppressiveLine
+      # I quattro test del DoD di CP 14.4, uno per proprieta'. Sono separati perche' falliscono per
+      # ragioni diverse: un file solo direbbe «l'Overwatch e' rotto» invece di dire quale delle
+      # quattro condizioni e' saltata.
+      - RefactorTactics.Overwatch.TriggersPerMicroStep
+      - RefactorTactics.Overwatch.SimultaneousTargetsSingleOpportunity
+      - RefactorTactics.Overwatch.RequiresDetection
+      - RefactorTactics.Overwatch.OrderIsDeterministic
     scenarios:
       - Spec.Overwatch.HoldThenFire
       # Dichiarati dal triage del 2026-08-10 (`plans/baseaction-signatures-spec-panel-2026-08-10.md`):
@@ -1807,17 +1823,37 @@ features:
       - wiki:overwatch
       - wiki:reazioni-overwatch-e-previsioni
     wiki_note: >-
-      Le reazioni **preparate** esistono e funzionano in partita; l'**Overwatch interattivo** di questa pagina non e' implementato.
+      Le reazioni **preparate** esistono e funzionano in partita; l'**Overwatch interattivo** di questa pagina non e' ancora deciso in una finestra live.
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      date: 2026-08-10
+      commit: c6b56b9
     notes: >
-      **Non implementata**: `grep -rn "Overwatch" Source/` fuori dai test non restituisce nulla.
-      L'aggancio tecnico esiste (`FRTSuppressiveZone` in `RTOffensiveActionLibrary`, azione
-      `Action.SuppressiveLine`) ma è zona di soppressione, non Overwatch. Due pagine Wiki la
-      descrivono già: il blocco di stato generato lo dichiara. `Spec.Overwatch.HoldThenFire` è la
-      **specifica eseguibile** della finestra — con gli intent del turno 2 volutamente vuoti, perché
-      la sintassi di HOLD/FIRE non è ancora decisa — ed esce `BLOCKED`.
+      **CP 14.4 chiuso il 2026-08-10.** La riga precedente diceva «Non implementata:
+      `grep -rn "Overwatch" Source/` fuori dai test non restituisce nulla», ed è la prima cosa che
+      questo checkpoint ha reso falsa: `URTReactionOpportunityLibrary::BuildOverwatchTriggers`
+      produce le opportunity lungo i micro-step del Move.
+
+      L'aggancio tecnico che la riga vecchia citava come *insufficiente* — `FRTSuppressiveZone` —
+      è diventato il vincolo: l'Overwatch **riusa quella geometria** invece di averne una propria.
+      Chi si copre da un attacco lineare si copre dalla soppressione, e ora anche dall'Overwatch;
+      con due geometrie quella terza proprietà sarebbe decaduta senza che nessun test la interrogasse.
+
+      Le quattro condizioni di ADR-0004 §6 sono tutte necessarie e verificate una per volta. Il caso
+      che il checkpoint nomina esplicitamente è `Incerto`, ed è il più facile da sbagliare: è
+      allettante trattare «la squadra sa che lì c'è qualcuno» come «lo vede». `HOLD` è **sempre**
+      fra le risposte legali — senza, un bersaglio solo darebbe cardinalità 1, cioè un commit
+      automatico, e l'Overwatch sparerebbe da solo.
+
+      ⚠️ **`runtime` resta `partial` e la ragione è la regola 2, non la prudenza**: `ARTTurnManager`
+      non chiama ancora `BuildOverwatchTriggers`, quindi in partita non nasce nessuna opportunity.
+      Il consumatore è **CP 14.5** (`#165`), che porta finestra, commit, troncamento del movimento e
+      il cablaggio di `Vektor.InterceptShot`. Fino ad allora `log_debug` resta `todo` — nel TurnLog
+      non arriva niente — e `Spec.Overwatch.HoldThenFire` continua a uscire `BLOCKED`, che è la
+      verità: descrivere non è dimostrare.
+
+      Conseguenza misurata su un altro checkpoint: `Perf.ResolverAt4v4` (CP 17.2) deve riportare
+      «opportunity di reazione per turno» e **non può**, perché uno zero per assenza di produttore
+      si legge esattamente come uno zero per assenza di reazioni. Lo dichiara invece di stimarlo.
 
       **Il `data` resta `partial` per una ragione precisa (2026-08-10)**: CP 14.4 impone che il profilo
       sia un dato per eroe — area, arco, trigger e risposte legali — e il test che lo pinna
@@ -3493,13 +3529,18 @@ features:
     kind: tooling
     release: v0.1
     priority: P3
-    status: SPECIFIED
+    status: IMPLEMENTING
     gates:
       spec: done
-      data: todo
-      runtime: todo
-      log_debug: todo
-      automation: todo
+      # `FRTMatchRules::UnitsPerTeam` esiste dal CP 19.2, ma nessun asset di formato 4v4 e' spedito:
+      # la fixture costruisce arena e roster in codice. Il 4v4 e' ancora uno stress, non un formato.
+      data: partial
+      # Nessuna riga di prodotto e' stata toccata — ed e' il risultato, non una mancanza: lo stress
+      # dimostra che il resolver esistente regge otto unita' senza un `if (Num == 2)` da correggere.
+      # `partial` perche' CP 17.3 (leggibilita' a schermo) non c'e'.
+      runtime: partial
+      log_debug: partial
+      automation: partial
       scenario: todo
       ui_wiki: na
       packaged: todo
@@ -3513,17 +3554,41 @@ features:
     owner_specs:
       - docs/decisions/RT_PDR_00_Decision_Log.md
     issues: [221, 222, 223, 224]
-    tests: []
+    tests:
+      - RefactorTactics.Stress.CoreRoster4v4Completes
+      - RefactorTactics.Stress.NoTeamSizeAssumptionInResolver
+      - RefactorTactics.Stress.ReplayDivergenceZeroAt4v4
+      - RefactorTactics.Perf.ResolverAt4v4
     scenarios:
       planned:
         - Stress.4v4.CoreRoster
     wiki_refs: []
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      date: 2026-08-10
+      commit: c6b56b9
     notes: >
       **Misura, non produzione** (D-011): dove si rompe il sistema con otto unità. Non decide il
       formato competitivo finale — 3v3 resta la baseline di studio, 4v4 lo stress test.
+
+      **CP 17.1 e 17.2 chiusi il 2026-08-10.** Il roster core a quattro per squadra gioca una
+      partita intera su un'arena r=8 con tre direttrici, e due esecuzioni identiche danno gli
+      stessi hash — confrontati **turno per turno**, perché un hash finale uguale non esclude che
+      due partite siano passate per stati diversi, e «diverge dal turno N» è l'unica diagnosi utile.
+
+      Il difetto che l'epic cercava — un `if (Num == 2)` nel resolver — **non è stato trovato**.
+      `NoTeamSizeAssumptionInResolver` interroga 1v1, 2v2, 3v3 e 4v4: con due sole dimensioni,
+      «funziona per ogni N» e «funziona per i due N che ho provato» si leggono uguali.
+
+      Misure registrate (playback off, 12 turni, arena r=8): resolver **2,319 ms/turno** a 4v4
+      contro **1,655** del 2v2 su r=6 — entrambi due ordini di grandezza sotto il target PDR di
+      100 ms — e TurnLog **11,7 voci/turno** (~840 byte). ⚠️ Due delle cinque metriche richieste dal
+      DoD, «opportunity di reazione per turno» e «prompt manuali per turno», sono **NON MISURABILI**
+      e il test lo scrive invece di riportare uno zero: il produttore in partita è CP 14.5, e uno
+      zero per assenza di produttore si legge come uno zero per assenza di reazioni.
+
+      ⚠️ Limite dichiarato dell'arena: la direttrice «centro/obiettivo» è oggi solo **geometrica** —
+      un corridoio, non un punto di controllo. Un obiettivo contendibile è CP 10.2 (`#75`), che non
+      è atterrato. Resta CP 17.3, che è una voce PIE (`PIE-V01-STRESS4V4`) e un giudizio a schermo.
 
   # ─────────────────────────────────────────────────────────────────────────────
   # K. Bot / test / tooling

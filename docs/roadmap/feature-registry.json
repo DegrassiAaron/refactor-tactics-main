@@ -1468,7 +1468,7 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "Delle sette azioni generiche di D-025, **quattro sono complete e testate** (`Wait`, `Move`, `BasicAttack`, `Guard`). Le altre tre non sono nello stesso stato, e la revisione di granularità del 2026-08-08 ha corretto una nota che diceva «sei su sette esistono a catalogo e nel runtime» — vera per il catalogo, falsa per il runtime:\n\n  · `Brace`   esiste, ma i suoi test vivono sotto `Reactions.Brace.*`: è a catalogo come\n              azione e si comporta come reazione. Ambiguità di modello, non di stato.\n  · `Interact` è **a catalogo senza effetto dichiarato** (`RTCatalogLibrary.cpp:281`) e\n              nessun ramo del resolver la esegue: un dato che nessuno consuma, il difetto che\n              questo progetto ha già pagato quattro volte. Lo porta E10.1 insieme ad\n              `Activate`. Dalla issue `#273` l'inerzia è **fissata da un test**\n              (`Actions.Interact.IsInertUntilImplemented`), scritto per **cadere** il giorno\n              in cui l'effetto arriva: verificato per mutazione il 2026-08-09 — dando un\n              effetto a `Interact` cade quel test e solo quello.\n  · `Overwatch` **non esiste**: `grep -rn \"Overwatch\" Source/` fuori dai test non\n              restituisce nulla. Lo porta E14.4.\n\nI gate restano `partial` perché la feature davvero non è completa; `completed_by` dice **chi** la completa, così la stessa mancanza non viene contata due volte."
+      "notes": "Delle sette azioni generiche di D-025, **quattro sono complete e testate** (`Wait`, `Move`, `BasicAttack`, `Guard`). Le altre tre non sono nello stesso stato, e la revisione di granularità del 2026-08-08 ha corretto una nota che diceva «sei su sette esistono a catalogo e nel runtime» — vera per il catalogo, falsa per il runtime:\n\n  · `Brace`   esiste, ma i suoi test vivono sotto `Reactions.Brace.*`: è a catalogo come\n              azione e si comporta come reazione. Ambiguità di modello, non di stato.\n  · `Interact` è **a catalogo senza effetto dichiarato** (`RTCatalogLibrary.cpp:281`) e\n              nessun ramo del resolver la esegue: un dato che nessuno consuma, il difetto che\n              questo progetto ha già pagato quattro volte. Lo porta E10.1 insieme ad\n              `Activate`. Dalla issue `#273` l'inerzia è **fissata da un test**\n              (`Actions.Interact.IsInertUntilImplemented`), scritto per **cadere** il giorno\n              in cui l'effetto arriva: verificato per mutazione il 2026-08-09 — dando un\n              effetto a `Interact` cade quel test e solo quello.\n  · `Overwatch` **non è ancora un'azione**, ma dal 2026-08-10 non è più «non esiste»: E14.4\n              ha portato `BuildOverwatchTriggers`, che costruisce le opportunity lungo i\n              micro-step. Resta fuori dal runtime della partita per la stessa ragione di\n              `Interact` — nessun ramo del resolver lo esegue — e il consumatore è E14.5.\n              La riga precedente citava un `grep` che oggi restituisce codice: aggiornata\n              perché una nota che descrive un'assenza smette di essere vera senza avvisare.\n\nI gate restano `partial` perché la feature davvero non è completa; `completed_by` dice **chi** la completa, così la stessa mancanza non viene contata due volte."
     },
     {
       "feature_id": "RT-FEAT-ACTION-MOVE-PROFILES",
@@ -2209,20 +2209,20 @@
       "kind": "gameplay",
       "release": "v0.1",
       "priority": "P2",
-      "status": "SPECIFIED",
-      "status_derived": "SPECIFIED",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
       "gates": {
         "spec": "done",
         "data": "partial",
-        "runtime": "todo",
+        "runtime": "partial",
         "log_debug": "todo",
-        "automation": "todo",
+        "automation": "done",
         "scenario": "partial",
         "ui_wiki": "partial",
         "packaged": "todo",
         "network_privacy": "todo"
       },
-      "gates_done": 1,
+      "gates_done": 2,
       "gates_applicable": 9,
       "roadmap": {
         "epic": "E14",
@@ -2246,7 +2246,11 @@
         164
       ],
       "tests": [
-        "RefactorTactics.Actions.SuppressiveLine"
+        "RefactorTactics.Actions.SuppressiveLine",
+        "RefactorTactics.Overwatch.TriggersPerMicroStep",
+        "RefactorTactics.Overwatch.SimultaneousTargetsSingleOpportunity",
+        "RefactorTactics.Overwatch.RequiresDetection",
+        "RefactorTactics.Overwatch.OrderIsDeterministic"
       ],
       "scenarios": [
         "Spec.Overwatch.HoldThenFire"
@@ -2260,13 +2264,13 @@
         "wiki:overwatch",
         "wiki:reazioni-overwatch-e-previsioni"
       ],
-      "wiki_note": "Le reazioni **preparate** esistono e funzionano in partita; l'**Overwatch interattivo** di questa pagina non e' implementato.",
+      "wiki_note": "Le reazioni **preparate** esistono e funzionano in partita; l'**Overwatch interattivo** di questa pagina non e' ancora deciso in una finestra live.",
       "pie_refs": [],
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-10",
+        "commit": "c6b56b9"
       },
-      "notes": "**Non implementata**: `grep -rn \"Overwatch\" Source/` fuori dai test non restituisce nulla. L'aggancio tecnico esiste (`FRTSuppressiveZone` in `RTOffensiveActionLibrary`, azione `Action.SuppressiveLine`) ma è zona di soppressione, non Overwatch. Due pagine Wiki la descrivono già: il blocco di stato generato lo dichiara. `Spec.Overwatch.HoldThenFire` è la **specifica eseguibile** della finestra — con gli intent del turno 2 volutamente vuoti, perché la sintassi di HOLD/FIRE non è ancora decisa — ed esce `BLOCKED`.\n**Il `data` resta `partial` per una ragione precisa (2026-08-10)**: CP 14.4 impone che il profilo sia un dato per eroe — area, arco, trigger e risposte legali — e il test che lo pinna (`Overwatch.ProfileIsDataNotBranch`) ha bisogno di **due** profili diversi da confrontare. **Nessun catalogo ne contiene uno.** Le quattro geometrie proposte — Flux settore medio, Riva medio-corto, Bastion corto-largo frontale, Vektor stretto-lungo — sono `BAS-2` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md): il meccanismo è deciso, il contenuto no.\n**Il lifecycle ha un modello, dal 2026-08-10**: `Watch → EndWatchStage → Reposition`. L'owner resta **fermo** durante lo Stage A della Move Phase e poi esegue un Move limitato **pianificato in Planning** — mai scelto dopo aver visto dove sono finiti gli avversari. Chiude `BAS-5`; triage in [`plans/overwatch-runtime-lifecycle-triage-2026-08-10.md`](plans/overwatch-runtime-lifecycle-triage-2026-08-10.md). Quattro punti sono gia' canone-compatibili e possono entrare nel DoD di CP 14.4/14.5 senza altre decisioni: cadence `OncePerTargetPerReactionInstance`, `MaxPrompts` che conta opportunity distinte (precisa ADR-0004 §8), eligibility **post-transition**, e la distinzione fra **hard cancel** e **soft eligibility block** — che CP 14.6 oggi non fa, e che serve perche' `NoLOS` e `Stun` non possono produrre lo stesso reason code terminale.\n**Costo e nome decisi il 2026-08-10** (`D-070`): armare l'Overwatch spende l'azione principale e **riserva** lo slot movimento a `Withdraw` — 2 MP, dichiarato in Planning, risolto nello **Stage B** dopo tutti gli altri. Il divieto di `Dash` e' una **conseguenza** dello slot impegnato, non una regola a se'; e il nome non e' `Reposition`, che e' gia' un'azione viva in fase Dash. Nessuno scenario nuovo e' ancora dichiarato: il §40 del sorgente ne elenca venti, e diventano `planned` quando E14 ha una forma eseguibile per HOLD/FIRE — la stessa ragione per cui `Spec.Overwatch.HoldThenFire` esce `BLOCKED`."
+      "notes": "**CP 14.4 chiuso il 2026-08-10.** La riga precedente diceva «Non implementata: `grep -rn \"Overwatch\" Source/` fuori dai test non restituisce nulla», ed è la prima cosa che questo checkpoint ha reso falsa: `URTReactionOpportunityLibrary::BuildOverwatchTriggers` produce le opportunity lungo i micro-step del Move.\nL'aggancio tecnico che la riga vecchia citava come *insufficiente* — `FRTSuppressiveZone` — è diventato il vincolo: l'Overwatch **riusa quella geometria** invece di averne una propria. Chi si copre da un attacco lineare si copre dalla soppressione, e ora anche dall'Overwatch; con due geometrie quella terza proprietà sarebbe decaduta senza che nessun test la interrogasse.\nLe quattro condizioni di ADR-0004 §6 sono tutte necessarie e verificate una per volta. Il caso che il checkpoint nomina esplicitamente è `Incerto`, ed è il più facile da sbagliare: è allettante trattare «la squadra sa che lì c'è qualcuno» come «lo vede». `HOLD` è **sempre** fra le risposte legali — senza, un bersaglio solo darebbe cardinalità 1, cioè un commit automatico, e l'Overwatch sparerebbe da solo.\n⚠️ **`runtime` resta `partial` e la ragione è la regola 2, non la prudenza**: `ARTTurnManager` non chiama ancora `BuildOverwatchTriggers`, quindi in partita non nasce nessuna opportunity. Il consumatore è **CP 14.5** (`#165`), che porta finestra, commit, troncamento del movimento e il cablaggio di `Vektor.InterceptShot`. Fino ad allora `log_debug` resta `todo` — nel TurnLog non arriva niente — e `Spec.Overwatch.HoldThenFire` continua a uscire `BLOCKED`, che è la verità: descrivere non è dimostrare.\nConseguenza misurata su un altro checkpoint: `Perf.ResolverAt4v4` (CP 17.2) deve riportare «opportunity di reazione per turno» e **non può**, perché uno zero per assenza di produttore si legge esattamente come uno zero per assenza di reazioni. Lo dichiara invece di stimarlo.\n**Il `data` resta `partial` per una ragione precisa (2026-08-10)**: CP 14.4 impone che il profilo sia un dato per eroe — area, arco, trigger e risposte legali — e il test che lo pinna (`Overwatch.ProfileIsDataNotBranch`) ha bisogno di **due** profili diversi da confrontare. **Nessun catalogo ne contiene uno.** Le quattro geometrie proposte — Flux settore medio, Riva medio-corto, Bastion corto-largo frontale, Vektor stretto-lungo — sono `BAS-2` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md): il meccanismo è deciso, il contenuto no.\n**Il lifecycle ha un modello, dal 2026-08-10**: `Watch → EndWatchStage → Reposition`. L'owner resta **fermo** durante lo Stage A della Move Phase e poi esegue un Move limitato **pianificato in Planning** — mai scelto dopo aver visto dove sono finiti gli avversari. Chiude `BAS-5`; triage in [`plans/overwatch-runtime-lifecycle-triage-2026-08-10.md`](plans/overwatch-runtime-lifecycle-triage-2026-08-10.md). Quattro punti sono gia' canone-compatibili e possono entrare nel DoD di CP 14.4/14.5 senza altre decisioni: cadence `OncePerTargetPerReactionInstance`, `MaxPrompts` che conta opportunity distinte (precisa ADR-0004 §8), eligibility **post-transition**, e la distinzione fra **hard cancel** e **soft eligibility block** — che CP 14.6 oggi non fa, e che serve perche' `NoLOS` e `Stun` non possono produrre lo stesso reason code terminale.\n**Costo e nome decisi il 2026-08-10** (`D-070`): armare l'Overwatch spende l'azione principale e **riserva** lo slot movimento a `Withdraw` — 2 MP, dichiarato in Planning, risolto nello **Stage B** dopo tutti gli altri. Il divieto di `Dash` e' una **conseguenza** dello slot impegnato, non una regola a se'; e il nome non e' `Reposition`, che e' gia' un'azione viva in fase Dash. Nessuno scenario nuovo e' ancora dichiarato: il §40 del sorgente ne elenca venti, e diventano `planned` quando E14 ha una forma eseguibile per HOLD/FIRE — la stessa ragione per cui `Spec.Overwatch.HoldThenFire` esce `BLOCKED`."
     },
     {
       "feature_id": "RT-FEAT-REACTION-PROFILE",
@@ -4432,14 +4436,14 @@
       "kind": "tooling",
       "release": "v0.1",
       "priority": "P3",
-      "status": "SPECIFIED",
-      "status_derived": "SPECIFIED",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
       "gates": {
         "spec": "done",
-        "data": "todo",
-        "runtime": "todo",
-        "log_debug": "todo",
-        "automation": "todo",
+        "data": "partial",
+        "runtime": "partial",
+        "log_debug": "partial",
+        "automation": "partial",
         "scenario": "todo",
         "ui_wiki": "na",
         "packaged": "todo",
@@ -4471,7 +4475,12 @@
         223,
         224
       ],
-      "tests": [],
+      "tests": [
+        "RefactorTactics.Stress.CoreRoster4v4Completes",
+        "RefactorTactics.Stress.NoTeamSizeAssumptionInResolver",
+        "RefactorTactics.Stress.ReplayDivergenceZeroAt4v4",
+        "RefactorTactics.Perf.ResolverAt4v4"
+      ],
       "scenarios": [],
       "scenarios_planned": [
         "Stress.4v4.CoreRoster"
@@ -4480,10 +4489,10 @@
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-10",
+        "commit": "c6b56b9"
       },
-      "notes": "**Misura, non produzione** (D-011): dove si rompe il sistema con otto unità. Non decide il formato competitivo finale — 3v3 resta la baseline di studio, 4v4 lo stress test."
+      "notes": "**Misura, non produzione** (D-011): dove si rompe il sistema con otto unità. Non decide il formato competitivo finale — 3v3 resta la baseline di studio, 4v4 lo stress test.\n**CP 17.1 e 17.2 chiusi il 2026-08-10.** Il roster core a quattro per squadra gioca una partita intera su un'arena r=8 con tre direttrici, e due esecuzioni identiche danno gli stessi hash — confrontati **turno per turno**, perché un hash finale uguale non esclude che due partite siano passate per stati diversi, e «diverge dal turno N» è l'unica diagnosi utile.\nIl difetto che l'epic cercava — un `if (Num == 2)` nel resolver — **non è stato trovato**. `NoTeamSizeAssumptionInResolver` interroga 1v1, 2v2, 3v3 e 4v4: con due sole dimensioni, «funziona per ogni N» e «funziona per i due N che ho provato» si leggono uguali.\nMisure registrate (playback off, 12 turni, arena r=8): resolver **2,319 ms/turno** a 4v4 contro **1,655** del 2v2 su r=6 — entrambi due ordini di grandezza sotto il target PDR di 100 ms — e TurnLog **11,7 voci/turno** (~840 byte). ⚠️ Due delle cinque metriche richieste dal DoD, «opportunity di reazione per turno» e «prompt manuali per turno», sono **NON MISURABILI** e il test lo scrive invece di riportare uno zero: il produttore in partita è CP 14.5, e uno zero per assenza di produttore si legge come uno zero per assenza di reazioni.\n⚠️ Limite dichiarato dell'arena: la direttrice «centro/obiettivo» è oggi solo **geometrica** — un corridoio, non un punto di controllo. Un obiettivo contendibile è CP 10.2 (`#75`), che non è atterrato. Resta CP 17.3, che è una voce PIE (`PIE-V01-STRESS4V4`) e un giudizio a schermo."
     },
     {
       "feature_id": "RT-FEAT-BOT-BASE",
