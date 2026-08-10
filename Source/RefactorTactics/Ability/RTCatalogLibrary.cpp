@@ -804,10 +804,18 @@ TArray<URTActionData*> URTCatalogLibrary::MakeGenericActions(UObject* Outer)
 		}
 		URTActionData* Action = NewObject<URTActionData>(Outer);
 		Action->Def = Def;
-		// Campi SPECCHIO: `ARTPlayerController` e `ARTTurnManager` leggono ancora questi, non il `Def`.
-		// Senza, un'azione generica arriva nel kit con portata 0 e `bSelfTarget` falso qualunque cosa il
-		// catalogo dichiari — ed e' il motivo per cui Guard e Brace chiedevano un bersaglio che non hanno.
+		// Campi SPECCHIO allineati al catalogo. `ARTPlayerController` e `ARTTurnManager` leggono ancora
+		// questi e non il `Def`, e i loro default sono quelli legacy dell'MVP quadrato: `RangeCells` 5 e
+		// `Power` 30. Senza questa propagazione ogni azione generica entrava nel kit con portata 5 e potenza
+		// 30 QUALUNQUE cosa il catalogo dichiarasse — e il bot valutava `Action.Wait`, che di portata ne ha
+		// 0 e di danno nessuno, fra le candidate d'ATTACCO come un colpo da 30 a distanza 5.
+		Action->RangeCells = Def.RangeCells;
 		Action->bSelfTarget = Def.bSelfTarget;
+		Action->Power = 0;
+		for (const FRTActionEffectSpec& Spec : Def.Effects)
+		{
+			if (Spec.Effect == ERTActionEffect::Damage) { Action->Power = Spec.Amount; break; }
+		}
 		Actions.Add(Action);
 	}
 	return Actions;

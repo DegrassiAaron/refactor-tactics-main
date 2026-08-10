@@ -447,10 +447,15 @@ bool FRTHexBotSupportTest::RunTest(const FString&)
 	// la SCELTA DEL BOT («se sono ferito e ho un supporto su di me, lo uso invece di attaccare»), non chi
 	// possiede quell'azione: senza darne una all'unita' il ramo non e' raggiungibile e resterebbe senza
 	// verifica — e' l'unica che ha. Vedi #425 per la decisione su chi debba dichiararlo nel roster.
+	// Deve CURARE o schermare, non solo essere su di se': il ramo del bot chiede un effetto `Heal`/`Shield`.
+	// Costruita su `Action.Guard` per fase e slot — quello che le manca, e che qui conta, e' lo scudo:
+	// `Guard` applica uno stato difensivo e non rimette in piedi nessuno, quindi da sola non basta piu'.
+	// E' la stessa forma di `Guardian.Barrier`, l'azione per cui questo ramo era stato scritto: +40 scudo.
 	URTActionData* SelfSupport = NewObject<URTActionData>(Hurt);
 	SelfSupport->DisplayName = FText::FromString(TEXT("Barriera di prova"));
 	SelfSupport->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Guard"));
 	SelfSupport->Def.ActionId = FName(TEXT("Test.SelfSupport"));
+	SelfSupport->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Shield, 40));
 	SelfSupport->bSelfTarget = true;
 	SelfSupport->RangeCells = 0;
 	SelfSupport->Power = 0;
@@ -461,7 +466,8 @@ bool FRTHexBotSupportTest::RunTest(const FString&)
 	TM->PlanBotsForTest();
 
 	const URTActionData* Planned = Hurt->GetAbility(Hurt->PlannedAbilityIndex);
-	TestTrue(TEXT("pianifica un'abilita' di supporto su se stesso"), Planned && Planned->bSelfTarget);
+	TestTrue(TEXT("pianifica l'abilita' che lo rimette in piedi, non una qualunque su di se'"),
+		Planned && Planned->Def.ActionId == FName(TEXT("Test.SelfSupport")));
 	TestNull(TEXT("non pianifica un attacco nello stesso turno"), Hurt->PlannedAttackTarget.Get());
 
 	DestroyHexBotWorld(World);
