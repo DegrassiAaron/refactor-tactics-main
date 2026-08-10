@@ -11,9 +11,9 @@ sbagliata. Qui la copia e' generata, e il generatore fallisce se la sorgente non
 
 Uso:
     python scripts/feature_registry.py validate           # gate: esce 1 se ci sono errori
-    python scripts/feature_registry.py generate           # riscrive feature-registry.json
+    python scripts/feature_registry.py generate           # feature-registry.json + project-graph.json
     python scripts/feature_registry.py wiki               # blocchi di stato + pagina Feature Status
-    python scripts/feature_registry.py shortlist          # le quattro viste corte di docs/roadmap/
+    python scripts/feature_registry.py shortlist          # le cinque viste corte di docs/roadmap/
     python scripts/feature_registry.py report             # tabella di audit (markdown su stdout)
 
 Opzioni comuni:
@@ -29,6 +29,10 @@ import sys
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REGISTRY_YAML = os.path.join(REPO, "docs", "roadmap", "feature-registry.yaml")
 REGISTRY_JSON = os.path.join(REPO, "docs", "roadmap", "feature-registry.json")
+# Il contratto delle viste **non-feature**: diagnostica, epic/milestone, sedute, PIE, scenari.
+# Sta a parte da `feature-registry.json` perche' quello e' l'owner delle feature e ha gia' altri
+# consumatori: allargarlo a tutto ripeterebbe su di esso l'errore evitato sul `.yaml`.
+PROJECT_GRAPH_JSON = os.path.join(REPO, "docs", "roadmap", "project-graph.json")
 ROADMAP_V01 = os.path.join(REPO, "docs", "roadmap", "roadmap-v0.1.md")
 ROADMAP_CHECKPOINT = os.path.join(REPO, "docs", "roadmap", "roadmap-checkpoint.md")
 TESTS_DIR = os.path.join(REPO, "Source", "RefactorTactics", "Tests")
@@ -204,9 +208,39 @@ def gate_progress(gates):
 # Validazione
 # ---------------------------------------------------------------------------
 
+def github_config(registry):
+    """`owner`/`repository`/`branch` da cui si derivano tutti i link verso GitHub."""
+    return ((registry.get("meta") or {}).get("project") or {}).get("github") or {}
+
+
+def git_remote_slug():
+    """`owner/repo` del remote `origin`, se c'e'. Legge la config locale, non la rete."""
+    try:
+        import subprocess
+        out = subprocess.run(["git", "remote", "get-url", "origin"], cwd=REPO,
+                             capture_output=True, text=True, timeout=10)
+        match = re.search(r"[:/]([^/:]+)/([^/]+?)(?:\.git)?\s*$", out.stdout.strip())
+        return f"{match.group(1)}/{match.group(2)}" if match else None
+    except Exception:
+        return None
+
+
 def validate(registry, wiki_root=None):
     errors, warnings = [], []
     features = registry.get("features") or []
+
+    github = github_config(registry)
+    missing = [k for k in ("owner", "repository", "branch") if not github.get(k)]
+    if missing:
+        errors.append("meta.project.github incompleto: mancano " + ", ".join(missing)
+                      + " — senza questi nessun link a GitHub e' derivabile")
+    else:
+        slug = git_remote_slug()
+        declared = f"{github['owner']}/{github['repository']}"
+        if slug and slug.lower() != declared.lower():
+            # Avviso e non errore: su un fork la divergenza e' legittima, e un gate che fallisce
+            # su ogni fork verrebbe disattivato — cioe' non varrebbe piu' nemmeno qui.
+            warnings.append(f"meta.project.github dichiara {declared} ma il remote e' {slug}")
     tests = known_tests()
     scenarios = known_scenarios()
     epics, checkpoints, milestones = known_roadmap_refs()
@@ -453,6 +487,7 @@ def build_json(registry):
         "_generated": "NON EDITARE: generato da docs/roadmap/feature-registry.yaml "
                       "con scripts/feature_registry.py generate",
         "meta": jsonable(registry.get("meta") or {}),
+        "project": jsonable((registry.get("meta") or {}).get("project") or {}),
         "count": len(features),
         "features": features,
     }
@@ -1562,6 +1597,172 @@ def session_state(session, pie, tracked):
     return "⏳"
 
 
+def checkpoint_status():
+    """Stato dei checkpoint, nei DUE spazi di numerazione, tenuti separati.
+
+    `6.3` e' «Input e pianificazione» in **M6** e «Riva» in **E6**: 20 numeri su 22 collidono, e
+    per questo la chiave qui e' sempre prefissata. Chi legge passa `M6.3` o `E1.3`, mai `6.3`.
+
+    Un checkpoint dichiarato senza glifo — `| **M8.1** | ... |` — vale ⏳: la riga esiste, il
+    lavoro non e' cominciato. Assente del tutto vale invece `None`, che e' un'altra cosa e va
+    segnalata a chi lo cita.
+    """
+    status = {}
+    if os.path.isfile(ROADMAP_CHECKPOINT):
+        text = open(ROADMAP_CHECKPOINT, encoding="utf-8").read()
+        for num, glyph in re.findall(
+                r"^\| \*\*M(\d+\.\d+)\*\*\s*([" + STATUS_GLYPHS + r"])?", text, re.M):
+            status.setdefault(f"M{num}", glyph or "⏳")
+    if os.path.isfile(ROADMAP_V01):
+        text = open(ROADMAP_V01, encoding="utf-8").read()
+        # Due forme convivono nell'owner: la nuda `| **6.7** |` (94 righe) e la prefissata
+        # `| **E21.1** |`, convenzione dal 2026-08-08 (3 righe). Leggerne una sola lascia dei
+        # checkpoint senza stato, e una feature che li cita sembra citare il nulla.
+        for num, glyph in re.findall(
+                r"^\| \*\*E?(\d+\.\d+)\*\*\s*([" + STATUS_GLYPHS + r"])?", text, re.M):
+            # In `roadmap-v0.1.md` ogni checkpoint appartiene all'epic che ne apre il numero:
+            # `6.7` e' E6.7 per costruzione, e la forma prefissata lo rende dicibile.
+            status.setdefault(f"E{num}", glyph or "⏳")
+    return status
+
+
+def resolve_prerequisite(ref, sessions_state, checkpoints, epics, milestones):
+    """Un `unblocked_by` e' risolto? Ritorna (risolto, stato_letto, sorgente).
+
+    Le due regole sono diverse, e la differenza e' sostanziale:
+
+    - **checkpoint ed epic**: 🟡 conta come **risolto**. Il prerequisito e' che il *codice* sia
+      fatto, e a quel checkpoint manca proprio la verifica che porta la persona in editor.
+      Aspettare il ✅ sarebbe aspettare se' stessi.
+    - **un'altra seduta**: serve il ✅. Una seduta 🟡 ha l'artefatto a meta', e chi lo estende
+      non puo' partire: `U13` estende l'asset che `U1` committa.
+
+    Un riferimento che non risolve ritorna sorgente `None`: e' un difetto da dire, non da
+    nascondere dietro un simbolo prudente.
+    """
+    ref = ref.strip()
+    if re.fullmatch(r"U\d+", ref):
+        state = sessions_state.get(ref)
+        if state is None:
+            return False, None, None
+        return state == "✅", state, "seduta"
+    if re.fullmatch(r"[EM]\d+\.\d+", ref):
+        state = checkpoints.get(ref)
+        if state is None:
+            return False, None, None
+        return state in ("✅", "🟡"), state, "checkpoint"
+    if re.fullmatch(r"E\d+", ref):
+        state = epics.get(ref)
+        if state is None:
+            return False, None, None
+        return state in ("✅", "🟡"), state, "epic"
+    if re.fullmatch(r"M\d+", ref):
+        state = milestones.get(ref)
+        if state is None:
+            return False, None, None
+        return state in ("✅", "🟡"), state, "milestone"
+    return False, None, None
+
+
+QUEUE_GROUPS = ["BLOCKING", "READY", "WAITING", "DONE"]
+
+
+def session_queue(sessions, states, checkpoints, epics, milestones):
+    """`My Editor Queue`: i quattro gruppi, DERIVATI dai campi che le sedute gia' dichiarano.
+
+    Nessun campo nuovo: `unblocked_by` dice se si puo' cominciare, `critical` se blocca la v0.1,
+    e lo stato dice se e' finita. Il raggruppamento e' una funzione di questi tre — se fosse un
+    campo scritto a mano sarebbe la quinta verita' sullo stesso fatto, ed e' esattamente il
+    difetto che ha ritirato `roadmap-editor.md` il 2026-08-08.
+
+    Una seduta senza stato derivabile resta fuori dalla coda: il codice sotto non esiste ancora,
+    e metterla in WAITING suggerirebbe che basta aspettare.
+    """
+    queue = {group: [] for group in QUEUE_GROUPS}
+    unresolved = []
+    for session in sessions:
+        sid = session["id"]
+        state = states.get(sid, "—")
+        if state == "—":
+            continue
+        if state == "✅":
+            queue["DONE"].append((session, []))
+            continue
+        blockers = []
+        for ref in session.get("unblocked_by") or []:
+            resolved, ref_state, source = resolve_prerequisite(
+                ref, states, checkpoints, epics, milestones)
+            if source is None:
+                unresolved.append((sid, ref))
+            if not resolved:
+                blockers.append((ref, ref_state))
+        if blockers:
+            queue["WAITING"].append((session, blockers))
+        elif session.get("critical"):
+            queue["BLOCKING"].append((session, []))
+        else:
+            queue["READY"].append((session, []))
+    return queue, unresolved
+
+
+def render_editor_queue(sessions, states, ratios):
+    """Le righe della coda. Ogni voce dice cosa sblocca: e' la ragione per farla adesso."""
+    checkpoints = checkpoint_status()
+    epics = epic_status()
+    milestones, _conflicts = milestone_status()
+    queue, unresolved = session_queue(sessions, states, checkpoints, epics, milestones)
+
+    counts = " · ".join(f"**{g}** {len(queue[g])}" for g in QUEUE_GROUPS)
+    lines = [
+        "### My Editor Queue",
+        "",
+        f"{counts}. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' "
+        "cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta "
+        "come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, "
+        "perche' a meta' non ha ancora prodotto il suo artefatto.",
+        "",
+    ]
+    titles = {
+        "BLOCKING": "Blocca la v0.1, e si puo' fare adesso",
+        "READY": "Si puo' fare adesso, fuori percorso critico",
+        "WAITING": "Aspetta codice",
+        "DONE": "Finite",
+    }
+    for group in QUEUE_GROUPS:
+        entries = queue[group]
+        lines += [f"**{group}** — *{titles[group]}*", ""]
+        if not entries:
+            lines += ["- —", ""]
+            continue
+        for session, blockers in entries:
+            sid = session["id"]
+            head = f"- **{sid}** · {session['title']}"
+            if group == "WAITING":
+                waits = ", ".join(
+                    f"`{ref}`{'' if state is None else ' ' + state}" if state is not None
+                    else f"`{ref}` **non risolve**" for ref, state in blockers)
+                head += f" — attende {waits}"
+            elif group == "DONE":
+                head += " ✅"
+            else:
+                ratio = ratios.get(sid)
+                if ratio and ratio != "—":
+                    head += f" — {ratio} voci verdi"
+                if session.get("unblocks"):
+                    head += f" · sblocca {', '.join(session['unblocks'])}"
+            lines.append(head)
+        lines.append("")
+    if unresolved:
+        lines += [
+            "> ⚠️ **Prerequisiti che non risolvono**: "
+            + " · ".join(f"`{sid}` → `{ref}`" for sid, ref in unresolved)
+            + ". La forma ammessa e' prefissata (`M6.3`, `E1.3`, `E8`, `U13`): la forma nuda "
+              "`CP 6.3` non dice quale dei due spazi di numerazione, e 20 numeri su 22 collidono.",
+            "",
+        ]
+    return lines
+
+
 def render_shortlist_editor(_data):
     """La vista operativa in editor: sequenza, prerequisiti, artefatti, condizione di chiusura.
 
@@ -1589,12 +1790,23 @@ def render_shortlist_editor(_data):
     if unknown:
         summary += (f" · **{unknown}** senza stato derivabile (non dichiarano ne' voci ne' "
                     f"artefatti: il codice sotto non esiste ancora)")
+    ratios = {}
+    for session in sessions:
+        verifies = session.get("verifies") or []
+        green = sum(1 for v in verifies if pie.get(v) == "✅")
+        ratios[session["id"]] = f"{green}/{len(verifies)}" if verifies else "—"
+
     lines = [
         summary + ".",
         "",
         "Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di "
         "[`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md) e da `git ls-files` "
         "sugli artefatti. Un artefatto non tracciato impedisce il verde qualunque cosa dicano le voci.",
+        "",
+    ]
+    lines += render_editor_queue(sessions, states, ratios)
+    lines += [
+        "### Tutte le sedute",
         "",
         "| | Seduta | Produce | Sbloccata da | Critico | Voci | Stato |",
         "|---|---|---|---|:--:|:--:|:--:|",
@@ -1673,6 +1885,90 @@ def render_shortlist_editor(_data):
               "seduta non viene eseguita mai: e' la ragione per cui questo conteggio e' qui.",
         ]
     return wrap_block(marker, lines)
+
+
+def build_graph(registry):
+    """Il contratto delle viste non-feature: diagnostica, roadmap, sedute, PIE, scenari.
+
+    Ogni valore qui dentro e' gia' calcolato da una funzione che esiste e che una shortlist usa:
+    questa non e' una seconda derivazione, e' un secondo **consumatore**. La regola che lo tiene
+    onesto e' che nessun campo nasce qui — se un dato non ha gia' una sorgente misurabile, non
+    entra.
+
+    Fuori di proposito: il commit corrente. Metterlo dentro farebbe fallire `--check` dopo ogni
+    commit, trasformando un gate utile in rumore da ignorare. La provenienza la tiene git.
+    """
+    errors, warnings = validate(registry)
+    pie = pie_entries()
+    doc = load_editor_sessions()
+    sessions = doc.get("sessions") or []
+    tracked = tracked_artifacts([a for s in sessions for a in (s.get("artifacts") or [])])
+    states = {s["id"]: session_state(s, pie, tracked) for s in sessions}
+    checkpoints = checkpoint_status()
+    epics = epic_status()
+    milestones, milestone_conflicts = milestone_status()
+    queue, unresolved = session_queue(sessions, states, checkpoints, epics, milestones)
+    group_of = {s["id"]: group for group in QUEUE_GROUPS for s, _b in queue[group]}
+
+    graph_sessions = []
+    for session in sessions:
+        sid = session["id"]
+        prerequisites = []
+        for ref in session.get("unblocked_by") or []:
+            resolved, state, source = resolve_prerequisite(
+                ref, states, checkpoints, epics, milestones)
+            prerequisites.append({"ref": ref, "resolved": resolved,
+                                  "state": state, "kind": source})
+        artifacts = session.get("artifacts") or []
+        graph_sessions.append({
+            "id": sid,
+            "title": session.get("title"),
+            "block": session.get("block"),
+            "critical": bool(session.get("critical")),
+            "state": states.get(sid, "—"),
+            "queue_group": group_of.get(sid),
+            "produces": (session.get("produces") or "").strip(),
+            "artifacts": [{"path": a, "tracked": a in tracked} for a in artifacts],
+            "unblocked_by": prerequisites,
+            "unblocks": session.get("unblocks") or [],
+            "shares_setup_with": session.get("shares_setup_with") or [],
+            "verifies": [{"id": v, "state": pie.get(v)} for v in (session.get("verifies") or [])],
+            "issues": session.get("issues") or [],
+            "done_when": (session.get("done_when") or "").strip(),
+        })
+
+    return {
+        "_generated": "NON EDITARE: generato da scripts/feature_registry.py generate, "
+                      "misurando le sorgenti citate in `sources`",
+        "sources": {
+            "features": "docs/roadmap/feature-registry.yaml",
+            "editor_sessions": "docs/roadmap/editor-sessions.yaml",
+            "pie_registry": "docs/technical/test-manuali-pie.md",
+            "release_gates": "docs/roadmap/v0.1-definition-of-done.md",
+            "epics": "docs/roadmap/roadmap-v0.1.md",
+            "milestones": "docs/roadmap/roadmap-checkpoint.md",
+            "scenarios": "Scenarios/",
+        },
+        "meta": jsonable(registry.get("meta") or {}),
+        "project": jsonable((registry.get("meta") or {}).get("project") or {}),
+        "diagnostics": {
+            "errors": errors,
+            "warnings": warnings,
+            "unresolved_prerequisites": [{"session": sid, "ref": ref} for sid, ref in unresolved],
+            "milestone_conflicts": [
+                {"milestone": m, "declared": a, "also": b} for m, a, b in milestone_conflicts],
+        },
+        "release_gates": [{"id": gid, "request": req, "state": state}
+                          for gid, req, state in release_gates()],
+        "epics": epics,
+        "milestones": milestones,
+        "checkpoints": checkpoints,
+        "editor_sessions": graph_sessions,
+        "editor_queue": {group: [s["id"] for s, _b in queue[group]] for group in QUEUE_GROUPS},
+        "pie_entries": [{"id": k, "state": v} for k, v in sorted(pie.items())],
+        "scenarios": scenario_corpus(),
+        "capabilities": sorted(available_capabilities()),
+    }
 
 
 def apply_shortlist(data, check=False):
@@ -1755,14 +2051,24 @@ def main():
         return 1 if errors else 0
 
     if args.command == "generate":
-        content = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
-        if write_if_needed(REGISTRY_JSON, content, args.check):
-            if args.check:
-                print("feature-registry.json non e' allineato alla sorgente YAML")
-                return 1
-            print(f"scritto {os.path.relpath(REGISTRY_JSON, REPO)}")
-        else:
-            print("feature-registry.json gia' allineato")
+        targets = [
+            (REGISTRY_JSON, json.dumps(data, ensure_ascii=False, indent=2) + "\n"),
+            (PROJECT_GRAPH_JSON,
+             json.dumps(build_graph(registry), ensure_ascii=False, indent=2) + "\n"),
+        ]
+        stale = []
+        for path, content in targets:
+            name = os.path.relpath(path, REPO)
+            if write_if_needed(path, content, args.check):
+                stale.append(name)
+                if not args.check:
+                    print(f"scritto {name}")
+            else:
+                print(f"{os.path.basename(path)} gia' allineato")
+        if args.check and stale:
+            for name in stale:
+                print(f"non e' allineato alla sorgente: {name}")
+            return 1
         return 0
 
     if args.command == "wiki":
