@@ -86,7 +86,7 @@
 
 ## Le azioni generiche
 
-La grammatica comune del gioco è:
+La grammatica comune del gioco è di **sette** voci:
 
 ```text
 Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch
