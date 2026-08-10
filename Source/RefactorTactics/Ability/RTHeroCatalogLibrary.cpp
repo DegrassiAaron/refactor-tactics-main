@@ -193,11 +193,12 @@ URTHeroData* URTHeroCatalogLibrary::MakeFlux()
 	// `bConductsElectricity` nel catalogo terreni. Anche `Range 0` non e' piu' un segnaposto: la portata
 	// arriva dal core insieme all'effetto, come il commento vecchio prometteva.
 	//
-	// ⚠️ Resta aperto un punto che NON e' un commento da correggere: il PDF descrive l'azione come «rende
-	// conduttiva una cella per 2 turni», mentre D-046 le ha dato la semantica di `Action.Electrify` — che
-	// propaga una scarica sul grafo dell'acqua, non trasforma la superficie. Sono due effetti diversi, non
-	// due nomi dello stesso. Quale dei due sia l'azione vera e' una decisione di design, tracciata su #207:
-	// sceglierla qui di iniziativa fisserebbe nel codice una risposta che nessuno ha dato.
+	// D-064 (2026-08-10) chiude la domanda che restava: il PDF descriveva l'azione come «rende conduttiva una
+	// cella per 2 turni», e quel PDF e' OBSOLETO. Le due letture non erano una completa e una parziale — erano
+	// due azioni diverse, e l'autore ha scelto questa: la scarica LEGGE il grafo conduttivo, non lo crea.
+	//
+	// Il corollario che vale per chi passera' di qui: nessun campo di durata per-azione entra nel catalogo per
+	// rappresentare l'altra lettura, e `Range 0` non e' piu' un segnaposto da sostituire.
 	const FRTActionDef ElectrifyDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Electrify"));
 	URTActionData* ConductiveNode = MakeHeroAction(TEXT("Flux.ConductiveNode"), ElectrifyDef.ResolutionPhase,
 		ElectrifyDef.Priority, ElectrifyDef.RangeCells, /*Cooldown*/ 2, ElectrifyDef.Fallback,
