@@ -51,7 +51,7 @@ scegliendo lo scenario e premendo Play, una voce C richiede di allestire, clicca
 
 | Classe | Quanti | Dove |
 |---|---:|---|
-| **A** — automatico | **26** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · i tre `EnvironmentalActionOwner` · `RT_Showcase_Relay_v01` |
+| **A** — automatico | **27** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · `Spec.Predictive.WhiffOnEmptyCell` · i tre `EnvironmentalActionOwner` · `RT_Showcase_Relay_v01` |
 | **B** — automatico + occhio | **21** scenari ↔ **21** voci `PIE-VIS-*` | `Scenarios/Visual/` |
 | **C** — solo umano | **95** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima |
 | **D** — dichiarato | **9** scenari `Spec.*` ancora `BLOCKED` · **21** pianificati · **4** mai scritti | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
@@ -241,7 +241,7 @@ I **nove** rimasti (l'elenco misurato è in
 | `Spec.Objective.PointSurvivesKO` | `Objective` | E10 · CP 10.2 (`#75`) |
 | `Spec.Overwatch.HoldThenFire` | `DecisionBoundary` `Facing` | E14 (`#152`) + E16 (`#175`) |
 | `Spec.Perception.HeardNotSeen` | `Perception` | E13 (`#151`) |
-| `Spec.Predictive.WhiffOnEmptyCell` | `PredictiveAction` | E18 (`#225`) |
+| ~~`Spec.Predictive.WhiffOnEmptyCell`~~ | ~~`PredictiveAction`~~ | ✅ **acceso il 2026-08-10** da E18 (`#225`): `PASS`, 4/4 assertion su 2 turni |
 | `Spec.Brace.ProfileChangesResponse` | `DecisionBoundary` `ReactionClash` | E14 · CP 14.7 |
 | `Spec.Clash.ReadBeatsStand` | `DecisionBoundary` `ReactionClash` | E14 · CP 14.7 |
 | `Spec.Clash.StandBeatsShift` | `DecisionBoundary` `ReactionClash` | E14 · CP 14.7 |

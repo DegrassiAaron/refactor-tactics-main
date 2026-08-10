@@ -269,6 +269,30 @@ bool ARTUnit::HasStatus(FGameplayTag Tag) const
 	return (Turns && *Turns > 0) || CellBoundStatuses.Contains(Tag);
 }
 
+TArray<FName> ARTUnit::GetActiveStatusNames() const
+{
+	TArray<FName> Names;
+
+	// Solo gli status con durata RESIDUA: uno scaduto e' assente, non presente a zero — altrimenti il
+	// checksum distinguerebbe due stati che il gioco considera identici.
+	for (const TPair<FGameplayTag, int32>& Pair : StatusTurns)
+	{
+		if (Pair.Value > 0)
+		{
+			Names.AddUnique(Pair.Key.GetTagName());
+		}
+	}
+	for (const FGameplayTag& Tag : CellBoundStatuses)
+	{
+		Names.AddUnique(Tag.GetTagName());
+	}
+
+	// `TMap`/`TSet` non hanno un ordine di iterazione stabile: senza questo sort il risultato dipenderebbe
+	// dall'ordine di inserimento, e due esecuzioni identiche darebbero digest diversi (invariante #4).
+	Names.Sort([](const FName& A, const FName& B) { return A.Compare(B) < 0; });
+	return Names;
+}
+
 void ARTUnit::ApplyMarkedBy(int32 MarkerTeamId, int32 Turns)
 {
 	// L'ultimo marchio vince: due squadre non possono rivendicare lo stesso bersaglio, e con 2 squadre in

@@ -131,4 +131,21 @@ public:
 	 * piu' su (issue #185, spec §16.3).
 	 */
 	static ERTTraceComparison CompareSerializedTraces(const TArray<uint8>& A, const TArray<uint8>& B);
+
+	/**
+	 * Descrive la PRIMA divergenza fra una traccia di riferimento e quella appena prodotta, oppure una stringa
+	 * vuota se coincidono (CP 12.6, #178).
+	 *
+	 * `CompareSerializedTraces` risponde al livello del formato — *sono diverse* — e per un corpus golden non
+	 * basta: il DoD chiede che una divergenza indichi **turno, fase e `ActionId`**, perche' un test che dice
+	 * solo «hash diverso» costringe chi legge a ricostruire da capo *dove*, ed e' cosi' che un corpus finisce
+	 * rigenerato invece che letto.
+	 *
+	 * Il TURNO non e' un campo della voce (il TurnLog e' per turno) e viene quindi passato dal chiamante, che
+	 * lo conosce: nel corpus e' il file da cui la traccia di riferimento e' stata letta.
+	 *
+	 * Riporta la PRIMA differenza e non tutte: dopo la prima, le successive sono spesso conseguenze.
+	 */
+	static FString DescribeFirstDivergence(int32 TurnNumber, const TArray<FRTTurnLogEntry>& Golden,
+		const TArray<FRTTurnLogEntry>& Actual);
 };

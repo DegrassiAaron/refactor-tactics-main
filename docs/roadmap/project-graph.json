@@ -170,7 +170,7 @@
     "E15": "🟡",
     "E16": "✅",
     "E17": "⏳",
-    "E18": "⏳",
+    "E18": "✅",
     "E19": "🟡",
     "E20": "🟡",
     "E21": "🟡"
@@ -2004,6 +2004,7 @@
     "Environment",
     "EnvironmentalActionOwner",
     "FixtureReference",
+    "PredictiveAction",
     "Reaction",
     "Structures"
   ]

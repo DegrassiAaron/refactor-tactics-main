@@ -88,11 +88,11 @@
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ACTION-PREDICTIVE -->
 
-> ⚠️ **Progettata, non implementata.** Questa pagina descrive una meccanica **decisa e documentata** che il gioco **non esegue ancora**: oggi non è giocabile. Blocco generato dal Feature Registry, non modificare a mano.  
+> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
 > Feature: `RT-FEAT-ACTION-PREDICTIVE` · Release: `v0.1` · Roadmap: `E18.1, E18.2`  
-> Stato: **SPECIFIED** · Gate: `1/8`  
+> Stato: **INTEGRATED** · Gate: `6/8`  
 > Scenario: `Spec.Predictive.WhiffOnEmptyCell`  
-> Verificato il `2026-08-08` su `2094b86`
+> Verificato il `2026-08-10` su `800b83a`
 
 <!-- RT_FEATURE_STATUS:END RT-FEAT-ACTION-PREDICTIVE -->
 

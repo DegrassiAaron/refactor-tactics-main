@@ -282,7 +282,11 @@ Premia il setup di Riva o di altre fonti di `Wet`. Le varianti spostano l'abilit
 
 #### Descrizione
 
-Conductive Node è un'azione di setup in Prep che rende conduttiva una cella per 2 turni. Serve a estendere il concetto di Conduction dalla sola condizione `Wet` alla topologia ambientale.
+Conductive Node **è** `Action.Electrify` ([D-046](../../decisions/RT_PDR_00_Decision_Log.md), cablata; [D-064](../../decisions/RT_PDR_00_Decision_Log.md), confermata come definitiva): innesca una scarica che cammina sul **grafo conduttivo** — celle d'acqua e superfici `Conductive` — colpendo ogni unità sul circuito una volta sola.
+
+> ⚠️ **Il PDF diceva un'altra cosa, ed è obsoleto.** Fino a [D-064](../../decisions/RT_PDR_00_Decision_Log.md) questa sezione descriveva un'azione che *«rende conduttiva una cella per 2 turni»*, con range 0 come segnaposto e stato `PARTIAL`. Non era una versione incompleta di ciò che il codice fa: era un'**altra azione**. Trasformare una superficie e percorrere un circuito sono due effetti diversi, e il repository ha scelto il secondo.
+
+Il concetto di Conduction si estende comunque oltre `Wet`, ma per la via della **topologia già esistente** invece che creandone una nuova: chi prepara acqua e superfici conduttive costruisce il circuito che questa azione percorre.
 
 | Campo | Valore |
 | --- | --- |
@@ -290,23 +294,23 @@ Conductive Node è un'azione di setup in Prep che rende conduttiva una cella per
 | Categoria | Setup/Prep |
 | Priorità | 35 |
 | Costo risorsa | — |
-| Cooldown (turni) | 2 |
-| Range (hex) | 0 |
+| Cooldown (turni) | 2 (dell'eroe, non del core) |
+| Range (hex) | 4 (da `Action.Electrify`) |
 | AoE Radius | 0 |
-| Danno base | 0 |
+| Danno base | dal core: iniziale sul bersaglio, ridotto sui propagati |
 | Control Strength | 0 |
-| Durata (turni) | 2 |
+| Propagazione | max **3** celle sul grafo conduttivo |
 | Loss/Contact Policy | Fallback.Cancel |
-| Interazione terreno | Rende conduttiva una cella per 2 turni; range 0 è placeholder tecnico corrente |
+| Interazione terreno | **Legge** il grafo conduttivo (acqua, superfici `Conductive`); non lo crea |
 | Gameplay Tags | `Ability.Environment.Setup` |
-| Implementation Status | PARTIAL |
+| Implementation Status | IMPLEMENTED |
 | Data Status | CANONICAL |
-
-> Effetto di conduttività non completamente rappresentato nel modello dell'azione.
 
 #### Uso tattico e limiti
 
-Il comportamento completo della cella conduttiva è ancora `PARTIAL`; il range 0 nel dato corrente è un placeholder tecnico e non va interpretato come scelta di bilanciamento finale.
+L'azione **non prepara** il terreno: lo **sfrutta**. Vale quanto il circuito che qualcuno ha già costruito — l'acqua di Riva, una superficie `Conductive` della mappa — e su un campo asciutto colpisce un bersaglio solo. È il rovescio esatto della lettura vecchia, in cui era lei a creare la conduttività.
+
+⚠️ **Fuoco amico sul circuito**: la scarica colpisce ogni unità sul grafo una volta sola, e il grafo non distingue le squadre. Chi allaga per Flux allaga anche per l'avversario.
 
 ### Overload
 
