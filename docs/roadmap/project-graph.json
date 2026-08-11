@@ -340,17 +340,17 @@
       "title": "Mappa-arena hex",
       "block": 1,
       "critical": true,
-      "state": "⏳",
+      "state": "🟡",
       "queue_group": "BLOCKING",
       "produces": "`DA_HexMap_Arena` e `L_HexArena`, committati",
       "artifacts": [
         {
           "path": "Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap",
-          "tracked": false
+          "tracked": true
         },
         {
           "path": "Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset",
-          "tracked": false
+          "tracked": true
         }
       ],
       "unblocked_by": [
@@ -916,7 +916,7 @@
         {
           "ref": "U1",
           "resolved": false,
-          "state": "⏳",
+          "state": "🟡",
           "kind": "seduta"
         }
       ],
@@ -1068,7 +1068,7 @@
         {
           "ref": "U1",
           "resolved": false,
-          "state": "⏳",
+          "state": "🟡",
           "kind": "seduta"
         }
       ],
@@ -1292,6 +1292,18 @@
     },
     {
       "id": "PIE-HEX-LAYER",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEX-LAYER-CLICK",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEX-LAYER-FOCUS",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEX-LAYER-PANEL",
       "state": "⏳"
     },
     {

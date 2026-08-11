@@ -52,7 +52,7 @@ quel documento già usa. Nessun simbolo nuovo. La seduta scende a 🟡 da sola.
 
 <!-- RT_SHORTLIST_EDITOR:BEGIN -->
 
-**20 sedute** — ✅ **0** · 🟡 **11** · ⏳ **6** · **3** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
+**20 sedute** — ✅ **0** · 🟡 **12** · ⏳ **5** · **3** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
 
 Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md) e da `git ls-files` sugli artefatti. Un artefatto non tracciato impedisce il verde qualunque cosa dicano le voci.
 
@@ -80,9 +80,9 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 **WAITING** — *Aspetta codice*
 
 - **U11** · I 4 eroi — attende `U10` —
-- **U13** · Arena v0.1 — attende `U1` ⏳
+- **U13** · Arena v0.1 — attende `U1` 🟡
 - **U14** · Ambiente in partita — attende `U13` ⏳
-- **U19** · Durata, ritmo e scala — attende `U6` 🟡, `U1` ⏳
+- **U19** · Durata, ritmo e scala — attende `U6` 🟡, `U1` 🟡
 - **U16** · Misura dei KPI — attende `U6` 🟡
 - **U20** · Confine fra Guard e Brace — attende `E5.2` ⏳
 
@@ -95,7 +95,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 | | Seduta | Produce | Sbloccata da | Critico | Voci | Stato |
 |---|---|---|---|:--:|:--:|:--:|
 | **U18** | Verifiche senza prerequisiti | verdetto su cinque voci che non attendono nulla | — | no | 1/5 | 🟡 |
-| **U1** | Mappa-arena hex | `DA_HexMap_Arena` e `L_HexArena`, committati | M6.0 | sì | 0/7 | ⏳ |
+| **U1** | Mappa-arena hex | `DA_HexMap_Arena` e `L_HexArena`, committati | M6.0 | sì | 0/7 | 🟡 |
 | **U2** | Partita hex, primo giro | verdetto su allestimento e movimento | M6.1, M6.2 | sì | 3/4 | 🟡 |
 | **U3** | Input e pianificazione | verdetto su selezione, budget e anteprima del percorso | M6.3 | sì | 1/4 | 🟡 |
 | **U4** | Combat e linea di tiro | verdetto su forme d'attacco, LOS esagonale e knockback | M6.4, M6.5 | sì | 0/3 | ⏳ |
@@ -150,11 +150,11 @@ L'ordine non e' arbitrario:
 
 > Nasce dalla sessione G del registro (2026-08-08), che non aveva una seduta corrispondente: le tre voci erano nella checklist ma in nessuna seduta, e una voce che non sta in una seduta non viene eseguita mai. **Dal 2026-08-10 ne ospita cinque**: `PIE-HEX-LAYER` e `PIE-HEX-TRANS` erano in U1, ma le loro precondizioni nel registro citano un asset *generato* (`GenerateIntoAsset`, due celle sovrapposte) e non l'arena — stavano su una seduta del percorso critico senza dipenderne. Issue 450. Nello stesso passaggio il titolo e' cambiato da «senza preparazione» a «senza prerequisiti»: le due voci nuove un allestimento ce l'hanno — generano celle su due layer in editor — e il vecchio titolo sarebbe diventato falso per due voci su cinque. Cio' che accomuna le cinque non e' l'assenza di allestimento ma l'assenza di **attese**: nessuna dipende da codice mancante o da una seduta prima.
 
-#### U1 · Mappa-arena hex ⏳
+#### U1 · Mappa-arena hex 🟡
 
 **Sbloccata da**: M6.0 · **Preparazione condivisa con**: U13 · **Percorso critico**: sì
 **Produce**: `DA_HexMap_Arena` e `L_HexArena`, committati
-**Artefatti**: `Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap` ⏳ · `Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset` ⏳
+**Artefatti**: `Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap` ✅ · `Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset` ✅
 **Verifichi**: `PIE-HEX-MODE-E` ⏳ · `PIE-HEX-MODE-F` ⏳ · `PIE-HEX-MODE-G` ⏳ · `PIE-HEX-MODE-H` ⏳ · `PIE-HEX-MODE-L` ⏳ · `PIE-HEX-MODE-N` ⏳ · `PIE-HEX-MODE-O` ⏳
 **Finita quando**: i due asset sono tracciati da `git ls-files`, le sette voci hanno un esito reale, e l'arena soddisfa i tre criteri dei passi 3, 4 e 7
 **Sblocca**: U13, U19
@@ -504,7 +504,7 @@ E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 
 > Nasce dal piano `BAL-1` (`plans/bal-1-guard-brace-roadmap-2026-08-10.md` §6). **Non entra nel subset `RELEASE-V01`**: `BAL-1` non blocca la consegna, e un gate che si allarga senza motivo e' il difetto che G9 ha gia' avuto due volte. La seduta ha una voce sola di proposito — e' una domanda che si risponde una volta, guardandola. ⚠️ ID assegnato al merge: preso `U20` con `U19` come ultimo su `main`. Chi arriva secondo rinumera, non contende.
 
-> **54 voci del registro non stanno in nessuna seduta** — `PIE-BU-*` 4 · `PIE-CP-*` 1 · `PIE-HEX-*` 9 · `PIE-MP-*` 1 · `PIE-MUT-*` 2 · `PIE-P-*` 1 · `PIE-SCEN-*` 2 · `PIE-STATE-*` 10 · `PIE-TEST-*` 2 · `PIE-V-*` 1 · `PIE-VIS-*` 21. Non e' per forza un difetto (le `PIE-VIS-*` hanno il proprio scenario, le `PIE-STATE-*` verificano un sistema che non esiste), ma una voce che non sta in una seduta non viene eseguita mai: e' la ragione per cui questo conteggio e' qui.
+> **57 voci del registro non stanno in nessuna seduta** — `PIE-BU-*` 4 · `PIE-CP-*` 1 · `PIE-HEX-*` 12 · `PIE-MP-*` 1 · `PIE-MUT-*` 2 · `PIE-P-*` 1 · `PIE-SCEN-*` 2 · `PIE-STATE-*` 10 · `PIE-TEST-*` 2 · `PIE-V-*` 1 · `PIE-VIS-*` 21. Non e' per forza un difetto (le `PIE-VIS-*` hanno il proprio scenario, le `PIE-STATE-*` verificano un sistema che non esiste), ma una voce che non sta in una seduta non viene eseguita mai: e' la ragione per cui questo conteggio e' qui.
 
 <!-- RT_SHORTLIST_EDITOR:END -->
 
