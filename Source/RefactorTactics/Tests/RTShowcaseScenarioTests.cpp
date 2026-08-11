@@ -753,7 +753,7 @@ bool FRTScenarioShowcaseRelayV01Test::RunTest(const FString&)
 // caso in cui l'ordine dell'array puo' decidere l'esito senza che nessuno se ne accorga — e una showcase che
 // cambia da una esecuzione all'altra non e' una dimostrazione, e' un aneddoto.
 //
-// Il gate generale (`Simulation.DeterministicReplay`, 100 ripetizioni) gira su `Movement.Collision`: due
+// Il gate generale (`Replay.Verifier.ResimulationIsDeterministic`, 100 ripetizioni) gira su `Movement.Collision`: due
 // unita' su una mappa piccola. Questo gira sulla geometria canonica con il roster intero, che e' dove le
 // interazioni non previste hanno spazio per manifestarsi.
 // =====================================================================================================

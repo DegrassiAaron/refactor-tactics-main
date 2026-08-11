@@ -1299,7 +1299,7 @@
       ],
       "issues": [],
       "tests": [
-        "RefactorTactics.Combat.EffectiveAttackPowerWithTerrainBonus",
+        "RefactorTactics.Combat.EffectiveAttackPowerAddsDeclaredBonus",
         "RefactorTactics.HexBot.ScoreElevationBonus"
       ],
       "scenarios": [

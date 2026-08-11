@@ -188,7 +188,9 @@ Evidenza = i **nomi dei test**, che sono la prova di ciò che esiste:
 **Due cose vigenti che i documenti non dichiaravano.** Lo **scivolamento su ghiaccio** esiste ed è testato
 (`Terrain.Ice.*`), benché il catalogo terreni lo dicesse «rimandabile»: va documentato come vigente, non
 costruito né rimosso. E i **10 test vincolanti del catalogo** (§6) **esistono tutti e dieci** — gli ultimi
-arrivati sono `Cover.DirectionalDamageReduction` e `Simulation.DeterministicReplay` con le sue 100 ripetizioni.
+arrivati sono `Cover.DirectionalDamageReduction` e il decimo, con le sue 100 ripetizioni — che dal 2026-08-11 si
+chiama `Replay.Verifier.ResimulationIsDeterministic` invece del `Simulation.DeterministicReplay` del catalogo
+([D-095](../decisions/RT_PDR_00_Decision_Log.md)): la proprietà è la stessa, il nome non mente più.
 
 **Stato in una riga**: il **contenuto** della v0.1 è costruito e testato (cataloghi, azioni, reazioni, eroi,
 ambiente, coperture, **orientamento**) e gira su un solo substrato esagonale. Mancano la **conoscenza
@@ -773,7 +775,7 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
-| **12.1** ✅ | Replay deterministico rinforzato | Stessa snapshot + stesso seed + stesse definizioni + stesso ordine ⇒ checksum finale **identico** su **almeno 100 ripetizioni** | ✅ **2026-08-08**: `Simulation.DeterministicReplay` (100 iterazioni, 0 divergenze) e `Simulation.ChecksumStableAcrossPermutations` (unità e intent invertiti → stesso stato). Entrambi girano sullo **Scenario Harness**, quindi sul percorso di gioco reale. Più `Simulation.StateHashDistinguishesOutcomes`, che impedisce all'hash di degenerare in una costante — senza, i primi due passerebbero anche confrontando zeri |
+| **12.1** ✅ | Replay deterministico rinforzato | Stessa snapshot + stesso seed + stesse definizioni + stesso ordine ⇒ checksum finale **identico** su **almeno 100 ripetizioni** | ✅ **2026-08-08**: `Replay.Verifier.ResimulationIsDeterministic` (100 iterazioni, 0 divergenze; si chiamava `Simulation.DeterministicReplay` fino al 2026-08-11, [D-095](../decisions/RT_PDR_00_Decision_Log.md)) e `Simulation.ChecksumStableAcrossPermutations` (unità e intent invertiti → stesso stato). Entrambi girano sullo **Scenario Harness**, quindi sul percorso di gioco reale. Più `Simulation.StateHashDistinguishesOutcomes`, che impedisce all'hash di degenerare in una costante — senza, i primi due passerebbero anche confrontando zeri |
 | **12.2** | Matrice test manuali v0.1 | Le 12 voci `PIE-V01-*` esistono in `test-manuali-pie.md` con precondizione ed esito atteso e sono **eseguite** | Sessione E di `test-manuali-pie.md` completa |
 | **12.3** | Suite automatica completa | I 10 test nominati dal catalogo (§15) esistono con quei nomi e sono verdi; nessun test disabilitato o saltato per far passare la build | `RunUAT`/Automation: elenco completo verde; `grep -rn "skip\|disable" Source/RefactorTactics/Tests/` senza esiti |
 | **12.4** | KPI misurati | FPS client, path mediana, preview completa, resolver per turno **misurati e registrati** (anche se fuori target); replay divergence = 0; intent leak = 0. **In più** (2026-08-07): le metriche di **durata** — `RoundsPlayed`, `MatchDurationSeconds`, `PlanningDurationSeconds`, `ResolutionPlaybackSeconds`, `ReadyAtSeconds`, `FirstEnemyContactRound` — raccolte sul **2v2** e dichiarate come tali, **non** confrontate con le bande del 3v3 Standard che non esiste in v0.1 | Tabella KPI di `v0.1-definition-of-done.md` compilata con numeri reali · metriche in [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §17 |
@@ -1317,7 +1319,7 @@ I dieci nomi richiesti dal catalogo (§15) sono **vincolanti**: devono esistere 
 | `RefactorTactics.Cover.DirectionalDamageReduction` | copertura bassa direzionale (−10) | 9.1 |
 | `RefactorTactics.Reactions.Intercept` | l'intercettore diventa bersaglio | 5.3 |
 | `RefactorTactics.Reactions.SingleActivation` | una attivazione per turno | 5.1 |
-| `RefactorTactics.Simulation.DeterministicReplay` | 100 ripetizioni, checksum identico | 12.1 |
+| `RefactorTactics.Replay.Verifier.ResimulationIsDeterministic` *(il catalogo lo chiama `Simulation.DeterministicReplay`: [D-095](../decisions/RT_PDR_00_Decision_Log.md))* | 100 ripetizioni, checksum identico | 12.1 |
 
 Ogni test di determinismo esegue la stessa simulazione con **stesso snapshot, seed, definizioni e ordine**.
 
