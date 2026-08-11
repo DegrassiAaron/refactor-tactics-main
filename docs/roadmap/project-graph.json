@@ -586,6 +586,7 @@
       ],
       "unblocks": [
         "U6",
+        "U19",
         "M6.6",
         "M6.7"
       ],
@@ -681,23 +682,32 @@
       "id": "U7",
       "title": "Personaggi Paragon",
       "block": 3,
-      "critical": false,
+      "critical": true,
       "state": "🟡",
-      "queue_group": "READY",
-      "produces": "`BP_Unit_Guardian` (Gideon) e `BP_Unit_Ranger` (Sparrow), committati",
+      "queue_group": "BLOCKING",
+      "produces": "i quattro Blueprint-unita' del roster v0.1, committati",
       "artifacts": [
         {
-          "path": "Content/RT/Characters/Gideon/Blueprints/BP_Unit_Guardian.uasset",
+          "path": "Content/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget.uasset",
           "tracked": false
         },
         {
-          "path": "Content/RT/Characters/Sparrow/Blueprints/BP_Unit_Ranger.uasset",
+          "path": "Content/RT/Characters/Phase/Blueprints/BP_Unit_Phase.uasset",
+          "tracked": false
+        },
+        {
+          "path": "Content/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor.uasset",
+          "tracked": false
+        },
+        {
+          "path": "Content/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith.uasset",
           "tracked": false
         }
       ],
       "unblocked_by": [],
       "unblocks": [
-        "U8"
+        "U8",
+        "U19"
       ],
       "shares_setup_with": [
         "U8",
@@ -706,7 +716,7 @@
       "verifies": [
         {
           "id": "PIE-AS2",
-          "state": "✅"
+          "state": "⏳"
         },
         {
           "id": "PIE-FACING",
@@ -714,29 +724,38 @@
         }
       ],
       "issues": [],
-      "done_when": "i Blueprint sono tracciati da git e le due voci hanno esito reale sui BP nuovi"
+      "done_when": "i quattro Blueprint sono tracciati da git e le due voci hanno esito reale sui BP nuovi"
     },
     {
       "id": "U8",
       "title": "Animazioni",
       "block": 3,
-      "critical": false,
+      "critical": true,
       "state": "⏳",
-      "queue_group": "READY",
-      "produces": "`ABP_Gideon`, `ABP_Sparrow` e i montaggi Cast/Hit/Death",
+      "queue_group": "BLOCKING",
+      "produces": "gli anim BP dei quattro personaggi e i montaggi Cast/Hit/Death",
       "artifacts": [
         {
-          "path": "Content/RT/Characters/Gideon/Blueprints/ABP_Gideon.uasset",
+          "path": "Content/RT/Characters/Gadget/Animation/ABP_Gadget.uasset",
           "tracked": false
         },
         {
-          "path": "Content/RT/Characters/Sparrow/Blueprints/ABP_Sparrow.uasset",
+          "path": "Content/RT/Characters/Phase/Animation/ABP_Phase.uasset",
+          "tracked": false
+        },
+        {
+          "path": "Content/RT/Characters/Riktor/Animation/ABP_Riktor.uasset",
+          "tracked": false
+        },
+        {
+          "path": "Content/RT/Characters/Wraith/Animation/ABP_Wraith.uasset",
           "tracked": false
         }
       ],
       "unblocked_by": [],
       "unblocks": [
-        "U9"
+        "U9",
+        "U19"
       ],
       "shares_setup_with": [
         "U7",
@@ -753,15 +772,15 @@
         }
       ],
       "issues": [],
-      "done_when": "gli asset sono tracciati da git e le due voci hanno esito reale"
+      "done_when": "i quattro anim BP sono tracciati da git e le due voci hanno esito reale"
     },
     {
       "id": "U9",
       "title": "Leggibilita' e riferimento visivo",
       "block": 3,
-      "critical": false,
+      "critical": true,
       "state": "🟡",
-      "queue_group": "READY",
+      "queue_group": "BLOCKING",
       "produces": "il video (o gli screenshot) di riferimento — DoD di milestone di M8",
       "artifacts": [],
       "unblocked_by": [],
@@ -1070,6 +1089,24 @@
           "resolved": false,
           "state": "⏳",
           "kind": "seduta"
+        },
+        {
+          "ref": "U5",
+          "resolved": false,
+          "state": "🟡",
+          "kind": "seduta"
+        },
+        {
+          "ref": "U7",
+          "resolved": false,
+          "state": "🟡",
+          "kind": "seduta"
+        },
+        {
+          "ref": "U8",
+          "resolved": false,
+          "state": "⏳",
+          "kind": "seduta"
         }
       ],
       "unblocks": [],
@@ -1187,13 +1224,13 @@
       "U4",
       "U5",
       "U6",
+      "U7",
+      "U8",
+      "U9",
       "U15"
     ],
     "READY": [
-      "U18",
-      "U7",
-      "U8",
-      "U9"
+      "U18"
     ],
     "WAITING": [
       "U11",
@@ -1228,7 +1265,7 @@
     },
     {
       "id": "PIE-AS2",
-      "state": "✅"
+      "state": "⏳"
     },
     {
       "id": "PIE-AS4a",
