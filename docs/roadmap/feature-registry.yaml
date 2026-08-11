@@ -2588,16 +2588,17 @@ features:
     kind: gameplay
     release: v0.1
     priority: P2
-    status: IMPLEMENTING
+    status: TESTABLE
     gates:
       spec: done
       data: done
-      # Stessa ragione della vista: `URTPerceptionLibrary::TeamVisibleCells` esiste ed e' testata,
-      # ma nessuno la interroga finche' CP 13.2 non fa consumare la conoscenza al targeting.
-      runtime: partial
+      # CP 13.2 ha chiuso l'attesa: il targeting CONSUMA la conoscenza. `ARTTurnManager::ResolveCombat`
+      # interroga `URTTeamKnowledgeLibrary::ClassifyTarget` prima di lasciar partire un attacco, e
+      # `Observe` aggiorna lo stato per squadra a ogni turno. Il consumatore runtime esiste.
+      runtime: done
       log_debug: todo
       automation: done
-      scenario: todo
+      scenario: done
       ui_wiki: partial
       packaged: todo
       network_privacy: todo
@@ -2617,17 +2618,21 @@ features:
       - RefactorTactics.Vision.TeamKnowledgeIsUnion
       - RefactorTactics.Vision.SmokeCapsContactAtTwo
       - RefactorTactics.Vision.PermutationInvariant
-    scenarios: []
+    scenarios:
+      - Spec.Perception.CannotShootWhatYouCannotSee
+      - Spec.Perception.AllySpottingLetsYouShoot
     wiki_refs:
       - wiki:visibilita-rumore-e-informazione
     wiki_note: >-
-      Modello deciso per la v0.1; l'implementazione (E13, dopo E16) **non e' iniziata**: oggi la vista non decide nulla.
+      Modello deciso per la v0.1 e **implementato** con CP 13.2: la conoscenza di squadra decide chi si
+      puo' bersagliare. La coppia di scenari e' la specifica eseguibile del gate.
     last_verified:
       date: 2026-08-08
       commit: 2094b86
     notes: >
-      La vista è oggi **una statistica a catalogo che non decide nulla**: i dati esistono
-      (`data: partial`), il consumatore runtime no. Prerequisito di E14.
+      Era **una statistica a catalogo che non decideva nulla**; CP 13.2 le ha dato il consumatore. Oggi
+      `ResolveCombat` classifica il bersaglio contro la conoscenza della squadra prima di risolvere
+      l'attacco. Prerequisito di E14.
 
   - feature_id: RT-FEAT-PERCEPTION-VISION
     title: Vista, facing e livelli di consapevolezza
