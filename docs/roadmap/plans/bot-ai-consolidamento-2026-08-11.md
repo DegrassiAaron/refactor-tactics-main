@@ -1,7 +1,12 @@
 # Referto — consolidamento Bot/AI, Team Planner, Belief e tracking
 
-> **Data**: 2026-08-11 · **Sorgente**: [`../../archive/src/handoff/2026-08-11-bot-ai-team-planner-belief-e-tracking.md`](../../archive/src/handoff/2026-08-11-bot-ai-team-planner-belief-e-tracking.md)
-> **Base verificata**: `main` @ `1f1dc24` · UE **5.8** (`RefactorTactics.uproject`, `EngineAssociation`)
+> **Data**: 2026-08-11 · **Sorgenti**: [`…bot-ai-team-planner-belief-e-tracking.md`](../../archive/src/handoff/2026-08-11-bot-ai-team-planner-belief-e-tracking.md)
+> e [`…battle-simulation-harness-unificato-e-release-bot.md`](../../archive/src/handoff/2026-08-11-battle-simulation-harness-unificato-e-release-bot.md)
+> **Base verificata**: `main` @ `1f1dc24`, poi **rimisurata su `eb3cc42`** dopo che `main` si è mosso durante
+> il lavoro (PR [#530](https://github.com/DegrassiAaron/refactor-tactics-main/issues/530)) — quel merge non
+> tocca nessun file di `Source/`, quindi le misure reggono. È il commit scritto in `last_verified`, e non la
+> base da cui il branch è partito: [PR #484](https://github.com/DegrassiAaron/refactor-tactics-main/pull/484)
+> ha già pagato quella confusione una volta. UE **5.8** (`RefactorTactics.uproject`, `EngineAssociation`)
 > **Natura**: referto di revisione. Non è un owner documentale: dice **cosa è entrato dove**, e perché il
 > resto non è entrato.
 

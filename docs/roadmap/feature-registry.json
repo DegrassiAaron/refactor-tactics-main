@@ -4648,7 +4648,7 @@
       "pie_refs": [],
       "last_verified": {
         "date": "2026-08-11",
-        "commit": "1f1dc24"
+        "commit": "eb3cc42"
       },
       "notes": "L'unico pezzo del cluster Bot con lavoro gia' aperto in v0.1. La premessa oggi e' **falsa e misurata**: `ARTTurnManager::PlanBots` popola `Ctx.Enemies` da tutte le unita' nemiche vive, senza filtro di percezione — vedi `spec-bot-hex.md` §6, che lo dichiara invece di nasconderlo. `spec: done` perche' la regola e' scritta e completa (`spec-bot-tattico.md` §2); tutto il resto e' `todo` perche' non esiste il filtro. ⚠️ Il gate che conta e' `automation`, e ha una forma precisa: un **canary** che mette la stessa `FRTTeamKnowledge` davanti a due stati autorevoli diversi (nemico nascosto in A oppure in B) e pretende lo stesso Intent. Un bot che legge lo stato lo fallisce; nessuna review lo prende, perche' un bot onnisciente produce piani *sensati*. `ui_wiki: partial`: la pagina Wiki `avversario-bot` promette gia' al giocatore che il bot non vede piu' di lui — la promessa e' pubblicata e la sua verifica non esiste ancora."
     },
@@ -4711,7 +4711,7 @@
       "pie_refs": [],
       "last_verified": {
         "date": "2026-08-11",
-        "commit": "1f1dc24"
+        "commit": "eb3cc42"
       },
       "notes": "Architettura fissata da **D-097** (Top-K per unita' + combinazione al centro; i ruoli **emergono** dal piano, non si assegnano prima) e **D-098** (una sinergia intra-turno vale solo se l'ordine delle fasi la permette, e la compatibilita' si **chiede** alle regole invece di riscriverla nel bot). `spec: partial` e non `done`: la forma c'e', le **quote** no — `TopK`, budget di candidate e soglia di isteresi si fissano profilando codice che non esiste, e il sorgente stesso lo dice. ⚠️ Il caso **umano + bot nella stessa squadra** resta aperto e NON e' della v0.1, che e' 2v2 offline contro il bot. La forma della risposta e' pero' gia' vincolata da D-097."
     },
@@ -4770,7 +4770,7 @@
       "pie_refs": [],
       "last_verified": {
         "date": "2026-08-11",
-        "commit": "1f1dc24"
+        "commit": "eb3cc42"
       },
       "notes": "**D-099** decide la cosa che rischiava di costare di piu': la confidenza del bot **non e' un enum nuovo**. Il repository ha gia' `ERTAwareness` (`Hidden · Uncertain · Detected`), `ERTTargetKnowledge` (`Allowed · CellOnly · Rejected`) e `FRTLastKnownContact.TurnNumber`; le quattro categorie proposte dal sorgente (`Confirmed · Strong · Plausible · Weak`) sarebbero state il **quarto** vocabolario sullo stesso asse, con due risposte diverse alla domanda «sappiamo dov'e'?». La confidenza ordina **dentro** `Uncertain`, e non e' una percentuale. ⚠️ La **threat projection** e' oggi un gate di questa feature, non una feature propria. Diventa propria quando un **secondo** consumatore la legge — la UI, non il solo planner: finche' la legge solo il bot e' una struttura interna, e promuoverla creerebbe un ID che nessuno cita."
     },
@@ -4826,7 +4826,7 @@
       "pie_refs": [],
       "last_verified": {
         "date": "2026-08-11",
-        "commit": "1f1dc24"
+        "commit": "eb3cc42"
       },
       "notes": "Pochi scenari nemici coerenti, non minimax: `RobustScore = punteggio pesato sugli scenari − penalita' sul caso peggiore`. Personalita' e difficolta' cambiano la **tolleranza** al caso peggiore, mai le informazioni disponibili. ⚠️ Il caso da testare esplicitamente e' la differenza fra **dedurre** e **sapere**: il bot puo' tenere il fuoco perche' un bersaglio vale poco *e* una minaccia non e' localizzata; non puo' tenerlo perche' «lo striker passera' dopo». I due comportamenti sono indistinguibili dall'esterno, e solo un test che manipola lo stato nascosto li separa. La simulazione counterfactual non apre prima che il resolver logico sia estraibile: **D-078** ha gia' separato chi riproduce da chi verifica, ed e' lo stesso confine."
     },
@@ -4886,8 +4886,8 @@
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
-        "date": "2026-08-09",
-        "commit": "4c50c07"
+        "date": "2026-08-11",
+        "commit": "eb3cc42"
       },
       "notes": "43 test. Percorso reale `Intent → Planning → Snapshot → Resolver → TurnLog`, console `rt.Test.*`, auto-run via CVar, `result.json` autosufficiente, e uno scenario che **deve** fallire (`Movement.BasicFailsOnPurpose`) perché la diagnosi sia dimostrata. ⚠️ **D-101** (2026-08-11) fissa il seam che oggi non c'è: chi produce le decisioni entra da **due** punti ad hoc — gli intent scriptati di `FRTScenarioIntent` e `PlanBotsForTest()`, che `RTScenarioRunner.h` dichiara essere «l'unico appiglio, che esisteva gia' per i test d'integrazione». Regge per due casi; al terzo (bot vs bot, replay, umano+bot, batch) ne servirebbe un altro, ed e' cosi' che nasce un secondo harness **per accumulo**. La forma decisa e' un `DecisionProvider` che restituisce **decisioni, mai esiti**. Nessun gate si muove: e' un perimetro, non un'implementazione."
     },
