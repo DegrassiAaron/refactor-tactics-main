@@ -448,15 +448,22 @@ sessions:
       `ABP_Riktor`, `ABP_Wraith`. La collocazione e' `/Game/RT/Characters/<Pack>/Animation/` — non
       `Blueprints/`, che ospita i `BP_Unit_*`.
 
-      Ogni anim BP va costruito sullo **scheletro del proprio pack**, che non porta sempre il nome del
-      personaggio (verificato sul disco il 2026-08-11):
+      Ogni anim BP va costruito sullo scheletro **che la sua mesh referenzia** — letto dall'asset, non
+      dedotto dal nome del file (corretto il 2026-08-11, vedi sotto):
 
-      | Pack | Skeleton |
-      |---|---|
-      | `Paragon.Gadget` | `gadget_bot_Skeleton` |
-      | `Paragon.Phase` | `phase_Skeleton` |
-      | `Paragon.Riktor` | `belly_Riktor_Skeleton` |
-      | `Paragon.Wraith` | `Wraith_Skeleton` |
+      | Pack | Mesh assegnata in U7 | Skeleton da usare |
+      |---|---|---|
+      | `Paragon.Gadget` | `Gadget` | `Gadget_Skeleton` |
+      | `Paragon.Phase` | `Phase_GDC` | `phase_Skeleton` |
+      | `Paragon.Riktor` | `Riktor` | `Riktor_Skeleton` |
+      | `Paragon.Wraith` | `Wraith` | `Wraith_Skeleton` |
+
+      ⚠️ **Lo skeleton si LEGGE dalla mesh, non si cerca nella cartella.** Una prima stesura di questa
+      tabella dava `gadget_bot_Skeleton` e `belly_Riktor_Skeleton`, presi perche' erano il primo file
+      `*Skeleton*` di quella cartella: appartengono pero' a **mesh diverse e piu' piccole**
+      (`gadget_bot`, `belly_Riktor`), non a quelle che U7 assegna. Assegnarli avrebbe prodotto un anim
+      BP legato a uno scheletro incompatibile — un errore silenzioso, come quello del punto 6 di U7.
+      Il controllo, in editor: aprire la Skeletal Mesh e leggere il campo **Skeleton** nei Details.
 
       > ⚠️ **Riscritta due volte.** Il 2026-08-10 chiedeva `ABP_Gideon` e `ABP_Sparrow` in
       > `Blueprints/`: due anim BP intitolati a pack che non sono la base visuale di nessun eroe della

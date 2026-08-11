@@ -68,7 +68,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 - **U4** · Combat e linea di tiro — 0/3 voci verdi · sblocca U5, M6.4, M6.5
 - **U5** · Bot e HUD — 0/7 voci verdi · sblocca U6, U19, M6.6, M6.7
 - **U6** · Multilivello e partita completa — 0/4 voci verdi · sblocca U16, U19, M6.8
-- **U7** · Personaggi Paragon — 2/2 voci verdi · sblocca U8
+- **U7** · Personaggi Paragon — 1/2 voci verdi · sblocca U8
 - **U8** · Animazioni — 0/2 voci verdi · sblocca U9, U19
 - **U9** · Leggibilita' e riferimento visivo — 2/4 voci verdi · sblocca M8.1, M8.2, M8.3
 - **U15** · HUD, intenti, log e comandi debug — 1/5 voci verdi · sblocca E11
@@ -101,7 +101,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 | **U4** | Combat e linea di tiro | verdetto su forme d'attacco, LOS esagonale e knockback | M6.4, M6.5 | sì | 0/3 | ⏳ |
 | **U5** | Bot e HUD | verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale | M6.6, M6.7 | sì | 0/7 | 🟡 |
 | **U6** | Multilivello e partita completa | chiusura di M6 / E2 — sessione D verde | M6.8 | sì | 0/4 | 🟡 |
-| **U7** | Personaggi Paragon | i quattro Blueprint-unita' del roster v0.1, committati | — | sì | 2/2 | 🟡 |
+| **U7** | Personaggi Paragon | i quattro Blueprint-unita' del roster v0.1, committati | — | sì | 1/2 | 🟡 |
 | **U8** | Animazioni | gli anim BP dei quattro personaggi e i montaggi Cast/Hit/Death | — | sì | 0/2 | ⏳ |
 | **U9** | Leggibilita' e riferimento visivo | il video (o gli screenshot) di riferimento — DoD di milestone di M8 | — | sì | 2/4 | 🟡 |
 | **U10** | Data asset delle azioni | il catalogo azioni della v0.1 come dati, non come codice | E1.3, E1.4 | sì | — | — |
@@ -309,7 +309,7 @@ giorno. ⚠️ La partita completa va quindi **rigiocata col limite nuovo**: il 
 **Sbloccata da**: — · **Preparazione condivisa con**: U8, U9 · **Percorso critico**: sì
 **Produce**: i quattro Blueprint-unita' del roster v0.1, committati
 **Artefatti**: `Content/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget.uasset` ⏳ · `Content/RT/Characters/Phase/Blueprints/BP_Unit_Phase.uasset` ⏳ · `Content/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor.uasset` ⏳ · `Content/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith.uasset` ⏳
-**Verifichi**: `PIE-AS2` ✅ · `PIE-FACING` ✅
+**Verifichi**: `PIE-AS2` ⏳ · `PIE-FACING` ✅
 **Finita quando**: i quattro Blueprint sono tracciati da git e le due voci hanno esito reale sui BP nuovi
 **Sblocca**: U8
 
@@ -379,15 +379,22 @@ altri tre eroi.
 `ABP_Riktor`, `ABP_Wraith`. La collocazione e' `/Game/RT/Characters/<Pack>/Animation/` — non
 `Blueprints/`, che ospita i `BP_Unit_*`.
 
-Ogni anim BP va costruito sullo **scheletro del proprio pack**, che non porta sempre il nome del
-personaggio (verificato sul disco il 2026-08-11):
+Ogni anim BP va costruito sullo scheletro **che la sua mesh referenzia** — letto dall'asset, non
+dedotto dal nome del file (corretto il 2026-08-11, vedi sotto):
 
-| Pack | Skeleton |
-|---|---|
-| `Paragon.Gadget` | `gadget_bot_Skeleton` |
-| `Paragon.Phase` | `phase_Skeleton` |
-| `Paragon.Riktor` | `belly_Riktor_Skeleton` |
-| `Paragon.Wraith` | `Wraith_Skeleton` |
+| Pack | Mesh assegnata in U7 | Skeleton da usare |
+|---|---|---|
+| `Paragon.Gadget` | `Gadget` | `Gadget_Skeleton` |
+| `Paragon.Phase` | `Phase_GDC` | `phase_Skeleton` |
+| `Paragon.Riktor` | `Riktor` | `Riktor_Skeleton` |
+| `Paragon.Wraith` | `Wraith` | `Wraith_Skeleton` |
+
+⚠️ **Lo skeleton si LEGGE dalla mesh, non si cerca nella cartella.** Una prima stesura di questa
+tabella dava `gadget_bot_Skeleton` e `belly_Riktor_Skeleton`, presi perche' erano il primo file
+`*Skeleton*` di quella cartella: appartengono pero' a **mesh diverse e piu' piccole**
+(`gadget_bot`, `belly_Riktor`), non a quelle che U7 assegna. Assegnarli avrebbe prodotto un anim
+BP legato a uno scheletro incompatibile — un errore silenzioso, come quello del punto 6 di U7.
+Il controllo, in editor: aprire la Skeletal Mesh e leggere il campo **Skeleton** nei Details.
 
 > ⚠️ **Riscritta due volte.** Il 2026-08-10 chiedeva `ABP_Gideon` e `ABP_Sparrow` in
 > `Blueprints/`: due anim BP intitolati a pack che non sono la base visuale di nessun eroe della
