@@ -5,6 +5,17 @@
 // partita giocata due volte finisce diversamente, nessun altro test dice piu' niente, perche' il suo verde
 // potrebbe essere un caso.
 //
+// ATTENZIONE AL PRIMO NOME, che diverge dal catalogo di proposito (D-103, `#538`).
+// Il catalogo v0.1 (p.24 §15) lo chiama `RefactorTactics.Simulation.DeterministicReplay`, e nel suo
+// contesto non sbagliava: descrive «stesso snapshot, stesso seed, 100 ripetizioni, checksum identico»,
+// cioe' una RI-SIMULAZIONE, e usa «replay» nel senso comune di «rigioca». Ma ADR-0009 ha reso «replay»
+// una parola riservata del progetto — riproduzione di una traccia SENZA ricalcolo — e con quella
+// definizione il vecchio nome insegnava l'opposto di cio' che il file fa. Qui si ri-simula attraverso il
+// resolver: e' il VERIFIER, non il Player. Da qui `Replay.Verifier.ResimulationIsDeterministic`, accanto a
+// `Replay.Verifier.ReportsFirstDivergence` e in opposizione a `Replay.Player.RunsWithoutResolver`.
+// Gli altri test del file restano `Simulation.*`: i loro nomi non mentono e il rename si ferma dove
+// l'ADR lo chiedeva.
+//
 // Si appoggiano allo Scenario Harness invece di ricostruire una partita a mano: cosi' il determinismo e'
 // verificato sul percorso di gioco REALE (piani -> snapshot -> resolver -> stato), non su una simulazione
 // scritta apposta per passare.
@@ -76,10 +87,10 @@ namespace
  * un puntatore usato come chiave, un indice che dipende dall'ordine di spawn. Con due ripetizioni un difetto
  * del genere passa quasi sempre; con cento si vede.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSimulationDeterministicReplayTest,
-	"RefactorTactics.Simulation.DeterministicReplay",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayVerifierResimulationTest,
+	"RefactorTactics.Replay.Verifier.ResimulationIsDeterministic",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTSimulationDeterministicReplayTest::RunTest(const FString&)
+bool FRTReplayVerifierResimulationTest::RunTest(const FString&)
 {
 	FRTTestScenario Scenario;
 	if (!LoadDeterminismScenario(*this, TEXT("Movement.Collision"), Scenario)) { return false; }

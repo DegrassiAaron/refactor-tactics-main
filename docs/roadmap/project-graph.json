@@ -85,7 +85,7 @@
     },
     {
       "id": "G3",
-      "request": "I 10 test nominati dal catalogo esistono con quei nomi",
+      "request": "I 10 test nominati dal catalogo esistono — **nove con quei nomi, uno rinominato di proposito**",
       "state": "⏳"
     },
     {

@@ -100,9 +100,9 @@ costruzione).
 >
 > **Nel codice il bonus da altura non è mai stato applicato**: `URTCombatLibrary::EffectiveAttackPower(Base,
 > OccupantDamageBonus)` è un parametro **generico** e ogni call site runtime passa `0`. Il meccanismo resta —
-> serve ad altri effetti — ma non è «l'altura». Il test
-> `RefactorTactics.Combat.EffectiveAttackPowerWithTerrainBonus` insegna ancora il contrario nel nome: issue di
-> rinomina, non correzione al volo.
+> serve ad altri effetti — ma non è «l'altura». Il test si chiama
+> `RefactorTactics.Combat.EffectiveAttackPowerAddsDeclaredBonus` dal 2026-08-11 (`#538`): il nome precedente,
+> `…WithTerrainBonus`, insegnava una semantica che il codice non ha più.
 
 ---
 

@@ -92,11 +92,22 @@ nello snapshot corrente · *incerto* = una cella potrebbe essere occupata o modi
 | `RefactorTactics.Cover.DirectionalDamageReduction` | copertura direzionale | ⏳ E9 |
 | `RefactorTactics.Reactions.Intercept` | intercetto cambia bersaglio | ⏳ E5 |
 | `RefactorTactics.Reactions.SingleActivation` | una sola attivazione per turno | ⏳ E5 |
-| `RefactorTactics.Simulation.DeterministicReplay` | checksum identico | ✅ TurnLog hash + serializzazione con checksum |
+| `RefactorTactics.Simulation.DeterministicReplay` → **`RefactorTactics.Replay.Verifier.ResimulationIsDeterministic`** | checksum identico | ✅ TurnLog hash + serializzazione con checksum · ⚠️ **nome divergente dal catalogo**, vedi sotto |
 
 **Protocollo di determinismo** (CP 12.1, `#81`): ogni test esegue la stessa simulazione con **stesso snapshot,
 stesso seed, stesse definizioni, stesso ordine**, per almeno **100 ripetizioni**; il checksum finale deve essere
 identico.
+
+> ⚠️ **Una divergenza deliberata dal catalogo, dichiarata qui perché non si scopra dal `grep`.**
+> Il catalogo (`docs/src/prd/catalogo-e-bilanciamento-v0.1.pdf`, p.24 §15) nomina il decimo test
+> `RefactorTactics.Simulation.DeterministicReplay`, e il DoD di CP 12.1 (`#81`) lo chiamava «nome vincolante».
+> Dal 2026-08-11 il test si chiama **`RefactorTactics.Replay.Verifier.ResimulationIsDeterministic`**
+> ([D-103](../decisions/RT_PDR_00_Decision_Log.md), [#538](https://github.com/DegrassiAaron/refactor-tactics-main/issues/538)).
+> Il catalogo non sbagliava nel suo contesto — descrive «100 ripetizioni, checksum identico», cioè una
+> ri-simulazione, e usa «replay» nel senso comune di «rigioca» — ma [ADR-0009](../decisions/adr-0009-replay-logico-canonico.md)
+> ha reso «replay» una parola riservata: riproduzione di una traccia **senza ricalcolo**. Con quella
+> definizione il vecchio nome diceva l'opposto di ciò che il test fa. **La proprietà verificata non è
+> cambiata**: cambia il nome, non il protocollo.
 
 ## 5. Debug richiesto
 
