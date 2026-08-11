@@ -351,7 +351,10 @@ void ARTHexMapActor::RebuildInstances()
 	const float UseHexSize = MapAsset ? MapAsset->HexSize : HexSize;
 	const float UseLayerH = MapAsset ? MapAsset->LayerHeight : LayerHeight;
 
-	// Filtro layer (H4): in ActiveOnly mostra solo il layer attivo, cosi' i piani sovrapposti non si confondono.
+	// Filtro layer (H4): solo AllLayers impila i piani; ActiveOnly e Focus tengono le ISTANZE sul solo layer
+	// attivo. La differenza fra i due e' di sola presentazione — Focus disegna gli altri piani a contorno
+	// (`RTHexEditor::DrawSurfaceOverlay`) — e sta fuori di qui apposta: i piani di contesto non devono
+	// diventare istanze, o tornerebbero ad avere collisione e a intercettare il click del pennello.
 	auto PassesLayerFilter = [this](int32 Layer)
 	{
 		return LayerView == ERTLayerViewMode::AllLayers || Layer == ActiveLayer;

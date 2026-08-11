@@ -24,7 +24,30 @@ void URTHexSelectTool::Setup()
 {
 	USingleClickTool::Setup();
 	Properties = NewObject<URTHexSelectToolProperties>(this);
+
+	// Il pannello parte dal piano su cui l'actor e' gia' impostato: senza questo mostrerebbe 0 finche' non si
+	// clicca, e il primo cambio dal pannello riporterebbe la mappa al piano sbagliato.
+	if (const ARTHexMapActor* Actor = FindTargetMapActor())
+	{
+		Properties->ActiveLayer = Actor->ActiveLayer;
+	}
+
 	AddToolPropertySource(Properties);
+}
+
+void URTHexSelectTool::OnPropertyModified(UObject* PropertySet, FProperty* Property)
+{
+	if (!Properties || PropertySet != Properties || !Property) { return; }
+	if (Property->GetFName() != GET_MEMBER_NAME_CHECKED(URTHexSelectToolProperties, ActiveLayer)) { return; }
+
+	ARTHexMapActor* Actor = FindTargetMapActor();
+	if (!Actor)
+	{
+		Properties->ActiveLayer = 0;
+		UE_LOG(LogTemp, Warning, TEXT("[HexMode] Nessun ARTHexMapActor bersaglio: layer attivo non applicato."));
+		return;
+	}
+	RTHexEditor::SetActiveLayer(Actor, Properties->ActiveLayer);
 }
 
 ARTHexMapActor* URTHexSelectTool::FindTargetMapActor() const
