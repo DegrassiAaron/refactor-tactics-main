@@ -2538,13 +2538,14 @@ void ARTTurnManager::ResolveDash()
 	UE_LOG(LogRT, Log, TEXT("[RT] Fase Dash: %d scatti"), DasherCount);
 }
 
-void ARTTurnManager::RunReactionPass(const TArray<ARTUnit*>& Units, TArray<FRTUnitCombatState>& States,
-	const TArray<FRTHexAttackHit>& Hits, const TArray<FRTHexAttackIntent>& Intents,
+void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
+	TFunctionRef<FRTReactionTriggerHit(int32, ERTReactionTrigger)> Evaluate,
+	const TArray<ARTUnit*>& Units, TArray<FRTUnitCombatState>& States,
 	const URTHexMapAsset* Map, FRTReactionPassResult& Out)
 {
-	// Reazioni (CP 5.1): valutate sui colpi GIA' raccolti che il chiamante passa in `Hits` — nel Blast sono
-	// `Plan.Hits`, dopo il filtro di Interrupt — cioe' lo snapshot congelato della fase, non un evento a cui
-	// reagire mentre il turno gira (invariante #3).
+	// Reazioni (CP 5.1): valutate su cio' che la fase ha gia' raccolto o deciso — lo snapshot congelato, non
+	// un evento a cui reagire mentre il turno gira (invariante #3). Cosa sia quello snapshot dipende dal
+	// punto: i colpi di `Plan.Hits` dopo il filtro di Interrupt, o gli spostamenti decisi e non applicati.
 	// Un'unita' con piu' trigger validi nello stesso Blast si ferma comunque a UNA attivazione:
 	// `FindTriggeringAttacker` restituisce il primo colpo che soddisfa il trigger, non li conta.
 	// L'attivazione — o la non-attivazione, col motivo — finisce SEMPRE nel TurnLog, mai in silenzio.
@@ -2570,12 +2571,11 @@ void ARTTurnManager::RunReactionPass(const TArray<ARTUnit*>& Units, TArray<FRTUn
 			continue; // nessuna reazione pianificata: niente da registrare
 		}
 
-		// L'INTERPOSIZIONE l'ha gia' valutata — e registrata — il pass dedicato piu' sopra. Fino a `#505` a
-		// tenerla fuori di qui bastava l'azzeramento del piano che quel pass faceva; ora il piano deve
-		// sopravvivere alla fase (D-092: i punti di valutazione sono piu' d'uno), quindi l'esclusione va
-		// DETTA. Senza questa riga ogni interposizione prenderebbe una seconda voce di TurnLog nello stesso
-		// Blast.
-		if (Reaction->Def.ReactionTrigger == ERTReactionTrigger::AllyHitByDirectAttack)
+		// Questo trigger si valuta ALTROVE: non e' affare di questo punto, e passarci sopra in silenzio e'
+		// cio' che tiene una sola voce di TurnLog per reazione. Ci finisce anche l'interposizione, che ha il
+		// suo ciclo dedicato piu' sopra — fino a `#505` a tenerla fuori bastava l'azzeramento del piano che
+		// quel ciclo faceva, ma ora il piano deve sopravvivere alla fase (D-092) e l'esclusione va DETTA.
+		if (URTReactionLibrary::PassPointFor(Reaction->Def.ReactionTrigger) != Point)
 		{
 			continue;
 		}
@@ -2588,14 +2588,16 @@ void ARTTurnManager::RunReactionPass(const TArray<ARTUnit*>& Units, TArray<FRTUn
 		Entry.ActionId = Reaction->Def.ActionId; // identita': `Vektor.Deflection` non e' `Action.Deflect` (CP 5.5)
 		Entry.BaseActionId = Reaction->Def.BaseActionId; // vuoto finche' le reazioni non dichiarano un profilo
 
-		const int32 TriggeredBy = URTReactionLibrary::FindTriggeringAttacker(
-			Reaction->Def.ReactionTrigger, i, Hits, Intents);
+		// CHI sa se il trigger e' scattato e' il chiamante: cambia con il punto, e il pass non ha modo di
+		// saperlo senza conoscere i dati di ciascuna fase — cioe' senza tornare a essere quattro pass.
+		const FRTReactionTriggerHit Hit = Evaluate(i, Reaction->Def.ReactionTrigger);
+		const int32 TriggeredBy = Hit.TriggeredBy;
 
 		if (!Unit->CanUseAbility(ReactionIdx) || ReactionBlockedThisTurn.Contains(Unit))
 		{
 			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Unavailable);
 		}
-		else if (TriggeredBy != INDEX_NONE)
+		else if (Hit.bTriggered)
 		{
 			Unit->ConsumeAbility(ReactionIdx);
 			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Activated);
@@ -2651,6 +2653,13 @@ void ARTTurnManager::RunReactionPass(const TArray<ARTUnit*>& Units, TArray<FRTUn
 						FleeFrom.Add(Units[TriggeredBy]->Cell);
 						FleeDist.Add(Event.Amount);
 					}
+					break;
+
+				case ERTActionEffect::CancelDisplacement:
+					// Si RACCOGLIE soltanto, come tutto il resto: chi muove e' piu' sotto e consultera' questo
+					// insieme prima di spostare. Annullare QUI non avrebbe niente da annullare — la
+					// destinazione della spinta non e' ancora stata calcolata.
+					Out.CancelledDisplacements.Add(Event.TargetUnitId);
 					break;
 
 				default:
@@ -3359,7 +3368,15 @@ void ARTTurnManager::ResolveCombat()
 	// DUE, uno per fase; cosa raccoglie, e perche' le fughe si applicano al suo interno, sta scritto su
 	// `FRTReactionPassResult` e su `RunReactionPass`.
 	FRTReactionPassResult Reactions;
-	RunReactionPass(Units, States, Plan.Hits, Intents, Map, Reactions);
+	RunReactionPass(ERTReactionPassPoint::BlastHits,
+		[&Plan, &Intents](int32 SelfId, ERTReactionTrigger Trigger)
+		{
+			// Qui «scattato» e «chi l'ha innescato» coincidono: un colpo ha sempre un attaccante, ed e' la
+			// convenzione con cui `FindTriggeringAttacker` e' nato. Smettono di coincidere negli altri punti.
+			const int32 By = URTReactionLibrary::FindTriggeringAttacker(Trigger, SelfId, Plan.Hits, Intents);
+			return FRTReactionTriggerHit{ By != INDEX_NONE, By };
+		},
+		Units, States, Map, Reactions);
 
 	// Intenti fermati dalla copertura: l'attacco non avviene e il TurnLog ne registra il motivo.
 	for (const int32 BlockedIdx : Plan.BlockedIntents)
@@ -4059,6 +4076,33 @@ void ARTTurnManager::ResolveCombat()
 
 	ApplyPlannedHeals(HealTargets, HealAmounts, HealSources, HealActors);
 
+	// --- Ancoraggio (CP 7.5, `#505`): il punto di valutazione degli SPOSTAMENTI ----------------------
+	// Spinte e trazioni sono decise — raccolte in `KnockCount`/`PullCount` — e non ancora applicate. E' il
+	// solo momento in cui `Reaction.Anchor` puo' annullarle: dopo, annullare vorrebbe dire rimettere indietro
+	// un'unita' gia' mossa, con due voci di TurnLog che si contraddicono sullo stesso passo.
+	//
+	// UNA chiamata per spinta e trazione insieme, non due: un'unita' spinta **e** tirata nello stesso Blast
+	// deve reagire una volta sola, e «una attivazione per turno» e' una garanzia del pass — chiamandolo due
+	// volte la si perderebbe qui invece che nel catalogo.
+	//
+	// Risultato in una struct PROPRIA: `Reactions` e' gia' stata consumata piu' sopra (deflect nei delta del
+	// primo danno, contrattacchi negli attacchi), e riusarla farebbe ripartire `DeflectDelta` da zero.
+	// Di questo punto si consuma `CancelledDisplacements` e basta: un contrattacco dichiarato da una reazione
+	// allo spostamento arriverebbe a colpi gia' risolti, quindi il catalogo non lo prevede (`Reaction.Anchor`
+	// dichiara solo `CancelDisplacement`).
+	FRTReactionPassResult DisplacementReactions;
+	RunReactionPass(ERTReactionPassPoint::BlastDisplacement,
+		[&Units, &KnockCount, &PullCount](int32 SelfId, ERTReactionTrigger)
+		{
+			ARTUnit* Self = Units.IsValidIndex(SelfId) ? Units[SelfId] : nullptr;
+			const bool bAboutToMove = Self && (KnockCount.Contains(Self) || PullCount.Contains(Self));
+			// Nessun `TriggeredBy`: di uno spostamento si conosce la cella di provenienza
+			// (`KnockFrom`/`PullToward`), non un'unita' — e con due attaccanti non ce ne sarebbe una sola.
+			// Gli effetti difensivi non ne hanno bisogno, e `BuildReactionEvents` scarta gli offensivi.
+			return FRTReactionTriggerHit{ bAboutToMove, INDEX_NONE };
+		},
+		Units, States, Map, DisplacementReactions);
+
 	// --- Spinta (knockback): dopo il danno, sulle posizioni snapshot del Blast -----------------------
 	// Direzione ESAGONALE (una delle sei), non piu' cardinale: la spinta segue la linea attaccante->bersaglio
 	// e si ferma su bordo mappa, ostacolo o unita'. Spinte multiple sullo stesso bersaglio si annullano.
@@ -4088,6 +4132,22 @@ void ARTTurnManager::ResolveCombat()
 			}
 
 			if (!Pushes || *Pushes != 1 || !IsValid(T) || !T->IsAlive()) { continue; }
+
+			// `Reaction.Anchor` (CP 7.5, `#505`) annulla lo spostamento a QUALUNQUE distanza: «impedisce una
+			// spinta» e' un conteggio, non una soglia (D-094), e «una» la garantisce l'attivazione unica del
+			// pass.
+			//
+			// Sta PRIMA di `Guarded` e `Braced`, e non e' un dettaglio d'ordine: quando si arriva qui l'ancora
+			// e' gia' stata attivata e consumata dal pass, che gira prima di sapere se una difesa passiva
+			// avrebbe retto. Metterla dopo scriverebbe nel TurnLog «spinta retta: in guardia» per un turno in
+			// cui il giocatore ha speso la reazione — un log che nomina la difesa sbagliata. Una reazione
+			// dichiarata ha la precedenza su uno stato che non si consuma.
+			if (DisplacementReactions.CancelledDisplacements.Contains(Units.IndexOfByKey(T)))
+			{
+				AddLogEvent(FString::Printf(TEXT("%s: ancorato, la spinta non lo sposta"), *T->GetName()));
+				AppendDisplacementResistedEntry(T, ERTDisplacementBlockReason::Anchored, &PushCause);
+				continue;
+			}
 
 			// `Action.Guard` regge una spinta di UNA cella: chi si e' piantato non arretra di un passo, ma una
 			// spinta piu' forte lo sposta comunque (la guardia non e' un'ancora, catalogo v0.1 §1).
@@ -4182,6 +4242,17 @@ void ARTTurnManager::ResolveCombat()
 		{
 			const int32* Pulls = PullCount.Find(T);
 			if (!Pulls || *Pulls != 1 || !IsValid(T) || !T->IsAlive()) { continue; }
+
+			// `Reaction.Anchor` vale anche qui: il catalogo dice «ricevi `Push`/`Pull`», e l'ancora e' l'unica
+			// delle tre difese che la trazione incontra — `Guard` il testo lo riserva alla spinta, e la riga
+			// sopra lo dichiara. L'insieme e' lo stesso del ramo della spinta, riempito da UNA sola attivazione:
+			// chi e' spinto e tirato nello stesso Blast non paga due reazioni.
+			if (DisplacementReactions.CancelledDisplacements.Contains(Units.IndexOfByKey(T)))
+			{
+				AddLogEvent(FString::Printf(TEXT("%s: ancorato, la trazione non lo sposta"), *T->GetName()));
+				AppendDisplacementResistedEntry(T, ERTDisplacementBlockReason::Anchored, &PullCause);
+				continue;
+			}
 
 			const FRTCellId Dest = URTHexCombatLibrary::HexPullDestination(
 				PullToward[T], T->Cell, PullDist[T], Map, POccupied);

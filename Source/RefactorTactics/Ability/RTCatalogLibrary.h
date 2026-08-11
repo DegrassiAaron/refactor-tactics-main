@@ -97,15 +97,21 @@ public:
 	static TArray<URTEquipmentData*> MakeWeaponVariants();
 
 	/**
-	 * I moduli di reazione del catalogo §3 che l'infrastruttura E5 **sa gia' far scattare** (CP 7.3, `#62`).
+	 * I moduli di reazione del catalogo §3 che il motore **sa far scattare** (CP 7.3 `#62`, CP 7.5 `#505`).
 	 *
-	 * Sono **tre** dei sette, e i quattro assenti mancano per due ragioni diverse che vale la pena distinguere,
-	 * perche' portano a lavori diversi (entrambi in `#505`, CP 7.5):
+	 * Sono **cinque** dei sette. I due assenti mancano per la stessa ragione, che e' un punto di valutazione
+	 * ancora da aprire e non un dato da aggiungere (`#505`):
 	 *
-	 * - `HazardEscape`, `Cleanse`, `Anchor` — il **trigger** non esiste: nascono da un evento (`Push`, `Pull`,
-	 *   `Status`) e non da un colpo, mentre `EvaluateReactionTrigger` riceve `Hits` e `Intents`;
-	 * - `EmergencyDash` — il trigger c'e' (`HitByDirectAttack`), ma manca l'**effetto**: `Reposition 1` sposta
-	 *   chi reagisce, e nessun `ERTActionEffect` lo esprime (`Push`/`Pull` spostano il bersaglio).
+	 * - `HazardEscape` — il trigger nasce nel **Cleanup**, fra la creazione delle superfici e il danno di
+	 *   `Status.Burning`: e' l'unico istante in cui la cella e' gia' pericolosa e nessuno ha ancora pagato;
+	 * - `Cleanse` — il trigger nasce quando uno **stato di controllo** e' stato applicato, cioe' dopo la
+	 *   produzione degli eventi del Blast.
+	 *
+	 * I tre che c'erano gia' e i due arrivati dopo raccontano le due ragioni per cui un modulo resta fermo, e
+	 * la differenza porta a lavori diversi: a `EmergencyDash` mancava l'**effetto** (`SelfReposition`, D-093,
+	 * perche' `Push`/`Pull` spostano il bersaglio e nessun effetto muoveva la sorgente); ad `Anchor` mancava il
+	 * **momento** — `AboutToBeDisplaced` si valuta dove la spinta e' decisa e non ancora applicata, che e' il
+	 * punto `BlastDisplacement` di `URTReactionLibrary::PassPointFor`.
 	 *
 	 * Ogni modulo si costruisce su un'azione core che e' **gia' una reazione**, da cui eredita fase, priorita'
 	 * e trigger, e porta effetti propri via `GrantedEffects`. E' lo stesso vincolo che

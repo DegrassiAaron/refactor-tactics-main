@@ -320,4 +320,53 @@ bool FRTReactionNoResolverWaitTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// CP 7.5 (`#505`) — ogni trigger dichiara DOVE viene valutato.
+//
+// Il difetto che questo test esiste per impedire e' quello che ha tenuto fermi tre moduli del catalogo per
+// due checkpoint: un trigger presente nel dato che nessun punto del turno guarda. Non e' un errore di
+// compilazione, non rompe nessun altro test, e il test sul catalogo resta verde — semplicemente la reazione
+// non scatta mai in partita.
+// =====================================================================================================
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionTriggersHaveAPassPointTest,
+	"RefactorTactics.Reaction.EveryTriggerHasAPassPoint",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionTriggersHaveAPassPointTest::RunTest(const FString&)
+{
+	const UEnum* Enum = StaticEnum<ERTReactionTrigger>();
+	if (!TestNotNull(TEXT("l'enum dei trigger e' riflesso"), Enum)) { return false; }
+
+	int32 Valutati = 0;
+	for (int32 i = 0; i < Enum->NumEnums() - 1; ++i) // -1: l'ultima voce e' `_MAX`, sintetizzata da UHT
+	{
+		const ERTReactionTrigger Trigger = static_cast<ERTReactionTrigger>(Enum->GetValueByIndex(i));
+		const ERTReactionPassPoint Point = URTReactionLibrary::PassPointFor(Trigger);
+		if (Trigger == ERTReactionTrigger::None)
+		{
+			TestTrue(TEXT("`None` non e' valutato da nessuno: e' l'ASSENZA di un trigger"),
+				Point == ERTReactionPassPoint::Never);
+			continue;
+		}
+		TestTrue(FString::Printf(TEXT("%s dichiara dove viene valutato"), *Enum->GetNameStringByIndex(i)),
+			Point != ERTReactionPassPoint::Never);
+		++Valutati;
+	}
+
+	// Un numero CONCRETO, non «almeno uno»: un trigger nuovo che entrasse nell'enum senza passare da
+	// `PassPointFor` farebbe cadere questo conteggio, e chiederebbe di essere deciso invece di scivolare via.
+	TestEqual(TEXT("i trigger valutati in partita sono tre"), Valutati, 3);
+
+	// E il mapping esatto, che e' la parte che un refactor puo' spostare in silenzio.
+	TestTrue(TEXT("i colpi diretti si valutano sui colpi gia' raccolti"),
+		URTReactionLibrary::PassPointFor(ERTReactionTrigger::HitByDirectAttack)
+			== ERTReactionPassPoint::BlastHits);
+	TestTrue(TEXT("l'interposizione ha il suo ciclo, non il pass generale"),
+		URTReactionLibrary::PassPointFor(ERTReactionTrigger::AllyHitByDirectAttack)
+			== ERTReactionPassPoint::BlastIntercept);
+	TestTrue(TEXT("lo spostamento si valuta dov'e' deciso e non ancora applicato"),
+		URTReactionLibrary::PassPointFor(ERTReactionTrigger::AboutToBeDisplaced)
+			== ERTReactionPassPoint::BlastDisplacement);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -365,6 +365,17 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeReactionModules()
 		TEXT("nessun danno e nessuna protezione: sposta soltanto, e se non c'e' dove andare si spreca"),
 		{ FRTActionEffectSpec(ERTActionEffect::SelfReposition, 1) }));
 
+	// `Reaction.Anchor` — annulla lo spostamento che stai per subire. E' l'unico dei cinque costruito su
+	// `Action.Anchor`, perche' e' l'unica azione core con `AboutToBeDisplaced`: sopra `Action.Counter`
+	// erediterebbe il trigger dei colpi e reagirebbe alla cosa sbagliata.
+	//
+	// Da non confondere con `Gadget.Anchor` del catalogo §2, che porta lo stesso nome e fa un'altra cosa (una
+	// resistenza permanente, non una reazione che si consuma) e resta non costruito.
+	Modules.Add(Module(TEXT("Reaction.Anchor"), TEXT("Ancoraggio"), TEXT("Action.Anchor"),
+		TEXT("la prima spinta o trazione del turno non ti sposta, a qualunque distanza"),
+		TEXT("si consuma anche quando una guardia sarebbe bastata, e occupa l'unico slot reazione"),
+		{ FRTActionEffectSpec(ERTActionEffect::CancelDisplacement, 1) }));
+
 	return Modules;
 }
 
@@ -893,6 +904,30 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 			ERTActionSlot::Reaction);
 		Intercept.ReactionTrigger = ERTReactionTrigger::AllyHitByDirectAttack;
 		Catalog.Add(Intercept);
+	}
+
+	// `Anchor` (CP 7.5, `#505`) — chi la dichiara NON viene spostato dalla spinta o dalla trazione di questo
+	// Blast. E' la reazione core dello spostamento, e la quarta del catalogo.
+	//
+	// Esiste come azione core, e non solo come modulo di equipaggiamento, perche' e' dall'azione core che un
+	// modulo eredita cio' che lo rende una reazione: fase, priorita' e soprattutto il TRIGGER. Costruito su
+	// `Action.Counter`, `Reaction.Anchor` erediterebbe `HitByDirectAttack` e si attiverebbe sui colpi — un
+	// altro mestiere, e per giunta silenziosamente sbagliato.
+	//
+	// Priorita' **5**, sotto Intercept (10), Deflect (15) e Counter (20). Non contende niente a nessuno: non
+	// produce colpi, non riduce danno e risolve in un punto del turno tutto suo, dove le altre non arrivano.
+	// Un numero pero' va scelto, e il piu' basso e' quello che dichiara «questa non precede nessuno» invece di
+	// suggerire una precedenza che nessun caso puo' osservare.
+	//
+	// `Amount` 1 e non 0: l'annullamento non ha un «quanto», ma `ProduceEvents` scarta gli effetti a entita'
+	// non positiva, e dichiararlo 0 lo renderebbe un effetto che non esiste.
+	{
+		FRTActionDef Anchor = ShippedAction(TEXT("Action.Anchor"), ERTResolutionPhase::Control, /*Priority*/ 5,
+			/*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel,
+			{ FRTActionEffectSpec(ERTActionEffect::CancelDisplacement, 1) }, /*bInterruptible*/ true,
+			ERTActionSlot::Reaction);
+		Anchor.ReactionTrigger = ERTReactionTrigger::AboutToBeDisplaced;
+		Catalog.Add(Anchor);
 	}
 
 	// `Brace` — azione PRINCIPALE di Prep. Dichiara DUE stati: `Braced` (-10 a ogni danno diretto e blocca la

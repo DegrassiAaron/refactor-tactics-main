@@ -13,6 +13,7 @@
 #include "Map/RTHexCellData.h" // ERTHexSurface: il terreno dinamico ricorda la superficie originale (CP 8.4)
 #include "Combat/RTCombatResolver.h" // FRTAttack, FRTUnitCombatState: il pass reazioni raccoglie i primi e aggiorna i secondi
 #include "Combat/RTHexCombatLibrary.h" // FRTHexAttackHit/FRTHexAttackIntent: cio' su cui il pass reazioni valuta i trigger
+#include "Turn/RTReactionLibrary.h" // ERTReactionPassPoint/FRTReactionTriggerHit: la firma del pass reazioni li usa
 #include "RTTurnManager.generated.h"
 
 class ARTUnit;
@@ -80,6 +81,15 @@ struct FRTReactionPassResult
 	TArray<int32> CounterPriority;
 	/** E CHI contrattacca: una cella non identifica un'unita' ([D-063]). */
 	TArray<ARTUnit*> CounterAttackActors;
+
+	/**
+	 * Chi ha ANNULLATO lo spostamento che stava per subire (`Reaction.Anchor`, `CancelDisplacement`): indici
+	 * in `Units`, che i rami di spinta e trazione consultano prima di muovere.
+	 *
+	 * Un `TSet` perche' l'uso e' solo `Contains`: non ci si itera sopra, quindi l'ordine non deterministico di
+	 * `TSet` non puo' entrare nell'esito (invariante #3).
+	 */
+	TSet<int32> CancelledDisplacements;
 };
 
 USTRUCT()
@@ -389,16 +399,23 @@ protected:
 	 * gia' raccolti, ne registra l'esito nel TurnLog — sempre, anche la non-attivazione — e traduce gli effetti
 	 * della reazione attivata in cio' che il chiamante applichera' insieme al resto della fase.
 	 *
-	 * **Una funzione e non un blocco dentro `ResolveCombat` perche' con `D-092` i pass diventano due**: uno nel
-	 * Blast e uno nel Cleanup, dove nascono i trigger che non vengono da un colpo. Il secondo chiamante non
-	 * esiste ancora: questa estrazione e' il passo che lo rende possibile, e non cambia il comportamento del
-	 * primo (nessun test e' stato toccato per farla passare).
+	 * **Una funzione e non un blocco dentro `ResolveCombat` perche' con `D-092` i punti di valutazione sono
+	 * piu' d'uno**: i trigger che non nascono da un colpo si valutano dove il loro evento e' deciso.
+	 *
+	 * `Point` dice QUALE punto sta girando: il pass guarda solo le unita' il cui trigger appartiene a questo
+	 * punto (`URTReactionLibrary::PassPointFor`) e ignora le altre — senza il filtro, la stessa reazione
+	 * prenderebbe una voce `NotTriggered` in ogni punto del turno invece che nel suo.
+	 *
+	 * `Evaluate` decide **se** il trigger scatta e **chi** l'ha innescato: e' il chiamante a saperlo, perche'
+	 * cambia con il punto (i colpi raccolti, gli spostamenti decisi, la cella sotto i piedi). Il pass non
+	 * conosce nessuna di queste cose, e cosi' resta uno solo.
 	 *
 	 * Le fughe di chi reagisce (`SelfReposition`) si applicano DENTRO, alla fine: e' il punto di `D-094` — tutte
 	 * le reazioni valutate sullo snapshot congelato, poi si muove. Vedi `FRTReactionPassResult` per cosa esce.
 	 */
-	void RunReactionPass(const TArray<ARTUnit*>& Units, TArray<FRTUnitCombatState>& States,
-		const TArray<FRTHexAttackHit>& Hits, const TArray<FRTHexAttackIntent>& Intents,
+	void RunReactionPass(ERTReactionPassPoint Point,
+		TFunctionRef<FRTReactionTriggerHit(int32 /*SelfId*/, ERTReactionTrigger)> Evaluate,
+		const TArray<ARTUnit*>& Units, TArray<FRTUnitCombatState>& States,
 		const URTHexMapAsset* Map, FRTReactionPassResult& Out);
 
 	/**

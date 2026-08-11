@@ -95,7 +95,28 @@ enum class ERTActionEffect : uint8
 	 * `URTHexCombatLibrary::HexKnockbackDestination` gia' calcola per le spinte — quindi si ferma davanti
 	 * agli stessi ostacoli, e non serve una seconda geometria dello spostamento.
 	 */
-	SelfReposition
+	SelfReposition,
+
+	/**
+	 * ANNULLA lo spostamento forzato che sta per colpire chi reagisce (`Reaction.Anchor`, CP 7.5 `#505`).
+	 *
+	 * «Annulla» e non «riduce»: il catalogo equipaggiamento §3 dice «impedisce **una** spinta», che e' un
+	 * conteggio e non una soglia (D-094). E' la differenza con i due meccanismi vicini, che restano distinti:
+	 * `Status.Guarded` regge una spinta fino a `GuardResistedPushDistance` e cede sopra, `Status.Braced` regge
+	 * qualunque distanza ma non e' una reazione — nessuno dei due si consuma come attivazione.
+	 *
+	 * «Una» non ha bisogno di un contatore proprio: la garantisce il pass, che attiva al piu' una reazione per
+	 * unita' e per turno. Un secondo conteggio direbbe la stessa cosa in un secondo posto, e i due potrebbero
+	 * divergere.
+	 *
+	 * `Amount` e' ignorato: non c'e' un «quanto» in un annullamento. Chi lo consuma sono i rami di spinta e di
+	 * trazione di `ARTTurnManager::ResolveCombat`, che lo leggono come un quinto `ERTDisplacementBlockReason`
+	 * accanto a `Guarded`/`Braced`/`NoDestination`/`OpposingForces` — cosi' il replay dice QUALE difesa ha
+	 * retto, invece del solo «non si e' mosso».
+	 *
+	 * ⚠️ In coda all'enum, mai in mezzo: vale la stessa ragione di `SelfReposition` qui sopra.
+	 */
+	CancelDisplacement
 };
 
 /**

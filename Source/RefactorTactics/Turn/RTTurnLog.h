@@ -282,7 +282,16 @@ enum class ERTDisplacementBlockReason : uint8
 	 * ciclo del knockback, dove `bContested` faceva `continue` senza scrivere ne' una riga di combat log ne'
 	 * una voce. Era il piu' muto dei sei.
 	 */
-	ContestedDestination
+	ContestedDestination,
+	/**
+	 * `Reaction.Anchor` ha annullato lo spostamento (CP 7.5, `#505`): una reazione ATTIVATA, quindi consumata
+	 * per il turno — a differenza di `Guarded` e `Braced`, che sono stati e non spendono un'attivazione.
+	 *
+	 * Vale per la spinta e per la trazione, e regge a qualunque distanza: «impedisce **una** spinta» e' un
+	 * conteggio, non una soglia (D-094). Sta in coda all'enum perche' i valori finiscono nel TurnLog
+	 * serializzato.
+	 */
+	Anchored
 };
 
 /** Esito di un attacco nel turno. Priorita': Lethal > ShieldAbsorbed > TerrainBonus > Hit. */

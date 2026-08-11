@@ -14,6 +14,8 @@
 #include "Unit/RTUnit.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Ability/RTEquipmentData.h" // `Reaction.Anchor` arriva dal catalogo equipaggiamento (CP 7.5, #505)
+#include "Turn/RTReactionLibrary.h"  // ERTReactionOutcome: la voce dell'ancora dev'essere `Activated`
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -843,6 +845,110 @@ bool FRTPushedUnitFacesPusherInPlayTest::RunTest(const FString&)
 
 	// Chi spinge non si gira: la regola vale per chi SUBISCE lo spostamento.
 	TestEqual(TEXT("chi spinge resta dov'era"), Pusher->Cell, FRTCellId(0, 0));
+
+	DestroyCauseWorld(World);
+	return true;
+}
+
+// =====================================================================================================
+// CP 7.5 (`#505`) — `Reaction.Anchor` ANNULLA lo spostamento.
+//
+// E' il test che il DoD di `#62` nominava e che non era scrivibile: non mancava un dato, mancava il MOMENTO
+// in cui valutarlo. «Sto per essere spinto» non si legge sui colpi raccolti — si sa solo dove la spinta e'
+// gia' decisa e non ancora applicata, che e' il punto `BlastDisplacement` di `URTReactionLibrary::PassPointFor`.
+//
+// Sta in questo file e non fra gli `Equipment.*` perche' qui vive la famiglia a cui appartiene: le CAUSE per
+// cui uno spostamento non avviene, con l'allestimento della spinta (`PlanPushOn`) e la lettura delle voci
+// (`ResistedEntries`) gia' pronti. Duplicarli altrove avrebbe dato due allestimenti da tenere d'accordo.
+// =====================================================================================================
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnchorCancelsPushTest,
+	"RefactorTactics.Equipment.Anchor.CancelsPush",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnchorCancelsPushTest::RunTest(const FString&)
+{
+	const URTEquipmentData* Anchor = nullptr;
+	for (const URTEquipmentData* M : URTCatalogLibrary::MakeReactionModules())
+	{
+		if (M && M->EquipmentId == FName(TEXT("Reaction.Anchor"))) { Anchor = M; break; }
+	}
+	if (!TestNotNull(TEXT("`Reaction.Anchor` e' nel catalogo dei moduli"), Anchor)) { return false; }
+
+	// --- PREMESSA: la stessa spinta, SENZA il modulo, sposta davvero ---------------------------------
+	// Senza questo gemello il test passerebbe anche se la spinta non fosse mai avvenuta — «l'unita' e' ferma»
+	// e' l'esito atteso e anche quello di una scena che non fa niente.
+	{
+		UWorld* World = MakeCauseWorld();
+		if (!TestNotNull(TEXT("World della premessa"), World)) { return false; }
+		SpawnCauseMap(World);
+
+		ARTUnit* Pusher = SpawnCauseUnit(World, 0, FRTCellId(0, 0));
+		ARTUnit* Victim = SpawnCauseUnit(World, 1, FRTCellId(1, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+		if (!Pusher || !Victim || !TM) { DestroyCauseWorld(World); return false; }
+
+		PlanPushOn(Pusher, Victim);
+		RunCauseTurn(TM);
+
+		const bool bMossa = (Victim->Cell != FRTCellId(1, 0));
+		DestroyCauseWorld(World);
+		if (!TestTrue(TEXT("premessa: senza ancora la spinta sposta il bersaglio"), bMossa))
+		{
+			return false; // senza una spinta che funziona, il caso sotto non proverebbe niente
+		}
+	}
+
+	// --- IL CASO: con il modulo, la stessa spinta non lo sposta --------------------------------------
+	UWorld* World = MakeCauseWorld();
+	if (!TestNotNull(TEXT("World"), World)) { return false; }
+	SpawnCauseMap(World);
+
+	ARTUnit* Pusher = SpawnCauseUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Victim = SpawnCauseUnit(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	if (!Pusher || !Victim || !TM) { DestroyCauseWorld(World); return false; }
+
+	URTActionData* Reazione = URTCatalogLibrary::MakeEquipmentAction(Anchor, Victim);
+	if (!TestNotNull(TEXT("il modulo concede un'azione"), Reazione)) { DestroyCauseWorld(World); return false; }
+	TestTrue(TEXT("ed e' una reazione con il trigger dello spostamento, ereditato da `Action.Anchor`"),
+		Reazione->Def.Slot == ERTActionSlot::Reaction
+		&& Reazione->Def.ReactionTrigger == ERTReactionTrigger::AboutToBeDisplaced);
+	Victim->Abilities.Add(Reazione);
+	Victim->PlannedReactionAbility = Victim->Abilities.Num() - 1;
+
+	PlanPushOn(Pusher, Victim);
+	RunCauseTurn(TM);
+
+	// La prova che conta: la cella. Non un flag, non una voce di log — dove sta l'unita' a fine turno.
+	TestEqual(TEXT("l'ancora ha annullato la spinta: il bersaglio e' rimasto dov'era"),
+		Victim->Cell, FRTCellId(1, 0));
+
+	const TArray<FRTTurnLogEntry> Resisted = ResistedEntries(TM);
+	if (!TestEqual(TEXT("lo spostamento annullato lascia UNA voce nel TurnLog"), Resisted.Num(), 1))
+	{
+		DestroyCauseWorld(World);
+		return false;
+	}
+	// E dice QUALE difesa ha retto: senza il reason code proprio, un replay non distinguerebbe l'ancora da una
+	// guardia o da un bordo mappa — tre modi molto diversi di non essersi mossi.
+	TestEqual(TEXT("e dice PERCHE': ancorato, non in guardia ne' senza uscita"),
+		static_cast<ERTDisplacementBlockReason>(Resisted[0].Amount),
+		ERTDisplacementBlockReason::Anchored);
+	TestTrue(FString::Printf(TEXT("la riga leggibile lo dice: %s"),
+		*URTTurnLogLibrary::DescribeEntry(Resisted[0])),
+		URTTurnLogLibrary::DescribeEntry(Resisted[0]).Contains(TEXT("ancorato")));
+
+	// La reazione si e' ATTIVATA, e la sua voce lo dichiara: senza, l'unita' potrebbe essere rimasta ferma per
+	// un motivo qualunque e l'ancora essere ancora carica.
+	bool bAttivata = false;
+	for (const FRTTurnLogEntry& E : EntriesOfCategory(TM, ERTLogCategory::Reaction))
+	{
+		if (E.ActionId == FName(TEXT("Reaction.Anchor"))
+			&& static_cast<ERTReactionOutcome>(E.Outcome) == ERTReactionOutcome::Activated)
+		{
+			bAttivata = true;
+		}
+	}
+	TestTrue(TEXT("il TurnLog registra l'ancora come ATTIVATA, non come non scattata"), bAttivata);
 
 	DestroyCauseWorld(World);
 	return true;
