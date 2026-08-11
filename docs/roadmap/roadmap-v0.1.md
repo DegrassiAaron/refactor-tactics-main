@@ -261,7 +261,8 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-PROD-PACKAGED` — Verifica su build packaged | IMPLEMENTING | 2/6 |
 |  | `RT-FEAT-PROD-PERFORMANCE` — Budget di performance misurati | IMPLEMENTING | 3/6 |
 |  | `RT-FEAT-REPLAY-ARCHIVE` — Replay Archive — recorder, Player e indice delle partite | INTEGRATED | 4/6 |
-| **E13** | `RT-FEAT-PERCEPTION-MEMORY` — Memoria del contatto e ultima posizione nota | TESTABLE | 4/9 |
+| **E13** | `RT-FEAT-BOT-FAIRNESS` — Il bot pianifica sulla conoscenza della sua squadra | SPECIFIED | 1/7 |
+|  | `RT-FEAT-PERCEPTION-MEMORY` — Memoria del contatto e ultima posizione nota | TESTABLE | 4/9 |
 |  | `RT-FEAT-PERCEPTION-NOISE` — Rumore e percezione acustica | SPECIFIED | 3/9 |
 |  | `RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE` — TeamKnowledge e informazione parziale | TESTABLE | 5/9 |
 |  | `RT-FEAT-PERCEPTION-VISION` — Vista, facing e livelli di consapevolezza | IMPLEMENTING | 3/9 |

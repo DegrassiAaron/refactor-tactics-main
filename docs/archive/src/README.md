@@ -2,7 +2,7 @@
 
 > `HISTORICAL` · **Materiale NON autorevole** · **Primo lotto archiviato il 2026-08-08**
 >
-> I **40** documenti in questa cartella sono i **sorgenti** da cui è nata parte della documentazione normativa.
+> I **48** documenti in questa cartella sono i **sorgenti** da cui è nata parte della documentazione normativa.
 > Il primo lotto era in [`../../src/`](../../src/); ogni sorgente si sposta qui quando un owner documentale lo
 > ha recepito. Restano per **provenienza**: servono a ricostruire *da dove* è nata una decisione, non a deciderla.
 >
@@ -19,10 +19,24 @@
 > `RT_Common_Actions_Master_Consolidation_v0.1.md`, **non è qui** perché non è ancora recepito, e il
 > quattordicesimo era il duplicato di un kit già archiviato.
 >
+> ➕ **Dal 2026-08-11 c'è anche l'handoff Bot/AI** `2026-08-11-bot-ai-team-planner-belief-e-tracking.md`, con
+> l'esito della revisione in testa: quattro delle sue premesse di stato erano false al momento in cui è stato
+> scritto. Referto: [`../../roadmap/plans/bot-ai-consolidamento-2026-08-11.md`](../../roadmap/plans/bot-ai-consolidamento-2026-08-11.md).
+>
 > ⚠️ **Il conteggio era già sbagliato prima del 2026-08-09**: l'intestazione diceva «25» mentre le sue stesse
 > tabelle elencavano **26** righe. Il numero qui sopra è **misurato**
-> (`ls docs/archive/src/{design,handoff,audit}/*.md | wc -l` → 15 + 28 + 2), non incrementato a mano — che è
+> (`ls docs/archive/src/{design,handoff,audit}/*.md | wc -l` → 15 + 31 + 2), non incrementato a mano — che è
 > il modo in cui era andato fuori sincrono.
+>
+> ⚠️ **Ed era andato fuori sincrono di nuovo, esattamente come la nota qui sopra descrive.** Il 2026-08-11
+> l'intestazione diceva «40» e la formula «15 + 28 + 2» (cioè 45), mentre i file erano **46**: due numeri
+> sbagliati in due modi diversi, nello stesso paragrafo che spiega perché non si contano a mano.
+>
+> ⚠️ **E il consolidamento che li correggeva ha sbagliato a sua volta, nello stesso paragrafo.** Archiviando
+> il secondo handoff ha scritto «49 · 15 + 32 + 2» invece di **48 · 15 + 31 + 2**: il numero è stato
+> *incrementato* invece che *misurato*, che è la cosa precisa contro cui questo riquadro mette in guardia.
+> Preso in code review. La lezione non regge da sola — la formula c'era, e nessuno l'ha eseguita — quindi
+> vale la riga operativa: **esegui il comando, non aggiungere uno.** Rimisurato il 2026-08-11.
 
 **Se cerchi la regola, non sei nel posto giusto**: la colonna «Recepito da» dice chi la possiede oggi.
 In caso di conflitto prevalgono [`../../product/piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md),
@@ -88,6 +102,8 @@ dove è finita quella parte che è sopravvissuta al filtro.
 | [`2026-08-08-chat-cleanup-tracker.md`](handoff/2026-08-08-chat-cleanup-tracker.md) | *Meta* — tracker del progetto ChatGPT | ⛔ nessun owner: **sette dei nove «conflitti aperti» che elenca erano già chiusi**. Citato dal triage §4 |
 | [`2026-08-08-chat-cleanup-tracker-prima-versione.md`](handoff/2026-08-08-chat-cleanup-tracker-prima-versione.md) | *Meta* — la stessa cosa, una versione prima | ⛔ da ignorare: la seconda copia è più recente. Le due erano indistinguibili per nome |
 | [`2026-08-08-final-chat-cleanup-plan.md`](handoff/2026-08-08-final-chat-cleanup-plan.md) | *Meta* — piano di chiusura delle conversazioni | ⛔ riguarda il progetto ChatGPT, non il repository |
+| [`2026-08-11-bot-ai-team-planner-belief-e-tracking.md`](handoff/2026-08-11-bot-ai-team-planner-belief-e-tracking.md) | Bot/AI: team planner, belief, tracking | [`spec-bot-tattico.md`](../../gameplay/spec-bot-tattico.md) · `D-095`…`D-099` · [referto](../../roadmap/plans/bot-ai-consolidamento-2026-08-11.md). ⚠️ **Quattro premesse di stato false**: nove feature `RT-FEAT-BOT-*` che non esistono, sei Epic «da creare» che esistevano già |
+| [`2026-08-11-battle-simulation-harness-unificato-e-release-bot.md`](handoff/2026-08-11-battle-simulation-harness-unificato-e-release-bot.md) | Battle Simulation, harness unificato, release del bot | [`test-e-diagnosi.md`](../../technical/test-e-diagnosi.md) §3-bis/3-ter · `D-101`, `D-102` · [referto](../../roadmap/plans/bot-ai-consolidamento-2026-08-11.md) §9. ✅ **Il meglio calibrato dei due**: nomina i Feature ID e le Epic reali, e dice da sé di aggiornarli invece di moltiplicarli |
 
 > ⬜ **Manca il tredicesimo.** `RT_Common_Actions_Master_Consolidation_v0.1.md` è ancora in
 > `docs/archive/consolidazione-chat-openai/`, **untracked e non recepito**: la decisione che lo bloccava è
