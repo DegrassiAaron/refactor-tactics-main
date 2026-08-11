@@ -188,7 +188,7 @@ La premessa del bot cambia **tre volte**. Questa spec è scritta sapendo quali s
 
 ## 8. Evidenza — i test che esistono oggi
 
-**28 test**, in due file — 18 + 10, misurati sul branch (`grep -c 'RefactorTactics.HexBot\.'` e `…HexBotPlay\.`), non contati a memoria. Sono l'unica prova di
+**29 test**, in due file — 18 + 11, misurati sul branch (`grep -c 'RefactorTactics.HexBot\.'` e `…HexBotPlay\.`), non contati a memoria. Sono l'unica prova di
 ciò che questa spec afferma.
 
 > ⚠️ *Rettifica del 2026-08-10 (review post-merge)*: la prima stesura diceva «26 test … 18 + 8». I nomi
@@ -233,6 +233,7 @@ ciò che questa spec afferma.
 | `HiddenEnemyFairness` | **il canary**: due partite identiche in ciò che la squadra sa e diverse in ciò che non sa producono lo **stesso** piano |
 | `PlansOnPartialKnowledge` | il bot non bersaglia un ignoto **nemmeno se è a portata e quasi morto** |
 | `SeeksContactWithoutKnowledge` | senza nessun contatto il bot **cerca** invece di fermarsi |
+| `ActsOnLastKnownCell` | dopo **due** osservazioni il bot agisce sul **ricordo**, non sulla posizione vera — e' il solo test che raggiunge `CellOnly` |
 
 > **Da dove viene lo standoff.** Il kiting è un comportamento del **bot**, non una caratteristica
 > dell'eroe: un'unità che muove il giocatore non lo consulta mai. Per questo lo standoff non è un campo

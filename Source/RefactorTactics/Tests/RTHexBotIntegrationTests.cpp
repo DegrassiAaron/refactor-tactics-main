@@ -738,9 +738,14 @@ bool FRTHexBotSeeksContactTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBotMap(World, /*Radius=*/ 6);
 
-	// Il bot sta sul BORDO, il nemico sul bordo opposto: nessuno dei due vede l'altro.
-	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(6, -3), /*bBot*/ true);
-	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(-6, 3), /*bBot*/ false);
+	// ⚠️ **La geometria e' scelta perche' il test possa DISCRIMINARE, ed e' una correzione di code review.**
+	// La prima stesura metteva bot e nemico agli ANTIPODI attraverso il centro: la' «vai verso il centro» e
+	// «vai verso il nemico» sono la stessa direzione, quindi il test restava verde anche rimettendo
+	// l'onniscienza — misurava un movimento, non la condotta di ricerca. Verificato per mutazione.
+	// Qui il nemico sta su un lato e il centro dall'altro rispetto al bot: le due direzioni DIVERGONO, e
+	// avvicinarsi al centro e' incompatibile con l'avvicinarsi al nemico.
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(4, -2), /*bBot*/ true);
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(6, 0), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
 
@@ -751,9 +756,95 @@ bool FRTHexBotSeeksContactTest::RunTest(const FString&)
 
 	TM->PlanBotsForTest();
 
+	const int32 ToFoeBefore = URTHexLibrary::HexDistance(Bot->Cell, Foe->Cell);
+
 	TestTrue(TEXT("senza contatti il bot si muove invece di restare fermo"), !(Bot->PlannedCell == Bot->Cell));
 	TestTrue(TEXT("e si avvicina al centro della mappa"),
 		URTHexLibrary::HexDistance(Bot->PlannedCell, FRTCellId(0, 0)) < Before);
+	// Il discriminante: un bot che vedesse il nemico si avvicinerebbe a LUI, non al centro.
+	TestTrue(TEXT("e NON si avvicina al nemico che non conosce"),
+		URTHexLibrary::HexDistance(Bot->PlannedCell, Foe->Cell) >= ToFoeBefore);
+
+	DestroyHexBotWorld(World);
+	return true;
+}
+
+
+/**
+ * IL RICORDO: il bot agisce sulla cella dell'ULTIMO CONTATTO, non su quella vera.
+ *
+ * ⚠️ **Questo test copre il ramo che gli altri tre non potevano raggiungere, ed e' il piu' delicato della
+ * feature.** `ERTTargetKnowledge::CellOnly` esiste solo dopo DUE osservazioni — vista in una, persa nella
+ * successiva — mentre gli altri test pianificano una volta sola e quindi vedono soltanto `Allowed` o
+ * `Rejected`. Trovato in code review: senza di lui si poteva cancellare l'intero `case CellOnly:` da
+ * `PlanBots` e la suite restava verde.
+ *
+ * L'allestimento e' costruito perche' **solo la memoria** possa spiegare l'esito:
+ *
+ * ```
+ *   turno 1   Foe a (3,0)   distanza 3 <= vista 3      -> visto, contatto registrato
+ *   poi       Foe a (-6,3)  distanza 6  > vista 3      -> perso di vista
+ *   turno 2   il ricordo dice ancora (3,0), che e' dentro la portata d'attacco (4)
+ *             la posizione VERA e' a distanza 6, cioe' FUORI portata
+ * ```
+ *
+ * Quindi: se il bot pianifica un attacco, lo ha pianificato **sulla memoria**. Un bot che leggesse la
+ * posizione vera non attaccherebbe (fuori portata); un bot a cui si togliesse il ramo `CellOnly` non
+ * avrebbe nemmeno il bersaglio in `Ctx.Enemies`. Il test cade in entrambi i casi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotRemembersLastKnownTest,
+	"RefactorTactics.HexBotPlay.ActsOnLastKnownCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotRemembersLastKnownTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBotWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBotMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(3, 0), /*bBot*/ false);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
+
+	Bot->VisionRange = 3;
+	const FRTCellId Remembered(3, 0);
+	const FRTCellId Truth(-6, 3);
+
+	if (!TestTrue(TEXT("premessa: al primo sguardo il nemico e' visibile"),
+		URTHexLibrary::HexDistance(Bot->Cell, Remembered) <= Bot->VisionRange)
+		|| !TestTrue(TEXT("premessa: il ricordo sara' DENTRO la portata d'attacco"),
+			URTHexLibrary::HexDistance(Bot->Cell, Remembered) <= Bot->AttackRange))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+
+	// PRIMA osservazione: il contatto entra nella conoscenza di squadra.
+	TM->PlanBotsForTest();
+
+	// Il nemico se ne va dove nessuno lo vede. Il ricordo resta.
+	Foe->PlaceOnCell(Truth, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+	Foe->PlannedCell = Truth;
+
+	if (!TestTrue(TEXT("premessa: ora e' fuori vista"),
+		URTHexLibrary::HexDistance(Bot->Cell, Foe->Cell) > Bot->VisionRange)
+		|| !TestTrue(TEXT("premessa: e la posizione VERA e' fuori portata, cosi' solo la memoria puo' spiegare un attacco"),
+			URTHexLibrary::HexDistance(Bot->Cell, Foe->Cell) > Bot->AttackRange))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+
+	// SECONDA osservazione: qui `ClassifyTarget` restituisce `CellOnly`, che nessun altro test raggiunge.
+	TM->PlanBotsForTest();
+
+	TestTrue(TEXT("il bot agisce sul contatto ricordato invece di ignorarlo"),
+		Bot->PlannedAttackTarget == Foe);
+
+	// E non lo insegue dove si trova davvero: se lo facesse, si muoverebbe verso la cella vera.
+	TestTrue(TEXT("e non si avvicina alla posizione vera, che non conosce"),
+		URTHexLibrary::HexDistance(Bot->PlannedCell, Truth)
+			>= URTHexLibrary::HexDistance(Bot->Cell, Truth));
 
 	DestroyHexBotWorld(World);
 	return true;

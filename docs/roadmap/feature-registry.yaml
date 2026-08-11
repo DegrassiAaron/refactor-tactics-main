@@ -3763,6 +3763,7 @@ features:
       - RefactorTactics.HexBotPlay.HiddenEnemyFairness
       - RefactorTactics.HexBotPlay.PlansOnPartialKnowledge
       - RefactorTactics.HexBotPlay.SeeksContactWithoutKnowledge
+      - RefactorTactics.HexBotPlay.ActsOnLastKnownCell
     scenarios:
       - planned:
           - Spec.Bot.HiddenEnemyFairness
@@ -3782,8 +3783,18 @@ features:
       dichiara il vero.
       ⚠️ **Il gate e' `automation`, e ha una forma precisa**: `HiddenEnemyFairness` mette la stessa
       `FRTTeamKnowledge` davanti a due stati autorevoli diversi e pretende lo **stesso** Intent.
-      Verificato per mutazione: rimettendo l'onniscienza cadono **esattamente** due test — il canary e
-      `PlansOnPartialKnowledge` — e nessun altro. Il secondo e' costruito perche' possa fallire:
+      Verificato per mutazione **due volte**, e la seconda ha chiuso un buco trovato in code review:
+      (1) rimettendo l'onniscienza cadono `HiddenEnemyFairness`, `PlansOnPartialKnowledge` e
+      `SeeksContactWithoutKnowledge`; (2) cancellando il ramo `CellOnly` cade **solo**
+      `ActsOnLastKnownCell`.
+      ⚠️ **Il ramo `CellOnly` — il piu' delicato — all'inizio aveva copertura ZERO**: `Uncertain` esiste
+      solo dopo DUE osservazioni (vista in una, persa nella successiva) e i primi tre test pianificavano
+      una volta sola, quindi vedevano soltanto `Allowed` o `Rejected`. Si poteva cancellare l'intero
+      `case CellOnly:` e la suite restava verde. `ActsOnLastKnownCell` fa la sequenza a due osservazioni
+      e mette il ricordo DENTRO la portata e la posizione vera FUORI: se il bot attacca, e' la memoria.
+      ⚠️ Anche `SeeksContactWithoutKnowledge` era debole: bot e nemico agli ANTIPODI attraverso il centro
+      rendono «vai al centro» e «vai al nemico» la stessa direzione, e restava verde sotto onniscienza.
+      Geometria corretta perche' le due direzioni divergano. Il secondo e' costruito perche' possa fallire:
       l'ignoto e' dentro la portata e quasi morto, cosi' un bot che lo vedesse lo sceglierebbe.
       ⚠️ **Due cose sono cambiate oltre al filtro, e senza di esse il filtro non reggeva**:
       `EnsureMatchRoster` e il rinfresco della conoscenza sono stati anticipati alla pianificazione —
