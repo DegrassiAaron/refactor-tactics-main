@@ -547,10 +547,37 @@ magazzino, prima** di migrare: là un errore costa un nuovo download, nel proget
 Il punto 3 non è solo economia di spazio: è **anche** ciò che dovrebbe evitare la perdita di B.3 punto 1,
 perché sparivano i `DialogueWave` *referenziati dai `SoundCue`* e qui non si porta né gli uni né gli altri.
 
-> ⚠️ **Questa parte è un'inferenza, non una misura**: la via magazzino+Migrate non è ancora stata eseguita in
-> questo progetto. Alla prima esecuzione **contare i file sul disco prima e dopo** e confrontare gli elenchi —
-> e non fidarsi del conteggio dell'asset registry, che in B.3 dichiarava `1655` mentre sul disco i file erano
-> `1350`. Se la perdita si ripresenta anche senza audio nel set, correggere questa nota invece di lasciarla.
+### Eseguita per la prima volta il 2026-08-11 su `ParagonGadget` — cosa si è imparato
+
+La procedura è stata eseguita **headless**, sostituendo i punti 2-4 con `rename_directory` nel magazzino più
+una copia del filesystem: una volta rinominato, `/Game/FabAsset/Paragon/<Pack>/` corrisponde a
+`Content/FabAsset/Paragon/<Pack>/` in **entrambi** i progetti, quindi la copia equivale al Migrate quando si
+porta il pack intero. Cinque cose che il documento non diceva:
+
+1. ⚠️ **`Paragon_Proto_Retarget` blocca il rename.** È di classe `Rig`, **rimossa in UE 5.8**: l'asset esiste
+   ma non è caricabile, e `rename_directory` fallisce in blocco con *«Some assets couldn't be renamed»*
+   senza spostare niente. È l'insidia 2 di B.3, e il suo rimedio funziona: **quarantena fuori da `Content/`**
+   prima del rename. Il fallimento è **innocuo** — il pack resta integro, si può riprovare.
+2. ⚠️ **Un tentativo fallito lascia la destinazione creata e vuota**, e al secondo giro lo script si ferma
+   perché «esiste già». Va rimossa prima di riprovare.
+3. ⚠️ **`duplicate_directory` NON è l'alternativa che sembra.** Provata proprio per evitare la perdita di
+   audio, sull'ipotesi che il difetto stesse nel cancellare l'originale: **falsa**. Perde *gli stessi* 12 file
+   **e in più** lascia i riferimenti al path vecchio su **19 asset su 40** campionati, contro i 9 su 1229 del
+   rename — cioè produce il «pack che sembra migrato e non lo è» dell'insidia 4. L'origine resta intatta,
+   il che dimostra che il difetto è nella **riscrittura** dell'asset, non nella rimozione.
+4. ⚠️ **La perdita di audio dipende dal PACK, non è una legge.** Su Gadget si è verificata — `_Engage_` da
+   **25 a 13**, mentre i 174 `_Effort_` sono sopravvissuti tutti, esattamente come descrive B.3 punto 1. Su
+   Gideon non era avvenuta. Non si può prevedere: si misura.
+5. ⚠️ **Il rename lascia soft reference al path vecchio, e questo è lo stato NORMALE dei pack qui.**
+   Su Gadget **9 asset su 1229**, su `ParagonGideon` — migrato nel 2026-08-06 e in uso — **6 su 1698**. Sono
+   SkeletalMesh e skin che puntano ai propri materiali: è il difetto di A.6, *«il resave non aggiorna i soft
+   reference»*. Se una mesh appare senza materiali, è questo, e si ripara con la procedura di A.6.
+
+> 🔴 **Un campione casuale non prova l'assenza di un difetto raro.** Il 2026-08-10 avevo dichiarato Gideon
+> «25 su 25 con i riferimenti corretti» campionando 25 file su 1698: con 6 asset difettosi quel campione
+> aveva **meno del 10%** di probabilità di trovarne uno. La scansione completa li ha trovati. Per i
+> riferimenti si scansiona **tutto il pack** — costa secondi — e il campione si usa solo per confermare un
+> difetto, mai per dichiararlo assente.
 
 **Guadagno collaterale**: si porta ciò che serve invece dell'intero pack, quindi l'asset registry non indicizza
 peso inutile a ogni avvio — il costo descritto in B.1b.
@@ -643,10 +670,15 @@ fatto lo stesso giorno proprio perché quell'avviso lo prescriveva:
 | File audio-dialogo | 205 | 205 |
 | Dimensione | 2,6 GB | 2,73 GB |
 
-**Nessun file mancante e nessun `DialogueWave` perso.** E la verifica che conta — quella prescritta in fondo
-a B.3 — dà il risultato giusto: su 25 `.uasset` campionati, **25 citano `/Game/FabAsset/Paragon/` e zero il
-path vecchio**. Il pack è rinominato correttamente, non spostato. L'utente ha poi confermato a schermo che
-gli asset si aprono.
+**Nessun file mancante e nessun `DialogueWave` perso** — su Gideon la perdita di B.3 punto 1 non è avvenuta
+(su Gadget invece sì: vedi B.2a). L'utente ha confermato a schermo che gli asset si aprono.
+
+⚠️ **Correzione del 2026-08-11**: la riga che stava qui diceva *«su 25 `.uasset` campionati, 25 citano
+`/Game/FabAsset/Paragon/` e zero il path vecchio»*, e la presentava come prova che il pack fosse pulito. Non
+lo era: la **scansione completa** ne trova **6 su 1698** che citano ancora il path vecchio — le SkeletalMesh
+e le skin, coi soft reference ai materiali non aggiornati (A.6). Il campione di 25 su 1698 aveva meno del
+10% di probabilità di incontrarne uno. Il pack resta **usabile e in uso**, ma «zero» era un artefatto del
+metodo, non un fatto.
 
 Restano 130 MB di differenza, che **non sono contenuto assente**: gli asset a destinazione sono stati
 risalvati dal rename, quindi ricompressi. Un delta di dimensione, da solo, non è una prova di danno.
