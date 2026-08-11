@@ -1606,13 +1606,13 @@ features:
       network_privacy: na
     roadmap:
       epic: E7
-      checkpoints: ["7.1", "7.2", "7.3", "7.4"]
+      checkpoints: ["7.1", "7.2", "7.3", "7.4", "7.5"]
     dependencies:
       - RT-FEAT-DATA-ASSET-PIPELINE
       - RT-FEAT-CHAR-V01-ROSTER
     owner_specs:
       - docs/balance/RT_EquipmentCatalog_v0.1.md
-    issues: [21, 60, 61, 62, 63]
+    issues: [21, 60, 61, 62, 63, 505]
     tests:
       - RefactorTactics.Catalog.ValidatorRejectsEquipmentWithoutDrawback
     scenarios: []
