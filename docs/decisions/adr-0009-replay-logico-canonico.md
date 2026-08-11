@@ -21,7 +21,7 @@ comportamenti, e li chiama con lo stesso nome.
 - `RefactorTactics.Simulation.DeterministicReplay` (`RTSimulationDeterminismTests.cpp`) **non riproduce una
   traccia**: rilancia lo scenario 100 volte attraverso il resolver e confronta gli `StateHash`. Si chiamava
   «replay» ed è **ri-simulazione**. *(Dal 2026-08-11 si chiama `Replay.Verifier.ResimulationIsDeterministic`:
-  [D-095](RT_PDR_00_Decision_Log.md), [#538](https://github.com/DegrassiAaron/refactor-tactics-main/issues/538).
+  [D-103](RT_PDR_00_Decision_Log.md), [#538](https://github.com/DegrassiAaron/refactor-tactics-main/issues/538).
   Il nome vecchio resta qui perché è la ragione per cui questo ADR è stato scritto.)*
 - `URTReplaySeekLibrary` (`#415`) fa l'opposto: si posiziona dentro una traccia già scritta e non ha modo di
   chiamare il resolver.
@@ -68,7 +68,7 @@ mutilato l'altra.
 | `Replay.Verifier.ResimulationIsDeterministic`, `HashMatchState` | **Verifier** |
 
 > ✅ **Corretto il 2026-08-11** ([#538](https://github.com/DegrassiAaron/refactor-tactics-main/issues/538),
-> [D-095](RT_PDR_00_Decision_Log.md)). Il nome `Simulation.DeterministicReplay` insegnava il contrario di
+> [D-103](RT_PDR_00_Decision_Log.md)). Il nome `Simulation.DeterministicReplay` insegnava il contrario di
 > questo ADR — chi lo leggeva imparava che «replay» significa ri-simulare — ed è ora
 > `Replay.Verifier.ResimulationIsDeterministic`. Il prezzo è dichiarato invece che nascosto: quel nome era
 > uno dei dieci **vincolanti** del catalogo (p.24 §15), e il gate **G3** della v0.1 ora dice «nove con quei
@@ -137,7 +137,7 @@ adesso evita che qualcuno legga «verifica d'integrità» e creda di avere una g
 - Il `HashTurnLogOrdered` di D-062 ha una casa e un consumatore: sta nel manifest (D-077) ed è il Verifier a
   leggerlo.
 - `Simulation.DeterministicReplay` va rinominato: è un test del Verifier e il suo nome dice Player.
-  ✅ **Fatto il 2026-08-11** → `Replay.Verifier.ResimulationIsDeterministic` ([#538](https://github.com/DegrassiAaron/refactor-tactics-main/issues/538), [D-095](RT_PDR_00_Decision_Log.md)).
+  ✅ **Fatto il 2026-08-11** → `Replay.Verifier.ResimulationIsDeterministic` ([#538](https://github.com/DegrassiAaron/refactor-tactics-main/issues/538), [D-103](RT_PDR_00_Decision_Log.md)).
 - `#415` è retroattivamente conforme: era Player-side prima che questo ADR esistesse, e lo era per la ragione
   giusta.
 

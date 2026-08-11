@@ -102,7 +102,7 @@ identico.
 > Il catalogo (`docs/src/prd/catalogo-e-bilanciamento-v0.1.pdf`, p.24 §15) nomina il decimo test
 > `RefactorTactics.Simulation.DeterministicReplay`, e il DoD di CP 12.1 (`#81`) lo chiamava «nome vincolante».
 > Dal 2026-08-11 il test si chiama **`RefactorTactics.Replay.Verifier.ResimulationIsDeterministic`**
-> ([D-095](../decisions/RT_PDR_00_Decision_Log.md), [#538](https://github.com/DegrassiAaron/refactor-tactics-main/issues/538)).
+> ([D-103](../decisions/RT_PDR_00_Decision_Log.md), [#538](https://github.com/DegrassiAaron/refactor-tactics-main/issues/538)).
 > Il catalogo non sbagliava nel suo contesto — descrive «100 ripetizioni, checksum identico», cioè una
 > ri-simulazione, e usa «replay» nel senso comune di «rigioca» — ma [ADR-0009](../decisions/adr-0009-replay-logico-canonico.md)
 > ha reso «replay» una parola riservata: riproduzione di una traccia **senza ricalcolo**. Con quella

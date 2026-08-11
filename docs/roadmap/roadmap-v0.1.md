@@ -190,7 +190,7 @@ Evidenza = i **nomi dei test**, che sono la prova di ciò che esiste:
 costruito né rimosso. E i **10 test vincolanti del catalogo** (§6) **esistono tutti e dieci** — gli ultimi
 arrivati sono `Cover.DirectionalDamageReduction` e il decimo, con le sue 100 ripetizioni — che dal 2026-08-11 si
 chiama `Replay.Verifier.ResimulationIsDeterministic` invece del `Simulation.DeterministicReplay` del catalogo
-([D-095](../decisions/RT_PDR_00_Decision_Log.md)): la proprietà è la stessa, il nome non mente più.
+([D-103](../decisions/RT_PDR_00_Decision_Log.md)): la proprietà è la stessa, il nome non mente più.
 
 **Stato in una riga**: il **contenuto** della v0.1 è costruito e testato (cataloghi, azioni, reazioni, eroi,
 ambiente, coperture, **orientamento**) e gira su un solo substrato esagonale. Mancano la **conoscenza
@@ -263,7 +263,8 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-PROD-PACKAGED` — Verifica su build packaged | IMPLEMENTING | 2/6 |
 |  | `RT-FEAT-PROD-PERFORMANCE` — Budget di performance misurati | IMPLEMENTING | 3/6 |
 |  | `RT-FEAT-REPLAY-ARCHIVE` — Replay Archive — recorder, Player e indice delle partite | INTEGRATED | 4/6 |
-| **E13** | `RT-FEAT-PERCEPTION-MEMORY` — Memoria del contatto e ultima posizione nota | TESTABLE | 4/9 |
+| **E13** | `RT-FEAT-BOT-FAIRNESS` — Il bot pianifica sulla conoscenza della sua squadra | SPECIFIED | 1/7 |
+|  | `RT-FEAT-PERCEPTION-MEMORY` — Memoria del contatto e ultima posizione nota | TESTABLE | 4/9 |
 |  | `RT-FEAT-PERCEPTION-NOISE` — Rumore e percezione acustica | SPECIFIED | 3/9 |
 |  | `RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE` — TeamKnowledge e informazione parziale | TESTABLE | 5/9 |
 |  | `RT-FEAT-PERCEPTION-VISION` — Vista, facing e livelli di consapevolezza | IMPLEMENTING | 3/9 |
@@ -775,7 +776,7 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
-| **12.1** ✅ | Replay deterministico rinforzato | Stessa snapshot + stesso seed + stesse definizioni + stesso ordine ⇒ checksum finale **identico** su **almeno 100 ripetizioni** | ✅ **2026-08-08**: `Replay.Verifier.ResimulationIsDeterministic` (100 iterazioni, 0 divergenze; si chiamava `Simulation.DeterministicReplay` fino al 2026-08-11, [D-095](../decisions/RT_PDR_00_Decision_Log.md)) e `Simulation.ChecksumStableAcrossPermutations` (unità e intent invertiti → stesso stato). Entrambi girano sullo **Scenario Harness**, quindi sul percorso di gioco reale. Più `Simulation.StateHashDistinguishesOutcomes`, che impedisce all'hash di degenerare in una costante — senza, i primi due passerebbero anche confrontando zeri |
+| **12.1** ✅ | Replay deterministico rinforzato | Stessa snapshot + stesso seed + stesse definizioni + stesso ordine ⇒ checksum finale **identico** su **almeno 100 ripetizioni** | ✅ **2026-08-08**: `Replay.Verifier.ResimulationIsDeterministic` (100 iterazioni, 0 divergenze; si chiamava `Simulation.DeterministicReplay` fino al 2026-08-11, [D-103](../decisions/RT_PDR_00_Decision_Log.md)) e `Simulation.ChecksumStableAcrossPermutations` (unità e intent invertiti → stesso stato). Entrambi girano sullo **Scenario Harness**, quindi sul percorso di gioco reale. Più `Simulation.StateHashDistinguishesOutcomes`, che impedisce all'hash di degenerare in una costante — senza, i primi due passerebbero anche confrontando zeri |
 | **12.2** | Matrice test manuali v0.1 | Le 12 voci `PIE-V01-*` esistono in `test-manuali-pie.md` con precondizione ed esito atteso e sono **eseguite** | Sessione E di `test-manuali-pie.md` completa |
 | **12.3** | Suite automatica completa | I 10 test nominati dal catalogo (§15) esistono con quei nomi e sono verdi; nessun test disabilitato o saltato per far passare la build | `RunUAT`/Automation: elenco completo verde; `grep -rn "skip\|disable" Source/RefactorTactics/Tests/` senza esiti |
 | **12.4** | KPI misurati | FPS client, path mediana, preview completa, resolver per turno **misurati e registrati** (anche se fuori target); replay divergence = 0; intent leak = 0. **In più** (2026-08-07): le metriche di **durata** — `RoundsPlayed`, `MatchDurationSeconds`, `PlanningDurationSeconds`, `ResolutionPlaybackSeconds`, `ReadyAtSeconds`, `FirstEnemyContactRound` — raccolte sul **2v2** e dichiarate come tali, **non** confrontate con le bande del 3v3 Standard che non esiste in v0.1 | Tabella KPI di `v0.1-definition-of-done.md` compilata con numeri reali · metriche in [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §17 |
@@ -1319,7 +1320,7 @@ I dieci nomi richiesti dal catalogo (§15) sono **vincolanti**: devono esistere 
 | `RefactorTactics.Cover.DirectionalDamageReduction` | copertura bassa direzionale (−10) | 9.1 |
 | `RefactorTactics.Reactions.Intercept` | l'intercettore diventa bersaglio | 5.3 |
 | `RefactorTactics.Reactions.SingleActivation` | una attivazione per turno | 5.1 |
-| `RefactorTactics.Replay.Verifier.ResimulationIsDeterministic` *(il catalogo lo chiama `Simulation.DeterministicReplay`: [D-095](../decisions/RT_PDR_00_Decision_Log.md))* | 100 ripetizioni, checksum identico | 12.1 |
+| `RefactorTactics.Replay.Verifier.ResimulationIsDeterministic` *(il catalogo lo chiama `Simulation.DeterministicReplay`: [D-103](../decisions/RT_PDR_00_Decision_Log.md))* | 100 ripetizioni, checksum identico | 12.1 |
 
 Ogni test di determinismo esegue la stessa simulazione con **stesso snapshot, seed, definizioni e ordine**.
 

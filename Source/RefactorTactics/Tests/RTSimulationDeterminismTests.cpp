@@ -5,7 +5,7 @@
 // partita giocata due volte finisce diversamente, nessun altro test dice piu' niente, perche' il suo verde
 // potrebbe essere un caso.
 //
-// ATTENZIONE AL PRIMO NOME, che diverge dal catalogo di proposito (D-095, `#538`).
+// ATTENZIONE AL PRIMO NOME, che diverge dal catalogo di proposito (D-103, `#538`).
 // Il catalogo v0.1 (p.24 §15) lo chiama `RefactorTactics.Simulation.DeterministicReplay`, e nel suo
 // contesto non sbagliava: descrive «stesso snapshot, stesso seed, 100 ripetizioni, checksum identico»,
 // cioe' una RI-SIMULAZIONE, e usa «replay» nel senso comune di «rigioca». Ma ADR-0009 ha reso «replay»

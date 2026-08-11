@@ -147,6 +147,13 @@ normale e risolvono nel `Move` ([D-015](../decisions/RT_PDR_00_Decision_Log.md))
 | **E16 — Facing** | non implementata | Il facing esiste come **presentazione** (`URTPlaybackLibrary::DirectionYaw`). Diventerà stato di gioco con più valori per round ([D-020](../decisions/RT_PDR_00_Decision_Log.md)): snapshot e TurnLog dovranno dire *quale* facing ha usato ciascun consumatore |
 | **Rete** | fuori dalla v0.1 | `ARTTurnManager` è già l'unico punto di autorità; i piani diventeranno RPC server-side con replica filtrata per squadra |
 | **GAS** | fuori dalla v0.1 | Le abilità sono dati (`URTActionData`), non `GameplayAbility`. Divergenza dal PDR **dichiarata**, non dimenticata |
+| **StateTree · Behavior Tree · EQS · Learning Agents · Mass AI** | perimetro deciso, nessuno adottato | [D-095](../decisions/RT_PDR_00_Decision_Log.md). Il core dell'AI competitiva è un **utility planner custom**, perché deve produrre un *breakdown* di punteggio e un albero di comportamento non lo produce. StateTree può orchestrare le macro-fasi del turno, mai calcolare il piano migliore; Behavior Tree resta per prototipi non competitivi; EQS è laboratorio, e il runtime interroga la mappa tattica discreta; Learning Agents solo offline; Mass AI fuori scope. **Non riapre NavMesh**, chiusa da [ADR-0002](../decisions/adr-0002-griglia-esagonale.md) |
+
+> **Perché quella riga esiste.** Fino al 2026-08-11 il progetto aveva deciso cosa il bot *fa* e mai con quale
+> strumento di Unreal: `StateTree`, `EQS` e `Learning Agents` avevano **zero occorrenze** in `docs/` e
+> `Source/`. È la lacuna in cui un framework entra per abitudine invece che per scelta — sono gli strumenti
+> che l'editor offre per primi, e chi apre il progetto per implementare il bot li trova prima di trovare il
+> Decision Log.
 
 ## Come si estende
 

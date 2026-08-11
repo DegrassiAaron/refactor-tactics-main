@@ -162,6 +162,13 @@ La premessa del bot cambia **tre volte**. Questa spec è scritta sapendo quali s
 | **E14** — reazioni | il bot dovrà armare reazioni e rispondere alle finestre `AllowedResponses ≥ 2` | §6 (riga reaction policy) — oggi la spec non ha una §dedicata perché non c'è nulla da descrivere |
 | **E17** — stress 4v4 | il numero di candidate cresce col quadrato delle unità; il tie-break e il determinismo vanno riverificati a scala maggiore | §4, §5 |
 
+> **Dal 2026-08-11 le quattro caselle hanno un owner.** Prima erano quattro promesse senza un documento che
+> le possedesse — il registry stesso lo dichiarava, «citato in `roadmap-post-v0.1.md` ma **senza owner
+> documentale proprio**». Ora la forma del bot che verrà sta in
+> [`spec-bot-tattico.md`](spec-bot-tattico.md), che fissa i confini (`D-095`…`D-099`) senza descrivere
+> codice che esiste. Questa spec **non cambia**: continua a descrivere il bot di oggi, ed è la sua §6 —
+> quella che dice cosa il bot *non* sa — a restare la misura di quanta distanza ci sia fra i due documenti.
+
 ## 8. Evidenza — i test che esistono oggi
 
 **25 test**, in due file — 18 + 7, contati sulle macro `IMPLEMENT_*_AUTOMATION_TEST`. Sono l'unica prova di
@@ -227,6 +234,7 @@ bot legge il **catalogo**, non i nomi.
 ## 10. Riferimenti
 
 - Codice: `Source/RefactorTactics/Bot/RTHexBotLibrary.{h,cpp}` · consumatore: `ARTTurnManager::PlanBots`
+- Il bot che verrà: [`spec-bot-tattico.md`](spec-bot-tattico.md) — Team Planner, belief, reazioni (E13/E26/E27/E28)
 - Storia: [`../technical/h6-5-hex-bot-spec.md`](../technical/h6-5-hex-bot-spec.md) (`AS-BUILT` H6.5)
 - Architettura: [`../technical/architettura-codice.md`](../technical/architettura-codice.md)
 - Wiki, lato giocatore: [`avversario-bot` (Wiki)](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/avversario-bot)
