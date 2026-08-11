@@ -26,7 +26,7 @@ e visto fallire. Tre rilievi restano, e il primo è quello che conta.
 
 | # | Rilievo | Dove | Priorità |
 |---|---|---|---|
-| 2.1 | Il ponte fra `FRTActionDef` e i campi legacy che il **bot** legge esiste solo in un helper di test | `RTCatalogLibrary.cpp` · `RTEquipmentTests.cpp` | 🔴 **alta** |
+| 2.1 | Applicata una variante, il ponte verso i campi legacy che il **bot** legge esiste solo in un helper di test | `RTCatalogLibrary.cpp` · `RTEquipmentTests.cpp` | 🔴 **alta** |
 | 2.2 | Il catalogo owner **si contraddice** sul default per eroe: §1 lo dichiara non deciso, §4 lo assegna | `RT_EquipmentCatalog_v0.1.md` | 🟡 media |
 | 2.3 | `D-089` è l'unica decisione concreta senza marcatore di stato d'implementazione | `RT_PDR_00_Decision_Log.md` | 🟢 bassa |
 
@@ -46,7 +46,10 @@ file di test.»
 la duplicazione è dichiarata in `RTHeroCatalogLibrary.cpp:13`, che li descrive come «quelli che
 `ARTTurnManager` legge». `ApplyWeaponVariant` non può toccarli: vede solo la `Def`.
 
-L'unico codice che colma la distanza sono **due righe dentro un helper di test**:
+La produzione **sa** specchiare — `MakeHeroAction` (`RTHeroCatalogLibrary.cpp:35-36`) e
+`MakeEquipmentAction` (`RTCatalogLibrary.cpp:545-546`) lo fanno — ma sempre **alla costruzione, da una
+`Def` grezza**. Nessuna di quelle strade passa da una `Def` già modificata da una variante: quella è
+un'operazione *successiva*, e l'unico codice che la completa sono **due righe dentro un helper di test**:
 
 ```cpp
 // Source/RefactorTactics/Tests/RTEquipmentTests.cpp:429-431
@@ -63,7 +66,7 @@ della v0.1.» Le due letture divergono:
 | **Bot**, generazione candidati d'attacco | `Ability->RangeCells` *(legacy)* | `RTTurnManager.cpp:406`, `:460` |
 | **Resolver**, validazione in esecuzione | `Def.RangeCells` | `RTTurnManager.cpp:1650` |
 
-Scenario concreto, se `#63` (CP 7.4 — Loadout, **OPEN**) cablerà il loadout assegnando solo `->Def`:
+Scenario concreto, se `#63` (`E7.4` — Loadout, **OPEN**) cablerà il loadout assegnando solo `->Def`:
 
 - **`Weapon.Precision`** (+1 portata): il bot pianifica alla portata **vecchia, più corta** → non usa mai
   la cella che ha pagato 4 danni per ottenere. Il vantaggio della variante è invisibile a chi la porta.
@@ -141,7 +144,7 @@ Per equità verso il consolidamento, tre cose che sarebbe stato facile sbagliare
   a mentire.
 - **Le §18–§29 del sorgente non sono state applicate, ed è corretto.** Prescrivevano dieci issue e
   un'epic nuova sopra una fotografia del repository più arretrata del repository stesso: E7 esisteva già,
-  CP 7.1 era in `main`, il validator già imponeva lo svantaggio. Un pacchetto di consolidamento si
+  `E7.1` era in `main`, il validator già imponeva lo svantaggio. Un pacchetto di consolidamento si
   filtra, non si applica.
 
 ## 4. Raccomandazioni, in ordine
