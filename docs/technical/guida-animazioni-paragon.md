@@ -6,16 +6,42 @@
 > archetipi *Guardian* e *Ranger*: erano il prototipo del 2026-08-03, **non** il roster canonico, che è
 > **Flux · Riva · Bastion · Vektor**.
 >
-> **Il casting non è più aperto** (2026-08-08, [D-037](../decisions/RT_PDR_00_Decision_Log.md)): Flux usa lo
-> slot Paragon **Gadget**, Riva **Phase**, Bastion **Riktor**, Vektor **Wraith** — tabella owner in
-> [`../characters/paragon.md`](../characters/paragon.md#mapping-visuale-del-roster). Gli esempi qui sotto
-> restano su Gideon/Sparrow perché sono il **procedimento** registrato nel prototipo del 2026-08-03, non il
-> casting: leggi «Gideon» come «il personaggio che stai importando», e sostituisci il percorso dell'asset con
-> quello dello slot assegnato all'eroe su cui stai lavorando.
+> **Il casting non è più aperto** (2026-08-08, [D-037](../decisions/RT_PDR_00_Decision_Log.md)) e dal
+> **2026-08-11 gli asset portano il nome del pack**, non dell'eroe
+> ([`convenzioni-contenuti-ue.md` §5b](convenzioni-contenuti-ue.md)). Questa è la tabella da cui tradurre
+> ogni esempio qui sotto — **verificata sul disco l'11-08**, perché tre nomi su otto non sono quelli che ci
+> si aspetta:
+>
+> | Eroe | Pack | Blueprint / AnimBP | Skeletal Mesh | Skeleton |
+> |---|---|---|---|---|
+> | Flux | `Paragon.Gadget` | `BP_Unit_Gadget` · `ABP_Gadget` | `Gadget` | `Gadget_Skeleton` |
+> | Riva | `Paragon.Phase` | `BP_Unit_Phase` · `ABP_Phase` | ⚠️ `Phase_GDC` | `phase_Skeleton` |
+> | Bastion | `Paragon.Riktor` | `BP_Unit_Riktor` · `ABP_Riktor` | `Riktor` | `Riktor_Skeleton` |
+> | Vektor | `Paragon.Wraith` | `BP_Unit_Wraith` · `ABP_Wraith` | `Wraith` | `Wraith_Skeleton` |
+>
+> Cartelle: `/Game/RT/Characters/<Pack>/{Blueprints,Animation}/`. Pack in
+> `/Game/FabAsset/Paragon/Paragon<Pack>/Characters/Heroes/<Pack>/…`.
+>
+> ⚠️ **La mesh di Riva non si chiama `Phase`**: è `Phase_GDC` (22,6 MB — gli altri file in quella cartella
+> pesano 0,1 MB e sono extents, shadow e skeleton). È l'errore che costa mezz'ora a cercare un asset che
+> non esiste.
+>
+> 🔴 **Lo skeleton si LEGGE dalla mesh, non si cerca nella cartella.** La prima stesura di questa tabella
+> dava `gadget_bot_Skeleton` e `belly_Riktor_Skeleton`, presi perché erano il primo file `*Skeleton*` di
+> quella cartella — e appartengono invece a **mesh diverse e più piccole** (`gadget_bot`, `belly_Riktor`).
+> Corretta il 2026-08-11 leggendo il riferimento dentro ciascun `.uasset`. In editor: apri la Skeletal Mesh
+> e leggi il campo **Skeleton** nei Details; non dedurlo dal nome del file.
+>
+> Gli esempi restano scritti su **Gideon/Sparrow** perché sono il *procedimento* registrato nel prototipo del
+> 2026-08-03: leggi «Gideon» come «il personaggio che stai importando» e traduci con la tabella. Riscriverli
+> uno per uno introdurrebbe più errori di quanti ne toglierebbe, e la guida resterebbe comunque un esempio.
 
 > Guida operativa per l'editor UE 5.8.1. Riferita a [`spec-asset-pipeline.md`](spec-asset-pipeline.md) (AS.3/AS.4).
-> Presuppone la Fase 2 fatta: un `BP_Unit_<Archetipo> : ARTUnit` con Skeletal Mesh assegnata, cilindro nascosto,
-> `VisualZOffset=0`. Tutto quello che segue è **Blueprint** (nessuna ricompilazione C++).
+> Presuppone la Fase 2 fatta: un `BP_Unit_<Pack> : ARTUnit` con Skeletal Mesh assegnata, cilindro **nascosto**
+> (`ARTUnit::Mesh` è uno `UStaticMeshComponent` e resta il root: si aggiunge una skeletal accanto, non la si
+> sostituisce), `VisualZOffset=0` e i due materiali degli anelli. I passi completi sono in
+> [`../roadmap/editor-sessions.yaml`](../roadmap/editor-sessions.yaml), seduta **U7**.
+> Tutto quello che segue è **Blueprint** (nessuna ricompilazione C++).
 
 ## AS.3 — Animazioni: con Paragon niente retargeting
 
