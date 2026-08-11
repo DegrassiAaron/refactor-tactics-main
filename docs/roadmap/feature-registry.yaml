@@ -2601,6 +2601,13 @@ features:
       scenario: done
       ui_wiki: partial
       packaged: todo
+      # ⚠️ La conoscenza VIAGGIA nello snapshot: `FRTHexSnapshot::TeamKnowledge` e' un array per squadra
+      # (`RTHexSim.h`). Oggi non e' un problema — la struct non ha marcatori di replica e la v0.1 e'
+      # offline, quindi nessun confine di rete viene attraversato. Ma il giorno in cui lo snapshot si
+      # replica, mandarlo intero significa spedire a ciascun client la conoscenza dell'AVVERSARIO, cioe'
+      # violare l'invariante #6 per una strada che nessun test copre: gli undici test `Vision` guardano
+      # targeting, scadenza, unione e permutazione, nessuno il confine. Questo gate si chiude filtrando
+      # `TeamKnowledge` per destinatario, non spuntandolo.
       network_privacy: todo
     roadmap:
       epic: E13
