@@ -808,4 +808,44 @@ bool FRTContestedPushDestinationLeavesATraceTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPushedUnitFacesPusherInPlayTest,
+	"RefactorTactics.TurnLog.PushedUnitFacesThePusherInPlay",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPushedUnitFacesPusherInPlayTest::RunTest(const FString&)
+{
+	// ⚠️ Nasce da un BUCO misurato (#548): estraendo la primitiva di spostamento (#541) ho mutato i suoi
+	// dieci passi uno per volta, e togliere `Unit->Facing = Moved.Facing;` lasciava la suite **interamente
+	// verde**. La regola era testata — `Facing.ForcedMovementFacesSource` — ma sulla FUNZIONE PURA: un test
+	// che passa una costante a `FacingAfterDisplacement` non può vedere che in partita quel valore non
+	// arriva. Prima di #541 quella riga era per giunta scritta due volte, e nessuno dei due posti era coperto.
+	UWorld* World = MakeCauseWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	SpawnCauseMap(World, 8);
+
+	// Chi spinge è a OVEST di chi subisce, che quindi arretra verso EST e deve girarsi verso ovest.
+	ARTUnit* Pusher = SpawnCauseUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Victim = SpawnCauseUnit(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Pusher || !Victim || !TM) { DestroyCauseWorld(World); return false; }
+
+	// ⚠️ Il facing di partenza è scelto perché DEBBA cambiare: la vittima guarda a est, cioè dalla parte
+	// opposta a chi la spinge. Senza questa riga il test passerebbe anche con il passo mutato — è lo stesso
+	// motivo per cui `Combat.BastionImpactShotSlows` ha un gemello di controllo.
+	Victim->Facing = ERTHexDirection::E;
+
+	PlanPushOn(Pusher, Victim);
+	RunCauseTurn(TM);
+
+	TestTrue(TEXT("la spinta ha spostato la vittima"), Victim->Cell != FRTCellId(1, 0));
+	TestTrue(TEXT("e la vittima si e' girata VERSO chi l'ha spinta"),
+		Victim->Facing == ERTHexDirection::W);
+	TestTrue(TEXT("cioe' non guarda piu' dove guardava prima"), Victim->Facing != ERTHexDirection::E);
+
+	// Chi spinge non si gira: la regola vale per chi SUBISCE lo spostamento.
+	TestEqual(TEXT("chi spinge resta dov'era"), Pusher->Cell, FRTCellId(0, 0));
+
+	DestroyCauseWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
