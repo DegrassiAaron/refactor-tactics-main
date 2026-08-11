@@ -161,6 +161,58 @@ Scenarios/Movement/Basic.json
 Il turn manager e il resolver **non sanno** di essere sotto test: non esiste nessun `if (IsTest)` nel
 gameplay. È la proprietà che rende un test verde significativo.
 
+### 3-bis. Chi decide: un harness solo, e provider che restituiscono decisioni
+
+**[D-101](../decisions/RT_PDR_00_Decision_Log.md)** (2026-08-11). L'harness sopra è **l'unico**, e ogni modo
+di giocare uno scenario è una sua modalità — non un secondo harness.
+
+Oggi chi produce le decisioni è deciso in due punti diversi, entrambi nati per necessità:
+
+| Chi decide | Come entra oggi |
+|---|---|
+| Intent scriptati | `FRTScenarioIntent`, letti dalla definizione dello scenario |
+| Bot | `ARTTurnManager::PlanBotsForTest()` — che il commento di `RTScenarioRunner.h` dichiara per quello che è: *«l'unico appiglio, che esisteva già per i test d'integrazione»* |
+
+Funziona per due casi. Al terzo — partita bot contro bot, replay di una traccia, squadra mista umano+bot,
+batch di partite — servirebbe un terzo appiglio, poi un quarto: è così che nasce un secondo harness, **per
+accumulo e senza che nessuno lo decida**.
+
+La forma decisa è un **provider**: riceve un contesto sanificato e restituisce un `Intent` o una risposta di
+reazione. Scriptato, bot, replay, umano e policy di test differiscono solo per *come scelgono*.
+
+> ⚠️ **Un provider non restituisce mai un esito.** Se potesse, un test dichiarerebbe cosa deve succedere e poi
+> verificherebbe che è successo — senza che il resolver abbia deciso niente. È lo stesso difetto che questo
+> documento evita già vietando `SetActorLocation`, e la ragione per cui il riquadro qui sopra dice *«STESSA
+> strada del giocatore»*: qui prende la forma di un'interfaccia, quindi va vietato **nell'interfaccia**.
+
+> ⚠️ **L'umano non si simula.** Il provider umano è il normale `PlayerController`: un harness che finge input
+> collauderebbe un percorso che nessun giocatore attraversa.
+
+Le modalità di esecuzione — visuale, veloce, headless, batch, audit di replay — cambiano **cosa si vede**,
+mai cosa succede. È lo stesso confine che [D-078](../decisions/RT_PDR_00_Decision_Log.md) traccia fra chi
+riproduce un replay e chi lo verifica.
+
+### 3-ter. Un risultato bot-contro-bot non è ancora una misura di bilanciamento
+
+**[D-102](../decisions/RT_PDR_00_Decision_Log.md)** (2026-08-11). Vale quando l'harness comincerà a produrre
+partite in serie, ed è già vero adesso su un numero che il repository usa.
+
+`roadmap-checkpoint.md` misura i round per partita e annota, correttamente: *«**10** misurato bot-vs-bot —
+dentro banda, **ma è un bot contro un bot**»*. Il dubbio era già formulato; mancava cosa farne.
+
+La regola: una metrica di bilanciamento prodotta da partite bot-contro-bot porta con sé lo **stato di
+competenza** delle capability che la determinano — `PASS`, `PARTIAL`, `FAIL`, `UNTESTED`, ciascuno legato a
+uno scenario reale. Se una capability decisiva è `FAIL` o `UNTESTED`, la conclusione ammessa è *«il bot non
+sa giocarla»*, **non** *«l'eroe è debole»*.
+
+> ⚠️ **Il costo di ignorarla è invisibile, ed è il motivo per cui la regola sta qui e non in una nota.** Un
+> nerf deciso su un bot che non sa usare un'abilità **sembra** funzionare: il win rate si muove. Il difetto
+> vero — che quell'abilità non entra mai fra le candidate — resta coperto proprio dalla correzione.
+
+Non è un gate della CI sul win rate: una variazione dell'1% non fa fallire niente. I fallimenti duri restano
+crash, intent illegale, divergenza di determinismo, fuga di stato nascosto e **collasso della generazione di
+candidate** — che è il sintomo tecnico di ciò che questa regola protegge.
+
 ---
 
 ## 4. Scrivere uno scenario

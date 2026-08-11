@@ -3981,6 +3981,13 @@ features:
       43 test. Percorso reale `Intent → Planning → Snapshot → Resolver → TurnLog`, console
       `rt.Test.*`, auto-run via CVar, `result.json` autosufficiente, e uno scenario che **deve**
       fallire (`Movement.BasicFailsOnPurpose`) perché la diagnosi sia dimostrata.
+      ⚠️ **D-101** (2026-08-11) fissa il seam che oggi non c'è: chi produce le decisioni entra da
+      **due** punti ad hoc — gli intent scriptati di `FRTScenarioIntent` e `PlanBotsForTest()`, che
+      `RTScenarioRunner.h` dichiara essere «l'unico appiglio, che esisteva gia' per i test
+      d'integrazione». Regge per due casi; al terzo (bot vs bot, replay, umano+bot, batch) ne
+      servirebbe un altro, ed e' cosi' che nasce un secondo harness **per accumulo**. La forma
+      decisa e' un `DecisionProvider` che restituisce **decisioni, mai esiti**. Nessun gate si
+      muove: e' un perimetro, non un'implementazione.
 
   - feature_id: RT-FEAT-TEST-GOLDEN
     title: Golden replay e showcase «Il Relè»
@@ -4231,6 +4238,13 @@ features:
     notes: >
       I cataloghi versionati e la matrice di test esistono; il workbook `.xlsx` è la fonte dei
       numeri. Manca un banco che li **eserciti** in modo ripetibile oltre alla suite.
+      ⚠️ **D-102** (2026-08-11) dice cosa quel banco dovra' portare con se': un risultato
+      bot-contro-bot **non e' evidenza di bilanciamento** finche' il bot non e' certificato sulle
+      capability che lo producono (`PASS`/`PARTIAL`/`FAIL`/`UNTESTED`, ciascuno legato a uno
+      scenario reale). Non e' teorico: `roadmap-checkpoint.md` misura «**10** round bot-vs-bot» e
+      annota da se' «ma e' un bot contro un bot» — il dubbio c'era, mancava il modo di scioglierlo.
+      Un nerf deciso su un bot che non sa usare un'abilita' **sembra** funzionare, e copre il
+      difetto vero: che quell'abilita' non entra mai fra le candidate.
 
   # ─────────────────────────────────────────────────────────────────────────────
   # L. Data / production infrastructure

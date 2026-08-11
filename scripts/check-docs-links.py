@@ -94,15 +94,28 @@ def decisioni_duplicate():
 
     Solo l'inizio riga: `[D-091](...)` dentro il corpo di un'altra decisione e' un rimando, ed e'
     esattamente cio' che deve continuare a funzionare — il duplicato da trovare e' la voce, non la
-    citazione. Restituisce [(id, [righe])], vuoto se il file non c'e' (un repo senza log non fallisce
-    per questo)."""
+    citazione.
+
+    E solo FUORI dai blocchi recintati, per la stessa ragione di ogni altro controllo di questo file:
+    un documento che *spiega il formato della tabella* contiene righe d'esempio, e un esempio che
+    riusa un ID vivo verrebbe contato come duplicato. E' il difetto che questo gate ha gia' trovato
+    su se stesso due volte — i link d'esempio nel proprio README, e il `!` dell'immagine citata — e
+    che qui e' stato **trovato in code review invece che in produzione**: `meglio stretto e creduto
+    che largo e ignorato`, e un gate che sbaglia viene disattivato al terzo falso positivo.
+
+    Restituisce [(id, [righe])], vuoto se il file non c'e' o non e' leggibile: un repository senza
+    Decision Log non fallisce per questo, e un file illeggibile non deve uccidere l'intero gate
+    prima che possa riportare i link rotti — stessa clausola del ciclo principale."""
     abs_log = os.path.join(REPO, DECISION_LOG)
     try:
         text = open(abs_log, encoding="utf-8").read()
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return []
+    fences = _fence_spans(text)
     visti = {}
     for m in DECISIONE_RE.finditer(text):
+        if any(a <= m.start() < b for a, b in fences):
+            continue
         visti.setdefault(m.group(1), []).append(text[: m.start()].count("\n") + 1)
     return sorted((k, v) for k, v in visti.items() if len(v) > 1)
 

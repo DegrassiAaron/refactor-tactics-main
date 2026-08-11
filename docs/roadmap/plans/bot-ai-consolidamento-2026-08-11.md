@@ -248,3 +248,109 @@ prima: rinumerare quelle avrebbe toccato una ventina di rimandi e quattro issue 
 > garantisce è la **tredicesima** — verificato per mutazione su entrambe: reintroducendo il duplicato esce
 > `1` con le due righe stampate, rimuovendolo esce `0`. Un gate che non è stato eseguito non ha trovato
 > niente, e questa riga esiste per non far diventare la mutazione una prova di qualcosa che non è successo.
+
+**E il gate stesso è arrivato in code review con due difetti**, entrambi riprodotti eseguendolo e corretti
+prima del merge:
+
+1. **Non rispettava l'esenzione dei blocchi recintati** che ogni altro controllo del file applica. Una riga
+   d'esempio in un fence — `| **D-100** | esempio di riga… |` in un documento che *spiega il formato della
+   tabella* — sarebbe stata contata come duplicato. È il difetto che questo script ha già trovato su se
+   stesso due volte (i link d'esempio nel proprio README, il `!` dell'immagine citata), e la sua stessa
+   docstring ne dà la ragione: *«meglio stretto e creduto che largo e ignorato»*, perché **un gate che
+   sbaglia viene disattivato al terzo falso positivo**.
+2. **Non catturava `UnicodeDecodeError`**, mentre il ciclo principale sì. Un byte non valido nel Decision Log
+   avrebbe ucciso l'intero gate *prima* che potesse riportare i link rotti — cioè avrebbe tolto la verifica
+   proprio quando serve.
+
+Verificato dopo la correzione: esempio in fence → `0`; duplicato vero fuori dal fence → `1`, righe corrette;
+Decision Log con byte non validi → `0` e nessun traceback.
+
+---
+
+## 9. Secondo handoff dello stesso giorno — Battle Simulation e harness unificato
+
+Sorgente: [`../../archive/src/handoff/2026-08-11-battle-simulation-harness-unificato-e-release-bot.md`](../../archive/src/handoff/2026-08-11-battle-simulation-harness-unificato-e-release-bot.md).
+
+**È calibrato molto meglio del primo, e va detto perché è raro.** Il §1.1 nomina i **due** Feature ID reali
+invece di undici inventati; il §1.2 nomina `#326` e `#328` con i numeri giusti e ordina di non duplicarli; il
+§3 avverte da sé di non reintrodurre il roster storico `Aegis/Nyx/Drift/Vex`; il §33.1 dice di aggiornare i
+Feature ID esistenti invece di moltiplicarli. Nessuna delle quattro premesse false del §1 di questo referto
+si ripete.
+
+Restano due imprecisioni, entrambe di documenti spariti sotto di lui:
+
+| Dice | Realtà |
+|---|---|
+| `docs/wiki/feature-status.md` fra le viste generate | Non esiste più: [D-076](../../decisions/RT_PDR_00_Decision_Log.md) ha reso il clone la fonte unica, e la vista è `Stato-delle-feature` **nel clone** |
+| `docs/roadmap/roadmap-editor.md` come owner della Editor Map | `HISTORICAL` dal 2026-08-08; l'owner dei dati è `editor-sessions.yaml`, la vista è `editormap.shortlist.md` — **generata** |
+
+### 9.1 La contraddizione col consolidamento della mattina, e come si risolve
+
+Il §1.1 dice: *«Non creare una costellazione di nuovi `RT-FEAT-BOT-*` solo perché questo handoff contiene
+molte capability. La granularità fine va nelle Issue, nei checkpoint, negli scenari e nei test.»*
+
+Il consolidamento della mattina (§4.3) ne aveva creati **tre**. La contraddizione è apparente, e la
+distinzione è quella che il §33.1 scrive da sé — *«creare un Feature ID nuovo solo se la granularità corrente
+del registry lo richiede»*:
+
+- **Vietato**: dividere per **capability**. `threat projection`, `information gain`, `capability tags`,
+  `dynamic roles` non hanno un ID proprio, e infatti non ce l'hanno: sono gate e criteri di accettazione.
+- **Richiesto dallo schema**: dividere per **release ed epic**. `roadmap.epic` e `release` sono **valori
+  singoli**. `RT-FEAT-BOT-TACTICAL` copriva E26 (v0.2), E27 e E28 — e il registry lo dichiarava con
+  `epic: null`, cioè con l'unica cosa che poteva dire: *non lo so*.
+
+La prova che la divisione non è cosmetica sta in `RT-FEAT-BOT-FAIRNESS`: senza di essa, il lavoro Bot/AI
+**già aperto in v0.1** ([#160](https://github.com/DegrassiAaron/refactor-tactics-main/issues/160)) non
+comparirebbe nella roadmap di release, perché sarebbe attaccato a una feature `v0.2`. Dopo la divisione
+compare sotto E13, dove qualcuno lo leggerà.
+
+E la granularità fine è andata **esattamente dove il §1.1 chiede**: sei checkpoint, tredici scenari.
+
+### 9.2 Cosa entra dal secondo handoff
+
+| ID | Decide | Perché non c'era |
+|---|---|---|
+| `D-101` | **Un solo harness**, e un `DecisionProvider` restituisce **decisioni**, mai **esiti** | L'harness esiste (`Source/RefactorTactics/ScenarioHarness/`), il contratto no: ci sono **due** appigli ad hoc — gli intent scriptati di `FRTScenarioIntent` e `ARTTurnManager::PlanBotsForTest()`, che il commento del runner dichiara essere *«l'unico appiglio, che esisteva già per i test d'integrazione»*. Ogni modalità nuova ne aggiungerebbe un altro |
+| `D-102` | **Un risultato bot-contro-bot non è evidenza di bilanciamento** finché il bot non è certificato sulle capability che lo producono | Nessuna occorrenza di *competence*/*certificazione* nel repository — ma il dubbio era già scritto, vedi sotto |
+
+### 9.3 Il §18 aveva già un'istanza viva, e nessuno l'aveva chiamata per nome
+
+È il motivo per cui `D-102` vale più di una buona idea generica.
+
+`roadmap-checkpoint.md` §Metriche misura i round per partita e annota:
+
+> 🟡 **10** misurato bot-vs-bot (2026-08-06, `HexMatch.PlaysToCompletion`) — dentro banda, **ma è un bot
+> contro un bot**
+
+e `v0.1-definition-of-done.md` ripete che *«l'unico dato reale è ancora 10 round bot-vs-bot»*.
+
+Il dubbio c'era, ed era formulato correttamente. Mancavano la **regola** — cosa si può concludere da quel
+numero — e il **modo di scioglierlo**: uno stato di competenza per capability, legato a scenari reali, che
+distingue *«l'eroe è debole»* da *«il bot non sa giocarlo»*.
+
+> ⚠️ **Il costo di non averla è asimmetrico e invisibile.** Un nerf deciso su un bot che non sa usare
+> un'abilità **sembra** funzionare: il win rate si muove. E il difetto vero — che quell'abilità non entra mai
+> fra le candidate — resta coperto proprio dalla correzione. Chi rileggesse i numeri un anno dopo troverebbe
+> una decisione motivata da dati veri e conclusioni false.
+
+### 9.4 Cosa NON entra dal secondo handoff
+
+| Proposta | Motivo |
+|---|---|
+| §21–§27 — sette release di roadmap bot (v0.1 → v0.7+) con ~90 titoli di issue | Il repository ha **quattro** release pianificate (`v0.1`–`v0.4`) e il registry ammette `v0.1 \| v0.2 \| future`. Una progressione a sette assi creerebbe una terza numerazione accanto alle due che il §20 stesso avverte di non confondere. Le capability per release sono utili come *ordine di lavoro* e restano nel sorgente archiviato |
+| §21 — Epic v0.1 «Bot Baseline & Unified Scenario Execution» | Il §21 dice «non inventare numero se non esiste già», e infatti non serve: il bot baseline della v0.1 è `RT-FEAT-BOT-BASE`, **`RELEASE_READY`**, e la parte che manca è `RT-FEAT-BOT-FAIRNESS` sotto E13 |
+| §17 — sette famiglie di telemetria (match, unit, ability, capability, combo, reaction, mappa) | Nessun consumatore. È il difetto ricorrente del progetto — il dato che nessuno legge — e la casa naturale è `RT-FEAT-TOOL-BALANCE-GROUND`, che dichiara già di non avere «un banco che li eserciti in modo ripetibile» |
+| §29 — ~50 ScenarioId su sei release | Stessa ragione del §4.4: uno scenario pianificato per un sistema senza forma è un nome che verrà rinominato |
+| §30 — otto Editor Task | Come il primo handoff: sedute bloccate da lavoro non iniziato. Restano al §6 |
+| §32 — aggiornamento di dieci PDR | I PDR `v0.1` sono snapshot di consultazione ([D-009](../../decisions/RT_PDR_00_Decision_Log.md)); gli owner correnti sono i documenti di `docs/`, e sono quelli aggiornati |
+
+### 9.5 Aperto
+
+Il §20 chiede di collegare **due assi** — la progressione dell'harness (`Harness v0.1…v0.6+`) e quella delle
+release di gioco — senza confonderli. Il primo **non esiste nel repository**: zero occorrenze. Esiste
+`RT-FEAT-TEST-SCENARIO-HARNESS` (`INTEGRATED`, E15), che è il presente dell'harness, non la sua progressione.
+
+Non è stato creato: un asse di numerazione nuovo, senza owner e senza gate, sarebbe la terza vista di stato
+da tenere allineata a mano — ed è esattamente la gara che la Editor Map ha già perso una volta
+([`roadmap-editor.md`](../roadmap-editor.md), ritirata il 2026-08-08 perché *«tre tracker sincronizzati a
+mano diventano tre verità diverse»*). Se servirà, nasce **generato**, come è rinata la Editor Map.
