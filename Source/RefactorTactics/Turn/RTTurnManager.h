@@ -396,6 +396,30 @@ protected:
 		const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget);
 
 	/**
+	 * Applica uno spostamento FORZATO gia' deciso: i dieci passi che devono avvenire tutti, in un posto solo
+	 * (`#541`).
+	 *
+	 * Non calcola **dove** — quello lo fanno `HexKnockbackDestination` e la sua gemella per la trazione, e
+	 * restano separate perche' la direzione e' l'unica cosa che davvero distingue una spinta da un tiro.
+	 * Questa applica **come**, ed e' identica per entrambe: log, percorso, voce di TurnLog con la causa
+	 * (`#307`), evento di playback, cella nuova, facing verso la sorgente (CP 16.1), posizione visiva, hazard
+	 * di **ogni** cella attraversata (`#308`), e il piano che segue l'unita' invece di riportarla indietro.
+	 *
+	 * ⚠️ **Esisteva gia' due volte**, per `Push` e per `Pull`, riga per riga uguale tranne il verbo del log,
+	 * la mappa delle cause e la sorgente del facing. La terza copia sarebbe arrivata con `SelfReposition`
+	 * (D-093), e la terza e' quella che trasforma una duplicazione in un pattern da imitare: chi aggiunge il
+	 * quarto produttore di spostamento copia da una delle tre, e prima o poi ne copia una a cui manca un
+	 * passo. Ogni passo omesso e' un difetto gia' pagato — `#307` la causa, `#308` gli hazard, il piano che
+	 * non segue riporta l'unita' indietro nel Move.
+	 *
+	 * `FacingSource` e' la cella **verso cui** l'unita' si gira: chi spinge per la spinta, chi tira per la
+	 * trazione, chi ha innescato per una fuga ([D-104](../../../docs/decisions/RT_PDR_00_Decision_Log.md)).
+	 */
+	void ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& NewCell, const FRTCellId& FacingSource,
+		const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget, const TCHAR* LogVerb,
+		const URTHexMapAsset* Map);
+
+	/**
 	 * Voce di TurnLog per uno spostamento forzato ANNULLATO (#420): la spinta e' stata registrata, risolta, e
 	 * l'unita' e' rimasta dov'era. Il gemello negativo di `AppendDisplacementEntry`, e con la stessa forma —
 	 * fase `Blast`, categoria `Move`, causa presa dalla stessa mappa.

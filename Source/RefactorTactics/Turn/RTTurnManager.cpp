@@ -921,6 +921,83 @@ void ARTTurnManager::LockInAndResolve()
 	ConcludeTurn();
 }
 
+void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& NewCell,
+	const FRTCellId& FacingSource, const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget,
+	const TCHAR* LogVerb, const URTHexMapAsset* Map)
+{
+	if (!IsValid(Unit))
+	{
+		return;
+	}
+	const FRTCellId OldCell = Unit->Cell;
+
+	// 1. Riga di combat log: e' per l'HUD e NON finisce nel file — la traccia e' la voce di TurnLog al passo 3.
+	AddLogEvent(FString::Printf(TEXT("%s: %s -> (q=%d,r=%d,L%d)"),
+		LogVerb, *Unit->GetName(), NewCell.X, NewCell.Y, NewCell.Layer));
+
+	// 2. Celle attraversate: la linea esagonale fra le due, i cui passi sono adiacenti per costruzione. Serve
+	// al playback E agli hazard — «lo spostamento forzato ignora il costo VOLONTARIO del terreno, non la
+	// geometria e non gli hazard» (spec-tassonomia-movimento §3).
+	const TArray<FRTCellId> Path = URTHexLibrary::HexLine(OldCell, NewCell);
+
+	// 3. La voce di TurnLog CON LA CAUSA (#307). Prima lo spostamento esisteva solo come riga di combat log:
+	// il replay registrava il danno e taceva il movimento, e chi rileggeva il file vedeva l'unita' altrove
+	// senza nulla che lo spiegasse.
+	AppendDisplacementEntry(Unit, OldCell, NewCell, Path.Num() - 1, CauseByTarget);
+
+	// 4. Evento per il playback: lo spostamento scivola OldCell -> NewCell nella fase Blast.
+	{
+		FRTResolvedEvent Ev;
+		Ev.Phase = ERTMatchPhase::Blast;
+		Ev.Type = ERTResolvedEventType::Move;
+		Ev.Source = Unit;
+		Ev.Path = Path;
+		ResolvedTimeline.Add(Ev);
+	}
+
+	// 5. La cella nuova.
+	Unit->Cell = NewCell;
+
+	// 6. Il FACING verso la sorgente (CP 16.1, ADR-0005 §3): chi subisce uno spostamento si gira verso chi
+	// l'ha causato — chi spinge, chi tira, o chi ha innescato la fuga ([D-104]). Si applica con la cella
+	// GIA' aggiornata, cosi' la voce di log porta la posizione in cui l'unita' e' finita.
+	//
+	// Un Move volontario successivo VINCE: risolve dopo, nella sua fase, e riscrive. Non serve un flag che
+	// ricordi «e' stata spostata» — e' l'ORDINE delle fasi a deciderlo, ed e' il motivo per cui
+	// `URTFacingLibrary` non tiene stato.
+	{
+		FRTHexSimUnit Moved(0, NewCell, /*InMoveBudget=*/ 0);
+		Moved.Facing = Unit->Facing;
+		const ERTHexDirection Turned = URTFacingLibrary::FacingAfterDisplacement(
+			NewCell, FacingSource, ERTDisplacementCause::Forced, Moved.Facing);
+		URTFacingLibrary::RecordFacingChange(Moved, Turned,
+			ERTFacingOutcome::TurnedToDisplacementSource, ERTMatchPhase::Blast, TurnLog);
+		Unit->Facing = Moved.Facing;
+	}
+
+	// 7. La posizione visiva. Il contesto esagonale se lo chiede la primitiva invece di riceverlo: cosi' e'
+	// autonoma, e chi la chiamera' da una fase dove quelle locali non sono in scope — il pass del Cleanup di
+	// `SelfReposition`, D-092 — non deve procurarsele per poterla usare.
+	{
+		FVector VisualOrigin; float VisualSize; float VisualLayerH;
+		GetHexContext(VisualOrigin, VisualSize, VisualLayerH);
+		Unit->SetVisualLocation(Unit->WorldForCell(NewCell, VisualOrigin, VisualSize, VisualLayerH));
+	}
+
+	// 8. Gli hazard di OGNI cella attraversata, non solo di quella d'arrivo (#308). Chi viene spostato
+	// attraverso `asciutto -> fuoco -> fuoco -> asciutto` ha attraversato quelle due celle di fuoco e ne
+	// subisce le conseguenze, pur non avendo speso un solo punto movimento: il costo e' cio' che si paga per
+	// SCEGLIERE di passare, la geometria e' cio' che c'e'.
+	ApplyTerrainOnEnterEffects(Map, Unit, CellsEnteredAlong(Path));
+
+	// 9-10. Il piano segue l'unita' invece di riportarla indietro: la path composita dalla vecchia cella non
+	// e' piu' valida, e se non c'era un Move pianificato la destinazione diventa quella nuova — altrimenti
+	// l'unita' tornerebbe sui suoi passi nella fase Move, annullando lo spostamento.
+	Unit->PlannedPath.Reset();
+	Unit->PlannedWaypoints.Reset();
+	if (Unit->PlannedCell == OldCell) { Unit->PlannedCell = NewCell; }
+}
+
 void ARTTurnManager::AppendDisplacementEntry(const ARTUnit* Target, const FRTCellId& From, const FRTCellId& To,
 	int32 Steps, const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget)
 {
@@ -4010,64 +4087,7 @@ void ARTTurnManager::ResolveCombat()
 			}
 
 			ARTUnit* T = KTargets[a];
-			const FRTCellId OldCell = T->Cell;
-			const FRTCellId NewCell = KFinal[a];
-			AddLogEvent(FString::Printf(TEXT("Spinta: %s -> (q=%d,r=%d,L%d)"),
-				*T->GetName(), NewCell.X, NewCell.Y, NewCell.Layer));
-
-			// Celle attraversate dalla spinta: la linea esagonale fra le due celle, i cui passi sono adiacenti
-			// per costruzione. Serve al playback E agli hazard — «lo spostamento forzato ignora il costo
-			// VOLONTARIO del terreno, non la geometria e non gli hazard» (spec-tassonomia-movimento §3).
-			const TArray<FRTCellId> KPath = URTHexLibrary::HexLine(OldCell, NewCell);
-
-			// La SPINTA nel TurnLog (#307). Prima esisteva solo come riga di combat log — una stringa per
-			// l'HUD, non una voce di traccia: il replay registrava il danno e taceva lo spostamento, e chi
-			// rileggeva il file vedeva l'unita' altrove senza nulla che lo spiegasse.
-			AppendDisplacementEntry(T, OldCell, NewCell, KPath.Num() - 1, PushCause);
-
-			// Evento di movimento per il playback: la spinta scivola OldCell -> NewCell nella fase Blast.
-			{
-				FRTResolvedEvent Ev;
-				Ev.Phase = ERTMatchPhase::Blast;
-				Ev.Type = ERTResolvedEventType::Move;
-				Ev.Source = T;
-				Ev.Path = KPath;
-				ResolvedTimeline.Add(Ev);
-			}
-
-			T->Cell = NewCell;
-
-			// Chi subisce una spinta si gira verso CHI l'ha spinto (CP 16.1, ADR-0005 §3). Con la cella nuova,
-			// quindi la voce di log porta la posizione in cui l'unita' e' finita.
-			//
-			// Un Move volontario successivo VINCE: risolve dopo, nella sua fase, e riscrive. Non serve un flag
-			// che ricordi «e' stata spinta» — e' l'ORDINE delle fasi a deciderlo, ed e' il motivo per cui
-			// `URTFacingLibrary` non tiene stato.
-			{
-				FRTHexSimUnit Pushed(0, NewCell, /*InMoveBudget=*/ 0);
-				Pushed.Facing = T->Facing;
-				const ERTHexDirection Turned = URTFacingLibrary::FacingAfterDisplacement(
-					NewCell, KnockFrom[T], ERTDisplacementCause::Forced, Pushed.Facing);
-				URTFacingLibrary::RecordFacingChange(Pushed, Turned,
-					ERTFacingOutcome::TurnedToDisplacementSource, ERTMatchPhase::Blast, TurnLog);
-				T->Facing = Pushed.Facing;
-			}
-
-			T->SetVisualLocation(T->WorldForCell(NewCell, HexOrigin, HexSize, HexLayerH));
-
-			// Gli hazard di OGNI cella attraversata, non solo di quella d'arrivo (#308). Chi viene spinto
-			// attraverso `asciutto -> fuoco -> fuoco -> asciutto` ha attraversato quelle due celle di fuoco e ne
-			// subisce le conseguenze, pur non avendo speso un solo punto movimento: il costo e' cio' che si paga
-			// per SCEGLIERE di passare, la geometria e' cio' che c'e'.
-			//
-			// Fino a qui `KPath` serviva solo all'animazione, e il commento diceva che il danno da
-			// attraversamento «torna con l'ambiente attivo (epic E8)». E8 e' atterrata e questo punto non e'
-			// stato ripassato: era un rinvio scaduto, non una decisione.
-			ApplyTerrainOnEnterEffects(Map, T, CellsEnteredAlong(KPath));
-
-			T->PlannedPath.Reset();      // path composita dalla vecchia cella non valida
-			T->PlannedWaypoints.Reset();
-			if (T->PlannedCell == OldCell) { T->PlannedCell = NewCell; } // niente move pianificato: resta spinto
+			ApplyForcedDisplacement(T, KFinal[a], KnockFrom[T], PushCause, TEXT("Spinta"), Map);
 		}
 	}
 
@@ -4100,51 +4120,7 @@ void ARTTurnManager::ResolveCombat()
 			if (bContested) { continue; }
 
 			ARTUnit* T = PTargets[a];
-			const FRTCellId OldCell = T->Cell;
-			const FRTCellId NewCell = PFinal[a];
-			AddLogEvent(FString::Printf(TEXT("Trazione: %s -> (q=%d,r=%d,L%d)"),
-				*T->GetName(), NewCell.X, NewCell.Y, NewCell.Layer));
-
-			const TArray<FRTCellId> PPath = URTHexLibrary::HexLine(OldCell, NewCell);
-
-			// La TRAZIONE nel TurnLog (#307), stessa voce della spinta. Le due si distinguono senza un esito
-			// dedicato: `SrcCell -> TgtCell` si avvicina alla sorgente invece di allontanarsene, e la sorgente
-			// e' quella del colpo che porta lo stesso `ActionId`.
-			AppendDisplacementEntry(T, OldCell, NewCell, PPath.Num() - 1, PullCause);
-			{
-				FRTResolvedEvent Ev;
-				Ev.Phase = ERTMatchPhase::Blast;
-				Ev.Type = ERTResolvedEventType::Move;
-				Ev.Source = T;
-				Ev.Path = PPath;
-				ResolvedTimeline.Add(Ev);
-			}
-
-			T->Cell = NewCell;
-
-			// Come la spinta: chi viene trascinato guarda chi lo tira. La sorgente e' `PullToward`, che e' gia'
-			// la cella verso cui si viene attirati — con la trazione le due cose coincidono.
-			{
-				FRTHexSimUnit Pulled(0, NewCell, /*InMoveBudget=*/ 0);
-				Pulled.Facing = T->Facing;
-				const ERTHexDirection Turned = URTFacingLibrary::FacingAfterDisplacement(
-					NewCell, PullToward[T], ERTDisplacementCause::Forced, Pulled.Facing);
-				URTFacingLibrary::RecordFacingChange(Pulled, Turned,
-					ERTFacingOutcome::TurnedToDisplacementSource, ERTMatchPhase::Blast, TurnLog);
-				T->Facing = Pulled.Facing;
-			}
-
-			T->SetVisualLocation(T->WorldForCell(NewCell, HexOrigin, HexSize, HexLayerH));
-
-			// Gli hazard delle celle attraversate, come per la spinta (#308). La regola di
-			// `spec-tassonomia-movimento` §3 parla di spostamento FORZATO, non di spinta: trattare le due vie
-			// in modo diverso rifarebbe l'asimmetria `ModifyArc`/`DamageArc` corretta in #302, dove la stessa
-			// disciplina era mantenuta per una via di uscita e non per l'altra.
-			ApplyTerrainOnEnterEffects(Map, T, CellsEnteredAlong(PPath));
-
-			T->PlannedPath.Reset();
-			T->PlannedWaypoints.Reset();
-			if (T->PlannedCell == OldCell) { T->PlannedCell = NewCell; }
+			ApplyForcedDisplacement(T, PFinal[a], PullToward[T], PullCause, TEXT("Trazione"), Map);
 		}
 	}
 
