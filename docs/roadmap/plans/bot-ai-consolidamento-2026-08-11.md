@@ -153,8 +153,25 @@ misura giusta di cosa ha prodotto questo consolidamento — tredici promesse ver
 
 ### 4.5 GitHub
 
-Nessuna Epic nuova. Quattro Epic estese, e le issue di checkpoint create solo dove esisteva un **gap reale**:
-vedi §7 per i numeri.
+**Nessuna Epic nuova.** Tre estese, una issue di checkpoint della v0.1 estesa, sei checkpoint creati.
+
+| Issue | Azione | Cosa cambia |
+|---|---|---|
+| [#326](https://github.com/DegrassiAaron/refactor-tactics-main/issues/326) `E26` | aggiornata | Architettura fissata (`D-095`–`D-098`), scope ridotto: belief e predittivo escono in feature proprie |
+| [#327](https://github.com/DegrassiAaron/refactor-tactics-main/issues/327) `E27` | aggiornata | `D-099`: «gradi di certezza» **non** è un enum nuovo |
+| [#328](https://github.com/DegrassiAaron/refactor-tactics-main/issues/328) `E28` | aggiornata | Perimetro fissato; checkpoint **deliberatamente non creati** — vedi sotto |
+| [#160](https://github.com/DegrassiAaron/refactor-tactics-main/issues/160) `CP 13.5` | aggiornata | Il DoD acquista il **canary** e il caso decoy. È l'unico lavoro Bot/AI aperto in **v0.1** |
+| [#531](https://github.com/DegrassiAaron/refactor-tactics-main/issues/531)–[#534](https://github.com/DegrassiAaron/refactor-tactics-main/issues/534) `CP 26.1`–`26.4` | **create** | Top-K e diversità · compatibilità temporale · conflitti e risorsa contesa · isteresi |
+| [#535](https://github.com/DegrassiAaron/refactor-tactics-main/issues/535)–[#536](https://github.com/DegrassiAaron/refactor-tactics-main/issues/536) `CP 27.1`–`27.2` | **create** | Belief e decadimento · threat projection e information gain |
+
+Le sei nuove sono **sub-issue** delle rispettive epic (`sub_issues` API), che è la relazione che il repository
+non aveva ancora usato: prima il legame epic↔checkpoint viveva solo nella riga «**Epic**: #N» del corpo, cioè
+in prosa. Le epic ora mostrano l'avanzamento senza che nessuno lo conti.
+
+**E28 non riceve checkpoint, ed è una scelta.** A differenza di E26 ed E27 — dove due decisioni hanno fissato
+l'architettura — lì ciò che resta da decidere è più di ciò che è deciso: quanti scenari per difficoltà, la
+formula del robust score, quando il resolver diventa estraibile. Checkpoint scritti su quelle domande
+avrebbero DoD che si riscrivono al primo profiling.
 
 ---
 

@@ -3812,7 +3812,7 @@ features:
       - RT-FEAT-REACTION-OPPORTUNITY
     owner_specs:
       - docs/gameplay/spec-bot-tattico.md
-    issues: [326]
+    issues: [326, 531, 532, 533, 534]
     tests: []
     scenarios:
       - planned:
@@ -3865,7 +3865,7 @@ features:
       - RT-FEAT-PERCEPTION-NOISE
     owner_specs:
       - docs/gameplay/spec-bot-tattico.md
-    issues: [327]
+    issues: [327, 535, 536]
     tests: []
     scenarios:
       - planned:

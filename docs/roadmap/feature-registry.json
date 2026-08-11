@@ -4689,7 +4689,11 @@
         "docs/gameplay/spec-bot-tattico.md"
       ],
       "issues": [
-        326
+        326,
+        531,
+        532,
+        533,
+        534
       ],
       "tests": [],
       "scenarios": [],
@@ -4748,7 +4752,9 @@
         "docs/gameplay/spec-bot-tattico.md"
       ],
       "issues": [
-        327
+        327,
+        535,
+        536
       ],
       "tests": [],
       "scenarios": [],
