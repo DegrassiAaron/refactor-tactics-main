@@ -27,22 +27,22 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `IDEA` | 7 |
 | `DESIGNED` | 10 |
 | `SPECIFIED` | 10 |
-| `IMPLEMENTING` | 23 |
+| `IMPLEMENTING` | 22 |
 | `TESTABLE` | 5 |
 | `INTEGRATED` | 21 |
-| `RELEASE_READY` | 15 |
+| `RELEASE_READY` | 16 |
 | `DONE` | 1 |
 
 ### Actions · 12
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
+| `RT-FEAT-ACTION-BASIC-ATTACK-PROFILES` — Profili di attacco base per eroe | v0.1 | RELEASE_READY | 7/8 | E4 | Un eroe resta riconoscibile **anche senza usare le sue speciali**; e un attacco base debole non è un pulsante finto |
 | `RT-FEAT-ACTION-DASH-DISPLACEMENT` — Dash e spostamento forzato | v0.1 | RELEASE_READY | 7/8 | E2 | Spinte opposte si annullano, la contesa resta ferma |
 | `RT-FEAT-ACTION-ENGINE` — Motore delle azioni a priorità intera | v0.1 | RELEASE_READY | 7/8 | E4 | Ordine per priorità, permutazione-invarianza, nessun bias di Player ID |
 | `RT-FEAT-ACTION-MOVE-PROFILES` — Profili di movimento (Move, Sprint, Charge) | v0.1 | RELEASE_READY | 7/8 | E4 | **Sprint è un profilo di Move, non un Dash** |
 | `RT-FEAT-ACTION-PREDICTIVE` — Predictive Action, thin slice | v0.1 | INTEGRATED | 6/8 | E18 | Decisa in Planning, risolta a un boundary, **senza input live** |
 | `RT-FEAT-ACTION-COOLDOWNS` — Cooldown ed economia delle risorse | v0.1 | TESTABLE | 5/8 | E4 | ⚠️ non verificabile finché i world di test non chiamano `BeginPlay()` (`#135`) |
-| `RT-FEAT-ACTION-BASIC-ATTACK-PROFILES` — Profili di attacco base per eroe | v0.1 | IMPLEMENTING | 6/8 | E4 | Un eroe resta riconoscibile **anche senza usare le sue speciali**; e un attacco base debole non è un pulsante finto |
 | `RT-FEAT-ACTION-EQUIPMENT` — Equipaggiamento e loadout | v0.1 | IMPLEMENTING | 1/8 | E7 | Scelta orizzontale: ogni variante ha uno svantaggio |
 | `RT-FEAT-ACTION-GENERIC` — Azioni generiche del catalogo | v0.1 | IMPLEMENTING | 3/8 | E4 | Le sette di D-025: `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch` |
 | `RT-FEAT-ACTION-SUPERS` — Ultimate e azioni ad alto impegno | v0.2 | IMPLEMENTING | 0/8 | — | Fuori dal contenuto della v0.1 |
