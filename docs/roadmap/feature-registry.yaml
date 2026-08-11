@@ -3727,7 +3727,7 @@ features:
   # mentre ne aveva tre. Divisa in quattro il 2026-08-11 (referto
   # `plans/bot-ai-consolidamento-2026-08-11.md` §4.3), con il criterio dei gate: due feature stanno
   # separate se i loro gate possono muoversi in momenti diversi. Qui succede — `FAIRNESS` ha lavoro
-  # aperto in **v0.1** (CP 13.5, #160) mentre `PREDICTIVE` non ha nemmeno un'epic aperta.
+  # aperto in **v0.1** (E13.5, #160) mentre `PREDICTIVE` non ha nemmeno un'epic aperta.
   #
   # ⚠️ Nessuna delle quattro va oltre DESIGNED/SPECIFIED: il consolidamento del 2026-08-11 ha
   # prodotto **specifica, non implementazione**. Una spec piu' dettagliata non e' un gate che avanza.
@@ -3773,8 +3773,10 @@ features:
       L'unico pezzo del cluster Bot con lavoro gia' aperto in v0.1. La premessa oggi e' **falsa e
       misurata**: `ARTTurnManager::PlanBots` popola `Ctx.Enemies` da tutte le unita' nemiche vive,
       senza filtro di percezione — vedi `spec-bot-hex.md` §6, che lo dichiara invece di nasconderlo.
-      `spec: done` perche' la regola e' scritta e completa (`spec-bot-tattico.md` §2); tutto il
-      resto e' `todo` perche' non esiste il filtro.
+      `spec: done` perche' la regola e' scritta e completa (`spec-bot-tattico.md` §2). `runtime`,
+      `log_debug`, `automation`, `scenario` e `packaged` sono `todo` perche' non esiste il filtro;
+      `data` e `network_privacy` sono `na` (nessun asset da configurare, niente rete in v0.1) e
+      `ui_wiki` e' `partial` — vedi sotto.
       ⚠️ Il gate che conta e' `automation`, e ha una forma precisa: un **canary** che mette la
       stessa `FRTTeamKnowledge` davanti a due stati autorevoli diversi (nemico nascosto in A oppure
       in B) e pretende lo stesso Intent. Un bot che legge lo stato lo fallisce; nessuna review lo

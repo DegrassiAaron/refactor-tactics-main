@@ -81,8 +81,8 @@ e le feature che li produrrebbero sono v0.2/v0.3.
 
 **Non entrate.** Le sedute in editor (`editor-sessions.yaml`) dichiarano `unblocked_by` verso codice che
 deve esistere: nove sedute bloccate da lavoro non iniziato avrebbero allungato la coda senza spostarne
-l'ordine. Registrate qui come §6, che è il posto in cui si va a cercarle quando `RT-FEAT-BOT-TACTICAL` esce
-da `IDEA`.
+l'ordine. Registrate qui come §6, che è il posto in cui si va a cercarle quando quelle feature avranno un
+overlay da guardare.
 
 ---
 
@@ -100,8 +100,8 @@ prossimo handoff sul bot le riproporrà, e la risposta deve costare una riga.
 | §15 — niente ordine di `TMap`/`TSet` come tie-break | `CLAUDE.md` §4 · [`spec-bot-hex.md`](../../gameplay/spec-bot-hex.md) §5, con il test `ChooseBestPlanOrderIndependent` |
 | §26 — Overwatch `FIRE`/`HOLD`, timeout = `HOLD` | `D-012` · [ADR-0004](../../decisions/adr-0004-finestre-di-reazione.md) · `CLAUDE.md` §2 |
 | §38 — niente look-ahead profondo/Monte Carlo in v0.1 | [`roadmap-post-v0.1.md`](../roadmap-post-v0.1.md) § E28 (v0.3) |
-| §40 — il trace privato non finisce al client avversario | `D-043` (privacy delle reazioni) · `CP 5.4` (#53, chiusa) |
-| §53.3 — canary sull'onniscienza | La premessa è già misurata e **negativa**: [`spec-bot-hex.md`](../../gameplay/spec-bot-hex.md) §6 dichiara che oggi il bot vede tutte le posizioni nemiche, ed è il lavoro di `CP 13.5` ([#160](https://github.com/DegrassiAaron/refactor-tactics-main/issues/160)) |
+| §40 — il trace privato non finisce al client avversario | `D-043` (privacy delle reazioni) · `E5.4` (#53, chiusa) |
+| §53.3 — canary sull'onniscienza | La premessa è già misurata e **negativa**: [`spec-bot-hex.md`](../../gameplay/spec-bot-hex.md) §6 dichiara che oggi il bot vede tutte le posizioni nemiche, ed è il lavoro di `E13.5` ([#160](https://github.com/DegrassiAaron/refactor-tactics-main/issues/160)) |
 | §60 — non promuovere a `DONE` perché la spec è cresciuta | È il funzionamento del registry: `status` è derivato dai gate e il validator lo verifica |
 | §64 — non creare una seconda AI parallela | L'entry point è uno: `URTHexBotLibrary`, consumato da `ARTTurnManager::PlanBots` |
 
@@ -138,7 +138,7 @@ gate che si muovono davvero in modo indipendente:
 
 | Feature | Release | Epic | Cosa raccoglie |
 |---|---|---|---|
-| `RT-FEAT-BOT-FAIRNESS` | **v0.1** | E13 | L'ingresso del bot è la Team Knowledge della sua squadra, e un canary lo dimostra. È il solo pezzo con lavoro **già aperto in v0.1**: `CP 13.5` ([#160](https://github.com/DegrassiAaron/refactor-tactics-main/issues/160)) |
+| `RT-FEAT-BOT-FAIRNESS` | **v0.1** | E13 | L'ingresso del bot è la Team Knowledge della sua squadra, e un canary lo dimostra. È il solo pezzo con lavoro **già aperto in v0.1**: `E13.5` ([#160](https://github.com/DegrassiAaron/refactor-tactics-main/issues/160)) |
 | `RT-FEAT-BOT-TACTICAL` | v0.2 | E26 | Team Planner Top-K, ruoli dinamici, capability/job, sinergia, conflitti, compatibilità temporale |
 | `RT-FEAT-BOT-BELIEF` | v0.3 | E27 | Known vs Belief, confidenza discreta, celle plausibili, decadimento, threat projection, information gain |
 | `RT-FEAT-BOT-PREDICTIVE` | v0.3 | E28 | Scenari nemici limitati, robust scoring, bait/minaccia non contabilizzata, counterfactual |
@@ -165,9 +165,9 @@ misura giusta di cosa ha prodotto questo consolidamento — tredici promesse ver
 | [#326](https://github.com/DegrassiAaron/refactor-tactics-main/issues/326) `E26` | aggiornata | Architettura fissata (`D-095`–`D-098`), scope ridotto: belief e predittivo escono in feature proprie |
 | [#327](https://github.com/DegrassiAaron/refactor-tactics-main/issues/327) `E27` | aggiornata | `D-099`: «gradi di certezza» **non** è un enum nuovo |
 | [#328](https://github.com/DegrassiAaron/refactor-tactics-main/issues/328) `E28` | aggiornata | Perimetro fissato; checkpoint **deliberatamente non creati** — vedi sotto |
-| [#160](https://github.com/DegrassiAaron/refactor-tactics-main/issues/160) `CP 13.5` | aggiornata | Il DoD acquista il **canary** e il caso decoy. È l'unico lavoro Bot/AI aperto in **v0.1** |
-| [#531](https://github.com/DegrassiAaron/refactor-tactics-main/issues/531)–[#534](https://github.com/DegrassiAaron/refactor-tactics-main/issues/534) `CP 26.1`–`26.4` | **create** | Top-K e diversità · compatibilità temporale · conflitti e risorsa contesa · isteresi |
-| [#535](https://github.com/DegrassiAaron/refactor-tactics-main/issues/535)–[#536](https://github.com/DegrassiAaron/refactor-tactics-main/issues/536) `CP 27.1`–`27.2` | **create** | Belief e decadimento · threat projection e information gain |
+| [#160](https://github.com/DegrassiAaron/refactor-tactics-main/issues/160) `E13.5` | aggiornata | Il DoD acquista il **canary** e il caso decoy. È l'unico lavoro Bot/AI aperto in **v0.1** |
+| [#531](https://github.com/DegrassiAaron/refactor-tactics-main/issues/531)–[#534](https://github.com/DegrassiAaron/refactor-tactics-main/issues/534) `E26.1`–`E26.4` | **create** | Top-K e diversità · compatibilità temporale · conflitti e risorsa contesa · isteresi |
+| [#535](https://github.com/DegrassiAaron/refactor-tactics-main/issues/535)–[#536](https://github.com/DegrassiAaron/refactor-tactics-main/issues/536) `E27.1`–`E27.2` | **create** | Belief e decadimento · threat projection e information gain |
 
 Le sei nuove sono **sub-issue** delle rispettive epic (`sub_issues` API), che è la relazione che il repository
 non aveva ancora usato: prima il legame epic↔checkpoint viveva solo nella riga «**Epic**: #N» del corpo, cioè

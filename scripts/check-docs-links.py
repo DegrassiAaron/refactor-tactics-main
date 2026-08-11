@@ -85,7 +85,15 @@ CONFLITTO_RE = re.compile(r"^(?:<{7}|>{7}) ", re.M)
 # decisione successiva, cioe' dal prossimo autore e sempre in ritardo di un merge — vedi la nota di
 # `D-094`. Il rimedio raccomandato allora ("rileggere `main` prima del merge") e' una disciplina
 # umana; questo e' tre righe di script.
-DECISIONE_RE = re.compile(r"^\|\s*\*\*(D-\d{3})\*\*\s*\|", re.M)
+# ⚠️ Il grassetto e la barratura sono OPZIONALI, e non e' un dettaglio di stile.
+# La prima stesura di questa regex chiedeva `**` subito dopo la barra, e copriva **93 righe su 102**:
+# perdeva `D-001`..`D-008` (righe antiche, scritte senza grassetto) e `~~**D-044**~~` (ritirata,
+# barrata). Trovato in code review prima del merge.
+# Le due categorie perse erano **le peggiori possibili** per questo gate: `D-044` e' un numero
+# lasciato deliberatamente vuoto perche' un riuso non sovrascrivesse la storia, cioe' esattamente il
+# buco che invita un `D-044` nuovo — e li' il gate avrebbe visto una riga sola e riportato zero
+# duplicati. Un falso negativo proprio sul caso per cui e' stato scritto.
+DECISIONE_RE = re.compile(r"^\|\s*~{0,2}\s*\*{0,2}(D-\d{3})\*{0,2}\s*~{0,2}\s*\|", re.M)
 DECISION_LOG = "docs/decisions/RT_PDR_00_Decision_Log.md"
 
 

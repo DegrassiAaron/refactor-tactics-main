@@ -79,7 +79,7 @@ avversario, e se un rumore è un'esca.
 davanti a due stati autorevoli diversi — il nemico nascosto in A oppure in B — e pretende **lo stesso
 Intent**. Un bot che legge lo stato lo fallisce; nessuna review lo prende. È il gate di
 `RT-FEAT-BOT-FAIRNESS`, e la sua premessa oggi è falsa per costruzione: il filtro di percezione lo installa
-`CP 13.5` ([#160](https://github.com/DegrassiAaron/refactor-tactics-main/issues/160)).
+`E13.5` ([#160](https://github.com/DegrassiAaron/refactor-tactics-main/issues/160)).
 
 ---
 
