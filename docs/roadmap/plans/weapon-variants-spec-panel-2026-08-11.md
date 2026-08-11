@@ -63,13 +63,22 @@ della v0.1.» Le due letture divergono:
 
 | Chi legge | Campo | Dove |
 |---|---|---|
-| **Bot**, generazione candidati d'attacco | `Ability->RangeCells` *(legacy)* | `RTTurnManager.cpp:406`, `:460` |
+| **Bot**, generazione candidati d'attacco | `Ability->RangeCells`, `Ability->Power` *(legacy)* | `PlanBots` — `RTTurnManager.cpp:406`, `:460` |
+| **Resolver**, costruzione dell'**intento** | `Ability->Shape`, `Ability->RangeCells`, `Ability->AreaRadius` *(legacy)* | `RTTurnManager.cpp:2703-2705` |
+| **Resolver**, danno di fallback | `Ability->Power` *(legacy)* | `RTTurnManager.cpp:2723` |
 | **Resolver**, validazione in esecuzione | `Instance.Def.RangeCells` | `URTActionFallbackLibrary::ValidateInstance` (`RTActionFallbackLibrary.cpp:46-50`), chiamata da `RTTurnManager.cpp:2623` |
 
 E la divergenza **non** viene richiusa dal ponte che il resolver ha già: `RTTurnManager.cpp:2604` ricade
 sul campo legacy soltanto se `ActionId` è vuoto **o** `RangeCells <= 0`. Un attacco base modificato da una
 variante non soddisfa nessuna delle due, quindi valida sulla `Def` giusta — mentre il bot ha pianificato
 sulla vecchia.
+
+> ⚠️ **Le prime due righe sono un'aggiunta del 2026-08-11, e correggono per difetto questo stesso panel.**
+> La prima stesura contrapponeva soltanto *bot* e *validazione*, come se la superficie fosse la portata del
+> bot. Non lo è: l'**intento** — ciò che finisce nel TurnLog e nel replay — nasce anch'esso dagli specchi,
+> e con esso `Shape` e `AreaRadius`, che nessuna variante odierna tocca ma che la prima variante di forma
+> toccherebbe. Trovato da chi ha implementato la correzione (`fix/variant-bridge`) **rileggendo il
+> resolver invece di fidarsi di questo documento**, che è esattamente il modo in cui andava usato.
 
 Scenario concreto, se `#63` (`E7.4` — Loadout, **OPEN**) cablerà il loadout assegnando solo `->Def`:
 
@@ -157,13 +166,20 @@ Per equità verso il consolidamento, tre cose che sarebbe stato facile sbagliare
 
 ## 4. Raccomandazioni, in ordine
 
-| # | Azione | Costo | Perché ora |
+| # | Azione | Costo | Stato |
 |---|---|---|---|
-| 1 | `EquipWeaponVariant` di produzione; il test chiama quella | poche righe | **Prima** che `#63` cabli il loadout: dopo, il difetto è già dentro |
-| 2 | Riscrivere la nota §1 del catalogo perché citi D-089 | una frase | Un owner che afferma il falso |
-| 3 | Marcatore di stato su D-089 | una frase | Allinea la quinta decisione alle sorelle |
+| 1 | `EquipWeaponVariant` di produzione; il test chiama quella | poche righe | 🔄 **scritta** su `fix/variant-bridge` — ⚠️ **non compilata né eseguita** (Live Coding di un'altra sessione). È il gate prima del merge |
+| 2 | Riscrivere la nota §1 del catalogo perché citi D-089 | una frase | ⏳ aperta — un owner che afferma il falso |
+| 3 | Marcatore di stato su D-089 | una frase | ⏳ aperta — allinea la quinta decisione alle sorelle |
 
 Nessuna delle tre tocca un numero di bilanciamento, e nessuna riapre una decisione `Locked`.
+
+> La **1** non è più solo una raccomandazione: `fix/variant-bridge` porta `EquipWeaponVariant` in
+> produzione, fa chiamare quella all'helper di test invece di duplicarla, e aggiunge
+> `Equipment.VariantReachesWhatTheGameActuallyReads` — che verifica `Def` e specchi allineati, la ricarica
+> di `Overcharge` che arriva allo specchio, e che riequipaggiare due volte non accumuli `Power`.
+> ⚠️ **Il commit dichiara sé stesso non verificato**: finché build e suite non girano, «scritta» non è
+> «funzionante», e questa riga non va letta come chiusa.
 
 ## 5. Domande che restano all'autore
 
