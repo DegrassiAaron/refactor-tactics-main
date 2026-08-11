@@ -22,7 +22,7 @@ Ogni eroe seleziona: **1 variante arma** + **1 gadget** + **1 modulo di reazione
 |---|---|---|---|
 | `Weapon.Precision` | Precisione | +1 range | −4 danni |
 | `Weapon.Impact` | Impatto | applica `Push 1` | −1 range |
-| `Weapon.Overcharge` | Sovraccarico | +6 danni | cooldown +1 |
+| `Weapon.Overcharge` | Sovraccarico | **+18/+14/+8** per fascia *(D-090)* | **ricarica +2**: l'attacco base salta un turno |
 | `Weapon.Split` | Multiplo | bersaglio aggiuntivo | −6 danni |
 | `Weapon.Suppressive` | Soppressione | applica `Slow` | −5 danni |
 | `Weapon.Environmental` | Ambientale | migliora gli hazard | −5 danni diretti |
@@ -144,9 +144,11 @@ da `Gadget.PortableCover`~~ · se l'immunità di
 `Gadget.Insulator` si consumi anche quando la propagazione non avrebbe fatto danno.
 
 > **Aggiunto il 2026-08-11**: al PDF mancano anche il **costo preciso di `Weapon.Environmental`** e la
-> semantica di **`+1 turno di ricarica`** per `Weapon.Overcharge` — quest'ultima è il vero prezzo della
-> variante e non è mai stata definita (`WV-1`). Nessun eroe ha mai avuto l'attacco base in ricarica: è il
-> primo caso, e va verificato che resolver e HUD sappiano esprimerlo.
+> ~~semantica di «+1 turno di ricarica» per `Weapon.Overcharge`~~ — ✅ **chiusa il 2026-08-11**
+> ([D-090](../decisions/RT_PDR_00_Decision_Log.md)). Il «+1» del PDF vale **zero** nel motore, perché
+> `TickCooldowns()` gira nel Cleanup dello stesso turno: le azioni che saltano davvero un turno hanno **2**.
+> `Overcharge` diventa una variante **burst** — bonus per fascia e ricarica +2 — e resolver e HUD sanno già
+> esprimerlo (`CanUseAbility` è fatto valere in otto punti, l'HUD mostra il residuo).
 
 > **Chiuso il 2026-08-09 (E9.5)** — `Gadget.PortableCover` è **costruito**, ed è l'unico gadget della v0.1 a
 > esserlo: concede `Action.CreateCover` (integrità 30, durata **2 turni**, la stessa dell'azione core, che era
