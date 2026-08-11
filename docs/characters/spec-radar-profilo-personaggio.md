@@ -102,10 +102,18 @@ le stesse cinque colonne sono **vuote**, con `Data_Status: CANONICAL_PARTIAL` e 
 *«Canonico: HP 90, Move 5. Altri attributi di questa matrice non sono definiti nel catalogo v0.1»*.
 
 Le quattro righe di **A** sono identiche fra loro in ogni colonna, `Indice_Combat` e `Budget_Punti`
-compresi: sono valori di default mai differenziati, non profili. Nello stesso foglio i 38
-personaggi *candidate* hanno invece valori distinti (Aurora `7/6/10/6/5`, Countess `8/8/5/2/2`) —
-quindi un controllo a campione sul foglio **non** rivela il problema: a essere placeholder sono
-esattamente le quattro righe che servono alla v0.1.
+compresi. Che siano default e non profili si dimostra guardando **come il foglio tratta tutti gli
+altri**: le restanti 38 righe si distribuiscono su **12 combinazioni distinte**, assegnate per
+**ruolo** — otto Controller condividono `7/6/10/6/5`, sei Bruiser `7/8/6/3/7`, e Dekker (Support) ha
+`6/4/9/8/5`.
+
+Il foglio, cioè, discrimina per ruolo. E i quattro eroi della v0.1 hanno **quattro ruoli diversi** —
+Controller, Support, Guardian, Striker — con **la stessa identica riga**. Sotto la regola che il
+foglio applica ovunque, quei quattro dovrebbero differire: non differiscono perché nessuno li ha mai
+compilati.
+
+⚠️ Ne segue che un controllo a campione sul foglio **non** rivela il problema: si incontrano righe
+popolate e plausibili, e a essere placeholder sono esattamente le quattro che servono alla v0.1.
 
 **Conseguenza operativa.** «Riusa i rating che esistono già» è la regola giusta e qui produce il
 risultato sbagliato: quattro radar sovrapponibili, dichiarati canonici, che violano §3. La regola va

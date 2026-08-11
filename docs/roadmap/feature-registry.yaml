@@ -4713,7 +4713,7 @@ features:
     wiki_refs:
       - wiki:Profilo-tattico
     last_verified:
-      date: 2026-08-12
+      date: 2026-08-11
       commit: f17cc0b
     notes: >
       D-105. Due viste distinte — **Profile** (sei assi, pubblica) e **Balance** (cinque assi,
@@ -4761,11 +4761,13 @@ features:
       `Indice_Combat 45.6`, `Budget_Punti 60`), mentre `02_Hero_Stats` di
       `RefactorTactics_Characters_Wiki_Data_v0.4.xlsx` li lascia **vuoti** con
       `Data_Status: CANONICAL_PARTIAL` e la nota «non sono definiti nel catalogo v0.1».
-      ⚠️ Quattro righe identiche in **ogni** colonna sono un default mai differenziato, non quattro
-      profili simili — e nello stesso foglio i 38 *candidate* hanno valori distinti, quindi un
-      controllo a campione **non** rivela il problema: sono placeholder esattamente le righe che
-      servono alla v0.1. Applicare «riusa i rating che esistono» produrrebbe quattro radar
-      sovrapponibili e li dichiarerebbe canonici passando dalla Wiki.
+      ⚠️ Che siano default lo dimostra il modo in cui il foglio tratta tutti gli altri: le restanti
+      38 righe si distribuiscono su **12 combinazioni assegnate per ruolo** (otto Controller
+      condividono `7/6/10/6/5`, sei Bruiser `7/8/6/3/7`), mentre i quattro della v0.1 hanno **quattro
+      ruoli diversi** — Controller, Support, Guardian, Striker — e la **stessa identica riga**. Sotto
+      la regola che il foglio applica ovunque dovrebbero differire. Un controllo a campione non lo
+      rivela, perche' si incontrano righe popolate e plausibili. Applicare «riusa i rating che
+      esistono» produrrebbe quattro radar sovrapponibili e li dichiarerebbe canonici via Wiki.
 
   - feature_id: RT-FEAT-WIKI-CHART-GENERATOR
     title: Generatore SVG deterministico dei radar
