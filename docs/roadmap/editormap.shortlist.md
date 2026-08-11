@@ -68,7 +68,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 - **U4** · Combat e linea di tiro — 0/3 voci verdi · sblocca U5, M6.4, M6.5
 - **U5** · Bot e HUD — 0/7 voci verdi · sblocca U6, U19, M6.6, M6.7
 - **U6** · Multilivello e partita completa — 0/4 voci verdi · sblocca U16, U19, M6.8
-- **U7** · Personaggi Paragon — 1/2 voci verdi · sblocca U8
+- **U7** · Personaggi Paragon — 1/2 voci verdi · sblocca U8, U19
 - **U8** · Animazioni — 0/2 voci verdi · sblocca U9, U19
 - **U9** · Leggibilita' e riferimento visivo — 2/4 voci verdi · sblocca M8.1, M8.2, M8.3
 - **U15** · HUD, intenti, log e comandi debug — 1/5 voci verdi · sblocca E11
@@ -82,7 +82,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 - **U11** · I 4 eroi — attende `U10` —
 - **U13** · Arena v0.1 — attende `U1` ⏳
 - **U14** · Ambiente in partita — attende `U13` ⏳
-- **U19** · Durata, ritmo e scala — attende `U6` 🟡, `U1` ⏳, `U5` 🟡, `U8` ⏳
+- **U19** · Durata, ritmo e scala — attende `U6` 🟡, `U1` ⏳, `U5` 🟡, `U7` 🟡, `U8` ⏳
 - **U16** · Misura dei KPI — attende `U6` 🟡
 - **U20** · Confine fra Guard e Brace — attende `E5.2` ⏳
 
@@ -110,7 +110,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 | **U13** | Arena v0.1 | l'arena estesa con quanto serve alle verifiche di contenuto | E8, E9, U1 | sì | 0/1 | ⏳ |
 | **U14** | Ambiente in partita | verdetto sulle regole ambientali e strutturali | U13 | sì | 0/11 | 🟡 |
 | **U15** | HUD, intenti, log e comandi debug | verdetto su leggibilita' e osservabilita' | E11 | sì | 1/5 | 🟡 |
-| **U19** | Durata, ritmo e scala | numeri di playtest — non difetti | U6, U1, U5, U8 | sì | 0/4 | ⏳ |
+| **U19** | Durata, ritmo e scala | numeri di playtest — non difetti | U6, U1, U5, U7, U8 | sì | 0/4 | ⏳ |
 | **U16** | Misura dei KPI | numeri reali nella tabella KPI | U6 | sì | 0/1 | 🟡 |
 | **U17** | Release v0.1 | build Windows Development e Shipping, e una partita giocata senza editor | E12 | sì | — | — |
 | **U20** | Confine fra Guard e Brace | verdetto di leggibilita' — un dato per `BAL-1`, non un difetto da correggere | E5.2 | no | 0/1 | ⏳ |
@@ -311,7 +311,7 @@ giorno. ⚠️ La partita completa va quindi **rigiocata col limite nuovo**: il 
 **Artefatti**: `Content/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget.uasset` ⏳ · `Content/RT/Characters/Phase/Blueprints/BP_Unit_Phase.uasset` ⏳ · `Content/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor.uasset` ⏳ · `Content/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith.uasset` ⏳
 **Verifichi**: `PIE-AS2` ⏳ · `PIE-FACING` ✅
 **Finita quando**: i quattro Blueprint sono tracciati da git e le due voci hanno esito reale sui BP nuovi
-**Sblocca**: U8
+**Sblocca**: U8, U19
 
 **Un Blueprint per eroe, ma intitolato al PACK.** La base visuale la fissa **D-037** (tabella
 owner in `docs/characters/paragon.md`); i nomi degli asset e delle cartelle seguono il pack
@@ -498,7 +498,7 @@ l'abitudine sbagliata).
 
 #### U19 · Durata, ritmo e scala ⏳
 
-**Sbloccata da**: U6, U1, U5, U8 · **Percorso critico**: sì
+**Sbloccata da**: U6, U1, U5, U7, U8 · **Percorso critico**: sì
 **Produce**: numeri di playtest — non difetti
 **Verifichi**: `PIE-V01-MATCHLEN` ⏳ · `PIE-V01-READY` ⏳ · `PIE-V01-OVERWATCH` ⏳ · `PIE-V01-MAPSCALE` ⏳
 **Finita quando**: le quattro voci hanno un numero registrato, anche fuori target

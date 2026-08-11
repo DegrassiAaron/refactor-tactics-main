@@ -706,7 +706,8 @@
       ],
       "unblocked_by": [],
       "unblocks": [
-        "U8"
+        "U8",
+        "U19"
       ],
       "shares_setup_with": [
         "U8",
@@ -1091,6 +1092,12 @@
         },
         {
           "ref": "U5",
+          "resolved": false,
+          "state": "🟡",
+          "kind": "seduta"
+        },
+        {
+          "ref": "U7",
           "resolved": false,
           "state": "🟡",
           "kind": "seduta"

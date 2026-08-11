@@ -359,7 +359,7 @@ sessions:
     verifies: [PIE-AS2, PIE-FACING]
     issues: []
     done_when: i quattro Blueprint sono tracciati da git e le due voci hanno esito reale sui BP nuovi
-    unblocks: [U8]
+    unblocks: [U8, U19]
     steps: |
       **Un Blueprint per eroe, ma intitolato al PACK.** La base visuale la fissa **D-037** (tabella
       owner in `docs/characters/paragon.md`); i nomi degli asset e delle cartelle seguono il pack
@@ -628,7 +628,7 @@ sessions:
     critical: true
     produces: numeri di playtest — non difetti
     artifacts: []
-    unblocked_by: [U6, U1, U5, U8]
+    unblocked_by: [U6, U1, U5, U7, U8]
     shares_setup_with: []
     verifies: [PIE-V01-MATCHLEN, PIE-V01-READY, PIE-V01-OVERWATCH, PIE-V01-MAPSCALE]
     issues: []
