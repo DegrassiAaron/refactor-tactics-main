@@ -2655,6 +2655,12 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 					}
 					break;
 
+				case ERTActionEffect::CancelStatus:
+					// Come sotto: si raccoglie e basta. QUALE controllo salti lo decide chi applica gli stati,
+					// che ha davanti la lista completa di quelli in arrivo e sceglie il piu' grave.
+					Out.CancelledControls.Add(Event.TargetUnitId);
+					break;
+
 				case ERTActionEffect::CancelDisplacement:
 					// Si RACCOGLIE soltanto, come tutto il resto: chi muove e' piu' sotto e consultera' questo
 					// insieme prima di spostare. Annullare QUI non avrebbe niente da annullare — la
@@ -4292,9 +4298,75 @@ void ARTTurnManager::ResolveCombat()
 		}
 	}
 
+	// --- Purificazione (CP 7.5, `#505`): il punto di valutazione degli STATI --------------------------
+	// Gli stati sono RACCOLTI e non ancora applicati: e' il solo momento in cui `Reaction.Cleanse` puo'
+	// annullarne uno. Dopo sarebbe una rimozione — osservabilmente simile, ma il TurnLog racconterebbe due
+	// volte lo stesso turno («applicato», poi «tolto») per un evento che non e' mai avvenuto.
+	//
+	// La Prep non passa di qui: applica i suoi stati direttamente. Quindi il `Status.Root` che `Action.Brace`
+	// mette a se stesso non e' intercettabile, ed e' corretto — una reazione anti-controllo che annullasse la
+	// propria preparazione sarebbe un difetto.
+	FRTReactionPassResult ControlReactions;
+	RunReactionPass(ERTReactionPassPoint::BlastStatus,
+		[&Units, &StatusTargets, &StatusTags](int32 SelfId, ERTReactionTrigger)
+		{
+			ARTUnit* Self = Units.IsValidIndex(SelfId) ? Units[SelfId] : nullptr;
+			if (!Self) { return FRTReactionTriggerHit{ false, INDEX_NONE }; }
+
+			for (int32 s = 0; s < StatusTargets.Num(); ++s)
+			{
+				if (StatusTargets[s] != Self) { continue; }
+				if (URTReactionLibrary::ControlSeverityRank(StatusTags[s]) == INDEX_NONE) { continue; }
+				// Scatta solo per un controllo che CAMBIA qualcosa: chi e' gia' sotto quello stato non spende
+				// l'attivazione per un rinnovo (deciso il 2026-08-12). Il limite che ne segue e' dichiarato:
+				// il PROLUNGAMENTO di un controllo gia' attivo non e' intercettabile.
+				if (Self->HasStatus(StatusTags[s])) { continue; }
+				// Nessun `TriggeredBy`: chi ha applicato lo stato non serve a un effetto difensivo, e con due
+				// attaccanti non ce ne sarebbe uno solo.
+				return FRTReactionTriggerHit{ true, INDEX_NONE };
+			}
+			return FRTReactionTriggerHit{ false, INDEX_NONE };
+		},
+		Units, States, Map, ControlReactions);
+
+	// QUALE controllo salta si decide qui, dove la lista in arrivo e' completa: **il piu' grave**, non il
+	// primo raccolto. L'ordine di raccolta segue i colpi — cioe' CHI colpisce — e sprecherebbe l'attivazione
+	// su uno `Slow` da attacco base (`Weapon.Suppressive`, l'ultimate) lasciando passare un `Root`.
+	//
+	// Si itera su `Units` e non sul `TSet`: l'insieme risponde a `Contains`, ma iterarlo darebbe un ordine
+	// non deterministico (invariante #3). Qui non cambierebbe l'esito — un indice appartiene a una sola
+	// unita' — ma la regola del progetto e' non dipenderne mai, non «non dipenderne quando si vede».
+	TSet<int32> CancelledStatusIdx;
+	for (int32 u = 0; u < Units.Num(); ++u)
+	{
+		if (!ControlReactions.CancelledControls.Contains(u)) { continue; }
+		ARTUnit* Canceller = Units[u];
+		if (!Canceller) { continue; }
+
+		int32 BestIdx = INDEX_NONE;
+		int32 BestRank = MAX_int32;
+		for (int32 s = 0; s < StatusTargets.Num(); ++s)
+		{
+			if (StatusTargets[s] != Canceller || CancelledStatusIdx.Contains(s)) { continue; }
+			const int32 Rank = URTReactionLibrary::ControlSeverityRank(StatusTags[s]);
+			if (Rank == INDEX_NONE || Canceller->HasStatus(StatusTags[s])) { continue; }
+			// `<` e non `<=`: a parita' di gravita' vince il PRIMO in ordine di raccolta, che e' l'ordine
+			// canonico dei colpi.
+			if (Rank < BestRank) { BestRank = Rank; BestIdx = s; }
+		}
+
+		if (BestIdx != INDEX_NONE)
+		{
+			CancelledStatusIdx.Add(BestIdx);
+			AddLogEvent(FString::Printf(TEXT("%s: %s annullato dalla purificazione"),
+				*Canceller->GetName(), *StatusTags[BestIdx].ToString()));
+		}
+	}
+
 	// L'ultimate applica il proprio status ai bersagli sopravvissuti.
 	for (int32 i = 0; i < StatusTargets.Num(); ++i)
 	{
+		if (CancelledStatusIdx.Contains(i)) { continue; } // annullato prima di esistere (CP 7.5)
 		ARTUnit* Slowed = StatusTargets[i];
 		if (IsValid(Slowed) && Slowed->IsAlive())
 		{

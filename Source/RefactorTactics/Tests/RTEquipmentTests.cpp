@@ -242,8 +242,7 @@ bool FRTReactionModuleSingleActivationTest::RunTest(const FString&)
 	// stessa ragione — un punto di valutazione ancora da aprire (`URTReactionLibrary::PassPointFor`) — e non
 	// per un dato mancante: `HazardEscape` vuole il Cleanup fra le superfici e il danno di `Burning`,
 	// `Cleanse` il momento in cui uno stato di controllo e' stato appena applicato.
-	if (!TestEqual(TEXT("cinque moduli: `HazardEscape` e `Cleanse` attendono il loro punto di valutazione (#505)"),
-		Modules.Num(), 5))
+	if (!TestEqual(TEXT("sei moduli: solo `HazardEscape` attende, ed e' bloccato da #570"), Modules.Num(), 6))
 	{
 		return false;
 	}

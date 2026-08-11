@@ -90,6 +90,16 @@ struct FRTReactionPassResult
 	 * `TSet` non puo' entrare nell'esito (invariante #3).
 	 */
 	TSet<int32> CancelledDisplacements;
+
+	/**
+	 * Chi ha ANNULLATO il controllo che stava per ricevere (`Reaction.Cleanse`, `CancelStatus`): indici in
+	 * `Units`, che il punto di applicazione degli stati consulta prima di applicarli.
+	 *
+	 * Quale dei controlli in arrivo salti non e' qui: lo decide chi applica, che ha davanti la lista completa
+	 * e sceglie **il piu' grave** (`URTReactionLibrary::ControlSeverityRank`). Metterlo qui vorrebbe dire
+	 * scegliere due volte, in due posti che possono divergere.
+	 */
+	TSet<int32> CancelledControls;
 };
 
 USTRUCT()

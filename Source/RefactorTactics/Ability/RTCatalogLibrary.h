@@ -99,19 +99,17 @@ public:
 	/**
 	 * I moduli di reazione del catalogo §3 che il motore **sa far scattare** (CP 7.3 `#62`, CP 7.5 `#505`).
 	 *
-	 * Sono **cinque** dei sette. I due assenti mancano per la stessa ragione, che e' un punto di valutazione
-	 * ancora da aprire e non un dato da aggiungere (`#505`):
+	 * Sono **sei** dei sette. L'unico assente e' `HazardEscape`, e non gli manca un dato: gli manca un
+	 * PREREQUISITO. Una superficie che nasce sotto un'unita' ferma oggi non le fa niente — tranne l'acqua,
+	 * che ha un ramo suo — quindi nel Cleanup non c'e' nessun danno imminente da cui fuggire e il modulo
+	 * sarebbe inerte: la trappola di `Riva.MistVeil` (`#353`). Lo chiude `#570`, e questo modulo lo segue.
 	 *
-	 * - `HazardEscape` — il trigger nasce nel **Cleanup**, fra la creazione delle superfici e il danno di
-	 *   `Status.Burning`: e' l'unico istante in cui la cella e' gia' pericolosa e nessuno ha ancora pagato;
-	 * - `Cleanse` — il trigger nasce quando uno **stato di controllo** e' stato applicato, cioe' dopo la
-	 *   produzione degli eventi del Blast.
-	 *
-	 * I tre che c'erano gia' e i due arrivati dopo raccontano le due ragioni per cui un modulo resta fermo, e
-	 * la differenza porta a lavori diversi: a `EmergencyDash` mancava l'**effetto** (`SelfReposition`, D-093,
-	 * perche' `Push`/`Pull` spostano il bersaglio e nessun effetto muoveva la sorgente); ad `Anchor` mancava il
-	 * **momento** — `AboutToBeDisplaced` si valuta dove la spinta e' decisa e non ancora applicata, che e' il
-	 * punto `BlastDisplacement` di `URTReactionLibrary::PassPointFor`.
+	 * I sei raccontano le tre ragioni per cui un modulo puo' restare fermo, e la differenza porta a lavori
+	 * diversi: a `EmergencyDash` mancava l'**effetto** (`SelfReposition`, D-093, perche' `Push`/`Pull`
+	 * spostano il bersaglio e nessun effetto muoveva la sorgente); ad `Anchor` e `Cleanse` mancava il
+	 * **momento** — si valutano dove il loro evento e' deciso e non ancora applicato, che sono i punti
+	 * `BlastDisplacement` e `BlastStatus` di `URTReactionLibrary::PassPointFor`; a `HazardEscape` manca
+	 * l'**evento** stesso, che nessuno produce.
 	 *
 	 * Ogni modulo si costruisce su un'azione core che e' **gia' una reazione**, da cui eredita fase, priorita'
 	 * e trigger, e porta effetti propri via `GrantedEffects`. E' lo stesso vincolo che

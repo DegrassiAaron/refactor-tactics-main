@@ -62,6 +62,9 @@ TArray<FRTActionEvent> URTActionEffectLibrary::ProduceEvents(const FRTActionInst
 		// comportamento voluto (un effetto dichiarato a zero non e' un effetto), ed e' pinnato dal catalogo,
 		// che lo dichiara 1.
 		case ERTActionEffect::CancelDisplacement:
+		// `CancelStatus` come i due sopra: nessun «quanto», ma soggetto allo stesso filtro sulle entita' non
+		// positive, e il catalogo lo dichiara 1.
+		case ERTActionEffect::CancelStatus:
 			if (Spec.Amount <= 0 || Instance.TargetUnitId == INDEX_NONE)
 			{
 				continue; // entita' non positiva o nessun bersaglio: nessun evento da applicare

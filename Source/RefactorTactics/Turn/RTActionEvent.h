@@ -116,7 +116,25 @@ enum class ERTActionEffect : uint8
 	 *
 	 * ⚠️ In coda all'enum, mai in mezzo: vale la stessa ragione di `SelfReposition` qui sopra.
 	 */
-	CancelDisplacement
+	CancelDisplacement,
+
+	/**
+	 * ANNULLA lo stato di CONTROLLO che sta per colpire chi reagisce (`Reaction.Cleanse`, CP 7.5 `#505`).
+	 *
+	 * Gemello di `CancelDisplacement`: impedisce l'applicazione invece di rimuovere a posteriori. Il risultato
+	 * osservabile e' identico — lo stato non c'e' — ma il TurnLog dice «annullato» invece di «applicato e poi
+	 * tolto», che e' anche il racconto vero.
+	 *
+	 * **Non e' `Action.Cleanse`**, che e' un'azione PRINCIPALE e sceglie fra gli stati **gia' posseduti**
+	 * seguendo `ARTUnit::PlannedCleansePriority`. Li' una scelta dichiarata in pianificazione serve, perche'
+	 * l'ambiguita' e' reale; qui lo stato lo determina l'evento, e con piu' controlli nello stesso Blast si
+	 * annulla **il piu' grave** (`URTReactionLibrary::ControlStatusesBySeverity`) invece del primo arrivato:
+	 * l'ordine di raccolta dipende da CHI colpisce, non da quanto fa male, e sprecherebbe l'attivazione su uno
+	 * `Slow` da attacco base lasciando passare un `Root`.
+	 *
+	 * ⚠️ In coda all'enum, mai in mezzo: i valori entrano nel TurnLog serializzato.
+	 */
+	CancelStatus
 };
 
 /**

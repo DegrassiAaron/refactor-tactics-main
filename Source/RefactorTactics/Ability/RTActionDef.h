@@ -128,7 +128,23 @@ enum class ERTReactionTrigger : uint8
 	 * Aggiunto in CODA all'enum: i valori precedenti non si rinumerano, e il trigger finisce nel TurnLog
 	 * serializzato — la stessa disciplina di `ERTActionEffect::SelfReposition`.
 	 */
-	AboutToBeDisplaced
+	AboutToBeDisplaced,
+
+	/**
+	 * L'unita' sta per ricevere uno stato di CONTROLLO (`Reaction.Cleanse`, CP 7.5 `#505`).
+	 *
+	 * Come `AboutToBeDisplaced` nasce da un evento gia' prodotto dalla fase e si valuta prima che venga
+	 * applicato: annullare dopo vorrebbe dire togliere uno stato appena messo, e il TurnLog racconterebbe due
+	 * volte lo stesso turno.
+	 *
+	 * ⚠️ Scatta solo per un controllo che **cambierebbe qualcosa**: chi e' gia' sotto quello stato non spende
+	 * l'attivazione per un rinnovo. Il limite dichiarato che ne segue e' che il prolungamento di un controllo
+	 * gia' attivo non e' intercettabile — deciso in sessione il 2026-08-12, insieme al criterio di scelta.
+	 *
+	 * Quali stati siano «di controllo», e in che ordine di gravita', lo dice
+	 * `URTReactionLibrary::ControlStatusesBySeverity`.
+	 */
+	AboutToReceiveControl
 };
 
 /**

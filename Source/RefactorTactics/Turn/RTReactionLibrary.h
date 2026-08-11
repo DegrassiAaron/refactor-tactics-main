@@ -49,7 +49,16 @@ enum class ERTReactionPassPoint : uint8
 	 * annullare vorrebbe dire rimettere indietro un'unita' gia' mossa, con due voci di TurnLog che si
 	 * contraddicono sullo stesso passo.
 	 */
-	BlastDisplacement
+	BlastDisplacement,
+	/**
+	 * Gli stati RACCOLTI dal Blast e non ancora applicati (`Reaction.Cleanse`). Stessa forma degli
+	 * spostamenti: si decide prima che l'effetto tocchi l'unita'.
+	 *
+	 * La Prep non passa di qui — applica i propri stati direttamente — quindi il `Status.Root` che
+	 * `Action.Brace` mette **a se stesso** non e' intercettabile da questo punto. E' corretto: una reazione
+	 * anti-controllo che annullasse la propria preparazione sarebbe un difetto, non una funzione.
+	 */
+	BlastStatus
 };
 
 /**
@@ -162,4 +171,24 @@ public:
 	 * `Reaction.EveryTriggerHasAPassPoint`, che fallisce se un trigger diverso da `None` finisce su `Never`.
 	 */
 	static ERTReactionPassPoint PassPointFor(ERTReactionTrigger Trigger);
+
+	/**
+	 * Gli stati che contano come CONTROLLO, dal **piu' grave al meno grave** (CP 7.5, `#505`).
+	 *
+	 * Ordine, non insieme: con due controlli nello stesso Blast `Reaction.Cleanse` ne annulla uno solo, e
+	 * quale non puo' dipendere da chi ha colpito per primo. `Root` azzera il budget di movimento, `Slow` ne
+	 * aumenta il costo per cella: il primo fa perdere il turno, il secondo lo rende piu' caro.
+	 *
+	 * ⚠️ **Limite dichiarato**: e' una lista nel codice, non un dato del catalogo. Uno stato di controllo
+	 * aggiunto domani non entra qui da solo e il modulo smetterebbe di vederlo — lo stesso difetto che
+	 * `PassPointFor` esiste per impedire, qui non evitabile senza un campo nel catalogo degli stati (che la
+	 * v0.1 non ha). Pinnato da `Reaction.ControlStatusesAreTwo`, che cade quando ne nasce un terzo.
+	 */
+	static const TArray<FGameplayTag>& ControlStatusesBySeverity();
+
+	/**
+	 * Posizione del tag in `ControlStatusesBySeverity` — **0 = il piu' grave** — o `INDEX_NONE` se non e' uno
+	 * stato di controllo. E' l'unico modo in cui il resolver deve confrontare due controlli fra loro.
+	 */
+	static int32 ControlSeverityRank(const FGameplayTag& Tag);
 };

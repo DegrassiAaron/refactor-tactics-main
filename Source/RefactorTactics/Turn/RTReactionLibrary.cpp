@@ -1,4 +1,5 @@
 #include "Turn/RTReactionLibrary.h"
+#include "Core/RTGameplayTags.h" // TAG_Status_Root/Slow: la lista degli stati di controllo (CP 7.5)
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexVisionLibrary.h"
 #include "Turn/RTActionEffectLibrary.h"
@@ -29,6 +30,7 @@ namespace
 		// significherebbe spostare l'attaccante, che e' `Push` — un effetto che esiste gia' ed e' un'altra cosa.
 		case ERTActionEffect::SelfReposition:
 		case ERTActionEffect::CancelDisplacement:
+		case ERTActionEffect::CancelStatus:
 		// Le due che non colpiscono un'unita': una reazione non le dichiara oggi, ma senza i loro `case` lo
 		// switch non era esaustivo e il commento qui sopra prometteva una garanzia che non dava.
 		case ERTActionEffect::DamageStructure:
@@ -131,8 +133,23 @@ ERTReactionPassPoint URTReactionLibrary::PassPointFor(ERTReactionTrigger Trigger
 		return ERTReactionPassPoint::BlastIntercept;
 	case ERTReactionTrigger::AboutToBeDisplaced:
 		return ERTReactionPassPoint::BlastDisplacement;
+	case ERTReactionTrigger::AboutToReceiveControl:
+		return ERTReactionPassPoint::BlastStatus;
 	}
 	return ERTReactionPassPoint::Never;
+}
+
+const TArray<FGameplayTag>& URTReactionLibrary::ControlStatusesBySeverity()
+{
+	// `static` e non ricostruito a ogni chiamata: e' consultato una volta per stato in arrivo, dentro il
+	// Blast. L'ordine E' il contratto — vedi il commento nell'header.
+	static const TArray<FGameplayTag> Controls = { TAG_Status_Root, TAG_Status_Slow };
+	return Controls;
+}
+
+int32 URTReactionLibrary::ControlSeverityRank(const FGameplayTag& Tag)
+{
+	return ControlStatusesBySeverity().IndexOfByKey(Tag);
 }
 
 TArray<FRTActionEvent> URTReactionLibrary::BuildReactionEvents(const FRTActionDef& Def, int32 SelfId,

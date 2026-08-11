@@ -8,6 +8,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Core/RTGameplayTags.h" // TAG_Status_Root/Slow/Burning: la lista degli stati di controllo (CP 7.5)
 #include "Turn/RTReactionLibrary.h"
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnManager.h"
@@ -354,7 +355,7 @@ bool FRTReactionTriggersHaveAPassPointTest::RunTest(const FString&)
 
 	// Un numero CONCRETO, non «almeno uno»: un trigger nuovo che entrasse nell'enum senza passare da
 	// `PassPointFor` farebbe cadere questo conteggio, e chiederebbe di essere deciso invece di scivolare via.
-	TestEqual(TEXT("i trigger valutati in partita sono tre"), Valutati, 3);
+	TestEqual(TEXT("i trigger valutati in partita sono quattro"), Valutati, 4);
 
 	// E il mapping esatto, che e' la parte che un refactor puo' spostare in silenzio.
 	TestTrue(TEXT("i colpi diretti si valutano sui colpi gia' raccolti"),
@@ -366,6 +367,39 @@ bool FRTReactionTriggersHaveAPassPointTest::RunTest(const FString&)
 	TestTrue(TEXT("lo spostamento si valuta dov'e' deciso e non ancora applicato"),
 		URTReactionLibrary::PassPointFor(ERTReactionTrigger::AboutToBeDisplaced)
 			== ERTReactionPassPoint::BlastDisplacement);
+	TestTrue(TEXT("il controllo si valuta sugli stati raccolti, prima che vengano applicati"),
+		URTReactionLibrary::PassPointFor(ERTReactionTrigger::AboutToReceiveControl)
+			== ERTReactionPassPoint::BlastStatus);
+	return true;
+}
+
+// =====================================================================================================
+// CP 7.5 (`#505`) — quali stati sono di CONTROLLO, e in che ordine di gravita'.
+//
+// La lista vive nel codice e non nel catalogo (la v0.1 non ha un campo per dirlo), quindi e' un limite
+// dichiarato: questo test lo pinna. Diventa rosso quando nasce un terzo stato di controllo, che e'
+// esattamente il momento in cui qualcuno deve decidere dove metterlo — invece di scoprire tre mesi dopo
+// che `Reaction.Cleanse` non lo vedeva.
+// =====================================================================================================
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTControlStatusesAreTwoTest,
+	"RefactorTactics.Reaction.ControlStatusesAreTwo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTControlStatusesAreTwoTest::RunTest(const FString&)
+{
+	const TArray<FGameplayTag>& Controls = URTReactionLibrary::ControlStatusesBySeverity();
+	if (!TestEqual(TEXT("gli stati di controllo della v0.1 sono due"), Controls.Num(), 2)) { return false; }
+
+	// L'ORDINE e' il contratto, non l'insieme: `Root` azzera il budget di movimento, `Slow` ne aumenta il
+	// costo. Con due controlli nello stesso Blast si annulla il primo di questa lista.
+	TestEqual(TEXT("`Root` e' il piu' grave"), URTReactionLibrary::ControlSeverityRank(TAG_Status_Root), 0);
+	TestEqual(TEXT("`Slow` viene dopo"), URTReactionLibrary::ControlSeverityRank(TAG_Status_Slow), 1);
+
+	// Uno stato che NON e' controllo non deve entrare nel confronto: senza questo, un rank di -1 usato come
+	// indice sarebbe un difetto silenzioso.
+	TestEqual(TEXT("`Burning` non e' un controllo"),
+		URTReactionLibrary::ControlSeverityRank(TAG_Status_Burning), static_cast<int32>(INDEX_NONE));
+	TestEqual(TEXT("un tag vuoto non e' un controllo"),
+		URTReactionLibrary::ControlSeverityRank(FGameplayTag()), static_cast<int32>(INDEX_NONE));
 	return true;
 }
 

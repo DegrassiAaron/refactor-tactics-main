@@ -376,6 +376,17 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeReactionModules()
 		TEXT("si consuma anche quando una guardia sarebbe bastata, e occupa l'unico slot reazione"),
 		{ FRTActionEffectSpec(ERTActionEffect::CancelDisplacement, 1) }));
 
+	// `Reaction.Cleanse` — annulla il controllo che stai per ricevere. Costruito su `Action.Purge`, l'unica
+	// azione core con `AboutToReceiveControl`: il nome del MODULO resta quello del catalogo §3, il nome
+	// dell'AZIONE no, perche' `Action.Cleanse` e' gia' un'altra cosa (vedi il commento sul catalogo azioni).
+	//
+	// Con due controlli nello stesso Blast ne annulla **il piu' grave**, e non si spende affatto se il
+	// controllo in arrivo non cambierebbe nulla — chi e' gia' radicato non brucia la reazione per un rinnovo.
+	Modules.Add(Module(TEXT("Reaction.Cleanse"), TEXT("Pulizia automatica"), TEXT("Action.Purge"),
+		TEXT("il controllo che stai per ricevere non ti tocca: fra due, salta il piu' grave"),
+		TEXT("uno solo per turno, e non ferma il prolungamento di un controllo che hai gia' addosso"),
+		{ FRTActionEffectSpec(ERTActionEffect::CancelStatus, 1) }));
+
 	return Modules;
 }
 
@@ -928,6 +939,26 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 			ERTActionSlot::Reaction);
 		Anchor.ReactionTrigger = ERTReactionTrigger::AboutToBeDisplaced;
 		Catalog.Add(Anchor);
+	}
+
+	// `Purge` (CP 7.5, `#505`) — la reazione core del CONTROLLO: annulla lo stato di controllo che stai per
+	// ricevere. Quinta e ultima reazione core della v0.1.
+	//
+	// ⚠️ **Non si chiama `Cleanse`, e la differenza non e' cosmetica**: `Action.Cleanse` esiste gia' ed e'
+	// un'azione PRINCIPALE che sceglie fra gli stati **gia' posseduti** seguendo la lista che il giocatore
+	// dichiara in pianificazione (`ARTUnit::PlannedCleansePriority`). Li' l'ambiguita' e' reale e la scelta
+	// va dichiarata; qui lo stato lo determina l'evento, e con piu' controlli si annulla il piu' grave. Due
+	// mestieri diversi sotto lo stesso nome sarebbero diventati un ramo `if` nel resolver.
+	//
+	// Priorita' **5** come `Action.Anchor`: risolve in un punto del turno tutto suo, dove nessun'altra
+	// reazione arriva, quindi non contende niente a nessuno.
+	{
+		FRTActionDef Purge = ShippedAction(TEXT("Action.Purge"), ERTResolutionPhase::Control, /*Priority*/ 5,
+			/*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel,
+			{ FRTActionEffectSpec(ERTActionEffect::CancelStatus, 1) }, /*bInterruptible*/ true,
+			ERTActionSlot::Reaction);
+		Purge.ReactionTrigger = ERTReactionTrigger::AboutToReceiveControl;
+		Catalog.Add(Purge);
 	}
 
 	// `Brace` — azione PRINCIPALE di Prep. Dichiara DUE stati: `Braced` (-10 a ogni danno diretto e blocca la
