@@ -280,7 +280,7 @@ silenziosa, il workbook rumorosa): due divergenze da chiudere prima di CP 13.3.
 > Si deciderà quando la superficie esisterà.
 
 > ✅ **Le due superfici senza riga, e un terzo valore, decisi il 2026-08-11**
-> ([D-090](../decisions/RT_PDR_00_Decision_Log.md)), implementando CP 13.3. `Rough` **+1** — accidentato, come
+> ([D-091](../decisions/RT_PDR_00_Decision_Log.md)), implementando CP 13.3. `Rough` **+1** — accidentato, come
 > il ghiaccio; `Conductive` **0** — ha già un owner ed è elettrico, il rumore non è il suo mestiere.
 > Il terzo non era in nessun elenco: l'**attenuazione per arco** (`2`), che la DoD di CP 13.3 nomina nella
 > formula senza che alcun documento normativo la quantificasse. Il numero viene dal documento sorgente, come
