@@ -2945,6 +2945,13 @@ void ARTTurnManager::ResolveCombat()
 	TArray<FName> CounterActionId;
 	TArray<FName> CounterBaseActionId;
 	TArray<int32> CounterPriority;
+	// Spostamenti di CHI REAGISCE (`SelfReposition`, D-093), raccolti e applicati dopo il ciclo come tutto il
+	// resto: array paralleli — chi si sposta, da dove lo si allontana, di quanto, e per quale reazione.
+	// La causa viaggia con l'esito perche' uno spostamento senza causa non e' una traccia (`#307`).
+	TArray<ARTUnit*> SelfRepoUnits;
+	TArray<FRTCellId> SelfRepoFrom;
+	TArray<int32> SelfRepoDist;
+	TArray<FName> SelfRepoCause;
 	TArray<ARTUnit*> CounterAttackActors; // e CHI contrattacca: una cella non identifica un'unita' ([D-063])
 	DeflectDelta.Init(0, Units.Num());
 	for (int32 i = 0; i < Units.Num(); ++i)
@@ -3021,6 +3028,25 @@ void ARTTurnManager::ResolveCombat()
 						*EffectTarget->GetName(), Event.Amount));
 					break;
 
+				case ERTActionEffect::SelfReposition:
+					// D-093: chi reagisce si sposta. La direzione e' la linea da chi ha innescato verso di
+					// lui, cioe' **si allontana** — la stessa geometria della spinta, quindi si ferma davanti
+					// agli stessi ostacoli e non serve una seconda regola dello spostamento.
+					//
+					// ⚠️ SI RACCOGLIE, NON SI APPLICA QUI (D-094). Spostare adesso cambierebbe la posizione
+					// che le reazioni valutate DOPO in questo stesso ciclo vedrebbero — e
+					// `Reaction.AllyIntercept` chiede l'alleato entro 2 celle, quindi l'esito dipenderebbe
+					// dall'ordine di `Units`. E' esattamente cio' che l'invariante #3 esclude, ed e' il
+					// motivo per cui `DeflectDelta` e `CounterAttacks` qui sopra fanno gia' lo stesso.
+					if (TriggeredBy != INDEX_NONE && Units.IsValidIndex(TriggeredBy) && Units[TriggeredBy])
+					{
+						SelfRepoUnits.Add(EffectTarget);
+						SelfRepoFrom.Add(Units[TriggeredBy]->Cell);
+						SelfRepoDist.Add(Event.Amount);
+						SelfRepoCause.Add(Reaction->Def.ActionId);
+					}
+					break;
+
 				default:
 					// `Heal`, `Push`, `Pull`, `Status`: nessuna reazione del catalogo v0.1 li dichiara, e
 					// applicarli qui richiederebbe cio' che il pass non ha (una direzione per la spinta, il
@@ -3038,6 +3064,47 @@ void ARTTurnManager::ResolveCombat()
 		// l'unita' dalla voce darebbe l'unita' sbagliata ([D-063]).
 		AppendLogEntry(Entry, Unit);
 		AddLogEvent(FString::Printf(TEXT("%s: %s"), *Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Entry)));
+	}
+
+	// `SelfReposition` (D-093/D-094): ora che TUTTE le reazioni sono state valutate sullo snapshot congelato,
+	// gli spostamenti si applicano. Prima si calcolano tutte le destinazioni e poi si muove, per la stessa
+	// ragione di sempre: due unita' che si allontanano nello stesso pass non devono vedersi a vicenda gia'
+	// spostate, altrimenti la seconda troverebbe libera una cella che la prima sta lasciando — o occupata una
+	// che sta prendendo — e l'esito dipenderebbe dall'ordine.
+	if (SelfRepoUnits.Num() > 0)
+	{
+		TArray<FRTCellId> Blockers;
+		for (ARTUnit* U : Units) { if (IsValid(U) && U->IsAlive()) { Blockers.Add(U->Cell); } }
+
+		TArray<FRTCellId> Destinations;
+		Destinations.Reserve(SelfRepoUnits.Num());
+		for (int32 r = 0; r < SelfRepoUnits.Num(); ++r)
+		{
+			ARTUnit* Mover = SelfRepoUnits[r];
+			Destinations.Add((IsValid(Mover) && Mover->IsAlive())
+				? URTHexCombatLibrary::HexKnockbackDestination(
+					SelfRepoFrom[r], Mover->Cell, SelfRepoDist[r], Blockers, HexMap ? HexMap->MapAsset : nullptr)
+				: FRTCellId());
+		}
+
+		for (int32 r = 0; r < SelfRepoUnits.Num(); ++r)
+		{
+			ARTUnit* Mover = SelfRepoUnits[r];
+			if (!IsValid(Mover) || !Mover->IsAlive()) { continue; }
+			const FRTCellId Dest = Destinations[r];
+			if (Dest == Mover->Cell)
+			{
+				// Non si e' potuto spostare: la reazione e' scattata comunque e ha speso la sua attivazione.
+				// E' un esito, non un errore — e va detto, altrimenti nel log resta una reazione senza effetto.
+				AddLogEvent(FString::Printf(TEXT("%s: %s non trova dove spostarsi"),
+					*Mover->GetName(), *SelfRepoCause[r].ToString()));
+				continue;
+			}
+			MoveUnitTo(Mover, Dest);
+			if (States.IsValidIndex(IndexOf.Contains(Mover) ? IndexOf[Mover] : INDEX_NONE)) { /* stato invariato: si sposta, non subisce */ }
+			AddLogEvent(FString::Printf(TEXT("%s: si sposta con %s"),
+				*Mover->GetName(), *SelfRepoCause[r].ToString()));
+		}
 	}
 
 	// Intenti fermati dalla copertura: l'attacco non avviene e il TurnLog ne registra il motivo.
