@@ -112,6 +112,15 @@ facing che l'unità assume soltanto perché sta camminando.
   > comunque, perché l'invariante #6 è canonico e il requisito è scritto; ma «testato» era falso, ed è
   > precisamente il difetto — *una regola data per verificata che nessuno ha verificato* — che questa stessa
   > PR apriva come riga 66 di `DOC_CONFLICT_MATRIX.md` a proposito di `FR-RESOLVE-02`.
+  >
+  > ✅ **Aggiornamento, 2026-08-10 (CP 14.3, PR #494).** Il test **ora esiste**:
+  > `RefactorTactics.Overwatch.OpportunityLeaksNoFuture` in `Tests/RTReactionOpportunityTests.cpp`, e
+  > `grep -rl OpportunityLeaksNoFuture Source/` restituisce quel file. Verifica che il DTO
+  > `FRTReactionOpportunity` non esponga campi fuori da un elenco chiuso, interrogando la reflection.
+  > ⚠️ Con una portata **piu' stretta** di quella che la prima stesura gli attribuiva: difende la **forma
+  > del DTO**, non il comportamento del resolver — che non costruisce ancora opportunity (wiring rimandato
+  > a CP 14.4). Quindi «l'invariante e' testato» resta **falso per il facing**: qui si verifica che un campo
+  > di informazione futura non possa entrare nel DTO, non che il facing intermedio non ne trapeli.
 - **Facing invariato fino a fine Move** — scartata: contraddice D-020, per cui il facing cambia più volte dentro
   il round e ogni consumatore legge il valore autorevole più recente. Renderebbe inoltre l'aggiramento durante
   il movimento privo di effetto: un'unità che percorre un corridoio offrirebbe lo stesso lato all'Overwatch per

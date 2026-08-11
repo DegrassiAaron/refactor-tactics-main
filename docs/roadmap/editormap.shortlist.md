@@ -102,7 +102,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 | **U5** | Bot e HUD | verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale | M6.6, M6.7 | sì | 0/7 | 🟡 |
 | **U6** | Multilivello e partita completa | chiusura di M6 / E2 — sessione D verde | M6.8 | sì | 0/4 | 🟡 |
 | **U7** | Personaggi Paragon | i quattro Blueprint-unita' del roster v0.1, committati | — | sì | 2/2 | 🟡 |
-| **U8** | Animazioni | gli anim BP dei quattro eroi e i montaggi Cast/Hit/Death | — | sì | 0/2 | ⏳ |
+| **U8** | Animazioni | gli anim BP dei quattro personaggi e i montaggi Cast/Hit/Death | — | sì | 0/2 | ⏳ |
 | **U9** | Leggibilita' e riferimento visivo | il video (o gli screenshot) di riferimento — DoD di milestone di M8 | — | sì | 2/4 | 🟡 |
 | **U10** | Data asset delle azioni | il catalogo azioni della v0.1 come dati, non come codice | E1.3, E1.4 | sì | — | — |
 | **U11** | I 4 eroi | i data asset di Flux, Riva, Bastion e Vektor, e lo spawn 2v2 che li usa | E6, U10 | sì | 0/1 | 🟡 |
@@ -308,32 +308,50 @@ giorno. ⚠️ La partita completa va quindi **rigiocata col limite nuovo**: il 
 
 **Sbloccata da**: — · **Preparazione condivisa con**: U8, U9 · **Percorso critico**: sì
 **Produce**: i quattro Blueprint-unita' del roster v0.1, committati
-**Artefatti**: `Content/RT/Characters/Flux/Blueprints/BP_Unit_Flux.uasset` ⏳ · `Content/RT/Characters/Riva/Blueprints/BP_Unit_Riva.uasset` ⏳ · `Content/RT/Characters/Bastion/Blueprints/BP_Unit_Bastion.uasset` ⏳ · `Content/RT/Characters/Vektor/Blueprints/BP_Unit_Vektor.uasset` ⏳
+**Artefatti**: `Content/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget.uasset` ⏳ · `Content/RT/Characters/Phase/Blueprints/BP_Unit_Phase.uasset` ⏳ · `Content/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor.uasset` ⏳ · `Content/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith.uasset` ⏳
 **Verifichi**: `PIE-AS2` ✅ · `PIE-FACING` ✅
 **Finita quando**: i quattro Blueprint sono tracciati da git e le due voci hanno esito reale sui BP nuovi
 **Sblocca**: U8
 
-**Un Blueprint per EROE, non per archetipo.** La base visuale di ciascuno la fissa **D-037**
-(tabella owner in `docs/characters/paragon.md`):
+**Un Blueprint per eroe, ma intitolato al PACK.** La base visuale la fissa **D-037** (tabella
+owner in `docs/characters/paragon.md`); i nomi degli asset e delle cartelle seguono il pack
+Paragon, non l'eroe (deciso 2026-08-11 — vedi `notes`):
 
-| Eroe | `HeroId` | Base visuale |
-|---|---|---|
-| Flux | `Hero.Flux` | `Paragon.Gadget` |
-| Riva | `Hero.Riva` | `Paragon.Phase` |
-| Bastion | `Hero.Bastion` | `Paragon.Riktor` |
-| Vektor | `Hero.Vektor` | `Paragon.Wraith` |
+| Eroe | `HeroId` | Pack | Blueprint | Skeletal Mesh da assegnare |
+|---|---|---|---|---|
+| Flux | `Hero.Flux` | `Paragon.Gadget` | `BP_Unit_Gadget` | `…/ParagonGadget/Characters/Heroes/Gadget/Meshes/Gadget` |
+| Riva | `Hero.Riva` | `Paragon.Phase` | `BP_Unit_Phase` | `…/ParagonPhase/Characters/Heroes/Phase/Meshes/Phase_GDC` |
+| Bastion | `Hero.Bastion` | `Paragon.Riktor` | `BP_Unit_Riktor` | `…/ParagonRiktor/Characters/Heroes/Riktor/Meshes/Riktor` |
+| Vektor | `Hero.Vektor` | `Paragon.Wraith` | `BP_Unit_Wraith` | `…/ParagonWraith/Characters/Heroes/Wraith/Meshes/Wraith` |
 
-Si scrive **`Paragon.Gadget`, mai `Gadget` nudo**: `Gadget` e' gia' una categoria di
-equipaggiamento (`ERTEquipmentSlot::Gadget`), e il nome nudo e' ambiguo.
+⚠️ **La mesh di Phase NON si chiama `Phase`**: e' `Phase_GDC` (22,6 MB). Gli altri file in quella
+cartella pesano 0,1 MB — sono extents, shadow e skeleton. Verificato sul disco il 2026-08-11.
+⚠️ Si scrive **`Paragon.Gadget`, mai `Gadget` nudo** quando si parla del pack: `Gadget` da solo e'
+gia' una categoria di equipaggiamento (`ERTEquipmentSlot::Gadget`).
 
 1. I pack stanno in `Content/FabAsset/Paragon/` — path `/Game/FabAsset/Paragon/<Pack>/…`, mai
    `/Game/<Pack>/…` (`convenzioni-contenuti-ue.md` appendice B).
-2. Un Blueprint per eroe in `/Game/RT/Characters/<Eroe>/Blueprints/BP_Unit_<Eroe>` (§5: ogni
-   personaggio e' autonomo). I pack di terze parti restano **fuori** da `/Game/RT`.
-3. Registra ciascuno in **`HeroUnitClasses`** del `RTGameMode` — una `TMap` che ha per chiave
-   l'`HeroId` (`Hero.Flux`, …). Chiave assente o classe nulla = fallback al cilindro
-   (`ARTUnit::StaticClass()`), che e' previsto e non un difetto.
-4. Tieni `VisualZOffset=0`. Procedura: `guida-animazioni-paragon.md` §AS.3 e §AS.4 punto 4.
+2. Un Blueprint in `/Game/RT/Characters/<Pack>/Blueprints/BP_Unit_<Pack>`, classe base
+   **`ARTUnit`**. I pack di terze parti restano **fuori** da `/Game/RT`: qui ci va il Blueprint,
+   non il pack.
+3. ⚠️ **Il cilindro non si sostituisce, si nasconde.** `ARTUnit::Mesh` e' uno
+   `UStaticMeshComponent` ed e' il root: nel Blueprint si **aggiunge** uno
+   `USkeletalMeshComponent` e si toglie la spunta `Visible` al cilindro, che il C++ usa ancora
+   per selezione e fallback.
+4. **`VisualZOffset = 0`.** Il default e' `UnitHalfHeight` (90), giusto per il cilindro che ha il
+   pivot al CENTRO; i personaggi UE ce l'hanno ai PIEDI. Lasciarlo fa fluttuare l'unita' a 90 cm.
+5. `TeamRingMaterial` e `SelectionRingMaterial` → `M_TeamRing` / `M_SelectionRing` in
+   `/Game/RT/Characters/Shared/Materials/`. Il colore lo mette il codice sul MID; assenti,
+   l'anello resta nascosto senza rompere nulla.
+6. Registra ciascuno in **`HeroUnitClasses`** del `RTGameMode` — `TMap` con chiave l'`HeroId`
+   (`Hero.Flux` → `BP_Unit_Gadget`, …). ⚠️ **E' il passo che sbaglia in silenzio**:
+   `RTGameMode.cpp` fa `HeroUnitClasses.Find(Hero->HeroId)` e senza corrispondenza spawna
+   `ARTUnit::StaticClass()`, cioe' il cilindro. Un Blueprint perfetto ma non registrato non
+   viene mai istanziato.
+7. **Le statistiche non si toccano**: `MaxHealth`, `AttackPower`, `MoveRange` arrivano da
+   `URTHeroData`. Scriverle nel Blueprint significa scrivere numeri che il catalogo sovrascrive.
+
+Procedura per animazioni e montaggi: `guida-animazioni-paragon.md` §AS.3 e §AS.4.
 
 > ⚠️ **Riscritta il 2026-08-10, era obsoleta su tre punti insieme**: chiedeva `BP_Unit_Guardian`
 > (Gideon) e `BP_Unit_Ranger` (Sparrow) da assegnare a `GuardianUnitClass`/`RangerUnitClass`.
@@ -342,13 +360,13 @@ equipaggiamento (`ERTEquipmentSlot::Gadget`), e il nome nudo e' ambiguo.
 > *Candidate*: nessuno dei due e' la base visuale di un eroe della v0.1. Seguendola si sarebbero
 > costruiti due Blueprint che il gioco non istanzia.
 
-> ⚠️ **`ParagonGadget` non e' sul disco** (verificato il 2026-08-10): serve a **Flux** ed e' l'unico dei quattro che manca — Phase, Riktor e Wraith ci sono. Va scaricato con la procedura `convenzioni-contenuti-ue.md` **B.2a** (magazzino + Migrate), non installandolo nel progetto. I pack non sono nel repo (`/Content/FabAsset/` e' ignorato): chi clona se li scarica. ⚠️ L'avviso «Gideon, Sparrow e altri 3 pack danneggiati, da riscaricare» **non riguarda questa seduta** e per Gideon e' risultato **falso** (B.3b). Prima di riscaricare un pack, misuralo.
+> **I quattro pack sono tutti sul disco** (verificato 2026-08-11): Gadget 1232 file, Phase 1155, Riktor 1261, Wraith 1322. `ParagonGadget` mancava ed e' stato portato con la procedura `convenzioni-contenuti-ue.md` **B.2a** (magazzino + rename headless + copia). I pack non sono nel repo (`/Content/FabAsset/` e' ignorato): chi clona se li scarica. ⚠️ **Naming deciso dall'autore il 2026-08-11**: cartelle e asset di questa seduta portano il nome del **pack Paragon**, non dell'eroe, «per non creare problemi» — in editor si vede `Gadget` e si cerca `Gadget`. Ribalta `convenzioni-contenuti-ue.md` §A, che raccomandava l'opposto perche' il nome del pack lega l'asset a una mesh sostituibile: il rischio resta, ed e' accettato consapevolmente. Se un eroe cambiasse base visuale, il Blueprint andrebbe rinominato. ⚠️ **Eccezione dichiarata**: i data asset eroe (`DA_Hero_Flux`, …) restano intitolati all'**eroe** pur stando nella cartella del pack. Sono dati di gioco, non presentazione: non dipendono dalla mesh, e `HeroId` in C++ resta `Hero.Flux`. ⚠️ Se una mesh appare **senza materiali** non e' un errore di questa seduta: sono i soft reference di A.6 — 9 asset su 1229 in Gadget, 6 su 1698 in Gideon che e' in uso da giorni.
 
 #### U8 · Animazioni ⏳
 
 **Sbloccata da**: — · **Preparazione condivisa con**: U7, U9 · **Percorso critico**: sì
-**Produce**: gli anim BP dei quattro eroi e i montaggi Cast/Hit/Death
-**Artefatti**: `Content/RT/Characters/Flux/Animation/ABP_Flux.uasset` ⏳ · `Content/RT/Characters/Riva/Animation/ABP_Riva.uasset` ⏳ · `Content/RT/Characters/Bastion/Animation/ABP_Bastion.uasset` ⏳ · `Content/RT/Characters/Vektor/Animation/ABP_Vektor.uasset` ⏳
+**Produce**: gli anim BP dei quattro personaggi e i montaggi Cast/Hit/Death
+**Artefatti**: `Content/RT/Characters/Gadget/Animation/ABP_Gadget.uasset` ⏳ · `Content/RT/Characters/Phase/Animation/ABP_Phase.uasset` ⏳ · `Content/RT/Characters/Riktor/Animation/ABP_Riktor.uasset` ⏳ · `Content/RT/Characters/Wraith/Animation/ABP_Wraith.uasset` ⏳
 **Verifichi**: `PIE-AS4a` ⏳ · `PIE-AS4b` ⏳
 **Finita quando**: i quattro anim BP sono tracciati da git e le due voci hanno esito reale
 **Sblocca**: U9, U19
@@ -357,15 +375,24 @@ Procedura completa in `guida-animazioni-paragon.md` §AS.4a (locomozione Idle↔
 delegate, **non** da `GetVelocity`) e §AS.4b (montaggi via eventi C++), poi si ripete per gli
 altri tre eroi.
 
-**Il nome segue l'EROE, non il pack**: `ABP_Flux`, non `ABP_Gadget`, e la collocazione e'
-`/Game/RT/Characters/<Eroe>/Animation/` — non `Blueprints/`, che ospita i `BP_Unit_*`. La regola
-e' scritta in `convenzioni-contenuti-ue.md` §A: *«l'anim BP appartiene al personaggio di gioco,
-non al pack Paragon di origine»*, perche' il nome del pack lega l'asset a **una mesh
-sostituibile** — ed e' esattamente cio' che e' successo quando gli archetipi sono stati rimossi.
+**Il nome segue il PACK** (deciso 2026-08-11, come U7): `ABP_Gadget`, `ABP_Phase`,
+`ABP_Riktor`, `ABP_Wraith`. La collocazione e' `/Game/RT/Characters/<Pack>/Animation/` — non
+`Blueprints/`, che ospita i `BP_Unit_*`.
 
-> ⚠️ **Riscritta il 2026-08-10 insieme a U7**: chiedeva `ABP_Gideon` e `ABP_Sparrow` in
-> `Blueprints/`, cioe' due anim BP intitolati a pack che non sono la base visuale di nessun eroe
-> della v0.1, nella cartella sbagliata.
+Ogni anim BP va costruito sullo **scheletro del proprio pack**, che non porta sempre il nome del
+personaggio (verificato sul disco il 2026-08-11):
+
+| Pack | Skeleton |
+|---|---|
+| `Paragon.Gadget` | `gadget_bot_Skeleton` |
+| `Paragon.Phase` | `phase_Skeleton` |
+| `Paragon.Riktor` | `belly_Riktor_Skeleton` |
+| `Paragon.Wraith` | `Wraith_Skeleton` |
+
+> ⚠️ **Riscritta due volte.** Il 2026-08-10 chiedeva `ABP_Gideon` e `ABP_Sparrow` in
+> `Blueprints/`: due anim BP intitolati a pack che non sono la base visuale di nessun eroe della
+> v0.1, nella cartella sbagliata. Il 2026-08-11 i nomi sono passati dall'eroe al pack per scelta
+> dell'autore — vedi le `notes` di U7 per il costo accettato.
 
 #### U9 · Leggibilita' e riferimento visivo 🟡
 
@@ -549,7 +576,7 @@ E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 
 > Nasce dal piano `BAL-1` (`plans/bal-1-guard-brace-roadmap-2026-08-10.md` §6). **Non entra nel subset `RELEASE-V01`**: `BAL-1` non blocca la consegna, e un gate che si allarga senza motivo e' il difetto che G9 ha gia' avuto due volte. La seduta ha una voce sola di proposito — e' una domanda che si risponde una volta, guardandola. ⚠️ ID assegnato al merge: preso `U20` con `U19` come ultimo su `main`. Chi arriva secondo rinumera, non contende.
 
-> **54 voci del registro non stanno in nessuna seduta** — `PIE-BU-*` 4 · `PIE-CP-*` 1 · `PIE-HEX-*` 9 · `PIE-MP-*` 1 · `PIE-MUT-*` 2 · `PIE-P-*` 1 · `PIE-SCEN-*` 2 · `PIE-STATE-*` 10 · `PIE-TEST-*` 2 · `PIE-V-*` 1 · `PIE-VIS-*` 21. Non e' per forza un difetto (le `PIE-VIS-*` hanno il proprio scenario, le `PIE-STATE-*` verificano un sistema che non esiste), ma una voce che non sta in una seduta non viene eseguita mai: e' la ragione per cui questo conteggio e' qui.
+> **55 voci del registro non stanno in nessuna seduta** — `PIE-BU-*` 4 · `PIE-CP-*` 1 · `PIE-HEX-*` 9 · `PIE-MP-*` 1 · `PIE-MUT-*` 2 · `PIE-P-*` 1 · `PIE-REPLAY-*` 1 · `PIE-SCEN-*` 2 · `PIE-STATE-*` 10 · `PIE-TEST-*` 2 · `PIE-V-*` 1 · `PIE-VIS-*` 21. Non e' per forza un difetto (le `PIE-VIS-*` hanno il proprio scenario, le `PIE-STATE-*` verificano un sistema che non esiste), ma una voce che non sta in una seduta non viene eseguita mai: e' la ragione per cui questo conteggio e' qui.
 
 <!-- RT_SHORTLIST_EDITOR:END -->
 

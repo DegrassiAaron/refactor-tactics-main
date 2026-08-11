@@ -189,6 +189,16 @@ FColor URTHexLibrary::SightBlockerColor()
 	return FColor(250, 240, 90); // giallo: non ci si vede attraverso, ma ci si passa
 }
 
+FColor URTHexLibrary::SpawnTeam0Color()
+{
+	return FColor(60, 170, 255); // azzurro: di qui parte la squadra 0
+}
+
+FColor URTHexLibrary::SpawnTeam1Color()
+{
+	return FColor(255, 130, 40); // arancio: di qui parte la squadra 1
+}
+
 TArray<FVector> URTHexLibrary::HexCorners(const FVector& Center, float Radius)
 {
 	TArray<FVector> Corners;

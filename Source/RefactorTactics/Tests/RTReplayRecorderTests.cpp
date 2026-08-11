@@ -99,6 +99,93 @@ bool FRTReplayManifestUnknownVersionTest::RunTest(const FString&)
 
 	TestFalse(TEXT("nemmeno JSON malformato"),
 		URTReplayRecorderLibrary::ManifestFromJson(TEXT("non sono json"), Out));
+
+	// Sotto `Initial` non c'e' un formato piu' vecchio da interpretare: c'e' un file che non e' un manifest.
+	const FString Zero = TEXT("{\"Version\":0,\"MatchId\":\"00000000000000000000000000000001\"}");
+	TestFalse(TEXT("la versione 0 non si legge"), URTReplayRecorderLibrary::ManifestFromJson(Zero, Out));
+	TestEqual(TEXT("e nemmeno lei tocca l'uscita"), Out.TurnCount, 7);
+	return true;
+}
+
+/**
+ * Un manifest scritto da un binario PRECEDENTE resta leggibile — la verifica a due binari, resa possibile
+ * su un formato testuale congelandone un payload (`#471`).
+ *
+ * Questo JSON e' cio' che il binario del 2026-08-10 scrive: e' il «binario vecchio» della verifica, e vive
+ * qui invece che su disco perche' un golden in un test si legge in una code review. Il giorno in cui il
+ * manifest crescera' di un campo, questo test dira' se le versioni precedenti sono ancora leggibili o se
+ * l'estensione ha inserito qualcosa **in mezzo** invece che in coda.
+ *
+ * ⚠️ Non e' un test di round-trip: quello prova che scrittore e lettore si capiscano fra loro, e resterebbe
+ * verde anche se **entrambi** cambiassero insieme rendendo illeggibile tutto cio' che e' gia' su disco.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayManifestGoldenV1Test,
+	"RefactorTactics.Replay.Manifest.GoldenV1StaysReadable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayManifestGoldenV1Test::RunTest(const FString&)
+{
+	const FString GoldenV1 =
+		TEXT("{\"Version\":1,\"MatchId\":\"11111111222222223333333344444444\",")
+		TEXT("\"FormatId\":\"Format.Skirmish2v2\",\"HexTopology\":true,")
+		TEXT("\"OrderedHashPerTurn\":[4294967295,7,42],")
+		TEXT("\"FinalStateHash\":123456789,\"Outcome\":1,\"WallClockSeconds\":91.5,")
+		TEXT("\"Closed\":true,\"TurnCount\":3}");
+
+	FRTReplayManifest M;
+	if (!TestTrue(TEXT("il manifest v1 si rilegge"), URTReplayRecorderLibrary::ManifestFromJson(GoldenV1, M)))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("MatchId"), M.MatchId, FGuid(0x11111111, 0x22222222, 0x33333333, 0x44444444));
+	TestEqual(TEXT("FormatId"), M.FormatId, FName(TEXT("Format.Skirmish2v2")));
+	TestTrue(TEXT("topologia hex"), M.bHexTopology);
+	TestEqual(TEXT("tre hash ordinati"), M.OrderedHashPerTurn.Num(), 3);
+
+	// `0xFFFFFFFF` e' il caso che una svista di tipo romperebbe per primo: un `uint32` allargato a `int64` e'
+	// una zero-extension, e un `int32` per errore lo leggerebbe come `-1`.
+	TestEqual(TEXT("l'hash a 32 bit pieni non diventa negativo"),
+		M.OrderedHashPerTurn[0], static_cast<int64>(4294967295));
+	TestEqual(TEXT("FinalStateHash"), M.FinalStateHash, static_cast<int64>(123456789));
+	TestTrue(TEXT("Outcome"), M.Outcome == static_cast<ERTMatchOutcome>(1));
+	TestEqual(TEXT("WallClockSeconds"), M.WallClockSeconds, 91.5f);
+	TestTrue(TEXT("chiuso"), M.bClosed);
+	TestEqual(TEXT("TurnCount"), M.TurnCount, 3);
+
+	return true;
+}
+
+/**
+ * I campi che un binario precedente NON scriveva si leggono a valore neutro, senza rifiutare il manifest.
+ *
+ * E' l'altra meta' della retrocompatibilita': accettare la versione non basta se poi manca un campo e la
+ * lettura fallisce. Il minimo indispensabile e' versione + identita' — tutto il resto ha un default che
+ * significa qualcosa: `Closed = false` dice «archivio parziale», `FinalStateHash = 0` dice «non calcolato».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayManifestNeutralFieldsTest,
+	"RefactorTactics.Replay.Manifest.MissingFieldsStayNeutral",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayManifestNeutralFieldsTest::RunTest(const FString&)
+{
+	const FString Minimo = TEXT("{\"Version\":1,\"MatchId\":\"11111111222222223333333344444444\"}");
+
+	FRTReplayManifest M;
+	M.TurnCount = 99; // sporca l'uscita: i default devono venire dal formato, non da cio' che c'era prima
+	M.bClosed = true;
+
+	if (!TestTrue(TEXT("un manifest senza campi opzionali si rilegge"),
+			URTReplayRecorderLibrary::ManifestFromJson(Minimo, M)))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("MatchId letto"), M.MatchId, FGuid(0x11111111, 0x22222222, 0x33333333, 0x44444444));
+	TestEqual(TEXT("nessun turno dichiarato"), M.TurnCount, 0);
+	TestEqual(TEXT("nessun hash per turno"), M.OrderedHashPerTurn.Num(), 0);
+	TestEqual(TEXT("checksum non calcolato"), M.FinalStateHash, static_cast<int64>(0));
+	TestFalse(TEXT("non chiuso: un archivio senza chiusura e' parziale"), M.bClosed);
+	TestTrue(TEXT("esito in corso"), M.Outcome == ERTMatchOutcome::InProgress);
+
 	return true;
 }
 

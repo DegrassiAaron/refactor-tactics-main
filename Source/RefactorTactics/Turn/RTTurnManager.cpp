@@ -31,7 +31,9 @@
 #include "TimerManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Replay/RTMatchHistoryLibrary.h" // indice delle partite: una riga per partita, fuori dagli archivi (#416)
 #include "Replay/RTReplayRecorderLibrary.h"
+#include "Turn/RTMatchStateHash.h"
 #include "Misc/DateTime.h"
 #include "HAL/FileManager.h"
 
@@ -1331,6 +1333,12 @@ void ARTTurnManager::ConcludeTurn()
 	// sbagliato.
 	RecordTurnToReplay();
 
+	// ⚠️ Il checksum di fine partita si cattura QUI, **prima** che le unita' morte vengano distrutte: dopo,
+	// una caduta non esisterebbe piu' e `bAlive = false` non comparirebbe mai in una partita vera — due
+	// finali diversi per chi e' rimasto in piedi darebbero lo stesso hash. E' la decisione presa con
+	// [D-084], insieme all'identita' che il digest usa.
+	CaptureFinalStateHash();
+
 	// Morte visiva differita: ora che il playback ha mostrato le eliminazioni, rimuovi gli Actor morti
 	// (prima del prossimo turno, cosi' non figurano piu' come bersagli/ostacoli).
 	DestroyDefeatedUnits();
@@ -1393,9 +1401,59 @@ void ARTTurnManager::AddTeamScore(int32 TeamId, int32 Points)
 		TeamId, Points, Team0Score, Team1Score));
 }
 
+void ARTTurnManager::CaptureFinalStateHash()
+{
+	if (!bRecordReplay || !ReplayManifest.MatchId.IsValid() || ReplayManifest.bClosed)
+	{
+		return;
+	}
+
+	// Si cattura a ogni turno e non solo all'ultimo: l'ultimo non si sa quale sia finche' non e' passato, e
+	// un turno che chiude la partita per eliminazione lo scopre solo dopo aver risolto. In cambio il valore
+	// c'e' sempre, anche quando la partita finisce in un ramo che non avevamo previsto.
+	//
+	// ⚠️ **Il KPI di pacing non misura questo costo**, ed e' bene saperlo prima che diventi un problema:
+	// `Perf.TurnResolverMedian` spawna un TurnManager senza chiamare `BeginReplayRecording`, quindi la
+	// guardia qui sopra manda la funzione a vuoto e il tempo per turno che quel test pubblica **esclude**
+	// l'hash. Oggi la spesa e' trascurabile — un hash su mappa e unita' di una partita 2v2 — ma se la mappa
+	// crescesse, la rete che dovrebbe accorgersene non copre questo percorso.
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+
+	TArray<ARTUnit*> Units;
+	Units.Reserve(Actors.Num());
+	for (AActor* Actor : Actors)
+	{
+		if (ARTUnit* Unit = Cast<ARTUnit>(Actor))
+		{
+			Units.Add(Unit);
+		}
+	}
+
+	FVector Origin; float CellSize = 0.f; float LayerH = 0.f;
+	const URTHexMapAsset* Map = GetHexContext(Origin, CellSize, LayerH);
+
+	TArray<int32> TeamScores;
+	TeamScores.Add(GetTeamScore(0));
+	TeamScores.Add(GetTeamScore(1));
+
+	PendingFinalStateHash = static_cast<int64>(URTMatchStateHashLibrary::HashMatchState(
+		Map, URTMatchStateHashLibrary::BuildUnitDigests(Units), TeamScores));
+}
+
 void ARTTurnManager::BeginReplayRecording()
 {
 	if (!bRecordReplay)
+	{
+		return;
+	}
+
+	// Senza un formato risolto non si registra. `SetupHexMatch` esce anticipatamente quando
+	// `ApplyMatchFormat` fallisce — la mappa resta a schermo col motivo nel log, e nessuna partita viene
+	// allestita — ma il chiamante e' fuori da quella funzione e non lo sa. Un archivio che dichiara
+	// `FormatId = None` non e' confrontabile con niente (`CompareSerializedTraces` distingue proprio il
+	// `FormatMismatch`), e sarebbe la registrazione di una partita che non e' mai cominciata.
+	if (MatchRules.FormatId.IsNone())
 	{
 		return;
 	}
@@ -1407,6 +1465,17 @@ void ARTTurnManager::BeginReplayRecording()
 	// quello vero. Un manifest che dichiara il formato sbagliato e' peggio di uno che non lo dichiara.
 	ReplayManifest.FormatId = MatchRules.FormatId;
 	ReplayManifest.bHexTopology = true; // un solo substrato: `FRTCellId` e' esagonale (ADR-0002)
+
+	// L'UNICO tempo reale che tocca l'archivio: da qui esce la durata nel manifest e la data nell'indice.
+	// Nessuno dei due entra in un hash.
+	ReplayStartRealSeconds = FPlatformTime::Seconds();
+	ReplayStartedUtc = FDateTime::UtcNow();
+
+	// La partita entra nella lista ADESSO e non alla fine (`#416`): se entrasse alla fine, una partita
+	// interrotta non comparirebbe da nessuna parte pur avendo lasciato un archivio riproducibile su disco.
+	// La riga si completa alla chiusura — `AppendOrUpdate` aggiorna la stessa, non ne accoda una seconda.
+	URTMatchHistoryLibrary::AppendOrUpdate(ResolveReplaysRoot(),
+		URTMatchHistoryLibrary::EntryFromManifest(ReplayManifest, ReplayStartedUtc));
 }
 
 FString ARTTurnManager::ResolveReplaysRoot() const
@@ -1440,16 +1509,22 @@ void ARTTurnManager::CloseReplayArchive()
 		return;
 	}
 
-	// ⚠️ `FinalStateHash` resta 0: il checksum di fine partita non ha ancora un produttore, e la ragione
-	// non e' una svista ma una decisione aperta — `FRTUnitStateDigest::Id` entra nell'hash ed e' oggi la
-	// chiave del file di scenario, che una partita non ha (issue #490). Il campo e' dichiarato non
-	// calcolato dal manifest stesso, che e' meglio di un numero inventato: `0` qui significa «nessuno l'ha
-	// scritto», ed e' esattamente cio' che e' vero.
+	// Il checksum e' quello catturato in `CaptureFinalStateHash`, PRIMA che le unita' morte sparissero: qui
+	// non si puo' piu' calcolare, perche' `DestroyDefeatedUnits` e' gia' passato.
+	// La DURATA si misura adesso: nasce in `BeginReplayRecording` e finisce qui. E' l'unico tempo reale che
+	// l'archivio porta, e vive in un campo che non entra in nessun hash.
+	const float WallClock = static_cast<float>(FPlatformTime::Seconds() - ReplayStartRealSeconds);
 	if (!URTReplayRecorderLibrary::CloseMatch(ResolveReplaysRoot(), ReplayManifest,
-		PendingResult.Outcome, /*FinalStateHash*/ 0, /*WallClockSeconds*/ 0.f))
+		PendingResult.Outcome, PendingFinalStateHash, WallClock))
 	{
 		AddLogEvent(TEXT("Replay: l'archivio non e' stato chiuso"));
 	}
+
+	// La riga della lista si completa con quello che il manifest dice ADESSO: esito, turni, durata e la
+	// disponibilita' del replay, che e' la chiusura stessa. Se la chiusura e' fallita, `bClosed` e' rimasto
+	// `false` e l'indice lo riporta — la lista non promette una partita intera che il disco non ha.
+	URTMatchHistoryLibrary::AppendOrUpdate(ResolveReplaysRoot(),
+		URTMatchHistoryLibrary::EntryFromManifest(ReplayManifest, ReplayStartedUtc));
 }
 
 void ARTTurnManager::DestroyDefeatedUnits()

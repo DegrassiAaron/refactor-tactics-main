@@ -2,8 +2,11 @@
 #include "Replay/RTReplayRecorderLibrary.h"
 #include "Replay/RTReplayManifest.h"
 #include "Turn/RTTurnManager.h"
+#include "Turn/RTMatchFormatData.h"
+#include "Turn/RTMatchFormatLibrary.h"
 #include "Turn/RTTurnLogLibrary.h"
 #include "Unit/RTUnit.h"
+#include "RTGameMode.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
@@ -114,7 +117,11 @@ bool FRTReplayRecordingIntegrationTest::RunTest(const FString&)
 		TM->GetReplayMatchId().IsValid());
 
 	// Quello che fa il GameMode dopo aver risolto il formato: e' li' che si sa di stare allestendo una
-	// partita vera, e non nel BeginPlay di un attore che anche i test spawnano.
+	// partita vera, e non nel BeginPlay di un attore che anche i test spawnano. Il formato si imposta prima,
+	// come fa `ApplyMatchFormat`: senza, `BeginReplayRecording` si rifiuta — e giustamente.
+	FRTMatchRules Rules;
+	Rules.FormatId = URTMatchFormatLibrary::Skirmish2v2FormatId;
+	TM->SetMatchRules(Rules);
 	TM->BeginReplayRecording();
 
 	const FGuid MatchId = TM->GetReplayMatchId();
@@ -150,6 +157,37 @@ bool FRTReplayRecordingIntegrationTest::RunTest(const FString&)
 	}
 	TestNotEqual(TEXT("e non sono a zero: una partita vera ha prodotto voci"),
 		Manifest.OrderedHashPerTurn[0], (int64)0);
+
+	// Il checksum di stato esiste gia' a partita in corso: si cattura a ogni turno.
+	TestNotEqual(TEXT("il checksum di stato e' stato calcolato, e non e' zero"),
+		TM->GetPendingFinalStateHash(), (int64)0);
+
+	// E ora fino alla FINE, perche' l'acceptance criterion di #469 parla del checksum **nel manifest** di
+	// una partita reale — non di un valore in memoria a meta' strada. Verificare il proxy sarebbe stato
+	// piu' comodo e avrebbe lasciato scoperto proprio il tratto che chiude la issue.
+	int32 Giri = 0;
+	while (TM->GetPhase() != ERTMatchPhase::MatchEnded && Giri < 60)
+	{
+		PlayOneRecTurn(TM);
+		++Giri;
+	}
+	if (!TestTrue(TEXT("la partita si decide entro il limite"), TM->GetPhase() == ERTMatchPhase::MatchEnded))
+	{
+		DestroyRecWorld(World);
+		return false;
+	}
+
+	FRTReplayManifest Chiuso;
+	if (!TestTrue(TEXT("il manifest della partita finita si rilegge"),
+		URTReplayRecorderLibrary::LoadManifest(Root, MatchId, Chiuso)))
+	{
+		DestroyRecWorld(World);
+		return false;
+	}
+	TestTrue(TEXT("ora l'archivio si dichiara chiuso"), Chiuso.bClosed);
+	TestNotEqual(TEXT("e porta il checksum di fine partita, calcolato da una partita vera"),
+		Chiuso.FinalStateHash, (int64)0);
+	TestNotEqual(TEXT("con un esito, non «in corso»"), Chiuso.Outcome, ERTMatchOutcome::InProgress);
 
 	DestroyRecWorld(World);
 	if (PF.DirectoryExists(*Root)) { PF.DeleteDirectoryRecursively(*Root); }
@@ -191,6 +229,53 @@ bool FRTReplayNoRecordingWithoutStartTest::RunTest(const FString&)
 
 	TestFalse(TEXT("nessun id di registrazione"), TM->GetReplayMatchId().IsValid());
 	TestFalse(TEXT("e nessuna cartella di archivi creata"), PF.DirectoryExists(*Root));
+
+	DestroyRecWorld(World);
+	return true;
+}
+
+/**
+ * Allestire una partita NON e' avviarla: `SetupHexMatch` chiamata da sola non registra niente.
+ *
+ * Il difetto e' gia' tornato una volta. La prima correzione aveva spostato l'avvio della registrazione dal
+ * `BeginPlay` del TurnManager dentro `SetupHexMatch`, credendo che quello fosse «il punto in cui si sa che
+ * e' una partita vera». Non lo era: `RTHeroSpawnTests` chiama `SetupHexMatch` **direttamente**, perche'
+ * verifica lo spawn del roster attraverso il percorso vero — e cosi' due test lasciavano un
+ * `history.rtindex` nella `Saved/` del progetto a ogni esecuzione della suite.
+ *
+ * Ora l'avvio sta dopo `SetupHexMatch` dentro `BeginPlay`, dove ci si arriva solo giocando. Questo test
+ * pinna la distinzione, cosi' non serve accorgersene una terza volta guardando una cartella.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplaySetupWithoutBeginPlayTest,
+	"RefactorTactics.Replay.Recording.SetupAloneStartsNoRecording",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplaySetupWithoutBeginPlayTest::RunTest(const FString&)
+{
+	UWorld* World = MakeRecWorld();
+	if (!TestNotNull(TEXT("mondo creato"), World)) { return false; }
+
+	SpawnRecMap(World, /*Radius=*/ 4);
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TM || !GameMode) { DestroyRecWorld(World); return false; }
+
+	ARTHexMapActor* HexMap = Cast<ARTHexMapActor>(
+		UGameplayStatics::GetActorOfClass(World, ARTHexMapActor::StaticClass()));
+	if (!TestNotNull(TEXT("mappa nel mondo"), HexMap)) { DestroyRecWorld(World); return false; }
+
+	// Il percorso di `RTHeroSpawnTests`: si allestisce, non si gioca.
+	GameMode->SetupHexMatch(HexMap);
+
+	TestFalse(TEXT("allestire non avvia la registrazione"), TM->GetReplayMatchId().IsValid());
+
+	// E anche chiamandola a mano: senza un formato risolto non si registra. E' il caso in cui
+	// `ApplyMatchFormat` fallisce e `SetupHexMatch` esce prima — il chiamante e' fuori da quella funzione e
+	// non lo sa, quindi la guardia sta qui dentro e vale per ogni chiamante.
+	FRTMatchRules SenzaFormato;
+	TM->SetMatchRules(SenzaFormato); // `FormatId` di default e' `NAME_None`
+	TM->BeginReplayRecording();
+	TestFalse(TEXT("senza formato risolto non si registra"), TM->GetReplayMatchId().IsValid());
 
 	DestroyRecWorld(World);
 	return true;

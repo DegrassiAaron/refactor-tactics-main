@@ -738,27 +738,21 @@ void FRTScenarioSession::Finish()
 	// Il calcolo vive in `URTMatchStateHashLibrary` e non piu' qui: una funzione che prende DATI si verifica
 	// con un test diretto (`Simulation.ChecksumCoversEnvironment`), un blocco dentro `Finish()` no.
 	{
-		TArray<FRTUnitStateDigest> UnitStates;
-		UnitStates.Reserve(UnitsById.Num());
+		// La costruzione del digest e' UNA SOLA, condivisa con la partita ([D-084]): questo blocco la
+		// scriveva a mano, e due costruzioni che divergono anche di un campo danno hash diversi per lo
+		// stesso stato — senza che nessuno se ne accorga finche' non prova a confrontare un corpus con una
+		// partita vera. Da qui in poi l'harness e' un chiamante come gli altri.
+		TArray<ARTUnit*> UnitsForDigest;
+		UnitsForDigest.Reserve(UnitsById.Num());
 		for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)
 		{
-			const ARTUnit* Unit = Pair.Value.Get();
-			if (!Unit)
+			if (ARTUnit* Unit = Pair.Value.Get())
 			{
-				continue;
+				UnitsForDigest.Add(Unit);
 			}
-			// `Digest` e non `State`: la sessione ha gia' un membro `State` (la sua macchina a stati), e
-			// nasconderlo e' un warning trattato come errore.
-			FRTUnitStateDigest Digest;
-			Digest.Id = Pair.Key;
-			Digest.Cell = Unit->Cell;
-			Digest.Health = Unit->Health;
-			Digest.Shield = Unit->Shield;
-			Digest.Energy = Unit->Energy;
-			Digest.bAlive = Unit->IsAlive();
-			Digest.Statuses = Unit->GetActiveStatusNames();
-			UnitStates.Add(Digest);
 		}
+		const TArray<FRTUnitStateDigest> UnitStates =
+			URTMatchStateHashLibrary::BuildUnitDigests(UnitsForDigest);
 
 		// Punteggi indicizzati per TeamId: la v0.1 e' 2v2, e il giudice della fine partita li tiene qui.
 		TArray<int32> TeamScores;

@@ -75,7 +75,9 @@ struct FRTTestResult
 	int32 Seed = 0;
 
 	/**
-	 * Digest dello stato finale: posizione, salute, scudo ed energia di ogni unità viva.
+	 * Digest dello stato finale: posizione, salute, scudo, energia e stati di ogni unità — **anche di quelle
+	 * cadute**, che entrano con `bAlive = false`. Non è un dettaglio: senza, «tre vivi e un caduto» e «tre
+	 * vivi e basta» darebbero lo stesso hash ([D-084](../../../docs/decisions/RT_PDR_00_Decision_Log.md)).
 	 *
 	 * Serve al gate di determinismo (CP 12.1): stesso scenario ⇒ stesso hash, su qualunque numero di
 	 * ripetizioni. È **permutazione-invariante** per costruzione — le unità si ordinano prima di mescolare —

@@ -817,3 +817,149 @@ bool FRTShowcaseT1DeterministicTest::RunTest(const FString&)
 	TestEqual(FString::Printf(TEXT("%d ripetizioni identiche"), Repetitions), Divergences, 0);
 	return true;
 }
+
+// =====================================================================================================
+// CP 15.3 metà A (#169) — gli intenti di una partita sono un DATO, non un click.
+//
+// È la condizione perché il golden replay esista (CP 15.4) e perché la UI resti un consumer: se l'unico
+// modo di far giocare un turno fosse cliccare, nessun test potrebbe descrivere una partita di otto turni,
+// e la showcase sarebbe una cosa che una persona esegue a mano.
+//
+// ⚠️ **Metà A soltanto, e il confine è dichiarato.** Le DECISIONI di finestra (`Boundary → FIRE/HOLD`) e il
+// `DecisionProvider` iniettabile sono la metà B e aspettano #163 (CP 14.3): `DecisionProvider` non esiste in
+// `Source/`, e costruirlo prima che esistano finestre da cui iniettare darebbe un test verde e privo di
+// contenuto — verde anche se E14 atterrasse male. Qui si verifica invece l'ultima voce di DoD che riguarda
+// la metà A: **con lo script delle decisioni vuoto, lo scenario resta valido**.
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseScriptedInputsTest,
+	"RefactorTactics.ShowcaseRelay.ScriptedInputsDriveMatch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShowcaseScriptedInputsTest::RunTest(const FString&)
+{
+	// Lo scenario è costruito qui e non caricato da file: quello versionato dichiara otto turni e si ferma
+	// sul primo non supportato, che è la sua domanda. Questa è un'altra — «gli intenti guidano davvero la
+	// partita?» — e va posta su turni che il gioco di oggi sa giocare per intero, altrimenti la risposta
+	// sarebbe BLOCKED e non direbbe nulla su ciò che si voleva sapere.
+	FRTTestScenario Scenario;
+	Scenario.ScenarioId = TEXT("Internal.ScriptedInputsDriveMatch");
+	Scenario.Fixture = TEXT("RelayBasin"); // la geometria canonica, riferita per nome e mai duplicata
+
+	auto Unita = [](const TCHAR* Id, const TCHAR* Hero, int32 Team, const FRTCellId& Cell)
+	{
+		FRTScenarioUnit U;
+		U.Id = Id;
+		U.HeroId = FName(Hero);
+		U.TeamId = Team;
+		U.Cell = Cell;
+		return U;
+	};
+	Scenario.Units.Add(Unita(TEXT("Flux"),    TEXT("Hero.Flux"),    0, FRTCellId(-4, 0, 0)));
+	Scenario.Units.Add(Unita(TEXT("Riva"),    TEXT("Hero.Riva"),    0, FRTCellId(-4, 1, 0)));
+	Scenario.Units.Add(Unita(TEXT("Bastion"), TEXT("Hero.Bastion"), 1, FRTCellId( 4, 0, 0)));
+	Scenario.Units.Add(Unita(TEXT("Vektor"),  TEXT("Hero.Vektor"),  1, FRTCellId( 4, 1, 0)));
+
+	auto Movimento = [](const TCHAR* Id, const FRTCellId& Dove)
+	{
+		FRTScenarioIntent I;
+		I.UnitId = Id;
+		I.Move.Add(Dove);
+		return I;
+	};
+
+	// T1 — SOLO MOVIMENTO, quattro unità nello stesso turno.
+	{
+		FRTScenarioTurn T;
+		T.Intents.Add(Movimento(TEXT("Flux"),    FRTCellId(-3, 0, 0)));
+		T.Intents.Add(Movimento(TEXT("Riva"),    FRTCellId(-3, 1, 0)));
+		T.Intents.Add(Movimento(TEXT("Bastion"), FRTCellId( 3, 0, 0)));
+		T.Intents.Add(Movimento(TEXT("Vektor"),  FRTCellId( 3, 1, 0)));
+		Scenario.Turns.Add(T);
+	}
+
+	// T2 — AZIONE PRINCIPALE e movimento nello stesso turno, su unità diverse. Bastion erige un pannello
+	// (slot principale) mentre gli altri continuano ad avvicinarsi (slot movimento): è la coesistenza dei due
+	// slot che l'intent deve saper esprimere, e senza la quale «alimentare gli intenti» significherebbe solo
+	// «muovere».
+	{
+		FRTScenarioTurn T;
+		T.Requires.Add(TEXT("CreateCover"));
+
+		FRTScenarioIntent Pannello;
+		Pannello.UnitId = TEXT("Bastion");
+		Pannello.Ability = FName(TEXT("Bastion.KineticPanel"));
+		Pannello.TargetCell = FRTCellId(3, 0, 0);
+		Pannello.bTargetsCell = true;
+		Pannello.CoverEdge = ERTHexDirection::W; // verso chi arriva, che è l'unico verso che ha senso
+		Pannello.bHasCoverEdge = true;
+		T.Intents.Add(Pannello);
+
+		T.Intents.Add(Movimento(TEXT("Flux"), FRTCellId(-2, 0, 0)));
+		T.Intents.Add(Movimento(TEXT("Riva"), FRTCellId(-2, 1, 0)));
+		Scenario.Turns.Add(T);
+	}
+
+	// T3 — LO SCRIPT DELLE DECISIONI È VUOTO, e lo scenario resta valido. È l'ultima voce di DoD della metà A:
+	// finché E14 non è atterrata non c'è nessuna finestra da alimentare, e un turno che non ne chiede resta un
+	// turno legittimo. Un'unità sola si muove: gli altri restano fermi, che è un intento anche quello.
+	{
+		FRTScenarioTurn T;
+		T.Intents.Add(Movimento(TEXT("Riva"), FRTCellId(-1, 1, 0)));
+		Scenario.Turns.Add(T);
+	}
+
+	// Le assertion sono sulle POSIZIONI DICHIARATE: se il resolver ignorasse gli intenti e lasciasse decidere
+	// il bot, le unità finirebbero altrove e questo test cadrebbe. È il punto — non «la partita gira», ma
+	// «la partita fa quello che lo script dice».
+	auto Dove = [](const TCHAR* Id, const FRTCellId& Cell)
+	{
+		FRTTestExpectation E;
+		E.Kind = ERTAssertionKind::UnitAtCell;
+		E.UnitId = Id;
+		E.Cell = Cell;
+		return E;
+	};
+	Scenario.Expect.Add(Dove(TEXT("Flux"),    FRTCellId(-2, 0, 0)));
+	Scenario.Expect.Add(Dove(TEXT("Riva"),    FRTCellId(-1, 1, 0)));
+	Scenario.Expect.Add(Dove(TEXT("Bastion"), FRTCellId( 3, 0, 0))); // ha eretto, non si è mosso
+	Scenario.Expect.Add(Dove(TEXT("Vektor"),  FRTCellId( 3, 1, 0)));
+	Scenario.Expect.Add([]{ FRTTestExpectation E; E.Kind = ERTAssertionKind::TurnsCompleted; E.Value = 3; return E; }());
+
+	UWorld* World = MakeShowcaseWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyShowcaseWorld(World);
+
+	if (!TestEqual(TEXT("i tre turni girano senza UI"),
+			static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Pass)))
+	{
+		AddError(FString::Printf(TEXT("esito %s — %s%s"), *Result.OutcomeString(),
+			*Result.ErrorMessage, *Result.BlockedReason));
+		return false;
+	}
+
+	TestEqual(TEXT("tre turni giocati"), Result.TurnsPlayed, 3);
+	TestEqual(TEXT("nessuna assertion fallita"), Result.FailedCount(), 0);
+
+	// Le tracce esistono per ogni turno: è la prova che i turni sono passati dal resolver reale e non da una
+	// scorciatoia dell'harness — un TurnLog non si produce spostando un Actor.
+	TestEqual(TEXT("una traccia per turno"), Result.TurnTraces.Num(), 3);
+
+	// L'AZIONE PRINCIPALE dichiarata come dato è finita nel TurnLog del suo turno. Verificare solo le
+	// posizioni lascerebbe scoperto proprio lo slot che il movimento non copre: uno scenario che alimentasse
+	// i soli movimenti passerebbe tutte le assertion di cella e non direbbe niente sull'altro slot.
+	if (Result.TurnTraces.IsValidIndex(1))
+	{
+		TArray<FRTTurnLogEntry> Voci;
+		if (TestTrue(TEXT("la traccia del turno 2 si rilegge"),
+				URTTurnLogLibrary::DeserializeTurnLog(Result.TurnTraces[1].Bytes, Voci)))
+		{
+			const bool bPannelloNelLog = Voci.ContainsByPredicate([](const FRTTurnLogEntry& E)
+				{ return E.ActionId == FName(TEXT("Bastion.KineticPanel")); });
+			TestTrue(TEXT("l'azione principale dichiarata compare nel TurnLog"), bPannelloNelLog);
+		}
+	}
+
+	return true;
+}

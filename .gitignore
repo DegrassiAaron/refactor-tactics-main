@@ -95,16 +95,18 @@ Content/**/*.txt
 !Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap
 !Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset
 # I Blueprint-unita' e gli anim BP del roster v0.1 — sedute U7 e U8. Stessa ragione dell'arena qui
-# sopra: riammessi PRIMA che esistano. Un solo nome per eroe, mai per pack Paragon (D-037): la base
-# visuale e' sostituibile, l'eroe no.
-!Content/RT/Characters/Flux/Blueprints/BP_Unit_Flux.uasset
-!Content/RT/Characters/Riva/Blueprints/BP_Unit_Riva.uasset
-!Content/RT/Characters/Bastion/Blueprints/BP_Unit_Bastion.uasset
-!Content/RT/Characters/Vektor/Blueprints/BP_Unit_Vektor.uasset
-!Content/RT/Characters/Flux/Animation/ABP_Flux.uasset
-!Content/RT/Characters/Riva/Animation/ABP_Riva.uasset
-!Content/RT/Characters/Bastion/Animation/ABP_Bastion.uasset
-!Content/RT/Characters/Vektor/Animation/ABP_Vektor.uasset
+# sopra: riammessi PRIMA che esistano.
+# Il nome e la cartella seguono il **pack Paragon**, non l'eroe (decisione dell'autore, 2026-08-11):
+# in editor si vede `Gadget` e si cerca `Gadget`. La mappatura eroe->pack la fissa D-037 —
+# Flux/Gadget, Riva/Phase, Bastion/Riktor, Vektor/Wraith — e vive nel catalogo C++, non nei path.
+!Content/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget.uasset
+!Content/RT/Characters/Phase/Blueprints/BP_Unit_Phase.uasset
+!Content/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor.uasset
+!Content/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith.uasset
+!Content/RT/Characters/Gadget/Animation/ABP_Gadget.uasset
+!Content/RT/Characters/Phase/Animation/ABP_Phase.uasset
+!Content/RT/Characters/Riktor/Animation/ABP_Riktor.uasset
+!Content/RT/Characters/Wraith/Animation/ABP_Wraith.uasset
 
 # Scratch dello sviluppo assistito (subagent-driven-development): mai versionato
 .superpowers/

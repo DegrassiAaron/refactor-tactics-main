@@ -444,6 +444,17 @@ bool FRTHexOverlayPaletteTest::RunTest(const FString&)
 	TestTrue(TEXT("«non si passa» != «non si vede»"), Blocked != Sight);
 	TestTrue(TEXT("«non si passa» != pavimento"), Blocked != Floor);
 	TestTrue(TEXT("«non si vede» != pavimento"), Sight != Floor);
+
+	// Le due squadre devono distinguersi fra loro e da tutto il resto: un anello di partenza che si confonde
+	// con un marcatore di regola direbbe «qui parte una squadra» dove c'e' scritto «qui non si passa».
+	const FColor Spawn0 = URTHexLibrary::SpawnTeam0Color();
+	const FColor Spawn1 = URTHexLibrary::SpawnTeam1Color();
+	TestTrue(TEXT("squadra 0 != squadra 1"), Spawn0 != Spawn1);
+	for (const FColor& Other : { Blocked, Sight, Floor })
+	{
+		TestTrue(TEXT("partenza squadra 0 distinta dal resto"), Spawn0 != Other);
+		TestTrue(TEXT("partenza squadra 1 distinta dal resto"), Spawn1 != Other);
+	}
 	return true;
 }
 
