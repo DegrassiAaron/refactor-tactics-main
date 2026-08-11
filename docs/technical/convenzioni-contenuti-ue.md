@@ -32,7 +32,7 @@ La struttura è **feature-first**, non organizzata per tipo di asset. Evita cart
 Un asset sta **vicino alla feature che lo possiede**:
 
 ```text
-/Game/RT/Characters/Flux/
+/Game/RT/Characters/Gadget/          <- nome del PACK Paragon, non dell'eroe (§5b): qui vive Flux
 ├── Abilities/
 ├── Animation/
 ├── Audio/
@@ -106,12 +106,12 @@ milestone corrente (coerente con la regola di scope in `CLAUDE.md`).
 | Camera tattica | `/Game/RT/Core/Camera/` | |
 | Griglia esagonale | `/Game/RT/World/Grid/` | `Hex/` mesh e cella base · `Selection/` selezione e hover · `Visualization/` materiali, path preview, overlay · `Generation/` generatori graybox |
 | Turni | `/Game/RT/Systems/` | `Planning/` intenti · `Turns/` fase e Ready · `Resolution/` playback · `Movement/` configurazione |
-| Personaggi | `/Game/RT/Characters/<CharacterId>/` | ogni personaggio è **autonomo** |
+| Personaggi | `/Game/RT/Characters/<CharacterId>/` | ogni personaggio è **autonomo**. ⚠️ `<CharacterId>` = nome del **pack Paragon** (§5b) |
 | Abilità di un personaggio | `/Game/RT/Characters/<CharacterId>/Abilities/` | |
 | Abilità realmente condivise | `/Game/RT/Abilities/{Shared,Targeting,Effects,Cues}/` | |
 | Mappe | `/Game/RT/Maps/<Category>/<MapName>/` | una cartella per mappa |
 | UI | `/Game/RT/UI/<funzione>/` | divisa per funzione, non per tipo tecnico |
-| Dati di feature | vicino alla feature | `Characters/Flux/Data/DA_Hero_Flux` |
+| Dati di feature | vicino alla feature | `Characters/Gadget/Data/DA_Hero_Flux` — cartella del pack, nome dell'**eroe** (§5b) |
 | Dati globali e cataloghi | `/Game/RT/Data/` | `Data/Catalogs/DA_HeroCatalog`, `Data/Rulesets/DA_Ruleset_Dev` |
 
 **La logica autorevole C++ resta sotto `Source/`, mai dentro `Content/`** (invariante #1: le regole decidono
@@ -119,6 +119,35 @@ l'esito, gli asset no).
 
 `Characters/Shared` contiene **solo** asset usati concretamente da almeno due personaggi — non è un
 parcheggio.
+
+## 5b. `<CharacterId>` è il nome del PACK, non dell'eroe (dal 2026-08-11)
+
+Decisione dell'autore, motivata così: *«allineamo i nomi utilizzati a quelli veri di Paragon, per non creare
+problemi»*. In editor si vede `Gadget`, quindi si cerca `Gadget`: il salto mentale eroe→pack sparisce, e con
+esso l'errore di aprire la cartella sbagliata.
+
+| Eroe (gioco) | `HeroId` (C++) | `<CharacterId>` (contenuti) |
+|---|---|---|
+| Flux | `Hero.Flux` | **`Gadget`** |
+| Riva | `Hero.Riva` | **`Phase`** |
+| Bastion | `Hero.Bastion` | **`Riktor`** |
+| Vektor | `Hero.Vektor` | **`Wraith`** |
+
+Vale per la cartella e per gli asset di **presentazione**: `Characters/Gadget/Blueprints/BP_Unit_Gadget`,
+`Characters/Gadget/Animation/ABP_Gadget`.
+
+**Eccezione: i dati restano intitolati all'eroe.** `DA_Hero_Flux` sta in `Characters/Gadget/Data/` ma non
+diventa `DA_Hero_Gadget`. Un data asset eroe descrive *statistiche e abilità*, che non dipendono dalla mesh:
+se Flux cambiasse base visuale, quel file resterebbe valido parola per parola. Lo stesso vale per `HeroId`,
+che in C++ è e resta `Hero.Flux`. La mappatura fra i due mondi è **D-037**, tabella owner in
+[`../characters/paragon.md`](../characters/paragon.md).
+
+⚠️ **Costo accettato, non rimosso.** Fino al 2026-08-11 §A raccomandava l'**opposto** — il nome del
+personaggio di gioco — con l'argomento che *«il nome del pack lega l'asset a una mesh sostituibile»*.
+L'argomento resta vero: se un eroe cambia base visuale, `BP_Unit_Gadget` diventa un nome falso e va
+rinominato. La scelta è di privilegiare chi lavora in editor **oggi** rispetto a un rename ipotetico domani,
+ed è consapevole. Chi la ribaltasse di nuovo tocchi anche `editor-sessions.yaml` (U7/U8) e l'allowlist di
+`.gitignore`, dove gli otto path sono scritti per esteso.
 
 **Asset di mappa** — regola decisiva: *se eliminando la mappa l'asset non serve più, può restare nella
 cartella della mappa; se è usato da più mappe, va in una cartella condivisa.*
@@ -311,7 +340,7 @@ Terze parti: 22 pack `Content/Paragon*` (~3 GB l'uno) → **non si toccano** (§
 | `/Game/Blueprints/BP_GameMode` | `/Game/RT/Core/Framework/BP_GameMode` | è il framework della partita: non appartiene a una mappa né a un personaggio (§5, §7 «Core non dipende da mappe») |
 | `/Game/Blueprints/Units/BP_Unit_Guardian` | `/Game/RT/Characters/Guardian/Blueprints/BP_Unit_Guardian` | ogni personaggio è autonomo (§5) |
 | `/Game/Blueprints/Units/BP_Unit_Ranger` | `/Game/RT/Characters/Ranger/Blueprints/BP_Unit_Ranger` | idem |
-| `/Game/Blueprints/Units/ABP_Gideon` | `/Game/RT/Characters/Guardian/Animation/ABP_Guardian` | l'anim BP appartiene al personaggio di **gioco**, non al pack Paragon di origine; rinomina consigliata perché il nome attuale lega l'asset a una mesh sostituibile |
+| `/Game/Blueprints/Units/ABP_Gideon` | `/Game/RT/Characters/Guardian/Animation/ABP_Guardian` | ~~l'anim BP appartiene al personaggio di **gioco**, non al pack Paragon di origine; rinomina consigliata perché il nome attuale lega l'asset a una mesh sostituibile~~ → **superata da [§5b](#5b-characterid-è-il-nome-del-pack-non-delleroe-dal-2026-08-11)** (2026-08-11): la regola è ora l'opposto, il nome segue il **pack**. Questa riga resta come registro di CP 6.0 |
 | `/Game/Blueprints/Units/ABP_Sparrow` | `/Game/RT/Characters/Ranger/Animation/ABP_Ranger` | idem |
 | `/Game/Maps/L_DevSandbox` | `/Game/RT/Maps/Dev/L_DevSandbox/L_DevSandbox` | una cartella per mappa (§5) |
 | `/Game/Maps/DA_HexMap_Sandbox` | `/Game/RT/Maps/Dev/L_DevSandbox/Data/DA_HexMap_Sandbox` | dato specifico della sandbox: se sparisce la mappa non serve più |
