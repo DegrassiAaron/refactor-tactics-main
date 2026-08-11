@@ -3,7 +3,8 @@
 > `CURRENT` · **Stato**: in esecuzione · **Ultimo aggiornamento**: 2026-08-08
 > **Questa è l'unica vista dello stato delle epic** (§2.1); la vista di esecuzione per milestone è
 > [`roadmap-checkpoint.md`](roadmap-checkpoint.md), che non lo duplica.
-> **Scope sorgente**: `docs/archive/pdr-v0.1/RT_PDR_12_Catalog_v0.1.pdf` + `docs/src/prd/catalogo-e-bilanciamento-v0.1.pdf`
+> **Scope sorgente**: PDR-12 ([`RT_PDR_v0.1_consolidato.md`](../archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md))
+> + catalogo di bilanciamento v0.1 ([`prd-personaggi-azioni-e-bilanciamento.md`](../src/prd/prd-personaggi-azioni-e-bilanciamento.md))
 > **Decisione abilitante**: [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md)
 >
 > Questa è la vista **di release**: cosa deve esistere perché la v0.1 sia consegnabile.

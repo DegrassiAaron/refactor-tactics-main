@@ -134,9 +134,10 @@ progressione, modding.
 **Quali decisioni sono definitive?** Quelle in [`decisions/`](decisions/) con stato `Consolidata` e gli
 invarianti del canone. **Quali sono aperte?** [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md).
 
-**Cosa è solo storico?** Tutto in [`archive/`](archive/); i PDF in [`src/`](src/) e
-[`archive/pdr-v0.1/`](archive/pdr-v0.1/); i piani consegnati in [`roadmap/plans/`](roadmap/plans/); e i singoli
-documenti che portano in testa il banner **⚠️ Superato** o **📦 Piano consegnato**.
+**Cosa è solo storico?** Tutto in [`archive/`](archive/); i PRD di visione in [`src/`](src/) e il corpus PDR in
+[`archive/pdr-v0.1/`](archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md); i piani consegnati in
+[`roadmap/plans/`](roadmap/plans/); e i singoli documenti che portano in testa il banner **⚠️ Superato** o
+**📦 Piano consegnato**.
 
 **Quali test verificano le regole?** Sotto `Source/RefactorTactics/Tests/`. Il numero **si misura, non si cita
 a memoria** — questo file l'ha già sbagliato cinque volte, ed è il motivo per cui adesso è generato:
@@ -198,10 +199,10 @@ docs/
 │   ├── meccaniche/  manuale per regola
 │   └── fazioni/     identità, filosofia, roster, scenari dimostrativi
 ├── characters/  pagine personaggio: v0.1, v0.2, candidati Paragon — **un kit per pagina**
-├── src/         sorgenti non normativi ancora da consumare: PDF di visione, dataset, media
+├── src/         sorgenti non normativi ancora da consumare: PRD di visione, dataset, media
 └── archive/     materiale superato
     ├── src/        i sorgenti già recepiti: design, handoff, audit
-    └── pdr-v0.1/   snapshot PDF dei PDR
+    └── pdr-v0.1/   il corpus PDR v0.1, consolidato in un Markdown
 ```
 
 ### Due deviazioni dichiarate
