@@ -5,6 +5,14 @@
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Core/RTGameplayTags.h"
+#include "Engine/Engine.h"
+#include "Kismet/GameplayStatics.h"
+#include "Map/RTHexCellData.h"
+#include "Map/RTHexLibrary.h"
+#include "Map/RTHexMapActor.h"
+#include "Map/RTHexMapAsset.h"
+#include "Turn/RTTurnManager.h"
+#include "Unit/RTUnit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -342,6 +350,144 @@ bool FRTEmergencyDashNotExpressibleTest::RunTest(const FString&)
 	TestTrue(TEXT("ma non e' una reazione: non ha trigger"),
 		Reposition.ReactionTrigger == ERTReactionTrigger::None);
 	TestTrue(TEXT("e non occupa lo slot Reaction"), Reposition.Slot != ERTActionSlot::Reaction);
+	return true;
+}
+
+// =====================================================================================================
+// D-085 — le spinte additive della stessa azione si SOMMANO.
+//
+// `Riva.PressureJet` spinge già di 1; `Weapon.Impact` aggiunge `Push 1`. Il catalogo dice che il
+// risultato è **una spinta di 2**, e non due spinte da 1: sono cose osservabilmente diverse — una spinta
+// di 2 attraversa la cella intermedia, due da 1 la valutano due volte.
+//
+// Il test esiste perché il difetto era reale e l'aveva introdotto CP 7.1: `AddedEffects` accoda un secondo
+// `FRTActionEffectSpec(Push, 1)`, `ProduceEvents` ne fa **due eventi**, e `ResolveCombat` conta gli EVENTI
+// invece degli ATTACCANTI. Con due eventi il bersaglio finiva nel ramo «forze contraddittorie» (#420) e
+// **non si muoveva affatto**, mentre il TurnLog dichiarava `OpposingForces` — con un attaccante solo in
+// campo. Una causa scritta, precisa e falsa: esattamente il difetto che `PushCause`/`PullCause` esistono
+// per evitare.
+// =====================================================================================================
+namespace
+{
+	UWorld* MakeEquipWorld()
+	{
+		UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+		if (World && GEngine)
+		{
+			FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+			Ctx.SetCurrentWorld(World);
+		}
+		return World;
+	}
+
+	void DestroyEquipWorld(UWorld* World)
+	{
+		if (World && GEngine)
+		{
+			GEngine->DestroyWorldContext(World);
+			World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+		}
+	}
+
+	ARTHexMapActor* SpawnEquipMap(UWorld* World, int32 Radius = 6)
+	{
+		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
+		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
+		{
+			M->AddOrUpdateCell(FRTHexCellData(Id));
+		}
+		M->SortCells();
+		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
+		Actor->MapAsset = M;
+		return Actor;
+	}
+
+	ARTUnit* SpawnEquipUnit(UWorld* World, int32 TeamId, const FRTCellId& Cell, URTHeroData* Hero)
+	{
+		if (!World) { return nullptr; }
+		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
+		if (!U) { return nullptr; }
+		U->TeamId = TeamId;
+		U->bIsBotControlled = false;
+		U->ConfigureFromHeroData(Hero);
+		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
+		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+		return U;
+	}
+
+	void RunEquipTurn(ARTTurnManager* TM)
+	{
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+	}
+
+	/** Sostituisce l'attacco base dell'unità con la sua versione modificata dalla variante. */
+	void EquipVariantOnBasicAttack(ARTUnit* Unit, const URTEquipmentData* Variant)
+	{
+		if (!Unit || Unit->Abilities.Num() == 0) { return; }
+		URTActionData* Basic = Unit->Abilities[0];
+		Basic->Def = URTCatalogLibrary::ApplyWeaponVariant(Basic->Def, Variant);
+		Basic->RangeCells = Basic->Def.RangeCells;
+		Basic->CooldownTurns = Basic->Def.CooldownTurns;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTImpactVariantStacksPushTest,
+	"RefactorTactics.Equipment.ImpactVariantStacksPush",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTImpactVariantStacksPushTest::RunTest(const FString&)
+{
+	const TArray<URTEquipmentData*> Variants = URTCatalogLibrary::MakeWeaponVariants();
+	const URTEquipmentData* Impact = nullptr;
+	for (const URTEquipmentData* V : Variants)
+	{
+		if (V->EquipmentId == FName(TEXT("Weapon.Impact"))) { Impact = V; break; }
+	}
+	if (!TestNotNull(TEXT("Weapon.Impact"), Impact)) { return false; }
+
+	UWorld* World = MakeEquipWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	SpawnEquipMap(World, 8);
+
+	// Riva spinge da (0,0) verso (1,0): il bersaglio deve finire a (3,0), due celle più in là.
+	ARTUnit* Riva = SpawnEquipUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakeRiva());
+	ARTUnit* Bersaglio = SpawnEquipUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeVektor());
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Riva"), Riva) || !TestNotNull(TEXT("bersaglio"), Bersaglio) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEquipWorld(World);
+		return false;
+	}
+
+	EquipVariantOnBasicAttack(Riva, Impact);
+
+	// Due spec `Push` nella stessa azione: è la configurazione che produceva il difetto.
+	int32 PushSpecs = 0;
+	for (const FRTActionEffectSpec& Spec : Riva->Abilities[0]->Def.Effects)
+	{
+		if (Spec.Effect == ERTActionEffect::Push) { ++PushSpecs; }
+	}
+	TestEqual(TEXT("l'attacco modificato dichiara due spinte separate"), PushSpecs, 2);
+
+	Riva->PlannedAbilityIndex = 0;
+	Riva->PlannedAttackTarget = Bersaglio;
+	Riva->PlannedCell = Riva->Cell;
+	Bersaglio->PlannedAbilityIndex = INDEX_NONE;
+	Bersaglio->PlannedCell = Bersaglio->Cell;
+
+	RunEquipTurn(TM);
+
+	// Il cuore: **una** spinta di 2, non due da 1 e non zero.
+	TestEqual(TEXT("il bersaglio arretra di DUE celle (D-085)"), Bersaglio->Cell, FRTCellId(3, 0));
+
+	// E il controllo che smaschera il difetto vero: se il resolver contasse gli eventi invece degli
+	// attaccanti, il bersaglio resterebbe a (1,0) — fermo — con `OpposingForces` nel log. Fermo e spinto di
+	// una sola cella sono entrambi sbagliati, e vanno esclusi separatamente perché hanno cause diverse.
+	TestTrue(TEXT("non e' rimasto fermo per «forze contraddittorie»: l'attaccante e' uno solo"),
+		Bersaglio->Cell != FRTCellId(1, 0));
+	TestTrue(TEXT("e non e' arretrato di una cella sola"), Bersaglio->Cell != FRTCellId(2, 0));
+
+	DestroyEquipWorld(World);
 	return true;
 }
 

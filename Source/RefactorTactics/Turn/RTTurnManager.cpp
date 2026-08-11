@@ -3414,6 +3414,10 @@ void ARTTurnManager::ResolveCombat()
 	TMap<ARTUnit*, FRTCellId> KnockFrom;
 	TMap<ARTUnit*, int32> KnockDist;
 	TMap<ARTUnit*, int32> KnockCount;
+	// Quali attaccanti spingono ciascun bersaglio (D-085). Serve perche' `KnockCount` deve contare gli
+	// ATTACCANTI e non gli eventi: dal CP 7.1 una sola azione puo' dichiarare due spinte (`Weapon.Impact` su
+	// `Riva.PressureJet`), e contarle come due attaccanti attivava «forze contraddittorie» su un duello.
+	TMap<ARTUnit*, TSet<int32>> KnockAttackers;
 	// Trazione (`Action.Pull`, CP 4.7): stessa disciplina della spinta, array paralleli propri — una
 	// direzione INVERTITA (verso chi tira, non lontano da lui) non e' la stessa spinta con un segno cambiato
 	// nel dato che la applica.
@@ -3513,9 +3517,26 @@ void ARTTurnManager::ResolveCombat()
 						// all'enum — non riusando `NoDestination`, che dice una cosa diversa.
 						break;
 					}
+					// D-085 — le spinte si SOMMANO, e il contatore conta gli ATTACCANTI, non gli eventi.
+					//
+					// Fino a CP 7.1 le due cose coincidevano: nessuna azione del catalogo dichiarava piu' di un
+					// `Push`, quindi un evento era un attaccante. `Weapon.Impact` rompe l'equivalenza — accoda un
+					// secondo `Push 1` all'attacco base di Riva, che ne ha gia' uno — e con il conteggio per
+					// evento il bersaglio finiva nel ramo «forze contraddittorie» qui sotto: **fermo**, con
+					// `OpposingForces` nel TurnLog e un solo attaccante in campo. Una causa scritta, precisa e
+					// falsa, che e' il difetto peggiore per una traccia che deve essere attribuibile.
+					//
+					// `KnockDist` accumula invece di sovrascrivere: `TMap::Add` teneva l'ultimo valore, quindi due
+					// spinte da 1 ne producevano una da 1. Il catalogo ne vuole **una da 2**, che attraversa la
+					// cella intermedia — non due da 1, che valutano la collisione due volte.
+					{
+						TSet<int32>& PushersOfVictim = KnockAttackers.FindOrAdd(Victim);
+						bool bAlreadyPushing = false;
+						PushersOfVictim.Add(Hit.AttackerId, &bAlreadyPushing);
+						if (!bAlreadyPushing) { KnockCount.FindOrAdd(Victim)++; }
+					}
 					KnockFrom.Add(Victim, HexUnits[Hit.AttackerId].Cell);
-					KnockDist.Add(Victim, Event.Amount);
-					KnockCount.FindOrAdd(Victim)++;
+					KnockDist.FindOrAdd(Victim) += Event.Amount;
 					PushCause.Add(Victim, bHasDef
 						? FRTDisplacementCause{ IntentDefs[Hit.IntentIndex].ActionId,
 							IntentDefs[Hit.IntentIndex].BaseActionId, IntentDefs[Hit.IntentIndex].Priority }

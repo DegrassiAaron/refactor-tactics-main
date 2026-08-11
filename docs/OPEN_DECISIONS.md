@@ -330,6 +330,23 @@ Aperta e chiusa lo stesso giorno. Resta qui **solo come indice**: il contenuto v
 > La lezione non è «verificare meglio»: è che un elenco di domande aperte redatto sui documenti misura ciò che
 > l'estensore non sapeva, non ciò che il progetto non ha deciso. Vale anche quando l'estensore sono io.
 
+## Aperte — varianti d'arma, dal consolidamento del 2026-08-11
+
+Origine: [`RefactorTactics_WeaponVariants_Claude_Consolidation.md`](archive/src/RefactorTactics_WeaponVariants_Claude_Consolidation.md)
+(archiviato). Quattro decisioni del sorgente erano `Locked` e sono diventate
+[D-085](decisions/RT_PDR_00_Decision_Log.md)–[D-088](decisions/RT_PDR_00_Decision_Log.md). Queste sono le
+`Provisional` e le `Open`, che il sorgente stesso vieta di promuovere senza conferma.
+
+| ID | Domanda | Perché serve una risposta |
+|---|---|---|
+| `WV-1` | Che cosa significa esattamente **`+1 turno di ricarica`** per `Weapon.Overcharge`? | È il **vero costo** della variante, e oggi non è definito. La proposta discussa è `Fire → Cooldown → Fire`: si spara al turno N, l'attacco base è indisponibile a N+1, torna a N+2. ⚠️ Ma l'attacco base ha `CooldownTurns = 0` per tutto il roster e **nessun eroe ha mai avuto l'attacco base in ricarica**: è la prima volta che il caso esiste, quindi va verificato che il resolver e l'HUD sappiano dire «non puoi attaccare questo turno» invece di offrire un pulsante che fallisce. Senza questa risposta `Overcharge` è un vantaggio senza prezzo misurabile |
+| `WV-2` | Le **soglie delle fasce** di danno e i **delta per fascia** | [D-087](decisions/RT_PDR_00_Decision_Log.md) ha deciso il **principio**; i numeri sono `PROPOSED FOR PLAYTEST`. Baseline proposta: `Low 1–10` · `Medium 11–18` · `High 19+`, con `Precisione −2/−3/−4`, `Sovraccarico +3/+5/+6`, `Soppressione −2/−4/−5`. Si chiudono con una partita, non con un documento — e vanno misurati **dopo** che le fasce esistono nel codice |
+| `WV-3` | Il **default** di variante per ciascun eroe | Proposta forte ma **non confermata**: Flux/Soppressione, Riva/Precisione, Vektor/Sovraccarico, Bastion/Impatto. È il pezzo che blocca CP 7.4 ([#63](https://github.com/DegrassiAaron/refactor-tactics-main/issues/63)), il cui DoD chiede «i loadout consigliati del catalogo» — che per la variante d'arma **non esistono**: la tabella §4 del catalogo equipaggiamento assegna gadget e reazioni, e dice esplicitamente che le sue «varianti» sono di *abilità*, non d'arma. ✅ Il **criterio** è però approvabile come linea di design: il default rinforza l'identità dell'eroe, mentre la compensazione della debolezza resta la scelta alternativa del giocatore |
+| `WV-4` | Che cosa modifica esattamente **`Weapon.Environmental`** | «Migliora gli hazard» non è un parametro. Le uscite sono un elenco chiuso — intensità, durata, area, propagazione, numero di celle, stato prodotto, persistenza — e la scelta decide se la variante è implementabile o resta a catalogo. ⚠️ Vietato `BetterHazards = true`: un booleano che significa «meglio» non è misurabile e nessun validator può verificarlo |
+| `WV-5` | Il modello di **selezione dei bersagli** per `Weapon.Split` | Prima del campo serve il modello: chi seleziona, in che ordine, automatico o manuale, distanza, prevenzione dei duplicati, ordinamento stabile, serializzazione, intento, ghost preview, bot, TurnLog, replay. ⚠️ E la domanda che viene prima di tutte: la cardinalità dei bersagli serve **anche al sistema abilità**, o si introdurrebbe per salvare una sola variante? Nel secondo caso il costo non vale il ritorno |
+
+---
+
 ## Aperte — livello prodotto
 
 Owner: [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) §9. Non bloccano l'MVP tecnico.
