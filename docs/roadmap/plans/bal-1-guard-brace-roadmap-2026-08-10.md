@@ -110,11 +110,32 @@ Con i quattro scenari verdi la scelta è fra tre opzioni già scritte come numer
 
 1. **status quo** — *primo colpo* contro *colpi ripetuti*, e la clausola di `Brace` si riscrive (Fase 0-B);
 2. **proposta dell'handoff** — `Guard` solo danno, `Brace` solo spostamento: azzera `GuardResistedPushDistance`
-   e `BraceDamageReduction`, e **richiede la Fase 0-A**, altrimenti `Brace` resta senza mestiere;
+   e `BraceDamageReduction`. Richiedeva la **Fase 0-A**, altrimenti `Brace` restava senza mestiere —
+   ✅ **e quella condizione è ora soddisfatta**, per una via che nessuno aveva previsto: vedi §4-bis;
 3. **ibrido** — si tiene la forma attuale e si separano le **magnitudini**, così che nessuna delle due domini
    sul colpo singolo.
 
 Gli scenari dicono *cosa succede*, non *cosa è divertente*: questa fase è una partita.
+
+### 4-bis. La spinta ≥ 2 è arrivata da un'altra porta *(2026-08-11)*
+
+`D-074` aveva scartato la Fase 0-A — introdurre una spinta `≥ 2` — e su quella premessa aveva **precluso
+l'opzione 2**. La premessa è caduta, e non perché qualcuno l'abbia riaperta: **`Weapon.Impact` su
+`Riva.PressureJet`**, che spinge già di 1, produce una spinta di **2** ([D-085](../../decisions/RT_PDR_00_Decision_Log.md)),
+ed è il loadout di **default** di Riva ([D-089](../../decisions/RT_PDR_00_Decision_Log.md)).
+
+La spinta forte non è entrata dal catalogo azioni, dove D-074 la stava guardando: è entrata
+dall'**equipaggiamento**, sommandosi a una spinta che l'attacco base aveva già.
+
+Conseguenza misurata, non dedotta — `Equipment.PushTwoSeparatesGuardFromBrace` la pinna: contro una spinta
+di 2, **`Guard` cede e `Brace` regge**. Le due difese non differiscono più solo nel danno, e la distanza è
+di nuovo un asse che le separa.
+
+**Cosa cambia per la decisione**: le opzioni in campo tornano **tre**. L'opzione 2 non è più preclusa,
+perché il mestiere che le mancava adesso esiste. Resta però una domanda nuova che il piano non poneva:
+quel mestiere dipende da un **equipaggiamento equipaggiato**, non da una regola del turno — quindi
+`Brace` avrebbe un ruolo contro Riva-con-Impatto e non contro chiunque altro. Se sia abbastanza per
+fondarci sopra una difesa, è parte di ciò che la partita deve dire.
 
 ## 5. Fase 3 — implementazione
 
