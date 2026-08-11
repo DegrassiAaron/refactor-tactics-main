@@ -1299,6 +1299,13 @@ generata invece che da una sessione di pianificazione. Il numero `E21` è stato 
 
 I dieci nomi richiesti dal catalogo (§15) sono **vincolanti**: devono esistere con questi nomi.
 
+> ✅ **Verificati uno per uno il 2026-08-11** (`#83`), non dedotti: tutti e dieci sono dichiarati nei
+> sorgenti con il nome esatto. Verificata nella stessa passata anche la **regola 6.1** — nessuno dei 684
+> nomi è prefisso gerarchico di un altro — e il fatto che l'insieme dei test *dichiarati via macro*
+> coincida **esattamente** con quello dei test *eseguiti* dalla run: 684 = 684, nessuno saltato.
+> Quest'ultimo confronto è il controllo che conta, perché un test che l'Automation non raccoglie non
+> fallisce: sparisce, e il totale continua a sembrare sano.
+
 | Test | Copre | CP |
 |---|---|---|
 | `RefactorTactics.Actions.Move.PathBlocked` | fallback `Stop` su percorso bloccato | 4.3 |
