@@ -892,6 +892,14 @@ void ARTTurnManager::LockInAndResolve()
 			Unit->ExpireTemporaryShield(); // la protezione delle abilita' di supporto vale un turno solo
 			Unit->TickStatuses();
 			Unit->TickCooldowns();
+
+			// Il piano di REAZIONE si azzera QUI, e non piu' nel pass che lo legge (`#505`). Con D-092 i punti
+			// di valutazione sono piu' d'uno e distribuiti su fasi diverse: se il primo che passa consumasse il
+			// piano, il secondo non troverebbe niente da valutare — e i trigger che nascono dopo il Blast non
+			// scatterebbero mai, restando dati senza consumatore. Questa e' la fine del turno dell'unita', ed e'
+			// dove un piano smette di valere. Pinnato da `Turn.PlansDoNotSurviveTheTurn`, che cade se questa
+			// riga sparisce (verifica di mutazione, 2026-08-12).
+			Unit->PlannedReactionAbility = INDEX_NONE;
 			(Unit->TeamId == 0 ? Team0Alive : Team1Alive)++;
 		}
 	}
@@ -2555,12 +2563,21 @@ void ARTTurnManager::RunReactionPass(const TArray<ARTUnit*>& Units, TArray<FRTUn
 	{
 		ARTUnit* Unit = Units[i];
 		const int32 ReactionIdx = Unit->PlannedReactionAbility;
-		Unit->PlannedReactionAbility = INDEX_NONE; // consumato per questo turno (attivata o no)
 
 		const URTActionData* Reaction = Unit->GetAbility(ReactionIdx);
 		if (!Reaction || Reaction->Def.Slot != ERTActionSlot::Reaction)
 		{
 			continue; // nessuna reazione pianificata: niente da registrare
+		}
+
+		// L'INTERPOSIZIONE l'ha gia' valutata — e registrata — il pass dedicato piu' sopra. Fino a `#505` a
+		// tenerla fuori di qui bastava l'azzeramento del piano che quel pass faceva; ora il piano deve
+		// sopravvivere alla fase (D-092: i punti di valutazione sono piu' d'uno), quindi l'esclusione va
+		// DETTA. Senza questa riga ogni interposizione prenderebbe una seconda voce di TurnLog nello stesso
+		// Blast.
+		if (Reaction->Def.ReactionTrigger == ERTReactionTrigger::AllyHitByDirectAttack)
+		{
+			continue;
 		}
 
 		FRTTurnLogEntry Entry;
@@ -3274,7 +3291,8 @@ void ARTTurnManager::ResolveCombat()
 		}
 
 		// Da qui l'azione e' NOSTRA: il ciclo generale non deve rivalutarla ne' registrarla una seconda volta.
-		Unit->PlannedReactionAbility = INDEX_NONE;
+		// A garantirlo era l'azzeramento del piano; da `#505` lo garantisce il filtro sul trigger dentro
+		// `RunReactionPass`, perche' il piano deve restare leggibile anche dai pass delle fasi successive.
 
 		FRTTurnLogEntry Entry;
 		Entry.Phase = ERTMatchPhase::Blast;
