@@ -388,6 +388,108 @@ bool FRTOverwatchOrderIsDeterministicTest::RunTest(const FString&)
 		}
 	}
 
+	// UNA SOLA UNITA', DUE REACTION ARMATE — il caso che ADR-0004 §4 chiama «piu' reazioni distinte nello
+	// stesso micro-step», e quello che i casi qui sopra non toccano: hanno tutti due OwnerId diversi.
+	//
+	// Trovato in code review sulla prima stesura, che ritrovava i tie-break con una `TMap` chiavata
+	// sull'OwnerId: la seconda `Add` sovrascriveva la prima e i due trigger si ordinavano entrambi coi
+	// tie-break dell'ULTIMO watcher inserito — cioe' in base all'ordine di `Watchers`.
+	{
+		FRTOverwatchWatcher Fast = MakeOverwatchWatcher(Map, /*OwnerId*/ 1, 0, FRTCellId(0, 0, 0), FRTCellId(1, 0, 0));
+		Fast.TeamAwareness.Add(9, ERTAwareness::Detected);
+		Fast.ReactionDefId = TEXT("Action.Overwatch");
+		Fast.ReactionPriority = 10;
+		Fast.ReactionInstanceId = 100;
+
+		FRTOverwatchWatcher Slow = Fast;                        // STESSA unita', stessa zona
+		Slow.ReactionDefId = TEXT("Action.Intercept");           // reaction diversa
+		Slow.ReactionPriority = 20;                              // ...e priorita' peggiore
+		Slow.ReactionInstanceId = 200;
+
+		const TArray<FRTOverwatchTrigger> A =
+			URTReactionOpportunityLibrary::BuildOverwatchTriggers(Map, 1, { Fast, Slow }, Movers);
+		const TArray<FRTOverwatchTrigger> B =
+			URTReactionOpportunityLibrary::BuildOverwatchTriggers(Map, 1, { Slow, Fast }, Movers);
+
+		TestEqual(TEXT("una unita' con due reaction armate apre due opportunity"), A.Num(), 2);
+		TestEqual(TEXT("permutare i watcher non cambia il conteggio"), B.Num(), A.Num());
+		if (A.Num() == 2 && B.Num() == 2)
+		{
+			TestEqual(TEXT("la reaction a priorita' migliore e' prima"),
+				A[0].Opportunity.Key.ReactionDefId, FName(TEXT("Action.Overwatch")));
+			TestEqual(TEXT("e resta prima permutando i watcher"),
+				B[0].Opportunity.Key.ReactionDefId, A[0].Opportunity.Key.ReactionDefId);
+		}
+	}
+
+	return true;
+}
+
+/**
+ * Due ISTANZE della stessa reaction sulla stessa unita' danno due id distinti.
+ *
+ * `FRTReactionOpportunityKey` non identifica il watcher: identifica
+ * `(Turn, MacroPhase, MicroStep, OwnerId, ReactionDefId, Seq)`. La prima stesura lasciava `Seq = 0` con la
+ * motivazione «un watcher apre al massimo una opportunity per micro-step» — vera, e irrilevante: due watcher
+ * della stessa unita' con lo stesso `ReactionDefId` producevano due chiavi **identiche**, quindi lo stesso
+ * `OpportunityId`, quindi un replay che attribuisce a una la decisione dell'altra.
+ *
+ * E' il difetto che CP 14.3 esiste per impedire, e la doc di `Seq` lo nomina parola per parola: «la stessa
+ * unita', la stessa reaction, lo stesso micro-step, due volte». Il caso sembra impossibile finche' non capita.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchSameReactionTwiceHasDistinctIdsTest,
+	"RefactorTactics.Overwatch.SameReactionTwiceHasDistinctIds",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchSameReactionTwiceHasDistinctIdsTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeOverwatchMap();
+	const TArray<FRTSuppressionMover> Movers = { MakeOverwatchMover(9, 1, { FRTCellId(2, 0, 0) }) };
+
+	FRTOverwatchWatcher First = MakeOverwatchWatcher(Map, /*OwnerId*/ 1, 0, FRTCellId(0, 0, 0), FRTCellId(1, 0, 0));
+	First.TeamAwareness.Add(9, ERTAwareness::Detected);
+	First.ReactionInstanceId = 10;
+
+	// Identico in tutto tranne l'istanza: e' l'unico campo che li distingue, ed e' il motivo per cui esiste.
+	FRTOverwatchWatcher Second = First;
+	Second.ReactionInstanceId = 20;
+
+	const TArray<FRTOverwatchTrigger> Triggers =
+		URTReactionOpportunityLibrary::BuildOverwatchTriggers(Map, 1, { First, Second }, Movers);
+
+	TestEqual(TEXT("due istanze armate aprono due opportunity"), Triggers.Num(), 2);
+	if (Triggers.Num() != 2)
+	{
+		return false;
+	}
+
+	const FString IdA = URTReactionOpportunityLibrary::DeriveOpportunityId(Triggers[0].Opportunity.Key);
+	const FString IdB = URTReactionOpportunityLibrary::DeriveOpportunityId(Triggers[1].Opportunity.Key);
+	TestNotEqual(TEXT("le due opportunity hanno id distinti"), IdA, IdB);
+	TestEqual(TEXT("la prima porta Seq = 0"), Triggers[0].Opportunity.Key.Seq, 0);
+	TestEqual(TEXT("la seconda porta Seq = 1"), Triggers[1].Opportunity.Key.Seq, 1);
+
+	// `Seq` e' una funzione dello stato, non dell'ordine d'ingresso: permutare i watcher non deve
+	// riassegnarlo. Senza questo, l'assegnazione «in ordine di costruzione» passerebbe il controllo qui sopra
+	// e romperebbe comunque il replay.
+	const TArray<FRTOverwatchTrigger> Swapped =
+		URTReactionOpportunityLibrary::BuildOverwatchTriggers(Map, 1, { Second, First }, Movers);
+	TestEqual(TEXT("permutare i watcher non cambia il conteggio"), Swapped.Num(), Triggers.Num());
+	if (Swapped.Num() == 2)
+	{
+		TestEqual(TEXT("permutare i watcher non cambia il primo id"),
+			URTReactionOpportunityLibrary::DeriveOpportunityId(Swapped[0].Opportunity.Key), IdA);
+		TestEqual(TEXT("permutare i watcher non cambia il secondo id"),
+			URTReactionOpportunityLibrary::DeriveOpportunityId(Swapped[1].Opportunity.Key), IdB);
+	}
+
+	// Un watcher solo resta a `Seq = 0`: il campo non deve diventare un contatore globale.
+	const TArray<FRTOverwatchTrigger> Single =
+		URTReactionOpportunityLibrary::BuildOverwatchTriggers(Map, 1, { First }, Movers);
+	if (Single.Num() == 1)
+	{
+		TestEqual(TEXT("con un solo watcher Seq resta 0"), Single[0].Opportunity.Key.Seq, 0);
+	}
+
 	return true;
 }
 

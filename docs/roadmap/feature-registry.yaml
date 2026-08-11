@@ -1809,6 +1809,9 @@ features:
       - RefactorTactics.Overwatch.SimultaneousTargetsSingleOpportunity
       - RefactorTactics.Overwatch.RequiresDetection
       - RefactorTactics.Overwatch.OrderIsDeterministic
+      # Il quinto non e' nel DoD della issue: viene dalla code review, che ha trovato due difetti reali
+      # nella prima stesura. Vedi le note in fondo alla voce.
+      - RefactorTactics.Overwatch.SameReactionTwiceHasDistinctIds
     scenarios:
       - Spec.Overwatch.HoldThenFire
       # Dichiarati dal triage del 2026-08-10 (`plans/baseaction-signatures-spec-panel-2026-08-10.md`):
@@ -1854,6 +1857,23 @@ features:
       Conseguenza misurata su un altro checkpoint: `Perf.ResolverAt4v4` (CP 17.2) deve riportare
       «opportunity di reazione per turno» e **non può**, perché uno zero per assenza di produttore
       si legge esattamente come uno zero per assenza di reazioni. Lo dichiara invece di stimarlo.
+
+      ⚠️ **Due difetti trovati in code review sulla prima stesura, entrambi nel caso «una unità, due
+      reaction armate»** — che è esattamente ciò che ADR-0004 §4 chiama «più reazioni distinte nello stesso
+      micro-step», e che nessuno dei quattro test del DoD toccava: usavano tutti due `OwnerId` diversi.
+
+      1. I tie-break si ritrovavano con una `TMap` chiavata sull'`OwnerId`. Con due watcher della stessa
+         unità la seconda `Add` sovrascriveva la prima, e **entrambi** i trigger si ordinavano coi tie-break
+         dell'ultimo watcher inserito: cioè in base all'ordine dell'array `Watchers`, la dipendenza che
+         quell'ordinamento esiste per togliere. Ora i cinque interi viaggiano accanto al trigger.
+      2. `Seq` era fisso a `0`, motivato con «un watcher apre al massimo una opportunity per micro-step» —
+         vero, e irrilevante: la chiave non identifica il watcher. Due istanze della stessa reaction sulla
+         stessa unità davano due chiavi **identiche**, quindi lo stesso `OpportunityId`. È il difetto che
+         CP 14.3 esiste per impedire, e la doc di `Seq` lo nomina parola per parola. Ora `Seq` si assegna
+         **dopo** l'ordinamento totale, così è funzione dello stato e non dell'ordine d'ingresso.
+
+      Verificato per mutazione rimettendo l'implementazione pre-review: cadono **esattamente**
+      `OrderIsDeterministic` e `SameReactionTwiceHasDistinctIds`, gli altri quattro restano verdi.
 
       **Il `data` resta `partial` per una ragione precisa (2026-08-10)**: CP 14.4 impone che il profilo
       sia un dato per eroe — area, arco, trigger e risposte legali — e il test che lo pinna

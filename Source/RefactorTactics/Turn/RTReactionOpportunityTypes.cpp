@@ -62,6 +62,26 @@ TArray<FRTOverwatchTrigger> URTReactionOpportunityLibrary::BuildOverwatchTrigger
 		return Triggers;
 	}
 
+	/**
+	 * I cinque tie-break di ADR-0004 §4 viaggiano ACCANTO al trigger mentre lo si ordina, e non dentro.
+	 *
+	 * ⚠️ La prima stesura li ritrovava con una `TMap<OwnerId, const FRTOverwatchWatcher*>`, ed era un difetto:
+	 * un'unita' puo' avere **due reaction armate** — e' esattamente il caso che ADR-0004 §4 chiama «piu'
+	 * reazioni distinte nello stesso micro-step». Con la mappa, la seconda `Add` sovrascriveva la prima, e
+	 * ENTRAMBI i trigger si ordinavano coi tie-break dell'ULTIMO watcher inserito: cioe' in base all'ordine
+	 * dell'array `Watchers`, che e' precisamente la dipendenza che questo ordinamento esiste per togliere.
+	 */
+	struct FPendingOverwatchTrigger
+	{
+		FRTOverwatchTrigger Trigger;
+		int32 ReactionPriority = 0;
+		int32 AbilityPriority = 0;
+		int32 UnitInitiative = 0;
+		int32 StableUnitId = INDEX_NONE;
+		int32 ReactionInstanceId = INDEX_NONE;
+	};
+	TArray<FPendingOverwatchTrigger> Pending;
+
 	for (const FRTOverwatchWatcher& Watcher : Watchers)
 	{
 		if (!Watcher.bArmed || Watcher.Zone.Cells.Num() == 0)
@@ -142,7 +162,8 @@ TArray<FRTOverwatchTrigger> URTReactionOpportunityLibrary::BuildOverwatchTrigger
 			Trigger.Opportunity.Key.MicroStepIndex = Step;
 			Trigger.Opportunity.Key.OwnerId = Watcher.Zone.OwnerUnitId;
 			Trigger.Opportunity.Key.ReactionDefId = Watcher.ReactionDefId;
-			Trigger.Opportunity.Key.Seq = 0; // un watcher apre al massimo una opportunity per micro-step
+			// `Seq` NON si assegna qui: dipenderebbe dall'ordine di `Watchers`. Si assegna dopo
+			// l'ordinamento totale, scorrendo il risultato — vedi in fondo.
 
 			for (int32 TargetId : TargetsThisStep)
 			{
@@ -153,7 +174,14 @@ TArray<FRTOverwatchTrigger> URTReactionOpportunityLibrary::BuildOverwatchTrigger
 			// risposta legale quanto le altre (ADR-0004 §3: `Timeout -> HOLD`).
 			Trigger.Opportunity.AllowedResponses.Add(HoldResponse());
 
-			Triggers.Add(MoveTemp(Trigger));
+			FPendingOverwatchTrigger P;
+			P.Trigger = MoveTemp(Trigger);
+			P.ReactionPriority   = Watcher.ReactionPriority;
+			P.AbilityPriority    = Watcher.AbilityPriority;
+			P.UnitInitiative     = Watcher.UnitInitiative;
+			P.StableUnitId       = Watcher.StableUnitId;
+			P.ReactionInstanceId = Watcher.ReactionInstanceId;
+			Pending.Add(MoveTemp(P));
 		}
 	}
 
@@ -161,37 +189,53 @@ TArray<FRTOverwatchTrigger> URTReactionOpportunityLibrary::BuildOverwatchTrigger
 	// della risoluzione; i cinque criteri seguono nell'ordine dell'ADR, e l'ultimo — `ReactionInstanceId` —
 	// e' quello che garantisce che due elementi non restino mai indistinguibili. Se restassero, a deciderli
 	// sarebbe l'ordine di `Watchers`, cioe' il caso.
-	//
-	// La mappa `WatcherByOwner` serve solo a ritrovare i tie-break del watcher a partire dal trigger: e'
-	// letta per chiave, mai iterata (invariante #3).
-	TMap<int32, const FRTOverwatchWatcher*> WatcherByOwner;
-	for (const FRTOverwatchWatcher& Watcher : Watchers)
+	Pending.Sort([](const FPendingOverwatchTrigger& A, const FPendingOverwatchTrigger& B)
 	{
-		WatcherByOwner.Add(Watcher.Zone.OwnerUnitId, &Watcher);
-	}
-
-	Triggers.Sort([&WatcherByOwner](const FRTOverwatchTrigger& A, const FRTOverwatchTrigger& B)
-	{
-		if (A.Opportunity.Key.MicroStepIndex != B.Opportunity.Key.MicroStepIndex)
+		if (A.Trigger.Opportunity.Key.MicroStepIndex != B.Trigger.Opportunity.Key.MicroStepIndex)
 		{
-			return A.Opportunity.Key.MicroStepIndex < B.Opportunity.Key.MicroStepIndex;
+			return A.Trigger.Opportunity.Key.MicroStepIndex < B.Trigger.Opportunity.Key.MicroStepIndex;
 		}
-
-		const FRTOverwatchWatcher* const* WA = WatcherByOwner.Find(A.Opportunity.Key.OwnerId);
-		const FRTOverwatchWatcher* const* WB = WatcherByOwner.Find(B.Opportunity.Key.OwnerId);
-		if (!WA || !WB)
-		{
-			return A.Opportunity.Key.OwnerId < B.Opportunity.Key.OwnerId;
-		}
-
-		const FRTOverwatchWatcher& X = **WA;
-		const FRTOverwatchWatcher& Y = **WB;
-		if (X.ReactionPriority != Y.ReactionPriority)   { return X.ReactionPriority < Y.ReactionPriority; }
-		if (X.AbilityPriority != Y.AbilityPriority)     { return X.AbilityPriority < Y.AbilityPriority; }
-		if (X.UnitInitiative != Y.UnitInitiative)       { return X.UnitInitiative < Y.UnitInitiative; }
-		if (X.StableUnitId != Y.StableUnitId)           { return X.StableUnitId < Y.StableUnitId; }
-		return X.ReactionInstanceId < Y.ReactionInstanceId;
+		if (A.ReactionPriority != B.ReactionPriority)     { return A.ReactionPriority < B.ReactionPriority; }
+		if (A.AbilityPriority != B.AbilityPriority)       { return A.AbilityPriority < B.AbilityPriority; }
+		if (A.UnitInitiative != B.UnitInitiative)         { return A.UnitInitiative < B.UnitInitiative; }
+		if (A.StableUnitId != B.StableUnitId)             { return A.StableUnitId < B.StableUnitId; }
+		return A.ReactionInstanceId < B.ReactionInstanceId;
 	});
+
+	/**
+	 * `Seq` si assegna QUI, sul risultato gia' ordinato, e non durante la costruzione.
+	 *
+	 * ⚠️ La prima stesura lo lasciava a `0` con la motivazione «un watcher apre al massimo una opportunity per
+	 * micro-step». Vera, e irrilevante: la chiave non identifica il WATCHER, identifica
+	 * `(Turn, MacroPhase, MicroStep, OwnerId, ReactionDefId, Seq)`. Due reaction della **stessa unita'** con lo
+	 * **stesso** `ReactionDefId` — due istanze, che e' il motivo per cui `ReactionInstanceId` esiste —
+	 * producevano due chiavi IDENTICHE, quindi lo stesso `OpportunityId`: il replay avrebbe attribuito a una
+	 * la decisione dell'altra. E' il difetto che CP 14.3 esiste per impedire, e la doc di `Seq` lo nomina
+	 * parola per parola: «la stessa unita', la stessa reaction, lo stesso micro-step, due volte».
+	 *
+	 * Assegnarlo DOPO l'ordinamento e' cio' che lo rende una funzione dello stato: sull'array non ordinato
+	 * dipenderebbe da come il chiamante ha costruito `Watchers`.
+	 */
+	Triggers.Reserve(Pending.Num());
+	for (int32 I = 0; I < Pending.Num(); ++I)
+	{
+		const FRTReactionOpportunityKey& Cur = Pending[I].Trigger.Opportunity.Key;
+		int32 Seq = 0;
+		for (int32 J = 0; J < I; ++J)
+		{
+			const FRTReactionOpportunityKey& Prev = Pending[J].Trigger.Opportunity.Key;
+			if (Prev.TurnNumber == Cur.TurnNumber
+				&& Prev.MacroPhase == Cur.MacroPhase
+				&& Prev.MicroStepIndex == Cur.MicroStepIndex
+				&& Prev.OwnerId == Cur.OwnerId
+				&& Prev.ReactionDefId == Cur.ReactionDefId)
+			{
+				++Seq; // `Seq` escluso dal confronto: e' il campo che si sta assegnando
+			}
+		}
+		Pending[I].Trigger.Opportunity.Key.Seq = Seq;
+		Triggers.Add(MoveTemp(Pending[I].Trigger));
+	}
 
 	return Triggers;
 }
