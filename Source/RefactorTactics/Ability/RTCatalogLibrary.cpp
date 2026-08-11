@@ -236,6 +236,71 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeWeaponVariants()
 	return Variants;
 }
 
+TArray<URTEquipmentData*> URTCatalogLibrary::MakeReactionModules()
+{
+	TArray<URTEquipmentData*> Modules;
+
+	auto Module = [](const TCHAR* Id, const TCHAR* Nome, const TCHAR* CoreAction, const TCHAR* Vantaggio,
+		const TCHAR* Svantaggio, const TArray<FRTActionEffectSpec>& Effects)
+	{
+		URTEquipmentData* M = NewObject<URTEquipmentData>();
+		M->EquipmentId = Id;
+		M->DisplayName = FText::FromString(Nome);
+		M->Slot = ERTEquipmentSlot::ReactionModule;
+		M->Advantage = FText::FromString(Vantaggio);
+		M->Drawback = FText::FromString(Svantaggio);
+		M->GrantedActionId = CoreAction; // da qui vengono fase, priorita' e soprattutto il TRIGGER
+		M->GrantedEffects = Effects;
+		// Una reazione non ha ricarica propria nel catalogo §3: il limite e' «una attivazione per turno», che
+		// il resolver garantisce sul percorso E5 — un cooldown qui sarebbe un secondo limite non dichiarato.
+		M->CooldownTurns = 0;
+		return M;
+	};
+
+	// `Reaction.CounterShot` — 14 danni su chi ti ha colpito. Costruito su `Action.Counter`, che e' gia' una
+	// reazione con `HitByDirectAttack`: il modulo non introduce ne' un trigger ne' un pass suo. I 14 sono del
+	// catalogo equipaggiamento §3 e stanno **sotto** i 16 dell'azione core — e' il prezzo di averla come
+	// equipaggiamento invece che come abilita' d'eroe.
+	Modules.Add(Module(TEXT("Reaction.CounterShot"), TEXT("Contrattacco"), TEXT("Action.Counter"),
+		TEXT("14 danni a chi ti colpisce, senza spendere l'azione del turno"),
+		TEXT("14 danni invece dei 16 di Action.Counter, e occupa l'unico slot reazione"),
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 14) }));
+
+	// `Reaction.ReactiveShield` — scudo 15 quando subisci danno. Stesso trigger del contrattacco, effetto
+	// opposto: e' la prova che il regime non dipende dall'azione ma dai DATI (ADR-0004 §2), e che due moduli
+	// possono condividere il trigger senza condividere il mestiere.
+	//
+	// ⚠️ Non e' costruito su `Action.Shield`, che pure esiste: quella e' in **Preparation** e non e' una
+	// reazione (nessun `ReactionTrigger`, scudo 25). Ci si scherma in preparazione, non in risposta — e
+	// costruirci sopra un modulo darebbe un'abilita' che il pass delle reazioni non guarda mai.
+	Modules.Add(Module(TEXT("Reaction.ReactiveShield"), TEXT("Scudo reattivo"), TEXT("Action.Counter"),
+		TEXT("15 punti scudo quando subisci un colpo diretto"),
+		TEXT("scudo 15 invece dei 25 di Action.Shield, che pero' va preparata in anticipo"),
+		{ FRTActionEffectSpec(ERTActionEffect::Shield, 15) }));
+
+	// `Reaction.AllyIntercept` — ti interponi al posto di un alleato bersagliato. E' l'unico dei tre che usa
+	// `AllyHitByDirectAttack`, e riusa `Action.Intercept` **senza effetti propri**: il suo esito non e' un
+	// effetto ma un cambio di bersaglio, che vive nella semantica dell'azione core (CP 5.3). Dichiarare qui
+	// un `Damage` o uno `Shield` significherebbe fraintendere cosa fa.
+	Modules.Add(Module(TEXT("Reaction.AllyIntercept"), TEXT("Interposizione"), TEXT("Action.Intercept"),
+		TEXT("prendi al posto di un alleato entro 2 celle il colpo che era per lui"),
+		TEXT("il danno lo subisci tu, e occupa l'unico slot reazione"),
+		{}));
+
+	// ⛔ `Reaction.EmergencyDash` NON e' qui, e non e' una dimenticanza.
+	//
+	// Il suo trigger esiste (`sei bersagliato` -> `HitByDirectAttack`), quindi la divisione fatta il
+	// 2026-08-11 fra #62 e #505 lo collocava in questa meta'. Ma il suo EFFETTO non e' esprimibile: il
+	// catalogo gli da' `Reposition 1`, cioe' «chi reagisce si sposta», e nessun valore di `ERTActionEffect`
+	// lo dice — `Push` e `Pull` spostano il BERSAGLIO, mai la sorgente. Costruirlo con un effetto vuoto
+	// darebbe un modulo che scatta e non fa niente, cioe' un pulsante finto.
+	//
+	// E' un vincolo su un asse diverso dal trigger, ed e' emerso implementando: sta in #505 insieme agli
+	// altri tre, con la sua ragione — «serve un effetto di auto-spostamento», non «serve un trigger».
+
+	return Modules;
+}
+
 FRTActionDef URTCatalogLibrary::ApplyWeaponVariant(const FRTActionDef& BasicAttack,
 	const URTEquipmentData* Variant)
 {
@@ -291,6 +356,15 @@ URTActionData* URTCatalogLibrary::MakeEquipmentAction(const URTEquipmentData* It
 	Action->Def = Core;
 	Action->Def.ActionId = Item->EquipmentId;   // nel TurnLog si legge il gadget, non l'azione generica
 	Action->Def.CooldownTurns = Item->CooldownTurns;
+
+	// Gli effetti PROPRI sostituiscono quelli del core (CP 7.3): un modulo di reazione eredita dal core cio'
+	// che lo rende una reazione — fase, priorita', `ReactionTrigger` — ma i numeri sono suoi. `Slot` e
+	// `ReactionTrigger` restano quelli copiati sopra, e sono il motivo per cui il modulo va costruito da
+	// un'azione che e' GIA' una reazione: sopra un'azione principale sarebbe silenziosamente inerte.
+	if (Item->GrantedEffects.Num() > 0)
+	{
+		Action->Def.Effects = Item->GrantedEffects;
+	}
 	Action->RangeCells = Action->Def.RangeCells;
 	Action->CooldownTurns = Action->Def.CooldownTurns;
 	// Stessi campi specchio di `MakeGenericActions`, e per la stessa ragione: `URTActionData` li ha a 5 e 30

@@ -107,6 +107,23 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	FName GrantedActionId;
 
+	/**
+	 * Gli effetti che l'equipaggiamento dichiara PROPRI, e che sostituiscono quelli dell'azione concessa
+	 * (`GrantedActionId`). Vuoto = si tengono quelli del core.
+	 *
+	 * Serve ai moduli di reazione, che prendono dal core **fase, priorita' e trigger** — cio' che li rende
+	 * visibili al pass delle reazioni — ma hanno numeri loro: `Reaction.CounterShot` infligge 14 dove
+	 * `Action.Counter` ne infligge 16, e `Reaction.ReactiveShield` para invece di colpire pur scattando sullo
+	 * stesso trigger. E' lo stesso meccanismo che `MakeHeroReactionFromCoreAction` da' agli eroi, e per la
+	 * stessa ragione: senza, l'unico modo di avere numeri diversi sarebbe una seconda azione nel catalogo core,
+	 * cioe' due cataloghi da tenere allineati.
+	 *
+	 * **Sostituiscono, non si sommano** — al contrario di `AddedEffects` delle varianti d'arma, che modificano
+	 * un attacco esistente. Un modulo non modifica: e' la reazione.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	TArray<FRTActionEffectSpec> GrantedEffects;
+
 	/** ID primario stabile: `RTEquipment:<EquipmentId>`; senza id ricade sul nome dell'asset. */
 	virtual FPrimaryAssetId GetPrimaryAssetId() const override
 	{

@@ -215,4 +215,134 @@ bool FRTSplitHasNoConsumerTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// CP 7.3 metà catalogo (#62) — i moduli di reazione che l'infrastruttura E5 sa già far scattare.
+//
+// La proprietà sotto esame non è «esistono tre moduli» ma «sono reazioni VERE»: costruiti su un'azione core
+// che è già una reazione, quindi visibili al pass che le valuta. Un modulo costruito su un'azione principale
+// non fallirebbe — sarebbe inerte, che è peggio, perché il catalogo lo mostrerebbe come una scelta.
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionModuleSingleActivationTest,
+	"RefactorTactics.Equipment.ReactionModule.SingleActivation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionModuleSingleActivationTest::RunTest(const FString&)
+{
+	const TArray<URTEquipmentData*> Modules = URTCatalogLibrary::MakeReactionModules();
+	if (!TestEqual(TEXT("tre moduli: gli altri quattro sono in #505"), Modules.Num(), 3)) { return false; }
+
+	TArray<const URTEquipmentData*> AsConst;
+	for (const URTEquipmentData* M : Modules) { AsConst.Add(M); }
+	const TArray<FString> Errors = URTCatalogLibrary::ValidateEquipment(AsConst);
+	for (const FString& Err : Errors) { AddError(Err); }
+	TestEqual(TEXT("il catalogo dei moduli e' strutturalmente valido"), Errors.Num(), 0);
+
+	for (const URTEquipmentData* M : Modules)
+	{
+		const FString Id = M->EquipmentId.ToString();
+		TestTrue(*FString::Printf(TEXT("%s: slot reazione"), *Id), M->Slot == ERTEquipmentSlot::ReactionModule);
+
+		// «Una attivazione per turno» e' garantita dal resolver sul percorso E5, non da un cooldown
+		// dell'oggetto: un cooldown qui sarebbe un SECONDO limite, non dichiarato dal catalogo §3, e i due
+		// potrebbero divergere senza che nessuno se ne accorga.
+		TestEqual(*FString::Printf(TEXT("%s: nessuna ricarica propria"), *Id), M->CooldownTurns, 0);
+
+		// Il vincolo che rende il modulo una reazione vera.
+		URTActionData* Action = URTCatalogLibrary::MakeEquipmentAction(M, nullptr);
+		if (!TestNotNull(*FString::Printf(TEXT("%s: concede un'azione"), *Id), Action)) { continue; }
+
+		TestTrue(*FString::Printf(TEXT("%s: l'azione concessa occupa lo slot Reaction"), *Id),
+			Action->Def.Slot == ERTActionSlot::Reaction);
+		TestTrue(*FString::Printf(TEXT("%s: e dichiara un trigger, altrimenti non scatterebbe mai"), *Id),
+			Action->Def.ReactionTrigger != ERTReactionTrigger::None);
+		TestEqual(*FString::Printf(TEXT("%s: nel TurnLog si legge il modulo"), *Id),
+			Action->Def.ActionId, M->EquipmentId);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCounterShotUsesExistingTriggerTest,
+	"RefactorTactics.Equipment.CounterShotUsesExistingTrigger",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCounterShotUsesExistingTriggerTest::RunTest(const FString&)
+{
+	// Nome vincolante del DoD: il modulo non deve introdurre un SECONDO motore di reazioni. La prova è che
+	// fase, priorità e trigger vengano dall'azione core — confrontati col core, non con costanti riscritte
+	// qui: se domani `Action.Counter` cambia fase, questo test cade invece di restare verde su un numero morto.
+	const TArray<URTEquipmentData*> Modules = URTCatalogLibrary::MakeReactionModules();
+	const URTEquipmentData* CounterShot = nullptr;
+	const URTEquipmentData* Shield = nullptr;
+	for (const URTEquipmentData* M : Modules)
+	{
+		if (M->EquipmentId == FName(TEXT("Reaction.CounterShot"))) { CounterShot = M; }
+		if (M->EquipmentId == FName(TEXT("Reaction.ReactiveShield"))) { Shield = M; }
+	}
+	if (!TestNotNull(TEXT("Reaction.CounterShot"), CounterShot)) { return false; }
+	if (!TestNotNull(TEXT("Reaction.ReactiveShield"), Shield)) { return false; }
+
+	const FRTActionDef Core = URTCatalogLibrary::FindCoreAction(TEXT("Action.Counter"));
+	URTActionData* Action = URTCatalogLibrary::MakeEquipmentAction(CounterShot, nullptr);
+	if (!TestNotNull(TEXT("l'azione concessa"), Action)) { return false; }
+
+	TestTrue(TEXT("stessa fase del contrattacco core"), Action->Def.ResolutionPhase == Core.ResolutionPhase);
+	TestEqual(TEXT("stessa priorita'"), Action->Def.Priority, Core.Priority);
+	TestTrue(TEXT("stesso trigger, cioe' lo stesso pass di valutazione"),
+		Action->Def.ReactionTrigger == Core.ReactionTrigger);
+	TestTrue(TEXT("e quel trigger e' HitByDirectAttack"),
+		Action->Def.ReactionTrigger == ERTReactionTrigger::HitByDirectAttack);
+
+	// I numeri invece sono del MODULO: 14 contro i 16 del core. È ciò che `GrantedEffects` esiste per fare,
+	// e senza il quale l'unico modo di avere un valore diverso sarebbe una seconda azione nel catalogo.
+	TestEqual(TEXT("14 danni, non i 16 dell'azione core"), DirectDamage(Action->Def), 14);
+	TestNotEqual(TEXT("e infatti divergono, come dichiara il catalogo §3"),
+		DirectDamage(Action->Def), DirectDamage(Core));
+
+	// Due moduli sullo STESSO trigger con mestieri opposti: è la prova che il regime dipende dai dati e non
+	// dall'azione (ADR-0004 §2). Se il contrattacco fosse cablato all'ActionId, questo non sarebbe possibile.
+	URTActionData* ShieldAction = URTCatalogLibrary::MakeEquipmentAction(Shield, nullptr);
+	if (!TestNotNull(TEXT("l'azione dello scudo reattivo"), ShieldAction)) { return false; }
+	TestTrue(TEXT("lo scudo reattivo condivide il trigger del contrattacco"),
+		ShieldAction->Def.ReactionTrigger == Action->Def.ReactionTrigger);
+	TestEqual(TEXT("ma non fa danno"), DirectDamage(ShieldAction->Def), 0);
+	bool bShields = false;
+	for (const FRTActionEffectSpec& Spec : ShieldAction->Def.Effects)
+	{
+		if (Spec.Effect == ERTActionEffect::Shield && Spec.Amount == 15) { bShields = true; }
+	}
+	TestTrue(TEXT("para per 15"), bShields);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEmergencyDashNotExpressibleTest,
+	"RefactorTactics.Equipment.EmergencyDashIsNotExpressibleYet",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEmergencyDashNotExpressibleTest::RunTest(const FString&)
+{
+	// ⚠️ Secondo test che **pinna un limite**, come `SplitHasNoConsumerYet`.
+	//
+	// `Reaction.EmergencyDash` ha un trigger che esiste (`sei bersagliato` → `HitByDirectAttack`), quindi la
+	// divisione fra #62 e #505 — fatta sul trigger — lo metteva in questa metà. Ma il vincolo vero è un
+	// altro: il suo effetto è `Reposition 1`, cioè «chi reagisce si sposta», e nessun `ERTActionEffect` lo
+	// esprime. `Push` e `Pull` spostano il BERSAGLIO, mai la sorgente.
+	//
+	// Il test verifica che il modulo NON sia nel catalogo, così nessuno lo aggiunge con un effetto vuoto
+	// convinto che basti il trigger. Diventerà rosso il giorno in cui esisterà un effetto di auto-spostamento,
+	// ed è il momento giusto per costruirlo.
+	const TArray<URTEquipmentData*> Modules = URTCatalogLibrary::MakeReactionModules();
+	for (const URTEquipmentData* M : Modules)
+	{
+		TestTrue(TEXT("EmergencyDash non e' nel catalogo dei moduli costruiti"),
+			M->EquipmentId != FName(TEXT("Reaction.EmergencyDash")));
+	}
+
+	// E la ragione, verificata invece che raccontata: nessuna azione core sposta chi la usa. `Action.Reposition`
+	// esiste ma non è una reazione — è in FastMovement — quindi non può nemmeno fare da base al modulo.
+	const FRTActionDef Reposition = URTCatalogLibrary::FindCoreAction(TEXT("Action.Reposition"));
+	TestFalse(TEXT("Action.Reposition esiste"), Reposition.ActionId.IsNone());
+	TestTrue(TEXT("ma non e' una reazione: non ha trigger"),
+		Reposition.ReactionTrigger == ERTReactionTrigger::None);
+	TestTrue(TEXT("e non occupa lo slot Reaction"), Reposition.Slot != ERTActionSlot::Reaction);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -97,6 +97,24 @@ public:
 	static TArray<URTEquipmentData*> MakeWeaponVariants();
 
 	/**
+	 * I moduli di reazione del catalogo §3 che l'infrastruttura E5 **sa gia' far scattare** (CP 7.3, `#62`).
+	 *
+	 * Sono **tre** dei sette, e i quattro assenti mancano per due ragioni diverse che vale la pena distinguere,
+	 * perche' portano a lavori diversi (entrambi in `#505`, CP 7.5):
+	 *
+	 * - `HazardEscape`, `Cleanse`, `Anchor` — il **trigger** non esiste: nascono da un evento (`Push`, `Pull`,
+	 *   `Status`) e non da un colpo, mentre `EvaluateReactionTrigger` riceve `Hits` e `Intents`;
+	 * - `EmergencyDash` — il trigger c'e' (`HitByDirectAttack`), ma manca l'**effetto**: `Reposition 1` sposta
+	 *   chi reagisce, e nessun `ERTActionEffect` lo esprime (`Push`/`Pull` spostano il bersaglio).
+	 *
+	 * Ogni modulo si costruisce su un'azione core che e' **gia' una reazione**, da cui eredita fase, priorita'
+	 * e trigger, e porta effetti propri via `GrantedEffects`. E' lo stesso vincolo che
+	 * `MakeHeroReactionFromCoreAction` impone agli eroi: sopra un'azione principale il modulo sarebbe
+	 * silenziosamente inerte, perche' il pass delle reazioni non lo guarderebbe mai.
+	 */
+	static TArray<URTEquipmentData*> MakeReactionModules();
+
+	/**
 	 * L'attacco base modificato dalla variante: e' **il consumatore** dei delta, e l'unico.
 	 *
 	 * Funzione pura su `FRTActionDef` e non su `URTActionData` per la ragione di sempre: cosi' e' verificabile
