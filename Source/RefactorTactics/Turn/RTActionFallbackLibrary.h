@@ -31,7 +31,16 @@ enum class ERTActionInvalidReason : uint8
 	/** In portata, ma la traiettoria e' bloccata. */
 	NoLineOfSight,
 	/** Nessuna mappa autorevole: non si valida (fail-closed, difetto di configurazione del livello). */
-	NoMap
+	NoMap,
+	/**
+	 * Il bersaglio e' IGNOTO alla squadra dell'attaccante (CP 13.2): nessuno lo vede e non ne resta un
+	 * ricordo vivo. Non e' un difetto di geometria — portata e traiettoria possono essere perfette — ma di
+	 * CONOSCENZA, ed e' per questo che ha un motivo proprio invece di riusare `TargetGone`: quello dice «non
+	 * c'e' piu'», questo dice «per te non c'e' mai stato».
+	 *
+	 * Valore aggiunto in coda: le tracce gia' scritte conservano il proprio significato.
+	 */
+	TargetUnknown
 };
 
 /** Esito dell'applicazione di un fallback: cosa si esegue davvero, e cosa e' stato applicato. */

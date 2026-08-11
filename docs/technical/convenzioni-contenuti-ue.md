@@ -32,7 +32,7 @@ La struttura è **feature-first**, non organizzata per tipo di asset. Evita cart
 Un asset sta **vicino alla feature che lo possiede**:
 
 ```text
-/Game/RT/Characters/Flux/
+/Game/RT/Characters/Gadget/          <- nome del PACK Paragon, non dell'eroe (§5b): qui vive Flux
 ├── Abilities/
 ├── Animation/
 ├── Audio/
@@ -106,12 +106,12 @@ milestone corrente (coerente con la regola di scope in `CLAUDE.md`).
 | Camera tattica | `/Game/RT/Core/Camera/` | |
 | Griglia esagonale | `/Game/RT/World/Grid/` | `Hex/` mesh e cella base · `Selection/` selezione e hover · `Visualization/` materiali, path preview, overlay · `Generation/` generatori graybox |
 | Turni | `/Game/RT/Systems/` | `Planning/` intenti · `Turns/` fase e Ready · `Resolution/` playback · `Movement/` configurazione |
-| Personaggi | `/Game/RT/Characters/<CharacterId>/` | ogni personaggio è **autonomo** |
+| Personaggi | `/Game/RT/Characters/<CharacterId>/` | ogni personaggio è **autonomo**. ⚠️ `<CharacterId>` = nome del **pack Paragon** (§5b) |
 | Abilità di un personaggio | `/Game/RT/Characters/<CharacterId>/Abilities/` | |
 | Abilità realmente condivise | `/Game/RT/Abilities/{Shared,Targeting,Effects,Cues}/` | |
 | Mappe | `/Game/RT/Maps/<Category>/<MapName>/` | una cartella per mappa |
 | UI | `/Game/RT/UI/<funzione>/` | divisa per funzione, non per tipo tecnico |
-| Dati di feature | vicino alla feature | `Characters/Flux/Data/DA_Hero_Flux` |
+| Dati di feature | vicino alla feature | `Characters/Gadget/Data/DA_Hero_Flux` — cartella del pack, nome dell'**eroe** (§5b) |
 | Dati globali e cataloghi | `/Game/RT/Data/` | `Data/Catalogs/DA_HeroCatalog`, `Data/Rulesets/DA_Ruleset_Dev` |
 
 **La logica autorevole C++ resta sotto `Source/`, mai dentro `Content/`** (invariante #1: le regole decidono
@@ -119,6 +119,36 @@ l'esito, gli asset no).
 
 `Characters/Shared` contiene **solo** asset usati concretamente da almeno due personaggi — non è un
 parcheggio.
+
+## 5b. `<CharacterId>` è il nome del PACK, non dell'eroe (dal 2026-08-11)
+
+Decisione dell'autore, motivata così: *«allineamo i nomi utilizzati a quelli veri di Paragon, per non creare
+problemi»*. In editor si vede `Gadget`, quindi si cerca `Gadget`: il salto mentale eroe→pack sparisce, e con
+esso l'errore di aprire la cartella sbagliata.
+
+| Eroe (gioco) | `HeroId` (C++) | `<CharacterId>` (contenuti) |
+|---|---|---|
+| Flux | `Hero.Flux` | **`Gadget`** |
+| Riva | `Hero.Riva` | **`Phase`** |
+| Bastion | `Hero.Bastion` | **`Riktor`** |
+| Vektor | `Hero.Vektor` | **`Wraith`** |
+
+Vale per la cartella e per gli asset di **presentazione**: `Characters/Gadget/Blueprints/BP_Unit_Gadget`,
+`Characters/Gadget/Animation/ABP_Gadget`.
+
+**Eccezione: i dati restano intitolati all'eroe.** `DA_Hero_Flux` sta in `Characters/Gadget/Data/` ma non
+diventa `DA_Hero_Gadget`. Un data asset eroe descrive *statistiche e abilità*, che non dipendono dalla mesh:
+se Flux cambiasse base visuale, quel file resterebbe valido parola per parola. Lo stesso vale per `HeroId`,
+che in C++ è e resta `Hero.Flux`. La mappatura fra i due mondi è **D-037**, tabella owner in
+[`../characters/paragon.md`](../characters/paragon.md).
+
+⚠️ **Costo accettato, non rimosso.** Fino al 2026-08-11 §A raccomandava l'**opposto** — il nome del
+personaggio di gioco — con l'argomento che *«il nome del pack lega l'asset a una mesh sostituibile»*.
+L'argomento resta vero: se un eroe cambia base visuale, `BP_Unit_Gadget` diventa un nome falso e va
+rinominato. La scelta è di privilegiare chi lavora in editor **oggi** rispetto a un rename ipotetico domani,
+ed è consapevole. Chi la ribaltasse di nuovo tocchi anche `editor-sessions.yaml` (U7/U8) e l'allowlist di
+`.gitignore`: gli otto path degli artefatti vi sono elencati **per esteso**, quindi un rename li rende muti
+senza che niente lo segnali.
 
 **Asset di mappa** — regola decisiva: *se eliminando la mappa l'asset non serve più, può restare nella
 cartella della mappa; se è usato da più mappe, va in una cartella condivisa.*
@@ -311,7 +341,7 @@ Terze parti: 22 pack `Content/Paragon*` (~3 GB l'uno) → **non si toccano** (§
 | `/Game/Blueprints/BP_GameMode` | `/Game/RT/Core/Framework/BP_GameMode` | è il framework della partita: non appartiene a una mappa né a un personaggio (§5, §7 «Core non dipende da mappe») |
 | `/Game/Blueprints/Units/BP_Unit_Guardian` | `/Game/RT/Characters/Guardian/Blueprints/BP_Unit_Guardian` | ogni personaggio è autonomo (§5) |
 | `/Game/Blueprints/Units/BP_Unit_Ranger` | `/Game/RT/Characters/Ranger/Blueprints/BP_Unit_Ranger` | idem |
-| `/Game/Blueprints/Units/ABP_Gideon` | `/Game/RT/Characters/Guardian/Animation/ABP_Guardian` | l'anim BP appartiene al personaggio di **gioco**, non al pack Paragon di origine; rinomina consigliata perché il nome attuale lega l'asset a una mesh sostituibile |
+| `/Game/Blueprints/Units/ABP_Gideon` | `/Game/RT/Characters/Guardian/Animation/ABP_Guardian` | ~~l'anim BP appartiene al personaggio di **gioco**, non al pack Paragon di origine; rinomina consigliata perché il nome attuale lega l'asset a una mesh sostituibile~~ → **superata da [§5b](#5b-characterid-è-il-nome-del-pack-non-delleroe-dal-2026-08-11)** (2026-08-11): la regola è ora l'opposto, il nome segue il **pack**. Questa riga resta come registro di CP 6.0 |
 | `/Game/Blueprints/Units/ABP_Sparrow` | `/Game/RT/Characters/Ranger/Animation/ABP_Ranger` | idem |
 | `/Game/Maps/L_DevSandbox` | `/Game/RT/Maps/Dev/L_DevSandbox/L_DevSandbox` | una cartella per mappa (§5) |
 | `/Game/Maps/DA_HexMap_Sandbox` | `/Game/RT/Maps/Dev/L_DevSandbox/Data/DA_HexMap_Sandbox` | dato specifico della sandbox: se sparisce la mappa non serve più |
@@ -343,9 +373,15 @@ griglia per terreno e hover) e §6 chiede `<Tipo>_<Feature>_<Nome>`. Costo accet
 Blueprint di unità e una eccezione del `.gitignore`; si paga **una volta sola** perché la rinomina viaggia
 nello stesso giro di redirector dello spostamento.
 
-Stessa logica per gli anim BP: `ABP_Gideon`/`ABP_Sparrow` prendono il nome dal pack Paragon di origine, ma
+~~Stessa logica per gli anim BP: `ABP_Gideon`/`ABP_Sparrow` prendono il nome dal pack Paragon di origine, ma
 l'asset appartiene all'archetipo di gioco — che può cambiare mesh senza cambiare identità. Diventano
-**`ABP_Guardian`** e **`ABP_Ranger`**.
+**`ABP_Guardian`** e **`ABP_Ranger`**.~~
+
+> 🗄️ **Superata da [§5b](#5b-characterid-è-il-nome-del-pack-non-delleroe-dal-2026-08-11)** (2026-08-11): la
+> regola è ora **l'opposto** — il nome segue il **pack**, quindi `ABP_Gadget`, non `ABP_Flux`. Il paragrafo
+> resta come registro di CP 6.0. ⚠️ Era rimasto attivo per tre sezioni dopo che la riga gemella della tabella
+> A.2 era già stata barrata: due regole opposte vive nello stesso documento **normativo**, trovate dalla
+> code review della PR #483.
 
 ## A.4 Riferimenti hard-coded da aggiornare (non coperti dai redirector dopo `Fix Up`)
 
@@ -495,7 +531,92 @@ prima: anche quelle venivano indicizzate come se fossero locali. Chi vuole recup
    **Content Browser** (o lo script di B.3), che riscrive i riferimenti.
 3. Se serve **solo una parte** di un pack, l'alternativa migliore è il **Migrate** da un progetto-magazzino:
    porta l'asset e **solo le sue dipendenze**. `ParagonGideon` pesa 2,74 GB, ma a un `BP_Unit` servono mesh,
-   scheletro, poche animazioni e i relativi materiali.
+   scheletro, poche animazioni e i relativi materiali. Procedura in **B.2a**, che è la via **scelta**
+   (decisione utente, 2026-08-10) per i pack che servono a `U7`/`U8`.
+
+## B.2a Procedura: magazzino + Migrate (via scelta dal 2026-08-10)
+
+> Risolve il problema pratico da cui nasce: **Fab installa dove vuole lui**, tipicamente `Content/<Pack>/`, e
+> quella non è la posizione voluta dal §1.
+
+**Perché serve un magazzino invece di scegliere la cartella: non si può.** Verificato sulla documentazione
+ufficiale il 2026-08-10 — di configurabile ci sono solo due cose, e nessuna è quella che servirebbe:
+
+| | Si sceglie? |
+|---|---|
+| **Quale progetto** riceve il pack | ✅ il popup di *Add to Project* |
+| **La cartella dentro `Content/`** | ❌ **no** — sempre `Content/<NomePack>/` |
+| La **cache** dei file scaricati | ✅ Vault Location nel Launcher; il Fab Window ha una propria *cache directory* |
+
+La cache è dove il Launcher tiene i file scaricati, **non** dove finiscono nel progetto: spostarla libera
+spazio, non cambia la destinazione. La documentazione del Fab Window descrive il download e le impostazioni
+di cache, e **nessun path di installazione**.
+
+∴ L'unica leva che Fab lascia è **quale progetto**. Il magazzino non è un giro largo: è l'unico punto in cui
+si può decidere, e da lì in poi comanda `Migrate`. Fonti:
+[Fab Window](https://dev.epicgames.com/documentation/en-us/unreal-engine/fab-window-in-unreal-engine) ·
+[thread sulla cartella della libreria](https://forums.unrealengine.com/t/how-to-change-fab-library-folder-in-unreal-engine/2116077),
+rimasto senza risposta definitiva.
+
+⚠️ **Il punto su cui si sbaglia: `Migrate` PRESERVA il path virtuale.** Un asset che nel magazzino sta in
+`/Game/ParagonGideon/…` atterra in `Content/ParagonGideon/…` del progetto di destinazione, **non** in
+`Content/FabAsset/Paragon/`. Migrate copia con le dipendenze, non rimappa. Per questo il rename si fa **nel
+magazzino, prima** di migrare: là un errore costa un nuovo download, nel progetto vero costa il danno.
+
+**Una volta sola** — creare il magazzino: progetto UE **Blank**, senza starter content, fuori dal repository
+(es. `D:\UE_FabVault\`).
+
+> Non è il vault di B.2b. Quello era **linkato con junction** e il progetto ne dipendeva in permanenza; questo
+> è solo una **sorgente di copia**: dopo il Migrate gli asset stanno nel progetto e il magazzino si può
+> cancellare. La ragione per cui il vault fu abbandonato — la dipendenza da un percorso esterno — qui non si
+> presenta.
+
+**Per ogni pack**:
+
+1. Fab → *Add to Project* → il magazzino. Il pack atterra in `FabVault/Content/<Pack>/`.
+2. Apri il magazzino e sposta `/Game/<Pack>/` → `/Game/FabAsset/Paragon/<Pack>/` **dal Content Browser**
+   (che riscrive i riferimenti — mai da Esplora File, punto 2 qui sopra).
+3. Seleziona **solo ciò che serve**: SkeletalMesh, Skeleton, PhysicsAsset, le animazioni che userai,
+   materiali e texture. **Niente `SoundCue`, niente `DialogueWave`.**
+4. Tasto destro → **Migrate…** → cartella `Content/` del progetto vero.
+
+Il punto 3 non è solo economia di spazio: è **anche** ciò che dovrebbe evitare la perdita di B.3 punto 1,
+perché sparivano i `DialogueWave` *referenziati dai `SoundCue`* e qui non si porta né gli uni né gli altri.
+
+### Eseguita per la prima volta il 2026-08-11 su `ParagonGadget` — cosa si è imparato
+
+La procedura è stata eseguita **headless**, sostituendo i punti 2-4 con `rename_directory` nel magazzino più
+una copia del filesystem: una volta rinominato, `/Game/FabAsset/Paragon/<Pack>/` corrisponde a
+`Content/FabAsset/Paragon/<Pack>/` in **entrambi** i progetti, quindi la copia equivale al Migrate quando si
+porta il pack intero. Cinque cose che il documento non diceva:
+
+1. ⚠️ **`Paragon_Proto_Retarget` blocca il rename.** È di classe `Rig`, **rimossa in UE 5.8**: l'asset esiste
+   ma non è caricabile, e `rename_directory` fallisce in blocco con *«Some assets couldn't be renamed»*
+   senza spostare niente. È l'insidia 2 di B.3, e il suo rimedio funziona: **quarantena fuori da `Content/`**
+   prima del rename. Il fallimento è **innocuo** — il pack resta integro, si può riprovare.
+2. ⚠️ **Un tentativo fallito lascia la destinazione creata e vuota**, e al secondo giro lo script si ferma
+   perché «esiste già». Va rimossa prima di riprovare.
+3. ⚠️ **`duplicate_directory` NON è l'alternativa che sembra.** Provata proprio per evitare la perdita di
+   audio, sull'ipotesi che il difetto stesse nel cancellare l'originale: **falsa**. Perde *gli stessi* 12 file
+   **e in più** lascia i riferimenti al path vecchio su **19 asset su 40** campionati, contro i 9 su 1229 del
+   rename — cioè produce il «pack che sembra migrato e non lo è» dell'insidia 4. L'origine resta intatta,
+   il che dimostra che il difetto è nella **riscrittura** dell'asset, non nella rimozione.
+4. ⚠️ **La perdita di audio dipende dal PACK, non è una legge.** Su Gadget si è verificata — `_Engage_` da
+   **25 a 13**, mentre i 174 `_Effort_` sono sopravvissuti tutti, esattamente come descrive B.3 punto 1. Su
+   Gideon non era avvenuta. Non si può prevedere: si misura.
+5. ⚠️ **Il rename lascia soft reference al path vecchio, e questo è lo stato NORMALE dei pack qui.**
+   Su Gadget **9 asset su 1229**, su `ParagonGideon` — migrato nel 2026-08-06 e in uso — **6 su 1698**. Sono
+   SkeletalMesh e skin che puntano ai propri materiali: è il difetto di A.6, *«il resave non aggiorna i soft
+   reference»*. Se una mesh appare senza materiali, è questo, e si ripara con la procedura di A.6.
+
+> 🔴 **Un campione casuale non prova l'assenza di un difetto raro.** Il 2026-08-10 avevo dichiarato Gideon
+> «25 su 25 con i riferimenti corretti» campionando 25 file su 1698: con 6 asset difettosi quel campione
+> aveva **meno del 10%** di probabilità di trovarne uno. La scansione completa li ha trovati. Per i
+> riferimenti si scansiona **tutto il pack** — costa secondi — e il campione si usa solo per confermare un
+> difetto, mai per dichiararlo assente.
+
+**Guadagno collaterale**: si porta ciò che serve invece dell'intero pack, quindi l'asset registry non indicizza
+peso inutile a ogni avvio — il costo descritto in B.1b.
 
 ## B.2b Storia: il vault esterno (2026-08-05 → 2026-08-06)
 
@@ -555,6 +676,57 @@ Il secondo è il rename del path virtuale `/Game/<Pack>` → `/Game/FabAsset/Par
 
 Verifica di correttezza, non di conteggio: un asset a destinazione deve citare **solo** `/Game/FabAsset/…`.
 Se cita ancora il path vecchio è stato spostato, non rinominato.
+
+## B.3b Quali pack sono davvero danneggiati — e cosa significa «danneggiato»
+
+Più documenti ripetono che *«Gideon, Sparrow e altri 3 pack sono stati danneggiati dalla migrazione del
+2026-08-06 e vanno riscaricati da Fab»*. ⚠️ **Gli «altri 3» non sono nominati da nessuna parte**: l'avviso
+non è azionabile, e va completato quando i pack vengono identificati. Registrato il 2026-08-10.
+
+Misura sul disco, stessa data:
+
+| Pack | File | Dimensione | Riferimento |
+|---|---:|---:|---|
+| `ParagonGideon` | 1.700 | 2,6 GB | 2,74 GB dichiarati in B.2 punto 3 |
+| `ParagonSparrow` | 1.508 | 2,82 GB | — |
+| `ParagonDekker` | 1.604 | 1,56 GB | 1.310 asset dai riferimenti rotti (B.3 punto 4) |
+
+**«Danneggiato» qui non vuol dire «assente»**: su Dekker il problema sono i **riferimenti rotti**, su altri
+pack i `DialogueWave` persi (B.3 punto 1). Le due cause hanno rimedi diversi, e solo la seconda è
+irrecuperabile senza riscaricare.
+
+### ✅ `ParagonGideon` NON è danneggiato — verificato il 2026-08-10
+
+L'avviso è stato **messo alla prova** confrontando il pack in `FabAsset/` con un download fresco da Fab,
+fatto lo stesso giorno proprio perché quell'avviso lo prescriveva:
+
+| | in `FabAsset/Paragon/` | download fresco |
+|---|---:|---:|
+| File | 1.700 | 1.700 |
+| File audio-dialogo | 205 | 205 |
+| Dimensione | 2,6 GB | 2,73 GB |
+
+**Nessun file mancante e nessun `DialogueWave` perso** — su Gideon la perdita di B.3 punto 1 non è avvenuta
+(su Gadget invece sì: vedi B.2a). L'utente ha confermato a schermo che gli asset si aprono.
+
+⚠️ **Correzione del 2026-08-11**: la riga che stava qui diceva *«su 25 `.uasset` campionati, 25 citano
+`/Game/FabAsset/Paragon/` e zero il path vecchio»*, e la presentava come prova che il pack fosse pulito. Non
+lo era: la **scansione completa** ne trova **6 su 1698** che citano ancora il path vecchio — le SkeletalMesh
+e le skin, coi soft reference ai materiali non aggiornati (A.6). Il campione di 25 su 1698 aveva meno del
+10% di probabilità di incontrarne uno. Il pack resta **usabile e in uso**, ma «zero» era un artefatto del
+metodo, non un fatto.
+
+Restano 130 MB di differenza, che **non sono contenuto assente**: gli asset a destinazione sono stati
+risalvati dal rename, quindi ricompressi. Un delta di dimensione, da solo, non è una prova di danno.
+
+⚠️ **Conseguenza sull'avviso**: per Gideon era **falso**, e ha fatto scaricare 2,73 GB inutili. Non
+propagarlo agli altri pack senza misurarli: `ParagonSparrow` e i tre mai nominati sono **non verificati**, non
+«danneggiati». Il metodo per verificarli è quello qui sopra — conteggio file, conteggio audio, e il campione
+sui path citati — e costa pochi minuti contro un download da gigabyte.
+
+Conseguenza pratica generale: **la perdita documentata è audio, non geometria**. Un `BP_Unit` usa
+SkeletalMesh, Skeleton, PhysicsAsset, animazioni e materiali. Verifica *quegli* asset prima di riscaricare;
+se poi il download serve davvero, la via è **B.2a**.
 
 ## B.4 Regola operativa
 

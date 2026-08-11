@@ -191,8 +191,20 @@ bool FRTCatalogEquipmentTest::RunTest(const FString&)
 	for (const FString& E : Errors) { bNamesIt |= E.Contains(TEXT("Weapon.Overcharge")); }
 	TestTrue(TEXT("l'errore dice quale equipaggiamento"), bNamesIt);
 
+	// ⚠️ **Il contratto si è esteso con CP 7.1 (`#60`), e questo test lo registra.**
+	//
+	// Fino a qui bastava dichiarare lo svantaggio a parole, ed era tutto ciò che si poteva chiedere: `Drawback`
+	// è una `FText` e i delta numerici non esistevano. Ora esistono, e per una VARIANTE D'ARMA la prosa da sola
+	// non basta più — perché nessuna regola la legge, quindi una variante potrebbe raccontare «cooldown +1»
+	// mentre i suoi numeri non fanno pagare niente. Sarebbe potere verticale con una didascalia rassicurante.
+	//
+	// Quindi il caso «accettato» ora dichiara il costo in entrambe le lingue, come le sei varianti vere.
 	NoDrawback->Drawback = FText::FromString(TEXT("cooldown +1"));
-	TestEqual(TEXT("con lo svantaggio dichiarato: accettato"),
+	TestTrue(TEXT("lo svantaggio SOLO a parole non basta piu' per una variante d'arma"),
+		URTCatalogLibrary::ValidateEquipment(Invalid).Num() > 0);
+
+	NoDrawback->CooldownDeltaTurns = 1; // lo stesso costo, ora in una forma che il resolver sa applicare
+	TestEqual(TEXT("con lo svantaggio dichiarato E misurabile: accettato"),
 		URTCatalogLibrary::ValidateEquipment(Invalid).Num(), 0);
 
 	// Id duplicato fra due equipaggiamenti diversi.

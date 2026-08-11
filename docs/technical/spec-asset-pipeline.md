@@ -160,6 +160,13 @@ Content/
   VFX/                     NS_
 ```
 
+> 🗄️ **`HISTORICAL` — questa struttura non è più quella del progetto.** Organizza **per tipo**, che §2 delle
+> convenzioni classifica come anti-pattern, ed è precisamente ciò che **CP 6.0** ha smontato spostando tutto
+> sotto `/Game/RT` **per feature**. Oggi vale
+> [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §5, e `<CharacterId>` è il nome del **pack
+> Paragon** (§5b, 2026-08-11): un personaggio sta in `/Game/RT/Characters/Gadget/{Blueprints,Animation}/`,
+> non in due rami separati. Resta qui come registro della proposta del 2026-08-03.
+
 ---
 
 ## 6. Criteri di selezione (Wiegers) — "bello" non è un requisito

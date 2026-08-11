@@ -251,7 +251,7 @@ residuo.
 |---|---|---|
 | `MAP-2` | Che succede quando la **linea di tiro sfiora l'angolo** di un muro? | È il caso che la geometria arbitraria crea e la griglia allineata non aveva: con muri a 90° che tagliano le celle, `HasLineOfSight` incontra tangenze che oggi non esistono. La risposta decide anche i corner case di proiettile e copertura, che sono lo stesso problema visto dal lato del danno. Va decisa **con una fixture in mano**, non per principio |
 | `MAP-3` | La **cottura non è invertibile**: cosa succede se qualcuno modifica a mano il dato cotto? | Registrato come rischio il 2026-08-09 e ancora aperto. Se si edita `bBlocksMovement` su una cella cotta, il prossimo ricalcolo cancella la modifica **in silenzio** — stessa classe di problema dei prefab. Le uscite sono tre (vietare l'edit, marcare la cella come «sganciata», o rinunciare al ricalcolo automatico) e nessuna è deducibile dai documenti |
-| `BAL-1` | `Guard` e `Brace` devono separarsi in **danno contro spinta**? | [D-066](decisions/RT_PDR_00_Decision_Log.md) ha misurato il modello in vigore: entrambi fanno entrambe le cose, e differiscono per *forma* (primo colpo forte vs ogni colpo; spinta di 1 cella vs spinta qualsiasi). È bilanciamento: si chiude con una partita, non con un documento. ✅ **La Fase 0 è decisa** ([D-074](decisions/RT_PDR_00_Decision_Log.md), 2026-08-10, issue [#400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/400)): si accetta che in v0.1 ogni spinta valga 1 e si **riscrive** la clausola «senza limite di distanza» invece di introdurre una spinta `≥ 2`. Conseguenza sulle opzioni ancora in campo: restano lo **status quo** e l'**ibrido** (separare le magnitudini); l'opzione *«`Guard` solo danno, `Brace` solo spostamento»* è **preclusa**, perché senza spinta forte lascerebbe `Brace` senza mestiere. ✅ Gli scenari che servono a decidere esistono e sono verdi ([#401](https://github.com/DegrassiAaron/refactor-tactics-main/issues/401)): `Spec.Brace.GuardAndBraceOnMixedHit` e `Spec.Brace.BraceWinsOnSecondHit` pinnano il trade-off reale — *primo colpo pesante* (`Guard` 1 danno) contro *colpi ripetuti* (`Brace` 12 contro 17 su due colpi). ⏳ **Resta l'unica parte che richiede l'autore**: la seduta editor **U20** (voce `PIE-BAL1`) e la scelta fra le due opzioni superstiti. Roadmap e numeri: [`bal-1-guard-brace-roadmap-2026-08-10.md`](roadmap/plans/bal-1-guard-brace-roadmap-2026-08-10.md). Issue [#403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/403) (decisione) |
+| `BAL-1` | `Guard` e `Brace` devono separarsi in **danno contro spinta**? | [D-066](decisions/RT_PDR_00_Decision_Log.md) ha misurato il modello in vigore: entrambi fanno entrambe le cose, e differiscono per *forma* (primo colpo forte vs ogni colpo; spinta di 1 cella vs spinta qualsiasi). È bilanciamento: si chiude con una partita, non con un documento. ✅ **La Fase 0 è decisa** ([D-074](decisions/RT_PDR_00_Decision_Log.md), 2026-08-10, issue [#400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/400)): si accetta che in v0.1 ogni spinta valga 1 e si **riscrive** la clausola «senza limite di distanza» invece di introdurre una spinta `≥ 2`. Conseguenza sulle opzioni ancora in campo: restano lo **status quo** e l'**ibrido** (separare le magnitudini); l'opzione *«`Guard` solo danno, `Brace` solo spostamento»* era **preclusa**, perché senza spinta forte lasciava `Brace` senza mestiere. 🔄 **Non più, dal 2026-08-11**: `Weapon.Impact` su `Riva.PressureJet` produce una spinta di **2** ([D-085](decisions/RT_PDR_00_Decision_Log.md)) ed è il default di Riva ([D-089](decisions/RT_PDR_00_Decision_Log.md)), quindi la spinta forte che `D-074` aveva scartato è arrivata dall'**equipaggiamento** invece che dal catalogo azioni. Misurato da `Equipment.PushTwoSeparatesGuardFromBrace`: contro una spinta di 2 **`Guard` cede e `Brace` regge**. Le opzioni tornano **tre**, con una domanda nuova — quel mestiere dipende da un equipaggiamento equipaggiato, non da una regola del turno. ✅ Gli scenari che servono a decidere esistono e sono verdi ([#401](https://github.com/DegrassiAaron/refactor-tactics-main/issues/401)): `Spec.Brace.GuardAndBraceOnMixedHit` e `Spec.Brace.BraceWinsOnSecondHit` pinnano il trade-off reale — *primo colpo pesante* (`Guard` 1 danno) contro *colpi ripetuti* (`Brace` 12 contro 17 su due colpi). ⏳ **Resta l'unica parte che richiede l'autore**: la seduta editor **U20** (voce `PIE-BAL1`) e la scelta fra le due opzioni superstiti. Roadmap e numeri: [`bal-1-guard-brace-roadmap-2026-08-10.md`](roadmap/plans/bal-1-guard-brace-roadmap-2026-08-10.md). Issue [#403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/403) (decisione) |
 | `ECO-1` | `Guard` e `Brace` competono con il **Main Commitment**, o hanno un'altra economia? | [D-012](decisions/RT_PDR_00_Decision_Log.md) copre `Attack \| Ability \| Overwatch` e **non** dice nulla di `Guard` e `Brace`, che a catalogo occupano l'azione principale ma non compaiono in quella regola. La domanda si porta dietro la matrice Sprint/Sneak proposta dal sorgente (`Brace` e `Overwatch` senza Sprint), che **non è canonica** e non va resa tale senza playtest |
 
 ---
@@ -330,6 +330,23 @@ Aperta e chiusa lo stesso giorno. Resta qui **solo come indice**: il contenuto v
 > La lezione non è «verificare meglio»: è che un elenco di domande aperte redatto sui documenti misura ciò che
 > l'estensore non sapeva, non ciò che il progetto non ha deciso. Vale anche quando l'estensore sono io.
 
+## Aperte — varianti d'arma, dal consolidamento del 2026-08-11
+
+Origine: [`RefactorTactics_WeaponVariants_Claude_Consolidation.md`](archive/src/RefactorTactics_WeaponVariants_Claude_Consolidation.md)
+(archiviato). Quattro decisioni del sorgente erano `Locked` e sono diventate
+[D-085](decisions/RT_PDR_00_Decision_Log.md)–[D-088](decisions/RT_PDR_00_Decision_Log.md). Queste sono le
+`Provisional` e le `Open`, che il sorgente stesso vieta di promuovere senza conferma.
+
+| ID | Domanda | Perché serve una risposta |
+|---|---|---|
+| ~~`WV-1`~~ | ~~Che cosa significa **`+1 turno di ricarica`** per `Weapon.Overcharge`?~~ | ✅ **Chiusa il 2026-08-11** — [D-090](decisions/RT_PDR_00_Decision_Log.md): è una variante **burst**, bonus per fascia (+18/+14/+8) e costo `CooldownDeltaTurns = +2`. La traduzione letterale «+1» è stata **misurata e scartata**: vale zero, perché `TickCooldowns()` gira nel Cleanup dello stesso turno. Implementabile solo dopo [#509](https://github.com/DegrassiAaron/refactor-tactics-main/issues/509), e i numeri restano `PROPOSED FOR PLAYTEST` con `WV-2` |
+| `WV-2` | Le **soglie delle fasce** di danno e i **delta per fascia** | [D-087](decisions/RT_PDR_00_Decision_Log.md) ha deciso il **principio**; i numeri sono `PROPOSED FOR PLAYTEST`. Baseline proposta: `Low 1–10` · `Medium 11–18` · `High 19+`, con `Precisione −2/−3/−4`, `Sovraccarico +3/+5/+6`, `Soppressione −2/−4/−5`. Si chiudono con una partita, non con un documento — e vanno misurati **dopo** che le fasce esistono nel codice |
+| ~~`WV-3`~~ | ~~Il **default** di variante per ciascun eroe~~ | ✅ **Chiusa il 2026-08-11** — [D-089](decisions/RT_PDR_00_Decision_Log.md): `Flux → Precisione`, `Riva → Impatto`, `Vektor → Soppressione`, `Bastion → Impatto`. Criterio: il default **rinforza l'identità**. Nessun default usa `Sovraccarico`, il cui costo è ancora `WV-1` |
+| `WV-4` | Che cosa modifica esattamente **`Weapon.Environmental`** | «Migliora gli hazard» non è un parametro. Le uscite sono un elenco chiuso — intensità, durata, area, propagazione, numero di celle, stato prodotto, persistenza — e la scelta decide se la variante è implementabile o resta a catalogo. ⚠️ Vietato `BetterHazards = true`: un booleano che significa «meglio» non è misurabile e nessun validator può verificarlo |
+| `WV-5` | Il modello di **selezione dei bersagli** per `Weapon.Split` | Prima del campo serve il modello: chi seleziona, in che ordine, automatico o manuale, distanza, prevenzione dei duplicati, ordinamento stabile, serializzazione, intento, ghost preview, bot, TurnLog, replay. ⚠️ E la domanda che viene prima di tutte: la cardinalità dei bersagli serve **anche al sistema abilità**, o si introdurrebbe per salvare una sola variante? Nel secondo caso il costo non vale il ritorno |
+
+---
+
 ## Aperte — livello prodotto
 
 Owner: [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) §9. Non bloccano l'MVP tecnico.
@@ -362,6 +379,16 @@ vede di essere osservato?» — ed e' quella che e' stata decisa.
 
 E meta' di `PER-2` si e' sciolta guardando il codice invece dei documenti: la divergenza di segno riguardava
 la **vegetazione**, che non e' fra le otto superfici della v0.1. Una domanda senza terreno su cui atterrare.
+
+> ✅ **Il resto di `PER-2` chiuso il 2026-08-11** con [`D-091`](decisions/RT_PDR_00_Decision_Log.md),
+> implementando CP 13.3. Restavano **due** superfici della v0.1 senza riga nel workbook — `Rough` e
+> `Conductive` — e implementando e' emerso un **terzo** valore che nessuno aveva contato: l'attenuazione per
+> **arco**, che la DoD del checkpoint mette nella formula ma che nessun documento normativo quantificava.
+> Decisi rispettivamente **`+1`**, **`0`** e **`2`**.
+>
+> Nota di metodo: il terzo si e' visto solo scrivendo il test che doveva pinnarlo. Una formula puo' nominare
+> un termine — *«Intensita' − costo acustico − **occlusione**»* — senza che nessuno si accorga che quel
+> termine non ha un numero, finche' qualcuno non deve scriverlo.
 
 ## Aperte — livello regole
 

@@ -22,9 +22,9 @@
     { "id": "DB", "hero": "Hero.Vektor", "team": 0, "cell": [0,  0, 0] },
     { "id": "DN", "hero": "Hero.Vektor", "team": 0, "cell": [0, -1, 0] },
 
-    { "id": "AG", "hero": "Hero.Riva",   "team": 1, "cell": [3,  1, 0] },
-    { "id": "AB", "hero": "Hero.Riva",   "team": 1, "cell": [3,  0, 0] },
-    { "id": "AN", "hero": "Hero.Riva",   "team": 1, "cell": [3, -1, 0] }
+    { "facing": "W", "id": "AG", "hero": "Hero.Riva",   "team": 1, "cell": [3,  1, 0] },
+    { "facing": "W", "id": "AB", "hero": "Hero.Riva",   "team": 1, "cell": [3,  0, 0] },
+    { "facing": "W", "id": "AN", "hero": "Hero.Riva",   "team": 1, "cell": [3, -1, 0] }
   ],
 
   "turns": [

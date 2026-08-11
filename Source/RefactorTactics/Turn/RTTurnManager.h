@@ -614,6 +614,19 @@ protected:
 	int32 TurnNumber = 1;
 
 	/**
+	 * Cosa sa ogni squadra, e che SOPRAVVIVE al turno (CP 13.2). Ordinata per `TeamId`.
+	 *
+	 * Vive qui e non nello snapshot perche' lo snapshot e' una fotografia che nasce e muore dentro una fase,
+	 * mentre la memoria del contatto e' esattamente cio' che deve attraversare il confine fra due turni — e'
+	 * la sua unica ragione di esistere. Lo snapshot ne riceve una COPIA (`FRTHexSnapshot::TeamKnowledge`),
+	 * cosi' i consumatori puri la leggono senza conoscere il TurnManager.
+	 */
+	TArray<FRTTeamKnowledge> TeamKnowledgeState;
+
+	/** La conoscenza della squadra, o una vuota e di versione corrente se la squadra non ne ha ancora. */
+	FRTTeamKnowledge KnowledgeForTeam(int32 TeamId) const;
+
+	/**
 	 * Aggiunge una voce al TurnLog stampandoci i campi di CONTESTO della v6 (#405): turno, revisione del grafo
 	 * e identita' dell'attore. Ogni emissione passa di qui — se un sito chiamasse `TurnLog.Add` direttamente,
 	 * la sua voce nascerebbe senza contesto e nessun test se ne accorgerebbe.

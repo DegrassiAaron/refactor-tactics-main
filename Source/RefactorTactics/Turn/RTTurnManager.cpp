@@ -1448,6 +1448,16 @@ void ARTTurnManager::BeginReplayRecording()
 		return;
 	}
 
+	// Senza un formato risolto non si registra. `SetupHexMatch` esce anticipatamente quando
+	// `ApplyMatchFormat` fallisce — la mappa resta a schermo col motivo nel log, e nessuna partita viene
+	// allestita — ma il chiamante e' fuori da quella funzione e non lo sa. Un archivio che dichiara
+	// `FormatId = None` non e' confrontabile con niente (`CompareSerializedTraces` distingue proprio il
+	// `FormatMismatch`), e sarebbe la registrazione di una partita che non e' mai cominciata.
+	if (MatchRules.FormatId.IsNone())
+	{
+		return;
+	}
+
 	ReplayManifest = FRTReplayManifest();
 	ReplayManifest.MatchId = FGuid::NewGuid();
 	// Il formato si legge ADESSO e non a `BeginPlay`: il GameMode spawna il TurnManager prima di risolvere
@@ -2319,6 +2329,45 @@ void ARTTurnManager::ResolveCombat()
 		HexUnits.Add(HexUnit);
 	}
 
+	// CONOSCENZA DI SQUADRA (CP 13.2), rinfrescata QUI e non a inizio turno: la posizione autorevole per il
+	// Blast e' quella post-Dash, e osservare prima dello scatto darebbe una fotografia che nessuna fase usa.
+	// Chi ha caricato in mezzo al campo si e' esposto, e la squadra avversaria deve saperlo prima di sparare.
+	{
+		TSet<int32> Teams;
+		for (const FRTHexCombatUnit& HU : HexUnits) { Teams.Add(HU.TeamId); }
+		TArray<int32> SortedTeams = Teams.Array();
+		SortedTeams.Sort(); // l'ordine di un TSet dipende dall'hash: qui si itera, quindi si ordina
+
+		TArray<FRTTeamKnowledge> Refreshed;
+		for (int32 TeamId : SortedTeams)
+		{
+			TArray<FRTPerceiver> Observers;
+			TArray<FRTLastKnownContact> EnemiesNow;
+			for (int32 u = 0; u < HexUnits.Num(); ++u)
+			{
+				if (!HexUnits[u].bAlive) { continue; } // un cadavere non vede e non si nasconde
+				if (HexUnits[u].TeamId == TeamId)
+				{
+					FRTPerceiver P;
+					P.Cell = HexUnits[u].Cell;
+					P.Facing = HexUnits[u].Facing;
+					P.VisionRange = Units[u]->VisionRange;
+					Observers.Add(P);
+				}
+				else
+				{
+					// Identita' STABILE, non l'indice `u`: questo array e' ordinato per cella e si rinumera
+					// appena qualcuno si muove. `TurnNumber` in ingresso ignorato — lo scrive `Observe`, che
+					// e' l'unica a sapere QUANDO l'avvistamento avviene.
+					EnemiesNow.Add(FRTLastKnownContact(Units[u]->StableUnitId, HexUnits[u].Cell, /*ignorato*/ 0));
+				}
+			}
+			Refreshed.Add(URTTeamKnowledgeLibrary::Observe(Map, TeamId, TurnNumber, Observers, EnemiesNow,
+				KnowledgeForTeam(TeamId)));
+		}
+		TeamKnowledgeState = MoveTemp(Refreshed);
+	}
+
 	// `Action.Cleanse` (CP 5.2): azione PRINCIPALE, non una reazione, e l'unica del Blast che agisce su CHI LA
 	// USA invece che su un bersaglio. Risolve PRIMA del ciclo degli intenti, per due motivi indipendenti:
 	//
@@ -2569,9 +2618,53 @@ void ARTTurnManager::ResolveCombat()
 		// supporto su se stessi, e risolvono altrove): e' un'azione che il bersaglio l'ha PERSO — eliminato e
 		// rimosso dal livello, o mai valido. Senza questa distinzione l'istanza risulterebbe valida e l'unita'
 		// finirebbe per puntare la propria cella.
-		const ERTActionInvalidReason Reason = (Instance.TargetUnitId == INDEX_NONE && !bTargetsCell)
+		ERTActionInvalidReason Reason = (Instance.TargetUnitId == INDEX_NONE && !bTargetsCell)
 			? ERTActionInvalidReason::TargetGone
 			: URTActionFallbackLibrary::ValidateInstance(Instance, HexUnits, Map);
+
+		// CP 13.2 — IL TARGETING CONSUMA LA CONOSCENZA. Si valuta DOPO la geometria e solo se la geometria
+		// regge, per la stessa ragione per cui `ValidateInstance` mette la portata prima della copertura: il
+		// motivo scritto nel log dev'essere quello che chi gioca deve correggere. «Non lo vedi» detto a chi
+		// era comunque fuori portata sposterebbe l'attenzione sul difetto sbagliato.
+		if (Reason == ERTActionInvalidReason::None && Instance.TargetUnitId != INDEX_NONE
+			&& HexUnits.IsValidIndex(Instance.TargetUnitId))
+		{
+			const FRTTeamKnowledge Knowledge = KnowledgeForTeam(Unit->TeamId);
+			const int32 TargetId = Instance.TargetUnitId;          // indice di fase: serve solo qui e ora
+			const int32 TargetStable = Units[TargetId]->StableUnitId; // identita' che la memoria usa
+			switch (URTTeamKnowledgeLibrary::ClassifyTarget(Knowledge, TargetStable,
+				HexUnits[TargetId].TeamId, HexUnits[TargetId].Cell))
+			{
+			case ERTTargetKnowledge::Allowed:
+				break; // la squadra lo vede: si mira all'unita', come sempre
+
+			case ERTTargetKnowledge::CellOnly:
+			{
+				// Contatto INCERTO: si colpisce la CELLA dell'ultimo contatto, mai l'unita'. La differenza non
+				// e' formale — mirando all'unita' il colpo la seguirebbe dove si e' spostata, cioe' userebbe
+				// una posizione che la squadra non conosce. Qui invece il colpo resta dov'era il ricordo, e se
+				// il bersaglio si e' mosso trova terra battuta. E' il costo di sparare a memoria.
+				FRTCellId Remembered;
+				if (URTTeamKnowledgeLibrary::LastKnownCell(Knowledge, TargetStable, Remembered))
+				{
+					Instance.TargetUnitId = INDEX_NONE;
+					Instance.TargetCell = Remembered;
+					// Nessuna rivalidazione qui: `ValidateInstance` su un bersaglio-cella risponde sempre
+					// `None` per costruzione. Portata e linea di tiro sulla cella ricordata le verifica
+					// `CollectHexAttacks`, che e' l'owner della geometria dei colpi a cella.
+				}
+				else
+				{
+					Reason = ERTActionInvalidReason::TargetUnknown; // incerto senza ricordo: non e' un bersaglio
+				}
+				break;
+			}
+
+			default:
+				Reason = ERTActionInvalidReason::TargetUnknown;
+				break;
+			}
+		}
 
 		// La copertura NON passa di qui: la registra il piano del Blast col suo reason code (NoLineOfSight), e
 		// con la traiettoria bloccata nemmeno un'area potrebbe partire — applicarle `AttackCell` significherebbe
@@ -3404,6 +3497,10 @@ void ARTTurnManager::ResolveCombat()
 	TMap<ARTUnit*, FRTCellId> KnockFrom;
 	TMap<ARTUnit*, int32> KnockDist;
 	TMap<ARTUnit*, int32> KnockCount;
+	// Quali attaccanti spingono ciascun bersaglio (D-085). Serve perche' `KnockCount` deve contare gli
+	// ATTACCANTI e non gli eventi: dal CP 7.1 una sola azione puo' dichiarare due spinte (`Weapon.Impact` su
+	// `Riva.PressureJet`), e contarle come due attaccanti attivava «forze contraddittorie» su un duello.
+	TMap<ARTUnit*, TSet<int32>> KnockAttackers;
 	// Trazione (`Action.Pull`, CP 4.7): stessa disciplina della spinta, array paralleli propri — una
 	// direzione INVERTITA (verso chi tira, non lontano da lui) non e' la stessa spinta con un segno cambiato
 	// nel dato che la applica.
@@ -3503,9 +3600,26 @@ void ARTTurnManager::ResolveCombat()
 						// all'enum — non riusando `NoDestination`, che dice una cosa diversa.
 						break;
 					}
+					// D-085 — le spinte si SOMMANO, e il contatore conta gli ATTACCANTI, non gli eventi.
+					//
+					// Fino a CP 7.1 le due cose coincidevano: nessuna azione del catalogo dichiarava piu' di un
+					// `Push`, quindi un evento era un attaccante. `Weapon.Impact` rompe l'equivalenza — accoda un
+					// secondo `Push 1` all'attacco base di Riva, che ne ha gia' uno — e con il conteggio per
+					// evento il bersaglio finiva nel ramo «forze contraddittorie» qui sotto: **fermo**, con
+					// `OpposingForces` nel TurnLog e un solo attaccante in campo. Una causa scritta, precisa e
+					// falsa, che e' il difetto peggiore per una traccia che deve essere attribuibile.
+					//
+					// `KnockDist` accumula invece di sovrascrivere: `TMap::Add` teneva l'ultimo valore, quindi due
+					// spinte da 1 ne producevano una da 1. Il catalogo ne vuole **una da 2**, che attraversa la
+					// cella intermedia — non due da 1, che valutano la collisione due volte.
+					{
+						TSet<int32>& PushersOfVictim = KnockAttackers.FindOrAdd(Victim);
+						bool bAlreadyPushing = false;
+						PushersOfVictim.Add(Hit.AttackerId, &bAlreadyPushing);
+						if (!bAlreadyPushing) { KnockCount.FindOrAdd(Victim)++; }
+					}
 					KnockFrom.Add(Victim, HexUnits[Hit.AttackerId].Cell);
-					KnockDist.Add(Victim, Event.Amount);
-					KnockCount.FindOrAdd(Victim)++;
+					KnockDist.FindOrAdd(Victim) += Event.Amount;
 					PushCause.Add(Victim, bHasDef
 						? FRTDisplacementCause{ IntentDefs[Hit.IntentIndex].ActionId,
 							IntentDefs[Hit.IntentIndex].BaseActionId, IntentDefs[Hit.IntentIndex].Priority }
@@ -3656,8 +3770,12 @@ void ARTTurnManager::ResolveCombat()
 
 			// `Action.Guard` regge una spinta di UNA cella: chi si e' piantato non arretra di un passo, ma una
 			// spinta piu' forte lo sposta comunque (la guardia non e' un'ancora, catalogo v0.1 §1).
-			// In v0.1 una spinta piu' forte NON ESISTE: il catalogo si ferma a 1, quindi questo ramo assorbe
-			// ogni spinta del gioco e il ramo `Braced` sotto non aggiunge copertura. Vedi il commento la'.
+			//
+			// ⚠️ **Dal 2026-08-11 una spinta piu' forte ESISTE** (D-085): `Weapon.Impact` su
+			// `Riva.PressureJet`, che spinge gia' di 1, produce una spinta di **2** — ed e' il loadout di
+			// DEFAULT di Riva (D-089). Fino a CP 7.1 questo ramo assorbiva ogni spinta del gioco e il commento
+			// diceva cosi'; ora cede, e il ramo `Braced` sotto **aggiunge copertura davvero**.
+			// Pinnato da `Equipment.PushTwoSeparatesGuardFromBrace`.
 			if (T->HasStatus(TAG_Status_Guarded) && KnockDist[T] <= URTCombatLibrary::GuardResistedPushDistance)
 			{
 				AddLogEvent(FString::Printf(TEXT("%s: in guardia, resiste alla spinta"), *T->GetName()));
@@ -3672,15 +3790,23 @@ void ARTTurnManager::ResolveCombat()
 			// passaggio, e un bersaglio spinto da 2+ attaccanti e' gia' escluso sopra (`*Pushes != 1`,
 			// forze contraddittorie).
 			//
-			// Il ramo non guarda `KnockDist`, quindi regge una spinta di qualunque distanza. ATTENZIONE:
-			// questo NON e' cio' che distingue `Brace` da `Guard` in v0.1, e il commento diceva il contrario
-			// fino al 2026-08-10. Il catalogo ha un solo valore di spinta, `1`, quindi il ramo `Guarded`
-			// sopra intercetta gia' OGNI spinta del gioco e questo ramo non vede mai un caso che quello non
-			// avrebbe retto. La differenza fra le due difese in v0.1 e' solo il danno (-15 sul primo colpo
-			// contro -10 su ogni colpo): D-074, uscita (B) di #400. Pinnato da
-			// `Spec.Brace.GuardAndBraceOnMixedHit` e `Spec.Brace.BraceWinsOnSecondHit`.
-			// Il ramo resta senza limite di distanza perche' e' gratis tenerlo corretto per una v0.2 che
-			// introduca una spinta >= 2; non perche' oggi si osservi.
+			// Il ramo non guarda `KnockDist`, quindi regge una spinta di qualunque distanza.
+			//
+			// ⚠️ **Questo commento e' stato riscritto due volte, e la seconda inverte la prima.** Fino al
+			// 2026-08-10 diceva che la distanza distingueva `Brace` da `Guard`; D-074 lo corresse, perche' con
+			// un solo valore di spinta (`1`) il ramo `Guarded` sopra intercettava gia' tutto e questo non
+			// vedeva mai un caso proprio. **Dal 2026-08-11 la premessa di D-074 e' caduta**: `Weapon.Impact`
+			// su un attacco che spinge gia' produce una spinta di **2** (D-085), quindi `Guard` cede e questo
+			// ramo regge. La distanza torna a essere un asse che separa le due difese, e non per una v0.2:
+			// oggi, con il loadout di default di Riva.
+			//
+			// Resta vero che le due differiscono anche nel danno (-15 sul primo colpo contro -10 su ogni
+			// colpo), pinnato da `Spec.Brace.GuardAndBraceOnMixedHit` e `Spec.Brace.BraceWinsOnSecondHit`.
+			// Il caso della spinta di 2 e' pinnato da `Equipment.PushTwoSeparatesGuardFromBrace`.
+			//
+			// ⚠️ Ha una conseguenza su `BAL-1` ([#403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/403)):
+			// l'opzione «`Guard` solo danno, `Brace` solo spostamento» era stata **preclusa** perche' senza
+			// una spinta >= 2 avrebbe lasciato `Brace` senza mestiere. Quel mestiere ora esiste.
 			if (T->HasStatus(TAG_Status_Braced))
 			{
 				AddLogEvent(FString::Printf(TEXT("%s: irrigidito, la spinta non lo sposta"), *T->GetName()));
@@ -3901,6 +4027,20 @@ const URTHexMapAsset* ARTTurnManager::GetHexContext(FVector& OutOrigin, float& O
 	return nullptr;
 }
 
+FRTTeamKnowledge ARTTurnManager::KnowledgeForTeam(int32 TeamId) const
+{
+	for (const FRTTeamKnowledge& K : TeamKnowledgeState)
+	{
+		if (K.TeamId == TeamId) { return K; }
+	}
+	// Nessuna conoscenza ancora: una vuota, di versione CORRENTE. Non e' un dettaglio — una struttura a
+	// versione 0 verrebbe scartata da `Observe` come illeggibile, e la squadra ricomincerebbe da zero a ogni
+	// turno senza che nulla lo dichiari.
+	FRTTeamKnowledge Empty;
+	Empty.TeamId = TeamId;
+	return Empty;
+}
+
 FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) const
 {
 	OutUnits.Reset();
@@ -3936,7 +4076,17 @@ FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) c
 		SimUnit.Facing = OutUnits[i]->Facing;
 		SimUnits.Add(SimUnit);
 	}
-	return URTHexSimLibrary::MakeSnapshot(Map, SimUnits);
+	FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Map, SimUnits);
+	// La conoscenza di squadra viaggia con la fotografia (CP 13.2), cosi' i consumatori puri — il bot di
+	// CP 13.5, la HUD — la leggono dallo snapshot invece di chiederla al TurnManager. E' una COPIA: la
+	// memoria che attraversa i turni resta una sola, e sta nel TurnManager.
+	//
+	// I contatti sono chiavati su `ARTUnit::StableUnitId` e NON sull'indice di questo array: le due
+	// numerazioni sono diverse — questo snapshot scarta i morti, quello del Blast no, ed entrambi si
+	// riordinano per cella a ogni movimento. Un consumatore che volesse risalire all'Actor deve cercare per
+	// `StableUnitId`, mai indicizzare `Snapshot.Units` con `Contacts[].StableUnitId`.
+	Snapshot.TeamKnowledge = TeamKnowledgeState;
+	return Snapshot;
 }
 
 void ARTTurnManager::ResolvePredictiveBoundary(const TArray<ARTUnit*>& Units, TArray<FRTHexMoveResult>& Resolved)
