@@ -353,6 +353,14 @@ Non nasce da un documento ma da uno **scenario portato avanti**: `Spec.Perceptio
 scritto durante CP 13.2 e mai mergiato, è stato riscritto sull'API attuale ed **eseguito**. Il gate della
 conoscenza regge (il bersaglio ignoto non subisce danno), ma è caduta l'assertion sul facing.
 
+> ⚠️ **Da sapere prima di leggere la riga sotto**: il harness degli scenari **non deriva** il facing
+> iniziale. `RTScenarioSession` fa `Unit->Facing = Spec.Facing` — la posa dichiarata nel JSON, `E` di
+> default — e [D-044](decisions/RT_PDR_00_Decision_Log.md), «ci si schiera guardando il nemico più
+> vicino», **non viene applicata**. Ne segue che nessuno scenario oggi esercita lo schieramento, e che una
+> geometria può asserire un facing iniziale che una partita vera non produrrebbe mai. Gli scenari di questa
+> coppia restano onesti perché la loro configurazione è **raggiungibile** sotto D-044 (il secondo nemico a
+> est catturerebbe lo sguardo), ma è una proprietà scritta a mano, non verificata dal harness.
+
 | ID | Domanda | Perché serve una risposta |
 |---|---|---|
 | `PER-4` | Un'azione **rifiutata dal gate della conoscenza** deve comunque **orientare** l'attaccante verso il bersaglio? | Misurato: sì, oggi lo orienta. Il codice segue [D-020](decisions/RT_PDR_00_Decision_Log.md) — «un'azione con bersaglio orienta l'unità **prima** di risolvere» — e infatti la rotazione (`RTTurnManager.cpp:2577`, `TargetingReoriented`) precede il gate (`:2632`). ⚠️ Ma **D-020 è anteriore a CP 13.2** e non poteva prevedere un gate che *rifiuta* l'azione: il facing è **osservabile dall'avversario**, quindi girarsi verso un nemico che la squadra non conosce fa trapelare che lo si conosce — cioè tocca l'invariante #6 (privacy dell'intento) per una strada che nessuna delle due decisioni aveva davanti. Le uscite sono tre: (a) D-020 vince e si accetta il tell; (b) la rotazione si sposta **dopo** il gate, e allora va deciso cosa fa un'azione rifiutata *a metà* della timeline dei facing di D-020; (c) la rotazione avviene ma verso la **cella**, non verso l'unità, se il contatto è solo `Incerto`. ⚠️ Finché è aperta, lo scenario **non asserisce sul facing**: pinnare `E` accuserebbe il gioco di un difetto non deciso, pinnare `W` renderebbe canone per inerzia un possibile leak |
