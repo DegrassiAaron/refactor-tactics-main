@@ -26,8 +26,8 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 |---|--:|
 | `IDEA` | 7 |
 | `DESIGNED` | 10 |
-| `SPECIFIED` | 12 |
-| `IMPLEMENTING` | 21 |
+| `SPECIFIED` | 10 |
+| `IMPLEMENTING` | 23 |
 | `TESTABLE` | 5 |
 | `INTEGRATED` | 21 |
 | `RELEASE_READY` | 15 |
@@ -143,7 +143,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-MATCH-FORMAT` — Formato di partita e classe di mappa | v0.1 | TESTABLE | 5/8 | E19 | `URTMatchFormatData` esiste: mancano classe di mappa e unità per squadra |
 | `RT-FEAT-MATCH-PACING` — Pacing del turno e del match | v0.1 | TESTABLE | 5/8 | E12 | Percentili misurati sul giocatore, non stimati |
 | `RT-FEAT-OBJECTIVE-SYSTEM` — Obiettivi dinamici in mappa | v0.1 | IMPLEMENTING | 2/8 | E10 | La partita **finisce** per obiettivo, ma non c'è **nulla da attivare** |
-| `RT-FEAT-STRESS-4V4` — Validazione di stress 4v4 | v0.1 | SPECIFIED | 1/7 | E17 | Misura dove si rompe il sistema con 8 unità. **Non** decide il formato |
+| `RT-FEAT-STRESS-4V4` — Validazione di stress 4v4 | v0.1 | IMPLEMENTING | 1/7 | E17 | Misura dove si rompe il sistema con 8 unità. **Non** decide il formato |
 
 ### Perception · 4
 
@@ -167,10 +167,10 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 |---|:--:|:--:|--:|:--:|---|
 | `RT-FEAT-REACTION-PREPARED` — Reazioni preparate in planning | v0.1 | INTEGRATED | 6/8 | E5 | Una attivazione per turno, **nessuna attesa nel resolver** |
 | `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | v0.1 | IMPLEMENTING | 3/9 | E14 | Il modello unico di tutte le finestre; mai annidate |
+| `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | v0.1 | IMPLEMENTING | 2/9 | E14 | Profilabile, non un'abilità d'eroe |
 | `RT-FEAT-REACTION-PROFILE` — Reaction Profile armato da Brace | v0.1 | IMPLEMENTING | 1/8 | E14 | `Brace` non è solo riduzione danno: arma un profilo di risposta |
 | `RT-FEAT-REACTION-CLASH` — Reaction Clash (opportunity contested) | v0.1 | SPECIFIED | 1/9 | E14 | Due opportunity contese: chi vince, e una sola volta |
 | `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | v0.1 | SPECIFIED | 1/9 | E14 | Finestra **3,0 s**, `Timeout → HOLD`; Fast/Headless risponde subito via policy |
-| `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | v0.1 | SPECIFIED | 1/9 | E14 | Profilabile, non un'abilità d'eroe |
 | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | v0.1 | DESIGNED | 0/9 | E14 | Continuazione della **propria** azione, non risposta all'avversario |
 
 ### Tools · 9

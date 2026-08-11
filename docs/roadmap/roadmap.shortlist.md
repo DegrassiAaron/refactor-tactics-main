@@ -30,10 +30,10 @@ Legenda: ✅ chiusa · 🟡 parziale · ⏳ non iniziata · `—` nessuno stato 
 | **E11** | 🟡 | 8 | 28/56 | Preview, input e playback esistono; ⏳ **Ghost Timeline** e i comandi `rt.Debug.*` completi |
 | **E12** | 🟡 | 7 | 30/47 | Replay deterministico su 100 ripetizioni ✅; ⏳ **packaged build**. Senza checksum e packaged non è v0.1 |
 | **E13** | ⏳ | 4 | 8/36 | Oggi la vista è una statistica a catalogo che **non decide nulla**; il rumore è il secondo canale |
-| **E14** | ⏳ | 8 | 9/70 | `Opportunity → Commit`, Fast Reaction 3,0 s, `Timeout → HOLD`, Clash, Time Bank. ADR-0004 accettato, **nessun codice** |
+| **E14** | 🟡 | 8 | 10/70 | CP 14.3/14.4 chiusi: l'opportunity ha un'**identità derivata** e l'Overwatch la produce a ogni micro-step, riusando `FRTSuppressiveZone`. ⏳ **nessuna finestra viva** — il resolver non chiede ancora nulla (CP 14.5), poi Clash e Time Bank |
 | **E15** | 🟡 | 2 | 9/16 | La prova integrata: fixture, scenario e golden replay a hash stabile. **Consuma** i sistemi, non li anticipa |
 | **E16** | ✅ | 1 | 5/9 | Il facing è **stato di gioco**: deriva da Move e Dash, entra in snapshot/TurnLog/hash, e da dietro annulla copertura e `Guard` |
-| **E17** | ⏳ | 1 | 1/7 | **Misura, non produzione**: dove si rompe il sistema con otto unità. Dopo E15; **non** è un gate di release |
+| **E17** | 🟡 | 1 | 1/7 | **Misura, non produzione**: CP 17.1/17.2 chiusi — il 4v4 gioca e non diverge, resolver **2,319 ms/turno**, e l'`if (Num == 2)` che l'epic cercava **non esiste**. ⏳ CP 17.3 è PIE. **Non** è un gate di release |
 | **E18** | ✅ | 1 | 6/8 | **Una sola** azione predittiva rende percepibile il pilastro. Non dipende da E13/E14 |
 | **E19** | 🟡 | 1 | 5/8 | Due buchi misurati: la mappa non dichiara la propria **classe**, il formato non dichiara le **unità per squadra** |
 | **E20** | 🟡 | 1 | 1/7 | Le icone come **catalogo semantico**, non texture nei widget: va fatto *mentre* E11 costruisce l'HUD |
