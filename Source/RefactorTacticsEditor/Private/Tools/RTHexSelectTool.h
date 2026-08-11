@@ -17,15 +17,19 @@ public:
 	virtual UInteractiveTool* BuildTool(const FToolBuilderState& SceneState) const override;
 };
 
-/** Proprieta' del tool: readout (sola lettura) della selezione. Il layer attivo e' quello dell'ARTHexMapActor
- *  (fonte unica: pilota anche la visualizzazione ActiveOnly), qui solo rispecchiato. */
+/** Proprieta' del tool: readout della selezione, piu' il layer attivo. L'ARTHexMapActor resta la fonte unica
+ *  (pilota anche la visualizzazione): qui si rispecchia e si riscrive, non si tiene uno stato parallelo. */
 UCLASS(Transient)
 class URTHexSelectToolProperties : public UInteractiveToolPropertySet
 {
 	GENERATED_BODY()
 public:
-	/** Layer attivo (sola lettura: rispecchia ARTHexMapActor::ActiveLayer). */
-	UPROPERTY(VisibleAnywhere, Category = "Hex")
+	/**
+	 * Layer attivo: scriverlo qui lo scrive sull'ARTHexMapActor bersaglio e ne ricostruisce la vista.
+	 * E' modificabile dal pannello del tool perche' cambiare piano dal Details dell'actor costringe a
+	 * uscire dal tool, riselezionare l'actor e rientrare — a ogni cambio di piano.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Hex")
 	int32 ActiveLayer = 0;
 
 	/** Ultima cella selezionata (q, r, Layer). */
@@ -65,6 +69,8 @@ public:
 	virtual void Setup() override;
 	virtual void OnClicked(const FInputDeviceRay& ClickPos) override;
 	virtual void Render(IToolsContextRenderAPI* RenderAPI) override;
+	/** Propaga all'actor il layer attivo scritto nel pannello (le altre proprieta' sono di sola lettura). */
+	virtual void OnPropertyModified(UObject* PropertySet, FProperty* Property) override;
 
 protected:
 	UPROPERTY()
