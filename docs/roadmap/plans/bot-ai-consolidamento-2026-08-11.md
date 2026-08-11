@@ -389,3 +389,86 @@ mano diventano tre verità diverse»*). Se servirà, nasce **generato**, come è
 Resta **aperto e non tracciato altrove che qui**, ed è una scelta: una domanda senza innesco osservabile non
 diventa una issue, diventa una issue che invecchia. L'innesco, quando arriverà, è riconoscibile — qualcuno
 che chiede *«a che punto è l'harness?»* e non trova dove leggerlo.
+
+---
+
+## 10. Revisione del panel sul sorgente Battle Lab
+
+Il §9 dice **cosa** del secondo handoff è entrato. Questa sezione dice **cosa non va nel resto**, ed esiste
+per una ragione operativa: le sue §11–§16 e §35–§38 descrivono il collaudo, e verranno lette da chi aprirà
+E28 o costruirà il banco di prova. Due dei cinque rilievi, applicati alla lettera, farebbero **regredire**
+una proprietà che il progetto ha già pagato per avere.
+
+Rimisurato su `main` @ `e565a8b`.
+
+### 🔴 `CRITICAL` — §16 e §38 presuppongono un RNG che non esiste, e implementarli lo introdurrebbe
+
+```text
+FMath::Rand | FRandomStream | RandRange   fuori da Tests/   →  0 occorrenze
+Scenario.Seed  →  caricato, copiato nel result, scritto nel report — mai consumato come casualità
+```
+
+Il §16 chiede `BalanceSeedCorpus.v1` e run appaiate «stesso seed, candidato A / candidato B». Ma **il seed
+non produce variazione**: due partite con lo stesso allestimento danno lo stesso esito, sempre. Un «corpus di
+seed» qui è in realtà un **corpus di allestimenti** — posizioni, roster, mappa — e chiamarlo *seed* spinge
+chi implementa verso l'unica cosa che lo renderebbe vero: aggiungere un generatore casuale. Cioè distruggere
+la proprietà su cui poggiano [D-062](../../decisions/RT_PDR_00_Decision_Log.md),
+[D-077](../../decisions/RT_PDR_00_Decision_Log.md) e l'intero corpus golden.
+
+Stessa radice nel §38: **«Repeat 1000 where appropriate»**. Ripetere mille volte un calcolo deterministico
+non verifica la logica — verifica l'ordinamento delle hash map, e lo fa peggio del test che esiste già
+(`ChooseBestPlanOrderIndependent`, permutazione). È tempo di CI che compra fiducia falsa.
+
+**Correzione**: `SetupCorpus` invece di `SeedCorpus`, *permutation* invece di *repeat*. La coppia A/B resta
+valida — a variare è il candidato di bilanciamento, non il seme.
+
+### 🔴 `CRITICAL` — §12 definisce il Golden con due campi che una decisione ha appena rinviato
+
+Il Golden Scenario richiede `Seed` + `ContentManifestHash` + `RulesVersion`. Il primo non esiste come fonte
+di variazione (sopra); gli altri due sono **[D-083](../../decisions/RT_PDR_00_Decision_Log.md)**, che ha
+deciso di costruirli alla v0.2 con perimetro fissato e innesco dichiarato — *«quando un archivio esce dalla
+macchina che l'ha prodotto»*.
+
+E `D-083` vieta esattamente la scorciatoia che il §12 induce: *«Un campo scritto a zero in attesa di un
+consumatore sarebbe un dato che nessuno legge e un sentinella che somiglia a un valore valido.»*
+
+Applicare il §12 alla lettera oggi significa riaprire `D-083` o scrivere zeri. Il §12 **ha ragione sul
+principio** («non bloccare hash golden mentre le regole sono instabili») e sbaglia la lista dei campi.
+
+### 🟠 `MAJOR` — §11 mette la performance fra le *assertion*, e §19 dice il contrario
+
+Il §11 elenca `resolver time` e `simulation time` fra le assertion di scenario. Il §19, otto sezioni dopo,
+scrive giustamente *«Non far fallire la CI perché il win rate varia dell'1%»* — e non applica lo stesso
+ragionamento al tempo.
+
+Un'assertion sul tempo lega l'esito alla macchina, che è la classe che
+[D-096](../../decisions/RT_PDR_00_Decision_Log.md) ha appena vietato al planner. Un gate che diventa rosso
+sotto carico di CI viene disattivato, e con lui cadono le assertion vere che gli stanno accanto.
+
+**Correzione**: la performance è **telemetria**, non assertion. Il §39 è già il posto giusto.
+
+### 🟠 `MAJOR` — §36 punto 9 rende ogni feature bot Done solo *dopo* la release
+
+«*passa packaged gate della release*». Nel registry `packaged` è un gate **per feature**, dimostrato da voci
+`PIE-*` dichiarate in `pie_refs`, non un gate della release. Come scritto è circolare: la release aspetta le
+feature Done, le feature aspettano la release.
+
+**Correzione**: «passa il **proprio** gate `packaged`, dimostrato da una voce `PIE-*` in `pie_refs`».
+
+### 🟡 `MINOR` — §13 introduce un secondo schema d'identità
+
+`runId` + `experimentId` senza regola di derivazione, mentre
+[D-077](../../decisions/RT_PDR_00_Decision_Log.md) ha già deciso: un `FGuid` generato all'avvio, **fuori da
+ogni hash**, che identifica la registrazione e non il contenuto. Il §13 non lo cita.
+
+### Consenso
+
+Il documento è **forte dove descrive i confini** — un solo harness, provider che restituiscono decisioni e
+non esiti, competence gate prima del bilanciamento — e quei tre sono già entrati come `D-101` e `D-102`. È
+**debole dove descrive i meccanismi**, e la debolezza ha una causa sola: descrive il collaudo di un gioco
+**con i dadi**, che RefactorTactics non è.
+
+> ⚠️ **Nessuno di questi cinque è una critica di stile.** I primi due sono le prescrizioni che, implementate
+> alla lettera, toglierebbero al progetto il determinismo senza RNG — la proprietà da cui dipendono l'hash
+> del TurnLog, il corpus golden e la riproducibilità dei replay. Chi apre il Battle Lab li incontra prima di
+> incontrare questa pagina: per questo l'avviso sta **anche** in testa al sorgente archiviato.
