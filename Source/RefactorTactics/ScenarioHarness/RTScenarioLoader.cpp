@@ -14,6 +14,33 @@
 
 namespace
 {
+	/**
+	 * Una direzione esagonale dal suo nome (`E`, `NE`, `NW`, `W`, `SW`, `SE`), maiuscole indifferenti.
+	 *
+	 * Il nome sconosciuto e' un errore dichiarato, non un ripiego: un ripiego darebbe allo scenario un
+	 * orientamento diverso da quello scritto nel file, e nessuno se ne accorgerebbe.
+	 */
+	bool ParseDirection(const FString& Text, ERTHexDirection& Out, FString& OutError, const TCHAR* Where)
+	{
+		static const TMap<FString, ERTHexDirection> ByName = {
+			{ TEXT("E"),  ERTHexDirection::E },
+			{ TEXT("NE"), ERTHexDirection::NE },
+			{ TEXT("NW"), ERTHexDirection::NW },
+			{ TEXT("W"),  ERTHexDirection::W },
+			{ TEXT("SW"), ERTHexDirection::SW },
+			{ TEXT("SE"), ERTHexDirection::SE },
+		};
+		const ERTHexDirection* Found = ByName.Find(Text.ToUpper());
+		if (Found == nullptr)
+		{
+			OutError = FString::Printf(
+				TEXT("%s: direzione '%s' sconosciuta (attese E, NE, NW, W, SW, SE)"), Where, *Text);
+			return false;
+		}
+		Out = *Found;
+		return true;
+	}
+
 	/** Cella da array `[q, r, layer]`. Il layer e' opzionale (default 0), come nella maggior parte degli scenari piani. */
 	bool ParseCell(const TArray<TSharedPtr<FJsonValue>>* Arr, FRTCellId& Out, FString& OutError, const TCHAR* Where)
 	{
@@ -238,6 +265,19 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 		if (!ParseCell(CellArr, Unit.Cell, OutError, *FString::Printf(TEXT("unita' '%s'"), *Unit.Id)))
 		{
 			return false;
+		}
+
+		// `facing` opzionale: assente = `E`, lo stesso default di `ARTUnit`. Un nome sconosciuto e' un ERRORE
+		// e non un ripiego silenzioso su `E` — uno scenario che scrivesse `"North"` otterrebbe altrimenti un
+		// orientamento diverso da quello che ha chiesto, e il suo verde direbbe la cosa sbagliata.
+		FString FacingText;
+		if (Obj->TryGetStringField(TEXT("facing"), FacingText) && !FacingText.IsEmpty())
+		{
+			if (!ParseDirection(FacingText, Unit.Facing, OutError,
+				*FString::Printf(TEXT("unita' '%s'"), *Unit.Id)))
+			{
+				return false;
+			}
 		}
 		OutScenario.Units.Add(Unit);
 	}

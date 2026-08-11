@@ -171,6 +171,7 @@ namespace
 		if (bCoverOnSaver) { AddItcLowCover(MapActor, FRTCellId(1, 0), ERTHexDirection::E); }
 
 		ARTUnit* Attacker = SpawnItcUnit(World, 1, FRTCellId(4, 0));
+	if (Attacker) { Attacker->Facing = ERTHexDirection::W; } // CP 13.2: si spara a cio' che si vede
 		ARTUnit* Victim = SpawnItcUnit(World, 0, FRTCellId(0, 0));
 		ARTUnit* Saver = SpawnItcUnit(World, 0, FRTCellId(1, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
@@ -262,6 +263,7 @@ bool FRTInterceptTest::RunTest(const FString&)
 	SpawnItcMap(World);
 
 	ARTUnit* Attacker = SpawnItcUnit(World, 1, FRTCellId(4, 0));
+	if (Attacker) { Attacker->Facing = ERTHexDirection::W; } // CP 13.2: si spara a cio' che si vede
 	ARTUnit* Victim = SpawnItcUnit(World, 0, FRTCellId(0, 0));
 	ARTUnit* Saver = SpawnItcUnit(World, 0, FRTCellId(1, 0)); // adiacente alla vittima: entro le 2 celle
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
@@ -452,6 +454,7 @@ bool FRTInterceptBeforeOtherReactionsTest::RunTest(const FString&)
 	SpawnItcMap(World);
 
 	ARTUnit* Attacker = SpawnItcUnit(World, 1, FRTCellId(4, 0));
+	if (Attacker) { Attacker->Facing = ERTHexDirection::W; } // CP 13.2: si spara a cio' che si vede
 	ARTUnit* Victim = SpawnItcUnit(World, 0, FRTCellId(0, 0));
 	ARTUnit* Saver = SpawnItcUnit(World, 0, FRTCellId(1, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
