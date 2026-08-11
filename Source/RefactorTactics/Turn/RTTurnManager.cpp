@@ -3687,8 +3687,12 @@ void ARTTurnManager::ResolveCombat()
 
 			// `Action.Guard` regge una spinta di UNA cella: chi si e' piantato non arretra di un passo, ma una
 			// spinta piu' forte lo sposta comunque (la guardia non e' un'ancora, catalogo v0.1 §1).
-			// In v0.1 una spinta piu' forte NON ESISTE: il catalogo si ferma a 1, quindi questo ramo assorbe
-			// ogni spinta del gioco e il ramo `Braced` sotto non aggiunge copertura. Vedi il commento la'.
+			//
+			// ⚠️ **Dal 2026-08-11 una spinta piu' forte ESISTE** (D-085): `Weapon.Impact` su
+			// `Riva.PressureJet`, che spinge gia' di 1, produce una spinta di **2** — ed e' il loadout di
+			// DEFAULT di Riva (D-089). Fino a CP 7.1 questo ramo assorbiva ogni spinta del gioco e il commento
+			// diceva cosi'; ora cede, e il ramo `Braced` sotto **aggiunge copertura davvero**.
+			// Pinnato da `Equipment.PushTwoSeparatesGuardFromBrace`.
 			if (T->HasStatus(TAG_Status_Guarded) && KnockDist[T] <= URTCombatLibrary::GuardResistedPushDistance)
 			{
 				AddLogEvent(FString::Printf(TEXT("%s: in guardia, resiste alla spinta"), *T->GetName()));
@@ -3703,15 +3707,23 @@ void ARTTurnManager::ResolveCombat()
 			// passaggio, e un bersaglio spinto da 2+ attaccanti e' gia' escluso sopra (`*Pushes != 1`,
 			// forze contraddittorie).
 			//
-			// Il ramo non guarda `KnockDist`, quindi regge una spinta di qualunque distanza. ATTENZIONE:
-			// questo NON e' cio' che distingue `Brace` da `Guard` in v0.1, e il commento diceva il contrario
-			// fino al 2026-08-10. Il catalogo ha un solo valore di spinta, `1`, quindi il ramo `Guarded`
-			// sopra intercetta gia' OGNI spinta del gioco e questo ramo non vede mai un caso che quello non
-			// avrebbe retto. La differenza fra le due difese in v0.1 e' solo il danno (-15 sul primo colpo
-			// contro -10 su ogni colpo): D-074, uscita (B) di #400. Pinnato da
-			// `Spec.Brace.GuardAndBraceOnMixedHit` e `Spec.Brace.BraceWinsOnSecondHit`.
-			// Il ramo resta senza limite di distanza perche' e' gratis tenerlo corretto per una v0.2 che
-			// introduca una spinta >= 2; non perche' oggi si osservi.
+			// Il ramo non guarda `KnockDist`, quindi regge una spinta di qualunque distanza.
+			//
+			// ⚠️ **Questo commento e' stato riscritto due volte, e la seconda inverte la prima.** Fino al
+			// 2026-08-10 diceva che la distanza distingueva `Brace` da `Guard`; D-074 lo corresse, perche' con
+			// un solo valore di spinta (`1`) il ramo `Guarded` sopra intercettava gia' tutto e questo non
+			// vedeva mai un caso proprio. **Dal 2026-08-11 la premessa di D-074 e' caduta**: `Weapon.Impact`
+			// su un attacco che spinge gia' produce una spinta di **2** (D-085), quindi `Guard` cede e questo
+			// ramo regge. La distanza torna a essere un asse che separa le due difese, e non per una v0.2:
+			// oggi, con il loadout di default di Riva.
+			//
+			// Resta vero che le due differiscono anche nel danno (-15 sul primo colpo contro -10 su ogni
+			// colpo), pinnato da `Spec.Brace.GuardAndBraceOnMixedHit` e `Spec.Brace.BraceWinsOnSecondHit`.
+			// Il caso della spinta di 2 e' pinnato da `Equipment.PushTwoSeparatesGuardFromBrace`.
+			//
+			// ⚠️ Ha una conseguenza su `BAL-1` ([#403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/403)):
+			// l'opzione «`Guard` solo danno, `Brace` solo spostamento» era stata **preclusa** perche' senza
+			// una spinta >= 2 avrebbe lasciato `Brace` senza mestiere. Quel mestiere ora esiste.
 			if (T->HasStatus(TAG_Status_Braced))
 			{
 				AddLogEvent(FString::Printf(TEXT("%s: irrigidito, la spinta non lo sposta"), *T->GetName()));

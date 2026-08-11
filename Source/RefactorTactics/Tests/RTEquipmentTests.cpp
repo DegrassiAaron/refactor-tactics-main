@@ -830,4 +830,81 @@ bool FRTNoInMatchProgressionTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPushTwoAgainstDefencesTest,
+	"RefactorTactics.Equipment.PushTwoSeparatesGuardFromBrace",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPushTwoAgainstDefencesTest::RunTest(const FString&)
+{
+	// ⚠️ Questo test copre un caso che **prima di CP 7.1 non poteva esistere**, ed è la ragione per cui esiste.
+	//
+	// [D-074] aveva deciso che «ogni spinta del gioco vale 1», e su quella premessa il resolver dichiarava a
+	// commento che `Guard` intercetta OGNI spinta e che `Brace` «non aggiunge copertura». Con `Weapon.Impact`
+	// su `Riva.PressureJet` — che D-089 ha reso il **default** di Riva — una spinta di 2 esiste in partita, e
+	// quella premessa è caduta.
+	//
+	// La conseguenza non è cosmetica: a distanza 2 `Guard` cede e `Brace` regge, quindi le due difese
+	// smettono di essere distinguibili solo dal danno. È esattamente l'asse che `BAL-1` (#403) sta decidendo,
+	// e che D-074 aveva dichiarato non osservabile in v0.1.
+	const TArray<URTEquipmentData*> Variants = URTCatalogLibrary::MakeWeaponVariants();
+	const URTEquipmentData* Impact = nullptr;
+	for (const URTEquipmentData* V : Variants)
+	{
+		if (V->EquipmentId == FName(TEXT("Weapon.Impact"))) { Impact = V; break; }
+	}
+	if (!TestNotNull(TEXT("Weapon.Impact"), Impact)) { return false; }
+
+	// Il caso in ESAME: chi è in guardia contro una spinta di 2. `GuardResistedPushDistance` vale 1, quindi
+	// la guardia deve CEDERE — «la guardia non è un'ancora».
+	{
+		UWorld* World = MakeEquipWorld();
+		if (!TestNotNull(TEXT("world guard"), World)) { return false; }
+		SpawnEquipMap(World, 8);
+		ARTUnit* Riva = SpawnEquipUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakeRiva());
+		ARTUnit* Guardato = SpawnEquipUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeVektor());
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (Riva && Guardato && TM)
+		{
+			EquipVariantOnBasicAttack(Riva, Impact);
+			Guardato->ApplyStatus(TAG_Status_Guarded, 1);
+			Riva->PlannedAbilityIndex = 0;
+			Riva->PlannedAttackTarget = Guardato;
+			Riva->PlannedCell = Riva->Cell;
+			Guardato->PlannedAbilityIndex = INDEX_NONE;
+			Guardato->PlannedCell = Guardato->Cell;
+			RunEquipTurn(TM);
+
+			TestTrue(TEXT("in guardia contro una spinta di 2: la guardia CEDE e l'unita' arretra"),
+				Guardato->Cell != FRTCellId(1, 0));
+		}
+		DestroyEquipWorld(World);
+	}
+
+	// Il gemello: chi è in `Brace` contro la stessa identica spinta REGGE, perché quel ramo non guarda la
+	// distanza. Senza questa metà, il test sopra proverebbe solo che «qualcosa si è mosso».
+	{
+		UWorld* World = MakeEquipWorld();
+		if (!TestNotNull(TEXT("world brace"), World)) { return false; }
+		SpawnEquipMap(World, 8);
+		ARTUnit* Riva = SpawnEquipUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakeRiva());
+		ARTUnit* Piantato = SpawnEquipUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeVektor());
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (Riva && Piantato && TM)
+		{
+			EquipVariantOnBasicAttack(Riva, Impact);
+			Piantato->ApplyStatus(TAG_Status_Braced, 1);
+			Riva->PlannedAbilityIndex = 0;
+			Riva->PlannedAttackTarget = Piantato;
+			Riva->PlannedCell = Riva->Cell;
+			Piantato->PlannedAbilityIndex = INDEX_NONE;
+			Piantato->PlannedCell = Piantato->Cell;
+			RunEquipTurn(TM);
+
+			TestEqual(TEXT("in Brace contro la stessa spinta di 2: REGGE, e resta dov'e'"),
+				Piantato->Cell, FRTCellId(1, 0));
+		}
+		DestroyEquipWorld(World);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

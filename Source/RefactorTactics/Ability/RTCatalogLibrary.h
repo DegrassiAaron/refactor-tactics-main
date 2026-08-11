@@ -188,9 +188,19 @@ public:
 	 * L'azione che un equipaggiamento concede, costruita dall'azione CORE che dichiara in `GrantedActionId`.
 	 * Nullptr se non ne concede nessuna o se l'id non e' nel catalogo.
 	 *
-	 * Conserva la semantica del core (fase, priorita', portata, `StructureOp`) e sostituisce due cose:
-	 * l'**ActionId**, che diventa quello del gadget perche' il TurnLog deve dire CHI ha agito, e il
-	 * **cooldown**, che e' dell'oggetto — un gadget si ricarica coi suoi tempi, non con quelli dell'azione.
+	 * Conserva la semantica del core (fase, priorita', portata, `StructureOp`, e per le reazioni il
+	 * `ReactionTrigger`) e sostituisce **tre** cose:
+	 * - l'**ActionId**, che diventa quello dell'equipaggiamento perche' il TurnLog deve dire CHI ha agito;
+	 * - il **cooldown**, che e' dell'oggetto — un gadget si ricarica coi suoi tempi, non con quelli dell'azione;
+	 * - gli **effetti**, ma **solo se** l'oggetto ne dichiara di propri in `GrantedEffects` (CP 7.2/7.3): un
+	 *   modulo di reazione eredita dal core cio' che lo rende una reazione e porta numeri suoi
+	 *   (`Reaction.CounterShot` fa 14 dove `Action.Counter` ne fa 16). Con `GrantedEffects` vuoto gli effetti
+	 *   del core restano intatti, ed e' il caso di `Gadget.Sprinkler`, il cui esito e' una superficie.
+	 *
+	 * ⚠️ **Non e' fail-closed come `MakeHeroReactionFromCoreAction`**, che rifiuta un core non-reazione perche'
+	 * costruirci sopra darebbe un'abilita' che il pass delle reazioni non guarda mai. Qui la stessa disciplina
+	 * e' affidata al chiamante — `MakeReactionModules` sceglie apposta core gia' reazione — e verificata da
+	 * `Equipment.ReactionModule.SingleActivation`, che asserisce slot e trigger sull'azione prodotta.
 	 */
 	static URTActionData* MakeEquipmentAction(const URTEquipmentData* Item, UObject* Outer);
 
