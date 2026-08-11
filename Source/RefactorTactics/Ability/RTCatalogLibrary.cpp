@@ -157,6 +157,123 @@ URTEquipmentData* URTCatalogLibrary::MakePortableCoverGadget()
 	return Cover;
 }
 
+namespace
+{
+	/** Scheletro comune delle sei varianti: cambia solo cio' che ciascuna compra e cio' con cui lo paga. */
+	URTEquipmentData* WeaponVariant(const TCHAR* Id, const TCHAR* Nome, const TCHAR* Vantaggio,
+		const TCHAR* Svantaggio)
+	{
+		URTEquipmentData* V = NewObject<URTEquipmentData>();
+		V->EquipmentId = Id;
+		V->DisplayName = FText::FromString(Nome);
+		V->Slot = ERTEquipmentSlot::WeaponVariant;
+		V->Advantage = FText::FromString(Vantaggio);
+		V->Drawback = FText::FromString(Svantaggio);
+		// Una variante non e' un oggetto che si usa: modifica l'attacco base, che ha il cooldown dell'arma.
+		// Il `CooldownDeltaTurns` e' un'altra cosa e vive nei delta.
+		V->CooldownTurns = 0;
+		return V;
+	}
+}
+
+TArray<URTEquipmentData*> URTCatalogLibrary::MakeWeaponVariants()
+{
+	TArray<URTEquipmentData*> Variants;
+
+	// I numeri vengono da `docs/balance/RT_EquipmentCatalog_v0.1.md` §1, che e' l'owner. Ripeterli qui e'
+	// inevitabile — il C++ non legge il markdown — ma il test `WeaponVariantHasTradeoff` verifica la REGOLA
+	// (ogni variante paga qualcosa), non i singoli valori, cosi' una ritaratura del catalogo non fa cadere
+	// sei test che non c'entrano.
+
+	// Precisione — +1 portata, −4 danni. La variante del tiratore che vuole restare fuori dalla mischia.
+	URTEquipmentData* Precision = WeaponVariant(TEXT("Weapon.Precision"), TEXT("Precisione"),
+		TEXT("+1 cella di portata"), TEXT("-4 danni"));
+	Precision->RangeDeltaCells = 1;
+	Precision->DamageDelta = -4;
+	Variants.Add(Precision);
+
+	// Impatto — spinge di 1, −1 portata. Comprare uno spostamento costa avvicinarsi.
+	URTEquipmentData* Impact = WeaponVariant(TEXT("Weapon.Impact"), TEXT("Impatto"),
+		TEXT("l'attacco base respinge di 1 cella"), TEXT("-1 cella di portata"));
+	Impact->RangeDeltaCells = -1;
+	Impact->AddedEffects.Add(FRTActionEffectSpec(ERTActionEffect::Push, 1));
+	Variants.Add(Impact);
+
+	// Sovraccarico — +6 danni, +1 turno di ricarica. E' l'unica che paga in TEMPO invece che in numeri
+	// dell'attacco: il colpo e' migliore, ma l'attacco base smette di essere disponibile ogni turno.
+	URTEquipmentData* Overcharge = WeaponVariant(TEXT("Weapon.Overcharge"), TEXT("Sovraccarico"),
+		TEXT("+6 danni"), TEXT("+1 turno di ricarica: l'attacco base non e' piu' disponibile ogni turno"));
+	Overcharge->DamageDelta = 6;
+	Overcharge->CooldownDeltaTurns = 1;
+	Variants.Add(Overcharge);
+
+	// Multiplo — un bersaglio in piu', −6 danni. ⚠️ Meta' dichiarata e non consumata: vedi `ExtraTargets`.
+	URTEquipmentData* Split = WeaponVariant(TEXT("Weapon.Split"), TEXT("Multiplo"),
+		TEXT("un bersaglio aggiuntivo (dichiarato: il motore v0.1 non ha cardinalita' dei bersagli)"),
+		TEXT("-6 danni"));
+	Split->DamageDelta = -6;
+	Split->ExtraTargets = 1;
+	Variants.Add(Split);
+
+	// Soppressione — applica `Slow`, −5 danni. Stesso mestiere dell'attacco base di Bastion (ADR-0007), che
+	// e' la prova che lo `Slow` su un attacco base e' gia' rappresentabile e gia' osservato in partita.
+	URTEquipmentData* Suppressive = WeaponVariant(TEXT("Weapon.Suppressive"), TEXT("Soppressione"),
+		TEXT("l'attacco base applica Status.Slow per 1 turno"), TEXT("-5 danni"));
+	Suppressive->DamageDelta = -5;
+	Suppressive->AddedEffects.Add(FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Slow, /*Turni*/ 1));
+	Variants.Add(Suppressive);
+
+	// Ambientale — hazard migliorati, −5 danni diretti. Il vantaggio resta **prosa**: «migliorare un hazard»
+	// non e' un delta dell'attacco base ma una modifica di come l'ambiente reagisce, e nessun campo del
+	// catalogo lo esprime. Si dichiara cio' che e' vero — lo svantaggio, che e' numerico — invece di
+	// inventare un modificatore che nessuno applicherebbe.
+	URTEquipmentData* Environmental = WeaponVariant(TEXT("Weapon.Environmental"), TEXT("Ambientale"),
+		TEXT("migliora gli hazard prodotti (dichiarato: nessun campo del catalogo lo esprime in v0.1)"),
+		TEXT("-5 danni diretti"));
+	Environmental->DamageDelta = -5;
+	Variants.Add(Environmental);
+
+	return Variants;
+}
+
+FRTActionDef URTCatalogLibrary::ApplyWeaponVariant(const FRTActionDef& BasicAttack,
+	const URTEquipmentData* Variant)
+{
+	FRTActionDef Modified = BasicAttack;
+	if (Variant == nullptr || Variant->Slot != ERTEquipmentSlot::WeaponVariant)
+	{
+		return Modified; // un gadget non modifica l'attacco base, e non e' un errore chiederlo
+	}
+
+	// Portata e cooldown non scendono sotto zero: sarebbero un catalogo che `ValidateActions` rifiuta, e la
+	// variante finirebbe per produrre un'azione illegale invece di un'arma piu' corta.
+	Modified.RangeCells = FMath::Max(0, Modified.RangeCells + Variant->RangeDeltaCells);
+	Modified.CooldownTurns = FMath::Max(0, Modified.CooldownTurns + Variant->CooldownDeltaTurns);
+
+	// Il DANNO invece non si clampa. Un attacco base spinto sotto zero da una variante e' un difetto di
+	// bilanciamento, e un `Max(0, ...)` qui lo trasformerebbe in «zero danni» — un pulsante finto, cioe' la
+	// cosa che ADR-0007 esiste per evitare. Resta visibile, e il validator lo dice sul catalogo.
+	if (Variant->DamageDelta != 0)
+	{
+		bool bFound = false;
+		for (FRTActionEffectSpec& Spec : Modified.Effects)
+		{
+			if (Spec.Effect == ERTActionEffect::Damage)
+			{
+				Spec.Amount += Variant->DamageDelta;
+				bFound = true;
+				break; // il primo Damage e' il danno diretto: gli altri effetti restano quelli che sono
+			}
+		}
+		// Un attacco base senza effetto Damage dichiarato non esiste nel roster v0.1, ma se esistesse una
+		// variante non deve INVENTARGLIENE uno: aggiungere qui `Damage = -4` darebbe un'azione che cura.
+		(void)bFound;
+	}
+
+	Modified.Effects.Append(Variant->AddedEffects);
+	return Modified;
+}
+
 URTActionData* URTCatalogLibrary::MakeEquipmentAction(const URTEquipmentData* Item, UObject* Outer)
 {
 	if (Item == nullptr || Item->GrantedActionId.IsNone())
@@ -230,6 +347,24 @@ TArray<FString> URTCatalogLibrary::ValidateEquipment(const TArray<const URTEquip
 		if (Item->CooldownTurns < 0)
 		{
 			Errors.Add(FString::Printf(TEXT("%s: cooldown negativo (%d)"), *Where, Item->CooldownTurns));
+		}
+
+		// Per una VARIANTE D'ARMA lo svantaggio dichiarato a parole non basta, e la ragione e' che `Drawback`
+		// e' una `FText`: nessuna regola la legge, quindi una variante potrebbe raccontare un costo che i suoi
+		// numeri non pagano — «-4 danni» scritto accanto a tre delta tutti migliorativi. Sarebbe potere
+		// verticale con una didascalia rassicurante, cioe' precisamente cio' che la regola di prodotto vieta.
+		//
+		// Uno svantaggio MISURABILE e' uno solo di questi tre: meno danno, meno portata, piu' ricarica.
+		if (Item->Slot == ERTEquipmentSlot::WeaponVariant)
+		{
+			const bool bPaysSomething =
+				Item->DamageDelta < 0 || Item->RangeDeltaCells < 0 || Item->CooldownDeltaTurns > 0;
+			if (!bPaysSomething)
+			{
+				Errors.Add(FString::Printf(
+					TEXT("%s: variante d'arma senza svantaggio misurabile — danno %+d, portata %+d, ricarica %+d"),
+					*Where, Item->DamageDelta, Item->RangeDeltaCells, Item->CooldownDeltaTurns));
+			}
 		}
 	}
 

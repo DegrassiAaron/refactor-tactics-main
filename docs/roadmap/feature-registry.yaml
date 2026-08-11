@@ -1611,15 +1611,31 @@ features:
     issues: [21, 60, 61, 62, 63]
     tests:
       - RefactorTactics.Catalog.ValidatorRejectsEquipmentWithoutDrawback
+      - RefactorTactics.Equipment.WeaponVariantHasTradeoff
+      - RefactorTactics.Equipment.Precision.RangeAndDamage
+      - RefactorTactics.Equipment.VariantAddsEffectsWithoutLosingTheOnesItHad
+      - RefactorTactics.Equipment.SplitHasNoConsumerYet
+      - RefactorTactics.Equipment.PortableCover.CreatesCover
     scenarios: []
     wiki_refs: []
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      date: 2026-08-11
+      commit: 891534c
     notes: >
-      `URTEquipmentData` e il catalogo esistono, e il validator impone che ogni variante abbia uno
-      svantaggio. Manca il loadout in partita: E7 è l'epic **assente** che tiene aperta M11.
-      Nessuna pagina Wiki la descrive.
+      **CP 7.1 chiuso il 2026-08-11 (`#60`)**: le sei varianti d'arma esistono e il loro trade-off è
+      applicabile, non solo raccontato — `ApplyWeaponVariant` somma i delta all'attacco base dell'eroe e
+      il validator rifiuta una variante che non paghi in danno, portata o ricarica. Verifica di mutazione
+      eseguita: azzerando i delta cadono esattamente i tre test che ne dipendono.
+      Due limiti **dichiarati** invece che nascosti. `Weapon.Split` compra un bersaglio in più che il
+      motore non sa esprimere (nessuna cardinalità dei bersagli in `FRTActionDef`), quindi in partita è
+      solo il suo svantaggio: `Equipment.SplitHasNoConsumerYet` lo pinna e diventerà rosso il giorno in
+      cui qualcuno la cabla. `Weapon.Environmental` dichiara il vantaggio in prosa perché nessun campo del
+      catalogo esprime «migliora gli hazard».
+      Restano `#61`–`#63`, e **non sono lavoro di catalogo**: dei sette moduli di reazione solo quattro
+      hanno un trigger esistente — `HazardEscape`, `Cleanse` e `Anchor` ne chiedono tre che
+      `ERTReactionTrigger` non ha. Il loadout (`#63`) ha inoltre un buco nell'owner: la tabella §4 del
+      catalogo **non assegna varianti d'arma** a nessun eroe (dice esplicitamente che le sue sono varianti
+      di *abilità*), quindi il default 1+1+1 richiesto dal DoD non esiste ancora nei dati.
 
   # ─────────────────────────────────────────────────────────────────────────────
   # D. Reactions

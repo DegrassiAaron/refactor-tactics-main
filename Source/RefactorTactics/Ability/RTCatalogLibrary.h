@@ -84,6 +84,38 @@ public:
 	static URTEquipmentData* MakePortableCoverGadget();
 
 	/**
+	 * Le **sei varianti d'arma** del catalogo equipaggiamento §1 (CP 7.1, `#60`).
+	 *
+	 * Costruite in C++ come il roster (`MakeBastion`) e non come asset di `Content/`: sono dati di catalogo che
+	 * il gioco spedisce sempre, e un asset li renderebbe modificabili senza passare da una review del diff —
+	 * oltre a richiedere l'editor per una regola che non ne ha bisogno.
+	 *
+	 * Ogni variante dichiara il proprio svantaggio **due volte e in due lingue**: come prosa in `Drawback`, per
+	 * chi sceglie, e come numero nei delta, per il resolver. `ValidateEquipment` verifica che le due non
+	 * divergano — cioe' che nessuna variante sia migliore in ogni parametro.
+	 */
+	static TArray<URTEquipmentData*> MakeWeaponVariants();
+
+	/**
+	 * L'attacco base modificato dalla variante: e' **il consumatore** dei delta, e l'unico.
+	 *
+	 * Funzione pura su `FRTActionDef` e non su `URTActionData` per la ragione di sempre: cosi' e' verificabile
+	 * senza costruire un `UObject`, un mondo o un'unita'. Chi ha bisogno dell'azione come oggetto la costruisce
+	 * dopo, dalla def che esce di qui.
+	 *
+	 * Regole, tutte visibili nel test `Equipment.WeaponVariantHasTradeoff`:
+	 * - i delta si **sommano**, non sostituiscono: la variante non conosce l'arma che modifica;
+	 * - portata e cooldown non scendono **mai sotto zero** — `Weapon.Impact` su un'arma a portata 1 la lascia a
+	 *   contatto invece di produrre una portata negativa, che il validator del catalogo rifiuterebbe;
+	 * - il danno **non** e' clampato a zero: un attacco base portato sotto zero e' un errore di bilanciamento
+	 *   che deve **restare visibile**, e `ValidateEquipment` lo dice sul catalogo invece di nasconderlo qui;
+	 * - `AddedEffects` va in **coda**, cosi' un attacco che gia' bagna continua a bagnare.
+	 *
+	 * Una variante che non sia `WeaponVariant` non modifica niente: restituisce l'azione invariata.
+	 */
+	static FRTActionDef ApplyWeaponVariant(const FRTActionDef& BasicAttack, const URTEquipmentData* Variant);
+
+	/**
 	 * L'azione che un equipaggiamento concede, costruita dall'azione CORE che dichiara in `GrantedActionId`.
 	 * Nullptr se non ne concede nessuna o se l'id non e' nel catalogo.
 	 *
