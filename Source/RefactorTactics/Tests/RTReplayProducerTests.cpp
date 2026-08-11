@@ -2,6 +2,8 @@
 #include "Replay/RTReplayRecorderLibrary.h"
 #include "Replay/RTReplayManifest.h"
 #include "Turn/RTTurnManager.h"
+#include "Turn/RTMatchFormatData.h"
+#include "Turn/RTMatchFormatLibrary.h"
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTTurnRules.h"
@@ -101,7 +103,19 @@ namespace
 		SpawnReplayProducerUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(-4, 3));
 		SpawnReplayProducerUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(),  FRTCellId(4, -2));
 		SpawnReplayProducerUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(4, -3));
-		return World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+		// Il formato va risolto PRIMA di registrare, come fa il GameMode con `ApplyMatchFormat`: da quando
+		// `BeginReplayRecording` si rifiuta senza un formato (un archivio con `FormatId = None` non e'
+		// confrontabile con niente), un allestimento di prova che lo salta non simula piu' una partita.
+		if (TM)
+		{
+			FRTMatchRules Rules;
+			Rules.FormatId = URTMatchFormatLibrary::Skirmish2v2FormatId;
+			TM->SetMatchRules(Rules);
+		}
+		return TM;
 	}
 
 	/** Un turno completo: pianificazione dei bot, risoluzione, playback fino in fondo. */
