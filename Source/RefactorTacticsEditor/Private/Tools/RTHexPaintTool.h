@@ -58,7 +58,12 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Hex|Pennello", meta = (ClampMin = "0", ClampMax = "8"))
 	int32 BrushRadius = 0;
 
-	UPROPERTY(VisibleAnywhere, Category = "Hex")
+	/**
+	 * Layer attivo: scriverlo qui lo scrive sull'ARTHexMapActor bersaglio e ne ricostruisce la vista. E' il
+	 * piano su cui il pennello dipinge, quindi cambiarlo senza uscire dal tool e' il caso d'uso normale di
+	 * una mappa multilivello.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Hex")
 	int32 ActiveLayer = 0;
 
 	UPROPERTY(VisibleAnywhere, Category = "Hex|Ultimo")
@@ -94,6 +99,8 @@ public:
 	virtual void OnTerminateDragSequence() override;
 	virtual void Shutdown(EToolShutdownType ShutdownType) override;
 	virtual void Render(IToolsContextRenderAPI* RenderAPI) override;
+	/** Propaga all'actor il layer attivo scritto nel pannello (il pennello dipinge su quel piano). */
+	virtual void OnPropertyModified(UObject* PropertySet, FProperty* Property) override;
 
 protected:
 	/** Applica il pennello (area di raggio BrushRadius) attorno a CenterCell; dedup per-cella. Ritorna se ha cambiato qualcosa. */
