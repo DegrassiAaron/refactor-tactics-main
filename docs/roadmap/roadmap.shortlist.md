@@ -23,7 +23,7 @@ Legenda: ✅ chiusa · 🟡 parziale · ⏳ non iniziata · `—` nessuno stato 
 | **E4** | ✅ | 5 | 29/40 | Priorità intera intra-fase, fallback, collisioni senza bias di Player ID — regge azioni, reazioni, ambiente e obiettivi |
 | **E5** | ✅ | 2 | 11/16 | Counter/Deflect/Brace/Shield/Cleanse/Intercept preparate in planning, una attivazione per turno, **nessuna attesa nel resolver** |
 | **E6** | ✅ | 1 | 6/8 | Flux, Riva, Bastion, Vektor da dati; **3 reazioni su 5** cablate, `InterceptShot`→E18 e `FlowReaction`→E14 |
-| **E7** | ⏳ | 1 | 1/8 | Scelta orizzontale: ogni variante ha uno svantaggio |
+| **E7** | 🟡 | 1 | 1/8 | Scelta orizzontale: ogni variante ha uno svantaggio |
 | **E8** | ✅ | 8 | 48/64 | 8 superfici, stati temporanei legati alla cella, propagazione elettrica sul grafo dell'acqua, fuoco/acqua dinamici |
 | **E9** | ✅ | 5 | 30/40 | Copertura per **bordo**, porte come bordo (mappa v4), ponti come **arco** (v5), pannello cinetico temporaneo |
 | **E10** | 🟡 | 2 | 9/16 | Fine partita a tre vie ✅; ⏳ **nessun oggetto da attivare** in mappa |

@@ -157,6 +157,365 @@ URTEquipmentData* URTCatalogLibrary::MakePortableCoverGadget()
 	return Cover;
 }
 
+namespace
+{
+	/** Scheletro comune delle sei varianti: cambia solo cio' che ciascuna compra e cio' con cui lo paga. */
+	URTEquipmentData* WeaponVariant(const TCHAR* Id, const TCHAR* Nome, const TCHAR* Vantaggio,
+		const TCHAR* Svantaggio)
+	{
+		URTEquipmentData* V = NewObject<URTEquipmentData>();
+		V->EquipmentId = Id;
+		V->DisplayName = FText::FromString(Nome);
+		V->Slot = ERTEquipmentSlot::WeaponVariant;
+		V->Advantage = FText::FromString(Vantaggio);
+		V->Drawback = FText::FromString(Svantaggio);
+		// Una variante non e' un oggetto che si usa: modifica l'attacco base, che ha il cooldown dell'arma.
+		// Il `CooldownDeltaTurns` e' un'altra cosa e vive nei delta.
+		V->CooldownTurns = 0;
+		return V;
+	}
+}
+
+TArray<URTEquipmentData*> URTCatalogLibrary::MakeWeaponVariants()
+{
+	TArray<URTEquipmentData*> Variants;
+
+	// I numeri vengono da `docs/balance/RT_EquipmentCatalog_v0.1.md` §1, che e' l'owner. Ripeterli qui e'
+	// inevitabile — il C++ non legge il markdown — ma il test `WeaponVariantHasTradeoff` verifica la REGOLA
+	// (ogni variante paga qualcosa), non i singoli valori, cosi' una ritaratura del catalogo non fa cadere
+	// sei test che non c'entrano.
+
+	// Precisione — +1 portata, −4 danni. La variante del tiratore che vuole restare fuori dalla mischia.
+	URTEquipmentData* Precision = WeaponVariant(TEXT("Weapon.Precision"), TEXT("Precisione"),
+		TEXT("+1 cella di portata"), TEXT("-4 danni"));
+	Precision->RangeDeltaCells = 1;
+	Precision->DamageDelta = -4;
+	Variants.Add(Precision);
+
+	// Impatto — spinge di 1, −1 portata. Comprare uno spostamento costa avvicinarsi.
+	URTEquipmentData* Impact = WeaponVariant(TEXT("Weapon.Impact"), TEXT("Impatto"),
+		TEXT("l'attacco base respinge di 1 cella"), TEXT("-1 cella di portata"));
+	Impact->RangeDeltaCells = -1;
+	Impact->AddedEffects.Add(FRTActionEffectSpec(ERTActionEffect::Push, 1));
+	Variants.Add(Impact);
+
+	// Sovraccarico — +6 danni, +1 turno di ricarica. E' l'unica che paga in TEMPO invece che in numeri
+	// dell'attacco: il colpo e' migliore, ma l'attacco base smette di essere disponibile ogni turno.
+	URTEquipmentData* Overcharge = WeaponVariant(TEXT("Weapon.Overcharge"), TEXT("Sovraccarico"),
+		TEXT("+6 danni"), TEXT("+1 turno di ricarica: l'attacco base non e' piu' disponibile ogni turno"));
+	Overcharge->DamageDelta = 6;
+	Overcharge->CooldownDeltaTurns = 1;
+	Variants.Add(Overcharge);
+
+	// Multiplo — un bersaglio in piu', −6 danni. ⚠️ Meta' dichiarata e non consumata: vedi `ExtraTargets`.
+	URTEquipmentData* Split = WeaponVariant(TEXT("Weapon.Split"), TEXT("Multiplo"),
+		TEXT("un bersaglio aggiuntivo (dichiarato: il motore v0.1 non ha cardinalita' dei bersagli)"),
+		TEXT("-6 danni"));
+	Split->DamageDelta = -6;
+	Split->ExtraTargets = 1;
+	Variants.Add(Split);
+
+	// Soppressione — applica `Slow`, −5 danni. Stesso mestiere dell'attacco base di Bastion (ADR-0007), che
+	// e' la prova che lo `Slow` su un attacco base e' gia' rappresentabile e gia' osservato in partita.
+	URTEquipmentData* Suppressive = WeaponVariant(TEXT("Weapon.Suppressive"), TEXT("Soppressione"),
+		TEXT("l'attacco base applica Status.Slow per 1 turno"), TEXT("-5 danni"));
+	Suppressive->DamageDelta = -5;
+	Suppressive->AddedEffects.Add(FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Slow, /*Turni*/ 1));
+	Variants.Add(Suppressive);
+
+	// Ambientale — hazard migliorati, −5 danni diretti. Il vantaggio resta **prosa**: «migliorare un hazard»
+	// non e' un delta dell'attacco base ma una modifica di come l'ambiente reagisce, e nessun campo del
+	// catalogo lo esprime. Si dichiara cio' che e' vero — lo svantaggio, che e' numerico — invece di
+	// inventare un modificatore che nessuno applicherebbe.
+	URTEquipmentData* Environmental = WeaponVariant(TEXT("Weapon.Environmental"), TEXT("Ambientale"),
+		TEXT("migliora gli hazard prodotti (dichiarato: nessun campo del catalogo lo esprime in v0.1)"),
+		TEXT("-5 danni diretti"));
+	Environmental->DamageDelta = -5;
+	Variants.Add(Environmental);
+
+	return Variants;
+}
+
+TArray<URTEquipmentData*> URTCatalogLibrary::MakeGadgets()
+{
+	TArray<URTEquipmentData*> Gadgets;
+
+	auto Gadget = [](const TCHAR* Id, const TCHAR* Nome, const TCHAR* CoreAction, const TCHAR* Vantaggio,
+		const TCHAR* Svantaggio, const TArray<FRTActionEffectSpec>& Effects)
+	{
+		URTEquipmentData* G = NewObject<URTEquipmentData>();
+		G->EquipmentId = Id;
+		G->DisplayName = FText::FromString(Nome);
+		G->Slot = ERTEquipmentSlot::Gadget;
+		G->Advantage = FText::FromString(Vantaggio);
+		G->Drawback = FText::FromString(Svantaggio);
+		G->GrantedActionId = CoreAction;
+		G->GrantedEffects = Effects;
+		G->CooldownTurns = 3; // catalogo equipaggiamento §2: «tutti i gadget hanno cooldown 3»
+		return G;
+	};
+
+	// `Gadget.Medkit` — cura 18 su `Action.Heal`, che ne cura 20: il gadget e' la versione portatile di una
+	// capacita' che il catalogo core ha gia', e paga due turni di ricarica in piu' (3 contro 1).
+	Gadgets.Add(Gadget(TEXT("Gadget.Medkit"), TEXT("Medkit"), TEXT("Action.Heal"),
+		TEXT("cura 18 punti a un alleato entro 3 celle, senza essere un curatore"),
+		TEXT("cura 18 invece dei 20 di Action.Heal, e si ricarica in 3 turni invece che in 1"),
+		{ FRTActionEffectSpec(ERTActionEffect::Heal, 18) }));
+
+	// `Gadget.BreachCharge` — 35 a una struttura. Costruito su `Action.HeavyAttack`, che e' l'unica azione
+	// core a dichiarare `DamageStructure`, ma ne SOSTITUISCE gli effetti: la carica da sfondamento apre muri,
+	// non ferisce persone. Il numero 35 non e' inventato qui — il commento di `HeavyAttack` lo dichiara gia'
+	// («un colpo pesante scalfisce un muro meno di una carica da sfondamento dedicata, 35 a struttura, E7»),
+	// e questa e' la riga che lo rende vero invece che promesso.
+	Gadgets.Add(Gadget(TEXT("Gadget.BreachCharge"), TEXT("Carica da breccia"), TEXT("Action.HeavyAttack"),
+		TEXT("35 danni a una struttura: apre coperture e porte che il fuoco normale scalfisce appena"),
+		TEXT("non fa alcun danno alle unita', e occupa l'unico slot gadget"),
+		{ FRTActionEffectSpec(ERTActionEffect::DamageStructure, 35) }));
+
+	// `Gadget.Sprinkler` — acqua raggio 1, che e' **esattamente** cio' che `Action.CreateWater` gia' fa
+	// (`SurfaceRadius = 1`, catalogo azioni §6). Nessun effetto proprio: il suo esito e' una superficie, che
+	// `FRTActionEffectSpec` non sa esprimere — dichiararne uno qui significherebbe fraintenderlo.
+	Gadgets.Add(Gadget(TEXT("Gadget.Sprinkler"), TEXT("Sprinkler"), TEXT("Action.CreateWater"),
+		TEXT("allaga un'area di raggio 1: prepara le combo elettriche e spegne il fuoco"),
+		TEXT("bagna anche i propri, e l'acqua resta dopo che il turno e' passato"),
+		{}));
+
+	// `Gadget.PortableCover` — gia' costruito in CP 9.5, non riscritto qui.
+	Gadgets.Add(MakePortableCoverGadget());
+
+	// ⛔ I QUATTRO ASSENTI, con la ragione ciascuno — sono quattro ragioni diverse, non «mancano».
+	//
+	// - `Gadget.SmokeEmitter` (fumo raggio 1): **nessuna azione core crea `ERTHexSurface::Smoke`**. L'unica
+	//   che lo fa e' `Riva.MistVeil`, che e' d'eroe e risolve in `Preparation` — e la fase e' proprio il
+	//   difetto che `#353` ha documentato. Serve prima un'azione core del fumo, come `CreateWater` lo e'
+	//   dell'acqua.
+	// - `Gadget.Insulator` (immunita' a una propagazione elettrica): e' un PASSIVO, e non concede un'azione.
+	//   Il motore non ha un modello di immunita' per categoria — `RT-FEAT-STATUS-FRAMEWORK` (E36) lo
+	//   costruira'. Oggi sarebbe un gadget che non fa niente.
+	// - `Gadget.Sensor` (alza la Team Knowledge in un'area): la conoscenza parziale e' **E13, assente**. E il
+	//   catalogo stesso dichiara raggio e durata «non specificati dalla fonte», quindi mancano anche i numeri.
+	// - `Gadget.Anchor` (impedisce **una** spinta): il campo `PushResistance` esiste ma e' una SOGLIA
+	//   permanente, non un contatore. Darlo a chi porta l'ancora lo renderebbe immune a OGNI spinta del gioco
+	//   — tutte valgono 1 — cioe' esattamente l'immunita' non decisa che `D-075` ha appena tolto a Bastion.
+	//   «Una» spinta richiede un consumo per turno che non esiste.
+
+	return Gadgets;
+}
+
+TArray<URTEquipmentData*> URTCatalogLibrary::MakeReactionModules()
+{
+	TArray<URTEquipmentData*> Modules;
+
+	auto Module = [](const TCHAR* Id, const TCHAR* Nome, const TCHAR* CoreAction, const TCHAR* Vantaggio,
+		const TCHAR* Svantaggio, const TArray<FRTActionEffectSpec>& Effects)
+	{
+		URTEquipmentData* M = NewObject<URTEquipmentData>();
+		M->EquipmentId = Id;
+		M->DisplayName = FText::FromString(Nome);
+		M->Slot = ERTEquipmentSlot::ReactionModule;
+		M->Advantage = FText::FromString(Vantaggio);
+		M->Drawback = FText::FromString(Svantaggio);
+		M->GrantedActionId = CoreAction; // da qui vengono fase, priorita' e soprattutto il TRIGGER
+		M->GrantedEffects = Effects;
+		// Una reazione non ha ricarica propria nel catalogo §3: il limite e' «una attivazione per turno», che
+		// il resolver garantisce sul percorso E5 — un cooldown qui sarebbe un secondo limite non dichiarato.
+		M->CooldownTurns = 0;
+		return M;
+	};
+
+	// `Reaction.CounterShot` — 14 danni su chi ti ha colpito. Costruito su `Action.Counter`, che e' gia' una
+	// reazione con `HitByDirectAttack`: il modulo non introduce ne' un trigger ne' un pass suo. I 14 sono del
+	// catalogo equipaggiamento §3 e stanno **sotto** i 16 dell'azione core — e' il prezzo di averla come
+	// equipaggiamento invece che come abilita' d'eroe.
+	Modules.Add(Module(TEXT("Reaction.CounterShot"), TEXT("Contrattacco"), TEXT("Action.Counter"),
+		TEXT("14 danni a chi ti colpisce, senza spendere l'azione del turno"),
+		TEXT("14 danni invece dei 16 di Action.Counter, e occupa l'unico slot reazione"),
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 14) }));
+
+	// `Reaction.ReactiveShield` — scudo 15 quando subisci danno. Stesso trigger del contrattacco, effetto
+	// opposto: e' la prova che il regime non dipende dall'azione ma dai DATI (ADR-0004 §2), e che due moduli
+	// possono condividere il trigger senza condividere il mestiere.
+	//
+	// ⚠️ Non e' costruito su `Action.Shield`, che pure esiste: quella e' in **Preparation** e non e' una
+	// reazione (nessun `ReactionTrigger`, scudo 25). Ci si scherma in preparazione, non in risposta — e
+	// costruirci sopra un modulo darebbe un'abilita' che il pass delle reazioni non guarda mai.
+	Modules.Add(Module(TEXT("Reaction.ReactiveShield"), TEXT("Scudo reattivo"), TEXT("Action.Counter"),
+		TEXT("15 punti scudo quando subisci un colpo diretto"),
+		TEXT("scudo 15 invece dei 25 di Action.Shield, che pero' va preparata in anticipo"),
+		{ FRTActionEffectSpec(ERTActionEffect::Shield, 15) }));
+
+	// `Reaction.AllyIntercept` — ti interponi al posto di un alleato bersagliato. E' l'unico dei tre che usa
+	// `AllyHitByDirectAttack`, e riusa `Action.Intercept` **senza effetti propri**: il suo esito non e' un
+	// effetto ma un cambio di bersaglio, che vive nella semantica dell'azione core (CP 5.3). Dichiarare qui
+	// un `Damage` o uno `Shield` significherebbe fraintendere cosa fa.
+	Modules.Add(Module(TEXT("Reaction.AllyIntercept"), TEXT("Interposizione"), TEXT("Action.Intercept"),
+		TEXT("prendi al posto di un alleato entro 2 celle il colpo che era per lui"),
+		TEXT("il danno lo subisci tu, e occupa l'unico slot reazione"),
+		{}));
+
+	// ⛔ `Reaction.EmergencyDash` NON e' qui, e non e' una dimenticanza.
+	//
+	// Il suo trigger esiste (`sei bersagliato` -> `HitByDirectAttack`), quindi la divisione fatta il
+	// 2026-08-11 fra #62 e #505 lo collocava in questa meta'. Ma il suo EFFETTO non e' esprimibile: il
+	// catalogo gli da' `Reposition 1`, cioe' «chi reagisce si sposta», e nessun valore di `ERTActionEffect`
+	// lo dice — `Push` e `Pull` spostano il BERSAGLIO, mai la sorgente. Costruirlo con un effetto vuoto
+	// darebbe un modulo che scatta e non fa niente, cioe' un pulsante finto.
+	//
+	// E' un vincolo su un asse diverso dal trigger, ed e' emerso implementando: sta in #505 insieme agli
+	// altri tre, con la sua ragione — «serve un effetto di auto-spostamento», non «serve un trigger».
+
+	return Modules;
+}
+
+TArray<FString> URTCatalogLibrary::WarnOnVariantForAttack(const FRTActionDef& BasicAttack,
+	const URTEquipmentData* Variant)
+{
+	TArray<FString> Warnings;
+	if (Variant == nullptr || Variant->Slot != ERTEquipmentSlot::WeaponVariant)
+	{
+		return Warnings;
+	}
+	const FString Chi = FString::Printf(TEXT("%s su %s"),
+		*Variant->EquipmentId.ToString(), *BasicAttack.ActionId.ToString());
+
+	// 1. STATUS DUPLICATO. E' la regola generale dietro un caso concreto: `Weapon.Suppressive` applica
+	// `Slow`, e `Bastion.ImpactShot` lo applica gia' — quindi la variante fa pagare 5 danni su 8 per un
+	// effetto che l'eroe possiede. Non e' subottimale, e' priva di senso, e D-086 la vieta. La regola non
+	// nomina Bastion: vale per ogni eroe futuro il cui attacco base porti gia' uno status.
+	for (const FRTActionEffectSpec& Aggiunto : Variant->AddedEffects)
+	{
+		if (Aggiunto.Effect != ERTActionEffect::Status || !Aggiunto.StatusTag.IsValid()) { continue; }
+		for (const FRTActionEffectSpec& Esistente : BasicAttack.Effects)
+		{
+			if (Esistente.Effect == ERTActionEffect::Status && Esistente.StatusTag == Aggiunto.StatusTag)
+			{
+				Warnings.Add(FString::Printf(
+					TEXT("%s: la variante applica '%s' che l'attacco base applica gia' — costo pagato per nulla"),
+					*Chi, *Aggiunto.StatusTag.ToString()));
+			}
+		}
+	}
+
+	// 2. DANNO AZZERATO O NEGATIVO. `ApplyWeaponVariant` non clampa deliberatamente, perche' un attacco
+	// spinto sotto zero e' un difetto di bilanciamento che deve restare **visibile**: questo e' il posto
+	// dove si vede.
+	const FRTActionDef Modificata = ApplyWeaponVariant(BasicAttack, Variant);
+	int32 Prima = 0, Dopo = 0;
+	for (const FRTActionEffectSpec& S : BasicAttack.Effects)
+	{
+		if (S.Effect == ERTActionEffect::Damage) { Prima = S.Amount; break; }
+	}
+	for (const FRTActionEffectSpec& S : Modificata.Effects)
+	{
+		if (S.Effect == ERTActionEffect::Damage) { Dopo = S.Amount; break; }
+	}
+	if (Prima > 0 && Dopo <= 0)
+	{
+		Warnings.Add(FString::Printf(TEXT("%s: il danno diretto scende da %d a %d — pulsante finto"),
+			*Chi, Prima, Dopo));
+	}
+	return Warnings;
+}
+
+TArray<FString> URTCatalogLibrary::ValidateLoadout(const TArray<const URTEquipmentData*>& Loadout)
+{
+	// I difetti dei singoli pezzi valgono anche qui: tre oggetti rotti hanno la forma giusta e il contenuto
+	// sbagliato, e un controllo che contasse soltanto li accetterebbe.
+	TArray<FString> Errors = ValidateEquipment(Loadout);
+
+	int32 Varianti = 0, Gadgets = 0, Moduli = 0;
+	for (const URTEquipmentData* Item : Loadout)
+	{
+		if (Item == nullptr) { continue; } // gia' segnalato da ValidateEquipment
+		switch (Item->Slot)
+		{
+		case ERTEquipmentSlot::WeaponVariant:  ++Varianti; break;
+		case ERTEquipmentSlot::Gadget:         ++Gadgets;  break;
+		case ERTEquipmentSlot::ReactionModule: ++Moduli;   break;
+		}
+	}
+
+	// «Esattamente uno» in entrambe le direzioni, con messaggi distinti: zero e due portano a correzioni
+	// diverse — un pezzo dimenticato contro un pezzo di troppo — e un solo messaggio per entrambi
+	// costringerebbe a contare a mano per capire quale dei due sia.
+	auto Conta = [&Errors](int32 Quanti, const TCHAR* Che)
+	{
+		if (Quanti == 0)
+		{
+			Errors.Add(FString::Printf(TEXT("loadout: manca %s"), Che));
+		}
+		else if (Quanti > 1)
+		{
+			Errors.Add(FString::Printf(TEXT("loadout: %d %s, ne serve esattamente 1"), Quanti, Che));
+		}
+	};
+	Conta(Varianti, TEXT("la variante d'arma"));
+	Conta(Gadgets,  TEXT("il gadget"));
+	Conta(Moduli,   TEXT("il modulo di reazione"));
+	return Errors;
+}
+
+FName URTCatalogLibrary::DefaultWeaponVariantFor(const FName& HeroId)
+{
+	// D-089 — il default RINFORZA l'identita' dell'eroe; compensarne la debolezza resta la scelta
+	// alternativa del giocatore. E' una tabella e non una catena di `if`: il giorno in cui il roster cresce
+	// si aggiunge una riga, e un eroe senza riga ottiene `None` invece di un default silenzioso e sbagliato.
+	//
+	// ⚠️ Nessuno usa `Weapon.Overcharge`, ed e' deliberato: il suo costo e' `WV-1`, ancora aperto (#510). Un
+	// default il cui prezzo si decide dopo cambierebbe insieme a quella risposta.
+	static const TMap<FName, FName> Defaults = {
+		// Flux vede a 7 e sparava a 4: `Precision` e' l'unica che riduce quel divario (18 a portata 5).
+		{ FName(TEXT("Hero.Flux")),    FName(TEXT("Weapon.Precision")) },
+		// Riva e' il setter del roster, e `Impact` porta la sua spinta da 1 a 2 (D-085).
+		{ FName(TEXT("Hero.Riva")),    FName(TEXT("Weapon.Impact")) },
+		// Vektor e' il piu' mobile (Move 6): `Suppressive` gli da' come impedirlo agli altri.
+		{ FName(TEXT("Hero.Vektor")),  FName(TEXT("Weapon.Suppressive")) },
+		// Bastion tiene `Impact` perche' e' l'unica che NON gli toglie danno — paga in portata — e l'attacco
+		// base diventa displacement, coerente con Utility/Emergency (ADR-0007).
+		{ FName(TEXT("Hero.Bastion")), FName(TEXT("Weapon.Impact")) },
+	};
+	const FName* Found = Defaults.Find(HeroId);
+	return Found ? *Found : FName();
+}
+
+FRTActionDef URTCatalogLibrary::ApplyWeaponVariant(const FRTActionDef& BasicAttack,
+	const URTEquipmentData* Variant)
+{
+	FRTActionDef Modified = BasicAttack;
+	if (Variant == nullptr || Variant->Slot != ERTEquipmentSlot::WeaponVariant)
+	{
+		return Modified; // un gadget non modifica l'attacco base, e non e' un errore chiederlo
+	}
+
+	// Portata e cooldown non scendono sotto zero: sarebbero un catalogo che `ValidateActions` rifiuta, e la
+	// variante finirebbe per produrre un'azione illegale invece di un'arma piu' corta.
+	Modified.RangeCells = FMath::Max(0, Modified.RangeCells + Variant->RangeDeltaCells);
+	Modified.CooldownTurns = FMath::Max(0, Modified.CooldownTurns + Variant->CooldownDeltaTurns);
+
+	// Il DANNO invece non si clampa. Un attacco base spinto sotto zero da una variante e' un difetto di
+	// bilanciamento, e un `Max(0, ...)` qui lo trasformerebbe in «zero danni» — un pulsante finto, cioe' la
+	// cosa che ADR-0007 esiste per evitare. Resta visibile, e il validator lo dice sul catalogo.
+	if (Variant->DamageDelta != 0)
+	{
+		bool bFound = false;
+		for (FRTActionEffectSpec& Spec : Modified.Effects)
+		{
+			if (Spec.Effect == ERTActionEffect::Damage)
+			{
+				Spec.Amount += Variant->DamageDelta;
+				bFound = true;
+				break; // il primo Damage e' il danno diretto: gli altri effetti restano quelli che sono
+			}
+		}
+		// Un attacco base senza effetto Damage dichiarato non esiste nel roster v0.1, ma se esistesse una
+		// variante non deve INVENTARGLIENE uno: aggiungere qui `Damage = -4` darebbe un'azione che cura.
+		(void)bFound;
+	}
+
+	Modified.Effects.Append(Variant->AddedEffects);
+	return Modified;
+}
+
 URTActionData* URTCatalogLibrary::MakeEquipmentAction(const URTEquipmentData* Item, UObject* Outer)
 {
 	if (Item == nullptr || Item->GrantedActionId.IsNone())
@@ -174,6 +533,15 @@ URTActionData* URTCatalogLibrary::MakeEquipmentAction(const URTEquipmentData* It
 	Action->Def = Core;
 	Action->Def.ActionId = Item->EquipmentId;   // nel TurnLog si legge il gadget, non l'azione generica
 	Action->Def.CooldownTurns = Item->CooldownTurns;
+
+	// Gli effetti PROPRI sostituiscono quelli del core (CP 7.3): un modulo di reazione eredita dal core cio'
+	// che lo rende una reazione — fase, priorita', `ReactionTrigger` — ma i numeri sono suoi. `Slot` e
+	// `ReactionTrigger` restano quelli copiati sopra, e sono il motivo per cui il modulo va costruito da
+	// un'azione che e' GIA' una reazione: sopra un'azione principale sarebbe silenziosamente inerte.
+	if (Item->GrantedEffects.Num() > 0)
+	{
+		Action->Def.Effects = Item->GrantedEffects;
+	}
 	Action->RangeCells = Action->Def.RangeCells;
 	Action->CooldownTurns = Action->Def.CooldownTurns;
 	// Stessi campi specchio di `MakeGenericActions`, e per la stessa ragione: `URTActionData` li ha a 5 e 30
@@ -230,6 +598,24 @@ TArray<FString> URTCatalogLibrary::ValidateEquipment(const TArray<const URTEquip
 		if (Item->CooldownTurns < 0)
 		{
 			Errors.Add(FString::Printf(TEXT("%s: cooldown negativo (%d)"), *Where, Item->CooldownTurns));
+		}
+
+		// Per una VARIANTE D'ARMA lo svantaggio dichiarato a parole non basta, e la ragione e' che `Drawback`
+		// e' una `FText`: nessuna regola la legge, quindi una variante potrebbe raccontare un costo che i suoi
+		// numeri non pagano — «-4 danni» scritto accanto a tre delta tutti migliorativi. Sarebbe potere
+		// verticale con una didascalia rassicurante, cioe' precisamente cio' che la regola di prodotto vieta.
+		//
+		// Uno svantaggio MISURABILE e' uno solo di questi tre: meno danno, meno portata, piu' ricarica.
+		if (Item->Slot == ERTEquipmentSlot::WeaponVariant)
+		{
+			const bool bPaysSomething =
+				Item->DamageDelta < 0 || Item->RangeDeltaCells < 0 || Item->CooldownDeltaTurns > 0;
+			if (!bPaysSomething)
+			{
+				Errors.Add(FString::Printf(
+					TEXT("%s: variante d'arma senza svantaggio misurabile — danno %+d, portata %+d, ricarica %+d"),
+					*Where, Item->DamageDelta, Item->RangeDeltaCells, Item->CooldownDeltaTurns));
+			}
 		}
 	}
 

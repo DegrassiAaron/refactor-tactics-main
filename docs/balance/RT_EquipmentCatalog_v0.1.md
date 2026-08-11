@@ -30,6 +30,28 @@ Ogni eroe seleziona: **1 variante arma** + **1 gadget** + **1 modulo di reazione
 Le varianti modificano l'**attacco base** dell'eroe (valori per tipo d'arma nel
 [catalogo azioni](RT_ActionCatalog_v0.1.md) §1).
 
+> **Consolidamento del 2026-08-11** — quattro decisioni dell'autore, owner nel
+> [Decision Log](../decisions/RT_PDR_00_Decision_Log.md).
+>
+> - **La v0.1 ne spedisce quattro** ([D-088](../decisions/RT_PDR_00_Decision_Log.md)): `Precision`,
+>   `Impact`, `Overcharge`, `Suppressive`. `Split` ed `Environmental` **restano in questa tabella** con i
+>   loro Stable ID ma **non sono selezionabili**, perché oggi producono soltanto il proprio svantaggio —
+>   il motore non ha cardinalità dei bersagli, e «migliora gli hazard» non è un parametro (`WV-4`, `WV-5`
+>   in [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md)).
+> - **I delta di danno si esprimono per fascia** del danno base, non con un valore assoluto unico
+>   ([D-087](../decisions/RT_PDR_00_Decision_Log.md)): `+6` su un attacco da 8 e su uno da 22 non sono la
+>   stessa scelta. Il principio è deciso, **le soglie e i valori no** (`WV-2`) — quindi la colonna
+>   *Svantaggio* qui sopra resta la forma corta, non il numero finale.
+> - **Le affinità naturali fra eroe e variante sono ammesse**
+>   ([D-086](../decisions/RT_PDR_00_Decision_Log.md)): non si cerca parità relativa. Il vincolo è che
+>   nessuna combinazione legale sia **morta**.
+> - **Le spinte additive si sommano** ([D-085](../decisions/RT_PDR_00_Decision_Log.md)): `Impact` su
+>   `Riva.PressureJet`, che già spinge di 1, produce **una spinta di 2** — non due da 1. La decisione ha
+>   scoperto un difetto reale nel resolver, corretto lo stesso giorno.
+>
+> Il **default per eroe** non è deciso (`WV-3`): la tabella §4 qui sotto assegna gadget e reazioni, mai
+> varianti d'arma.
+
 ---
 
 ## 2. Gadget
@@ -96,12 +118,12 @@ Regole comuni a **ogni** modulo:
 
 ## 4. Loadout iniziali consigliati
 
-| Eroe | Variante | Gadget | Reazione |
-|---|---|---|---|
-| **Flux** | Scarica ramificata | Isolante | Scudo reattivo |
-| **Riva** | Marea curativa | Sprinkler | Fuga hazard |
-| **Bastion** | Pannello adattivo | Copertura portatile | Interposizione |
-| **Vektor** | Intercetto esteso | Sensore | Dash d'emergenza |
+| Eroe | Variante *(d'abilità)* | Gadget | Reazione | **Variante d'arma** *(D-089)* |
+|---|---|---|---|---|
+| **Flux** | Scarica ramificata | Isolante | Scudo reattivo | **Precisione** — 18 a portata 5: vede a 7 e sparava a 4 |
+| **Riva** | Marea curativa | Sprinkler | Fuga hazard | **Impatto** — Push 2: rinforza il mestiere di setter |
+| **Bastion** | Pannello adattivo | Copertura portatile | Interposizione | **Impatto** — l'unica che non gli toglie danno |
+| **Vektor** | Intercetto esteso | Sensore | Dash d'emergenza | **Soppressione** — il più mobile impedisce agli altri di esserlo |
 
 Le *varianti* citate qui sono varianti di **abilità** dell'eroe (una per eroe), non varianti d'arma: dettaglio nel
 [catalogo eroi](RT_HeroCatalog_v0.1.md).
@@ -120,6 +142,11 @@ Le *varianti* citate qui sono varianti di **abilità** dell'eroe (una per eroe),
 **Non specificato nel PDF** (da fissare in E7): raggio e durata di `Gadget.Sensor` · ~~durata della copertura creata
 da `Gadget.PortableCover`~~ · se l'immunità di
 `Gadget.Insulator` si consumi anche quando la propagazione non avrebbe fatto danno.
+
+> **Aggiunto il 2026-08-11**: al PDF mancano anche il **costo preciso di `Weapon.Environmental`** e la
+> semantica di **`+1 turno di ricarica`** per `Weapon.Overcharge` — quest'ultima è il vero prezzo della
+> variante e non è mai stata definita (`WV-1`). Nessun eroe ha mai avuto l'attacco base in ricarica: è il
+> primo caso, e va verificato che resolver e HUD sappiano esprimerlo.
 
 > **Chiuso il 2026-08-09 (E9.5)** — `Gadget.PortableCover` è **costruito**, ed è l'unico gadget della v0.1 a
 > esserlo: concede `Action.CreateCover` (integrità 30, durata **2 turni**, la stessa dell'azione core, che era

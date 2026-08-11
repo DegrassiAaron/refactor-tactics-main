@@ -1612,24 +1612,56 @@ features:
       network_privacy: na
     roadmap:
       epic: E7
-      checkpoints: ["7.1", "7.2", "7.3", "7.4"]
+      checkpoints: ["7.1", "7.2", "7.3", "7.4", "7.5"]
     dependencies:
       - RT-FEAT-DATA-ASSET-PIPELINE
       - RT-FEAT-CHAR-V01-ROSTER
     owner_specs:
       - docs/balance/RT_EquipmentCatalog_v0.1.md
-    issues: [21, 60, 61, 62, 63]
+    issues: [21, 60, 61, 62, 63, 505]
     tests:
       - RefactorTactics.Catalog.ValidatorRejectsEquipmentWithoutDrawback
+      - RefactorTactics.Equipment.WeaponVariantHasTradeoff
+      - RefactorTactics.Equipment.Precision.RangeAndDamage
+      - RefactorTactics.Equipment.VariantAddsEffectsWithoutLosingTheOnesItHad
+      - RefactorTactics.Equipment.SplitHasNoConsumerYet
+      - RefactorTactics.Equipment.PortableCover.CreatesCover
+      - RefactorTactics.Equipment.ReactionModule.SingleActivation
+      - RefactorTactics.Equipment.CounterShotUsesExistingTrigger
+      - RefactorTactics.Equipment.EmergencyDashIsNotExpressibleYet
+      - RefactorTactics.Equipment.ImpactVariantStacksPush
+      - RefactorTactics.Equipment.Gadget.CooldownEnforced
+      - RefactorTactics.Equipment.Gadget.NumbersMatchCatalog
+      - RefactorTactics.Equipment.Gadget.FourAreNotExpressibleYet
+      - RefactorTactics.Equipment.DefaultVariantPerHero
+      - RefactorTactics.Equipment.WarnsOnPointlessVariantPairing
+      - RefactorTactics.Equipment.LoadoutExactlyOneEach
+      - RefactorTactics.Equipment.NoInMatchProgression
     scenarios: []
     wiki_refs: []
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      date: 2026-08-11
+      commit: 891534c
     notes: >
-      `URTEquipmentData` e il catalogo esistono, e il validator impone che ogni variante abbia uno
-      svantaggio. Manca il loadout in partita: E7 è l'epic **assente** che tiene aperta M11.
-      Nessuna pagina Wiki la descrive.
+      **CP 7.1 chiuso il 2026-08-11 (`#60`)**: le sei varianti d'arma esistono e il loro trade-off è
+      applicabile, non solo raccontato — `ApplyWeaponVariant` somma i delta all'attacco base dell'eroe e
+      il validator rifiuta una variante che non paghi in danno, portata o ricarica. Verifica di mutazione
+      eseguita: azzerando i delta cadono esattamente i tre test che ne dipendono.
+      Due limiti **dichiarati** invece che nascosti. `Weapon.Split` compra un bersaglio in più che il
+      motore non sa esprimere (nessuna cardinalità dei bersagli in `FRTActionDef`), quindi in partita è
+      solo il suo svantaggio: `Equipment.SplitHasNoConsumerYet` lo pinna e diventerà rosso il giorno in
+      cui qualcuno la cabla. `Weapon.Environmental` dichiara il vantaggio in prosa perché nessun campo del
+      catalogo esprime «migliora gli hazard».
+      **CP 7.3 metà catalogo chiuso il 2026-08-11 (`#62`)**: `CounterShot`, `ReactiveShield` e
+      `AllyIntercept` sono reazioni vere — costruite su un'azione core che è già una reazione, da cui
+      ereditano fase, priorità e trigger, con numeri propri via `GrantedEffects`. Mutazione eseguita:
+      azzerando il trigger ereditato cadono esattamente i due test che lo verificano.
+      L'altra metà è `#505` (CP 7.5) e i moduli esclusi sono **quattro**, per due ragioni diverse:
+      `HazardEscape`, `Cleanse` e `Anchor` non hanno il **trigger** (nascono da un evento, non da un colpo);
+      `EmergencyDash` ha il trigger ma non l'**effetto** — `Reposition 1` sposta chi reagisce e nessun
+      `ERTActionEffect` lo esprime. Il secondo vincolo è emerso implementando, non dall'analisi. Il loadout (`#63`) ha inoltre un buco nell'owner: la tabella §4 del
+      catalogo **non assegna varianti d'arma** a nessun eroe (dice esplicitamente che le sue sono varianti
+      di *abilità*), quindi il default 1+1+1 richiesto dal DoD non esiste ancora nei dati.
 
   # ─────────────────────────────────────────────────────────────────────────────
   # D. Reactions

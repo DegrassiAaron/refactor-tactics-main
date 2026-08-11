@@ -84,12 +84,123 @@ public:
 	static URTEquipmentData* MakePortableCoverGadget();
 
 	/**
+	 * Le **sei varianti d'arma** del catalogo equipaggiamento §1 (CP 7.1, `#60`).
+	 *
+	 * Costruite in C++ come il roster (`MakeBastion`) e non come asset di `Content/`: sono dati di catalogo che
+	 * il gioco spedisce sempre, e un asset li renderebbe modificabili senza passare da una review del diff —
+	 * oltre a richiedere l'editor per una regola che non ne ha bisogno.
+	 *
+	 * Ogni variante dichiara il proprio svantaggio **due volte e in due lingue**: come prosa in `Drawback`, per
+	 * chi sceglie, e come numero nei delta, per il resolver. `ValidateEquipment` verifica che le due non
+	 * divergano — cioe' che nessuna variante sia migliore in ogni parametro.
+	 */
+	static TArray<URTEquipmentData*> MakeWeaponVariants();
+
+	/**
+	 * I moduli di reazione del catalogo §3 che l'infrastruttura E5 **sa gia' far scattare** (CP 7.3, `#62`).
+	 *
+	 * Sono **tre** dei sette, e i quattro assenti mancano per due ragioni diverse che vale la pena distinguere,
+	 * perche' portano a lavori diversi (entrambi in `#505`, CP 7.5):
+	 *
+	 * - `HazardEscape`, `Cleanse`, `Anchor` — il **trigger** non esiste: nascono da un evento (`Push`, `Pull`,
+	 *   `Status`) e non da un colpo, mentre `EvaluateReactionTrigger` riceve `Hits` e `Intents`;
+	 * - `EmergencyDash` — il trigger c'e' (`HitByDirectAttack`), ma manca l'**effetto**: `Reposition 1` sposta
+	 *   chi reagisce, e nessun `ERTActionEffect` lo esprime (`Push`/`Pull` spostano il bersaglio).
+	 *
+	 * Ogni modulo si costruisce su un'azione core che e' **gia' una reazione**, da cui eredita fase, priorita'
+	 * e trigger, e porta effetti propri via `GrantedEffects`. E' lo stesso vincolo che
+	 * `MakeHeroReactionFromCoreAction` impone agli eroi: sopra un'azione principale il modulo sarebbe
+	 * silenziosamente inerte, perche' il pass delle reazioni non lo guarderebbe mai.
+	 */
+	static TArray<URTEquipmentData*> MakeReactionModules();
+
+	/**
+	 * I gadget del catalogo equipaggiamento §2 che il motore sa gia' far funzionare (CP 7.2, `#61`).
+	 *
+	 * Sono **quattro** degli otto — `Medkit`, `BreachCharge`, `Sprinkler`, `PortableCover` — e i quattro
+	 * assenti mancano per quattro ragioni distinte, scritte accanto a ciascuno nel `.cpp`: manca l'azione
+	 * core (`SmokeEmitter`), manca il modello di immunita' (`Insulator`), manca l'epic della conoscenza
+	 * parziale (`Sensor`), manca un consumo per turno che `PushResistance` non e' (`Anchor`).
+	 *
+	 * Tutti hanno **cooldown 3**, che il catalogo dichiara una volta sopra la tabella invece che riga per riga.
+	 */
+	static TArray<URTEquipmentData*> MakeGadgets();
+
+	/**
+	 * L'attacco base modificato dalla variante: e' **il consumatore** dei delta, e l'unico.
+	 *
+	 * Funzione pura su `FRTActionDef` e non su `URTActionData` per la ragione di sempre: cosi' e' verificabile
+	 * senza costruire un `UObject`, un mondo o un'unita'. Chi ha bisogno dell'azione come oggetto la costruisce
+	 * dopo, dalla def che esce di qui.
+	 *
+	 * Regole, tutte visibili nel test `Equipment.WeaponVariantHasTradeoff`:
+	 * - i delta si **sommano**, non sostituiscono: la variante non conosce l'arma che modifica;
+	 * - portata e cooldown non scendono **mai sotto zero** — `Weapon.Impact` su un'arma a portata 1 la lascia a
+	 *   contatto invece di produrre una portata negativa, che il validator del catalogo rifiuterebbe;
+	 * - il danno **non** e' clampato a zero: un attacco base portato sotto zero e' un errore di bilanciamento
+	 *   che deve **restare visibile**, e `ValidateEquipment` lo dice sul catalogo invece di nasconderlo qui;
+	 * - `AddedEffects` va in **coda**, cosi' un attacco che gia' bagna continua a bagnare.
+	 *
+	 * Una variante che non sia `WeaponVariant` non modifica niente: restituisce l'azione invariata.
+	 */
+	static FRTActionDef ApplyWeaponVariant(const FRTActionDef& BasicAttack, const URTEquipmentData* Variant);
+
+	/**
+	 * La variante d'arma di **default** per un eroe (D-089), o `None` se l'eroe non ne ha una dichiarata.
+	 *
+	 * Il criterio e' che il default **rinforzi l'identita'** dell'eroe; compensarne la debolezza resta la
+	 * scelta alternativa del giocatore. `None` invece di un fallback e' voluto: un default silenzioso e
+	 * sbagliato e' peggio di un default assente, che almeno si vede.
+	 */
+	static FName DefaultWeaponVariantFor(const FName& HeroId);
+
+	/**
+	 * Avvisi (non errori) su una combinazione eroe/variante: cose legali che con ogni probabilita' non si
+	 * vogliono, e che nessun validator strutturale puo' vedere perche' dipendono dalla **coppia**.
+	 *
+	 * Oggi ne produce due, ed entrambe nascono da D-089:
+	 * - la variante **duplica uno status** che l'attacco base gia' applica (`Suppressive` su
+	 *   `Bastion.ImpactShot`, che rallenta di suo): si paga il costo pieno per un effetto che si ha;
+	 * - la variante porta il danno diretto **a zero o sotto**: un pulsante finto, che ADR-0007 esiste per
+	 *   evitare.
+	 *
+	 * Sono `TArray<FString>` come gli errori di `ValidateEquipment` e non un booleano, perche' un avviso che
+	 * non dice **quale** coppia e **perche'** costringe a ricontrollare tutto il roster a mano.
+	 */
+	static TArray<FString> WarnOnVariantForAttack(const FRTActionDef& BasicAttack,
+		const URTEquipmentData* Variant);
+
+	/**
+	 * Errori di un LOADOUT (vuoto = valido). La regola del catalogo e' **1+1+1**: esattamente una variante
+	 * d'arma, un gadget e un modulo di reazione — CP 7.4.
+	 *
+	 * «Esattamente» in entrambe le direzioni, e non e' pedanteria: **zero** e **due** sono errori diversi e
+	 * il messaggio li distingue, perche' portano a correzioni diverse — un pezzo dimenticato contro un pezzo
+	 * di troppo. Un loadout con due gadget non e' «piu' equipaggiato»: e' una configurazione che il gioco non
+	 * sa risolvere, visto che ogni slot ha un solo posto nell'economia del turno.
+	 *
+	 * Passa anche da `ValidateEquipment` sui singoli pezzi: un loadout di tre oggetti rotti ha la forma
+	 * giusta e il contenuto sbagliato, e sarebbe accettato da un controllo che conta soltanto.
+	 */
+	static TArray<FString> ValidateLoadout(const TArray<const URTEquipmentData*>& Loadout);
+
+	/**
 	 * L'azione che un equipaggiamento concede, costruita dall'azione CORE che dichiara in `GrantedActionId`.
 	 * Nullptr se non ne concede nessuna o se l'id non e' nel catalogo.
 	 *
-	 * Conserva la semantica del core (fase, priorita', portata, `StructureOp`) e sostituisce due cose:
-	 * l'**ActionId**, che diventa quello del gadget perche' il TurnLog deve dire CHI ha agito, e il
-	 * **cooldown**, che e' dell'oggetto — un gadget si ricarica coi suoi tempi, non con quelli dell'azione.
+	 * Conserva la semantica del core (fase, priorita', portata, `StructureOp`, e per le reazioni il
+	 * `ReactionTrigger`) e sostituisce **tre** cose:
+	 * - l'**ActionId**, che diventa quello dell'equipaggiamento perche' il TurnLog deve dire CHI ha agito;
+	 * - il **cooldown**, che e' dell'oggetto — un gadget si ricarica coi suoi tempi, non con quelli dell'azione;
+	 * - gli **effetti**, ma **solo se** l'oggetto ne dichiara di propri in `GrantedEffects` (CP 7.2/7.3): un
+	 *   modulo di reazione eredita dal core cio' che lo rende una reazione e porta numeri suoi
+	 *   (`Reaction.CounterShot` fa 14 dove `Action.Counter` ne fa 16). Con `GrantedEffects` vuoto gli effetti
+	 *   del core restano intatti, ed e' il caso di `Gadget.Sprinkler`, il cui esito e' una superficie.
+	 *
+	 * ⚠️ **Non e' fail-closed come `MakeHeroReactionFromCoreAction`**, che rifiuta un core non-reazione perche'
+	 * costruirci sopra darebbe un'abilita' che il pass delle reazioni non guarda mai. Qui la stessa disciplina
+	 * e' affidata al chiamante — `MakeReactionModules` sceglie apposta core gia' reazione — e verificata da
+	 * `Equipment.ReactionModule.SingleActivation`, che asserisce slot e trigger sull'azione prodotta.
 	 */
 	static URTActionData* MakeEquipmentAction(const URTEquipmentData* Item, UObject* Outer);
 
