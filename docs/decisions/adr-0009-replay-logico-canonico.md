@@ -83,8 +83,10 @@ un `#include`; una dipendenza che non esiste no.
 riproduce una traccia in un contesto dove il resolver non è disponibile, e se funziona il confine è
 dimostrato invece che affermato.
 
-> ⚠️ **Questi test non esistono ancora**: si scrivono in **R3**, insieme al Player. Questo ADR li **richiede**,
-> e la loro assenza è la ragione per cui `REPLAY-04` resta aperto. Nessuno li citi come già presenti.
+> ✅ **Scritti il 2026-08-11** in `RTReplayPlayerTests.cpp`, insieme al Player (`#470`, PR #496). Erano la
+> condizione che questo ADR poneva, e con essi **`REPLAY-04` si chiude**: il rischio esisteva perché nessun
+> test si sarebbe accorto di un player che ri-risolve, e adesso `Replay.Player.RunsWithoutResolver` lo
+> dimostra nella forma negativa — riproduce dove il resolver non c'è.
 
 ### 4. Divergenza: il Verifier fallisce esplicito, il Player non verifica mai
 
@@ -145,7 +147,9 @@ adesso evita che qualcuno legga «verifica d'integrità» e creda di avere una g
 
 ## Verifica
 
-I test seguenti sono **richiesti da questo ADR e non esistono ancora**; si scrivono in R3.
+I test seguenti erano **richiesti da questo ADR e non esistevano** alla sua stesura. ✅ **Esistono tutti dal
+2026-08-11** (`RTReplayPlayerTests.cpp`, `#470`): la tabella resta perché dice *perché* servono, non solo che
+servono.
 
 | Test | Cosa rende osservabile |
 |---|---|
