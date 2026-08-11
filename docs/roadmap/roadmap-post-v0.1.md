@@ -211,6 +211,16 @@ Feature Registry: `RT-FEAT-UI-ICON-LANGUAGE`.
 
 **Obiettivo**: il bot passa da «gioca legalmente» a «gioca di squadra».
 
+> **Architettura fissata il 2026-08-11**, e non era un dettaglio: «coordinazione vera» lasciava leggere due
+> modelli incompatibili — un assegnatore che distribuisce compiti, oppure una ricerca sulle combinazioni.
+> [D-097](../decisions/RT_PDR_00_Decision_Log.md) sceglie la seconda: **Top-K per unità più una combinazione
+> valutata al centro**, con i ruoli tattici che *emergono* dal piano invece di essere assegnati prima.
+> [D-098](../decisions/RT_PDR_00_Decision_Log.md) aggiunge il vincolo che impedisce le combo immaginarie: una
+> sinergia intra-turno vale solo se l'ordine delle fasi la permette, e la compatibilità si **chiede** alle
+> regole invece di riscriverla nel bot. Owner: [`../gameplay/spec-bot-tattico.md`](../gameplay/spec-bot-tattico.md).
+> Feature Registry: `RT-FEAT-BOT-TACTICAL` — che dal 2026-08-11 copre **solo** questa epic: belief e
+> predictive sono usciti in `RT-FEAT-BOT-BELIEF` e `RT-FEAT-BOT-PREDICTIVE`.
+
 Aggiunge (§5.2 del sorgente bot): TeamKnowledge integrato, contatti last-known e acustici, threat map,
 opportunity map, information value, coordinazione vera, sinergie ambientali, belief weights, predictive
 action scoring, reaction policy migliore, stress 4v4.
@@ -397,11 +407,22 @@ Estende E13 oltre il thin slice: stealth, memoria dell'ultima posizione nota con
 propagato con occlusione, gradi di certezza. Il sorgente 4v4 §19.1 fissa il vincolo: **nessun RNG nascosto per
 la percezione base** — se un'unità è vista, lo è per una regola, non per un tiro di dado.
 
+> **«Gradi di certezza» non significa un enum nuovo**, e il 2026-08-11 è stato a un passo dal diventarlo.
+> [D-099](../decisions/RT_PDR_00_Decision_Log.md): il repository ha già tre modi di dire quanto una squadra
+> sa — `ERTAwareness`, `ERTTargetKnowledge` e il turno del ricordo — e un quarto vocabolario avrebbe dato due
+> risposte diverse alla domanda *sappiamo dov'è?*. La confidenza del bot **ordina dentro `Uncertain`**, non
+> accanto. Con la regola che vale per tutta la epic: una belief non diventa conoscenza perché è lo scenario
+> più plausibile. Feature Registry: `RT-FEAT-BOT-BELIEF`.
+
 ### E28 — Expert Bot v2 · P2
 
 Solo **dopo** la stabilizzazione del resolver (§5.3 del sorgente): simulazioni counterfactual, più ipotesi
 sul nemico, opponent model su eventi osservati, pianificazione robusta, personalità tattiche, possibile riuso
 del planner come strumento di QA.
+
+Feature Registry: `RT-FEAT-BOT-PREDICTIVE`. Il confine con la simulazione counterfactual è già tracciato da
+[D-078](../decisions/RT_PDR_00_Decision_Log.md), che separa *chi riproduce* da *chi verifica*: il planner può
+copiare lo stato logico solo quando il resolver è estraibile, ed è la stessa condizione.
 
 ### E29 — Predictive avanzato · P2
 

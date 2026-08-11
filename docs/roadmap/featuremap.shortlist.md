@@ -20,13 +20,13 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 <!-- RT_SHORTLIST_FEATURES:BEGIN -->
 
-**92 feature** · v0.1 **70** · v0.2 **12** · future **10**.
+**95 feature** · v0.1 **71** · v0.2 **12** · future **12**.
 
 | Stato | Quante |
 |---|--:|
-| `IDEA` | 7 |
-| `DESIGNED` | 10 |
-| `SPECIFIED` | 9 |
+| `IDEA` | 6 |
+| `DESIGNED` | 13 |
+| `SPECIFIED` | 10 |
 | `IMPLEMENTING` | 21 |
 | `TESTABLE` | 7 |
 | `INTEGRATED` | 21 |
@@ -173,7 +173,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | v0.1 | SPECIFIED | 1/9 | E14 | Finestra **3,0 s**, `Timeout → HOLD`; Fast/Headless risponde subito via policy |
 | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | v0.1 | DESIGNED | 0/9 | E14 | Continuazione della **propria** azione, non risposta all'avversario |
 
-### Tools · 9
+### Tools · 12
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
@@ -185,7 +185,10 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-TOOL-BALANCE-GROUND` — Banco di prova del bilanciamento | v0.1 | IMPLEMENTING | 3/6 | E1 | Dove si misurano i numeri prima di scriverli a catalogo |
 | `RT-FEAT-TOOL-CONTROL-CENTER` — Project Control Center — la UI web del registry | future | IMPLEMENTING | 2/6 | — | — |
 | `RT-FEAT-TOOL-DEBUG-CONSOLE` — Comandi console rt.Debug e rt.Test | v0.1 | IMPLEMENTING | 3/6 | E11 | Ne esistono 2 su 8: senza, si debugga a occhio |
-| `RT-FEAT-BOT-TACTICAL` — Bot tattico con conoscenza e reazioni | v0.2 | IDEA | 0/8 | — | Epic E26 |
+| `RT-FEAT-BOT-FAIRNESS` — Il bot pianifica sulla conoscenza della sua squadra | v0.1 | SPECIFIED | 1/7 | E13 | — |
+| `RT-FEAT-BOT-BELIEF` — Belief — celle plausibili, decadimento e minaccia proiettata | future | DESIGNED | 0/8 | fuori scope | — |
+| `RT-FEAT-BOT-PREDICTIVE` — Scenari nemici plausibili e piano robusto | future | DESIGNED | 0/8 | fuori scope | — |
+| `RT-FEAT-BOT-TACTICAL` — Team Planner — piano di squadra, ruoli dinamici e sinergie | v0.2 | DESIGNED | 0/8 | fuori scope | Epic E26 |
 
 ### UI · 8
 

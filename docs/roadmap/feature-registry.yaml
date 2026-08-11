@@ -3720,15 +3720,77 @@ features:
       Nessuna mossa illegale è proponibile: le candidate nascono da `ReachableCells`. L'attacco è
       valutato solo dalla cella in cui il bot sarà nel Blast. Pesi tunabili in PIE.
 
+  # ── Il cluster Bot oltre `BASE`. ────────────────────────────────────────────
+  # Fino al 2026-08-11 era UNA feature, `RT-FEAT-BOT-TACTICAL`, che copriva da sola E26 (v0.2),
+  # E27 e E28 (v0.3). Non era rappresentabile: `epic` e `release` sono valori singoli, e infatti
+  # valevano `null` e `v0.2` — cioe' il registry dichiarava che quel lavoro non aveva un'epic
+  # mentre ne aveva tre. Divisa in quattro il 2026-08-11 (referto
+  # `plans/bot-ai-consolidamento-2026-08-11.md` §4.3), con il criterio dei gate: due feature stanno
+  # separate se i loro gate possono muoversi in momenti diversi. Qui succede — `FAIRNESS` ha lavoro
+  # aperto in **v0.1** (CP 13.5, #160) mentre `PREDICTIVE` non ha nemmeno un'epic aperta.
+  #
+  # ⚠️ Nessuna delle quattro va oltre DESIGNED/SPECIFIED: il consolidamento del 2026-08-11 ha
+  # prodotto **specifica, non implementazione**. Una spec piu' dettagliata non e' un gate che avanza.
+
+  - feature_id: RT-FEAT-BOT-FAIRNESS
+    title: Il bot pianifica sulla conoscenza della sua squadra
+    area: Tools
+    kind: gameplay
+    release: v0.1
+    priority: P2
+    status: SPECIFIED
+    gates:
+      spec: done
+      data: na
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: todo
+      ui_wiki: partial
+      packaged: todo
+      network_privacy: na
+    roadmap:
+      epic: E13
+      checkpoints: ["13.5"]
+    dependencies:
+      - RT-FEAT-BOT-BASE
+      - RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE
+    owner_specs:
+      - docs/gameplay/spec-bot-tattico.md
+    issues: [160]
+    tests: []
+    scenarios:
+      - planned:
+          - Spec.Bot.HiddenEnemyFairness
+          - Spec.Bot.DecoyNoiseIndistinguishable
+          - Spec.Bot.PlansOnPartialKnowledge
+    wiki_refs:
+      - wiki:avversario-bot
+    last_verified:
+      date: 2026-08-11
+      commit: 1f1dc24
+    notes: >
+      L'unico pezzo del cluster Bot con lavoro gia' aperto in v0.1. La premessa oggi e' **falsa e
+      misurata**: `ARTTurnManager::PlanBots` popola `Ctx.Enemies` da tutte le unita' nemiche vive,
+      senza filtro di percezione — vedi `spec-bot-hex.md` §6, che lo dichiara invece di nasconderlo.
+      `spec: done` perche' la regola e' scritta e completa (`spec-bot-tattico.md` §2); tutto il
+      resto e' `todo` perche' non esiste il filtro.
+      ⚠️ Il gate che conta e' `automation`, e ha una forma precisa: un **canary** che mette la
+      stessa `FRTTeamKnowledge` davanti a due stati autorevoli diversi (nemico nascosto in A oppure
+      in B) e pretende lo stesso Intent. Un bot che legge lo stato lo fallisce; nessuna review lo
+      prende, perche' un bot onnisciente produce piani *sensati*.
+      `ui_wiki: partial`: la pagina Wiki `avversario-bot` promette gia' al giocatore che il bot non
+      vede piu' di lui — la promessa e' pubblicata e la sua verifica non esiste ancora.
+
   - feature_id: RT-FEAT-BOT-TACTICAL
-    title: Bot tattico con conoscenza e reazioni
+    title: Team Planner — piano di squadra, ruoli dinamici e sinergie
     area: Tools
     kind: gameplay
     release: v0.2
-    priority: P3
-    status: IDEA
+    priority: P2
+    status: DESIGNED
     gates:
-      spec: todo
+      spec: partial
       data: todo
       runtime: todo
       log_debug: todo
@@ -3740,22 +3802,142 @@ features:
     roadmap:
       epic: null
       checkpoints: []
+      out_of_release_scope: >-
+        L'epic esiste e si chiama **E26** (`roadmap-post-v0.1.md`, v0.2, issue #326), ma
+        `roadmap.epic` resta `null` come per `RT-FEAT-STATUS-FRAMEWORK`/E36: il validator conosce
+        solo le epic della **roadmap di release**, e assegnarne una qui farebbe comparire una
+        feature v0.2 nella tabella §2.2 della v0.1. Nessun gate della v0.1 dipende dal Team Planner.
     dependencies:
-      - RT-FEAT-BOT-BASE
-      - RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE
+      - RT-FEAT-BOT-FAIRNESS
       - RT-FEAT-REACTION-OPPORTUNITY
-    owner_specs: []
-    issues: []
+    owner_specs:
+      - docs/gameplay/spec-bot-tattico.md
+    issues: [326]
     tests: []
-    scenarios: []
+    scenarios:
+      - planned:
+          - Spec.Bot.TeamPlanRejectsHardConflict
+          - Spec.Bot.CandidateDiversityKeepsControl
+          - Spec.Bot.TemporalSynergyRequiresPhaseOrder
+          - Spec.Bot.OverkillMovesSecondUnit
+          - Spec.Bot.PlanHysteresisIgnoresSmallDelta
     wiki_refs:
       - wiki:avversario-bot
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      date: 2026-08-11
+      commit: 1f1dc24
     notes: >
-      Citato in `roadmap-post-v0.1.md` fra le epic E21–E32 ma senza owner documentale proprio.
-      Non può iniziare prima di E13/E14: un bot che «sa tutto» non è un bot tattico.
+      Architettura fissata da **D-097** (Top-K per unita' + combinazione al centro; i ruoli
+      **emergono** dal piano, non si assegnano prima) e **D-098** (una sinergia intra-turno vale
+      solo se l'ordine delle fasi la permette, e la compatibilita' si **chiede** alle regole invece
+      di riscriverla nel bot).
+      `spec: partial` e non `done`: la forma c'e', le **quote** no — `TopK`, budget di candidate e
+      soglia di isteresi si fissano profilando codice che non esiste, e il sorgente stesso lo dice.
+      ⚠️ Il caso **umano + bot nella stessa squadra** resta aperto e NON e' della v0.1, che e' 2v2
+      offline contro il bot. La forma della risposta e' pero' gia' vincolata da D-097.
+
+  - feature_id: RT-FEAT-BOT-BELIEF
+    title: Belief — celle plausibili, decadimento e minaccia proiettata
+    area: Tools
+    kind: gameplay
+    release: future
+    priority: P3
+    status: DESIGNED
+    gates:
+      spec: partial
+      data: todo
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: todo
+      ui_wiki: todo
+      packaged: todo
+      network_privacy: na
+    roadmap:
+      epic: null
+      checkpoints: []
+      out_of_release_scope: >-
+        Epic **E27** (`roadmap-post-v0.1.md`, v0.3, issue #327). `release: future` e non `v0.3`
+        perche' il vocabolario ammesso e' `v0.1 | v0.2 | future`: la v0.3 non ha ancora una
+        colonna propria, e inventargliela farebbe fallire il validator.
+    dependencies:
+      - RT-FEAT-BOT-FAIRNESS
+      - RT-FEAT-PERCEPTION-NOISE
+    owner_specs:
+      - docs/gameplay/spec-bot-tattico.md
+    issues: [327]
+    tests: []
+    scenarios:
+      - planned:
+          - Spec.Bot.BeliefDoesNotBecomeKnowledge
+          - Spec.Bot.GraphRevisionInvalidatesBelief
+          - Spec.Bot.InformationGainIgnoresHiddenContent
+    wiki_refs:
+      - wiki:avversario-bot
+    last_verified:
+      date: 2026-08-11
+      commit: 1f1dc24
+    notes: >
+      **D-099** decide la cosa che rischiava di costare di piu': la confidenza del bot **non e' un
+      enum nuovo**. Il repository ha gia' `ERTAwareness` (`Hidden · Uncertain · Detected`),
+      `ERTTargetKnowledge` (`Allowed · CellOnly · Rejected`) e `FRTLastKnownContact.TurnNumber`; le
+      quattro categorie proposte dal sorgente (`Confirmed · Strong · Plausible · Weak`) sarebbero
+      state il **quarto** vocabolario sullo stesso asse, con due risposte diverse alla domanda
+      «sappiamo dov'e'?». La confidenza ordina **dentro** `Uncertain`, e non e' una percentuale.
+      ⚠️ La **threat projection** e' oggi un gate di questa feature, non una feature propria.
+      Diventa propria quando un **secondo** consumatore la legge — la UI, non il solo planner:
+      finche' la legge solo il bot e' una struttura interna, e promuoverla creerebbe un ID che
+      nessuno cita.
+
+  - feature_id: RT-FEAT-BOT-PREDICTIVE
+    title: Scenari nemici plausibili e piano robusto
+    area: Tools
+    kind: gameplay
+    release: future
+    priority: P3
+    status: DESIGNED
+    gates:
+      spec: partial
+      data: todo
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: todo
+      ui_wiki: todo
+      packaged: todo
+      network_privacy: na
+    roadmap:
+      epic: null
+      checkpoints: []
+      out_of_release_scope: >-
+        Epic **E28** (`roadmap-post-v0.1.md`, v0.3, issue #328), piu' il residuo di **E29**
+        (predictive avanzato, #329). Stessa ragione di `RT-FEAT-BOT-BELIEF` per `release: future`.
+    dependencies:
+      - RT-FEAT-BOT-TACTICAL
+      - RT-FEAT-BOT-BELIEF
+    owner_specs:
+      - docs/gameplay/spec-bot-tattico.md
+    issues: [328]
+    tests: []
+    scenarios:
+      - planned:
+          - Spec.Bot.RobustPlanSurvivesFlank
+          - Spec.Bot.HoldOnUnaccountedThreat
+    wiki_refs:
+      - wiki:avversario-bot
+    last_verified:
+      date: 2026-08-11
+      commit: 1f1dc24
+    notes: >
+      Pochi scenari nemici coerenti, non minimax: `RobustScore = punteggio pesato sugli scenari −
+      penalita' sul caso peggiore`. Personalita' e difficolta' cambiano la **tolleranza** al caso
+      peggiore, mai le informazioni disponibili.
+      ⚠️ Il caso da testare esplicitamente e' la differenza fra **dedurre** e **sapere**: il bot puo'
+      tenere il fuoco perche' un bersaglio vale poco *e* una minaccia non e' localizzata; non puo'
+      tenerlo perche' «lo striker passera' dopo». I due comportamenti sono indistinguibili
+      dall'esterno, e solo un test che manipola lo stato nascosto li separa.
+      La simulazione counterfactual non apre prima che il resolver logico sia estraibile: **D-078**
+      ha gia' separato chi riproduce da chi verifica, ed e' lo stesso confine.
 
   - feature_id: RT-FEAT-TEST-SCENARIO-HARNESS
     title: Scenario Test Harness automatizzato

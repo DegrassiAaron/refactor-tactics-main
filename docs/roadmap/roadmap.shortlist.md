@@ -29,7 +29,7 @@ Legenda: ✅ chiusa · 🟡 parziale · ⏳ non iniziata · `—` nessuno stato 
 | **E10** | 🟡 | 2 | 9/16 | Fine partita a tre vie ✅; ⏳ **nessun oggetto da attivare** in mappa |
 | **E11** | 🟡 | 8 | 28/56 | Preview, input e playback esistono; ⏳ **Ghost Timeline** e i comandi `rt.Debug.*` completi |
 | **E12** | 🟡 | 7 | 30/47 | Replay deterministico su 100 ripetizioni ✅; ⏳ **packaged build**. Senza checksum e packaged non è v0.1 |
-| **E13** | 🟡 | 4 | 15/36 | La vista **decide**: da CP 13.2 un'azione offensiva non parte contro un bersaglio ignoto alla squadra, e un contatto solo `Incerto` si colpisce per cella. il **rumore** si propaga sul grafo (CP 13.3) ma nessuno lo **emette** ancora in partita — il produttore è CP 13.4. ⏳ **bot e HUD**, che la conoscenza non la consumano |
+| **E13** | 🟡 | 5 | 16/43 | La vista **decide**: da CP 13.2 un'azione offensiva non parte contro un bersaglio ignoto alla squadra, e un contatto solo `Incerto` si colpisce per cella. il **rumore** si propaga sul grafo (CP 13.3) ma nessuno lo **emette** ancora in partita — il produttore è CP 13.4. ⏳ **bot e HUD**, che la conoscenza non la consumano |
 | **E14** | 🟡 | 8 | 10/70 | CP 14.3/14.4 chiusi: l'opportunity ha un'**identità derivata** e l'Overwatch la produce a ogni micro-step, riusando `FRTSuppressiveZone`. ⏳ **nessuna finestra viva** — il resolver non chiede ancora nulla (CP 14.5), poi Clash e Time Bank |
 | **E15** | 🟡 | 2 | 9/16 | La prova integrata: fixture, scenario e golden replay a hash stabile. **Consuma** i sistemi, non li anticipa |
 | **E16** | ✅ | 1 | 5/9 | Il facing è **stato di gioco**: deriva da Move e Dash, entra in snapshot/TurnLog/hash, e da dietro annulla copertura e `Guard` |
