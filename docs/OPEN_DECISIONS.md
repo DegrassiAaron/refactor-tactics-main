@@ -367,6 +367,29 @@ conoscenza regge (il bersaglio ignoto non subisce danno), ma è caduta l'asserti
 
 ---
 
+## Aperte — radar di personaggio, dal consolidamento del 2026-08-11
+
+Origine: [`RefactorTactics_Character_Radar_Wiki_Generator_Claude.md`](archive/src/RefactorTactics_Character_Radar_Wiki_Generator_Claude.md)
+(archiviato).
+Il modello è stato consolidato in [D-105](decisions/RT_PDR_00_Decision_Log.md) con owner
+[`spec-radar-profilo-personaggio.md`](characters/spec-radar-profilo-personaggio.md); queste sono le voci
+che il consolidamento **non poteva** chiudere.
+
+> ⚠️ **`RAD-1` non è un vuoto da riempire, è un conflitto da risolvere** — ed è la differenza che cambia
+> l'ordine di lavoro. Il sorgente lo poneva come «definire i rating canonici del roster v0.1», cioè come
+> lavoro di design su un foglio bianco. Misurando, il foglio bianco non c'è: i rating **esistono in due
+> workbook che si contraddicono**, e finché entrambi vivono qualunque generatore ne sceglie uno di fatto.
+
+| ID | Domanda | Perché serve una risposta |
+|---|---|---|
+| `RAD-1` | Quale workbook è **autorità** sui rating `*_1_10` del roster v0.1, e l'altro lato viene ritirato o dichiarato derivato? | Le stesse cinque colonne vivono in due file con contenuti incompatibili. `03_Stats_Base` di [`RefactorTactics_Balance_Matrices_v0.1.xlsx`](balance/RefactorTactics_Balance_Matrices_v0.1.xlsx) dà a Flux, Riva, Bastion e Vektor **gli stessi identici valori** (`6/4/4/2/2`, `Indice_Combat 45.6`, `Budget_Punti 60`, `Delta_Budget 0`); `02_Hero_Stats` di [`RefactorTactics_Characters_Wiki_Data_v0.4.xlsx`](characters/data/RefactorTactics_Characters_Wiki_Data_v0.4.xlsx) li lascia **vuoti**, con `Data_Status: CANONICAL_PARTIAL` e la nota «non sono definiti nel catalogo v0.1» — cioè ha già preso la posizione opposta. ⚠️ Quattro righe identiche in **ogni** colonna sono un default mai differenziato, non quattro profili che si somigliano; e nello stesso foglio i 38 *candidate* hanno valori distinti (Aurora `7/6/10/6/5`, Countess `8/8/5/2/2`), quindi un controllo a campione **non** rivela il problema: sono placeholder esattamente le righe che servono alla v0.1. Chi risolve decide anche se il criterio «colonna costante sul roster target ⇒ non è una fonte» diventa un controllo del validator |
+| `RAD-2` | La **rubrica** che converte kit e stats in un rating `1..10`: quali grandezze entrano, con quale peso | Senza rubrica ogni rating è un'opinione tracciata, il che è accettabile una volta e insostenibile a ogni rebalance: la domanda «perché Bastion ha Durabilità 8» non ha una risposta riproducibile. Serve almeno per i cinque assi Balance, che sono i primi ad arrivare (D-105). Non blocca `RAD-1`: si può decidere l'autorità prima di sapere come si calcolano i numeri |
+| `RAD-3` | Come si derivano **`offense`, `mobility`, `information`**, che oggi non hanno alcuna fonte | Sono tre assi su sei del Profile Radar — la vista **pubblica** — e non esistono in nessun workbook, catalogo o data asset. Non è una lacuna di valorizzazione ma di **modellazione**: `information` deve comporre reveal, detection, stealth, rumore e tracking in un solo numero, e quella composizione non è mai stata definita. Finché è aperta, D-105 impedisce di generare qualunque Profile Radar (un asse `TBD` non si disegna), il che è l'esito voluto e non un blocco da aggirare |
+| `RAD-4` | Il generatore vive in **Python** accanto a `scripts/`, o introduce una toolchain Node/TypeScript? | Il sorgente propone Node 20 + TypeScript + pnpm. Il repository ha il tooling documentale in **Python** (`scripts/feature_registry.py`, `check-docs-links.py`, `check-docs-symbols.py`, `build-state-matrices-xlsx.py`) — che già legge gli `.xlsx` da cui verrebbero i rating — e il suo unico Node, [`docs/control-center/`](control-center/), è **zero-dependency per scelta dichiarata** («Nessuna dipendenza: la pagina non ha build», test con `node --test`). La proposta aggiungerebbe un package manager, un build step e un albero di dipendenze a un repo che ha evitato tutti e tre, e servirebbe comunque un ponte verso i workbook. ⚠️ Raccomandazione registrata, **non decisa**: Python. Chi decide valuti anche il costo del rendering SVG, che nessuna delle due parti ha misurato |
+| `RAD-5` | Gli SVG generati si **committano**? E se sì, quale gate impedisce che diventino stantii? | Il sorgente li committa in una directory `Generated/` e rimanda il controllo di *stale artifact* al futuro. Nell'intervallo un SVG committato può divergere dai dati che lo hanno prodotto senza che niente lo segnali — e il golden test non copre il caso, perché verifica il **renderer**, non l'aggiornamento degli artefatti. Le uscite sono due: non committarli affatto, oppure trattare il `--check` come parte dell'MVP e non come lavoro futuro |
+
+---
+
 ## Aperte — livello prodotto
 
 Owner: [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) §9. Non bloccano l'MVP tecnico.
