@@ -495,6 +495,39 @@ Vektor, la cui forma `Siege` spegnerebbe la meccanica firma.
 prototipi va **dal più leggero al più invasivo** — `Riva · Flow` non tocca alcun sistema condiviso,
 `Bastion · Bulwark` tocca cover, LOS, collisione e pathing.
 
+### E37 — Radar di personaggio e generatore Wiki · P3
+
+[D-105](../decisions/RT_PDR_00_Decision_Log.md), owner
+[`../characters/spec-radar-profilo-personaggio.md`](../characters/spec-radar-profilo-personaggio.md).
+Due viste radar — **Profile** (sei assi, pubblica) e **Balance** (cinque assi, tuning) — su scala `1..10`, più
+un generatore SVG deterministico che le produce per la Wiki. I rating sono una **vista derivata**: nessuno
+entra nel resolver.
+
+**Non blocca nulla della v0.1** ed è deliberatamente P3: è comunicazione e supporto al bilanciamento, non
+gameplay. Sta qui e non nella roadmap di release perché competerebbe con la consegna.
+
+**L'ordine è invertito rispetto all'intuizione.** Il **Balance** Radar arriva *prima* del Profile pur essendo
+la vista interna: le sue cinque colonne sono già modellate nei workbook, mentre il Profile ha **tre assi su
+sei senza alcuna fonte** — `offense`, `mobility` e `information` non esistono in nessun catalogo o data asset,
+e comporre reveal, detection, stealth, rumore e tracking in un solo numero è modellazione, non valorizzazione
+(`RAD-3`). Cambia l'ordine di lavoro, non quale radar è pubblico.
+
+**Il primo checkpoint non è un'implementazione, è una decisione.** `RAD-1` in
+[`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md): le cinque colonne Balance vivono in **due** workbook che si
+contraddicono sugli stessi quattro eroi — uno assegna a Flux, Riva, Bastion e Vektor valori **identici in ogni
+colonna** (default mai differenziati), l'altro li lascia vuoti dichiarando che non sono canonici. Finché
+entrambi vivono, qualunque generatore ne sceglie uno di fatto e produce output canonico all'aspetto.
+
+⚠️ **Una regola di D-105 ha un effetto immediato che va saputo**: un asse `TBD` non si renderizza come `0` e
+fa fallire la generazione, perché uno zero da dato mancante ha la stessa forma di una debolezza voluta. Ne
+segue che **oggi nessun Profile Radar del roster v0.1 è generabile**. È l'esito voluto — impedisce che quattro
+poligoni inventati diventino canonici passando dalla Wiki — e si scioglie chiudendo `RAD-1` e `RAD-3`, non
+allentando la regola.
+
+**Tracciata su GitHub**: epic [#555](https://github.com/DegrassiAaron/refactor-tactics-main/issues/555), con
+8 checkpoint (`CP 37.1`–`37.8`). Feature: `RT-FEAT-CHAR-RADAR-MODEL`, `RT-FEAT-CHAR-RADAR-RATINGS-V01`
+(`BLOCKED` su `RAD-1`), `RT-FEAT-WIKI-CHART-GENERATOR`.
+
 ---
 
 ## Cosa questo documento non decide
