@@ -310,7 +310,7 @@ su decisione dell'autore, e questa sezione è il registro di cosa è entrato.
 
 **1. Il gate `replay_representable` è nel Feature Registry** (§7A). Aggiunto a `GATE_NAMES` e al gradino
 `DONE` di `derive_status`, accanto a `packaged` e `network_privacy`. Assegnato a tutte le **91** feature:
-**10 `done` · 36 `todo` · 45 `na`**. Il criterio non è a intuito — l'oracolo è `ERTLogCategory` in
+**14 `done` · 32 `todo` · 45 `na`**. Il criterio non è a intuito — l'oracolo è `ERTLogCategory` in
 `RTTurnLog.h` (`Move`, `Combat`, `Fallback`, `Reaction`, `Environment`, `Facing`, `Predictive`): se una
 feature non produce voci in nessuna di quelle sette, il gate è `na`.
 
@@ -318,10 +318,20 @@ feature non produce voci in nessuna di quelle sette, il gate è `na`.
 (`RT-FEAT-TOOL-VALIDATION`, per cui la risposta è `na` senza ambiguità), quindi **nessuno stato è regredito**.
 Un gate nuovo che retrocede metà registry al primo giro non viene creduto, viene aggirato.
 
-✅ **Il gate ha già guadagnato il suo posto**: `RT-FEAT-MAP-HEXGRAPH` è `todo` perché `GraphRevision` è nella
-voce **e nell'hash** (`D-067`) ma **non ha un produttore** — una traccia reale lo porta a `0`, quindi chi
-riproduce non sa in che stato fosse il grafo. È esattamente la differenza fra `log_debug` (l'esito è
-descritto) e `replay_representable` (la voce basta a ricostruirlo), scritta come regola 7 in
+✅ **Il gate ha guadagnato il suo posto, ma non dove questo referto aveva scritto.** La prima assegnazione
+metteva `RT-FEAT-MAP-HEXGRAPH` a `todo` citando la nota di `D-067` — «`GraphRevision` non ha un produttore».
+⚠️ **Quella nota è vera al 2026-08-10 e falsa oggi**: il produttore è atterrato con `908b84b`, e
+`ARTTurnManager::AppendLogEntry` valorizza il campo su **ogni** voce, essendo l'unico `TurnLog.Add` di
+produzione del progetto; `RefactorTactics.TurnLog.GraphRevisionRisesWithinTheTurn` lo pinna sul percorso
+reale. Quattro feature di mappa — grafo, copertura dinamica, porte, ponti — sono state corrette a `done` dopo
+aver verificato **uno per uno** che i rispettivi `ERTEnvironmentOutcome` abbiano un produttore fuori dai test.
+
+Il caso vero è un altro, ed è un ritrovamento: il danno da **`Status.Burning`** nella Cleanup toglie HP e può
+**uccidere**, ma passa da `AddLogEvent` — `UE_LOG` più un buffer circolare troncato — e **non** da
+`AppendLogEntry`. Nessuna voce canonica: chi riproduce vede un'unità perdere HP o sparire senza un evento che
+lo spieghi, e il codice lo ammette (*«l'eliminazione da hazard non ha un beat di playback … la nasconde il
+catch-all di `ConcludeTurn`»*). È la differenza fra `log_debug` (l'esito è **osservabile**) e
+`replay_representable` (la voce **basta a ricostruirlo**), ed è la regola 7 in
 [`../feature-registry.md`](../feature-registry.md) §4.
 
 **2. `REP-1` è in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md)** (§7C): chi può leggere una traccia
@@ -359,10 +369,14 @@ documentale, perché non c'è nulla da possedere.
 
 **Un secondo sorgente della stessa data** — `RefactorTactics_BattleSimulation_UnifiedScenarioHarness_Bot
 ReleaseRoadmap_Claude_2026-08-11.md` — tocca lo Scenario Harness, che è perimetro adiacente a questo (§6,
-D2/D3/D9). Alla prima stesura di questa sezione era ancora untracked e non revisionato; è stato revisionato e
-archiviato **in parallelo lo stesso giorno**, con referto in
-[`battle-simulation-harness-bot-spec-panel-2026-08-11.md`](battle-simulation-harness-bot-spec-panel-2026-08-11.md).
+D2/D3/D9). Alla prima stesura di questa sezione era ancora untracked e non revisionato; **era già stato
+consumato su `main`** lo stesso giorno — archiviato come
+`docs/archive/src/handoff/2026-08-11-battle-simulation-harness-unificato-e-release-bot.md`, con referto in
+`docs/roadmap/plans/bot-ai-consolidamento-2026-08-11.md` §9–§10. I due path sono citati **senza link**:
+questo branch è 130 commit dietro `origin/main` e non li contiene ancora.
 
-⚠️ **I due referti non si sono letti a vicenda**: sono stati scritti in sessioni concorrenti. Due sorgenti
-della stessa data sullo stesso perimetro si sono già contraddetti in passato — prima di applicare qualcosa
-che riguardi l'harness, vanno confrontati.
+⚠️ **Una terza revisione dello stesso sorgente, nata in parallelo su questo branch, è stata rimossa**
+(commit `3bafe28`): scritta su uno stato del tree vecchio di 130 commit, era un duplicato e in tre punti
+falsa — il bot pianifica già su `TeamKnowledge`, `epic: null` su `RT-FEAT-BOT-TACTICAL` è deliberato, e il
+seed corpus del §16 poggia su un RNG che non esiste. Prima di applicare qualcosa che riguardi l'harness
+vale il referto su `main`.
