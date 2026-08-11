@@ -61,23 +61,31 @@ Basic->CooldownTurns = Basic->Def.CooldownTurns; // <-- esiste solo qui
 **NYGARD**: «Il modo di fallimento è silenzioso e cade sul bot, cioè sull'avversario di *ogni* partita
 della v0.1.» Le due letture divergono:
 
-| Chi legge | Campo | Riga |
+| Chi legge | Campo | Dove |
 |---|---|---|
 | **Bot**, generazione candidati d'attacco | `Ability->RangeCells` *(legacy)* | `RTTurnManager.cpp:406`, `:460` |
-| **Resolver**, validazione in esecuzione | `Def.RangeCells` | `RTTurnManager.cpp:1650` |
+| **Resolver**, validazione in esecuzione | `Instance.Def.RangeCells` | `URTActionFallbackLibrary::ValidateInstance` (`RTActionFallbackLibrary.cpp:46-50`), chiamata da `RTTurnManager.cpp:2623` |
+
+E la divergenza **non** viene richiusa dal ponte che il resolver ha già: `RTTurnManager.cpp:2604` ricade
+sul campo legacy soltanto se `ActionId` è vuoto **o** `RangeCells <= 0`. Un attacco base modificato da una
+variante non soddisfa nessuna delle due, quindi valida sulla `Def` giusta — mentre il bot ha pianificato
+sulla vecchia.
 
 Scenario concreto, se `#63` (`E7.4` — Loadout, **OPEN**) cablerà il loadout assegnando solo `->Def`:
 
 - **`Weapon.Precision`** (+1 portata): il bot pianifica alla portata **vecchia, più corta** → non usa mai
   la cella che ha pagato 4 danni per ottenere. Il vantaggio della variante è invisibile a chi la porta.
 - **`Weapon.Impact`** (−1 portata): il bot pianifica alla portata **vecchia, più lunga** → genera un
-  candidato che il resolver poi **rifiuta** con `«fuori portata»` (`:1652`). È un attacco pianificato che
+  candidato che il resolver poi **rifiuta** con `«fuori portata»` (`ERTActionInvalidReason::OutOfRange` →
+  `RTTurnLogLibrary.cpp:138`). È un attacco pianificato che
   fallisce in silenzio — cioè il *pulsante finto* che il catalogo, in `ApplyWeaponVariant:495-497`,
   dichiara esplicitamente di voler evitare.
-- **`Weapon.Overcharge`** (+1 ricarica): il gate `CanUseAbility` (`:405`) legge `AbilityCooldowns`,
-  alimentato dal legacy `Ability->CooldownTurns` (`RTUnit.cpp:491`). Il costo della variante — che è
-  l'intero suo prezzo, `WV-1`/[#510](https://github.com/DegrassiAaron/refactor-tactics-main/issues/510)
-  — non verrebbe mai applicato. `+6` danni gratis.
+- **`Weapon.Overcharge`**: il gate `CanUseAbility` (`:405`) legge `AbilityCooldowns`, alimentato dal
+  legacy `Ability->CooldownTurns` (`RTUnit.cpp:491`). Il costo della variante non verrebbe mai applicato
+  — ed è il caso che [D-090](../../decisions/RT_PDR_00_Decision_Log.md) ha appena reso **più grave**, non
+  meno: chiudendo `WV-1` ha portato il costo a `CooldownDeltaTurns = +2` e il bonus a `+18/+14/+8` per
+  fascia. Senza lo specchio, `Def.CooldownTurns` vale 2 mentre il legacy resta **0**: nessuna ricarica, e
+  fino a **+18 danni gratis** su un attacco `High` invece dei +6 di prima.
 
 **CRISPIN**: «E nessun test diventerebbe rosso. L'helper *fa* la cosa giusta, quindi ogni test verde
 continua a esserlo — sta verificando un ponte che la produzione non attraverserà.»
@@ -161,11 +169,14 @@ Nessuna delle tre tocca un numero di bilanciamento, e nessuna riapre una decisio
 
 Non sono rilievi: sono le uniche cose che questo panel non può decidere.
 
-- **`WV-1`** ([#510](https://github.com/DegrassiAaron/refactor-tactics-main/issues/510)) resta il vincolo
-  che blocca di più: finché «+1 turno di ricarica» non ha semantica, `Weapon.Overcharge` è un vantaggio
-  senza prezzo — ed è la ragione per cui D-089 non l'ha dato come default a nessuno. Il rilievo 2.1
-  aggiunge un dato al problema: nessun eroe ha mai avuto l'attacco base in ricarica, quindi quel percorso
-  **non è mai stato percorso** dal gate `CanUseAbility`.
+- ~~**`WV-1`**~~ **è stata chiusa mentre questo panel era in revisione**, da
+  [D-090](../../decisions/RT_PDR_00_Decision_Log.md) ([#510](https://github.com/DegrassiAaron/refactor-tactics-main/issues/510),
+  PR #518, mergiata quattro minuti prima di questa). La traduzione letterale «+1 turno di ricarica» è
+  stata **scartata perché misurata a costo zero** — `TickCooldowns()` gira nel Cleanup dello stesso turno,
+  quindi `CooldownTurns = 1` significa «ogni turno». Il costo è `+2`, il bonus per fascia `+18/+14/+8`.
+  ⚠️ Questo **non** rilassa il rilievo 2.1: lo aggrava, perché un costo che ora esiste davvero è anche un
+  costo che il campo legacy non applicato manda perduto. E resta vero che nessun eroe ha mai avuto
+  l'attacco base in ricarica: quel percorso del gate `CanUseAbility` **non è mai stato percorso**.
 - **`WV-2`**, le soglie delle fasce, si chiude con una partita e non con un documento — ma D-089 ne
   mostra già l'urgenza: con i delta assoluti di oggi Bastion ha **una sola** scelta sensata su quattro,
   ed è misurato nel corpo della decisione.
