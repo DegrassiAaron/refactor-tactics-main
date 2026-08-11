@@ -3186,6 +3186,12 @@ void ARTTurnManager::ResolveCombat()
 	// finiva nel log indistinguibile da un attacco pianificato: due voci di combattimento identiche per un
 	// colpo scelto in planning e uno arrivato di rimbalzo. Qui l'ActionId c'e' — e' `Reaction->Def.ActionId`,
 	// lo stesso che la voce di categoria `Reaction` porta gia' da CP 5.5.
+	// Fughe di CHI REAGISCE (`SelfReposition`, D-093): raccolte qui e applicate DOPO il ciclo (D-094).
+	// Spostare dentro il ciclo cambierebbe la posizione che le reazioni valutate dopo vedrebbero, e
+	// `Action.Intercept` chiede l'alleato entro 2 celle: l'esito dipenderebbe dall'ordine di `Units`.
+	TArray<ARTUnit*> FleeUnits;
+	TArray<FRTCellId> FleeFrom;   // da CHI ci si allontana: e' anche la sorgente del facing (D-104)
+	TArray<int32> FleeDist;
 	TArray<FName> CounterActionId;
 	TArray<FName> CounterBaseActionId;
 	TArray<int32> CounterPriority;
@@ -3265,6 +3271,17 @@ void ARTTurnManager::ResolveCombat()
 						*EffectTarget->GetName(), Event.Amount));
 					break;
 
+				case ERTActionEffect::SelfReposition:
+					// D-093: chi reagisce si allontana da chi l'ha innescato. Si RACCOGLIE soltanto — vedi
+					// il commento sugli array, D-094.
+					if (TriggeredBy != INDEX_NONE && Units.IsValidIndex(TriggeredBy) && Units[TriggeredBy])
+					{
+						FleeUnits.Add(EffectTarget);
+						FleeFrom.Add(Units[TriggeredBy]->Cell);
+						FleeDist.Add(Event.Amount);
+					}
+					break;
+
 				default:
 					// `Heal`, `Push`, `Pull`, `Status`: nessuna reazione del catalogo v0.1 li dichiara, e
 					// applicarli qui richiederebbe cio' che il pass non ha (una direzione per la spinta, il
@@ -3282,6 +3299,47 @@ void ARTTurnManager::ResolveCombat()
 		// l'unita' dalla voce darebbe l'unita' sbagliata ([D-063]).
 		AppendLogEntry(Entry, Unit);
 		AddLogEvent(FString::Printf(TEXT("%s: %s"), *Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Entry)));
+	}
+
+	// Le FUGHE raccolte sopra si applicano ora, con tutte le reazioni gia' valutate sullo snapshot congelato
+	// (D-094). Prima si calcolano tutte le destinazioni e poi si muove: due unita' che fuggono nello stesso
+	// Blast non devono vedersi a vicenda gia' spostate, altrimenti la seconda troverebbe libera una cella che
+	// la prima sta lasciando e l'esito dipenderebbe dall'ordine.
+	if (FleeUnits.Num() > 0)
+	{
+		TArray<FRTCellId> FleeBlockers;
+		for (ARTUnit* U : Units) { if (IsValid(U) && U->IsAlive()) { FleeBlockers.Add(U->Cell); } }
+
+		TArray<FRTCellId> FleeDest;
+		FleeDest.Reserve(FleeUnits.Num());
+		for (int32 f = 0; f < FleeUnits.Num(); ++f)
+		{
+			ARTUnit* Fleeing = FleeUnits[f];
+			// Stessa geometria della spinta: ci si allontana dalla sorgente e ci si ferma davanti agli stessi
+			// ostacoli. Una fuga non attraversa muri che una spinta non attraversa.
+			FleeDest.Add((IsValid(Fleeing) && Fleeing->IsAlive())
+				? URTHexCombatLibrary::HexKnockbackDestination(
+					FleeFrom[f], Fleeing->Cell, FleeDist[f], Map, FleeBlockers)
+				: FRTCellId());
+		}
+
+		for (int32 f = 0; f < FleeUnits.Num(); ++f)
+		{
+			ARTUnit* Fleeing = FleeUnits[f];
+			if (!IsValid(Fleeing) || !Fleeing->IsAlive()) { continue; }
+			if (FleeDest[f] == Fleeing->Cell)
+			{
+				// Non c'e' dove andare: la reazione e' scattata e ha speso la sua attivazione. E' un esito, e
+				// va detto — altrimenti nel log resta una reazione senza conseguenze e sembra un difetto.
+				AddLogEvent(FString::Printf(TEXT("%s: nessuna cella libera per la fuga"), *Fleeing->GetName()));
+				continue;
+			}
+			// Gli stessi dieci passi della spinta (#541): traccia con causa, hazard attraversati, facing verso
+			// la minaccia (D-104), piano che segue. Una riga, perche' la primitiva esiste.
+			TMap<ARTUnit*, FRTDisplacementCause> FleeCause;
+			FleeCause.Add(Fleeing, FRTDisplacementCause{ FName(TEXT("Reaction.EmergencyDash")), NAME_None, 0 });
+			ApplyForcedDisplacement(Fleeing, FleeDest[f], FleeFrom[f], FleeCause, TEXT("Fuga"), Map);
+		}
 	}
 
 	// Intenti fermati dalla copertura: l'attacco non avviene e il TurnLog ne registra il motivo.

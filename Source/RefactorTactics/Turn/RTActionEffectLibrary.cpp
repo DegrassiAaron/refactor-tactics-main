@@ -51,6 +51,11 @@ TArray<FRTActionEvent> URTActionEffectLibrary::ProduceEvents(const FRTActionInst
 		case ERTActionEffect::Push:
 		case ERTActionEffect::Pull:
 		case ERTActionEffect::DamageReduction:
+		// `SelfReposition` sta qui e non in un ramo suo: la traduzione e' identica — entita' positiva e un
+		// bersaglio che esiste. Cambia CHI e' quel bersaglio, e lo decide il chiamante
+		// (`BuildReactionEvents`), non questa funzione: e' la stessa divisione di responsabilita' che vale
+		// gia' per `Damage` in una reazione, dove il bersaglio e' l'attaccante e non chi la usa.
+		case ERTActionEffect::SelfReposition:
 			if (Spec.Amount <= 0 || Instance.TargetUnitId == INDEX_NONE)
 			{
 				continue; // entita' non positiva o nessun bersaglio: nessun evento da applicare

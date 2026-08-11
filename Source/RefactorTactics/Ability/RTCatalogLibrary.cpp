@@ -353,16 +353,17 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeReactionModules()
 		TEXT("il danno lo subisci tu, e occupa l'unico slot reazione"),
 		{}));
 
-	// ⛔ `Reaction.EmergencyDash` NON e' qui, e non e' una dimenticanza.
+	// `Reaction.EmergencyDash` — ti sposti di 1 quando sei bersagliato. Costruito su `Action.Counter` come
+	// gli altri due: da li' vengono fase, priorita' e `HitByDirectAttack`.
 	//
-	// Il suo trigger esiste (`sei bersagliato` -> `HitByDirectAttack`), quindi la divisione fatta il
-	// 2026-08-11 fra #62 e #505 lo collocava in questa meta'. Ma il suo EFFETTO non e' esprimibile: il
-	// catalogo gli da' `Reposition 1`, cioe' «chi reagisce si sposta», e nessun valore di `ERTActionEffect`
-	// lo dice — `Push` e `Pull` spostano il BERSAGLIO, mai la sorgente. Costruirlo con un effetto vuoto
-	// darebbe un modulo che scatta e non fa niente, cioe' un pulsante finto.
-	//
-	// E' un vincolo su un asse diverso dal trigger, ed e' emerso implementando: sta in #505 insieme agli
-	// altri tre, con la sua ragione — «serve un effetto di auto-spostamento», non «serve un trigger».
+	// Il suo effetto e' `SelfReposition`, nato con D-093 perche' nessun `ERTActionEffect` sapeva spostare la
+	// SORGENTE — `Push` e `Pull` muovono il bersaglio. Chi fugge resta girato verso la minaccia (D-104), e lo
+	// spostamento passa dagli stessi dieci passi della spinta (#541): traccia con causa, hazard attraversati,
+	// facing, piano che segue.
+	Modules.Add(Module(TEXT("Reaction.EmergencyDash"), TEXT("Dash d'emergenza"), TEXT("Action.Counter"),
+		TEXT("ti sposti di una cella quando sei bersagliato, restando fronte a chi ti ha preso di mira"),
+		TEXT("nessun danno e nessuna protezione: sposta soltanto, e se non c'e' dove andare si spreca"),
+		{ FRTActionEffectSpec(ERTActionEffect::SelfReposition, 1) }));
 
 	return Modules;
 }

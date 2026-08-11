@@ -1628,7 +1628,8 @@ features:
       - RefactorTactics.Equipment.PortableCover.CreatesCover
       - RefactorTactics.Equipment.ReactionModule.SingleActivation
       - RefactorTactics.Equipment.CounterShotUsesExistingTrigger
-      - RefactorTactics.Equipment.EmergencyDashIsNotExpressibleYet
+      - RefactorTactics.Equipment.EmergencyDashRepositionsTheReactor
+      - RefactorTactics.Equipment.EmergencyDashMovesTheReactorInPlay
       - RefactorTactics.Equipment.ImpactVariantStacksPush
       - RefactorTactics.Equipment.Gadget.CooldownEnforced
       - RefactorTactics.Equipment.Gadget.NumbersMatchCatalog
