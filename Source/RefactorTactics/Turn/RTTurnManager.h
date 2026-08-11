@@ -11,6 +11,8 @@
 #include "Turn/RTHexSim.h" // FRTHexSnapshot: restituito per valore da MakeCurrentSnapshot
 #include "Turn/RTPacing.h" // FRTPacingSample: telemetria, canale separato dal TurnLog
 #include "Map/RTHexCellData.h" // ERTHexSurface: il terreno dinamico ricorda la superficie originale (CP 8.4)
+#include "Combat/RTCombatResolver.h" // FRTAttack, FRTUnitCombatState: il pass reazioni raccoglie i primi e aggiorna i secondi
+#include "Combat/RTHexCombatLibrary.h" // FRTHexAttackHit/FRTHexAttackIntent: cio' su cui il pass reazioni valuta i trigger
 #include "RTTurnManager.generated.h"
 
 class ARTUnit;
@@ -46,6 +48,38 @@ struct FRTDisplacementCause
 	FName BaseActionId;
 	/** Priorita' intra-fase dell'azione (CP 11.3): con quale precedenza ha risolto. */
 	int32 Priority = 0;
+};
+
+/**
+ * Cio' che il pass delle reazioni RACCOGLIE e che il chiamante applica insieme al resto della propria fase
+ * (CP 5.1, `#505`).
+ *
+ * Una struct e non sette variabili locali perche' il pass smette di essere uno solo: con `D-092` diventa
+ * richiamabile per fase, e sette parametri d'uscita separati sono sette occasioni di passarne uno in meno.
+ * Gli array sono **paralleli** — disallinearli attribuirebbe un contrattacco all'unita' sbagliata, che e' la
+ * stessa classe di difetto gia' costata una correzione a `FRTDisplacementCause` qui sopra.
+ *
+ * Non contiene le FUGHE (`SelfReposition`): quelle il pass le raccoglie e le applica al proprio interno, dopo
+ * aver valutato tutte le reazioni sullo snapshot congelato (`D-094`). Uscire di qui con delle destinazioni da
+ * applicare piu' tardi rimetterebbe in gioco proprio l'ordine che quella decisione toglie di mezzo.
+ */
+struct FRTReactionPassResult
+{
+	/** Riduzione del danno per bersaglio dichiarata dalle reazioni attivate: entra nel delta del PRIMO danno. */
+	TArray<int32> DeflectDelta;
+
+	/** Colpi di ritorno, accodati ai colpi veri della fase. I cinque array che seguono gli sono paralleli. */
+	TArray<FRTAttack> CounterAttacks;
+	/** Cella di chi contrattacca, per il TurnLog. */
+	TArray<FRTCellId> CounterAttackSrc;
+	/** Identita' della reazione che ha prodotto il colpo di ritorno (CP 11.3, `#79`). */
+	TArray<FName> CounterActionId;
+	/** Generica di cui `CounterActionId` e' un profilo, quando la dichiara (D-033). */
+	TArray<FName> CounterBaseActionId;
+	/** Priorita' intra-fase della reazione. */
+	TArray<int32> CounterPriority;
+	/** E CHI contrattacca: una cella non identifica un'unita' ([D-063]). */
+	TArray<ARTUnit*> CounterAttackActors;
 };
 
 USTRUCT()
@@ -349,6 +383,23 @@ protected:
 	 * muore prende un reason code diverso nel TurnLog — quindi e' dichiarato, non lasciato al caso.
 	 */
 	void ResolveEnvironment(URTHexMapAsset* Map);
+
+	/**
+	 * Il pass delle REAZIONI (CP 5.1): per ogni unita' con una reazione pianificata valuta il trigger sui colpi
+	 * gia' raccolti, ne registra l'esito nel TurnLog — sempre, anche la non-attivazione — e traduce gli effetti
+	 * della reazione attivata in cio' che il chiamante applichera' insieme al resto della fase.
+	 *
+	 * **Una funzione e non un blocco dentro `ResolveCombat` perche' con `D-092` i pass diventano due**: uno nel
+	 * Blast e uno nel Cleanup, dove nascono i trigger che non vengono da un colpo. Il secondo chiamante non
+	 * esiste ancora: questa estrazione e' il passo che lo rende possibile, e non cambia il comportamento del
+	 * primo (nessun test e' stato toccato per farla passare).
+	 *
+	 * Le fughe di chi reagisce (`SelfReposition`) si applicano DENTRO, alla fine: e' il punto di `D-094` — tutte
+	 * le reazioni valutate sullo snapshot congelato, poi si muove. Vedi `FRTReactionPassResult` per cosa esce.
+	 */
+	void RunReactionPass(const TArray<ARTUnit*>& Units, TArray<FRTUnitCombatState>& States,
+		const TArray<FRTHexAttackHit>& Hits, const TArray<FRTHexAttackIntent>& Intents,
+		const URTHexMapAsset* Map, FRTReactionPassResult& Out);
 
 	/**
 	 * Colpi predittivi armati nella Prep di QUESTO turno, consumati al boundary del Move (E18).
