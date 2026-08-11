@@ -10,7 +10,8 @@ namespace
 	/** `SlideCells` in coda e con default: solo `Ice` lo valorizza, e li' e' scritto per nome. */
 	FRTTerrainDef MakeTerrain(ERTHexSurface Surface, int32 MoveCost, bool bBlocksDashCharge,
 		bool bBlocksLineOfSight, bool bConductsElectricity, int32 MaxTargetingRangeThrough,
-		TArray<FRTActionEffectSpec> OnEnterEffects, int32 SlideCells = 0, bool bIsFlammable = false)
+		TArray<FRTActionEffectSpec> OnEnterEffects, int32 SlideCells = 0, bool bIsFlammable = false,
+		int32 NoiseDelta = 0)
 	{
 		FRTTerrainDef Def;
 		Def.Surface = Surface;
@@ -22,25 +23,42 @@ namespace
 		Def.OnEnterEffects = MoveTemp(OnEnterEffects);
 		Def.SlideCells = SlideCells;
 		Def.bIsFlammable = bIsFlammable;
+		Def.NoiseDelta = NoiseDelta;
 		return Def;
 	}
 }
 
 TArray<FRTTerrainDef> URTTerrainLibrary::GetTerrainCatalog()
 {
+	// `NoiseDelta` (CP 13.3) e' l'ultimo parametro di ogni riga. Derivazione: `Noise_Mod - 1` dal workbook
+	// (`08_Terreni`), terreno libero = 0. Le due eccezioni sono scritte accanto alla riga che le porta, non in
+	// un commento generale: chi cambia un numero deve leggere li' perche' non e' quello della formula.
 	TArray<FRTTerrainDef> Catalog;
-	Catalog.Add(MakeTerrain(ERTHexSurface::Floor,        1, false, false, false, 0, {}, /*Slide*/ 0, /*Flammable*/ true));
-	Catalog.Add(MakeTerrain(ERTHexSurface::Rough,        2, true,  false, false, 0, {}, /*Slide*/ 0, /*Flammable*/ true));
+	Catalog.Add(MakeTerrain(ERTHexSurface::Floor,        1, false, false, false, 0, {}, /*Slide*/ 0, /*Flammable*/ true,
+		/*NoiseDelta*/ 0));  // TERRAIN_CLEAR (1): e' il riferimento della scala
+	Catalog.Add(MakeTerrain(ERTHexSurface::Rough,        2, true,  false, false, 0, {}, /*Slide*/ 0, /*Flammable*/ true,
+		/*NoiseDelta*/ 1));  // ⚠️ NESSUNA riga nel workbook: deciso +1 (2026-08-11), come il ghiaccio —
+		                     // terreno accidentato, si sente. `TERRAIN_MUD` (3) e' vicino per semantica ma
+		                     // non e' la stessa superficie, e assumerlo sarebbe inventare un numero.
 	Catalog.Add(MakeTerrain(ERTHexSurface::ShallowWater, 2, false, false, true,  0,
-		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Wet, 0) }));
+		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Wet, 0) }, /*Slide*/ 0, /*Flammable*/ false,
+		/*NoiseDelta*/ 2));  // ⚠️ **D-042**: +2, NON il +3 che `Noise_Mod 4` darebbe. Vince il documento
+		                     // sorgente; il workbook resta RESEARCH. Unico punto dove formula e decisione
+		                     // divergono, ed e' pinnato da `Noise.AttenuationBySurface`.
 	Catalog.Add(MakeTerrain(ERTHexSurface::Fire,         2, false, false, false, 0,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 10),
-		  FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Burning, 2) }));
-	Catalog.Add(MakeTerrain(ERTHexSurface::Conductive,   1, false, false, true,  0, {}));
+		  FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Burning, 2) }, /*Slide*/ 0, /*Flammable*/ false,
+		/*NoiseDelta*/ 4));  // TERRAIN_FIRE (5): il fuoco copre quasi tutto
+	Catalog.Add(MakeTerrain(ERTHexSurface::Conductive,   1, false, false, true,  0, {}, /*Slide*/ 0, /*Flammable*/ false,
+		/*NoiseDelta*/ 0));  // ⚠️ NESSUNA riga nel workbook: deciso 0 (2026-08-11). Ha gia' un owner, ed e'
+		                     // elettrico (D-039): il rumore non e' il suo mestiere.
 	Catalog.Add(MakeTerrain(ERTHexSurface::Smoke,        1, false, false, false, 2,
-		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Obscured, 0) }));
-	Catalog.Add(MakeTerrain(ERTHexSurface::Ice,          1, false, false, false, 0, {}, /*SlideCells*/ 1));
-	Catalog.Add(MakeTerrain(ERTHexSurface::HighGround,   1, false, false, false, 0, {}));
+		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Obscured, 0) }, /*Slide*/ 0, /*Flammable*/ false,
+		/*NoiseDelta*/ 0));  // TERRAIN_SMOKE (1): il fumo acceca, non ammutolisce
+	Catalog.Add(MakeTerrain(ERTHexSurface::Ice,          1, false, false, false, 0, {}, /*SlideCells*/ 1,
+		/*Flammable*/ false, /*NoiseDelta*/ 1));  // TERRAIN_ICE (2), e il documento sorgente concorda
+	Catalog.Add(MakeTerrain(ERTHexSurface::HighGround,   1, false, false, false, 0, {}, /*Slide*/ 0,
+		/*Flammable*/ false, /*NoiseDelta*/ 0));  // TERRAIN_HIGH (1)
 	return Catalog;
 }
 

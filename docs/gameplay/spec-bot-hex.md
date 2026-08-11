@@ -123,6 +123,23 @@ A queste il `ARTTurnManager` aggiunge, fuori dalla libreria:
 
 L'ordine di generazione è deterministico.
 
+### 4a. Nessun contatto — la condotta di ricerca
+
+Con la conoscenza parziale nasce un caso che prima non poteva esistere: **la squadra non sa dove sia nessuno**.
+È la condizione normale del primo turno, perché una mappa più larga della vista non mostra lo schieramento
+avversario.
+
+Con `Ctx.Enemies` vuoto lo scoring perde minaccia e avvicinamento, ogni cella vale uguale, e il bot resta
+fermo. Non è «perde il contatto e sbaglia» — che il DoD di #160 ammette: è un bot che **smette di giocare**,
+e due squadre cieche si aspettano finché la partita non scade. L'ha misurato `HexMatch.PlaysToCompletion`
+diventando rosso.
+
+La condotta è la più povera che ristabilisce il contatto: **avvicinarsi al centro della mappa**, che è
+geometria pubblica — zero informazione nascosta. Deterministica (distanza minima dal baricentro, poi
+`StableLess`) e onesta sui propri limiti: non è una ricerca, è un movimento che fa incontrare le squadre.
+I goal veri — `SecureObjective`, `GatherInformation` — sono di [E26](spec-bot-tattico.md) §4, e questo ramo
+è il posto in cui atterreranno.
+
 ## 5. Tie-break — `ChooseBestPlan`
 
 Punteggio massimo; a parità, in quest'ordine:
@@ -143,7 +160,7 @@ Questa sezione è la più importante, perché è quella dove la spec e il DoD de
 | Requisito | Stato reale, misurato il 2026-08-10 |
 |---|---|
 | **Nessun accesso agli intenti nemici nascosti** | ✅ **vero**. `FRTHexBotContext` non contiene intenti: solo posizioni, gittate e HP. Il bot non può leggere il piano avversario perché il tipo non lo trasporta |
-| **Pianifica sulla Team Knowledge della propria squadra** | ❌ **non ancora**. `ARTTurnManager::PlanBots` popola `Ctx.Enemies` da **tutte** le unità nemiche vive (`TeamId != Bot->TeamId && IsAlive()`), senza filtro di percezione. Oggi il bot **vede tutte le posizioni nemiche** |
+| **Pianifica sulla Team Knowledge della propria squadra** | ✅ **vero dal 2026-08-11** (CP 13.5, [#160](https://github.com/DegrassiAaron/refactor-tactics-main/issues/160)). `PlanBots` costruisce `Ctx.Enemies` da `FRTTeamKnowledge` con la **stessa** regola del targeting umano (`ClassifyTarget`): visto → cella e condizione attuali; ricordato → cella dell'ultimo contatto e HP **massimi**, perché la squadra conosce l'identità e non la condizione; ignoto → non esiste. Il gate è `HexBotPlay.HiddenEnemyFairness`, e cade se l'onniscienza rientra |
 | **Tiene conto del facing e dell'arco frontale** | ❌ **non ancora**. `ScorePlan` non legge il facing: né il proprio, né quello dei nemici. La minaccia è calcolata su gittata + LOS, senza cono |
 | **Ha una politica di reazione esplicita** | ❌ **non ancora**. Il bot non arma reazioni e non dichiara un regime |
 | **Validato sotto stress 4v4** | ❌ **non ancora**. La suite lo esercita a 2v2 |
@@ -157,14 +174,21 @@ La premessa del bot cambia **tre volte**. Questa spec è scritta sapendo quali s
 
 | Epic | Cosa cambia | Sezioni di questa spec |
 |---|---|---|
-| **E13** — conoscenza parziale | `Ctx.Enemies` smette di essere «tutti i nemici vivi» e diventa la Team Knowledge: posizioni note, contatti incerti, ultimo contatto. Il bot dovrà decidere **anche** cosa fare di un contatto `Incerto` | §6 (riga Team Knowledge) e §3c: la minaccia si calcola su ciò che si **sa**, non su ciò che c'è |
+| ~~**E13**~~ — conoscenza parziale ✅ **fatta** | `Ctx.Enemies` smette di essere «tutti i nemici vivi» e diventa la Team Knowledge: posizioni note, contatti incerti, ultimo contatto. Il bot dovrà decidere **anche** cosa fare di un contatto `Incerto` | §6 (riga Team Knowledge) e §3c: la minaccia si calcola su ciò che si **sa**, non su ciò che c'è |
 | **E16** — facing e arco frontale | entra il cono: `ScorePlan` dovrà pesare da dove si è **visti** e da che lato si è **scoperti** (ADR-0005 §4a: fuori dall'arco frontale cadono −10 di copertura e −15 di `Guard`). Con [ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md) si aggiunge il **budget di pivot**: il bot deve scegliere celle da cui può assumere un orientamento utile, altrimenti pianifica facing che non può ottenere | §3c (minaccia), §4 (le candidate acquistano una dimensione: cella **più** facing) |
 | **E14** — reazioni | il bot dovrà armare reazioni e rispondere alle finestre `AllowedResponses ≥ 2` | §6 (riga reaction policy) — oggi la spec non ha una §dedicata perché non c'è nulla da descrivere |
 | **E17** — stress 4v4 | il numero di candidate cresce col quadrato delle unità; il tie-break e il determinismo vanno riverificati a scala maggiore | §4, §5 |
 
+> **Dal 2026-08-11 le quattro caselle hanno un owner.** Prima erano quattro promesse senza un documento che
+> le possedesse — il registry stesso lo dichiarava, «citato in `roadmap-post-v0.1.md` ma **senza owner
+> documentale proprio**». Ora la forma del bot che verrà sta in
+> [`spec-bot-tattico.md`](spec-bot-tattico.md), che fissa i confini (`D-095`…`D-099`) senza descrivere
+> codice che esiste. Questa spec **non cambia**: continua a descrivere il bot di oggi, ed è la sua §6 —
+> quella che dice cosa il bot *non* sa — a restare la misura di quanta distanza ci sia fra i due documenti.
+
 ## 8. Evidenza — i test che esistono oggi
 
-**25 test**, in due file — 18 + 7, contati sulle macro `IMPLEMENT_*_AUTOMATION_TEST`. Sono l'unica prova di
+**29 test**, in due file — 18 + 11, misurati sul branch (`grep -c 'RefactorTactics.HexBot\.'` e `…HexBotPlay\.`), non contati a memoria. Sono l'unica prova di
 ciò che questa spec afferma.
 
 > ⚠️ *Rettifica del 2026-08-10 (review post-merge)*: la prima stesura diceva «26 test … 18 + 8». I nomi
@@ -206,6 +230,10 @@ ciò che questa spec afferma.
 | `UsesSupportWhenHurt` | il supporto entra quando serve |
 | `PlanDoesNotBlastDyingAlly` | il collaterale non uccide il compagno |
 | `WThreatTuning` | la scala di `WThreat` è esercitata, non assunta |
+| `HiddenEnemyFairness` | **il canary**: due partite identiche in ciò che la squadra sa e diverse in ciò che non sa producono lo **stesso** piano |
+| `PlansOnPartialKnowledge` | il bot non bersaglia un ignoto **nemmeno se è a portata e quasi morto** |
+| `SeeksContactWithoutKnowledge` | senza nessun contatto il bot **cerca** invece di fermarsi |
+| `ActsOnLastKnownCell` | dopo **due** osservazioni il bot agisce sul **ricordo**, non sulla posizione vera — e' il solo test che raggiunge `CellOnly` |
 
 > **Da dove viene lo standoff.** Il kiting è un comportamento del **bot**, non una caratteristica
 > dell'eroe: un'unità che muove il giocatore non lo consulta mai. Per questo lo standoff non è un campo
@@ -227,6 +255,7 @@ bot legge il **catalogo**, non i nomi.
 ## 10. Riferimenti
 
 - Codice: `Source/RefactorTactics/Bot/RTHexBotLibrary.{h,cpp}` · consumatore: `ARTTurnManager::PlanBots`
+- Il bot che verrà: [`spec-bot-tattico.md`](spec-bot-tattico.md) — Team Planner, belief, reazioni (E13/E26/E27/E28)
 - Storia: [`../technical/h6-5-hex-bot-spec.md`](../technical/h6-5-hex-bot-spec.md) (`AS-BUILT` H6.5)
 - Architettura: [`../technical/architettura-codice.md`](../technical/architettura-codice.md)
 - Wiki, lato giocatore: [`avversario-bot` (Wiki)](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/avversario-bot)

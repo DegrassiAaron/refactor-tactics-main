@@ -155,6 +155,23 @@ struct FRTScenarioUnit
 
 	UPROPERTY()
 	FRTCellId Cell;
+
+	/**
+	 * Da che parte l'unita' guarda quando lo scenario comincia. Default `E`, che e' lo stesso default di
+	 * `ARTUnit`: omettere il campo lascia il gioco com'era.
+	 *
+	 * ⚠️ **E' dato di PIAZZAMENTO, non una rotazione dichiarata.** La distinzione conta: la capability
+	 * `DeclaredRotation` resta indisponibile (D-020, #291) perche' dichiarare una rotazione IN PIANIFICAZIONE
+	 * e' una mossa che il giocatore ancora non ha modo di chiedere, e darla all'harness lo renderebbe piu'
+	 * capace del gioco. Dire dove una figura guarda quando la si posa sul tavolo e' invece la stessa classe di
+	 * `cell` — nessuno «dichiara» di stare in una cella, ci si sta e basta.
+	 *
+	 * Serve da CP 13.2: da quando il targeting consuma la conoscenza, l'orientamento decide COSA la squadra
+	 * vede, quindi uno scenario che non potesse esprimerlo non potrebbe descrivere un tiratore che guarda il
+	 * proprio bersaglio.
+	 */
+	UPROPERTY()
+	ERTHexDirection Facing = ERTHexDirection::E;
 };
 
 /**

@@ -317,4 +317,63 @@ bool FRTVisionPermutationInvariantTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * La vista **attraversa le quote**, e questo test esiste perche' per un po' non lo faceva.
+ *
+ * `VisibleCells` costruiva i candidati con `URTHexLibrary::HexArea`, che cabla `Center.Layer`: l'area era
+ * piatta sulla quota dell'osservatore, e tutto cio' che stava su un altro piano risultava invisibile. Su una
+ * mappa esagonale MULTILIVELLO — che e' il substrato della v0.1, non un caso limite — significava che nessuna
+ * squadra vedeva mai il ponte sopra la testa ne' il fondo sotto.
+ *
+ * Il difetto e' rimasto invisibile finche' nessuno **consumava** la vista: CP 13.2 l'ha reso fatale, perche'
+ * da li' un bersaglio non visto non e' bersagliabile e ogni ingaggio fra piani diversi diventava illegale.
+ * E' il difetto ricorrente di questo repository visto dall'altro lato: non un dato che nessuno legge, ma un
+ * dato sbagliato che nessuno leggeva **ancora**.
+ *
+ * La regola non e' nuova e non concede niente alla verticalita': `HasLineOfSight` e `HexDistance` il layer
+ * non lo guardano gia' oggi: la linea di tiro si valuta sulla proiezione esagonale. Erano la vista e il tiro
+ * a dire due cose diverse sullo stesso spazio. High Ground resta senza bonus numerico alla vista (canone
+ * v0.1) — qui non si aggiunge un vantaggio, si toglie una cecita' che nessuna decisione aveva stabilito.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPerceptionSeesAcrossLayersTest,
+	"RefactorTactics.Vision.SeesAcrossLayers",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPerceptionSeesAcrossLayersTest::RunTest(const FString&)
+{
+	// Due piani sovrapposti, entrambi pieni: e' la forma di una mappa con un ponte o un ballatoio.
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+	for (int32 Layer = 0; Layer <= 1; ++Layer)
+	{
+		for (const FRTCellId& Flat : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 5))
+		{
+			Map->AddOrUpdateCell(FRTHexCellData(FRTCellId(Flat.X, Flat.Y, Layer)));
+		}
+	}
+	Map->SortCells();
+
+	const FRTPerceiver Observer = Watcher(FRTCellId(0, 0, 0), ERTHexDirection::E, /*VisionRange*/ 5);
+	const TArray<FRTCellId> Seen = URTPerceptionLibrary::VisibleCells(Map, Observer);
+
+	// Premessa: sul PROPRIO piano si vede, e questo funzionava anche prima. Senza la premessa un fallimento
+	// qui sotto non distinguerebbe «non vede di sopra» da «non vede affatto».
+	if (!TestTrue(TEXT("premessa: vede sul proprio piano"), Seen.Contains(FRTCellId(3, 0, 0))))
+	{
+		return false;
+	}
+
+	// Ravvicinata (entro 2 celle, ogni direzione) e arco frontale, entrambe sul piano DI SOPRA.
+	TestTrue(TEXT("vede la cella adiacente di sopra"), Seen.Contains(FRTCellId(1, 0, 1)));
+	TestTrue(TEXT("vede nel proprio arco frontale di sopra"), Seen.Contains(FRTCellId(3, 0, 1)));
+
+	// E la quota non regala nulla: cio' che e' fuori dall'arco resta invisibile su OGNI piano. Senza questo
+	// controllo il test passerebbe anche con una vista che ha smesso di filtrare.
+	TestFalse(TEXT("dietro le spalle non si vede, nemmeno di sopra"), Seen.Contains(FRTCellId(-4, 0, 1)));
+	TestFalse(TEXT("dietro le spalle non si vede, nemmeno sul proprio piano"), Seen.Contains(FRTCellId(-4, 0, 0)));
+
+	// Una cella che la mappa NON contiene non compare, anche se cadrebbe nell'arco: i candidati sono le celle
+	// che esistono, non un'area generata. E' la differenza che il difetto aveva reso invisibile.
+	TestFalse(TEXT("una quota inesistente non si inventa"), Seen.Contains(FRTCellId(2, 0, 7)));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

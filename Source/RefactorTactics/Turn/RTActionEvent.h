@@ -78,7 +78,24 @@ enum class ERTActionEffect : uint8
 	 * semanticamente da `Interact`» e [D-025] lo ha confermato. Lo Stable ID resta interpretabile in lettura
 	 * (`URTCatalogLibrary::ResolveLegacyActionId`), ma non e' piu' il nome di un'azione che qualcuno userera'.
 	 */
-	SetDoorState
+	SetDoorState,
+
+	/**
+	 * Sposta **chi agisce**, non il bersaglio: la sorgente arretra di `Amount` celle allontanandosi da chi
+	 * l'ha innescata (D-093, CP 7.5).
+	 *
+	 * Esiste perche' `Push` e `Pull` muovono il `TargetUnitId` e **nessun effetto muoveva la sorgente** — una
+	 * invariante di fatto del registry, mai decisa, che teneva fuori dal gioco `Reaction.EmergencyDash` e
+	 * `Reaction.HazardEscape`, i cui esiti sono entrambi «chi reagisce si sposta».
+	 *
+	 * ⚠️ **In coda all'enum, mai in mezzo**: i valori entrano nel TurnLog serializzato, e inserirlo prima di
+	 * `SetDoorState` rinumererebbe una traccia gia' scritta.
+	 *
+	 * La direzione non e' un parametro: e' la linea da chi ha innescato verso chi reagisce, la stessa che
+	 * `URTHexCombatLibrary::HexKnockbackDestination` gia' calcola per le spinte — quindi si ferma davanti
+	 * agli stessi ostacoli, e non serve una seconda geometria dello spostamento.
+	 */
+	SelfReposition
 };
 
 /**

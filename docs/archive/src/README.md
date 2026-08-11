@@ -2,11 +2,7 @@
 
 > `HISTORICAL` · **Materiale NON autorevole** · **Primo lotto archiviato il 2026-08-08**
 >
-> I **47** documenti in questa cartella sono i **sorgenti** da cui è nata parte della documentazione normativa.
-> *(misurato il 2026-08-11 con il comando in fondo a questa intestazione, non incrementato a mano: era fermo a
-> «40». ⚠️ La tabella `handoff/` ne elenca comunque meno del misurato: **tre** sorgenti del 2026-08-10 sono sul
-> disco senza una riga d'indice — `2026-08-10-baseaction-signatures-brace-overwatch.md`,
-> `2026-08-10-facing-consolidation.md`, `2026-08-10-overwatch-runtime-lifecycle-watch-reposition.md`.)*
+> I **49** documenti in questa cartella sono i **sorgenti** da cui è nata parte della documentazione normativa.
 > Il primo lotto era in [`../../src/`](../../src/); ogni sorgente si sposta qui quando un owner documentale lo
 > ha recepito. Restano per **provenienza**: servono a ricostruire *da dove* è nata una decisione, non a deciderla.
 >
@@ -23,11 +19,33 @@
 > `RT_Common_Actions_Master_Consolidation_v0.1.md`, **non è qui** perché non è ancora recepito, e il
 > quattordicesimo era il duplicato di un kit già archiviato.
 >
+> ➕ **Dal 2026-08-11 c'è anche l'handoff Bot/AI** `2026-08-11-bot-ai-team-planner-belief-e-tracking.md`, con
+> l'esito della revisione in testa: quattro delle sue premesse di stato erano false al momento in cui è stato
+> scritto. Referto: [`../../roadmap/plans/bot-ai-consolidamento-2026-08-11.md`](../../roadmap/plans/bot-ai-consolidamento-2026-08-11.md).
+>
 > ⚠️ **Il conteggio era già sbagliato prima del 2026-08-09**: l'intestazione diceva «25» mentre le sue stesse
 > tabelle elencavano **26** righe. Il numero qui sopra è **misurato**
-> (`ls docs/archive/src/{design,handoff,audit}/*.md | wc -l` → 15 + 30 + 2), non incrementato a mano — che è
-> il modo in cui era andato fuori sincrono. *(⚠️ Gli addendi erano rimasti «15 + 28 + 2» = 45 mentre il totale
-> diceva 47: il totale era giusto, la scomposizione no. Rimisurati il 2026-08-11 con lo stesso comando.)*
+> (`ls docs/archive/src/{design,handoff,audit}/*.md | wc -l` → 15 + 32 + 2), non incrementato a mano — che è
+> il modo in cui era andato fuori sincrono.
+>
+> ⚠️ **Ed era andato fuori sincrono di nuovo, esattamente come la nota qui sopra descrive.** Il 2026-08-11
+> l'intestazione diceva «40» e la formula «15 + 28 + 2» (cioè 45), mentre i file erano **46**: due numeri
+> sbagliati in due modi diversi, nello stesso paragrafo che spiega perché non si contano a mano.
+>
+> ⚠️ **E il consolidamento che li correggeva ha sbagliato a sua volta, nello stesso paragrafo.** Archiviando
+> il secondo handoff ha scritto «49 · 15 + 32 + 2» invece di **48 · 15 + 31 + 2**: il numero è stato
+> *incrementato* invece che *misurato*, che è la cosa precisa contro cui questo riquadro mette in guardia.
+> Preso in code review. La lezione non regge da sola — la formula c'era, e nessuno l'ha eseguita — quindi
+> vale la riga operativa: **esegui il comando, non aggiungere uno.** Rimisurato il 2026-08-11.
+>
+> ⚠️ **Quarta volta, e stavolta il numero l'ha rotto un `merge`.** Il 2026-08-12, mergiando `main` in
+> `feat/hex-layer-focus-view`, questo paragrafo è stato **l'unico conflitto documentale reale** dei sei: un
+> lato diceva «47 · 15 + 30 + 2», l'altro «48 · 15 + 31 + 2», ed **erano sbagliati entrambi** — sui due rami
+> insieme i file sono **49**, perché il ramo portava
+> [`handoff/2026-08-11-five-lane-roadmap-editor-replay.md`](handoff/2026-08-11-five-lane-roadmap-editor-replay.md)
+> che `main` non aveva. Un totale scritto a mano non ha un lato giusto da scegliere: **si rimisura sull'albero
+> mergiato**, che è ciò che è stato fatto qui. La riga d'indice di quel file c'era già, quindi la tabella è
+> completa.
 
 **Se cerchi la regola, non sei nel posto giusto**: la colonna «Recepito da» dice chi la possiede oggi.
 In caso di conflitto prevalgono [`../../product/piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md),
@@ -94,6 +112,8 @@ dove è finita quella parte che è sopravvissuta al filtro.
 | [`2026-08-08-chat-cleanup-tracker.md`](handoff/2026-08-08-chat-cleanup-tracker.md) | *Meta* — tracker del progetto ChatGPT | ⛔ nessun owner: **sette dei nove «conflitti aperti» che elenca erano già chiusi**. Citato dal triage §4 |
 | [`2026-08-08-chat-cleanup-tracker-prima-versione.md`](handoff/2026-08-08-chat-cleanup-tracker-prima-versione.md) | *Meta* — la stessa cosa, una versione prima | ⛔ da ignorare: la seconda copia è più recente. Le due erano indistinguibili per nome |
 | [`2026-08-08-final-chat-cleanup-plan.md`](handoff/2026-08-08-final-chat-cleanup-plan.md) | *Meta* — piano di chiusura delle conversazioni | ⛔ riguarda il progetto ChatGPT, non il repository |
+| [`2026-08-11-bot-ai-team-planner-belief-e-tracking.md`](handoff/2026-08-11-bot-ai-team-planner-belief-e-tracking.md) | Bot/AI: team planner, belief, tracking | [`spec-bot-tattico.md`](../../gameplay/spec-bot-tattico.md) · `D-095`…`D-099` · [referto](../../roadmap/plans/bot-ai-consolidamento-2026-08-11.md). ⚠️ **Quattro premesse di stato false**: nove feature `RT-FEAT-BOT-*` che non esistono, sei Epic «da creare» che esistevano già |
+| [`2026-08-11-battle-simulation-harness-unificato-e-release-bot.md`](handoff/2026-08-11-battle-simulation-harness-unificato-e-release-bot.md) | Battle Simulation, harness unificato, release del bot | [`test-e-diagnosi.md`](../../technical/test-e-diagnosi.md) §3-bis/3-ter · `D-101`, `D-102` · [referto](../../roadmap/plans/bot-ai-consolidamento-2026-08-11.md) §9. ✅ **Il meglio calibrato dei due**: nomina i Feature ID e le Epic reali, e dice da sé di aggiornarli invece di moltiplicarli |
 
 > ⬜ **Manca il tredicesimo.** `RT_Common_Actions_Master_Consolidation_v0.1.md` è ancora in
 > `docs/archive/consolidazione-chat-openai/`, **untracked e non recepito**: la decisione che lo bloccava è
@@ -107,6 +127,18 @@ dove è finita quella parte che è sopravvissuta al filtro.
 |---|---|---|
 | [`2026-08-08-docs-gameplay.md`](audit/2026-08-08-docs-gameplay.md) | Audit di `gameplay/` + piano di consolidamento | [`CHANGELOG_DOCUMENTATION.md`](../../CHANGELOG_DOCUMENTATION.md), Decision Log |
 | [`2026-08-08-docs-non-gameplay-v2.md`](audit/2026-08-08-docs-non-gameplay-v2.md) | Audit del resto di `docs/` | [`CHANGELOG_DOCUMENTATION.md`](../../CHANGELOG_DOCUMENTATION.md), Decision Log |
+
+## Radice — sorgenti senza cartella
+
+| File | Oggetto | Recepito da |
+|---|---|---|
+| [`RefactorTactics_WeaponVariants_Claude_Consolidation.md`](RefactorTactics_WeaponVariants_Claude_Consolidation.md) | Varianti d'arma, affinità eroe/variante, fasce di danno | [D-085](../../decisions/RT_PDR_00_Decision_Log.md)…[D-088](../../decisions/RT_PDR_00_Decision_Log.md) (le quattro `Locked`) · `WV-1`…`WV-5` in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) · catalogo owner [`RT_EquipmentCatalog_v0.1.md`](../../balance/RT_EquipmentCatalog_v0.1.md). Revisione dell'esito: [`weapon-variants-spec-panel-2026-08-11.md`](../../roadmap/plans/weapon-variants-spec-panel-2026-08-11.md) — le §18–§29 **non** sono state applicate, costruite su una fotografia più arretrata del repository stesso |
+
+> ⚠️ **Il conteggio in testa è alla deriva**: la riga 5 dichiara **40** documenti, ma la cartella ne
+> contiene **47** (`find docs/archive/src -name '*.md' ! -name README.md | wc -l`). Lo scarto è
+> **precedente** a questa riga e non è stato corretto qui: non è chiaro se `40` contasse un
+> sottoinsieme deliberato, e riscrivere un numero in un indice owner senza saperlo è il modo di
+> sostituire una deriva nota con una falsa precisione.
 
 ## Nota sui path interni
 

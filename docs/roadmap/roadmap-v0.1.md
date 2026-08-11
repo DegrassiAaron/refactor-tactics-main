@@ -106,15 +106,15 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 | **Obiettivi dinamici** | — | 🟡 la partita **finisce** per obiettivo (`Match.EndsOnObjective`); **nessun oggetto da attivare** in mappa |
 | **Comandi debug `rt.Debug.*`** | `Map/RTHexOverlayConsole.cpp`, `Turn/RTPacingConsole.cpp` | ✅ `rt.Debug.DrawCells` · `rt.Debug.Pacing` |
 | **Scenario Test Harness** | `ScenarioHarness/*` | ✅ 5 scenari, console `rt.Test.*`, auto-run via CVar, `result.json` |
-| **Conoscenza parziale (vista/udito)** | — | ⏳ la vista è una statistica a catalogo che non decide nulla (E13) |
-| **Finestre di reazione interattive** | — | ⏳ ADR-0004 accettato, nessun codice (E14) |
+| **Conoscenza parziale (vista/udito)** | — | 🟡 la vista **decide** da CP 13.2: niente bersagli ignoti alla squadra. ⏳ restano il rumore, e bot/HUD che non la consumano (E13) |
+| **Finestre di reazione interattive** | `Turn/RTReactionOpportunityTypes.*` | 🟡 l'opportunity ha **identità** (CP 14.3) e l'Overwatch **la produce** a ogni micro-step (CP 14.4); ⏳ nessuna finestra viva: il resolver non chiede ancora niente (E14.5) |
 | **Facing come stato di gioco** | `Turn/RTFacingLibrary.*`, `Unit/RTUnit.h`, `Combat/RTHexCombatLibrary.*` | ✅ E16 chiusa il 2026-08-09: derivato da Move e Dash, riorientato dal bersaglio, in snapshot/TurnLog/hash, e l'emisfero posteriore annulla copertura e `Guard` |
 | **Scenario showcase e golden replay** | `Tests/` (`ShowcaseRelay.*`) | 🟡 **iniziata**: fixture stabile e scenario lite deterministico |
 
 **Suite automatica**: **si misura, non si cita — e da qui in avanti nemmeno si scrive.**
 
 <!-- RT_SUITE_COUNT:BEGIN -->
-**642 test unici in 85 file** — misurati su `e6ece62`.
+**701 test unici in 95 file** — misurati su `fc99e46`.
 
 Generato da `python scripts/feature_registry.py suite`: **non si aggiorna a mano**. Era scritto a mano in due documenti ed è divergito cinque volte.
 
@@ -124,22 +124,22 @@ Generato da `python scripts/feature_registry.py suite`: **non si aggiorna a mano
 | `Actions.*` | 71 | Ordine per priorità, permutazione-invarianza, fallback, mappatura di fase |
 | `Terrain.*` · `Status.*` · `Environment.*` | 39 | Superfici, stati temporanei, propagazione elettrica, fuoco/acqua |
 | `Combat.*` · `HexCombat.*` | 39 | Danno dopo scudo, forme, LOS, niente fuoco amico |
-| `Reactions.*` | 27 | Attivazione singola, trigger puro, reazioni componibili, privacy |
+| `Reactions.*` | 30 | Attivazione singola, trigger puro, reazioni componibili, privacy |
 | `HexSim.*` | 28 | Snapshot, budget, collisioni simultanee, **replay divergence 0** |
 | `Match*` (allestimento, formato, fine partita) | 32 | Le tre vie di fine partita e il `RoundLimit` da formato |
 | `Heroes.*` | 32 | I 4 eroi corrispondono al catalogo, trade-off delle varianti |
 | `TurnLog.*` | 48 | Hash permutazione-invariante, serializzazione versionata, checksum |
 | `Scenario.*` · `ScenarioIndex.*` | 56 | Harness: PASS/FAIL/ERROR/**BLOCKED**, identità e tag, niente bypass |
 | `Structures.*` | 21 | Porte come bordo (E9.3), ponti come arco (E9.4) |
-| `Playback.*` · `Preview.*` · `PlayerInput.*` · `ShowcaseRelay.*` · `Camera.*` | 23 | Presentazione e input: non decidono, riproducono |
-| `Unit.*` · `Turn.*` · `Simulation.*` · `Movement.*` | 26 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
+| `Playback.*` · `Preview.*` · `PlayerInput.*` · `ShowcaseRelay.*` · `Camera.*` | 24 | Presentazione e input: non decidono, riproducono |
+| `Unit.*` · `Turn.*` · `Simulation.*` · `Movement.*` | 27 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
 | `Cover.*` | 20 | Copertura bassa e alta, bordi, danno a struttura e distruzione |
 | `Catalog.*` | 9 | Invarianti del catalogo: solo interi, slot dichiarati, ID stabili |
 | `Pacing.*` | 7 | Pacing del turno misurato |
-| `Perf.*` | 2 | Path mediana **0,025 ms** · resolver **0,41 ms/turno** |
-| **totale** | **579** | |
+| `Perf.*` | 3 | Path mediana **0,025 ms** · resolver **0,41 ms/turno** |
+| **totale** | **585** | |
 
-> ⚠️ Test fuori da ogni area dichiarata: `RefactorTactics.Arena.CostBiteNeedsExpensiveCellAndOverBudget`, `RefactorTactics.Arena.CoverageNeedsBlockedSightNotJustBlockingCells`, `RefactorTactics.Arena.DerivedSpawnsMatchMatchSetup`, `RefactorTactics.Arena.GeneratedTestArenaIsMeasurable`, `RefactorTactics.Arena.TwoRoutesNeedDisjointSimilarCostDifferentExposure`, `RefactorTactics.Arena.VerdictIsIndependentOfCellOrder`, `RefactorTactics.Door.ChangeCarriesActor`, `RefactorTactics.Equipment.PortableCover.CreatesCover`
+> ⚠️ Test fuori da ogni area dichiarata: `RefactorTactics.Arena.ArenaV01MeetsAllThreeCriteria`, `RefactorTactics.Arena.CostBiteNeedsExpensiveCellAndOverBudget`, `RefactorTactics.Arena.CoverageNeedsBlockedSightNotJustBlockingCells`, `RefactorTactics.Arena.DerivedSpawnsMatchMatchSetup`, `RefactorTactics.Arena.GeneratedTestArenaIsMeasurable`, `RefactorTactics.Arena.TwoRoutesNeedDisjointSimilarCostDifferentExposure`, `RefactorTactics.Arena.VerdictIsIndependentOfCellOrder`, `RefactorTactics.Door.ChangeCarriesActor`
 <!-- RT_SUITE_COUNT:END -->
 
 > Questo numero è già stato sbagliato quattro volte, e la storia vale più della cifra: due viste sono arrivate
@@ -164,17 +164,17 @@ Evidenza = i **nomi dei test**, che sono la prova di ciò che esiste:
 | **E4** Motore azioni a priorità | ✅ **chiusa** | 58 test `Actions.*` + `Fallback.*` — ordine per priorità, permutazione-invarianza, collisioni senza bias di Player ID |
 | **E5** Reazioni | ✅ **chiusa** | 27 test `Reactions.*` — attivazione singola, nessuna attesa nel resolver, `Intercept`, reazioni componibili |
 | **E6** Roster 4 eroi | ✅ **chiusa** | 25 test `Heroes.*` — i quattro eroi corrispondono al catalogo; **tre reazioni su cinque** cablate, `InterceptShot`/`FlowReaction` rinviate |
-| **E7** Equipaggiamento e loadout | ⏳ **assente** | nessun test `Equipment.*` |
+| **E7** Equipaggiamento e loadout | 🟡 **CP 7.1 chiuso** | 5 test `Equipment.*` — le **sei varianti d'arma** esistono, e il loro trade-off è un **numero** e non solo prosa: `URTEquipmentData` porta `DamageDelta`/`RangeDeltaCells`/`CooldownDeltaTurns`/`AddedEffects`, `ApplyWeaponVariant` li somma all'attacco base dell'eroe (mai valori assoluti: la variante non sa quale arma modifica) e il validator rifiuta una variante che non paghi in almeno uno dei tre. `Equipment.SplitHasNoConsumerYet` pinna il limite dichiarato: il motore v0.1 **non ha cardinalità dei bersagli**, quindi `Weapon.Split` in partita è solo il suo svantaggio · ⏳ **CP 7.2/7.3 sono checkpoint di MOTORE, non di catalogo**: dei 7 moduli di reazione solo 4 hanno un trigger che esiste (`HitByDirectAttack`, `AllyHitByDirectAttack`), mentre `HazardEscape`, `Cleanse` e `Anchor` ne chiedono tre che il motore non ha — e il test `Anchor.CancelsPush` del DoD non è scrivibile finché non esistono · ⏳ CP 7.4 |
 | **E8** Terreni, stati e ambiente | ✅ **chiusa** | 39 test `Terrain.*` · `Status.*` · `Environment.*` — superfici, stati temporanei, propagazione elettrica, fuoco/acqua, terreno dinamico |
 | **E9** Coperture e strutture | ✅ **chiusa** | 15 test `Cover.*` — bassa (riduzione per bordo, decade dal lato sbagliato), alta (nega vista **e** passo nei due versi), distruzione con revisione e riapertura della LOS · 10 test `Structures.Door.*` + 3 `HexMap.Door*` — la porta è un **bordo** (formato mappa **v4**), letta dallo stesso `BlocksTraversal` di muri e coperture, e un movimento già pianificato si **ferma** davanti a una porta chiusa a metà turno · 7 test `Structures.Bridge.*` + 3 `HexMap.Arc*` — il ponte è un **arco**, non un bordo (CP 9.4) · **CP 9.5 (2026-08-09)**: le coperture si **erigono e si spostano in partita** e scadono nel Cleanup — `Structures.KineticPanel.*`, `Actions.CreateCover.*`, `Heroes.Bastion.{KineticPanelVariantApplied, Reconfigure*}`, `Equipment.PortableCover.*`, e `Spec.Cover.TemporaryCoverExpires` da `BLOCKED` a `PASS` |
 | **E10** Obiettivi dinamici e fine partita | 🟡 **CP 10.3 chiuso** | 27 test `Match*.*` — fine partita a tre vie, `RoundLimit` da formato, pareggio dichiarato, fallback di formato osservabile · ⏳ nessun oggetto da attivare in mappa |
 | **E11** HUD, log e debug | 🟡 **CP 11.3 chiuso nel codice** | 4 `Preview.*`, 4 `PlayerInput.*`, 8 `Playback.*`; console `rt.Debug.DrawCells` e `rt.Debug.Pacing` esistono · **CP 11.3 (2026-08-10, `#79`)**: le voci di combattimento non sono più **anonime** — portano `ActionId` e `BaseActionId`, quindi con due attaccanti nello stesso Blast il replay sa attribuire il colpo (`TurnLog.CombatEntryNamesItsAction`, `TurnLog.BasicAttackLogsBaseAndProfile`) · ⏳ Ghost Timeline (CP 11.5/11.6) · ⏳ comandi `rt.Debug.*` (CP 11.4) |
 | **E12** Determinismo, QA e release | 🟡 **CP 12.1 chiuso** | 4 `Simulation.*` — replay deterministico su **100 ripetizioni**, checksum stabile per permutazioni, corpus golden che rifiuta un formato diverso · 13 `Scenario.*` (harness) · 2 `Perf.*` · **2026-08-10 (`#307`)**: il TurnLog registra la **causa** di ogni spostamento — scatto e spinta lasciavano il replay senza spiegazione, ora hanno voce propria (`TurnLog.DisplacementHasCauseAndSource`, `TurnLog.DashIsDistinguishableFromMove`) · ⏳ packaged build (CP 12.3/12.5) |
-| **E13** Conoscenza parziale: vista e udito | ⏳ **assente** | la vista è una statistica a catalogo che non decide nulla |
-| **E14** Overwatch e reazioni interattive | ⏳ **assente** | ADR-0004 accettato, nessun codice. Dipende da E13 |
-| **E15** Showcase «Il Relè» e golden replay | 🟡 **iniziata** | 2 test `ShowcaseRelay.*` — fixture stabile, scenario lite deterministico |
+| **E13** Conoscenza parziale: vista e udito | 🟡 **CP 13.1 e 13.2 chiusi** | 6 test `Vision.*` per la vista di squadra (CP 13.1, `#156`) · **CP 13.2 (2026-08-11, `#157`)**: la vista smette di essere una statistica e comincia a **decidere** — un'azione offensiva contro un bersaglio ignoto alla squadra non parte, e passa dal fallback **dichiarato** dall'azione (`TargetUnknown` nel TurnLog, non un annullamento muto); un contatto solo `Incerto` si colpisce **per cella**, su quella dell'ultimo contatto e non su quella attuale. `FRTTeamKnowledge` è versionata e viaggia nello snapshot; l'identità del ricordo è `StableUnitId`, non l'indice di fase. Cablarlo ha fatto emergere **due difetti latenti**: la vista si fermava alla propria quota (su mappa multilivello nessuno vedeva l'altro piano) e l'harness non sapeva dire dove guarda un'unità · ⏳ rumore (CP 13.3/13.4) · ⚠️ **bot e HUD non la consumano ancora** (CP 13.5, `#160`) |
+| **E14** Overwatch e reazioni interattive | 🟡 **CP 14.3 e 14.4 chiusi** | 4 test `Reactions.Opportunity*`/`Overwatch.*` (CP 14.3, `#163`): l'id di una opportunity è una **funzione dei suoi sei campi**, non un GUID — un GUID romperebbe il replay in silenzio · **CP 14.4 (2026-08-10, `#164`)**: 4 test `Overwatch.*` — la zona controllata **riusa `FRTSuppressiveZone`**, il trigger si valuta a **ogni** micro-step, un contatto `Incerto` non lo arma, e più bersagli nello stesso passo danno **una** opportunity (`FIRE:a`/`FIRE:b`/`HOLD`) invece di prompt in sequenza · ⚠️ **nessun consumatore in partita**: `ARTTurnManager` non chiama ancora il costruttore dei trigger, quindi niente raggiunge il TurnLog e `Spec.Overwatch.HoldThenFire` resta `BLOCKED` — lo porta **CP 14.5** (`#165`) · ⏳ finestra 3,0 s, commit, troncamento del movimento, Clash, Time Bank |
+| **E15** Showcase «Il Relè» e golden replay | 🟡 **CP 15.3 metà A chiuso** | 4 test `ShowcaseRelay.*` — fixture stabile, scenario lite deterministico, layout del bacino conforme alla spec · **CP 15.3 metà A (`8ca2cc7`, `#169`)**: gli intenti di una partita sono un **dato** e non un click — movimento e azione principale coesistono nello stesso turno, e con lo script delle decisioni **vuoto** lo scenario resta valido (`ShowcaseRelay.ScriptedInputsDriveMatch`) · ⏳ **metà B** (`DecisionProvider` iniettabile): bloccata non da CP 14.3, che è atterrata, ma dal **produttore** delle finestre — `FRTReactionOpportunity` non ha oggi nessun costruttore fuori dai test, quindi il provider non avrebbe interlocutore. Il produttore nasce con **CP 14.5** (`#165`) · ⏳ CP 15.4/15.5 a valle |
 | **E16** Orientamento e direzionalità | ✅ **chiusa** | 13 test `Facing.*` + 3 `Combat.*` direzionali + 5 scenari `Spec.Facing.*` — il facing è stato di gioco (derivato da Move e Dash, riorientato dal bersaglio, in snapshot, TurnLog e hash, filtrato per squadra) e la difesa direzionale annulla copertura bassa e `Guard` fuori dall'arco frontale, con la stessa `HexCone` che userà la vista. Resta fuori `FacingUsedByOverwatch`, che è E14. ⚠️ **2026-08-10**: l'epic **resta chiusa** — i suoi due checkpoint sono stati consegnati e i loro DoD reggono — ma [ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md) ha **allungato la spec** oltre ciò che E16 aveva costruito (budget di pivot per eroe, facing nei micro-step, policy dichiarative). Per questo `RT-FEAT-MAP-FACING` torna `IMPLEMENTING`: non è E16 a essere stata riaperta, è il metro a essersi spostato. Il lavoro nuovo va assegnato, e non ha ancora un checkpoint |
-| **E17** Validazione di stress 4v4 | ⏳ **assente** | dopo E15; **non** è un gate di release |
+| **E17** Validazione di stress 4v4 | 🟡 **CP 17.1 e 17.2 chiusi** | 4 test `Stress.*`/`Perf.ResolverAt4v4` (2026-08-10, `#222`/`#223`) — il roster core a **quattro** per squadra gioca una partita intera su arena r=8 a tre direttrici, e due esecuzioni identiche danno gli stessi hash confrontati **turno per turno**. Il difetto che l'epic cercava, un `if (Num == 2)` nel resolver, **non è stato trovato**: `NoTeamSizeAssumptionInResolver` interroga 1v1, 2v2, 3v3 e 4v4 — con due sole dimensioni «funziona per ogni N» e «funziona per i due N che ho provato» si leggono uguali. Misurato: resolver **2,319 ms/turno** a 4v4 contro **1,655** a 2v2, TurnLog **11,7 voci/turno** · ⚠️ due metriche del DoD — opportunity di reazione e prompt manuali per turno — sono **non misurabili** e il test lo dichiara: il produttore è CP 14.5 · ⏳ CP 17.3 è una voce PIE. **Non** è un gate di release |
 | **E18** Predictive Action, thin slice | ✅ **chiusa 2026-08-10** | 7 test `Predictive.*` + `Heroes.Vektor.InterceptShotIsPredictive` — boundary **puro** e permutazione-invariante, whiff col fallback dichiarato, `InterceptShot` migrata da reazione rinviata a predittiva · `Spec.Predictive.WhiffOnEmptyCell` da `BLOCKED` a **`PASS`** · la showcase passa da **1 a 3** turni giocati |
 | **E19** Classe di mappa e composizione | 🟡 **parziale** | 5 test `MatchFormat.*` — il formato è un data asset validato, il fallback è **osservabile** e un asset non valido blocca il setup · ⏳ la mappa non dichiara ancora la propria **classe** né il formato le **unità per squadra** ([D-030](../decisions/RT_PDR_00_Decision_Log.md)) |
 | **E20** HUD Icon Language | 🟡 **parziale** | 5 test `IconCatalog.*` — ogni chiave risolve, l'ID duplicato e la chiave assente sono **errori di validazione**, la chiave sconosciuta cade sul fallback · ⏳ i widget non consumano ancora il catalogo |
@@ -189,7 +189,9 @@ Evidenza = i **nomi dei test**, che sono la prova di ciò che esiste:
 **Due cose vigenti che i documenti non dichiaravano.** Lo **scivolamento su ghiaccio** esiste ed è testato
 (`Terrain.Ice.*`), benché il catalogo terreni lo dicesse «rimandabile»: va documentato come vigente, non
 costruito né rimosso. E i **10 test vincolanti del catalogo** (§6) **esistono tutti e dieci** — gli ultimi
-arrivati sono `Cover.DirectionalDamageReduction` e `Simulation.DeterministicReplay` con le sue 100 ripetizioni.
+arrivati sono `Cover.DirectionalDamageReduction` e il decimo, con le sue 100 ripetizioni — che dal 2026-08-11 si
+chiama `Replay.Verifier.ResimulationIsDeterministic` invece del `Simulation.DeterministicReplay` del catalogo
+([D-103](../decisions/RT_PDR_00_Decision_Log.md)): la proprietà è la stessa, il nome non mente più.
 
 **Stato in una riga**: il **contenuto** della v0.1 è costruito e testato (cataloghi, azioni, reazioni, eroi,
 ambiente, coperture, **orientamento**) e gira su un solo substrato esagonale. Mancano la **conoscenza
@@ -223,7 +225,7 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-MAP-HEXGRAPH` — FRTCellId e grafo esagonale multilivello | RELEASE_READY | 7/8 |
 |  | `RT-FEAT-MAP-LOS` — LOS, targeting e traiettoria separati | RELEASE_READY | 6/7 |
 |  | `RT-FEAT-MAP-PATHFINDING` — A* esagonale autorevole | RELEASE_READY | 6/7 |
-| **E4** | `RT-FEAT-ACTION-BASIC-ATTACK-PROFILES` — Profili di attacco base per eroe | IMPLEMENTING | 6/8 |
+| **E4** | `RT-FEAT-ACTION-BASIC-ATTACK-PROFILES` — Profili di attacco base per eroe | RELEASE_READY | 7/8 |
 |  | `RT-FEAT-ACTION-COOLDOWNS` — Cooldown ed economia delle risorse | TESTABLE | 5/8 |
 |  | `RT-FEAT-ACTION-ENGINE` — Motore delle azioni a priorità intera | RELEASE_READY | 7/8 |
 |  | `RT-FEAT-ACTION-GENERIC` — Azioni generiche del catalogo — completata da `RT-FEAT-REACTION-OVERWATCH`, `RT-FEAT-OBJECTIVE-SYSTEM` | IMPLEMENTING | 3/8 |
@@ -261,22 +263,24 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-MATCH-PACING` — Pacing del turno e del match | TESTABLE | 5/8 |
 |  | `RT-FEAT-PROD-PACKAGED` — Verifica su build packaged | IMPLEMENTING | 2/6 |
 |  | `RT-FEAT-PROD-PERFORMANCE` — Budget di performance misurati | IMPLEMENTING | 3/6 |
-| **E13** | `RT-FEAT-PERCEPTION-MEMORY` — Memoria del contatto e ultima posizione nota | SPECIFIED | 1/9 |
-|  | `RT-FEAT-PERCEPTION-NOISE` — Rumore e percezione acustica | SPECIFIED | 1/9 |
-|  | `RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE` — TeamKnowledge e informazione parziale | IMPLEMENTING | 3/9 |
+|  | `RT-FEAT-REPLAY-ARCHIVE` — Replay Archive — recorder, Player e indice delle partite | INTEGRATED | 4/6 |
+| **E13** | `RT-FEAT-BOT-FAIRNESS` — Il bot pianifica sulla conoscenza della sua squadra | TESTABLE | 3/7 |
+|  | `RT-FEAT-PERCEPTION-MEMORY` — Memoria del contatto e ultima posizione nota | TESTABLE | 4/9 |
+|  | `RT-FEAT-PERCEPTION-NOISE` — Rumore e percezione acustica | SPECIFIED | 3/9 |
+|  | `RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE` — TeamKnowledge e informazione parziale | TESTABLE | 5/9 |
 |  | `RT-FEAT-PERCEPTION-VISION` — Vista, facing e livelli di consapevolezza | IMPLEMENTING | 3/9 |
 | **E14** | `RT-FEAT-CORE-DECISION-BOUNDARY` — Risoluzione segmentata con Decision Boundary | SPECIFIED | 1/8 |
 |  | `RT-FEAT-CORE-DECISION-TIME-BANK` — Decision Time Bank (budget di decisione per giocatore) | SPECIFIED | 1/9 |
 |  | `RT-FEAT-REACTION-CLASH` — Reaction Clash (opportunity contested) | SPECIFIED | 1/9 |
 |  | `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | SPECIFIED | 1/9 |
 |  | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | DESIGNED | 0/9 |
-|  | `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | SPECIFIED | 1/8 |
-|  | `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | SPECIFIED | 1/9 |
+|  | `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | IMPLEMENTING | 3/9 |
+|  | `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | IMPLEMENTING | 2/9 |
 |  | `RT-FEAT-REACTION-PROFILE` — Reaction Profile armato da Brace | IMPLEMENTING | 1/8 |
 | **E15** | `RT-FEAT-TEST-GOLDEN` — Golden replay e showcase «Il Relè» | IMPLEMENTING | 3/8 |
 |  | `RT-FEAT-TEST-SCENARIO-HARNESS` — Scenario Test Harness automatizzato | INTEGRATED | 6/8 |
 | **E16** | `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole — completata da `RT-FEAT-UI-PLANNING` | IMPLEMENTING | 5/9 |
-| **E17** | `RT-FEAT-STRESS-4V4` — Validazione di stress 4v4 | SPECIFIED | 1/7 |
+| **E17** | `RT-FEAT-STRESS-4V4` — Validazione di stress 4v4 | IMPLEMENTING | 1/7 |
 | **E18** | `RT-FEAT-ACTION-PREDICTIVE` — Predictive Action, thin slice | INTEGRATED | 6/8 |
 | **E19** | `RT-FEAT-MATCH-FORMAT` — Formato di partita e classe di mappa | TESTABLE | 5/8 |
 | **E20** | `RT-FEAT-UI-ICON-LANGUAGE` — HUD Icon Language | IMPLEMENTING | 1/7 |
@@ -311,7 +315,7 @@ silenzio.
 | **E10** | Obiettivi dinamici e fine partita | P2 | 3 | Chiude il loop: la partita ha un motivo per muoversi |
 | **E11** | HUD, log e debug | P1 | 6 | Leggibilità tattica + osservabilità (senza `rt.Debug.*` si debugga a occhio) |
 | **E12** | Determinismo, QA e release | **P0** | 6 | Gate di release: senza checksum e packaged non è v0.1 |
-| **E13** | Conoscenza parziale — vista e udito | P2 | 5 | La vista è una statistica a catalogo che non decide nulla; il rumore è il suo gemello e i dati esistono già |
+| **E13** | Conoscenza parziale — vista e udito | P2 | 5 | La vista **decide** da CP 13.2; restano il rumore (il suo gemello, coi dati già nel workbook) e il consumo da parte di bot e HUD |
 | **E14** | Overwatch e reazioni interattive | P2 | 6 | Bait, bluff e commitment non sono recuperabili con reazioni dichiarate; l'aggancio (`SuppressiveLine`, `InterceptShot`) esiste già |
 | **E15** | Showcase «Il Relè» e golden replay | P1 | 5 | La prova integrata che le regole generali producono una partita: fixture, scenario e replay a hash stabile — consumer dei sistemi, mai codice speciale |
 | **E16** | Orientamento e direzionalità | P1 | 2 | L'orientamento smette di essere presentazione: decide difesa, percezione e reazioni con una sola primitiva (`HexCone`). È **prerequisito di E13**. ⚠️ **«Zero numeri nuovi» non vale più dal 2026-08-10**: [ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md) accetta la rotazione come **capacità del personaggio** e introduce **otto** numeri (2 per eroe). Il vanto era di ADR-0005, che su questo è superato |
@@ -649,9 +653,10 @@ in ogni parametro (vincolo del catalogo, verificato dal validator di CP 1.4).
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
 | **7.1** | Varianti arma (6) | `Precision` (+1 range, −4 danni), `Impact` (Push 1, −1 range), `Overcharge` (+6 danni, +1 cooldown), `Split` (+1 bersaglio, −6 danni), `Suppressive` (Slow, −5 danni), `Environmental` (hazard migliorato, −5 diretto); **ognuna ha uno svantaggio** | `Equipment.WeaponVariantHasTradeoff` (tutte), `Equipment.Precision.RangeAndDamage` |
-| **7.2** | Gadget (8) | `Medkit` (18), `BreachCharge` (35 a struttura), `Sprinkler` (acqua r1), `Insulator` (immune a una propagazione), `SmokeEmitter` (fumo r1), `PortableCover`, `Sensor`, `Anchor`; cooldown 3 turni | Un test per gadget + `Equipment.Gadget.CooldownEnforced` |
-| **7.3** | Moduli reazione (7) | `EmergencyDash`, `ReactiveShield` (15), `CounterShot` (14), `AllyIntercept`, `HazardEscape`, `Cleanse`, `Anchor`; una attivazione per turno | `Equipment.ReactionModule.SingleActivation` |
-| **7.4** | Loadout e validazione | Ogni eroe: **1** variante + **1** gadget + **1** modulo; nessun livello, rarità o upgrade in partita; loadout consigliati del catalogo caricati come default | `Equipment.LoadoutExactlyOneEach`, `Equipment.NoInMatchProgression` |
+| **7.2** ✅ | Gadget — **4 degli 8** | `Medkit` (cura 18), `BreachCharge` (35 alla struttura e **zero** alle unità), `Sprinkler` (acqua r1, raggio ereditato da `Action.CreateWater`), `PortableCover`; cooldown **3** per tutti, che sostituisce quello dell'azione core. ⚠️ I quattro assenti mancano per **quattro ragioni diverse**, e la differenza porta a lavori diversi: `SmokeEmitter` — nessuna azione core crea fumo (`Riva.MistVeil` è d'eroe e in `Preparation`, cfr. `#353`); `Insulator` — l'immunità per categoria è E36; `Sensor` — la conoscenza parziale è E13, e i suoi numeri non sono nella fonte; `Anchor` — `PushResistance` è una **soglia** permanente, non un consumo per turno, e alzarla reintrodurrebbe l'immunità che `D-075` ha appena tolto | `Equipment.Gadget.CooldownEnforced`, `Equipment.Gadget.NumbersMatchCatalog`, `Equipment.Gadget.FourAreNotExpressibleYet` |
+| **7.3** ✅ | Moduli reazione — **catalogo** (3 dei 7) | `CounterShot` (14), `ReactiveShield` (15), `AllyIntercept`: costruiti su un'azione core che è **già** una reazione, da cui ereditano fase, priorità e `ReactionTrigger`, con numeri propri via `GrantedEffects`. Una attivazione per turno la garantisce il percorso E5, non un cooldown dell'oggetto. ⚠️ `EmergencyDash` è sceso a **7.5 implementando**, per un vincolo su un asse diverso dal trigger: il suo trigger esiste, ma `Reposition 1` sposta *chi reagisce* e nessun `ERTActionEffect` lo esprime — `Push`/`Pull` spostano il bersaglio | `Equipment.ReactionModule.SingleActivation`, `Equipment.CounterShotUsesExistingTrigger`, `Equipment.EmergencyDashIsNotExpressibleYet` |
+| **7.5** 🟡 | Moduli reazione — **motore** (`#505`) | ✅ **`EmergencyDash` fatto**: nasce `ERTActionEffect::SelfReposition` ([D-093](../decisions/RT_PDR_00_Decision_Log.md)) — il primo effetto che sposta la **sorgente** e non il bersaglio — e il modulo si allontana da chi l'ha bersagliato restando fronte alla minaccia ([D-104](../decisions/RT_PDR_00_Decision_Log.md)). Lo spostamento passa dalla primitiva di `#541`, quindi porta traccia con causa, hazard attraversati e facing come una spinta qualsiasi. Le fughe si **raccolgono** e si applicano dopo il pass ([D-094](../decisions/RT_PDR_00_Decision_Log.md)) · ⏳ restano `HazardEscape`, `Cleanse` e `Anchor`: chiedono i **trigger su evento** e il pass del Cleanup ([D-092](../decisions/RT_PDR_00_Decision_Log.md)), col contatore che attraversa le fasi | `Equipment.EmergencyDashRepositionsTheReactor`, `Equipment.EmergencyDashMovesTheReactorInPlay` |
+| **7.4** 🟡 | Loadout — **regola** | `ValidateLoadout` impone **1+1+1** e distingue *zero* da *due*, che portano a correzioni opposte; un loadout della forma giusta con un pezzo invalido è rifiutato lo stesso. Nessuna progressione: verificata **sul tipo** con la reflection (`URTEquipmentData` non ha `Level`/`Rarity`/`Tier`/…), così un campo aggiunto domani diventa rosso il giorno stesso · ⏳ **i default restano bloccati**, e non dalla variante — quella è decisa ([D-089](../decisions/RT_PDR_00_Decision_Log.md)): dei quattro loadout di catalogo §4 solo **Bastion** è interamente costruibile, mancano `Gadget.Insulator` (E36), `Gadget.Sensor` (E13) e i moduli `HazardEscape`/`EmergencyDash` (`#505`) | `Equipment.LoadoutExactlyOneEach`, `Equipment.NoInMatchProgression`, `Equipment.DefaultVariantPerHero` |
 
 ---
 
@@ -772,7 +777,7 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
-| **12.1** ✅ | Replay deterministico rinforzato | Stessa snapshot + stesso seed + stesse definizioni + stesso ordine ⇒ checksum finale **identico** su **almeno 100 ripetizioni** | ✅ **2026-08-08**: `Simulation.DeterministicReplay` (100 iterazioni, 0 divergenze) e `Simulation.ChecksumStableAcrossPermutations` (unità e intent invertiti → stesso stato). Entrambi girano sullo **Scenario Harness**, quindi sul percorso di gioco reale. Più `Simulation.StateHashDistinguishesOutcomes`, che impedisce all'hash di degenerare in una costante — senza, i primi due passerebbero anche confrontando zeri |
+| **12.1** ✅ | Replay deterministico rinforzato | Stessa snapshot + stesso seed + stesse definizioni + stesso ordine ⇒ checksum finale **identico** su **almeno 100 ripetizioni** | ✅ **2026-08-08**: `Replay.Verifier.ResimulationIsDeterministic` (100 iterazioni, 0 divergenze; si chiamava `Simulation.DeterministicReplay` fino al 2026-08-11, [D-103](../decisions/RT_PDR_00_Decision_Log.md)) e `Simulation.ChecksumStableAcrossPermutations` (unità e intent invertiti → stesso stato). Entrambi girano sullo **Scenario Harness**, quindi sul percorso di gioco reale. Più `Simulation.StateHashDistinguishesOutcomes`, che impedisce all'hash di degenerare in una costante — senza, i primi due passerebbero anche confrontando zeri |
 | **12.2** | Matrice test manuali v0.1 | Le 12 voci `PIE-V01-*` esistono in `test-manuali-pie.md` con precondizione ed esito atteso e sono **eseguite** | Sessione E di `test-manuali-pie.md` completa |
 | **12.3** | Suite automatica completa | I 10 test nominati dal catalogo (§15) esistono con quei nomi e sono verdi; nessun test disabilitato o saltato per far passare la build | `RunUAT`/Automation: elenco completo verde; `grep -rn "skip\|disable" Source/RefactorTactics/Tests/` senza esiti |
 | **12.4** | KPI misurati | FPS client, path mediana, preview completa, resolver per turno **misurati e registrati** (anche se fuori target); replay divergence = 0; intent leak = 0. **In più** (2026-08-07): le metriche di **durata** — `RoundsPlayed`, `MatchDurationSeconds`, `PlanningDurationSeconds`, `ResolutionPlaybackSeconds`, `ReadyAtSeconds`, `FirstEnemyContactRound` — raccolte sul **2v2** e dichiarate come tali, **non** confrontate con le bande del 3v3 Standard che non esiste in v0.1 | Tabella KPI di `v0.1-definition-of-done.md` compilata con numeri reali · metriche in [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §17 |
@@ -1298,6 +1303,13 @@ generata invece che da una sessione di pianificazione. Il numero `E21` è stato 
 
 I dieci nomi richiesti dal catalogo (§15) sono **vincolanti**: devono esistere con questi nomi.
 
+> ✅ **Verificati uno per uno il 2026-08-11** (`#83`), non dedotti: tutti e dieci sono dichiarati nei
+> sorgenti con il nome esatto. Verificata nella stessa passata anche la **regola 6.1** — nessuno dei 684
+> nomi è prefisso gerarchico di un altro — e il fatto che l'insieme dei test *dichiarati via macro*
+> coincida **esattamente** con quello dei test *eseguiti* dalla run: 684 = 684, nessuno saltato.
+> Quest'ultimo confronto è il controllo che conta, perché un test che l'Automation non raccoglie non
+> fallisce: sparisce, e il totale continua a sembrare sano.
+
 | Test | Copre | CP |
 |---|---|---|
 | `RefactorTactics.Actions.Move.PathBlocked` | fallback `Stop` su percorso bloccato | 4.3 |
@@ -1309,7 +1321,7 @@ I dieci nomi richiesti dal catalogo (§15) sono **vincolanti**: devono esistere 
 | `RefactorTactics.Cover.DirectionalDamageReduction` | copertura bassa direzionale (−10) | 9.1 |
 | `RefactorTactics.Reactions.Intercept` | l'intercettore diventa bersaglio | 5.3 |
 | `RefactorTactics.Reactions.SingleActivation` | una attivazione per turno | 5.1 |
-| `RefactorTactics.Simulation.DeterministicReplay` | 100 ripetizioni, checksum identico | 12.1 |
+| `RefactorTactics.Replay.Verifier.ResimulationIsDeterministic` *(il catalogo lo chiama `Simulation.DeterministicReplay`: [D-103](../decisions/RT_PDR_00_Decision_Log.md))* | 100 ripetizioni, checksum identico | 12.1 |
 
 Ogni test di determinismo esegue la stessa simulazione con **stesso snapshot, seed, definizioni e ordine**.
 

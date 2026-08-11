@@ -44,14 +44,31 @@ TArray<FRTCellId> URTPerceptionLibrary::VisibleCells(const URTHexMapAsset* Map, 
 	const int32 Reach = FMath::Max(FMath::Max(Observer.VisionRange, 0), CloseAwarenessRange);
 	const FRTCellId Ahead = URTHexLibrary::Neighbor(Observer.Cell, Observer.Facing);
 
-	for (const FRTCellId& Candidate : URTHexLibrary::HexArea(Observer.Cell, Reach))
+	// I candidati si prendono dalle celle CHE ESISTONO, non da `HexArea`: quella genera un'area piatta sulla
+	// quota dell'osservatore (`Center.Layer` cablato), e su una mappa multilivello una vista costruita cosi'
+	// dichiarerebbe invisibile tutto cio' che sta su un altro piano — un'unita' sul ponte sopra la testa, o
+	// chi guarda dal ponte verso il fondo.
+	//
+	// Non e' una regola nuova sulla verticalita': e' l'allineamento a quella che il gioco gia' applica.
+	// `URTHexVisionLibrary::HasLineOfSight` non guarda il layer — la linea di tiro si valuta sulla proiezione
+	// esagonale — e `HexDistance` nemmeno. Fermare la VISTA alla propria quota mentre la LINEA DI TIRO
+	// l'attraversa erano due verita' sullo stesso spazio; finche' nessuno consumava la vista la differenza
+	// non si vedeva, e CP 13.2 la rende visibile rifiutando ogni ingaggio fra piani diversi.
+	// High Ground resta senza bonus numerico alla vista (canone v0.1): qui non si concede un vantaggio, si
+	// toglie una cecita' che nessuna decisione aveva stabilito.
+	for (const FRTHexCellData& CellData : Map->Cells)
 	{
+		const FRTCellId& Candidate = CellData.Id;
 		if (Candidate == Observer.Cell)
 		{
 			continue; // gia' aggiunta
 		}
 
 		const int32 Distance = URTHexLibrary::HexDistance(Observer.Cell, Candidate);
+		if (Distance > Reach)
+		{
+			continue; // fuori da entrambi i canali: si scarta prima di pagare LOS e terreno
+		}
 
 		// Canale 1 — consapevolezza ravvicinata: ogni direzione, entro il cap, purche' ci sia LOS.
 		const bool bClose = Distance <= CloseAwarenessRange
@@ -62,8 +79,14 @@ TArray<FRTCellId> URTPerceptionLibrary::VisibleCells(const URTHexMapAsset* Map, 
 		// Il cono si chiede a profondita' `Distance` e non `VisionRange`: `HexCone` restituisce il ventaglio
 		// fino alla profondita' richiesta, quindi chiedere la distanza esatta risponde alla sola domanda che
 		// serve — «questa cella e' nell'arco?» — senza costruire il ventaglio intero per ogni candidata.
+		// L'arco si valuta sulla PROIEZIONE esagonale, come gia' fanno distanza e linea di tiro: `HexCone`
+		// genera il ventaglio alla quota del proprio centro, quindi confrontarci una candidata di un altro
+		// piano darebbe sempre falso. Appiattire la candidata sulla quota dell'osservatore chiede la sola cosa
+		// che serve — «sta nel settore che l'unita' copre?» — senza inventare una geometria verticale del cono,
+		// che nessuna decisione ha stabilito e che High Ground esclude per la v0.1.
+		const FRTCellId Flattened(Candidate.X, Candidate.Y, Observer.Cell.Layer);
 		const bool bInArc = Distance <= Observer.VisionRange
-			&& URTHexLibrary::HexCone(Observer.Cell, Ahead, Distance).Contains(Candidate)
+			&& URTHexLibrary::HexCone(Observer.Cell, Ahead, Distance).Contains(Flattened)
 			&& ContactHolds(Map, Observer.Cell, Candidate, Observer.VisionRange);
 
 		if (bClose || bInArc)

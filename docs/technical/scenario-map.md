@@ -282,13 +282,25 @@ I **nove** rimasti (l'elenco misurato è in
 > copre `Action.Ignite` né `Action.ModifyArc`, che per [D-046](../decisions/RT_PDR_00_Decision_Log.md)
 > restano senza owner in v0.1.
 
-### 6.2 Pianificati nel Feature Registry — non ancora scritti · **38**
+### 6.2 Pianificati nel Feature Registry — non ancora scritti · **47**
 
 Dichiarati in `feature-registry.yaml` sotto `scenarios: {planned: [...]}`, il che li fa comparire come
 **warning** in `feature_registry.py validate`. Il warning è il meccanismo: un piano che non diventa un file
 resta visibile invece di sparire.
 
-> ⚠️ **Erano dichiarati «13», poi ventuno, poi ventitré, poi trentotto, e oggi sono trentaquattro**: tredici
+> ➕ **+13 il 2026-08-11 dal consolidamento Bot/AI** — tre `RT-FEAT-BOT-FAIRNESS`, cinque
+> `RT-FEAT-BOT-TACTICAL`, tre `RT-FEAT-BOT-BELIEF`, due `RT-FEAT-BOT-PREDICTIVE`. Il sorgente ne proponeva
+> **33**, in una convenzione di nomi (`AI.<Area>.<Caso>`) che il repository non usa: sarebbe stato un secondo
+> spazio di nomi accanto a quello che l'indice e l'harness già risolvono. Venti dei 33 descrivevano
+> comportamenti di feature senza spec né gate — un nome pianificato per un sistema che non ha ancora una
+> forma è un nome che verrà rinominato. Referto:
+> [`../roadmap/plans/bot-ai-consolidamento-2026-08-11.md`](../roadmap/plans/bot-ai-consolidamento-2026-08-11.md) §4.4.
+>
+> ⚠️ **Il titolo di questa sezione diceva «38» mentre il suo primo paragrafo diceva «trentaquattro»**, ed
+> erano entrambi vecchi. Rimisurato il 2026-08-11 su `scenariomap.shortlist.md`, che è **generato**: è la
+> sola cifra di questa pagina che non si scrive a mano, e va letta di lì.
+
+> ⚠️ **Erano dichiarati «13», poi ventuno, poi ventitré, poi trentotto, poi trentaquattro**: tredici
 > fra `Clash` e `TimeBank`, dieci fra `State.*`/`Team.*`/`Stress.*`, sei fra `Brace` e `Overwatch`, cinque
 > `Spec.Map.*`. **È la prima volta che il numero SCENDE**, e per due motivi diversi che vale la pena non
 > confondere: dei **quattro di `BAL-1`**, tre sono stati **scritti** il 2026-08-10 (`#401`, verdi al primo

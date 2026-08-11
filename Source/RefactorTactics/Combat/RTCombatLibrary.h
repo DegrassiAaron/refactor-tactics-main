@@ -163,6 +163,11 @@ public:
 	/**
 	 * Invariante #6 (privacy dell'intento): il piano di un'unita' e' visibile agli alleati
 	 * (stessa squadra) sempre, agli avversari solo se l'unita' e' "rivelata" (status Reveal).
+	 *
+	 * CONSUMATORE: `URTIntentPrivacyLibrary::FilterForTeam`, che costruisce il DTO spedito al client — cioe'
+	 * il percorso che la HUD attraversa davvero. Fino a #507 la regola era riscritta li' inline e questa
+	 * funzione non aveva chiamanti: il suo test era verde e non copriva niente di vivo. Se un giorno tornasse
+	 * senza consumatori, la risposta e' rimuoverla, non lasciarla a fare da falsa copertura.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static bool IsIntentVisibleTo(int32 ObserverTeamId, int32 OwnerTeamId, bool bOwnerRevealed);

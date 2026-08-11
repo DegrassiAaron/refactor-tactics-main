@@ -194,7 +194,12 @@ Al netto di tutto, quattro contributi che nessun documento del repository ha ogg
    la dipendenza verso il determinismo del replay, e dovrebbe.
 3. **La regola temporale** (§5) — il wall-clock resta telemetria, il timeout diventa `Reason = Timeout`.
    Trasforma una finestra real-time in un dato canonico; oggi è implicita in ADR-0004, non scritta.
-4. **`REPLAY-04`** (§32) — il rischio che il player ri-risolva il gameplay. Nessun test attuale lo coglierebbe.
+4. ~~**`REPLAY-04`** (§32) — il rischio che il player ri-risolva il gameplay. Nessun test attuale lo
+   coglierebbe.~~ ✅ **Chiuso il 2026-08-11**: [ADR-0009](../../decisions/adr-0009-replay-logico-canonico.md)
+   ha reso il confine impossibile per **struttura** — il Player vive dove il resolver non è raggiungibile — e
+   i tre test che l'ADR richiedeva esistono in `RTReplayPlayerTests.cpp`. Il più forte è
+   `Replay.Player.RunsWithoutResolver`, che riproduce dove il resolver non c'è: dimostra il confine invece
+   di affermarlo.
 
 ---
 

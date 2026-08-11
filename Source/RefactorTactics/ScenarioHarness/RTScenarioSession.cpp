@@ -249,6 +249,9 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 		Unit->bIsBotControlled = false;
 		Unit->DispatchBeginPlay();
 		Unit->PlaceOnCell(Spec.Cell, MapOrigin, MapHexSize, MapLayerHeight);
+		// Orientamento INIZIALE (CP 13.2): dove guarda la figura appena posata. Dopo `PlaceOnCell`, che non lo
+		// tocca. Non e' una rotazione dichiarata — vedi `FRTScenarioUnit::Facing`.
+		Unit->Facing = Spec.Facing;
 
 		UnitsById.Add(Spec.Id, Unit);
 	}

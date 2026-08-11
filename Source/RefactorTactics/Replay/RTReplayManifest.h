@@ -16,7 +16,17 @@
 enum class ERTReplayManifestVersion : uint16
 {
 	/** Header di partita, hash ordinati per turno, esito, chiusura. Nessun campo di compatibilita' (#413). */
-	Initial = 1
+	Initial = 1,
+
+	/**
+	 * Versione che questo binario SCRIVE. Chi aggiunge un campo alza questo alias e lascia in piedi il valore
+	 * storico sopra, cosi' l'elenco resta la storia del formato invece di una riga riscritta ogni volta.
+	 *
+	 * ⚠️ **Un numero di versione e' una risorsa contesa** (`#471`): prima di prenderlo, controllare TUTTI i
+	 * branch remoti e non solo `main`. La `v6` del TurnLog fu rivendicata da due branch insieme, e il
+	 * duplicato non si rinumera da solo — corrompe tracce gia' scritte.
+	 */
+	Current = Initial
 };
 
 /**

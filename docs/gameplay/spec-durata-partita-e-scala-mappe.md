@@ -296,7 +296,7 @@ La resolution **non va rallentata artificialmente** per raggiungere la durata de
 Si preferisce **più decision cycle significativi** a resolution molto lunghe.
 
 La simulazione deterministica resta **separata** dal playback: la durata visuale non modifica ordine logico,
-seed, collisioni, stato né esiti (invariante #1 e #4; `Simulation.DeterministicReplay`).
+seed, collisioni, stato né esiti (invariante #1 e #4; `Replay.Verifier.ResimulationIsDeterministic`).
 
 > **Conseguenza da tarare, non da implementare ora**: `MaxPlaybackSeconds = 12` (`RTTurnManager.h:134`) è la
 > soglia oltre la quale scatta lo speed-up automatico. Con la banda 8–15 s (2v2) comprimerebbe i round più

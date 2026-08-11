@@ -310,6 +310,10 @@ bool FRTGuardReducesDamageInMatchTest::RunTest(const FString&)
 
 	ARTUnit* Defender = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0));
 	ARTUnit* Shooter = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(3, 0)); // Tiro: 25 danni
+	if (Shooter) { Shooter->Facing = ERTHexDirection::W; }
+	// Guarda il proprio bersaglio: da CP 13.2 il targeting consuma la conoscenza, e un tiratore rivolto
+	// altrove non VEDE cio' che sta a piu' di due celle. In partita l'orientamento lo deriva il movimento;
+	// qui l'unita' e' ferma, quindi lo si dichiara.
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Defender || !Shooter) { DestroyHexBlastWorld(World); return false; }
 
@@ -684,6 +688,7 @@ bool FRTHexDoorClosingStopsMovementTest::RunTest(const FString&)
 
 	ARTUnit* Mover = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 0));
 	ARTUnit* Closer = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(3, 0));
+	if (Closer) { Closer->Facing = ERTHexDirection::W; } // vedi CP 13.2: guarda chi vuole bloccare
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Closer) { DestroyHexBlastWorld(World); return false; }
 

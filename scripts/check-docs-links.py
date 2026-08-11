@@ -31,8 +31,13 @@ Piu' una quinta, che non riguarda i link ma vive qui perche' questo e' l'unico g
 documenti: i **marker di conflitto git** rimasti dentro un file. Vedi `CONFLITTO_RE` per il perche' sta
 in questo script e per quale dei tre marker e' deliberatamente escluso.
 
+E una sesta, per la stessa ragione: due voci del **Decision Log con lo stesso `D-nnn`**. Nessun altro
+controllo puo' vederla — entrambe le righe esistono e ogni link risolve — ma rende ambiguo ogni rimando
+del repository. Vedi `DECISIONE_RE`.
+
 Esce con codice 1 se un link e' rotto, se un'etichetta mente, se un target esiste solo in locale,
-se un documento contiene marker di conflitto, oppure se una voce di DEBITO_NOTO non e' piu' vera.
+se un documento contiene marker di conflitto, se un ID di decisione e' duplicato, oppure se una voce
+di DEBITO_NOTO non e' piu' vera.
 
 Cosa NON controlla, deliberatamente:
   - gli **ancoraggi** (`#sezione`): la slugificazione di GitHub su titoli con accenti, emoji e codice
@@ -70,6 +75,57 @@ FENCE_RE = re.compile(r"^([ \t]*)(`{3,}|~{3,}).*?^\1?\2[ \t]*$", re.M | re.S)
 # e' deliberatamente esclusa: e' anche la sottolineatura di un titolo **Setext**, e un gate che sbaglia
 # viene disattivato al terzo falso positivo. Se ci sono le altre due, il conflitto c'e' comunque.
 CONFLITTO_RE = re.compile(r"^(?:<{7}|>{7}) ", re.M)
+
+# Sesta categoria, stessa ragione della quinta: questo e' l'unico gate che legge i documenti.
+# Un ID di decisione duplicato nel Decision Log rende **ambiguo ogni rimando** `[D-nnn]` del
+# repository — e non lo vede nessun altro controllo, perche' entrambe le righe esistono e ogni link
+# risolve al file giusto. Aggiunto il 2026-08-11 dopo l'undicesima collisione di contatore, che e'
+# stata anche la prima ad **atterrare su `main`**: due decisioni diverse hanno portato `D-091` per
+# quattro commit. Le dieci precedenti erano state trovate perche' qualcuno stava scrivendo la
+# decisione successiva, cioe' dal prossimo autore e sempre in ritardo di un merge — vedi la nota di
+# `D-094`. Il rimedio raccomandato allora ("rileggere `main` prima del merge") e' una disciplina
+# umana; questo e' tre righe di script.
+# ⚠️ Il grassetto e la barratura sono OPZIONALI, e non e' un dettaglio di stile.
+# La prima stesura di questa regex chiedeva `**` subito dopo la barra, e copriva **93 righe su 102**:
+# perdeva `D-001`..`D-008` (righe antiche, scritte senza grassetto) e `~~**D-044**~~` (ritirata,
+# barrata). Trovato in code review prima del merge.
+# Le due categorie perse erano **le peggiori possibili** per questo gate: `D-044` e' un numero
+# lasciato deliberatamente vuoto perche' un riuso non sovrascrivesse la storia, cioe' esattamente il
+# buco che invita un `D-044` nuovo — e li' il gate avrebbe visto una riga sola e riportato zero
+# duplicati. Un falso negativo proprio sul caso per cui e' stato scritto.
+DECISIONE_RE = re.compile(r"^\|\s*~{0,2}\s*\*{0,2}(D-\d{3})\*{0,2}\s*~{0,2}\s*\|", re.M)
+DECISION_LOG = "docs/decisions/RT_PDR_00_Decision_Log.md"
+
+
+def decisioni_duplicate():
+    """Gli ID che compaiono piu' di una volta come RIGA della tabella del Decision Log.
+
+    Solo l'inizio riga: `[D-091](...)` dentro il corpo di un'altra decisione e' un rimando, ed e'
+    esattamente cio' che deve continuare a funzionare — il duplicato da trovare e' la voce, non la
+    citazione.
+
+    E solo FUORI dai blocchi recintati, per la stessa ragione di ogni altro controllo di questo file:
+    un documento che *spiega il formato della tabella* contiene righe d'esempio, e un esempio che
+    riusa un ID vivo verrebbe contato come duplicato. E' il difetto che questo gate ha gia' trovato
+    su se stesso due volte — i link d'esempio nel proprio README, e il `!` dell'immagine citata — e
+    che qui e' stato **trovato in code review invece che in produzione**: `meglio stretto e creduto
+    che largo e ignorato`, e un gate che sbaglia viene disattivato al terzo falso positivo.
+
+    Restituisce [(id, [righe])], vuoto se il file non c'e' o non e' leggibile: un repository senza
+    Decision Log non fallisce per questo, e un file illeggibile non deve uccidere l'intero gate
+    prima che possa riportare i link rotti — stessa clausola del ciclo principale."""
+    abs_log = os.path.join(REPO, DECISION_LOG)
+    try:
+        text = open(abs_log, encoding="utf-8").read()
+    except (OSError, UnicodeDecodeError):
+        return []
+    fences = _fence_spans(text)
+    visti = {}
+    for m in DECISIONE_RE.finditer(text):
+        if any(a <= m.start() < b for a, b in fences):
+            continue
+        visti.setdefault(m.group(1), []).append(text[: m.start()].count("\n") + 1)
+    return sorted((k, v) for k, v in visti.items() if len(v) > 1)
 
 
 def _fence_spans(text):
@@ -197,11 +253,13 @@ def main():
             print(f"    {f}\n        {why}\n        link rotti tollerati ora: {debito_visto[f]}")
         print()
 
+    duplicate = decisioni_duplicate()
+
     stale = [f for f, n in debito_visto.items() if n == 0]
     print(f"Link relativi controllati: {controllati} · file markdown versionati: "
           f"{sum(1 for f in tracked if f.endswith('.md'))}")
 
-    if not (rotti or etichette or non_versionati or stale or conflitti):
+    if not (rotti or etichette or non_versionati or stale or conflitti or duplicate):
         tollerati = sum(debito_visto.values())
         coda = f" ({tollerati} rotti tollerati come debito dichiarato)" if tollerati else ""
         print(f"OK — ogni link risolve, ogni etichetta dice il vero{coda}.")
@@ -216,6 +274,15 @@ def main():
         print("\n  Un merge e' stato risolto a meta' e committato. Apri il file, tieni cio' che serve")
         print("  di entrambi i lati — spesso sono due sezioni diverse che devono coesistere, non due")
         print("  versioni della stessa — e togli le righe di marcatura.\n")
+
+    if duplicate:
+        print(f"FALLITO — {len(duplicate)} ID di decisione duplicati nel Decision Log:\n")
+        for did, righe in duplicate:
+            print(f"  {DECISION_LOG}\n      {did} alle righe {', '.join(str(r) for r in righe)}")
+        print("\n  Due decisioni con lo stesso ID rendono ambiguo ogni rimando [D-nnn] del repository.")
+        print("  Rinumera quella atterrata per SECONDA al primo ID libero, spostala in coda alla tabella")
+        print("  e riscrivi solo i SUOI rimandi, per coppia (file, riga): una sed globale rompe in")
+        print("  silenzio quelli dell'altra. Poi registra la rinumerazione nella sezione 'Note'.\n")
 
     if rotti:
         print(f"FALLITO — {len(rotti)} link a un target inesistente:\n")
