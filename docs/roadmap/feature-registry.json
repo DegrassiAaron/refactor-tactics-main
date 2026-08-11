@@ -1545,10 +1545,10 @@
       "kind": "gameplay",
       "release": "v0.1",
       "priority": "P1",
-      "status": "IMPLEMENTING",
-      "status_derived": "IMPLEMENTING",
+      "status": "RELEASE_READY",
+      "status_derived": "RELEASE_READY",
       "gates": {
-        "spec": "partial",
+        "spec": "done",
         "data": "done",
         "runtime": "done",
         "log_debug": "done",
@@ -1558,7 +1558,7 @@
         "packaged": "todo",
         "network_privacy": "na"
       },
-      "gates_done": 6,
+      "gates_done": 7,
       "gates_applicable": 8,
       "roadmap": {
         "epic": "E4",
@@ -1605,7 +1605,7 @@
         "date": "2026-08-09",
         "commit": "8a43866"
       },
-      "notes": "Categoria universale, payload dell'eroe: chiude per `BasicAttack` i «profili concreti dei 4 eroi» che **D-033** aveva lasciato aperti ([ADR-0007](../decisions/adr-0007-attacco-base-per-eroe.md)). Riva era già conforme (`PressureJet` 16 + `Wet` + `Push`); Vektor resta invariato, perché «Primary Weapon» è un profilo d'uso e non una promessa di potenza; Flux resta damage-only, e il suo motore elettrico ha già un owner che non è l'attacco base (`ConductiveNode`, D-046). **`data` è `done`**: `Bastion.ImpactShot` è passato a 8 danni + `Status.Slow` 1 turno. **`automation` è `done`** da `BasicAttackIsIndexZeroForEveryHero`, che fa valere la convenzione `Actions[0]` sul roster invece di lasciarla in un commento — è il prezzo di NON aver aggiunto un campo di ruolo. **`log_debug` è `done`** dal 2026-08-09 (issue #354): `FRTActionDef::BaseActionId` dichiara di quale generica un'azione è profilo, la voce di TurnLog lo porta (formato **v5**) e `DescribeActionIdentity` rende la coppia — `Action.BasicAttack · Bastion.ImpactShot`. Il campo sta **fuori dall'hash**, perché è una funzione di `ActionId`: includerlo non distinguerebbe nulla di più e avrebbe invalidato ogni hash golden. Le tracce v2/v3/v4 restano leggibili, col campo vuoto. Era il consumer che ADR-0007 punto 6 aspettava: la sua regola non è violata, è soddisfatta."
+      "notes": "Categoria universale, payload dell'eroe: chiude per `BasicAttack` i «profili concreti dei 4 eroi» che **D-033** aveva lasciato aperti ([ADR-0007](../decisions/adr-0007-attacco-base-per-eroe.md)). Riva era già conforme (`PressureJet` 16 + `Wet` + `Push`); Vektor resta invariato, perché «Primary Weapon» è un profilo d'uso e non una promessa di potenza; Flux resta damage-only, e il suo motore elettrico ha già un owner che non è l'attacco base (`ConductiveNode`, D-046). **`spec` è `done` dal 2026-08-11**, e prima era `partial` per una ragione che nel frattempo è caduta: ADR-0007 aveva un «punto aperto ereditato da D-033» — il TurnLog non sapeva esprimere la coppia *azione base + profilo* — che l'ADR stesso dichiara **✅ risolto il 2026-08-09** (#354). Il rinvio di Flux non lo tiene parziale: non è una lacuna della specifica ma una **regola dichiarata** («`ArcPulse` resta damage-only in v0.1», con la ragione verificata nel codice — nessuno stato `Charged` esiste e il motore elettrico ha già un owner in `ConductiveNode`/D-039). **`data` è `done`**: `Bastion.ImpactShot` è passato a 8 danni + `Status.Slow` 1 turno. **`automation` è `done`** da `BasicAttackIsIndexZeroForEveryHero`, che fa valere la convenzione `Actions[0]` sul roster invece di lasciarla in un commento — è il prezzo di NON aver aggiunto un campo di ruolo. **`log_debug` è `done`** dal 2026-08-09 (issue #354): `FRTActionDef::BaseActionId` dichiara di quale generica un'azione è profilo, la voce di TurnLog lo porta (formato **v5**) e `DescribeActionIdentity` rende la coppia — `Action.BasicAttack · Bastion.ImpactShot`. Il campo sta **fuori dall'hash**, perché è una funzione di `ActionId`: includerlo non distinguerebbe nulla di più e avrebbe invalidato ogni hash golden. Le tracce v2/v3/v4 restano leggibili, col campo vuoto. Era il consumer che ADR-0007 punto 6 aspettava: la sua regola non è violata, è soddisfatta."
     },
     {
       "feature_id": "RT-FEAT-ACTION-DASH-DISPLACEMENT",

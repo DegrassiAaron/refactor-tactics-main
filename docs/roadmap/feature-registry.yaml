@@ -1272,9 +1272,9 @@ features:
     kind: gameplay
     release: v0.1
     priority: P1
-    status: IMPLEMENTING
+    status: RELEASE_READY
     gates:
-      spec: partial
+      spec: done
       data: done
       runtime: done
       log_debug: done
@@ -1318,6 +1318,12 @@ features:
       Riva era già conforme (`PressureJet` 16 + `Wet` + `Push`); Vektor resta invariato, perché
       «Primary Weapon» è un profilo d'uso e non una promessa di potenza; Flux resta damage-only, e il
       suo motore elettrico ha già un owner che non è l'attacco base (`ConductiveNode`, D-046).
+      **`spec` è `done` dal 2026-08-11**, e prima era `partial` per una ragione che nel frattempo è
+      caduta: ADR-0007 aveva un «punto aperto ereditato da D-033» — il TurnLog non sapeva esprimere la
+      coppia *azione base + profilo* — che l'ADR stesso dichiara **✅ risolto il 2026-08-09** (#354). Il
+      rinvio di Flux non lo tiene parziale: non è una lacuna della specifica ma una **regola dichiarata**
+      («`ArcPulse` resta damage-only in v0.1», con la ragione verificata nel codice — nessuno stato
+      `Charged` esiste e il motore elettrico ha già un owner in `ConductiveNode`/D-039).
       **`data` è `done`**: `Bastion.ImpactShot` è passato a 8 danni + `Status.Slow` 1 turno.
       **`automation` è `done`** da `BasicAttackIsIndexZeroForEveryHero`, che fa valere la convenzione
       `Actions[0]` sul roster invece di lasciarla in un commento — è il prezzo di NON aver aggiunto un
