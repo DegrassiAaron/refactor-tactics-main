@@ -2,7 +2,11 @@
 
 > `HISTORICAL` · **Materiale NON autorevole** · **Primo lotto archiviato il 2026-08-08**
 >
-> I **40** documenti in questa cartella sono i **sorgenti** da cui è nata parte della documentazione normativa.
+> I **48** documenti in questa cartella sono i **sorgenti** da cui è nata parte della documentazione normativa.
+> *(misurato il 2026-08-11 con il comando in fondo a questa intestazione, non incrementato a mano: era fermo a
+> «40». ⚠️ La tabella `handoff/` ne elenca comunque meno del misurato: **tre** sorgenti del 2026-08-10 sono sul
+> disco senza una riga d'indice — `2026-08-10-baseaction-signatures-brace-overwatch.md`,
+> `2026-08-10-facing-consolidation.md`, `2026-08-10-overwatch-runtime-lifecycle-watch-reposition.md`.)*
 > Il primo lotto era in [`../../src/`](../../src/); ogni sorgente si sposta qui quando un owner documentale lo
 > ha recepito. Restano per **provenienza**: servono a ricostruire *da dove* è nata una decisione, non a deciderla.
 >
@@ -21,8 +25,9 @@
 >
 > ⚠️ **Il conteggio era già sbagliato prima del 2026-08-09**: l'intestazione diceva «25» mentre le sue stesse
 > tabelle elencavano **26** righe. Il numero qui sopra è **misurato**
-> (`ls docs/archive/src/{design,handoff,audit}/*.md | wc -l` → 15 + 28 + 2), non incrementato a mano — che è
-> il modo in cui era andato fuori sincrono.
+> (`ls docs/archive/src/{design,handoff,audit}/*.md | wc -l` → 15 + 31 + 2), non incrementato a mano — che è
+> il modo in cui era andato fuori sincrono. *(⚠️ Gli addendi erano rimasti «15 + 28 + 2» = 45 mentre il totale
+> diceva 47: il totale era giusto, la scomposizione no. Rimisurati il 2026-08-11 con lo stesso comando.)*
 
 **Se cerchi la regola, non sei nel posto giusto**: la colonna «Recepito da» dice chi la possiede oggi.
 In caso di conflitto prevalgono [`../../product/piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md),
@@ -66,6 +71,8 @@ In caso di conflitto prevalgono [`../../product/piano-canonico-mvp.md`](../../pr
 | [`2026-08-10-wait-guard-brace-overwatch-e-geometria.md`](handoff/2026-08-10-wait-guard-brace-overwatch-e-geometria.md) | Wait/Guard/Brace/Overwatch, facing e geometria muri/hex | [`handoff-geometry-reazioni-conflict-report-2026-08-10.md`](../../roadmap/plans/handoff-geometry-reazioni-conflict-report-2026-08-10.md) · [D-065](../../decisions/RT_PDR_00_Decision_Log.md) (geometria → **E23.6/23.7**) · [D-066](../../decisions/RT_PDR_00_Decision_Log.md) (Guard/Brace **non** applicata → `BAL-1`). Su 45 righe di triage **18 erano già canone**: la §7 «decisione canonica da consolidare» risolveva un problema che il repository non aveva |
 | [`2026-08-10-status-control-brace-overwatch.md`](handoff/2026-08-10-status-control-brace-overwatch.md) | Status, buff/debuff, control, Brace e Overwatch | [`handoff-status-control-triage-2026-08-10.md`](../../roadmap/plans/handoff-status-control-triage-2026-08-10.md) · **Quarto** sorgente del 2026-08-10 sullo stesso perimetro. La meta' su Brace/Overwatch era gia' decisa (catena #390 → #394 → #397) e proponeva **tre nomi gia' presi**, uno respinto il giorno prima (`Reposition` → `Withdraw`, `D-067`). La meta' sugli status ha contenuto: `RT-FEAT-STATUS-FRAMEWORK`, **DESIGNED**, e da qui l'epic **E36** (v0.2, sei checkpoint). `STA-1` e `STA-2` chiuse da `D-072` — primitive e severity si **derivano** dal dato — che ha pero' aperto `STA-4`, la tassonomia delle capability, prerequisito di entrambe. Restano aperte `STA-3` e `STA-4` |
 | [`2026-08-10-full-grid-geometry-walls-water.md`](handoff/2026-08-10-full-grid-geometry-walls-water.md) | Griglia, geometria, muri, cover, traversal, strutture, acqua ed elettricita' | [`triage-grid-geometry-water-2026-08-10.md`](../../roadmap/plans/triage-grid-geometry-water-2026-08-10.md) · **3159 righe, 55+ sezioni `LOCKED`** — il piu' grande della serie. Un conflitto sulla soglia di calpestabilita', **risolto a favore di [D-071](../../decisions/RT_PDR_00_Decision_Log.md)**; la sua «ultima decisione prima della pausa» (§53, elettricita' sulla rete d'acqua) era **gia' implementata e testata** da CP 8.3. Entrano tre feature `IDEA`: acqua dinamica, strutture, verticalita' · `GEO-1`…`GEO-3` |
+| [`2026-08-11-five-lane-roadmap-editor-replay.md`](handoff/2026-08-11-five-lane-roadmap-editor-replay.md) | Roadmap a 5 lane: Spatial/Simulation/Client + Editor/Tooling + Replay/Audit | ⛔ **Revisionato e non applicato** — [`five-lane-roadmap-spec-panel-2026-08-11.md`](../../roadmap/plans/five-lane-roadmap-spec-panel-2026-08-11.md). La premessa non regge: la «roadmap a 3 lane» che dichiara di estendere **non esiste** (zero occorrenze in `docs/`). **45 dei 51 path** che assegna alle lane non esistono — il modulo runtime non ha lo split `Public/`/`Private/` e il content root è `Content/RT/`; tutti e **11 i gate `G0`–`G10`** collidono con `G1`–`G15` già in uso, tre *quasi* con lo stesso significato. Il dominio replay è già chiuso da `D-077`/`D-078`/`D-083` con **16 test**. Sopravvivono **tre** proposte: livello `DoD Replay` (§23), checklist di gate a cinque caselle (§25), classificazione dati replay per la v0.2 (§29) |
+| [`2026-08-11-battle-simulation-scenario-harness-bot-roadmap.md`](handoff/2026-08-11-battle-simulation-scenario-harness-bot-roadmap.md) | Battle Simulation / Balance Lab, Unified Scenario Harness e roadmap Bot per release v0.1–v0.7 | ⛔ **Revisionato e non applicato** — [`battle-simulation-harness-bot-spec-panel-2026-08-11.md`](../../roadmap/plans/battle-simulation-harness-bot-spec-panel-2026-08-11.md). **Il più accurato della serie sui fatti** — 16 path su 17 esistono, `#326`/`#328` sono vive, le due Feature ID sono quelle giuste — e sbagliato sul **quando**: le milestone `v0.2`/`v0.3` dichiarano che nessuna loro epic si apre prima dei **15 gate della v0.1**, di cui **1 è verde**; la `v0.4` è già **Operations** (19 issue, `#330`–`#333`) e `v0.5`/`v0.6` non esistono. Su **96 issue candidate**: 13 duplicherebbero `E2`/`E15`, 35 sono bloccate, 33 puntano a spazio occupato. La §2.2 (fair knowledge) è data per corrente e non lo è — `PlanBots()` pianifica sullo snapshot **canonico**, `TeamKnowledge` non esiste come tipo → **E13**/`#151`. Sopravvivono **cinque** contributi: competence gate prima del balance (§18), «un provider restituisce decisioni, mai outcome» (§7), seed corpus paired/side-swap/mirror (§16), ability pipeline `LegalOpportunity→OutcomeValue` (§17.3), gli **otto scenari bot v0.1** (§29) — il corpus ne ha 62 e **zero** con il bot come soggetto |
 
 ### Il pacchetto `consolidazione-chat-openai` — dodici sorgenti, un solo triage
 
