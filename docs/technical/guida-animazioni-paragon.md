@@ -14,17 +14,23 @@
 >
 > | Eroe | Pack | Blueprint / AnimBP | Skeletal Mesh | Skeleton |
 > |---|---|---|---|---|
-> | Flux | `Paragon.Gadget` | `BP_Unit_Gadget` · `ABP_Gadget` | `Gadget` | ⚠️ `gadget_bot_Skeleton` |
+> | Flux | `Paragon.Gadget` | `BP_Unit_Gadget` · `ABP_Gadget` | `Gadget` | `Gadget_Skeleton` |
 > | Riva | `Paragon.Phase` | `BP_Unit_Phase` · `ABP_Phase` | ⚠️ `Phase_GDC` | `phase_Skeleton` |
-> | Bastion | `Paragon.Riktor` | `BP_Unit_Riktor` · `ABP_Riktor` | `Riktor` | ⚠️ `belly_Riktor_Skeleton` |
+> | Bastion | `Paragon.Riktor` | `BP_Unit_Riktor` · `ABP_Riktor` | `Riktor` | `Riktor_Skeleton` |
 > | Vektor | `Paragon.Wraith` | `BP_Unit_Wraith` · `ABP_Wraith` | `Wraith` | `Wraith_Skeleton` |
 >
 > Cartelle: `/Game/RT/Characters/<Pack>/{Blueprints,Animation}/`. Pack in
 > `/Game/FabAsset/Paragon/Paragon<Pack>/Characters/Heroes/<Pack>/…`.
 >
 > ⚠️ **La mesh di Riva non si chiama `Phase`**: è `Phase_GDC` (22,6 MB — gli altri file in quella cartella
-> pesano 0,1 MB e sono extents, shadow e skeleton). E due scheletri su quattro non portano il nome del
-> personaggio. Sono gli errori che costano una sessione di editor a cercare un asset che non esiste.
+> pesano 0,1 MB e sono extents, shadow e skeleton). È l'errore che costa mezz'ora a cercare un asset che
+> non esiste.
+>
+> 🔴 **Lo skeleton si LEGGE dalla mesh, non si cerca nella cartella.** La prima stesura di questa tabella
+> dava `gadget_bot_Skeleton` e `belly_Riktor_Skeleton`, presi perché erano il primo file `*Skeleton*` di
+> quella cartella — e appartengono invece a **mesh diverse e più piccole** (`gadget_bot`, `belly_Riktor`).
+> Corretta il 2026-08-11 leggendo il riferimento dentro ciascun `.uasset`. In editor: apri la Skeletal Mesh
+> e leggi il campo **Skeleton** nei Details; non dedurlo dal nome del file.
 >
 > Gli esempi restano scritti su **Gideon/Sparrow** perché sono il *procedimento* registrato nel prototipo del
 > 2026-08-03: leggi «Gideon» come «il personaggio che stai importando» e traduci con la tabella. Riscriverli

@@ -372,9 +372,15 @@ griglia per terreno e hover) e §6 chiede `<Tipo>_<Feature>_<Nome>`. Costo accet
 Blueprint di unità e una eccezione del `.gitignore`; si paga **una volta sola** perché la rinomina viaggia
 nello stesso giro di redirector dello spostamento.
 
-Stessa logica per gli anim BP: `ABP_Gideon`/`ABP_Sparrow` prendono il nome dal pack Paragon di origine, ma
+~~Stessa logica per gli anim BP: `ABP_Gideon`/`ABP_Sparrow` prendono il nome dal pack Paragon di origine, ma
 l'asset appartiene all'archetipo di gioco — che può cambiare mesh senza cambiare identità. Diventano
-**`ABP_Guardian`** e **`ABP_Ranger`**.
+**`ABP_Guardian`** e **`ABP_Ranger`**.~~
+
+> 🗄️ **Superata da [§5b](#5b-characterid-è-il-nome-del-pack-non-delleroe-dal-2026-08-11)** (2026-08-11): la
+> regola è ora **l'opposto** — il nome segue il **pack**, quindi `ABP_Gadget`, non `ABP_Flux`. Il paragrafo
+> resta come registro di CP 6.0. ⚠️ Era rimasto attivo per tre sezioni dopo che la riga gemella della tabella
+> A.2 era già stata barrata: due regole opposte vive nello stesso documento **normativo**, trovate dalla
+> code review della PR #483.
 
 ## A.4 Riferimenti hard-coded da aggiornare (non coperti dai redirector dopo `Fix Up`)
 
