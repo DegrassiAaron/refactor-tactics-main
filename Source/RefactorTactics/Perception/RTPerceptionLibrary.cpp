@@ -79,8 +79,14 @@ TArray<FRTCellId> URTPerceptionLibrary::VisibleCells(const URTHexMapAsset* Map, 
 		// Il cono si chiede a profondita' `Distance` e non `VisionRange`: `HexCone` restituisce il ventaglio
 		// fino alla profondita' richiesta, quindi chiedere la distanza esatta risponde alla sola domanda che
 		// serve — «questa cella e' nell'arco?» — senza costruire il ventaglio intero per ogni candidata.
+		// L'arco si valuta sulla PROIEZIONE esagonale, come gia' fanno distanza e linea di tiro: `HexCone`
+		// genera il ventaglio alla quota del proprio centro, quindi confrontarci una candidata di un altro
+		// piano darebbe sempre falso. Appiattire la candidata sulla quota dell'osservatore chiede la sola cosa
+		// che serve — «sta nel settore che l'unita' copre?» — senza inventare una geometria verticale del cono,
+		// che nessuna decisione ha stabilito e che High Ground esclude per la v0.1.
+		const FRTCellId Flattened(Candidate.X, Candidate.Y, Observer.Cell.Layer);
 		const bool bInArc = Distance <= Observer.VisionRange
-			&& URTHexLibrary::HexCone(Observer.Cell, Ahead, Distance).Contains(Candidate)
+			&& URTHexLibrary::HexCone(Observer.Cell, Ahead, Distance).Contains(Flattened)
 			&& ContactHolds(Map, Observer.Cell, Candidate, Observer.VisionRange);
 
 		if (bClose || bInArc)

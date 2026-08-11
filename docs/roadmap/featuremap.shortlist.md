@@ -26,9 +26,9 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 |---|--:|
 | `IDEA` | 7 |
 | `DESIGNED` | 10 |
-| `SPECIFIED` | 10 |
+| `SPECIFIED` | 9 |
 | `IMPLEMENTING` | 22 |
-| `TESTABLE` | 5 |
+| `TESTABLE` | 6 |
 | `INTEGRATED` | 21 |
 | `RELEASE_READY` | 16 |
 | `DONE` | 1 |
@@ -149,9 +149,9 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
+| `RT-FEAT-PERCEPTION-MEMORY` — Memoria del contatto e ultima posizione nota | v0.1 | TESTABLE | 4/9 | E13 | Il contatto perso lascia una traccia, non un vuoto |
 | `RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE` — TeamKnowledge e informazione parziale | v0.1 | IMPLEMENTING | 3/9 | E13 | Cosa sa la squadra, non cosa sa il motore |
 | `RT-FEAT-PERCEPTION-VISION` — Vista, facing e livelli di consapevolezza | v0.1 | IMPLEMENTING | 3/9 | E13 | Oggi la vista è **una statistica che non decide nulla** |
-| `RT-FEAT-PERCEPTION-MEMORY` — Memoria del contatto e ultima posizione nota | v0.1 | SPECIFIED | 1/9 | E13 | Il contatto perso lascia una traccia, non un vuoto |
 | `RT-FEAT-PERCEPTION-NOISE` — Rumore e percezione acustica | v0.1 | SPECIFIED | 1/9 | E13 | Il secondo canale: sentito senza essere visto |
 
 ### Production · 2
