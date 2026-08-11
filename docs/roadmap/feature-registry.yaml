@@ -4720,21 +4720,26 @@ features:
       tuning) — su scala intera `1..10`, con l'ordine dei raggi **normativo**: cambiarlo cambia
       la forma a parita' di valori, quindi due radar con ordini diversi non sono confrontabili.
       `runtime`/`log_debug` sono `na` perche' nessun rating entra nel resolver: e' una vista
-      derivata e la freccia non torna indietro. `data: todo` non e' un vuoto ma il conflitto
-      `RAD-1` di `OPEN_DECISIONS.md` — le cinque colonne Balance esistono in **due** workbook che
-      si contraddicono sugli stessi quattro eroi. ⚠️ La regola che costa: un asse `TBD` **non si
-      renderizza come `0`** e fa fallire la generazione, perche' uno zero da dato mancante e' la
-      stessa forma di una debolezza voluta. Ne segue che oggi nessun Profile Radar del roster v0.1
-      e' generabile (`offense`, `mobility`, `information` non hanno fonte, `RAD-3`): e' l'esito
-      voluto, non un blocco da aggirare.
+      derivata e la freccia non torna indietro. `data: todo` finche' la rubrica non deriva davvero i
+      rating dai cataloghi: D-106 ha stabilito che **non si scrivono, si calcolano**, e D-023 tiene
+      l'autorita' dei numeri sui `RT_*Catalog_v0.1.md` — quindi nessun workbook e' fonte e il
+      conflitto che teneva aperto `RAD-1` si e' **dissolto** invece di essere risolto.
+      ⚠️ La regola che costa: un asse `TBD` **non si renderizza come `0`** e fa fallire la
+      generazione, perche' uno zero da dato mancante e' la stessa forma di una debolezza voluta. Con
+      i rating calcolati `TBD` cambia significato — non «cella vuota» ma «la rubrica non copre questo
+      asse» — e resta un fallimento. ⚠️ D-107 conferma i **sei assi** e li fa modellare: cinque si
+      derivano dagli input che il catalogo dichiara per eroe (Salute, Movimento, Range visivo,
+      Resistenza Push, abilita' con danno/range/effetto/cooldown), mentre `information` nasce con un
+      solo ingrediente — la **Vista** — perche' stealth e detection vivono solo nel workbook escluso.
+      Si arricchisce derivando il rumore dal **kit** (D-042), non ripescando il foglio.
 
   - feature_id: RT-FEAT-CHAR-RADAR-RATINGS-V01
-    title: Rating canonici del roster v0.1
+    title: Rubrica — i rating derivati dal catalogo eroi
     area: Characters
     kind: data
     release: future
     priority: P3
-    status: BLOCKED
+    status: SPECIFIED
     gates:
       spec: done
       data: todo
@@ -4754,20 +4759,16 @@ features:
     scenarios: []
     wiki_refs: []
     notes: >
-      **BLOCKED su `RAD-1`** (`OPEN_DECISIONS.md`), che aspetta l'autore: il consolidamento del
-      2026-08-11 non poteva chiuderlo perche' non e' un lavoro di valorizzazione ma la **risoluzione
-      di un conflitto gia' presente**. `03_Stats_Base` di `RefactorTactics_Balance_Matrices_v0.1.xlsx`
-      assegna a Flux, Riva, Bastion e Vektor **gli stessi identici valori** (`6/4/4/2/2`,
-      `Indice_Combat 45.6`, `Budget_Punti 60`), mentre `02_Hero_Stats` di
-      `RefactorTactics_Characters_Wiki_Data_v0.4.xlsx` li lascia **vuoti** con
-      `Data_Status: CANONICAL_PARTIAL` e la nota «non sono definiti nel catalogo v0.1».
-      ⚠️ Che siano default lo dimostra il modo in cui il foglio tratta tutti gli altri: le restanti
-      38 righe si distribuiscono su **12 combinazioni assegnate per ruolo** (otto Controller
-      condividono `7/6/10/6/5`, sei Bruiser `7/8/6/3/7`), mentre i quattro della v0.1 hanno **quattro
-      ruoli diversi** — Controller, Support, Guardian, Striker — e la **stessa identica riga**. Sotto
-      la regola che il foglio applica ovunque dovrebbero differire. Un controllo a campione non lo
-      rivela, perche' si incontrano righe popolate e plausibili. Applicare «riusa i rating che
-      esistono» produrrebbe quattro radar sovrapponibili e li dichiarerebbe canonici via Wiki.
+      D-106: i rating **non si scrivono da nessuna parte**. Il generatore legge
+      `RT_HeroCatalog_v0.1.md` — l'autorita' dei numeri per D-023 — applica la rubrica e produce i
+      rating **in memoria**: nessun file di rating esiste, quindi nessuna seconda fonte puo' nascere
+      ne' divergere. ⚠️ Era `BLOCKED` su `RAD-1`, che chiedeva quale dei due workbook fosse autorita':
+      domanda **mal posta**, perche' D-023 aveva gia' declassato quello di balance a `RESEARCH` e
+      `balance/README.md` vieta perfino di ripararlo cella per cella. Il conflitto non e' stato
+      risolto, **si e' dissolto**. ⚠️ Il peso si sposta sulla **rubrica**, che diventa il prerequisito
+      di tutto: senza formula i rating non esistono affatto, e non c'e' il ripiego «intanto li
+      mettiamo a mano». In cambio, cambiare `Salute` o `Movimento` in un catalogo cambia i radar da
+      solo. Il gate `data` resta `todo` finche' la rubrica non legge davvero i cataloghi.
 
   - feature_id: RT-FEAT-WIKI-CHART-GENERATOR
     title: Generatore SVG deterministico dei radar
@@ -4775,9 +4776,9 @@ features:
     kind: tooling
     release: future
     priority: P3
-    status: DESIGNED
+    status: SPECIFIED
     gates:
-      spec: partial
+      spec: done
       data: todo
       runtime: todo
       log_debug: todo
@@ -4796,12 +4797,18 @@ features:
     scenarios: []
     wiki_refs: []
     notes: >
-      `spec: partial` e non `done`: il modello e le regole di determinismo sono scritte (§8
-      dell'owner), ma **toolchain, CLI e collocazione degli artefatti sono `RAD-4` e `RAD-5`**,
-      aperte. ⚠️ Il determinismo di *questo* generatore ha un'insidia propria oltre alle solite
-      (timestamp, UUID, ordine non stabile): le coordinate dei vertici vengono da `sin`/`cos`,
-      quindi da float, la cui resa decimale cambia con piattaforma, libreria matematica e locale —
-      vanno **arrotondate esplicitamente** prima di serializzare. Un test che genera due volte nello
-      stesso processo **non dimostra** la proprieta': passerebbe anche senza arrotondamento, e il
-      golden test va ancorato a un hash committato. `scenario`/`packaged`/`network_privacy` sono
-      `na` come per gli altri strumenti: non e' gioco e non entra nel pacchetto.
+      `spec: done` dal 2026-08-12: D-108 chiude le due incognite che tenevano la spec `partial` —
+      il generatore e' **Node/TypeScript** (contro la raccomandazione registrata nel consolidamento,
+      Python accanto a `scripts/`) e gli SVG si **committano** con un `--check` che li verifica,
+      dentro l'MVP e non nel lavoro futuro. ⚠️ Il determinismo di *questo* generatore ha un'insidia
+      propria oltre alle solite (timestamp, UUID, ordine non stabile): le coordinate dei vertici
+      vengono da `sin`/`cos`, quindi da float, la cui resa decimale cambia con piattaforma, libreria
+      matematica e locale — vanno **arrotondate esplicitamente** prima di serializzare. Un test che
+      genera due volte nello stesso processo **non dimostra** la proprieta', e il golden test va
+      ancorato a un hash committato. ⚠️ Il determinismo viene **prima** del gate: senza
+      arrotondamento il `--check` e' rosso su una macchina e verde su un'altra. ⚠️ Combinato con
+      D-106 il gate diventa un **test di regressione sui dati competitivi**: cambiare `Salute` in un
+      catalogo lo fa diventare rosso finche' gli SVG non sono rigenerati nello stesso commit — un
+      rebalance porta con se' i suoi grafici. Il prezzo e' che chi tocca un catalogo deve poter
+      eseguire il generatore, quindi Node diventa un prerequisito del **bilanciamento**.
+      `scenario`/`packaged`/`network_privacy` sono `na` come per gli altri strumenti.

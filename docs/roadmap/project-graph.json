@@ -1339,6 +1339,18 @@
       "state": "⏳"
     },
     {
+      "id": "PIE-HEX-LAYER-CLICK",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEX-LAYER-FOCUS",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEX-LAYER-PANEL",
+      "state": "⏳"
+    },
+    {
       "id": "PIE-HEX-MODE-A",
       "state": "✅"
     },

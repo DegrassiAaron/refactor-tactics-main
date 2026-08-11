@@ -76,70 +76,102 @@ Interi. Un `10` deve corrispondere a qualcosa che il personaggio **è**, non a u
 generoso; un roster in cui tutti hanno 9 e 10 non comunica niente, e un personaggio piatto su tutti i
 raggi non ha identità leggibile.
 
-⚠️ **La rubrica di conversione kit/stats → rating non esiste ancora.** Finché non esiste, i rating si
-assegnano con una decisione tracciata, non «a vibe» e non a intuito: vedi
-[`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md).
+La rubrica che converte stats e kit in un rating è **codice**, non una tabella compilata a mano: vedi
+§4.
 
-## 4. Le due fonti che si contraddicono
+## 4. I rating non si scrivono: si calcolano
 
-Questo è lo stato verificato il **2026-08-11**, ed è il motivo per cui i rating v0.1 non sono
-canonici oggi.
+[D-106](../decisions/RT_PDR_00_Decision_Log.md). Il generatore legge
+[`RT_HeroCatalog_v0.1.md`](../balance/RT_HeroCatalog_v0.1.md), applica la rubrica e produce i rating
+**in memoria**. Non esiste un file di rating, quindi non può nascere una seconda fonte né divergere.
 
-Il Balance Radar non è una dimensione nuova: le sue cinque colonne esistono in **due** workbook, con
-contenuti incompatibili sugli stessi quattro eroi.
+```text
+RT_HeroCatalog_v0.1.md      ← autorità (D-023)
+        |
+        v  rubrica (codice, rivedibile in PR)
+   rating 1..10             ← esistono solo durante la generazione
+        |
+        v
+      SVG
+```
 
-**A** — `docs/balance/RefactorTactics_Balance_Matrices_v0.1.xlsx`, foglio `03_Stats_Base`:
+### 4.1 Perché nessun workbook è la fonte
 
-| Hero | Precisione | Potenza | Controllo | Supporto | Durabilità | Indice_Combat | Budget |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| Flux | 6 | 4 | 4 | 2 | 2 | 45.6 | 60 |
-| Riva | 6 | 4 | 4 | 2 | 2 | 45.6 | 60 |
-| Bastion | 6 | 4 | 4 | 2 | 2 | 45.6 | 60 |
-| Vektor | 6 | 4 | 4 | 2 | 2 | 45.6 | 60 |
+La domanda «quale dei due workbook è autorità sui rating» era **mal posta**, e il repository aveva già
+risposto prima che venisse fatta.
 
-**B** — `docs/characters/data/RefactorTactics_Characters_Wiki_Data_v0.4.xlsx`, foglio `02_Hero_Stats`:
-le stesse cinque colonne sono **vuote**, con `Data_Status: CANONICAL_PARTIAL` e la nota
-*«Canonico: HP 90, Move 5. Altri attributi di questa matrice non sono definiti nel catalogo v0.1»*.
+[D-023](../decisions/RT_PDR_00_Decision_Log.md) ha dichiarato
+`RefactorTactics_Balance_Matrices_v0.1.xlsx` **`RESEARCH`** e spostato l'autorità dei numeri sui
+cataloghi `balance/RT_*Catalog_v0.1.md`. [`docs/balance/README.md`](../balance/README.md) vieta anche
+la riparazione che sembrava ovvia:
 
-Le quattro righe di **A** sono identiche fra loro in ogni colonna, `Indice_Combat` e `Budget_Punti`
-compresi. Che siano default e non profili si dimostra guardando **come il foglio tratta tutti gli
-altri**: le restanti 38 righe si distribuiscono su **12 combinazioni distinte**, assegnate per
-**ruolo** — otto Controller condividono `7/6/10/6/5`, sei Bruiser `7/8/6/3/7`, e Dekker (Support) ha
-`6/4/9/8/5`.
+> **Non correggerlo cella per cella.** Un workbook rattoppato diventerebbe una falsa fonte corrente,
+> che è peggio di uno dichiaratamente vecchio.
 
-Il foglio, cioè, discrimina per ruolo. E i quattro eroi della v0.1 hanno **quattro ruoli diversi** —
-Controller, Support, Guardian, Striker — con **la stessa identica riga**. Sotto la regola che il
-foglio applica ovunque, quei quattro dovrebbero differire: non differiscono perché nessuno li ha mai
-compilati.
+E `scripts/build-state-matrices-xlsx.py` lo aveva scritto ancora prima: *«il progetto ha tre `.xlsx` e
+**nessuno script li legge**: sono dump di consultazione»* — non diffabili, non revisionabili in PR,
+invisibili ai gate.
 
-⚠️ Ne segue che un controllo a campione sul foglio **non** rivela il problema: si incontrano righe
-popolate e plausibili, e a essere placeholder sono esattamente le quattro che servono alla v0.1.
+Il conflitto fra i due workbook quindi non si risolve: **si dissolve**. Nessuno dei due era una fonte.
 
-**Conseguenza operativa.** «Riusa i rating che esistono già» è la regola giusta e qui produce il
-risultato sbagliato: quattro radar sovrapponibili, dichiarati canonici, che violano §3. La regola va
-letta come **riusa se esistono e discriminano**, con un criterio meccanico verificabile:
+### 4.2 Il difetto che questa scelta rende impossibile
 
-> Una colonna in cui tutte le righe del roster target hanno lo stesso valore non è una fonte di
-> rating: è un default. Va rifiutata dal validator, non copiata.
+Vale la pena conservare cosa sarebbe successo riusando il workbook, perché è il difetto che la
+regola previene.
 
-Il workbook **B** ha già preso una posizione — quei rating non sono canonici. Quale delle due fonti
-sopravvive è una **decisione aperta**, non un dettaglio di implementazione: finché entrambe vivono,
-un generatore che punta a quella sbagliata produce output canonico all'aspetto e falso nel merito.
+Il foglio `03_Stats_Base` assegna a Flux, Riva, Bastion e Vektor **la stessa identica riga**
+(`6/4/4/2/2`, `Indice_Combat 45.6`, `Budget 60`). Che siano default lo dimostra il modo in cui tratta
+tutti gli altri: le restanti 38 righe si distribuiscono su **12 combinazioni assegnate per ruolo** —
+otto Controller condividono `7/6/10/6/5`, sei Bruiser `7/8/6/3/7`. Il foglio discrimina per ruolo, e i
+quattro della v0.1 hanno **quattro ruoli diversi** con valori identici: sotto la sua stessa regola
+dovrebbero differire.
 
-## 5. Copertura degli assi, oggi
+⚠️ Un controllo a campione **non** lo rivela: si incontrano righe popolate e plausibili, e sono
+placeholder esattamente le quattro che servono alla v0.1. Con i rating calcolati il caso non si
+presenta più — non c'è nessuna cella da riusare per sbaglio.
 
-| Asse | Profile | Balance | Fonte |
-|---|:--:|:--:|---|
-| `control` · `support` · `durability` | ✅ | ✅ | colonne esistenti (contese, §4) |
-| `precision` · `power` | — | ✅ | colonne esistenti (contese, §4) |
-| `offense` · `mobility` · `information` | ❌ | — | **nessuna fonte** |
+### 4.3 Il costo, dichiarato
 
-Il Profile Radar ha quindi **tre assi su sei senza alcun dato**, mentre il Balance ne ha cinque su
-cinque già modellati. È una differenza di costo che l'ordine di lavoro deve rispettare: il Balance
-Radar arriva prima perché è l'unico dei due che può essere dimostrato end-to-end senza inventare una
-dimensione (§7).
+Se i rating non sono scritti, senza rubrica **non esistono affatto**: non c'è il ripiego «intanto li
+mettiamo a mano». La rubrica deve spiegare anche i casi che un umano avrebbe risolto a intuito, e un
+eroe il cui kit sfugge alla formula non ha una scappatoia — si corregge la formula, che vale per tutti.
 
-Questo non cambia **quale** radar è pubblico: il Profile resta la vista rivolta a chi legge la Wiki.
+In cambio: cambiare `Salute` o `Movimento` in un catalogo **cambia i radar da solo**.
+
+## 5. Che cosa alimenta ogni asse
+
+[D-107](../decisions/RT_PDR_00_Decision_Log.md) conferma i sei assi e li fa **modellare** invece di
+ridurre il radar a ciò che era già derivabile. Sotto §4 «modellare» significa scrivere una formula sui
+dati dei cataloghi.
+
+Gli input che il catalogo eroi dichiara **per eroe** sono: `Salute`, `Movimento`, `Range visivo`,
+`Resistenza Push`, `Affinità`/`Debolezza`, la risorsa firma con ricarica e cap, e le abilità con
+danno, range, effetto e cooldown.
+
+| Asse | Si deriva da | Stato |
+|---|---|:--:|
+| `offense` | danno, gittata e cooldown delle abilità offensive del kit | ✅ |
+| `durability` | `Salute` + `Resistenza Push` | ✅ |
+| `mobility` | `Movimento` + abilità di riposizionamento (dash, blink, self-reposition) | ✅ |
+| `control` | effetti dichiarati: push, slow, zoning, `Interrupt`, modifica del terreno | ✅ |
+| `support` | effetti dichiarati: scudo, heal, peel, buff ad alleati | ✅ |
+| `information` | **solo** `Range visivo` | ⚠️ |
+
+### 5.1 `information` nasce con un solo ingrediente
+
+Va detto adesso, perché è la parte che promette più di quanto oggi mantenga.
+
+L'unico input per eroe è la **Vista**: Flux 7 ([D-073](../decisions/RT_PDR_00_Decision_Log.md)),
+Vektor 6, Riva e Bastion 5. Stealth, detection e tracking **esistono solo** in `03_Hero_Vision` del
+workbook character, che §4 esclude dalle fonti — quindi non entrano.
+
+Ne segue che `information` è una funzione quasi monovariata, e sul roster v0.1 produrrà **tre valori
+distinti su quattro eroi**.
+
+⚠️ **La strada per arricchirlo non è ripescare il workbook.** Nel gioco il rumore è una proprietà
+delle **azioni**, non degli eroi ([D-042](../decisions/RT_PDR_00_Decision_Log.md)): il contributo per
+eroe si deriva dal **kit** — quali azioni possiede e quanto rumore fanno. Finché quel passo non
+esiste, `information` va letto come «quanto lontano vede», e la Wiki non deve promettere di più.
 
 ## 6. Valori mancanti: TBD non è zero
 
@@ -154,31 +186,55 @@ Regola: **se un asse del radar richiesto è `TBD`, la generazione di quel radar 
 errore che nomina personaggio e asse, e non produce artefatti parziali. Non esiste un radar «quasi
 completo».
 
-⚠️ **Conseguenza da tenere presente**: con lo stato di §5, oggi nessun Profile Radar dei quattro eroi
-v0.1 è generabile. È voluto — è il modo in cui la regola impedisce di pubblicare quattro poligoni
-inventati — e si scioglie chiudendo i rating, non allentando la regola.
+⚠️ Con i rating calcolati (§4) `TBD` cambia significato: non è più «nessuno ha compilato la cella» ma
+**«la rubrica non sa produrre questo asse»**. Resta un fallimento di generazione, e resta la ragione:
+un asse che la formula non copre disegnato come `0` accuserebbe l'eroe di una debolezza che nessuno ha
+misurato.
 
 ## 7. Ordine di lavoro
 
-1. **Risolvere il conflitto di §4** — quale workbook è autorità, e ritiro dell'altro lato.
-2. Rubrica di conversione, almeno per gli assi Balance.
-3. Rating canonici v0.1 sui cinque assi Balance.
-4. Generatore, dimostrato prima sul Balance Radar.
-5. Assi `offense` / `mobility` / `information`, che richiedono modellazione nuova.
-6. Profile Radar e integrazione Wiki.
+1. **Rubrica** — è il prerequisito di tutto: senza formula i rating non esistono affatto (§4.3).
+2. **Generatore** sui cinque assi Balance, dimostrato end-to-end con il gate di §8.
+3. **Assi Profile** nell'ordine di §5: prima i cinque derivabili, poi `information` col suo limite.
+4. **Integrazione Wiki** e pubblicazione dei primi radar.
+5. Rumore per eroe derivato dal kit, che è ciò che rende `information` un asse vero (§5.1).
 
-## 8. Determinismo del generatore
+Il primo punto non è più «risolvere il conflitto dei workbook»: [D-106](../decisions/RT_PDR_00_Decision_Log.md)
+lo ha dissolto.
+
+## 8. Toolchain, determinismo e gate
+
+[D-108](../decisions/RT_PDR_00_Decision_Log.md): il generatore è **Node/TypeScript**, e gli SVG
+prodotti si **committano** con un `--check` che li confronta con la rigenerazione. Il gate è parte
+dell'MVP, non lavoro futuro.
+
+### 8.1 Byte-identical, e perché qui non è ovvio
 
 A parità di input, versione e configurazione l'SVG deve essere **byte-identical**. Oltre alle insidie
 consuete — timestamp, UUID, ordine di iterazione non stabile, metadata variabili — questo generatore
-ne ha una propria: **le coordinate dei vertici vengono da `sin`/`cos`**, quindi da float, la cui
-resa decimale può cambiare con piattaforma, versione di libreria matematica e locale.
+ne ha una propria: **le coordinate dei vertici vengono da `sin`/`cos`**, quindi da float, la cui resa
+decimale può cambiare con piattaforma, versione di libreria matematica e locale.
 
 Perciò le coordinate si **arrotondano esplicitamente** a un numero fisso di decimali prima della
 serializzazione, e la formattazione numerica è indipendente dal locale.
 
-Un test che genera due volte nello stesso processo e confronta i risultati **non dimostra questa
-proprietà**: passerebbe anche senza arrotondamento. Il golden test va ancorato a un hash committato.
+Un test che genera due volte nello stesso processo **non dimostra** questa proprietà: passerebbe anche
+senza arrotondamento. Il golden test va ancorato a un hash committato.
+
+⚠️ **Il determinismo viene prima del gate, non dopo**: senza arrotondamento il `--check` è rosso su una
+macchina e verde su un'altra, e un gate che dipende dalla macchina insegna a ignorarlo.
+
+### 8.2 L'effetto combinato: il gate guarda i cataloghi
+
+Le due scelte di D-108 producono insieme qualcosa che nessuna delle due ha da sola. Poiché i rating
+vengono dai cataloghi (§4), il gate degli SVG diventa **un test di regressione sui dati competitivi**:
+
+> Cambiare `Salute` in `RT_HeroCatalog_v0.1.md` fa diventare rosso il gate finché gli SVG non sono
+> rigenerati **nello stesso commit**.
+
+Un rebalance porta con sé i suoi grafici e non può più dimenticarli. È il beneficio del committare, ed
+è anche il suo prezzo: chi tocca un catalogo deve poter eseguire il generatore, quindi la toolchain
+Node diventa un prerequisito del **bilanciamento**, non solo della documentazione.
 
 ## 9. Che cosa il radar non è
 
