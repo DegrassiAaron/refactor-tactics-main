@@ -3220,16 +3220,16 @@
       "status_derived": "SPECIFIED",
       "gates": {
         "spec": "done",
-        "data": "partial",
+        "data": "done",
         "runtime": "todo",
         "log_debug": "todo",
-        "automation": "todo",
+        "automation": "done",
         "scenario": "partial",
         "ui_wiki": "partial",
         "packaged": "todo",
         "network_privacy": "todo"
       },
-      "gates_done": 1,
+      "gates_done": 3,
       "gates_applicable": 9,
       "roadmap": {
         "epic": "E13",
@@ -3250,7 +3250,14 @@
       "issues": [
         158
       ],
-      "tests": [],
+      "tests": [
+        "RefactorTactics.Noise.PropagationIsDeterministic",
+        "RefactorTactics.Noise.AttenuationBySurface",
+        "RefactorTactics.Noise.ThresholdDecidesDetection",
+        "RefactorTactics.Noise.UsesGraphNotEuclideanRadius",
+        "RefactorTactics.Noise.OcclusionAttenuates",
+        "RefactorTactics.Noise.PermutationInvariant"
+      ],
       "scenarios": [
         "Spec.Perception.HeardNotSeen"
       ],

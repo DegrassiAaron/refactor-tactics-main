@@ -2686,10 +2686,10 @@ features:
     status: SPECIFIED
     gates:
       spec: done
-      data: partial
+      data: done
       runtime: todo
       log_debug: todo
-      automation: todo
+      automation: done
       scenario: partial
       ui_wiki: partial
       packaged: todo
@@ -2703,7 +2703,13 @@ features:
     owner_specs:
       - docs/gameplay/brief-conoscenza-parziale.md
     issues: [158]
-    tests: []
+    tests:
+      - RefactorTactics.Noise.PropagationIsDeterministic
+      - RefactorTactics.Noise.AttenuationBySurface
+      - RefactorTactics.Noise.ThresholdDecidesDetection
+      - RefactorTactics.Noise.UsesGraphNotEuclideanRadius
+      - RefactorTactics.Noise.OcclusionAttenuates
+      - RefactorTactics.Noise.PermutationInvariant
     scenarios:
       - Spec.Perception.HeardNotSeen
     wiki_refs:
