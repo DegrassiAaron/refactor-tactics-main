@@ -25,8 +25,8 @@
 > [D-089](../../decisions/RT_PDR_00_Decision_Log.md) (i default di variante per eroe). La revisione di
 > ciò che è atterrato è
 > [`roadmap/plans/weapon-variants-spec-panel-2026-08-11.md`](../../roadmap/plans/weapon-variants-spec-panel-2026-08-11.md):
-> non riapre nulla di `Locked`, e rileva un rischio prospettico su `#63` — il ponte fra `FRTActionDef` e
-> i campi legacy che il bot legge esiste oggi **solo in un helper di test**.
+> non riapre nulla di `Locked`, e rileva un rischio prospettico su `#63` (`E7.4`): applicata una variante,
+> il ponte verso i campi legacy che il bot legge esiste oggi **solo in un helper di test**.
 
 # RefactorTactics — Weapon Variants / Affinità / Fasce di Danno
 ## File di consolidamento per Claude
