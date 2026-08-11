@@ -147,7 +147,8 @@ personaggio di gioco — con l'argomento che *«il nome del pack lega l'asset a 
 L'argomento resta vero: se un eroe cambia base visuale, `BP_Unit_Gadget` diventa un nome falso e va
 rinominato. La scelta è di privilegiare chi lavora in editor **oggi** rispetto a un rename ipotetico domani,
 ed è consapevole. Chi la ribaltasse di nuovo tocchi anche `editor-sessions.yaml` (U7/U8) e l'allowlist di
-`.gitignore`, dove gli otto path sono scritti per esteso.
+`.gitignore`: gli otto path degli artefatti vi sono elencati **per esteso**, quindi un rename li rende muti
+senza che niente lo segnali.
 
 **Asset di mappa** — regola decisiva: *se eliminando la mappa l'asset non serve più, può restare nella
 cartella della mappa; se è usato da più mappe, va in una cartella condivisa.*
