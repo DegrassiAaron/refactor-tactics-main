@@ -1,6 +1,6 @@
 # Decisioni aperte
 
-> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-10
+> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-11
 > **Cosa è**: l'elenco di ciò che **aspetta una persona**. Nessuna di queste voci può essere chiusa
 > deducendola dai documenti: o mancano i dati, o due fonti si contraddicono senza gerarchia.
 > **Cosa non è**: il registro delle decisioni prese — quello è il
@@ -287,6 +287,7 @@ Tre voci su quattro. Restano qui, barrate, perché il registro deve dire **come*
 | ID | Domanda | Perché serve una risposta |
 |---|---|---|
 | `OW-4` | Gli objective che dipendono dalla **posizione finale** si valutano dopo lo Stage B? | Il sorgente (§17) chiede di verificarlo contro il canone, e il canone **non dice nulla**: è una lacuna, non un conflitto. Con due stage di movimento nella stessa fase, «posizione finale» smette di essere ovvia. ⏳ **Non è di E14 e non è urgente**: misurato il 2026-08-10, gli objective oggi sono **solo** un motivo di fine partita (`ERTMatchEndReason::Objective`) e il punto d'ingresso per il progresso è dichiarato per **CP 10.2**. Nessun objective di posizione esiste, quindi la domanda non ha ancora un consumatore |
+| [`OW-5`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/501) | **Quali condizioni dichiarate in planning sono ammesse in v0.1**, e con quale forma? L'elenco chiuso di [D-012](decisions/RT_PDR_00_Decision_Log.md) non esiste da nessuna parte | È il **gate del DoD di CP 14.3** ([#163](https://github.com/DegrassiAaron/refactor-tactics-main/issues/163)) e blocca due dei suoi test nominati. D-012 dice che i tre regimi *Automatic/Conditional/FastSelect* **emergono dai dati** — `AllowedResponses` più la condizione — e che le condizioni ammesse sono «poche, leggibili e validate dal ruleset». Misurato il 2026-08-10: `AllowedResponses` è atterrato con CP 14.3, la condizione **no**, e l'unica traccia di contenuto è un ESEMPIO nel sorgente §19.2 — `Fire only if target HP <= 50%` — mai promosso a canone. Senza almeno una condizione valida `Reactions.DeclaredConditionCollapsesToImmediateCommit` non è scrivibile: si potrebbe solo verificare che il validator rifiuti tutto, che è vero e non dimostra il collasso a commit immediato. ⚠️ La domanda **non** è «serve un enum di policy»: quello D-012 lo esclude già. È *quali predicati* e **dove vive il loro elenco** — codice, come `IsCapabilityAvailable` in `RTScenarioSession.cpp`, o dato validato |
 
 > **Quattro punti del sorgente NON aprono una voce: sono già compatibili** e possono entrare nel DoD di E14
 > senza altre decisioni — la cadence `OncePerTargetPerReactionInstance` (§21), `MaxPrompts` che conta

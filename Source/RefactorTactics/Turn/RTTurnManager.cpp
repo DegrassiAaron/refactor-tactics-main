@@ -1448,6 +1448,16 @@ void ARTTurnManager::BeginReplayRecording()
 		return;
 	}
 
+	// Senza un formato risolto non si registra. `SetupHexMatch` esce anticipatamente quando
+	// `ApplyMatchFormat` fallisce — la mappa resta a schermo col motivo nel log, e nessuna partita viene
+	// allestita — ma il chiamante e' fuori da quella funzione e non lo sa. Un archivio che dichiara
+	// `FormatId = None` non e' confrontabile con niente (`CompareSerializedTraces` distingue proprio il
+	// `FormatMismatch`), e sarebbe la registrazione di una partita che non e' mai cominciata.
+	if (MatchRules.FormatId.IsNone())
+	{
+		return;
+	}
+
 	ReplayManifest = FRTReplayManifest();
 	ReplayManifest.MatchId = FGuid::NewGuid();
 	// Il formato si legge ADESSO e non a `BeginPlay`: il GameMode spawna il TurnManager prima di risolvere
