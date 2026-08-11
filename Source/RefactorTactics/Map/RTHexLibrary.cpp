@@ -179,6 +179,14 @@ FColor URTHexLibrary::SurfaceColor(ERTHexSurface Surface)
 	}
 }
 
+float URTHexLibrary::ReliefHeightForCost(int32 MoveCost)
+{
+	// Il pavimento (costo 1) sta a zero: il rilievo misura il sovrapprezzo, non il costo assoluto. Costi
+	// minori di 1 non esistono a catalogo, ma un asset editato a mano puo' contenerli: si trattano come piani
+	// invece di produrre una buca, che direbbe «qui si va piu' veloci» — cosa che il gioco non prevede.
+	return FMath::Max(0, MoveCost - 1) * ReliefUnitHeight;
+}
+
 FColor URTHexLibrary::BlockedCellColor()
 {
 	return FColor(230, 40, 40); // rosso: non ci si passa
