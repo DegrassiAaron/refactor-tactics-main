@@ -455,6 +455,29 @@ TArray<FString> URTCatalogLibrary::ValidateLoadout(const TArray<const URTEquipme
 	return Errors;
 }
 
+void URTCatalogLibrary::EquipWeaponVariant(URTActionData* BasicAttack, const URTEquipmentData* Variant)
+{
+	if (BasicAttack == nullptr)
+	{
+		return;
+	}
+	BasicAttack->Def = ApplyWeaponVariant(BasicAttack->Def, Variant);
+
+	// Gli specchi legacy, che sono il motivo per cui questa funzione esiste. `MakeEquipmentAction` fa gia' la
+	// stessa cosa per i gadget, e con la stessa ragione scritta accanto: `URTActionData` li ha a 5 e 30 di
+	// default, e chi non li riallinea manda in partita un'azione con portata e potenza inventate.
+	BasicAttack->RangeCells = BasicAttack->Def.RangeCells;
+	BasicAttack->CooldownTurns = BasicAttack->Def.CooldownTurns;
+
+	// `Power` si ricalcola dagli effetti e non si somma al vecchio valore: `ResolveCombat` ci ricade quando
+	// l'azione non dichiara un `Damage`, e un `+=` qui accumulerebbe a ogni riequipaggiamento.
+	BasicAttack->Power = 0;
+	for (const FRTActionEffectSpec& Spec : BasicAttack->Def.Effects)
+	{
+		if (Spec.Effect == ERTActionEffect::Damage) { BasicAttack->Power = Spec.Amount; break; }
+	}
+}
+
 FName URTCatalogLibrary::DefaultWeaponVariantFor(const FName& HeroId)
 {
 	// D-089 — il default RINFORZA l'identita' dell'eroe; compensarne la debolezza resta la scelta

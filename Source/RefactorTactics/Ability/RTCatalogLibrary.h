@@ -146,6 +146,26 @@ public:
 	static FRTActionDef ApplyWeaponVariant(const FRTActionDef& BasicAttack, const URTEquipmentData* Variant);
 
 	/**
+	 * Applica la variante a un'ISTANZA di attacco base, `Def` **e** campi specchio legacy.
+	 *
+	 * Esiste perche' `ApplyWeaponVariant` lavora su `FRTActionDef` — puro e testabile — mentre in partita chi
+	 * decide legge altrove: il bot pianifica su `Ability->RangeCells` e `Ability->Power`
+	 * (`RTTurnManager.cpp`, ramo delle candidate d'attacco) e il resolver costruisce l'intento con
+	 * `Intent.RangeCells = Ability->RangeCells`. Sono i campi legacy dell'MVP quadrato, che `URTActionData`
+	 * porta ancora.
+	 *
+	 * ⚠️ **Senza questa funzione il ponte esisteva solo in un helper di TEST**, ed e' un difetto che nessun
+	 * test avrebbe scoperto: l'helper faceva la cosa giusta, quindi verificava un percorso che la produzione
+	 * non avrebbe attraversato. Un loadout che assegnasse solo `->Def` avrebbe prodotto una `Weapon.Precision`
+	 * che non usa la cella pagata con 4 danni, una `Weapon.Impact` che fa pianificare al bot un attacco che il
+	 * resolver poi rifiuta — il *pulsante finto* — e una `Weapon.Overcharge` che non applica mai la ricarica,
+	 * cioe' il suo intero prezzo ([D-090](../../../docs/decisions/RT_PDR_00_Decision_Log.md)).
+	 *
+	 * Chi cabla il loadout (CP 7.4, `#63`) deve chiamare **questa**, non `ApplyWeaponVariant` da solo.
+	 */
+	static void EquipWeaponVariant(URTActionData* BasicAttack, const URTEquipmentData* Variant);
+
+	/**
 	 * La variante d'arma di **default** per un eroe (D-089), o `None` se l'eroe non ne ha una dichiarata.
 	 *
 	 * Il criterio e' che il default **rinforzi l'identita'** dell'eroe; compensarne la debolezza resta la
