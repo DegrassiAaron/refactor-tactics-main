@@ -324,9 +324,16 @@ bool FRTNoisePermutationInvariantTest::RunTest(const FString&)
 	for (int32 i = Ids.Num() - 1; i >= 0; --i) { Reversed->AddOrUpdateCell(FRTHexCellData(Ids[i])); }
 	Reversed->SortCells();
 
-	// Un terreno rumoroso in mezzo, cosi' la permutazione ha qualcosa di asimmetrico su cui sbagliare.
-	SetNoiseSurface(Forward, FRTCellId(1, 0), ERTHexSurface::Ice);
-	SetNoiseSurface(Reversed, FRTCellId(1, 0), ERTHexSurface::Ice);
+	// Un OSTACOLO in mezzo, cosi' il grafo e' asimmetrico e la permutazione ha qualcosa su cui sbagliare.
+	//
+	// ⚠️ Qui non serve una superficie rumorosa e sarebbe un errore usarla: `NoiseDelta` agisce alla SORGENTE,
+	// quindi del ghiaccio a meta' strada la propagazione non si accorge — il test resterebbe verde
+	// verificando molto meno di quel che dichiara. Un muro invece cambia i percorsi, che e' esattamente
+	// dove l'ordine di scoperta puo' influire.
+	SetNoiseWall(Forward, FRTCellId(1, 0));
+	SetNoiseWall(Reversed, FRTCellId(1, 0));
+	SetNoiseWall(Forward, FRTCellId(1, -1));
+	SetNoiseWall(Reversed, FRTCellId(1, -1));
 
 	const TArray<FRTNoiseReception> A = URTAcousticPropagationLibrary::Propagate(Forward, Sprint(Origin));
 	const TArray<FRTNoiseReception> B = URTAcousticPropagationLibrary::Propagate(Reversed, Sprint(Origin));
