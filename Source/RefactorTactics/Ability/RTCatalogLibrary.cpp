@@ -236,6 +236,72 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeWeaponVariants()
 	return Variants;
 }
 
+TArray<URTEquipmentData*> URTCatalogLibrary::MakeGadgets()
+{
+	TArray<URTEquipmentData*> Gadgets;
+
+	auto Gadget = [](const TCHAR* Id, const TCHAR* Nome, const TCHAR* CoreAction, const TCHAR* Vantaggio,
+		const TCHAR* Svantaggio, const TArray<FRTActionEffectSpec>& Effects)
+	{
+		URTEquipmentData* G = NewObject<URTEquipmentData>();
+		G->EquipmentId = Id;
+		G->DisplayName = FText::FromString(Nome);
+		G->Slot = ERTEquipmentSlot::Gadget;
+		G->Advantage = FText::FromString(Vantaggio);
+		G->Drawback = FText::FromString(Svantaggio);
+		G->GrantedActionId = CoreAction;
+		G->GrantedEffects = Effects;
+		G->CooldownTurns = 3; // catalogo equipaggiamento §2: «tutti i gadget hanno cooldown 3»
+		return G;
+	};
+
+	// `Gadget.Medkit` — cura 18 su `Action.Heal`, che ne cura 20: il gadget e' la versione portatile di una
+	// capacita' che il catalogo core ha gia', e paga due turni di ricarica in piu' (3 contro 1).
+	Gadgets.Add(Gadget(TEXT("Gadget.Medkit"), TEXT("Medkit"), TEXT("Action.Heal"),
+		TEXT("cura 18 punti a un alleato entro 3 celle, senza essere un curatore"),
+		TEXT("cura 18 invece dei 20 di Action.Heal, e si ricarica in 3 turni invece che in 1"),
+		{ FRTActionEffectSpec(ERTActionEffect::Heal, 18) }));
+
+	// `Gadget.BreachCharge` — 35 a una struttura. Costruito su `Action.HeavyAttack`, che e' l'unica azione
+	// core a dichiarare `DamageStructure`, ma ne SOSTITUISCE gli effetti: la carica da sfondamento apre muri,
+	// non ferisce persone. Il numero 35 non e' inventato qui — il commento di `HeavyAttack` lo dichiara gia'
+	// («un colpo pesante scalfisce un muro meno di una carica da sfondamento dedicata, 35 a struttura, E7»),
+	// e questa e' la riga che lo rende vero invece che promesso.
+	Gadgets.Add(Gadget(TEXT("Gadget.BreachCharge"), TEXT("Carica da breccia"), TEXT("Action.HeavyAttack"),
+		TEXT("35 danni a una struttura: apre coperture e porte che il fuoco normale scalfisce appena"),
+		TEXT("non fa alcun danno alle unita', e occupa l'unico slot gadget"),
+		{ FRTActionEffectSpec(ERTActionEffect::DamageStructure, 35) }));
+
+	// `Gadget.Sprinkler` — acqua raggio 1, che e' **esattamente** cio' che `Action.CreateWater` gia' fa
+	// (`SurfaceRadius = 1`, catalogo azioni §6). Nessun effetto proprio: il suo esito e' una superficie, che
+	// `FRTActionEffectSpec` non sa esprimere — dichiararne uno qui significherebbe fraintenderlo.
+	Gadgets.Add(Gadget(TEXT("Gadget.Sprinkler"), TEXT("Sprinkler"), TEXT("Action.CreateWater"),
+		TEXT("allaga un'area di raggio 1: prepara le combo elettriche e spegne il fuoco"),
+		TEXT("bagna anche i propri, e l'acqua resta dopo che il turno e' passato"),
+		{}));
+
+	// `Gadget.PortableCover` — gia' costruito in CP 9.5, non riscritto qui.
+	Gadgets.Add(MakePortableCoverGadget());
+
+	// ⛔ I QUATTRO ASSENTI, con la ragione ciascuno — sono quattro ragioni diverse, non «mancano».
+	//
+	// - `Gadget.SmokeEmitter` (fumo raggio 1): **nessuna azione core crea `ERTHexSurface::Smoke`**. L'unica
+	//   che lo fa e' `Riva.MistVeil`, che e' d'eroe e risolve in `Preparation` — e la fase e' proprio il
+	//   difetto che `#353` ha documentato. Serve prima un'azione core del fumo, come `CreateWater` lo e'
+	//   dell'acqua.
+	// - `Gadget.Insulator` (immunita' a una propagazione elettrica): e' un PASSIVO, e non concede un'azione.
+	//   Il motore non ha un modello di immunita' per categoria — `RT-FEAT-STATUS-FRAMEWORK` (E36) lo
+	//   costruira'. Oggi sarebbe un gadget che non fa niente.
+	// - `Gadget.Sensor` (alza la Team Knowledge in un'area): la conoscenza parziale e' **E13, assente**. E il
+	//   catalogo stesso dichiara raggio e durata «non specificati dalla fonte», quindi mancano anche i numeri.
+	// - `Gadget.Anchor` (impedisce **una** spinta): il campo `PushResistance` esiste ma e' una SOGLIA
+	//   permanente, non un contatore. Darlo a chi porta l'ancora lo renderebbe immune a OGNI spinta del gioco
+	//   — tutte valgono 1 — cioe' esattamente l'immunita' non decisa che `D-075` ha appena tolto a Bastion.
+	//   «Una» spinta richiede un consumo per turno che non esiste.
+
+	return Gadgets;
+}
+
 TArray<URTEquipmentData*> URTCatalogLibrary::MakeReactionModules()
 {
 	TArray<URTEquipmentData*> Modules;

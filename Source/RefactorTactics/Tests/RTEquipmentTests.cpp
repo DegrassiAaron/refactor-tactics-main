@@ -491,4 +491,146 @@ bool FRTImpactVariantStacksPushTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// CP 7.2 (#61) — i gadget che il motore sa già far funzionare.
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGadgetCooldownEnforcedTest,
+	"RefactorTactics.Equipment.Gadget.CooldownEnforced",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGadgetCooldownEnforcedTest::RunTest(const FString&)
+{
+	// Nome vincolante del DoD. La regola del catalogo §2 è dichiarata **una volta sopra la tabella** — «tutti
+	// i gadget hanno cooldown 3» — quindi il test itera su tutti invece di controllarne uno: è una proprietà
+	// dell'insieme, e un gadget nuovo che se ne dimenticasse deve cadere qui.
+	const TArray<URTEquipmentData*> Gadgets = URTCatalogLibrary::MakeGadgets();
+	if (!TestEqual(TEXT("quattro gadget: gli altri quattro non sono esprimibili"), Gadgets.Num(), 4))
+	{
+		return false;
+	}
+
+	TArray<const URTEquipmentData*> AsConst;
+	for (const URTEquipmentData* G : Gadgets) { AsConst.Add(G); }
+	const TArray<FString> Errors = URTCatalogLibrary::ValidateEquipment(AsConst);
+	for (const FString& Err : Errors) { AddError(Err); }
+	TestEqual(TEXT("il catalogo dei gadget e' strutturalmente valido"), Errors.Num(), 0);
+
+	for (const URTEquipmentData* G : Gadgets)
+	{
+		const FString Id = G->EquipmentId.ToString();
+		TestTrue(*FString::Printf(TEXT("%s: slot gadget"), *Id), G->Slot == ERTEquipmentSlot::Gadget);
+		TestEqual(*FString::Printf(TEXT("%s: ricarica 3 turni"), *Id), G->CooldownTurns, 3);
+
+		// Il cooldown dev'essere quello del GADGET anche sull'azione concessa: l'azione core ne ha uno suo
+		// (`Action.Heal` 1, `Action.CreateWater` 2) e senza la sostituzione il gadget si ricaricherebbe coi
+		// tempi di un'altra cosa.
+		URTActionData* Action = URTCatalogLibrary::MakeEquipmentAction(G, nullptr);
+		if (!TestNotNull(*FString::Printf(TEXT("%s: concede un'azione"), *Id), Action)) { continue; }
+		TestEqual(*FString::Printf(TEXT("%s: l'azione concessa eredita la ricarica del gadget"), *Id),
+			Action->Def.CooldownTurns, 3);
+		TestEqual(*FString::Printf(TEXT("%s: nel TurnLog si legge il gadget"), *Id),
+			Action->Def.ActionId, G->EquipmentId);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGadgetNumbersMatchCatalogTest,
+	"RefactorTactics.Equipment.Gadget.NumbersMatchCatalog",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGadgetNumbersMatchCatalogTest::RunTest(const FString&)
+{
+	const TArray<URTEquipmentData*> Gadgets = URTCatalogLibrary::MakeGadgets();
+	auto Trova = [&Gadgets](const TCHAR* Id) -> const URTEquipmentData*
+	{
+		for (const URTEquipmentData* G : Gadgets)
+		{
+			if (G->EquipmentId == FName(Id)) { return G; }
+		}
+		return nullptr;
+	};
+
+	// Medkit: cura 18 (catalogo §2), non i 20 dell'azione core. Il confronto è **contro il core**, così se
+	// domani `Action.Heal` cambia i due numeri non si allineano in silenzio.
+	const URTEquipmentData* Medkit = Trova(TEXT("Gadget.Medkit"));
+	if (!TestNotNull(TEXT("Gadget.Medkit"), Medkit)) { return false; }
+	URTActionData* Cura = URTCatalogLibrary::MakeEquipmentAction(Medkit, nullptr);
+	if (!TestNotNull(TEXT("l'azione del medkit"), Cura)) { return false; }
+	int32 Heal = 0;
+	for (const FRTActionEffectSpec& S : Cura->Def.Effects)
+	{
+		if (S.Effect == ERTActionEffect::Heal) { Heal = S.Amount; }
+	}
+	TestEqual(TEXT("Medkit: cura 18"), Heal, 18);
+	const FRTActionDef CoreHeal = URTCatalogLibrary::FindCoreAction(TEXT("Action.Heal"));
+	TestNotEqual(TEXT("e diverge dai 20 del core, come dichiara il catalogo"),
+		Heal, [&CoreHeal]{ for (const FRTActionEffectSpec& S : CoreHeal.Effects)
+			{ if (S.Effect == ERTActionEffect::Heal) { return S.Amount; } } return 0; }());
+
+	// BreachCharge: 35 alla STRUTTURA e **zero** alle unità. È il punto in cui `GrantedEffects` sostituisce
+	// invece di aggiungere: `Action.HeavyAttack` fa 35 a un'unità e 20 a una struttura, e una carica da
+	// sfondamento che ferisse le persone sarebbe un'altra cosa.
+	const URTEquipmentData* Breach = Trova(TEXT("Gadget.BreachCharge"));
+	if (!TestNotNull(TEXT("Gadget.BreachCharge"), Breach)) { return false; }
+	URTActionData* Carica = URTCatalogLibrary::MakeEquipmentAction(Breach, nullptr);
+	if (!TestNotNull(TEXT("l'azione della carica"), Carica)) { return false; }
+	int32 Struttura = 0, Unita = 0;
+	for (const FRTActionEffectSpec& S : Carica->Def.Effects)
+	{
+		if (S.Effect == ERTActionEffect::DamageStructure) { Struttura = S.Amount; }
+		if (S.Effect == ERTActionEffect::Damage) { Unita = S.Amount; }
+	}
+	TestEqual(TEXT("BreachCharge: 35 alla struttura"), Struttura, 35);
+	TestEqual(TEXT("BreachCharge: nessun danno alle unita'"), Unita, 0);
+
+	// Sprinkler: il suo esito è una SUPERFICIE, non un effetto. Il raggio 1 del catalogo equipaggiamento è
+	// già quello di `Action.CreateWater`, e il gadget lo eredita invece di riscriverlo.
+	const URTEquipmentData* Sprinkler = Trova(TEXT("Gadget.Sprinkler"));
+	if (!TestNotNull(TEXT("Gadget.Sprinkler"), Sprinkler)) { return false; }
+	URTActionData* Acqua = URTCatalogLibrary::MakeEquipmentAction(Sprinkler, nullptr);
+	if (!TestNotNull(TEXT("l'azione dello sprinkler"), Acqua)) { return false; }
+	TestTrue(TEXT("Sprinkler: crea una superficie"), Acqua->Def.bCreatesSurface);
+	TestTrue(TEXT("e la superficie e' acqua bassa"), Acqua->Def.SurfaceCreated == ERTHexSurface::ShallowWater);
+	TestEqual(TEXT("raggio 1, ereditato dal core"), Acqua->Def.SurfaceRadius, 1);
+	TestEqual(TEXT("nessun effetto proprio: una superficie non e' un FRTActionEffectSpec"),
+		Sprinkler->GrantedEffects.Num(), 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGadgetsWithoutEngineSupportTest,
+	"RefactorTactics.Equipment.Gadget.FourAreNotExpressibleYet",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGadgetsWithoutEngineSupportTest::RunTest(const FString&)
+{
+	// ⚠️ Terzo test che **pinna limiti**, come `SplitHasNoConsumerYet` e `EmergencyDashIsNotExpressibleYet`.
+	// Quattro gadget del catalogo §2 non sono costruiti, per quattro ragioni diverse — e la differenza conta,
+	// perché porta a lavori diversi. Il test verifica che non compaiano, e per due di essi verifica **anche
+	// la ragione**, così non basta aggiungerli per farlo tornare verde.
+	const TArray<URTEquipmentData*> Gadgets = URTCatalogLibrary::MakeGadgets();
+	const TCHAR* Assenti[] = { TEXT("Gadget.SmokeEmitter"), TEXT("Gadget.Insulator"),
+		TEXT("Gadget.Sensor"), TEXT("Gadget.Anchor") };
+	for (const TCHAR* Id : Assenti)
+	{
+		bool bPresente = false;
+		for (const URTEquipmentData* G : Gadgets)
+		{
+			if (G->EquipmentId == FName(Id)) { bPresente = true; }
+		}
+		TestFalse(*FString::Printf(TEXT("%s non e' costruito"), Id), bPresente);
+	}
+
+	// `SmokeEmitter`: nessuna azione CORE crea fumo. Se un giorno esistesse, questo cade e chiede il gadget.
+	bool bSmokeCore = false;
+	for (const FRTActionDef& Def : URTCatalogLibrary::GetCoreActionCatalog())
+	{
+		if (Def.bCreatesSurface && Def.SurfaceCreated == ERTHexSurface::Smoke) { bSmokeCore = true; }
+	}
+	TestFalse(TEXT("nessuna azione core crea fumo: e' per questo che SmokeEmitter non esiste"), bSmokeCore);
+
+	// `Anchor`: `PushResistance` è una soglia permanente, non un contatore per turno. Il roster è a zero dopo
+	// D-075, e un gadget che la alzasse renderebbe immune a OGNI spinta — tutte valgono 1.
+	TestEqual(TEXT("il roster non ha resistenza nativa (D-075), e il gadget non puo' introdurla come soglia"),
+		URTHeroCatalogLibrary::MakeBastion()->PushResistance, 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
