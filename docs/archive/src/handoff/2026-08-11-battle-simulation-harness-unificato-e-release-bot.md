@@ -27,6 +27,37 @@
 > ⚠️ **Il §1 elenca `docs/wiki/feature-status.md` fra le viste generate: non esiste più.** [D-076](../../../decisions/RT_PDR_00_Decision_Log.md)
 > ha reso il clone della Wiki la fonte unica, e la vista si chiama ora `Stato-delle-feature` **nel clone**.
 > Stessa sorte per `docs/roadmap/roadmap-editor.md`, che è `HISTORICAL` dal 2026-08-08.
+>
+> ---
+>
+> ## 🔴 PRIMA DI IMPLEMENTARE IL BATTLE LAB — due prescrizioni farebbero REGREDIRE il progetto
+>
+> Revisione del panel, 2026-08-11, misurata su `main`. Referto completo:
+> [`…/bot-ai-consolidamento-2026-08-11.md`](../../../roadmap/plans/bot-ai-consolidamento-2026-08-11.md) §10.
+>
+> **1. Il §16 («seed corpus», run appaiate «stesso seed») e il §38 («Repeat 1000») presuppongono un RNG che
+> in questo progetto NON esiste.** Misurato: `FMath::Rand`, `FRandomStream` e `RandRange` hanno **zero**
+> occorrenze fuori da `Tests/`, e `Scenario.Seed` è caricato, copiato nel result e scritto nel report — mai
+> consumato come casualità. Due partite con lo stesso allestimento danno lo stesso esito, **sempre**.
+> Conseguenza: quello che il §16 chiama *corpus di seed* è un **corpus di allestimenti** (posizioni, roster,
+> mappa), e implementarlo alla lettera spinge verso l'unica cosa che renderebbe vero il nome — aggiungere un
+> generatore casuale, cioè distruggere la proprietà da cui dipendono l'hash del TurnLog, il corpus golden e
+> la riproducibilità dei replay. E ripetere mille volte un calcolo deterministico non verifica la logica: il
+> test giusto è la **permutazione**, che esiste già.
+>
+> **2. Il §12 definisce il Golden Scenario con `ContentManifestHash` e `RulesVersion`, che
+> [D-083](../../../decisions/RT_PDR_00_Decision_Log.md) ha deciso di costruire alla v0.2** con perimetro
+> fissato e innesco dichiarato. La stessa decisione vieta la scorciatoia che il §12 induce: *«un campo
+> scritto a zero in attesa di un consumatore sarebbe un dato che nessuno legge e un sentinella che somiglia a
+> un valore valido»*. Il §12 ha ragione sul principio e sbaglia la lista dei campi.
+>
+> Più tre rilievi minori nel referto §10: il §11 mette la **performance fra le assertion** (e il §19 dice il
+> contrario); il §36 punto 9 rende una feature Done solo **dopo** la release, che è circolare; il §13
+> introduce un **secondo schema d'identità** accanto a `D-077`.
+>
+> ✅ Ciò che il documento ha di **forte** è già entrato: un solo harness e provider che restituiscono
+> decisioni (`D-101`, issue [#542](https://github.com/DegrassiAaron/refactor-tactics-main/issues/542)) ·
+> competence gate prima del bilanciamento (`D-102`, issue [#543](https://github.com/DegrassiAaron/refactor-tactics-main/issues/543)).
 
 # RefactorTactics — Battle Simulation, Unified Scenario Harness e Bot Release Roadmap
 ## Handoff operativo per Claude Code — integrazione nello stato corrente, consolidamento, Project Control Center, Wiki, Roadmap, Epic/Issue e checkpoint
