@@ -99,7 +99,13 @@ bool FRTHexBotLegalMovesTest::RunTest(const FString&)
 
 	// Senza questa verifica il test passerebbe anche con un pianificatore che non fa NULLA: restare fermi
 	// e' sempre legale. I bot partono a distanza 6 dai nemici, fuori dalla portata di entrambi gli archetipi,
-	// quindi ciascuno deve muoversi (o scattare) per avvicinarsi.
+	// quindi ciascuno deve muoversi (o scattare).
+	//
+	// ⚠️ **Da CP 13.5 il MOTIVO per cui si muovono e' cambiato, e va scritto o il test mente sul proprio
+	// oggetto**: distanza 6 e' anche fuori VISTA, quindi nessuno dei due bot conosce un nemico e non si sta
+	// «avvicinando» a niente — si muove per la condotta di ricerca (`PlanBots`, ramo «nessun contatto»). Cio'
+	// che questo test verifica resta la LEGALITA' del piano, che e' il suo nome; il fatto che il piano esista
+	// e' ora pinnato da `SeeksContactWithoutKnowledge`, che lo verifica per quello che e'.
 	for (ARTUnit* Bot : Bots)
 	{
 		const bool bActs = !(Bot->PlannedCell == Bot->Cell)
@@ -531,6 +537,223 @@ bool FRTHexBotPanicTest::RunTest(const FString&)
 	const FRTCellId Escape = Kiter->PlannedDashAbility != INDEX_NONE ? Kiter->PlannedDashCell : Kiter->PlannedCell;
 	TestTrue(TEXT("il kiter si allontana dalla minaccia"),
 		URTHexLibrary::HexDistance(Escape, Melee->Cell) > URTHexLibrary::HexDistance(Kiter->Cell, Melee->Cell));
+
+	DestroyHexBotWorld(World);
+	return true;
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// CP 13.5 — il bot pianifica sulla CONOSCENZA della sua squadra (#160, RT-FEAT-BOT-FAIRNESS)
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+namespace
+{
+	/** Il piano di un bot, ridotto a cio' che il resolver poi eseguira'. Confrontabile fra due partite. */
+	struct FRTBotPlanFingerprint
+	{
+		FRTCellId Cell;
+		/**
+		 * Il bersaglio come CELLA, non come identita'.
+		 *
+		 * ⚠️ La prima stesura usava `StableUnitId` e faceva fallire il canary **senza che ci fosse una fuga**:
+		 * `MatchRosterLess` ordina il roster per `(TeamId, cella)`, quindi spostare il nemico NASCOSTO
+		 * rinumera anche quello VISIBILE — in una partita il bersaglio era `2`, nell'altra `1`, e i due piani
+		 * risultavano diversi pur essendo lo stesso piano. L'identita' e' deterministica *dentro* una
+		 * partita e non e' confrontabile *fra* due partite diverse.
+		 * La cella lo e', perche' il nemico visibile sta nello stesso posto in entrambe — e conserva il
+		 * potere del test: se il bot bersagliasse quello nascosto, le due celle differirebbero.
+		 */
+		FRTCellId AttackTargetCell;
+		bool bHasAttackTarget = false;
+		int32 AbilityIndex = INDEX_NONE;
+		int32 DashAbility = INDEX_NONE;
+		FRTCellId DashCell;
+
+		bool operator==(const FRTBotPlanFingerprint& O) const
+		{
+			return Cell == O.Cell && bHasAttackTarget == O.bHasAttackTarget
+				&& (!bHasAttackTarget || AttackTargetCell == O.AttackTargetCell)
+				&& AbilityIndex == O.AbilityIndex && DashAbility == O.DashAbility && DashCell == O.DashCell;
+		}
+	};
+
+	FRTBotPlanFingerprint FingerprintOfBotPlan(const ARTUnit* Bot)
+	{
+		FRTBotPlanFingerprint F;
+		if (!Bot) { return F; }
+		F.Cell = Bot->PlannedCell;
+		F.bHasAttackTarget = Bot->PlannedAttackTarget != nullptr;
+		if (Bot->PlannedAttackTarget) { F.AttackTargetCell = Bot->PlannedAttackTarget->Cell; }
+		F.AbilityIndex = Bot->PlannedAbilityIndex;
+		F.DashAbility = Bot->PlannedDashAbility;
+		F.DashCell = Bot->PlannedDashCell;
+		return F;
+	}
+}
+
+/**
+ * CANARY DELL'ONNISCIENZA — il gate di `RT-FEAT-BOT-FAIRNESS`.
+ *
+ * Due partite identiche in tutto cio' che la squadra del bot PUO' sapere, e diverse solo in cio' che non
+ * puo': la posizione di un nemico fuori vista, da un lato nella prima e dall'altro nella seconda. Il piano
+ * deve essere lo stesso.
+ *
+ * E' l'unico controllo che un bot onnisciente non puo' superare, ed e' per questo che esiste. Un bot che
+ * legge lo stato autorevole non fallisce, non va in crash e produce piani *sensati*: una review lo prende
+ * solo se qualcuno rilegge la riga giusta di `PlanBots`, cioe' finche' qualcuno si ricorda di guardare.
+ * Questo test misura l'unica cosa che l'onniscienza non sa falsificare — l'INDIPENDENZA dell'esito da
+ * un'informazione che non si dovrebbe avere.
+ *
+ * Vale anche come promessa pubblicata: la pagina Wiki `avversario-bot` dice al giocatore «il bot non vede
+ * piu' di te». Senza questo test quella frase e' prosa.
+ *
+ * Il nemico nascosto e' tenuto LONTANO dal corridoio d'azione (lati opposti, distanza 6 con vista 3), e non
+ * perche' sia comodo: l'OCCUPAZIONE resta legittimamente globale — `ReachableCells` e `DashHostiles`
+ * modellano cio' che il resolver fara', non cio' che la squadra sa, e il giocatore umano ha lo stesso
+ * vincolo. Rendere il bot piu' cieco dell'umano sarebbe sbagliato quanto renderlo onnisciente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotHiddenEnemyFairnessTest,
+	"RefactorTactics.HexBotPlay.HiddenEnemyFairness",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotHiddenEnemyFairnessTest::RunTest(const FString&)
+{
+	// Una partita: bot e nemico visibile sempre uguali, nemico NASCOSTO nella cella indicata.
+	auto PlanWithHiddenAt = [](const FRTCellId& HiddenCell, bool& bOutSetupOk) -> FRTBotPlanFingerprint
+	{
+		bOutSetupOk = false;
+		FRTBotPlanFingerprint Empty;
+		UWorld* World = MakeHexBotWorld();
+		if (!World) { return Empty; }
+		SpawnHexBotMap(World, /*Radius=*/ 6);
+
+		ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0), /*bBot*/ true);
+		ARTUnit* Seen = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(2, 0), /*bBot*/ false);
+		ARTUnit* Hidden = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeRiva(), HiddenCell, /*bBot*/ false);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Bot || !Seen || !Hidden) { DestroyHexBotWorld(World); return Empty; }
+
+		// Vista corta e DICHIARATA nel test: cosi' la premessa non dipende dai numeri di bilanciamento del
+		// roster, che cambiano (D-073 ha appena portato Flux a 7).
+		Bot->VisionRange = 3;
+
+		const bool bSeen = URTHexLibrary::HexDistance(Bot->Cell, Seen->Cell) <= Bot->VisionRange;
+		const bool bHidden = URTHexLibrary::HexDistance(Bot->Cell, Hidden->Cell) > Bot->VisionRange;
+		if (!bSeen || !bHidden) { DestroyHexBotWorld(World); return Empty; }
+
+		TM->PlanBotsForTest();
+		const FRTBotPlanFingerprint F = FingerprintOfBotPlan(Bot);
+		DestroyHexBotWorld(World);
+		bOutSetupOk = true;
+		return F;
+	};
+
+	bool bLeftOk = false;
+	bool bRightOk = false;
+	const FRTBotPlanFingerprint Left = PlanWithHiddenAt(FRTCellId(-6, 3), bLeftOk);
+	const FRTBotPlanFingerprint Right = PlanWithHiddenAt(FRTCellId(6, -3), bRightOk);
+
+	if (!TestTrue(TEXT("premessa: entrambe le partite allestite, uno visto e uno fuori vista"), bLeftOk && bRightOk))
+	{
+		return false;
+	}
+
+	TestTrue(TEXT("il piano del bot NON dipende da dove sta il nemico che non vede"), Left == Right);
+
+	// Senza questa riga il test passerebbe anche con un bot che non pianifica niente in nessuna delle due:
+	// due «fermo» sono identici, e l'uguaglianza non proverebbe nulla.
+	const bool bDidSomething = !(Left.Cell == FRTCellId(0, 0))
+		|| Left.bHasAttackTarget
+		|| Left.DashAbility != INDEX_NONE;
+	TestTrue(TEXT("premessa: nelle due partite il bot ha davvero pianificato qualcosa"), bDidSomething);
+	return true;
+}
+
+/**
+ * Il bot non bersaglia cio' che la sua squadra non conosce.
+ *
+ * Complementare al canary: quello dimostra che l'esito non DIPENDE dall'ignoto, questo che l'ignoto non
+ * viene proprio scelto.
+ *
+ * ⚠️ **L'allestimento e' costruito perche' il test possa FALLIRE, ed e' la parte che conta.** La prima
+ * stesura metteva l'ignoto a distanza 6, cioe' fuori portata d'attacco: rimettendo l'onniscienza per
+ * mutazione il test restava VERDE, perche' un bot onnisciente non lo avrebbe bersagliato comunque —
+ * misurava la portata, non la conoscenza.
+ * Qui l'ignoto e' dentro la portata **e quasi morto**: `WKill` domina di due ordini di grandezza, quindi un
+ * bot che lo vedesse lo sceglierebbe di sicuro. Il verde significa che non lo vede.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotPartialKnowledgeTest,
+	"RefactorTactics.HexBotPlay.PlansOnPartialKnowledge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotPartialKnowledgeTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBotWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBotMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Seen = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(1, 0), /*bBot*/ false);
+	ARTUnit* Unknown = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeRiva(), FRTCellId(3, 0), /*bBot*/ false);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Bot || !Seen || !Unknown) { DestroyHexBotWorld(World); return false; }
+
+	// Vista di UNA cella: vede il vicino, non l'altro. Dichiarata qui e non ereditata dal roster, che cambia.
+	Bot->VisionRange = 1;
+	// Quasi morto: e' l'esca. `WKill` vale 10000 contro `WDamage` 10 — se il bot lo vedesse, lo sceglierebbe.
+	Unknown->Health = 1;
+	Unknown->Shield = 0;
+
+	TestTrue(TEXT("premessa: il vicino e' visto"),
+		URTHexLibrary::HexDistance(Bot->Cell, Seen->Cell) <= Bot->VisionRange);
+	TestTrue(TEXT("premessa: l'esca e' FUORI VISTA"),
+		URTHexLibrary::HexDistance(Bot->Cell, Unknown->Cell) > Bot->VisionRange);
+	TestTrue(TEXT("premessa: ma e' DENTRO la portata d'attacco, altrimenti il test non puo' fallire"),
+		URTHexLibrary::HexDistance(Bot->Cell, Unknown->Cell) <= Bot->AttackRange);
+
+	TM->PlanBotsForTest();
+
+	TestTrue(TEXT("il bot non bersaglia l'unita' che la squadra non conosce, nemmeno se e' un kill facile"),
+		Bot->PlannedAttackTarget != Unknown);
+
+	DestroyHexBotWorld(World);
+	return true;
+}
+
+/**
+ * Senza NESSUN contatto il bot cerca, non si ferma.
+ *
+ * Pinna la condotta che ha salvato `HexMatch.PlaysToCompletion`: con la conoscenza parziale due squadre che
+ * non si vedono possono aspettarsi per sempre, e la partita non finisce. E' il primo turno di ogni partita
+ * su una mappa piu' larga della vista, cioe' il caso normale — non un caso limite.
+ *
+ * Il test non pretende una ricerca *intelligente*: pretende che il bot si MUOVA e che si avvicini al centro,
+ * che e' geometria pubblica. I goal veri (`SecureObjective`, `GatherInformation`) sono E26.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotSeeksContactTest,
+	"RefactorTactics.HexBotPlay.SeeksContactWithoutKnowledge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotSeeksContactTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBotWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBotMap(World, /*Radius=*/ 6);
+
+	// Il bot sta sul BORDO, il nemico sul bordo opposto: nessuno dei due vede l'altro.
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(6, -3), /*bBot*/ true);
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(-6, 3), /*bBot*/ false);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
+
+	Bot->VisionRange = 3;
+	const int32 Before = URTHexLibrary::HexDistance(Bot->Cell, FRTCellId(0, 0));
+	TestTrue(TEXT("premessa: il nemico e' fuori vista"),
+		URTHexLibrary::HexDistance(Bot->Cell, Foe->Cell) > Bot->VisionRange);
+
+	TM->PlanBotsForTest();
+
+	TestTrue(TEXT("senza contatti il bot si muove invece di restare fermo"), !(Bot->PlannedCell == Bot->Cell));
+	TestTrue(TEXT("e si avvicina al centro della mappa"),
+		URTHexLibrary::HexDistance(Bot->PlannedCell, FRTCellId(0, 0)) < Before);
 
 	DestroyHexBotWorld(World);
 	return true;

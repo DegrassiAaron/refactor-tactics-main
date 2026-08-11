@@ -627,6 +627,22 @@ protected:
 	FRTTeamKnowledge KnowledgeForTeam(int32 TeamId) const;
 
 	/**
+	 * Rinfresca `TeamKnowledgeState` dalle posizioni ATTUALI delle unita' vive (CP 13.5).
+	 *
+	 * Serve a inizio pianificazione, dove `ResolveCombat` non e' ancora passato: senza, al primo turno la
+	 * conoscenza e' **vuota** e un bot che pianifica su di essa sarebbe cieco invece che parziale — cioe' il
+	 * filtro di percezione sembrerebbe funzionare mentre produce un bot che non fa niente.
+	 *
+	 * NON sostituisce il rinfresco dentro `ResolveCombat`, che resta dov'e' per la ragione scritta li': la
+	 * posizione autorevole per il Blast e' quella POST-Dash, e chi ha caricato in mezzo al campo deve essere
+	 * visto prima che si spari. Questo e' un secondo campione, allo stato di inizio turno.
+	 *
+	 * Idempotente rispetto alla scadenza dei ricordi: `Observe` scrive `TurnNumber` corrente sui contatti
+	 * freschi, quindi chiamarla due volte nello stesso turno non allunga la memoria di nessuno.
+	 */
+	void RefreshTeamKnowledgeForPlanning(const TArray<ARTUnit*>& Live);
+
+	/**
 	 * Aggiunge una voce al TurnLog stampandoci i campi di CONTESTO della v6 (#405): turno, revisione del grafo
 	 * e identita' dell'attore. Ogni emissione passa di qui — se un sito chiamasse `TurnLog.Add` direttamente,
 	 * la sua voce nascerebbe senza contesto e nessun test se ne accorgerebbe.

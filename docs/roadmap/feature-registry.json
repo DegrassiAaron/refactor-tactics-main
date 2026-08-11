@@ -4600,20 +4600,20 @@
       "kind": "gameplay",
       "release": "v0.1",
       "priority": "P2",
-      "status": "SPECIFIED",
-      "status_derived": "SPECIFIED",
+      "status": "TESTABLE",
+      "status_derived": "TESTABLE",
       "gates": {
         "spec": "done",
         "data": "na",
-        "runtime": "todo",
+        "runtime": "done",
         "log_debug": "todo",
-        "automation": "todo",
+        "automation": "done",
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "todo",
         "network_privacy": "na"
       },
-      "gates_done": 1,
+      "gates_done": 3,
       "gates_applicable": 7,
       "roadmap": {
         "epic": "E13",
@@ -4629,12 +4629,17 @@
       ],
       "completed_by": [],
       "owner_specs": [
+        "docs/gameplay/spec-bot-hex.md",
         "docs/gameplay/spec-bot-tattico.md"
       ],
       "issues": [
         160
       ],
-      "tests": [],
+      "tests": [
+        "RefactorTactics.HexBotPlay.HiddenEnemyFairness",
+        "RefactorTactics.HexBotPlay.PlansOnPartialKnowledge",
+        "RefactorTactics.HexBotPlay.SeeksContactWithoutKnowledge"
+      ],
       "scenarios": [],
       "scenarios_planned": [
         "Spec.Bot.HiddenEnemyFairness",
@@ -4648,9 +4653,9 @@
       "pie_refs": [],
       "last_verified": {
         "date": "2026-08-11",
-        "commit": "eb3cc42"
+        "commit": "55de13e"
       },
-      "notes": "L'unico pezzo del cluster Bot con lavoro gia' aperto in v0.1. La premessa oggi e' **falsa e misurata**: `ARTTurnManager::PlanBots` popola `Ctx.Enemies` da tutte le unita' nemiche vive, senza filtro di percezione — vedi `spec-bot-hex.md` §6, che lo dichiara invece di nasconderlo. `spec: done` perche' la regola e' scritta e completa (`spec-bot-tattico.md` §2). `runtime`, `log_debug`, `automation`, `scenario` e `packaged` sono `todo` perche' non esiste il filtro; `data` e `network_privacy` sono `na` (nessun asset da configurare, niente rete in v0.1) e `ui_wiki` e' `partial` — vedi sotto. ⚠️ Il gate che conta e' `automation`, e ha una forma precisa: un **canary** che mette la stessa `FRTTeamKnowledge` davanti a due stati autorevoli diversi (nemico nascosto in A oppure in B) e pretende lo stesso Intent. Un bot che legge lo stato lo fallisce; nessuna review lo prende, perche' un bot onnisciente produce piani *sensati*. `ui_wiki: partial`: la pagina Wiki `avversario-bot` promette gia' al giocatore che il bot non vede piu' di lui — la promessa e' pubblicata e la sua verifica non esiste ancora."
+      "notes": "**Meta' bot di CP 13.5 atterrata il 2026-08-11.** `PlanBots` costruisce `Ctx.Enemies` da `FRTTeamKnowledge` con la STESSA regola del targeting umano (`ClassifyTarget`), non un secondo modello: visto -> cella e condizione attuali; ricordato -> cella dell'ultimo contatto e HP **massimi** (la squadra conosce l'identita', non la condizione); ignoto -> non esiste. Owner del comportamento AS-BUILT: `spec-bot-hex.md` §6, che dichiarava il contrario e ora dichiara il vero. ⚠️ **Il gate e' `automation`, e ha una forma precisa**: `HiddenEnemyFairness` mette la stessa `FRTTeamKnowledge` davanti a due stati autorevoli diversi e pretende lo **stesso** Intent. Verificato per mutazione: rimettendo l'onniscienza cadono **esattamente** due test — il canary e `PlansOnPartialKnowledge` — e nessun altro. Il secondo e' costruito perche' possa fallire: l'ignoto e' dentro la portata e quasi morto, cosi' un bot che lo vedesse lo sceglierebbe. ⚠️ **Due cose sono cambiate oltre al filtro, e senza di esse il filtro non reggeva**: `EnsureMatchRoster` e il rinfresco della conoscenza sono stati anticipati alla pianificazione — prima vivevano solo a valle, quindi al primo turno gli `StableUnitId` erano tutti `0` (i ricordi di unita' diverse si sarebbero fusi) e la conoscenza era vuota (il bot sarebbe stato cieco, non parziale). Piu' la **condotta di ricerca** senza contatti, senza la quale la partita non finisce (`HexMatch.PlaysToCompletion`). ⚠️ **Limite dichiarato**: l'OCCUPAZIONE resta globale — `ReachableCells` e `DashHostiles` modellano cio' che il resolver fara', non cio' che la squadra sa, e il giocatore umano ha lo stesso vincolo. Rendere il bot piu' cieco dell'umano sarebbe sbagliato quanto renderlo onnisciente. ⚠️ **Perde informazione legittima**: gli HP al momento del contatto non sono conservati, perche' `FRTLastKnownContact` non ha un campo HP — aggiungerlo e' un incremento di `FRTTeamKnowledge::CurrentVersion`, cioe' una decisione di formato. L'errore va nella direzione sicura: il bot sottostima le occasioni invece di inventarle. `scenario: todo` e `ui_wiki: partial`: gli scenari `Spec.Bot.*` non sono scritti, e la meta' HUD di #160 (marker d'ultimo contatto, area d'incertezza acustica) dipende da CP 13.4."
     },
     {
       "feature_id": "RT-FEAT-BOT-TACTICAL",
