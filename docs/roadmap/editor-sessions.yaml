@@ -96,7 +96,7 @@ sessions:
     title: Verifiche senza prerequisiti
     block: 1
     critical: false
-    produces: verdetto su cinque voci che non attendono nulla
+    produces: verdetto su otto voci che non attendono nulla
     artifacts: []
     unblocked_by: []
     shares_setup_with: []
@@ -106,8 +106,11 @@ sessions:
       - PIE-TEST-CONSOLE
       - PIE-HEX-LAYER
       - PIE-HEX-TRANS
-    issues: [450]
-    done_when: le cinque voci hanno esito reale nel registro
+      - PIE-HEX-LAYER-FOCUS
+      - PIE-HEX-LAYER-CLICK
+      - PIE-HEX-LAYER-PANEL
+    issues: [450, 567]
+    done_when: le otto voci hanno esito reale nel registro
     unblocks: []
     steps: |
       **E' la sola seduta che non attende nulla**: nessun checkpoint da chiudere, nessuna seduta
@@ -131,6 +134,16 @@ sessions:
       3. `PIE-HEX-LAYER` e `PIE-HEX-TRANS` in coda, sull'**editor** e non in Play: servono un
          `ARTHexMapActor` con celle su >=2 layer, che si ottiene con `GenerateIntoAsset` —
          `ActiveLayer=0`, poi `ActiveLayer=1`. Nessuna mappa da costruire a mano.
+      4. Le tre `PIE-HEX-LAYER-*` **sullo stesso asset del punto 3**, senza rigenerare nulla: e' per
+         questo che stanno qui e non in una seduta propria. In piu' serve il mode **Hex Map** attivo,
+         perche' i contorni dei piani di contesto li disegnano i tool, non l'actor: con `LayerView=Focus`
+         ma senza mode attivo e senza `bShowOverlay` acceso nel pannello del tool, `Focus` e'
+         indistinguibile da `ActiveOnly` — e la voce sembrerebbe fallita mentre e' solo non allestita.
+
+         > ⚠️ **`PIE-HEX-LAYER-CLICK` va fatta con la camera OBLIQUA**, non dall'alto. Il difetto che
+         > verifica e' che il raggio del click agganci il disco di un piano superiore e venga poi
+         > proiettato su quello attivo: lo scarto e' orizzontale e proporzionale a `LayerHeight`,
+         > quindi guardando a picco vale zero e la voce passerebbe comunque, rotta o no.
     notes: >-
       Nasce dalla sessione G del registro (2026-08-08), che non aveva una seduta corrispondente:
       le tre voci erano nella checklist ma in nessuna seduta, e una voce che non sta in una seduta
@@ -142,6 +155,11 @@ sessions:
       celle su due layer in editor — e il vecchio titolo sarebbe diventato falso per due voci su
       cinque. Cio' che accomuna le cinque non e' l'assenza di allestimento ma l'assenza di
       **attese**: nessuna dipende da codice mancante o da una seduta prima.
+      **Dal 2026-08-12 sono otto**: `PIE-HEX-LAYER-FOCUS`, `-CLICK` e `-PANEL` arrivano col merge di
+      #565 (issue 567) e riusano l'asset generato del punto 3 senza aggiungere allestimento. Sono
+      finite qui per la stessa ragione per cui questa seduta esiste: erano nel registro e in nessuna
+      seduta — il conteggio della EditorMap le aveva gia' contate fra le voci orfane (`PIE-HEX-*` da
+      9 a 12) prima che qualcuno le collocasse.
 
   - id: U1
     title: Mappa-arena hex
