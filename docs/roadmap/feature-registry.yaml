@@ -3995,7 +3995,7 @@ features:
     owner_specs:
       - docs/technical/test-e-diagnosi.md
       - docs/technical/scenari-validazione-visiva.md
-    issues: [169]
+    issues: [169, 542]
     tests:
       - RefactorTactics.Scenario.*
     scenarios:
@@ -4017,7 +4017,8 @@ features:
       d'integrazione». Regge per due casi; al terzo (bot vs bot, replay, umano+bot, batch) ne
       servirebbe un altro, ed e' cosi' che nasce un secondo harness **per accumulo**. La forma
       decisa e' un `DecisionProvider` che restituisce **decisioni, mai esiti**. Nessun gate si
-      muove: e' un perimetro, non un'implementazione.
+      muove: e' un perimetro, non un'implementazione — il lavoro e' tracciato in **#542**, senza
+      il quale la decisione sarebbe prosa che nessun processo legge.
 
   - feature_id: RT-FEAT-TEST-GOLDEN
     title: Golden replay e showcase «Il Relè»
@@ -4256,7 +4257,7 @@ features:
     owner_specs:
       - docs/balance/README.md
       - docs/balance/RT_TestMatrix_v0.1.md
-    issues: [28]
+    issues: [28, 543]
     tests:
       - RefactorTactics.Heroes.RosterIsBalanced
       - RefactorTactics.Catalog.ShippedCatalogMatchesAbilities
@@ -4274,7 +4275,8 @@ features:
       scenario reale). Non e' teorico: `roadmap-checkpoint.md` misura «**10** round bot-vs-bot» e
       annota da se' «ma e' un bot contro un bot» — il dubbio c'era, mancava il modo di scioglierlo.
       Un nerf deciso su un bot che non sa usare un'abilita' **sembra** funzionare, e copre il
-      difetto vero: che quell'abilita' non entra mai fra le candidate.
+      difetto vero: che quell'abilita' non entra mai fra le candidate. Tracciata in **#543**, senza
+      milestone e con l'innesco dichiarato: l'esistenza di partite in serie, che oggi non c'e'.
 
   # ─────────────────────────────────────────────────────────────────────────────
   # L. Data / production infrastructure
