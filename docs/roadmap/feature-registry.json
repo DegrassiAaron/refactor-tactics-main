@@ -3088,20 +3088,20 @@
       "kind": "gameplay",
       "release": "v0.1",
       "priority": "P2",
-      "status": "IMPLEMENTING",
-      "status_derived": "IMPLEMENTING",
+      "status": "TESTABLE",
+      "status_derived": "TESTABLE",
       "gates": {
         "spec": "done",
         "data": "done",
-        "runtime": "partial",
+        "runtime": "done",
         "log_debug": "todo",
         "automation": "done",
-        "scenario": "todo",
+        "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
         "network_privacy": "todo"
       },
-      "gates_done": 3,
+      "gates_done": 5,
       "gates_applicable": 9,
       "roadmap": {
         "epic": "E13",
@@ -3131,18 +3131,21 @@
         "RefactorTactics.Vision.SmokeCapsContactAtTwo",
         "RefactorTactics.Vision.PermutationInvariant"
       ],
-      "scenarios": [],
+      "scenarios": [
+        "Spec.Perception.CannotShootWhatYouCannotSee",
+        "Spec.Perception.AllySpottingLetsYouShoot"
+      ],
       "scenarios_planned": [],
       "wiki_refs": [
         "wiki:visibilita-rumore-e-informazione"
       ],
-      "wiki_note": "Modello deciso per la v0.1; l'implementazione (E13, dopo E16) **non e' iniziata**: oggi la vista non decide nulla.",
+      "wiki_note": "Modello deciso per la v0.1 e **implementato** con CP 13.2: la conoscenza di squadra decide chi si puo' bersagliare. La coppia di scenari e' la specifica eseguibile del gate.",
       "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "La vista è oggi **una statistica a catalogo che non decide nulla**: i dati esistono (`data: partial`), il consumatore runtime no. Prerequisito di E14."
+      "notes": "Era **una statistica a catalogo che non decideva nulla**; CP 13.2 le ha dato il consumatore. Oggi `ResolveCombat` classifica il bersaglio contro la conoscenza della squadra prima di risolvere l'attacco. Prerequisito di E14."
     },
     {
       "feature_id": "RT-FEAT-PERCEPTION-VISION",

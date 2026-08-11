@@ -1,0 +1,34 @@
+{
+  "scenarioId": "Spec.Perception.AllySpottingLetsYouShoot",
+  "tags": ["perception", "vision", "combat", "spec", "flux", "riva", "bastion"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 6,
+
+  "_nota": "Caso di controllo di `Spec.Perception.CannotShootWhatYouCannotSee`: stessa geometria, con un compagno in piu'. A1 continua a guardare a est e a non vedere nulla, ma R1 sta a ovest e B1 gli e' adiacente — dentro la consapevolezza ravvicinata, che e' a 360 gradi e non dipende da dove R1 guarda. La SQUADRA sa, quindi A1 spara: 120 - 22 = 98.",
+
+  "_nota_perche_la_coppia": "Senza questo, un'implementazione che rifiuta SEMPRE gli attacchi passerebbe l'altro scenario. La coppia distingue «la conoscenza decide» da «il gate e' rotto».",
+
+  "_nota_d044": "B2 adiacente a est cattura l'orientamento di SCHIERAMENTO di A1 ([D-044]), che quindi non vede B1 con i propri occhi: e' R1 a saperlo. E qui si vede la sequenza per intero — la squadra conosce B1, quindi A1 puo' bersagliarlo; e siccome lo conosce, l'azione con bersaglio la ORIENTA verso di lui (D-020) e finisce girata a ovest. Ci si volta verso cio' che si sa esserci, non verso cio' che si vede.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Flux",    "team": 0, "cell": [0, 0, 0] },
+    { "id": "R1", "hero": "Hero.Riva",    "team": 0, "cell": [-3, 0, 0] },
+    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [-4, 0, 0] },
+    { "id": "B2", "hero": "Hero.Vektor",  "team": 1, "cell": [1, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "A1", "ability": "Flux.ArcPulse", "target": "B1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitFacing", "unit": "A1", "value": "W" },
+    { "type": "UnitHpEquals", "unit": "B1", "value": 98 },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

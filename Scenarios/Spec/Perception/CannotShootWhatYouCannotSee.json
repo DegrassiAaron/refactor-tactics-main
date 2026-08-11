@@ -1,0 +1,37 @@
+{
+  "scenarioId": "Spec.Perception.CannotShootWhatYouCannotSee",
+  "tags": ["perception", "vision", "combat", "spec", "flux", "bastion"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 6,
+
+  "_nota": "CP 13.2: non si spara a cio' che la squadra non conosce. A1 guarda a EST — il facing di schieramento — e B1 gli sta a OVEST a 4 celle, fuori dall'arco frontale e fuori dalla consapevolezza ravvicinata (2 celle). L'attacco e' fermato dalla CONOSCENZA, non dalla portata: B1 e' dentro i 4 di Flux.ArcPulse e non c'e' niente in mezzo.",
+
+  "_nota_verifica": "B1 resta a 120 HP pieni. Se il gate della conoscenza smettesse di essere consultato, questo scenario diventerebbe rosso con 98 (120 - 22) — ed e' l'unico posto in cui si vedrebbe, perche' i test unitari chiamano `URTTeamKnowledgeLibrary::ClassifyTarget` direttamente e resterebbero verdi anche se il resolver smettesse di chiamarlo.",
+
+  "_nota_coppia": "Il caso di controllo e' `Spec.Perception.AllySpottingLetsYouShoot`: stessa geometria, con un compagno che avvista. Senza quella meta', un'implementazione che rifiuta SEMPRE gli attacchi passerebbe questo scenario — la coppia distingue «la conoscenza decide» da «il gate e' rotto».",
+
+  "_nota_d044": "B2 e' adiacente a est e per [D-044] cattura l'orientamento di schieramento di A1, che quindi guarda dalla parte opposta a B1. Con un solo nemico questo scenario sarebbe impossibile: ci si schiera guardandolo.",
+
+  "_nota_facing_assente": "⚠️ Questo scenario NON asserisce sul facing di A1, ed e' deliberato. Misurato: A1 finisce a OVEST, cioe' si gira verso un nemico che la squadra NON conosce. Il codice segue [D-020] — «un'azione con bersaglio orienta l'unita' PRIMA di risolvere» — e infatti la rotazione (`RTTurnManager.cpp:2577`, `TargetingReoriented`) precede il gate della conoscenza (`:2632`). Ma D-020 e' anteriore a CP 13.2 e non poteva prevedere un gate che RIFIUTA l'azione: il facing e' osservabile dall'avversario, quindi voltarsi verso cio' che non si conosce fa trapelare che lo si conosce. La domanda e' aperta (`PER-4`) e questo scenario non la decide in nessuna delle due direzioni: un'assertion su `E` accuserebbe il gioco di un difetto non deciso, una su `W` renderebbe canone per inerzia un possibile leak.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Flux",    "team": 0, "cell": [0, 0, 0] },
+    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [-4, 0, 0] },
+    { "id": "B2", "hero": "Hero.Vektor",  "team": 1, "cell": [1, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "A1", "ability": "Flux.ArcPulse", "target": "B1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals", "unit": "B1", "value": 120 },
+    { "type": "UnitAlive", "unit": "B1", "value": true },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

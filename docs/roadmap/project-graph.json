@@ -1975,6 +1975,16 @@
       "path": "Scenarios/Spec/Overwatch/HoldThenFire.json"
     },
     {
+      "id": "Spec.Perception.AllySpottingLetsYouShoot",
+      "requires": [],
+      "path": "Scenarios/Spec/Perception/AllySpottingLetsYouShoot.json"
+    },
+    {
+      "id": "Spec.Perception.CannotShootWhatYouCannotSee",
+      "requires": [],
+      "path": "Scenarios/Spec/Perception/CannotShootWhatYouCannotSee.json"
+    },
+    {
       "id": "Spec.Perception.HeardNotSeen",
       "requires": [
         "Perception"
