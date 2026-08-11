@@ -25,7 +25,7 @@ Ogni eroe seleziona: **1 variante arma** + **1 gadget** + **1 modulo di reazione
 | `Weapon.Overcharge` | Sovraccarico | **+18/+14/+8** per fascia *(D-090)* | **ricarica +2**: l'attacco base salta un turno |
 | `Weapon.Split` | Multiplo | bersaglio aggiuntivo | −6 danni |
 | `Weapon.Suppressive` | Soppressione | applica `Slow` | −5 danni |
-| `Weapon.Environmental` | Ambientale | ~~migliora gli hazard~~ — **non selezionabile in v0.1** *(D-094)* | −5 danni diretti |
+| `Weapon.Environmental` | Ambientale | ~~migliora gli hazard~~ — **non selezionabile in v0.1** *(D-100)* | −5 danni diretti |
 
 Le varianti modificano l'**attacco base** dell'eroe (valori per tipo d'arma nel
 [catalogo azioni](RT_ActionCatalog_v0.1.md) §1).

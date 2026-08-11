@@ -226,10 +226,25 @@ Tre no, e sono quelli con un innesco osservabile:
 (`c7ce400`) e `Weapon.Environmental` fuori dalla v0.1 (`c4d5e6e`). Undicesima collisione di contatore e la
 prima **atterrata**, trovata cercando il primo ID libero per `D-095`.
 
-La seconda ad atterrare è stata rinumerata `D-094`, spostata in coda alla tabella, e i suoi **due** rimandi
-riscritti per coppia `(file, riga)` — lasciando intatti i due della prima.
+Aggiunto il gate che l'avrebbe intercettata: `check-docs-links.py` ora fallisce su un `D-nnn` duplicato nella
+tabella. Verificato per mutazione — su `origin/main` prima della correzione trova `D-091` alle righe 121 e
+122.
 
-Aggiunto il gate che l'avrebbe intercettata: `check-docs-links.py` ora fallisce su un `D-nnn` duplicato.
-Verificato per mutazione — su `origin/main` prima della correzione trova `D-091` alle righe 121 e 122; dopo,
-la suite di link è verde. Le dieci collisioni precedenti erano state trovate tutte allo stesso modo, cioè
-**dal prossimo autore**: un controllo che arriva sempre in ritardo di un merge.
+**E poi è successo di nuovo, mentre questo referto era in scrittura.** La PR
+[#530](https://github.com/DegrassiAaron/refactor-tactics-main/issues/530) ha portato su `main` un `D-094`
+diverso (`Reaction.Anchor`), cioè proprio l'ID a cui `WV-4` era appena stata spostata. Dodicesima collisione,
+a poche ore dall'undicesima.
+
+`WV-4` è quindi passata a **`D-100`** — il primo ID libero *dopo* le cinque di questo consolidamento, non
+prima: rinumerare quelle avrebbe toccato una ventina di rimandi e quattro issue GitHub, questa ne aveva due.
+
+> **Le due collisioni dicono cose diverse, ed è il motivo per cui vale la pena distinguerle.** L'undicesima è
+> saltata perché nessuno ha eseguito il controllo. La dodicesima è stata trovata **perché il controllo è stato
+> eseguito** — rileggere `main` dopo il push e prima del merge, che è esattamente il rimedio che la nota di
+> `D-073` raccomandava. Cioè: la disciplina funziona, e funziona solo per chi se ne ricorda.
+>
+> ⚠️ **Il gate non ha trovato nessuna delle due**, e va detto: l'undicesima l'ha trovata una ricerca del primo
+> ID libero, la dodicesima il controllo pre-merge su `origin/main`. Entrambe a mano. Ciò che il gate
+> garantisce è la **tredicesima** — verificato per mutazione su entrambe: reintroducendo il duplicato esce
+> `1` con le due righe stampate, rimuovendolo esce `0`. Un gate che non è stato eseguito non ha trovato
+> niente, e questa riga esiste per non far diventare la mutazione una prova di qualcosa che non è successo.
