@@ -417,6 +417,44 @@ TArray<FString> URTCatalogLibrary::WarnOnVariantForAttack(const FRTActionDef& Ba
 	return Warnings;
 }
 
+TArray<FString> URTCatalogLibrary::ValidateLoadout(const TArray<const URTEquipmentData*>& Loadout)
+{
+	// I difetti dei singoli pezzi valgono anche qui: tre oggetti rotti hanno la forma giusta e il contenuto
+	// sbagliato, e un controllo che contasse soltanto li accetterebbe.
+	TArray<FString> Errors = ValidateEquipment(Loadout);
+
+	int32 Varianti = 0, Gadgets = 0, Moduli = 0;
+	for (const URTEquipmentData* Item : Loadout)
+	{
+		if (Item == nullptr) { continue; } // gia' segnalato da ValidateEquipment
+		switch (Item->Slot)
+		{
+		case ERTEquipmentSlot::WeaponVariant:  ++Varianti; break;
+		case ERTEquipmentSlot::Gadget:         ++Gadgets;  break;
+		case ERTEquipmentSlot::ReactionModule: ++Moduli;   break;
+		}
+	}
+
+	// «Esattamente uno» in entrambe le direzioni, con messaggi distinti: zero e due portano a correzioni
+	// diverse — un pezzo dimenticato contro un pezzo di troppo — e un solo messaggio per entrambi
+	// costringerebbe a contare a mano per capire quale dei due sia.
+	auto Conta = [&Errors](int32 Quanti, const TCHAR* Che)
+	{
+		if (Quanti == 0)
+		{
+			Errors.Add(FString::Printf(TEXT("loadout: manca %s"), Che));
+		}
+		else if (Quanti > 1)
+		{
+			Errors.Add(FString::Printf(TEXT("loadout: %d %s, ne serve esattamente 1"), Quanti, Che));
+		}
+	};
+	Conta(Varianti, TEXT("la variante d'arma"));
+	Conta(Gadgets,  TEXT("il gadget"));
+	Conta(Moduli,   TEXT("il modulo di reazione"));
+	return Errors;
+}
+
 FName URTCatalogLibrary::DefaultWeaponVariantFor(const FName& HeroId)
 {
 	// D-089 — il default RINFORZA l'identita' dell'eroe; compensarne la debolezza resta la scelta

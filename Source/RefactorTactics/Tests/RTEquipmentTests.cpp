@@ -723,4 +723,111 @@ bool FRTVariantWarningsTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// CP 7.4 metà regola (#63) — 1+1+1, e nessuna progressione in partita.
+//
+// ⚠️ La metà **default** non è qui, e non è una dimenticanza: dei quattro loadout consigliati dal catalogo
+// §4 solo quello di Bastion è interamente costruibile — a Flux manca `Gadget.Insulator` (E36), a Vektor
+// `Gadget.Sensor` (E13) e `Reaction.EmergencyDash` (#505), a Riva `Reaction.HazardEscape` (#505). Caricarli
+// oggi significherebbe scrivere default con dei buchi.
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLoadoutExactlyOneEachTest,
+	"RefactorTactics.Equipment.LoadoutExactlyOneEach",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLoadoutExactlyOneEachTest::RunTest(const FString&)
+{
+	// Nome vincolante del DoD. Il loadout legale si costruisce da ciò che esiste davvero nel catalogo, non
+	// da oggetti inventati nel test: se domani un pezzo sparisse, questo test lo direbbe.
+	const URTEquipmentData* Variante = URTCatalogLibrary::MakeWeaponVariants()[0];
+	const URTEquipmentData* Gadget = URTCatalogLibrary::MakeGadgets()[0];
+	const URTEquipmentData* Modulo = URTCatalogLibrary::MakeReactionModules()[0];
+
+	const TArray<const URTEquipmentData*> Legale = { Variante, Gadget, Modulo };
+	const TArray<FString> Ok = URTCatalogLibrary::ValidateLoadout(Legale);
+	for (const FString& E : Ok) { AddError(E); }
+	TestEqual(TEXT("1+1+1 e' accettato"), Ok.Num(), 0);
+
+	// ZERO e DUE sono errori diversi, e il messaggio deve distinguerli: portano a correzioni opposte.
+	{
+		const TArray<const URTEquipmentData*> SenzaGadget = { Variante, Modulo };
+		const TArray<FString> E = URTCatalogLibrary::ValidateLoadout(SenzaGadget);
+		TestTrue(TEXT("senza gadget: rifiutato"), E.Num() > 0);
+		bool bDiceCosaManca = false;
+		for (const FString& M : E) { bDiceCosaManca |= M.Contains(TEXT("manca")) && M.Contains(TEXT("gadget")); }
+		TestTrue(TEXT("e l'errore dice che MANCA il gadget"), bDiceCosaManca);
+	}
+	{
+		const TArray<const URTEquipmentData*> DueGadget = { Variante, Gadget,
+			URTCatalogLibrary::MakeGadgets()[1], Modulo };
+		const TArray<FString> E = URTCatalogLibrary::ValidateLoadout(DueGadget);
+		TestTrue(TEXT("con due gadget: rifiutato"), E.Num() > 0);
+		bool bDiceQuanti = false;
+		for (const FString& M : E) { bDiceQuanti |= M.Contains(TEXT("2")) && M.Contains(TEXT("gadget")); }
+		TestTrue(TEXT("e l'errore dice QUANTI ce ne sono"), bDiceQuanti);
+	}
+	{
+		// Un loadout vuoto sbaglia in tre modi, e li deve dire tutti e tre: chi lo corregge un errore per
+		// volta farebbe tre giri.
+		const TArray<FString> E = URTCatalogLibrary::ValidateLoadout({});
+		TestEqual(TEXT("loadout vuoto: tre errori, uno per slot"), E.Num(), 3);
+	}
+	{
+		// Forma giusta, contenuto rotto: un pezzo senza svantaggio non è un loadout valido.
+		URTEquipmentData* Rotto = NewObject<URTEquipmentData>();
+		Rotto->EquipmentId = TEXT("Weapon.Test");
+		Rotto->Slot = ERTEquipmentSlot::WeaponVariant; // nessun Drawback, nessun delta
+		const TArray<const URTEquipmentData*> FormaOk = { Rotto, Gadget, Modulo };
+		TestTrue(TEXT("1+1+1 con un pezzo invalido: rifiutato"),
+			URTCatalogLibrary::ValidateLoadout(FormaOk).Num() > 0);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNoInMatchProgressionTest,
+	"RefactorTactics.Equipment.NoInMatchProgression",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTNoInMatchProgressionTest::RunTest(const FString&)
+{
+	// Nome vincolante del DoD: «nessun livello, rarità, upgrade numerico o equipaggiamento casuale; nessuna
+	// progressione durante la partita».
+	//
+	// Verificarlo su un'istanza direbbe poco — un campo a zero sembra assente. Si verifica sul **tipo**, con
+	// la reflection: se qualcuno aggiungesse `Level`, `Rarity` o `Tier` a `URTEquipmentData`, questo test
+	// diventerebbe rosso il giorno stesso, che è l'unico momento in cui la discussione è ancora economica.
+	const TCHAR* Vietati[] = { TEXT("Level"), TEXT("Rarity"), TEXT("Tier"), TEXT("Upgrade"),
+		TEXT("Experience"), TEXT("XP"), TEXT("Rank"), TEXT("Quality") };
+
+	for (TFieldIterator<FProperty> It(URTEquipmentData::StaticClass()); It; ++It)
+	{
+		const FString Nome = It->GetName();
+		for (const TCHAR* Vietato : Vietati)
+		{
+			TestFalse(*FString::Printf(
+				TEXT("URTEquipmentData non deve avere un campo di progressione: trovato '%s'"), *Nome),
+				Nome.Contains(Vietato));
+		}
+	}
+
+	// E il catalogo spedito non deve contenere due volte lo stesso oggetto con numeri diversi, che è il modo
+	// in cui la progressione entra senza un campo che la nomini — «Medkit» e «Medkit+».
+	TArray<const URTEquipmentData*> Tutto;
+	for (const URTEquipmentData* V : URTCatalogLibrary::MakeWeaponVariants()) { Tutto.Add(V); }
+	for (const URTEquipmentData* G : URTCatalogLibrary::MakeGadgets()) { Tutto.Add(G); }
+	for (const URTEquipmentData* M : URTCatalogLibrary::MakeReactionModules()) { Tutto.Add(M); }
+
+	const TArray<FString> Errors = URTCatalogLibrary::ValidateEquipment(Tutto);
+	for (const FString& E : Errors) { AddError(E); }
+	TestEqual(TEXT("il catalogo intero non ha id duplicati ne' pezzi invalidi"), Errors.Num(), 0);
+
+	// Nessun DisplayName è prefisso di un altro con un suffisso di potenziamento.
+	for (const URTEquipmentData* A : Tutto)
+	{
+		const FString Nome = A->EquipmentId.ToString();
+		TestFalse(*FString::Printf(TEXT("%s: nessun suffisso di potenziamento"), *Nome),
+			Nome.EndsWith(TEXT("+")) || Nome.EndsWith(TEXT("II")) || Nome.EndsWith(TEXT("Mk2")));
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

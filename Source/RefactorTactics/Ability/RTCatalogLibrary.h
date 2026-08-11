@@ -171,6 +171,20 @@ public:
 		const URTEquipmentData* Variant);
 
 	/**
+	 * Errori di un LOADOUT (vuoto = valido). La regola del catalogo e' **1+1+1**: esattamente una variante
+	 * d'arma, un gadget e un modulo di reazione — CP 7.4.
+	 *
+	 * «Esattamente» in entrambe le direzioni, e non e' pedanteria: **zero** e **due** sono errori diversi e
+	 * il messaggio li distingue, perche' portano a correzioni diverse — un pezzo dimenticato contro un pezzo
+	 * di troppo. Un loadout con due gadget non e' «piu' equipaggiato»: e' una configurazione che il gioco non
+	 * sa risolvere, visto che ogni slot ha un solo posto nell'economia del turno.
+	 *
+	 * Passa anche da `ValidateEquipment` sui singoli pezzi: un loadout di tre oggetti rotti ha la forma
+	 * giusta e il contenuto sbagliato, e sarebbe accettato da un controllo che conta soltanto.
+	 */
+	static TArray<FString> ValidateLoadout(const TArray<const URTEquipmentData*>& Loadout);
+
+	/**
 	 * L'azione che un equipaggiamento concede, costruita dall'azione CORE che dichiara in `GrantedActionId`.
 	 * Nullptr se non ne concede nessuna o se l'id non e' nel catalogo.
 	 *

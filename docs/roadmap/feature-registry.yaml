@@ -1627,6 +1627,10 @@ features:
       - RefactorTactics.Equipment.Gadget.CooldownEnforced
       - RefactorTactics.Equipment.Gadget.NumbersMatchCatalog
       - RefactorTactics.Equipment.Gadget.FourAreNotExpressibleYet
+      - RefactorTactics.Equipment.DefaultVariantPerHero
+      - RefactorTactics.Equipment.WarnsOnPointlessVariantPairing
+      - RefactorTactics.Equipment.LoadoutExactlyOneEach
+      - RefactorTactics.Equipment.NoInMatchProgression
     scenarios: []
     wiki_refs: []
     last_verified:
