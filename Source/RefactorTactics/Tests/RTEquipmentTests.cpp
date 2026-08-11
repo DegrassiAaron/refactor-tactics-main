@@ -421,14 +421,18 @@ namespace
 		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
 	}
 
-	/** Sostituisce l'attacco base dell'unità con la sua versione modificata dalla variante. */
+	/**
+	 * Sostituisce l'attacco base dell'unità con la sua versione modificata dalla variante.
+	 *
+	 * ⚠️ Chiama la funzione di **produzione**, e non riallinea i campi specchio per conto suo: fino al
+	 * 2026-08-11 lo faceva, ed era l'unico posto in tutto il progetto dove quel ponte esisteva. Un helper di
+	 * test che fa la cosa giusta al posto della produzione verifica un percorso che la partita non
+	 * attraverserà, e nessun test diventa rosso quando manca.
+	 */
 	void EquipVariantOnBasicAttack(ARTUnit* Unit, const URTEquipmentData* Variant)
 	{
 		if (!Unit || Unit->Abilities.Num() == 0) { return; }
-		URTActionData* Basic = Unit->Abilities[0];
-		Basic->Def = URTCatalogLibrary::ApplyWeaponVariant(Basic->Def, Variant);
-		Basic->RangeCells = Basic->Def.RangeCells;
-		Basic->CooldownTurns = Basic->Def.CooldownTurns;
+		URTCatalogLibrary::EquipWeaponVariant(Unit->Abilities[0], Variant);
 	}
 }
 
@@ -904,6 +908,64 @@ bool FRTPushTwoAgainstDefencesTest::RunTest(const FString&)
 		}
 		DestroyEquipWorld(World);
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVariantReachesTheLegacyMirrorsTest,
+	"RefactorTactics.Equipment.VariantReachesWhatTheGameActuallyReads",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTVariantReachesTheLegacyMirrorsTest::RunTest(const FString&)
+{
+	// ⚠️ Il test che mancava, e la sua assenza era il difetto.
+	//
+	// `ApplyWeaponVariant` lavora su `FRTActionDef`, ma in partita chi decide legge i campi **specchio** di
+	// `URTActionData`: il bot pianifica su `Ability->RangeCells` e `Ability->Power`, e il resolver costruisce
+	// l'intento con `Intent.RangeCells = Ability->RangeCells`. Aggiornare solo `->Def` lascia il gioco a
+	// leggere i numeri di prima — e nessun test se ne accorgeva, perché il ponte viveva in un helper di test.
+	const TArray<URTEquipmentData*> Variants = URTCatalogLibrary::MakeWeaponVariants();
+	const URTEquipmentData* Precision = nullptr;
+	const URTEquipmentData* Overcharge = nullptr;
+	for (const URTEquipmentData* V : Variants)
+	{
+		if (V->EquipmentId == FName(TEXT("Weapon.Precision"))) { Precision = V; }
+		if (V->EquipmentId == FName(TEXT("Weapon.Overcharge"))) { Overcharge = V; }
+	}
+	if (!TestNotNull(TEXT("Weapon.Precision"), Precision)) { return false; }
+	if (!TestNotNull(TEXT("Weapon.Overcharge"), Overcharge)) { return false; }
+
+	// Istanza costruita come la costruisce il gioco: dal roster, non a mano.
+	URTHeroData* Vektor = URTHeroCatalogLibrary::MakeVektor();
+	URTActionData* Basic = Vektor->Actions[0];
+	const int32 RangePrima = Basic->RangeCells;
+	const int32 PowerPrima = Basic->Power;
+
+	URTCatalogLibrary::EquipWeaponVariant(Basic, Precision);
+
+	// `Def` e specchio devono dire la STESSA cosa: è l'invariante che il loadout non deve poter rompere.
+	TestEqual(TEXT("lo specchio della portata segue Def"), Basic->RangeCells, Basic->Def.RangeCells);
+	TestEqual(TEXT("lo specchio della ricarica segue Def"), Basic->CooldownTurns, Basic->Def.CooldownTurns);
+	TestEqual(TEXT("Precision: la portata che il BOT legge e' cresciuta di 1"), Basic->RangeCells, RangePrima + 1);
+	TestEqual(TEXT("e la potenza che il bot legge e' scesa di 4"), Basic->Power, PowerPrima - 4);
+
+	// `Overcharge` è il caso che perderebbe di più: la ricarica è il suo intero prezzo (D-090). Se lo
+	// specchio non la ricevesse, la variante sarebbe un bonus gratis in partita.
+	URTHeroData* Flux = URTHeroCatalogLibrary::MakeFlux();
+	URTActionData* FluxBasic = Flux->Actions[0];
+	const int32 CooldownPrima = FluxBasic->CooldownTurns;
+	URTCatalogLibrary::EquipWeaponVariant(FluxBasic, Overcharge);
+	TestEqual(TEXT("Overcharge: la ricarica arriva allo specchio, non solo a Def"),
+		FluxBasic->CooldownTurns, CooldownPrima + 1);
+	TestEqual(TEXT("e coincide con Def"), FluxBasic->CooldownTurns, FluxBasic->Def.CooldownTurns);
+
+	// Riequipaggiare due volte non accumula: `Power` si RICALCOLA dagli effetti, non si somma.
+	URTCatalogLibrary::EquipWeaponVariant(FluxBasic, Overcharge);
+	int32 DannoDichiarato = 0;
+	for (const FRTActionEffectSpec& S : FluxBasic->Def.Effects)
+	{
+		if (S.Effect == ERTActionEffect::Damage) { DannoDichiarato = S.Amount; break; }
+	}
+	TestEqual(TEXT("Power resta uguale al danno dichiarato, senza accumulare"),
+		FluxBasic->Power, DannoDichiarato);
 	return true;
 }
 
