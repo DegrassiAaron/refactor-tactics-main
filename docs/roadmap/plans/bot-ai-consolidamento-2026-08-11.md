@@ -318,6 +318,32 @@ E la granularità fine è andata **esattamente dove il §1.1 chiede**: sei check
 | `D-101` | **Un solo harness**, e un `DecisionProvider` restituisce **decisioni**, mai **esiti** | L'harness esiste (`Source/RefactorTactics/ScenarioHarness/`), il contratto no: ci sono **due** appigli ad hoc — gli intent scriptati di `FRTScenarioIntent` e `ARTTurnManager::PlanBotsForTest()`, che il commento del runner dichiara essere *«l'unico appiglio, che esisteva già per i test d'integrazione»*. Ogni modalità nuova ne aggiungerebbe un altro |
 | `D-102` | **Un risultato bot-contro-bot non è evidenza di bilanciamento** finché il bot non è certificato sulle capability che lo producono | Nessuna occorrenza di *competence*/*certificazione* nel repository — ma il dubbio era già scritto, vedi sotto |
 
+### 9.2-bis Le due decisioni hanno una casa — corretto il 2026-08-11, dopo una verifica dell'autore
+
+⚠️ **Per qualche ora `D-101` e `D-102` sono state decisioni senza work item**, ed è il difetto che questo
+repository combatte da sempre: il dato che nessuno consuma. Le due note nel registry erano prosa, nessun gate
+si era mosso, nessuna issue esisteva. Fra sei mesi qualcuno avrebbe costruito il secondo harness per
+accumulo, e `D-101` sarebbe stata scritta invano.
+
+Non l'ha trovato un gate — l'ha trovato **l'autore chiedendo «hai aggiornato issue, roadmap, featuremap,
+scenariomap, editormap e wiki?»**. La risposta misurata era *no*, e la parte mancante non era quella che il
+§9.4 dichiarava di escludere: le esclusioni di massa erano ragionate, questi due erano **passati in
+silenzio**.
+
+| Decisione | Issue | Milestone |
+|---|---|---|
+| `D-101` — il seam dei `DecisionProvider` | [#542](https://github.com/DegrassiAaron/refactor-tactics-main/issues/542) | v0.2 — l'innesco è il **terzo** modo di giocare uno scenario (bot vs bot, replay, umano+bot), e il primo di essi arriva con E26 |
+| `D-102` — competence gate prima del bilanciamento | [#543](https://github.com/DegrassiAaron/refactor-tactics-main/issues/543) | **nessuna, dichiarato**: l'innesco è l'esistenza di partite in serie, che oggi non c'è |
+
+Collegate in `feature-registry.yaml` a `RT-FEAT-TEST-SCENARIO-HARNESS` e `RT-FEAT-TOOL-BALANCE-GROUND`, così
+la catena *decisione → feature → issue* si chiude e il Project Control Center la può percorrere.
+
+> 💡 **La lezione non è «creare sempre una issue».** Il §9.4 elenca sei categorie escluse con la loro
+> motivazione, e quelle restano escluse. È che una **decisione** non è come una proposta scartata: scriverla
+> significa impegnarsi a qualcosa, e un impegno senza un posto dove atterrare è indistinguibile da un
+> impegno dimenticato. La distinzione operativa: *cosa ho deciso di non fare* si registra nel referto;
+> *cosa ho deciso di fare* ha bisogno di un work item, anche quando la data è lontana.
+
 ### 9.3 Il §18 aveva già un'istanza viva, e nessuno l'aveva chiamata per nome
 
 È il motivo per cui `D-102` vale più di una buona idea generica.
@@ -359,3 +385,7 @@ Non è stato creato: un asse di numerazione nuovo, senza owner e senza gate, sar
 da tenere allineata a mano — ed è esattamente la gara che la Editor Map ha già perso una volta
 ([`roadmap-editor.md`](../roadmap-editor.md), ritirata il 2026-08-08 perché *«tre tracker sincronizzati a
 mano diventano tre verità diverse»*). Se servirà, nasce **generato**, come è rinata la Editor Map.
+
+Resta **aperto e non tracciato altrove che qui**, ed è una scelta: una domanda senza innesco osservabile non
+diventa una issue, diventa una issue che invecchia. L'innesco, quando arriverà, è riconoscibile — qualcuno
+che chiede *«a che punto è l'harness?»* e non trova dove leggerlo.
