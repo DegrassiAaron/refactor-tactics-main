@@ -147,6 +147,142 @@ default `Square` produce **gli stessi byte di prima** (test `RefactorTactics.Tur
 La topologia **non** entra nell'hash: due esecuzioni della stessa partita condividono la topologia per
 costruzione, e così l'hash del quadrato resta invariato. Vedi [`h6-hex-sim-spec.md`](h6-hex-sim-spec.md) §H6.3.
 
+## 7-bis. Il Replay Archive — dove finiscono le tracce (2026-08-10, `#469`)
+
+`D-077` nomina **questo documento** come owner del formato dell'archivio, e da oggi l'archivio esiste.
+
+```
+Saved/Replays/<MatchId>/
+  match.rtmanifest    <- header di partita, JSON
+  turn-001.rtlog      <- SerializeTurnLog, byte invariati rispetto al §3
+  turn-002.rtlog
+```
+
+**Chi scrive, e quando** (dal 2026-08-10, seconda fetta di `#469`): `ARTTurnManager` consegna la traccia a
+`URTReplayRecorderLibrary` in `ConcludeTurn`, **prima** di `DestroyDefeatedUnits` e **prima** di
+`++TurnNumber` — invertire l'ordine scriverebbe ogni traccia col numero sbagliato. L'archivio si chiude nel
+ramo di fine partita.
+
+**La registrazione la avvia il GameMode**, non il `BeginPlay` del TurnManager, con `BeginReplayRecording()`
+dopo `ApplyMatchFormat`. Due ragioni, entrambe misurate: `BeginPlay` gira anche per i test e per lo
+`ScenarioHarness` che spawnano un TurnManager — farli scrivere su disco sarebbe un effetto collaterale che
+nessuno ha chiesto — e a quel punto `MatchRules.FormatId` **non è ancora quello vero**, perché il GameMode
+risolve il formato dopo aver spawnato il manager.
+
+| Parametro | Effetto |
+|---|---|
+| `bRecordReplay` | interruttore; con la registrazione già avviata, spegnerlo la ferma |
+| `ReplaysRootOverride` | radice alternativa. Vuota = `Saved/Replays`. È **configurazione**, non un ramo «se test» |
+
+**Le tracce non cambiano.** Il recorder chiama `SerializeTurnLog` e ne scrive il risultato: non c'è un
+secondo serializzatore, ed è l'unico modo di rendere *vero* il criterio «byte-identiche» invece di
+ripromettersi di tenere due implementazioni allineate. Il test che lo pinna è
+`Replay.Recorder.TurnBytesMatchSerializeTurnLog`.
+
+**Il manifest è JSON**, non binario, perché è **metadati** e non payload: un archivio rotto lo si diagnostica
+leggendo l'header a occhio, e `Json` era già una dipendenza del modulo. Versionato da
+`ERTReplayManifestVersion` (oggi `Initial = 1`) e **fail-closed** sulle versioni sconosciute, con la stessa
+convenzione del formato binario: rifiutare invece di interpretare campi arbitrari.
+
+| Campo | Note |
+|---|---|
+| `MatchId` | `FGuid` generato all'avvio. **Fuori da ogni hash** (`D-077`): identifica la registrazione, non il contenuto |
+| `FormatId` · `HexTopology` | la stessa identità che l'header della traccia porta |
+| `OrderedHashPerTurn` | `HashTurnLogOrdered` per turno — la casa che `D-062` gli aveva assegnato e che prima non esisteva |
+| `FinalStateHash` | checksum di fine partita (`D-084`); `0` = non calcolato — vale per un archivio parziale, non per uno chiuso |
+| `Outcome` · `WallClockSeconds` | il wall-clock vive **solo** qui, mai in un campo che entri in un hash |
+| `Closed` · `TurnCount` | vedi sotto |
+
+> ⚠️ **Un archivio parziale non ha un campo che lo dichiari: è l'assenza della chiusura.** Il recorder scrive
+> la traccia a **ogni turno** e chiude il manifest solo a partita conclusa, quindi un manifest con
+> `Closed = false` *è* la dichiarazione di parzialità. Niente flag da ricordarsi di scrivere nel percorso di
+> crash, che è esattamente il percorso in cui nessuno si ricorda niente. Per la stessa ragione il manifest si
+> riscrive con **temporaneo + move**: viene sovrascritto a ogni turno, e un crash a metà scrittura
+> corromperebbe un file che era valido — proprio nel momento per cui il recorder esiste.
+
+**Cosa non c'è ancora**: i campi di compatibilità `ContentManifestHash`/`RulesVersion`, **rinviati alla v0.2**
+da `D-083` (issue `#413`). Il manifest è versionato, quindi li accoglierà senza rompere gli archivi scritti
+prima.
+
+**Il checksum di fine partita ha un produttore, e uno solo.** `FinalStateHash` era `0` anche a partita finita
+finché `#490` restava aperta; `D-084` l'ha chiusa e ora lo scrive `ARTTurnManager`, che è anche l'unico a
+costruire il digest — l'harness degli scenari ne **legge** il risultato invece di ricostruirlo, perché due
+produttori dello stesso numero sono due numeri.
+
+> ⚠️ **Il momento del calcolo è parte del contratto**: il valore si congela alla fine della risoluzione del
+> turno che decide la partita, **prima** che `ConcludeTurn` chiami `DestroyDefeatedUnits`. Dopo, chi è caduto
+> nell'ultimo turno non esiste più nel mondo e `bAlive` non varrebbe mai `false` in una partita vera.
+> Il congelamento avviene **anche senza registrazione**: è una proprietà della partita, non della sua
+> osservazione — legarlo al recorder faceva dare alla stessa identica partita due checksum diversi a seconda
+> che si stesse registrando, e `Replay.Producer.RecordingDoesNotChangeTheMatch` lo ha trovato.
+
+### 7-bis.1 Compatibilità del manifest — la regola, e l'errore che nascondeva (`#471`)
+
+`ERTReplayManifestVersion` ha ora due voci: `Initial = 1` è il valore storico, `Current` è **quella che questo
+binario scrive**. Chi aggiunge un campo alza `Current` e lascia in piedi il valore storico: l'elenco resta la
+storia del formato invece di una riga riscritta ogni volta.
+
+> ⚠️ **La lettura accettava una sola versione, e sembrava fail-closed.** `ManifestFromJson` confrontava la
+> versione letta con `Initial` per **uguaglianza**: il giorno in cui `Current` fosse salita a `2`, *ogni
+> archivio già scritto sarebbe diventato illeggibile*. Cioè il formato avrebbe rotto la retrocompatibilità al
+> primo campo aggiunto — l'esatto contrario di quello che il TurnLog ha fatto per cinque versioni di fila. Ora
+> il criterio è un **intervallo**: sotto `Initial` non c'è niente da leggere, sopra `Current` c'è un formato
+> che questo binario non conosce, e in mezzo si legge.
+
+**Le tre regole che il manifest eredita dal TurnLog invece di impararle a proprie spese:**
+
+1. **versionato dal primo byte**, anche con un campo solo;
+2. **campi nuovi in coda, mai in mezzo** — è ciò che rende leggibile una versione precedente;
+3. **fail-closed** su ciò che non si sa leggere, mai un'interpretazione di campi arbitrari.
+
+**La verifica a due binari, su un formato testuale.** Un round-trip non basta: prova che scrittore e lettore si
+capiscano *fra loro*, e resta verde anche se **entrambi** cambiassero insieme rendendo illeggibile ciò che è
+già su disco. Il payload che il binario del 2026-08-10 produce è quindi **congelato in un test**
+(`Replay.Manifest.GoldenV1StaysReadable`), dove una code review lo può leggere. Accanto,
+`Replay.Manifest.MissingFieldsStayNeutral` copre l'altra metà: i campi che un binario precedente non scriveva
+si leggono a valore neutro invece di far fallire la lettura — e ogni default significa qualcosa
+(`Closed = false` è «archivio parziale», `FinalStateHash = 0` è «non calcolato»).
+
+⚠️ **Prima di prendere un numero di versione, controllare TUTTI i branch remoti** e non solo `main`. La `v6`
+del TurnLog fu rivendicata da due branch insieme: un duplicato non si rinumera da solo, corrompe tracce già
+scritte.
+
+## 7-ter. Il Player e l'indice — cosa legge l'archivio (`#470`, `#416`)
+
+**`URTReplayPlayerLibrary` riproduce senza ricalcolare.** Vive accanto a `URTReplaySeekLibrary`, e la garanzia
+non è disciplina ma **struttura**: nessuno dei suoi `#include` arriva al resolver, quindi «il Player non chiama
+il resolver» non è una promessa da mantenere — è l'assenza della possibilità di violarla
+([ADR-0009](../decisions/adr-0009-replay-logico-canonico.md) §3, rischio `REPLAY-04`, che si chiude qui).
+
+| Cosa fa | Cosa **non** fa |
+|---|---|
+| apre, valida in apertura, emette le voci raggruppate per fase, si posiziona col seek di `#415` | non calcola collisioni, danni, reazioni, KO, legalità dei percorsi né targeting: li **legge** |
+| rifiuta versione, topologia e tracce illeggibili **prima** di cominciare | non verifica più nulla durante la riproduzione (ADR-0009 §4) |
+| riproduce un archivio **parziale** fino a dove arriva, dichiarandolo | non ricostruisce l'ordine di **emissione**: `SortTurnLog` lo perde in memoria durante la risoluzione, e la traccia non lo porta |
+
+**`history.rtindex` — la lista non apre gli archivi.** Un indice di metadati, un file solo, **accanto** agli
+archivi e mai dentro:
+
+```
+Replays/
+  history.rtindex     <- una riga per partita: id, data, modo, esito, turni, durata, disponibilità
+  <MatchId>/          <- l'archivio, che l'indice non apre mai
+```
+
+La ridondanza con il manifest è deliberata — è la definizione di un indice: una copia dei metadati che si paga
+in scrittura per non pagarla in lettura. L'unica sorgente resta il manifest (`EntryFromManifest` è l'unico modo
+di costruire una riga), e l'indice ha una **versione propria**: la lista può crescere di una colonna senza che
+l'archivio cambi di un byte.
+
+> Il criterio «non legge nessun payload» è verificato nel modo più severo disponibile: il test **cancella gli
+> archivi** e la lista si legge lo stesso (`Replay.History.ListDoesNotOpenArchives`). Un conteggio di letture
+> si può sempre discutere; una cartella che non esiste no.
+
+La **disponibilità del replay** *è* la chiusura del manifest, non un terzo stato da tenere allineato: `false`
+non significa «assente» ma **parziale** — l'archivio si apre e si riproduce fino a dove arriva.
+
+---
+
 ## 8. Prossimo slice possibile
 
 - **Hazard/status nel TurnLog** — reason di cella (lava/terreno) e status (Root/Slow/Reveal) con relativo

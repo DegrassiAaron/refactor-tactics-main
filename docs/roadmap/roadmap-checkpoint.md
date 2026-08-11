@@ -85,6 +85,27 @@ Comando di misura, riproducibile:
 grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp | tr -d '"' | sort -u | wc -l
 ```
 
+⚠️ **Questo comando conta i test DICHIARATI, non quelli eseguiti — e i due numeri possono divergere.**
+Il 2026-08-10 ([`#486`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/486)), in un worktree
+ricostruito più volte in modo incrementale, la suite ha riportato **632** e poi **633** `Test Completed` con
+**zero falliti** su **634** dichiarati. I mancanti non erano `Fail` né `Skipped`: non comparivano affatto nel
+log. Su un albero ricostruito da zero girano tutti — il difetto era nell'albero, non nei test.
+
+Quando un numero di test finisce in una PR, misura **entrambi** i lati:
+
+```bash
+python scripts/feature_registry.py suite --run-log Saved/Logs/RefactorTactics.log
+```
+
+Legge il filtro dal log, quindi funziona anche su una run parziale, e **esce 1** se un test dichiarato nel
+perimetro non è stato eseguito. Il numero da riportare è **«N eseguiti su M dichiarati»**: un totale solo non
+sa esprimere questo difetto, ed è il motivo per cui due PR di quel giorno hanno scritto in buona fede
+«633/633 verdi» su una suite da 634.
+
+> **Perché conta più di un conteggio impreciso.** Una **verifica di mutazione** eseguita su un albero così può
+> dichiarare «cade esattamente il test atteso» mentre il test che avrebbe dovuto cadere non era nemmeno in
+> lista. Lì la mutazione non prova nulla, e sembra la prova più forte che si possa portare.
+
 > **Correzione 2026-08-05**: questo documento dichiarava «169 test» mentre M6.0, poche righe sotto,
 > riportava già 172/172. Le due cifre convivevano: il conteggio reale era **172**.
 >

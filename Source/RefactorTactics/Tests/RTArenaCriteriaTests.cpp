@@ -6,6 +6,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTMatchSetupLibrary.h"
+#include "Pathfinding/RTHexPathLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -306,6 +307,50 @@ bool FRTArenaGeneratedArenaVerdictTest::RunTest(const FString&)
 	TestFalse(TEXT("copertura valutabile"), Report.Coverage.bNotEvaluable);
 	TestFalse(TEXT("costo valutabile"), Report.CostBite.bNotEvaluable);
 	TestFalse(TEXT("rotte valutabili"), Report.TwoRoutes.bNotEvaluable);
+	return true;
+}
+
+/**
+ * L'arena della v0.1 soddisfa **tutti e tre** i criteri del `done_when` di U1.
+ *
+ * E' il test che rende il layout una cosa verificata invece che disegnata a occhio: se qualcuno sposta un
+ * muro o toglie il fango, il criterio che quel pezzo teneva in piedi cade qui, headless, in un secondo —
+ * invece che in editor tre sedute dopo.
+ *
+ * Il verdetto viene stampato per intero: quando fallisce, i numeri dicono **di quanto**, e correggere smette
+ * di essere tentativo ed errore.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTArenaV01MeetsCriteriaTest,
+	"RefactorTactics.Arena.ArenaV01MeetsAllThreeCriteria",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTArenaV01MeetsCriteriaTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeArenaV01(GetTransientPackage());
+	TestNotNull(TEXT("l'arena esiste"), Arena);
+	if (!Arena) { return false; }
+
+	const FRTArenaCriteriaReport Report = URTArenaCriteriaLibrary::EvaluateWithDerivedSpawns(Arena);
+	AddInfo(FString::Printf(TEXT("ArenaV01 (%d celle):\n%s"),
+		Arena->NumCells(), *URTArenaCriteriaLibrary::FormatReport(Report)));
+
+	// Diagnostica: DOVE passano le due rotte. Senza, correggere il layout sarebbe indovinare — e il fango
+	// finisce dove nessuno cammina.
+	{
+		const FRTHexPathResult P1 = URTHexPathLibrary::FindPath(Arena, Report.SpawnA, Report.SpawnB);
+		FString S1;
+		for (const FRTCellId& C : P1.Path) { S1 += FString::Printf(TEXT("(%d,%d) "), C.X, C.Y); }
+		TSet<FRTCellId> Blocked;
+		for (int32 i = 1; i < P1.Path.Num() - 1; ++i) { Blocked.Add(P1.Path[i]); }
+		const FRTHexPathResult P2 = URTHexPathLibrary::FindPathAvoiding(Arena, Report.SpawnA, Report.SpawnB, &Blocked);
+		FString S2;
+		for (const FRTCellId& C : P2.Path) { S2 += FString::Printf(TEXT("(%d,%d) "), C.X, C.Y); }
+		AddInfo(FString::Printf(TEXT("rotta 1 (costo %d): %s"), P1.TotalCost, *S1));
+		AddInfo(FString::Printf(TEXT("rotta 2 (costo %d): %s"), P2.TotalCost, *S2));
+	}
+
+	TestTrue(TEXT("copertura"), Report.Coverage.bPassed);
+	TestTrue(TEXT("costo"), Report.CostBite.bPassed);
+	TestTrue(TEXT("due rotte"), Report.TwoRoutes.bPassed);
 	return true;
 }
 

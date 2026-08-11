@@ -27,8 +27,12 @@ Dal 2026-08-10 (D-076) le pagine di gioco non stanno piu' in `docs/wiki/` ma nel
 repository separato: `--wiki-root` estende il gate a quell'area, che altrimenti non la controlla
 piu' nessuno — e senza dirlo, perche' `git ls-files` semplicemente non elenca quei file.
 
+Piu' una quinta, che non riguarda i link ma vive qui perche' questo e' l'unico gate che **legge** i
+documenti: i **marker di conflitto git** rimasti dentro un file. Vedi `CONFLITTO_RE` per il perche' sta
+in questo script e per quale dei tre marker e' deliberatamente escluso.
+
 Esce con codice 1 se un link e' rotto, se un'etichetta mente, se un target esiste solo in locale,
-oppure se una voce di DEBITO_NOTO non e' piu' vera.
+se un documento contiene marker di conflitto, oppure se una voce di DEBITO_NOTO non e' piu' vera.
 
 Cosa NON controlla, deliberatamente:
   - gli **ancoraggi** (`#sezione`): la slugificazione di GitHub su titoli con accenti, emoji e codice
@@ -55,6 +59,17 @@ LINK_RE = re.compile(r'(!?)\[(`?)([^\]]*?)(`?)\]\(\s*<?([^)>\s]+)>?(?:\s+"[^"]*"
 SKIP_SCHEMES = ("http://", "https://", "mailto:", "ftp://", "tel:", "data:")
 
 FENCE_RE = re.compile(r"^([ \t]*)(`{3,}|~{3,}).*?^\1?\2[ \t]*$", re.M | re.S)
+
+# Marker di conflitto git rimasti in un documento. Aggiunto il 2026-08-10, dopo che tre di essi hanno
+# vissuto in `docs/OPEN_DECISIONS.md` su `main` per cinque ore e mezza, 117 commit e 34 PR mergiate:
+# li ha introdotti un merge risolto a mano (`cc5f0e5`) e non li ha visti nessuno, perche' i `.md` sono
+# l'unico formato del repository che nessun parser attraversa. Un marker in un `.cpp` non compila, uno
+# in `feature-registry.yaml` fa fallire il validator; uno in un documento si legge come testo.
+#
+# Cerca SOLO le due righe che in Markdown non significano niente. La terza — sette segni di uguale —
+# e' deliberatamente esclusa: e' anche la sottolineatura di un titolo **Setext**, e un gate che sbaglia
+# viene disattivato al terzo falso positivo. Se ci sono le altre due, il conflitto c'e' comunque.
+CONFLITTO_RE = re.compile(r"^(?:<{7}|>{7}) ", re.M)
 
 
 def _fence_spans(text):
@@ -121,7 +136,7 @@ def main():
         return 2
     tracked_dirs = {d for p in tracked for d in _parents(p)}
 
-    rotti, etichette, non_versionati = [], [], []
+    rotti, etichette, non_versionati, conflitti = [], [], [], []
     controllati = 0
     debito_visto = {k: 0 for k in DEBITO_NOTO}
 
@@ -133,6 +148,13 @@ def main():
             continue
         base = os.path.dirname(abs_src)
         fences = _fence_spans(text)
+
+        # Dentro un blocco recintato un marker e' un esempio, non un residuo: stessa esenzione dei link.
+        for m in CONFLITTO_RE.finditer(text):
+            if any(a <= m.start() < b for a, b in fences):
+                continue
+            riga = text[: m.start()].count("\n") + 1
+            conflitti.append((src, riga, text[m.start():].split("\n", 1)[0][:40]))
 
         for m in LINK_RE.finditer(text):
             _, _, label, _, target = m.groups()
@@ -179,13 +201,22 @@ def main():
     print(f"Link relativi controllati: {controllati} · file markdown versionati: "
           f"{sum(1 for f in tracked if f.endswith('.md'))}")
 
-    if not (rotti or etichette or non_versionati or stale):
+    if not (rotti or etichette or non_versionati or stale or conflitti):
         tollerati = sum(debito_visto.values())
         coda = f" ({tollerati} rotti tollerati come debito dichiarato)" if tollerati else ""
         print(f"OK — ogni link risolve, ogni etichetta dice il vero{coda}.")
         return 0
 
     print()
+    # Per primo: gli altri difetti rendono un documento impreciso, questo lo rende rotto.
+    if conflitti:
+        print(f"FALLITO — {len(conflitti)} marker di conflitto git rimasti in un documento:\n")
+        for f, n, testo in conflitti:
+            print(f"  {f}:{n}\n      {testo}")
+        print("\n  Un merge e' stato risolto a meta' e committato. Apri il file, tieni cio' che serve")
+        print("  di entrambi i lati — spesso sono due sezioni diverse che devono coesistere, non due")
+        print("  versioni della stessa — e togli le righe di marcatura.\n")
+
     if rotti:
         print(f"FALLITO — {len(rotti)} link a un target inesistente:\n")
         for f, n, t in rotti:

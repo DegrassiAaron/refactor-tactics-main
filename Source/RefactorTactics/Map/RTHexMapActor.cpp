@@ -2,6 +2,7 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "DrawDebugHelpers.h" // anteprima di pianificazione (presentazione, non logica)
 #include "EngineUtils.h" // TActorIterator
@@ -416,6 +417,41 @@ void ARTHexMapActor::GenerateIntoAsset()
 	MapAsset->MarkPackageDirty();
 	RebuildInstances();
 	UE_LOG(LogRT, Log, TEXT("[HexMap] Generate: %d celle nell'asset (raggio %d, layer %d)."), Ids.Num(), DemoRadius, ActiveLayer);
+}
+
+void ARTHexMapActor::GenerateArenaV01IntoAsset()
+{
+	if (!MapAsset)
+	{
+		UE_LOG(LogRT, Warning, TEXT("[HexMap] Nessun MapAsset assegnato: assegnalo prima di generare."));
+		return;
+	}
+#if WITH_EDITOR
+	const FScopedTransaction Transaction(LOCTEXT("HexGenerateArenaV01", "Hex: Generate Arena v0.1"));
+#endif
+
+	const URTHexMapAsset* Source = URTMatchSetupLibrary::MakeArenaV01(GetTransientPackage());
+	if (!Source)
+	{
+		UE_LOG(LogRT, Warning, TEXT("[HexMap] Generazione dell'arena v0.1 fallita."));
+		return;
+	}
+
+	MapAsset->Modify();
+	// Sostituisce, non fonde: mescolare il layout verificato con quello che c'era darebbe una mappa che non
+	// e' ne' l'una ne' l'altra, e i tre criteri smetterebbero di dire qualcosa su cio' che si ha davanti.
+	MapAsset->Cells.Reset();
+	MapAsset->Transitions.Reset();
+	for (const FRTHexCellData& Cell : Source->Cells)
+	{
+		MapAsset->AddOrUpdateCell(Cell);
+	}
+	MapAsset->Transitions = Source->Transitions;
+	MapAsset->SortCells();
+	MapAsset->MarkPackageDirty();
+	RebuildInstances();
+	UE_LOG(LogRT, Log, TEXT("[HexMap] Arena v0.1 scritta nell'asset: %d celle. Verifica con rt.Arena.Check."),
+		MapAsset->NumCells());
 }
 
 void ARTHexMapActor::ClearAsset()

@@ -106,39 +106,39 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 | **Comandi debug `rt.Debug.*`** | `Map/RTHexOverlayConsole.cpp`, `Turn/RTPacingConsole.cpp` | ✅ `rt.Debug.DrawCells` · `rt.Debug.Pacing` |
 | **Scenario Test Harness** | `ScenarioHarness/*` | ✅ 5 scenari, console `rt.Test.*`, auto-run via CVar, `result.json` |
 | **Conoscenza parziale (vista/udito)** | — | ⏳ la vista è una statistica a catalogo che non decide nulla (E13) |
-| **Finestre di reazione interattive** | — | ⏳ ADR-0004 accettato, nessun codice (E14) |
+| **Finestre di reazione interattive** | `Turn/RTReactionOpportunityTypes.*` | 🟡 l'opportunity ha **identità** (CP 14.3) e l'Overwatch **la produce** a ogni micro-step (CP 14.4); ⏳ nessuna finestra viva: il resolver non chiede ancora niente (E14.5) |
 | **Facing come stato di gioco** | `Turn/RTFacingLibrary.*`, `Unit/RTUnit.h`, `Combat/RTHexCombatLibrary.*` | ✅ E16 chiusa il 2026-08-09: derivato da Move e Dash, riorientato dal bersaglio, in snapshot/TurnLog/hash, e l'emisfero posteriore annulla copertura e `Guard` |
 | **Scenario showcase e golden replay** | `Tests/` (`ShowcaseRelay.*`) | 🟡 **iniziata**: fixture stabile e scenario lite deterministico |
 
 **Suite automatica**: **si misura, non si cita — e da qui in avanti nemmeno si scrive.**
 
 <!-- RT_SUITE_COUNT:BEGIN -->
-**573 test unici in 76 file** — misurati su `4a3fd20`.
+**642 test unici in 85 file** — misurati su `e6ece62`.
 
 Generato da `python scripts/feature_registry.py suite`: **non si aggiorna a mano**. Era scritto a mano in due documenti ed è divergito cinque volte.
 
 | Area | Test | Cosa fissa |
 |---|---:|---|
 | `Hex*` (mappa, path, vision, bot, blast, move, match) | 99 | Coordinate, A\*, LOS, bot, partita completa |
-| `Actions.*` | 70 | Ordine per priorità, permutazione-invarianza, fallback, mappatura di fase |
+| `Actions.*` | 71 | Ordine per priorità, permutazione-invarianza, fallback, mappatura di fase |
 | `Terrain.*` · `Status.*` · `Environment.*` | 39 | Superfici, stati temporanei, propagazione elettrica, fuoco/acqua |
 | `Combat.*` · `HexCombat.*` | 39 | Danno dopo scudo, forme, LOS, niente fuoco amico |
 | `Reactions.*` | 27 | Attivazione singola, trigger puro, reazioni componibili, privacy |
 | `HexSim.*` | 28 | Snapshot, budget, collisioni simultanee, **replay divergence 0** |
-| `Match*` (allestimento, formato, fine partita) | 29 | Le tre vie di fine partita e il `RoundLimit` da formato |
-| `Heroes.*` | 31 | I 4 eroi corrispondono al catalogo, trade-off delle varianti |
-| `TurnLog.*` | 24 | Hash permutazione-invariante, serializzazione versionata, checksum |
+| `Match*` (allestimento, formato, fine partita) | 32 | Le tre vie di fine partita e il `RoundLimit` da formato |
+| `Heroes.*` | 32 | I 4 eroi corrispondono al catalogo, trade-off delle varianti |
+| `TurnLog.*` | 48 | Hash permutazione-invariante, serializzazione versionata, checksum |
 | `Scenario.*` · `ScenarioIndex.*` | 56 | Harness: PASS/FAIL/ERROR/**BLOCKED**, identità e tag, niente bypass |
 | `Structures.*` | 21 | Porte come bordo (E9.3), ponti come arco (E9.4) |
 | `Playback.*` · `Preview.*` · `PlayerInput.*` · `ShowcaseRelay.*` · `Camera.*` | 23 | Presentazione e input: non decidono, riproducono |
-| `Unit.*` · `Turn.*` · `Simulation.*` · `Movement.*` | 19 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
-| `Cover.*` | 19 | Copertura bassa e alta, bordi, danno a struttura e distruzione |
+| `Unit.*` · `Turn.*` · `Simulation.*` · `Movement.*` | 26 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
+| `Cover.*` | 20 | Copertura bassa e alta, bordi, danno a struttura e distruzione |
 | `Catalog.*` | 9 | Invarianti del catalogo: solo interi, slot dichiarati, ID stabili |
 | `Pacing.*` | 7 | Pacing del turno misurato |
 | `Perf.*` | 2 | Path mediana **0,025 ms** · resolver **0,41 ms/turno** |
-| **totale** | **542** | |
+| **totale** | **579** | |
 
-> ⚠️ Test fuori da ogni area dichiarata: `RefactorTactics.Equipment.PortableCover.CreatesCover`, `RefactorTactics.Facing.BudgetMoveAllowsLastStepPlusMinusOne`, `RefactorTactics.Facing.DashThenBlastUsesLatestValue`, `RefactorTactics.Facing.EnvironmentalDisplacementKeepsFacing`, `RefactorTactics.Facing.ForcedMovementFacesSource`, `RefactorTactics.Facing.IntentIsTeamFiltered`, `RefactorTactics.Facing.LinearMoveDerivesDirection`, `RefactorTactics.Facing.PermutationInvariant`
+> ⚠️ Test fuori da ogni area dichiarata: `RefactorTactics.Arena.CostBiteNeedsExpensiveCellAndOverBudget`, `RefactorTactics.Arena.CoverageNeedsBlockedSightNotJustBlockingCells`, `RefactorTactics.Arena.DerivedSpawnsMatchMatchSetup`, `RefactorTactics.Arena.GeneratedTestArenaIsMeasurable`, `RefactorTactics.Arena.TwoRoutesNeedDisjointSimilarCostDifferentExposure`, `RefactorTactics.Arena.VerdictIsIndependentOfCellOrder`, `RefactorTactics.Door.ChangeCarriesActor`, `RefactorTactics.Equipment.PortableCover.CreatesCover`
 <!-- RT_SUITE_COUNT:END -->
 
 > Questo numero è già stato sbagliato quattro volte, e la storia vale più della cifra: due viste sono arrivate
@@ -170,10 +170,10 @@ Evidenza = i **nomi dei test**, che sono la prova di ciò che esiste:
 | **E11** HUD, log e debug | 🟡 **CP 11.3 chiuso nel codice** | 4 `Preview.*`, 4 `PlayerInput.*`, 8 `Playback.*`; console `rt.Debug.DrawCells` e `rt.Debug.Pacing` esistono · **CP 11.3 (2026-08-10, `#79`)**: le voci di combattimento non sono più **anonime** — portano `ActionId` e `BaseActionId`, quindi con due attaccanti nello stesso Blast il replay sa attribuire il colpo (`TurnLog.CombatEntryNamesItsAction`, `TurnLog.BasicAttackLogsBaseAndProfile`) · ⏳ Ghost Timeline (CP 11.5/11.6) · ⏳ comandi `rt.Debug.*` (CP 11.4) |
 | **E12** Determinismo, QA e release | 🟡 **CP 12.1 chiuso** | 4 `Simulation.*` — replay deterministico su **100 ripetizioni**, checksum stabile per permutazioni, corpus golden che rifiuta un formato diverso · 13 `Scenario.*` (harness) · 2 `Perf.*` · **2026-08-10 (`#307`)**: il TurnLog registra la **causa** di ogni spostamento — scatto e spinta lasciavano il replay senza spiegazione, ora hanno voce propria (`TurnLog.DisplacementHasCauseAndSource`, `TurnLog.DashIsDistinguishableFromMove`) · ⏳ packaged build (CP 12.3/12.5) |
 | **E13** Conoscenza parziale: vista e udito | ⏳ **assente** | la vista è una statistica a catalogo che non decide nulla |
-| **E14** Overwatch e reazioni interattive | ⏳ **assente** | ADR-0004 accettato, nessun codice. Dipende da E13 |
+| **E14** Overwatch e reazioni interattive | 🟡 **CP 14.3 e 14.4 chiusi** | 4 test `Reactions.Opportunity*`/`Overwatch.*` (CP 14.3, `#163`): l'id di una opportunity è una **funzione dei suoi sei campi**, non un GUID — un GUID romperebbe il replay in silenzio · **CP 14.4 (2026-08-10, `#164`)**: 4 test `Overwatch.*` — la zona controllata **riusa `FRTSuppressiveZone`**, il trigger si valuta a **ogni** micro-step, un contatto `Incerto` non lo arma, e più bersagli nello stesso passo danno **una** opportunity (`FIRE:a`/`FIRE:b`/`HOLD`) invece di prompt in sequenza · ⚠️ **nessun consumatore in partita**: `ARTTurnManager` non chiama ancora il costruttore dei trigger, quindi niente raggiunge il TurnLog e `Spec.Overwatch.HoldThenFire` resta `BLOCKED` — lo porta **CP 14.5** (`#165`) · ⏳ finestra 3,0 s, commit, troncamento del movimento, Clash, Time Bank |
 | **E15** Showcase «Il Relè» e golden replay | 🟡 **iniziata** | 2 test `ShowcaseRelay.*` — fixture stabile, scenario lite deterministico |
 | **E16** Orientamento e direzionalità | ✅ **chiusa** | 13 test `Facing.*` + 3 `Combat.*` direzionali + 5 scenari `Spec.Facing.*` — il facing è stato di gioco (derivato da Move e Dash, riorientato dal bersaglio, in snapshot, TurnLog e hash, filtrato per squadra) e la difesa direzionale annulla copertura bassa e `Guard` fuori dall'arco frontale, con la stessa `HexCone` che userà la vista. Resta fuori `FacingUsedByOverwatch`, che è E14. ⚠️ **2026-08-10**: l'epic **resta chiusa** — i suoi due checkpoint sono stati consegnati e i loro DoD reggono — ma [ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md) ha **allungato la spec** oltre ciò che E16 aveva costruito (budget di pivot per eroe, facing nei micro-step, policy dichiarative). Per questo `RT-FEAT-MAP-FACING` torna `IMPLEMENTING`: non è E16 a essere stata riaperta, è il metro a essersi spostato. Il lavoro nuovo va assegnato, e non ha ancora un checkpoint |
-| **E17** Validazione di stress 4v4 | ⏳ **assente** | dopo E15; **non** è un gate di release |
+| **E17** Validazione di stress 4v4 | 🟡 **CP 17.1 e 17.2 chiusi** | 4 test `Stress.*`/`Perf.ResolverAt4v4` (2026-08-10, `#222`/`#223`) — il roster core a **quattro** per squadra gioca una partita intera su arena r=8 a tre direttrici, e due esecuzioni identiche danno gli stessi hash confrontati **turno per turno**. Il difetto che l'epic cercava, un `if (Num == 2)` nel resolver, **non è stato trovato**: `NoTeamSizeAssumptionInResolver` interroga 1v1, 2v2, 3v3 e 4v4 — con due sole dimensioni «funziona per ogni N» e «funziona per i due N che ho provato» si leggono uguali. Misurato: resolver **2,319 ms/turno** a 4v4 contro **1,655** a 2v2, TurnLog **11,7 voci/turno** · ⚠️ due metriche del DoD — opportunity di reazione e prompt manuali per turno — sono **non misurabili** e il test lo dichiara: il produttore è CP 14.5 · ⏳ CP 17.3 è una voce PIE. **Non** è un gate di release |
 | **E18** Predictive Action, thin slice | ✅ **chiusa 2026-08-10** | 7 test `Predictive.*` + `Heroes.Vektor.InterceptShotIsPredictive` — boundary **puro** e permutazione-invariante, whiff col fallback dichiarato, `InterceptShot` migrata da reazione rinviata a predittiva · `Spec.Predictive.WhiffOnEmptyCell` da `BLOCKED` a **`PASS`** · la showcase passa da **1 a 3** turni giocati |
 | **E19** Classe di mappa e composizione | 🟡 **parziale** | 5 test `MatchFormat.*` — il formato è un data asset validato, il fallback è **osservabile** e un asset non valido blocca il setup · ⏳ la mappa non dichiara ancora la propria **classe** né il formato le **unità per squadra** ([D-030](../decisions/RT_PDR_00_Decision_Log.md)) |
 | **E20** HUD Icon Language | 🟡 **parziale** | 5 test `IconCatalog.*` — ogni chiave risolve, l'ID duplicato e la chiave assente sono **errori di validazione**, la chiave sconosciuta cade sul fallback · ⏳ i widget non consumano ancora il catalogo |
@@ -222,7 +222,7 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-MAP-HEXGRAPH` — FRTCellId e grafo esagonale multilivello | RELEASE_READY | 7/8 |
 |  | `RT-FEAT-MAP-LOS` — LOS, targeting e traiettoria separati | RELEASE_READY | 6/7 |
 |  | `RT-FEAT-MAP-PATHFINDING` — A* esagonale autorevole | RELEASE_READY | 6/7 |
-| **E4** | `RT-FEAT-ACTION-BASIC-ATTACK-PROFILES` — Profili di attacco base per eroe | IMPLEMENTING | 6/8 |
+| **E4** | `RT-FEAT-ACTION-BASIC-ATTACK-PROFILES` — Profili di attacco base per eroe | RELEASE_READY | 7/8 |
 |  | `RT-FEAT-ACTION-COOLDOWNS` — Cooldown ed economia delle risorse | TESTABLE | 5/8 |
 |  | `RT-FEAT-ACTION-ENGINE` — Motore delle azioni a priorità intera | RELEASE_READY | 7/8 |
 |  | `RT-FEAT-ACTION-GENERIC` — Azioni generiche del catalogo — completata da `RT-FEAT-REACTION-OVERWATCH`, `RT-FEAT-OBJECTIVE-SYSTEM` | IMPLEMENTING | 3/8 |
@@ -260,6 +260,7 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-MATCH-PACING` — Pacing del turno e del match | TESTABLE | 5/8 |
 |  | `RT-FEAT-PROD-PACKAGED` — Verifica su build packaged | IMPLEMENTING | 2/6 |
 |  | `RT-FEAT-PROD-PERFORMANCE` — Budget di performance misurati | IMPLEMENTING | 3/6 |
+|  | `RT-FEAT-REPLAY-ARCHIVE` — Replay Archive — recorder, Player e indice delle partite | INTEGRATED | 4/6 |
 | **E13** | `RT-FEAT-PERCEPTION-MEMORY` — Memoria del contatto e ultima posizione nota | SPECIFIED | 1/9 |
 |  | `RT-FEAT-PERCEPTION-NOISE` — Rumore e percezione acustica | SPECIFIED | 1/9 |
 |  | `RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE` — TeamKnowledge e informazione parziale | IMPLEMENTING | 3/9 |
@@ -269,13 +270,13 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-REACTION-CLASH` — Reaction Clash (opportunity contested) | SPECIFIED | 1/9 |
 |  | `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | SPECIFIED | 1/9 |
 |  | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | DESIGNED | 0/9 |
-|  | `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | SPECIFIED | 1/8 |
-|  | `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | SPECIFIED | 1/9 |
+|  | `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | IMPLEMENTING | 3/9 |
+|  | `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | IMPLEMENTING | 2/9 |
 |  | `RT-FEAT-REACTION-PROFILE` — Reaction Profile armato da Brace | IMPLEMENTING | 1/8 |
 | **E15** | `RT-FEAT-TEST-GOLDEN` — Golden replay e showcase «Il Relè» | IMPLEMENTING | 3/8 |
 |  | `RT-FEAT-TEST-SCENARIO-HARNESS` — Scenario Test Harness automatizzato | INTEGRATED | 6/8 |
 | **E16** | `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole — completata da `RT-FEAT-UI-PLANNING` | IMPLEMENTING | 5/9 |
-| **E17** | `RT-FEAT-STRESS-4V4` — Validazione di stress 4v4 | SPECIFIED | 1/7 |
+| **E17** | `RT-FEAT-STRESS-4V4` — Validazione di stress 4v4 | IMPLEMENTING | 1/7 |
 | **E18** | `RT-FEAT-ACTION-PREDICTIVE` — Predictive Action, thin slice | INTEGRATED | 6/8 |
 | **E19** | `RT-FEAT-MATCH-FORMAT` — Formato di partita e classe di mappa | TESTABLE | 5/8 |
 | **E20** | `RT-FEAT-UI-ICON-LANGUAGE` — HUD Icon Language | IMPLEMENTING | 1/7 |

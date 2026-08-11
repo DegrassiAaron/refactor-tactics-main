@@ -83,8 +83,10 @@ un `#include`; una dipendenza che non esiste no.
 riproduce una traccia in un contesto dove il resolver non è disponibile, e se funziona il confine è
 dimostrato invece che affermato.
 
-> ⚠️ **Questi test non esistono ancora**: si scrivono in **R3**, insieme al Player. Questo ADR li **richiede**,
-> e la loro assenza è la ragione per cui `REPLAY-04` resta aperto. Nessuno li citi come già presenti.
+> ✅ **Scritti il 2026-08-11** in `RTReplayPlayerTests.cpp`, insieme al Player (`#470`, PR #496). Erano la
+> condizione che questo ADR poneva, e con essi **`REPLAY-04` si chiude**: il rischio esisteva perché nessun
+> test si sarebbe accorto di un player che ri-risolve, e adesso `Replay.Player.RunsWithoutResolver` lo
+> dimostra nella forma negativa — riproduce dove il resolver non c'è.
 
 ### 4. Divergenza: il Verifier fallisce esplicito, il Player non verifica mai
 
@@ -113,7 +115,7 @@ chi modifica una traccia deliberatamente **ricalcola il checksum** e il file tor
 |---|---|
 | Corruzione accidentale (disco, trasferimento, troncamento) | **sì** — checksum |
 | Traccia di un altro formato o di un'altra topologia | **sì** — `CompareSerializedTraces` |
-| Traccia riletta con regole diverse | **no, e non è questo ADR a deciderlo**: è [#413](https://github.com/DegrassiAaron/refactor-tactics-main/issues/413) |
+| Traccia riletta con regole diverse | **no, e la scelta è stata presa**: [D-083](RT_PDR_00_Decision_Log.md) rinvia `ContentManifestHash`/`RulesVersion` alla v0.2, perché in v0.1 il corpus golden vive nello stesso repository delle regole — il rilevamento c'è, manca l'**attribuzione** ([#413](https://github.com/DegrassiAaron/refactor-tactics-main/issues/413)) |
 | **Manomissione deliberata** | **no** — servirebbe una firma, che non esiste |
 
 Non è una lacuna da tappare adesso: la v0.1 è **2v2 offline contro un bot**, non c'è un avversario da cui
@@ -135,15 +137,19 @@ adesso evita che qualcuno legga «verifica d'integrità» e creda di avere una g
 ## Cosa questo ADR non decide
 
 - **Nomi dei tipi C++, formato del manifest, comandi console**: implementazione.
-- **`ContentManifestHash` / `RulesVersion`**: è [#413](https://github.com/DegrassiAaron/refactor-tactics-main/issues/413).
-  Questo ADR dice *che* un archivio incompatibile va rifiutato in apertura; **quali campi** rendano
-  «incompatibile» una decisione misurabile è l'altra issue.
+- **`ContentManifestHash` / `RulesVersion`**: era [#413](https://github.com/DegrassiAaron/refactor-tactics-main/issues/413),
+  **chiusa il 2026-08-10** da [D-083](RT_PDR_00_Decision_Log.md). Questo ADR dice *che* un archivio
+  incompatibile va rifiutato in apertura; **quali campi** rendano «incompatibile» una condizione misurabile
+  lo dice ora D-083 — *entra ciò che il resolver legge* — e ne rinvia la **costruzione** alla v0.2, con
+  l'innesco dichiarato: quando un archivio esce dalla macchina che l'ha prodotto.
 - **Firma e tamper-evidence**: fuori dalla v0.1, con il posto già previsto.
 - **Se il Verifier giri anche in CI su ogni build**: è una scelta di processo, non di architettura.
 
 ## Verifica
 
-I test seguenti sono **richiesti da questo ADR e non esistono ancora**; si scrivono in R3.
+I test seguenti erano **richiesti da questo ADR e non esistevano** alla sua stesura. ✅ **Esistono tutti dal
+2026-08-11** (`RTReplayPlayerTests.cpp`, `#470`): la tabella resta perché dice *perché* servono, non solo che
+servono.
 
 | Test | Cosa rende osservabile |
 |---|---|
