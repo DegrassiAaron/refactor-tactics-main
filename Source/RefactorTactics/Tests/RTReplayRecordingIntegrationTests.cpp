@@ -2,6 +2,8 @@
 #include "Replay/RTReplayRecorderLibrary.h"
 #include "Replay/RTReplayManifest.h"
 #include "Turn/RTTurnManager.h"
+#include "Turn/RTMatchFormatData.h"
+#include "Turn/RTMatchFormatLibrary.h"
 #include "Turn/RTTurnLogLibrary.h"
 #include "Unit/RTUnit.h"
 #include "RTGameMode.h"
@@ -115,7 +117,11 @@ bool FRTReplayRecordingIntegrationTest::RunTest(const FString&)
 		TM->GetReplayMatchId().IsValid());
 
 	// Quello che fa il GameMode dopo aver risolto il formato: e' li' che si sa di stare allestendo una
-	// partita vera, e non nel BeginPlay di un attore che anche i test spawnano.
+	// partita vera, e non nel BeginPlay di un attore che anche i test spawnano. Il formato si imposta prima,
+	// come fa `ApplyMatchFormat`: senza, `BeginReplayRecording` si rifiuta — e giustamente.
+	FRTMatchRules Rules;
+	Rules.FormatId = URTMatchFormatLibrary::Skirmish2v2FormatId;
+	TM->SetMatchRules(Rules);
 	TM->BeginReplayRecording();
 
 	const FGuid MatchId = TM->GetReplayMatchId();
@@ -262,6 +268,14 @@ bool FRTReplaySetupWithoutBeginPlayTest::RunTest(const FString&)
 	GameMode->SetupHexMatch(HexMap);
 
 	TestFalse(TEXT("allestire non avvia la registrazione"), TM->GetReplayMatchId().IsValid());
+
+	// E anche chiamandola a mano: senza un formato risolto non si registra. E' il caso in cui
+	// `ApplyMatchFormat` fallisce e `SetupHexMatch` esce prima — il chiamante e' fuori da quella funzione e
+	// non lo sa, quindi la guardia sta qui dentro e vale per ogni chiamante.
+	FRTMatchRules SenzaFormato;
+	TM->SetMatchRules(SenzaFormato); // `FormatId` di default e' `NAME_None`
+	TM->BeginReplayRecording();
+	TestFalse(TEXT("senza formato risolto non si registra"), TM->GetReplayMatchId().IsValid());
 
 	DestroyRecWorld(World);
 	return true;

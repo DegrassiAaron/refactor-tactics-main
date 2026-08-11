@@ -153,6 +153,13 @@ void ARTGameMode::BeginPlay()
 	// Qui invece ci si arriva **solo** avviando il gioco: `SetupHexMatch` ha questo unico chiamante in
 	// produzione, e il ramo dello scenario e' gia' uscito con un `return` piu' sopra. Dopo `SetupHexMatch`
 	// anche il formato e' risolto, quindi il manifest nasce con quello vero.
+	//
+	// ⚠️ `SetupHexMatch` e' `void` e ha cinque uscite anticipate: da qui non si sa se ha allestito davvero.
+	// Il caso che conta — formato non risolto — lo intercetta `BeginReplayRecording` stessa, che si rifiuta
+	// senza toccare il disco. Restano fuori i casi in cui il formato E' valido ma l'allestimento fallisce
+	// dopo (celle di partenza insufficienti, composizione che non torna): li' la registrazione parte per una
+	// partita con zero unita'. E' un comportamento **preesistente** — valeva anche con la chiamata dentro
+	// `SetupHexMatch`, che stava comunque prima di quei controlli — e non lo cambia questa riga.
 	if (ARTTurnManager* TurnManager =
 			Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass())))
 	{
