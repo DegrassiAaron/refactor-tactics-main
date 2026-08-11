@@ -380,6 +380,16 @@ vede di essere osservato?» — ed e' quella che e' stata decisa.
 E meta' di `PER-2` si e' sciolta guardando il codice invece dei documenti: la divergenza di segno riguardava
 la **vegetazione**, che non e' fra le otto superfici della v0.1. Una domanda senza terreno su cui atterrare.
 
+> ✅ **Il resto di `PER-2` chiuso il 2026-08-11** con [`D-091`](decisions/RT_PDR_00_Decision_Log.md),
+> implementando CP 13.3. Restavano **due** superfici della v0.1 senza riga nel workbook — `Rough` e
+> `Conductive` — e implementando e' emerso un **terzo** valore che nessuno aveva contato: l'attenuazione per
+> **arco**, che la DoD del checkpoint mette nella formula ma che nessun documento normativo quantificava.
+> Decisi rispettivamente **`+1`**, **`0`** e **`2`**.
+>
+> Nota di metodo: il terzo si e' visto solo scrivendo il test che doveva pinnarlo. Una formula puo' nominare
+> un termine — *«Intensita' − costo acustico − **occlusione**»* — senza che nessuno si accorga che quel
+> termine non ha un numero, finche' qualcuno non deve scriverlo.
+
 ## Aperte — livello regole
 
 | Tema | Stato |

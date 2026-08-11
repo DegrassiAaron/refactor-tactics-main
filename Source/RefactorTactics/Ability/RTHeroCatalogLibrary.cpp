@@ -113,6 +113,13 @@ TArray<FString> URTHeroCatalogLibrary::ValidateHeroes(const TArray<const URTHero
 		{
 			Errors.Add(FString::Printf(TEXT("%s: resistenza push negativa (%d)"), *Where, Hero->PushResistance));
 		}
+		// Soglia d'udito sulla scala 0-10 di D-041, la stessa dell'intensita' del rumore. Fuori scala non e'
+		// «un valore estremo»: sotto 0 l'eroe sentirebbe il silenzio, sopra 10 non sentirebbe un'esplosione —
+		// due modi di scollegare la statistica dal canale che la consuma.
+		if (Hero->HearingThreshold < 0 || Hero->HearingThreshold > 10)
+		{
+			Errors.Add(FString::Printf(TEXT("%s: soglia d'udito fuori scala 0-10 (%d)"), *Where, Hero->HearingThreshold));
+		}
 		if (Hero->Affinity.IsNone())
 		{
 			Errors.Add(FString::Printf(TEXT("%s: affinita' non dichiarata"), *Where));
@@ -172,6 +179,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeFlux()
 	//
 	// Con 7, Flux diventa l'unico che vede oltre l'esagono di raggio 6: identita' vera, non compensazione.
 	Flux->VisionRange = 7;
+	Flux->HearingThreshold = 5;  // D-041: vede piu' lontano di tutti (7), quindi sente meno. L'udito COMPENSA la vista.
 	Flux->PushResistance = 0;
 	Flux->Affinity = TEXT("Affinity.Electricity");
 	// Debolezza acqua: stesso identificatore che Riva (CP 6.3) usera' come sua affinita', cosi' la combo
@@ -272,6 +280,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiva()
 	Riva->MaxHealth = 95;
 	Riva->MovePoints = 5;
 	Riva->VisionRange = 5;
+	Riva->HearingThreshold = 3;  // D-041: orecchio fine (soglia bassa) a compensare una vista corta.
 	Riva->PushResistance = 0;
 	Riva->Affinity = TEXT("Affinity.Water");
 	// Simmetrica a Flux (Affinity.Water e' gia' la sua debolezza): la rivalita' fra i due eroi legati dalla
@@ -395,6 +404,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeBastion()
 	Bastion->MaxHealth = 120;
 	Bastion->MovePoints = 4;
 	Bastion->VisionRange = 5;
+	Bastion->HearingThreshold = 3;  // D-041: come Riva — il piu' lento del roster sente arrivare.
 	// Era `1`, l'unico del roster, fino al 2026-08-10. Portato a `0` da D-075 (#402): siccome ogni spinta
 	// del gioco vale 1 e `PushResistance` e' una SOGLIA (D-038), il valore `1` non comprava "stabilita'" ma
 	// **immunita' totale a ogni spostamento, sempre, senza spendere un'azione** — e quella nessuno l'aveva
@@ -533,6 +543,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeVektor()
 	Vektor->MaxHealth = 90;
 	Vektor->MovePoints = 6; // il piu' mobile del roster: e' cio' che compra con l'assenza di difese
 	Vektor->VisionRange = 6;
+	Vektor->HearingThreshold = 5;  // D-041: mobilita' e vista si pagano sull'udito.
 	Vektor->PushResistance = 0;
 	Vektor->Affinity = TEXT("Affinity.Movement");
 	// Simmetrica a Bastion: chi si muove di mestiere e' neutralizzato da chi gli chiude le traiettorie.
