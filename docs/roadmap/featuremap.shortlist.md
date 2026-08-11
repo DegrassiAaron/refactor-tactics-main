@@ -25,14 +25,13 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | Stato | Quante |
 |---|--:|
 | `IDEA` | 6 |
-| `DESIGNED` | 14 |
-| `SPECIFIED` | 10 |
+| `DESIGNED` | 13 |
+| `SPECIFIED` | 12 |
 | `IMPLEMENTING` | 21 |
 | `TESTABLE` | 8 |
 | `INTEGRATED` | 21 |
 | `RELEASE_READY` | 16 |
 | `DONE` | 1 |
-| `BLOCKED` (fuori scala) | 1 |
 
 ### Actions · 12
 
@@ -58,9 +57,9 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-CHAR-V01-ROSTER` — Roster v0.1 — Flux, Riva, Bastion, Vektor | v0.1 | INTEGRATED | 6/8 | E6 | I 4 eroi corrispondono al catalogo; **3 reazioni su 5** cablate |
 | `RT-FEAT-CHAR-PRESENTATION` — Presentazione dei personaggi (mesh, animazioni, anelli) | v0.1 | IMPLEMENTING | 1/7 | E21 | Il lavoro che viveva solo in M8, reso visibile dal registry |
 | `RT-FEAT-CHAR-RADAR-MODEL` — Modello dei radar di profilo — Profile e Balance | future | SPECIFIED | 1/4 | — | — |
+| `RT-FEAT-CHAR-RADAR-RATINGS-V01` — Rubrica — i rating derivati dal catalogo eroi | future | SPECIFIED | 1/4 | — | — |
 | `RT-FEAT-CHAR-AUXILIARY-UNITS` — Unità ausiliarie (pet, evocazioni, gadget) | v0.2 | DESIGNED | 0/8 | — | — |
 | `RT-FEAT-CHAR-V02-ROSTER` — Roster v0.2 — Steel, Aurora, Murdock, Kwang | v0.2 | DESIGNED | 0/8 | — | Epic E35 |
-| `RT-FEAT-CHAR-RADAR-RATINGS-V01` — Rating canonici del roster v0.1 | future | BLOCKED | 1/4 | — | — |
 | `RT-FEAT-CHAR-TRANSFORMATION` — Stati di personaggio, stance e trasformazioni | v0.2 | IDEA | 0/8 | — | Le 10 voci `PIE-STATE-*` sono la sua controparte umana, e restano ⏳ |
 
 ### Core · 7
@@ -189,10 +188,10 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-TOOL-BALANCE-GROUND` — Banco di prova del bilanciamento | v0.1 | IMPLEMENTING | 3/6 | E1 | Dove si misurano i numeri prima di scriverli a catalogo |
 | `RT-FEAT-TOOL-CONTROL-CENTER` — Project Control Center — la UI web del registry | future | IMPLEMENTING | 2/6 | — | — |
 | `RT-FEAT-TOOL-DEBUG-CONSOLE` — Comandi console rt.Debug e rt.Test | v0.1 | IMPLEMENTING | 3/6 | E11 | Ne esistono 2 su 8: senza, si debugga a occhio |
+| `RT-FEAT-WIKI-CHART-GENERATOR` — Generatore SVG deterministico dei radar | future | SPECIFIED | 1/6 | — | — |
 | `RT-FEAT-BOT-BELIEF` — Belief — celle plausibili, decadimento e minaccia proiettata | future | DESIGNED | 0/8 | fuori scope | — |
 | `RT-FEAT-BOT-PREDICTIVE` — Scenari nemici plausibili e piano robusto | future | DESIGNED | 0/8 | fuori scope | — |
 | `RT-FEAT-BOT-TACTICAL` — Team Planner — piano di squadra, ruoli dinamici e sinergie | v0.2 | DESIGNED | 0/8 | fuori scope | Epic E26 |
-| `RT-FEAT-WIKI-CHART-GENERATOR` — Generatore SVG deterministico dei radar | future | DESIGNED | 0/6 | — | — |
 
 ### UI · 8
 
