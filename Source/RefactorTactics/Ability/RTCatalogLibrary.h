@@ -146,6 +146,31 @@ public:
 	static FRTActionDef ApplyWeaponVariant(const FRTActionDef& BasicAttack, const URTEquipmentData* Variant);
 
 	/**
+	 * La variante d'arma di **default** per un eroe (D-089), o `None` se l'eroe non ne ha una dichiarata.
+	 *
+	 * Il criterio e' che il default **rinforzi l'identita'** dell'eroe; compensarne la debolezza resta la
+	 * scelta alternativa del giocatore. `None` invece di un fallback e' voluto: un default silenzioso e
+	 * sbagliato e' peggio di un default assente, che almeno si vede.
+	 */
+	static FName DefaultWeaponVariantFor(const FName& HeroId);
+
+	/**
+	 * Avvisi (non errori) su una combinazione eroe/variante: cose legali che con ogni probabilita' non si
+	 * vogliono, e che nessun validator strutturale puo' vedere perche' dipendono dalla **coppia**.
+	 *
+	 * Oggi ne produce due, ed entrambe nascono da D-089:
+	 * - la variante **duplica uno status** che l'attacco base gia' applica (`Suppressive` su
+	 *   `Bastion.ImpactShot`, che rallenta di suo): si paga il costo pieno per un effetto che si ha;
+	 * - la variante porta il danno diretto **a zero o sotto**: un pulsante finto, che ADR-0007 esiste per
+	 *   evitare.
+	 *
+	 * Sono `TArray<FString>` come gli errori di `ValidateEquipment` e non un booleano, perche' un avviso che
+	 * non dice **quale** coppia e **perche'** costringe a ricontrollare tutto il roster a mano.
+	 */
+	static TArray<FString> WarnOnVariantForAttack(const FRTActionDef& BasicAttack,
+		const URTEquipmentData* Variant);
+
+	/**
 	 * L'azione che un equipaggiamento concede, costruita dall'azione CORE che dichiara in `GrantedActionId`.
 	 * Nullptr se non ne concede nessuna o se l'id non e' nel catalogo.
 	 *

@@ -633,4 +633,94 @@ bool FRTGadgetsWithoutEngineSupportTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// D-089 (`WV-3`) — i default di variante per eroe, e l'avviso sulle coppie che non hanno senso.
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDefaultWeaponVariantsTest,
+	"RefactorTactics.Equipment.DefaultVariantPerHero",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDefaultWeaponVariantsTest::RunTest(const FString&)
+{
+	TestEqual(TEXT("Flux: Precisione"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Flux")),
+		FName(TEXT("Weapon.Precision")));
+	TestEqual(TEXT("Riva: Impatto"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Riva")),
+		FName(TEXT("Weapon.Impact")));
+	TestEqual(TEXT("Vektor: Soppressione"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Vektor")),
+		FName(TEXT("Weapon.Suppressive")));
+	TestEqual(TEXT("Bastion: Impatto"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Bastion")),
+		FName(TEXT("Weapon.Impact")));
+
+	// Un eroe sconosciuto NON ricade su un default: meglio nessuna variante che una sbagliata in silenzio.
+	TestTrue(TEXT("un eroe senza riga ottiene None"),
+		URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.NonEsiste")).IsNone());
+
+	// Nessun default usa `Overcharge` finché il suo costo è `WV-1` (#510): un default il cui prezzo si
+	// decide dopo cambierebbe insieme a quella risposta. Il test lo pinna, così la scelta resta consapevole.
+	const TCHAR* Roster[] = { TEXT("Hero.Flux"), TEXT("Hero.Riva"), TEXT("Hero.Vektor"), TEXT("Hero.Bastion") };
+	for (const TCHAR* H : Roster)
+	{
+		TestTrue(*FString::Printf(TEXT("%s non ha Overcharge come default"), H),
+			URTCatalogLibrary::DefaultWeaponVariantFor(H) != FName(TEXT("Weapon.Overcharge")));
+	}
+
+	// E ogni default dev'essere una variante che esiste davvero nel catalogo.
+	const TArray<URTEquipmentData*> Variants = URTCatalogLibrary::MakeWeaponVariants();
+	for (const TCHAR* H : Roster)
+	{
+		const FName Def = URTCatalogLibrary::DefaultWeaponVariantFor(H);
+		bool bEsiste = false;
+		for (const URTEquipmentData* V : Variants) { if (V->EquipmentId == Def) { bEsiste = true; } }
+		TestTrue(*FString::Printf(TEXT("%s: il default '%s' e' nel catalogo"), H, *Def.ToString()), bEsiste);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVariantWarningsTest,
+	"RefactorTactics.Equipment.WarnsOnPointlessVariantPairing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTVariantWarningsTest::RunTest(const FString&)
+{
+	const TArray<URTEquipmentData*> Variants = URTCatalogLibrary::MakeWeaponVariants();
+	auto Trova = [&Variants](const TCHAR* Id) -> const URTEquipmentData*
+	{
+		for (const URTEquipmentData* V : Variants) { if (V->EquipmentId == FName(Id)) { return V; } }
+		return nullptr;
+	};
+
+	const FRTActionDef Bastion = URTHeroCatalogLibrary::MakeBastion()->Actions[0]->Def;
+	const FRTActionDef Vektor = VektorBasicAttack();
+
+	// Il caso concreto che ha fatto nascere la regola: `ImpactShot` rallenta già, quindi `Suppressive` fa
+	// pagare 5 danni su 8 per un effetto che l'eroe possiede — legale e privo di senso (D-086).
+	const URTEquipmentData* Suppressive = Trova(TEXT("Weapon.Suppressive"));
+	if (!TestNotNull(TEXT("Weapon.Suppressive"), Suppressive)) { return false; }
+	const TArray<FString> SuBastion = URTCatalogLibrary::WarnOnVariantForAttack(Bastion, Suppressive);
+	TestTrue(TEXT("Bastion + Soppressione: avvisato"), SuBastion.Num() > 0);
+	bool bNominaLoStatus = false;
+	for (const FString& W : SuBastion) { bNominaLoStatus |= W.Contains(TEXT("Slow")); }
+	TestTrue(TEXT("e l'avviso dice QUALE status e' duplicato"), bNominaLoStatus);
+
+	// Il gemello di controllo: lo stesso identico dato su un attacco che NON rallenta non avvisa. Senza
+	// questo, un avviso che scattasse sempre passerebbe il test sopra e non direbbe niente.
+	const TArray<FString> SuVektor = URTCatalogLibrary::WarnOnVariantForAttack(Vektor, Suppressive);
+	TestEqual(TEXT("Vektor + Soppressione: nessun avviso, il suo attacco non rallenta"), SuVektor.Num(), 0);
+
+	// I default scelti da D-089 devono essere puliti: se un default producesse un avviso, la decisione
+	// sarebbe da rivedere — ed è esattamente il momento in cui vogliamo saperlo.
+	URTHeroData* Eroi[] = { URTHeroCatalogLibrary::MakeFlux(), URTHeroCatalogLibrary::MakeRiva(),
+		URTHeroCatalogLibrary::MakeVektor(), URTHeroCatalogLibrary::MakeBastion() };
+	for (URTHeroData* Eroe : Eroi)
+	{
+		const FName DefId = URTCatalogLibrary::DefaultWeaponVariantFor(Eroe->HeroId);
+		const URTEquipmentData* Def = Trova(*DefId.ToString());
+		if (!Def) { continue; }
+		const TArray<FString> W = URTCatalogLibrary::WarnOnVariantForAttack(Eroe->Actions[0]->Def, Def);
+		for (const FString& Msg : W) { AddError(Msg); }
+		TestEqual(*FString::Printf(TEXT("%s: il default non produce avvisi"), *Eroe->HeroId.ToString()),
+			W.Num(), 0);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

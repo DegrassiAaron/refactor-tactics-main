@@ -367,6 +367,79 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeReactionModules()
 	return Modules;
 }
 
+TArray<FString> URTCatalogLibrary::WarnOnVariantForAttack(const FRTActionDef& BasicAttack,
+	const URTEquipmentData* Variant)
+{
+	TArray<FString> Warnings;
+	if (Variant == nullptr || Variant->Slot != ERTEquipmentSlot::WeaponVariant)
+	{
+		return Warnings;
+	}
+	const FString Chi = FString::Printf(TEXT("%s su %s"),
+		*Variant->EquipmentId.ToString(), *BasicAttack.ActionId.ToString());
+
+	// 1. STATUS DUPLICATO. E' la regola generale dietro un caso concreto: `Weapon.Suppressive` applica
+	// `Slow`, e `Bastion.ImpactShot` lo applica gia' — quindi la variante fa pagare 5 danni su 8 per un
+	// effetto che l'eroe possiede. Non e' subottimale, e' priva di senso, e D-086 la vieta. La regola non
+	// nomina Bastion: vale per ogni eroe futuro il cui attacco base porti gia' uno status.
+	for (const FRTActionEffectSpec& Aggiunto : Variant->AddedEffects)
+	{
+		if (Aggiunto.Effect != ERTActionEffect::Status || !Aggiunto.StatusTag.IsValid()) { continue; }
+		for (const FRTActionEffectSpec& Esistente : BasicAttack.Effects)
+		{
+			if (Esistente.Effect == ERTActionEffect::Status && Esistente.StatusTag == Aggiunto.StatusTag)
+			{
+				Warnings.Add(FString::Printf(
+					TEXT("%s: la variante applica '%s' che l'attacco base applica gia' — costo pagato per nulla"),
+					*Chi, *Aggiunto.StatusTag.ToString()));
+			}
+		}
+	}
+
+	// 2. DANNO AZZERATO O NEGATIVO. `ApplyWeaponVariant` non clampa deliberatamente, perche' un attacco
+	// spinto sotto zero e' un difetto di bilanciamento che deve restare **visibile**: questo e' il posto
+	// dove si vede.
+	const FRTActionDef Modificata = ApplyWeaponVariant(BasicAttack, Variant);
+	int32 Prima = 0, Dopo = 0;
+	for (const FRTActionEffectSpec& S : BasicAttack.Effects)
+	{
+		if (S.Effect == ERTActionEffect::Damage) { Prima = S.Amount; break; }
+	}
+	for (const FRTActionEffectSpec& S : Modificata.Effects)
+	{
+		if (S.Effect == ERTActionEffect::Damage) { Dopo = S.Amount; break; }
+	}
+	if (Prima > 0 && Dopo <= 0)
+	{
+		Warnings.Add(FString::Printf(TEXT("%s: il danno diretto scende da %d a %d — pulsante finto"),
+			*Chi, Prima, Dopo));
+	}
+	return Warnings;
+}
+
+FName URTCatalogLibrary::DefaultWeaponVariantFor(const FName& HeroId)
+{
+	// D-089 — il default RINFORZA l'identita' dell'eroe; compensarne la debolezza resta la scelta
+	// alternativa del giocatore. E' una tabella e non una catena di `if`: il giorno in cui il roster cresce
+	// si aggiunge una riga, e un eroe senza riga ottiene `None` invece di un default silenzioso e sbagliato.
+	//
+	// ⚠️ Nessuno usa `Weapon.Overcharge`, ed e' deliberato: il suo costo e' `WV-1`, ancora aperto (#510). Un
+	// default il cui prezzo si decide dopo cambierebbe insieme a quella risposta.
+	static const TMap<FName, FName> Defaults = {
+		// Flux vede a 7 e sparava a 4: `Precision` e' l'unica che riduce quel divario (18 a portata 5).
+		{ FName(TEXT("Hero.Flux")),    FName(TEXT("Weapon.Precision")) },
+		// Riva e' il setter del roster, e `Impact` porta la sua spinta da 1 a 2 (D-085).
+		{ FName(TEXT("Hero.Riva")),    FName(TEXT("Weapon.Impact")) },
+		// Vektor e' il piu' mobile (Move 6): `Suppressive` gli da' come impedirlo agli altri.
+		{ FName(TEXT("Hero.Vektor")),  FName(TEXT("Weapon.Suppressive")) },
+		// Bastion tiene `Impact` perche' e' l'unica che NON gli toglie danno — paga in portata — e l'attacco
+		// base diventa displacement, coerente con Utility/Emergency (ADR-0007).
+		{ FName(TEXT("Hero.Bastion")), FName(TEXT("Weapon.Impact")) },
+	};
+	const FName* Found = Defaults.Find(HeroId);
+	return Found ? *Found : FName();
+}
+
 FRTActionDef URTCatalogLibrary::ApplyWeaponVariant(const FRTActionDef& BasicAttack,
 	const URTEquipmentData* Variant)
 {

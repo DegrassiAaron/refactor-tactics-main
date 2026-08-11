@@ -118,12 +118,12 @@ Regole comuni a **ogni** modulo:
 
 ## 4. Loadout iniziali consigliati
 
-| Eroe | Variante | Gadget | Reazione |
-|---|---|---|---|
-| **Flux** | Scarica ramificata | Isolante | Scudo reattivo |
-| **Riva** | Marea curativa | Sprinkler | Fuga hazard |
-| **Bastion** | Pannello adattivo | Copertura portatile | Interposizione |
-| **Vektor** | Intercetto esteso | Sensore | Dash d'emergenza |
+| Eroe | Variante *(d'abilità)* | Gadget | Reazione | **Variante d'arma** *(D-089)* |
+|---|---|---|---|---|
+| **Flux** | Scarica ramificata | Isolante | Scudo reattivo | **Precisione** — 18 a portata 5: vede a 7 e sparava a 4 |
+| **Riva** | Marea curativa | Sprinkler | Fuga hazard | **Impatto** — Push 2: rinforza il mestiere di setter |
+| **Bastion** | Pannello adattivo | Copertura portatile | Interposizione | **Impatto** — l'unica che non gli toglie danno |
+| **Vektor** | Intercetto esteso | Sensore | Dash d'emergenza | **Soppressione** — il più mobile impedisce agli altri di esserlo |
 
 Le *varianti* citate qui sono varianti di **abilità** dell'eroe (una per eroe), non varianti d'arma: dettaglio nel
 [catalogo eroi](RT_HeroCatalog_v0.1.md).
