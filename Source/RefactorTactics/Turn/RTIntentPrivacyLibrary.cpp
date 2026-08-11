@@ -1,5 +1,7 @@
 #include "Turn/RTIntentPrivacyLibrary.h"
 
+#include "Combat/RTCombatLibrary.h"
+
 TArray<FRTIntentView> URTIntentPrivacyLibrary::FilterForTeam(int32 ObserverTeamId,
 	const TArray<FRTPlannedIntent>& Intents)
 {
@@ -14,7 +16,12 @@ TArray<FRTIntentView> URTIntentPrivacyLibrary::FilterForTeam(int32 ObserverTeamI
 		}
 
 		const bool bIsAlly = (Intent.TeamId == ObserverTeamId);
-		if (!bIsAlly && !Intent.bRevealed)
+
+		// La regola di visibilita' sta in UN posto solo (#507). Prima era riscritta qui inline — identica, ma
+		// separata dalla funzione che il test copre: `IntentVisibleToAlliesAlwaysEnemiesOnlyIfRevealed` era
+		// verde su una `IsIntentVisibleTo` che nessuno chiamava, quindi non avrebbe visto una regressione
+		// proprio di questa riga, che e' il percorso vero (la HUD passa di qui).
+		if (!URTCombatLibrary::IsIntentVisibleTo(ObserverTeamId, Intent.TeamId, Intent.bRevealed))
 		{
 			continue; // avversario non rivelato: nessuna voce, non una voce vuota
 		}
