@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Map/RTCellId.h"
+#include "Perception/RTTeamKnowledge.h" // FRTTeamKnowledge: la conoscenza di squadra viaggia nello snapshot
 #include "Turn/RTTurnLog.h"
 #include "RTHexSim.generated.h"
 
@@ -176,4 +177,14 @@ struct FRTHexSnapshot
 
 	/** Cella -> UnitId dell'occupante (solo unita' vive). */
 	TMap<FRTCellId, int32> Occupancy;
+
+	/**
+	 * Cosa sa ogni squadra (CP 13.2), ordinata per `TeamId` — un array e non una `TMap` perche' i consumatori
+	 * la ITERANO, e l'ordine di una TMap non e' garantito (invariante #3).
+	 *
+	 * Sta nello snapshot e non in un servizio a parte perche' e' **stato del turno**: il bot che deciderà su
+	 * conoscenza parziale (CP 13.5) e il resolver che rifiuta un bersaglio ignoto devono leggere la STESSA
+	 * fotografia, altrimenti la partita si decide su due verita' diverse.
+	 */
+	TArray<FRTTeamKnowledge> TeamKnowledge;
 };

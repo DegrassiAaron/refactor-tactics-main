@@ -2329,6 +2329,45 @@ void ARTTurnManager::ResolveCombat()
 		HexUnits.Add(HexUnit);
 	}
 
+	// CONOSCENZA DI SQUADRA (CP 13.2), rinfrescata QUI e non a inizio turno: la posizione autorevole per il
+	// Blast e' quella post-Dash, e osservare prima dello scatto darebbe una fotografia che nessuna fase usa.
+	// Chi ha caricato in mezzo al campo si e' esposto, e la squadra avversaria deve saperlo prima di sparare.
+	{
+		TSet<int32> Teams;
+		for (const FRTHexCombatUnit& HU : HexUnits) { Teams.Add(HU.TeamId); }
+		TArray<int32> SortedTeams = Teams.Array();
+		SortedTeams.Sort(); // l'ordine di un TSet dipende dall'hash: qui si itera, quindi si ordina
+
+		TArray<FRTTeamKnowledge> Refreshed;
+		for (int32 TeamId : SortedTeams)
+		{
+			TArray<FRTPerceiver> Observers;
+			TArray<FRTLastKnownContact> EnemiesNow;
+			for (int32 u = 0; u < HexUnits.Num(); ++u)
+			{
+				if (!HexUnits[u].bAlive) { continue; } // un cadavere non vede e non si nasconde
+				if (HexUnits[u].TeamId == TeamId)
+				{
+					FRTPerceiver P;
+					P.Cell = HexUnits[u].Cell;
+					P.Facing = HexUnits[u].Facing;
+					P.VisionRange = Units[u]->VisionRange;
+					Observers.Add(P);
+				}
+				else
+				{
+					// Identita' STABILE, non l'indice `u`: questo array e' ordinato per cella e si rinumera
+					// appena qualcuno si muove. `TurnNumber` in ingresso ignorato — lo scrive `Observe`, che
+					// e' l'unica a sapere QUANDO l'avvistamento avviene.
+					EnemiesNow.Add(FRTLastKnownContact(Units[u]->StableUnitId, HexUnits[u].Cell, /*ignorato*/ 0));
+				}
+			}
+			Refreshed.Add(URTTeamKnowledgeLibrary::Observe(Map, TeamId, TurnNumber, Observers, EnemiesNow,
+				KnowledgeForTeam(TeamId)));
+		}
+		TeamKnowledgeState = MoveTemp(Refreshed);
+	}
+
 	// `Action.Cleanse` (CP 5.2): azione PRINCIPALE, non una reazione, e l'unica del Blast che agisce su CHI LA
 	// USA invece che su un bersaglio. Risolve PRIMA del ciclo degli intenti, per due motivi indipendenti:
 	//
@@ -2579,9 +2618,53 @@ void ARTTurnManager::ResolveCombat()
 		// supporto su se stessi, e risolvono altrove): e' un'azione che il bersaglio l'ha PERSO — eliminato e
 		// rimosso dal livello, o mai valido. Senza questa distinzione l'istanza risulterebbe valida e l'unita'
 		// finirebbe per puntare la propria cella.
-		const ERTActionInvalidReason Reason = (Instance.TargetUnitId == INDEX_NONE && !bTargetsCell)
+		ERTActionInvalidReason Reason = (Instance.TargetUnitId == INDEX_NONE && !bTargetsCell)
 			? ERTActionInvalidReason::TargetGone
 			: URTActionFallbackLibrary::ValidateInstance(Instance, HexUnits, Map);
+
+		// CP 13.2 — IL TARGETING CONSUMA LA CONOSCENZA. Si valuta DOPO la geometria e solo se la geometria
+		// regge, per la stessa ragione per cui `ValidateInstance` mette la portata prima della copertura: il
+		// motivo scritto nel log dev'essere quello che chi gioca deve correggere. «Non lo vedi» detto a chi
+		// era comunque fuori portata sposterebbe l'attenzione sul difetto sbagliato.
+		if (Reason == ERTActionInvalidReason::None && Instance.TargetUnitId != INDEX_NONE
+			&& HexUnits.IsValidIndex(Instance.TargetUnitId))
+		{
+			const FRTTeamKnowledge Knowledge = KnowledgeForTeam(Unit->TeamId);
+			const int32 TargetId = Instance.TargetUnitId;          // indice di fase: serve solo qui e ora
+			const int32 TargetStable = Units[TargetId]->StableUnitId; // identita' che la memoria usa
+			switch (URTTeamKnowledgeLibrary::ClassifyTarget(Knowledge, TargetStable,
+				HexUnits[TargetId].TeamId, HexUnits[TargetId].Cell))
+			{
+			case ERTTargetKnowledge::Allowed:
+				break; // la squadra lo vede: si mira all'unita', come sempre
+
+			case ERTTargetKnowledge::CellOnly:
+			{
+				// Contatto INCERTO: si colpisce la CELLA dell'ultimo contatto, mai l'unita'. La differenza non
+				// e' formale — mirando all'unita' il colpo la seguirebbe dove si e' spostata, cioe' userebbe
+				// una posizione che la squadra non conosce. Qui invece il colpo resta dov'era il ricordo, e se
+				// il bersaglio si e' mosso trova terra battuta. E' il costo di sparare a memoria.
+				FRTCellId Remembered;
+				if (URTTeamKnowledgeLibrary::LastKnownCell(Knowledge, TargetStable, Remembered))
+				{
+					Instance.TargetUnitId = INDEX_NONE;
+					Instance.TargetCell = Remembered;
+					// Nessuna rivalidazione qui: `ValidateInstance` su un bersaglio-cella risponde sempre
+					// `None` per costruzione. Portata e linea di tiro sulla cella ricordata le verifica
+					// `CollectHexAttacks`, che e' l'owner della geometria dei colpi a cella.
+				}
+				else
+				{
+					Reason = ERTActionInvalidReason::TargetUnknown; // incerto senza ricordo: non e' un bersaglio
+				}
+				break;
+			}
+
+			default:
+				Reason = ERTActionInvalidReason::TargetUnknown;
+				break;
+			}
+		}
 
 		// La copertura NON passa di qui: la registra il piano del Blast col suo reason code (NoLineOfSight), e
 		// con la traiettoria bloccata nemmeno un'area potrebbe partire — applicarle `AttackCell` significherebbe
@@ -3911,6 +3994,20 @@ const URTHexMapAsset* ARTTurnManager::GetHexContext(FVector& OutOrigin, float& O
 	return nullptr;
 }
 
+FRTTeamKnowledge ARTTurnManager::KnowledgeForTeam(int32 TeamId) const
+{
+	for (const FRTTeamKnowledge& K : TeamKnowledgeState)
+	{
+		if (K.TeamId == TeamId) { return K; }
+	}
+	// Nessuna conoscenza ancora: una vuota, di versione CORRENTE. Non e' un dettaglio — una struttura a
+	// versione 0 verrebbe scartata da `Observe` come illeggibile, e la squadra ricomincerebbe da zero a ogni
+	// turno senza che nulla lo dichiari.
+	FRTTeamKnowledge Empty;
+	Empty.TeamId = TeamId;
+	return Empty;
+}
+
 FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) const
 {
 	OutUnits.Reset();
@@ -3946,7 +4043,17 @@ FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) c
 		SimUnit.Facing = OutUnits[i]->Facing;
 		SimUnits.Add(SimUnit);
 	}
-	return URTHexSimLibrary::MakeSnapshot(Map, SimUnits);
+	FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Map, SimUnits);
+	// La conoscenza di squadra viaggia con la fotografia (CP 13.2), cosi' i consumatori puri — il bot di
+	// CP 13.5, la HUD — la leggono dallo snapshot invece di chiederla al TurnManager. E' una COPIA: la
+	// memoria che attraversa i turni resta una sola, e sta nel TurnManager.
+	//
+	// I contatti sono chiavati su `ARTUnit::StableUnitId` e NON sull'indice di questo array: le due
+	// numerazioni sono diverse — questo snapshot scarta i morti, quello del Blast no, ed entrambi si
+	// riordinano per cella a ogni movimento. Un consumatore che volesse risalire all'Actor deve cercare per
+	// `StableUnitId`, mai indicizzare `Snapshot.Units` con `Contacts[].StableUnitId`.
+	Snapshot.TeamKnowledge = TeamKnowledgeState;
+	return Snapshot;
 }
 
 void ARTTurnManager::ResolvePredictiveBoundary(const TArray<ARTUnit*>& Units, TArray<FRTHexMoveResult>& Resolved)

@@ -64,7 +64,8 @@ Al 2026-08-08 ne esistono **cinque**, tutti `Movement.*`:
   "cells":  [ { "cell": [q, r, layer], "blocksMovement": true,
                 "blocksLineOfSight": false, "moveCost": 0 } ],   // moveCost 0 = default (1)
 
-  "units":  [ { "id": "A1", "hero": "Hero.Flux", "team": 0, "cell": [-2, 0, 0] } ],
+  "units":  [ { "id": "A1", "hero": "Hero.Flux", "team": 0, "cell": [-2, 0, 0],
+                "facing": "E" } ],                              // opzionale; vedi §4.2
 
   "turns":  [ { "intents": [ { "unit": "A1", "move": [[2, -1, 0]] } ] } ],
 
@@ -84,6 +85,24 @@ Al 2026-08-08 ne esistono **cinque**, tutti `Movement.*`:
 Il campo esiste, viene registrato nel report, e **nessun RNG lo consuma**: oggi il progetto non ha RNG, e il
 determinismo viene da coordinate intere e ordinamenti totali (`HexSim.ReplayDivergenceZero`). Sta lì perché il
 giorno in cui un RNG entrasse nel resolver, lo scenario debba già saperlo dichiarare — non perché serva adesso.
+
+### 4.2 `facing`: dove guarda una figura appena posata
+
+Opzionale, uno fra `E · NE · NW · W · SW · SE` (maiuscole indifferenti). Assente = `E`, che è anche il default
+di `ARTUnit`: omettere il campo lascia lo scenario com'era. Un nome sconosciuto è un **errore di caricamento**,
+non un ripiego su `E` — un ripiego darebbe allo scenario un orientamento diverso da quello scritto nel file, e
+il suo verde direbbe la cosa sbagliata.
+
+**È servito da CP 13.2** (2026-08-11), da quando il targeting consuma la conoscenza di squadra: l'orientamento
+decide cosa la squadra vede, quindi uno scenario che non potesse esprimerlo non potrebbe descrivere un tiratore
+che guarda il proprio bersaglio. Prima di allora sei scenari passavano perché nessuno leggeva la vista.
+
+⚠️ **Non è la `DeclaredRotation`, e la distinzione non è formale.** La capability `DeclaredRotation` resta
+**indisponibile** (D-020, [#291](https://github.com/DegrassiAaron/refactor-tactics-main/issues/291)): dichiarare
+una rotazione *in pianificazione* è una mossa che il giocatore non ha ancora modo di chiedere, e darla
+all'harness lo renderebbe più capace del gioco. Dire dove una figura guarda quando la si posa sul tavolo è
+invece la stessa classe di `cell` — nessuno «dichiara» di stare in una cella, ci si sta e basta. Uno scenario
+che voglia *cambiare* orientamento a metà partita resta `BLOCKED`.
 
 ## 5. Assertion
 

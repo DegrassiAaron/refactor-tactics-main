@@ -95,6 +95,13 @@ FRTFallbackResult URTActionFallbackLibrary::ApplyFallback(const FRTActionInstanc
 		// bloccata, nessuna mappa) la cella ha lo stesso difetto, e colpirla vorrebbe dire sparare attraverso
 		// il muro o oltre la propria portata. `TargetGone` e' escluso perche' senza il bersaglio non si sa
 		// nemmeno DOVE fosse: non c'e' una cella su cui ripiegare.
+		//
+		// `TargetUnknown` (CP 13.2) e' escluso per una ragione piu' forte delle altre, e va detta: la cella
+		// pianificata contro un bersaglio che la squadra non conosce e' informazione che il giocatore non
+		// avrebbe dovuto avere. Ripiegarci sopra trasformerebbe il rifiuto in un modo per colpire l'invisibile
+		// «per approssimazione», cioe' in una fuga di posizione con un altro nome. Un bersaglio soltanto
+		// INCERTO non arriva mai qui: viene convertito in attacco a cella sulla sua ultima cella NOTA prima
+		// della validazione, che e' un colpo legittimo e non un fallback.
 		const bool bCellStillUsable = (Reason == ERTActionInvalidReason::TargetDead
 			|| Reason == ERTActionInvalidReason::TargetFriendly);
 		if (!bCellStillUsable)
