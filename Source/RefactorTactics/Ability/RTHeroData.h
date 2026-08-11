@@ -47,6 +47,22 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 VisionRange = 5;
 
+	/**
+	 * Soglia d'udito ([D-041](../../../docs/decisions/RT_PDR_00_Decision_Log.md)): il rumore ricevuto va
+	 * **almeno** a questo valore perche' l'eroe lo senta. Scala `0-10`, la stessa dell'intensita'
+	 * (`Wait 0 · Sprint 5 · Dash 6 · esplosione 10`), e soglia **bassa = orecchio fine**.
+	 *
+	 * Quarta statistica, e **compensa** la vista invece di seguirla: Flux 5 · Riva 3 · Bastion 3 · Vektor 5.
+	 * Chi vede lontano sente meno. La terza via — udito allineato alla vista — e' stata scartata perche'
+	 * raddoppiare lo stesso vantaggio su due canali renderebbe gli eroi da ricognizione *migliori*, non
+	 * diversi.
+	 *
+	 * ⚠️ Il default e' volutamente `5` e non `0`: `0` significherebbe «sente qualunque cosa», cioe' il
+	 * contrario di un valore neutro. Un eroe che si dimenticasse di dichiararla sentirebbe tutta la mappa.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	int32 HearingThreshold = 5;
+
 	/** Celle di spinta assorbite prima di essere spostato (Bastion: 1). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 PushResistance = 0;
