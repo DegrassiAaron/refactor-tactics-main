@@ -271,14 +271,32 @@ bool FRTNoiseOcclusionTest::RunTest(const FString&)
 	const FRTCellId Origin(0, 0);
 	const FRTCellId Beyond(1, 0);
 
-	// Controllo: senza barriera, la cella adiacente riceve l'intensita' meno un passo.
-	URTHexMapAsset* Open = MakeNoiseMap(4);
-	const int32 Clear = HeardAt(Open, Sprint(Origin), Beyond);
-	TestEqual(TEXT("premessa: adiacente in campo aperto, uno Sprint arriva a 4"), Clear, 4);
+	// ⚠️ **`Beyond` va isolata, e la prima stesura di questo test non lo faceva.** Con un solo bordo coperto
+	// il suono non lo attraversa affatto: gira intorno passando da una cella vicina, e arriva a costo 2
+	// invece di 3. E' il comportamento GIUSTO — l'occlusione non e' un pedaggio obbligatorio, e' il prezzo
+	// della strada corta quando quella lunga costa di piu' — ma misurandolo li' il test avrebbe verificato
+	// una deviazione credendo di verificare l'occlusione. L'assertion `Occluded < Clear` sarebbe passata
+	// (3 < 4) senza accorgersene: e' il numero pinnato ad averla presa.
+	//
+	// Quindi si chiudono tutti gli altri vicini di `Beyond`, e l'unica via resta il bordo coperto.
+	auto SealAround = [](URTHexMapAsset* Map, const FRTCellId& Target, const FRTCellId& Keep)
+	{
+		for (const FRTCellId& N : URTHexLibrary::Neighbors(Target))
+		{
+			if (!(N == Keep)) { SetNoiseWall(Map, N); }
+		}
+	};
 
-	// Stessa geometria, con una copertura ALTA sul bordo fra le due celle: il passo non e' percorribile, ma
-	// entrambe le celle restano occupabili — e il suono le attraversa pagando l'occlusione.
+	// Controllo: stessa geometria sigillata, SENZA copertura. Il suono entra dall'unico varco a costo 1.
+	URTHexMapAsset* Open = MakeNoiseMap(4);
+	SealAround(Open, Beyond, Origin);
+	const int32 Clear = HeardAt(Open, Sprint(Origin), Beyond);
+	TestEqual(TEXT("premessa: dall'unico varco aperto, uno Sprint arriva a 4"), Clear, 4);
+
+	// La stessa scena con una copertura ALTA sul bordo fra le due celle: il passo non e' percorribile, ma
+	// entrambe le celle restano occupabili — e il suono lo attraversa pagando l'occlusione.
 	URTHexMapAsset* Walled = MakeNoiseMap(4);
+	SealAround(Walled, Beyond, Origin);
 	FRTHexCellData Data = *Walled->FindCell(Origin);
 	Data.Covers.Add(FRTHexCover(ERTHexDirection::E, ERTHexCoverType::High,
 		FRTHexCover::DefaultIntegrity(ERTHexCoverType::High)));
