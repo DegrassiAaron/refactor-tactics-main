@@ -118,12 +118,16 @@ bool FRTIntentVisibilityTest::RunTest(const FString&)
 	return true;
 }
 
+// Il nome dice «bonus dichiarato» e non «altura» per una ragione registrata: D-024 ha tolto alla quota il
+// bonus al danno, ma il parametro e' rimasto perche' serve a chi lo dichiara (tratto, abilita',
+// equipaggiamento). Il vecchio nome — `EffectiveAttackPowerWithTerrainBonus` — insegnava una semantica che
+// il codice non ha piu': ogni call site runtime passa `0`. Rinominato con `#538`.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEffectiveAttackPowerTest,
-	"RefactorTactics.Combat.EffectiveAttackPowerWithTerrainBonus",
+	"RefactorTactics.Combat.EffectiveAttackPowerAddsDeclaredBonus",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTEffectiveAttackPowerTest::RunTest(const FString&)
 {
-	TestEqual(TEXT("altura +10 -> 40"), URTCombatLibrary::EffectiveAttackPower(30, 10), 40);
+	TestEqual(TEXT("bonus dichiarato +10 -> 40"), URTCombatLibrary::EffectiveAttackPower(30, 10), 40);
 	TestEqual(TEXT("nessun bonus -> base"), URTCombatLibrary::EffectiveAttackPower(30, 0), 30);
 	TestEqual(TEXT("malus enorme -> clamp 0"), URTCombatLibrary::EffectiveAttackPower(10, -30), 0);
 	return true;
