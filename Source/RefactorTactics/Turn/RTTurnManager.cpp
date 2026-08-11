@@ -128,8 +128,48 @@ void ARTTurnManager::ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUn
 	}
 }
 
+void ARTTurnManager::RefreshTeamKnowledgeForPlanning(const TArray<ARTUnit*>& Live)
+{
+	FVector Origin; float CellSize = 0.f; float LayerH = 0.f;
+	const URTHexMapAsset* Map = GetHexContext(Origin, CellSize, LayerH);
+
+	TSet<int32> Teams;
+	for (const ARTUnit* U : Live) { if (U && U->IsAlive()) { Teams.Add(U->TeamId); } }
+	TArray<int32> SortedTeams = Teams.Array();
+	SortedTeams.Sort(); // l'ordine di un TSet dipende dall'hash: qui si itera, quindi si ordina
+
+	TArray<FRTTeamKnowledge> Refreshed;
+	for (int32 TeamId : SortedTeams)
+	{
+		TArray<FRTPerceiver> Observers;
+		TArray<FRTLastKnownContact> EnemiesNow;
+		for (ARTUnit* U : Live)
+		{
+			if (!U || !U->IsAlive()) { continue; } // un cadavere non vede e non si nasconde
+			if (U->TeamId == TeamId)
+			{
+				FRTPerceiver P;
+				P.Cell = U->Cell;
+				P.Facing = U->Facing;
+				P.VisionRange = U->VisionRange;
+				Observers.Add(P);
+			}
+			else
+			{
+				// Identita' STABILE: e' la chiave con cui la memoria attraversa i turni. `TurnNumber` in
+				// ingresso e' ignorato — lo scrive `Observe`, unica a sapere QUANDO si osserva.
+				EnemiesNow.Add(FRTLastKnownContact(U->StableUnitId, U->Cell, /*ignorato*/ 0));
+			}
+		}
+		Refreshed.Add(URTTeamKnowledgeLibrary::Observe(Map, TeamId, TurnNumber,
+			Observers, EnemiesNow, KnowledgeForTeam(TeamId)));
+	}
+	TeamKnowledgeState = MoveTemp(Refreshed);
+}
+
 void ARTTurnManager::PlanBots()
 {
+
 	// Osservabilita' del tuning: i pesi correnti, una riga per turno (verifica delle modifiche in PIE).
 	// UE_LOG diretto (non AddLogEvent) per non riempire il combat log della HUD.
 	UE_LOG(LogRT, Log, TEXT("[RT] Pesi bot: WKill=%d WDamage=%d WThreat=%d WKiteViolation=%d WApproach=%d WElevation=%d"),
@@ -138,8 +178,24 @@ void ARTTurnManager::PlanBots()
 	// Stesso snapshot autorevole del movimento e dell'input: mappa, occupazione e budget congelati.
 	// Le mosse candidate nascono da ReachableCells, quindi il bot NON puo' proporre una mossa illegale
 	// (niente celle inesistenti, bloccate, occupate o fuori budget) e non rifa' pathfinding per conto suo.
+	// CP 13.5 — l'IDENTITA' dev'esistere prima della conoscenza, perche' e' la sua chiave.
+	//
+	// `EnsureMatchRoster` viveva solo in `LockInAndResolve`, cioe' a valle della pianificazione: al primo
+	// turno ogni `StableUnitId` valeva ancora **0**. Finche' nessuno leggeva quel campo in pianificazione non
+	// si vedeva; adesso lo legge `ClassifyTarget`, e con tutti gli id a zero i contatti di unita' diverse si
+	// sarebbero fusi in uno — il ricordo di un nemico avrebbe risposto per un altro.
+	// La funzione e' idempotente per costruzione («l'identita' si assegna una volta»), quindi chiamarla anche
+	// qui non riassegna niente: sposta solo *quando* la prima assegnazione avviene.
+	EnsureMatchRoster();
+
 	TArray<ARTUnit*> Units;
 	const FRTHexSnapshot Snapshot = MakeCurrentSnapshot(Units); // solo unita' vive; Units[i].UnitId == i
+
+	// CP 13.5 — la conoscenza dev'esistere PRIMA che qualcuno ci pianifichi sopra. `ResolveCombat` la
+	// rinfresca a valle del Dash, cioe' DOPO: al primo turno sarebbe vuota, e un bot che pianifica su una
+	// conoscenza vuota non e' parziale, e' cieco — il filtro sembrerebbe funzionare mentre produce un bot
+	// che non fa niente.
+	RefreshTeamKnowledgeForPlanning(Units);
 
 	for (int32 BotIdx = 0; BotIdx < Units.Num(); ++BotIdx)
 	{
@@ -195,9 +251,20 @@ void ARTTurnManager::PlanBots()
 			continue;
 		}
 
-		// Contesto di valutazione: nemici vivi (celle, gittata effettiva, HP+scudo) e pesi dal tuning.
+		// Contesto di valutazione: i nemici che la SQUADRA DEL BOT conosce (celle, gittata effettiva,
+		// HP+scudo) e pesi dal tuning.
 		// L'ordine dei nemici viene da Units (ordine stabile dello snapshot): il punteggio non dipende
 		// dall'ordine di enumerazione degli Actor.
+		//
+		// CP 13.5 — IL BOT PIANIFICA SULLA CONOSCENZA DELLA SUA SQUADRA (#160, RT-FEAT-BOT-FAIRNESS).
+		// Fino a qui `Ctx.Enemies` conteneva *tutte* le unita' nemiche vive, senza filtro di percezione: il
+		// bot vedeva ogni posizione avversaria mentre il giocatore no. Non era una svista nascosta — la spec
+		// lo dichiarava (`docs/gameplay/spec-bot-hex.md` §6) — ma rendeva falsa la promessa che la Wiki fa al
+		// giocatore, «il bot non vede piu' di te», e invalidava per costruzione ogni playtest contro di lui.
+		//
+		// La regola e' la STESSA del targeting umano (`ClassifyTarget`, piu' sotto in questo file): non un
+		// secondo modello di conoscenza per il bot, che divergerebbe dal primo alla prima modifica.
+		const FRTTeamKnowledge BotKnowledge = KnowledgeForTeam(Bot->TeamId);
 		FRTHexBotContext Ctx;
 		Ctx.Origin = Bot->Cell;
 		// Il kiting lo DERIVA il bot dalla portata dell'attacco base: e' un comportamento dell'IA, non una
@@ -214,6 +281,10 @@ void ARTTurnManager::PlanBots()
 
 		TArray<int32> EnemyUnitIndex; // parallelo a Ctx.Enemies: indice dell'unita' in Units
 		ARTUnit* Nearest = nullptr;
+		// La cella da cui il kiter fugge, come la CONOSCE la squadra: su un contatto incerto e' il ricordo,
+		// non la posizione vera. Senza questo campo la fuga userebbe `Nearest->Cell` — cioe' il bot
+		// scapperebbe da dove il nemico e' davvero, che e' l'onniscienza rientrata dalla finestra.
+		FRTCellId NearestKnownCell;
 		int32 NearestDistance = MAX_int32;
 		for (int32 j = 0; j < Units.Num(); ++j)
 		{
@@ -240,17 +311,113 @@ void ARTTurnManager::PlanBots()
 					EnemyReach = FMath::Max(EnemyReach, EAb->RangeCells);
 				}
 			}
-			Ctx.Enemies.Add(Other->Cell);
+			// Cosa la squadra sa di questo nemico. `EnemyReach` NON passa di qui: gittate e forme sono
+			// catalogo, cioe' dato pubblico — sapere che Riva ha portata 5 non e' sapere dov'e' Riva.
+			FRTCellId KnownCell = Other->Cell;
+			int32 KnownHealth = Other->Health + Other->Shield;
+			switch (URTTeamKnowledgeLibrary::ClassifyTarget(BotKnowledge, Other->StableUnitId,
+				Other->TeamId, Other->Cell))
+			{
+			case ERTTargetKnowledge::Allowed:
+				break; // la squadra lo vede: cella e condizione attuali, come sempre
+
+			case ERTTargetKnowledge::CellOnly:
+			{
+				// Contatto INCERTO: vale la cella dell'ULTIMO contatto, mai quella attuale — altrimenti il
+				// ricordo inseguirebbe il bersaglio, che e' il modo silenzioso di continuare a vederlo.
+				if (!URTTeamKnowledgeLibrary::LastKnownCell(BotKnowledge, Other->StableUnitId, KnownCell))
+				{
+					continue; // incerto senza ricordo: non e' ne' bersaglio ne' minaccia contabilizzabile
+				}
+				// ⚠️ **Gli HP correnti sarebbero la fuga esatta che il canary deve prendere**: direbbero al
+				// bot che un'unita' che NON vede e' quasi morta, e lo manderebbe a finirla. Cio' che la
+				// squadra conosce di un ricordo e' l'IDENTITA' (`StableUnitId` -> eroe -> catalogo), non la
+				// condizione: si assume quindi integro, con un valore pubblico.
+				//
+				// ⚠️ Limite dichiarato: cosi' si PERDE anche informazione legittima — se la squadra l'ha
+				// visto a 10 HP un turno fa, quel dato c'era. Il modello corretto e' un HP nel contatto, cioe'
+				// un campo in `FRTLastKnownContact` e un incremento di `FRTTeamKnowledge::CurrentVersion`:
+				// una decisione di formato, non un dettaglio di questo checkpoint. L'errore va nella
+				// direzione sicura — il bot sottostima le occasioni, non ne inventa.
+				KnownHealth = Other->MaxHealth;
+				break;
+			}
+
+			default:
+				continue; // ignoto alla squadra: per il bot quella cella e' vuota
+			}
+
+			Ctx.Enemies.Add(KnownCell);
 			Ctx.EnemyRanges.Add(EnemyReach);
-			Ctx.EnemyHealth.Add(Other->Health + Other->Shield);
+			Ctx.EnemyHealth.Add(KnownHealth);
 			EnemyUnitIndex.Add(j);
 
-			const int32 Distance = URTHexLibrary::HexDistance(Bot->Cell, Other->Cell);
+			// La distanza si misura da cio' che si CONOSCE: su un contatto incerto e' la cella del ricordo.
+			const int32 Distance = URTHexLibrary::HexDistance(Bot->Cell, KnownCell);
 			if (Distance < NearestDistance)
 			{
 				NearestDistance = Distance;
 				Nearest = Other;
+				NearestKnownCell = KnownCell;
 			}
+		}
+
+		// CP 13.5 — NESSUN CONTATTO: si cerca, non ci si ferma.
+		//
+		// Prima del filtro di percezione questo caso non esisteva: `Ctx.Enemies` conteneva sempre tutti i
+		// nemici vivi, quindi c'era sempre qualcuno verso cui avvicinarsi. Con la conoscenza parziale una
+		// squadra puo' non sapere dove sia nessuno — ed e' la condizione NORMALE del primo turno, perche' su
+		// una mappa di raggio 5 gli schieramenti opposti distano piu' della vista di chiunque.
+		//
+		// ⚠️ **Senza questo ramo la partita non finisce.** Con `Ctx.Enemies` vuoto lo scoring perde i termini
+		// di minaccia e di avvicinamento, ogni cella vale uguale, e il bot resta fermo per sempre: due squadre
+		// cieche che si aspettano. Non e' «il bot perde il contatto e sbaglia» (che il DoD ammette): e' un bot
+		// che smette di giocare, e l'ha misurato `HexMatch.PlaysToCompletion` diventando rosso.
+		//
+		// La condotta e' la piu' povera che ristabilisce il contatto: avvicinarsi al CENTRO della mappa, che
+		// e' geometria pubblica — zero informazione nascosta. Non e' una ricerca intelligente e non pretende
+		// di esserlo: i goal veri (`SecureObjective`, `GatherInformation`) sono E26, e questo ramo e' il posto
+		// in cui atterreranno. Deterministica: distanza minima dal centro, poi `StableLess`.
+		if (Ctx.Enemies.Num() == 0)
+		{
+			if (Snapshot.Map && Snapshot.Map->Cells.Num() > 0)
+			{
+				// Centro = la cella piu' vicina al baricentro intero delle celle. `Cells` e' ordinato
+				// (`SortCells`), quindi il baricentro e la scelta non dipendono dall'ordine di scoperta.
+				int64 SumX = 0, SumY = 0;
+				for (const FRTHexCellData& C : Snapshot.Map->Cells) { SumX += C.Id.X; SumY += C.Id.Y; }
+				const int32 N = Snapshot.Map->Cells.Num();
+				const FRTCellId Barycentre(static_cast<int32>(SumX / N), static_cast<int32>(SumY / N), 0);
+
+				FRTCellId SeekCell = Snapshot.Map->Cells[0].Id;
+				int32 BestToBary = MAX_int32;
+				for (const FRTHexCellData& C : Snapshot.Map->Cells)
+				{
+					const int32 D = URTHexLibrary::HexDistance(C.Id, Barycentre);
+					if (D < BestToBary || (D == BestToBary && URTHexLibrary::StableLess(C.Id, SeekCell)))
+					{
+						BestToBary = D;
+						SeekCell = C.Id;
+					}
+				}
+
+				// Fra le celle raggiungibili, quella che avvicina di piu' al centro. Restare e' ammesso e
+				// vince a parita': e' lo stesso criterio di `ChooseBestPlan` (a parita' di punteggio, mossa
+				// minima), quindi un bot gia' al centro non oscilla.
+				FRTCellId Best = Bot->Cell;
+				int32 BestDistance = URTHexLibrary::HexDistance(Bot->Cell, SeekCell);
+				for (const FRTHexReachableCell& R : URTHexSimLibrary::ReachableCells(Snapshot, BotIdx))
+				{
+					const int32 D = URTHexLibrary::HexDistance(R.Cell, SeekCell);
+					if (D < BestDistance || (D == BestDistance && URTHexLibrary::StableLess(R.Cell, Best)))
+					{
+						BestDistance = D;
+						Best = R.Cell;
+					}
+				}
+				Bot->PlannedCell = Best;
+			}
+			continue; // niente da bersagliare: nessun attacco, nessuno scatto verso un nemico che non si conosce
 		}
 
 		// Scatto disponibile per questo turno (serve sia alla fuga sia alle candidate di riposizionamento).
@@ -332,7 +499,7 @@ void ARTTurnManager::PlanBots()
 				// Anche la fuga del kiter passa da ReachableCells (grafo): se la cella scelta non e'
 				// raggiungibile in LINEA, lo scatto verrebbe rifiutato e il panico si tradurrebbe in un turno
 				// perso. Meglio non scattare e lasciare decidere al movimento normale.
-				const FRTCellId Dest = URTHexBotLibrary::BestKiteCell(DashSnapshot, BotIdx, Nearest->Cell);
+				const FRTCellId Dest = URTHexBotLibrary::BestKiteCell(DashSnapshot, BotIdx, NearestKnownCell);
 				if (Dest != Bot->Cell && IsDashReachable(DashSnapshot, Dest))
 				{
 					Bot->PlannedDashAbility = DashIdx;
@@ -342,7 +509,7 @@ void ARTTurnManager::PlanBots()
 					continue;
 				}
 			}
-			Bot->PlannedCell = URTHexBotLibrary::BestKiteCell(Snapshot, BotIdx, Nearest->Cell);
+			Bot->PlannedCell = URTHexBotLibrary::BestKiteCell(Snapshot, BotIdx, NearestKnownCell);
 			AddLogEvent(FString::Printf(TEXT("%s: arretra -> (q=%d,r=%d,L%d)"),
 				*Bot->GetName(), Bot->PlannedCell.X, Bot->PlannedCell.Y, Bot->PlannedCell.Layer));
 			continue;
