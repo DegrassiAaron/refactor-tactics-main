@@ -2666,6 +2666,7 @@ features:
       - RefactorTactics.Vision.TeamKnowledgeIsUnion
       - RefactorTactics.Vision.SmokeCapsContactAtTwo
       - RefactorTactics.Vision.PermutationInvariant
+      - RefactorTactics.Vision.SeesAcrossLayers
     scenarios: []
     wiki_refs:
       - wiki:visibilita-rumore-e-informazione
@@ -2721,13 +2722,13 @@ features:
     kind: gameplay
     release: v0.1
     priority: P2
-    status: SPECIFIED
+    status: TESTABLE
     gates:
       spec: done
-      data: todo
-      runtime: todo
-      log_debug: todo
-      automation: todo
+      data: done
+      runtime: done
+      log_debug: partial
+      automation: done
       scenario: todo
       ui_wiki: partial
       packaged: todo
@@ -2740,7 +2741,11 @@ features:
     owner_specs:
       - docs/gameplay/brief-conoscenza-parziale.md
     issues: [157]
-    tests: []
+    tests:
+      - RefactorTactics.Vision.CannotTargetUnknown
+      - RefactorTactics.Vision.UncertainTargetsCellNotUnit
+      - RefactorTactics.Vision.AllySpottingExtendsTargeting
+      - RefactorTactics.Vision.LastContactExpiresAfterOneTurn
     scenarios: []
     wiki_refs:
       - wiki:visibilita-rumore-e-informazione
