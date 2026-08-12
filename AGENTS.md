@@ -172,6 +172,22 @@ validazione · serializzazione/replay · privacy intenti.
   Vale soprattutto prima di dichiarare una **verifica di mutazione**: se il test atteso non era in lista, il
   suo «non è caduto» non significa niente.
 - Le verifiche PIE/Editor non sono verdi finché qualcuno non le ha realmente eseguite.
+- **Il repository ha due toolchain, e nessuna gira in CI**: Python in `scripts/` (`check-docs-links.py`,
+  `check-docs-symbols.py`, `feature_registry.py`) e **Node 22** in `tools/radar/` — rubrica dei rating e
+  generatore SVG dei radar di personaggio. I gate si eseguono **a mano**, ed è una scelta:
+  `.github/workflows/` è vuota apposta.
+- ⚠️ **`tools/radar/` non è solo documentazione.** I rating si calcolano dai cataloghi di bilanciamento
+  ([D-106](docs/decisions/RT_PDR_00_Decision_Log.md)), quindi cambiare `Salute`, un danno o un cooldown
+  rende rossi gli SVG versionati finché non li rigeneri **nello stesso commit**
+  ([D-108](docs/decisions/RT_PDR_00_Decision_Log.md)):
+
+  ```sh
+  node tools/radar/generate.ts --check   # exit 1 se divergono
+  node tools/radar/generate.ts           # riscrive gli otto SVG
+  ```
+
+  Zero dipendenze: Node 22 esegue TypeScript con type stripping, i test usano `node:test`. Gli SVG
+  **non si editano a mano** — sono output, la correzione si fa sul catalogo o sulla rubrica.
 
 DoD applicabile: compila Game+Editor · test mirati + regressione pertinente · determinismo/authority/privacy
 preservati · TurnLog/reason code sufficienti · docs aggiornate · nessun warning/file generato/secret nuovo ·
