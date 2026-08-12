@@ -3299,7 +3299,8 @@
         "epic": "E13",
         "milestone": null,
         "checkpoints": [
-          "13.3"
+          "13.3",
+          "13.4"
         ],
         "out_of_release_scope": ""
       },
@@ -3312,7 +3313,8 @@
         "docs/gameplay/brief-conoscenza-parziale.md"
       ],
       "issues": [
-        158
+        158,
+        159
       ],
       "tests": [
         "RefactorTactics.Noise.PropagationIsDeterministic",
@@ -3332,10 +3334,10 @@
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-12",
+        "commit": "9a92375"
       },
-      "notes": "Il rumore è il secondo canale di informazione e propaga sul grafo, non in linea d'aria. `Spec.Perception.HeardNotSeen` è la **specifica eseguibile** del secondo canale: esce `BLOCKED` finché la conoscenza di squadra non esiste."
+      "notes": "Il rumore è il secondo canale di informazione e propaga sul grafo, non in linea d'aria. `Spec.Perception.HeardNotSeen` è la **specifica eseguibile** del secondo canale: esce `BLOCKED` finché la conoscenza di squadra non esiste. **CP 13.3 chiuso l'11-08** (#158): sei test `Noise.*` — propagazione sul grafo, soglia, attenuazione per superficie e per arco, determinismo, invarianza per permutazione. `runtime: todo` **non** è un refuso: la propagazione esiste, ma nulla la consuma ancora in partita — è CP 13.4 (#159). **La scala di precisione è decisa il 12-08** ([D-113](../decisions/RT_PDR_00_Decision_Log.md)): due ampiezze, raggio `4` e `2`, scelte dal **margine sopra soglia** e mai dal tipo di evento — riconoscere il tipo di un rumore è il Livello 5 della stessa scala, che richiede un personaggio specializzato. ⚠️ **Il `wiki_ref` qui sotto punta a una pagina che nel clone NON esiste**, ed è la ragione onesta di `ui_wiki: partial`: il validator segnala le feature *senza* `wiki_refs`, non quelle che ne dichiarano uno irrisolto — quindi nessun gate lo vedrebbe. La scala di precisione è la prima cosa di questa feature che valga la pena raccontare al giocatore: cosa impari da un rumore, e cosa no."
     },
     {
       "feature_id": "RT-FEAT-PERCEPTION-MEMORY",
