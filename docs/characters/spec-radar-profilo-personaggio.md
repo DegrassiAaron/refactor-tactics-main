@@ -421,3 +421,14 @@ l'interruttore di tema del sito che ospita l'immagine.
 viste sono altrimenti indistinguibili — due poligoni 400×400 sugli stessi colori. Fino al 2026-08-12
 tutti e quattro i Balance Radar si annunciavano come `Profile Radar`, perché la vista non era un
 parametro. Ora lo è, ed è obbligatorio (`RadarView` in `tools/radar/svg.ts`).
+
+**Il testo alternativo ripete i valori, e un gate lo verifica.** Quando il radar è pubblicato come
+immagine, il `<title>` interno non raggiunge il lettore: conta l'`alt` della pagina che lo incorpora.
+Fino al 2026-08-12 sulla Wiki erano etichette senza numeri («Profile Radar di Flux»): chi vede il
+grafico leggeva sei valori, chi usa uno screen reader ne riceveva zero. L'`alt` è ora
+`<title>: <asse> <valore>, …` e si ricava **dall'SVG**, mai da una tabella parallela.
+
+Ne segue la catena, che è la ragione del gate: **cataloghi → SVG → alt**. Il primo anello lo tiene
+`generate.ts --check`, il secondo `wiki-alt.ts --check`. Senza il secondo, un rebalance aggiornava il
+grafico e lasciava indietro la descrizione, in silenzio — la prosa della Wiki è scritta a mano
+([D-076](../decisions/RT_PDR_00_Decision_Log.md)) e nessun deploy la tocca.
