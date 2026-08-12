@@ -564,10 +564,13 @@ prototipi va **dal più leggero al più invasivo** — `Riva · Flow` non tocca 
 > deterministico con `--check` vivono in `tools/radar/` — **36 test**, zero dipendenze, nessun build
 > step. I quattro Profile Radar sono in [`../characters/radar/`](../characters/radar/).
 >
-> Restano: la pagina Wiki che li mostri e i `wiki_refs` (CP 37.8), il Balance come SVG, e il gate in
-> CI — che è scritto e verificato in locale ma **non mergiato**, perché GitHub Actions è bloccato
-> sull'account per una questione di fatturazione estranea a questo repository (che è pubblico, quindi
-> Actions vi sarebbe gratuito).
+> La Wiki li mostra, i `wiki_refs` sono popolati e il Balance ha i suoi SVG: **otto artefatti**, Profile
+> e Balance per ognuno dei quattro eroi.
+>
+> ⚠️ **Il gate resta locale, e non è una mancanza**: questo repository non usa CI — `check-docs-links.py`,
+> `check-docs-symbols.py` e `feature_registry.py validate` girano tutti a mano. `--check` è documentato
+> in [`../balance/README.md`](../balance/README.md), dove i cataloghi si modificano. Il prezzo dichiarato
+> è che protegge solo chi lo esegue.
 
 [D-105](../decisions/RT_PDR_00_Decision_Log.md)…[D-108](../decisions/RT_PDR_00_Decision_Log.md), owner
 [`../characters/spec-radar-profilo-personaggio.md`](../characters/spec-radar-profilo-personaggio.md).
