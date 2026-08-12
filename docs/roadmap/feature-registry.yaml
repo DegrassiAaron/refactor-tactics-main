@@ -3153,7 +3153,7 @@ features:
       - RT-FEAT-MAP-HEXGRAPH
     owner_specs:
       - docs/gameplay/brief-conoscenza-parziale.md
-    issues: [158, 159]
+    issues: [158, 159, 690]
     tests:
       - RefactorTactics.Noise.PropagationIsDeterministic
       - RefactorTactics.Noise.AttenuationBySurface
@@ -3181,6 +3181,13 @@ features:
       `ui_wiki: partial` resta perché la pagina `Guida/visibilita-rumore-e-informazione` esiste ma **non
       racconta ancora la scala di precisione** — cosa impari da un rumore e cosa no, che è la prima cosa di
       questa feature che valga la pena dire al giocatore.
+      ⚠️ **L'intensità di un evento non ha una fonte dati** (#690, 12-08): la scala `0-10` di
+      [D-041](../decisions/RT_PDR_00_Decision_Log.md) — `Wait 0 · Sprint 5 · Dash 6` — vive in una riga del
+      Decision Log e in commenti C++, il catalogo azioni non la porta in colonna, e `FRTNoiseEvent::Intensity`
+      non ha **nessun assegnatore fuori dai test**. Va portata in colonna **insieme** a CP 13.4: se il
+      produttore arriva prima, hardcoderà i valori e il numero avrà due sedi — il difetto che
+      [D-023](../decisions/RT_PDR_00_Decision_Log.md) e [D-115](../decisions/RT_PDR_00_Decision_Log.md) hanno
+      eliminato altrove.
 
   - feature_id: RT-FEAT-PERCEPTION-MEMORY
     title: Memoria del contatto e ultima posizione nota
@@ -5533,7 +5540,16 @@ features:
       derivano dagli input che il catalogo dichiara per eroe (Salute, Movimento, Range visivo,
       Resistenza Push, abilita' con danno/range/effetto/cooldown), mentre `information` nasce con un
       solo ingrediente — la **Vista** — perche' stealth e detection vivono solo nel workbook escluso.
-      Si arricchisce derivando il rumore dal **kit** (D-042), non ripescando il foglio.
+      ⚠️ **Non si arricchisce, e il 12-08 il calcolo l'ha escluso** ([#686](https://github.com/DegrassiAaron/refactor-tactics-main/issues/686)).
+      La strada prescritta — derivare il rumore dal **kit** — non arriva: il rumore non e' nel catalogo
+      azioni, e le azioni che lo portano sono le sette generiche che **tutti** possiedono, quindi il
+      contributo e' costante. Nemmeno la soglia d'udito lo arricchisce, benche' sia una seconda statistica
+      per eroe: **Riva e Bastion condividono `Vista 5` e `Udito 3`**, quindi nessuna funzione dei due li
+      separa, e D-041 progetta l'udito come **compensazione** della vista — ogni aggregazione comprime, e
+      con la media l'asse esce costante, cosa che `profile.test.ts` vieta. Resta il **nascondersi**
+      ([#690](https://github.com/DegrassiAaron/refactor-tactics-main/issues/690)), che oggi non ha input
+      discriminanti: `Stealth` e' `2` su tutto il roster per dichiarazione del catalogo. I tre valori su
+      quattro eroi sono **previsti e documentati** in `#558`, non un difetto della rubrica.
 
   - feature_id: RT-FEAT-CHAR-RADAR-RATINGS-V01
     title: Rubrica — i rating derivati dal catalogo eroi
@@ -5630,6 +5646,7 @@ features:
       AGGIORNATO 2026-08-12: `ui_wiki` a `done` — Profilo-tattico mostra gli otto radar (Profile e Balance per quattro eroi), referenziati da raw.githubusercontent e non duplicati.
       AGGIORNATO 2026-08-12: `ui_wiki` a `done`, i rating dei sei assi sono pubblicati in tabella accanto ai radar.
       AGGIORNATO 2026-08-12: `ui_wiki` a `done`. Il generatore produce anche il Balance e il confronto A vs B; il `--check` copre entrambe le viste. Nessuna CI: i gate di questo repository girano a mano.
+      AGGIORNATO 2026-08-12: il `viewBox` senza `width`/`height` dava proporzione ma non misura, quindi dentro un `<img>` la taglia la decideva il contenitore: misurato sulla Wiki pubblicata, **896x896** su una scheda eroe e **47x47** dentro la tabella di `Profilo-tattico`, dove le etichette da 12px scendono a ~1,4px. Due celle della stessa tabella divergevano (143 contro 117) perche' il layout si dimensiona sul contenuto, cioe' sulla **lunghezza dell'alt**: la descrizione decideva la taglia del grafico. La radice porta ora `width="400" height="400"`. Gate invariati.
       AGGIORNATO 2026-08-12: chiuso l'ultimo anello della catena `cataloghi -> SVG -> alt`. Gli `alt` delle immagini sulla Wiki sono prosa scritta a mano nel clone (D-076) e nessun deploy li tocca: un rebalance aggiornava il grafico e lasciava indietro la descrizione, quindi chi vede il radar leggeva il valore nuovo e chi usa uno screen reader sentiva quello vecchio. `tools/radar/wiki-alt.ts --wiki-root <clone> --check|--write` ricava l'atteso **dall'SVG** e fallisce sulla divergenza; verificato end-to-end mutando `Range visivo` di Flux nel catalogo: `generate --check` rosso, rigenerato, `wiki-alt --check` rosso sulle tre pagine che citano `flux-profile`. Otto dei sedici riferimenti non avevano **nessun** valore nell'alt («Profile Radar di Flux»): ora li hanno tutti. Gate invariati.
       AGGIORNATO 2026-08-12: due difetti di accessibilita' chiusi, gate invariati. (1) Le etichette erano `#333` e i valori `#111` su fondo trasparente: su tema scuro il contrasto era 1.50:1 e **1.00:1** — il valore aveva la stessa luminanza dello sfondo, cioe' era invisibile. Un blocco `@media (prefers-color-scheme: dark)` porta i due a 12.26:1 e 17.39:1, AAA su entrambi i temi; verificato che la query si applichi anche quando l'SVG e' caricato come `<img>` confrontando il rendering nei due schemi. Limite dichiarato in owner §10: segue la preferenza dell'OS, non l'interruttore di tema del sito. (2) Tutti e quattro i Balance Radar si dichiaravano `Profile Radar` nel `<title>`, che e' il nome accessibile a cui punta `aria-labelledby`: la vista e' ora un parametro **obbligatorio** (`RadarView`), perche' il default era la causa. Tre test nuovi, ognuno verificato per mutazione.
 

@@ -43,6 +43,25 @@ test('l ordine dei raggi e normativo e non cambia', () => {
   );
 });
 
+test('l SVG dichiara una dimensione propria, non solo una proporzione', () => {
+  // Senza width/height la misura la decide il contenitore: sulla Wiki lo stesso radar veniva reso
+  // 896x896 da solo e 47x47 dentro una tabella, dove le etichette diventano illeggibili.
+  for (const svg of [
+    renderRadar('Flux', 'Controller', PROFILE_AXES, profileAxes(flux()), 'Profile'),
+    renderCompare(
+      { name: 'Flux', values: profileAxes(flux()) },
+      { name: 'Riva', values: profileAxes(flux()) },
+      PROFILE_AXES,
+    ),
+  ]) {
+    const root = svg.slice(0, svg.indexOf('>') + 1);
+    assert.match(root, /width="400"/, 'manca width sulla radice');
+    assert.match(root, /height="400"/, 'manca height sulla radice');
+    // La proporzione deve restare coerente con la dimensione, o l'immagine si deforma.
+    assert.match(root, /viewBox="0 0 400 400"/);
+  }
+});
+
 test('il titolo dichiara la vista: un Balance non si annuncia come Profile', () => {
   const values = { ...balanceAxes(flux()) };
   const profile = renderRadar('Flux', 'Controller', PROFILE_AXES, profileAxes(flux()), 'Profile');
