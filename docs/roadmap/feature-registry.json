@@ -6232,8 +6232,8 @@
       "kind": "data",
       "release": "future",
       "priority": "P3",
-      "status": "INTEGRATED",
-      "status_derived": "INTEGRATED",
+      "status": "DONE",
+      "status_derived": "DONE",
       "gates": {
         "spec": "done",
         "data": "done",
@@ -6241,12 +6241,12 @@
         "log_debug": "na",
         "automation": "done",
         "scenario": "na",
-        "ui_wiki": "partial",
+        "ui_wiki": "done",
         "packaged": "na",
         "network_privacy": "na",
         "replay_representable": "na"
       },
-      "gates_done": 3,
+      "gates_done": 4,
       "gates_applicable": 4,
       "roadmap": {
         "epic": null,
@@ -6286,8 +6286,8 @@
       "kind": "data",
       "release": "future",
       "priority": "P3",
-      "status": "INTEGRATED",
-      "status_derived": "INTEGRATED",
+      "status": "DONE",
+      "status_derived": "DONE",
       "gates": {
         "spec": "done",
         "data": "done",
@@ -6295,12 +6295,12 @@
         "log_debug": "na",
         "automation": "done",
         "scenario": "na",
-        "ui_wiki": "todo",
+        "ui_wiki": "done",
         "packaged": "na",
         "network_privacy": "na",
         "replay_representable": "na"
       },
-      "gates_done": 3,
+      "gates_done": 4,
       "gates_applicable": 4,
       "roadmap": {
         "epic": null,
@@ -6341,8 +6341,8 @@
       "kind": "tooling",
       "release": "future",
       "priority": "P3",
-      "status": "INTEGRATED",
-      "status_derived": "INTEGRATED",
+      "status": "DONE",
+      "status_derived": "DONE",
       "gates": {
         "spec": "done",
         "data": "done",
@@ -6350,12 +6350,12 @@
         "log_debug": "na",
         "automation": "done",
         "scenario": "na",
-        "ui_wiki": "partial",
+        "ui_wiki": "done",
         "packaged": "na",
         "network_privacy": "na",
         "replay_representable": "na"
       },
-      "gates_done": 3,
+      "gates_done": 4,
       "gates_applicable": 4,
       "roadmap": {
         "epic": null,
@@ -6389,7 +6389,7 @@
         "date": "2026-08-12",
         "commit": 78453953
       },
-      "notes": "`spec: done` dal 2026-08-12: D-108 chiude le due incognite che tenevano la spec `partial` — il generatore e' **Node/TypeScript** (contro la raccomandazione registrata nel consolidamento, Python accanto a `scripts/`) e gli SVG si **committano** con un `--check` che li verifica, dentro l'MVP e non nel lavoro futuro. ⚠️ Il determinismo di *questo* generatore ha un'insidia propria oltre alle solite (timestamp, UUID, ordine non stabile): le coordinate dei vertici vengono da `sin`/`cos`, quindi da float, la cui resa decimale cambia con piattaforma, libreria matematica e locale — vanno **arrotondate esplicitamente** prima di serializzare. Un test che genera due volte nello stesso processo **non dimostra** la proprieta', e il golden test va ancorato a un hash committato. ⚠️ Il determinismo viene **prima** del gate: senza arrotondamento il `--check` e' rosso su una macchina e verde su un'altra. ⚠️ Combinato con D-106 il gate diventa un **test di regressione sui dati competitivi**: cambiare `Salute` in un catalogo lo fa diventare rosso finche' gli SVG non sono rigenerati nello stesso commit — un rebalance porta con se' i suoi grafici. Il prezzo e' che chi tocca un catalogo deve poter eseguire il generatore, quindi Node diventa un prerequisito del **bilanciamento**. `scenario`/`packaged`/`network_privacy` sono `na` come per gli altri strumenti. AGGIORNATO 2026-08-12: la rubrica deriva davvero i rating dai cataloghi, quindi `data` passa a `done`. `ui_wiki` resta `partial`: gli SVG esistono ma la Wiki non li mostra ancora. AGGIORNATO 2026-08-12: i sei assi del Profile e i due del Balance sono calcolati dal codice; i quattro profili risultano distinti su almeno quattro assi. AGGIORNATO 2026-08-12: generatore deterministico e `--check` in `tools/radar/`; quattro SVG in `docs/characters/radar/`. `ui_wiki` partial: manca la pagina Wiki. Il gate NON gira in CI, Actions e' bloccato sull'account (vedi #563)."
+      "notes": "`spec: done` dal 2026-08-12: D-108 chiude le due incognite che tenevano la spec `partial` — il generatore e' **Node/TypeScript** (contro la raccomandazione registrata nel consolidamento, Python accanto a `scripts/`) e gli SVG si **committano** con un `--check` che li verifica, dentro l'MVP e non nel lavoro futuro. ⚠️ Il determinismo di *questo* generatore ha un'insidia propria oltre alle solite (timestamp, UUID, ordine non stabile): le coordinate dei vertici vengono da `sin`/`cos`, quindi da float, la cui resa decimale cambia con piattaforma, libreria matematica e locale — vanno **arrotondate esplicitamente** prima di serializzare. Un test che genera due volte nello stesso processo **non dimostra** la proprieta', e il golden test va ancorato a un hash committato. ⚠️ Il determinismo viene **prima** del gate: senza arrotondamento il `--check` e' rosso su una macchina e verde su un'altra. ⚠️ Combinato con D-106 il gate diventa un **test di regressione sui dati competitivi**: cambiare `Salute` in un catalogo lo fa diventare rosso finche' gli SVG non sono rigenerati nello stesso commit — un rebalance porta con se' i suoi grafici. Il prezzo e' che chi tocca un catalogo deve poter eseguire il generatore, quindi Node diventa un prerequisito del **bilanciamento**. `scenario`/`packaged`/`network_privacy` sono `na` come per gli altri strumenti. AGGIORNATO 2026-08-12: la rubrica deriva davvero i rating dai cataloghi, quindi `data` passa a `done`. `ui_wiki` resta `partial`: gli SVG esistono ma la Wiki non li mostra ancora. AGGIORNATO 2026-08-12: i sei assi del Profile e i due del Balance sono calcolati dal codice; i quattro profili risultano distinti su almeno quattro assi. AGGIORNATO 2026-08-12: generatore deterministico e `--check` in `tools/radar/`; quattro SVG in `docs/characters/radar/`. `ui_wiki` partial: manca la pagina Wiki. Il gate NON gira in CI, Actions e' bloccato sull'account (vedi #563). AGGIORNATO 2026-08-12: `ui_wiki` a `done` — Profilo-tattico mostra gli otto radar (Profile e Balance per quattro eroi), referenziati da raw.githubusercontent e non duplicati. AGGIORNATO 2026-08-12: `ui_wiki` a `done`, i rating dei sei assi sono pubblicati in tabella accanto ai radar. AGGIORNATO 2026-08-12: `ui_wiki` a `done`. Il generatore produce anche il Balance e il confronto A vs B; il `--check` copre entrambe le viste. Nessuna CI: i gate di questo repository girano a mano."
     }
   ]
 }

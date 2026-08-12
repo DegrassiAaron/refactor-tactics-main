@@ -559,7 +559,9 @@ prototipi va **dal più leggero al più invasivo** — `Riva · Flow` non tocca 
 
 ### E37 — Radar di personaggio e generatore Wiki · P3
 
-> ✅ **Implementata il 2026-08-12.** Dai cataloghi markdown agli SVG committati, senza che un rating
+> ✅ **Completata il 2026-08-12** — le tre feature sono `DONE` nel registry.
+>
+> **Implementata:** Dai cataloghi markdown agli SVG committati, senza che un rating
 > sia mai stato scritto a mano: parser, rubrica, gli otto assi delle due viste e il generatore
 > deterministico con `--check` vivono in `tools/radar/` — **36 test**, zero dipendenze, nessun build
 > step. I quattro Profile Radar sono in [`../characters/radar/`](../characters/radar/).
