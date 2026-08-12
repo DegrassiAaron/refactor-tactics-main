@@ -144,7 +144,20 @@ enum class ERTReactionTrigger : uint8
 	 * Quali stati siano «di controllo», e in che ordine di gravita', lo dice
 	 * `URTReactionLibrary::ControlStatusesBySeverity`.
 	 */
-	AboutToReceiveControl
+	AboutToReceiveControl,
+
+	/**
+	 * La cella sotto l'unita' e' appena diventata PERICOLOSA (`Reaction.HazardEscape`, CP 7.5 `#505`).
+	 *
+	 * L'ultimo dei tre trigger su evento, e l'unico che non nasce nel Blast: le superfici nascono nel Cleanup,
+	 * e si valuta fra la loro nascita e il momento in cui i loro effetti toccano chi c'e' sopra. Un istante
+	 * prima non c'e' ancora niente di pericoloso; uno dopo l'unita' ha gia' `Burning` addosso e fuggire non
+	 * glielo toglie — la fuga sarebbe teatro.
+	 *
+	 * Ha potuto esistere solo dopo [#570]: finche' una superficie che nasceva sotto un'unita' ferma non le
+	 * faceva niente, non c'era alcun danno imminente da evitare e il modulo sarebbe stato inerte.
+	 */
+	CellBecameHazardous
 };
 
 /**
