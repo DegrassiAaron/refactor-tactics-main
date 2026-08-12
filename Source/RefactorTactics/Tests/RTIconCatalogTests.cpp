@@ -194,11 +194,33 @@ bool FRTIconV01CategoriesTest::RunTest(const FString&)
 	TestTrue(TEXT("Certainty.Predicted"), Required.Contains(FName(TEXT("UI.Icon.Certainty.Predicted"))));
 	TestTrue(TEXT("Certainty.Uncertain"), Required.Contains(FName(TEXT("UI.Icon.Certainty.Uncertain"))));
 
-	// Un catalogo che copre l'insieme richiesto non ha piu' mancanze: e' la forma che il catalogo SPEDITO
-	// dovra' avere. ⚠️ Questo test non tocca l'asset — `DA_IconCatalog` non esiste ancora e verificarlo e'
-	// un passo Editor, non una funzione pura.
-	TestEqual(TEXT("un catalogo che copre l'insieme richiesto non ha mancanze"),
-		URTIconLibrary::FindMissingRequiredIcons(MakeCoveringIconCatalog()).Num(), 0);
+	// Le chiavi nuove sono davvero PRETESE, non solo presenti: un catalogo che copre tutto **tranne**
+	// `Certainty` deve avere esattamente quelle tre mancanze.
+	//
+	// ⚠️ **Qui c'era un'assertion che non poteva fallire**, e la sua storia vale il commento: diceva «un
+	// catalogo che copre l'insieme richiesto non ha mancanze», costruendo il catalogo con
+	// `MakeCoveringIconCatalog()` — che itera `RequiredIconIds()` — e confrontandolo con
+	// `FindMissingRequiredIcons()`, che itera `RequiredIconIds()`. Vero per costruzione, qualunque cosa
+	// facesse la derivazione. E' lo stesso difetto che questo checkpoint denuncia, lasciato dentro il test
+	// che lo denuncia; l'ha trovato la code review. La forma sotto invece cade in due modi: se `Certainty`
+	// sparisce dall'insieme richiesto le mancanze diventano 0, se qualcuno ne aggiunge una quarta diventano 4.
+	URTIconCatalogData* WithoutCertainty = NewObject<URTIconCatalogData>();
+	WithoutCertainty->MissingIcon = MakeIconAssetRef(TEXT("Missing"));
+	for (const FName& Id : Required)
+	{
+		if (!Id.ToString().StartsWith(TEXT("UI.Icon.Certainty.")))
+		{
+			WithoutCertainty->Icons.Add(FRTIconDef(Id, IconCategoryFromId(Id), MakeIconAssetRef(Id)));
+		}
+	}
+
+	const TArray<FName> Missing = URTIconLibrary::FindMissingRequiredIcons(WithoutCertainty);
+	TestEqual(TEXT("togliere Certainty dal catalogo produce esattamente tre mancanze"), Missing.Num(), 3);
+	for (const TCHAR* Level : { TEXT("Confirmed"), TEXT("Predicted"), TEXT("Uncertain") })
+	{
+		TestTrue(*FString::Printf(TEXT("Certainty.%s risulta mancante"), Level),
+			Missing.Contains(FName(*FString::Printf(TEXT("UI.Icon.Certainty.%s"), Level))));
+	}
 
 	return true;
 }

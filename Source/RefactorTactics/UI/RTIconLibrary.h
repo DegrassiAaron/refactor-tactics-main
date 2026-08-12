@@ -43,13 +43,24 @@ public:
 	 * - **Action** — ogni azione di `URTCatalogLibrary::GetCoreActionCatalog()`: se un'azione e' pianificabile,
 	 *   prima o poi l'HUD deve disegnarla.
 	 * - **Status** — ogni tag registrato sotto `Status.` (`Core/RTGameplayTags.cpp`).
+	 * - **Certainty** — i tre livelli di CP 11.2 (`Confirmed`, `Predicted`, `Uncertain`). ⚠️ E' l'unica
+	 *   categoria senza un tipo da cui derivare: un `ERTCertainty` creato adesso sarebbe un enum che nessuno
+	 *   legge. Tre costanti che il catalogo deve coprire valgono piu' di un tipo senza consumatori.
+	 * - **Identity** — i quattro eroi di `URTHeroCatalogLibrary::GetHeroIds()`, piu' la relazione di squadra
+	 *   (`Ally`, `Enemy`, il cui consumatore e' gia' `ARTHUD`). ⚠️ Il prefisso viene **tradotto**: gli
+	 *   `HeroId` sono `Hero.Flux`, e `MakeIconId` ne farebbe `UI.Icon.Hero.Flux` — che `ValidateIconCatalog`
+	 *   rifiuta, perche' il segmento (`Hero`) non combacia con la categoria (`Identity`). Si tiene il nome e
+	 *   si sostituisce il prefisso: `Hero.Flux` -> `Identity.Flux`. E' l'unico punto in cui la regola «la
+	 *   chiave si deriva dall'identificatore che esiste» ha bisogno di una traduzione.
 	 *
 	 * Da qui viene il valore di `EveryKeyResolves`: l'insieme richiesto **non** e' il contenuto del catalogo,
 	 * quindi il test non puo' passare per costruzione. Aggiungere un tag di stato o un'azione al catalogo fa
 	 * cadere la copertura finche' l'icona non esiste — che e' il solo modo perche' questo dato resti vivo.
 	 *
 	 * Ordine deterministico: le fasi nell'ordine del turno, le azioni nell'ordine del catalogo, gli stati
-	 * ordinati lessicalmente (l'ordine dei tag restituiti dal manager non e' garantito).
+	 * ordinati lessicalmente (l'ordine dei tag restituiti dal manager non e' garantito), poi i tre livelli di
+	 * certezza e infine l'identita' — eroi nell'ordine del roster, `Ally` e `Enemy` in coda. Le due categorie
+	 * nuove non hanno bisogno di un sort: iterano array letterali, non un manager.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Icons")
 	static TArray<FName> RequiredIconIds();
