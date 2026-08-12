@@ -65,6 +65,7 @@
       "[RT-FEAT-BOT-TACTICAL] 5 scenario/i dichiarati planned: Spec.Bot.TeamPlanRejectsHardConflict, Spec.Bot.CandidateDiversityKeepsControl, Spec.Bot.TemporalSynergyRequiresPhaseOrder, Spec.Bot.OverkillMovesSecondUnit, Spec.Bot.PlanHysteresisIgnoresSmallDelta",
       "[RT-FEAT-BOT-BELIEF] 3 scenario/i dichiarati planned: Spec.Bot.BeliefDoesNotBecomeKnowledge, Spec.Bot.GraphRevisionInvalidatesBelief, Spec.Bot.InformationGainIgnoresHiddenContent",
       "[RT-FEAT-BOT-PREDICTIVE] 2 scenario/i dichiarati planned: Spec.Bot.RobustPlanSurvivesFlank, Spec.Bot.HoldOnUnaccountedThreat",
+      "[RT-FEAT-TOOL-MAP-GEOMETRY] 1 scenario/i dichiarati planned: Spec.Map.ConstrainedCellCostsMore",
       "[RT-FEAT-NET-PRIVATE-PLANNING] feature di gameplay TESTABLE senza scenario che la dimostri",
       "[RT-FEAT-INTENT-CONDITIONAL] nessuna pagina Wiki collegata",
       "[RT-FEAT-INTENT-CONDITIONAL] SPECIFIED senza issue ne' assegnazione in roadmap",

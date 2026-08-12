@@ -1890,10 +1890,10 @@
       "status_derived": "DESIGNED",
       "gates": {
         "spec": "partial",
-        "data": "todo",
+        "data": "partial",
         "runtime": "todo",
         "log_debug": "todo",
-        "automation": "todo",
+        "automation": "partial",
         "scenario": "todo",
         "ui_wiki": "todo",
         "packaged": "todo",
@@ -1919,7 +1919,18 @@
         609,
         605
       ],
-      "tests": [],
+      "tests": [
+        "RefactorTactics.Plan.MovementMainAndReactionAreLegal",
+        "RefactorTactics.Plan.SecondMainIsRejected",
+        "RefactorTactics.Plan.SprintLeavesNoRoomForMain",
+        "RefactorTactics.Plan.WaitOccupiesNoSlot",
+        "RefactorTactics.Plan.MovementPointsOverflowIsRejected",
+        "RefactorTactics.Plan.MovementPointsExactlyOnBudgetIsLegal",
+        "RefactorTactics.Plan.EmptyPlanIsLegalEvenWithDirtyBudget",
+        "RefactorTactics.Plan.CooldownBlocksWithSlotFree",
+        "RefactorTactics.Plan.VerdictIsPermutationInvariant",
+        "RefactorTactics.Plan.SlotVerdictIsPermutationInvariant"
+      ],
       "scenarios": [],
       "scenarios_planned": [
         "Spec.ActionEconomy.OverwatchReservesMovementSlot"
@@ -1930,7 +1941,7 @@
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {},
-      "notes": "**Non e' bloccata su `AE-1`, e questa e' la sua ragione d'essere**: il buco esiste con qualunque modello di economia. `git grep ValidatePlan` non restituisce nulla — cio' che esiste e' `ValidateInstance`/`ApplyFallback`, che agisce IN RISOLUZIONE. Oggi un piano illegale si scopre quando non funziona, non quando lo si compone. ⚠️ I reason code **estendono le famiglie esistenti** (`ERTMoveOutcome`, `ERTCombatOutcome`, `ERTFallbackOutcome`, `ERTMovementStopReason`) aggiungendo valori IN CODA: un enum parallelo con undici valori nuovi rifarebbe l'errore respinto in `spec-tassonomia-movimento.md` §6, dove dieci reason code proposti da un kit erano sette duplicati. `network_privacy: partial` perche' la validazione legge il piano completo, che e' dato di squadra: il seam esiste (`CanonicalIntentStore` server-only) ma nessuna verifica in rete e' possibile prima di M10."
+      "notes": "**Non e' bloccata su `AE-1`, e questa e' la sua ragione d'essere**: il buco esiste con qualunque modello di economia. ✅ **La fetta pura e' atterrata il 2026-08-12**: `URTPlanValidationLibrary::ValidatePlan(snapshot, piano)` risponde LEGALE / ILLEGALE + motivo PRIMA del commit, dove `ValidateInstance`/`ApplyFallback` agisce IN RISOLUZIONE. Nove test `RefactorTactics.Plan.*`, tre mutazioni verificate. ⚠️ `runtime` resta **todo** e non e' una svista: la funzione esiste ma **nessuno la chiama** ancora — il bot e la HUD non ci passano, ed e' il resto della DoD di `#605`. Un validatore senza consumatore non e' una regola. 🔴 **Due premesse di questa nota erano false e sono corrette qui.** (1) La famiglia da estendere non e' quella degli `*Outcome`: e' **`ERTActionInvalidReason`** (`RTActionFallbackLibrary.h`), che gia' significa «questa azione pianificata non e' eseguibile» e gia' porta scritta l'invariante dei valori in coda. Gli `*Outcome` dicono com'e' andata una FASE — un altro asse. E `ERTMovementStopReason`, citato qui e nella issue, **non esiste in `Source/`**: compariva solo nei documenti che si citavano a vicenda. I tre valori nuovi (`SlotOccupied`, `InsufficientMovementPoints`, `OnCooldown`) sono in coda a `ERTActionInvalidReason`. (2) `CanonicalIntentStore` **non e' codice**: zero occorrenze in `Source/`. E' un concetto di design del PDR, citato in `docs/archive/` e `docs/src/` — ma anche, ⚠️ **come se fosse un simbolo**, nella DoD di CP 25.3 di `roadmap-post-v0.1.md`, che ne chiede la prova «dimostrato da un test». Il seam reale e' `RTIntentPrivacyLibrary` / `FRTPlannedIntent`. 🔴 **Un limite dei quattro non e' ancora verificabile**: il controllo sui Movement Point legge `FRTActionDef::CostMP`, che **nessuno popola** — il catalogo dichiara il budget di `Move` e `Sprint` in `RangeCells` con `ERTMovementStyle::Budget`. Finche' il catalogo non dichiara un costo, `InsufficientMovementPoints` non puo' scattare in partita: campo senza produttore, e primo passo di chi collegherà `ValidatePlan` al gioco. `network_privacy: partial` resta, per la ragione giusta: la validazione legge il piano completo, che e' dato di squadra, e nessuna verifica in rete e' possibile prima di M10. Il cooldown residuo entra come **parametro** e non come campo dello snapshot perche' oggi vive su `ARTUnit::AbilityCooldowns` (privato, sull'Actor): stesso pattern di `URTCombatLibrary::IsAbilityUsable`."
     },
     {
       "feature_id": "RT-FEAT-ACTION-SUPERS",
@@ -5396,12 +5407,14 @@
       ],
       "tests": [],
       "scenarios": [],
-      "scenarios_planned": [],
+      "scenarios_planned": [
+        "Spec.Map.ConstrainedCellCostsMore"
+      ],
       "wiki_refs": [],
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {},
-      "notes": "Il modello: un segmento quantizzato investe delle celle, l'occupazione si misura su **dodici settori** (uno ogni 30°) piu' il centro, e la classificazione `Free`/`Constrained`/`Blocked` ne esce per soglia. I dodici settori NON sono direzioni di movimento: quelle restano sei, pointy-top.\n\n`spec: partial` e non `done` perche' una domanda di modello resta aperta — `MSE-1` in `OPEN_DECISIONS.md`: la cottura non e' invertibile senza conservare il sorgente, e nessuno ha ancora deciso cosa succede se qualcuno modifica a mano un campo cotto. `tests: []` e `scenarios: []` sono vuoti e **veri**: `Scenarios/Spec/Map/` contiene oggi un solo file, e le quattro fixture chieste da #619 non esistono.\n\nVincolo di collocazione, non preferenza: maschera, classificazione e cottura vivono nel modulo **runtime** e l'editor le chiama. In `Source/RefactorTacticsEditor/` non esiste alcun test (misurato: `find … -iname \"*test*\"` vuoto), ed e' la ragione per cui la PR #598 — **aperta al 2026-08-12**, non mergiata — sposta una funzione nel modulo runtime per poterla verificare. Cio' che nasce dentro l'editor nasce non verificabile.\n\nPerche' e' una feature separata da `RT-FEAT-TOOL-MAP-EDITOR` invece di una sua nota: quella e' una **modalita' d'editor** con i suoi quattro tool, questa e' un **modello di dati** con una cottura verso `FRTHexCover` e `bBlocksMovement`. Tenerle insieme farebbe dipendere lo stato di uno strumento maturo (`TESTABLE`) da un lavoro non cominciato."
+      "notes": "Il modello: un segmento quantizzato investe delle celle, l'occupazione si misura su **dodici settori** (uno ogni 30°) piu' il centro, e la classificazione `Free`/`Constrained`/`Blocked` ne esce per soglia. I dodici settori NON sono direzioni di movimento: quelle restano sei, pointy-top.\n\n`spec: partial` e non `done` perche' una domanda di modello resta aperta — `MSE-1` in `OPEN_DECISIONS.md`: la cottura non e' invertibile senza conservare il sorgente, e nessuno ha ancora deciso cosa succede se qualcuno modifica a mano un campo cotto. `tests: []` e `scenarios: []` sono vuoti e **veri**.\n\nRevisione spec panel del 2026-08-12 su #619, due decisioni dell'autore che vincolano il modello. **D1**: il confine #619/#621 e' **per campo** — il costo e' di #619, i bordi (`FRTHexCover`, `bBlocksMovement`) sono di #621. Serviva perche' `ReachableCells` e `FindPath` leggono solo `FRTHexCellData`, quindi `Constrained` non era osservabile senza che qualcuno scrivesse un campo. **D2**: il sovrapprezzo di `Constrained` **non** vive in `MoveCost`, che ha gia' un produttore che lo ricalcola dalla sola `Surface` ogni turno (`ARTTurnManager::ApplyDynamicSurface` e `TickDynamicSurfaces`); e' un intero suo, sommato dai lettori del costo. Ne segue che `FormatVersion` sale da 6 a 7 e il campo entra in `RTMatchStateHash`. La `D-0xx` la prende la PR che implementa.\n\n⚠️ Le quattro fixture di geometria **non** vanno in `Scenarios/`: `FRTScenarioCell` porta `Cell`, `bBlocksMovement`, `bBlocksLineOfSight`, `MoveCost` e nessun campo per segmenti o footprint. Sono dati di test del modulo runtime; in `Scenarios/Spec/Map/` — che contiene oggi **un solo file**, `BridgeBreaksThePath.json` — va **un** solo scenario nuovo, quello che mostra l'effetto di `Constrained` su `ReachableCells`: e' `Spec.Map.ConstrainedCellCostsMore`, dichiarato `planned` qui sopra perche' resti visibile come warning finche' non e' un file.\n\nVincolo di collocazione, non preferenza: maschera, classificazione e cottura vivono nel modulo **runtime** e l'editor le chiama. In `Source/RefactorTacticsEditor/` non esiste alcun test — rimisurato su `origin/main` il 2026-08-12: 19 file, zero corrispondenze `*test*`. Cio' che nasce dentro l'editor nasce non verificabile. *(Questa nota citava la PR #598 come «aperta, non mergiata»: e' mergiata dal 2026-08-12T07:07:42Z. L'argomento non dipendeva da quella PR ed e' stato rimisurato.)*\n\nPerche' e' una feature separata da `RT-FEAT-TOOL-MAP-EDITOR` invece di una sua nota: quella e' una **modalita' d'editor** con i suoi quattro tool, questa e' un **modello di dati** con una cottura verso `FRTHexCover` e `bBlocksMovement`. Tenerle insieme farebbe dipendere lo stato di uno strumento maturo (`TESTABLE`) da un lavoro non cominciato."
     },
     {
       "feature_id": "RT-FEAT-TOOL-VALIDATION",

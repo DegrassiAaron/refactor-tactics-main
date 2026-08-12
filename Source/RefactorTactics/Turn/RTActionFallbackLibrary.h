@@ -40,7 +40,23 @@ enum class ERTActionInvalidReason : uint8
 	 *
 	 * Valore aggiunto in coda: le tracce gia' scritte conservano il proprio significato.
 	 */
-	TargetUnknown
+	TargetUnknown,
+
+	/**
+	 * Lo slot che l'azione occupa e' gia' preso da un'altra voce dello stesso piano (CP 38.2).
+	 *
+	 * E' la forma CORRETTA del vincolo che il kit d'autore del 2026-08-12 proponeva come regola a se'
+	 * (`OverwatchDisallowsVoluntaryDash`): D-070 dichiara che quel divieto non serve, perche' chi riserva
+	 * lo slot movimento non VIETA lo scatto — semplicemente non ha piu' lo slot. Un motivo solo copre
+	 * `Sprint`+principale, due principali e scatto+movimento, invece di una regola per combinazione.
+	 */
+	SlotOccupied,
+
+	/** Il costo in Movement Point del piano supera il budget dell'unita' (`FRTHexSimUnit::MoveBudget`). */
+	InsufficientMovementPoints,
+
+	/** L'abilita' non e' ancora ripetibile: il cooldown residuo e' maggiore di zero. */
+	OnCooldown
 };
 
 /** Esito dell'applicazione di un fallback: cosa si esegue davvero, e cosa e' stato applicato. */
