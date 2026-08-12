@@ -29,6 +29,24 @@ persona: questa sezione colma il buco.
 
 ---
 
+## Aperta — chi può leggere una traccia, dallo spec panel del 2026-08-12
+
+Origine: [`roadmap/plans/five-lane-roadmap-spec-panel-2026-08-11.md`](roadmap/plans/five-lane-roadmap-spec-panel-2026-08-11.md) §7C.
+Il sorgente revisionato proponeva un intero modello di privacy del replay come lavoro della v0.1: è **fuori
+scope** — la v0.1 è 2v2 **offline contro un bot**, e [D-078](decisions/RT_PDR_00_Decision_Log.md) lo scrive
+(«nessun avversario, nessun server»). Ma la **domanda** sopravvive alla proposta, e va registrata prima che
+esista un consumatore: è lo stesso schema di [D-083](decisions/RT_PDR_00_Decision_Log.md), perimetro deciso
+adesso e costruzione rinviata.
+
+⚠️ `REPLAY-01`…`REPLAY-09` sono i **rischi** del §32 del kit di consolidamento, non domande: da qui il
+prefisso `REP-`, che era libero.
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `REP-1` | Una traccia archiviata può essere **letta da chiunque**, o esistono profili di lettura distinti (audit · squadra · pubblico)? | Oggi non ha consumatori — nessun avversario e nessun server — quindi **non è urgente**, ma non è nemmeno neutra: `D-077` mette un `FGuid` di partita nel manifest e il TurnLog porta `UnitId`/`TurnNumber` ([D-063](decisions/RT_PDR_00_Decision_Log.md)), cioè la traccia sa già **chi** ha fatto **cosa**. Il momento per decidere il perimetro è prima che un archivio esca dalla macchina che l'ha prodotto — lo stesso innesco che `D-083` ha già dichiarato per `ContentManifestHash`. ⏳ **Default prudente in vigore fino alla decisione**: non pubblicare automaticamente intenti storici. «Partita finita» **non** implica «tutto il planning diventa pubblico»: è una scelta di prodotto, e nessun documento l'ha mai fatta. Innesco: la prima delle tre condizioni fra multiplayer (`RT-FEAT-NET-PRIVATE-PLANNING` oltre `TESTABLE`), condivisione di archivi fra macchine, o uno spettatore |
+
+---
+
 ## ✅ Chiuse il 2026-08-10 — geometria, acqua e strutture, dal quinto sorgente
 
 Origine: [triage `FULL CHAT CONSOLIDATION`](roadmap/plans/triage-grid-geometry-water-2026-08-10.md).

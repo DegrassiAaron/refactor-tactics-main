@@ -94,6 +94,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E2
       checkpoints: ["2.2", "4.1"]
@@ -137,6 +138,7 @@ features:
       ui_wiki: partial
       packaged: partial
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E12
       checkpoints: ["12.1", "12.6"]
@@ -177,6 +179,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E12
       checkpoints: ["12.1", "12.6"]
@@ -218,6 +221,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E12
       checkpoints: []
@@ -262,6 +266,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E14
       checkpoints: ["14.1", "14.2", "14.3"]
@@ -304,6 +309,7 @@ features:
       # Owner-only e canary di privacy: verificabile solo a M10, ma non e' `na` —
       # il bank tocca il canale temporale che D-021 e D-048 chiudono.
       network_privacy: todo
+      replay_representable: todo
     roadmap:
       epic: E14
       checkpoints: ["14.8"]
@@ -367,6 +373,7 @@ features:
       ui_wiki: partial
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E11
       checkpoints: ["11.1"]
@@ -410,6 +417,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E2
       checkpoints: ["2.1"]
@@ -451,6 +459,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E2
       checkpoints: ["2.2"]
@@ -494,6 +503,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: null
       checkpoints: []
@@ -538,6 +548,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: null
       checkpoints: []
@@ -583,6 +594,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: null
       checkpoints: []
@@ -626,6 +638,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: null
       checkpoints: []
@@ -668,6 +681,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: null
       checkpoints: []
@@ -705,6 +719,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E2
       checkpoints: ["2.4"]
@@ -767,6 +782,7 @@ features:
       # `partial` perche' il filtro per squadra esiste ed e' testato (`Facing.IntentIsTeamFiltered`), ma
       # nessuna verifica in rete e' possibile finche' la rete non c'e' (M10).
       network_privacy: partial
+      replay_representable: done
     roadmap:
       epic: E16
       checkpoints: ["16.1", "16.2"]
@@ -848,6 +864,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E9
       checkpoints: ["9.1", "9.2"]
@@ -892,6 +909,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E9
       checkpoints: ["9.5"]
@@ -948,6 +966,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E9
       checkpoints: ["9.3"]
@@ -994,6 +1013,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E9
       checkpoints: ["9.4"]
@@ -1046,6 +1066,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E9
       checkpoints: ["9.1"]
@@ -1089,6 +1110,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E4
       checkpoints: ["4.1", "4.3", "4.8"]
@@ -1138,6 +1160,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E4
       checkpoints: ["4.4", "4.6", "4.7"]
@@ -1233,6 +1256,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E4
       checkpoints: ["4.2", "4.5"]
@@ -1283,6 +1307,7 @@ features:
       ui_wiki: done
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E4
     dependencies:
@@ -1351,6 +1376,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E2
       checkpoints: ["2.5", "4.5"]
@@ -1397,6 +1423,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E4
       checkpoints: ["4.4"]
@@ -1435,6 +1462,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: null
       checkpoints: []
@@ -1477,6 +1505,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: null
       checkpoints: []
@@ -1524,6 +1553,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E18
       checkpoints: ["18.1", "18.2"]
@@ -1575,6 +1605,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: null
       checkpoints: []
@@ -1610,6 +1641,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E7
       checkpoints: ["7.1", "7.2", "7.3", "7.4", "7.5"]
@@ -1685,6 +1717,7 @@ features:
       ui_wiki: partial
       packaged: partial
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E5
       checkpoints: ["5.1", "5.2", "5.3", "5.4", "5.5"]
@@ -1731,6 +1764,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: done
+      replay_representable: todo
     roadmap:
       epic: E14
       checkpoints: ["14.3"]
@@ -1784,6 +1818,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: todo
+      replay_representable: todo
     roadmap:
       epic: E14
       checkpoints: ["14.5", "14.6"]
@@ -1828,6 +1863,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: todo
+      replay_representable: todo
     roadmap:
       epic: E14
       checkpoints: ["14.4"]
@@ -1960,6 +1996,7 @@ features:
       ui_wiki: partial
       packaged: partial
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E14
       checkpoints: ["14.7"]
@@ -2036,6 +2073,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: todo
+      replay_representable: todo
     roadmap:
       epic: E14
       checkpoints: ["14.7"]
@@ -2101,6 +2139,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: todo
+      replay_representable: todo
     roadmap:
       epic: E14
       checkpoints: ["14.6"]
@@ -2142,6 +2181,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E8
       checkpoints: ["8.1"]
@@ -2187,6 +2227,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: null
       checkpoints: []
@@ -2258,6 +2299,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E8
       checkpoints: ["8.2"]
@@ -2297,6 +2339,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E8
       checkpoints: ["8.1", "8.4"]
@@ -2340,6 +2383,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E8
       checkpoints: ["8.3"]
@@ -2386,6 +2430,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E8
       checkpoints: ["8.1", "8.4"]
@@ -2429,6 +2474,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E8
       checkpoints: ["8.1"]
@@ -2475,6 +2521,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E8
       checkpoints: ["8.1"]
@@ -2514,6 +2561,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: null
       checkpoints: []
@@ -2549,6 +2597,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E8
       checkpoints: ["8.5"]
@@ -2610,6 +2659,7 @@ features:
       # targeting, scadenza, unione e permutazione, nessuno il confine. Questo gate si chiude filtrando
       # `TeamKnowledge` per destinatario, non spuntandolo.
       network_privacy: todo
+      replay_representable: na
     roadmap:
       epic: E13
       checkpoints: ["13.1"]
@@ -2663,6 +2713,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: todo
+      replay_representable: na
     roadmap:
       epic: E13
       checkpoints: ["13.1", "13.2"]
@@ -2707,6 +2758,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: todo
+      replay_representable: na
     roadmap:
       epic: E13
       checkpoints: ["13.3"]
@@ -2752,6 +2804,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: todo
+      replay_representable: na
     roadmap:
       epic: E13
       checkpoints: ["13.2"]
@@ -2797,6 +2850,7 @@ features:
       ui_wiki: partial
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E11
       checkpoints: ["11.1"]
@@ -2833,6 +2887,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E11
       checkpoints: ["11.1"]
@@ -2876,6 +2931,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E11
       checkpoints: ["11.5", "11.6"]
@@ -2913,6 +2969,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: done
+      replay_representable: na
     roadmap:
       epic: E11
       checkpoints: ["11.2"]
@@ -2954,6 +3011,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E11
       checkpoints: ["11.1", "11.2"]
@@ -2997,6 +3055,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E11
       checkpoints: ["11.3"]
@@ -3044,6 +3103,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E20
       checkpoints: ["20.1", "20.2", "20.3"]
@@ -3084,6 +3144,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: null
       checkpoints: []
@@ -3131,6 +3192,7 @@ features:
       ui_wiki: partial
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E6
       checkpoints: ["6.1", "6.2", "6.3", "6.4", "6.5", "6.6", "6.7"]
@@ -3181,6 +3243,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: null
       checkpoints: []
@@ -3227,6 +3290,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E21
       milestone: M8
@@ -3278,6 +3342,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: null
       checkpoints: []
@@ -3313,6 +3378,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: null
       checkpoints: []
@@ -3353,6 +3419,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: null
       checkpoints: []
@@ -3395,6 +3462,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: null
       checkpoints: []
@@ -3444,6 +3512,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E10
       checkpoints: ["10.1", "10.2"]
@@ -3491,6 +3560,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E10
       checkpoints: ["10.3"]
@@ -3535,6 +3605,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E19
       checkpoints: ["19.1", "19.2"]
@@ -3584,6 +3655,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E12
       checkpoints: ["12.4"]
@@ -3627,6 +3699,7 @@ features:
       ui_wiki: na
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E17
       checkpoints: ["17.1", "17.2", "17.3"]
@@ -3693,6 +3766,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E2
       checkpoints: ["2.6"]
@@ -3750,6 +3824,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E13
       checkpoints: ["13.5"]
@@ -3830,6 +3905,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: null
       checkpoints: []
@@ -3884,6 +3960,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: null
       checkpoints: []
@@ -3937,6 +4014,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: null
       checkpoints: []
@@ -3987,6 +4065,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E15
       checkpoints: ["15.3"]
@@ -4038,6 +4117,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E15
       checkpoints: ["15.1", "15.2", "15.4", "15.5"]
@@ -4081,6 +4161,7 @@ features:
       ui_wiki: todo
       packaged: na
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: null
       milestone: M9
@@ -4093,21 +4174,31 @@ features:
     owner_specs:
       - docs/roadmap/editormap.shortlist.md
       - docs/roadmap/hex-map-roadmap.md
-    issues: []
+    issues: [567]
     tests:
       - RefactorTactics.HexMap.ApplyBrushMerge
       - RefactorTactics.HexMap.FloodRegion
       - RefactorTactics.HexMap.StrokeEquivalence
       - RefactorTactics.HexMap.LookupInvalidatedAfterExternalEdit
+      - RefactorTactics.HexMapActor.LayerFilterOnConstruction
     scenarios: []
     wiki_refs: []
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      date: 2026-08-12
+      commit: fe9883c
     notes: >
       `Source/RefactorTacticsEditor/` con tool di paint, fill, select e archi. Il residuo sono
-      **verifiche PIE aperte** (H5: E/F/G/H/L/N) registrate in `test-manuali-pie.md`, non gate
-      impliciti. `packaged: na` — è uno strumento d'editor, non entra nella build di gioco.
+      **verifiche PIE aperte** (H5: E/F/G/H/L/N, piu' le tre `PIE-HEX-LAYER-*` della vista a
+      livelli) registrate in `test-manuali-pie.md`, non gate impliciti. `packaged: na` — è uno
+      strumento d'editor, non entra nella build di gioco.
+
+
+      La vista a livelli ha un terzo stato `Focus` (#565): istanze sul solo piano attivo, gli altri
+      a contorno attenuato. Nello stesso passaggio il click ha smesso di scavalcare il piano attivo
+      — in `AllLayers` il raggio poteva agganciare il disco di un altro piano e l'`ImpactPoint`
+      veniva proiettato su quello attivo, spostando la cella di circa `LayerHeight` in orizzontale.
+      `LayerFilterOnConstruction` tiene l'invariante che rende vera la seconda cosa: i piani di
+      contesto **non** sono istanze, quindi non hanno collisione e il raycast non puo' vederli.
 
   - feature_id: RT-FEAT-TOOL-VALIDATION
     title: Validator di dati, mappe e documenti
@@ -4126,6 +4217,7 @@ features:
       ui_wiki: na
       packaged: na
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E1
       checkpoints: ["1.4"]
@@ -4167,6 +4259,7 @@ features:
       ui_wiki: partial
       packaged: na
       network_privacy: na
+      replay_representable: na
     roadmap: {}
     dependencies:
       - RT-FEAT-TOOL-VALIDATION
@@ -4211,6 +4304,7 @@ features:
       ui_wiki: todo
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E11
       checkpoints: ["11.4"]
@@ -4249,6 +4343,7 @@ features:
       ui_wiki: na
       packaged: na
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E1
       checkpoints: ["1.2"]
@@ -4300,6 +4395,7 @@ features:
       ui_wiki: na
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E1
       checkpoints: ["1.3"]
@@ -4345,6 +4441,7 @@ features:
       ui_wiki: na
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E1
       checkpoints: ["1.2", "1.3"]
@@ -4382,6 +4479,7 @@ features:
       ui_wiki: na
       packaged: partial
       network_privacy: todo
+      replay_representable: na
     roadmap:
       epic: E12
       checkpoints: ["12.1"]
@@ -4424,6 +4522,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: todo
+      replay_representable: na
     roadmap:
       epic: E5
       checkpoints: ["5.4"]
@@ -4464,6 +4563,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: todo
+      replay_representable: na
     roadmap:
       epic: null
       milestone: M10
@@ -4505,6 +4605,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: todo
+      replay_representable: na
     roadmap:
       epic: null
       checkpoints: []
@@ -4538,6 +4639,7 @@ features:
       ui_wiki: na
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E12
       checkpoints: ["12.4"]
@@ -4582,6 +4684,7 @@ features:
       ui_wiki: na
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E12
       checkpoints: ["12.5"]
@@ -4629,6 +4732,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: todo
+      replay_representable: todo
     dependencies:
       - RT-FEAT-CORE-TURN
     owner_specs:
@@ -4662,6 +4766,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: todo
+      replay_representable: todo
     dependencies:
       - RT-FEAT-CORE-TURN
     owner_specs:
@@ -4703,6 +4808,7 @@ features:
       ui_wiki: partial
       packaged: na
       network_privacy: na
+      replay_representable: na
     dependencies:
       - RT-FEAT-CHAR-V01-ROSTER
     owner_specs:
@@ -4750,6 +4856,7 @@ features:
       ui_wiki: todo
       packaged: na
       network_privacy: na
+      replay_representable: na
     dependencies:
       - RT-FEAT-CHAR-RADAR-MODEL
     owner_specs:
@@ -4787,6 +4894,7 @@ features:
       ui_wiki: todo
       packaged: na
       network_privacy: na
+      replay_representable: na
     dependencies:
       - RT-FEAT-CHAR-RADAR-MODEL
       - RT-FEAT-TOOL-VALIDATION

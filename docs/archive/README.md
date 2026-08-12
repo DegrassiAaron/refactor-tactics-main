@@ -20,12 +20,18 @@ La fonte di verità del progetto è:
 | Cartella / file | Cos'è |
 |---|---|
 | [`src/`](src/README.md) | **I 28 sorgenti recepiti** — `design/`, `handoff/`, `audit/`, spostati qui dal 2026-08-08. Hanno un indice proprio con la colonna «Recepito da». Dal 2026-08-09 include anche i sorgenti **revisionati e non applicati**, con l'esito in testa al file |
-| `pdr-v0.1/` | Snapshot PDF dei dodici PDR `v0.1`. Le sorgenti testuali vivono in Git (D-009); questi restano di consultazione |
+| [`pdr-v0.1/`](pdr-v0.1/RT_PDR_v0.1_consolidato.md) | Il corpus dei tredici PDR `v0.1` in **un solo Markdown**, con la tabella «cosa vale oggi» documento per documento. I PDF sono stati rimossi il 2026-08-12 e restano nella storia Git |
 | `gameplay/` | Spec superate: terreni, knockback, bot utility, sequenza turno esplorativa |
 | `technical/` | Le versioni **a griglia quadrata** di mappa multilivello e pathfinding, superate dal pivot esagonale (ADR-0002) |
 | `session-notes/` | Note di sessione e handoff datati |
 | `plan-variant-chatgpt.md` | *(ex `docs/claude.md`)* PRD/piano alternativo **in conflitto** col piano canonico: assume C#/UnrealSharp, formato 4v4, team 5-10 persone, scope molto ampio (mod.io/Steam Workshop, roguelike/deckbuilding, schema DB, Unreal Horde). Superato: il canone usa C++/Blueprint, MVP 2v2 offline, dev singolo |
 | `CLAUDE_RefactorTactics-original.md` | *(ex `docs/CLAUDE_RefactorTactics.md`)* guida operativa **assorbita** nel `CLAUDE.md` a radice. Il catalogo comandi `/sc:*` vive in [`../superclaude-cheatsheet.md`](../superclaude-cheatsheet.md) |
+
+> ⚠️ **Corretto il 2026-08-12**: la riga `pdr-v0.1/` diceva «*le sorgenti testuali vivono in Git (D-009)*».
+> Era vero per **due** pezzi su tredici — il [Decision Log](../decisions/RT_PDR_00_Decision_Log.md) (PDR-00 §4)
+> e [PDR-10 v0.2](../roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md). Per gli altri undici documenti il PDF era
+> l'unica copia esistente, e la riga rassicurava chi la leggeva su una cosa che non era stata fatta. Ora lo è:
+> [`RT_PDR_v0.1_consolidato.md`](pdr-v0.1/RT_PDR_v0.1_consolidato.md).
 
 ## La regola che vale qui
 
@@ -36,3 +42,19 @@ un rimando in testa.
 Il difetto vero è l'opposto — uno storico **senza etichetta**, che si legge come se fosse la specifica di
 oggi. Ed è il motivo per cui l'intestazione di questo file è stata corretta invece che lasciata com'era: non
 raccontava la storia di una cartella, dava indicazioni operative sbagliate al presente.
+
+### Se incontri un path `*.pdf` in un documento archiviato
+
+I ventitré PDF di `docs/` sono stati rimossi il **2026-08-12** e il loro testo vive in Markdown. I documenti
+archiviati che li citano — [`src/design/delayed-actions-e-phase-windows.md`](src/README.md),
+[`src/handoff/roadmap-docs-test-e-showcase-v0.1.md`](src/README.md),
+[`gameplay/spec-terreni.md`](gameplay/spec-terreni.md) — **non sono stati riscritti**, per la regola qui sopra:
+quei documenti dicono da quali file provenivano, e nel momento in cui sono stati scritti quei file c'erano.
+
+Dove sono finiti:
+
+| Path citato negli storici | Oggi |
+|---|---|
+| `docs/archive/pdr-v0.1/RT_PDR_NN_*.pdf` | [`pdr-v0.1/RT_PDR_v0.1_consolidato.md`](pdr-v0.1/RT_PDR_v0.1_consolidato.md), sezione `PDR-NN` |
+| `docs/src/prd/idee-base.pdf` · `prd-stampabile` · `prd-e-piano-di-sviluppo` · `prd-roadmap-e-percorso-didattico` | [`../src/prd/`](../src/README.md), quattro documenti tematici |
+| `docs/src/prd/sequenza-risoluzione-turno.pdf` | [`gameplay/sequenza-turno-exploratory.md`](gameplay/sequenza-turno-exploratory.md) — c'era già |

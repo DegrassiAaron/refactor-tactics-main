@@ -310,7 +310,7 @@
       "critical": false,
       "state": "🟡",
       "queue_group": "READY",
-      "produces": "verdetto su cinque voci che non attendono nulla",
+      "produces": "verdetto su otto voci che non attendono nulla",
       "artifacts": [],
       "unblocked_by": [],
       "unblocks": [],
@@ -335,29 +335,42 @@
         {
           "id": "PIE-HEX-TRANS",
           "state": "⏳"
+        },
+        {
+          "id": "PIE-HEX-LAYER-FOCUS",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-HEX-LAYER-CLICK",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-HEX-LAYER-PANEL",
+          "state": "⏳"
         }
       ],
       "issues": [
-        450
+        450,
+        567
       ],
-      "done_when": "le cinque voci hanno esito reale nel registro"
+      "done_when": "le otto voci hanno esito reale nel registro"
     },
     {
       "id": "U1",
       "title": "Mappa-arena hex",
       "block": 1,
       "critical": true,
-      "state": "⏳",
+      "state": "🟡",
       "queue_group": "BLOCKING",
       "produces": "`DA_HexMap_Arena` e `L_HexArena`, committati",
       "artifacts": [
         {
           "path": "Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap",
-          "tracked": false
+          "tracked": true
         },
         {
           "path": "Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset",
-          "tracked": false
+          "tracked": true
         }
       ],
       "unblocked_by": [
@@ -942,7 +955,7 @@
         {
           "ref": "U1",
           "resolved": false,
-          "state": "⏳",
+          "state": "🟡",
           "kind": "seduta"
         }
       ],
@@ -1094,7 +1107,7 @@
         {
           "ref": "U1",
           "resolved": false,
-          "state": "⏳",
+          "state": "🟡",
           "kind": "seduta"
         },
         {

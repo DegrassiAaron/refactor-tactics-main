@@ -44,10 +44,11 @@
         "scenario": "done",
         "ui_wiki": "done",
         "packaged": "partial",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "done"
       },
-      "gates_done": 7,
-      "gates_applicable": 8,
+      "gates_done": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E2",
         "milestone": null,
@@ -110,10 +111,11 @@
         "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "partial",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "done"
       },
-      "gates_done": 5,
-      "gates_applicable": 7,
+      "gates_done": 6,
+      "gates_applicable": 8,
       "roadmap": {
         "epic": "E12",
         "milestone": null,
@@ -172,10 +174,11 @@
         "scenario": "done",
         "ui_wiki": "done",
         "packaged": "partial",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "done"
       },
-      "gates_done": 6,
-      "gates_applicable": 7,
+      "gates_done": 7,
+      "gates_applicable": 8,
       "roadmap": {
         "epic": "E12",
         "milestone": null,
@@ -235,7 +238,8 @@
         "scenario": "na",
         "ui_wiki": "todo",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 4,
       "gates_applicable": 6,
@@ -293,10 +297,11 @@
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 1,
-      "gates_applicable": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E14",
         "milestone": null,
@@ -352,10 +357,11 @@
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "todo"
+        "network_privacy": "todo",
+        "replay_representable": "todo"
       },
       "gates_done": 1,
-      "gates_applicable": 9,
+      "gates_applicable": 10,
       "roadmap": {
         "epic": "E14",
         "milestone": null,
@@ -422,7 +428,8 @@
         "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "partial",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 5,
       "gates_applicable": 7,
@@ -481,10 +488,11 @@
         "scenario": "done",
         "ui_wiki": "done",
         "packaged": "partial",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "done"
       },
-      "gates_done": 7,
-      "gates_applicable": 8,
+      "gates_done": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E2",
         "milestone": null,
@@ -542,7 +550,8 @@
         "scenario": "done",
         "ui_wiki": "done",
         "packaged": "partial",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 6,
       "gates_applicable": 7,
@@ -608,7 +617,8 @@
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 0,
       "gates_applicable": 8,
@@ -662,7 +672,8 @@
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 0,
       "gates_applicable": 8,
@@ -716,10 +727,11 @@
         "scenario": "todo",
         "ui_wiki": "todo",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 0,
-      "gates_applicable": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": null,
         "milestone": null,
@@ -763,10 +775,11 @@
         "scenario": "todo",
         "ui_wiki": "todo",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 0,
-      "gates_applicable": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": null,
         "milestone": null,
@@ -809,10 +822,11 @@
         "scenario": "todo",
         "ui_wiki": "todo",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 0,
-      "gates_applicable": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": null,
         "milestone": null,
@@ -855,7 +869,8 @@
         "scenario": "done",
         "ui_wiki": "done",
         "packaged": "partial",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 6,
       "gates_applicable": 7,
@@ -921,10 +936,11 @@
         "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "partial"
+        "network_privacy": "partial",
+        "replay_representable": "done"
       },
-      "gates_done": 5,
-      "gates_applicable": 9,
+      "gates_done": 6,
+      "gates_applicable": 10,
       "roadmap": {
         "epic": "E16",
         "milestone": null,
@@ -1011,7 +1027,8 @@
         "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 6,
       "gates_applicable": 8,
@@ -1076,10 +1093,11 @@
         "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "done"
       },
-      "gates_done": 6,
-      "gates_applicable": 8,
+      "gates_done": 7,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E9",
         "milestone": null,
@@ -1143,10 +1161,11 @@
         "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "done"
       },
-      "gates_done": 6,
-      "gates_applicable": 8,
+      "gates_done": 7,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E9",
         "milestone": null,
@@ -1207,10 +1226,11 @@
         "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "done"
       },
-      "gates_done": 6,
-      "gates_applicable": 8,
+      "gates_done": 7,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E9",
         "milestone": null,
@@ -1278,7 +1298,8 @@
         "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 6,
       "gates_applicable": 8,
@@ -1335,10 +1356,11 @@
         "scenario": "done",
         "ui_wiki": "done",
         "packaged": "partial",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "done"
       },
-      "gates_done": 7,
-      "gates_applicable": 8,
+      "gates_done": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E4",
         "milestone": null,
@@ -1407,10 +1429,11 @@
         "scenario": "partial",
         "ui_wiki": "done",
         "packaged": "partial",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 3,
-      "gates_applicable": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E4",
         "milestone": null,
@@ -1488,10 +1511,11 @@
         "scenario": "done",
         "ui_wiki": "done",
         "packaged": "partial",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "done"
       },
-      "gates_done": 7,
-      "gates_applicable": 8,
+      "gates_done": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E4",
         "milestone": null,
@@ -1556,10 +1580,11 @@
         "scenario": "done",
         "ui_wiki": "done",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 7,
-      "gates_applicable": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E4",
         "milestone": null,
@@ -1625,10 +1650,11 @@
         "scenario": "done",
         "ui_wiki": "done",
         "packaged": "partial",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "done"
       },
-      "gates_done": 7,
-      "gates_applicable": 8,
+      "gates_done": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E2",
         "milestone": null,
@@ -1695,10 +1721,11 @@
         "scenario": "todo",
         "ui_wiki": "done",
         "packaged": "partial",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 5,
-      "gates_applicable": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E4",
         "milestone": null,
@@ -1752,10 +1779,11 @@
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 0,
-      "gates_applicable": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": null,
         "milestone": null,
@@ -1804,10 +1832,11 @@
         "scenario": "todo",
         "ui_wiki": "todo",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 0,
-      "gates_applicable": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": null,
         "milestone": null,
@@ -1856,10 +1885,11 @@
         "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "done"
       },
-      "gates_done": 6,
-      "gates_applicable": 8,
+      "gates_done": 7,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E18",
         "milestone": null,
@@ -1920,10 +1950,11 @@
         "scenario": "todo",
         "ui_wiki": "todo",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 0,
-      "gates_applicable": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": null,
         "milestone": null,
@@ -1966,7 +1997,8 @@
         "scenario": "todo",
         "ui_wiki": "todo",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 1,
       "gates_applicable": 8,
@@ -2047,10 +2079,11 @@
         "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "partial",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "done"
       },
-      "gates_done": 6,
-      "gates_applicable": 8,
+      "gates_done": 7,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E5",
         "milestone": null,
@@ -2120,10 +2153,11 @@
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "done"
+        "network_privacy": "done",
+        "replay_representable": "todo"
       },
       "gates_done": 3,
-      "gates_applicable": 9,
+      "gates_applicable": 10,
       "roadmap": {
         "epic": "E14",
         "milestone": null,
@@ -2181,10 +2215,11 @@
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "todo"
+        "network_privacy": "todo",
+        "replay_representable": "todo"
       },
       "gates_done": 1,
-      "gates_applicable": 9,
+      "gates_applicable": 10,
       "roadmap": {
         "epic": "E14",
         "milestone": null,
@@ -2239,10 +2274,11 @@
         "scenario": "partial",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "todo"
+        "network_privacy": "todo",
+        "replay_representable": "todo"
       },
       "gates_done": 2,
-      "gates_applicable": 9,
+      "gates_applicable": 10,
       "roadmap": {
         "epic": "E14",
         "milestone": null,
@@ -2310,10 +2346,11 @@
         "scenario": "partial",
         "ui_wiki": "partial",
         "packaged": "partial",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 1,
-      "gates_applicable": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E14",
         "milestone": null,
@@ -2374,10 +2411,11 @@
         "scenario": "partial",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "todo"
+        "network_privacy": "todo",
+        "replay_representable": "todo"
       },
       "gates_done": 1,
-      "gates_applicable": 9,
+      "gates_applicable": 10,
       "roadmap": {
         "epic": "E14",
         "milestone": null,
@@ -2439,10 +2477,11 @@
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "todo"
+        "network_privacy": "todo",
+        "replay_representable": "todo"
       },
       "gates_done": 0,
-      "gates_applicable": 9,
+      "gates_applicable": 10,
       "roadmap": {
         "epic": "E14",
         "milestone": null,
@@ -2495,10 +2534,11 @@
         "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 6,
-      "gates_applicable": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E8",
         "milestone": null,
@@ -2558,10 +2598,11 @@
         "scenario": "todo",
         "ui_wiki": "todo",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 0,
-      "gates_applicable": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": null,
         "milestone": null,
@@ -2613,10 +2654,11 @@
         "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 6,
-      "gates_applicable": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E8",
         "milestone": null,
@@ -2672,10 +2714,11 @@
         "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 6,
-      "gates_applicable": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E8",
         "milestone": null,
@@ -2737,10 +2780,11 @@
         "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 6,
-      "gates_applicable": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E8",
         "milestone": null,
@@ -2801,10 +2845,11 @@
         "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 6,
-      "gates_applicable": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E8",
         "milestone": null,
@@ -2866,10 +2911,11 @@
         "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 6,
-      "gates_applicable": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E8",
         "milestone": null,
@@ -2928,10 +2974,11 @@
         "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 6,
-      "gates_applicable": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E8",
         "milestone": null,
@@ -2986,10 +3033,11 @@
         "scenario": "todo",
         "ui_wiki": "todo",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 0,
-      "gates_applicable": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": null,
         "milestone": null,
@@ -3034,10 +3082,11 @@
         "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "done"
       },
-      "gates_done": 6,
-      "gates_applicable": 8,
+      "gates_done": 7,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E8",
         "milestone": null,
@@ -3100,7 +3149,8 @@
         "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "todo"
+        "network_privacy": "todo",
+        "replay_representable": "na"
       },
       "gates_done": 5,
       "gates_applicable": 9,
@@ -3166,7 +3216,8 @@
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "todo"
+        "network_privacy": "todo",
+        "replay_representable": "na"
       },
       "gates_done": 3,
       "gates_applicable": 9,
@@ -3231,7 +3282,8 @@
         "scenario": "partial",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "todo"
+        "network_privacy": "todo",
+        "replay_representable": "na"
       },
       "gates_done": 3,
       "gates_applicable": 9,
@@ -3295,7 +3347,8 @@
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "todo"
+        "network_privacy": "todo",
+        "replay_representable": "na"
       },
       "gates_done": 4,
       "gates_applicable": 9,
@@ -3354,7 +3407,8 @@
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "partial",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 1,
       "gates_applicable": 6,
@@ -3406,7 +3460,8 @@
         "scenario": "done",
         "ui_wiki": "done",
         "packaged": "partial",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 6,
       "gates_applicable": 7,
@@ -3470,7 +3525,8 @@
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 1,
       "gates_applicable": 8,
@@ -3527,7 +3583,8 @@
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "done"
+        "network_privacy": "done",
+        "replay_representable": "na"
       },
       "gates_done": 3,
       "gates_applicable": 8,
@@ -3588,7 +3645,8 @@
         "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 3,
       "gates_applicable": 7,
@@ -3654,7 +3712,8 @@
         "scenario": "done",
         "ui_wiki": "done",
         "packaged": "partial",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 6,
       "gates_applicable": 7,
@@ -3718,7 +3777,8 @@
         "scenario": "todo",
         "ui_wiki": "todo",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 1,
       "gates_applicable": 7,
@@ -3782,7 +3842,8 @@
         "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 6,
       "gates_applicable": 8,
@@ -3838,7 +3899,8 @@
         "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "partial",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 6,
       "gates_applicable": 8,
@@ -3920,7 +3982,8 @@
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 0,
       "gates_applicable": 8,
@@ -3973,7 +4036,8 @@
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 1,
       "gates_applicable": 7,
@@ -4040,10 +4104,11 @@
         "scenario": "todo",
         "ui_wiki": "todo",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 0,
-      "gates_applicable": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": null,
         "milestone": null,
@@ -4086,10 +4151,11 @@
         "scenario": "todo",
         "ui_wiki": "todo",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 0,
-      "gates_applicable": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": null,
         "milestone": null,
@@ -4135,7 +4201,8 @@
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 0,
       "gates_applicable": 7,
@@ -4189,7 +4256,8 @@
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 0,
       "gates_applicable": 7,
@@ -4245,10 +4313,11 @@
         "scenario": "partial",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 2,
-      "gates_applicable": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E10",
         "milestone": null,
@@ -4310,10 +4379,11 @@
         "scenario": "done",
         "ui_wiki": "done",
         "packaged": "partial",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 7,
-      "gates_applicable": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": "E10",
         "milestone": null,
@@ -4370,7 +4440,8 @@
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 5,
       "gates_applicable": 8,
@@ -4428,7 +4499,8 @@
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 5,
       "gates_applicable": 8,
@@ -4483,7 +4555,8 @@
         "scenario": "todo",
         "ui_wiki": "na",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 1,
       "gates_applicable": 7,
@@ -4548,7 +4621,8 @@
         "scenario": "done",
         "ui_wiki": "done",
         "packaged": "partial",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 7,
       "gates_applicable": 8,
@@ -4612,10 +4686,11 @@
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 3,
-      "gates_applicable": 7,
+      "gates_applicable": 8,
       "roadmap": {
         "epic": "E13",
         "milestone": null,
@@ -4677,7 +4752,8 @@
         "scenario": "todo",
         "ui_wiki": "todo",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 0,
       "gates_applicable": 8,
@@ -4740,7 +4816,8 @@
         "scenario": "todo",
         "ui_wiki": "todo",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 0,
       "gates_applicable": 8,
@@ -4799,10 +4876,11 @@
         "scenario": "todo",
         "ui_wiki": "todo",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "todo"
       },
       "gates_done": 0,
-      "gates_applicable": 8,
+      "gates_applicable": 9,
       "roadmap": {
         "epic": null,
         "milestone": null,
@@ -4855,7 +4933,8 @@
         "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 6,
       "gates_applicable": 8,
@@ -4917,7 +4996,8 @@
         "scenario": "done",
         "ui_wiki": "todo",
         "packaged": "todo",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 3,
       "gates_applicable": 8,
@@ -4985,7 +5065,8 @@
         "scenario": "na",
         "ui_wiki": "todo",
         "packaged": "na",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 4,
       "gates_applicable": 6,
@@ -5003,12 +5084,15 @@
         "docs/roadmap/editormap.shortlist.md",
         "docs/roadmap/hex-map-roadmap.md"
       ],
-      "issues": [],
+      "issues": [
+        567
+      ],
       "tests": [
         "RefactorTactics.HexMap.ApplyBrushMerge",
         "RefactorTactics.HexMap.FloodRegion",
         "RefactorTactics.HexMap.StrokeEquivalence",
-        "RefactorTactics.HexMap.LookupInvalidatedAfterExternalEdit"
+        "RefactorTactics.HexMap.LookupInvalidatedAfterExternalEdit",
+        "RefactorTactics.HexMapActor.LayerFilterOnConstruction"
       ],
       "scenarios": [],
       "scenarios_planned": [],
@@ -5016,10 +5100,10 @@
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-12",
+        "commit": "fe9883c"
       },
-      "notes": "`Source/RefactorTacticsEditor/` con tool di paint, fill, select e archi. Il residuo sono **verifiche PIE aperte** (H5: E/F/G/H/L/N) registrate in `test-manuali-pie.md`, non gate impliciti. `packaged: na` — è uno strumento d'editor, non entra nella build di gioco."
+      "notes": "`Source/RefactorTacticsEditor/` con tool di paint, fill, select e archi. Il residuo sono **verifiche PIE aperte** (H5: E/F/G/H/L/N, piu' le tre `PIE-HEX-LAYER-*` della vista a livelli) registrate in `test-manuali-pie.md`, non gate impliciti. `packaged: na` — è uno strumento d'editor, non entra nella build di gioco.\n\nLa vista a livelli ha un terzo stato `Focus` (#565): istanze sul solo piano attivo, gli altri a contorno attenuato. Nello stesso passaggio il click ha smesso di scavalcare il piano attivo — in `AllLayers` il raggio poteva agganciare il disco di un altro piano e l'`ImpactPoint` veniva proiettato su quello attivo, spostando la cella di circa `LayerHeight` in orizzontale. `LayerFilterOnConstruction` tiene l'invariante che rende vera la seconda cosa: i piani di contesto **non** sono istanze, quindi non hanno collisione e il raycast non puo' vederli."
     },
     {
       "feature_id": "RT-FEAT-TOOL-VALIDATION",
@@ -5039,7 +5123,8 @@
         "scenario": "na",
         "ui_wiki": "na",
         "packaged": "na",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 5,
       "gates_applicable": 5,
@@ -5097,7 +5182,8 @@
         "scenario": "na",
         "ui_wiki": "partial",
         "packaged": "na",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 2,
       "gates_applicable": 6,
@@ -5142,7 +5228,8 @@
         "scenario": "na",
         "ui_wiki": "todo",
         "packaged": "partial",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 3,
       "gates_applicable": 6,
@@ -5199,7 +5286,8 @@
         "scenario": "todo",
         "ui_wiki": "na",
         "packaged": "na",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 3,
       "gates_applicable": 6,
@@ -5257,7 +5345,8 @@
         "scenario": "na",
         "ui_wiki": "na",
         "packaged": "partial",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 5,
       "gates_applicable": 6,
@@ -5317,7 +5406,8 @@
         "scenario": "na",
         "ui_wiki": "na",
         "packaged": "partial",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 5,
       "gates_applicable": 6,
@@ -5374,7 +5464,8 @@
         "scenario": "na",
         "ui_wiki": "na",
         "packaged": "partial",
-        "network_privacy": "todo"
+        "network_privacy": "todo",
+        "replay_representable": "na"
       },
       "gates_done": 5,
       "gates_applicable": 7,
@@ -5434,7 +5525,8 @@
         "scenario": "todo",
         "ui_wiki": "done",
         "packaged": "partial",
-        "network_privacy": "todo"
+        "network_privacy": "todo",
+        "replay_representable": "na"
       },
       "gates_done": 5,
       "gates_applicable": 8,
@@ -5492,7 +5584,8 @@
         "scenario": "todo",
         "ui_wiki": "todo",
         "packaged": "todo",
-        "network_privacy": "todo"
+        "network_privacy": "todo",
+        "replay_representable": "na"
       },
       "gates_done": 1,
       "gates_applicable": 8,
@@ -5542,7 +5635,8 @@
         "scenario": "todo",
         "ui_wiki": "todo",
         "packaged": "todo",
-        "network_privacy": "todo"
+        "network_privacy": "todo",
+        "replay_representable": "na"
       },
       "gates_done": 0,
       "gates_applicable": 8,
@@ -5588,7 +5682,8 @@
         "scenario": "todo",
         "ui_wiki": "na",
         "packaged": "partial",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 3,
       "gates_applicable": 6,
@@ -5644,7 +5739,8 @@
         "scenario": "todo",
         "ui_wiki": "na",
         "packaged": "partial",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 2,
       "gates_applicable": 6,
@@ -5697,10 +5793,11 @@
         "scenario": "todo",
         "ui_wiki": "todo",
         "packaged": "todo",
-        "network_privacy": "todo"
+        "network_privacy": "todo",
+        "replay_representable": "todo"
       },
       "gates_done": 1,
-      "gates_applicable": 9,
+      "gates_applicable": 10,
       "roadmap": {
         "epic": null,
         "milestone": null,
@@ -5742,10 +5839,11 @@
         "scenario": "todo",
         "ui_wiki": "todo",
         "packaged": "todo",
-        "network_privacy": "todo"
+        "network_privacy": "todo",
+        "replay_representable": "todo"
       },
       "gates_done": 1,
-      "gates_applicable": 9,
+      "gates_applicable": 10,
       "roadmap": {
         "epic": null,
         "milestone": null,
@@ -5811,7 +5909,8 @@
         "scenario": "na",
         "ui_wiki": "partial",
         "packaged": "na",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 1,
       "gates_applicable": 4,
@@ -5864,7 +5963,8 @@
         "scenario": "na",
         "ui_wiki": "todo",
         "packaged": "na",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 1,
       "gates_applicable": 4,
@@ -5913,7 +6013,8 @@
         "scenario": "na",
         "ui_wiki": "todo",
         "packaged": "na",
-        "network_privacy": "na"
+        "network_privacy": "na",
+        "replay_representable": "na"
       },
       "gates_done": 1,
       "gates_applicable": 6,
