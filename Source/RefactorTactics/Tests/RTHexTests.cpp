@@ -1,6 +1,9 @@
 #include "Misc/AutomationTest.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexLibrary.h"
+#include "Map/RTHexCellData.h"
+#include "Terrain/RTTerrainLibrary.h"
+#include "Terrain/RTTerrainData.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -301,6 +304,67 @@ bool FRTHexCentroidTest::RunTest(const FString&)
 	TestTrue(TEXT("ordine irrilevante"),
 		URTHexLibrary::CellsCentroidWorld({ B, A }, Origin, HexSize, LayerHeight)
 			.Equals(URTHexLibrary::CellsCentroidWorld({ A, B }, Origin, HexSize, LayerHeight), 0.01));
+	return true;
+}
+
+
+/**
+ * Il rilievo che mostra il costo di movimento nasce dal CATALOGO, non da numeri incisi nella vista.
+ *
+ * E' l'invariante che tiene: ribilanciare `Rough` deve cambiare la mappa da sola. Se l'altezza fosse scritta
+ * nella vista, il giorno del ribilanciamento il profilo resterebbe su un valore morto e racconterebbe un
+ * costo che il gioco non applica piu' — una vista che mente, che e' peggio di una vista che manca.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexReliefFromCatalogTest,
+	"RefactorTactics.Hex.ReliefHeightComesFromTerrainCatalog",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexReliefFromCatalogTest::RunTest(const FString&)
+{
+	// 1. Il pavimento sta a zero: il rilievo misura il SOVRAPPREZZO, non il costo assoluto. Una mappa tutta
+	//    pavimento resta piatta, ed e' giusto — non c'e' niente da segnalare.
+	TestEqual(TEXT("costo 1 -> nessun rilievo"), URTHexLibrary::ReliefHeightForCost(1), 0.f);
+
+	// 2. Monotonia: piu' caro = piu' alto. E' l'unica cosa che rende il profilo leggibile a colpo d'occhio.
+	TestTrue(TEXT("costo 2 > costo 1"),
+		URTHexLibrary::ReliefHeightForCost(2) > URTHexLibrary::ReliefHeightForCost(1));
+	TestTrue(TEXT("costo 3 > costo 2"),
+		URTHexLibrary::ReliefHeightForCost(3) > URTHexLibrary::ReliefHeightForCost(2));
+
+	// 3. Il legame col catalogo: un terreno che il catalogo dichiara piu' caro del pavimento DEVE produrre un
+	//    rilievo, e uno che costa come il pavimento no. E' cio' che rende il profilo una lettura del costo
+	//    reale invece di una decorazione — se domani `Rough` venisse ribilanciato a 1, questo cadrebbe, ed e'
+	//    giusto: il rilievo racconterebbe un sovrapprezzo che non esiste piu'.
+	//
+	//    (Confrontare `ReliefHeightForCost(RoughCost)` con `ReliefHeightForCost(2)` sarebbe tautologico:
+	//    `RoughCost` *e'* 2, quindi verificherebbe una cosa con se' stessa.)
+	const int32 RoughCost = URTTerrainLibrary::FindTerrainDef(ERTHexSurface::Rough).MoveCost;
+	const int32 FloorCost = URTTerrainLibrary::FindTerrainDef(ERTHexSurface::Floor).MoveCost;
+	TestTrue(TEXT("il catalogo dichiara Rough piu' caro del pavimento"), RoughCost > FloorCost);
+	TestTrue(TEXT("quindi Rough ha un rilievo"), URTHexLibrary::ReliefHeightForCost(RoughCost) > 0.f);
+	TestEqual(TEXT("e il pavimento resta piatto"), URTHexLibrary::ReliefHeightForCost(FloorCost), 0.f);
+
+	// 4. Un rilievo non deve MAI poter essere scambiato per un piano: e' il vincolo che tiene separati i due
+	//    significati della quota in questa vista. Anche il terreno piu' caro del catalogo resta ben sotto.
+	// L'elenco e' esplicito come in `SurfaceColorsAreDistinguishable`: l'enum non dichiara `TEnumRange`, e
+	// aggiungerlo per un test cambierebbe un tipo di dominio per comodita' di verifica.
+	const TArray<ERTHexSurface> AllSurfaces = {
+		ERTHexSurface::Floor, ERTHexSurface::ShallowWater, ERTHexSurface::Rough, ERTHexSurface::Fire,
+		ERTHexSurface::Conductive, ERTHexSurface::Ice, ERTHexSurface::Void,
+		ERTHexSurface::Smoke, ERTHexSurface::HighGround
+	};
+	int32 MaxCost = 1;
+	for (const ERTHexSurface S : AllSurfaces)
+	{
+		MaxCost = FMath::Max(MaxCost, URTTerrainLibrary::FindTerrainDef(S).MoveCost);
+	}
+	const float LayerHeightDefault = 250.f; // il default di URTHexMapAsset::LayerHeight
+	TestTrue(TEXT("il rilievo piu' alto del catalogo resta ben sotto un piano"),
+		URTHexLibrary::ReliefHeightForCost(MaxCost) < LayerHeightDefault * 0.25f);
+
+	// 5. Costi non validi non producono buche: un asset editato a mano puo' contenerli, e una buca direbbe
+	//    «qui si va piu' veloci», cosa che il gioco non prevede.
+	TestEqual(TEXT("costo 0 -> piatto"), URTHexLibrary::ReliefHeightForCost(0), 0.f);
+	TestEqual(TEXT("costo negativo -> piatto"), URTHexLibrary::ReliefHeightForCost(-5), 0.f);
 	return true;
 }
 
