@@ -170,11 +170,23 @@ public:
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "RefactorTactics|HexMap")
 	void RebuildInstances();
 
-	/** Cella corrispondente a un'istanza (INDEX_NONE fuori range). */
+	/**
+	 * Cella corrispondente a un'istanza.
+	 *
+	 * ⚠️ Fuori range risponde `FRTCellId()`, cioe' `(0,0,0)` — una cella **valida**, non un sentinella: chi
+	 * chiama non puo' distinguere «origine della mappa» da «indice inesistente», e deve validare l'indice
+	 * PRIMA (`URTHexLibrary::PickTargetsSelectableCells` lo fa per il raycast di selezione).
+	 */
 	FRTCellId CellForInstance(int32 InstanceIndex) const;
 
 	/** Numero di celle attualmente rappresentate (istanze ISM). Diagnostica e test. */
 	int32 NumInstanceCells() const { return InstanceCells.Num(); }
+
+	/**
+	 * L'unica geometria SELEZIONABILE dell'actor: il componente contro cui va confrontato il colpo del
+	 * raycast. Gli altri componenti (il rilievo del costo) sono di lettura e non devono ricevere click.
+	 */
+	const UInstancedStaticMeshComponent* SelectableCells() const { return Cells; }
 
 	/** La mappa esagonale del livello (la prima trovata), oppure nullptr se il livello non ne ha. */
 	static ARTHexMapActor* FindInWorld(const UWorld* World);

@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Components/InstancedStaticMeshComponent.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexCellData.h"
@@ -365,6 +366,46 @@ bool FRTHexReliefFromCatalogTest::RunTest(const FString&)
 	//    «qui si va piu' veloci», cosa che il gioco non prevede.
 	TestEqual(TEXT("costo 0 -> piatto"), URTHexLibrary::ReliefHeightForCost(0), 0.f);
 	TestEqual(TEXT("costo negativo -> piatto"), URTHexLibrary::ReliefHeightForCost(-5), 0.f);
+	return true;
+}
+
+/**
+ * Il pennello deve dipingere dove si clicca, e la geometria di LETTURA non deve poterlo dirottare.
+ *
+ * `ARTHexMapActor` ha piu' di un `UInstancedStaticMeshComponent` — `Cells`, selezionabile, e `Relief`, che
+ * mostra il costo — e il raycast riceve l'indice di istanza del componente EFFETTIVAMENTE colpito. Risolvere
+ * quell'indice contro le celle di `Cells` senza prima verificare *cosa* e' stato colpito non produce un crash:
+ * produce una cella **valida e sbagliata**, cioe' il pennello che dipinge altrove senza un solo errore a log.
+ *
+ * La difesa non puo' essere «ricordarsi di mettere NoCollision»: e' una promessa a un umano. Questa regola la
+ * rende strutturale, perche' guarda il COMPONENTE e non l'actor che lo contiene.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexPickTargetsCellsTest,
+	"RefactorTactics.Hex.PickIgnoresGeometryThatIsNotTheGrid",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexPickTargetsCellsTest::RunTest(const FString&)
+{
+	UInstancedStaticMeshComponent* Cells = NewObject<UInstancedStaticMeshComponent>();
+	UInstancedStaticMeshComponent* Relief = NewObject<UInstancedStaticMeshComponent>();
+	const int32 NumCells = 61; // quante ne ha l'arena di prova: un numero concreto, non un limite simbolico
+
+	TestTrue(TEXT("colpo su un'istanza della griglia"),
+		URTHexLibrary::PickTargetsSelectableCells(Cells, Cells, 0, NumCells));
+
+	// Il caso che da' valore alla regola, e l'unico che il confronto sull'ACTOR lascerebbe passare: stesso
+	// actor, componente diverso. L'indice verrebbe poi risolto contro le celle di un altro componente.
+	TestFalse(TEXT("colpo su geometria che non e' la griglia"),
+		URTHexLibrary::PickTargetsSelectableCells(Relief, Cells, 0, NumCells));
+
+	// Un indice fuori range non e' teorico: `CellForInstance` risponde `(0,0,0)` — una cella VALIDA — a
+	// qualunque indice, quindi senza questo controllo il click finirebbe sull'origine della mappa.
+	TestFalse(TEXT("indice oltre il numero di istanze"),
+		URTHexLibrary::PickTargetsSelectableCells(Cells, Cells, NumCells, NumCells));
+	TestFalse(TEXT("indice negativo"),
+		URTHexLibrary::PickTargetsSelectableCells(Cells, Cells, INDEX_NONE, NumCells));
+
+	TestFalse(TEXT("nessun colpo"),
+		URTHexLibrary::PickTargetsSelectableCells(nullptr, Cells, 0, NumCells));
 	return true;
 }
 

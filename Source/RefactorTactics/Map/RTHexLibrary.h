@@ -6,6 +6,9 @@
 #include "Map/RTHexCellData.h" // ERTHexSurface: serve ai colori dell'overlay di leggibilita'
 #include "RTHexLibrary.generated.h"
 
+class UPrimitiveComponent;
+class UInstancedStaticMeshComponent;
+
 /**
  * Matematica pura della griglia esagonale pointy-top (assiale/cubica). Deterministica: le coordinate restano
  * intere; il float compare solo nelle conversioni verso/da lo spazio-mondo (rendering/input), col risultato
@@ -156,4 +159,20 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static TArray<FRTCellId> HexCone(const FRTCellId& From, const FRTCellId& Target, int32 Range);
+
+	/**
+	 * Il colpo di un raycast di selezione e' utilizzabile come punto sulla griglia?
+	 *
+	 * Vero solo se e' stato colpito **proprio** il componente delle celle — non un altro componente dello
+	 * stesso actor — e se l'indice di istanza che accompagna il colpo appartiene davvero a quel componente.
+	 *
+	 * Le due condizioni sono una cosa sola: l'indice di istanza si riferisce al componente COLPITO, quindi
+	 * risolverlo contro un altro componente restituisce una cella valida e sbagliata. `CellForInstance`
+	 * risponde `(0,0,0)` a qualunque indice, percio' il difetto non si manifesta come errore ma come pennello
+	 * che dipinge altrove.
+	 *
+	 * Sta qui, e non nel modulo Editor, per essere verificabile senza aprire l'editor.
+	 */
+	static bool PickTargetsSelectableCells(const UPrimitiveComponent* HitComponent,
+		const UInstancedStaticMeshComponent* Cells, int32 InstanceIndex, int32 NumInstanceCells);
 };
