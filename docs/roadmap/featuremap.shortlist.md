@@ -20,13 +20,13 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 <!-- RT_SHORTLIST_FEATURES:BEGIN -->
 
-**103 feature** · v0.1 **73** · v0.2 **15** · future **15**.
+**104 feature** · v0.1 **73** · v0.2 **16** · future **15**.
 
 | Stato | Quante |
 |---|--:|
 | `IDEA` | 6 |
 | `DESIGNED` | 14 |
-| `SPECIFIED` | 10 |
+| `SPECIFIED` | 11 |
 | `IMPLEMENTING` | 23 |
 | `TESTABLE` | 8 |
 | `INTEGRATED` | 21 |
@@ -34,7 +34,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `DONE` | 4 |
 | `DEFERRED` (fuori scala) | 1 |
 
-### Actions · 15
+### Actions · 16
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
@@ -48,6 +48,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-ACTION-GENERIC` — Azioni generiche del catalogo | v0.1 | IMPLEMENTING | 3/9 | E4 | Le sette di D-025: `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch` |
 | `RT-FEAT-ACTION-SUPERS` — Ultimate e azioni ad alto impegno | v0.2 | IMPLEMENTING | 0/9 | — | Fuori dal contenuto della v0.1 |
 | `RT-FEAT-ACTION-MOVEMENT-COMPAT` — Compatibilita' abilita' <-> movimento: normale, ridotta, potenziata, bloccata | v0.2 | SPECIFIED | 1/9 | fuori scope | — |
+| `RT-FEAT-ACTION-SPATIAL-TRANSFER` — Spatial Transfer — cambiare posizione senza percorrere lo spazio | v0.2 | SPECIFIED | 1/10 | fuori scope | — |
 | `RT-FEAT-ACTION-DELAYED` — Delayed Action ai boundary di fase | future | DESIGNED | 0/9 | — | Brief scritto, **nessuna epic aperta**: attende una decisione di scope |
 | `RT-FEAT-ACTION-PLAN-VALIDATION` — Validazione del piano in Planning, con reason code deterministico | v0.2 | DESIGNED | 0/10 | fuori scope | — |
 | `RT-FEAT-STATUS-FRAMEWORK` — Framework degli status — categorie, severity e primitive | v0.2 | DESIGNED | 0/9 | fuori scope | Undici status cablati uno per uno, nessun livello che li governi: **E36** in v0.2 |

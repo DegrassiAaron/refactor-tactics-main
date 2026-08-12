@@ -18,60 +18,94 @@ Rispondere caso per caso è il modo in cui nascono le regole per eroe. Questa pa
 
 ## 1. Le famiglie
 
+Le famiglie si dividono in **due**, e la linea che le separa non è la velocità:
+
+> **Traversal percorre lo spazio. Transfer cambia posizione senza percorrerlo.**
+
 ```text
-Move       movimento volontario standard, fase Move, a budget
-Dash       movimento volontario speciale, fase Dash, senza budget
-Forced     spostamento subito: push, pull, knockback, correnti
-Teleport   comparsa senza attraversamento          (NON ESISTE in v0.1)
-Reaction   movimento causato da una reazione       (usa la policy di una delle altre)
+TRAVERSAL — produce una sequenza di celle percorse, e ogni cella è un fatto
+  Move       movimento volontario standard, fase Move, a budget
+  Dash       movimento volontario speciale, fase Dash, senza budget
+  Forced     spostamento subito: push, pull, knockback, correnti
+
+TRANSFER — esistono un'origine e una destinazione, e nient'altro
+  Leap       `ERTMovementStyle::LinearLeap`   (esiste, ma nessun eroe ce l'ha — #645)
+  Blink      destinazione libera entro range   (v0.2, E39)
+  Swap       scambio atomico di due posizioni  (v0.2, E39)
+  Recall     ritorno a un punto dichiarato     (v0.2, E39)
+
+Reaction     NON è una famiglia: è una causa, e usa la policy di una delle sopra
 ```
 
-`Reaction Movement` **non è una quinta meccanica**: è una delle quattro con una causa diversa. Ciò che deve
-restare distinguibile è la *causa*, non il modo di muoversi — chi legge il TurnLog deve poter dire se
-quell'unità si è mossa perché l'ha deciso, perché è stata spinta o perché una reazione l'ha fatta scattare.
+> 🔴 **La partizione è una decisione, presa il 2026-08-12**:
+> [D-118](../decisions/RT_PDR_00_Decision_Log.md) chiude `MOV-1`. Non introduce un tipo nuovo — la riga che
+> separa le due famiglie **si verifica già in codice**, ed è cosa contiene `Result.Entered`: per un
+> `Traversal` è la sequenza percorsa, per un `Transfer` è la sola destinazione. La colonna «Teleport» di §2
+> era una regola preventiva per una famiglia che si credeva assente; era invece la descrizione di
+> `LinearLeap`, che il repository possiede da sempre.
+
+`Reaction Movement` **non è una famiglia**: è una delle altre con una causa diversa. Ciò che deve restare
+distinguibile è la *causa*, non il modo di muoversi — chi legge il TurnLog deve poter dire se quell'unità si è
+mossa perché l'ha deciso, perché è stata spinta o perché una reazione l'ha fatta scattare.
+
+⚠️ **`Portal` non è un `Transfer`**, e va detto qui perché è l'errore più naturale: un portale è
+**topologia del grafo** — `URTHexMapAsset::Transitions`, `ERTHexArcState`, `GraphNeighbors()` — non un modo
+di spostare un'unità. Chi lo implementasse come `Unit->SetCell(Uscita)` bypasserebbe il grafo che il
+pathfinding legge, e la raggiungibilità smetterebbe di essere una proprietà della mappa.
 
 ## 2. La matrice
 
 Riga per riga, cosa vale per ciascuna famiglia. **La colonna «stato» dice cosa è vero oggi nel codice**, non
 cosa vorremmo: una matrice che descrive un sistema immaginario è peggio di nessuna matrice.
 
-| Regola | Move | Dash | Forced | Teleport |
+| Regola | Move | Dash | **Transfer** | Forced |
 |---|---|---|---|---|
-| volontario | sì | sì | **no** | (sì) |
-| fase | Move | Dash | quella dell'effetto | quella dell'abilità |
-| occupa lo slot movimento | sì | **sì** ([D-028](../decisions/RT_PDR_00_Decision_Log.md)) | no | dipende dall'abilità |
-| micro-step | sì | **policy** | sì | no |
-| attraversa le celle intermedie | sì | policy | sì | **no** |
-| usa `MoveBudget` | sì | no | **no** | no |
-| paga il costo del terreno | sì | no | **no** (ma vedi §3) | no |
-| collisioni | sì | policy | sì | solo all'arrivo |
-| hazard intermedi | sì | **policy** | **sì** | no |
-| trigger spaziali | sì | sì | sì | solo all'arrivo |
-| facing | derivato dal path | policy dell'azione | policy dell'effetto | policy dell'abilità |
-| rumore | profilo | profilo | evento di impatto | nessun passo |
-| auto-reroute | **mai** | mai | mai | n/a |
-| consuma l'azione della vittima | n/a | n/a | **mai** | n/a |
-| **stato nel codice** | implementato | implementato | implementato | **assente** |
+| volontario | sì | sì | sì | **no** |
+| fase | Move | Dash | quella dell'azione (`Leap`: Dash) | quella dell'effetto |
+| occupa lo slot movimento | sì | **sì** ([D-028](../decisions/RT_PDR_00_Decision_Log.md)) | sì per `Leap`, che è nella fase Dash | no |
+| micro-step | sì | **policy** | **no** | sì |
+| attraversa le celle intermedie | sì | policy | **no** | sì |
+| usa `MoveBudget` | sì | no | no | **no** |
+| paga il costo del terreno | sì | no | no | **no** (ma vedi §3) |
+| collisioni | sì | policy | solo all'arrivo | sì |
+| hazard intermedi | sì | **policy** | **no** | **sì** |
+| trigger spaziali | sì | sì | solo all'arrivo | sì |
+| facing | derivato dal path | policy dell'azione | **policy dell'azione**, mai dal path (§2.1) | policy dell'effetto |
+| rumore | profilo | profilo | partenza e arrivo, **nessun passo** | evento di impatto |
+| auto-reroute | **mai** | mai | n/a | mai |
+| consuma l'azione della vittima | n/a | n/a | n/a | **mai** |
+| **stato nel codice** | implementato | implementato | **`LinearLeap`**, dentro il Dash · irraggiungibile dal roster ([#645](https://github.com/DegrassiAaron/refactor-tactics-main/issues/645)) | implementato |
 
-**Teleport non esiste in v0.1** — nessuna azione del catalogo dichiara quella famiglia. La colonna resta
-perché la regola serve *prima* che qualcuno lo scriva: è il caso in cui è più facile sbagliare, e la riga
-«non attraversa le celle intermedie» è quella che distingue un teletrasporto da un movimento veloce.
+### 2.1 Il `Transfer` esiste già, e vive dentro il Dash
 
-> 🔴 **Precisato il 2026-08-12: la semantica del trasferimento esiste già, dentro il Dash.**
-> `ERTMovementStyle::LinearLeap` — *«ignora unità e celle intermedie, conta solo dove si atterra»* — produce
-> `Result.Entered = { destinazione }` e nient'altro (`RTMovementActionLibrary.cpp`). Poiché
-> `ApplyTerrainOnEnterEffects` legge esattamente `Entered`, un `Action.Leap` **non prende gli hazard
-> intermedi**, non genera micro-step intermedi e collide solo all'arrivo: le tre righe che questa matrice
-> attribuisce al Teleport.
->
-> È il motivo per cui due righe della colonna **Dash** sono passate da «sì» a «policy»: erano vere di
-> `LinearDash`, `LinearCharge` e `LinearPass`, e **false di `LinearLeap`**.
->
-> Quindi la frase «un movimento molto veloce non è un teletrasporto» è giusta, ma **`Leap` non è un
-> movimento veloce**: è già un trasferimento, archiviato sotto Dash perché condivide fase e slot. Se sia
-> l'eccezione di una famiglia o il primo membro di un'altra è una domanda aperta —
-> [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) `MOV-1`.
->
+`ERTMovementStyle::LinearLeap` — *«ignora unità e celle intermedie, conta solo dove si atterra»* — produce
+`Result.Entered = { destinazione }` e nient'altro (`RTMovementActionLibrary.cpp`). Poiché
+`ApplyTerrainOnEnterEffects` legge **esattamente** `Entered`, un `Action.Leap` non prende gli hazard
+intermedi, non genera micro-step intermedi e collide solo all'arrivo: **le tre righe della colonna
+`Transfer`**. Il test che lo prova è `RefactorTactics.Actions.Leap.IgnoresIntermediateCells`
+(`RTMovementActionTests.cpp`).
+
+È il motivo per cui due righe della colonna **Dash** sono passate da «sì» a «policy»: erano vere di
+`LinearDash`, `LinearCharge` e `LinearPass`, e **false di `LinearLeap`**.
+
+Quindi la frase «un movimento molto veloce non è un teletrasporto» è giusta, ma **`Leap` non è un movimento
+veloce**: è un trasferimento, archiviato sotto Dash perché ne condivide **fase e slot** — non la semantica.
+Questa distinzione è [D-118](../decisions/RT_PDR_00_Decision_Log.md).
+
+> ⚠️ **Due righe della colonna `Transfer` sono regola preventiva, non descrizione.** `facing` e `rumore`
+> non hanno oggi un consumatore: `LinearLeap` è irraggiungibile dal roster, quindi nessuno le esercita.
+> Sono scritte perché sono i due punti in cui la scorciatoia è più tentante — un trasferimento **non ha un
+> ultimo passo**, quindi `FacingFromPath(...)` su di esso produce un orientamento inventato, e un rumore
+> «lungo il percorso» descriverebbe celle che non sono state attraversate.
+
+> 🔴 **Ciò che il codice ancora non separa.** `Transfer` è oggi una famiglia **semantica**: `LinearLeap` è
+> un valore di `ERTMovementStyle`, e quell'enum è **serializzato negli asset** (`FRTActionDef`). Il giorno
+> in cui un `Blink` dovrà scegliere una cella qualsiasi entro range — e non una delle **sei direzioni
+> lineari** che `LinearLeap` richiede — la separazione diventa una migrazione di formato, con
+> compatibilità, validator e test. [D-118](../decisions/RT_PDR_00_Decision_Log.md) non sceglie fra «valore
+> in coda» e «asse separato»: stabilisce che quella scelta appartiene a un checkpoint di **E39**, non a chi
+> scriverà il primo Blink.
+
 > ⚠️ Nulla di tutto questo si vede in partita: `Action.Leap` **non è nel kit di nessun eroe**, come
 > `Action.Dash` prima di lui ([#425](https://github.com/DegrassiAaron/refactor-tactics-main/issues/425)).
 
@@ -238,9 +272,15 @@ perché il documento sembra più recente.
 
 ## 7. Cosa resta fuori
 
-- **Teleport**: nessuna azione dichiara quella famiglia in v0.1, e le sue righe in matrice sono una regola
-  preventiva — ma tre di esse sono **già vere di `LinearLeap`** (§2). Se il trasferimento sia una famiglia o
-  una policy del Dash è `MOV-1`; se un Blink entri in v0.1 è `MOV-2`.
+- **Il contenuto di `Transfer` oltre `Leap`** — Blink, Swap, Recall, forced transfer: è **E39**, milestone
+  **v0.2** ([D-119](../decisions/RT_PDR_00_Decision_Log.md)). Questa pagina possiede la **regola** di cosa
+  fa un trasferimento; non possiede quali azioni lo useranno né quando. Le due domande che stavano qui
+  aperte — `MOV-1` e `MOV-2` — sono chiuse il 2026-08-12 da
+  [D-118](../decisions/RT_PDR_00_Decision_Log.md) e [D-119](../decisions/RT_PDR_00_Decision_Log.md).
+- **Il resolver dei trasferimenti simultanei**: due unità che si trasferiscono sulla stessa destinazione nello
+  stesso turno. Oggi non c'è conflitto da risolvere perché non c'è un trasferimento pianificabile;
+  l'invariante da rispettare quando ci sarà è già canone e non è nuova — *l'ordine di iterazione non decide
+  un esito* (`AGENTS.md`, invariante 3). È **CP 39.2**.
 - **Rinominare i reason code** sul vocabolario del kit: sarebbe una migrazione di formato del TurnLog con il
   corpus golden dentro, e non porta nulla al giocatore.
 - **Le 15 issue `MOV-CORE-*` del kit**: tre coincidono con checkpoint già aperti — `#162` (micro-step
