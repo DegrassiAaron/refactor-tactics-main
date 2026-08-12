@@ -174,6 +174,7 @@ namespace
 			{
 				Cell.MoveCost = Spec.MoveCost;
 			}
+			Cell.OccupancySurcharge = Spec.OccupancySurcharge; // 0 = cella larga, come una non elencata
 			Map->AddOrUpdateCell(Cell);
 		}
 		Map->SortCells();

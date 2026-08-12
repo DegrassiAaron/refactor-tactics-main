@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "Map/RTHexOccupancyLibrary.h"
+#include "RTOccupancyFixtures.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapAsset.h"
@@ -115,37 +116,12 @@ bool FRTOccupancyThresholdsAreReadTest::RunTest(const FString&)
 
 namespace
 {
-	constexpr float TestHexSize = 100.f;
-
-	/** Punto in coordinate locali di cella, dato un angolo in gradi e una frazione del raggio. */
-	FVector2D PointAt(double AngleDegrees, double RadiusFraction)
-	{
-		const double Rad = FMath::DegreesToRadians(AngleDegrees);
-		const double R = TestHexSize * RadiusFraction;
-		return FVector2D(R * FMath::Cos(Rad), R * FMath::Sin(Rad));
-	}
-
-	FRTOccupancyPolyline OpenLine(const TArray<FVector2D>& Pts)
-	{
-		FRTOccupancyPolyline L;
-		L.Points = Pts;
-		L.bClosed = false;
-		return L;
-	}
-
-	/** Quadrato chiuso centrato su `Centre`, mezzo-lato `Half`. */
-	FRTOccupancyPolyline ClosedSquare(const FVector2D& Centre, double Half)
-	{
-		FRTOccupancyPolyline L;
-		L.Points = {
-			FVector2D(Centre.X - Half, Centre.Y - Half),
-			FVector2D(Centre.X + Half, Centre.Y - Half),
-			FVector2D(Centre.X + Half, Centre.Y + Half),
-			FVector2D(Centre.X - Half, Centre.Y + Half)
-		};
-		L.bClosed = true;
-		return L;
-	}
+	// Le quattro fixture e i loro costruttori vivono in `RTOccupancyFixtures.h`: le usano anche #620 e
+	// #621, e riscriverle qui le farebbe divergere in silenzio.
+	using RTOccupancyFixtures::PointAt;
+	using RTOccupancyFixtures::OpenLine;
+	using RTOccupancyFixtures::ClosedSquare;
+	constexpr float TestHexSize = RTOccupancyFixtures::HexSize;
 }
 
 /**
@@ -188,9 +164,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOccupancySingleSegmentTest,
 bool FRTOccupancySingleSegmentTest::RunTest(const FString&)
 {
 	// Il settore 0 copre gli angoli [-30, 0). Entrambi gli estremi ci stanno dentro con margine.
-	const TArray<FRTOccupancyPolyline> Geometry = {
-		OpenLine({ PointAt(-20.0, 0.3), PointAt(-10.0, 0.6) })
-	};
+	const TArray<FRTOccupancyPolyline> Geometry = RTOccupancyFixtures::SingleSolidSegment();
 
 	const FRTOccupancyMask M = URTHexOccupancyLibrary::ComputeMask(Geometry, TestHexSize);
 	TestEqual(TEXT("solo il settore 0"), M.Sectors, 1 << 0);
@@ -226,9 +200,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOccupancyCornerTest,
 bool FRTOccupancyCornerTest::RunTest(const FString&)
 {
 	// -20 sta nel settore 0 ([-30,0)), 10 nel settore 1 ([0,30)), 40 nel settore 2 ([30,60)).
-	const TArray<FRTOccupancyPolyline> Geometry = {
-		OpenLine({ PointAt(-20.0, 0.5), PointAt(10.0, 0.5), PointAt(40.0, 0.5) })
-	};
+	const TArray<FRTOccupancyPolyline> Geometry = RTOccupancyFixtures::Corner();
 
 	const FRTOccupancyMask M = URTHexOccupancyLibrary::ComputeMask(Geometry, TestHexSize);
 	TestEqual(TEXT("settori 0, 1 e 2"), M.Sectors, (1 << 0) | (1 << 1) | (1 << 2));
@@ -242,7 +214,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOccupancySolidFootprintTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTOccupancySolidFootprintTest::RunTest(const FString&)
 {
-	const TArray<FRTOccupancyPolyline> Geometry = { ClosedSquare(FVector2D::ZeroVector, 20.0) };
+	const TArray<FRTOccupancyPolyline> Geometry = RTOccupancyFixtures::SolidFootprint();
 
 	const FRTOccupancyMask M = URTHexOccupancyLibrary::ComputeMask(Geometry, TestHexSize);
 	TestTrue(TEXT("il centro e' bloccato"), M.bCoreBlocked);
@@ -264,7 +236,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOccupancyVoidFootprintTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTOccupancyVoidFootprintTest::RunTest(const FString&)
 {
-	const TArray<FRTOccupancyPolyline> Geometry = { ClosedSquare(PointAt(-15.0, 0.6), 5.0) };
+	const TArray<FRTOccupancyPolyline> Geometry = RTOccupancyFixtures::VoidFootprint();
 
 	const FRTOccupancyMask M = URTHexOccupancyLibrary::ComputeMask(Geometry, TestHexSize);
 	TestFalse(TEXT("il centro NON e' bloccato"), M.bCoreBlocked);

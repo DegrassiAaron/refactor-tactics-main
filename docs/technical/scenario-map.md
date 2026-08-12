@@ -51,12 +51,12 @@ scegliendo lo scenario e premendo Play, una voce C richiede di allestire, clicca
 
 | Classe | Quanti | Dove |
 |---|---:|---|
-| **A** — automatico | **27** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · `Spec.Predictive.WhiffOnEmptyCell` · i tre `EnvironmentalActionOwner` · `RT_Showcase_Relay_v01` |
+| **A** — automatico | **28** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · `Spec.Predictive.WhiffOnEmptyCell` · i tre `EnvironmentalActionOwner` · `RT_Showcase_Relay_v01` |
 | **B** — automatico + occhio | **21** scenari ↔ **21** voci `PIE-VIS-*` | `Scenarios/Visual/` |
 | **C** — solo umano | **95** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima |
-| **D** — dichiarato | **12** scenari `Spec.*` ancora `BLOCKED` · **52** pianificati · **4** mai scritti *(i pianificati rimisurati il 2026-08-12 **sull'albero mergiato**, su `scenariomap.shortlist.md`, che è generato; questa riga diceva **38** e §6.2 diceva **47** — due numeri vecchi in modi diversi nello stesso documento. ⚠️ Rimisurati di nuovo il 2026-08-12 con l'aggiunta di `Spec.Map.ConstrainedCellCostsMore`: il generato ne contava **51** prima, cioè questa riga era ferma a 53 ed era già indietro di due. Un totale scritto a mano non ha un lato giusto prima del merge, e non resta giusto dopo: si rilegge dal generato)* | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
+| **D** — dichiarato | **12** scenari `Spec.*` ancora `BLOCKED` · **51** pianificati · **4** mai scritti *(i pianificati rimisurati il 2026-08-12 **sull'albero mergiato**, su `scenariomap.shortlist.md`, che è generato; questa riga diceva **38** e §6.2 diceva **47** — due numeri vecchi in modi diversi nello stesso documento. ⚠️ Rimisurati **due volte** il 2026-08-12: prima a **52**, quando `Spec.Map.ConstrainedCellCostsMore` era solo `planned` — e questa riga diceva 53, già indietro di due; poi a **51**, quando quel piano è diventato un file e la classe **A** è salita a 28. È il meccanismo del corpus che funziona: un `planned` che si accende esce da qui ed entra là. Un totale scritto a mano non ha un lato giusto prima del merge, e non resta giusto dopo: si rilegge dal generato)* | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
 
-Totale corpus versionato: **60** scenari (`A 27 + B 21 + D-bloccati 12`). Totale registro PIE: **117** voci
+Totale corpus versionato: **61** scenari (`A 28 + B 21 + D-bloccati 12`). Totale registro PIE: **117** voci
 (`B 21 + C 95 + 1 fuori classe`).
 
 > ⚠️ **Rimisurato il 2026-08-10, e il conteggio era rotto in due punti diversi.** La riga `A` diceva già
@@ -302,7 +302,7 @@ I **nove** rimasti (l'elenco misurato è in
 > copre `Action.Ignite` né `Action.ModifyArc`, che per [D-046](../decisions/RT_PDR_00_Decision_Log.md)
 > restano senza owner in v0.1.
 
-### 6.2 Pianificati nel Feature Registry — non ancora scritti · **52**
+### 6.2 Pianificati nel Feature Registry — non ancora scritti · **51**
 
 Dichiarati in `feature-registry.yaml` sotto `scenarios: {planned: [...]}`, il che li fa comparire come
 **warning** in `feature_registry.py validate`. Il warning è il meccanismo: un piano che non diventa un file

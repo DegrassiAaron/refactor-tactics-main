@@ -4592,14 +4592,14 @@ features:
     kind: tooling
     release: v0.1
     priority: P2
-    status: DESIGNED
+    status: IMPLEMENTING
     gates:
       spec: partial
-      data: todo
-      runtime: todo
+      data: done
+      runtime: partial
       log_debug: todo
-      automation: todo
-      scenario: todo
+      automation: done
+      scenario: done
       ui_wiki: todo
       packaged: na
       network_privacy: na
@@ -4618,13 +4618,13 @@ features:
     owner_specs:
       - docs/roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md
     issues: [619, 620, 621]
-    tests: []
+    tests:
+      - RefactorTactics.HexOccupancy.*
     scenarios:
       # L'unico scenario che questa feature produce: le quattro fixture di geometria NON sono
-      # scenari (vedi note). Dichiarato `planned` perche' il warning di `validate` e' il meccanismo
-      # che tiene visibile un piano finche' non diventa un file (`scenario-map.md` §6.2).
-      - planned:
-          - Spec.Map.ConstrainedCellCostsMore
+      # scenari (`FRTScenarioCell` non sa esprimere un segmento) e vivono in
+      # `Source/RefactorTactics/Tests/RTOccupancyFixtures.h`, da dove le useranno anche #620 e #621.
+      - Spec.Map.ConstrainedCellCostsMore
     wiki_refs: []
     notes: >
       Il modello: un segmento quantizzato investe delle celle, l'occupazione si misura su **dodici

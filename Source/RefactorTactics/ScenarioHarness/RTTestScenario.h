@@ -134,6 +134,17 @@ struct FRTScenarioCell
 	/** Costo di traversata. 0 = non specificato, resta il default della cella (1). */
 	UPROPERTY()
 	int32 MoveCost = 0;
+
+	/**
+	 * Sovrapprezzo di occupazione (#619): quanto costa in PIU' entrare, perche' la geometria stringe la cella.
+	 * Si somma a `MoveCost`, non lo sostituisce.
+	 *
+	 * Esiste qui perche' altrimenti nessuno scenario saprebbe esprimere una cella STRETTA, e l'effetto di
+	 * `Constrained` sarebbe verificabile solo da un test C++ — cioe' mai in una partita vera.
+	 * `0` significa «cella larga», che e' anche il default di una cella non elencata.
+	 */
+	UPROPERTY()
+	int32 OccupancySurcharge = 0;
 };
 
 /** Un'unita' schierata dallo scenario. */
