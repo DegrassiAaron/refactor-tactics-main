@@ -1478,9 +1478,10 @@ features:
     kind: gameplay
     release: v0.2
     priority: P2
-    # BLOCKED, non IDEA: il modello IN VIGORE esiste, gira ed e' testato (`ERTActionSlot`, D-028). Cio' che
-    # e' bloccato non e' la costruzione ma la DECISIONE se sostituirlo. `IDEA` direbbe «non ci ha ancora
-    # pensato nessuno», che e' falso in entrambe le direzioni.
+    # `DEFERRED`, non `IDEA` ne' `BLOCKED`: la decisione e' stata PRESA, e la risposta e' no (D-114).
+    # `IDEA` direbbe «non ci ha ancora pensato nessuno» e `BLOCKED` «aspetta qualcuno»: entrambe false.
+    # La riga resta perche' il prossimo kit riproporra' l'ActionCapacity, e trovare qui la decisione con la
+    # sua ragione costa meno che ridiscuterla.
     status: DEFERRED
     gates:
       spec: partial
@@ -4125,6 +4126,9 @@ features:
       - RefactorTactics.HexBotPlay.PlansOnPartialKnowledge
       - RefactorTactics.HexBotPlay.SeeksContactWithoutKnowledge
       - RefactorTactics.HexBotPlay.ActsOnLastKnownCell
+      - RefactorTactics.HexBot.ConsidersExposedRearArc
+      - RefactorTactics.HexBot.RearBonusMatchesBypassedReduction
+      - RefactorTactics.HexBot.ExposureIsZeroWithoutProtection
     scenarios:
       - Spec.Bot.HiddenEnemyFairness
       - Spec.Bot.PlansOnPartialKnowledge
@@ -4156,6 +4160,25 @@ features:
       scenario misurava la catena e non il pianificatore. Corretto aggiungendo la premessa
       `Combat/Hit = 1`, che la mutazione ora prende. Il controllo diretto sul pianificatore resta il test
       C++, che guarda `PlannedAttackTarget` invece dell'esito.
+      **Orientamento nello scoring, 2026-08-12 (#160).** L'ultima voce di CP 13.5 che mancava: il bot valuta
+      «da dove e' visto e da dove puo' essere colpito». Il termine non porta un peso proprio — vale
+      `WDamage x riduzione scavalcata`, cioe' il danno che la direzione aggiunge, e
+      `RearBonusMatchesBypassedReduction` lo pinna contro il catalogo invece che contro una costante. La
+      riduzione si CHIEDE a `EffectiveCoverReduction`, che contiene gia' la logica direzionale.
+      ⚠️ **Guard resta fuori deliberatamente**: anche lei e' annullata da un colpo posteriore, ma in
+      pianificazione «il bersaglio si guardera'» e' un INTENTO dell'altra squadra — contarlo renderebbe il bot
+      piu' informato del giocatore, l'opposto di cio' che questa feature garantisce.
+      ⚠️ **Il verso difensivo vale zero quasi sempre**, e il suo test lo asserisce
+      (`ExposureIsZeroWithoutProtection`): `RearHitBypassedCover` ANNULLA una riduzione, e senza copertura non
+      c'e' niente da annullare. Diventera' rosso — cioe' promuovibile — il giorno in cui il bot avra' una
+      protezione propria da mettere in gioco.
+      ⚠️ **La sovrastima non e' ancora misurabile**, ed e' un limite dichiarato: il bot conta il bonus sul
+      facing d'inizio turno, ma chi attacca ruota verso il proprio bersaglio PRIMA che si valuti l'arco
+      (`TargetingReoriented` precede il controllo direzionale), quindi nel duello il fianco sparisce. Il tasso
+      di realizzo si leggerebbe dal TurnLog, ma `RearHitBypassedCover` e' emesso **solo per la Guard**: la
+      copertura annullata non lascia traccia, perche' `EffectiveCoverReduction` e' pura. Serve un campo su
+      `FRTHexAttackHit` — e una voce nuova nel TurnLog cambia gli hash dei golden replay, quindi e' lavoro
+      proprio e non di contorno.
       ⚠️ **Il gate e' `automation`, e ha una forma precisa**: `HiddenEnemyFairness` mette la stessa
       `FRTTeamKnowledge` davanti a due stati autorevoli diversi e pretende lo **stesso** Intent.
       Verificato per mutazione **due volte**, e la seconda ha chiuso un buco trovato in code review:

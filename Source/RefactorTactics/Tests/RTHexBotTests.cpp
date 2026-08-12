@@ -1,6 +1,7 @@
 #include "Misc/AutomationTest.h"
 #include "Ability/RTActionData.h"
 #include "Bot/RTHexBotLibrary.h"
+#include "Combat/RTCombatLibrary.h" // LowCoverDamageReduction: il bonus direzionale si confronta col catalogo
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
@@ -572,6 +573,150 @@ bool FRTHexBotKiteCellLegalTest::RunTest(const FString&)
 	const FRTHexSnapshot StuckSnap = URTHexSimLibrary::MakeSnapshot(M, Stuck);
 	TestTrue(TEXT("senza budget resta dov'e'"),
 		URTHexBotLibrary::BestKiteCell(StuckSnap, 1, FRTCellId(1, 0)) == FRTCellId(0, 0));
+	return true;
+}
+
+
+// ---------------------------------------------------------------------------------------------------------
+// CP 13.5 / ADR-0005 — l'ORIENTAMENTO nel punteggio delle candidate.
+//
+// I tre test qui sotto isolano il facing tenendo TUTTO il resto identico: due contesti che differiscono per
+// il solo orientamento del bersaglio, e lo stesso piano. E' l'unico allestimento in cui una differenza di
+// punteggio non possa venire da altro — distanza, minaccia e danno sono gli stessi per costruzione.
+// ---------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** Copertura bassa sul bordo indicato: la stessa forma che usano i test di `RTHexCoverTests`. */
+	void SetBotLowCover(URTHexMapAsset* Map, const FRTCellId& Id, ERTHexDirection Edge)
+	{
+		const FRTHexCellData* Existing = Map->FindCell(Id);
+		FRTHexCellData Data = Existing ? *Existing : FRTHexCellData(Id);
+		Data.Covers.Add(FRTHexCover(Edge, ERTHexCoverType::Low, FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low)));
+		Map->AddOrUpdateCell(Data);
+		Map->SortCells();
+	}
+
+	/** Bot in `Origin`, un solo nemico in `Enemy` con l'orientamento dato. Nessuna minaccia: gittata 0. */
+	FRTHexBotContext MakeFacingCtx(const FRTCellId& Origin, const FRTCellId& Enemy, ERTHexDirection EnemyFacing)
+	{
+		FRTHexBotContext Ctx;
+		Ctx.Origin = Origin;
+		Ctx.SelfFacing = ERTHexDirection::E;
+		Ctx.Enemies.Add(Enemy);
+		Ctx.EnemyRanges.Add(0);
+		Ctx.EnemyHealth.Add(1000); // alto: nessun colpo letale, cosi' `WKill` non entra nel confronto
+		Ctx.EnemyFacings.Add(EnemyFacing);
+		Ctx.AttackRange = 4;
+		Ctx.AttackDamage = 20;
+		return Ctx;
+	}
+
+	/** Attacco singolo sul nemico 0, sferrato restando fermi in `Origin`. */
+	FRTHexBotPlan MakeFacingPlan(const FRTCellId& Origin)
+	{
+		FRTHexBotPlan Plan;
+		Plan.DestCell = Origin;
+		Plan.FromCell = Origin; // fermo: il facing non deriva dal movimento
+		Plan.bHasAttack = true;
+		Plan.TargetIndex = 0;
+		Plan.AttackDamage = 20;
+		Plan.TargetHealth = 1000;
+		Plan.Shape = ERTAbilityShape::Single;
+		Plan.RangeCells = 4;
+		return Plan;
+	}
+}
+
+/**
+ * Il bot preferisce colpire il lato SCOPERTO: fra due bersagli identici, quello che gli offre il fianco vale
+ * di piu', perche' la sua copertura non lo protegge da li' (CP 16.2).
+ *
+ * Il nemico sta a EST del bot e ha una copertura sul bordo OVEST, cioe' quella rivolta al bot. Se guarda a
+ * ovest il colpo e' frontale e la copertura tiene; se guarda a est ha voltato le spalle e la copertura non
+ * vale piu' niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotExposedRearArcTest,
+	"RefactorTactics.HexBot.ConsidersExposedRearArc",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotExposedRearArcTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeBotMap(4);
+	const FRTCellId Origin(0, 0);
+	const FRTCellId Enemy(2, 0);
+	SetBotLowCover(M, Enemy, ERTHexDirection::W); // il lato da cui il bot spara
+
+	const int32 Facing = URTHexBotLibrary::ScorePlan(M, MakeFacingPlan(Origin),
+		MakeFacingCtx(Origin, Enemy, ERTHexDirection::W)); // guarda il bot: coperto
+	const int32 Exposed = URTHexBotLibrary::ScorePlan(M, MakeFacingPlan(Origin),
+		MakeFacingCtx(Origin, Enemy, ERTHexDirection::E)); // gli volta le spalle: scoperto
+
+	TestTrue(TEXT("colpire il bersaglio che offre il fianco vale piu' che colpirlo di fronte"), Exposed > Facing);
+	return true;
+}
+
+/**
+ * Il termine direzionale vale ESATTAMENTE il danno che la direzione aggiunge: `WDamage x riduzione scavalcata`.
+ *
+ * E' il test che impedisce al termine di diventare un peso libero. Un peso nuovo, in questo modello, si tara
+ * contro una scala che `#149` ha gia' misurato come rotta — e la lezione di quella issue e' che non esiste un
+ * valore che funzioni. Qui non c'e' niente da tarare: il numero viene dal catalogo di combattimento, e se
+ * qualcuno lo sostituisse con una costante questo test cadrebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotRearBonusValueTest,
+	"RefactorTactics.HexBot.RearBonusMatchesBypassedReduction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotRearBonusValueTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeBotMap(4);
+	const FRTCellId Origin(0, 0);
+	const FRTCellId Enemy(2, 0);
+	SetBotLowCover(M, Enemy, ERTHexDirection::W);
+
+	const FRTHexBotContext Covered = MakeFacingCtx(Origin, Enemy, ERTHexDirection::W);
+	const int32 Facing = URTHexBotLibrary::ScorePlan(M, MakeFacingPlan(Origin), Covered);
+	const int32 Exposed = URTHexBotLibrary::ScorePlan(M, MakeFacingPlan(Origin),
+		MakeFacingCtx(Origin, Enemy, ERTHexDirection::E));
+
+	TestEqual(TEXT("il bonus e' WDamage x la riduzione annullata, non un numero suo"),
+		Exposed - Facing, Covered.WDamage * URTCombatLibrary::LowCoverDamageReduction);
+	return true;
+}
+
+/**
+ * Senza una protezione da scavalcare, l'orientamento non muove il punteggio di un punto.
+ *
+ * ⚠️ **Asserisce uno ZERO che oggi e' la norma**, e per questo va letto insieme al suo motivo:
+ * `RearHitBypassedCover` ANNULLA una riduzione, e dove non c'e' riduzione non c'e' niente da annullare. Il
+ * giorno in cui il bot guadagnasse una protezione propria da mettere in gioco, questo test diventerebbe rosso
+ * e chiederebbe di essere promosso — che e' esattamente il suo mestiere. Un residuo asserito non sparisce.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotExposureZeroTest,
+	"RefactorTactics.HexBot.ExposureIsZeroWithoutProtection",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotExposureZeroTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeBotMap(4); // arena liscia: nessuna copertura da nessuna parte
+	const FRTCellId Origin(0, 0);
+	const FRTCellId Enemy(2, 0);
+
+	const int32 Facing = URTHexBotLibrary::ScorePlan(M, MakeFacingPlan(Origin),
+		MakeFacingCtx(Origin, Enemy, ERTHexDirection::W));
+	const int32 Exposed = URTHexBotLibrary::ScorePlan(M, MakeFacingPlan(Origin),
+		MakeFacingCtx(Origin, Enemy, ERTHexDirection::E));
+
+	TestEqual(TEXT("senza copertura l'orientamento non cambia il punteggio"), Exposed, Facing);
+
+	// E il verso difensivo, dallo stesso allestimento: un nemico che minaccia davvero la cella, ma nessuna
+	// copertura da perdere. La penalita' resta quella di sempre, `WThreat`, senza aggiunte direzionali.
+	FRTHexBotContext Threat = MakeFacingCtx(Origin, Enemy, ERTHexDirection::W);
+	Threat.EnemyRanges[0] = 4; // ora ci arriva
+	FRTHexBotContext ThreatExposed = Threat;
+	ThreatExposed.EnemyFacings[0] = ERTHexDirection::E;
+
+	TestEqual(TEXT("nemmeno sul lato difensivo, finche' non c'e' copertura da perdere"),
+		URTHexBotLibrary::ScorePlan(M, MakeFacingPlan(Origin), ThreatExposed),
+		URTHexBotLibrary::ScorePlan(M, MakeFacingPlan(Origin), Threat));
 	return true;
 }
 
