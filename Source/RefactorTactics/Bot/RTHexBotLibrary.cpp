@@ -202,6 +202,10 @@ FRTHexBotPlan URTHexBotLibrary::ChooseBestPlan(const URTHexMapAsset* Map, const 
 	// Fallback: nessuna candidata -> resta a Origin (c'e' sempre un piano valido).
 	FRTHexBotPlan Best;
 	Best.DestCell = Context.Origin;
+	// E da li' ci si arriva restando fermi: senza questa riga `FromCell` resterebbe `(0,0,0)` di default, e chi
+	// derivasse il facing dal piano di ripiego leggerebbe uno spostamento dall'origine degli assi che non e'
+	// mai avvenuto. Oggi nessuno lo fa — il fallback non passa da `ScorePlan` — ma il campo sarebbe gia' falso.
+	Best.FromCell = Context.Origin;
 	if (Candidates.Num() == 0)
 	{
 		return Best;
