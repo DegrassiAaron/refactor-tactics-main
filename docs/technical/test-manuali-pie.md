@@ -144,9 +144,14 @@ dichiarate invece di gonfiare una riga a caso, perché una somma che torna con s
 di sembrare verificati senza esserlo (vedi la nota qui sopra). Chi le ha scritte sa dove vanno.
 
 **Nove delle diciannove sono nel subset `RELEASE-V01`** — `PIE-HEXPLAY-1/2/3/8`, `PIE-V01-HUD`,
-`PIE-V01-LOG`, `PIE-V01-INTENT`, `PIE-V01-ROSTER`, `PIE-FACING-1` — e questa è la conseguenza che vale la pena
-vedere: **il gate G9 dipende per metà da voci che nessuna seduta pianifica**. Assegnarle vale più che
-eseguirne una a caso.
+`PIE-V01-LOG`, `PIE-V01-INTENT`, `PIE-V01-ROSTER`, `PIE-FACING-1`.
+
+> ⚠️ **Corretto il 2026-08-12.** Questa riga diceva che «**il gate G9 dipende per metà da voci che nessuna
+> seduta pianifica**» e prescriveva di assegnarle. **Misurato su `editor-sessions.yaml`, tutte e nove hanno
+> una seduta**: `PIE-HEXPLAY-1` → U2 · `-2/-3` → U3 · `-8` e `PIE-FACING-1` → U6 · `PIE-V01-ROSTER` → U11 ·
+> `PIE-V01-HUD`, `-INTENT`, `-LOG` → U15. L'affermazione era vera quando è stata scritta e non è stata
+> rimisurata quando le sedute sono nate: prescriveva un lavoro **già fatto**, e chi la leggeva assegnava
+> voci invece di eseguirle. Ciò che resta di G9 è **eseguirle**, non collocarle.
 
 > ⚠️ **Nota di metodo.** Fino al 2026-08-08 questa riga diceva «le **31** aperte in sei gruppi», con
 > una somma «verificata» di `2+9+9+4+4+1+2 = 31`, mentre poche righe sopra il conteggio **misurato** ne
@@ -197,10 +202,16 @@ awk -F'|' '/RELEASE-V01/ && /^\| \*\*PIE-/ {s=$(NF-1);
 
 Motivazione voce per voce e stato aggregato: [`scenario-map.md`](scenario-map.md) §8.
 
-**Nove delle diciassette non stanno in nessuna seduta** — `PIE-HEXPLAY-1/2/3/8`, `PIE-V01-HUD`,
-`PIE-V01-LOG`, `PIE-V01-INTENT`, `PIE-V01-ROSTER`, `PIE-FACING-1` — e per la regola già scritta qui sotto
-(«una voce che non sta in una seduta non viene eseguita mai») è la cosa da sistemare per prima: **assegnarle
-a una seduta vale più che eseguirne una a caso**.
+**Le nove del subset stanno tutte in una seduta** — `PIE-HEXPLAY-1` in U2, `-2/-3` in U3, `-8` e
+`PIE-FACING-1` in U6, `PIE-V01-ROSTER` in U11, `PIE-V01-HUD`, `-INTENT` e `-LOG` in U15. La regola scritta
+qui sotto («una voce che non sta in una seduta non viene eseguita mai») **è soddisfatta per il subset**:
+quello che manca è l'esecuzione, non l'assegnazione.
+
+> ⚠️ **Corretto il 2026-08-12**, misurando `verifies:` in `editor-sessions.yaml`. Questa riga diceva il
+> contrario — «nove delle diciassette **non** stanno in nessuna seduta» — e ne traeva la priorità
+> sbagliata. Le 55 voci del registro davvero orfane esistono e sono contate in
+> [`../roadmap/editormap.shortlist.md`](../roadmap/editormap.shortlist.md), ma **nessuna** di esse è nel
+> subset `RELEASE-V01`.
 
 `PIE-FACING-1` è entrata nel subset il 2026-08-09, con la chiusura di **E16**, e non per completezza: dal
 CP 16.2 l'emisfero posteriore è **scoperto**, quindi il facing decide il danno. Se l'orientamento che si vede
@@ -319,7 +330,7 @@ leggibilità minima nel senso più stretto, non presentazione.
 | **PIE-V01-DOOR** | Porta chiusa durante il turno | percorso che attraversa una porta chiusa da un'azione nello stesso turno | Il grafo è ricostruito: l'unità **si ferma** davanti alla porta (`Fallback.Stop`), nessun path fantasma attraverso la porta chiusa | 🟡 **coperto headless 2026-08-08** da `RefactorTactics.Structures.Door.ClosingStopsMovement`, che gira un **turno vero** (porta chiusa nel Blast, percorso già pianificato, unità ferma davanti al varco e `BlockedByTopology` nel TurnLog). Al PIE resta il visivo: che l'unità si **fermi a schermo** senza attraversare l'anta e che il combat log dica il motivo. ⚠️ Serve una mappa con una porta: nessun `.uasset` ne disegna ancora una (limite dichiarato di CP 9.3) |
 | **PIE-V01-REPLAY** | Replay dello stesso turno | `rt.Debug.DumpTurnLog` + `rt.Debug.VerifyReplay` | Rieseguendo lo stesso turno con lo stesso seed, TurnLog e checksum sono **identici**; il comando non segnala divergenze | 🟡 **coperto headless** da `RefactorTactics.HexSim.ReplayDivergenceZero` (stesso snapshot → stesso TurnLog e stesso hash). ⏳ al PIE resta il giro con i comandi `rt.Debug.DumpTurnLog` / `rt.Debug.VerifyReplay`, che non esistono ancora (CP 11.4) |
 | **PIE-V01-ROSTER** `RELEASE-V01` | Roster dei 4 eroi | `URTHeroData` per Flux, Riva, Bastion, Vektor | Le 4 unità in campo hanno statistiche distinte (90/95/120/**90** HP, 5/5/4/6 MP — Vektor sceso da 100 con D-069, `#131`); il bot gestisce MP diversi senza proporre mosse illegali; asset mancante = fallback al cilindro | 🟡 **coperto headless 2026-08-07** da `Heroes.StatsFromData`, `Heroes.SpawnFromData`, `Heroes.SpawnFailsClosedWithoutData` (fallback), `Heroes.RosterIsBalanced` e i quattro `Heroes.<Eroe>.MatchesCatalog`. ⏳ al PIE resta il **giudizio in partita**: che i quattro si sentano diversi da giocare, e che il bot con 4 MP non proponga mosse da 6 |
-| **PIE-V01-HUD** `RELEASE-V01` | HUD di partita completo | partita v0.1 avviata | Barre HP/scudo/energia, timer, fase, **round corrente su `RoundLimit`** (il limite letto dal formato, non scritto a mano nel widget), slot occupati (movimento/principale/reazione) e cooldown residui, tutti a schermo e coerenti col simulatore | ⏳ |
+| **PIE-V01-HUD** `RELEASE-V01` | HUD di partita completo | partita v0.1 avviata | Barre HP/scudo/energia, timer, fase, **round corrente su `RoundLimit`** (il limite letto dal formato, non scritto a mano nel widget), slot occupati (movimento/principale/reazione) e cooldown residui, tutti a schermo e coerenti col simulatore | ⏳ **ma il punto di partenza è stato misurato il 2026-08-12**: `ARTHUD` (Canvas C++, `RTHUD.cpp`) disegna già barre, timer, fase, cooldown (`:510`) e il **valore** del limite di round letto dal formato (`GetMatchRules().RoundLimit`, `:403`). ⚠️ **Il numero è conforme, la parola no**: la riga stampa `"Turno %d/%d"` (`:405`) mentre il DoD prescrive **round**, e manca la **terna** movimento/principale/reazione — sono i due delta di CP 11.1. La parte calcolabile va ai test headless di quel checkpoint, non a questa voce: qui resta il **giudizio** — leggibilità, ingombro, coerenza durante il playback. ⚠️ Questa voce **resta sul Canvas**: lo Screen HUD §4.1 di CP 11.7 (`#613`) avrà una voce PIE propria, scritta insieme ai widget. Estenderla qui legherebbe una feature già `RELEASE_READY` a un checkpoint non iniziato |
 | **PIE-V01-INTENT** `RELEASE-V01` | Intenti alleati e certezza | due unità alleate in pianificazione | Gli intenti alleati mostrano i tre livelli **confermato / previsto / incerto**; **nessun** intento avversario è visibile in alcuna forma | 🟡 **metà coperta 2026-08-07**: la **privacy** sì — `Reactions.IntentNotVisibleToEnemy` e `IntentViewSkipsDeadAndKeepsOrder` (nessun intento avversario, ordine stabile). ⏳ resta l'altra metà, i **tre livelli di certezza**, che appartengono a E11 CP 11.2 e non esistono ancora |
 | **PIE-V01-LOG** `RELEASE-V01` | Combat log con reason code | un turno con un fallback e una modifica ambientale | Ogni voce riporta `ActionId`, priorità, coordinate assiali `(q,r,L)` e `ValidationResult`; i fallback e le modifiche ambientali sono espliciti | 🟡 **parzialmente coperto 2026-08-07** da `Actions.Fallback.LoggedOutcome`, `Fallback.CancelIsLoggedInMatch`, `Reactions.NotTriggeredIsLogged`, `Terrain.Status.LogMatchesState` (ciò che accade **finisce** nel log). ⏳ resta il **formato**: `ActionId`, priorità e coordinate assiali nella voce, e le modifiche ambientali — che dipendono da E8 CP 8.3/8.4, assenti |
 | **PIE-REPLAY-ARCHIVE** | L'archivio replay di una partita giocata davvero | una partita in PIE portata fino all'esito, con `rt.Replay.Record` a `1` (default) | Al termine esiste `Saved/Replays/<MatchId>/` con `match.rtmanifest` e una traccia `turn-NNN.rtlog` **per turno giocato**; il manifest è chiuso, l'esito coincide con quello mostrato a schermo e `FinalStateHash` **non è `0`**. `Saved/Replays/history.rtindex` elenca la partita con la sua durata. ⚠️ Poi: chiudere PIE a metà di una seconda partita e verificare che quell'archivio esista con il manifest **non** chiuso — è il caso per cui il recorder scrive durante il match | ⏳ **non eseguita** — il percorso è coperto headless da `Replay.Producer.*` (5 test, 2026-08-10), che però passa da `ARTTurnManager` costruito nel test: quello che resta da vedere è l'avvio dal `GameMode` reale e la scrittura sotto `Saved/` di un processo vero (gate `packaged` di `RT-FEAT-REPLAY-ARCHIVE`) |

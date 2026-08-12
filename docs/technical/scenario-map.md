@@ -510,7 +510,7 @@ producono **numeri di playtest** (G11 chiede di *avere* i numeri, non di centrar
 | `PIE-HEXPLAY-10` | **partita completa fino alla vittoria** — è G10 | ⏳ |
 | `PIE-CAM-START` | la partita si apre sulla propria squadra | ✅ |
 | `PIE-V01-MATCHEND` | **fine partita a tre vie**, a schermo, e `R` riavvia | ⏳ |
-| `PIE-V01-HUD` | HUD di partita completo, `Turno n/RoundLimit` dal formato | ⏳ |
+| `PIE-V01-HUD` | HUD di partita completo. Il **valore** del limite di round viene già dal formato (`RTHUD.cpp:403`), la **parola** no — `:405` stampa `"Turno"`, il DoD prescrive *round*. Resta sul Canvas: lo Screen HUD §4.1 di CP 11.7 (`#613`) avrà una voce propria | ⏳ |
 | `PIE-V01-LOG` | combat log con reason code leggibili | 🟡 |
 | `PIE-V01-INTENT` | intenti alleati e **nessun** intento avversario visibile | 🟡 |
 | `PIE-V01-ROSTER` | i quattro eroi si sentono diversi da giocare | 🟡 |
@@ -526,12 +526,16 @@ residuo di una voce che c'è già, e il criterio conta le capacità, non i difet
 playtest dice che l'avviso che svanisce rende la voce padre inaffidabile, allora entra: sarebbe una revisione
 del criterio, non una svista.
 
-Otto delle diciassette stanno già in una seduta dichiarata del registro (la **D**, partita su hex, e la **G**,
-eseguibile subito). **Nove non stanno in nessuna**, e non è un dettaglio organizzativo: il registro lo dice da
-sé — «una voce che non sta in una seduta non viene eseguita mai». Sono `PIE-HEXPLAY-1/2/3/8`, `PIE-V01-HUD`,
-`PIE-V01-LOG`, `PIE-V01-INTENT`, `PIE-V01-ROSTER`, `PIE-FACING-1`: le prime quattro perché sono 🟡 e le sedute
-raggruppano le ⏳, le altre perché appartengono a E11 ed E16, che non hanno una seduta propria. **Assegnarle a
-una seduta è il prossimo passo naturale di G9**, e vale più di eseguirne una a caso.
+**Tutte e diciassette stanno in una seduta dichiarata del registro.** Le nove del subset `RELEASE-V01`:
+`PIE-HEXPLAY-1` in **U2**, `-2` e `-3` in **U3**, `-8` e `PIE-FACING-1` in **U6**, `PIE-V01-ROSTER` in
+**U11**, `PIE-V01-HUD`, `-INTENT` e `-LOG` in **U15**.
+
+> ⚠️ **Corretto il 2026-08-12.** Questo paragrafo diceva «**nove non stanno in nessuna**» e concludeva che
+> «assegnarle a una seduta è il prossimo passo naturale di G9». Misurando i campi `verifies:` di
+> `editor-sessions.yaml`, l'assegnazione **c'è per tutte e nove**: l'affermazione era vera quando è stata
+> scritta e nessuno l'ha rimisurata dopo che U11 e U15 sono nate. Il prossimo passo di G9 è **eseguirle**.
+> Il conteggio delle voci davvero orfane — 55, nessuna nel subset — vive in
+> [`../roadmap/editormap.shortlist.md`](../roadmap/editormap.shortlist.md), che è coerente con questa misura.
 
 `PIE-FACING-1` è entrata col merge di E16, e non per completezza: dal CP 16.2 l'emisfero posteriore è
 **scoperto**, quindi il facing decide il danno. Un orientamento visibile diverso da quello che il resolver ha
