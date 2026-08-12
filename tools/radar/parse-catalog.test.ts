@@ -164,3 +164,15 @@ test('un abilita che non e una reazione ha reaction null', () => {
   const flux = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Flux')!;
   assert.equal(flux.abilities.find((a) => a.id === 'Flux.ArcPulse')!.reaction, null);
 });
+
+test('il bonus condizionale esce come numero, separato dal danno garantito', () => {
+  const flux = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Flux')!;
+
+  // `24 danni, **+8 su bersaglio Wet**` -> garantito 24, condizionale 8.
+  const linear = flux.abilities.find((a) => a.id === 'Flux.LinearDischarge')!;
+  assert.equal(linear.damage, 24);
+  assert.equal(linear.conditionalBonus, 8);
+
+  // Chi non ha bonus condizionali lo dichiara con null, non con zero.
+  assert.equal(flux.abilities.find((a) => a.id === 'Flux.ArcPulse')!.conditionalBonus, null);
+});
