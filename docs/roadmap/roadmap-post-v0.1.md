@@ -559,6 +559,16 @@ prototipi va **dal più leggero al più invasivo** — `Riva · Flow` non tocca 
 
 ### E37 — Radar di personaggio e generatore Wiki · P3
 
+> ✅ **Implementata il 2026-08-12.** Dai cataloghi markdown agli SVG committati, senza che un rating
+> sia mai stato scritto a mano: parser, rubrica, gli otto assi delle due viste e il generatore
+> deterministico con `--check` vivono in `tools/radar/` — **36 test**, zero dipendenze, nessun build
+> step. I quattro Profile Radar sono in [`../characters/radar/`](../characters/radar/).
+>
+> Restano: la pagina Wiki che li mostri e i `wiki_refs` (CP 37.8), il Balance come SVG, e il gate in
+> CI — che è scritto e verificato in locale ma **non mergiato**, perché GitHub Actions è bloccato
+> sull'account per una questione di fatturazione estranea a questo repository (che è pubblico, quindi
+> Actions vi sarebbe gratuito).
+
 [D-105](../decisions/RT_PDR_00_Decision_Log.md)…[D-108](../decisions/RT_PDR_00_Decision_Log.md), owner
 [`../characters/spec-radar-profilo-personaggio.md`](../characters/spec-radar-profilo-personaggio.md).
 Due viste radar — **Profile** (sei assi, pubblica) e **Balance** (cinque assi, tuning) — su scala `1..10`, più
@@ -569,7 +579,9 @@ entra nel resolver.
 gameplay. Sta qui e non nella roadmap di release perché competerebbe con la consegna.
 
 **I rating non si scrivono, si calcolano.** [D-106](../decisions/RT_PDR_00_Decision_Log.md): il generatore
-legge [`RT_HeroCatalog_v0.1.md`](../balance/RT_HeroCatalog_v0.1.md) — l'autorità dei numeri per
+legge [`RT_HeroCatalog_v0.1.md`](../balance/RT_HeroCatalog_v0.1.md) — più
+[`RT_ActionCatalog_v0.1.md`](../balance/RT_ActionCatalog_v0.1.md) per le abilità che rinviano a un'azione
+core ([D-115](../decisions/RT_PDR_00_Decision_Log.md)) — l'autorità dei numeri per
 [D-023](../decisions/RT_PDR_00_Decision_Log.md) — applica la rubrica e produce i rating in memoria. Nessun
 file di rating esiste, quindi nessuna seconda fonte può nascere né divergere.
 
