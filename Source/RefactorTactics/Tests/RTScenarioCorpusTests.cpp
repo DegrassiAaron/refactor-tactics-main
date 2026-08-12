@@ -248,4 +248,82 @@ bool FRTScenarioAnchorRunsTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// `#582` — uno scenario che chiede cio' che non c'e' resta BLOCKED, anche se e' il PRIMO turno a mancare.
+//
+// Il meccanismo `BLOCKED` esiste per versionare uno scenario prima della sua capability. Aveva pero' un buco
+// che lo annullava proprio nel caso piu' comune per uno scenario nuovo: se e' il **primo** turno a chiedere
+// la capability, la partita completa zero turni, l'assertion `TurnsCompleted >= 1` cade, e la precedenza
+// degli esiti (`FAIL > BLOCKED`) trasforma l'attesa in un «difetto del GIOCO».
+//
+// Gli scenari `BLOCKED` gia' in repo non lo mostravano: hanno tutti il `requires` sul secondo turno, quindi
+// il primo gira e il conteggio e' soddisfatto. Una salvezza accidentale — e infatti il difetto e' emerso
+// scrivendo il primo scenario a turno singolo.
+//
+// Il test costruisce lo scenario da stringa invece di versionarlo: un file che chiede una capability
+// inventata resterebbe nel corpus per sempre come rumore, e `ShippedScenariosAreTagged` dovrebbe farci
+// spazio. Qui il caso vive dentro il test che lo verifica.
+// =====================================================================================================
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioBlockedBeatsFinalAssertionsTest,
+	"RefactorTactics.Scenario.BlockedFirstTurnStaysBlocked",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioBlockedBeatsFinalAssertionsTest::RunTest(const FString&)
+{
+	// Capability inventata di proposito: il test verifica il MECCANISMO, non una capability vera che un domani
+	// potrebbe diventare disponibile e far passare il test per la ragione sbagliata.
+	const FString Json = TEXT(R"JSON(
+	{
+	  "scenarioId": "Spec.Harness.BlockedProbe",
+	  "tags": ["spec", "harness"],
+	  "version": 1,
+	  "seed": 0,
+	  "mapRadius": 4,
+	  "units": [
+	    { "id": "A1", "hero": "Hero.Vektor", "team": 0, "cell": [-1, 0, 0] },
+	    { "id": "B1", "hero": "Hero.Riva",   "team": 1, "cell": [1, 0, 0] }
+	  ],
+	  "turns": [
+	    {
+	      "requires": ["CapabilityCheNonEsistera Mai"],
+	      "intents": []
+	    }
+	  ],
+	  "expect": [
+	    { "type": "TurnsCompleted", "value": 1 },
+	    { "type": "UnitAlive", "unit": "A1", "value": true }
+	  ]
+	}
+	)JSON");
+
+	FRTTestScenario Scenario;
+	FString Error;
+	if (!TestTrue(TEXT("lo scenario di prova e' ben formato"),
+		URTScenarioLoader::LoadFromString(Json, Scenario, Error)))
+	{
+		AddError(FString::Printf(TEXT("motivo del rifiuto: %s"), *Error));
+		return false;
+	}
+
+	UWorld* World = MakeCorpusWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyCorpusWorld(World);
+
+	// Il cuore: l'esito e' BLOCKED, non FAIL. La differenza non e' cosmetica — un report che dice «difetto del
+	// GIOCO» per uno scenario in attesa manda qualcuno a cercare un bug che non esiste.
+	if (!TestTrue(FString::Printf(TEXT("esito BLOCKED e non %s"), *Result.OutcomeString()),
+		Result.Outcome == ERTTestOutcome::Blocked))
+	{
+		return false;
+	}
+
+	TestTrue(TEXT("e il motivo nomina la capability mancante"),
+		Result.BlockedReason.Contains(TEXT("CapabilityCheNonEsistera Mai")));
+
+	// E le assertion finali non sono state valutate: misurerebbero una partita che non e' stata giocata.
+	TestEqual(TEXT("nessuna assertion finale valutata su un turno mai giocato"), Result.Assertions.Num(), 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

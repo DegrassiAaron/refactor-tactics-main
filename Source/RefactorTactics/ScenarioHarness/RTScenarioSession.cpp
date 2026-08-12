@@ -41,7 +41,16 @@ namespace
 	{
 		static const TSet<FString> Available = {
 			TEXT("FixtureReference"),  // lo scenario riferisce la geometria per nome
-			TEXT("Reaction"),          // E5: reazioni componibili, automatiche (AllowedResponses <= 1)
+			// E5: reazioni componibili che scattano o non scattano — il regime `AllowedResponses <= 1` di
+			// ADR-0004 §2. Il perimetro e' stato **rimisurato** con `#582` dopo CP 14.4, e la risposta non e'
+			// quella che la issue supponeva: `BuildOverwatchTriggers` produce opportunity a due risposte, ma
+			// `grep -rn "BuildOverwatchTriggers" Source/ --include=*.cpp | grep -v /Tests/` non trova nessun
+			// chiamante — la regola e' pura e nessuno la invoca in partita. Quindi in un turno vero le
+			// opportunity restano quelle di E5, e questa riga descrive ancora il codice che gira.
+			//
+			// Il giorno in cui `ResolveCombat` chiamera' quella funzione, questa riga smette di essere vera e va
+			// divisa: la DECISIONE su un'opportunity a due risposte non appartiene a `Reaction` (vedi sotto).
+			TEXT("Reaction"),
 			TEXT("Environment"),       // E8: superfici, stati, propagazione
 			TEXT("Cover"),             // E9 CP 9.1/9.2: coperture bassa e alta, distruzione
 			TEXT("Structures"),        // E9 CP 9.3: porte come bordo, revisione della mappa
@@ -73,7 +82,29 @@ namespace
 			// una finestra: quella e' E14, e non passa da qui.
 			TEXT("ReactionPlanning"),
 		};
-		// NON disponibile, e la riga che manca vale quanto quelle che ci sono:
+		// NON disponibili, e le righe che mancano valgono quanto quelle che ci sono. L'elenco e' stato
+		// completato con `#582`: prima ne nominava due, mentre gli scenari in repo ne chiedono **sei** — e una
+		// capability che nessuno documenta produce un `BLOCKED` senza spiegazione, che e' meta' del valore.
+		//
+		//   `DecisionBoundary` e `ReactionClash` — la FINESTRA: sospendere la risoluzione e chiedere una
+		//   risposta. CP 14.4 ha consegnato la regola che riconosce un'opportunity contesa
+		//   (`RequiresDecisionBoundary`, `AllowedResponses >= 2`) ma **nessun chiamante di produzione**, e la
+		//   finestra da 3 s e' CP 14.5. Sono due nomi e non uno perche' separano due cose che possono atterrare
+		//   in tempi diversi: fermarsi a un boundary, e risolvere il confronto fra due risposte contese.
+		//
+		//   `Facing` — la ROTAZIONE dichiarata come mossa, da non confondere con `FRTScenarioUnit::Facing`, che
+		//   e' dato di piazzamento e c'e'. Vedi `DeclaredRotation` piu' sotto: stessa cosa, altro nome, e i due
+		//   vanno riconciliati quando l'input arrivera' (#291).
+		//
+		//   `InterceptRevalidation`, `Objective`, `Perception` — chieste da scenari gia' in repo. Restano fuori
+		//   finche' qualcuno non misura, come si e' fatto qui per `Reaction`, che il gioco le sappia fare in
+		//   partita e non solo in una libreria pura.
+		//
+		//   ⚠️ La CONDIZIONE dichiarata di [D-109] (`TargetHealthAtOrBelowPercent`) non e' ancora implementata,
+		//   e quando lo sara' vale per lei la stessa regola: **nessuna chiave di scenario** finche' non esiste
+		//   un produttore che non sia l'harness. E' il criterio che ha tenuto fuori `ReactionPlanning` fino a
+		//   `#601`, ed e' l'unico che impedisce a un verde di dire che il giocatore puo' dichiarare qualcosa
+		//   che non ha modo di chiedere.
 		//
 		//   `ReactionPlanning` e' USCITA da questo elenco con `#601`: il campo ha finalmente un produttore
 		//   nel gioco (controller e bot), quindi darla agli scenari non rende piu' l'harness piu' capace del
@@ -788,8 +819,31 @@ void FRTScenarioSession::Finish()
 		Result.StateHash = URTMatchStateHashLibrary::HashMatchState(Map, UnitStates, TeamScores);
 	}
 
+	// ⚠️ Scenario BLOCCATO: le assertion di fine scenario NON si valutano (`#582`).
+	//
+	// Misurerebbero lo stato di una partita che non e' stata giocata, e la precedenza degli esiti
+	// (`FAIL > BLOCKED`) trasformerebbe l'attesa di una capability in un difetto del gioco. Il caso e' reale e
+	// riproducibile: uno scenario il cui **primo** turno chiede una capability assente completa zero turni,
+	// quindi `TurnsCompleted >= 1` cade e il report dice «FAIL (difetto del GIOCO)» per un file che sta
+	// semplicemente aspettando. Gli scenari `BLOCKED` gia' in repo lo evitano per costruzione — hanno il
+	// `requires` sul secondo turno, quindi il primo gira — ma e' una salvezza accidentale, non una regola.
+	//
+	// ⚠️ **Solo se NESSUN turno e' stato giocato**, e il confine e' stato stretto qui dopo che una prima
+	// versione — «bloccato ⇒ salta le assertion» — ha fatto cadere `ShowcaseRelayV01RunsTurnOne`, che gioca
+	// il turno 1 e si blocca al secondo: le sue assertion misurano uno stato che la partita ha davvero
+	// raggiunto, e saltarle avrebbe tolto verifica invece di aggiungerne.
+	//
+	// E' la stessa distinzione del commento sulla precedenza: cio' che ha girato conta, cio' che il blocco ha
+	// impedito no. Con zero turni giocati non c'e' nessuno stato da misurare — solo l'assenza di partita.
+	const bool bBlocked = !BlockedBy.IsEmpty() && Result.TurnsPlayed == 0;
+
 	for (const FRTTestExpectation& Exp : Scenario.Expect)
 	{
+		if (bBlocked)
+		{
+			break;
+		}
+
 		FRTAssertionResult A;
 		A.Kind = Exp.Kind;
 		A.Turn = Result.TurnsPlayed;
