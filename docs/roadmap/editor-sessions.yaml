@@ -789,3 +789,31 @@ sessions:
       domanda che si risponde una volta, guardandola.
       ⚠️ ID assegnato al merge: preso `U20` con `U19` come ultimo su `main`. Chi arriva secondo
       rinumera, non contende.
+
+  - id: U21
+    title: Luci del graybox e inquadratura della mappa
+    block: 6
+    critical: false
+    produces: verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: []
+    verifies: [PIE-MAPED-LIGHT, PIE-MAPED-FRAME]
+    issues: [623]
+    done_when: le due voci hanno un esito reale e il livello illuminato e' committato
+    unblocks: []
+    notes: >-
+      Nasce dal referto `plans/map-sketch-editor-spec-panel-2026-08-12.md` (`P6`). E' una seduta e
+      non una issue di codice per una ragione strutturale: `L_DevSandbox.umap` e' un `.umap`, e
+      questo repository non modifica `.umap` da riga di comando.
+      ⚠️ `artifacts` e' VUOTO di proposito, benche' la seduta committi un livello. L'oracolo degli
+      artefatti e' `git ls-files`, che sa dire se un path esiste e non se e' stato MODIFICATO:
+      `L_DevSandbox.umap` e' gia' tracciato da mesi, quindi dichiararlo qui farebbe derivare 🟡
+      («parte fatta») su una seduta non ancora aperta. Lo stato deriva dalle due voci PIE, che sono
+      la cosa che davvero non esiste ancora. Il livello committato resta nella DoD della issue.
+      ⚠️ Il sorgente chiedeva anche di ricostruire la navigazione della camera (MMB pan, RMB orbit,
+      wheel zoom, WASD, F focus). **Il viewport di Unreal le fornisce gia' tutte**, e un `UEdMode`
+      non possiede la camera del viewport: `RTCameraPawn` e' la camera di GIOCO, un oggetto diverso.
+      Resta solo l'inquadratura della mappa, che e' `PIE-MAPED-FRAME`.
+      ⚠️ ID assegnato al merge: preso `U21` con `U20` come ultimo su `main`. Chi arriva secondo
+      rinumera, non contende.
