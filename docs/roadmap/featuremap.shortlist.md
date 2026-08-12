@@ -20,19 +20,20 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 <!-- RT_SHORTLIST_FEATURES:BEGIN -->
 
-**102 feature** · v0.1 **72** · v0.2 **15** · future **15**.
+**103 feature** · v0.1 **73** · v0.2 **15** · future **15**.
 
 | Stato | Quante |
 |---|--:|
 | `IDEA` | 6 |
-| `DESIGNED` | 14 |
+| `DESIGNED` | 15 |
 | `SPECIFIED` | 13 |
 | `IMPLEMENTING` | 21 |
 | `TESTABLE` | 8 |
 | `INTEGRATED` | 21 |
 | `RELEASE_READY` | 16 |
 | `DONE` | 1 |
-| `BLOCKED` (fuori scala) | 2 |
+| `BLOCKED` (fuori scala) | 1 |
+| `DEFERRED` (fuori scala) | 1 |
 
 ### Actions · 15
 
@@ -50,7 +51,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-ACTION-DELAYED` — Delayed Action ai boundary di fase | future | DESIGNED | 0/9 | — | Brief scritto, **nessuna epic aperta**: attende una decisione di scope |
 | `RT-FEAT-ACTION-PLAN-VALIDATION` — Validazione del piano in Planning, con reason code deterministico | v0.2 | DESIGNED | 0/10 | fuori scope | — |
 | `RT-FEAT-STATUS-FRAMEWORK` — Framework degli status — categorie, severity e primitive | v0.2 | DESIGNED | 0/9 | fuori scope | Undici status cablati uno per uno, nessun livello che li governi: **E36** in v0.2 |
-| `RT-FEAT-ACTION-BUDGET` — Capacita' d'azione del turno: slot o budget numerico | v0.2 | BLOCKED | 0/9 | fuori scope | — |
+| `RT-FEAT-ACTION-BUDGET` — Capacita' d'azione del turno: slot o budget numerico | v0.2 | DEFERRED | 0/9 | fuori scope | — |
 | `RT-FEAT-ACTION-MOVEMENT-COMPAT` — Compatibilita' abilita' <-> movimento: normale, ridotta, potenziata, bloccata | v0.2 | BLOCKED | 0/9 | fuori scope | — |
 | `RT-FEAT-ACTION-TRAPS` — Trappole e gambit tattici | future | IDEA | 0/9 | — | Solo un nome |
 
@@ -179,7 +180,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | v0.1 | SPECIFIED | 1/10 | E14 | Finestra **3,0 s**, `Timeout → HOLD`; Fast/Headless risponde subito via policy |
 | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | v0.1 | DESIGNED | 0/10 | E14 | Continuazione della **propria** azione, non risposta all'avversario |
 
-### Tools · 13
+### Tools · 14
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
@@ -196,6 +197,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-BOT-BELIEF` — Belief — celle plausibili, decadimento e minaccia proiettata | future | DESIGNED | 0/8 | fuori scope | — |
 | `RT-FEAT-BOT-PREDICTIVE` — Scenari nemici plausibili e piano robusto | future | DESIGNED | 0/8 | fuori scope | — |
 | `RT-FEAT-BOT-TACTICAL` — Team Planner — piano di squadra, ruoli dinamici e sinergie | v0.2 | DESIGNED | 0/8 | fuori scope | Epic E26 |
+| `RT-FEAT-TOOL-MAP-GEOMETRY` — Geometria architettonica quantizzata e cottura in dati di cella | v0.1 | DESIGNED | 0/7 | M9 | — |
 
 ### UI · 9
 

@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "Engine/Engine.h"
+#include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/World.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
@@ -129,8 +130,8 @@ bool FRTHexMapActorLayerFilterTest::RunTest(const FString&)
 	}
 
 	// Focus mostra i piani vicini come CONTORNO, non come istanze: se i piani di contesto diventassero istanze
-	// tornerebbero ad avere collisione (l'ISM e' uno solo, `ARTHexMapActor::ARTHexMapActor`) e il raycast del
-	// pennello potrebbe agganciarli, dipingendo su un piano diverso da quello attivo. L'invariante e' quindi
+	// finirebbero in `Cells`, che e' l'unico ISM con collisione, e il raycast del pennello potrebbe agganciarli
+	// dipingendo su un piano diverso da quello attivo. L'invariante e' quindi
 	// «Focus istanzia esattamente quanto ActiveOnly», e va verificata qui perche' il disegno del contorno non
 	// e' osservabile senza schermo.
 	if (ARTHexMapActor* Focus = SpawnMapActor(World, Asset, /*ActiveLayer*/ 1, ERTLayerViewMode::Focus))
@@ -204,6 +205,68 @@ bool FRTHexMapActorContextTest::RunTest(const FString&)
 	TestNull(TEXT("nessun asset -> nessuna mappa"), NoMap);
 	TestEqual(TEXT("fallback: HexSize dell'actor"), HexSize, 100.f);
 	TestEqual(TEXT("fallback: LayerHeight dell'actor"), LayerHeight, 250.f);
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * Il pennello deve dipingere dove si clicca, e la geometria di LETTURA non deve poterlo dirottare.
+ *
+ * L'actor ha piu' di un `UInstancedStaticMeshComponent` — `Cells`, selezionabile, e `Relief`, che mostra il
+ * costo — e il raycast dell'editor riceve l'indice di istanza del componente EFFETTIVAMENTE colpito.
+ * Risolvere quell'indice contro le celle di `Cells` senza prima verificare *cosa* e' stato colpito non
+ * produce un crash: produce una cella **valida e sbagliata**, cioe' il pennello che dipinge altrove senza un
+ * solo errore a log.
+ *
+ * La difesa non puo' essere «ricordarsi di mettere NoCollision» sulla prossima geometria: e' una promessa a
+ * un umano. Questa regola la rende strutturale, perche' guarda il COMPONENTE e non l'actor che lo contiene.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorPickTest,
+	"RefactorTactics.HexMapActor.PickIgnoresGeometryThatIsNotTheGrid",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorPickTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	ARTHexMapActor* Actor = SpawnMapActor(World, MakeActorTestAsset(/*Radius=*/ 1));
+	if (!Actor)
+	{
+		AddError(TEXT("actor non spawnato"));
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	// I due componenti REALI dell'actor, non due finti costruiti qui: e' cio' che rende questo un test sul
+	// gioco. Se domani `Relief` sparisse o cambiasse nome, il test lo direbbe invece di continuare a passare.
+	TArray<UInstancedStaticMeshComponent*> Isms;
+	Actor->GetComponents(Isms);
+	UInstancedStaticMeshComponent* Cells = nullptr;
+	UInstancedStaticMeshComponent* Relief = nullptr;
+	for (UInstancedStaticMeshComponent* Ism : Isms)
+	{
+		if (Ism->GetName() == TEXT("Cells")) { Cells = Ism; }
+		else if (Ism->GetName() == TEXT("Relief")) { Relief = Ism; }
+	}
+
+	if (!Cells || !Relief)
+	{
+		AddError(TEXT("l'actor non ha entrambi gli ISM attesi (Cells, Relief)"));
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	TestTrue(TEXT("colpo su un'istanza della griglia"), Actor->IsPickOnSelectableCell(Cells, 0));
+
+	// Il caso che da' valore alla regola, e l'unico che il confronto sull'ACTOR lascerebbe passare.
+	TestFalse(TEXT("colpo sul rilievo del costo"), Actor->IsPickOnSelectableCell(Relief, 0));
+
+	// Un indice fuori range non e' teorico: `CellForInstance` risponde `(0,0,0)` — una cella VALIDA — a
+	// qualunque indice, quindi senza questo controllo il click finirebbe sull'origine della mappa.
+	TestFalse(TEXT("indice oltre il numero di istanze"),
+		Actor->IsPickOnSelectableCell(Cells, Actor->NumInstanceCells()));
+	TestFalse(TEXT("indice negativo"), Actor->IsPickOnSelectableCell(Cells, INDEX_NONE));
+
+	TestFalse(TEXT("nessun colpo"), Actor->IsPickOnSelectableCell(nullptr, 0));
 
 	DestroyMapActorWorld(World);
 	return true;

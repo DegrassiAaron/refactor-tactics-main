@@ -407,14 +407,21 @@ qualunque sia la risposta — rendere il piano **validabile in Planning** invece
 in vigore ([D-028](../decisions/RT_PDR_00_Decision_Log.md)) non è un ripiego: è una decisione presa,
 implementata e testata.
 
-**Perché non è un'epic vuota**: due dei cinque checkpoint **non dipendono dalla decisione**. `git grep
-ValidatePlan` non restituisce nulla, e quel buco esiste con qualunque modello.
+> ✅ **38.1 è chiusa il 2026-08-12, prima che l'epic cominciasse** ([D-114](../decisions/RT_PDR_00_Decision_Log.md),
+> issue [#604](https://github.com/DegrassiAaron/refactor-tactics-main/issues/604)): **restano gli slot**, e il
+> peso di un'azione si paga in **drawback** invece che in costo. L'ordine dei checkpoint si inverte di
+> conseguenza — **38.3 diventa il primo lavoro** — e la ragione non è di comodo: il movimento come leva era
+> l'esperimento che avrebbe reso misurabile la domanda appena chiusa, e resta l'unico asse di varietà del
+> turno ancora aperto.
+
+**Perché non è un'epic vuota**: la decisione è caduta, e **quattro checkpoint su cinque restano**. `git grep
+ValidatePlan` non restituisce nulla, e quel buco esiste con qualunque modello di economia.
 
 | CP | Obiettivo | DoD misurabile |
 |---|---|---|
-| **38.1** | La decisione: slot o capacità numerica | `AE-1` chiusa dall'autore e registrata come `D-0xx`, con `ECO-1` risolta di conseguenza. **Design, non codice.** Se la risposta è «restano gli slot», l'epic non si chiude: 38.2, 38.4 e 38.5 restano validi e 38.3 dipende da `AE-2`, che è una domanda diversa |
+| ~~**38.1**~~ | ~~La decisione: slot o capacità numerica~~ | ✅ **chiusa il 2026-08-12** da [D-114](../decisions/RT_PDR_00_Decision_Log.md). `RT-FEAT-ACTION-BUDGET` passa a `DEFERRED` con la motivazione, invece di sparire: il prossimo kit riproporrà l'`ActionCapacity`, e trovare la decisione scritta costa meno che ridiscuterla |
 | **38.2** | Validazione del piano in Planning | Esiste un punto solo che risponde `LEGALE` oppure `ILLEGALE + reason code` **prima** del commit, e il bot passa dallo stesso. I reason code **estendono le famiglie esistenti** (`ERTMoveOutcome`, `ERTCombatOutcome`, `ERTFallbackOutcome`) con valori **in coda**: un enum parallelo rifarebbe l'errore respinto in [`spec-tassonomia-movimento.md`](../gameplay/spec-tassonomia-movimento.md) §6. **Non dipende da 38.1** |
-| **38.3** | La compatibilità abilità↔movimento come dato | Un'abilità dichiara come si comporta sotto ciascun profilo (`NORMAL`/`IMPAIRED`/`ENHANCED`/`BLOCKED` o equivalente) e il validatore la legge. Criterio d'accettazione, nella forma di quello di E4: **aggiungere «Vektor spara in corsa» non deve toccare `ARTTurnManager`**. Se lo tocca, il modello non serve. Bloccato su `AE-2` |
+| **38.3** 🥇 | La compatibilità abilità↔movimento come dato — **primo lavoro dell'epic** | Un'abilità dichiara come si comporta sotto ciascun profilo (`NORMAL`/`IMPAIRED`/`ENHANCED`/`BLOCKED` o equivalente) e il validatore la legge. Criterio d'accettazione, nella forma di quello di E4: **aggiungere «Vektor spara in corsa» non deve toccare `ARTTurnManager`**. Se lo tocca, il modello non serve. Bloccato su `AE-2` |
 | **38.4** | La preview dice **perché** | L'Action Dock mostra capacità/slot residui, MP usati, cooldown e stato dell'abilità sotto il profilo scelto, e il Ghost Timeline resta **per fase** (`PREP · DASH · BLAST · MOVE`) invece di diventare una coda generica. Mai il solo colore. Il motivo di un rifiuto è leggibile **prima** di confermare |
 | **38.5** | Scenari e determinismo | I cinque `Spec.ActionEconomy.*` dichiarati `planned` diventano eseguibili, più i test di permutazione. Nessun esito dipende da frame rate, ordine di `TMap` o rotazione visiva |
 
@@ -422,10 +429,11 @@ ValidatePlan` non restituisce nulla, e quel buco esiste con qualunque modello.
 Cross-link, **non** dipendenze: E14 possiede l'`Overwatch`, E16 il facing, E11 la HUD — questa epic non ne
 riapre nessuna.
 
-**Rischi**: il rischio maggiore non è tecnico. Se 38.1 decidesse per la capacità numerica, cambierebbero
-validatore, HUD, pesi del bot e ogni riga del catalogo **insieme** — ed è la stessa condizione che
-[D7 di E4](../gameplay/spec-motore-azioni-e4.md) aveva già gestito una volta separando il motore dal budget.
-Vale la stessa mitigazione: **una fetta per volta**, e mai il modello e i numeri nello stesso checkpoint.
+**Rischi**: il rischio grosso è **caduto con 38.1** — una capacità numerica avrebbe cambiato validatore, HUD,
+pesi del bot e ogni riga del catalogo insieme. Quello che resta è di 38.3: la compatibilità abilità↔movimento
+introduce un asse di bilanciamento per abilità × quattro profili, e vale la mitigazione di
+[D7 di E4](../gameplay/spec-motore-azioni-e4.md) — **una fetta per volta**, mai il modello e i numeri nello
+stesso checkpoint.
 
 **Non fa**: i valori (`AE-5` per lo `Sneak`, `AE-4` per la risorsa firma) · il costo del pivot (`FAC-12`, che
 si guarda alla revisione dei numeri di ADR-0008) · i fatti del percorso (`AE-3`) · il workbook di

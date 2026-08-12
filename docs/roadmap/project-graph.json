@@ -1237,6 +1237,33 @@
       ],
       "issues": [],
       "done_when": "la voce ha un esito reale nel registro, in un verso o nell'altro"
+    },
+    {
+      "id": "U21",
+      "title": "Luci del graybox e inquadratura della mappa",
+      "block": 6,
+      "critical": false,
+      "state": "⏳",
+      "queue_group": "READY",
+      "produces": "verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato",
+      "artifacts": [],
+      "unblocked_by": [],
+      "unblocks": [],
+      "shares_setup_with": [],
+      "verifies": [
+        {
+          "id": "PIE-MAPED-LIGHT",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-MAPED-FRAME",
+          "state": "⏳"
+        }
+      ],
+      "issues": [
+        623
+      ],
+      "done_when": "le due voci hanno un esito reale e il livello illuminato e' committato"
     }
   ],
   "editor_queue": {
@@ -1253,7 +1280,8 @@
       "U15"
     ],
     "READY": [
-      "U18"
+      "U18",
+      "U21"
     ],
     "WAITING": [
       "U11",
@@ -1488,6 +1516,14 @@
     },
     {
       "id": "PIE-ICON-01",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-MAPED-FRAME",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-MAPED-LIGHT",
       "state": "⏳"
     },
     {

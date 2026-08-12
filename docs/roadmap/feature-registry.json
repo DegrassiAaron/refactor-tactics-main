@@ -24,7 +24,7 @@
       "branch": "main"
     }
   },
-  "count": 102,
+  "count": 103,
   "features": [
     {
       "feature_id": "RT-FEAT-CORE-TURN",
@@ -1775,7 +1775,7 @@
       "kind": "gameplay",
       "release": "v0.2",
       "priority": "P2",
-      "status": "BLOCKED",
+      "status": "DEFERRED",
       "status_derived": "DESIGNED",
       "gates": {
         "spec": "partial",
@@ -1819,7 +1819,7 @@
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {},
-      "notes": "**Bloccata su `AE-1`** (OPEN_DECISIONS, 2026-08-12): l'economia del turno resta a slot — 1 movimento, 1 principale, 1 reazione — o diventa una capacita' numerica con un costo per azione? Decide l'autore. Il modello in vigore e' `ERTActionSlot` + D-028, e il catalogo registra dal 2026-08-07 l'equivalenza «Slot ≡ Action Points, cap 2»: il kit del 2026-08-12 non aggiunge un budget, ne propone **un altro**. La differenza che decide: con gli slot `Guard + attacco` e' illegale PER STRUTTURA, con un budget diventa una questione di totale. `spec: partial` perche' la spec possiede la domanda e il modello in vigore, non la risposta. Generalizza `ECO-1`. Nessun gate puo' avanzare prima della decisione."
+      "notes": "🔴 **Decisa NO il 2026-08-12** — [D-114](../decisions/RT_PDR_00_Decision_Log.md), issue #604. L'economia del turno **resta a slot**: due azioni leggere non valgono una pesante, e senza una grandezza non c'è modo di farle valere. Il differenziale di potenza si esprime con un **drawback dichiarato sull'azione** — cooldown, status auto-inflitto, rinuncia alla reazione, esposizione — che è ciò che il catalogo già applica (`HeavyAttack` 35/cooldown 2 contro `PrecisionAttack` 24/cooldown 1). `DEFERRED` e non cancellata **di proposito**: la riga resta perché il prossimo kit riproporrà l'`ActionCapacity`, e trovare qui la decisione con la sua ragione costa meno che ridiscuterla. Se un giorno servisse una grandezza, il caso che la giustifica dovrà essere un piano che il modello a slot sbaglia — `ECO-1` ne cerca uno da agosto e non l'ha trovato."
     },
     {
       "feature_id": "RT-FEAT-ACTION-MOVEMENT-COMPAT",
@@ -5325,7 +5325,9 @@
         "docs/roadmap/hex-map-roadmap.md"
       ],
       "issues": [
-        567
+        567,
+        622,
+        623
       ],
       "tests": [
         "RefactorTactics.HexMap.ApplyBrushMerge",
@@ -5343,7 +5345,58 @@
         "date": "2026-08-12",
         "commit": "fe9883c"
       },
-      "notes": "`Source/RefactorTacticsEditor/` con tool di paint, fill, select e archi. Il residuo sono **verifiche PIE aperte** (H5: E/F/G/H/L/N, piu' le tre `PIE-HEX-LAYER-*` della vista a livelli) registrate in `test-manuali-pie.md`, non gate impliciti. `packaged: na` — è uno strumento d'editor, non entra nella build di gioco.\n\nLa vista a livelli ha un terzo stato `Focus` (#565): istanze sul solo piano attivo, gli altri a contorno attenuato. Nello stesso passaggio il click ha smesso di scavalcare il piano attivo — in `AllLayers` il raggio poteva agganciare il disco di un altro piano e l'`ImpactPoint` veniva proiettato su quello attivo, spostando la cella di circa `LayerHeight` in orizzontale. `LayerFilterOnConstruction` tiene l'invariante che rende vera la seconda cosa: i piani di contesto **non** sono istanze, quindi non hanno collisione e il raycast non puo' vederli."
+      "notes": "`Source/RefactorTacticsEditor/` con tool di paint, fill, select e archi. Il residuo sono **verifiche PIE aperte** (H5: E/F/G/H/L/N, piu' le tre `PIE-HEX-LAYER-*` della vista a livelli) registrate in `test-manuali-pie.md`, non gate impliciti. `packaged: na` — è uno strumento d'editor, non entra nella build di gioco.\n\nLa vista a livelli ha un terzo stato `Focus` (#565): istanze sul solo piano attivo, gli altri a contorno attenuato. Nello stesso passaggio il click ha smesso di scavalcare il piano attivo — in `AllLayers` il raggio poteva agganciare il disco di un altro piano e l'`ImpactPoint` veniva proiettato su quello attivo, spostando la cella di circa `LayerHeight` in orizzontale. `LayerFilterOnConstruction` tiene l'invariante che rende vera la seconda cosa: i piani di contesto **non** sono istanze, quindi non hanno collisione e il raycast non puo' vederli.\n\nDal 2026-08-12 il perimetro si divide: l'**authoring di geometria architettonica** ha una feature propria (`RT-FEAT-TOOL-MAP-GEOMETRY`), perche' e' un modello di dati e una cottura, non una modalita' d'editor. Qui restano il mode, i quattro tool e la vista. Le due issue nuove sono difetti d'uso osservati costruendo: `#622` la griglia di lavoro dove le celle non esistono ancora — l'unico pezzo di §10 del sorgente che non esisteva gia' — e `#623` la seduta su luci e inquadratura. `#623` e' una **seduta**, non codice: `L_DevSandbox.umap` e' un `.umap`, e la navigazione del viewport la fornisce Unreal (`RTCameraPawn` e' la camera di gioco, un oggetto diverso). Referto: `docs/roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md`."
+    },
+    {
+      "feature_id": "RT-FEAT-TOOL-MAP-GEOMETRY",
+      "title": "Geometria architettonica quantizzata e cottura in dati di cella",
+      "area": "Tools",
+      "kind": "tooling",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "DESIGNED",
+      "status_derived": "DESIGNED",
+      "gates": {
+        "spec": "partial",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "na",
+        "network_privacy": "na",
+        "replay_representable": "na"
+      },
+      "gates_done": 0,
+      "gates_applicable": 7,
+      "roadmap": {
+        "epic": null,
+        "milestone": "M9",
+        "checkpoints": [],
+        "out_of_release_scope": "Strumento d'editor: non entra nella build di gioco e non ha un gate di release. E' l'ANTICIPAZIONE dichiarata della meta' di authoring di E23.1 (v0.2), decisa il 2026-08-12; l'epic #324 NON si apre, e la logica di transizione resta sua."
+      },
+      "dependencies": [
+        "RT-FEAT-MAP-HEXGRAPH",
+        "RT-FEAT-TOOL-MAP-EDITOR"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md"
+      ],
+      "issues": [
+        619,
+        620,
+        621
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "pie_refs": [],
+      "last_verified": {},
+      "notes": "Il modello: un segmento quantizzato investe delle celle, l'occupazione si misura su **dodici settori** (uno ogni 30°) piu' il centro, e la classificazione `Free`/`Constrained`/`Blocked` ne esce per soglia. I dodici settori NON sono direzioni di movimento: quelle restano sei, pointy-top.\n\n`spec: partial` e non `done` perche' una domanda di modello resta aperta — `MSE-1` in `OPEN_DECISIONS.md`: la cottura non e' invertibile senza conservare il sorgente, e nessuno ha ancora deciso cosa succede se qualcuno modifica a mano un campo cotto. `tests: []` e `scenarios: []` sono vuoti e **veri**: `Scenarios/Spec/Map/` contiene oggi un solo file, e le quattro fixture chieste da #619 non esistono.\n\nVincolo di collocazione, non preferenza: maschera, classificazione e cottura vivono nel modulo **runtime** e l'editor le chiama. In `Source/RefactorTacticsEditor/` non esiste alcun test (misurato: `find … -iname \"*test*\"` vuoto), ed e' la ragione per cui la PR #598 — **aperta al 2026-08-12**, non mergiata — sposta una funzione nel modulo runtime per poterla verificare. Cio' che nasce dentro l'editor nasce non verificabile.\n\nPerche' e' una feature separata da `RT-FEAT-TOOL-MAP-EDITOR` invece di una sua nota: quella e' una **modalita' d'editor** con i suoi quattro tool, questa e' un **modello di dati** con una cottura verso `FRTHexCover` e `bBlocksMovement`. Tenerle insieme farebbe dipendere lo stato di uno strumento maturo (`TESTABLE`) da un lavoro non cominciato."
     },
     {
       "feature_id": "RT-FEAT-TOOL-VALIDATION",
