@@ -24,7 +24,7 @@
       "branch": "main"
     }
   },
-  "count": 98,
+  "count": 101,
   "features": [
     {
       "feature_id": "RT-FEAT-CORE-TURN",
@@ -1008,7 +1008,7 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "ADR-0005 e D-020 accettati, nessun codice. `Playback.DirectionYawFacesTarget` è presentazione, non stato di gioco: non vale come gate `runtime`. Prerequisito di E13. Attenzione: la pagina Wiki esiste già e descrive una meccanica che il gioco non ha — il blocco di stato generato deve dirlo. Il gate `scenario` non è solo «da scrivere»: oggi è **impossibile**. `FRTScenarioIntent` non ha un campo di orientamento e `ERTAssertionKind` non ha un'assertion che legga il facing; il loader ignora in silenzio una chiave di intent sconosciuta, quindi uno scenario di facing scritto ora sarebbe verde senza verificare niente. L'estensione dello schema è un prerequisito dichiarato di CP 16.1. Il modello ha inoltre decisioni aperte, `FAC-1`…`FAC-10` in `docs/OPEN_DECISIONS.md`: `FAC-4` (il facing durante i micro-step di un Move) blocca CP 16.1, perché i trigger di reazione cadono dentro il movimento e l'ADR copre inizio e fine ma non il mezzo."
+      "notes": "ADR-0005 e D-020 accettati, nessun codice. `Playback.DirectionYawFacesTarget` è presentazione, non stato di gioco: non vale come gate `runtime`. Prerequisito di E13. Attenzione: la pagina Wiki esiste già e descrive una meccanica che il gioco non ha — il blocco di stato generato deve dirlo. Il gate `scenario` non è solo «da scrivere»: oggi è **impossibile**. `FRTScenarioIntent` non ha un campo di orientamento e `ERTAssertionKind` non ha un'assertion che legga il facing; il loader ignora in silenzio una chiave di intent sconosciuta, quindi uno scenario di facing scritto ora sarebbe verde senza verificare niente. L'estensione dello schema è un prerequisito dichiarato di CP 16.1. Il modello ha inoltre decisioni aperte, `FAC-1`…`FAC-10` in `docs/OPEN_DECISIONS.md`: `FAC-4` (il facing durante i micro-step di un Move) blocca CP 16.1, perché i trigger di reazione cadono dentro il movimento e l'ADR copre inizio e fine ma non il mezzo. ⚠️ 2026-08-12: `FAC-12` — *il pivot si paga in punti movimento, o resta un tetto?* — e' stata **riproposta da un secondo kit indipendente** (`CLAUDE_ActionEconomy_Movement_Facing_Consolidation` §15), che la presenta come direzione corrente senza sapere di ADR-0008. La risposta non cambia e la data della revisione nemmeno (chiusura di CP 16.2): cambia il peso, perche' due sorgenti scollegate chiedono la stessa cosa. L'argomento nuovo e' che **un tetto non si spende**, quindi non produce da solo la scelta «viaggio piu' lontano o arrivo orientato bene?». Il costo del pivot resta fuori dai gate di questa feature finche' e' aperto."
     },
     {
       "feature_id": "RT-FEAT-MAP-COVER",
@@ -1532,7 +1532,8 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/gameplay/spec-dash.md"
+        "docs/gameplay/spec-dash.md",
+        "docs/gameplay/spec-economia-del-turno.md"
       ],
       "issues": [
         43,
@@ -1561,7 +1562,7 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "**Sprint è un profilo di Move, non un Dash** (pin del canone): fase e stile sono dichiarati dal dato, non dedotti. Budget 5 MP con costi interi."
+      "notes": "**Sprint è un profilo di Move, non un Dash** (pin del canone): fase e stile sono dichiarati dal dato, non dedotti. Budget 5 MP con costi interi. ⚠️ 2026-08-12: `RELEASE_READY` vale per i tre profili che hanno numeri. **`Sneak` non ne ha** — costo, portata e rumore non sono definiti da nessuna fonte corrente (`AE-5`) — quindi il profilo esiste come nome e non e' pianificabile. Non abbasso i gate per questo: la feature che il registro misura sono i profili implementati, e inventare tre numeri per farla sembrare completa sarebbe il difetto opposto. `Withdraw` e' il quarto profilo (D-070) e **non si sceglie**: lo impone l'`Overwatch`. La domanda se il profilo debba cambiare anche la LEGALITA' delle azioni e' `AE-2`, feature `RT-FEAT-ACTION-MOVEMENT-COMPAT`."
     },
     {
       "feature_id": "RT-FEAT-ACTION-BASIC-ATTACK-PROFILES",
@@ -1740,17 +1741,22 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/balance/RT_ActionCatalog_v0.1.md"
+        "docs/balance/RT_ActionCatalog_v0.1.md",
+        "docs/gameplay/spec-economia-del-turno.md"
       ],
       "issues": [
-        45
+        45,
+        610,
+        608
       ],
       "tests": [
         "RefactorTactics.Combat.AbilityUsableByCooldownAndEnergy",
         "RefactorTactics.Combat.GainEnergyClampsToMax"
       ],
       "scenarios": [],
-      "scenarios_planned": [],
+      "scenarios_planned": [
+        "Spec.ActionEconomy.CooldownBlocksWithSlotFree"
+      ],
       "wiki_refs": [
         "wiki:azioni-e-movimento"
       ],
@@ -1760,7 +1766,170 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "Cooldown ed energia sono dati del catalogo e il gate di usabilità li legge. Nessuno scenario li dimostra: un cooldown che non scala oggi non produce una diagnosi visibile."
+      "notes": "Cooldown ed energia sono dati del catalogo e il gate di usabilità li legge. Nessuno scenario li dimostra: un cooldown che non scala oggi non produce una diagnosi visibile. ➕ 2026-08-12: `Spec.ActionEconomy.CooldownBlocksWithSlotFree` e' dichiarato `planned` e chiude esattamente quel buco — lo slot principale libero, l'azione comunque illegale, con un reason code DISTINTO da «slot occupato». 🔴 **La riga «economia delle risorse» del titolo e' pero' divisa in tre posti che non concordano** (`AE-4`, riga 71 della matrice dei conflitti): `ARTUnit` dichiara `MaxEnergy = 100`/`EnergyPerTurn = 25`, il catalogo eroi dichiara la risorsa firma per personaggio a cap **4** con ricarica **1**, e il COSTO non e' nemmeno un campo del catalogo azioni — `EnergyCost` sta su `URTActionData`, il data asset legacy, non su `FRTActionDef`. Il gate `data` resta `done` perche' il cooldown lo e'; la risorsa non lo e', ed e' registrata come conflitto invece che come gate abbassato in silenzio."
+    },
+    {
+      "feature_id": "RT-FEAT-ACTION-BUDGET",
+      "title": "Capacita' d'azione del turno: slot o budget numerico",
+      "area": "Actions",
+      "kind": "gameplay",
+      "release": "v0.2",
+      "priority": "P2",
+      "status": "BLOCKED",
+      "status_derived": "DESIGNED",
+      "gates": {
+        "spec": "partial",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "na",
+        "replay_representable": "todo"
+      },
+      "gates_done": 0,
+      "gates_applicable": 9,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": [],
+        "out_of_release_scope": "L'epic esiste e si chiama **E38** (`roadmap-post-v0.1.md`, v0.2, cinque checkpoint), ma `roadmap.epic` resta `null` per la stessa ragione di `RT-FEAT-STATUS-FRAMEWORK`/E36: il validator conosce solo le epic della **roadmap di release**, e assegnarne una qui farebbe comparire una feature v0.2 nella tabella §2.2 della v0.1. Nessun gate della v0.1 dipende da questa epic: il modello a slot che la v0.1 usa gira gia', ed e' testato."
+      },
+      "dependencies": [
+        "RT-FEAT-ACTION-ENGINE",
+        "RT-FEAT-ACTION-GENERIC"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/gameplay/spec-economia-del-turno.md",
+        "docs/balance/RT_ActionCatalog_v0.1.md"
+      ],
+      "issues": [
+        609,
+        604
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "wiki:azioni-e-movimento"
+      ],
+      "wiki_note": "",
+      "pie_refs": [],
+      "last_verified": {},
+      "notes": "**Bloccata su `AE-1`** (OPEN_DECISIONS, 2026-08-12): l'economia del turno resta a slot — 1 movimento, 1 principale, 1 reazione — o diventa una capacita' numerica con un costo per azione? Decide l'autore. Il modello in vigore e' `ERTActionSlot` + D-028, e il catalogo registra dal 2026-08-07 l'equivalenza «Slot ≡ Action Points, cap 2»: il kit del 2026-08-12 non aggiunge un budget, ne propone **un altro**. La differenza che decide: con gli slot `Guard + attacco` e' illegale PER STRUTTURA, con un budget diventa una questione di totale. `spec: partial` perche' la spec possiede la domanda e il modello in vigore, non la risposta. Generalizza `ECO-1`. Nessun gate puo' avanzare prima della decisione."
+    },
+    {
+      "feature_id": "RT-FEAT-ACTION-MOVEMENT-COMPAT",
+      "title": "Compatibilita' abilita' <-> movimento: normale, ridotta, potenziata, bloccata",
+      "area": "Actions",
+      "kind": "gameplay",
+      "release": "v0.2",
+      "priority": "P2",
+      "status": "BLOCKED",
+      "status_derived": "DESIGNED",
+      "gates": {
+        "spec": "partial",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "na",
+        "replay_representable": "todo"
+      },
+      "gates_done": 0,
+      "gates_applicable": 9,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": [],
+        "out_of_release_scope": "L'epic esiste e si chiama **E38** (`roadmap-post-v0.1.md`, v0.2, cinque checkpoint), ma `roadmap.epic` resta `null` per la stessa ragione di `RT-FEAT-STATUS-FRAMEWORK`/E36: il validator conosce solo le epic della **roadmap di release**, e assegnarne una qui farebbe comparire una feature v0.2 nella tabella §2.2 della v0.1. Nessun gate della v0.1 dipende da questa epic: il modello a slot che la v0.1 usa gira gia', ed e' testato."
+      },
+      "dependencies": [
+        "RT-FEAT-ACTION-MOVE-PROFILES",
+        "RT-FEAT-ACTION-BUDGET"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/gameplay/spec-economia-del-turno.md"
+      ],
+      "issues": [
+        609,
+        606
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [
+        "Spec.ActionEconomy.MoveImpairsPrecision",
+        "Spec.ActionEconomy.SprintBlocksPrecision",
+        "Spec.ActionEconomy.SprintEnhancesMomentum",
+        "Spec.ActionEconomy.PathLengthChangesEffect"
+      ],
+      "wiki_refs": [
+        "wiki:azioni-e-movimento"
+      ],
+      "wiki_note": "",
+      "pie_refs": [],
+      "last_verified": {},
+      "notes": "**Bloccata su `AE-2`.** E' l'unico contributo genuinamente nuovo del kit del 2026-08-12: oggi il profilo di movimento cambia distanza, rumore ed esposizione e NIENTE ALTRO — `grep` di `MovementCompat`/`Impaired`/`Enhanced` fuori dall'archivio da' zero. Risolve un difetto gia' registrato: senza costo di slot il prezzo dello `Sprint` regge tutto su `Status.Exposed` (allarme dichiarato in D-028). Costa un asse di bilanciamento per abilita' x quattro profili. Vincolo non negoziabile: dev'essere un DATO dell'abilita', mai un ramo per eroe nel resolver (invariante #7, D-029). ⚠️ `Spec.ActionEconomy.PathLengthChangesEffect` appartiene ad `AE-3` — i FATTI DEL PERCORSO, non il profilo — ed e' elencato qui perche' non ha ancora una feature propria: si sposta il giorno in cui `AE-3` viene decisa. Le due non si fondono, e la ragione e' di determinismo: il profilo e' noto in Planning, i fatti del percorso solo dopo la risoluzione, e un Move puo' decadere (D-045)."
+    },
+    {
+      "feature_id": "RT-FEAT-ACTION-PLAN-VALIDATION",
+      "title": "Validazione del piano in Planning, con reason code deterministico",
+      "area": "Actions",
+      "kind": "gameplay",
+      "release": "v0.2",
+      "priority": "P2",
+      "status": "DESIGNED",
+      "status_derived": "DESIGNED",
+      "gates": {
+        "spec": "partial",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "partial",
+        "replay_representable": "todo"
+      },
+      "gates_done": 0,
+      "gates_applicable": 10,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": [],
+        "out_of_release_scope": "L'epic esiste e si chiama **E38** (`roadmap-post-v0.1.md`, v0.2, cinque checkpoint), ma `roadmap.epic` resta `null` per la stessa ragione di `RT-FEAT-STATUS-FRAMEWORK`/E36: il validator conosce solo le epic della **roadmap di release**, e assegnarne una qui farebbe comparire una feature v0.2 nella tabella §2.2 della v0.1. Nessun gate della v0.1 dipende da questa epic: il modello a slot che la v0.1 usa gira gia', ed e' testato."
+      },
+      "dependencies": [
+        "RT-FEAT-ACTION-ENGINE"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/gameplay/spec-economia-del-turno.md"
+      ],
+      "issues": [
+        609,
+        605
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [
+        "Spec.ActionEconomy.OverwatchReservesMovementSlot"
+      ],
+      "wiki_refs": [
+        "wiki:planning-e-coordinazione"
+      ],
+      "wiki_note": "",
+      "pie_refs": [],
+      "last_verified": {},
+      "notes": "**Non e' bloccata su `AE-1`, e questa e' la sua ragione d'essere**: il buco esiste con qualunque modello di economia. `git grep ValidatePlan` non restituisce nulla — cio' che esiste e' `ValidateInstance`/`ApplyFallback`, che agisce IN RISOLUZIONE. Oggi un piano illegale si scopre quando non funziona, non quando lo si compone. ⚠️ I reason code **estendono le famiglie esistenti** (`ERTMoveOutcome`, `ERTCombatOutcome`, `ERTFallbackOutcome`, `ERTMovementStopReason`) aggiungendo valori IN CODA: un enum parallelo con undici valori nuovi rifarebbe l'errore respinto in `spec-tassonomia-movimento.md` §6, dove dieci reason code proposti da un kit erano sette duplicati. `network_privacy: partial` perche' la validazione legge il piano completo, che e' dato di squadra: il seam esiste (`CanonicalIntentStore` server-only) ma nessuna verifica in rete e' possibile prima di M10."
     },
     {
       "feature_id": "RT-FEAT-ACTION-SUPERS",
@@ -3494,7 +3663,8 @@
         "docs/technical/spec-hover-cella.md"
       ],
       "issues": [
-        77
+        77,
+        607
       ],
       "tests": [
         "RefactorTactics.Preview.*",
