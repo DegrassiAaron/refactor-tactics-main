@@ -17,7 +17,7 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 
 <!-- RT_SHORTLIST_SCENARIOS:BEGIN -->
 
-**69 scenari versionati** — misurati su `Scenarios/`: **57** eseguibili · **12** `BLOCKED` per una capability assente · **51** dichiarati `planned` nel registry e non ancora scritti.
+**71 scenari versionati** — misurati su `Scenarios/`: **59** eseguibili · **12** `BLOCKED` per una capability assente · **51** dichiarati `planned` nel registry e non ancora scritti.
 
 **Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `BotPlanning` · `Cover` · `CreateCover` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `PredictiveAction` · `Reaction` · `ReactionPlanning` · `Structures`.
 
