@@ -35,6 +35,12 @@ sarebbero la stessa stringa in un log, e D-031 li vuole concetti distinti.
 > di essere «sorgente di design, non canone». `docs/src/` diventa vincolante solo quando un owner
 > documentale lo consuma: questa sezione è quell'atto per i token **semantici**. I token **chrome**
 > (`RT_UI_*`) restano di [`progettazione-hud.md`](progettazione-hud.md) §32 e non si riscrivono qui.
+>
+> ⚠️ **La sorgente non è versionata e si è mossa durante il recepimento.** `docs/src/design/icon/` risulta
+> untracked, e la prima stesura di questa sezione ha recepito una versione superata **trentasei secondi**
+> prima che venisse corretta. Quello che segue è lo stato del **2026-08-12 ore 11:06**; finché quel materiale
+> non entra nel repository (issue di riconciliazione della tassonomia) ogni recepimento è una fotografia, e
+> il modo di accorgersene è confrontare i valori con `progettazione-hud.md`, che invece è versionato.
 
 ### La regola che governa tutte le altre
 
@@ -46,13 +52,19 @@ accettata, e `Critical` (`#FF4D4D`) è **solo rinforzo** — non porta mai un se
 
 Base **Okabe-Ito**, scelta perché distinguibile per costruzione sotto protanopia, deuteranopia e tritanopia.
 
+⚠️ **`RT_Sem_*` e le dodici categorie di D-031 sono due assi diversi che condividono qualche nome.**
+`RT_Sem_Reaction` è una **famiglia di colore**; `Reaction` è una **categoria di chiave**, ed è una delle sette
+che la v0.1 lascia vuote. Un token può tingere una chiave di un'altra categoria — `RT_Sem_Defense` tinge
+`Status.Braced` — e la coincidenza di nome non implica nessun legame. Chi legge una tabella non deve dedurne
+l'altra.
+
 | Token | HEX | Usato da |
 |---|---|---|
 | `RT_Sem_Movement` | `#009E73` | `Action.Move` · `Action.Sprint` · `Action.Dash` · `Action.Leap` |
 | `RT_Sem_Attack` | `#D55E00` | `Action.BasicAttack` · `Action.Charge` |
 | `RT_Sem_Utility` | `#0072B2` | `Action.Interact` |
-| `RT_Sem_Defense` | `#009E73` | `Action.Guard` · `Status.Guarded` |
-| `RT_Sem_Reaction` | `#CC79A7` | `Status.Braced` |
+| `RT_Sem_Defense` | `#56B4E9` | `Action.Guard` · `Status.Guarded` · `Status.Braced` |
+| `RT_Sem_Reaction` | `#CC79A7` | — *nessuna chiave della v0.1: il suo uso è `Overwatch`, che non è nel catalogo azioni* |
 | `RT_Sem_Hazard` | `#E69F00` | `Status.Exposed` · `Status.Root` · `Status.Slow` · `Status.Marked` |
 | `RT_Sem_Electric` | `#F0E442` | `Status.Electrified` — **outline scuro obbligatorio** |
 | Water | `#0072B2` | `Status.Wet` |
@@ -69,20 +81,35 @@ bar** — il punto in cui la confusione costa di più.
 Non basta da solo: Movement e Attack restano distinti soprattutto per **forma** — percorso con nodi contro
 reticolo con impatto.
 
-### Le due collisioni di hex
+### Le collisioni di hex
 
-Due coppie condividono lo stesso valore. La prima è dichiarata e accettata, la seconda no.
+**Tre token stanno su `#56B4E9`**: `Defense`, `Ally` e `Ice`. Delle tre coppie che ne derivano, una è
+dichiarata e due no.
 
-**`Movement` e `Defense` = `#009E73`** — accettabile perché non competono mai nella stessa decisione: un
-profilo di movimento e una postura difensiva stanno in **gruppi diversi** della skill bar. Se il playtest
-mostra confusione, si separa **`Defense` prima di `Movement`**. Sono due token distinti che oggi hanno lo
-stesso valore, non un token preso in prestito.
+**`Defense` e `Ally` — dichiarata, e la separazione regge**: una relazione di squadra tinge un **marker di
+unità**, una famiglia d'azione tinge uno **slot**. Non compaiono mai sulla stessa superficie. Se un giorno lo
+faranno, il primo a spostarsi è `Defense`.
 
-⚠️ **`Ice` e `Ally` = `#56B4E9`** — questa collisione **non è dichiarata** nei vincoli della sorgente, ed è
-più esposta della prima: un'unità alleata su una superficie ghiacciata mette i due colori **nella stessa
-vista**, mentre Movement e Defense sono separati dal layout. Non blocca la v0.1 — **non esiste uno stato
-`Ice`**: i tag sono undici (`Root, Slow, Reveal, Exposed, Guarded, Marked, Wet, Braced, Burning, Obscured,
-Electrified`) e nessuno è ghiaccio. Va risolta **prima** che un'icona `Ice` venga disegnata, non dopo.
+⚠️ **`Ice` con `Ally` e `Ice` con `Defense` — non dichiarate.** Un'unità alleata su una superficie ghiacciata
+mette i primi due colori nella stessa vista; il terzo caso è più remoto ma non impossibile. Non blocca la
+v0.1 per una ragione precisa: **non esiste uno stato `Ice`** — i tag sono undici (`Root, Slow, Reveal,
+Exposed, Guarded, Marked, Wet, Braced, Burning, Obscured, Electrified`) e nessuno è ghiaccio. Va risolta
+**prima** che un'icona `Ice` venga disegnata, non dopo.
+
+> ⚠️ **`Movement` e `Defense` non condividono più `#009E73`, e la ragione vale più della correzione.** La
+> prima stesura di questa sezione riportava quella collisione come «accettabile perché non competono mai
+> nella stessa decisione: gruppi diversi della skill bar». La premessa è **falsa**, e a falsificarla è un
+> documento **versionato**: [`progettazione-hud.md`](progettazione-hud.md) §6.7 mette `Move`, `Wait`,
+> `Guard` e `Overwatch` nella **stessa lista** «Universal Actions» dell'Action Dock — cioè sotto gli occhi
+> nello stesso momento. `Defense` è passato a `#56B4E9`.
+>
+> Il modo di non ripetere l'errore non è leggere meglio la sorgente di design: è **verificare la premessa
+> contro il canone versionato** prima di accettarla. Qui la prova stava in un file del repository.
+
+> ⚠️ **`Brace` è difesa, non reazione.** La prima stesura mappava `Status.Braced` su `RT_Sem_Reaction` per
+> associazione col nome della corsia HUD. `Brace` è un'azione generica di D-025, non un ramo del ciclo di
+> reazione — e D-047 lo conferma dal lato gameplay: *«`Brace` prepara una reazione; come si reagisce lo dice
+> il Reaction Profile»*. Prepararla non è esserlo.
 
 ### Cosa il colore non decide
 
