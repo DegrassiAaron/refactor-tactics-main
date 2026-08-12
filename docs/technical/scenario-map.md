@@ -317,7 +317,9 @@ resta visibile invece di sparire.
 > non prima; due sono **assorbiti** — «densità da fermo» non ha un fatto proprio, e la privacy del piano è
 > già di `RT-FEAT-NET-PRIVATE-PLANNING`. Il sesto sopravvissuto è riformulato:
 > `OverwatchReservesMovementSlot` asserisce la **causa** di [D-070](../decisions/RT_PDR_00_Decision_Log.md)
-> invece del divieto di `Dash`, che è una conseguenza. Referto:
+> invece del divieto di `Dash`, che è una conseguenza.
+>
+> ⚠️ **Uno dei sei non si scriverà con questa epic**, e resta `planned` di proposito: `Spec.ActionEconomy.PathLengthChangesEffect` dipende dai **fatti del percorso** (`AE-3`), non dal profilo di movimento, ed è dichiarato *in prestito* sotto `RT-FEAT-ACTION-MOVEMENT-COMPAT` finché `AE-3` non ha una feature propria. Stesso motivo per cui `Spec.ActionEconomy.SprintEnhancesMomentum` è scrivibile solo a metà: la parte «lo Sprint potenzia» esiste, la parte «di quanto» dipende da quante celle hai percorso. Registrato in [`../gameplay/spec-compatibilita-azioni-movimento.md`](../gameplay/spec-compatibilita-azioni-movimento.md) §6. Referto:
 > [`../roadmap/plans/action-economy-consolidamento-2026-08-12.md`](../roadmap/plans/action-economy-consolidamento-2026-08-12.md) §6.
 >
 > ➕ **+13 il 2026-08-11 dal consolidamento Bot/AI** — tre `RT-FEAT-BOT-FAIRNESS`, cinque
