@@ -52,7 +52,7 @@
 
 ## Stato in numeri — 2026-08-11
 
-**124 voci**: ✅ **30 verdi** · 🟡 **21 parziali** (regola coperta da test, resta il visivo) · ⏳ **73 aperte**.
+**124 voci**: ✅ **30 verdi** · 🟡 **22 parziali** (regola coperta da test, resta il visivo) · ⏳ **72 aperte**.
 
 *(Rimisurate col comando qui sotto il **2026-08-11**, dopo le tre voci `PIE-HEX-LAYER-FOCUS`,
 `PIE-HEX-LAYER-CLICK` e `PIE-HEX-LAYER-PANEL` della vista a livelli `Focus`. La quota dichiarata qui il
