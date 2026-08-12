@@ -4694,12 +4694,12 @@ features:
     kind: tooling
     release: v0.1
     priority: P2
-    status: TESTABLE
+    status: INTEGRATED
     gates:
       spec: done
       data: done
       runtime: done
-      log_debug: partial
+      log_debug: done
       automation: done
       scenario: na
       ui_wiki: todo
@@ -4733,11 +4733,12 @@ features:
       - RefactorTactics.HexMapActor.EdgePanelsSitOnTheDeclaredEdge
       - RefactorTactics.HexMapActor.DoorPanelsShowWhetherYouCanPass
       - RefactorTactics.HexMapActor.CostReliefSurvivesTheSightSlab
+      - RefactorTactics.Arena.CriterionAndOverlayCountTheSameCells
     scenarios: []
     wiki_refs: []
     last_verified:
       date: 2026-08-12
-      commit: 1c92d869
+      commit: 4fce92ca
     notes: >
       `Source/RefactorTacticsEditor/` con tool di paint, fill, select e archi. Il residuo sono
       **verifiche PIE aperte** (H5: E/F/G/H/L/N, piu' le tre `PIE-HEX-LAYER-*` della vista a
@@ -4792,20 +4793,36 @@ features:
       prima non esistevano da nessuna parte se non nel testo di una PR.
 
 
-      **Serie viz editor (2026-08-12): tre quarti atterrati, `log_debug` resta `partial` per il
-      quarto.** Owner del perimetro: `docs/technical/brief-editor-map-viz.md`. `#551` (superficie e
-      costo leggibili), `#552` (volume dei blocchi, e «non si passa» distinto da «non si vede») e
-      `#553` (coperture, porte e transizioni sui BORDI) sono chiuse e mergiate — PR `#670` e `#673`,
-      commit `46d9ef5f`, `41e205f1`, `d9cfb9e3`. Il gate NON avanza a `done` perche' `#554` — le
-      transizioni e la raggiungibilita', cioe' l'unica delle quattro che dice se una piattaforma e'
-      **scollegata** — e' ancora aperta: senza, la vista mostra la geometria e tace sul grafo.
+      **Serie viz editor: 4/4 chiusa il 2026-08-12, e `log_debug` avanza a `done` con lei.** Owner
+      del perimetro: `docs/technical/brief-editor-map-viz.md`. `#551` (superficie e costo leggibili),
+      `#552` (volume dei blocchi, e «non si passa» distinto da «non si vede»), `#553` (coperture,
+      porte e transizioni sui BORDI) e `#554` (le transizioni e la raggiungibilita') sono chiuse e
+      mergiate — PR `#670`, `#673` e `#707`, commit `46d9ef5f`, `41e205f1`, `d9cfb9e3`, `2f3c53cf`,
+      `7ae2ce44`.
+
+      Il gate chiede che **l'esito sia osservabile**, e per una modalita' di authoring l'esito e' la
+      vista: `#554` e' l'anello che l'ha completata, perche' e' l'unica delle quattro che guarda il
+      **grafo** invece della geometria. Le transizioni sono l'unico modo in cui i layer si collegano —
+      due celle sovrapposte NON sono adiacenti senza un arco esplicito — e si vedevano solo dentro il
+      tool Arch: chi dipingeva con Paint o Fill non sapeva se una zona fosse collegata, e una
+      piattaforma senza arco e' irraggiungibile senza dirlo. Verificarlo richiedeva di far girare il
+      pathfinding invece di guardare. `7ae2ce44` rende la raggiungibilita' **pigra** invece che
+      ricalcolata a ogni drag del pennello — cioe' paga il costo che quella vista introduce, invece di
+      lasciarlo sul tavolo.
+
+      ⚠️ `log_debug: done` **non** significa che la vista sia verificata a schermo: le cinque voci
+      `PIE-HEX-VIZ-*` di `test-manuali-pie.md` restano il registro di quella verifica, e sono di
+      classe C. Il gate dice che l'esito **e' osservabile**, non che qualcuno l'ha osservato.
+
       Ogni pezzo della serie ha portato il suo test nel modulo runtime, com'e' la regola qui:
       `OnlyTheCellsComponentIsClickable` (il pick guarda il componente, non l'actor — il secondo ISM
       dei volumi e' esattamente cio' che rendeva sbagliato il vecchio confronto),
       `EdgeMidpointIsSharedByBothCells` (la primitiva che mancava: due celle adiacenti devono
       calcolare lo STESSO punto medio di bordo, o copertura e porta si disegnerebbero due volte in due
-      posti) e `UnknownFixtureLeavesTheAssetUntouched` (un nome di fixture sbagliato non svuota
-      l'asset).
+      posti), `UnknownFixtureLeavesTheAssetUntouched` (un nome di fixture sbagliato non svuota
+      l'asset) e `CriterionAndOverlayCountTheSameCells` (il criterio d'arena e l'overlay contano le
+      STESSE celle: senza, la vista direbbe «collegata» dove il criterio dice di no, ed e' esattamente
+      la vista che mente contro cui il brief mette in guardia).
 
   - feature_id: RT-FEAT-TOOL-MAP-GEOMETRY
     title: Geometria architettonica quantizzata e cottura in dati di cella

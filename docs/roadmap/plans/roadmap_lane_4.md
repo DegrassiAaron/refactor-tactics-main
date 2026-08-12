@@ -1,6 +1,6 @@
 # Lane 4 — Editor / Tooling
 
-> `SNAPSHOT` · **Data**: 2026-08-12 · **HEAD**: `52c08286` (riallineato dopo `#552`, `#553`, `#619`)
+> `SNAPSHOT` · **Data**: 2026-08-12 · **HEAD**: `4fce92ca` (riallineato dopo la chiusura della serie viz 4/4)
 > **Cosa è**: la sequenza di lavoro della lane *Editor / Tooling*, letta sul backlog **già aperto**.
 > **Cosa non è**: una fonte di stato. Aperto/chiuso vive su GitHub, e lo stato delle **sedute**
 > vive in [`../../technical/test-manuali-pie.md`](../../technical/test-manuali-pie.md) + `editor-sessions.yaml`.
@@ -58,21 +58,26 @@ con un `grep` che conta anche la prosa.
 | ~~`#551`~~ | 1/4 · superficie e costo di movimento leggibili senza aprire un pannello | ✅ **chiusa 2026-08-12** | P2 |
 | ~~`#552`~~ | 2/4 · dare volume ai blocchi, distinguere «non si passa» da «non si vede» | ✅ **chiusa 2026-08-12** — PR `#670` | P2 |
 | ~~`#553`~~ | 3/4 · coperture, porte e transizioni stanno sui **bordi**, e l'overlay non li mostra | ✅ **chiusa 2026-08-12** — PR `#673` | P2 |
-| `#554` | 4/4 · le transizioni e la raggiungibilità — capire come si collegano i piani | 🟢 **pronta — ultima della serie** | P2 |
+| ~~`#554`~~ | 4/4 · le transizioni e la raggiungibilità — capire come si collegano i piani | ✅ **chiusa 2026-08-12** — PR `#707` | P2 |
 
-⚠️ **Sono ordinate per frequenza sulla mappa, non da una dipendenza dichiarata**: nessuna delle
-quattro blocca formalmente le altre. Tre su quattro sono chiuse lo stesso giorno, nell'ordine
-proposto dal brief.
+✅ **Serie completa.** Le quattro erano ordinate per frequenza sulla mappa, non da una dipendenza
+dichiarata, e sono state chiuse **tutte lo stesso giorno nell'ordine proposto dal brief**.
 
-**`#554` non è «il residuo»**: è l'unica delle quattro che guarda il **grafo** invece della
-geometria — *una piattaforma scollegata è una mappa rotta* — e finché è aperta la vista in editor
-mostra i volumi e tace sulle transizioni. È la ragione per cui `RT-FEAT-TOOL-MAP-EDITOR` tiene
-`log_debug: partial` invece di `done`.
+**`#554` non era «il residuo»**: era l'unica delle quattro che guarda il **grafo** invece della
+geometria — *una piattaforma scollegata è una mappa rotta*. Le transizioni si vedevano solo dentro il
+tool Arch, quindi chi dipingeva con Paint o Fill non sapeva se una zona fosse collegata. Con lei
+`RT-FEAT-TOOL-MAP-EDITOR` porta `log_debug: done` e sale a `INTEGRATED`.
 
-⚠️ Chi la raccoglie legga prima `RefactorTactics.HexMap.OnlyTheCellsComponentIsClickable`: `#552` e
-`#553` hanno aggiunto un **secondo** `UInstancedStaticMeshComponent` all'actor, e quel test è ciò che
-impedisce al pennello di risolvere un click contro la geometria sbagliata. `#554` aggiunge altra
-geometria alla stessa scena.
+⚠️ **Ciò che resta aperto della serie non è codice**: le acceptance visive vivono nelle cinque voci
+`PIE-HEX-VIZ-*` di [`../../technical/test-manuali-pie.md`](../../technical/test-manuali-pie.md) e
+sono di classe C. E le domande §7 del brief — overlay sempre attivo o a comando, costo di
+rigenerazione, come mostrare la quota, se serve una legenda — **nessuna delle quattro issue le ha
+decise**.
+
+⚠️ Chi tocca ancora questa scena legga prima `RefactorTactics.HexMap.OnlyTheCellsComponentIsClickable`
+e `RefactorTactics.Arena.CriterionAndOverlayCountTheSameCells`: il primo impedisce al pennello di
+risolvere un click contro la geometria aggiunta dalla serie, il secondo tiene overlay e criterio
+d'arena a contare le **stesse** celle. `#620`–`#622` disegnano nella stessa scena.
 
 ### 5. Map Sketch Editor — la serie geometria, `#619` → `#623`
 
@@ -129,11 +134,12 @@ il primo anello della lane 2: D-109 è atterrata, la condizione è dichiarata, e
 1. **`#38`** — P0, è una sessione, e sblocca l'epic `#17`.
 2. **`#82`** — P1, alimenta la catena di release della lane 5.
 3. **`#451`** — P1, gli artefatti ci sono già.
-4. `#554` — chiude la serie viz, ed è l'unica delle quattro che guarda il grafo.
-5. `#620` → `#621` — la serie geometria nell'ordine in cui paga; `#620` prima perché il validator
+4. `#620` → `#621` — la serie geometria nell'ordine in cui paga; `#620` prima perché il validator
    è ciò che rende la grammatica una regola invece di una convenzione.
-6. `#622` e `#623` — indipendenti dalle altre, e `#623` è una **seduta** (U21): si può fare in
+5. `#622` e `#623` — indipendenti dalle altre, e `#623` è una **seduta** (U21): si può fare in
    qualunque momento ci sia una persona davanti all'editor.
+
+*(La serie viz `#551`–`#554` non compare più: è chiusa 4/4 il 2026-08-12.)*
 
 ⚠️ **Le prime tre restano davanti alla geometria**: `#38`, `#82` e `#451` sono P0/P1 e sbloccano
 epic e release. La serie geometria è P2 e `packaged: na` — è **fuori dai gate della v0.1** per
