@@ -3,6 +3,9 @@
 > `HISTORICAL` · **Materiale NON autorevole** · **Primo lotto archiviato il 2026-08-08**
 >
 > I **49** documenti in questa cartella sono i **sorgenti** da cui è nata parte della documentazione normativa.
+> *(⚠️ La tabella `handoff/` ne elenca **tre in meno** del misurato: `2026-08-10-baseaction-signatures-brace-overwatch.md`,
+> `2026-08-10-facing-consolidation.md` e `2026-08-10-overwatch-runtime-lifecycle-watch-reposition.md` sono sul
+> disco senza una riga d'indice. Rimisurato il 2026-08-12: design 15/15, handoff **29/32**, audit 2/2.)*
 > Il primo lotto era in [`../../src/`](../../src/); ogni sorgente si sposta qui quando un owner documentale lo
 > ha recepito. Restano per **provenienza**: servono a ricostruire *da dove* è nata una decisione, non a deciderla.
 >
