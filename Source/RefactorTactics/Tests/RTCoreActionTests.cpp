@@ -271,19 +271,18 @@ bool FRTRetiredStableIdTest::RunTest(const FString&)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSprintIsAMoveProfileTest,
-	"RefactorTactics.Actions.SprintIsAMoveProfileResolvedPreBlast",
+	"RefactorTactics.Actions.SprintIsAMoveProfileResolvedAfterBlast",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTSprintIsAMoveProfileTest::RunTest(const FString&)
 {
-	// #199, seconda voce — `Action.Sprint`. Il DoD ammetteva due vie: migrare la fase, **oppure** scrivere
-	// perche' resta dov'e'. E' stata scelta la seconda, e questo test e' la forma eseguibile di quella
-	// motivazione: senza, «documentato» sarebbe una frase in un file che nessuno ricontrolla.
+	// [D-116] (2026-08-12) chiude la seconda voce di #199 per la via che il DoD ammetteva per prima: la fase
+	// e' MIGRATA. Questo test era scritto per cadere quel giorno, ed e' caduto; qui e' riscritto — non
+	// cancellato — perche' le tre proprieta' che asseriva insieme restano quelle che definiscono un profilo
+	// di `Move`, e ora finalmente concordano.
 	//
 	// COSA DICE IL CANONE. [D-015]: «`Sneak · Normal · Sprint` sono profili della famiglia `Move`» e
 	// «**`Sprint` non e' un Dash**». [D-028]: `Sprint` e' «solo movimento», cioe' slot Movimento.
-	//
-	// COSA SIGNIFICA ESSERE UN PROFILO DI MOVE, in termini verificabili: lo STILE (percorso a budget, con
-	// pathfinding, non una linea retta) e lo SLOT (movimento, non principale). Entrambi sono veri qui sotto.
+	// [D-116]: la fase e' `NormalMovement`, cioe' DOPO il Blast, come ogni altro profilo della famiglia.
 	const FRTActionDef Sprint = URTCatalogLibrary::FindCoreAction(TEXT("Action.Sprint"));
 	if (!TestTrue(TEXT("Action.Sprint e' nel catalogo"), Sprint.ActionId == FName(TEXT("Action.Sprint"))))
 	{
@@ -296,22 +295,36 @@ bool FRTSprintIsAMoveProfileTest::RunTest(const FString&)
 	TestTrue(TEXT("D-028: Sprint spende lo slot MOVIMENTO, non il principale"),
 		Sprint.Slot == ERTActionSlot::Movement && Sprint.Slot == Move.Slot);
 
-	// LA DIVERGENZA, DICHIARATA. La fase resta `FastMovement`, cioe' PRIMA del Blast, mentre il Move normale
-	// e' «l'ultima fase volontaria». Non e' una svista: D-015 mette nella stessa frase «Sprint non e' un
-	// Dash» e «`Dash/Charge/Leap/Blink/Reposition` restano mobilita' speciali pre-Blast» — cioe' distingue
-	// la FAMIGLIA (Move) dal MOMENTO (rapido), e Sprint e' l'unico caso in cui le due non coincidono.
-	//
-	// Migrare la fase e' una decisione di GIOCO, non un allineamento: cambierebbe chi incassa il Blast di
-	// questo turno, quando `Status.Exposed` si applica, e la misura del bot (#149). D-028 avverte che senza
-	// costo di slot lo Sprint rischia gia' di essere «un Move migliore»: spostarlo dopo il Blast toglierebbe
-	// l'ultimo prezzo che paga, cioe' l'esposizione.
-	//
-	// Questo assert e' scritto per CADERE il giorno in cui quella decisione viene presa: chi migra la fase
-	// trova qui la riga da cambiare e il perche' era com'era.
-	TestTrue(TEXT("#199: Sprint resta pre-Blast (fase rapida) — divergenza DICHIARATA, non una svista"),
-		Sprint.ResolutionPhase == ERTResolutionPhase::FastMovement);
-	TestTrue(TEXT("...mentre il Move normale resta l'ultima fase volontaria"),
-		Move.ResolutionPhase == ERTResolutionPhase::NormalMovement);
+	// LA RIGA CHE ERA LA DIVERGENZA. Fino a D-116 questo assert diceva `FastMovement` ed era accompagnato
+	// dalla motivazione per cui la fase restava dov'era. La motivazione e' stata rovesciata da un fatto che
+	// non era sul tavolo quando fu scritta: restando pre-Blast, lo Sprint sparava da una POSIZIONE NUOVA,
+	// cioe' faceva precisamente cio' che il catalogo §2.1 attribuisce al `Dash`.
+	TestTrue(TEXT("D-116: Sprint risolve DOPO il Blast, come ogni profilo della famiglia Move"),
+		Sprint.ResolutionPhase == ERTResolutionPhase::NormalMovement);
+	TestTrue(TEXT("...cioe' esattamente la fase del Move normale: famiglia e momento ora coincidono"),
+		Sprint.ResolutionPhase == Move.ResolutionPhase);
+
+	// E la conseguenza che il catalogo dichiarava da sempre e che solo ora e' vera: `Sprint` NON e' una
+	// mobilita' rapida, quindi non concede di colpire da dove si arriva.
+	TestFalse(TEXT("D-116: Sprint non e' piu' una mobilita' rapida (macro-fase Dash)"),
+		URTCatalogLibrary::IsFastMovement(Sprint));
+
+	// LA CONTROPARTITA, indivisibile dalla migrazione. Con lo Sprint dopo il Blast, un `Exposed` che scade
+	// nel Cleanup dello stesso turno non incontrerebbe mai un attacco: il prezzo sarebbe inerte e allo
+	// Sprint resterebbe la sola rinuncia alla reazione — l'upgrade puro che D-015 vieta. Due turni.
+	const FRTActionEffectSpec* Exposed = Sprint.Effects.FindByPredicate(
+		[](const FRTActionEffectSpec& Spec)
+		{
+			return Spec.Effect == ERTActionEffect::Status && Spec.StatusTag == TAG_Status_Exposed;
+		});
+	if (TestNotNull(TEXT("Sprint applica Status.Exposed"), Exposed))
+	{
+		TestEqual(TEXT("D-116: Exposed dura DUE turni, o il prezzo della migrazione e' inerte"),
+			Exposed->StatusDuration, 2);
+	}
+
+	// E la reazione resta negata (CP 5.1): e' l'altro prezzo, e la migrazione non lo tocca.
+	TestFalse(TEXT("Sprint continua a negare la reazione"), Sprint.bAllowsReaction);
 
 	return true;
 }

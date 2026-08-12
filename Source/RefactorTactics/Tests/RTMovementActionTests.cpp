@@ -211,11 +211,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementCatalogTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTMovementCatalogTest::RunTest(const FString&)
 {
-	// Ogni mobilita' dichiara IN DATI la macro-fase (ADR-0003 §3) e il modo in cui si sposta. Le cinque
-	// mobilita' speciali risolvono nel Dash; solo `Action.Move` risolve nel Move, dopo il Blast.
+	// Ogni mobilita' dichiara IN DATI la macro-fase (ADR-0003 §3) e il modo in cui si sposta. Le QUATTRO
+	// mobilita' speciali risolvono nel Dash; `Action.Move` e `Action.Sprint` risolvono nel Move, dopo il
+	// Blast — sono due profili della stessa famiglia, e da [D-116] anche il momento coincide.
 	struct FExpected { const TCHAR* Id; ERTMatchPhase Macro; ERTMovementStyle Style; int32 Range; int32 Cooldown; };
 	const FExpected Expected[] = {
-		{ TEXT("Action.Sprint"),     ERTMatchPhase::Dash, ERTMovementStyle::Budget,       8, 0 },
+		{ TEXT("Action.Sprint"),     ERTMatchPhase::Move, ERTMovementStyle::Budget,       8, 0 },
 		{ TEXT("Action.Dash"),       ERTMatchPhase::Dash, ERTMovementStyle::LinearDash,   3, 1 },
 		{ TEXT("Action.Charge"),     ERTMatchPhase::Dash, ERTMovementStyle::LinearCharge, 3, 2 },
 		{ TEXT("Action.Leap"),       ERTMatchPhase::Dash, ERTMovementStyle::LinearLeap,   3, 2 },

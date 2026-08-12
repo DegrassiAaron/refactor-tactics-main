@@ -232,11 +232,12 @@ bool FRTCatalogCoreActionsTest::RunTest(const FString&)
 	for (const FString& E : Errors) { AddError(E); }
 	TestEqual(TEXT("le azioni generiche sono valide"), Errors.Num(), 0);
 
-	// `Action.Sprint` come lo descrive il catalogo v0.1 §2: mobilita' rapida, 8 MP, slot movimento.
+	// `Action.Sprint` come lo descrive il catalogo v0.1 §2.1: PROFILO del movimento normale, 8 MP, slot
+	// movimento — e da [D-116] risolve nel Move, dopo il Blast, come ogni altro profilo della famiglia.
 	const FRTActionDef Sprint = URTCatalogLibrary::FindCoreAction(TEXT("Action.Sprint"));
 	TestTrue(TEXT("Action.Sprint e' nel catalogo"), Sprint.ActionId == FName(TEXT("Action.Sprint")));
-	TestTrue(TEXT("Sprint risolve nella fase Dash (mobilita' rapida)"),
-		URTCatalogLibrary::MapResolutionPhase(Sprint.ResolutionPhase) == ERTMatchPhase::Dash);
+	TestTrue(TEXT("D-116: Sprint risolve nella fase Move, dopo il Blast"),
+		URTCatalogLibrary::MapResolutionPhase(Sprint.ResolutionPhase) == ERTMatchPhase::Move);
 	TestEqual(TEXT("Sprint vale 8 punti movimento"), Sprint.RangeCells, 8);
 	// D-028: il solo slot movimento. Prima era `MovementAndMain`, e il costo dello scatto lungo era
 	// strutturale; ora il prezzo e' tutto nei dati (`Exposed` e nessuna reazione) — vedi `BAL-1`.

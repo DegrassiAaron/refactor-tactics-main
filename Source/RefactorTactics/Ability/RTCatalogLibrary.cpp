@@ -717,9 +717,19 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	//
 	// Lo svantaggio dello scatto lungo e' `Exposed`, dichiarato come EFFETTO: chi corre allo scoperto incassa
 	// +5 dal primo colpo. Niente di tutto cio' e' scritto nell'orchestratore.
-	Catalog.Add(ShippedAction(TEXT("Action.Sprint"), ERTResolutionPhase::FastMovement, /*Priority*/ 60,
+	//
+	// FASE: `NormalMovement`, cioe' DOPO il Blast — [D-116] (2026-08-12), che supera [D-068]. Restando
+	// pre-Blast lo Sprint sparava da una posizione nuova, cioe' faceva cio' che il catalogo v0.1 §2.1
+	// attribuisce al `Dash` e nega esplicitamente a lui. Ora la famiglia (Move) e il momento (dopo il Blast)
+	// coincidono, e `Action.Sprint` smette di essere l'unico caso in cui divergevano.
+	//
+	// `Exposed` dura DUE turni, e non e' un ribilanciamento: e' la contropartita della migrazione. Con lo
+	// Sprint dopo il Blast, uno stato che scade nel Cleanup dello stesso turno non incontrerebbe mai un
+	// attacco — verrebbe applicato quando tutti hanno gia' sparato. A un turno il prezzo sarebbe INERTE, e
+	// allo Sprint resterebbe la sola rinuncia alla reazione: l'upgrade puro che [D-015] vieta.
+	Catalog.Add(ShippedAction(TEXT("Action.Sprint"), ERTResolutionPhase::NormalMovement, /*Priority*/ 60,
 		/*Range (MP)*/ 8, /*Cooldown*/ 0, ERTActionFallback::Stop,
-		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Exposed, /*Turni*/ 1) },
+		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Exposed, /*Turni*/ 2) },
 		/*bInterruptible*/ true, ERTActionSlot::Movement, ERTMovementStyle::Budget));
 
 	// `Action.Wait` (catalogo v0.1 §1) — non fa nulla e risolve per ultima (priorita' 100). Serve gia' ora
