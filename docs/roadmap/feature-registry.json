@@ -1828,10 +1828,10 @@
       "kind": "gameplay",
       "release": "v0.2",
       "priority": "P2",
-      "status": "BLOCKED",
-      "status_derived": "DESIGNED",
+      "status": "SPECIFIED",
+      "status_derived": "SPECIFIED",
       "gates": {
-        "spec": "partial",
+        "spec": "done",
         "data": "todo",
         "runtime": "todo",
         "log_debug": "todo",
@@ -1842,7 +1842,7 @@
         "network_privacy": "na",
         "replay_representable": "todo"
       },
-      "gates_done": 0,
+      "gates_done": 1,
       "gates_applicable": 9,
       "roadmap": {
         "epic": null,
@@ -1877,7 +1877,7 @@
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {},
-      "notes": "**Bloccata su `AE-2`.** E' l'unico contributo genuinamente nuovo del kit del 2026-08-12: oggi il profilo di movimento cambia distanza, rumore ed esposizione e NIENTE ALTRO. Risolve un difetto gia' registrato: senza costo di slot il prezzo dello `Sprint` regge tutto su `Status.Exposed` (allarme dichiarato in D-028). ➕ **2026-08-12, CP 38.3 (#606)**: la proposta ha ora una **spec in forma decidibile** — `spec-compatibilita-azioni-movimento.md`, stato `PROPOSED`. Modello: una **soglia** (`MinStability` sull'azione contro `Stability` sul profilo) invece della matrice azione x profilo che il kit proponeva — **31 numeri + 4 contro 124 celle**, misurati sul catalogo. Stessa forma di `PushResistance`, che D-038 tiene come soglia e non come sottrazione. ⚠️ Il gate `spec` resta `partial` **di proposito**: il documento descrive le regole e dichiara l'owner, ma quelle regole sono **proposte**. Diventa `done` quando `AE-2` e' decisa si'; se e' decisa no, il documento passa `HISTORICAL` e questa feature va `DEFERRED` come `RT-FEAT-ACTION-BUDGET`. ⚠️ **Senza `RT-FEAT-ACTION-PLAN-VALIDATION` (#605) il dato non e' osservabile**: un requisito che nessuno valuta e' un campo senza consumatore. #606 definisce il dato, #605 lo rende una regola. ⚠️ `Spec.ActionEconomy.PathLengthChangesEffect` appartiene ad `AE-3` — i FATTI DEL PERCORSO, non il profilo — ed e' elencato qui in prestito: si sposta quando `AE-3` viene decisa. Le due non si fondono, e la ragione e' di determinismo: il profilo e' noto in Planning, i fatti del percorso solo dopo la risoluzione, e un Move puo' decadere (D-045)."
+      "notes": "✅ **`AE-2` ACCETTATA il 2026-08-12** — [D-116](../decisions/RT_PDR_00_Decision_Log.md), issue #606. Il profilo di movimento determina la **legalita'** e l'efficacia di un'azione. Modello a **soglia** (`MinStability` sull'azione contro `Stability` sul profilo): **31 numeri + 4** invece delle 124 celle di una matrice azione x profilo. Categorie nominate dall'autore: **precisione, preparazione, azioni pesanti**. Owner: `spec-compatibilita-azioni-movimento.md`, ora `CURRENT`. `spec: done` — il documento descrive le regole e ne dichiara l'owner, e da oggi quelle regole sono canone. Tutti gli altri gate restano `todo`: **nessuna riga di codice la esprime**. ⚠️ **Non e' separabile dalle altre due voci di D-116**: lo `Sprint` torna dopo il Blast (supera D-068) e `Status.Exposed` passa a 2 turni. La migrazione di fase da sola produrrebbe l'upgrade puro vietato da D-015 — `Exposed` diventerebbe inerte e allo Sprint resterebbe un solo prezzo. Chi implementa questa feature senza le altre due rompe il bilanciamento. ⚠️ **Senza `RT-FEAT-ACTION-PLAN-VALIDATION` (#605) il dato non e' osservabile**: #606 definisce il dato, #605 lo rende una regola. ⚠️ Il primo lavoro **non e'** assegnare soglie: i profili di movimento non esistono come tipo (`grep -rn MovementProfile Source/` da' zero), vivono solo nel catalogo markdown. ⚠️ `Spec.ActionEconomy.PathLengthChangesEffect` appartiene ad `AE-3` — i FATTI DEL PERCORSO, ancora aperti — ed e' elencato qui in prestito."
     },
     {
       "feature_id": "RT-FEAT-ACTION-PLAN-VALIDATION",

@@ -204,6 +204,21 @@ permette di sparare da un'altra posizione nello stesso turno, che è precisament
 > documentale romperebbe test e replay. Tracciato in
 > [`../DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md) riga 41 → issue di refactor.
 >
+> 🔄 **Questa riga è stata vera, poi falsa, e dal 2026-08-12 è di nuovo vera.** In mezzo,
+> [D-068](../decisions/RT_PDR_00_Decision_Log.md) aveva **rovesciato** la decisione — «Sprint resta pre-Blast,
+> ed è una decisione, non un arretrato» — lasciando però il paragrafo qui sopra al suo posto: per quattro
+> giorni il catalogo ha dichiarato una regola che il canone aveva appena abbandonato, e nessun gate poteva
+> accorgersene. [D-116](../decisions/RT_PDR_00_Decision_Log.md) ha rovesciato di nuovo, e per un motivo che
+> non era sul tavolo nel 2026-08-10: restando pre-Blast lo Sprint **spara da una posizione nuova**, cioè fa
+> ciò che questa stessa sezione attribuisce al `Dash`. La migrazione della sola `ResolutionPhase` è ora
+> lavoro di **E38**.
+>
+> ⚠️ **E non si migra da sola.** Portare lo Sprint dopo il Blast rende `Status.Exposed` **inerte** — verrebbe
+> applicato quando tutti hanno già sparato, e scadrebbe nel Cleanup subito dopo. Per questo D-116 lo porta a
+> **`Turni 2`** nello stesso momento, e introduce la compatibilità con il profilo di movimento
+> ([`../gameplay/spec-compatibilita-azioni-movimento.md`](../gameplay/spec-compatibilita-azioni-movimento.md)):
+> senza le due contropartite, lo Sprint diventerebbe **un `Move` più lungo che costa solo la reazione**.
+>
 > **Il trade-off dello Sprint va migrato, non perso.** Oggi paga con `Status.Exposed` e con la rinuncia alla
 > reazione. Nel modello a profili non può diventare un potenziamento gratuito del `Move`: se perde il costo di
 > slot deve conservare un costo, altrimenti nessuno sceglierebbe più `Move`.
@@ -226,8 +241,7 @@ fretta è ciò che permette di sparare da un'altra parte nello stesso turno.
 | `Action.Reposition` | Riposizionamento | **Movimento** | **Dash** | 20 | 40 | 2 celle | 1 | `Fallback.Stop` | sì |
 
 **Sprint** — fornisce 8 MP · occupa il **solo slot movimento** ([D-028](../decisions/RT_PDR_00_Decision_Log.md),
-coerente con D-015) · non permette di preparare una reazione · applica `Status.Exposed` fino al Cleanup
-(**+5** al primo danno diretto ricevuto).
+coerente con D-015) · non permette di preparare una reazione · applica `Status.Exposed` (**+5** al primo danno diretto ricevuto). ⚠️ **Durata: da `1` a `2` turni** con [D-116](../decisions/RT_PDR_00_Decision_Log.md) — non è un ribilanciamento, è la contropartita della migrazione di fase: con lo Sprint dopo il Blast, un `Exposed` che scade nel Cleanup dello stesso turno non incontrerebbe mai un attacco.
 
 > ⚠️ **Il prezzo dello Sprint ora regge tutto sui dati.** Finché consumava anche l'azione principale il costo
 > era strutturale; adesso è `Exposed` (+5 al primo danno diretto) più la rinuncia alla reazione, contro 3 MP
