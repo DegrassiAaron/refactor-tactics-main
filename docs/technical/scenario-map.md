@@ -514,12 +514,16 @@ residuo di una voce che c'è già, e il criterio conta le capacità, non i difet
 playtest dice che l'avviso che svanisce rende la voce padre inaffidabile, allora entra: sarebbe una revisione
 del criterio, non una svista.
 
-Otto delle diciassette stanno già in una seduta dichiarata del registro (la **D**, partita su hex, e la **G**,
-eseguibile subito). **Nove non stanno in nessuna**, e non è un dettaglio organizzativo: il registro lo dice da
-sé — «una voce che non sta in una seduta non viene eseguita mai». Sono `PIE-HEXPLAY-1/2/3/8`, `PIE-V01-HUD`,
-`PIE-V01-LOG`, `PIE-V01-INTENT`, `PIE-V01-ROSTER`, `PIE-FACING-1`: le prime quattro perché sono 🟡 e le sedute
-raggruppano le ⏳, le altre perché appartengono a E11 ed E16, che non hanno una seduta propria. **Assegnarle a
-una seduta è il prossimo passo naturale di G9**, e vale più di eseguirne una a caso.
+**Tutte e diciassette stanno in una seduta dichiarata del registro.** Le nove del subset `RELEASE-V01`:
+`PIE-HEXPLAY-1` in **U2**, `-2` e `-3` in **U3**, `-8` e `PIE-FACING-1` in **U6**, `PIE-V01-ROSTER` in
+**U11**, `PIE-V01-HUD`, `-INTENT` e `-LOG` in **U15**.
+
+> ⚠️ **Corretto il 2026-08-12.** Questo paragrafo diceva «**nove non stanno in nessuna**» e concludeva che
+> «assegnarle a una seduta è il prossimo passo naturale di G9». Misurando i campi `verifies:` di
+> `editor-sessions.yaml`, l'assegnazione **c'è per tutte e nove**: l'affermazione era vera quando è stata
+> scritta e nessuno l'ha rimisurata dopo che U11 e U15 sono nate. Il prossimo passo di G9 è **eseguirle**.
+> Il conteggio delle voci davvero orfane — 55, nessuna nel subset — vive in
+> [`../roadmap/editormap.shortlist.md`](../roadmap/editormap.shortlist.md), che è coerente con questa misura.
 
 `PIE-FACING-1` è entrata col merge di E16, e non per completezza: dal CP 16.2 l'emisfero posteriore è
 **scoperto**, quindi il facing decide il danno. Un orientamento visibile diverso da quello che il resolver ha

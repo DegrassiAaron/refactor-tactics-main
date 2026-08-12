@@ -144,9 +144,14 @@ dichiarate invece di gonfiare una riga a caso, perché una somma che torna con s
 di sembrare verificati senza esserlo (vedi la nota qui sopra). Chi le ha scritte sa dove vanno.
 
 **Nove delle diciannove sono nel subset `RELEASE-V01`** — `PIE-HEXPLAY-1/2/3/8`, `PIE-V01-HUD`,
-`PIE-V01-LOG`, `PIE-V01-INTENT`, `PIE-V01-ROSTER`, `PIE-FACING-1` — e questa è la conseguenza che vale la pena
-vedere: **il gate G9 dipende per metà da voci che nessuna seduta pianifica**. Assegnarle vale più che
-eseguirne una a caso.
+`PIE-V01-LOG`, `PIE-V01-INTENT`, `PIE-V01-ROSTER`, `PIE-FACING-1`.
+
+> ⚠️ **Corretto il 2026-08-12.** Questa riga diceva che «**il gate G9 dipende per metà da voci che nessuna
+> seduta pianifica**» e prescriveva di assegnarle. **Misurato su `editor-sessions.yaml`, tutte e nove hanno
+> una seduta**: `PIE-HEXPLAY-1` → U2 · `-2/-3` → U3 · `-8` e `PIE-FACING-1` → U6 · `PIE-V01-ROSTER` → U11 ·
+> `PIE-V01-HUD`, `-INTENT`, `-LOG` → U15. L'affermazione era vera quando è stata scritta e non è stata
+> rimisurata quando le sedute sono nate: prescriveva un lavoro **già fatto**, e chi la leggeva assegnava
+> voci invece di eseguirle. Ciò che resta di G9 è **eseguirle**, non collocarle.
 
 > ⚠️ **Nota di metodo.** Fino al 2026-08-08 questa riga diceva «le **31** aperte in sei gruppi», con
 > una somma «verificata» di `2+9+9+4+4+1+2 = 31`, mentre poche righe sopra il conteggio **misurato** ne
@@ -197,10 +202,16 @@ awk -F'|' '/RELEASE-V01/ && /^\| \*\*PIE-/ {s=$(NF-1);
 
 Motivazione voce per voce e stato aggregato: [`scenario-map.md`](scenario-map.md) §8.
 
-**Nove delle diciassette non stanno in nessuna seduta** — `PIE-HEXPLAY-1/2/3/8`, `PIE-V01-HUD`,
-`PIE-V01-LOG`, `PIE-V01-INTENT`, `PIE-V01-ROSTER`, `PIE-FACING-1` — e per la regola già scritta qui sotto
-(«una voce che non sta in una seduta non viene eseguita mai») è la cosa da sistemare per prima: **assegnarle
-a una seduta vale più che eseguirne una a caso**.
+**Le nove del subset stanno tutte in una seduta** — `PIE-HEXPLAY-1` in U2, `-2/-3` in U3, `-8` e
+`PIE-FACING-1` in U6, `PIE-V01-ROSTER` in U11, `PIE-V01-HUD`, `-INTENT` e `-LOG` in U15. La regola scritta
+qui sotto («una voce che non sta in una seduta non viene eseguita mai») **è soddisfatta per il subset**:
+quello che manca è l'esecuzione, non l'assegnazione.
+
+> ⚠️ **Corretto il 2026-08-12**, misurando `verifies:` in `editor-sessions.yaml`. Questa riga diceva il
+> contrario — «nove delle diciassette **non** stanno in nessuna seduta» — e ne traeva la priorità
+> sbagliata. Le 55 voci del registro davvero orfane esistono e sono contate in
+> [`../roadmap/editormap.shortlist.md`](../roadmap/editormap.shortlist.md), ma **nessuna** di esse è nel
+> subset `RELEASE-V01`.
 
 `PIE-FACING-1` è entrata nel subset il 2026-08-09, con la chiusura di **E16**, e non per completezza: dal
 CP 16.2 l'emisfero posteriore è **scoperto**, quindi il facing decide il danno. Se l'orientamento che si vede
