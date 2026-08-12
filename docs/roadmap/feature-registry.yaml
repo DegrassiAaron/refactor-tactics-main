@@ -1453,7 +1453,7 @@ features:
       runtime: done
       log_debug: partial
       automation: done
-      scenario: todo
+      scenario: done
       ui_wiki: done
       packaged: partial
       network_privacy: na
@@ -1471,8 +1471,7 @@ features:
       - RefactorTactics.Combat.AbilityUsableByCooldownAndEnergy
       - RefactorTactics.Combat.GainEnergyClampsToMax
     scenarios:
-      - planned:
-          - Spec.ActionEconomy.CooldownBlocksWithSlotFree
+      - Spec.ActionEconomy.CooldownBlocksWithSlotFree
     wiki_refs:
       - wiki:azioni-e-movimento
     last_verified:
