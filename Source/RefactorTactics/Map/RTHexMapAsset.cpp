@@ -316,6 +316,13 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 		{
 			Errors.Add(FString::Printf(TEXT("Error: costo negativo su %s"), *C.Id.ToString()));
 		}
+		if (C.OccupancySurcharge < 0)
+		{
+			// `TotalMoveCost()` lo clampa, quindi un negativo non produce un costo negativo — ma passerebbe la
+			// validazione in silenzio, e questo e' il gate che deve restare verde sui dati COTTI (#621).
+			Errors.Add(FString::Printf(TEXT("Error: sovrapprezzo di occupazione negativo su %s"),
+				*C.Id.ToString()));
+		}
 
 		// Coperture: si scrivono a mano nell'editor delle proprieta', quindi qui si intercettano gli stati
 		// che nessuna regola sa risolvere — meglio un errore leggibile di un comportamento a sorte.
@@ -506,7 +513,9 @@ void URTHexMapAsset::MigrateToCurrentFormat()
 	// o la mappa cambierebbe significato solo per essere stata ricaricata.
 	// v5 -> v6 (CP 19.1): il formato guadagna la classe di mappa. Il default (`Skirmish`) e' cio' che una
 	// mappa scritta prima gia' era — il vertical slice e' 2v2 — quindi anche qui non c'e' niente da convertire.
-	// In nessuno dei due c'e' qualcosa da convertire — il campo nuovo nasce vuoto e una mappa che non lo usa
+	// v6 -> v7 (#619): la cella guadagna il sovrapprezzo di occupazione. Il default (0) e' cio' che una mappa
+	// scritta prima gia' era — nessuna geometria cotta, nessuna cella stretta — quindi niente da convertire.
+	// In nessuno di questi c'e' qualcosa da convertire — il campo nuovo nasce vuoto e una mappa che non lo usa
 	// si comporta esattamente come prima — quindi la migrazione si limita a dichiarare la versione. Il giorno
 	// in cui una migrazione dovra' TRASFORMARE dati, il posto e' questo, un `if (FormatVersion < N)` per
 	// volta, in ordine.

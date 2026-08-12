@@ -429,6 +429,31 @@ bool FRTOccupancyMigrationTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `ValidateMap` rifiuta un sovrapprezzo NEGATIVO, come gia' fa per `MoveCost`.
+ *
+ * `TotalMoveCost()` lo clampa a zero, quindi un valore negativo non produrrebbe un costo negativo — ma
+ * passerebbe la validazione in silenzio, e `ValidateMap` e' il gate che #621 dichiara di voler tenere verde
+ * sui dati COTTI. Un campo che nasce accanto a `MoveCost` e ne copia la semantica deve copiarne anche il
+ * controllo, o l'asimmetria si scopre il giorno in cui una cottura scrive un numero sbagliato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOccupancyValidateRejectsNegativeTest,
+	"RefactorTactics.HexOccupancy.ValidateMapRejectsANegativeSurcharge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOccupancyValidateRejectsNegativeTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeFlatMap(1);
+	TestEqual(TEXT("la mappa nasce valida"), M->ValidateMap().Num(), 0);
+
+	SetSurcharge(M, FRTCellId(0, 0), -1);
+	TestTrue(TEXT("un sovrapprezzo negativo e' un errore di validazione"), M->ValidateMap().Num() > 0);
+
+	// Il gemello di controllo: uno zero e' legittimo — significa «cella larga», ed e' il default.
+	SetSurcharge(M, FRTCellId(0, 0), 0);
+	TestEqual(TEXT("zero resta valido"), M->ValidateMap().Num(), 0);
+	return true;
+}
+
 // ---------------------------------------------------------------------------------------------------------
 // Il guasto che ha deciso DOVE vive il sovrapprezzo, verificato sul codice vero e non su una simulazione.
 // ---------------------------------------------------------------------------------------------------------

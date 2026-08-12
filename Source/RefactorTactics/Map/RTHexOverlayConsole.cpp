@@ -55,7 +55,7 @@ static void RTDebugDrawCellsCommand(const TArray<FString>& Args, UWorld* World, 
 	{
 		Blocked       += Cell.bBlocksMovement ? 1 : 0;
 		SightBlockers += Cell.bBlocksLineOfSight ? 1 : 0;
-		Costly        += (Cell.MoveCost > 1) ? 1 : 0;
+		Costly        += (Cell.TotalMoveCost() > 1) ? 1 : 0;
 	}
 
 	Ar.Logf(TEXT("[RT] Overlay celle: acceso su %d celle."), Map->NumCells());
