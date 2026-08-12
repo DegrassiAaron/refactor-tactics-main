@@ -340,6 +340,24 @@ protected:
 	TObjectPtr<UInstancedStaticMeshComponent> Relief;
 
 	/**
+	 * Volumi delle due regole di blocco: dove non si passa, e dove non si vede attraverso.
+	 *
+	 * **Un solo componente per due forme**, e non e' un compromesso: un ISM porta una sola `StaticMesh`, ma le
+	 * ISTANZE hanno scale indipendenti — e qui la forma *e'* la scala. Un cilindro stretto e alto legge come
+	 * colonna, uno largo e basso come lastra. Due componenti avrebbero dato due mesh diverse al prezzo di due
+	 * cicli di vita da tenere allineati, per una differenza che la scala gia' produce.
+	 *
+	 * Le due forme sono **concentriche e annidate** con i canali gia' presenti — contorno di superficie 0.85,
+	 * lastra della vista 0.75, rilievo del costo 0.60, colonna del blocco 0.40 — cosi' una cella che dice tre
+	 * cose le mostra tutte e tre invece di sovrapporle.
+	 *
+	 * `NoCollision` per la stessa ragione di `Relief`: il raycast di selezione valida l'ACTOR, non il
+	 * componente, e geometria collidibile qui ruberebbe i click al pennello.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TObjectPtr<UInstancedStaticMeshComponent> Blockers;
+
+	/**
 	 * Mapping instance index -> FRTCellId (per selezione/debug). Stato DERIVATO, non serializzato:
 	 * viene rigenerato da RebuildInstances a ogni costruzione dell'actor.
 	 */
