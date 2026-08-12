@@ -4166,7 +4166,7 @@ features:
     owner_specs:
       - docs/gameplay/spec-bot-hex.md
       - docs/gameplay/spec-bot-tattico.md
-    issues: [160]
+    issues: [160, 649]
     tests:
       - RefactorTactics.HexBotPlay.HiddenEnemyFairness
       - RefactorTactics.HexBotPlay.PlansOnPartialKnowledge
