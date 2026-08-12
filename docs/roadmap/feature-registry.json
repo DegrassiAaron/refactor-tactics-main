@@ -24,7 +24,7 @@
       "branch": "main"
     }
   },
-  "count": 98,
+  "count": 99,
   "features": [
     {
       "feature_id": "RT-FEAT-CORE-TURN",
@@ -3516,7 +3516,63 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "Il client valida sullo stato dell'autorità (`MakeCurrentSnapshot`): la preview non è una seconda verità. Waypoint, undo, rifiuto fuori budget coperti da test."
+      "notes": "Il client valida sullo stato dell'autorità (`MakeCurrentSnapshot`): la preview non è una seconda verità. Waypoint, undo, rifiuto fuori budget coperti da test. ⚠️ **Il layer è Canvas, non UMG**: `ARTHUD::DrawHUD` possiede il §4.2 di `progettazione-hud.md` — path, waypoint, Dash, AoE, friendly-fire, barre ancorate alle unità — che la spec vuole esplicitamente **non** realizzato come widget statico. Lo Screen HUD §4.1 è una feature distinta (`RT-FEAT-UI-SCREEN-HUD`) e **non sostituisce** questa."
+    },
+    {
+      "feature_id": "RT-FEAT-UI-SCREEN-HUD",
+      "title": "Screen HUD in UMG (layer §4.1)",
+      "area": "UI",
+      "kind": "ui",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "SPECIFIED",
+      "status_derived": "SPECIFIED",
+      "gates": {
+        "spec": "done",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "na",
+        "automation": "todo",
+        "scenario": "na",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "na",
+        "replay_representable": "na"
+      },
+      "gates_done": 1,
+      "gates_applicable": 6,
+      "roadmap": {
+        "epic": "E11",
+        "milestone": null,
+        "checkpoints": [
+          "11.7"
+        ],
+        "out_of_release_scope": ""
+      },
+      "dependencies": [
+        "RT-FEAT-UI-PLANNING",
+        "RT-FEAT-UI-ICON-LANGUAGE"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/technical/progettazione-hud.md"
+      ],
+      "issues": [
+        613
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "pie_refs": [
+        "PIE-V01-HUD"
+      ],
+      "last_verified": {
+        "date": "2026-08-12",
+        "commit": "9bb782d"
+      },
+      "notes": "Aperta il 2026-08-12 da un panel di specifica sulla proposta «UI-0 — First Playable HUD» (`../roadmap/plans/ui-0-first-playable-hud-2026-08-12.md`). ⚠️ **Esiste perché il DoD di CP 11.1 non nomina UMG**: chiede contenuto informativo, e cinque voci su sei sono già soddisfatte da `ARTHUD` in Canvas. Il confine fra i due layer è la ragione della feature — §4.1 qui, §4.2 in `RT-FEAT-UI-PLANNING` — e la sovrapposizione da governare è **chi disegna le barre**: quelle ancorate sopra l'unità restano Canvas, il roster e il pannello della selezionata sono UMG. Dipende da `RT-FEAT-UI-ICON-LANGUAGE` per D-031: nessun widget referenzia una texture."
     },
     {
       "feature_id": "RT-FEAT-UI-ACTION-GHOSTS",

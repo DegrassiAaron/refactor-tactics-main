@@ -27,7 +27,7 @@ Legenda: ✅ chiusa · 🟡 parziale · ⏳ non iniziata · `—` nessuno stato 
 | **E8** | ✅ | 8 | 49/72 | 8 superfici, stati temporanei legati alla cella, propagazione elettrica sul grafo dell'acqua, fuoco/acqua dinamici |
 | **E9** | ✅ | 5 | 33/43 | Copertura per **bordo**, porte come bordo (mappa v4), ponti come **arco** (v5), pannello cinetico temporaneo |
 | **E10** | 🟡 | 2 | 9/18 | Fine partita a tre vie ✅; ⏳ **nessun oggetto da attivare** in mappa |
-| **E11** | 🟡 | 8 | 28/56 | Preview, input e playback esistono; ⏳ **Ghost Timeline** e i comandi `rt.Debug.*` completi |
+| **E11** | 🟡 | 9 | 29/62 | Preview, input e playback esistono; ⏳ **Ghost Timeline** e i comandi `rt.Debug.*` completi |
 | **E12** | 🟡 | 7 | 32/49 | Replay deterministico su 100 ripetizioni ✅; ⏳ **packaged build**. Senza checksum e packaged non è v0.1 |
 | **E13** | 🟡 | 5 | 18/43 | La vista **decide**: da CP 13.2 un'azione offensiva non parte contro un bersaglio ignoto alla squadra, e un contatto solo `Incerto` si colpisce per cella. il **rumore** si propaga sul grafo (CP 13.3) ma nessuno lo **emette** ancora in partita — il produttore è CP 13.4. ⏳ **bot e HUD**, che la conoscenza non la consumano |
 | **E14** | 🟡 | 8 | 10/78 | CP 14.3/14.4 chiusi: l'opportunity ha un'**identità derivata** e l'Overwatch la produce a ogni micro-step, riusando `FRTSuppressiveZone`. ⏳ **nessuna finestra viva** — il resolver non chiede ancora nulla (CP 14.5), poi Clash e Time Bank |
