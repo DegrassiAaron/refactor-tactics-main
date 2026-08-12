@@ -85,8 +85,7 @@ bool ResolveClickedCell(UWorld* World, ARTHexMapActor* Actor, const FInputDevice
 	bool bHitTarget = World
 		&& World->LineTraceSingleByObjectType(Result, RayStart, RayEnd,
 			FCollisionObjectQueryParams(FCollisionObjectQueryParams::AllObjects))
-		&& URTHexLibrary::PickTargetsSelectableCells(Result.GetComponent(), Actor->SelectableCells(),
-			Result.Item, Actor->NumInstanceCells());
+		&& Actor->IsPickOnSelectableCell(Result.GetComponent(), Result.Item);
 
 	// In AllLayers l'ISM contiene un'istanza per OGNI piano mostrato, e il raggio colpisce la prima che incontra
 	// — che puo' stare su un layer diverso da quello attivo. Proiettare quel punto sul piano attivo lo sposta in
@@ -94,7 +93,7 @@ bool ResolveClickedCell(UWorld* World, ARTHexMapActor* Actor, const FInputDevice
 	// alcune celle da quella sotto il cursore. Se il colpo non e' sul layer attivo si scarta e si usa il piano,
 	// che e' la geometria giusta per «dove sto puntando su QUESTO piano».
 	//
-	// L'indice di istanza e' gia' stato validato sopra da `PickTargetsSelectableCells` — senza, `CellForInstance`
+	// L'indice di istanza e' gia' stato validato sopra da `IsPickOnSelectableCell` — senza, `CellForInstance`
 	// risponderebbe `(0,0,0)`, una cella valida, a un indice fuori range. Qui resta la sola domanda sul piano.
 	if (bHitTarget && Actor->CellForInstance(Result.Item).Layer != Layer)
 	{

@@ -54,8 +54,10 @@ ARTHexMapActor::ARTHexMapActor()
 		Cells->SetStaticMesh(CylinderMesh.Object);
 	}
 
-	// Rilievo del costo: stessa mesh, ma SENZA collisione — il raycast di selezione valida l'actor, non il
-	// componente, quindi geometria collidibile qui ruberebbe i click al pennello.
+	// Rilievo del costo: stessa mesh, ma SENZA collisione. E' la prima delle due difese — la seconda e'
+	// `IsPickOnSelectableCell`, che scarta i colpi su qualunque componente diverso da `Cells`. Serve entrambe:
+	// questa evita lavoro inutile al raycast, quella impedisce che una geometria futura rubi i click perche'
+	// qualcuno si e' dimenticato di questa riga.
 	Relief = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Relief"));
 	Relief->SetupAttachment(Cells);
 	Relief->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -122,6 +124,15 @@ void ARTHexMapActor::BeginDestroy()
 	Super::BeginDestroy();
 }
 #endif
+
+bool ARTHexMapActor::IsPickOnSelectableCell(const UPrimitiveComponent* HitComponent, int32 InstanceIndex) const
+{
+	// L'indice di istanza appartiene al componente COLPITO: va quindi validato contro quel componente, non
+	// contro l'actor che lo contiene. Le due condizioni sono una regola sola.
+	return HitComponent != nullptr
+		&& HitComponent == Cells.Get()
+		&& InstanceCells.IsValidIndex(InstanceIndex);
+}
 
 FRTCellId ARTHexMapActor::CellForInstance(int32 InstanceIndex) const
 {

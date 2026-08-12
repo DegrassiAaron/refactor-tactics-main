@@ -1,5 +1,4 @@
 #include "Map/RTHexLibrary.h"
-#include "Components/InstancedStaticMeshComponent.h" // il confronto fra componenti richiede la gerarchia, non la sola forward declaration
 
 namespace
 {
@@ -402,15 +401,4 @@ TArray<FRTCellId> URTHexLibrary::HexCone(const FRTCellId& From, const FRTCellId&
 	Out = Unique.Array();
 	Out.Sort([](const FRTCellId& L, const FRTCellId& R) { return StableLess(L, R); });
 	return Out;
-}
-
-bool URTHexLibrary::PickTargetsSelectableCells(const UPrimitiveComponent* HitComponent,
-	const UInstancedStaticMeshComponent* Cells, int32 InstanceIndex, int32 NumInstanceCells)
-{
-	// L'indice di istanza appartiene al componente COLPITO: va quindi validato contro quel componente, non
-	// contro l'actor che lo contiene. Le due condizioni sono una regola sola.
-	return HitComponent != nullptr
-		&& HitComponent == Cells
-		&& InstanceIndex >= 0
-		&& InstanceIndex < NumInstanceCells;
 }

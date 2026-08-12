@@ -7,6 +7,7 @@
 #include "RTHexMapActor.generated.h"
 
 class UInstancedStaticMeshComponent;
+class UPrimitiveComponent;
 class UStaticMesh;
 class URTHexMapAsset;
 
@@ -183,10 +184,17 @@ public:
 	int32 NumInstanceCells() const { return InstanceCells.Num(); }
 
 	/**
-	 * L'unica geometria SELEZIONABILE dell'actor: il componente contro cui va confrontato il colpo del
-	 * raycast. Gli altri componenti (il rilievo del costo) sono di lettura e non devono ricevere click.
+	 * Il colpo di un raycast di selezione cade su una cella selezionabile di QUESTO actor?
+	 *
+	 * Vero solo se e' stato colpito **proprio** il componente delle celle — non un altro componente dello
+	 * stesso actor, come il rilievo del costo, che e' geometria di lettura — e se l'indice di istanza che
+	 * accompagna il colpo appartiene davvero a quel componente.
+	 *
+	 * Le due condizioni sono una regola sola: `Result.Item` si riferisce al componente COLPITO, quindi
+	 * risolverlo contro un altro componente restituisce una cella valida e sbagliata. Verificare l'ACTOR non
+	 * basta, e il difetto non si manifesterebbe come errore ma come pennello che dipinge altrove.
 	 */
-	const UInstancedStaticMeshComponent* SelectableCells() const { return Cells; }
+	bool IsPickOnSelectableCell(const UPrimitiveComponent* HitComponent, int32 InstanceIndex) const;
 
 	/** La mappa esagonale del livello (la prima trovata), oppure nullptr se il livello non ne ha. */
 	static ARTHexMapActor* FindInWorld(const UWorld* World);
