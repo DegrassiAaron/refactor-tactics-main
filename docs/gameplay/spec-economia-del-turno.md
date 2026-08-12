@@ -26,7 +26,7 @@ Move lungo tolga precisione, che uno scatto renda un'abilità impossibile. Il ca
 profilo di movimento cambia distanza, rumore ed esposizione, e finisce lì. Quella proposta ha bisogno di un
 posto dove essere scritta come candidata senza essere scambiata per regola.
 
-## 1. La regola, oggi
+## 1. La regola
 
 > **Un turno dà a ciascuna unità un movimento, un'azione principale e una reazione.** Ciò che il giocatore
 > sceglie non è *quante* cose fare, ma **quando** muoversi: *schivo e sparo* (mobilità in fase `Dash`, poi
@@ -41,6 +41,44 @@ e [ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md) per il pivot
 **Non è un sistema di Action Point**, e la differenza non è terminologica: con gli AP due azioni leggere
 valgono una pesante, e la legalità è una sottrazione. Qui la legalità è **strutturale** — `Guard` e
 `BasicAttack` non si sommano perché occupano la stessa cosa, non perché il totale sfori.
+
+> ✅ **Deciso il 2026-08-12** ([D-114](../decisions/RT_PDR_00_Decision_Log.md), issue
+> [#604](https://github.com/DegrassiAaron/refactor-tactics-main/issues/604)). La proposta di sostituire gli
+> slot con una capacità numerica è **respinta**, e la ragione è quella scritta qui sopra letta al contrario:
+> *due azioni leggere non valgono una pesante*, e senza una grandezza non c'è modo di farle valere. Questa
+> sezione smette quindi di dire «oggi».
+
+### 1-bis. Il peso si paga in drawback, non in costo
+
+Se non esiste una grandezza da spendere, resta la domanda che il costo risolveva: **come si impedisce a
+un'azione forte di dominare quella debole, se occupano lo stesso slot?**
+
+La risposta è uno **svantaggio dichiarato sull'azione stessa**. E non è un meccanismo nuovo: è ciò che il
+catalogo già fa, che [D-114](../decisions/RT_PDR_00_Decision_Log.md) promuove da comportamento emergente a
+regola.
+
+| Azione | Cosa guadagna | Cosa paga |
+|---|---|---|
+| `HeavyAttack` contro `PrecisionAttack` | **35** danni contro 24 | cooldown **2** contro 1 |
+| `Sprint` contro `Move` | 8 MP contro 5 | `Status.Exposed` (+5 al primo danno diretto) e nessuna reazione |
+| `Brace` | tiene da ogni lato, a ogni colpo | si radica da sé: `Root`, quindi non si muove |
+| `Charge` | ti porta addosso al bersaglio | occupa la **principale**, non il movimento |
+
+Le forme di drawback sono **quattro**, misurate sul catalogo attuale e non dedotte — l'elenco è aperto, ma
+nessuna delle quattro richiede un meccanismo nuovo:
+
+```text
+cooldown                    HeavyAttack: 2 contro 1
+status auto-inflitto        Sprint → Exposed · Brace → Root
+rinuncia alla reazione      Sprint
+slot diverso dall'atteso    Charge è mobilità e occupa la PRINCIPALE
+```
+
+Un'azione pesante che non ne dichiara nessuno non è bilanciata in un altro modo: è un **difetto di dato**.
+
+⚠️ Il vincolo che ne segue, e che vale come criterio di revisione del catalogo: se due azioni occupano lo
+stesso slot e una domina l'altra in ogni situazione, la correzione **non** è dare un costo alla più forte —
+è dichiararle un drawback, oppure fonderle.
 
 > ℹ️ Il catalogo azioni registra che **`Slot ≡ Action Points`** come nota terminologica: il workbook
 > `RefactorTactics_Balance_Matrices_v0.1.xlsx` modella gli stessi slot come risorse `RES_ACTION` (cap 2) e
@@ -195,21 +233,31 @@ erano **sette duplicati** di codici esistenti con un altro nome.
 Resta però un buco vero, e va detto: **la validazione in Planning non esiste come componente**. `git grep
 ValidatePlan` non restituisce nulla; ciò che esiste è `ValidateInstance`/`ApplyFallback`, che agisce **in
 risoluzione**. Oggi un piano illegale si scopre quando non funziona, non quando lo si compone. È il
-contributo strutturale che E38 può dare a prescindere da come `AE-1` venga decisa.
+contributo strutturale che E38 dà a prescindere da tutto il resto, ed è la ragione per cui l'epic non si è
+chiusa quando `AE-1` è stata decisa.
+
+⚠️ Due reason code proposti dal kit **non si scrivono**, e per ragioni diverse:
+`InsufficientActionCapacity` nomina uno stato che [D-114](../decisions/RT_PDR_00_Decision_Log.md) ha appena
+dichiarato inesistente; `OverwatchDisallowsVoluntaryDash` nomina un divieto che
+[D-070](../decisions/RT_PDR_00_Decision_Log.md) ha reso una **conseguenza**. Il codice corretto, in entrambi
+i casi, dice «slot occupato».
 
 ## 6. Che cosa resta aperto
 
-Otto voci in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), sezione «economia delle azioni». Le tre che
-bloccano tutto il resto:
+Sei voci in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), sezione «economia delle azioni» — `AE-1` è
+chiusa. Le due che ora reggono il resto:
 
 | ID | Domanda | Blocca |
 |---|---|---|
-| `AE-1` | Gli slot diventano una **capacità numerica** con costi per azione? | tutto il modello: schema del piano, validatore, HUD |
-| `AE-2` | Il profilo di movimento può **cambiare la legalità e l'efficacia** di un'azione? | §4, E38 |
+| `AE-2` | Il profilo di movimento può **cambiare la legalità e l'efficacia** di un'azione? | §4, ed è ora il **primo** checkpoint di E38 |
 | `FAC-12` | Il pivot consuma Movement Point? | due scenari, il costo del facing |
 
-Il resto — nome player-facing della capacità, valori dei profili, budget dello `Sneak`, taratura della
-risorsa firma — è taratura, e non si decide a tavolino.
+Più `ECO-1`, che [D-114](../decisions/RT_PDR_00_Decision_Log.md) rende **più** urgente e non meno: con gli
+slot confermati, è l'unica via rimasta perché *«mi preparo e agisco»* diventi un piano legale
+([#617](https://github.com/DegrassiAaron/refactor-tactics-main/issues/617)).
+
+Il resto — valori dei profili, budget dello `Sneak`, taratura della risorsa firma — è taratura, e non si
+decide a tavolino.
 
 ## Rapporto con gli altri documenti
 
