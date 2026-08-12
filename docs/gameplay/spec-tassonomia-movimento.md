@@ -238,4 +238,5 @@ perché il documento sembra più recente.
 | [`brief-azioni-generiche-overwatch.md`](brief-azioni-generiche-overwatch.md) | Overwatch e le sue policy |
 | [ADR-0005](../decisions/adr-0005-orientamento.md) | il facing come stato di gioco |
 | [`../technical/spec-pathfinding-pf3-pf4.md`](../technical/spec-pathfinding-pf3-pf4.md) | grafo, A\*, costi |
+| [`spec-economia-del-turno.md`](spec-economia-del-turno.md) | come il movimento **pesa sul resto del turno**: quale slot occupa una famiglia, e la proposta **aperta** (`AE-2`) che il profilo scelto cambi legalità ed efficacia delle azioni. Qui il profilo cambia distanza, rumore ed esposizione, e finisce lì |
 | *questa pagina* | il confronto **fra le famiglie** di movimento |

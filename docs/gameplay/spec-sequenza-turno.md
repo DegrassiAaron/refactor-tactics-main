@@ -212,6 +212,7 @@ storia git di questo file, fino al commit di questa riscrittura.
 | [`brief-overwatch-reazioni.md`](brief-overwatch-reazioni.md) | Overwatch e i suoi checkpoint (E14) |
 | [`brief-delayed-actions.md`](brief-delayed-actions.md) | Delayed / Predictive Action e i boundary nominati |
 | [`brief-azioni-generiche-overwatch.md`](brief-azioni-generiche-overwatch.md) | Azioni generiche, profili di `Move`, regimi di risoluzione |
+| [`spec-economia-del-turno.md`](spec-economia-del-turno.md) | **Quanto** può fare un'unità dentro questa sequenza: come slot, Movement Point, budget di pivot e cooldown/risorsa si tengono insieme. Questa spec dice *quando* si risolve una voce del piano; quella dice *che cosa consuma, e chi le dice di no* |
 | [`spec-anima-risoluzione.md`](spec-anima-risoluzione.md) | Come i segmenti si **riproducono a schermo** (presentazione) |
 | [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) | Quanto dura ciascuna finestra temporale |
 | [`spec-pacing-turno.md`](spec-pacing-turno.md) | Come si **misura** il tempo di decisione reale |

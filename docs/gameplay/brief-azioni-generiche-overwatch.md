@@ -258,3 +258,4 @@ Dash, Attack o Interact.
 | [`brief-conoscenza-parziale.md`](brief-conoscenza-parziale.md) | E13: `TargetDetected` (D22) e il rumore che dà senso ai profili di movimento |
 | [`brief-unita-ausiliarie.md`](brief-unita-ausiliarie.md) | Una torretta è un consumatore di `Automatic`, non un sistema parallelo |
 | [`../balance/RT_ActionCatalog_v0.1.md`](../balance/RT_ActionCatalog_v0.1.md) | Owner dei numeri: i valori di §3 vi atterrano quando il tema entra |
+| [`spec-economia-del-turno.md`](spec-economia-del-turno.md) | Owner di **cosa consuma** un'azione di questo elenco. Vi è scritta la conseguenza che si sbaglia più spesso: la fase `Prep` **non è uno slot** — `Guard`, `Brace` e `Overwatch` occupano la **principale**, ed è il motivo per cui `Attack \| Ability \| Overwatch` non si sommano |
