@@ -53,7 +53,8 @@ sarebbero la stessa stringa in un log, e D-031 li vuole concetti distinti.
 
 **Il colore è il secondo canale. La silhouette è il primo.** Ogni icona deve restare distinguibile in
 grayscale: il grayscale non è un tema, è il test di accettazione. Un'icona che funziona solo a colori non è
-accettata, e `Critical` (`#FF4D4D`) è **solo rinforzo** — non porta mai un segnale da solo.
+accettata, e il rosso critico — `RT_UI_Red`, che [`progettazione-hud.md`](progettazione-hud.md) §32 possiede
+— è **solo rinforzo**: non porta mai un segnale da solo. Il suo valore si legge lì, non qui.
 
 ### Token semantici
 
