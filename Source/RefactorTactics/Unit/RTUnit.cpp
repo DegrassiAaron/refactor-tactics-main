@@ -463,6 +463,34 @@ int32 ARTUnit::GetAbilityCooldown(int32 Index) const
 	return AbilityCooldowns.IsValidIndex(Index) ? AbilityCooldowns[Index] : 0;
 }
 
+bool ARTUnit::SetPlannedReactionCondition(const FRTDeclaredCondition& Condition)
+{
+	// Togliere la condizione e' sempre legittimo: e' il modo di tornare a «rispondi comunque». Non passa dal
+	// validator, e infatti `NAME_None` non e' fra gli id ammessi — non deve esserlo.
+	if (!Condition.IsDeclared())
+	{
+		PlannedReactionCondition = FRTDeclaredCondition();
+		return true;
+	}
+
+	// Una condizione senza reazione a cui applicarsi resterebbe orfana nel piano, e il prossimo armamento se
+	// la ritroverebbe addosso senza averla chiesta.
+	if (PlannedReactionAbility == INDEX_NONE)
+	{
+		return false;
+	}
+
+	// O entra intera, o il piano resta com'era: una condizione applicata a meta' e' peggio di nessuna
+	// condizione, perche' il giocatore crederebbe di aver ristretto il fuoco.
+	if (!URTReactionOpportunityLibrary::IsDeclaredConditionAllowed(Condition))
+	{
+		return false;
+	}
+
+	PlannedReactionCondition = Condition;
+	return true;
+}
+
 bool ARTUnit::CanUseAbility(int32 Index) const
 {
 	const URTActionData* Ability = GetAbility(Index);
