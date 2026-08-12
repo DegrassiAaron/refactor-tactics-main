@@ -358,6 +358,20 @@ protected:
 	TObjectPtr<UInstancedStaticMeshComponent> Blockers;
 
 	/**
+	 * Pannelli su BORDO: coperture e porte. Sono l'unica cosa della mappa che non appartiene a una cella ma a
+	 * un **lato**, e l'overlay a cerchi centrati non poteva dirle — da che lato si e' riparati e' cio' che
+	 * decide se una posizione e' buona.
+	 *
+	 * Ha una **mesh propria** (cubo) e non condivide quella dei blocchi, ed e' l'unico caso in cui un secondo
+	 * componente e' giustificato: un pannello non e' un cilindro schiacciato, e nessuna scala trasforma l'uno
+	 * nell'altro. Dove la scala bastava — colonna contro lastra — `Blockers` resta un componente solo.
+	 *
+	 * `NoCollision` come gli altri: il raycast di selezione valida l'ACTOR.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TObjectPtr<UInstancedStaticMeshComponent> EdgeFeatures;
+
+	/**
 	 * Mapping instance index -> FRTCellId (per selezione/debug). Stato DERIVATO, non serializzato:
 	 * viene rigenerato da RebuildInstances a ogni costruzione dell'actor.
 	 */
