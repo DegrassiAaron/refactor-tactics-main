@@ -2057,7 +2057,9 @@
         "RefactorTactics.Equipment.NoInMatchProgression"
       ],
       "scenarios": [],
-      "scenarios_planned": [],
+      "scenarios_planned": [
+        "Spec.Reaction.AnchorCancelsPush"
+      ],
       "wiki_refs": [],
       "wiki_note": "",
       "pie_refs": [],

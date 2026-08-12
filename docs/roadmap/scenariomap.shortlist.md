@@ -17,7 +17,7 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 
 <!-- RT_SHORTLIST_SCENARIOS:BEGIN -->
 
-**65 scenari versionati** — misurati su `Scenarios/`: **53** eseguibili · **12** `BLOCKED` per una capability assente · **47** dichiarati `planned` nel registry e non ancora scritti.
+**65 scenari versionati** — misurati su `Scenarios/`: **53** eseguibili · **12** `BLOCKED` per una capability assente · **48** dichiarati `planned` nel registry e non ancora scritti.
 
 **Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `Cover` · `CreateCover` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `PredictiveAction` · `Reaction` · `Structures`.
 
@@ -65,6 +65,7 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 | `Spec.Overwatch.ConductiveDischargeUsesStandardConduction` | `RT-FEAT-REACTION-OVERWATCH` |
 | `Spec.Overwatch.FrontlineFollowsFacing` | `RT-FEAT-REACTION-OVERWATCH` |
 | `Spec.Overwatch.PressurePushChangesResolvedPath` | `RT-FEAT-REACTION-OVERWATCH` |
+| `Spec.Reaction.AnchorCancelsPush` | `RT-FEAT-ACTION-EQUIPMENT` |
 | `Spec.TimeBank.BotDrainsLikePlayer` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
 | `Spec.TimeBank.ClashCostsFullWindow` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
 | `Spec.TimeBank.DrainsAfterGrace` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
