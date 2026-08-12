@@ -406,4 +406,83 @@ bool FRTControlStatusesAreTwoTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// [D-092] — «una attivazione per turno» e' un CONTATORE, non una conseguenza.
+//
+// Senza `ReactionActivationsThisTurn` la regola sarebbe comunque vera, ma solo come effetto del fatto che
+// `PassPointFor` da' a ogni trigger un punto di valutazione solo: nessuna unita' viene guardata due volte.
+// E' una garanzia che vive nella forma del mapping invece che in una regola scritta — cadrebbe **in
+// silenzio** il giorno in cui un trigger ne avesse due, o un punto girasse due volte.
+//
+// ⚠️ Questo test **pre-imposta il contatore**, e va detto perche' sembra un trucco: oggi nessun percorso di
+// gioco valuta la stessa unita' in due punti, quindi la guardia non ha un caso naturale. Pre-impostarlo e'
+// il modo di esercitare esattamente lo stato in cui l'unita' si troverebbe al SECONDO punto — cioe' la
+// condizione che la guardia esiste per gestire. Senza, il contatore sarebbe codice che nessun test tocca.
+// =====================================================================================================
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionCounterBlocksSecondTest,
+	"RefactorTactics.Reactions.CounterBlocksASecondActivation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionCounterBlocksSecondTest::RunTest(const FString&)
+{
+	// --- PREMESSA: con il contatore a zero la reazione scatta -----------------------------------------
+	// Senza, «non e' scattata» sarebbe anche l'esito di una scena in cui il colpo non arriva.
+	{
+		UWorld* World = MakeReactionWorld();
+		if (!TestNotNull(TEXT("world della premessa"), World)) { return false; }
+		SpawnReactionMap(World);
+		ARTUnit* Reactor = SpawnReactionUnit(World, 0, FRTCellId(0, 0));
+		ARTUnit* Attacker = SpawnReactionUnit(World, 1, FRTCellId(1, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Reactor || !Attacker || !TM) { DestroyReactionWorld(World); return false; }
+
+		Reactor->PlannedReactionAbility = AddReactionAbility(Reactor, TEXT("Action.Counter"));
+		Reactor->PlannedAbilityIndex = INDEX_NONE;
+		Attacker->PlannedAbilityIndex = 0;
+		Attacker->PlannedAttackTarget = Reactor;
+		RunReactionTurn(TM);
+
+		const int32 Attivate = CountSlotReactionOutcome(TM, ERTReactionOutcome::Activated);
+		// E il contatore torna a ZERO a fine turno: «una per TURNO» ha bisogno che il turno finisca davvero,
+		// altrimenti l'unita' non reagirebbe mai piu' per il resto della partita.
+		const int32 Residuo = Reactor->ReactionActivationsThisTurn;
+		DestroyReactionWorld(World);
+		if (!TestEqual(TEXT("premessa: con il contatore a zero la reazione si attiva"), Attivate, 1))
+		{
+			return false;
+		}
+		TestEqual(TEXT("e a fine turno il contatore e' stato azzerato"), Residuo, 0);
+	}
+
+	// --- IL CASO: il contatore gia' speso blocca la seconda attivazione ------------------------------
+	UWorld* World = MakeReactionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnReactionMap(World);
+
+	ARTUnit* Reactor = SpawnReactionUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Attacker = SpawnReactionUnit(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Reactor || !Attacker || !TM) { DestroyReactionWorld(World); return false; }
+
+	Reactor->PlannedReactionAbility = AddReactionAbility(Reactor, TEXT("Action.Counter"));
+	Reactor->PlannedAbilityIndex = INDEX_NONE;
+
+	// Lo stato in cui l'unita' arriverebbe al SECONDO punto di valutazione dello stesso turno.
+	Reactor->ReactionActivationsThisTurn = 1;
+
+	Attacker->PlannedAbilityIndex = 0; // stesso colpo diretto della premessa
+	Attacker->PlannedAttackTarget = Reactor;
+	RunReactionTurn(TM);
+
+	TestEqual(TEXT("la seconda attivazione e' bloccata"),
+		CountSlotReactionOutcome(TM, ERTReactionOutcome::Activated), 0);
+	// E l'esito e' DETTO, non silenzioso: `Unavailable` e' la stessa voce del cooldown e dello Sprint —
+	// «pianificata ma non poteva scattare». Una reazione sparita senza riga sarebbe indistinguibile da un
+	// trigger che non e' scattato.
+	TestEqual(TEXT("e il TurnLog lo dichiara come `Unavailable`, non la tace"),
+		CountSlotReactionOutcome(TM, ERTReactionOutcome::Unavailable), 1);
+
+	DestroyReactionWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

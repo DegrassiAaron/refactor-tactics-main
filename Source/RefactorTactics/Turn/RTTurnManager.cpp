@@ -900,6 +900,9 @@ void ARTTurnManager::LockInAndResolve()
 			// dove un piano smette di valere. Pinnato da `Turn.PlansDoNotSurviveTheTurn`, che cade se questa
 			// riga sparisce (verifica di mutazione, 2026-08-12).
 			Unit->PlannedReactionAbility = INDEX_NONE;
+			// E con lui il contatore delle attivazioni ([D-092]): «una per TURNO» ha bisogno di sapere quando
+			// il turno finisce, ed e' qui — lo stesso punto in cui il piano smette di valere.
+			Unit->ReactionActivationsThisTurn = 0;
 			(Unit->TeamId == 0 ? Team0Alive : Team1Alive)++;
 		}
 	}
@@ -2709,13 +2712,19 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 		const FRTReactionTriggerHit Hit = Evaluate(i, Reaction->Def.ReactionTrigger);
 		const int32 TriggeredBy = Hit.TriggeredBy;
 
-		if (!Unit->CanUseAbility(ReactionIdx) || ReactionBlockedThisTurn.Contains(Unit))
+		// `ReactionActivationsThisTurn` e' la garanzia di [D-092] resa esplicita: una attivazione per turno, e
+		// il contatore attraversa le fasi. Senza, la regola resterebbe vera solo come CONSEGUENZA del fatto
+		// che `PassPointFor` da' a ogni trigger un punto solo — e cadrebbe in silenzio il giorno in cui un
+		// trigger ne avesse due, senza che nessun test la stesse guardando.
+		if (!Unit->CanUseAbility(ReactionIdx) || ReactionBlockedThisTurn.Contains(Unit)
+			|| Unit->ReactionActivationsThisTurn > 0)
 		{
 			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Unavailable);
 		}
 		else if (Hit.bTriggered)
 		{
 			Unit->ConsumeAbility(ReactionIdx);
+			++Unit->ReactionActivationsThisTurn;
 			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Activated);
 
 			// TUTTI gli effetti che la reazione DICHIARA, non il primo che questo orchestratore riconosce
@@ -3450,12 +3459,16 @@ void ARTTurnManager::ResolveCombat()
 		Entry.ActionId = Reaction->Def.ActionId; // `Bastion.Interposition` non e' `Action.Intercept` (CP 5.5)
 		Entry.BaseActionId = Reaction->Def.BaseActionId; // vuoto finche' le reazioni non dichiarano un profilo
 
-		const int32 HitIdx = (Unit->CanUseAbility(ReactionIdx) && !ReactionBlockedThisTurn.Contains(Unit))
+		// Il contatore di [D-092] vale anche qui: l'interposizione E' un'attivazione, e lasciarla fuori
+		// avrebbe reso il limite «una per turno» vero per tre reazioni su quattro.
+		const bool bCanReact = Unit->CanUseAbility(ReactionIdx) && !ReactionBlockedThisTurn.Contains(Unit)
+			&& Unit->ReactionActivationsThisTurn == 0;
+		const int32 HitIdx = bCanReact
 			? URTReactionLibrary::FindInterceptableHit(i, Reaction->Def.RangeCells,
 				Plan.Hits, Intents, HexUnits, Map, ClaimedHits)
 			: INDEX_NONE;
 
-		if (!Unit->CanUseAbility(ReactionIdx) || ReactionBlockedThisTurn.Contains(Unit))
+		if (!bCanReact)
 		{
 			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Unavailable);
 		}
@@ -3468,6 +3481,7 @@ void ARTTurnManager::ResolveCombat()
 			RedirectFrom.Add(OriginalTarget);
 
 			Unit->ConsumeAbility(ReactionIdx);
+			++Unit->ReactionActivationsThisTurn; // [D-092]: anche l'interposizione spende l'attivazione
 			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Activated);
 			// Bersaglio ORIGINALE -> bersaglio FINALE: il TurnLog deve dire da chi a chi e' passato il colpo,
 			// altrimenti un danno comparso su un'unita' mai bersagliata risulterebbe inspiegabile nel replay.
