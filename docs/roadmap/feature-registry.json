@@ -2869,7 +2869,8 @@
         "docs/gameplay/spec-stati-temporanei-cp82.md"
       ],
       "issues": [
-        65
+        65,
+        625
       ],
       "tests": [
         "RefactorTactics.Status.*",
@@ -3063,7 +3064,8 @@
       ],
       "issues": [
         64,
-        67
+        67,
+        625
       ],
       "tests": [
         "RefactorTactics.Terrain.Fire",
