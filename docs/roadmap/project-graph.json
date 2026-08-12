@@ -47,6 +47,7 @@
       "[RT-FEAT-ACTION-DELAYED] nessuna pagina Wiki collegata",
       "[RT-FEAT-ACTION-TRAPS] nessuna pagina Wiki collegata",
       "[RT-FEAT-ACTION-EQUIPMENT] nessuna pagina Wiki collegata",
+      "[RT-FEAT-ACTION-EQUIPMENT] 1 scenario/i dichiarati planned: Spec.Reaction.AnchorCancelsPush",
       "[RT-FEAT-REACTION-OVERWATCH] 3 scenario/i dichiarati planned: Spec.Overwatch.ConductiveDischargeUsesStandardConduction, Spec.Overwatch.PressurePushChangesResolvedPath, Spec.Overwatch.FrontlineFollowsFacing",
       "[RT-FEAT-REACTION-PROFILE] 3 scenario/i dichiarati planned: Spec.Brace.AnchorResistsDisplacement, Spec.Brace.FlowRedirectsToLegalHexOnly, Spec.Brace.DeflectOffersOnlyLegalSides",
       "[RT-FEAT-REACTION-CLASH] 3 scenario/i dichiarati planned: Spec.Clash.HiddenUntilReveal, Spec.Clash.RevealIsFixedDeadline, Spec.Clash.Determinism",
