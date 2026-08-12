@@ -3844,7 +3844,7 @@ features:
       runtime: done
       log_debug: todo
       automation: done
-      scenario: todo
+      scenario: partial
       ui_wiki: partial
       packaged: todo
       network_privacy: na
@@ -3865,10 +3865,10 @@ features:
       - RefactorTactics.HexBotPlay.SeeksContactWithoutKnowledge
       - RefactorTactics.HexBotPlay.ActsOnLastKnownCell
     scenarios:
+      - Spec.Bot.HiddenEnemyFairness
+      - Spec.Bot.PlansOnPartialKnowledge
       - planned:
-          - Spec.Bot.HiddenEnemyFairness
           - Spec.Bot.DecoyNoiseIndistinguishable
-          - Spec.Bot.PlansOnPartialKnowledge
     wiki_refs:
       - wiki:avversario-bot
     last_verified:
@@ -3881,6 +3881,20 @@ features:
       **massimi** (la squadra conosce l'identita', non la condizione); ignoto -> non esiste.
       Owner del comportamento AS-BUILT: `spec-bot-hex.md` §6, che dichiarava il contrario e ora
       dichiara il vero.
+      **Gate `scenario` da `todo` a `partial` il 2026-08-12 (#160).** Esistono
+      `Spec.Bot.HiddenEnemyFairness` e `Spec.Bot.PlansOnPartialKnowledge`; resta pianificato
+      `Spec.Bot.DecoyNoiseIndistinguishable`, che dipende da CP 13.4 (#159) perche' senza rumore non
+      c'e' esca. Scriverli ha richiesto tre estensioni dell'harness — un'unita' puo' essere dichiarata
+      `bot`, la condizione iniziale (`health`/`shield`/`visionRange`) e' scrivibile, e uno scenario puo'
+      dichiarare **varianti** con `expectSameAcrossVariants`. Quest'ultima e' l'unica forma in cui un
+      canary d'indipendenza sia esprimibile: «il bot non ha usato un'informazione» non e' osservabile in
+      una partita sola.
+      ⚠️ **I due scenari NON sostituiscono i test C++, e la differenza e' misurata.** Rendendo onnisciente
+      il solo `PlanBots`, `Spec.Bot.PlansOnPartialKnowledge` nella sua prima stesura restava **verde**: a
+      fermare il colpo sull'ignoto e' il RESOLVER (CP 13.2, `TargetUnknown`), non il bot, quindi lo
+      scenario misurava la catena e non il pianificatore. Corretto aggiungendo la premessa
+      `Combat/Hit = 1`, che la mutazione ora prende. Il controllo diretto sul pianificatore resta il test
+      C++, che guarda `PlannedAttackTarget` invece dell'esito.
       ⚠️ **Il gate e' `automation`, e ha una forma precisa**: `HiddenEnemyFairness` mette la stessa
       `FRTTeamKnowledge` davanti a due stati autorevoli diversi e pretende lo **stesso** Intent.
       Verificato per mutazione **due volte**, e la seconda ha chiuso un buco trovato in code review:

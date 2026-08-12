@@ -172,6 +172,62 @@ struct FRTScenarioUnit
 	 */
 	UPROPERTY()
 	ERTHexDirection Facing = ERTHexDirection::E;
+
+	/**
+	 * L'unita' e' guidata dal BOT: il suo intent non sta nel file, lo produce l'utility scoring.
+	 *
+	 * ⚠️ **Non e' l'asimmetria che tiene fuori `ReactionPlanning` e `DeclaredRotation`.** Quelle restano
+	 * indisponibili perche' l'harness sarebbe il PRIMO produttore di un campo che nessuno scrive in partita.
+	 * Qui il produttore esiste ed e' quello vero: `ARTTurnManager::PlanBots()`, chiamato in partita a ogni
+	 * turno. L'harness non apre un canale nuovo, usa `PlanBotsForTest()` — l'appiglio che
+	 * `URTScenarioRunner` dichiara da sempre come l'unico, e che i test d'integrazione usano gia'.
+	 *
+	 * ⚠️ **Cosa questo NON e'**: il seam dei `DecisionProvider` di [D-101] (#542, v0.2). Quello serve quando i
+	 * modi di giocare uno scenario diventano tre (bot vs bot, replay, umano+bot) e ognuno vorrebbe il proprio
+	 * appiglio. Qui il modo resta uno: le unita' non-bot prendono gli intent dal file, le bot dal pianificatore
+	 * del gioco, come in una partita 2v2 offline — che e' precisamente la v0.1.
+	 *
+	 * Un'unita' bot **non puo' avere intent nel file**: `Validate()` lo rifiuta. Ammetterli significherebbe che
+	 * uno dei due sovrascrive l'altro in silenzio, e lo scenario direbbe di misurare il bot mentre misura il
+	 * file (o viceversa, a seconda dell'ordine — cioe' di un dettaglio d'implementazione).
+	 */
+	UPROPERTY()
+	bool bBotControlled = false;
+
+	/**
+	 * Salute iniziale. `-1` = non dichiarata, resta quella del roster.
+	 *
+	 * ⚠️ **Il sentinella e' `-1` e non `0` deliberatamente**: `0` e' un valore legittimo per `shield`, e usarlo
+	 * come «non dichiarato» renderebbe impossibile chiedere *scudo azzerato* — che e' esattamente cio' che
+	 * serve a un'esca. Un campo il cui valore d'assenza e' anche una richiesta valida non sa distinguere le
+	 * due cose.
+	 *
+	 * Serve agli scenari in cui la SCELTA di un'unita' dipende da quanto e' ferita l'altra: un bersaglio a HP
+	 * pieni non e' un'esca, e uno scenario che volesse dimostrare «non lo bersaglia» resterebbe verde per la
+	 * ragione sbagliata — perche' non era invitante, non perche' non lo conosce.
+	 */
+	UPROPERTY()
+	int32 Health = -1;
+
+	/** Scudo iniziale. `-1` = non dichiarato, resta quello del roster. Vedi `Health` per il perche' del sentinella. */
+	UPROPERTY()
+	int32 Shield = -1;
+
+	/**
+	 * Portata visiva. `-1` = non dichiarata, resta quella del roster.
+	 *
+	 * ⚠️ **E' condizione iniziale, non bilanciamento**: la scrive gia' `ConfigureFromHeroData` dai dati
+	 * dell'eroe, esattamente come `Health`, e dichiararla nello scenario non apre un canale che il gioco non
+	 * abbia.
+	 *
+	 * Serve perche' altrimenti la premessa di uno scenario sulla conoscenza dipenderebbe dai numeri del
+	 * roster, **che cambiano**: `D-073` ha appena portato Flux da un valore all'altro, e con `AttackRange` a 5
+	 * contro viste da 5 a 7 non esiste oggi una distanza in cui un nemico sia insieme fuori vista e sotto tiro
+	 * — cioe' la sola configurazione in cui «non lo bersaglia» dimostri qualcosa. Il test C++ gemello
+	 * (`HexBotPlay.PlansOnPartialKnowledge`) dichiara la vista nel test per la stessa ragione, e lo scrive.
+	 */
+	UPROPERTY()
+	int32 VisionRange = -1;
 };
 
 /**
@@ -262,6 +318,42 @@ struct FRTScenarioIntent
 	 */
 	UPROPERTY()
 	FName Reaction;
+};
+
+/** Una cella riscritta da una variante: la stessa unita', altrove. */
+USTRUCT()
+struct FRTScenarioVariantUnit
+{
+	GENERATED_BODY()
+
+	/** ID di scenario dell'unita' da spostare. Dev'essere una di quelle schierate. */
+	UPROPERTY()
+	FString Id;
+
+	/** Dove parte in questa variante, al posto della cella dichiarata in `units`. */
+	UPROPERTY()
+	FRTCellId Cell;
+};
+
+/**
+ * Una variante dello stesso allestimento: tutto identico tranne le celle che dichiara.
+ *
+ * Solo le CELLE, e la limitazione e' deliberata: una variante che potesse cambiare eroi, squadre o condizione
+ * iniziale non sarebbe piu' «lo stesso scenario con un ingresso diverso», e il confronto fra le sue tracce non
+ * direbbe piu' quale ingresso ha prodotto la differenza. Il giorno in cui servisse variare altro, lo si
+ * aggiunge sapendo che si sta allargando cio' che il canary puo' attribuire.
+ */
+USTRUCT()
+struct FRTScenarioVariant
+{
+	GENERATED_BODY()
+
+	/** Nome leggibile, unico nello scenario: compare nel report ed e' il modo di sapere QUALE variante e' rossa. */
+	UPROPERTY()
+	FString Name;
+
+	UPROPERTY()
+	TArray<FRTScenarioVariantUnit> Units;
 };
 
 /** Un turno dello scenario. */
@@ -397,6 +489,37 @@ struct FRTTestScenario
 
 	UPROPERTY()
 	TArray<FRTTestExpectation> Expect;
+
+	/**
+	 * Varianti dello stesso allestimento, giocate una per una. Vuoto = una sola esecuzione, il caso normale.
+	 *
+	 * Ogni variante rigioca lo scenario cambiando **solo** le celle che dichiara, e deve superare le stesse
+	 * `expect` di tutte le altre.
+	 */
+	UPROPERTY()
+	TArray<FRTScenarioVariant> Variants;
+
+	/**
+	 * Le varianti devono produrre lo **stesso TurnLog**, byte per byte.
+	 *
+	 * ⚠️ **E' il solo modo di esprimere un canary d'indipendenza**, e nessuna `expect` normale lo sostituisce:
+	 * quelle guardano lo stato finale di UNA partita, mentre qui la proprieta' da dimostrare e' che un
+	 * ingresso *non ha avuto effetto*. Non e' osservabile in una partita sola — «il bot non ha usato
+	 * un'informazione» ha la stessa forma osservabile di «il bot ha deciso cosi'», e le due si distinguono
+	 * soltanto cambiando quell'informazione e guardando se l'esito si muove.
+	 *
+	 * Si confronta il TURNLOG e non lo stato finale (`StateHash`) per una ragione che non e' comodita': lo
+	 * stato finale contiene la posizione dell'unita' nascosta, **che le varianti cambiano per costruzione** —
+	 * un confronto su quello sarebbe rosso sempre, e per il motivo sbagliato. Il TurnLog registra cio' che e'
+	 * SUCCESSO, e un'unita' che nessuno vede e che non agisce non vi scrive nulla.
+	 *
+	 * ⚠️ **Da solo non basta**, e chi scrive lo scenario deve saperlo: due partite in cui non succede niente
+	 * hanno TurnLog identici. Serve accanto almeno una `expect` che dimostri che qualcosa e' successo davvero
+	 * — e' la stessa premessa che il test C++ gemello scrive a mano
+	 * (`HexBotPlay.HiddenEnemyFairness`: *«nelle due partite il bot ha davvero pianificato qualcosa»*).
+	 */
+	UPROPERTY()
+	bool bExpectSameAcrossVariants = false;
 
 	/** Trova un'unita' per ID di scenario. Nullptr se assente. */
 	const FRTScenarioUnit* FindUnit(const FString& InId) const

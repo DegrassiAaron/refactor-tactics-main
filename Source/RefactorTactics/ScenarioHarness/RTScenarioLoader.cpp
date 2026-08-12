@@ -279,6 +279,24 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 				return false;
 			}
 		}
+
+		// `bot` opzionale: assente = unita' guidata dal file, che resta il caso normale.
+		Obj->TryGetBoolField(TEXT("bot"), Unit.bBotControlled);
+
+		// `health`/`shield` opzionali: assenti = i valori del roster. Il campo si legge solo se PRESENTE, cosi'
+		// il sentinella `-1` resta distinguibile da uno `0` chiesto davvero (vedi `FRTScenarioUnit::Health`).
+		if (Obj->HasField(TEXT("health")))
+		{
+			Obj->TryGetNumberField(TEXT("health"), Unit.Health);
+		}
+		if (Obj->HasField(TEXT("shield")))
+		{
+			Obj->TryGetNumberField(TEXT("shield"), Unit.Shield);
+		}
+		if (Obj->HasField(TEXT("visionRange")))
+		{
+			Obj->TryGetNumberField(TEXT("visionRange"), Unit.VisionRange);
+		}
 		OutScenario.Units.Add(Unit);
 	}
 
@@ -631,6 +649,43 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 		}
 	}
 
+	// --- varianti (opzionale) -------------------------------------------------------------------------------
+	const TArray<TSharedPtr<FJsonValue>>* VariantsJson = nullptr;
+	if (Root->TryGetArrayField(TEXT("variants"), VariantsJson))
+	{
+		for (const TSharedPtr<FJsonValue>& Value : *VariantsJson)
+		{
+			const TSharedPtr<FJsonObject> Obj = Value->AsObject();
+			if (!Obj.IsValid()) { OutError = TEXT("variants: voce non valida"); return false; }
+
+			FRTScenarioVariant Variant;
+			Obj->TryGetStringField(TEXT("name"), Variant.Name);
+
+			const TArray<TSharedPtr<FJsonValue>>* VariantUnits = nullptr;
+			if (Obj->TryGetArrayField(TEXT("units"), VariantUnits))
+			{
+				for (const TSharedPtr<FJsonValue>& UnitValue : *VariantUnits)
+				{
+					const TSharedPtr<FJsonObject> UnitObj = UnitValue->AsObject();
+					if (!UnitObj.IsValid()) { OutError = TEXT("variants: unita' non valida"); return false; }
+
+					FRTScenarioVariantUnit VariantUnit;
+					UnitObj->TryGetStringField(TEXT("id"), VariantUnit.Id);
+					const TArray<TSharedPtr<FJsonValue>>* CellArr = nullptr;
+					UnitObj->TryGetArrayField(TEXT("cell"), CellArr);
+					if (!ParseCell(CellArr, VariantUnit.Cell, OutError,
+						*FString::Printf(TEXT("variante '%s', unita' '%s'"), *Variant.Name, *VariantUnit.Id)))
+					{
+						return false;
+					}
+					Variant.Units.Add(VariantUnit);
+				}
+			}
+			OutScenario.Variants.Add(Variant);
+		}
+	}
+	Root->TryGetBoolField(TEXT("expectSameAcrossVariants"), OutScenario.bExpectSameAcrossVariants);
+
 	return Validate(OutScenario, OutError);
 }
 
@@ -676,6 +731,7 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 
 	const TSet<FName> Heroes = KnownHeroIds();
 	TSet<FString> SeenIds;
+	TSet<FString> BotIds;
 	TSet<FRTCellId> SeenCells;
 	for (const FRTScenarioUnit& Unit : Scenario.Units)
 	{
@@ -723,6 +779,35 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 				*Unit.Id, *Unit.Cell.ToString());
 			return false;
 		}
+
+		// Una salute dichiarata a zero schiererebbe un cadavere: il gioco non lo farebbe mai, e ogni assertion
+		// successiva misurerebbe una partita che non puo' esistere. Il tetto (`MaxHealth`) lo verifica la
+		// sessione, che e' l'unico posto dove il valore del roster e' davvero disponibile.
+		if (Unit.Health != -1 && Unit.Health <= 0)
+		{
+			OutError = FString::Printf(TEXT("unita' '%s': health dichiarata a %d (dev'essere > 0, oppure omessa)"),
+				*Unit.Id, Unit.Health);
+			return false;
+		}
+		if (Unit.Shield != -1 && Unit.Shield < 0)
+		{
+			OutError = FString::Printf(TEXT("unita' '%s': shield dichiarato a %d (dev'essere >= 0, oppure omesso)"),
+				*Unit.Id, Unit.Shield);
+			return false;
+		}
+		// `0` e' legittimo — un'unita' cieca e' una premessa scrivibile — e il catalogo eroi applica lo stesso
+		// vincolo («range visivo negativo»), quindi qui si rifiuta la stessa cosa che rifiuterebbe il gioco.
+		if (Unit.VisionRange != -1 && Unit.VisionRange < 0)
+		{
+			OutError = FString::Printf(TEXT("unita' '%s': visionRange dichiarato a %d (dev'essere >= 0, oppure omesso)"),
+				*Unit.Id, Unit.VisionRange);
+			return false;
+		}
+
+		if (Unit.bBotControlled)
+		{
+			BotIds.Add(Unit.Id);
+		}
 	}
 
 	for (const FRTScenarioTurn& Turn : Scenario.Turns)
@@ -732,6 +817,16 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 			if (!SeenIds.Contains(Intent.UnitId))
 			{
 				OutError = FString::Printf(TEXT("intent per un'unita' non schierata: '%s'"), *Intent.UnitId);
+				return false;
+			}
+			// Un'unita' bot decide da sola: un intent scritto nel file verrebbe SOVRASCRITTO da `PlanBots`, che
+			// azzera il piano di ogni unita' che guida. Accettarlo silenziosamente darebbe uno scenario che
+			// dichiara una mossa, ne gioca un'altra, e resta verde se le due combaciano per caso.
+			if (BotIds.Contains(Intent.UnitId))
+			{
+				OutError = FString::Printf(
+					TEXT("intent dichiarato per l'unita' bot '%s': il suo piano lo produce l'utility scoring, non il file"),
+					*Intent.UnitId);
 				return false;
 			}
 			if (!Intent.Ability.IsNone())
@@ -843,6 +938,84 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 		// Uno scenario senza assertion passerebbe SEMPRE: sarebbe un test che non testa.
 		OutError = TEXT("nessuna assertion dichiarata (campo expect): lo scenario passerebbe sempre");
 		return false;
+	}
+
+	// --- varianti ------------------------------------------------------------------------------------------
+	// Un confronto fra UNA cosa e' vuoto, e sarebbe verde per sempre: e' il modo piu' facile in cui un canary
+	// smette di verificare senza che nessuno se ne accorga.
+	if (Scenario.bExpectSameAcrossVariants && Scenario.Variants.Num() < 2)
+	{
+		OutError = FString::Printf(
+			TEXT("expectSameAcrossVariants con %d varianti: senza almeno due il confronto non esiste"),
+			Scenario.Variants.Num());
+		return false;
+	}
+	if (Scenario.Variants.Num() == 1)
+	{
+		OutError = TEXT("una sola variante: o sono due o piu', oppure e' l'allestimento normale (campo units)");
+		return false;
+	}
+
+	TSet<FString> SeenVariantNames;
+	for (const FRTScenarioVariant& Variant : Scenario.Variants)
+	{
+		if (Variant.Name.IsEmpty())
+		{
+			OutError = TEXT("una variante non ha nome: il report non saprebbe dire QUALE e' rossa");
+			return false;
+		}
+		if (SeenVariantNames.Contains(Variant.Name))
+		{
+			OutError = FString::Printf(TEXT("due varianti si chiamano '%s'"), *Variant.Name);
+			return false;
+		}
+		SeenVariantNames.Add(Variant.Name);
+
+		if (Variant.Units.Num() == 0)
+		{
+			// Una variante che non cambia niente e' una ripetizione: il suo TurnLog coincide per costruzione, e
+			// farebbe passare `expectSameAcrossVariants` senza aver messo alla prova nessun ingresso.
+			OutError = FString::Printf(TEXT("la variante '%s' non sposta nessuna unita'"), *Variant.Name);
+			return false;
+		}
+
+		// Le celle della variante sostituiscono quelle dichiarate: la sovrapposizione si verifica sull'insieme
+		// EFFETTIVO, non su quello di partenza — altrimenti due unita' potrebbero finire sulla stessa cella
+		// proprio nella variante, che e' l'unico posto in cui nessuno guarderebbe.
+		TMap<FString, FRTCellId> CellsInVariant;
+		for (const FRTScenarioUnit& Unit : Scenario.Units)
+		{
+			CellsInVariant.Add(Unit.Id, Unit.Cell);
+		}
+		for (const FRTScenarioVariantUnit& Moved : Variant.Units)
+		{
+			if (!SeenIds.Contains(Moved.Id))
+			{
+				OutError = FString::Printf(TEXT("la variante '%s' sposta un'unita' non schierata: '%s'"),
+					*Variant.Name, *Moved.Id);
+				return false;
+			}
+			if (!bUsesFixture
+				&& URTHexLibrary::HexDistance(Moved.Cell, FRTCellId(0, 0, Moved.Cell.Layer)) > Scenario.MapRadius)
+			{
+				OutError = FString::Printf(TEXT("la variante '%s': cella %s di '%s' fuori dall'arena di raggio %d"),
+					*Variant.Name, *Moved.Cell.ToString(), *Moved.Id, Scenario.MapRadius);
+				return false;
+			}
+			CellsInVariant.Add(Moved.Id, Moved.Cell);
+		}
+
+		TSet<FRTCellId> Occupied;
+		for (const TPair<FString, FRTCellId>& Pair : CellsInVariant)
+		{
+			if (Occupied.Contains(Pair.Value))
+			{
+				OutError = FString::Printf(TEXT("la variante '%s' mette due unita' sulla stessa cella %s"),
+					*Variant.Name, *Pair.Value.ToString());
+				return false;
+			}
+			Occupied.Add(Pair.Value);
+		}
 	}
 
 	return true;
