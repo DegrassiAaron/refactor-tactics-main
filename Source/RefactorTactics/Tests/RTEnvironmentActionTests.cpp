@@ -4,6 +4,7 @@
 #include "Ability/RTEquipmentData.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Combat/RTCombatLibrary.h" // BurningCleanupDamage: il test somma ingresso + bruciatura (#570)
 #include "Core/RTGameplayTags.h"
 #include "Engine/Engine.h"
 #include "Kismet/GameplayStatics.h"
@@ -1303,6 +1304,95 @@ bool FRTCoverGhostTrackingTest::RunTest(const FString&)
 	TestEqual(TEXT("e questa scadenza e' registrata"),
 		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverExpired), 1);
 
+	DestroyEnvWorld(World);
+	return true;
+}
+
+// =====================================================================================================
+// `#570` — una superficie che NASCE fa effetto a chi ci si trova sopra.
+//
+// Fino a qui la regola valeva per l'acqua sola, con un `if (Created == ShallowWater)` scritto a mano e un
+// commento che dichiarava il problema nella sua forma generale. Vero per l'acqua e per tutte le altre:
+// un'unita' ferma su cui veniva acceso un incendio **non prendeva fuoco**, perche' gli `OnEnterEffects` li
+// applica solo chi ENTRA e il danno del Cleanup dipende dallo STATO, non dalla cella.
+//
+// Era anche cio' che teneva inerte `Reaction.HazardEscape` (`#505`): nel Cleanup non c'era nessun danno
+// imminente da cui fuggire.
+// =====================================================================================================
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBornSurfaceBurnsOccupantTest,
+	"RefactorTactics.Environment.BornSurfaceAffectsOccupant",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBornSurfaceBurnsOccupantTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	ARTUnit* Caster = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Target = SpawnEnvUnit(World, 1, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Caster"), Caster) || !TestNotNull(TEXT("Target"), Target)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	const int32 HpPrima = Target->Health;
+	PlanEnvAction(Caster, TEXT("Action.Ignite"), Target);
+	RunEnvTurn(TM);
+
+	// Premessa: la cella e' davvero diventata fuoco. Senza, il resto del test parlerebbe di un incendio che
+	// non c'e' e passerebbe per la ragione sbagliata.
+	const FRTHexCellData* Data = MapActor->MapAsset ? MapActor->MapAsset->FindCell(FRTCellId(2, 0)) : nullptr;
+	if (!TestTrue(TEXT("premessa: la cella del bersaglio e' in fiamme"),
+		Data != nullptr && Data->Surface == ERTHexSurface::Fire))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	// Chi era gia' li' subisce quello che subisce chi entra: i 10 danni del catalogo terreni **e** `Burning`.
+	// Prima di `#570` non prendeva niente.
+	TestTrue(TEXT("chi era sulla cella brucia"), Target->HasStatus(TAG_Status_Burning));
+
+	// Il numero non e' inventato: 10 d'ingresso dal catalogo terreni piu' il danno che `Burning` fa nello
+	// stesso Cleanup, perche' `ResolveEnvironment` gira PRIMA del ciclo che lo fa pagare. E' la stessa somma
+	// che paga chi ci entra col Move, quindi la regola resta una sola.
+	const int32 Atteso = 10 + URTCombatLibrary::BurningCleanupDamage;
+	TestEqual(TEXT("e paga ingresso + bruciatura, come chi ci fosse entrato"), HpPrima - Target->Health, Atteso);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBornSurfaceIsNotOnlyFireTest,
+	"RefactorTactics.Environment.BornSurfaceRuleIsNotPerSurface",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBornSurfaceIsNotOnlyFireTest::RunTest(const FString&)
+{
+	// La regola legge il CATALOGO, non un elenco di superfici nel resolver: il fumo che nasce su un'unita' la
+	// oscura, senza che nessuno abbia dovuto aggiungere un ramo per lui. E' la parte che impedisce alla
+	// prossima superficie di nascere di nuovo muta.
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnEnvMap(World);
+
+	ARTUnit* Caster = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Target = SpawnEnvUnit(World, 1, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Caster || !Target || !TM) { DestroyEnvWorld(World); return false; }
+
+	URTHeroData* Riva = URTHeroCatalogLibrary::MakeRiva();
+	URTActionData* MistVeil = (Riva && Riva->Actions.IsValidIndex(3)) ? Riva->Actions[3] : nullptr;
+	if (!TestNotNull(TEXT("MistVeil nel kit di Riva"), MistVeil)) { DestroyEnvWorld(World); return false; }
+
+	Caster->Abilities[3] = MistVeil;
+	Caster->PlannedAbilityIndex = 3;
+	Caster->PlannedAttackTarget = Target;
+	RunEnvTurn(TM);
+
+	TestTrue(TEXT("il fumo nato sull'unita' la oscura"), Target->HasStatus(TAG_Status_Obscured));
 	DestroyEnvWorld(World);
 	return true;
 }
