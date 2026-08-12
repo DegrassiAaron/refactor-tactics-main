@@ -271,6 +271,22 @@ public:
 	int32 PlannedReactionAbility = INDEX_NONE;
 
 	/**
+	 * Quante REAZIONI l'unita' ha gia' attivato in questo turno ([D-092]). Si azzera a fine turno, insieme al
+	 * piano.
+	 *
+	 * «Una attivazione per turno» sarebbe vera anche senza, per costruzione: `URTReactionLibrary::PassPointFor`
+	 * assegna a ogni trigger **un solo** punto di valutazione, quindi nessuna unita' viene guardata due volte.
+	 * Ma «vera per costruzione» significa che la garanzia vive in una proprieta' del mapping invece che in una
+	 * regola scritta: il giorno in cui un trigger fosse valutato in due punti — o un punto girasse due volte —
+	 * la regola cadrebbe **in silenzio**, senza che nessun test la stesse guardando.
+	 *
+	 * Questo contatore la rende esplicita e verificabile: e' la garanzia che D-092 prescriveva, e ora esiste
+	 * come dato invece che come conseguenza. Pinnata da `Reactions.CounterBlocksASecondActivation`.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Turn")
+	int32 ReactionActivationsThisTurn = 0;
+
+	/**
 	 * Ordine di rimozione dichiarato per `Action.Cleanse` (CP 5.2): si purifica il PRIMO stato di questa lista
 	 * che l'unita' possiede davvero, e uno solo.
 	 *

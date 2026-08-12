@@ -61,7 +61,9 @@ Guardian/architetto del campo: crea e riconfigura coperture, controlla gli spazi
 | Dipendenze tecniche | Cover, structures, arc manipulation, intercept |
 | Player question | Quale spazio chiudo e chi proteggo? |
 
-> **Nota bilanciamento:** Canonico v0.1. 120 HP, 4 MP, vista 5, Push Resistance 1: compra stabilità con mobilità ridotta.
+> **Nota bilanciamento:** Canonico v0.1. 120 HP, 4 MP, vista 5, Push Resistance **0**: compra HP con mobilità
+> ridotta. *Era `1` — l'unica del roster — fino a [D-075](../../decisions/RT_PDR_00_Decision_Log.md) (`#402`,
+> 2026-08-10): a soglia `1` non comprava stabilità, rendeva Bastion immune a ogni spinta del gioco.*
 
 ## Meccanica firma
 
@@ -159,10 +161,11 @@ Il controgioco è geometrico: aggirare le coperture, distruggere o rendere irril
 | Ponte Mod | — |
 | Tunnel Mod | — |
 | Ascensore AP | — |
-| Knockback Resist | 1 |
+| Knockback Resist | 0 |
 | Collision Priority | — |
 
-> Move 4 MP e Push Resistance 1 canonici. Altri modificatori di mobilità non sono definiti per eroe.
+> Move 4 MP e Push Resistance **0** canonici ([D-075](../../decisions/RT_PDR_00_Decision_Log.md)): nessun eroe
+> del roster ha resistenza nativa alla spinta. Altri modificatori di mobilità non sono definiti per eroe.
 
 **Stato dati:** `CANONICAL_PARTIAL` — Ram riusa la semantica di Charge 3.
 

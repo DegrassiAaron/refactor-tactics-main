@@ -73,8 +73,19 @@ void ARTGameMode::BeginPlay()
 	}
 
 	// Orchestratore del turno: spawnato PRIMA delle unita' cosi' esiste gia' quando queste fanno BeginPlay
-	// (i BP_Unit possono agganciarsi ai suoi delegate di playback senza attese). Sicuro: il TurnManager non
-	// tocca le unita' al proprio BeginPlay (fa solo StartPlanningTimer); le raccoglie a ogni turno.
+	// (i BP_Unit possono agganciarsi ai suoi delegate di playback senza attese).
+	//
+	// ⚠️ **La ragione di sicurezza e' cambiata con CP 13.5, e va scritta perche' era un'invariante.** Fino al
+	// 2026-08-11 questo commento diceva «il TurnManager non tocca le unita' al proprio BeginPlay (fa solo
+	// StartPlanningTimer)»: non e' piu' vero, perche' `StartPlanningTimer` chiama `PlanBots`, che ora chiama
+	// `EnsureMatchRoster` e rinfresca la conoscenza di squadra.
+	//
+	// Resta sicuro, ma per un motivo DIVERSO e piu' fragile: a questo punto nel mondo non c'e' ancora
+	// nessuna `ARTUnit` (le spawna `SetupHexMatch`, piu' sotto), e le due funzioni sono scritte per
+	// sopportarlo — `EnsureMatchRoster` con un roster vuoto **ritorna senza marcare `bMatchRosterBuilt`**,
+	// quindi ritenta al primo `LockInAndResolve`; il rinfresco su zero unita' produce uno stato vuoto, che e'
+	// gia' il default. Se una di quelle due guardie venisse indebolita, la prima partita si romperebbe **qui**
+	// e in silenzio. Trovato in code review della PR #540 come commento diventato falso.
 	if (!UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()))
 	{
 		World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass(), FTransform::Identity);

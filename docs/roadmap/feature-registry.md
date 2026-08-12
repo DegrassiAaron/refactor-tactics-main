@@ -56,10 +56,12 @@ riferimenti del workbook. Se serve, si rinomina e si rigenera tutto nello stesso
 | `ui_wiki` | È spiegata all'utente **e** leggibile in gioco — servono entrambe. Con una sola delle due: `partial` (regola 5) |
 | `packaged` | Verificata nella build packaged **della release corrente** — chi lo dimostra sta in `pie_refs` (regola 6) |
 | `network_privacy` | Corretta in rete: autorità server e nessuna fuga di intento |
+| `replay_representable` | L'evento che produce **sopravvive alla traccia**: un Player lo ricostruisce senza ricalcolare — vedi la regola 7 |
 
 Valori: `done` · `partial` · `todo` · `na`.
 
-Cinque regole che vale la pena scrivere, perché sono i modi in cui questo schema si corrompe:
+Sette regole che vale la pena scrivere, perché sono i modi in cui questo schema si corrompe:
+*(erano «cinque» fino al 2026-08-12 mentre l'elenco ne contava già sei — il numero era scritto a mano.)*
 
 1. **`na` è una risposta, `partial` no.** Una feature offline dichiara `network_privacy: na`; una
    feature che *dovrà* funzionare online dichiara `todo`, anche se oggi non è verificabile. Marcare
@@ -113,6 +115,48 @@ Cinque regole che vale la pena scrivere, perché sono i modi in cui questo schem
    Una stessa voce può legittimamente dimostrarne più d'una; non lo fa per il solo fatto che l'issue
    è condivisa.
 
+7. **`replay_representable` non è `log_debug` scritto due volte**, ed è la regola che serve di più
+   perché i due gate si somigliano abbastanza da essere confusi al primo sguardo. `log_debug` chiede
+   che l'esito sia **osservabile**: c'è una voce, un reason code, un comando che lo mostra. È
+   diagnosticabilità. `replay_representable` chiede che quella voce **basti a ricostruire l'evento
+   da sola**, dopo la serializzazione, senza che nessuno ricalcoli — è il vincolo che
+   [ADR-0009](../decisions/adr-0009-replay-logico-canonico.md) impone al Player, *«non calcola
+   collisioni, danni, reazioni, KO, legalità dei percorsi né targeting: non produce esiti, li legge»*.
+
+   **I due gate divergono davvero, e il repository ha l'esempio: il danno da `Status.Burning`.**
+   Nella Cleanup, un'unità che brucia subisce `BurningCleanupDamage`, perde HP e **può morire**. Il
+   fatto è osservabile — c'è una riga che nomina unità, danno e cella — quindi `log_debug` regge.
+   Ma quella riga è `ARTTurnManager::AddLogEvent`, cioè `UE_LOG` più il buffer circolare
+   `RecentEvents` troncato a `MaxLogLines`: **non passa da `AppendLogEntry`**, quindi non esiste una
+   voce canonica. Chi riproduce vede gli HP scendere — o un'unità sparire — senza un evento che lo
+   spieghi, e `CompareSerializedTraces` non può nominare quel punto come divergenza. Il codice lo
+   dice da sé: *«l'eliminazione da hazard non ha un beat di playback … la nasconde il catch-all di
+   `ConcludeTurn`»*. `replay_representable` è `todo` per `RT-FEAT-ENV-STATUS` e `RT-FEAT-ENV-FIRE`.
+
+   ⚠️ **La prima stesura di questa regola usava `GraphRevision` come esempio, ed era sbagliata.**
+   Citava la nota di [D-067](../decisions/RT_PDR_00_Decision_Log.md) — «produttore assente», vera il
+   2026-08-10 — senza verificarla sul codice: il produttore è atterrato con `908b84b`, e
+   `ARTTurnManager::AppendLogEntry` valorizza `GraphRevision` (con `TurnNumber` e `UnitId`) su
+   **ogni** voce, perché è l'unico `TurnLog.Add` di produzione del progetto. Il test
+   `RefactorTactics.TurnLog.GraphRevisionRisesWithinTheTurn` lo pinna sul percorso reale. La lezione
+   sta nella regola stessa: **si cerca chi produce un campo, non chi lo dichiara** — e una nota `⚠️`
+   del Decision Log è datata quanto il giorno in cui è stata scritta.
+
+   **Come si assegna.** L'oracolo è `ERTLogCategory` in `RTTurnLog.h` — `Move`, `Combat`,
+   `Fallback`, `Reaction`, `Environment`, `Facing`, `Predictive`: le sette categorie in cui una voce
+   può esistere. Se la feature non produce voci in nessuna di quelle, il gate è **`na`**, ed è la
+   risposta giusta per le query (`LOS`, A\*), le proprietà derivate, la UI che legge, il tooling, i
+   dati e i contenuti. Se le produce e qualcosa le pinna, `done`. Se le produce e nessuno le pinna,
+   `todo` — ed è lì che il gate guadagna il suo posto.
+
+   ⚠️ **Il gate sta nel gradino `DONE`**, accanto a `packaged` e `network_privacy`, e la ragione è
+   misurata: quando è entrato (2026-08-12) una sola feature era `DONE`, quindi non ha fatto
+   regredire nessuno stato dichiarato. Un gate nuovo che retrocede metà registry al primo giro non
+   viene creduto, viene aggirato. Prima assegnazione: **14 `done` · 32 `todo` · 45 `na`**
+   *(era 10/36/45: quattro feature di mappa erano `todo` per l'esempio sbagliato qui sopra —
+   grafo, copertura dinamica, porte e ponti emettono tutti un `ERTEnvironmentOutcome` con un
+   produttore reale, verificato uno per uno).*
+
 ### 4.1 Quando un pezzo lo porta un'altra feature
 
 `completed_by:` dichiara **chi** completa ciò che a questa feature manca.
@@ -137,6 +181,32 @@ avvisa: il rimando è vecchio.
 **Non è `dependencies`.** Una dipendenza è un prerequisito — ciò che deve esistere *prima*.
 `completed_by` è il contrario: ciò che arriverà *dopo* e chiuderà il buco.
 
+### 4.2 Le cinque domande, e quale non ha un gate
+
+Lo [spec panel del 2026-08-12](plans/five-lane-roadmap-spec-panel-2026-08-11.md) ha portato una
+checklist di copertura da applicare a ogni incremento — cinque domande, con `N/A + motivo` ammesso e
+la clausola che le rende usabili: *«non inventare lavoro inutile solo per riempire tutte le
+caselle»*. Non introduce identificatori: si legge sui gate che già esistono.
+
+| La domanda | Il gate che la risponde |
+|---|---|
+| I **dati** e le query sono validi? | `data` |
+| Il risultato è **deterministico e loggato**? | `log_debug` + `automation` |
+| Il risultato è **leggibile**? | `ui_wiki` |
+| È **configurabile e ispezionabile** senza hack? | ⚠️ **nessuno** |
+| È **riproducibile** senza divergenza né fuga? | `replay_representable` + `network_privacy` |
+
+⚠️ **La casella scoperta non è quella che il sorgente pensava.** Il documento insisteva sul replay
+per tre milestone; il replay un gate ce l'ha (§4, regola 7). Quella senza è l'**authoring**: nessun
+gate chiede se un designer possa configurare la feature e accorgersi di averla configurata male.
+Oggi si vede in negativo — `RT-FEAT-TOOL-MAP-EDITOR` e `RT-FEAT-TOOL-VALIDATION` esistono come
+*feature*, quindi la capacità è tracciata una volta sola, per il tool, e mai per le feature che
+quel tool dovrebbe rendere componibili.
+
+**Non è stato aperto un gate `authorable`**, e la ragione è la stessa che vale per ogni campo di
+questo registry: un gate senza consumatore è un dato che nessuno legge. Serve prima decidere se la
+domanda è per-feature o per-tool — e quella decisione non è ancora stata presa da nessuno.
+
 ## 5. Lo stato è derivato, non dichiarato
 
 `status` **non è un giudizio**: è una funzione dei gate, e il validator la verifica. Se i due
@@ -144,7 +214,7 @@ divergono, `validate` esce con errore — in entrambe le direzioni, anche quando
 feature è più avanti di quanto scritto.
 
 ```text
-DONE            core + scenario + ui_wiki + packaged + network_privacy
+DONE            core + scenario + ui_wiki + packaged + network_privacy + replay_representable
 RELEASE_READY   core + scenario + ui_wiki
 INTEGRATED      core + scenario
 TESTABLE        spec + runtime + automation

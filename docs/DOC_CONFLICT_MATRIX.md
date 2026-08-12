@@ -15,6 +15,14 @@
 | `OPEN` | Tema deciso in un sorgente, **mai recepito** in un documento normativo |
 | `DUPLICATE` | La stessa regola definita in più posti → consolidare su un solo owner |
 
+> ➕ **Dal 2026-08-12 la colonna «Specifica precedente» è verificabile.** Molte righe dicono *«il PDR»*, *«il
+> catalogo»*, *«north-star»*: fino a ieri quelle fonti erano **ventiquattro binari** e l'unico modo di
+> controllarle era aprire un PDF a una certa pagina. Ora sono Markdown con sezioni —
+> [`archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md`](archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md) e i quattro
+> documenti di [`src/prd/`](src/README.md) — quindi una riga di questa matrice si può **falsificare con un
+> `grep`** invece che sulla parola di chi l'ha scritta. Le righe non sono state riscritte: cambia cosa si può
+> fare per verificarle.
+
 ---
 
 ## Matrice
@@ -62,7 +70,7 @@
 | 37 | **Privacy della finestra di reazione** | privacy = «payload visibile solo alla propria squadra» | anche il **tempo** è un canale: l'avversario non deve poter dedurre che una finestra è stata aperta | [D-021](decisions/RT_PDR_00_Decision_Log.md) · [ADR-0004](decisions/adr-0004-finestre-di-reazione.md) | `CONFIRMED` | ⏳ E14/M10 · requisito di privacy, **non** rifinitura UI: niente pausa osservabile correlata alla scelta altrui |
 | 38 | **Baseline del motore** | D-007: UE **5.8** come *assunzione da bloccare* | **5.8.1** consolidata: upgrade solo fra milestone e con migrazione esplicita | [D-022](decisions/RT_PDR_00_Decision_Log.md) | `SUPERSEDED` | ✅ chiuso 2026-08-08 — il repo la bloccava già di fatto; restava aperta solo sulla carta |
 | 39 | **Workbook di bilanciamento** | `RefactorTactics_Balance_Matrices_v0.1.xlsx` letto come fonte di numeri | **`RESEARCH`**: i canonici sono i cataloghi `balance/RT_*Catalog_v0.1.md` | [D-023](decisions/RT_PDR_00_Decision_Log.md) | `SUPERSEDED` | ✅ il workbook non risolve più conflitti · un futuro v0.2 andrà **derivato** dai cataloghi |
-| 40 | **Bonus danno da altura nel codice** | il terreno alto concede `+Damage` all'occupante | `OccupantDamageBonus` è un parametro **generico** di `EffectiveAttackPower`: ogni call site runtime passa `0` | codice (`RTCombatLibrary`, `RTTurnManager`) · [D-024](decisions/RT_PDR_00_Decision_Log.md) | `SUPERSEDED` | ⚠️ il meccanismo **resta** (serve ad altri effetti), la semantica «altura» no · il test `Combat.EffectiveAttackPowerWithTerrainBonus` insegna ancora il contrario nel nome → issue di rinomina |
+| 40 | **Bonus danno da altura nel codice** | il terreno alto concede `+Damage` all'occupante | `OccupantDamageBonus` è un parametro **generico** di `EffectiveAttackPower`: ogni call site runtime passa `0` | codice (`RTCombatLibrary`, `RTTurnManager`) · [D-024](decisions/RT_PDR_00_Decision_Log.md) | `SUPERSEDED` | ⚠️ il meccanismo **resta** (serve ad altri effetti), la semantica «altura» no · il test si chiama `Combat.EffectiveAttackPowerAddsDeclaredBonus` dal 2026-08-11 ([#538](https://github.com/DegrassiAaron/refactor-tactics-main/issues/538)): il nome precedente insegnava il contrario |
 | 41 | **`Sprint`: fase e slot nel codice** | — | D-015 lo vuole profilo del `Move`, **solo** slot movimento, fase `Move` | [D-015](decisions/RT_PDR_00_Decision_Log.md) | `SUPERSEDED` | ⏳ **divergenza misurata il 2026-08-08**: nel codice `Action.Sprint` è in `ERTResolutionPhase::FastMovement` e consuma movimento **e** azione principale → issue di refactor, non correzione silenziosa |
 
 | 42 | **Composizione delle azioni generiche** | due decisioni chiuse lo **stesso giorno** si contraddicevano: D-014 (passaggio Gameplay) ne canonizzava **sei** togliendo `Guard`; l'handoff non-Gameplay ne elencava **otto** con `Guard` e `Activate` distinte | **sette**: `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch` — `Guard` universale, `Activate` assorbita da `Interact` | [D-025](decisions/RT_PDR_00_Decision_Log.md) | `CONFLICT` → **risolto** | ✅ deciso dall'autore il 2026-08-08. Unico `CONFLICT` vero di questo passaggio: due fonti pari grado, nessuna gerarchia fra loro · ✅ **propagazione chiusa il 2026-08-08** in [`gameplay/brief-azioni-generiche-overwatch.md`](gameplay/brief-azioni-generiche-overwatch.md), `AGENTS.md`, `CLAUDE.md` e riga 27 di questa matrice — tutti elencavano ancora sei voci |

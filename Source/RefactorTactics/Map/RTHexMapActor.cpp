@@ -53,6 +53,18 @@ ARTHexMapActor::ARTHexMapActor()
 	{
 		Cells->SetStaticMesh(CylinderMesh.Object);
 	}
+
+	// Rilievo del costo: stessa mesh, ma SENZA collisione — il raycast di selezione valida l'actor, non il
+	// componente, quindi geometria collidibile qui ruberebbe i click al pennello.
+	Relief = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Relief"));
+	Relief->SetupAttachment(Cells);
+	Relief->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Relief->SetCollisionResponseToAllChannels(ECR_Ignore);
+	Relief->CastShadow = false; // e' uno strumento di lettura, non scenografia: le ombre confonderebbero il profilo
+	if (CylinderMesh.Succeeded())
+	{
+		Relief->SetStaticMesh(CylinderMesh.Object);
+	}
 }
 
 void ARTHexMapActor::OnConstruction(const FTransform& Transform)
@@ -346,12 +358,20 @@ void ARTHexMapActor::RebuildInstances()
 
 	Cells->ClearInstances();
 	InstanceCells.Reset();
+	if (Relief)
+	{
+		if (UStaticMesh* Mesh = CellMesh.LoadSynchronous()) { Relief->SetStaticMesh(Mesh); }
+		Relief->ClearInstances();
+	}
 
 	// Sorgente celle: l'asset se popolato, altrimenti un graybox demo (esagono pieno di raggio DemoRadius).
 	const float UseHexSize = MapAsset ? MapAsset->HexSize : HexSize;
 	const float UseLayerH = MapAsset ? MapAsset->LayerHeight : LayerHeight;
 
-	// Filtro layer (H4): in ActiveOnly mostra solo il layer attivo, cosi' i piani sovrapposti non si confondono.
+	// Filtro layer (H4): solo AllLayers impila i piani; ActiveOnly e Focus tengono le ISTANZE sul solo layer
+	// attivo. La differenza fra i due e' di sola presentazione — Focus disegna gli altri piani a contorno
+	// (`RTHexEditor::DrawSurfaceOverlay`) — e sta fuori di qui apposta: i piani di contesto non devono
+	// diventare istanze, o tornerebbero ad avere collisione e a intercettare il click del pennello.
 	auto PassesLayerFilter = [this](int32 Layer)
 	{
 		return LayerView == ERTLayerViewMode::AllLayers || Layer == ActiveLayer;
@@ -359,10 +379,12 @@ void ARTHexMapActor::RebuildInstances()
 
 	TArray<FRTCellId> CellIds;
 	TArray<int32> Heights;
+	TArray<int32> MoveCosts;
 	if (MapAsset && MapAsset->NumCells() > 0)
 	{
 		CellIds.Reserve(MapAsset->NumCells());
 		Heights.Reserve(MapAsset->NumCells());
+		MoveCosts.Reserve(MapAsset->NumCells());
 		for (const FRTHexCellData& C : MapAsset->Cells)
 		{
 			if (!PassesLayerFilter(C.Id.Layer))
@@ -371,6 +393,7 @@ void ARTHexMapActor::RebuildInstances()
 			}
 			CellIds.Add(C.Id);
 			Heights.Add(C.Height);
+			MoveCosts.Add(C.MoveCost);
 		}
 	}
 	else if (DemoRadius > 0)
@@ -378,6 +401,7 @@ void ARTHexMapActor::RebuildInstances()
 		// Demo graybox sul layer attivo (visibile sia in AllLayers sia in ActiveOnly).
 		CellIds = URTHexLibrary::HexArea(FRTCellId(0, 0, ActiveLayer), DemoRadius);
 		Heights.Init(0, CellIds.Num());
+		MoveCosts.Init(1, CellIds.Num()); // il graybox non ha terreni: tutto pavimento, quindi piatto
 	}
 
 	// Cilindro engine: raggio 50 uu, mezza-altezza 50 uu. Scala X,Y per coprire ~l'esagono, Z sottile (disco).
@@ -392,6 +416,21 @@ void ARTHexMapActor::RebuildInstances()
 		const FTransform Xf(FRotator::ZeroRotator, World, FVector(PlanarScale, PlanarScale, FlatScale));
 		Cells->AddInstance(Xf, /*bWorldSpace=*/ true);
 		InstanceCells.Add(CellIds[I]);
+
+		// Rilievo del costo: un blocco alto quanto il SOVRAPPREZZO della cella. Il pavimento non ne produce
+		// nessuno — una mappa senza terreni costosi resta piatta, ed e' giusto: non c'e' niente da segnalare.
+		const float ReliefHeight = URTHexLibrary::ReliefHeightForCost(MoveCosts[I]);
+		if (Relief && ReliefHeight > 0.f)
+		{
+			// Poggia sulla faccia del disco e cresce verso l'alto; il cilindro engine e' CENTRATO, quindi il
+			// suo centro sta a meta' altezza. Piu' stretto della cella (0.6) per non coprire il contorno
+			// colorato della superficie, che resta il canale del *tipo* di terreno.
+			FVector ReliefCenter = World;
+			ReliefCenter.Z += RTCellTopZ + ReliefHeight * 0.5;
+			const FTransform ReliefXf(FRotator::ZeroRotator, ReliefCenter,
+				FVector(PlanarScale * 0.6f, PlanarScale * 0.6f, ReliefHeight / 100.f));
+			Relief->AddInstance(ReliefXf, /*bWorldSpace=*/ true);
+		}
 	}
 }
 

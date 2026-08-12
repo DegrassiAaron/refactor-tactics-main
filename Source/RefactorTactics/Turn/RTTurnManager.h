@@ -11,6 +11,9 @@
 #include "Turn/RTHexSim.h" // FRTHexSnapshot: restituito per valore da MakeCurrentSnapshot
 #include "Turn/RTPacing.h" // FRTPacingSample: telemetria, canale separato dal TurnLog
 #include "Map/RTHexCellData.h" // ERTHexSurface: il terreno dinamico ricorda la superficie originale (CP 8.4)
+#include "Combat/RTCombatResolver.h" // FRTAttack, FRTUnitCombatState: il pass reazioni raccoglie i primi e aggiorna i secondi
+#include "Combat/RTHexCombatLibrary.h" // FRTHexAttackHit/FRTHexAttackIntent: cio' su cui il pass reazioni valuta i trigger
+#include "Turn/RTReactionLibrary.h" // ERTReactionPassPoint/FRTReactionTriggerHit: la firma del pass reazioni li usa
 #include "RTTurnManager.generated.h"
 
 class ARTUnit;
@@ -46,6 +49,70 @@ struct FRTDisplacementCause
 	FName BaseActionId;
 	/** Priorita' intra-fase dell'azione (CP 11.3): con quale precedenza ha risolto. */
 	int32 Priority = 0;
+};
+
+/**
+ * Cio' che il pass delle reazioni RACCOGLIE e che il chiamante applica insieme al resto della propria fase
+ * (CP 5.1, `#505`).
+ *
+ * Una struct e non sette variabili locali perche' il pass smette di essere uno solo: con `D-092` diventa
+ * richiamabile per fase, e sette parametri d'uscita separati sono sette occasioni di passarne uno in meno.
+ * Gli array sono **paralleli** — disallinearli attribuirebbe un contrattacco all'unita' sbagliata, che e' la
+ * stessa classe di difetto gia' costata una correzione a `FRTDisplacementCause` qui sopra.
+ *
+ * Non contiene le FUGHE (`SelfReposition`): quelle il pass le raccoglie e le applica al proprio interno, dopo
+ * aver valutato tutte le reazioni sullo snapshot congelato (`D-094`). Uscire di qui con delle destinazioni da
+ * applicare piu' tardi rimetterebbe in gioco proprio l'ordine che quella decisione toglie di mezzo.
+ */
+struct FRTReactionPassResult
+{
+	/** Riduzione del danno per bersaglio dichiarata dalle reazioni attivate: entra nel delta del PRIMO danno. */
+	TArray<int32> DeflectDelta;
+
+	/** Colpi di ritorno, accodati ai colpi veri della fase. I cinque array che seguono gli sono paralleli. */
+	TArray<FRTAttack> CounterAttacks;
+	/** Cella di chi contrattacca, per il TurnLog. */
+	TArray<FRTCellId> CounterAttackSrc;
+	/** Identita' della reazione che ha prodotto il colpo di ritorno (CP 11.3, `#79`). */
+	TArray<FName> CounterActionId;
+	/** Generica di cui `CounterActionId` e' un profilo, quando la dichiara (D-033). */
+	TArray<FName> CounterBaseActionId;
+	/** Priorita' intra-fase della reazione. */
+	TArray<int32> CounterPriority;
+	/** E CHI contrattacca: una cella non identifica un'unita' ([D-063]). */
+	TArray<ARTUnit*> CounterAttackActors;
+
+	/**
+	 * Chi ha ANNULLATO lo spostamento che stava per subire (`Reaction.Anchor`, `CancelDisplacement`): indici
+	 * in `Units`, che i rami di spinta e trazione consultano prima di muovere.
+	 *
+	 * Un `TSet` perche' l'uso e' solo `Contains`: non ci si itera sopra, quindi l'ordine non deterministico di
+	 * `TSet` non puo' entrare nell'esito (invariante #3).
+	 */
+	TSet<int32> CancelledDisplacements;
+
+	/**
+	 * Chi ha ANNULLATO il controllo che stava per ricevere (`Reaction.Cleanse`, `CancelStatus`): indici in
+	 * `Units`, che il punto di applicazione degli stati consulta prima di applicarli.
+	 *
+	 * Quale dei controlli in arrivo salti non e' qui: lo decide chi applica, che ha davanti la lista completa
+	 * e sceglie **il piu' grave** (`URTReactionLibrary::ControlSeverityRank`). Metterlo qui vorrebbe dire
+	 * scegliere due volte, in due posti che possono divergere.
+	 */
+	TSet<int32> CancelledControls;
+
+	/**
+	 * Chi fugge SENZA una sorgente da cui allontanarsi (`Reaction.HazardEscape`): indici in `Units`, e
+	 * `HazardFleeDistance` parallelo con quante celle.
+	 *
+	 * Lista separata dalle fughe del Blast, e non e' una duplicazione: quelle hanno una direzione — via da chi
+	 * ha innescato — e il pass le applica al proprio interno con la geometria della spinta. Qui la direzione
+	 * non esiste: c'e' una cella diventata pericolosa e basta, quindi **dove** si va lo decide il chiamante
+	 * (`URTTerrainLibrary::FindEscapeCell`, che guarda il facing). Un solo array per entrambe avrebbe
+	 * costretto il pass a conoscere due geometrie.
+	 */
+	TArray<int32> HazardFlees;
+	TArray<int32> HazardFleeDistance;
 };
 
 USTRUCT()
@@ -351,6 +418,30 @@ protected:
 	void ResolveEnvironment(URTHexMapAsset* Map);
 
 	/**
+	 * Il pass delle REAZIONI (CP 5.1): per ogni unita' con una reazione pianificata valuta il trigger sui colpi
+	 * gia' raccolti, ne registra l'esito nel TurnLog — sempre, anche la non-attivazione — e traduce gli effetti
+	 * della reazione attivata in cio' che il chiamante applichera' insieme al resto della fase.
+	 *
+	 * **Una funzione e non un blocco dentro `ResolveCombat` perche' con `D-092` i punti di valutazione sono
+	 * piu' d'uno**: i trigger che non nascono da un colpo si valutano dove il loro evento e' deciso.
+	 *
+	 * `Point` dice QUALE punto sta girando: il pass guarda solo le unita' il cui trigger appartiene a questo
+	 * punto (`URTReactionLibrary::PassPointFor`) e ignora le altre — senza il filtro, la stessa reazione
+	 * prenderebbe una voce `NotTriggered` in ogni punto del turno invece che nel suo.
+	 *
+	 * `Evaluate` decide **se** il trigger scatta e **chi** l'ha innescato: e' il chiamante a saperlo, perche'
+	 * cambia con il punto (i colpi raccolti, gli spostamenti decisi, la cella sotto i piedi). Il pass non
+	 * conosce nessuna di queste cose, e cosi' resta uno solo.
+	 *
+	 * Le fughe di chi reagisce (`SelfReposition`) si applicano DENTRO, alla fine: e' il punto di `D-094` — tutte
+	 * le reazioni valutate sullo snapshot congelato, poi si muove. Vedi `FRTReactionPassResult` per cosa esce.
+	 */
+	void RunReactionPass(ERTReactionPassPoint Point,
+		TFunctionRef<FRTReactionTriggerHit(int32 /*SelfId*/, ERTReactionTrigger)> Evaluate,
+		const TArray<ARTUnit*>& Units, TArray<FRTUnitCombatState>& States,
+		const URTHexMapAsset* Map, FRTReactionPassResult& Out);
+
+	/**
 	 * Colpi predittivi armati nella Prep di QUESTO turno, consumati al boundary del Move (E18).
 	 *
 	 * Vive sul TurnManager e non sull'unita' perche' la Prep azzera `PlannedAbilityIndex` appena consuma
@@ -394,6 +485,30 @@ protected:
 	 */
 	void AppendDisplacementEntry(const ARTUnit* Target, const FRTCellId& From, const FRTCellId& To, int32 Steps,
 		const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget);
+
+	/**
+	 * Applica uno spostamento FORZATO gia' deciso: i dieci passi che devono avvenire tutti, in un posto solo
+	 * (`#541`).
+	 *
+	 * Non calcola **dove** — quello lo fanno `HexKnockbackDestination` e la sua gemella per la trazione, e
+	 * restano separate perche' la direzione e' l'unica cosa che davvero distingue una spinta da un tiro.
+	 * Questa applica **come**, ed e' identica per entrambe: log, percorso, voce di TurnLog con la causa
+	 * (`#307`), evento di playback, cella nuova, facing verso la sorgente (CP 16.1), posizione visiva, hazard
+	 * di **ogni** cella attraversata (`#308`), e il piano che segue l'unita' invece di riportarla indietro.
+	 *
+	 * ⚠️ **Esisteva gia' due volte**, per `Push` e per `Pull`, riga per riga uguale tranne il verbo del log,
+	 * la mappa delle cause e la sorgente del facing. La terza copia sarebbe arrivata con `SelfReposition`
+	 * (D-093), e la terza e' quella che trasforma una duplicazione in un pattern da imitare: chi aggiunge il
+	 * quarto produttore di spostamento copia da una delle tre, e prima o poi ne copia una a cui manca un
+	 * passo. Ogni passo omesso e' un difetto gia' pagato — `#307` la causa, `#308` gli hazard, il piano che
+	 * non segue riporta l'unita' indietro nel Move.
+	 *
+	 * `FacingSource` e' la cella **verso cui** l'unita' si gira: chi spinge per la spinta, chi tira per la
+	 * trazione, chi ha innescato per una fuga ([D-104](../../../docs/decisions/RT_PDR_00_Decision_Log.md)).
+	 */
+	void ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& NewCell, const FRTCellId& FacingSource,
+		const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget, const TCHAR* LogVerb,
+		const URTHexMapAsset* Map);
 
 	/**
 	 * Voce di TurnLog per uno spostamento forzato ANNULLATO (#420): la spinta e' stata registrata, risolta, e
@@ -625,6 +740,22 @@ protected:
 
 	/** La conoscenza della squadra, o una vuota e di versione corrente se la squadra non ne ha ancora. */
 	FRTTeamKnowledge KnowledgeForTeam(int32 TeamId) const;
+
+	/**
+	 * Rinfresca `TeamKnowledgeState` dalle posizioni ATTUALI delle unita' vive (CP 13.5).
+	 *
+	 * Serve a inizio pianificazione, dove `ResolveCombat` non e' ancora passato: senza, al primo turno la
+	 * conoscenza e' **vuota** e un bot che pianifica su di essa sarebbe cieco invece che parziale — cioe' il
+	 * filtro di percezione sembrerebbe funzionare mentre produce un bot che non fa niente.
+	 *
+	 * NON sostituisce il rinfresco dentro `ResolveCombat`, che resta dov'e' per la ragione scritta li': la
+	 * posizione autorevole per il Blast e' quella POST-Dash, e chi ha caricato in mezzo al campo deve essere
+	 * visto prima che si spari. Questo e' un secondo campione, allo stato di inizio turno.
+	 *
+	 * Idempotente rispetto alla scadenza dei ricordi: `Observe` scrive `TurnNumber` corrente sui contatti
+	 * freschi, quindi chiamarla due volte nello stesso turno non allunga la memoria di nessuno.
+	 */
+	void RefreshTeamKnowledgeForPlanning(const TArray<ARTUnit*>& Live);
 
 	/**
 	 * Aggiunge una voce al TurnLog stampandoci i campi di CONTESTO della v6 (#405): turno, revisione del grafo

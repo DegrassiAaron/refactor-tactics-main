@@ -18,23 +18,23 @@ Legenda: ✅ chiusa · 🟡 parziale · ⏳ non iniziata · `—` nessuno stato 
 | Epic | Stato | Feature | Gate | In una riga |
 |---|:--:|--:|--:|---|
 | **E1** | ✅ | 4 | 18/23 | ID stabili e Primary Data Asset: senza, ogni azione diventa codice hard-coded |
-| **E2** | ✅ | 6 | 40/46 | L'intero turno gira su esagoni — non si costruiscono 4 eroi sopra la griglia quadrata |
+| **E2** | ✅ | 6 | 43/49 | L'intero turno gira su esagoni — non si costruiscono 4 eroi sopra la griglia quadrata |
 | **E3** | ✅ | — | — | `FRTGridCoord`, `URTGridLibrary` e `ARTGridActor` non esistono più: doppia manutenzione = ambiguità su dove va scritta una regola |
-| **E4** | ✅ | 5 | 29/40 | Priorità intera intra-fase, fallback, collisioni senza bias di Player ID — regge azioni, reazioni, ambiente e obiettivi |
-| **E5** | ✅ | 2 | 11/16 | Counter/Deflect/Brace/Shield/Cleanse/Intercept preparate in planning, una attivazione per turno, **nessuna attesa nel resolver** |
+| **E4** | ✅ | 5 | 31/45 | Priorità intera intra-fase, fallback, collisioni senza bias di Player ID — regge azioni, reazioni, ambiente e obiettivi |
+| **E5** | ✅ | 2 | 12/17 | Counter/Deflect/Brace/Shield/Cleanse/Intercept preparate in planning, una attivazione per turno, **nessuna attesa nel resolver** |
 | **E6** | ✅ | 1 | 6/8 | Flux, Riva, Bastion, Vektor da dati; **3 reazioni su 5** cablate, `InterceptShot`→E18 e `FlowReaction`→E14 |
 | **E7** | 🟡 | 1 | 1/8 | Scelta orizzontale: ogni variante ha uno svantaggio |
-| **E8** | ✅ | 8 | 48/64 | 8 superfici, stati temporanei legati alla cella, propagazione elettrica sul grafo dell'acqua, fuoco/acqua dinamici |
-| **E9** | ✅ | 5 | 30/40 | Copertura per **bordo**, porte come bordo (mappa v4), ponti come **arco** (v5), pannello cinetico temporaneo |
-| **E10** | 🟡 | 2 | 9/16 | Fine partita a tre vie ✅; ⏳ **nessun oggetto da attivare** in mappa |
+| **E8** | ✅ | 8 | 49/72 | 8 superfici, stati temporanei legati alla cella, propagazione elettrica sul grafo dell'acqua, fuoco/acqua dinamici |
+| **E9** | ✅ | 5 | 33/43 | Copertura per **bordo**, porte come bordo (mappa v4), ponti come **arco** (v5), pannello cinetico temporaneo |
+| **E10** | 🟡 | 2 | 9/18 | Fine partita a tre vie ✅; ⏳ **nessun oggetto da attivare** in mappa |
 | **E11** | 🟡 | 8 | 28/56 | Preview, input e playback esistono; ⏳ **Ghost Timeline** e i comandi `rt.Debug.*` completi |
-| **E12** | 🟡 | 7 | 30/47 | Replay deterministico su 100 ripetizioni ✅; ⏳ **packaged build**. Senza checksum e packaged non è v0.1 |
-| **E13** | 🟡 | 5 | 16/43 | La vista **decide**: da CP 13.2 un'azione offensiva non parte contro un bersaglio ignoto alla squadra, e un contatto solo `Incerto` si colpisce per cella. il **rumore** si propaga sul grafo (CP 13.3) ma nessuno lo **emette** ancora in partita — il produttore è CP 13.4. ⏳ **bot e HUD**, che la conoscenza non la consumano |
-| **E14** | 🟡 | 8 | 10/70 | CP 14.3/14.4 chiusi: l'opportunity ha un'**identità derivata** e l'Overwatch la produce a ogni micro-step, riusando `FRTSuppressiveZone`. ⏳ **nessuna finestra viva** — il resolver non chiede ancora nulla (CP 14.5), poi Clash e Time Bank |
+| **E12** | 🟡 | 7 | 32/49 | Replay deterministico su 100 ripetizioni ✅; ⏳ **packaged build**. Senza checksum e packaged non è v0.1 |
+| **E13** | 🟡 | 5 | 18/43 | La vista **decide**: da CP 13.2 un'azione offensiva non parte contro un bersaglio ignoto alla squadra, e un contatto solo `Incerto` si colpisce per cella. il **rumore** si propaga sul grafo (CP 13.3) ma nessuno lo **emette** ancora in partita — il produttore è CP 13.4. ⏳ **bot e HUD**, che la conoscenza non la consumano |
+| **E14** | 🟡 | 8 | 10/78 | CP 14.3/14.4 chiusi: l'opportunity ha un'**identità derivata** e l'Overwatch la produce a ogni micro-step, riusando `FRTSuppressiveZone`. ⏳ **nessuna finestra viva** — il resolver non chiede ancora nulla (CP 14.5), poi Clash e Time Bank |
 | **E15** | 🟡 | 2 | 9/16 | La prova integrata: fixture, scenario e golden replay a hash stabile. **Consuma** i sistemi, non li anticipa |
-| **E16** | ✅ | 1 | 5/9 | Il facing è **stato di gioco**: deriva da Move e Dash, entra in snapshot/TurnLog/hash, e da dietro annulla copertura e `Guard` |
+| **E16** | ✅ | 1 | 6/10 | Il facing è **stato di gioco**: deriva da Move e Dash, entra in snapshot/TurnLog/hash, e da dietro annulla copertura e `Guard` |
 | **E17** | 🟡 | 1 | 1/7 | **Misura, non produzione**: CP 17.1/17.2 chiusi — il 4v4 gioca e non diverge, resolver **2,319 ms/turno**, e l'`if (Num == 2)` che l'epic cercava **non esiste**. ⏳ CP 17.3 è PIE. **Non** è un gate di release |
-| **E18** | ✅ | 1 | 6/8 | **Una sola** azione predittiva rende percepibile il pilastro. Non dipende da E13/E14 |
+| **E18** | ✅ | 1 | 7/9 | **Una sola** azione predittiva rende percepibile il pilastro. Non dipende da E13/E14 |
 | **E19** | 🟡 | 1 | 5/8 | Due buchi misurati: la mappa non dichiara la propria **classe**, il formato non dichiara le **unità per squadra** |
 | **E20** | 🟡 | 1 | 1/7 | Le icone come **catalogo semantico**, non texture nei widget: va fatto *mentre* E11 costruisce l'HUD |
 | **E21** | 🟡 | 1 | 1/7 | Il gioco smette di essere cilindri colorati — mesh, animazioni, anelli team/selezione |

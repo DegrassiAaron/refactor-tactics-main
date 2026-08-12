@@ -1,6 +1,6 @@
 # Decisioni aperte
 
-> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-11
+> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-12
 > **Cosa è**: l'elenco di ciò che **aspetta una persona**. Nessuna di queste voci può essere chiusa
 > deducendola dai documenti: o mancano i dati, o due fonti si contraddicono senza gerarchia.
 > **Cosa non è**: il registro delle decisioni prese — quello è il
@@ -26,6 +26,31 @@ persona: questa sezione colma il buco.
 | [`#412`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/412) | Quale artefatto è **autorevole**, e dove passa il confine `ReplayPlayer`/`ReplayVerifier`? | [**ADR-0009**](decisions/adr-0009-replay-logico-canonico.md): **due prodotti, perimetri disgiunti**. Il **Player** ha per autorità la *traccia* e non calcola nulla; il **Verifier** ha per autorità il *resolver*, ri-simula e produce un verdetto, mai una presentazione. Il confine è reso **impossibile dalla struttura** (il Player vive dove il resolver non è raggiungibile — è già così in `#415`), con un test negativo come rete. A runtime il Player **non verifica**: rifiuta in apertura ciò che non sa leggere, e la verifica vive offline |
 | [`#414`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/414) | L'archivio è per **partita** o per **turno**, e cosa identifica una partita? | [**D-077**](decisions/RT_PDR_00_Decision_Log.md): **entrambe le cose, a due livelli** — un **manifest per partita** più una **traccia per turno**. Le tracce restano come sono (`SaveTurnLogToFile` ne salva già una per file); il manifest è la casa che [D-062](decisions/RT_PDR_00_Decision_Log.md) aveva già assegnato a `HashTurnLogOrdered`, ed è lo stesso artefatto che l'indice di [#416](https://github.com/DegrassiAaron/refactor-tactics-main/issues/416) chiede. L'identità è un **`FGuid` generato all'avvio**, **fuori da ogni hash**: identifica la registrazione, non il contenuto |
 | [`#413`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/413) | `ContentManifestHash` e `RulesVersion` si costruiscono **ora o alla v0.2**? E cosa entra nel manifest? | [**D-083**](decisions/RT_PDR_00_Decision_Log.md): **alla v0.2**, ma con il **perimetro deciso ora**. ⚠️ Misurando, il rischio del rinvio si è rivelato più piccolo di come la domanda lo poneva: il corpus golden vive **nello stesso repository delle regole**, quindi un ritocco di bilanciamento lo fa diventare **rosso**, con turno, fase e `ActionId` già nominati da `CompareSerializedTraces`. Ciò che manca non è il **rilevamento**, è l'**attribuzione**: un rebalance legittimo e una regressione si presentano identici. Perimetro: **entra ciò che il resolver legge** — catalogo azioni, catalogo eroi, costanti di combat, config del resolver; **fuori** presentazione, HUD, icone e la mappa, che ha già il suo hash |
+
+---
+
+## Aperta — chi può leggere una traccia, dallo spec panel del 2026-08-12
+
+Origine: [`roadmap/plans/five-lane-roadmap-spec-panel-2026-08-11.md`](roadmap/plans/five-lane-roadmap-spec-panel-2026-08-11.md) §7C.
+Il sorgente revisionato proponeva un intero modello di privacy del replay come lavoro della v0.1: è **fuori
+scope** — la v0.1 è 2v2 **offline contro un bot**, e [D-078](decisions/RT_PDR_00_Decision_Log.md) lo scrive
+(«nessun avversario, nessun server»). Ma la **domanda** sopravvive alla proposta, e va registrata prima che
+esista un consumatore: è lo stesso schema di [D-083](decisions/RT_PDR_00_Decision_Log.md), perimetro deciso
+adesso e costruzione rinviata.
+
+⚠️ `REPLAY-01`…`REPLAY-09` sono i **rischi** del §32 del kit di consolidamento, non domande: da qui il
+prefisso `REP-`, che era libero.
+
+➕ **`REP-2` si è aggiunta il 2026-08-12**, da una domanda diversa: assegnando `replay_representable` alle
+feature del bot è emerso che la traccia non distingue un bot equo da un bot onnisciente. È lo stesso oggetto
+di `REP-1` — *cosa contiene una traccia* — preso dal lato opposto: `REP-1` chiede chi può leggerla, `REP-2`
+chiede se debba contenere abbastanza da falsificare una proprietà del bot. Le due si vincolano a vicenda, e
+per questo stanno nella stessa tabella.
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `REP-1` | Una traccia archiviata può essere **letta da chiunque**, o esistono profili di lettura distinti (audit · squadra · pubblico)? | Oggi non ha consumatori — nessun avversario e nessun server — quindi **non è urgente**, ma non è nemmeno neutra: `D-077` mette un `FGuid` di partita nel manifest e il TurnLog porta `UnitId`/`TurnNumber` ([D-063](decisions/RT_PDR_00_Decision_Log.md)), cioè la traccia sa già **chi** ha fatto **cosa**. Il momento per decidere il perimetro è prima che un archivio esca dalla macchina che l'ha prodotto — lo stesso innesco che `D-083` ha già dichiarato per `ContentManifestHash`. ⏳ **Default prudente in vigore fino alla decisione**: non pubblicare automaticamente intenti storici. «Partita finita» **non** implica «tutto il planning diventa pubblico»: è una scelta di prodotto, e nessun documento l'ha mai fatta. Innesco: la prima delle tre condizioni fra multiplayer (`RT-FEAT-NET-PRIVATE-PLANNING` oltre `TESTABLE`), condivisione di archivi fra macchine, o uno spettatore |
+| `REP-2` | Una traccia deve contenere abbastanza da **falsificare l'equita' del bot**, cioe' lo stato di conoscenza su cui ha pianificato? | Oggi no, e non per una svista: un bot che pianifica su `FRTTeamKnowledge` e un bot onnisciente che fa la stessa mossa scrivono voci **identiche** — la traccia registra l'azione, non cio' che il decisore sapeva. `RT-FEAT-BOT-FAIRNESS` e' `TESTABLE` e la sua proprieta' la tiene solo la verifica di mutazione su `HiddenEnemyFairness`; nessun gate del registry la protegge, e infatti il suo `replay_representable` e' `na` nel senso di «non e' possibile». `RT-FEAT-BOT-PREDICTIVE` dichiara lo stesso caso come proprio test da scrivere: «dedurre» e «sapere» sono indistinguibili dall'esterno. ⚠️ **Non e' gratis**: registrare la conoscenza del bot significa mettere nella traccia lo stato privato di un lato, cioe' esattamente cio' che `REP-1` sta perimetrando e che il default prudente vieta di pubblicare. Con un avversario umano sarebbe un vantaggio informativo, non un audit. Innesco: quando l'equita' del bot diventa un requisito da **dimostrare a terzi** invece che da verificare in casa — un torneo, un replay condiviso, un bot di terze parti |
 
 ---
 
@@ -287,7 +312,11 @@ Tre voci su quattro. Restano qui, barrate, perché il registro deve dire **come*
 | ID | Domanda | Perché serve una risposta |
 |---|---|---|
 | `OW-4` | Gli objective che dipendono dalla **posizione finale** si valutano dopo lo Stage B? | Il sorgente (§17) chiede di verificarlo contro il canone, e il canone **non dice nulla**: è una lacuna, non un conflitto. Con due stage di movimento nella stessa fase, «posizione finale» smette di essere ovvia. ⏳ **Non è di E14 e non è urgente**: misurato il 2026-08-10, gli objective oggi sono **solo** un motivo di fine partita (`ERTMatchEndReason::Objective`) e il punto d'ingresso per il progresso è dichiarato per **CP 10.2**. Nessun objective di posizione esiste, quindi la domanda non ha ancora un consumatore |
-| [`OW-5`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/501) | **Quali condizioni dichiarate in planning sono ammesse in v0.1**, e con quale forma? L'elenco chiuso di [D-012](decisions/RT_PDR_00_Decision_Log.md) non esiste da nessuna parte | È il **gate del DoD di CP 14.3** ([#163](https://github.com/DegrassiAaron/refactor-tactics-main/issues/163)) e blocca due dei suoi test nominati. D-012 dice che i tre regimi *Automatic/Conditional/FastSelect* **emergono dai dati** — `AllowedResponses` più la condizione — e che le condizioni ammesse sono «poche, leggibili e validate dal ruleset». Misurato il 2026-08-10: `AllowedResponses` è atterrato con CP 14.3, la condizione **no**, e l'unica traccia di contenuto è un ESEMPIO nel sorgente §19.2 — `Fire only if target HP <= 50%` — mai promosso a canone. Senza almeno una condizione valida `Reactions.DeclaredConditionCollapsesToImmediateCommit` non è scrivibile: si potrebbe solo verificare che il validator rifiuti tutto, che è vero e non dimostra il collasso a commit immediato. ⚠️ La domanda **non** è «serve un enum di policy»: quello D-012 lo esclude già. È *quali predicati* e **dove vive il loro elenco** — codice, come `IsCapabilityAvailable` in `RTScenarioSession.cpp`, o dato validato |
+✅ **`OW-5` chiusa il 2026-08-12** → [D-109](decisions/RT_PDR_00_Decision_Log.md): la v0.1 ammette **una sola**
+condizione dichiarata, `TargetHealthAtOrBelowPercent(N)`, con l'elenco **nel codice** e la soglia intera. Resta
+qui come indice, perché la voce aveva una premessa che si è rivelata falsa e vale segnarlo: diceva che nessuna
+opportunity a due risposte esistesse nel gioco, mentre `BuildOverwatchTriggers` (CP 14.4, **chiusa**) ne produce
+da prima che la domanda fosse posta. Una decisione può restare ferma per un ostacolo che non c'è più.
 
 > **Quattro punti del sorgente NON aprono una voce: sono già compatibili** e possono entrare nel DoD di E14
 > senza altre decisioni — la cadence `OncePerTargetPerReactionInstance` (§21), `MaxPrompts` che conta
@@ -364,6 +393,31 @@ conoscenza regge (il bersaglio ignoto non subisce danno), ma è caduta l'asserti
 | ID | Domanda | Perché serve una risposta |
 |---|---|---|
 | `PER-4` | Un'azione **rifiutata dal gate della conoscenza** deve comunque **orientare** l'attaccante verso il bersaglio? | Misurato: sì, oggi lo orienta. Il codice segue [D-020](decisions/RT_PDR_00_Decision_Log.md) — «un'azione con bersaglio orienta l'unità **prima** di risolvere» — e infatti la rotazione (`RTTurnManager.cpp:2577`, `TargetingReoriented`) precede il gate (`:2632`). ⚠️ Ma **D-020 è anteriore a CP 13.2** e non poteva prevedere un gate che *rifiuta* l'azione: il facing è **osservabile dall'avversario**, quindi girarsi verso un nemico che la squadra non conosce fa trapelare che lo si conosce — cioè tocca l'invariante #6 (privacy dell'intento) per una strada che nessuna delle due decisioni aveva davanti. Le uscite sono tre: (a) D-020 vince e si accetta il tell; (b) la rotazione si sposta **dopo** il gate, e allora va deciso cosa fa un'azione rifiutata *a metà* della timeline dei facing di D-020; (c) la rotazione avviene ma verso la **cella**, non verso l'unità, se il contatto è solo `Incerto`. ⚠️ Finché è aperta, lo scenario **non asserisce sul facing**: pinnare `E` accuserebbe il gioco di un difetto non deciso, pinnare `W` renderebbe canone per inerzia un possibile leak |
+
+---
+
+## ✅ Chiuse il 2026-08-12 — radar di personaggio
+
+Origine: [`RefactorTactics_Character_Radar_Wiki_Generator_Claude.md`](archive/src/RefactorTactics_Character_Radar_Wiki_Generator_Claude.md)
+(archiviato). Il modello era stato consolidato in [D-105](decisions/RT_PDR_00_Decision_Log.md); **tutte e
+cinque** le voci residue sono state decise dall'autore in sessione il 2026-08-12. La sezione resta come
+**indice**: il contenuto vive nel Decision Log e nell'owner
+[`spec-radar-profilo-personaggio.md`](characters/spec-radar-profilo-personaggio.md).
+
+> ⚠️ **`RAD-1` era mal posta, e il repository aveva già risposto.** Chiedeva quale dei due workbook fosse
+> autorità sui rating `*_1_10`. La risposta è **nessuno dei due**: [D-023](decisions/RT_PDR_00_Decision_Log.md)
+> aveva già declassato `RefactorTactics_Balance_Matrices_v0.1.xlsx` a `RESEARCH` e spostato l'autorità dei
+> numeri sui cataloghi `balance/RT_*Catalog_v0.1.md`, e [`balance/README.md`](balance/README.md) vieta perfino
+> la riparazione che stavo per proporre — *«non correggerlo cella per cella: un workbook rattoppato
+> diventerebbe una falsa fonte corrente»*. Il conflitto non è stato risolto: **si è dissolto**.
+
+| Era | Decisione presa | Dove vive ora |
+|---|---|---|
+| ~~`RAD-1`~~ | I rating **non si scrivono da nessuna parte: si calcolano** dai cataloghi a ogni generazione. Nessun file di rating esiste, quindi nessuna seconda fonte può nascere né divergere | [`D-106`](decisions/RT_PDR_00_Decision_Log.md) · owner §4 |
+| ~~`RAD-2`~~ | La rubrica è **codice**, non una tabella compilata: una formula si rivede in PR, un numero copiato in un foglio no. ⚠️ Diventa il **prerequisito di tutto** — senza rubrica i rating non esistono affatto, e non c'è il ripiego «intanto li mettiamo a mano» | [`D-106`](decisions/RT_PDR_00_Decision_Log.md) · owner §4.3, §7 |
+| ~~`RAD-3`~~ | I sei assi si **modellano**, non si riduce il radar a ciò che era già derivabile. ⚠️ `information` nasce con un solo ingrediente — la **Vista** — perché stealth e detection vivono solo nel workbook che D-106 esclude; si arricchisce derivando il rumore dal **kit** ([D-042](decisions/RT_PDR_00_Decision_Log.md)), non ripescando il foglio | [`D-107`](decisions/RT_PDR_00_Decision_Log.md) · owner §5, §5.1 |
+| ~~`RAD-4`~~ | Il generatore è **Node/TypeScript**, contro la raccomandazione registrata nel consolidamento (Python accanto a `scripts/`). Costo accettato: package manager e build step in un repository che li aveva evitati | [`D-108`](decisions/RT_PDR_00_Decision_Log.md) · owner §8 |
+| ~~`RAD-5`~~ | Gli SVG si **committano**, e il `--check` che li verifica entra **nell'MVP**. ⚠️ Combinato con D-106 il gate diventa un **test di regressione sui dati competitivi**: cambiare `Salute` in un catalogo lo fa diventare rosso finché i grafici non sono rigenerati nello stesso commit | [`D-108`](decisions/RT_PDR_00_Decision_Log.md) · owner §8.2 |
 
 ---
 

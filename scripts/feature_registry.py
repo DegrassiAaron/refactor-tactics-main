@@ -47,6 +47,7 @@ FEATURE_ID_RE = re.compile(r"^RT-FEAT-[A-Z0-9]+(-[A-Z0-9]+)*$")
 GATE_NAMES = [
     "spec", "data", "runtime", "log_debug", "automation",
     "scenario", "ui_wiki", "packaged", "network_privacy",
+    "replay_representable",
 ]
 GATE_VALUES = {"done", "partial", "todo", "na"}
 RELEASES = {"v0.1", "v0.2", "future"}
@@ -194,7 +195,13 @@ def derive_status(gates):
         return all(gates.get(n) in SATISFIED for n in names)
 
     core = ("spec", "data", "runtime", "log_debug", "automation")
-    if ok(*core, "scenario", "ui_wiki", "packaged", "network_privacy"):
+    # `replay_representable` sta nel gradino DONE accanto a `packaged` e `network_privacy`, e non
+    # piu' in basso, per una ragione misurata: al momento in cui e' entrato (2026-08-12) una sola
+    # feature era DONE, quindi il gate non poteva far regredire nessuno stato dichiarato — e un
+    # gate nuovo che retrocede meta' registry al primo giro non viene creduto, viene aggirato.
+    # E' anche il posto giusto nel merito: e' una proprieta' trasversale che si verifica per ultima,
+    # esattamente come le altre due di questo gradino.
+    if ok(*core, "scenario", "ui_wiki", "packaged", "network_privacy", "replay_representable"):
         return "DONE"
     if ok(*core, "scenario", "ui_wiki"):
         return "RELEASE_READY"

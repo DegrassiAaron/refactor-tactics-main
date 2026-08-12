@@ -52,7 +52,7 @@ quel documento già usa. Nessun simbolo nuovo. La seduta scende a 🟡 da sola.
 
 <!-- RT_SHORTLIST_EDITOR:BEGIN -->
 
-**20 sedute** — ✅ **0** · 🟡 **11** · ⏳ **6** · **3** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
+**20 sedute** — ✅ **0** · 🟡 **12** · ⏳ **5** · **3** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
 
 Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md) e da `git ls-files` sugli artefatti. Un artefatto non tracciato impedisce il verde qualunque cosa dicano le voci.
 
@@ -75,14 +75,14 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 **READY** — *Si puo' fare adesso, fuori percorso critico*
 
-- **U18** · Verifiche senza prerequisiti — 1/5 voci verdi
+- **U18** · Verifiche senza prerequisiti — 1/8 voci verdi
 
 **WAITING** — *Aspetta codice*
 
 - **U11** · I 4 eroi — attende `U10` —
-- **U13** · Arena v0.1 — attende `U1` ⏳
+- **U13** · Arena v0.1 — attende `U1` 🟡
 - **U14** · Ambiente in partita — attende `U13` ⏳
-- **U19** · Durata, ritmo e scala — attende `U6` 🟡, `U1` ⏳, `U5` 🟡, `U7` 🟡, `U8` ⏳
+- **U19** · Durata, ritmo e scala — attende `U6` 🟡, `U1` 🟡, `U5` 🟡, `U7` 🟡, `U8` ⏳
 - **U16** · Misura dei KPI — attende `U6` 🟡
 - **U20** · Confine fra Guard e Brace — attende `E5.2` ⏳
 
@@ -94,8 +94,8 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 | | Seduta | Produce | Sbloccata da | Critico | Voci | Stato |
 |---|---|---|---|:--:|:--:|:--:|
-| **U18** | Verifiche senza prerequisiti | verdetto su cinque voci che non attendono nulla | — | no | 1/5 | 🟡 |
-| **U1** | Mappa-arena hex | `DA_HexMap_Arena` e `L_HexArena`, committati | M6.0 | sì | 0/7 | ⏳ |
+| **U18** | Verifiche senza prerequisiti | verdetto su otto voci che non attendono nulla | — | no | 1/8 | 🟡 |
+| **U1** | Mappa-arena hex | `DA_HexMap_Arena` e `L_HexArena`, committati | M6.0 | sì | 0/7 | 🟡 |
 | **U2** | Partita hex, primo giro | verdetto su allestimento e movimento | M6.1, M6.2 | sì | 3/4 | 🟡 |
 | **U3** | Input e pianificazione | verdetto su selezione, budget e anteprima del percorso | M6.3 | sì | 1/4 | 🟡 |
 | **U4** | Combat e linea di tiro | verdetto su forme d'attacco, LOS esagonale e knockback | M6.4, M6.5 | sì | 0/3 | ⏳ |
@@ -122,9 +122,9 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 #### U18 · Verifiche senza prerequisiti 🟡
 
 **Sbloccata da**: — · **Percorso critico**: no
-**Produce**: verdetto su cinque voci che non attendono nulla
-**Verifichi**: `PIE-PREVIEW-AREA` ✅ · `PIE-V01-MATCHEND` ⏳ · `PIE-TEST-CONSOLE` 🟡 · `PIE-HEX-LAYER` ⏳ · `PIE-HEX-TRANS` ⏳
-**Finita quando**: le cinque voci hanno esito reale nel registro
+**Produce**: verdetto su otto voci che non attendono nulla
+**Verifichi**: `PIE-PREVIEW-AREA` ✅ · `PIE-V01-MATCHEND` ⏳ · `PIE-TEST-CONSOLE` 🟡 · `PIE-HEX-LAYER` ⏳ · `PIE-HEX-TRANS` ⏳ · `PIE-HEX-LAYER-FOCUS` ⏳ · `PIE-HEX-LAYER-CLICK` ⏳ · `PIE-HEX-LAYER-PANEL` ⏳
+**Finita quando**: le otto voci hanno esito reale nel registro
 
 **E' la sola seduta che non attende nulla**: nessun checkpoint da chiudere, nessuna seduta
 prima, nessun artefatto da committare. *Senza prerequisiti* non vuol dire *senza allestimento*:
@@ -147,14 +147,24 @@ L'ordine non e' arbitrario:
 3. `PIE-HEX-LAYER` e `PIE-HEX-TRANS` in coda, sull'**editor** e non in Play: servono un
    `ARTHexMapActor` con celle su >=2 layer, che si ottiene con `GenerateIntoAsset` —
    `ActiveLayer=0`, poi `ActiveLayer=1`. Nessuna mappa da costruire a mano.
+4. Le tre `PIE-HEX-LAYER-*` **sullo stesso asset del punto 3**, senza rigenerare nulla: e' per
+   questo che stanno qui e non in una seduta propria. In piu' serve il mode **Hex Map** attivo,
+   perche' i contorni dei piani di contesto li disegnano i tool, non l'actor: con `LayerView=Focus`
+   ma senza mode attivo e senza `bShowOverlay` acceso nel pannello del tool, `Focus` e'
+   indistinguibile da `ActiveOnly` — e la voce sembrerebbe fallita mentre e' solo non allestita.
 
-> Nasce dalla sessione G del registro (2026-08-08), che non aveva una seduta corrispondente: le tre voci erano nella checklist ma in nessuna seduta, e una voce che non sta in una seduta non viene eseguita mai. **Dal 2026-08-10 ne ospita cinque**: `PIE-HEX-LAYER` e `PIE-HEX-TRANS` erano in U1, ma le loro precondizioni nel registro citano un asset *generato* (`GenerateIntoAsset`, due celle sovrapposte) e non l'arena — stavano su una seduta del percorso critico senza dipenderne. Issue 450. Nello stesso passaggio il titolo e' cambiato da «senza preparazione» a «senza prerequisiti»: le due voci nuove un allestimento ce l'hanno — generano celle su due layer in editor — e il vecchio titolo sarebbe diventato falso per due voci su cinque. Cio' che accomuna le cinque non e' l'assenza di allestimento ma l'assenza di **attese**: nessuna dipende da codice mancante o da una seduta prima.
+   > ⚠️ **`PIE-HEX-LAYER-CLICK` va fatta con la camera OBLIQUA**, non dall'alto. Il difetto che
+   > verifica e' che il raggio del click agganci il disco di un piano superiore e venga poi
+   > proiettato su quello attivo: lo scarto e' orizzontale e proporzionale a `LayerHeight`,
+   > quindi guardando a picco vale zero e la voce passerebbe comunque, rotta o no.
 
-#### U1 · Mappa-arena hex ⏳
+> Nasce dalla sessione G del registro (2026-08-08), che non aveva una seduta corrispondente: le tre voci erano nella checklist ma in nessuna seduta, e una voce che non sta in una seduta non viene eseguita mai. **Dal 2026-08-10 ne ospita cinque**: `PIE-HEX-LAYER` e `PIE-HEX-TRANS` erano in U1, ma le loro precondizioni nel registro citano un asset *generato* (`GenerateIntoAsset`, due celle sovrapposte) e non l'arena — stavano su una seduta del percorso critico senza dipenderne. Issue 450. Nello stesso passaggio il titolo e' cambiato da «senza preparazione» a «senza prerequisiti»: le due voci nuove un allestimento ce l'hanno — generano celle su due layer in editor — e il vecchio titolo sarebbe diventato falso per due voci su cinque. Cio' che accomuna le cinque non e' l'assenza di allestimento ma l'assenza di **attese**: nessuna dipende da codice mancante o da una seduta prima. **Dal 2026-08-12 sono otto**: `PIE-HEX-LAYER-FOCUS`, `-CLICK` e `-PANEL` arrivano col merge di #565 (issue 567) e riusano l'asset generato del punto 3 senza aggiungere allestimento. Sono finite qui per la stessa ragione per cui questa seduta esiste: erano nel registro e in nessuna seduta — il conteggio della EditorMap le aveva gia' contate fra le voci orfane (`PIE-HEX-*` da 9 a 12) prima che qualcuno le collocasse.
+
+#### U1 · Mappa-arena hex 🟡
 
 **Sbloccata da**: M6.0 · **Preparazione condivisa con**: U13 · **Percorso critico**: sì
 **Produce**: `DA_HexMap_Arena` e `L_HexArena`, committati
-**Artefatti**: `Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap` ⏳ · `Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset` ⏳
+**Artefatti**: `Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap` ✅ · `Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset` ✅
 **Verifichi**: `PIE-HEX-MODE-E` ⏳ · `PIE-HEX-MODE-F` ⏳ · `PIE-HEX-MODE-G` ⏳ · `PIE-HEX-MODE-H` ⏳ · `PIE-HEX-MODE-L` ⏳ · `PIE-HEX-MODE-N` ⏳ · `PIE-HEX-MODE-O` ⏳
 **Finita quando**: i due asset sono tracciati da `git ls-files`, le sette voci hanno un esito reale, e l'arena soddisfa i tre criteri dei passi 3, 4 e 7
 **Sblocca**: U13, U19

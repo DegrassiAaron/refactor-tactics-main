@@ -39,7 +39,30 @@ void URTHexPaintTool::Setup()
 {
 	UClickDragTool::Setup();
 	Properties = NewObject<URTHexPaintToolProperties>(this);
+
+	// Il pannello parte dal piano su cui l'actor e' gia' impostato: senza questo mostrerebbe 0 finche' non si
+	// dipinge, e il primo cambio dal pannello sposterebbe il pennello su un piano che l'utente non ha scelto.
+	if (const ARTHexMapActor* Actor = RTHexEditor::FindTargetMapActor(TargetWorld))
+	{
+		Properties->ActiveLayer = Actor->ActiveLayer;
+	}
+
 	AddToolPropertySource(Properties);
+}
+
+void URTHexPaintTool::OnPropertyModified(UObject* PropertySet, FProperty* Property)
+{
+	if (!Properties || PropertySet != Properties || !Property) { return; }
+	if (Property->GetFName() != GET_MEMBER_NAME_CHECKED(URTHexPaintToolProperties, ActiveLayer)) { return; }
+
+	ARTHexMapActor* Actor = RTHexEditor::FindTargetMapActor(TargetWorld);
+	if (!Actor)
+	{
+		Properties->ActiveLayer = 0;
+		UE_LOG(LogTemp, Warning, TEXT("[HexMode] Nessun ARTHexMapActor bersaglio: layer attivo non applicato."));
+		return;
+	}
+	RTHexEditor::SetActiveLayer(Actor, Properties->ActiveLayer);
 }
 
 FInputRayHit URTHexPaintTool::CanBeginClickDragSequence(const FInputDeviceRay& PressPos)

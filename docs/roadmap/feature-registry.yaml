@@ -94,6 +94,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E2
       checkpoints: ["2.2", "4.1"]
@@ -137,6 +138,7 @@ features:
       ui_wiki: partial
       packaged: partial
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E12
       checkpoints: ["12.1", "12.6"]
@@ -145,7 +147,7 @@ features:
       - RT-FEAT-CORE-TURNLOG
     owner_specs:
       - docs/gameplay/spec-anima-risoluzione.md
-    issues: [81, 178]
+    issues: [81, 178, 578]
     tests:
       - RefactorTactics.Simulation.*
       - RefactorTactics.HexSim.ReplayDivergenceZero
@@ -177,6 +179,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E12
       checkpoints: ["12.1", "12.6"]
@@ -218,6 +221,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E12
       checkpoints: []
@@ -262,6 +266,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E14
       checkpoints: ["14.1", "14.2", "14.3"]
@@ -304,6 +309,7 @@ features:
       # Owner-only e canary di privacy: verificabile solo a M10, ma non e' `na` —
       # il bank tocca il canale temporale che D-021 e D-048 chiudono.
       network_privacy: todo
+      replay_representable: todo
     roadmap:
       epic: E14
       checkpoints: ["14.8"]
@@ -367,6 +373,7 @@ features:
       ui_wiki: partial
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E11
       checkpoints: ["11.1"]
@@ -410,6 +417,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E2
       checkpoints: ["2.1"]
@@ -451,6 +459,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E2
       checkpoints: ["2.2"]
@@ -494,6 +503,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: null
       checkpoints: []
@@ -538,6 +548,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: null
       checkpoints: []
@@ -583,6 +594,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: null
       checkpoints: []
@@ -626,6 +638,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: null
       checkpoints: []
@@ -668,6 +681,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: null
       checkpoints: []
@@ -705,6 +719,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E2
       checkpoints: ["2.4"]
@@ -767,6 +782,7 @@ features:
       # `partial` perche' il filtro per squadra esiste ed e' testato (`Facing.IntentIsTeamFiltered`), ma
       # nessuna verifica in rete e' possibile finche' la rete non c'e' (M10).
       network_privacy: partial
+      replay_representable: done
     roadmap:
       epic: E16
       checkpoints: ["16.1", "16.2"]
@@ -848,6 +864,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E9
       checkpoints: ["9.1", "9.2"]
@@ -892,6 +909,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E9
       checkpoints: ["9.5"]
@@ -948,6 +966,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E9
       checkpoints: ["9.3"]
@@ -994,6 +1013,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E9
       checkpoints: ["9.4"]
@@ -1046,6 +1066,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E9
       checkpoints: ["9.1"]
@@ -1055,7 +1076,7 @@ features:
       - docs/product/piano-canonico-mvp.md
     issues: []
     tests:
-      - RefactorTactics.Combat.EffectiveAttackPowerWithTerrainBonus
+      - RefactorTactics.Combat.EffectiveAttackPowerAddsDeclaredBonus
       - RefactorTactics.HexBot.ScoreElevationBonus
     scenarios:
       - Visual.Map.HighGroundNoBonus
@@ -1089,6 +1110,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E4
       checkpoints: ["4.1", "4.3", "4.8"]
@@ -1138,6 +1160,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E4
       checkpoints: ["4.4", "4.6", "4.7"]
@@ -1233,6 +1256,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E4
       checkpoints: ["4.2", "4.5"]
@@ -1283,6 +1307,7 @@ features:
       ui_wiki: done
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E4
     dependencies:
@@ -1351,6 +1376,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E2
       checkpoints: ["2.5", "4.5"]
@@ -1397,6 +1423,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E4
       checkpoints: ["4.4"]
@@ -1435,6 +1462,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: null
       checkpoints: []
@@ -1477,6 +1505,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: null
       checkpoints: []
@@ -1524,6 +1553,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E18
       checkpoints: ["18.1", "18.2"]
@@ -1575,6 +1605,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: null
       checkpoints: []
@@ -1610,6 +1641,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E7
       checkpoints: ["7.1", "7.2", "7.3", "7.4", "7.5"]
@@ -1628,7 +1660,13 @@ features:
       - RefactorTactics.Equipment.PortableCover.CreatesCover
       - RefactorTactics.Equipment.ReactionModule.SingleActivation
       - RefactorTactics.Equipment.CounterShotUsesExistingTrigger
-      - RefactorTactics.Equipment.EmergencyDashIsNotExpressibleYet
+      - RefactorTactics.Equipment.EmergencyDashRepositionsTheReactor
+      - RefactorTactics.Equipment.EmergencyDashMovesTheReactorInPlay
+      - RefactorTactics.Equipment.Anchor.CancelsPush
+      - RefactorTactics.Equipment.Cleanse.CancelsControl
+      - RefactorTactics.Reaction.EveryTriggerHasAPassPoint
+      - RefactorTactics.Reaction.ControlStatusesAreTwo
+      - RefactorTactics.Equipment.HazardEscape.FleesBeforeDamage
       - RefactorTactics.Equipment.ImpactVariantStacksPush
       - RefactorTactics.Equipment.Gadget.CooldownEnforced
       - RefactorTactics.Equipment.Gadget.NumbersMatchCatalog
@@ -1656,10 +1694,27 @@ features:
       `AllyIntercept` sono reazioni vere — costruite su un'azione core che è già una reazione, da cui
       ereditano fase, priorità e trigger, con numeri propri via `GrantedEffects`. Mutazione eseguita:
       azzerando il trigger ereditato cadono esattamente i due test che lo verificano.
-      L'altra metà è `#505` (CP 7.5) e i moduli esclusi sono **quattro**, per due ragioni diverse:
-      `HazardEscape`, `Cleanse` e `Anchor` non hanno il **trigger** (nascono da un evento, non da un colpo);
-      `EmergencyDash` ha il trigger ma non l'**effetto** — `Reposition 1` sposta chi reagisce e nessun
-      `ERTActionEffect` lo esprime. Il secondo vincolo è emerso implementando, non dall'analisi. Il loadout (`#63`) ha inoltre un buco nell'owner: la tabella §4 del
+      L'altra metà è `#505` (CP 7.5). I moduli esclusi erano **quattro**, per due ragioni diverse:
+      `HazardEscape`, `Cleanse` e `Anchor` non avevano il **trigger** (nascono da un evento, non da un
+      colpo); `EmergencyDash` aveva il trigger ma non l'**effetto** — `Reposition 1` sposta chi reagisce e
+      nessun `ERTActionEffect` lo esprimeva. Il secondo vincolo è emerso implementando, non dall'analisi.
+      **Il 2026-08-12 ne resta uno.** `EmergencyDash` è entrato con `SelfReposition` (D-093) e `Anchor`
+      con `AboutToBeDisplaced`, che ha richiesto il pezzo architetturale del checkpoint: i trigger non si
+      valutano più tutti nello stesso momento, ma nel punto in cui il loro evento è deciso
+      (`URTReactionLibrary::PassPointFor`, `switch` senza `default` — un trigger nuovo non compila finché
+      qualcuno non dichiara dove viene valutato). Il blocco vero non era il contatore di D-092 ma il fatto
+      che `PlannedReactionAbility` venisse **consumato dal primo pass**: ora sopravvive alla fase e si azzera
+      a fine turno. `Cleanse` è entrato lo stesso giorno con la stessa forma di `Anchor` — impedisce
+      l'applicazione invece di rimuovere a posteriori — e con un criterio di scelta che la review della
+      specifica ha corretto: fra due controlli si annulla **il più grave**, non il primo raccolto, perché
+      l'ordine di raccolta segue chi colpisce e sprecherebbe l'attivazione su uno `Slow` da attacco base
+      lasciando passare un `Root`. **Il 2026-08-12 i sette moduli sono completi.** `HazardEscape` è entrato per ultimo, e a lui non
+      mancava un dato né un momento ma l'**evento**: finché una superficie che nasceva sotto un'unità ferma
+      non le faceva niente (`#570`, D-111), nel Cleanup non c'era alcun danno imminente da cui fuggire. Si
+      fugge verso la cella che si ha davanti — il facing lo dichiara il giocatore, quindi la fuga è
+      prevedibile invece che arbitraria — e il facing non cambia, perché non c'è nessuno verso cui girarsi
+      (precedente di `Facing.EnvironmentalDisplacementKeepsFacing`).
+      Il loadout (`#63`) ha inoltre un buco nell'owner: la tabella §4 del
       catalogo **non assegna varianti d'arma** a nessun eroe (dice esplicitamente che le sue sono varianti
       di *abilità*), quindi il default 1+1+1 richiesto dal DoD non esiste ancora nei dati.
 
@@ -1684,6 +1739,7 @@ features:
       ui_wiki: partial
       packaged: partial
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E5
       checkpoints: ["5.1", "5.2", "5.3", "5.4", "5.5"]
@@ -1730,6 +1786,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: done
+      replay_representable: todo
     roadmap:
       epic: E14
       checkpoints: ["14.3"]
@@ -1783,6 +1840,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: todo
+      replay_representable: todo
     roadmap:
       epic: E14
       checkpoints: ["14.5", "14.6"]
@@ -1827,6 +1885,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: todo
+      replay_representable: todo
     roadmap:
       epic: E14
       checkpoints: ["14.4"]
@@ -1959,6 +2018,7 @@ features:
       ui_wiki: partial
       packaged: partial
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E14
       checkpoints: ["14.7"]
@@ -2035,6 +2095,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: todo
+      replay_representable: todo
     roadmap:
       epic: E14
       checkpoints: ["14.7"]
@@ -2100,6 +2161,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: todo
+      replay_representable: todo
     roadmap:
       epic: E14
       checkpoints: ["14.6"]
@@ -2141,6 +2203,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E8
       checkpoints: ["8.1"]
@@ -2156,6 +2219,8 @@ features:
       - RefactorTactics.Terrain.Rough
       - RefactorTactics.Terrain.ValidateCatalog
       - RefactorTactics.Terrain.ValidateCatalogEntries
+      - RefactorTactics.Environment.BornSurfaceAffectsOccupant
+      - RefactorTactics.Environment.BornSurfaceRuleIsNotPerSurface
     scenarios:
       - Visual.Movement.RoughRefusesCharge
     wiki_refs:
@@ -2186,6 +2251,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: null
       checkpoints: []
@@ -2257,6 +2323,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E8
       checkpoints: ["8.2"]
@@ -2296,6 +2363,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E8
       checkpoints: ["8.1", "8.4"]
@@ -2339,6 +2407,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E8
       checkpoints: ["8.3"]
@@ -2385,6 +2454,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E8
       checkpoints: ["8.1", "8.4"]
@@ -2428,6 +2498,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E8
       checkpoints: ["8.1"]
@@ -2474,6 +2545,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E8
       checkpoints: ["8.1"]
@@ -2513,6 +2585,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: null
       checkpoints: []
@@ -2548,6 +2621,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: done
     roadmap:
       epic: E8
       checkpoints: ["8.5"]
@@ -2609,6 +2683,7 @@ features:
       # targeting, scadenza, unione e permutazione, nessuno il confine. Questo gate si chiude filtrando
       # `TeamKnowledge` per destinatario, non spuntandolo.
       network_privacy: todo
+      replay_representable: na
     roadmap:
       epic: E13
       checkpoints: ["13.1"]
@@ -2662,6 +2737,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: todo
+      replay_representable: na
     roadmap:
       epic: E13
       checkpoints: ["13.1", "13.2"]
@@ -2706,6 +2782,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: todo
+      replay_representable: na
     roadmap:
       epic: E13
       checkpoints: ["13.3"]
@@ -2751,6 +2828,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: todo
+      replay_representable: na
     roadmap:
       epic: E13
       checkpoints: ["13.2"]
@@ -2796,6 +2874,7 @@ features:
       ui_wiki: partial
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E11
       checkpoints: ["11.1"]
@@ -2832,6 +2911,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E11
       checkpoints: ["11.1"]
@@ -2875,6 +2955,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E11
       checkpoints: ["11.5", "11.6"]
@@ -2912,6 +2993,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: done
+      replay_representable: na
     roadmap:
       epic: E11
       checkpoints: ["11.2"]
@@ -2953,6 +3035,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E11
       checkpoints: ["11.1", "11.2"]
@@ -2996,6 +3079,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E11
       checkpoints: ["11.3"]
@@ -3043,6 +3127,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E20
       checkpoints: ["20.1", "20.2", "20.3"]
@@ -3083,6 +3168,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: null
       checkpoints: []
@@ -3130,6 +3216,7 @@ features:
       ui_wiki: partial
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E6
       checkpoints: ["6.1", "6.2", "6.3", "6.4", "6.5", "6.6", "6.7"]
@@ -3180,6 +3267,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: null
       checkpoints: []
@@ -3226,6 +3314,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E21
       milestone: M8
@@ -3277,6 +3366,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: null
       checkpoints: []
@@ -3312,6 +3402,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: null
       checkpoints: []
@@ -3352,6 +3443,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: null
       checkpoints: []
@@ -3394,6 +3486,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: null
       checkpoints: []
@@ -3443,6 +3536,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E10
       checkpoints: ["10.1", "10.2"]
@@ -3490,6 +3584,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: todo
     roadmap:
       epic: E10
       checkpoints: ["10.3"]
@@ -3534,6 +3629,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E19
       checkpoints: ["19.1", "19.2"]
@@ -3583,6 +3679,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E12
       checkpoints: ["12.4"]
@@ -3626,6 +3723,7 @@ features:
       ui_wiki: na
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E17
       checkpoints: ["17.1", "17.2", "17.3"]
@@ -3692,6 +3790,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E2
       checkpoints: ["2.6"]
@@ -3738,17 +3837,18 @@ features:
     kind: gameplay
     release: v0.1
     priority: P2
-    status: SPECIFIED
+    status: TESTABLE
     gates:
       spec: done
       data: na
-      runtime: todo
+      runtime: done
       log_debug: todo
-      automation: todo
+      automation: done
       scenario: todo
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E13
       checkpoints: ["13.5"]
@@ -3756,9 +3856,14 @@ features:
       - RT-FEAT-BOT-BASE
       - RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE
     owner_specs:
+      - docs/gameplay/spec-bot-hex.md
       - docs/gameplay/spec-bot-tattico.md
     issues: [160]
-    tests: []
+    tests:
+      - RefactorTactics.HexBotPlay.HiddenEnemyFairness
+      - RefactorTactics.HexBotPlay.PlansOnPartialKnowledge
+      - RefactorTactics.HexBotPlay.SeeksContactWithoutKnowledge
+      - RefactorTactics.HexBotPlay.ActsOnLastKnownCell
     scenarios:
       - planned:
           - Spec.Bot.HiddenEnemyFairness
@@ -3768,21 +3873,60 @@ features:
       - wiki:avversario-bot
     last_verified:
       date: 2026-08-11
-      commit: eb3cc42
+      commit: 55de13e
     notes: >
-      L'unico pezzo del cluster Bot con lavoro gia' aperto in v0.1. La premessa oggi e' **falsa e
-      misurata**: `ARTTurnManager::PlanBots` popola `Ctx.Enemies` da tutte le unita' nemiche vive,
-      senza filtro di percezione — vedi `spec-bot-hex.md` §6, che lo dichiara invece di nasconderlo.
-      `spec: done` perche' la regola e' scritta e completa (`spec-bot-tattico.md` §2). `runtime`,
-      `log_debug`, `automation`, `scenario` e `packaged` sono `todo` perche' non esiste il filtro;
-      `data` e `network_privacy` sono `na` (nessun asset da configurare, niente rete in v0.1) e
-      `ui_wiki` e' `partial` — vedi sotto.
-      ⚠️ Il gate che conta e' `automation`, e ha una forma precisa: un **canary** che mette la
-      stessa `FRTTeamKnowledge` davanti a due stati autorevoli diversi (nemico nascosto in A oppure
-      in B) e pretende lo stesso Intent. Un bot che legge lo stato lo fallisce; nessuna review lo
-      prende, perche' un bot onnisciente produce piani *sensati*.
-      `ui_wiki: partial`: la pagina Wiki `avversario-bot` promette gia' al giocatore che il bot non
-      vede piu' di lui — la promessa e' pubblicata e la sua verifica non esiste ancora.
+      **Meta' bot di CP 13.5 atterrata il 2026-08-11.** `PlanBots` costruisce `Ctx.Enemies` da
+      `FRTTeamKnowledge` con la STESSA regola del targeting umano (`ClassifyTarget`), non un secondo
+      modello: visto -> cella e condizione attuali; ricordato -> cella dell'ultimo contatto e HP
+      **massimi** (la squadra conosce l'identita', non la condizione); ignoto -> non esiste.
+      Owner del comportamento AS-BUILT: `spec-bot-hex.md` §6, che dichiarava il contrario e ora
+      dichiara il vero.
+      ⚠️ **Il gate e' `automation`, e ha una forma precisa**: `HiddenEnemyFairness` mette la stessa
+      `FRTTeamKnowledge` davanti a due stati autorevoli diversi e pretende lo **stesso** Intent.
+      Verificato per mutazione **due volte**, e la seconda ha chiuso un buco trovato in code review:
+      (1) rimettendo l'onniscienza cadono `HiddenEnemyFairness`, `PlansOnPartialKnowledge` e
+      `SeeksContactWithoutKnowledge`; (2) cancellando il ramo `CellOnly` cade **solo**
+      `ActsOnLastKnownCell`.
+      ⚠️ **Il ramo `CellOnly` — il piu' delicato — all'inizio aveva copertura ZERO**: `Uncertain` esiste
+      solo dopo DUE osservazioni (vista in una, persa nella successiva) e i primi tre test pianificavano
+      una volta sola, quindi vedevano soltanto `Allowed` o `Rejected`. Si poteva cancellare l'intero
+      `case CellOnly:` e la suite restava verde. `ActsOnLastKnownCell` fa la sequenza a due osservazioni
+      e mette il ricordo DENTRO la portata e la posizione vera FUORI: se il bot attacca, e' la memoria.
+      ⚠️ Anche `SeeksContactWithoutKnowledge` era debole: bot e nemico agli ANTIPODI attraverso il centro
+      rendono «vai al centro» e «vai al nemico» la stessa direzione, e restava verde sotto onniscienza.
+      Geometria corretta perche' le due direzioni divergano. Il secondo e' costruito perche' possa fallire:
+      l'ignoto e' dentro la portata e quasi morto, cosi' un bot che lo vedesse lo sceglierebbe.
+      ⚠️ **Due cose sono cambiate oltre al filtro, e senza di esse il filtro non reggeva**:
+      `EnsureMatchRoster` e il rinfresco della conoscenza sono stati anticipati alla pianificazione —
+      prima vivevano solo a valle, quindi al primo turno gli `StableUnitId` erano tutti `0` (i ricordi
+      di unita' diverse si sarebbero fusi) e la conoscenza era vuota (il bot sarebbe stato cieco, non
+      parziale). Piu' la **condotta di ricerca** senza contatti, senza la quale la partita non finisce
+      (`HexMatch.PlaysToCompletion`).
+      ⚠️ **Limite dichiarato**: l'OCCUPAZIONE resta globale — `ReachableCells` e `DashHostiles`
+      modellano cio' che il resolver fara', non cio' che la squadra sa, e il giocatore umano ha lo
+      stesso vincolo. Rendere il bot piu' cieco dell'umano sarebbe sbagliato quanto renderlo onnisciente.
+      ⚠️ **Perde informazione legittima**: gli HP al momento del contatto non sono conservati, perche'
+      `FRTLastKnownContact` non ha un campo HP — aggiungerlo e' un incremento di
+      `FRTTeamKnowledge::CurrentVersion`, cioe' una decisione di formato. L'errore va nella direzione
+      sicura: il bot sottostima le occasioni invece di inventarle.
+      `scenario: todo` e `ui_wiki: partial`: gli scenari `Spec.Bot.*` non sono scritti, e la meta' HUD
+      di #160 (marker d'ultimo contatto, area d'incertezza acustica) dipende da CP 13.4.
+
+
+      ⚠️ **`replay_representable: na` qui vuol dire «non e' possibile», non «non serve»** — ed e' l'unico
+      punto del registry dove i due significati divergono. Le voci che il bot produce muovendo e sparando
+      esistono, ma appartengono a `RT-FEAT-CORE-TURN` e `RT-FEAT-ACTION-ENGINE`: il decisore non possiede
+      le voci, le possiede chi esegue. E soprattutto **la traccia non distingue questa feature dal suo
+      contrario**: un bot che pianifica sulla conoscenza della squadra e un bot onnisciente che fa la
+      stessa mossa scrivono voci identiche. E' la stessa cosa che `RT-FEAT-BOT-PREDICTIVE` dichiara come
+      il proprio caso da testare — «dedurre» e «sapere» sono indistinguibili dall'esterno — e vale gia'
+      oggi, per una feature che invece e' `TESTABLE`.
+
+
+      Quindi l'equita' del bot **non ha un gate che la protegga**: la tiene solo la verifica di mutazione
+      su `HiddenEnemyFairness`, che rimettendo l'onniscienza fa cadere tre test. Se un giorno la traccia
+      registrasse lo stato di conoscenza del bot la proprieta' diventerebbe verificabile a posteriori, ma
+      e' una decisione di formato **e** di privacy: sta in `OPEN_DECISIONS.md` accanto a `REP-1`, non qui.
 
   - feature_id: RT-FEAT-BOT-TACTICAL
     title: Team Planner — piano di squadra, ruoli dinamici e sinergie
@@ -3801,6 +3945,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: null
       checkpoints: []
@@ -3855,6 +4000,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: null
       checkpoints: []
@@ -3908,6 +4054,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: null
       checkpoints: []
@@ -3958,6 +4105,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E15
       checkpoints: ["15.3"]
@@ -3967,7 +4115,7 @@ features:
     owner_specs:
       - docs/technical/test-e-diagnosi.md
       - docs/technical/scenari-validazione-visiva.md
-    issues: [169]
+    issues: [169, 542]
     tests:
       - RefactorTactics.Scenario.*
     scenarios:
@@ -3989,7 +4137,8 @@ features:
       d'integrazione». Regge per due casi; al terzo (bot vs bot, replay, umano+bot, batch) ne
       servirebbe un altro, ed e' cosi' che nasce un secondo harness **per accumulo**. La forma
       decisa e' un `DecisionProvider` che restituisce **decisioni, mai esiti**. Nessun gate si
-      muove: e' un perimetro, non un'implementazione.
+      muove: e' un perimetro, non un'implementazione — il lavoro e' tracciato in **#542**, senza
+      il quale la decisione sarebbe prosa che nessun processo legge.
 
   - feature_id: RT-FEAT-TEST-GOLDEN
     title: Golden replay e showcase «Il Relè»
@@ -4008,6 +4157,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E15
       checkpoints: ["15.1", "15.2", "15.4", "15.5"]
@@ -4051,6 +4201,7 @@ features:
       ui_wiki: todo
       packaged: na
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: null
       milestone: M9
@@ -4063,21 +4214,31 @@ features:
     owner_specs:
       - docs/roadmap/editormap.shortlist.md
       - docs/roadmap/hex-map-roadmap.md
-    issues: []
+    issues: [567]
     tests:
       - RefactorTactics.HexMap.ApplyBrushMerge
       - RefactorTactics.HexMap.FloodRegion
       - RefactorTactics.HexMap.StrokeEquivalence
       - RefactorTactics.HexMap.LookupInvalidatedAfterExternalEdit
+      - RefactorTactics.HexMapActor.LayerFilterOnConstruction
     scenarios: []
     wiki_refs: []
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      date: 2026-08-12
+      commit: fe9883c
     notes: >
       `Source/RefactorTacticsEditor/` con tool di paint, fill, select e archi. Il residuo sono
-      **verifiche PIE aperte** (H5: E/F/G/H/L/N) registrate in `test-manuali-pie.md`, non gate
-      impliciti. `packaged: na` — è uno strumento d'editor, non entra nella build di gioco.
+      **verifiche PIE aperte** (H5: E/F/G/H/L/N, piu' le tre `PIE-HEX-LAYER-*` della vista a
+      livelli) registrate in `test-manuali-pie.md`, non gate impliciti. `packaged: na` — è uno
+      strumento d'editor, non entra nella build di gioco.
+
+
+      La vista a livelli ha un terzo stato `Focus` (#565): istanze sul solo piano attivo, gli altri
+      a contorno attenuato. Nello stesso passaggio il click ha smesso di scavalcare il piano attivo
+      — in `AllLayers` il raggio poteva agganciare il disco di un altro piano e l'`ImpactPoint`
+      veniva proiettato su quello attivo, spostando la cella di circa `LayerHeight` in orizzontale.
+      `LayerFilterOnConstruction` tiene l'invariante che rende vera la seconda cosa: i piani di
+      contesto **non** sono istanze, quindi non hanno collisione e il raycast non puo' vederli.
 
   - feature_id: RT-FEAT-TOOL-VALIDATION
     title: Validator di dati, mappe e documenti
@@ -4096,6 +4257,7 @@ features:
       ui_wiki: na
       packaged: na
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E1
       checkpoints: ["1.4"]
@@ -4137,6 +4299,7 @@ features:
       ui_wiki: partial
       packaged: na
       network_privacy: na
+      replay_representable: na
     roadmap: {}
     dependencies:
       - RT-FEAT-TOOL-VALIDATION
@@ -4181,6 +4344,7 @@ features:
       ui_wiki: todo
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E11
       checkpoints: ["11.4"]
@@ -4219,6 +4383,7 @@ features:
       ui_wiki: na
       packaged: na
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E1
       checkpoints: ["1.2"]
@@ -4228,7 +4393,7 @@ features:
     owner_specs:
       - docs/balance/README.md
       - docs/balance/RT_TestMatrix_v0.1.md
-    issues: [28]
+    issues: [28, 543]
     tests:
       - RefactorTactics.Heroes.RosterIsBalanced
       - RefactorTactics.Catalog.ShippedCatalogMatchesAbilities
@@ -4246,7 +4411,8 @@ features:
       scenario reale). Non e' teorico: `roadmap-checkpoint.md` misura «**10** round bot-vs-bot» e
       annota da se' «ma e' un bot contro un bot» — il dubbio c'era, mancava il modo di scioglierlo.
       Un nerf deciso su un bot che non sa usare un'abilita' **sembra** funzionare, e copre il
-      difetto vero: che quell'abilita' non entra mai fra le candidate.
+      difetto vero: che quell'abilita' non entra mai fra le candidate. Tracciata in **#543**, senza
+      milestone e con l'innesco dichiarato: l'esistenza di partite in serie, che oggi non c'e'.
 
   # ─────────────────────────────────────────────────────────────────────────────
   # L. Data / production infrastructure
@@ -4269,6 +4435,7 @@ features:
       ui_wiki: na
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E1
       checkpoints: ["1.3"]
@@ -4314,6 +4481,7 @@ features:
       ui_wiki: na
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E1
       checkpoints: ["1.2", "1.3"]
@@ -4351,6 +4519,7 @@ features:
       ui_wiki: na
       packaged: partial
       network_privacy: todo
+      replay_representable: na
     roadmap:
       epic: E12
       checkpoints: ["12.1"]
@@ -4393,6 +4562,7 @@ features:
       ui_wiki: done
       packaged: partial
       network_privacy: todo
+      replay_representable: na
     roadmap:
       epic: E5
       checkpoints: ["5.4"]
@@ -4400,7 +4570,7 @@ features:
       - RT-FEAT-CORE-TURN
     owner_specs:
       - docs/product/piano-canonico-mvp.md
-    issues: [53]
+    issues: [53, 577, 589]
     tests:
       - RefactorTactics.Reactions.IntentNotVisibleToEnemy
       - RefactorTactics.Combat.IntentVisibleToAlliesAlwaysEnemiesOnlyIfRevealed
@@ -4433,6 +4603,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: todo
+      replay_representable: na
     roadmap:
       epic: null
       milestone: M10
@@ -4474,6 +4645,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: todo
+      replay_representable: na
     roadmap:
       epic: null
       checkpoints: []
@@ -4507,6 +4679,7 @@ features:
       ui_wiki: na
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E12
       checkpoints: ["12.4"]
@@ -4551,6 +4724,7 @@ features:
       ui_wiki: na
       packaged: partial
       network_privacy: na
+      replay_representable: na
     roadmap:
       epic: E12
       checkpoints: ["12.5"]
@@ -4598,6 +4772,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: todo
+      replay_representable: todo
     dependencies:
       - RT-FEAT-CORE-TURN
     owner_specs:
@@ -4631,6 +4806,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: todo
+      replay_representable: todo
     dependencies:
       - RT-FEAT-CORE-TURN
     owner_specs:
@@ -4654,3 +4830,133 @@ features:
       Light/Medium/Signature per ~40 personaggi stanno in `matrici-stati-personaggio.md`, nessuna
       oltre PROPOSED. L'unica REJECTED e' `Vektor Siege`, respinta nel merito: Slancio recupera
       muovendosi, e una forma che toglie il Dash spegne la meccanica firma.
+
+  - feature_id: RT-FEAT-CHAR-RADAR-MODEL
+    title: Modello dei radar di profilo — Profile e Balance
+    area: Characters
+    kind: data
+    release: future
+    priority: P3
+    status: SPECIFIED
+    gates:
+      spec: done
+      data: todo
+      runtime: na
+      log_debug: na
+      automation: todo
+      scenario: na
+      ui_wiki: partial
+      packaged: na
+      network_privacy: na
+      replay_representable: na
+    dependencies:
+      - RT-FEAT-CHAR-V01-ROSTER
+    owner_specs:
+      - docs/characters/spec-radar-profilo-personaggio.md
+    issues: [555, 562]
+    tests: []
+    scenarios: []
+    wiki_refs:
+      - wiki:Profilo-tattico
+    last_verified:
+      date: 2026-08-11
+      commit: f17cc0b
+    notes: >
+      D-105. Due viste distinte — **Profile** (sei assi, pubblica) e **Balance** (cinque assi,
+      tuning) — su scala intera `1..10`, con l'ordine dei raggi **normativo**: cambiarlo cambia
+      la forma a parita' di valori, quindi due radar con ordini diversi non sono confrontabili.
+      `runtime`/`log_debug` sono `na` perche' nessun rating entra nel resolver: e' una vista
+      derivata e la freccia non torna indietro. `data: todo` finche' la rubrica non deriva davvero i
+      rating dai cataloghi: D-106 ha stabilito che **non si scrivono, si calcolano**, e D-023 tiene
+      l'autorita' dei numeri sui `RT_*Catalog_v0.1.md` — quindi nessun workbook e' fonte e il
+      conflitto che teneva aperto `RAD-1` si e' **dissolto** invece di essere risolto.
+      ⚠️ La regola che costa: un asse `TBD` **non si renderizza come `0`** e fa fallire la
+      generazione, perche' uno zero da dato mancante e' la stessa forma di una debolezza voluta. Con
+      i rating calcolati `TBD` cambia significato — non «cella vuota» ma «la rubrica non copre questo
+      asse» — e resta un fallimento. ⚠️ D-107 conferma i **sei assi** e li fa modellare: cinque si
+      derivano dagli input che il catalogo dichiara per eroe (Salute, Movimento, Range visivo,
+      Resistenza Push, abilita' con danno/range/effetto/cooldown), mentre `information` nasce con un
+      solo ingrediente — la **Vista** — perche' stealth e detection vivono solo nel workbook escluso.
+      Si arricchisce derivando il rumore dal **kit** (D-042), non ripescando il foglio.
+
+  - feature_id: RT-FEAT-CHAR-RADAR-RATINGS-V01
+    title: Rubrica — i rating derivati dal catalogo eroi
+    area: Characters
+    kind: data
+    release: future
+    priority: P3
+    status: SPECIFIED
+    gates:
+      spec: done
+      data: todo
+      runtime: na
+      log_debug: na
+      automation: todo
+      scenario: na
+      ui_wiki: todo
+      packaged: na
+      network_privacy: na
+      replay_representable: na
+    dependencies:
+      - RT-FEAT-CHAR-RADAR-MODEL
+    owner_specs:
+      - docs/characters/spec-radar-profilo-personaggio.md
+    issues: [556, 557, 558]
+    tests: []
+    scenarios: []
+    wiki_refs: []
+    notes: >
+      D-106: i rating **non si scrivono da nessuna parte**. Il generatore legge
+      `RT_HeroCatalog_v0.1.md` — l'autorita' dei numeri per D-023 — applica la rubrica e produce i
+      rating **in memoria**: nessun file di rating esiste, quindi nessuna seconda fonte puo' nascere
+      ne' divergere. ⚠️ Era `BLOCKED` su `RAD-1`, che chiedeva quale dei due workbook fosse autorita':
+      domanda **mal posta**, perche' D-023 aveva gia' declassato quello di balance a `RESEARCH` e
+      `balance/README.md` vieta perfino di ripararlo cella per cella. Il conflitto non e' stato
+      risolto, **si e' dissolto**. ⚠️ Il peso si sposta sulla **rubrica**, che diventa il prerequisito
+      di tutto: senza formula i rating non esistono affatto, e non c'e' il ripiego «intanto li
+      mettiamo a mano». In cambio, cambiare `Salute` o `Movimento` in un catalogo cambia i radar da
+      solo. Il gate `data` resta `todo` finche' la rubrica non legge davvero i cataloghi.
+
+  - feature_id: RT-FEAT-WIKI-CHART-GENERATOR
+    title: Generatore SVG deterministico dei radar
+    area: Tools
+    kind: tooling
+    release: future
+    priority: P3
+    status: SPECIFIED
+    gates:
+      spec: done
+      data: todo
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: na
+      ui_wiki: todo
+      packaged: na
+      network_privacy: na
+      replay_representable: na
+    dependencies:
+      - RT-FEAT-CHAR-RADAR-MODEL
+      - RT-FEAT-TOOL-VALIDATION
+    owner_specs:
+      - docs/characters/spec-radar-profilo-personaggio.md
+    issues: [559, 560, 561, 563]
+    tests: []
+    scenarios: []
+    wiki_refs: []
+    notes: >
+      `spec: done` dal 2026-08-12: D-108 chiude le due incognite che tenevano la spec `partial` —
+      il generatore e' **Node/TypeScript** (contro la raccomandazione registrata nel consolidamento,
+      Python accanto a `scripts/`) e gli SVG si **committano** con un `--check` che li verifica,
+      dentro l'MVP e non nel lavoro futuro. ⚠️ Il determinismo di *questo* generatore ha un'insidia
+      propria oltre alle solite (timestamp, UUID, ordine non stabile): le coordinate dei vertici
+      vengono da `sin`/`cos`, quindi da float, la cui resa decimale cambia con piattaforma, libreria
+      matematica e locale — vanno **arrotondate esplicitamente** prima di serializzare. Un test che
+      genera due volte nello stesso processo **non dimostra** la proprieta', e il golden test va
+      ancorato a un hash committato. ⚠️ Il determinismo viene **prima** del gate: senza
+      arrotondamento il `--check` e' rosso su una macchina e verde su un'altra. ⚠️ Combinato con
+      D-106 il gate diventa un **test di regressione sui dati competitivi**: cambiare `Salute` in un
+      catalogo lo fa diventare rosso finche' gli SVG non sono rigenerati nello stesso commit — un
+      rebalance porta con se' i suoi grafici. Il prezzo e' che chi tocca un catalogo deve poter
+      eseguire il generatore, quindi Node diventa un prerequisito del **bilanciamento**.
+      `scenario`/`packaged`/`network_privacy` sono `na` come per gli altri strumenti.

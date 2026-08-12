@@ -93,6 +93,25 @@ public:
 	 */
 	static FColor SurfaceColor(ERTHexSurface Surface);
 
+	/**
+	 * Altezza (uu) del RILIEVO con cui l'editor mostra quanto costa attraversare una cella: il profilo della
+	 * mappa racconta dove si rallenta, senza aprire un pannello.
+	 *
+	 * Il costo di riferimento e' `1` — il pavimento — e sta a quota **zero**: il rilievo misura il
+	 * *sovrapprezzo*, non il costo assoluto. Una mappa tutta pavimento resta piatta, ed e' giusto: non c'e'
+	 * niente da segnalare.
+	 *
+	 * `ReliefUnitHeight` e' scelto **due ordini di grandezza sotto** `LayerHeight` (250 uu di default): un
+	 * rilievo non deve mai poter essere scambiato per un piano. E' il vincolo che tiene separati i due
+	 * significati della quota in questa vista.
+	 *
+	 * Il numero da cui parte non si incide qui: arriva dal catalogo terreni via `FindTerrainDef`, cosi'
+	 * ribilanciare `Rough` cambia la mappa da sola invece di lasciarla su un valore morto.
+	 */
+	static constexpr float ReliefUnitHeight = 15.f;
+
+	static float ReliefHeightForCost(int32 MoveCost);
+
 	/** Colore del marcatore delle celle che BLOCCANO il movimento (esagono interno). */
 	static FColor BlockedCellColor();
 

@@ -90,6 +90,11 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 			case ERTDisplacementBlockReason::NoDestination:  Reason = TEXT("spinta annullata: nessuna uscita"); break;
 			case ERTDisplacementBlockReason::ContestedDestination:
 				Reason = TEXT("spinta annullata: destinazione contesa"); break;
+			// «retta» come `Guarded`/`Braced` e non «annullata»: qualcuno ha fatto qualcosa. La differenza con
+			// quelle due — che l'ancora e' una REAZIONE, e si consuma — la dice gia' la voce di categoria
+			// `Reaction` che il pass scrive nello stesso turno.
+			case ERTDisplacementBlockReason::Anchored:
+				Reason = TEXT("spinta retta: ancorato"); break;
 			// Un valore aggiunto in coda e non ancora tradotto qui: si legge lo stesso, senza mentire su quale
 			// sia. Il `default` di sopra direbbe «resta», che e' la parola dell'esito sbagliato.
 			default:                                         Reason = TEXT("spinta annullata"); break;

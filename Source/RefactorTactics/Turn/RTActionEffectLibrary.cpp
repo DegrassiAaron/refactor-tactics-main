@@ -51,6 +51,20 @@ TArray<FRTActionEvent> URTActionEffectLibrary::ProduceEvents(const FRTActionInst
 		case ERTActionEffect::Push:
 		case ERTActionEffect::Pull:
 		case ERTActionEffect::DamageReduction:
+		// `SelfReposition` sta qui e non in un ramo suo: la traduzione e' identica — entita' positiva e un
+		// bersaglio che esiste. Cambia CHI e' quel bersaglio, e lo decide il chiamante
+		// (`BuildReactionEvents`), non questa funzione: e' la stessa divisione di responsabilita' che vale
+		// gia' per `Damage` in una reazione, dove il bersaglio e' l'attaccante e non chi la usa.
+		case ERTActionEffect::SelfReposition:
+		// `CancelDisplacement` sta qui per la stessa ragione, con una differenza da tenere a mente: il suo
+		// `Amount` non e' un «quanto» — non c'e' mezzo annullamento — ma resta soggetto al filtro sotto, che
+		// scarta le entita' non positive. Un modulo che lo dichiarasse con 0 non produrrebbe evento: e' il
+		// comportamento voluto (un effetto dichiarato a zero non e' un effetto), ed e' pinnato dal catalogo,
+		// che lo dichiara 1.
+		case ERTActionEffect::CancelDisplacement:
+		// `CancelStatus` come i due sopra: nessun «quanto», ma soggetto allo stesso filtro sulle entita' non
+		// positive, e il catalogo lo dichiara 1.
+		case ERTActionEffect::CancelStatus:
 			if (Spec.Amount <= 0 || Instance.TargetUnitId == INDEX_NONE)
 			{
 				continue; // entita' non positiva o nessun bersaglio: nessun evento da applicare

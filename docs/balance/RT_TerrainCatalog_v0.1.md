@@ -1,6 +1,8 @@
 # RT — Catalogo terreni, coperture e strutture v0.1
 
-> **Fonte**: `docs/src/prd/catalogo-e-bilanciamento-v0.1.pdf` §§4–5 · `docs/archive/pdr-v0.1/RT_PDR_12_Catalog_v0.1.pdf`
+> **Fonte**: catalogo di bilanciamento v0.1 §§4–5 · PDR-12 — oggi in
+> [`prd-personaggi-azioni-e-bilanciamento.md`](../src/prd/prd-personaggi-azioni-e-bilanciamento.md) e
+> [`RT_PDR_v0.1_consolidato.md`](../archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md)
 > **Decisione abilitante**: [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md) · **Checkpoint**: CP 1.2 (issue `#28`)
 > **Implementazione**: epic **E8** (terreni, `#64`–`#68`) ed **E9** (strutture, `#69`–`#73`).
 
@@ -100,9 +102,9 @@ costruzione).
 >
 > **Nel codice il bonus da altura non è mai stato applicato**: `URTCombatLibrary::EffectiveAttackPower(Base,
 > OccupantDamageBonus)` è un parametro **generico** e ogni call site runtime passa `0`. Il meccanismo resta —
-> serve ad altri effetti — ma non è «l'altura». Il test
-> `RefactorTactics.Combat.EffectiveAttackPowerWithTerrainBonus` insegna ancora il contrario nel nome: issue di
-> rinomina, non correzione al volo.
+> serve ad altri effetti — ma non è «l'altura». Il test si chiama
+> `RefactorTactics.Combat.EffectiveAttackPowerAddsDeclaredBonus` dal 2026-08-11 (`#538`): il nome precedente,
+> `…WithTerrainBonus`, insegnava una semantica che il codice non ha più.
 
 ---
 

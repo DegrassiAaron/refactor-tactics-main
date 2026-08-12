@@ -495,6 +495,54 @@ Vektor, la cui forma `Siege` spegnerebbe la meccanica firma.
 prototipi va **dal più leggero al più invasivo** — `Riva · Flow` non tocca alcun sistema condiviso,
 `Bastion · Bulwark` tocca cover, LOS, collisione e pathing.
 
+### E37 — Radar di personaggio e generatore Wiki · P3
+
+[D-105](../decisions/RT_PDR_00_Decision_Log.md)…[D-108](../decisions/RT_PDR_00_Decision_Log.md), owner
+[`../characters/spec-radar-profilo-personaggio.md`](../characters/spec-radar-profilo-personaggio.md).
+Due viste radar — **Profile** (sei assi, pubblica) e **Balance** (cinque assi, tuning) — su scala `1..10`, più
+un generatore SVG deterministico che le produce per la Wiki. I rating sono una **vista derivata**: nessuno
+entra nel resolver.
+
+**Non blocca nulla della v0.1** ed è deliberatamente P3: è comunicazione e supporto al bilanciamento, non
+gameplay. Sta qui e non nella roadmap di release perché competerebbe con la consegna.
+
+**I rating non si scrivono, si calcolano.** [D-106](../decisions/RT_PDR_00_Decision_Log.md): il generatore
+legge [`RT_HeroCatalog_v0.1.md`](../balance/RT_HeroCatalog_v0.1.md) — l'autorità dei numeri per
+[D-023](../decisions/RT_PDR_00_Decision_Log.md) — applica la rubrica e produce i rating in memoria. Nessun
+file di rating esiste, quindi nessuna seconda fonte può nascere né divergere.
+
+> ⚠️ **La domanda su cui l'epic sembrava bloccata era mal posta.** «Quale dei due workbook è autorità sui
+> rating» aveva già risposta nel repository: **nessuno dei due**. D-023 aveva declassato quello di balance a
+> `RESEARCH`, e [`../balance/README.md`](../balance/README.md) vieta perfino di ripararlo cella per cella —
+> *«un workbook rattoppato diventerebbe una falsa fonte corrente»*. Il conflitto non è stato risolto: si è
+> **dissolto**.
+
+**Il prerequisito di tutto è la rubrica**, non un dato. Se i rating non sono scritti, senza formula non
+esistono affatto: non c'è il ripiego «intanto li mettiamo a mano». In cambio, cambiare `Salute` o `Movimento`
+in un catalogo cambia i radar da solo.
+
+**Sei assi, e uno nasce fragile.** [D-107](../decisions/RT_PDR_00_Decision_Log.md) sceglie di modellare i tre
+assi senza fonte invece di ridurre il radar. Cinque si derivano dagli input che il catalogo dichiara per eroe;
+`information` ha come unico ingrediente la **Vista** (Flux 7, Vektor 6, Riva e Bastion 5), perché stealth e
+detection vivono solo nel workbook escluso. Si arricchisce derivando il rumore dal **kit**
+([D-042](../decisions/RT_PDR_00_Decision_Log.md)), non ripescando il foglio.
+
+**Node/TypeScript, SVG committati con gate.** [D-108](../decisions/RT_PDR_00_Decision_Log.md), scelta
+dall'autore contro la raccomandazione registrata nel consolidamento (Python accanto a `scripts/`).
+⚠️ Le due scelte si combinano in un effetto che nessuna ha da sola: poiché i rating vengono dai cataloghi, il
+gate degli SVG diventa **un test di regressione sui dati competitivi** — toccare una stat rende rosso il gate
+finché i grafici non sono rigenerati nello stesso commit. Il prezzo è che chi tocca un catalogo deve poter
+eseguire il generatore, quindi Node diventa un prerequisito del **bilanciamento**, non solo della
+documentazione.
+
+⚠️ **Finché la rubrica non esiste nessun radar è generabile**, perché un asse `TBD` non si renderizza come `0`
+(D-105) e senza formula tutti gli assi sono `TBD`. È l'esito voluto: impedisce che quattro poligoni inventati
+diventino canonici passando dalla Wiki.
+
+**Tracciata su GitHub**: epic [#555](https://github.com/DegrassiAaron/refactor-tactics-main/issues/555), con
+8 checkpoint (`CP 37.1`–`37.8`) collegati come sub-issue. Feature: `RT-FEAT-CHAR-RADAR-MODEL`,
+`RT-FEAT-CHAR-RADAR-RATINGS-V01`, `RT-FEAT-WIKI-CHART-GENERATOR`.
+
 ---
 
 ## Cosa questo documento non decide

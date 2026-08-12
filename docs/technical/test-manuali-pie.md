@@ -50,9 +50,22 @@
   Se la vista sembra bloccata e compaiono le **etichette degli actor** in viewport, hai fatto **Eject** (`F8`):
   stai guardando con la camera dell'editor, non con quella del gioco — `F8` di nuovo per rientrare nel pawn.
 
-## Stato in numeri — 2026-08-09
+## Stato in numeri — 2026-08-11
 
-**119 voci**: ✅ **28 verdi** · 🟡 **21 parziali** (regola coperta da test, resta il visivo) · ⏳ **70 aperte**.
+**124 voci**: ✅ **30 verdi** · 🟡 **21 parziali** (regola coperta da test, resta il visivo) · ⏳ **73 aperte**.
+
+*(Rimisurate col comando qui sotto il **2026-08-11**, dopo le tre voci `PIE-HEX-LAYER-FOCUS`,
+`PIE-HEX-LAYER-CLICK` e `PIE-HEX-LAYER-PANEL` della vista a livelli `Focus`. La quota dichiarata qui il
+**2026-08-09** era già indietro: prima delle tre voci di oggi il comando dava `121 (30/21/70)` contro il
+`119 (28/21/70)` scritto — due voci aggiunte verdi fra il 9 e oggi, da chi non ha rimisurato.
+`senza-marcatore` misurato: **0**.*
+
+*Questo numero è **relativo alla base**, ed è il modo in cui questa passata ha rischiato di sbagliarlo: le tre
+voci nascono su un ramo che portava anche altre modifiche a questo file, dove la misura giusta era
+`123 (31/21/71)`. Ripiantate su `main` quelle modifiche non ci sono più e il conteggio è un altro, ma il
+merge del file **non dà conflitto** — le righe cambiate non si toccano. Un totale scritto a mano sopravvive
+al cherry-pick e diventa falso in silenzio: dopo un rebase o un cherry-pick di questo file il comando va
+rieseguito, sempre.)*
 
 *(Rimisurate col comando qui sotto il **2026-08-09**, dopo l'aggiunta di `PIE-MUT-BASTION-SLOW` — la prima
 voce del registro che **non** è una verifica visiva: è una verifica di mutazione, headless, rimasta fuori
@@ -213,6 +226,9 @@ leggibilità minima nel senso più stretto, non presentazione.
 | **PIE-CP1.4** | Evidenziazione cella sotto il cursore | — | La cella sotto il mouse è evidenziata | ✅ 2026-08-05 |
 | **PIE-HEX** | Griglia esagonale graybox (pivot) | `ARTHexMapActor` in un livello, `DemoRadius > 0` | Griglia di celle esagonali visibile (graybox); con `MapAsset` popolato mostra quelle celle | ✅ 2026-08-05 (con `DemoRadius=0` la griglia resta: viene dall'asset) |
 | **PIE-HEX-LAYER** | Filtro layer attivo (H4) | `ARTHexMapActor` con celle su ≥2 layer (es. `GenerateIntoAsset` con `ActiveLayer=0`, poi `ActiveLayer=1`) | `LayerView=ActiveOnly` mostra **solo** le celle di `ActiveLayer`; `AllLayers` le mostra tutte, impilate per quota (`LayerHeight`) → la viz non confonde i livelli | ⏳ (H4b) |
+| **PIE-HEX-LAYER-FOCUS** | Vista `Focus`: piano di lavoro in primo piano, gli altri a contorno | mode Hex Map attivo (l'overlay lo disegnano i tool), `ARTHexMapActor` con celle su ≥2 layer, `LayerView=Focus`, `bShowOverlay` acceso nel tool | Il layer attivo resta a **mesh piena**; i piani entro `GhostLayerRange` appaiono come **contorno esagonale attenuato** (più sbiadito al crescere della distanza) e senza i marcatori blocca-movimento/blocca-vista; oltre `GhostLayerRange` non si vedono. Portando `GhostLayerRange` a 0 il risultato coincide con `ActiveOnly` | ⏳ |
+| **PIE-HEX-LAYER-CLICK** | Il click non scavalca il piano attivo | `ARTHexMapActor` con celle su ≥2 layer sovrapposti, `LayerView=AllLayers`, `ActiveLayer=0`, tool Paint, **camera obliqua** (non dall'alto) | Cliccando dove si vede una cella del layer **1**, il pennello dipinge la cella del layer 0 **sotto il cursore** — non una cella spostata di ~`LayerHeight` in orizzontale. Prima del fix il disco del piano superiore intercettava il raggio e l'ImpactPoint veniva proiettato sul piano attivo | ⏳ |
+| **PIE-HEX-LAYER-PANEL** | `ActiveLayer` si cambia dal pannello del tool | mode Hex Map attivo, tool Select o Paint, `ARTHexMapActor` con celle su ≥2 layer | Cambiando `Active Layer` nel pannello del **tool** (senza riselezionare l'actor) la vista si ricostruisce sul piano scelto e il pennello agisce lì; **Ctrl+Z** riporta al piano precedente (il cambio è transazionale). Aprendo il tool il campo mostra già il piano dell'actor, non 0 | ⏳ |
 | **PIE-HEX-TRANS** | Transizione verticale bridge/scala (H4) | due celle sovrapposte (stessi X/Y, Layer diverso), `TransitionFrom`/`TransitionTo` impostati | `AddVerticalTransition` collega i due layer (Undo/Redo ok, package dirty, validator pulito); `RemoveVerticalTransition` lo toglie | ⏳ (H4b) |
 | **PIE-HEX-MODE-A** | Editor Mode hex appare e si attiva (H5a) | modulo `RefactorTacticsEditor` compilato | Nella toolbar Modes compare «Hex Map»; attivandolo il pannello si apre senza crash (nessun tool) | ✅ 2026-08-05 |
 | **PIE-HEX-MODE-B** | Selezione a click nel viewport (H5b) | mode Hex Map attivo, `ARTHexMapActor` nel livello (selezionato o unico) | Tool «Select» attivo → click su una cella → esagono giallo sulla cella + `SelectedCell`/superficie/costo/blocco corretti nel pannello; cambiando `ActiveLayer` sull'actor seleziona il piano giusto (celle sovrapposte) | ✅ 2026-08-05 |

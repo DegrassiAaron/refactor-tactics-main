@@ -10,12 +10,27 @@ class UInstancedStaticMeshComponent;
 class UStaticMesh;
 class URTHexMapAsset;
 
-/** Modalita' di visualizzazione dei layer (H4): tutti i piani impilati, oppure solo il layer attivo. */
+/**
+ * Modalita' di visualizzazione dei layer (H4): tutti i piani impilati, solo il layer attivo, o il layer attivo
+ * in primo piano con gli altri a contorno.
+ *
+ * I valori vanno aggiunti IN CODA: l'enum e' serializzato negli asset e sui livelli, e inserirne uno in mezzo
+ * rimapperebbe le mappe gia' salvate su una modalita' diversa da quella scelta.
+ */
 UENUM(BlueprintType)
 enum class ERTLayerViewMode : uint8
 {
 	AllLayers,  // mostra tutte le celle di tutti i layer (impilate per quota)
-	ActiveOnly  // mostra solo le celle del layer attivo (isola il piano)
+	ActiveOnly, // mostra solo le celle del layer attivo (isola il piano)
+	/**
+	 * Mesh sul SOLO layer attivo (come ActiveOnly), gli altri piani disegnati a contorno dall'editor mode
+	 * (`RTHexEditor::DrawSurfaceOverlay`): si vede cosa c'e' sopra e sotto senza perdere di vista il piano
+	 * su cui si sta lavorando.
+	 *
+	 * I piani di contesto non producono istanze, quindi non hanno collisione: il raycast del click non puo'
+	 * colpirli e il pennello non puo' finire sul piano sbagliato.
+	 */
+	Focus
 };
 
 /**
@@ -51,9 +66,19 @@ public:
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap|Layer")
 	int32 ActiveLayer = 0;
 
-	/** [H4] Come mostrare i layer: tutti impilati, o solo quello attivo (isola il piano; la viz non li confonde). */
+	/** [H4] Come mostrare i layer: tutti impilati, solo quello attivo, o l'attivo con gli altri a contorno. */
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap|Layer")
 	ERTLayerViewMode LayerView = ERTLayerViewMode::AllLayers;
+
+	/**
+	 * [Focus] Quanti piani sopra e sotto disegnare come contorno di contesto (0 = nessuno, come ActiveOnly).
+	 * Oltre questa distanza dal layer attivo il piano non viene disegnato: su una mappa alta il contesto
+	 * completo e' rumore, e quello che serve mentre si dipinge sono i piani vicini.
+	 *
+	 * Non ha effetto fuori da `Focus`, e non tocca le istanze: e' un parametro di sola presentazione.
+	 */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap|Layer", meta = (ClampMin = "0", ClampMax = "8"))
+	int32 GhostLayerRange = 2;
 
 	/** Se MapAsset e' assente/vuoto, genera un esagono pieno di questo raggio (0 = niente demo). */
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap")
@@ -280,6 +305,19 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	TObjectPtr<UInstancedStaticMeshComponent> Cells;
+
+	/**
+	 * Rilievo che mostra il COSTO di attraversamento: un blocco alto quanto il sovrapprezzo della cella.
+	 *
+	 * **Collisione disabilitata, e non e' un dettaglio.** Il raycast di selezione valida `Result.GetActor()
+	 * == Actor` — l'ACTOR, non il componente — quindi qualunque geometria collidibile aggiunta qui
+	 * intercetterebbe i click del pennello, riaprendo il difetto chiuso al CP della vista Focus. Si
+	 * manifesterebbe come «dipinge dove non ho cliccato», e nessuno lo attribuirebbe alla visualizzazione.
+	 *
+	 * E' la stessa ragione per cui i piani di contesto di `Focus` non diventano istanze.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TObjectPtr<UInstancedStaticMeshComponent> Relief;
 
 	/**
 	 * Mapping instance index -> FRTCellId (per selezione/debug). Stato DERIVATO, non serializzato:

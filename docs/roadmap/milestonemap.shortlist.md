@@ -98,7 +98,7 @@ La v0.1 non si chiude perché «sembra pronta»: si chiude quando questi sono **
 |:--:|---|---|
 | **G1** | Build Game + Editor senza warning nuovi | ⏳ |
 | **G2** | Suite automation completa verde | ⏳ |
-| **G3** | I 10 test nominati dal catalogo esistono con quei nomi | ⏳ |
+| **G3** | I 10 test nominati dal catalogo esistono — **nove con quei nomi, uno rinominato di proposito** | ⏳ |
 | **G4** | Determinismo: 100 ripetizioni, checksum identico | ⏳ |
 | **G5** | Nessun gameplay quadrato residuo | ⏳ |
 | **G6** | ID stabili e unici per azioni, terreni, equipaggiamento, eroi | ⏳ |

@@ -353,16 +353,52 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeReactionModules()
 		TEXT("il danno lo subisci tu, e occupa l'unico slot reazione"),
 		{}));
 
-	// ⛔ `Reaction.EmergencyDash` NON e' qui, e non e' una dimenticanza.
+	// `Reaction.EmergencyDash` — ti sposti di 1 quando sei bersagliato. Costruito su `Action.Counter` come
+	// gli altri due: da li' vengono fase, priorita' e `HitByDirectAttack`.
 	//
-	// Il suo trigger esiste (`sei bersagliato` -> `HitByDirectAttack`), quindi la divisione fatta il
-	// 2026-08-11 fra #62 e #505 lo collocava in questa meta'. Ma il suo EFFETTO non e' esprimibile: il
-	// catalogo gli da' `Reposition 1`, cioe' «chi reagisce si sposta», e nessun valore di `ERTActionEffect`
-	// lo dice — `Push` e `Pull` spostano il BERSAGLIO, mai la sorgente. Costruirlo con un effetto vuoto
-	// darebbe un modulo che scatta e non fa niente, cioe' un pulsante finto.
+	// Il suo effetto e' `SelfReposition`, nato con D-093 perche' nessun `ERTActionEffect` sapeva spostare la
+	// SORGENTE — `Push` e `Pull` muovono il bersaglio. Chi fugge resta girato verso la minaccia (D-104), e lo
+	// spostamento passa dagli stessi dieci passi della spinta (#541): traccia con causa, hazard attraversati,
+	// facing, piano che segue.
+	Modules.Add(Module(TEXT("Reaction.EmergencyDash"), TEXT("Dash d'emergenza"), TEXT("Action.Counter"),
+		TEXT("ti sposti di una cella quando sei bersagliato, restando fronte a chi ti ha preso di mira"),
+		TEXT("nessun danno e nessuna protezione: sposta soltanto, e se non c'e' dove andare si spreca"),
+		{ FRTActionEffectSpec(ERTActionEffect::SelfReposition, 1) }));
+
+	// `Reaction.Anchor` — annulla lo spostamento che stai per subire. E' l'unico dei cinque costruito su
+	// `Action.Anchor`, perche' e' l'unica azione core con `AboutToBeDisplaced`: sopra `Action.Counter`
+	// erediterebbe il trigger dei colpi e reagirebbe alla cosa sbagliata.
 	//
-	// E' un vincolo su un asse diverso dal trigger, ed e' emerso implementando: sta in #505 insieme agli
-	// altri tre, con la sua ragione — «serve un effetto di auto-spostamento», non «serve un trigger».
+	// Da non confondere con `Gadget.Anchor` del catalogo §2, che porta lo stesso nome e fa un'altra cosa (una
+	// resistenza permanente, non una reazione che si consuma) e resta non costruito.
+	Modules.Add(Module(TEXT("Reaction.Anchor"), TEXT("Ancoraggio"), TEXT("Action.Anchor"),
+		TEXT("la prima spinta o trazione del turno non ti sposta, a qualunque distanza"),
+		TEXT("si consuma anche quando una guardia sarebbe bastata, e occupa l'unico slot reazione"),
+		{ FRTActionEffectSpec(ERTActionEffect::CancelDisplacement, 1) }));
+
+	// `Reaction.Cleanse` — annulla il controllo che stai per ricevere. Costruito su `Action.Purge`, l'unica
+	// azione core con `AboutToReceiveControl`: il nome del MODULO resta quello del catalogo §3, il nome
+	// dell'AZIONE no, perche' `Action.Cleanse` e' gia' un'altra cosa (vedi il commento sul catalogo azioni).
+	//
+	// Con due controlli nello stesso Blast ne annulla **il piu' grave**, e non si spende affatto se il
+	// controllo in arrivo non cambierebbe nulla — chi e' gia' radicato non brucia la reazione per un rinnovo.
+	// `Reaction.HazardEscape` — l'ULTIMO dei sette, e il piu' lungo da arrivare. Non gli mancava un dato ne'
+	// un momento: gli mancava l'EVENTO. Finche' una superficie che nasceva sotto un'unita' ferma non le faceva
+	// niente (`#570`), nel Cleanup non c'era nessun danno imminente da cui fuggire e il modulo sarebbe stato
+	// inerte — la trappola di `Riva.MistVeil` (`#353`).
+	//
+	// Si fugge verso la cella che si ha DAVANTI, e il facing lo dichiara il giocatore: la fuga e' prevedibile
+	// guardando il campo invece che arbitraria. Se davanti non si puo', si ripiega sull'ordine canonico delle
+	// direzioni; se non c'e' nessuna cella sicura, la reazione si spende senza salvare — come `EmergencyDash`.
+	Modules.Add(Module(TEXT("Reaction.HazardEscape"), TEXT("Fuga hazard"), TEXT("Action.Evade"),
+		TEXT("quando la cella sotto di te diventa pericolosa ti sposti di una, verso dove stai guardando"),
+		TEXT("una sola volta per turno, e se sei circondato dal fuoco si spreca"),
+		{ FRTActionEffectSpec(ERTActionEffect::SelfReposition, 1) }));
+
+	Modules.Add(Module(TEXT("Reaction.Cleanse"), TEXT("Pulizia automatica"), TEXT("Action.Purge"),
+		TEXT("il controllo che stai per ricevere non ti tocca: fra due, salta il piu' grave"),
+		TEXT("uno solo per turno, e non ferma il prolungamento di un controllo che hai gia' addosso"),
+		{ FRTActionEffectSpec(ERTActionEffect::CancelStatus, 1) }));
 
 	return Modules;
 }
@@ -892,6 +928,69 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 			ERTActionSlot::Reaction);
 		Intercept.ReactionTrigger = ERTReactionTrigger::AllyHitByDirectAttack;
 		Catalog.Add(Intercept);
+	}
+
+	// `Anchor` (CP 7.5, `#505`) — chi la dichiara NON viene spostato dalla spinta o dalla trazione di questo
+	// Blast. E' la reazione core dello spostamento, e la quarta del catalogo.
+	//
+	// Esiste come azione core, e non solo come modulo di equipaggiamento, perche' e' dall'azione core che un
+	// modulo eredita cio' che lo rende una reazione: fase, priorita' e soprattutto il TRIGGER. Costruito su
+	// `Action.Counter`, `Reaction.Anchor` erediterebbe `HitByDirectAttack` e si attiverebbe sui colpi — un
+	// altro mestiere, e per giunta silenziosamente sbagliato.
+	//
+	// Priorita' **5**, sotto Intercept (10), Deflect (15) e Counter (20). Non contende niente a nessuno: non
+	// produce colpi, non riduce danno e risolve in un punto del turno tutto suo, dove le altre non arrivano.
+	// Un numero pero' va scelto, e il piu' basso e' quello che dichiara «questa non precede nessuno» invece di
+	// suggerire una precedenza che nessun caso puo' osservare.
+	//
+	// `Amount` 1 e non 0: l'annullamento non ha un «quanto», ma `ProduceEvents` scarta gli effetti a entita'
+	// non positiva, e dichiararlo 0 lo renderebbe un effetto che non esiste.
+	{
+		FRTActionDef Anchor = ShippedAction(TEXT("Action.Anchor"), ERTResolutionPhase::Control, /*Priority*/ 5,
+			/*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel,
+			{ FRTActionEffectSpec(ERTActionEffect::CancelDisplacement, 1) }, /*bInterruptible*/ true,
+			ERTActionSlot::Reaction);
+		Anchor.ReactionTrigger = ERTReactionTrigger::AboutToBeDisplaced;
+		Catalog.Add(Anchor);
+	}
+
+	// `Purge` (CP 7.5, `#505`) — la reazione core del CONTROLLO: annulla lo stato di controllo che stai per
+	// ricevere. Quinta e ultima reazione core della v0.1.
+	//
+	// ⚠️ **Non si chiama `Cleanse`, e la differenza non e' cosmetica**: `Action.Cleanse` esiste gia' ed e'
+	// un'azione PRINCIPALE che sceglie fra gli stati **gia' posseduti** seguendo la lista che il giocatore
+	// dichiara in pianificazione (`ARTUnit::PlannedCleansePriority`). Li' l'ambiguita' e' reale e la scelta
+	// va dichiarata; qui lo stato lo determina l'evento, e con piu' controlli si annulla il piu' grave. Due
+	// mestieri diversi sotto lo stesso nome sarebbero diventati un ramo `if` nel resolver.
+	//
+	// Priorita' **5** come `Action.Anchor`: risolve in un punto del turno tutto suo, dove nessun'altra
+	// reazione arriva, quindi non contende niente a nessuno.
+	{
+		FRTActionDef Purge = ShippedAction(TEXT("Action.Purge"), ERTResolutionPhase::Control, /*Priority*/ 5,
+			/*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel,
+			{ FRTActionEffectSpec(ERTActionEffect::CancelStatus, 1) }, /*bInterruptible*/ true,
+			ERTActionSlot::Reaction);
+		Purge.ReactionTrigger = ERTReactionTrigger::AboutToReceiveControl;
+		Catalog.Add(Purge);
+	}
+
+	// `Evade` (CP 7.5, `#505`) — la reazione core dell'AMBIENTE: ti sposti di una cella quando quella sotto di
+	// te diventa pericolosa. Sesta e ultima reazione core della v0.1.
+	//
+	// L'unica che risolve fuori dal Blast: il suo trigger nasce nel Cleanup, dove le superfici vengono create.
+	// La fase dichiarata resta `Control` come le altre reazioni — a portarla nel Cleanup e' il PUNTO di
+	// valutazione (`URTReactionLibrary::PassPointFor`), non la fase dell'azione: sono due cose diverse, e
+	// confonderle qui avrebbe fatto risolvere l'azione nel Blast insieme al resto.
+	//
+	// Non si chiama `HazardEscape` per la stessa ragione per cui `Purge` non si chiama `Cleanse`: quello e' il
+	// nome del MODULO nel catalogo §3, e l'azione core e' un'altra entita'.
+	{
+		FRTActionDef Evade = ShippedAction(TEXT("Action.Evade"), ERTResolutionPhase::Control, /*Priority*/ 5,
+			/*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel,
+			{ FRTActionEffectSpec(ERTActionEffect::SelfReposition, 1) }, /*bInterruptible*/ true,
+			ERTActionSlot::Reaction);
+		Evade.ReactionTrigger = ERTReactionTrigger::CellBecameHazardous;
+		Catalog.Add(Evade);
 	}
 
 	// `Brace` — azione PRINCIPALE di Prep. Dichiara DUE stati: `Braced` (-10 a ogni danno diretto e blocca la

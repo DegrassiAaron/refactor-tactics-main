@@ -10,6 +10,9 @@ v0.2/        Steel · Aurora · Murdock · Kwang
 candidates/  34 asset Paragon candidati
 images/      card / screenshot dei personaggi
 paragon.md   indice completo dei 38 hero asset Paragon
+
+spec-radar-profilo-personaggio.md   owner del modello radar Profile / Balance (D-105)
+matrici-stati-personaggio.md        candidature di stato e trasformazione
 ```
 
 Le pagine dei candidati **non assegnano una release** e non inventano kit o valori mancanti.

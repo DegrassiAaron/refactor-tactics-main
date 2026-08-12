@@ -14,7 +14,9 @@
 
 > **Sorgente Markdown canonica** (Git) del documento PDR-10, per la regola di manutenzione PDR-00 §6 #5
 > (*«i PDF sono snapshot di consultazione; le sorgenti testuali devono vivere nel repository Git»*, decisione
-> [D-009](../decisions/RT_PDR_00_Decision_Log.md)). Trascrive lo snapshot `RT_PDR_10_Roadmap_QA_Rischi_v0.1.pdf` e aggiunge
+> [D-009](../decisions/RT_PDR_00_Decision_Log.md); il resto del corpus l'ha seguita il **2026-08-12** con
+> [`RT_PDR_v0.1_consolidato.md`](../archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md)).
+> Trascrive lo snapshot `RT_PDR_10_Roadmap_QA_Rischi_v0.1.pdf` e aggiunge
 > una colonna **«Stato»** sintetica allineata al repo. Il **dettaglio di esecuzione** (checkpoint, mappatura
 > M↔F, test count) vive nel tracker [`roadmap-checkpoint.md`](roadmap-checkpoint.md)
 > (principio «una sola fonte logica per concetto»): qui c'è il **piano/requisiti**, lì l'**avanzamento**.
