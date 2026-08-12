@@ -368,6 +368,74 @@ bool FRTHexReliefFromCatalogTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * I due volumi che l'editor usa per le regole di blocco devono restare DISTINGUIBILI fra loro e dal rilievo
+ * del costo, che occupa la stessa cella.
+ *
+ * E' la distinzione piu' fraintesa della mappa: una cella che blocca la vista **si attraversa**, ed e'
+ * esattamente cio' che serve a una rotta coperta ma percorribile. Costruendo `L_HexArena` l'errore e' stato
+ * commesso due volte, una anche scrivendo il layout da codice dopo averlo documentato come trappola.
+ *
+ * Con una sola mesh la differenza fra i due e' una PROPORZIONE: questi vincoli sono cio' che impedisce a un
+ * ritocco di avvicinarli fino a renderli la stessa cosa. Il giudizio «si legge?» resta una verifica in
+ * editor — qui si pinna solo che le proporzioni non collassino.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBlockerVolumesTest,
+	"RefactorTactics.Hex.BlockerVolumesSeparateTheTwoRules",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBlockerVolumesTest::RunTest(const FString&)
+{
+	// 1. Di profilo: chi non si passa e' una COLONNA, chi non si vede attraverso e' una LASTRA.
+	TestTrue(TEXT("la colonna del blocco e' piu' alta della lastra della vista"),
+		URTHexLibrary::MovementBlockerHeight > URTHexLibrary::SightBlockerHeight);
+
+	// 2. Dall'alto — che e' la vista di LAVORO, quella in cui si dipinge — la sola altezza non basta: le due
+	//    regole devono differire anche di ingombro, o guardando a picco si somigliano.
+	TestTrue(TEXT("la lastra della vista e' piu' larga della colonna del blocco"),
+		URTHexLibrary::SightBlockerWidthScale > URTHexLibrary::MovementBlockerWidthScale);
+
+	// 3. Il canale del COSTO non deve sparire sotto quello della REGOLA. La lastra e' larga, quindi circonda
+	//    il rilievo: deve restare piu' bassa del rilievo piu' piccolo che possa esistere (sovrapprezzo di 1),
+	//    altrimenti su una cella che blocca la vista il costo diventa invisibile.
+	TestTrue(TEXT("la lastra non annega il rilievo di costo piu' piccolo"),
+		URTHexLibrary::SightBlockerHeight < URTHexLibrary::ReliefHeightForCost(2));
+
+	// 4. La colonna e' invece alta, quindi il rilievo non puo' starle sopra: le si mette DENTRO, e per vederlo
+	//    la colonna deve essere piu' stretta del rilievo. I due canali convivono sulla stessa cella.
+	TestTrue(TEXT("la colonna sta dentro il rilievo del costo, che resta visibile attorno"),
+		URTHexLibrary::MovementBlockerWidthScale < URTHexLibrary::ReliefWidthScale);
+
+	// 5. Nessuno dei due volumi copre il contorno colorato della superficie, che e' il canale del TIPO di
+	//    terreno e l'unico che dice «fango» invece di «regola».
+	const float SurfaceOutlineScale = 0.85f; // `DrawHexMarker(..., HexSize * 0.85f, SurfaceColor(...))`
+	TestTrue(TEXT("la lastra resta dentro il contorno della superficie"),
+		URTHexLibrary::SightBlockerWidthScale < SurfaceOutlineScale);
+
+	// 6. Il vincolo che tiene separati i due significati della QUOTA, lo stesso che vale per il rilievo: un
+	//    volume di regola non deve mai poter essere scambiato per il piano di sopra.
+	const float LayerHeightDefault = 250.f; // il default di URTHexMapAsset::LayerHeight
+	TestTrue(TEXT("nemmeno la colonna arriva al piano superiore"),
+		URTHexLibrary::MovementBlockerHeight < LayerHeightDefault * 0.5f);
+
+	// 7. La proprieta' che separa i due VOCABOLARI: «caro» e «impossibile» sono cose diverse, e la mappa non
+	//    deve poterle confondere. Anche il terreno piu' caro del catalogo resta ben sotto la colonna — se un
+	//    ribilanciamento lo portasse a superarla, un terreno costoso sembrerebbe un muro, e questo cade.
+	const TArray<ERTHexSurface> AllSurfaces = {
+		ERTHexSurface::Floor, ERTHexSurface::ShallowWater, ERTHexSurface::Rough, ERTHexSurface::Fire,
+		ERTHexSurface::Conductive, ERTHexSurface::Ice, ERTHexSurface::Void,
+		ERTHexSurface::Smoke, ERTHexSurface::HighGround
+	};
+	int32 MaxCost = 1;
+	for (const ERTHexSurface S : AllSurfaces)
+	{
+		MaxCost = FMath::Max(MaxCost, URTTerrainLibrary::FindTerrainDef(S).MoveCost);
+	}
+	TestTrue(TEXT("il terreno piu' caro del catalogo non arriva all'altezza di un muro"),
+		URTHexLibrary::ReliefHeightForCost(MaxCost) < URTHexLibrary::MovementBlockerHeight);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
 
 /**

@@ -1,6 +1,6 @@
 # Brief — Layer di visualizzazione della mappa in editor
 
-> `CURRENT` · **Stato**: brief di requisiti, **nessuna implementazione**
+> `CURRENT` · **Stato**: brief di requisiti, **in corso di attuazione** — vedi §9
 > **Nato da**: la seduta U1 del 2026-08-10 ([#451](https://github.com/DegrassiAaron/refactor-tactics-main/issues/451)), costruendo `L_HexArena`
 > **Non è** [`E21`](../roadmap/roadmap-v0.1.md): quella è la leggibilità **in partita**, per il giocatore
 
@@ -127,3 +127,24 @@ valore: superficie → blocchi → bordi → layer.
 
 Il primo pezzo è anche quello che chiude il difetto più votato dall'esperienza: **rendere il costo di
 movimento visibile senza aprire un pannello**.
+
+## 9. Cosa è atterrato
+
+Questa sezione esiste perché per due giorni la testa del documento ha detto «nessuna implementazione»
+mentre il primo pezzo era già in `main`. È lo stesso difetto che il §1 mette in cima — una vista che
+racconta qualcosa che il dato non contiene — applicato al brief invece che alla mappa.
+
+| Pezzo | Issue | Stato | Cosa ha lasciato nel codice |
+|---|---|:--:|---|
+| 1/4 · superficie e costo | [#551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/551) | ✅ chiusa 2026-08-12 | l'ISM `Relief`, `ReliefHeightForCost`, e il pattern «forma per la regola, colore per la superficie» |
+| 2/4 · blocchi | [#552](https://github.com/DegrassiAaron/refactor-tactics-main/issues/552) | 🔄 in corso | l'ISM `Blockers`: colonna dove non si passa, lastra dove non si vede |
+| 3/4 · bordi | [#553](https://github.com/DegrassiAaron/refactor-tactics-main/issues/553) | ⏳ | — |
+| 4/4 · layer e raggiungibilità | [#554](https://github.com/DegrassiAaron/refactor-tactics-main/issues/554) | ⏳ | — |
+
+⚠️ **Il §5 resta la parte non ancora affrontata**, ed è quella con il rischio geometrico: nessuna delle
+due implementazioni finora tocca i **bordi**, perché costo e blocchi sono proprietà di *cella*. La
+funzione per il centro/orientamento di un lato che il §5 propone **non esiste ancora**.
+
+⚠️ Delle quattro domande del §7 nessuna è stata chiusa: sono state **aggirate**, non risolte. Il layer è
+sempre attivo perché finora costa poco, e il costo di rigenerazione con più geometria (§7, seconda
+domanda) **non è mai stato misurato** — con `Blockers` gli elementi per cella diventano fino a tre.

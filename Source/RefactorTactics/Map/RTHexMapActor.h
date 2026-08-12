@@ -329,15 +329,32 @@ protected:
 	/**
 	 * Rilievo che mostra il COSTO di attraversamento: un blocco alto quanto il sovrapprezzo della cella.
 	 *
-	 * **Collisione disabilitata, e non e' un dettaglio.** Il raycast di selezione valida `Result.GetActor()
-	 * == Actor` — l'ACTOR, non il componente — quindi qualunque geometria collidibile aggiunta qui
-	 * intercetterebbe i click del pennello, riaprendo il difetto chiuso al CP della vista Focus. Si
-	 * manifesterebbe come «dipinge dove non ho cliccato», e nessuno lo attribuirebbe alla visualizzazione.
+	 * **Collisione disabilitata, e non e' un dettaglio.** E' la PRIMA delle due difese che tengono il
+	 * pennello onesto; la seconda e' `IsPickOnSelectableCell`, che scarta i colpi su qualunque componente
+	 * diverso da `Cells`. Senza nessuna delle due il click verrebbe risolto contro le celle e produrrebbe una
+	 * cella **valida e sbagliata** — «dipinge dove non ho cliccato», senza un solo errore a log, e nessuno lo
+	 * attribuirebbe alla visualizzazione.
 	 *
 	 * E' la stessa ragione per cui i piani di contesto di `Focus` non diventano istanze.
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	TObjectPtr<UInstancedStaticMeshComponent> Relief;
+
+	/**
+	 * Volumi che mostrano le regole di BLOCCO: una colonna dove non si passa, una lastra bassa dove non si
+	 * vede attraverso ma si cammina.
+	 *
+	 * Sono nello stesso componente perche' un ISM porta una sola mesh e questi due condividono `CellMesh`
+	 * con `Cells` e `Relief`: a distinguerli e' la PROPORZIONE, non la forma d'autore. I rapporti stanno in
+	 * `URTHexLibrary` (`MovementBlocker*` / `SightBlocker*`) e sono pinnati da
+	 * `Hex.BlockerVolumesSeparateTheTwoRules`.
+	 *
+	 * Stessa disciplina di `Relief`: nessuna collisione, niente ombre, nessuno stato proprio. La geometria
+	 * si rigenera da `RebuildInstances` leggendo l'asset, e non finisce mai nel `.umap` — se ci finisse
+	 * diventerebbe una seconda verita' che nessun test verifica.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TObjectPtr<UInstancedStaticMeshComponent> Blockers;
 
 	/**
 	 * Mapping instance index -> FRTCellId (per selezione/debug). Stato DERIVATO, non serializzato:

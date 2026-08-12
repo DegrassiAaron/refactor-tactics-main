@@ -236,21 +236,23 @@ bool FRTHexMapActorPickTest::RunTest(const FString&)
 		return false;
 	}
 
-	// I due componenti REALI dell'actor, non due finti costruiti qui: e' cio' che rende questo un test sul
-	// gioco. Se domani `Relief` sparisse o cambiasse nome, il test lo direbbe invece di continuare a passare.
+	// I componenti REALI dell'actor, non dei finti costruiti qui: e' cio' che rende questo un test sul gioco.
+	// Se domani `Relief` sparisse o cambiasse nome, il test lo direbbe invece di continuare a passare.
 	TArray<UInstancedStaticMeshComponent*> Isms;
 	Actor->GetComponents(Isms);
 	UInstancedStaticMeshComponent* Cells = nullptr;
 	UInstancedStaticMeshComponent* Relief = nullptr;
+	UInstancedStaticMeshComponent* Blockers = nullptr;
 	for (UInstancedStaticMeshComponent* Ism : Isms)
 	{
 		if (Ism->GetName() == TEXT("Cells")) { Cells = Ism; }
 		else if (Ism->GetName() == TEXT("Relief")) { Relief = Ism; }
+		else if (Ism->GetName() == TEXT("Blockers")) { Blockers = Ism; }
 	}
 
-	if (!Cells || !Relief)
+	if (!Cells || !Relief || !Blockers)
 	{
-		AddError(TEXT("l'actor non ha entrambi gli ISM attesi (Cells, Relief)"));
+		AddError(TEXT("l'actor non ha tutti gli ISM attesi (Cells, Relief, Blockers)"));
 		DestroyMapActorWorld(World);
 		return false;
 	}
@@ -260,6 +262,10 @@ bool FRTHexMapActorPickTest::RunTest(const FString&)
 	// Il caso che da' valore alla regola, e l'unico che il confronto sull'ACTOR lascerebbe passare.
 	TestFalse(TEXT("colpo sul rilievo del costo"), Actor->IsPickOnSelectableCell(Relief, 0));
 
+	// Ogni geometria di lettura aggiunta va messa qui: la regola vale perche' e' strutturale, ma resta vera
+	// solo finche' qualcuno verifica che il componente NUOVO non sia diventato l'eccezione.
+	TestFalse(TEXT("colpo sui volumi di blocco"), Actor->IsPickOnSelectableCell(Blockers, 0));
+
 	// Un indice fuori range non e' teorico: `CellForInstance` risponde `(0,0,0)` — una cella VALIDA — a
 	// qualunque indice, quindi senza questo controllo il click finirebbe sull'origine della mappa.
 	TestFalse(TEXT("indice oltre il numero di istanze"),
@@ -267,6 +273,92 @@ bool FRTHexMapActorPickTest::RunTest(const FString&)
 	TestFalse(TEXT("indice negativo"), Actor->IsPickOnSelectableCell(Cells, INDEX_NONE));
 
 	TestFalse(TEXT("nessun colpo"), Actor->IsPickOnSelectableCell(nullptr, 0));
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * I volumi di blocco nascono dai FLAG della cella, uno per regola, e una cella che ne ha due li mostra
+ * entrambi.
+ *
+ * E' la parte che una verifica a occhio non copre: guardando la mappa si vede *che* c'e' qualcosa, non
+ * *quante* regole sta dicendo. Una cella con entrambi i flag che producesse un volume solo sarebbe
+ * indistinguibile da una che ne ha uno — e sarebbe una vista che mente, il difetto che il brief mette in
+ * testa (`brief-editor-map-viz.md` §1: «una vista che mente costa piu' di una vista che manca»).
+ *
+ * Il conteggio e' fatto per PROPORZIONE e non per indice: l'ordine delle istanze e' un dettaglio di
+ * `RebuildInstances`, mentre «quante colonne e quante lastre» e' cio' che l'autore della mappa legge.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorBlockerInstancesTest,
+	"RefactorTactics.HexMapActor.BlockerVolumesComeFromCellFlags",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorBlockerInstancesTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+
+	// Le quattro combinazioni possibili, una per cella: nessuna regola, solo vista, solo movimento, entrambe.
+	URTHexMapAsset* Asset = NewObject<URTHexMapAsset>();
+	FRTHexCellData Libera(FRTCellId(0, 0, 0));
+	FRTHexCellData SoloVista(FRTCellId(1, 0, 0));
+	SoloVista.bBlocksLineOfSight = true;
+	FRTHexCellData SoloMovimento(FRTCellId(2, 0, 0));
+	SoloMovimento.bBlocksMovement = true;
+	FRTHexCellData Entrambi(FRTCellId(3, 0, 0));
+	Entrambi.bBlocksLineOfSight = true;
+	Entrambi.bBlocksMovement = true;
+	Asset->AddOrUpdateCell(Libera);
+	Asset->AddOrUpdateCell(SoloVista);
+	Asset->AddOrUpdateCell(SoloMovimento);
+	Asset->AddOrUpdateCell(Entrambi);
+	Asset->SortCells();
+
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!Actor)
+	{
+		AddError(TEXT("actor non spawnato"));
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	TArray<UInstancedStaticMeshComponent*> Isms;
+	Actor->GetComponents(Isms);
+	UInstancedStaticMeshComponent* Blockers = nullptr;
+	for (UInstancedStaticMeshComponent* Ism : Isms)
+	{
+		if (Ism->GetName() == TEXT("Blockers")) { Blockers = Ism; }
+	}
+	if (!Blockers)
+	{
+		AddError(TEXT("l'actor non ha l'ISM `Blockers`"));
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	// Due celle bloccano il movimento (`SoloMovimento`, `Entrambi`) e due la vista (`SoloVista`, `Entrambi`):
+	// tre celle con almeno una regola, ma QUATTRO volumi. La cella libera non ne produce nessuno.
+	TestEqual(TEXT("un volume per ogni regola dichiarata, non per ogni cella"),
+		Blockers->GetInstanceCount(), 4);
+
+	int32 Colonne = 0;
+	int32 Lastre = 0;
+	for (int32 I = 0; I < Blockers->GetInstanceCount(); ++I)
+	{
+		FTransform Xf;
+		Blockers->GetInstanceTransform(I, Xf, /*bWorldSpace=*/ true);
+		// La mezza-altezza del cilindro engine e' 50 uu, quindi la scala Z e' altezza/100 — la stessa
+		// aritmetica che `RebuildInstances` usa per posarle.
+		const double ScalaZ = Xf.GetScale3D().Z;
+		if (FMath::IsNearlyEqual(ScalaZ, URTHexLibrary::MovementBlockerHeight / 100.f, 0.001)) { ++Colonne; }
+		else if (FMath::IsNearlyEqual(ScalaZ, URTHexLibrary::SightBlockerHeight / 100.f, 0.001)) { ++Lastre; }
+	}
+
+	TestEqual(TEXT("due colonne: le celle che bloccano il movimento"), Colonne, 2);
+	TestEqual(TEXT("due lastre: le celle che bloccano la vista"), Lastre, 2);
+
+	// La cella libera resta libera: senza questo, un bug che mettesse un volume ovunque passerebbe i due
+	// conteggi qui sopra solo perche' i numeri tornano.
+	TestEqual(TEXT("nessun volume che non venga da un flag"), Colonne + Lastre, 4);
 
 	DestroyMapActorWorld(World);
 	return true;

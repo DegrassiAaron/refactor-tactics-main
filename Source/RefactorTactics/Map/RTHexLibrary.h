@@ -112,6 +112,41 @@ public:
 
 	static float ReliefHeightForCost(int32 MoveCost);
 
+	/**
+	 * Frazione della larghezza di cella occupata dal rilievo del costo. Piu' stretta della cella per non
+	 * coprire il contorno colorato della superficie, che resta il canale del *tipo* di terreno.
+	 *
+	 * Vive qui e non nell'actor perche' i volumi di blocco devono sapersi confrontare con essa: la colonna
+	 * ci sta DENTRO, la lastra la circonda restando piu' bassa. Sono relazioni, e un numero inciso in due
+	 * posti le romperebbe in silenzio.
+	 */
+	static constexpr float ReliefWidthScale = 0.6f;
+
+	/**
+	 * I due volumi con cui l'editor rende leggibili le regole di BLOCCO — «forma per la regola», §3b del
+	 * brief `brief-editor-map-viz.md`.
+	 *
+	 * La distinzione che devono servire e' la piu' fraintesa della mappa: una cella che blocca la vista **si
+	 * attraversa**, ed e' cio' che serve a una rotta coperta ma percorribile. Due anelli concentrici non la
+	 * dicevano; due ingombri diversi si', anche guardando a picco.
+	 *
+	 * | Regola | Forma | Percio' |
+	 * |---|---|---|
+	 * | non si passa | stretta e alta — una colonna | il rilievo del costo resta visibile ATTORNO alla base |
+	 * | non si vede attraverso | larga e bassa — una lastra | il rilievo del costo la SUPERA e resta visibile |
+	 *
+	 * Una cella con entrambi i flag riceve entrambe le istanze, concentriche: mostra le due regole che ha,
+	 * invece di diventare una terza cosa ambigua.
+	 *
+	 * ⚠️ Con una sola mesh (`CellMesh`, condivisa con `Cells` e `Relief`) la differenza fra i due e' una
+	 * **proporzione**: se in editor non bastasse, la strada e' un ISM per forma. I rapporti che tengono in
+	 * piedi la lettura sono pinnati da `Hex.BlockerVolumesSeparateTheTwoRules`, non affidati all'occhio.
+	 */
+	static constexpr float MovementBlockerHeight = 90.f;
+	static constexpr float MovementBlockerWidthScale = 0.42f;
+	static constexpr float SightBlockerHeight = 10.f;
+	static constexpr float SightBlockerWidthScale = 0.80f;
+
 	/** Colore del marcatore delle celle che BLOCCANO il movimento (esagono interno). */
 	static FColor BlockedCellColor();
 

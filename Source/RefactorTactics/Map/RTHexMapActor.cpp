@@ -67,6 +67,17 @@ ARTHexMapActor::ARTHexMapActor()
 	{
 		Relief->SetStaticMesh(CylinderMesh.Object);
 	}
+
+	// Volumi delle regole di blocco: stessa disciplina del rilievo, e per la stessa ragione.
+	Blockers = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Blockers"));
+	Blockers->SetupAttachment(Cells);
+	Blockers->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Blockers->SetCollisionResponseToAllChannels(ECR_Ignore);
+	Blockers->CastShadow = false;
+	if (CylinderMesh.Succeeded())
+	{
+		Blockers->SetStaticMesh(CylinderMesh.Object);
+	}
 }
 
 void ARTHexMapActor::OnConstruction(const FTransform& Transform)
@@ -374,6 +385,11 @@ void ARTHexMapActor::RebuildInstances()
 		if (UStaticMesh* Mesh = CellMesh.LoadSynchronous()) { Relief->SetStaticMesh(Mesh); }
 		Relief->ClearInstances();
 	}
+	if (Blockers)
+	{
+		if (UStaticMesh* Mesh = CellMesh.LoadSynchronous()) { Blockers->SetStaticMesh(Mesh); }
+		Blockers->ClearInstances();
+	}
 
 	// Sorgente celle: l'asset se popolato, altrimenti un graybox demo (esagono pieno di raggio DemoRadius).
 	const float UseHexSize = MapAsset ? MapAsset->HexSize : HexSize;
@@ -391,11 +407,15 @@ void ARTHexMapActor::RebuildInstances()
 	TArray<FRTCellId> CellIds;
 	TArray<int32> Heights;
 	TArray<int32> MoveCosts;
+	TArray<bool> BlocksMovement;
+	TArray<bool> BlocksSight;
 	if (MapAsset && MapAsset->NumCells() > 0)
 	{
 		CellIds.Reserve(MapAsset->NumCells());
 		Heights.Reserve(MapAsset->NumCells());
 		MoveCosts.Reserve(MapAsset->NumCells());
+		BlocksMovement.Reserve(MapAsset->NumCells());
+		BlocksSight.Reserve(MapAsset->NumCells());
 		for (const FRTHexCellData& C : MapAsset->Cells)
 		{
 			if (!PassesLayerFilter(C.Id.Layer))
@@ -405,6 +425,11 @@ void ARTHexMapActor::RebuildInstances()
 			CellIds.Add(C.Id);
 			Heights.Add(C.Height);
 			MoveCosts.Add(C.TotalMoveCost()); // il rilievo mostra il costo VERO: una cella stretta si alza
+			// I due flag sono INDIPENDENTI e restano tali fin qui: una cella che blocca la vista si attraversa,
+			// ed e' la distinzione che questa vista esiste per mostrare. Ridurli a un solo «e' un ostacolo»
+			// perderebbe proprio l'informazione utile.
+			BlocksMovement.Add(C.bBlocksMovement);
+			BlocksSight.Add(C.bBlocksLineOfSight);
 		}
 	}
 	else if (DemoRadius > 0)
@@ -413,6 +438,8 @@ void ARTHexMapActor::RebuildInstances()
 		CellIds = URTHexLibrary::HexArea(FRTCellId(0, 0, ActiveLayer), DemoRadius);
 		Heights.Init(0, CellIds.Num());
 		MoveCosts.Init(1, CellIds.Num()); // il graybox non ha terreni: tutto pavimento, quindi piatto
+		BlocksMovement.Init(false, CellIds.Num()); // e nemmeno ostacoli: il graybox e' una piastra libera
+		BlocksSight.Init(false, CellIds.Num());
 	}
 
 	// Cilindro engine: raggio 50 uu, mezza-altezza 50 uu. Scala X,Y per coprire ~l'esagono, Z sottile (disco).
@@ -439,8 +466,39 @@ void ARTHexMapActor::RebuildInstances()
 			FVector ReliefCenter = World;
 			ReliefCenter.Z += RTCellTopZ + ReliefHeight * 0.5;
 			const FTransform ReliefXf(FRotator::ZeroRotator, ReliefCenter,
-				FVector(PlanarScale * 0.6f, PlanarScale * 0.6f, ReliefHeight / 100.f));
+				FVector(PlanarScale * URTHexLibrary::ReliefWidthScale, PlanarScale * URTHexLibrary::ReliefWidthScale,
+					ReliefHeight / 100.f));
 			Relief->AddInstance(ReliefXf, /*bWorldSpace=*/ true);
+		}
+
+		// Volumi delle REGOLE. I due flag sono indipendenti, quindi lo sono anche le istanze: una cella con
+		// entrambi ne riceve due, concentriche — la lastra larga e bassa, e la colonna stretta dentro. Mostra
+		// le due regole che ha, invece di diventare una terza cosa che non significa nessuna delle due.
+		if (Blockers)
+		{
+			// Cilindro engine CENTRATO: il centro sta a meta' altezza, e la scala Z e' l'altezza / 100 perche'
+			// la mezza-altezza della primitiva e' 50 uu. Stessa aritmetica del rilievo, per la stessa mesh.
+			auto AddBlocker = [this, &World, PlanarScale](float Height, float WidthScale)
+			{
+				FVector Center = World;
+				Center.Z += RTCellTopZ + Height * 0.5;
+				Blockers->AddInstance(
+					FTransform(FRotator::ZeroRotator, Center,
+						FVector(PlanarScale * WidthScale, PlanarScale * WidthScale, Height / 100.f)),
+					/*bWorldSpace=*/ true);
+			};
+
+			// Prima la lastra: e' la piu' larga e la piu' bassa, e va posata sotto la colonna quando ci sono
+			// entrambe. L'ordine non cambia il disegno — sono volumi solidi, non trasparenze — ma tiene la
+			// lettura del codice nello stesso verso di quella della cella, dal basso.
+			if (BlocksSight[I])
+			{
+				AddBlocker(URTHexLibrary::SightBlockerHeight, URTHexLibrary::SightBlockerWidthScale);
+			}
+			if (BlocksMovement[I])
+			{
+				AddBlocker(URTHexLibrary::MovementBlockerHeight, URTHexLibrary::MovementBlockerWidthScale);
+			}
 		}
 	}
 }
