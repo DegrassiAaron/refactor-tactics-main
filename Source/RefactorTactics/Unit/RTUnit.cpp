@@ -1,4 +1,5 @@
 #include "Unit/RTUnit.h"
+#include "Turn/RTReactionOpportunityTypes.h" // IsDeclaredConditionAllowed: la validazione sta in un posto solo
 #include "Turn/RTPlaybackLibrary.h" // DirectionYaw: facing planare, presentazione
 #include "Map/RTHexLibrary.h"
 #include "Combat/RTCombatLibrary.h"
@@ -461,6 +462,12 @@ void ARTUnit::SyncAbilityCooldowns()
 int32 ARTUnit::GetAbilityCooldown(int32 Index) const
 {
 	return AbilityCooldowns.IsValidIndex(Index) ? AbilityCooldowns[Index] : 0;
+}
+
+void ARTUnit::ClearReactionPlan()
+{
+	PlannedReactionAbility = INDEX_NONE;
+	PlannedReactionCondition = FRTDeclaredCondition();
 }
 
 bool ARTUnit::SetPlannedReactionCondition(const FRTDeclaredCondition& Condition)

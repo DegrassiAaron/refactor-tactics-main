@@ -4,6 +4,7 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Combat/RTOffensiveActionLibrary.h" // FRTSuppressiveZone, FRTSuppressionMover: la geometria e' UNA
 #include "Perception/RTPerceptionLibrary.h"  // ERTAwareness: il trigger richiede `Detected`, non «visibile»
+#include "Turn/RTDeclaredCondition.h" // FRTDeclaredCondition: header leggero, lo usa anche ARTUnit
 #include "Turn/RTTurnRules.h"
 #include "RTReactionOpportunityTypes.generated.h"
 
@@ -105,38 +106,6 @@ struct FRTReactionOpportunity
 	TArray<FString> AllowedResponses;
 };
 
-/**
- * Una condizione dichiarata in PIANIFICAZIONE, valutata al trigger come funzione pura ([D-012], [D-109]).
- *
- * Non e' un regime a parte: **riduce** le risposte legali di una opportunity. Se dopo la riduzione ne resta
- * una sola, il commit e' immediato e nessuna finestra si apre — ed e' cosi' che il regime *Conditional*
- * emerge dai dati invece che da un enum di policy parallelo.
- *
- * `Id` vuoto (`NAME_None`) significa **nessuna condizione**: l'Overwatch offre tutte le risposte, che e' il
- * comportamento di sempre. La v0.1 ammette un solo `Id`, e l'elenco vive nel codice.
- */
-USTRUCT()
-struct FRTDeclaredCondition
-{
-	GENERATED_BODY()
-
-	/** Quale condizione. `NAME_None` = nessuna dichiarata. */
-	UPROPERTY()
-	FName Id;
-
-	/**
-	 * Il suo parametro. Per la soglia di salute e' una percentuale **intera**: il confronto si fa in
-	 * aritmetica intera (`Health * 100 <= MaxHealth * Param`), perche' il gate `G7` della v0.1 vieta i float
-	 * in costi, priorita' e danni e una soglia in virgola mobile li farebbe rientrare dalla finestra.
-	 */
-	UPROPERTY()
-	int32 Param = 0;
-
-	FRTDeclaredCondition() = default;
-	FRTDeclaredCondition(FName InId, int32 InParam) : Id(InId), Param(InParam) {}
-
-	bool IsDeclared() const { return !Id.IsNone(); }
-};
 
 /**
  * Salute di un bersaglio al micro-step: quanto basta a valutare una condizione dichiarata, e non un byte di

@@ -923,7 +923,10 @@ void ARTTurnManager::LockInAndResolve()
 			// scatterebbero mai, restando dati senza consumatore. Questa e' la fine del turno dell'unita', ed e'
 			// dove un piano smette di valere. Pinnato da `Turn.PlansDoNotSurviveTheTurn`, che cade se questa
 			// riga sparisce (verifica di mutazione, 2026-08-12).
-			Unit->PlannedReactionAbility = INDEX_NONE;
+			//
+			// Azzera lo slot **e la sua condizione** ([D-109]): sono una cosa sola, e separarle rimetterebbe in
+			// gioco una condizione orfana che il prossimo armamento erediterebbe.
+			Unit->ClearReactionPlan();
 			// E con lui il contatore delle attivazioni ([D-092]): «una per TURNO» ha bisogno di sapere quando
 			// il turno finisce, ed e' qui — lo stesso punto in cui il piano smette di valere.
 			Unit->ReactionActivationsThisTurn = 0;

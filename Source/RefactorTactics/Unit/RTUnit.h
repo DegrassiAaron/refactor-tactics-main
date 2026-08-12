@@ -5,7 +5,7 @@
 #include "GameplayTagContainer.h"
 #include "Core/RTTypes.h"
 #include "Ability/RTActionDef.h" // ERTMovementStyle: le rotazioni legali sono una proprieta' dello STILE
-#include "Turn/RTReactionOpportunityTypes.h" // FRTDeclaredCondition: la condizione dichiarata vive nel piano
+#include "Turn/RTDeclaredCondition.h" // la condizione dichiarata vive nel piano dell'unita'
 #include "Selection/RTSelectable.h"
 #include "RTUnit.generated.h"
 
@@ -289,6 +289,16 @@ public:
 	 * legittimo: e' il modo di tornare a «rispondi comunque».
 	 */
 	bool SetPlannedReactionCondition(const FRTDeclaredCondition& Condition);
+
+	/**
+	 * Azzera il piano di REAZIONE: lo slot e la sua condizione, insieme.
+	 *
+	 * Esiste per non poter dimenticare la seconda meta'. Azzerare lo slot e lasciare la condizione la
+	 * renderebbe orfana, e il turno dopo il giocatore se la ritroverebbe addosso senza averla chiesta:
+	 * `SetPlannedReactionCondition` rifiuta di crearne una all'ingresso, e senza questo metodo la stessa cosa
+	 * rientrerebbe dalla porta di servizio del reset.
+	 */
+	void ClearReactionPlan();
 
 	/**
 	 * Quante REAZIONI l'unita' ha gia' attivato in questo turno ([D-092]). Si azzera a fine turno, insieme al
