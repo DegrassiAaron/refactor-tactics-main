@@ -107,6 +107,19 @@ public:
 	static TArray<URTHeroData*> GetHeroRoster();
 
 	/**
+	 * I soli `HeroId` spediti, senza costruire il roster.
+	 *
+	 * Esiste perche' chi ha bisogno dei NOMI non deve pagare quattro `URTHeroData` completi — con tutte le
+	 * azioni e le varianti — per leggerne quattro stringhe. Il primo caso e' `URTIconLibrary::RequiredIconIds`,
+	 * che dagli eroi ricava le chiavi `UI.Icon.Identity.*` (D-031, rettifica del 2026-08-12).
+	 *
+	 * E' una lista letterale, quindi duplica cio' che i `Make*` assegnano: la duplicazione e' deliberata e
+	 * **sorvegliata da un test** (`RefactorTactics.HeroCatalog.ShippedIdsMatchRoster`). L'alternativa —
+	 * dedurli dal roster — reintrodurrebbe l'allocazione che questa funzione esiste per evitare.
+	 */
+	static TArray<FName> ShippedHeroIds();
+
+	/**
 	 * Una reazione D'EROE costruita sopra la semantica di un'azione core (CP 5.5): dal core arrivano fase,
 	 * priorita', slot, trigger, fallback e interrompibilita' — cioe' *come* la reazione si comporta nel turno;
 	 * dall'eroe l'identita' (`HeroActionId`), il cooldown e gli effetti — cioe' *cosa* fa e quanto.

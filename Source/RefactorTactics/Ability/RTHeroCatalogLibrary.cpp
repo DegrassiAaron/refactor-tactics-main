@@ -641,6 +641,13 @@ TArray<URTHeroData*> URTHeroCatalogLibrary::GetHeroRoster()
 	return { MakeFlux(), MakeRiva(), MakeBastion(), MakeVektor() };
 }
 
+TArray<FName> URTHeroCatalogLibrary::ShippedHeroIds()
+{
+	// Stesso ordine di `GetHeroRoster`, e lo stesso testo che i `Make*` assegnano a `HeroId`.
+	return { FName(TEXT("Hero.Flux")), FName(TEXT("Hero.Riva")),
+		FName(TEXT("Hero.Bastion")), FName(TEXT("Hero.Vektor")) };
+}
+
 URTActionData* URTHeroCatalogLibrary::MakeHeroReactionFromCoreAction(const FName& HeroActionId,
 	const FName& CoreActionId, int32 CooldownTurns, const TArray<FRTActionEffectSpec>& Effects,
 	int32 RangeCells)

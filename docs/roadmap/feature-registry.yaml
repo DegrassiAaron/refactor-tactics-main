@@ -3146,10 +3146,13 @@ features:
     notes: >
       D-031: le icone sono un **catalogo semantico** (`URTIconCatalogData`), non texture
       referenziate nei widget. Entra in v0.1 perché E11 costruisce l'HUD adesso e riscrivere ogni
-      widget dopo costerebbe di più. La v0.1 (**E20**, `#217`–`#220`) popola cinque categorie su
-      dodici; le altre sette e i consumer world-space, reaction e perception sono **E25** in
-      `roadmap-post-v0.1.md` (`#265` epic, `#266`–`#269` checkpoint), aperta il 2026-08-08. Una
-      sola feature per due epic: il catalogo è lo stesso, cambia quanto ne è popolato.
+      widget dopo costerebbe di più. La v0.1 (**E20**, `#217`–`#220`) popola **quattro** categorie
+      su dodici — Identity, Action, Phase, Status; le altre otto e i consumer world-space, reaction
+      e perception sono **E25** in `roadmap-post-v0.1.md` (`#265` epic, `#266`–`#269` checkpoint),
+      aperta il 2026-08-08. Una sola feature per due epic: il catalogo è lo stesso, cambia quanto
+      ne è popolato. Rettifica del 2026-08-12: erano cinque, con `Certainty`, che esce perché i
+      tre stati sono modificatori di stile e non chiavi risolvibili (D-031). Il set obbligatorio
+      generato da `RequiredIconIds()` passa da 51 a 55 chiavi.
 
   - feature_id: RT-FEAT-UI-SCENARIO-BROWSER
     title: Selettore e indice degli scenari

@@ -1,6 +1,8 @@
 #include "Misc/AutomationTest.h"
 #include "Ability/RTActionDef.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 #include "Core/RTGameplayTags.h"
 #include "UI/RTIconCatalogData.h"
 #include "UI/RTIconLibrary.h"
@@ -86,6 +88,28 @@ bool FRTIconRequiredIdsTest::RunTest(const FString&)
 	TestFalse(TEXT("Cleanup non e' una fase in cui si agisce"),
 		Required.Contains(FName(TEXT("UI.Icon.Phase.Cleanup"))));
 
+	// Ogni eroe spedito ha la sua chiave di identita', e il prefisso di dominio `Hero.` e' tradotto in quello
+	// di catalogo `Identity.`: e' l'unico punto in cui i due non coincidono, quindi e' l'unico che va pinnato.
+	for (const FName& HeroId : URTHeroCatalogLibrary::ShippedHeroIds())
+	{
+		const FString Name = HeroId.ToString();
+		TestTrue(*FString::Printf(TEXT("HeroId '%s' segue la convenzione Hero.<Nome>"), *Name),
+			Name.StartsWith(TEXT("Hero.")));
+
+		const FName Expected(*FString::Printf(TEXT("UI.Icon.Identity.%s"), *Name.RightChop(5)));
+		TestTrue(*FString::Printf(TEXT("chiave richiesta per %s"), *Name), Required.Contains(Expected));
+	}
+	TestTrue(TEXT("Identity.Flux e' richiesto"), Required.Contains(FName(TEXT("UI.Icon.Identity.Flux"))));
+	TestFalse(TEXT("nessuna chiave conserva il prefisso di dominio Hero."),
+		Required.Contains(FName(TEXT("UI.Icon.Hero.Flux"))));
+
+	// `Certainty` NON e' una categoria di catalogo: i tre stati sono modificatori di stile (D-031, rettifica
+	// del 2026-08-12). Se qualcuno li aggiungesse qui, questo test cade prima che nascano gli asset.
+	TestFalse(TEXT("Certainty.Confirmed non e' una chiave"),
+		Required.Contains(FName(TEXT("UI.Icon.Certainty.Confirmed"))));
+	TestFalse(TEXT("Certainty.Predicted non e' una chiave"),
+		Required.Contains(FName(TEXT("UI.Icon.Certainty.Predicted"))));
+
 	// Il prefisso tiene separate icone e Gameplay Tag: nessuna chiave e' il nome nudo di un tag.
 	for (const FName& Id : Required)
 	{
@@ -96,6 +120,39 @@ bool FRTIconRequiredIdsTest::RunTest(const FString&)
 	// Deterministico: due chiamate danno la stessa lista nello stesso ordine (i tag arrivano da un manager
 	// che non garantisce l'ordine, ed e' per questo che vengono ordinati).
 	TestTrue(TEXT("due chiamate danno la stessa lista"), Required == URTIconLibrary::RequiredIconIds());
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// `ShippedHeroIds` duplica i nomi che i `Make*` assegnano, per non allocare quattro `URTHeroData` completi
+// solo per leggerne quattro stringhe. La duplicazione e' accettabile SOLO se qualcuno la sorveglia: senza
+// questo test, un eroe aggiunto al roster e dimenticato nella lista sparirebbe dalle icone di identita' in
+// silenzio — e nessun gate lo direbbe, perche' entrambe le fonti resterebbero internamente coerenti.
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShippedHeroIdsTest,
+	"RefactorTactics.HeroCatalog.ShippedIdsMatchRoster",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShippedHeroIdsTest::RunTest(const FString&)
+{
+	const TArray<FName> Declared = URTHeroCatalogLibrary::ShippedHeroIds();
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+
+	TestEqual(TEXT("stesso numero di eroi"), Declared.Num(), Roster.Num());
+
+	for (int32 i = 0; i < Roster.Num() && i < Declared.Num(); ++i)
+	{
+		if (!Roster[i])
+		{
+			AddError(FString::Printf(TEXT("eroe %d nullo nel roster"), i));
+			continue;
+		}
+		// Stesso ordine, non solo stesso insieme: `GetHeroRoster` dichiara un ordine e chi legge i nomi
+		// senza costruire il roster deve ottenere esattamente quello.
+		TestEqual(*FString::Printf(TEXT("HeroId %d coincide"), i),
+			Declared[i].ToString(), Roster[i]->HeroId.ToString());
+	}
 
 	return true;
 }

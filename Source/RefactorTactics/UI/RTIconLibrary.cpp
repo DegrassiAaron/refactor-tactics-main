@@ -3,6 +3,7 @@
 #include "RefactorTactics.h"
 #include "Ability/RTActionDef.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Ability/RTHeroCatalogLibrary.h"
 #include "GameplayTagsManager.h"
 #include "Turn/RTTurnRules.h"
 
@@ -74,6 +75,31 @@ TArray<FName> URTIconLibrary::RequiredIconIds()
 		// produrre due liste diverse, e un confronto fra cataloghi diventerebbe rumore.
 		StatusIds.Sort([](const FName& A, const FName& B) { return A.LexicalLess(B); });
 		Ids.Append(StatusIds);
+	}
+
+	// IDENTITA' — gli eroi spediti. Come per azioni e stati la fonte e' il gioco, non una lista qui: se
+	// domani il roster cambia, la chiave nasce o sparisce da sola.
+	//
+	// L'`HeroId` e' `Hero.Flux`, e `Hero` NON e' una categoria di `ERTIconCategory`: passarlo a `MakeIconId`
+	// darebbe `UI.Icon.Hero.Flux`, che il validator rifiuterebbe perche' il segmento non nomina la categoria
+	// dichiarata. Il prefisso di dominio va quindi tradotto in quello di catalogo — ed e' l'unico punto in
+	// cui una categoria non coincide con l'identificatore che la origina.
+	{
+		const FString HeroPrefix = TEXT("Hero.");
+		const FString IdentityPrefix = FString::Printf(TEXT("%s."), *CategoryName(ERTIconCategory::Identity));
+
+		for (const FName& HeroId : URTHeroCatalogLibrary::ShippedHeroIds())
+		{
+			const FString Name = HeroId.ToString();
+			if (!Name.StartsWith(HeroPrefix))
+			{
+				// Un `HeroId` fuori convenzione non diventa una chiave silenziosamente sbagliata.
+				UE_LOG(LogRT, Warning, TEXT("HeroId '%s' non ha il prefisso '%s': nessuna icona di identita'"),
+					*Name, *HeroPrefix);
+				continue;
+			}
+			Ids.AddUnique(MakeIconId(FName(*(IdentityPrefix + Name.RightChop(HeroPrefix.Len())))));
+		}
 	}
 
 	return Ids;

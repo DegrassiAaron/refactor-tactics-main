@@ -182,10 +182,16 @@ scenari, golden replay e mappe salvate.
 
 **Obiettivo**: estendere il catalogo di E20 alle dodici categorie piene, con world-space HUD e pagine wiki.
 
-E20 popola cinque categorie su dodici — Identity, Action, Phase, Status, Certainty — e lascia le altre sette
+E20 popola **quattro** categorie su dodici — Identity, Action, Phase, Status — e lascia le altre otto
 dichiarate e vuote. Questa epic le riempie **quando** il consumer esiste: Reaction dipende da E14, Information
 da E13/E27, le icone di fazione oltre le due canoniche da E35. Nessuna categoria fa nascere una feature di
 gameplay per poter mostrare un'icona.
+
+> ⚠️ **2026-08-12 — `Certainty` si sposta qui.** Era la quinta categoria della v0.1. Ne esce perché non ha
+> una fonte: `Confirmed` e `Predicted` non esistono nel codice, e i tre stati sono **modificatori di stile**
+> (tratto pieno · tratteggiato · dissolto) secondo [`../technical/progettazione-hud.md`](../technical/progettazione-hud.md)
+> §16, non icone risolvibili. Se un giorno servirà un badge `?` come glifo autonomo, nasce qui. Rettifica in
+> [D-031](../decisions/RT_PDR_00_Decision_Log.md).
 
 | CP | Obiettivo | DoD misurabile |
 |---|---|---|
