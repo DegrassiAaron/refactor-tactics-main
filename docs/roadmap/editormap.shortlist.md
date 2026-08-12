@@ -75,7 +75,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 **READY** — *Si puo' fare adesso, fuori percorso critico*
 
-- **U18** · Verifiche senza prerequisiti — 1/5 voci verdi
+- **U18** · Verifiche senza prerequisiti — 1/8 voci verdi
 
 **WAITING** — *Aspetta codice*
 
@@ -94,7 +94,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 | | Seduta | Produce | Sbloccata da | Critico | Voci | Stato |
 |---|---|---|---|:--:|:--:|:--:|
-| **U18** | Verifiche senza prerequisiti | verdetto su cinque voci che non attendono nulla | — | no | 1/5 | 🟡 |
+| **U18** | Verifiche senza prerequisiti | verdetto su otto voci che non attendono nulla | — | no | 1/8 | 🟡 |
 | **U1** | Mappa-arena hex | `DA_HexMap_Arena` e `L_HexArena`, committati | M6.0 | sì | 0/7 | 🟡 |
 | **U2** | Partita hex, primo giro | verdetto su allestimento e movimento | M6.1, M6.2 | sì | 3/4 | 🟡 |
 | **U3** | Input e pianificazione | verdetto su selezione, budget e anteprima del percorso | M6.3 | sì | 1/4 | 🟡 |
@@ -122,9 +122,9 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 #### U18 · Verifiche senza prerequisiti 🟡
 
 **Sbloccata da**: — · **Percorso critico**: no
-**Produce**: verdetto su cinque voci che non attendono nulla
-**Verifichi**: `PIE-PREVIEW-AREA` ✅ · `PIE-V01-MATCHEND` ⏳ · `PIE-TEST-CONSOLE` 🟡 · `PIE-HEX-LAYER` ⏳ · `PIE-HEX-TRANS` ⏳
-**Finita quando**: le cinque voci hanno esito reale nel registro
+**Produce**: verdetto su otto voci che non attendono nulla
+**Verifichi**: `PIE-PREVIEW-AREA` ✅ · `PIE-V01-MATCHEND` ⏳ · `PIE-TEST-CONSOLE` 🟡 · `PIE-HEX-LAYER` ⏳ · `PIE-HEX-TRANS` ⏳ · `PIE-HEX-LAYER-FOCUS` ⏳ · `PIE-HEX-LAYER-CLICK` ⏳ · `PIE-HEX-LAYER-PANEL` ⏳
+**Finita quando**: le otto voci hanno esito reale nel registro
 
 **E' la sola seduta che non attende nulla**: nessun checkpoint da chiudere, nessuna seduta
 prima, nessun artefatto da committare. *Senza prerequisiti* non vuol dire *senza allestimento*:
@@ -147,8 +147,18 @@ L'ordine non e' arbitrario:
 3. `PIE-HEX-LAYER` e `PIE-HEX-TRANS` in coda, sull'**editor** e non in Play: servono un
    `ARTHexMapActor` con celle su >=2 layer, che si ottiene con `GenerateIntoAsset` —
    `ActiveLayer=0`, poi `ActiveLayer=1`. Nessuna mappa da costruire a mano.
+4. Le tre `PIE-HEX-LAYER-*` **sullo stesso asset del punto 3**, senza rigenerare nulla: e' per
+   questo che stanno qui e non in una seduta propria. In piu' serve il mode **Hex Map** attivo,
+   perche' i contorni dei piani di contesto li disegnano i tool, non l'actor: con `LayerView=Focus`
+   ma senza mode attivo e senza `bShowOverlay` acceso nel pannello del tool, `Focus` e'
+   indistinguibile da `ActiveOnly` — e la voce sembrerebbe fallita mentre e' solo non allestita.
 
-> Nasce dalla sessione G del registro (2026-08-08), che non aveva una seduta corrispondente: le tre voci erano nella checklist ma in nessuna seduta, e una voce che non sta in una seduta non viene eseguita mai. **Dal 2026-08-10 ne ospita cinque**: `PIE-HEX-LAYER` e `PIE-HEX-TRANS` erano in U1, ma le loro precondizioni nel registro citano un asset *generato* (`GenerateIntoAsset`, due celle sovrapposte) e non l'arena — stavano su una seduta del percorso critico senza dipenderne. Issue 450. Nello stesso passaggio il titolo e' cambiato da «senza preparazione» a «senza prerequisiti»: le due voci nuove un allestimento ce l'hanno — generano celle su due layer in editor — e il vecchio titolo sarebbe diventato falso per due voci su cinque. Cio' che accomuna le cinque non e' l'assenza di allestimento ma l'assenza di **attese**: nessuna dipende da codice mancante o da una seduta prima.
+   > ⚠️ **`PIE-HEX-LAYER-CLICK` va fatta con la camera OBLIQUA**, non dall'alto. Il difetto che
+   > verifica e' che il raggio del click agganci il disco di un piano superiore e venga poi
+   > proiettato su quello attivo: lo scarto e' orizzontale e proporzionale a `LayerHeight`,
+   > quindi guardando a picco vale zero e la voce passerebbe comunque, rotta o no.
+
+> Nasce dalla sessione G del registro (2026-08-08), che non aveva una seduta corrispondente: le tre voci erano nella checklist ma in nessuna seduta, e una voce che non sta in una seduta non viene eseguita mai. **Dal 2026-08-10 ne ospita cinque**: `PIE-HEX-LAYER` e `PIE-HEX-TRANS` erano in U1, ma le loro precondizioni nel registro citano un asset *generato* (`GenerateIntoAsset`, due celle sovrapposte) e non l'arena — stavano su una seduta del percorso critico senza dipenderne. Issue 450. Nello stesso passaggio il titolo e' cambiato da «senza preparazione» a «senza prerequisiti»: le due voci nuove un allestimento ce l'hanno — generano celle su due layer in editor — e il vecchio titolo sarebbe diventato falso per due voci su cinque. Cio' che accomuna le cinque non e' l'assenza di allestimento ma l'assenza di **attese**: nessuna dipende da codice mancante o da una seduta prima. **Dal 2026-08-12 sono otto**: `PIE-HEX-LAYER-FOCUS`, `-CLICK` e `-PANEL` arrivano col merge di #565 (issue 567) e riusano l'asset generato del punto 3 senza aggiungere allestimento. Sono finite qui per la stessa ragione per cui questa seduta esiste: erano nel registro e in nessuna seduta — il conteggio della EditorMap le aveva gia' contate fra le voci orfane (`PIE-HEX-*` da 9 a 12) prima che qualcuno le collocasse.
 
 #### U1 · Mappa-arena hex 🟡
 
@@ -583,7 +593,7 @@ E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 
 > Nasce dal piano `BAL-1` (`plans/bal-1-guard-brace-roadmap-2026-08-10.md` §6). **Non entra nel subset `RELEASE-V01`**: `BAL-1` non blocca la consegna, e un gate che si allarga senza motivo e' il difetto che G9 ha gia' avuto due volte. La seduta ha una voce sola di proposito — e' una domanda che si risponde una volta, guardandola. ⚠️ ID assegnato al merge: preso `U20` con `U19` come ultimo su `main`. Chi arriva secondo rinumera, non contende.
 
-> **58 voci del registro non stanno in nessuna seduta** — `PIE-BU-*` 4 · `PIE-CP-*` 1 · `PIE-HEX-*` 12 · `PIE-MP-*` 1 · `PIE-MUT-*` 2 · `PIE-P-*` 1 · `PIE-REPLAY-*` 1 · `PIE-SCEN-*` 2 · `PIE-STATE-*` 10 · `PIE-TEST-*` 2 · `PIE-V-*` 1 · `PIE-VIS-*` 21. Non e' per forza un difetto (le `PIE-VIS-*` hanno il proprio scenario, le `PIE-STATE-*` verificano un sistema che non esiste), ma una voce che non sta in una seduta non viene eseguita mai: e' la ragione per cui questo conteggio e' qui.
+> **55 voci del registro non stanno in nessuna seduta** — `PIE-BU-*` 4 · `PIE-CP-*` 1 · `PIE-HEX-*` 9 · `PIE-MP-*` 1 · `PIE-MUT-*` 2 · `PIE-P-*` 1 · `PIE-REPLAY-*` 1 · `PIE-SCEN-*` 2 · `PIE-STATE-*` 10 · `PIE-TEST-*` 2 · `PIE-V-*` 1 · `PIE-VIS-*` 21. Non e' per forza un difetto (le `PIE-VIS-*` hanno il proprio scenario, le `PIE-STATE-*` verificano un sistema che non esiste), ma una voce che non sta in una seduta non viene eseguita mai: e' la ragione per cui questo conteggio e' qui.
 
 <!-- RT_SHORTLIST_EDITOR:END -->
 

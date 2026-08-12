@@ -4817,10 +4817,10 @@
         "ui_wiki": "todo",
         "packaged": "todo",
         "network_privacy": "na",
-        "replay_representable": "todo"
+        "replay_representable": "na"
       },
       "gates_done": 0,
-      "gates_applicable": 9,
+      "gates_applicable": 8,
       "roadmap": {
         "epic": null,
         "milestone": null,
@@ -5084,12 +5084,15 @@
         "docs/roadmap/editormap.shortlist.md",
         "docs/roadmap/hex-map-roadmap.md"
       ],
-      "issues": [],
+      "issues": [
+        567
+      ],
       "tests": [
         "RefactorTactics.HexMap.ApplyBrushMerge",
         "RefactorTactics.HexMap.FloodRegion",
         "RefactorTactics.HexMap.StrokeEquivalence",
-        "RefactorTactics.HexMap.LookupInvalidatedAfterExternalEdit"
+        "RefactorTactics.HexMap.LookupInvalidatedAfterExternalEdit",
+        "RefactorTactics.HexMapActor.LayerFilterOnConstruction"
       ],
       "scenarios": [],
       "scenarios_planned": [],
@@ -5097,10 +5100,10 @@
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-12",
+        "commit": "fe9883c"
       },
-      "notes": "`Source/RefactorTacticsEditor/` con tool di paint, fill, select e archi. Il residuo sono **verifiche PIE aperte** (H5: E/F/G/H/L/N) registrate in `test-manuali-pie.md`, non gate impliciti. `packaged: na` — è uno strumento d'editor, non entra nella build di gioco."
+      "notes": "`Source/RefactorTacticsEditor/` con tool di paint, fill, select e archi. Il residuo sono **verifiche PIE aperte** (H5: E/F/G/H/L/N, piu' le tre `PIE-HEX-LAYER-*` della vista a livelli) registrate in `test-manuali-pie.md`, non gate impliciti. `packaged: na` — è uno strumento d'editor, non entra nella build di gioco.\n\nLa vista a livelli ha un terzo stato `Focus` (#565): istanze sul solo piano attivo, gli altri a contorno attenuato. Nello stesso passaggio il click ha smesso di scavalcare il piano attivo — in `AllLayers` il raggio poteva agganciare il disco di un altro piano e l'`ImpactPoint` veniva proiettato su quello attivo, spostando la cella di circa `LayerHeight` in orizzontale. `LayerFilterOnConstruction` tiene l'invariante che rende vera la seconda cosa: i piani di contesto **non** sono istanze, quindi non hanno collisione e il raycast non puo' vederli."
     },
     {
       "feature_id": "RT-FEAT-TOOL-VALIDATION",

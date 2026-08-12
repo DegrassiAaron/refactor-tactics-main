@@ -189,7 +189,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-TOOL-CONTROL-CENTER` — Project Control Center — la UI web del registry | future | IMPLEMENTING | 2/6 | — | — |
 | `RT-FEAT-TOOL-DEBUG-CONSOLE` — Comandi console rt.Debug e rt.Test | v0.1 | IMPLEMENTING | 3/6 | E11 | Ne esistono 2 su 8: senza, si debugga a occhio |
 | `RT-FEAT-WIKI-CHART-GENERATOR` — Generatore SVG deterministico dei radar | future | SPECIFIED | 1/6 | — | — |
-| `RT-FEAT-BOT-BELIEF` — Belief — celle plausibili, decadimento e minaccia proiettata | future | DESIGNED | 0/9 | fuori scope | — |
+| `RT-FEAT-BOT-BELIEF` — Belief — celle plausibili, decadimento e minaccia proiettata | future | DESIGNED | 0/8 | fuori scope | — |
 | `RT-FEAT-BOT-PREDICTIVE` — Scenari nemici plausibili e piano robusto | future | DESIGNED | 0/9 | fuori scope | — |
 | `RT-FEAT-BOT-TACTICAL` — Team Planner — piano di squadra, ruoli dinamici e sinergie | v0.2 | DESIGNED | 0/8 | fuori scope | Epic E26 |
 

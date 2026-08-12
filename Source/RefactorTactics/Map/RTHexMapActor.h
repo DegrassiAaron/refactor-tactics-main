@@ -307,6 +307,19 @@ protected:
 	TObjectPtr<UInstancedStaticMeshComponent> Cells;
 
 	/**
+	 * Rilievo che mostra il COSTO di attraversamento: un blocco alto quanto il sovrapprezzo della cella.
+	 *
+	 * **Collisione disabilitata, e non e' un dettaglio.** Il raycast di selezione valida `Result.GetActor()
+	 * == Actor` — l'ACTOR, non il componente — quindi qualunque geometria collidibile aggiunta qui
+	 * intercetterebbe i click del pennello, riaprendo il difetto chiuso al CP della vista Focus. Si
+	 * manifesterebbe come «dipinge dove non ho cliccato», e nessuno lo attribuirebbe alla visualizzazione.
+	 *
+	 * E' la stessa ragione per cui i piani di contesto di `Focus` non diventano istanze.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TObjectPtr<UInstancedStaticMeshComponent> Relief;
+
+	/**
 	 * Mapping instance index -> FRTCellId (per selezione/debug). Stato DERIVATO, non serializzato:
 	 * viene rigenerato da RebuildInstances a ogni costruzione dell'actor.
 	 */

@@ -333,6 +333,23 @@ bool FRTArenaV01MeetsCriteriaTest::RunTest(const FString&)
 	AddInfo(FString::Printf(TEXT("ArenaV01 (%d celle):\n%s"),
 		Arena->NumCells(), *URTArenaCriteriaLibrary::FormatReport(Report)));
 
+	// Diagnostica: quali celle hanno un COSTO, cioe' quali producono un rilievo nella vista dell'editor.
+	// Serve a rispondere a «ne vedo N» senza contarle a occhio: celle costose adiacenti si leggono come un
+	// blocco solo, e la differenza fra «tre elementi» e «quattro celle» e' esattamente quel tipo di equivoco.
+	{
+		FString Costly;
+		int32 CostlyCount = 0;
+		for (const FRTHexCellData& C : Arena->Cells)
+		{
+			if (C.MoveCost > 1)
+			{
+				++CostlyCount;
+				Costly += FString::Printf(TEXT("(%d,%d)=%d "), C.Id.X, C.Id.Y, C.MoveCost);
+			}
+		}
+		AddInfo(FString::Printf(TEXT("celle con costo > 1: %d --> %s"), CostlyCount, *Costly));
+	}
+
 	// Diagnostica: DOVE passano le due rotte. Senza, correggere il layout sarebbe indovinare — e il fango
 	// finisce dove nessuno cammina.
 	{

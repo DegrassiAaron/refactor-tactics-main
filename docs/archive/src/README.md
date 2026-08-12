@@ -3,9 +3,12 @@
 > `HISTORICAL` · **Materiale NON autorevole** · **Primo lotto archiviato il 2026-08-08**
 >
 > I **49** documenti in questa cartella sono i **sorgenti** da cui è nata parte della documentazione normativa.
-> *(⚠️ La tabella `handoff/` ne elenca **tre in meno** del misurato: `2026-08-10-baseaction-signatures-brace-overwatch.md`,
-> `2026-08-10-facing-consolidation.md` e `2026-08-10-overwatch-runtime-lifecycle-watch-reposition.md` sono sul
-> disco senza una riga d'indice. Rimisurato il 2026-08-12: design 15/15, handoff **29/32**, audit 2/2.)*
+> *(misurato il 2026-08-12 con il comando in fondo a questa intestazione, non incrementato a mano: due rami
+> lo dichiaravano diverso — «47» da una parte, «48» dall'altra — ed entrambi erano giusti sulla propria base
+> e falsi dopo l'unione. Il numero di questa riga si rimisura **dopo** un merge, mai prima. ⚠️ La tabella
+> `handoff/` ne elenca comunque meno del misurato: **tre** sorgenti del 2026-08-10 sono sul disco senza una
+> riga d'indice — `2026-08-10-baseaction-signatures-brace-overwatch.md`,
+> `2026-08-10-facing-consolidation.md`, `2026-08-10-overwatch-runtime-lifecycle-watch-reposition.md`.)*
 > Il primo lotto era in [`../../src/`](../../src/); ogni sorgente si sposta qui quando un owner documentale lo
 > ha recepito. Restano per **provenienza**: servono a ricostruire *da dove* è nata una decisione, non a deciderla.
 >
@@ -41,14 +44,11 @@
 > Preso in code review. La lezione non regge da sola — la formula c'era, e nessuno l'ha eseguita — quindi
 > vale la riga operativa: **esegui il comando, non aggiungere uno.** Rimisurato il 2026-08-11.
 >
-> ⚠️ **Quarta volta, e stavolta il numero l'ha rotto un `merge`.** Il 2026-08-12, mergiando `main` in
-> `feat/hex-layer-focus-view`, questo paragrafo è stato **l'unico conflitto documentale reale** dei sei: un
-> lato diceva «47 · 15 + 30 + 2», l'altro «48 · 15 + 31 + 2», ed **erano sbagliati entrambi** — sui due rami
-> insieme i file sono **49**, perché il ramo portava
-> [`handoff/2026-08-11-five-lane-roadmap-editor-replay.md`](handoff/2026-08-11-five-lane-roadmap-editor-replay.md)
-> che `main` non aveva. Un totale scritto a mano non ha un lato giusto da scegliere: **si rimisura sull'albero
-> mergiato**, che è ciò che è stato fatto qui. La riga d'indice di quel file c'era già, quindi la tabella è
-> completa.
+> 🔁 **Il 2026-08-12 «49 · 15 + 32 + 2» è diventato il valore giusto** — e non perché la nota qui sopra
+> sbagliasse: un merge ha portato un handoff in più, e la misura è cambiata sotto una riga che restava ferma.
+> È lo stesso difetto visto da un'altra angolazione: due rami dichiaravano «47» e «48», **entrambi corretti
+> sulla propria base e falsi dopo l'unione**. Un numero che era vero quando è stato scritto non resta vero;
+> va rimisurato **dopo il merge**, come dice il registro delle verifiche PIE per il proprio conteggio.
 
 **Se cerchi la regola, non sei nel posto giusto**: la colonna «Recepito da» dice chi la possiede oggi.
 In caso di conflitto prevalgono [`../../product/piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md),

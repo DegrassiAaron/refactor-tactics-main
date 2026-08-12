@@ -310,7 +310,7 @@
       "critical": false,
       "state": "🟡",
       "queue_group": "READY",
-      "produces": "verdetto su cinque voci che non attendono nulla",
+      "produces": "verdetto su otto voci che non attendono nulla",
       "artifacts": [],
       "unblocked_by": [],
       "unblocks": [],
@@ -335,12 +335,25 @@
         {
           "id": "PIE-HEX-TRANS",
           "state": "⏳"
+        },
+        {
+          "id": "PIE-HEX-LAYER-FOCUS",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-HEX-LAYER-CLICK",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-HEX-LAYER-PANEL",
+          "state": "⏳"
         }
       ],
       "issues": [
-        450
+        450,
+        567
       ],
-      "done_when": "le cinque voci hanno esito reale nel registro"
+      "done_when": "le otto voci hanno esito reale nel registro"
     },
     {
       "id": "U1",
