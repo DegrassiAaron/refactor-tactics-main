@@ -326,4 +326,191 @@ bool FRTScenarioLoaderLogAssertionsTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * CP 13.5 (#160): un'unita' puo' essere dichiarata guidata dal BOT, e la sua condizione iniziale scritta.
+ *
+ * Le due meta' del test sono asimmetriche e devono restarlo. Il PARSING e' banale — tre chiavi — mentre cio'
+ * che vale sono i due RIFIUTI: un intent scritto su un'unita' bot e un sentinella che si confonde con un
+ * valore chiesto davvero. Senza il primo, uno scenario dichiara una mossa e ne gioca un'altra restando verde
+ * quando le due combaciano per caso; senza il secondo, `"shield": 0` sarebbe indistinguibile da «shield non
+ * dichiarato» e un'esca con lo scudo del roster passerebbe per un'esca senza scudo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderBotUnitTest,
+	"RefactorTactics.Scenario.LoaderReadsBotUnitsAndCondition",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderBotUnitTest::RunTest(const FString&)
+{
+	auto Load = [](const TCHAR* UnitsJson, const TCHAR* TurnsJson, FRTTestScenario& Out, FString& Error)
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Test.BotUnits",
+		  "mapRadius": 3,
+		  "units": [ %s ],
+		  "turns": [ %s ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		})JSON"), UnitsJson, TurnsJson);
+		return URTScenarioLoader::LoadFromString(Json, Out, Error);
+	};
+
+	// 1. Le tre chiavi arrivano, e i default non cambiano per chi non le scrive.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(
+			TEXT(R"({ "id": "A1", "hero": "Hero.Flux", "team": 0, "cell": [-1, 0, 0] },
+			         { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [1, 0, 0], "bot": true, "health": 7, "shield": 0, "visionRange": 1 })"),
+			TEXT(R"({ "intents": [] })"), Scenario, Error);
+		if (TestTrue(FString::Printf(TEXT("scenario valido (%s)"), *Error), bOk))
+		{
+			const FRTScenarioUnit* A1 = Scenario.FindUnit(TEXT("A1"));
+			const FRTScenarioUnit* B1 = Scenario.FindUnit(TEXT("B1"));
+			if (TestNotNull(TEXT("A1"), A1) && TestNotNull(TEXT("B1"), B1))
+			{
+				TestFalse(TEXT("chi non dichiara `bot` non lo diventa"), A1->bBotControlled);
+				TestTrue(TEXT("B1 e' guidata dal bot"), B1->bBotControlled);
+				TestEqual(TEXT("health dichiarata"), B1->Health, 7);
+				// La riga che il sentinella `0` renderebbe impossibile: `shield: 0` e' una RICHIESTA.
+				TestEqual(TEXT("shield 0 e' un valore chiesto, non un campo assente"), B1->Shield, 0);
+				TestEqual(TEXT("vista dichiarata"), B1->VisionRange, 1);
+				TestEqual(TEXT("A1 non dichiara condizione: resta quella del roster"), A1->Health, -1);
+				TestEqual(TEXT("idem lo scudo"), A1->Shield, -1);
+				TestEqual(TEXT("idem la vista"), A1->VisionRange, -1);
+			}
+		}
+	}
+
+	// 2. Un intent su un'unita' bot e' un errore di SCRITTURA, non un piano.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(
+			TEXT(R"({ "id": "A1", "hero": "Hero.Flux", "team": 0, "cell": [-1, 0, 0], "bot": true },
+			         { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [1, 0, 0] })"),
+			TEXT(R"({ "intents": [ { "unit": "A1", "move": [[0, 0, 0]] } ] })"), Scenario, Error);
+		TestFalse(TEXT("un intent su un'unita' bot e' rifiutato"), bOk);
+		TestTrue(FString::Printf(TEXT("e il motivo nomina l'unita' (%s)"), *Error), Error.Contains(TEXT("A1")));
+	}
+
+	// 3. Una salute a zero schiererebbe un cadavere.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(
+			TEXT(R"({ "id": "A1", "hero": "Hero.Flux", "team": 0, "cell": [-1, 0, 0], "health": 0 })"),
+			TEXT(R"({ "intents": [] })"), Scenario, Error);
+		TestFalse(TEXT("health 0 e' rifiutata"), bOk);
+	}
+
+	return true;
+}
+
+/**
+ * CP 13.5 (#160): le VARIANTI, e i quattro modi in cui un canary differenziale puo' nascere gia' vuoto.
+ *
+ * Ognuno dei rifiuti qui sotto corrisponde a uno scenario che sarebbe stato **verde per sempre** senza mettere
+ * alla prova niente: un confronto fra una cosa sola, una variante che non cambia nulla, due varianti con lo
+ * stesso nome (il report non saprebbe dire quale e' rossa), e un'unita' spostata dove ce n'e' gia' un'altra.
+ * Sono la ragione per cui la validazione delle varianti sta nel loader e non nella buona volonta' di chi
+ * scrive lo scenario.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderVariantsTest,
+	"RefactorTactics.Scenario.LoaderRejectsEmptyVariantComparisons",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderVariantsTest::RunTest(const FString&)
+{
+	auto Load = [](const TCHAR* VariantsJson, const TCHAR* SameJson, FRTTestScenario& Out, FString& Error)
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Test.Variants",
+		  "mapRadius": 4,
+		  "units": [
+		    { "id": "A1", "hero": "Hero.Flux",    "team": 0, "cell": [-1, 0, 0] },
+		    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [1, 0, 0] }
+		  ],
+		  %s
+		  "variants": [ %s ],
+		  "turns": [ { "intents": [] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		})JSON"), SameJson, VariantsJson);
+		return URTScenarioLoader::LoadFromString(Json, Out, Error);
+	};
+
+	// 1. Il caso valido, che da' senso ai rifiuti sotto.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(
+			TEXT(R"({ "name": "a", "units": [ { "id": "A1", "cell": [-2, 0, 0] } ] },
+			         { "name": "b", "units": [ { "id": "A1", "cell": [-3, 0, 0] } ] })"),
+			TEXT(R"("expectSameAcrossVariants": true,)"), Scenario, Error);
+		if (TestTrue(FString::Printf(TEXT("due varianti valide (%s)"), *Error), bOk))
+		{
+			TestEqual(TEXT("due varianti lette"), Scenario.Variants.Num(), 2);
+			TestTrue(TEXT("il confronto e' richiesto"), Scenario.bExpectSameAcrossVariants);
+			if (Scenario.Variants.Num() == 2)
+			{
+				TestEqual(TEXT("la seconda sposta A1"), Scenario.Variants[1].Units[0].Cell, FRTCellId(-3, 0, 0));
+			}
+		}
+	}
+
+	// 2. Un confronto fra UNA cosa: verde per costruzione.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(TEXT(R"({ "name": "sola", "units": [ { "id": "A1", "cell": [-2, 0, 0] } ] })"),
+			TEXT(R"("expectSameAcrossVariants": true,)"), Scenario, Error);
+		TestFalse(TEXT("una sola variante e' rifiutata"), bOk);
+	}
+
+	// 3. Una variante che non sposta niente: il suo TurnLog coincide senza aver provato nessun ingresso.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(
+			TEXT(R"({ "name": "a", "units": [ { "id": "A1", "cell": [-2, 0, 0] } ] }, { "name": "vuota", "units": [] })"),
+			TEXT(R"("expectSameAcrossVariants": true,)"), Scenario, Error);
+		TestFalse(TEXT("una variante che non cambia nulla e' rifiutata"), bOk);
+	}
+
+	// 4. Due varianti con lo stesso nome: il report non saprebbe dire quale e' rossa.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(
+			TEXT(R"({ "name": "a", "units": [ { "id": "A1", "cell": [-2, 0, 0] } ] },
+			         { "name": "a", "units": [ { "id": "A1", "cell": [-3, 0, 0] } ] })"),
+			TEXT(R"("expectSameAcrossVariants": true,)"), Scenario, Error);
+		TestFalse(TEXT("due varianti omonime sono rifiutate"), bOk);
+	}
+
+	// 5. Una variante che mette due unita' sulla stessa cella: e' invalida SOLO nella variante, cioe' nel
+	//    posto in cui la validazione dell'allestimento normale non guarda.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(
+			TEXT(R"({ "name": "a", "units": [ { "id": "A1", "cell": [1, 0, 0] } ] },
+			         { "name": "b", "units": [ { "id": "A1", "cell": [-3, 0, 0] } ] })"),
+			TEXT(R"("expectSameAcrossVariants": true,)"), Scenario, Error);
+		TestFalse(TEXT("A1 spostata sopra B1 e' rifiutata"), bOk);
+		TestTrue(FString::Printf(TEXT("e il motivo nomina la variante (%s)"), *Error), Error.Contains(TEXT("'a'")));
+	}
+
+	// 6. Una variante che sposta un'unita' inesistente.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(
+			TEXT(R"({ "name": "a", "units": [ { "id": "FANTASMA", "cell": [-2, 0, 0] } ] },
+			         { "name": "b", "units": [ { "id": "A1", "cell": [-3, 0, 0] } ] })"),
+			TEXT(R"("expectSameAcrossVariants": true,)"), Scenario, Error);
+		TestFalse(TEXT("spostare un'unita' non schierata e' rifiutato"), bOk);
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

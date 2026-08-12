@@ -257,7 +257,62 @@ tabella di redirect stanno in [`scenario-index-e-tag.md`](scenario-index-e-tag.m
 | `ability` | `ActionId` dell'abilità (`Flux.ArcPulse`) — per **ID**, non per indice |
 | `target` | ID di scenario del bersaglio; obbligatorio con `ability` |
 | `reaction` | `ActionId` della reazione che l'unità **arma** per il turno — nessun bersaglio |
+| `bot` | *(opzionale)* l'unità è guidata dal **pianificatore del gioco**, non dal file. Un intent scritto per lei è un errore |
+| `health` · `shield` · `visionRange` | *(opzionale)* condizione iniziale al posto di quella del roster. Assenti = valori dell'eroe |
+| `variants` | *(opzionale)* rigioca lo scenario spostando alcune unità — vedi sotto |
+| `expectSameAcrossVariants` | *(opzionale)* le varianti devono produrre lo **stesso** TurnLog |
 | `expect` | assertion; **almeno una**, altrimenti lo scenario passerebbe sempre |
+
+### `bot` — chi decide l'intent
+
+Un'unità dichiarata `"bot": true` non prende il piano dal file: lo produce `ARTTurnManager::PlanBots()`, lo
+stesso che gira in partita. L'harness non apre un canale nuovo — usa `PlanBotsForTest()`, l'appiglio che il
+runner dichiara da sempre come l'unico.
+
+> ⚠️ **Non è il seam dei `DecisionProvider`** ([D-101](../decisions/RT_PDR_00_Decision_Log.md), #542, v0.2).
+> Quello serve quando i modi di giocare uno scenario diventano tre — bot vs bot, replay, umano+bot. Qui resta
+> uno: file per gli umani, pianificatore per i bot, che è la composizione della v0.1.
+
+Un intent dichiarato per un'unità bot è **rifiutato dal loader**: `PlanBots` azzera il piano di ogni unità che
+guida, quindi uno dei due sovrascriverebbe l'altro in silenzio e lo scenario resterebbe verde nei casi in cui
+le due scelte coincidono per caso.
+
+`health`, `shield` e `visionRange` usano `-1` come «non dichiarato», mai `0`: uno scudo azzerato è una
+richiesta legittima, e un sentinella che coincide con un valore valido non sa distinguere le due cose.
+
+### `variants` — l'unica forma di un canary d'indipendenza
+
+```json
+"variants": [
+  { "name": "hidden-ovest", "units": [ { "id": "HIDDEN", "cell": [-6, 3, 0] } ] },
+  { "name": "hidden-est",   "units": [ { "id": "HIDDEN", "cell": [6, -3, 0] } ] }
+],
+"expectSameAcrossVariants": true
+```
+
+Lo scenario si gioca una volta per variante, cambiando **solo** le celle dichiarate; ogni variante deve
+superare le stesse `expect`. Con `expectSameAcrossVariants` i TurnLog devono coincidere.
+
+Serve quando la proprietà da dimostrare è che un ingresso **non ha avuto effetto** — «il bot non ha usato
+un'informazione». Non è osservabile in una partita sola: ha la stessa forma di «il bot ha deciso così», e le
+due si distinguono soltanto cambiando quell'informazione e guardando se l'esito si muove.
+
+Il confronto è sul **TurnLog** e non sullo stato finale, che contiene la posizione dell'unità spostata e
+sarebbe diverso per costruzione. Due normalizzazioni, entrambe necessarie e nessuna delle due indulgente:
+
+- si escludono le voci **emesse** dall'unità che la variante sposta (`BuildMoveLog` ne scrive una per ogni
+  unità, ferme incluse, con chiave la cella di partenza). Restano le voci che la *riguardano*: se il bot la
+  bersagliasse, la voce di combattimento avrebbe come sorgente la cella del bot;
+- si azzera `UnitId`, che è l'**indice** nello snapshot: lo snapshot ordina per cella, quindi spostare
+  un'unità fa scalare gli indici di tutte le altre. Misurato — era l'unica differenza fra due tracce
+  altrimenti identiche. L'identità stabile di una voce resta `SrcCell`, come `BuildMoveLog` dichiara.
+
+Il loader rifiuta le quattro forme in cui un confronto nasce vuoto: una sola variante, una variante che non
+sposta nulla, due varianti omonime, un'unità spostata sopra un'altra.
+
+> ⚠️ **`expectSameAcrossVariants` da solo non basta**: due partite in cui non succede niente hanno TurnLog
+> identici. Serve accanto una `expect` che dimostri che qualcosa è successo — in `Spec.Bot.HiddenEnemyFairness`
+> è `LogEventCount(Combat.Hit) = 1`.
 
 ### `seed` — dichiarato, non consumato
 
