@@ -1775,7 +1775,7 @@
       "kind": "gameplay",
       "release": "v0.2",
       "priority": "P2",
-      "status": "BLOCKED",
+      "status": "DEFERRED",
       "status_derived": "DESIGNED",
       "gates": {
         "spec": "partial",
@@ -1819,7 +1819,7 @@
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {},
-      "notes": "**Bloccata su `AE-1`** (OPEN_DECISIONS, 2026-08-12): l'economia del turno resta a slot — 1 movimento, 1 principale, 1 reazione — o diventa una capacita' numerica con un costo per azione? Decide l'autore. Il modello in vigore e' `ERTActionSlot` + D-028, e il catalogo registra dal 2026-08-07 l'equivalenza «Slot ≡ Action Points, cap 2»: il kit del 2026-08-12 non aggiunge un budget, ne propone **un altro**. La differenza che decide: con gli slot `Guard + attacco` e' illegale PER STRUTTURA, con un budget diventa una questione di totale. `spec: partial` perche' la spec possiede la domanda e il modello in vigore, non la risposta. Generalizza `ECO-1`. Nessun gate puo' avanzare prima della decisione."
+      "notes": "🔴 **Decisa NO il 2026-08-12** — [D-114](../decisions/RT_PDR_00_Decision_Log.md), issue #604. L'economia del turno **resta a slot**: due azioni leggere non valgono una pesante, e senza una grandezza non c'è modo di farle valere. Il differenziale di potenza si esprime con un **drawback dichiarato sull'azione** — cooldown, status auto-inflitto, rinuncia alla reazione, esposizione — che è ciò che il catalogo già applica (`HeavyAttack` 35/cooldown 2 contro `PrecisionAttack` 24/cooldown 1). `DEFERRED` e non cancellata **di proposito**: la riga resta perché il prossimo kit riproporrà l'`ActionCapacity`, e trovare qui la decisione con la sua ragione costa meno che ridiscuterla. Se un giorno servisse una grandezza, il caso che la giustifica dovrà essere un piano che il modello a slot sbaglia — `ECO-1` ne cerca uno da agosto e non l'ha trovato."
     },
     {
       "feature_id": "RT-FEAT-ACTION-MOVEMENT-COMPAT",
