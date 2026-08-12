@@ -29,9 +29,9 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `SPECIFIED` | 10 |
 | `IMPLEMENTING` | 23 |
 | `TESTABLE` | 8 |
-| `INTEGRATED` | 24 |
+| `INTEGRATED` | 21 |
 | `RELEASE_READY` | 16 |
-| `DONE` | 1 |
+| `DONE` | 4 |
 | `DEFERRED` (fuori scala) | 1 |
 
 ### Actions · 15
@@ -58,8 +58,8 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
-| `RT-FEAT-CHAR-RADAR-MODEL` — Modello dei radar di profilo — Profile e Balance | future | INTEGRATED | 3/4 | — | — |
-| `RT-FEAT-CHAR-RADAR-RATINGS-V01` — Rubrica — i rating derivati dal catalogo eroi | future | INTEGRATED | 3/4 | — | — |
+| `RT-FEAT-CHAR-RADAR-MODEL` — Modello dei radar di profilo — Profile e Balance | future | DONE | 4/4 | — | — |
+| `RT-FEAT-CHAR-RADAR-RATINGS-V01` — Rubrica — i rating derivati dal catalogo eroi | future | DONE | 4/4 | — | — |
 | `RT-FEAT-CHAR-V01-ROSTER` — Roster v0.1 — Flux, Riva, Bastion, Vektor | v0.1 | INTEGRATED | 6/8 | E6 | I 4 eroi corrispondono al catalogo; **3 reazioni su 5** cablate |
 | `RT-FEAT-CHAR-PRESENTATION` — Presentazione dei personaggi (mesh, animazioni, anelli) | v0.1 | IMPLEMENTING | 1/7 | E21 | Il lavoro che viveva solo in M8, reso visibile dal registry |
 | `RT-FEAT-CHAR-AUXILIARY-UNITS` — Unità ausiliarie (pet, evocazioni, gadget) | v0.2 | DESIGNED | 0/9 | — | — |
@@ -184,9 +184,9 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
 | `RT-FEAT-TOOL-VALIDATION` — Validator di dati, mappe e documenti | v0.1 | DONE | 5/5 | E1 | L'unica feature `DONE` del registry |
+| `RT-FEAT-WIKI-CHART-GENERATOR` — Generatore SVG deterministico dei radar | future | DONE | 4/4 | — | — |
 | `RT-FEAT-BOT-BASE` — Bot a utility scoring deterministico | v0.1 | RELEASE_READY | 7/8 | E2 | Deterministico; le candidate nascono da `ReachableCells`, mai mosse illegali |
 | `RT-FEAT-TEST-SCENARIO-HARNESS` — Scenario Test Harness automatizzato | v0.1 | INTEGRATED | 6/8 | E15 | `PASS/FAIL/ERROR/BLOCKED`, corpus scoperto dall'indice, niente bypass |
-| `RT-FEAT-WIKI-CHART-GENERATOR` — Generatore SVG deterministico dei radar | future | INTEGRATED | 3/4 | — | — |
 | `RT-FEAT-BOT-FAIRNESS` — Il bot pianifica sulla conoscenza della sua squadra | v0.1 | TESTABLE | 3/7 | E13 | — |
 | `RT-FEAT-TOOL-MAP-EDITOR` — Editor mode della mappa esagonale | v0.1 | TESTABLE | 4/6 | M9 | **Fuori** dalla vista di release: non entra nella build di gioco |
 | `RT-FEAT-TEST-GOLDEN` — Golden replay e showcase «Il Relè» | v0.1 | IMPLEMENTING | 3/8 | E15 | Oggi `BLOCKED` su 5 capability |

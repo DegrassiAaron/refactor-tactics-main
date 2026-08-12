@@ -5342,7 +5342,7 @@ features:
     kind: data
     release: future
     priority: P3
-    status: INTEGRATED
+    status: DONE
     gates:
       spec: done
       data: done
@@ -5350,7 +5350,7 @@ features:
       log_debug: na
       automation: done
       scenario: na
-      ui_wiki: partial
+      ui_wiki: done
       packaged: na
       network_privacy: na
       replay_representable: na
@@ -5390,7 +5390,7 @@ features:
     kind: data
     release: future
     priority: P3
-    status: INTEGRATED
+    status: DONE
     gates:
       spec: done
       data: done
@@ -5398,7 +5398,7 @@ features:
       log_debug: na
       automation: done
       scenario: na
-      ui_wiki: todo
+      ui_wiki: done
       packaged: na
       network_privacy: na
       replay_representable: na
@@ -5432,7 +5432,7 @@ features:
     kind: tooling
     release: future
     priority: P3
-    status: INTEGRATED
+    status: DONE
     gates:
       spec: done
       data: done
@@ -5440,7 +5440,7 @@ features:
       log_debug: na
       automation: done
       scenario: na
-      ui_wiki: partial
+      ui_wiki: done
       packaged: na
       network_privacy: na
       replay_representable: na
@@ -5476,3 +5476,7 @@ features:
       AGGIORNATO 2026-08-12: la rubrica deriva davvero i rating dai cataloghi, quindi `data` passa a `done`. `ui_wiki` resta `partial`: gli SVG esistono ma la Wiki non li mostra ancora.
       AGGIORNATO 2026-08-12: i sei assi del Profile e i due del Balance sono calcolati dal codice; i quattro profili risultano distinti su almeno quattro assi.
       AGGIORNATO 2026-08-12: generatore deterministico e `--check` in `tools/radar/`; quattro SVG in `docs/characters/radar/`. `ui_wiki` partial: manca la pagina Wiki. Il gate NON gira in CI, Actions e' bloccato sull'account (vedi #563).
+      AGGIORNATO 2026-08-12: `ui_wiki` a `done` — Profilo-tattico mostra gli otto radar (Profile e Balance per quattro eroi), referenziati da raw.githubusercontent e non duplicati.
+      AGGIORNATO 2026-08-12: `ui_wiki` a `done`, i rating dei sei assi sono pubblicati in tabella accanto ai radar.
+      AGGIORNATO 2026-08-12: `ui_wiki` a `done`. Il generatore produce anche il Balance e il confronto A vs B; il `--check` copre entrambe le viste. Nessuna CI: i gate di questo repository girano a mano.
+
