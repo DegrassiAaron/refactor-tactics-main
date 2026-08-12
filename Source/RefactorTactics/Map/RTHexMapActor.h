@@ -187,13 +187,17 @@ public:
 	bool RemoveTransitionData(const FRTCellId& From, const FRTCellId& To, bool bBothDirections);
 
 	/**
-	 * Celle percorribili che nessuno raggiunge dagli spawn, aggiornate a ogni `RebuildInstances`.
+	 * Celle percorribili che nessuno raggiunge dagli spawn. Calcolate **pigramente**: la visita del grafo
+	 * avviene alla prima richiesta dopo un cambiamento, non a ogni ricostruzione.
 	 *
-	 * Il calcolo sta **qui e non nell'overlay** perche' una visita del grafo a ogni frame sarebbe lavoro
-	 * ripetuto per un dato che cambia solo quando cambia la mappa — e `RebuildInstances` e' gia' il punto in
-	 * cui la mappa ha finito di cambiare (`OnMapChanged`, `PostEditUndo`, apertura del livello).
+	 * La pigrizia non e' un'ottimizzazione preventiva. `RebuildInstances` **non** e' il punto in cui la mappa
+	 * ha finito di cambiare: il tool Paint la chiama a ogni `OnClickDrag`, cioe' molte volte al secondo mentre
+	 * si trascina il pennello. Calcolare li' avrebbe fatto una BFS sull'intero grafo per ogni cella dipinta,
+	 * per un dato che serve solo a chi disegna l'overlay — e solo se l'overlay e' acceso.
+	 *
+	 * Invalidare e' O(1); il calcolo lo paga chi lo guarda.
 	 */
-	const TArray<FRTCellId>& GetUnreachableCells() const { return UnreachableCells; }
+	const TArray<FRTCellId>& GetUnreachableCells() const;
 
 	/** Ricostruisce tutte le istanze dalle celle (asset o demo). */
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "RefactorTactics|HexMap")
@@ -405,6 +409,7 @@ protected:
 	 */
 	TArray<FRTCellId> InstanceCells;
 
-	/** Stato DERIVATO, non serializzato: ricalcolato da `RebuildInstances`. */
-	TArray<FRTCellId> UnreachableCells;
+	/** Stato DERIVATO, non serializzato: cache pigra, invalidata da `RebuildInstances`. */
+	mutable TArray<FRTCellId> UnreachableCells;
+	mutable bool bUnreachableDirty = true;
 };

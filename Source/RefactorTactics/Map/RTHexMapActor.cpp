@@ -202,6 +202,28 @@ FRTCellId ARTHexMapActor::CellForInstance(int32 InstanceIndex) const
 	return InstanceCells.IsValidIndex(InstanceIndex) ? InstanceCells[InstanceIndex] : FRTCellId();
 }
 
+const TArray<FRTCellId>& ARTHexMapActor::GetUnreachableCells() const
+{
+	if (!bUnreachableDirty)
+	{
+		return UnreachableCells;
+	}
+	bUnreachableDirty = false;
+	UnreachableCells.Reset();
+
+	// Gli spawn si chiedono alla stessa funzione che allestisce la partita: misurare la raggiungibilita' da
+	// una cella qualunque risponderebbe di una partita che non si gioca.
+	if (MapAsset && MapAsset->NumCells() > 0)
+	{
+		const TArray<FRTCellId> Start = URTMatchSetupLibrary::PickStartCells(MapAsset, /*NumPerTeam=*/ 2, /*Layer=*/ 0);
+		if (Start.Num() > 0)
+		{
+			UnreachableCells = URTArenaCriteriaLibrary::FindUnreachableCells(MapAsset, Start[0]);
+		}
+	}
+	return UnreachableCells;
+}
+
 ARTHexMapActor* ARTHexMapActor::FindInWorld(const UWorld* World)
 {
 	if (!World)
@@ -433,18 +455,11 @@ void ARTHexMapActor::RebuildInstances()
 	Cells->ClearInstances();
 	InstanceCells.Reset();
 
-	// Celle isolate: si ricalcolano QUI, dove la mappa ha appena finito di cambiare, e non a ogni frame di
-	// disegno. Gli spawn si chiedono alla stessa funzione che allestisce la partita — misurare la
-	// raggiungibilita' da una cella qualunque risponderebbe di una partita che non si gioca.
-	UnreachableCells.Reset();
-	if (MapAsset && MapAsset->NumCells() > 0)
-	{
-		const TArray<FRTCellId> Start = URTMatchSetupLibrary::PickStartCells(MapAsset, /*NumPerTeam=*/ 2, /*Layer=*/ 0);
-		if (Start.Num() > 0)
-		{
-			UnreachableCells = URTArenaCriteriaLibrary::FindUnreachableCells(MapAsset, Start[0]);
-		}
-	}
+	// Celle isolate: si INVALIDA soltanto, il calcolo lo fa `GetUnreachableCells` alla prima richiesta.
+	// RebuildInstances viene chiamata a ogni OnClickDrag del pennello — molte volte al secondo mentre si
+	// trascina — e una BFS sull'intero grafo a ogni cella dipinta sarebbe lavoro sprecato per un dato che
+	// serve solo a chi guarda l'overlay, e solo se e' acceso.
+	bUnreachableDirty = true;
 	if (Relief)
 	{
 		if (UStaticMesh* Mesh = CellMesh.LoadSynchronous()) { Relief->SetStaticMesh(Mesh); }
