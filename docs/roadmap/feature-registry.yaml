@@ -1273,7 +1273,7 @@ features:
     owner_specs:
       - docs/gameplay/spec-dash.md
       - docs/gameplay/spec-economia-del-turno.md
-    issues: [43, 46, 641, 645]
+    issues: [43, 46, 641, 645, 653]
     tests:
       - RefactorTactics.Actions.Sprint
       - RefactorTactics.Actions.Charge
@@ -1297,6 +1297,15 @@ features:
     notes: >
       **Sprint è un profilo di Move, non un Dash** (pin del canone): fase e stile sono dichiarati
       dal dato, non dedotti. Budget 5 MP con costi interi.
+      🔴 **2026-08-12, misurato tentando #641 — non dedotto**: i profili di movimento **non esistono come
+      entita' nel codice** (`grep -rn MovementProfile Source/` da' zero). `Sneak`/`Move`/`Sprint`/`Withdraw`
+      vivono solo nel catalogo markdown §2.1; nel codice `Action.Sprint` e' un ActionId con `RangeCells = 8`,
+      e quel numero lo legge **un solo punto** (`ResolveDash`). Il movimento normale prende il budget
+      dall'UNITA' (`GetEffectiveMoveRange`), non dall'azione pianificata. Conseguenza: spostare lo Sprint in
+      fase `Move` come chiede D-116 gli toglierebbe la distanza — 5 MP invece di 8 — e il divieto di
+      reazione, che `ResolveDash` registra e che dopo il Blast arriverebbe troppo tardi. Prerequisito aperto
+      come **#653**; il tentativo verificato vive su `feat/641-sprint-post-blast` (compila su entrambi i
+      target, 4 test rossi che sono la misura del buco).
       ⚠️ 2026-08-12: `RELEASE_READY` vale per i tre profili che hanno numeri. **`Sneak` non ne ha**
       — costo, portata e rumore non sono definiti da nessuna fonte corrente (`AE-5`) — quindi il
       profilo esiste come nome e non e' pianificabile. Non abbasso i gate per questo: la feature che il
@@ -1444,7 +1453,7 @@ features:
       runtime: done
       log_debug: partial
       automation: done
-      scenario: todo
+      scenario: done
       ui_wiki: done
       packaged: partial
       network_privacy: na
@@ -1462,8 +1471,7 @@ features:
       - RefactorTactics.Combat.AbilityUsableByCooldownAndEnergy
       - RefactorTactics.Combat.GainEnergyClampsToMax
     scenarios:
-      - planned:
-          - Spec.ActionEconomy.CooldownBlocksWithSlotFree
+      - Spec.ActionEconomy.CooldownBlocksWithSlotFree
     wiki_refs:
       - wiki:azioni-e-movimento
     last_verified:
@@ -2036,23 +2044,36 @@ features:
       - RefactorTactics.Reactions.OpportunityIdUsesEveryField
       - RefactorTactics.Reactions.SingleResponseCommitsWithoutWindow
       - RefactorTactics.Overwatch.OpportunityLeaksNoFuture
+      - RefactorTactics.Reactions.UnknownConditionIsRejectedByValidator
+      - RefactorTactics.Reactions.DeclaredConditionCollapsesToImmediateCommit
+      - RefactorTactics.Reactions.DeclaredConditionEntersThePlanOnlyIfValid
     scenarios: []
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
     last_verified:
-      date: 2026-08-10
-      commit: 822ed35
+      date: 2026-08-12
+      commit: 5cc2d6de
     notes: >
       ADR-0004 accettato; il modello unificato contiene E5 come caso `AllowedResponses ≤ 1`.
       CP 14.3 ha consegnato chiave, derivazione dell'id, soglia del boundary e privacy del DTO.
-      ⚠️ I quattro test vanno elencati QUI e non lasciati al prefisso `Reactions.*`: quel prefisso
+      ⚠️ I sette test vanno elencati QUI e non lasciati al prefisso `Reactions.*`: quel prefisso
       appartiene a RT-FEAT-REACTION-PREPARED, e `feature_registry.py` fa prefix matching — senza
-      questo elenco la suite E5 passerebbe da 27 a 31 e nessuno saprebbe piu' dire se e' regredita
+      questo elenco la suite E5 passerebbe da 27 a 34 e nessuno saprebbe piu' dire se e' regredita
       o se e' semplicemente atterrato CP 14.3. E' la voce di DoD «suite E5 invariata» che perde il
-      proprio strumento di misura.
+      proprio strumento di misura, e il conteggio da solo non basta: il pattern `Reactions.*` cattura
+      anche i test che questi checkpoint AGGIUNGONO, quindi si confronta l'ELENCO con la baseline.
+      **2026-08-12 ([D-109], PR #639)**: e' atterrata la CONDIZIONE DICHIARATA, la voce di DoD di
+      CP 14.3 rimasta indietro quando il checkpoint fu chiuso. `FRTDeclaredCondition` piu' validator a
+      elenco chiuso — una voce, `TargetHealthAtOrBelowPercent`, soglia intera — e la valutazione al
+      trigger che **riduce** `AllowedResponses` dentro `BuildOverwatchTriggers`: se resta il solo
+      `HOLD` il commit e' immediato, ed e' cosi' che il regime *Conditional* emerge dai dati. Il
+      produttore non e' l'harness: `rt.Reaction.Condition [N]` scrive il piano passando dalla stessa
+      validazione che usera' l'interfaccia di E11.
       `runtime: partial` e non `done`: la regola esiste ed e' pura, ma NESSUN chiamante di
-      produzione la invoca — il wiring in `ResolveCombat` e' rimandato a CP 14.4, dove le
-      opportunity hanno finalmente un lettore. `log_debug: todo` per la stessa ragione: niente
+      produzione la invoca. CP 14.4 e' chiusa e `BuildOverwatchTriggers` esiste, ma i suoi soli
+      chiamanti restano l'harness e i test — il lettore vero nasce con CP 14.5, che cabla la finestra.
+      Per la stessa ragione il TurnLog non registra ancora la condizione: non c'e' un'opportunity di
+      partita in cui registrarla, ed e' la voce che tiene aperta la issue #583. `log_debug: todo` per la stessa ragione: niente
       serializza ancora l'id, quindi «serializzazione stabile dentro l'hash del replay» e'
       consegnata nella forma e non ancora nei fatti.
       Non parte prima di E13: il trigger richiede livello «Rilevato», non solo LOS.

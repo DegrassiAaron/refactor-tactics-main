@@ -4,6 +4,7 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Combat/RTOffensiveActionLibrary.h" // FRTSuppressiveZone, FRTSuppressionMover: la geometria e' UNA
 #include "Perception/RTPerceptionLibrary.h"  // ERTAwareness: il trigger richiede `Detected`, non «visibile»
+#include "Turn/RTDeclaredCondition.h" // FRTDeclaredCondition: header leggero, lo usa anche ARTUnit
 #include "Turn/RTTurnRules.h"
 #include "RTReactionOpportunityTypes.generated.h"
 
@@ -105,6 +106,31 @@ struct FRTReactionOpportunity
 	TArray<FString> AllowedResponses;
 };
 
+
+/**
+ * Salute di un bersaglio al micro-step: quanto basta a valutare una condizione dichiarata, e non un byte di
+ * piu'.
+ *
+ * Viaggia in una mappa `UnitId -> vitals` passata al builder invece che dentro `FRTSuppressionMover`: quel
+ * tipo descrive «il percorso di un'unita' come lo vede la soppressione», e la soppressione non guarda la
+ * salute — aggiungercela lo renderebbe un dato non letto da meta' dei suoi consumatori, che e' la stessa
+ * ragione per cui `OwnerCell` sta sul watcher e non nella zona.
+ */
+USTRUCT()
+struct FRTTargetVitals
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	int32 Health = 0;
+
+	UPROPERTY()
+	int32 MaxHealth = 0;
+
+	FRTTargetVitals() = default;
+	FRTTargetVitals(int32 InHealth, int32 InMaxHealth) : Health(InHealth), MaxHealth(InMaxHealth) {}
+};
+
 /**
  * Un Overwatch ARMATO (CP 14.4): la zona che controlla, chi la controlla, e l'identita' che decide l'ordine
  * quando piu' reazioni scattano nello stesso micro-step.
@@ -171,6 +197,16 @@ struct FRTOverwatchWatcher
 	UPROPERTY()
 	bool bArmed = true;
 
+	/**
+	 * La condizione dichiarata in pianificazione da chi ha armato l'Overwatch ([D-109]). Vuota = nessuna.
+	 *
+	 * Sta sul WATCHER e non nell'opportunity: e' un intento privato di chi arma, e il DTO che raggiunge il
+	 * possessore ha un elenco chiuso di campi verificato da `Overwatch.OpportunityLeaksNoFuture`. Le risposte
+	 * legali dicono gia' tutto cio' che serve sapere — la condizione ha gia' fatto il suo lavoro nel produrle.
+	 */
+	UPROPERTY()
+	FRTDeclaredCondition DeclaredCondition;
+
 	FRTOverwatchWatcher() = default;
 };
 
@@ -197,6 +233,7 @@ struct FRTOverwatchTrigger
 	FRTOverwatchTrigger() = default;
 };
 
+
 /**
  * Derivazione dell'identita' di una opportunity. Funzioni pure: nessuno stato, nessun accesso al mondo.
  */
@@ -206,6 +243,19 @@ class REFACTORTACTICS_API URTReactionOpportunityLibrary : public UBlueprintFunct
 	GENERATED_BODY()
 
 public:
+	/** L'unica condizione ammessa dalla v0.1 ([D-109]): «spara solo se il bersaglio e' a N% di salute o meno». */
+	static FName TargetHealthAtOrBelowPercent();
+
+	/**
+	 * La condizione e' dichiarabile? Elenco CHIUSO, nel codice.
+	 *
+	 * Nel dato sarebbe piu' flessibile e sbagliato: dichiarare una condizione inesistente diventerebbe una
+	 * modifica al JSON invece di un errore di validazione — la stessa ragione per cui `IsCapabilityAvailable`
+	 * tiene il proprio elenco qui. Valida anche il PARAMETRO: una soglia oltre il 100% sarebbe sempre vera,
+	 * cioe' una condizione che non condiziona, e il giocatore crederebbe di aver ristretto il fuoco.
+	 */
+	static bool IsDeclaredConditionAllowed(const FRTDeclaredCondition& Condition);
+
 	/** La risposta che NON spende niente. `Timeout -> HOLD` (ADR-0004 §3) sceglie questa. */
 	static const TCHAR* HoldResponse() { return TEXT("HOLD"); }
 
@@ -228,8 +278,24 @@ public:
 	 *
 	 * Pura e fail-closed: senza mappa autorevole non c'e' LOS, quindi nessun trigger.
 	 */
+	/**
+	 * `TargetVitals` serve solo alle condizioni dichiarate, ed e' opzionale perche' la stragrande maggioranza
+	 * dei watcher non ne ha nessuna. **Fail-closed**: se una condizione e' dichiarata e la salute del bersaglio
+	 * non c'e', quel bersaglio non diventa una risposta legale — offrire `FIRE` su una condizione non
+	 * verificabile significherebbe sparare a una regola che nessuno ha controllato. E' la stessa scelta che
+	 * `TeamAwareness` fa per un bersaglio non dichiarato.
+	 */
 	static TArray<FRTOverwatchTrigger> BuildOverwatchTriggers(const URTHexMapAsset* Map, int32 TurnNumber,
-		const TArray<FRTOverwatchWatcher>& Watchers, const TArray<FRTSuppressionMover>& Movers);
+		const TArray<FRTOverwatchWatcher>& Watchers, const TArray<FRTSuppressionMover>& Movers,
+		const TMap<int32, FRTTargetVitals>& TargetVitals = TMap<int32, FRTTargetVitals>());
+
+	/**
+	 * La condizione e' soddisfatta per questo bersaglio? Funzione pura, valutata al trigger.
+	 *
+	 * Condizione non dichiarata -> vero: chi non pone condizioni non restringe nulla. Dato mancante o
+	 * incoerente (`MaxHealth <= 0`) -> falso, per la ragione fail-closed di sopra.
+	 */
+	static bool IsConditionSatisfied(const FRTDeclaredCondition& Condition, const FRTTargetVitals* Vitals);
 
 	/**
 	 * Vero se questa opportunity richiede un decision boundary; falso se si committa immediatamente.

@@ -13,6 +13,21 @@ export interface AbilityInput {
   /** `Action.X` quando l'abilita' DELEGA il proprio dato a un'azione core (D-115), altrimenti `null`.
    *  Non confondere con le reazioni che RIUSANO una semantica core tenendo i propri numeri. */
   delegatesTo: string | null;
+  /** La riga della tabella reazioni, **grezza**, quando l'abilita' vi compare. La rubrica decide
+   *  cosa significhi: qui non si classifica, si riporta. */
+  reaction: ReactionInput | null;
+}
+
+export interface ReactionInput {
+  /** L'azione core di cui riusa la semantica — NON una delega di dati (D-115). `null` se assente. */
+  coreSemantics: string | null;
+  /** `ready` = implementata in partita · `deferred` = rinviata a E14. Il catalogo lo marca con
+   *  ✅/⏳, ed e' un dato competitivo: #557 ha DECISO che le `deferred` contano nei rating, quindi
+   *  la rubrica deve poter esprimere anche la scelta opposta. */
+  status: 'ready' | 'deferred';
+  /** Cella `Stato` senza il marcatore, grezza. Per `InterceptShot` e' l'unica sede in cui il
+   *  catalogo dichiara il trigger predittivo. */
+  note: string;
 }
 
 export interface HeroInput {
@@ -115,9 +130,39 @@ export function readCatalogs(
 
 /** Le due fonti sono ENTRAMBE obbligatorie (D-115): il catalogo eroi non e' autosufficiente, e un
  *  parametro opzionale reintroduce il percorso in cui una delega non risolta vale `null` in silenzio. */
+/** La tabella delle reazioni, che sta **prima** delle sezioni eroe e ha tre colonne invece di cinque.
+ *  Dichiara le stesse abilita' da un altro lato: semantica core riusata e stato di implementazione. */
+export function parseReactionTable(text: string): Map<string, ReactionInput> {
+  const byId = new Map<string, ReactionInput>();
+
+  for (const line of text.split('\n')) {
+    const cells = line.split('|');
+    // Tre colonne dati: `| Reazione | Semantica core | Stato |` -> 5 elementi con i bordi vuoti.
+    if (cells.length !== 5) continue;
+
+    const id = cells[1].trim().match(/^`([A-Za-z]+\.[A-Za-z]+)`$/)?.[1];
+    if (!id) continue;
+
+    const raw = cells[3].trim();
+    const status = raw.startsWith('✅') ? 'ready' : raw.startsWith('⏳') ? 'deferred' : null;
+    if (status === null) continue; // non e' la tabella delle reazioni
+
+    byId.set(id, {
+      coreSemantics: cells[2].trim().match(/^`(Action\.[A-Za-z]+)`$/)?.[1] ?? null,
+      status,
+      note: raw.replace(/^[✅⏳]\s*/, '').trim(),
+    });
+  }
+
+  return byId;
+}
+
 export function parseHeroCatalog(source: URL | string, actionSource: URL | string): HeroInput[] {
   const text = readFileSync(source, 'utf8');
   const actionDamage = parseActionCatalog(actionSource);
+  // Le reazioni si UNISCONO alle abilita', non si aggiungono: `ReactiveCapacitor` e' dichiarato in
+  // entrambe le tabelle e deve restare una voce sola.
+  const reactions = parseReactionTable(text);
   const heroes: HeroInput[] = [];
 
   // Una sezione eroe apre con `## <n>. <Nome> — <sottotitolo>`, ma lo stesso livello ospita anche
@@ -178,6 +223,7 @@ export function parseHeroCatalog(source: URL | string, actionSource: URL | strin
         cooldown: cellInteger(cells[5], `${id} CD`, name),
         effect,
         delegatesTo,
+        reaction: reactions.get(id) ?? null,
       });
     }
 

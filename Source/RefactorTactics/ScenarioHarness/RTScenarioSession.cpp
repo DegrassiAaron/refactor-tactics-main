@@ -510,7 +510,7 @@ void FRTScenarioSession::BeginTurn()
 			// E la reazione armata: il turn manager la consuma da solo, ma solo se il trigger scatta. Senza
 			// questo azzeramento una reazione mai scattata resterebbe armata per tutto lo scenario, e un
 			// turno successivo la vedrebbe partire senza che nessun intent l'abbia chiesta.
-			U->PlannedReactionAbility = INDEX_NONE;
+			U->ClearReactionPlan();
 		}
 	}
 
@@ -848,7 +848,7 @@ void FRTScenarioSession::Finish()
 			// E la reazione armata: il turn manager la consuma da solo, ma solo se il trigger scatta. Senza
 			// questo azzeramento una reazione mai scattata resterebbe armata per tutto lo scenario, e un
 			// turno successivo la vedrebbe partire senza che nessun intent l'abbia chiesta.
-			U->PlannedReactionAbility = INDEX_NONE;
+			U->ClearReactionPlan();
 		}
 	}
 
