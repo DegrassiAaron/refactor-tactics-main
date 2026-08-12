@@ -4622,11 +4622,15 @@ features:
       - RefactorTactics.Hex.EdgeMidpointIsSharedByBothCells
       - RefactorTactics.HexMapActor.LayerFilterOnConstruction
       - RefactorTactics.HexMapActor.PickIgnoresGeometryThatIsNotTheGrid
+      - RefactorTactics.HexMapActor.BlockerVolumesComeFromCellFlags
+      - RefactorTactics.HexMapActor.EdgePanelsSitOnTheDeclaredEdge
+      - RefactorTactics.HexMapActor.DoorPanelsShowWhetherYouCanPass
+      - RefactorTactics.HexMapActor.CostReliefSurvivesTheSightSlab
     scenarios: []
     wiki_refs: []
     last_verified:
       date: 2026-08-12
-      commit: 52c08286
+      commit: 1c92d869
     notes: >
       `Source/RefactorTacticsEditor/` con tool di paint, fill, select e archi. Il residuo sono
       **verifiche PIE aperte** (H5: E/F/G/H/L/N, piu' le tre `PIE-HEX-LAYER-*` della vista a
@@ -4662,6 +4666,20 @@ features:
       un `.umap`, e la navigazione del viewport la fornisce Unreal (`RTCameraPawn` e' la camera di
       gioco, un oggetto diverso). Referto:
       `docs/roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md`.
+
+
+      **2026-08-12 (#552, #553)**: i volumi delle regole di blocco (`Blockers`) e i pannelli di bordo
+      (`EdgeFeatures`) erano stati consegnati **senza test**, e con loro un difetto che nessuno avrebbe
+      visto: lastra della vista e rilievo del costo sono concentrici e partono dalla stessa quota, e la
+      lastra a 16 uu era piu' alta E piu' larga del rilievo piu' alto che il catalogo possa produrre
+      (15 uu, perche' il costo massimo v0.1 e' `2`). Ogni cella costosa che blocca la vista taceva sul
+      proprio costo — e non in un caso limite: in **tutti**. Corretto a 10 uu, col vincolo scritto
+      accanto alla costante. I quattro test aggiunti misurano il COMPORTAMENTO — le istanze che
+      `RebuildInstances` produce — non i valori, cosi' ritoccare le proporzioni resta libero e farle
+      collassare no. ⚠️ Limite noto e dichiarato: i quattro stati di porta si mostrano con **due** forme
+      (`Locked` come `Closed`, `Destroyed` come `Open`), quindi «lo stato e' visibile e cambia quando
+      cambia il dato» — acceptance di #553 — vale per il passaggio, non per chi puo' cambiarlo.
+      ⚠️ Le acceptance **visive** di entrambe le issue restano non verificate: chiudono su una seduta.
 
 
       **Serie viz editor (2026-08-12): tre quarti atterrati, `log_debug` resta `partial` per il
