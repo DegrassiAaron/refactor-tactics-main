@@ -12,7 +12,7 @@
 
 | Sorgente (rimosso il 2026-08-12) | Pagine | Cosa contribuisce qui |
 |---|---|---|
-| `prd-intenti-condivisi.pdf` | 30 (tutte) | PRD di feature completo: 14 requisiti funzionali con ID e stima, NFR, flussi, modello dati, messaggi di rete, codice UE, piano di test, criteri di accettazione |
+| `prd-intenti-condivisi.pdf` | 30 (tutte) | PRD di feature completo: 15 requisiti funzionali con ID e stima, NFR, flussi, modello dati, messaggi di rete, codice UE, piano di test, criteri di accettazione |
 | `prd-stampabile.pdf` | 40 (di cui 11 qui) | Architettura tecnica e networking · modding e contratti dati |
 | `prd-e-piano-di-sviluppo.pdf` | 45 (di cui 20 qui) | Architettura dei sistemi e modelli dati · stack tecnologico e configurazione |
 | `prd-roadmap-e-percorso-didattico.pdf` | 35 (di cui 3 qui) | Architettura e scelte tecnologiche |
@@ -35,7 +35,7 @@ Il **GAS** nello stack: fuori dalla v0.1.
 **Recuperabile, e non ancora recepito da nessuno.**
 
 - 🟢 **Il PRD «Intenti condivisi» per intero.** *(Tracciato: [#577](https://github.com/DegrassiAaron/refactor-tactics-main/issues/577) — recepirlo in un owner prima che M10 cominci.)* È l'unico documento del corpus scritto come *specifica di
-  feature consegnabile*: quattordici requisiti con ID (`FR-TRAJ`, `FR-AOE`, `FR-TARGET`, `FR-LABEL`,
+  feature consegnabile*: quindici requisiti con ID (`FR-TRAJ`, `FR-AOE`, `FR-TARGET`, `FR-LABEL`,
   `FR-STATE`, `FR-CONFIRM`, `FR-NOTIFY`, `FR-GHOST`, `FR-CONFLICT`, `FR-DRAW`, `FR-HISTORY`, `FR-ROLLBACK`,
   `FR-RECONNECT`, `FR-FILTER`, `FR-MOD`), priorità, stime in giorni-persona, dodici requisiti non funzionali
   con **numeri** (mediana < 100 ms, p95 < 200 ms a RTT ≤ 120 ms, ≤ 5 KB/s per client, 10-12 update/s), piano
