@@ -88,6 +88,25 @@ per questo stanno nella stessa tabella.
 
 ---
 
+## Aperta — l'invertibilità della cottura, dallo spec panel del 2026-08-12
+
+Origine: [`roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md`](roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md) §4.2.
+Il sorgente revisionato ([Map Sketch Editor v0.1](archive/src/handoff/2026-08-12-map-sketch-editor.md)) separa
+correttamente *authoring geometry* da *runtime spatial data* (§20) e non dice cosa accade **dopo** la cottura,
+se qualcuno tocca a mano un campo cotto.
+
+Due decisioni dell'autore sono state prese nella stessa sessione e **non** sono questa: la geometria
+quantizzata si anticipa in v0.1 come strumento d'editor (`#619`–`#621`, anticipazione dichiarata su **E23**
+[`#324`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324), che non si apre), e layout
+generato e geometria disegnata **convivono** perché hanno soggetti diversi. È proprio la seconda a rendere la
+domanda urgente: due produttori sullo stesso artefatto.
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `MSE-1` | Quando la geometria disegnata è **cotta** in `bBlocksMovement` / `FRTHexCover`, il sorgente resta autorevole? Cioè: se qualcuno modifica a mano un campo cotto, vince la modifica o il prossimo rebake la cancella? | È la stessa classe di problema dei **prefab**, e il panel del 2026-08-09 l'aveva già segnalata come costo da *decidere, non scoprire* — senza deciderla. Non si deduce dal codice perché oggi **la cottura non esiste**: `FRTHexCellData` ha un solo produttore, il pennello, e la domanda non si pone. Si porrà al primo segmento cotto. ⚠️ La decisione **4.2** la rende più stretta: se il layout è generato da codice e la geometria è disegnata, l'asset ha **due** produttori, e un test che confrontasse il suo hash con quello del solo generatore diventerebbe rosso al primo muro disegnato — quel test, se verrà scritto, deve avere per soggetto la parte **generata**. Innesco: [`#621`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/621), che è dove la cottura nasce |
+
+---
+
 ## ✅ Chiuse il 2026-08-10 — geometria, acqua e strutture, dal quinto sorgente
 
 Origine: [triage `FULL CHAT CONSOLIDATION`](roadmap/plans/triage-grid-geometry-water-2026-08-10.md).

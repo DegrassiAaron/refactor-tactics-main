@@ -4475,7 +4475,7 @@ features:
     owner_specs:
       - docs/roadmap/editormap.shortlist.md
       - docs/roadmap/hex-map-roadmap.md
-    issues: [567]
+    issues: [567, 622, 623]
     tests:
       - RefactorTactics.HexMap.ApplyBrushMerge
       - RefactorTactics.HexMap.FloodRegion
@@ -4500,6 +4500,78 @@ features:
       veniva proiettato su quello attivo, spostando la cella di circa `LayerHeight` in orizzontale.
       `LayerFilterOnConstruction` tiene l'invariante che rende vera la seconda cosa: i piani di
       contesto **non** sono istanze, quindi non hanno collisione e il raycast non puo' vederli.
+
+
+      Dal 2026-08-12 il perimetro si divide: l'**authoring di geometria architettonica** ha una
+      feature propria (`RT-FEAT-TOOL-MAP-GEOMETRY`), perche' e' un modello di dati e una cottura,
+      non una modalita' d'editor. Qui restano il mode, i quattro tool e la vista. Le due issue
+      nuove sono difetti d'uso osservati costruendo: `#622` la griglia di lavoro dove le celle non
+      esistono ancora — l'unico pezzo di §10 del sorgente che non esisteva gia' — e `#623` la
+      seduta su luci e inquadratura. `#623` e' una **seduta**, non codice: `L_DevSandbox.umap` e'
+      un `.umap`, e la navigazione del viewport la fornisce Unreal (`RTCameraPawn` e' la camera di
+      gioco, un oggetto diverso). Referto:
+      `docs/roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md`.
+
+  - feature_id: RT-FEAT-TOOL-MAP-GEOMETRY
+    title: Geometria architettonica quantizzata e cottura in dati di cella
+    area: Tools
+    kind: tooling
+    release: v0.1
+    priority: P2
+    status: DESIGNED
+    gates:
+      spec: partial
+      data: todo
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: todo
+      ui_wiki: todo
+      packaged: na
+      network_privacy: na
+      replay_representable: na
+    roadmap:
+      epic: null
+      milestone: M9
+      checkpoints: []
+      out_of_release_scope: >-
+        Strumento d'editor: non entra nella build di gioco e non ha un gate di release.
+        E' l'ANTICIPAZIONE dichiarata della meta' di authoring di E23.1 (v0.2), decisa il
+        2026-08-12; l'epic #324 NON si apre, e la logica di transizione resta sua.
+    dependencies:
+      - RT-FEAT-MAP-HEXGRAPH
+      - RT-FEAT-TOOL-MAP-EDITOR
+    owner_specs:
+      - docs/roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md
+    issues: [619, 620, 621]
+    tests: []
+    scenarios: []
+    wiki_refs: []
+    notes: >
+      Il modello: un segmento quantizzato investe delle celle, l'occupazione si misura su **dodici
+      settori** (uno ogni 30°) piu' il centro, e la classificazione `Free`/`Constrained`/`Blocked`
+      ne esce per soglia. I dodici settori NON sono direzioni di movimento: quelle restano sei,
+      pointy-top.
+
+
+      `spec: partial` e non `done` perche' una domanda di modello resta aperta — `MSE-1` in
+      `OPEN_DECISIONS.md`: la cottura non e' invertibile senza conservare il sorgente, e nessuno ha
+      ancora deciso cosa succede se qualcuno modifica a mano un campo cotto. `tests: []` e
+      `scenarios: []` sono vuoti e **veri**: `Scenarios/Spec/Map/` contiene oggi un solo file, e le
+      quattro fixture chieste da #619 non esistono.
+
+
+      Vincolo di collocazione, non preferenza: maschera, classificazione e cottura vivono nel
+      modulo **runtime** e l'editor le chiama. In `Source/RefactorTacticsEditor/` non esiste alcun
+      test (misurato: `find … -iname "*test*"` vuoto), ed e' la ragione per cui la PR #598 — **aperta al
+      2026-08-12**, non mergiata — sposta una funzione nel modulo runtime per poterla verificare. Cio'
+      che nasce dentro l'editor nasce non verificabile.
+
+
+      Perche' e' una feature separata da `RT-FEAT-TOOL-MAP-EDITOR` invece di una sua nota: quella e'
+      una **modalita' d'editor** con i suoi quattro tool, questa e' un **modello di dati** con una
+      cottura verso `FRTHexCover` e `bBlocksMovement`. Tenerle insieme farebbe dipendere lo stato di
+      uno strumento maturo (`TESTABLE`) da un lavoro non cominciato.
 
   - feature_id: RT-FEAT-TOOL-VALIDATION
     title: Validator di dati, mappe e documenti

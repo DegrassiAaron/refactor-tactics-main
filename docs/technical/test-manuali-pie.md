@@ -50,9 +50,15 @@
   Se la vista sembra bloccata e compaiono le **etichette degli actor** in viewport, hai fatto **Eject** (`F8`):
   stai guardando con la camera dell'editor, non con quella del gioco — `F8` di nuovo per rientrare nel pawn.
 
-## Stato in numeri — 2026-08-11
+## Stato in numeri — 2026-08-12
 
-**124 voci**: ✅ **30 verdi** · 🟡 **22 parziali** (regola coperta da test, resta il visivo) · ⏳ **72 aperte**.
+**126 voci**: ✅ **30 verdi** · 🟡 **22 parziali** (regola coperta da test, resta il visivo) · ⏳ **74 aperte**.
+
+*(Rimisurate col comando qui sotto il **2026-08-12**, dopo le due voci `PIE-MAPED-LIGHT` e
+`PIE-MAPED-FRAME` della seduta **U21** ([#623](https://github.com/DegrassiAaron/refactor-tactics-main/issues/623)).
+La base era `124 (30/22/72)`, e coincideva con quanto dichiarato: nessuna deriva da recuperare questa volta.
+⚠️ Vale però l'avvertenza qui sotto — questo ramo tocca il file **mentre altri lo toccano**, e il totale va
+rieseguito **dopo il merge**, non prima.)*
 
 *(Rimisurate col comando qui sotto il **2026-08-11**, dopo le tre voci `PIE-HEX-LAYER-FOCUS`,
 `PIE-HEX-LAYER-CLICK` e `PIE-HEX-LAYER-PANEL` della vista a livelli `Focus`. La quota dichiarata qui il
@@ -256,6 +262,8 @@ leggibilità minima nel senso più stretto, non presentazione.
 | **PIE-HEX-MODE-M** | Overlay debug superfici (H5c.6) | mode Hex Map, tool Select o Paint, `ARTHexMapActor` con celle di superfici diverse | Con `bShowOverlay` attivo, ogni cella appare come esagono colorato per superficie (Water blu, Fire arancio, Mud marrone, ...); le celle bloccate hanno un esagono rosso interno; `bShowOverlay` off = nessun overlay | ✅ 2026-08-05 |
 | **PIE-HEX-MODE-N** | Secchiello / flood-fill (H5c.7) | mode Hex Map, tool Fill, `ARTHexMapActor` con `MapAsset` popolato | In Fill, click su una regione la riempie col pennello corrente; un Ctrl+Z ripristina l'intera regione; click su cella vuota non fa nulla; passando a Select/Paint con overlay si vedono i nuovi colori | ⏳ (H5c.7) |
 | **PIE-HEX-MODE-O** | Default `MoveCost` dal catalogo terreni (CP 8.1) | mode Hex Map, tool Paint, `ARTHexMapActor` nel livello | Cambiando `Surface` nel pannello del pennello (es. a `Rough`), `MoveCost` si aggiorna da solo al valore del catalogo (`2` per `Rough`); `bBlocksMovement` resta `false` | ⏳ |
+| **PIE-MAPED-LIGHT** | Illuminazione leggibile del graybox in `L_DevSandbox` ([#623](https://github.com/DegrassiAaron/refactor-tactics-main/issues/623)) | `L_DevSandbox` aperto, `ARTHexMapActor` con celle su ≥2 layer, **nessuna** modifica all'esposizione della viewport | Ruotando la camera attorno alla mappa **nessuna faccia resta quasi nera**: superficie, marcatori blocca-movimento/blocca-vista e contorni dei piani di contesto restano distinguibili da ogni angolo. Il verso della luce non deve produrre una metà leggibile e una no | ⏳ |
+| **PIE-MAPED-FRAME** | Inquadrare l'intera mappa editabile ([#623](https://github.com/DegrassiAaron/refactor-tactics-main/issues/623)) | mode Hex Map attivo, `ARTHexMapActor` con celle su ≥2 layer e con celle **lontane dall'origine** | Il comando di inquadratura porta in vista **tutte** le celle esistenti, comprese quelle su layer diversi da `ActiveLayer` — non solo il piano attivo e non solo l'intorno dell'origine | ⏳ |
 | **PIE-BU2** | Bot: posizionamento via utility scoring | partita avviata | In pianificazione il bot sceglie la cella pesando **minaccia/kiting** (può **restare** invece di esporsi); il combat log mostra `<Bot>: utility -> (x,y,Lz) score=N`. Il kiter (Ranger) mantiene la distanza, la mischia (Guardian) chiude, nessuno corre in celle sotto tiro. Osserva se gli score hanno senso → base per il **tuning dei pesi** (BU.3) | ✅ |
 | **PIE-BU2b** | Tuning pesi bot in editor | PIE attivo | Modificando `WKill/WThreat/WKiteViolation/WApproach/WDamage/WElevation` sul `TurnManager` (World Outliner → Details ▸ *Bot*) il comportamento cambia **dal turno successivo, senza ricompilare**: es. ↑`WThreat` = bot più prudente; ↓`WApproach` = mischia meno aggressiva; ↑`WElevation` = predilige le alte quote. Dettagli nella nota sotto | ✅ |
 | **PIE-BU3** | Bot: utility unica posizione/attacco | **dopo** refactor BU.3b | Un'unica utility sceglie fra **{resta e attacca}** e **{muoviti per posizionarti}** (l'attacco vale solo da fermo: il Blast precede il Move). Verifica: se attaccare da fermo espone troppo il bot preferisce ripararsi invece di sparare; se l'attacco **uccide** spara sempre; guardie **support/panic/dash** intatte; log `utility -> ... attacca X score=N` oppure `... score=N (resta)` | ✅ |
