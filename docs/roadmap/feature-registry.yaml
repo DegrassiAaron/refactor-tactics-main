@@ -4590,23 +4590,35 @@ features:
     owner_specs:
       - docs/roadmap/editormap.shortlist.md
       - docs/roadmap/hex-map-roadmap.md
-    issues: [567, 622, 623]
+    issues: [567, 622, 623, 551, 588]
     tests:
       - RefactorTactics.HexMap.ApplyBrushMerge
       - RefactorTactics.HexMap.FloodRegion
       - RefactorTactics.HexMap.StrokeEquivalence
       - RefactorTactics.HexMap.LookupInvalidatedAfterExternalEdit
       - RefactorTactics.HexMapActor.LayerFilterOnConstruction
+      - RefactorTactics.HexMapActor.PickIgnoresGeometryThatIsNotTheGrid
     scenarios: []
     wiki_refs: []
     last_verified:
       date: 2026-08-12
-      commit: fe9883c
+      commit: e91c51c3
     notes: >
       `Source/RefactorTacticsEditor/` con tool di paint, fill, select e archi. Il residuo sono
       **verifiche PIE aperte** (H5: E/F/G/H/L/N, piu' le tre `PIE-HEX-LAYER-*` della vista a
       livelli) registrate in `test-manuali-pie.md`, non gate impliciti. `packaged: na` — è uno
       strumento d'editor, non entra nella build di gioco.
+      **2026-08-12 (#551, #588)**: l'actor mappa ha un SECONDO `UInstancedStaticMeshComponent` — il
+      rilievo che mostra il costo di attraversamento — e con lui e' cambiato cosa protegge il pennello.
+      Il raycast di selezione confrontava l'ACTOR, mentre `Result.Item` e' l'indice di istanza del
+      COMPONENTE colpito: un colpo su geometria diversa da `Cells` sarebbe stato risolto contro le
+      celle sbagliate e avrebbe prodotto una cella **valida e sbagliata**, cioe' il pennello che
+      dipinge altrove senza un errore a log. Ora il confronto e' sul componente
+      (`ARTHexMapActor::IsPickOnSelectableCell`, pinnato dal test qui sopra) e `NoCollision` sul
+      rilievo resta la prima difesa invece dell'unica: la protezione ha smesso di dipendere dal
+      ricordarsi di una riga. ⚠️ Il modulo `RefactorTacticsEditor` **non ha test propri** — `find
+      Source/RefactorTacticsEditor -iname "*test*"` e' vuoto — quindi le regole che lo riguardano
+      vanno estratte nel modulo runtime per essere verificabili, com'e' stato fatto qui.
 
 
       La vista a livelli ha un terzo stato `Focus` (#565): istanze sul solo piano attivo, gli altri
