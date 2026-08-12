@@ -188,3 +188,89 @@ bool URTAcousticPropagationLibrary::IsAudible(int32 ReceivedNoise, int32 Hearing
 	// riga sta in una funzione invece che sparsa nei chiamanti.
 	return ReceivedNoise > 0 && ReceivedNoise >= HearingThreshold;
 }
+
+TArray<FRTCellId> URTAcousticPropagationLibrary::PlausibleOriginCells(const URTHexMapAsset* Map,
+	const FRTCellId& ListenerCell, int32 ReceivedNoise, int32 HearingThreshold)
+{
+	TArray<FRTCellId> Out;
+
+	// Fail-closed, come `Propagate`: senza mappa non si valutano ne' archi ne' superfici, e un'area
+	// inventata sarebbe la piu' pericolosa delle due risposte. Sotto soglia non si e' sentito niente, e
+	// «non sentito» non produce un contatto vuoto: non produce nulla (invariante #6).
+	if (!Map || !IsAudible(ReceivedNoise, HearingThreshold))
+	{
+		return Out;
+	}
+
+	// La scala di precisione del §13, non un'inferenza: forte sopra la soglia = vicina = area STRETTA.
+	// Il raggio e' dichiarato, non ricavato da un massimo teorico — quella strada dava 271 celle per uno
+	// sprint a due passi, cioe' «da qualche parte».
+	const int32 MaxCost = (ReceivedNoise - HearingThreshold >= TightBandMargin)
+		? TightAreaRadius
+		: WideAreaRadius;
+
+	// Dijkstra a costi interi DAL PUNTO D'ASCOLTO, con lo stesso tie-break di `Propagate`: si estrae il
+	// minimo e i pari merito si rompono con `StableLess`, altrimenti l'area dipenderebbe dall'ordine di
+	// scoperta dei vicini — cio' che l'invariante #3 vieta.
+	//
+	// ⚠️ Nessun `SurfaceNoiseDelta` qui, e la ragione non e' una svista: la superficie **amplifica alla
+	// sorgente** (D-042), e la sorgente e' proprio cio' che questa funzione non conosce. Applicare la
+	// superficie della cella d'ascolto significherebbe usare il dato sbagliato con l'aria di essere precisi.
+	TMap<FRTCellId, int32> Spent;
+	Spent.Add(ListenerCell, 0);
+	TArray<FRTCellId> Frontier;
+	Frontier.Add(ListenerCell);
+	TSet<FRTCellId> Closed;
+
+	while (Frontier.Num() > 0)
+	{
+		int32 BestIdx = 0;
+		for (int32 I = 1; I < Frontier.Num(); ++I)
+		{
+			const int32 D = Spent[Frontier[I]];
+			const int32 BestD = Spent[Frontier[BestIdx]];
+			if (D < BestD || (D == BestD && URTHexLibrary::StableLess(Frontier[I], Frontier[BestIdx])))
+			{
+				BestIdx = I;
+			}
+		}
+		const FRTCellId Current = Frontier[BestIdx];
+		Frontier.RemoveAt(BestIdx);
+		if (Closed.Contains(Current))
+		{
+			continue;
+		}
+		Closed.Add(Current);
+		Out.Add(Current);
+
+		// Tetto di CONTEGGIO: un'area che copre mezza mappa e' onesta e inutile. Si esce subito, senza
+		// finire il flood fill — il risultato sarebbe scartato comunque.
+		if (Out.Num() > MaxPlausibleCells)
+		{
+			Out.Reset();
+			return Out;
+		}
+
+		const int32 SpentHere = Spent[Current];
+		for (const TPair<FRTCellId, int32>& Step : AcousticNeighbors(Map, Current))
+		{
+			const int32 Next = SpentHere + Step.Value;
+			if (Next > MaxCost)
+			{
+				continue;
+			}
+			const int32* Known = Spent.Find(Step.Key);
+			if (!Known || Next < *Known)
+			{
+				Spent.Add(Step.Key, Next);
+				Frontier.Add(Step.Key);
+			}
+		}
+	}
+
+	// Ordine canonico: l'ordine di finalizzazione del Dijkstra e' deterministico ma dipende dai costi, e due
+	// mappe con costi diversi darebbero due ordinamenti diversi per la stessa area. `StableLess` rende il
+	// campo confrontabile fra run e fra mappe — e serializzabile senza sorprese.
+	Out.Sort([](const FRTCellId& A, const FRTCellId& B) { return URTHexLibrary::StableLess(A, B); });
+	return Out;
+}

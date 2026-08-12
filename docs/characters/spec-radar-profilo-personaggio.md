@@ -67,6 +67,62 @@ Profile.
 > concludere che non esistano affatto — che è falso, e produrrebbe un argomento più debole di quello
 > vero: esistono, e il foglio stesso dimostra che sono default.
 
+### 2.2a Che cosa misurano `precision` e `power`
+
+Il Profile ha **un solo** asse `offense`; il Balance lo scompone in due. Senza dire cosa distingue i
+due pezzi, la formula non è scrivibile — e per un po' la differenza non è stata scritta da nessuna parte.
+
+**Il vincolo che decide tutto: nel combattimento non c'è RNG.** Nessun tiro per colpire, nessuna
+`accuracy`. Quindi «precisione» non può significare *probabilità di andare a segno*: dev'essere
+strutturale.
+
+**`power` — quanto danno l'eroe produce per turno**, tenendo conto di quanto spesso può farlo:
+
+```
+power_raw = Σ  danno_garantito(azione) × disponibilità(cooldown)      ancora: raw 100 = 10
+```
+
+Non è *burst*: un colpo enorme ogni tre turni non vale quanto uno ripetibile.
+
+**`precision` — quanto di quel danno arriva senza chiedere niente**, né setup né posizionamento della
+squadra:
+
+```
+precision = (incondizionalità + 2 · selettività) / 3
+```
+
+- **incondizionalità** — quota di danno **garantito** sul potenziale, pesata per disponibilità;
+- **selettività** — quota della **disponibilità** delle azioni rilevanti che non rischia gli alleati.
+
+⚠️ **Due componenti, due metriche, e non è una svista**: un'abilità senza danno non ha danno da pesare,
+quindi la selettività si misura sulla disponibilità. È anche più fedele — il rischio di colpire un
+alleato dipende da **quanto spesso** usi l'azione, non da quanto fa male.
+
+⚠️ **Il peso `1:2` è misurato, non scelto**: sul roster l'incondizionalità varia da `0.77` a `1.00`
+mentre la selettività copre l'intero `0.00–1.00`. Pesare di più la componente che varia meno
+comprimerebbe tre eroi su quattro nello stesso intero.
+
+**`precision` guarda solo le azioni offensive** — più le abilità senza danno il cui effetto si applica a
+un'**area** e produce sugli alleati lo **stesso** svantaggio che produce sui nemici (`MistVeil`,
+`FluidTrail`). Una copertura no: protegge chi vi sta dietro. Altrimenti un eroe risulterebbe «preciso»
+per abilità che non colpiscono nessuno.
+
+### 2.2b La commensurabilità è una posizione, non un fatto
+
+Il Balance serve anche a vedere se un eroe **sta nel budget**, e questo impone che i cinque assi si
+sommino. Ma `power` è una **quantità** (danno per turno) e `precision` una **qualità** (quanto è
+affidabile): sommarle afferma **«l'affidabilità è potenza»**.
+
+È difendibile — un colpo che va sempre a segno vale più di uno da preparare — ed è già ciò che il
+workbook faceva sommando i cinque assi in `Indice_Combat`. Ma è una **scelta**, e va scritta qui:
+altrimenti fra sei mesi qualcuno somma quei numeri senza sapere di averlo deciso.
+
+⚠️ **Ne segue la regola che tiene insieme i due assi**: un bonus condizionale non può contribuire a
+entrambi. Se `power` contasse il potenziale, il `+8 su Wet` di Flux **alzerebbe** `power` e
+**abbasserebbe** `precision`, e in un indice sommabile i due movimenti **si cancellerebbero** — il
+tratto più identitario di Flux sparirebbe dal costo. Perciò `power` conta solo il danno **garantito**
+(§5.2), e il condizionale vive interamente in `precision`.
+
 ### 2.3 L'ordine fa parte della specifica
 
 Cambiare l'ordine dei raggi cambia la forma del poligono a parità di valori. Due radar prodotti con
@@ -98,13 +154,36 @@ La rubrica che converte stats e kit in un rating è **codice**, non una tabella 
 
 ```text
 RT_HeroCatalog_v0.1.md      ← autorità (D-023)
-        |
+        |                     + RT_ActionCatalog_v0.1.md per le abilità che rinviano
+        |                       a un'azione core (D-115)
         v  rubrica (codice, rivedibile in PR)
    rating 1..10             ← esistono solo durante la generazione
         |
         v
       SVG
 ```
+
+### 4.0 Due cataloghi, una sola autorità
+
+[D-115](../decisions/RT_PDR_00_Decision_Log.md). Il catalogo eroi non è autosufficiente: la riga di
+`Flux.ConductiveNode` dichiara *«**è `Action.Electrify`**»* e non porta un numero di danno, che vive in
+[`RT_ActionCatalog_v0.1.md`](../balance/RT_ActionCatalog_v0.1.md). La rubrica legge quindi **entrambi**,
+e il rinvio `` è `Action.X` `` è parte del contratto di lettura, non prosa libera.
+
+Non contraddice D-106, che escludeva i **workbook**: i due cataloghi markdown sono già l'autorità dei
+numeri per [D-023](../decisions/RT_PDR_00_Decision_Log.md), diffabili e revisionabili in PR. La regola
+resta «un dato ha un solo posto dove vive» — la portata di `Action.Electrify` sta nel catalogo azioni
+proprio perché **non** è di Flux: è dell'azione core che sette abilità potrebbero riusare.
+
+⚠️ **Vale un valore pubblicato, non è teoria**: senza la seconda fonte Flux esce `power 5` e
+`offense 4` invece di `6` e `5`, perché i `20` danni di `ConductiveNode` non vengono letti.
+
+⚠️ **Un solo pattern risolve, e va distinto dall'altro che gli somiglia.** La tabella delle reazioni
+del catalogo eroi cita anch'essa azioni core — `Flux.ReactiveCapacitor` → `Action.Counter`,
+`Bastion.Interposition` → `Action.Intercept`, `Vektor.Deflection` → `Action.Deflect` — ma tiene i
+**propri numeri inline** (`scudo 15 e 10 danni`, `−20`). Quelle riusano la **semantica**, non i valori:
+il parser non deve risolverle contro il catalogo azioni. Solo `` è `Action.X` `` delega il dato, e nel
+roster v0.1 compare **una volta sola**.
 
 ### 4.1 Perché nessun workbook è la fonte
 
@@ -161,7 +240,7 @@ danno, range, effetto e cooldown.
 
 | Asse | Si deriva da | Stato |
 |---|---|:--:|
-| `offense` | danno, gittata e cooldown delle abilità offensive del kit | ✅ |
+| `offense` | `power × (0.5 + precision/20)` — il Profile **aggrega** ciò che il Balance scompone (§5.2) | ✅ |
 | `durability` | `Salute` + `Resistenza Push` | ✅ |
 | `mobility` | `Movimento` + abilità di riposizionamento (dash, blink, self-reposition) | ✅ |
 | `control` | effetti dichiarati: push, slow, zoning, `Interrupt`, modifica del terreno | ✅ |
@@ -184,6 +263,52 @@ delle **azioni**, non degli eroi ([D-042](../decisions/RT_PDR_00_Decision_Log.md
 eroe si deriva dal **kit** — quali azioni possiede e quanto rumore fanno. Finché quel passo non
 esiste, `information` va letto come «quanto lontano vede», e la Wiki non deve promettere di più.
 
+### 5.2 Le regole comuni a ogni asse
+
+Valgono per **entrambi** i radar. Stanno qui e non nelle formule dei singoli assi perché una risposta
+diversa per asse produrrebbe due viste che raccontano lo stesso eroe in modo diverso.
+
+**Il kit letto è quello base** — le quattro abilità fondamentali. Niente varianti, gadget o moduli di
+reazione: il radar descrive il **personaggio**, non una build, ed è la base comune che rende due eroi
+confrontabili (§1). Il loadout consigliato aprirebbe il catalogo equipaggiamento come terza fonte e
+richiederebbe di assumere **quanti bersagli** colpisce *Scarica ramificata* — che è uno scenario, non un
+dato. Le varianti restano documentate come **direzione**, senza numeri.
+
+**Le reazioni rinviate a E14 contano.** `Vektor.InterceptShot` e `Riva.FlowReaction` non producono nulla
+in partita, ma il radar descrive l'eroe come il **catalogo lo dichiara**. Escluderle legherebbe i rating
+al calendario di implementazione: quando E14 atterra i numeri cambierebbero e il gate di §8 diventerebbe
+rosso **senza** che nessuno abbia toccato un dato competitivo.
+
+**Il cooldown pesa `disponibilità(CD) = 10 / (1 + CD/2)`** — `CD 0 → 10 · 1 → 6.67 · 2 → 5 · 3 → 4`.
+Risolve `CD 0` senza casi speciali, con **una sola costante** da giustificare invece di una tabella di
+quattro. Scartata la frequenza pura `10/(1+CD)`, che fa collidere Bastion e Riva.
+
+> ⚠️ **La curva non è taratura: cambia il carattere di un eroe.** Flux ha quattro abilità su cinque a
+> `CD 2–3`, quindi una curva severa le svaluta tutte — e siccome le sue abilità **non selettive** sono
+> proprio quelle a cooldown alto, la sua selettività *sale*. Con una tabella piatta usciva
+> `power 7 / precision 6`; con questa curva esce `6 / 7`.
+
+**Un bonus condizionale vale zero come danno.** Il `+8 su `Wet`` di `Flux.LinearDischarge` non entra in
+nessun rating come danno: entra come **condizionalità**. La regola vale su ogni asse e su **entrambe** le
+sedi in cui il catalogo dichiara una condizione — la cella `Effetto` per gli stati, la tabella delle
+reazioni per le previsioni (`Vektor.InterceptShot`). Due meccanismi separati potrebbero divergere.
+
+**Le ancore sono assolute, non relative al roster.** `rate(raw, ancora)` porta `raw = 0` a `1` e
+`raw = ancora` a `10`, e satura. Una normalizzazione min-max garantirebbe lo spread per costruzione, ma
+farebbe cambiare i rating degli eroi esistenti all'arrivo di un eroe nuovo (**E35**) — e il `--check` di
+§8 diventerebbe rosso senza che nessun dato competitivo sia cambiato. Lo spread resta un requisito da
+**verificare**, non da imporre.
+
+**L'ancora di `power` è `raw 100`**, cioè «uccide un eroe medio in un turno»: la salute del roster è
+`90/95/120/90`, media `98.75`, e `power_raw` è già danno per turno. Deriva da un dato del gioco, non da
+un numero scelto perché i conti tornassero.
+
+> **Implementazione**: `tools/radar/rubric.ts` (scala, ancore, peso del cooldown, `TBD`) e
+> `tools/radar/power.ts`. L'aritmetica è **intera esatta**: `10/(1+CD/2)` è `20/(2+CD)`, i denominatori
+> possibili sono `{2,3,4,5}` e il loro mcm è `60`, quindi ogni peso è un intero. Serve al `--check` di
+> §8, che confronta artefatti byte a byte: un arrotondamento in virgola mobile lo renderebbe rosso su
+> una macchina e verde su un'altra.
+
 ## 6. Valori mancanti: TBD non è zero
 
 Un asse senza rating è `TBD`, e **`TBD` non si disegna**.
@@ -202,15 +327,26 @@ completo».
 un asse che la formula non copre disegnato come `0` accuserebbe l'eroe di una debolezza che nessuno ha
 misurato.
 
+✅ **Nell'implementazione `TBD` è un `Symbol`, non un numero** (`tools/radar/rubric.ts`): non può
+diventare `0` per errore di tipo o per una somma distratta. La regola qui sopra smette di dipendere
+dalla disciplina di chi scrive la formula.
+
 ## 7. Ordine di lavoro
 
 1. **Rubrica** — è il prerequisito di tutto: senza formula i rating non esistono affatto (§4.3).
 2. **Assi Profile** nell'ordine di §5: prima i cinque derivabili, poi `information` col suo limite.
 3. **Generatore** sul Profile, dimostrato end-to-end con il gate di §8.
 4. **Integrazione Wiki** e pubblicazione dei primi radar.
-5. **Balance Radar**, che richiede prima di definire *cosa misurano* `precision` e `power`: il Profile ha
-   un solo asse `offense`, il Balance lo separa in due, e la differenza non è scritta da nessuna parte.
+5. **Balance Radar** — `power` è definito e implementato; resta `precision`.
 6. Rumore per eroe derivato dal kit, che è ciò che rende `information` un asse vero (§5.1).
+
+> **Stato al 2026-08-12.** Fatti: il **parser** che riempie `HeroInput` dai due cataloghi
+> (`tools/radar/parse-catalog.ts`), l'**infrastruttura** della rubrica — scala, ancore, peso del
+> cooldown, `TBD` — e l'asse **`power`**. Restano `precision` e i sei assi del Profile, poi il
+> generatore.
+>
+> ⚠️ Il punto 5 diceva che la differenza fra `precision` e `power` «non è scritta da nessuna parte»:
+> non è più vero, `power` è *danno sostenuto* e `precision` *incondizionalità più selettività*.
 
 Il primo punto non è più «risolvere il conflitto dei workbook»: [D-106](../decisions/RT_PDR_00_Decision_Log.md)
 lo ha dissolto.
@@ -273,3 +409,15 @@ Node diventa un prerequisito del **bilanciamento**, non solo della documentazion
 Scala identica in ogni confronto, nessun auto-scaling per personaggio, valori leggibili anche come
 testo, e distinzione fra poligoni che **non dipende solo dal colore** (tratto, pattern, legenda).
 L'SVG dichiara `role="img"` e una descrizione testuale.
+
+**Leggibili su entrambi i temi.** «Valori leggibili come testo» non è soddisfatto da un testo che
+*esiste* nel documento: fino al 2026-08-12 le etichette erano `#333` e i valori `#111` su fondo
+trasparente, e su tema scuro sparivano. L'SVG porta ora un blocco
+`@media (prefers-color-scheme: dark)`, che vale anche quando l'immagine è caricata come `<img>`
+perché la query legge la preferenza del **sistema**. Limite noto e accettato: segue l'OS, non
+l'interruttore di tema del sito che ospita l'immagine.
+
+**Il `<title>` dice quale vista è.** È il nome accessibile a cui punta `aria-labelledby`, e le due
+viste sono altrimenti indistinguibili — due poligoni 400×400 sugli stessi colori. Fino al 2026-08-12
+tutti e quattro i Balance Radar si annunciavano come `Profile Radar`, perché la vista non era un
+parametro. Ora lo è, ed è obbligatorio (`RadarView` in `tools/radar/svg.ts`).

@@ -4,6 +4,10 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexVisionLibrary.h"
+#include "Map/RTHexMapActor.h"
+#include "Components/InstancedStaticMeshComponent.h"
+#include "Engine/Engine.h"
+#include "Engine/World.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -309,8 +313,8 @@ bool FRTHexMapFormatMigrationTest::RunTest(const FString&)
 
 	TestEqual(TEXT("versione portata alla corrente"), Legacy->FormatVersion, URTHexMapAsset::CurrentFormatVersion);
 	// Il numero e' pinnato di proposito: un bump di formato deve far cadere un test, non passare inosservato.
-	// v6 (CP 19.1) aggiunge la classe di mappa; nessun dato precedente cambia significato.
-	TestEqual(TEXT("la versione corrente e' la 6"), URTHexMapAsset::CurrentFormatVersion, 6);
+	// v7 (#619) aggiunge il sovrapprezzo di occupazione; nessun dato precedente cambia significato.
+	TestEqual(TEXT("la versione corrente e' la 7"), URTHexMapAsset::CurrentFormatVersion, 7);
 	TestEqual(TEXT("nessuna cella persa"), Legacy->NumCells(), 3);
 	TestEqual(TEXT("nessuna transizione persa"), Legacy->Transitions.Num(), 2); // bidirezionale
 
@@ -529,6 +533,115 @@ bool FRTHexBrushLineOfSightTest::RunTest(const FString&)
 		TestTrue(TEXT("ridipinto senza flag: vista di nuovo libera"),
 			URTHexVisionLibrary::HasLineOfSight(Map, From, To));
 	}
+	return true;
+}
+
+
+/**
+ * **Solo `Cells` ha collisione.** E' l'invariante da cui dipende la selezione, e ogni componente aggiunto
+ * all'actor puo' romperla senza che nulla se ne accorga.
+ *
+ * `ResolveClickedCell` valida `Result.GetActor() == Actor` — l'ACTOR, non il componente — quindi geometria
+ * collidibile su `Relief` o `Blockers` intercetterebbe il raycast del pennello. Si manifesterebbe come
+ * «dipinge dove non ho cliccato», e nessuno lo attribuirebbe alla visualizzazione: e' il motivo per cui
+ * questa regola va pinnata invece che ricordata.
+ *
+ * Verifica anche il verso opposto: `Cells` la collisione DEVE averla, o la selezione smetterebbe di
+ * funzionare del tutto — e un test che controllasse solo «gli altri non collidono» resterebbe verde.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexOnlyCellsAreClickableTest,
+	"RefactorTactics.HexMap.OnlyTheCellsComponentIsClickable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexOnlyCellsAreClickableTest::RunTest(const FString&)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+	if (!World) { return false; }
+	FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+	Ctx.SetCurrentWorld(World);
+
+	ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
+	TestNotNull(TEXT("l'actor esiste"), Actor);
+	if (Actor)
+	{
+		TArray<UInstancedStaticMeshComponent*> Components;
+		Actor->GetComponents<UInstancedStaticMeshComponent>(Components);
+		TestTrue(TEXT("ci sono piu' componenti istanziati"), Components.Num() >= 2);
+
+		int32 Collidable = 0;
+		for (const UInstancedStaticMeshComponent* C : Components)
+		{
+			if (C->GetCollisionEnabled() != ECollisionEnabled::NoCollision)
+			{
+				++Collidable;
+				// Se un componente nuovo diventa collidibile, il messaggio dice QUALE: senza il nome, chi legge
+				// il fallimento saprebbe solo che «qualcosa» ruba i click.
+				TestEqual(TEXT("l'unico componente collidibile e' quello delle celle"),
+					C->GetName(), FString(TEXT("Cells")));
+			}
+		}
+		TestEqual(TEXT("esattamente UN componente collidibile"), Collidable, 1);
+	}
+
+	GEngine->DestroyWorldContext(World);
+	World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+	return true;
+}
+
+
+/**
+ * Un nome di fixture sbagliato **non svuota l'asset**.
+ *
+ * Il pulsante SOSTITUISCE il contenuto, quindi il momento pericoloso e' il refuso: `CoverYrad` invece di
+ * `CoverYard` cancellerebbe una mappa d'autore e la sostituirebbe con niente. `MakeFixtureArena` risponde
+ * `nullptr` a un nome sconosciuto, e il chiamante deve fermarsi PRIMA di toccare l'asset — non dopo.
+ *
+ * Verifica anche il caso buono, o resterebbe verde un pulsante che non fa mai nulla.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexFixtureLoaderTest,
+	"RefactorTactics.HexMap.UnknownFixtureLeavesTheAssetUntouched",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexFixtureLoaderTest::RunTest(const FString&)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+	if (!World) { return false; }
+	FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+	Ctx.SetCurrentWorld(World);
+
+	ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
+	if (Actor)
+	{
+		Actor->MapAsset = NewObject<URTHexMapAsset>();
+		Actor->MapAsset->AddOrUpdateCell(FRTHexCellData(FRTCellId(7, 7, 0))); // una cella riconoscibile
+		const uint32 BeforeHash = Actor->MapAsset->ComputeHash();
+
+		// 1. Nome sbagliato: l'asset non si muove. E' la proprieta' che conta, perche' il pulsante sostituisce.
+		Actor->FixtureId = TEXT("CoverYrad"); // refuso plausibile
+		Actor->GenerateFixtureIntoAsset();
+		TestEqual(TEXT("nome sconosciuto -> asset invariato"), Actor->MapAsset->ComputeHash(), BeforeHash);
+		TestTrue(TEXT("la cella d'origine c'e' ancora"),
+			Actor->MapAsset->ContainsCell(FRTCellId(7, 7, 0)));
+
+		// 2. Nome giusto: la fixture entra davvero, e porta con se' cio' che la rende utile — CoverYard esiste
+		//    perche' e' l'unica mappa con una copertura ALTA, e senza quelle sarebbe una fixture qualunque.
+		Actor->FixtureId = TEXT("CoverYard");
+		Actor->GenerateFixtureIntoAsset();
+		TestTrue(TEXT("nome valido -> l'asset cambia"), Actor->MapAsset->ComputeHash() != BeforeHash);
+		TestFalse(TEXT("la cella d'origine e' stata sostituita, non fusa"),
+			Actor->MapAsset->ContainsCell(FRTCellId(7, 7, 0)));
+
+		int32 HighCovers = 0;
+		for (const FRTHexCellData& Cell : Actor->MapAsset->Cells)
+		{
+			for (const FRTHexCover& Cover : Cell.Covers)
+			{
+				if (Cover.Type == ERTHexCoverType::High) { ++HighCovers; }
+			}
+		}
+		TestTrue(TEXT("CoverYard porta la copertura alta, che e' la ragione per cui esiste"), HighCovers > 0);
+	}
+
+	GEngine->DestroyWorldContext(World);
+	World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
 	return true;
 }
 

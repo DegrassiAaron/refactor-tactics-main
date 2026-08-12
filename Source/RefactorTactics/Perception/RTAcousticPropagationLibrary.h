@@ -98,4 +98,66 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Noise")
 	static bool IsAudible(int32 ReceivedNoise, int32 HearingThreshold);
+
+	/**
+	 * I due raggi della scala di precisione, dal §13 del documento sorgente sul rumore — *«Detection Level 2
+	 * — Area larga: possibile sorgente entro 4-5 celle»* e *«Level 3 — Area stretta: entro 2 celle»*.
+	 *
+	 * ⚠️ **Sono DICHIARATI, non dedotti, ed e' la correzione che questo checkpoint ha dovuto fare.** La prima
+	 * stesura ricavava il raggio all'indietro da un budget massimo teorico (cima della scala piu' la
+	 * superficie piu' rumorosa): aritmeticamente onesto e praticamente inutile, perche' produceva aree di
+	 * 271 celle per uno sprint sentito a due passi — cioe' «da qualche parte», che non e' un contatto.
+	 * Il documento sorgente il numero ce l'aveva gia'.
+	 *
+	 * `4` e non `5` per la fascia larga: il sorgente scrive «4-5» e si prende l'estremo prudente, che e'
+	 * anche quello che tiene l'area sotto le 61 celle.
+	 */
+	static constexpr int32 WideAreaRadius = 4;
+	static constexpr int32 TightAreaRadius = 2;
+
+	/**
+	 * Di quanto un rumore deve superare la soglia d'udito per passare da fascia larga a fascia stretta.
+	 *
+	 * ⚠️ **E' il solo numero di questo checkpoint che nessun documento possiede**, e va detto invece che
+	 * nasconderlo in una formula. Il sorgente dice *cosa* distingue i livelli (specializzazione, skill,
+	 * distanza, riconoscibilita') e propone una statistica per eroe `NoiseIdentificationLevel` che il
+	 * progetto **non ha**: aggiungerla sarebbe quattro numeri di bilanciamento nuovi, cioe' una decisione
+	 * come [D-041] per l'udito. Finche' non esiste, il discriminante e' il **margine sopra la soglia**, che
+	 * e' informazione che l'ascoltatore ha gia' e non costa nessun dato nuovo: piu' forte l'ha sentito, piu'
+	 * vicina era la sorgente.
+	 */
+	static constexpr int32 TightBandMargin = 3;
+
+	/**
+	 * Valvola di sicurezza sul numero di celle, non un criterio di gioco: con i raggi dichiarati l'area sta
+	 * fra 19 e 61 celle, quindi questo tetto non scatta mai in partita. Esiste perche' una mappa futura con
+	 * archi a costo zero renderebbe il flood fill illimitato, e un budget di CONTEGGIO e' la difesa che il
+	 * progetto usa ovunque — mai un limite sul tempo, che dipenderebbe dalla macchina.
+	 */
+	static constexpr int32 MaxPlausibleCells = 128;
+
+	/**
+	 * Da dove PUO' essere venuto un rumore udito in `ListenerCell` con intensita' residua `ReceivedNoise`.
+	 *
+	 * ⚠️ **Non riceve la sorgente, e non e' un'omissione di comodo: e' la firma che rende onesto il canale
+	 * acustico.** Il risultato si costruisce dal solo punto d'ascolto e da cio' che ha sentito, quindi non
+	 * puo' contenere informazione che l'ascoltatore non ha. Una versione che prendesse l'evento vero
+	 * restituirebbe la stessa area *e sarebbe indistinguibile da una che restituisce la cella esatta*: la
+	 * garanzia di `D13` vive qui, in cio' che il parametro NON permette.
+	 *
+	 * Il criterio e' la scala del §13 del sorgente, non un'inferenza: un rumore che supera la soglia di
+	 * almeno `TightBandMargin` e' arrivato forte, quindi la sorgente era vicina e l'area e' **stretta**
+	 * (`TightAreaRadius`); altrimenti e' **larga** (`WideAreaRadius`). Il raggio si misura in costo acustico
+	 * dal punto d'ascolto — non in celle euclidee — cosi' un muro allarga l'incertezza invece di ignorarla.
+	 *
+	 * ⚠️ L'area e' centrata sull'ASCOLTATORE, non sulla sorgente, e non e' un ripiego: la **direzione** e' il
+	 * Livello 1 della stessa scala, ed e' informazione che questo checkpoint non concede. Un'area centrata
+	 * sulla sorgente ne codificherebbe la posizione nel proprio centro.
+	 *
+	 * Vuoto se la mappa manca (fail-closed, come `Propagate`), se `ReceivedNoise <= 0` o se il rumore non
+	 * supera la soglia. Ordine stabile (`StableLess`).
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Noise")
+	static TArray<FRTCellId> PlausibleOriginCells(const URTHexMapAsset* Map, const FRTCellId& ListenerCell,
+		int32 ReceivedNoise, int32 HearingThreshold);
 };

@@ -41,7 +41,16 @@ namespace
 	{
 		static const TSet<FString> Available = {
 			TEXT("FixtureReference"),  // lo scenario riferisce la geometria per nome
-			TEXT("Reaction"),          // E5: reazioni componibili, automatiche (AllowedResponses <= 1)
+			// E5: reazioni componibili che scattano o non scattano — il regime `AllowedResponses <= 1` di
+			// ADR-0004 §2. Il perimetro e' stato **rimisurato** con `#582` dopo CP 14.4, e la risposta non e'
+			// quella che la issue supponeva: `BuildOverwatchTriggers` produce opportunity a due risposte, ma
+			// `grep -rn "BuildOverwatchTriggers" Source/ --include=*.cpp | grep -v /Tests/` non trova nessun
+			// chiamante — la regola e' pura e nessuno la invoca in partita. Quindi in un turno vero le
+			// opportunity restano quelle di E5, e questa riga descrive ancora il codice che gira.
+			//
+			// Il giorno in cui `ResolveCombat` chiamera' quella funzione, questa riga smette di essere vera e va
+			// divisa: la DECISIONE su un'opportunity a due risposte non appartiene a `Reaction` (vedi sotto).
+			TEXT("Reaction"),
 			TEXT("Environment"),       // E8: superfici, stati, propagazione
 			TEXT("Cover"),             // E9 CP 9.1/9.2: coperture bassa e alta, distruzione
 			TEXT("Structures"),        // E9 CP 9.3: porte come bordo, revisione della mappa
@@ -58,23 +67,60 @@ namespace
 			// E18 CP 18.2 (D-016): `Vektor.InterceptShot` e' una Predictive Action — cella dichiarata in
 			// Planning, verificata al boundary del Move, nessun input durante la Resolution.
 			//
-			// Si dichiara disponibile senza il problema che tiene fuori `ReactionPlanning` e `DeclaredRotation`:
+			// Si dichiara disponibile senza il problema che tiene fuori `DeclaredRotation`:
 			// qui l'harness NON e' il primo produttore del campo. Una previsione si dichiara con `targetCell`
 			// su un'azione principale, che e' la stessa strada di qualunque AoE — un canale che il gioco ha
 			// gia', non uno aperto per gli scenari. Il verde dice quindi qualcosa di vero sul giocatore.
 			TEXT("PredictiveAction"),
+			// CP 13.5 (#160): un'unita' dello scenario puo' essere guidata dal BOT invece che dal file.
+			//
+			// Si dichiara disponibile per la stessa ragione di `PredictiveAction` e non per quella che tiene
+			// fuori `ReactionPlanning`: qui l'harness NON e' il primo produttore. `ARTTurnManager::PlanBots()`
+			// gira in ogni partita 2v2, e l'harness lo raggiunge da `PlanBotsForTest()` — l'appiglio che il
+			// runner dichiara da sempre come l'unico. Il verde dice quindi qualcosa di vero sul gioco.
+			//
+			// ⚠️ Non e' il seam dei `DecisionProvider` (D-101, #542): quello serve quando i modi di giocare uno
+			// scenario diventano tre. Qui resta uno — file per gli umani, pianificatore per i bot, che e' la
+			// composizione della v0.1.
+			TEXT("BotPlanning"),
+			// `#601`: da oggi `PlannedReactionAbility` ha un produttore che non e' un test — il giocatore lo
+			// scrive da `ARTPlayerController::SelectAbilityForCurrent` (slot proprio, nessun targeting: chi
+			// subira' la reazione lo decide il trigger) e il bot da `PlanBots`, che arma quella che ha.
+			//
+			// Finche' quel produttore non c'era, questa riga sarebbe stata una bugia utile a far passare gli
+			// scenari: i loro verdi avrebbero detto che il giocatore puo' preparare una parata quando non poteva.
+			// Ora dicono il vero, e il perimetro resta lo stesso — dichiarare in pianificazione, non decidere in
+			// una finestra: quella e' E14, e non passa da qui.
+			TEXT("ReactionPlanning"),
 		};
-		// NON disponibile, e la riga che manca vale quanto quelle che ci sono:
+		// NON disponibili, e le righe che mancano valgono quanto quelle che ci sono. L'elenco e' stato
+		// completato con `#582`: prima ne nominava due, mentre gli scenari in repo ne chiedono **sei** — e una
+		// capability che nessuno documenta produce un `BLOCKED` senza spiegazione, che e' meta' del valore.
 		//
-		//   `ReactionPlanning` — dichiarare una reazione IN PIANIFICAZIONE. `PlannedReactionAbility` esiste,
-		//   il resolver lo legge in due punti e l'HUD pure, ma in tutto il progetto lo SCRIVONO solo i test:
-		//   ne' il controller ne' il bot. Dare agli scenari uno slot `reaction` renderebbe l'harness il primo
-		//   produttore di quel campo — cioe' piu' CAPACE del gioco, e i suoi verdi direbbero che il giocatore
-		//   puo' preparare una parata quando non puo'. E' il rovescio esatto del caso `ValidateActionSlots`,
-		//   dove l'harness rischiava di essere piu' SEVERO del gioco. Entrambe le asimmetrie mentono.
+		//   `DecisionBoundary` e `ReactionClash` — la FINESTRA: sospendere la risoluzione e chiedere una
+		//   risposta. CP 14.4 ha consegnato la regola che riconosce un'opportunity contesa
+		//   (`RequiresDecisionBoundary`, `AllowedResponses >= 2`) ma **nessun chiamante di produzione**, e la
+		//   finestra da 3 s e' CP 14.5. Sono due nomi e non uno perche' separano due cose che possono atterrare
+		//   in tempi diversi: fermarsi a un boundary, e risolvere il confronto fra due risposte contese.
 		//
-		// Il produttore nasce con le finestre di reazione (E14/S5-1). Fino ad allora un turno che chiede
-		// `ReactionPlanning` e' BLOCKED, che e' la verita' e costa una riga.
+		//   `Facing` — la ROTAZIONE dichiarata come mossa, da non confondere con `FRTScenarioUnit::Facing`, che
+		//   e' dato di piazzamento e c'e'. Vedi `DeclaredRotation` piu' sotto: stessa cosa, altro nome, e i due
+		//   vanno riconciliati quando l'input arrivera' (#291).
+		//
+		//   `InterceptRevalidation`, `Objective`, `Perception` — chieste da scenari gia' in repo. Restano fuori
+		//   finche' qualcuno non misura, come si e' fatto qui per `Reaction`, che il gioco le sappia fare in
+		//   partita e non solo in una libreria pura.
+		//
+		//   ⚠️ La CONDIZIONE dichiarata di [D-109] (`TargetHealthAtOrBelowPercent`) non e' ancora implementata,
+		//   e quando lo sara' vale per lei la stessa regola: **nessuna chiave di scenario** finche' non esiste
+		//   un produttore che non sia l'harness. E' il criterio che ha tenuto fuori `ReactionPlanning` fino a
+		//   `#601`, ed e' l'unico che impedisce a un verde di dire che il giocatore puo' dichiarare qualcosa
+		//   che non ha modo di chiedere.
+		//
+		//   `ReactionPlanning` e' USCITA da questo elenco con `#601`: il campo ha finalmente un produttore
+		//   nel gioco (controller e bot), quindi darla agli scenari non rende piu' l'harness piu' capace del
+		//   gioco. La riga sopra spiega il perimetro; questa resta a ricordare **perche'** era fuori, che e' il
+		//   criterio con cui si giudica la prossima.
 		//
 		//   `DeclaredRotation` — dichiarare una ROTAZIONE in pianificazione (D-020). Dopo #291 la catena esiste
 		//   quasi tutta: il campo sta su `ARTUnit`, entra in `FRTPlannedIntent`, passa da `FilterForTeam`, e il
@@ -128,6 +174,7 @@ namespace
 			{
 				Cell.MoveCost = Spec.MoveCost;
 			}
+			Cell.OccupancySurcharge = Spec.OccupancySurcharge; // 0 = cella larga, come una non elencata
 			Map->AddOrUpdateCell(Cell);
 		}
 		Map->SortCells();
@@ -245,13 +292,54 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 		Unit->TeamId = Spec.TeamId;
 		Unit->ConfigureFromHeroData(Hero);
 		UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);
-		// Le unita' dello scenario NON sono bot: gli intent li decide il file, non l'utility scoring.
-		Unit->bIsBotControlled = false;
+		// Chi decide l'intent: il FILE per default, il pianificatore del gioco per le unita' dichiarate `bot`.
+		// Il default resta quello di prima — uno scenario che non dice niente non guadagna un bot per sbaglio.
+		Unit->bIsBotControlled = Spec.bBotControlled;
+		if (Spec.bBotControlled)
+		{
+			bHasBotUnits = true;
+		}
 		Unit->DispatchBeginPlay();
 		Unit->PlaceOnCell(Spec.Cell, MapOrigin, MapHexSize, MapLayerHeight);
 		// Orientamento INIZIALE (CP 13.2): dove guarda la figura appena posata. Dopo `PlaceOnCell`, che non lo
 		// tocca. Non e' una rotazione dichiarata — vedi `FRTScenarioUnit::Facing`.
 		Unit->Facing = Spec.Facing;
+
+		// Condizione INIZIALE: dopo `ConfigureFromHeroData`, che ha appena scritto i valori del roster. Un
+		// valore oltre il tetto e' un errore dello SCENARIO e non si clampa in silenzio: chi ha scritto 200 su
+		// un eroe da 120 stava descrivendo un'altra partita, e un clamp gliela farebbe passare per la sua.
+		if (Spec.Health != -1)
+		{
+			if (Spec.Health > Unit->MaxHealth)
+			{
+				return Fail(FString::Printf(TEXT("unita' '%s': health %d oltre il massimo dell'eroe (%d)"),
+					*Spec.Id, Spec.Health, Unit->MaxHealth));
+			}
+			Unit->Health = Spec.Health;
+		}
+		if (Spec.Shield != -1)
+		{
+			Unit->Shield = Spec.Shield;
+		}
+		if (Spec.VisionRange != -1)
+		{
+			Unit->VisionRange = Spec.VisionRange;
+		}
+		// EQUIPAGGIAMENTO dichiarato dallo scenario (`#602`). Le azioni concesse si accodano al kit gia'
+		// costruito da `ConfigureFromHeroData`, che e' lo stesso percorso con cui i test montano un modulo: il
+		// pezzo entra come azione, non come flag.
+		//
+		// Che i pezzi esistano e che l'insieme sia legale l'ha gia' verificato il loader, che rifiuta lo
+		// scenario con un motivo invece di lasciarlo girare a meta'. Qui si equipaggia e basta.
+		for (const FName& PieceId : Spec.Loadout)
+		{
+			const URTEquipmentData* Piece = URTCatalogLibrary::FindEquipment(PieceId);
+			if (!Piece) { continue; }
+			if (URTActionData* Granted = URTCatalogLibrary::MakeEquipmentAction(Piece, Unit))
+			{
+				Unit->Abilities.Add(Granted);
+			}
+		}
 
 		UnitsById.Add(Spec.Id, Unit);
 	}
@@ -423,7 +511,7 @@ void FRTScenarioSession::BeginTurn()
 			// E la reazione armata: il turn manager la consuma da solo, ma solo se il trigger scatta. Senza
 			// questo azzeramento una reazione mai scattata resterebbe armata per tutto lo scenario, e un
 			// turno successivo la vedrebbe partire senza che nessun intent l'abbia chiesta.
-			U->PlannedReactionAbility = INDEX_NONE;
+			U->ClearReactionPlan();
 		}
 	}
 
@@ -622,6 +710,17 @@ void FRTScenarioSession::BeginTurn()
 		return;
 	}
 
+	// Le unita' `bot` decidono ORA, con gli intent scriptati gia' scritti: e' lo stesso ordine di una partita
+	// vera, dove il giocatore blocca il piano e poi il turn manager pianifica per i suoi.
+	//
+	// `PlanBots` azzera il piano delle SOLE unita' che guida, quindi non tocca ne' sovrascrive gli intent del
+	// file. Chiamarlo prima li avrebbe invece esposti al rischio opposto — un intent scriptato che sovrascrive
+	// una decisione del bot — ed e' la ragione per cui l'ordine e' questo e non l'altro.
+	if (bHasBotUnits)
+	{
+		TM->PlanBotsForTest();
+	}
+
 	TM->LockInAndResolve();
 	State = EState::Resolving;
 	ResolveTicks = 0;
@@ -712,6 +811,26 @@ void FRTScenarioSession::Step(float DeltaSeconds, bool bPumpTurnManager)
 	}
 }
 
+void FRTScenarioSession::TearDown()
+{
+	for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)
+	{
+		if (ARTUnit* Unit = Pair.Value.Get())
+		{
+			Unit->Destroy();
+		}
+	}
+	UnitsById.Reset();
+
+	// Il turn manager per ULTIMO: distruggerlo prima lascerebbe le unita' senza l'attore che le conosce, e un
+	// suo callback in coda troverebbe un roster mezzo vuoto.
+	if (ARTTurnManager* TM = TurnManager.Get())
+	{
+		TM->Destroy();
+	}
+	TurnManager.Reset();
+}
+
 void FRTScenarioSession::Finish()
 {
 	// Piani AZZERATI: se restassero appesi, qualunque cosa risolvesse un turno dopo lo scenario li
@@ -730,7 +849,7 @@ void FRTScenarioSession::Finish()
 			// E la reazione armata: il turn manager la consuma da solo, ma solo se il trigger scatta. Senza
 			// questo azzeramento una reazione mai scattata resterebbe armata per tutto lo scenario, e un
 			// turno successivo la vedrebbe partire senza che nessun intent l'abbia chiesta.
-			U->PlannedReactionAbility = INDEX_NONE;
+			U->ClearReactionPlan();
 		}
 	}
 
@@ -768,8 +887,31 @@ void FRTScenarioSession::Finish()
 		Result.StateHash = URTMatchStateHashLibrary::HashMatchState(Map, UnitStates, TeamScores);
 	}
 
+	// ⚠️ Scenario BLOCCATO: le assertion di fine scenario NON si valutano (`#582`).
+	//
+	// Misurerebbero lo stato di una partita che non e' stata giocata, e la precedenza degli esiti
+	// (`FAIL > BLOCKED`) trasformerebbe l'attesa di una capability in un difetto del gioco. Il caso e' reale e
+	// riproducibile: uno scenario il cui **primo** turno chiede una capability assente completa zero turni,
+	// quindi `TurnsCompleted >= 1` cade e il report dice «FAIL (difetto del GIOCO)» per un file che sta
+	// semplicemente aspettando. Gli scenari `BLOCKED` gia' in repo lo evitano per costruzione — hanno il
+	// `requires` sul secondo turno, quindi il primo gira — ma e' una salvezza accidentale, non una regola.
+	//
+	// ⚠️ **Solo se NESSUN turno e' stato giocato**, e il confine e' stato stretto qui dopo che una prima
+	// versione — «bloccato ⇒ salta le assertion» — ha fatto cadere `ShowcaseRelayV01RunsTurnOne`, che gioca
+	// il turno 1 e si blocca al secondo: le sue assertion misurano uno stato che la partita ha davvero
+	// raggiunto, e saltarle avrebbe tolto verifica invece di aggiungerne.
+	//
+	// E' la stessa distinzione del commento sulla precedenza: cio' che ha girato conta, cio' che il blocco ha
+	// impedito no. Con zero turni giocati non c'e' nessuno stato da misurare — solo l'assenza di partita.
+	const bool bBlocked = !BlockedBy.IsEmpty() && Result.TurnsPlayed == 0;
+
 	for (const FRTTestExpectation& Exp : Scenario.Expect)
 	{
+		if (bBlocked)
+		{
+			break;
+		}
+
 		FRTAssertionResult A;
 		A.Kind = Exp.Kind;
 		A.Turn = Result.TurnsPlayed;

@@ -367,3 +367,148 @@ bool FRTNoisePermutationInvariantTest::RunTest(const FString&)
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS
+
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// CP 13.4 — l'area plausibile: da dove PUO' essere venuto un rumore (#159)
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * L'AREA NON DIPENDE DA DOVE IL RUMORE E' VENUTO DAVVERO.
+ *
+ * ⚠️ **E' il canary del canale acustico, ed e' la ragione per cui `PlausibleOriginCells` non riceve la
+ * sorgente.** `D13` del brief sulla conoscenza parziale dice che il rumore produce un contatto incerto e
+ * **mai una cella esatta**: una funzione che prendesse l'evento vero potrebbe restituire la stessa area
+ * *ed essere indistinguibile da una che restituisce la cella*. Qui la garanzia sta nella **firma** — il dato
+ * proibito non entra — e questo test dimostra che la firma non e' cosmetica.
+ *
+ * Due rumori identici per l'ascoltatore (stessa intensita' udita) provenienti da direzioni opposte devono
+ * produrre **la stessa** area.
+ *
+ * ⚠️ **Cosa questo test prova, e cosa NO — misurato, non supposto.** La garanzia vera e' la **firma**: non
+ * esistendo un parametro sorgente, nessuna implementazione puo' dipenderne, e la prima assertion non e'
+ * rompibile senza cambiare l'interfaccia. Verificato per mutazione (fascia resa fissa): quella assertion
+ * **regge**, e cade invece la seconda, sui raggi. Quindi qui il test *documenta* una garanzia strutturale
+ * invece di produrla — ed e' il caso in cui va scritto, perche' un test che si vanta di proteggere cio' che
+ * protegge il tipo insegna a fidarsi della cosa sbagliata. Chi un giorno aggiungesse il parametro deve
+ * sapere che sta togliendo la garanzia, non aggirando un test.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNoisePlausibleAreaIgnoresSourceTest,
+	"RefactorTactics.Noise.PlausibleAreaIgnoresTheSource",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTNoisePlausibleAreaIgnoresSourceTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeNoiseMap(6);
+	const FRTCellId Listener(0, 0);
+	const int32 Threshold = 3; // orecchio di Riva/Bastion (D-041)
+
+	// Due sorgenti reali, in direzioni opposte, che arrivano all'ascoltatore con la STESSA intensita'.
+	FRTNoiseEvent East;
+	East.OriginCell = FRTCellId(3, 0);
+	East.Intensity = 8;
+	FRTNoiseEvent West;
+	West.OriginCell = FRTCellId(-3, 0);
+	West.Intensity = 8;
+
+	const int32 HeardFromEast = HeardAt(Map, East, Listener);
+	const int32 HeardFromWest = HeardAt(Map, West, Listener);
+
+	if (!TestTrue(TEXT("premessa: entrambe si sentono, e con la stessa intensita'"),
+		HeardFromEast > 0 && HeardFromEast == HeardFromWest))
+	{
+		return false;
+	}
+
+	const TArray<FRTCellId> AreaEast = URTAcousticPropagationLibrary::PlausibleOriginCells(Map, Listener, HeardFromEast, Threshold);
+	const TArray<FRTCellId> AreaWest = URTAcousticPropagationLibrary::PlausibleOriginCells(Map, Listener, HeardFromWest, Threshold);
+
+	TestEqual(TEXT("l'area non dipende da dove il rumore e' venuto davvero"), AreaEast, AreaWest);
+
+	// Senza questa riga il test passerebbe anche con una funzione che restituisce sempre vuoto: due nulla
+	// sono uguali, e l'uguaglianza non proverebbe niente.
+	if (!TestTrue(TEXT("premessa: l'area non e' vuota"), AreaEast.Num() > 0))
+	{
+		return false;
+	}
+
+	// E contiene ENTRAMBE le sorgenti vere: se ne contenesse una sola, starebbe gia' localizzando.
+	TestTrue(TEXT("l'area comprende entrambe le origini possibili, perche' non sa distinguerle"),
+		AreaEast.Contains(East.OriginCell) && AreaEast.Contains(West.OriginCell));
+	return true;
+}
+
+/**
+ * Piu' forte arriva, piu' stretta e' l'area — e un rumore fioco allarga l'incertezza.
+ *
+ * E' la sola proprieta' che rende l'area un'informazione invece che una decorazione: se non variasse con
+ * l'intensita' udita, tanto varrebbe dire «da qualche parte».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNoisePlausibleAreaShrinksTest,
+	"RefactorTactics.Noise.PlausibleAreaShrinksWithLoudness",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTNoisePlausibleAreaShrinksTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeNoiseMap(6);
+	const FRTCellId Listener(0, 0);
+	const int32 Threshold = 3;
+
+	// Sopra soglia di almeno `TightBandMargin` -> fascia STRETTA; appena sopra -> fascia LARGA.
+	const TArray<FRTCellId> Tight = URTAcousticPropagationLibrary::PlausibleOriginCells(
+		Map, Listener, Threshold + URTAcousticPropagationLibrary::TightBandMargin, Threshold);
+	const TArray<FRTCellId> Wide = URTAcousticPropagationLibrary::PlausibleOriginCells(
+		Map, Listener, Threshold, Threshold);
+
+	TestTrue(TEXT("un rumore forte restringe l'area"), Tight.Num() > 0 && Tight.Num() < Wide.Num());
+
+	// I raggi sono quelli DICHIARATI dal §13, non un'inferenza: si verificano per distanza, non per numero.
+	int32 MaxTight = 0;
+	for (const FRTCellId& C : Tight) { MaxTight = FMath::Max(MaxTight, URTHexLibrary::HexDistance(Listener, C)); }
+	int32 MaxWide = 0;
+	for (const FRTCellId& C : Wide) { MaxWide = FMath::Max(MaxWide, URTHexLibrary::HexDistance(Listener, C)); }
+	TestEqual(TEXT("la fascia stretta ha il raggio dichiarato"), MaxTight, URTAcousticPropagationLibrary::TightAreaRadius);
+	TestEqual(TEXT("la fascia larga ha il raggio dichiarato"), MaxWide, URTAcousticPropagationLibrary::WideAreaRadius);
+
+	// Sotto soglia non si e' sentito niente, e «non sentito» non produce un contatto vuoto: non produce
+	// nulla. E' l'invariante #6 applicata al canale acustico.
+	const TArray<FRTCellId> Unheard = URTAcousticPropagationLibrary::PlausibleOriginCells(
+		Map, Listener, Threshold - 1, Threshold);
+	TestEqual(TEXT("sotto soglia: nessuna area, non un'area vuota da scartare"), Unheard.Num(), 0);
+
+	// Fail-closed, come `Propagate`.
+	const TArray<FRTCellId> NoMap = URTAcousticPropagationLibrary::PlausibleOriginCells(nullptr, Listener, 9, Threshold);
+	TestEqual(TEXT("senza mappa non si inventa un'area"), NoMap.Num(), 0);
+	return true;
+}
+
+/**
+ * Il tetto e' una valvola, e l'ordine e' canonico.
+ *
+ * Con i raggi dichiarati dal §13 l'area sta fra 19 e 61 celle, quindi `MaxPlausibleCells` **non scatta mai
+ * in partita**: esiste perche' una mappa futura con archi a costo zero renderebbe il flood fill illimitato.
+ * Il test lo verifica per quello che e' — un limite che non morde — invece di fingere che sia un criterio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNoisePlausibleAreaCappedTest,
+	"RefactorTactics.Noise.PlausibleAreaIsCappedAndStable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTNoisePlausibleAreaCappedTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeNoiseMap(8);
+	const FRTCellId Listener(0, 0);
+	const int32 Threshold = 3;
+
+	const TArray<FRTCellId> Area = URTAcousticPropagationLibrary::PlausibleOriginCells(Map, Listener, Threshold, Threshold);
+	if (!TestTrue(TEXT("premessa: l'area larga viene prodotta"), Area.Num() > 0))
+	{
+		return false;
+	}
+	TestTrue(TEXT("la valvola non morde con i raggi dichiarati"),
+		Area.Num() < URTAcousticPropagationLibrary::MaxPlausibleCells);
+
+	bool bSorted = true;
+	for (int32 I = 1; I < Area.Num(); ++I)
+	{
+		if (!URTHexLibrary::StableLess(Area[I - 1], Area[I])) { bSorted = false; break; }
+	}
+	TestTrue(TEXT("ordine canonico StableLess, non quello di scoperta"), bSorted);
+	return true;
+}

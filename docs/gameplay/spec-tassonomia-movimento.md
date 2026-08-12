@@ -40,12 +40,12 @@ cosa vorremmo: una matrice che descrive un sistema immaginario è peggio di ness
 | volontario | sì | sì | **no** | (sì) |
 | fase | Move | Dash | quella dell'effetto | quella dell'abilità |
 | occupa lo slot movimento | sì | **sì** ([D-028](../decisions/RT_PDR_00_Decision_Log.md)) | no | dipende dall'abilità |
-| micro-step | sì | sì | sì | no |
+| micro-step | sì | **policy** | sì | no |
 | attraversa le celle intermedie | sì | policy | sì | **no** |
 | usa `MoveBudget` | sì | no | **no** | no |
 | paga il costo del terreno | sì | no | **no** (ma vedi §3) | no |
 | collisioni | sì | policy | sì | solo all'arrivo |
-| hazard intermedi | sì | sì | **sì** | no |
+| hazard intermedi | sì | **policy** | **sì** | no |
 | trigger spaziali | sì | sì | sì | solo all'arrivo |
 | facing | derivato dal path | policy dell'azione | policy dell'effetto | policy dell'abilità |
 | rumore | profilo | profilo | evento di impatto | nessun passo |
@@ -53,9 +53,27 @@ cosa vorremmo: una matrice che descrive un sistema immaginario è peggio di ness
 | consuma l'azione della vittima | n/a | n/a | **mai** | n/a |
 | **stato nel codice** | implementato | implementato | implementato | **assente** |
 
-**Teleport non esiste in v0.1** — nessuna azione del catalogo lo produce. La colonna resta perché la regola
-serve *prima* che qualcuno lo scriva: è il caso in cui è più facile sbagliare, e la riga «non attraversa le
-celle intermedie» è quella che distingue un teletrasporto da un movimento veloce.
+**Teleport non esiste in v0.1** — nessuna azione del catalogo dichiara quella famiglia. La colonna resta
+perché la regola serve *prima* che qualcuno lo scriva: è il caso in cui è più facile sbagliare, e la riga
+«non attraversa le celle intermedie» è quella che distingue un teletrasporto da un movimento veloce.
+
+> 🔴 **Precisato il 2026-08-12: la semantica del trasferimento esiste già, dentro il Dash.**
+> `ERTMovementStyle::LinearLeap` — *«ignora unità e celle intermedie, conta solo dove si atterra»* — produce
+> `Result.Entered = { destinazione }` e nient'altro (`RTMovementActionLibrary.cpp`). Poiché
+> `ApplyTerrainOnEnterEffects` legge esattamente `Entered`, un `Action.Leap` **non prende gli hazard
+> intermedi**, non genera micro-step intermedi e collide solo all'arrivo: le tre righe che questa matrice
+> attribuisce al Teleport.
+>
+> È il motivo per cui due righe della colonna **Dash** sono passate da «sì» a «policy»: erano vere di
+> `LinearDash`, `LinearCharge` e `LinearPass`, e **false di `LinearLeap`**.
+>
+> Quindi la frase «un movimento molto veloce non è un teletrasporto» è giusta, ma **`Leap` non è un
+> movimento veloce**: è già un trasferimento, archiviato sotto Dash perché condivide fase e slot. Se sia
+> l'eccezione di una famiglia o il primo membro di un'altra è una domanda aperta —
+> [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) `MOV-1`.
+>
+> ⚠️ Nulla di tutto questo si vede in partita: `Action.Leap` **non è nel kit di nessun eroe**, come
+> `Action.Dash` prima di lui ([#425](https://github.com/DegrassiAaron/refactor-tactics-main/issues/425)).
 
 Le policy del Dash sono già un **dato**, non un ramo: `ERTMovementStyle` vale
 `Budget · LinearDash · LinearCharge · LinearLeap · LinearPass`. Aggiungere una famiglia di mobilità significa
@@ -220,7 +238,9 @@ perché il documento sembra più recente.
 
 ## 7. Cosa resta fuori
 
-- **Teleport**: nessuna azione lo produce in v0.1. Le sue righe in matrice sono una regola preventiva.
+- **Teleport**: nessuna azione dichiara quella famiglia in v0.1, e le sue righe in matrice sono una regola
+  preventiva — ma tre di esse sono **già vere di `LinearLeap`** (§2). Se il trasferimento sia una famiglia o
+  una policy del Dash è `MOV-1`; se un Blink entri in v0.1 è `MOV-2`.
 - **Rinominare i reason code** sul vocabolario del kit: sarebbe una migrazione di formato del TurnLog con il
   corpus golden dentro, e non porta nulla al giocatore.
 - **Le 15 issue `MOV-CORE-*` del kit**: tre coincidono con checkpoint già aperti — `#162` (micro-step
@@ -238,4 +258,6 @@ perché il documento sembra più recente.
 | [`brief-azioni-generiche-overwatch.md`](brief-azioni-generiche-overwatch.md) | Overwatch e le sue policy |
 | [ADR-0005](../decisions/adr-0005-orientamento.md) | il facing come stato di gioco |
 | [`../technical/spec-pathfinding-pf3-pf4.md`](../technical/spec-pathfinding-pf3-pf4.md) | grafo, A\*, costi |
+| [`spec-economia-del-turno.md`](spec-economia-del-turno.md) | come il budget di movimento convive con gli **altri tre** limiti del turno. Quale slot occupa ciascuna famiglia resta la **§2** di questa pagina |
+| [`spec-compatibilita-azioni-movimento.md`](spec-compatibilita-azioni-movimento.md) | che il profilo scelto cambi **legalità ed efficacia** delle azioni: `AE-2`, chiusa da [D-116](../decisions/RT_PDR_00_Decision_Log.md) il 2026-08-12 col modello a **soglia** (`MinStability` contro `Stability`) |
 | *questa pagina* | il confronto **fra le famiglie** di movimento |

@@ -58,6 +58,19 @@ public:
 	/** Turno corrente (1-based) mentre gira, per la diagnostica a schermo. 0 = non ancora partito. */
 	int32 GetCurrentTurn() const { return TurnIndex + 1; }
 
+	/**
+	 * Rimuove dal mondo cio' che questa sessione ha messo: le unita' schierate e il turn manager.
+	 *
+	 * Serve alle VARIANTI, che rigiocano lo stesso allestimento nello stesso mondo. Senza, la seconda variante
+	 * troverebbe le unita' della prima e — molto peggio — un turn manager con il numero di turno e la Team
+	 * Knowledge gia' scritti: un canary sull'informazione confronterebbe due partite contaminate proprio
+	 * sull'informazione. Il chiamante verifica che il mondo sia tornato vuoto invece di fidarsi.
+	 *
+	 * La MAPPA resta: `BuildScenarioArena` riusa l'actor e ne riscrive l'asset, quindi distruggerla
+	 * costringerebbe a ricostruire le istanze senza nessun guadagno.
+	 */
+	void TearDown();
+
 private:
 	enum class EState : uint8
 	{
@@ -97,6 +110,16 @@ private:
 
 	int32 TurnIndex = 0;
 	float PauseElapsed = 0.f;
+
+	/**
+	 * Lo scenario schiera almeno un'unita' guidata dal bot, quindi ogni turno passa dal pianificatore del gioco
+	 * prima di risolvere.
+	 *
+	 * Si tiene qui invece di riscorrere `Scenario.Units` a ogni turno per una ragione che non e' la velocita':
+	 * il flag dice cosa e' stato SPAWNATO, e uno scenario il cui unico bot fosse stato scartato in fase di
+	 * spawn non chiamerebbe un pianificatore che non ha nessuno da pianificare.
+	 */
+	bool bHasBotUnits = false;
 
 	/**
 	 * Perche' la sessione si e' fermata prima della fine, se si e' fermata: nomina la **capability mancante**

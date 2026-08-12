@@ -37,6 +37,16 @@ public:
 	static FRTTestResult Run(UWorld* World, const FRTTestScenario& Scenario);
 
 	/**
+	 * Una singola esecuzione, senza varianti. E' cio' che `Run` chiama — una volta per scenario normale, una
+	 * per variante.
+	 *
+	 * @param bTearDownAfter rimuove unita' e turn manager dal mondo alla fine. Vero solo fra due varianti, che
+	 *        condividono il mondo: nel caso normale il mondo lo possiede il chiamante, e ripulirlo qui gli
+	 *        toglierebbe da sotto i piedi gli actor su cui potrebbe voler guardare.
+	 */
+	static FRTTestResult RunSingle(UWorld* World, const FRTTestScenario& Scenario, bool bTearDownAfter);
+
+	/**
 	 * Carica lo scenario per ID (`Movement.Basic`), lo esegue e ne **scrive il report**.
 	 * E' il punto d'ingresso della console e dell'auto-run: un solo posto dove «eseguire uno scenario»
 	 * significa anche «lasciarne traccia leggibile».

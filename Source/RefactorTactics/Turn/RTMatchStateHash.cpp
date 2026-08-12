@@ -71,6 +71,8 @@ uint32 URTMatchStateHashLibrary::HashMatchState(const URTHexMapAsset* Map,
 			Mix(static_cast<uint32>(Cell.Surface));   // il TERRENO MODIFICATO: fuoco, acqua, ghiaccio
 			Mix(static_cast<uint32>(Cell.Height));
 			Mix(static_cast<uint32>(Cell.MoveCost));
+			Mix(static_cast<uint32>(Cell.OccupancySurcharge)); // v7: due mappe che si giocano diverse
+			                                                   // devono avere hash diverso
 			Mix(Cell.bBlocksMovement ? 1u : 0u);
 			Mix(Cell.bBlocksLineOfSight ? 1u : 0u);
 

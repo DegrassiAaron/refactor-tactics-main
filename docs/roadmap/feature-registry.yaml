@@ -819,7 +819,10 @@ features:
       - RefactorTactics.Combat.BackAttackIgnoresCover
       - RefactorTactics.Combat.FlankAttackKeepsCover
       - RefactorTactics.Combat.ShieldWorksFromAnyDirection
+      - RefactorTactics.Combat.HitCarriesBypassedCover
     scenarios:
+      - Spec.Facing.RearHitOnCoverIsTraced
+      - Spec.Facing.FrontHitOnCoverIsSilent
       - Spec.Facing.DerivesFromMove
       - Spec.Facing.DashReorients
       - Spec.Facing.TargetingReorients
@@ -838,14 +841,29 @@ features:
       presentazione, non stato di gioco: non vale come gate `runtime`. Prerequisito di E13.
       Attenzione: la pagina Wiki esiste già e descrive una meccanica che il gioco non ha —
       il blocco di stato generato deve dirlo.
-      Il gate `scenario` non è solo «da scrivere»: oggi è **impossibile**. `FRTScenarioIntent`
-      non ha un campo di orientamento e `ERTAssertionKind` non ha un'assertion che legga il
-      facing; il loader ignora in silenzio una chiave di intent sconosciuta, quindi uno scenario
-      di facing scritto ora sarebbe verde senza verificare niente. L'estensione dello schema è
-      un prerequisito dichiarato di CP 16.1.
+      ⚠️ **Le due note qui sopra sono scadute, e restano scritte per non farle riscoprire.** Dicevano
+      «ADR-0005 e D-020 accettati, nessun codice» e che il gate `scenario` era **impossibile**
+      perché «`FRTScenarioIntent` non ha un campo di orientamento e `ERTAssertionKind` non ha
+      un'assertion che legga il facing». Misurato il 2026-08-12: `UnitFacing` è un'assertion,
+      otto scenari dichiarano `facing`, e sei di essi sono elencati qui sopra — il gate è `done`
+      da CP 16.1/16.2. La contraddizione stava dentro lo stesso blocco: una nota che dichiara
+      impossibile ciò che la lista sopra di lei elenca.
+      **Aggiunto il 2026-08-12 (#649)**: un colpo che annulla la copertura per la direzione ora
+      lascia una traccia (`Facing/RearHitBypassedCover`, prima emessa solo per la Guard), e
+      `FRTHexAttackHit` porta i punti scavalcati. Serve al bot, che dal 2026-08-12 conta quel
+      danno come bonus in pianificazione (CP 13.5) e finora lo contava senza che nessuno potesse
+      verificarlo. ⚠️ `Amount` diverge fra le due voci — direzione per la Guard, punti per la
+      copertura — ed è nominato nel codice invece che scoperto dopo.
       Il modello ha inoltre decisioni aperte, `FAC-1`…`FAC-10` in `docs/OPEN_DECISIONS.md`:
       `FAC-4` (il facing durante i micro-step di un Move) blocca CP 16.1, perché i trigger di
       reazione cadono dentro il movimento e l'ADR copre inizio e fine ma non il mezzo.
+      ⚠️ 2026-08-12: `FAC-12` — *il pivot si paga in punti movimento, o resta un tetto?* — e' stata
+      **riproposta da un secondo kit indipendente** (`CLAUDE_ActionEconomy_Movement_Facing_Consolidation`
+      §15), che la presenta come direzione corrente senza sapere di ADR-0008. La risposta non cambia e la
+      data della revisione nemmeno (chiusura di CP 16.2): cambia il peso, perche' due sorgenti scollegate
+      chiedono la stessa cosa. L'argomento nuovo e' che **un tetto non si spende**, quindi non produce da
+      solo la scelta «viaggio piu' lontano o arrivo orientato bene?». Il costo del pivot resta fuori dai
+      gate di questa feature finche' e' aperto.
 
   - feature_id: RT-FEAT-MAP-COVER
     title: Copertura direzionale per bordo
@@ -1265,7 +1283,8 @@ features:
       - RT-FEAT-MAP-PATHFINDING
     owner_specs:
       - docs/gameplay/spec-dash.md
-    issues: [43, 46]
+      - docs/gameplay/spec-economia-del-turno.md
+    issues: [43, 46, 641, 645, 653, 666]
     tests:
       - RefactorTactics.Actions.Sprint
       - RefactorTactics.Actions.Charge
@@ -1289,6 +1308,41 @@ features:
     notes: >
       **Sprint è un profilo di Move, non un Dash** (pin del canone): fase e stile sono dichiarati
       dal dato, non dedotti. Budget 5 MP con costi interi.
+      🔴 **2026-08-12, misurato tentando #641 — non dedotto**: i profili di movimento **non esistono come
+      entita' nel codice** (`grep -rn MovementProfile Source/` da' zero). `Sneak`/`Move`/`Sprint`/`Withdraw`
+      vivono solo nel catalogo markdown §2.1; nel codice `Action.Sprint` e' un ActionId con `RangeCells = 8`,
+      e quel numero lo legge **un solo punto** (`ResolveDash`). Il movimento normale prende il budget
+      dall'UNITA' (`GetEffectiveMoveRange`), non dall'azione pianificata. Conseguenza: spostare lo Sprint in
+      fase `Move` come chiede D-116 gli toglierebbe la distanza — 5 MP invece di 8 — e il divieto di
+      reazione, che `ResolveDash` registra e che dopo il Blast arriverebbe troppo tardi. Prerequisito aperto
+      come **#653**; il tentativo verificato vive su `feat/641-sprint-post-blast` (compila su entrambi i
+      target, 4 test rossi che sono la misura del buco).
+      ⚠️ 2026-08-12: `RELEASE_READY` vale per i tre profili che hanno numeri. **`Sneak` non ne ha**
+      — costo, portata e rumore non sono definiti da nessuna fonte corrente (`AE-5`) — quindi il
+      profilo esiste come nome e non e' pianificabile. Non abbasso i gate per questo: la feature che il
+      registro misura sono i profili implementati, e inventare tre numeri per farla sembrare completa
+      sarebbe il difetto opposto. `Withdraw` e' il quarto profilo (D-070) e **non si sceglie**: lo impone
+      l'`Overwatch`. La domanda se il profilo debba cambiare anche la LEGALITA' delle azioni e' `AE-2`,
+      feature `RT-FEAT-ACTION-MOVEMENT-COMPAT`.
+      🔴 **2026-08-12, dal consolidamento Teleport**: lo scenario `Spec.Movement.TeleportSkipsIntermediateCells`
+      dichiarato qui e' una SPECIFICA ESEGUIBILE scritta prima dell'implementazione, e resta `BLOCKED` di
+      proposito (`requires: ["Teleport"]`). Non prova nulla oggi, e il file lo dice da se'.
+      E c'e' un secondo fatto che il gate `scenario: done` non mostra: **`ERTMovementStyle::LinearLeap` ha
+      gia' la semantica del trasferimento** — `Result.Entered` contiene la sola destinazione, quindi
+      `Action.Leap` non prende gli hazard intermedi ne' genera micro-step intermedi — ma **nessun eroe ha
+      `Action.Leap` nel kit**. E' la QUARTA capacita' del motore irraggiungibile dal roster dopo le tre di
+      [#425], e l'unica con semantica di trasferimento. Issue **#645**; la domanda «famiglia o policy del
+      Dash?» e' `MOV-1` in `OPEN_DECISIONS.md`, e **non blocca #645**: il salto e' irraggiungibile in
+      entrambi i casi.
+      🔴 **2026-08-12, D-117**: il movimento si misura con **due** budget, non uno. I **passi** dicono quanto
+      lontano si arriva (`StepBudget`, dichiarato dal profilo), i **punti movimento** quanta asperita' si
+      assorbe — costo di una cella `max(0, MoveCost - 1 + MoveCostModifier)`, terreno normale a **0**. Nessun
+      dato di mappa cambia: la linea di base si sottrae nella funzione, come
+      `URTHexLibrary::ReliefHeightForCost` fa gia' per il rilievo. Il modificatore diventa **firmato**: un
+      negativo significa «il terreno rotto non mi rallenta», e oggi non e' esprimibile perche' cinque punti lo
+      clampano a zero. Prerequisito **#653** (il profilo come entita'), modello **#666**.
+      ⚠️ `URTArenaCriteriaLibrary::CheckCostBite` non si rinumera: e' un criterio di qualita' delle mappe
+      costruito su «MP = distanza» e con due manopole **perde la domanda**.
 
   - feature_id: RT-FEAT-ACTION-BASIC-ATTACK-PROFILES
     title: Profili di attacco base per eroe
@@ -1419,7 +1473,7 @@ features:
       runtime: done
       log_debug: partial
       automation: done
-      scenario: todo
+      scenario: done
       ui_wiki: done
       packaged: partial
       network_privacy: na
@@ -1431,11 +1485,13 @@ features:
       - RT-FEAT-ACTION-ENGINE
     owner_specs:
       - docs/balance/RT_ActionCatalog_v0.1.md
-    issues: [45]
+      - docs/gameplay/spec-economia-del-turno.md
+    issues: [45, 610, 608]
     tests:
       - RefactorTactics.Combat.AbilityUsableByCooldownAndEnergy
       - RefactorTactics.Combat.GainEnergyClampsToMax
-    scenarios: []
+    scenarios:
+      - Spec.ActionEconomy.CooldownBlocksWithSlotFree
     wiki_refs:
       - wiki:azioni-e-movimento
     last_verified:
@@ -1444,6 +1500,208 @@ features:
     notes: >
       Cooldown ed energia sono dati del catalogo e il gate di usabilità li legge. Nessuno scenario
       li dimostra: un cooldown che non scala oggi non produce una diagnosi visibile.
+      ➕ 2026-08-12: `Spec.ActionEconomy.CooldownBlocksWithSlotFree` e' dichiarato `planned` e chiude
+      esattamente quel buco — lo slot principale libero, l'azione comunque illegale, con un reason code
+      DISTINTO da «slot occupato». 🔴 **La riga «economia delle risorse» del titolo e' pero' divisa in tre
+      posti che non concordano** (`AE-4`, riga 71 della matrice dei conflitti): `ARTUnit` dichiara
+      `MaxEnergy = 100`/`EnergyPerTurn = 25`, il catalogo eroi dichiara la risorsa firma per personaggio a
+      cap **4** con ricarica **1**, e il COSTO non e' nemmeno un campo del catalogo azioni — `EnergyCost`
+      sta su `URTActionData`, il data asset legacy, non su `FRTActionDef`. Il gate `data` resta `done`
+      perche' il cooldown lo e'; la risorsa non lo e', ed e' registrata come conflitto invece che come
+      gate abbassato in silenzio.
+
+  - feature_id: RT-FEAT-ACTION-BUDGET
+    title: "Capacita' d'azione del turno: slot o budget numerico"
+    area: Actions
+    kind: gameplay
+    release: v0.2
+    priority: P2
+    # `DEFERRED`, non `IDEA` ne' `BLOCKED`: la decisione e' stata PRESA, e la risposta e' no (D-114).
+    # `IDEA` direbbe «non ci ha ancora pensato nessuno» e `BLOCKED` «aspetta qualcuno»: entrambe false.
+    # La riga resta perche' il prossimo kit riproporra' l'ActionCapacity, e trovare qui la decisione con la
+    # sua ragione costa meno che ridiscuterla.
+    status: DEFERRED
+    gates:
+      spec: partial
+      data: todo
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: todo
+      ui_wiki: todo
+      packaged: todo
+      network_privacy: na
+      replay_representable: todo
+    roadmap:
+      epic: null
+      checkpoints: []
+      out_of_release_scope: >-
+        L'epic esiste e si chiama **E38** (`roadmap-post-v0.1.md`, v0.2, cinque checkpoint), ma
+        `roadmap.epic` resta `null` per la stessa ragione di `RT-FEAT-STATUS-FRAMEWORK`/E36: il
+        validator conosce solo le epic della **roadmap di release**, e assegnarne una qui farebbe
+        comparire una feature v0.2 nella tabella §2.2 della v0.1. Nessun gate della v0.1 dipende da
+        questa epic: il modello a slot che la v0.1 usa gira gia', ed e' testato.
+    dependencies:
+      - RT-FEAT-ACTION-ENGINE
+      - RT-FEAT-ACTION-GENERIC
+    owner_specs:
+      - docs/gameplay/spec-economia-del-turno.md
+      - docs/balance/RT_ActionCatalog_v0.1.md
+    issues: [609, 604]
+    tests: []
+    scenarios: []
+    wiki_refs:
+      - wiki:azioni-e-movimento
+    notes: >
+      🔴 **Decisa NO il 2026-08-12** — [D-114](../decisions/RT_PDR_00_Decision_Log.md), issue #604.
+      L'economia del turno **resta a slot**: due azioni leggere non valgono una pesante, e senza una
+      grandezza non c'è modo di farle valere. Il differenziale di potenza si esprime con un **drawback
+      dichiarato sull'azione** — cooldown, status auto-inflitto, rinuncia alla reazione, esposizione — che
+      è ciò che il catalogo già applica (`HeavyAttack` 35/cooldown 2 contro `PrecisionAttack` 24/cooldown 1).
+      `DEFERRED` e non cancellata **di proposito**: la riga resta perché il prossimo kit riproporrà
+      l'`ActionCapacity`, e trovare qui la decisione con la sua ragione costa meno che ridiscuterla. Se un
+      giorno servisse una grandezza, il caso che la giustifica dovrà essere un piano che il modello a slot
+      sbaglia — `ECO-1` ne cerca uno da agosto e non l'ha trovato.
+
+  - feature_id: RT-FEAT-ACTION-MOVEMENT-COMPAT
+    title: "Compatibilita' abilita' <-> movimento: normale, ridotta, potenziata, bloccata"
+    area: Actions
+    kind: gameplay
+    release: v0.2
+    priority: P2
+    status: SPECIFIED
+    gates:
+      spec: done
+      data: todo
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: todo
+      ui_wiki: todo
+      packaged: todo
+      network_privacy: na
+      replay_representable: todo
+    roadmap:
+      epic: null
+      checkpoints: []
+      out_of_release_scope: >-
+        L'epic esiste e si chiama **E38** (`roadmap-post-v0.1.md`, v0.2, cinque checkpoint), ma
+        `roadmap.epic` resta `null` per la stessa ragione di `RT-FEAT-STATUS-FRAMEWORK`/E36: il
+        validator conosce solo le epic della **roadmap di release**, e assegnarne una qui farebbe
+        comparire una feature v0.2 nella tabella §2.2 della v0.1. Nessun gate della v0.1 dipende da
+        questa epic: il modello a slot che la v0.1 usa gira gia', ed e' testato.
+    dependencies:
+      - RT-FEAT-ACTION-MOVE-PROFILES
+      - RT-FEAT-ACTION-BUDGET
+    owner_specs:
+      - docs/gameplay/spec-compatibilita-azioni-movimento.md
+      - docs/gameplay/spec-economia-del-turno.md
+    issues: [609, 606, 641]
+    tests: []
+    scenarios:
+      - planned:
+          - Spec.ActionEconomy.MoveImpairsPrecision
+          - Spec.ActionEconomy.SprintBlocksPrecision
+          - Spec.ActionEconomy.SprintEnhancesMomentum
+          - Spec.ActionEconomy.PathLengthChangesEffect
+    wiki_refs:
+      - wiki:azioni-e-movimento
+    notes: >
+      ✅ **`AE-2` ACCETTATA il 2026-08-12** — [D-116](../decisions/RT_PDR_00_Decision_Log.md), issue #606.
+      Il profilo di movimento determina la **legalita'** e l'efficacia di un'azione. Modello a **soglia**
+      (`MinStability` sull'azione contro `Stability` sul profilo): **31 numeri + 4** invece delle 124 celle
+      di una matrice azione x profilo. Categorie nominate dall'autore: **precisione, preparazione, azioni
+      pesanti**. Owner: `spec-compatibilita-azioni-movimento.md`, ora `CURRENT`.
+      `spec: done` — il documento descrive le regole e ne dichiara l'owner, e da oggi quelle regole sono
+      canone. Tutti gli altri gate restano `todo`: **nessuna riga di codice la esprime**.
+      ⚠️ **Non e' separabile dalle altre due voci di D-116**: lo `Sprint` torna dopo il Blast (supera D-068)
+      e `Status.Exposed` passa a 2 turni. La migrazione di fase da sola produrrebbe l'upgrade puro vietato
+      da D-015 — `Exposed` diventerebbe inerte e allo Sprint resterebbe un solo prezzo. Chi implementa
+      questa feature senza le altre due rompe il bilanciamento.
+      ⚠️ **Senza `RT-FEAT-ACTION-PLAN-VALIDATION` (#605) il dato non e' osservabile**: #606 definisce il
+      dato, #605 lo rende una regola.
+      ⚠️ Il primo lavoro **non e'** assegnare soglie: i profili di movimento non esistono come tipo
+      (`grep -rn MovementProfile Source/` da' zero), vivono solo nel catalogo markdown.
+      ⚠️ `Spec.ActionEconomy.PathLengthChangesEffect` appartiene ad `AE-3` — i FATTI DEL PERCORSO, ancora
+      aperti — ed e' elencato qui in prestito.
+
+  - feature_id: RT-FEAT-ACTION-PLAN-VALIDATION
+    title: Validazione del piano in Planning, con reason code deterministico
+    area: Actions
+    kind: gameplay
+    release: v0.2
+    priority: P2
+    status: DESIGNED
+    gates:
+      spec: partial
+      data: partial
+      runtime: todo
+      log_debug: todo
+      automation: partial
+      scenario: todo
+      ui_wiki: todo
+      packaged: todo
+      network_privacy: partial
+      replay_representable: todo
+    roadmap:
+      epic: null
+      checkpoints: []
+      out_of_release_scope: >-
+        L'epic esiste e si chiama **E38** (`roadmap-post-v0.1.md`, v0.2, cinque checkpoint), ma
+        `roadmap.epic` resta `null` per la stessa ragione di `RT-FEAT-STATUS-FRAMEWORK`/E36: il
+        validator conosce solo le epic della **roadmap di release**, e assegnarne una qui farebbe
+        comparire una feature v0.2 nella tabella §2.2 della v0.1. Nessun gate della v0.1 dipende da
+        questa epic: il modello a slot che la v0.1 usa gira gia', ed e' testato.
+    dependencies:
+      - RT-FEAT-ACTION-ENGINE
+    owner_specs:
+      - docs/gameplay/spec-economia-del-turno.md
+    issues: [609, 605]
+    tests:
+      - RefactorTactics.Plan.MovementMainAndReactionAreLegal
+      - RefactorTactics.Plan.SecondMainIsRejected
+      - RefactorTactics.Plan.SprintLeavesNoRoomForMain
+      - RefactorTactics.Plan.WaitOccupiesNoSlot
+      - RefactorTactics.Plan.MovementPointsOverflowIsRejected
+      - RefactorTactics.Plan.MovementPointsExactlyOnBudgetIsLegal
+      - RefactorTactics.Plan.EmptyPlanIsLegalEvenWithDirtyBudget
+      - RefactorTactics.Plan.CooldownBlocksWithSlotFree
+      - RefactorTactics.Plan.VerdictIsPermutationInvariant
+      - RefactorTactics.Plan.SlotVerdictIsPermutationInvariant
+    scenarios:
+      - planned:
+          - Spec.ActionEconomy.OverwatchReservesMovementSlot
+    wiki_refs:
+      - wiki:planning-e-coordinazione
+    notes: >
+      **Non e' bloccata su `AE-1`, e questa e' la sua ragione d'essere**: il buco esiste con qualunque
+      modello di economia. ✅ **La fetta pura e' atterrata il 2026-08-12**:
+      `URTPlanValidationLibrary::ValidatePlan(snapshot, piano)` risponde LEGALE / ILLEGALE + motivo PRIMA
+      del commit, dove `ValidateInstance`/`ApplyFallback` agisce IN RISOLUZIONE. Nove test
+      `RefactorTactics.Plan.*`, tre mutazioni verificate.
+      ⚠️ `runtime` resta **todo** e non e' una svista: la funzione esiste ma **nessuno la chiama** ancora —
+      il bot e la HUD non ci passano, ed e' il resto della DoD di `#605`. Un validatore senza consumatore
+      non e' una regola.
+      🔴 **Due premesse di questa nota erano false e sono corrette qui.** (1) La famiglia da estendere non
+      e' quella degli `*Outcome`: e' **`ERTActionInvalidReason`** (`RTActionFallbackLibrary.h`), che gia'
+      significa «questa azione pianificata non e' eseguibile» e gia' porta scritta l'invariante dei valori
+      in coda. Gli `*Outcome` dicono com'e' andata una FASE — un altro asse. E `ERTMovementStopReason`,
+      citato qui e nella issue, **non esiste in `Source/`**: compariva solo nei documenti che si citavano a
+      vicenda. I tre valori nuovi (`SlotOccupied`, `InsufficientMovementPoints`, `OnCooldown`) sono in coda
+      a `ERTActionInvalidReason`. (2) `CanonicalIntentStore` **non e' codice**: zero occorrenze in `Source/`.
+      E' un concetto di design del PDR, citato in `docs/archive/` e `docs/src/` — ma anche, ⚠️ **come se
+      fosse un simbolo**, nella DoD di CP 25.3 di `roadmap-post-v0.1.md`, che ne chiede la prova «dimostrato
+      da un test». Il seam reale e' `RTIntentPrivacyLibrary` / `FRTPlannedIntent`.
+      🔴 **Un limite dei quattro non e' ancora verificabile**: il controllo sui Movement Point legge
+      `FRTActionDef::CostMP`, che **nessuno popola** — il catalogo dichiara il budget di `Move` e `Sprint` in
+      `RangeCells` con `ERTMovementStyle::Budget`. Finche' il catalogo non dichiara un costo,
+      `InsufficientMovementPoints` non puo' scattare in partita: campo senza produttore, e primo passo di chi
+      collegherà `ValidatePlan` al gioco.
+      `network_privacy: partial` resta, per la ragione giusta: la validazione legge il piano completo, che
+      e' dato di squadra, e nessuna verifica in rete e' possibile prima di M10.
+      Il cooldown residuo entra come **parametro** e non come campo dello snapshot perche' oggi vive su
+      `ARTUnit::AbilityCooldowns` (privato, sull'Actor): stesso pattern di
+      `URTCombatLibrary::IsAbilityUsable`.
 
   - feature_id: RT-FEAT-ACTION-SUPERS
     title: Ultimate e azioni ad alto impegno
@@ -1667,6 +1925,7 @@ features:
       - RefactorTactics.Reaction.EveryTriggerHasAPassPoint
       - RefactorTactics.Reaction.ControlStatusesAreTwo
       - RefactorTactics.Equipment.HazardEscape.FleesBeforeDamage
+      - RefactorTactics.Scenario.DeclaredReactionScenarioPasses
       - RefactorTactics.Equipment.ImpactVariantStacksPush
       - RefactorTactics.Equipment.Gadget.CooldownEnforced
       - RefactorTactics.Equipment.Gadget.NumbersMatchCatalog
@@ -1675,7 +1934,10 @@ features:
       - RefactorTactics.Equipment.WarnsOnPointlessVariantPairing
       - RefactorTactics.Equipment.LoadoutExactlyOneEach
       - RefactorTactics.Equipment.NoInMatchProgression
-    scenarios: []
+    scenarios:
+      # Da `planned` a reale il 2026-08-12: le due ragioni che lo tenevano fuori sono cadute nello stesso
+      # giorno — la chiave `loadout` (#602) e il produttore di `PlannedReactionAbility` (#601).
+      - Spec.Reaction.AnchorCancelsPush
     wiki_refs: []
     last_verified:
       date: 2026-08-11
@@ -1802,23 +2064,43 @@ features:
       - RefactorTactics.Reactions.OpportunityIdUsesEveryField
       - RefactorTactics.Reactions.SingleResponseCommitsWithoutWindow
       - RefactorTactics.Overwatch.OpportunityLeaksNoFuture
+      - RefactorTactics.Reactions.UnknownConditionIsRejectedByValidator
+      - RefactorTactics.Reactions.DeclaredConditionCollapsesToImmediateCommit
+      - RefactorTactics.Reactions.DeclaredConditionEntersThePlanOnlyIfValid
     scenarios: []
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
     last_verified:
-      date: 2026-08-10
-      commit: 822ed35
+      date: 2026-08-12
+      commit: 5cc2d6de
     notes: >
       ADR-0004 accettato; il modello unificato contiene E5 come caso `AllowedResponses ≤ 1`.
       CP 14.3 ha consegnato chiave, derivazione dell'id, soglia del boundary e privacy del DTO.
-      ⚠️ I quattro test vanno elencati QUI e non lasciati al prefisso `Reactions.*`: quel prefisso
+      ⚠️ I sette test vanno elencati QUI e non lasciati al prefisso `Reactions.*`: quel prefisso
       appartiene a RT-FEAT-REACTION-PREPARED, e `feature_registry.py` fa prefix matching — senza
-      questo elenco la suite E5 passerebbe da 27 a 31 e nessuno saprebbe piu' dire se e' regredita
+      questo elenco la suite E5 passerebbe da 27 a 34 e nessuno saprebbe piu' dire se e' regredita
       o se e' semplicemente atterrato CP 14.3. E' la voce di DoD «suite E5 invariata» che perde il
-      proprio strumento di misura.
+      proprio strumento di misura, e il conteggio da solo non basta: il pattern `Reactions.*` cattura
+      anche i test che questi checkpoint AGGIUNGONO, quindi si confronta l'ELENCO con la baseline.
+      **2026-08-12 ([D-109], PR #639)**: e' atterrata la CONDIZIONE DICHIARATA, la voce di DoD di
+      CP 14.3 rimasta indietro quando il checkpoint fu chiuso. `FRTDeclaredCondition` piu' validator a
+      elenco chiuso — una voce, `TargetHealthAtOrBelowPercent`, soglia intera — e la valutazione al
+      trigger che **riduce** `AllowedResponses` dentro `BuildOverwatchTriggers`: se resta il solo
+      `HOLD` il commit e' immediato, ed e' cosi' che il regime *Conditional* emerge dai dati. Il
+      produttore non e' l'harness: `rt.Reaction.Condition [N]` scrive il piano passando dalla stessa
+      validazione che usera' l'interfaccia di E11.
       `runtime: partial` e non `done`: la regola esiste ed e' pura, ma NESSUN chiamante di
-      produzione la invoca — il wiring in `ResolveCombat` e' rimandato a CP 14.4, dove le
-      opportunity hanno finalmente un lettore. `log_debug: todo` per la stessa ragione: niente
+      produzione la invoca. ⚠️ **Gli anelli mancanti sono DUE, e il primo commento su #583 ne nominava
+      uno solo** (misurato il 2026-08-12): *(1)* CP 14.5 cabla la finestra nel resolver — CP 14.4 e'
+      chiusa e `BuildOverwatchTriggers` esiste, ma i suoi soli chiamanti restano harness e test; *(2)*
+      **`Action.Overwatch` non esiste nel catalogo core** e nessun eroe lo ha nel kit — le reazioni del
+      roster sono `Counter`, `Intercept` e `Deflect`, tutte automatiche. Il catalogo lo dichiara
+      esplicitamente (`RTCatalogLibrary.h`: «`Overwatch` non esiste nemmeno nel catalogo core: e' E14,
+      e arrivera' con la sua infrastruttura»), e chi lo possiedera' e' la decisione `BAS-2` in
+      `OPEN_DECISIONS.md`. Finche' entrambi mancano, la condizione dichiarata e' corretta e **inerte**:
+      nessuna opportunity a due risposte nasce in partita, quindi non c'e' niente su cui possa mordere.
+      Per la stessa ragione il TurnLog non registra ancora la condizione: non c'e' un'opportunity di
+      partita in cui registrarla, ed e' la voce che tiene aperta la issue #583. `log_debug: todo` per la stessa ragione: niente
       serializza ancora l'id, quindi «serializzazione stabile dentro l'hash del replay» e'
       consegnata nella forma e non ancora nei fatti.
       Non parte prima di E13: il trigger richiede livello «Rilevato», non solo LOS.
@@ -2331,7 +2613,7 @@ features:
       - RT-FEAT-ENV-TERRAIN
     owner_specs:
       - docs/gameplay/spec-stati-temporanei-cp82.md
-    issues: [65]
+    issues: [65, 625]
     tests:
       - RefactorTactics.Status.*
       - RefactorTactics.Terrain.Status
@@ -2463,7 +2745,7 @@ features:
       - RT-FEAT-ENV-STATUS
     owner_specs:
       - docs/gameplay/spec-fuoco-acqua-cp84.md
-    issues: [64, 67]
+    issues: [64, 67, 625]
     tests:
       - RefactorTactics.Terrain.Fire
       - RefactorTactics.Status.Burning
@@ -2930,7 +3212,7 @@ features:
     owner_specs:
       - docs/technical/progettazione-hud.md
       - docs/technical/spec-hover-cella.md
-    issues: [77]
+    issues: [77, 607]
     tests:
       - RefactorTactics.Preview.*
       - RefactorTactics.PlayerInput.*
@@ -2946,6 +3228,71 @@ features:
     notes: >
       Il client valida sullo stato dell'autorità (`MakeCurrentSnapshot`): la preview non è una
       seconda verità. Waypoint, undo, rifiuto fuori budget coperti da test.
+      ⚠️ **Il layer è Canvas, non UMG**: `ARTHUD::DrawHUD` possiede il §4.2 di
+      `progettazione-hud.md` — path, waypoint, Dash, AoE, friendly-fire, barre ancorate alle unità —
+      che la spec vuole esplicitamente **non** realizzato come widget statico. Lo Screen HUD §4.1 è
+      una feature distinta (`RT-FEAT-UI-SCREEN-HUD`) e **non sostituisce** questa.
+
+  - feature_id: RT-FEAT-UI-SCREEN-HUD
+    title: Screen HUD in UMG (layer §4.1)
+    area: UI
+    kind: ui
+    release: v0.1
+    priority: P1
+    status: IMPLEMENTING
+    gates:
+      # `progettazione-hud.md` §4.1 elenca il contenuto e §45 dichiara già i nomi dei widget.
+      spec: done
+      # Nessun widget esiste: `Content/RT/UI` non è nel progetto e non c'è nessun `WBP_*`.
+      data: todo
+      # `URTHudViewModel` esiste e i suoi test sono verdi, ma **nessuno lo consuma** fuori dai test: i
+      # widget sono la parte Editor di CP 11.7. Regola 2 dei gate — codice senza consumatore è `partial`.
+      runtime: partial
+      log_debug: na
+      # Tre test sul view model (roster filtrato per squadra, carta che riflette il simulatore, header
+      # neutro senza manager). Resta `partial`: l'ingombro e la leggibilità dei widget sono `PIE-V01-HUD`.
+      automation: partial
+      # `todo` come le altre dieci feature `kind: ui`, non `na`: `na` nel registry e' riservato a
+      # cio' che sta strutturalmente fuori da `Scenarios/` (tooling, data). Un widget e' verificabile
+      # da uno scenario visivo, quindi il gate e' aperto, non inapplicabile.
+      scenario: todo
+      ui_wiki: todo
+      packaged: todo
+      network_privacy: na
+      replay_representable: na
+    roadmap:
+      epic: E11
+      checkpoints: ["11.7"]
+    dependencies:
+      - RT-FEAT-UI-PLANNING
+      - RT-FEAT-UI-ICON-LANGUAGE
+    owner_specs:
+      - docs/technical/progettazione-hud.md
+    issues: [613]
+    tests:
+      - RefactorTactics.HudViewModel.*
+    scenarios: []
+    wiki_refs:
+      - wiki:come-si-gioca
+    # ⚠️ **Nessun `pie_refs`, di proposito.** `PIE-V01-HUD` appartiene a `RT-FEAT-UI-PLANNING`: il
+    # testo della voce verifica barre, timer, round, slot e cooldown — cioe' il Canvas. Citarla anche
+    # qui riprodurrebbe i tre legami falsi corretti da `6fa50623`, e il danno sarebbe concreto in due
+    # modi opposti: se la voce diventa ✅ coi criteri Canvas (raggiungibili a CP 11.1, prima che un
+    # widget esista) il validator direbbe «puo' avanzare» al gate `packaged` di una feature senza
+    # widget; se invece la si estendesse davvero allo Screen HUD, `RT-FEAT-UI-PLANNING` — gia'
+    # RELEASE_READY — resterebbe appesa a un checkpoint non iniziato. La voce PIE dello Screen HUD la
+    # scrivera' CP 11.7 insieme ai widget. Campo assente = «non ancora mappato», che qui e' vero.
+    last_verified:
+      date: 2026-08-12
+      commit: 05e65f6
+    notes: >
+      Aperta il 2026-08-12 da un panel di specifica sulla proposta «UI-0 — First Playable HUD»
+      (`../roadmap/plans/ui-0-first-playable-hud-2026-08-12.md`). ⚠️ **Esiste perché il DoD di CP 11.1
+      non nomina UMG**: chiede contenuto informativo, e cinque voci su sei sono già soddisfatte da
+      `ARTHUD` in Canvas. Il confine fra i due layer è la ragione della feature — §4.1 qui, §4.2 in
+      `RT-FEAT-UI-PLANNING` — e la sovrapposizione da governare è **chi disegna le barre**: quelle
+      ancorate sopra l'unità restano Canvas, il roster e il pannello della selezionata sono UMG.
+      Dipende da `RT-FEAT-UI-ICON-LANGUAGE` per D-031: nessun widget referenzia una texture.
 
   - feature_id: RT-FEAT-UI-ACTION-GHOSTS
     title: Action Ghosts e Ghost Timeline
@@ -3124,13 +3471,18 @@ features:
     status: IMPLEMENTING
     gates:
       spec: done
-      # Nessun `DA_IconCatalog` esiste: il tipo e' codice, il dato no.
+      # Nessun `DA_IconCatalog` esiste: il tipo e' codice, il dato no. ⚠️ CP 20.2 ha misurato il costo di
+      # quel `todo`: 33 texture piu' il missing-icon, che nessuno script del repository puo' produrre —
+      # l'elenco e' in `../technical/brief-icone-v01.md`. Non e' un gate che si chiude programmando.
       data: todo
       # `URTIconCatalogData` + `URTIconLibrary` esistono e sono coperti da test, ma **nessuno li consuma**
       # fuori dai test: i widget sono CP 20.3. Regola 2 dei gate — un dato senza consumatore e' `partial`.
       runtime: partial
       log_debug: na
-      # Cinque test verdi sulla libreria reale (CP 20.1). Il catalogo SPEDITO non e' ancora coperto: e' CP 20.2.
+      # Sette test verdi sulla libreria reale (cinque di CP 20.1, due aggiunti da CP 20.2). Resta `partial`
+      # perche' il catalogo SPEDITO non e' coperto — e non lo e' per una ragione dichiarata, non per una
+      # dimenticanza: l'asset non esiste, e un test che lo cercasse sarebbe rosso in permanenza oppure verde
+      # saltando la verifica. La copertura di quella meta' arriva con l'asset.
       automation: partial
       scenario: todo
       ui_wiki: todo
@@ -3144,14 +3496,16 @@ features:
       - RT-FEAT-UI-PLANNING
     owner_specs:
       - docs/decisions/RT_PDR_00_Decision_Log.md
-    issues: [217, 218, 219, 220, 265, 266, 267, 268, 269]
+      - docs/technical/brief-icone-v01.md
+    issues: [217, 218, 219, 220, 265, 266, 267, 268, 269, 637]
     tests:
       - RefactorTactics.IconCatalog.*
+      - RefactorTactics.Heroes.HeroIdsMatchRoster
     scenarios: []
     wiki_refs: []
     last_verified:
-      date: 2026-08-09
-      commit: 1ca9bcd
+      date: 2026-08-12
+      commit: 2471a37
     notes: >
       D-031: le icone sono un **catalogo semantico** (`URTIconCatalogData`), non texture
       referenziate nei widget. Entra in v0.1 perché E11 costruisce l'HUD adesso e riscrivere ogni
@@ -3159,6 +3513,13 @@ features:
       dodici; le altre sette e i consumer world-space, reaction e perception sono **E25** in
       `roadmap-post-v0.1.md` (`#265` epic, `#266`–`#269` checkpoint), aperta il 2026-08-08. Una
       sola feature per due epic: il catalogo è lo stesso, cambia quanto ne è popolato.
+      ⚠️ **CP 20.2 (2026-08-12) ha reso `Certainty` e `Identity` DERIVATE**, contro la lettera di
+      `#219` che le voleva scritte a mano nel data asset: una chiave a mano è una chiave che nessuna
+      macchina pretende, cioè la seconda copia che CP 20.1 aveva eliminato per Action, Status e Phase.
+      Identity viene dal roster (`URTHeroCatalogLibrary`, che `#219` dichiarava inesistente) più
+      `Ally`/`Enemy`; Certainty dai tre livelli di CP 11.2. L'insieme richiesto è passato da 24 a
+      **33 chiavi**. ⚠️ Il gate `data` non si chiude programmando: servono 33 texture e il
+      missing-icon, e la creazione del `DA_IconCatalog` è un passo Editor.
 
   - feature_id: RT-FEAT-UI-SCENARIO-BROWSER
     title: Selettore e indice degli scenari
@@ -3853,7 +4214,7 @@ features:
       runtime: done
       log_debug: todo
       automation: done
-      scenario: todo
+      scenario: partial
       ui_wiki: partial
       packaged: todo
       network_privacy: na
@@ -3867,22 +4228,25 @@ features:
     owner_specs:
       - docs/gameplay/spec-bot-hex.md
       - docs/gameplay/spec-bot-tattico.md
-    issues: [160]
+    issues: [160, 649]
     tests:
       - RefactorTactics.HexBotPlay.HiddenEnemyFairness
       - RefactorTactics.HexBotPlay.PlansOnPartialKnowledge
       - RefactorTactics.HexBotPlay.SeeksContactWithoutKnowledge
       - RefactorTactics.HexBotPlay.ActsOnLastKnownCell
+      - RefactorTactics.HexBot.ConsidersExposedRearArc
+      - RefactorTactics.HexBot.RearBonusMatchesBypassedReduction
+      - RefactorTactics.HexBot.ExposureIsZeroWithoutProtection
     scenarios:
+      - Spec.Bot.HiddenEnemyFairness
+      - Spec.Bot.PlansOnPartialKnowledge
       - planned:
-          - Spec.Bot.HiddenEnemyFairness
           - Spec.Bot.DecoyNoiseIndistinguishable
-          - Spec.Bot.PlansOnPartialKnowledge
     wiki_refs:
       - wiki:avversario-bot
     last_verified:
-      date: 2026-08-11
-      commit: 55de13e
+      date: 2026-08-12
+      commit: f963a689
     notes: >
       **Meta' bot di CP 13.5 atterrata il 2026-08-11.** `PlanBots` costruisce `Ctx.Enemies` da
       `FRTTeamKnowledge` con la STESSA regola del targeting umano (`ClassifyTarget`), non un secondo
@@ -3890,6 +4254,39 @@ features:
       **massimi** (la squadra conosce l'identita', non la condizione); ignoto -> non esiste.
       Owner del comportamento AS-BUILT: `spec-bot-hex.md` §6, che dichiarava il contrario e ora
       dichiara il vero.
+      **Gate `scenario` da `todo` a `partial` il 2026-08-12 (#160).** Esistono
+      `Spec.Bot.HiddenEnemyFairness` e `Spec.Bot.PlansOnPartialKnowledge`; resta pianificato
+      `Spec.Bot.DecoyNoiseIndistinguishable`, che dipende da CP 13.4 (#159) perche' senza rumore non
+      c'e' esca. Scriverli ha richiesto tre estensioni dell'harness — un'unita' puo' essere dichiarata
+      `bot`, la condizione iniziale (`health`/`shield`/`visionRange`) e' scrivibile, e uno scenario puo'
+      dichiarare **varianti** con `expectSameAcrossVariants`. Quest'ultima e' l'unica forma in cui un
+      canary d'indipendenza sia esprimibile: «il bot non ha usato un'informazione» non e' osservabile in
+      una partita sola.
+      ⚠️ **I due scenari NON sostituiscono i test C++, e la differenza e' misurata.** Rendendo onnisciente
+      il solo `PlanBots`, `Spec.Bot.PlansOnPartialKnowledge` nella sua prima stesura restava **verde**: a
+      fermare il colpo sull'ignoto e' il RESOLVER (CP 13.2, `TargetUnknown`), non il bot, quindi lo
+      scenario misurava la catena e non il pianificatore. Corretto aggiungendo la premessa
+      `Combat/Hit = 1`, che la mutazione ora prende. Il controllo diretto sul pianificatore resta il test
+      C++, che guarda `PlannedAttackTarget` invece dell'esito.
+      **Orientamento nello scoring, 2026-08-12 (#160).** L'ultima voce di CP 13.5 che mancava: il bot valuta
+      «da dove e' visto e da dove puo' essere colpito». Il termine non porta un peso proprio — vale
+      `WDamage x riduzione scavalcata`, cioe' il danno che la direzione aggiunge, e
+      `RearBonusMatchesBypassedReduction` lo pinna contro il catalogo invece che contro una costante. La
+      riduzione si CHIEDE a `EffectiveCoverReduction`, che contiene gia' la logica direzionale.
+      ⚠️ **Guard resta fuori deliberatamente**: anche lei e' annullata da un colpo posteriore, ma in
+      pianificazione «il bersaglio si guardera'» e' un INTENTO dell'altra squadra — contarlo renderebbe il bot
+      piu' informato del giocatore, l'opposto di cio' che questa feature garantisce.
+      ⚠️ **Il verso difensivo vale zero quasi sempre**, e il suo test lo asserisce
+      (`ExposureIsZeroWithoutProtection`): `RearHitBypassedCover` ANNULLA una riduzione, e senza copertura non
+      c'e' niente da annullare. Diventera' rosso — cioe' promuovibile — il giorno in cui il bot avra' una
+      protezione propria da mettere in gioco.
+      ⚠️ **La sovrastima non e' ancora misurabile**, ed e' un limite dichiarato: il bot conta il bonus sul
+      facing d'inizio turno, ma chi attacca ruota verso il proprio bersaglio PRIMA che si valuti l'arco
+      (`TargetingReoriented` precede il controllo direzionale), quindi nel duello il fianco sparisce. Il tasso
+      di realizzo si leggerebbe dal TurnLog, ma `RearHitBypassedCover` e' emesso **solo per la Guard**: la
+      copertura annullata non lascia traccia, perche' `EffectiveCoverReduction` e' pura. Serve un campo su
+      `FRTHexAttackHit` — e una voce nuova nel TurnLog cambia gli hash dei golden replay, quindi e' lavoro
+      proprio e non di contorno.
       ⚠️ **Il gate e' `automation`, e ha una forma precisa**: `HiddenEnemyFairness` mette la stessa
       `FRTTeamKnowledge` davanti a due stati autorevoli diversi e pretende lo **stesso** Intent.
       Verificato per mutazione **due volte**, e la seconda ha chiuso un buco trovato in code review:
@@ -4223,23 +4620,42 @@ features:
     owner_specs:
       - docs/roadmap/editormap.shortlist.md
       - docs/roadmap/hex-map-roadmap.md
-    issues: [567]
+    issues: [567, 622, 623, 551, 552, 553, 554, 588]
     tests:
       - RefactorTactics.HexMap.ApplyBrushMerge
       - RefactorTactics.HexMap.FloodRegion
       - RefactorTactics.HexMap.StrokeEquivalence
       - RefactorTactics.HexMap.LookupInvalidatedAfterExternalEdit
+      - RefactorTactics.HexMap.OnlyTheCellsComponentIsClickable
+      - RefactorTactics.HexMap.UnknownFixtureLeavesTheAssetUntouched
+      - RefactorTactics.Hex.EdgeMidpointIsSharedByBothCells
       - RefactorTactics.HexMapActor.LayerFilterOnConstruction
+      - RefactorTactics.HexMapActor.PickIgnoresGeometryThatIsNotTheGrid
+      - RefactorTactics.HexMapActor.BlockerVolumesComeFromCellFlags
+      - RefactorTactics.HexMapActor.EdgePanelsSitOnTheDeclaredEdge
+      - RefactorTactics.HexMapActor.DoorPanelsShowWhetherYouCanPass
+      - RefactorTactics.HexMapActor.CostReliefSurvivesTheSightSlab
     scenarios: []
     wiki_refs: []
     last_verified:
       date: 2026-08-12
-      commit: fe9883c
+      commit: 1c92d869
     notes: >
       `Source/RefactorTacticsEditor/` con tool di paint, fill, select e archi. Il residuo sono
       **verifiche PIE aperte** (H5: E/F/G/H/L/N, piu' le tre `PIE-HEX-LAYER-*` della vista a
       livelli) registrate in `test-manuali-pie.md`, non gate impliciti. `packaged: na` — è uno
       strumento d'editor, non entra nella build di gioco.
+      **2026-08-12 (#551, #588)**: l'actor mappa ha un SECONDO `UInstancedStaticMeshComponent` — il
+      rilievo che mostra il costo di attraversamento — e con lui e' cambiato cosa protegge il pennello.
+      Il raycast di selezione confrontava l'ACTOR, mentre `Result.Item` e' l'indice di istanza del
+      COMPONENTE colpito: un colpo su geometria diversa da `Cells` sarebbe stato risolto contro le
+      celle sbagliate e avrebbe prodotto una cella **valida e sbagliata**, cioe' il pennello che
+      dipinge altrove senza un errore a log. Ora il confronto e' sul componente
+      (`ARTHexMapActor::IsPickOnSelectableCell`, pinnato dal test qui sopra) e `NoCollision` sul
+      rilievo resta la prima difesa invece dell'unica: la protezione ha smesso di dipendere dal
+      ricordarsi di una riga. ⚠️ Il modulo `RefactorTacticsEditor` **non ha test propri** — `find
+      Source/RefactorTacticsEditor -iname "*test*"` e' vuoto — quindi le regole che lo riguardano
+      vanno estratte nel modulo runtime per essere verificabili, com'e' stato fatto qui.
 
 
       La vista a livelli ha un terzo stato `Focus` (#565): istanze sul solo piano attivo, gli altri
@@ -4248,6 +4664,154 @@ features:
       veniva proiettato su quello attivo, spostando la cella di circa `LayerHeight` in orizzontale.
       `LayerFilterOnConstruction` tiene l'invariante che rende vera la seconda cosa: i piani di
       contesto **non** sono istanze, quindi non hanno collisione e il raycast non puo' vederli.
+
+
+      Dal 2026-08-12 il perimetro si divide: l'**authoring di geometria architettonica** ha una
+      feature propria (`RT-FEAT-TOOL-MAP-GEOMETRY`), perche' e' un modello di dati e una cottura,
+      non una modalita' d'editor. Qui restano il mode, i quattro tool e la vista. Le due issue
+      nuove sono difetti d'uso osservati costruendo: `#622` la griglia di lavoro dove le celle non
+      esistono ancora — l'unico pezzo di §10 del sorgente che non esisteva gia' — e `#623` la
+      seduta su luci e inquadratura. `#623` e' una **seduta**, non codice: `L_DevSandbox.umap` e'
+      un `.umap`, e la navigazione del viewport la fornisce Unreal (`RTCameraPawn` e' la camera di
+      gioco, un oggetto diverso). Referto:
+      `docs/roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md`.
+
+
+      **2026-08-12 (#552, #553)**: i volumi delle regole di blocco (`Blockers`) e i pannelli di bordo
+      (`EdgeFeatures`) erano stati consegnati **senza test**, e con loro un difetto che nessuno avrebbe
+      visto: lastra della vista e rilievo del costo sono concentrici e partono dalla stessa quota, e la
+      lastra a 16 uu era piu' alta E piu' larga del rilievo piu' alto che il catalogo possa produrre
+      (15 uu, perche' il costo massimo v0.1 e' `2`). Ogni cella costosa che blocca la vista taceva sul
+      proprio costo — e non in un caso limite: in **tutti**. Corretto a 10 uu, col vincolo scritto
+      accanto alla costante. I quattro test aggiunti misurano il COMPORTAMENTO — le istanze che
+      `RebuildInstances` produce — non i valori, cosi' ritoccare le proporzioni resta libero e farle
+      collassare no. ⚠️ Limite noto e dichiarato: i quattro stati di porta si mostrano con **due** forme
+      (`Locked` come `Closed`, `Destroyed` come `Open`), quindi «lo stato e' visibile e cambia quando
+      cambia il dato» — acceptance di #553 — vale per il passaggio, non per chi puo' cambiarlo.
+      ⚠️ Le acceptance **visive** di entrambe le issue restano non verificate: chiudono su una seduta.
+
+
+      **Serie viz editor (2026-08-12): tre quarti atterrati, `log_debug` resta `partial` per il
+      quarto.** Owner del perimetro: `docs/technical/brief-editor-map-viz.md`. `#551` (superficie e
+      costo leggibili), `#552` (volume dei blocchi, e «non si passa» distinto da «non si vede») e
+      `#553` (coperture, porte e transizioni sui BORDI) sono chiuse e mergiate — PR `#670` e `#673`,
+      commit `46d9ef5f`, `41e205f1`, `d9cfb9e3`. Il gate NON avanza a `done` perche' `#554` — le
+      transizioni e la raggiungibilita', cioe' l'unica delle quattro che dice se una piattaforma e'
+      **scollegata** — e' ancora aperta: senza, la vista mostra la geometria e tace sul grafo.
+      Ogni pezzo della serie ha portato il suo test nel modulo runtime, com'e' la regola qui:
+      `OnlyTheCellsComponentIsClickable` (il pick guarda il componente, non l'actor — il secondo ISM
+      dei volumi e' esattamente cio' che rendeva sbagliato il vecchio confronto),
+      `EdgeMidpointIsSharedByBothCells` (la primitiva che mancava: due celle adiacenti devono
+      calcolare lo STESSO punto medio di bordo, o copertura e porta si disegnerebbero due volte in due
+      posti) e `UnknownFixtureLeavesTheAssetUntouched` (un nome di fixture sbagliato non svuota
+      l'asset).
+
+  - feature_id: RT-FEAT-TOOL-MAP-GEOMETRY
+    title: Geometria architettonica quantizzata e cottura in dati di cella
+    area: Tools
+    kind: tooling
+    release: v0.1
+    priority: P2
+    status: IMPLEMENTING
+    gates:
+      spec: partial
+      data: done
+      runtime: partial
+      log_debug: todo
+      automation: done
+      scenario: done
+      ui_wiki: todo
+      packaged: na
+      network_privacy: na
+      replay_representable: na
+    roadmap:
+      epic: null
+      milestone: M9
+      checkpoints: []
+      out_of_release_scope: >-
+        Strumento d'editor: non entra nella build di gioco e non ha un gate di release.
+        E' l'ANTICIPAZIONE dichiarata della meta' di authoring di E23.1 (v0.2), decisa il
+        2026-08-12; l'epic #324 NON si apre, e la logica di transizione resta sua.
+    dependencies:
+      - RT-FEAT-MAP-HEXGRAPH
+      - RT-FEAT-TOOL-MAP-EDITOR
+    owner_specs:
+      - docs/roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md
+    issues: [619, 620, 621]
+    tests:
+      - RefactorTactics.HexOccupancy.*
+    scenarios:
+      # L'unico scenario che questa feature produce: le quattro fixture di geometria NON sono
+      # scenari (`FRTScenarioCell` non sa esprimere un segmento) e vivono in
+      # `Source/RefactorTactics/Tests/RTOccupancyFixtures.h`, da dove le useranno anche #620 e #621.
+      - Spec.Map.ConstrainedCellCostsMore
+    wiki_refs: []
+    last_verified:
+      date: 2026-08-12
+      commit: 52c08286
+    notes: >
+      Il modello: un segmento quantizzato investe delle celle, l'occupazione si misura su **dodici
+      settori** (uno ogni 30°) piu' il centro, e la classificazione `Free`/`Constrained`/`Blocked`
+      ne esce per soglia. I dodici settori NON sono direzioni di movimento: quelle restano sei,
+      pointy-top.
+
+
+      `spec: partial` e non `done` perche' una domanda di modello resta aperta — `MSE-1` in
+      `OPEN_DECISIONS.md`: la cottura non e' invertibile senza conservare il sorgente, e nessuno ha
+      ancora deciso cosa succede se qualcuno modifica a mano un campo cotto. La ristrettezza del
+      2026-08-12 vale la pena rileggerla prima di toccare questo gate: `D2` da' al **costo** un
+      produttore solo, quindi `#619` cuoce ma **non** innesca `MSE-1`; l'innesco resta `#621`, dove
+      `FRTHexCover` e `bBlocksMovement` tornano a produttore condiviso col pennello.
+
+
+      **`#619` e' chiusa (2026-08-12), ed e' la prima delle tre a esserlo.** Quel che era `tests: []`
+      e `scenarios: []` non lo e' piu': `Source/RefactorTactics/Map/RTHexOccupancyLibrary.{h,cpp}`
+      esiste nel modulo **runtime** (com'era il vincolo di collocazione, non una preferenza), i
+      **sedici** test `RefactorTactics.HexOccupancy.*` girano — fra loro `GoldenExampleFromTheSource`,
+      che pinna l'esempio di §14 del sorgente, `ThresholdBoundaries`, `SurchargeEntersTheMatchStateHash`
+      e `SurchargeSurvivesADynamicSurfaceCycle`, cioe' esattamente le tre voci di DoD che `D2` aveva
+      aggiunto — e `Scenarios/Spec/Map/ConstrainedCellCostsMore.json` non e' piu' `planned`: e' il
+      file che mostra `Constrained` cambiare un risultato osservabile. Il campo con un consumatore era
+      la condizione perche' `P1` non producesse un dato morto, ed e' soddisfatta.
+
+
+      `runtime: partial` e non `done` **per i due anelli che restano**, non per incompletezza di
+      `#619`: `#620` (la grammatica delle direttrici e il validator che la rende una regola invece che
+      una convenzione) e `#621` (la cottura verso i bordi) sono aperte. Finche' `#620` non chiude, un
+      segmento fuori grammatica e' rifiutato da una convenzione, non da un test.
+
+
+      Revisione spec panel del 2026-08-12 su #619, due decisioni dell'autore che vincolano il
+      modello. **D1**: il confine #619/#621 e' **per campo** — il costo e' di #619, i bordi
+      (`FRTHexCover`, `bBlocksMovement`) sono di #621. Serviva perche' `ReachableCells` e `FindPath`
+      leggono solo `FRTHexCellData`, quindi `Constrained` non era osservabile senza che qualcuno
+      scrivesse un campo. **D2**: il sovrapprezzo di `Constrained` **non** vive in `MoveCost`, che ha
+      gia' un produttore che lo ricalcola dalla sola `Surface` ogni turno
+      (`ARTTurnManager::ApplyDynamicSurface` e `TickDynamicSurfaces`); e' un intero suo, sommato dai
+      lettori del costo. Ne segue che `FormatVersion` sale da 6 a 7 e il campo entra in
+      `RTMatchStateHash`. La `D-0xx` la prende la PR che implementa.
+
+
+      ⚠️ Le quattro fixture di geometria **non** vanno in `Scenarios/`: `FRTScenarioCell` porta
+      `Cell`, `bBlocksMovement`, `bBlocksLineOfSight`, `MoveCost` e nessun campo per segmenti o
+      footprint. Sono dati di test del modulo runtime; in `Scenarios/Spec/Map/` — che contiene oggi
+      **un solo file**, `BridgeBreaksThePath.json` — va **un** solo scenario nuovo, quello che mostra
+      l'effetto di `Constrained` su `ReachableCells`: e' `Spec.Map.ConstrainedCellCostsMore`,
+      dichiarato `planned` qui sopra perche' resti visibile come warning finche' non e' un file.
+
+
+      Vincolo di collocazione, non preferenza: maschera, classificazione e cottura vivono nel
+      modulo **runtime** e l'editor le chiama. In `Source/RefactorTacticsEditor/` non esiste alcun
+      test — rimisurato su `origin/main` il 2026-08-12: 19 file, zero corrispondenze `*test*`. Cio'
+      che nasce dentro l'editor nasce non verificabile. *(Questa nota citava la PR #598 come «aperta,
+      non mergiata»: e' mergiata dal 2026-08-12T07:07:42Z. L'argomento non dipendeva da quella PR ed
+      e' stato rimisurato.)*
+
+
+      Perche' e' una feature separata da `RT-FEAT-TOOL-MAP-EDITOR` invece di una sua nota: quella e'
+      una **modalita' d'editor** con i suoi quattro tool, questa e' un **modello di dati** con una
+      cottura verso `FRTHexCover` e `bBlocksMovement`. Tenerle insieme farebbe dipendere lo stato di
+      uno strumento maturo (`TESTABLE`) da un lavoro non cominciato.
 
   - feature_id: RT-FEAT-TOOL-VALIDATION
     title: Validator di dati, mappe e documenti
@@ -4846,15 +5410,15 @@ features:
     kind: data
     release: future
     priority: P3
-    status: SPECIFIED
+    status: DONE
     gates:
       spec: done
-      data: todo
+      data: done
       runtime: na
       log_debug: na
-      automation: todo
+      automation: done
       scenario: na
-      ui_wiki: partial
+      ui_wiki: done
       packaged: na
       network_privacy: na
       replay_representable: na
@@ -4868,8 +5432,8 @@ features:
     wiki_refs:
       - wiki:Profilo-tattico
     last_verified:
-      date: 2026-08-11
-      commit: f17cc0b
+      date: 2026-08-12
+      commit: 78453953
     notes: >
       D-105. Due viste distinte — **Profile** (sei assi, pubblica) e **Balance** (cinque assi,
       tuning) — su scala intera `1..10`, con l'ordine dei raggi **normativo**: cambiarlo cambia
@@ -4894,15 +5458,15 @@ features:
     kind: data
     release: future
     priority: P3
-    status: SPECIFIED
+    status: DONE
     gates:
       spec: done
-      data: todo
+      data: done
       runtime: na
       log_debug: na
-      automation: todo
+      automation: done
       scenario: na
-      ui_wiki: todo
+      ui_wiki: done
       packaged: na
       network_privacy: na
       replay_representable: na
@@ -4913,7 +5477,11 @@ features:
     issues: [556, 557, 558]
     tests: []
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:Profilo-tattico
+    last_verified:
+      date: 2026-08-12
+      commit: 78453953
     notes: >
       D-106: i rating **non si scrivono da nessuna parte**. Il generatore legge
       `RT_HeroCatalog_v0.1.md` — l'autorita' dei numeri per D-023 — applica la rubrica e produce i
@@ -4932,15 +5500,15 @@ features:
     kind: tooling
     release: future
     priority: P3
-    status: SPECIFIED
+    status: DONE
     gates:
       spec: done
-      data: todo
-      runtime: todo
-      log_debug: todo
-      automation: todo
+      data: done
+      runtime: na
+      log_debug: na
+      automation: done
       scenario: na
-      ui_wiki: todo
+      ui_wiki: done
       packaged: na
       network_privacy: na
       replay_representable: na
@@ -4952,7 +5520,11 @@ features:
     issues: [559, 560, 561, 563]
     tests: []
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:Profilo-tattico
+    last_verified:
+      date: 2026-08-12
+      commit: 78453953
     notes: >
       `spec: done` dal 2026-08-12: D-108 chiude le due incognite che tenevano la spec `partial` —
       il generatore e' **Node/TypeScript** (contro la raccomandazione registrata nel consolidamento,
@@ -4969,3 +5541,11 @@ features:
       rebalance porta con se' i suoi grafici. Il prezzo e' che chi tocca un catalogo deve poter
       eseguire il generatore, quindi Node diventa un prerequisito del **bilanciamento**.
       `scenario`/`packaged`/`network_privacy` sono `na` come per gli altri strumenti.
+      AGGIORNATO 2026-08-12: la rubrica deriva davvero i rating dai cataloghi, quindi `data` passa a `done`. `ui_wiki` resta `partial`: gli SVG esistono ma la Wiki non li mostra ancora.
+      AGGIORNATO 2026-08-12: i sei assi del Profile e i due del Balance sono calcolati dal codice; i quattro profili risultano distinti su almeno quattro assi.
+      AGGIORNATO 2026-08-12: generatore deterministico e `--check` in `tools/radar/`; quattro SVG in `docs/characters/radar/`. `ui_wiki` partial: manca la pagina Wiki. Il gate NON gira in CI, Actions e' bloccato sull'account (vedi #563).
+      AGGIORNATO 2026-08-12: `ui_wiki` a `done` — Profilo-tattico mostra gli otto radar (Profile e Balance per quattro eroi), referenziati da raw.githubusercontent e non duplicati.
+      AGGIORNATO 2026-08-12: `ui_wiki` a `done`, i rating dei sei assi sono pubblicati in tabella accanto ai radar.
+      AGGIORNATO 2026-08-12: `ui_wiki` a `done`. Il generatore produce anche il Balance e il confronto A vs B; il `--check` copre entrambe le viste. Nessuna CI: i gate di questo repository girano a mano.
+      AGGIORNATO 2026-08-12: due difetti di accessibilita' chiusi, gate invariati. (1) Le etichette erano `#333` e i valori `#111` su fondo trasparente: su tema scuro il contrasto era 1.50:1 e **1.00:1** — il valore aveva la stessa luminanza dello sfondo, cioe' era invisibile. Un blocco `@media (prefers-color-scheme: dark)` porta i due a 12.26:1 e 17.39:1, AAA su entrambi i temi; verificato che la query si applichi anche quando l'SVG e' caricato come `<img>` confrontando il rendering nei due schemi. Limite dichiarato in owner §10: segue la preferenza dell'OS, non l'interruttore di tema del sito. (2) Tutti e quattro i Balance Radar si dichiaravano `Profile Radar` nel `<title>`, che e' il nome accessibile a cui punta `aria-labelledby`: la vista e' ora un parametro **obbligatorio** (`RadarView`), perche' il default era la causa. Tre test nuovi, ognuno verificato per mutazione.
+

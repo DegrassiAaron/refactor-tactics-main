@@ -246,6 +246,30 @@ void ARTTurnManager::PlanBots()
 				break;
 			}
 		}
+		// REAZIONE (`#601`): il bot arma la reazione che ha, se ne ha una pronta. Lo slot e' indipendente da
+		// Movimento e Principale, quindi non compete con nient'altro e si dichiara PRIMA di ogni `continue`
+		// del resto della pianificazione — altrimenti un bot che cura o che scatta uscirebbe dal ciclo senza
+		// armarla.
+		//
+		// Nessuna euristica su QUANDO conviene: il trigger e' dichiarato dall'abilita' e valutato dal
+		// resolver, e una reazione non armata non costa nulla a nessuno. Sceglierne una fra due sarebbe una
+		// decisione di bot (E15) — con un solo slot reazione nel kit di ogni eroe, oggi non si pone.
+		//
+		// Senza questa riga meta' delle unita' della v0.1 non reagirebbe mai, e il playtest misurerebbe un
+		// gioco diverso da quello progettato: i sette moduli di CP 7.5 sarebbero verdi nei test e assenti in
+		// partita.
+		for (int32 R = 0; R < Bot->NumAbilities(); ++R)
+		{
+			const URTActionData* Reaction = Bot->GetAbility(R);
+			if (Reaction && Reaction->Def.Slot == ERTActionSlot::Reaction && Bot->CanUseAbility(R))
+			{
+				Bot->PlannedReactionAbility = R;
+				AddLogEvent(FString::Printf(TEXT("%s: arma %s (reazione)"),
+					*Bot->GetName(), *Reaction->Def.ActionId.ToString()));
+				break;
+			}
+		}
+
 		if (bUsedSupport)
 		{
 			continue;
@@ -267,6 +291,9 @@ void ARTTurnManager::PlanBots()
 		const FRTTeamKnowledge BotKnowledge = KnowledgeForTeam(Bot->TeamId);
 		FRTHexBotContext Ctx;
 		Ctx.Origin = Bot->Cell;
+		// Da dove il bot guarda ORA: e' il punto di partenza della stima di come sara' orientato a fine turno
+		// (CP 13.5). Chi resta fermo e non attacca conserva questo.
+		Ctx.SelfFacing = Bot->Facing;
 		// Il kiting lo DERIVA il bot dalla portata dell'attacco base: e' un comportamento dell'IA, non una
 		// caratteristica dell'unita' (che quando la muove il giocatore non lo consulta mai).
 		Ctx.KiteStandoff = URTHexBotLibrary::DeriveKiteStandoff(Bot->AttackRange);
@@ -350,6 +377,18 @@ void ARTTurnManager::PlanBots()
 			Ctx.Enemies.Add(KnownCell);
 			Ctx.EnemyRanges.Add(EnemyReach);
 			Ctx.EnemyHealth.Add(KnownHealth);
+			// CP 13.5 — l'ORIENTAMENTO del nemico, che decide se la sua copertura vale (ADR-0005 §4a).
+			//
+			// Si prende quello corrente e non si filtra, ed e' corretto: il facing e' cio' che la mesh mostra,
+			// quindi il giocatore umano lo legge allo stesso modo. A restare privato e' l'INTENTO di rotazione
+			// (`Facing.IntentIsTeamFiltered`), che qui non passa.
+			//
+			// ⚠️ Su un contatto `CellOnly` la cella e' quella del RICORDO ma il facing e' quello ATTUALE: e' una
+			// piccola incoerenza voluta, perche' l'alternativa — ricordare anche l'orientamento — vorrebbe un
+			// campo in `FRTLastKnownContact` e un incremento di `FRTTeamKnowledge::CurrentVersion`, cioe' una
+			// decisione di formato. L'errore va nella direzione sicura: la copertura si calcola fra la cella
+			// ricordata e la mia, e un facing piu' aggiornato del ricordo non rivela DOVE sia l'unita'.
+			Ctx.EnemyFacings.Add(Other->Facing);
 			EnemyUnitIndex.Add(j);
 
 			// La distanza si misura da cio' che si CONOSCE: su un contatto incerto e' la cella del ricordo.
@@ -460,7 +499,7 @@ void ARTTurnManager::PlanBots()
 				int32 MaxCellCost = 1;
 				for (const FRTHexCellData& Cell : Snapshot.Map->Cells)
 				{
-					MaxCellCost = FMath::Max(MaxCellCost, Cell.MoveCost);
+					MaxCellCost = FMath::Max(MaxCellCost, Cell.TotalMoveCost());
 				}
 				CandidateBudget = DashBudget * MaxCellCost;
 			}
@@ -899,7 +938,10 @@ void ARTTurnManager::LockInAndResolve()
 			// scatterebbero mai, restando dati senza consumatore. Questa e' la fine del turno dell'unita', ed e'
 			// dove un piano smette di valere. Pinnato da `Turn.PlansDoNotSurviveTheTurn`, che cade se questa
 			// riga sparisce (verifica di mutazione, 2026-08-12).
-			Unit->PlannedReactionAbility = INDEX_NONE;
+			//
+			// Azzera lo slot **e la sua condizione** ([D-109]): sono una cosa sola, e separarle rimetterebbe in
+			// gioco una condizione orfana che il prossimo armamento erediterebbe.
+			Unit->ClearReactionPlan();
 			// E con lui il contatore delle attivazioni ([D-092]): «una per TURNO» ha bisogno di sapere quando
 			// il turno finisce, ed e' qui — lo stesso punto in cui il piano smette di valere.
 			Unit->ReactionActivationsThisTurn = 0;
@@ -4038,6 +4080,34 @@ void ARTTurnManager::ResolveCombat()
 		AttackBaseActionId.Add(bHasDef ? IntentDefs[Hit.IntentIndex].BaseActionId : NAME_None);
 		AttackPriority.Add(bHasDef ? IntentDefs[Hit.IntentIndex].Priority : 0);
 		AttackActors.Add(Attacker);
+
+		// `#649` — la DIREZIONE ha annullato una copertura, e adesso la traccia lo dice.
+		//
+		// Finora `RearHitBypassedCover` — che nel nome porta proprio «Cover» — era emesso **solo** dal ramo
+		// della Guard: la copertura scavalcata spariva dentro `EffectiveCoverReduction`, che e' pura. Dal
+		// TurnLog un colpo pieno su un bersaglio riparato era indistinguibile da un colpo pieno su un
+		// bersaglio scoperto, e il bonus che il bot conta in pianificazione (CP 13.5) non era verificabile.
+		//
+		// ⚠️ **`Amount` diverge dall'uso che ne fa la voce della Guard**, che ci mette la DIREZIONE del
+		// difensore: qui porta i **punti di riduzione scavalcati**, che sono l'unico numero utile a misurare
+		// il realizzo. La divergenza e' preesistente — due significati per lo stesso esito — ed e' nominata
+		// qui invece di essere risolta: cambiare la voce della Guard e' toccare una traccia gia' spedita, con
+		// i suoi test e il suo posto nel corpus golden.
+		//
+		// Un colpo che scavalca ENTRAMBE le protezioni produce due voci, ed e' corretto: sono due
+		// annullamenti distinti dello stesso colpo.
+		if (Hit.CoverBypassedByFacing > 0 && HexUnits.IsValidIndex(Hit.AttackerId)
+			&& HexUnits.IsValidIndex(Hit.TargetId))
+		{
+			FRTTurnLogEntry BypassedCover;
+			BypassedCover.Phase = ERTMatchPhase::Blast;
+			BypassedCover.Category = ERTLogCategory::Facing;
+			BypassedCover.Outcome = static_cast<uint8>(ERTFacingOutcome::RearHitBypassedCover);
+			BypassedCover.SrcCell = HexUnits[Hit.AttackerId].Cell;
+			BypassedCover.TgtCell = HexUnits[Hit.TargetId].Cell;
+			BypassedCover.Amount = Hit.CoverBypassedByFacing;
+			AppendLogEntry(BypassedCover, Attacker);
+		}
 
 		// Effetti COLLATERALI del colpo (stato, spinta) dagli EVENTI dichiarati dall'azione, non da flag
 		// letti qui: e' il motore azioni (epic E4). Il danno resta separato perche' segue una regola sua —

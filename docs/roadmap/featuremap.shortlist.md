@@ -20,20 +20,21 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 <!-- RT_SHORTLIST_FEATURES:BEGIN -->
 
-**98 feature** · v0.1 **71** · v0.2 **12** · future **15**.
+**103 feature** · v0.1 **73** · v0.2 **15** · future **15**.
 
 | Stato | Quante |
 |---|--:|
 | `IDEA` | 6 |
-| `DESIGNED` | 13 |
-| `SPECIFIED` | 12 |
-| `IMPLEMENTING` | 21 |
+| `DESIGNED` | 14 |
+| `SPECIFIED` | 10 |
+| `IMPLEMENTING` | 23 |
 | `TESTABLE` | 8 |
 | `INTEGRATED` | 21 |
 | `RELEASE_READY` | 16 |
-| `DONE` | 1 |
+| `DONE` | 4 |
+| `DEFERRED` (fuori scala) | 1 |
 
-### Actions · 12
+### Actions · 15
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
@@ -42,22 +43,25 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-ACTION-ENGINE` — Motore delle azioni a priorità intera | v0.1 | RELEASE_READY | 8/9 | E4 | Ordine per priorità, permutazione-invarianza, nessun bias di Player ID |
 | `RT-FEAT-ACTION-MOVE-PROFILES` — Profili di movimento (Move, Sprint, Charge) | v0.1 | RELEASE_READY | 8/9 | E4 | **Sprint è un profilo di Move, non un Dash** |
 | `RT-FEAT-ACTION-PREDICTIVE` — Predictive Action, thin slice | v0.1 | INTEGRATED | 7/9 | E18 | Decisa in Planning, risolta a un boundary, **senza input live** |
-| `RT-FEAT-ACTION-COOLDOWNS` — Cooldown ed economia delle risorse | v0.1 | TESTABLE | 5/9 | E4 | ⚠️ non verificabile finché i world di test non chiamano `BeginPlay()` (`#135`) |
+| `RT-FEAT-ACTION-COOLDOWNS` — Cooldown ed economia delle risorse | v0.1 | TESTABLE | 6/9 | E4 | ⚠️ non verificabile finché i world di test non chiamano `BeginPlay()` (`#135`) |
 | `RT-FEAT-ACTION-EQUIPMENT` — Equipaggiamento e loadout | v0.1 | IMPLEMENTING | 1/8 | E7 | Scelta orizzontale: ogni variante ha uno svantaggio |
 | `RT-FEAT-ACTION-GENERIC` — Azioni generiche del catalogo | v0.1 | IMPLEMENTING | 3/9 | E4 | Le sette di D-025: `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch` |
 | `RT-FEAT-ACTION-SUPERS` — Ultimate e azioni ad alto impegno | v0.2 | IMPLEMENTING | 0/9 | — | Fuori dal contenuto della v0.1 |
+| `RT-FEAT-ACTION-MOVEMENT-COMPAT` — Compatibilita' abilita' <-> movimento: normale, ridotta, potenziata, bloccata | v0.2 | SPECIFIED | 1/9 | fuori scope | — |
 | `RT-FEAT-ACTION-DELAYED` — Delayed Action ai boundary di fase | future | DESIGNED | 0/9 | — | Brief scritto, **nessuna epic aperta**: attende una decisione di scope |
+| `RT-FEAT-ACTION-PLAN-VALIDATION` — Validazione del piano in Planning, con reason code deterministico | v0.2 | DESIGNED | 0/10 | fuori scope | — |
 | `RT-FEAT-STATUS-FRAMEWORK` — Framework degli status — categorie, severity e primitive | v0.2 | DESIGNED | 0/9 | fuori scope | Undici status cablati uno per uno, nessun livello che li governi: **E36** in v0.2 |
+| `RT-FEAT-ACTION-BUDGET` — Capacita' d'azione del turno: slot o budget numerico | v0.2 | DEFERRED | 0/9 | fuori scope | — |
 | `RT-FEAT-ACTION-TRAPS` — Trappole e gambit tattici | future | IDEA | 0/9 | — | Solo un nome |
 
 ### Characters · 7
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
+| `RT-FEAT-CHAR-RADAR-MODEL` — Modello dei radar di profilo — Profile e Balance | future | DONE | 4/4 | — | — |
+| `RT-FEAT-CHAR-RADAR-RATINGS-V01` — Rubrica — i rating derivati dal catalogo eroi | future | DONE | 4/4 | — | — |
 | `RT-FEAT-CHAR-V01-ROSTER` — Roster v0.1 — Flux, Riva, Bastion, Vektor | v0.1 | INTEGRATED | 6/8 | E6 | I 4 eroi corrispondono al catalogo; **3 reazioni su 5** cablate |
 | `RT-FEAT-CHAR-PRESENTATION` — Presentazione dei personaggi (mesh, animazioni, anelli) | v0.1 | IMPLEMENTING | 1/7 | E21 | Il lavoro che viveva solo in M8, reso visibile dal registry |
-| `RT-FEAT-CHAR-RADAR-MODEL` — Modello dei radar di profilo — Profile e Balance | future | SPECIFIED | 1/4 | — | — |
-| `RT-FEAT-CHAR-RADAR-RATINGS-V01` — Rubrica — i rating derivati dal catalogo eroi | future | SPECIFIED | 1/4 | — | — |
 | `RT-FEAT-CHAR-AUXILIARY-UNITS` — Unità ausiliarie (pet, evocazioni, gadget) | v0.2 | DESIGNED | 0/9 | — | — |
 | `RT-FEAT-CHAR-V02-ROSTER` — Roster v0.2 — Steel, Aurora, Murdock, Kwang | v0.2 | DESIGNED | 0/8 | — | Epic E35 |
 | `RT-FEAT-CHAR-TRANSFORMATION` — Stati di personaggio, stance e trasformazioni | v0.2 | IDEA | 0/9 | — | Le 10 voci `PIE-STATE-*` sono la sua controparte umana, e restano ⏳ |
@@ -175,11 +179,12 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | v0.1 | SPECIFIED | 1/10 | E14 | Finestra **3,0 s**, `Timeout → HOLD`; Fast/Headless risponde subito via policy |
 | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | v0.1 | DESIGNED | 0/10 | E14 | Continuazione della **propria** azione, non risposta all'avversario |
 
-### Tools · 13
+### Tools · 14
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
 | `RT-FEAT-TOOL-VALIDATION` — Validator di dati, mappe e documenti | v0.1 | DONE | 5/5 | E1 | L'unica feature `DONE` del registry |
+| `RT-FEAT-WIKI-CHART-GENERATOR` — Generatore SVG deterministico dei radar | future | DONE | 4/4 | — | — |
 | `RT-FEAT-BOT-BASE` — Bot a utility scoring deterministico | v0.1 | RELEASE_READY | 7/8 | E2 | Deterministico; le candidate nascono da `ReachableCells`, mai mosse illegali |
 | `RT-FEAT-TEST-SCENARIO-HARNESS` — Scenario Test Harness automatizzato | v0.1 | INTEGRATED | 6/8 | E15 | `PASS/FAIL/ERROR/BLOCKED`, corpus scoperto dall'indice, niente bypass |
 | `RT-FEAT-BOT-FAIRNESS` — Il bot pianifica sulla conoscenza della sua squadra | v0.1 | TESTABLE | 3/7 | E13 | — |
@@ -188,12 +193,12 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-TOOL-BALANCE-GROUND` — Banco di prova del bilanciamento | v0.1 | IMPLEMENTING | 3/6 | E1 | Dove si misurano i numeri prima di scriverli a catalogo |
 | `RT-FEAT-TOOL-CONTROL-CENTER` — Project Control Center — la UI web del registry | future | IMPLEMENTING | 2/6 | — | — |
 | `RT-FEAT-TOOL-DEBUG-CONSOLE` — Comandi console rt.Debug e rt.Test | v0.1 | IMPLEMENTING | 3/6 | E11 | Ne esistono 2 su 8: senza, si debugga a occhio |
-| `RT-FEAT-WIKI-CHART-GENERATOR` — Generatore SVG deterministico dei radar | future | SPECIFIED | 1/6 | — | — |
+| `RT-FEAT-TOOL-MAP-GEOMETRY` — Geometria architettonica quantizzata e cottura in dati di cella | v0.1 | IMPLEMENTING | 3/7 | M9 | — |
 | `RT-FEAT-BOT-BELIEF` — Belief — celle plausibili, decadimento e minaccia proiettata | future | DESIGNED | 0/8 | fuori scope | — |
 | `RT-FEAT-BOT-PREDICTIVE` — Scenari nemici plausibili e piano robusto | future | DESIGNED | 0/8 | fuori scope | — |
 | `RT-FEAT-BOT-TACTICAL` — Team Planner — piano di squadra, ruoli dinamici e sinergie | v0.2 | DESIGNED | 0/8 | fuori scope | Epic E26 |
 
-### UI · 8
+### UI · 9
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
@@ -202,6 +207,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-UI-SCENARIO-BROWSER` — Selettore e indice degli scenari | v0.1 | INTEGRATED | 6/8 | fuori scope | Tooling di test, **fuori** dal contenuto di release per decisione |
 | `RT-FEAT-UI-CERTAINTY` — Livelli di certezza degli intenti alleati | v0.1 | IMPLEMENTING | 3/8 | E11 | Confermato / previsto / incerto — tre livelli, non una sfumatura |
 | `RT-FEAT-UI-ICON-LANGUAGE` — HUD Icon Language | v0.1 | IMPLEMENTING | 1/7 | E20 | Un **catalogo semantico**, non texture referenziate nei widget |
+| `RT-FEAT-UI-SCREEN-HUD` — Screen HUD in UMG (layer §4.1) | v0.1 | IMPLEMENTING | 1/7 | E11 | — |
 | `RT-FEAT-UI-TACTICAL-CAMERA` — Camera tattica | v0.1 | IMPLEMENTING | 1/6 | E11 | Tarata sulla scala esagonale |
 | `RT-FEAT-UI-WARNINGS` — Avvisi di collisione, fuoco amico e risorse | v0.1 | IMPLEMENTING | 3/7 | E11 | L'arancione del fuoco amico deve **notarsi** |
 | `RT-FEAT-UI-ACTION-GHOSTS` — Action Ghosts e Ghost Timeline | v0.1 | SPECIFIED | 1/8 | E11 | Il planning visuale: cosa succederà, e con quanta certezza |
@@ -212,8 +218,13 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 ## Da sapere prima di usare questa lista
 
-- **Le 17 feature senza issue restano tali.** Collegarle è lavoro del registry, non delle viste che lo leggono.
-  Le due che meritano attenzione perché non hanno né epic né issue: `RT-FEAT-TOOL-MAP-EDITOR` e `RT-FEAT-NET-AUTHORITY`.
+- **Le feature senza issue restano tali.** Collegarle è lavoro del registry, non delle viste che lo leggono.
+  Il numero **non si scrive qui**, perché una riga di prosa a mano invecchia mentre la tabella sopra no: al
+  2026-08-12 sono **19 su 103**, e si rimisurano leggendo `issues: []` in `feature-registry.json`.
+  Quelle che meritano attenzione sono le **15** senza issue *né* epic *né* milestone — nessun tracciamento
+  di alcun tipo. ⚠️ `RT-FEAT-TOOL-MAP-EDITOR` **non è più fra queste**: porta otto issue (`#567`, `#622`,
+  `#623`, `#551`, `#552`, `#553`, `#554`, `#588`) e la milestone `M9`. `RT-FEAT-NET-AUTHORITY` ha `M10` ma
+  nessuna issue.
 - **`INTEGRATED` non vuol dire finito**: vuol dire che gira e uno scenario lo dimostra. Mancano ancora Wiki/UI.
 - **Uno stato alto con `last_verified` vecchio è un errore del validator**, non una sfumatura: è il gate `G15`.
 - **Non si aggiorna a mano.** Dopo aver toccato il registry: `python scripts/feature_registry.py shortlist`.

@@ -7,6 +7,25 @@
 > ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md)); lo **stato di avanzamento** nella
 > [roadmap](../roadmap/roadmap-checkpoint.md) — questo README non lo duplica più.
 
+## ⚠️ Chi tocca una stat rigenera i radar, nello stesso commit
+
+I rating dei radar di personaggio **non sono scritti da nessuna parte**: si calcolano da questi cataloghi
+a ogni generazione ([D-106](../decisions/RT_PDR_00_Decision_Log.md)). Gli SVG in
+[`docs/characters/radar/`](../characters/radar/) sono **versionati con un gate**
+([D-108](../decisions/RT_PDR_00_Decision_Log.md)), quindi cambiare `Salute`, `Movimento`, un danno o un
+cooldown li rende **rossi** finché non vengono rigenerati.
+
+```sh
+node tools/radar/generate.ts           # riscrive i quattro SVG
+node tools/radar/generate.ts --check   # verifica, exit 1 se divergono
+```
+
+Serve **Node 22+** e nient'altro: nessun `npm install`, nessun build step. È il prezzo dichiarato di
+D-108 — la toolchain Node è un prerequisito del **bilanciamento**, non solo della documentazione.
+
+⚠️ **Gli SVG non si editano a mano.** Sono output: la correzione si fa qui o sulla rubrica
+(`tools/radar/`).
+
 ## Quali file sono normativi
 
 | File | Possiede | Autorevole? |

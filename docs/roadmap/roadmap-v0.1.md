@@ -170,7 +170,7 @@ Evidenza = i **nomi dei test**, che sono la prova di ciò che esiste:
 | **E10** Obiettivi dinamici e fine partita | 🟡 **CP 10.3 chiuso** | 27 test `Match*.*` — fine partita a tre vie, `RoundLimit` da formato, pareggio dichiarato, fallback di formato osservabile · ⏳ nessun oggetto da attivare in mappa |
 | **E11** HUD, log e debug | 🟡 **CP 11.3 chiuso nel codice** | 4 `Preview.*`, 4 `PlayerInput.*`, 8 `Playback.*`; console `rt.Debug.DrawCells` e `rt.Debug.Pacing` esistono · **CP 11.3 (2026-08-10, `#79`)**: le voci di combattimento non sono più **anonime** — portano `ActionId` e `BaseActionId`, quindi con due attaccanti nello stesso Blast il replay sa attribuire il colpo (`TurnLog.CombatEntryNamesItsAction`, `TurnLog.BasicAttackLogsBaseAndProfile`) · ⏳ Ghost Timeline (CP 11.5/11.6) · ⏳ comandi `rt.Debug.*` (CP 11.4) |
 | **E12** Determinismo, QA e release | 🟡 **CP 12.1 chiuso** | 4 `Simulation.*` — replay deterministico su **100 ripetizioni**, checksum stabile per permutazioni, corpus golden che rifiuta un formato diverso · 13 `Scenario.*` (harness) · 2 `Perf.*` · **2026-08-10 (`#307`)**: il TurnLog registra la **causa** di ogni spostamento — scatto e spinta lasciavano il replay senza spiegazione, ora hanno voce propria (`TurnLog.DisplacementHasCauseAndSource`, `TurnLog.DashIsDistinguishableFromMove`) · ⏳ packaged build (CP 12.3/12.5) |
-| **E13** Conoscenza parziale: vista e udito | 🟡 **CP 13.1 – 13.3 chiusi** | 6 test `Vision.*` per la vista di squadra (CP 13.1, `#156`) · **CP 13.2 (2026-08-11, `#157`)**: la vista smette di essere una statistica e comincia a **decidere** — un'azione offensiva contro un bersaglio ignoto alla squadra non parte, e passa dal fallback **dichiarato** dall'azione (`TargetUnknown` nel TurnLog, non un annullamento muto); un contatto solo `Incerto` si colpisce **per cella**, su quella dell'ultimo contatto e non su quella attuale. `FRTTeamKnowledge` è versionata e viaggia nello snapshot; l'identità del ricordo è `StableUnitId`, non l'indice di fase. Cablarlo ha fatto emergere **due difetti latenti**: la vista si fermava alla propria quota (su mappa multilivello nessuno vedeva l'altro piano) e l'harness non sapeva dire dove guarda un'unità · **CP 13.3 (2026-08-11, `#158`)**: 6 test `Noise.*` — il rumore si propaga sul **grafo** e non per raggio euclideo, una soglia decide la detection, superficie e occlusione attenuano, e il risultato è deterministico e invariante per permutazione · ✅ **il bot la consuma dal 2026-08-11** (`#160`): `PlanBots` costruisce `Ctx.Enemies` da `FRTTeamKnowledge` con la stessa regola del targeting umano (`ClassifyTarget`), e `HexBotPlay.HiddenEnemyFairness` è il canary che lo dimostra · ⏳ **CP 13.4** (`#159`) — **la scala di precisione è decisa** ([D-113](../decisions/RT_PDR_00_Decision_Log.md), 2026-08-12): due ampiezze, raggio `4` e `2`, scelte dal **margine sopra soglia** e mai dal tipo di evento (riconoscere il tipo è il Livello 5 della stessa scala). ⚠️ Il lavoro è **iniziato fuori da `main`**: `PlausibleOriginCells` vive su `feat/159-rumore-contatto-incerto` con tre test `Noise.Plausible*` — la sua firma non riceve la sorgente, che è dove vive la garanzia. Su `main` restano da fare i **sei** test del DoD (`ProducesUncertainContact`, `AttackRevealsDirection`, `ObserverViewOmitsUnheard`, `HashIsIndependentOfObserver`, `MemoryDoesNotTrackUnseenSource`, `NoHiddenIntentLeak`), la **direzione** per l'attacco e il filtro d'uscita accanto a `RTIntentPrivacyLibrary` · ⏳ di CP 13.5 restano **HUD** (marker d'ultimo contatto, area d'incertezza acustica — dietro CP 13.4), gli scenari `Spec.Bot.*` e l'**orientamento nel punteggio** (ADR-0005: `Facing` ha zero occorrenze in `Bot/`) |
+| **E13** Conoscenza parziale: vista e udito | 🟡 **CP 13.1 – 13.3 chiusi** | 6 test `Vision.*` per la vista di squadra (CP 13.1, `#156`) · **CP 13.2 (2026-08-11, `#157`)**: la vista smette di essere una statistica e comincia a **decidere** — un'azione offensiva contro un bersaglio ignoto alla squadra non parte, e passa dal fallback **dichiarato** dall'azione (`TargetUnknown` nel TurnLog, non un annullamento muto); un contatto solo `Incerto` si colpisce **per cella**, su quella dell'ultimo contatto e non su quella attuale. `FRTTeamKnowledge` è versionata e viaggia nello snapshot; l'identità del ricordo è `StableUnitId`, non l'indice di fase. Cablarlo ha fatto emergere **due difetti latenti**: la vista si fermava alla propria quota (su mappa multilivello nessuno vedeva l'altro piano) e l'harness non sapeva dire dove guarda un'unità · **CP 13.3 (2026-08-11, `#158`)**: 6 test `Noise.*` — il rumore si propaga sul **grafo** e non per raggio euclideo, una soglia decide la detection, superficie e occlusione attenuano, e il risultato è deterministico e invariante per permutazione · ✅ **il bot la consuma dal 2026-08-11** (`#160`): `PlanBots` costruisce `Ctx.Enemies` da `FRTTeamKnowledge` con la stessa regola del targeting umano (`ClassifyTarget`), e `HexBotPlay.HiddenEnemyFairness` è il canary che lo dimostra · ⏳ **CP 13.4** (`#159`) — **la scala di precisione è decisa** ([D-113](../decisions/RT_PDR_00_Decision_Log.md), 2026-08-12): due ampiezze, raggio `4` e `2`, scelte dal **margine sopra soglia** e mai dal tipo di evento (riconoscere il tipo è il Livello 5 della stessa scala). ⚠️ Il lavoro è **iniziato fuori da `main`**: `PlausibleOriginCells` vive su `feat/159-rumore-contatto-incerto` con tre test `Noise.Plausible*` — la sua firma non riceve la sorgente, che è dove vive la garanzia. Su `main` restano da fare i **sei** test del DoD (`ProducesUncertainContact`, `AttackRevealsDirection`, `ObserverViewOmitsUnheard`, `HashIsIndependentOfObserver`, `MemoryDoesNotTrackUnseenSource`, `NoHiddenIntentLeak`), la **direzione** per l'attacco e il filtro d'uscita accanto a `RTIntentPrivacyLibrary` · ⏳ di CP 13.5 **scenari `Spec.Bot.*` scritti** (2026-08-12, `#615`) e **orientamento nel punteggio** fatto (2026-08-12, `#628`): un colpo fuori dall'arco frontale annulla la copertura del bersaglio, e il termine vale `WDamage x riduzione scavalcata` — nessun peso nuovo da tarare. ⚠️ Solo la copertura: in pianificazione «il bersaglio si guarderà» è un intento privato. ⏳ Resta l'**HUD** (marker d'ultimo contatto, area d'incertezza acustica) e il caso decoy, entrambi dietro CP 13.4 |
 | **E14** Overwatch e reazioni interattive | 🟡 **CP 14.3 e 14.4 chiusi** | 4 test `Reactions.Opportunity*`/`Overwatch.*` (CP 14.3, `#163`): l'id di una opportunity è una **funzione dei suoi sei campi**, non un GUID — un GUID romperebbe il replay in silenzio · **CP 14.4 (2026-08-10, `#164`)**: 4 test `Overwatch.*` — la zona controllata **riusa `FRTSuppressiveZone`**, il trigger si valuta a **ogni** micro-step, un contatto `Incerto` non lo arma, e più bersagli nello stesso passo danno **una** opportunity (`FIRE:a`/`FIRE:b`/`HOLD`) invece di prompt in sequenza · ⚠️ **nessun consumatore in partita**: `ARTTurnManager` non chiama ancora il costruttore dei trigger, quindi niente raggiunge il TurnLog e `Spec.Overwatch.HoldThenFire` resta `BLOCKED` — lo porta **CP 14.5** (`#165`) · ⏳ finestra 3,0 s, commit, troncamento del movimento, Clash, Time Bank |
 | **E15** Showcase «Il Relè» e golden replay | 🟡 **CP 15.3 metà A chiuso** | 4 test `ShowcaseRelay.*` — fixture stabile, scenario lite deterministico, layout del bacino conforme alla spec · **CP 15.3 metà A (`8ca2cc7`, `#169`)**: gli intenti di una partita sono un **dato** e non un click — movimento e azione principale coesistono nello stesso turno, e con lo script delle decisioni **vuoto** lo scenario resta valido (`ShowcaseRelay.ScriptedInputsDriveMatch`) · ⏳ **metà B** (`DecisionProvider` iniettabile): bloccata non da CP 14.3, che è atterrata, ma dal **produttore** delle finestre — `FRTReactionOpportunity` non ha oggi nessun costruttore fuori dai test, quindi il provider non avrebbe interlocutore. Il produttore nasce con **CP 14.5** (`#165`) · ⏳ CP 15.4/15.5 a valle |
 | **E16** Orientamento e direzionalità | ✅ **chiusa** | 13 test `Facing.*` + 3 `Combat.*` direzionali + 5 scenari `Spec.Facing.*` — il facing è stato di gioco (derivato da Move e Dash, riorientato dal bersaglio, in snapshot, TurnLog e hash, filtrato per squadra) e la difesa direzionale annulla copertura bassa e `Guard` fuori dall'arco frontale, con la stessa `HexCone` che userà la vista. Resta fuori `FacingUsedByOverwatch`, che è E14. ⚠️ **2026-08-10**: l'epic **resta chiusa** — i suoi due checkpoint sono stati consegnati e i loro DoD reggono — ma [ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md) ha **allungato la spec** oltre ciò che E16 aveva costruito (budget di pivot per eroe, facing nei micro-step, policy dichiarative). Per questo `RT-FEAT-MAP-FACING` torna `IMPLEMENTING`: non è E16 a essere stata riaperta, è il metro a essersi spostato. Il lavoro nuovo va assegnato, e non ha ancora un checkpoint |
@@ -219,46 +219,47 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-DATA-STABLE-IDS` — ID stabili e versioni dei contenuti | RELEASE_READY | 5/6 |
 |  | `RT-FEAT-TOOL-BALANCE-GROUND` — Banco di prova del bilanciamento | IMPLEMENTING | 3/6 |
 |  | `RT-FEAT-TOOL-VALIDATION` — Validator di dati, mappe e documenti | DONE | 5/5 |
-| **E2** | `RT-FEAT-ACTION-DASH-DISPLACEMENT` — Dash e spostamento forzato | RELEASE_READY | 7/8 |
+| **E2** | `RT-FEAT-ACTION-DASH-DISPLACEMENT` — Dash e spostamento forzato | RELEASE_READY | 8/9 |
 |  | `RT-FEAT-BOT-BASE` — Bot a utility scoring deterministico | RELEASE_READY | 7/8 |
-|  | `RT-FEAT-CORE-TURN` — Pipeline del turno simultaneo | RELEASE_READY | 7/8 |
-|  | `RT-FEAT-MAP-HEXGRAPH` — FRTCellId e grafo esagonale multilivello | RELEASE_READY | 7/8 |
+|  | `RT-FEAT-CORE-TURN` — Pipeline del turno simultaneo | RELEASE_READY | 8/9 |
+|  | `RT-FEAT-MAP-HEXGRAPH` — FRTCellId e grafo esagonale multilivello | RELEASE_READY | 8/9 |
 |  | `RT-FEAT-MAP-LOS` — LOS, targeting e traiettoria separati | RELEASE_READY | 6/7 |
 |  | `RT-FEAT-MAP-PATHFINDING` — A* esagonale autorevole | RELEASE_READY | 6/7 |
-| **E4** | `RT-FEAT-ACTION-BASIC-ATTACK-PROFILES` — Profili di attacco base per eroe | RELEASE_READY | 7/8 |
-|  | `RT-FEAT-ACTION-COOLDOWNS` — Cooldown ed economia delle risorse | TESTABLE | 5/8 |
-|  | `RT-FEAT-ACTION-ENGINE` — Motore delle azioni a priorità intera | RELEASE_READY | 7/8 |
-|  | `RT-FEAT-ACTION-GENERIC` — Azioni generiche del catalogo — completata da `RT-FEAT-REACTION-OVERWATCH`, `RT-FEAT-OBJECTIVE-SYSTEM` | IMPLEMENTING | 3/8 |
-|  | `RT-FEAT-ACTION-MOVE-PROFILES` — Profili di movimento (Move, Sprint, Charge) | RELEASE_READY | 7/8 |
+| **E4** | `RT-FEAT-ACTION-BASIC-ATTACK-PROFILES` — Profili di attacco base per eroe | RELEASE_READY | 7/9 |
+|  | `RT-FEAT-ACTION-COOLDOWNS` — Cooldown ed economia delle risorse | TESTABLE | 6/9 |
+|  | `RT-FEAT-ACTION-ENGINE` — Motore delle azioni a priorità intera | RELEASE_READY | 8/9 |
+|  | `RT-FEAT-ACTION-GENERIC` — Azioni generiche del catalogo — completata da `RT-FEAT-REACTION-OVERWATCH`, `RT-FEAT-OBJECTIVE-SYSTEM` | IMPLEMENTING | 3/9 |
+|  | `RT-FEAT-ACTION-MOVE-PROFILES` — Profili di movimento (Move, Sprint, Charge) | RELEASE_READY | 8/9 |
 | **E5** | `RT-FEAT-NET-PRIVATE-PLANNING` — Intenti privati per squadra | TESTABLE | 5/8 |
-|  | `RT-FEAT-REACTION-PREPARED` — Reazioni preparate in planning | INTEGRATED | 6/8 |
+|  | `RT-FEAT-REACTION-PREPARED` — Reazioni preparate in planning | INTEGRATED | 7/9 |
 | **E6** | `RT-FEAT-CHAR-V01-ROSTER` — Roster v0.1 — Flux, Riva, Bastion, Vektor | INTEGRATED | 6/8 |
 | **E7** | `RT-FEAT-ACTION-EQUIPMENT` — Equipaggiamento e loadout | IMPLEMENTING | 1/8 |
-| **E8** | `RT-FEAT-ENV-ELECTRIC` — Propagazione elettrica sul grafo dell'acqua | INTEGRATED | 6/8 |
-|  | `RT-FEAT-ENV-FIRE` — Fuoco e terreno dinamico | INTEGRATED | 6/8 |
-|  | `RT-FEAT-ENV-ICE` — Ghiaccio e scivolamento | INTEGRATED | 6/8 |
-|  | `RT-FEAT-ENV-STATUS` — Stati temporanei legati alla cella | INTEGRATED | 6/8 |
-|  | `RT-FEAT-ENV-STEAM` — Fumo e copertura visiva | INTEGRATED | 6/8 |
-|  | `RT-FEAT-ENV-SYSTEMIC-COMBOS` — Interazioni sistemiche producer/consumer | INTEGRATED | 6/8 |
-|  | `RT-FEAT-ENV-TERRAIN` — Otto terreni con costi e proprietà | INTEGRATED | 6/8 |
-|  | `RT-FEAT-ENV-WATER` — Acqua e stato Wet | INTEGRATED | 6/8 |
+| **E8** | `RT-FEAT-ENV-ELECTRIC` — Propagazione elettrica sul grafo dell'acqua | INTEGRATED | 6/9 |
+|  | `RT-FEAT-ENV-FIRE` — Fuoco e terreno dinamico | INTEGRATED | 6/9 |
+|  | `RT-FEAT-ENV-ICE` — Ghiaccio e scivolamento | INTEGRATED | 6/9 |
+|  | `RT-FEAT-ENV-STATUS` — Stati temporanei legati alla cella | INTEGRATED | 6/9 |
+|  | `RT-FEAT-ENV-STEAM` — Fumo e copertura visiva | INTEGRATED | 6/9 |
+|  | `RT-FEAT-ENV-SYSTEMIC-COMBOS` — Interazioni sistemiche producer/consumer | INTEGRATED | 7/9 |
+|  | `RT-FEAT-ENV-TERRAIN` — Otto terreni con costi e proprietà | INTEGRATED | 6/9 |
+|  | `RT-FEAT-ENV-WATER` — Acqua e stato Wet | INTEGRATED | 6/9 |
 | **E9** | `RT-FEAT-MAP-COVER` — Copertura direzionale per bordo | INTEGRATED | 6/8 |
-|  | `RT-FEAT-MAP-DYNAMIC-COVER` — Copertura modificabile e pannello cinetico | INTEGRATED | 6/8 |
+|  | `RT-FEAT-MAP-DYNAMIC-COVER` — Copertura modificabile e pannello cinetico | INTEGRATED | 7/9 |
 |  | `RT-FEAT-MAP-HIGH-GROUND` — Altura senza bonus numerico alla vista | INTEGRATED | 6/8 |
-|  | `RT-FEAT-MAP-INTERACTIVE-EDGES` — Porte e bordi commutabili | INTEGRATED | 6/8 |
-|  | `RT-FEAT-MAP-SPECIAL-TRANSITIONS` — Ponti, archi e transizioni multilivello | INTEGRATED | 6/8 |
-| **E10** | `RT-FEAT-MATCH-END-CONDITIONS` — Fine partita a tre vie | RELEASE_READY | 7/8 |
-|  | `RT-FEAT-OBJECTIVE-SYSTEM` — Obiettivi dinamici in mappa | IMPLEMENTING | 2/8 |
+|  | `RT-FEAT-MAP-INTERACTIVE-EDGES` — Porte e bordi commutabili | INTEGRATED | 7/9 |
+|  | `RT-FEAT-MAP-SPECIAL-TRANSITIONS` — Ponti, archi e transizioni multilivello | INTEGRATED | 7/9 |
+| **E10** | `RT-FEAT-MATCH-END-CONDITIONS` — Fine partita a tre vie | RELEASE_READY | 7/9 |
+|  | `RT-FEAT-OBJECTIVE-SYSTEM` — Obiettivi dinamici in mappa | IMPLEMENTING | 2/9 |
 | **E11** | `RT-FEAT-CORE-PLAYBACK` — Playback della risoluzione | INTEGRATED | 5/7 |
 |  | `RT-FEAT-TOOL-DEBUG-CONSOLE` — Comandi console rt.Debug e rt.Test | IMPLEMENTING | 3/6 |
 |  | `RT-FEAT-UI-ACTION-GHOSTS` — Action Ghosts e Ghost Timeline | SPECIFIED | 1/8 |
 |  | `RT-FEAT-UI-CERTAINTY` — Livelli di certezza degli intenti alleati | IMPLEMENTING | 3/8 |
 |  | `RT-FEAT-UI-COMBAT-LOG` — Combat log e spiegabilità | RELEASE_READY | 6/7 |
 |  | `RT-FEAT-UI-PLANNING` — HUD di planning, selezione e preview | RELEASE_READY | 6/7 |
+|  | `RT-FEAT-UI-SCREEN-HUD` — Screen HUD in UMG (layer §4.1) | IMPLEMENTING | 1/7 |
 |  | `RT-FEAT-UI-TACTICAL-CAMERA` — Camera tattica | IMPLEMENTING | 1/6 |
 |  | `RT-FEAT-UI-WARNINGS` — Avvisi di collisione, fuoco amico e risorse — completata da `RT-FEAT-UI-CERTAINTY` | IMPLEMENTING | 3/7 |
-| **E12** | `RT-FEAT-CORE-DETERMINISM` — Snapshot e resolver deterministico | INTEGRATED | 5/7 |
-|  | `RT-FEAT-CORE-TURNLOG` — TurnLog, reason code, hash e replay | RELEASE_READY | 6/7 |
+| **E12** | `RT-FEAT-CORE-DETERMINISM` — Snapshot e resolver deterministico | INTEGRATED | 6/8 |
+|  | `RT-FEAT-CORE-TURNLOG` — TurnLog, reason code, hash e replay | RELEASE_READY | 7/8 |
 |  | `RT-FEAT-DATA-HASH` — Hash di regole e contenuti | RELEASE_READY | 5/7 |
 |  | `RT-FEAT-MATCH-PACING` — Pacing del turno e del match | TESTABLE | 5/8 |
 |  | `RT-FEAT-PROD-PACKAGED` — Verifica su build packaged | IMPLEMENTING | 2/6 |
@@ -269,19 +270,19 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-PERCEPTION-NOISE` — Rumore e percezione acustica | SPECIFIED | 3/9 |
 |  | `RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE` — TeamKnowledge e informazione parziale | TESTABLE | 5/9 |
 |  | `RT-FEAT-PERCEPTION-VISION` — Vista, facing e livelli di consapevolezza | IMPLEMENTING | 3/9 |
-| **E14** | `RT-FEAT-CORE-DECISION-BOUNDARY` — Risoluzione segmentata con Decision Boundary | SPECIFIED | 1/8 |
-|  | `RT-FEAT-CORE-DECISION-TIME-BANK` — Decision Time Bank (budget di decisione per giocatore) | SPECIFIED | 1/9 |
-|  | `RT-FEAT-REACTION-CLASH` — Reaction Clash (opportunity contested) | SPECIFIED | 1/9 |
-|  | `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | SPECIFIED | 1/9 |
-|  | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | DESIGNED | 0/9 |
-|  | `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | IMPLEMENTING | 3/9 |
-|  | `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | IMPLEMENTING | 2/9 |
-|  | `RT-FEAT-REACTION-PROFILE` — Reaction Profile armato da Brace | IMPLEMENTING | 1/8 |
+| **E14** | `RT-FEAT-CORE-DECISION-BOUNDARY` — Risoluzione segmentata con Decision Boundary | SPECIFIED | 1/9 |
+|  | `RT-FEAT-CORE-DECISION-TIME-BANK` — Decision Time Bank (budget di decisione per giocatore) | SPECIFIED | 1/10 |
+|  | `RT-FEAT-REACTION-CLASH` — Reaction Clash (opportunity contested) | SPECIFIED | 1/10 |
+|  | `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | SPECIFIED | 1/10 |
+|  | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | DESIGNED | 0/10 |
+|  | `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | IMPLEMENTING | 3/10 |
+|  | `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | IMPLEMENTING | 2/10 |
+|  | `RT-FEAT-REACTION-PROFILE` — Reaction Profile armato da Brace | IMPLEMENTING | 1/9 |
 | **E15** | `RT-FEAT-TEST-GOLDEN` — Golden replay e showcase «Il Relè» | IMPLEMENTING | 3/8 |
 |  | `RT-FEAT-TEST-SCENARIO-HARNESS` — Scenario Test Harness automatizzato | INTEGRATED | 6/8 |
-| **E16** | `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole — completata da `RT-FEAT-UI-PLANNING` | IMPLEMENTING | 5/9 |
+| **E16** | `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole — completata da `RT-FEAT-UI-PLANNING` | IMPLEMENTING | 6/10 |
 | **E17** | `RT-FEAT-STRESS-4V4` — Validazione di stress 4v4 | IMPLEMENTING | 1/7 |
-| **E18** | `RT-FEAT-ACTION-PREDICTIVE` — Predictive Action, thin slice | INTEGRATED | 6/8 |
+| **E18** | `RT-FEAT-ACTION-PREDICTIVE` — Predictive Action, thin slice | INTEGRATED | 7/9 |
 | **E19** | `RT-FEAT-MATCH-FORMAT` — Formato di partita e classe di mappa | TESTABLE | 5/8 |
 | **E20** | `RT-FEAT-UI-ICON-LANGUAGE` — HUD Icon Language | IMPLEMENTING | 1/7 |
 | **E21** | `RT-FEAT-CHAR-PRESENTATION` — Presentazione dei personaggi (mesh, animazioni, anelli) | IMPLEMENTING | 1/7 |
@@ -293,6 +294,7 @@ silenzio.
 | Feature | Vista | Perché fuori scope |
 |---|---|---|
 | `RT-FEAT-TOOL-MAP-EDITOR` — Editor mode della mappa esagonale | M9 | Strumento d'editor: non entra nella build di gioco e non ha un gate di release. Tracciato da M9 e dalla EditorMap, non dalle epic della v0.1. |
+| `RT-FEAT-TOOL-MAP-GEOMETRY` — Geometria architettonica quantizzata e cottura in dati di cella | M9 | Strumento d'editor: non entra nella build di gioco e non ha un gate di release. E' l'ANTICIPAZIONE dichiarata della meta' di authoring di E23.1 (v0.2), decisa il 2026-08-12; l'epic #324 NON si apre, e la logica di transizione resta sua. |
 | `RT-FEAT-UI-SCENARIO-BROWSER` — Selettore e indice degli scenari | — | Tooling di test nato dall'issue `#209`: serve a chi sviluppa, non è contenuto della release. Già costruito e coperto da test; nessun gate della v0.1 dipende da lui. |
 
 <!-- RT_FEATURE_BY_EPIC:END -->
@@ -746,6 +748,12 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 | **11.4** | Comandi `rt.Debug.*` | `rt.Debug.DrawGrid`, `DrawPaths`, `DrawCover`, `DrawIntent`, `DrawResolution`, `DumpSnapshot`, `DumpTurnLog`, `VerifyReplay` esistono e funzionano in PIE e in build Development; le celle mostrano `CellId`, `TerrainId`, `TraversalCost`, `OccupantId`, `HazardTags`, `CoverEdges`, `ChunkRevision` | `Debug.VerifyReplayDetectsDivergence` (test che introduce una divergenza e verifica che il comando la rilevi); `PIE-V01-DEBUG` |
 | **11.5** *(nuovo 2026-08-07)* | **Ghost Timeline**: preview del piano per fase | Un *Action Ghost* per fase (Prep · Dash · Blast · Move) mostra **dove** sarà l'unità e **da dove** agirà, non solo la destinazione. View model con una entry per fase (`Phase`, `UnitId`, `ActionId`, `PreviewOrigin`, `PreviewDestination`, `Facing`, `PoseId`, `TargetCells`, `AffectedCells`, `Certainty`) e **`ReactionPreview` separata dalla lista delle fasi** — la reaction non è una quinta fase. Origine, destinazione, celle bersaglio e area **coincidono con quelle che userebbe il resolver**: stesso A\*, stesso snapshot, nessuna seconda implementazione delle regole. Budget di presentazione: pooling di mesh/decal, nessun Actor persistente per preview, aggiornamento a frequenza limitata (**non** ogni Tick) | `Preview.GhostMatchesResolverPath`, `Preview.HitCellsMatchCombatShape`, `Preview.ReactionIsNotAPhaseEntry`, `Preview.ClearedWhenPlanIsCancelled` |
 | **11.6** *(nuovo 2026-08-07)* | **Scrubbing** delle fasi e ramo condizionale della reaction | Selezionando una fase il suo ghost si evidenzia e gli altri si attenuano, con origine, bersaglio, linea, AoE e copertura rilevante in evidenza; i **warning** (alleato sulla traiettoria, esposizione, collisione possibile) arrivano dallo stesso strato che produce i reason code del TurnLog — **mai** ricalcolati nel widget — e sono marcati *previsto*/*incerto*, mai *confermato*; la reaction armata compare come **ramo con `?`** accanto alla timeline | `Preview.AllyInAreaIsFlagged`, `Preview.WarningsComeFromResolverReasons`, `Preview.ArmedReactionRendersAsBranch`; `PIE-V01-GHOSTS` |
+| **11.7** *(nuovo 2026-08-12)* | **Screen HUD in UMG** (layer §4.1) | `WBP_RT_TacticalHUD` a schermo intero con zone Top/Left/Bottom/Right e **centro libero**, più `WBP_RT_TurnHeader`, `WBP_RT_TeamRoster`, `WBP_RT_SelectedUnitPanel`, `WBP_RT_ActionDock`/`WBP_RT_ActionSlot`. I widget **leggono un view model sanitizzato** e non ricalcolano formula, visibilità o reason code; nessuno referenzia una texture direttamente (D-031). ⚠️ **Non sostituisce `ARTHUD`**: il §4.2 di [`progettazione-hud.md`](../technical/progettazione-hud.md) — path, waypoint, Dash, AoE, friendly-fire, barre ancorate alle unità — resta in Canvas, dove la spec lo vuole (*«non devono essere realizzati come grandi widget HUD statici»*) | nessuna regressione in `RefactorTactics.HUD.*`; `PIE-V01-HUD` estesa all'ingombro del §4.1 |
+
+> **CP 11.7 viene da** [`plans/ui-0-first-playable-hud-2026-08-12.md`](plans/ui-0-first-playable-hud-2026-08-12.md),
+> panel di specifica del 2026-08-12. Esiste **separato da CP 11.1** perché il DoD di 11.1 non nomina UMG in
+> nessuna delle sue voci: chiede contenuto informativo, e `ARTHUD` ne soddisfa già cinque su sei in Canvas.
+> Il delta di 11.1 è la terna MOVEMENT/MAIN/REACTION, i quattro test headless e il vocabolario `round`.
 
 > **CP 11.5/11.6 vengono da** [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md), che consolida
 > `../archive/src/design/action-ghosts-fasi-fast-reactions.md`. Il documento **conferma** sette
@@ -830,7 +838,7 @@ Fonti: [`brief-conoscenza-parziale.md`](../gameplay/brief-conoscenza-parziale.md
 | **13.2** | Il targeting consuma la conoscenza + memoria del contatto | Le azioni offensive rifiutano bersagli **ignoti alla squadra**; un bersaglio solo `Incerto` è bersagliabile solo per cella, mai per unità; `FRTLastKnownContact` per squadra nello snapshot, formato **versionato**, persistenza 1 turno | `Vision.CannotTargetUnknown`, `Vision.UncertainTargetsCellNotUnit`, `Vision.AllySpottingExtendsTargeting`, `Vision.LastContactExpiresAfterOneTurn` |
 | **13.3** | Propagazione del rumore | Flood fill **intero** sul grafo tattico limitato dall'intensità (`ReceivedNoise = Intensity − costo acustico`); `Noise_Mod` per superficie (**acqua bassa `+2`**, ghiaccio `+1`, terreno libero `0` — [D-042](../decisions/RT_PDR_00_Decision_Log.md)); **soglia d'udito per eroe** dal catalogo, che COMPENSA la vista: Flux 5 · Riva 3 · Bastion 3 · Vektor 5 ([D-041](../decisions/RT_PDR_00_Decision_Log.md)) — statistica **da aggiungere** a `URTHeroData`, oggi assente; nessun `SphereOverlap`; ordine deterministico | `Noise.PropagationIsDeterministic`, `Noise.AttenuationBySurface`, `Noise.ThresholdDecidesDetection`, `Noise.PermutationInvariant` |
 | **13.4** | Rumore → contatto incerto | Un evento sonoro sopra soglia produce un contatto **`Incerto`** con area, mai la cella esatta; l'attacco rivela almeno la direzione; l'evento entra nel TurnLog **completo** — quindi nell'hash — e ciò che raggiunge un osservatore passa da un **filtro proprio**, che per una squadra che non lo ha udito non produce **nessuna voce**, non una voce vuota. ⚠️ **Corretto il 2026-08-09** (#295): la formulazione precedente chiedeva un TurnLog «sanitizzato per squadra», e il TurnLog è **uno solo** ed è la sorgente di `HashTurnLog` — filtrarlo avrebbe reso il checksum dipendente da chi guarda. Stessa disciplina di `FRTPlannedIntent → FilterForTeam → FRTIntentView` | `Noise.ProducesUncertainContact`, `Noise.AttackRevealsDirection`, `Noise.ObserverViewOmitsUnheard`, `Noise.HashIsIndependentOfObserver` |
-| **13.5** | Bot e HUD sulla conoscenza parziale | `URTHexBotLibrary` pianifica sulla conoscenza della **propria** squadra e non bersaglia ciò che non conosce; HUD con marker d'ultimo contatto e area d'incertezza acustica. **Con ADR-0005** il bot valuta anche **da dove è visto e da dove può essere colpito**: l'orientamento entra nel punteggio delle candidate | `Bot.PlansOnPartialKnowledge`, `Bot.DoesNotTargetUnknown`, `Bot.ConsidersExposedRearArc`; PIE `PIE-V01-VISION`, `PIE-V01-NOISE` |
+| **13.5** 🟡 | Bot e HUD sulla conoscenza parziale | `URTHexBotLibrary` pianifica sulla conoscenza della **propria** squadra e non bersaglia ciò che non conosce; HUD con marker d'ultimo contatto e area d'incertezza acustica. **Con ADR-0005** il bot valuta anche **da dove è visto e da dove può essere colpito**: l'orientamento entra nel punteggio delle candidate. ✅ **Bot fatto** (2026-08-12, `#615` scenari + `#628` orientamento) — ⚠️ solo la copertura, non Guard: in pianificazione e' un intento privato. ⏳ **Resta l'HUD**, dietro CP 13.4 | `Bot.PlansOnPartialKnowledge`, `Bot.DoesNotTargetUnknown`, `Bot.ConsidersExposedRearArc`; PIE `PIE-V01-VISION`, `PIE-V01-NOISE` |
 
 **Rischi**: i test del bot (smoke/panic/support/tuning) cambiano **premessa**, non solo valori — un bot che
 perde il contatto e sbaglia è il comportamento atteso. Il rumore è ciò che rende necessario il livello
@@ -875,6 +883,22 @@ livello `Rilevato`, non solo LOS. È **l'ultima epic della v0.1** e la **prima d
 | **14.6** | Counterplay, UI e misura reale | KO/Stun/Disarm/Forced Movement invalidano l'overwatch armato; UI `FIRE`/`HOLD` con countdown, **nessuna logica di gioco nel widget**, slow-motion come sola presentazione; durata della resolution **misurata e registrata** con 1/2/3 unità armate | `Overwatch.CancelledByStun`, `Overwatch.CancelledByForcedMovement`, `Overwatch.SlowMotionDoesNotChangeOutcome`; PIE `PIE-V01-OVERWATCH` |
 | **14.7** *(nuovo 2026-08-09)* | **Reaction Clash** — opportunity *contested* | `Brace` **arma un profilo** e non è più «un'azione che si dichiara e basta» ([D-047](../decisions/RT_PDR_00_Decision_Log.md)): `Hold Ground` è la risposta universale e **coincide col comportamento di oggi**, quindi nessun numero si muove e i due scenari restano verdi. Un'opportunity è **contested** quando *due* partecipanti hanno ciascuno ≥ 2 risposte legali — **derivato dalla cardinalità, nessun campo `Type`** (è il rischio (b) di questa epic). Scelta in cieco, **reveal a scadenza fissa** — la finestra dura sempre 3,0 s e non anticipa se entrambi lockano subito, perché il momento del lock è un canale ([D-048](../decisions/RT_PDR_00_Decision_Log.md), emenda ADR-0004 §7) — poi confronto deterministico. Il boundary contested vale **1 prompt**, quindi il caso peggiore di ADR-0004 §8 non cambia. Gli esiti si esprimono **solo** con `FRTActionEffectSpec`, mai callback. **Sostituire** `Reactions.Brace.IsNotAReaction`, che pinna la classificazione vecchia | `Reactions.Brace.BaseProfileHasSingleResponse`, `Reactions.Brace.RicherProfileOpensWindow`, `Clash.ContestedIsDerivedNotDeclared`, `Clash.RevealIsFixedDeadline`, `Clash.HiddenUntilReveal`, `Clash.TieAppliesOnce`, `Clash.CostConsumedOnLock`, `Clash.NoNestedWindow`, `Clash.Determinism`; scenari `Spec.Clash.*` |
 | **14.8** *(nuovo 2026-08-09)* | **Decision Time Bank** — budget di decisione per giocatore | Una risorsa temporale **per giocatore**, condivisa da tutte le Decision Window live: dentro la `Grace` non consuma, oltre consuma il tempo effettivo, e allo scadere costa `MaxWindow − Grace` per intero. `InitialBank` è **derivato** — `RoundLimit × (MaxWindow − Grace)`, 24 s in 2v2 — non un numero fisso. La singola finestra **resta 3,0 s**: il bank non la allunga mai e non tocca mai le `AllowedResponses`. È **wall-clock, non regola**: sta accanto a `PlanningSeconds` e non entra in `URTMatchFormatData` né in alcun hash (`RTMatchFormatData.h`). Il residuo è un **input canonico registrato**: il replay lo legge dal TurnLog, non lo ricalcola. Visibilità **owner-only** — un bank pubblico riaprirebbe il canale che [D-021](../decisions/RT_PDR_00_Decision_Log.md) e [D-048](../decisions/RT_PDR_00_Decision_Log.md) chiudono. Il **bot ha un bank** e lo consuma per policy: nessun ramo `IsBot` nella Decision Window. Vincolo che rende equo il costo pieno del timeout: il fallback è **preselezionato e raggiungibile entro la grace**, apparizione del prompt inclusa — **da misurare**, non da assumere. **Sostituisce D20** («nessun cap aggregato») prima della misura che l'avrebbe informata: rischio dichiarato, e i due rientri di ADR-0004 §Revisione restano validi. **Non precede 14.5/14.6**: la prima misura arriva prima della taratura. Owner: [`spec-decision-time-bank.md`](../gameplay/spec-decision-time-bank.md) | `TimeBank.GraceDoesNotDrain`, `TimeBank.DrainsAfterGrace`, `TimeBank.TimeoutCostsFullWindow`, `TimeBank.TimeoutSpendsNoCharge`, `TimeBank.NeverBelowZero`, `TimeBank.ClashCostsFullWindow`, `TimeBank.BotDrainsLikePlayer`, `TimeBank.ReplayReadsRecordedBank`, `TimeBank.PacketOrderInvariant`; UI `TimeBank.FallbackReachableWithinGrace`; scenari `Spec.TimeBank.*` |
+
+> ✅ **La condizione dichiarata di CP 14.3 è atterrata il 2026-08-12, dopo la chiusura del checkpoint**
+> ([D-109](../decisions/RT_PDR_00_Decision_Log.md), PR #639). Vale la pena scrivere *come* è andata, perché il
+> modo in cui è mancata è più istruttivo del contenuto: CP 14.3 è stato chiuso come `COMPLETED` mentre questa
+> voce aspettava una decisione aperta (`OW-5`), e per nove ore il registro ha detto «fatto» mentre i due test
+> che questa riga nomina **non esistevano** — quindi anche il gate `G3`, che chiede test esistenti con quei
+> nomi, citava due nomi inesistenti. Se una voce di DoD è bloccata da una decisione, la issue resta aperta con
+> scritto cosa manca: è ciò che si è fatto con [#583](https://github.com/DegrassiAaron/refactor-tactics-main/issues/583),
+> che resta aperta per le due voci non chiudibili prima di CP 14.5.
+>
+> Cosa c'è ora: `FRTDeclaredCondition` con validator a **elenco chiuso nel codice** (una voce,
+> `TargetHealthAtOrBelowPercent`, soglia intera per `G7`), la valutazione al trigger che **riduce**
+> `AllowedResponses` dentro `BuildOverwatchTriggers`, e un produttore che non è l'harness
+> (`rt.Reaction.Condition`, verifica `PIE-V01-REACTCOND`). Cosa non c'è: il TurnLog non registra la condizione,
+> perché **nessuna opportunity nasce ancora in partita** — i soli chiamanti restano harness e test, e il
+> lettore vero arriva con CP 14.5.
 
 > ⏳ **CP 14.4 e CP 14.7 hanno il meccanismo, non il contenuto (2026-08-10).** Entrambi dichiarano che il
 > profilo è un **dato per eroe** — `Overwatch.ProfileIsDataNotBranch` per il primo,

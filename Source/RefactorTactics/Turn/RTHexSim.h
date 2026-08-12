@@ -72,8 +72,25 @@ struct FRTHexReachableCell
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexSim")
 	int32 Cost = 0;
 
+	/**
+	 * Cella da cui si ARRIVA su questa: il predecessore nel percorso piu' economico. Per la cella di partenza
+	 * vale la cella stessa.
+	 *
+	 * Esiste per il FACING (CP 13.5): l'orientamento deriva dall'ultimo passo, e chi valuta una destinazione
+	 * deve poter sapere da che parte ci arrivera' senza rifare il pathfinding per ogni candidata. La ricerca
+	 * che produce queste celle il predecessore lo conosce gia' mentre espande — qui si smette di buttarlo via.
+	 *
+	 * ⚠️ E' il predecessore del percorso che la ricerca ha scelto, non «un» percorso qualsiasi: se un giorno
+	 * la ricerca cambiasse criterio a parita' di costo, questo campo cambierebbe con lei. E' voluto — il facing
+	 * deve seguire il percorso che il resolver poi costruira', non uno alternativo.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexSim")
+	FRTCellId FromCell;
+
 	FRTHexReachableCell() = default;
-	FRTHexReachableCell(const FRTCellId& InCell, int32 InCost) : Cell(InCell), Cost(InCost) {}
+	FRTHexReachableCell(const FRTCellId& InCell, int32 InCost) : Cell(InCell), Cost(InCost), FromCell(InCell) {}
+	FRTHexReachableCell(const FRTCellId& InCell, int32 InCost, const FRTCellId& InFrom)
+		: Cell(InCell), Cost(InCost), FromCell(InFrom) {}
 };
 
 /** Esito del movimento simultaneo di un'unita': cella finale, celle attraversate (partenza esclusa), reason code. */

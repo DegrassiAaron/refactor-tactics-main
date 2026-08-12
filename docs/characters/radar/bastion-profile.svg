@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-labelledby="t">
+  <title id="t">Bastion — Guardian — Profile Radar</title>
+  <style>
+    .grid { fill: none; stroke: #d0d0d0; stroke-width: 1 }
+    .axis { font: 12px sans-serif; text-anchor: middle; fill: #333 }
+    .value { font: bold 13px sans-serif; text-anchor: middle; fill: #111 }
+    .shape { fill: #4a7fb5; fill-opacity: .35; stroke: #2b5c8a; stroke-width: 2 }
+    @media (prefers-color-scheme: dark) {
+      .grid { stroke: #4a4a4a }
+      .axis { fill: #c9d1d9 }
+      .value { fill: #f0f6fc }
+      .shape { fill: #7fb0e0; stroke: #a8cdf0 }
+    }
+  </style>
+  <polygon class="grid" points="200.00,170.00 225.98,185.00 225.98,215.00 200.00,230.00 174.02,215.00 174.02,185.00" />
+  <polygon class="grid" points="200.00,140.00 251.96,170.00 251.96,230.00 200.00,260.00 148.04,230.00 148.04,170.00" />
+  <polygon class="grid" points="200.00,110.00 277.94,155.00 277.94,245.00 200.00,290.00 122.06,245.00 122.06,155.00" />
+  <polygon class="grid" points="200.00,80.00 303.92,140.00 303.92,260.00 200.00,320.00 96.08,260.00 96.08,140.00" />
+  <polygon class="grid" points="200.00,50.00 329.90,125.00 329.90,275.00 200.00,350.00 70.10,275.00 70.10,125.00" />
+  <polygon class="shape" points="200.00,155.00 303.92,140.00 277.94,245.00 200.00,335.00 174.02,215.00 135.05,162.50" />
+  <text class="axis" x="200.00" y="23.00">Offesa</text>
+  <text class="value" x="200.00" y="37.00">3</text>
+  <text class="axis" x="353.29" y="111.50">Durabilità</text>
+  <text class="value" x="353.29" y="125.50">8</text>
+  <text class="axis" x="353.29" y="288.50">Mobilità</text>
+  <text class="value" x="353.29" y="302.50">6</text>
+  <text class="axis" x="200.00" y="377.00">Controllo</text>
+  <text class="value" x="200.00" y="391.00">9</text>
+  <text class="axis" x="46.71" y="288.50">Supporto</text>
+  <text class="value" x="46.71" y="302.50">2</text>
+  <text class="axis" x="46.71" y="111.50">Informazione</text>
+  <text class="value" x="46.71" y="125.50">5</text>
+</svg>

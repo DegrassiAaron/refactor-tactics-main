@@ -368,6 +368,68 @@ bool FRTHexReliefFromCatalogTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * Lo stesso bordo fisico ha lo stesso centro, visto dalle DUE celle che lo condividono.
+ *
+ * E' l'invariante che rende la primitiva utilizzabile: coperture e porte si dichiarano **per cella**
+ * (`FRTHexCover::Edge` e' «visto DALLA cella»), quindi lo stesso muretto puo' essere descritto da una parte o
+ * dall'altra. Se i due punti non coincidessero, la stessa copertura apparirebbe in due posti diversi a
+ * seconda di chi la dichiara — e nessuno saprebbe quale dei due e' il bordo vero.
+ *
+ * Verifica anche che il punto stia sul bordo e non da qualche altra parte: la distanza dal centro della cella
+ * dev'essere l'apotema (sqrt(3)/2 volte la dimensione), non il raggio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexEdgeMidpointTest,
+	"RefactorTactics.Hex.EdgeMidpointIsSharedByBothCells",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexEdgeMidpointTest::RunTest(const FString&)
+{
+	const FVector Origin(1000.0, -500.0, 250.0); // origine NON banale: un bug che ignora l'origine si vede
+	constexpr float HexSize = 100.f;
+	constexpr float LayerHeight = 250.f;
+	const FRTCellId Cell(2, -1, 0);
+
+	for (int32 D = 0; D < 6; ++D)
+	{
+		const ERTHexDirection Dir = static_cast<ERTHexDirection>(D);
+		const ERTHexDirection Back = URTHexLibrary::OppositeDirection(Dir);
+		const FRTCellId Other = URTHexLibrary::Neighbor(Cell, Dir);
+
+		// 1. Lo stesso bordo dalle due parti.
+		const FVector FromHere = URTHexLibrary::EdgeMidpointWorld(Cell, Dir, Origin, HexSize, LayerHeight);
+		const FVector FromThere = URTHexLibrary::EdgeMidpointWorld(Other, Back, Origin, HexSize, LayerHeight);
+		TestTrue(*FString::Printf(TEXT("direzione %d: stesso bordo dalle due celle"), D),
+			FromHere.Equals(FromThere, 0.01));
+
+		// 2. Il punto sta sul bordo: distanza dal centro = apotema, non raggio.
+		const FVector Center = URTHexLibrary::AxialToWorld(Cell, Origin, HexSize, LayerHeight);
+		const double Apothem = FMath::Sqrt(3.0) / 2.0 * static_cast<double>(HexSize);
+		TestTrue(*FString::Printf(TEXT("direzione %d: il punto e' sul bordo (apotema)"), D),
+			FMath::IsNearlyEqual(FVector::Dist(Center, FromHere), Apothem, 0.01));
+
+		// 3. L'opposto dell'opposto e' se stesso: la tabella delle direzioni non e' scritta a mano.
+		TestTrue(TEXT("opposto involutivo"), URTHexLibrary::OppositeDirection(Back) == Dir);
+
+		// 4. Guardato dalle due parti, il pannello e' ruotato di 180 gradi.
+		const float YawHere = URTHexLibrary::EdgeRotation(Cell, Dir).Yaw;
+		const float YawThere = URTHexLibrary::EdgeRotation(Other, Back).Yaw;
+		const float Delta = FMath::Abs(FRotator::NormalizeAxis(YawHere - YawThere));
+		TestTrue(*FString::Printf(TEXT("direzione %d: yaw opposto (delta %.1f)"), D, Delta),
+			FMath::IsNearlyEqual(Delta, 180.f, 0.5f));
+	}
+
+	// Il bordo segue il LAYER: su un piano diverso il punto sale di LayerHeight, o le coperture della
+	// piattaforma finirebbero disegnate a terra.
+	const FVector Ground = URTHexLibrary::EdgeMidpointWorld(FRTCellId(0, 0, 0), ERTHexDirection::E,
+		Origin, HexSize, LayerHeight);
+	const FVector Upper = URTHexLibrary::EdgeMidpointWorld(FRTCellId(0, 0, 1), ERTHexDirection::E,
+		Origin, HexSize, LayerHeight);
+	TestTrue(TEXT("il bordo sale di un piano"),
+		FMath::IsNearlyEqual(Upper.Z - Ground.Z, static_cast<double>(LayerHeight), 0.01));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
 
 /**

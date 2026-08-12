@@ -17,9 +17,9 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 
 <!-- RT_SHORTLIST_SCENARIOS:BEGIN -->
 
-**65 scenari versionati** — misurati su `Scenarios/`: **53** eseguibili · **12** `BLOCKED` per una capability assente · **47** dichiarati `planned` nel registry e non ancora scritti.
+**72 scenari versionati** — misurati su `Scenarios/`: **60** eseguibili · **12** `BLOCKED` per una capability assente · **50** dichiarati `planned` nel registry e non ancora scritti.
 
-**Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `Cover` · `CreateCover` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `PredictiveAction` · `Reaction` · `Structures`.
+**Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `BotPlanning` · `Cover` · `CreateCover` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `PredictiveAction` · `Reaction` · `ReactionPlanning` · `Structures`.
 
 | Scenario `BLOCKED` | Capability che manca |
 |---|---|
@@ -38,16 +38,19 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 
 | Pianificato, non scritto | Feature che lo chiede |
 |---|---|
+| `Spec.ActionEconomy.MoveImpairsPrecision` | `RT-FEAT-ACTION-MOVEMENT-COMPAT` |
+| `Spec.ActionEconomy.OverwatchReservesMovementSlot` | `RT-FEAT-ACTION-PLAN-VALIDATION` |
+| `Spec.ActionEconomy.PathLengthChangesEffect` | `RT-FEAT-ACTION-MOVEMENT-COMPAT` |
+| `Spec.ActionEconomy.SprintBlocksPrecision` | `RT-FEAT-ACTION-MOVEMENT-COMPAT` |
+| `Spec.ActionEconomy.SprintEnhancesMomentum` | `RT-FEAT-ACTION-MOVEMENT-COMPAT` |
 | `Spec.Bot.BeliefDoesNotBecomeKnowledge` | `RT-FEAT-BOT-BELIEF` |
 | `Spec.Bot.CandidateDiversityKeepsControl` | `RT-FEAT-BOT-TACTICAL` |
 | `Spec.Bot.DecoyNoiseIndistinguishable` | `RT-FEAT-BOT-FAIRNESS` |
 | `Spec.Bot.GraphRevisionInvalidatesBelief` | `RT-FEAT-BOT-BELIEF` |
-| `Spec.Bot.HiddenEnemyFairness` | `RT-FEAT-BOT-FAIRNESS` |
 | `Spec.Bot.HoldOnUnaccountedThreat` | `RT-FEAT-BOT-PREDICTIVE` |
 | `Spec.Bot.InformationGainIgnoresHiddenContent` | `RT-FEAT-BOT-BELIEF` |
 | `Spec.Bot.OverkillMovesSecondUnit` | `RT-FEAT-BOT-TACTICAL` |
 | `Spec.Bot.PlanHysteresisIgnoresSmallDelta` | `RT-FEAT-BOT-TACTICAL` |
-| `Spec.Bot.PlansOnPartialKnowledge` | `RT-FEAT-BOT-FAIRNESS` |
 | `Spec.Bot.RobustPlanSurvivesFlank` | `RT-FEAT-BOT-PREDICTIVE` |
 | `Spec.Bot.TeamPlanRejectsHardConflict` | `RT-FEAT-BOT-TACTICAL` |
 | `Spec.Bot.TemporalSynergyRequiresPhaseOrder` | `RT-FEAT-BOT-TACTICAL` |

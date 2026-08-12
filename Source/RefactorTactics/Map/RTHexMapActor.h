@@ -7,6 +7,7 @@
 #include "RTHexMapActor.generated.h"
 
 class UInstancedStaticMeshComponent;
+class UPrimitiveComponent;
 class UStaticMesh;
 class URTHexMapAsset;
 
@@ -106,6 +107,25 @@ public:
 	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap")
 	void GenerateArenaV01IntoAsset();
 
+	/**
+	 * Nome della fixture da scrivere nell'asset: `ArenaV01`, `RelayBasin`, `RelayLite`, `TestArena`,
+	 * `CoverYard`, `DemoArena`. L'elenco e' quello di `URTMatchSetupLibrary::MakeFixtureArena`.
+	 */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap")
+	FString FixtureId = TEXT("ArenaV01");
+
+	/**
+	 * [Editor] Scrive nell'asset la fixture indicata da `FixtureId`, **sostituendo** il contenuto.
+	 *
+	 * Esiste perche' le fixture vivevano solo in codice e nessuno poteva aprirle in editor: `CoverYard` e'
+	 * l'unica mappa con una copertura ALTA e `RelayBasin` l'unica con una porta, quindi senza questo pulsante
+	 * quei due casi non erano guardabili — e cio' che non si guarda non si verifica.
+	 *
+	 * Nome sconosciuto -> non tocca nulla e lo dice: meglio un asset invariato che uno svuotato per un refuso.
+	 */
+	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap")
+	void GenerateFixtureIntoAsset();
+
 	/** [Editor] Esegue il validator sull'asset e logga gli errori. */
 	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap")
 	void ValidateAsset();
@@ -170,11 +190,30 @@ public:
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "RefactorTactics|HexMap")
 	void RebuildInstances();
 
-	/** Cella corrispondente a un'istanza (INDEX_NONE fuori range). */
+	/**
+	 * Cella corrispondente a un'istanza.
+	 *
+	 * ⚠️ Fuori range risponde `FRTCellId()`, cioe' `(0,0,0)` — una cella **valida**, non un sentinella: chi
+	 * chiama non puo' distinguere «origine della mappa» da «indice inesistente», e deve validare l'indice
+	 * PRIMA (`URTHexLibrary::PickTargetsSelectableCells` lo fa per il raycast di selezione).
+	 */
 	FRTCellId CellForInstance(int32 InstanceIndex) const;
 
 	/** Numero di celle attualmente rappresentate (istanze ISM). Diagnostica e test. */
 	int32 NumInstanceCells() const { return InstanceCells.Num(); }
+
+	/**
+	 * Il colpo di un raycast di selezione cade su una cella selezionabile di QUESTO actor?
+	 *
+	 * Vero solo se e' stato colpito **proprio** il componente delle celle — non un altro componente dello
+	 * stesso actor, come il rilievo del costo, che e' geometria di lettura — e se l'indice di istanza che
+	 * accompagna il colpo appartiene davvero a quel componente.
+	 *
+	 * Le due condizioni sono una regola sola: `Result.Item` si riferisce al componente COLPITO, quindi
+	 * risolverlo contro un altro componente restituisce una cella valida e sbagliata. Verificare l'ACTOR non
+	 * basta, e il difetto non si manifesterebbe come errore ma come pennello che dipinge altrove.
+	 */
+	bool IsPickOnSelectableCell(const UPrimitiveComponent* HitComponent, int32 InstanceIndex) const;
 
 	/** La mappa esagonale del livello (la prima trovata), oppure nullptr se il livello non ne ha. */
 	static ARTHexMapActor* FindInWorld(const UWorld* World);
@@ -318,6 +357,38 @@ protected:
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	TObjectPtr<UInstancedStaticMeshComponent> Relief;
+
+	/**
+	 * Volumi delle due regole di blocco: dove non si passa, e dove non si vede attraverso.
+	 *
+	 * **Un solo componente per due forme**, e non e' un compromesso: un ISM porta una sola `StaticMesh`, ma le
+	 * ISTANZE hanno scale indipendenti — e qui la forma *e'* la scala. Un cilindro stretto e alto legge come
+	 * colonna, uno largo e basso come lastra. Due componenti avrebbero dato due mesh diverse al prezzo di due
+	 * cicli di vita da tenere allineati, per una differenza che la scala gia' produce.
+	 *
+	 * Le due forme sono **concentriche e annidate** con i canali gia' presenti — contorno di superficie 0.85,
+	 * lastra della vista 0.75, rilievo del costo 0.60, colonna del blocco 0.40 — cosi' una cella che dice tre
+	 * cose le mostra tutte e tre invece di sovrapporle.
+	 *
+	 * `NoCollision` per la stessa ragione di `Relief`: il raycast di selezione valida l'ACTOR, non il
+	 * componente, e geometria collidibile qui ruberebbe i click al pennello.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TObjectPtr<UInstancedStaticMeshComponent> Blockers;
+
+	/**
+	 * Pannelli su BORDO: coperture e porte. Sono l'unica cosa della mappa che non appartiene a una cella ma a
+	 * un **lato**, e l'overlay a cerchi centrati non poteva dirle — da che lato si e' riparati e' cio' che
+	 * decide se una posizione e' buona.
+	 *
+	 * Ha una **mesh propria** (cubo) e non condivide quella dei blocchi, ed e' l'unico caso in cui un secondo
+	 * componente e' giustificato: un pannello non e' un cilindro schiacciato, e nessuna scala trasforma l'uno
+	 * nell'altro. Dove la scala bastava — colonna contro lastra — `Blockers` resta un componente solo.
+	 *
+	 * `NoCollision` come gli altri: il raycast di selezione valida l'ACTOR.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TObjectPtr<UInstancedStaticMeshComponent> EdgeFeatures;
 
 	/**
 	 * Mapping instance index -> FRTCellId (per selezione/debug). Stato DERIVATO, non serializzato:

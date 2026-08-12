@@ -54,7 +54,7 @@ scegliendo lo scenario e premendo Play, una voce C richiede di allestire, clicca
 | **A** — automatico | **27** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · `Spec.Predictive.WhiffOnEmptyCell` · i tre `EnvironmentalActionOwner` · `RT_Showcase_Relay_v01` |
 | **B** — automatico + occhio | **21** scenari ↔ **21** voci `PIE-VIS-*` | `Scenarios/Visual/` |
 | **C** — solo umano | **95** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima |
-| **D** — dichiarato | **12** scenari `Spec.*` ancora `BLOCKED` · **38** pianificati · **4** mai scritti *(rimisurati il 2026-08-10)* | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
+| **D** — dichiarato | **12** scenari `Spec.*` ancora `BLOCKED` · **50** pianificati · **4** mai scritti *(i pianificati rimisurati il 2026-08-12 **sull'albero mergiato**, su `scenariomap.shortlist.md`, che è generato; questa riga diceva **38** e §6.2 diceva **47** — due numeri vecchi in modi diversi nello stesso documento. ⚠️ Rimisurati **tre volte** il 2026-08-12, e ogni volta il numero era gia' cambiato sotto: **52** con `Spec.Map.ConstrainedCellCostsMore` ancora `planned`, **51** quando quel piano è diventato un file, **50** sull'albero unito perché `#659` ne ha acceso un altro nel frattempo. È il meccanismo del corpus che funziona — un `planned` che si accende esce da qui — ma dice anche che questo numero non si incrementa a mano: si rilegge da `scenariomap.shortlist.md` **dopo** il merge. ⚠️ Le righe **A**/**B** e il totale del corpus qui sopra restano NON rimisurati, come già avverte il riquadro del 2026-08-10: il generato conta 70 scenari versionati e 58 non bloccati, che non si riconciliano con `A 27 + B 21 + D 12` — la scomposizione per classe è umana e va rifatta voce per voce, non aggiustata di uno alla volta. Un totale scritto a mano non ha un lato giusto prima del merge, e non resta giusto dopo: si rilegge dal generato)* | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
 
 Totale corpus versionato: **60** scenari (`A 27 + B 21 + D-bloccati 12`). Totale registro PIE: **117** voci
 (`B 21 + C 95 + 1 fuori classe`).
@@ -130,6 +130,26 @@ Totale corpus versionato: **60** scenari (`A 27 + B 21 + D-bloccati 12`). Totale
 >    (*«100 − 10 − 8 = 82»*, *«Vektor resta a 100 pieni»*). Correggere solo le `expect` avrebbe lasciato una
 >    spiegazione che contraddice l'assertion accanto — e la spiegazione è **metà** del valore di uno scenario
 >    `Visual.*`, che esiste per dire a una persona cosa deve vedere. Sono state corrette entrambe.
+
+> ⚠️ **Non tutto ciò che sta sotto test è uno scenario, e non basta scriverlo in `Scenarios/` perché lo
+> diventi.** Le quattro classi ripartiscono le **verifiche**; una *fixture* è un **ingresso**, e il suo posto
+> lo decide ciò che il formato sa esprimere. `FRTScenarioCell` — l'unico modo che uno scenario ha di parlare
+> della mappa — porta `Cell`, `bBlocksMovement`, `bBlocksLineOfSight` e `MoveCost`: niente segmenti, niente
+> bordi disegnati, niente footprint. Uno scenario è una **partita**, con `scenarioId`, `fixture`, unità,
+> intent e turni.
+>
+> Il caso concreto è [`#619`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/619): chiedeva
+> quattro fixture di geometria («segmento solido, angolo, footprint solido, footprint void») in
+> `Scenarios/Spec/Map/`. Non sono partite: sono input di una funzione pura, e vanno con i dati di test del
+> modulo runtime. Ciò che merita davvero uno scenario è **uno** — la cella stretta che fa fermare
+> `ReachableCells` una casella prima — ed è di **classe A**, perché l'oracolo è l'assertion. È
+> `Spec.Map.ConstrainedCellCostsMore`, e sta in classe **D** finché non è un file: dichiarato `planned` sotto
+> `RT-FEAT-TOOL-MAP-GEOMETRY`, così il warning di `validate` lo tiene visibile come vuole §6.2.
+>
+> Regola generale, che questo caso rende esplicita: *se il formato dello scenario non può esprimere
+> l'ingresso, il file non appartiene a `Scenarios/`*. Metterlo lì prometterebbe copertura automatica e
+> consegnerebbe file che nessun runner esegue — la stessa forma di errore dell'ultima riga di §5, dove dieci
+> voci sono **classe D travestita da C**: la collocazione dichiara una promessa che il contenuto non mantiene.
 
 ---
 
@@ -282,12 +302,44 @@ I **nove** rimasti (l'elenco misurato è in
 > copre `Action.Ignite` né `Action.ModifyArc`, che per [D-046](../decisions/RT_PDR_00_Decision_Log.md)
 > restano senza owner in v0.1.
 
-### 6.2 Pianificati nel Feature Registry — non ancora scritti · **47**
+### 6.2 Pianificati nel Feature Registry — non ancora scritti · **50**
 
 Dichiarati in `feature-registry.yaml` sotto `scenarios: {planned: [...]}`, il che li fa comparire come
 **warning** in `feature_registry.py validate`. Il warning è il meccanismo: un piano che non diventa un file
 resta visibile invece di sparire.
 
+> 🔴 **Perché i `planned` non si scrivono tutti in una volta — misurato il 2026-08-12.** Tentando di
+> scriverli fino alla v0.2 (**42**: 23 in v0.1, 19 in v0.2), l'ostacolo non è il tempo ma l'**oracolo**: uno
+> scenario si scrive solo se il numero atteso esiste già nel repository. Il conto:
+>
+> | Motivo per cui non si scrive | Quanti |
+> |---|---:|
+> | i valori sono `PROPOSED FOR PLAYTEST`, non canone (`Spec.TimeBank.*`, `Spec.Clash.*`) | 13 |
+> | dipende da una **decisione aperta** (`BAS-1`…`BAS-4` per i profili, `AE-2` per le soglie) | 10 |
+> | la feature è `DESIGNED` e il comportamento non esiste (`Spec.Map.*`, `Spec.Bot.*` tattici) | 11 |
+> | il roster non esiste ancora (`Team.Sentinel.*`, `Team.Resonance.*` sono E35/v0.2) | 2 |
+> | ✅ **scritto e verde** | **1** |
+>
+> ⚠️ E una scoperta che vale oltre il conteggio: **`requires` copre il runtime mancante, non un `ActionId`
+> inesistente**. `Spec.ActionEconomy.OverwatchReservesMovementSlot` è stato scritto, eseguito e **rimosso**:
+> il loader rifiuta il file perché `Action.Overwatch` **non è nel catalogo core** (`grep` → zero occorrenze),
+> e un file che non si carica fa fallire `ShippedScenariosAreValid` — cioè rompe il gate per tutti. Un
+> `BLOCKED` dichiarato con `requires` presuppone che il **dato** esista e manchi solo il **codice**.
+>
+> ➕ **+6 il 2026-08-12 dal consolidamento dell'action economy** — quattro `RT-FEAT-ACTION-MOVEMENT-COMPAT`,
+> uno `RT-FEAT-ACTION-PLAN-VALIDATION`, uno `RT-FEAT-ACTION-COOLDOWNS`. Il kit ne proponeva **dodici**
+> (`AE-S01`…`AE-S12`), in una convenzione di nomi che il repository non usa. Sei sono caduti per ragioni
+> diverse, e la differenza conta: due **contraddicono `D-028`** (`Dash + attacco + Move` e
+> `Brace + attacco + movimento` non sono legali come regola generale — lo scatto occupa lo slot movimento, e
+> `Brace` occupa la principale); due sono **bloccati su `FAC-12`** e si scrivono quando la decisione esiste,
+> non prima; due sono **assorbiti** — «densità da fermo» non ha un fatto proprio, e la privacy del piano è
+> già di `RT-FEAT-NET-PRIVATE-PLANNING`. Il sesto sopravvissuto è riformulato:
+> `OverwatchReservesMovementSlot` asserisce la **causa** di [D-070](../decisions/RT_PDR_00_Decision_Log.md)
+> invece del divieto di `Dash`, che è una conseguenza.
+>
+> ⚠️ **Uno dei sei non si scriverà con questa epic**, e resta `planned` di proposito: `Spec.ActionEconomy.PathLengthChangesEffect` dipende dai **fatti del percorso** (`AE-3`), non dal profilo di movimento, ed è dichiarato *in prestito* sotto `RT-FEAT-ACTION-MOVEMENT-COMPAT` finché `AE-3` non ha una feature propria. Stesso motivo per cui `Spec.ActionEconomy.SprintEnhancesMomentum` è scrivibile solo a metà: la parte «lo Sprint potenzia» esiste, la parte «di quanto» dipende da quante celle hai percorso. Registrato in [`../gameplay/spec-compatibilita-azioni-movimento.md`](../gameplay/spec-compatibilita-azioni-movimento.md) §6. Referto:
+> [`../roadmap/plans/action-economy-consolidamento-2026-08-12.md`](../roadmap/plans/action-economy-consolidamento-2026-08-12.md) §6.
+>
 > ➕ **+13 il 2026-08-11 dal consolidamento Bot/AI** — tre `RT-FEAT-BOT-FAIRNESS`, cinque
 > `RT-FEAT-BOT-TACTICAL`, tre `RT-FEAT-BOT-BELIEF`, due `RT-FEAT-BOT-PREDICTIVE`. Il sorgente ne proponeva
 > **33**, in una convenzione di nomi (`AI.<Area>.<Caso>`) che il repository non usa: sarebbe stato un secondo
@@ -498,7 +550,7 @@ producono **numeri di playtest** (G11 chiede di *avere* i numeri, non di centrar
 | `PIE-HEXPLAY-10` | **partita completa fino alla vittoria** — è G10 | ⏳ |
 | `PIE-CAM-START` | la partita si apre sulla propria squadra | ✅ |
 | `PIE-V01-MATCHEND` | **fine partita a tre vie**, a schermo, e `R` riavvia | ⏳ |
-| `PIE-V01-HUD` | HUD di partita completo, `Turno n/RoundLimit` dal formato | ⏳ |
+| `PIE-V01-HUD` | HUD di partita completo. Il **valore** del limite di round viene già dal formato (`RTHUD.cpp:403`), la **parola** no — `:405` stampa `"Turno"`, il DoD prescrive *round*. Resta sul Canvas: lo Screen HUD §4.1 di CP 11.7 (`#613`) avrà una voce propria | ⏳ |
 | `PIE-V01-LOG` | combat log con reason code leggibili | 🟡 |
 | `PIE-V01-INTENT` | intenti alleati e **nessun** intento avversario visibile | 🟡 |
 | `PIE-V01-ROSTER` | i quattro eroi si sentono diversi da giocare | 🟡 |
@@ -514,12 +566,16 @@ residuo di una voce che c'è già, e il criterio conta le capacità, non i difet
 playtest dice che l'avviso che svanisce rende la voce padre inaffidabile, allora entra: sarebbe una revisione
 del criterio, non una svista.
 
-Otto delle diciassette stanno già in una seduta dichiarata del registro (la **D**, partita su hex, e la **G**,
-eseguibile subito). **Nove non stanno in nessuna**, e non è un dettaglio organizzativo: il registro lo dice da
-sé — «una voce che non sta in una seduta non viene eseguita mai». Sono `PIE-HEXPLAY-1/2/3/8`, `PIE-V01-HUD`,
-`PIE-V01-LOG`, `PIE-V01-INTENT`, `PIE-V01-ROSTER`, `PIE-FACING-1`: le prime quattro perché sono 🟡 e le sedute
-raggruppano le ⏳, le altre perché appartengono a E11 ed E16, che non hanno una seduta propria. **Assegnarle a
-una seduta è il prossimo passo naturale di G9**, e vale più di eseguirne una a caso.
+**Tutte e diciassette stanno in una seduta dichiarata del registro.** Le nove del subset `RELEASE-V01`:
+`PIE-HEXPLAY-1` in **U2**, `-2` e `-3` in **U3**, `-8` e `PIE-FACING-1` in **U6**, `PIE-V01-ROSTER` in
+**U11**, `PIE-V01-HUD`, `-INTENT` e `-LOG` in **U15**.
+
+> ⚠️ **Corretto il 2026-08-12.** Questo paragrafo diceva «**nove non stanno in nessuna**» e concludeva che
+> «assegnarle a una seduta è il prossimo passo naturale di G9». Misurando i campi `verifies:` di
+> `editor-sessions.yaml`, l'assegnazione **c'è per tutte e nove**: l'affermazione era vera quando è stata
+> scritta e nessuno l'ha rimisurata dopo che U11 e U15 sono nate. Il prossimo passo di G9 è **eseguirle**.
+> Il conteggio delle voci davvero orfane — 55, nessuna nel subset — vive in
+> [`../roadmap/editormap.shortlist.md`](../roadmap/editormap.shortlist.md), che è coerente con questa misura.
 
 `PIE-FACING-1` è entrata col merge di E16, e non per completezza: dal CP 16.2 l'emisfero posteriore è
 **scoperto**, quindi il facing decide il danno. Un orientamento visibile diverso da quello che il resolver ha

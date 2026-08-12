@@ -1,0 +1,44 @@
+{
+  "scenarioId": "Spec.Bot.HiddenEnemyFairness",
+  "tags": ["bot", "perception", "knowledge", "canary", "spec", "vektor", "bastion", "riva"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 6,
+
+  "_nota": "CP 13.5, il canary: il piano del bot non dipende da dove sta il nemico che NON vede. Le due varianti sono identiche in tutto tranne la cella di HIDDEN — lati opposti della mappa, entrambe a distanza 6 contro una vista di 3. Se i due TurnLog coincidono, l'informazione nascosta non e' entrata nella decisione.",
+
+  "_nota_perche_esiste": "E' l'unico controllo che un bot onnisciente non puo' superare. Un bot che legge lo stato autorevole non fallisce, non va in crash e produce piani SENSATI: una review lo prende solo se qualcuno rilegge la riga giusta di `PlanBots`, cioe' finche' qualcuno si ricorda di guardare. Questo scenario misura l'unica cosa che l'onniscienza non sa falsificare — l'INDIPENDENZA dell'esito da un'informazione che non si dovrebbe avere.",
+
+  "_nota_turnlog": "Il confronto e' sul TURNLOG e non sullo stato finale: lo stato finale contiene la posizione di HIDDEN, che le varianti cambiano per costruzione, e sarebbe rosso sempre per il motivo sbagliato. Il TurnLog registra cio' che e' SUCCESSO, e un'unita' che nessuno vede e che non agisce non vi scrive nulla.",
+
+  "_nota_premessa": "⚠️ L'assertion `LogEventCount` NON e' un risultato, e' la PREMESSA che rende il canary non vuoto: due partite in cui non succede niente hanno TurnLog identici, quindi senza di essa un bot che non pianifica mai passerebbe. Il test C++ gemello (`HexBotPlay.HiddenEnemyFairness`) scrive la stessa premessa a mano — «nelle due partite il bot ha davvero pianificato qualcosa».",
+
+  "_nota_occupazione": "HIDDEN e' tenuta LONTANA dal corridoio d'azione, e non perche' sia comodo: l'OCCUPAZIONE resta legittimamente globale — `ReachableCells` e `DashHostiles` modellano cio' che il resolver fara', non cio' che la squadra sa, e il giocatore umano ha lo stesso vincolo. Rendere il bot piu' cieco dell'umano sarebbe sbagliato quanto renderlo onnisciente. Una HIDDEN piazzata sul percorso farebbe divergere i TurnLog per una ragione LEGITTIMA, e il canary accuserebbe il gioco di un difetto che non ha.",
+
+  "_nota_coppia": "Complementare a `Spec.Bot.PlansOnPartialKnowledge`: quello dimostra che l'ignoto non viene scelto, questo che l'esito non ne dipende.",
+
+  "units": [
+    { "id": "BOT",    "hero": "Hero.Vektor",  "team": 1, "cell": [0, 0, 0], "bot": true, "visionRange": 3 },
+    { "id": "SEEN",   "hero": "Hero.Bastion", "team": 0, "cell": [2, 0, 0] },
+    { "id": "HIDDEN", "hero": "Hero.Riva",    "team": 0, "cell": [-6, 3, 0] }
+  ],
+
+  "variants": [
+    { "name": "hidden-ovest", "units": [ { "id": "HIDDEN", "cell": [-6, 3, 0] } ] },
+    { "name": "hidden-est",   "units": [ { "id": "HIDDEN", "cell": [6, -3, 0] } ] }
+  ],
+
+  "expectSameAcrossVariants": true,
+
+  "turns": [
+    {
+      "requires": ["BotPlanning"],
+      "intents": []
+    }
+  ],
+
+  "expect": [
+    { "type": "LogEventCount", "category": "Combat", "outcome": "Hit", "value": 1 },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

@@ -72,6 +72,36 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static FRTCellId WorldToCellId(const FVector& World, const FVector& Origin, float HexSize, float LayerHeight);
 
+	/**
+	 * Centro-mondo del **BORDO** fra la cella e il suo vicino nella direzione data: il punto medio fra i due
+	 * centri di cella.
+	 *
+	 * Esiste perche' coperture e porte stanno sui bordi (`FRTHexCover::Edge`, `FRTHexDoor::Edge`) e finora
+	 * nessuno sapeva dire *dove* sia un bordo nel mondo. Chi doveva disegnarci qualcosa se lo sarebbe
+	 * ricalcolato a modo suo, e la convenzione dei sei lati avrebbe smesso di essere una convenzione.
+	 *
+	 * **Derivato, non inciso**: il punto viene dai due centri, quindi se `AxialDirection` cambiasse la
+	 * geometria seguirebbe invece di mentire. Stessa disciplina che `MakeCoverYardArena` gia' impone ai dati.
+	 *
+	 * Lo stesso bordo fisico ha lo stesso centro visto dalle DUE celle che lo condividono: `EdgeMidpointWorld(A,
+	 * E)` coincide con `EdgeMidpointWorld(vicino a est di A, W)`. E' cio' che impedisce a una copertura di
+	 * apparire in due posti diversi a seconda di chi la dichiara.
+	 */
+	static FVector EdgeMidpointWorld(const FRTCellId& Cell, ERTHexDirection Dir, const FVector& Origin,
+		float HexSize, float LayerHeight);
+
+	/**
+	 * Rotazione di un pannello posato su quel bordo: l'asse X guarda **verso il vicino**, quindi la larghezza
+	 * del pannello corre lungo il bordo.
+	 *
+	 * Visto dalle due celle che condividono il bordo, lo yaw differisce di 180 gradi — il pannello e' lo
+	 * stesso, cambia il verso da cui lo si guarda.
+	 */
+	static FRotator EdgeRotation(const FRTCellId& Cell, ERTHexDirection Dir);
+
+	/** La direzione opposta (E<->W, NE<->SW, NW<->SE): il bordo condiviso, visto dall'altra cella. */
+	static ERTHexDirection OppositeDirection(ERTHexDirection Dir);
+
 	/** Distanza minima tra la semi-retta (RayOrigin + t*RayDir, t>=0) e il segmento A..B. Pura, per hit-test archi. */
 	static float DistanceRayToSegment(const FVector& RayOrigin, const FVector& RayDir, const FVector& A, const FVector& B);
 
@@ -156,4 +186,5 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static TArray<FRTCellId> HexCone(const FRTCellId& From, const FRTCellId& Target, int32 Range);
+
 };

@@ -11,7 +11,7 @@
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
 > Feature: `RT-FEAT-ENV-SYSTEMIC-COMBOS` · Release: `v0.1` · Roadmap: `E8.5`  
-> Stato: **INTEGRATED** · Gate: `6/8`  
+> Stato: **INTEGRATED** · Gate: `7/9`  
 > Scenario: `Visual.Combat.WaterElectric`  
 > Verificato il `2026-08-08` su `2094b86`
 
@@ -21,7 +21,7 @@
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
 > Feature: `RT-FEAT-ENV-WATER` · Release: `v0.1` · Roadmap: `E8.1, E8.4`  
-> Stato: **INTEGRATED** · Gate: `6/8`  
+> Stato: **INTEGRATED** · Gate: `6/9`  
 > Scenario: `Visual.Environment.WetExtinguishesFire`  
 > Verificato il `2026-08-08` su `2094b86`
 

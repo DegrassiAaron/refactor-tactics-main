@@ -45,6 +45,15 @@ struct FRTHexBotPlan
 
 	/** Vero se l'attacco colpisce anche gli alleati (`FRTActionDef::bFriendlyFire`). */
 	UPROPERTY() bool bFriendlyFire = false;
+
+	/**
+	 * Cella da cui il bot ARRIVA su `DestCell` — il predecessore che `ReachableCells` ora conserva.
+	 *
+	 * Serve al facing (CP 13.5, ADR-0005): l'orientamento deriva dall'ultimo passo, e senza questo campo
+	 * valutare l'esposizione di una candidata richiederebbe un pathfinding per candidata dentro il ciclo di
+	 * scoring. Per chi resta fermo vale `DestCell`, e il facing non cambia.
+	 */
+	UPROPERTY() FRTCellId FromCell;
 };
 
 /**
@@ -68,6 +77,25 @@ struct FRTHexBotContext
 
 	/** HP+scudo di ciascun nemico (parallelo a Enemies): serve a riconoscere il colpo letale. */
 	UPROPERTY() TArray<int32> EnemyHealth;
+
+	/**
+	 * Orientamento di ciascun nemico (parallelo a Enemies), come e' ALL'INIZIO del turno.
+	 *
+	 * ⚠️ **Non e' una fuga d'informazione**: il facing corrente e' osservabile — `ARTUnit::Facing` e' cio' che
+	 * le regole leggono e che la mesh mostra a fine playback, quindi il giocatore umano vede lo stesso dato.
+	 * A restare privato e' l'INTENTO di rotazione, che [ADR-0005] filtra per squadra
+	 * (`Facing.IntentIsTeamFiltered`) e che questo campo non contiene.
+	 *
+	 * ⚠️ **E' una previsione destinata a sbagliare, a volte**: chi attacca ruota verso il proprio bersaglio
+	 * PRIMA che si valuti l'arco (`RTTurnManager.cpp`, `TargetingReoriented` precede il controllo direzionale).
+	 * Un nemico che attacca il bot gli si gira contro, e il fianco che il bot aveva visto non c'e' piu'. Il
+	 * bonus sopravvive quando il bersaglio e' impegnato con qualcun ALTRO — il fuoco incrociato, non il duello.
+	 * La sovrastima che ne deriva si misura sul TurnLog (`RearHitBypassedCover`), non si stima a priori.
+	 */
+	UPROPERTY() TArray<ERTHexDirection> EnemyFacings;
+
+	/** Orientamento attuale del bot: da qui parte la stima di come sara' orientato a fine turno. */
+	UPROPERTY() ERTHexDirection SelfFacing = ERTHexDirection::E;
 
 	/**
 	 * Posizioni degli alleati vivi, ESCLUSO il bot che sta pianificando: `CollectHexAttacks` salta sempre

@@ -1,0 +1,39 @@
+{
+  "scenarioId": "Spec.Bot.PlansOnPartialKnowledge",
+  "tags": ["bot", "perception", "knowledge", "spec", "vektor", "bastion", "riva"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 6,
+
+  "_nota": "CP 13.5: il bot non bersaglia cio' che la sua squadra non conosce. BOT vede una cella sola e ha due nemici davanti a se': SEEN a distanza 1, e BAIT a distanza 3 — fuori vista, ma dentro la portata d'attacco (5). Se il bot leggesse lo stato autorevole invece della propria Team Knowledge, BAIT sarebbe la sua scelta ovvia.",
+
+  "_nota_esca": "⚠️ BAIT e' a 1 HP e senza scudo, ed e' la parte che fa funzionare il test. La prima stesura del test C++ gemello metteva l'ignoto FUORI portata: rimettendo l'onniscienza per mutazione restava verde, perche' un bot onnisciente non lo avrebbe bersagliato comunque — misurava la portata, non la conoscenza. Qui `WKill` (10000) domina `WDamage` (10) di tre ordini di grandezza: un bot che vedesse BAIT lo sceglierebbe di sicuro, quindi il verde significa che non lo vede.",
+
+  "_nota_vista": "`visionRange` e' DICHIARATA e non ereditata dal roster, che cambia: con `AttackRange` a 5 contro viste da 5 a 7 non esiste oggi una distanza in cui un nemico sia insieme fuori vista e sotto tiro. E' la stessa ragione per cui il test C++ gemello scrive `Bot->VisionRange = 1` invece di fidarsi dei numeri di bilanciamento.",
+
+  "_nota_premessa": "L'assertion `LogEventCount` e' una PREMESSA, non un risultato, e senza di essa lo scenario e' verde per due ragioni sbagliate. La prima e' ovvia: «non ha colpito l'esca» e' vero anche per un bot fermo. La seconda e' stata MISURATA, ed e' il motivo per cui la premessa parla di un colpo su SEEN invece che di un'azione qualsiasi.",
+
+  "_nota_mutazione": "⚠️ **Rendendo onnisciente il solo `PlanBots` (`default: continue` -> `break`) la prima stesura di questo scenario restava VERDE**, e la ragione va scritta perche' non e' intuitiva: a fermare il colpo sull'ignoto non e' il bot ma il RESOLVER, che dal CP 13.2 consulta la stessa conoscenza e rifiuta l'azione (`TargetUnknown`). Lo scenario misurava quindi la catena planner+resolver, non il planner — e sarebbe rimasto verde con un pianificatore completamente onnisciente. Con la premessa `Combat/Hit = 1` la mutazione viene presa: il bot onnisciente sceglie l'esca (`WKill` domina), il resolver gli rifiuta l'azione, e il colpo su SEEN non avviene piu'. Il test C++ gemello resta comunque il controllo diretto sul planner, perche' guarda `PlannedAttackTarget` invece dell'esito.",
+
+  "_nota_coppia": "Il canary complementare e' `Spec.Bot.HiddenEnemyFairness`: quello dimostra che l'esito non DIPENDE dall'ignoto, questo che l'ignoto non viene proprio scelto. Servono entrambi — il primo passerebbe anche con un bot che ignora tutti, il secondo anche con un bot che varia il piano per ragioni diverse dall'informazione nascosta.",
+
+  "units": [
+    { "id": "BOT",  "hero": "Hero.Vektor",  "team": 1, "cell": [0, 0, 0], "bot": true, "visionRange": 1 },
+    { "id": "SEEN", "hero": "Hero.Bastion", "team": 0, "cell": [1, 0, 0] },
+    { "id": "BAIT", "hero": "Hero.Riva",    "team": 0, "cell": [3, 0, 0], "health": 1, "shield": 0 }
+  ],
+
+  "turns": [
+    {
+      "requires": ["BotPlanning"],
+      "intents": []
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals", "unit": "BAIT", "value": 1 },
+    { "type": "UnitAlive", "unit": "BAIT", "value": 1 },
+    { "type": "LogEventCount", "category": "Combat", "outcome": "Hit", "value": 1 },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

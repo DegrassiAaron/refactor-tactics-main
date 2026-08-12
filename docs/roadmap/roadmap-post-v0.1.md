@@ -33,7 +33,7 @@ v0.1 o no. Questo file registra quella ripartizione una volta sola.
 | Release | Nome | Tema | Epic | Formato di gioco |
 |---|---|---|---|---|
 | **v0.1** | Vertical slice | Il turno simultaneo funziona e si vede | E1–E21 | Skirmish 2v2 vs bot |
-| **v0.2** | Struttura e finestre | Il campo diventa manipolabile; roster 8 | E22–E26 · **E35** · **E36** | Standard 3v3 |
+| **v0.2** | Struttura e finestre | Il campo diventa manipolabile; roster 8 | E22–E26 · **E35** · **E36** · **E38** | Standard 3v3 |
 | **v0.3** | Informazione | Quello che non sai vale quanto quello che fai | E27–E29 · **E33** | Standard 3v3 |
 | **v0.4** | Operations | Partite lunghe su mappe grandi | E30–E32 · **E34** | Operations 4v4+ |
 
@@ -397,6 +397,68 @@ Feature Registry: `RT-FEAT-STATUS-FRAMEWORK`.
 
 ---
 
+### E38 — Economia del turno, accoppiamento col movimento e validazione del piano · P2
+
+**Obiettivo**: decidere se l'economia del turno resta a **slot** o diventa una **capacità numerica**, e —
+qualunque sia la risposta — rendere il piano **validabile in Planning** invece che scopribile in risoluzione.
+
+**Perché non è v0.1**: tocca il modello che la v0.1 sta usando per arrivare in fondo. Il kit d'autore del
+2026-08-12 lo dice da sé — *«do not drag future balance/resource complexity into Foundations»* — e la regola
+in vigore ([D-028](../decisions/RT_PDR_00_Decision_Log.md)) non è un ripiego: è una decisione presa,
+implementata e testata.
+
+> ✅ **38.1 è chiusa il 2026-08-12, prima che l'epic cominciasse** ([D-114](../decisions/RT_PDR_00_Decision_Log.md),
+> issue [#604](https://github.com/DegrassiAaron/refactor-tactics-main/issues/604)): **restano gli slot**, e il
+> peso di un'azione si paga in **drawback** invece che in costo. L'ordine dei checkpoint si inverte di
+> conseguenza — **38.3 diventa il primo lavoro** — e la ragione non è di comodo: il movimento come leva era
+> l'esperimento che avrebbe reso misurabile la domanda appena chiusa, e resta l'unico asse di varietà del
+> turno ancora aperto.
+
+**Perché non è un'epic vuota**: la decisione è caduta, e **quattro checkpoint su cinque restano**. `git grep
+ValidatePlan` non restituisce nulla, e quel buco esiste con qualunque modello di economia.
+
+| CP | Obiettivo | DoD misurabile |
+|---|---|---|
+| ~~**38.1**~~ | ~~La decisione: slot o capacità numerica~~ | ✅ **chiusa il 2026-08-12** da [D-114](../decisions/RT_PDR_00_Decision_Log.md). `RT-FEAT-ACTION-BUDGET` passa a `DEFERRED` con la motivazione, invece di sparire: il prossimo kit riproporrà l'`ActionCapacity`, e trovare la decisione scritta costa meno che ridiscuterla |
+| **38.2** | Validazione del piano in Planning | Esiste un punto solo che risponde `LEGALE` oppure `ILLEGALE + reason code` **prima** del commit, e il bot passa dallo stesso. I reason code **estendono le famiglie esistenti** (`ERTMoveOutcome`, `ERTCombatOutcome`, `ERTFallbackOutcome`) con valori **in coda**: un enum parallelo rifarebbe l'errore respinto in [`spec-tassonomia-movimento.md`](../gameplay/spec-tassonomia-movimento.md) §6. **Non dipende da 38.1** |
+| **38.3** 🥇 | La compatibilità abilità↔movimento come dato — **primo lavoro dell'epic** | Un'abilità dichiara come si comporta sotto ciascun profilo (`NORMAL`/`IMPAIRED`/`ENHANCED`/`BLOCKED` o equivalente) e il validatore la legge. Criterio d'accettazione, nella forma di quello di E4: **aggiungere «Vektor spara in corsa» non deve toccare `ARTTurnManager`**. Se lo tocca, il modello non serve. ✅ **`AE-2` decisa sì** il 2026-08-12 ([D-116](../decisions/RT_PDR_00_Decision_Log.md)): categorie da negare allo `Sprint` = **precisione, preparazione, azioni pesanti**. 🔴 **Il checkpoint cresce**: D-116 porta con sé la **migrazione di fase dello `Sprint`** (da `FastMovement` a `NormalMovement`, superando `D-068`) e `Status.Exposed` a **2 turni** — e le tre voci **non sono separabili**, perché la migrazione da sola produce l'upgrade puro vietato da `D-015`. Costi misurati: `Actions.SprintIsAMoveProfileResolvedPreBlast` cade (è il gate), i **golden replay** vanno rebaseline, 4 file di test toccano `Exposed`. ⚠️ Il **bot** invece non è un costo: non nomina `Action.Sprint` — e non sceglierlo mai è un dato a sé — che dal 2026-08-12 ha un **modello davanti** invece di un'idea: [`../gameplay/spec-compatibilita-azioni-movimento.md`](../gameplay/spec-compatibilita-azioni-movimento.md) (`PROPOSED`). Una **soglia** invece della matrice del kit — 31 numeri + 4 contro 124 celle — e **tre stati invece di quattro**, perché `ENHANCED` dipende dai fatti del percorso (`AE-3`). ⚠️ Due costi che il kit non mostrava: i **profili di movimento non esistono come tipo** (`grep -rn MovementProfile Source/` → zero), quindi il primo lavoro non è assegnare soglie ma dargliene uno; e senza **38.2** il dato non è osservabile |
+| **38.4** | La preview dice **perché** | L'Action Dock mostra capacità/slot residui, MP usati, cooldown e stato dell'abilità sotto il profilo scelto, e il Ghost Timeline resta **per fase** (`PREP · DASH · BLAST · MOVE`) invece di diventare una coda generica. Mai il solo colore. Il motivo di un rifiuto è leggibile **prima** di confermare |
+| **38.5** | Scenari e determinismo | I cinque `Spec.ActionEconomy.*` dichiarati `planned` diventano eseguibili, più i test di permutazione. Nessun esito dipende da frame rate, ordine di `TMap` o rotazione visiva |
+
+**Dipendenze**: `RT-FEAT-ACTION-ENGINE` (E4, chiusa), `RT-FEAT-ACTION-MOVE-PROFILES`, `RT-FEAT-ACTION-GENERIC`.
+Cross-link, **non** dipendenze: E14 possiede l'`Overwatch`, E16 il facing, E11 la HUD — questa epic non ne
+riapre nessuna.
+
+**Rischi**: il rischio grosso è **caduto con 38.1** — una capacità numerica avrebbe cambiato validatore, HUD,
+pesi del bot e ogni riga del catalogo insieme. Quello che resta è di 38.3: la compatibilità abilità↔movimento
+introduce un asse di bilanciamento per abilità × quattro profili, e vale la mitigazione di
+[D7 di E4](../gameplay/spec-motore-azioni-e4.md) — **una fetta per volta**, mai il modello e i numeri nello
+stesso checkpoint.
+
+> 🔴 **Un prerequisito scoperto implementando, il 2026-08-12.** Il tentativo di eseguire la migrazione dello
+> `Sprint` prescritta da [D-116](../decisions/RT_PDR_00_Decision_Log.md) ha misurato che **i profili di
+> movimento non esistono come entità nel codice** (`grep -rn MovementProfile Source/` → zero): il budget del
+> movimento normale viene dall'**unità**, non dall'azione pianificata, e gli 8 MP dello `Sprint` li legge un
+> solo punto (`ResolveDash`). Spostare la fase gli toglierebbe distanza e divieto di reazione — tre dei
+> quattro prezzi che D-116 gli assegna.
+>
+> **L'ordine dell'epic cambia di conseguenza**: `#653` (dare un tipo ai profili) precede sia `#641` (la
+> migrazione) sia `#606` (la compatibilità, che ha bisogno di un profilo su cui scrivere `Stability`). Il
+> tentativo verificato vive su `feat/641-sprint-post-blast`: compila su entrambi i target, e i suoi **4 test
+> rossi** sono la misura del buco.
+
+**Non fa**: i valori (`AE-5` per lo `Sneak`, `AE-4` per la risorsa firma) · il costo del pivot (`FAC-12`, che
+si guarda alla revisione dei numeri di ADR-0008) · i fatti del percorso (`AE-3`) · il workbook di
+bilanciamento, che [`balance/README.md`](../balance/README.md) vieta di correggere cella per cella.
+
+Referto d'origine:
+[`plans/action-economy-consolidamento-2026-08-12.md`](plans/action-economy-consolidamento-2026-08-12.md).
+Owner della regola: [`../gameplay/spec-economia-del-turno.md`](../gameplay/spec-economia-del-turno.md).
+Feature Registry: `RT-FEAT-ACTION-BUDGET` · `RT-FEAT-ACTION-MOVEMENT-COMPAT` ·
+`RT-FEAT-ACTION-PLAN-VALIDATION`.
+
+---
+
 ## v0.3 — «Informazione»
 
 La release in cui l'informazione incompleta smette di essere un modificatore e diventa il centro della partita.
@@ -497,6 +559,21 @@ prototipi va **dal più leggero al più invasivo** — `Riva · Flow` non tocca 
 
 ### E37 — Radar di personaggio e generatore Wiki · P3
 
+> ✅ **Completata il 2026-08-12** — le tre feature sono `DONE` nel registry.
+>
+> **Implementata:** Dai cataloghi markdown agli SVG committati, senza che un rating
+> sia mai stato scritto a mano: parser, rubrica, gli otto assi delle due viste e il generatore
+> deterministico con `--check` vivono in `tools/radar/` — **36 test**, zero dipendenze, nessun build
+> step. I quattro Profile Radar sono in [`../characters/radar/`](../characters/radar/).
+>
+> La Wiki li mostra, i `wiki_refs` sono popolati e il Balance ha i suoi SVG: **otto artefatti**, Profile
+> e Balance per ognuno dei quattro eroi.
+>
+> ⚠️ **Il gate resta locale, e non è una mancanza**: questo repository non usa CI — `check-docs-links.py`,
+> `check-docs-symbols.py` e `feature_registry.py validate` girano tutti a mano. `--check` è documentato
+> in [`../balance/README.md`](../balance/README.md), dove i cataloghi si modificano. Il prezzo dichiarato
+> è che protegge solo chi lo esegue.
+
 [D-105](../decisions/RT_PDR_00_Decision_Log.md)…[D-108](../decisions/RT_PDR_00_Decision_Log.md), owner
 [`../characters/spec-radar-profilo-personaggio.md`](../characters/spec-radar-profilo-personaggio.md).
 Due viste radar — **Profile** (sei assi, pubblica) e **Balance** (cinque assi, tuning) — su scala `1..10`, più
@@ -507,7 +584,9 @@ entra nel resolver.
 gameplay. Sta qui e non nella roadmap di release perché competerebbe con la consegna.
 
 **I rating non si scrivono, si calcolano.** [D-106](../decisions/RT_PDR_00_Decision_Log.md): il generatore
-legge [`RT_HeroCatalog_v0.1.md`](../balance/RT_HeroCatalog_v0.1.md) — l'autorità dei numeri per
+legge [`RT_HeroCatalog_v0.1.md`](../balance/RT_HeroCatalog_v0.1.md) — più
+[`RT_ActionCatalog_v0.1.md`](../balance/RT_ActionCatalog_v0.1.md) per le abilità che rinviano a un'azione
+core ([D-115](../decisions/RT_PDR_00_Decision_Log.md)) — l'autorità dei numeri per
 [D-023](../decisions/RT_PDR_00_Decision_Log.md) — applica la rubrica e produce i rating in memoria. Nessun
 file di rating esiste, quindi nessuna seconda fonte può nascere né divergere.
 
