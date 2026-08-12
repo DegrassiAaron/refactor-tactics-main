@@ -222,10 +222,19 @@ nello scope di E38.
 
 ## 5. Reason code: si estendono le famiglie, non se ne crea una
 
-Il TurnLog ha già famiglie di esito **serializzate e versionate** per fase — `ERTMoveOutcome`,
-`ERTCombatOutcome`, `ERTFallbackOutcome`, `ERTMovementStopReason` — con l'invariante che i valori nuovi si
-aggiungono **in coda**, perché viaggiano come interi nei replay.
+La famiglia da estendere è **`ERTActionInvalidReason`** (`Turn/RTActionFallbackLibrary.h`), che già
+significa *«questa azione pianificata non è più eseguibile»* — `TargetGone · TargetDead · TargetFriendly ·
+OutOfRange · NoLineOfSight · NoMap · TargetUnknown` — e che porta già scritta, nel commento dell'ultimo
+valore, l'invariante che serve: *«Valore aggiunto in coda: le tracce già scritte conservano il proprio
+significato»*.
 
+> 🔴 **Corretto il 2026-08-12 (CP 38.2).** Questa sezione indicava le famiglie di **esito** del TurnLog —
+> `ERTMoveOutcome`, `ERTCombatOutcome`, `ERTFallbackOutcome` — più un quarto nome, `ERTMovementStopReason`,
+> che **non esiste in `Source/`**: `git grep` lo trovava solo nei documenti che si citavano a vicenda
+> (questa spec, il registry, il referto, la issue `#605`). Ed erano comunque l'asse sbagliato: un `*Outcome`
+> dice **com'è andata una fase**, non **perché un'azione non è legale**.
+
+I tre valori aggiunti in coda da CP 38.2 sono `SlotOccupied`, `InsufficientMovementPoints` e `OnCooldown`.
 Un `PlanRejectionReason` parallelo con undici valori nuovi rifarebbe l'errore già respinto in
 [`spec-tassonomia-movimento.md`](spec-tassonomia-movimento.md) §6, dove dieci reason code proposti da un kit
 erano **sette duplicati** di codici esistenti con un altro nome.

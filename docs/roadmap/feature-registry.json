@@ -1889,10 +1889,10 @@
       "status_derived": "DESIGNED",
       "gates": {
         "spec": "partial",
-        "data": "todo",
+        "data": "partial",
         "runtime": "todo",
         "log_debug": "todo",
-        "automation": "todo",
+        "automation": "partial",
         "scenario": "todo",
         "ui_wiki": "todo",
         "packaged": "todo",
@@ -1918,7 +1918,17 @@
         609,
         605
       ],
-      "tests": [],
+      "tests": [
+        "RefactorTactics.Plan.MovementMainAndReactionAreLegal",
+        "RefactorTactics.Plan.SecondMainIsRejected",
+        "RefactorTactics.Plan.SprintLeavesNoRoomForMain",
+        "RefactorTactics.Plan.WaitOccupiesNoSlot",
+        "RefactorTactics.Plan.MovementPointsOverflowIsRejected",
+        "RefactorTactics.Plan.MovementPointsExactlyOnBudgetIsLegal",
+        "RefactorTactics.Plan.CooldownBlocksWithSlotFree",
+        "RefactorTactics.Plan.VerdictIsPermutationInvariant",
+        "RefactorTactics.Plan.SlotVerdictIsPermutationInvariant"
+      ],
       "scenarios": [],
       "scenarios_planned": [
         "Spec.ActionEconomy.OverwatchReservesMovementSlot"
@@ -1929,7 +1939,7 @@
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {},
-      "notes": "**Non e' bloccata su `AE-1`, e questa e' la sua ragione d'essere**: il buco esiste con qualunque modello di economia. `git grep ValidatePlan` non restituisce nulla — cio' che esiste e' `ValidateInstance`/`ApplyFallback`, che agisce IN RISOLUZIONE. Oggi un piano illegale si scopre quando non funziona, non quando lo si compone. ⚠️ I reason code **estendono le famiglie esistenti** (`ERTMoveOutcome`, `ERTCombatOutcome`, `ERTFallbackOutcome`, `ERTMovementStopReason`) aggiungendo valori IN CODA: un enum parallelo con undici valori nuovi rifarebbe l'errore respinto in `spec-tassonomia-movimento.md` §6, dove dieci reason code proposti da un kit erano sette duplicati. `network_privacy: partial` perche' la validazione legge il piano completo, che e' dato di squadra: il seam esiste (`CanonicalIntentStore` server-only) ma nessuna verifica in rete e' possibile prima di M10."
+      "notes": "**Non e' bloccata su `AE-1`, e questa e' la sua ragione d'essere**: il buco esiste con qualunque modello di economia. ✅ **La fetta pura e' atterrata il 2026-08-12**: `URTPlanValidationLibrary::ValidatePlan(snapshot, piano)` risponde LEGALE / ILLEGALE + motivo PRIMA del commit, dove `ValidateInstance`/`ApplyFallback` agisce IN RISOLUZIONE. Nove test `RefactorTactics.Plan.*`, tre mutazioni verificate. ⚠️ `runtime` resta **todo** e non e' una svista: la funzione esiste ma **nessuno la chiama** ancora — il bot e la HUD non ci passano, ed e' il resto della DoD di `#605`. Un validatore senza consumatore non e' una regola. 🔴 **Due premesse di questa nota erano false e sono corrette qui.** (1) La famiglia da estendere non e' quella degli `*Outcome`: e' **`ERTActionInvalidReason`** (`RTActionFallbackLibrary.h`), che gia' significa «questa azione pianificata non e' eseguibile» e gia' porta scritta l'invariante dei valori in coda. Gli `*Outcome` dicono com'e' andata una FASE — un altro asse. E `ERTMovementStopReason`, citato qui e nella issue, **non esiste in `Source/`**: compariva solo nei documenti che si citavano a vicenda. I tre valori nuovi (`SlotOccupied`, `InsufficientMovementPoints`, `OnCooldown`) sono in coda a `ERTActionInvalidReason`. (2) `CanonicalIntentStore` **non e' codice**: vive solo in `docs/archive/pdr-v0.1/`. Il seam reale e' `RTIntentPrivacyLibrary` / `FRTPlannedIntent`. `network_privacy: partial` resta, per la ragione giusta: la validazione legge il piano completo, che e' dato di squadra, e nessuna verifica in rete e' possibile prima di M10. Il cooldown residuo entra come **parametro** e non come campo dello snapshot perche' oggi vive su `ARTUnit::AbilityCooldowns` (privato, sull'Actor): stesso pattern di `URTCombatLibrary::IsAbilityUsable`."
     },
     {
       "feature_id": "RT-FEAT-ACTION-SUPERS",
