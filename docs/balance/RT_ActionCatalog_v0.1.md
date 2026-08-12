@@ -74,6 +74,13 @@ di movimento qui sotto dichiara esplicitamente quale delle due. Motivazione in [
 Un piano completo dichiara: percorso di movimento · azione principale · reazione (se disponibile) · **facing
 finale** · fallback.
 
+> 🧭 **Come i quattro budget si tengono insieme** — slot, Movement Point, budget di pivot, cooldown/risorsa —
+> è di [`../gameplay/spec-economia-del-turno.md`](../gameplay/spec-economia-del-turno.md), owner dal
+> 2026-08-12. Questa sezione resta l'owner dei **numeri**; quella pagina risponde alla domanda *«questa cosa
+> cosa consuma, e chi le dice di no?»* e registra la proposta — **aperta**, non canonica — che il profilo di
+> movimento cambi anche la *legalità* delle azioni (`AE-1`, `AE-2` in
+> [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md)).
+
 ---
 
 ## 1. Azioni generiche (universali)
