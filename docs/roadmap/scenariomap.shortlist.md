@@ -17,7 +17,7 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 
 <!-- RT_SHORTLIST_SCENARIOS:BEGIN -->
 
-**69 scenari versionati** — misurati su `Scenarios/`: **57** eseguibili · **12** `BLOCKED` per una capability assente · **51** dichiarati `planned` nel registry e non ancora scritti.
+**72 scenari versionati** — misurati su `Scenarios/`: **60** eseguibili · **12** `BLOCKED` per una capability assente · **50** dichiarati `planned` nel registry e non ancora scritti.
 
 **Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `BotPlanning` · `Cover` · `CreateCover` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `PredictiveAction` · `Reaction` · `ReactionPlanning` · `Structures`.
 
@@ -60,7 +60,6 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 | `Spec.Clash.Determinism` | `RT-FEAT-REACTION-CLASH` |
 | `Spec.Clash.HiddenUntilReveal` | `RT-FEAT-REACTION-CLASH` |
 | `Spec.Clash.RevealIsFixedDeadline` | `RT-FEAT-REACTION-CLASH` |
-| `Spec.Map.ConstrainedCellCostsMore` | `RT-FEAT-TOOL-MAP-GEOMETRY` |
 | `Spec.Map.DoorOpensTransition` | `RT-FEAT-MAP-TRANSITION-CLEARANCE` |
 | `Spec.Map.FootprintCollisionBlocksCell` | `RT-FEAT-MAP-STANDABILITY` |
 | `Spec.Map.NinetyDegreeCornerBakesCorrectly` | `RT-FEAT-MAP-STANDABILITY` |

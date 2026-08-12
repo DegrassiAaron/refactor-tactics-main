@@ -226,7 +226,7 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-MAP-LOS` — LOS, targeting e traiettoria separati | RELEASE_READY | 6/7 |
 |  | `RT-FEAT-MAP-PATHFINDING` — A* esagonale autorevole | RELEASE_READY | 6/7 |
 | **E4** | `RT-FEAT-ACTION-BASIC-ATTACK-PROFILES` — Profili di attacco base per eroe | RELEASE_READY | 7/9 |
-|  | `RT-FEAT-ACTION-COOLDOWNS` — Cooldown ed economia delle risorse | TESTABLE | 5/9 |
+|  | `RT-FEAT-ACTION-COOLDOWNS` — Cooldown ed economia delle risorse | TESTABLE | 6/9 |
 |  | `RT-FEAT-ACTION-ENGINE` — Motore delle azioni a priorità intera | RELEASE_READY | 8/9 |
 |  | `RT-FEAT-ACTION-GENERIC` — Azioni generiche del catalogo — completata da `RT-FEAT-REACTION-OVERWATCH`, `RT-FEAT-OBJECTIVE-SYSTEM` | IMPLEMENTING | 3/9 |
 |  | `RT-FEAT-ACTION-MOVE-PROFILES` — Profili di movimento (Move, Sprint, Charge) | RELEASE_READY | 8/9 |
@@ -255,7 +255,7 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-UI-CERTAINTY` — Livelli di certezza degli intenti alleati | IMPLEMENTING | 3/8 |
 |  | `RT-FEAT-UI-COMBAT-LOG` — Combat log e spiegabilità | RELEASE_READY | 6/7 |
 |  | `RT-FEAT-UI-PLANNING` — HUD di planning, selezione e preview | RELEASE_READY | 6/7 |
-|  | `RT-FEAT-UI-SCREEN-HUD` — Screen HUD in UMG (layer §4.1) | SPECIFIED | 1/7 |
+|  | `RT-FEAT-UI-SCREEN-HUD` — Screen HUD in UMG (layer §4.1) | IMPLEMENTING | 1/7 |
 |  | `RT-FEAT-UI-TACTICAL-CAMERA` — Camera tattica | IMPLEMENTING | 1/6 |
 |  | `RT-FEAT-UI-WARNINGS` — Avvisi di collisione, fuoco amico e risorse — completata da `RT-FEAT-UI-CERTAINTY` | IMPLEMENTING | 3/7 |
 | **E12** | `RT-FEAT-CORE-DETERMINISM` — Snapshot e resolver deterministico | INTEGRATED | 6/8 |
@@ -883,6 +883,22 @@ livello `Rilevato`, non solo LOS. È **l'ultima epic della v0.1** e la **prima d
 | **14.6** | Counterplay, UI e misura reale | KO/Stun/Disarm/Forced Movement invalidano l'overwatch armato; UI `FIRE`/`HOLD` con countdown, **nessuna logica di gioco nel widget**, slow-motion come sola presentazione; durata della resolution **misurata e registrata** con 1/2/3 unità armate | `Overwatch.CancelledByStun`, `Overwatch.CancelledByForcedMovement`, `Overwatch.SlowMotionDoesNotChangeOutcome`; PIE `PIE-V01-OVERWATCH` |
 | **14.7** *(nuovo 2026-08-09)* | **Reaction Clash** — opportunity *contested* | `Brace` **arma un profilo** e non è più «un'azione che si dichiara e basta» ([D-047](../decisions/RT_PDR_00_Decision_Log.md)): `Hold Ground` è la risposta universale e **coincide col comportamento di oggi**, quindi nessun numero si muove e i due scenari restano verdi. Un'opportunity è **contested** quando *due* partecipanti hanno ciascuno ≥ 2 risposte legali — **derivato dalla cardinalità, nessun campo `Type`** (è il rischio (b) di questa epic). Scelta in cieco, **reveal a scadenza fissa** — la finestra dura sempre 3,0 s e non anticipa se entrambi lockano subito, perché il momento del lock è un canale ([D-048](../decisions/RT_PDR_00_Decision_Log.md), emenda ADR-0004 §7) — poi confronto deterministico. Il boundary contested vale **1 prompt**, quindi il caso peggiore di ADR-0004 §8 non cambia. Gli esiti si esprimono **solo** con `FRTActionEffectSpec`, mai callback. **Sostituire** `Reactions.Brace.IsNotAReaction`, che pinna la classificazione vecchia | `Reactions.Brace.BaseProfileHasSingleResponse`, `Reactions.Brace.RicherProfileOpensWindow`, `Clash.ContestedIsDerivedNotDeclared`, `Clash.RevealIsFixedDeadline`, `Clash.HiddenUntilReveal`, `Clash.TieAppliesOnce`, `Clash.CostConsumedOnLock`, `Clash.NoNestedWindow`, `Clash.Determinism`; scenari `Spec.Clash.*` |
 | **14.8** *(nuovo 2026-08-09)* | **Decision Time Bank** — budget di decisione per giocatore | Una risorsa temporale **per giocatore**, condivisa da tutte le Decision Window live: dentro la `Grace` non consuma, oltre consuma il tempo effettivo, e allo scadere costa `MaxWindow − Grace` per intero. `InitialBank` è **derivato** — `RoundLimit × (MaxWindow − Grace)`, 24 s in 2v2 — non un numero fisso. La singola finestra **resta 3,0 s**: il bank non la allunga mai e non tocca mai le `AllowedResponses`. È **wall-clock, non regola**: sta accanto a `PlanningSeconds` e non entra in `URTMatchFormatData` né in alcun hash (`RTMatchFormatData.h`). Il residuo è un **input canonico registrato**: il replay lo legge dal TurnLog, non lo ricalcola. Visibilità **owner-only** — un bank pubblico riaprirebbe il canale che [D-021](../decisions/RT_PDR_00_Decision_Log.md) e [D-048](../decisions/RT_PDR_00_Decision_Log.md) chiudono. Il **bot ha un bank** e lo consuma per policy: nessun ramo `IsBot` nella Decision Window. Vincolo che rende equo il costo pieno del timeout: il fallback è **preselezionato e raggiungibile entro la grace**, apparizione del prompt inclusa — **da misurare**, non da assumere. **Sostituisce D20** («nessun cap aggregato») prima della misura che l'avrebbe informata: rischio dichiarato, e i due rientri di ADR-0004 §Revisione restano validi. **Non precede 14.5/14.6**: la prima misura arriva prima della taratura. Owner: [`spec-decision-time-bank.md`](../gameplay/spec-decision-time-bank.md) | `TimeBank.GraceDoesNotDrain`, `TimeBank.DrainsAfterGrace`, `TimeBank.TimeoutCostsFullWindow`, `TimeBank.TimeoutSpendsNoCharge`, `TimeBank.NeverBelowZero`, `TimeBank.ClashCostsFullWindow`, `TimeBank.BotDrainsLikePlayer`, `TimeBank.ReplayReadsRecordedBank`, `TimeBank.PacketOrderInvariant`; UI `TimeBank.FallbackReachableWithinGrace`; scenari `Spec.TimeBank.*` |
+
+> ✅ **La condizione dichiarata di CP 14.3 è atterrata il 2026-08-12, dopo la chiusura del checkpoint**
+> ([D-109](../decisions/RT_PDR_00_Decision_Log.md), PR #639). Vale la pena scrivere *come* è andata, perché il
+> modo in cui è mancata è più istruttivo del contenuto: CP 14.3 è stato chiuso come `COMPLETED` mentre questa
+> voce aspettava una decisione aperta (`OW-5`), e per nove ore il registro ha detto «fatto» mentre i due test
+> che questa riga nomina **non esistevano** — quindi anche il gate `G3`, che chiede test esistenti con quei
+> nomi, citava due nomi inesistenti. Se una voce di DoD è bloccata da una decisione, la issue resta aperta con
+> scritto cosa manca: è ciò che si è fatto con [#583](https://github.com/DegrassiAaron/refactor-tactics-main/issues/583),
+> che resta aperta per le due voci non chiudibili prima di CP 14.5.
+>
+> Cosa c'è ora: `FRTDeclaredCondition` con validator a **elenco chiuso nel codice** (una voce,
+> `TargetHealthAtOrBelowPercent`, soglia intera per `G7`), la valutazione al trigger che **riduce**
+> `AllowedResponses` dentro `BuildOverwatchTriggers`, e un produttore che non è l'harness
+> (`rt.Reaction.Condition`, verifica `PIE-V01-REACTCOND`). Cosa non c'è: il TurnLog non registra la condizione,
+> perché **nessuna opportunity nasce ancora in partita** — i soli chiamanti restano harness e test, e il
+> lettore vero arriva con CP 14.5.
 
 > ⏳ **CP 14.4 e CP 14.7 hanno il meccanismo, non il contenuto (2026-08-10).** Entrambi dichiarano che il
 > profilo è un **dato per eroe** — `Overwatch.ProfileIsDataNotBranch` per il primo,

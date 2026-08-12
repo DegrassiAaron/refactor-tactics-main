@@ -22,7 +22,7 @@ TArray<TPair<FRTCellId, int32>> URTHexPathLibrary::GraphNeighbors(const URTHexMa
 		{
 			if (!D->bBlocksMovement && !URTHexCoverLibrary::BlocksTraversal(Map, Cell, N))
 			{
-				Out.Add(TPair<FRTCellId, int32>(N, FMath::Max(0, D->MoveCost)));
+				Out.Add(TPair<FRTCellId, int32>(N, D->TotalMoveCost()));
 			}
 		}
 	}

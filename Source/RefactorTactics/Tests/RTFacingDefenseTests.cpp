@@ -208,4 +208,78 @@ bool FRTCombatShieldWorksFromAnyDirectionTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * `#649`, pezzo (a) — il colpo PORTA con sé quanto la direzione ha annullato.
+ *
+ * Finora quell'informazione moriva dentro `EffectiveCoverReduction`, che è pura: restituisce `0` sia quando
+ * la copertura non c'è, sia quando c'è e la provenienza l'ha resa inutile. Dall'esterno un colpo pieno su un
+ * bersaglio riparato era indistinguibile da un colpo pieno su un bersaglio scoperto — e il bot, che dal
+ * 2026-08-12 conta proprio quel danno come bonus (CP 13.5), contava qualcosa che nessuno poteva verificare.
+ *
+ * ⚠️ **Questo test NON passa dal TurnLog, ed è deliberato.** È la metà del lavoro che non cambia nessun hash:
+ * finché il campo viaggia soltanto dentro `FRTHexAttackHit`, il corpus golden resta valido. La voce di
+ * traccia — che gli hash li cambia — è il pezzo (b), e ha il suo test separato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCombatHitCarriesBypassedCoverTest,
+	"RefactorTactics.Combat.HitCarriesBypassedCover",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCombatHitCarriesBypassedCoverTest::RunTest(const FString&)
+{
+	const FRTCellId Defender(2, 0, 0);
+	TArray<FRTHexAttackIntent> Intents;
+	Intents.Add(ArcIntent(0, 1, 30));
+
+	auto BypassedOn = [](const FRTHexBlastPlan& Plan, int32 TargetId) -> int32
+	{
+		for (const FRTHexAttackHit& Hit : Plan.Hits)
+		{
+			if (Hit.TargetId == TargetId) { return Hit.CoverBypassedByFacing; }
+		}
+		return -1;
+	};
+
+	// 1. Difensore che GUARDA l'attaccante: la copertura vale, quindi non è stata scavalcata niente.
+	{
+		TArray<FRTHexCombatUnit> Units;
+		Units.Add(ArcUnit(0, 0, FRTCellId(0, 0, 0), ERTHexDirection::E));
+		Units.Add(ArcUnit(1, 1, Defender, ERTHexDirection::W));
+
+		URTHexMapAsset* Map = MakeArcMap(3);
+		SetArcLowCover(Map, Defender, ERTHexDirection::W);
+		const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
+		TestEqual(TEXT("di fronte: niente scavalcato"), BypassedOn(Plan, 1), 0);
+	}
+
+	// 2. Stessa scena, stesso riparo: cambia SOLO l'orientamento. È qui che il campo deve valere qualcosa.
+	{
+		TArray<FRTHexCombatUnit> Units;
+		Units.Add(ArcUnit(0, 0, FRTCellId(0, 0, 0), ERTHexDirection::E));
+		Units.Add(ArcUnit(1, 1, Defender, ERTHexDirection::E)); // dà le spalle
+
+		URTHexMapAsset* Map = MakeArcMap(3);
+		SetArcLowCover(Map, Defender, ERTHexDirection::W);
+		const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
+
+		TestEqual(TEXT("alle spalle: scavalcata la riduzione di catalogo"),
+			BypassedOn(Plan, 1), URTCombatLibrary::LowCoverDamageReduction);
+		// Il danno resta quello di sempre: il campo SPIEGA la sottrazione mancata, non ne aggiunge una.
+		TestEqual(TEXT("e il danno non cambia di un punto"), ArcPowerOn(Plan, 1), 30);
+	}
+
+	// 3. Nessuna copertura: la traccia deve dire «annullata», non «valutata». Senza questo caso il campo
+	//    potrebbe valere sempre qualcosa e il test 2 passerebbe lo stesso.
+	{
+		TArray<FRTHexCombatUnit> Units;
+		Units.Add(ArcUnit(0, 0, FRTCellId(0, 0, 0), ERTHexDirection::E));
+		Units.Add(ArcUnit(1, 1, Defender, ERTHexDirection::E));
+
+		URTHexMapAsset* Map = MakeArcMap(3); // arena liscia
+		const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
+		TestEqual(TEXT("senza copertura non c'e' niente da scavalcare"), BypassedOn(Plan, 1), 0);
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -237,6 +237,7 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 			Obj->TryGetBoolField(TEXT("blocksMovement"), Cell.bBlocksMovement);
 			Obj->TryGetBoolField(TEXT("blocksLineOfSight"), Cell.bBlocksLineOfSight);
 			Obj->TryGetNumberField(TEXT("moveCost"), Cell.MoveCost);
+			Obj->TryGetNumberField(TEXT("occupancySurcharge"), Cell.OccupancySurcharge);
 			OutScenario.Cells.Add(Cell);
 		}
 	}
@@ -745,6 +746,12 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 		if (Cell.MoveCost < 0)
 		{
 			OutError = FString::Printf(TEXT("cella %s: moveCost negativo (%d)"), *Cell.Cell.ToString(), Cell.MoveCost);
+			return false;
+		}
+		if (Cell.OccupancySurcharge < 0)
+		{
+			OutError = FString::Printf(TEXT("cella %s: occupancySurcharge negativo (%d)"),
+				*Cell.Cell.ToString(), Cell.OccupancySurcharge);
 			return false;
 		}
 	}

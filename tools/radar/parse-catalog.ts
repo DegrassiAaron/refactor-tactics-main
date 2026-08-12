@@ -13,6 +13,11 @@ export interface AbilityInput {
   /** `Action.X` quando l'abilita' DELEGA il proprio dato a un'azione core (D-115), altrimenti `null`.
    *  Non confondere con le reazioni che RIUSANO una semantica core tenendo i propri numeri. */
   delegatesTo: string | null;
+  /** Bonus di danno **condizionato da uno stato**, dichiarato nella cella `Effetto` come `+N su X`.
+   *  `null` quando non c'e' — non `0`, che si confonderebbe con «bonus dichiarato e nullo».
+   *  Il parser estrae il numero; che significhi «fuori da `power`, dentro `precision`» lo decide la
+   *  rubrica (#557). */
+  conditionalBonus: number | null;
   /** La riga della tabella reazioni, **grezza**, quando l'abilita' vi compare. La rubrica decide
    *  cosa significhi: qui non si classifica, si riporta. */
   reaction: ReactionInput | null;
@@ -51,6 +56,11 @@ function cellInteger(cell: string, field: string, hero: string): number {
 
 /** Danno dichiarato nella cella `Effetto`: `22 danni, range 4` -> 22.
  *  `null` quando l'abilita' non fa danno — che e' un fatto, non un errore. */
+function parseConditionalBonus(effect: string): number | null {
+  const m = effect.match(/\+(\d+)\s+su\b/);
+  return m ? Number(m[1]) : null;
+}
+
 function parseDamage(effect: string): number | null {
   const m = effect.match(/(\d+)\s+danni/);
   return m ? Number(m[1]) : null;
@@ -223,6 +233,7 @@ export function parseHeroCatalog(source: URL | string, actionSource: URL | strin
         cooldown: cellInteger(cells[5], `${id} CD`, name),
         effect,
         delegatesTo,
+        conditionalBonus: parseConditionalBonus(effect),
         reaction: reactions.get(id) ?? null,
       });
     }

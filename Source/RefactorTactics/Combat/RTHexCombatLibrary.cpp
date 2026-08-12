@@ -238,6 +238,12 @@ FRTHexAttackHit URTHexCombatLibrary::RedirectHitTo(int32 NewTargetId, const FRTH
 	const int32 Reduction = EffectiveCoverReduction(Map, Units[Hit.AttackerId], Units[NewTargetId],
 		Intent.Shape);
 	Out.Power = FMath::Max(0, Intent.Power - Reduction);
+	// La redirezione cambia il BERSAGLIO, quindi cambia anche la geometria della copertura: ricalcolare il
+	// danno e lasciare la vecchia attribuzione direzionale darebbe una traccia che parla della vittima
+	// precedente.
+	const int32 Nominal = HexCoverDamageReduction(Map, Units[Hit.AttackerId].Cell, Units[NewTargetId].Cell,
+		Intent.Shape);
+	Out.CoverBypassedByFacing = FMath::Max(0, Nominal - Reduction);
 	return Out;
 }
 
@@ -349,8 +355,15 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 				// dall'intento — due bersagli della stessa azione possono essere riparati in modo diverso.
 				// Il danno si ferma a 0: il colpo resta avvenuto (trigger e marchi contano lo stesso).
 				const int32 Reduction = EffectiveCoverReduction(Map, Attacker, Other, Intent.Shape);
+
+				// Quanto la DIREZIONE ha annullato: la differenza fra la copertura che il bordo offre e quella
+				// che vale davvero da questa provenienza. Si calcola qui e non altrove perche' qui ci sono
+				// entrambe le figure — chi spara e chi subisce — e `EffectiveCoverReduction` non puo' dirlo da
+				// sola: restituisce `0` sia quando la copertura non c'e' sia quando la direzione l'ha tolta.
+				const int32 Nominal = HexCoverDamageReduction(Map, Attacker.Cell, Other.Cell, Intent.Shape);
 				Plan.Hits.Add(FRTHexAttackHit(Intent.AttackerId, u,
-					FMath::Max(0, Intent.Power - Reduction), IntentIdx));
+					FMath::Max(0, Intent.Power - Reduction), IntentIdx,
+					/*CoverBypassedByFacing*/ FMath::Max(0, Nominal - Reduction)));
 			}
 		}
 	}

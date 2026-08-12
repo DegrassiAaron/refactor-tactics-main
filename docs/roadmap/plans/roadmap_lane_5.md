@@ -5,7 +5,7 @@
 > **Cosa non è**: una fonte di stato, né l'owner del replay — quello sono
 > [ADR-0009](../../decisions/adr-0009-replay-logico-canonico.md), `D-077`, `D-078`, `D-083`.
 > In caso di divergenza **vince la fonte**.
-> **Fonte comune delle cinque lane**: [`roadmap-lane-index.md`](roadmap-lane-index.md).
+> **Fonte comune delle lane**: [`roadmap-lane-index.md`](roadmap-lane-index.md).
 
 ---
 

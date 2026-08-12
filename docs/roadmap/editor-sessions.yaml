@@ -100,7 +100,7 @@ sessions:
     title: Verifiche senza prerequisiti
     block: 1
     critical: false
-    produces: verdetto su otto voci che non attendono nulla
+    produces: verdetto su nove voci che non attendono nulla
     artifacts: []
     unblocked_by: []
     shares_setup_with: []
@@ -113,8 +113,9 @@ sessions:
       - PIE-HEX-LAYER-FOCUS
       - PIE-HEX-LAYER-CLICK
       - PIE-HEX-LAYER-PANEL
-    issues: [450, 567]
-    done_when: le otto voci hanno esito reale nel registro
+      - PIE-V01-REACTCOND
+    issues: [450, 567, 583]
+    done_when: le nove voci hanno esito reale nel registro
     unblocks: []
     steps: |
       **E' la sola seduta che non attende nulla**: nessun checkpoint da chiudere, nessuna seduta
@@ -128,6 +129,13 @@ sessions:
       > sia vuota — quest'ultima **prevale** sulla property e dura quanto il processo dell'editor. Con
       > uno scenario impostato la partita normale non viene allestita affatto e tutte e tre le voci
       > diventano non eseguibili. E' successo il 2026-08-08, uscendo da `PIE-SCEN-KEEP`.
+
+      **`PIE-V01-REACTCOND`** (aggiunta il 2026-08-12, [D-109]) si fa in Play e chiede un ordine
+      preciso: prima **arma una reazione** sull'unita' selezionata, poi `rt.Reaction.Condition 50`.
+      Al contrario il comando rifiuta, ed e' il comportamento giusto — una condizione senza reazione
+      resterebbe orfana. Si verifica il **canale**, non l'effetto: le risposte legali si riducono
+      davvero, ma la finestra che quel collasso evita non esiste finche' non atterra CP 14.5, e
+      quella parte e' coperta headless da `Reactions.DeclaredConditionCollapsesToImmediateCommit`.
 
       L'ordine non e' arbitrario:
 

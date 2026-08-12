@@ -76,7 +76,7 @@ FRTArenaCriterionResult URTArenaCriteriaLibrary::CheckCostBite(const URTHexMapAs
 	{
 		if (const FRTHexCellData* Cell = Map->FindCell(Path.Path[i]))
 		{
-			MaxCellCost = FMath::Max(MaxCellCost, Cell->MoveCost);
+			MaxCellCost = FMath::Max(MaxCellCost, Cell->TotalMoveCost());
 		}
 	}
 

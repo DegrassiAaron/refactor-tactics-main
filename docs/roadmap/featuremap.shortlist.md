@@ -25,13 +25,13 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | Stato | Quante |
 |---|--:|
 | `IDEA` | 6 |
-| `DESIGNED` | 15 |
-| `SPECIFIED` | 14 |
-| `IMPLEMENTING` | 21 |
+| `DESIGNED` | 14 |
+| `SPECIFIED` | 10 |
+| `IMPLEMENTING` | 23 |
 | `TESTABLE` | 8 |
 | `INTEGRATED` | 21 |
 | `RELEASE_READY` | 16 |
-| `DONE` | 1 |
+| `DONE` | 4 |
 | `DEFERRED` (fuori scala) | 1 |
 
 ### Actions · 15
@@ -58,10 +58,10 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
+| `RT-FEAT-CHAR-RADAR-MODEL` — Modello dei radar di profilo — Profile e Balance | future | DONE | 4/4 | — | — |
+| `RT-FEAT-CHAR-RADAR-RATINGS-V01` — Rubrica — i rating derivati dal catalogo eroi | future | DONE | 4/4 | — | — |
 | `RT-FEAT-CHAR-V01-ROSTER` — Roster v0.1 — Flux, Riva, Bastion, Vektor | v0.1 | INTEGRATED | 6/8 | E6 | I 4 eroi corrispondono al catalogo; **3 reazioni su 5** cablate |
 | `RT-FEAT-CHAR-PRESENTATION` — Presentazione dei personaggi (mesh, animazioni, anelli) | v0.1 | IMPLEMENTING | 1/7 | E21 | Il lavoro che viveva solo in M8, reso visibile dal registry |
-| `RT-FEAT-CHAR-RADAR-MODEL` — Modello dei radar di profilo — Profile e Balance | future | SPECIFIED | 1/4 | — | — |
-| `RT-FEAT-CHAR-RADAR-RATINGS-V01` — Rubrica — i rating derivati dal catalogo eroi | future | SPECIFIED | 1/4 | — | — |
 | `RT-FEAT-CHAR-AUXILIARY-UNITS` — Unità ausiliarie (pet, evocazioni, gadget) | v0.2 | DESIGNED | 0/9 | — | — |
 | `RT-FEAT-CHAR-V02-ROSTER` — Roster v0.2 — Steel, Aurora, Murdock, Kwang | v0.2 | DESIGNED | 0/8 | — | Epic E35 |
 | `RT-FEAT-CHAR-TRANSFORMATION` — Stati di personaggio, stance e trasformazioni | v0.2 | IDEA | 0/9 | — | Le 10 voci `PIE-STATE-*` sono la sua controparte umana, e restano ⏳ |
@@ -184,6 +184,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
 | `RT-FEAT-TOOL-VALIDATION` — Validator di dati, mappe e documenti | v0.1 | DONE | 5/5 | E1 | L'unica feature `DONE` del registry |
+| `RT-FEAT-WIKI-CHART-GENERATOR` — Generatore SVG deterministico dei radar | future | DONE | 4/4 | — | — |
 | `RT-FEAT-BOT-BASE` — Bot a utility scoring deterministico | v0.1 | RELEASE_READY | 7/8 | E2 | Deterministico; le candidate nascono da `ReachableCells`, mai mosse illegali |
 | `RT-FEAT-TEST-SCENARIO-HARNESS` — Scenario Test Harness automatizzato | v0.1 | INTEGRATED | 6/8 | E15 | `PASS/FAIL/ERROR/BLOCKED`, corpus scoperto dall'indice, niente bypass |
 | `RT-FEAT-BOT-FAIRNESS` — Il bot pianifica sulla conoscenza della sua squadra | v0.1 | TESTABLE | 3/7 | E13 | — |
@@ -192,11 +193,10 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-TOOL-BALANCE-GROUND` — Banco di prova del bilanciamento | v0.1 | IMPLEMENTING | 3/6 | E1 | Dove si misurano i numeri prima di scriverli a catalogo |
 | `RT-FEAT-TOOL-CONTROL-CENTER` — Project Control Center — la UI web del registry | future | IMPLEMENTING | 2/6 | — | — |
 | `RT-FEAT-TOOL-DEBUG-CONSOLE` — Comandi console rt.Debug e rt.Test | v0.1 | IMPLEMENTING | 3/6 | E11 | Ne esistono 2 su 8: senza, si debugga a occhio |
-| `RT-FEAT-WIKI-CHART-GENERATOR` — Generatore SVG deterministico dei radar | future | SPECIFIED | 1/6 | — | — |
+| `RT-FEAT-TOOL-MAP-GEOMETRY` — Geometria architettonica quantizzata e cottura in dati di cella | v0.1 | IMPLEMENTING | 3/7 | M9 | — |
 | `RT-FEAT-BOT-BELIEF` — Belief — celle plausibili, decadimento e minaccia proiettata | future | DESIGNED | 0/8 | fuori scope | — |
 | `RT-FEAT-BOT-PREDICTIVE` — Scenari nemici plausibili e piano robusto | future | DESIGNED | 0/8 | fuori scope | — |
 | `RT-FEAT-BOT-TACTICAL` — Team Planner — piano di squadra, ruoli dinamici e sinergie | v0.2 | DESIGNED | 0/8 | fuori scope | Epic E26 |
-| `RT-FEAT-TOOL-MAP-GEOMETRY` — Geometria architettonica quantizzata e cottura in dati di cella | v0.1 | DESIGNED | 0/7 | M9 | — |
 
 ### UI · 9
 
@@ -207,10 +207,10 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-UI-SCENARIO-BROWSER` — Selettore e indice degli scenari | v0.1 | INTEGRATED | 6/8 | fuori scope | Tooling di test, **fuori** dal contenuto di release per decisione |
 | `RT-FEAT-UI-CERTAINTY` — Livelli di certezza degli intenti alleati | v0.1 | IMPLEMENTING | 3/8 | E11 | Confermato / previsto / incerto — tre livelli, non una sfumatura |
 | `RT-FEAT-UI-ICON-LANGUAGE` — HUD Icon Language | v0.1 | IMPLEMENTING | 1/7 | E20 | Un **catalogo semantico**, non texture referenziate nei widget |
+| `RT-FEAT-UI-SCREEN-HUD` — Screen HUD in UMG (layer §4.1) | v0.1 | IMPLEMENTING | 1/7 | E11 | — |
 | `RT-FEAT-UI-TACTICAL-CAMERA` — Camera tattica | v0.1 | IMPLEMENTING | 1/6 | E11 | Tarata sulla scala esagonale |
 | `RT-FEAT-UI-WARNINGS` — Avvisi di collisione, fuoco amico e risorse | v0.1 | IMPLEMENTING | 3/7 | E11 | L'arancione del fuoco amico deve **notarsi** |
 | `RT-FEAT-UI-ACTION-GHOSTS` — Action Ghosts e Ghost Timeline | v0.1 | SPECIFIED | 1/8 | E11 | Il planning visuale: cosa succederà, e con quanta certezza |
-| `RT-FEAT-UI-SCREEN-HUD` — Screen HUD in UMG (layer §4.1) | v0.1 | SPECIFIED | 1/7 | E11 | — |
 
 <!-- RT_SHORTLIST_FEATURES:END -->
 

@@ -1,0 +1,39 @@
+{
+  "scenarioId": "Spec.Facing.FrontHitOnCoverIsSilent",
+  "tags": ["facing", "cover", "combat", "turnlog", "spec", "bastion", "vektor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "#649, il caso di CONTROLLO di `Spec.Facing.RearHitOnCoverIsTraced`: stessa scena, stesso pannello, stesso colpo — cambia SOLO da che parte guarda B1. Qui e' rivolto al tiratore, quindi la copertura regge e non c'e' niente da annullare: **zero** voci.",
+
+  "_nota_perche_serve": "Senza questa meta', una voce emessa a ogni colpo su un bersaglio riparato — o peggio a ogni colpo e basta — passerebbe lo scenario gemello. La traccia deve dire «annullata», non «valutata», e l'unico modo di dimostrarlo e' un caso in cui la protezione tiene.",
+
+  "_nota_valore_zero": "`value: 0` non e' un'assertion debole: `LogEventCount` a zero asserisce l'ASSENZA, ed e' la stessa forma con cui il progetto verifica che una voce non trapeli prima del reveal.",
+
+  "units": [
+    { "id": "B1", "hero": "Hero.Bastion", "team": 0, "cell": [-1, 0, 0], "facing": "E" },
+    { "id": "V1", "hero": "Hero.Vektor",  "team": 1, "cell": [2, 0, 0],  "facing": "W" }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — stesso pannello sul bordo EST dello scenario gemello.",
+      "requires": ["CreateCover"],
+      "intents": [
+        { "unit": "B1", "ability": "Bastion.KineticPanel", "targetCell": [-1, 0, 0], "edge": "E" }
+      ]
+    },
+    {
+      "_turno": "T2 — V1 spara da est, e stavolta B1 lo sta guardando: il riparo fa il suo mestiere.",
+      "intents": [
+        { "unit": "V1", "ability": "Vektor.PulseShot", "target": "B1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "LogEventCount", "category": "Facing", "outcome": "RearHitBypassedCover", "value": 0 },
+    { "type": "TurnsCompleted", "value": 2 }
+  ]
+}

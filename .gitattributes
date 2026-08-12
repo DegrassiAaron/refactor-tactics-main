@@ -14,3 +14,11 @@
 *.cs  text
 *.ini text
 *.md  text
+
+# Artefatti generati e loro sorgenti: LF SEMPRE, su ogni piattaforma.
+# Il gate `node tools/radar/generate.ts --check` confronta byte a byte contro cio' che il generatore
+# produce, che scrive LF. Senza questa regola git converte gli SVG a CRLF al checkout su Windows e
+# il gate e' rosso su una macchina e verde su un'altra — esattamente il difetto che D-108 vuole
+# impedire, spostato dai float alle fini riga.
+docs/characters/radar/*.svg text eol=lf
+tools/radar/*.ts            text eol=lf

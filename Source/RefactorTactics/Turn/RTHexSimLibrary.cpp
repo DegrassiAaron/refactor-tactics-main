@@ -277,7 +277,7 @@ TArray<FRTCellId> URTHexSimLibrary::ApplyIceSliding(const FRTHexSnapshot& Snapsh
 	for (int32 I = 1; I < Path.Num(); ++I)
 	{
 		const FRTHexCellData* StepData = Snapshot.Map->FindCell(Path[I]);
-		PathCost += (StepData ? FMath::Max(0, StepData->MoveCost) : 0) + ExtraPerCell;
+		PathCost += (StepData ? StepData->TotalMoveCost() : 0) + ExtraPerCell;
 	}
 	if (Unit->MoveBudget - PathCost < 2)
 	{
@@ -425,7 +425,7 @@ TArray<FRTCellId> URTHexSimLibrary::TruncatePathToBudget(const FRTHexSnapshot& S
 	for (int32 k = 1; k < Path.Num(); ++k)
 	{
 		const FRTHexCellData* Data = Snapshot.Map->FindCell(Path[k]);
-		const int32 StepCost = (Data ? FMath::Max(0, Data->MoveCost) : 0) + ExtraPerCell;
+		const int32 StepCost = (Data ? Data->TotalMoveCost() : 0) + ExtraPerCell;
 		if (Spent + StepCost > Budget)
 		{
 			break; // il budget finisce qui: il resto del piano non e' piu' affrontabile con lo stato attuale

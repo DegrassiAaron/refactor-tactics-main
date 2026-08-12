@@ -4,7 +4,7 @@
 > **Cosa è**: la sequenza di lavoro della lane *Simulation / Turn*, letta sul backlog **già aperto**.
 > **Cosa non è**: una fonte di stato. Aperto/chiuso vive su GitHub; il `⏳`/`✅` qui dentro è la
 > fotografia di una data. In caso di divergenza **vince GitHub**.
-> **Fonte comune delle cinque lane**: [`roadmap-lane-index.md`](roadmap-lane-index.md).
+> **Fonte comune delle lane**: [`roadmap-lane-index.md`](roadmap-lane-index.md).
 
 ---
 
