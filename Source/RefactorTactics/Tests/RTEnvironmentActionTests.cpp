@@ -1460,9 +1460,14 @@ bool FRTHazardEscapeFleesBeforeDamageTest::RunTest(const FString&)
 	Target->Abilities.Add(Reazione);
 	Target->PlannedReactionAbility = Target->Abilities.Num() - 1;
 
-	// Il facing e' dichiarato, non lasciato al default: e' la prima scelta della fuga, e un test che non lo
-	// fissa verificherebbe l'ordine canonico di ripiego credendo di verificare il facing.
-	Target->Facing = ERTHexDirection::E;
+	// ⚠️ Il facing e' `W`, e la scelta NON e' indifferente: l'ordine canonico di ripiego comincia da `E`,
+	// quindi con `Facing = E` la cella «davanti» coinciderebbe con la prima di ripiego e l'assert in fondo
+	// passerebbe anche se il facing venisse ignorato del tutto. Con `W` le due celle sono diverse — (1,0)
+	// contro (3,0) — e il test distingue davvero le due regole.
+	//
+	// Trovato dalla verifica di mutazione: disattivando il ramo del facing in `FindEscapeCell` la suite
+	// restava verde, ed e' l'unico modo in cui questo difetto poteva emergere.
+	Target->Facing = ERTHexDirection::W;
 	const int32 HpPrima = Target->Health;
 
 	PlanEnvAction(Caster, TEXT("Action.Ignite"), Target);
@@ -1485,8 +1490,10 @@ bool FRTHazardEscapeFleesBeforeDamageTest::RunTest(const FString&)
 	TestEqual(TEXT("e non ha perso salute"), Target->Health, HpPrima);
 
 	// E' andato DOVE GUARDAVA: la fuga e' prevedibile, non arbitraria.
-	TestEqual(TEXT("verso la cella che aveva davanti"), Target->Cell,
-		URTHexLibrary::Neighbor(FRTCellId(2, 0), ERTHexDirection::E));
+	TestEqual(TEXT("verso la cella che aveva davanti, non verso la prima dell'ordine canonico"),
+		Target->Cell, URTHexLibrary::Neighbor(FRTCellId(2, 0), ERTHexDirection::W));
+	TestTrue(TEXT("e infatti NON e' finito nella cella che il ripiego avrebbe scelto"),
+		Target->Cell != URTHexLibrary::Neighbor(FRTCellId(2, 0), ERTHexDirection::E));
 
 	DestroyEnvWorld(World);
 	return true;
