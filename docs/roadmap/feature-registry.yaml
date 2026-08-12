@@ -1617,6 +1617,7 @@ features:
       - RefactorTactics.Plan.WaitOccupiesNoSlot
       - RefactorTactics.Plan.MovementPointsOverflowIsRejected
       - RefactorTactics.Plan.MovementPointsExactlyOnBudgetIsLegal
+      - RefactorTactics.Plan.EmptyPlanIsLegalEvenWithDirtyBudget
       - RefactorTactics.Plan.CooldownBlocksWithSlotFree
       - RefactorTactics.Plan.VerdictIsPermutationInvariant
       - RefactorTactics.Plan.SlotVerdictIsPermutationInvariant
@@ -1640,8 +1641,15 @@ features:
       in coda. Gli `*Outcome` dicono com'e' andata una FASE — un altro asse. E `ERTMovementStopReason`,
       citato qui e nella issue, **non esiste in `Source/`**: compariva solo nei documenti che si citavano a
       vicenda. I tre valori nuovi (`SlotOccupied`, `InsufficientMovementPoints`, `OnCooldown`) sono in coda
-      a `ERTActionInvalidReason`. (2) `CanonicalIntentStore` **non e' codice**: vive solo in
-      `docs/archive/pdr-v0.1/`. Il seam reale e' `RTIntentPrivacyLibrary` / `FRTPlannedIntent`.
+      a `ERTActionInvalidReason`. (2) `CanonicalIntentStore` **non e' codice**: zero occorrenze in `Source/`.
+      E' un concetto di design del PDR, citato in `docs/archive/` e `docs/src/` — ma anche, ⚠️ **come se
+      fosse un simbolo**, nella DoD di CP 25.3 di `roadmap-post-v0.1.md`, che ne chiede la prova «dimostrato
+      da un test». Il seam reale e' `RTIntentPrivacyLibrary` / `FRTPlannedIntent`.
+      🔴 **Un limite dei quattro non e' ancora verificabile**: il controllo sui Movement Point legge
+      `FRTActionDef::CostMP`, che **nessuno popola** — il catalogo dichiara il budget di `Move` e `Sprint` in
+      `RangeCells` con `ERTMovementStyle::Budget`. Finche' il catalogo non dichiara un costo,
+      `InsufficientMovementPoints` non puo' scattare in partita: campo senza produttore, e primo passo di chi
+      collegherà `ValidatePlan` al gioco.
       `network_privacy: partial` resta, per la ragione giusta: la validazione legge il piano completo, che
       e' dato di squadra, e nessuna verifica in rete e' possibile prima di M10.
       Il cooldown residuo entra come **parametro** e non come campo dello snapshot perche' oggi vive su

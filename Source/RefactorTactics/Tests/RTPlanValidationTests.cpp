@@ -212,6 +212,26 @@ bool FRTPlanVerdictIsPermutationInvariant::RunTest(const FString&)
 }
 
 /**
+ * Un piano vuoto non costa nulla, quindi e' legale — anche se il budget e' un valore sporco.
+ *
+ * Senza il clamp `FMath::Max(0, MoveBudget)` che ogni altro consumatore di `MoveBudget` applica, un budget
+ * negativo rendeva illegale perfino il piano vuoto (`0 > -1`), e con un motivo che parla di punti movimento
+ * a un piano che non si muove.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanEmptyPlanIsLegalEvenWithDirtyBudget,
+	"RefactorTactics.Plan.EmptyPlanIsLegalEvenWithDirtyBudget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanEmptyPlanIsLegalEvenWithDirtyBudget::RunTest(const FString&)
+{
+	const TArray<FRTPlannedAction> Empty;
+
+	TestTrue(TEXT("piano vuoto, budget 0"), URTPlanValidationLibrary::ValidatePlan(PlanUnit(0), Empty).bLegal);
+	TestTrue(TEXT("piano vuoto, budget negativo"),
+		URTPlanValidationLibrary::ValidatePlan(PlanUnit(-1), Empty).bLegal);
+	return true;
+}
+
+/**
  * Invarianza per permutazione quando a decidere sono gli SLOT, non il cooldown.
  *
  * Serve un test proprio: nella prova precedente l'illegalita' la decide il cooldown, che si trova

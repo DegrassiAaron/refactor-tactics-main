@@ -54,12 +54,26 @@ FRTPlanValidation URTPlanValidationLibrary::ValidatePlan(const FRTHexSimUnit& Un
 	}
 
 	// 2. Somma di piano: i Movement Point sono interi, e spendere ESATTAMENTE il budget e' legale.
+	//
+	// 🔴 ATTENZIONE — questo ramo oggi NON PUO' SCATTARE IN PARTITA, e non e' un difetto del validatore:
+	// `FRTActionDef::CostMP` e' un campo SENZA PRODUTTORE. Il catalogo dichiara il budget di `Action.Move`
+	// e `Action.Sprint` in `RangeCells` con `ERTMovementStyle::Budget` (`/*Range (MP)*/ 5` e `8`), e fuori
+	// dai test `CostMP` compare solo nella propria dichiarazione e nel controllo di negativita' di
+	// `URTCatalogLibrary::ValidateActions`. Finche' il catalogo non dichiara un costo, la somma vale
+	// sempre 0 e ogni piano risulta entro budget.
+	//
+	// Sta qui, e non e' stato tolto, perche' la regola e' corretta appena il dato esiste — ma chi
+	// collegherà `ValidatePlan` al gioco deve dare un produttore a `CostMP` PRIMA di fidarsi di questo
+	// ramo, altrimenti avrà un limite che il test verifica e la partita non applica.
 	int32 TotalCostMP = 0;
 	for (const FRTPlannedAction& Entry : Ordered)
 	{
 		TotalCostMP += Entry.Def.CostMP;
 	}
-	if (TotalCostMP > Unit.MoveBudget)
+	// Clamp come ogni altro consumatore di `MoveBudget` (`RTHexSimLibrary.cpp`): un budget negativo e' un
+	// difetto di configurazione, e senza clamp perfino un piano VUOTO risulterebbe illegale (0 > -1).
+	const int32 Budget = FMath::Max(0, Unit.MoveBudget);
+	if (TotalCostMP > Budget)
 	{
 		// Il colpevole e' la voce piu' cara del piano: e' quella che, tolta, lo renderebbe pianificabile.
 		const FRTPlannedAction* Costliest = nullptr;

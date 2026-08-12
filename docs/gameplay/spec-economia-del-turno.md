@@ -239,11 +239,22 @@ Un `PlanRejectionReason` parallelo con undici valori nuovi rifarebbe l'errore gi
 [`spec-tassonomia-movimento.md`](spec-tassonomia-movimento.md) §6, dove dieci reason code proposti da un kit
 erano **sette duplicati** di codici esistenti con un altro nome.
 
-Resta però un buco vero, e va detto: **la validazione in Planning non esiste come componente**. `git grep
-ValidatePlan` non restituisce nulla; ciò che esiste è `ValidateInstance`/`ApplyFallback`, che agisce **in
-risoluzione**. Oggi un piano illegale si scopre quando non funziona, non quando lo si compone. È il
-contributo strutturale che E38 dà a prescindere da tutto il resto, ed è la ragione per cui l'epic non si è
-chiusa quando `AE-1` è stata decisa.
+Il buco strutturale che E38 chiude a prescindere da tutto il resto — e la ragione per cui l'epic non si è
+chiusa quando `AE-1` è stata decisa — era che **la validazione in Planning non esisteva come componente**:
+`git grep ValidatePlan` non restituiva nulla, e ciò che esisteva (`ValidateInstance`/`ApplyFallback`) agisce
+**in risoluzione**. Un piano illegale si scopriva quando non funzionava, non quando lo si componeva.
+
+✅ **CP 38.2, 2026-08-12**: `URTPlanValidationLibrary::ValidatePlan(snapshot, piano)` è quel componente.
+Funzione pura, nove test. Ma **nessuno la chiama ancora** — il gate `runtime` della feature resta `todo`, e
+un validatore senza consumatore non è una regola: il resto della DoD di
+[#605](https://github.com/DegrassiAaron/refactor-tactics-main/issues/605) è il bot e il TurnLog.
+
+> 🔴 **E un limite dei quattro non è ancora verificabile.** Il controllo sui Movement Point legge
+> `FRTActionDef::CostMP`, che **nessuno popola**: il catalogo dichiara il budget di `Move` e `Sprint` in
+> `RangeCells` con `ERTMovementStyle::Budget` (`/*Range (MP)*/ 5` e `8`), e fuori dai test `CostMP` compare
+> solo nella propria dichiarazione e in un validatore di negatività. Finché il catalogo non dichiara un
+> costo, `InsufficientMovementPoints` **non può scattare in partita**. Non è un difetto del validatore — è
+> un campo senza produttore, ed è il primo passo di chi collegherà `ValidatePlan` al gioco.
 
 ⚠️ Due reason code proposti dal kit **non si scrivono**, e per ragioni diverse:
 `InsufficientActionCapacity` nomina uno stato che [D-114](../decisions/RT_PDR_00_Decision_Log.md) ha appena

@@ -20,7 +20,12 @@ struct FRTPlannedAction
 {
 	GENERATED_BODY()
 
-	/** L'azione dichiarata. Di lei la validazione legge `ActionId`, `Slot` e `CostMP`. */
+	/**
+	 * L'azione dichiarata. Di lei la validazione legge `ActionId`, `Slot` e `CostMP`.
+	 *
+	 * ⚠️ `CostMP` oggi non ha produttore: il catalogo v0.1 dichiara il budget di movimento in `RangeCells`
+	 * con `ERTMovementStyle::Budget`, non qui. Vedi la nota estesa in `ValidatePlan`.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Actions")
 	FRTActionDef Def;
 
@@ -73,6 +78,11 @@ public:
 	 * L'ordine dell'array non entra nel verdetto: le voci si esaminano in un ordine canonico (prima chi
 	 * occupa piu' slot, poi per `ActionId`), altrimenti lo stesso piano composto in due sequenze diverse
 	 * darebbe due motivi diversi — cioe' la presentazione deciderebbe la regola.
+	 *
+	 * PRECONDIZIONE: `Unit` e' viva. La liveness non si controlla qui e non ha un motivo proprio, perche'
+	 * un'unita' morta non compone piani: chi chiama filtra gia' i morti, come fa ogni consumatore di
+	 * `FRTHexSimUnit::bAlive`. Aggiungere un motivo per un caso che nessun chiamante puo' produrre
+	 * significherebbe un valore in piu' in un enum serializzato, mai scritto in nessuna traccia.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Actions")
 	static FRTPlanValidation ValidatePlan(const FRTHexSimUnit& Unit, const TArray<FRTPlannedAction>& Plan);
