@@ -5409,7 +5409,8 @@ features:
     issues: [556, 557, 558]
     tests: []
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:Profilo-tattico
     last_verified:
       date: 2026-08-12
       commit: 78453953
@@ -5451,7 +5452,8 @@ features:
     issues: [559, 560, 561, 563]
     tests: []
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:Profilo-tattico
     last_verified:
       date: 2026-08-12
       commit: 78453953
