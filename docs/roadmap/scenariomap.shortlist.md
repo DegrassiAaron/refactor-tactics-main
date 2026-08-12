@@ -17,9 +17,9 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 
 <!-- RT_SHORTLIST_SCENARIOS:BEGIN -->
 
-**66 scenari versionati** — misurati su `Scenarios/`: **54** eseguibili · **12** `BLOCKED` per una capability assente · **53** dichiarati `planned` nel registry e non ancora scritti.
+**68 scenari versionati** — misurati su `Scenarios/`: **56** eseguibili · **12** `BLOCKED` per una capability assente · **51** dichiarati `planned` nel registry e non ancora scritti.
 
-**Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `Cover` · `CreateCover` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `PredictiveAction` · `Reaction` · `ReactionPlanning` · `Structures`.
+**Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `BotPlanning` · `Cover` · `CreateCover` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `PredictiveAction` · `Reaction` · `ReactionPlanning` · `Structures`.
 
 | Scenario `BLOCKED` | Capability che manca |
 |---|---|
@@ -48,12 +48,10 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 | `Spec.Bot.CandidateDiversityKeepsControl` | `RT-FEAT-BOT-TACTICAL` |
 | `Spec.Bot.DecoyNoiseIndistinguishable` | `RT-FEAT-BOT-FAIRNESS` |
 | `Spec.Bot.GraphRevisionInvalidatesBelief` | `RT-FEAT-BOT-BELIEF` |
-| `Spec.Bot.HiddenEnemyFairness` | `RT-FEAT-BOT-FAIRNESS` |
 | `Spec.Bot.HoldOnUnaccountedThreat` | `RT-FEAT-BOT-PREDICTIVE` |
 | `Spec.Bot.InformationGainIgnoresHiddenContent` | `RT-FEAT-BOT-BELIEF` |
 | `Spec.Bot.OverkillMovesSecondUnit` | `RT-FEAT-BOT-TACTICAL` |
 | `Spec.Bot.PlanHysteresisIgnoresSmallDelta` | `RT-FEAT-BOT-TACTICAL` |
-| `Spec.Bot.PlansOnPartialKnowledge` | `RT-FEAT-BOT-FAIRNESS` |
 | `Spec.Bot.RobustPlanSurvivesFlank` | `RT-FEAT-BOT-PREDICTIVE` |
 | `Spec.Bot.TeamPlanRejectsHardConflict` | `RT-FEAT-BOT-TACTICAL` |
 | `Spec.Bot.TemporalSynergyRequiresPhaseOrder` | `RT-FEAT-BOT-TACTICAL` |

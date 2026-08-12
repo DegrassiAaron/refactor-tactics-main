@@ -72,6 +72,17 @@ namespace
 			// su un'azione principale, che e' la stessa strada di qualunque AoE — un canale che il gioco ha
 			// gia', non uno aperto per gli scenari. Il verde dice quindi qualcosa di vero sul giocatore.
 			TEXT("PredictiveAction"),
+			// CP 13.5 (#160): un'unita' dello scenario puo' essere guidata dal BOT invece che dal file.
+			//
+			// Si dichiara disponibile per la stessa ragione di `PredictiveAction` e non per quella che tiene
+			// fuori `ReactionPlanning`: qui l'harness NON e' il primo produttore. `ARTTurnManager::PlanBots()`
+			// gira in ogni partita 2v2, e l'harness lo raggiunge da `PlanBotsForTest()` — l'appiglio che il
+			// runner dichiara da sempre come l'unico. Il verde dice quindi qualcosa di vero sul gioco.
+			//
+			// ⚠️ Non e' il seam dei `DecisionProvider` (D-101, #542): quello serve quando i modi di giocare uno
+			// scenario diventano tre. Qui resta uno — file per gli umani, pianificatore per i bot, che e' la
+			// composizione della v0.1.
+			TEXT("BotPlanning"),
 			// `#601`: da oggi `PlannedReactionAbility` ha un produttore che non e' un test — il giocatore lo
 			// scrive da `ARTPlayerController::SelectAbilityForCurrent` (slot proprio, nessun targeting: chi
 			// subira' la reazione lo decide il trigger) e il bot da `PlanBots`, che arma quella che ha.
@@ -280,14 +291,39 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 		Unit->TeamId = Spec.TeamId;
 		Unit->ConfigureFromHeroData(Hero);
 		UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);
-		// Le unita' dello scenario NON sono bot: gli intent li decide il file, non l'utility scoring.
-		Unit->bIsBotControlled = false;
+		// Chi decide l'intent: il FILE per default, il pianificatore del gioco per le unita' dichiarate `bot`.
+		// Il default resta quello di prima — uno scenario che non dice niente non guadagna un bot per sbaglio.
+		Unit->bIsBotControlled = Spec.bBotControlled;
+		if (Spec.bBotControlled)
+		{
+			bHasBotUnits = true;
+		}
 		Unit->DispatchBeginPlay();
 		Unit->PlaceOnCell(Spec.Cell, MapOrigin, MapHexSize, MapLayerHeight);
 		// Orientamento INIZIALE (CP 13.2): dove guarda la figura appena posata. Dopo `PlaceOnCell`, che non lo
 		// tocca. Non e' una rotazione dichiarata — vedi `FRTScenarioUnit::Facing`.
 		Unit->Facing = Spec.Facing;
 
+		// Condizione INIZIALE: dopo `ConfigureFromHeroData`, che ha appena scritto i valori del roster. Un
+		// valore oltre il tetto e' un errore dello SCENARIO e non si clampa in silenzio: chi ha scritto 200 su
+		// un eroe da 120 stava descrivendo un'altra partita, e un clamp gliela farebbe passare per la sua.
+		if (Spec.Health != -1)
+		{
+			if (Spec.Health > Unit->MaxHealth)
+			{
+				return Fail(FString::Printf(TEXT("unita' '%s': health %d oltre il massimo dell'eroe (%d)"),
+					*Spec.Id, Spec.Health, Unit->MaxHealth));
+			}
+			Unit->Health = Spec.Health;
+		}
+		if (Spec.Shield != -1)
+		{
+			Unit->Shield = Spec.Shield;
+		}
+		if (Spec.VisionRange != -1)
+		{
+			Unit->VisionRange = Spec.VisionRange;
+		}
 		// EQUIPAGGIAMENTO dichiarato dallo scenario (`#602`). Le azioni concesse si accodano al kit gia'
 		// costruito da `ConfigureFromHeroData`, che e' lo stesso percorso con cui i test montano un modulo: il
 		// pezzo entra come azione, non come flag.
@@ -673,6 +709,17 @@ void FRTScenarioSession::BeginTurn()
 		return;
 	}
 
+	// Le unita' `bot` decidono ORA, con gli intent scriptati gia' scritti: e' lo stesso ordine di una partita
+	// vera, dove il giocatore blocca il piano e poi il turn manager pianifica per i suoi.
+	//
+	// `PlanBots` azzera il piano delle SOLE unita' che guida, quindi non tocca ne' sovrascrive gli intent del
+	// file. Chiamarlo prima li avrebbe invece esposti al rischio opposto — un intent scriptato che sovrascrive
+	// una decisione del bot — ed e' la ragione per cui l'ordine e' questo e non l'altro.
+	if (bHasBotUnits)
+	{
+		TM->PlanBotsForTest();
+	}
+
 	TM->LockInAndResolve();
 	State = EState::Resolving;
 	ResolveTicks = 0;
@@ -761,6 +808,26 @@ void FRTScenarioSession::Step(float DeltaSeconds, bool bPumpTurnManager)
 	default:
 		break;
 	}
+}
+
+void FRTScenarioSession::TearDown()
+{
+	for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)
+	{
+		if (ARTUnit* Unit = Pair.Value.Get())
+		{
+			Unit->Destroy();
+		}
+	}
+	UnitsById.Reset();
+
+	// Il turn manager per ULTIMO: distruggerlo prima lascerebbe le unita' senza l'attore che le conosce, e un
+	// suo callback in coda troverebbe un roster mezzo vuoto.
+	if (ARTTurnManager* TM = TurnManager.Get())
+	{
+		TM->Destroy();
+	}
+	TurnManager.Reset();
 }
 
 void FRTScenarioSession::Finish()
