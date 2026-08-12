@@ -20,6 +20,18 @@ node tools/radar/generate.ts           # riscrive i quattro SVG
 node tools/radar/generate.ts --check   # verifica, exit 1 se divergono
 ```
 
+E chi rigenera i radar riallinea anche il **testo alternativo** delle immagini sulla Wiki, che
+ripete i valori disegnati sui raggi:
+
+```sh
+node tools/radar/wiki-alt.ts --wiki-root <clone> --check   # exit 1 se un alt e' rimasto indietro
+node tools/radar/wiki-alt.ts --wiki-root <clone> --write   # lo riallinea
+```
+
+Senza questo secondo gate la catena si spezzava sull'ultimo anello: gli `alt` sono prosa scritta a
+mano nel clone, quindi un rebalance aggiornava il grafico e lasciava indietro la descrizione — chi
+vede il radar leggeva il numero nuovo, chi usa uno screen reader sentiva quello vecchio.
+
 Serve **Node 22+** e nient'altro: nessun `npm install`, nessun build step. È il prezzo dichiarato di
 D-108 — la toolchain Node è un prerequisito del **bilanciamento**, non solo della documentazione.
 

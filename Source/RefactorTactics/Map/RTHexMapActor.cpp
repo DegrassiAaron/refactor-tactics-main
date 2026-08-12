@@ -45,8 +45,15 @@ namespace
 	 * piu' fraintesa della mappa. La colonna del blocco e' alta abbastanza da leggersi dall'alto, che e' la
 	 * vista di lavoro, e resta due ordini di grandezza sotto `LayerHeight` (250) per non confondersi con un
 	 * piano — stesso vincolo del rilievo di costo.
+	 *
+	 * ⚠️ **La lastra deve restare sotto `URTHexLibrary::ReliefUnitHeight` (15 uu)**, e non e' una
+	 * preferenza estetica. Lastra e rilievo sono CONCENTRICI e partono dalla stessa quota, e la lastra e'
+	 * la piu' larga: se la supera anche in altezza, la inghiotte. Il costo massimo del catalogo v0.1 e'
+	 * `2`, quindi il rilievo piu' alto che una mappa possa produrre e' esattamente `ReliefUnitHeight` —
+	 * il che rende il caso peggiore l'unico caso, e ogni cella costosa che blocca la vista smetterebbe di
+	 * dire quanto costa. A 16 uu succedeva; `HexMapActor.CostReliefSurvivesTheSightSlab` lo misura.
 	 */
-	constexpr float RTSightSlabHeight = 16.f;
+	constexpr float RTSightSlabHeight = 10.f;
 	constexpr float RTBlockColumnHeight = 55.f;
 
 	/**

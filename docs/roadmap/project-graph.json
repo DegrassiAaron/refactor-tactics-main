@@ -1462,6 +1462,26 @@
       "state": "⏳"
     },
     {
+      "id": "PIE-HEX-VIZ-BLOCCHI",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEX-VIZ-BORDI",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEX-VIZ-COSTO",
+      "state": "🟡"
+    },
+    {
+      "id": "PIE-HEX-VIZ-PORTE",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEX-VIZ-UNDO",
+      "state": "⏳"
+    },
+    {
       "id": "PIE-HEXPLAY-1",
       "state": "✅"
     },

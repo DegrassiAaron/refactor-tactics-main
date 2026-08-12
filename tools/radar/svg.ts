@@ -33,10 +33,47 @@ export const BALANCE_AXES: AxisSpec[] = [
   { key: 'durability', label: 'Durabilità' },
 ];
 
+/** `SIZE` finisce sia nel `viewBox` sia in `width`/`height`, e i due servono a cose diverse.
+ *
+ *  Il `viewBox` da solo dà **proporzione senza dimensione**: un `<img>` che punta a un SVG privo di
+ *  `width`/`height` non ha misura intrinseca, e la decide il contenitore. Sulla Wiki, misurato il
+ *  2026-08-12, lo stesso radar veniva reso **896×896** da solo su una scheda eroe — l'intera colonna —
+ *  e **47×47** dentro la tabella di `Profilo-tattico`, dove le etichette da 12px scendono a ~1,4px e
+ *  spariscono. Due celle della stessa tabella divergevano (143 contro 117) perche' l'algoritmo di
+ *  layout si dimensiona sul **contenuto**, cioe' sulla lunghezza del testo alternativo.
+ *
+ *  Con `width`/`height` dichiarati il grafico ha una taglia propria e il contenitore puo' solo
+ *  ridurla (`max-width: 100%`), non inventarla. */
 const SIZE = 400;
 const CENTER = SIZE / 2;
 const RADIUS = 150;
 const MAX_RATING = 10;
+
+/** Le due viste di un radar: entra nel `<title>`, che è il nome accessibile dell'immagine.
+ *
+ *  È un parametro **obbligatorio** e non un default, perché il default è esattamente come i quattro
+ *  Balance Radar si sono ritrovati a dichiararsi «Profile Radar»: due chiamate identiche tranne che
+ *  per l'array degli assi, e nessuna delle due che dica quale vista sta disegnando. */
+export type RadarView = 'Profile' | 'Balance';
+
+/** Griglia, etichette e valori: **una** definizione per i due renderer, perché due blocchi di stile
+ *  copiati divergono al primo ritocco.
+ *
+ *  Il testo è scuro su fondo trasparente e su tema scuro sparisce. `@media (prefers-color-scheme)`
+ *  dentro l'SVG funziona anche quando l'immagine è caricata come `<img>` — la query legge la
+ *  preferenza del **sistema**, non quella della pagina ospite. Da lì il limite, che va conosciuto:
+ *  segue l'impostazione dell'OS, non l'interruttore di tema di GitHub. Chi tiene OS chiaro e GitHub
+ *  scuro continua a vedere il testo scuro; è il caso residuo, non più il caso normale.
+ *
+ *  I valori chiari sono quelli del testo di GitHub in tema scuro (`#c9d1d9`, `#f0f6fc` su `#0d1117`):
+ *  la griglia resta volutamente poco contrastata in **entrambi** i temi, perché è sfondo. */
+const INK = `    .grid { fill: none; stroke: #d0d0d0; stroke-width: 1 }
+    .axis { font: 12px sans-serif; text-anchor: middle; fill: #333 }
+    .value { font: bold 13px sans-serif; text-anchor: middle; fill: #111 }`;
+
+const INK_DARK = `      .grid { stroke: #4a4a4a }
+      .axis { fill: #c9d1d9 }
+      .value { fill: #f0f6fc }`;
 
 /** Decimali fissi, punto come separatore, **mai** `toLocaleString`: con locale italiano darebbe la
  *  virgola e l'SVG non sarebbe nemmeno valido. `toFixed` è già locale-independent, ma il vincolo va
@@ -64,6 +101,7 @@ export function renderRadar(
   role: string,
   axes: AxisSpec[],
   values: Record<string, number | undefined>,
+  view: RadarView,
 ): string {
   const missing = axes.filter((a) => typeof values[a.key] !== 'number').map((a) => a.key);
   if (missing.length > 0) {
@@ -92,13 +130,15 @@ export function renderRadar(
     })
     .join('\n');
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SIZE} ${SIZE}" role="img" aria-labelledby="t">
-  <title id="t">${escapeXml(hero)} — ${escapeXml(role)} — Profile Radar</title>
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}" role="img" aria-labelledby="t">
+  <title id="t">${escapeXml(hero)} — ${escapeXml(role)} — ${view} Radar</title>
   <style>
-    .grid { fill: none; stroke: #d0d0d0; stroke-width: 1 }
+${INK}
     .shape { fill: #4a7fb5; fill-opacity: .35; stroke: #2b5c8a; stroke-width: 2 }
-    .axis { font: 12px sans-serif; text-anchor: middle; fill: #333 }
-    .value { font: bold 13px sans-serif; text-anchor: middle; fill: #111 }
+    @media (prefers-color-scheme: dark) {
+${INK_DARK}
+      .shape { fill: #7fb0e0; stroke: #a8cdf0 }
+    }
   </style>
 ${grid}
   <polygon class="shape" points="${shape}" />
@@ -138,24 +178,32 @@ export function renderCompare(
     })
     .join('\n');
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SIZE} ${SIZE}" role="img" aria-labelledby="t">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}" role="img" aria-labelledby="t">
   <title id="t">${escapeXml(a.name)} vs ${escapeXml(b.name)} — confronto</title>
   <style>
-    .grid { fill: none; stroke: #d0d0d0; stroke-width: 1 }
+${INK}
     .shape { fill-opacity: .25; stroke-width: 2 }
     .a { fill: #4a7fb5; stroke: #2b5c8a }
     .b { fill: #b5764a; stroke: #8a5a2b }
-    .axis { font: 12px sans-serif; text-anchor: middle; fill: #333 }
     .legend { font: bold 12px sans-serif }
+    .a-ink { fill: #2b5c8a }
+    .b-ink { fill: #8a5a2b }
+    @media (prefers-color-scheme: dark) {
+${INK_DARK}
+      .a { fill: #7fb0e0; stroke: #a8cdf0 }
+      .b { fill: #e0a87f; stroke: #f0cda8 }
+      .a-ink { fill: #a8cdf0 }
+      .b-ink { fill: #f0cda8 }
+    }
   </style>
 ${grid}
 ${shape(a, 'a')}
 ${shape(b, 'b')}
 ${labels}
   <rect class="a" x="12.00" y="12.00" width="12.00" height="12.00" />
-  <text class="legend" x="30.00" y="22.00" fill="#2b5c8a">${escapeXml(a.name)}</text>
+  <text class="legend a-ink" x="30.00" y="22.00">${escapeXml(a.name)}</text>
   <rect class="b" x="12.00" y="30.00" width="12.00" height="12.00" />
-  <text class="legend" x="30.00" y="40.00" fill="#8a5a2b">${escapeXml(b.name)}</text>
+  <text class="legend b-ink" x="30.00" y="40.00">${escapeXml(b.name)}</text>
 </svg>
 `;
 }

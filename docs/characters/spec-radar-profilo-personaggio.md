@@ -67,6 +67,62 @@ Profile.
 > concludere che non esistano affatto — che è falso, e produrrebbe un argomento più debole di quello
 > vero: esistono, e il foglio stesso dimostra che sono default.
 
+### 2.2a Che cosa misurano `precision` e `power`
+
+Il Profile ha **un solo** asse `offense`; il Balance lo scompone in due. Senza dire cosa distingue i
+due pezzi, la formula non è scrivibile — e per un po' la differenza non è stata scritta da nessuna parte.
+
+**Il vincolo che decide tutto: nel combattimento non c'è RNG.** Nessun tiro per colpire, nessuna
+`accuracy`. Quindi «precisione» non può significare *probabilità di andare a segno*: dev'essere
+strutturale.
+
+**`power` — quanto danno l'eroe produce per turno**, tenendo conto di quanto spesso può farlo:
+
+```
+power_raw = Σ  danno_garantito(azione) × disponibilità(cooldown)      ancora: raw 100 = 10
+```
+
+Non è *burst*: un colpo enorme ogni tre turni non vale quanto uno ripetibile.
+
+**`precision` — quanto di quel danno arriva senza chiedere niente**, né setup né posizionamento della
+squadra:
+
+```
+precision = (incondizionalità + 2 · selettività) / 3
+```
+
+- **incondizionalità** — quota di danno **garantito** sul potenziale, pesata per disponibilità;
+- **selettività** — quota della **disponibilità** delle azioni rilevanti che non rischia gli alleati.
+
+⚠️ **Due componenti, due metriche, e non è una svista**: un'abilità senza danno non ha danno da pesare,
+quindi la selettività si misura sulla disponibilità. È anche più fedele — il rischio di colpire un
+alleato dipende da **quanto spesso** usi l'azione, non da quanto fa male.
+
+⚠️ **Il peso `1:2` è misurato, non scelto**: sul roster l'incondizionalità varia da `0.77` a `1.00`
+mentre la selettività copre l'intero `0.00–1.00`. Pesare di più la componente che varia meno
+comprimerebbe tre eroi su quattro nello stesso intero.
+
+**`precision` guarda solo le azioni offensive** — più le abilità senza danno il cui effetto si applica a
+un'**area** e produce sugli alleati lo **stesso** svantaggio che produce sui nemici (`MistVeil`,
+`FluidTrail`). Una copertura no: protegge chi vi sta dietro. Altrimenti un eroe risulterebbe «preciso»
+per abilità che non colpiscono nessuno.
+
+### 2.2b La commensurabilità è una posizione, non un fatto
+
+Il Balance serve anche a vedere se un eroe **sta nel budget**, e questo impone che i cinque assi si
+sommino. Ma `power` è una **quantità** (danno per turno) e `precision` una **qualità** (quanto è
+affidabile): sommarle afferma **«l'affidabilità è potenza»**.
+
+È difendibile — un colpo che va sempre a segno vale più di uno da preparare — ed è già ciò che il
+workbook faceva sommando i cinque assi in `Indice_Combat`. Ma è una **scelta**, e va scritta qui:
+altrimenti fra sei mesi qualcuno somma quei numeri senza sapere di averlo deciso.
+
+⚠️ **Ne segue la regola che tiene insieme i due assi**: un bonus condizionale non può contribuire a
+entrambi. Se `power` contasse il potenziale, il `+8 su Wet` di Flux **alzerebbe** `power` e
+**abbasserebbe** `precision`, e in un indice sommabile i due movimenti **si cancellerebbero** — il
+tratto più identitario di Flux sparirebbe dal costo. Perciò `power` conta solo il danno **garantito**
+(§5.2), e il condizionale vive interamente in `precision`.
+
 ### 2.3 L'ordine fa parte della specifica
 
 Cambiare l'ordine dei raggi cambia la forma del poligono a parità di valori. Due radar prodotti con
@@ -353,3 +409,34 @@ Node diventa un prerequisito del **bilanciamento**, non solo della documentazion
 Scala identica in ogni confronto, nessun auto-scaling per personaggio, valori leggibili anche come
 testo, e distinzione fra poligoni che **non dipende solo dal colore** (tratto, pattern, legenda).
 L'SVG dichiara `role="img"` e una descrizione testuale.
+
+**Leggibili su entrambi i temi.** «Valori leggibili come testo» non è soddisfatto da un testo che
+*esiste* nel documento: fino al 2026-08-12 le etichette erano `#333` e i valori `#111` su fondo
+trasparente, e su tema scuro sparivano. L'SVG porta ora un blocco
+`@media (prefers-color-scheme: dark)`, che vale anche quando l'immagine è caricata come `<img>`
+perché la query legge la preferenza del **sistema**. Limite noto e accettato: segue l'OS, non
+l'interruttore di tema del sito che ospita l'immagine.
+
+**Il `<title>` dice quale vista è.** È il nome accessibile a cui punta `aria-labelledby`, e le due
+viste sono altrimenti indistinguibili — due poligoni 400×400 sugli stessi colori. Fino al 2026-08-12
+tutti e quattro i Balance Radar si annunciavano come `Profile Radar`, perché la vista non era un
+parametro. Ora lo è, ed è obbligatorio (`RadarView` in `tools/radar/svg.ts`).
+
+**Il grafico dichiara la propria dimensione.** Un `viewBox` senza `width`/`height` dà proporzione
+ma non misura: dentro un `<img>` la taglia la decide il contenitore. Misurato sulla Wiki il
+2026-08-12, prima della correzione: **896×896** su una scheda eroe — l'intera colonna — e **47×47**
+dentro la tabella di `Profilo tattico`, dove le etichette da 12px scendono a circa 1,4px. Due celle
+della stessa tabella divergevano (143 contro 117) perché il layout si dimensiona sul contenuto, cioè
+sulla **lunghezza del testo alternativo**: la descrizione finiva per decidere la taglia del grafico.
+La radice porta ora `width="400" height="400"`, e il contenitore può solo ridurre.
+
+**Il testo alternativo ripete i valori, e un gate lo verifica.** Quando il radar è pubblicato come
+immagine, il `<title>` interno non raggiunge il lettore: conta l'`alt` della pagina che lo incorpora.
+Fino al 2026-08-12 sulla Wiki erano etichette senza numeri («Profile Radar di Flux»): chi vede il
+grafico leggeva sei valori, chi usa uno screen reader ne riceveva zero. L'`alt` è ora
+`<title>: <asse> <valore>, …` e si ricava **dall'SVG**, mai da una tabella parallela.
+
+Ne segue la catena, che è la ragione del gate: **cataloghi → SVG → alt**. Il primo anello lo tiene
+`generate.ts --check`, il secondo `wiki-alt.ts --check`. Senza il secondo, un rebalance aggiornava il
+grafico e lasciava indietro la descrizione, in silenzio — la prosa della Wiki è scritta a mano
+([D-076](../decisions/RT_PDR_00_Decision_Log.md)) e nessun deploy la tocca.

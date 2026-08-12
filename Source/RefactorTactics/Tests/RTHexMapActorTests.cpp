@@ -7,6 +7,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Terrain/RTTerrainLibrary.h" // il costo di Rough arriva dal catalogo, non da un numero scritto qui
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -267,6 +268,337 @@ bool FRTHexMapActorPickTest::RunTest(const FString&)
 	TestFalse(TEXT("indice negativo"), Actor->IsPickOnSelectableCell(Cells, INDEX_NONE));
 
 	TestFalse(TEXT("nessun colpo"), Actor->IsPickOnSelectableCell(nullptr, 0));
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+namespace
+{
+	/** Le istanze di un ISM, in world space: quello che l'autore della mappa vede davvero. */
+	TArray<FTransform> InstancesOf(const ARTHexMapActor* Actor, const TCHAR* ComponentName)
+	{
+		TArray<FTransform> Out;
+		TArray<UInstancedStaticMeshComponent*> Isms;
+		Actor->GetComponents(Isms);
+		for (const UInstancedStaticMeshComponent* Ism : Isms)
+		{
+			if (Ism->GetName() != ComponentName) { continue; }
+			for (int32 I = 0; I < Ism->GetInstanceCount(); ++I)
+			{
+				FTransform Xf;
+				Ism->GetInstanceTransform(I, Xf, /*bWorldSpace=*/ true);
+				Out.Add(Xf);
+			}
+		}
+		return Out;
+	}
+}
+
+/**
+ * I volumi di blocco nascono dai FLAG della cella, uno per regola, e una cella che ne ha due li mostra
+ * entrambi.
+ *
+ * E' la parte che una verifica a occhio non copre: guardando la mappa si vede *che* c'e' qualcosa, non
+ * *quante* regole sta dicendo. Una cella con entrambi i flag che producesse un volume solo sarebbe
+ * indistinguibile da una che ne ha uno, e sarebbe una vista che mente — il difetto che
+ * `brief-editor-map-viz.md` §1 mette in testa.
+ *
+ * Il test non incide i valori: verifica le RELAZIONI. Ritoccare le altezze resta libero, farle collassare
+ * no.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorBlockerVolumesTest,
+	"RefactorTactics.HexMapActor.BlockerVolumesComeFromCellFlags",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorBlockerVolumesTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+
+	// Le quattro combinazioni possibili, una per cella: nessuna regola, solo vista, solo movimento, entrambe.
+	URTHexMapAsset* Asset = NewObject<URTHexMapAsset>();
+	FRTHexCellData Libera(FRTCellId(0, 0, 0));
+	FRTHexCellData SoloVista(FRTCellId(1, 0, 0));
+	SoloVista.bBlocksLineOfSight = true;
+	FRTHexCellData SoloMovimento(FRTCellId(2, 0, 0));
+	SoloMovimento.bBlocksMovement = true;
+	FRTHexCellData Entrambi(FRTCellId(3, 0, 0));
+	Entrambi.bBlocksLineOfSight = true;
+	Entrambi.bBlocksMovement = true;
+	Asset->AddOrUpdateCell(Libera);
+	Asset->AddOrUpdateCell(SoloVista);
+	Asset->AddOrUpdateCell(SoloMovimento);
+	Asset->AddOrUpdateCell(Entrambi);
+	Asset->SortCells();
+
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!Actor)
+	{
+		AddError(TEXT("actor non spawnato"));
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	const TArray<FTransform> Volumi = InstancesOf(Actor, TEXT("Blockers"));
+
+	// Tre celle con almeno una regola, ma QUATTRO volumi: la cella con entrambi i flag ne riceve due.
+	TestEqual(TEXT("un volume per ogni regola dichiarata, non per ogni cella"), Volumi.Num(), 4);
+
+	// Due forme e non una: le altezze distinte devono essere esattamente due, ciascuna usata due volte.
+	// Il test non sa quanto sono alte — sa che sono diverse, ed e' cio' che rende leggibile la mappa.
+	TArray<double> Altezze;
+	for (const FTransform& Xf : Volumi)
+	{
+		const double H = Xf.GetScale3D().Z;
+		bool bNota = false;
+		for (const double A : Altezze) { bNota = bNota || FMath::IsNearlyEqual(A, H, 0.001); }
+		if (!bNota) { Altezze.Add(H); }
+	}
+	TestEqual(TEXT("due regole, due altezze distinte"), Altezze.Num(), 2);
+
+	if (Altezze.Num() == 2)
+	{
+		const double Alta = FMath::Max(Altezze[0], Altezze[1]);
+		const double Bassa = FMath::Min(Altezze[0], Altezze[1]);
+		int32 NAlte = 0, NBasse = 0;
+		double LarghezzaAlta = 0.0, LarghezzaBassa = 0.0;
+		for (const FTransform& Xf : Volumi)
+		{
+			if (FMath::IsNearlyEqual(Xf.GetScale3D().Z, Alta, 0.001))
+			{
+				++NAlte;
+				LarghezzaAlta = Xf.GetScale3D().X;
+			}
+			else
+			{
+				++NBasse;
+				LarghezzaBassa = Xf.GetScale3D().X;
+			}
+		}
+		// Due celle bloccano il movimento e due la vista: i conti tornano solo se ogni flag produce il suo.
+		TestEqual(TEXT("due volumi alti"), NAlte, 2);
+		TestEqual(TEXT("due volumi bassi"), NBasse, 2);
+
+		// «Forma per la regola»: dall'alto — che e' la vista di LAVORO — la sola altezza non si vede. Il
+		// volume alto deve essere anche il piu' STRETTO, o a picco i due si somigliano.
+		TestTrue(TEXT("il volume alto e' anche il piu' stretto: si distinguono anche a picco"),
+			LarghezzaAlta < LarghezzaBassa);
+	}
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * I pannelli di bordo stanno SUL LATO che il dato dichiara, e coperture alte e basse si distinguono.
+ *
+ * La posizione e' l'unica cosa che conta davvero: una copertura ripara da un lato e non dall'altro, quindi
+ * un pannello sul lato sbagliato non e' un difetto estetico — dice il contrario del vero. Ed e' l'errore
+ * piu' facile da fare in silenzio, perche' i sei lati si somigliano e nessuno se ne accorge finche' non
+ * perde un'unita' su una rotta che credeva coperta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorEdgePanelsTest,
+	"RefactorTactics.HexMapActor.EdgePanelsSitOnTheDeclaredEdge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorEdgePanelsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+
+	URTHexMapAsset* Asset = NewObject<URTHexMapAsset>();
+	FRTHexCellData Cella(FRTCellId(0, 0, 0));
+	Cella.Covers.Add(FRTHexCover(ERTHexDirection::E, ERTHexCoverType::Low));
+	Cella.Covers.Add(FRTHexCover(ERTHexDirection::NW, ERTHexCoverType::High));
+	Cella.Doors.Add(FRTHexDoor(ERTHexDirection::SW, ERTHexDoorState::Closed));
+	Asset->AddOrUpdateCell(Cella);
+	// Una cella SENZA bordi: se i pannelli venissero disegnati per cella invece che per bordo, il conteggio
+	// se ne accorgerebbe.
+	Asset->AddOrUpdateCell(FRTHexCellData(FRTCellId(5, 0, 0)));
+	Asset->SortCells();
+
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!Actor)
+	{
+		AddError(TEXT("actor non spawnato"));
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	const TArray<FTransform> Pannelli = InstancesOf(Actor, TEXT("EdgeFeatures"));
+	TestEqual(TEXT("tre bordi dichiarati, tre pannelli"), Pannelli.Num(), 3);
+
+	FVector Origin = FVector::ZeroVector;
+	float HexSize = 0.f;
+	float LayerH = 0.f;
+	Actor->GetHexContext(Origin, HexSize, LayerH);
+
+	// Ogni pannello sul punto che la LIBRERIA calcola per quel lato: il test chiede la stessa cosa che
+	// chiede il codice, cosi' se la convenzione dei sei lati cambiasse si muoverebbero insieme.
+	auto AltezzaSulLato = [&](ERTHexDirection Lato, double& OutAltezza) -> bool
+	{
+		const FVector Atteso = URTHexLibrary::EdgeMidpointWorld(FRTCellId(0, 0, 0), Lato, Origin, HexSize,
+			LayerH);
+		for (const FTransform& Xf : Pannelli)
+		{
+			const FVector P = Xf.GetLocation();
+			if (FMath::IsNearlyEqual(P.X, Atteso.X, 0.5) && FMath::IsNearlyEqual(P.Y, Atteso.Y, 0.5))
+			{
+				OutAltezza = Xf.GetScale3D().Z;
+				return true;
+			}
+		}
+		return false;
+	};
+
+	double CopBassa = 0.0, CopAlta = 0.0, Porta = 0.0;
+	TestTrue(TEXT("c'e' un pannello sul lato E, dove sta la copertura bassa"),
+		AltezzaSulLato(ERTHexDirection::E, CopBassa));
+	TestTrue(TEXT("c'e' un pannello sul lato NW, dove sta la copertura alta"),
+		AltezzaSulLato(ERTHexDirection::NW, CopAlta));
+	TestTrue(TEXT("c'e' un pannello sul lato SW, dove sta la porta"),
+		AltezzaSulLato(ERTHexDirection::SW, Porta));
+
+	// Alta e bassa devono restare distinguibili: sono due regole diverse — l'alta NEGA l'attraversamento,
+	// la bassa ripara e basta — e confonderle fa credere percorribile un bordo che non lo e'.
+	TestTrue(TEXT("la copertura alta e' piu' alta della bassa"), CopAlta > CopBassa);
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * Una porta chiusa si vede chiusa, e una aperta si vede aperta.
+ *
+ * ⚠️ **Quattro stati, due forme, ed e' una scelta**: `RebuildInstances` mostra `Destroyed` come aperta —
+ * *«e' terminale e non si richiude: si mostra come aperta, perche' e' cio' che e'»* — e `Locked` come
+ * chiusa. Questo test pinna quella scelta invece di contestarla, e la rende esplicita a chi la rilegge.
+ *
+ * ⚠️ Ne segue un limite noto: l'acceptance di #553 chiedeva che *«lo stato di una porta sia visibile e
+ * cambi quando cambia il dato»*, e passare da `Closed` a `Locked` **non cambia nulla di visibile**. Chi
+ * dipinge non puo' sapere, guardando, se un varco si apre da solo. Serve un secondo canale — ingombro o
+ * spessore — e non e' stato aggiunto qui perche' e' una decisione di presentazione, non un difetto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorDoorPanelsTest,
+	"RefactorTactics.HexMapActor.DoorPanelsShowWhetherYouCanPass",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorDoorPanelsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+
+	URTHexMapAsset* Asset = NewObject<URTHexMapAsset>();
+	const TArray<ERTHexDoorState> Stati = {
+		ERTHexDoorState::Open, ERTHexDoorState::Closed, ERTHexDoorState::Locked, ERTHexDoorState::Destroyed
+	};
+	for (int32 I = 0; I < Stati.Num(); ++I)
+	{
+		// Celle lontane fra loro: due porte adiacenti condividerebbero un bordo e i pannelli si
+		// sovrapporrebbero, rendendo ambiguo di chi e' quale.
+		FRTHexCellData C(FRTCellId(I * 4, 0, 0));
+		C.Doors.Add(FRTHexDoor(ERTHexDirection::E, Stati[I]));
+		Asset->AddOrUpdateCell(C);
+	}
+	Asset->SortCells();
+
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!Actor)
+	{
+		AddError(TEXT("actor non spawnato"));
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	FVector Origin = FVector::ZeroVector;
+	float HexSize = 0.f;
+	float LayerH = 0.f;
+	Actor->GetHexContext(Origin, HexSize, LayerH);
+	const TArray<FTransform> Pannelli = InstancesOf(Actor, TEXT("EdgeFeatures"));
+	TestEqual(TEXT("quattro porte, quattro pannelli"), Pannelli.Num(), 4);
+
+	auto AltezzaDellaPorta = [&](int32 Indice) -> double
+	{
+		const FVector Atteso = URTHexLibrary::EdgeMidpointWorld(FRTCellId(Indice * 4, 0, 0),
+			ERTHexDirection::E, Origin, HexSize, LayerH);
+		for (const FTransform& Xf : Pannelli)
+		{
+			const FVector P = Xf.GetLocation();
+			if (FMath::IsNearlyEqual(P.X, Atteso.X, 0.5) && FMath::IsNearlyEqual(P.Y, Atteso.Y, 0.5))
+			{
+				return Xf.GetScale3D().Z;
+			}
+		}
+		return -1.0;
+	};
+
+	const double Aperta = AltezzaDellaPorta(0);
+	const double Chiusa = AltezzaDellaPorta(1);
+	const double Bloccata = AltezzaDellaPorta(2);
+	const double Sfondata = AltezzaDellaPorta(3);
+
+	// La distinzione che conta: si passa o non si passa. E' netta, non una sfumatura.
+	TestTrue(TEXT("una porta chiusa e' molto piu' alta di una aperta"), Chiusa > Aperta * 4.0);
+	// E le due coppie stanno insieme, come il codice dichiara di volere.
+	TestTrue(TEXT("bloccata come chiusa: bloccano allo stesso modo"),
+		FMath::IsNearlyEqual(Bloccata, Chiusa, 0.001));
+	TestTrue(TEXT("sfondata come aperta: si passa in entrambe"),
+		FMath::IsNearlyEqual(Sfondata, Aperta, 0.001));
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * Il costo di attraversamento resta leggibile anche dove una regola di blocco occupa la stessa cella.
+ *
+ * I due canali convivono per costruzione — il rilievo dice *quanto costa*, i volumi dicono *cosa fa* — ma
+ * convivono solo finche' le loro proporzioni glielo permettono: sono concentrici e partono dalla stessa
+ * quota, quindi il piu' largo e piu' alto **inghiotte** l'altro senza che nulla segnali il problema.
+ *
+ * Il caso non e' teorico ed e' l'unico che esista: il costo massimo del catalogo v0.1 e' `2`, quindi il
+ * rilievo piu' alto che una mappa possa produrre e' `ReliefUnitHeight`. Se la lastra della vista lo
+ * supera, **ogni** cella costosa che blocca la vista smette di dire quanto costa — e una vista che tace
+ * su un dato che il gioco applica e' esattamente cio' che il brief §1 chiama una vista che mente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorReliefUnderSlabTest,
+	"RefactorTactics.HexMapActor.CostReliefSurvivesTheSightSlab",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorReliefUnderSlabTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+
+	// Una cella che costa piu' del pavimento E blocca la vista: la combinazione che serve a una rotta
+	// coperta ma percorribile, cioe' quella che l'autore della mappa cerca apposta.
+	URTHexMapAsset* Asset = NewObject<URTHexMapAsset>();
+	FRTHexCellData Costosa(FRTCellId(0, 0, 0));
+	Costosa.Surface = ERTHexSurface::Rough;
+	Costosa.MoveCost = URTTerrainLibrary::FindTerrainDef(ERTHexSurface::Rough).MoveCost;
+	Costosa.bBlocksLineOfSight = true;
+	Asset->AddOrUpdateCell(Costosa);
+	Asset->SortCells();
+
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!Actor)
+	{
+		AddError(TEXT("actor non spawnato"));
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	const TArray<FTransform> Rilievi = InstancesOf(Actor, TEXT("Relief"));
+	const TArray<FTransform> Volumi = InstancesOf(Actor, TEXT("Blockers"));
+	if (Rilievi.Num() != 1 || Volumi.Num() != 1)
+	{
+		AddError(FString::Printf(TEXT("atteso un rilievo e un volume, trovati %d e %d"),
+			Rilievi.Num(), Volumi.Num()));
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	const FVector ScalaRilievo = Rilievi[0].GetScale3D();
+	const FVector ScalaLastra = Volumi[0].GetScale3D();
+
+	// Concentrici e con la stessa base: uno sparisce dentro l'altro se e' insieme piu' basso e piu' stretto.
+	const bool bPiuBasso = ScalaRilievo.Z <= ScalaLastra.Z;
+	const bool bPiuStretto = ScalaRilievo.X <= ScalaLastra.X;
+	TestFalse(TEXT("il rilievo del costo non e' inghiottito dalla lastra della vista"),
+		bPiuBasso && bPiuStretto);
 
 	DestroyMapActorWorld(World);
 	return true;
