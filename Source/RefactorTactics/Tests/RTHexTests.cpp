@@ -369,6 +369,158 @@ bool FRTHexReliefFromCatalogTest::RunTest(const FString&)
 }
 
 /**
+ * Il bordo fra due celle e' UNO SOLO, e la libreria deve saperlo dire senza che nessun chiamante incida un
+ * angolo.
+ *
+ * `MakeCoverYardArena` gia' avverte: «la direzione si CHIEDE alla libreria invece di scriverla a mano: se la
+ * convenzione dei sei lati cambiasse, un valore inciso qui diventerebbe silenziosamente il bordo sbagliato».
+ * Finora pero' non c'era nulla da chiedere per la GEOMETRIA di un lato — solo `AxialDirection`,
+ * `DirectionTowards` e `HexCorners`, cioe' i vertici — e chi doveva disegnare su un bordo avrebbe scelto due
+ * indici di `HexCorners` a occhio.
+ *
+ * Il test non verifica dei numeri: verifica le RELAZIONI che rendono la funzione derivata invece che incisa.
+ * Se domani la convenzione dei sei lati cambiasse, questi vincoli reggerebbero e la geometria seguirebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexEdgeTransformTest,
+	"RefactorTactics.Hex.EdgeTransformIsDerivedFromCellCenters",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexEdgeTransformTest::RunTest(const FString&)
+{
+	const FVector Origin(1000.0, -500.0, 250.0); // non l'origine del mondo: un offset sbagliato si vedrebbe
+	const float HexSize = 120.f;
+	const float LayerHeight = 250.f;
+	const FRTCellId Cell(3, -2, 1);
+
+	for (int32 D = 0; D < 6; ++D)
+	{
+		const ERTHexDirection Dir = static_cast<ERTHexDirection>(D);
+		const FRTCellId Vicino = URTHexLibrary::Neighbor(Cell, Dir);
+		const FVector CentroCella = URTHexLibrary::AxialToWorld(Cell, Origin, HexSize, LayerHeight);
+		const FVector CentroVicino = URTHexLibrary::AxialToWorld(Vicino, Origin, HexSize, LayerHeight);
+		const FTransform Bordo = URTHexLibrary::EdgeTransform(Cell, Dir, Origin, HexSize, LayerHeight);
+
+		// 1. Sta a META' STRADA fra i due centri. E' la definizione del §5 del brief, e l'unica che non
+		//    richiede di sapere quali vertici dell'esagono delimitano quel lato.
+		TestTrue(FString::Printf(TEXT("dir %d: il bordo e' il punto medio fra i due centri"), D),
+			Bordo.GetLocation().Equals((CentroCella + CentroVicino) * 0.5, 0.01));
+
+		// 2. Guarda VERSO il vicino: e' cio' che rende «da che lato sono coperto» una domanda con risposta.
+		//    Un pannello ruotato di 90 gradi direbbe il bordo sbagliato pur stando nel posto giusto.
+		const FVector Avanti = Bordo.GetRotation().GetForwardVector();
+		const FVector VersoIlVicino = (CentroVicino - CentroCella).GetSafeNormal();
+		TestTrue(FString::Printf(TEXT("dir %d: guarda verso il vicino"), D),
+			Avanti.Equals(VersoIlVicino, 0.01));
+
+		// 3. Resta sul PIANO della cella: un bordo che scivolasse di quota apparterrebbe a un altro layer, e
+		//    su una mappa multilivello sarebbe indistinguibile da un errore di dato.
+		TestTrue(FString::Printf(TEXT("dir %d: stessa quota del centro cella"), D),
+			FMath::IsNearlyEqual(Bordo.GetLocation().Z, CentroCella.Z, 0.01));
+	}
+
+	// 4. La proprieta' che vale piu' delle altre tre: **il bordo E di una cella E' il bordo W del suo vicino**.
+	//    Sono lo stesso muro visto da due stanze. Se le due chiamate dessero punti diversi, una copertura
+	//    disegnata dalla cella A e la stessa vista da B starebbero in due posti, e la mappa mostrerebbe due
+	//    ripari dove il dato ne ha uno.
+	const FRTCellId Vicino = URTHexLibrary::Neighbor(Cell, ERTHexDirection::E);
+	const FTransform DaQui = URTHexLibrary::EdgeTransform(Cell, ERTHexDirection::E, Origin, HexSize, LayerHeight);
+	const FTransform DaLa = URTHexLibrary::EdgeTransform(Vicino, ERTHexDirection::W, Origin, HexSize, LayerHeight);
+	TestTrue(TEXT("il bordo E di una cella e' il bordo W del vicino: stesso punto"),
+		DaQui.GetLocation().Equals(DaLa.GetLocation(), 0.01));
+
+	// ...e i due lo guardano da lati OPPOSTI. Serve a chi disegna: un pannello per bordo, non due sovrapposti.
+	TestTrue(TEXT("e lo guardano da versi opposti"),
+		DaQui.GetRotation().GetForwardVector().Equals(-DaLa.GetRotation().GetForwardVector(), 0.01));
+
+	// 5. Sei direzioni, sei bordi DISTINTI. Senza questo, un errore nella tabella delle direzioni che facesse
+	//    collassare due lati passerebbe tutti i controlli qui sopra.
+	TArray<FVector> Punti;
+	for (int32 D = 0; D < 6; ++D)
+	{
+		Punti.Add(URTHexLibrary::EdgeTransform(Cell, static_cast<ERTHexDirection>(D), Origin, HexSize,
+			LayerHeight).GetLocation());
+	}
+	int32 Coincidenti = 0;
+	for (int32 A = 0; A < Punti.Num(); ++A)
+	{
+		for (int32 B = A + 1; B < Punti.Num(); ++B)
+		{
+			if (Punti[A].Equals(Punti[B], 0.01)) { ++Coincidenti; }
+		}
+	}
+	TestEqual(TEXT("i sei bordi sono sei punti distinti"), Coincidenti, 0);
+
+	return true;
+}
+
+/**
+ * Le porte hanno QUATTRO stati e la vista ne deve dire quattro: se due collassassero nella stessa forma, la
+ * mappa mostrerebbe una porta che non e' quella che il dato contiene.
+ *
+ * Il rischio e' concreto perche' la seconda distinzione — «chi la cambia» — e' portata dall'ingombro, che e'
+ * un canale piu' debole dell'altezza. Un ritocco fatto per far star meglio i pannelli potrebbe avvicinarli
+ * fino a renderli la stessa cosa **senza rompere nulla di visibile**: questo test e' cio' che lo impedisce.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexDoorProfilesTest,
+	"RefactorTactics.Hex.DoorProfilesTellTheFourStatesApart",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexDoorProfilesTest::RunTest(const FString&)
+{
+	const TArray<ERTHexDoorState> Stati = {
+		ERTHexDoorState::Open, ERTHexDoorState::Closed, ERTHexDoorState::Locked, ERTHexDoorState::Destroyed
+	};
+
+	// 1. Quattro stati, quattro profili distinti. Il confronto e' a coppie: basta che DUE coincidano perche'
+	//    la mappa smetta di poter dire quale delle due sta guardando.
+	int32 Coincidenti = 0;
+	for (int32 A = 0; A < Stati.Num(); ++A)
+	{
+		for (int32 B = A + 1; B < Stati.Num(); ++B)
+		{
+			if (URTHexLibrary::DoorPanelProfile(Stati[A]).Equals(URTHexLibrary::DoorPanelProfile(Stati[B]), 0.001))
+			{
+				++Coincidenti;
+			}
+		}
+	}
+	TestEqual(TEXT("i quattro stati hanno quattro profili distinti"), Coincidenti, 0);
+
+	// 2. La distinzione che conta di piu' e' anche la piu' forte: quella fra «ci si passa» e «non ci si passa»
+	//    sta nell'ALTEZZA, ed e' netta. Chiuse e bloccate stanno sopra; aperte e sfondate sotto.
+	const float Aperta = URTHexLibrary::DoorPanelProfile(ERTHexDoorState::Open).Z;
+	const float Sfondata = URTHexLibrary::DoorPanelProfile(ERTHexDoorState::Destroyed).Z;
+	const float Chiusa = URTHexLibrary::DoorPanelProfile(ERTHexDoorState::Closed).Z;
+	const float Bloccata = URTHexLibrary::DoorPanelProfile(ERTHexDoorState::Locked).Z;
+	TestTrue(TEXT("una porta chiusa e' molto piu' alta di una aperta"), Chiusa > Aperta * 4.f);
+	TestTrue(TEXT("una bloccata e' alta come una chiusa: bloccano allo stesso modo"),
+		FMath::IsNearlyEqual(Bloccata, Chiusa, 0.01f));
+	TestTrue(TEXT("una sfondata e' bassa come una aperta: si passa in entrambe"),
+		FMath::IsNearlyEqual(Sfondata, Aperta, 0.01f));
+
+	// 3. ...e la seconda domanda e' portata dall'INGOMBRO, sull'asse che l'altezza lascia libero. E' cio' che
+	//    rende i due assi indipendenti invece di due modi di dire la stessa cosa.
+	TestTrue(TEXT("la bloccata e' piu' spessa della chiusa"),
+		URTHexLibrary::DoorPanelProfile(ERTHexDoorState::Locked).X
+			> URTHexLibrary::DoorPanelProfile(ERTHexDoorState::Closed).X);
+	TestTrue(TEXT("la sfondata occupa meno lato della aperta: manca un pezzo"),
+		URTHexLibrary::DoorPanelProfile(ERTHexDoorState::Destroyed).Y
+			< URTHexLibrary::DoorPanelProfile(ERTHexDoorState::Open).Y);
+
+	// 4. Le coperture: due tipi, due altezze, e quella ALTA nega l'attraversamento come un muro — quindi deve
+	//    stare dalla parte dei blocchi, non da quella dei muretti. Il legame e' con la colonna di #552: sono
+	//    la stessa regola detta su un bordo invece che su una cella, e devono somigliarsi.
+	const float Bassa = URTHexLibrary::CoverPanelProfile(ERTHexCoverType::Low).Z;
+	const float Alta = URTHexLibrary::CoverPanelProfile(ERTHexCoverType::High).Z;
+	TestTrue(TEXT("la copertura alta e' piu' alta della bassa"), Alta > Bassa);
+	TestTrue(TEXT("e sta vicino alla colonna che dice «non si passa»"),
+		Alta > URTHexLibrary::MovementBlockerHeight * 0.5f);
+	// La bassa invece si scavalca con lo sguardo: non deve poter essere scambiata per un blocco.
+	TestTrue(TEXT("la bassa resta ben sotto quella colonna"),
+		Bassa < URTHexLibrary::MovementBlockerHeight * 0.5f);
+
+	return true;
+}
+
+/**
  * I due volumi che l'editor usa per le regole di blocco devono restare DISTINGUIBILI fra loro e dal rilievo
  * del costo, che occupa la stessa cella.
  *
