@@ -28,8 +28,8 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `DESIGNED` | 14 |
 | `SPECIFIED` | 11 |
 | `IMPLEMENTING` | 23 |
-| `TESTABLE` | 8 |
-| `INTEGRATED` | 21 |
+| `TESTABLE` | 7 |
+| `INTEGRATED` | 22 |
 | `RELEASE_READY` | 16 |
 | `DONE` | 4 |
 | `DEFERRED` (fuori scala) | 1 |
@@ -188,8 +188,8 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-WIKI-CHART-GENERATOR` — Generatore SVG deterministico dei radar | future | DONE | 4/4 | — | — |
 | `RT-FEAT-BOT-BASE` — Bot a utility scoring deterministico | v0.1 | RELEASE_READY | 7/8 | E2 | Deterministico; le candidate nascono da `ReachableCells`, mai mosse illegali |
 | `RT-FEAT-TEST-SCENARIO-HARNESS` — Scenario Test Harness automatizzato | v0.1 | INTEGRATED | 6/8 | E15 | `PASS/FAIL/ERROR/BLOCKED`, corpus scoperto dall'indice, niente bypass |
+| `RT-FEAT-TOOL-MAP-EDITOR` — Editor mode della mappa esagonale | v0.1 | INTEGRATED | 5/6 | M9 | **Fuori** dalla vista di release: non entra nella build di gioco |
 | `RT-FEAT-BOT-FAIRNESS` — Il bot pianifica sulla conoscenza della sua squadra | v0.1 | TESTABLE | 3/7 | E13 | — |
-| `RT-FEAT-TOOL-MAP-EDITOR` — Editor mode della mappa esagonale | v0.1 | TESTABLE | 4/6 | M9 | **Fuori** dalla vista di release: non entra nella build di gioco |
 | `RT-FEAT-TEST-GOLDEN` — Golden replay e showcase «Il Relè» | v0.1 | IMPLEMENTING | 3/8 | E15 | Oggi `BLOCKED` su 5 capability |
 | `RT-FEAT-TOOL-BALANCE-GROUND` — Banco di prova del bilanciamento | v0.1 | IMPLEMENTING | 3/6 | E1 | Dove si misurano i numeri prima di scriverli a catalogo |
 | `RT-FEAT-TOOL-CONTROL-CENTER` — Project Control Center — la UI web del registry | future | IMPLEMENTING | 2/6 | — | — |
