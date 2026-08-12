@@ -1273,7 +1273,7 @@ features:
     owner_specs:
       - docs/gameplay/spec-dash.md
       - docs/gameplay/spec-economia-del-turno.md
-    issues: [43, 46]
+    issues: [43, 46, 641]
     tests:
       - RefactorTactics.Actions.Sprint
       - RefactorTactics.Actions.Charge
@@ -1558,7 +1558,7 @@ features:
     owner_specs:
       - docs/gameplay/spec-compatibilita-azioni-movimento.md
       - docs/gameplay/spec-economia-del-turno.md
-    issues: [609, 606]
+    issues: [609, 606, 641]
     tests: []
     scenarios:
       - planned:

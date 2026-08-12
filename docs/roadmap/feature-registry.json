@@ -1537,7 +1537,8 @@
       ],
       "issues": [
         43,
-        46
+        46,
+        641
       ],
       "tests": [
         "RefactorTactics.Actions.Sprint",
@@ -1861,7 +1862,8 @@
       ],
       "issues": [
         609,
-        606
+        606,
+        641
       ],
       "tests": [],
       "scenarios": [],
