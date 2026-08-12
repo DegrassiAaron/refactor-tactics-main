@@ -34,6 +34,28 @@ FString URTReactionOpportunityLibrary::DeriveOpportunityId(const FRTReactionOppo
 		Key.Seq);
 }
 
+FName URTReactionOpportunityLibrary::TargetHealthAtOrBelowPercent()
+{
+	static const FName Id(TEXT("TargetHealthAtOrBelowPercent"));
+	return Id;
+}
+
+bool URTReactionOpportunityLibrary::IsDeclaredConditionAllowed(const FRTDeclaredCondition& Condition)
+{
+	// Elenco CHIUSO e nel codice: la v0.1 ne ammette una sola ([D-109]). Un id assente — compreso `NAME_None`,
+	// cioe' «nessuna condizione» — non e' una condizione valida: chi non dichiara non passa di qui.
+	static const TSet<FName> Allowed = { TargetHealthAtOrBelowPercent() };
+	if (!Allowed.Contains(Condition.Id))
+	{
+		return false;
+	}
+
+	// Percentuale INTERA. `100` resta ammessa: e' «spara comunque», cioe' l'assenza di restrizione detta come
+	// condizione, e vietarla costringerebbe a cancellare la condizione per ottenere lo stesso effetto. Oltre il
+	// 100 sarebbe sempre vera — una condizione che non condiziona, peggio di nessuna condizione.
+	return Condition.Param >= 0 && Condition.Param <= 100;
+}
+
 bool URTReactionOpportunityLibrary::RequiresDecisionBoundary(const FRTReactionOpportunity& Opportunity)
 {
 	// ADR-0004 §2, e nient'altro. La soglia e' `>= 2` e non `> 0`: una sola risposta legale non e' una scelta,
@@ -50,8 +72,37 @@ FString URTReactionOpportunityLibrary::FireResponse(int32 TargetUnitId)
 	return FString::Printf(TEXT("FIRE:%d"), TargetUnitId);
 }
 
+bool URTReactionOpportunityLibrary::IsConditionSatisfied(const FRTDeclaredCondition& Condition,
+	const FRTTargetVitals* Vitals)
+{
+	if (!Condition.IsDeclared())
+	{
+		return true; // chi non pone condizioni non restringe nulla: e' il comportamento di sempre
+	}
+
+	// Una condizione che il gioco non conosce non e' valutabile, quindi non autorizza niente. Puo' arrivare
+	// qui da un piano salvato prima che il catalogo cambiasse: trattarla come vera cambierebbe l'esito della
+	// partita in silenzio, e in una direzione che il giocatore non ha chiesto.
+	if (!IsDeclaredConditionAllowed(Condition))
+	{
+		return false;
+	}
+
+	// Dato mancante o incoerente: stessa scelta fail-closed di `TeamAwareness`. Offrire `FIRE` qui
+	// significherebbe sparare su una condizione che nessuno ha verificato.
+	if (!Vitals || Vitals->MaxHealth <= 0)
+	{
+		return false;
+	}
+
+	// `Health / MaxHealth <= Param / 100` senza divisioni: aritmetica INTERA, perche' `G7` vieta i float e
+	// una soglia in virgola mobile li farebbe rientrare proprio nel punto che decide chi viene colpito.
+	return Vitals->Health * 100 <= Vitals->MaxHealth * Condition.Param;
+}
+
 TArray<FRTOverwatchTrigger> URTReactionOpportunityLibrary::BuildOverwatchTriggers(const URTHexMapAsset* Map,
-	int32 TurnNumber, const TArray<FRTOverwatchWatcher>& Watchers, const TArray<FRTSuppressionMover>& Movers)
+	int32 TurnNumber, const TArray<FRTOverwatchWatcher>& Watchers, const TArray<FRTSuppressionMover>& Movers,
+	const TMap<int32, FRTTargetVitals>& TargetVitals)
 {
 	TArray<FRTOverwatchTrigger> Triggers;
 
@@ -165,8 +216,17 @@ TArray<FRTOverwatchTrigger> URTReactionOpportunityLibrary::BuildOverwatchTrigger
 			// `Seq` NON si assegna qui: dipenderebbe dall'ordine di `Watchers`. Si assegna dopo
 			// l'ordinamento totale, scorrendo il risultato — vedi in fondo.
 
+			// La condizione dichiarata in pianificazione RIDUCE le risposte legali ([D-012], [D-109]). Filtra
+			// le risposte, non i bersagli: il trigger e' scattato davvero — quelle unita' sono entrate nella
+			// zona e sono state rilevate — e `TargetUnitIds` continua a dire chi e' passato. Se la riduzione
+			// lascia il solo `HOLD`, `RequiresDecisionBoundary` diventa falso e il commit e' immediato: e' cosi'
+			// che il regime *Conditional* emerge dai dati, senza un enum di policy parallelo.
 			for (int32 TargetId : TargetsThisStep)
 			{
+				if (!IsConditionSatisfied(Watcher.DeclaredCondition, TargetVitals.Find(TargetId)))
+				{
+					continue;
+				}
 				Trigger.Opportunity.AllowedResponses.Add(FireResponse(TargetId));
 			}
 			// `HOLD` in coda ed e' SEMPRE presente: senza di lei un bersaglio solo darebbe cardinalita' 1,

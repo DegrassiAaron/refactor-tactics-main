@@ -195,4 +195,45 @@ bool FRTOpportunityLeaksNoFutureTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Le condizioni dichiarabili in pianificazione sono un elenco CHIUSO, e l'elenco vive nel codice ([D-109]).
+ *
+ * Nel dato sarebbe piu' flessibile e sbagliato: dichiarare una condizione inesistente diventerebbe una
+ * modifica al JSON invece di un errore, ed e' la stessa ragione per cui `IsCapabilityAvailable` tiene il
+ * proprio elenco nel codice. La v0.1 ne ammette **una**: la soglia di salute del bersaglio.
+ *
+ * Il parametro fa parte di cio' che si valida. Una soglia oltre il 100% renderebbe la condizione sempre
+ * vera — cioe' una condizione che non condiziona, che e' peggio di nessuna condizione: il giocatore crede
+ * di aver ristretto il fuoco e non l'ha fatto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionConditionValidatorTest,
+	"RefactorTactics.Reactions.UnknownConditionIsRejectedByValidator",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionConditionValidatorTest::RunTest(const FString&)
+{
+	const FName Allowed = URTReactionOpportunityLibrary::TargetHealthAtOrBelowPercent();
+
+	TestTrue(TEXT("la soglia di salute e' la voce ammessa dalla v0.1"),
+		URTReactionOpportunityLibrary::IsDeclaredConditionAllowed(FRTDeclaredCondition(Allowed, 50)));
+
+	// Il caso per cui il validator esiste: un id che il gioco non conosce. Senza questo controllo un piano
+	// salvato potrebbe nominare una condizione che nessuna funzione valuta, e il trigger non saprebbe dirlo.
+	TestFalse(TEXT("un id che il gioco non conosce viene rifiutato"),
+		URTReactionOpportunityLibrary::IsDeclaredConditionAllowed(FRTDeclaredCondition(TEXT("TargetIsFlanked"), 1)));
+
+	// Assenza di condizione non e' una condizione ammessa: chi non dichiara non passa di qui.
+	TestFalse(TEXT("nessun id dichiarato non e' una condizione valida"),
+		URTReactionOpportunityLibrary::IsDeclaredConditionAllowed(FRTDeclaredCondition()));
+
+	// La soglia e' una percentuale intera (D-109: niente float, gate G7) e deve restringere davvero.
+	TestFalse(TEXT("soglia oltre il 100% rifiutata"),
+		URTReactionOpportunityLibrary::IsDeclaredConditionAllowed(FRTDeclaredCondition(Allowed, 101)));
+	TestFalse(TEXT("soglia negativa rifiutata"),
+		URTReactionOpportunityLibrary::IsDeclaredConditionAllowed(FRTDeclaredCondition(Allowed, -1)));
+	TestTrue(TEXT("soglia 100 ammessa: «spara comunque» resta dichiarabile"),
+		URTReactionOpportunityLibrary::IsDeclaredConditionAllowed(FRTDeclaredCondition(Allowed, 100)));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
