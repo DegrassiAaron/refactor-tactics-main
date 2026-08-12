@@ -1631,7 +1631,9 @@ features:
       - RefactorTactics.Equipment.EmergencyDashRepositionsTheReactor
       - RefactorTactics.Equipment.EmergencyDashMovesTheReactorInPlay
       - RefactorTactics.Equipment.Anchor.CancelsPush
+      - RefactorTactics.Equipment.Cleanse.CancelsControl
       - RefactorTactics.Reaction.EveryTriggerHasAPassPoint
+      - RefactorTactics.Reaction.ControlStatusesAreTwo
       - RefactorTactics.Equipment.ImpactVariantStacksPush
       - RefactorTactics.Equipment.Gadget.CooldownEnforced
       - RefactorTactics.Equipment.Gadget.NumbersMatchCatalog
@@ -1663,14 +1665,19 @@ features:
       `HazardEscape`, `Cleanse` e `Anchor` non avevano il **trigger** (nascono da un evento, non da un
       colpo); `EmergencyDash` aveva il trigger ma non l'**effetto** — `Reposition 1` sposta chi reagisce e
       nessun `ERTActionEffect` lo esprimeva. Il secondo vincolo è emerso implementando, non dall'analisi.
-      **Il 2026-08-12 ne restano due.** `EmergencyDash` è entrato con `SelfReposition` (D-093) e `Anchor`
+      **Il 2026-08-12 ne resta uno.** `EmergencyDash` è entrato con `SelfReposition` (D-093) e `Anchor`
       con `AboutToBeDisplaced`, che ha richiesto il pezzo architetturale del checkpoint: i trigger non si
       valutano più tutti nello stesso momento, ma nel punto in cui il loro evento è deciso
       (`URTReactionLibrary::PassPointFor`, `switch` senza `default` — un trigger nuovo non compila finché
       qualcuno non dichiara dove viene valutato). Il blocco vero non era il contatore di D-092 ma il fatto
       che `PlannedReactionAbility` venisse **consumato dal primo pass**: ora sopravvive alla fase e si azzera
-      a fine turno. `Cleanse` e `HazardEscape` restano fuori per un nodo di design ciascuno — quale tag ha
-      innescato la reazione, e come si sceglie una cella sicura senza una sorgente da cui allontanarsi.
+      a fine turno. `Cleanse` è entrato lo stesso giorno con la stessa forma di `Anchor` — impedisce
+      l'applicazione invece di rimuovere a posteriori — e con un criterio di scelta che la review della
+      specifica ha corretto: fra due controlli si annulla **il più grave**, non il primo raccolto, perché
+      l'ordine di raccolta segue chi colpisce e sprecherebbe l'attivazione su uno `Slow` da attacco base
+      lasciando passare un `Root`. Resta fuori solo `HazardEscape`, e non per un nodo di design: gli manca un
+      **prerequisito** — una superficie che nasce sotto un'unità ferma oggi non le fa niente (`#570`), quindi
+      nel Cleanup non ci sarebbe nessun danno imminente da cui fuggire.
       Il loadout (`#63`) ha inoltre un buco nell'owner: la tabella §4 del
       catalogo **non assegna varianti d'arma** a nessun eroe (dice esplicitamente che le sue sono varianti
       di *abilità*), quindi il default 1+1+1 richiesto dal DoD non esiste ancora nei dati.
