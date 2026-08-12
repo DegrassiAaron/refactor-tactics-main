@@ -147,7 +147,7 @@ features:
       - RT-FEAT-CORE-TURNLOG
     owner_specs:
       - docs/gameplay/spec-anima-risoluzione.md
-    issues: [81, 178]
+    issues: [81, 178, 578]
     tests:
       - RefactorTactics.Simulation.*
       - RefactorTactics.HexSim.ReplayDivergenceZero
@@ -4564,7 +4564,7 @@ features:
       - RT-FEAT-CORE-TURN
     owner_specs:
       - docs/product/piano-canonico-mvp.md
-    issues: [53]
+    issues: [53, 577, 578]
     tests:
       - RefactorTactics.Reactions.IntentNotVisibleToEnemy
       - RefactorTactics.Combat.IntentVisibleToAlliesAlwaysEnemiesOnlyIfRevealed

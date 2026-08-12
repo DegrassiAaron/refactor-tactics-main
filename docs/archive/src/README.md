@@ -7,7 +7,7 @@
 > lo dichiaravano diverso — «47» da una parte, «48» dall'altra — ed entrambi erano giusti sulla propria base
 > e falsi dopo l'unione. Il numero di questa riga si rimisura **dopo** un merge, mai prima. ⚠️ La tabella
 > `handoff/` ne elenca comunque meno del misurato: **tre** sorgenti del 2026-08-10 sono sul disco senza una
-> riga d'indice — `2026-08-10-baseaction-signatures-brace-overwatch.md`,
+> riga d'indice — tracciato in [#579](https://github.com/DegrassiAaron/refactor-tactics-main/issues/579) — `2026-08-10-baseaction-signatures-brace-overwatch.md`,
 > `2026-08-10-facing-consolidation.md`, `2026-08-10-overwatch-runtime-lifecycle-watch-reposition.md`.)*
 > Il primo lotto era in [`../../src/`](../../src/); ogni sorgente si sposta qui quando un owner documentale lo
 > ha recepito. Restano per **provenienza**: servono a ricostruire *da dove* è nata una decisione, non a deciderla.

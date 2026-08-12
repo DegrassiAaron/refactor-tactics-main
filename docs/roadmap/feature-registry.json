@@ -135,7 +135,8 @@
       ],
       "issues": [
         81,
-        178
+        178,
+        578
       ],
       "tests": [
         "RefactorTactics.Simulation.*",
@@ -5550,7 +5551,9 @@
         "docs/product/piano-canonico-mvp.md"
       ],
       "issues": [
-        53
+        53,
+        577,
+        578
       ],
       "tests": [
         "RefactorTactics.Reactions.IntentNotVisibleToEnemy",

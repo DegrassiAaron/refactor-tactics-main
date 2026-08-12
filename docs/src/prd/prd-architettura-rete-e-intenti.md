@@ -34,7 +34,7 @@ Il **GAS** nello stack: fuori dalla v0.1.
 
 **Recuperabile, e non ancora recepito da nessuno.**
 
-- 🟢 **Il PRD «Intenti condivisi» per intero.** È l'unico documento del corpus scritto come *specifica di
+- 🟢 **Il PRD «Intenti condivisi» per intero.** *(Tracciato: [#577](https://github.com/DegrassiAaron/refactor-tactics-main/issues/577) — recepirlo in un owner prima che M10 cominci.)* È l'unico documento del corpus scritto come *specifica di
   feature consegnabile*: quattordici requisiti con ID (`FR-TRAJ`, `FR-AOE`, `FR-TARGET`, `FR-LABEL`,
   `FR-STATE`, `FR-CONFIRM`, `FR-NOTIFY`, `FR-GHOST`, `FR-CONFLICT`, `FR-DRAW`, `FR-HISTORY`, `FR-ROLLBACK`,
   `FR-RECONNECT`, `FR-FILTER`, `FR-MOD`), priorità, stime in giorni-persona, dodici requisiti non funzionali
