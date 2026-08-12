@@ -5388,13 +5388,13 @@
       "kind": "tooling",
       "release": "v0.1",
       "priority": "P2",
-      "status": "TESTABLE",
-      "status_derived": "TESTABLE",
+      "status": "INTEGRATED",
+      "status_derived": "INTEGRATED",
       "gates": {
         "spec": "done",
         "data": "done",
         "runtime": "done",
-        "log_debug": "partial",
+        "log_debug": "done",
         "automation": "done",
         "scenario": "na",
         "ui_wiki": "todo",
@@ -5402,7 +5402,7 @@
         "network_privacy": "na",
         "replay_representable": "na"
       },
-      "gates_done": 4,
+      "gates_done": 5,
       "gates_applicable": 6,
       "roadmap": {
         "epic": null,
@@ -5426,7 +5426,9 @@
         552,
         553,
         554,
-        588
+        588,
+        695,
+        711
       ],
       "tests": [
         "RefactorTactics.HexMap.ApplyBrushMerge",
@@ -5441,7 +5443,8 @@
         "RefactorTactics.HexMapActor.BlockerVolumesComeFromCellFlags",
         "RefactorTactics.HexMapActor.EdgePanelsSitOnTheDeclaredEdge",
         "RefactorTactics.HexMapActor.DoorPanelsShowWhetherYouCanPass",
-        "RefactorTactics.HexMapActor.CostReliefSurvivesTheSightSlab"
+        "RefactorTactics.HexMapActor.CostReliefSurvivesTheSightSlab",
+        "RefactorTactics.Arena.CriterionAndOverlayCountTheSameCells"
       ],
       "scenarios": [],
       "scenarios_planned": [],
@@ -5450,9 +5453,9 @@
       "pie_refs": [],
       "last_verified": {
         "date": "2026-08-12",
-        "commit": "1c92d869"
+        "commit": "4fce92ca"
       },
-      "notes": "`Source/RefactorTacticsEditor/` con tool di paint, fill, select e archi. Il residuo sono **verifiche PIE aperte** (H5: E/F/G/H/L/N, piu' le tre `PIE-HEX-LAYER-*` della vista a livelli) registrate in `test-manuali-pie.md`, non gate impliciti. `packaged: na` — è uno strumento d'editor, non entra nella build di gioco. **2026-08-12 (#551, #588)**: l'actor mappa ha un SECONDO `UInstancedStaticMeshComponent` — il rilievo che mostra il costo di attraversamento — e con lui e' cambiato cosa protegge il pennello. Il raycast di selezione confrontava l'ACTOR, mentre `Result.Item` e' l'indice di istanza del COMPONENTE colpito: un colpo su geometria diversa da `Cells` sarebbe stato risolto contro le celle sbagliate e avrebbe prodotto una cella **valida e sbagliata**, cioe' il pennello che dipinge altrove senza un errore a log. Ora il confronto e' sul componente (`ARTHexMapActor::IsPickOnSelectableCell`, pinnato dal test qui sopra) e `NoCollision` sul rilievo resta la prima difesa invece dell'unica: la protezione ha smesso di dipendere dal ricordarsi di una riga. ⚠️ Il modulo `RefactorTacticsEditor` **non ha test propri** — `find Source/RefactorTacticsEditor -iname \"*test*\"` e' vuoto — quindi le regole che lo riguardano vanno estratte nel modulo runtime per essere verificabili, com'e' stato fatto qui.\n\nLa vista a livelli ha un terzo stato `Focus` (#565): istanze sul solo piano attivo, gli altri a contorno attenuato. Nello stesso passaggio il click ha smesso di scavalcare il piano attivo — in `AllLayers` il raggio poteva agganciare il disco di un altro piano e l'`ImpactPoint` veniva proiettato su quello attivo, spostando la cella di circa `LayerHeight` in orizzontale. `LayerFilterOnConstruction` tiene l'invariante che rende vera la seconda cosa: i piani di contesto **non** sono istanze, quindi non hanno collisione e il raycast non puo' vederli.\n\nDal 2026-08-12 il perimetro si divide: l'**authoring di geometria architettonica** ha una feature propria (`RT-FEAT-TOOL-MAP-GEOMETRY`), perche' e' un modello di dati e una cottura, non una modalita' d'editor. Qui restano il mode, i quattro tool e la vista. Le due issue nuove sono difetti d'uso osservati costruendo: `#622` la griglia di lavoro dove le celle non esistono ancora — l'unico pezzo di §10 del sorgente che non esisteva gia' — e `#623` la seduta su luci e inquadratura. `#623` e' una **seduta**, non codice: `L_DevSandbox.umap` e' un `.umap`, e la navigazione del viewport la fornisce Unreal (`RTCameraPawn` e' la camera di gioco, un oggetto diverso). Referto: `docs/roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md`.\n\n**2026-08-12 (#552, #553)**: i volumi delle regole di blocco (`Blockers`) e i pannelli di bordo (`EdgeFeatures`) erano stati consegnati **senza test**, e con loro un difetto che nessuno avrebbe visto: lastra della vista e rilievo del costo sono concentrici e partono dalla stessa quota, e la lastra a 16 uu era piu' alta E piu' larga del rilievo piu' alto che il catalogo possa produrre (15 uu, perche' il costo massimo v0.1 e' `2`). Ogni cella costosa che blocca la vista taceva sul proprio costo — e non in un caso limite: in **tutti**. Corretto a 10 uu, col vincolo scritto accanto alla costante. I quattro test aggiunti misurano il COMPORTAMENTO — le istanze che `RebuildInstances` produce — non i valori, cosi' ritoccare le proporzioni resta libero e farle collassare no. ⚠️ Limite noto e dichiarato: i quattro stati di porta si mostrano con **due** forme (`Locked` come `Closed`, `Destroyed` come `Open`), quindi «lo stato e' visibile e cambia quando cambia il dato» — acceptance di #553 — vale per il passaggio, non per chi puo' cambiarlo. Aperta **#695** perche' un limite scritto solo in un commento di test non e' lavoro tracciato. ⚠️ Le acceptance **visive** di entrambe le issue restano non verificate: chiudono su una seduta, e dal 2026-08-12 hanno le cinque voci `PIE-HEX-VIZ-*` in `test-manuali-pie.md` che le registrano — prima non esistevano da nessuna parte se non nel testo di una PR.\n\n**Serie viz editor (2026-08-12): tre quarti atterrati, `log_debug` resta `partial` per il quarto.** Owner del perimetro: `docs/technical/brief-editor-map-viz.md`. `#551` (superficie e costo leggibili), `#552` (volume dei blocchi, e «non si passa» distinto da «non si vede») e `#553` (coperture, porte e transizioni sui BORDI) sono chiuse e mergiate — PR `#670` e `#673`, commit `46d9ef5f`, `41e205f1`, `d9cfb9e3`. Il gate NON avanza a `done` perche' `#554` — le transizioni e la raggiungibilita', cioe' l'unica delle quattro che dice se una piattaforma e' **scollegata** — e' ancora aperta: senza, la vista mostra la geometria e tace sul grafo. Ogni pezzo della serie ha portato il suo test nel modulo runtime, com'e' la regola qui: `OnlyTheCellsComponentIsClickable` (il pick guarda il componente, non l'actor — il secondo ISM dei volumi e' esattamente cio' che rendeva sbagliato il vecchio confronto), `EdgeMidpointIsSharedByBothCells` (la primitiva che mancava: due celle adiacenti devono calcolare lo STESSO punto medio di bordo, o copertura e porta si disegnerebbero due volte in due posti) e `UnknownFixtureLeavesTheAssetUntouched` (un nome di fixture sbagliato non svuota l'asset)."
+      "notes": "`Source/RefactorTacticsEditor/` con tool di paint, fill, select e archi. Il residuo sono **verifiche PIE aperte** (H5: E/F/G/H/L/N, piu' le tre `PIE-HEX-LAYER-*` della vista a livelli) registrate in `test-manuali-pie.md`, non gate impliciti. `packaged: na` — è uno strumento d'editor, non entra nella build di gioco. **2026-08-12 (#551, #588)**: l'actor mappa ha un SECONDO `UInstancedStaticMeshComponent` — il rilievo che mostra il costo di attraversamento — e con lui e' cambiato cosa protegge il pennello. Il raycast di selezione confrontava l'ACTOR, mentre `Result.Item` e' l'indice di istanza del COMPONENTE colpito: un colpo su geometria diversa da `Cells` sarebbe stato risolto contro le celle sbagliate e avrebbe prodotto una cella **valida e sbagliata**, cioe' il pennello che dipinge altrove senza un errore a log. Ora il confronto e' sul componente (`ARTHexMapActor::IsPickOnSelectableCell`, pinnato dal test qui sopra) e `NoCollision` sul rilievo resta la prima difesa invece dell'unica: la protezione ha smesso di dipendere dal ricordarsi di una riga. ⚠️ Il modulo `RefactorTacticsEditor` **non ha test propri** — `find Source/RefactorTacticsEditor -iname \"*test*\"` e' vuoto — quindi le regole che lo riguardano vanno estratte nel modulo runtime per essere verificabili, com'e' stato fatto qui.\n\nLa vista a livelli ha un terzo stato `Focus` (#565): istanze sul solo piano attivo, gli altri a contorno attenuato. Nello stesso passaggio il click ha smesso di scavalcare il piano attivo — in `AllLayers` il raggio poteva agganciare il disco di un altro piano e l'`ImpactPoint` veniva proiettato su quello attivo, spostando la cella di circa `LayerHeight` in orizzontale. `LayerFilterOnConstruction` tiene l'invariante che rende vera la seconda cosa: i piani di contesto **non** sono istanze, quindi non hanno collisione e il raycast non puo' vederli.\n\nDal 2026-08-12 il perimetro si divide: l'**authoring di geometria architettonica** ha una feature propria (`RT-FEAT-TOOL-MAP-GEOMETRY`), perche' e' un modello di dati e una cottura, non una modalita' d'editor. Qui restano il mode, i quattro tool e la vista. Le due issue nuove sono difetti d'uso osservati costruendo: `#622` la griglia di lavoro dove le celle non esistono ancora — l'unico pezzo di §10 del sorgente che non esisteva gia' — e `#623` la seduta su luci e inquadratura. `#623` e' una **seduta**, non codice: `L_DevSandbox.umap` e' un `.umap`, e la navigazione del viewport la fornisce Unreal (`RTCameraPawn` e' la camera di gioco, un oggetto diverso). Referto: `docs/roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md`.\n\n**2026-08-12 (#552, #553)**: i volumi delle regole di blocco (`Blockers`) e i pannelli di bordo (`EdgeFeatures`) erano stati consegnati **senza test**, e con loro un difetto che nessuno avrebbe visto: lastra della vista e rilievo del costo sono concentrici e partono dalla stessa quota, e la lastra a 16 uu era piu' alta E piu' larga del rilievo piu' alto che il catalogo possa produrre (15 uu, perche' il costo massimo v0.1 e' `2`). Ogni cella costosa che blocca la vista taceva sul proprio costo — e non in un caso limite: in **tutti**. Corretto a 10 uu, col vincolo scritto accanto alla costante. I quattro test aggiunti misurano il COMPORTAMENTO — le istanze che `RebuildInstances` produce — non i valori, cosi' ritoccare le proporzioni resta libero e farle collassare no. ⚠️ Limite noto e dichiarato: i quattro stati di porta si mostrano con **due** forme (`Locked` come `Closed`, `Destroyed` come `Open`), quindi «lo stato e' visibile e cambia quando cambia il dato» — acceptance di #553 — vale per il passaggio, non per chi puo' cambiarlo. Aperta **#695** perche' un limite scritto solo in un commento di test non e' lavoro tracciato. ⚠️ Le acceptance **visive** di entrambe le issue restano non verificate: chiudono su una seduta, e dal 2026-08-12 hanno le cinque voci `PIE-HEX-VIZ-*` in `test-manuali-pie.md` che le registrano — prima non esistevano da nessuna parte se non nel testo di una PR.\n\n**Serie viz editor (2026-08-12): tutte e quattro atterrate, `log_debug` avanza a `done`.** Owner del perimetro: `docs/technical/brief-editor-map-viz.md`. `#551` (superficie e costo leggibili), `#552` (volume dei blocchi, e «non si passa» distinto da «non si vede») e `#553` (coperture, porte e transizioni sui BORDI) sono chiuse e mergiate — PR `#670` e `#673`, commit `46d9ef5f`, `41e205f1`, `d9cfb9e3`. **`#554` e' chiusa dalla PR `#707`** (`feat/554-transizioni-visibili` -> `main`, mergiata `2026-08-12T18:26:29`, commit `2f3c53cf` e `7ae2ce44`): le transizioni si disegnano SEMPRE nell'overlay — non piu' solo dentro il tool Arch — e le celle che nessuno raggiunge sono cerchiate in magenta, il colore che nella mappa non usa nessun altro perche' e' un allarme e non una descrizione.\n\n⚠️ **Perche' `log_debug` puo' avanzare, e perche' non e' un'inferenza dalla chiusura di una issue.** Il gate chiede che l'esito sia **osservabile**, e la coppia che lo rende vero e' questa: `FindUnreachableCells` e' stata ESTRATTA da `CheckReachability` perche' ha due consumatori — il comando di debug `rt.Arena.Check` e l'overlay — e `RefactorTactics.Arena.CriterionAndOverlayCountTheSameCells` pinna che i due contino le **stesse** celle. Senza quel test sarebbero due risposte alla stessa domanda, libere di divergere: e' esattamente la ragione per cui colore e freccia delle transizioni sono stati spostati nello spazio condiviso `RTHexEditor` invece di essere duplicati.\n\n🔴 **La lezione di questo record, che vale piu' della correzione.** Fino al 2026-08-12 questa nota diceva *«il gate NON avanza a `done` perche' `#554` e' ancora aperta»* mentre `#554` era chiusa e mergiata da ore, e il suo test non era in `tests:`. La PR era stata aperta verso `test/migrazione-asset-reale` (`#694`, chiusa unmerged), poi il branch e' stato ricollocato e rimergiato come `#707`: chi guardava la PR vecchia concludeva che il lavoro non fosse atterrato. **Lo stato di una PR non e' lo stato del lavoro** — `gh pr list --head <branch>` lo e'. Un audit esterno (`mapeditor-integration-spec-panel-2026-08-12.md`) ha ripetuto lo stesso errore e ha costruito su di esso una roadmap, un percorso critico e cinque azioni. Ogni pezzo della serie ha portato il suo test nel modulo runtime, com'e' la regola qui: `OnlyTheCellsComponentIsClickable` (il pick guarda il componente, non l'actor — il secondo ISM dei volumi e' esattamente cio' che rendeva sbagliato il vecchio confronto), `EdgeMidpointIsSharedByBothCells` (la primitiva che mancava: due celle adiacenti devono calcolare lo STESSO punto medio di bordo, o copertura e porta si disegnerebbero due volte in due posti) e `UnknownFixtureLeavesTheAssetUntouched` (un nome di fixture sbagliato non svuota l'asset)."
     },
     {
       "feature_id": "RT-FEAT-TOOL-MAP-GEOMETRY",
@@ -5489,12 +5492,14 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md"
+        "docs/roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md",
+        "docs/roadmap/plans/mapeditor-integration-spec-panel-2026-08-12.md"
       ],
       "issues": [
         619,
         620,
-        621
+        621,
+        712
       ],
       "tests": [
         "RefactorTactics.HexOccupancy.*"

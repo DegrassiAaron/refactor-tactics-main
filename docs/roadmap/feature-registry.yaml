@@ -4694,12 +4694,12 @@ features:
     kind: tooling
     release: v0.1
     priority: P2
-    status: TESTABLE
+    status: INTEGRATED
     gates:
       spec: done
       data: done
       runtime: done
-      log_debug: partial
+      log_debug: done
       automation: done
       scenario: na
       ui_wiki: todo
@@ -4718,7 +4718,7 @@ features:
     owner_specs:
       - docs/roadmap/editormap.shortlist.md
       - docs/roadmap/hex-map-roadmap.md
-    issues: [567, 622, 623, 551, 552, 553, 554, 588]
+    issues: [567, 622, 623, 551, 552, 553, 554, 588, 695, 711]
     tests:
       - RefactorTactics.HexMap.ApplyBrushMerge
       - RefactorTactics.HexMap.FloodRegion
@@ -4733,11 +4733,12 @@ features:
       - RefactorTactics.HexMapActor.EdgePanelsSitOnTheDeclaredEdge
       - RefactorTactics.HexMapActor.DoorPanelsShowWhetherYouCanPass
       - RefactorTactics.HexMapActor.CostReliefSurvivesTheSightSlab
+      - RefactorTactics.Arena.CriterionAndOverlayCountTheSameCells
     scenarios: []
     wiki_refs: []
     last_verified:
       date: 2026-08-12
-      commit: 1c92d869
+      commit: 4fce92ca
     notes: >
       `Source/RefactorTacticsEditor/` con tool di paint, fill, select e archi. Il residuo sono
       **verifiche PIE aperte** (H5: E/F/G/H/L/N, piu' le tre `PIE-HEX-LAYER-*` della vista a
@@ -4792,13 +4793,35 @@ features:
       prima non esistevano da nessuna parte se non nel testo di una PR.
 
 
-      **Serie viz editor (2026-08-12): tre quarti atterrati, `log_debug` resta `partial` per il
-      quarto.** Owner del perimetro: `docs/technical/brief-editor-map-viz.md`. `#551` (superficie e
+      **Serie viz editor (2026-08-12): tutte e quattro atterrate, `log_debug` avanza a `done`.**
+      Owner del perimetro: `docs/technical/brief-editor-map-viz.md`. `#551` (superficie e
       costo leggibili), `#552` (volume dei blocchi, e «non si passa» distinto da «non si vede») e
       `#553` (coperture, porte e transizioni sui BORDI) sono chiuse e mergiate — PR `#670` e `#673`,
-      commit `46d9ef5f`, `41e205f1`, `d9cfb9e3`. Il gate NON avanza a `done` perche' `#554` — le
-      transizioni e la raggiungibilita', cioe' l'unica delle quattro che dice se una piattaforma e'
-      **scollegata** — e' ancora aperta: senza, la vista mostra la geometria e tace sul grafo.
+      commit `46d9ef5f`, `41e205f1`, `d9cfb9e3`. **`#554` e' chiusa dalla PR `#707`**
+      (`feat/554-transizioni-visibili` -> `main`, mergiata `2026-08-12T18:26:29`, commit `2f3c53cf` e
+      `7ae2ce44`): le transizioni si disegnano SEMPRE nell'overlay — non piu' solo dentro il tool
+      Arch — e le celle che nessuno raggiunge sono cerchiate in magenta, il colore che nella mappa
+      non usa nessun altro perche' e' un allarme e non una descrizione.
+
+
+      ⚠️ **Perche' `log_debug` puo' avanzare, e perche' non e' un'inferenza dalla chiusura di una
+      issue.** Il gate chiede che l'esito sia **osservabile**, e la coppia che lo rende vero e'
+      questa: `FindUnreachableCells` e' stata ESTRATTA da `CheckReachability` perche' ha due
+      consumatori — il comando di debug `rt.Arena.Check` e l'overlay — e
+      `RefactorTactics.Arena.CriterionAndOverlayCountTheSameCells` pinna che i due contino le
+      **stesse** celle. Senza quel test sarebbero due risposte alla stessa domanda, libere di
+      divergere: e' esattamente la ragione per cui colore e freccia delle transizioni sono stati
+      spostati nello spazio condiviso `RTHexEditor` invece di essere duplicati.
+
+
+      🔴 **La lezione di questo record, che vale piu' della correzione.** Fino al 2026-08-12 questa
+      nota diceva *«il gate NON avanza a `done` perche' `#554` e' ancora aperta»* mentre `#554` era
+      chiusa e mergiata da ore, e il suo test non era in `tests:`. La PR era stata aperta verso
+      `test/migrazione-asset-reale` (`#694`, chiusa unmerged), poi il branch e' stato ricollocato e
+      rimergiato come `#707`: chi guardava la PR vecchia concludeva che il lavoro non fosse
+      atterrato. **Lo stato di una PR non e' lo stato del lavoro** — `gh pr list --head <branch>` lo
+      e'. Un audit esterno (`mapeditor-integration-spec-panel-2026-08-12.md`) ha ripetuto lo stesso
+      errore e ha costruito su di esso una roadmap, un percorso critico e cinque azioni.
       Ogni pezzo della serie ha portato il suo test nel modulo runtime, com'e' la regola qui:
       `OnlyTheCellsComponentIsClickable` (il pick guarda il componente, non l'actor — il secondo ISM
       dei volumi e' esattamente cio' che rendeva sbagliato il vecchio confronto),
@@ -4838,7 +4861,8 @@ features:
       - RT-FEAT-TOOL-MAP-EDITOR
     owner_specs:
       - docs/roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md
-    issues: [619, 620, 621]
+      - docs/roadmap/plans/mapeditor-integration-spec-panel-2026-08-12.md
+    issues: [619, 620, 621, 712]
     tests:
       - RefactorTactics.HexOccupancy.*
     scenarios:
