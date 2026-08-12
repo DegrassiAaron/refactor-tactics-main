@@ -130,9 +130,13 @@ Sei revisori, un focus ciascuno. Le citazioni sono ricostruzioni della metodolog
 > ciò che lo distingue dai due che l'hanno preceduto.»
 
 > «Detto questo, la difesa va costruita, non dichiarata. §24 chiede un validator per *"off-axis tactical
-> geometry"*: quel validator **è** l'invariante. Senza, la grammatica è una convenzione, e questo repository
-> ha appena finito di imparare — issue #588, PR #598 — che *"il vincolo che tiene in piedi lo strumento è una
-> convenzione"* è precisamente il modo in cui un guasto diventa silenzioso.»
+> geometry"*: quel validator **è** l'invariante. Senza, la grammatica è una convenzione — e questo repository
+> ha un caso **aperto in questo momento** che dice come va a finire: `#588` osserva che il discriminante del
+> click guarda l'*actor* invece del *componente*, cioè che *"il vincolo che tiene in piedi lo strumento è una
+> convenzione"*, e la PR `#598` che lo corregge **non è mergiata**. Sul ramo di questa revisione
+> `RTHexEditorClick.cpp:84` porta ancora `Result.GetActor() == Actor`. Non è una lezione imparata: è una
+> lezione in corso, ed è più utile così — la grammatica di §11 nasce oggi, e può nascere con la sua rete
+> invece che acquisirla dopo.»
 
 > «Ultimo, su §19. *"NON ricostruire tutta la mappa a ogni movimento del mouse"* è un requisito di
 > performance senza una misura. Oggi `RebuildInstances` ricostruisce l'intero ISM a ogni cambiamento, ed è
@@ -171,8 +175,10 @@ Sei revisori, un focus ciascuno. Le citazioni sono ricostruzioni della metodolog
 > di testare una cosa che davvero non c'è.»
 
 > «Un vincolo strutturale che nessuno dei due documenti nomina: **in `Source/RefactorTacticsEditor/` non
-> esiste alcun test** — `find … -iname "*test*"` restituisce vuoto, e la PR #598 ha appena dovuto spostare
-> una funzione nel modulo runtime per poterla verificare. Ne segue una regola di progettazione, non un
+> esiste alcun test** — `find … -iname "*test*"` restituisce vuoto, ed è la ragione per cui la PR `#598`
+> (**aperta**) sposta una funzione nel modulo runtime: là dov'era, la regola non sarebbe stata verificabile.
+> Che quella PR non sia ancora mergiata non indebolisce l'argomento, lo rafforza — il vincolo è della
+> struttura del progetto, non di quel lavoro. Ne segue una regola di progettazione, non un
 > desiderio: *la maschera dei settori, la classificazione e la cottura vivono nel modulo runtime*; l'editor
 > le **chiama**. Se nascono dentro l'editor, nascono non verificabili.»
 
