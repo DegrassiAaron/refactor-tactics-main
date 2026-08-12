@@ -1284,7 +1284,7 @@ features:
     owner_specs:
       - docs/gameplay/spec-dash.md
       - docs/gameplay/spec-economia-del-turno.md
-    issues: [43, 46, 641, 645, 653]
+    issues: [43, 46, 641, 645, 653, 666]
     tests:
       - RefactorTactics.Actions.Sprint
       - RefactorTactics.Actions.Charge
@@ -1334,6 +1334,15 @@ features:
       [#425], e l'unica con semantica di trasferimento. Issue **#645**; la domanda «famiglia o policy del
       Dash?» e' `MOV-1` in `OPEN_DECISIONS.md`, e **non blocca #645**: il salto e' irraggiungibile in
       entrambi i casi.
+      🔴 **2026-08-12, D-117**: il movimento si misura con **due** budget, non uno. I **passi** dicono quanto
+      lontano si arriva (`StepBudget`, dichiarato dal profilo), i **punti movimento** quanta asperita' si
+      assorbe — costo di una cella `max(0, MoveCost - 1 + MoveCostModifier)`, terreno normale a **0**. Nessun
+      dato di mappa cambia: la linea di base si sottrae nella funzione, come
+      `URTHexLibrary::ReliefHeightForCost` fa gia' per il rilievo. Il modificatore diventa **firmato**: un
+      negativo significa «il terreno rotto non mi rallenta», e oggi non e' esprimibile perche' cinque punti lo
+      clampano a zero. Prerequisito **#653** (il profilo come entita'), modello **#666**.
+      ⚠️ `URTArenaCriteriaLibrary::CheckCostBite` non si rinumera: e' un criterio di qualita' delle mappe
+      costruito su «MP = distanza» e con due manopole **perde la domanda**.
 
   - feature_id: RT-FEAT-ACTION-BASIC-ATTACK-PROFILES
     title: Profili di attacco base per eroe
