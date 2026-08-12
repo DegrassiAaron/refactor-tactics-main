@@ -4,6 +4,10 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexVisionLibrary.h"
+#include "Map/RTHexMapActor.h"
+#include "Components/InstancedStaticMeshComponent.h"
+#include "Engine/Engine.h"
+#include "Engine/World.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -529,6 +533,57 @@ bool FRTHexBrushLineOfSightTest::RunTest(const FString&)
 		TestTrue(TEXT("ridipinto senza flag: vista di nuovo libera"),
 			URTHexVisionLibrary::HasLineOfSight(Map, From, To));
 	}
+	return true;
+}
+
+
+/**
+ * **Solo `Cells` ha collisione.** E' l'invariante da cui dipende la selezione, e ogni componente aggiunto
+ * all'actor puo' romperla senza che nulla se ne accorga.
+ *
+ * `ResolveClickedCell` valida `Result.GetActor() == Actor` — l'ACTOR, non il componente — quindi geometria
+ * collidibile su `Relief` o `Blockers` intercetterebbe il raycast del pennello. Si manifesterebbe come
+ * «dipinge dove non ho cliccato», e nessuno lo attribuirebbe alla visualizzazione: e' il motivo per cui
+ * questa regola va pinnata invece che ricordata.
+ *
+ * Verifica anche il verso opposto: `Cells` la collisione DEVE averla, o la selezione smetterebbe di
+ * funzionare del tutto — e un test che controllasse solo «gli altri non collidono» resterebbe verde.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexOnlyCellsAreClickableTest,
+	"RefactorTactics.HexMap.OnlyTheCellsComponentIsClickable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexOnlyCellsAreClickableTest::RunTest(const FString&)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+	if (!World) { return false; }
+	FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+	Ctx.SetCurrentWorld(World);
+
+	ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
+	TestNotNull(TEXT("l'actor esiste"), Actor);
+	if (Actor)
+	{
+		TArray<UInstancedStaticMeshComponent*> Components;
+		Actor->GetComponents<UInstancedStaticMeshComponent>(Components);
+		TestTrue(TEXT("ci sono piu' componenti istanziati"), Components.Num() >= 2);
+
+		int32 Collidable = 0;
+		for (const UInstancedStaticMeshComponent* C : Components)
+		{
+			if (C->GetCollisionEnabled() != ECollisionEnabled::NoCollision)
+			{
+				++Collidable;
+				// Se un componente nuovo diventa collidibile, il messaggio dice QUALE: senza il nome, chi legge
+				// il fallimento saprebbe solo che «qualcosa» ruba i click.
+				TestEqual(TEXT("l'unico componente collidibile e' quello delle celle"),
+					C->GetName(), FString(TEXT("Cells")));
+			}
+		}
+		TestEqual(TEXT("esattamente UN componente collidibile"), Collidable, 1);
+	}
+
+	GEngine->DestroyWorldContext(World);
+	World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
 	return true;
 }
 

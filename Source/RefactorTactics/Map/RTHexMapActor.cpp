@@ -29,6 +29,25 @@ namespace
 	constexpr float RTCellFlatScale = 0.05f;
 	constexpr float RTCellTopZ = 50.f * RTCellFlatScale; // 2.5 uu
 
+	/**
+	 * Geometria dei volumi che mostrano le regole, in frazione del raggio della cella.
+	 *
+	 * Sono ANNIDATI e in ordine: contorno di superficie 0.85 (linea) > lastra della vista 0.75 > rilievo del
+	 * costo 0.60 > colonna del blocco 0.40. Una cella che dice tre cose insieme le mostra tutte e tre, invece
+	 * di nasconderne due sotto la terza — ed e' il criterio che tiene, non l'estetica.
+	 */
+	constexpr float RTSightSlabScale = 0.75f;
+	constexpr float RTBlockColumnScale = 0.40f;
+
+	/**
+	 * Altezze (uu). La lastra della vista e' BASSA di proposito: comunica «ci si passa sopra», che e' la cosa
+	 * piu' fraintesa della mappa. La colonna del blocco e' alta abbastanza da leggersi dall'alto, che e' la
+	 * vista di lavoro, e resta due ordini di grandezza sotto `LayerHeight` (250) per non confondersi con un
+	 * piano — stesso vincolo del rilievo di costo.
+	 */
+	constexpr float RTSightSlabHeight = 16.f;
+	constexpr float RTBlockColumnHeight = 55.f;
+
 	/** Quote di disegno, tutte sopra la faccia del disco e in ordine di priorita' di lettura. */
 	constexpr float RTLiftSurface = RTCellTopZ + 0.5f;  // contorno della superficie (contesto)
 	constexpr float RTLiftMarker  = RTCellTopZ + 1.5f;  // blocca-movimento / blocca-vista
@@ -66,6 +85,17 @@ ARTHexMapActor::ARTHexMapActor()
 	if (CylinderMesh.Succeeded())
 	{
 		Relief->SetStaticMesh(CylinderMesh.Object);
+	}
+
+	// Volumi delle regole di blocco: stessa disciplina del rilievo — nessuna collisione, nessuna ombra.
+	Blockers = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Blockers"));
+	Blockers->SetupAttachment(Cells);
+	Blockers->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Blockers->SetCollisionResponseToAllChannels(ECR_Ignore);
+	Blockers->CastShadow = false;
+	if (CylinderMesh.Succeeded())
+	{
+		Blockers->SetStaticMesh(CylinderMesh.Object);
 	}
 }
 
@@ -374,6 +404,11 @@ void ARTHexMapActor::RebuildInstances()
 		if (UStaticMesh* Mesh = CellMesh.LoadSynchronous()) { Relief->SetStaticMesh(Mesh); }
 		Relief->ClearInstances();
 	}
+	if (Blockers)
+	{
+		if (UStaticMesh* Mesh = CellMesh.LoadSynchronous()) { Blockers->SetStaticMesh(Mesh); }
+		Blockers->ClearInstances();
+	}
 
 	// Sorgente celle: l'asset se popolato, altrimenti un graybox demo (esagono pieno di raggio DemoRadius).
 	const float UseHexSize = MapAsset ? MapAsset->HexSize : HexSize;
@@ -391,11 +426,15 @@ void ARTHexMapActor::RebuildInstances()
 	TArray<FRTCellId> CellIds;
 	TArray<int32> Heights;
 	TArray<int32> MoveCosts;
+	TArray<bool> BlocksMove;
+	TArray<bool> BlocksSight;
 	if (MapAsset && MapAsset->NumCells() > 0)
 	{
 		CellIds.Reserve(MapAsset->NumCells());
 		Heights.Reserve(MapAsset->NumCells());
 		MoveCosts.Reserve(MapAsset->NumCells());
+		BlocksMove.Reserve(MapAsset->NumCells());
+		BlocksSight.Reserve(MapAsset->NumCells());
 		for (const FRTHexCellData& C : MapAsset->Cells)
 		{
 			if (!PassesLayerFilter(C.Id.Layer))
@@ -405,6 +444,8 @@ void ARTHexMapActor::RebuildInstances()
 			CellIds.Add(C.Id);
 			Heights.Add(C.Height);
 			MoveCosts.Add(C.MoveCost);
+			BlocksMove.Add(C.bBlocksMovement);
+			BlocksSight.Add(C.bBlocksLineOfSight);
 		}
 	}
 	else if (DemoRadius > 0)
@@ -413,6 +454,8 @@ void ARTHexMapActor::RebuildInstances()
 		CellIds = URTHexLibrary::HexArea(FRTCellId(0, 0, ActiveLayer), DemoRadius);
 		Heights.Init(0, CellIds.Num());
 		MoveCosts.Init(1, CellIds.Num()); // il graybox non ha terreni: tutto pavimento, quindi piatto
+		BlocksMove.Init(false, CellIds.Num());
+		BlocksSight.Init(false, CellIds.Num());
 	}
 
 	// Cilindro engine: raggio 50 uu, mezza-altezza 50 uu. Scala X,Y per coprire ~l'esagono, Z sottile (disco).
@@ -441,6 +484,25 @@ void ARTHexMapActor::RebuildInstances()
 			const FTransform ReliefXf(FRotator::ZeroRotator, ReliefCenter,
 				FVector(PlanarScale * 0.6f, PlanarScale * 0.6f, ReliefHeight / 100.f));
 			Relief->AddInstance(ReliefXf, /*bWorldSpace=*/ true);
+		}
+
+		// Volumi delle due regole. Sono INDIPENDENTI: una cella puo' averne una, l'altra o entrambe, e in
+		// quest'ultimo caso si vedono tutte e due — la lastra larga e bassa attorno alla colonna stretta e
+		// alta. Confonderle e' l'errore piu' frequente su questa mappa: una cella che blocca la vista si
+		// ATTRAVERSA, ed e' cio' che serve a una rotta coperta ma percorribile.
+		if (Blockers)
+		{
+			auto AddVolume = [&](float PlanarFraction, float VolumeHeight)
+			{
+				FVector Center = World;
+				Center.Z += RTCellTopZ + VolumeHeight * 0.5;
+				const FTransform VolumeXf(FRotator::ZeroRotator, Center,
+					FVector(PlanarScale * PlanarFraction, PlanarScale * PlanarFraction, VolumeHeight / 100.f));
+				Blockers->AddInstance(VolumeXf, /*bWorldSpace=*/ true);
+			};
+
+			if (BlocksSight[I]) { AddVolume(RTSightSlabScale, RTSightSlabHeight); }
+			if (BlocksMove[I])  { AddVolume(RTBlockColumnScale, RTBlockColumnHeight); }
 		}
 	}
 }
