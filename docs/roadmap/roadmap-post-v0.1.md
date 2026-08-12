@@ -435,6 +435,18 @@ introduce un asse di bilanciamento per abilità × quattro profili, e vale la mi
 [D7 di E4](../gameplay/spec-motore-azioni-e4.md) — **una fetta per volta**, mai il modello e i numeri nello
 stesso checkpoint.
 
+> 🔴 **Un prerequisito scoperto implementando, il 2026-08-12.** Il tentativo di eseguire la migrazione dello
+> `Sprint` prescritta da [D-116](../decisions/RT_PDR_00_Decision_Log.md) ha misurato che **i profili di
+> movimento non esistono come entità nel codice** (`grep -rn MovementProfile Source/` → zero): il budget del
+> movimento normale viene dall'**unità**, non dall'azione pianificata, e gli 8 MP dello `Sprint` li legge un
+> solo punto (`ResolveDash`). Spostare la fase gli toglierebbe distanza e divieto di reazione — tre dei
+> quattro prezzi che D-116 gli assegna.
+>
+> **L'ordine dell'epic cambia di conseguenza**: `#653` (dare un tipo ai profili) precede sia `#641` (la
+> migrazione) sia `#606` (la compatibilità, che ha bisogno di un profilo su cui scrivere `Stability`). Il
+> tentativo verificato vive su `feat/641-sprint-post-blast`: compila su entrambi i target, e i suoi **4 test
+> rossi** sono la misura del buco.
+
 **Non fa**: i valori (`AE-5` per lo `Sneak`, `AE-4` per la risorsa firma) · il costo del pivot (`FAC-12`, che
 si guarda alla revisione dei numeri di ADR-0008) · i fatti del percorso (`AE-3`) · il workbook di
 bilanciamento, che [`balance/README.md`](../balance/README.md) vieta di correggere cella per cella.

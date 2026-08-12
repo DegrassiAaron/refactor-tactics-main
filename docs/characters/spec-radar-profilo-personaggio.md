@@ -184,7 +184,7 @@ danno, range, effetto e cooldown.
 
 | Asse | Si deriva da | Stato |
 |---|---|:--:|
-| `offense` | danno, gittata e cooldown delle abilità offensive del kit | ✅ |
+| `offense` | `power × (0.5 + precision/20)` — il Profile **aggrega** ciò che il Balance scompone (§5.2) | ✅ |
 | `durability` | `Salute` + `Resistenza Push` | ✅ |
 | `mobility` | `Movimento` + abilità di riposizionamento (dash, blink, self-reposition) | ✅ |
 | `control` | effetti dichiarati: push, slow, zoning, `Interrupt`, modifica del terreno | ✅ |
@@ -207,6 +207,52 @@ delle **azioni**, non degli eroi ([D-042](../decisions/RT_PDR_00_Decision_Log.md
 eroe si deriva dal **kit** — quali azioni possiede e quanto rumore fanno. Finché quel passo non
 esiste, `information` va letto come «quanto lontano vede», e la Wiki non deve promettere di più.
 
+### 5.2 Le regole comuni a ogni asse
+
+Valgono per **entrambi** i radar. Stanno qui e non nelle formule dei singoli assi perché una risposta
+diversa per asse produrrebbe due viste che raccontano lo stesso eroe in modo diverso.
+
+**Il kit letto è quello base** — le quattro abilità fondamentali. Niente varianti, gadget o moduli di
+reazione: il radar descrive il **personaggio**, non una build, ed è la base comune che rende due eroi
+confrontabili (§1). Il loadout consigliato aprirebbe il catalogo equipaggiamento come terza fonte e
+richiederebbe di assumere **quanti bersagli** colpisce *Scarica ramificata* — che è uno scenario, non un
+dato. Le varianti restano documentate come **direzione**, senza numeri.
+
+**Le reazioni rinviate a E14 contano.** `Vektor.InterceptShot` e `Riva.FlowReaction` non producono nulla
+in partita, ma il radar descrive l'eroe come il **catalogo lo dichiara**. Escluderle legherebbe i rating
+al calendario di implementazione: quando E14 atterra i numeri cambierebbero e il gate di §8 diventerebbe
+rosso **senza** che nessuno abbia toccato un dato competitivo.
+
+**Il cooldown pesa `disponibilità(CD) = 10 / (1 + CD/2)`** — `CD 0 → 10 · 1 → 6.67 · 2 → 5 · 3 → 4`.
+Risolve `CD 0` senza casi speciali, con **una sola costante** da giustificare invece di una tabella di
+quattro. Scartata la frequenza pura `10/(1+CD)`, che fa collidere Bastion e Riva.
+
+> ⚠️ **La curva non è taratura: cambia il carattere di un eroe.** Flux ha quattro abilità su cinque a
+> `CD 2–3`, quindi una curva severa le svaluta tutte — e siccome le sue abilità **non selettive** sono
+> proprio quelle a cooldown alto, la sua selettività *sale*. Con una tabella piatta usciva
+> `power 7 / precision 6`; con questa curva esce `6 / 7`.
+
+**Un bonus condizionale vale zero come danno.** Il `+8 su `Wet`` di `Flux.LinearDischarge` non entra in
+nessun rating come danno: entra come **condizionalità**. La regola vale su ogni asse e su **entrambe** le
+sedi in cui il catalogo dichiara una condizione — la cella `Effetto` per gli stati, la tabella delle
+reazioni per le previsioni (`Vektor.InterceptShot`). Due meccanismi separati potrebbero divergere.
+
+**Le ancore sono assolute, non relative al roster.** `rate(raw, ancora)` porta `raw = 0` a `1` e
+`raw = ancora` a `10`, e satura. Una normalizzazione min-max garantirebbe lo spread per costruzione, ma
+farebbe cambiare i rating degli eroi esistenti all'arrivo di un eroe nuovo (**E35**) — e il `--check` di
+§8 diventerebbe rosso senza che nessun dato competitivo sia cambiato. Lo spread resta un requisito da
+**verificare**, non da imporre.
+
+**L'ancora di `power` è `raw 100`**, cioè «uccide un eroe medio in un turno»: la salute del roster è
+`90/95/120/90`, media `98.75`, e `power_raw` è già danno per turno. Deriva da un dato del gioco, non da
+un numero scelto perché i conti tornassero.
+
+> **Implementazione**: `tools/radar/rubric.ts` (scala, ancore, peso del cooldown, `TBD`) e
+> `tools/radar/power.ts`. L'aritmetica è **intera esatta**: `10/(1+CD/2)` è `20/(2+CD)`, i denominatori
+> possibili sono `{2,3,4,5}` e il loro mcm è `60`, quindi ogni peso è un intero. Serve al `--check` di
+> §8, che confronta artefatti byte a byte: un arrotondamento in virgola mobile lo renderebbe rosso su
+> una macchina e verde su un'altra.
+
 ## 6. Valori mancanti: TBD non è zero
 
 Un asse senza rating è `TBD`, e **`TBD` non si disegna**.
@@ -225,15 +271,26 @@ completo».
 un asse che la formula non copre disegnato come `0` accuserebbe l'eroe di una debolezza che nessuno ha
 misurato.
 
+✅ **Nell'implementazione `TBD` è un `Symbol`, non un numero** (`tools/radar/rubric.ts`): non può
+diventare `0` per errore di tipo o per una somma distratta. La regola qui sopra smette di dipendere
+dalla disciplina di chi scrive la formula.
+
 ## 7. Ordine di lavoro
 
 1. **Rubrica** — è il prerequisito di tutto: senza formula i rating non esistono affatto (§4.3).
 2. **Assi Profile** nell'ordine di §5: prima i cinque derivabili, poi `information` col suo limite.
 3. **Generatore** sul Profile, dimostrato end-to-end con il gate di §8.
 4. **Integrazione Wiki** e pubblicazione dei primi radar.
-5. **Balance Radar**, che richiede prima di definire *cosa misurano* `precision` e `power`: il Profile ha
-   un solo asse `offense`, il Balance lo separa in due, e la differenza non è scritta da nessuna parte.
+5. **Balance Radar** — `power` è definito e implementato; resta `precision`.
 6. Rumore per eroe derivato dal kit, che è ciò che rende `information` un asse vero (§5.1).
+
+> **Stato al 2026-08-12.** Fatti: il **parser** che riempie `HeroInput` dai due cataloghi
+> (`tools/radar/parse-catalog.ts`), l'**infrastruttura** della rubrica — scala, ancore, peso del
+> cooldown, `TBD` — e l'asse **`power`**. Restano `precision` e i sei assi del Profile, poi il
+> generatore.
+>
+> ⚠️ Il punto 5 diceva che la differenza fra `precision` e `power` «non è scritta da nessuna parte»:
+> non è più vero, `power` è *danno sostenuto* e `precision` *incondizionalità più selettività*.
 
 Il primo punto non è più «risolvere il conflitto dei workbook»: [D-106](../decisions/RT_PDR_00_Decision_Log.md)
 lo ha dissolto.
