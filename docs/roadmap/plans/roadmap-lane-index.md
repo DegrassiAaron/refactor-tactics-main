@@ -1,4 +1,4 @@
-# Le cinque lane — indice e regole di lettura
+# Le lane — indice e regole di lettura
 
 > `SNAPSHOT` · **Data**: 2026-08-12 · **HEAD**: `59fa6f8a` (riallineato al merge)
 > **Cosa è**: la vista d'insieme dei cinque file di lane, e le regole che li rendono leggibili senza
@@ -12,6 +12,18 @@
 | **3** | [`roadmap_lane_3.md`](roadmap_lane_3.md) | Client / UX | `#77` CP 11.1 — 🟢 P1 |
 | **4** | [`roadmap_lane_4.md`](roadmap_lane_4.md) | Editor / Tooling | `#38` CP 2.8 — 🟢 P0 |
 | **5** | [`roadmap_lane_5.md`](roadmap_lane_5.md) | Replay / Audit | `#83` CP 12.3 — 🟢 P0 |
+| **6** | [`roadmap_lane_6.md`](roadmap_lane_6.md) | Character | `#593` root di `ARTUnit` — 🟢 P2 `bug` |
+| **7** | [`roadmap_lane_7.md`](roadmap_lane_7.md) | VFX / AssetFab | ⚠️ nessuna issue — vedi §1 del file |
+
+**Le lane 6 e 7 sono state aggiunte il 2026-08-12**, su richiesta, e non sono simmetriche alle prime
+cinque. La **6** nasce piena: prende E21 dalla lane 3 e raccoglie 12 feature del registry attorno a un
+bug che le blocca tutte. La **7** nasce **quasi vuota, e lo dichiara in testa** — nessuna cartella VFX
+esiste, nessuna feature la nomina, e la sua radice di asset è fuori da git per decisione
+(`.gitignore:67`). È un perimetro dichiarato, non un piano.
+
+⚠️ **Il confine 3 / 6 non è «interfaccia vs personaggi» ma dove vive il pixel**: la lane 3 possiede lo
+**spazio schermo** (HUD, camera, input, ghost, log), la lane 6 il **mondo** — chi sta sulla cella e come
+si presenta. È la ragione per cui `#287`–`#289` si sono spostate.
 
 ---
 
