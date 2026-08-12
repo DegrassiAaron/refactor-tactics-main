@@ -1,8 +1,14 @@
 # Spec — Compatibilità fra azioni e movimento: la proposta, in forma decidibile
 
-> `PROPOSED` · **Non è canone.** Esiste per rendere **`AE-2`** decidibile con un modello concreto davanti
-> invece che in astratto: senza, la domanda resta *«ti piacerebbe che il movimento contasse?»*, a cui si
-> risponde di sì e non si conclude niente.
+> `CURRENT` · ✅ **Accettata il 2026-08-12** — [D-116](../decisions/RT_PDR_00_Decision_Log.md), decisa
+> dall'autore in sessione socratica su [#606](https://github.com/DegrassiAaron/refactor-tactics-main/issues/606).
+> **Da implementare in E38 (v0.2)**: nessuna riga di codice la esprime oggi.
+>
+> ⚠️ **Non è arrivata da sola, e le tre voci non sono separabili.** La stessa decisione riporta lo `Sprint`
+> **dopo il Blast** (superando [D-068](../decisions/RT_PDR_00_Decision_Log.md)) e porta `Status.Exposed` a
+> **2 turni**. Presa da sola, la migrazione di fase produrrebbe l'upgrade puro che
+> [D-015](../decisions/RT_PDR_00_Decision_Log.md) vieta: `Exposed` diventerebbe inerte e allo `Sprint`
+> resterebbe un solo prezzo. Chi legge questa pagina senza le altre due voci legge metà della regola.
 >
 > **Owner della domanda**: [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) `AE-2` · **issue**:
 > [#606](https://github.com/DegrassiAaron/refactor-tactics-main/issues/606) · **feature**:
@@ -10,8 +16,8 @@
 > **Regola in vigore**: [`spec-economia-del-turno.md`](spec-economia-del-turno.md) — oggi il profilo di
 > movimento cambia **distanza, rumore ed esposizione** e nient'altro.
 >
-> Se `AE-2` viene decisa **no**, questa pagina diventa `HISTORICAL` e resta come referto: costa meno di
-> riscoprire fra sei mesi perché era stata scartata.
+> **Le categorie nominate dall'autore**, che diventano il primo lavoro di assegnazione: **attacchi di
+> precisione · azioni di preparazione · azioni pesanti**. I valori restano taratura.
 
 ## 1. Il problema, che non è nuovo
 
@@ -27,6 +33,12 @@ gli 8 MP. Nessuna cambia la *natura* della scelta. La compatibilità col movimen
 scelto*.
 
 ## 2. 🔴 Ciò che il kit dava per scontato, e che il modello del turno smentisce
+
+> ✅ **Questa sezione ha deciso più di sé stessa.** Guardando l'ordine delle fasi per verificare la
+> giustificazione del kit è emerso che lo `Sprint`, restando pre-Blast, **spara da una posizione nuova** —
+> cioè fa ciò che il catalogo §2.1 attribuisce al `Dash`. È il fatto che ha prodotto la voce (1) di
+> [D-116](../decisions/RT_PDR_00_Decision_Log.md). La tabella qui sotto descrive quindi lo stato **prima**
+> della migrazione.
 
 Il kit del 2026-08-12 giustifica la regola con l'immagine ovvia: *non puoi mirare mentre corri*.
 
