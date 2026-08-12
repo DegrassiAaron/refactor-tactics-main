@@ -147,7 +147,7 @@ features:
       - RT-FEAT-CORE-TURNLOG
     owner_specs:
       - docs/gameplay/spec-anima-risoluzione.md
-    issues: [81, 178]
+    issues: [81, 178, 578]
     tests:
       - RefactorTactics.Simulation.*
       - RefactorTactics.HexSim.ReplayDivergenceZero
@@ -3842,7 +3842,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
-      replay_representable: todo
+      replay_representable: na
     roadmap:
       epic: E13
       checkpoints: ["13.5"]
@@ -3905,6 +3905,22 @@ features:
       sicura: il bot sottostima le occasioni invece di inventarle.
       `scenario: todo` e `ui_wiki: partial`: gli scenari `Spec.Bot.*` non sono scritti, e la meta' HUD
       di #160 (marker d'ultimo contatto, area d'incertezza acustica) dipende da CP 13.4.
+
+
+      ⚠️ **`replay_representable: na` qui vuol dire «non e' possibile», non «non serve»** — ed e' l'unico
+      punto del registry dove i due significati divergono. Le voci che il bot produce muovendo e sparando
+      esistono, ma appartengono a `RT-FEAT-CORE-TURN` e `RT-FEAT-ACTION-ENGINE`: il decisore non possiede
+      le voci, le possiede chi esegue. E soprattutto **la traccia non distingue questa feature dal suo
+      contrario**: un bot che pianifica sulla conoscenza della squadra e un bot onnisciente che fa la
+      stessa mossa scrivono voci identiche. E' la stessa cosa che `RT-FEAT-BOT-PREDICTIVE` dichiara come
+      il proprio caso da testare — «dedurre» e «sapere» sono indistinguibili dall'esterno — e vale gia'
+      oggi, per una feature che invece e' `TESTABLE`.
+
+
+      Quindi l'equita' del bot **non ha un gate che la protegga**: la tiene solo la verifica di mutazione
+      su `HiddenEnemyFairness`, che rimettendo l'onniscienza fa cadere tre test. Se un giorno la traccia
+      registrasse lo stato di conoscenza del bot la proprieta' diventerebbe verificabile a posteriori, ma
+      e' una decisione di formato **e** di privacy: sta in `OPEN_DECISIONS.md` accanto a `REP-1`, non qui.
 
   - feature_id: RT-FEAT-BOT-TACTICAL
     title: Team Planner — piano di squadra, ruoli dinamici e sinergie
@@ -4032,7 +4048,7 @@ features:
       ui_wiki: todo
       packaged: todo
       network_privacy: na
-      replay_representable: todo
+      replay_representable: na
     roadmap:
       epic: null
       checkpoints: []
@@ -4548,7 +4564,7 @@ features:
       - RT-FEAT-CORE-TURN
     owner_specs:
       - docs/product/piano-canonico-mvp.md
-    issues: [53]
+    issues: [53, 577, 578]
     tests:
       - RefactorTactics.Reactions.IntentNotVisibleToEnemy
       - RefactorTactics.Combat.IntentVisibleToAlliesAlwaysEnemiesOnlyIfRevealed
