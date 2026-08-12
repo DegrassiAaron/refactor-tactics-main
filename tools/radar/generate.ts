@@ -11,6 +11,7 @@ import { readCatalogs } from './parse-catalog.ts';
 import { profileAxes } from './profile.ts';
 import { renderRadar, PROFILE_AXES, BALANCE_AXES } from './svg.ts';
 import { balanceAxes } from './balance.ts';
+import { assertKnownEffects } from './vocabulary.ts';
 
 const HERO = new URL('../../docs/balance/RT_HeroCatalog_v0.1.md', import.meta.url);
 const ACTION = new URL('../../docs/balance/RT_ActionCatalog_v0.1.md', import.meta.url);
@@ -30,6 +31,10 @@ const { heroes, coverage } = readCatalogs(HERO, ACTION, { expectHeroes: 4, expec
 
 const diverging: string[] = [];
 if (!check && !existsSync(OUT)) mkdirSync(OUT, { recursive: true });
+
+// Un effetto fuori vocabolario ferma tutto PRIMA di scrivere: uno zero silenzioso entrerebbe nei
+// radar senza che nessuno se ne accorga (#557).
+heroes.forEach(assertKnownEffects);
 
 for (const hero of heroes) {
   const role = ROLES[hero.name] ?? '—';

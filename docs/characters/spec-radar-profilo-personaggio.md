@@ -67,6 +67,62 @@ Profile.
 > concludere che non esistano affatto — che è falso, e produrrebbe un argomento più debole di quello
 > vero: esistono, e il foglio stesso dimostra che sono default.
 
+### 2.2a Che cosa misurano `precision` e `power`
+
+Il Profile ha **un solo** asse `offense`; il Balance lo scompone in due. Senza dire cosa distingue i
+due pezzi, la formula non è scrivibile — e per un po' la differenza non è stata scritta da nessuna parte.
+
+**Il vincolo che decide tutto: nel combattimento non c'è RNG.** Nessun tiro per colpire, nessuna
+`accuracy`. Quindi «precisione» non può significare *probabilità di andare a segno*: dev'essere
+strutturale.
+
+**`power` — quanto danno l'eroe produce per turno**, tenendo conto di quanto spesso può farlo:
+
+```
+power_raw = Σ  danno_garantito(azione) × disponibilità(cooldown)      ancora: raw 100 = 10
+```
+
+Non è *burst*: un colpo enorme ogni tre turni non vale quanto uno ripetibile.
+
+**`precision` — quanto di quel danno arriva senza chiedere niente**, né setup né posizionamento della
+squadra:
+
+```
+precision = (incondizionalità + 2 · selettività) / 3
+```
+
+- **incondizionalità** — quota di danno **garantito** sul potenziale, pesata per disponibilità;
+- **selettività** — quota della **disponibilità** delle azioni rilevanti che non rischia gli alleati.
+
+⚠️ **Due componenti, due metriche, e non è una svista**: un'abilità senza danno non ha danno da pesare,
+quindi la selettività si misura sulla disponibilità. È anche più fedele — il rischio di colpire un
+alleato dipende da **quanto spesso** usi l'azione, non da quanto fa male.
+
+⚠️ **Il peso `1:2` è misurato, non scelto**: sul roster l'incondizionalità varia da `0.77` a `1.00`
+mentre la selettività copre l'intero `0.00–1.00`. Pesare di più la componente che varia meno
+comprimerebbe tre eroi su quattro nello stesso intero.
+
+**`precision` guarda solo le azioni offensive** — più le abilità senza danno il cui effetto si applica a
+un'**area** e produce sugli alleati lo **stesso** svantaggio che produce sui nemici (`MistVeil`,
+`FluidTrail`). Una copertura no: protegge chi vi sta dietro. Altrimenti un eroe risulterebbe «preciso»
+per abilità che non colpiscono nessuno.
+
+### 2.2b La commensurabilità è una posizione, non un fatto
+
+Il Balance serve anche a vedere se un eroe **sta nel budget**, e questo impone che i cinque assi si
+sommino. Ma `power` è una **quantità** (danno per turno) e `precision` una **qualità** (quanto è
+affidabile): sommarle afferma **«l'affidabilità è potenza»**.
+
+È difendibile — un colpo che va sempre a segno vale più di uno da preparare — ed è già ciò che il
+workbook faceva sommando i cinque assi in `Indice_Combat`. Ma è una **scelta**, e va scritta qui:
+altrimenti fra sei mesi qualcuno somma quei numeri senza sapere di averlo deciso.
+
+⚠️ **Ne segue la regola che tiene insieme i due assi**: un bonus condizionale non può contribuire a
+entrambi. Se `power` contasse il potenziale, il `+8 su Wet` di Flux **alzerebbe** `power` e
+**abbasserebbe** `precision`, e in un indice sommabile i due movimenti **si cancellerebbero** — il
+tratto più identitario di Flux sparirebbe dal costo. Perciò `power` conta solo il danno **garantito**
+(§5.2), e il condizionale vive interamente in `precision`.
+
 ### 2.3 L'ordine fa parte della specifica
 
 Cambiare l'ordine dei raggi cambia la forma del poligono a parità di valori. Due radar prodotti con

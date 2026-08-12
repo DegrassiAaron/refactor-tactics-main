@@ -1,6 +1,6 @@
 # Lane 4 — Editor / Tooling
 
-> `SNAPSHOT` · **Data**: 2026-08-12 · **HEAD**: `59fa6f8a` (riallineato al merge)
+> `SNAPSHOT` · **Data**: 2026-08-12 · **HEAD**: `52c08286` (riallineato dopo `#552`, `#553`, `#619`)
 > **Cosa è**: la sequenza di lavoro della lane *Editor / Tooling*, letta sul backlog **già aperto**.
 > **Cosa non è**: una fonte di stato. Aperto/chiuso vive su GitHub, e lo stato delle **sedute**
 > vive in [`../../technical/test-manuali-pie.md`](../../technical/test-manuali-pie.md) + `editor-sessions.yaml`.
@@ -56,16 +56,58 @@ con un `grep` che conta anche la prosa.
 | Issue | Cosa | Stato | Prio |
 |---|---|---|:--:|
 | ~~`#551`~~ | 1/4 · superficie e costo di movimento leggibili senza aprire un pannello | ✅ **chiusa 2026-08-12** | P2 |
-| `#552` | 2/4 · dare volume ai blocchi, distinguere «non si passa» da «non si vede» | 🟢 **pronta — prima della serie** | P2 |
-| `#553` | 3/4 · coperture, porte e transizioni stanno sui **bordi**, e l'overlay non li mostra | 🟢 pronta | P2 |
-| `#554` | 4/4 · le transizioni e la raggiungibilità — capire come si collegano i piani | 🟢 pronta | P2 |
+| ~~`#552`~~ | 2/4 · dare volume ai blocchi, distinguere «non si passa» da «non si vede» | ✅ **chiusa 2026-08-12** — PR `#670` | P2 |
+| ~~`#553`~~ | 3/4 · coperture, porte e transizioni stanno sui **bordi**, e l'overlay non li mostra | ✅ **chiusa 2026-08-12** — PR `#673` | P2 |
+| `#554` | 4/4 · le transizioni e la raggiungibilità — capire come si collegano i piani | 🟢 **pronta — ultima della serie** | P2 |
 
 ⚠️ **Sono ordinate per frequenza sulla mappa, non da una dipendenza dichiarata**: nessuna delle
-quattro blocca formalmente le altre. `#551` era stata riscritta dopo il merge di `#565` (vista a
-livelli `Focus`) ed è stata **chiusa il 2026-08-12** — il resto della serie **non** ha ricevuto la
-stessa revisione, quindi `#552`–`#554` vanno rilette contro il codice prima di aprirle.
+quattro blocca formalmente le altre. Tre su quattro sono chiuse lo stesso giorno, nell'ordine
+proposto dal brief.
 
-### 5. ~~`#582`~~ · Harness: il perimetro delle capability di reazione ✅ **CHIUSA il 2026-08-12**
+**`#554` non è «il residuo»**: è l'unica delle quattro che guarda il **grafo** invece della
+geometria — *una piattaforma scollegata è una mappa rotta* — e finché è aperta la vista in editor
+mostra i volumi e tace sulle transizioni. È la ragione per cui `RT-FEAT-TOOL-MAP-EDITOR` tiene
+`log_debug: partial` invece di `done`.
+
+⚠️ Chi la raccoglie legga prima `RefactorTactics.HexMap.OnlyTheCellsComponentIsClickable`: `#552` e
+`#553` hanno aggiunto un **secondo** `UInstancedStaticMeshComponent` all'actor, e quel test è ciò che
+impedisce al pennello di risolvere un click contro la geometria sbagliata. `#554` aggiunge altra
+geometria alla stessa scena.
+
+### 5. Map Sketch Editor — la serie geometria, `#619` → `#623`
+
+**Referto**: [`map-sketch-editor-spec-panel-2026-08-12.md`](map-sketch-editor-spec-panel-2026-08-12.md) ·
+**Feature**: `RT-FEAT-TOOL-MAP-GEOMETRY` (nuova) e `RT-FEAT-TOOL-MAP-EDITOR`
+
+Nate il 2026-08-12 dal terzo prompt della famiglia map-editor. Le prime tre sono l'**anticipazione
+dichiarata** della metà di authoring di E23.1 (v0.2): l'epic [`#324`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324)
+**non** si apre, e la logica di transizione resta sua.
+
+| Issue | Cosa | Stato | Prio |
+|---|---|---|:--:|
+| ~~`#619`~~ | Occupancy a 12 settori: maschera, `CoreBlocked`, e il `Constrained` che qualcuno legge | ✅ **chiusa 2026-08-12** | P2 |
+| `#620` | Grammatica quantizzata delle direttrici, e il validator che la rende una regola | 🟢 **pronta — prossima della serie** | P2 |
+| `#621` | Cottura: la geometria disegnata diventa `FRTHexCover` e `bBlocksMovement` | ⏳ dopo `#620` | P2 |
+| `#622` | La griglia di lavoro si vede prima di disegnare, e non si confonde con una cella vera | 🟢 pronta — indipendente | P2 |
+| `#623` | Seduta: luci leggibili in `L_DevSandbox`, e un modo di inquadrare tutta la mappa | 🟢 pronta — è la seduta **U21** | P2 |
+
+⚠️ **`#623` non è codice**: `L_DevSandbox.umap` è un `.umap`, e la navigazione del viewport la
+fornisce Unreal. Vive come seduta `U21` in `editor-sessions.yaml`, e il suo stato si legge nella
+[`editormap`](../editormap.shortlist.md) — non qui.
+
+**`#619` ha pagato il debito che aveva fermato i due prompt precedenti**: una geometria enumerabile
+in dodici settori non porta estremi in virgola mobile dentro l'hash che tiene fermo *replay
+divergence = 0*. Sedici test `RefactorTactics.HexOccupancy.*` e lo scenario
+`Spec.Map.ConstrainedCellCostsMore`, tutti nel modulo **runtime** — in
+`Source/RefactorTacticsEditor/` non esiste alcun test, quindi ciò che nasce dentro l'editor nasce
+non verificabile.
+
+⚠️ **Una decisione aperta è sulla strada di `#621`**, non di `#620`: `MSE-1` in
+[`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) — se qualcuno modifica a mano un campo cotto,
+vince la modifica o il prossimo rebake la cancella? `#619` cuoce ma **non** innesca la domanda (il
+costo ha un produttore solo); `#621` sì, perché i bordi restano a produttore condiviso col pennello.
+
+### 6. ~~`#582`~~ · Harness: il perimetro delle capability di reazione ✅ **CHIUSA il 2026-08-12**
 
 *«…è superato da CP 14.4, e D-109 sta per aggiungere un campo senza produttore.»*
 
@@ -73,7 +115,7 @@ stessa revisione, quindi `#552`–`#554` vanno rilette contro il codice prima di
 Chiusa poche ore dopo la stesura di questo file. ⚠️ **La sua gemella `#583` resta aperta** ed è ora
 il primo anello della lane 2: D-109 è atterrata, la condizione è dichiarata, e **nessuno la produce**.
 
-### 6. Coda lunga
+### 7. Coda lunga
 
 | Issue | Cosa | Stato | Prio |
 |---|---|---|:--:|
@@ -87,7 +129,15 @@ il primo anello della lane 2: D-109 è atterrata, la condizione è dichiarata, e
 1. **`#38`** — P0, è una sessione, e sblocca l'epic `#17`.
 2. **`#82`** — P1, alimenta la catena di release della lane 5.
 3. **`#451`** — P1, gli artefatti ci sono già.
-4. `#552` → `#553` → `#554` — rileggendole prima contro il codice (vedi sopra).
+4. `#554` — chiude la serie viz, ed è l'unica delle quattro che guarda il grafo.
+5. `#620` → `#621` — la serie geometria nell'ordine in cui paga; `#620` prima perché il validator
+   è ciò che rende la grammatica una regola invece di una convenzione.
+6. `#622` e `#623` — indipendenti dalle altre, e `#623` è una **seduta** (U21): si può fare in
+   qualunque momento ci sia una persona davanti all'editor.
+
+⚠️ **Le prime tre restano davanti alla geometria**: `#38`, `#82` e `#451` sono P0/P1 e sbloccano
+epic e release. La serie geometria è P2 e `packaged: na` — è **fuori dai gate della v0.1** per
+costruzione, quindi non compete con la consegna. Metterla prima sarebbe una scelta, non un ordine.
 
 ## Dipendenze fuori lane
 
