@@ -3073,7 +3073,7 @@ features:
       - RT-FEAT-MAP-HEXGRAPH
     owner_specs:
       - docs/gameplay/brief-conoscenza-parziale.md
-    issues: [158, 159]
+    issues: [158, 159, 690]
     tests:
       - RefactorTactics.Noise.PropagationIsDeterministic
       - RefactorTactics.Noise.AttenuationBySurface
@@ -3101,6 +3101,13 @@ features:
       `ui_wiki: partial` resta perché la pagina `Guida/visibilita-rumore-e-informazione` esiste ma **non
       racconta ancora la scala di precisione** — cosa impari da un rumore e cosa no, che è la prima cosa di
       questa feature che valga la pena dire al giocatore.
+      ⚠️ **L'intensità di un evento non ha una fonte dati** (#690, 12-08): la scala `0-10` di
+      [D-041](../decisions/RT_PDR_00_Decision_Log.md) — `Wait 0 · Sprint 5 · Dash 6` — vive in una riga del
+      Decision Log e in commenti C++, il catalogo azioni non la porta in colonna, e `FRTNoiseEvent::Intensity`
+      non ha **nessun assegnatore fuori dai test**. Va portata in colonna **insieme** a CP 13.4: se il
+      produttore arriva prima, hardcoderà i valori e il numero avrà due sedi — il difetto che
+      [D-023](../decisions/RT_PDR_00_Decision_Log.md) e [D-115](../decisions/RT_PDR_00_Decision_Log.md) hanno
+      eliminato altrove.
 
   - feature_id: RT-FEAT-PERCEPTION-MEMORY
     title: Memoria del contatto e ultima posizione nota
@@ -5453,7 +5460,16 @@ features:
       derivano dagli input che il catalogo dichiara per eroe (Salute, Movimento, Range visivo,
       Resistenza Push, abilita' con danno/range/effetto/cooldown), mentre `information` nasce con un
       solo ingrediente — la **Vista** — perche' stealth e detection vivono solo nel workbook escluso.
-      Si arricchisce derivando il rumore dal **kit** (D-042), non ripescando il foglio.
+      ⚠️ **Non si arricchisce, e il 12-08 il calcolo l'ha escluso** ([#686](https://github.com/DegrassiAaron/refactor-tactics-main/issues/686)).
+      La strada prescritta — derivare il rumore dal **kit** — non arriva: il rumore non e' nel catalogo
+      azioni, e le azioni che lo portano sono le sette generiche che **tutti** possiedono, quindi il
+      contributo e' costante. Nemmeno la soglia d'udito lo arricchisce, benche' sia una seconda statistica
+      per eroe: **Riva e Bastion condividono `Vista 5` e `Udito 3`**, quindi nessuna funzione dei due li
+      separa, e D-041 progetta l'udito come **compensazione** della vista — ogni aggregazione comprime, e
+      con la media l'asse esce costante, cosa che `profile.test.ts` vieta. Resta il **nascondersi**
+      ([#690](https://github.com/DegrassiAaron/refactor-tactics-main/issues/690)), che oggi non ha input
+      discriminanti: `Stealth` e' `2` su tutto il roster per dichiarazione del catalogo. I tre valori su
+      quattro eroi sono **previsti e documentati** in `#558`, non un difetto della rubrica.
 
   - feature_id: RT-FEAT-CHAR-RADAR-RATINGS-V01
     title: Rubrica — i rating derivati dal catalogo eroi
