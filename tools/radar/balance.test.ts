@@ -27,7 +27,7 @@ test('i cinque assi Balance riusano i valori gia calcolati, senza ricalcolarli',
 
 test('il Balance SVG si genera per i quattro eroi', () => {
   for (const h of roster()) {
-    const svg = renderRadar(h.name, 'Balance', BALANCE_AXES, balanceAxes(h));
+    const svg = renderRadar(h.name, 'Balance', BALANCE_AXES, balanceAxes(h), 'Balance');
     assert.match(svg, /<svg/);
     for (const a of BALANCE_AXES) assert.ok(svg.includes(a.label));
   }

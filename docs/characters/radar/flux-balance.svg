@@ -1,10 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-labelledby="t">
-  <title id="t">Flux — Controller — Profile Radar</title>
+  <title id="t">Flux — Controller — Balance Radar</title>
   <style>
     .grid { fill: none; stroke: #d0d0d0; stroke-width: 1 }
-    .shape { fill: #4a7fb5; fill-opacity: .35; stroke: #2b5c8a; stroke-width: 2 }
     .axis { font: 12px sans-serif; text-anchor: middle; fill: #333 }
     .value { font: bold 13px sans-serif; text-anchor: middle; fill: #111 }
+    .shape { fill: #4a7fb5; fill-opacity: .35; stroke: #2b5c8a; stroke-width: 2 }
+    @media (prefers-color-scheme: dark) {
+      .grid { stroke: #4a4a4a }
+      .axis { fill: #c9d1d9 }
+      .value { fill: #f0f6fc }
+      .shape { fill: #7fb0e0; stroke: #a8cdf0 }
+    }
   </style>
   <polygon class="grid" points="200.00,170.00 228.53,190.73 217.63,224.27 182.37,224.27 171.47,190.73" />
   <polygon class="grid" points="200.00,140.00 257.06,181.46 235.27,248.54 164.73,248.54 142.94,181.46" />
