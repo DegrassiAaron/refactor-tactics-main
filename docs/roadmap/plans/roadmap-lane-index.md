@@ -17,9 +17,11 @@
 
 **Le lane 6 e 7 sono state aggiunte il 2026-08-12**, su richiesta, e non sono simmetriche alle prime
 cinque. La **6** nasce piena: prende E21 dalla lane 3 e raccoglie 12 feature del registry attorno a un
-bug che le blocca tutte. La **7** nasce **quasi vuota, e lo dichiara in testa** — nessuna cartella VFX
-esiste, nessuna feature la nomina, e la sua radice di asset è fuori da git per decisione
-(`.gitignore:67`). È un perimetro dichiarato, non un piano.
+bug che le blocca tutte. La **7** nasce **quasi vuota per il VFX, e lo dichiara in testa** — nessuna
+cartella VFX esiste, nessuna feature la nomina — ma la **pipeline degli asset non è vuota affatto**:
+i pack Fab passano da un magazzino esterno (`refactor-tactics-main.vault`) e si importano per `Migrate`
+solo per le dipendenze che servono, con la procedura in `convenzioni-contenuti-ue.md` §B.2a. ⚠️ La
+prima stesura dava «cosa entra in git» per domanda aperta: era **già decisa e scritta in tre posti**.
 
 ⚠️ **Il confine 3 / 6 non è «interfaccia vs personaggi» ma dove vive il pixel**: la lane 3 possiede lo
 **spazio schermo** (HUD, camera, input, ghost, log), la lane 6 il **mondo** — chi sta sulla cella e come
