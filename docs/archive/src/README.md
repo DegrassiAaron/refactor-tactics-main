@@ -2,13 +2,30 @@
 
 > `HISTORICAL` · **Materiale NON autorevole** · **Primo lotto archiviato il 2026-08-08**
 >
-> I **51** documenti in questa cartella sono i **sorgenti** da cui è nata parte della documentazione normativa.
-> *(rimisurato il 2026-08-12 con il comando in fondo a questa intestazione — 15 + 34 + 2 — non incrementato a mano: due rami
+> I **53** documenti in questa cartella sono i **sorgenti** da cui è nata parte della documentazione normativa.
+> *(rimisurato il 2026-08-12 con il comando in fondo a questa intestazione — 15 + 36 + 2 — non incrementato a mano: due rami
 > lo dichiaravano diverso — «47» da una parte, «48» dall'altra — ed entrambi erano giusti sulla propria base
-> e falsi dopo l'unione. Il numero di questa riga si rimisura **dopo** un merge, mai prima. ⚠️ La tabella
-> `handoff/` ne elenca comunque meno del misurato: **tre** sorgenti del 2026-08-10 sono sul disco senza una
-> riga d'indice — tracciato in [#579](https://github.com/DegrassiAaron/refactor-tactics-main/issues/579) — `2026-08-10-baseaction-signatures-brace-overwatch.md`,
-> `2026-08-10-facing-consolidation.md`, `2026-08-10-overwatch-runtime-lifecycle-watch-reposition.md`.)*
+> e falsi dopo l'unione. Il numero di questa riga si rimisura **dopo** un merge, mai prima.*
+>
+> ⚠️ **E lo era di nuovo.** Alla misura del 2026-08-12 (reconciliation di roadmap) i file erano **52** mentre
+> questa riga diceva «51 · 15 + 34 + 2»: `2026-08-12-teleport-instant-movement.md` era stato archiviato senza
+> rimisurare. Con `2026-08-12-roadmap-reconciliation.md` il valore è **53 · 15 + 36 + 2**.
+>
+> ⚠️ **La tabella `handoff/` ne elenca meno del misurato: quattro sorgenti sono sul disco senza una riga
+> d'indice** — erano tre, tracciati in [#579](https://github.com/DegrassiAaron/refactor-tactics-main/issues/579),
+> e il quarto si è aggiunto lo stesso giorno: `2026-08-10-baseaction-signatures-brace-overwatch.md`,
+> `2026-08-10-facing-consolidation.md`, `2026-08-10-overwatch-runtime-lifecycle-watch-reposition.md`,
+> `2026-08-12-teleport-instant-movement.md`. Il buco si misura, non si ricorda:
+>
+> ```bash
+> python - <<'PY'
+> import os, re
+> files = {f for f in os.listdir('docs/archive/src/handoff') if f.endswith('.md')}
+> txt = open('docs/archive/src/README.md', encoding='utf-8').read()
+> indexed = set(re.findall(r'\(handoff/([^)]+\.md)\)', txt))
+> print('senza riga:', sorted(files - indexed))
+> PY
+> ```
 > Il primo lotto era in [`../../src/`](../../src/); ogni sorgente si sposta qui quando un owner documentale lo
 > ha recepito. Restano per **provenienza**: servono a ricostruire *da dove* è nata una decisione, non a deciderla.
 >
@@ -95,6 +112,7 @@ In caso di conflitto prevalgono [`../../product/piano-canonico-mvp.md`](../../pr
 | [`2026-08-11-five-lane-roadmap-editor-replay.md`](handoff/2026-08-11-five-lane-roadmap-editor-replay.md) | Roadmap a 5 lane: Spatial/Simulation/Client + Editor/Tooling + Replay/Audit | ⛔ **Revisionato e non applicato** — [`five-lane-roadmap-spec-panel-2026-08-11.md`](../../roadmap/plans/five-lane-roadmap-spec-panel-2026-08-11.md). La premessa non regge: la «roadmap a 3 lane» che dichiara di estendere **non esiste** (zero occorrenze in `docs/`). **45 dei 51 path** che assegna alle lane non esistono — il modulo runtime non ha lo split `Public/`/`Private/` e il content root è `Content/RT/`; tutti e **11 i gate `G0`–`G10`** collidono con `G1`–`G15` già in uso, tre *quasi* con lo stesso significato. Il dominio replay è già chiuso da `D-077`/`D-078`/`D-083` con **16 test**. Sopravvivono **tre** proposte: livello `DoD Replay` (§23), checklist di gate a cinque caselle (§25), classificazione dati replay per la v0.2 (§29) |
 | [`2026-08-12-map-sketch-editor.md`](handoff/2026-08-12-map-sketch-editor.md) | Map Sketch Editor v0.1: griglia visibile, geometria quantizzata, occupancy a 12 settori | [`map-sketch-editor-spec-panel-2026-08-12.md`](../../roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md) · **Applicato in parte**. **Terzo** prompt map-editor: la sua tesi centrale (§3, muri non vincolati ai lati) aveva già un verdetto — collocata in **E23.1**, v0.2. Ciò che lo distingue: la §4 (dodici settori) **risolve** l'obiezione che aveva fermato il predecessore, cioè i float nell'hash. Su 32 voci, **16 hanno già un padrone**. Anticipato in v0.1 come tooling per decisione dell'autore (`#619`…`#621`, anticipazione dichiarata su **E23**/`#324`, che **non** si apre) · `#622` `#623` · `MSE-1`. Respinti: le priorità `P1.1`…`P2.5` (quarto asse), la roadmap editor a mano di §30 (`roadmap-editor.md` è `HISTORICAL` **proprio** per quello), il `UDeveloperSettings` di §15, gli «scenari» `MapSketch_*` (sono classe **C**) |
 | [`2026-08-12-action-economy-movement-facing.md`](handoff/2026-08-12-action-economy-movement-facing.md) | Economia delle azioni, accoppiamento col movimento, costi del facing | [`spec-economia-del-turno.md`](../../gameplay/spec-economia-del-turno.md) · **E38** (v0.2) · `AE-1`…`AE-7` · [referto](../../roadmap/plans/action-economy-consolidamento-2026-08-12.md). ⚠️ **Recepito in parte**: §6/§7/§8 sono l'unico contributo nuovo; §4/§5 contraddicono il modello a slot di `D-028`, §15 contraddice ADR-0008 ed era gia' `FAC-12`, §30 e' respinta da `balance/README.md` |
+| [`2026-08-12-roadmap-reconciliation.md`](handoff/2026-08-12-roadmap-reconciliation.md) | Riallineamento di roadmap, Feature Registry ed Epic/issue GitHub prima di proseguire la v0.1; contratto del puntatore mancante | [`../../roadmap/plans/roadmap-reconciliation-2026-08-12.md`](../../roadmap/plans/roadmap-reconciliation-2026-08-12.md) · owner nato: [`../../technical/spec-pointer-interaction.md`](../../technical/spec-pointer-interaction.md) (**CP 11.8**) · **Applicato in parte**. ✅ Il suo contributo vero è la §1: la catena `#159 → #165` **non regge** e le lane sono parallele — verificato su `#160`, che lo dichiara in proprio. ⚠️ **Quattro premesse fuori data**, e il documento lo aveva previsto: `#152` era stale come **issue**, non come roadmap (la §5 documenta CP 14.7/14.8 dal 2026-08-09); il bot partial-knowledge era una **contraddizione interna** alla §2, non una lacuna; la §7 tratta il contratto del puntatore come da progettare mentre `RMB` è **già** `UndoAction` e l'hover è **già** presentazione. ❌ Respinte le cinque epic §10 (Super Actions, Modular Effects, Seeded Map, Level Designer, Networking): il documento stesso le marca **PROPOSTE** |
 
 ### Il pacchetto `consolidazione-chat-openai` — dodici sorgenti, un solo triage
 

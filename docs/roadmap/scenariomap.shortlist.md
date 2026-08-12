@@ -17,7 +17,7 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 
 <!-- RT_SHORTLIST_SCENARIOS:BEGIN -->
 
-**72 scenari versionati** — misurati su `Scenarios/`: **60** eseguibili · **12** `BLOCKED` per una capability assente · **50** dichiarati `planned` nel registry e non ancora scritti.
+**72 scenari versionati** — misurati su `Scenarios/`: **60** eseguibili · **12** `BLOCKED` per una capability assente · **56** dichiarati `planned` nel registry e non ancora scritti.
 
 **Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `BotPlanning` · `Cover` · `CreateCover` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `PredictiveAction` · `Reaction` · `ReactionPlanning` · `Structures`.
 
@@ -68,6 +68,7 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 | `Spec.Overwatch.ConductiveDischargeUsesStandardConduction` | `RT-FEAT-REACTION-OVERWATCH` |
 | `Spec.Overwatch.FrontlineFollowsFacing` | `RT-FEAT-REACTION-OVERWATCH` |
 | `Spec.Overwatch.PressurePushChangesResolvedPath` | `RT-FEAT-REACTION-OVERWATCH` |
+| `Spec.Privacy.HiddenEnemyHoverNoLeak` | `RT-FEAT-UI-POINTER-INTERACTION` |
 | `Spec.TimeBank.BotDrainsLikePlayer` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
 | `Spec.TimeBank.ClashCostsFullWindow` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
 | `Spec.TimeBank.DrainsAfterGrace` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
@@ -88,6 +89,11 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 | `Team.Constrine.BastionVektor.OnlyExit` | `RT-FEAT-FACTION-SCENARIOS` |
 | `Team.Resonance.AuroraKwang.FrozenAnchor` | `RT-FEAT-FACTION-SCENARIOS` |
 | `Team.Sentinel.SteelMurdock.HoldTheLine` | `RT-FEAT-FACTION-SCENARIOS` |
+| `Visual.UI.AllyIntentInspectReadOnly` | `RT-FEAT-UI-POINTER-INTERACTION` |
+| `Visual.UI.DoorHoverAndInteract` | `RT-FEAT-UI-POINTER-INTERACTION` |
+| `Visual.UI.ReactionWindowPreemptsWorldInput` | `RT-FEAT-UI-POINTER-INTERACTION` |
+| `Visual.UI.SelectMoveCancel` | `RT-FEAT-UI-POINTER-INTERACTION` |
+| `Visual.UI.TargetEnemyConfirmCancel` | `RT-FEAT-UI-POINTER-INTERACTION` |
 
 <!-- RT_SHORTLIST_SCENARIOS:END -->
 

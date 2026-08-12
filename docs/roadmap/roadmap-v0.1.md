@@ -106,7 +106,7 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 | **Obiettivi dinamici** | — | 🟡 la partita **finisce** per obiettivo (`Match.EndsOnObjective`); **nessun oggetto da attivare** in mappa |
 | **Comandi debug `rt.Debug.*`** | `Map/RTHexOverlayConsole.cpp`, `Turn/RTPacingConsole.cpp` | ✅ `rt.Debug.DrawCells` · `rt.Debug.Pacing` |
 | **Scenario Test Harness** | `ScenarioHarness/*` | ✅ 5 scenari, console `rt.Test.*`, auto-run via CVar, `result.json` |
-| **Conoscenza parziale (vista/udito)** | — | 🟡 la vista **decide** da CP 13.2: niente bersagli ignoti alla squadra. ⏳ restano il rumore, e bot/HUD che non la consumano (E13) |
+| **Conoscenza parziale (vista/udito)** | `Perception/RTTeamKnowledge.*`, `Perception/RTAcousticPropagationLibrary.*`, `Turn/RTTurnManager.cpp` | 🟡 la vista **decide** da CP 13.2: niente bersagli ignoti alla squadra. ✅ **il bot la consuma dal 2026-08-11** (`#160`): `PlanBots` filtra `Ctx.Enemies` sulla conoscenza della propria squadra — *«ignoto alla squadra: per il bot quella cella e' vuota»* (`RTTurnManager.cpp:374`) — e `HexBotPlay.HiddenEnemyFairness` è il canary che lo dimostra. ⏳ restano il **rumore** (CP 13.4, `#159`) e l'**HUD**: marker d'ultimo contatto e area d'incertezza acustica |
 | **Finestre di reazione interattive** | `Turn/RTReactionOpportunityTypes.*` | 🟡 l'opportunity ha **identità** (CP 14.3) e l'Overwatch **la produce** a ogni micro-step (CP 14.4); ⏳ nessuna finestra viva: il resolver non chiede ancora niente (E14.5) |
 | **Facing come stato di gioco** | `Turn/RTFacingLibrary.*`, `Unit/RTUnit.h`, `Combat/RTHexCombatLibrary.*` | ✅ E16 chiusa il 2026-08-09: derivato da Move e Dash, riorientato dal bersaglio, in snapshot/TurnLog/hash, e l'emisfero posteriore annulla copertura e `Guard` |
 | **Scenario showcase e golden replay** | `Tests/` (`ShowcaseRelay.*`) | 🟡 **iniziata**: fixture stabile e scenario lite deterministico |
@@ -255,6 +255,7 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-UI-CERTAINTY` — Livelli di certezza degli intenti alleati | IMPLEMENTING | 3/8 |
 |  | `RT-FEAT-UI-COMBAT-LOG` — Combat log e spiegabilità | RELEASE_READY | 6/7 |
 |  | `RT-FEAT-UI-PLANNING` — HUD di planning, selezione e preview | RELEASE_READY | 6/7 |
+|  | `RT-FEAT-UI-POINTER-INTERACTION` — Contratto del puntatore — Hover, LMB, RMB | SPECIFIED | 1/8 |
 |  | `RT-FEAT-UI-SCREEN-HUD` — Screen HUD in UMG (layer §4.1) | IMPLEMENTING | 1/7 |
 |  | `RT-FEAT-UI-TACTICAL-CAMERA` — Camera tattica | IMPLEMENTING | 1/6 |
 |  | `RT-FEAT-UI-WARNINGS` — Avvisi di collisione, fuoco amico e risorse — completata da `RT-FEAT-UI-CERTAINTY` | IMPLEMENTING | 3/7 |
@@ -311,14 +312,14 @@ silenzio.
 | **E4** | Motore delle azioni a priorità | **P0** | 8 | È l'ossatura che regge azioni, reazioni, ambiente e obiettivi |
 | **E5** | Reazioni | P1 | 5 | Punto di rischio dell'ADR-0003 (revisione prevista alla chiusura) |
 | **E6** | Roster: 4 eroi | P1 | 7 | L'identità dei personaggi è un pilastro di prodotto |
-| **E7** | Equipaggiamento e loadout | P2 | 4 | Scelta orizzontale (ogni variante ha uno svantaggio) |
+| **E7** | Equipaggiamento e loadout | P2 | 5 | Scelta orizzontale (ogni variante ha uno svantaggio) |
 | **E8** | Terreni, stati e ambiente | P1 | 5 | La mappa come sistema di gioco (pilastro) |
 | **E9** | Coperture e strutture | P2 | 5 | Topologia mutevole: cache e path vanno invalidati, mai fantasma |
 | **E10** | Obiettivi dinamici e fine partita | P2 | 3 | Chiude il loop: la partita ha un motivo per muoversi |
-| **E11** | HUD, log e debug | P1 | 6 | Leggibilità tattica + osservabilità (senza `rt.Debug.*` si debugga a occhio) |
+| **E11** | HUD, log e debug | P1 | 8 | Leggibilità tattica + osservabilità (senza `rt.Debug.*` si debugga a occhio) |
 | **E12** | Determinismo, QA e release | **P0** | 6 | Gate di release: senza checksum e packaged non è v0.1 |
 | **E13** | Conoscenza parziale — vista e udito | P2 | 5 | La vista **decide** da CP 13.2; restano il rumore (il suo gemello, coi dati già nel workbook) e il consumo da parte di bot e HUD |
-| **E14** | Overwatch e reazioni interattive | P2 | 6 | Bait, bluff e commitment non sono recuperabili con reazioni dichiarate; l'aggancio (`SuppressiveLine`, `InterceptShot`) esiste già |
+| **E14** | Overwatch e reazioni interattive | P2 | 8 | Bait, bluff e commitment non sono recuperabili con reazioni dichiarate; l'aggancio (`SuppressiveLine`, `InterceptShot`) esiste già |
 | **E15** | Showcase «Il Relè» e golden replay | P1 | 5 | La prova integrata che le regole generali producono una partita: fixture, scenario e replay a hash stabile — consumer dei sistemi, mai codice speciale |
 | **E16** | Orientamento e direzionalità | P1 | 2 | L'orientamento smette di essere presentazione: decide difesa, percezione e reazioni con una sola primitiva (`HexCone`). È **prerequisito di E13**. ⚠️ **«Zero numeri nuovi» non vale più dal 2026-08-10**: [ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md) accetta la rotazione come **capacità del personaggio** e introduce **otto** numeri (2 per eroe). Il vanto era di ADR-0005, che su questo è superato |
 | **E17** | Validazione di stress 4v4 | P3 | 3 | Misura, non produzione: dove si rompe il sistema con **otto unità** (resolver, leggibilità, prompt di reazione, TurnLog). Mirror del roster core, **dopo E15**. Non decide il formato principale ([D-011](../decisions/RT_PDR_00_Decision_Log.md)) |
@@ -327,7 +328,48 @@ silenzio.
 | **E20** | HUD Icon Language | P2 | 3 | Le icone sono un **catalogo semantico**, non texture referenziate nei widget: E11 costruisce l'HUD adesso, e riscrivere ogni widget dopo costa più del file di dati in più ([D-031](../decisions/RT_PDR_00_Decision_Log.md)) |
 | **E21** | Presentazione e leggibilità | P1 | 3 | Il gioco smette di essere cilindri colorati. Era l'unico lavoro **dentro** lo scope di release che nessuna epic copriva: viveva solo nella milestone M8, e il Feature Registry lo ha reso visibile il 2026-08-08 |
 
-**Totale: 21 epic, 95 checkpoint** *(era 12/59; **E13** ed **E14** aggiunte il 2026-08-07; il 2026-08-07,
+**Totale: 21 epic, 100 checkpoint**
+
+> 🔁 **Rimisurato il 2026-08-12, e tre celle di questa colonna erano ferme.** Il totale precedente — «95» —
+> era la somma **corretta** della colonna `CP`, ma la colonna aveva smesso di seguire la §5: tre epic
+> avevano guadagnato checkpoint senza che la riga di riepilogo cambiasse. **E7** dichiarava `4` con `7.1`–`7.5`
+> scritti (il `7.5` dei moduli reazione, `#505`); **E11** dichiarava `6` con `11.1`–`11.7` (il `11.7` aggiunto
+> lo stesso 2026-08-12); **E14** dichiarava `6` con `14.1`–`14.8` (il `14.7` e il `14.8` del 2026-08-09, che la
+> §5 documenta per esteso da allora). Il valore vero **prima** di questo reconciliation era dunque **99**, e
+> `+1` è il solo checkpoint nuovo di oggi: **CP 11.8**.
+>
+> Il difetto è di **direzione**, non di aritmetica: chi aggiunge un checkpoint scrive la riga di dettaglio in
+> §5 — dove serve al lavoro — e la tabella riassuntiva resta indietro in silenzio, perché nessun gate la
+> confronta con le sezioni che riassume. La misura non si fa a mano:
+>
+> ```bash
+> # CP dichiarati in §5, per epic, confrontati con la colonna della tabella §3
+> python - <<'PY'
+> import re
+> t = open('docs/roadmap/roadmap-v0.1.md', encoding='utf-8').read().splitlines()
+> cur, cps, order = None, {}, []
+> for ln in t:
+>     m = re.match(r'^### (E\d+) — ', ln)
+>     if m:
+>         cur = m.group(1); cps.setdefault(cur, set())
+>         if cur not in order: order.append(cur)
+>         continue
+>     if cur:
+>         # E1–E20 numerano `**11.8**`; E21 numera `**E21.1**`
+>         for mm in re.finditer(r'^\|\s*\*\*(?:E\d+\.)?(\d+)\.?(\d+)?\*\*', ln):
+>             cps[cur].add(ln.split('**')[1])
+> tab = dict(re.findall(r'^\|\s*\*\*(E\d+)\*\*\s*\|[^|]*\|[^|]*\|\s*(\d+)\s*\|', '\n'.join(t), re.M))
+> for e in order:
+>     d, r = int(tab.get(e, 0)), len(cps[e])
+>     print(f"{e:5} §3={d:>3} §5={r:>3} {'DIVERGE' if d != r else ''}")
+> print('totale §3 =', sum(int(v) for v in tab.values()), '· epic =', len(order))
+> PY
+> ```
+>
+> *(La riga storica che segue è conservata: dice **quando** ogni epic è nata, che è informazione che il
+> totale non porta.)*
+
+*(era 12/59; **E13** ed **E14** aggiunte il 2026-08-07; il 2026-08-07,
 consolidando [`../src/showcase/showcase-v0.1-integrazione-nel-codice.md`](../src/showcase/showcase-v0.1-integrazione-nel-codice.md):
 **E15** showcase (5 CP), **CP 5.5** e **CP 6.7** per il debito delle reazioni d'eroe, **CP 14.2** per
 l'estrazione del micro-step; consolidando
@@ -342,8 +384,19 @@ e [`../archive/src/design/2026-08-08-hud-faction-icons.md`](../archive/src/desig
 > ✅ **CP 14.1 chiuso**: [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) è **accettato** (2026-08-07). Cambia la
 > **forma del turno** (sequenza di sotto-risoluzioni) e unifica il modello delle reazioni; l'invariante #3 del
 > canone §5 è riformulato — «snapshot a inizio **segmento**». E5 resta chiusa e i suoi 24 test restano verdi:
-> il modello nuovo li contiene come caso `AllowedResponses ≤ 1`. **E14 non parte prima di E13** (il trigger
-> richiede livello `Rilevato`, non solo LOS).
+> il modello nuovo li contiene come caso `AllowedResponses ≤ 1`.
+>
+> 🔁 **«E14 non parte prima di E13» era vero e non lo è più — corretto il 2026-08-12.** La dipendenza reale è
+> sul **livello di rilevamento**, non sull'epic: il trigger dell'Overwatch richiede `Rilevato`, non solo LOS.
+> Quel livello esiste **da CP 13.2** («la vista **decide**», riga E13 della tabella qui sopra), e ciò che
+> resta aperto in E13 è il **rumore** e i suoi **consumatori** — che non stanno fra il trigger e la finestra.
+> La prova non è un ragionamento: **tre** checkpoint di E14 (`#161`, `#162`, `#164`) sono stati chiusi
+> **mentre** E13 era aperta, e `#163` (CP 14.3) è chiusa dal 2026-08-12. La issue `#160` (CP 13.5) lo dichiara
+> in proprio: *«Restano di E14 i checkpoint 14.5–14.8. Nessuno di essi aspetta questa issue.»*
+> La forma vincolante letta come «prima E13, poi E14» veniva da
+> [`v0.1-issue-plan.md`](v0.1-issue-plan.md), che è `HISTORICAL` e non normativo.
+> **Conseguenza operativa**: `#165` (CP 14.5) e `#159` (CP 13.4) procedono in **parallelo** — vedi le lane in
+> fondo a questa sezione.
 
 > 🎬 **E15 · showcase** (2026-08-07): la partita dimostrativa **«Il Relè»** entra in roadmap come epic
 > **consumer**, non come contenitore di feature. Regola vincolante: la showcase **espone il gap → si costruisce
@@ -437,6 +490,37 @@ timeline
     Prova finale : E15 CP 15.3-15.5 golden replay degli 8 turni
     Release : E12 determinismo, QA, packaging
 ```
+
+### Lane parallele — lo stato aperto della v0.1 *(2026-08-12)*
+
+La sequenza qui sopra ordina le **epic**. Quel che resta aperto oggi non è un'epic per volta: sono quattro
+lane che **non si aspettano fra loro**, e trattarle come una catena è il modo in cui la v0.1 si allunga
+senza motivo. La catena `#159 → #165`, proposta in una revisione precedente, **non regge**: vedi la nota
+sulla dipendenza E13→E14 in §3.
+
+```text
+LANE A — REACTIONS       #165 ── #166 ── [#314] ── [#319]
+                                            └── P3, i primi due pezzi da tagliare
+
+LANE B — PERCEPTION      #690 ┐
+                         #686 ┴── #159 ── #160  (residui HUD/decoy/packaged, con #649)
+
+LANE C — UI / ICONS      #219 + #637 ── #220 ── #77 ── #613 ── CP 11.8 ── #291
+
+LANE D — CONSISTENCY     #625 + #687 + #649 ── #512 ── #170 ── #171
+         PRIMA DEL GOLDEN
+```
+
+| Lane | Perché è indipendente | Vincolo interno da rispettare |
+|---|---|---|
+| **A** Reactions | il livello `Rilevato` che le serve esiste da CP 13.2 | `#314` e `#319` vengono **dopo** `#166`: è lì che la durata della resolution si misura per la prima volta, e tarare prima significherebbe scegliere i valori a occhio |
+| **B** Perception | `#690` e `#686` sono **data-only** sui cataloghi, non toccano il runtime | sono i due lati della stessa comparazione acustica (intensità del rumore ↔ soglia d'udito): vanno letti insieme, non uno senza l'altro |
+| **C** UI / Icons | non condivide file con A e B | `#637` è il linguaggio **esteso** e non deve bloccare le **33 chiavi** che la v0.1 richiede a `#219` |
+| **D** Consistency | è la sola lane che **precede un gate**: `#170` | `#625` e `#687` vanno chiusi **prima** del pinning del golden replay — un mutatore di stato fuori dal TurnLog rende il replay incapace di spiegare la propria divergenza |
+
+> ⚠️ **`#314` e `#319` sono i candidati al taglio, non `#165`.** Se E14 va accorciata escono le estensioni
+> (Reaction Clash, Time Bank) e la Fast Reaction standard resta intera. L'ordine di taglio dichiarato in §8
+> non cambia; questa riga dice solo **dove** si taglia dentro la lane.
 
 ---
 
@@ -749,6 +833,25 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 | **11.5** *(nuovo 2026-08-07)* | **Ghost Timeline**: preview del piano per fase | Un *Action Ghost* per fase (Prep · Dash · Blast · Move) mostra **dove** sarà l'unità e **da dove** agirà, non solo la destinazione. View model con una entry per fase (`Phase`, `UnitId`, `ActionId`, `PreviewOrigin`, `PreviewDestination`, `Facing`, `PoseId`, `TargetCells`, `AffectedCells`, `Certainty`) e **`ReactionPreview` separata dalla lista delle fasi** — la reaction non è una quinta fase. Origine, destinazione, celle bersaglio e area **coincidono con quelle che userebbe il resolver**: stesso A\*, stesso snapshot, nessuna seconda implementazione delle regole. Budget di presentazione: pooling di mesh/decal, nessun Actor persistente per preview, aggiornamento a frequenza limitata (**non** ogni Tick) | `Preview.GhostMatchesResolverPath`, `Preview.HitCellsMatchCombatShape`, `Preview.ReactionIsNotAPhaseEntry`, `Preview.ClearedWhenPlanIsCancelled` |
 | **11.6** *(nuovo 2026-08-07)* | **Scrubbing** delle fasi e ramo condizionale della reaction | Selezionando una fase il suo ghost si evidenzia e gli altri si attenuano, con origine, bersaglio, linea, AoE e copertura rilevante in evidenza; i **warning** (alleato sulla traiettoria, esposizione, collisione possibile) arrivano dallo stesso strato che produce i reason code del TurnLog — **mai** ricalcolati nel widget — e sono marcati *previsto*/*incerto*, mai *confermato*; la reaction armata compare come **ramo con `?`** accanto alla timeline | `Preview.AllyInAreaIsFlagged`, `Preview.WarningsComeFromResolverReasons`, `Preview.ArmedReactionRendersAsBranch`; `PIE-V01-GHOSTS` |
 | **11.7** *(nuovo 2026-08-12)* | **Screen HUD in UMG** (layer §4.1) | `WBP_RT_TacticalHUD` a schermo intero con zone Top/Left/Bottom/Right e **centro libero**, più `WBP_RT_TurnHeader`, `WBP_RT_TeamRoster`, `WBP_RT_SelectedUnitPanel`, `WBP_RT_ActionDock`/`WBP_RT_ActionSlot`. I widget **leggono un view model sanitizzato** e non ricalcolano formula, visibilità o reason code; nessuno referenzia una texture direttamente (D-031). ⚠️ **Non sostituisce `ARTHUD`**: il §4.2 di [`progettazione-hud.md`](../technical/progettazione-hud.md) — path, waypoint, Dash, AoE, friendly-fire, barre ancorate alle unità — resta in Canvas, dove la spec lo vuole (*«non devono essere realizzati come grandi widget HUD statici»*) | nessuna regressione in `RefactorTactics.HUD.*`; `PIE-V01-HUD` estesa all'ingombro del §4.1 |
+| **11.8** *(nuovo 2026-08-12)* | **Pointer Interaction Contract**: Hover · LMB · RMB | La matrice `oggetto sotto il puntatore × contesto × input → esito` è dichiarata in [`spec-pointer-interaction.md`](../technical/spec-pointer-interaction.md) e ogni combinazione produce uno degli **otto** esiti di un elenco chiuso (`NoOp`, `Inspect`, `Select`, `Preview`, `Confirm`, `Cancel`, `OpenContext`, `Blocked(reason)`). Il `PlayerController` acquisisce un **contesto esplicito** (`IdleSelection · Planning · Pathing · Targeting · ResolutionPlayback · ReactionWindow · Modal`) al posto della cascata di `if` sul tipo di Actor colpito; il resolver di hit restituisce un **target logico** (`FRTCellId` · `UnitId` · StableObjectId), mai una decisione di gameplay. Precedenza `Modal/Reaction UI > HUD > world tactical hit` esplicita e coperta da test. Ogni rifiuto porta un **reason code**: `Blocked` silenzioso è un difetto | `PlayerInput.HUDConsumesPointerBeforeWorld`, `PlayerInput.HoverNeverCommits`, `PlayerInput.RightClickCancelsPreviewOnly`, `PlayerInput.HiddenEnemyCannotBecomeHoverTarget`, `PlayerInput.AllyGhostIsReadOnly`, `PlayerInput.PlaybackRejectsPlanningInput`, `PlayerInput.ReactionWindowOwnsInputPriority`, `PlayerInput.LogicalMapObjectResolvedFromStableId`; `PIE-V01-POINTER` |
+
+> **CP 11.8 non è un redesign dell'input, ed è per questo che è tardi e non presto.** Nove delle sue dieci
+> regole **descrivono ciò che il codice fa già** — misurato il 2026-08-12 su `ee0da4b3`: `LMB` è
+> `SelectAction` (`RTPlayerController.cpp:231`), `RMB` è **già** `UndoAction` insieme a `BackSpace` (`:246-247`,
+> cioè già un `Cancel`), l'hover è **già** sola presentazione (`:298-321`). Il checkpoint esiste per i **tre
+> delta** che restano, e sono tre assenze, non tre difetti: **(a)** non c'è uno stato esplicito — la modalità
+> di targeting vive come `SelectedAbilityIndex` **sull'unità** (`:504`, `:606`), non nel controller;
+> **(b)** l'input non conosce la fase — `:767` è l'**unico** punto che la legge, e serve al fine partita;
+> **(c)** non c'è precedenza HUD → mondo, perché il Canvas HUD non registra hitbox (`AddHitBox` non compare
+> in `Source/`) e oggi **ogni** click passa al mondo. Con i widget UMG di CP 11.7 il problema si inverte, ed è
+> la ragione dell'ordine fra i due checkpoint.
+>
+> Le sole regole **nuove** sono di privacy e ownership: un nemico **non rilevato** non può diventare bersaglio
+> dell'hover (dipende da E13), e il ghost di un alleato è **sola lettura**. Sono scritte adesso perché è più
+> facile scriverle che toglierle dopo.
+>
+> ↩️ Riprende anche la domanda rimasta orfana di [`spec-hover-cella.md`](../technical/spec-hover-cella.md),
+> `HISTORICAL` dal pivot esagonale: *cosa succede sotto il cursore* non era stata riassegnata a nessun owner.
 
 > **CP 11.7 viene da** [`plans/ui-0-first-playable-hud-2026-08-12.md`](plans/ui-0-first-playable-hud-2026-08-12.md),
 > panel di specifica del 2026-08-12. Esiste **separato da CP 11.1** perché il DoD di 11.1 non nomina UMG in
@@ -1291,7 +1394,8 @@ e ha lasciato `RT-FEAT-CHAR-PRESENTATION` in una tabella «senza assegnazione».
 
 Non finisce in **E11** perché E11 è l'**interfaccia** — widget, combat log, comandi `rt.Debug.*`, Ghost
 Timeline — mentre qui si parla di come le unità appaiono **in scena**: mesh, animazioni, materiali,
-anelli. Sono due mestieri diversi con verifiche diverse, e E11 ha già 6 checkpoint.
+anelli. Sono due mestieri diversi con verifiche diverse, e E11 ha già i suoi checkpoint (**otto** dal
+2026-08-12, sei quando questa riga è stata scritta).
 
 Il C++ è in `main` da tempo (spawn `TSubclassOf` con fallback al cilindro, eventi di montaggio, anello di
 team parametrico, `Unit.TeamColorFor` e `Unit.RingLocalZ` verdi): **quello che manca è il lavoro in

@@ -302,11 +302,20 @@ I **nove** rimasti (l'elenco misurato è in
 > copre `Action.Ignite` né `Action.ModifyArc`, che per [D-046](../decisions/RT_PDR_00_Decision_Log.md)
 > restano senza owner in v0.1.
 
-### 6.2 Pianificati nel Feature Registry — non ancora scritti · **50**
+### 6.2 Pianificati nel Feature Registry — non ancora scritti · **56**
 
 Dichiarati in `feature-registry.yaml` sotto `scenarios: {planned: [...]}`, il che li fa comparire come
 **warning** in `feature_registry.py validate`. Il warning è il meccanismo: un piano che non diventa un file
 resta visibile invece di sparire.
+
+> ➕ **+6 il 2026-08-12 dal reconciliation di roadmap** — tutti e sei di
+> `RT-FEAT-UI-POINTER-INTERACTION` (CP 11.8): cinque `Visual.UI.*` e uno `Spec.Privacy.*`.
+> Restano `planned` per la ragione dichiarata in testa a questa sezione — **manca l'oracolo**, non il tempo:
+> l'esito atteso di un click è la casella della matrice di
+> [`spec-pointer-interaction.md`](spec-pointer-interaction.md) §5, e finché il `PlayerController` non ha un
+> **contesto esplicito** quell'esito non è leggibile da uno scenario in nessun formato. `Spec.Privacy.HiddenEnemyHoverNoLeak`
+> ha in più una dipendenza di contenuto: il filtro di rilevamento sull'hover è E13.
+> Referto: [`../roadmap/plans/roadmap-reconciliation-2026-08-12.md`](../roadmap/plans/roadmap-reconciliation-2026-08-12.md).
 
 > 🔴 **Perché i `planned` non si scrivono tutti in una volta — misurato il 2026-08-12.** Tentando di
 > scriverli fino alla v0.2 (**42**: 23 in v0.1, 19 in v0.2), l'ostacolo non è il tempo ma l'**oracolo**: uno

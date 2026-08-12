@@ -3301,6 +3301,88 @@ features:
       ancorate sopra l'unità restano Canvas, il roster e il pannello della selezionata sono UMG.
       Dipende da `RT-FEAT-UI-ICON-LANGUAGE` per D-031: nessun widget referenzia una texture.
 
+  - feature_id: RT-FEAT-UI-POINTER-INTERACTION
+    title: Contratto del puntatore — Hover, LMB, RMB
+    area: UI
+    kind: ui
+    release: v0.1
+    priority: P1
+    status: SPECIFIED
+    gates:
+      # `spec-pointer-interaction.md` tiene la matrice `oggetto x contesto x input -> esito` e nomina
+      # i servizi autorevoli a cui ogni domanda va girata.
+      spec: done
+      # Le Input Action e il Mapping Context sono costruiti **interamente in C++**
+      # (`ARTPlayerController::BuildInputMappings`, nessun .uasset richiesto): non c'e' catalogo,
+      # data asset o config da rendere coerente. `na` per assenza strutturale, non per rinuncia.
+      data: na
+      # ⚠️ `todo` e NON `partial`, ed e' un giudizio che vale la pena scrivere perche' la tentazione
+      # opposta e' forte: hover, LMB e RMB **esistono e sono consumati** oggi
+      # (`RTPlayerController.cpp:231,246-247,298-321`). Ma quello e' il comportamento che il contratto
+      # governera', non una consegna parziale del contratto: nessuna delle cinque proprieta' che la
+      # feature aggiunge esiste — contesto esplicito, precedenza HUD->mondo, target logico dal resolver
+      # di hit, filtro di rilevamento sull'hover, reason code sul rifiuto. Marcarlo `partial` farebbe
+      # derivare `IMPLEMENTING` (regola: `runtime` done **o** partial) per un checkpoint che nessuno ha
+      # iniziato, ed e' esattamente il modo in cui CP 14.3 ha detto «fatto» per nove ore.
+      runtime: todo
+      # I reason code del rifiuto sono una voce di DoD, non un fatto: oggi `OnSelect` esce con un
+      # `UE_LOG` sui due rami avversari (`:423`) e in **silenzio** su tutti gli altri.
+      log_debug: todo
+      automation: todo
+      scenario: todo
+      ui_wiki: todo
+      packaged: todo
+      # ⚠️ `todo`, non `na`: la regola §6.1 dell'owner e' una regola di privacy vera — un nemico non
+      # rilevato non puo' diventare bersaglio dell'hover — e oggi `PlayerTick` non filtra per
+      # rilevamento. Vale in locale prima ancora che in rete: il leak sarebbe a schermo.
+      network_privacy: todo
+      # L'input del puntatore non e' un evento della traccia. L'unica decisione di puntatore che il
+      # replay deve ricostruire e' il commit di una Decision Window, e quella appartiene a
+      # `RT-FEAT-REACTION-OPPORTUNITY` (E14), che ha il gate suo.
+      replay_representable: na
+    roadmap:
+      epic: E11
+      checkpoints: ["11.8"]
+    dependencies:
+      - RT-FEAT-UI-PLANNING
+      - RT-FEAT-UI-SCREEN-HUD
+    owner_specs:
+      - docs/technical/spec-pointer-interaction.md
+    issues: [705]
+    # ⚠️ **Vuoto di proposito, e non e' pigrizia.** Gli otto nomi `RefactorTactics.PlayerInput.*` sono
+    # dichiarati nel DoD di CP 11.8 e nell'owner, ma **non esistono nella suite**: `validate` tratta un
+    # pattern senza corrispondenza come **errore** (`feature_registry.py:372`), non come avviso — ed e'
+    # la protezione giusta. Il gate `G3` ha gia' citato due nomi di test inesistenti prima di CP 14.3;
+    # qui il registro si rifiuta di ripetere l'esperienza. I nomi entrano quando entrano i test.
+    tests: []
+    scenarios:
+      planned:
+        - Visual.UI.SelectMoveCancel
+        - Visual.UI.TargetEnemyConfirmCancel
+        - Visual.UI.DoorHoverAndInteract
+        - Visual.UI.AllyIntentInspectReadOnly
+        - Visual.UI.ReactionWindowPreemptsWorldInput
+        - Spec.Privacy.HiddenEnemyHoverNoLeak
+    wiki_refs:
+      - wiki:come-si-gioca
+    pie_refs:
+      - PIE-V01-POINTER
+    last_verified:
+      date: 2026-08-12
+      commit: ee0da4b3
+    notes: >
+      Aperta il 2026-08-12 dal reconciliation di roadmap
+      (`plans/roadmap-reconciliation-2026-08-12.md`). ⚠️ **Non e' un redesign dell'input**: nove regole
+      su dieci del contratto descrivono cio' che il codice fa gia', e il valore della feature e'
+      renderle enunciabili e testabili. I tre delta misurati sono **assenze**: nessuno stato esplicito
+      (la modalita' di targeting vive come `SelectedAbilityIndex` **sull'unita'**, non nel controller),
+      nessuna consapevolezza di fase nell'input (`:767` e' l'unico punto che la legge, e serve al fine
+      partita), nessuna precedenza HUD -> mondo (il Canvas HUD non registra hitbox, quindi ogni click
+      passa al mondo — e con i widget UMG di CP 11.7 il problema si inverte). Le sole regole **nuove**
+      sono di privacy e ownership, e dipendono da E13 e da `RT-FEAT-UI-ACTION-GHOSTS`.
+      Riprende la domanda rimasta orfana di `../technical/spec-hover-cella.md`, `HISTORICAL` dal pivot
+      esagonale: nessun owner aveva ereditato «cosa succede sotto il cursore».
+
   - feature_id: RT-FEAT-UI-ACTION-GHOSTS
     title: Action Ghosts e Ghost Timeline
     area: UI
