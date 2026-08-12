@@ -144,7 +144,7 @@ un'altra unità sta per liberare** nello stesso turno. È il caso che `Movement.
 | §14 scenario map e capability | ✅ **rispettato alla lettera** | `Teleport` **non** aggiunta all'allowlist dell'harness. La regola che il kit cita è quella giusta, ed è ora in D-119 |
 | §15 test matrix | ⚠️ **non dichiarata nel registry** | il validator verifica che ogni pattern matchi un test reale; i nomi restano nelle issue |
 | §16 mutation test | ✅ **recepito**, ed è il punto migliore del kit | scritto nel DoD di #700 e #702 |
-| §17 privacy | ✅ **già canone** | *«nessun planning avversario al client»* è `AGENTS.md`; il kit lo riafferma correttamente e nomina i riusi giusti (`CanonicalIntentStore`, `FilterForTeam`) |
+| §17 privacy | ✅ **già canone**, ⚠️ con un simbolo inesistente | *«nessun planning avversario al client»* è `AGENTS.md`, e il kit lo riafferma correttamente. Ma dei due riusi che propone **uno solo esiste**: `FilterForTeam` è `URTIntentPrivacyLibrary::FilterForTeam`, mentre `CanonicalIntentStore` ha **zero occorrenze in `Source/`** — è un termine di design che vive in una dozzina di documenti d'archivio e che il registry già segnala come non-codice su `RT-FEAT-NET-PRIVATE-PLANNING`. Trovato dalla code review, non dall'istruttoria: citarlo in backtick accanto a un simbolo vero lo fa sembrare reperibile |
 | §18 portal e GraphRevision | ✅ **recepito e spostato** | il portale è **grafo**, non transfer: la regola è finita in `spec-mappa-multilivello.md`, dove vive l'enum |
 | §19 collisione `Anchor` | ✅ **verificata e vera** | M7. Scritta nel CP 39.9 |
 | §20 errori da evitare | ✅ **promossi a divieto** | dentro D-118, non solo nel corpo dell'epic |

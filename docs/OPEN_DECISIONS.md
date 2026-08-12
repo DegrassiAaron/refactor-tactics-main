@@ -5,7 +5,13 @@
 > deducendola dai documenti: o mancano i dati, o due fonti si contraddicono senza gerarchia.
 > **Cosa non è**: il registro delle decisioni prese — quello è il
 > [Decision Log](decisions/RT_PDR_00_Decision_Log.md), che resta l'**owner**. Quando una voce qui si chiude,
-> diventa una `D-0xx` lì e sparisce da qui.
+> diventa una `D-0xx` lì e **qui resta barrata**, con l'esito e l'istruttoria che l'ha prodotta.
+>
+> 🔴 **Corretto il 2026-08-12**: questa riga diceva *«e sparisce da qui»*, e **non è mai stato vero**. Sette
+> sezioni di questo file conservano le voci chiuse — archivio replay, `GEO-*`, `MAP-1`/`STA-*`, `OD-*`,
+> `FAC-*`, `MED-1`, i radar — perché una domanda barrata col suo perché **è** il valore: il prossimo kit la
+> riproporrà, e trovarla già risposta costa meno che ridiscuterla. La regola scritta contraddiceva la
+> pratica di ogni sezione, e fra le due si è corretta la regola.
 
 ---
 

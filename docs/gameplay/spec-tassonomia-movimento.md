@@ -109,9 +109,12 @@ Questa distinzione è [D-118](../decisions/RT_PDR_00_Decision_Log.md).
 > ⚠️ Nulla di tutto questo si vede in partita: `Action.Leap` **non è nel kit di nessun eroe**, come
 > `Action.Dash` prima di lui ([#425](https://github.com/DegrassiAaron/refactor-tactics-main/issues/425)).
 
-Le policy del Dash sono già un **dato**, non un ramo: `ERTMovementStyle` vale
-`Budget · LinearDash · LinearCharge · LinearLeap · LinearPass`. Aggiungere una famiglia di mobilità significa
-aggiungere un valore lì, non un `if` nel resolver.
+Le policy del Dash sono già un **dato**, non un ramo: `ERTMovementStyle` ha **sei** valori —
+`None · Budget · LinearDash · LinearCharge · LinearLeap · LinearPass` — di cui `None` significa *«l'azione
+non sposta chi la usa»* e i cinque restanti sono i modi di spostarsi. Aggiungere una famiglia di mobilità
+significa aggiungere un valore lì, non un `if` nel resolver. *(Il conteggio è precisato il 2026-08-12: §6 di
+questa pagina diceva già «sei valori», questo paragrafo ne elencava cinque, e da D-118 in poi la differenza
+smette di essere un dettaglio.)*
 
 ## 3. Forced Movement — cosa ignora, e cosa no
 

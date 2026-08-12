@@ -1400,6 +1400,17 @@ features:
       Recall — esistono un'origine e una destinazione, e nient'altro).
       ⚠️ **`spec: done` e tutto il resto `todo` non e' una svista**: e' esattamente lo stato. La regola
       e' scritta e decisa, e **nessuna riga di runtime e' stata aggiunta** — che era il DoD di CP 39.1.
+      ⚠️ **`runtime: todo` e non `partial`, e la code review ha chiesto perche'** (2026-08-12). La regola 2
+      di `feature-registry.md` — *«un dato senza consumatore e' `partial`»* — e' un **tetto su `done`**, non
+      un pavimento su `todo`: dice che un dato senza consumatore non puo' dichiararsi completo, non che
+      qualunque codice esistente obblighi a `partial`. E qui il runtime di QUESTA feature e' zero: non
+      esiste un resolver puro del trasferimento, non esiste un Blink pianificabile, e `ARTTurnManager`
+      riscrive ancora il risultato come un path a due nodi. `LinearLeap` non e' il runtime di questa
+      feature: e' un valore di `ERTMovementStyle`, che appartiene a `RT-FEAT-ACTION-MOVE-PROFILES` insieme
+      al test che lo prova. 🔴 La conseguenza meccanica non e' cosmetica: `derive_status()` controlla
+      `runtime in (done, partial)` **prima** di `spec: done`, quindi un `partial` qui porterebbe lo stato
+      da `SPECIFIED` a `IMPLEMENTING` — cioe' direbbe alle shortlist e alla Wiki che il trasferimento e' in
+      lavorazione quando non lo e'.
       🔴 **La semantica pero' ESISTE GIA', e questo e' il punto che rende l'epic non vuota**:
       `ERTMovementStyle::LinearLeap` produce `Result.Entered = { destinazione }`, e il test
       `RefactorTactics.Actions.Leap.IgnoresIntermediateCells` e' verde. Quel test **non e' dichiarato

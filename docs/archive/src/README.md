@@ -2,8 +2,8 @@
 
 > `HISTORICAL` · **Materiale NON autorevole** · **Primo lotto archiviato il 2026-08-08**
 >
-> I **53** documenti in questa cartella sono i **sorgenti** da cui è nata parte della documentazione normativa.
-> *(rimisurato il 2026-08-12 con il comando in fondo a questa intestazione — 15 + 36 + 2 — non incrementato a mano: due rami
+> I **55** documenti in questa cartella sono i **sorgenti** da cui è nata parte della documentazione normativa.
+> *(rimisurato il 2026-08-12 — 15 `design/` + 36 `handoff/` + 2 `audit/` + **2 in radice** — non incrementato a mano: due rami
 > lo dichiaravano diverso — «47» da una parte, «48» dall'altra — ed entrambi erano giusti sulla propria base
 > e falsi dopo l'unione. Il numero di questa riga si rimisura **dopo** un merge, mai prima. ⚠️ La tabella
 > `handoff/` ne elenca comunque meno del misurato: **tre** sorgenti del 2026-08-10 sono sul disco senza una
@@ -12,7 +12,14 @@
 > ➕ **Un quarto caso lo stesso 2026-08-12**: `2026-08-12-teleport-instant-movement.md` era stato archiviato
 > **senza riga d'indice** dal consolidamento del mattino, e la lacuna è stata trovata da quello della sera
 > archiviando il suo seguito. La riga esiste ora, e il caso resta qui perché è la prova che #579 non è un
-> arretrato chiuso: è un difetto che si ripete a ogni archiviazione fatta di corsa.)*
+> arretrato chiuso: è un difetto che si ripete a ogni archiviazione fatta di corsa.
+> 🔴 **E la formula di questa riga era cieca, il che spiega perché il numero sbaglia da sei versioni.**
+> Il conteggio si era sempre scritto come `design + handoff + audit`, che **struttura**lmente esclude la
+> sezione *Radice* qui sotto — due file. Il consolidamento della sera ha scritto «53» applicando la formula
+> vecchia, e la code review l'ha misurato a **55** con
+> `find docs/archive/src -name '*.md' ! -name README.md | wc -l`, che è l'unico comando che non ha un punto
+> cieco. ⚠️ Uno dei due file di radice — `RefactorTactics_Character_Radar_Wiki_Generator_Claude.md` —
+> **non compare in nessuna tabella di questo indice**: è il quinto caso del difetto #579, trovato contando.)*
 > Il primo lotto era in [`../../src/`](../../src/); ogni sorgente si sposta qui quando un owner documentale lo
 > ha recepito. Restano per **provenienza**: servono a ricostruire *da dove* è nata una decisione, non a deciderla.
 >
