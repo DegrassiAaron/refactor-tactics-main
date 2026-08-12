@@ -297,6 +297,26 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 		{
 			Obj->TryGetNumberField(TEXT("visionRange"), Unit.VisionRange);
 		}
+		// `loadout` opzionale (`#602`): assente = il default dell'eroe, quindi gli scenari gia' scritti non
+		// cambiano. Qui si LEGGE soltanto; che i pezzi esistano e che l'insieme sia legale lo verifica la
+		// validazione piu' sotto, insieme al resto — un errore di scrittura dello scenario dev'essere un
+		// motivo, non un turno che gira a meta'.
+		const TArray<TSharedPtr<FJsonValue>>* LoadoutArr = nullptr;
+		if (Obj->TryGetArrayField(TEXT("loadout"), LoadoutArr))
+		{
+			for (const TSharedPtr<FJsonValue>& Piece : *LoadoutArr)
+			{
+				FString PieceId;
+				if (!Piece->TryGetString(PieceId) || PieceId.IsEmpty())
+				{
+					OutError = FString::Printf(
+						TEXT("unita' '%s': loadout deve essere una lista di EquipmentId"), *Unit.Id);
+					return false;
+				}
+				Unit.Loadout.Add(FName(*PieceId));
+			}
+		}
+
 		OutScenario.Units.Add(Unit);
 	}
 
@@ -747,6 +767,35 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 		}
 		SeenIds.Add(Unit.Id);
 
+		// `loadout` (`#602`): i pezzi devono esistere nel catalogo e l'insieme dev'essere LEGALE secondo la
+		// stessa regola del gioco (`ValidateLoadout`, 1+1+1 — CP 7.4). Uno scenario che monti due gadget va
+		// rifiutato con un motivo, esattamente come lo sarebbe una configurazione illegale in partita:
+		// altrimenti l'harness diventa piu' PERMISSIVO del gioco, che e' l'altra meta' dell'asimmetria per cui
+		// `ReactionPlanning` resta fuori.
+		if (Unit.Loadout.Num() > 0)
+		{
+			TArray<const URTEquipmentData*> Pieces;
+			for (const FName& PieceId : Unit.Loadout)
+			{
+				const URTEquipmentData* Found = URTCatalogLibrary::FindEquipment(PieceId);
+				if (Found == nullptr)
+				{
+					OutError = FString::Printf(TEXT("unita' '%s': equipaggiamento sconosciuto '%s'"),
+						*Unit.Id, *PieceId.ToString());
+					return false;
+				}
+				Pieces.Add(Found);
+			}
+
+			const TArray<FString> LoadoutErrors = URTCatalogLibrary::ValidateLoadout(Pieces);
+			if (LoadoutErrors.Num() > 0)
+			{
+				OutError = FString::Printf(TEXT("unita' '%s': loadout illegale — %s"),
+					*Unit.Id, *LoadoutErrors[0]);
+				return false;
+			}
+		}
+
 		if (!Heroes.Contains(Unit.HeroId))
 		{
 			// Il caso che il documento di specifica sbagliava per primo, citando eroi inesistenti.
@@ -880,9 +929,10 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 			if (!Intent.Reaction.IsNone())
 			{
 				FName HeroId;
+				TArray<FName> UnitLoadout;
 				for (const FRTScenarioUnit& U : Scenario.Units)
 				{
-					if (U.Id == Intent.UnitId) { HeroId = U.HeroId; break; }
+					if (U.Id == Intent.UnitId) { HeroId = U.HeroId; UnitLoadout = U.Loadout; break; }
 				}
 
 				const URTActionData* Armed = nullptr;
@@ -894,6 +944,18 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 						if (Action && Action->Def.ActionId == Intent.Reaction) { Armed = Action; break; }
 					}
 					break;
+				}
+
+				// E anche fra i pezzi che lo SCENARIO equipaggia (`#602`): il kit dell'eroe non e' piu' l'unica
+				// sorgente di azioni, e senza questa riga i tre moduli fuori dai loadout consigliati resterebbero
+				// irraggiungibili proprio quando la chiave `loadout` esiste per raggiungerli. Il confronto e'
+				// sull'`EquipmentId`, che e' anche il nome con cui il modulo compare nel TurnLog.
+				if (Armed == nullptr && UnitLoadout.Contains(Intent.Reaction))
+				{
+					if (const URTEquipmentData* Piece = URTCatalogLibrary::FindEquipment(Intent.Reaction))
+					{
+						Armed = URTCatalogLibrary::MakeEquipmentAction(Piece, nullptr);
+					}
 				}
 
 				if (Armed == nullptr)

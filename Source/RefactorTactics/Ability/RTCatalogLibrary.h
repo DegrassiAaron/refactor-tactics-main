@@ -229,6 +229,20 @@ public:
 	static URTActionData* MakeEquipmentAction(const URTEquipmentData* Item, UObject* Outer);
 
 	/**
+	 * Il pezzo di equipaggiamento con questo `EquipmentId`, cercato nei **tre** cataloghi — varianti d'arma
+	 * (§1), gadget (§2), moduli di reazione (§3) — o `nullptr` se non esiste (`#602`).
+	 *
+	 * Una funzione sola e non tre lookup dal chiamante: chi equipaggia non deve sapere in quale sezione del
+	 * catalogo viva un pezzo, e un `EquipmentId` e' unico fra le tre — lo stesso id in due sezioni sarebbe un
+	 * difetto di catalogo, non un caso da gestire qui.
+	 *
+	 * ⚠️ L'oggetto e' **appena costruito** (i cataloghi si generano a ogni chiamata) e non e' radicato: va usato
+	 * subito, o passato a `MakeEquipmentAction` che ne copia cio' che serve. Tenerne il puntatore attraverso un
+	 * frame significa leggere memoria che il GC puo' aver ripreso.
+	 */
+	static const URTEquipmentData* FindEquipment(FName EquipmentId);
+
+	/**
 	 * Le azioni GENERICHE del catalogo v0.1 (`Action.*`), quelle che non appartengono a un eroe.
 	 *
 	 * Fino al 2026-08-10 conviveva con `GetShippedActionCatalog`, il catalogo dei due archetipi legacy

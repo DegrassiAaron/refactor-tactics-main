@@ -246,6 +246,30 @@ void ARTTurnManager::PlanBots()
 				break;
 			}
 		}
+		// REAZIONE (`#601`): il bot arma la reazione che ha, se ne ha una pronta. Lo slot e' indipendente da
+		// Movimento e Principale, quindi non compete con nient'altro e si dichiara PRIMA di ogni `continue`
+		// del resto della pianificazione — altrimenti un bot che cura o che scatta uscirebbe dal ciclo senza
+		// armarla.
+		//
+		// Nessuna euristica su QUANDO conviene: il trigger e' dichiarato dall'abilita' e valutato dal
+		// resolver, e una reazione non armata non costa nulla a nessuno. Sceglierne una fra due sarebbe una
+		// decisione di bot (E15) — con un solo slot reazione nel kit di ogni eroe, oggi non si pone.
+		//
+		// Senza questa riga meta' delle unita' della v0.1 non reagirebbe mai, e il playtest misurerebbe un
+		// gioco diverso da quello progettato: i sette moduli di CP 7.5 sarebbero verdi nei test e assenti in
+		// partita.
+		for (int32 R = 0; R < Bot->NumAbilities(); ++R)
+		{
+			const URTActionData* Reaction = Bot->GetAbility(R);
+			if (Reaction && Reaction->Def.Slot == ERTActionSlot::Reaction && Bot->CanUseAbility(R))
+			{
+				Bot->PlannedReactionAbility = R;
+				AddLogEvent(FString::Printf(TEXT("%s: arma %s (reazione)"),
+					*Bot->GetName(), *Reaction->Def.ActionId.ToString()));
+				break;
+			}
+		}
+
 		if (bUsedSupport)
 		{
 			continue;

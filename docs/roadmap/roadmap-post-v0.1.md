@@ -33,7 +33,7 @@ v0.1 o no. Questo file registra quella ripartizione una volta sola.
 | Release | Nome | Tema | Epic | Formato di gioco |
 |---|---|---|---|---|
 | **v0.1** | Vertical slice | Il turno simultaneo funziona e si vede | E1–E21 | Skirmish 2v2 vs bot |
-| **v0.2** | Struttura e finestre | Il campo diventa manipolabile; roster 8 | E22–E26 · **E35** · **E36** | Standard 3v3 |
+| **v0.2** | Struttura e finestre | Il campo diventa manipolabile; roster 8 | E22–E26 · **E35** · **E36** · **E38** | Standard 3v3 |
 | **v0.3** | Informazione | Quello che non sai vale quanto quello che fai | E27–E29 · **E33** | Standard 3v3 |
 | **v0.4** | Operations | Partite lunghe su mappe grandi | E30–E32 · **E34** | Operations 4v4+ |
 
@@ -394,6 +394,48 @@ Origine: [`../archive/src/handoff/2026-08-10-status-control-brace-overwatch.md`]
 §2–§28 e §52–§54, filtrato da
 [`plans/handoff-status-control-triage-2026-08-10.md`](plans/handoff-status-control-triage-2026-08-10.md).
 Feature Registry: `RT-FEAT-STATUS-FRAMEWORK`.
+
+---
+
+### E38 — Economia del turno, accoppiamento col movimento e validazione del piano · P2
+
+**Obiettivo**: decidere se l'economia del turno resta a **slot** o diventa una **capacità numerica**, e —
+qualunque sia la risposta — rendere il piano **validabile in Planning** invece che scopribile in risoluzione.
+
+**Perché non è v0.1**: tocca il modello che la v0.1 sta usando per arrivare in fondo. Il kit d'autore del
+2026-08-12 lo dice da sé — *«do not drag future balance/resource complexity into Foundations»* — e la regola
+in vigore ([D-028](../decisions/RT_PDR_00_Decision_Log.md)) non è un ripiego: è una decisione presa,
+implementata e testata.
+
+**Perché non è un'epic vuota**: due dei cinque checkpoint **non dipendono dalla decisione**. `git grep
+ValidatePlan` non restituisce nulla, e quel buco esiste con qualunque modello.
+
+| CP | Obiettivo | DoD misurabile |
+|---|---|---|
+| **38.1** | La decisione: slot o capacità numerica | `AE-1` chiusa dall'autore e registrata come `D-0xx`, con `ECO-1` risolta di conseguenza. **Design, non codice.** Se la risposta è «restano gli slot», l'epic non si chiude: 38.2, 38.4 e 38.5 restano validi e 38.3 dipende da `AE-2`, che è una domanda diversa |
+| **38.2** | Validazione del piano in Planning | Esiste un punto solo che risponde `LEGALE` oppure `ILLEGALE + reason code` **prima** del commit, e il bot passa dallo stesso. I reason code **estendono le famiglie esistenti** (`ERTMoveOutcome`, `ERTCombatOutcome`, `ERTFallbackOutcome`) con valori **in coda**: un enum parallelo rifarebbe l'errore respinto in [`spec-tassonomia-movimento.md`](../gameplay/spec-tassonomia-movimento.md) §6. **Non dipende da 38.1** |
+| **38.3** | La compatibilità abilità↔movimento come dato | Un'abilità dichiara come si comporta sotto ciascun profilo (`NORMAL`/`IMPAIRED`/`ENHANCED`/`BLOCKED` o equivalente) e il validatore la legge. Criterio d'accettazione, nella forma di quello di E4: **aggiungere «Vektor spara in corsa» non deve toccare `ARTTurnManager`**. Se lo tocca, il modello non serve. Bloccato su `AE-2` |
+| **38.4** | La preview dice **perché** | L'Action Dock mostra capacità/slot residui, MP usati, cooldown e stato dell'abilità sotto il profilo scelto, e il Ghost Timeline resta **per fase** (`PREP · DASH · BLAST · MOVE`) invece di diventare una coda generica. Mai il solo colore. Il motivo di un rifiuto è leggibile **prima** di confermare |
+| **38.5** | Scenari e determinismo | I cinque `Spec.ActionEconomy.*` dichiarati `planned` diventano eseguibili, più i test di permutazione. Nessun esito dipende da frame rate, ordine di `TMap` o rotazione visiva |
+
+**Dipendenze**: `RT-FEAT-ACTION-ENGINE` (E4, chiusa), `RT-FEAT-ACTION-MOVE-PROFILES`, `RT-FEAT-ACTION-GENERIC`.
+Cross-link, **non** dipendenze: E14 possiede l'`Overwatch`, E16 il facing, E11 la HUD — questa epic non ne
+riapre nessuna.
+
+**Rischi**: il rischio maggiore non è tecnico. Se 38.1 decidesse per la capacità numerica, cambierebbero
+validatore, HUD, pesi del bot e ogni riga del catalogo **insieme** — ed è la stessa condizione che
+[D7 di E4](../gameplay/spec-motore-azioni-e4.md) aveva già gestito una volta separando il motore dal budget.
+Vale la stessa mitigazione: **una fetta per volta**, e mai il modello e i numeri nello stesso checkpoint.
+
+**Non fa**: i valori (`AE-5` per lo `Sneak`, `AE-4` per la risorsa firma) · il costo del pivot (`FAC-12`, che
+si guarda alla revisione dei numeri di ADR-0008) · i fatti del percorso (`AE-3`) · il workbook di
+bilanciamento, che [`balance/README.md`](../balance/README.md) vieta di correggere cella per cella.
+
+Referto d'origine:
+[`plans/action-economy-consolidamento-2026-08-12.md`](plans/action-economy-consolidamento-2026-08-12.md).
+Owner della regola: [`../gameplay/spec-economia-del-turno.md`](../gameplay/spec-economia-del-turno.md).
+Feature Registry: `RT-FEAT-ACTION-BUDGET` · `RT-FEAT-ACTION-MOVEMENT-COMPAT` ·
+`RT-FEAT-ACTION-PLAN-VALIDATION`.
 
 ---
 

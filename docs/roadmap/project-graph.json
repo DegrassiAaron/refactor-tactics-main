@@ -44,6 +44,9 @@
       "[RT-FEAT-MAP-STRUCTURAL] nessuna pagina Wiki collegata",
       "[RT-FEAT-MAP-VERTICALITY] nessuna pagina Wiki collegata",
       "[RT-FEAT-ACTION-COOLDOWNS] feature di gameplay TESTABLE senza scenario che la dimostri",
+      "[RT-FEAT-ACTION-COOLDOWNS] 1 scenario/i dichiarati planned: Spec.ActionEconomy.CooldownBlocksWithSlotFree",
+      "[RT-FEAT-ACTION-MOVEMENT-COMPAT] 4 scenario/i dichiarati planned: Spec.ActionEconomy.MoveImpairsPrecision, Spec.ActionEconomy.SprintBlocksPrecision, Spec.ActionEconomy.SprintEnhancesMomentum, Spec.ActionEconomy.PathLengthChangesEffect",
+      "[RT-FEAT-ACTION-PLAN-VALIDATION] 1 scenario/i dichiarati planned: Spec.ActionEconomy.OverwatchReservesMovementSlot",
       "[RT-FEAT-ACTION-DELAYED] nessuna pagina Wiki collegata",
       "[RT-FEAT-ACTION-TRAPS] nessuna pagina Wiki collegata",
       "[RT-FEAT-ACTION-EQUIPMENT] nessuna pagina Wiki collegata",
@@ -709,19 +712,19 @@
       "artifacts": [
         {
           "path": "Content/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget.uasset",
-          "tracked": false
+          "tracked": true
         },
         {
           "path": "Content/RT/Characters/Phase/Blueprints/BP_Unit_Phase.uasset",
-          "tracked": false
+          "tracked": true
         },
         {
           "path": "Content/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor.uasset",
-          "tracked": false
+          "tracked": true
         },
         {
           "path": "Content/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith.uasset",
-          "tracked": false
+          "tracked": true
         }
       ],
       "unblocked_by": [],
@@ -736,7 +739,7 @@
       "verifies": [
         {
           "id": "PIE-AS2",
-          "state": "⏳"
+          "state": "🟡"
         },
         {
           "id": "PIE-FACING",
@@ -1285,7 +1288,7 @@
     },
     {
       "id": "PIE-AS2",
-      "state": "⏳"
+      "state": "🟡"
     },
     {
       "id": "PIE-AS4a",
@@ -2029,6 +2032,13 @@
       "path": "Scenarios/Spec/Predictive/WhiffOnEmptyCell.json"
     },
     {
+      "id": "Spec.Reaction.AnchorCancelsPush",
+      "requires": [
+        "ReactionPlanning"
+      ],
+      "path": "Scenarios/Spec/Reaction/AnchorCancelsPush.json"
+    },
+    {
       "id": "Visual.Combat.BraceReducesEveryHit",
       "requires": [],
       "path": "Scenarios/Visual/Combat/BraceReducesEveryHit.json"
@@ -2146,6 +2156,7 @@
     "FixtureReference",
     "PredictiveAction",
     "Reaction",
+    "ReactionPlanning",
     "Structures"
   ]
 }

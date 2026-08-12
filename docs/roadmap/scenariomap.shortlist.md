@@ -17,9 +17,9 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 
 <!-- RT_SHORTLIST_SCENARIOS:BEGIN -->
 
-**67 scenari versionati** — misurati su `Scenarios/`: **55** eseguibili · **12** `BLOCKED` per una capability assente · **45** dichiarati `planned` nel registry e non ancora scritti.
+**68 scenari versionati** — misurati su `Scenarios/`: **56** eseguibili · **12** `BLOCKED` per una capability assente · **51** dichiarati `planned` nel registry e non ancora scritti.
 
-**Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `BotPlanning` · `Cover` · `CreateCover` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `PredictiveAction` · `Reaction` · `Structures`.
+**Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `BotPlanning` · `Cover` · `CreateCover` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `PredictiveAction` · `Reaction` · `ReactionPlanning` · `Structures`.
 
 | Scenario `BLOCKED` | Capability che manca |
 |---|---|
@@ -38,6 +38,12 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 
 | Pianificato, non scritto | Feature che lo chiede |
 |---|---|
+| `Spec.ActionEconomy.CooldownBlocksWithSlotFree` | `RT-FEAT-ACTION-COOLDOWNS` |
+| `Spec.ActionEconomy.MoveImpairsPrecision` | `RT-FEAT-ACTION-MOVEMENT-COMPAT` |
+| `Spec.ActionEconomy.OverwatchReservesMovementSlot` | `RT-FEAT-ACTION-PLAN-VALIDATION` |
+| `Spec.ActionEconomy.PathLengthChangesEffect` | `RT-FEAT-ACTION-MOVEMENT-COMPAT` |
+| `Spec.ActionEconomy.SprintBlocksPrecision` | `RT-FEAT-ACTION-MOVEMENT-COMPAT` |
+| `Spec.ActionEconomy.SprintEnhancesMomentum` | `RT-FEAT-ACTION-MOVEMENT-COMPAT` |
 | `Spec.Bot.BeliefDoesNotBecomeKnowledge` | `RT-FEAT-BOT-BELIEF` |
 | `Spec.Bot.CandidateDiversityKeepsControl` | `RT-FEAT-BOT-TACTICAL` |
 | `Spec.Bot.DecoyNoiseIndistinguishable` | `RT-FEAT-BOT-FAIRNESS` |

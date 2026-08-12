@@ -228,6 +228,28 @@ struct FRTScenarioUnit
 	 */
 	UPROPERTY()
 	int32 VisionRange = -1;
+
+	/**
+	 * L'EQUIPAGGIAMENTO che l'unita' porta: `EquipmentId` dal catalogo §1/§2/§3 (`#602`). Vuoto = il loadout
+	 * di default del suo eroe, quindi gli scenari scritti prima non cambiano comportamento.
+	 *
+	 * ⚠️ **E' configurazione, non un'azione del giocatore**, ed e' la ragione per cui questa chiave esiste
+	 * mentre `reaction` in pianificazione resta fuori (vedi `RTScenarioSession.cpp`): equipaggiare appartiene
+	 * alla stessa classe di `cell`, `hero` e `facing` — cose che si decidono posando le figure sul tavolo, non
+	 * mosse che il giocatore chiede durante il turno. L'harness che sceglie un loadout non e' piu' capace del
+	 * gioco: sta scegliendo fra configurazioni che il gioco gia' assegna.
+	 *
+	 * Serve perche' i loadout consigliati usano **quattro** dei sette moduli di reazione (DoD di `#63`): senza
+	 * questa chiave, `Anchor`, `Cleanse` e `CounterShot` — piu' le varianti e i gadget non consigliati — non
+	 * sono esprimibili in nessuno scenario, e meta' del catalogo equipaggiamento resta senza specifica
+	 * eseguibile.
+	 *
+	 * Passa dalla **stessa validazione del gioco** (`URTCatalogLibrary::ValidateLoadout`): una configurazione
+	 * illegale rifiuta lo scenario con un motivo. Senza, l'harness diventerebbe piu' PERMISSIVO del gioco, che
+	 * e' l'altra meta' della stessa asimmetria.
+	 */
+	UPROPERTY()
+	TArray<FName> Loadout;
 };
 
 /**

@@ -166,6 +166,9 @@ in **M6** e «Riva» in **E6**. Scrivi sempre la forma prefissata: `M6.3` (owner
 Owner principali:
 
 - `docs/gameplay/spec-sequenza-turno.md`
+- `docs/gameplay/spec-economia-del-turno.md` — **quanto può fare un'unità in un turno**: come i quattro budget
+  (slot, Movement Point, pivot, cooldown/risorsa) si tengono insieme, e la proposta **aperta** che il profilo
+  di movimento cambi anche la legalità delle azioni. I singoli budget restano owner di sé stessi
 - `docs/gameplay/spec-motore-azioni-e4.md`
 - `docs/gameplay/spec-reazioni-componibili-cp55.md`
 - `docs/decisions/adr-0004-finestre-di-reazione.md`
