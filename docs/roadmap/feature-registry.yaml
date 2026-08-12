@@ -1447,7 +1447,7 @@ features:
     owner_specs:
       - docs/balance/RT_ActionCatalog_v0.1.md
       - docs/gameplay/spec-economia-del-turno.md
-    issues: [45]
+    issues: [45, 610, 608]
     tests:
       - RefactorTactics.Combat.AbilityUsableByCooldownAndEnergy
       - RefactorTactics.Combat.GainEnergyClampsToMax
@@ -1508,7 +1508,7 @@ features:
     owner_specs:
       - docs/gameplay/spec-economia-del-turno.md
       - docs/balance/RT_ActionCatalog_v0.1.md
-    issues: []
+    issues: [609, 604]
     tests: []
     scenarios: []
     wiki_refs:
@@ -1554,7 +1554,7 @@ features:
       - RT-FEAT-ACTION-BUDGET
     owner_specs:
       - docs/gameplay/spec-economia-del-turno.md
-    issues: []
+    issues: [609, 606]
     tests: []
     scenarios:
       - planned:
@@ -1607,7 +1607,7 @@ features:
       - RT-FEAT-ACTION-ENGINE
     owner_specs:
       - docs/gameplay/spec-economia-del-turno.md
-    issues: []
+    issues: [609, 605]
     tests: []
     scenarios:
       - planned:
@@ -3106,7 +3106,7 @@ features:
     owner_specs:
       - docs/technical/progettazione-hud.md
       - docs/technical/spec-hover-cella.md
-    issues: [77]
+    issues: [77, 607]
     tests:
       - RefactorTactics.Preview.*
       - RefactorTactics.PlayerInput.*
