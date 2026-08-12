@@ -2,7 +2,7 @@
 >
 > Il testo originale **non è stato riscritto**: quanto segue è l'esito della revisione, non una correzione
 > del sorgente. Referto completo, sezione per sezione:
-> [`../../roadmap/plans/action-economy-consolidamento-2026-08-12.md`](../../roadmap/plans/action-economy-consolidamento-2026-08-12.md).
+> [`../../../roadmap/plans/action-economy-consolidamento-2026-08-12.md`](../../../roadmap/plans/action-economy-consolidamento-2026-08-12.md).
 >
 > | Esito | Sezioni |
 > |---|---|
