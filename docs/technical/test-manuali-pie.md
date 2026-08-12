@@ -52,7 +52,15 @@
 
 ## Stato in numeri — 2026-08-12
 
-**132 voci**: ✅ **30 verdi** · 🟡 **23 parziali** (regola coperta da test, resta il visivo) · ⏳ **79 aperte**.
+**134 voci**: ✅ **30 verdi** · 🟡 **23 parziali** (regola coperta da test, resta il visivo) · ⏳ **81 aperte**.
+
+*(Rimisurate col comando qui sotto il **2026-08-12**, dopo `PIE-V01-GHOSTS` e `PIE-V01-POINTER` del
+reconciliation di roadmap. La base era `132 (30/23/79)` e coincideva col dichiarato. **Solo una delle due
+voci è lavoro nuovo**: `PIE-V01-POINTER` nasce con CP 11.8, mentre `PIE-V01-GHOSTS` era **già citata** da
+tre documenti come verifica di CP 11.6 senza avere una riga qui — il registro non la conosceva. Il subset
+`RELEASE-V01` resta **17** e la corrispondenza `Visual.*` ↔ `PIE-VIS-*` resta **21 = 21**: nessuna delle due
+voci è visiva né di release. ⚠️ Questo ramo tocca il file mentre altri lo toccano: il totale va rieseguito
+**dopo il merge**.)*
 
 *(Rimisurate col comando qui sotto il **2026-08-12**, dopo le cinque voci `PIE-HEX-VIZ-*` della serie viz
 editor ([#552](https://github.com/DegrassiAaron/refactor-tactics-main/issues/552),
@@ -356,6 +364,15 @@ leggibilità minima nel senso più stretto, non presentazione.
 | **PIE-REPLAY-ARCHIVE** | L'archivio replay di una partita giocata davvero | una partita in PIE portata fino all'esito, con `rt.Replay.Record` a `1` (default) | Al termine esiste `Saved/Replays/<MatchId>/` con `match.rtmanifest` e una traccia `turn-NNN.rtlog` **per turno giocato**; il manifest è chiuso, l'esito coincide con quello mostrato a schermo e `FinalStateHash` **non è `0`**. `Saved/Replays/history.rtindex` elenca la partita con la sua durata. ⚠️ Poi: chiudere PIE a metà di una seconda partita e verificare che quell'archivio esista con il manifest **non** chiuso — è il caso per cui il recorder scrive durante il match | ⏳ **non eseguita** — il percorso è coperto headless da `Replay.Producer.*` (5 test, 2026-08-10), che però passa da `ARTTurnManager` costruito nel test: quello che resta da vedere è l'avvio dal `GameMode` reale e la scrittura sotto `Saved/` di un processo vero (gate `packaged` di `RT-FEAT-REPLAY-ARCHIVE`) |
 | **PIE-V01-DEBUG** | Comandi `rt.Debug.*` | build Development o PIE | Gli 8 comandi rispondono; le celle mostrano `CellId`/`TerrainId`/`TraversalCost`/`OccupantId`/`HazardTags`/`CoverEdges`/`ChunkRevision`; **`DrawIntent` non rivela gli intenti avversari** | 🟡 **1 comando su 8 esiste**: `rt.Debug.DrawCells` (`Map/RTHexOverlayConsole.cpp`), verificato in PIE il 2026-08-07 → voce **PIE-DEBUG-CELLS**. La roadmap dichiarava l'area «⏳ *verificato assente*»: era **falso**. Restano `DrawGrid`, `DrawPaths`, `DrawCover`, `DrawIntent`, `DrawResolution`, `DumpSnapshot`, `DumpTurnLog`, `VerifyReplay` (CP 11.4) |
 | **PIE-V01-REACTCOND** | Condizione dichiarata sulla reazione | partita in PIE, unità selezionata con una reazione armata | `rt.Reaction.Condition 50` accetta e lo **dice**; senza reazione armata rifiuta spiegando perché; `rt.Reaction.Condition` senza argomenti la toglie; una soglia oltre 100 è rifiutata. ⚠️ L'effetto sul gioco — meno risposte legali, quindi nessuna finestra — non è osservabile finché CP 14.5 non cabla l'Overwatch nel resolver: qui si verifica il **canale**, non il collasso, che è coperto headless da `Reactions.DeclaredConditionCollapsesToImmediateCommit` | ⏳ |
+| **PIE-V01-GHOSTS** | Ghost Timeline e scrubbing delle fasi | partita in PIE, unità propria con un piano su più fasi | Un ghost **per fase** (Prep · Dash · Blast · Move) mostra dove sarà l'unità e da dove agirà; selezionandone uno gli altri si attenuano; i warning sono marcati *previsto*/*incerto*, mai *confermato*; la reaction armata compare come **ramo con `?`**, non come quinta fase | ⏳ — **registrata il 2026-08-12**, non nuova: il DoD di **CP 11.6** la nominava dal 2026-08-07 in [`../roadmap/roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md), in [`brief-planning-visuale.md`](brief-planning-visuale.md) e in [`../roadmap/v0.1-issue-plan.md`](../roadmap/v0.1-issue-plan.md), ma **non esisteva una riga in questo registro**. Il link checker non poteva vederlo — `PIE-V01-GHOSTS` è un identificatore, non un link — ed è lo stesso difetto dei due nomi di test inesistenti citati dal gate `G3` prima di CP 14.3 |
+| **PIE-V01-POINTER** | Contratto del puntatore: Hover / LMB / RMB | partita in PIE, unità propria selezionata | Hover non committa **mai**; `LMB` ha un solo significato per contesto; `RMB` annulla targeting e preview di percorso senza toccare un piano già lockato; un click sull'HUD **non** raggiunge la cella sotto; durante il playback nessun input cambia il piano; un nemico **non rilevato** non produce highlight né tooltip. Ogni rifiuto porta un reason code a schermo, non silenzio | ⏳ — owner [`spec-pointer-interaction.md`](spec-pointer-interaction.md), **CP 11.8** |
+
+> **Nessuna delle due entra nel subset `RELEASE-V01`.** Il criterio del §8 di
+> [`scenario-map.md`](scenario-map.md) è «senza di essa la v0.1 non è consegnabile», e nomina tre cose:
+> partita completa su hex multilivello, fine partita a tre vie, leggibilità minima. La leggibilità minima è
+> già presidiata da `PIE-V01-HUD` e `PIE-PREVIEW-AREA`; queste due verificano **coerenza e privacy**
+> dell'interazione, che è una quarta cosa. Aggiungerle al subset allargherebbe il gate `G9` di due voci
+> aperte senza che la DoD lo chieda.
 
 ### Strumenti di leggibilità (aggiunti il 2026-08-07)
 

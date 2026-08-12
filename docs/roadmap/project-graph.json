@@ -55,6 +55,7 @@
       "[RT-FEAT-STATUS-FRAMEWORK] nessuna pagina Wiki collegata",
       "[RT-FEAT-ENV-ICE-ENGINE] nessuna pagina Wiki collegata",
       "[RT-FEAT-PERCEPTION-MEMORY] feature di gameplay TESTABLE senza scenario che la dimostri",
+      "[RT-FEAT-UI-POINTER-INTERACTION] 6 scenario/i dichiarati planned: Visual.UI.SelectMoveCancel, Visual.UI.TargetEnemyConfirmCancel, Visual.UI.DoorHoverAndInteract, Visual.UI.AllyIntentInspectReadOnly, Visual.UI.ReactionWindowPreemptsWorldInput, Spec.Privacy.HiddenEnemyHoverNoLeak",
       "[RT-FEAT-UI-ICON-LANGUAGE] nessuna pagina Wiki collegata",
       "[RT-FEAT-CHAR-TRANSFORMATION] nessuna pagina Wiki collegata",
       "[RT-FEAT-CHAR-AUXILIARY-UNITS] nessuna pagina Wiki collegata",
@@ -264,6 +265,7 @@
     "E11.5": "⏳",
     "E11.6": "⏳",
     "E11.7": "⏳",
+    "E11.8": "⏳",
     "E12.1": "✅",
     "E12.2": "⏳",
     "E12.3": "⏳",
@@ -1683,6 +1685,10 @@
       "state": "⏳"
     },
     {
+      "id": "PIE-V01-GHOSTS",
+      "state": "⏳"
+    },
+    {
       "id": "PIE-V01-HUD",
       "state": "⏳"
     },
@@ -1716,6 +1722,10 @@
     },
     {
       "id": "PIE-V01-OVERWATCH",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-V01-POINTER",
       "state": "⏳"
     },
     {

@@ -128,7 +128,8 @@ Manca la prova sul campo: la sessione di playtest **M6.8**, che si esegue in edi
 > Standard 3v3, bot tattico ed esperto, Operations. Nessuna di quelle epic si apre prima dei 15 gate della v0.1.
 
 Le milestone qui sotto restano la vista di **esecuzione**. Sopra di esse esiste ora una vista di **release**:
-[`roadmap-v0.1.md`](roadmap-v0.1.md) — **21 epic, 95 checkpoint** *(era 12/59; **E13** conoscenza parziale,
+[`roadmap-v0.1.md`](roadmap-v0.1.md) — **21 epic, 100 checkpoint** *(rimisurato il 2026-08-12: era «95», che
+era la somma corretta di una colonna ferma su tre epic; era 12/59; **E13** conoscenza parziale,
 **E14** overwatch, **E15** showcase ed **E16** orientamento aggiunte il 2026-08-07, insieme ai checkpoint del
 planning visuale in **E11** → [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md); **E19**
 classe di mappa ed **E20** icon language il 2026-08-08)*, issue `#14`–`#85` e
@@ -427,7 +428,7 @@ neutri (combat math, serializzazione, regole di fase). Il resto ha data di scade
 |---|---|
 | [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) | **Canone**: decisioni vincolanti, invarianti, regole numeriche |
 | [`feature-registry.yaml`](feature-registry.yaml) · [`feature-registry.md`](feature-registry.md) | **Prodotto**: stato per *feature* (non per milestone né per epic), derivato da gate verificabili. Unica sorgente dello stato che Wiki e workbook leggono |
-| [`roadmap-v0.1.md`](roadmap-v0.1.md) | **Release v0.1**: 21 epic, 95 checkpoint, mappatura con queste milestone + **§2.1 stato misurato** |
+| [`roadmap-v0.1.md`](roadmap-v0.1.md) | **Release v0.1**: 21 epic, 100 checkpoint, mappatura con queste milestone + **§2.1 stato misurato**. ⚠️ Il totale si legge **di lì**: questa riga è una copia, e il 2026-08-12 era indietro di cinque |
 | [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) | **Release v0.2 → v0.4**: epic `E22`–`E35`. Non apre lavoro finché i gate della v0.1 non sono verdi |
 | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate di release `G1`–`G15`, KPI, checklist di contenuto |
 | [`balance/`](../balance) | **Numeri vigenti v0.1**: cataloghi azioni, terreni, equipaggiamento, eroi, matrice di test |

@@ -2,8 +2,8 @@
 
 > `HISTORICAL` · **Materiale NON autorevole** · **Primo lotto archiviato il 2026-08-08**
 >
-> I **55** documenti in questa cartella sono i **sorgenti** da cui è nata parte della documentazione normativa.
-> *(rimisurato il 2026-08-12 — 15 `design/` + 36 `handoff/` + 2 `audit/` + **2 in radice** — non incrementato a mano: due rami
+> I **56** documenti in questa cartella sono i **sorgenti** da cui è nata parte della documentazione normativa.
+> *(rimisurato il 2026-08-12 **dopo il merge** — 15 `design/` + 37 `handoff/` + 2 `audit/` + **2 in radice** — non incrementato a mano: due rami
 > lo dichiaravano diverso — «47» da una parte, «48» dall'altra — ed entrambi erano giusti sulla propria base
 > e falsi dopo l'unione. Il numero di questa riga si rimisura **dopo** un merge, mai prima. ⚠️ La tabella
 > `handoff/` ne elenca comunque meno del misurato: **tre** sorgenti del 2026-08-10 sono sul disco senza una
@@ -19,7 +19,11 @@
 > vecchia, e la code review l'ha misurato a **55** con
 > `find docs/archive/src -name '*.md' ! -name README.md | wc -l`, che è l'unico comando che non ha un punto
 > cieco. ⚠️ Uno dei due file di radice — `RefactorTactics_Character_Radar_Wiki_Generator_Claude.md` —
-> **non compare in nessuna tabella di questo indice**: è il quinto caso del difetto #579, trovato contando.)*
+> **non compare in nessuna tabella di questo indice**: è il quinto caso del difetto #579, trovato contando.
+> 🔁 **E la dimostrazione è arrivata entro l'ora.** Il reconciliation di roadmap, aperto in parallelo,
+> archiviava un sesto sorgente e aveva scritto **53** applicando la formula cieca — indipendentemente, e
+> senza vedere questa correzione. Al merge il valore misurato col comando buono è **56**. Le due riscritture
+> sono la stessa lezione da due lati: la formula sbagliava *per struttura*, il totale sbagliava *per merge*.)*
 > Il primo lotto era in [`../../src/`](../../src/); ogni sorgente si sposta qui quando un owner documentale lo
 > ha recepito. Restano per **provenienza**: servono a ricostruire *da dove* è nata una decisione, non a deciderla.
 >
@@ -108,6 +112,7 @@ In caso di conflitto prevalgono [`../../product/piano-canonico-mvp.md`](../../pr
 | [`2026-08-12-action-economy-movement-facing.md`](handoff/2026-08-12-action-economy-movement-facing.md) | Economia delle azioni, accoppiamento col movimento, costi del facing | [`spec-economia-del-turno.md`](../../gameplay/spec-economia-del-turno.md) · **E38** (v0.2) · `AE-1`…`AE-7` · [referto](../../roadmap/plans/action-economy-consolidamento-2026-08-12.md). ⚠️ **Recepito in parte**: §6/§7/§8 sono l'unico contributo nuovo; §4/§5 contraddicono il modello a slot di `D-028`, §15 contraddice ADR-0008 ed era gia' `FAC-12`, §30 e' respinta da `balance/README.md` |
 | [`2026-08-12-teleport-instant-movement.md`](handoff/2026-08-12-teleport-instant-movement.md) | Teletrasporto e movimenti istantanei: famiglia, resolver, scenari | [`spec-tassonomia-movimento.md`](../../gameplay/spec-tassonomia-movimento.md) · [referto](../../roadmap/plans/teleport-instant-movement-2026-08-12.md). **Tesi giusta, premessa falsa**: «un movimento veloce non è un teletrasporto» è già canone, ma la premessa che nel repository esista solo il primo è **falsa** — `ERTMovementStyle::LinearLeap` fa `Result.Entered = { destinazione }`. Sei scenari proposti → **uno**, e **esisteva già**. Ha prodotto `MOV-1`/`MOV-2` e [#645](https://github.com/DegrassiAaron/refactor-tactics-main/issues/645). ⚠️ **La riga d'indice mancava**: aggiunta il 2026-08-12 dal consolidamento successivo, stesso difetto di [#579](https://github.com/DegrassiAaron/refactor-tactics-main/issues/579) |
 | [`2026-08-12-spatial-transfer-epic.md`](handoff/2026-08-12-spatial-transfer-epic.md) | Spatial Transfer: epic, tredici checkpoint, resolver puro, Blink, Swap, Recall, Portal | [`spec-tassonomia-movimento.md`](../../gameplay/spec-tassonomia-movimento.md) · **E39** (v0.2) · `D-118` `D-119` · [referto](../../roadmap/plans/spatial-transfer-epic-2026-08-12.md). **Seguito del precedente, e accurato**: nove stati di issue su nove verificati, l'enum, lo scenario e il numero di epic libero. ✂️ **13 checkpoint → 4 issue** ([#700](https://github.com/DegrassiAaron/refactor-tactics-main/issues/700) [#701](https://github.com/DegrassiAaron/refactor-tactics-main/issues/701) [#702](https://github.com/DegrassiAaron/refactor-tactics-main/issues/702) [#703](https://github.com/DegrassiAaron/refactor-tactics-main/issues/703)) + 1 già chiusa + 8 rinviate. ⚠️ La DoD del §8 era una lista di sostantivi; il §15 (nomi di test) non è dichiarabile nel registry; e **nessuna sezione dice quale eroe** |
+| [`2026-08-12-roadmap-reconciliation.md`](handoff/2026-08-12-roadmap-reconciliation.md) | Riallineamento di roadmap, Feature Registry ed Epic/issue GitHub prima di proseguire la v0.1; contratto del puntatore mancante | [`../../roadmap/plans/roadmap-reconciliation-2026-08-12.md`](../../roadmap/plans/roadmap-reconciliation-2026-08-12.md) · owner nato: [`../../technical/spec-pointer-interaction.md`](../../technical/spec-pointer-interaction.md) (**CP 11.8**, [#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705)) · **Applicato in parte**. ✅ Il suo contributo vero è la §1: la catena `#159 → #165` **non regge** e le lane sono parallele — verificato su `#160`, che lo dichiara in proprio. ⚠️ **Quattro premesse fuori data**, e il documento lo aveva previsto: `#152` era stale come **issue**, non come roadmap; il bot partial-knowledge era una **contraddizione interna** alla §2; la §7 tratta il contratto del puntatore come da progettare mentre `RMB` è **già** `UndoAction` e l'hover è **già** presentazione. ❌ Respinte le cinque epic §10 (Super Actions, Modular Effects, Seeded Map, Level Designer, Networking): il documento stesso le marca **PROPOSTE** |
 
 ### Il pacchetto `consolidazione-chat-openai` — dodici sorgenti, un solo triage
 

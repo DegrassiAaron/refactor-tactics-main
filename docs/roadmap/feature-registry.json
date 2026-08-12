@@ -24,7 +24,7 @@
       "branch": "main"
     }
   },
-  "count": 104,
+  "count": 105,
   "features": [
     {
       "feature_id": "RT-FEAT-CORE-TURN",
@@ -3834,6 +3834,71 @@
       "notes": "Aperta il 2026-08-12 da un panel di specifica sulla proposta «UI-0 — First Playable HUD» (`../roadmap/plans/ui-0-first-playable-hud-2026-08-12.md`). ⚠️ **Esiste perché il DoD di CP 11.1 non nomina UMG**: chiede contenuto informativo, e cinque voci su sei sono già soddisfatte da `ARTHUD` in Canvas. Il confine fra i due layer è la ragione della feature — §4.1 qui, §4.2 in `RT-FEAT-UI-PLANNING` — e la sovrapposizione da governare è **chi disegna le barre**: quelle ancorate sopra l'unità restano Canvas, il roster e il pannello della selezionata sono UMG. Dipende da `RT-FEAT-UI-ICON-LANGUAGE` per D-031: nessun widget referenzia una texture."
     },
     {
+      "feature_id": "RT-FEAT-UI-POINTER-INTERACTION",
+      "title": "Contratto del puntatore — Hover, LMB, RMB",
+      "area": "UI",
+      "kind": "ui",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "SPECIFIED",
+      "status_derived": "SPECIFIED",
+      "gates": {
+        "spec": "done",
+        "data": "na",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "todo",
+        "replay_representable": "na"
+      },
+      "gates_done": 1,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E11",
+        "milestone": null,
+        "checkpoints": [
+          "11.8"
+        ],
+        "out_of_release_scope": ""
+      },
+      "dependencies": [
+        "RT-FEAT-UI-PLANNING",
+        "RT-FEAT-UI-SCREEN-HUD"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/technical/spec-pointer-interaction.md"
+      ],
+      "issues": [
+        705
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [
+        "Visual.UI.SelectMoveCancel",
+        "Visual.UI.TargetEnemyConfirmCancel",
+        "Visual.UI.DoorHoverAndInteract",
+        "Visual.UI.AllyIntentInspectReadOnly",
+        "Visual.UI.ReactionWindowPreemptsWorldInput",
+        "Spec.Privacy.HiddenEnemyHoverNoLeak"
+      ],
+      "wiki_refs": [
+        "wiki:come-si-gioca"
+      ],
+      "wiki_note": "",
+      "pie_refs": [
+        "PIE-V01-POINTER"
+      ],
+      "last_verified": {
+        "date": "2026-08-12",
+        "commit": "ee0da4b3"
+      },
+      "notes": "Aperta il 2026-08-12 dal reconciliation di roadmap (`plans/roadmap-reconciliation-2026-08-12.md`). ⚠️ **Non e' un redesign dell'input**: nove regole su dieci del contratto descrivono cio' che il codice fa gia', e il valore della feature e' renderle enunciabili e testabili. I tre delta misurati sono **assenze**: nessuno stato esplicito (la modalita' di targeting vive come `SelectedAbilityIndex` **sull'unita'**, non nel controller), nessuna consapevolezza di fase nell'input (`:767` e' l'unico punto che la legge, e serve al fine partita), nessuna precedenza HUD -> mondo (il Canvas HUD non registra hitbox, quindi ogni click passa al mondo — e con i widget UMG di CP 11.7 il problema si inverte). Le sole regole **nuove** sono di privacy e ownership, e dipendono da E13 e da `RT-FEAT-UI-ACTION-GHOSTS`. Riprende la domanda rimasta orfana di `../technical/spec-hover-cella.md`, `HISTORICAL` dal pivot esagonale: nessun owner aveva ereditato «cosa succede sotto il cursore»."
+    },
+    {
       "feature_id": "RT-FEAT-UI-ACTION-GHOSTS",
       "title": "Action Ghosts e Ghost Timeline",
       "area": "UI",
@@ -3884,7 +3949,9 @@
         "wiki:come-si-gioca"
       ],
       "wiki_note": "",
-      "pie_refs": [],
+      "pie_refs": [
+        "PIE-V01-GHOSTS"
+      ],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"

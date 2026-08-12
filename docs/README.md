@@ -20,7 +20,7 @@ deterministico, su una griglia **esagonale multilivello**.
 | 1 | **Canone** | [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) | Invarianti, decisioni operative, regole. **Prevale su tutto** |
 | 2 | **Decisioni** | [`decisions/`](decisions/) — 6 ADR + [Decision Log](decisions/RT_PDR_00_Decision_Log.md) | Scelte architetturali e di prodotto, con motivazione |
 | 3 | **Esecuzione** | [`roadmap/roadmap-checkpoint.md`](roadmap/roadmap-checkpoint.md) | Milestone M6–M11, DoD misurabili, **stato** |
-| 4 | **Release** | [`roadmap/roadmap-v0.1.md`](roadmap/roadmap-v0.1.md) | Scope della v0.1: 21 epic, 95 checkpoint |
+| 4 | **Release** | [`roadmap/roadmap-v0.1.md`](roadmap/roadmap-v0.1.md) | Scope della v0.1: 21 epic, 100 checkpoint |
 | 5 | **Numeri** | [`balance/`](balance/) | Valori vigenti: azioni, eroi, terreni, equipaggiamento |
 | 6 | **Specifiche** | [`gameplay/`](gameplay/) · [`technical/`](technical/) | Dettaglio per feature |
 | 7 | **Requisiti lungo periodo** | [`roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) | Fasi F0–F6 — **direzione, non scope** |
