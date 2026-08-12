@@ -493,4 +493,111 @@ bool FRTOverwatchSameReactionTwiceHasDistinctIdsTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * La condizione dichiarata in pianificazione RIDUCE le risposte legali, e quando ne resta una sola il commit
+ * e' immediato: nessuna finestra si apre ([D-012], [D-109]).
+ *
+ * E' il punto dell'intero meccanismo. Senza, ogni trigger di Overwatch aprirebbe 3 secondi di attesa, perche'
+ * `AllowedResponses` contiene sempre almeno `FIRE` e `HOLD` — ed e' esattamente il rischio di pacing che la
+ * condizione esiste per mitigare. Il regime *Conditional* non e' un enum: e' questo collasso di cardinalita'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchDeclaredConditionTest,
+	"RefactorTactics.Reactions.DeclaredConditionCollapsesToImmediateCommit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchDeclaredConditionTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeOverwatchMap(/*Radius*/ 4);
+
+	// Un bersaglio in salute (unita' 9) e uno ferito (unita' 8) attraversano la stessa zona controllata.
+	FRTOverwatchWatcher Watcher = MakeOverwatchWatcher(Map, /*OwnerId*/ 1, /*TeamId*/ 0,
+		FRTCellId(0, 0, 0), FRTCellId(1, 0, 0));
+	Watcher.TeamAwareness.Add(8, ERTAwareness::Detected);
+	Watcher.TeamAwareness.Add(9, ERTAwareness::Detected);
+
+	const TArray<FRTSuppressionMover> Movers = {
+		MakeOverwatchMover(8, /*TeamId*/ 1, { FRTCellId(1, 0, 0) }),
+		MakeOverwatchMover(9, /*TeamId*/ 1, { FRTCellId(1, 0, 0) }),
+	};
+
+	// Salute al micro-step: 3/10 = 30% e 9/10 = 90%.
+	TMap<int32, FRTTargetVitals> Vitals;
+	Vitals.Add(8, FRTTargetVitals(3, 10));
+	Vitals.Add(9, FRTTargetVitals(9, 10));
+
+	// 1. SENZA condizione, il comportamento e' quello di sempre: entrambi i bersagli sono ingaggiabili, quindi
+	//    tre risposte e una finestra da aprire. E' la controprova che il collasso viene dalla condizione e non
+	//    da un difetto della fixture.
+	{
+		const TArray<FRTOverwatchTrigger> T =
+			URTReactionOpportunityLibrary::BuildOverwatchTriggers(Map, /*TurnNumber*/ 1, { Watcher }, Movers, Vitals);
+		TestEqual(TEXT("senza condizione: una opportunity"), T.Num(), 1);
+		if (T.Num() == 1)
+		{
+			TestEqual(TEXT("senza condizione: FIRE su entrambi piu' HOLD"), T[0].Opportunity.AllowedResponses.Num(), 3);
+			TestTrue(TEXT("senza condizione: serve il boundary"),
+				URTReactionOpportunityLibrary::RequiresDecisionBoundary(T[0].Opportunity));
+		}
+	}
+
+	// 2. Con «solo sotto il 50%», il bersaglio in salute esce dalle risposte legali: restano FIRE:8 e HOLD.
+	//    Due risposte, quindi la finestra si apre ancora — ma su una scelta piu' stretta.
+	{
+		FRTOverwatchWatcher Conditional = Watcher;
+		Conditional.DeclaredCondition = FRTDeclaredCondition(
+			URTReactionOpportunityLibrary::TargetHealthAtOrBelowPercent(), 50);
+
+		const TArray<FRTOverwatchTrigger> T =
+			URTReactionOpportunityLibrary::BuildOverwatchTriggers(Map, 1, { Conditional }, Movers, Vitals);
+		TestEqual(TEXT("con condizione: una opportunity"), T.Num(), 1);
+		if (T.Num() == 1)
+		{
+			TestEqual(TEXT("il bersaglio in salute non e' piu' una risposta legale"),
+				T[0].Opportunity.AllowedResponses.Num(), 2);
+			TestTrue(TEXT("resta il ferito"),
+				T[0].Opportunity.AllowedResponses.Contains(URTReactionOpportunityLibrary::FireResponse(8)));
+			TestFalse(TEXT("non resta quello in salute"),
+				T[0].Opportunity.AllowedResponses.Contains(URTReactionOpportunityLibrary::FireResponse(9)));
+		}
+	}
+
+	// 3. IL COLLASSO: se nessun bersaglio soddisfa la condizione resta il solo `HOLD` — una risposta, quindi
+	//    commit immediato e nessuna finestra. E' la riga per cui questo test porta il nome che porta.
+	{
+		FRTOverwatchWatcher Strict = Watcher;
+		Strict.DeclaredCondition = FRTDeclaredCondition(
+			URTReactionOpportunityLibrary::TargetHealthAtOrBelowPercent(), 10); // nessuno e' al 10% o meno
+
+		const TArray<FRTOverwatchTrigger> T =
+			URTReactionOpportunityLibrary::BuildOverwatchTriggers(Map, 1, { Strict }, Movers, Vitals);
+		TestEqual(TEXT("l'opportunity esiste comunque: il trigger e' scattato"), T.Num(), 1);
+		if (T.Num() == 1)
+		{
+			TestEqual(TEXT("resta solo HOLD"), T[0].Opportunity.AllowedResponses.Num(), 1);
+			TestEqual(TEXT("ed e' proprio HOLD"), T[0].Opportunity.AllowedResponses[0],
+				FString(URTReactionOpportunityLibrary::HoldResponse()));
+			TestFalse(TEXT("nessuna finestra: commit immediato"),
+				URTReactionOpportunityLibrary::RequiresDecisionBoundary(T[0].Opportunity));
+		}
+	}
+
+	// 4. FAIL-CLOSED: condizione dichiarata e salute del bersaglio ignota. Non si puo' sapere se la condizione
+	//    e' soddisfatta, quindi non si offre di sparare — la stessa regola che `TeamAwareness` applica a un
+	//    bersaglio non dichiarato. Offrire `FIRE` qui significherebbe sparare a una condizione non verificata.
+	{
+		FRTOverwatchWatcher Conditional = Watcher;
+		Conditional.DeclaredCondition = FRTDeclaredCondition(
+			URTReactionOpportunityLibrary::TargetHealthAtOrBelowPercent(), 50);
+
+		const TArray<FRTOverwatchTrigger> T =
+			URTReactionOpportunityLibrary::BuildOverwatchTriggers(Map, 1, { Conditional }, Movers, /*Vitals*/ {});
+		TestEqual(TEXT("l'opportunity esiste"), T.Num(), 1);
+		if (T.Num() == 1)
+		{
+			TestEqual(TEXT("senza il dato non si offre di sparare"), T[0].Opportunity.AllowedResponses.Num(), 1);
+		}
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
