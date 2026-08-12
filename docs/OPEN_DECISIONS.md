@@ -41,9 +41,16 @@ adesso e costruzione rinviata.
 ⚠️ `REPLAY-01`…`REPLAY-09` sono i **rischi** del §32 del kit di consolidamento, non domande: da qui il
 prefisso `REP-`, che era libero.
 
+➕ **`REP-2` si è aggiunta il 2026-08-12**, da una domanda diversa: assegnando `replay_representable` alle
+feature del bot è emerso che la traccia non distingue un bot equo da un bot onnisciente. È lo stesso oggetto
+di `REP-1` — *cosa contiene una traccia* — preso dal lato opposto: `REP-1` chiede chi può leggerla, `REP-2`
+chiede se debba contenere abbastanza da falsificare una proprietà del bot. Le due si vincolano a vicenda, e
+per questo stanno nella stessa tabella.
+
 | ID | Domanda | Perché non si deduce |
 |---|---|---|
 | `REP-1` | Una traccia archiviata può essere **letta da chiunque**, o esistono profili di lettura distinti (audit · squadra · pubblico)? | Oggi non ha consumatori — nessun avversario e nessun server — quindi **non è urgente**, ma non è nemmeno neutra: `D-077` mette un `FGuid` di partita nel manifest e il TurnLog porta `UnitId`/`TurnNumber` ([D-063](decisions/RT_PDR_00_Decision_Log.md)), cioè la traccia sa già **chi** ha fatto **cosa**. Il momento per decidere il perimetro è prima che un archivio esca dalla macchina che l'ha prodotto — lo stesso innesco che `D-083` ha già dichiarato per `ContentManifestHash`. ⏳ **Default prudente in vigore fino alla decisione**: non pubblicare automaticamente intenti storici. «Partita finita» **non** implica «tutto il planning diventa pubblico»: è una scelta di prodotto, e nessun documento l'ha mai fatta. Innesco: la prima delle tre condizioni fra multiplayer (`RT-FEAT-NET-PRIVATE-PLANNING` oltre `TESTABLE`), condivisione di archivi fra macchine, o uno spettatore |
+| `REP-2` | Una traccia deve contenere abbastanza da **falsificare l'equita' del bot**, cioe' lo stato di conoscenza su cui ha pianificato? | Oggi no, e non per una svista: un bot che pianifica su `FRTTeamKnowledge` e un bot onnisciente che fa la stessa mossa scrivono voci **identiche** — la traccia registra l'azione, non cio' che il decisore sapeva. `RT-FEAT-BOT-FAIRNESS` e' `TESTABLE` e la sua proprieta' la tiene solo la verifica di mutazione su `HiddenEnemyFairness`; nessun gate del registry la protegge, e infatti il suo `replay_representable` e' `na` nel senso di «non e' possibile». `RT-FEAT-BOT-PREDICTIVE` dichiara lo stesso caso come proprio test da scrivere: «dedurre» e «sapere» sono indistinguibili dall'esterno. ⚠️ **Non e' gratis**: registrare la conoscenza del bot significa mettere nella traccia lo stato privato di un lato, cioe' esattamente cio' che `REP-1` sta perimetrando e che il default prudente vieta di pubblicare. Con un avversario umano sarebbe un vantaggio informativo, non un audit. Innesco: quando l'equita' del bot diventa un requisito da **dimostrare a terzi** invece che da verificare in casa — un torneo, un replay condiviso, un bot di terze parti |
 
 ---
 
